@@ -32,23 +32,96 @@ import sys
 import getopt
 import errno
 
-def usage():
-	sys.stderr.write("Usage: dbufstat.py [--help] "
-			 "[--buffers] [--objects] [--types] [file]\n\n")
-	sys.stderr.write("\t --help    : Print this help message\n")
-	sys.stderr.write("\t --buffers : Print minimally formatted "
-			 "information for each dbuf\n")
-	sys.stderr.write("\t --objects : Print table of "
-			 "information for each unique object\n")
-	sys.stderr.write("\t --types   : Print table of "
-			 "information for each dnode type\n")
-	sys.stderr.write("\nExamples:\n")
-	sys.stderr.write("\tdbufstat.py\n")
-	sys.stderr.write("\tdbufstat.py --buffers\n")
-	sys.stderr.write("\tdbufstat.py --objects /tmp/dbufs.log\n")
+dhdr  = ["pool", "objset", "object", "type", "size", "cached"]
+dxhdr = ["pool", "objset", "object", "type", "btype", "data_bs", "meta_bs",
+    "bsize", "lvls", "holds", "blocks", "size", "cached", "direct",
+    "indirect", "bonus", "spill"]
+dcols = {
+    # hdr:        [size, scale, description]
+    "pool":       [15,   -1, "pool name"],
+    "objset":     [6,  1000, "dataset identification number"],
+    "object":     [6,  1000, "object number"],
+    "type":       [27,   -1, "object type"],
+    "btype":      [27,   -1, "bonus buffer type"],
+    "data_bs":    [7,  1024, "data block size"],
+    "meta_bs":    [7,  1024, "metadata block size"],
+    "bsize":      [6,  1024, "bonus buffer size"],
+    "lvls":       [6,  1000, "number of indirection levels"],
+    "holds":      [5,  1000, "number of holds on dnode"],
+    "blocks":     [6,  1000, "number of allocated blocks"],
+    "size":       [5,  1024, "size of dnode"],
+    "cached":     [6,  1024, "bytes cached for all blocks"],
+    "direct":     [6,  1024, "bytes cached for direct blocks"],
+    "indirect":   [8,  1024, "bytes cached for indirect blocks"],
+    "bonus":      [5,  1024, "bytes cached for bonus buffer"],
+    "spill":      [5,  1024, "bytes cached for spill block"],
+}
+
+thdr  = ["pool", "objset", "type", "cached"]
+txhdr = ["pool", "objset", "type", "cached", "direct", "indirect",
+    "bonus", "spill"]
+tcols = {
+    # hdr:        [size, scale, description]
+    "pool":       [15,   -1, "pool name"],
+    "objset":     [6,  1000, "dataset identification number"],
+    "type":       [27,   -1, "object type"],
+    "cached":     [6,  1024, "bytes cached for all blocks"],
+    "direct":     [6,  1024, "bytes cached for direct blocks"],
+    "indirect":   [8,  1024, "bytes cached for indirect blocks"],
+    "bonus":      [5,  1024, "bytes cached for bonus buffer"],
+    "spill":      [5,  1024, "bytes cached for spill block"],
+}
+
+cols = None
+hdr  = None
+xhdr = None
+sep = "  " # Default separator is 2 spaces
+cmd = ("Usage: dbufstat.py [-bdhtvx] [-i file] [-f fields] [-o file] "
+	"[-s string]\n")
+
+def detailed_usage():
+	sys.stderr.write("%s\n" % cmd)
+	# TODO: Implement the '--buffers' option
+#	sys.stderr.write("Field definitions are as follows when using '-b':\n")
+#	for key in sorted(bcols.keys()):
+#		sys.stderr.write("%11s : %s\n" % (key, bcols[key][2]))
+#	sys.stderr.write("\n")
+
+	sys.stderr.write("Field definitions are as follows when using '-d':\n")
+	for key in sorted(dcols.keys()):
+		sys.stderr.write("%11s : %s\n" % (key, dcols[key][2]))
+	sys.stderr.write("\n")
+
+	sys.stderr.write("Field definitions are as follows when using '-t':\n")
+	for key in sorted(tcols.keys()):
+		sys.stderr.write("%11s : %s\n" % (key, tcols[key][2]))
 	sys.stderr.write("\n")
 
 	sys.exit(1)
+
+def usage():
+	sys.stderr.write("%s\n" % cmd)
+	sys.stderr.write("\t -b : Print table of information for each dbuf\n")
+	sys.stderr.write("\t -d : Print table of information for each dnode\n")
+	sys.stderr.write("\t -h : Print this help message\n")
+	sys.stderr.write("\t -t : Print table of information for each dnode type\n")
+	sys.stderr.write("\t -v : List all possible field headers and definitions"
+        "\n")
+	sys.stderr.write("\t -x : Print extended stats\n")
+	sys.stderr.write("\t -i : Redirect input from the specified file\n")
+	sys.stderr.write("\t -f : Specify specific fields to print (see -v)\n")
+	sys.stderr.write("\t -o : Redirect output to the specified file\n")
+	sys.stderr.write("\t -s : Override default field separator with custom "
+        "character or string\n")
+	sys.stderr.write("\nExamples:\n")
+	sys.stderr.write("\tdbufstat.py -d -o /tmp/d.log\n")
+	sys.stderr.write("\tdbufstat.py -t -s \",\" -o /tmp/t.log\n")
+	sys.stderr.write("\tdbufstat.py -v\n")
+	sys.stderr.write("\tdbufstat.py -d -f pool,object,objset,size,cached\n")
+	sys.stderr.write("\n")
+
+	sys.exit(1)
+
 
 def get_typestring(t):
 	type_strings = ["DMU_OT_NONE",
@@ -103,8 +176,12 @@ def objects_update_dict(d, pool, objset, objnum, level, blkid, bufsize,
 		d[pool][objset] = dict()
 
 	if objnum not in d[pool][objset]:
-		d[pool][objset][objnum] = dict({'type'     : objtype,
-						'btype'    : btype,
+		d[pool][objset][objnum] = dict({
+						'pool'     : pool,
+						'objset'   : objset,
+						'object'   : objnum,
+						'type'     : get_typestring(objtype),
+						'btype'    : get_typestring(btype),
 						'data_bs'  : data_bs,
 						'meta_bs'  : meta_bs,
 						'bsize'    : bsize,
@@ -116,7 +193,8 @@ def objects_update_dict(d, pool, objset, objnum, level, blkid, bufsize,
 						'direct'   : 0,
 						'indirect' : 0,
 						'bonus'    : 0,
-						'spill'    : 0})
+						'spill'    : 0
+		})
 
 	d[pool][objset][objnum]['cached'] += bufsize
 
@@ -140,42 +218,64 @@ def objects_build_dict(filehandle):
 		next(filehandle)
 
 	for line in filehandle:
-		cols = line.split()
+		tmp = line.split()
 
-		objects_update_dict(d, cols[0], int(cols[1]), int(cols[2]),
-				    int(cols[3]), int(cols[4]), int(cols[6]),
-				    int(cols[28]), int(cols[29]), int(cols[30]),
-				    int(cols[31]), int(cols[32]), int(cols[33]),
-				    int(cols[34]), int(cols[35]), int(cols[36]))
+		objects_update_dict(d, tmp[0], int(tmp[1]), int(tmp[2]),
+				    int(tmp[3]), int(tmp[4]), int(tmp[6]),
+				    int(tmp[28]), int(tmp[29]), int(tmp[30]),
+				    int(tmp[31]), int(tmp[32]), int(tmp[33]),
+				    int(tmp[34]), int(tmp[35]), int(tmp[36]))
 
 	return d
 
-def objects_print_dict_object(d, pool, objset, objnum):
-	o = d[pool][objset][objnum]
-	t = get_typestring(o['type'])
+def prettynum(sz, scale, num=0):
+    suffix = [' ', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']
+    index = 0
+    save = 0
 
+    # Special case for date field
+    if scale == -1:
+        return "%*s" % (sz, num)
+
+    # Rounding error, return 0
+    elif num > 0 and num < 1:
+        num = 0
+
+    while num > scale and index < 5:
+        save = num
+        num = num / scale
+        index += 1
+
+    if index == 0:
+        return "%*d" % (sz, num)
+
+    if (save / scale) < 10:
+        return "%*.1f%s" % (sz - 1, num, suffix[index])
+    else:
+        return "%*d%s" % (sz - 1, num, suffix[index])
+
+def objects_print_dict_object(d, pool, objset, objnum):
+	global hdr
+	global sep
+
+	o = d[pool][objset][objnum]
 	try:
-		sys.stdout.write("%-16s %-8i %-8i | %-28s %-6i %-8i %-8i "
-				 "%-6i %-6i %-5i %-8i %-12i | %-12i %-12i "
-				 "%-12i %-8i %-8i\n" % \
-				 (pool, objset, objnum, t, o['btype'],
-				  o['data_bs'], o['meta_bs'], o['bsize'],
-				  o['lvls'], o['holds'], o['blocks'],
-				  o['size'], o['cached'], o['direct'],
-				  o['indirect'], o['bonus'], o['spill']))
+		for col in hdr:
+			sys.stdout.write("%s%s" % (
+				prettynum(cols[col][0], cols[col][1], o[col]), sep))
+		sys.stdout.write("\n")
 	except IOError as e:
 		if e.errno == errno.EPIPE:
 			sys.exit(1)
 
 def objects_print_dict(d):
+	global hdr
+	global sep
+
 	try:
-		sys.stdout.write("%-16s %-8s %-8s | %-28s %-6s %-8s %-8s "
-				 "%-6s %-6s %-5s %-8s %-12s | %-12s %-12s "
-				 "%-12s %-8s %-8s\n" % \
-				 ("pool", "objset", "object", "type", "btype",
-				  "data_bs", "meta_bs", "bsize", "lvls",
-				  "holds", "blocks", "size", "cached",
-				  "direct", "indirect", "bonus", "spill"))
+		for col in hdr:
+			sys.stdout.write("%*s%s" % (cols[col][0], col, sep))
+		sys.stdout.write("\n")
 	except IOError as e:
 		if e.errno == errno.EPIPE:
 			sys.exit(1)
@@ -183,8 +283,7 @@ def objects_print_dict(d):
 	for pool in d.iterkeys():
 		for objset in d[pool].iterkeys():
 			for objnum in d[pool][objset].iterkeys():
-				objects_print_dict_object(d, pool,
-							  objset, objnum)
+				objects_print_dict_object(d, pool, objset, objnum)
 
 def types_update_dict(d, pool, objset, objnum, level, blkid, bufsize, objtype):
 	if pool not in d:
@@ -194,11 +293,16 @@ def types_update_dict(d, pool, objset, objnum, level, blkid, bufsize, objtype):
 		d[pool][objset] = dict()
 
 	if objtype not in d[pool][objset]:
-		d[pool][objset][objtype] = dict({'cached'  : 0,
-						 'direct'  : 0,
-						 'indirect': 0,
-						 'bonus'   : 0,
-						 'spill'   : 0})
+		d[pool][objset][objtype] = dict({
+						'pool'    : pool,
+						'objset'  : objset,
+						'type'    : get_typestring(objtype),
+						'cached'  : 0,
+						'direct'  : 0,
+						'indirect': 0,
+						'bonus'   : 0,
+						'spill'   : 0
+		})
 
 	d[pool][objset][objtype]['cached'] += bufsize
 
@@ -222,34 +326,38 @@ def types_build_dict(filehandle):
 		next(filehandle)
 
 	for line in filehandle:
-		cols = line.split()
+		tmp = line.split()
 
-		types_update_dict(d, cols[0], int(cols[1]), int(cols[2]),
-				  int(cols[3]), int(cols[4]), int(cols[6]),
-				  int(cols[28]))
+		types_update_dict(d, tmp[0], int(tmp[1]), int(tmp[2]),
+				  int(tmp[3]), int(tmp[4]), int(tmp[6]),
+				  int(tmp[28]))
 
 	return d
 
 def types_print_dict_object(d, pool, objset, objtype):
-	o = d[pool][objset][objtype]
-	t = get_typestring(objtype)
+	global hdr
+	global cols
+	global sep
 
+	o = d[pool][objset][objtype]
 	try:
-		sys.stdout.write("%-16s %-8i %-28s | "
-				 "%-12i %-12i %-12i %-8i %-8i\n" % \
-				 (pool, objset, t, o['cached'],
-				  o['direct'], o['indirect'], o['bonus'],
-				  o['spill']))
+		for col in hdr:
+			sys.stdout.write("%s%s" % (
+				prettynum(cols[col][0], cols[col][1], o[col]), sep))
+		sys.stdout.write("\n")
 	except IOError as e:
 		if e.errno == errno.EPIPE:
 			sys.exit(1)
 
 def types_print_dict(d):
+	global hdr
+	global cols
+	global sep
+
 	try:
-		sys.stdout.write("%-16s %-8s %-28s | "
-				 "%-12s %-12s %-12s %-8s %-8s\n" % \
-				 ("pool", "objset", "type", "cached",
-				  "direct", "indirect", "bonus", "spill"))
+		for col in hdr:
+			sys.stdout.write("%*s%s" % (cols[col][0], col, sep))
+		sys.stdout.write("\n")
 	except IOError as e:
 		if e.errno == errno.EPIPE:
 			sys.exit(1)
@@ -262,6 +370,7 @@ def types_print_dict(d):
 
 def bufs_print_bufs(filehandle):
 	try:
+		# TODO: Implement the "--buffers" option
 		# For an initial implementation, just print stdin verbatim
 		for line in filehandle:
 			sys.stdout.write(line);
@@ -270,43 +379,111 @@ def bufs_print_bufs(filehandle):
 			sys.exit(1)
 
 def main():
-	hflag    = False
-	values   = False
-	extended = False
-	buffers  = False
-	objects  = False
-	types    = False
-	ifile    = None
-	i        = 1
+	global hdr
+	global cols
+	global sep
+
+	desired_cols = None
+	bflag = False
+	dflag = False
+	hflag = False
+	ifile = None
+	ofile = None
+	tflag = False
+	vflag = False
+	xflag = False
 
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "hbot",
-					   ["help", "extended", "values",
-					    "buffers", "objects", "types"])
+		opts, args = getopt.getopt(
+			sys.argv[1:],
+			"bdf:hi:o:s:tvx",
+			[
+				"buffers",
+				"dnodes",
+				"columns",
+				"help",
+				"infile",
+				"outfile",
+				"seperator",
+				"types",
+				"verbose",
+				"extended"
+			]
+		)
 	except getopt.error:
 		usage()
 
 	for opt, arg in opts:
+		if opt in ('-b', '--buffers'):
+			bflag = True
+		if opt in ('-d', '--dnodes'):
+			dflag = True
+		if opt in ('-f', '--columns'):
+			desired_cols = arg
 		if opt in ('-h', '--help'):
 			hflag = True
-		if opt in ('-v', '--values'):
-			values = True;
-		if opt in ('-x', '--extended'):
-			extended = True;
-		if opt in ('-b', '--buffers'):
-			buffers = True
-		if opt in ('-o', '--objects'):
-			objects = True
+		if opt in ('-i', '--infile'):
+			ifile = arg
+		if opt in ('-o', '--outfile'):
+			ofile = arg
+		if opt in ('-s', '--seperator'):
+			sep = arg
 		if opt in ('-t', '--types'):
-			types = True
-		i += 1
+			tflag = True
+		if opt in ('-v', '--verbose'):
+			vflag = True
+		if opt in ('-x', '--extended'):
+			xflag = True
 
-	if hflag:
+	if hflag or (xflag and desired_cols):
 		usage()
 
-	try:
-		ifile = sys.argv[i]
-	except IndexError:
+	if vflag:
+		detailed_usage()
+
+	# Ensure at most only one of b, d, or t flags are set
+	if (bflag and dflag) or (bflag and tflag) or (dflag and tflag):
+		usage()
+
+	if dflag:
+		hdr  = dxhdr if xflag else dhdr
+		cols = dcols
+	elif tflag:
+		hdr  = txhdr if xflag else thdr
+		cols = tcols
+	else: # Even if bflag is False, it's the default if none set
+		# TODO: Implement the "--buffers" option
+		#bflag = True
+		#hdr = bxhdr if xflag else bhdr
+		#cols = bcols
+		# TODO: Until "--buffers" is implemented, default to '-d'
+		bflag = False
+		dflag = True
+		hdr  = dxhdr if xflag else dhdr
+		cols = dcols
+
+	if desired_cols:
+		hdr = desired_cols.split(",")
+
+		invalid = []
+		for ele in hdr:
+			if ele not in cols:
+				invalid.append(ele)
+
+		if len(invalid) > 0:
+			sys.stderr.write("Invalid column definition! -- %s\n" % invalid)
+			usage()
+
+	if ofile:
+		try:
+			tmp = open(ofile, "w")
+			sys.stdout = tmp
+
+		except:
+			sys.stderr.write("Cannot open %s for writing\n", ofile)
+			sys.exit(1)
+
+	if not ifile:
 		ifile = '/proc/spl/kstat/zfs/dbufs'
 
 	if ifile is not "-":
@@ -317,17 +494,13 @@ def main():
 			sys.stderr.write("Cannot open %s for reading\n" % ifile)
 			sys.exit(1)
 
-	# default to "--buffers" if none set
-	if not (buffers or objects or types):
-		buffers = True
-
-	if buffers:
+	if bflag:
 		bufs_print_bufs(sys.stdin)
 
-	if objects:
+	if dflag:
 		objects_print_dict(objects_build_dict(sys.stdin))
 
-	if types:
+	if tflag:
 		types_print_dict(types_build_dict(sys.stdin))
 
 if __name__ == '__main__':
