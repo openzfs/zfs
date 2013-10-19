@@ -83,7 +83,7 @@
 #include <sys/zap.h>
 #include <sys/vfs.h>
 #include <sys/zpl.h>
-
+#include <linux/posix_acl_xattr.h>
 typedef struct xattr_filldir {
 	size_t size;
 	size_t offset;
@@ -471,7 +471,7 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 
 static int
 zpl_xattr_set(struct inode *ip, const char *name, const void *value,
-    size_t size, int flags)
+    size_t size, int flags,boolean_t prefer_sa_anyway)
 {
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ZTOZSB(zp);
@@ -502,7 +502,7 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	}
 
 	/* Preferentially store the xattr as a SA for better performance */
-	if (zsb->z_use_sa && zsb->z_xattr_sa && zp->z_is_sa) {
+	if (zsb->z_use_sa && (zsb->z_xattr_sa || prefer_sa_anyway) && zp->z_is_sa) {
 		error = zpl_xattr_set_sa(ip, name, value, size, flags, cr);
 		if (error == 0)
 			goto out;
@@ -552,7 +552,7 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 		return -EOPNOTSUPP;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
-	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
+	error = zpl_xattr_set(ip, xattr_name, value, size, flags,FALSE);
 	strfree(xattr_name);
 
 	return (error);
@@ -600,7 +600,7 @@ __zpl_xattr_trusted_set(struct inode *ip, const char *name,
 		return -EINVAL;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_TRUSTED_PREFIX, name);
-	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
+	error = zpl_xattr_set(ip, xattr_name, value, size, flags, FALSE);
 	strfree(xattr_name);
 
 	return (error);
@@ -642,7 +642,7 @@ __zpl_xattr_security_set(struct inode *ip, const char *name,
 		return -EINVAL;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX, name);
-	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
+	error = zpl_xattr_set(ip, xattr_name, value, size, flags, FALSE);
 	strfree(xattr_name);
 
 	return (error);
@@ -709,13 +709,418 @@ xattr_handler_t zpl_xattr_security_handler = {
 	.set	= zpl_xattr_security_set,
 };
 
+
+/* FUNCTIONS SIMILAR TO ONES INLINED IN KERNEL HEADERS THAT CANNOT BE USED */
+
+static void
+real_pacl_kfree(void* arg) {
+    kfree(arg);
+}
+
+static void
+crippled_posix_acl_release(struct posix_acl* to_be_released) {
+    if(to_be_released == NULL) {
+        return;
+    }
+    if(to_be_released == ACL_NOT_CACHED) {
+        return;
+    }
+    if(atomic_dec_and_test(&to_be_released->a_refcount)) {
+	//This cannot be free'd immediatly, should wait the next RCU
+	//synchronization.  Since we cannot use RCU, wait 10 seconds and hope
+	//for the best.
+	//It's an ugly workaround to the fact that posix_acl_release is an
+	//inline function that uses a GPL-only symbol (kfree_rcu).
+        taskq_dispatch_delay(system_taskq,real_pacl_kfree,
+		to_be_released,TQ_SLEEP,ddi_get_lbolt() + 120*HZ);
+    }
+}
+
+static void
+crippled_set_cached_acl(struct inode* inode,int type,struct posix_acl* newer) {
+    struct posix_acl* older = NULL;
+    spin_lock(&inode->i_lock);
+    if((newer != ACL_NOT_CACHED) && (newer != NULL)) posix_acl_dup(newer);
+    switch(type) {
+    case ACL_TYPE_ACCESS:
+        older = inode->i_acl;
+        rcu_assign_pointer(inode->i_acl,newer);
+        break;
+    case ACL_TYPE_DEFAULT:
+        older = inode->i_default_acl;
+        rcu_assign_pointer(inode->i_default_acl,newer);
+        break;
+    }
+    spin_unlock(&inode->i_lock);
+    crippled_posix_acl_release(older);
+}
+
+static inline void
+crippled_forget_cached_acl(struct inode* inode, int type) {
+    crippled_set_cached_acl(inode,type,(struct posix_acl*)ACL_NOT_CACHED);
+}
+
+
+
+/* END SIMILAR FUNCTIONS */
+
+/* If someone wants to change WHERE the Posix ACL "blob" is stored in ZFS (e.g.
+ * storing directly as System Attribute without using xattrs) the next two
+* functions are only ones impacted by the change. */
+
+static inline int
+write_pacl_to_zfs(struct inode* inode, int type,
+				     void* buffer, int buflen) {
+    char* name = (type==ACL_TYPE_DEFAULT)?POSIX_ACL_XATTR_DEFAULT:
+    					  POSIX_ACL_XATTR_ACCESS;
+    /* Prefers writing the xattr to the SA with the same logic as if xattr=sa,
+     * whatever property the user has set.
+     * Posix ACLs are Linux-only and if can't be seen from other platforms,
+     * i'ts even better, as they are not going to understand/use them.
+     * Using SAs reduces significantly the performance impact of Posix ACLs in
+     * ZFS.
+     */
+    //When the possible SA bug is fixed/explained swap thow two lines.
+    //return zpl_xattr_set(inode,name,buffer,buflen,0,TRUE);
+    return zpl_xattr_set(inode,name,buffer,buflen,0,FALSE);
+}
+static inline int
+read_pacl_from_zfs(struct inode* inode, int type, void** buffer) {
+    char* name = (type==ACL_TYPE_DEFAULT)?POSIX_ACL_XATTR_DEFAULT:
+    					  POSIX_ACL_XATTR_ACCESS;
+    int size = 0;
+    size = zpl_xattr_get(inode,name,NULL,0);
+    if(size <= 0) {
+        return size;
+    }
+    *buffer = kmalloc(size,GFP_NOFS);
+    size = zpl_xattr_get(inode,name,*buffer,size);
+    if(size <= 0) {
+        kfree(*buffer);
+    }
+    return size;
+}
+
+static int
+zpl_set_mode(struct inode *inode, mode_t mode)
+{
+    struct iattr *att;
+    struct dentry *fake_de = NULL;
+    int err = -ENOMEM;
+
+    att = kzalloc(sizeof(struct iattr), GFP_KERNEL);
+    if(att == NULL)
+        goto out;
+
+    fake_de = kzalloc(sizeof(struct dentry), GFP_KERNEL);
+    if(fake_de == NULL)
+        goto out;
+
+    fake_de->d_inode = inode;
+    att->ia_valid    = ATTR_MODE;
+    att->ia_mode     = mode;
+    //What is the preferred way to call this function, since it's static?
+    //Remove "static" keyword in the other file?
+    err = zpl_inode_operations.setattr(fake_de, att);
+out:
+    if (att)
+        kfree(att);
+    if (fake_de)
+        kfree(fake_de);
+    return err;
+
+}
+
+static int
+zpl_set_posix_acl(struct inode *inode,struct posix_acl *acl, int type)
+{
+    int err = 0;
+    size_t size=0;
+
+    char *xattr_name = NULL;
+    char * value = NULL;
+
+    if (S_ISLNK(inode->i_mode))
+        return -EOPNOTSUPP;
+
+    switch(type) {
+    case ACL_TYPE_ACCESS:
+        xattr_name = POSIX_ACL_XATTR_ACCESS;
+        if (acl) {
+            umode_t mode = inode->i_mode;
+            err = posix_acl_equiv_mode(acl, &mode);
+            if (err < 0)
+                return err;
+            else {
+                if (inode->i_mode != mode) {
+                    int rc;
+                    rc = zpl_set_mode(inode,mode);
+                    if (rc)
+                        return rc;
+
+                }
+                if (err == 0) {
+                    /* extended attribute not needed*/
+                    acl = NULL;
+                }
+            }
+        }
+        break;
+
+    case ACL_TYPE_DEFAULT:
+        xattr_name = POSIX_ACL_XATTR_DEFAULT;
+        if (!S_ISDIR(inode->i_mode))
+            return acl ? -EACCES : 0;
+        break;
+
+    default:
+        return -EINVAL;
+    }
+
+    if (acl) {
+        size = posix_acl_xattr_size(acl->a_count);
+        value = kmalloc(size, GFP_KERNEL);
+        if (IS_ERR(value))
+            return (int)PTR_ERR(value);
+
+	//dereference not RCU protected
+	err = posix_acl_to_xattr(CRED()->user_ns,acl, value, size);
+	//This writes ACLs with uids relative to the current usernamespace, and
+	//not relative to the initial namespace. init_user_ns is a GPL-only
+	//symbol, I cannot do otherwise.
+	if (err < 0)
+            goto out;
+    }
+
+    err = write_pacl_to_zfs(inode, type, value, size);
+
+    if(err==-ENOENT && !acl) {
+	err=0;   //returns -ENOENT if asked to remove a non-existent xattr,
+		 //which is fine in this case.
+    }
+    if (!err) {
+        if(acl) {
+            crippled_set_cached_acl(inode, type, acl);
+        }
+        else {
+	    //if this was a removal request, forget the cached acl!!
+            crippled_forget_cached_acl(inode,type);
+        }
+    }
+
+out:
+    if (value)
+        kfree(value);
+    return err;
+
+}
+
+
+struct posix_acl *
+zpl_xattr_acl_get_acl(struct inode *inode, int type)
+{
+    struct posix_acl *acl = NULL;
+    int size;
+    void *value = NULL;
+
+    acl = get_cached_acl(inode, type);
+    if (acl != ACL_NOT_CACHED)
+        return acl;
+
+    size = read_pacl_from_zfs(inode, type, &value);
+
+    if (size > 0) {
+        //dereference not RCU protected. //Userns not correct.
+	acl = posix_acl_from_xattr(CRED()->user_ns,value, size);
+	kfree(value);
+    }
+    else if (size == -ENODATA || size == -ENOSYS)
+        acl = NULL;
+    else
+        acl = ERR_PTR(size);
+
+    if (acl != NULL && !IS_ERR(acl))
+        crippled_set_cached_acl(inode, type, acl);
+
+    return acl;
+}
+
+int
+zpl_xattr_acl_init(struct inode *inode, struct inode *dir)
+{
+    struct posix_acl *acl = NULL;
+    int error = 0;
+
+    if (!S_ISLNK(inode->i_mode)) {
+        acl = zpl_xattr_acl_get_acl(dir, ACL_TYPE_DEFAULT);
+        if (IS_ERR(acl))
+            return PTR_ERR(acl);
+        if (!acl) {
+            inode->i_mode &= ~current_umask();
+            error = zpl_set_mode(inode,inode->i_mode);
+            if (error)
+                goto cleanup;
+        }
+    }
+
+    if (acl) {
+        umode_t mode;
+
+        if (S_ISDIR(inode->i_mode)) {
+            error = zpl_set_posix_acl(inode, acl, ACL_TYPE_DEFAULT);
+            if (error < 0)
+                goto cleanup;
+        }
+        mode = inode->i_mode;
+        error = posix_acl_create(&acl,GFP_NOFS, &mode);
+        if (error >= 0) {
+            int err;
+            inode->i_mode = mode;
+            err = zpl_set_mode(inode, mode);
+            if (error > 0) {
+                /* This is an extended ACL */
+                error = zpl_set_posix_acl(inode, acl, ACL_TYPE_ACCESS);
+
+            }
+            error |= err;
+        }
+    }
+cleanup:
+    crippled_posix_acl_release(acl);
+    return error;
+}
+
+int
+zpl_xattr_acl_chmod(struct inode *inode)
+{
+    struct posix_acl *acl;
+    int error;
+
+    if (S_ISLNK(inode->i_mode))
+        return -EOPNOTSUPP;
+
+    acl = zpl_xattr_acl_get_acl(inode, ACL_TYPE_ACCESS);
+    if (IS_ERR(acl) || !acl)
+        return PTR_ERR(acl);
+    error = posix_acl_chmod(&acl,GFP_NOFS, inode->i_mode);
+    if (!error)
+        error = zpl_set_posix_acl(inode, acl, ACL_TYPE_ACCESS);
+    crippled_posix_acl_release(acl);
+    return error;
+
+}
+
+static inline size_t
+zpl_xattr_acl_list_access(struct dentry *dentry, char *list,
+                          size_t list_size,const char *name, size_t name_len,int type)
+{
+    const size_t total_len = sizeof(POSIX_ACL_XATTR_ACCESS);
+
+    if (list && total_len <= list_size) {
+        memcpy(list, POSIX_ACL_XATTR_ACCESS, total_len);
+        return total_len;
+    }
+    else
+        return -EINVAL;
+
+}
+
+static inline size_t
+zpl_xattr_acl_list_default(struct dentry *dentry, char *list, size_t list_size,
+                           const char *name, size_t name_len,int type)
+{
+    const size_t total_len = sizeof(POSIX_ACL_XATTR_DEFAULT);
+
+    if (list && total_len <= list_size) {
+        memcpy(list, POSIX_ACL_XATTR_DEFAULT,total_len);
+        return total_len;
+    }
+    else
+        return -EINVAL;
+}
+
+
+static int
+zpl_xattr_acl_get(struct dentry *dentry, const char *name, void *buffer,
+                  size_t size, int type)
+{
+    struct posix_acl *acl;
+    int error;
+
+    if (strcmp(name, "") != 0)
+        return -EINVAL;
+
+    acl = zpl_xattr_acl_get_acl(dentry->d_inode, type);
+    if (acl == NULL)
+        return -ENODATA;
+    if (IS_ERR(acl))
+        return PTR_ERR(acl);
+
+    //dereference not RCU protected.
+    error = posix_acl_to_xattr(CRED()->user_ns,acl, buffer, size); 
+    //This writes ACLs with uids relative to the current usernamespace, and not
+    //relative to the initial namespace.  init_user_ns is a GPL-only symbol, I
+    //cannot do otherwise.
+    crippled_posix_acl_release(acl);
+    return error;
+}
+
+static int
+zpl_xattr_acl_set(struct dentry *dentry, const char *name, const void *value,
+                  size_t size, int flags, int type)
+{
+    struct posix_acl * acl = NULL;
+    int err = 0;
+
+    if ((strcmp(name, "") != 0) &&
+            ((type != ACL_TYPE_ACCESS) && (type != ACL_TYPE_DEFAULT)))
+        return -EINVAL;
+
+    if (!inode_owner_or_capable(dentry->d_inode))
+        return -EPERM;
+
+    if (value) {
+	//dereference not RCU protected //user_ns not correct.
+        acl = posix_acl_from_xattr(CRED()->user_ns,value, size);
+	if (IS_ERR(acl))
+            return PTR_ERR(acl);
+        else if (acl) {
+            err = posix_acl_valid(acl);
+            if (err)
+                goto exit;
+        }
+    }
+
+    err = zpl_set_posix_acl(dentry->d_inode, acl, type);
+exit:
+    crippled_posix_acl_release(acl);
+    return err;
+}
+
+struct xattr_handler zpl_xattr_acl_access_handler =
+{
+    .prefix = POSIX_ACL_XATTR_ACCESS,
+    .list   = zpl_xattr_acl_list_access,
+    .get    = zpl_xattr_acl_get,
+    .set    = zpl_xattr_acl_set,
+    .flags  = ACL_TYPE_ACCESS,
+};
+
+
+struct xattr_handler zpl_xattr_acl_default_handler =
+{
+    .prefix = POSIX_ACL_XATTR_DEFAULT,
+    .list   = zpl_xattr_acl_list_default,
+    .get    = zpl_xattr_acl_get,
+    .set    = zpl_xattr_acl_set,
+    .flags  = ACL_TYPE_DEFAULT,
+};
+
 xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_security_handler,
 	&zpl_xattr_trusted_handler,
 	&zpl_xattr_user_handler,
-#ifdef HAVE_POSIX_ACLS
 	&zpl_xattr_acl_access_handler,
 	&zpl_xattr_acl_default_handler,
-#endif /* HAVE_POSIX_ACLS */
 	NULL
 };

@@ -1181,6 +1181,7 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	sb->s_fs_info = zsb;
 	sb->s_magic = ZFS_SUPER_MAGIC;
 	sb->s_maxbytes = MAX_LFS_FILESIZE;
+	sb->s_flags |= MS_POSIXACL;
 	sb->s_time_gran = 1;
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);

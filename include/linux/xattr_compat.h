@@ -92,4 +92,5 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 	security_inode_init_security(ip, dip, nm, val, len)
 #endif /* HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY */
 
+
 #endif /* _ZFS_XATTR_H */
