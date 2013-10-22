@@ -593,6 +593,10 @@ zpool_do_add(int argc, char **argv)
 
 	if (dryrun) {
 		nvlist_t *poolnvroot;
+		nvlist_t **l2child;
+		uint_t l2children, c;
+		char *vname;
+		boolean_t hadcache = B_FALSE;
 
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    &poolnvroot) == 0);
@@ -610,6 +614,30 @@ zpool_do_add(int argc, char **argv)
 			print_vdev_tree(zhp, NULL, nvroot, 0, B_TRUE);
 		} else if (num_logs(nvroot) > 0) {
 			print_vdev_tree(zhp, "logs", nvroot, 0, B_TRUE);
+		}
+
+		/* Do the same for the caches */
+		if (nvlist_lookup_nvlist_array(poolnvroot, ZPOOL_CONFIG_L2CACHE,
+		    &l2child, &l2children) == 0 && l2children) {
+			hadcache = B_TRUE;
+			(void) printf(gettext("\tcache\n"));
+			for (c = 0; c < l2children; c++) {
+				vname = zpool_vdev_name(g_zfs, NULL,
+				    l2child[c], B_FALSE);
+				(void) printf("\t  %s\n", vname);
+				free(vname);
+			}
+		}
+		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
+		    &l2child, &l2children) == 0 && l2children) {
+			if (!hadcache)
+				(void) printf(gettext("\tcache\n"));
+			for (c = 0; c < l2children; c++) {
+				vname = zpool_vdev_name(g_zfs, NULL,
+				    l2child[c], B_FALSE);
+				(void) printf("\t  %s\n", vname);
+				free(vname);
+			}
 		}
 
 		ret = 0;
