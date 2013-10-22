@@ -133,6 +133,12 @@ compression ratio (compress), inflation due to the zfs copies property
 If specified twice, display a histogram of deduplication statistics, showing
 the allocated (physically present on disk) and referenced (logically
 referenced in the pool) block counts and sizes by reference count.
+.sp
+If specified a third time, display the statistics independently for each deduplication table.
+.sp
+If specified a fourth time, dump the contents of the deduplication tables describing duplicate blocks.
+.sp
+If specified a fifth time, also dump the contents of the deduplication tables describing unique blocks.
 .RE
 
 .sp
