@@ -261,8 +261,10 @@ zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 		goto out;
 
 	while (error == 0) {
+		dsl_pool_config_enter(dmu_objset_pool(zsb->z_os), FTAG);
 		error = -dmu_snapshot_list_next(zsb->z_os, MAXNAMELEN,
-		    snapname, &id, &(ctx->pos), &case_conflict);
+		    snapname, &id, &ctx->pos, &case_conflict);
+		dsl_pool_config_exit(dmu_objset_pool(zsb->z_os), FTAG);
 		if (error)
 			goto out;
 
