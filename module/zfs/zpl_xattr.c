@@ -83,7 +83,6 @@
 #include <sys/zap.h>
 #include <sys/vfs.h>
 #include <sys/zpl.h>
-#include <linux/posix_acl_xattr.h>
 typedef struct xattr_filldir {
 	size_t size;
 	size_t offset;
@@ -883,8 +882,7 @@ zpl_set_posix_acl(struct inode *inode,struct posix_acl *acl, int type)
         if (IS_ERR(value))
             return (int)PTR_ERR(value);
 
-	//dereference not RCU protected
-	err = posix_acl_to_xattr(CRED()->user_ns,acl, value, size);
+	err = acl_to_xattr(acl,value,size);
 	//This writes ACLs with uids relative to the current usernamespace, and
 	//not relative to the initial namespace. init_user_ns is a GPL-only
 	//symbol, I cannot do otherwise.
@@ -930,9 +928,9 @@ zpl_xattr_acl_get_acl(struct inode *inode, int type)
     size = read_pacl_from_zfs(inode, type, &value);
 
     if (size > 0) {
-        //dereference not RCU protected. //Userns not correct.
-	acl = posix_acl_from_xattr(CRED()->user_ns,value, size);
+        acl=acl_from_xattr(value,size);
 	kfree(value);
+
     }
     else if (size == -ENODATA || size == -ENOSYS)
         acl = NULL;
@@ -1056,8 +1054,7 @@ zpl_xattr_acl_get(struct dentry *dentry, const char *name, void *buffer,
     if (IS_ERR(acl))
         return PTR_ERR(acl);
 
-    //dereference not RCU protected.
-    error = posix_acl_to_xattr(CRED()->user_ns,acl, buffer, size); 
+    error = acl_to_xattr(acl, buffer, size); 
     //This writes ACLs with uids relative to the current usernamespace, and not
     //relative to the initial namespace.  init_user_ns is a GPL-only symbol, I
     //cannot do otherwise.
@@ -1080,8 +1077,7 @@ zpl_xattr_acl_set(struct dentry *dentry, const char *name, const void *value,
         return -EPERM;
 
     if (value) {
-	//dereference not RCU protected //user_ns not correct.
-        acl = posix_acl_from_xattr(CRED()->user_ns,value, size);
+        acl = acl_from_xattr(value, size);
 	if (IS_ERR(acl))
             return PTR_ERR(acl);
         else if (acl) {
