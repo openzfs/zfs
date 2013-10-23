@@ -1014,6 +1014,8 @@ zpl_xattr_acl_list_access(struct dentry *dentry, char *list,
 {
     const size_t total_len = sizeof(POSIX_ACL_XATTR_ACCESS);
 
+    if(ITOZSB(dentry->d_inode)->z_acltype != ZFS_ACLTYPE_POSIXACL) return 0;
+
     if (list && total_len <= list_size) {
         memcpy(list, POSIX_ACL_XATTR_ACCESS, total_len);
         return total_len;
@@ -1028,6 +1030,8 @@ zpl_xattr_acl_list_default(struct dentry *dentry, char *list, size_t list_size,
                            const char *name, size_t name_len,int type)
 {
     const size_t total_len = sizeof(POSIX_ACL_XATTR_DEFAULT);
+
+    if(ITOZSB(dentry->d_inode)->z_acltype != ZFS_ACLTYPE_POSIXACL) return 0;
 
     if (list && total_len <= list_size) {
         memcpy(list, POSIX_ACL_XATTR_DEFAULT,total_len);
@@ -1044,9 +1048,11 @@ zpl_xattr_acl_get(struct dentry *dentry, const char *name, void *buffer,
 {
     struct posix_acl *acl;
     int error;
-
+    
     if (strcmp(name, "") != 0)
         return -EINVAL;
+
+    if(ITOZSB(dentry->d_inode)->z_acltype != ZFS_ACLTYPE_POSIXACL) return -EOPNOTSUPP;
 
     acl = zpl_xattr_acl_get_acl(dentry->d_inode, type);
     if (acl == NULL)
@@ -1072,6 +1078,8 @@ zpl_xattr_acl_set(struct dentry *dentry, const char *name, const void *value,
     if ((strcmp(name, "") != 0) &&
             ((type != ACL_TYPE_ACCESS) && (type != ACL_TYPE_DEFAULT)))
         return -EINVAL;
+    
+    if(ITOZSB(dentry->d_inode)->z_acltype != ZFS_ACLTYPE_POSIXACL) return -EOPNOTSUPP;
 
     if (!inode_owner_or_capable(dentry->d_inode))
         return -EPERM;

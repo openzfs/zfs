@@ -81,6 +81,7 @@ typedef struct zfs_sb {
 	boolean_t	z_replay;	/* set during ZIL replay */
 	boolean_t	z_use_sa;	/* version allow system attributes */
 	boolean_t	z_xattr_sa;	/* allow xattrs to be stores as SA */
+	int		z_acltype;      /* type of ACL usable on this FS */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	kmutex_t	z_lock;
