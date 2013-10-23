@@ -84,3 +84,25 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 3.7 API change,
+dnl # The posix_acl_{from,to}_xattr functions gained a new
+dnl # parameter: user_ns
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS], [
+	AC_MSG_CHECKING([whether posix_acl_from_xattr() needs user_ns])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/cred.h>
+		#include <linux/fs.h>
+		#include <linux/posix_acl_xattr.h>
+	],[
+		posix_acl_from_xattr(&init_user_ns,NULL,0); 
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_POSIX_ACL_FROM_XATTR_USERNS, 1,
+		    [posix_acl_from_xattr() needs user_ns])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])

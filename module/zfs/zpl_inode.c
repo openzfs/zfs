@@ -108,6 +108,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	}
 
 	kmem_free(vap, sizeof(vattr_t));
+	zpl_xattr_acl_init(dentry->d_inode,dir);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -136,8 +137,10 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	vap->va_rdev = rdev;
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
-	if (error == 0)
+	if (error == 0){
 		d_instantiate(dentry, ip);
+		zpl_xattr_acl_init(dentry->d_inode,dir); 
+	}
 
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
@@ -173,8 +176,10 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 	zpl_vap_init(vap, dir, mode | S_IFDIR, cr);
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
-	if (error == 0)
+	if (error == 0){
 		d_instantiate(dentry, ip);
+		zpl_xattr_acl_init(dentry->d_inode,dir); 
+	}
 
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
@@ -244,6 +249,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 
 	error = -zfs_setattr(dentry->d_inode, vap, 0, cr);
 
+	zpl_xattr_acl_chmod(dentry->d_inode);
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -279,8 +285,10 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr);
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
-	if (error == 0)
+	if (error == 0){
 		d_instantiate(dentry, ip);
+		zpl_xattr_acl_init(dentry->d_inode,dir); 
+	}
 
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
@@ -455,6 +463,7 @@ const struct inode_operations zpl_inode_operations = {
 #ifdef HAVE_INODE_FALLOCATE
 	.fallocate	= zpl_fallocate,
 #endif /* HAVE_INODE_FALLOCATE */
+	.get_acl = zpl_xattr_acl_get_acl,
 };
 
 const struct inode_operations zpl_dir_inode_operations = {
@@ -473,6 +482,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
 	.listxattr	= zpl_xattr_list,
+	.get_acl = zpl_xattr_acl_get_acl,
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
@@ -485,6 +495,7 @@ const struct inode_operations zpl_symlink_inode_operations = {
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
 	.listxattr	= zpl_xattr_list,
+	.get_acl = zpl_xattr_acl_get_acl,
 };
 
 const struct inode_operations zpl_special_inode_operations = {
@@ -494,6 +505,7 @@ const struct inode_operations zpl_special_inode_operations = {
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
 	.listxattr	= zpl_xattr_list,
+	.get_acl = zpl_xattr_acl_get_acl,
 };
 
 dentry_operations_t zpl_dentry_operations = {
