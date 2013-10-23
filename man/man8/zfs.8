@@ -96,7 +96,7 @@ zfs \- configures ZFS file systems
 .LP
 .nf
 \fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-H\fR][\fB-o\fR \fIproperty\fR[,...]] [\fB-t\fR \fItype\fR[,...]]
-     [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR|\fIsnap\fR] ...
+     [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...
 .fi
 
 .LP
@@ -1736,7 +1736,7 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ne 2
 .mk
 .na
-\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR|\fIsnap\fR] ...\fR
+\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1865,7 +1865,7 @@ Same as the \fB-s\fR option, but sorts by property in descending order.
 .ad
 .sp .6
 .RS 4n
-A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR , \fBvolume\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
+A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR, \fBsnap\fR, \fBvolume\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
 .RE
 
 .RE
