@@ -62,7 +62,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool get\fR "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
+\fBzpool get\fR [\fB-p\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
 .fi
 
 .LP
@@ -1037,7 +1037,7 @@ This command will forcefully export the pool even if it has a shared spare that 
 .ne 2
 .mk
 .na
-\fB\fBzpool get\fR "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...\fR
+\fB\fBzpool get\fR [\fB-p\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1054,6 +1054,17 @@ Retrieves the given list of properties (or all properties if "\fBall\fR" is used
 .sp
 
 See the "Properties" section for more information on the available pool properties.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-p\fR\fR
+.ad
+.RS 6n
+.rt
+Display numbers in parseable (exact) values.
+.RE
+
 .RE
 
 .sp
