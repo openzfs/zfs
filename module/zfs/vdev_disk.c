@@ -242,6 +242,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 {
 	struct block_device *bdev = ERR_PTR(-ENXIO);
 	vdev_disk_t *vd;
+	struct request_queue *q;
 	int mode, block_size;
 
 	/* Must have a pathname and it must be absolute. */
@@ -310,6 +311,17 @@ skip_open:
 
 	/* Try to set the io scheduler elevator algorithm */
 	(void) vdev_elevator_switch(v, zfs_vdev_scheduler);
+
+	v->vdev_rotation_rate = VDEV_RATE_UNKNOWN;
+
+	/* Determine if the device has low seek times */
+#ifdef HAVE_BLK_QUEUE_NONROT
+
+	q = bdev_get_queue(vd->vd_bdev);
+	if (blk_queue_nonrot(q))
+		v->vdev_rotation_rate = VDEV_RATE_NON_ROTATING;	
+
+#endif
 
 	return 0;
 }
