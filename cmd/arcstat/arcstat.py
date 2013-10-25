@@ -106,7 +106,7 @@ opfile = None
 sep = "  "              # Default separator is 2 spaces
 version = "0.4"
 l2exist = False
-cmd = ("Usage: arcstat [-hvx] [-f fields] [-o file] [-s string] [interval "
+cmd = ("Usage: arcstat.py [-hvx] [-f fields] [-o file] [-s string] [interval "
     "[count]]\n")
 cur = {}
 d = {}
@@ -136,10 +136,10 @@ def usage():
     sys.stderr.write("\t -s : Override default field separator with custom "
         "character or string\n")
     sys.stderr.write("\nExamples:\n")
-    sys.stderr.write("\tarcstat -o /tmp/a.log 2 10\n")
-    sys.stderr.write("\tarcstat -s \",\" -o /tmp/a.log 2 10\n")
-    sys.stderr.write("\tarcstat -v\n")
-    sys.stderr.write("\tarcstat -f time,hit%,dh%,ph%,mh% 1\n")
+    sys.stderr.write("\tarcstat.py -o /tmp/a.log 2 10\n")
+    sys.stderr.write("\tarcstat.py -s \",\" -o /tmp/a.log 2 10\n")
+    sys.stderr.write("\tarcstat.py -v\n")
+    sys.stderr.write("\tarcstat.py -f time,hit%,dh%,ph%,mh% 1\n")
     sys.stderr.write("\n")
 
     sys.exit(1)
