@@ -514,7 +514,7 @@ AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
 	modpost_flag=''
 	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror -std=gnu99 -Wno-declaration-after-statement $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
 		[$4],
 		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
