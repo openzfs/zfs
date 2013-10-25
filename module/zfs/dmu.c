@@ -1815,15 +1815,10 @@ dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 }
 
 void
-dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
+__dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 {
-	dnode_phys_t *dnp;
+	dnode_phys_t *dnp = dn->dn_phys;
 	int i;
-
-	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	mutex_enter(&dn->dn_mtx);
-
-	dnp = dn->dn_phys;
 
 	doi->doi_data_block_size = dn->dn_datablksz;
 	doi->doi_metadata_block_size = dn->dn_indblkshift ?
@@ -1839,6 +1834,15 @@ dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_fill_count = 0;
 	for (i = 0; i < dnp->dn_nblkptr; i++)
 		doi->doi_fill_count += dnp->dn_blkptr[i].blk_fill;
+}
+
+void
+dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
+{
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	mutex_enter(&dn->dn_mtx);
+
+	__dmu_object_info_from_dnode(dn, doi);
 
 	mutex_exit(&dn->dn_mtx);
 	rw_exit(&dn->dn_struct_rwlock);

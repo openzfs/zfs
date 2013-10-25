@@ -27,11 +27,11 @@
 #include <sys/zfs_context.h>
 #include <sys/txg_impl.h>
 #include <sys/dmu_impl.h>
+#include <sys/spa_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_scan.h>
 #include <sys/callb.h>
-#include <sys/spa_impl.h>
 
 /*
  * ZFS Transaction Groups
@@ -351,8 +351,6 @@ txg_rele_to_sync(txg_handle_t *th)
 static void
 txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 {
-	hrtime_t start;
-	txg_history_t *th;
 	tx_state_t *tx = &dp->dp_tx;
 	int g = txg & TXG_MASK;
 	int c;
@@ -366,6 +364,9 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	ASSERT(txg == tx->tx_open_txg);
 	tx->tx_open_txg++;
 
+	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_OPEN, gethrtime());
+	spa_txg_history_add(dp->dp_spa, tx->tx_open_txg);
+
 	/*
 	 * Now that we've incremented tx_open_txg, we can let threads
 	 * enter the next transaction group.
@@ -374,19 +375,8 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 		mutex_exit(&tx->tx_cpu[c].tc_lock);
 
 	/*
-	 * Measure how long the txg was open and replace the kstat.
-	 */
-	th = dsl_pool_txg_history_get(dp, txg);
-	th->th_kstat.open_time = gethrtime() - th->th_kstat.birth;
-	th->th_kstat.state = TXG_STATE_QUIESCING;
-	dsl_pool_txg_history_put(th);
-	dsl_pool_txg_history_add(dp, tx->tx_open_txg);
-
-	/*
 	 * Quiesce the transaction group by waiting for everyone to txg_exit().
 	 */
-	start = gethrtime();
-
 	for (c = 0; c < max_ncpus; c++) {
 		tx_cpu_t *tc = &tx->tx_cpu[c];
 		mutex_enter(&tc->tc_lock);
@@ -395,12 +385,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 		mutex_exit(&tc->tc_lock);
 	}
 
-	/*
-	 * Measure how long the txg took to quiesce.
-	 */
-	th = dsl_pool_txg_history_get(dp, txg);
-	th->th_kstat.quiesce_time = gethrtime() - start;
-	dsl_pool_txg_history_put(th);
+	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_QUIESCED, gethrtime());
 }
 
 static void
@@ -472,6 +457,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	spa_t *spa = dp->dp_spa;
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
+	vdev_stat_t *vs1, *vs2;
 	uint64_t start, delta;
 
 #ifdef _KERNEL
@@ -485,10 +471,11 @@ txg_sync_thread(dsl_pool_t *dp)
 
 	txg_thread_enter(tx, &cpr);
 
+	vs1 = kmem_alloc(sizeof(vdev_stat_t), KM_PUSHPAGE);
+	vs2 = kmem_alloc(sizeof(vdev_stat_t), KM_PUSHPAGE);
+
 	start = delta = 0;
 	for (;;) {
-		hrtime_t hrstart;
-		txg_history_t *th;
 		uint64_t timer, timeout;
 		uint64_t txg;
 
@@ -522,8 +509,13 @@ txg_sync_thread(dsl_pool_t *dp)
 			txg_thread_wait(tx, &cpr, &tx->tx_quiesce_done_cv, 0);
 		}
 
-		if (tx->tx_exiting)
+		if (tx->tx_exiting) {
+			kmem_free(vs2, sizeof(vdev_stat_t));
+			kmem_free(vs1, sizeof(vdev_stat_t));
 			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+		}
+
+		vdev_get_stats(spa->spa_root_vdev, vs1);
 
 		/*
 		 * Consume the quiesced txg which has been handed off to
@@ -535,17 +527,11 @@ txg_sync_thread(dsl_pool_t *dp)
 		tx->tx_syncing_txg = txg;
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
-		th = dsl_pool_txg_history_get(dp, txg);
-		th->th_kstat.state = TXG_STATE_SYNCING;
-		vdev_get_stats(spa->spa_root_vdev, &th->th_vs1);
-		dsl_pool_txg_history_put(th);
-
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 
 		start = ddi_get_lbolt();
-		hrstart = gethrtime();
 		spa_sync(spa, txg);
 		delta = ddi_get_lbolt() - start;
 
@@ -559,22 +545,15 @@ txg_sync_thread(dsl_pool_t *dp)
 		 */
 		txg_dispatch_callbacks(dp, txg);
 
-		/*
-		 * Measure the txg sync time determine the amount of I/O done.
-		 */
-		th = dsl_pool_txg_history_get(dp, txg);
-		vdev_get_stats(spa->spa_root_vdev, &th->th_vs2);
-		th->th_kstat.sync_time = gethrtime() - hrstart;
-		th->th_kstat.nread = th->th_vs2.vs_bytes[ZIO_TYPE_READ] -
-		    th->th_vs1.vs_bytes[ZIO_TYPE_READ];
-		th->th_kstat.nwritten = th->th_vs2.vs_bytes[ZIO_TYPE_WRITE] -
-		    th->th_vs1.vs_bytes[ZIO_TYPE_WRITE];
-		th->th_kstat.reads = th->th_vs2.vs_ops[ZIO_TYPE_READ] -
-		    th->th_vs1.vs_ops[ZIO_TYPE_READ];
-		th->th_kstat.writes = th->th_vs2.vs_ops[ZIO_TYPE_WRITE] -
-		    th->th_vs1.vs_ops[ZIO_TYPE_WRITE];
-		th->th_kstat.state = TXG_STATE_COMMITTED;
-		dsl_pool_txg_history_put(th);
+		vdev_get_stats(spa->spa_root_vdev, vs2);
+		spa_txg_history_set_io(spa, txg,
+		    vs2->vs_bytes[ZIO_TYPE_READ]-vs1->vs_bytes[ZIO_TYPE_READ],
+		    vs2->vs_bytes[ZIO_TYPE_WRITE]-vs1->vs_bytes[ZIO_TYPE_WRITE],
+		    vs2->vs_ops[ZIO_TYPE_READ]-vs1->vs_ops[ZIO_TYPE_READ],
+		    vs2->vs_ops[ZIO_TYPE_WRITE]-vs1->vs_ops[ZIO_TYPE_WRITE],
+		    dp->dp_space_towrite[txg & TXG_MASK] +
+		    dp->dp_tempreserved[txg & TXG_MASK] / 2);
+		spa_txg_history_set(spa, txg, TXG_STATE_SYNCED, gethrtime());
 	}
 }
 

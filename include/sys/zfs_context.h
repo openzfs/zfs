@@ -210,6 +210,7 @@ typedef struct kthread {
 } kthread_t;
 
 #define	curthread			zk_thread_current()
+#define	getcomm()			"unknown"
 #define	thread_exit			zk_thread_exit
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
@@ -347,6 +348,10 @@ extern kstat_t *kstat_create(char *, int,
     char *, char *, uchar_t, ulong_t, uchar_t);
 extern void kstat_install(kstat_t *);
 extern void kstat_delete(kstat_t *);
+extern void kstat_set_raw_ops(kstat_t *ksp,
+    int (*headers)(char *buf, size_t size),
+    int (*data)(char *buf, size_t size, void *data),
+    void *(*addr)(kstat_t *ksp, loff_t index));
 
 /*
  * Kernel memory

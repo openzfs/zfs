@@ -92,6 +92,36 @@ typedef enum arc_space_type {
 	ARC_SPACE_NUMTYPES
 } arc_space_type_t;
 
+typedef enum arc_state_type {
+	ARC_STATE_ANON,
+	ARC_STATE_MRU,
+	ARC_STATE_MRU_GHOST,
+	ARC_STATE_MFU,
+	ARC_STATE_MFU_GHOST,
+	ARC_STATE_L2C_ONLY,
+	ARC_STATE_NUMTYPES
+} arc_state_type_t;
+
+typedef struct arc_buf_info {
+	arc_state_type_t	abi_state_type;
+	arc_buf_contents_t	abi_state_contents;
+	uint64_t		abi_state_index;
+	uint32_t		abi_flags;
+	uint32_t		abi_datacnt;
+	uint64_t		abi_size;
+	uint64_t		abi_spa;
+	uint64_t		abi_access;
+	uint32_t		abi_mru_hits;
+	uint32_t		abi_mru_ghost_hits;
+	uint32_t		abi_mfu_hits;
+	uint32_t		abi_mfu_ghost_hits;
+	uint32_t		abi_l2arc_hits;
+	uint32_t		abi_holds;
+	uint64_t		abi_l2arc_dattr;
+	uint64_t		abi_l2arc_asize;
+	enum zio_compress	abi_l2arc_compress;
+} arc_buf_info_t;
+
 void arc_space_consume(uint64_t space, arc_space_type_t type);
 void arc_space_return(uint64_t space, arc_space_type_t type);
 arc_buf_t *arc_buf_alloc(spa_t *spa, int size, void *tag,
@@ -101,6 +131,7 @@ void arc_return_buf(arc_buf_t *buf, void *tag);
 void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);
 void arc_buf_add_ref(arc_buf_t *buf, void *tag);
 boolean_t arc_buf_remove_ref(arc_buf_t *buf, void *tag);
+void arc_buf_info(arc_buf_t *buf, arc_buf_info_t *abi, int state_index);
 int arc_buf_size(arc_buf_t *buf);
 void arc_release(arc_buf_t *buf, void *tag);
 int arc_released(arc_buf_t *buf);
