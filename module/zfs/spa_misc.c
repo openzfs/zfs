@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -237,21 +237,30 @@ kmem_cache_t *spa_buffer_pool;
 int spa_mode_global;
 
 /*
- * Expiration time in units of zfs_txg_synctime_ms. This value has two
- * meanings. First it is used to determine when the spa_deadman logic
- * should fire. By default the spa_deadman will fire if spa_sync has
- * not completed in 1000 * zfs_txg_synctime_ms (i.e. 1000 seconds).
- * Secondly, the value determines if an I/O is considered "hung".
- * Any I/O that has not completed in zfs_deadman_synctime is considered
- * "hung" resulting in a zevent being posted.
- * 1000 zfs_txg_synctime_ms (i.e. 1000 seconds).
+ * Expiration time in milliseconds. This value has two meanings. First it is
+ * used to determine when the spa_deadman() logic should fire. By default the
+ * spa_deadman() will fire if spa_sync() has not completed in 1000 seconds.
+ * Secondly, the value determines if an I/O is considered "hung". Any I/O that
+ * has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
+ * in a system panic.
  */
-unsigned long zfs_deadman_synctime = 1000ULL;
+unsigned long zfs_deadman_synctime_ms = 1000000ULL;
 
 /*
  * By default the deadman is enabled.
  */
 int zfs_deadman_enabled = 1;
+
+/*
+ * The worst case is single-sector max-parity RAID-Z blocks, in which
+ * case the space requirement is exactly (VDEV_RAIDZ_MAXPARITY + 1)
+ * times the size; so just assume that.  Add to this the fact that
+ * we can have up to 3 DVAs per bp, and one more factor of 2 because
+ * the block may be dittoed with up to 3 DVAs by ddt_sync().  All together,
+ * the worst case is:
+ *     (VDEV_RAIDZ_MAXPARITY + 1) * SPA_DVAS_PER_BP * 2 == 24
+ */
+int spa_asize_inflation = 24;
 
 
 /*
@@ -473,6 +482,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	mutex_init(&spa->spa_scrub_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_suspend_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_vdev_top_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&spa->spa_iokstat_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	cv_init(&spa->spa_async_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_proc_cv, NULL, CV_DEFAULT, NULL);
@@ -490,8 +500,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_proc = &p0;
 	spa->spa_proc_state = SPA_PROC_NONE;
 
-	spa->spa_deadman_synctime = zfs_deadman_synctime *
-	    zfs_txg_synctime_ms * MICROSEC;
+	spa->spa_deadman_synctime = MSEC2NSEC(zfs_deadman_synctime_ms);
 
 	refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);
@@ -534,6 +543,13 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	if (spa->spa_label_features == NULL) {
 		VERIFY(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
 		    KM_SLEEP) == 0);
+	}
+
+	spa->spa_iokstat = kstat_create("zfs", 0, name,
+	    "disk", KSTAT_TYPE_IO, 1, 0);
+	if (spa->spa_iokstat) {
+		spa->spa_iokstat->ks_lock = &spa->spa_iokstat_lock;
+		kstat_install(spa->spa_iokstat);
 	}
 
 	spa->spa_debug = ((zfs_flags & ZFS_DEBUG_SPA) != 0);
@@ -582,6 +598,9 @@ spa_remove(spa_t *spa)
 
 	spa_config_lock_destroy(spa);
 
+	kstat_delete(spa->spa_iokstat);
+	spa->spa_iokstat = NULL;
+
 	for (t = 0; t < TXG_SIZE; t++)
 		bplist_destroy(&spa->spa_free_bplist[t]);
 
@@ -599,6 +618,7 @@ spa_remove(spa_t *spa)
 	mutex_destroy(&spa->spa_scrub_lock);
 	mutex_destroy(&spa->spa_suspend_lock);
 	mutex_destroy(&spa->spa_vdev_top_lock);
+	mutex_destroy(&spa->spa_iokstat_lock);
 
 	kmem_free(spa, sizeof (spa_t));
 }
@@ -1286,7 +1306,7 @@ spa_freeze(spa_t *spa)
 
 /*
  * This is a stripped-down version of strtoull, suitable only for converting
- * lowercase hexidecimal numbers that don't overflow.
+ * lowercase hexadecimal numbers that don't overflow.
  */
 uint64_t
 strtonum(const char *str, char **nptr)
@@ -1451,14 +1471,7 @@ spa_freeze_txg(spa_t *spa)
 uint64_t
 spa_get_asize(spa_t *spa, uint64_t lsize)
 {
-	/*
-	 * The worst case is single-sector max-parity RAID-Z blocks, in which
-	 * case the space requirement is exactly (VDEV_RAIDZ_MAXPARITY + 1)
-	 * times the size; so just assume that.  Add to this the fact that
-	 * we can have up to 3 DVAs per bp, and one more factor of 2 because
-	 * the block may be dittoed with up to 3 DVAs by ddt_sync().
-	 */
-	return (lsize * (VDEV_RAIDZ_MAXPARITY + 1) * SPA_DVAS_PER_BP * 2);
+	return (lsize * spa_asize_inflation);
 }
 
 uint64_t
@@ -1756,7 +1769,7 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	dsl_scan_t *scn = spa->spa_dsl_pool ? spa->spa_dsl_pool->dp_scan : NULL;
 
 	if (scn == NULL || scn->scn_phys.scn_func == POOL_SCAN_NONE)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	bzero(ps, sizeof (pool_scan_stat_t));
 
 	/* data stored on disk */
@@ -1862,8 +1875,8 @@ EXPORT_SYMBOL(spa_mode);
 
 EXPORT_SYMBOL(spa_namespace_lock);
 
-module_param(zfs_deadman_synctime, ulong, 0644);
-MODULE_PARM_DESC(zfs_deadman_synctime,"Expire in units of zfs_txg_synctime_ms");
+module_param(zfs_deadman_synctime_ms, ulong, 0644);
+MODULE_PARM_DESC(zfs_deadman_synctime_ms,"Expiration time in milliseconds");
 
 module_param(zfs_deadman_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");

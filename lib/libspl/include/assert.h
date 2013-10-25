@@ -88,12 +88,14 @@ extern void __assert(const char *, const char *, int);
 #define	ASSERT3P(x, y, z)	((void)0)
 #define	ASSERT0(x)		((void)0)
 #define	ASSERTV(x)
+#define	ASSERT0(x)		((void)0)
 #else
 #define	ASSERT3S(x, y, z)	VERIFY3S(x, y, z)
 #define	ASSERT3U(x, y, z)	VERIFY3U(x, y, z)
 #define	ASSERT3P(x, y, z)	VERIFY3P(x, y, z)
 #define	ASSERT0(x)		VERIFY0(x)
 #define	ASSERTV(x)		x
+#define	ASSERT0(x)		VERIFY3_IMPL(x, ==, 0, uintmax_t)
 #endif  /* NDEBUG */
 
 #endif  /* _LIBSPL_ASSERT_H */

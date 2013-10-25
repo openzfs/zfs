@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DMU_TX_H
@@ -60,8 +60,22 @@ struct dmu_tx {
 	txg_handle_t tx_txgh;
 	void *tx_tempreserve_cookie;
 	struct dmu_tx_hold *tx_needassign_txh;
-	list_t tx_callbacks; /* list of dmu_tx_callback_t on this dmu_tx */
-	uint8_t tx_anyobj;
+
+	/* list of dmu_tx_callback_t on this dmu_tx */
+	list_t tx_callbacks;
+
+	/* placeholder for syncing context, doesn't need specific holds */
+	boolean_t tx_anyobj;
+
+	/* has this transaction already been delayed? */
+	boolean_t tx_waited;
+
+	/* time this transaction was created */
+	hrtime_t tx_start;
+
+	/* need to wait for sufficient dirty space */
+	boolean_t tx_wait_dirty;
+
 	int tx_err;
 #ifdef DEBUG_DMU_TX
 	uint64_t tx_space_towrite;

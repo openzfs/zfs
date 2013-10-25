@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -309,7 +309,7 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 	nvlist_t *nvarg;
 
 	if (spa_version(spa) < SPA_VERSION_ZPOOL_HISTORY || !spa_writeable(spa))
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	err = dmu_tx_assign(tx, TXG_WAIT);
@@ -353,7 +353,7 @@ spa_history_get(spa_t *spa, uint64_t *offp, uint64_t *len, char *buf)
 	 * that's ok, just return ENOENT.
 	 */
 	if (!spa->spa_history)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	/*
 	 * The history is logged asynchronously, so when they request

@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -152,7 +153,7 @@ import_pool(const char *target, boolean_t readonly)
 	g_importargs.poolname = g_pool;
 	pools = zpool_search_import(g_zfs, &g_importargs);
 
-	if (pools == NULL || nvlist_next_nvpair(pools, NULL) == NULL) {
+	if (nvlist_empty(pools)) {
 		if (!g_importargs.can_be_active) {
 			g_importargs.can_be_active = B_TRUE;
 			if (zpool_search_import(g_zfs, &g_importargs) != NULL ||

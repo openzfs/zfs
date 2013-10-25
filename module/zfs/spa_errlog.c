@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -175,15 +176,17 @@ process_error_log(spa_t *spa, uint64_t obj, void *addr, size_t *count)
 
 		if (*count == 0) {
 			zap_cursor_fini(&zc);
-			return (ENOMEM);
+			return (SET_ERROR(ENOMEM));
 		}
 
 		name_to_bookmark(za.za_name, &zb);
 
 		if (copyout(&zb, (char *)addr +
 		    (*count - 1) * sizeof (zbookmark_t),
-		    sizeof (zbookmark_t)) != 0)
-			return (EFAULT);
+		    sizeof (zbookmark_t)) != 0) {
+			zap_cursor_fini(&zc);
+			return (SET_ERROR(EFAULT));
+		}
 
 		*count -= 1;
 	}
@@ -201,12 +204,12 @@ process_error_list(avl_tree_t *list, void *addr, size_t *count)
 	for (se = avl_first(list); se != NULL; se = AVL_NEXT(list, se)) {
 
 		if (*count == 0)
-			return (ENOMEM);
+			return (SET_ERROR(ENOMEM));
 
 		if (copyout(&se->se_bookmark, (char *)addr +
 		    (*count - 1) * sizeof (zbookmark_t),
 		    sizeof (zbookmark_t)) != 0)
-			return (EFAULT);
+			return (SET_ERROR(EFAULT));
 
 		*count -= 1;
 	}

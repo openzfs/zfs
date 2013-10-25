@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -355,10 +355,10 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) != 0)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if ((ops = vdev_getops(type)) == NULL)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	/*
 	 * If this is a load, get the vdev guid from the nvlist.
@@ -369,26 +369,26 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID, &label_id) ||
 		    label_id != id)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 	} else if (alloctype == VDEV_ALLOC_SPARE) {
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 	} else if (alloctype == VDEV_ALLOC_L2CACHE) {
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 	} else if (alloctype == VDEV_ALLOC_ROOTPOOL) {
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 	}
 
 	/*
 	 * The first allocated vdev must be of type 'root'.
 	 */
 	if (ops != &vdev_root_ops && spa->spa_root_vdev == NULL)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	/*
 	 * Determine whether we're a log vdev.
@@ -396,10 +396,10 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	islog = 0;
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_IS_LOG, &islog);
 	if (islog && spa_version(spa) < SPA_VERSION_SLOGS)
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	if (ops == &vdev_hole_ops && spa_version(spa) < SPA_VERSION_HOLES)
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	/*
 	 * Set the nparity property for RAID-Z vdevs.
@@ -409,24 +409,24 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 		    &nparity) == 0) {
 			if (nparity == 0 || nparity > VDEV_RAIDZ_MAXPARITY)
-				return (EINVAL);
+				return (SET_ERROR(EINVAL));
 			/*
 			 * Previous versions could only support 1 or 2 parity
 			 * device.
 			 */
 			if (nparity > 1 &&
 			    spa_version(spa) < SPA_VERSION_RAIDZ2)
-				return (ENOTSUP);
+				return (SET_ERROR(ENOTSUP));
 			if (nparity > 2 &&
 			    spa_version(spa) < SPA_VERSION_RAIDZ3)
-				return (ENOTSUP);
+				return (SET_ERROR(ENOTSUP));
 		} else {
 			/*
 			 * We require the parity to be specified for SPAs that
 			 * support multiple parity levels.
 			 */
 			if (spa_version(spa) >= SPA_VERSION_RAIDZ2)
-				return (EINVAL);
+				return (SET_ERROR(EINVAL));
 			/*
 			 * Otherwise, we default to 1 parity device for RAID-Z.
 			 */
@@ -526,8 +526,8 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_OFFLINE,
 		    &vd->vdev_offline);
 
-		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RESILVERING,
-		    &vd->vdev_resilvering);
+		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RESILVER_TXG,
+		    &vd->vdev_resilver_txg);
 
 		/*
 		 * When importing a pool, we want to ignore the persistent fault
@@ -949,7 +949,7 @@ vdev_probe_done(zio_t *zio)
 			ASSERT(zio->io_error != 0);
 			zfs_ereport_post(FM_EREPORT_ZFS_PROBE_FAILURE,
 			    spa, vd, NULL, 0, 0);
-			zio->io_error = ENXIO;
+			zio->io_error = SET_ERROR(ENXIO);
 		}
 
 		mutex_enter(&vd->vdev_probe_lock);
@@ -959,16 +959,18 @@ vdev_probe_done(zio_t *zio)
 
 		while ((pio = zio_walk_parents(zio)) != NULL)
 			if (!vdev_accessible(vd, pio))
-				pio->io_error = ENXIO;
+				pio->io_error = SET_ERROR(ENXIO);
 
 		kmem_free(vps, sizeof (*vps));
 	}
 }
 
 /*
- * Determine whether this device is accessible by reading and writing
- * to several known locations: the pad regions of each vdev label
- * but the first (which we leave alone in case it contains a VTOC).
+ * Determine whether this device is accessible.
+ *
+ * Read and write to several known locations: the pad regions of each
+ * vdev label but the first, which we leave alone in case it contains
+ * a VTOC.
  */
 zio_t *
 vdev_probe(vdev_t *vd, zio_t *zio)
@@ -1152,11 +1154,11 @@ vdev_open(vdev_t *vd)
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    vd->vdev_label_aux);
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 	} else if (vd->vdev_offline) {
 		ASSERT(vd->vdev_children == 0);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_OFFLINE, VDEV_AUX_NONE);
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 	}
 
 	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize, &ashift);
@@ -1191,7 +1193,7 @@ vdev_open(vdev_t *vd)
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    vd->vdev_label_aux);
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 	}
 
 	if (vd->vdev_degraded) {
@@ -1223,7 +1225,7 @@ vdev_open(vdev_t *vd)
 		if (osize < SPA_MINDEVSIZE) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_TOO_SMALL);
-			return (EOVERFLOW);
+			return (SET_ERROR(EOVERFLOW));
 		}
 		psize = osize;
 		asize = osize - (VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE);
@@ -1234,7 +1236,7 @@ vdev_open(vdev_t *vd)
 		    (VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE)) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_TOO_SMALL);
-			return (EOVERFLOW);
+			return (SET_ERROR(EOVERFLOW));
 		}
 		psize = 0;
 		asize = osize;
@@ -1249,7 +1251,7 @@ vdev_open(vdev_t *vd)
 	if (asize < vd->vdev_min_asize) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_BAD_LABEL);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	if (vd->vdev_asize == 0) {
@@ -1336,7 +1338,7 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 
 	for (c = 0; c < vd->vdev_children; c++)
 		if (vdev_validate(vd->vdev_child[c], strict) != 0)
-			return (EBADF);
+			return (SET_ERROR(EBADF));
 
 	/*
 	 * If the device has already failed, or was marked offline, don't do
@@ -1422,7 +1424,7 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 		if (!(spa->spa_import_flags & ZFS_IMPORT_VERBATIM) &&
 		    spa_load_state(spa) == SPA_LOAD_OPEN &&
 		    state != POOL_STATE_ACTIVE)
-			return (EBADF);
+			return (SET_ERROR(EBADF));
 
 		/*
 		 * If we were able to open and validate a vdev that was
@@ -1681,6 +1683,75 @@ vdev_dtl_empty(vdev_t *vd, vdev_dtl_type_t t)
 }
 
 /*
+ * Returns the lowest txg in the DTL range.
+ */
+static uint64_t
+vdev_dtl_min(vdev_t *vd)
+{
+	space_seg_t *ss;
+
+	ASSERT(MUTEX_HELD(&vd->vdev_dtl_lock));
+	ASSERT3U(vd->vdev_dtl[DTL_MISSING].sm_space, !=, 0);
+	ASSERT0(vd->vdev_children);
+
+	ss = avl_first(&vd->vdev_dtl[DTL_MISSING].sm_root);
+	return (ss->ss_start - 1);
+}
+
+/*
+ * Returns the highest txg in the DTL.
+ */
+static uint64_t
+vdev_dtl_max(vdev_t *vd)
+{
+	space_seg_t *ss;
+
+	ASSERT(MUTEX_HELD(&vd->vdev_dtl_lock));
+	ASSERT3U(vd->vdev_dtl[DTL_MISSING].sm_space, !=, 0);
+	ASSERT0(vd->vdev_children);
+
+	ss = avl_last(&vd->vdev_dtl[DTL_MISSING].sm_root);
+	return (ss->ss_end);
+}
+
+/*
+ * Determine if a resilvering vdev should remove any DTL entries from
+ * its range. If the vdev was resilvering for the entire duration of the
+ * scan then it should excise that range from its DTLs. Otherwise, this
+ * vdev is considered partially resilvered and should leave its DTL
+ * entries intact. The comment in vdev_dtl_reassess() describes how we
+ * excise the DTLs.
+ */
+static boolean_t
+vdev_dtl_should_excise(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
+
+	ASSERT0(scn->scn_phys.scn_errors);
+	ASSERT0(vd->vdev_children);
+
+	if (vd->vdev_resilver_txg == 0 ||
+	    vd->vdev_dtl[DTL_MISSING].sm_space == 0)
+		return (B_TRUE);
+
+	/*
+	 * When a resilver is initiated the scan will assign the scn_max_txg
+	 * value to the highest txg value that exists in all DTLs. If this
+	 * device's max DTL is not part of this scan (i.e. it is not in
+	 * the range (scn_min_txg, scn_max_txg] then it is not eligible
+	 * for excision.
+	 */
+	if (vdev_dtl_max(vd) <= scn->scn_phys.scn_max_txg) {
+		ASSERT3U(scn->scn_phys.scn_min_txg, <=, vdev_dtl_min(vd));
+		ASSERT3U(scn->scn_phys.scn_min_txg, <, vd->vdev_resilver_txg);
+		ASSERT3U(vd->vdev_resilver_txg, <=, scn->scn_phys.scn_max_txg);
+		return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
  * Reassess DTLs after a config change or scrub completion.
  */
 void
@@ -1703,9 +1774,17 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
 
 		mutex_enter(&vd->vdev_dtl_lock);
+
+		/*
+		 * If we've completed a scan cleanly then determine
+		 * if this vdev should remove any DTLs. We only want to
+		 * excise regions on vdevs that were available during
+		 * the entire duration of this scan.
+		 */
 		if (scrub_txg != 0 &&
 		    (spa->spa_scrub_started ||
-		    (scn && scn->scn_phys.scn_errors == 0))) {
+		    (scn != NULL && scn->scn_phys.scn_errors == 0)) &&
+		    vdev_dtl_should_excise(vd)) {
 			/*
 			 * We completed a scrub up to scrub_txg.  If we
 			 * did it without rebooting, then the scrub dtl
@@ -1744,6 +1823,16 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		else
 			space_map_walk(&vd->vdev_dtl[DTL_MISSING],
 			    space_map_add, &vd->vdev_dtl[DTL_OUTAGE]);
+
+		/*
+		 * If the vdev was resilvering and no longer has any
+		 * DTLs then reset its resilvering flag.
+		 */
+		if (vd->vdev_resilver_txg != 0 &&
+		    vd->vdev_dtl[DTL_MISSING].sm_space == 0 &&
+		    vd->vdev_dtl[DTL_OUTAGE].sm_space == 0)
+			vd->vdev_resilver_txg = 0;
+
 		mutex_exit(&vd->vdev_dtl_lock);
 
 		if (txg != 0)
@@ -1920,12 +2009,9 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 		mutex_enter(&vd->vdev_dtl_lock);
 		if (vd->vdev_dtl[DTL_MISSING].sm_space != 0 &&
 		    vdev_writeable(vd)) {
-			space_seg_t *ss;
 
-			ss = avl_first(&vd->vdev_dtl[DTL_MISSING].sm_root);
-			thismin = ss->ss_start - 1;
-			ss = avl_last(&vd->vdev_dtl[DTL_MISSING].sm_root);
-			thismax = ss->ss_end;
+			thismin = vdev_dtl_min(vd);
+			thismax = vdev_dtl_max(vd);
 			needed = B_TRUE;
 		}
 		mutex_exit(&vd->vdev_dtl_lock);
@@ -2202,10 +2288,12 @@ vdev_degrade(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 }
 
 /*
- * Online the given vdev.  If 'unspare' is set, it implies two things.  First,
- * any attached spare device should be detached when the device finishes
- * resilvering.  Second, the online should be treated like a 'test' online case,
- * so no FMA events are generated if the device fails to open.
+ * Online the given vdev.
+ *
+ * If 'ZFS_ONLINE_UNSPARE' is set, it implies two things.  First, any attached
+ * spare device should be detached when the device finishes resilvering.
+ * Second, the online should be treated like a 'test' online case, so no FMA
+ * events are generated if the device fails to open.
  */
 int
 vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
@@ -3208,7 +3296,7 @@ vdev_deadman(vdev_t *vd)
 		vdev_queue_t *vq = &vd->vdev_queue;
 
 		mutex_enter(&vq->vq_lock);
-		if (avl_numnodes(&vq->vq_pending_tree) > 0) {
+		if (avl_numnodes(&vq->vq_active_tree) > 0) {
 			spa_t *spa = vd->vdev_spa;
 			zio_t *fio;
 			uint64_t delta;
@@ -3218,7 +3306,7 @@ vdev_deadman(vdev_t *vd)
 			 * if any I/O has been outstanding for longer than
 			 * the spa_deadman_synctime we log a zevent.
 			 */
-			fio = avl_first(&vq->vq_pending_tree);
+			fio = avl_first(&vq->vq_active_tree);
 			delta = gethrtime() - fio->io_timestamp;
 			if (delta > spa_deadman_synctime(spa)) {
 				zfs_dbgmsg("SLOW IO: zio timestamp %lluns, "

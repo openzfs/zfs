@@ -20,8 +20,9 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -364,7 +365,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_fault_inject,			1,	&zopt_sometimes	},
 	{ ztest_ddt_repair,			1,	&zopt_sometimes	},
 	{ ztest_dmu_snapshot_hold,		1,	&zopt_sometimes	},
-	{ ztest_reguid,				1,	&zopt_sometimes },
+	{ ztest_reguid,				1,	&zopt_rarely	},
 	{ ztest_spa_rename,			1,	&zopt_rarely	},
 	{ ztest_scrub,				1,	&zopt_rarely	},
 	{ ztest_spa_upgrade,			1,	&zopt_rarely	},
@@ -787,6 +788,16 @@ ztest_kill(ztest_shared_t *zs)
 {
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(ztest_spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(ztest_spa));
+
+	/*
+	 * Before we kill off ztest, make sure that the config is updated.
+	 * See comment above spa_config_sync().
+	 */
+	mutex_enter(&spa_namespace_lock);
+	spa_config_sync(ztest_spa, B_FALSE, B_FALSE);
+	mutex_exit(&spa_namespace_lock);
+
+	zfs_dbgmsg_print(FTAG);
 	(void) kill(getpid(), SIGKILL);
 }
 
@@ -2738,7 +2749,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	uint64_t leaf, top;
 	uint64_t ashift = ztest_get_ashift();
 	uint64_t oldguid, pguid;
-	size_t oldsize, newsize;
+	uint64_t oldsize, newsize;
 	char *oldpath, *newpath;
 	int replacing;
 	int oldvd_has_siblings = B_FALSE;
@@ -2899,8 +2910,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	if (error != expected_error && expected_error != EBUSY) {
 		fatal(0, "attach (%s %llu, %s %llu, %d) "
 		    "returned %d, expected %d",
-		    oldpath, (longlong_t)oldsize, newpath,
-		    (longlong_t)newsize, replacing, error, expected_error);
+		    oldpath, oldsize, newpath,
+		    newsize, replacing, error, expected_error);
 	}
 out:
 	mutex_exit(&ztest_vdev_lock);
@@ -3678,6 +3689,9 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 		dmu_tx_hold_free(tx, bigobj, bigoff, bigsize);
 	else
 		dmu_tx_hold_write(tx, bigobj, bigoff, bigsize);
+
+	/* This accounts for setting the checksum/compression. */
+	dmu_tx_hold_bonus(tx, bigobj);
 
 	txg = ztest_tx_assign(tx, TXG_MIGHTWAIT, FTAG);
 	if (txg == 0) {
@@ -4830,7 +4844,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 
 	error = user_release_one(fullname, tag);
 	if (error)
-		fatal(0, "user_release_one(%s)", fullname, tag);
+		fatal(0, "user_release_one(%s, %s) = %d", fullname, tag, error);
 
 	VERIFY3U(dmu_objset_hold(fullname, FTAG, &origin), ==, ENOENT);
 
@@ -4875,6 +4889,14 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	ASSERT(leaves >= 1);
 
 	/*
+	 * Grab the name lock as reader. There are some operations
+	 * which don't like to have their vdevs changed while
+	 * they are in progress (i.e. spa_change_guid). Those
+	 * operations will have grabbed the name lock as writer.
+	 */
+	(void) rw_enter(&ztest_name_lock, RW_READER);
+
+	/*
 	 * We need SCL_STATE here because we're going to look at vd0->vdev_tsd.
 	 */
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
@@ -4903,7 +4925,14 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		if (vd0 != NULL && vd0->vdev_top->vdev_islog)
 			islog = B_TRUE;
 
-		if (vd0 != NULL && maxfaults != 1) {
+		/*
+		 * If the top-level vdev needs to be resilvered
+		 * then we only allow faults on the device that is
+		 * resilvering.
+		 */
+		if (vd0 != NULL && maxfaults != 1 &&
+		    (!vdev_resilver_needed(vd0->vdev_top, NULL, NULL) ||
+		    vd0->vdev_resilver_txg != 0)) {
 			/*
 			 * Make vd0 explicitly claim to be unreadable,
 			 * or unwriteable, or reach behind its back
@@ -4934,6 +4963,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 
 		if (sav->sav_count == 0) {
 			spa_config_exit(spa, SCL_STATE, FTAG);
+			(void) rw_exit(&ztest_name_lock);
 			goto out;
 		}
 		vd0 = sav->sav_vdevs[ztest_random(sav->sav_count)];
@@ -4947,6 +4977,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	}
 
 	spa_config_exit(spa, SCL_STATE, FTAG);
+	(void) rw_exit(&ztest_name_lock);
 
 	/*
 	 * If we can tolerate two or more faults, or we're dealing
@@ -5760,6 +5791,7 @@ ztest_run(ztest_shared_t *zs)
 
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(spa));
+	zfs_dbgmsg_print(FTAG);
 
 	umem_free(tid, ztest_opts.zo_threads * sizeof (kt_did_t));
 

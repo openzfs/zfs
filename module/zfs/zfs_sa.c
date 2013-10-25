@@ -264,7 +264,7 @@ out:
 /*
  * I'm not convinced we should do any of this upgrade.
  * since the SA code can read both old/new znode formats
- * with probably little to know performance difference.
+ * with probably little to no performance difference.
  *
  * All new files will be created with the new format.
  */

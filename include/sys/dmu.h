@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
@@ -217,6 +218,7 @@ typedef enum dmu_object_type {
 typedef enum txg_how {
 	TXG_WAIT = 1,
 	TXG_NOWAIT,
+	TXG_WAITED,
 } txg_how_t;
 
 void byteswap_uint64_array(void *buf, size_t size);
@@ -406,6 +408,8 @@ void dmu_write_policy(objset_t *os, struct dnode *dn, int level, int wp,
  * object must be held in an assigned transaction before calling
  * dmu_buf_will_dirty.  You may use dmu_buf_set_user() on the bonus
  * buffer as well.  You must release what you hold with dmu_buf_rele().
+ *
+ * Returns ENOENT, EIO, or 0.
  */
 int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
 int dmu_bonus_max(void);
@@ -571,7 +575,7 @@ int dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	uint64_t size, dmu_tx_t *tx);
 int dmu_free_long_range(objset_t *os, uint64_t object, uint64_t offset,
 	uint64_t size);
-int dmu_free_object(objset_t *os, uint64_t object);
+int dmu_free_long_object(objset_t *os, uint64_t object);
 
 /*
  * Convenience functions.
@@ -660,8 +664,14 @@ extern const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS];
  * If doi is NULL, just indicates whether the object exists.
  */
 int dmu_object_info(objset_t *os, uint64_t object, dmu_object_info_t *doi);
+/* Like dmu_object_info, but faster if you have a held dnode in hand. */
 void dmu_object_info_from_dnode(struct dnode *dn, dmu_object_info_t *doi);
+/* Like dmu_object_info, but faster if you have a held dbuf in hand. */
 void dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi);
+/*
+ * Like dmu_object_info_from_db, but faster still when you only care about
+ * the size.  This is specifically optimized for zfs_getattr().
+ */
 void dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize,
     u_longlong_t *nblk512);
 

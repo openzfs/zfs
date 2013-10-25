@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -110,6 +110,7 @@
  * location.
  *
  * Byteswap implications:
+ *
  * Since the SA attributes are not entirely self describing we can't do
  * the normal byteswap processing.  The special ZAP layout attribute and
  * attribute registration attributes define the byteswap function and the
@@ -188,7 +189,6 @@ sa_attr_reg_t sa_legacy_attrs[] = {
 };
 
 /*
- * ZPL legacy layout
  * This is only used for objects of type DMU_OT_ZNODE
  */
 sa_attr_type_t sa_legacy_zpl_layout[] = {
@@ -198,7 +198,6 @@ sa_attr_type_t sa_legacy_zpl_layout[] = {
 /*
  * Special dummy layout used for buffers with no attributes.
  */
-
 sa_attr_type_t sa_dummy_zpl_layout[] = { 0 };
 
 static int sa_legacy_attr_count = 16;
@@ -390,7 +389,7 @@ sa_attr_op(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 		switch (data_op) {
 		case SA_LOOKUP:
 			if (bulk[i].sa_addr == NULL)
-				return (ENOENT);
+				return (SET_ERROR(ENOENT));
 			if (bulk[i].sa_data) {
 				SA_COPY_DATA(bulk[i].sa_data_func,
 				    bulk[i].sa_addr, bulk[i].sa_data,
@@ -522,7 +521,7 @@ sa_resize_spill(sa_handle_t *hdl, uint32_t size, dmu_tx_t *tx)
 		blocksize = SPA_MINBLOCKSIZE;
 	} else if (size > SPA_MAXBLOCKSIZE) {
 		ASSERT(0);
-		return (EFBIG);
+		return (SET_ERROR(EFBIG));
 	} else {
 		blocksize = P2ROUNDUP_TYPED(size, SPA_MINBLOCKSIZE, uint32_t);
 	}
@@ -679,7 +678,8 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	int buf_space;
 	sa_attr_type_t *attrs, *attrs_start;
 	int i, lot_count;
-	int hdrsize, spillhdrsize = 0;
+	int hdrsize;
+	int spillhdrsize = 0;
 	int used;
 	dmu_object_type_t bonustype;
 	sa_lot_t *lot;
@@ -695,7 +695,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	    SA_BONUS, &i, &used, &spilling);
 
 	if (used > SPA_MAXBLOCKSIZE)
-		return (EFBIG);
+		return (SET_ERROR(EFBIG));
 
 	VERIFY(0 == dmu_set_bonus(hdl->sa_bonus, spilling ?
 	    MIN(DN_MAX_BONUSLEN - sizeof (blkptr_t), used + hdrsize) :
@@ -719,7 +719,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		    &spill_used, &dummy);
 
 		if (spill_used > SPA_MAXBLOCKSIZE)
-			return (EFBIG);
+			return (SET_ERROR(EFBIG));
 
 		buf_space = hdl->sa_spill->db_size - spillhdrsize;
 		if (BUF_SPACE_NEEDED(spill_used, spillhdrsize) >
@@ -876,7 +876,7 @@ sa_attr_table_setup(objset_t *os, sa_attr_reg_t *reg_attrs, int count)
 		 */
 		if (error || (error == 0 && sa_attr_count == 0)) {
 			if (error == 0)
-				error = EINVAL;
+				error = SET_ERROR(EINVAL);
 			goto bail;
 		}
 		sa_reg_count = sa_attr_count;
@@ -907,7 +907,7 @@ sa_attr_table_setup(objset_t *os, sa_attr_reg_t *reg_attrs, int count)
 			error = zap_lookup(os, sa->sa_reg_attr_obj,
 			    reg_attrs[i].sa_name, 8, 1, &attr_value);
 		else
-			error = ENOENT;
+			error = SET_ERROR(ENOENT);
 		switch (error) {
 		case ENOENT:
 			sa->sa_user_table[i] = (sa_attr_type_t)sa_attr_count;
@@ -1066,7 +1066,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, sa_attr_reg_t *reg_attrs, int count,
 		 */
 		if (error || (error == 0 && layout_count == 0)) {
 			if (error == 0)
-				error = EINVAL;
+				error = SET_ERROR(EINVAL);
 			goto fail;
 		}
 

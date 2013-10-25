@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -59,9 +60,25 @@ int zfs_condense_pct = 200;
 /*
  * This value defines the number of allowed allocation failures per vdev.
  * If a device reaches this threshold in a given txg then we consider skipping
- * allocations on that device.
+ * allocations on that device. The value of zfs_mg_alloc_failures is computed
+ * in zio_init() unless it has been overridden in /etc/system.
  */
-int zfs_mg_alloc_failures;
+int zfs_mg_alloc_failures = 0;
+
+/*
+ * The zfs_mg_noalloc_threshold defines which metaslab groups should
+ * be eligible for allocation. The value is defined as a percentage of
+ * a free space. Metaslab groups that have more free space than
+ * zfs_mg_noalloc_threshold are always eligible for allocations. Once
+ * a metaslab group's free space is less than or equal to the
+ * zfs_mg_noalloc_threshold the allocator will avoid allocating to that
+ * group unless all groups in the pool have reached zfs_mg_noalloc_threshold.
+ * Once all groups in the pool reach zfs_mg_noalloc_threshold then all
+ * groups are allowed to accept allocations. Gang blocks are always
+ * eligible to allocate on any metaslab group. The default value of 0 means
+ * no metaslab group will be excluded based on this criterion.
+ */
+int zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab debugging: when set, keeps all space maps in core to verify frees.
@@ -101,6 +118,11 @@ int metaslab_prefetch_limit = SPA_DVAS_PER_BP;
 int metaslab_smo_bonus_pct = 150;
 
 /*
+ * Should we be willing to write data to degraded vdevs?
+ */
+boolean_t zfs_write_to_degraded = B_FALSE;
+
+/*
  * ==========================================================================
  * Metaslab classes
  * ==========================================================================
@@ -115,7 +137,6 @@ metaslab_class_create(spa_t *spa, space_map_ops_t *ops)
 	mc->mc_spa = spa;
 	mc->mc_rotor = NULL;
 	mc->mc_ops = ops;
-	mutex_init(&mc->mc_fastwrite_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	return (mc);
 }
@@ -129,7 +150,6 @@ metaslab_class_destroy(metaslab_class_t *mc)
 	ASSERT(mc->mc_space == 0);
 	ASSERT(mc->mc_dspace == 0);
 
-	mutex_destroy(&mc->mc_fastwrite_lock);
 	kmem_free(mc, sizeof (metaslab_class_t));
 }
 
@@ -222,6 +242,53 @@ metaslab_compare(const void *x1, const void *x2)
 	return (0);
 }
 
+/*
+ * Update the allocatable flag and the metaslab group's capacity.
+ * The allocatable flag is set to true if the capacity is below
+ * the zfs_mg_noalloc_threshold. If a metaslab group transitions
+ * from allocatable to non-allocatable or vice versa then the metaslab
+ * group's class is updated to reflect the transition.
+ */
+static void
+metaslab_group_alloc_update(metaslab_group_t *mg)
+{
+	vdev_t *vd = mg->mg_vd;
+	metaslab_class_t *mc = mg->mg_class;
+	vdev_stat_t *vs = &vd->vdev_stat;
+	boolean_t was_allocatable;
+
+	ASSERT(vd == vd->vdev_top);
+
+	mutex_enter(&mg->mg_lock);
+	was_allocatable = mg->mg_allocatable;
+
+	mg->mg_free_capacity = ((vs->vs_space - vs->vs_alloc) * 100) /
+	    (vs->vs_space + 1);
+
+	mg->mg_allocatable = (mg->mg_free_capacity > zfs_mg_noalloc_threshold);
+
+	/*
+	 * The mc_alloc_groups maintains a count of the number of
+	 * groups in this metaslab class that are still above the
+	 * zfs_mg_noalloc_threshold. This is used by the allocating
+	 * threads to determine if they should avoid allocations to
+	 * a given group. The allocator will avoid allocations to a group
+	 * if that group has reached or is below the zfs_mg_noalloc_threshold
+	 * and there are still other groups that are above the threshold.
+	 * When a group transitions from allocatable to non-allocatable or
+	 * vice versa we update the metaslab class to reflect that change.
+	 * When the mc_alloc_groups value drops to 0 that means that all
+	 * groups have reached the zfs_mg_noalloc_threshold making all groups
+	 * eligible for allocations. This effectively means that all devices
+	 * are balanced again.
+	 */
+	if (was_allocatable && !mg->mg_allocatable)
+		mc->mc_alloc_groups--;
+	else if (!was_allocatable && mg->mg_allocatable)
+		mc->mc_alloc_groups++;
+	mutex_exit(&mg->mg_lock);
+}
+
 metaslab_group_t *
 metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
@@ -272,6 +339,7 @@ metaslab_group_activate(metaslab_group_t *mg)
 		return;
 
 	mg->mg_aliquot = metaslab_aliquot * MAX(1, mg->mg_vd->vdev_children);
+	metaslab_group_alloc_update(mg);
 
 	if ((mgprev = mc->mc_rotor) == NULL) {
 		mg->mg_prev = mg;
@@ -354,6 +422,29 @@ metaslab_group_sort(metaslab_group_t *mg, metaslab_t *msp, uint64_t weight)
 	msp->ms_weight = weight;
 	avl_add(&mg->mg_metaslab_tree, msp);
 	mutex_exit(&mg->mg_lock);
+}
+
+/*
+ * Determine if a given metaslab group should skip allocations. A metaslab
+ * group should avoid allocations if its used capacity has crossed the
+ * zfs_mg_noalloc_threshold and there is at least one metaslab group
+ * that can still handle allocations.
+ */
+static boolean_t
+metaslab_group_allocatable(metaslab_group_t *mg)
+{
+	vdev_t *vd = mg->mg_vd;
+	spa_t *spa = vd->vdev_spa;
+	metaslab_class_t *mc = mg->mg_class;
+
+	/*
+	 * A metaslab group is considered allocatable if its free capacity
+	 * is greater than the set value of zfs_mg_noalloc_threshold, it's
+	 * associated with a slog, or there are no other metaslab groups
+	 * with free capacity greater than zfs_mg_noalloc_threshold.
+	 */
+	return (mg->mg_free_capacity > zfs_mg_noalloc_threshold ||
+	    mc != spa_normal_class(spa) || mc->mc_alloc_groups == 0);
 }
 
 /*
@@ -831,6 +922,16 @@ metaslab_weight(metaslab_t *msp)
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	/*
+	 * This vdev is in the process of being removed so there is nothing
+	 * for us to do here.
+	 */
+	if (vd->vdev_removing) {
+		ASSERT0(smo->smo_alloc);
+		ASSERT0(vd->vdev_ms_shift);
+		return (0);
+	}
+
+	/*
 	 * The baseline weight is the metaslab's free space.
 	 */
 	space = sm->sm_size - smo->smo_alloc;
@@ -1212,8 +1313,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	space_map_obj_t *smo = &msp->ms_smo;
 	space_map_obj_t *smosync = &msp->ms_smo_syncing;
 	space_map_t *sm = msp->ms_map;
-	space_map_t *freed_map = msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-	space_map_t *defer_map = msp->ms_defermap[txg % TXG_DEFER_SIZE];
+	space_map_t **freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
+	space_map_t **defer_map = &msp->ms_defermap[txg % TXG_DEFER_SIZE];
 	metaslab_group_t *mg = msp->ms_group;
 	vdev_t *vd = mg->mg_vd;
 	int64_t alloc_delta, defer_delta;
@@ -1227,8 +1328,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * If this metaslab is just becoming available, initialize its
 	 * allocmaps, freemaps, and defermap and add its capacity to the vdev.
 	 */
-	if (freed_map == NULL) {
-		ASSERT(defer_map == NULL);
+	if (*freed_map == NULL) {
+		ASSERT(*defer_map == NULL);
 		for (t = 0; t < TXG_SIZE; t++) {
 			msp->ms_allocmap[t] = kmem_zalloc(sizeof (space_map_t),
 			    KM_PUSHPAGE);
@@ -1247,14 +1348,14 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
 		}
 
-		freed_map = msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-		defer_map = msp->ms_defermap[txg % TXG_DEFER_SIZE];
+		freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
+		defer_map = &msp->ms_defermap[txg % TXG_DEFER_SIZE];
 
 		vdev_space_update(vd, 0, 0, sm->sm_size);
 	}
 
 	alloc_delta = smosync->smo_alloc - smo->smo_alloc;
-	defer_delta = freed_map->sm_space - defer_map->sm_space;
+	defer_delta = (*freed_map)->sm_space - (*defer_map)->sm_space;
 
 	vdev_space_update(vd, alloc_delta + defer_delta, defer_delta, 0);
 
@@ -1264,12 +1365,18 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	/*
 	 * If there's a space_map_load() in progress, wait for it to complete
 	 * so that we have a consistent view of the in-core space map.
-	 * Then, add defer_map (oldest deferred frees) to this map and
-	 * transfer freed_map (this txg's frees) to defer_map.
 	 */
 	space_map_load_wait(sm);
-	space_map_vacate(defer_map, sm->sm_loaded ? space_map_free : NULL, sm);
-	space_map_vacate(freed_map, space_map_add, defer_map);
+
+	/*
+	 * Move the frees from the defer_map to this map (if it's loaded).
+	 * Swap the freed_map and the defer_map -- this is safe to do
+	 * because we've just emptied out the defer_map.
+	 */
+	space_map_vacate(*defer_map, sm->sm_loaded ? space_map_free : NULL, sm);
+	ASSERT0((*defer_map)->sm_space);
+	ASSERT0(avl_numnodes(&(*defer_map)->sm_root));
+	space_map_swap(freed_map, defer_map);
 
 	*smo = *smosync;
 
@@ -1283,6 +1390,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		 */
 		vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 	}
+
+	metaslab_group_alloc_update(mg);
 
 	/*
 	 * If the map is loaded but no longer active, evict it as soon as all
@@ -1413,6 +1522,8 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 		if (msp == NULL)
 			return (-1ULL);
 
+		mutex_enter(&msp->ms_lock);
+
 		/*
 		 * If we've already reached the allowable number of failed
 		 * allocation attempts on this metaslab group then we
@@ -1429,10 +1540,9 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 			    "asize %llu, failures %llu", spa_name(spa),
 			    mg->mg_vd->vdev_id, txg, mg, psize, asize,
 			    mg->mg_alloc_failures);
+			mutex_exit(&msp->ms_lock);
 			return (-1ULL);
 		}
-
-		mutex_enter(&msp->ms_lock);
 
 		/*
 		 * Ensure that the metaslab we have selected is still
@@ -1497,7 +1607,7 @@ static int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     dva_t *dva, int d, dva_t *hintdva, uint64_t txg, int flags)
 {
-	metaslab_group_t *mg, *fast_mg, *rotor;
+	metaslab_group_t *mg, *rotor;
 	vdev_t *vd;
 	int dshift = 3;
 	int all_zero;
@@ -1513,10 +1623,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 * For testing, make some blocks above a certain size be gang blocks.
 	 */
 	if (psize >= metaslab_gang_bang && (ddi_get_lbolt() & 3) == 0)
-		return (ENOSPC);
-
-	if (flags & METASLAB_FASTWRITE)
-		mutex_enter(&mc->mc_fastwrite_lock);
+		return (SET_ERROR(ENOSPC));
 
 	/*
 	 * Start at the rotor and loop through all mgs until we find something.
@@ -1561,6 +1668,14 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d - 1]));
 		mg = vd->vdev_mg->mg_next;
 	} else if (flags & METASLAB_FASTWRITE) {
+		metaslab_group_t *fast_mg;
+
+		/*
+		 * Must hold one of the spa_config locks.
+		 */
+		ASSERT(spa_config_held(mc->mc_spa, SCL_ALL, RW_READER) ||
+		    spa_config_held(mc->mc_spa, SCL_ALL, RW_WRITER));
+
 		mg = fast_mg = mc->mc_rotor;
 
 		do {
@@ -1598,15 +1713,33 @@ top:
 		} else {
 			allocatable = vdev_allocatable(vd);
 		}
+
+		/*
+		 * Determine if the selected metaslab group is eligible
+		 * for allocations. If we're ganging or have requested
+		 * an allocation for the smallest gang block size
+		 * then we don't want to avoid allocating to the this
+		 * metaslab group. If we're in this condition we should
+		 * try to allocate from any device possible so that we
+		 * don't inadvertently return ENOSPC and suspend the pool
+		 * even though space is still available.
+		 */
+		if (allocatable && CAN_FASTGANG(flags) &&
+		    psize > SPA_GANGBLOCKSIZE)
+			allocatable = metaslab_group_allocatable(mg);
+
 		if (!allocatable)
 			goto next;
 
 		/*
 		 * Avoid writing single-copy data to a failing vdev
+		 * unless the user instructs us that it is okay.
 		 */
 		if ((vd->vdev_stat.vs_write_errors > 0 ||
 		    vd->vdev_state < VDEV_STATE_HEALTHY) &&
-		    d == 0 && dshift == 3) {
+		    d == 0 && dshift == 3 &&
+		    !(zfs_write_to_degraded && vd->vdev_state ==
+		    VDEV_STATE_DEGRADED)) {
 			all_zero = B_FALSE;
 			goto next;
 		}
@@ -1670,7 +1803,6 @@ top:
 			if (flags & METASLAB_FASTWRITE) {
 				atomic_add_64(&vd->vdev_pending_fastwrite,
 				    psize);
-				mutex_exit(&mc->mc_fastwrite_lock);
 			}
 
 			return (0);
@@ -1694,9 +1826,7 @@ next:
 
 	bzero(&dva[d], sizeof (dva_t));
 
-	if (flags & METASLAB_FASTWRITE)
-		mutex_exit(&mc->mc_fastwrite_lock);
-	return (ENOSPC);
+	return (SET_ERROR(ENOSPC));
 }
 
 /*
@@ -1765,7 +1895,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 	if ((vd = vdev_lookup_top(spa, vdev)) == NULL ||
 	    (offset >> vd->vdev_ms_shift) >= vd->vdev_ms_count)
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
@@ -1778,7 +1908,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 		error = metaslab_activate(msp, METASLAB_WEIGHT_SECONDARY);
 
 	if (error == 0 && !space_map_contains(msp->ms_map, offset, size))
-		error = ENOENT;
+		error = SET_ERROR(ENOENT);
 
 	if (error || txg == 0) {	/* txg == 0 indicates dry run */
 		mutex_exit(&msp->ms_lock);
@@ -1813,7 +1943,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 
 	if (mc->mc_rotor == NULL) {	/* no vdevs in this class */
 		spa_config_exit(spa, SCL_ALLOC, FTAG);
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 	}
 
 	ASSERT(ndvas > 0 && ndvas <= spa_max_replication(spa));

@@ -1233,41 +1233,67 @@ dump_bpobj_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 }
 
 static void
-dump_bpobj(bpobj_t *bpo, char *name)
+dump_bpobj(bpobj_t *bpo, char *name, int indent)
 {
 	char bytes[32];
 	char comp[32];
 	char uncomp[32];
+	uint64_t i;
 
 	if (dump_opt['d'] < 3)
 		return;
 
 	zdb_nicenum(bpo->bpo_phys->bpo_bytes, bytes);
-	if (bpo->bpo_havesubobj) {
+	if (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_subobjs != 0) {
 		zdb_nicenum(bpo->bpo_phys->bpo_comp, comp);
 		zdb_nicenum(bpo->bpo_phys->bpo_uncomp, uncomp);
-		(void) printf("\n    %s: %llu local blkptrs, %llu subobjs, "
-		    "%s (%s/%s comp)\n",
-		    name, (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
+		(void) printf("    %*s: object %llu, %llu local blkptrs, "
+		    "%llu subobjs, %s (%s/%s comp)\n",
+		    indent * 8, name,
+		    (u_longlong_t)bpo->bpo_object,
+		    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
 		    (u_longlong_t)bpo->bpo_phys->bpo_num_subobjs,
 		    bytes, comp, uncomp);
+
+		for (i = 0; i < bpo->bpo_phys->bpo_num_subobjs; i++) {
+			uint64_t subobj;
+			bpobj_t subbpo;
+			int error;
+			VERIFY0(dmu_read(bpo->bpo_os,
+			    bpo->bpo_phys->bpo_subobjs,
+			    i * sizeof (subobj), sizeof (subobj), &subobj, 0));
+			error = bpobj_open(&subbpo, bpo->bpo_os, subobj);
+			if (error != 0) {
+				(void) printf("ERROR %u while trying to open "
+				    "subobj id %llu\n",
+				    error, (u_longlong_t)subobj);
+				continue;
+			}
+			dump_bpobj(&subbpo, "subobj", indent + 1);
+		}
 	} else {
-		(void) printf("\n    %s: %llu blkptrs, %s\n",
-		    name, (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs, bytes);
+		(void) printf("    %*s: object %llu, %llu blkptrs, %s\n",
+		    indent * 8, name,
+		    (u_longlong_t)bpo->bpo_object,
+		    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
+		    bytes);
 	}
 
 	if (dump_opt['d'] < 5)
 		return;
 
-	(void) printf("\n");
 
-	(void) bpobj_iterate_nofree(bpo, dump_bpobj_cb, NULL, NULL);
+	if (indent == 0) {
+		(void) bpobj_iterate_nofree(bpo, dump_bpobj_cb, NULL, NULL);
+		(void) printf("\n");
+	}
 }
 
 static void
 dump_deadlist(dsl_deadlist_t *dl)
 {
 	dsl_deadlist_entry_t *dle;
+	uint64_t unused;
 	char bytes[32];
 	char comp[32];
 	char uncomp[32];
@@ -1286,14 +1312,24 @@ dump_deadlist(dsl_deadlist_t *dl)
 
 	(void) printf("\n");
 
+	/* force the tree to be loaded */
+	dsl_deadlist_space_range(dl, 0, UINT64_MAX, &unused, &unused, &unused);
+
 	for (dle = avl_first(&dl->dl_tree); dle;
 	    dle = AVL_NEXT(&dl->dl_tree, dle)) {
-		(void) printf("      mintxg %llu -> obj %llu\n",
-		    (longlong_t)dle->dle_mintxg,
-		    (longlong_t)dle->dle_bpobj.bpo_object);
+		if (dump_opt['d'] >= 5) {
+			char buf[128];
+			(void) snprintf(buf, sizeof (buf), "mintxg %llu -> obj %llu",
+			    (longlong_t)dle->dle_mintxg,
+			    (longlong_t)dle->dle_bpobj.bpo_object);
 
-		if (dump_opt['d'] >= 5)
-			dump_bpobj(&dle->dle_bpobj, "");
+			dump_bpobj(&dle->dle_bpobj, buf, 0);
+		} else {
+			(void) printf("mintxg %llu -> obj %llu\n",
+			    (longlong_t)dle->dle_mintxg,
+			    (longlong_t)dle->dle_bpobj.bpo_object);
+
+		}
 	}
 }
 
@@ -1316,7 +1352,7 @@ fuid_table_destroy(void)
  * print uid or gid information.
  * For normal POSIX id just the id is printed in decimal format.
  * For CIFS files with FUID the fuid is printed in hex followed by
- * the doman-rid string.
+ * the domain-rid string.
  */
 static void
 print_idstr(uint64_t id, const char *id_type)
@@ -2669,10 +2705,11 @@ dump_zpool(spa_t *spa)
 	if (dump_opt['d'] || dump_opt['i']) {
 		dump_dir(dp->dp_meta_objset);
 		if (dump_opt['d'] >= 3) {
-			dump_bpobj(&spa->spa_deferred_bpobj, "Deferred frees");
+			dump_bpobj(&spa->spa_deferred_bpobj,
+			    "Deferred frees", 0);
 			if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
 				dump_bpobj(&spa->spa_dsl_pool->dp_free_bpobj,
-				    "Pool snapshot frees");
+				    "Pool snapshot frees", 0);
 			}
 
 			if (spa_feature_is_active(spa,

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -295,7 +295,8 @@ zap_table_load(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t *valp)
 		err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
 		    (tbl->zt_nextblk + blk) << bs, FTAG, &db,
 		    DMU_READ_NO_PREFETCH);
-		dmu_buf_rele(db, FTAG);
+		if (err == 0)
+			dmu_buf_rele(db, FTAG);
 	}
 	return (err);
 }
@@ -325,7 +326,7 @@ zap_grow_ptrtbl(zap_t *zap, dmu_tx_t *tx)
 	 * this is already an aberrant condition.
 	 */
 	if (zap->zap_f.zap_phys->zap_ptrtbl.zt_shift >= zap_hashbits(zap) - 2)
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 
 	if (zap->zap_f.zap_phys->zap_ptrtbl.zt_numblks == 0) {
 		/*
@@ -714,7 +715,7 @@ static int
 fzap_checkname(zap_name_t *zn)
 {
 	if (zn->zn_key_orig_numints * zn->zn_key_intlen > ZAP_MAXNAMELEN)
-		return (ENAMETOOLONG);
+		return (SET_ERROR(ENAMETOOLONG));
 	return (0);
 }
 
@@ -729,7 +730,7 @@ fzap_checksize(uint64_t integer_size, uint64_t num_integers)
 	case 8:
 		break;
 	default:
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	if (integer_size * num_integers > ZAP_MAXVALUELEN)
@@ -805,7 +806,7 @@ fzap_add_cd(zap_name_t *zn,
 retry:
 	err = zap_leaf_lookup(l, zn, &zeh);
 	if (err == 0) {
-		err = EEXIST;
+		err = SET_ERROR(EEXIST);
 		goto out;
 	}
 	if (err != ENOENT)
@@ -992,18 +993,21 @@ zap_join(objset_t *os, uint64_t fromobj, uint64_t intoobj, dmu_tx_t *tx)
 	zap_attribute_t za;
 	int err;
 
+	err = 0;
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
-		if (za.za_integer_length != 8 || za.za_num_integers != 1)
-			return (EINVAL);
+		if (za.za_integer_length != 8 || za.za_num_integers != 1) {
+			err = SET_ERROR(EINVAL);
+			break;
+		}
 		err = zap_add(os, intoobj, za.za_name,
 		    8, 1, &za.za_first_integer, tx);
 		if (err)
-			return (err);
+			break;
 	}
 	zap_cursor_fini(&zc);
-	return (0);
+	return (err);
 }
 
 int
@@ -1014,18 +1018,21 @@ zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 	zap_attribute_t za;
 	int err;
 
+	err = 0;
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
-		if (za.za_integer_length != 8 || za.za_num_integers != 1)
-			return (EINVAL);
+		if (za.za_integer_length != 8 || za.za_num_integers != 1) {
+			err = SET_ERROR(EINVAL);
+			break;
+		}
 		err = zap_add(os, intoobj, za.za_name,
 		    8, 1, &value, tx);
 		if (err)
-			return (err);
+			break;
 	}
 	zap_cursor_fini(&zc);
-	return (0);
+	return (err);
 }
 
 int
@@ -1036,24 +1043,27 @@ zap_join_increment(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 	zap_attribute_t za;
 	int err;
 
+	err = 0;
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
 		uint64_t delta = 0;
 
-		if (za.za_integer_length != 8 || za.za_num_integers != 1)
-			return (EINVAL);
+		if (za.za_integer_length != 8 || za.za_num_integers != 1) {
+			err = SET_ERROR(EINVAL);
+			break;
+		}
 
 		err = zap_lookup(os, intoobj, za.za_name, 8, 1, &delta);
 		if (err != 0 && err != ENOENT)
-			return (err);
+			break;
 		delta += za.za_first_integer;
 		err = zap_update(os, intoobj, za.za_name, 8, 1, &delta, tx);
 		if (err)
-			return (err);
+			break;
 	}
 	zap_cursor_fini(&zc);
-	return (0);
+	return (err);
 }
 
 int
@@ -1250,7 +1260,7 @@ fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn)
 	zap_entry_handle_t zeh;
 
 	if (zn->zn_key_orig_numints * zn->zn_key_intlen > ZAP_MAXNAMELEN)
-		return (ENAMETOOLONG);
+		return (SET_ERROR(ENAMETOOLONG));
 
 	err = zap_deref_leaf(zc->zc_zap, zn->zn_hash, NULL, RW_READER, &l);
 	if (err != 0)

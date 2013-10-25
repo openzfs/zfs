@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -100,12 +100,22 @@ struct vdev_cache {
 	kmutex_t	vc_lock;
 };
 
+typedef struct vdev_queue_class {
+	uint32_t	vqc_active;
+
+	/*
+	 * Sorted by offset or timestamp, depending on if the queue is
+	 * LBA-ordered vs FIFO.
+	 */
+	avl_tree_t	vqc_queued_tree;
+} vdev_queue_class_t;
+
 struct vdev_queue {
-	avl_tree_t	vq_deadline_tree;
-	avl_tree_t	vq_read_tree;
-	avl_tree_t	vq_write_tree;
-	avl_tree_t	vq_pending_tree;
-	hrtime_t	vq_io_complete_ts;
+	vdev_t		*vq_vdev;
+	vdev_queue_class_t vq_class[ZIO_PRIORITY_NUM_QUEUEABLE];
+	avl_tree_t	vq_active_tree;
+	uint64_t	vq_last_offset;
+	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
 	list_t		vq_io_list;
 	kmutex_t	vq_lock;
@@ -182,7 +192,7 @@ struct vdev {
 	uint64_t	vdev_faulted;	/* persistent faulted state	*/
 	uint64_t	vdev_degraded;	/* persistent degraded state	*/
 	uint64_t	vdev_removed;	/* persistent removed state	*/
-	uint64_t	vdev_resilvering; /* persistent resilvering state */
+	uint64_t	vdev_resilver_txg; /* persistent resilvering state */
 	uint64_t	vdev_nparity;	/* number of parity devices for raidz */
 	char		*vdev_path;	/* vdev path (if any)		*/
 	char		*vdev_devid;	/* vdev devid (if any)		*/
@@ -254,12 +264,13 @@ typedef struct vdev_label {
 #define	VDD_METASLAB	0x01
 #define	VDD_DTL		0x02
 
+/* Offset of embedded boot loader region on each label */
+#define	VDEV_BOOT_OFFSET	(2 * sizeof (vdev_label_t))
 /*
- * Size and offset of embedded boot loader region on each label.
+ * Size of embedded boot loader region on each label.
  * The total size of the first two labels plus the boot area is 4MB.
  */
-#define	VDEV_BOOT_OFFSET	(2 * sizeof (vdev_label_t))
-#define	VDEV_BOOT_SIZE		(7ULL << 19)			/* 3.5M	*/
+#define	VDEV_BOOT_SIZE		(7ULL << 19)			/* 3.5M */
 
 /*
  * Size of label regions at the start and end of each leaf device.
@@ -326,8 +337,9 @@ extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
 
 /*
- * zdb uses this tunable, so it must be declared here to make lint happy.
+ * Global variables
  */
+/* zdb uses this tunable, so it must be declared here to make lint happy. */
 extern int zfs_vdev_cache_size;
 
 #ifdef	__cplusplus

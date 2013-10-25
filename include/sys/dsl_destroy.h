@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
@@ -35,15 +35,16 @@ struct nvlist;
 struct dsl_dataset;
 struct dmu_tx;
 
-int dsl_destroy_snapshots_nvl(struct nvlist *snaps, boolean_t defer,
-    struct nvlist *errlist);
-int dsl_destroy_snapshot(const char *name, boolean_t defer);
-int dsl_destroy_head(const char *name);
-int dsl_destroy_head_check_impl(struct dsl_dataset *ds, int expected_holds);
-void dsl_destroy_head_sync_impl(struct dsl_dataset *ds, struct dmu_tx *tx);
-int dsl_destroy_inconsistent(const char *dsname, void *arg);
-void dsl_destroy_snapshot_sync_impl(struct dsl_dataset *ds,
-    boolean_t defer, struct dmu_tx *tx);
+int dsl_destroy_snapshots_nvl(struct nvlist *, boolean_t,
+    struct nvlist *);
+int dsl_destroy_snapshot(const char *, boolean_t);
+int dsl_destroy_head(const char *);
+int dsl_destroy_head_check_impl(struct dsl_dataset *, int);
+void dsl_destroy_head_sync_impl(struct dsl_dataset *, struct dmu_tx *);
+int dsl_destroy_inconsistent(const char *, void *);
+int dsl_destroy_snapshot_check_impl(struct dsl_dataset *, boolean_t);
+void dsl_destroy_snapshot_sync_impl(struct dsl_dataset *,
+    boolean_t, struct dmu_tx *);
 
 #ifdef	__cplusplus
 }

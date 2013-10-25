@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -353,6 +354,10 @@ zfs_prop_init(void)
 	    ZFS_TYPE_SNAPSHOT, "<count>", "USERREFS");
 	zprop_register_number(ZFS_PROP_WRITTEN, "written", 0, PROP_READONLY,
 	    ZFS_TYPE_DATASET, "<size>", "WRITTEN");
+	zprop_register_number(ZFS_PROP_LOGICALUSED, "logicalused", 0,
+	    PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "LUSED");
+	zprop_register_number(ZFS_PROP_LOGICALREFERENCED, "logicalreferenced",
+	    0, PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "LREFER");
 
 	/* default number properties */
 	zprop_register_number(ZFS_PROP_QUOTA, "quota", 0, PROP_DEFAULT,
@@ -394,6 +399,8 @@ zfs_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_DATASET, "UNIQUE");
 	zprop_register_hidden(ZFS_PROP_OBJSETID, "objsetid", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "OBJSETID");
+	zprop_register_hidden(ZFS_PROP_INCONSISTENT, "inconsistent",
+	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_DATASET, "INCONSISTENT");
 
 	/*
 	 * Property to be removed once libbe is integrated

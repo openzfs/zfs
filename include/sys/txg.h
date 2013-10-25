@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_TXG_H
@@ -74,13 +74,9 @@ extern void txg_rele_to_quiesce(txg_handle_t *txghp);
 extern void txg_rele_to_sync(txg_handle_t *txghp);
 extern void txg_register_callbacks(txg_handle_t *txghp, list_t *tx_callbacks);
 
-/*
- * Delay the caller by the specified number of ticks or until
- * the txg closes (whichever comes first).  This is intended
- * to be used to throttle writers when the system nears its
- * capacity.
- */
-extern void txg_delay(struct dsl_pool *dp, uint64_t txg, int ticks);
+extern void txg_delay(struct dsl_pool *dp, uint64_t txg, hrtime_t delta,
+    hrtime_t resolution);
+extern void txg_kick(struct dsl_pool *dp);
 
 /*
  * Wait until the given transaction group has finished syncing.
