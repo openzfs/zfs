@@ -51,6 +51,8 @@ typedef void (*thread_func_t)(void *);
 #define thread_exit()			__thread_exit()
 #define thread_join(t)			VERIFY(0)
 #define curthread			current
+#define getcomm()			current->comm
+#define getpid()			current->pid
 
 extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
                                   thread_func_t func, const char *name,

@@ -41,10 +41,91 @@ static kmutex_t kstat_module_lock;
 static struct list_head kstat_module_list;
 static kid_t kstat_id;
 
-static void
+static int
+kstat_resize_raw(kstat_t *ksp)
+{
+	if (ksp->ks_raw_bufsize == KSTAT_RAW_MAX)
+		return ENOMEM;
+
+	vmem_free(ksp->ks_raw_buf, ksp->ks_raw_bufsize);
+	ksp->ks_raw_bufsize = MIN(ksp->ks_raw_bufsize * 2, KSTAT_RAW_MAX);
+	ksp->ks_raw_buf = vmem_alloc(ksp->ks_raw_bufsize, KM_SLEEP);
+
+	return 0;
+}
+
+void
+kstat_waitq_enter(kstat_io_t *kiop)
+{
+	hrtime_t new, delta;
+	ulong_t wcnt;
+
+	new = gethrtime();
+	delta = new - kiop->wlastupdate;
+	kiop->wlastupdate = new;
+	wcnt = kiop->wcnt++;
+	if (wcnt != 0) {
+		kiop->wlentime += delta * wcnt;
+		kiop->wtime += delta;
+	}
+}
+EXPORT_SYMBOL(kstat_waitq_enter);
+
+void
+kstat_waitq_exit(kstat_io_t *kiop)
+{
+	hrtime_t new, delta;
+	ulong_t wcnt;
+
+	new = gethrtime();
+	delta = new - kiop->wlastupdate;
+	kiop->wlastupdate = new;
+	wcnt = kiop->wcnt--;
+	ASSERT((int)wcnt > 0);
+	kiop->wlentime += delta * wcnt;
+	kiop->wtime += delta;
+}
+EXPORT_SYMBOL(kstat_waitq_exit);
+
+void
+kstat_runq_enter(kstat_io_t *kiop)
+{
+	hrtime_t new, delta;
+	ulong_t rcnt;
+
+	new = gethrtime();
+	delta = new - kiop->rlastupdate;
+	kiop->rlastupdate = new;
+	rcnt = kiop->rcnt++;
+	if (rcnt != 0) {
+		kiop->rlentime += delta * rcnt;
+		kiop->rtime += delta;
+	}
+}
+EXPORT_SYMBOL(kstat_runq_enter);
+
+void
+kstat_runq_exit(kstat_io_t *kiop)
+{
+	hrtime_t new, delta;
+	ulong_t rcnt;
+
+	new = gethrtime();
+	delta = new - kiop->rlastupdate;
+	kiop->rlastupdate = new;
+	rcnt = kiop->rcnt--;
+	ASSERT((int)rcnt > 0);
+	kiop->rlentime += delta * rcnt;
+	kiop->rtime += delta;
+}
+EXPORT_SYMBOL(kstat_runq_exit);
+
+static int
 kstat_seq_show_headers(struct seq_file *f)
 {
         kstat_t *ksp = (kstat_t *)f->private;
+	int rc = 0;
+
         ASSERT(ksp->ks_magic == KS_MAGIC);
 
         seq_printf(f, "%d %d 0x%02x %d %d %lld %lld\n",
@@ -54,7 +135,17 @@ kstat_seq_show_headers(struct seq_file *f)
 
 	switch (ksp->ks_type) {
                 case KSTAT_TYPE_RAW:
-                        seq_printf(f, "raw data");
+restart:
+                        if (ksp->ks_raw_ops.headers) {
+                                rc = ksp->ks_raw_ops.headers(
+                                    ksp->ks_raw_buf, ksp->ks_raw_bufsize);
+				if (rc == ENOMEM && !kstat_resize_raw(ksp))
+					goto restart;
+				if (!rc)
+	                                seq_puts(f, ksp->ks_raw_buf);
+                        } else {
+                                seq_printf(f, "raw data\n");
+                        }
                         break;
                 case KSTAT_TYPE_NAMED:
                         seq_printf(f, "%-31s %-4s %s\n",
@@ -81,17 +172,11 @@ kstat_seq_show_headers(struct seq_file *f)
                                    "name", "events", "elapsed",
                                    "min", "max", "start", "stop");
                         break;
-                case KSTAT_TYPE_TXG:
-                        seq_printf(f,
-                                   "%-8s %-5s %-13s %-12s %-12s %-8s %-8s "
-                                   "%-12s %-12s %-12s\n",
-                                   "txg", "state", "birth",
-                                   "nread", "nwritten", "reads", "writes",
-                                   "otime", "qtime", "stime");
-                        break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
+
+	return -rc;
 }
 
 static int
@@ -202,27 +287,6 @@ kstat_seq_show_timer(struct seq_file *f, kstat_timer_t *ktp)
 }
 
 static int
-kstat_seq_show_txg(struct seq_file *f, kstat_txg_t *ktp)
-{
-	char state;
-
-	switch (ktp->state) {
-		case TXG_STATE_OPEN:		state = 'O';	break;
-		case TXG_STATE_QUIESCING:	state = 'Q';	break;
-		case TXG_STATE_SYNCING:		state = 'S';	break;
-		case TXG_STATE_COMMITTED:	state = 'C';	break;
-		default:			state = '?';	break;
-	}
-
-        seq_printf(f,
-                   "%-8llu %-5c %-13llu %-12llu %-12llu %-8u %-8u "
-                   "%12lld %12lld %12lld\n", ktp->txg, state, ktp->birth,
-                    ktp->nread, ktp->nwritten, ktp->reads, ktp->writes,
-                    ktp->open_time, ktp->quiesce_time, ktp->sync_time);
-	return 0;
-}
-
-static int
 kstat_seq_show(struct seq_file *f, void *p)
 {
         kstat_t *ksp = (kstat_t *)f->private;
@@ -232,9 +296,19 @@ kstat_seq_show(struct seq_file *f, void *p)
 
 	switch (ksp->ks_type) {
                 case KSTAT_TYPE_RAW:
-                        ASSERT(ksp->ks_ndata == 1);
-                        rc = kstat_seq_show_raw(f, ksp->ks_data,
-                                                ksp->ks_data_size);
+restart:
+                        if (ksp->ks_raw_ops.data) {
+                                rc = ksp->ks_raw_ops.data(
+				    ksp->ks_raw_buf, ksp->ks_raw_bufsize, p);
+				if (rc == ENOMEM && !kstat_resize_raw(ksp))
+					goto restart;
+				if (!rc)
+	                                seq_puts(f, ksp->ks_raw_buf);
+                        } else {
+                                ASSERT(ksp->ks_ndata == 1);
+                                rc = kstat_seq_show_raw(f, ksp->ks_data,
+                                                        ksp->ks_data_size);
+                        }
                         break;
                 case KSTAT_TYPE_NAMED:
                         rc = kstat_seq_show_named(f, (kstat_named_t *)p);
@@ -248,20 +322,21 @@ kstat_seq_show(struct seq_file *f, void *p)
                 case KSTAT_TYPE_TIMER:
                         rc = kstat_seq_show_timer(f, (kstat_timer_t *)p);
                         break;
-                case KSTAT_TYPE_TXG:
-                        rc = kstat_seq_show_txg(f, (kstat_txg_t *)p);
-                        break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
 
-        return rc;
+        return -rc;
 }
 
 int
 kstat_default_update(kstat_t *ksp, int rw)
 {
 	ASSERT(ksp != NULL);
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+
 	return 0;
 }
 
@@ -273,7 +348,10 @@ kstat_seq_data_addr(kstat_t *ksp, loff_t n)
 
 	switch (ksp->ks_type) {
                 case KSTAT_TYPE_RAW:
-	                rc = ksp->ks_data;
+                        if (ksp->ks_raw_ops.addr)
+                                rc = ksp->ks_raw_ops.addr(ksp, n);
+                        else
+                                rc = ksp->ks_data;
                         break;
                 case KSTAT_TYPE_NAMED:
                         rc = ksp->ks_data + n * sizeof(kstat_named_t);
@@ -286,9 +364,6 @@ kstat_seq_data_addr(kstat_t *ksp, loff_t n)
                         break;
                 case KSTAT_TYPE_TIMER:
                         rc = ksp->ks_data + n * sizeof(kstat_timer_t);
-                        break;
-                case KSTAT_TYPE_TXG:
-                        rc = ksp->ks_data + n * sizeof(kstat_txg_t);
                         break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
@@ -305,15 +380,20 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
         ASSERT(ksp->ks_magic == KS_MAGIC);
         SENTRY;
 
-        mutex_enter(&ksp->ks_lock);
+	mutex_enter(ksp->ks_lock);
+
+        if (ksp->ks_type == KSTAT_TYPE_RAW) {
+                ksp->ks_raw_bufsize = PAGE_SIZE;
+                ksp->ks_raw_buf = vmem_alloc(ksp->ks_raw_bufsize, KM_SLEEP);
+        }
 
         /* Dynamically update kstat, on error existing kstats are used */
         (void) ksp->ks_update(ksp, KSTAT_READ);
 
 	ksp->ks_snaptime = gethrtime();
 
-        if (!n)
-                kstat_seq_show_headers(f);
+        if (!n && kstat_seq_show_headers(f))
+		SRETURN(NULL);
 
         if (n >= ksp->ks_ndata)
                 SRETURN(NULL);
@@ -338,10 +418,13 @@ kstat_seq_next(struct seq_file *f, void *p, loff_t *pos)
 static void
 kstat_seq_stop(struct seq_file *f, void *v)
 {
-        kstat_t *ksp = (kstat_t *)f->private;
-        ASSERT(ksp->ks_magic == KS_MAGIC);
+	kstat_t *ksp = (kstat_t *)f->private;
+	ASSERT(ksp->ks_magic == KS_MAGIC);
 
-        mutex_exit(&ksp->ks_lock);
+	if (ksp->ks_type == KSTAT_TYPE_RAW)
+		vmem_free(ksp->ks_raw_buf, ksp->ks_raw_bufsize);
+
+	mutex_exit(ksp->ks_lock);
 }
 
 static struct seq_operations kstat_seq_ops = {
@@ -408,12 +491,46 @@ proc_kstat_open(struct inode *inode, struct file *filp)
         return rc;
 }
 
+static ssize_t
+proc_kstat_write(struct file *filp, const char __user *buf,
+		 size_t len, loff_t *ppos)
+{
+	struct seq_file *f = filp->private_data;
+	kstat_t *ksp = f->private;
+	int rc;
+
+	ASSERT(ksp->ks_magic == KS_MAGIC);
+
+	mutex_enter(ksp->ks_lock);
+	rc = ksp->ks_update(ksp, KSTAT_WRITE);
+	mutex_exit(ksp->ks_lock);
+
+	if (rc)
+		return (-rc);
+
+	*ppos += len;
+	return (len);
+}
+
 static struct file_operations proc_kstat_operations = {
-        .open           = proc_kstat_open,
-        .read           = seq_read,
-        .llseek         = seq_lseek,
-        .release        = seq_release,
+	.open		= proc_kstat_open,
+	.write		= proc_kstat_write,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
 };
+
+void
+__kstat_set_raw_ops(kstat_t *ksp,
+		    int (*headers)(char *buf, size_t size),
+		    int (*data)(char *buf, size_t size, void *data),
+		    void *(*addr)(kstat_t *ksp, loff_t index))
+{
+	ksp->ks_raw_ops.headers = headers;
+	ksp->ks_raw_ops.data    = data;
+	ksp->ks_raw_ops.addr    = addr;
+}
+EXPORT_SYMBOL(__kstat_set_raw_ops);
 
 kstat_t *
 __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
@@ -440,7 +557,8 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	mutex_exit(&kstat_module_lock);
 
         ksp->ks_magic = KS_MAGIC;
-	mutex_init(&ksp->ks_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&ksp->ks_private_lock, NULL, MUTEX_DEFAULT, NULL);
+	ksp->ks_lock = &ksp->ks_private_lock;
 	INIT_LIST_HEAD(&ksp->ks_list);
 
 	ksp->ks_crtime = gethrtime();
@@ -453,6 +571,11 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	ksp->ks_flags = ks_flags;
 	ksp->ks_update = kstat_default_update;
 	ksp->ks_private = NULL;
+	ksp->ks_raw_ops.headers = NULL;
+	ksp->ks_raw_ops.data = NULL;
+	ksp->ks_raw_ops.addr = NULL;
+	ksp->ks_raw_buf = NULL;
+	ksp->ks_raw_bufsize = 0;
 
 	switch (ksp->ks_type) {
                 case KSTAT_TYPE_RAW:
@@ -475,10 +598,6 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	                ksp->ks_ndata = ks_ndata;
                         ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
                         break;
-		case KSTAT_TYPE_TXG:
-			ksp->ks_ndata = ks_ndata;
-			ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
-			break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
@@ -486,7 +605,7 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	if (ksp->ks_flags & KSTAT_FLAG_VIRTUAL) {
                 ksp->ks_data = NULL;
         } else {
-                ksp->ks_data = kmem_alloc(ksp->ks_data_size, KM_SLEEP);
+                ksp->ks_data = kmem_zalloc(ksp->ks_data_size, KM_SLEEP);
                 if (ksp->ks_data == NULL) {
                         kmem_free(ksp, sizeof(*ksp));
                         ksp = NULL;
@@ -524,16 +643,16 @@ __kstat_install(kstat_t *ksp)
 
 	list_add_tail(&ksp->ks_list, &module->ksm_kstat_list);
 
-	mutex_enter(&ksp->ks_lock);
+	mutex_enter(ksp->ks_lock);
 	ksp->ks_owner = module;
-	ksp->ks_proc = proc_create_data(ksp->ks_name, 0444,
+	ksp->ks_proc = proc_create_data(ksp->ks_name, 0644,
 	    module->ksm_proc, &proc_kstat_operations, (void *)ksp);
 	if (ksp->ks_proc == NULL) {
 		list_del_init(&ksp->ks_list);
 		if (list_empty(&module->ksm_kstat_list))
 			kstat_delete_module(module);
 	}
-	mutex_exit(&ksp->ks_lock);
+	mutex_exit(ksp->ks_lock);
 out:
 	mutex_exit(&kstat_module_lock);
 }
@@ -559,7 +678,8 @@ __kstat_delete(kstat_t *ksp)
 	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
 		kmem_free(ksp->ks_data, ksp->ks_data_size);
 
-	mutex_destroy(&ksp->ks_lock);
+	ksp->ks_lock = NULL;
+	mutex_destroy(&ksp->ks_private_lock);
 	kmem_free(ksp, sizeof(*ksp));
 
 	return;

@@ -33,6 +33,7 @@
 #include <sys/mutex.h>
 
 #define KSTAT_STRLEN            31
+#define KSTAT_RAW_MAX		(128*1024)
 
 /* For reference valid classes are:
  * disk, tape, net, controller, vm, kvm, hat, streams, kstat, misc
@@ -43,8 +44,7 @@
 #define KSTAT_TYPE_INTR         2       /* interrupt stats; ks_ndata == 1 */
 #define KSTAT_TYPE_IO           3       /* I/O stats; ks_ndata == 1 */
 #define KSTAT_TYPE_TIMER        4       /* event timer; ks_ndata >= 1 */
-#define KSTAT_TYPE_TXG          5       /* txg sync; ks_ndata >= 1 */
-#define KSTAT_NUM_TYPES         6
+#define KSTAT_NUM_TYPES         5
 
 #define KSTAT_DATA_CHAR         0
 #define KSTAT_DATA_INT32        1
@@ -79,6 +79,7 @@
 #define KSTAT_WRITE             1
 
 struct kstat_s;
+typedef struct kstat_s kstat_t;
 
 typedef int kid_t;                                  /* unique kstat id */
 typedef int kstat_update_t(struct kstat_s *, int);  /* dynamic update cb */
@@ -90,7 +91,13 @@ typedef struct kstat_module {
 	struct proc_dir_entry *ksm_proc;            /* proc entry */
 } kstat_module_t;
 
-typedef struct kstat_s {
+typedef struct kstat_raw_ops {
+	int (*headers)(char *buf, size_t size);
+	int (*data)(char *buf, size_t size, void *data);
+	void *(*addr)(kstat_t *ksp, loff_t index);
+} kstat_raw_ops_t;
+
+struct kstat_s {
 	int              ks_magic;                  /* magic value */
         kid_t            ks_kid;                    /* unique kstat ID */
         hrtime_t         ks_crtime;                 /* creation time */
@@ -107,10 +114,14 @@ typedef struct kstat_s {
         struct proc_dir_entry *ks_proc;             /* proc linkage */
         kstat_update_t   *ks_update;                /* dynamic updates */
         void             *ks_private;               /* private data */
-        kmutex_t         ks_lock;                   /* kstat data lock */
+	kmutex_t         ks_private_lock;           /* kstat private data lock */
+	kmutex_t         *ks_lock;                  /* kstat data lock */
         struct list_head ks_list;                   /* kstat linkage */
 	kstat_module_t   *ks_owner;                 /* kstat module linkage */
-} kstat_t;
+	kstat_raw_ops_t  ks_raw_ops;                /* ops table for raw type */
+	char             *ks_raw_buf;               /* buf used for raw ops */
+	size_t           ks_raw_bufsize;            /* size of raw ops buffer */
+};
 
 typedef struct kstat_named_s {
         char             name[KSTAT_STRLEN];        /* name of counter */
@@ -165,36 +176,25 @@ typedef struct kstat_timer {
         hrtime_t     stop_time;            /* previous event stop time */
 } kstat_timer_t;
 
-typedef enum kstat_txg_state {
-        TXG_STATE_OPEN      = 1,
-        TXG_STATE_QUIESCING = 2,
-        TXG_STATE_SYNCING   = 3,
-        TXG_STATE_COMMITTED = 4,
-} kstat_txg_state_t;
-
-typedef struct kstat_txg {
-        u_longlong_t       txg;         /* txg id */
-        kstat_txg_state_t  state;       /* txg state */
-        hrtime_t           birth;       /* birth time stamp */
-        u_longlong_t       nread;       /* number of bytes read */
-        u_longlong_t       nwritten;    /* number of bytes written */
-        uint_t             reads;       /* number of read operations */
-        uint_t             writes;      /* number of write operations */
-        hrtime_t           open_time;   /* open time */
-        hrtime_t           quiesce_time;/* quiesce time */
-        hrtime_t           sync_time;   /* sync time */
-} kstat_txg_t;
-
 int spl_kstat_init(void);
 void spl_kstat_fini(void);
 
+extern void __kstat_set_raw_ops(kstat_t *ksp,
+		    int (*headers)(char *buf, size_t size),
+		    int (*data)(char *buf, size_t size, void *data),
+		    void* (*addr)(kstat_t *ksp, loff_t index));
 extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
 			     const char *ks_name, const char *ks_class,
 			     uchar_t ks_type, uint_t ks_ndata,
 			     uchar_t ks_flags);
 extern void __kstat_install(kstat_t *ksp);
 extern void __kstat_delete(kstat_t *ksp);
+extern void kstat_waitq_enter(kstat_io_t *);
+extern void kstat_waitq_exit(kstat_io_t *);
+extern void kstat_runq_enter(kstat_io_t *);
+extern void kstat_runq_exit(kstat_io_t *);
 
+#define kstat_set_raw_ops(k,h,d,a)	__kstat_set_raw_ops(k,h,d,a)
 #define kstat_create(m,i,n,c,t,s,f)	__kstat_create(m,i,n,c,t,s,f)
 #define kstat_install(k)		__kstat_install(k)
 #define kstat_delete(k)			__kstat_delete(k)
