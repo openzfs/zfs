@@ -3971,7 +3971,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 /*
  * Update the system attributes when the inode has been dirtied.  For the
- * moment we're conservative and only update the atime, mtime, and ctime.
+ * moment we only update the mode, atime, mtime, and ctime.
  */
 int
 zfs_dirty_inode(struct inode *ip, int flags)
@@ -3979,8 +3979,8 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	znode_t		*zp = ITOZ(ip);
 	zfs_sb_t	*zsb = ITOZSB(ip);
 	dmu_tx_t	*tx;
-	uint64_t	atime[2], mtime[2], ctime[2];
-	sa_bulk_attr_t	bulk[3];
+	uint64_t	mode, atime[2], mtime[2], ctime[2];
+	sa_bulk_attr_t	bulk[4];
 	int		error;
 	int		cnt = 0;
 
@@ -3999,14 +3999,18 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	}
 
 	mutex_enter(&zp->z_lock);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MODE(zsb), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_ATIME(zsb), NULL, &atime, 16);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
 
-	/* Preserve the mtime and ctime provided by the inode */
+	/* Preserve the mode, mtime and ctime provided by the inode */
 	ZFS_TIME_ENCODE(&ip->i_atime, atime);
 	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
 	ZFS_TIME_ENCODE(&ip->i_ctime, ctime);
+	mode = ip->i_mode;
+
+	zp->z_mode = mode;
 	zp->z_atime_dirty = 0;
 
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);

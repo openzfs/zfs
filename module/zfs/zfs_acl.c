@@ -1155,6 +1155,9 @@ zfs_acl_chown_setattr(znode_t *zp)
 	int error;
 	zfs_acl_t *aclp;
 
+	 if (ZTOZSB(zp)->z_acl_type == ZFS_ACLTYPE_POSIXACL)
+		 return 0;
+
 	ASSERT(MUTEX_HELD(&zp->z_lock));
 	ASSERT(MUTEX_HELD(&zp->z_acl_lock));
 

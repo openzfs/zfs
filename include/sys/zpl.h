@@ -71,6 +71,22 @@ extern struct file_system_type zpl_fs_type;
 extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
 extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
+extern int zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl);
+extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
+#if !defined(HAVE_GET_ACL)
+#if defined(HAVE_CHECK_ACL_WITH_FLAGS)
+extern int zpl_check_acl(struct inode *inode, int mask,unsigned int flags);
+#elif defined(HAVE_CHECK_ACL)
+extern int zpl_check_acl(struct inode *inode, int mask);
+#elif defined(HAVE_PERMISSION_WITH_NAMEIDATA)
+extern int zpl_permission(struct inode *ip, int mask, struct nameidata *nd);
+#elif defined(HAVE_PERMISSION)
+extern int zpl_permission(struct inode *ip, int mask);
+#endif /*  HAVE_CHECK_ACL | HAVE_PERMISSION */
+#endif /* HAVE_GET_ACL */
+
+extern int zpl_init_acl(struct inode *ip, struct inode *dir);
+extern int zpl_chmod_acl(struct inode *ip);
 
 extern xattr_handler_t *zpl_xattr_handlers[];
 

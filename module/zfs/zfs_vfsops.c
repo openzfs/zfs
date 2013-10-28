@@ -155,6 +155,25 @@ xattr_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+acltype_changed_cb(void *arg, uint64_t newval)
+{
+	zfs_sb_t *zsb = arg;
+
+	switch (newval) {
+	case ZFS_ACLTYPE_OFF:
+		zsb->z_acl_type = ZFS_ACLTYPE_OFF;
+		zsb->z_sb->s_flags &= ~MS_POSIXACL;
+		break;
+	case ZFS_ACLTYPE_POSIXACL:
+		zsb->z_acl_type = ZFS_ACLTYPE_POSIXACL;
+		zsb->z_sb->s_flags |= MS_POSIXACL;
+		break;
+	default:
+		break;
+	}
+}
+
+static void
 blksz_changed_cb(void *arg, uint64_t newval)
 {
 	zfs_sb_t *zsb = arg;
@@ -266,8 +285,9 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_SNAPDIR), snapdir_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
-	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb,
-	    zsb);
+	    zfs_prop_to_name(ZFS_PROP_ACLTYPE), acltype_changed_cb, zsb);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_VSCAN), vscan_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
@@ -303,6 +323,8 @@ unregister:
 	    exec_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_SNAPDIR),
 	    snapdir_changed_cb, zsb);
+	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_ACLTYPE),
+	    acltype_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_ACLINHERIT),
 	    acl_inherit_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_VSCAN),
@@ -663,6 +685,10 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 		goto out;
 	zsb->z_case = (uint_t)zval;
 
+	if ((error = zfs_get_zplprop(os, ZFS_PROP_ACLTYPE, &zval)) != 0)
+		goto out;
+	zsb->z_acl_type = (uint_t)zval;
+
 	/*
 	 * Fold case on file systems that are always or sometimes case
 	 * insensitive.
@@ -902,6 +928,9 @@ zfs_unregister_callbacks(zfs_sb_t *zsb)
 		    zsb) == 0);
 
 		VERIFY(dsl_prop_unregister(ds, "snapdir", snapdir_changed_cb,
+		    zsb) == 0);
+
+		VERIFY(dsl_prop_unregister(ds, "acltype", acltype_changed_cb,
 		    zsb) == 0);
 
 		VERIFY(dsl_prop_unregister(ds, "aclinherit",
@@ -1221,6 +1250,9 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		if ((error = dsl_prop_get_integer(osname,"xattr",&pval,NULL)))
 			goto out;
 		xattr_changed_cb(zsb, pval);
+		if ((error = dsl_prop_get_integer(osname,"acltype",&pval,NULL)))
+			goto out;
+		acltype_changed_cb(zsb, pval);
 		zsb->z_issnap = B_TRUE;
 		zsb->z_os->os_sync = ZFS_SYNC_DISABLED;
 
@@ -1610,6 +1642,9 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 		case ZFS_PROP_CASE:
 			*value = ZFS_CASE_SENSITIVE;
 			break;
+		case ZFS_PROP_ACLTYPE:
+			*value = ZFS_ACLTYPE_OFF;
+			break;
 		default:
 			return (error);
 		}
@@ -1632,6 +1667,7 @@ zfs_init(void)
 void
 zfs_fini(void)
 {
+	taskq_wait(system_taskq);
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
 	zfsctl_fini();
