@@ -1176,11 +1176,33 @@ Controls whether regular files should be scanned for viruses when a file is open
 .ne 2
 .mk
 .na
-\fB\fBxattr\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBxattr\fR=\fBon\fR | \fBoff\fR | \fBsa\fR\fR
 .ad
 .sp .6
 .RS 4n
-Controls whether extended attributes are enabled for this file system. The default value is \fBon\fR.
+Controls whether extended attributes are enabled for this file system.  Two
+styles of extended attributes are supported either directory based or system
+attribute based.
+.sp
+The default value of \fBon\fR enables directory based extended attributes.
+This style of xattr imposes no practical limit on either the size or number of
+xattrs which may be set on a file.  Although under Linux the \fBgetxattr\fR(2)
+and \fBsetxattr\fR(2) system calls limit the maximum xattr size to 64K.  This
+is the most compatible style of xattr and it is supported by the majority of
+ZFS implementations.
+.sp
+System attribute based xattrs may be enabled by setting the value to \fBsa\fR.
+The key advantage of this type of xattr is improved performance.  Storing
+xattrs as system attributes significantly decreases the amount of disk IO
+required.  Up to 64K of xattr data may be stored per file in the space reserved
+for system attributes.  If there is not enough space available for an xattr then
+it will be automatically written as a directory based xattr.  System attribute
+based xattrs are not accessable on platforms which do not support the
+\fBxattr=sa\fR feature.
+.sp
+The use of system attribute based xattrs is strongly encouraged for users of
+SELinux or Posix ACLs.  Both of these features heavily rely of xattrs and
+benefit significantly from the reduced xattr access time.
 .RE
 
 .sp
