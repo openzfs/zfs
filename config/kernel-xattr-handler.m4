@@ -84,3 +84,72 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 2.6.33 API change,
+dnl # The xattr_hander->list() callback was changed to take a dentry
+dnl # instead of an inode, and a handler_flags argument was added.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_LIST], [
+	AC_MSG_CHECKING([whether xattr_handler->list() wants dentry])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/xattr.h>
+
+		size_t list(struct dentry *dentry, char *list, size_t list_size,
+		    const char *name, size_t name_len, int handler_flags)
+		    { return 0; }
+		static const struct xattr_handler
+		    xops __attribute__ ((unused)) = {
+			.list = list,
+		};
+	],[
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_DENTRY_XATTR_LIST, 1,
+		    [xattr_handler->list() wants dentry])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 3.7 API change,
+dnl # The posix_acl_{from,to}_xattr functions gained a new
+dnl # parameter: user_ns
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS], [
+	AC_MSG_CHECKING([whether posix_acl_from_xattr() needs user_ns])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/cred.h>
+		#include <linux/fs.h>
+		#include <linux/posix_acl_xattr.h>
+	],[
+		posix_acl_from_xattr(&init_user_ns, NULL, 0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_POSIX_ACL_FROM_XATTR_USERNS, 1,
+		    [posix_acl_from_xattr() needs user_ns])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.39 API change,
+dnl # The is_owner_or_cap() macro was replaced by inode_owner_or_capable(),
+dnl # this is used for permission checks in the xattr call paths.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_INODE_OWNER_OR_CAPABLE], [
+	AC_MSG_CHECKING([whether inode_owner_or_capable() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		inode_owner_or_capable(NULL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_OWNER_OR_CAPABLE, 1,
+		    [inode_owner_or_capable() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])

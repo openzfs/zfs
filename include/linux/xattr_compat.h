@@ -26,6 +26,8 @@
 #ifndef _ZFS_XATTR_H
 #define _ZFS_XATTR_H
 
+#include <linux/posix_acl_xattr.h>
+
 /*
  * 2.6.35 API change,
  * The const keyword was added to the 'struct xattr_handler' in the
@@ -91,5 +93,38 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 #define zpl_security_inode_init_security(ip, dip, qstr, nm, val, len)	\
 	security_inode_init_security(ip, dip, nm, val, len)
 #endif /* HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY */
+
+/*
+ * Linux 3.7 API change. posix_acl_{from,to}_xattr gained the user_ns
+ * parameter.  For the HAVE_POSIX_ACL_FROM_XATTR_USERNS version the
+ * userns _may_ not be correct because it's used outside the RCU.
+ */
+#ifdef HAVE_POSIX_ACL_FROM_XATTR_USERNS
+static inline struct posix_acl *
+zpl_acl_from_xattr(const void *value, int size)
+{
+	return posix_acl_from_xattr(CRED()->user_ns, value, size);
+}
+
+static inline int
+zpl_acl_to_xattr(struct posix_acl *acl, void *value, int size)
+{
+	return posix_acl_to_xattr(CRED()->user_ns,acl, value, size);
+}
+
+#else
+
+static inline struct posix_acl *
+zpl_acl_from_xattr(const void *value,int size)
+{
+	return posix_acl_from_xattr(value, size);
+}
+
+static inline int
+zpl_acl_to_xattr(struct posix_acl *acl, void *value, int size)
+{
+	return posix_acl_to_xattr(acl, value, size);
+}
+#endif /* HAVE_POSIX_ACL_FROM_XATTR_USERNS */
 
 #endif /* _ZFS_XATTR_H */

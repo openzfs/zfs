@@ -676,17 +676,31 @@ The following native properties can be used to change the behavior of a \fBZFS\f
 Controls how \fBACL\fR entries are inherited when files and directories are created. A file system with an \fBaclinherit\fR property of \fBdiscard\fR does not inherit any \fBACL\fR entries. A file system with an \fBaclinherit\fR property value of \fBnoallow\fR only inherits inheritable \fBACL\fR entries that specify "deny" permissions. The property value \fBrestricted\fR (the default) removes the \fBwrite_acl\fR and \fBwrite_owner\fR permissions when the \fBACL\fR entry is inherited. A file system with an \fBaclinherit\fR property value of \fBpassthrough\fR inherits all inheritable \fBACL\fR entries without any modifications made to the \fBACL\fR entries when they are inherited. A file system with an \fBaclinherit\fR property value of \fBpassthrough-x\fR has the same meaning as \fBpassthrough\fR, except that the \fBowner@\fR, \fBgroup@\fR, and \fBeveryone@\fR \fBACE\fRs inherit the execute permission only if the file creation mode also requests the execute bit.
 .sp
 When the property value is set to \fBpassthrough\fR, files are created with a mode determined by the inheritable \fBACE\fRs. If no inheritable \fBACE\fRs exist that affect the mode, then the mode is set in accordance to the requested mode from the application.
+.sp
+The \fBaclinherit\fR property does not apply to Posix ACLs.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBaclmode\fR=\fBdiscard\fR | \fBgroupmask\fR | \fBpassthrough\fR\fR
+\fB\fBacltype\fR=\fBnoacl\fR | \fBposixacl\fR \fR
 .ad
 .sp .6
 .RS 4n
-Controls how an \fBACL\fR is modified during \fBchmod\fR(2). A file system with an \fBaclmode\fR property of \fBdiscard\fR deletes all \fBACL\fR entries that do not represent the mode of the file. An \fBaclmode\fR property of \fBgroupmask\fR (the default) reduces user or group permissions. The permissions are reduced, such that they are no greater than the group permission bits, unless it is a user entry that has the same \fBUID\fR as the owner of the file or directory. In this case, the \fBACL\fR permissions are reduced so that they are no greater than owner permission bits. A file system with an \fBaclmode\fR property of \fBpassthrough\fR indicates that no changes are made to the \fBACL\fR other than generating the necessary \fBACL\fR entries to represent the new mode of the file or directory.
+Controls whether ACLs are enabled and if so what type of ACL to use.  When
+a file system has the \fBacltype\fR property set to \fBnoacl\fR (the default)
+then ACLs are disabled.  Setting the \fBacltype\fR property to \fBposixacl\fR
+indicates Posix ACLs should be used.  Posix ACLs are specific to Linux and
+are not functional on other platforms.  Posix ACLs are stored as an xattr and
+therefore will not overwrite any existing ZFS/NFSv4 ACLs which may be set.
+Currently only \fBposixacls\fR are supported on Linux.
+.sp
+To obtain the best performance when setting \fBposixacl\fR users are strongly
+encouraged to set the \fBxattr=sa\fR property.  This will result in the
+Posix ACL being stored more efficiently on disk.  But as a consequence of this
+all new xattrs will only be accessable from ZFS implementations which support
+the \fBxattr=sa\fR property.  See the \fBxattr\fR property for more details.
 .RE
 
 .sp
@@ -2696,8 +2710,8 @@ userprop         other          Allows changing any user property
 userquota        other          Allows accessing any userquota@... property
 userused         other          Allows reading any userused@... property
 
+acltype          property
 aclinherit       property       
-aclmode          property       
 atime            property       
 canmount         property       
 casesensitivity  property       
@@ -3068,7 +3082,7 @@ pool/home/bob  setuid                on                     default
 pool/home/bob  readonly              off                    default
 pool/home/bob  zoned                 off                    default
 pool/home/bob  snapdir               hidden                 default
-pool/home/bob  aclmode               groupmask              default
+pool/home/bob  acltype               off                    default
 pool/home/bob  aclinherit            restricted             default
 pool/home/bob  canmount              on                     default
 pool/home/bob  shareiscsi            off                    default
