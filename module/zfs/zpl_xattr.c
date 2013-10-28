@@ -355,12 +355,20 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	struct inode *xip = NULL;
 	vattr_t *vap = NULL;
 	ssize_t wrote;
-	int error;
+	int lookup_flags, error;
 	const int xattr_mode = S_IFREG | 0644;
 
-	/* Lookup the xattr directory and create it if required. */
-	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR | CREATE_XATTR_DIR,
-	    cr, NULL, NULL);
+	/*
+	 * Lookup the xattr directory.  When we're adding an entry pass
+	 * CREATE_XATTR_DIR to ensure the xattr directory is created.
+	 * When removing an entry this flag is not passed to avoid
+	 * unnecessarily creating a new xattr directory.
+	 */
+	lookup_flags = LOOKUP_XATTR;
+	if (value != NULL)
+		lookup_flags |= CREATE_XATTR_DIR;
+
+	error = -zfs_lookup(ip, NULL, &dxip, lookup_flags, cr, NULL, NULL);
 	if (error)
 		goto out;
 
@@ -493,7 +501,12 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 		if (error != -ENODATA)
 			goto out;
 
-		if ((error == -ENODATA) && (flags & XATTR_REPLACE))
+		if (flags & XATTR_REPLACE)
+			goto out;
+
+		/* The xattr to be removed already doesn't exist */
+		error = 0;
+		if (value == NULL)
 			goto out;
 	} else {
 		error = -EEXIST;
