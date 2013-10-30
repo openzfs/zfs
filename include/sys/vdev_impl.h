@@ -98,6 +98,7 @@ struct vdev_cache {
 	avl_tree_t	vc_offset_tree;
 	avl_tree_t	vc_lastused_tree;
 	kmutex_t	vc_lock;
+	uint64_t	vq_lastoffset;
 };
 
 struct vdev_queue {
@@ -109,6 +110,7 @@ struct vdev_queue {
 	hrtime_t	vq_io_delta_ts;
 	list_t		vq_io_list;
 	kmutex_t	vq_lock;
+	uint64_t	vq_lastoffset;
 };
 
 struct vdev_io {
@@ -207,6 +209,9 @@ struct vdev {
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache vdevs		*/
 	zio_t		*vdev_probe_zio; /* root of current probe	*/
 	vdev_aux_t	vdev_label_aux;	/* on-disk aux state		*/
+	uint16_t	vdev_rotation_rate; /* rotational rate of the media */
+#define	VDEV_RATE_UNKNOWN	0
+#define	VDEV_RATE_NON_ROTATING	1
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
