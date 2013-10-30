@@ -63,9 +63,9 @@ int vdev_mirror_shift = 21;
  * the case where all devices are of the same rotational type.
  *
  * If there is a mixture of rotating and non-rotating media, setting
- * zfs_vdev_mirror_non_rotating_seek_inc to 0 may well provide better results as it
- * will direct more reads to the non-rotating vdevs which are more
- * likely to have a higher performance.
+ * zfs_vdev_mirror_non_rotating_seek_inc to 0 may well provide better
+ * results as itwill direct more reads to the non-rotating vdevs which
+ * are more likely to have a higher performance.
  */
 
 int zfs_vdev_mirror_rotating_inc = 0;
@@ -78,7 +78,7 @@ static inline size_t
 vdev_mirror_map_size(int children)
 {
 	return (offsetof(mirror_map_t, mm_child[children]) +
-	    sizeof(int) * children);
+	    sizeof (int) * children);
 }
 
 static inline mirror_map_t *
@@ -90,10 +90,10 @@ vdev_mirror_map_alloc(int children, boolean_t replacing, boolean_t root)
 	mm->mm_children = children;
 	mm->mm_replacing = replacing;
 	mm->mm_root = root;
-	mm->mm_preferred = (int *)((uintptr_t)mm + 
+	mm->mm_preferred = (int *)((uintptr_t)mm +
 	    offsetof(mirror_map_t, mm_child[children]));
 
-	return mm;
+	return (mm);
 }
 
 static void
@@ -181,8 +181,8 @@ vdev_mirror_map_init(zio_t *zio)
 		}
 	} else {
 		mm = vdev_mirror_map_alloc(vd->vdev_children,
-		    (vd->vdev_ops == &vdev_replacing_ops ||
-                    vd->vdev_ops == &vdev_spare_ops), B_FALSE);
+			(vd->vdev_ops == &vdev_replacing_ops ||
+				vd->vdev_ops == &vdev_spare_ops), B_FALSE);
 		for (c = 0; c < mm->mm_children; c++) {
 			mc = &mm->mm_child[c];
 			mc->mc_vd = vd->vdev_child[c];
@@ -631,21 +631,24 @@ vdev_ops_t vdev_spare_ops = {
 #if defined(_KERNEL) && defined(HAVE_SPL)
 
 module_param(zfs_vdev_mirror_rotating_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_inc, "Rotating media load increment for non-seeking I/O's");
+MODULE_PARM_DESC(zfs_vdev_mirror_rotating_inc,
+	"Rotating media load increment for non-seeking I/O's");
 
 module_param(zfs_vdev_mirror_rotating_seek_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_inc, "Rotating media load increment for seeking I/O's");
+MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_inc,
+	"Rotating media load increment for seeking I/O's");
 
 module_param(zfs_vdev_mirror_rotating_seek_offset, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_offset, "Offset in bytes from the last I/O which "
-    "triggers a reduced rotating media seek increment");
+MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_offset,
+	"Offset in bytes from the last I/O which "
+	"triggers a reduced rotating media seek increment");
 
 module_param(zfs_vdev_mirror_non_rotating_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_inc, 
+MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_inc,
 	"Non-rotating media load increment for non-seeking I/O's");
 
 module_param(zfs_vdev_mirror_non_rotating_seek_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_seek_inc, 
+MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_seek_inc,
 	"Non-rotating media load increment for seeking I/O's");
 
 #endif

@@ -454,12 +454,12 @@ vdev_queue_io_done(zio_t *zio)
 	mutex_exit(&vq->vq_lock);
 }
 
-
 /*
- * As these three methods are only used for load calculations we're not concerned
- * if we get an incorrect value on 32bit platforms due to lack of vq_lock mutex
- * uses here. Instead we prefer to keep it lock free for the performance.
- */ 
+ * As these three methods are only used for load calculations we're not
+ * concerned if we get an incorrect value on 32bit platforms due to lack
+ * of vq_lock mutex uses here. Instead we prefer to keep it lock free for
+ * the performance.
+ */
 int
 vdev_queue_length(vdev_t *vd)
 {

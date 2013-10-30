@@ -319,7 +319,7 @@ skip_open:
 
 	q = bdev_get_queue(vd->vd_bdev);
 	if (blk_queue_nonrot(q))
-		v->vdev_rotation_rate = VDEV_RATE_NON_ROTATING;	
+		v->vdev_rotation_rate = VDEV_RATE_NON_ROTATING;
 
 #endif
 
