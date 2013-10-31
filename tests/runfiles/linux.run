@@ -758,7 +758,8 @@ tags = ['functional', 'redundancy']
 
 [tests/functional/refquota]
 tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
-    'refquota_004_pos', 'refquota_005_pos', 'refquota_006_neg']
+    'refquota_004_pos', 'refquota_005_pos', 'refquota_006_neg',
+    'refquota_007_neg', 'refquota_008_neg']
 tags = ['functional', 'refquota']
 
 [tests/functional/refreserv]
