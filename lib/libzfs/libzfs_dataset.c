@@ -994,6 +994,20 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			}
 			break;
 
+		case ZFS_PROP_DNODESIZE:
+			/* must be power of two within SPA_{MIN,MAX}BLOCKSIZE */
+			if (intval < DNODE_SIZE || intval > DNODE_BLOCK_SIZE ||
+			    intval % DNODE_SIZE != 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "'%s' must be multiple of %u from %u "
+				    "to %uk"), propname,
+				    (uint_t)DNODE_SIZE, (uint_t)DNODE_SIZE,
+				    (uint_t)DNODE_BLOCK_SIZE >> 10);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
+
 		case ZFS_PROP_MLSLABEL:
 		{
 #ifdef HAVE_MLSLABEL

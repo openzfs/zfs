@@ -94,6 +94,7 @@ struct objset {
 	uint8_t os_primary_cache;
 	uint8_t os_secondary_cache;
 	uint8_t os_sync;
+	uint16_t os_dnode_sz; /* dnode size for new objects */
 
 	/* no lock needed: */
 	struct dmu_tx *os_synctx; /* XXX sketchy */

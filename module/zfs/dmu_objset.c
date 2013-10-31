@@ -229,6 +229,18 @@ sync_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+dnodesz_changed_cb(void *arg, uint64_t newval)
+{
+	objset_t *os = arg;
+
+	if (newval < DNODE_SIZE || newval > DNODE_BLOCK_SIZE ||
+	    newval % DNODE_SIZE != 0)
+		newval = DNODE_SIZE;
+
+	os->os_dnode_sz = newval;
+}
+
+static void
 logbias_changed_cb(void *arg, uint64_t newval)
 {
 	objset_t *os = arg;
@@ -363,6 +375,11 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    zfs_prop_to_name(ZFS_PROP_SYNC),
 				    sync_changed_cb, os);
 			}
+			if (err == 0) {
+				err = dsl_prop_register(ds,
+				    zfs_prop_to_name(ZFS_PROP_DNODESIZE),
+				    dnodesz_changed_cb, os);
+			}
 		}
 		if (err != 0) {
 			VERIFY(arc_buf_remove_ref(os->os_phys_buf,
@@ -381,6 +398,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_sync = 0;
 		os->os_primary_cache = ZFS_CACHE_ALL;
 		os->os_secondary_cache = ZFS_CACHE_ALL;
+		os->os_dnode_sz = DNODE_SIZE;
 	}
 
 	if (ds == NULL || !dsl_dataset_is_snapshot(ds))
@@ -623,6 +641,9 @@ dmu_objset_evict(objset_t *os)
 			VERIFY0(dsl_prop_unregister(ds,
 			    zfs_prop_to_name(ZFS_PROP_SYNC),
 			    sync_changed_cb, os));
+			VERIFY0(dsl_prop_unregister(ds,
+			    zfs_prop_to_name(ZFS_PROP_DNODESIZE),
+			    dnodesz_changed_cb, os));
 		}
 		VERIFY0(dsl_prop_unregister(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
@@ -686,7 +707,7 @@ dmu_objset_create_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	mdn = DMU_META_DNODE(os);
 
-	dnode_allocate(mdn, DMU_OT_DNODE, 1 << DNODE_BLOCK_SHIFT,
+	dnode_allocate(mdn, DMU_OT_DNODE, 1, 1 << DNODE_BLOCK_SHIFT,
 	    DN_MAX_INDBLKSHIFT, DMU_OT_NONE, 0, tx);
 
 	/*

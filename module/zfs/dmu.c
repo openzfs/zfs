@@ -1885,6 +1885,7 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_type = dn->dn_type;
 	doi->doi_bonus_type = dn->dn_bonustype;
 	doi->doi_bonus_size = dn->dn_bonuslen;
+	doi->doi_szsec = dn->dn_szsec;
 	doi->doi_indirection = dn->dn_nlevels;
 	doi->doi_checksum = dn->dn_checksum;
 	doi->doi_compress = dn->dn_compress;

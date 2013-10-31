@@ -635,6 +635,7 @@ typedef struct dmu_object_info {
 	dmu_object_type_t doi_type;
 	dmu_object_type_t doi_bonus_type;
 	uint64_t doi_bonus_size;
+	uint8_t doi_szsec;
 	uint8_t doi_indirection;		/* 2 = dnode->indirect->data */
 	uint8_t doi_checksum;
 	uint8_t doi_compress;

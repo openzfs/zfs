@@ -78,7 +78,8 @@ extern "C" {
 /*
  * Derived constants.
  */
-#define	DNODE_SIZE	(1 << DNODE_SHIFT)
+#define	DNODE_SIZE		(1 << DNODE_SHIFT)
+#define	DNODE_BLOCK_SIZE	(1 << DNODE_BLOCK_SHIFT)
 #define	DN_MAX_NBLKPTR	((DNODE_SIZE - DNODE_CORE_SIZE) >> SPA_BLKPTRSHIFT)
 #define	DN_MAX_BONUSLEN	(DNODE_SIZE - DNODE_CORE_SIZE - (1 << SPA_BLKPTRSHIFT))
 #define	DN_MAX_OBJECT	(1ULL << DN_MAX_OBJECT_SHIFT)
@@ -130,7 +131,8 @@ typedef struct dnode_phys {
 	uint8_t dn_flags;		/* DNODE_FLAG_* */
 	uint16_t dn_datablkszsec;	/* data block size in 512b sectors */
 	uint16_t dn_bonuslen;		/* length of dn_bonus */
-	uint8_t dn_pad2[4];
+	uint8_t	dn_szsec;		/* on-disk dnode size in 512b sectors */
+	uint8_t dn_pad2[1];
 
 	/* accounting is protected by dn_dirty_mtx */
 	uint64_t dn_maxblkid;		/* largest allocated block ID */
@@ -167,6 +169,7 @@ typedef struct dnode {
 	 */
 	dmu_object_type_t dn_type;	/* object type */
 	uint16_t dn_bonuslen;		/* bonus length */
+	uint8_t dn_szsec;		/* on-disk dnode size in 512b sectors */
 	uint8_t dn_bonustype;		/* bonus type */
 	uint8_t dn_nblkptr;		/* number of blkptrs (immutable) */
 	uint8_t dn_checksum;		/* ZIO_CHECKSUM type */
@@ -263,14 +266,15 @@ void dnode_rm_spill(dnode_t *dn, dmu_tx_t *tx);
 
 int dnode_hold(struct objset *dd, uint64_t object,
     void *ref, dnode_t **dnp);
-int dnode_hold_impl(struct objset *dd, uint64_t object, int flag,
+int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int sectors,
     void *ref, dnode_t **dnp);
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
 void dnode_setdirty(dnode_t *dn, dmu_tx_t *tx);
 void dnode_sync(dnode_t *dn, dmu_tx_t *tx);
-void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int szsec,
+    int blocksize, int ibs, dmu_object_type_t bonustype, int bonuslen,
+    dmu_tx_t *tx);
 void dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
 void dnode_free(dnode_t *dn, dmu_tx_t *tx);
