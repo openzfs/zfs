@@ -45,7 +45,7 @@ zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
 	len_bytes = *max_len * sizeof (__u32);
 
 	if (len_bytes < offsetof(fid_t, fid_data))
-		return 255;
+		return (255);
 
 	fid->fid_len = len_bytes - offsetof(fid_t, fid_data);
 
@@ -76,7 +76,7 @@ zpl_dentry_obtain_alias(struct inode *ip)
 	}
 #endif /* HAVE_D_OBTAIN_ALIAS */
 
-	return result;
+	return (result);
 }
 
 static struct dentry *
@@ -92,16 +92,16 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 	if (fh_type != FILEID_INO32_GEN ||
 	    len_bytes < offsetof(fid_t, fid_data) ||
 	    len_bytes < offsetof(fid_t, fid_data) + fid->fid_len)
-		return ERR_PTR(-EINVAL);
+		return (ERR_PTR(-EINVAL));
 
 	rc = zfs_vget(sb, &ip, fid);
 
 	if (rc != 0)
-		return ERR_PTR(-rc);
+		return (ERR_PTR(-rc));
 
 	ASSERT((ip != NULL) && !IS_ERR(ip));
 
-	return zpl_dentry_obtain_alias(ip);
+	return (zpl_dentry_obtain_alias(ip));
 }
 
 static struct dentry *
@@ -117,9 +117,9 @@ zpl_get_parent(struct dentry *child)
 	ASSERT3S(error, <=, 0);
 
 	if (error)
-		return ERR_PTR(error);
+		return (ERR_PTR(error));
 
-	return zpl_dentry_obtain_alias(ip);
+	return (zpl_dentry_obtain_alias(ip));
 }
 
 #ifdef HAVE_COMMIT_METADATA
@@ -134,15 +134,15 @@ zpl_commit_metadata(struct inode *inode)
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
-	return error;
+	return (error);
 }
 #endif /* HAVE_COMMIT_METADATA */
 
 const struct export_operations zpl_export_operations = {
-	.encode_fh	= zpl_encode_fh,
-	.fh_to_dentry	= zpl_fh_to_dentry,
-	.get_parent	= zpl_get_parent,
+	.encode_fh		= zpl_encode_fh,
+	.fh_to_dentry		= zpl_fh_to_dentry,
+	.get_parent		= zpl_get_parent,
 #ifdef HAVE_COMMIT_METADATA
-	.commit_metadata= zpl_commit_metadata,
+	.commit_metadata	= zpl_commit_metadata,
 #endif /* HAVE_COMMIT_METADATA */
 };

@@ -1156,8 +1156,8 @@ zfs_acl_chown_setattr(znode_t *zp)
 	int error;
 	zfs_acl_t *aclp;
 
-	 if (ZTOZSB(zp)->z_acl_type == ZFS_ACLTYPE_POSIXACL)
-		 return 0;
+	if (ZTOZSB(zp)->z_acl_type == ZFS_ACLTYPE_POSIXACL)
+		return (0);
 
 	ASSERT(MUTEX_HELD(&zp->z_lock));
 	ASSERT(MUTEX_HELD(&zp->z_acl_lock));
@@ -1165,6 +1165,7 @@ zfs_acl_chown_setattr(znode_t *zp)
 	if ((error = zfs_acl_node_read(zp, B_TRUE, &aclp, B_FALSE)) == 0)
 		zp->z_mode = zfs_mode_compute(zp->z_mode, aclp,
 		    &zp->z_pflags, zp->z_uid, zp->z_gid);
+
 	return (error);
 }
 
@@ -2498,7 +2499,7 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 			 */
 			error = zfs_zget(ZTOZSB(zp), parent, &check_zp);
 			if (error)
-			        return (error);
+				return (error);
 
 			rw_enter(&zp->z_xattr_lock, RW_WRITER);
 			if (zp->z_xattr_parent == NULL)

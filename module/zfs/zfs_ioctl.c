@@ -567,7 +567,7 @@ out_check:
 		return (PRIV_POLICY(cr, needed_priv, B_FALSE, EPERM, NULL));
 	return (0);
 #else
-	return ENOTSUP;
+	return (ENOTSUP);
 #endif /* HAVE_MLSLABEL */
 }
 
@@ -4914,7 +4914,7 @@ zfs_ioc_events_clear(zfs_cmd_t *zc)
 	zfs_zevent_drain_all(&count);
 	zc->zc_cookie = count;
 
-	return 0;
+	return (0);
 }
 
 /*
@@ -5424,17 +5424,20 @@ zfsdev_get_state_impl(minor_t minor, enum zfsdev_state_type which)
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
 	for (zs = list_head(&zfsdev_state_list); zs != NULL;
-	     zs = list_next(&zfsdev_state_list, zs)) {
+	    zs = list_next(&zfsdev_state_list, zs)) {
 		if (zs->zs_minor == minor) {
 			switch (which) {
-				case ZST_ONEXIT:  return (zs->zs_onexit);
-				case ZST_ZEVENT:  return (zs->zs_zevent);
-				case ZST_ALL:     return (zs);
+			case ZST_ONEXIT:
+				return (zs->zs_onexit);
+			case ZST_ZEVENT:
+				return (zs->zs_zevent);
+			case ZST_ALL:
+				return (zs);
 			}
 		}
 	}
 
-	return NULL;
+	return (NULL);
 }
 
 void *
@@ -5446,7 +5449,7 @@ zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
 	ptr = zfsdev_get_state_impl(minor, which);
 	mutex_exit(&zfsdev_state_lock);
 
-	return ptr;
+	return (ptr);
 }
 
 minor_t
@@ -5490,11 +5493,11 @@ zfsdev_state_init(struct file *filp)
 
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
-        minor = zfsdev_minor_alloc();
-        if (minor == 0)
-                return (SET_ERROR(ENXIO));
+	minor = zfsdev_minor_alloc();
+	if (minor == 0)
+		return (SET_ERROR(ENXIO));
 
-	zs = kmem_zalloc( sizeof(zfsdev_state_t), KM_SLEEP);
+	zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
 
 	zs->zs_file = filp;
 	zs->zs_minor = minor;
@@ -5521,9 +5524,9 @@ zfsdev_state_destroy(struct file *filp)
 	zfs_zevent_destroy(zs->zs_zevent);
 
 	list_remove(&zfsdev_state_list, zs);
-	kmem_free(zs, sizeof(zfsdev_state_t));
+	kmem_free(zs, sizeof (zfsdev_state_t));
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -5623,7 +5626,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	(void) strlcpy(saved_poolname, zc->zc_name, sizeof(saved_poolname));
+	(void) strlcpy(saved_poolname, zc->zc_name, sizeof (saved_poolname));
 	len = strcspn(saved_poolname, "/@") + 1;
 	saved_poolname[len] = '\0';
 
@@ -5702,24 +5705,24 @@ out:
 static long
 zfsdev_compat_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 {
-        return zfsdev_ioctl(filp, cmd, arg);
+	return (zfsdev_ioctl(filp, cmd, arg));
 }
 #else
-#define zfsdev_compat_ioctl   NULL
+#define	zfsdev_compat_ioctl	NULL
 #endif
 
 static const struct file_operations zfsdev_fops = {
-	.open            = zfsdev_open,
-	.release         = zfsdev_release,
-	.unlocked_ioctl  = zfsdev_ioctl,
-	.compat_ioctl    = zfsdev_compat_ioctl,
-	.owner           = THIS_MODULE,
+	.open		= zfsdev_open,
+	.release	= zfsdev_release,
+	.unlocked_ioctl	= zfsdev_ioctl,
+	.compat_ioctl	= zfsdev_compat_ioctl,
+	.owner		= THIS_MODULE,
 };
 
 static struct miscdevice zfs_misc = {
-	.minor          = MISC_DYNAMIC_MINOR,
-	.name           = ZFS_DRIVER,
-	.fops           = &zfsdev_fops,
+	.minor		= MISC_DYNAMIC_MINOR,
+	.name		= ZFS_DRIVER,
+	.fops		= &zfsdev_fops,
 };
 
 static int
@@ -5732,7 +5735,7 @@ zfs_attach(void)
 	    offsetof(zfsdev_state_t, zs_next));
 
 	error = misc_register(&zfs_misc);
-        if (error != 0) {
+	if (error != 0) {
 		printk(KERN_INFO "ZFS: misc_register() failed %d\n", error);
 		return (error);
 	}
@@ -5761,9 +5764,9 @@ zfs_allow_log_destroy(void *arg)
 }
 
 #ifdef DEBUG
-#define ZFS_DEBUG_STR	" (DEBUG mode)"
+#define	ZFS_DEBUG_STR	" (DEBUG mode)"
 #else
-#define ZFS_DEBUG_STR	""
+#define	ZFS_DEBUG_STR	""
 #endif
 
 int
@@ -5787,9 +5790,9 @@ _init(void)
 	tsd_create(&zfs_allow_log_key, zfs_allow_log_destroy);
 
 	printk(KERN_NOTICE "ZFS: Loaded module v%s-%s%s, "
-	       "ZFS pool version %s, ZFS filesystem version %s\n",
-	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
-	       SPA_VERSION_STRING, ZPL_VERSION_STRING);
+	    "ZFS pool version %s, ZFS filesystem version %s\n",
+	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
+	    SPA_VERSION_STRING, ZPL_VERSION_STRING);
 #ifndef CONFIG_FS_POSIX_ACL
 	printk(KERN_NOTICE "ZFS: Posix ACLs disabled by kernel\n");
 #endif /* CONFIG_FS_POSIX_ACL */
@@ -5802,8 +5805,8 @@ out1:
 	zfs_fini();
 	spa_fini();
 	printk(KERN_NOTICE "ZFS: Failed to Load ZFS Filesystem v%s-%s%s"
-	       ", rc = %d\n", ZFS_META_VERSION, ZFS_META_RELEASE,
-	       ZFS_DEBUG_STR, error);
+	    ", rc = %d\n", ZFS_META_VERSION, ZFS_META_RELEASE,
+	    ZFS_DEBUG_STR, error);
 
 	return (error);
 }
@@ -5821,7 +5824,7 @@ _fini(void)
 	tsd_destroy(&zfs_allow_log_key);
 
 	printk(KERN_NOTICE "ZFS: Unloaded module v%s-%s%s\n",
-	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
+	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 
 	return (0);
 }

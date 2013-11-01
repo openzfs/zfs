@@ -142,9 +142,9 @@ typedef struct dmu_tx_stats {
 
 extern dmu_tx_stats_t dmu_tx_stats;
 
-#define DMU_TX_STAT_INCR(stat, val) \
+#define	DMU_TX_STAT_INCR(stat, val) \
     atomic_add_64(&dmu_tx_stats.stat.value.ui64, (val));
-#define DMU_TX_STAT_BUMP(stat) \
+#define	DMU_TX_STAT_BUMP(stat) \
     DMU_TX_STAT_INCR(stat, 1);
 
 /*

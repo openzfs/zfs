@@ -201,9 +201,11 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 		if (vdev_resilver_needed(spa->spa_root_vdev,
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
-			spa_event_notify(spa, NULL, FM_EREPORT_ZFS_RESILVER_START);
+			spa_event_notify(spa, NULL,
+			    FM_EREPORT_ZFS_RESILVER_START);
 		} else {
-			spa_event_notify(spa, NULL, FM_EREPORT_ZFS_SCRUB_START);
+			spa_event_notify(spa, NULL,
+			    FM_EREPORT_ZFS_SCRUB_START);
 		}
 
 		spa->spa_scrub_started = B_TRUE;
@@ -783,7 +785,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 	if (buf)
 		(void) arc_buf_remove_ref(buf, &buf);
 out:
-	kmem_free(bp_toread, sizeof(blkptr_t));
+	kmem_free(bp_toread, sizeof (blkptr_t));
 }
 
 static void
@@ -1290,8 +1292,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 	 * bookmark so we don't think that we're still trying to resume.
 	 */
 	bzero(&scn->scn_phys.scn_bookmark, sizeof (zbookmark_t));
-	zc = kmem_alloc(sizeof(zap_cursor_t), KM_PUSHPAGE);
-	za = kmem_alloc(sizeof(zap_attribute_t), KM_PUSHPAGE);
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_PUSHPAGE);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
 
 	/* keep pulling things out of the zap-object-as-queue */
 	while (zap_cursor_init(zc, dp->dp_meta_objset,
@@ -1325,8 +1327,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 	}
 	zap_cursor_fini(zc);
 out:
-	kmem_free(za, sizeof(zap_attribute_t));
-	kmem_free(zc, sizeof(zap_cursor_t));
+	kmem_free(za, sizeof (zap_attribute_t));
+	kmem_free(zc, sizeof (zap_cursor_t));
 }
 
 static boolean_t

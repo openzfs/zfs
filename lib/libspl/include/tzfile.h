@@ -25,7 +25,7 @@
  */
 
 #ifndef _LIBSPL_TZFILE_H
-#define _LIBSPL_TZFILE_H
+#define	_LIBSPL_TZFILE_H
 
 #include <sys/tzfile.h>
 

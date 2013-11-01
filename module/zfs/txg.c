@@ -493,8 +493,8 @@ txg_sync_thread(dsl_pool_t *dp)
 
 	txg_thread_enter(tx, &cpr);
 
-	vs1 = kmem_alloc(sizeof(vdev_stat_t), KM_PUSHPAGE);
-	vs2 = kmem_alloc(sizeof(vdev_stat_t), KM_PUSHPAGE);
+	vs1 = kmem_alloc(sizeof (vdev_stat_t), KM_PUSHPAGE);
+	vs2 = kmem_alloc(sizeof (vdev_stat_t), KM_PUSHPAGE);
 
 	start = delta = 0;
 	for (;;) {
@@ -533,8 +533,8 @@ txg_sync_thread(dsl_pool_t *dp)
 		}
 
 		if (tx->tx_exiting) {
-			kmem_free(vs2, sizeof(vdev_stat_t));
-			kmem_free(vs1, sizeof(vdev_stat_t));
+			kmem_free(vs2, sizeof (vdev_stat_t));
+			kmem_free(vs1, sizeof (vdev_stat_t));
 			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
 		}
 

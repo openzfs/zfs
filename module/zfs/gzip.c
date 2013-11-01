@@ -35,8 +35,8 @@
 #include <sys/zmod.h>
 
 typedef size_t zlen_t;
-#define compress_func   z_compress_level
-#define uncompress_func z_uncompress
+#define	compress_func	z_compress_level
+#define	uncompress_func	z_uncompress
 
 #else /* _KERNEL */
 
@@ -44,8 +44,8 @@ typedef size_t zlen_t;
 #include <zlib.h>
 
 typedef uLongf zlen_t;
-#define compress_func   compress2
-#define uncompress_func uncompress
+#define	compress_func	compress2
+#define	uncompress_func	uncompress
 
 #endif
 

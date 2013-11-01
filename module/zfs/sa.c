@@ -251,7 +251,7 @@ sa_cache_fini(void)
 void *
 sa_spill_alloc(int flags)
 {
-	return kmem_cache_alloc(spill_cache, flags);
+	return (kmem_cache_alloc(spill_cache, flags));
 }
 
 void
@@ -607,7 +607,8 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		}
 
 		if (is_var_sz && var_size > 1) {
-			/* Don't worry that the spill block might overflow.
+			/*
+			 * Don't worry that the spill block might overflow.
 			 * It will be resized if needed in sa_build_layouts().
 			 */
 			if (buftype == SA_SPILL ||
@@ -1142,7 +1143,8 @@ sa_tear_down(objset_t *os)
 	sa_free_attr_table(sa);
 
 	cookie = NULL;
-	while ((layout = avl_destroy_nodes(&sa->sa_layout_hash_tree, &cookie))){
+	while ((layout =
+	    avl_destroy_nodes(&sa->sa_layout_hash_tree, &cookie))) {
 		sa_idx_tab_t *tab;
 		while ((tab = list_head(&layout->lot_idx_tab))) {
 			ASSERT(refcount_count(&tab->sa_refcount));
@@ -1151,7 +1153,7 @@ sa_tear_down(objset_t *os)
 	}
 
 	cookie = NULL;
-	while ((layout = avl_destroy_nodes(&sa->sa_layout_num_tree, &cookie))){
+	while ((layout = avl_destroy_nodes(&sa->sa_layout_num_tree, &cookie))) {
 		kmem_free(layout->lot_attrs,
 		    sizeof (sa_attr_type_t) * layout->lot_attr_count);
 		kmem_free(layout, sizeof (sa_lot_t));

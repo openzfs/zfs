@@ -293,7 +293,7 @@ spa_history_log(spa_t *spa, const char *msg)
 	int err;
 	nvlist_t *nvl;
 
-        VERIFY0(nvlist_alloc(&nvl, NV_UNIQUE_NAME, KM_PUSHPAGE));
+	VERIFY0(nvlist_alloc(&nvl, NV_UNIQUE_NAME, KM_PUSHPAGE));
 
 	fnvlist_add_string(nvl, ZPOOL_HIST_CMD, msg);
 	err = spa_history_log_nvl(spa, nvl);

@@ -500,8 +500,10 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	if (zio->io_flags & ZIO_FLAG_DONT_AGGREGATE)
 		return (NULL);
 
-	/* Prevent users from setting the zfs_vdev_aggregation_limit
-	 * tuning larger than SPA_MAXBLOCKSIZE. */
+	/*
+	 * Prevent users from setting the zfs_vdev_aggregation_limit
+	 * tuning larger than SPA_MAXBLOCKSIZE.
+	 */
 	zfs_vdev_aggregation_limit =
 	    MIN(zfs_vdev_aggregation_limit, SPA_MAXBLOCKSIZE);
 
@@ -676,11 +678,11 @@ again:
 	 * For FIFO queues (sync), issue the i/o with the lowest timestamp.
 	 */
 	vqc = &vq->vq_class[p];
-	search = zio_buf_alloc(sizeof(*search));
+	search = zio_buf_alloc(sizeof (*search));
 	search->io_timestamp = 0;
 	search->io_offset = vq->vq_last_offset + 1;
 	VERIFY3P(avl_find(&vqc->vqc_queued_tree, search, &idx), ==, NULL);
-	zio_buf_free(search, sizeof(*search));
+	zio_buf_free(search, sizeof (*search));
 	zio = avl_nearest(&vqc->vqc_queued_tree, idx, AVL_AFTER);
 	if (zio == NULL)
 		zio = avl_first(&vqc->vqc_queued_tree);
@@ -802,27 +804,27 @@ MODULE_PARM_DESC(zfs_vdev_max_active, "Maximum number of active I/Os per vdev");
 
 module_param(zfs_vdev_async_write_active_max_dirty_percent, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_async_write_active_max_dirty_percent,
-    "Async write concurrency max threshold");
+	"Async write concurrency max threshold");
 
 module_param(zfs_vdev_async_write_active_min_dirty_percent, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_async_write_active_min_dirty_percent,
-    "Async write concurrency min threshold");
+	"Async write concurrency min threshold");
 
 module_param(zfs_vdev_async_read_max_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_async_read_max_active,
-    "Max active async read I/Os per vdev");
+	"Max active async read I/Os per vdev");
 
 module_param(zfs_vdev_async_read_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_async_read_min_active,
-    "Min active async read I/Os per vdev");
+	"Min active async read I/Os per vdev");
 
 module_param(zfs_vdev_async_write_max_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_async_write_max_active,
-    "Max active async write I/Os per vdev");
+	"Max active async write I/Os per vdev");
 
 module_param(zfs_vdev_async_write_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_async_write_min_active,
-    "Min active async write I/Os per vdev");
+	"Min active async write I/Os per vdev");
 
 module_param(zfs_vdev_scrub_max_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_scrub_max_active, "Max active scrub I/Os per vdev");
@@ -832,17 +834,17 @@ MODULE_PARM_DESC(zfs_vdev_scrub_min_active, "Min active scrub I/Os per vdev");
 
 module_param(zfs_vdev_sync_read_max_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_read_max_active,
-    "Max active sync read I/Os per vdev");
+	"Max active sync read I/Os per vdev");
 
 module_param(zfs_vdev_sync_read_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_read_min_active,
-    "Min active sync read I/Os per vdev");
+	"Min active sync read I/Os per vdev");
 
 module_param(zfs_vdev_sync_write_max_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_write_max_active,
-    "Max active sync write I/Os per vdev");
+	"Max active sync write I/Os per vdev");
 
 module_param(zfs_vdev_sync_write_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_write_min_active,
-    "Min active sync write I/Osper vdev");
+	"Min active sync write I/Osper vdev");
 #endif

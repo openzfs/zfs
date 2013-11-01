@@ -272,7 +272,7 @@ out:
 	len = strlen(cwd);
 
 	/* Do not add one when cwd already ends in a trailing '/' */
-	if (!strncmp(cwd, dataset, len))
+	if (strncmp(cwd, dataset, len) == 0)
 		return (dataset + len + (cwd[len-1] != '/'));
 
 	return (dataset);
@@ -444,11 +444,11 @@ main(int argc, char **argv)
 	 * done until zfs is added to the default selinux policy configuration
 	 * as a known filesystem type which supports xattrs.
 	 */
-        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT)) {
-                (void) strlcat(mntopts, ",context=\"system_u:"
-                    "object_r:file_t:s0\"", sizeof (mntopts));
-                (void) strlcat(mtabopt, ",context=\"system_u:"
-                    "object_r:file_t:s0\"", sizeof (mtabopt));
+	if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT)) {
+		(void) strlcat(mntopts, ",context=\"system_u:"
+		    "object_r:file_t:s0\"", sizeof (mntopts));
+		(void) strlcat(mtabopt, ",context=\"system_u:"
+		    "object_r:file_t:s0\"", sizeof (mtabopt));
 	}
 #endif /* HAVE_LIBSELINUX */
 
@@ -501,12 +501,12 @@ main(int argc, char **argv)
 	 * using zfs as your root file system both rc.sysinit/umountroot and
 	 * systemd depend on 'mount -o remount <mountpoint>' to work.
 	 */
-	if (zfsutil && !strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
+	if (zfsutil && (strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) == 0)) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' cannot be mounted using 'zfs mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'mount -t zfs %s %s'.\n"
 		    "See zfs(8) for more information.\n"),
-		   dataset, mntpoint, dataset, mntpoint);
+		    dataset, mntpoint, dataset, mntpoint);
 		return (MOUNT_USAGE);
 	}
 

@@ -27,7 +27,7 @@
 /*
  * Generic wrapper to sleep until a given time.
  */
-#define zfs_sleep_until(wakeup)						\
+#define	zfs_sleep_until(wakeup)						\
 	do {								\
 		hrtime_t delta = wakeup - gethrtime();			\
 									\

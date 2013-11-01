@@ -906,8 +906,10 @@ buf_fini(void)
 	int i;
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-	/* Large allocations which do not require contiguous pages
-	 * should be using vmem_free() in the linux kernel */
+	/*
+	 * Large allocations which do not require contiguous pages
+	 * should be using vmem_free() in the linux kernel\
+	 */
 	vmem_free(buf_hash_table.ht_table,
 	    (buf_hash_table.ht_mask + 1) * sizeof (void *));
 #else
@@ -998,8 +1000,10 @@ buf_init(void)
 retry:
 	buf_hash_table.ht_mask = hsize - 1;
 #if defined(_KERNEL) && defined(HAVE_SPL)
-	/* Large allocations which do not require contiguous pages
-	 * should be using vmem_alloc() in the linux kernel */
+	/*
+	 * Large allocations which do not require contiguous pages
+	 * should be using vmem_alloc() in the linux kernel
+	 */
 	buf_hash_table.ht_table =
 	    vmem_zalloc(hsize * sizeof (void*), KM_SLEEP);
 #else
@@ -1075,7 +1079,7 @@ arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 		return;
 	}
 	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t),
-	                                        KM_PUSHPAGE);
+	    KM_PUSHPAGE);
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
 	    buf->b_hdr->b_freeze_cksum);
 	mutex_exit(&buf->b_hdr->b_freeze_lock);
@@ -1219,7 +1223,7 @@ arc_buf_info(arc_buf_t *ab, arc_buf_info_t *abi, int state_index)
 	arc_buf_hdr_t *hdr = ab->b_hdr;
 	arc_state_t *state = hdr->b_state;
 
-	memset(abi, 0, sizeof(arc_buf_info_t));
+	memset(abi, 0, sizeof (arc_buf_info_t));
 	abi->abi_flags = hdr->b_flags;
 	abi->abi_datacnt = hdr->b_datacnt;
 	abi->abi_state_type = state ? state->arcs_state : ARC_STATE_ANON;
@@ -2031,7 +2035,7 @@ arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes,
 	int count = 0;
 
 	ASSERT(GHOST_STATE(state));
-	bzero(&marker, sizeof(marker));
+	bzero(&marker, sizeof (marker));
 top:
 	mutex_enter(&state->arcs_mtx);
 	for (ab = list_tail(list); ab; ab = ab_prev) {
@@ -2412,7 +2416,8 @@ arc_adapt_thread(void)
 			}
 
 			/* reset the growth delay for every reclaim */
-			arc_grow_time = ddi_get_lbolt()+(zfs_arc_grow_retry * hz);
+			arc_grow_time = ddi_get_lbolt() +
+			    (zfs_arc_grow_retry * hz);
 
 			arc_kmem_reap_now(last_reclaim, 0);
 			arc_warm = B_TRUE;
@@ -3394,7 +3399,7 @@ arc_add_prune_callback(arc_prune_func_t *func, void *private)
 {
 	arc_prune_t *p;
 
-	p = kmem_alloc(sizeof(*p), KM_SLEEP);
+	p = kmem_alloc(sizeof (*p), KM_SLEEP);
 	p->p_pfunc = func;
 	p->p_private = private;
 	list_link_init(&p->p_node);
@@ -4958,7 +4963,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 				list_insert_head(dev->l2ad_buflist, head);
 
 				cb = kmem_alloc(sizeof (l2arc_write_callback_t),
-				                KM_PUSHPAGE);
+				    KM_PUSHPAGE);
 				cb->l2wcb_dev = dev;
 				cb->l2wcb_head = head;
 				pio = zio_root(spa, l2arc_write_done, cb,

@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  ZPIOS is a heavily modified version of the original PIOS test code.
  *  It is designed to have the test code running in the Linux kernel
  *  against ZFS while still being flexibly controled from user space.
@@ -29,73 +29,74 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with ZPIOS.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #ifndef _ZPIOS_H
-#define _ZPIOS_H
+#define	_ZPIOS_H
 
 #include <zpios-ctl.h>
 
-#define VERSION_SIZE		64
+#define	VERSION_SIZE		64
 
 /* Regular expressions */
-#define REGEX_NUMBERS		"^[0-9]*[0-9]$"
-#define REGEX_NUMBERS_COMMA	"^([0-9]+,)*[0-9]+$"
-#define REGEX_SIZE		"^[0-9][0-9]*[kmgt]$"
-#define REGEX_SIZE_COMMA	"^([0-9][0-9]*[kmgt]+,)*[0-9][0-9]*[kmgt]$"
+#define	REGEX_NUMBERS		"^[0-9]*[0-9]$"
+#define	REGEX_NUMBERS_COMMA	"^([0-9]+,)*[0-9]+$"
+#define	REGEX_SIZE		"^[0-9][0-9]*[kmgt]$"
+#define	REGEX_SIZE_COMMA	"^([0-9][0-9]*[kmgt]+,)*[0-9][0-9]*[kmgt]$"
 
 /* Flags for low, high, incr */
-#define FLAG_SET		0x01
-#define FLAG_LOW		0x02
-#define FLAG_HIGH		0x04
-#define FLAG_INCR		0x08
+#define	FLAG_SET		0x01
+#define	FLAG_LOW		0x02
+#define	FLAG_HIGH		0x04
+#define	FLAG_INCR		0x08
 
-#define TRUE			1
-#define FALSE			0
+#define	TRUE			1
+#define	FALSE			0
 
-#define KB			(1024)
-#define MB			(KB * 1024)
-#define GB			(MB * 1024)
-#define TB			(GB * 1024)
+#define	KB			(1024)
+#define	MB			(KB * 1024)
+#define	GB			(MB * 1024)
+#define	TB			(GB * 1024)
 
-#define KMGT_SIZE		16
+#define	KMGT_SIZE		16
 
-/* All offsets, sizes and counts can be passed to the application in
+/*
+ * All offsets, sizes and counts can be passed to the application in
  * multiple ways.
  * 1. a value (stored in val[0], val_count will be 1)
  * 2. a comma separated list of values (stored in val[], using val_count)
  * 3. a range and block sizes, low, high, factor (val_count must be 0)
  */
 typedef struct pios_range_repeat {
-	uint64_t val[32];        /* Comma sep array, or low, high, inc */
-	uint64_t val_count;      /* Num of values */
+	uint64_t val[32];		/* Comma sep array, or low, high, inc */
+	uint64_t val_count;		/* Num of values */
 	uint64_t val_low;
 	uint64_t val_high;
 	uint64_t val_inc_perc;
-	uint64_t next_val;       /* Used for multiple runs in get_next() */
+	uint64_t next_val;		/* For multiple runs in get_next() */
 } range_repeat_t;
 
 typedef struct cmd_args {
-	range_repeat_t T;           /* Thread count */
-	range_repeat_t N;           /* Region count */
-	range_repeat_t O;           /* Offset count */
-	range_repeat_t C;           /* Chunksize */
-	range_repeat_t S;           /* Regionsize */
+	range_repeat_t T;		/* Thread count */
+	range_repeat_t N;		/* Region count */
+	range_repeat_t O;		/* Offset count */
+	range_repeat_t C;		/* Chunksize */
+	range_repeat_t S;		/* Regionsize */
 
-	const char *pool;           /* Pool */
-	const char *name;           /* Name */
-	uint32_t flags;             /* Flags */
-	uint32_t io_type;           /* DMUIO only */
-	uint32_t verbose;           /* Verbose */
-	uint32_t human_readable;    /* Human readable output */
+	const char *pool;		/* Pool */
+	const char *name;		/* Name */
+	uint32_t flags;			/* Flags */
+	uint32_t io_type;		/* DMUIO only */
+	uint32_t verbose;		/* Verbose */
+	uint32_t human_readable;	/* Human readable output */
 
-	uint64_t regionnoise;       /* Region noise */
-	uint64_t chunknoise;        /* Chunk noise */
-	uint64_t thread_delay;      /* Thread delay */
+	uint64_t regionnoise;		/* Region noise */
+	uint64_t chunknoise;		/* Chunk noise */
+	uint64_t thread_delay;		/* Thread delay */
 
-	char pre[ZPIOS_PATH_SIZE];  /* Pre-exec hook */
-	char post[ZPIOS_PATH_SIZE]; /* Post-exec hook */
-	char log[ZPIOS_PATH_SIZE];  /* Requested log dir */
+	char pre[ZPIOS_PATH_SIZE];	/* Pre-exec hook */
+	char post[ZPIOS_PATH_SIZE];	/* Post-exec hook */
+	char log[ZPIOS_PATH_SIZE];	/* Requested log dir */
 
 	/* Control */
 	int current_id;
@@ -109,9 +110,9 @@ typedef struct cmd_args {
 } cmd_args_t;
 
 int set_count(char *pattern1, char *pattern2, range_repeat_t *range,
-	      char *optarg, uint32_t *flags, char *arg);
+    char *optarg, uint32_t *flags, char *arg);
 int set_lhi(char *pattern, range_repeat_t *range, char *optarg,
-	    int flag, uint32_t *flag_thread, char *arg);
+    int flag, uint32_t *flag_thread, char *arg);
 int set_noise(uint64_t *noise, char *optarg, char *arg);
 int set_load_params(cmd_args_t *args, char *optarg);
 int check_mutual_exclusive_command_lines(uint32_t flag, char *arg);

@@ -24,7 +24,7 @@
  */
 
 #ifndef LIBSPL_RPC_TYPES_H
-#define LIBSPL_RPC_TYPES_H
+#define	LIBSPL_RPC_TYPES_H
 
 #include_next <rpc/types.h>
 #include <sys/kmem.h>

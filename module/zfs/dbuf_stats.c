@@ -53,11 +53,11 @@ dbuf_stats_hash_table_headers(char *buf, size_t size)
 	    "%-6s %-6s %-8s %-8s %-6s %-6s %-5s %-8s %-8s\n",
 	    "dbuf", "arcbuf", "dnode", "pool", "objset", "object", "level",
 	    "blkid", "offset", "dbsize", "meta", "state", "dbholds", "list",
-	    "atype", "index", "flags", "count", "asize", "access", "mru", "gmru",
-	    "mfu", "gmfu", "l2", "l2_dattr", "l2_asize", "l2_comp", "aholds",
-	    "dtype", "btype", "data_bs", "meta_bs", "bsize",
-	    "lvls", "dholds", "blocks", "dsize");
-        buf[size] = '\0';
+	    "atype", "index", "flags", "count", "asize", "access",
+	    "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
+	    "l2_comp", "aholds", "dtype", "btype", "data_bs", "meta_bs",
+	    "bsize", "lvls", "dholds", "blocks", "dsize");
+	buf[size] = '\0';
 
 	return (0);
 }
@@ -118,7 +118,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    (ulong_t)refcount_count(&dn->dn_holds),
 	    (u_longlong_t)doi.doi_fill_count,
 	    (u_longlong_t)doi.doi_max_offset);
-        buf[size] = '\0';
+	buf[size] = '\0';
 
 	return (size);
 }
@@ -166,7 +166,7 @@ dbuf_stats_hash_table_addr(kstat_t *ksp, loff_t n)
 {
 	dbuf_stats_t *dsh = ksp->ks_private;
 
-        ASSERT(MUTEX_HELD(&dsh->lock));
+	ASSERT(MUTEX_HELD(&dsh->lock));
 
 	if (n <= dsh->hash->hash_table_mask) {
 		dsh->idx = n;

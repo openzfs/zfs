@@ -25,7 +25,7 @@
  */
 
 #ifndef _LIBSPL_LIBGEN_H
-#define _LIBSPL_LIBGEN_H
+#define	_LIBSPL_LIBGEN_H
 
 #include <sys/types.h>
 

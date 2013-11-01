@@ -288,7 +288,7 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 
 	err = nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_PUSHPAGE);
 	if (err)
-		return err;
+		return (err);
 
 	mutex_enter(&spa->spa_props_lock);
 
@@ -488,7 +488,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 					break;
 				}
 
-				if ((error = dmu_objset_hold(strval,FTAG,&os)))
+				error = dmu_objset_hold(strval, FTAG, &os);
+				if (error)
 					break;
 
 				/* Must be ZPL and not gzip compressed. */
@@ -2434,9 +2435,9 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 			    hostid != myhostid) {
 				nvlist_free(nvconfig);
 				cmn_err(CE_WARN, "pool '%s' could not be "
-				    "loaded as it was last accessed by "
-				    "another system (host: %s hostid: 0x%lx). "
-				    "See: http://zfsonlinux.org/msg/ZFS-8000-EY",
+				    "loaded as it was last accessed by another "
+				    "system (host: %s hostid: 0x%lx). See: "
+				    "http://zfsonlinux.org/msg/ZFS-8000-EY",
 				    spa_name(spa), hostname,
 				    (unsigned long)hostid);
 				return (SET_ERROR(EBADF));
@@ -4098,7 +4099,9 @@ spa_tryimport(nvlist_t *tryconfig)
 			if (dsl_dsobj_to_dsname(spa_name(spa),
 			    spa->spa_bootfs, tmpname) == 0) {
 				char *cp;
-				char *dsname = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+				char *dsname;
+
+				dsname = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
 
 				cp = strchr(tmpname, '/');
 				if (cp == NULL) {
@@ -5865,7 +5868,7 @@ spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
 	if (sav->sav_count == 0) {
 		VERIFY(nvlist_add_nvlist_array(nvroot, config, NULL, 0) == 0);
 	} else {
-		list = kmem_alloc(sav->sav_count * sizeof (void *), KM_PUSHPAGE);
+		list = kmem_alloc(sav->sav_count*sizeof (void *), KM_PUSHPAGE);
 		for (i = 0; i < sav->sav_count; i++)
 			list[i] = vdev_config_generate(spa, sav->sav_vdevs[i],
 			    B_FALSE, VDEV_CONFIG_L2CACHE);

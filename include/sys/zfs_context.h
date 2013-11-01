@@ -225,7 +225,7 @@ typedef void (*thread_func_t)(void *);
 typedef void (*thread_func_arg_t)(void *);
 typedef pthread_t kt_did_t;
 
-#define kpreempt(x)	((void)0)
+#define	kpreempt(x)	((void)0)
 
 typedef struct kthread {
 	kt_did_t	t_tid;
@@ -711,7 +711,7 @@ void ksiddomain_rele(ksiddomain_t *);
 #define	ddi_log_sysevent(_a, _b, _c, _d, _e, _f, _g) \
 	sysevent_post_event(_c, _d, _b, "libzpool", _e, _f)
 
-#define zfs_sleep_until(wakeup)						\
+#define	zfs_sleep_until(wakeup)						\
 	do {								\
 		hrtime_t delta = wakeup - gethrtime();			\
 		struct timespec ts;					\

@@ -2500,11 +2500,11 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	 */
 	xoap = xva_getxoptattr(xvap);
 
-	tmpxvattr = kmem_alloc(sizeof(xvattr_t), KM_SLEEP);
+	tmpxvattr = kmem_alloc(sizeof (xvattr_t), KM_SLEEP);
 	xva_init(tmpxvattr);
 
-	bulk = kmem_alloc(sizeof(sa_bulk_attr_t) * 7, KM_SLEEP);
-	xattr_bulk = kmem_alloc(sizeof(sa_bulk_attr_t) * 7, KM_SLEEP);
+	bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * 7, KM_SLEEP);
+	xattr_bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * 7, KM_SLEEP);
 
 	/*
 	 * Immutable files can only alter immutable bit and atime
@@ -2528,8 +2528,10 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	 * once large timestamps are fully supported.
 	 */
 	if (mask & (ATTR_ATIME | ATTR_MTIME)) {
-		if (((mask & ATTR_ATIME) && TIMESPEC_OVERFLOW(&vap->va_atime)) ||
-		    ((mask & ATTR_MTIME) && TIMESPEC_OVERFLOW(&vap->va_mtime))) {
+		if (((mask & ATTR_ATIME) &&
+		    TIMESPEC_OVERFLOW(&vap->va_atime)) ||
+		    ((mask & ATTR_MTIME) &&
+		    TIMESPEC_OVERFLOW(&vap->va_mtime))) {
 			err = EOVERFLOW;
 			goto out3;
 		}
@@ -3040,9 +3042,9 @@ out2:
 		zil_commit(zilog, 0);
 
 out3:
-	kmem_free(xattr_bulk, sizeof(sa_bulk_attr_t) * 7);
-	kmem_free(bulk, sizeof(sa_bulk_attr_t) * 7);
-	kmem_free(tmpxvattr, sizeof(xvattr_t));
+	kmem_free(xattr_bulk, sizeof (sa_bulk_attr_t) * 7);
+	kmem_free(bulk, sizeof (sa_bulk_attr_t) * 7);
+	kmem_free(tmpxvattr, sizeof (xvattr_t));
 	ZFS_EXIT(zsb);
 	return (err);
 }
@@ -3877,9 +3879,9 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	ASSERT(PageLocked(pp));
 
-	pgoff = page_offset(pp);     /* Page byte-offset in file */
-	offset = i_size_read(ip);    /* File length in bytes */
-	pglen = MIN(PAGE_CACHE_SIZE, /* Page length in bytes */
+	pgoff = page_offset(pp);	/* Page byte-offset in file */
+	offset = i_size_read(ip);	/* File length in bytes */
+	pglen = MIN(PAGE_CACHE_SIZE,	/* Page length in bytes */
 	    P2ROUNDUP(offset, PAGE_CACHE_SIZE)-pgoff);
 
 	/* Page is beyond end of file */
@@ -4088,17 +4090,17 @@ EXPORT_SYMBOL(zfs_seek);
 static int
 zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 {
-	znode_t	    *zp = ITOZ(ip);
-	zfs_sb_t    *zsb = ITOZSB(ip);
-	objset_t    *os;
+	znode_t *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ITOZSB(ip);
+	objset_t *os;
 	struct page *cur_pp;
-	u_offset_t  io_off, total;
-	size_t      io_len;
-	loff_t      i_size;
-	unsigned    page_idx;
-	int         err;
+	u_offset_t io_off, total;
+	size_t io_len;
+	loff_t i_size;
+	unsigned page_idx;
+	int err;
 
-	os     = zsb->z_os;
+	os = zsb->z_os;
 	io_len = nr_pages << PAGE_CACHE_SHIFT;
 	i_size = i_size_read(ip);
 	io_off = page_offset(pl[0]);

@@ -94,11 +94,11 @@ typedef struct xattr_filldir {
 static int
 zpl_xattr_filldir(xattr_filldir_t *xf, const char *name, int name_len)
 {
-	if (!strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN))
+	if (strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN) == 0)
 		if (!(ITOZSB(xf->inode)->z_flags & ZSB_XATTR))
 			return (0);
 
-	if (!strncmp(name, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN))
+	if (strncmp(name, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN) == 0)
 		if (!capable(CAP_SYS_ADMIN))
 			return (0);
 
@@ -194,7 +194,7 @@ zpl_xattr_list_sa(xattr_filldir_t *xf)
 		ASSERT3U(nvpair_type(nvp), ==, DATA_TYPE_BYTE_ARRAY);
 
 		error = zpl_xattr_filldir(xf, nvpair_name(nvp),
-		     strlen(nvpair_name(nvp)));
+		    strlen(nvpair_name(nvp)));
 		if (error)
 			return (error);
 	}
@@ -389,7 +389,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 
 	/* Lookup failed create a new xattr. */
 	if (xip == NULL) {
-		vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+		vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 		vap->va_mode = xattr_mode;
 		vap->va_mask = ATTR_MODE;
 		vap->va_uid = crgetfsuid(cr);
@@ -413,7 +413,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 
 out:
 	if (vap)
-		kmem_free(vap, sizeof(vattr_t));
+		kmem_free(vap, sizeof (vattr_t));
 
 	if (xip)
 		iput(xip);
@@ -534,10 +534,10 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 	int error;
 
 	if (strcmp(name, "") == 0)
-		return -EINVAL;
+		return (-EINVAL);
 
 	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR))
-		return -EOPNOTSUPP;
+		return (-EOPNOTSUPP);
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 	error = zpl_xattr_get(ip, xattr_name, value, size);
@@ -555,10 +555,10 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 	int error;
 
 	if (strcmp(name, "") == 0)
-		return -EINVAL;
+		return (-EINVAL);
 
 	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR))
-		return -EOPNOTSUPP;
+		return (-EOPNOTSUPP);
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
@@ -582,10 +582,10 @@ __zpl_xattr_trusted_get(struct inode *ip, const char *name,
 	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		return (-EACCES);
 
 	if (strcmp(name, "") == 0)
-		return -EINVAL;
+		return (-EINVAL);
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_TRUSTED_PREFIX, name);
 	error = zpl_xattr_get(ip, xattr_name, value, size);
@@ -603,10 +603,10 @@ __zpl_xattr_trusted_set(struct inode *ip, const char *name,
 	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		return (-EACCES);
 
 	if (strcmp(name, "") == 0)
-		return -EINVAL;
+		return (-EINVAL);
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_TRUSTED_PREFIX, name);
 	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
@@ -630,7 +630,7 @@ __zpl_xattr_security_get(struct inode *ip, const char *name,
 	int error;
 
 	if (strcmp(name, "") == 0)
-		return -EINVAL;
+		return (-EINVAL);
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX, name);
 	error = zpl_xattr_get(ip, xattr_name, value, size);
@@ -648,7 +648,7 @@ __zpl_xattr_security_set(struct inode *ip, const char *name,
 	int error;
 
 	if (strcmp(name, "") == 0)
-		return -EINVAL;
+		return (-EINVAL);
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX, name);
 	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
@@ -696,10 +696,11 @@ zpl_xattr_security_init(struct inode *ip, struct inode *dip,
 	char *name;
 
 	error = zpl_security_inode_init_security(ip, dip, qstr,
-	  &name, &value, &len);
+	    &name, &value, &len);
 	if (error) {
 		if (error == -EOPNOTSUPP)
-			return 0;
+			return (0);
+
 		return (error);
 	}
 
@@ -731,7 +732,7 @@ zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
 	if (S_ISLNK(ip->i_mode))
 		return (-EOPNOTSUPP);
 
-	switch(type) {
+	switch (type) {
 	case ACL_TYPE_ACCESS:
 		name = POSIX_ACL_XATTR_ACCESS;
 		if (acl) {
@@ -816,7 +817,7 @@ zpl_get_acl(struct inode *ip, int type)
 		name = POSIX_ACL_XATTR_DEFAULT;
 		break;
 	default:
-		return ERR_PTR(-EINVAL);
+		return (ERR_PTR(-EINVAL));
 	}
 
 	size = zpl_xattr_get(ip, name, NULL, 0);
@@ -866,25 +867,25 @@ __zpl_check_acl(struct inode *ip, int mask)
 int
 zpl_check_acl(struct inode *ip, int mask, unsigned int flags)
 {
-	return __zpl_check_acl(ip, mask);
+	return (__zpl_check_acl(ip, mask));
 }
 #elif defined(HAVE_CHECK_ACL)
 int
 zpl_check_acl(struct inode *ip, int mask)
 {
-	return __zpl_check_acl(ip , mask);
+	return (__zpl_check_acl(ip, mask));
 }
 #elif defined(HAVE_PERMISSION_WITH_NAMEIDATA)
 int
 zpl_permission(struct inode *ip, int mask, struct nameidata *nd)
 {
-	return generic_permission(ip, mask, __zpl_check_acl);
+	return (generic_permission(ip, mask, __zpl_check_acl));
 }
 #elif defined(HAVE_PERMISSION)
 int
 zpl_permission(struct inode *ip, int mask)
 {
-	return generic_permission(ip, mask, __zpl_check_acl);
+	return (generic_permission(ip, mask, __zpl_check_acl));
 }
 #endif /* HAVE_CHECK_ACL | HAVE_PERMISSION */
 #endif /* !HAVE_GET_ACL */
@@ -923,7 +924,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		}
 
 		mode = ip->i_mode;
-		error = posix_acl_create(&acl,GFP_KERNEL, &mode);
+		error = posix_acl_create(&acl, GFP_KERNEL, &mode);
 		if (error >= 0) {
 			ip->i_mode = mode;
 			mark_inode_dirty(ip);
@@ -953,9 +954,9 @@ zpl_chmod_acl(struct inode *ip)
 	if (IS_ERR(acl) || !acl)
 		return (PTR_ERR(acl));
 
-	error = posix_acl_chmod(&acl,GFP_KERNEL, ip->i_mode);
+	error = posix_acl_chmod(&acl, GFP_KERNEL, ip->i_mode);
 	if (!error)
-		error = zpl_set_acl(ip,ACL_TYPE_ACCESS, acl);
+		error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
 
 	zpl_posix_acl_release(acl);
 
@@ -975,11 +976,11 @@ zpl_xattr_acl_list(struct inode *ip, char *list, size_t list_size,
 	switch (type) {
 	case ACL_TYPE_ACCESS:
 		xattr_name = POSIX_ACL_XATTR_ACCESS;
-		xattr_size = sizeof(xattr_name);
+		xattr_size = sizeof (xattr_name);
 		break;
 	case ACL_TYPE_DEFAULT:
 		xattr_name = POSIX_ACL_XATTR_DEFAULT;
-		xattr_size = sizeof(xattr_name);
+		xattr_size = sizeof (xattr_name);
 		break;
 	default:
 		return (0);
@@ -1060,7 +1061,7 @@ zpl_xattr_acl_get_access(struct dentry *dentry, const char *name,
     void *buffer, size_t size, int type)
 {
 	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	return zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type);
+	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
 }
 
 static int
@@ -1068,7 +1069,7 @@ zpl_xattr_acl_get_default(struct dentry *dentry, const char *name,
     void *buffer, size_t size, int type)
 {
 	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	return zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type);
+	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
 }
 
 #else
@@ -1077,14 +1078,14 @@ static int
 zpl_xattr_acl_get_access(struct inode *ip, const char *name,
     void *buffer, size_t size)
 {
-	return zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_ACCESS);
+	return (zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_ACCESS));
 }
 
 static int
 zpl_xattr_acl_get_default(struct inode *ip, const char *name,
     void *buffer, size_t size)
 {
-	return zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_DEFAULT);
+	return (zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_DEFAULT));
 }
 #endif /* HAVE_DENTRY_XATTR_GET */
 
@@ -1130,17 +1131,17 @@ static int
 zpl_xattr_acl_set_access(struct dentry *dentry, const char *name,
     const void *value, size_t size, int flags, int type)
 {
-	 ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	 return zpl_xattr_acl_set(dentry->d_inode,
-	    name, value, size, flags, type);
+	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
+	return (zpl_xattr_acl_set(dentry->d_inode,
+	    name, value, size, flags, type));
 }
 
 static int
 zpl_xattr_acl_set_default(struct dentry *dentry, const char *name,
-    const void *value, size_t size,int flags, int type)
+    const void *value, size_t size, int flags, int type)
 {
-	 ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	 return zpl_xattr_acl_set(dentry->d_inode,
+	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
+	return zpl_xattr_acl_set(dentry->d_inode,
 	    name, value, size, flags, type);
 }
 
@@ -1150,7 +1151,7 @@ static int
 zpl_xattr_acl_set_access(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
-	 return zpl_xattr_acl_set(ip,
+	return zpl_xattr_acl_set(ip,
 	    name, value, size, flags, ACL_TYPE_ACCESS);
 }
 
@@ -1158,7 +1159,7 @@ static int
 zpl_xattr_acl_set_default(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
-	 return zpl_xattr_acl_set(ip,
+	return zpl_xattr_acl_set(ip,
 	    name, value, size, flags, ACL_TYPE_DEFAULT);
 }
 #endif /* HAVE_DENTRY_XATTR_SET */

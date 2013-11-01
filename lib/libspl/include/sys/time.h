@@ -25,37 +25,37 @@
  */
 
 #ifndef _LIBSPL_SYS_TIME_H
-#define _LIBSPL_SYS_TIME_H
+#define	_LIBSPL_SYS_TIME_H
 
 #include_next <sys/time.h>
 #include <sys/types.h>
 
 #ifndef SEC
-#define SEC		1
+#define	SEC		1
 #endif
 
 #ifndef MILLISEC
-#define MILLISEC	1000
+#define	MILLISEC	1000
 #endif
 
 #ifndef MICROSEC
-#define MICROSEC	1000000
+#define	MICROSEC	1000000
 #endif
 
 #ifndef NANOSEC
-#define NANOSEC		1000000000
+#define	NANOSEC		1000000000
 #endif
 
 #ifndef NSEC_PER_USEC
-#define NSEC_PER_USEC	1000L
+#define	NSEC_PER_USEC	1000L
 #endif
 
 #ifndef MSEC2NSEC
-#define MSEC2NSEC(m)    ((hrtime_t)(m) * (NANOSEC / MILLISEC))
+#define	MSEC2NSEC(m)    ((hrtime_t)(m) * (NANOSEC / MILLISEC))
 #endif
 
 #ifndef NSEC2MSEC
-#define NSEC2MSEC(n)    ((n) / (NANOSEC / MILLISEC))
+#define	NSEC2MSEC(n)    ((n) / (NANOSEC / MILLISEC))
 #endif
 
 extern hrtime_t gethrtime(void);

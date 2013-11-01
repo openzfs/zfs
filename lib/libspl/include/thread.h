@@ -25,6 +25,6 @@
  */
 
 #ifndef _LIBSPL_THREAD_H
-#define _LIBSPL_THREAD_H
+#define	_LIBSPL_THREAD_H
 
 #endif /* _LIBSPL_THREAD_H */

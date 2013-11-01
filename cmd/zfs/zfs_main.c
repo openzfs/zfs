@@ -2879,13 +2879,13 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 
 		if (pl->pl_prop == ZFS_PROP_NAME) {
 			(void) strlcpy(property, zfs_get_name(zhp),
-			    sizeof(property));
+			    sizeof (property));
 			propstr = property;
 			right_justify = zfs_prop_align_right(pl->pl_prop);
 		} else if (pl->pl_prop != ZPROP_INVAL) {
 			if (zfs_prop_get(zhp, pl->pl_prop, property,
 			    sizeof (property), NULL, NULL, 0,
-                            cb->cb_literal) != 0)
+			    cb->cb_literal) != 0)
 				propstr = "-";
 			else
 				propstr = property;

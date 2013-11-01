@@ -916,20 +916,20 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 		return (B_TRUE);
 
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
-	dde = kmem_alloc(sizeof(ddt_entry_t), KM_PUSHPAGE);
+	dde = kmem_alloc(sizeof (ddt_entry_t), KM_PUSHPAGE);
 
 	ddt_key_fill(&(dde->dde_key), bp);
 
 	for (type = 0; type < DDT_TYPES; type++) {
 		for (class = 0; class <= max_class; class++) {
 			if (ddt_object_lookup(ddt, type, class, dde) == 0) {
-				kmem_free(dde, sizeof(ddt_entry_t));
+				kmem_free(dde, sizeof (ddt_entry_t));
 				return (B_TRUE);
 			}
 		}
 	}
 
-	kmem_free(dde, sizeof(ddt_entry_t));
+	kmem_free(dde, sizeof (ddt_entry_t));
 	return (B_FALSE);
 }
 
@@ -1209,5 +1209,5 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_dedup_prefetch, int, 0644);
-MODULE_PARM_DESC(zfs_dedup_prefetch,"Enable prefetching dedup-ed blks");
+MODULE_PARM_DESC(zfs_dedup_prefetch, "Enable prefetching dedup-ed blks");
 #endif

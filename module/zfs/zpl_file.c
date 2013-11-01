@@ -169,7 +169,7 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 
 ssize_t
 zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
-     uio_seg_t segment, int flags, cred_t *cr)
+    uio_seg_t segment, int flags, cred_t *cr)
 {
 	int error;
 	ssize_t read;
@@ -280,7 +280,7 @@ zpl_llseek(struct file *filp, loff_t offset, int whence)
 	}
 #endif /* SEEK_HOLE && SEEK_DATA */
 
-	return generic_file_llseek(filp, offset, whence);
+	return (generic_file_llseek(filp, offset, whence));
 }
 
 /*
@@ -381,7 +381,7 @@ zpl_readpage(struct file *filp, struct page *pp)
 	}
 
 	unlock_page(pp);
-	return error;
+	return (error);
 }
 
 /*
@@ -536,7 +536,7 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 static long
 zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	return zpl_ioctl(filp, cmd, arg);
+	return (zpl_ioctl(filp, cmd, arg));
 }
 #endif /* CONFIG_COMPAT */
 
@@ -545,7 +545,7 @@ const struct address_space_operations zpl_address_space_operations = {
 	.readpages	= zpl_readpages,
 	.readpage	= zpl_readpage,
 	.writepage	= zpl_writepage,
-	.writepages     = zpl_writepages,
+	.writepages	= zpl_writepages,
 };
 
 const struct file_operations zpl_file_operations = {
@@ -557,11 +557,11 @@ const struct file_operations zpl_file_operations = {
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
 #ifdef HAVE_FILE_FALLOCATE
-	.fallocate      = zpl_fallocate,
+	.fallocate	= zpl_fallocate,
 #endif /* HAVE_FILE_FALLOCATE */
-	.unlocked_ioctl = zpl_ioctl,
+	.unlocked_ioctl	= zpl_ioctl,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl   = zpl_compat_ioctl,
+	.compat_ioctl	= zpl_compat_ioctl,
 #endif
 };
 

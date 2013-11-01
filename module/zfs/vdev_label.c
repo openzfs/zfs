@@ -1116,7 +1116,7 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg, int flags)
 	buf = vp->vp_nvlist;
 	buflen = sizeof (vp->vp_nvlist);
 
-	if (nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_PUSHPAGE) == 0) {
+	if (!nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_PUSHPAGE)) {
 		for (; l < VDEV_LABELS; l += 2) {
 			vdev_label_write(zio, vd, l, vp,
 			    offsetof(vdev_label_t, vl_vdev_phys),

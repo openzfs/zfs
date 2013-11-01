@@ -25,7 +25,7 @@
  */
 
 #ifndef _SYS_FRAME_H
-#define _SYS_FRAME_H
+#define	_SYS_FRAME_H
 
 #include <sys/types.h>
 

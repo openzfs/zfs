@@ -24,15 +24,15 @@
  */
 
 #ifndef _ZFS_DCACHE_H
-#define _ZFS_DCACHE_H
+#define	_ZFS_DCACHE_H
 
 #include <linux/dcache.h>
 
-#define dname(dentry)	((char *)((dentry)->d_name.name))
-#define dlen(dentry)	((int)((dentry)->d_name.len))
+#define	dname(dentry)	((char *)((dentry)->d_name.name))
+#define	dlen(dentry)	((int)((dentry)->d_name.len))
 
 #ifndef HAVE_D_MAKE_ROOT
-#define d_make_root(inode)	d_alloc_root(inode)
+#define	d_make_root(inode)	d_alloc_root(inode)
 #endif /* HAVE_D_MAKE_ROOT */
 
 /*
@@ -74,9 +74,9 @@ d_clear_d_op(struct dentry *dentry)
 {
 #ifdef HAVE_D_SET_D_OP
 	dentry->d_op = NULL;
-	dentry->d_flags &=
-	    ~(DCACHE_OP_HASH | DCACHE_OP_COMPARE |
-	      DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE);
+	dentry->d_flags &= ~(
+	    DCACHE_OP_HASH | DCACHE_OP_COMPARE |
+	    DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE);
 #endif /* HAVE_D_SET_D_OP */
 }
 

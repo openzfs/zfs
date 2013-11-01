@@ -210,8 +210,8 @@ typedef struct znode {
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
 	krwlock_t	z_xattr_lock;	/* xattr data lock */
-	nvlist_t	*z_xattr_cached;/* cached xattrs */
-	struct znode	*z_xattr_parent;/* xattr parent znode */
+	nvlist_t	*z_xattr_cached; /* cached xattrs */
+	struct znode	*z_xattr_parent; /* xattr parent znode */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */

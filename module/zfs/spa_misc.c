@@ -1883,12 +1883,12 @@ EXPORT_SYMBOL(spa_mode);
 EXPORT_SYMBOL(spa_namespace_lock);
 
 module_param(zfs_deadman_synctime_ms, ulong, 0644);
-MODULE_PARM_DESC(zfs_deadman_synctime_ms,"Expiration time in milliseconds");
+MODULE_PARM_DESC(zfs_deadman_synctime_ms, "Expiration time in milliseconds");
 
 module_param(zfs_deadman_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
 
 module_param(spa_asize_inflation, int, 0644);
 MODULE_PARM_DESC(spa_asize_inflation,
-    "SPA size estimate multiplication factor");
+	"SPA size estimate multiplication factor");
 #endif

@@ -124,7 +124,7 @@ enum zio_compress {
 /*
  * Default Linux timeout for a sd device.
  */
-#define ZIO_DELAY_MAX			(30 * MILLISEC)
+#define	ZIO_DELAY_MAX			(30 * MILLISEC)
 
 #define	ZIO_FAILURE_MODE_WAIT		0
 #define	ZIO_FAILURE_MODE_CONTINUE	1

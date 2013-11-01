@@ -326,10 +326,10 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	dp = startdd->dd_pool;
 	mos = dp->dp_meta_objset;
 
-	zc = kmem_alloc(sizeof(zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof(zap_attribute_t), KM_SLEEP);
-	basezc = kmem_alloc(sizeof(zap_cursor_t), KM_SLEEP);
-	baseza = kmem_alloc(sizeof(zap_attribute_t), KM_SLEEP);
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	basezc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	baseza = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 	source = kmem_alloc(MAXNAMELEN + strlen(MOS_DIR_NAME) + 1, KM_SLEEP);
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
@@ -371,10 +371,10 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	}
 
 	kmem_free(source, MAXNAMELEN + strlen(MOS_DIR_NAME) + 1);
-	kmem_free(baseza, sizeof(zap_attribute_t));
-	kmem_free(basezc, sizeof(zap_cursor_t));
-	kmem_free(za, sizeof(zap_attribute_t));
-	kmem_free(zc, sizeof(zap_cursor_t));
+	kmem_free(baseza, sizeof (zap_attribute_t));
+	kmem_free(basezc, sizeof (zap_cursor_t));
+	kmem_free(za, sizeof (zap_attribute_t));
+	kmem_free(zc, sizeof (zap_cursor_t));
 
 	dsl_dir_rele(startdd, FTAG);
 	dsl_pool_rele(dp, FTAG);

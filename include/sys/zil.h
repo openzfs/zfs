@@ -430,9 +430,9 @@ typedef struct zil_stats {
 
 extern zil_stats_t zil_stats;
 
-#define ZIL_STAT_INCR(stat, val) \
+#define	ZIL_STAT_INCR(stat, val) \
     atomic_add_64(&zil_stats.stat.value.ui64, (val));
-#define ZIL_STAT_BUMP(stat) \
+#define	ZIL_STAT_BUMP(stat) \
     ZIL_STAT_INCR(stat, 1);
 
 typedef int zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,

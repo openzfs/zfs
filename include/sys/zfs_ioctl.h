@@ -368,7 +368,7 @@ enum zfsdev_state_type {
 };
 
 typedef struct zfsdev_state {
-        list_node_t             zs_next;        /* next zfsdev_state_t link */
+	list_node_t		zs_next;	/* next zfsdev_state_t link */
 	struct file		*zs_file;	/* associated file struct */
 	minor_t			zs_minor;	/* made up minor number */
 	void			*zs_onexit;	/* onexit data */

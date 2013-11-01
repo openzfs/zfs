@@ -28,12 +28,12 @@
  * references are hard to find.
  */
 
-#define SMB_NAME_MAX 255
-#define SMB_COMMENT_MAX 255
+#define	SMB_NAME_MAX		255
+#define	SMB_COMMENT_MAX		255
 
-#define SHARE_DIR "/var/lib/samba/usershares"
-#define NET_CMD_PATH "/usr/bin/net"
-#define NET_CMD_ARG_HOST "127.0.0.1"
+#define	SHARE_DIR		"/var/lib/samba/usershares"
+#define	NET_CMD_PATH		"/usr/bin/net"
+#define	NET_CMD_ARG_HOST	"127.0.0.1"
 
 typedef struct smb_share_s {
 	char name[SMB_NAME_MAX];	/* Share name */

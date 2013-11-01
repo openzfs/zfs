@@ -400,7 +400,8 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		}
 		nblks = 1;
 	}
-	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_PUSHPAGE | KM_NODEBUG);
+	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks,
+	    KM_PUSHPAGE | KM_NODEBUG);
 
 	zio = zio_root(dn->dn_objset->os_spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, offset);
@@ -877,9 +878,9 @@ static xuio_stats_t xuio_stats = {
 	{ "write_buf_nocopy",	KSTAT_DATA_UINT64 }
 };
 
-#define XUIOSTAT_INCR(stat, val)        \
-        atomic_add_64(&xuio_stats.stat.value.ui64, (val))
-#define XUIOSTAT_BUMP(stat)     XUIOSTAT_INCR(stat, 1)
+#define	XUIOSTAT_INCR(stat, val)        \
+	atomic_add_64(&xuio_stats.stat.value.ui64, (val))
+#define	XUIOSTAT_BUMP(stat)	XUIOSTAT_INCR(stat, 1)
 
 int
 dmu_xuio_init(xuio_t *xuio, int nblk)
@@ -1044,7 +1045,7 @@ dmu_req_copy(void *arg_buf, int size, int *offset, struct request *req)
 		bv->bv_len -= tocpy;
 	}
 
-	return 0;
+	return (0);
 }
 
 static void
@@ -1067,13 +1068,13 @@ dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
 	struct bio *bio_new;
 
 	if (bio == NULL)
-		return EINVAL;
+		return (EINVAL);
 
 	while (bio) {
 		bio_new = bio_clone(bio, GFP_NOIO);
 		if (bio_new == NULL) {
 			dmu_bio_put(bio_root);
-			return ENOMEM;
+			return (ENOMEM);
 		}
 
 		if (bio_last) {
@@ -1089,7 +1090,7 @@ dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
 
 	*bio_copy = bio_root;
 
-	return 0;
+	return (0);
 }
 
 int
@@ -1106,7 +1107,7 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 	 * to be reading in parallel.
 	 */
 	err = dmu_buf_hold_array(os, object, offset, size, TRUE, FTAG,
-				 &numbufs, &dbp);
+	    &numbufs, &dbp);
 	if (err)
 		return (err);
 
@@ -1168,7 +1169,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 		return (0);
 
 	err = dmu_buf_hold_array(os, object, offset, size, FALSE, FTAG,
-				 &numbufs, &dbp);
+	    &numbufs, &dbp);
 	if (err)
 		return (err);
 
@@ -1564,7 +1565,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx), zgd->zgd_bp,
 	    zgd->zgd_db->db_data, zgd->zgd_db->db_size, zp,
 	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done, dsa,
-	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, zb));
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL|ZIO_FLAG_FASTWRITE, zb));
 
 	return (0);
 }

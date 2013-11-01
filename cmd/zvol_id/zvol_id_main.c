@@ -33,7 +33,8 @@
 #include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 
-int ioctl_get_msg(char *var, int fd)
+static int
+ioctl_get_msg(char *var, int fd)
 {
 	int error = 0;
 	char msg[ZFS_MAXNAMELEN];
@@ -47,7 +48,8 @@ int ioctl_get_msg(char *var, int fd)
 	return (error);
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
 	int fd, error = 0;
 	char zvol_name[ZFS_MAXNAMELEN], zvol_name_part[ZFS_MAXNAMELEN];

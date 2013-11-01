@@ -97,7 +97,6 @@ zfs_dbgmsg_fini(void)
 	mutex_destroy(&zfs_dbgmsgs_lock);
 	ASSERT0(zfs_dbgmsg_size);
 #endif
-	return;
 }
 
 #if !defined(_KERNEL) || !defined(__linux__)

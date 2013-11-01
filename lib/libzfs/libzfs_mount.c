@@ -279,7 +279,7 @@ do_mount(const char *src, const char *mntpt, char *opts)
 	    "-t", MNTTYPE_ZFS,
 	    "-o", opts,
 	    (char *)src,
-            (char *)mntpt,
+	    (char *)mntpt,
 	    (char *)NULL };
 	int rc;
 
@@ -287,22 +287,22 @@ do_mount(const char *src, const char *mntpt, char *opts)
 	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
 	if (rc) {
 		if (rc & MOUNT_FILEIO)
-			return EIO;
+			return (EIO);
 		if (rc & MOUNT_USER)
-			return EINTR;
+			return (EINTR);
 		if (rc & MOUNT_SOFTWARE)
-			return EPIPE;
+			return (EPIPE);
 		if (rc & MOUNT_BUSY)
-			return EBUSY;
+			return (EBUSY);
 		if (rc & MOUNT_SYSERR)
-			return EAGAIN;
+			return (EAGAIN);
 		if (rc & MOUNT_USAGE)
-			return EINVAL;
+			return (EINVAL);
 
-		return ENXIO; /* Generic error */
+		return (ENXIO); /* Generic error */
 	}
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -890,7 +890,7 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 			mntpt = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
 
 		for (curr_proto = proto; *curr_proto != PROTO_END;
-		     curr_proto++) {
+		    curr_proto++) {
 
 			if (is_shared(hdl, mntpt, *curr_proto) &&
 			    unshare_one(hdl, zhp->zfs_name,

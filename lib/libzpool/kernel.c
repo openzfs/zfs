@@ -74,7 +74,7 @@ thread_init(void)
 	VERIFY3S(pthread_key_create(&kthread_key, NULL), ==, 0);
 
 	/* Create entry for primary kthread */
-	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
+	kt = umem_zalloc(sizeof (kthread_t), UMEM_NOFAIL);
 	kt->t_tid = pthread_self();
 	kt->t_func = NULL;
 
@@ -93,7 +93,7 @@ thread_fini(void)
 	ASSERT(pthread_equal(kt->t_tid, pthread_self()));
 	ASSERT3P(kt->t_func, ==, NULL);
 
-	umem_free(kt, sizeof(kthread_t));
+	umem_free(kt, sizeof (kthread_t));
 
 	/* Wait for all threads to exit via thread_exit() */
 	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
@@ -117,7 +117,7 @@ zk_thread_current(void)
 
 	ASSERT3P(kt, !=, NULL);
 
-	return kt;
+	return (kt);
 }
 
 void *
@@ -137,12 +137,12 @@ zk_thread_helper(void *arg)
 	/* Unreachable, thread must exit with thread_exit() */
 	abort();
 
-	return NULL;
+	return (NULL);
 }
 
 kthread_t *
 zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
-	      size_t len, proc_t *pp, int state, pri_t pri, int detachstate)
+    size_t len, proc_t *pp, int state, pri_t pri, int detachstate)
 {
 	kthread_t *kt;
 	pthread_attr_t attr;
@@ -150,7 +150,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 
 	ASSERT3S(state & ~TS_RUN, ==, 0);
 
-	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
+	kt = umem_zalloc(sizeof (kthread_t), UMEM_NOFAIL);
 	kt->t_func = func;
 	kt->t_arg = arg;
 
@@ -188,7 +188,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 
 	VERIFY3S(pthread_attr_destroy(&attr), ==, 0);
 
-	return kt;
+	return (kt);
 }
 
 void
@@ -198,7 +198,7 @@ zk_thread_exit(void)
 
 	ASSERT(pthread_equal(kt->t_tid, pthread_self()));
 
-	umem_free(kt, sizeof(kthread_t));
+	umem_free(kt, sizeof (kthread_t));
 
 	pthread_mutex_lock(&kthread_lock);
 	kthread_nr--;
@@ -737,7 +737,7 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 		 * (memory or disk) due to O_DIRECT, so we abort() in order to
 		 * catch the offender.
 		 */
-		 abort();
+		abort();
 	}
 #endif
 	if (rc == -1)

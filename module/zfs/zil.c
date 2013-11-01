@@ -70,19 +70,19 @@
  * See zil.h for more information about these fields.
  */
 zil_stats_t zil_stats = {
-	{ "zil_commit_count",              KSTAT_DATA_UINT64 },
-	{ "zil_commit_writer_count",       KSTAT_DATA_UINT64 },
-	{ "zil_itx_count",                 KSTAT_DATA_UINT64 },
-	{ "zil_itx_indirect_count",        KSTAT_DATA_UINT64 },
-	{ "zil_itx_indirect_bytes",        KSTAT_DATA_UINT64 },
-	{ "zil_itx_copied_count",          KSTAT_DATA_UINT64 },
-	{ "zil_itx_copied_bytes",          KSTAT_DATA_UINT64 },
-	{ "zil_itx_needcopy_count",        KSTAT_DATA_UINT64 },
-	{ "zil_itx_needcopy_bytes",        KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_normal_count", KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_normal_bytes", KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_slog_count",   KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_slog_bytes",   KSTAT_DATA_UINT64 },
+	{ "zil_commit_count",			KSTAT_DATA_UINT64 },
+	{ "zil_commit_writer_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_count",			KSTAT_DATA_UINT64 },
+	{ "zil_itx_indirect_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_indirect_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_copied_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_copied_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_needcopy_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_needcopy_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_count",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_bytes",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_count",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_bytes",	KSTAT_DATA_UINT64 },
 };
 
 static kstat_t *zil_ksp;
@@ -319,7 +319,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 	char *lrbuf, *lrp;
 	int error = 0;
 
-	bzero(&next_blk, sizeof(blkptr_t));
+	bzero(&next_blk, sizeof (blkptr_t));
 
 	/*
 	 * Old logs didn't record the maximum zh_claim_lr_seq.
@@ -1017,13 +1017,10 @@ zil_lwb_write_start(zilog_t *zilog, lwb_t *lwb)
 	use_slog = USE_SLOG(zilog);
 	error = zio_alloc_zil(spa, txg, bp, zil_blksz,
 	    USE_SLOG(zilog));
-	if (use_slog)
-	{
+	if (use_slog) {
 		ZIL_STAT_BUMP(zil_itx_metaslab_slog_count);
 		ZIL_STAT_INCR(zil_itx_metaslab_slog_bytes, lwb->lwb_nused);
-	}
-	else
-	{
+	} else {
 		ZIL_STAT_BUMP(zil_itx_metaslab_normal_count);
 		ZIL_STAT_INCR(zil_itx_metaslab_normal_bytes, lwb->lwb_nused);
 	}
@@ -1134,12 +1131,14 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 				dbuf = lr_buf + reclen;
 				lrw->lr_common.lrc_reclen += dlen;
 				ZIL_STAT_BUMP(zil_itx_needcopy_count);
-				ZIL_STAT_INCR(zil_itx_needcopy_bytes, lrw->lr_length);
+				ZIL_STAT_INCR(zil_itx_needcopy_bytes,
+				    lrw->lr_length);
 			} else {
 				ASSERT(itx->itx_wr_state == WR_INDIRECT);
 				dbuf = NULL;
 				ZIL_STAT_BUMP(zil_itx_indirect_count);
-				ZIL_STAT_INCR(zil_itx_indirect_bytes, lrw->lr_length);
+				ZIL_STAT_INCR(zil_itx_indirect_bytes,
+				    lrw->lr_length);
 			}
 			error = zilog->zl_get_data(
 			    itx->itx_private, lrw, dbuf, lwb->lwb_zio);
@@ -1344,7 +1343,8 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 		}
 		ASSERT(itxg->itxg_sod == 0);
 		itxg->itxg_txg = txg;
-		itxs = itxg->itxg_itxs = kmem_zalloc(sizeof (itxs_t), KM_PUSHPAGE);
+		itxs = itxg->itxg_itxs = kmem_zalloc(sizeof (itxs_t),
+		    KM_PUSHPAGE);
 
 		list_create(&itxs->i_sync_list, sizeof (itx_t),
 		    offsetof(itx_t, itx_node));
@@ -1364,7 +1364,8 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 
 		ian = avl_find(t, &foid, &where);
 		if (ian == NULL) {
-			ian = kmem_alloc(sizeof (itx_async_node_t), KM_PUSHPAGE);
+			ian = kmem_alloc(sizeof (itx_async_node_t),
+			    KM_PUSHPAGE);
 			list_create(&ian->ia_list, sizeof (itx_t),
 			    offsetof(itx_t, itx_node));
 			ian->ia_foid = foid;
@@ -1539,7 +1540,7 @@ zil_commit_writer(zilog_t *zilog)
 
 	DTRACE_PROBE1(zil__cw1, zilog_t *, zilog);
 	for (itx = list_head(&zilog->zl_itx_commit_list); itx != NULL;
-	     itx = list_next(&zilog->zl_itx_commit_list, itx)) {
+	    itx = list_next(&zilog->zl_itx_commit_list, itx)) {
 		txg = itx->itx_lr.lrc_txg;
 		ASSERT(txg);
 
@@ -1744,7 +1745,7 @@ zil_init(void)
 	    sizeof (struct lwb), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
 	zil_ksp = kstat_create("zfs", 0, "zil", "misc",
-	    KSTAT_TYPE_NAMED, sizeof(zil_stats) / sizeof(kstat_named_t),
+	    KSTAT_TYPE_NAMED, sizeof (zil_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
 
 	if (zil_ksp != NULL) {

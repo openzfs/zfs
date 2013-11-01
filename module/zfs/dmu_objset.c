@@ -1485,7 +1485,7 @@ dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
 int
 dmu_snapshot_lookup(objset_t *os, const char *name, uint64_t *value)
 {
-	return dsl_dataset_snap_lookup(os->os_dsl_dataset, name, value);
+	return (dsl_dataset_snap_lookup(os->os_dsl_dataset, name, value));
 }
 
 int

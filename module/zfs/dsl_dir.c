@@ -48,8 +48,8 @@ static void
 dsl_dir_evict(dmu_buf_t *db, void *arg)
 {
 	dsl_dir_t *dd = arg;
-	ASSERTV(dsl_pool_t *dp = dd->dd_pool;)
 	int t;
+	ASSERTV(dsl_pool_t *dp = dd->dd_pool);
 
 	for (t = 0; t < TXG_SIZE; t++) {
 		ASSERT(!txg_list_member(&dp->dp_dirty_dirs, dd, t));
@@ -1097,7 +1097,7 @@ dsl_dir_set_reservation_sync(void *arg, dmu_tx_t *tx)
 		    zfs_prop_to_name(ZFS_PROP_RESERVATION),
 		    ddsqra->ddsqra_source, sizeof (ddsqra->ddsqra_value), 1,
 		    &ddsqra->ddsqra_value, tx);
- 
+
 		VERIFY0(dsl_prop_get_int_ds(ds,
 		    zfs_prop_to_name(ZFS_PROP_RESERVATION), &newval));
 	} else {
@@ -1109,7 +1109,7 @@ dsl_dir_set_reservation_sync(void *arg, dmu_tx_t *tx)
 
 	dsl_dir_set_reservation_sync_impl(ds->ds_dir, newval, tx);
 	dsl_dataset_rele(ds, FTAG);
- }
+}
 
 int
 dsl_dir_set_reservation(const char *ddname, zprop_source_t source,

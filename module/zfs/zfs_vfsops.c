@@ -1249,10 +1249,12 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 
 		atime_changed_cb(zsb, B_FALSE);
 		readonly_changed_cb(zsb, B_TRUE);
-		if ((error = dsl_prop_get_integer(osname,"xattr",&pval,NULL)))
+		if ((error = dsl_prop_get_integer(osname,
+		    "xattr", &pval, NULL)))
 			goto out;
 		xattr_changed_cb(zsb, pval);
-		if ((error = dsl_prop_get_integer(osname,"acltype",&pval,NULL)))
+		if ((error = dsl_prop_get_integer(osname,
+		    "acltype", &pval, NULL)))
 			goto out;
 		acltype_changed_cb(zsb, pval);
 		zsb->z_issnap = B_TRUE;

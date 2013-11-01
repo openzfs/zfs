@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  ZPIOS is a heavily modified version of the original PIOS test code.
  *  It is designed to have the test code running in the Linux kernel
  *  against ZFS while still being flexibly controled from user space.
@@ -29,7 +29,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with ZPIOS.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -49,7 +49,7 @@ kmgt_to_uint64(const char *str, uint64_t *val)
 
 	*val = strtoll(str, &endptr, 0);
 	if ((str == endptr) && (*val == 0))
-		return EINVAL;
+		return (EINVAL);
 
 	switch (endptr[0]) {
 		case 'k': case 'K':
@@ -70,7 +70,7 @@ kmgt_to_uint64(const char *str, uint64_t *val)
 			rc = EINVAL;
 	}
 
-	return rc;
+	return (rc);
 }
 
 static char *
@@ -85,12 +85,12 @@ uint64_to_kmgt(char *str, uint64_t val)
 	}
 
 	if (i >= 4)
-		(void)snprintf(str, KMGT_SIZE-1, "inf");
+		(void) snprintf(str, KMGT_SIZE-1, "inf");
 	else
-		(void)snprintf(str, KMGT_SIZE-1, "%lu%c", (unsigned long)val,
-		               (i == -1) ? '\0' : postfix[i]);
+		(void) snprintf(str, KMGT_SIZE-1, "%lu%c", (unsigned long)val,
+		    (i == -1) ? '\0' : postfix[i]);
 
-	return str;
+	return (str);
 }
 
 static char *
@@ -106,12 +106,12 @@ kmgt_per_sec(char *str, uint64_t v, double t)
 	}
 
 	if (i >= 4)
-		(void)snprintf(str, KMGT_SIZE-1, "inf");
+		(void) snprintf(str, KMGT_SIZE-1, "inf");
 	else
-		(void)snprintf(str, KMGT_SIZE-1, "%.2f%c", val,
-		               (i == -1) ? '\0' : postfix[i]);
+		(void) snprintf(str, KMGT_SIZE-1, "%.2f%c", val,
+		    (i == -1) ? '\0' : postfix[i]);
 
-	return str;
+	return (str);
 }
 
 static char *
@@ -126,7 +126,7 @@ print_flags(char *str, uint32_t flags)
 	str[6] = (flags & DMU_WRITE_NOWAIT) ? 'O' : '-';
 	str[7] = '\0';
 
-	return str;
+	return (str);
 }
 
 static int
@@ -138,13 +138,13 @@ regex_match(const char *string, char *pattern)
 	rc = regcomp(&re, pattern, REG_EXTENDED | REG_NOSUB | REG_ICASE);
 	if (rc) {
 		fprintf(stderr, "Error: Couldn't do regcomp, %d\n", rc);
-		return rc;
+		return (rc);
 	}
 
 	rc = regexec(&re, string, (size_t) 0, NULL, 0);
 	regfree(&re);
 
-	return rc;
+	return (rc);
 }
 
 /* fills the pios_range_repeat structure of comma separated values */
@@ -156,14 +156,15 @@ split_string(const char *optarg, char *pattern, range_repeat_t *range)
 	int rc, i = 0;
 
 	if ((rc = regex_match(optarg, pattern)))
-		return rc;
+		return (rc);
 
 	cp = strdup(optarg);
 	if (cp == NULL)
-		return ENOMEM;
+		return (ENOMEM);
 
 	do {
-		/* STRTOK(3) Each subsequent call, with a null pointer as the
+		/*
+		 * STRTOK(3) Each subsequent call, with a null pointer as the
 		 * value of the * first  argument, starts searching from the
 		 * saved pointer and behaves as described above.
 		 */
@@ -177,12 +178,12 @@ split_string(const char *optarg, char *pattern, range_repeat_t *range)
 		kmgt_to_uint64(token[i], &range->val[i]);
 
 	free(cp);
-	return 0;
+	return (0);
 }
 
 int
 set_count(char *pattern1, char *pattern2, range_repeat_t *range,
-	  char *optarg, uint32_t *flags, char *arg)
+    char *optarg, uint32_t *flags, char *arg)
 {
 	if (flags)
 		*flags |= FLAG_SET;
@@ -194,25 +195,27 @@ set_count(char *pattern1, char *pattern2, range_repeat_t *range,
 		range->val_count = 1;
 	} else if (split_string(optarg, pattern2, range) < 0) {
 		fprintf(stderr, "Error: Incorrect pattern for %s, '%s'\n",
-		        arg, optarg);
-		return EINVAL;
+		    arg, optarg);
+		return (EINVAL);
 	}
 
-	return 0;
+	return (0);
 }
 
-/* validates the value with regular expression and sets low, high, incr
- * according to value at which flag will be set. Sets the flag after. */
+/*
+ * Validates the value with regular expression and sets low, high, incr
+ * according to value at which flag will be set. Sets the flag after.
+ */
 int
 set_lhi(char *pattern, range_repeat_t *range, char *optarg,
-        int flag, uint32_t *flag_thread, char *arg)
+    int flag, uint32_t *flag_thread, char *arg)
 {
 	int rc;
 
 	if ((rc = regex_match(optarg, pattern))) {
 		fprintf(stderr, "Error: Wrong pattern in %s, '%s'\n",
 			arg, optarg);
-		return rc;
+		return (rc);
 	}
 
 	switch (flag) {
@@ -231,7 +234,7 @@ set_lhi(char *pattern, range_repeat_t *range, char *optarg,
 
 	*flag_thread |= flag;
 
-	return 0;
+	return (0);
 }
 
 int
@@ -241,10 +244,10 @@ set_noise(uint64_t *noise, char *optarg, char *arg)
 		kmgt_to_uint64(optarg, noise);
 	} else {
 		fprintf(stderr, "Error: Incorrect pattern for %s\n", arg);
-		return EINVAL;
+		return (EINVAL);
 	}
 
-	return 0;
+	return (0);
 }
 
 int
@@ -255,7 +258,7 @@ set_load_params(cmd_args_t *args, char *optarg)
 
 	search = strdup(optarg);
 	if (search == NULL)
-		return ENOMEM;
+		return (ENOMEM);
 
 	while ((param = strtok(search, comma)) != NULL) {
 		search = NULL;
@@ -275,52 +278,58 @@ set_load_params(cmd_args_t *args, char *optarg)
 
 	free(search);
 
-	return rc;
+	return (rc);
 }
 
 
-/* checks the low, high, increment values against the single value for
+/*
+ * Checks the low, high, increment values against the single value for
  * mutual exclusion, for e.g threadcount is mutually exclusive to
- * threadcount_low, ..._high, ..._incr */
+ * threadcount_low, ..._high, ..._incr
+ */
 int
 check_mutual_exclusive_command_lines(uint32_t flag, char *arg)
 {
 	if ((flag & FLAG_SET) && (flag & (FLAG_LOW | FLAG_HIGH | FLAG_INCR))) {
 		fprintf(stderr, "Error: --%s can not be given with --%s_low, "
-		        "--%s_high or --%s_incr.\n", arg, arg, arg, arg);
-		return 0;
+		    "--%s_high or --%s_incr.\n", arg, arg, arg, arg);
+		return (0);
 	}
 
-	if ((flag & (FLAG_LOW | FLAG_HIGH | FLAG_INCR)) && !(flag & FLAG_SET)){
+	if ((flag & (FLAG_LOW | FLAG_HIGH | FLAG_INCR)) && !(flag & FLAG_SET)) {
 		if (flag != (FLAG_LOW | FLAG_HIGH | FLAG_INCR)) {
 			fprintf(stderr, "Error: One or more values missing "
-			        "from --%s_low, --%s_high, --%s_incr.\n",
-			        arg, arg, arg);
-			return 0;
+			    "from --%s_low, --%s_high, --%s_incr.\n",
+			    arg, arg, arg);
+			return (0);
 		}
 	}
 
-	return 1;
+	return (1);
 }
 
 void
 print_stats_header(cmd_args_t *args)
 {
 	if (args->verbose) {
-		printf("status    name        id\tth-cnt\trg-cnt\trg-sz\t"
-		       "ch-sz\toffset\trg-no\tch-no\tth-dly\tflags\ttime\t"
-		       "cr-time\trm-time\twr-time\trd-time\twr-data\twr-ch\t"
-		       "wr-bw\trd-data\trd-ch\trd-bw\n");
-		printf("------------------------------------------------"
-		       "------------------------------------------------"
-		       "------------------------------------------------"
-		       "----------------------------------------------\n");
+		printf(
+		    "status    name        id\tth-cnt\trg-cnt\trg-sz\t"
+		    "ch-sz\toffset\trg-no\tch-no\tth-dly\tflags\ttime\t"
+		    "cr-time\trm-time\twr-time\trd-time\twr-data\twr-ch\t"
+		    "wr-bw\trd-data\trd-ch\trd-bw\n");
+		printf(
+		    "------------------------------------------------"
+		    "------------------------------------------------"
+		    "------------------------------------------------"
+		    "----------------------------------------------\n");
 	} else {
-		printf("status    name        id\t"
-		       "wr-data\twr-ch\twr-bw\t"
-		       "rd-data\trd-ch\trd-bw\n");
-		printf("-----------------------------------------"
-		       "--------------------------------------\n");
+		printf(
+		    "status    name        id\t"
+		    "wr-data\twr-ch\twr-bw\t"
+		    "rd-data\trd-ch\trd-bw\n");
+		printf(
+		    "-----------------------------------------"
+		    "--------------------------------------\n");
 	}
 }
 
@@ -337,17 +346,17 @@ print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 		printf("PASS:     ");
 
 	printf("%-12s", args->name ? args->name : ZPIOS_NAME);
-        printf("%2u\t", cmd->cmd_id);
+	printf("%2u\t", cmd->cmd_id);
 
 	if (args->verbose) {
-	        printf("%u\t", cmd->cmd_thread_count);
-	        printf("%u\t", cmd->cmd_region_count);
-	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_size));
-	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_size));
-	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_offset));
-	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_noise));
-	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_noise));
-	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_thread_delay));
+		printf("%u\t", cmd->cmd_thread_count);
+		printf("%u\t", cmd->cmd_region_count);
+		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_size));
+		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_size));
+		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_offset));
+		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_noise));
+		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_noise));
+		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_thread_delay));
 		printf("%s\t", print_flags(str, cmd->cmd_flags));
 	}
 
@@ -371,12 +380,12 @@ print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 		printf("%.2f\t", rd_time);
 	}
 
-        printf("%s\t", uint64_to_kmgt(str, summary_stats->wr_data));
-        printf("%s\t", uint64_to_kmgt(str, summary_stats->wr_chunks));
+	printf("%s\t", uint64_to_kmgt(str, summary_stats->wr_data));
+	printf("%s\t", uint64_to_kmgt(str, summary_stats->wr_chunks));
 	printf("%s\t", kmgt_per_sec(str, summary_stats->wr_data, wr_time));
 
-        printf("%s\t", uint64_to_kmgt(str, summary_stats->rd_data));
-        printf("%s\t", uint64_to_kmgt(str, summary_stats->rd_chunks));
+	printf("%s\t", uint64_to_kmgt(str, summary_stats->rd_data));
+	printf("%s\t", uint64_to_kmgt(str, summary_stats->rd_chunks));
 	printf("%s\n", kmgt_per_sec(str, summary_stats->rd_data, rd_time));
 	fflush(stdout);
 }
@@ -393,17 +402,17 @@ print_stats_table(cmd_args_t *args, zpios_cmd_t *cmd)
 		printf("PASS:     ");
 
 	printf("%-12s", args->name ? args->name : ZPIOS_NAME);
-        printf("%2u\t", cmd->cmd_id);
+	printf("%2u\t", cmd->cmd_id);
 
 	if (args->verbose) {
-	        printf("%u\t", cmd->cmd_thread_count);
-	        printf("%u\t", cmd->cmd_region_count);
-	        printf("%llu\t", (long long unsigned)cmd->cmd_region_size);
-	        printf("%llu\t", (long long unsigned)cmd->cmd_chunk_size);
-	        printf("%llu\t", (long long unsigned)cmd->cmd_offset);
-	        printf("%u\t", cmd->cmd_region_noise);
-	        printf("%u\t", cmd->cmd_chunk_noise);
-	        printf("%u\t", cmd->cmd_thread_delay);
+		printf("%u\t", cmd->cmd_thread_count);
+		printf("%u\t", cmd->cmd_region_count);
+		printf("%llu\t", (long long unsigned)cmd->cmd_region_size);
+		printf("%llu\t", (long long unsigned)cmd->cmd_chunk_size);
+		printf("%llu\t", (long long unsigned)cmd->cmd_offset);
+		printf("%u\t", cmd->cmd_region_noise);
+		printf("%u\t", cmd->cmd_chunk_noise);
+		printf("%u\t", cmd->cmd_thread_delay);
 		printf("0x%x\t", cmd->cmd_flags);
 	}
 
@@ -418,28 +427,28 @@ print_stats_table(cmd_args_t *args, zpios_cmd_t *cmd)
 
 	if (args->verbose) {
 		printf("%ld.%02ld\t",
-		       (long)summary_stats->total_time.delta.ts_sec,
-		       (long)summary_stats->total_time.delta.ts_nsec);
+		    (long)summary_stats->total_time.delta.ts_sec,
+		    (long)summary_stats->total_time.delta.ts_nsec);
 		printf("%ld.%02ld\t",
-		       (long)summary_stats->cr_time.delta.ts_sec,
-		       (long)summary_stats->cr_time.delta.ts_nsec);
+		    (long)summary_stats->cr_time.delta.ts_sec,
+		    (long)summary_stats->cr_time.delta.ts_nsec);
 		printf("%ld.%02ld\t",
-		       (long)summary_stats->rm_time.delta.ts_sec,
-		       (long)summary_stats->rm_time.delta.ts_nsec);
+		    (long)summary_stats->rm_time.delta.ts_sec,
+		    (long)summary_stats->rm_time.delta.ts_nsec);
 		printf("%ld.%02ld\t",
-		       (long)summary_stats->wr_time.delta.ts_sec,
-		       (long)summary_stats->wr_time.delta.ts_nsec);
+		    (long)summary_stats->wr_time.delta.ts_sec,
+		    (long)summary_stats->wr_time.delta.ts_nsec);
 		printf("%ld.%02ld\t",
-		       (long)summary_stats->rd_time.delta.ts_sec,
-		       (long)summary_stats->rd_time.delta.ts_nsec);
+		    (long)summary_stats->rd_time.delta.ts_sec,
+		    (long)summary_stats->rd_time.delta.ts_nsec);
 	}
 
-        printf("%lld\t", (long long unsigned)summary_stats->wr_data);
-        printf("%lld\t", (long long unsigned)summary_stats->wr_chunks);
+	printf("%lld\t", (long long unsigned)summary_stats->wr_data);
+	printf("%lld\t", (long long unsigned)summary_stats->wr_chunks);
 	printf("%.4f\t", (double)summary_stats->wr_data / wr_time);
 
-        printf("%lld\t", (long long unsigned)summary_stats->rd_data);
-        printf("%lld\t", (long long unsigned)summary_stats->rd_chunks);
+	printf("%lld\t", (long long unsigned)summary_stats->rd_data);
+	printf("%lld\t", (long long unsigned)summary_stats->rd_chunks);
 	printf("%.4f\n", (double)summary_stats->rd_data / rd_time);
 	fflush(stdout);
 }

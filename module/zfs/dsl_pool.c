@@ -1049,15 +1049,14 @@ dsl_pool_config_held(dsl_pool_t *dp)
 EXPORT_SYMBOL(dsl_pool_config_enter);
 EXPORT_SYMBOL(dsl_pool_config_exit);
 
-/* zfs_dirty_data_max_percent only applied at module load time in arc_init(). */
+/* zfs_dirty_data_max_percent only applied at module load in arc_init(). */
 module_param(zfs_dirty_data_max_percent, int, 0444);
 MODULE_PARM_DESC(zfs_dirty_data_max_percent, "percent of ram can be dirty");
 
-/* zfs_dirty_data_max_max_percent only applied at module load time in
- * arc_init(). */
+/* zfs_dirty_data_max_max_percent only applied at module load in arc_init(). */
 module_param(zfs_dirty_data_max_max_percent, int, 0444);
 MODULE_PARM_DESC(zfs_dirty_data_max_max_percent,
-    "zfs_dirty_data_max upper bound as % of RAM");
+	"zfs_dirty_data_max upper bound as % of RAM");
 
 module_param(zfs_delay_min_dirty_percent, int, 0644);
 MODULE_PARM_DESC(zfs_delay_min_dirty_percent, "transaction delay threshold");
@@ -1065,10 +1064,10 @@ MODULE_PARM_DESC(zfs_delay_min_dirty_percent, "transaction delay threshold");
 module_param(zfs_dirty_data_max, ulong, 0644);
 MODULE_PARM_DESC(zfs_dirty_data_max, "determines the dirty space limit");
 
-/* zfs_dirty_data_max_max only applied at module load time in arc_init(). */
+/* zfs_dirty_data_max_max only applied at module load in arc_init(). */
 module_param(zfs_dirty_data_max_max, ulong, 0444);
 MODULE_PARM_DESC(zfs_dirty_data_max_max,
-    "zfs_dirty_data_max upper bound in bytes");
+	"zfs_dirty_data_max upper bound in bytes");
 
 module_param(zfs_dirty_data_sync, ulong, 0644);
 MODULE_PARM_DESC(zfs_dirty_data_sync, "sync txg when this much dirty data");

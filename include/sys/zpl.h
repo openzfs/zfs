@@ -77,7 +77,7 @@ extern int zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl);
 extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
 #if !defined(HAVE_GET_ACL)
 #if defined(HAVE_CHECK_ACL_WITH_FLAGS)
-extern int zpl_check_acl(struct inode *inode, int mask,unsigned int flags);
+extern int zpl_check_acl(struct inode *inode, int mask, unsigned int flags);
 #elif defined(HAVE_CHECK_ACL)
 extern int zpl_check_acl(struct inode *inode, int mask);
 #elif defined(HAVE_PERMISSION_WITH_NAMEIDATA)
@@ -122,7 +122,7 @@ extern const struct inode_operations zpl_ops_shares;
 
 #ifdef HAVE_VFS_ITERATE
 
-#define DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+#define	DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
 	.actor = _actor,				\
 	.pos = _pos,					\
 }
@@ -135,7 +135,7 @@ typedef struct dir_context {
 	loff_t pos;
 } dir_context_t;
 
-#define DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+#define	DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
 	.dirent = _dirent,				\
 	.actor = _actor,				\
 	.pos = _pos,					\
@@ -145,21 +145,22 @@ static inline bool
 dir_emit(struct dir_context *ctx, const char *name, int namelen,
     uint64_t ino, unsigned type)
 {
-	return ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type) == 0;
+	return (ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type)
+		== 0);
 }
 
 static inline bool
 dir_emit_dot(struct file *file, struct dir_context *ctx)
 {
-	return ctx->actor(ctx->dirent, ".", 1, ctx->pos,
-	    file->f_path.dentry->d_inode->i_ino, DT_DIR) == 0;
+	return (ctx->actor(ctx->dirent, ".", 1, ctx->pos,
+	    file->f_path.dentry->d_inode->i_ino, DT_DIR) == 0);
 }
 
 static inline bool
 dir_emit_dotdot(struct file *file, struct dir_context *ctx)
 {
-	return ctx->actor(ctx->dirent, "..", 2, ctx->pos,
-	    parent_ino(file->f_path.dentry), DT_DIR) == 0;
+	return (ctx->actor(ctx->dirent, "..", 2, ctx->pos,
+	    parent_ino(file->f_path.dentry), DT_DIR) == 0);
 }
 
 static inline bool
@@ -167,15 +168,15 @@ dir_emit_dots(struct file *file, struct dir_context *ctx)
 {
 	if (ctx->pos == 0) {
 		if (!dir_emit_dot(file, ctx))
-			return false;
+			return (false);
 		ctx->pos = 1;
 	}
 	if (ctx->pos == 1) {
 		if (!dir_emit_dotdot(file, ctx))
-			return false;
+			return (false);
 		ctx->pos = 2;
 	}
-	return true;
+	return (true);
 }
 #endif /* HAVE_VFS_ITERATE */
 
