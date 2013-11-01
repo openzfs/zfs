@@ -124,7 +124,7 @@ enum zio_compress {
 /*
  * Default Linux timeout for a sd device.
  */
-#define ZIO_DELAY_MAX			(30 * MILLISEC)
+#define	ZIO_DELAY_MAX			(30 * MILLISEC)
 
 #define	ZIO_FAILURE_MODE_WAIT		0
 #define	ZIO_FAILURE_MODE_CONTINUE	1
@@ -196,7 +196,7 @@ enum zio_flag {
 	ZIO_FLAG_GANG_CHILD	= 1 << 22,
 	ZIO_FLAG_DDT_CHILD	= 1 << 23,
 	ZIO_FLAG_GODFATHER	= 1 << 24,
-	ZIO_FLAG_FASTWRITE      = 1 << 25
+	ZIO_FLAG_FASTWRITE	= 1 << 25
 };
 
 #define	ZIO_FLAG_MUSTSUCCEED		0
