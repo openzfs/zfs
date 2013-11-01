@@ -13,6 +13,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/sys/buf.h \
 	$(top_srcdir)/include/sys/byteorder.h \
 	$(top_srcdir)/include/sys/callb.h \
+	$(top_srcdir)/include/sys/callo.h \
 	$(top_srcdir)/include/sys/cmn_err.h \
 	$(top_srcdir)/include/sys/compress.h \
 	$(top_srcdir)/include/sys/condvar.h \
