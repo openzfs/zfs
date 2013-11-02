@@ -128,8 +128,8 @@ typedef struct znode_phys {
 
 #ifdef _KERNEL
 
-#define DXATTR_MAX_ENTRY_SIZE   (32768)
-#define DXATTR_MAX_SA_SIZE      (SPA_MAXBLOCKSIZE >> 1)
+#define	DXATTR_MAX_ENTRY_SIZE	(32768)
+#define	DXATTR_MAX_SA_SIZE	(SPA_MAXBLOCKSIZE >> 1)
 
 int zfs_sa_readlink(struct znode *, uio_t *);
 void zfs_sa_symlink(struct znode *, char *link, int len, dmu_tx_t *);
