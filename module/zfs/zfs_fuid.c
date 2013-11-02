@@ -565,9 +565,9 @@ zfs_fuid_create(zfs_sb_t *zsb, uint64_t id, cred_t *cr,
 	uint32_t fuid_idx = FUID_INDEX(id);
 	uint32_t rid;
 	idmap_stat status;
-	uint64_t idx;
+	uint64_t idx = 0;
 	zfs_fuid_t *zfuid = NULL;
-	zfs_fuid_info_t *fuidp;
+	zfs_fuid_info_t *fuidp = NULL;
 
 	/*
 	 * If POSIX ID, or entry is already a FUID then
@@ -592,6 +592,9 @@ zfs_fuid_create(zfs_sb_t *zsb, uint64_t id, cred_t *cr,
 		if (fuidp == NULL)
 			return (UID_NOBODY);
 
+		VERIFY3U(type, >=, ZFS_OWNER);
+		VERIFY3U(type, <=, ZFS_ACE_GROUP);
+
 		switch (type) {
 		case ZFS_ACE_USER:
 		case ZFS_ACE_GROUP:
@@ -608,7 +611,7 @@ zfs_fuid_create(zfs_sb_t *zsb, uint64_t id, cred_t *cr,
 			idx = FUID_INDEX(fuidp->z_fuid_group);
 			break;
 		};
-		domain = fuidp->z_domain_table[idx -1];
+		domain = fuidp->z_domain_table[idx - 1];
 	} else {
 		if (type == ZFS_OWNER || type == ZFS_ACE_USER)
 			status = kidmap_getsidbyuid(crgetzone(cr), id,

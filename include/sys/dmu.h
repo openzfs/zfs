@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
@@ -660,6 +661,7 @@ extern const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS];
  * If doi is NULL, just indicates whether the object exists.
  */
 int dmu_object_info(objset_t *os, uint64_t object, dmu_object_info_t *doi);
+void __dmu_object_info_from_dnode(struct dnode *dn, dmu_object_info_t *doi);
 void dmu_object_info_from_dnode(struct dnode *dn, dmu_object_info_t *doi);
 void dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi);
 void dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize,

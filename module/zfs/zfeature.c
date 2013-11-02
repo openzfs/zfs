@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -234,13 +234,13 @@ feature_get_refcount(objset_t *os, uint64_t read_obj, uint64_t write_obj,
 	 * have been allocated yet.  Act as though all features are disabled.
 	 */
 	if (zapobj == 0)
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	err = zap_lookup(os, zapobj, feature->fi_guid, sizeof (uint64_t), 1,
 	    &refcount);
 	if (err != 0) {
 		if (err == ENOENT)
-			return (ENOTSUP);
+			return (SET_ERROR(ENOTSUP));
 		else
 			return (err);
 	}
@@ -281,16 +281,16 @@ feature_do_action(objset_t *os, uint64_t read_obj, uint64_t write_obj,
 		break;
 	case FEATURE_ACTION_INCR:
 		if (error == ENOENT)
-			return (ENOTSUP);
+			return (SET_ERROR(ENOTSUP));
 		if (refcount == UINT64_MAX)
-			return (EOVERFLOW);
+			return (SET_ERROR(EOVERFLOW));
 		refcount++;
 		break;
 	case FEATURE_ACTION_DECR:
 		if (error == ENOENT)
-			return (ENOTSUP);
+			return (SET_ERROR(ENOTSUP));
 		if (refcount == 0)
-			return (EOVERFLOW);
+			return (SET_ERROR(EOVERFLOW));
 		refcount--;
 		break;
 	default:

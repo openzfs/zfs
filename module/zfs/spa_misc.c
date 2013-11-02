@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -48,6 +48,7 @@
 #include <sys/metaslab_impl.h>
 #include <sys/arc.h>
 #include <sys/ddt.h>
+#include <sys/kstat.h>
 #include "zfs_prop.h"
 #include "zfeature_common.h"
 
@@ -252,7 +253,6 @@ unsigned long zfs_deadman_synctime = 1000ULL;
  * By default the deadman is enabled.
  */
 int zfs_deadman_enabled = 1;
-
 
 /*
  * ==========================================================================
@@ -495,6 +495,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 
 	refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);
+	spa_stats_init(spa);
 
 	avl_add(&spa_namespace_avl, spa);
 
@@ -580,6 +581,7 @@ spa_remove(spa_t *spa)
 
 	refcount_destroy(&spa->spa_refcount);
 
+	spa_stats_destroy(spa);
 	spa_config_lock_destroy(spa);
 
 	for (t = 0; t < TXG_SIZE; t++)
@@ -1756,7 +1758,7 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	dsl_scan_t *scn = spa->spa_dsl_pool ? spa->spa_dsl_pool->dp_scan : NULL;
 
 	if (scn == NULL || scn->scn_phys.scn_func == POOL_SCAN_NONE)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	bzero(ps, sizeof (pool_scan_stat_t));
 
 	/* data stored on disk */

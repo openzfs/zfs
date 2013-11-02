@@ -179,28 +179,48 @@ zpl_umount_begin(struct super_block *sb)
 }
 
 /*
- * The Linux VFS automatically handles the following flags:
- * MNT_NOSUID, MNT_NODEV, MNT_NOEXEC, MNT_NOATIME, MNT_READONLY
+ * ZFS specific features must be explicitly handled here, the VFS will
+ * automatically handled the following generic functionality.
+ *
+ *   MNT_NOSUID,
+ *   MNT_NODEV,
+ *   MNT_NOEXEC,
+ *   MNT_NOATIME,
+ *   MNT_NODIRATIME,
+ *   MNT_READONLY,
+ *   MNT_STRICTATIME,
+ *   MS_SYNCHRONOUS,
+ *   MS_DIRSYNC,
+ *   MS_MANDLOCK.
  */
+static int
+__zpl_show_options(struct seq_file *seq, zfs_sb_t *zsb)
+{
+	seq_printf(seq, ",%s", zsb->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
+
+	switch (zsb->z_acl_type) {
+	case ZFS_ACLTYPE_POSIXACL:
+		seq_puts(seq, ",posixacl");
+		break;
+	default:
+		seq_puts(seq, ",noacl");
+		break;
+	}
+
+	return (0);
+}
+
 #ifdef HAVE_SHOW_OPTIONS_WITH_DENTRY
 static int
 zpl_show_options(struct seq_file *seq, struct dentry *root)
 {
-	zfs_sb_t *zsb = root->d_sb->s_fs_info;
-
-	seq_printf(seq, ",%s", zsb->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
-
-	return (0);
+	return __zpl_show_options(seq, root->d_sb->s_fs_info);
 }
 #else
 static int
 zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
 {
-	zfs_sb_t *zsb = vfsp->mnt_sb->s_fs_info;
-
-	seq_printf(seq, ",%s", zsb->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
-
-	return (0);
+	return __zpl_show_options(seq, vfsp->mnt_sb->s_fs_info);
 }
 #endif /* HAVE_SHOW_OPTIONS_WITH_DENTRY */
 

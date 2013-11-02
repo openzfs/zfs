@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -107,7 +107,7 @@ dsl_deleg_can_allow(char *ddname, nvlist_t *nvp, cred_t *cr)
 			const char *perm = nvpair_name(permpair);
 
 			if (strcmp(perm, ZFS_DELEG_PERM_ALLOW) == 0)
-				return (EPERM);
+				return (SET_ERROR(EPERM));
 
 			if ((error = dsl_deleg_access(ddname, perm, cr)) != 0)
 				return (error);
@@ -139,10 +139,10 @@ dsl_deleg_can_unallow(char *ddname, nvlist_t *nvp, cred_t *cr)
 
 		if (type != ZFS_DELEG_USER &&
 		    type != ZFS_DELEG_USER_SETS)
-			return (EPERM);
+			return (SET_ERROR(EPERM));
 
 		if (strcmp(idstr, &nvpair_name(whopair)[3]) != 0)
-			return (EPERM);
+			return (SET_ERROR(EPERM));
 	}
 	return (0);
 }
@@ -261,7 +261,7 @@ dsl_deleg_check(void *arg, dmu_tx_t *tx)
 
 	if (spa_version(dmu_tx_pool(tx)->dp_spa) <
 	    SPA_VERSION_DELEGATED_PERMS) {
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 
 	error = dsl_dir_hold(dmu_tx_pool(tx), dda->dda_name, FTAG, &dd, NULL);
@@ -426,7 +426,7 @@ dsl_check_access(objset_t *mos, uint64_t zapobj,
 	if (error == 0) {
 		error = zap_lookup(mos, jumpobj, perm, 8, 1, &zero);
 		if (error == ENOENT)
-			error = EPERM;
+			error = SET_ERROR(EPERM);
 	}
 	return (error);
 }
@@ -471,7 +471,7 @@ dsl_check_user_access(objset_t *mos, uint64_t zapobj, const char *perm,
 			return (0);
 	}
 
-	return (EPERM);
+	return (SET_ERROR(EPERM));
 }
 
 /*
@@ -564,11 +564,11 @@ dsl_deleg_access_impl(dsl_dataset_t *ds, const char *perm, cred_t *cr)
 	mos = dp->dp_meta_objset;
 
 	if (dsl_delegation_on(mos) == B_FALSE)
-		return (ECANCELED);
+		return (SET_ERROR(ECANCELED));
 
 	if (spa_version(dmu_objset_spa(dp->dp_meta_objset)) <
 	    SPA_VERSION_DELEGATED_PERMS)
-		return (EPERM);
+		return (SET_ERROR(EPERM));
 
 	if (dsl_dataset_is_snapshot(ds)) {
 		/*
@@ -642,7 +642,7 @@ again:
 		if (error == 0)
 			goto success;
 	}
-	error = EPERM;
+	error = SET_ERROR(EPERM);
 success:
 
 	cookie = NULL;

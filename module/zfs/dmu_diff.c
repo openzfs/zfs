@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -113,7 +113,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	int err = 0;
 
 	if (issig(JUSTLOOKING) && issig(FORREAL))
-		return (EINTR);
+		return (SET_ERROR(EINTR));
 
 	if (zb->zb_object != DMU_META_DNODE_OBJECT)
 		return (0);
@@ -136,7 +136,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
 		    &aflags, zb) != 0)
-			return (EIO);
+			return (SET_ERROR(EIO));
 
 		blk = abuf->b_data;
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
@@ -168,7 +168,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 
 	if (strchr(tosnap_name, '@') == NULL ||
 	    strchr(fromsnap_name, '@') == NULL)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	error = dsl_pool_hold(tosnap_name, FTAG, &dp);
 	if (error != 0)
@@ -191,7 +191,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 		dsl_dataset_rele(fromsnap, FTAG);
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
-		return (EXDEV);
+		return (SET_ERROR(EXDEV));
 	}
 
 	fromtxg = fromsnap->ds_phys->ds_creation_txg;

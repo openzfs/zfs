@@ -355,12 +355,20 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	struct inode *xip = NULL;
 	vattr_t *vap = NULL;
 	ssize_t wrote;
-	int error;
+	int lookup_flags, error;
 	const int xattr_mode = S_IFREG | 0644;
 
-	/* Lookup the xattr directory and create it if required. */
-	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR | CREATE_XATTR_DIR,
-	    cr, NULL, NULL);
+	/*
+	 * Lookup the xattr directory.  When we're adding an entry pass
+	 * CREATE_XATTR_DIR to ensure the xattr directory is created.
+	 * When removing an entry this flag is not passed to avoid
+	 * unnecessarily creating a new xattr directory.
+	 */
+	lookup_flags = LOOKUP_XATTR;
+	if (value != NULL)
+		lookup_flags |= CREATE_XATTR_DIR;
+
+	error = -zfs_lookup(ip, NULL, &dxip, lookup_flags, cr, NULL, NULL);
 	if (error)
 		goto out;
 
@@ -493,7 +501,12 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 		if (error != -ENODATA)
 			goto out;
 
-		if ((error == -ENODATA) && (flags & XATTR_REPLACE))
+		if (flags & XATTR_REPLACE)
+			goto out;
+
+		/* The xattr to be removed already doesn't exist */
+		error = 0;
+		if (value == NULL)
 			goto out;
 	} else {
 		error = -EEXIST;
@@ -709,13 +722,476 @@ xattr_handler_t zpl_xattr_security_handler = {
 	.set	= zpl_xattr_security_set,
 };
 
+int
+zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
+{
+	struct super_block *sb = ITOZSB(ip)->z_sb;
+	char *name, *value = NULL;
+	int error = 0;
+	size_t size = 0;
+
+	if (S_ISLNK(ip->i_mode))
+		return (-EOPNOTSUPP);
+
+	switch(type) {
+	case ACL_TYPE_ACCESS:
+		name = POSIX_ACL_XATTR_ACCESS;
+		if (acl) {
+			zpl_equivmode_t mode = ip->i_mode;
+			error = posix_acl_equiv_mode(acl, &mode);
+			if (error < 0) {
+				return (error);
+			} else {
+				/*
+				 * The mode bits will have been set by
+				 * ->zfs_setattr()->zfs_acl_chmod_setattr()
+				 * using the ZFS ACL conversion.  If they
+				 * differ from the Posix ACL conversion dirty
+				 * the inode to write the Posix mode bits.
+				 */
+				if (ip->i_mode != mode) {
+					ip->i_mode = mode;
+					ip->i_ctime = current_fs_time(sb);
+					mark_inode_dirty(ip);
+				}
+
+				if (error == 0)
+					acl = NULL;
+			}
+		}
+		break;
+
+	case ACL_TYPE_DEFAULT:
+		name = POSIX_ACL_XATTR_DEFAULT;
+		if (!S_ISDIR(ip->i_mode))
+			return (acl ? -EACCES : 0);
+		break;
+
+	default:
+		return (-EINVAL);
+	}
+
+	if (acl) {
+		size = posix_acl_xattr_size(acl->a_count);
+		value = kmem_alloc(size, KM_SLEEP);
+
+		error = zpl_acl_to_xattr(acl, value, size);
+		if (error < 0) {
+			kmem_free(value, size);
+			return (error);
+		}
+	}
+
+	error = zpl_xattr_set(ip, name, value, size, 0);
+	if (value)
+		kmem_free(value, size);
+
+	if (!error) {
+		if (acl)
+			zpl_set_cached_acl(ip, type, acl);
+		else
+			zpl_forget_cached_acl(ip, type);
+	}
+
+	return (error);
+}
+
+struct posix_acl *
+zpl_get_acl(struct inode *ip, int type)
+{
+	struct posix_acl *acl;
+	void *value = NULL;
+	char *name;
+	int size;
+
+#ifdef HAVE_POSIX_ACL_CACHING
+	acl = get_cached_acl(ip, type);
+	if (acl != ACL_NOT_CACHED)
+		return (acl);
+#endif /* HAVE_POSIX_ACL_CACHING */
+
+	switch (type) {
+	case ACL_TYPE_ACCESS:
+		name = POSIX_ACL_XATTR_ACCESS;
+		break;
+	case ACL_TYPE_DEFAULT:
+		name = POSIX_ACL_XATTR_DEFAULT;
+		break;
+	default:
+		return ERR_PTR(-EINVAL);
+	}
+
+	size = zpl_xattr_get(ip, name, NULL, 0);
+	if (size > 0) {
+		value = kmem_alloc(size, KM_PUSHPAGE);
+		size = zpl_xattr_get(ip, name, value, size);
+	}
+
+	if (size > 0) {
+		acl = zpl_acl_from_xattr(value, size);
+	} else if (size == -ENODATA || size == -ENOSYS) {
+		acl = NULL;
+	} else {
+		acl = ERR_PTR(-EIO);
+	}
+
+	if (size > 0)
+		kmem_free(value, size);
+
+	if (!IS_ERR(acl))
+		zpl_set_cached_acl(ip, type, acl);
+
+	return (acl);
+}
+
+#if !defined(HAVE_GET_ACL)
+static int
+__zpl_check_acl(struct inode *ip, int mask)
+{
+	struct posix_acl *acl;
+	int error;
+
+	acl = zpl_get_acl(ip, ACL_TYPE_ACCESS);
+	if (IS_ERR(acl))
+		return (PTR_ERR(acl));
+
+	if (acl) {
+		error = posix_acl_permission(ip, acl, mask);
+		zpl_posix_acl_release(acl);
+		return (error);
+	}
+
+	return (-EAGAIN);
+}
+
+#if defined(HAVE_CHECK_ACL_WITH_FLAGS)
+int
+zpl_check_acl(struct inode *ip, int mask, unsigned int flags)
+{
+	return __zpl_check_acl(ip, mask);
+}
+#elif defined(HAVE_CHECK_ACL)
+int
+zpl_check_acl(struct inode *ip, int mask)
+{
+	return __zpl_check_acl(ip , mask);
+}
+#elif defined(HAVE_PERMISSION_WITH_NAMEIDATA)
+int
+zpl_permission(struct inode *ip, int mask, struct nameidata *nd)
+{
+	return generic_permission(ip, mask, __zpl_check_acl);
+}
+#elif defined(HAVE_PERMISSION)
+int
+zpl_permission(struct inode *ip, int mask)
+{
+	return generic_permission(ip, mask, __zpl_check_acl);
+}
+#endif /* HAVE_CHECK_ACL | HAVE_PERMISSION */
+#endif /* !HAVE_GET_ACL */
+
+int
+zpl_init_acl(struct inode *ip, struct inode *dir)
+{
+	struct posix_acl *acl = NULL;
+	int error = 0;
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (0);
+
+	if (!S_ISLNK(ip->i_mode)) {
+		if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_POSIXACL) {
+			acl = zpl_get_acl(dir, ACL_TYPE_DEFAULT);
+			if (IS_ERR(acl))
+				return (PTR_ERR(acl));
+		}
+
+		if (!acl) {
+			ip->i_mode &= ~current_umask();
+			ip->i_ctime = current_fs_time(ITOZSB(ip)->z_sb);
+			mark_inode_dirty(ip);
+			return (0);
+		}
+	}
+
+	if ((ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_POSIXACL) && acl) {
+		umode_t mode;
+
+		if (S_ISDIR(ip->i_mode)) {
+			error = zpl_set_acl(ip, ACL_TYPE_DEFAULT, acl);
+			if (error)
+				goto out;
+		}
+
+		mode = ip->i_mode;
+		error = posix_acl_create(&acl,GFP_KERNEL, &mode);
+		if (error >= 0) {
+			ip->i_mode = mode;
+			mark_inode_dirty(ip);
+			if (error > 0)
+				error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
+		}
+	}
+out:
+	zpl_posix_acl_release(acl);
+
+	return (error);
+}
+
+int
+zpl_chmod_acl(struct inode *ip)
+{
+	struct posix_acl *acl;
+	int error;
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (0);
+
+	if (S_ISLNK(ip->i_mode))
+		return (-EOPNOTSUPP);
+
+	acl = zpl_get_acl(ip, ACL_TYPE_ACCESS);
+	if (IS_ERR(acl) || !acl)
+		return (PTR_ERR(acl));
+
+	error = posix_acl_chmod(&acl,GFP_KERNEL, ip->i_mode);
+	if (!error)
+		error = zpl_set_acl(ip,ACL_TYPE_ACCESS, acl);
+
+	zpl_posix_acl_release(acl);
+
+	return (error);
+}
+
+static size_t
+zpl_xattr_acl_list(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len, int type)
+{
+	char *xattr_name;
+	size_t xattr_size;
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (0);
+
+	switch (type) {
+	case ACL_TYPE_ACCESS:
+		xattr_name = POSIX_ACL_XATTR_ACCESS;
+		xattr_size = sizeof(xattr_name);
+		break;
+	case ACL_TYPE_DEFAULT:
+		xattr_name = POSIX_ACL_XATTR_DEFAULT;
+		xattr_size = sizeof(xattr_name);
+		break;
+	default:
+		return (0);
+	}
+
+	if (list && xattr_size <= list_size)
+		memcpy(list, xattr_name, xattr_size);
+
+	return (xattr_size);
+}
+
+#ifdef HAVE_DENTRY_XATTR_LIST
+static size_t
+zpl_xattr_acl_list_access(struct dentry *dentry, char *list,
+    size_t list_size, const char *name, size_t name_len, int type)
+{
+	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
+	return zpl_xattr_acl_list(dentry->d_inode,
+	    list, list_size, name, name_len, type);
+}
+
+static size_t
+zpl_xattr_acl_list_default(struct dentry *dentry, char *list,
+    size_t list_size, const char *name, size_t name_len, int type)
+{
+	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
+	return zpl_xattr_acl_list(dentry->d_inode,
+	    list, list_size, name, name_len, type);
+}
+
+#else
+
+static size_t
+zpl_xattr_acl_list_access(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
+{
+	return zpl_xattr_acl_list(ip,
+	    list, list_size, name, name_len, ACL_TYPE_ACCESS);
+}
+
+static size_t
+zpl_xattr_acl_list_default(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
+{
+	return zpl_xattr_acl_list(ip,
+	    list, list_size, name, name_len, ACL_TYPE_DEFAULT);
+}
+#endif /* HAVE_DENTRY_XATTR_LIST */
+
+static int
+zpl_xattr_acl_get(struct inode *ip, const char *name,
+    void *buffer, size_t size, int type)
+{
+	struct posix_acl *acl;
+	int error;
+
+	if (strcmp(name, "") != 0)
+		return (-EINVAL);
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (-EOPNOTSUPP);
+
+	acl = zpl_get_acl(ip, type);
+	if (IS_ERR(acl))
+		return (PTR_ERR(acl));
+	if (acl == NULL)
+		return (-ENODATA);
+
+	error = zpl_acl_to_xattr(acl, buffer, size);
+	zpl_posix_acl_release(acl);
+
+	return (error);
+}
+
+#ifdef HAVE_DENTRY_XATTR_GET
+static int
+zpl_xattr_acl_get_access(struct dentry *dentry, const char *name,
+    void *buffer, size_t size, int type)
+{
+	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
+	return zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type);
+}
+
+static int
+zpl_xattr_acl_get_default(struct dentry *dentry, const char *name,
+    void *buffer, size_t size, int type)
+{
+	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
+	return zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type);
+}
+
+#else
+
+static int
+zpl_xattr_acl_get_access(struct inode *ip, const char *name,
+    void *buffer, size_t size)
+{
+	return zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_ACCESS);
+}
+
+static int
+zpl_xattr_acl_get_default(struct inode *ip, const char *name,
+    void *buffer, size_t size)
+{
+	return zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_DEFAULT);
+}
+#endif /* HAVE_DENTRY_XATTR_GET */
+
+static int
+zpl_xattr_acl_set(struct inode *ip, const char *name,
+    const void *value, size_t size, int flags, int type)
+{
+	struct posix_acl *acl;
+	int error = 0;
+
+	if (strcmp(name, "") != 0)
+		return (-EINVAL);
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (-EOPNOTSUPP);
+
+	if (!zpl_inode_owner_or_capable(ip))
+		return (-EPERM);
+
+	if (value) {
+		acl = zpl_acl_from_xattr(value, size);
+		if (IS_ERR(acl))
+			return (PTR_ERR(acl));
+		else if (acl) {
+			error = posix_acl_valid(acl);
+			if (error) {
+				zpl_posix_acl_release(acl);
+				return (error);
+			}
+		}
+	} else {
+		acl = NULL;
+	}
+
+	error = zpl_set_acl(ip, type, acl);
+	zpl_posix_acl_release(acl);
+
+	return (error);
+}
+
+#ifdef HAVE_DENTRY_XATTR_SET
+static int
+zpl_xattr_acl_set_access(struct dentry *dentry, const char *name,
+    const void *value, size_t size, int flags, int type)
+{
+	 ASSERT3S(type, ==, ACL_TYPE_ACCESS);
+	 return zpl_xattr_acl_set(dentry->d_inode,
+	    name, value, size, flags, type);
+}
+
+static int
+zpl_xattr_acl_set_default(struct dentry *dentry, const char *name,
+    const void *value, size_t size,int flags, int type)
+{
+	 ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
+	 return zpl_xattr_acl_set(dentry->d_inode,
+	    name, value, size, flags, type);
+}
+
+#else
+
+static int
+zpl_xattr_acl_set_access(struct inode *ip, const char *name,
+    const void *value, size_t size, int flags)
+{
+	 return zpl_xattr_acl_set(ip,
+	    name, value, size, flags, ACL_TYPE_ACCESS);
+}
+
+static int
+zpl_xattr_acl_set_default(struct inode *ip, const char *name,
+    const void *value, size_t size, int flags)
+{
+	 return zpl_xattr_acl_set(ip,
+	    name, value, size, flags, ACL_TYPE_DEFAULT);
+}
+#endif /* HAVE_DENTRY_XATTR_SET */
+
+struct xattr_handler zpl_xattr_acl_access_handler =
+{
+	.prefix	= POSIX_ACL_XATTR_ACCESS,
+	.list	= zpl_xattr_acl_list_access,
+	.get	= zpl_xattr_acl_get_access,
+	.set	= zpl_xattr_acl_set_access,
+#ifdef HAVE_DENTRY_XATTR_LIST
+	.flags	= ACL_TYPE_ACCESS,
+#endif /* HAVE_DENTRY_XATTR_LIST */
+};
+
+struct xattr_handler zpl_xattr_acl_default_handler =
+{
+	.prefix	= POSIX_ACL_XATTR_DEFAULT,
+	.list	= zpl_xattr_acl_list_default,
+	.get	= zpl_xattr_acl_get_default,
+	.set	= zpl_xattr_acl_set_default,
+#ifdef HAVE_DENTRY_XATTR_LIST
+	.flags	= ACL_TYPE_DEFAULT,
+#endif /* HAVE_DENTRY_XATTR_LIST */
+};
+
 xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_security_handler,
 	&zpl_xattr_trusted_handler,
 	&zpl_xattr_user_handler,
-#ifdef HAVE_POSIX_ACLS
 	&zpl_xattr_acl_access_handler,
 	&zpl_xattr_acl_default_handler,
-#endif /* HAVE_POSIX_ACLS */
 	NULL
 };

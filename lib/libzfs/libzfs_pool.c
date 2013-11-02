@@ -236,12 +236,22 @@ zpool_pool_state_to_name(pool_state_t state)
 }
 
 /*
- * Get a zpool property value for 'prop' and return the value in
- * a pre-allocated buffer.
+ * API compatibility wrapper around zpool_get_prop_literal
  */
 int
 zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
     zprop_source_t *srctype)
+{
+    return zpool_get_prop_literal(zhp, prop, buf, len, srctype, B_FALSE);
+}
+
+/*
+ * Get a zpool property value for 'prop' and return the value in
+ * a pre-allocated buffer.
+ */
+int
+zpool_get_prop_literal(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
+    zprop_source_t *srctype, boolean_t literal)
 {
 	uint64_t intval;
 	const char *strval;
@@ -308,7 +318,11 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
 		case ZPOOL_PROP_FREEING:
 		case ZPOOL_PROP_EXPANDSZ:
 		case ZPOOL_PROP_ASHIFT:
-			(void) zfs_nicenum(intval, buf, len);
+			if (literal)
+				(void) snprintf(buf, len, "%llu",
+					(u_longlong_t)intval);
+			else
+				(void) zfs_nicenum(intval, buf, len);
 			break;
 
 		case ZPOOL_PROP_CAPACITY:

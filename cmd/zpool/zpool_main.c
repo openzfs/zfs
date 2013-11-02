@@ -265,7 +265,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_EVENTS:
 		return (gettext("\tevents [-vHfc]\n"));
 	case HELP_GET:
-		return (gettext("\tget <\"all\" | property[,...]> "
+		return (gettext("\tget [-p] <\"all\" | property[,...]> "
 		    "<pool> ...\n"));
 	case HELP_SET:
 		return (gettext("\tset <property=value> <pool> \n"));
@@ -5488,8 +5488,8 @@ get_callback(zpool_handle_t *zhp, void *data)
 				    NULL, NULL);
 			}
 		} else {
-			if (zpool_get_prop(zhp, pl->pl_prop, value,
-			    sizeof (value), &srctype) != 0)
+			if (zpool_get_prop_literal(zhp, pl->pl_prop, value,
+			    sizeof (value), &srctype, cbp->cb_literal) != 0)
 				continue;
 
 			zprop_print_one_property(zpool_get_name(zhp), cbp,
@@ -5505,9 +5505,26 @@ zpool_do_get(int argc, char **argv)
 {
 	zprop_get_cbdata_t cb = { 0 };
 	zprop_list_t fake_name = { 0 };
-	int ret;
+	int c, ret;
 
-	if (argc < 2) {
+	/* check options */
+	while ((c = getopt(argc, argv, "p")) != -1) {
+		switch (c) {
+		case 'p':
+			cb.cb_literal = B_TRUE;
+			break;
+
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
 		(void) fprintf(stderr, gettext("missing property "
 		    "argument\n"));
 		usage(B_FALSE);
@@ -5521,9 +5538,11 @@ zpool_do_get(int argc, char **argv)
 	cb.cb_columns[3] = GET_COL_SOURCE;
 	cb.cb_type = ZFS_TYPE_POOL;
 
-	if (zprop_get_list(g_zfs, argv[1], &cb.cb_proplist,
-	    ZFS_TYPE_POOL) != 0)
+	if (zprop_get_list(g_zfs, argv[0], &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
 		usage(B_FALSE);
+
+	argc--;
+	argv++;
 
 	if (cb.cb_proplist != NULL) {
 		fake_name.pl_prop = ZPOOL_PROP_NAME;
@@ -5532,7 +5551,7 @@ zpool_do_get(int argc, char **argv)
 		cb.cb_proplist = &fake_name;
 	}
 
-	ret = for_each_pool(argc - 2, argv + 2, B_TRUE, &cb.cb_proplist,
+	ret = for_each_pool(argc, argv, B_TRUE, &cb.cb_proplist,
 	    get_callback, &cb);
 
 	if (cb.cb_proplist == &fake_name)

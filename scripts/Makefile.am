@@ -1,6 +1,6 @@
 SUBDIRS = zpool-config zpios-test zpios-profile
 
-EXTRA_DIST = dkms.mkconf dkms.postinst kmodtool
+EXTRA_DIST = dkms.mkconf dkms.postinst kmodtool zfs2zol-patch.sed cstyle.pl
 
 pkgdatadir = $(datadir)/@PACKAGE@
 dist_pkgdata_SCRIPTS = \

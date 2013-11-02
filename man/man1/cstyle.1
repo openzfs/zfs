@@ -1,0 +1,167 @@
+.\" Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+.\" Use is subject to license terms.
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.TH cstyle 1 "28 March 2005"
+.SH NAME
+.I cstyle
+\- check for some common stylistic errors in C source files
+.SH SYNOPSIS
+\fBcstyle [-chpvCP] [-o constructs] [file...]\fP
+.LP
+.SH DESCRIPTION
+.IX "OS-Net build tools" "cstyle" "" "\fBcstyle\fP"
+.LP
+.I cstyle
+inspects C source files (*.c and *.h) for common sylistic errors.  It
+attempts to check for the cstyle documented in
+\fIhttp://www.cis.upenn.edu/~lee/06cse480/data/cstyle.ms.pdf\fP.
+Note that there is much in that document that
+.I cannot
+be checked for; just because your code is \fBcstyle(1)\fP clean does not
+mean that you've followed Sun's C style.  \fICaveat emptor\fP.
+.LP
+.SH OPTIONS
+.LP
+The following options are supported:
+.TP 4
+.B \-c
+Check continuation line indentation inside of functions.  Sun's C style
+states that all statements must be indented to an appropriate tab stop,
+and any continuation lines after them must be indented \fIexactly\fP four
+spaces from the start line.  This option enables a series of checks
+designed to find contination line problems within functions only.  The
+checks have some limitations;  see CONTINUATION CHECKING, below.
+.LP
+.TP 4
+.B \-h
+Performs heuristic checks that are sometimes wrong.  Not generally used.
+.LP
+.TP 4
+.B \-p
+Performs some of the more picky checks.  Includes ANSI #else and #endif
+rules, and tries to detect spaces after casts.  Used as part of the
+putback checks.
+.LP
+.TP 4
+.B \-v
+Verbose output;  includes the text of the line of error, and, for
+\fB-c\fP, the first statement in the current continuation block.
+.LP
+.TP 4
+.B \-C
+Ignore errors in header comments (i.e. block comments starting in the
+first column).  Not generally used.
+.LP
+.TP 4
+.B \-P
+Check for use of non-POSIX types.  Historically, types like "u_int" and
+"u_long" were used, but they are now deprecated in favor of the POSIX
+types uint_t, ulong_t, etc.  This detects any use of the deprecated
+types.  Used as part of the putback checks.
+.LP
+.TP 4
+.B \-o \fIconstructs\fP
+Allow a comma-seperated list of additional constructs.  Available
+constructs include:
+.LP
+.TP 10
+.B doxygen
+Allow doxygen-style block comments (\fB/**\fP and \fB/*!\fP)
+.LP
+.TP 10
+.B splint
+Allow splint-style lint comments (\fB/*@...@*/\fP)
+.LP
+.SH NOTES
+.LP
+The cstyle rule for the OS/Net consolidation is that all new files must
+be \fB-pP\fP clean.  For existing files, the following invocations are
+run against both the old and new files:
+.LP
+.TP 4
+\fBcstyle file\fB
+.LP
+.TP 4
+\fBcstyle -p file\fB
+.LP
+.TP 4
+\fBcstyle -pP file\fB
+.LP
+If the old file gave no errors for one of the invocations, the new file
+must also give no errors.  This way, files can only become more clean.
+.LP
+.SH CONTINUATION CHECKING
+.LP
+The continuation checker is a resonably simple state machine that knows
+something about how C is layed out, and can match parenthesis, etc. over
+multiple lines.  It does have some limitations:
+.LP
+.TP 4
+.B 1.
+Preprocessor macros which cause unmatched parenthesis will confuse the
+checker for that line.  To fix this, you'll need to make sure that each
+branch of the #if statement has balanced parenthesis.
+.LP
+.TP 4
+.B 2.
+Some \fBcpp\fP macros do not require ;s after them.  Any such macros
+*must* be ALL_CAPS; any lower case letters will cause bad output.
+.LP
+The bad output will generally be corrected after the next \fB;\fP,
+\fB{\fP, or \fB}\fP.
+.LP
+Some continuation error messages deserve some additional explanation
+.LP
+.TP 4
+.B
+multiple statements continued over multiple lines
+A multi-line statement which is not broken at statement
+boundries.  For example:
+.RS 4
+.HP 4
+if (this_is_a_long_variable == another_variable) a =
+.br
+b + c;
+.LP
+Will trigger this error.  Instead, do:
+.HP 8
+if (this_is_a_long_variable == another_variable)
+.br
+a = b + c;
+.RE
+.LP
+.TP 4
+.B
+empty if/for/while body not on its own line
+For visibility, empty bodies for if, for, and while statements should be
+on their own line.  For example:
+.RS 4
+.HP 4
+while (do_something(&x) == 0);
+.LP
+Will trigger this error.  Instead, do:
+.HP 8
+while (do_something(&x) == 0)
+.br
+;
+.RE
+

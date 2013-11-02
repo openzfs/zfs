@@ -27,6 +27,7 @@
  * Rewritten for Linux by:
  *   Rohan Puri <rohan.puri15@gmail.com>
  *   Brian Behlendorf <behlendorf1@llnl.gov>
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -286,11 +287,11 @@ zfsctl_create(zfs_sb_t *zsb)
 	zsb->z_ctldir = zfsctl_inode_alloc(zsb, ZFSCTL_INO_ROOT,
 	    &zpl_fops_root, &zpl_ops_root);
 	if (zsb->z_ctldir == NULL)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	return (0);
 #else
-	return (EOPNOTSUPP);
+	return (SET_ERROR(EOPNOTSUPP));
 #endif /* CONFIG_64BIT */
 }
 
@@ -331,7 +332,7 @@ zfsctl_fid(struct inode *ip, fid_t *fidp)
 	if (fidp->fid_len < SHORT_FID_LEN) {
 		fidp->fid_len = SHORT_FID_LEN;
 		ZFS_EXIT(zsb);
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 	}
 
 	zfid = (zfid_short_t *)fidp;
@@ -355,11 +356,11 @@ zfsctl_snapshot_zname(struct inode *ip, const char *name, int len, char *zname)
 	objset_t *os = ITOZSB(ip)->z_os;
 
 	if (snapshot_namecheck(name, NULL, NULL) != 0)
-		return (EILSEQ);
+		return (SET_ERROR(EILSEQ));
 
 	dmu_objset_name(os, zname);
 	if ((strlen(zname) + 1 + strlen(name)) >= len)
-		return (ENAMETOOLONG);
+		return (SET_ERROR(ENAMETOOLONG));
 
 	(void) strcat(zname, "@");
 	(void) strcat(zname, name);
@@ -383,7 +384,7 @@ zfsctl_snapshot_zpath(struct path *path, int len, char *zpath)
 
 	path_len = path_buffer + len - 1 - path_ptr;
 	if (path_len > len) {
-		error = EFAULT;
+		error = SET_ERROR(EFAULT);
 		goto out;
 	}
 
@@ -421,7 +422,7 @@ zfsctl_root_lookup(struct inode *dip, char *name, struct inode **ipp,
 	}
 
 	if (*ipp == NULL)
-		error = ENOENT;
+		error = SET_ERROR(ENOENT);
 
 	ZFS_EXIT(zsb);
 
@@ -457,7 +458,7 @@ zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
 		(*ipp)->i_flags |= S_AUTOMOUNT;
 #endif /* HAVE_AUTOMOUNT */
 	} else {
-		error = ENOENT;
+		error = SET_ERROR(ENOENT);
 	}
 
 	ZFS_EXIT(zsb);
@@ -529,7 +530,7 @@ zfsctl_snapdir_rename(struct inode *sdip, char *snm,
 	 * Cannot move snapshots out of the snapdir.
 	 */
 	if (sdip != tdip) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 		goto out;
 	}
 
@@ -626,7 +627,7 @@ zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
 	dsname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 
 	if (snapshot_namecheck(dirname, NULL, NULL) != 0) {
-		error = EILSEQ;
+		error = SET_ERROR(EILSEQ);
 		goto out;
 	}
 
@@ -710,7 +711,7 @@ __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
 	 * converted to the more sensible EBUSY.
 	 */
 	if (error)
-		error = EBUSY;
+		error = SET_ERROR(EBUSY);
 
 	/*
 	 * This was the result of a manual unmount, cancel the delayed work
@@ -746,7 +747,7 @@ zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
 		else
 			zfsctl_sep_free(sep);
 	} else {
-		error = ENOENT;
+		error = SET_ERROR(ENOENT);
 	}
 
 	mutex_exit(&zsb->z_ctldir_lock);
@@ -840,7 +841,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	if (error) {
 		printk("ZFS: Unable to automount %s at %s: %d\n",
 		    full_name, full_path, error);
-		error = EISDIR;
+		error = SET_ERROR(EISDIR);
 		goto error;
 	}
 
@@ -948,7 +949,7 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 			deactivate_super(sbp);
 		}
 	} else {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 	}
 out:
 	mutex_exit(&zsb->z_ctldir_lock);
@@ -971,7 +972,7 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 
 	if (zsb->z_shares_dir == 0) {
 		ZFS_EXIT(zsb);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 
 	error = zfs_zget(zsb, zsb->z_shares_dir, &dzp);

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -434,7 +434,7 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	ASSERT(pfd->pd_blks_fetched >= 0);
 	if (pfd->pd_cancel)
-		return (EINTR);
+		return (SET_ERROR(EINTR));
 
 	if (bp == NULL || !((pfd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
 	    BP_GET_TYPE(bp) == DMU_OT_DNODE || BP_GET_LEVEL(bp) > 0) ||
@@ -517,6 +517,9 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	mutex_init(&pd->pd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&pd->pd_cv, NULL, CV_DEFAULT, NULL);
 
+	SET_BOOKMARK(czb, td->td_objset,
+	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
+
 	/* See comment on ZIL traversal in dsl_scan_visitds. */
 	if (ds != NULL && !dsl_dataset_is_snapshot(ds) && !BP_IS_HOLE(rootbp)) {
 		uint32_t flags = ARC_WAIT;
@@ -525,7 +528,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 
 		err = arc_read(NULL, td->td_spa, rootbp,
 		    arc_getbuf_func, &buf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, NULL);
+		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, czb);
 		if (err != 0)
 			return (err);
 
@@ -539,8 +542,6 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	    td, TQ_NOQUEUE))
 		pd->pd_exited = B_TRUE;
 
-	SET_BOOKMARK(czb, td->td_objset,
-	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 	err = traverse_visitbp(td, NULL, rootbp, czb);
 
 	mutex_enter(&pd->pd_mtx);

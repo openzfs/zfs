@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -780,7 +780,7 @@ zap_lookup_norm(objset_t *os, uint64_t zapobj, const char *name,
 	zn = zap_name_alloc(zap, name, mt);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 
 	if (!zap->zap_ismicro) {
@@ -789,12 +789,12 @@ zap_lookup_norm(objset_t *os, uint64_t zapobj, const char *name,
 	} else {
 		mze = mze_find(zn);
 		if (mze == NULL) {
-			err = ENOENT;
+			err = SET_ERROR(ENOENT);
 		} else {
 			if (num_integers < 1) {
-				err = EOVERFLOW;
+				err = SET_ERROR(EOVERFLOW);
 			} else if (integer_size != 8) {
-				err = EINVAL;
+				err = SET_ERROR(EINVAL);
 			} else {
 				*(uint64_t *)buf =
 				    MZE_PHYS(zap, mze)->mze_value;
@@ -826,7 +826,7 @@ zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 
 	fzap_prefetch(zn);
@@ -849,7 +849,7 @@ zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 
 	err = fzap_lookup(zn, integer_size, num_integers, buf,
@@ -884,14 +884,14 @@ zap_length(objset_t *os, uint64_t zapobj, const char *name,
 	zn = zap_name_alloc(zap, name, MT_EXACT);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
 		err = fzap_length(zn, integer_size, num_integers);
 	} else {
 		mze = mze_find(zn);
 		if (mze == NULL) {
-			err = ENOENT;
+			err = SET_ERROR(ENOENT);
 		} else {
 			if (integer_size)
 				*integer_size = 8;
@@ -918,7 +918,7 @@ zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_length(zn, integer_size, num_integers);
 	zap_name_free(zn);
@@ -987,7 +987,7 @@ zap_add(objset_t *os, uint64_t zapobj, const char *key,
 	zn = zap_name_alloc(zap, key, MT_EXACT);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
 		err = fzap_add(zn, integer_size, num_integers, val, tx);
@@ -1001,7 +1001,7 @@ zap_add(objset_t *os, uint64_t zapobj, const char *key,
 	} else {
 		mze = mze_find(zn);
 		if (mze != NULL) {
-			err = EEXIST;
+			err = SET_ERROR(EEXIST);
 		} else {
 			mzap_addent(zn, *intval);
 		}
@@ -1028,7 +1028,7 @@ zap_add_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_add(zn, integer_size, num_integers, val, tx);
 	zap = zn->zn_zap;	/* fzap_add() may change zap */
@@ -1065,7 +1065,7 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 	zn = zap_name_alloc(zap, name, MT_EXACT);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
 		err = fzap_update(zn, integer_size, num_integers, val, tx);
@@ -1110,7 +1110,7 @@ zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_update(zn, integer_size, num_integers, val, tx);
 	zap = zn->zn_zap;	/* fzap_update() may change zap */
@@ -1141,14 +1141,14 @@ zap_remove_norm(objset_t *os, uint64_t zapobj, const char *name,
 	zn = zap_name_alloc(zap, name, mt);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
 		err = fzap_remove(zn, tx);
 	} else {
 		mze = mze_find(zn);
 		if (mze == NULL) {
-			err = ENOENT;
+			err = SET_ERROR(ENOENT);
 		} else {
 			zap->zap_m.zap_num_entries--;
 			bzero(&zap->zap_m.zap_phys->mz_chunk[mze->mze_chunkid],
@@ -1175,7 +1175,7 @@ zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
 		zap_unlockdir(zap);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_remove(zn, tx);
 	zap_name_free(zn);
@@ -1253,7 +1253,7 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 	mzap_ent_t *mze;
 
 	if (zc->zc_hash == -1ULL)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	if (zc->zc_zap == NULL) {
 		int hb;
@@ -1279,8 +1279,6 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 	if (!zc->zc_zap->zap_ismicro) {
 		err = fzap_cursor_retrieve(zc->zc_zap, zc, za);
 	} else {
-		err = ENOENT;
-
 		mze_tofind.mze_hash = zc->zc_hash;
 		mze_tofind.mze_cd = zc->zc_cd;
 
@@ -1303,6 +1301,7 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 			err = 0;
 		} else {
 			zc->zc_hash = -1ULL;
+			err = SET_ERROR(ENOENT);
 		}
 	}
 	rw_exit(&zc->zc_zap->zap_rwlock);
@@ -1336,7 +1335,7 @@ zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt)
 	zn = zap_name_alloc(zc->zc_zap, name, mt);
 	if (zn == NULL) {
 		rw_exit(&zc->zc_zap->zap_rwlock);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 
 	if (!zc->zc_zap->zap_ismicro) {
@@ -1344,7 +1343,7 @@ zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt)
 	} else {
 		mze = mze_find(zn);
 		if (mze == NULL) {
-			err = ENOENT;
+			err = SET_ERROR(ENOENT);
 			goto out;
 		}
 		zc->zc_hash = mze->mze_hash;

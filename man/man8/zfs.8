@@ -96,7 +96,7 @@ zfs \- configures ZFS file systems
 .LP
 .nf
 \fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-H\fR][\fB-o\fR \fIproperty\fR[,...]] [\fB-t\fR \fItype\fR[,...]]
-     [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR|\fIsnap\fR] ...
+     [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...
 .fi
 
 .LP
@@ -431,6 +431,40 @@ This property is \fBon\fR if the snapshot has been marked for deferred destructi
 .ne 2
 .mk
 .na
+\fB\fBlogicalreferenced\fR\fR
+.ad
+.sp .6
+.RS 4n
+The amount of space that is "logically" accessible by this dataset.  See
+the \fBreferenced\fR property.  The logical space ignores the effect of
+the \fBcompression\fR and \fBcopies\fR properties, giving a quantity
+closer to the amount of data that applications see.  However, it does
+include space consumed by metadata.
+.sp
+This property can also be referred to by its shortened column name,
+\fBlrefer\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBlogicalused\fR\fR
+.ad
+.sp .6
+.RS 4n
+The amount of space that is "logically" consumed by this dataset and all
+its descendents.  See the \fBused\fR property.  The logical space
+ignores the effect of the \fBcompression\fR and \fBcopies\fR properties,
+giving a quantity closer to the amount of data that applications see.
+However, it does include space consumed by metadata.
+.sp
+This property can also be referred to by its shortened column name,
+\fBlused\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBmounted\fR\fR
 .ad
 .sp .6
@@ -676,17 +710,31 @@ The following native properties can be used to change the behavior of a \fBZFS\f
 Controls how \fBACL\fR entries are inherited when files and directories are created. A file system with an \fBaclinherit\fR property of \fBdiscard\fR does not inherit any \fBACL\fR entries. A file system with an \fBaclinherit\fR property value of \fBnoallow\fR only inherits inheritable \fBACL\fR entries that specify "deny" permissions. The property value \fBrestricted\fR (the default) removes the \fBwrite_acl\fR and \fBwrite_owner\fR permissions when the \fBACL\fR entry is inherited. A file system with an \fBaclinherit\fR property value of \fBpassthrough\fR inherits all inheritable \fBACL\fR entries without any modifications made to the \fBACL\fR entries when they are inherited. A file system with an \fBaclinherit\fR property value of \fBpassthrough-x\fR has the same meaning as \fBpassthrough\fR, except that the \fBowner@\fR, \fBgroup@\fR, and \fBeveryone@\fR \fBACE\fRs inherit the execute permission only if the file creation mode also requests the execute bit.
 .sp
 When the property value is set to \fBpassthrough\fR, files are created with a mode determined by the inheritable \fBACE\fRs. If no inheritable \fBACE\fRs exist that affect the mode, then the mode is set in accordance to the requested mode from the application.
+.sp
+The \fBaclinherit\fR property does not apply to Posix ACLs.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBaclmode\fR=\fBdiscard\fR | \fBgroupmask\fR | \fBpassthrough\fR\fR
+\fB\fBacltype\fR=\fBnoacl\fR | \fBposixacl\fR \fR
 .ad
 .sp .6
 .RS 4n
-Controls how an \fBACL\fR is modified during \fBchmod\fR(2). A file system with an \fBaclmode\fR property of \fBdiscard\fR deletes all \fBACL\fR entries that do not represent the mode of the file. An \fBaclmode\fR property of \fBgroupmask\fR (the default) reduces user or group permissions. The permissions are reduced, such that they are no greater than the group permission bits, unless it is a user entry that has the same \fBUID\fR as the owner of the file or directory. In this case, the \fBACL\fR permissions are reduced so that they are no greater than owner permission bits. A file system with an \fBaclmode\fR property of \fBpassthrough\fR indicates that no changes are made to the \fBACL\fR other than generating the necessary \fBACL\fR entries to represent the new mode of the file or directory.
+Controls whether ACLs are enabled and if so what type of ACL to use.  When
+a file system has the \fBacltype\fR property set to \fBnoacl\fR (the default)
+then ACLs are disabled.  Setting the \fBacltype\fR property to \fBposixacl\fR
+indicates Posix ACLs should be used.  Posix ACLs are specific to Linux and
+are not functional on other platforms.  Posix ACLs are stored as an xattr and
+therefore will not overwrite any existing ZFS/NFSv4 ACLs which may be set.
+Currently only \fBposixacls\fR are supported on Linux.
+.sp
+To obtain the best performance when setting \fBposixacl\fR users are strongly
+encouraged to set the \fBxattr=sa\fR property.  This will result in the
+Posix ACL being stored more efficiently on disk.  But as a consequence of this
+all new xattrs will only be accessable from ZFS implementations which support
+the \fBxattr=sa\fR property.  See the \fBxattr\fR property for more details.
 .RE
 
 .sp
@@ -1176,11 +1224,33 @@ Controls whether regular files should be scanned for viruses when a file is open
 .ne 2
 .mk
 .na
-\fB\fBxattr\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBxattr\fR=\fBon\fR | \fBoff\fR | \fBsa\fR\fR
 .ad
 .sp .6
 .RS 4n
-Controls whether extended attributes are enabled for this file system. The default value is \fBon\fR.
+Controls whether extended attributes are enabled for this file system.  Two
+styles of extended attributes are supported either directory based or system
+attribute based.
+.sp
+The default value of \fBon\fR enables directory based extended attributes.
+This style of xattr imposes no practical limit on either the size or number of
+xattrs which may be set on a file.  Although under Linux the \fBgetxattr\fR(2)
+and \fBsetxattr\fR(2) system calls limit the maximum xattr size to 64K.  This
+is the most compatible style of xattr and it is supported by the majority of
+ZFS implementations.
+.sp
+System attribute based xattrs may be enabled by setting the value to \fBsa\fR.
+The key advantage of this type of xattr is improved performance.  Storing
+xattrs as system attributes significantly decreases the amount of disk IO
+required.  Up to 64K of xattr data may be stored per file in the space reserved
+for system attributes.  If there is not enough space available for an xattr then
+it will be automatically written as a directory based xattr.  System attribute
+based xattrs are not accessable on platforms which do not support the
+\fBxattr=sa\fR feature.
+.sp
+The use of system attribute based xattrs is strongly encouraged for users of
+SELinux or Posix ACLs.  Both of these features heavily rely of xattrs and
+benefit significantly from the reduced xattr access time.
 .RE
 
 .sp
@@ -1736,7 +1806,7 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ne 2
 .mk
 .na
-\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR|\fIsnap\fR] ...\fR
+\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1865,7 +1935,7 @@ Same as the \fB-s\fR option, but sorts by property in descending order.
 .ad
 .sp .6
 .RS 4n
-A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR , \fBvolume\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
+A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR, \fBsnap\fR, \fBvolume\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
 .RE
 
 .RE
@@ -2674,8 +2744,8 @@ userprop         other          Allows changing any user property
 userquota        other          Allows accessing any userquota@... property
 userused         other          Allows reading any userused@... property
 
+acltype          property
 aclinherit       property       
-aclmode          property       
 atime            property       
 canmount         property       
 casesensitivity  property       
@@ -3046,7 +3116,7 @@ pool/home/bob  setuid                on                     default
 pool/home/bob  readonly              off                    default
 pool/home/bob  zoned                 off                    default
 pool/home/bob  snapdir               hidden                 default
-pool/home/bob  aclmode               groupmask              default
+pool/home/bob  acltype               off                    default
 pool/home/bob  aclinherit            restricted             default
 pool/home/bob  canmount              on                     default
 pool/home/bob  shareiscsi            off                    default

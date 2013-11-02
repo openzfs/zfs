@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -155,6 +155,25 @@ xattr_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+acltype_changed_cb(void *arg, uint64_t newval)
+{
+	zfs_sb_t *zsb = arg;
+
+	switch (newval) {
+	case ZFS_ACLTYPE_OFF:
+		zsb->z_acl_type = ZFS_ACLTYPE_OFF;
+		zsb->z_sb->s_flags &= ~MS_POSIXACL;
+		break;
+	case ZFS_ACLTYPE_POSIXACL:
+		zsb->z_acl_type = ZFS_ACLTYPE_POSIXACL;
+		zsb->z_sb->s_flags |= MS_POSIXACL;
+		break;
+	default:
+		break;
+	}
+}
+
+static void
 blksz_changed_cb(void *arg, uint64_t newval)
 {
 	zfs_sb_t *zsb = arg;
@@ -266,8 +285,9 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_SNAPDIR), snapdir_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
-	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb,
-	    zsb);
+	    zfs_prop_to_name(ZFS_PROP_ACLTYPE), acltype_changed_cb, zsb);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_VSCAN), vscan_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
@@ -303,6 +323,8 @@ unregister:
 	    exec_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_SNAPDIR),
 	    snapdir_changed_cb, zsb);
+	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_ACLTYPE),
+	    acltype_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_ACLINHERIT),
 	    acl_inherit_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_VSCAN),
@@ -322,7 +344,7 @@ zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
 	 * Is it a valid type of object to track?
 	 */
 	if (bonustype != DMU_OT_ZNODE && bonustype != DMU_OT_SA)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	/*
 	 * If we have a NULL data pointer
@@ -331,7 +353,7 @@ zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
 	 * use the same ids
 	 */
 	if (data == NULL)
-		return (EEXIST);
+		return (SET_ERROR(EEXIST));
 
 	if (bonustype == DMU_OT_ZNODE) {
 		znode_phys_t *znp = data;
@@ -407,7 +429,7 @@ zfs_userquota_prop_to_obj(zfs_sb_t *zsb, zfs_userquota_prop_t type)
 	case ZFS_PROP_GROUPQUOTA:
 		return (zsb->z_groupquota_obj);
 	default:
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	return (0);
 }
@@ -423,7 +445,7 @@ zfs_userspace_many(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 	uint64_t obj;
 
 	if (!dmu_objset_userspace_present(zsb->z_os))
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	obj = zfs_userquota_prop_to_obj(zsb, type);
 	if (obj == 0) {
@@ -468,7 +490,7 @@ id_to_fuidstr(zfs_sb_t *zsb, const char *domain, uid_t rid,
 	if (domain && domain[0]) {
 		domainid = zfs_fuid_find_by_domain(zsb, domain, NULL, addok);
 		if (domainid == -1)
-			return (ENOENT);
+			return (SET_ERROR(ENOENT));
 	}
 	fuid = FUID_ENCODE(domainid, rid);
 	(void) sprintf(buf, "%llx", (longlong_t)fuid);
@@ -486,7 +508,7 @@ zfs_userspace_one(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 	*valp = 0;
 
 	if (!dmu_objset_userspace_present(zsb->z_os))
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	obj = zfs_userquota_prop_to_obj(zsb, type);
 	if (obj == 0)
@@ -514,10 +536,10 @@ zfs_set_userquota(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 	boolean_t fuid_dirtied;
 
 	if (type != ZFS_PROP_USERQUOTA && type != ZFS_PROP_GROUPQUOTA)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (zsb->z_version < ZPL_VERSION_USERSPACE)
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	objp = (type == ZFS_PROP_USERQUOTA) ? &zsb->z_userquota_obj :
 	    &zsb->z_groupquota_obj;
@@ -648,7 +670,7 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 		    "on a version %lld pool\n. Pool must be upgraded to mount "
 		    "this file system.", (u_longlong_t)zsb->z_version,
 		    (u_longlong_t)spa_version(dmu_objset_spa(os)));
-		error = ENOTSUP;
+		error = SET_ERROR(ENOTSUP);
 		goto out;
 	}
 	if ((error = zfs_get_zplprop(os, ZFS_PROP_NORMALIZE, &zval)) != 0)
@@ -662,6 +684,10 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	if ((error = zfs_get_zplprop(os, ZFS_PROP_CASE, &zval)) != 0)
 		goto out;
 	zsb->z_case = (uint_t)zval;
+
+	if ((error = zfs_get_zplprop(os, ZFS_PROP_ACLTYPE, &zval)) != 0)
+		goto out;
+	zsb->z_acl_type = (uint_t)zval;
 
 	/*
 	 * Fold case on file systems that are always or sometimes case
@@ -904,6 +930,9 @@ zfs_unregister_callbacks(zfs_sb_t *zsb)
 		VERIFY(dsl_prop_unregister(ds, "snapdir", snapdir_changed_cb,
 		    zsb) == 0);
 
+		VERIFY(dsl_prop_unregister(ds, "acltype", acltype_changed_cb,
+		    zsb) == 0);
+
 		VERIFY(dsl_prop_unregister(ds, "aclinherit",
 		    acl_inherit_changed_cb, zsb) == 0);
 
@@ -939,10 +968,10 @@ zfs_check_global_label(const char *dsname, const char *hexsl)
 
 		if (dsl_prop_get_integer(dsname,
 		    zfs_prop_to_name(ZFS_PROP_READONLY), &rdonly, NULL))
-			return (EACCES);
+			return (SET_ERROR(EACCES));
 		return (rdonly ? 0 : EACCES);
 	}
-	return (EACCES);
+	return (SET_ERROR(EACCES));
 }
 EXPORT_SYMBOL(zfs_check_global_label);
 #endif /* HAVE_MLSLABEL */
@@ -1098,7 +1127,7 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	if (!unmounting && (zsb->z_unmounted || zsb->z_os == NULL)) {
 		rw_exit(&zsb->z_teardown_inactive_lock);
 		rrw_exit(&zsb->z_teardown_lock, FTAG);
-		return (EIO);
+		return (SET_ERROR(EIO));
 	}
 
 	/*
@@ -1221,6 +1250,9 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		if ((error = dsl_prop_get_integer(osname,"xattr",&pval,NULL)))
 			goto out;
 		xattr_changed_cb(zsb, pval);
+		if ((error = dsl_prop_get_integer(osname,"acltype",&pval,NULL)))
+			goto out;
+		acltype_changed_cb(zsb, pval);
 		zsb->z_issnap = B_TRUE;
 		zsb->z_os->os_sync = ZFS_SYNC_DISABLED;
 
@@ -1242,7 +1274,7 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	sb->s_root = d_make_root(root_inode);
 	if (sb->s_root == NULL) {
 		(void) zfs_umount(sb);
-		error = ENOMEM;
+		error = SET_ERROR(ENOMEM);
 		goto out;
 	}
 
@@ -1357,7 +1389,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 
 		err = zfsctl_lookup_objset(sb, objsetid, &zsb);
 		if (err)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 
 		ZFS_ENTER(zsb);
 	}
@@ -1372,7 +1404,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 			fid_gen |= ((uint64_t)zfid->zf_gen[i]) << (8 * i);
 	} else {
 		ZFS_EXIT(zsb);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	/* A zero fid_gen means we are in the .zfs control directories */
@@ -1406,7 +1438,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		dprintf("znode gen (%u) != fid gen (%u)\n", zp_gen, fid_gen);
 		iput(ZTOI(zp));
 		ZFS_EXIT(zsb);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	*ipp = ZTOI(zp);
@@ -1516,14 +1548,14 @@ zfs_set_version(zfs_sb_t *zsb, uint64_t newvers)
 	dmu_tx_t *tx;
 
 	if (newvers < ZPL_VERSION_INITIAL || newvers > ZPL_VERSION)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (newvers < zsb->z_version)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (zfs_spa_version_map(newvers) >
 	    spa_version(dmu_objset_spa(zsb->z_os)))
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, B_FALSE, ZPL_VERSION_STR);
@@ -1583,7 +1615,7 @@ int
 zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 {
 	const char *pname;
-	int error = ENOENT;
+	int error = SET_ERROR(ENOENT);
 
 	/*
 	 * Look up the file system's value for the property.  For the
@@ -1610,6 +1642,9 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 		case ZFS_PROP_CASE:
 			*value = ZFS_CASE_SENSITIVE;
 			break;
+		case ZFS_PROP_ACLTYPE:
+			*value = ZFS_ACLTYPE_OFF;
+			break;
 		default:
 			return (error);
 		}
@@ -1632,6 +1667,7 @@ zfs_init(void)
 void
 zfs_fini(void)
 {
+	taskq_wait(system_taskq);
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
 	zfsctl_fini();

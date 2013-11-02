@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -434,7 +435,7 @@ again:
 		goto again;
 	}
 
-	return (ENOENT);
+	return (SET_ERROR(ENOENT));
 }
 
 /* Return (h1,cd1 >= h2,cd2) */
@@ -492,14 +493,14 @@ zap_entry_read(const zap_entry_handle_t *zeh,
 	ASSERT3U(le->le_type, ==, ZAP_CHUNK_ENTRY);
 
 	if (le->le_value_intlen > integer_size)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	zap_leaf_array_read(zeh->zeh_leaf, le->le_value_chunk,
 	    le->le_value_intlen, le->le_value_numints,
 	    integer_size, num_integers, buf);
 
 	if (zeh->zeh_num_integers > num_integers)
-		return (EOVERFLOW);
+		return (SET_ERROR(EOVERFLOW));
 	return (0);
 
 }
@@ -520,7 +521,7 @@ zap_entry_read_name(zap_t *zap, const zap_entry_handle_t *zeh, uint16_t buflen,
 		    le->le_name_numints, 1, buflen, buf);
 	}
 	if (le->le_name_numints > buflen)
-		return (EOVERFLOW);
+		return (SET_ERROR(EOVERFLOW));
 	return (0);
 }
 
@@ -536,7 +537,7 @@ zap_entry_update(zap_entry_handle_t *zeh,
 	    ZAP_LEAF_ARRAY_NCHUNKS(le->le_value_numints * le->le_value_intlen);
 
 	if ((int)l->l_phys->l_hdr.lh_nfree < delta_chunks)
-		return (EAGAIN);
+		return (SET_ERROR(EAGAIN));
 
 	zap_leaf_array_free(l, &le->le_value_chunk);
 	le->le_value_chunk =
@@ -626,7 +627,7 @@ zap_entry_create(zap_leaf_t *l, zap_name_t *zn, uint32_t cd,
 	}
 
 	if (l->l_phys->l_hdr.lh_nfree < numchunks)
-		return (EAGAIN);
+		return (SET_ERROR(EAGAIN));
 
 	/* make the entry */
 	chunk = zap_leaf_chunk_alloc(l);

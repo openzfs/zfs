@@ -25,6 +25,13 @@
 
 #include <sys/zfs_context.h>
 
+#if !defined(_KERNEL) || !defined(__linux__)
+list_t zfs_dbgmsgs;
+int zfs_dbgmsg_size;
+kmutex_t zfs_dbgmsgs_lock;
+int zfs_dbgmsg_maxsize = 1<<20; /* 1MB */
+#endif
+
 /*
  * Enable various debugging features.
  */
@@ -57,6 +64,12 @@ zfs_panic_recover(const char *fmt, ...)
 void
 zfs_dbgmsg_init(void)
 {
+#if !defined(_KERNEL) || !defined(__linux__)
+	list_create(&zfs_dbgmsgs, sizeof (zfs_dbgmsg_t),
+	    offsetof(zfs_dbgmsg_t, zdm_node));
+	mutex_init(&zfs_dbgmsgs_lock, NULL, MUTEX_DEFAULT, NULL);
+#endif
+
 	if (zfs_flags == 0) {
 #if defined(_KERNEL)
 		zfs_flags = ZFS_DEBUG_DPRINTF;
@@ -71,9 +84,64 @@ zfs_dbgmsg_init(void)
 void
 zfs_dbgmsg_fini(void)
 {
+#if !defined(_KERNEL) || !defined(__linux__)
+	zfs_dbgmsg_t *zdm;
+
+	while ((zdm = list_remove_head(&zfs_dbgmsgs)) != NULL) {
+		int size = sizeof (zfs_dbgmsg_t) + strlen(zdm->zdm_msg);
+		kmem_free(zdm, size);
+		zfs_dbgmsg_size -= size;
+	}
+	mutex_destroy(&zfs_dbgmsgs_lock);
+	ASSERT0(zfs_dbgmsg_size);
+#endif
 	return;
 }
 
+#if !defined(_KERNEL) || !defined(__linux__)
+/*
+ * Print these messages by running:
+ * echo ::zfs_dbgmsg | mdb -k
+ *
+ * Monitor these messages by running:
+ * 	dtrace -q -n 'zfs-dbgmsg{printf("%s\n", stringof(arg0))}'
+ */
+void
+zfs_dbgmsg(const char *fmt, ...)
+{
+	int size;
+	va_list adx;
+	zfs_dbgmsg_t *zdm;
+
+	va_start(adx, fmt);
+	size = vsnprintf(NULL, 0, fmt, adx);
+	va_end(adx);
+
+	/*
+	 * There is one byte of string in sizeof (zfs_dbgmsg_t), used
+	 * for the terminating null.
+	 */
+	zdm = kmem_alloc(sizeof (zfs_dbgmsg_t) + size, KM_SLEEP);
+	zdm->zdm_timestamp = gethrestime_sec();
+
+	va_start(adx, fmt);
+	(void) vsnprintf(zdm->zdm_msg, size + 1, fmt, adx);
+	va_end(adx);
+
+	DTRACE_PROBE1(zfs__dbgmsg, char *, zdm->zdm_msg);
+
+	mutex_enter(&zfs_dbgmsgs_lock);
+	list_insert_tail(&zfs_dbgmsgs, zdm);
+	zfs_dbgmsg_size += sizeof (zfs_dbgmsg_t) + size;
+	while (zfs_dbgmsg_size > zfs_dbgmsg_maxsize) {
+		zdm = list_remove_head(&zfs_dbgmsgs);
+		size = sizeof (zfs_dbgmsg_t) + strlen(zdm->zdm_msg);
+		kmem_free(zdm, size);
+		zfs_dbgmsg_size -= size;
+	}
+	mutex_exit(&zfs_dbgmsgs_lock);
+}
+#endif
 
 #if defined(_KERNEL)
 module_param(zfs_flags, int, 0644);

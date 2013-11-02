@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -152,7 +152,7 @@ vdev_mirror_map_alloc(zio_t *zio)
 				continue;
 
 			if (!vdev_readable(mc->mc_vd)) {
-				mc->mc_error = ENXIO;
+				mc->mc_error = SET_ERROR(ENXIO);
 				mc->mc_tried = 1;
 				mc->mc_skipped = 1;
 				mc->mc_pending = INT_MAX;
@@ -198,7 +198,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 
 	if (vd->vdev_children == 0) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	vdev_open_children(vd);
@@ -295,14 +295,14 @@ vdev_mirror_child_select(zio_t *zio)
 		if (mc->mc_tried || mc->mc_skipped)
 			continue;
 		if (!vdev_readable(mc->mc_vd)) {
-			mc->mc_error = ENXIO;
+			mc->mc_error = SET_ERROR(ENXIO);
 			mc->mc_tried = 1;	/* don't even try */
 			mc->mc_skipped = 1;
 			continue;
 		}
 		if (!vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1))
 			return (c);
-		mc->mc_error = ESTALE;
+		mc->mc_error = SET_ERROR(ESTALE);
 		mc->mc_skipped = 1;
 		mc->mc_speculative = 1;
 	}
@@ -487,7 +487,7 @@ vdev_mirror_io_done(zio_t *zio)
 				    !vdev_dtl_contains(mc->mc_vd, DTL_PARTIAL,
 				    zio->io_txg, 1))
 					continue;
-				mc->mc_error = ESTALE;
+				mc->mc_error = SET_ERROR(ESTALE);
 			}
 
 			zio_nowait(zio_vdev_child_io(zio, zio->io_bp,

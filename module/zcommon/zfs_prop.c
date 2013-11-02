@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -109,6 +110,14 @@ zfs_prop_init(void)
 	static zprop_index_t snapdev_table[] = {
 		{ "hidden",	ZFS_SNAPDEV_HIDDEN },
 		{ "visible",	ZFS_SNAPDEV_VISIBLE },
+		{ NULL }
+	};
+
+	static zprop_index_t acltype_table[] = {
+		{ "off",	ZFS_ACLTYPE_OFF },
+		{ "disabled",	ZFS_ACLTYPE_OFF },
+		{ "noacl",	ZFS_ACLTYPE_OFF },
+		{ "posixacl",	ZFS_ACLTYPE_POSIXACL },
 		{ NULL }
 	};
 
@@ -226,6 +235,9 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_SNAPDEV, "snapdev", ZFS_SNAPDEV_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "hidden | visible", "SNAPDEV", snapdev_table);
+	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "noacl | posixacl", "ACLTYPE", acltype_table);
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | noallow | restricted | passthrough | passthrough-x",
@@ -353,6 +365,10 @@ zfs_prop_init(void)
 	    ZFS_TYPE_SNAPSHOT, "<count>", "USERREFS");
 	zprop_register_number(ZFS_PROP_WRITTEN, "written", 0, PROP_READONLY,
 	    ZFS_TYPE_DATASET, "<size>", "WRITTEN");
+	zprop_register_number(ZFS_PROP_LOGICALUSED, "logicalused", 0,
+	    PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "LUSED");
+	zprop_register_number(ZFS_PROP_LOGICALREFERENCED, "logicalreferenced",
+	    0, PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "LREFER");
 
 	/* default number properties */
 	zprop_register_number(ZFS_PROP_QUOTA, "quota", 0, PROP_DEFAULT,
