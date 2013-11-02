@@ -165,8 +165,13 @@ acltype_changed_cb(void *arg, uint64_t newval)
 		zsb->z_sb->s_flags &= ~MS_POSIXACL;
 		break;
 	case ZFS_ACLTYPE_POSIXACL:
+#ifdef CONFIG_FS_POSIX_ACL
 		zsb->z_acl_type = ZFS_ACLTYPE_POSIXACL;
 		zsb->z_sb->s_flags |= MS_POSIXACL;
+#else
+		zsb->z_acl_type = ZFS_ACLTYPE_OFF;
+		zsb->z_sb->s_flags &= ~MS_POSIXACL;
+#endif /* CONFIG_FS_POSIX_ACL */
 		break;
 	default:
 		break;

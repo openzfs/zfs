@@ -5814,6 +5814,9 @@ _init(void)
 	       "ZFS pool version %s, ZFS filesystem version %s\n",
 	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
 	       SPA_VERSION_STRING, ZPL_VERSION_STRING);
+#ifndef CONFIG_FS_POSIX_ACL
+	printk(KERN_NOTICE "ZFS: Posix ACLs disabled by kernel\n");
+#endif /* CONFIG_FS_POSIX_ACL */
 
 	return (0);
 
