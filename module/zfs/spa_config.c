@@ -488,8 +488,10 @@ spa_config_update(spa_t *spa, int what)
 		 */
 		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *tvd = rvd->vdev_child[c];
-			if (tvd->vdev_ms_array == 0)
+			if (tvd->vdev_ms_array == 0) {
+				vdev_ashift_optimize(tvd);
 				vdev_metaslab_set_size(tvd);
+			}
 			vdev_expand(tvd, txg);
 		}
 	}

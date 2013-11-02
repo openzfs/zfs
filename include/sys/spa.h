@@ -95,6 +95,17 @@ struct dsl_dataset;
 #define	SPA_BLOCKSIZES		(SPA_MAXBLOCKSHIFT - SPA_MINBLOCKSHIFT + 1)
 
 /*
+ * Maximum supported logical ashift.
+ *
+ * The current 8k allocation block size limit is due to the 8k
+ * aligned/sized operations performed by vdev_probe() on
+ * vdev_label->vl_pad2.  Using another "safe region" for these tests
+ * would allow the limit to be raised to 16k, at the expense of
+ * only having 8 available uberblocks in the label area.
+ */
+#define	SPA_MAXASHIFT		13
+
+/*
  * Size of block to hold the configuration data (a packed nvlist)
  */
 #define	SPA_CONFIG_BLOCKSIZE	(1ULL << 14)

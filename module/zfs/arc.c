@@ -5024,7 +5024,7 @@ l2arc_compress_buf(l2arc_buf_hdr_t *l2hdr)
 	len = l2hdr->b_asize;
 	cdata = zio_data_buf_alloc(len);
 	csize = zio_compress_data(ZIO_COMPRESS_LZ4, l2hdr->b_tmp_cdata,
-	    cdata, l2hdr->b_asize);
+	    cdata, l2hdr->b_asize, (size_t)SPA_MINBLOCKSIZE);
 
 	if (csize == 0) {
 		/* zero block, indicate that there's nothing to write */

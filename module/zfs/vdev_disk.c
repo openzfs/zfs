@@ -239,11 +239,11 @@ vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
 
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	struct block_device *bdev = ERR_PTR(-ENXIO);
 	vdev_disk_t *vd;
-	int mode, block_size;
+	int mode, phys_block_size, log_block_size;
 
 	/* Must have a pathname and it must be absolute. */
 	if (v->vdev_path == NULL || v->vdev_path[0] != '/') {
@@ -294,8 +294,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	vd->vd_bdev = bdev;
 
 skip_open:
-	/*  Determine the physical block size */
-	block_size = vdev_bdev_block_size(vd->vd_bdev);
+	/* Determine the block sizes */
+	phys_block_size = vdev_bdev_physical_block_size(vd->vd_bdev);
+	log_block_size  = vdev_bdev_logical_block_size(vd->vd_bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
@@ -307,7 +308,8 @@ skip_open:
 	*max_psize = *psize;
 
 	/* Based on the minimum sector size set the block size */
-	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
+	*physical_ashift = highbit(MAX(phys_block_size, SPA_MINBLOCKSIZE)) - 1;
+	*logical_ashift  = highbit(MAX(log_block_size, SPA_MINBLOCKSIZE)) - 1;
 
 	/* Try to set the io scheduler elevator algorithm */
 	(void) vdev_elevator_switch(v, zfs_vdev_scheduler);
