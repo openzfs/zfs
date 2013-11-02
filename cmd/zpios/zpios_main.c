@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  ZPIOS is a heavily modified version of the original PIOS test code.
  *  It is designed to have the test code running in the Linux kernel
  *  against ZFS while still being flexibly controled from user space.
@@ -29,7 +29,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with ZPIOS.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,8 +42,9 @@
 #include <sys/ioctl.h>
 #include "zpios.h"
 
-static const char short_opt[] = "t:l:h:e:n:i:j:k:o:m:q:r:c:a:b:g:s:A:B:C:"
-                                "L:p:M:xP:R:G:I:N:T:VzOfHv?";
+static const char short_opt[] =
+	"t:l:h:e:n:i:j:k:o:m:q:r:c:a:b:g:s:A:B:C:"
+	"L:p:M:xP:R:G:I:N:T:VzOfHv?";
 static const struct option long_opt[] = {
 	{"threadcount",         required_argument, 0, 't' },
 	{"threadcount_low",     required_argument, 0, 'l' },
@@ -133,7 +134,7 @@ usage(void)
 	        "	--verbose           -v    =increase verbosity\n"
 	        "	--help              -?    =this help\n\n");
 
-	return 0;
+	return (0);
 }
 
 static void args_fini(cmd_args_t *args)
@@ -155,22 +156,22 @@ args_init(int argc, char **argv)
 
 	if (argc == 1) {
 		usage();
-		return (cmd_args_t *)NULL;
+		return ((cmd_args_t *)NULL);
 	}
 
 	/* Configure and populate the args structures */
-	args = malloc(sizeof(*args));
+	args = malloc(sizeof (*args));
 	if (args == NULL)
-		return NULL;
+		return (NULL);
 
-	memset(args, 0, sizeof(*args));
+	memset(args, 0, sizeof (*args));
 
-	while ((c=getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
 		rc = 0;
 
 		switch (c) {
 		case 't': /* --thread count */
-		        rc = set_count(REGEX_NUMBERS, REGEX_NUMBERS_COMMA,
+			rc = set_count(REGEX_NUMBERS, REGEX_NUMBERS_COMMA,
 				       &args->T, optarg, &fl_th, "threadcount");
 			break;
 		case 'l': /* --threadcount_low */
@@ -301,7 +302,7 @@ args_init(int argc, char **argv)
 			rc = 1;
 			break;
 		default:
-			fprintf(stderr,"Unknown option '%s'\n",argv[optind-1]);
+			fprintf(stderr, "Unknown option '%s'\n", argv[optind-1]);
 			rc = EINVAL;
 			break;
 		}
@@ -309,7 +310,7 @@ args_init(int argc, char **argv)
 		if (rc) {
 			usage();
 			args_fini(args);
-			return NULL;
+			return (NULL);
 		}
 	}
 
@@ -323,19 +324,19 @@ args_init(int argc, char **argv)
 		fprintf(stderr, "Error: Pool not specificed\n");
 		usage();
 		args_fini(args);
-		return NULL;
+		return (NULL);
 	}
 
 	if ((args->flags & (DMU_WRITE_ZC | DMU_READ_ZC)) &&
 	    (args->flags & DMU_VERIFY)) {
-                fprintf(stderr, "Error, --zerocopy incompatible --verify, "
-                            "used for performance analysis only\n");
+		fprintf(stderr, "Error, --zerocopy incompatible --verify, "
+		            "used for performance analysis only\n");
 		usage();
 		args_fini(args);
-		return NULL;
+		return (NULL);
 	}
 
-	return args;
+	return (args);
 }
 
 static int
@@ -344,9 +345,9 @@ dev_clear(void)
 	zpios_cfg_t cfg;
 	int rc;
 
-	memset(&cfg, 0, sizeof(cfg));
+	memset(&cfg, 0, sizeof (cfg));
 	cfg.cfg_magic = ZPIOS_CFG_MAGIC;
-        cfg.cfg_cmd   = ZPIOS_CFG_BUFFER_CLEAR;
+	cfg.cfg_cmd   = ZPIOS_CFG_BUFFER_CLEAR;
 	cfg.cfg_arg1  = 0;
 
 	rc = ioctl(zpiosctl_fd, ZPIOS_CFG, &cfg);
@@ -356,7 +357,7 @@ dev_clear(void)
 
 	lseek(zpiosctl_fd, 0, SEEK_SET);
 
-	return rc;
+	return (rc);
 }
 
 /* Passing a size of zero simply results in querying the current size */
@@ -366,19 +367,19 @@ dev_size(int size)
 	zpios_cfg_t cfg;
 	int rc;
 
-	memset(&cfg, 0, sizeof(cfg));
+	memset(&cfg, 0, sizeof (cfg));
 	cfg.cfg_magic = ZPIOS_CFG_MAGIC;
-        cfg.cfg_cmd   = ZPIOS_CFG_BUFFER_SIZE;
+	cfg.cfg_cmd   = ZPIOS_CFG_BUFFER_SIZE;
 	cfg.cfg_arg1  = size;
 
 	rc = ioctl(zpiosctl_fd, ZPIOS_CFG, &cfg);
 	if (rc) {
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
 		        (unsigned long) ZPIOS_CFG, cfg.cfg_cmd, errno);
-		return rc;
+		return (rc);
 	}
 
-	return cfg.cfg_rc1;
+	return (cfg.cfg_rc1);
 }
 
 static void
@@ -390,7 +391,7 @@ dev_fini(void)
 	if (zpiosctl_fd != -1) {
 		if (close(zpiosctl_fd) == -1) {
 			fprintf(stderr, "Unable to close %s: %d\n",
-		                ZPIOS_DEV, errno);
+			        ZPIOS_DEV, errno);
 		}
 	}
 }
@@ -422,16 +423,16 @@ dev_init(void)
 	}
 
 	memset(zpios_buffer, 0, zpios_buffer_size);
-	return 0;
+	return (0);
 error:
 	if (zpiosctl_fd != -1) {
 		if (close(zpiosctl_fd) == -1) {
 			fprintf(stderr, "Unable to close %s: %d\n",
-		                ZPIOS_DEV, errno);
+			        ZPIOS_DEV, errno);
 		}
 	}
 
-	return rc;
+	return (rc);
 }
 
 static int
@@ -443,35 +444,35 @@ get_next(uint64_t *val, range_repeat_t *range)
 		       (range->val_low * range->next_val / 100);
 
 		if (*val > range->val_high)
-			return 0; /* No more values, limit exceeded */
+			return (0); /* No more values, limit exceeded */
 
 		if (!range->next_val)
 			range->next_val = range->val_inc_perc;
 		else
-			range->next_val = range->next_val+range->val_inc_perc;
+			range->next_val = range->next_val + range->val_inc_perc;
 
-		return 1; /* more values to come */
+		return (1); /* more values to come */
 
 	/* if only one val is given */
 	} else if (range->val_count == 1) {
 		if (range->next_val)
-			return 0; /* No more values, we only have one */
+			return (0); /* No more values, we only have one */
 
 		*val = range->val[0];
 		range->next_val = 1;
-		return 1; /* more values to come */
+		return (1); /* more values to come */
 
 	/* if comma separated values are given */
 	} else if (range->val_count > 1) {
 		if (range->next_val > range->val_count - 1)
-			return 0; /* No more values, limit exceeded */
+			return (0); /* No more values, limit exceeded */
 
 		*val = range->val[range->next_val];
 		range->next_val++;
-		return 1; /* more values to come */
+		return (1); /* more values to come */
 	}
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -479,17 +480,19 @@ run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
         uint64_t C, uint64_t S, uint64_t O)
 {
 	zpios_cmd_t *cmd;
-        int rc, rc2, cmd_size;
+	int rc, rc2, cmd_size;
 
-        dev_clear();
+	dev_clear();
 
-	cmd_size = sizeof(zpios_cmd_t) + ((T + N + 1) * sizeof(zpios_stats_t));
-        cmd = (zpios_cmd_t *)malloc(cmd_size);
-        if (cmd == NULL)
-                return ENOMEM;
+	cmd_size =
+		sizeof (zpios_cmd_t)
+		+ ((T + N + 1) * sizeof (zpios_stats_t));
+	cmd = (zpios_cmd_t *)malloc(cmd_size);
+	if (cmd == NULL)
+		return (ENOMEM);
 
-        memset(cmd, 0, cmd_size);
-        cmd->cmd_magic = ZPIOS_CMD_MAGIC;
+	memset(cmd, 0, cmd_size);
+	cmd->cmd_magic = ZPIOS_CMD_MAGIC;
 	strncpy(cmd->cmd_pool, args->pool, ZPIOS_NAME_SIZE - 1);
 	strncpy(cmd->cmd_pre, args->pre, ZPIOS_PATH_SIZE - 1);
 	strncpy(cmd->cmd_post, args->post, ZPIOS_PATH_SIZE - 1);
@@ -504,27 +507,27 @@ run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
 	cmd->cmd_chunk_noise  = args->chunknoise;
 	cmd->cmd_thread_delay = args->thread_delay;
 	cmd->cmd_flags        = args->flags;
-        cmd->cmd_data_size    = (T + N + 1) * sizeof(zpios_stats_t);
+	cmd->cmd_data_size    = (T + N + 1) * sizeof (zpios_stats_t);
 
-        rc = ioctl(zpiosctl_fd, ZPIOS_CMD, cmd);
+	rc = ioctl(zpiosctl_fd, ZPIOS_CMD, cmd);
 	if (rc)
 		args->rc = errno;
 
 	print_stats(args, cmd);
 
-        if (args->verbose) {
-                rc2 = read(zpiosctl_fd, zpios_buffer, zpios_buffer_size - 1);
-                if (rc2 < 0) {
-                        fprintf(stdout, "Error reading results: %d\n", rc2);
-                } else if ((rc2 > 0) && (strlen(zpios_buffer) > 0)) {
-                        fprintf(stdout, "\n%s\n", zpios_buffer);
-                        fflush(stdout);
-                }
-        }
+	if (args->verbose) {
+		rc2 = read(zpiosctl_fd, zpios_buffer, zpios_buffer_size - 1);
+		if (rc2 < 0) {
+			fprintf(stdout, "Error reading results: %d\n", rc2);
+		} else if ((rc2 > 0) && (strlen(zpios_buffer) > 0)) {
+			fprintf(stdout, "\n%s\n", zpios_buffer);
+			fflush(stdout);
+		}
+	}
 
-        free(cmd);
+	free(cmd);
 
-        return rc;
+	return (rc);
 }
 
 static int
@@ -540,7 +543,7 @@ run_offsets(cmd_args_t *args)
 	}
 
 	args->O.next_val = 0;
-	return rc;
+	return (rc);
 }
 
 static int
@@ -549,10 +552,10 @@ run_region_counts(cmd_args_t *args)
 	int rc = 0;
 
 	while (rc == 0 && get_next((uint64_t *)&args->current_N, &args->N))
-	       rc = run_offsets(args);
+		rc = run_offsets(args);
 
 	args->N.next_val = 0;
-	return rc;
+	return (rc);
 }
 
 static int
@@ -564,14 +567,14 @@ run_region_sizes(cmd_args_t *args)
 		if (args->current_S < args->current_C) {
 			fprintf(stderr, "Error: in any run chunksize can "
 				"not be smaller than regionsize.\n");
-			return EINVAL;
+			return (EINVAL);
 		}
 
 		rc = run_region_counts(args);
 	}
 
 	args->S.next_val = 0;
-	return rc;
+	return (rc);
 }
 
 static int
@@ -580,11 +583,11 @@ run_chunk_sizes(cmd_args_t *args)
 	int rc = 0;
 
 	while (rc == 0 && get_next(&args->current_C, &args->C)) {
-	       rc = run_region_sizes(args);
+		rc = run_region_sizes(args);
 	}
 
 	args->C.next_val = 0;
-	return rc;
+	return (rc);
 }
 
 static int
@@ -595,7 +598,7 @@ run_thread_counts(cmd_args_t *args)
 	while (rc == 0 && get_next((uint64_t *)&args->current_T, &args->T))
 		rc = run_chunk_sizes(args);
 
-	return rc;
+	return (rc);
 }
 
 int
@@ -625,5 +628,5 @@ out:
 		args_fini(args);
 
 	dev_fini();
-	return rc;
+	return (rc);
 }
