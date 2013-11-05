@@ -1383,7 +1383,7 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 	zv->zv_volsize = volsize;
 	zv->zv_objset = os;
 
-	set_capacity(zv->zv_disk, zv->zv_volsize >> 9);
+	set_capacity(zv->zv_disk, 0);
 
 	blk_queue_max_hw_sectors(zv->zv_queue, UINT_MAX);
 	blk_queue_max_segments(zv->zv_queue, UINT16_MAX);
@@ -1417,6 +1417,12 @@ out:
 	if (error == 0) {
 		zvol_insert(zv);
 		add_disk(zv->zv_disk);
+    /* You must set_capacity() to 0 unless calling setcapacity() *after*
+       you call add_disk(), according to these references:
+         http://osdir.com/ml/linux.enbd.general/2002-10/msg00176.html
+         http://osdir.com/ml/linux.enbd.general/2002-10/msg00177.html
+         http://stackoverflow.com/questions/13518404/add-disk-hangs-on-insmod */ 
+    set_capacity(zv->zv_disk, zv->zv_volsize >> 9);
 	}
 
 	return (error);
