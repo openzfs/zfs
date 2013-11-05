@@ -143,6 +143,7 @@ typedef enum {
 	ZFS_PROP_INCONSISTENT,		/* not exposed to the user */
 	ZFS_PROP_SNAPDEV,
 	ZFS_PROP_ACLTYPE,
+	ZFS_PROP_SELINUX_ROOTCONTEXT,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 

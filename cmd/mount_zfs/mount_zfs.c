@@ -339,6 +339,7 @@ main(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
 	char legacy[ZFS_MAXPROPLEN];
+	char rootcontext[ZFS_MAXPROPLEN];
 	char mntopts[MNT_LINE_MAX] = { '\0' };
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char mtabopt[MNT_LINE_MAX] = { '\0' };
@@ -433,21 +434,6 @@ main(int argc, char **argv)
 		}
 	}
 
-#ifdef HAVE_LIBSELINUX
-	/*
-	 * Automatically add the default zfs context when selinux is enabled
-	 * and the caller has not specified their own context.  This must be
-	 * done until zfs is added to the default selinux policy configuration
-	 * as a known filesystem type which supports xattrs.
-	 */
-        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT)) {
-                (void) strlcat(mntopts, ",context=\"system_u:"
-                    "object_r:file_t:s0\"", sizeof (mntopts));
-                (void) strlcat(mtabopt, ",context=\"system_u:"
-                    "object_r:file_t:s0\"", sizeof (mtabopt));
-	}
-#endif /* HAVE_LIBSELINUX */
-
 
 	if (verbose)
 		(void) fprintf(stdout, gettext("mount.zfs:\n"
@@ -475,6 +461,37 @@ main(int argc, char **argv)
 		libzfs_fini(g_zfs);
 		return (MOUNT_USAGE);
 	}
+
+#ifdef HAVE_LIBSELINUX
+	/*
+	 * Automatically add the default zfs context when selinux is enabled
+	 * and the caller has not specified their own context.  This must be
+	 * done until zfs is added to the default selinux policy configuration
+	 * as a known filesystem type which supports xattrs.
+        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT)) {
+                (void) strlcat(mntopts, ",context=\"system_u:"
+                    "object_r:file_t:s0\"", sizeof (mntopts));
+                (void) strlcat(mtabopt, ",context=\"system_u:"
+                    "object_r:file_t:s0\"", sizeof (mtabopt));
+	}
+	*/
+	if (zfs_prop_get(zhp, ZFS_PROP_SELINUX_ROOTCONTEXT, rootcontext,
+		sizeof (rootcontext), NULL, NULL, 0, B_FALSE) == 0) {
+			/* Check to see if rootcontext is provided */
+			if (strcmp(rootcontext, "default") == 0) {
+				snprintf(rootcontext, sizeof(rootcontext),
+					"system_u:object_r:fs_t");
+			};
+			/* XXX: Validate the root context here */
+
+			(void) snprintf(mntopts + strlen(mntopts),
+				sizeof (mntopts) - strlen(mntopts),
+				",rootcontext=\"%s\"", rootcontext);
+			(void) snprintf(mtabopt + strlen(mtabopt),
+				sizeof (mtabopt) - strlen(mtabopt),
+				",rootcontext=\"%s\"", rootcontext);
+	}
+#endif /* HAVE_LIBSELINUX */
 
 	/* treat all snapshots as legacy mount points */
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT)
