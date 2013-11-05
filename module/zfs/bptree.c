@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/arc.h>
@@ -180,6 +180,7 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 	err = 0;
 	for (i = ba.ba_phys->bt_begin; i < ba.ba_phys->bt_end; i++) {
 		bptree_entry_phys_t bte;
+		int flags = TRAVERSE_PREFETCH_METADATA | TRAVERSE_POST;
 
 		ASSERT(!free || i == ba.ba_phys->bt_begin);
 
@@ -188,13 +189,13 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 		if (err != 0)
 			break;
 
+		if (zfs_recover)
+			flags |= TRAVERSE_HARD;
 		err = traverse_dataset_destroyed(os->os_spa, &bte.be_bp,
-		    bte.be_birth_txg, &bte.be_zb,
-		    TRAVERSE_PREFETCH_METADATA | TRAVERSE_POST,
+		    bte.be_birth_txg, &bte.be_zb, flags,
 		    bptree_visit_cb, &ba);
 		if (free) {
-			ASSERT(err == 0 || err == ERESTART);
-			if (err != 0) {
+			if (err == ERESTART) {
 				/* save bookmark for future resume */
 				ASSERT3U(bte.be_zb.zb_objset, ==,
 				    ZB_DESTROYED_OBJSET);
@@ -202,11 +203,21 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 				dmu_write(os, obj, i * sizeof (bte),
 				    sizeof (bte), &bte, tx);
 				break;
-			} else {
-				ba.ba_phys->bt_begin++;
-				(void) dmu_free_range(os, obj,
-				    i * sizeof (bte), sizeof (bte), tx);
 			}
+			if (err != 0) {
+				/*
+				 * We can not properly handle an i/o
+				 * error, because the traversal code
+				 * does not know how to resume from an
+				 * arbitrary bookmark.
+				 */
+				zfs_panic_recover("error %u from "
+				    "traverse_dataset_destroyed()", err);
+			}
+
+			ba.ba_phys->bt_begin++;
+			(void) dmu_free_range(os, obj,
+			    i * sizeof (bte), sizeof (bte), tx);
 		}
 	}
 
