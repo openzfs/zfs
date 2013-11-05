@@ -2196,7 +2196,7 @@ snaplist_make(dsl_pool_t *dp,
 		if (first_obj == 0)
 			first_obj = ds->ds_dir->dd_phys->dd_origin_obj;
 
-		snap = kmem_alloc(sizeof (*snap), KM_SLEEP);
+		snap = kmem_alloc(sizeof (*snap), KM_PUSHPAGE);
 		snap->ds = ds;
 		list_insert_tail(l, snap);
 		obj = ds->ds_phys->ds_prev_snap_obj;

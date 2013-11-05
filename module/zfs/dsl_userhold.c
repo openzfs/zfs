@@ -225,7 +225,7 @@ dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, minor_t minor)
 	}
 
 	ASSERT(spa != NULL);
-	ca = kmem_alloc(sizeof (*ca), KM_SLEEP);
+	ca = kmem_alloc(sizeof (*ca), KM_PUSHPAGE);
 
 	(void) strlcpy(ca->zhca_spaname, spa_name(spa),
 	    sizeof (ca->zhca_spaname));
