@@ -137,6 +137,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
+		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
 		VERIFY0(zpl_init_acl(ip, dir));
 		d_instantiate(dentry, ip);
 	}
@@ -176,6 +177,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
 	if (error == 0) {
+		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
 		VERIFY0(zpl_init_acl(ip, dir));
 		d_instantiate(dentry, ip);
 	}
@@ -286,8 +288,10 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr);
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
-	if (error == 0)
+	if (error == 0) {
+		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
 		d_instantiate(dentry, ip);
+	}
 
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
