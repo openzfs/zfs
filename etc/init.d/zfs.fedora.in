@@ -27,7 +27,7 @@ export PATH=/usr/local/sbin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 
 if [ -z "$init" ]; then
     # Not interactive
-    grep -Eqi 'zfs=off|zfs=no' /proc/cmdline && exit 3
+    grep -qE '(^|[^\\](\\\\)* )zfs=(off|no)( |$)' /proc/cmdline && exit 3
 fi
 
 # Source function library & LSB routines
