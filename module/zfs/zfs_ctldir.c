@@ -801,6 +801,8 @@ zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 	return ((*count > 0) ? EEXIST : 0);
 }
 
+#define MOUNT_BUSY 0x80		/* Mount failed due to EBUSY (duplicated from mntent.h)  */
+
 #define SET_MOUNT_CMD \
 	"exec 0</dev/null " \
 	"     1>/dev/null " \
@@ -839,17 +841,21 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	 * function is marked GPL-only and cannot be used.  On error we
 	 * careful to log the real error to the console and return EISDIR
 	 * to safely abort the automount.  This should be very rare.
+	 * 
+	 * If the user mode helper happens to return EBUSY, a concurrent
+	 * mount is already in progress in which case the error is ignored.
 	 */
 	argv[2] = kmem_asprintf(SET_MOUNT_CMD, full_name, full_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
-	if (error) {
+	if (error && !(error & MOUNT_BUSY << 8)) {
 		printk("ZFS: Unable to automount %s at %s: %d\n",
 		    full_name, full_path, error);
 		error = SET_ERROR(EISDIR);
 		goto error;
 	}
 
+	error = 0;
 	mutex_enter(&zsb->z_ctldir_lock);
 
 	/*
