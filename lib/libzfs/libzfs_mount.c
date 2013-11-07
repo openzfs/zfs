@@ -292,6 +292,8 @@ do_mount(const char *src, const char *mntpt, char *opts)
 			return EINTR;
 		if (rc & MOUNT_SOFTWARE)
 			return EPIPE;
+		if (rc & MOUNT_BUSY)
+			return EBUSY;
 		if (rc & MOUNT_SYSERR)
 			return EAGAIN;
 		if (rc & MOUNT_USAGE)
