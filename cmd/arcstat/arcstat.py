@@ -191,7 +191,7 @@ def prettynum(sz, scale, num=0):
         return "%s" % num
 
     # Rounding error, return 0
-    elif num > 0 and num < 1:
+    elif 0 < num < 1:
         num = 0
 
     while num > scale and index < 5:
@@ -259,10 +259,10 @@ def init():
                 "columns"
             ]
         )
-
-    except getopt.error, msg:
+    except getopt.error as msg:
         sys.stderr.write(msg)
         usage()
+        opts = None
 
     for opt, arg in opts:
         if opt in ('-x', '--extended'):
@@ -335,7 +335,7 @@ def init():
             out = open(opfile, "w")
             sys.stdout = out
 
-        except:
+        except IOError:
             sys.stderr.write("Cannot open %s for writing\n" % opfile)
             sys.exit(1)
 
@@ -345,7 +345,7 @@ def calculate():
     global v
     global l2exist
 
-    v = {}
+    v = dict()
     v["time"] = time.strftime("%H:%M:%S", time.localtime())
     v["hits"] = d["hits"] / sint
     v["miss"] = d["misses"] / sint
@@ -398,7 +398,7 @@ def calculate():
         v["l2bytes"] = d["l2_read_bytes"] / sint
 
 
-def sighandler(*args):
+def sighandler():
     sys.exit(0)
 
 

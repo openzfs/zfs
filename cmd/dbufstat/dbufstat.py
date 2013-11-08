@@ -184,7 +184,7 @@ def prettynum(sz, scale, num=0):
         return "%*s" % (sz, num)
 
     # Rounding error, return 0
-    elif num > 0 and num < 1:
+    elif 0 < num < 1:
         num = 0
 
     while num > scale and index < 5:
@@ -384,19 +384,21 @@ def update_dict(d, k, line, labels):
 
     return d
 
+
 def print_dict(d):
     print_header()
-    for pool in d.iterkeys():
-        for objset in d[pool].iterkeys():
-            for v in d[pool][objset].itervalues():
+    for pool in d.keys():
+        for objset in d[pool].keys():
+            for v in d[pool][objset].values():
                 print_values(v)
+
 
 def dnodes_build_dict(filehandle):
     labels = dict()
     dnodes = dict()
 
     # First 3 lines are header information, skip the first two
-    for i in range(0, 2):
+    for i in range(2):
         next(filehandle)
 
     # The third line contains the labels and index locations
@@ -409,12 +411,13 @@ def dnodes_build_dict(filehandle):
 
     return dnodes
 
+
 def types_build_dict(filehandle):
     labels = dict()
     types = dict()
 
     # First 3 lines are header information, skip the first two
-    for i in range(0, 2):
+    for i in range(2):
         next(filehandle)
 
     # The third line contains the labels and index locations
@@ -427,11 +430,12 @@ def types_build_dict(filehandle):
 
     return types
 
+
 def buffers_print_all(filehandle):
     labels = dict()
 
     # First 3 lines are header information, skip the first two
-    for i in range(0, 2):
+    for i in range(2):
         next(filehandle)
 
     # The third line contains the labels and index locations
@@ -479,6 +483,7 @@ def main():
         )
     except getopt.error:
         usage()
+        opts = None
 
     for opt, arg in opts:
         if opt in ('-b', '--buffers'):
@@ -560,7 +565,7 @@ def main():
         try:
             tmp = open(ifile, "r")
             sys.stdin = tmp
-        except:
+        except IOError:
             sys.stderr.write("Cannot open %s for reading\n" % ifile)
             sys.exit(1)
 
