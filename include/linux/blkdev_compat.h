@@ -315,10 +315,10 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 
 #ifdef HAVE_BIO_RW_FAILFAST_DTD
 	/* BIO_RW_FAILFAST_* preferred interface from 2.6.28 - 2.6.35 */
-	*flags |=
-	    ((1 << BIO_RW_FAILFAST_DEV) |
-	     (1 << BIO_RW_FAILFAST_TRANSPORT) |
-	     (1 << BIO_RW_FAILFAST_DRIVER));
+	*flags |= (
+	    (1 << BIO_RW_FAILFAST_DEV) |
+	    (1 << BIO_RW_FAILFAST_TRANSPORT) |
+	    (1 << BIO_RW_FAILFAST_DRIVER));
 #else
 # ifdef HAVE_BIO_RW_FAILFAST
 	/* BIO_RW_FAILFAST preferred interface from 2.6.12 - 2.6.27 */
@@ -351,8 +351,10 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 # define BIO_END_IO_PROTO(fn, x, y, z)	static void fn(struct bio *x, int z)
 # define BIO_END_IO_RETURN(rc)		return
 #else
-# define BIO_END_IO_PROTO(fn, x, y, z)	static int fn(struct bio *x, \
-					              unsigned int y, int z)
+# define BIO_END_IO_PROTO(fn, x, y, z)	static int fn( \
+					    struct bio *x, \
+					    unsigned int y, \
+					    int z)
 # define BIO_END_IO_RETURN(rc)		return rc
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 

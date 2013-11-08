@@ -70,7 +70,7 @@ typedef struct zfs_sb {
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
-	unsigned long	z_rollback_time;/* last online rollback time */
+	unsigned long	z_rollback_time; /* last online rollback time */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
 	avl_tree_t	z_ctldir_snaps;	/* .zfs/snapshot entries */
@@ -102,7 +102,7 @@ typedef struct zfs_sb {
  * this the inode->i_nlink member is defined as an unsigned int.  To be
  * safe we use 2^31-1 as the limit.
  */
-#define ZFS_LINK_MAX		((1U << 31) - 1U)
+#define	ZFS_LINK_MAX		((1U << 31) - 1U)
 
 /*
  * Normal filesystems (those not under .zfs/snapshot) have a total

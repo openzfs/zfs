@@ -120,7 +120,7 @@ typedef struct zpios_info {
                                                                         \
 	/* Don't allow the kernel to start a write in the red zone */   \
 	if ((int)(_info_->info_head - _info_->info_buffer) >            \
-	    (_info_->info_size - ZPIOS_INFO_BUFFER_REDZONE))      {     \
+	    (_info_->info_size - ZPIOS_INFO_BUFFER_REDZONE)) {          \
 		_rc_ = -EOVERFLOW;                                      \
 	} else {                                                        \
 		_rc_ = sprintf(_info_->info_head, format, args);        \

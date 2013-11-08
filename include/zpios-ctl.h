@@ -159,8 +159,8 @@ zpios_timespec_add(zpios_timespec_t lhs, zpios_timespec_t rhs)
 {
 	zpios_timespec_t ts_delta;
 	zpios_timespec_normalize(&ts_delta, lhs.ts_sec + rhs.ts_sec,
-	                         lhs.ts_nsec + rhs.ts_nsec);
-        return (ts_delta);
+	    lhs.ts_nsec + rhs.ts_nsec);
+	return (ts_delta);
 }
 
 static inline
@@ -169,7 +169,7 @@ zpios_timespec_sub(zpios_timespec_t lhs, zpios_timespec_t rhs)
 {
 	zpios_timespec_t ts_delta;
 	zpios_timespec_normalize(&ts_delta, lhs.ts_sec - rhs.ts_sec,
-	                         lhs.ts_nsec - rhs.ts_nsec);
+	    lhs.ts_nsec - rhs.ts_nsec);
 	return (ts_delta);
 }
 
@@ -195,8 +195,9 @@ static inline
 double
 zpios_timespec_to_double(zpios_timespec_t ts)
 {
-	return ((double)(ts.ts_sec) +
-	       ((double)(ts.ts_nsec) / (double)(NSEC_PER_SEC)));
+	return
+	    ((double)(ts.ts_sec) +
+	    ((double)(ts.ts_nsec) / (double)(NSEC_PER_SEC)));
 }
 
 #endif /* _KERNEL */

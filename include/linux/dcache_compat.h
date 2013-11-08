@@ -74,9 +74,9 @@ d_clear_d_op(struct dentry *dentry)
 {
 #ifdef HAVE_D_SET_D_OP
 	dentry->d_op = NULL;
-	dentry->d_flags &=
-	    ~(DCACHE_OP_HASH | DCACHE_OP_COMPARE |
-	      DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE);
+	dentry->d_flags &= ~(
+	    DCACHE_OP_HASH | DCACHE_OP_COMPARE |
+	    DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE);
 #endif /* HAVE_D_SET_D_OP */
 }
 
