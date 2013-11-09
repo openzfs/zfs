@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -196,7 +196,12 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 
 /*
  * Synchronize pool configuration to disk.  This must be called with the
- * namespace lock held.
+ * namespace lock held. Synchronizing the pool cache is typically done after
+ * the configuration has been synced to the MOS. This exposes a window where
+ * the MOS config will have been updated but the cache file has not. If
+ * the system were to crash at that instant then the cached config may not
+ * contain the correct information to open the pool and an explicity import
+ * would be required.
  */
 void
 spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
@@ -320,6 +325,7 @@ spa_config_set(spa_t *spa, nvlist_t *config)
 
 /*
  * Generate the pool's configuration based on the current in-core state.
+ *
  * We infer whether to generate a complete config or just one top-level config
  * based on whether vd is the root vdev.
  */

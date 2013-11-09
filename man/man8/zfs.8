@@ -1810,7 +1810,7 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ad
 .sp .6
 .RS 4n
-Lists the property information for the given datasets in tabular form. If specified, you can list property information by the absolute pathname or the relative pathname. By default, all file systems and volumes are displayed. Snapshots are displayed if the \fBlistsnaps\fR property is \fBon\fR (the default is \fBoff\fR) . The following fields are displayed, \fBname,used,available,referenced,mountpoint\fR.
+Lists the property information for the given datasets in tabular form. If specified, you can list property information by the absolute pathname or the relative pathname. By default, all file systems and volumes are displayed. Snapshots are displayed if the \fBlistsnaps\fR property is \fBon\fR (the default is \fBoff\fR). When listing hundreds or thousands of snapshots performance can be improved by restricting the output to only the name.  In that case, it is recommended to use \fB-o name -s name\fR. The following fields are displayed by default, \fBname,used,available,referenced,mountpoint\fR.
 .sp
 .ne 2
 .mk

@@ -32,30 +32,31 @@ import sys
 import getopt
 import errno
 
-bhdr  = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize"]
+bhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize"]
 bxhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize",
-    "meta", "state", "dbholds", "list", "atype", "index", "flags", "count",
-    "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
-    "l2_asize", "l2_comp", "aholds", "dtype", "btype", "data_bs", "meta_bs",
-    "bsize", "lvls", "dholds", "blocks", "dsize"]
+         "meta", "state", "dbholds", "list", "atype", "index", "flags",
+         "count", "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2",
+         "l2_dattr", "l2_asize", "l2_comp", "aholds", "dtype", "btype",
+         "data_bs", "meta_bs", "bsize", "lvls", "dholds", "blocks", "dsize"]
 bincompat = ["cached", "direct", "indirect", "bonus", "spill"]
 
-dhdr  = ["pool", "objset", "object", "dtype", "cached"]
+dhdr = ["pool", "objset", "object", "dtype", "cached"]
 dxhdr = ["pool", "objset", "object", "dtype", "btype", "data_bs", "meta_bs",
-    "bsize", "lvls", "dholds", "blocks", "dsize", "cached", "direct",
-    "indirect", "bonus", "spill"]
+         "bsize", "lvls", "dholds", "blocks", "dsize", "cached", "direct",
+         "indirect", "bonus", "spill"]
 dincompat = ["level", "blkid", "offset", "dbsize", "meta", "state", "dbholds",
-    "list", "atype", "index", "flags", "count", "asize", "access", "mru",
-    "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize", "l2_comp", "aholds"]
+             "list", "atype", "index", "flags", "count", "asize", "access",
+             "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
+             "l2_comp", "aholds"]
 
-thdr  = ["pool", "objset", "dtype", "cached"]
+thdr = ["pool", "objset", "dtype", "cached"]
 txhdr = ["pool", "objset", "dtype", "cached", "direct", "indirect",
-    "bonus", "spill"]
+         "bonus", "spill"]
 tincompat = ["object", "level", "blkid", "offset", "dbsize", "meta", "state",
-    "dbholds", "list", "atype", "index", "flags", "count", "asize", "access",
-    "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize", "l2_comp",
-    "aholds", "btype", "data_bs", "meta_bs", "bsize", "lvls", "dholds",
-    "blocks", "dsize"]
+             "dbholds", "list", "atype", "index", "flags", "count", "asize",
+             "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
+             "l2_asize", "l2_comp", "aholds", "btype", "data_bs", "meta_bs",
+             "bsize", "lvls", "dholds", "blocks", "dsize"]
 
 cols = {
     # hdr:        [size, scale, description]
@@ -101,12 +102,13 @@ cols = {
     "spill":      [5,  1024, "bytes cached for spill block"],
 }
 
-hdr  = None
+hdr = None
 xhdr = None
-sep = "  " # Default separator is 2 spaces
+sep = "  "  # Default separator is 2 spaces
 cmd = ("Usage: dbufstat.py [-bdhrtvx] [-i file] [-f fields] [-o file] "
-    "[-s string]\n")
+       "[-s string]\n")
 raw = 0
+
 
 def print_incompat_helper(incompat):
     cnt = 0
@@ -123,6 +125,7 @@ def print_incompat_helper(incompat):
         cnt += 1
 
     sys.stderr.write("\n\n")
+
 
 def detailed_usage():
     sys.stderr.write("%s\n" % cmd)
@@ -143,21 +146,23 @@ def detailed_usage():
 
     sys.exit(1)
 
+
 def usage():
     sys.stderr.write("%s\n" % cmd)
     sys.stderr.write("\t -b : Print table of information for each dbuf\n")
     sys.stderr.write("\t -d : Print table of information for each dnode\n")
     sys.stderr.write("\t -h : Print this help message\n")
     sys.stderr.write("\t -r : Print raw values\n")
-    sys.stderr.write("\t -t : Print table of information for each dnode type\n")
+    sys.stderr.write("\t -t : Print table of information for each dnode type"
+                     "\n")
     sys.stderr.write("\t -v : List all possible field headers and definitions"
-        "\n")
+                     "\n")
     sys.stderr.write("\t -x : Print extended stats\n")
     sys.stderr.write("\t -i : Redirect input from the specified file\n")
     sys.stderr.write("\t -f : Specify specific fields to print (see -v)\n")
     sys.stderr.write("\t -o : Redirect output to the specified file\n")
     sys.stderr.write("\t -s : Override default field separator with custom "
-        "character or string\n")
+                     "character or string\n")
     sys.stderr.write("\nExamples:\n")
     sys.stderr.write("\tdbufstat.py -d -o /tmp/d.log\n")
     sys.stderr.write("\tdbufstat.py -t -s \",\" -o /tmp/t.log\n")
@@ -166,6 +171,7 @@ def usage():
     sys.stderr.write("\n")
 
     sys.exit(1)
+
 
 def prettynum(sz, scale, num=0):
     global raw
@@ -178,7 +184,7 @@ def prettynum(sz, scale, num=0):
         return "%*s" % (sz, num)
 
     # Rounding error, return 0
-    elif num > 0 and num < 1:
+    elif 0 < num < 1:
         num = 0
 
     while num > scale and index < 5:
@@ -194,6 +200,7 @@ def prettynum(sz, scale, num=0):
     else:
         return "%*d%s" % (sz - 1, num, suffix[index])
 
+
 def print_values(v):
     global hdr
     global sep
@@ -207,6 +214,7 @@ def print_values(v):
         if e.errno == errno.EPIPE:
             sys.exit(1)
 
+
 def print_header():
     global hdr
     global sep
@@ -219,51 +227,81 @@ def print_header():
         if e.errno == errno.EPIPE:
             sys.exit(1)
 
+
 def get_typestring(t):
     type_strings = ["DMU_OT_NONE",
-        # general:
-        "DMU_OT_OBJECT_DIRECTORY", "DMU_OT_OBJECT_ARRAY",
-        "DMU_OT_PACKED_NVLIST", "DMU_OT_PACKED_NVLIST_SIZE",
-        "DMU_OT_BPOBJ", "DMU_OT_BPOBJ_HDR",
-        # spa:
-        "DMU_OT_SPACE_MAP_HEADER", "DMU_OT_SPACE_MAP",
-        # zil:
-        "DMU_OT_INTENT_LOG",
-        # dmu:
-        "DMU_OT_DNODE", "DMU_OT_OBJSET",
-        # dsl:
-        "DMU_OT_DSL_DIR", "DMU_OT_DSL_DIR_CHILD_MAP",
-        "DMU_OT_DSL_DS_SNAP_MAP", "DMU_OT_DSL_PROPS",
-        "DMU_OT_DSL_DATASET",
-        # zpl:
-        "DMU_OT_ZNODE", "DMU_OT_OLDACL", "DMU_OT_PLAIN_FILE_CONTENTS",
-        "DMU_OT_DIRECTORY_CONTENTS", "DMU_OT_MASTER_NODE",
-        "DMU_OT_UNLINKED_SET",
-        # zvol:
-        "DMU_OT_ZVOL", "DMU_OT_ZVOL_PROP",
-        # other; for testing only!
-        "DMU_OT_PLAIN_OTHER", "DMU_OT_UINT64_OTHER", "DMU_OT_ZAP_OTHER",
-        # new object types:
-        "DMU_OT_ERROR_LOG", "DMU_OT_SPA_HISTORY",
-        "DMU_OT_SPA_HISTORY_OFFSETS", "DMU_OT_POOL_PROPS",
-        "DMU_OT_DSL_PERMS", "DMU_OT_ACL", "DMU_OT_SYSACL",
-        "DMU_OT_FUID", "DMU_OT_FUID_SIZE", "DMU_OT_NEXT_CLONES",
-        "DMU_OT_SCAN_QUEUE", "DMU_OT_USERGROUP_USED",
-        "DMU_OT_USERGROUP_QUOTA", "DMU_OT_USERREFS", "DMU_OT_DDT_ZAP",
-        "DMU_OT_DDT_STATS", "DMU_OT_SA", "DMU_OT_SA_MASTER_NODE",
-        "DMU_OT_SA_ATTR_REGISTRATION", "DMU_OT_SA_ATTR_LAYOUTS",
-        "DMU_OT_SCAN_XLATE", "DMU_OT_DEDUP", "DMU_OT_DEADLIST",
-        "DMU_OT_DEADLIST_HDR", "DMU_OT_DSL_CLONES",
-        "DMU_OT_BPOBJ_SUBOBJ"]
+                    # general:
+                    "DMU_OT_OBJECT_DIRECTORY",
+                    "DMU_OT_OBJECT_ARRAY",
+                    "DMU_OT_PACKED_NVLIST",
+                    "DMU_OT_PACKED_NVLIST_SIZE",
+                    "DMU_OT_BPOBJ",
+                    "DMU_OT_BPOBJ_HDR",
+                    # spa:
+                    "DMU_OT_SPACE_MAP_HEADER",
+                    "DMU_OT_SPACE_MAP",
+                    # zil:
+                    "DMU_OT_INTENT_LOG",
+                    # dmu:
+                    "DMU_OT_DNODE",
+                    "DMU_OT_OBJSET",
+                    # dsl:
+                    "DMU_OT_DSL_DIR",
+                    "DMU_OT_DSL_DIR_CHILD_MAP",
+                    "DMU_OT_DSL_DS_SNAP_MAP",
+                    "DMU_OT_DSL_PROPS",
+                    "DMU_OT_DSL_DATASET",
+                    # zpl:
+                    "DMU_OT_ZNODE",
+                    "DMU_OT_OLDACL",
+                    "DMU_OT_PLAIN_FILE_CONTENTS",
+                    "DMU_OT_DIRECTORY_CONTENTS",
+                    "DMU_OT_MASTER_NODE",
+                    "DMU_OT_UNLINKED_SET",
+                    # zvol:
+                    "DMU_OT_ZVOL",
+                    "DMU_OT_ZVOL_PROP",
+                    # other; for testing only!
+                    "DMU_OT_PLAIN_OTHER",
+                    "DMU_OT_UINT64_OTHER",
+                    "DMU_OT_ZAP_OTHER",
+                    # new object types:
+                    "DMU_OT_ERROR_LOG",
+                    "DMU_OT_SPA_HISTORY",
+                    "DMU_OT_SPA_HISTORY_OFFSETS",
+                    "DMU_OT_POOL_PROPS",
+                    "DMU_OT_DSL_PERMS",
+                    "DMU_OT_ACL",
+                    "DMU_OT_SYSACL",
+                    "DMU_OT_FUID",
+                    "DMU_OT_FUID_SIZE",
+                    "DMU_OT_NEXT_CLONES",
+                    "DMU_OT_SCAN_QUEUE",
+                    "DMU_OT_USERGROUP_USED",
+                    "DMU_OT_USERGROUP_QUOTA",
+                    "DMU_OT_USERREFS",
+                    "DMU_OT_DDT_ZAP",
+                    "DMU_OT_DDT_STATS",
+                    "DMU_OT_SA",
+                    "DMU_OT_SA_MASTER_NODE",
+                    "DMU_OT_SA_ATTR_REGISTRATION",
+                    "DMU_OT_SA_ATTR_LAYOUTS",
+                    "DMU_OT_SCAN_XLATE",
+                    "DMU_OT_DEDUP",
+                    "DMU_OT_DEADLIST",
+                    "DMU_OT_DEADLIST_HDR",
+                    "DMU_OT_DSL_CLONES",
+                    "DMU_OT_BPOBJ_SUBOBJ"]
 
     # If "-rr" option is used, don't convert to string representation
     if raw > 1:
         return "%i" % t
 
     try:
-        return type_strings[t];
+        return type_strings[t]
     except IndexError:
         return "%i" % t
+
 
 def get_compstring(c):
     comp_strings = ["ZIO_COMPRESS_INHERIT", "ZIO_COMPRESS_ON",
@@ -281,9 +319,10 @@ def get_compstring(c):
         return "%i" % c
 
     try:
-        return comp_strings[c];
+        return comp_strings[c]
     except IndexError:
         return "%i" % c
+
 
 def parse_line(line, labels):
     global hdr
@@ -307,14 +346,15 @@ def parse_line(line, labels):
 
     return new
 
+
 def update_dict(d, k, line, labels):
-    pool   = line[labels['pool']]
+    pool = line[labels['pool']]
     objset = line[labels['objset']]
-    key    = line[labels[k]]
+    key = line[labels[k]]
 
     dbsize = int(line[labels['dbsize']])
-    blkid  = int(line[labels['blkid']])
-    level  = int(line[labels['level']])
+    blkid = int(line[labels['blkid']])
+    level = int(line[labels['level']])
 
     if pool not in d:
         d[pool] = dict()
@@ -323,12 +363,12 @@ def update_dict(d, k, line, labels):
         d[pool][objset] = dict()
 
     if key not in d[pool][objset]:
-        d[pool][objset][key]             = parse_line(line, labels)
-        d[pool][objset][key]['bonus']    = 0
-        d[pool][objset][key]['cached']   = 0
-        d[pool][objset][key]['direct']   = 0
+        d[pool][objset][key] = parse_line(line, labels)
+        d[pool][objset][key]['bonus'] = 0
+        d[pool][objset][key]['cached'] = 0
+        d[pool][objset][key]['direct'] = 0
         d[pool][objset][key]['indirect'] = 0
-        d[pool][objset][key]['spill']    = 0
+        d[pool][objset][key]['spill'] = 0
 
     d[pool][objset][key]['cached'] += dbsize
 
@@ -344,19 +384,21 @@ def update_dict(d, k, line, labels):
 
     return d
 
+
 def print_dict(d):
     print_header()
-    for pool in d.iterkeys():
-        for objset in d[pool].iterkeys():
-            for v in d[pool][objset].itervalues():
+    for pool in d.keys():
+        for objset in d[pool].keys():
+            for v in d[pool][objset].values():
                 print_values(v)
+
 
 def dnodes_build_dict(filehandle):
     labels = dict()
     dnodes = dict()
 
     # First 3 lines are header information, skip the first two
-    for i in range(0, 2):
+    for i in range(2):
         next(filehandle)
 
     # The third line contains the labels and index locations
@@ -369,12 +411,13 @@ def dnodes_build_dict(filehandle):
 
     return dnodes
 
+
 def types_build_dict(filehandle):
     labels = dict()
     types = dict()
 
     # First 3 lines are header information, skip the first two
-    for i in range(0, 2):
+    for i in range(2):
         next(filehandle)
 
     # The third line contains the labels and index locations
@@ -387,11 +430,12 @@ def types_build_dict(filehandle):
 
     return types
 
+
 def buffers_print_all(filehandle):
     labels = dict()
 
     # First 3 lines are header information, skip the first two
-    for i in range(0, 2):
+    for i in range(2):
         next(filehandle)
 
     # The third line contains the labels and index locations
@@ -403,6 +447,7 @@ def buffers_print_all(filehandle):
     # The rest of the file is buffer information
     for line in filehandle:
         print_values(parse_line(line.split(), labels))
+
 
 def main():
     global hdr
@@ -438,6 +483,7 @@ def main():
         )
     except getopt.error:
         usage()
+        opts = None
 
     for opt, arg in opts:
         if opt in ('-b', '--buffers'):
@@ -474,10 +520,10 @@ def main():
         usage()
 
     if bflag:
-        hdr  = bxhdr if xflag else bhdr
+        hdr = bxhdr if xflag else bhdr
     elif tflag:
-        hdr  = txhdr if xflag else thdr
-    else: # Even if dflag is False, it's the default if none set
+        hdr = txhdr if xflag else thdr
+    else:  # Even if dflag is False, it's the default if none set
         dflag = True
         hdr = dxhdr if xflag else dhdr
 
@@ -499,7 +545,8 @@ def main():
             usage()
 
         if len(incompat) > 0:
-            sys.stderr.write("Incompatible field specified! -- %s\n" % incompat)
+            sys.stderr.write("Incompatible field specified! -- %s\n" %
+                             incompat)
             usage()
 
     if ofile:
@@ -507,8 +554,8 @@ def main():
             tmp = open(ofile, "w")
             sys.stdout = tmp
 
-        except:
-            sys.stderr.write("Cannot open %s for writing\n", ofile)
+        except IOError:
+            sys.stderr.write("Cannot open %s for writing\n" % ofile)
             sys.exit(1)
 
     if not ifile:
@@ -518,7 +565,7 @@ def main():
         try:
             tmp = open(ifile, "r")
             sys.stdin = tmp
-        except:
+        except IOError:
             sys.stderr.write("Cannot open %s for reading\n" % ifile)
             sys.exit(1)
 

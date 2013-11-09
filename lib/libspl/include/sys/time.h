@@ -50,6 +50,14 @@
 #define NSEC_PER_USEC	1000L
 #endif
 
+#ifndef MSEC2NSEC
+#define MSEC2NSEC(m)    ((hrtime_t)(m) * (NANOSEC / MILLISEC))
+#endif
+
+#ifndef NSEC2MSEC
+#define NSEC2MSEC(n)    ((n) / (NANOSEC / MILLISEC))
+#endif
+
 extern hrtime_t gethrtime(void);
 extern void gethrestime(timestruc_t *);
 

@@ -20,8 +20,9 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -207,6 +208,7 @@ enum ztest_io_type {
 	ZTEST_IO_WRITE_ZEROES,
 	ZTEST_IO_TRUNCATE,
 	ZTEST_IO_SETATTR,
+	ZTEST_IO_REWRITE,
 	ZTEST_IO_TYPES
 };
 
@@ -364,7 +366,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_fault_inject,			1,	&zopt_sometimes	},
 	{ ztest_ddt_repair,			1,	&zopt_sometimes	},
 	{ ztest_dmu_snapshot_hold,		1,	&zopt_sometimes	},
-	{ ztest_reguid,				1,	&zopt_sometimes },
+	{ ztest_reguid,				1,	&zopt_rarely	},
 	{ ztest_spa_rename,			1,	&zopt_rarely	},
 	{ ztest_scrub,				1,	&zopt_rarely	},
 	{ ztest_spa_upgrade,			1,	&zopt_rarely	},
@@ -787,6 +789,18 @@ ztest_kill(ztest_shared_t *zs)
 {
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(ztest_spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(ztest_spa));
+
+	/*
+	 * Before we kill off ztest, make sure that the config is updated.
+	 * See comment above spa_config_sync().
+	 */
+	mutex_enter(&spa_namespace_lock);
+	spa_config_sync(ztest_spa, B_FALSE, B_FALSE);
+	mutex_exit(&spa_namespace_lock);
+
+	if (ztest_opts.zo_verbose >= 3)
+		zfs_dbgmsg_print(FTAG);
+
 	(void) kill(getpid(), SIGKILL);
 }
 
@@ -1899,6 +1913,12 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		    DMU_READ_NO_PREFETCH);
 
 		if (error == 0) {
+			blkptr_t *obp = dmu_buf_get_blkptr(db);
+			if (obp) {
+				ASSERT(BP_IS_HOLE(bp));
+				*bp = *obp;
+			}
+
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
 
@@ -2047,6 +2067,9 @@ ztest_remove(ztest_ds_t *zd, ztest_od_t *od, int count)
 			continue;
 		}
 
+		/*
+		 * No object was found.
+		 */
 		if (od->od_object == 0)
 			continue;
 
@@ -2162,6 +2185,7 @@ ztest_prealloc(ztest_ds_t *zd, uint64_t object, uint64_t offset, uint64_t size)
 static void
 ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 {
+	int err;
 	ztest_block_tag_t wbt;
 	dmu_object_info_t doi;
 	enum ztest_io_type io_type;
@@ -2215,6 +2239,25 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 		(void) ztest_setattr(zd, object);
 		break;
 	default:
+		break;
+
+	case ZTEST_IO_REWRITE:
+		(void) rw_enter(&ztest_name_lock, RW_READER);
+		err = ztest_dsl_prop_set_uint64(zd->zd_name,
+		    ZFS_PROP_CHECKSUM, spa_dedup_checksum(ztest_spa),
+		    B_FALSE);
+		VERIFY(err == 0 || err == ENOSPC);
+		err = ztest_dsl_prop_set_uint64(zd->zd_name,
+		    ZFS_PROP_COMPRESSION,
+		    ztest_random_dsl_prop(ZFS_PROP_COMPRESSION),
+		    B_FALSE);
+		VERIFY(err == 0 || err == ENOSPC);
+		(void) rw_exit(&ztest_name_lock);
+
+		VERIFY0(dmu_read(zd->zd_os, object, offset, blocksize, data,
+		    DMU_READ_NO_PREFETCH));
+
+		(void) ztest_write(zd, object, offset, blocksize, data);
 		break;
 	}
 
@@ -2303,6 +2346,11 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 {
 	objset_t *os = zd->zd_os;
 
+	/*
+	 * We grab the zd_dirobj_lock to ensure that no other thread is
+	 * updating the zil (i.e. adding in-memory log records) and the
+	 * zd_zilog_lock to block any I/O.
+	 */
 	mutex_enter(&zd->zd_dirobj_lock);
 	(void) rw_enter(&zd->zd_zilog_lock, RW_WRITER);
 
@@ -2738,7 +2786,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	uint64_t leaf, top;
 	uint64_t ashift = ztest_get_ashift();
 	uint64_t oldguid, pguid;
-	size_t oldsize, newsize;
+	uint64_t oldsize, newsize;
 	char *oldpath, *newpath;
 	int replacing;
 	int oldvd_has_siblings = B_FALSE;
@@ -2899,8 +2947,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	if (error != expected_error && expected_error != EBUSY) {
 		fatal(0, "attach (%s %llu, %s %llu, %d) "
 		    "returned %d, expected %d",
-		    oldpath, (longlong_t)oldsize, newpath,
-		    (longlong_t)newsize, replacing, error, expected_error);
+		    oldpath, oldsize, newpath,
+		    newsize, replacing, error, expected_error);
 	}
 out:
 	mutex_exit(&ztest_vdev_lock);
@@ -3678,6 +3726,9 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 		dmu_tx_hold_free(tx, bigobj, bigoff, bigsize);
 	else
 		dmu_tx_hold_write(tx, bigobj, bigoff, bigsize);
+
+	/* This accounts for setting the checksum/compression. */
+	dmu_tx_hold_bonus(tx, bigobj);
 
 	txg = ztest_tx_assign(tx, TXG_MIGHTWAIT, FTAG);
 	if (txg == 0) {
@@ -4830,7 +4881,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 
 	error = user_release_one(fullname, tag);
 	if (error)
-		fatal(0, "user_release_one(%s)", fullname, tag);
+		fatal(0, "user_release_one(%s, %s) = %d", fullname, tag, error);
 
 	VERIFY3U(dmu_objset_hold(fullname, FTAG, &origin), ==, ENOENT);
 
@@ -4875,6 +4926,14 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	ASSERT(leaves >= 1);
 
 	/*
+	 * Grab the name lock as reader. There are some operations
+	 * which don't like to have their vdevs changed while
+	 * they are in progress (i.e. spa_change_guid). Those
+	 * operations will have grabbed the name lock as writer.
+	 */
+	(void) rw_enter(&ztest_name_lock, RW_READER);
+
+	/*
 	 * We need SCL_STATE here because we're going to look at vd0->vdev_tsd.
 	 */
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
@@ -4903,7 +4962,14 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		if (vd0 != NULL && vd0->vdev_top->vdev_islog)
 			islog = B_TRUE;
 
-		if (vd0 != NULL && maxfaults != 1) {
+		/*
+		 * If the top-level vdev needs to be resilvered
+		 * then we only allow faults on the device that is
+		 * resilvering.
+		 */
+		if (vd0 != NULL && maxfaults != 1 &&
+		    (!vdev_resilver_needed(vd0->vdev_top, NULL, NULL) ||
+		    vd0->vdev_resilver_txg != 0)) {
 			/*
 			 * Make vd0 explicitly claim to be unreadable,
 			 * or unwriteable, or reach behind its back
@@ -4934,6 +5000,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 
 		if (sav->sav_count == 0) {
 			spa_config_exit(spa, SCL_STATE, FTAG);
+			(void) rw_exit(&ztest_name_lock);
 			goto out;
 		}
 		vd0 = sav->sav_vdevs[ztest_random(sav->sav_count)];
@@ -4947,6 +5014,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	}
 
 	spa_config_exit(spa, SCL_STATE, FTAG);
+	(void) rw_exit(&ztest_name_lock);
 
 	/*
 	 * If we can tolerate two or more faults, or we're dealing
@@ -5120,8 +5188,8 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Find out what block we got.
 	 */
-	VERIFY(dmu_buf_hold(os, object, 0, FTAG, &db,
-	    DMU_READ_NO_PREFETCH) == 0);
+	VERIFY0(dmu_buf_hold(os, object, 0, FTAG, &db,
+	    DMU_READ_NO_PREFETCH));
 	blk = *((dmu_buf_impl_t *)db)->db_blkptr;
 	dmu_buf_rele(db, FTAG);
 
@@ -5761,6 +5829,9 @@ ztest_run(ztest_shared_t *zs)
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(spa));
 
+	if (ztest_opts.zo_verbose >= 3)
+		zfs_dbgmsg_print(FTAG);
+
 	umem_free(tid, ztest_opts.zo_threads * sizeof (kt_did_t));
 
 	/* Kill the resume thread */
@@ -5823,6 +5894,8 @@ ztest_freeze(void)
 	kernel_init(FREAD | FWRITE);
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	VERIFY3U(0, ==, ztest_dataset_open(0));
+	spa->spa_debug = B_TRUE;
+	ztest_spa = spa;
 
 	/*
 	 * Force the first log block to be transactionally allocated.
@@ -6172,11 +6245,12 @@ main(int argc, char **argv)
 
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
 
+	dprintf_setup(&argc, argv);
+
 	ztest_fd_rand = open("/dev/urandom", O_RDONLY);
 	ASSERT3S(ztest_fd_rand, >=, 0);
 
 	if (!fd_data_str) {
-		dprintf_setup(&argc, argv);
 		process_options(argc, argv);
 
 		setup_data_fd();

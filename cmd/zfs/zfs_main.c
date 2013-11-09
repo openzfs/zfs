@@ -24,6 +24,7 @@
  * Copyright 2012 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland.  All rights reserved.
  */
 
 #include <assert.h>
@@ -3479,6 +3480,12 @@ zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 	int rv = 0;
 	int error;
 
+	if (sd->sd_recursive &&
+	    zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) != 0) {
+		zfs_close(zhp);
+		return (0);
+	}
+
 	error = asprintf(&name, "%s@%s", zfs_get_name(zhp), sd->sd_snapname);
 	if (error == -1)
 		nomem();
@@ -5193,8 +5200,7 @@ zfs_do_hold_rele_impl(int argc, char **argv, boolean_t holding)
 			continue;
 		}
 		if (holding) {
-			if (zfs_hold(zhp, delim+1, tag, recursive,
-			    B_FALSE, -1) != 0)
+			if (zfs_hold(zhp, delim+1, tag, recursive, -1) != 0)
 				++errors;
 		} else {
 			if (zfs_release(zhp, delim+1, tag, recursive) != 0)

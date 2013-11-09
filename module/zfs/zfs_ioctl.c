@@ -28,6 +28,7 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 201i3 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -290,9 +291,7 @@ zfs_is_bootfs(const char *name)
 }
 
 /*
- * zfs_earlier_version
- *
- *	Return non-zero if the spa version is less than requested version.
+ * Return non-zero if the spa version is less than requested version.
  */
 static int
 zfs_earlier_version(const char *name, int version)
@@ -310,8 +309,6 @@ zfs_earlier_version(const char *name, int version)
 }
 
 /*
- * zpl_earlier_version
- *
  * Return TRUE if the ZPL version is less than requested version.
  */
 static boolean_t
@@ -1352,7 +1349,7 @@ zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
 			/*
 			 * XXX we could probably try again, since the unmounting
 			 * thread should be just about to disassociate the
-			 * objset from the zfsvfs.
+			 * objset from the zsb.
 			 */
 			rrw_exit(&(*zsbp)->z_teardown_lock, tag);
 			return (SET_ERROR(EBUSY));
@@ -2942,10 +2939,10 @@ zfs_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 
 /*
  * inputs:
- * createprops		list of properties requested by creator
- * default_zplver	zpl version to use if unspecified in createprops
- * fuids_ok		fuids allowed in this version of the spa?
  * os			parent objset pointer (NULL if root fs)
+ * fuids_ok		fuids allowed in this version of the spa?
+ * sa_ok		SAs allowed in this version of the spa?
+ * createprops		list of properties requested by creator
  *
  * outputs:
  * zplprops	values for the zplprops we attach to the master node object
@@ -3352,8 +3349,16 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
  *
  * This function is best-effort.  Callers must deal gracefully if it
  * remains mounted (or is remounted after this call).
+ *
+ * XXX: This function should detect a failure to unmount a snapdir of a dataset
+ * and return the appropriate error code when it is mounted. Its Illumos and
+ * FreeBSD counterparts do this. We do not do this on Linux because there is no
+ * clear way to access the mount information that FreeBSD and Illumos use to
+ * distinguish between things with mounted snapshot directories, and things
+ * without mounted snapshot directories, which include zvols. Returning a
+ * failure for the latter causes `zfs destroy` to fail on zvol snapshots.
  */
-void
+int
 zfs_unmount_snap(const char *snapname)
 {
 	zfs_sb_t *zsb = NULL;
@@ -3362,7 +3367,7 @@ zfs_unmount_snap(const char *snapname)
 	char *ptr;
 
 	if ((ptr = strchr(snapname, '@')) == NULL)
-		return;
+		return (0);
 
 	dsname = kmem_alloc(ptr - snapname + 1, KM_SLEEP);
 	strlcpy(dsname, snapname, ptr - snapname + 1);
@@ -3377,15 +3382,14 @@ zfs_unmount_snap(const char *snapname)
 	kmem_free(dsname, ptr - snapname + 1);
 	strfree(fullname);
 
-	return;
+	return (0);
 }
 
 /* ARGSUSED */
 static int
 zfs_unmount_snap_cb(const char *snapname, void *arg)
 {
-	zfs_unmount_snap(snapname);
-	return (0);
+	return (zfs_unmount_snap(snapname));
 }
 
 /*
@@ -3408,7 +3412,7 @@ zfs_destroy_unmount_origin(const char *fsname)
 		char originname[MAXNAMELEN];
 		dsl_dataset_name(ds->ds_prev, originname);
 		dmu_objset_rele(os, FTAG);
-		zfs_unmount_snap(originname);
+		(void) zfs_unmount_snap(originname);
 	} else {
 		dmu_objset_rele(os, FTAG);
 	}
@@ -3425,7 +3429,7 @@ zfs_destroy_unmount_origin(const char *fsname)
 static int
 zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	int poollen;
+	int error, poollen;
 	nvlist_t *snaps;
 	nvpair_t *pair;
 	boolean_t defer;
@@ -3446,8 +3450,10 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		    (name[poollen] != '/' && name[poollen] != '@'))
 			return (SET_ERROR(EXDEV));
 
-		zfs_unmount_snap(name);
 		(void) zvol_remove_minor(name);
+		error = zfs_unmount_snap(name);
+		if (error != 0)
+			return (error);
 	}
 
 	return (dsl_destroy_snapshots_nvl(snaps, defer, outnvl));
@@ -3465,8 +3471,12 @@ static int
 zfs_ioc_destroy(zfs_cmd_t *zc)
 {
 	int err;
-	if (strchr(zc->zc_name, '@') && zc->zc_objset_type == DMU_OST_ZFS)
-		zfs_unmount_snap(zc->zc_name);
+
+	if (zc->zc_objset_type == DMU_OST_ZFS) {
+		err = zfs_unmount_snap(zc->zc_name);
+		if (err != 0)
+			return (err);
+	}
 
 	if (strchr(zc->zc_name, '@'))
 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
@@ -3478,29 +3488,32 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 }
 
 /*
- * inputs:
- * zc_name	name of dataset to rollback (to most recent snapshot)
+ * fsname is name of dataset to rollback (to most recent snapshot)
  *
- * outputs:	none
+ * innvl is not used.
+ *
+ * outnvl: "target" -> name of most recent snapshot
+ * }
  */
+/* ARGSUSED */
 static int
-zfs_ioc_rollback(zfs_cmd_t *zc)
+zfs_ioc_rollback(const char *fsname, nvlist_t *args, nvlist_t *outnvl)
 {
 	zfs_sb_t *zsb;
 	int error;
 
-	if (get_zfs_sb(zc->zc_name, &zsb) == 0) {
+	if (get_zfs_sb(fsname, &zsb) == 0) {
 		error = zfs_suspend_fs(zsb);
 		if (error == 0) {
 			int resume_err;
 
-			error = dsl_dataset_rollback(zc->zc_name);
-			resume_err = zfs_resume_fs(zsb, zc->zc_name);
+			error = dsl_dataset_rollback(fsname, zsb, outnvl);
+			resume_err = zfs_resume_fs(zsb, fsname);
 			error = error ? error : resume_err;
 		}
 		deactivate_super(zsb->z_sb);
 	} else {
-		error = dsl_dataset_rollback(zc->zc_name);
+		error = dsl_dataset_rollback(fsname, NULL, outnvl);
 	}
 	return (error);
 }
@@ -3514,7 +3527,7 @@ recursive_unmount(const char *fsname, void *arg)
 	fullname = kmem_asprintf("%s@%s", fsname, snapname);
 	zfs_unmount_snap(fullname);
 	strfree(fullname);
-	return (0);
+	return (zfs_unmount_snap(fullname));
 }
 
 /*
@@ -3540,18 +3553,25 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 	at = strchr(zc->zc_name, '@');
 	if (at != NULL) {
 		/* snaps must be in same fs */
+		int error;
+
 		if (strncmp(zc->zc_name, zc->zc_value, at - zc->zc_name + 1))
 			return (SET_ERROR(EXDEV));
 		*at = '\0';
 		if (zc->zc_objset_type == DMU_OST_ZFS) {
-			int error = dmu_objset_find(zc->zc_name,
+			error = dmu_objset_find(zc->zc_name,
 			    recursive_unmount, at + 1,
 			    recursive ? DS_FIND_CHILDREN : 0);
-			if (error != 0)
+			if (error != 0) {
+				*at = '@';
 				return (error);
+			}
 		}
-		return (dsl_dataset_rename_snapshot(zc->zc_name,
-		    at + 1, strchr(zc->zc_value, '@') + 1, recursive));
+		error = dsl_dataset_rename_snapshot(zc->zc_name,
+		    at + 1, strchr(zc->zc_value, '@') + 1, recursive);
+		*at = '@';
+
+		return (error);
 	} else {
 		err = dsl_dir_rename(zc->zc_name, zc->zc_value);
 		if (!err && zc->zc_objset_type == DMU_OST_ZVOL) {
@@ -4028,13 +4048,13 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 			 * If the suspend fails, then the recv_end will
 			 * likely also fail, and clean up after itself.
 			 */
-			end_err = dmu_recv_end(&drc);
+			end_err = dmu_recv_end(&drc, zsb);
 			if (error == 0)
 				error = zfs_resume_fs(zsb, tofs);
 			error = error ? error : end_err;
 			deactivate_super(zsb->z_sb);
 		} else {
-			error = dmu_recv_end(&drc);
+			error = dmu_recv_end(&drc, NULL);
 		}
 	}
 
@@ -4518,8 +4538,11 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 			 * objset_phys_t).  Suspend/resume the fs will do that.
 			 */
 			error = zfs_suspend_fs(zsb);
-			if (error == 0)
+			if (error == 0) {
+				dmu_objset_refresh_ownership(zsb->z_os,
+				    zsb);
 				error = zfs_resume_fs(zsb, zc->zc_name);
+			}
 		}
 		if (error == 0)
 			error = dmu_objset_userspace_upgrade(zsb->z_os);
@@ -4858,16 +4881,6 @@ zfs_ioc_get_holds(const char *snapname, nvlist_t *args, nvlist_t *outnvl)
 static int
 zfs_ioc_release(const char *pool, nvlist_t *holds, nvlist_t *errlist)
 {
-	nvpair_t *pair;
-
-	/*
-	 * The release may cause the snapshot to be destroyed; make sure it
-	 * is not mounted.
-	 */
-	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
-	    pair = nvlist_next_nvpair(holds, pair))
-		zfs_unmount_snap(nvpair_name(pair));
-
 	return (dsl_dataset_user_release(holds, errlist));
 }
 
@@ -5263,6 +5276,10 @@ zfs_ioctl_init(void)
 	    zfs_ioc_get_holds, zfs_secpolicy_read, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE);
 
+	zfs_ioctl_register("rollback", ZFS_IOC_ROLLBACK,
+	    zfs_ioc_rollback, zfs_secpolicy_rollback, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE);
+
 	/* IOCTLS that use the legacy function signature */
 
 	zfs_ioctl_register_legacy(ZFS_IOC_POOL_FREEZE, zfs_ioc_pool_freeze,
@@ -5334,7 +5351,7 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_NONE);
 
 	zfs_ioctl_register_pool(ZFS_IOC_CLEAR, zfs_ioc_clear,
-	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_REOPEN, zfs_ioc_pool_reopen,
 	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_SUSPENDED);
 
@@ -5374,8 +5391,6 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_none);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_DESTROY, zfs_ioc_destroy,
 	    zfs_secpolicy_destroy);
-	zfs_ioctl_register_dataset_modify(ZFS_IOC_ROLLBACK, zfs_ioc_rollback,
-	    zfs_secpolicy_rollback);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_RENAME, zfs_ioc_rename,
 	    zfs_secpolicy_rename);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_RECV, zfs_ioc_recv,
@@ -5799,6 +5814,9 @@ _init(void)
 	       "ZFS pool version %s, ZFS filesystem version %s\n",
 	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
 	       SPA_VERSION_STRING, ZPL_VERSION_STRING);
+#ifndef CONFIG_FS_POSIX_ACL
+	printk(KERN_NOTICE "ZFS: Posix ACLs disabled by kernel\n");
+#endif /* CONFIG_FS_POSIX_ACL */
 
 	return (0);
 

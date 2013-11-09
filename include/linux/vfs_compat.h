@@ -180,6 +180,7 @@ lseek_execute(
 }
 #endif /* SEEK_HOLE && SEEK_DATA && !HAVE_LSEEK_EXECUTE */
 
+#if defined(CONFIG_FS_POSIX_ACL)
 /*
  * These functions safely approximates the behavior of posix_acl_release()
  * which cannot be used because it calls the GPL-only symbol kfree_rcu().
@@ -321,5 +322,6 @@ typedef umode_t zpl_equivmode_t;
 #else
 typedef mode_t zpl_equivmode_t;
 #endif /* HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T */
+#endif /* CONFIG_FS_POSIX_ACL */
 
 #endif /* _ZFS_VFS_H */

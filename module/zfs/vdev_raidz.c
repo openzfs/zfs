@@ -60,6 +60,7 @@
  *   o addition (+) is represented by a bitwise XOR
  *   o subtraction (-) is therefore identical to addition: A + B = A - B
  *   o multiplication of A by 2 is defined by the following bitwise expression:
+ *
  *	(A * 2)_7 = A_6
  *	(A * 2)_6 = A_5
  *	(A * 2)_5 = A_4
@@ -118,7 +119,7 @@ typedef struct raidz_map {
 	uint64_t rm_missingparity;	/* Count of missing parity devices */
 	uint64_t rm_firstdatacol;	/* First data column/parity count */
 	uint64_t rm_nskip;		/* Skipped sectors for padding */
-	uint64_t rm_skipstart;	/* Column index of padding start */
+	uint64_t rm_skipstart;		/* Column index of padding start */
 	void *rm_datacopy;		/* rm_asize-buffer of copied data */
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
@@ -158,10 +159,7 @@ typedef struct raidz_map {
  */
 int vdev_raidz_default_to_general;
 
-/*
- * These two tables represent powers and logs of 2 in the Galois field defined
- * above. These values were computed by repeatedly multiplying by 2 as above.
- */
+/* Powers of 2 in the Galois field defined above. */
 static const uint8_t vdev_raidz_pow2[256] = {
 	0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80,
 	0x1d, 0x3a, 0x74, 0xe8, 0xcd, 0x87, 0x13, 0x26,
@@ -196,6 +194,7 @@ static const uint8_t vdev_raidz_pow2[256] = {
 	0x2c, 0x58, 0xb0, 0x7d, 0xfa, 0xe9, 0xcf, 0x83,
 	0x1b, 0x36, 0x6c, 0xd8, 0xad, 0x47, 0x8e, 0x01
 };
+/* Logs of 2 in the Galois field defined above. */
 static const uint8_t vdev_raidz_log2[256] = {
 	0x00, 0x00, 0x01, 0x19, 0x02, 0x32, 0x1a, 0xc6,
 	0x03, 0xdf, 0x33, 0xee, 0x1b, 0x68, 0xc7, 0x4b,
@@ -431,23 +430,50 @@ static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
 	vdev_raidz_cksum_report
 };
 
+/*
+ * Divides the IO evenly across all child vdevs; usually, dcols is
+ * the number of children in the target vdev.
+ */
 static raidz_map_t *
 vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
     uint64_t nparity)
 {
 	raidz_map_t *rm;
+	/* The starting RAIDZ (parent) vdev sector of the block. */
 	uint64_t b = zio->io_offset >> unit_shift;
+	/* The zio's size in units of the vdev's minimum sector size. */
 	uint64_t s = zio->io_size >> unit_shift;
+	/* The first column for this stripe. */
 	uint64_t f = b % dcols;
+	/* The starting byte offset on each child vdev. */
 	uint64_t o = (b / dcols) << unit_shift;
 	uint64_t q, r, c, bc, col, acols, scols, coff, devidx, asize, tot;
 
+	/*
+	 * "Quotient": The number of data sectors for this stripe on all but
+	 * the "big column" child vdevs that also contain "remainder" data.
+	 */
 	q = s / (dcols - nparity);
+
+	/*
+	 * "Remainder": The number of partial stripe data sectors in this I/O.
+	 * This will add a sector to some, but not all, child vdevs.
+	 */
 	r = s - q * (dcols - nparity);
+
+	/* The number of "big columns" - those which contain remainder data. */
 	bc = (r == 0 ? 0 : r + nparity);
+
+	/*
+	 * The total number of data and parity sectors associated with
+	 * this I/O.
+	 */
 	tot = s + nparity * (q + (r == 0 ? 0 : 1));
 
+	/* acols: The columns that will be accessed. */
+	/* scols: The columns that will be accessed or skipped. */
 	if (q == 0) {
+		/* Our I/O request doesn't span all child vdevs. */
 		acols = bc;
 		scols = MIN(dcols, roundup(bc, nparity + 1));
 	} else {
@@ -1521,6 +1547,23 @@ vdev_raidz_child_done(zio_t *zio)
 	rc->rc_skipped = 0;
 }
 
+/*
+ * Start an IO operation on a RAIDZ VDev
+ *
+ * Outline:
+ * - For write operations:
+ *   1. Generate the parity data
+ *   2. Create child zio write operations to each column's vdev, for both
+ *      data and parity.
+ *   3. If the column skips any sectors for padding, create optional dummy
+ *      write zio children for those areas to improve aggregation continuity.
+ * - For read operations:
+ *   1. Create child zio read operations to each data column's vdev to read
+ *      the range of data required for zio.
+ *   2. If this is a scrub or resilver operation, or if any of the data
+ *      vdevs have had errors, then create zio read operations to the parity
+ *      columns' VDevs as well.
+ */
 static int
 vdev_raidz_io_start(zio_t *zio)
 {
@@ -1864,6 +1907,27 @@ done:
 	return (ret);
 }
 
+/*
+ * Complete an IO operation on a RAIDZ VDev
+ *
+ * Outline:
+ * - For write operations:
+ *   1. Check for errors on the child IOs.
+ *   2. Return, setting an error code if too few child VDevs were written
+ *      to reconstruct the data later.  Note that partial writes are
+ *      considered successful if they can be reconstructed at all.
+ * - For read operations:
+ *   1. Check for errors on the child IOs.
+ *   2. If data errors occurred:
+ *      a. Try to reassemble the data from the parity available.
+ *      b. If we haven't yet read the parity drives, read them now.
+ *      c. If all parity drives have been read but the data still doesn't
+ *         reassemble with a correct checksum, then try combinatorial
+ *         reconstruction.
+ *      d. If that doesn't work, return an error.
+ *   3. If there were unexpected errors or this is a resilver operation,
+ *      rewrite the vdevs that had errors.
+ */
 static void
 vdev_raidz_io_done(zio_t *zio)
 {

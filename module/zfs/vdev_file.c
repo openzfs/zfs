@@ -162,7 +162,6 @@ vdev_file_io_strategy(void *arg)
 static int
 vdev_file_io_start(zio_t *zio)
 {
-	spa_t *spa = zio->io_spa;
 	vdev_t *vd = zio->io_vd;
 	vdev_file_t *vf = vd->vdev_tsd;
 
@@ -185,8 +184,8 @@ vdev_file_io_start(zio_t *zio)
 		return (ZIO_PIPELINE_CONTINUE);
 	}
 
-	spa_taskq_dispatch_ent(spa, ZIO_TYPE_FREE, ZIO_TASKQ_ISSUE,
-	    vdev_file_io_strategy, zio, 0, &zio->io_tqent);
+	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
+	    TQ_SLEEP), !=, 0);
 
 	return (ZIO_PIPELINE_STOP);
 }
