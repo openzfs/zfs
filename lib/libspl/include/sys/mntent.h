@@ -39,6 +39,7 @@
 #define	MOUNT_FILEIO	0x10		/* Error updating/locking /etc/mtab */
 #define	MOUNT_FAIL	0x20		/* Mount failed */
 #define	MOUNT_SOMEOK	0x40		/* At least on mount succeeded */
+#define	MOUNT_BUSY	0x80		/* Mount failed due to EBUSY */
 
 #define	MNTOPT_ASYNC	"async"		/* all I/O is asynchronous */
 #define	MNTOPT_ATIME	"atime"		/* update atime for files */

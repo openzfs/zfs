@@ -26,8 +26,6 @@
 #ifndef	_SYS_UNIQUE_H
 #define	_SYS_UNIQUE_H
 
-
-
 #include <sys/zfs_context.h>
 
 #ifdef	__cplusplus
@@ -42,7 +40,7 @@ void unique_fini(void);
 
 /*
  * Return a new unique value (which will not be uniquified against until
- * it is unique_insert()-ed.
+ * it is unique_insert()-ed).
  */
 uint64_t unique_create(void);
 

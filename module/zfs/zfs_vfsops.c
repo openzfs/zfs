@@ -165,8 +165,13 @@ acltype_changed_cb(void *arg, uint64_t newval)
 		zsb->z_sb->s_flags &= ~MS_POSIXACL;
 		break;
 	case ZFS_ACLTYPE_POSIXACL:
+#ifdef CONFIG_FS_POSIX_ACL
 		zsb->z_acl_type = ZFS_ACLTYPE_POSIXACL;
 		zsb->z_sb->s_flags |= MS_POSIXACL;
+#else
+		zsb->z_acl_type = ZFS_ACLTYPE_OFF;
+		zsb->z_sb->s_flags &= ~MS_POSIXACL;
+#endif /* CONFIG_FS_POSIX_ACL */
 		break;
 	default:
 		break;
@@ -947,13 +952,12 @@ EXPORT_SYMBOL(zfs_unregister_callbacks);
 
 #ifdef HAVE_MLSLABEL
 /*
- * zfs_check_global_label:
- *	Check that the hex label string is appropriate for the dataset
- *	being mounted into the global_zone proper.
+ * Check that the hex label string is appropriate for the dataset being
+ * mounted into the global_zone proper.
  *
- *	Return an error if the hex label string is not default or
- *	admin_low/admin_high.  For admin_low labels, the corresponding
- *	dataset must be readonly.
+ * Return an error if the hex label string is not default or
+ * admin_low/admin_high.  For admin_low labels, the corresponding
+ * dataset must be readonly.
  */
 int
 zfs_check_global_label(const char *dsname, const char *hexsl)
@@ -1454,7 +1458,9 @@ EXPORT_SYMBOL(zfs_vget);
  * Block out VFS ops and close zfs_sb_t
  *
  * Note, if successful, then we return with the 'z_teardown_lock' and
- * 'z_teardown_inactive_lock' write held.
+ * 'z_teardown_inactive_lock' write held.  We leave ownership of the underlying
+ * dataset and objset intact so that they can be atomically handed off during
+ * a subsequent rollback or recv operation and the resume thereafter.
  */
 int
 zfs_suspend_fs(zfs_sb_t *zsb)
@@ -1463,8 +1469,6 @@ zfs_suspend_fs(zfs_sb_t *zsb)
 
 	if ((error = zfs_sb_teardown(zsb, B_FALSE)) != 0)
 		return (error);
-
-	dmu_objset_disown(zsb->z_os, zsb);
 
 	return (0);
 }
@@ -1476,52 +1480,70 @@ EXPORT_SYMBOL(zfs_suspend_fs);
 int
 zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 {
-	int err, err2;
+	int err;
+	znode_t *zp;
+	uint64_t sa_obj = 0;
 
 	ASSERT(RRW_WRITE_HELD(&zsb->z_teardown_lock));
 	ASSERT(RW_WRITE_HELD(&zsb->z_teardown_inactive_lock));
 
-	err = dmu_objset_own(osname, DMU_OST_ZFS, B_FALSE, zsb, &zsb->z_os);
-	if (err) {
-		zsb->z_os = NULL;
-	} else {
-		znode_t *zp;
-		uint64_t sa_obj = 0;
+	/*
+	 * We already own this, so just hold and rele it to update the
+	 * objset_t, as the one we had before may have been evicted.
+	 */
+	VERIFY0(dmu_objset_hold(osname, zsb, &zsb->z_os));
+	VERIFY3P(zsb->z_os->os_dsl_dataset->ds_owner, ==, zsb);
+	VERIFY(dsl_dataset_long_held(zsb->z_os->os_dsl_dataset));
+	dmu_objset_rele(zsb->z_os, zsb);
 
-		err2 = zap_lookup(zsb->z_os, MASTER_NODE_OBJ,
-		    ZFS_SA_ATTRS, 8, 1, &sa_obj);
+	/*
+	 * Make sure version hasn't changed
+	 */
 
-		if ((err || err2) && zsb->z_version >= ZPL_VERSION_SA)
-			goto bail;
+	err = zfs_get_zplprop(zsb->z_os, ZFS_PROP_VERSION,
+	    &zsb->z_version);
 
+	if (err)
+		goto bail;
 
-		if ((err = sa_setup(zsb->z_os, sa_obj,
-		    zfs_attr_table,  ZPL_END, &zsb->z_attr_table)) != 0)
-			goto bail;
+	err = zap_lookup(zsb->z_os, MASTER_NODE_OBJ,
+	    ZFS_SA_ATTRS, 8, 1, &sa_obj);
 
-		VERIFY(zfs_sb_setup(zsb, B_FALSE) == 0);
-		zsb->z_rollback_time = jiffies;
+	if (err && zsb->z_version >= ZPL_VERSION_SA)
+		goto bail;
 
-		/*
-		 * Attempt to re-establish all the active inodes with their
-		 * dbufs.  If a zfs_rezget() fails, then we unhash the inode
-		 * and mark it stale.  This prevents a collision if a new
-		 * inode/object is created which must use the same inode
-		 * number.  The stale inode will be be released when the
-		 * VFS prunes the dentry holding the remaining references
-		 * on the stale inode.
-		 */
-		mutex_enter(&zsb->z_znodes_lock);
-		for (zp = list_head(&zsb->z_all_znodes); zp;
-		    zp = list_next(&zsb->z_all_znodes, zp)) {
-			err2 = zfs_rezget(zp);
-			if (err2) {
-				remove_inode_hash(ZTOI(zp));
-				zp->z_is_stale = B_TRUE;
-			}
+	if ((err = sa_setup(zsb->z_os, sa_obj,
+	    zfs_attr_table,  ZPL_END, &zsb->z_attr_table)) != 0)
+		goto bail;
+
+	if (zsb->z_version >= ZPL_VERSION_SA)
+		sa_register_update_callback(zsb->z_os,
+		    zfs_sa_upgrade);
+
+	VERIFY(zfs_sb_setup(zsb, B_FALSE) == 0);
+
+	zfs_set_fuid_feature(zsb);
+	zsb->z_rollback_time = jiffies;
+
+	/*
+	 * Attempt to re-establish all the active inodes with their
+	 * dbufs.  If a zfs_rezget() fails, then we unhash the inode
+	 * and mark it stale.  This prevents a collision if a new
+	 * inode/object is created which must use the same inode
+	 * number.  The stale inode will be be released when the
+	 * VFS prunes the dentry holding the remaining references
+	 * on the stale inode.
+	 */
+	mutex_enter(&zsb->z_znodes_lock);
+	for (zp = list_head(&zsb->z_all_znodes); zp;
+	    zp = list_next(&zsb->z_all_znodes, zp)) {
+		err = zfs_rezget(zp);
+		if (err) {
+			remove_inode_hash(ZTOI(zp));
+			zp->z_is_stale = B_TRUE;
 		}
-		mutex_exit(&zsb->z_znodes_lock);
 	}
+	mutex_exit(&zsb->z_znodes_lock);
 
 bail:
 	/* release the VFS ops */
@@ -1530,8 +1552,8 @@ bail:
 
 	if (err) {
 		/*
-		 * Since we couldn't reopen zfs_sb_t or, setup the
-		 * sa framework, force unmount this file system.
+		 * Since we couldn't setup the sa framework, try to force
+		 * unmount this file system.
 		 */
 		if (zsb->z_os)
 			(void) zfs_umount(zsb->z_sb);
@@ -1601,8 +1623,7 @@ zfs_set_version(zfs_sb_t *zsb, uint64_t newvers)
 
 	zsb->z_version = newvers;
 
-	if (zsb->z_version >= ZPL_VERSION_FUID)
-		zfs_set_fuid_feature(zsb);
+	zfs_set_fuid_feature(zsb);
 
 	return (0);
 }

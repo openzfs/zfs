@@ -20,8 +20,9 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DATASET_H
@@ -187,8 +188,6 @@ int dsl_dataset_own_obj(struct dsl_pool *dp, uint64_t dsobj,
 void dsl_dataset_disown(dsl_dataset_t *ds, void *tag);
 void dsl_dataset_name(dsl_dataset_t *ds, char *name);
 boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, void *tag);
-void dsl_register_onexit_hold_cleanup(dsl_dataset_t *ds, const char *htag,
-    minor_t minor);
 uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     dsl_dataset_t *origin, uint64_t flags, cred_t *, dmu_tx_t *);
 uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
@@ -205,7 +204,8 @@ void dsl_dataset_set_blkptr(dsl_dataset_t *ds, blkptr_t *bp, dmu_tx_t *tx);
 
 spa_t *dsl_dataset_get_spa(dsl_dataset_t *ds);
 
-boolean_t dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds);
+boolean_t dsl_dataset_modified_since_snap(dsl_dataset_t *ds,
+    dsl_dataset_t *snap);
 
 void dsl_dataset_sync(dsl_dataset_t *os, zio_t *zio, dmu_tx_t *tx);
 
@@ -248,11 +248,11 @@ void dsl_dataset_long_rele(dsl_dataset_t *ds, void *tag);
 boolean_t dsl_dataset_long_held(dsl_dataset_t *ds);
 
 int dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
-    dsl_dataset_t *origin_head, boolean_t force);
+    dsl_dataset_t *origin_head, boolean_t force, void *owner, dmu_tx_t *tx);
 void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx);
+    dmu_tx_t *tx, boolean_t recv);
 void dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx);
 
@@ -265,7 +265,7 @@ int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
 int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx);
 void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
     zprop_source_t source, uint64_t value, dmu_tx_t *tx);
-int dsl_dataset_rollback(const char *fsname);
+int dsl_dataset_rollback(const char *fsname, void *owner, nvlist_t *result);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_ds(ds, fmt, ...) do { \

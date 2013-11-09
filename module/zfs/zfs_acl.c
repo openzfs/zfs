@@ -1476,7 +1476,8 @@ zfs_acl_chmod(zfs_sb_t *zsb, uint64_t mode, zfs_acl_t *aclp)
 		zacep = (void *)((uintptr_t)zacep + abstract_size);
 		new_count++;
 		new_bytes += abstract_size;
-	} if (deny1) {
+	}
+	if (deny1) {
 		zfs_set_ace(aclp, zacep, deny1, DENY, -1, ACE_OWNER);
 		zacep = (void *)((uintptr_t)zacep + abstract_size);
 		new_count++;
@@ -1873,7 +1874,7 @@ zfs_acl_ids_overquota(zfs_sb_t *zsb, zfs_acl_ids_t *acl_ids)
 }
 
 /*
- * Retrieve a files ACL
+ * Retrieve a file's ACL
  */
 int
 zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
@@ -2028,7 +2029,7 @@ zfs_vsec_2_aclp(zfs_sb_t *zsb, umode_t obj_mode,
 }
 
 /*
- * Set a files ACL
+ * Set a file's ACL
  */
 int
 zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
@@ -2449,6 +2450,7 @@ slow:
 
 /*
  * Determine whether Access should be granted/denied.
+ *
  * The least priv subsytem is always consulted as a basic privilege
  * can define any form of access.
  */
@@ -2655,7 +2657,6 @@ zfs_delete_final_check(znode_t *zp, znode_t *dzp,
 /*
  * Determine whether Access should be granted/deny, without
  * consulting least priv subsystem.
- *
  *
  * The following chart is the recommended NFSv4 enforcement for
  * ability to delete an object.

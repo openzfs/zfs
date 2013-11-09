@@ -96,9 +96,9 @@ cols = {
 
 v = {}
 hdr = ["time", "read", "miss", "miss%", "dmis", "dm%", "pmis", "pm%", "mmis",
-    "mm%", "arcsz", "c"]
+       "mm%", "arcsz", "c"]
 xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "rmis",
-    "dread", "pread", "read"]
+        "dread", "pread", "read"]
 sint = 1               # Default interval is 1 second
 count = 1              # Default count is 1
 hdr_intr = 20          # Print header every 20 lines of output
@@ -107,7 +107,7 @@ sep = "  "              # Default separator is 2 spaces
 version = "0.4"
 l2exist = False
 cmd = ("Usage: arcstat.py [-hvx] [-f fields] [-o file] [-s string] [interval "
-    "[count]]\n")
+       "[count]]\n")
 cur = {}
 d = {}
 out = None
@@ -129,12 +129,12 @@ def usage():
     sys.stderr.write("%s\n" % cmd)
     sys.stderr.write("\t -h : Print this help message\n")
     sys.stderr.write("\t -v : List all possible field headers and definitions"
-        "\n")
+                     "\n")
     sys.stderr.write("\t -x : Print extended stats\n")
     sys.stderr.write("\t -f : Specify specific fields to print (see -v)\n")
     sys.stderr.write("\t -o : Redirect output to the specified file\n")
     sys.stderr.write("\t -s : Override default field separator with custom "
-        "character or string\n")
+                     "character or string\n")
     sys.stderr.write("\nExamples:\n")
     sys.stderr.write("\tarcstat.py -o /tmp/a.log 2 10\n")
     sys.stderr.write("\tarcstat.py -s \",\" -o /tmp/a.log 2 10\n")
@@ -191,7 +191,7 @@ def prettynum(sz, scale, num=0):
         return "%s" % num
 
     # Rounding error, return 0
-    elif num > 0 and num < 1:
+    elif 0 < num < 1:
         num = 0
 
     while num > scale and index < 5:
@@ -217,7 +217,7 @@ def print_values():
         sys.stdout.write("%s%s" % (
             prettynum(cols[col][0], cols[col][1], v[col]),
             sep
-            ))
+        ))
     sys.stdout.write("\n")
 
 
@@ -259,10 +259,10 @@ def init():
                 "columns"
             ]
         )
-
-    except getopt.error, msg:
+    except getopt.error as msg:
         sys.stderr.write(msg)
         usage()
+        opts = None
 
     for opt, arg in opts:
         if opt in ('-x', '--extended'):
@@ -326,9 +326,8 @@ def init():
             usage()
 
         if len(incompat) > 0:
-            sys.stderr.write("Incompatible field specified! -- %s\n" % (
-                incompat,
-                ))
+            sys.stderr.write("Incompatible field specified! -- %s\n" %
+                             incompat)
             usage()
 
     if opfile:
@@ -336,7 +335,7 @@ def init():
             out = open(opfile, "w")
             sys.stdout = out
 
-        except:
+        except IOError:
             sys.stderr.write("Cannot open %s for writing\n" % opfile)
             sys.exit(1)
 
@@ -346,7 +345,7 @@ def calculate():
     global v
     global l2exist
 
-    v = {}
+    v = dict()
     v["time"] = time.strftime("%H:%M:%S", time.localtime())
     v["hits"] = d["hits"] / sint
     v["miss"] = d["misses"] / sint
@@ -363,16 +362,16 @@ def calculate():
 
     v["phit"] = (d["prefetch_data_hits"] + d["prefetch_metadata_hits"]) / sint
     v["pmis"] = (d["prefetch_data_misses"] +
-        d["prefetch_metadata_misses"]) / sint
+                 d["prefetch_metadata_misses"]) / sint
 
     v["pread"] = v["phit"] + v["pmis"]
     v["ph%"] = 100 * v["phit"] / v["pread"] if v["pread"] > 0 else 0
     v["pm%"] = 100 - v["ph%"] if v["pread"] > 0 else 0
 
     v["mhit"] = (d["prefetch_metadata_hits"] +
-        d["demand_metadata_hits"]) / sint
+                 d["demand_metadata_hits"]) / sint
     v["mmis"] = (d["prefetch_metadata_misses"] +
-        d["demand_metadata_misses"]) / sint
+                 d["demand_metadata_misses"]) / sint
 
     v["mread"] = v["mhit"] + v["mmis"]
     v["mh%"] = 100 * v["mhit"] / v["mread"] if v["mread"] > 0 else 0
@@ -399,7 +398,7 @@ def calculate():
         v["l2bytes"] = d["l2_read_bytes"] / sint
 
 
-def sighandler(*args):
+def sighandler():
     sys.exit(0)
 
 

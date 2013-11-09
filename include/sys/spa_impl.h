@@ -239,7 +239,7 @@ struct spa {
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
 
 	/*
-	 * spa_refcnt & spa_config_lock must be the last elements
+	 * spa_refcount & spa_config_lock must be the last elements
 	 * because refcount_t changes size based on compilation options.
 	 * In order for the MDB module to function correctly, the other
 	 * fields must remain in the same location.

@@ -183,8 +183,10 @@ process_error_log(spa_t *spa, uint64_t obj, void *addr, size_t *count)
 
 		if (copyout(&zb, (char *)addr +
 		    (*count - 1) * sizeof (zbookmark_t),
-		    sizeof (zbookmark_t)) != 0)
+		    sizeof (zbookmark_t)) != 0) {
+			zap_cursor_fini(&zc);
 			return (SET_ERROR(EFAULT));
+		}
 
 		*count -= 1;
 	}
