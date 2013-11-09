@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 #ifndef _LIBSPL_LIBSHARE_H
-#define _LIBSPL_LIBSHARE_H
+#define	_LIBSPL_LIBSHARE_H
 
 typedef void *sa_handle_t;	/* opaque handle to access core functions */
 typedef void *sa_group_t;

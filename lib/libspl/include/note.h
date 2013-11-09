@@ -36,7 +36,7 @@
  */
 
 #ifndef _NOTE_H
-#define _NOTE_H
+#define	_NOTE_H
 
 #include <sys/note.h>
 
@@ -44,7 +44,7 @@
 extern "C" {
 #endif
 
-#define NOTE _NOTE
+#define	NOTE	_NOTE
 
 #ifdef  __cplusplus
 }

@@ -25,7 +25,7 @@
  */
 
 #ifndef _LIBSPL_DEVID_H
-#define _LIBSPL_DEVID_H
+#define	_LIBSPL_DEVID_H
 
 #include <stdlib.h>
 
@@ -36,13 +36,73 @@ typedef struct devid_nmlist {
 	dev_t dev;
 } devid_nmlist_t;
 
-static inline int devid_str_decode(char *devidstr, ddi_devid_t *retdevid, char **retminor_name) { abort(); }
-static inline int devid_deviceid_to_nmlist(char *search_path, ddi_devid_t devid, char *minor_name, devid_nmlist_t **retlist) { abort(); }
-static inline void devid_str_free(char *str) { abort(); }
-static inline void devid_free(ddi_devid_t devid) { abort(); }
-static inline void devid_free_nmlist(devid_nmlist_t *list) { abort(); }
-static inline int devid_get(int fd, ddi_devid_t *retdevid) { return -1; }
-static inline int devid_get_minor_name(int fd, char **retminor_name) { abort(); }
-static inline char *devid_str_encode(ddi_devid_t devid, char *minor_name) { abort(); }
+static inline
+int
+devid_str_decode(
+    char *devidstr,
+    ddi_devid_t *retdevid,
+    char **retminor_name)
+{
+	abort();
+}
+
+static inline
+int
+devid_deviceid_to_nmlist(
+    char *search_path,
+    ddi_devid_t devid,
+    char *minor_name,
+    devid_nmlist_t **retlist)
+{
+	abort();
+}
+
+static inline
+void
+devid_str_free(char *str)
+{
+	abort();
+}
+
+static inline
+void
+devid_free(ddi_devid_t devid)
+{
+	abort();
+}
+
+static inline
+void
+devid_free_nmlist(devid_nmlist_t *list)
+{
+	abort();
+}
+
+static inline
+int
+devid_get(
+    int fd,
+    ddi_devid_t *retdevid)
+{
+	return (-1);
+}
+
+static inline
+int
+devid_get_minor_name(
+    int fd,
+    char **retminor_name)
+{
+	abort();
+}
+
+static inline
+char *
+devid_str_encode(
+    ddi_devid_t devid,
+    char *minor_name)
+{
+	abort();
+}
 
 #endif

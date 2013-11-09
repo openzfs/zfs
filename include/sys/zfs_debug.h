@@ -75,7 +75,7 @@ extern int zfs_recover;
  * filtered based on the zfs_flags variable.
  */
 #else
-#define dprintf(...)                                                   \
+#define	dprintf(...)                                                   \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF)                             \
 		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
 
@@ -92,7 +92,7 @@ typedef struct zfs_dbgmsg {
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);
 #if defined(_KERNEL) && defined(__linux__)
-#define        zfs_dbgmsg(...) dprintf(__VA_ARGS__)
+#define	zfs_dbgmsg(...) dprintf(__VA_ARGS__)
 #else
 extern void zfs_dbgmsg(const char *fmt, ...);
 extern void zfs_dbgmsg_print(const char *tag);

@@ -27,7 +27,7 @@
  */
 
 #ifndef _ZFS_BLKDEV_H
-#define _ZFS_BLKDEV_H
+#define	_ZFS_BLKDEV_H
 
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
@@ -46,7 +46,7 @@ blk_fetch_request(struct request_queue *q)
 	if (req)
 		blkdev_dequeue_request(req);
 
-	return req;
+	return (req);
 }
 #endif /* HAVE_BLK_FETCH_REQUEST */
 
@@ -79,7 +79,7 @@ __blk_end_request(struct request *req, int error, unsigned int nr_bytes)
 	req->hard_cur_sectors = nr_bytes >> 9;
 	end_request(req, ((error == 0) ? 1 : error));
 
-	return 0;
+	return (0);
 }
 
 static inline bool
@@ -92,7 +92,7 @@ blk_end_request(struct request *req, int error, unsigned int nr_bytes)
 	rc = __blk_end_request(req, error, nr_bytes);
 	spin_unlock_irq(q->queue_lock);
 
-	return rc;
+	return (rc);
 }
 #else
 # ifdef HAVE_BLK_END_REQUEST_GPL_ONLY
@@ -115,7 +115,7 @@ __blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
 	req->hard_cur_sectors = nr_bytes >> 9;
 	end_request(req, ((error == 0) ? 1 : error));
 
-	return 0;
+	return (0);
 }
 static inline bool
 blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
@@ -127,7 +127,7 @@ blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
 	rc = __blk_end_request_x(req, error, nr_bytes);
 	spin_unlock_irq(q->queue_lock);
 
-	return rc;
+	return (rc);
 }
 # endif /* HAVE_BLK_END_REQUEST_GPL_ONLY */
 #endif /* HAVE_BLK_END_REQUEST */
@@ -141,7 +141,7 @@ blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
  * that long term this function will be opened up.
  */
 #if defined(HAVE_BLK_QUEUE_FLUSH) && defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
-#define blk_queue_flush __blk_queue_flush
+#define	blk_queue_flush __blk_queue_flush
 static inline void
 __blk_queue_flush(struct request_queue *q, unsigned int flags)
 {
@@ -153,7 +153,7 @@ __blk_queue_flush(struct request_queue *q, unsigned int flags)
 static inline sector_t
 blk_rq_pos(struct request *req)
 {
-	return req->sector;
+	return (req->sector);
 }
 #endif /* HAVE_BLK_RQ_POS */
 
@@ -161,7 +161,7 @@ blk_rq_pos(struct request *req)
 static inline unsigned int
 blk_rq_sectors(struct request *req)
 {
-	return req->nr_sectors;
+	return (req->nr_sectors);
 }
 #endif /* HAVE_BLK_RQ_SECTORS */
 
@@ -171,11 +171,11 @@ blk_rq_sectors(struct request *req)
  * GPL-only version of the helper.  As of 2.6.31 the helper is available
  * to non-GPL modules in the form of a static inline in the header.
  */
-#define blk_rq_bytes __blk_rq_bytes
+#define	blk_rq_bytes __blk_rq_bytes
 static inline unsigned int
 __blk_rq_bytes(struct request *req)
 {
-	return blk_rq_sectors(req) << 9;
+	return (blk_rq_sectors(req) << 9);
 }
 #endif /* !HAVE_BLK_RQ_BYTES || HAVE_BLK_RQ_BYTES_GPL_ONLY */
 
@@ -186,7 +186,7 @@ __blk_rq_bytes(struct request *req)
  * macros are redefined here if they are missing from the kernel.
  */
 #ifndef blk_fs_request
-#define blk_fs_request(rq)	((rq)->cmd_type == REQ_TYPE_FS)
+#define	blk_fs_request(rq)	((rq)->cmd_type == REQ_TYPE_FS)
 #endif
 
 /*
@@ -197,7 +197,7 @@ __blk_rq_bytes(struct request *req)
  * this legacy behavior.
  */
 #ifndef blk_queue_stackable
-#define blk_queue_stackable(q)	((q)->request_fn == NULL)
+#define	blk_queue_stackable(q)	((q)->request_fn == NULL)
 #endif
 
 /*
@@ -205,7 +205,7 @@ __blk_rq_bytes(struct request *req)
  * The blk_queue_max_hw_sectors() function replaces blk_queue_max_sectors().
  */
 #ifndef HAVE_BLK_QUEUE_MAX_HW_SECTORS
-#define blk_queue_max_hw_sectors __blk_queue_max_hw_sectors
+#define	blk_queue_max_hw_sectors __blk_queue_max_hw_sectors
 static inline void
 __blk_queue_max_hw_sectors(struct request_queue *q, unsigned int max_hw_sectors)
 {
@@ -219,7 +219,7 @@ __blk_queue_max_hw_sectors(struct request_queue *q, unsigned int max_hw_sectors)
  * blk_queue_max_hw_segments() and blk_queue_max_phys_segments().
  */
 #ifndef HAVE_BLK_QUEUE_MAX_SEGMENTS
-#define blk_queue_max_segments __blk_queue_max_segments
+#define	blk_queue_max_segments __blk_queue_max_segments
 static inline void
 __blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
 {
@@ -235,7 +235,7 @@ __blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
  * a read-modify-write penalty.  For older kernels this is a no-op.
  */
 #ifndef HAVE_BLK_QUEUE_PHYSICAL_BLOCK_SIZE
-#define blk_queue_physical_block_size(q, x)	((void)(0))
+#define	blk_queue_physical_block_size(q, x)	((void)(0))
 #endif
 
 /*
@@ -244,7 +244,7 @@ __blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
  * I/O size for the device.  For older kernels this is a no-op.
  */
 #ifndef HAVE_BLK_QUEUE_IO_OPT
-#define blk_queue_io_opt(q, x)			((void)(0))
+#define	blk_queue_io_opt(q, x)			((void)(0))
 #endif
 
 #ifndef HAVE_GET_DISK_RO
@@ -256,7 +256,7 @@ get_disk_ro(struct gendisk *disk)
 	if (disk->part[0])
 		policy = disk->part[0]->policy;
 
-	return policy;
+	return (policy);
 }
 #endif /* HAVE_GET_DISK_RO */
 
@@ -315,18 +315,20 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 
 #ifdef HAVE_BIO_RW_FAILFAST_DTD
 	/* BIO_RW_FAILFAST_* preferred interface from 2.6.28 - 2.6.35 */
-	*flags |=
-	    ((1 << BIO_RW_FAILFAST_DEV) |
-	     (1 << BIO_RW_FAILFAST_TRANSPORT) |
-	     (1 << BIO_RW_FAILFAST_DRIVER));
+	*flags |= (
+	    (1 << BIO_RW_FAILFAST_DEV) |
+	    (1 << BIO_RW_FAILFAST_TRANSPORT) |
+	    (1 << BIO_RW_FAILFAST_DRIVER));
 #else
 # ifdef HAVE_BIO_RW_FAILFAST
 	/* BIO_RW_FAILFAST preferred interface from 2.6.12 - 2.6.27 */
 	*flags |= (1 << BIO_RW_FAILFAST);
 # else
 #  ifdef HAVE_REQ_FAILFAST_MASK
-	/* REQ_FAILFAST_* preferred interface from 2.6.36 - 2.6.xx,
-	 * the BIO_* and REQ_* flags were unified under REQ_* flags. */
+	/*
+	 * REQ_FAILFAST_* preferred interface from 2.6.36 - 2.6.xx,
+	 * the BIO_* and REQ_* flags were unified under REQ_* flags.
+	 */
 	*flags |= REQ_FAILFAST_MASK;
 #  endif /* HAVE_REQ_FAILFAST_MASK */
 # endif /* HAVE_BIO_RW_FAILFAST */
@@ -337,7 +339,7 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * Maximum disk label length, it may be undefined for some kernels.
  */
 #ifndef DISK_NAME_LEN
-#define DISK_NAME_LEN	32
+#define	DISK_NAME_LEN	32
 #endif /* DISK_NAME_LEN */
 
 /*
@@ -349,8 +351,10 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 # define BIO_END_IO_PROTO(fn, x, y, z)	static void fn(struct bio *x, int z)
 # define BIO_END_IO_RETURN(rc)		return
 #else
-# define BIO_END_IO_PROTO(fn, x, y, z)	static int fn(struct bio *x, \
-					              unsigned int y, int z)
+# define BIO_END_IO_PROTO(fn, x, y, z)	static int fn( \
+					    struct bio *x, \
+					    unsigned int y, \
+					    int z)
 # define BIO_END_IO_RETURN(rc)		return rc
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 
@@ -467,7 +471,7 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 	q->limits.discard_granularity = dg;
 }
 #else
-#define blk_queue_discard_granularity(x, dg)	((void)0)
+#define	blk_queue_discard_granularity(x, dg)	((void)0)
 #endif /* HAVE_DISCARD_GRANULARITY */
 
 /*
@@ -485,6 +489,6 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
  * user space processes which don't pass this value will get EBUSY.  This is
  * currently required for the correct operation of hot spares.
  */
-#define VDEV_HOLDER			((void *)0x2401de7)
+#define	VDEV_HOLDER			((void *)0x2401de7)
 
 #endif /* _ZFS_BLKDEV_H */

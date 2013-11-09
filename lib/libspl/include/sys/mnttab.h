@@ -19,7 +19,7 @@
  *
  * CDDL HEADER END
  */
-/* Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T*/
+/* Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T */
 /*  All Rights Reserved  */
 /*
  * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
@@ -28,7 +28,7 @@
 /* Copyright 2006 Ricardo Correia */
 
 #ifndef _SYS_MNTTAB_H
-#define _SYS_MNTTAB_H
+#define	_SYS_MNTTAB_H
 
 #include <stdio.h>
 #include <mntent.h>
@@ -77,10 +77,10 @@ static inline char *_sol_hasmntopt(struct mnttab *mnt, char *opt)
 
 	mnt_new.mnt_opts = mnt->mnt_mntopts;
 
-	return hasmntopt(&mnt_new, opt);
+	return (hasmntopt(&mnt_new, opt));
 }
 
-#define hasmntopt _sol_hasmntopt
-#define getmntent _sol_getmntent
+#define	hasmntopt	_sol_hasmntopt
+#define	getmntent	_sol_getmntent
 
 #endif

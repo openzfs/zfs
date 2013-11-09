@@ -27,7 +27,7 @@
 #include_next <locale.h>
 
 #ifndef _LIBSPL_LOCALE_H
-#define _LIBSPL_LOCALE_H
+#define	_LIBSPL_LOCALE_H
 
 #include <time.h>
 #include <sys/time.h>

@@ -124,7 +124,7 @@ enum zio_compress {
 /*
  * Default Linux timeout for a sd device.
  */
-#define ZIO_DELAY_MAX			(30 * MILLISEC)
+#define	ZIO_DELAY_MAX			(30 * MILLISEC)
 
 #define	ZIO_FAILURE_MODE_WAIT		0
 #define	ZIO_FAILURE_MODE_CONTINUE	1
@@ -196,9 +196,7 @@ enum zio_flag {
 	ZIO_FLAG_GANG_CHILD	= 1 << 22,
 	ZIO_FLAG_DDT_CHILD	= 1 << 23,
 	ZIO_FLAG_GODFATHER	= 1 << 24,
-	ZIO_FLAG_NOPWRITE	= 1 << 25,
-	ZIO_FLAG_REEXECUTED	= 1 << 26,
-	ZIO_FLAG_FASTWRITE	= 1 << 27
+	ZIO_FLAG_FASTWRITE	= 1 << 25
 };
 
 #define	ZIO_FLAG_MUSTSUCCEED		0
@@ -298,9 +296,8 @@ typedef struct zio_prop {
 	dmu_object_type_t	zp_type;
 	uint8_t			zp_level;
 	uint8_t			zp_copies;
-	boolean_t		zp_dedup;
-	boolean_t		zp_dedup_verify;
-	boolean_t		zp_nopwrite;
+	uint8_t			zp_dedup;
+	uint8_t			zp_dedup_verify;
 } zio_prop_t;
 
 typedef struct zio_cksum_report zio_cksum_report_t;
@@ -469,8 +466,7 @@ extern zio_t *zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     void *data, uint64_t size, zio_done_func_t *done, void *private,
     int priority, enum zio_flag flags, zbookmark_t *zb);
 
-extern void zio_write_override(zio_t *zio, blkptr_t *bp, int copies,
-    boolean_t nopwrite);
+extern void zio_write_override(zio_t *zio, blkptr_t *bp, int copies);
 
 extern void zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp);
 

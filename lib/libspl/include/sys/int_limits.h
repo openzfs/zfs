@@ -25,6 +25,6 @@
  */
 
 #ifndef _LIBSPL_SYS_INT_LIMITS_H
-#define _LIBSPL_SYS_INT_LIMITS_H
+#define	_LIBSPL_SYS_INT_LIMITS_H
 
 #endif

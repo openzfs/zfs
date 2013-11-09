@@ -25,12 +25,12 @@
  */
 
 #ifndef _LIBSPL_PRIV_H
-#define _LIBSPL_PRIV_H
+#define	_LIBSPL_PRIV_H
 
 #include <sys/types.h>
 
 /* Couldn't find this definition in OpenGrok */
-#define PRIV_SYS_CONFIG "sys_config"
+#define	PRIV_SYS_CONFIG	"sys_config"
 
 /*
  * priv_op_t indicates a privilege operation type

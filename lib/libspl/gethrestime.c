@@ -30,9 +30,9 @@
 void
 gethrestime(timestruc_t *ts)
 {
-        struct timeval tv;
+	struct timeval tv;
 
-        gettimeofday(&tv, NULL);
-        ts->tv_sec = tv.tv_sec;
-        ts->tv_nsec = tv.tv_usec * NSEC_PER_USEC;
+	gettimeofday(&tv, NULL);
+	ts->tv_sec = tv.tv_sec;
+	ts->tv_nsec = tv.tv_usec * NSEC_PER_USEC;
 }

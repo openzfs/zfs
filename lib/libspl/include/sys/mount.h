@@ -27,7 +27,7 @@
 #include_next <sys/mount.h>
 
 #ifndef _LIBSPL_SYS_MOUNT_H
-#define _LIBSPL_SYS_MOUNT_H
+#define	_LIBSPL_SYS_MOUNT_H
 
 #include <sys/mntent.h>
 #include <assert.h>
@@ -39,7 +39,7 @@
  * and we don't want to require the kernel headers
  */
 #if !defined(BLKGETSIZE64)
-#define BLKGETSIZE64		_IOR(0x12, 114, size_t)
+#define	BLKGETSIZE64		_IOR(0x12, 114, size_t)
 #endif
 
 /*
@@ -48,7 +48,7 @@
  * headers define MS_DIRSYNC to be S_WRITE.
  */
 #if !defined(MS_DIRSYNC)
-#define MS_DIRSYNC		S_WRITE
+#define	MS_DIRSYNC		S_WRITE
 #endif
 
 #define	MS_USERS	(MS_NOEXEC|MS_NOSUID|MS_NODEV)
@@ -78,6 +78,6 @@
  * compatibility, MS_OVERLAY is defined to explicitly have the user
  * provide a flag (-O) to mount over a non empty directory.
  */
-#define MS_OVERLAY      0x00000004
+#define	MS_OVERLAY	0x00000004
 
 #endif /* _LIBSPL_SYS_MOUNT_H */

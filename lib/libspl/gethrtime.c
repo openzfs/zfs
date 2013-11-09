@@ -38,8 +38,8 @@ gethrtime(void)
 	rc = clock_gettime(CLOCK_MONOTONIC, &ts);
 	if (rc) {
 		fprintf(stderr, "Error: clock_gettime() = %d\n", rc);
-	        abort();
+		abort();
 	}
 
-	return (((u_int64_t)ts.tv_sec) * NANOSEC) + ts.tv_nsec;
+	return ((((u_int64_t)ts.tv_sec) * NANOSEC) + ts.tv_nsec);
 }

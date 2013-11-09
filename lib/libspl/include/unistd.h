@@ -27,7 +27,7 @@
 #include_next <unistd.h>
 
 #ifndef _LIBSPL_UNISTD_H
-#define _LIBSPL_UNISTD_H
+#define	_LIBSPL_UNISTD_H
 
 #if !defined(HAVE_IOCTL_IN_UNISTD_H)
 # if defined(HAVE_IOCTL_IN_SYS_IOCTL_H)

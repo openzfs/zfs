@@ -25,7 +25,7 @@
  */
 
 #ifndef _LIBSPL_UTSNAME_H
-#define _LIBSPL_UTSNAME_H
+#define	_LIBSPL_UTSNAME_H
 
 #include_next <sys/utsname.h>
 
