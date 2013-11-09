@@ -27,7 +27,7 @@
 #include_next <assert.h>
 
 #ifndef _LIBSPL_ASSERT_H
-#define _LIBSPL_ASSERT_H
+#define	_LIBSPL_ASSERT_H
 
 #include <stdio.h>
 #include <stdlib.h>

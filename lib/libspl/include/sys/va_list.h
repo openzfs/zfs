@@ -25,7 +25,7 @@
  */
 
 #ifndef _SYS_VA_LIST_H
-#define _SYS_VA_LIST_H
+#define	_SYS_VA_LIST_H
 
 #include <stdarg.h>
 

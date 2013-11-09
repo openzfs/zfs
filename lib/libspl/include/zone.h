@@ -36,8 +36,8 @@
 extern "C" {
 #endif
 
-#define GLOBAL_ZONEID 0
-#define GLOBAL_ZONEID_NAME "global"
+#define	GLOBAL_ZONEID		0
+#define	GLOBAL_ZONEID_NAME	"global"
 
 /*
  * Functions for mapping between id and name for active zones.

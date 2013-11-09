@@ -41,7 +41,8 @@ getexecname(void)
 	pthread_mutex_lock(&mtx);
 
 	if (strlen(execname) == 0) {
-		rc = readlink("/proc/self/exe", execname, sizeof(execname) - 1);
+		rc = readlink("/proc/self/exe",
+		    execname, sizeof (execname) - 1);
 		if (rc == -1) {
 			execname[0] = '\0';
 		} else {
@@ -53,5 +54,5 @@ getexecname(void)
 	}
 
 	pthread_mutex_unlock(&mtx);
-	return ptr;
+	return (ptr);
 }

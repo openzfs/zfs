@@ -25,8 +25,8 @@
  */
 
 #ifndef _SYS_FEATURE_TESTS_H
-#define _SYS_FEATURE_TESTS_H
+#define	_SYS_FEATURE_TESTS_H
 
-#define __NORETURN __attribute__((__noreturn__))
+#define	__NORETURN	__attribute__((__noreturn__))
 
 #endif

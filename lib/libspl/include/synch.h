@@ -25,6 +25,6 @@
  */
 
 #ifndef _LIBSPL_SYNCH_H
-#define _LIBSPL_SYNCH_H
+#define	_LIBSPL_SYNCH_H
 
 #endif

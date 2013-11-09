@@ -25,7 +25,7 @@
  */
 
 #ifndef _LIBSPL_STRINGS_H
-#define _LIBSPL_STRINGS_H
+#define	_LIBSPL_STRINGS_H
 
 #include <string.h>
 #include_next <strings.h>

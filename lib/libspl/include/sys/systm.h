@@ -25,6 +25,6 @@
  */
 
 #ifndef _LIBSPL_SYS_SYSTM_H
-#define _LIBSPL_SYS_SYSTM_H
+#define	_LIBSPL_SYS_SYSTM_H
 
 #endif /* _LIBSPL_SYS_SYSTM_H */

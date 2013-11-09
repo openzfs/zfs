@@ -25,7 +25,7 @@
  */
 
 #ifndef _SOL_SYS_INT_TYPES_H
-#define _SOL_SYS_INT_TYPES_H
+#define	_SOL_SYS_INT_TYPES_H
 
 #include <inttypes.h>
 

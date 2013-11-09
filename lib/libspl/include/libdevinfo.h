@@ -25,6 +25,6 @@
  */
 
 #ifndef _LIBSPL_LIBDEVINFO_H
-#define _LIBSPL_LIBDEVINFO_H
+#define	_LIBSPL_LIBDEVINFO_H
 
 #endif /* _LIBSPL_LIBDEVINFO_H */
