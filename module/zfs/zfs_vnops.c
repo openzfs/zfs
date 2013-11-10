@@ -893,7 +893,8 @@ again:
 
 		error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 
-		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, ioflag);
+		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, ioflag,
+		    NULL, NULL);
 		dmu_tx_commit(tx);
 
 		if (error != 0)
@@ -3815,19 +3816,10 @@ top:
 EXPORT_SYMBOL(zfs_link);
 
 static void
-zfs_putpage_commit_cb(void *arg, int error)
+zfs_putpage_commit_cb(void *arg)
 {
 	struct page *pp = arg;
-
-	if (error) {
-		__set_page_dirty_nobuffers(pp);
-
-		if (error != ECANCELED)
-			SetPageError(pp);
-	} else {
-		ClearPageError(pp);
-	}
-
+	ClearPageError(pp);
 	end_page_writeback(pp);
 }
 
@@ -3861,7 +3853,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	uint64_t	mtime[2], ctime[2];
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
-	int		sync;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -3902,11 +3893,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
 	tx = dmu_tx_create(zsb->z_os);
 
-	sync = ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
-	        (wbc->sync_mode == WB_SYNC_ALL));
-	if (!sync)
-		dmu_tx_callback_register(tx, zfs_putpage_commit_cb, pp);
-
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -3916,16 +3902,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		if (err == ERESTART)
 			dmu_tx_wait(tx);
 
-		/* Will call all registered commit callbacks */
 		dmu_tx_abort(tx);
-
-		/*
-		 * For the synchronous case the commit callback must be
-		 * explicitly called because there is no registered callback.
-		 */
-		if (sync)
-			zfs_putpage_commit_cb(pp, ECANCELED);
-
+		__set_page_dirty_nobuffers(pp);
+		ClearPageError(pp);
+		end_page_writeback(pp);
 		zfs_range_unlock(rl);
 		ZFS_EXIT(zsb);
 		return (err);
@@ -3948,14 +3928,19 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
-	zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0);
+	zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0,
+	    zfs_putpage_commit_cb, pp);
 	dmu_tx_commit(tx);
 
 	zfs_range_unlock(rl);
 
-	if (sync) {
+	if (wbc->sync_mode != WB_SYNC_NONE) {
+		/*
+		 * Note that this is rarely called under writepages(), because
+		 * writepages() normally handles the entire commit for
+		 * performance reasons.
+		 */
 		zil_commit(zsb->z_log, zp->z_id);
-		zfs_putpage_commit_cb(pp, err);
 	}
 
 	ZFS_EXIT(zsb);

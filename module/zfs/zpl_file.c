@@ -23,6 +23,7 @@
  */
 
 
+#include <sys/dmu_objset.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
@@ -412,7 +413,43 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 static int
 zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
-	return write_cache_pages(mapping, wbc, zpl_putpage, mapping);
+	znode_t		*zp = ITOZ(mapping->host);
+	zfs_sb_t	*zsb = ITOZSB(mapping->host);
+	enum writeback_sync_modes sync_mode;
+	int result;
+
+	ZFS_ENTER(zsb);
+	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		wbc->sync_mode = WB_SYNC_ALL;
+	ZFS_EXIT(zsb);
+	sync_mode = wbc->sync_mode;
+
+	/*
+	 * We don't want to run write_cache_pages() in SYNC mode here, because
+	 * that would make putpage() wait for a single page to be committed to
+	 * disk every single time, resulting in atrocious performance. Instead
+	 * we run it once in non-SYNC mode so that the ZIL gets all the data,
+	 * and then we commit it all in one go.
+	 */
+	wbc->sync_mode = WB_SYNC_NONE;
+	result = write_cache_pages(mapping, wbc, zpl_putpage, mapping);
+	if (sync_mode != wbc->sync_mode) {
+		ZFS_ENTER(zsb);
+		ZFS_VERIFY_ZP(zp);
+		zil_commit(zsb->z_log, zp->z_id);
+		ZFS_EXIT(zsb);
+
+		/*
+		 * We need to call write_cache_pages() again (we can't just
+		 * return after the commit) because the previous call in
+		 * non-SYNC mode does not guarantee that we got all the dirty
+		 * pages (see the implementation of write_cache_pages() for
+		 * details). That being said, this is a no-op in most cases.
+		 */
+		wbc->sync_mode = sync_mode;
+		result = write_cache_pages(mapping, wbc, zpl_putpage, mapping);
+	}
+	return result;
 }
 
 /*
@@ -424,6 +461,8 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 static int
 zpl_writepage(struct page *pp, struct writeback_control *wbc)
 {
+	if (ITOZSB(pp->mapping->host)->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		wbc->sync_mode = WB_SYNC_ALL;
 	return zpl_putpage(pp, wbc, pp->mapping);
 }
 

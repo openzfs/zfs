@@ -447,21 +447,27 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 }
 
 /*
- * zfs_log_write() handles TX_WRITE transactions.
+ * zfs_log_write() handles TX_WRITE transactions. The specified callback is
+ * called as soon as the write is on stable storage (be it via a DMU sync or a
+ * ZIL commit).
  */
 long zfs_immediate_write_sz = 32768;
 
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-	znode_t *zp, offset_t off, ssize_t resid, int ioflag)
+	znode_t *zp, offset_t off, ssize_t resid, int ioflag,
+	zil_callback_t callback, void *callback_data)
 {
 	itx_wr_state_t write_state;
 	boolean_t slogging;
 	uintptr_t fsync_cnt;
 	ssize_t immediate_write_sz;
 
-	if (zil_replaying(zilog, tx) || zp->z_unlinked)
+	if (zil_replaying(zilog, tx) || zp->z_unlinked) {
+		if (callback != NULL)
+			callback(callback_data);
 		return;
+	}
 
 	immediate_write_sz = (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
 	    ? 0 : (ssize_t)zfs_immediate_write_sz;
@@ -518,6 +524,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		    (fsync_cnt == 0))
 			itx->itx_sync = B_FALSE;
 
+		itx->itx_callback = callback;
+		itx->itx_callback_data = callback_data;
 		zil_itx_assign(zilog, itx, tx);
 
 		off += len;
