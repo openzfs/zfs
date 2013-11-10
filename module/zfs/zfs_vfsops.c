@@ -1480,7 +1480,7 @@ EXPORT_SYMBOL(zfs_suspend_fs);
 int
 zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 {
-	int err;
+	int err, err2;
 	znode_t *zp;
 	uint64_t sa_obj = 0;
 
@@ -1537,8 +1537,8 @@ zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 	mutex_enter(&zsb->z_znodes_lock);
 	for (zp = list_head(&zsb->z_all_znodes); zp;
 	    zp = list_next(&zsb->z_all_znodes, zp)) {
-		err = zfs_rezget(zp);
-		if (err) {
+		err2 = zfs_rezget(zp);
+		if (err2) {
 			remove_inode_hash(ZTOI(zp));
 			zp->z_is_stale = B_TRUE;
 		}
