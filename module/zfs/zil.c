@@ -1184,6 +1184,8 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 	itx->itx_sod = lrsize; /* if write & WR_NEED_COPY will be increased */
 	itx->itx_lr.lrc_seq = 0;	/* defensive */
 	itx->itx_sync = B_TRUE;		/* default is synchronous */
+	itx->itx_callback = NULL;
+	itx->itx_callback_data = NULL;
 
 	return (itx);
 }
@@ -1209,6 +1211,8 @@ zil_itxg_clean(itxs_t *itxs)
 
 	list = &itxs->i_sync_list;
 	while ((itx = list_head(list)) != NULL) {
+		if (itx->itx_callback != NULL)
+			itx->itx_callback(itx->itx_callback_data);
 		list_remove(list, itx);
 		kmem_free(itx, offsetof(itx_t, itx_lr) +
 		    itx->itx_lr.lrc_reclen);
@@ -1219,6 +1223,8 @@ zil_itxg_clean(itxs_t *itxs)
 	while ((ian = avl_destroy_nodes(t, &cookie)) != NULL) {
 		list = &ian->ia_list;
 		while ((itx = list_head(list)) != NULL) {
+			if (itx->itx_callback != NULL)
+				itx->itx_callback(itx->itx_callback_data);
 			list_remove(list, itx);
 			kmem_free(itx, offsetof(itx_t, itx_lr) +
 			    itx->itx_lr.lrc_reclen);
@@ -1285,6 +1291,8 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 		mutex_exit(&itxg->itxg_lock);
 	}
 	while ((itx = list_head(&clean_list)) != NULL) {
+		if (itx->itx_callback != NULL)
+			itx->itx_callback(itx->itx_callback_data);
 		list_remove(&clean_list, itx);
 		kmem_free(itx, offsetof(itx_t, itx_lr) +
 		    itx->itx_lr.lrc_reclen);
@@ -1530,15 +1538,13 @@ zil_commit_writer(zilog_t *zilog)
 	}
 
 	DTRACE_PROBE1(zil__cw1, zilog_t *, zilog);
-	while ((itx = list_head(&zilog->zl_itx_commit_list))) {
+	for (itx = list_head(&zilog->zl_itx_commit_list); itx != NULL;
+	     itx = list_next(&zilog->zl_itx_commit_list, itx)) {
 		txg = itx->itx_lr.lrc_txg;
 		ASSERT(txg);
 
 		if (txg > spa_last_synced_txg(spa) || txg > spa_freeze_txg(spa))
 			lwb = zil_lwb_commit(zilog, itx, lwb);
-		list_remove(&zilog->zl_itx_commit_list, itx);
-		kmem_free(itx, offsetof(itx_t, itx_lr)
-		    + itx->itx_lr.lrc_reclen);
 	}
 	DTRACE_PROBE1(zil__cw2, zilog_t *, zilog);
 
@@ -1559,6 +1565,17 @@ zil_commit_writer(zilog_t *zilog)
 
 	if (error || lwb == NULL)
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
+
+	while ((itx = list_head(&zilog->zl_itx_commit_list))) {
+		txg = itx->itx_lr.lrc_txg;
+		ASSERT(txg);
+
+		if (itx->itx_callback != NULL)
+			itx->itx_callback(itx->itx_callback_data);
+		list_remove(&zilog->zl_itx_commit_list, itx);
+		kmem_free(itx, offsetof(itx_t, itx_lr)
+		    + itx->itx_lr.lrc_reclen);
+	}
 
 	mutex_enter(&zilog->zl_lock);
 

@@ -361,11 +361,15 @@ typedef enum {
 	WR_NUM_STATES	/* number of states */
 } itx_wr_state_t;
 
+typedef void (*zil_callback_t)(void *data);
+
 typedef struct itx {
 	list_node_t	itx_node;	/* linkage on zl_itx_list */
 	void		*itx_private;	/* type-specific opaque data */
 	itx_wr_state_t	itx_wr_state;	/* write state */
 	uint8_t		itx_sync;	/* synchronous transaction */
+	zil_callback_t	itx_callback;   /* Called when the itx is persistent */
+	void		*itx_callback_data; /* User data for the callback */
 	uint64_t	itx_sod;	/* record size on disk */
 	uint64_t	itx_oid;	/* object id */
 	lr_t		itx_lr;		/* common part of log record */
