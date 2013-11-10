@@ -166,7 +166,8 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 		    (u_longlong_t)ds->ds_object);
 
 		if (nvlist_lookup_nvlist(tmpholds, name, &tags) != 0) {
-			tags = fnvlist_alloc();
+			VERIFY0(nvlist_alloc(&tags, NV_UNIQUE_NAME,
+			    KM_PUSHPAGE));
 			fnvlist_add_boolean(tags, htag);
 			fnvlist_add_nvlist(tmpholds, name, tags);
 			fnvlist_free(tags);
@@ -242,7 +243,7 @@ dsl_dataset_user_hold_sync_one(dsl_dataset_t *ds, const char *htag,
 	nvlist_t *tmpholds;
 
 	if (minor != 0)
-		tmpholds = fnvlist_alloc();
+		VERIFY0(nvlist_alloc(&tmpholds, NV_UNIQUE_NAME, KM_PUSHPAGE));
 	else
 		tmpholds = NULL;
 	dsl_dataset_user_hold_sync_one_impl(tmpholds, ds, htag, minor, now, tx);
@@ -363,7 +364,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 	numholds = 0;
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	zapobj = ds->ds_phys->ds_userrefs_obj;
-	holds_found = fnvlist_alloc();
+	VERIFY0(nvlist_alloc(&holds_found, NV_UNIQUE_NAME, KM_PUSHPAGE));
 
 	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
@@ -600,8 +601,10 @@ dsl_dataset_user_release_impl(nvlist_t *holds, nvlist_t *errlist,
 
 	ddura.ddura_holds = holds;
 	ddura.ddura_errlist = errlist;
-	ddura.ddura_todelete = fnvlist_alloc();
-	ddura.ddura_chkholds = fnvlist_alloc();
+	VERIFY0(nvlist_alloc(&ddura.ddura_todelete, NV_UNIQUE_NAME,
+	    KM_PUSHPAGE));
+	VERIFY0(nvlist_alloc(&ddura.ddura_chkholds, NV_UNIQUE_NAME,
+	    KM_PUSHPAGE));
 
 	error = dsl_sync_task(pool, dsl_dataset_user_release_check,
 	    dsl_dataset_user_release_sync, &ddura,
