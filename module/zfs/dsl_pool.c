@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -57,6 +58,9 @@ unsigned long zfs_write_limit_override = 0;
 kmutex_t zfs_write_limit_lock;
 
 static pgcnt_t old_physmem = 0;
+
+hrtime_t zfs_throttle_delay = MSEC2NSEC(10);
+hrtime_t zfs_throttle_resolution = MSEC2NSEC(10);
 
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
@@ -417,7 +421,6 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * clean up our in-memory structures accumulated while syncing:
 	 *
 	 *  - move dead blocks from the pending deadlist to the on-disk deadlist
-	 *  - clean up zil records
 	 *  - release hold from dsl_dataset_dirty()
 	 */
 	while ((ds = list_remove_head(&synced_datasets))) {
@@ -512,12 +515,13 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * Weight the throughput calculation towards the current value:
 	 * 	thru = 3/4 old_thru + 1/4 new_thru
 	 *
-	 * Note: write_time is in nanosecs, so write_time/MICROSEC
-	 * yields millisecs
+	 * Note: write_time is in nanosecs while dp_throughput is expressed in
+	 * bytes per millisecond.
 	 */
 	ASSERT(zfs_write_limit_min > 0);
-	if (data_written > zfs_write_limit_min / 8 && write_time > MICROSEC) {
-		uint64_t throughput = data_written / (write_time / MICROSEC);
+	if (data_written > zfs_write_limit_min / 8 &&
+	    write_time > MSEC2NSEC(1)) {
+		uint64_t throughput = data_written / NSEC2MSEC(write_time);
 
 		if (dp->dp_throughput)
 			dp->dp_throughput = throughput / 4 +
@@ -617,8 +621,10 @@ dsl_pool_tempreserve_space(dsl_pool_t *dp, uint64_t space, dmu_tx_t *tx)
 	 * the caller 1 clock tick.  This will slow down the "fill"
 	 * rate until the sync process can catch up with us.
 	 */
-	if (reserved && reserved > (write_limit - (write_limit >> 3)))
-		txg_delay(dp, tx->tx_txg, 1);
+	if (reserved && reserved > (write_limit - (write_limit >> 3))) {
+		txg_delay(dp, tx->tx_txg, zfs_throttle_delay,
+		    zfs_throttle_resolution);
+	}
 
 	return (0);
 }
@@ -834,23 +840,34 @@ dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 	zap_cursor_t zc;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t zapobj = dp->dp_tmp_userrefs_obj;
+	nvlist_t *holds;
 
 	if (zapobj == 0)
 		return;
 	ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
 
+	holds = fnvlist_alloc();
+
 	for (zap_cursor_init(&zc, mos, zapobj);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
 		char *htag;
-		uint64_t dsobj;
+		nvlist_t *tags;
 
 		htag = strchr(za.za_name, '-');
 		*htag = '\0';
 		++htag;
-		dsobj = strtonum(za.za_name, NULL);
-		dsl_dataset_user_release_tmp(dp, dsobj, htag);
+		if (nvlist_lookup_nvlist(holds, za.za_name, &tags) != 0) {
+			tags = fnvlist_alloc();
+			fnvlist_add_boolean(tags, htag);
+			fnvlist_add_nvlist(holds, za.za_name, tags);
+			fnvlist_free(tags);
+		} else {
+			fnvlist_add_boolean(tags, htag);
+		}
 	}
+	dsl_dataset_user_release_tmp(dp, holds);
+	fnvlist_free(holds);
 	zap_cursor_fini(&zc);
 }
 

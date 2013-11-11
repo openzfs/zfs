@@ -112,6 +112,7 @@ typedef struct dsl_pool {
 
 	/*
 	 * Protects administrative changes (properties, namespace)
+	 *
 	 * It is only held for write in syncing context.  Therefore
 	 * syncing context does not need to ever have it for read, since
 	 * nobody else could possibly have it for write.

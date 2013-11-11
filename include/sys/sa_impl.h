@@ -150,6 +150,7 @@ struct sa_os {
 
 /*
  * header for all bonus and spill buffers.
+ *
  * The header has a fixed portion with a variable number
  * of "lengths" depending on the number of variable sized
  * attribues which are determined by the "layout number"
@@ -158,28 +159,26 @@ struct sa_os {
 #define	SA_MAGIC	0x2F505A  /* ZFS SA */
 typedef struct sa_hdr_phys {
 	uint32_t sa_magic;
-	uint16_t sa_layout_info;  /* Encoded with hdrsize and layout number */
+	/*
+	 * Encoded with hdrsize and layout number as follows:
+	 * 16      10       0
+	 * +--------+-------+
+	 * | hdrsz  |layout |
+	 * +--------+-------+
+	 *
+	 * Bits 0-10 are the layout number
+	 * Bits 11-16 are the size of the header.
+	 * The hdrsize is the number * 8
+	 *
+	 * For example.
+	 * hdrsz of 1 ==> 8 byte header
+	 *          2 ==> 16 byte header
+	 *
+	 */
+	uint16_t sa_layout_info;
 	uint16_t sa_lengths[1];	/* optional sizes for variable length attrs */
 	/* ... Data follows the lengths.  */
 } sa_hdr_phys_t;
-
-/*
- * sa_hdr_phys -> sa_layout_info
- *
- * 16      10       0
- * +--------+-------+
- * | hdrsz  |layout |
- * +--------+-------+
- *
- * Bits 0-10 are the layout number
- * Bits 11-16 are the size of the header.
- * The hdrsize is the number * 8
- *
- * For example.
- * hdrsz of 1 ==> 8 byte header
- *          2 ==> 16 byte header
- *
- */
 
 #define	SA_HDR_LAYOUT_NUM(hdr) BF32_GET(hdr->sa_layout_info, 0, 10)
 #define	SA_HDR_SIZE(hdr) BF32_GET_SB(hdr->sa_layout_info, 10, 6, 3, 0)

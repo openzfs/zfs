@@ -528,7 +528,7 @@ main(int argc, char **argv)
 			case EBUSY:
 				(void) fprintf(stderr, gettext("filesystem "
 				    "'%s' is already mounted\n"), dataset);
-				return (MOUNT_SYSERR);
+				return (MOUNT_BUSY);
 			default:
 				(void) fprintf(stderr, gettext("filesystem "
 				    "'%s' can not be mounted due to error "

@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -148,6 +149,16 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(uint64_t, uint64_t, uint64_t))
 		    vs->vs_write_errors +
 		    vs->vs_checksum_errors))
 			return (B_TRUE);
+	}
+
+	/*
+	 * Check any L2 cache devs
+	 */
+	if (nvlist_lookup_nvlist_array(vdev, ZPOOL_CONFIG_L2CACHE, &child,
+	    &children) == 0) {
+		for (c = 0; c < children; c++)
+			if (find_vdev_problem(child[c], func))
+				return (B_TRUE);
 	}
 
 	return (B_FALSE);

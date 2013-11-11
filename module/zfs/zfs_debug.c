@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -41,6 +41,8 @@ int zfs_flags = 0;
  * zfs_recover can be set to nonzero to attempt to recover from
  * otherwise-fatal errors, typically caused by on-disk corruption.  When
  * set, calls to zfs_panic_recover() will turn into warning messages.
+ * This should only be used as a last resort, as it typically results
+ * in leaked space, or worse.
  */
 int zfs_recover = 0;
 
@@ -139,6 +141,19 @@ zfs_dbgmsg(const char *fmt, ...)
 		kmem_free(zdm, size);
 		zfs_dbgmsg_size -= size;
 	}
+	mutex_exit(&zfs_dbgmsgs_lock);
+}
+
+void
+zfs_dbgmsg_print(const char *tag)
+{
+	zfs_dbgmsg_t *zdm;
+
+	(void) printf("ZFS_DBGMSG(%s):\n", tag);
+	mutex_enter(&zfs_dbgmsgs_lock);
+	for (zdm = list_head(&zfs_dbgmsgs); zdm;
+	    zdm = list_next(&zfs_dbgmsgs, zdm))
+		(void) printf("%s\n", zdm->zdm_msg);
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
 #endif

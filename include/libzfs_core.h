@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef	_LIBZFS_CORE_H
@@ -58,6 +58,7 @@ int lzc_send_space(const char *snapname, const char *fromsnap,
 
 boolean_t lzc_exists(const char *dataset);
 
+int lzc_rollback(const char *fsname, char *snapnamebuf, int snapnamelen);
 
 #ifdef	__cplusplus
 }

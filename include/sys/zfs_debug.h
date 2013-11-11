@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
@@ -95,6 +95,7 @@ extern void zfs_dbgmsg_fini(void);
 #define        zfs_dbgmsg(...) dprintf(__VA_ARGS__)
 #else
 extern void zfs_dbgmsg(const char *fmt, ...);
+extern void zfs_dbgmsg_print(const char *tag);
 #endif
 
 #ifndef _KERNEL

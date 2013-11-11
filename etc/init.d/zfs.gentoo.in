@@ -5,7 +5,7 @@
 
 if [ -z "$init" ]; then
     # Not interactive
-    grep -Eqi 'zfs=off|zfs=no' /proc/cmdline && exit 3
+    grep -qE '(^|[^\\](\\\\)* )zfs=(off|no)( |$)' /proc/cmdline && exit 3
 fi
 
 depend()

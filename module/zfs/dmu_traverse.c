@@ -361,7 +361,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		(void) arc_buf_remove_ref(buf, &buf);
 
 post:
-	if (err == 0 && lasterr == 0 && (td->td_flags & TRAVERSE_POST)) {
+	if (err == 0 && (td->td_flags & TRAVERSE_POST)) {
 		err = td->td_func(td->td_spa, NULL, bp, zb, dnp, td->td_arg);
 		if (err == ERESTART)
 			pause = B_TRUE;
