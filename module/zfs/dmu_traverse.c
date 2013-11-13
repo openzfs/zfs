@@ -61,6 +61,8 @@ typedef struct traverse_data {
 	void *td_arg;
 } traverse_data_t;
 
+#define	TD_HARD(td)	(td->td_flags & TRAVERSE_HARD)
+
 static int traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
     uint64_t objset, uint64_t object);
 static void prefetch_dnode_metadata(traverse_data_t *td, const dnode_phys_t *,
@@ -208,11 +210,8 @@ static int
 traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
     const blkptr_t *bp, const zbookmark_t *zb)
 {
-	zbookmark_t czb;
 	int err = 0, lasterr = 0;
 	arc_buf_t *buf = NULL;
-	prefetch_data_t *pd = td->td_pfd;
-	boolean_t hard = td->td_flags & TRAVERSE_HARD;
 	boolean_t pause = B_FALSE;
 
 	switch (resume_skip_check(td, dnp, zb)) {
@@ -234,16 +233,17 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 	if (bp->blk_birth <= td->td_min_txg)
 		return (0);
 
-	if (pd && !pd->pd_exited &&
-	    ((pd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
+	if (td->td_pfd && !td->td_pfd->pd_exited &&
+	    ((td->td_pfd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
 	    BP_GET_TYPE(bp) == DMU_OT_DNODE || BP_GET_LEVEL(bp) > 0)) {
-		mutex_enter(&pd->pd_mtx);
-		ASSERT(pd->pd_blks_fetched >= 0);
-		while (pd->pd_blks_fetched == 0 && !pd->pd_exited)
-			cv_wait(&pd->pd_cv, &pd->pd_mtx);
-		pd->pd_blks_fetched--;
-		cv_broadcast(&pd->pd_cv);
-		mutex_exit(&pd->pd_mtx);
+		mutex_enter(&td->td_pfd->pd_mtx);
+		ASSERT(td->td_pfd->pd_blks_fetched >= 0);
+		while (td->td_pfd->pd_blks_fetched == 0 &&
+		    !td->td_pfd->pd_exited)
+			cv_wait(&td->td_pfd->pd_cv, &td->td_pfd->pd_mtx);
+		td->td_pfd->pd_blks_fetched--;
+		cv_broadcast(&td->td_pfd->pd_cv);
+		mutex_exit(&td->td_pfd->pd_mtx);
 	}
 
 	if (td->td_flags & TRAVERSE_PRE) {
@@ -259,39 +259,45 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 	if (BP_GET_LEVEL(bp) > 0) {
 		uint32_t flags = ARC_WAIT;
-		int i;
-		blkptr_t *cbp;
-		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
+		int32_t i;
+		int32_t epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
+		zbookmark_t *czb;
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err != 0)
 			return (err);
-		cbp = buf->b_data;
+
+		czb = kmem_alloc(sizeof (zbookmark_t), KM_PUSHPAGE);
 
 		for (i = 0; i < epb; i++) {
-			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
+			SET_BOOKMARK(czb, zb->zb_objset, zb->zb_object,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
-			traverse_prefetch_metadata(td, &cbp[i], &czb);
+			traverse_prefetch_metadata(td,
+			    &((blkptr_t *)buf->b_data)[i], czb);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
+			SET_BOOKMARK(czb, zb->zb_objset, zb->zb_object,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
-			err = traverse_visitbp(td, dnp, &cbp[i], &czb);
+			err = traverse_visitbp(td, dnp,
+			    &((blkptr_t *)buf->b_data)[i], czb);
 			if (err != 0) {
-				if (!hard)
+				if (!TD_HARD(td))
 					break;
 				lasterr = err;
 			}
 		}
+
+		kmem_free(czb, sizeof (zbookmark_t));
+
 	} else if (BP_GET_TYPE(bp) == DMU_OT_DNODE) {
 		uint32_t flags = ARC_WAIT;
-		int i;
-		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
+		int32_t i;
+		int32_t epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
@@ -309,7 +315,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			err = traverse_dnode(td, &dnp[i], zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 			if (err != 0) {
-				if (!hard)
+				if (!TD_HARD(td))
 					break;
 				lasterr = err;
 			}
@@ -337,7 +343,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 		err = traverse_dnode(td, dnp, zb->zb_objset,
 		    DMU_META_DNODE_OBJECT);
-		if (err && hard) {
+		if (err && TD_HARD(td)) {
 			lasterr = err;
 			err = 0;
 		}
@@ -346,7 +352,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			err = traverse_dnode(td, dnp, zb->zb_objset,
 			    DMU_USERUSED_OBJECT);
 		}
-		if (err && hard) {
+		if (err && TD_HARD(td)) {
 			lasterr = err;
 			err = 0;
 		}
@@ -369,7 +375,7 @@ post:
 
 	if (pause && td->td_resume != NULL) {
 		ASSERT3U(err, ==, ERESTART);
-		ASSERT(!hard);
+		ASSERT(!TD_HARD(td));
 		traverse_pause(td, zb);
 	}
 
@@ -400,13 +406,12 @@ traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
 {
 	int j, err = 0, lasterr = 0;
 	zbookmark_t czb;
-	boolean_t hard = (td->td_flags & TRAVERSE_HARD);
 
 	for (j = 0; j < dnp->dn_nblkptr; j++) {
 		SET_BOOKMARK(&czb, objset, object, dnp->dn_nlevels - 1, j);
 		err = traverse_visitbp(td, dnp, &dnp->dn_blkptr[j], &czb);
 		if (err != 0) {
-			if (!hard)
+			if (!TD_HARD(td))
 				break;
 			lasterr = err;
 		}
@@ -416,7 +421,7 @@ traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
 		SET_BOOKMARK(&czb, objset, object, 0, DMU_SPILL_BLKID);
 		err = traverse_visitbp(td, dnp, &dnp->dn_spill, &czb);
 		if (err != 0) {
-			if (!hard)
+			if (!TD_HARD(td))
 				return (err);
 			lasterr = err;
 		}
@@ -498,9 +503,9 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	 */
 	ASSERT(resume == NULL || !(flags & TRAVERSE_PREFETCH_DATA));
 
-	td = kmem_alloc(sizeof(traverse_data_t), KM_PUSHPAGE);
-	pd = kmem_zalloc(sizeof(prefetch_data_t), KM_PUSHPAGE);
-	czb = kmem_alloc(sizeof(zbookmark_t), KM_PUSHPAGE);
+	td = kmem_alloc(sizeof (traverse_data_t), KM_PUSHPAGE);
+	pd = kmem_zalloc(sizeof (prefetch_data_t), KM_PUSHPAGE);
+	czb = kmem_alloc(sizeof (zbookmark_t), KM_PUSHPAGE);
 
 	td->td_spa = spa;
 	td->td_objset = objset;
@@ -554,9 +559,9 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	mutex_destroy(&pd->pd_mtx);
 	cv_destroy(&pd->pd_cv);
 
-	kmem_free(czb, sizeof(zbookmark_t));
-	kmem_free(pd, sizeof(struct prefetch_data));
-	kmem_free(td, sizeof(struct traverse_data));
+	kmem_free(czb, sizeof (zbookmark_t));
+	kmem_free(pd, sizeof (struct prefetch_data));
+	kmem_free(td, sizeof (struct traverse_data));
 
 	return (err);
 }
