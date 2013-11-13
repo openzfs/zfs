@@ -310,9 +310,9 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 		dnode_byteswap(dnp);
 
 		if (dnp->dn_type != DMU_OT_NONE)
-			i += dnp->dn_szsec * DNODE_SIZE;
+			i += dnp->dn_szsec * DNODE_MIN_SIZE;
 		else
-			i += 1 * DNODE_SIZE;
+			i += DNODE_MIN_SIZE;
 	}
 }
 
@@ -1090,16 +1090,20 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int sectors,
 
 	idx = object & (epb-1);
 
-	if (idx + sectors > epb) {
-		dbuf_rele(db, FTAG);
-		return (ENOSPC);
-	}
-
-	for (i = 0; i < sectors; i++) {
-		dnode_phys_t *phys = (dnode_phys_t *)db->db.db_data+idx+i;
-		if (phys->dn_type != DMU_OT_NONE) {
+	if (flag & DNODE_MUST_BE_FREE) {
+		if (idx + sectors > epb) {
 			dbuf_rele(db, FTAG);
 			return (ENOSPC);
+		}
+
+		for (i = 0; i < sectors; i++) {
+			dnode_phys_t *phys =
+			    (dnode_phys_t *)db->db.db_data + idx + i;
+
+			if (phys->dn_type != DMU_OT_NONE) {
+				dbuf_rele(db, FTAG);
+				return (ENOSPC);
+			}
 		}
 	}
 
@@ -1915,11 +1919,12 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 				break;
 
 			if (dnp->dn_type != DMU_OT_NONE) {
-				i += (dnp->dn_szsec * DNODE_SIZE) * inc;
-				*offset += (dnp->dn_szsec * DNODE_SIZE) * inc;
+				i += (dnp->dn_szsec * DNODE_MIN_SIZE) * inc;
+				*offset +=
+				    (dnp->dn_szsec * DNODE_MIN_SIZE) * inc;
 			} else {
-				i += (1 * DNODE_SIZE) * inc;
-				*offset += (1 * DNODE_SIZE) * inc;
+				i += DNODE_MIN_SIZE * inc;
+				*offset += DNODE_MIN_SIZE * inc;
 			}
 		}
 		if (i < 0 || i == (blkfill * (1ULL << DNODE_SHIFT)))

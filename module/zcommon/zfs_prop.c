@@ -389,7 +389,7 @@ zfs_prop_init(void)
 	    SPA_MAXBLOCKSIZE, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "512 to 128k, power of 2", "RECSIZE");
 	zprop_register_number(ZFS_PROP_DNODESIZE, "dnodesize",
-	    DNODE_SIZE, PROP_INHERIT,
+	    DNODE_MIN_SIZE, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "512 to 16k, multiple of 512", "DNODESIZE");
 
 	/* hidden properties */

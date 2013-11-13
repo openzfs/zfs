@@ -38,11 +38,9 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int dnodesize,
 	dnode_t *dn = NULL;
 	int restarted = B_FALSE, sectors;
 
-	ASSERT3S(dnodesize, >=, 0);
-	ASSERT0(dnodesize % DNODE_SIZE);
-
-	if (dnodesize == 0)
-		dnodesize = os->os_dnode_sz;
+	ASSERT3S(dnodesize, >=, DNODE_MIN_SIZE);
+	ASSERT3S(dnodesize, <=, DNODE_MAX_SIZE);
+	ASSERT0(dnodesize % DNODE_MIN_SIZE);
 
 	sectors = dnodesize >> DNODE_SHIFT;
 
@@ -97,7 +95,7 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	return (dmu_object_alloc_impl(os,
-	    ot, 0, blocksize, bonustype, bonuslen, tx));
+	    ot, os->os_dnode_sz, blocksize, bonustype, bonuslen, tx));
 }
 
 int
@@ -108,11 +106,9 @@ dmu_object_claim_impl(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	dnode_t *dn;
 	int err, sectors;
 
-	ASSERT3S(dnodesize, >=, 0);
-	ASSERT0(dnodesize % DNODE_SIZE);
-
-	if (dnodesize == 0)
-		dnodesize = os->os_dnode_sz;
+	ASSERT3S(dnodesize, >=, DNODE_MIN_SIZE);
+	ASSERT3S(dnodesize, <=, DNODE_MAX_SIZE);
+	ASSERT0(dnodesize % DNODE_MIN_SIZE);
 
 	sectors = dnodesize >> DNODE_SHIFT;
 
@@ -135,8 +131,13 @@ int
 dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
+	/* TODO: We should really be capturing the dnodesize used during
+	 * creation time in the ZIL log record, and then replaying the
+	 * operation with that specific dnodesize. Until that is
+	 * implemented, just use the minimum dnode size which _should_
+	 * be safe, albeit not ideal. */
 	return (dmu_object_claim_impl(os,
-	    object, ot, 0, blocksize, bonustype, bonuslen, tx));
+	    object, ot, DNODE_MIN_SIZE, blocksize, bonustype, bonuslen, tx));
 }
 
 int
@@ -227,6 +228,12 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 
 	error = dnode_hold_impl(os, *objectp, DNODE_MUST_BE_ALLOCATED, 0,
 	    FTAG, &dn);
+
+	/* TODO: If the above dnode_hold_impl call fails, we need to
+	 * increment *objectp to prevent an infinite loop situation
+	 * occurring in dnode_object_alloc. The only safe way to do
+	 * this, since we can't get a hold on the current object index's
+	 * dnode, is to increment to beginning of the next dnode block. */
 	if (error && !(error == EINVAL && *objectp == 0))
 		goto out;
 

@@ -2628,9 +2628,9 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 
 				if (dnp->dn_type != DMU_OT_NONE) {
 					fill++;
-					i += dnp->dn_szsec * DNODE_SIZE;
+					i += dnp->dn_szsec * DNODE_MIN_SIZE;
 				} else {
-					i += 1 * DNODE_SIZE;
+					i += DNODE_MIN_SIZE;
 				}
 			}
 		} else {

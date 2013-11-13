@@ -79,6 +79,8 @@ extern "C" {
  * Derived constants.
  */
 #define	DNODE_SIZE		(1 << DNODE_SHIFT)
+#define	DNODE_MIN_SIZE		(1 << DNODE_SHIFT)
+#define	DNODE_MAX_SIZE		(1 << DNODE_BLOCK_SHIFT)
 #define	DNODE_BLOCK_SIZE	(1 << DNODE_BLOCK_SHIFT)
 #define	DN_MAX_NBLKPTR	((DNODE_SIZE - DNODE_CORE_SIZE) >> SPA_BLKPTRSHIFT)
 #define	DN_MAX_BONUSLEN	(DNODE_SIZE - DNODE_CORE_SIZE - (1 << SPA_BLKPTRSHIFT))
@@ -132,7 +134,7 @@ typedef struct dnode_phys {
 	uint16_t dn_datablkszsec;	/* data block size in 512b sectors */
 	uint16_t dn_bonuslen;		/* length of dn_bonus */
 	uint8_t	dn_szsec;		/* on-disk dnode size in 512b sectors */
-	uint8_t dn_pad2[1];
+	uint8_t dn_pad2[3];
 
 	/* accounting is protected by dn_dirty_mtx */
 	uint64_t dn_maxblkid;		/* largest allocated block ID */
@@ -169,7 +171,6 @@ typedef struct dnode {
 	 */
 	dmu_object_type_t dn_type;	/* object type */
 	uint16_t dn_bonuslen;		/* bonus length */
-	uint8_t dn_szsec;		/* on-disk dnode size in 512b sectors */
 	uint8_t dn_bonustype;		/* bonus type */
 	uint8_t dn_nblkptr;		/* number of blkptrs (immutable) */
 	uint8_t dn_checksum;		/* ZIO_CHECKSUM type */
@@ -181,6 +182,7 @@ typedef struct dnode {
 	uint16_t dn_datablkszsec;	/* in 512b sectors */
 	uint32_t dn_datablksz;		/* in bytes */
 	uint64_t dn_maxblkid;
+	uint8_t dn_szsec;		/* on-disk dnode size in 512b sectors */
 	uint8_t dn_next_nblkptr[TXG_SIZE];
 	uint8_t dn_next_nlevels[TXG_SIZE];
 	uint8_t dn_next_indblkshift[TXG_SIZE];

@@ -85,6 +85,7 @@ struct objset {
 	zilog_t *os_zil;
 
 	/* can change, under dsl_dir's locks: */
+	uint16_t os_dnode_sz; /* dnode size for new objects */
 	uint8_t os_checksum;
 	uint8_t os_compress;
 	uint8_t os_copies;
@@ -94,7 +95,6 @@ struct objset {
 	uint8_t os_primary_cache;
 	uint8_t os_secondary_cache;
 	uint8_t os_sync;
-	uint16_t os_dnode_sz; /* dnode size for new objects */
 
 	/* no lock needed: */
 	struct dmu_tx *os_synctx; /* XXX sketchy */

@@ -233,11 +233,12 @@ dnodesz_changed_cb(void *arg, uint64_t newval)
 {
 	objset_t *os = arg;
 
-	if (newval < DNODE_SIZE || newval > DNODE_BLOCK_SIZE ||
-	    newval % DNODE_SIZE != 0)
-		newval = DNODE_SIZE;
-
-	os->os_dnode_sz = newval;
+	if (newval < DNODE_MIN_SIZE ||
+	    newval > DNODE_MAX_SIZE ||
+	    newval % DNODE_MIN_SIZE != 0)
+		os->os_dnode_sz = DNODE_MIN_SIZE;
+	else
+		os->os_dnode_sz = newval;
 }
 
 static void
