@@ -5590,7 +5590,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	uint_t vecnum;
 	int error, rc, len, flag = 0;
 	const zfs_ioc_vec_t *vec;
-	char saved_poolname[MAXNAMELEN];
+	char *saved_poolname;
 	nvlist_t *innvl = NULL;
 
 	vecnum = cmd - ZFS_IOC_FIRST;
@@ -5599,6 +5599,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	vec = &zfs_ioc_vec[vecnum];
 
 	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP | KM_NODEBUG);
+	saved_poolname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 
 	error = ddi_copyin((void *)arg, zc, sizeof (zfs_cmd_t), flag);
 	if (error != 0) {
@@ -5718,6 +5719,7 @@ out:
 		(void) tsd_set(zfs_allow_log_key, strdup(saved_poolname));
 	}
 
+	kmem_free(saved_poolname, MAXNAMELEN);
 	kmem_free(zc, sizeof (zfs_cmd_t));
 	return (-error);
 }
