@@ -13,7 +13,7 @@ ExclusiveArch:  i386 i686 x86_64
 # May build but untested on ppc/ppc64
 ExcludeArch:    ppc ppc64
 
-Requires:       %{name}-kmod >= %{version}
+Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 
 %description
