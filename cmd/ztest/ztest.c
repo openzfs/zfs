@@ -321,6 +321,7 @@ ztest_func_t ztest_dmu_prealloc;
 ztest_func_t ztest_fzap;
 ztest_func_t ztest_dmu_snapshot_create_destroy;
 ztest_func_t ztest_dsl_prop_get_set;
+ztest_func_t ztest_dsl_dnodesize_get_set;
 ztest_func_t ztest_spa_prop_get_set;
 ztest_func_t ztest_spa_create_destroy;
 ztest_func_t ztest_fault_inject;
@@ -356,6 +357,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_dmu_read_write_zcopy,		1,	&zopt_often	},
 	{ ztest_dmu_objset_create_destroy,	1,	&zopt_often	},
 	{ ztest_dsl_prop_get_set,		1,	&zopt_often	},
+	{ ztest_dsl_dnodesize_get_set,		1,	&zopt_always	},
 	{ ztest_spa_prop_get_set,		1,	&zopt_sometimes	},
 #if 0
 	{ ztest_dmu_prealloc,			1,	&zopt_sometimes	},
@@ -3587,6 +3589,8 @@ ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 	int size;
 	int b;
 
+	ztest_dsl_dnodesize_get_set(zd, id);
+
 	size = sizeof(ztest_od_t) * OD_ARRAY_SIZE;
 	od = umem_alloc(size, UMEM_NOFAIL);
 	batchsize = OD_ARRAY_SIZE;
@@ -4710,6 +4714,42 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 	dmu_tx_commit(tx);
 
 	umem_free(od, sizeof(ztest_od_t));
+}
+
+/* ARGSUSED */
+void
+ztest_dsl_dnodesize_get_set(ztest_ds_t *zd, uint64_t id)
+{
+	const char *propname = zfs_prop_to_name(ZFS_PROP_DNODESIZE);
+	char *setpoint;
+	uint64_t rand, size, curval;
+	int error;
+
+	rand = ztest_random(DNODE_MAX_SIZE - DNODE_MIN_SIZE);
+	size = (DNODE_MIN_SIZE + rand) - (rand % DNODE_MIN_SIZE);
+
+	ASSERT3S(size, >=, DNODE_MIN_SIZE);
+	ASSERT3S(size, <=, DNODE_MAX_SIZE);
+	ASSERT0(size % DNODE_MIN_SIZE);
+
+	error = dsl_prop_set_int(zd->zd_name, propname,
+	    (ztest_random(2) ? ZPROP_SRC_NONE : ZPROP_SRC_LOCAL), size);
+
+	if (error == ENOSPC) {
+		ztest_record_enospc(FTAG);
+		return;
+	} else {
+		ASSERT0(error);
+	}
+
+	setpoint = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	VERIFY0(dsl_prop_get_integer(zd->zd_name, propname, &curval, setpoint));
+
+	if (ztest_opts.zo_verbose >= 6)
+		(void) printf("%s %s = %lu at '%s'\n",
+		    zd->zd_name, propname, curval, setpoint);
+
+	umem_free(setpoint, MAXPATHLEN);
 }
 
 /* ARGSUSED */
