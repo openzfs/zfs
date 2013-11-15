@@ -32,6 +32,7 @@
 #include <linux/exportfs.h>
 #include <linux/writeback.h>
 #include <linux/falloc.h>
+#include <linux/task_io_accounting_ops.h>
 
 /* zpl_inode.c */
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
