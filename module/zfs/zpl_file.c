@@ -170,6 +170,7 @@ zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
      uio_seg_t segment, int flags, cred_t *cr)
 {
 	int error;
+	ssize_t read;
 	struct iovec iov;
 	uio_t uio;
 
@@ -187,7 +188,10 @@ zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 	if (error < 0)
 		return (error);
 
-	return (len - uio.uio_resid);
+	read = len - uio.uio_resid;
+	task_io_account_read(read);
+
+	return (read);
 }
 
 static ssize_t
@@ -213,6 +217,7 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
     uio_seg_t segment, int flags, cred_t *cr)
 {
 	int error;
+	ssize_t wrote;
 	struct iovec iov;
 	uio_t uio;
 
@@ -230,7 +235,10 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 	if (error < 0)
 		return (error);
 
-	return (len - uio.uio_resid);
+	wrote = len - uio.uio_resid;
+	task_io_account_write(wrote);
+
+	return (wrote);
 }
 
 static ssize_t
