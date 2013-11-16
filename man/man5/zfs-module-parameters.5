@@ -1,0 +1,1004 @@
+'\" te
+.\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
+.\" The contents of this file are subject to the terms of the Common Development
+.\" and Distribution License (the "License").  You may not use this file except
+.\" in compliance with the License. You can obtain a copy of the license at
+.\" usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
+.\"
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License. When distributing Covered Code, include this
+.\" CDDL HEADER in each file and include the License file at
+.\" usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this
+.\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
+.\" own identifying information:
+.\" Portions Copyright [yyyy] [name of copyright owner]
+.TH ZFS-MODULE-PARAMETERS 5 "Nov 16, 2013"
+.SH NAME
+zfs\-module\-parameters \- ZFS module parameters
+.SH DESCRIPTION
+.sp
+.LP
+Description of the different parameters to the ZFS module.
+
+.SS "Module parameters"
+.sp
+.LP
+
+.sp
+.ne 2
+.na
+\fBl2arc_feed_again\fR (int)
+.ad
+.RS 12n
+Turbo L2ARC warmup
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_feed_min_ms\fR (ulong)
+.ad
+.RS 12n
+Min feed interval in milliseconds
+.sp
+Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_feed_secs\fR (ulong)
+.ad
+.RS 12n
+Seconds between L2ARC writing
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_headroom\fR (ulong)
+.ad
+.RS 12n
+Number of max device writes to precache
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_headroom_boost\fR (ulong)
+.ad
+.RS 12n
+Compressed l2arc_headroom multiplier
+.sp
+Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_nocompress\fR (int)
+.ad
+.RS 12n
+Skip compressing L2ARC buffers
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_noprefetch\fR (int)
+.ad
+.RS 12n
+Skip caching prefetched buffers
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_norw\fR (int)
+.ad
+.RS 12n
+No reads during writes
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_write_boost\fR (ulong)
+.ad
+.RS 12n
+Extra write bytes during device warmup
+.sp
+Default value: \fB8,388,608\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_write_max\fR (ulong)
+.ad
+.RS 12n
+Max write bytes per interval
+.sp
+Default value: \fB8,388,608\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_debug\fR (int)
+.ad
+.RS 12n
+Keep space maps in core to verify frees
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_config_path\fR (charp)
+.ad
+.RS 12n
+SPA config file
+.sp
+Default value: \fB/etc/zfs/zpool.cache\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_array_rd_sz\fR (ulong)
+.ad
+.RS 12n
+Number of bytes in a array_read
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_block_cap\fR (uint)
+.ad
+.RS 12n
+Max number of blocks to fetch at a time
+.sp
+Default value: \fB256\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_max_streams\fR (uint)
+.ad
+.RS 12n
+Max number of streams per zfetch
+.sp
+Default value: \fB8\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_min_sec_reap\fR (uint)
+.ad
+.RS 12n
+Min time before stream reclaim
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_grow_retry\fR (int)
+.ad
+.RS 12n
+Seconds before growing arc size
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_max\fR (ulong)
+.ad
+.RS 12n
+Max arc size
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_memory_throttle_disable\fR (int)
+.ad
+.RS 12n
+Disable memory throttle
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_limit\fR (ulong)
+.ad
+.RS 12n
+Meta limit for arc size
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_prune\fR (int)
+.ad
+.RS 12n
+Bytes of meta data to prune
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_min\fR (ulong)
+.ad
+.RS 12n
+Min arc size
+.sp
+Default value: \fB100\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_min_prefetch_lifespan\fR (int)
+.ad
+.RS 12n
+Min life of prefetch block
+.sp
+Default value: \fB100\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_p_min_shift\fR (int)
+.ad
+.RS 12n
+arc_c shift to calc min/max arc_p
+.sp
+Default value: \fB4\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_shrink_shift\fR (int)
+.ad
+.RS 12n
+log2(fraction of arc to reclaim)
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_autoimport_disable\fR (int)
+.ad
+.RS 12n
+Disable pool import at module load
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dbuf_state_index\fR (int)
+.ad
+.RS 12n
+Calculate arc header index
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_enabled\fR (int)
+.ad
+.RS 12n
+Enable deadman timer
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_synctime\fR (ulong)
+.ad
+.RS 12n
+Expire in units of zfs_txg_synctime_ms
+.sp
+Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dedup_prefetch\fR (int)
+.ad
+.RS 12n
+Enable prefetching dedup-ed blks
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_disable_dup_eviction\fR (int)
+.ad
+.RS 12n
+Disable duplicate buffer eviction
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_expire_snapshot\fR (int)
+.ad
+.RS 12n
+Seconds to expire .zfs/snapshot
+.sp
+Default value: \fB300\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_flags\fR (int)
+.ad
+.RS 12n
+Set additional debugging flags
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_free_min_time_ms\fR (int)
+.ad
+.RS 12n
+Min millisecs to free per txg
+.sp
+Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_immediate_write_sz\fR (long)
+.ad
+.RS 12n
+Largest data block to write to zil
+.sp
+Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_mdcomp_disable\fR (int)
+.ad
+.RS 12n
+Disable meta data compression
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_no_scrub_io\fR (int)
+.ad
+.RS 12n
+Set for no scrub I/O
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_no_scrub_prefetch\fR (int)
+.ad
+.RS 12n
+Set for no scrub prefetching
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_no_write_throttle\fR (int)
+.ad
+.RS 12n
+Disable write throttling
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_nocacheflush\fR (int)
+.ad
+.RS 12n
+Disable cache flushes
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_nopwrite_enabled\fR (int)
+.ad
+.RS 12n
+Enable NOP writes
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_pd_blks_max\fR (int)
+.ad
+.RS 12n
+Max number of blocks to prefetch
+.sp
+Default value: \fB100\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_prefetch_disable\fR (int)
+.ad
+.RS 12n
+Disable all ZFS prefetching
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_read_chunk_size\fR (long)
+.ad
+.RS 12n
+Bytes to read per chunk
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_read_history\fR (int)
+.ad
+.RS 12n
+Historic statistics for the last N reads
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_read_history_hits\fR (int)
+.ad
+.RS 12n
+Include cache hits in read history
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_recover\fR (int)
+.ad
+.RS 12n
+Set to attempt to recover from fatal errors. This should only be used as a
+last resort, as it typically results in leaked space, or worse.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_resilver_delay\fR (int)
+.ad
+.RS 12n
+Number of ticks to delay resilver
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_resilver_min_time_ms\fR (int)
+.ad
+.RS 12n
+Min millisecs to resilver per txg
+.sp
+Default value: \fB3,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_idle\fR (int)
+.ad
+.RS 12n
+Idle window in clock ticks
+.sp
+Default value: \fB50\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_min_time_ms\fR (int)
+.ad
+.RS 12n
+Min millisecs to scrub per txg
+.sp
+Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scrub_delay\fR (int)
+.ad
+.RS 12n
+Number of ticks to delay scrub
+.sp
+Default value: \fB4\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_sync_pass_deferred_free\fR (int)
+.ad
+.RS 12n
+Defer frees starting in this pass
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_sync_pass_dont_compress\fR (int)
+.ad
+.RS 12n
+Don't compress starting in this pass
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_sync_pass_rewrite\fR (int)
+.ad
+.RS 12n
+Rewrite new bps starting in this pass
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_top_maxinflight\fR (int)
+.ad
+.RS 12n
+Max I/Os per top-level
+.sp
+Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_txg_history\fR (int)
+.ad
+.RS 12n
+Historic statistics for the last N txgs
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_txg_synctime_ms\fR (int)
+.ad
+.RS 12n
+Target milliseconds between txg sync
+.sp
+Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_txg_timeout\fR (int)
+.ad
+.RS 12n
+Max seconds worth of delta per txg
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_aggregation_limit\fR (int)
+.ad
+.RS 12n
+Max vdev I/O aggregation size
+.sp
+Default value: \fB131,072\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_cache_bshift\fR (int)
+.ad
+.RS 12n
+Shift size to inflate reads too
+.sp
+Default value: \fB16\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_cache_max\fR (int)
+.ad
+.RS 12n
+Inflate reads small than max
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_cache_size\fR (int)
+.ad
+.RS 12n
+Total size of the per-disk cache
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_max_pending\fR (int)
+.ad
+.RS 12n
+Max pending per-vdev I/Os
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_min_pending\fR (int)
+.ad
+.RS 12n
+Min pending per-vdev I/Os
+.sp
+Default value: \fB4\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_switch_us\fR (int)
+.ad
+.RS 12n
+Switch mirrors every N usecs
+.sp
+Default value: \fB10,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_ramp_rate\fR (int)
+.ad
+.RS 12n
+Exponential I/O issue ramp-up rate
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_read_gap_limit\fR (int)
+.ad
+.RS 12n
+Aggregate read I/O over gap
+.sp
+Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_scheduler\fR (charp)
+.ad
+.RS 12n
+I/O scheduler
+.sp
+Default value: \fBnoop\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_time_shift\fR (int)
+.ad
+.RS 12n
+Deadline time shift for vdev I/O
+.sp
+Default value: \fB29\fR (each bucket is 0.537 seconds).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_write_gap_limit\fR (int)
+.ad
+.RS 12n
+Aggregate write I/O over gap
+.sp
+Default value: \fB4,096\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_write_limit_inflated\fR (ulong)
+.ad
+.RS 12n
+Inflated txg write limit
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_write_limit_max\fR (ulong)
+.ad
+.RS 12n
+Max txg write limit
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_write_limit_min\fR (ulong)
+.ad
+.RS 12n
+Min txg write limit
+.sp
+Default value: \fB33,554,432\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_write_limit_override\fR (ulong)
+.ad
+.RS 12n
+Override txg write limit
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_write_limit_shift\fR (int)
+.ad
+.RS 12n
+log2(fraction of memory) per txg
+.sp
+Default value: \fB3\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_cols\fR (int)
+.ad
+.RS 12n
+Max event column width
+.sp
+Default value: \fB80\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_console\fR (int)
+.ad
+.RS 12n
+Log events to the console
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_len_max\fR (int)
+.ad
+.RS 12n
+Max event queue length
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzil_replay_disable\fR (int)
+.ad
+.RS 12n
+Disable intent logging replay
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzil_slog_limit\fR (ulong)
+.ad
+.RS 12n
+Max commit bytes to separate log device
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_bulk_flags\fR (int)
+.ad
+.RS 12n
+Additional flags to pass to bulk buffers
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_delay_max\fR (int)
+.ad
+.RS 12n
+Max zio millisec delay before posting event
+.sp
+Default value: \fB30,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_injection_enabled\fR (int)
+.ad
+.RS 12n
+Enable fault injection
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_requeue_io_start_cut_in_line\fR (int)
+.ad
+.RS 12n
+Prioritize requeued I/O
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_inhibit_dev\fR (uint)
+.ad
+.RS 12n
+Do not create zvol device nodes
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_major\fR (uint)
+.ad
+.RS 12n
+Major number for zvol device
+.sp
+Default value: \fB230\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_max_discard_blocks\fR (ulong)
+.ad
+.RS 12n
+Max number of blocks to discard at once
+.sp
+Default value: \fB16,384\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_threads\fR (uint)
+.ad
+.RS 12n
+Number of threads for zvol device
+.sp
+Default value: \fB32\fR.
+.RE
+
