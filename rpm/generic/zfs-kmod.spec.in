@@ -1,4 +1,33 @@
 %define module  @PACKAGE@
+
+%if !%{defined ksrc}
+%if 0%{?rhel}%{?fedora}
+%define ksrc    ${kernel_version##*___}
+%else
+%define ksrc    "$( \
+        if [ -e "/usr/src/linux-${kernel_version%%___*}" ]; then \
+            echo "/usr/src/linux-${kernel_version%%___*}"; \
+        elif [ -e "/lib/modules/${kernel_version%%___*}/source" ]; then \
+            echo "/lib/modules/${kernel_version%%___*}/source"; \
+        else \
+            echo "/lib/modules/${kernel_version%%___*}/build"; \
+        fi)"
+%endif
+%endif
+
+%if !%{defined kobj}
+%if 0%{?rhel}%{?fedora}
+%define kobj    ${kernel_version##*___}
+%else
+%define kobj    "$( \
+        if [ -e "/usr/src/linux-${kernel_version%%___*}" ]; then \
+            echo "/usr/src/linux-${kernel_version%%___*}"; \
+        else \
+            echo "/lib/modules/${kernel_version%%___*}/build"; \
+        fi)"
+%endif
+%endif
+
 #define repo    rpmfusion
 #define repo    chaos
 
@@ -125,18 +154,8 @@ for kernel_version in %{?kernel_versions}; do
     cd _kmod_build_${kernel_version%%___*}
     %configure \
         --with-config=kernel \
-%if 0%{?rhel}%{?fedora}
-        --with-linux="${kernel_version##*___}" \
-        --with-linux-obj="${kernel_version##*___}" \
-%else
-        --with-linux="$( \
-        if [ -e "/lib/modules/${kernel_version%%___*}/source" ]; then \
-            echo "/lib/modules/${kernel_version%%___*}/source"; \
-        else \
-            echo "/lib/modules/${kernel_version%%___*}/build"; \
-        fi)" \
-        --with-linux-obj="/lib/modules/${kernel_version%%___*}/build" \
-%endif
+        --with-linux=%{ksrc} \
+        --with-linux-obj=%{kobj} \
         --with-spl="%{spldir}" \
         --with-spl-obj="%{splobj}" \
         %{debug} \
