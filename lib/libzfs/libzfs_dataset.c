@@ -4231,7 +4231,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received,
 			}
 			if (received && zfs_prop_get_recvd(zhp,
 			    zfs_prop_to_name(entry->pl_prop),
-			    buf, sizeof (buf), B_FALSE) == 0)
+			    buf, sizeof (buf), literal) == 0)
 				if (strlen(buf) > entry->pl_recvd_width)
 					entry->pl_recvd_width = strlen(buf);
 		} else {
@@ -4244,7 +4244,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received,
 			}
 			if (received && zfs_prop_get_recvd(zhp,
 			    entry->pl_user_prop,
-			    buf, sizeof (buf), B_FALSE) == 0)
+			    buf, sizeof (buf), literal) == 0)
 				if (strlen(buf) > entry->pl_recvd_width)
 					entry->pl_recvd_width = strlen(buf);
 		}
