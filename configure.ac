@@ -50,6 +50,7 @@ AC_CONFIG_FILES([
 	Makefile
 	man/Makefile
 	man/man1/Makefile
+	man/man5/Makefile
 	lib/Makefile
 	cmd/Makefile
 	module/Makefile

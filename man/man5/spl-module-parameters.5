@@ -1,0 +1,126 @@
+'\" te
+.\"
+.\" Copyright 2013 Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
+.\"
+.TH SPL-MODULE-PARAMETERS 5 "Nov 18, 2013"
+.SH NAME
+spl\-module\-parameters \- SPL module parameters
+.SH DESCRIPTION
+.sp
+.LP
+Description of the different parameters to the SPL module.
+
+.SS "Module parameters"
+.sp
+.LP
+
+.sp
+.ne 2
+.na
+\fBspl_debug_subsys\fR (ulong)
+.ad
+.RS 12n
+Subsystem debugging level mask.
+.sp
+Default value: \fB~0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_debug_mask\fR (ulong)
+.ad
+.RS 12n
+Debugging level mask.
+.sp
+Default value: \fB8 | 10 | 4 | 20\fR (SD_ERROR | SD_EMERG | SD_WARNING | SD_CONSOLE).
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_debug_printk\fR (ulong)
+.ad
+.RS 12n
+Console printk level mask.
+.sp
+Default value: \fB8 | 10 | 4 | 20\fR (SD_ERROR | SD_EMERG | SD_WARNING | SD_CONSOLE).
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_debug_mb\fR (int)
+.ad
+.RS 12n
+Total debug buffer size.
+.sp
+Default value: \fB-1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_debug_panic_on_bug\fR (int)
+.ad
+.RS 12n
+Panic on BUG
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_kmem_cache_expire\fR (uint)
+.ad
+.RS 12n
+By age (0x1) or low memory (0x2)
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_hostid\fR (ulong)
+.ad
+.RS 12n
+The system hostid.
+.sp
+Default value: \fB0xFFFFFFFF\fR (an invalid hostid!)
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_hostid_path\fR (charp)
+.ad
+.RS 12n
+The system hostid file
+.sp
+Default value: \fB/etc/hostid\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmutex_spin_max\fR (int)
+.ad
+.RS 12n
+Spin a maximum of N times to acquire lock
+.sp
+.ne 2
+.na
+\fBPossible values:\fR
+.sp
+.RS 12n
+ \fB0\fR		Never spin when trying to acquire lock
+.sp
+\fB-1\fR		Spin until acquired or holder yields without dropping lock
+.sp
+\fB1-MAX_INT\fR	Spin for N attempts before sleeping for lock
+.RE
+.sp
+.ne -4
+Default value: \fB0\fR.
