@@ -571,21 +571,23 @@ dsl_dataset_user_release_impl(nvlist_t *holds, nvlist_t *errlist,
 		ddura.ddura_holdfunc = dsl_dataset_hold_obj_string;
 		pool = spa_name(tmpdp->dp_spa);
 #ifdef _KERNEL
-		dsl_pool_config_enter(tmpdp, FTAG);
 		for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 		    pair = nvlist_next_nvpair(holds, pair)) {
 			dsl_dataset_t *ds;
 
+			dsl_pool_config_enter(tmpdp, FTAG);
 			error = dsl_dataset_hold_obj_string(tmpdp,
 			    nvpair_name(pair), FTAG, &ds);
 			if (error == 0) {
 				char name[MAXNAMELEN];
 				dsl_dataset_name(ds, name);
+				dsl_pool_config_exit(tmpdp, FTAG);
 				dsl_dataset_rele(ds, FTAG);
 				(void) zfs_unmount_snap(name);
+			} else {
+				dsl_pool_config_exit(tmpdp, FTAG);
 			}
 		}
-		dsl_pool_config_exit(tmpdp, FTAG);
 #endif
 	} else {
 		/* Non-temporary holds are specified by name. */
