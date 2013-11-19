@@ -899,6 +899,7 @@ buf_hash_remove(arc_buf_hdr_t *buf)
  */
 static kmem_cache_t *hdr_cache;
 static kmem_cache_t *buf_cache;
+static kmem_cache_t *l2arc_hdr_cache;
 
 static void
 buf_fini(void)
@@ -920,6 +921,7 @@ buf_fini(void)
 		mutex_destroy(&buf_hash_table.ht_locks[i].ht_lock);
 	kmem_cache_destroy(hdr_cache);
 	kmem_cache_destroy(buf_cache);
+	kmem_cache_destroy(l2arc_hdr_cache);
 }
 
 /*
@@ -1020,6 +1022,8 @@ retry:
 	    0, hdr_cons, hdr_dest, NULL, NULL, NULL, 0);
 	buf_cache = kmem_cache_create("arc_buf_t", sizeof (arc_buf_t),
 	    0, buf_cons, buf_dest, NULL, NULL, NULL, 0);
+	l2arc_hdr_cache = kmem_cache_create("l2arc_buf_hdr_t", L2HDR_SIZE,
+	    0, NULL, NULL, NULL, NULL, NULL, 0);
 
 	for (i = 0; i < 256; i++)
 		for (ct = zfs_crc64_table + i, *ct = i, j = 8; j > 0; j--)
@@ -1678,7 +1682,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 			ARCSTAT_INCR(arcstat_l2_size, -hdr->b_size);
 			ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
-			kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
+			kmem_cache_free(l2arc_hdr_cache, l2hdr);
 			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 			if (hdr->b_state == arc_l2c_only)
 				l2arc_hdr_stat_remove();
@@ -3684,7 +3688,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	if (l2hdr) {
 		ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
-		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
+		kmem_cache_free(l2arc_hdr_cache, l2hdr);
 		arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 		ARCSTAT_INCR(arcstat_l2_size, -buf_size);
 		mutex_exit(&l2arc_buflist_mtx);
@@ -4572,7 +4576,7 @@ l2arc_write_done(zio_t *zio)
 			list_remove(buflist, ab);
 			ARCSTAT_INCR(arcstat_l2_asize, -abl2->b_asize);
 			ab->b_l2hdr = NULL;
-			kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
+			kmem_cache_free(l2arc_hdr_cache, abl2);
 			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 			ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 		}
@@ -4827,7 +4831,7 @@ top:
 				abl2 = ab->b_l2hdr;
 				ARCSTAT_INCR(arcstat_l2_asize, -abl2->b_asize);
 				ab->b_l2hdr = NULL;
-				kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
+				kmem_cache_free(l2arc_hdr_cache, abl2);
 				arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 				ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 			}
@@ -4973,9 +4977,9 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			/*
 			 * Create and add a new L2ARC header.
 			 */
-			l2hdr = kmem_zalloc(sizeof (l2arc_buf_hdr_t),
-			    KM_PUSHPAGE);
+			l2hdr = kmem_cache_alloc(l2arc_hdr_cache, KM_PUSHPAGE);
 			l2hdr->b_dev = dev;
+			l2hdr->b_daddr = 0;
 			arc_space_consume(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 
 			ab->b_flags |= ARC_L2_WRITING;

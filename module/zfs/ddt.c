@@ -37,6 +37,9 @@
 #include <sys/zio_compress.h>
 #include <sys/dsl_scan.h>
 
+static kmem_cache_t *ddt_cache;
+static kmem_cache_t *ddt_entry_cache;
+
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
  */
@@ -515,7 +518,6 @@ ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total)
 {
 	ddt_histogram_t *ddh_total;
 
-	/* XXX: Move to a slab */
 	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_PUSHPAGE);
 	ddt_get_dedup_histogram(spa, ddh_total);
 	ddt_histogram_stat(dds_total, ddh_total);
@@ -659,13 +661,29 @@ ddt_exit(ddt_t *ddt)
 	mutex_exit(&ddt->ddt_lock);
 }
 
+void
+ddt_init(void)
+{
+	ddt_cache = kmem_cache_create("ddt_cache",
+	    sizeof (ddt_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_entry_cache = kmem_cache_create("ddt_entry_cache",
+	    sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+}
+
+void
+ddt_fini(void)
+{
+	kmem_cache_destroy(ddt_entry_cache);
+	kmem_cache_destroy(ddt_cache);
+}
+
 static ddt_entry_t *
 ddt_alloc(const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
-	/* XXX: Move to a slab */
-	dde = kmem_zalloc(sizeof (ddt_entry_t), KM_PUSHPAGE);
+	dde = kmem_cache_alloc(ddt_entry_cache, KM_PUSHPAGE);
+	bzero(dde, sizeof (ddt_entry_t));
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -688,7 +706,7 @@ ddt_free(ddt_entry_t *dde)
 		    DDK_GET_PSIZE(&dde->dde_key));
 
 	cv_destroy(&dde->dde_cv);
-	kmem_free(dde, sizeof (*dde));
+	kmem_cache_free(ddt_entry_cache, dde);
 }
 
 void
@@ -813,8 +831,8 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 {
 	ddt_t *ddt;
 
-	/* XXX: Move to a slab */
-	ddt = kmem_zalloc(sizeof (*ddt), KM_PUSHPAGE | KM_NODEBUG);
+	ddt = kmem_cache_alloc(ddt_cache, KM_PUSHPAGE | KM_NODEBUG);
+	bzero(ddt, sizeof (ddt_t));
 
 	mutex_init(&ddt->ddt_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&ddt->ddt_tree, ddt_entry_compare,
@@ -836,7 +854,7 @@ ddt_table_free(ddt_t *ddt)
 	avl_destroy(&ddt->ddt_tree);
 	avl_destroy(&ddt->ddt_repair_tree);
 	mutex_destroy(&ddt->ddt_lock);
-	kmem_free(ddt, sizeof (*ddt));
+	kmem_cache_free(ddt_cache, ddt);
 }
 
 void
@@ -916,20 +934,20 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 		return (B_TRUE);
 
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
-	dde = kmem_alloc(sizeof (ddt_entry_t), KM_PUSHPAGE);
+	dde = kmem_cache_alloc(ddt_entry_cache, KM_PUSHPAGE);
 
 	ddt_key_fill(&(dde->dde_key), bp);
 
 	for (type = 0; type < DDT_TYPES; type++) {
 		for (class = 0; class <= max_class; class++) {
 			if (ddt_object_lookup(ddt, type, class, dde) == 0) {
-				kmem_free(dde, sizeof (ddt_entry_t));
+				kmem_cache_free(ddt_entry_cache, dde);
 				return (B_TRUE);
 			}
 		}
 	}
 
-	kmem_free(dde, sizeof (ddt_entry_t));
+	kmem_cache_free(ddt_entry_cache, dde);
 	return (B_FALSE);
 }
 
