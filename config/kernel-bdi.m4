@@ -10,7 +10,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BDI], [
 		static const struct super_block
 		    sb __attribute__ ((unused)) {
 			.s_bdi = NULL,
-		}
+		};
 	],[
 	],[
 		AC_MSG_RESULT(yes)
