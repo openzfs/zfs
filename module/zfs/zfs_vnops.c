@@ -787,7 +787,8 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 			if (zp->z_blksz > max_blksz) {
 				ASSERT(!ISP2(zp->z_blksz));
-				new_blksz = MIN(end_size, SPA_MAXBLOCKSIZE);
+				new_blksz = MIN(end_size,
+				    spa_get_maxblksz(zsb->z_os->os_spa));
 			} else {
 				new_blksz = MIN(end_size, max_blksz);
 			}

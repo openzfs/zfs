@@ -2896,6 +2896,13 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 		return (SET_ERROR(ENOENT));
 	}
 
+	if (spa_feature_is_active(spa,
+	    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS])) {
+		spa->spa_maxblksz = SPA_MAXBLOCKSIZE;
+	} else {
+		spa->spa_maxblksz = SPA_OLD_MAXBLOCKSIZE;
+	}
+
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
 		zpool_rewind_policy_t policy;
 

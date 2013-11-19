@@ -61,6 +61,7 @@
 #endif /* _KERNEL */
 
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/refcount.h>
 #include <sys/stat.h>
 #include <sys/zap.h>
@@ -1220,7 +1221,8 @@ zfs_extend(znode_t *zp, uint64_t end)
 		 */
 		if (zp->z_blksz > ZTOZSB(zp)->z_max_blksz) {
 			ASSERT(!ISP2(zp->z_blksz));
-			newblksz = MIN(end, SPA_MAXBLOCKSIZE);
+			newblksz = MIN(end,
+			    spa_get_maxblksz(zsb->z_os->os_spa));
 		} else {
 			newblksz = MIN(end, ZTOZSB(zp)->z_max_blksz);
 		}

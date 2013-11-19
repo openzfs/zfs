@@ -54,6 +54,13 @@ typedef enum spa_feature {
 	SPA_FEATURE_ASYNC_DESTROY,
 	SPA_FEATURE_EMPTY_BPOBJ,
 	SPA_FEATURE_LZ4_COMPRESS,
+	/*
+	 * XXX: This may make more sense as a dataset level feature flag.
+	 * We shouldn't have to taint the entire pool when this is in use.
+	 * The max value could be added to the objset, for now we do it as
+	 * a pool level flag because we don't have dataset level flags.
+	 */
+	SPA_FEATURE_LARGE_BLOCKS,
 	SPA_FEATURES
 } spa_feature_t;
 

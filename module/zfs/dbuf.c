@@ -2102,8 +2102,8 @@ dbuf_spill_set_blksz(dmu_buf_t *db_fake, uint64_t blksz, dmu_tx_t *tx)
 		return (SET_ERROR(ENOTSUP));
 	if (blksz == 0)
 		blksz = SPA_MINBLOCKSIZE;
-	if (blksz > SPA_MAXBLOCKSIZE)
-		blksz = SPA_MAXBLOCKSIZE;
+	if (blksz > spa_get_maxblksz(tx->tx_objset->os_spa))
+		blksz = spa_get_maxblksz(tx->tx_objset->os_spa);
 	else
 		blksz = P2ROUNDUP(blksz, SPA_MINBLOCKSIZE);
 

@@ -2375,6 +2375,36 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		err = -1;
 		break;
 	}
+	case ZFS_PROP_RECORDSIZE:
+		if (intval > SPA_OLD_MAXBLOCKSIZE) {
+			zfeature_info_t *feature =
+			    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS];
+			spa_t *spa;
+
+			/*
+			 * Setting recordsize > 128k activates large blocks
+			 */
+			err = spa_open(dsname, &spa, FTAG);
+			if (err)
+				return (err);
+
+			if (!spa_feature_is_active(spa, feature)) {
+				if ((err = zfs_prop_activate_feature(spa,
+				    feature)) != 0) {
+					spa_close(spa, FTAG);
+					return (err);
+				}
+			}
+
+			spa_close(spa, FTAG);
+		}
+
+		/*
+		 * We still want the default set action to be performed in the
+		 * caller, we only performed zfeature settings here.
+		 */
+		err = -1;
+		break;
 
 	default:
 		err = -1;
@@ -3666,6 +3696,28 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	case ZFS_PROP_DEDUP:
 		if (zfs_earlier_version(dsname, SPA_VERSION_DEDUP))
 			return (SET_ERROR(ENOTSUP));
+		break;
+
+	case ZFS_PROP_RECORDSIZE:
+		/* Record sizes above 128k need large blocks to be enabled */
+		if (nvpair_type(pair) == DATA_TYPE_UINT64 &&
+		    nvpair_value_uint64(pair, &intval) == 0) {
+			if (intval > SPA_OLD_MAXBLOCKSIZE) {
+				zfeature_info_t *feature =
+				    &spa_feature_table[
+				    SPA_FEATURE_LARGE_BLOCKS];
+				spa_t *spa;
+
+				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+					return (err);
+
+				if (!spa_feature_is_enabled(spa, feature)) {
+					spa_close(spa, FTAG);
+					return (SET_ERROR(ENOTSUP));
+				}
+				spa_close(spa, FTAG);
+			}
+		}
 		break;
 
 	case ZFS_PROP_SHARESMB:
