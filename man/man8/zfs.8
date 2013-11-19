@@ -27,7 +27,7 @@
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\"
-.TH zfs 8 "Jan 10, 2013" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.TH zfs 8 "Nov 19, 2013" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zfs \- configures ZFS file systems
 .SH SYNOPSIS
@@ -95,7 +95,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-H\fR][\fB-o\fR \fIproperty\fR[,...]] [\fB-t\fR \fItype\fR[,...]]
+\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-Hp\fR][\fB-o\fR \fIproperty\fR[,\fIproperty\fR]...] [\fB-t\fR \fItype\fR[,\fItype\fR]..]
      [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...
 .fi
 
@@ -244,7 +244,6 @@ zfs \- configures ZFS file systems
 \fBzfs\fR \fBdiff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
 
 .SH DESCRIPTION
-.sp
 .LP
 The \fBzfs\fR command configures \fBZFS\fR datasets within a \fBZFS\fR storage pool, as described in \fBzpool\fR(8). A dataset is identified by a unique path within the \fBZFS\fR namespace. For example:
 .sp
@@ -295,7 +294,6 @@ A read-only version of a file system or volume at a given point in time. It is s
 .RE
 
 .SS "ZFS File System Hierarchy"
-.sp
 .LP
 A \fBZFS\fR storage pool is a logical collection of devices that provide space for datasets. A storage pool is also the root of the \fBZFS\fR file system hierarchy.
 .sp
@@ -305,7 +303,6 @@ The root of the pool can be accessed as a file system, such as mounting and unmo
 .LP
 See \fBzpool\fR(8) for more information on creating and administering pools.
 .SS "Snapshots"
-.sp
 .LP
 A snapshot is a read-only copy of a file system or volume. Snapshots can be created extremely quickly, and initially consume no additional space within the pool. As data within the active dataset changes, the snapshot consumes more data than would otherwise be shared with the active dataset.
 .sp
@@ -315,7 +312,6 @@ Snapshots can have arbitrary names. Snapshots of volumes can be cloned or rolled
 .LP
 File system snapshots can be accessed under the \fB\&.zfs/snapshot\fR directory in the root of the file system. Snapshots are automatically mounted on demand and may be unmounted at regular intervals. The visibility of the \fB\&.zfs\fR directory can be controlled by the \fBsnapdir\fR property.
 .SS "Clones"
-.sp
 .LP
 A clone is a writable volume or file system whose initial contents are the same as another dataset. As with snapshots, creating a clone is nearly instantaneous, and initially consumes no additional space.
 .sp
@@ -325,7 +321,6 @@ Clones can only be created from a snapshot. When a snapshot is cloned, it create
 .LP
 The clone parent-child dependency relationship can be reversed by using the \fBpromote\fR subcommand. This causes the "origin" file system to become a clone of the specified file system, which makes it possible to destroy the file system that the clone was created from.
 .SS "Mount Points"
-.sp
 .LP
 Creating a \fBZFS\fR file system is a simple operation, so the number of file systems per system is likely to be numerous. To cope with this, \fBZFS\fR automatically manages mounting and unmounting file systems without the need to edit the \fB/etc/fstab\fR file. All automatically managed file systems are mounted by \fBZFS\fR at boot time.
 .sp
@@ -341,11 +336,9 @@ A file system \fBmountpoint\fR property of \fBnone\fR prevents the file system f
 .LP
 If needed, \fBZFS\fR file systems can also be managed with traditional tools (\fBmount\fR, \fBumount\fR, \fB/etc/fstab\fR). If a file system's mount point is set to \fBlegacy\fR, \fBZFS\fR makes no attempt to manage the file system, and the administrator is responsible for mounting and unmounting the file system.
 .SS "Deduplication"
-.sp
 .LP
 Deduplication is the process for removing redundant data at the block-level, reducing the total amount of data stored. If a file system has the \fBdedup\fR property enabled, duplicate data blocks are removed synchronously.  The result is that only unique data is stored and common components are shared among files.
 .SS "Native Properties"
-.sp
 .LP
 Properties are divided into two types, native properties and user-defined (or "user") properties. Native properties either export internal statistics or control \fBZFS\fR behavior. In addition, native properties are either editable or read-only. User properties have no effect on \fBZFS\fR behavior, but you can use them to annotate datasets in a way that is meaningful in your environment. For more information about user properties, see the "User Properties" section, below.
 .sp
@@ -1306,7 +1299,6 @@ Indicates whether the file system should reject file names that include characte
 .LP
 The \fBcasesensitivity\fR, \fBnormalization\fR, and \fButf8only\fR properties are also new permissions that can be assigned to non-privileged users by using the \fBZFS\fR delegated administration feature.
 .SS "Temporary Mount Point Properties"
-.sp
 .LP
 When a file system is mounted, either through \fBmount\fR(8) for legacy mounts or the \fBzfs mount\fR command for normal file systems, its mount options are set according to its properties. The correlation between properties and mount options is as follows:
 .sp
@@ -1326,7 +1318,6 @@ When a file system is mounted, either through \fBmount\fR(8) for legacy mounts o
 .LP
 In addition, these options can be set on a per-mount basis using the \fB-o\fR option, without affecting the property that is stored on disk. The values specified on the command line override the values stored in the dataset. The \fB-nosuid\fR option is an alias for \fBnodevices,nosetuid\fR. These properties are reported as "temporary" by the \fBzfs get\fR command. If the properties are changed while the dataset is mounted, the new setting overrides any temporary settings.
 .SS "User Properties"
-.sp
 .LP
 In addition to the standard native properties, \fBZFS\fR supports arbitrary user properties. User properties have no effect on \fBZFS\fR behavior, but applications or administrators can use them to annotate datasets (file systems, volumes, and snapshots).
 .sp
@@ -1339,14 +1330,12 @@ When making programmatic use of user properties, it is strongly suggested to use
 .LP
 The values of user properties are arbitrary strings, are always inherited, and are never validated. All of the commands that operate on properties (\fBzfs list\fR, \fBzfs get\fR, \fBzfs set\fR, and so forth) can be used to manipulate both native properties and user properties. Use the \fBzfs inherit\fR command to clear a user property . If the property is not defined in any parent dataset, it is removed entirely. Property values are limited to 1024 characters.
 .SS "ZFS Volumes as Swap"
-.sp
 .LP
 \fBZFS\fR volumes may be used as Linux swap devices.  After creating the volume
 with the \fBzfs create\fR command set up and enable the swap area using the
 \fBmkswap\fR(8) and \fBswapon\fR(8) commands.  Do not swap to a file on a
 \fBZFS\fR file system. A \fBZFS\fR swap file configuration is not supported.
 .SH SUBCOMMANDS
-.sp
 .LP
 All subcommands that modify state are logged persistently to the pool in their original form.
 .sp
@@ -1806,7 +1795,7 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ne 2
 .mk
 .na
-\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
+\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-Hp\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1820,6 +1809,16 @@ Lists the property information for the given datasets in tabular form. If specif
 .sp .6
 .RS 4n
 Used for scripting mode. Do not print headers and separate fields by a single tab instead of arbitrary white space.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-p\fR\fR
+.sp .6
+.RS 4n
+Display numbers in parsable (exact) values.
 .RE
 
 .sp
@@ -1953,8 +1952,7 @@ Sets the property to the given value for each dataset. Only some properties can 
 
 .sp
 .ne 2
-.mk
-.na
+.mk .na
 \fB\fBzfs get\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-Hp\fR] [\fB-o\fR \fIfield\fR[,...] [\fB-t\fR \fItype\fR[,...]] [\fB-s\fR \fIsource\fR[,...] "\fIall\fR" | \fIproperty\fR[,...] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
@@ -2038,7 +2036,7 @@ A comma-separated list of sources to display. Those properties coming from a sou
 .ad
 .sp .6
 .RS 4n
-Display numbers in parseable (exact) values.
+Display numbers in parsable (exact) values.
 .RE
 
 .RE
@@ -2978,7 +2976,7 @@ F       Regular file
 .ad
 .sp .6
 .RS 4n
-Give more parseable tab-separated output, without header lines and without arrows.
+Give more parsable tab-separated output, without header lines and without arrows.
 .RE
 .sp
 .ne 2
@@ -3491,7 +3489,6 @@ M       F       /tank/test/modified
 .sp
 
 .SH EXIT STATUS
-.sp
 .LP
 The following exit values are returned:
 .sp
@@ -3528,6 +3525,5 @@ Invalid command line options were specified.
 .RE
 
 .SH SEE ALSO
-.sp
 .LP
 \fBchmod\fR(2), \fBfsync\fR(2), \fBgzip\fR(1), \fBmount\fR(8), \fBssh\fR(1), \fBstat\fR(2), \fBwrite\fR(2), \fBzpool\fR(8)
