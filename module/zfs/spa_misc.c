@@ -1660,6 +1660,7 @@ spa_init(int mode)
 	zpool_feature_init();
 	spa_config_load();
 	l2arc_start();
+        ddt_init();
 }
 
 void

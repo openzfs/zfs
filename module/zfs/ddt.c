@@ -38,6 +38,11 @@
 #include <sys/dsl_scan.h>
 
 /*
+ * Global data structures and functions for the buf kmem cache.
+ */
+static kmem_cache_t *ddt_cache;
+
+/*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
  */
 int zfs_dedup_prefetch = 1;
@@ -659,13 +664,20 @@ ddt_exit(ddt_t *ddt)
 	mutex_exit(&ddt->ddt_lock);
 }
 
+void
+ddt_init(void)
+{
+        ddt_cache = kmem_cache_create("ddt_cache",
+            sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+}
+
 static ddt_entry_t *
 ddt_alloc(const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
-	/* XXX: Move to a slab */
-	dde = kmem_zalloc(sizeof (ddt_entry_t), KM_PUSHPAGE);
+        dde = kmem_cache_alloc(ddt_cache, KM_SLEEP);
+        bzero(dde, sizeof (ddt_entry_t));
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -688,7 +700,7 @@ ddt_free(ddt_entry_t *dde)
 		    DDK_GET_PSIZE(&dde->dde_key));
 
 	cv_destroy(&dde->dde_cv);
-	kmem_free(dde, sizeof (*dde));
+        kmem_cache_free(ddt_cache, dde);
 }
 
 void
