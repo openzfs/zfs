@@ -44,6 +44,7 @@ typedef struct zfs_sort_column {
 #define	ZFS_ITER_DEPTH_LIMIT	   (1 << 3)
 #define	ZFS_ITER_RECVD_PROPS	   (1 << 4)
 #define	ZFS_ITER_SIMPLE		   (1 << 5)
+#define	ZFS_ITER_LITERAL_PROPS	   (1 << 6)
 
 int zfs_for_each(int, char **, int options, zfs_type_t,
     zfs_sort_column_t *, zprop_list_t **, int, zfs_iter_f, void *);
