@@ -8,7 +8,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BDI], [
 		#include <linux/fs.h>
 
 		static const struct super_block
-		    sb __attribute__ ((unused)) {
+		    sb __attribute__ ((unused)) = {
 			.s_bdi = NULL,
 		};
 	],[
