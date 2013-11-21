@@ -671,6 +671,12 @@ ddt_init(void)
             sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
+void
+ddt_fini(void)
+{
+    kmem_cache_destroy(ddt_cache);
+}
+
 static ddt_entry_t *
 ddt_alloc(const ddt_key_t *ddk)
 {
