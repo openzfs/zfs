@@ -667,14 +667,14 @@ ddt_exit(ddt_t *ddt)
 void
 ddt_init(void)
 {
-        ddt_cache = kmem_cache_create("ddt_cache",
-            sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_cache = kmem_cache_create("ddt_cache",
+		sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
 void
 ddt_fini(void)
 {
-    kmem_cache_destroy(ddt_cache);
+	kmem_cache_destroy(ddt_cache);
 }
 
 static ddt_entry_t *
@@ -682,8 +682,8 @@ ddt_alloc(const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
-        dde = kmem_cache_alloc(ddt_cache, KM_SLEEP);
-        bzero(dde, sizeof (ddt_entry_t));
+	dde = kmem_cache_alloc(ddt_cache, KM_SLEEP);
+	bzero(dde, sizeof (ddt_entry_t));
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -706,7 +706,7 @@ ddt_free(ddt_entry_t *dde)
 		    DDK_GET_PSIZE(&dde->dde_key));
 
 	cv_destroy(&dde->dde_cv);
-        kmem_cache_free(ddt_cache, dde);
+	kmem_cache_free(ddt_cache, dde);
 }
 
 void
@@ -934,20 +934,20 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 		return (B_TRUE);
 
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
-	dde = kmem_alloc(sizeof(ddt_entry_t), KM_PUSHPAGE);
+	dde = kmem_alloc(sizeof (ddt_entry_t), KM_PUSHPAGE);
 
 	ddt_key_fill(&(dde->dde_key), bp);
 
 	for (type = 0; type < DDT_TYPES; type++) {
 		for (class = 0; class <= max_class; class++) {
 			if (ddt_object_lookup(ddt, type, class, dde) == 0) {
-				kmem_free(dde, sizeof(ddt_entry_t));
+				kmem_free(dde, sizeof (ddt_entry_t));
 				return (B_TRUE);
 			}
 		}
 	}
 
-	kmem_free(dde, sizeof(ddt_entry_t));
+	kmem_free(dde, sizeof (ddt_entry_t));
 	return (B_FALSE);
 }
 
@@ -1227,5 +1227,5 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_dedup_prefetch, int, 0644);
-MODULE_PARM_DESC(zfs_dedup_prefetch,"Enable prefetching dedup-ed blks");
+MODULE_PARM_DESC(zfs_dedup_prefetch, "Enable prefetching dedup-ed blks");
 #endif

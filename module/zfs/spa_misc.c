@@ -1660,13 +1660,13 @@ spa_init(int mode)
 	zpool_feature_init();
 	spa_config_load();
 	l2arc_start();
-        ddt_init();
+	ddt_init();
 }
 
 void
 spa_fini(void)
 {
-        ddt_fini();
+	ddt_fini();
 
 	l2arc_stop();
 
