@@ -3870,6 +3870,42 @@ zpool_events_clear(libzfs_handle_t *hdl, int *count)
 	return (0);
 }
 
+/*
+ * Seek to a specific EID, ZEVENT_SEEK_START, or ZEVENT_SEEK_END for
+ * the passed zevent_fd file handle.  On success zero is returned,
+ * otherwise -1 is returned and hdl->libzfs_error is set to the errno.
+ */
+int
+zpool_events_seek(libzfs_handle_t *hdl, uint64_t eid, int zevent_fd)
+{
+	zfs_cmd_t zc = {"\0"};
+	int error = 0;
+
+	zc.zc_guid = eid;
+	zc.zc_cleanup_fd = zevent_fd;
+
+	if (zfs_ioctl(hdl, ZFS_IOC_EVENTS_SEEK, &zc) != 0) {
+		switch (errno) {
+		case ENOENT:
+			error = zfs_error_fmt(hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "cannot get event"));
+			break;
+
+		case ENOMEM:
+			error = zfs_error_fmt(hdl, EZFS_NOMEM,
+			    dgettext(TEXT_DOMAIN, "cannot get event"));
+			break;
+
+		default:
+			error = zpool_standard_error_fmt(hdl, errno,
+			    dgettext(TEXT_DOMAIN, "cannot get event"));
+			break;
+		}
+	}
+
+	return (error);
+}
+
 void
 zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
     char *pathname, size_t len)
