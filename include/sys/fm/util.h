@@ -81,6 +81,7 @@ typedef struct zevent_s {
 	list_t		ev_ze_list;	/* " */
 	list_node_t	ev_node;	/* " */
 	zevent_cb_t	*ev_cb;		/* " */
+	uint64_t	ev_eid;
 } zevent_t;
 
 typedef struct zfs_zevent {
