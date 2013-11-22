@@ -262,6 +262,9 @@ typedef struct zinject_record {
 #define	ZEVENT_NONBLOCK		0x1
 #define	ZEVENT_SIZE		1024
 
+#define	ZEVENT_SEEK_START	0
+#define	ZEVENT_SEEK_END		UINT64_MAX
+
 typedef enum zinject_type {
 	ZINJECT_UNINITIALIZED,
 	ZINJECT_DATA_FAULT,
