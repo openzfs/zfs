@@ -4919,6 +4919,28 @@ zfs_ioc_events_clear(zfs_cmd_t *zc)
 
 /*
  * inputs:
+ * zc_guid		eid | ZEVENT_SEEK_START | ZEVENT_SEEK_END
+ * zc_cleanup		zevent file descriptor
+ */
+static int
+zfs_ioc_events_seek(zfs_cmd_t *zc)
+{
+	zfs_zevent_t *ze;
+	minor_t minor;
+	int error;
+
+	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	if (error != 0)
+		return (error);
+
+	error = zfs_zevent_seek(ze, zc->zc_guid);
+	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+
+	return (error);
+}
+
+/*
+ * inputs:
  * zc_name		name of new filesystem or snapshot
  * zc_value		full name of old snapshot
  *
@@ -5390,6 +5412,8 @@ zfs_ioctl_init(void)
 	zfs_ioctl_register_legacy(ZFS_IOC_EVENTS_NEXT, zfs_ioc_events_next,
 	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_NONE);
 	zfs_ioctl_register_legacy(ZFS_IOC_EVENTS_CLEAR, zfs_ioc_events_clear,
+	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_NONE);
+	zfs_ioctl_register_legacy(ZFS_IOC_EVENTS_SEEK, zfs_ioc_events_seek,
 	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_NONE);
 }
 
