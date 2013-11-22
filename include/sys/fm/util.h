@@ -71,7 +71,9 @@ typedef struct erpt_dump {
 
 #ifdef _KERNEL
 
-#define ZEVENT_SHUTDOWN	0x1
+#define	ZEVENT_SHUTDOWN		0x1
+#define	ZEVENT_SEEK_START	0
+#define	ZEVENT_SEEK_END		UINT64_MAX
 
 typedef void zevent_cb_t(nvlist_t *, nvlist_t *);
 
@@ -99,6 +101,7 @@ extern int zfs_zevent_fd_hold(int, minor_t *, zfs_zevent_t **);
 extern void zfs_zevent_fd_rele(int);
 extern int zfs_zevent_next(zfs_zevent_t *, nvlist_t **, uint64_t *, uint64_t *);
 extern int zfs_zevent_wait(zfs_zevent_t *);
+extern int zfs_zevent_seek(zfs_zevent_t *, uint64_t);
 extern void zfs_zevent_init(zfs_zevent_t **);
 extern void zfs_zevent_destroy(zfs_zevent_t *);
 
