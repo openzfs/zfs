@@ -664,6 +664,67 @@ out:
 	return (error);
 }
 
+/*
+ * The caller may seek to a specific EID by passing that EID.  If the EID
+ * is still available in the posted list of events the cursor is positioned
+ * there.  Otherwise ENOENT is returned and the cursor is not moved.
+ *
+ * There are two reserved EIDs which may be passed and will never fail.
+ * ZEVENT_SEEK_START positions the cursor at the start of the list, and
+ * ZEVENT_SEEK_END positions the cursor at the end of the list.
+ */
+int
+zfs_zevent_seek(zfs_zevent_t *ze, uint64_t eid)
+{
+	zevent_t *ev;
+	int error = 0;
+
+	mutex_enter(&zevent_lock);
+
+	if (eid == ZEVENT_SEEK_START) {
+		if (ze->ze_zevent)
+			list_remove(&ze->ze_zevent->ev_ze_list, ze);
+
+		ze->ze_zevent = NULL;
+		goto out;
+	}
+
+	if (eid == ZEVENT_SEEK_END) {
+		if (ze->ze_zevent)
+			list_remove(&ze->ze_zevent->ev_ze_list, ze);
+
+		ev = list_head(&zevent_list);
+		if (ev) {
+			ze->ze_zevent = ev;
+			list_insert_head(&ev->ev_ze_list, ze);
+		} else {
+			ze->ze_zevent = NULL;
+		}
+
+		goto out;
+	}
+
+	for (ev = list_tail(&zevent_list); ev != NULL;
+	    ev = list_prev(&zevent_list, ev)) {
+		if (ev->ev_eid == eid) {
+			if (ze->ze_zevent)
+				list_remove(&ze->ze_zevent->ev_ze_list, ze);
+
+			ze->ze_zevent = ev;
+			list_insert_head(&ev->ev_ze_list, ze);
+			break;
+		}
+	}
+
+	if (ev == NULL)
+		error = ENOENT;
+
+out:
+	mutex_exit(&zevent_lock);
+
+	return (error);
+}
+
 void
 zfs_zevent_init(zfs_zevent_t **zep)
 {
