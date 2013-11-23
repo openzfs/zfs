@@ -3783,25 +3783,25 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp)
 }
 
 /*
- * Retrieve the next event.  If there is a new event available 'nvp' will
- * contain a newly allocated nvlist and 'dropped' will be set to the number
- * of missed events since the last call to this function.  When 'nvp' is
- * set to NULL it indicates no new events are available.  In either case
- * the function returns 0 and it is up to the caller to free 'nvp'.  In
- * the case of a fatal error the function will return a non-zero value.
- * When the function is called in blocking mode it will not return until
- * a new event is available.
+ * Retrieve the next event given the passed 'zevent_fd' file descriptor.
+ * If there is a new event available 'nvp' will contain a newly allocated
+ * nvlist and 'dropped' will be set to the number of missed events since
+ * the last call to this function.  When 'nvp' is set to NULL it indicates
+ * no new events are available.  In either case the function returns 0 and
+ * it is up to the caller to free 'nvp'.  In the case of a fatal error the
+ * function will return a non-zero value.  When the function is called in
+ * blocking mode it will not return until a new event is available.
  */
 int
 zpool_events_next(libzfs_handle_t *hdl, nvlist_t **nvp,
-    int *dropped, int block, int cleanup_fd)
+    int *dropped, int block, int zevent_fd)
 {
 	zfs_cmd_t zc = {"\0"};
 	int error = 0;
 
 	*nvp = NULL;
 	*dropped = 0;
-	zc.zc_cleanup_fd = cleanup_fd;
+	zc.zc_cleanup_fd = zevent_fd;
 
 	if (!block)
 		zc.zc_guid = ZEVENT_NONBLOCK;
