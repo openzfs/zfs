@@ -4864,11 +4864,11 @@ zfs_ioc_release(const char *pool, nvlist_t *holds, nvlist_t *errlist)
 /*
  * inputs:
  * zc_guid		flags (ZEVENT_NONBLOCK)
+ * zc_cleanup_fd	zevent file descriptor
  *
  * outputs:
  * zc_nvlist_dst	next nvlist event
  * zc_cookie		dropped events since last get
- * zc_cleanup_fd	cleanup-on-exit file descriptor
  */
 static int
 zfs_ioc_events_next(zfs_cmd_t *zc)
