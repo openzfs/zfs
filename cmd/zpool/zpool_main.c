@@ -5394,17 +5394,17 @@ static int
 zpool_do_events_next(ev_opts_t *opts)
 {
 	nvlist_t *nvl;
-	int cleanup_fd, ret, dropped;
+	int zevent_fd, ret, dropped;
 
-	cleanup_fd = open(ZFS_DEV, O_RDWR);
-	VERIFY(cleanup_fd >= 0);
+	zevent_fd = open(ZFS_DEV, O_RDWR);
+	VERIFY(zevent_fd >= 0);
 
 	if (!opts->scripted)
 		(void) printf(gettext("%-30s %s\n"), "TIME", "CLASS");
 
 	while (1) {
 		ret = zpool_events_next(g_zfs, &nvl, &dropped,
-		    !!opts->follow, cleanup_fd);
+		    !!opts->follow, zevent_fd);
 		if (ret || nvl == NULL)
 			break;
 
@@ -5422,7 +5422,7 @@ zpool_do_events_next(ev_opts_t *opts)
 		nvlist_free(nvl);
 	}
 
-	VERIFY(0 == close(cleanup_fd));
+	VERIFY(0 == close(zevent_fd));
 
 	return (ret);
 }
