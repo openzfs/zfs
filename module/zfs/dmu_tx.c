@@ -1119,7 +1119,7 @@ dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
 
-	spa_tx_assign_add_nsecs(tx->tx_pool->dp_spa, gethrtime() - before);
+	dmu_tx_assign_add_nsecs(tx, gethrtime() - before);
 
 	return (0);
 }
@@ -1445,6 +1445,12 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		}
 		DB_DNODE_EXIT(db);
 	}
+}
+
+void
+dmu_tx_assign_add_nsecs(dmu_tx_t *tx, uint64_t nsecs)
+{
+	spa_tx_assign_add_nsecs(tx->tx_pool->dp_spa, nsecs);
 }
 
 void

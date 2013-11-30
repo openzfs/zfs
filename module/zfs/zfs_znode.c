@@ -1192,6 +1192,7 @@ zfs_extend(znode_t *zp, uint64_t end)
 	rl_t *rl;
 	uint64_t newblksz;
 	int error;
+	hrtime_t before;
 
 	/*
 	 * We will change zp_size, lock the whole file.
@@ -1205,6 +1206,7 @@ zfs_extend(znode_t *zp, uint64_t end)
 		zfs_range_unlock(rl);
 		return (0);
 	}
+	before = gethrtime();
 top:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -1236,6 +1238,7 @@ top:
 		zfs_range_unlock(rl);
 		return (error);
 	}
+	dmu_tx_assign_add_nsecs(tx, gethrtime() - before);
 
 	if (newblksz)
 		zfs_grow_blocksize(zp, newblksz, tx);
@@ -1308,6 +1311,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	int error;
 	sa_bulk_attr_t bulk[2];
 	int count = 0;
+	hrtime_t before;
 
 	/*
 	 * We will change zp_size, lock the whole file.
@@ -1327,6 +1331,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 		zfs_range_unlock(rl);
 		return (error);
 	}
+	before = gethrtime();
 top:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -1342,6 +1347,7 @@ top:
 		zfs_range_unlock(rl);
 		return (error);
 	}
+	dmu_tx_assign_add_nsecs(tx, gethrtime() - before);
 
 	zp->z_size = end;
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb),
@@ -1384,6 +1390,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	sa_bulk_attr_t bulk[3];
 	int count = 0;
 	int error;
+	hrtime_t before = gethrtime();
 
 	if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_MODE(zsb), &mode,
 	    sizeof (mode))) != 0)
@@ -1429,6 +1436,7 @@ log:
 		dmu_tx_abort(tx);
 		return (error);
 	}
+	dmu_tx_assign_add_nsecs(tx, gethrtime() - before);
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL, mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL, ctime, 16);
