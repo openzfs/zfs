@@ -254,6 +254,16 @@ unsigned long zfs_deadman_synctime = 1000ULL;
 int zfs_deadman_enabled = 1;
 
 /*
+ * The worst case is single-sector max-parity RAID-Z blocks, in which
+ * case the space requirement is exactly (VDEV_RAIDZ_MAXPARITY + 1)
+ * times the size; so just assume that.  Add to this the fact that
+ * we can have up to 3 DVAs per bp, and one more factor of 2 because
+ * the block may be dittoed with up to 3 DVAs by ddt_sync().
+ */
+int spa_asize_inflation = (VDEV_RAIDZ_MAXPARITY + 1) * SPA_DVAS_PER_BP * 2;
+
+
+/*
  * ==========================================================================
  * SPA config locking
  * ==========================================================================
@@ -1452,14 +1462,7 @@ spa_freeze_txg(spa_t *spa)
 uint64_t
 spa_get_asize(spa_t *spa, uint64_t lsize)
 {
-	/*
-	 * The worst case is single-sector max-parity RAID-Z blocks, in which
-	 * case the space requirement is exactly (VDEV_RAIDZ_MAXPARITY + 1)
-	 * times the size; so just assume that.  Add to this the fact that
-	 * we can have up to 3 DVAs per bp, and one more factor of 2 because
-	 * the block may be dittoed with up to 3 DVAs by ddt_sync().
-	 */
-	return (lsize * (VDEV_RAIDZ_MAXPARITY + 1) * SPA_DVAS_PER_BP * 2);
+	return lsize * spa_asize_inflation;
 }
 
 uint64_t
@@ -1885,4 +1888,7 @@ MODULE_PARM_DESC(zfs_deadman_synctime,"Expire in units of zfs_txg_synctime_ms");
 
 module_param(zfs_deadman_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
+
+module_param(spa_asize_inflation, int, 0644);
+MODULE_PARM_DESC(spa_asize_inflation, "SPA size estimate multiplication factor");
 #endif
