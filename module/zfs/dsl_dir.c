@@ -635,6 +635,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 		    asize, est_inflight, &used_on_disk, &ref_rsrv);
 		if (error) {
 			mutex_exit(&dd->dd_lock);
+			DMU_TX_STAT_BUMP(dmu_tx_quota);
 			return (error);
 		}
 	}
@@ -683,6 +684,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 		    used_on_disk>>10, est_inflight>>10,
 		    quota>>10, asize>>10, retval);
 		mutex_exit(&dd->dd_lock);
+		DMU_TX_STAT_BUMP(dmu_tx_quota);
 		return (SET_ERROR(retval));
 	}
 
