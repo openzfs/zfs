@@ -87,7 +87,7 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	dp->dp_spa = spa;
 	dp->dp_meta_rootbp = *bp;
 	rrw_init(&dp->dp_config_rwlock, B_TRUE);
-	dp->dp_write_limit = zfs_write_limit_min;
+	dp->dp_stats.dp_write_limit.value.ui64 = dp->dp_write_limit = zfs_write_limit_min;
 	txg_init(dp, txg);
 
 	txg_list_create(&dp->dp_dirty_datasets,
@@ -107,6 +107,38 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	return (dp);
 }
 
+/*
+ * Initializes kstats for dsl_pool
+ */
+static void dsl_pool_stats_init(dsl_pool_t *dp)
+{
+	char name[KSTAT_STRLEN];
+	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(dp->dp_spa));
+	name[KSTAT_STRLEN-1] = '\0';
+
+	dsl_pool_stats_t pool = {
+			{ "dp_write_limit",		KSTAT_DATA_UINT64 },
+			{ "dp_throughput",		KSTAT_DATA_UINT64 },
+	};
+	memcpy(&dp->dp_stats, &pool, sizeof(pool));
+
+	dp->dp_ksp = kstat_create(name, 0, "dsl_pool", "misc",
+	    KSTAT_TYPE_NAMED, sizeof(dsl_pool_stats_t)/sizeof(kstat_named_t), KSTAT_FLAG_VIRTUAL);
+
+	if (dp->dp_ksp) {
+		dp->dp_ksp->ks_data = &dp->dp_stats;
+		kstat_install(dp->dp_ksp);
+	}
+}
+
+static void dsl_pool_stats_close(dsl_pool_t *dp)
+{
+	if (dp->dp_ksp) {
+		kstat_delete(dp->dp_ksp);
+		dp->dp_ksp = NULL;
+	}
+}
+
 int
 dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 {
@@ -117,8 +149,10 @@ dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 	    &dp->dp_meta_objset);
 	if (err != 0)
 		dsl_pool_close(dp);
-	else
+	else {
 		*dpp = dp;
+		dsl_pool_stats_init(*dpp);
+	}
 
 	return (err);
 }
@@ -214,6 +248,8 @@ out:
 void
 dsl_pool_close(dsl_pool_t *dp)
 {
+	dsl_pool_stats_close(dp);
+
 	/* drop our references from dsl_pool_open() */
 
 	/*
@@ -528,7 +564,8 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 			    3 * dp->dp_throughput / 4;
 		else
 			dp->dp_throughput = throughput;
-		dp->dp_write_limit = MIN(zfs_write_limit_inflated,
+		dp->dp_stats.dp_throughput.value.ui64 = dp->dp_throughput;
+		dp->dp_stats.dp_write_limit.value.ui64 = dp->dp_write_limit = MIN(zfs_write_limit_inflated,
 		    MAX(zfs_write_limit_min,
 		    dp->dp_throughput * zfs_txg_synctime_ms));
 	}
@@ -649,7 +686,7 @@ dsl_pool_memory_pressure(dsl_pool_t *dp)
 		space_inuse += dp->dp_space_towrite[i];
 		space_inuse += dp->dp_tempreserved[i];
 	}
-	dp->dp_write_limit = MAX(zfs_write_limit_min,
+	dp->dp_stats.dp_write_limit.value.ui64 = dp->dp_write_limit = MAX(zfs_write_limit_min,
 	    MIN(dp->dp_write_limit, space_inuse / 4));
 }
 

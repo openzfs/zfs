@@ -71,6 +71,13 @@ typedef struct zfs_all_blkstats {
 	zfs_blkstat_t	zab_type[DN_MAX_LEVELS + 1][DMU_OT_TOTAL + 1];
 } zfs_all_blkstats_t;
 
+/*
+ * Used for kstat.
+ */
+typedef struct dsl_pool_stats {
+	kstat_named_t dp_write_limit;
+	kstat_named_t dp_throughput;
+} dsl_pool_stats_t;
 
 typedef struct dsl_pool {
 	/* Immutable */
@@ -120,6 +127,9 @@ typedef struct dsl_pool {
 	rrwlock_t dp_config_rwlock;
 
 	zfs_all_blkstats_t *dp_blkstats;
+
+	dsl_pool_stats_t	dp_stats;		/* assorted dsl_pool statistics */
+	kstat_t	*dp_ksp;
 } dsl_pool_t;
 
 int dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp);
