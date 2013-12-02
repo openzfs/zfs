@@ -2626,11 +2626,10 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 			while (i < db->db.db_size) {
 				dnode_phys_t *dnp = db->db.db_data + i;
 
+				i += DNODE_MIN_SIZE;
 				if (dnp->dn_type != DMU_OT_NONE) {
 					fill++;
-					i += dnp->dn_szsec * DNODE_MIN_SIZE;
-				} else {
-					i += DNODE_MIN_SIZE;
+					i += dnp->dn_nextra * DNODE_MIN_SIZE;
 				}
 			}
 		} else {

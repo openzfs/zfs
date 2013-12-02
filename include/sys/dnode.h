@@ -133,7 +133,7 @@ typedef struct dnode_phys {
 	uint8_t dn_flags;		/* DNODE_FLAG_* */
 	uint16_t dn_datablkszsec;	/* data block size in 512b sectors */
 	uint16_t dn_bonuslen;		/* length of dn_bonus */
-	uint8_t	dn_szsec;		/* on-disk dnode size in 512b sectors */
+	uint8_t dn_nextra;		/* # of subsequent dnodes consumed */
 	uint8_t dn_pad2[3];
 
 	/* accounting is protected by dn_dirty_mtx */
@@ -182,7 +182,7 @@ typedef struct dnode {
 	uint16_t dn_datablkszsec;	/* in 512b sectors */
 	uint32_t dn_datablksz;		/* in bytes */
 	uint64_t dn_maxblkid;
-	uint8_t dn_szsec;		/* on-disk dnode size in 512b sectors */
+	uint8_t dn_count;		/* # of total dnodes consumed on-disk */
 	uint8_t dn_next_nblkptr[TXG_SIZE];
 	uint8_t dn_next_nlevels[TXG_SIZE];
 	uint8_t dn_next_indblkshift[TXG_SIZE];

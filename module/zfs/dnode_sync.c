@@ -566,7 +566,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			/* this is a first alloc, not a realloc */
 			dnp->dn_nlevels = 1;
 			dnp->dn_nblkptr = dn->dn_nblkptr;
-			dnp->dn_szsec = dn->dn_szsec;
+			dnp->dn_nextra = dn->dn_count - 1;
 		}
 
 		dnp->dn_type = dn->dn_type;

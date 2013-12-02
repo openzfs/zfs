@@ -1631,14 +1631,14 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 	dnode_t *dn;
 	void *bonus = NULL;
 	size_t bsize = 0;
-	char iblk[32], dblk[32], lsize[32], asize[32], fill[32], szsec[32];
+	char iblk[32], dblk[32], lsize[32], asize[32], fill[32], dnsize[32];
 	char bonus_size[32];
 	char aux[50];
 	int error;
 
 	if (*print_header) {
-		(void) printf("\n%10s  %3s  %5s  %5s  %5s  %5s  %5s  %6s  %s\n",
-		    "Object", "lvl", "iblk", "dblk", "dsize", "szsec",
+		(void) printf("\n%10s  %3s  %5s  %5s  %5s  %6s  %5s  %6s  %s\n",
+		    "Object", "lvl", "iblk", "dblk", "dsize", "dnsize",
 		    "lsize", "%full", "type");
 		*print_header = 0;
 	}
@@ -1661,7 +1661,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 	zdb_nicenum(doi.doi_max_offset, lsize);
 	zdb_nicenum(doi.doi_physical_blocks_512 << 9, asize);
 	zdb_nicenum(doi.doi_bonus_size, bonus_size);
-	zdb_nicenum(doi.doi_szsec, szsec);
+	zdb_nicenum(doi.doi_count * DNODE_MIN_SIZE, dnsize);
 	(void) sprintf(fill, "%6.2f", 100.0 * doi.doi_fill_count *
 	    doi.doi_data_block_size / (object == 0 ? DNODES_PER_BLOCK : 1) /
 	    doi.doi_max_offset);
@@ -1678,9 +1678,9 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 		    ZDB_COMPRESS_NAME(doi.doi_compress));
 	}
 
-	(void) printf("%10lld  %3u  %5s  %5s  %5s  %5s  %5s  %6s  %s%s\n",
+	(void) printf("%10lld  %3u  %5s  %5s  %5s  %6s  %5s  %6s  %s%s\n",
 	    (u_longlong_t)object, doi.doi_indirection, iblk, dblk,
-	    asize, szsec, lsize, fill, ZDB_OT_NAME(doi.doi_type), aux);
+	    asize, dnsize, lsize, fill, ZDB_OT_NAME(doi.doi_type), aux);
 
 	if (doi.doi_bonus_type != DMU_OT_NONE && verbosity > 3) {
 		(void) printf("%10s  %3s  %5s  %5s  %5s  %5s  %5s  %6s  %s\n",

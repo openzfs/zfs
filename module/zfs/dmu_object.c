@@ -36,13 +36,13 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int dnodesize,
 	uint64_t L2_dnode_count = DNODES_PER_BLOCK <<
 	    (DMU_META_DNODE(os)->dn_indblkshift - SPA_BLKPTRSHIFT);
 	dnode_t *dn = NULL;
-	int restarted = B_FALSE, sectors;
+	int restarted = B_FALSE, count;
 
 	ASSERT3S(dnodesize, >=, DNODE_MIN_SIZE);
 	ASSERT3S(dnodesize, <=, DNODE_MAX_SIZE);
 	ASSERT0(dnodesize % DNODE_MIN_SIZE);
 
-	sectors = dnodesize >> DNODE_SHIFT;
+	count = dnodesize >> DNODE_SHIFT;
 
 	mutex_enter(&os->os_obj_lock);
 	for (;;) {
@@ -71,7 +71,7 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int dnodesize,
 		 * dmu_tx_assign(), but there is currently no mechanism
 		 * to do so.
 		 */
-		(void) dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, sectors,
+		(void) dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, count,
 		    FTAG, &dn);
 		if (dn)
 			break;
@@ -80,8 +80,8 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int dnodesize,
 			os->os_obj_next = object - 1;
 	}
 
-	dnode_allocate(dn, ot, sectors, blocksize, 0, bonustype, bonuslen, tx);
-	os->os_obj_next += dn->dn_szsec - 1;
+	dnode_allocate(dn, ot, count, blocksize, 0, bonustype, bonuslen, tx);
+	os->os_obj_next += dn->dn_count - 1;
 	dnode_rele(dn, FTAG);
 
 	mutex_exit(&os->os_obj_lock);
@@ -104,23 +104,23 @@ dmu_object_claim_impl(objset_t *os, uint64_t object, dmu_object_type_t ot,
     dmu_tx_t *tx)
 {
 	dnode_t *dn;
-	int err, sectors;
+	int err, count;
 
 	ASSERT3S(dnodesize, >=, DNODE_MIN_SIZE);
 	ASSERT3S(dnodesize, <=, DNODE_MAX_SIZE);
 	ASSERT0(dnodesize % DNODE_MIN_SIZE);
 
-	sectors = dnodesize >> DNODE_SHIFT;
+	count = dnodesize >> DNODE_SHIFT;
 
 	if (object == DMU_META_DNODE_OBJECT && !dmu_tx_private_ok(tx))
 		return (SET_ERROR(EBADF));
 
-	err = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, sectors,
+	err = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, count,
 	    FTAG, &dn);
 	if (err)
 		return (err);
 
-	dnode_allocate(dn, ot, sectors, blocksize, 0, bonustype, bonuslen, tx);
+	dnode_allocate(dn, ot, count, blocksize, 0, bonustype, bonuslen, tx);
 	dnode_rele(dn, FTAG);
 
 	dmu_tx_add_new_object(tx, os, object);
@@ -237,11 +237,11 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 	if (error && !(error == EINVAL && *objectp == 0))
 		goto out;
 
+	offset = (*objectp + 1) << DNODE_SHIFT;
 	if (dn) {
-		offset = (*objectp + dn->dn_szsec) << DNODE_SHIFT;
+		/* Skip any "extra" dnodes consumed by this one */
+		offset += (dn->dn_count - 1) * DNODE_MIN_SIZE;
 		dnode_rele(dn, FTAG);
-	} else {
-		offset = (*objectp + 1) << DNODE_SHIFT;
 	}
 
 	error = dnode_next_offset(DMU_META_DNODE(os),
