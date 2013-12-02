@@ -1144,10 +1144,8 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	mutex_enter(&zsb->z_znodes_lock);
 	for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
 	    zp = list_next(&zsb->z_all_znodes, zp)) {
-		if (zp->z_sa_hdl) {
-			ASSERT(atomic_read(&ZTOI(zp)->i_count) > 0);
+		if (zp->z_sa_hdl)
 			zfs_znode_dmu_fini(zp);
-		}
 	}
 	mutex_exit(&zsb->z_znodes_lock);
 
