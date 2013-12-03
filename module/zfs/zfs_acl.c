@@ -2043,6 +2043,7 @@ zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	zfs_fuid_info_t	*fuidp = NULL;
 	boolean_t	fuid_dirtied;
 	uint64_t	acl_obj;
+	hrtime_t before;
 
 	if (mask == 0)
 		return (SET_ERROR(ENOSYS));
@@ -2066,6 +2067,7 @@ zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 		aclp->z_hints |=
 		    (zp->z_pflags & V4_ACL_WIDE_FLAGS);
 	}
+	before = gethrtime();
 top:
 	mutex_enter(&zp->z_acl_lock);
 	mutex_enter(&zp->z_lock);
@@ -2112,6 +2114,7 @@ top:
 		zfs_acl_free(aclp);
 		return (error);
 	}
+	dmu_tx_assign_add_nsecs(tx, gethrtime() - before);
 
 	error = zfs_aclset_common(zp, aclp, cr, tx);
 	ASSERT(error == 0);

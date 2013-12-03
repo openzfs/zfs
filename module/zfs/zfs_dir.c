@@ -956,6 +956,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
 	int error;
 	zfs_acl_ids_t acl_ids;
 	boolean_t fuid_dirtied;
+	hrtime_t before;
 #ifdef DEBUG
 	uint64_t parent;
 #endif
@@ -973,6 +974,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
 		return (SET_ERROR(EDQUOT));
 	}
 
+	before = gethrtime();
 top:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
@@ -993,6 +995,7 @@ top:
 		dmu_tx_abort(tx);
 		return (error);
 	}
+	dmu_tx_assign_add_nsecs(tx, gethrtime() - before);
 	zfs_mknode(zp, vap, tx, cr, IS_XATTR, &xzp, &acl_ids);
 
 	if (fuid_dirtied)
