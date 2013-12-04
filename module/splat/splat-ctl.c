@@ -721,3 +721,4 @@ spl_module_exit(splat_fini);
 MODULE_AUTHOR("Lawrence Livermore National Labs");
 MODULE_DESCRIPTION("Solaris Porting LAyer Tests");
 MODULE_LICENSE("GPL");
+MODULE_VERSION(SPL_META_VERSION "-" SPL_META_RELEASE);
