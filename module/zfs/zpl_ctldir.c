@@ -497,10 +497,11 @@ zpl_shares_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	}
 
 	error = -zfs_zget(zsb, zsb->z_shares_dir, &dzp);
-	if (error == 0)
-		error = -zfs_getattr_fast(dentry->d_inode, stat);
+	if (error == 0) {
+		error = -zfs_getattr_fast(ZTOI(dzp), stat);
+		iput(ZTOI(dzp));
+	}
 
-	iput(ZTOI(dzp));
 	ZFS_EXIT(zsb);
 	ASSERT3S(error, <=, 0);
 
