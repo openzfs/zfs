@@ -1329,3 +1329,4 @@ spl_module_exit(zpios_fini);
 MODULE_AUTHOR("LLNL / Sun");
 MODULE_DESCRIPTION("Kernel PIOS implementation");
 MODULE_LICENSE("GPL");
+MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
