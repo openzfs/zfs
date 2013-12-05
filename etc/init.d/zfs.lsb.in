@@ -29,6 +29,7 @@ LOCKFILE=/var/lock/zfs
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+USE_DISK_BY_ID=0
 
 # Source zfs configuration.
 [ -r '/etc/default/zfs' ] &&  . /etc/default/zfs
@@ -69,11 +70,21 @@ start()
 
 	# Import all pools described by the cache file, and then mount
 	# all filesystem based on their properties.
-	if [ -f "$ZPOOL_CACHE" ] ; then
+	if [ "$USE_DISK_BY_ID" -eq 1 ]; then
+		log_begin_msg "Importing ZFS pools"
+		"$ZPOOL" import -d /dev/disk/by-id -aN 2>/dev/null
+		ret=$?
+		log_end_msg $ret
+		[ "$ret" -eq 0 ] && POOL_IMPORTED=1
+	elif [ -f "$ZPOOL_CACHE" ] ; then
 		log_begin_msg "Importing ZFS pools"
 		"$ZPOOL" import -c "$ZPOOL_CACHE" -aN 2>/dev/null
-		log_end_msg $?
+		ret=$?
+		log_end_msg $ret
+		[ "$ret" -eq 0 ] && POOL_IMPORTED=1
+	fi
 
+	if [ -n "$POOL_IMPORTED" ]; then
 		log_begin_msg "Mounting ZFS filesystems"
 		"$ZFS" mount -a
 		log_end_msg $?
