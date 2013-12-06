@@ -347,7 +347,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		goto out_doi;
 	}
 
-	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
+	if (zv->zv_flags & ZVOL_RDONLY) {
 		error = SET_ERROR(EROFS);
 		goto out_doi;
 	}
@@ -396,7 +396,7 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 		goto out;
 	}
 
-	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
+	if (zv->zv_flags & ZVOL_RDONLY) {
 		error = SET_ERROR(EROFS);
 		goto out;
 	}
@@ -770,8 +770,7 @@ zvol_request(struct request_queue *q)
 			zvol_dispatch(zvol_read, req);
 			break;
 		case WRITE:
-			if (unlikely(get_disk_ro(zv->zv_disk)) ||
-			    unlikely(zv->zv_flags & ZVOL_RDONLY)) {
+			if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
 				__blk_end_request(req, -EROFS, size);
 				break;
 			}
@@ -1019,8 +1018,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 			goto out_mutex;
 	}
 
-	if ((flag & FMODE_WRITE) &&
-	    (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY))) {
+	if ((flag & FMODE_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
 		error = -EROFS;
 		goto out_open_count;
 	}
@@ -1235,7 +1233,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zvol_state_t *zv;
 	int error = 0;
 
-	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
+	zv = kmem_zalloc(sizeof (zvol_state_t), KM_PUSHPAGE);
 
 	spin_lock_init(&zv->zv_lock);
 	list_link_init(&zv->zv_next);
@@ -1315,7 +1313,7 @@ __zvol_snapdev_hidden(const char *name)
         char *atp;
         int error = 0;
 
-        parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+        parent = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
         (void) strlcpy(parent, name, MAXPATHLEN);
 
         if ((atp = strrchr(parent, '@')) != NULL) {
@@ -1352,7 +1350,7 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 			goto out;
 	}
 
-	doi = kmem_alloc(sizeof(dmu_object_info_t), KM_SLEEP);
+	doi = kmem_alloc(sizeof(dmu_object_info_t), KM_PUSHPAGE);
 
 	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
 	if (error)
@@ -1474,77 +1472,118 @@ zvol_remove_minor(const char *name)
 	return (error);
 }
 
+/*
+ * Rename a block device minor mode for the specified volume.
+ */
+static void
+__zvol_rename_minor(zvol_state_t *zv, const char *newname)
+{
+	int readonly = get_disk_ro(zv->zv_disk);
+
+	ASSERT(MUTEX_HELD(&zvol_state_lock));
+
+	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
+
+	/*
+	 * The block device's read-only state is briefly changed causing
+	 * a KOBJ_CHANGE uevent to be issued.  This ensures udev detects
+	 * the name change and fixes the symlinks.  This does not change
+	 * ZVOL_RDONLY in zv->zv_flags so the actual read-only state never
+	 * changes.  This would normally be done using kobject_uevent() but
+	 * that is a GPL-only symbol which is why we need this workaround.
+	 */
+	set_disk_ro(zv->zv_disk, !readonly);
+	set_disk_ro(zv->zv_disk, readonly);
+}
+
 static int
 zvol_create_minors_cb(const char *dsname, void *arg)
 {
-	if (strchr(dsname, '/') == NULL)
-		return 0;
+	(void) zvol_create_minor(dsname);
 
-	(void) __zvol_create_minor(dsname, B_FALSE);
 	return (0);
 }
 
 /*
- * Create minors for specified pool, if pool is NULL create minors
- * for all available pools.
+ * Create minors for specified dataset including children and snapshots.
  */
 int
-zvol_create_minors(char *pool)
+zvol_create_minors(const char *name)
 {
-	spa_t *spa = NULL;
 	int error = 0;
 
-	if (zvol_inhibit_dev)
-		return (0);
-
-	mutex_enter(&zvol_state_lock);
-	if (pool) {
-		error = dmu_objset_find(pool, zvol_create_minors_cb,
+	if (!zvol_inhibit_dev)
+		error = dmu_objset_find((char *)name, zvol_create_minors_cb,
 		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
-	} else {
-		mutex_enter(&spa_namespace_lock);
-		while ((spa = spa_next(spa)) != NULL) {
-			error = dmu_objset_find(spa_name(spa), zvol_create_minors_cb, NULL,
-			    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
-			if (error)
-				break;
-		}
-		mutex_exit(&spa_namespace_lock);
-	}
-	mutex_exit(&zvol_state_lock);
 
-	return error;
+	return (SET_ERROR(error));
 }
 
 /*
- * Remove minors for specified pool, if pool is NULL remove all minors.
+ * Remove minors for specified dataset including children and snapshots.
  */
 void
-zvol_remove_minors(const char *pool)
+zvol_remove_minors(const char *name)
 {
 	zvol_state_t *zv, *zv_next;
-	char *str;
+	int namelen = ((name) ? strlen(name) : 0);
 
 	if (zvol_inhibit_dev)
 		return;
 
-	str = kmem_zalloc(MAXNAMELEN, KM_SLEEP);
-	if (pool) {
-		(void) strncpy(str, pool, strlen(pool));
-		(void) strcat(str, "/");
-	}
-
 	mutex_enter(&zvol_state_lock);
+
 	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
 		zv_next = list_next(&zvol_state_list, zv);
 
-		if (pool == NULL || !strncmp(str, zv->zv_name, strlen(str))) {
+		if (name == NULL || strcmp(zv->zv_name, name) == 0 ||
+		    (strncmp(zv->zv_name, name, namelen) == 0 &&
+		    zv->zv_name[namelen] == '/')) {
 			zvol_remove(zv);
 			zvol_free(zv);
 		}
 	}
+
 	mutex_exit(&zvol_state_lock);
-	kmem_free(str, MAXNAMELEN);
+}
+
+/*
+ * Rename minors for specified dataset including children and snapshots.
+ */
+void
+zvol_rename_minors(const char *oldname, const char *newname)
+{
+	zvol_state_t *zv, *zv_next;
+	int oldnamelen, newnamelen;
+	char *name;
+
+	if (zvol_inhibit_dev)
+		return;
+
+	oldnamelen = strlen(oldname);
+	newnamelen = strlen(newname);
+	name = kmem_alloc(MAXNAMELEN, KM_PUSHPAGE);
+
+	mutex_enter(&zvol_state_lock);
+
+	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
+		zv_next = list_next(&zvol_state_list, zv);
+
+		if (strcmp(zv->zv_name, oldname) == 0) {
+			__zvol_rename_minor(zv, newname);
+		} else if (strncmp(zv->zv_name, oldname, oldnamelen) == 0 &&
+		    (zv->zv_name[oldnamelen] == '/' ||
+		    zv->zv_name[oldnamelen] == '@')) {
+			snprintf(name, MAXNAMELEN, "%s%c%s", newname,
+			    zv->zv_name[oldnamelen],
+			    zv->zv_name + oldnamelen + 1);
+			__zvol_rename_minor(zv, name);
+		}
+	}
+
+	mutex_exit(&zvol_state_lock);
+
+	kmem_free(name, MAXNAMELEN);
 }
 
 static int
@@ -1552,7 +1591,7 @@ snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
 	uint64_t snapdev = *(uint64_t *) arg;
 
 	if (strchr(dsname, '@') == NULL)
-		return 0;
+		return (0);
 
 	switch (snapdev) {
 		case ZFS_SNAPDEV_VISIBLE:
@@ -1564,7 +1603,8 @@ snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
 			(void) zvol_remove_minor(dsname);
 			break;
 	}
-	return 0;
+
+	return (0);
 }
 
 int

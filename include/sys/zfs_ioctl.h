@@ -359,6 +359,8 @@ extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
 extern int zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
 
+extern boolean_t dataset_name_hidden(const char *name);
+
 enum zfsdev_state_type {
 	ZST_ONEXIT,
 	ZST_ZEVENT,
