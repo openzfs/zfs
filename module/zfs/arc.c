@@ -2386,7 +2386,7 @@ arc_adapt_thread(void)
 		 */
 		prune = (int64_t)arc_meta_used - (int64_t)arc_meta_limit;
 		if (prune > 0)
-			arc_adjust_meta(prune, B_TRUE);
+			arc_do_user_prune(zfs_arc_meta_prune);
 
 
 		/*
