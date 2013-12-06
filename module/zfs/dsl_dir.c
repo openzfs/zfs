@@ -38,6 +38,7 @@
 #include <sys/zio.h>
 #include <sys/arc.h>
 #include <sys/sunddi.h>
+#include <sys/zvol.h>
 #include "zfs_namecheck.h"
 
 static uint64_t dsl_dir_space_towrite(dsl_dir_t *dd);
@@ -1301,6 +1302,10 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 	/* add to new parent zapobj */
 	VERIFY0(zap_add(mos, newparent->dd_phys->dd_child_dir_zapobj,
 	    dd->dd_myname, 8, 1, &dd->dd_object, tx));
+
+#ifdef _KERNEL
+	zvol_rename_minors(ddra->ddra_oldname, ddra->ddra_newname);
+#endif
 
 	dsl_prop_notify_all(dd);
 
