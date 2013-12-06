@@ -181,7 +181,7 @@ typedef struct zfs_dirlock {
 	kcondvar_t	dl_cv;		/* wait for entry to be unlocked */
 	struct znode	*dl_dzp;	/* directory znode */
 	struct zfs_dirlock *dl_next;	/* next in z_dirlocks list */
-} zfs_dirlock_t;
+} zfs_dirlock_t __attribute((aligned(64)));
 
 typedef struct znode {
 	uint64_t	z_id;		/* object ID for this znode */
@@ -205,7 +205,8 @@ typedef struct znode {
 	uint64_t	z_pflags;	/* pflags (cached) */
 	uint64_t	z_uid;		/* uid fuid (cached) */
 	uint64_t	z_gid;		/* gid fuid (cached) */
-	mode_t		z_mode;		/* mode (cached) */
+//	mode_t		z_mode;		/* mode (cached) */
+	uint64_t        z_mode;     /* mode (cached) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
@@ -220,7 +221,7 @@ typedef struct znode {
 	boolean_t	z_is_ctldir;	/* are we .zfs entry */
 	boolean_t	z_is_stale;	/* are we stale due to rollback? */
 	struct inode	z_inode;	/* generic vfs inode */
-} znode_t;
+} znode_t __attribute((aligned(64)));
 
 
 /*
