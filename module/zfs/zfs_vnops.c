@@ -2365,8 +2365,14 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	ZFS_TIME_DECODE(&vap->va_ctime, ctime);
 
 	mutex_exit(&zp->z_lock);
-
-	sa_object_size(zp->z_sa_hdl, &vap->va_blksize, &vap->va_nblocks);
+	
+	struct kstat *sp;
+		
+	#if defined(__sparc) && defined(__arch64__)
+        	sa_object_size(zp->z_sa_hdl, (uint32_t *)&sp->blksize + 1, &sp->blocks);
+	#else
+        	sa_object_size(zp->z_sa_hdl, (uint32_t *)&sp->blksize, &sp->blocks);
+	#endif
 
 	if (zp->z_blksz == 0) {
 		/*
