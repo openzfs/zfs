@@ -173,57 +173,107 @@ extern "C" {
  * Each directory znode has a mutex and a list of locked names.
  */
 #ifdef _KERNEL
-typedef struct zfs_dirlock {
-	char		*dl_name;	/* directory entry being locked */
-	uint32_t	dl_sharecnt;	/* 0 if exclusive, > 0 if shared */
-	uint8_t		dl_namelock;	/* 1 if z_name_lock is NOT held */
-	uint16_t	dl_namesize;	/* set if dl_name was allocated */
-	kcondvar_t	dl_cv;		/* wait for entry to be unlocked */
-	struct znode	*dl_dzp;	/* directory znode */
-	struct zfs_dirlock *dl_next;	/* next in z_dirlocks list */
-} zfs_dirlock_t __attribute((aligned(64)));
+#if defined(__sparc) /* for sparc we need the memory alignment, ugly fix */
+	typedef struct zfs_dirlock {
+		char		*dl_name;	/* directory entry being locked */
+		uint32_t	dl_sharecnt;	/* 0 if exclusive, > 0 if shared */
+		uint8_t		dl_namelock;	/* 1 if z_name_lock is NOT held */
+		uint16_t	dl_namesize;	/* set if dl_name was allocated */
+		kcondvar_t	dl_cv;		/* wait for entry to be unlocked */
+		struct znode	*dl_dzp;	/* directory znode */
+		struct zfs_dirlock *dl_next;	/* next in z_dirlocks list */
+	} zfs_dirlock_t __attribute((aligned(64)));
+#else
+	typedef struct zfs_dirlock {
+	        char            *dl_name;       /* directory entry being locked */
+	        uint32_t        dl_sharecnt;    /* 0 if exclusive, > 0 if shared */
+	        uint8_t         dl_namelock;    /* 1 if z_name_lock is NOT held */
+	        uint16_t        dl_namesize;    /* set if dl_name was allocated */
+	        kcondvar_t      dl_cv;          /* wait for entry to be unlocked */
+	        struct znode    *dl_dzp;        /* directory znode */
+	        struct zfs_dirlock *dl_next;    /* next in z_dirlocks list */
+	} zfs_dirlock_t
+#endif
 
-typedef struct znode {
-	uint64_t	z_id;		/* object ID for this znode */
-	kmutex_t	z_lock;		/* znode modification lock */
-	krwlock_t	z_parent_lock;	/* parent lock for directories */
-	krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
-	zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
-	kmutex_t	z_range_lock;	/* protects changes to z_range_avl */
-	avl_tree_t	z_range_avl;	/* avl tree of file range locks */
-	uint8_t		z_unlinked;	/* file has been unlinked */
-	uint8_t		z_atime_dirty;	/* atime needs to be synced */
-	uint8_t		z_zn_prefetch;	/* Prefetch znodes? */
-	uint8_t		z_moved;	/* Has this znode been moved? */
-	uint_t		z_blksz;	/* block size in bytes */
-	uint_t		z_seq;		/* modification sequence number */
-	uint64_t	z_mapcnt;	/* number of pages mapped to file */
-	uint64_t	z_gen;		/* generation (cached) */
-	uint64_t	z_size;		/* file size (cached) */
-	uint64_t	z_atime[2];	/* atime (cached) */
-	uint64_t	z_links;	/* file links (cached) */
-	uint64_t	z_pflags;	/* pflags (cached) */
-	uint64_t	z_uid;		/* uid fuid (cached) */
-	uint64_t	z_gid;		/* gid fuid (cached) */
-//	mode_t		z_mode;		/* mode (cached) */
-	uint64_t        z_mode;     /* mode (cached) */
-	uint32_t	z_sync_cnt;	/* synchronous open count */
-	kmutex_t	z_acl_lock;	/* acl data lock */
-	zfs_acl_t	*z_acl_cached;	/* cached acl */
-	krwlock_t	z_xattr_lock;	/* xattr data lock */
-	nvlist_t	*z_xattr_cached;/* cached xattrs */
-	struct znode	*z_xattr_parent;/* xattr parent znode */
-	list_node_t	z_link_node;	/* all znodes in fs link */
-	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
-	boolean_t	z_is_sa;	/* are we native sa? */
-	boolean_t	z_is_zvol;	/* are we used by the zvol */
-	boolean_t	z_is_mapped;	/* are we mmap'ed */
-	boolean_t	z_is_ctldir;	/* are we .zfs entry */
-	boolean_t	z_is_stale;	/* are we stale due to rollback? */
-	struct inode	z_inode;	/* generic vfs inode */
-} znode_t __attribute((aligned(64)));
-
-
+#if defined(__sparc) /* for sparc we need the memory alignment, ugly fix */
+	typedef struct znode {
+		uint64_t	z_id;		/* object ID for this znode */
+		kmutex_t	z_lock;		/* znode modification lock */
+		krwlock_t	z_parent_lock;	/* parent lock for directories */
+		krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
+		zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
+		kmutex_t	z_range_lock;	/* protects changes to z_range_avl */
+		avl_tree_t	z_range_avl;	/* avl tree of file range locks */
+		uint8_t		z_unlinked;	/* file has been unlinked */
+		uint8_t		z_atime_dirty;	/* atime needs to be synced */
+		uint8_t		z_zn_prefetch;	/* Prefetch znodes? */
+		uint8_t		z_moved;	/* Has this znode been moved? */
+		uint_t		z_blksz;	/* block size in bytes */
+		uint_t		z_seq;		/* modification sequence number */
+		uint64_t	z_mapcnt;	/* number of pages mapped to file */
+		uint64_t	z_gen;		/* generation (cached) */
+		uint64_t	z_size;		/* file size (cached) */
+		uint64_t	z_atime[2];	/* atime (cached) */
+		uint64_t	z_links;	/* file links (cached) */
+		uint64_t	z_pflags;	/* pflags (cached) */
+		uint64_t	z_uid;		/* uid fuid (cached) */
+		uint64_t	z_gid;		/* gid fuid (cached) */
+		uint64_t        z_mode;     /* mode (cached) */
+		uint32_t	z_sync_cnt;	/* synchronous open count */
+		kmutex_t	z_acl_lock;	/* acl data lock */
+		zfs_acl_t	*z_acl_cached;	/* cached acl */
+		krwlock_t	z_xattr_lock;	/* xattr data lock */
+		nvlist_t	*z_xattr_cached;/* cached xattrs */
+		struct znode	*z_xattr_parent;/* xattr parent znode */
+		list_node_t	z_link_node;	/* all znodes in fs link */
+		sa_handle_t	*z_sa_hdl;	/* handle to sa data */
+		boolean_t	z_is_sa;	/* are we native sa? */
+		boolean_t	z_is_zvol;	/* are we used by the zvol */
+		boolean_t	z_is_mapped;	/* are we mmap'ed */
+		boolean_t	z_is_ctldir;	/* are we .zfs entry */
+		boolean_t	z_is_stale;	/* are we stale due to rollback? */
+		struct inode	z_inode;	/* generic vfs inode */
+	} znode_t __attribute((aligned(64)));
+#else
+	typedef struct znode {
+	        uint64_t        z_id;           /* object ID for this znode */
+	        kmutex_t        z_lock;         /* znode modification lock */
+	        krwlock_t       z_parent_lock;  /* parent lock for directories */
+	        krwlock_t       z_name_lock;    /* "master" lock for dirent locks */
+	        zfs_dirlock_t   *z_dirlocks;    /* directory entry lock list */
+	        kmutex_t        z_range_lock;   /* protects changes to z_range_avl */
+	        avl_tree_t      z_range_avl;    /* avl tree of file range locks */
+	        uint8_t         z_unlinked;     /* file has been unlinked */
+	        uint8_t         z_atime_dirty;  /* atime needs to be synced */
+	        uint8_t         z_zn_prefetch;  /* Prefetch znodes? */
+	        uint8_t         z_moved;        /* Has this znode been moved? */
+	        uint_t          z_blksz;        /* block size in bytes */
+	        uint_t          z_seq;          /* modification sequence number */
+	        uint64_t        z_mapcnt;       /* number of pages mapped to file */
+	        uint64_t        z_gen;          /* generation (cached) */
+	        uint64_t        z_size;         /* file size (cached) */
+	        uint64_t        z_atime[2];     /* atime (cached) */
+	        uint64_t        z_links;        /* file links (cached) */
+	        uint64_t        z_pflags;       /* pflags (cached) */
+	        uint64_t        z_uid;          /* uid fuid (cached) */
+	        uint64_t        z_gid;          /* gid fuid (cached) */
+	        mode_t          z_mode;         /* mode (cached) */
+	        uint32_t        z_sync_cnt;     /* synchronous open count */
+	        kmutex_t        z_acl_lock;     /* acl data lock */
+	        zfs_acl_t       *z_acl_cached;  /* cached acl */
+	        krwlock_t       z_xattr_lock;   /* xattr data lock */
+	        nvlist_t        *z_xattr_cached;/* cached xattrs */
+	        struct znode    *z_xattr_parent;/* xattr parent znode */
+	        list_node_t     z_link_node;    /* all znodes in fs link */
+	        sa_handle_t     *z_sa_hdl;      /* handle to sa data */
+	        boolean_t       z_is_sa;        /* are we native sa? */
+	        boolean_t       z_is_zvol;      /* are we used by the zvol */
+	        boolean_t       z_is_mapped;    /* are we mmap'ed */
+	        boolean_t       z_is_ctldir;    /* are we .zfs entry */
+	        boolean_t       z_is_stale;     /* are we stale due to rollback? */
+	        struct inode    z_inode;        /* generic vfs inode */
+	} znode_t;
+#endif
 /*
  * Range locking rules
  * --------------------
