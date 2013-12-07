@@ -1,6 +1,3 @@
-Now with working patches on SPARC !!!
-
------------------------------------------------------------------------------------
 Native ZFS for Linux!
 
 ZFS is an advanced file system and volume manager which was originally
