@@ -93,6 +93,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_SCHED_RT_HEADER
 	SPL_AC_2ARGS_VFS_GETATTR
 	SPL_AC_USLEEP_RANGE
+	SPL_AC_KMEM_CACHE_ALLOCFLAGS
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -2530,5 +2531,42 @@ AC_DEFUN([SPL_AC_USLEEP_RANGE], [
 		          [usleep_range is available])
 	],[
 		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.35 API change,
+dnl # The cachep->gfpflags member was renamed cachep->allocflags.  These are
+dnl # private allocation flags which are applied when allocating a new slab
+dnl # in kmem_getpages().  Unfortunately there is no public API for setting
+dnl # non-default flags.
+dnl #
+AC_DEFUN([SPL_AC_KMEM_CACHE_ALLOCFLAGS], [
+	AC_MSG_CHECKING([whether struct kmem_cache has allocflags])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/slab.h>
+	],[
+		struct kmem_cache cachep __attribute__ ((unused));
+		cachep.allocflags = GFP_KERNEL;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KMEM_CACHE_ALLOCFLAGS, 1,
+			[struct kmem_cache has allocflags])
+	],[
+		AC_MSG_RESULT(no)
+
+		AC_MSG_CHECKING([whether struct kmem_cache has gfpflags])
+		SPL_LINUX_TRY_COMPILE([
+			#include <linux/slab.h>
+		],[
+			struct kmem_cache cachep __attribute__ ((unused));
+			cachep.gfpflags = GFP_KERNEL;
+		],[
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_KMEM_CACHE_GFPFLAGS, 1,
+				[struct kmem_cache has gfpflags])
+		],[
+			AC_MSG_RESULT(no)
+		])
 	])
 ])

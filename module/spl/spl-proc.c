@@ -646,6 +646,12 @@ slab_seq_show(struct seq_file *f, void *p)
 
         ASSERT(skc->skc_magic == SKC_MAGIC);
 
+	/*
+	 * Backed by Linux slab see /proc/slabinfo.
+	 */
+	if (skc->skc_flags & KMC_SLAB)
+		return (0);
+
         spin_lock(&skc->skc_lock);
         seq_printf(f, "%-36s  ", skc->skc_name);
         seq_printf(f, "0x%05lx %9lu %9lu %8u %8u  "

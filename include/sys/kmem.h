@@ -340,8 +340,9 @@ enum {
 	KMC_BIT_QCACHE		= 4,	/* XXX: Unsupported */
 	KMC_BIT_KMEM		= 5,	/* Use kmem cache */
 	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
-	KMC_BIT_OFFSLAB		= 7,	/* Objects not on slab */
-	KMC_BIT_NOEMERGENCY	= 8,	/* Disable emergency objects */
+	KMC_BIT_SLAB		= 7,	/* Use Linux slab cache */
+	KMC_BIT_OFFSLAB		= 8,	/* Objects not on slab */
+	KMC_BIT_NOEMERGENCY	= 9,	/* Disable emergency objects */
 	KMC_BIT_DEADLOCKED      = 14,	/* Deadlock detected */
 	KMC_BIT_GROWING         = 15,   /* Growing in progress */
 	KMC_BIT_REAPING		= 16,	/* Reaping in progress */
@@ -367,6 +368,7 @@ typedef enum kmem_cbrc {
 #define KMC_QCACHE		(1 << KMC_BIT_QCACHE)
 #define KMC_KMEM		(1 << KMC_BIT_KMEM)
 #define KMC_VMEM		(1 << KMC_BIT_VMEM)
+#define KMC_SLAB		(1 << KMC_BIT_SLAB)
 #define KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
 #define KMC_NOEMERGENCY		(1 << KMC_BIT_NOEMERGENCY)
 #define KMC_DEADLOCKED		(1 << KMC_BIT_DEADLOCKED)
@@ -456,6 +458,7 @@ typedef struct spl_kmem_cache {
 	spl_kmem_reclaim_t	skc_reclaim;	/* Reclaimator */
 	void			*skc_private;	/* Private data */
 	void			*skc_vmp;	/* Unused */
+	struct kmem_cache	*skc_linux_cache; /* Linux slab cache if used */
 	unsigned long		skc_flags;	/* Flags */
 	uint32_t		skc_obj_size;	/* Object size */
 	uint32_t		skc_obj_align;	/* Object alignment */
@@ -512,5 +515,25 @@ void spl_kmem_fini(void);
 #define kmem_reap()			spl_kmem_reap()
 #define kmem_virt(ptr)			(((ptr) >= (void *)VMALLOC_START) && \
 					 ((ptr) <  (void *)VMALLOC_END))
+
+/*
+ * Allow custom slab allocation flags to be set for KMC_SLAB based caches.
+ * One use for this function is to ensure the __GFP_COMP flag is part of
+ * the default allocation mask which ensures higher order allocations are
+ * properly refcounted.  This flag was added to the default ->allocflags
+ * as of Linux 3.11.
+ */
+static inline void
+kmem_cache_set_allocflags(spl_kmem_cache_t *skc, gfp_t flags)
+{
+	if (skc->skc_linux_cache == NULL)
+		return;
+
+#if defined(HAVE_KMEM_CACHE_ALLOCFLAGS)
+	skc->skc_linux_cache->allocflags |= flags;
+#elif defined(HAVE_KMEM_CACHE_GFPFLAGS)
+	skc->skc_linux_cache->gfpflags |= flags;
+#endif
+}
 
 #endif	/* _SPL_KMEM_H */
