@@ -36,6 +36,7 @@
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 #include <sys/callb.h>
+#include <sys/zfeature.h>
 
 int zfs_pd_blks_max = 100;
 
@@ -74,7 +75,7 @@ traverse_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 	traverse_data_t *td = arg;
 	zbookmark_t zb;
 
-	if (bp->blk_birth == 0)
+	if (BP_IS_HOLE(bp))
 		return (0);
 
 	if (claim_txg == 0 && bp->blk_birth >= spa_first_txg(td->td_spa))
@@ -98,7 +99,7 @@ traverse_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
 		blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_t zb;
 
-		if (bp->blk_birth == 0)
+		if (BP_IS_HOLE(bp))
 			return (0);
 
 		if (claim_txg == 0 || bp->blk_birth < claim_txg)
@@ -225,13 +226,34 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		ASSERT(0);
 	}
 
-	if (BP_IS_HOLE(bp)) {
-		err = td->td_func(td->td_spa, NULL, NULL, zb, dnp, td->td_arg);
-		return (err);
+	if (bp->blk_birth == 0) {
+		if (spa_feature_is_active(td->td_spa, SPA_FEATURE_HOLE_BIRTH)) {
+			/*
+			 * Since this block has a birth time of 0 it must be a
+			 * hole created before the SPA_FEATURE_HOLE_BIRTH
+			 * feature was enabled.  If SPA_FEATURE_HOLE_BIRTH
+			 * was enabled before the min_txg for this traveral we
+			 * know the hole must have been created before the
+			 * min_txg for this traveral, so we can skip it. If
+			 * SPA_FEATURE_HOLE_BIRTH was enabled after the min_txg
+			 * for this traveral we cannot tell if the hole was
+			 * created before or after the min_txg for this
+			 * traversal, so we cannot skip it.
+			 */
+			uint64_t hole_birth_enabled_txg;
+			VERIFY(spa_feature_enabled_txg(td->td_spa,
+			    SPA_FEATURE_HOLE_BIRTH, &hole_birth_enabled_txg));
+			if (hole_birth_enabled_txg < td->td_min_txg)
+				return (0);
+		}
+	} else if (bp->blk_birth <= td->td_min_txg) {
+		return (0);
 	}
 
-	if (bp->blk_birth <= td->td_min_txg)
-		return (0);
+	if (BP_IS_HOLE(bp)) {
+		err = td->td_func(td->td_spa, NULL, bp, zb, dnp, td->td_arg);
+		return (err);
+	}
 
 	if (td->td_pfd && !td->td_pfd->pd_exited &&
 	    ((td->td_pfd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
@@ -441,7 +463,8 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (pfd->pd_cancel)
 		return (SET_ERROR(EINTR));
 
-	if (bp == NULL || !((pfd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
+	if (BP_IS_HOLE(bp) ||
+	    !((pfd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
 	    BP_GET_TYPE(bp) == DMU_OT_DNODE || BP_GET_LEVEL(bp) > 0) ||
 	    BP_GET_TYPE(bp) == DMU_OT_INTENT_LOG)
 		return (0);

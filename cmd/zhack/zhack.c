@@ -277,6 +277,9 @@ zhack_do_feature_stat(int argc, char **argv)
 	dump_obj(os, spa->spa_feat_for_read_obj, "for_read");
 	dump_obj(os, spa->spa_feat_for_write_obj, "for_write");
 	dump_obj(os, spa->spa_feat_desc_obj, "descriptions");
+	if (spa_feature_is_active(spa, SPA_FEATURE_ENABLED_TXG)) {
+		dump_obj(os, spa->spa_feat_enabled_txg_obj, "enabled_txg");
+	}
 	dump_mos(spa);
 
 	spa_close(spa, FTAG);
@@ -313,7 +316,9 @@ zhack_do_feature_enable(int argc, char **argv)
 	feature.fi_uname = "zhack";
 	feature.fi_mos = B_FALSE;
 	feature.fi_can_readonly = B_FALSE;
+	feature.fi_activate_on_enable = B_FALSE;
 	feature.fi_depends = nodeps;
+	feature.fi_feature = SPA_FEATURE_NONE;
 
 	optind = 1;
 	while ((c = getopt(argc, argv, "rmd:")) != -1) {
@@ -371,7 +376,7 @@ feature_incr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
-	VERIFY0(feature_get_refcount(spa, feature, &refcount));
+	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount + 1, tx);
 	spa_history_log_internal(spa, "zhack feature incr", tx,
 	    "name=%s", feature->fi_guid);
@@ -384,7 +389,7 @@ feature_decr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
-	VERIFY0(feature_get_refcount(spa, feature, &refcount));
+	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount - 1, tx);
 	spa_history_log_internal(spa, "zhack feature decr", tx,
 	    "name=%s", feature->fi_guid);
@@ -411,6 +416,7 @@ zhack_do_feature_ref(int argc, char **argv)
 	feature.fi_mos = B_FALSE;
 	feature.fi_desc = NULL;
 	feature.fi_depends = nodeps;
+	feature.fi_feature = SPA_FEATURE_NONE;
 
 	optind = 1;
 	while ((c = getopt(argc, argv, "md")) != -1) {
@@ -459,8 +465,8 @@ zhack_do_feature_ref(int argc, char **argv)
 
 	if (decr) {
 		uint64_t count;
-		if (feature_get_refcount(spa, &feature, &count) == 0 &&
-		    count != 0) {
+		if (feature_get_refcount_from_disk(spa, &feature,
+		    &count) == 0 && count != 0) {
 			fatal(spa, FTAG, "feature refcount already 0: %s",
 			    feature.fi_guid);
 		}

@@ -290,6 +290,7 @@ typedef void dmu_buf_evict_func_t(struct dmu_buf *db, void *user_ptr);
 #define	DMU_POOL_FEATURES_FOR_WRITE	"features_for_write"
 #define	DMU_POOL_FEATURES_FOR_READ	"features_for_read"
 #define	DMU_POOL_FEATURE_DESCRIPTIONS	"feature_descriptions"
+#define	DMU_POOL_FEATURE_ENABLED_TXG	"feature_enabled_txg"
 #define	DMU_POOL_ROOT_DATASET		"root_dataset"
 #define	DMU_POOL_SYNC_BPOBJ		"sync_bplist"
 #define	DMU_POOL_ERRLOG_SCRUB		"errlog_scrub"
