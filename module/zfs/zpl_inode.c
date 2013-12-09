@@ -27,7 +27,6 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
 #include <sys/vfs.h>
-#include <sys/zpl.h>
 
 
 static struct dentry *

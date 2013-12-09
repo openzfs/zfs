@@ -272,5 +272,70 @@ this feature are destroyed.
 
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBenabled_txg\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:enabled_txg
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+Once this feature is enabled ZFS records the transaction group number
+in which new features are enabled. This has no user-visible impact,
+but other features may depend on this feature.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will
+never return to being \fBenabled\fB.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBhole_birth\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:hole_birth
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	enabled_txg
+.TE
+
+This feature improves performance of incremental sends ("zfs send -i")
+and receives for objects with many holes. The most common case of
+hole-filled objects is zvols.
+
+An incremental send stream from snapshot \fBA\fR to snapshot \fBB\fR
+contains information about every block that changed between \fBA\fR and
+\fBB\fR. Blocks which did not change between those snapshots can be
+identified and omitted from the stream using a piece of metadata called
+the 'block birth time', but birth times are not recorded for holes (blocks
+filled only with zeroes). Since holes created after \fBA\fR cannot be
+distinguished from holes created before \fBA\fR, information about every
+hole in the entire filesystem or zvol is included in the send stream.
+
+For workloads where holes are rare this is not a problem. However, when
+incrementally replicating filesystems or zvols with many holes (for
+example a zvol formatted with another filesystem) a lot of time will
+be spent sending and receiving unnecessary information about holes that
+already exist on the receiving side.
+
+Once the \fBhole_birth\fR feature has been enabled the block birth times
+of all new holes will be recorded. Incremental sends between snapshots
+created after this feature is enabled will use this new metadata to avoid
+sending information about holes that already exist on the receiving side.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will
+never return to being \fBenabled\fB.
+
+.RE
+
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)

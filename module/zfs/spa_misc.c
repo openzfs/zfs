@@ -468,7 +468,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 {
 	spa_t *spa;
 	spa_config_dirent_t *dp;
-	int t;
+	int t, i;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -547,6 +547,15 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	}
 
 	spa->spa_debug = ((zfs_flags & ZFS_DEBUG_SPA) != 0);
+
+	/*
+	 * As a pool is being created, treat all features as disabled by
+	 * setting SPA_FEATURE_DISABLED for all entries in the feature
+	 * refcount cache.
+	 */
+	for (i = 0; i < SPA_FEATURES; i++) {
+		spa->spa_feat_refcount_cache[i] = SPA_FEATURE_DISABLED;
+	}
 
 	return (spa);
 }
@@ -1094,11 +1103,19 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
  */
 
 void
-spa_activate_mos_feature(spa_t *spa, const char *feature)
+spa_activate_mos_feature(spa_t *spa, const char *feature, dmu_tx_t *tx)
 {
 	if (!nvlist_exists(spa->spa_label_features, feature)) {
 		fnvlist_add_boolean(spa->spa_label_features, feature);
-		vdev_config_dirty(spa->spa_root_vdev);
+		/*
+		 * When we are creating the pool (tx_txg==TXG_INITIAL), we can't
+		 * dirty the vdev config because lock SCL_CONFIG is not held.
+		 * Thankfully, in this case we don't need to dirty the config
+		 * because it will be written out anyway when we finish
+		 * creating the pool.
+		 */
+		if (tx->tx_txg != TXG_INITIAL)
+			vdev_config_dirty(spa->spa_root_vdev);
 	}
 }
 
@@ -1257,7 +1274,7 @@ spa_generate_guid(spa_t *spa)
 }
 
 void
-sprintf_blkptr(char *buf, const blkptr_t *bp)
+snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 {
 	char type[256];
 	char *checksum = NULL;
@@ -1279,7 +1296,8 @@ sprintf_blkptr(char *buf, const blkptr_t *bp)
 		compress = zio_compress_table[BP_GET_COMPRESS(bp)].ci_name;
 	}
 
-	SPRINTF_BLKPTR(snprintf, ' ', buf, bp, type, checksum, compress);
+	SNPRINTF_BLKPTR(snprintf, ' ', buf, buflen, bp, type, checksum,
+	    compress);
 }
 
 void
@@ -1875,7 +1893,7 @@ EXPORT_SYMBOL(spa_strdup);
 EXPORT_SYMBOL(spa_strfree);
 EXPORT_SYMBOL(spa_get_random);
 EXPORT_SYMBOL(spa_generate_guid);
-EXPORT_SYMBOL(sprintf_blkptr);
+EXPORT_SYMBOL(snprintf_blkptr);
 EXPORT_SYMBOL(spa_freeze);
 EXPORT_SYMBOL(spa_upgrade);
 EXPORT_SYMBOL(spa_evict_all);
