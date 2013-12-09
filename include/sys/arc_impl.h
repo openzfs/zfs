@@ -138,13 +138,8 @@ struct arc_write_callback {
  * these two allocation states.
  */
 typedef struct l1arc_buf_hdr {
-	kmutex_t		b_freeze_lock;
-
 	arc_buf_t		*b_buf;
 	uint32_t		b_datacnt;
-	/* for waiting on writes to complete */
-	kcondvar_t		b_cv;
-
 
 	/* protected by arc state mutex */
 	arc_state_t		*b_state;
