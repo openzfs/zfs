@@ -795,7 +795,7 @@ buf_hash(uint64_t spa, const dva_t *dva, uint64_t birth)
 #define	BUF_EMPTY(buf)						\
 	((buf)->b_dva.dva_word[0] == 0 &&			\
 	(buf)->b_dva.dva_word[1] == 0 &&			\
-	(buf)->b_birth == 0)
+	(buf)->b_cksum0 == 0)
 
 #define	BUF_EQUAL(spa, dva, birth, buf)				\
 	((buf)->b_dva.dva_word[0] == (dva)->dva_word[0]) &&	\
@@ -3854,9 +3854,13 @@ arc_write_done(zio_t *zio)
 	ASSERT(hdr->b_acb == NULL);
 
 	if (zio->io_error == 0) {
-		hdr->b_dva = *BP_IDENTITY(zio->io_bp);
-		hdr->b_birth = BP_PHYSICAL_BIRTH(zio->io_bp);
-		hdr->b_cksum0 = zio->io_bp->blk_cksum.zc_word[0];
+		if (BP_IS_HOLE(zio->io_bp)) {
+			buf_discard_identity(hdr);
+		} else {
+			hdr->b_dva = *BP_IDENTITY(zio->io_bp);
+			hdr->b_birth = BP_PHYSICAL_BIRTH(zio->io_bp);
+			hdr->b_cksum0 = zio->io_bp->blk_cksum.zc_word[0];
+		}
 	} else {
 		ASSERT(BUF_EMPTY(hdr));
 	}

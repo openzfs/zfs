@@ -385,11 +385,12 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (zb->zb_object != DMU_META_DNODE_OBJECT &&
 	    DMU_OBJECT_IS_SPECIAL(zb->zb_object)) {
 		return (0);
-	} else if (bp == NULL && zb->zb_object == DMU_META_DNODE_OBJECT) {
+	} else if (BP_IS_HOLE(bp) &&
+	    zb->zb_object == DMU_META_DNODE_OBJECT) {
 		uint64_t span = BP_SPAN(dnp, zb->zb_level);
 		uint64_t dnobj = (zb->zb_blkid * span) >> DNODE_SHIFT;
 		err = dump_freeobjects(dsp, dnobj, span >> DNODE_SHIFT);
-	} else if (bp == NULL) {
+	} else if (BP_IS_HOLE(bp)) {
 		uint64_t span = BP_SPAN(dnp, zb->zb_level);
 		err = dump_free(dsp, zb->zb_object, zb->zb_blkid * span, span);
 	} else if (zb->zb_level > 0 || type == DMU_OT_OBJSET) {

@@ -248,9 +248,9 @@ vdev_cache_fill(zio_t *fio)
 }
 
 /*
- * Read data from the cache.  Returns 0 on cache hit, errno on a miss.
+ * Read data from the cache.  Returns B_TRUE cache hit, B_FALSE on miss.
  */
-int
+boolean_t
 vdev_cache_read(zio_t *zio)
 {
 	vdev_cache_t *vc = &zio->io_vd->vdev_cache;
@@ -262,16 +262,16 @@ vdev_cache_read(zio_t *zio)
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
 
 	if (zio->io_flags & ZIO_FLAG_DONT_CACHE)
-		return (SET_ERROR(EINVAL));
+		return (B_FALSE);
 
 	if (zio->io_size > zfs_vdev_cache_max)
-		return (SET_ERROR(EOVERFLOW));
+		return (B_FALSE);
 
 	/*
 	 * If the I/O straddles two or more cache blocks, don't cache it.
 	 */
 	if (P2BOUNDARY(zio->io_offset, zio->io_size, VCBS))
-		return (SET_ERROR(EXDEV));
+		return (B_FALSE);
 
 	ASSERT(cache_phase + zio->io_size <= VCBS);
 
@@ -285,7 +285,7 @@ vdev_cache_read(zio_t *zio)
 	if (ve != NULL) {
 		if (ve->ve_missed_update) {
 			mutex_exit(&vc->vc_lock);
-			return (SET_ERROR(ESTALE));
+			return (B_FALSE);
 		}
 
 		if ((fio = ve->ve_fill_io) != NULL) {
@@ -293,7 +293,7 @@ vdev_cache_read(zio_t *zio)
 			zio_add_child(zio, fio);
 			mutex_exit(&vc->vc_lock);
 			VDCSTAT_BUMP(vdc_stat_delegations);
-			return (0);
+			return (B_TRUE);
 		}
 
 		vdev_cache_hit(vc, ve, zio);
@@ -301,14 +301,14 @@ vdev_cache_read(zio_t *zio)
 
 		mutex_exit(&vc->vc_lock);
 		VDCSTAT_BUMP(vdc_stat_hits);
-		return (0);
+		return (B_TRUE);
 	}
 
 	ve = vdev_cache_allocate(zio);
 
 	if (ve == NULL) {
 		mutex_exit(&vc->vc_lock);
-		return (SET_ERROR(ENOMEM));
+		return (B_FALSE);
 	}
 
 	fio = zio_vdev_delegated_io(zio->io_vd, cache_offset,
@@ -323,7 +323,7 @@ vdev_cache_read(zio_t *zio)
 	zio_nowait(fio);
 	VDCSTAT_BUMP(vdc_stat_misses);
 
-	return (0);
+	return (B_TRUE);
 }
 
 /*
