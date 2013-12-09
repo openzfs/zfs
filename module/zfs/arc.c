@@ -4019,7 +4019,7 @@ arc_init(void)
 	/* set min cache to 1/32 of all memory, or 64MB, whichever is more */
 	arc_c_min = MAX(arc_c / 4, 64<<20);
 	/* set max to 1/2 of all memory */
-	arc_c_max = MAX(arc_c * 4, arc_c_max);
+	arc_c_max = arc_c * 4;
 
 	/*
 	 * Allow the tunables to override our calculations if they are
