@@ -1123,6 +1123,8 @@ zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
 
 	if (flag & ATTR_ATIME) {
 		ZFS_TIME_ENCODE(&now, zp->z_atime);
+		ZTOI(zp)->i_atime.tv_sec = zp->z_atime[0];
+		ZTOI(zp)->i_atime.tv_nsec = zp->z_atime[1];
 	}
 
 	if (flag & ATTR_MTIME) {
