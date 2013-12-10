@@ -180,7 +180,8 @@ sas_handler() {
 		fi
 
 		# Get the raw scsi device name from multipath -l.
-		DEV=`multipath -l $DM_NAME |awk '/running/{print $3 ; exit}'`
+		# Strip off leading pipe symbols which make for inconsistent field numbering.
+		DEV=`multipath -l $DM_NAME | awk '/running/{gsub("^[|]"," "); print $3 ; exit}'`
 		if [ -z "$DEV" ] ; then
 			return
 		fi
