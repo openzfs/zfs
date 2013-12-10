@@ -20,6 +20,7 @@ depend()
 
 	# bootmisc will log to /var which may be a different zfs than root.
 	before bootmisc logger
+	use mtab
 	keyword -lxc -openvz -prefix -vserver
 }
 
