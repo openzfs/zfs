@@ -50,7 +50,7 @@ typedef struct zstream {
 	uint64_t	zst_cap;	/* prefetch limit (cap), in blocks */
 	kmutex_t	zst_lock;	/* protects stream */
 	clock_t		zst_last;	/* lbolt of last prefetch */
-	avl_node_t	zst_node;	/* embed avl node here */
+	list_node_t	zst_node;	/* next zstream here */
 } zstream_t;
 
 typedef struct zfetch {
