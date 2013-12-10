@@ -4381,14 +4381,14 @@ static void
 l2arc_hdr_stat_add(void)
 {
 	ARCSTAT_INCR(arcstat_l2_hdr_size, HDR_SIZE);
-	ARCSTAT_INCR(arcstat_hdr_size, -HDR_SIZE);
+	arc_space_return(HDR_SIZE, ARC_SPACE_HDRS);
 }
 
 static void
 l2arc_hdr_stat_remove(void)
 {
 	ARCSTAT_INCR(arcstat_l2_hdr_size, -HDR_SIZE);
-	ARCSTAT_INCR(arcstat_hdr_size, HDR_SIZE);
+	arc_space_consume(HDR_SIZE, ARC_SPACE_HDRS);
 }
 
 /*
