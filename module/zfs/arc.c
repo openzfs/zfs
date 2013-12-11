@@ -175,6 +175,9 @@ int zfs_arc_grow_retry = 5;
 /* shift of arc_c for calculating both min and max arc_p */
 int zfs_arc_p_min_shift = 4;
 
+/* disable anon data aggressively growing arc_p */
+int zfs_arc_p_aggressive_disable = 1;
+
 /* log2(fraction of arc to reclaim) */
 int zfs_arc_shrink_shift = 5;
 
@@ -2798,7 +2801,8 @@ out:
 		 * If we are growing the cache, and we are adding anonymous
 		 * data, and we have outgrown arc_p, update arc_p
 		 */
-		if (arc_size < arc_c && hdr->b_state == arc_anon &&
+		if (!zfs_arc_p_aggressive_disable &&
+		    arc_size < arc_c && hdr->b_state == arc_anon &&
 		    arc_anon->arcs_size + arc_mru->arcs_size > arc_p)
 			arc_p = MIN(arc_c, arc_p + size);
 	}
@@ -5552,6 +5556,9 @@ MODULE_PARM_DESC(zfs_arc_meta_prune, "Bytes of meta data to prune");
 
 module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
+
+module_param(zfs_arc_p_aggressive_disable, int, 0644);
+MODULE_PARM_DESC(zfs_arc_p_aggressive_disable, "disable aggressive arc_p grow");
 
 module_param(zfs_arc_shrink_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
