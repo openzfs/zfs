@@ -2332,6 +2332,7 @@ void
 arc_shrink(uint64_t bytes)
 {
 	if (arc_c > arc_c_min) {
+		uint64_t arc_p_min;
 		uint64_t to_free;
 
 		to_free = bytes ? bytes : arc_c >> zfs_arc_shrink_shift;
@@ -2341,7 +2342,14 @@ arc_shrink(uint64_t bytes)
 		else
 			arc_c = arc_c_min;
 
-		atomic_add_64(&arc_p, -(arc_p >> zfs_arc_shrink_shift));
+		arc_p_min = (arc_c >> zfs_arc_p_min_shift);
+		to_free = bytes ? bytes : arc_p >> zfs_arc_shrink_shift;
+
+		if (arc_p > arc_p_min + to_free)
+			atomic_add_64(&arc_p, -to_free);
+		else
+			arc_p = arc_p_min;
+
 		if (arc_c > arc_size)
 			arc_c = MAX(arc_size, arc_c_min);
 		if (arc_p > arc_c)
