@@ -428,7 +428,7 @@ spa_lookup(const char *name)
 	 * If it's a full dataset name, figure out the pool name and
 	 * just use that.
 	 */
-	cp = strpbrk(search.spa_name, "/@");
+	cp = strpbrk(search.spa_name, "/@#");
 	if (cp != NULL)
 		*cp = '\0';
 

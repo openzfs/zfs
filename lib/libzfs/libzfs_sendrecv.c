@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * All rights reserved
@@ -1613,6 +1613,60 @@ err_out:
 		(void) pthread_join(tid, NULL);
 	}
 	return (err);
+}
+
+int
+zfs_send_one(zfs_handle_t *zhp, const char *from, int fd)
+{
+	int err;
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+
+	char errbuf[1024];
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "warning: cannot send '%s'"), zhp->zfs_name);
+
+	err = lzc_send(zhp->zfs_name, from, fd);
+	if (err != 0) {
+		switch (errno) {
+		case EXDEV:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "not an earlier snapshot from the same fs"));
+			return (zfs_error(hdl, EZFS_CROSSTARGET, errbuf));
+
+		case ENOENT:
+		case ESRCH:
+			if (lzc_exists(zhp->zfs_name)) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "incremental source (%s) does not exist"),
+				    from);
+			}
+			return (zfs_error(hdl, EZFS_NOENT, errbuf));
+
+		case EBUSY:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "target is busy; if a filesystem, "
+			    "it must not be mounted"));
+			return (zfs_error(hdl, EZFS_BUSY, errbuf));
+
+		case EDQUOT:
+		case EFBIG:
+		case EIO:
+		case ENOLINK:
+		case ENOSPC:
+		case ENOSTR:
+		case ENXIO:
+		case EPIPE:
+		case ERANGE:
+		case EFAULT:
+		case EROFS:
+			zfs_error_aux(hdl, strerror(errno));
+			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
+
+		default:
+			return (zfs_standard_error(hdl, errno, errbuf));
+		}
+	}
+	return (err != 0);
 }
 
 /*

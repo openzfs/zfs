@@ -38,27 +38,27 @@ extern "C" {
 int libzfs_core_init(void);
 void libzfs_core_fini(void);
 
-int lzc_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t **errlist);
-int lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props);
-int lzc_clone(const char *fsname, const char *origin, nvlist_t *props);
-int lzc_destroy_snaps(nvlist_t *snaps, boolean_t defer, nvlist_t **errlist);
+int lzc_snapshot(nvlist_t *, nvlist_t *, nvlist_t **);
+int lzc_create(const char *, dmu_objset_type_t, nvlist_t *);
+int lzc_clone(const char *, const char *, nvlist_t *);
+int lzc_destroy_snaps(nvlist_t *, boolean_t, nvlist_t **);
+int lzc_bookmark(nvlist_t *, nvlist_t **);
+int lzc_get_bookmarks(const char *, nvlist_t *, nvlist_t **);
+int lzc_destroy_bookmarks(nvlist_t *, nvlist_t **);
 
-int lzc_snaprange_space(const char *firstsnap, const char *lastsnap,
-    uint64_t *usedp);
+int lzc_snaprange_space(const char *, const char *, uint64_t *);
 
-int lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist);
-int lzc_release(nvlist_t *holds, nvlist_t **errlist);
-int lzc_get_holds(const char *snapname, nvlist_t **holdsp);
+int lzc_hold(nvlist_t *, int, nvlist_t **);
+int lzc_release(nvlist_t *, nvlist_t **);
+int lzc_get_holds(const char *, nvlist_t **);
 
-int lzc_send(const char *snapname, const char *fromsnap, int fd);
-int lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
-    boolean_t force, int fd);
-int lzc_send_space(const char *snapname, const char *fromsnap,
-    uint64_t *result);
+int lzc_send(const char *, const char *, int);
+int lzc_receive(const char *, nvlist_t *, const char *, boolean_t, int);
+int lzc_send_space(const char *, const char *, uint64_t *);
 
-boolean_t lzc_exists(const char *dataset);
+boolean_t lzc_exists(const char *);
 
-int lzc_rollback(const char *fsname, char *snapnamebuf, int snapnamelen);
+int lzc_rollback(const char *, char *, int);
 
 #ifdef	__cplusplus
 }

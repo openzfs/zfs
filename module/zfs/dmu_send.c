@@ -50,6 +50,7 @@
 #include <sys/zfs_onexit.h>
 #include <sys/dmu_send.h>
 #include <sys/dsl_destroy.h>
+#include <sys/dsl_bookmark.h>
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
 int zfs_send_corrupt_data = B_FALSE;
@@ -385,6 +386,12 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (zb->zb_object != DMU_META_DNODE_OBJECT &&
 	    DMU_OBJECT_IS_SPECIAL(zb->zb_object)) {
 		return (0);
+	} else if (zb->zb_level == ZB_ZIL_LEVEL) {
+		/*
+		 * If we are sending a non-snapshot (which is allowed on
+		 * read-only pools), it may have a ZIL, which must be ignored.
+		 */
+		return (0);
 	} else if (BP_IS_HOLE(bp) &&
 	    zb->zb_object == DMU_META_DNODE_OBJECT) {
 		uint64_t span = BP_SPAN(dnp, zb->zb_level);
@@ -433,6 +440,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		arc_buf_t *abuf;
 		int blksz = BP_GET_LSIZE(bp);
 
+		ASSERT0(zb->zb_level);
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
 		    &aflags, zb) != 0) {
@@ -460,11 +468,12 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 }
 
 /*
- * Releases dp, ds, and fromds, using the specified tag.
+ * Releases dp using the specified tag.
  */
 static int
 dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
-    dsl_dataset_t *fromds, int outfd, vnode_t *vp, offset_t *off)
+    zfs_bookmark_phys_t *fromzb, boolean_t is_clone, int outfd,
+    vnode_t *vp, offset_t *off)
 {
 	objset_t *os;
 	dmu_replay_record_t *drr;
@@ -472,18 +481,8 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 	int err;
 	uint64_t fromtxg = 0;
 
-	if (fromds != NULL && !dsl_dataset_is_before(ds, fromds)) {
-		dsl_dataset_rele(fromds, tag);
-		dsl_dataset_rele(ds, tag);
-		dsl_pool_rele(dp, tag);
-		return (SET_ERROR(EXDEV));
-	}
-
 	err = dmu_objset_from_ds(ds, &os);
 	if (err != 0) {
-		if (fromds != NULL)
-			dsl_dataset_rele(fromds, tag);
-		dsl_dataset_rele(ds, tag);
 		dsl_pool_rele(dp, tag);
 		return (err);
 	}
@@ -499,9 +498,6 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 		uint64_t version;
 		if (zfs_get_zplprop(os, ZFS_PROP_VERSION, &version) != 0) {
 			kmem_free(drr, sizeof (dmu_replay_record_t));
-			if (fromds != NULL)
-				dsl_dataset_rele(fromds, tag);
-			dsl_dataset_rele(ds, tag);
 			dsl_pool_rele(dp, tag);
 			return (SET_ERROR(EINVAL));
 		}
@@ -516,20 +512,20 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 	drr->drr_u.drr_begin.drr_creation_time =
 	    ds->ds_phys->ds_creation_time;
 	drr->drr_u.drr_begin.drr_type = dmu_objset_type(os);
-	if (fromds != NULL && ds->ds_dir != fromds->ds_dir)
+	if (is_clone)
 		drr->drr_u.drr_begin.drr_flags |= DRR_FLAG_CLONE;
 	drr->drr_u.drr_begin.drr_toguid = ds->ds_phys->ds_guid;
 	if (ds->ds_phys->ds_flags & DS_FLAG_CI_DATASET)
 		drr->drr_u.drr_begin.drr_flags |= DRR_FLAG_CI_DATA;
 
-	if (fromds != NULL)
-		drr->drr_u.drr_begin.drr_fromguid = fromds->ds_phys->ds_guid;
+	if (fromzb != NULL) {
+		drr->drr_u.drr_begin.drr_fromguid = fromzb->zbm_guid;
+		fromtxg = fromzb->zbm_creation_txg;
+	}
 	dsl_dataset_name(ds, drr->drr_u.drr_begin.drr_toname);
-
-	if (fromds != NULL) {
-		fromtxg = fromds->ds_phys->ds_creation_txg;
-		dsl_dataset_rele(fromds, tag);
-		fromds = NULL;
+	if (!dsl_dataset_is_snapshot(ds)) {
+		(void) strlcat(drr->drr_u.drr_begin.drr_toname, "@--head--",
+		    sizeof (drr->drr_u.drr_begin.drr_toname));
 	}
 
 	dsp = kmem_zalloc(sizeof (dmu_sendarg_t), KM_SLEEP);
@@ -543,7 +539,7 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 	dsp->dsa_toguid = ds->ds_phys->ds_guid;
 	ZIO_SET_CHECKSUM(&dsp->dsa_zc, 0, 0, 0, 0);
 	dsp->dsa_pending_op = PENDING_NONE;
-	dsp->dsa_incremental = (fromtxg != 0);
+	dsp->dsa_incremental = (fromzb != NULL);
 
 	mutex_enter(&ds->ds_sendstream_lock);
 	list_insert_head(&ds->ds_sendstreams, dsp);
@@ -589,7 +585,6 @@ out:
 	kmem_free(dsp, sizeof (dmu_sendarg_t));
 
 	dsl_dataset_long_rele(ds, FTAG);
-	dsl_dataset_rele(ds, tag);
 
 	return (err);
 }
@@ -614,15 +609,30 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	}
 
 	if (fromsnap != 0) {
+		zfs_bookmark_phys_t zb;
+		boolean_t is_clone;
+
 		err = dsl_dataset_hold_obj(dp, fromsnap, FTAG, &fromds);
 		if (err != 0) {
 			dsl_dataset_rele(ds, FTAG);
 			dsl_pool_rele(dp, FTAG);
 			return (err);
 		}
+		if (!dsl_dataset_is_before(ds, fromds, 0))
+			err = SET_ERROR(EXDEV);
+		zb.zbm_creation_time = fromds->ds_phys->ds_creation_time;
+		zb.zbm_creation_txg = fromds->ds_phys->ds_creation_txg;
+		zb.zbm_guid = fromds->ds_phys->ds_guid;
+		is_clone = (fromds->ds_dir != ds->ds_dir);
+		dsl_dataset_rele(fromds, FTAG);
+		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone,
+		    outfd, vp, off);
+	} else {
+		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE,
+		    outfd, vp, off);
 	}
-
-	return (dmu_send_impl(FTAG, dp, ds, fromds, outfd, vp, off));
+	dsl_dataset_rele(ds, FTAG);
+	return (err);
 }
 
 int
@@ -631,33 +641,79 @@ dmu_send(const char *tosnap, const char *fromsnap,
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
-	dsl_dataset_t *fromds = NULL;
 	int err;
+	boolean_t owned = B_FALSE;
 
-	if (strchr(tosnap, '@') == NULL)
-		return (SET_ERROR(EINVAL));
-	if (fromsnap != NULL && strchr(fromsnap, '@') == NULL)
+	if (fromsnap != NULL && strpbrk(fromsnap, "@#") == NULL)
 		return (SET_ERROR(EINVAL));
 
 	err = dsl_pool_hold(tosnap, FTAG, &dp);
 	if (err != 0)
 		return (err);
 
-	err = dsl_dataset_hold(dp, tosnap, FTAG, &ds);
+	if (strchr(tosnap, '@') == NULL && spa_writeable(dp->dp_spa)) {
+		/*
+		 * We are sending a filesystem or volume.  Ensure
+		 * that it doesn't change by owning the dataset.
+		 */
+		err = dsl_dataset_own(dp, tosnap, FTAG, &ds);
+		owned = B_TRUE;
+	} else {
+		err = dsl_dataset_hold(dp, tosnap, FTAG, &ds);
+	}
 	if (err != 0) {
 		dsl_pool_rele(dp, FTAG);
 		return (err);
 	}
 
 	if (fromsnap != NULL) {
-		err = dsl_dataset_hold(dp, fromsnap, FTAG, &fromds);
+		zfs_bookmark_phys_t zb;
+		boolean_t is_clone = B_FALSE;
+		int fsnamelen = strchr(tosnap, '@') - tosnap;
+
+		/*
+		 * If the fromsnap is in a different filesystem, then
+		 * mark the send stream as a clone.
+		 */
+		if (strncmp(tosnap, fromsnap, fsnamelen) != 0 ||
+		    (fromsnap[fsnamelen] != '@' &&
+		    fromsnap[fsnamelen] != '#')) {
+			is_clone = B_TRUE;
+		}
+
+		if (strchr(fromsnap, '@')) {
+			dsl_dataset_t *fromds;
+			err = dsl_dataset_hold(dp, fromsnap, FTAG, &fromds);
+			if (err == 0) {
+				if (!dsl_dataset_is_before(ds, fromds, 0))
+					err = SET_ERROR(EXDEV);
+				zb.zbm_creation_time =
+				    fromds->ds_phys->ds_creation_time;
+				zb.zbm_creation_txg =
+				    fromds->ds_phys->ds_creation_txg;
+				zb.zbm_guid = fromds->ds_phys->ds_guid;
+				is_clone = (ds->ds_dir != fromds->ds_dir);
+				dsl_dataset_rele(fromds, FTAG);
+			}
+		} else {
+			err = dsl_bookmark_lookup(dp, fromsnap, ds, &zb);
+		}
 		if (err != 0) {
 			dsl_dataset_rele(ds, FTAG);
 			dsl_pool_rele(dp, FTAG);
 			return (err);
 		}
+		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone,
+		    outfd, vp, off);
+	} else {
+		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE,
+		    outfd, vp, off);
 	}
-	return (dmu_send_impl(FTAG, dp, ds, fromds, outfd, vp, off));
+	if (owned)
+		dsl_dataset_disown(ds, FTAG);
+	else
+		dsl_dataset_rele(ds, FTAG);
+	return (err);
 }
 
 int
@@ -677,7 +733,7 @@ dmu_send_estimate(dsl_dataset_t *ds, dsl_dataset_t *fromds, uint64_t *sizep)
 	 * fromsnap must be an earlier snapshot from the same fs as tosnap,
 	 * or the origin's fs.
 	 */
-	if (fromds != NULL && !dsl_dataset_is_before(ds, fromds))
+	if (fromds != NULL && !dsl_dataset_is_before(ds, fromds, 0))
 		return (SET_ERROR(EXDEV));
 
 	/* Get uncompressed size estimate of changed data. */
