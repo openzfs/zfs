@@ -38,6 +38,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/dmu_zfetch.c \
 	$(top_srcdir)/module/zfs/dnode.c \
 	$(top_srcdir)/module/zfs/dnode_sync.c \
+	$(top_srcdir)/module/zfs/dsl_bookmark.c \
 	$(top_srcdir)/module/zfs/dsl_dataset.c \
 	$(top_srcdir)/module/zfs/dsl_deadlist.c \
 	$(top_srcdir)/module/zfs/dsl_deleg.c \

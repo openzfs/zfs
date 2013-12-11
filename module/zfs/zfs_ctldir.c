@@ -354,7 +354,7 @@ zfsctl_snapshot_zname(struct inode *ip, const char *name, int len, char *zname)
 {
 	objset_t *os = ITOZSB(ip)->z_os;
 
-	if (snapshot_namecheck(name, NULL, NULL) != 0)
+	if (zfs_component_namecheck(name, NULL, NULL) != 0)
 		return (SET_ERROR(EILSEQ));
 
 	dmu_objset_name(os, zname);
@@ -630,7 +630,7 @@ zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
 
 	dsname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 
-	if (snapshot_namecheck(dirname, NULL, NULL) != 0) {
+	if (zfs_component_namecheck(dirname, NULL, NULL) != 0) {
 		error = SET_ERROR(EILSEQ);
 		goto out;
 	}
