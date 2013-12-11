@@ -25,6 +25,7 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/dnode_sync.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_dataset.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_deadlist.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_deleg.o
+$(MODULE)-objs += @top_srcdir@/module/zfs/dsl_bookmark.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_dir.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_pool.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_prop.o

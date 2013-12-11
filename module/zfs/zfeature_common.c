@@ -164,6 +164,11 @@ zpool_feature_init(void)
 	static spa_feature_t hole_birth_deps[] = { SPA_FEATURE_ENABLED_TXG,
 	    SPA_FEATURE_NONE };
 
+	static const spa_feature_t bookmarks_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+
 	zfeature_register(SPA_FEATURE_ASYNC_DESTROY,
 	    "com.delphix:async_destroy", "async_destroy",
 	    "Destroy filesystems asynchronously.", B_TRUE, B_FALSE,
@@ -198,4 +203,9 @@ zpool_feature_init(void)
 	    "com.delphix:extensible_dataset", "extensible_dataset",
 	    "Enhanced dataset functionality, used by other features.",
 	    B_FALSE, B_FALSE, B_FALSE, NULL);
+
+	zfeature_register(SPA_FEATURE_BOOKMARKS,
+	    "com.delphix:bookmarks", "bookmarks",
+	    "\"zfs bookmark\" command",
+	    B_TRUE, B_FALSE, B_FALSE, bookmarks_deps);
 }

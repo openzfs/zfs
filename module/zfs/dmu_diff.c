@@ -187,7 +187,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 		return (error);
 	}
 
-	if (!dsl_dataset_is_before(tosnap, fromsnap)) {
+	if (!dsl_dataset_is_before(tosnap, fromsnap, 0)) {
 		dsl_dataset_rele(fromsnap, FTAG);
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);

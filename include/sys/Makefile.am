@@ -17,6 +17,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dmu_tx.h \
 	$(top_srcdir)/include/sys/dmu_zfetch.h \
 	$(top_srcdir)/include/sys/dnode.h \
+	$(top_srcdir)/include/sys/dsl_bookmark.h \
 	$(top_srcdir)/include/sys/dsl_dataset.h \
 	$(top_srcdir)/include/sys/dsl_deadlist.h \
 	$(top_srcdir)/include/sys/dsl_deleg.h \
