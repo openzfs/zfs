@@ -333,13 +333,14 @@ destroy_loop_devices() {
 }
 
 #
-# Create a device label.
+# Create a device label taking care to briefly wait if udev needs to settle.
 #
 label() {
 	local DEVICE=$1
 	local LABEL=$2
 
-	${PARTED} ${DEVICE} --script -- mklabel ${LABEL} || return 1
+	wait_udev ${DEVICE} 30 || return 1
+	${PARTED} ${DEVICE} --script -- mklabel ${LABEL} || return 2
 
 	return 0
 }

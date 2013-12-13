@@ -291,30 +291,22 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 
 	for (cn = uu_list_first(clp->cl_list); cn != NULL;
 	    cn = uu_list_next(clp->cl_list, cn)) {
-		zfs_handle_t *hdl;
-
-		hdl = cn->cn_handle;
-
 		/*
 		 * Do not rename a clone that's not in the source hierarchy.
 		 */
-		if (!isa_child_of(hdl->zfs_name, src))
+		if (!isa_child_of(cn->cn_handle->zfs_name, src))
 			continue;
 
 		/*
 		 * Destroy the previous mountpoint if needed.
 		 */
-		remove_mountpoint(hdl);
+		remove_mountpoint(cn->cn_handle);
 
 		(void) strlcpy(newname, dst, sizeof (newname));
-		(void) strcat(newname, hdl->zfs_name + strlen(src));
+		(void) strcat(newname, cn->cn_handle->zfs_name + strlen(src));
 
-		if (ZFS_IS_VOLUME(hdl)) {
-			(void) zvol_remove_link(hdl->zfs_hdl, hdl->zfs_name);
-			(void) zvol_create_link(hdl->zfs_hdl, newname);
-		}
-
-		(void) strlcpy(hdl->zfs_name, newname, sizeof (hdl->zfs_name));
+		(void) strlcpy(cn->cn_handle->zfs_name, newname,
+		    sizeof (cn->cn_handle->zfs_name));
 	}
 }
 

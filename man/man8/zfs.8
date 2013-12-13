@@ -307,7 +307,7 @@ See \fBzpool\fR(8) for more information on creating and administering pools.
 A snapshot is a read-only copy of a file system or volume. Snapshots can be created extremely quickly, and initially consume no additional space within the pool. As data within the active dataset changes, the snapshot consumes more data than would otherwise be shared with the active dataset.
 .sp
 .LP
-Snapshots can have arbitrary names. Snapshots of volumes can be cloned or rolled back, but cannot be accessed independently.
+Snapshots can have arbitrary names. Snapshots of volumes can be cloned or rolled back.  Visibility is determined by the \fBsnapdev\fR property of the parent volume.
 .sp
 .LP
 File system snapshots can be accessed under the \fB\&.zfs/snapshot\fR directory in the root of the file system. Snapshots are automatically mounted on demand and may be unmounted at regular intervals. The visibility of the \fB\&.zfs\fR directory can be controlled by the \fBsnapdir\fR property.
