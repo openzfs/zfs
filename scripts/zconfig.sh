@@ -403,14 +403,16 @@ test_7() {
 	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1 -1 || fail 4
 	format /dev/zvol/${FULL_ZVOL_NAME}-part1 ext2 || fail 5
 
-	# Mount the ext2 filesystem and copy some data to it.
-	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 6
-	mount /dev/zvol/${FULL_ZVOL_NAME}-part1 /tmp/${ZVOL_NAME}-part1 \
-		|| fail 7
+	# Snapshot the pristine ext2 filesystem.
+	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 6
+	wait_udev /dev/zvol/${FULL_SNAP_NAME}-part1 30 || fail 7
 
-	# Snapshot the pristine ext2 filesystem and mount it read-only.
-	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 8
-	wait_udev /dev/zvol/${FULL_SNAP_NAME}-part1 30 || fail 8
+	# Mount the ext2 filesystem so some data can be copied to it.
+	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 7
+	mount /dev/zvol/${FULL_ZVOL_NAME}-part1 \
+		/tmp/${ZVOL_NAME}-part1 || fail 8
+
+	# Mount the pristine ext2 snapshot.
 	mkdir -p /tmp/${SNAP_NAME}-part1 || fail 9
 	mount /dev/zvol/${FULL_SNAP_NAME}-part1 \
 		/tmp/${SNAP_NAME}-part1 &>/dev/null || fail 10
@@ -496,11 +498,14 @@ test_8() {
 	mount /dev/zvol/${FULL_ZVOL_NAME1}-part1 \
 		/tmp/${FULL_ZVOL_NAME1}-part1 || fail 7
 	cp -RL ${SRC_DIR} /tmp/${FULL_ZVOL_NAME1}-part1 || fail 8
-	sync || fail 9
 
-	# Snapshot the ext2 filesystem so it may be sent.
-	${ZFS} snapshot ${FULL_SNAP_NAME1} || fail 11
-	wait_udev /dev/zvol/${FULL_SNAP_NAME1} 30 || fail 11
+	# Unmount, snapshot, mount the ext2 filesystem so it may be sent.
+	# We only unmount to ensure the ext2 filesystem is clean.
+	umount /tmp/${FULL_ZVOL_NAME1}-part1 || fail 9
+	${ZFS} snapshot ${FULL_SNAP_NAME1} || fail 10
+	wait_udev /dev/zvol/${FULL_SNAP_NAME1} 30 || fail 10
+	mount /dev/zvol/${FULL_ZVOL_NAME1}-part1 \
+		/tmp/${FULL_ZVOL_NAME1}-part1 || 11
 
 	# Send/receive the snapshot from POOL_NAME1 to POOL_NAME2
 	(${ZFS} send ${FULL_SNAP_NAME1} | \
