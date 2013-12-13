@@ -5565,6 +5565,13 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		return (-SET_ERROR(EINVAL));
 	vec = &zfs_ioc_vec[vecnum];
 
+	/*
+	 * The registered ioctl list may be sparse, verify that either
+	 * a normal or legacy handler are registered.
+	 */
+	if (vec->zvec_func == NULL && vec->zvec_legacy_func == NULL)
+		return (-SET_ERROR(EINVAL));
+
 	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP | KM_NODEBUG);
 	saved_poolname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 
