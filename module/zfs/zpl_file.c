@@ -36,15 +36,16 @@ zpl_open(struct inode *ip, struct file *filp)
 	cred_t *cr = CRED();
 	int error;
 
+	error = generic_file_open(ip, filp);
+	if (error)
+		return (error);
+
 	crhold(cr);
 	error = -zfs_open(ip, filp->f_mode, filp->f_flags, cr);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
-	if (error)
-		return (error);
-
-	return generic_file_open(ip, filp);
+	return (error);
 }
 
 static int

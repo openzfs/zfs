@@ -235,13 +235,9 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
 
-	/*
-	 * Zero the synchronous opens in the znode.  Under Linux the
-	 * zfs_close() hook is not symmetric with zfs_open(), it is
-	 * only called once when the last reference is dropped.
-	 */
+	/* Decrement the synchronous opens in the znode */
 	if (flag & O_SYNC)
-		zp->z_sync_cnt = 0;
+		atomic_dec_32(&zp->z_sync_cnt);
 
 	if (!zfs_has_ctldir(zp) && zsb->z_vscan && S_ISREG(ip->i_mode) &&
 	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
