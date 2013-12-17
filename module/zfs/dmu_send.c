@@ -1849,3 +1849,8 @@ dmu_objset_is_receiving(objset_t *os)
 	return (os->os_dsl_dataset != NULL &&
 	    os->os_dsl_dataset->ds_owner == dmu_recv_tag);
 }
+
+#if defined(_KERNEL)
+module_param(zfs_send_corrupt_data, int, 0644);
+MODULE_PARM_DESC(zfs_send_corrupt_data, "Allow sending corrupt data");
+#endif
