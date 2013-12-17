@@ -93,9 +93,12 @@
 #define	MNTOPT_NOXATTR	"noxattr"	/* disable extended attributes */
 #define	MNTOPT_COMMENT	"comment"	/* comment */
 #define	MNTOPT_ZFSUTIL	"zfsutil"	/* called by zfs utility */
+#define	MNTOPT_ACL	"acl"		/* passed by util-linux-2.24 mount */
+#define	MNTOPT_NOACL	"noacl"		/* likewise */
+#define	MNTOPT_POSIXACL	"posixacl"	/* likewise */
 
-#define ZS_COMMENT	0x00000000	/* comment */
-#define ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */
-#define ZS_NOCONTEXT	0x00000002	/* do not add selinux context */
+#define	ZS_COMMENT	0x00000000	/* comment */
+#define	ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */
+#define	ZS_NOCONTEXT	0x00000002	/* do not add selinux context */
 
 #endif	/* _SYS_MNTENT_H */

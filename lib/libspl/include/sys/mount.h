@@ -51,6 +51,15 @@
 #define MS_DIRSYNC		S_WRITE
 #endif
 
+/*
+ * Some old glibc headers don't correctly define MS_POSIXACL and
+ * instead leave it undefined.  When using these older headers define
+ * MS_POSIXACL to the reserved value of (1<<16).
+ */
+#if !defined(MS_POSIXACL)
+#define	MS_POSIXACL		(1<<16)
+#endif
+
 #define	MS_USERS	(MS_NOEXEC|MS_NOSUID|MS_NODEV)
 #define	MS_OWNER	(MS_NOSUID|MS_NODEV)
 #define	MS_GROUP	(MS_NOSUID|MS_NODEV)
