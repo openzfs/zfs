@@ -420,7 +420,7 @@ main(int argc, char **argv)
 			return (MOUNT_SYSERR);
 		case ENOENT:
 			(void) fprintf(stderr, gettext("filesystem '%s' "
-			    "cannot be mounted of due invalid option "
+			    "cannot be mounted due to invalid option "
 			    "'%s'.\n"), dataset, badopt);
 			(void) fprintf(stderr, gettext("Use the '-s' option "
 			    "to ignore the bad mount option.\n"));
