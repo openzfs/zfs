@@ -61,6 +61,10 @@ static const option_map_t option_map[] = {
 	{ MNTOPT_SYNC,		MS_SYNCHRONOUS,	ZS_COMMENT	},
 	{ MNTOPT_USER,		MS_USERS,	ZS_COMMENT	},
 	{ MNTOPT_USERS,		MS_USERS,	ZS_COMMENT	},
+	/* acl flags passed with util-linux-2.24 mount command */
+	{ MNTOPT_ACL,		MS_POSIXACL,	ZS_COMMENT	},
+	{ MNTOPT_NOACL,		MS_COMMENT,	ZS_COMMENT	},
+	{ MNTOPT_POSIXACL,	MS_POSIXACL,	ZS_COMMENT	},
 #ifdef MS_NOATIME
 	{ MNTOPT_NOATIME,	MS_NOATIME,	ZS_COMMENT	},
 #endif
@@ -420,7 +424,7 @@ main(int argc, char **argv)
 			return (MOUNT_SYSERR);
 		case ENOENT:
 			(void) fprintf(stderr, gettext("filesystem '%s' "
-			    "cannot be mounted of due invalid option "
+			    "cannot be mounted due to invalid option "
 			    "'%s'.\n"), dataset, badopt);
 			(void) fprintf(stderr, gettext("Use the '-s' option "
 			    "to ignore the bad mount option.\n"));
