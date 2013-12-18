@@ -5,7 +5,7 @@
 %global _dracutdir  %{_prefix}/lib/dracut
 %else
 %global _udevdir    /lib/udev
-%global _dracutdir  /lib/dracut
+%global _dracutdir  %{_prefix}/share/dracut
 %endif
 
 %bcond_with    debug
