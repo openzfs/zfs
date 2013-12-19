@@ -250,7 +250,7 @@ unsigned long zfs_deadman_synctime_ms = 1000000ULL;
 /*
  * By default the deadman is enabled.
  */
-int zfs_deadman_enabled = 1;
+bool zfs_deadman_enabled = B_TRUE;
 
 /*
  * The worst case is single-sector max-parity RAID-Z blocks, in which
@@ -1885,7 +1885,7 @@ EXPORT_SYMBOL(spa_namespace_lock);
 module_param(zfs_deadman_synctime_ms, ulong, 0644);
 MODULE_PARM_DESC(zfs_deadman_synctime_ms, "Expiration time in milliseconds");
 
-module_param(zfs_deadman_enabled, int, 0644);
+module_param(zfs_deadman_enabled, bool, 0644);
 MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
 
 module_param(spa_asize_inflation, int, 0644);

@@ -47,7 +47,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/fs/zfs.h>
 
-uint32_t zio_injection_enabled = 0;
+bool zio_injection_enabled = B_FALSE;
 
 typedef struct inject_handler {
 	int			zi_id;
@@ -331,7 +331,7 @@ spa_handle_ignored_writes(spa_t *spa)
 {
 	inject_handler_t *handler;
 
-	if (zio_injection_enabled == 0)
+	if (!zio_injection_enabled)
 		return;
 
 	rw_enter(&inject_lock, RW_READER);
@@ -367,7 +367,7 @@ zio_handle_io_delay(zio_t *zio)
 	inject_handler_t *handler;
 	uint64_t seconds = 0;
 
-	if (zio_injection_enabled == 0)
+	if (!zio_injection_enabled)
 		return (0);
 
 	rw_enter(&inject_lock, RW_READER);
@@ -524,6 +524,6 @@ zio_inject_fini(void)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-module_param(zio_injection_enabled, int, 0644);
+module_param(zio_injection_enabled, bool, 0644);
 MODULE_PARM_DESC(zio_injection_enabled, "Enable fault injection");
 #endif

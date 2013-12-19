@@ -90,14 +90,14 @@ static kstat_t *zil_ksp;
 /*
  * Disable intent logging replay.  This global ZIL switch affects all pools.
  */
-int zil_replay_disable = 0;
+bool zil_replay_disable = B_FALSE;
 
 /*
  * Tunable parameter for debugging or performance analysis.  Setting
  * zfs_nocacheflush will cause corruption on power loss if a volatile
  * out-of-order write cache is enabled.
  */
-int zfs_nocacheflush = 0;
+bool zfs_nocacheflush = B_FALSE;
 
 static kmem_cache_t *zil_lwb_cache;
 
@@ -2237,10 +2237,10 @@ zil_vdev_offline(const char *osname, void *arg)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-module_param(zil_replay_disable, int, 0644);
+module_param(zil_replay_disable, bool, 0644);
 MODULE_PARM_DESC(zil_replay_disable, "Disable intent logging replay");
 
-module_param(zfs_nocacheflush, int, 0644);
+module_param(zfs_nocacheflush, bool, 0644);
 MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
 
 module_param(zil_slog_limit, ulong, 0644);

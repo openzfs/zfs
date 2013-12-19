@@ -30,7 +30,7 @@ int zfs_read_history = 0;
 /*
  * Include cache hits in history, disabled by default.
  */
-int zfs_read_history_hits = 0;
+bool zfs_read_history_hits = B_FALSE;
 
 /*
  * Keeps stats on the last N txgs, disabled by default.
@@ -203,7 +203,7 @@ spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
 	if (zfs_read_history == 0 && ssh->size == 0)
 		return;
 
-	if (zfs_read_history_hits == 0 && (aflags & ARC_CACHED))
+	if (!zfs_read_history_hits && (aflags & ARC_CACHED))
 		return;
 
 	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_PUSHPAGE);
@@ -678,7 +678,7 @@ spa_stats_destroy(spa_t *spa)
 module_param(zfs_read_history, int, 0644);
 MODULE_PARM_DESC(zfs_read_history, "Historic statistics for the last N reads");
 
-module_param(zfs_read_history_hits, int, 0644);
+module_param(zfs_read_history_hits, bool, 0644);
 MODULE_PARM_DESC(zfs_read_history_hits, "Include cache hits in read history");
 
 module_param(zfs_txg_history, int, 0644);

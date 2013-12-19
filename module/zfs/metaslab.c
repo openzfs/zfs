@@ -83,7 +83,7 @@ int zfs_mg_noalloc_threshold = 0;
 /*
  * Metaslab debugging: when set, keeps all space maps in core to verify frees.
  */
-int metaslab_debug = 0;
+bool metaslab_debug = B_FALSE;
 
 /*
  * Minimum size which forces the dynamic allocator to change
@@ -2109,6 +2109,6 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-module_param(metaslab_debug, int, 0644);
+module_param(metaslab_debug, bool, 0644);
 MODULE_PARM_DESC(metaslab_debug, "keep space maps in core to verify frees");
 #endif /* _KERNEL && HAVE_SPL */
