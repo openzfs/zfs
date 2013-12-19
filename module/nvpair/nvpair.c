@@ -262,32 +262,30 @@ nvlist_nvflag(nvlist_t *nvl)
 	return (nvl->nvl_nvflag);
 }
 
-/*
- * nvlist_alloc - Allocate nvlist.
- */
-/*ARGSUSED1*/
-int
-nvlist_alloc(nvlist_t **nvlp, uint_t nvflag, int kmflag)
+static nv_alloc_t *
+nvlist_nv_alloc(int kmflag)
 {
-	nv_alloc_t *nva = nv_alloc_nosleep;
-
 #if defined(_KERNEL) && !defined(_BOOT)
 	switch (kmflag) {
 	case KM_SLEEP:
-		nva = nv_alloc_sleep;
-		break;
+		return (nv_alloc_sleep);
 	case KM_PUSHPAGE:
-		nva = nv_alloc_pushpage;
-		break;
-	case KM_NOSLEEP:
-		nva = nv_alloc_nosleep;
-		break;
+		return (nv_alloc_pushpage);
 	default:
-		return (EINVAL);
+		return (nv_alloc_nosleep);
 	}
-#endif
+#else
+	return (nv_alloc_nosleep);
+#endif /* _KERNEL && !_BOOT */
+}
 
-	return (nvlist_xalloc(nvlp, nvflag, nva));
+/*
+ * nvlist_alloc - Allocate nvlist.
+ */
+int
+nvlist_alloc(nvlist_t **nvlp, uint_t nvflag, int kmflag)
+{
+	return (nvlist_xalloc(nvlp, nvflag, nvlist_nv_alloc(kmflag)));
 }
 
 int
@@ -614,16 +612,10 @@ nvlist_contains_nvp(nvlist_t *nvl, nvpair_t *nvp)
 /*
  * Make a copy of nvlist
  */
-/*ARGSUSED1*/
 int
 nvlist_dup(nvlist_t *nvl, nvlist_t **nvlp, int kmflag)
 {
-#if defined(_KERNEL) && !defined(_BOOT)
-	return (nvlist_xdup(nvl, nvlp,
-	    (kmflag == KM_SLEEP ? nv_alloc_sleep : nv_alloc_nosleep)));
-#else
-	return (nvlist_xdup(nvl, nvlp, nv_alloc_nosleep));
-#endif
+	return (nvlist_xdup(nvl, nvlp, nvlist_nv_alloc(kmflag)));
 }
 
 int
@@ -2352,17 +2344,12 @@ nvlist_size(nvlist_t *nvl, size_t *size, int encoding)
 /*
  * Pack nvlist into contiguous memory
  */
-/*ARGSUSED1*/
 int
 nvlist_pack(nvlist_t *nvl, char **bufp, size_t *buflen, int encoding,
     int kmflag)
 {
-#if defined(_KERNEL) && !defined(_BOOT)
 	return (nvlist_xpack(nvl, bufp, buflen, encoding,
-	    (kmflag == KM_SLEEP ? nv_alloc_sleep : nv_alloc_nosleep)));
-#else
-	return (nvlist_xpack(nvl, bufp, buflen, encoding, nv_alloc_nosleep));
-#endif
+	    nvlist_nv_alloc(kmflag)));
 }
 
 int
@@ -2415,16 +2402,10 @@ nvlist_xpack(nvlist_t *nvl, char **bufp, size_t *buflen, int encoding,
 /*
  * Unpack buf into an nvlist_t
  */
-/*ARGSUSED1*/
 int
 nvlist_unpack(char *buf, size_t buflen, nvlist_t **nvlp, int kmflag)
 {
-#if defined(_KERNEL) && !defined(_BOOT)
-	return (nvlist_xunpack(buf, buflen, nvlp,
-	    (kmflag == KM_SLEEP ? nv_alloc_sleep : nv_alloc_nosleep)));
-#else
-	return (nvlist_xunpack(buf, buflen, nvlp, nv_alloc_nosleep));
-#endif
+	return (nvlist_xunpack(buf, buflen, nvlp, nvlist_nv_alloc(kmflag)));
 }
 
 int
