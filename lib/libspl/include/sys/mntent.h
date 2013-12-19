@@ -47,7 +47,6 @@
 #define	MNTOPT_AUTO	"auto"		/* automount */
 #define	MNTOPT_NOAUTO	"noauto"	/* do not automount */
 #define	MNTOPT_CONTEXT	"context"	/* selinux context */
-#define	MNTOPT_NOCONTEXT "nocontext"	/* No selinux context (zfs-only) */
 #define	MNTOPT_FSCONTEXT "fscontext"	/* selinux fscontext */
 #define	MNTOPT_DEFCONTEXT "defcontext"	/* selinux defcontext */
 #define	MNTOPT_ROOTCONTEXT "rootcontext" /* selinux rootcontext */
@@ -99,6 +98,5 @@
 
 #define	ZS_COMMENT	0x00000000	/* comment */
 #define	ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */
-#define	ZS_NOCONTEXT	0x00000002	/* do not add selinux context */
 
 #endif	/* _SYS_MNTENT_H */

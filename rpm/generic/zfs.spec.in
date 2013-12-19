@@ -10,7 +10,6 @@
 
 %bcond_with    debug
 %bcond_with    blkid
-%bcond_with    selinux
 
 
 Name:           @PACKAGE@
@@ -37,9 +36,6 @@ BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
 %if %{with blkid}
 BuildRequires:  libblkid-devel
-%endif
-%if %{with selinux}
-BuildRequires:  libselinux-devel
 %endif
 %endif
 
@@ -89,11 +85,6 @@ image which is ZFS aware.
 %else
     %define blkid --without-blkid
 %endif
-%if %{with selinux}
-    %define selinux --with-selinux
-%else
-    %define selinux --without-selinux
-%endif
 
 %setup -q
 
@@ -104,8 +95,7 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
-    %{blkid} \
-    %{selinux}
+    %{blkid}
 make %{?_smp_mflags}
 
 %install
