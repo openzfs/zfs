@@ -1298,6 +1298,52 @@ Indicates whether the file system should reject file names that include characte
 .sp
 .LP
 The \fBcasesensitivity\fR, \fBnormalization\fR, and \fButf8only\fR properties are also new permissions that can be assigned to non-privileged users by using the \fBZFS\fR delegated administration feature.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBcontext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+.ad
+.sp .6
+.RS 4n
+This flag sets the SELinux context for all files in the filesytem under the mountpoint for that filesystem.  See \fBselinux\fR(8) for more information.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBfscontext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+.ad
+.sp .6
+.RS 4n
+This flag sets the SELinux context for the filesytem being mounted.  See \fBselinux\fR(8) for more information.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBdefntext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+.ad
+.sp .6
+.RS 4n
+This flag sets the SELinux context for unlabeled files.  See \fBselinux\fR(8) for more information.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBrootcontext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+.ad
+.sp .6
+.RS 4n
+This flag sets the SELinux context for the root inode of the filesystem.  See \fBselinux\fR(8) for more information.
+.RE
+
 .SS "Temporary Mount Point Properties"
 .LP
 When a file system is mounted, either through \fBmount\fR(8) for legacy mounts or the \fBzfs mount\fR command for normal file systems, its mount options are set according to its properties. The correlation between properties and mount options is as follows:

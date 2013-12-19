@@ -75,6 +75,19 @@ Increase verbosity.
 .BI "\-h"
 Print the usage message.
 .TP
+.BI "\-o context"
+This flag sets the SELinux context for all files in the filesytem
+under that mountpoint.
+.TP
+.BI "\-o fscontext"
+This flag sets the SELinux context for the filesytem being mounted.
+.TP
+.BI "\-o defcontext"
+This flag sets the SELinux context for unlabled files.
+.TP
+.BI "\-o rootcontext"
+This flag sets the SELinux context for the root inode of the filesystem.
+.TP
 .BI "\-o legacy"
 This private flag indicates that the
 .I dataset
