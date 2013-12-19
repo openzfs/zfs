@@ -1730,25 +1730,30 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	hdr = SA_GET_HDR(hdl, SA_BONUS);
 	idx_tab = SA_IDX_TAB_GET(hdl, SA_BONUS);
 	for (; k != 2; k++) {
-		/* iterate over each attribute in layout */
+		/*
+		 * Iterate over each attribute in layout.  Fetch the
+		 * size of variable-length attributes needing rewrite
+		 * from sa_lengths[].
+		 */
 		for (i = 0, length_idx = 0; i != count; i++) {
 			sa_attr_type_t attr;
 
 			attr = idx_tab->sa_layout->lot_attrs[i];
+			length = SA_REGISTERED_LEN(sa, attr);
 			if (attr == newattr) {
+				if (length == 0)
+					++length_idx;
 				if (action == SA_REMOVE) {
 					j++;
 					continue;
 				}
-				ASSERT(SA_REGISTERED_LEN(sa, attr) == 0);
+				ASSERT(length == 0);
 				ASSERT(action == SA_REPLACE);
 				SA_ADD_BULK_ATTR(attr_desc, j, attr,
 				    locator, datastart, buflen);
 			} else {
-				length = SA_REGISTERED_LEN(sa, attr);
-				if (length == 0) {
+				if (length == 0)
 					length = hdr->sa_lengths[length_idx++];
-				}
 
 				SA_ADD_BULK_ATTR(attr_desc, j, attr,
 				    NULL, (void *)
@@ -1770,7 +1775,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 			length = buflen;
 		}
 		SA_ADD_BULK_ATTR(attr_desc, j, newattr, locator,
-		    datastart, buflen);
+		    datastart, length);
 	}
 
 	error = sa_build_layouts(hdl, attr_desc, attr_count, tx);
