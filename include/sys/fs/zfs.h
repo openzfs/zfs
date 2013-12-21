@@ -151,6 +151,7 @@ typedef enum {
 	ZFS_PROP_RELATIME,
 	ZFS_PROP_REDUNDANT_METADATA,
 	ZFS_PROP_OVERLAY,
+	ZFS_PROP_SHAREISCSI,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -326,7 +327,9 @@ typedef enum zfs_share_op {
 	ZFS_SHARE_NFS = 0,
 	ZFS_UNSHARE_NFS = 1,
 	ZFS_SHARE_SMB = 2,
-	ZFS_UNSHARE_SMB = 3
+	ZFS_UNSHARE_SMB = 3,
+	ZFS_SHARE_ISCSI = 4,
+	ZFS_UNSHARE_ISCSI = 5
 } zfs_share_op_t;
 
 typedef enum zfs_smb_acl_op {
