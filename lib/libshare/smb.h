@@ -28,22 +28,24 @@
  * references are hard to find.
  */
 
-#define	SMB_NAME_MAX		255
-#define	SMB_COMMENT_MAX		255
+#include <sys/list.h>
 
-#define	SHARE_DIR		"/var/lib/samba/usershares"
-#define	NET_CMD_PATH		"/usr/bin/net"
-#define	NET_CMD_ARG_HOST	"127.0.0.1"
+#define	SMB_NAME_MAX			255
+#define	SMB_COMMENT_MAX			255
+
+#define	NET_CMD_PATH			"/usr/bin/net"
+#define	NET_CMD_ARG_HOST		"127.0.0.1"
+#define	EXTRA_SMBFS_SHARE_SCRIPT	"/sbin/zfs_share_smbfs"
 
 typedef struct smb_share_s {
 	char name[SMB_NAME_MAX];	/* Share name */
 	char path[PATH_MAX];		/* Share path */
-	char comment[SMB_COMMENT_MAX];	/* Share's comment */
+
+	char comment[SMB_COMMENT_MAX];	/* Share comment */
+	boolean_t writeable;		/* 'y' or 'n' */
 	boolean_t guest_ok;		/* 'y' or 'n' */
 
-	struct smb_share_s *next;
+	list_node_t next;
 } smb_share_t;
-
-smb_share_t *smb_shares;
 
 void libshare_smb_init(void);

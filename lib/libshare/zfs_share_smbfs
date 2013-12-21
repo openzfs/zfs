@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# !!! THIS IS AN EXAMPLE !!!
+
+SHARE="$1"
+
+net conf setparm $SHARE 'force create mode' 0664
+net conf setparm $SHARE 'force directory mode' 0775
+net conf setparm $SHARE public yes
+net conf setparm $SHARE available yes
+net conf setparm $SHARE 'inherit acls' yes
+net conf setparm $SHARE 'inherit owner' yes
+net conf setparm $SHARE 'inherit permissions' yes
+net conf setparm $SHARE 'write list' yes
+net conf setparm $SHARE 'hide dot files' yes
+net conf setparm $SHARE 'read only' yes
