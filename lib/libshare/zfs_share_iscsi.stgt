@@ -1,0 +1,71 @@
+#!/bin/sh
+
+# !! This script is for iSCSI-STGT !!
+
+if ! type tgtadm > /dev/null 2>&1; then
+    exit 1
+fi
+
+tid=$1
+
+# Only edit AFTER the '-----' line !
+
+if [ -z "$1" ]; then
+    echo "Usage: `basename $0` [tid]"
+    exit 1
+fi
+
+target_mod() {
+    param=$1
+    value=$2
+
+    tgtadm --lld iscsi --mode target --op update \
+	--tid $tid --name $param --value $value
+}
+
+logical_mod() {
+    param=$1
+    value=$2
+
+    # Note that the actuall device is in/at LUN=1, not 0!!
+    tgtadm --lld iscsi --mode logicalunit --op update --tid $tid \
+	--lun 1 --params $param=$value
+}
+
+bind_mod() {
+    value=$1
+
+    tgtadm --lld iscsi --op bind --mode target --tid $tid \
+	--initiator-address $value
+}
+
+unbind_mod() {
+    value=$1
+
+    tgtadm --lld iscsi --op unbind --mode target --tid $tid \
+	--initiator-address $value
+}
+
+# ----------------------------------------------
+
+# Only edit this after this point.
+
+target_mod InitialR2T	No
+target_mod ImmediateData Yes
+
+target_mod MaxRecvDataSegmentLength 262144
+target_mod MaxXmitDataSegmentLength 65536
+
+target_mod MaxBurstLength 131072
+target_mod FirstBurstLength 32768
+target_mod MaxOutstandingR2T 1
+
+target_mod HeaderDigest "CRC32C,None"
+target_mod DataDigest "CRC32C,None"
+
+# By default, 'ALL' have access to the target (see tgtadm(8))
+# So here we remove that and add localhost instead.
+#unbind_mod ALL
+#bind_mod 127.0.0.1
+
+exit 0

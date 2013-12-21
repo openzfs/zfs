@@ -142,6 +142,10 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		return (dgettext(TEXT_DOMAIN, "smb remove share failed"));
 	case EZFS_SHARESMBFAILED:
 		return (dgettext(TEXT_DOMAIN, "smb add share failed"));
+	case EZFS_UNSHAREISCSIFAILED:
+		return (dgettext(TEXT_DOMAIN, "iSCSI remove share failed"));
+	case EZFS_SHAREISCSIFAILED:
+		return (dgettext(TEXT_DOMAIN, "iSCSI add share failed"));
 	case EZFS_PERM:
 		return (dgettext(TEXT_DOMAIN, "permission denied"));
 	case EZFS_NOSPC:

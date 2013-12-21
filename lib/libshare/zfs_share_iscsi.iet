@@ -1,0 +1,44 @@
+#!/bin/sh
+
+# !! This script is for iSCSI-IET !!
+
+if ! type ietadm > /dev/null 2>&1; then
+    exit 1
+fi
+
+tid=$1
+
+# Only edit AFTER the '-----' line !
+
+if [ -z "$1" ]; then
+    echo "Usage: `basename $0` [tid]"
+    exit 1
+fi
+
+target_mod() {
+    param=$1
+    value=$2
+
+    ietadm --op update --tid $tid --params \
+	$param=$value
+}
+
+# ----------------------------------------------
+
+# Only edit this after this point.
+
+target_mod InitialR2T	No
+target_mod ImmediateData Yes
+
+target_mod MaxRecvDataSegmentLength 262144
+target_mod MaxXmitDataSegmentLength 65536
+
+target_mod MaxBurstLength 131072
+target_mod FirstBurstLength 32768
+target_mod MaxOutstandingR2T 1
+
+target_mod HeaderDigest "CRC32C,None"
+target_mod DataDigest "CRC32C,None"
+target_mod QueuedCommands 32
+
+exit 0

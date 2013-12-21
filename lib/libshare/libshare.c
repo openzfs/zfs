@@ -37,6 +37,7 @@
 #include "libshare_impl.h"
 #include "nfs.h"
 #include "smb.h"
+#include "iscsi.h"
 
 static sa_share_impl_t find_share(sa_handle_impl_t handle,
     const char *sharepath);
@@ -55,6 +56,66 @@ static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
 
 static int fstypes_count;
 static sa_fstype_t *fstypes;
+
+/*
+ * Invokes the specified callback function for each Solaris share option
+ * listed in the specified string.
+ */
+int
+foreach_shareopt(const char *shareopts,
+    shareopt_callback_t callback, void *cookie)
+{
+	char *shareopts_dup, *opt, *cur, *value;
+	int was_nul, rc;
+
+	if (shareopts == NULL)
+		return (SA_OK);
+
+	shareopts_dup = strdup(shareopts);
+
+	if (shareopts_dup == NULL)
+		return (SA_NO_MEMORY);
+
+	opt = shareopts_dup;
+	was_nul = 0;
+
+	while (1) {
+		cur = opt;
+
+		while (*cur != ',' && *cur != '\0')
+			cur++;
+
+		if (*cur == '\0')
+			was_nul = 1;
+
+		*cur = '\0';
+
+		if (cur > opt) {
+			value = strchr(opt, '=');
+
+			if (value != NULL) {
+				*value = '\0';
+				value++;
+			}
+
+			rc = callback(opt, value, cookie);
+
+			if (rc != SA_OK) {
+				free(shareopts_dup);
+				return (rc);
+			}
+		}
+
+		opt = cur + 1;
+
+		if (was_nul)
+			break;
+	}
+
+	free(shareopts_dup);
+
+	return (0);
+}
 
 sa_fstype_t *
 register_fstype(const char *name, const sa_share_ops_t *ops)
@@ -105,6 +166,7 @@ libshare_init(void)
 {
 	libshare_nfs_init();
 	libshare_smb_init();
+	libshare_iscsi_init();
 }
 
 static void
@@ -238,13 +300,14 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 		return (1);
 	}
 
-	if (type != ZFS_TYPE_FILESYSTEM) {
+	if (type != ZFS_TYPE_FILESYSTEM && type != ZFS_TYPE_VOLUME) {
 		zfs_close(zhp);
 		return (0);
 	}
 
-	if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
-	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
+	if (type == ZFS_TYPE_FILESYSTEM && zfs_prop_get(zhp,
+	    ZFS_PROP_MOUNTPOINT, mountpoint, sizeof (mountpoint), NULL, NULL,
+	    0, B_FALSE) != 0) {
 		zfs_close(zhp);
 		return (0);
 	}
@@ -256,7 +319,16 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 		return (0);
 	}
 
-	if (!zfs_is_mounted(zhp, NULL)) {
+	if (type == ZFS_TYPE_VOLUME) {
+		/* TODO: check whether this is sane */
+		if (sprintf(mountpoint, "%s/%s/%s", ZVOL_DIR, ZVOL_DRIVER,
+			    dataset) < 0) {
+			zfs_close(zhp);
+			return (0);
+		}
+	}
+
+	if (type == ZFS_TYPE_FILESYSTEM && !zfs_is_mounted(zhp, NULL)) {
 		zfs_close(zhp);
 		return (0);
 	}
@@ -277,6 +349,14 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 		    "smb", shareopts, NULL, dataset, B_FALSE);
 	}
 
+	if ((udata->proto == NULL || strcmp(udata->proto, "iscsi") == 0) &&
+	    zfs_prop_get(zhp, ZFS_PROP_SHAREISCSI, shareopts,
+	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
+	    strcmp(shareopts, "off") != 0) {
+		(void) process_share(udata->handle, NULL, mountpoint, NULL,
+		    "iscsi", shareopts, NULL, dataset, B_FALSE);
+	}
+
 	zfs_close(zhp);
 
 	return (0);
@@ -295,7 +375,7 @@ update_zfs_share(sa_share_impl_t impl_share, const char *proto)
 	assert(impl_share->dataset != NULL);
 
 	zhp = zfs_open(impl_share->handle->zfs_libhandle, impl_share->dataset,
-	    ZFS_TYPE_FILESYSTEM);
+	    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_VOLUME);
 
 	if (zhp == NULL)
 		return (SA_SYSTEM_ERR);
@@ -337,13 +417,23 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 
 	new_share = B_FALSE;
 
-	if (impl_share == NULL)
+	if (impl_share == NULL && strlen(pathname))
 		impl_share = find_share(impl_handle, pathname);
 
 	if (impl_share == NULL) {
-		if (lstat(pathname, &statbuf) != 0 ||
-		    !S_ISDIR(statbuf.st_mode))
+		if (lstat(pathname, &statbuf) != 0)
 			return (SA_BAD_PATH);
+
+		if (!S_ISDIR(statbuf.st_mode) && !S_ISLNK(statbuf.st_mode))
+			return (SA_BAD_PATH);
+
+		if (S_ISLNK(statbuf.st_mode)) {
+			if (stat(pathname, &statbuf) != 0)
+				return (SA_BAD_PATH);
+
+			if (!S_ISBLK(statbuf.st_mode))
+				return (SA_BAD_PATH);
+		}
 
 		impl_share = alloc_share(pathname);
 
@@ -404,7 +494,6 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 
 		impl_share->next = impl_handle->shares;
 		impl_handle->shares = impl_share;
-
 	}
 
 err:
@@ -472,9 +561,8 @@ find_share(sa_handle_impl_t impl_handle, const char *sharepath)
 
 	impl_share = impl_handle->shares;
 	while (impl_share != NULL) {
-		if (strcmp(impl_share->sharepath, sharepath) == 0) {
+		if (strcmp(impl_share->sharepath, sharepath) == 0)
 			break;
-		}
 
 		impl_share = impl_share->next;
 	}
