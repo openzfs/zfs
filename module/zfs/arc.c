@@ -2583,8 +2583,10 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 */
 	if (pages > 0) {
 		arc_kmem_reap_now(ARC_RECLAIM_AGGR, ptob(sc->nr_to_scan));
+		pages = btop(arc_evictable_memory());
 	} else {
 		arc_kmem_reap_now(ARC_RECLAIM_CONS, ptob(sc->nr_to_scan));
+		pages = -1;
 	}
 
 	/*
@@ -2604,7 +2606,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 
 	mutex_exit(&arc_reclaim_thr_lock);
 
-	return (-1);
+	return (pages);
 }
 SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
