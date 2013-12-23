@@ -27,6 +27,40 @@ Description of the different parameters to the ZFS module.
 .sp
 .ne 2
 .na
+\fBl2arc_hdr_limit\fR (ulong)
+.ad
+.RS 12n
+Limit total L2ARC header size
+.sp
+Use this to set a limit on the cumulative size of L2ARC headers that are
+allowed to reside in RAM at a given time. With a large enough L2ARC
+device, it is possible for L2ARC headers to consume a large portion of
+RAM (causing negative performance implications). This limit is intended
+to purposely underutilize a large L2ARC device if the system does not
+have enough RAM to properly support it.
+
+See also: l2arc_reclaim
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_reclaim\fR (int)
+.ad
+.RS 12n
+Enable enforcement of L2ARC header limit
+.sp
+This value allows the administrator the ability to enable and/or disable
+enforcement of the L2ARC header limit (l2arc_hdr_limit) on the fly. When
+disabled, L2ARC headers are not evicted when their cumulative size grows
+above the limit.
+
+Default value: \fB1\fR (L2ARC header size limit is enforced)
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2arc_feed_again\fR (int)
 .ad
 .RS 12n
@@ -255,7 +289,7 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_arc_meta_limit\fR (ulong)
 .ad
 .RS 12n
-Meta limit for arc size
+Limit for "metadata" not contained in arc.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -302,6 +336,17 @@ Default value: \fB100\fR.
 arc_c shift to calc min/max arc_p
 .sp
 Default value: \fB4\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_p_aggressive_disable\fR (int)
+.ad
+.RS 12n
+Disable aggressive arc_p growth
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .RE
 
 .sp
