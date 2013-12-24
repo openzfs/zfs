@@ -106,8 +106,19 @@ stop()
 {
 	[ ! -f "$LOCKFILE" ] && return 3
 
+	log_begin_msg "Unsharing ZFS filesystems"
+	"$ZFS" unshare -a
+	log_end_msg $?
+
 	log_begin_msg "Unmounting ZFS filesystems"
 	"$ZFS" umount -a
+	log_end_msg $?
+
+	log_begin_msg "Exporting ZFS pools"
+	"$ZPOOL" list -H -o name | \
+	    while read pool; do
+		"$ZPOOL" export $pool
+	done
 	log_end_msg $?
 
 	rm -f "$LOCKFILE"
