@@ -1386,16 +1386,8 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	if (type == ARC_SPACE_L2HDRS)
 		return;
 
-	/* Similar to the L2ARC headers, the buffers labelled as
-	 * ARC_SPACE_OTHER are not contained in the ARC's MRU or MFU
-	 * lists. Thus, we make the distinction that ARC_SPACE_OTHER
-	 * buffers *only* count against arc_meta_used, and all other
-	 * buffers (i.e. ARC_SPACE_DATA and ARC_SPACE_HDRS) *only*
-	 * count against arc_size. */
-	if (type == ARC_SPACE_OTHER)
-		ARCSTAT_INCR(arcstat_meta_used, space);
-	else
-		atomic_add_64(&arc_size, space);
+	ARCSTAT_INCR(arcstat_meta_used, space);
+	atomic_add_64(&arc_size, space);
 }
 
 void
@@ -1423,15 +1415,12 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	if (type == ARC_SPACE_L2HDRS)
 		return;
 
-	if (type == ARC_SPACE_OTHER) {
-		ASSERT(arc_meta_used >= space);
-		if (arc_meta_max < arc_meta_used)
-			arc_meta_max = arc_meta_used;
-		ARCSTAT_INCR(arcstat_meta_used, -space);
-	} else {
-		ASSERT(arc_size >= space);
-		atomic_add_64(&arc_size, -space);
-	}
+	ASSERT(arc_meta_used >= space);
+	if (arc_meta_max < arc_meta_used)
+		arc_meta_max = arc_meta_used;
+	ARCSTAT_INCR(arcstat_meta_used, -space);
+	ASSERT(arc_size >= space);
+	atomic_add_64(&arc_size, -space);
 }
 
 arc_buf_t *
@@ -2166,7 +2155,8 @@ arc_adjust(void)
 	 */
 
 	adjustment = MIN((int64_t)(arc_size - arc_c),
-	    (int64_t)(arc_anon->arcs_size + arc_mru->arcs_size - arc_p));
+	    (int64_t)(arc_anon->arcs_size + arc_mru->arcs_size + arc_meta_used -
+	    arc_p));
 
 	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_DATA] > 0) {
 		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_DATA], adjustment);
@@ -2292,9 +2282,19 @@ arc_do_user_evicts(void)
 void
 arc_adjust_meta(int64_t adjustment, boolean_t may_prune)
 {
-	/* Ideally, we would reap from the kmem caches which account
-	 * towards arc_meta_used (e.g. dnode_t, dmu_buf_impl_t, etc.),
-	 * but at the moment, those caches do not have shrinkers. */
+	int64_t delta;
+
+	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustment);
+		arc_evict(arc_mru, 0, delta, FALSE, ARC_BUFC_METADATA);
+		adjustment -= delta;
+	}
+
+	if (adjustment > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+		delta = MIN(arc_mfu->arcs_lsize[ARC_BUFC_METADATA], adjustment);
+		arc_evict(arc_mfu, 0, delta, FALSE, ARC_BUFC_METADATA);
+		adjustment -= delta;
+	}
 
 	if (may_prune && (adjustment > 0) && (arc_meta_used > arc_meta_limit))
 		arc_do_user_prune(zfs_arc_meta_prune);
@@ -2713,6 +2713,9 @@ arc_adapt(int bytes, arc_state_t *state)
 static int
 arc_evict_needed(arc_buf_contents_t type)
 {
+	if (type == ARC_BUFC_METADATA && arc_meta_used >= arc_meta_limit)
+		return (1);
+
 	if (arc_no_grow)
 		return (1);
 
