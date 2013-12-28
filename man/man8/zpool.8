@@ -173,6 +173,11 @@ zpool \- configures ZFS storage pools
 \fBzpool upgrade\fR [\fB-V\fR \fIversion\fR] \fB-a\fR | \fIpool\fR ...
 .fi
 
+.LP
+.nf
+\fBzpool nagios\fR [\fB-o\fR \fB-w\fR \fB-c\fR] \fIpool\fR ...
+.fi
+
 .SH DESCRIPTION
 .sp
 .LP
@@ -2039,6 +2044,55 @@ Enables all supported features on all pools.
 .rt
 Upgrade to the specified legacy version. If the \fB-V\fR flag is specified, no features will be enabled on the pool. This option can only be used to increase the version number up to the last supported legacy version number.
 .RE
+
+.RE
+
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool nagios\fR [\fB-o\fR \fB-w\fR \fB-c\fR] [\fIpool\fR ...]\fR
+.ad
+.sp .6
+.RS 4n
+Behave as a Nagios plugin for the given pools (default all pools found) by providing one line of terse status information and returning a code from 0 to 3 (0 means OK, 1 means Warning, 2 means Critical and 3 means Unknown). Unknown is returned if no pools are found. The other codes are returned depending on the severity of any pool problems.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR\fR
+.ad
+.RS 14n
+.rt
+Turns some warnings into OK results. For example a resilver in progress is normally a warning but with this option would be considered OK as long as there are no other concerns on a pool.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-w\fR\fR
+.ad
+.RS 14n
+.rt
+Turns some critical results into warnings. Most notably this causes removed drives to be treated as mere warnings. This parameter's use is discouraged though because some types of drive failures may manifest this way.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-c\fR\fR
+.ad
+.RS 14n
+.rt
+Turns some warning results into criticals. Use this if you want to escalate minor (repaired) drive faults into more serious alarms.
+.RE
+
+
+.RE
+
 
 .RE
 
