@@ -1379,7 +1379,7 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 				    "device '%s' contains an EFI label and "
 				    "cannot be used on root pools."),
 				    zpool_vdev_name(hdl, NULL, spares[s],
-				    B_FALSE));
+				    NULL));
 				return (zfs_error(hdl, EZFS_POOL_NOTSUP, msg));
 			}
 		}
@@ -1684,6 +1684,7 @@ print_vdev_tree(libzfs_handle_t *hdl, const char *name, nvlist_t *nv,
     int indent)
 {
 	nvlist_t **child;
+	nvlist_t *display;
 	uint_t c, children;
 	char *vname;
 	uint64_t is_log = 0;
@@ -1699,11 +1700,15 @@ print_vdev_tree(libzfs_handle_t *hdl, const char *name, nvlist_t *nv,
 	    &child, &children) != 0)
 		return;
 
+	display = fnvlist_alloc();
+	fnvlist_add_boolean(display, "verbose");
+
 	for (c = 0; c < children; c++) {
-		vname = zpool_vdev_name(hdl, NULL, child[c], B_TRUE);
+		vname = zpool_vdev_name(hdl, NULL, child[c], display);
 		print_vdev_tree(hdl, vname, child[c], indent + 2);
 		free(vname);
 	}
+	fnvlist_free(display);
 }
 
 void
@@ -2688,7 +2693,7 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 	verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
 	    ZPOOL_CONFIG_VDEV_TREE, &config_root) == 0);
 
-	if ((newname = zpool_vdev_name(NULL, NULL, child[0], B_FALSE)) == NULL)
+	if ((newname = zpool_vdev_name(NULL, NULL, child[0], NULL)) == NULL)
 		return (-1);
 
 	/*
@@ -2879,11 +2884,11 @@ find_vdev_entry(zpool_handle_t *zhp, nvlist_t **mchild, uint_t mchildren,
 	for (mc = 0; mc < mchildren; mc++) {
 		uint_t sc;
 		char *mpath = zpool_vdev_name(zhp->zpool_hdl, zhp,
-		    mchild[mc], B_FALSE);
+		    mchild[mc], NULL);
 
 		for (sc = 0; sc < schildren; sc++) {
 			char *spath = zpool_vdev_name(zhp->zpool_hdl, zhp,
-			    schild[sc], B_FALSE);
+			    schild[sc], NULL);
 			boolean_t result = (strcmp(mpath, spath) == 0);
 
 			free(spath);
@@ -3421,17 +3426,23 @@ strip_partition(libzfs_handle_t *hdl, char *path)
  */
 char *
 zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
-    boolean_t verbose)
+    nvlist_t *opts)
 {
 	char *path, *devid, *type;
 	uint64_t value;
 	char buf[PATH_BUF_LEN];
 	char tmpbuf[PATH_BUF_LEN];
+	boolean_t verbose = B_FALSE, guid = B_FALSE;
 	vdev_stat_t *vs;
 	uint_t vsc;
 
-	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
-	    &value) == 0) {
+	if (opts) {
+		guid = (nvlist_lookup_boolean(opts, "print_guid") == 0);
+		verbose = (nvlist_lookup_boolean(opts, "verbose") == 0);
+	}
+
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT, &value)
+	    == 0 || guid) {
 		verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
 		    &value) == 0);
 		(void) snprintf(buf, sizeof (buf), "%llu",

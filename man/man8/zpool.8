@@ -150,7 +150,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool status\fR [\fB-xvD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-gxvD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .fi
 
 .LP
@@ -1848,13 +1848,24 @@ Sets the specified property for \fInewpool\fR. See the “Properties” section 
 .ne 2
 .mk
 .na
-\fBzpool status\fR [\fB-xvD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-gxvD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .ad
 .sp .6
 .RS 4n
 Displays the detailed health status for the given pools. If no \fIpool\fR is specified, then the status of each pool in the system is displayed. For more information on pool and device health, see the "Device Failure and Recovery" section.
 .sp
 If a scrub or resilver is in progress, this command reports the percentage done and the estimated time to completion. Both of these are only approximate, because the amount of data in the pool and the other workloads on the system can change.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-g\fR\fR
+.ad
+.RS 12n
+.rt
+Display vdev GUIDs instead of the normal short/long device names. These GUIDs can be used in-place of device names for the zpool detach/offline/remove/replace commands.
+.RE
+
 .sp
 .ne 2
 .mk

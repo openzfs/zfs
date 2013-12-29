@@ -257,8 +257,8 @@ get_usage(zpool_help_t idx) {
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s] <pool> ...\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-vxD] [-T d|u] [pool] ... [interval "
-		    "[count]]\n"));
+		return (gettext("\tstatus [-gvxD] [-T d|u] [pool] ... [interval"
+		    " [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -368,12 +368,40 @@ usage(boolean_t requested)
 	exit(requested ? 0 : 2);
 }
 
+/*
+ * Helper function to simplify setup of the nvlist passed to zpool_vdev_name().
+ * The return value is NULL when all arguments are false.  Passing NULL to
+ * zpool_vdev_name() is valid, but freeing a NULL pointer is not. If the values
+ * vary at runtime, check the return value before freeing the nvlist to avoid
+ * freeing a NULL pointer.
+ */
+static nvlist_t *
+make_printconf_nvlist(boolean_t verbose, boolean_t print_guid)
+{
+	nvlist_t *display;
+
+	if (verbose || print_guid)
+		display = fnvlist_alloc();
+	else
+		return (NULL);
+
+	if (print_guid)
+		fnvlist_add_boolean(display, "print_guid");
+
+	if (verbose)
+		fnvlist_add_boolean(display, "verbose");
+
+	return (display);
+
+}
+
 void
 print_vdev_tree(zpool_handle_t *zhp, const char *name, nvlist_t *nv, int indent,
-    boolean_t print_logs)
+    boolean_t print_logs, boolean_t print_guid)
 {
 	nvlist_t **child;
 	uint_t c, children;
+	nvlist_t *display;
 	char *vname;
 
 	if (name != NULL)
@@ -383,6 +411,7 @@ print_vdev_tree(zpool_handle_t *zhp, const char *name, nvlist_t *nv, int indent,
 	    &child, &children) != 0)
 		return;
 
+	display = make_printconf_nvlist(B_FALSE, print_guid);
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE;
 
@@ -391,11 +420,14 @@ print_vdev_tree(zpool_handle_t *zhp, const char *name, nvlist_t *nv, int indent,
 		if ((is_log && !print_logs) || (!is_log && print_logs))
 			continue;
 
-		vname = zpool_vdev_name(g_zfs, zhp, child[c], B_FALSE);
+		vname = zpool_vdev_name(g_zfs, zhp, child[c], display);
 		print_vdev_tree(zhp, vname, child[c], indent + 2,
-		    B_FALSE);
+		    B_FALSE, print_guid);
 		free(vname);
 	}
+
+	if (display)
+		fnvlist_free(display);
 }
 
 static boolean_t
@@ -601,15 +633,17 @@ zpool_do_add(int argc, char **argv)
 		    "configuration:\n"), zpool_get_name(zhp));
 
 		/* print original main pool and new tree */
-		print_vdev_tree(zhp, poolname, poolnvroot, 0, B_FALSE);
-		print_vdev_tree(zhp, NULL, nvroot, 0, B_FALSE);
+		print_vdev_tree(zhp, poolname, poolnvroot, 0, B_FALSE, B_FALSE);
+		print_vdev_tree(zhp, NULL, nvroot, 0, B_FALSE, B_FALSE);
 
 		/* Do the same for the logs */
 		if (num_logs(poolnvroot) > 0) {
-			print_vdev_tree(zhp, "logs", poolnvroot, 0, B_TRUE);
-			print_vdev_tree(zhp, NULL, nvroot, 0, B_TRUE);
+			print_vdev_tree(zhp, "logs", poolnvroot, 0, B_TRUE,
+			    B_FALSE);
+			print_vdev_tree(zhp, NULL, nvroot, 0, B_TRUE, B_FALSE);
 		} else if (num_logs(nvroot) > 0) {
-			print_vdev_tree(zhp, "logs", nvroot, 0, B_TRUE);
+			print_vdev_tree(zhp, "logs", nvroot, 0, B_TRUE,
+			    B_FALSE);
 		}
 
 		ret = 0;
@@ -1051,9 +1085,10 @@ zpool_do_create(int argc, char **argv)
 		(void) printf(gettext("would create '%s' with the "
 		    "following layout:\n\n"), poolname);
 
-		print_vdev_tree(NULL, poolname, nvroot, 0, B_FALSE);
+		print_vdev_tree(NULL, poolname, nvroot, 0, B_FALSE, B_FALSE);
 		if (num_logs(nvroot) > 0)
-			print_vdev_tree(NULL, "logs", nvroot, 0, B_TRUE);
+			print_vdev_tree(NULL, "logs", nvroot, 0, B_TRUE,
+			    B_FALSE);
 
 		ret = 0;
 	} else {
@@ -1260,12 +1295,16 @@ zpool_do_export(int argc, char **argv)
  * name column.
  */
 static int
-max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max)
+max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max,
+    boolean_t print_guid)
 {
-	char *name = zpool_vdev_name(g_zfs, zhp, nv, B_TRUE);
+	nvlist_t *display = make_printconf_nvlist(B_TRUE, print_guid);
+	char *name = zpool_vdev_name(g_zfs, zhp, nv, display);
 	nvlist_t **child;
 	uint_t c, children;
 	int ret;
+
+	fnvlist_free(display);
 
 	if (strlen(name) + depth > max)
 		max = strlen(name) + depth;
@@ -1276,7 +1315,7 @@ max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max)
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++)
 			if ((ret = max_width(zhp, child[c], depth + 2,
-			    max)) > max)
+			    max, print_guid)) > max)
 				max = ret;
 	}
 
@@ -1284,7 +1323,7 @@ max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max)
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++)
 			if ((ret = max_width(zhp, child[c], depth + 2,
-			    max)) > max)
+			    max, print_guid)) > max)
 				max = ret;
 	}
 
@@ -1292,7 +1331,7 @@ max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max)
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++)
 			if ((ret = max_width(zhp, child[c], depth + 2,
-			    max)) > max)
+			    max, print_guid)) > max)
 				max = ret;
 	}
 
@@ -1350,9 +1389,10 @@ find_spare(zpool_handle_t *zhp, void *data)
  */
 void
 print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
-    int namewidth, int depth, boolean_t isspare)
+    int namewidth, int depth, boolean_t isspare, boolean_t print_guid)
 {
 	nvlist_t **child;
+	nvlist_t *display;
 	uint_t c, children;
 	pool_scan_stat_t *ps = NULL;
 	vdev_stat_t *vs;
@@ -1476,6 +1516,7 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 
 	(void) printf("\n");
 
+	display = make_printconf_nvlist(B_TRUE, print_guid);
 	for (c = 0; c < children; c++) {
 		uint64_t islog = B_FALSE, ishole = B_FALSE;
 
@@ -1486,11 +1527,14 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		    &ishole);
 		if (islog || ishole)
 			continue;
-		vname = zpool_vdev_name(g_zfs, zhp, child[c], B_TRUE);
+		vname = zpool_vdev_name(g_zfs, zhp, child[c], display);
 		print_status_config(zhp, vname, child[c],
-		    namewidth, depth + 2, isspare);
+		    namewidth, depth + 2, isspare, print_guid);
 		free(vname);
 	}
+
+	if (display)
+		fnvlist_free(display);
 }
 
 
@@ -1499,9 +1543,11 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
  * pool, printing out the name and status for each one.
  */
 void
-print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth)
+print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
+	boolean_t print_guid)
 {
 	nvlist_t **child;
+	nvlist_t *display = NULL;
 	uint_t c, children;
 	vdev_stat_t *vs;
 	char *type, *vname;
@@ -1556,6 +1602,7 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth)
 	    &child, &children) != 0)
 		return;
 
+	display = make_printconf_nvlist(B_TRUE, print_guid);
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE;
 
@@ -1564,16 +1611,20 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth)
 		if (is_log)
 			continue;
 
-		vname = zpool_vdev_name(g_zfs, NULL, child[c], B_TRUE);
-		print_import_config(vname, child[c], namewidth, depth + 2);
+		vname = zpool_vdev_name(g_zfs, NULL, child[c], display);
+		print_import_config(vname, child[c], namewidth, depth + 2,
+		    print_guid);
 		free(vname);
 	}
+
+	fnvlist_free(display);
+	display = make_printconf_nvlist(B_FALSE, print_guid);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0) {
 		(void) printf(gettext("\tcache\n"));
 		for (c = 0; c < children; c++) {
-			vname = zpool_vdev_name(g_zfs, NULL, child[c], B_FALSE);
+			vname = zpool_vdev_name(g_zfs, NULL, child[c], display);
 			(void) printf("\t  %s\n", vname);
 			free(vname);
 		}
@@ -1583,11 +1634,13 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth)
 	    &child, &children) == 0) {
 		(void) printf(gettext("\tspares\n"));
 		for (c = 0; c < children; c++) {
-			vname = zpool_vdev_name(g_zfs, NULL, child[c], B_FALSE);
+			vname = zpool_vdev_name(g_zfs, NULL, child[c], display);
 			(void) printf("\t  %s\n", vname);
 			free(vname);
 		}
 	}
+	if (display)
+		fnvlist_free(display);
 }
 
 /*
@@ -1599,16 +1652,20 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth)
  * works because only the top level vdev is marked "is_log"
  */
 static void
-print_logs(zpool_handle_t *zhp, nvlist_t *nv, int namewidth, boolean_t verbose)
+print_logs(zpool_handle_t *zhp, nvlist_t *nv, int namewidth, boolean_t verbose,
+	boolean_t print_guid)
 {
 	uint_t c, children;
 	nvlist_t **child;
+	nvlist_t *display;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) != 0)
 		return;
 
 	(void) printf(gettext("\tlogs\n"));
+
+	display = make_printconf_nvlist(B_TRUE, print_guid);
 
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE;
@@ -1618,14 +1675,17 @@ print_logs(zpool_handle_t *zhp, nvlist_t *nv, int namewidth, boolean_t verbose)
 		    &is_log);
 		if (!is_log)
 			continue;
-		name = zpool_vdev_name(g_zfs, zhp, child[c], B_TRUE);
+		name = zpool_vdev_name(g_zfs, zhp, child[c], display);
 		if (verbose)
 			print_status_config(zhp, name, child[c], namewidth,
-			    2, B_FALSE);
+			    2, B_FALSE, print_guid);
 		else
-			print_import_config(name, child[c], namewidth, 2);
+			print_import_config(name, child[c], namewidth, 2,
+			    print_guid);
 		free(name);
 	}
+
+	fnvlist_free(display);
 }
 
 /*
@@ -1872,13 +1932,13 @@ show_import(nvlist_t *config)
 
 	(void) printf(gettext(" config:\n\n"));
 
-	namewidth = max_width(NULL, nvroot, 0, 0);
+	namewidth = max_width(NULL, nvroot, 0, 0, B_FALSE);
 	if (namewidth < 10)
 		namewidth = 10;
 
-	print_import_config(name, nvroot, namewidth, 0);
+	print_import_config(name, nvroot, namewidth, 0, B_FALSE);
 	if (num_logs(nvroot) > 0)
-		print_logs(NULL, nvroot, namewidth, B_FALSE);
+		print_logs(NULL, nvroot, namewidth, B_FALSE, B_FALSE);
 
 	if (reason == ZPOOL_STATUS_BAD_GUID_SUM) {
 		(void) printf(gettext("\n\tAdditional devices are known to "
@@ -2392,6 +2452,7 @@ error:
 
 typedef struct iostat_cbdata {
 	boolean_t cb_verbose;
+	boolean_t cb_print_guid;
 	int cb_namewidth;
 	int cb_iteration;
 	zpool_list_t *cb_list;
@@ -2436,9 +2497,10 @@ print_one_stat(uint64_t value)
  */
 void
 print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
-    nvlist_t *newnv, iostat_cbdata_t *cb, int depth)
+    nvlist_t *newnv, iostat_cbdata_t *cb, int depth, boolean_t print_guid)
 {
 	nvlist_t **oldchild, **newchild;
+	nvlist_t *display;
 	uint_t c, children;
 	vdev_stat_t *oldvs, *newvs;
 	vdev_stat_t zerovs = { 0 };
@@ -2502,6 +2564,7 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	    &oldchild, &c) != 0)
 		return;
 
+	display = make_printconf_nvlist(B_FALSE, print_guid);
 	for (c = 0; c < children; c++) {
 		uint64_t ishole = B_FALSE, islog = B_FALSE;
 
@@ -2514,9 +2577,9 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 		if (ishole || islog)
 			continue;
 
-		vname = zpool_vdev_name(g_zfs, zhp, newchild[c], B_FALSE);
+		vname = zpool_vdev_name(g_zfs, zhp, newchild[c], display);
 		print_vdev_stats(zhp, vname, oldnv ? oldchild[c] : NULL,
-		    newchild[c], cb, depth + 2);
+		    newchild[c], cb, depth + 2, print_guid);
 		free(vname);
 	}
 
@@ -2535,10 +2598,10 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 
 			if (islog) {
 				vname = zpool_vdev_name(g_zfs, zhp, newchild[c],
-				    B_FALSE);
+				    display);
 				print_vdev_stats(zhp, vname, oldnv ?
 				    oldchild[c] : NULL, newchild[c],
-				    cb, depth + 2);
+				    cb, depth + 2, print_guid);
 				free(vname);
 			}
 		}
@@ -2550,23 +2613,26 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	 */
 	if (nvlist_lookup_nvlist_array(newnv, ZPOOL_CONFIG_L2CACHE,
 	    &newchild, &children) != 0)
-		return;
+		goto out;
 
 	if (oldnv && nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_L2CACHE,
 	    &oldchild, &c) != 0)
-		return;
+		goto out;
 
 	if (children > 0) {
 		(void) printf("%-*s      -      -      -      -      -      "
 		    "-\n", cb->cb_namewidth, "cache");
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, newchild[c],
-			    B_FALSE);
+			    display);
 			print_vdev_stats(zhp, vname, oldnv ? oldchild[c] : NULL,
-			    newchild[c], cb, depth + 2);
+			    newchild[c], cb, depth + 2, print_guid);
 			free(vname);
 		}
 	}
+out:
+	if (display)
+		fnvlist_free(display);
 }
 
 static int
@@ -2614,7 +2680,8 @@ print_iostat(zpool_handle_t *zhp, void *data)
 	/*
 	 * Print out the statistics for the pool.
 	 */
-	print_vdev_stats(zhp, zpool_get_name(zhp), oldnvroot, newnvroot, cb, 0);
+	print_vdev_stats(zhp, zpool_get_name(zhp), oldnvroot, newnvroot, cb, 0,
+	    B_FALSE);
 
 	if (cb->cb_verbose)
 		print_iostat_separator(cb);
@@ -2654,7 +2721,7 @@ get_namewidth(zpool_handle_t *zhp, void *data)
 			cb->cb_namewidth = strlen(zpool_get_name(zhp));
 		else
 			cb->cb_namewidth = max_width(zhp, nvroot, 0,
-			    cb->cb_namewidth);
+			    cb->cb_namewidth, cb->cb_print_guid);
 	}
 
 	/*
@@ -2774,6 +2841,7 @@ zpool_do_iostat(int argc, char **argv)
 	unsigned long interval = 0, count = 0;
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
+	boolean_t print_guid = B_FALSE;
 	iostat_cbdata_t cb;
 
 	/* check options */
@@ -2820,6 +2888,7 @@ zpool_do_iostat(int argc, char **argv)
 	 */
 	cb.cb_list = list;
 	cb.cb_verbose = verbose;
+	cb.cb_print_guid = print_guid;
 	cb.cb_iteration = 0;
 	cb.cb_namewidth = 0;
 
@@ -2892,6 +2961,7 @@ zpool_do_iostat(int argc, char **argv)
 
 typedef struct list_cbdata {
 	boolean_t	cb_verbose;
+	boolean_t	cb_print_guid;
 	int		cb_namewidth;
 	boolean_t	cb_scripted;
 	zprop_list_t	*cb_proplist;
@@ -3063,6 +3133,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
     list_cbdata_t *cb, int depth)
 {
 	nvlist_t **child;
+	nvlist_t *display;
 	vdev_stat_t *vs;
 	uint_t c, children;
 	char *vname;
@@ -3110,6 +3181,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	    &child, &children) != 0)
 		return;
 
+	display = make_printconf_nvlist(B_FALSE, cb->cb_print_guid);
 	for (c = 0; c < children; c++) {
 		uint64_t ishole = B_FALSE;
 
@@ -3117,7 +3189,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		    ZPOOL_CONFIG_IS_HOLE, &ishole) == 0 && ishole)
 			continue;
 
-		vname = zpool_vdev_name(g_zfs, zhp, child[c], B_FALSE);
+		vname = zpool_vdev_name(g_zfs, zhp, child[c], display);
 		print_list_stats(zhp, vname, child[c], cb, depth + 2);
 		free(vname);
 	}
@@ -3127,18 +3199,21 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	 */
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) != 0)
-		return;
+		goto out;
 
 	if (children > 0) {
 		(void) printf("%-*s      -      -      -      -      -      "
 		    "-\n", cb->cb_namewidth, "cache");
 		for (c = 0; c < children; c++) {
-			vname = zpool_vdev_name(g_zfs, zhp, child[c],
-			    B_FALSE);
+			vname = zpool_vdev_name(g_zfs, zhp, child[c], display);
 			print_list_stats(zhp, vname, child[c], cb, depth + 2);
 			free(vname);
 		}
 	}
+
+out:
+	if (display)
+		fnvlist_free(display);
 }
 
 
@@ -3564,7 +3639,8 @@ zpool_do_split(int argc, char **argv)
 		if (flags.dryrun) {
 			(void) printf(gettext("would create '%s' with the "
 			    "following layout:\n\n"), newpool);
-			print_vdev_tree(NULL, newpool, config, 0, B_FALSE);
+			print_vdev_tree(NULL, newpool, config, 0, B_FALSE,
+			    B_FALSE);
 		}
 		nvlist_free(config);
 	}
@@ -3972,6 +4048,7 @@ typedef struct status_cbdata {
 	int		cb_count;
 	boolean_t	cb_allpools;
 	boolean_t	cb_verbose;
+	boolean_t	cb_print_guid;
 	boolean_t	cb_explain;
 	boolean_t	cb_first;
 	boolean_t	cb_dedup_stats;
@@ -4126,8 +4203,9 @@ print_error_log(zpool_handle_t *zhp)
 
 static void
 print_spares(zpool_handle_t *zhp, nvlist_t **spares, uint_t nspares,
-    int namewidth)
+    int namewidth, boolean_t print_guid)
 {
+	nvlist_t *display;
 	uint_t i;
 	char *name;
 
@@ -4136,18 +4214,21 @@ print_spares(zpool_handle_t *zhp, nvlist_t **spares, uint_t nspares,
 
 	(void) printf(gettext("\tspares\n"));
 
+	display = make_printconf_nvlist(B_FALSE, print_guid);
 	for (i = 0; i < nspares; i++) {
-		name = zpool_vdev_name(g_zfs, zhp, spares[i], B_FALSE);
+		name = zpool_vdev_name(g_zfs, zhp, spares[i], display);
 		print_status_config(zhp, name, spares[i],
-		    namewidth, 2, B_TRUE);
+		    namewidth, 2, B_TRUE, print_guid);
 		free(name);
 	}
+	fnvlist_free(display);
 }
 
 static void
 print_l2cache(zpool_handle_t *zhp, nvlist_t **l2cache, uint_t nl2cache,
-    int namewidth)
+    int namewidth, boolean_t print_guid)
 {
+	nvlist_t *display;
 	uint_t i;
 	char *name;
 
@@ -4156,12 +4237,15 @@ print_l2cache(zpool_handle_t *zhp, nvlist_t **l2cache, uint_t nl2cache,
 
 	(void) printf(gettext("\tcache\n"));
 
+	display = make_printconf_nvlist(B_FALSE, print_guid);
 	for (i = 0; i < nl2cache; i++) {
-		name = zpool_vdev_name(g_zfs, zhp, l2cache[i], B_FALSE);
+		name = zpool_vdev_name(g_zfs, zhp, l2cache[i], display);
 		print_status_config(zhp, name, l2cache[i],
-		    namewidth, 2, B_FALSE);
+		    namewidth, 2, B_FALSE, print_guid);
 		free(name);
 	}
+	if (display)
+		fnvlist_free(display);
 }
 
 static void
@@ -4501,7 +4585,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
 		print_scan_status(ps);
 
-		namewidth = max_width(zhp, nvroot, 0, 0);
+		namewidth = max_width(zhp, nvroot, 0, 0, cbp->cb_print_guid);
 		if (namewidth < 10)
 			namewidth = 10;
 
@@ -4509,17 +4593,20 @@ status_callback(zpool_handle_t *zhp, void *data)
 		(void) printf(gettext("\t%-*s  %-8s %5s %5s %5s\n"), namewidth,
 		    "NAME", "STATE", "READ", "WRITE", "CKSUM");
 		print_status_config(zhp, zpool_get_name(zhp), nvroot,
-		    namewidth, 0, B_FALSE);
+		    namewidth, 0, B_FALSE, cbp->cb_print_guid);
 
 		if (num_logs(nvroot) > 0)
-			print_logs(zhp, nvroot, namewidth, B_TRUE);
+			print_logs(zhp, nvroot, namewidth, B_TRUE,
+			    cbp->cb_print_guid);
 		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
 		    &l2cache, &nl2cache) == 0)
-			print_l2cache(zhp, l2cache, nl2cache, namewidth);
+			print_l2cache(zhp, l2cache, nl2cache, namewidth,
+				cbp->cb_print_guid);
 
 		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
 		    &spares, &nspares) == 0)
-			print_spares(zhp, spares, nspares, namewidth);
+			print_spares(zhp, spares, nspares, namewidth,
+			    cbp->cb_print_guid);
 
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
 		    &nerr) == 0) {
@@ -4585,8 +4672,11 @@ zpool_do_status(int argc, char **argv)
 	status_cbdata_t cb = { 0 };
 
 	/* check options */
-	while ((c = getopt(argc, argv, "vxDT:")) != -1) {
+	while ((c = getopt(argc, argv, "gvxDT:")) != -1) {
 		switch (c) {
+		case 'g':
+			cb.cb_print_guid = B_TRUE;
+			break;
 		case 'v':
 			cb.cb_verbose = B_TRUE;
 			break;
