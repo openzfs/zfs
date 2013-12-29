@@ -2358,10 +2358,6 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 {
 	uint64_t pages;
 
-	/* The arc is considered warm once reclaim has occurred */
-	if (unlikely(arc_warm == B_FALSE))
-		arc_warm = B_TRUE;
-
 	/* Return the potential number of reclaimable pages */
 	pages = btop(arc_evictable_memory());
 	if (sc->nr_to_scan == 0)
