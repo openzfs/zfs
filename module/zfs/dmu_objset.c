@@ -970,7 +970,7 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	 */
 	bp->blk_fill = 0;
 	for (i = 0; i < dnp->dn_nblkptr; i++)
-		bp->blk_fill += dnp->dn_blkptr[i].blk_fill;
+		bp->blk_fill += ((blkptr_t *)dnp->dn_blkptr)[i].blk_fill;
 }
 
 /* ARGSUSED */

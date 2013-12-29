@@ -1898,7 +1898,7 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_max_offset = (dn->dn_maxblkid + 1) * dn->dn_datablksz;
 	doi->doi_fill_count = 0;
 	for (i = 0; i < dnp->dn_nblkptr; i++)
-		doi->doi_fill_count += dnp->dn_blkptr[i].blk_fill;
+		doi->doi_fill_count += ((blkptr_t *)dnp->dn_blkptr)[i].blk_fill;
 }
 
 void

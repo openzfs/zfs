@@ -641,7 +641,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		}
 		for (i = 0, cdnp = (*bufp)->b_data; i < epb; i++, cdnp++) {
 			for (j = 0; j < cdnp->dn_nblkptr; j++) {
-				blkptr_t *cbp = &cdnp->dn_blkptr[j];
+				blkptr_t *cbp = &((blkptr_t *)cdnp->dn_blkptr)[j];
 				dsl_scan_prefetch(scn, *bufp, cbp,
 				    zb->zb_objset, zb->zb_blkid * epb + i, j);
 			}
@@ -698,7 +698,7 @@ dsl_scan_visitdnode(dsl_scan_t *scn, dsl_dataset_t *ds,
 
 		SET_BOOKMARK(&czb, ds ? ds->ds_object : 0, object,
 		    dnp->dn_nlevels - 1, j);
-		dsl_scan_visitbp(&dnp->dn_blkptr[j],
+		dsl_scan_visitbp(&((blkptr_t *)dnp->dn_blkptr)[j],
 		    &czb, dnp, buf, ds, scn, ostype, tx);
 	}
 

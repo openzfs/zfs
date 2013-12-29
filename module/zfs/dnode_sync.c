@@ -59,7 +59,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 	/* check for existing blkptrs in the dnode */
 	for (i = 0; i < nblkptr; i++)
-		if (!BP_IS_HOLE(&dn->dn_phys->dn_blkptr[i]))
+		if (!BP_IS_HOLE(&((blkptr_t *)dn->dn_phys->dn_blkptr)[i]))
 			break;
 	if (i != nblkptr) {
 		/* transfer dnode's block pointers to new indirect block */
@@ -86,7 +86,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 		if (child->db_parent && child->db_parent != dn->dn_dbuf) {
 			ASSERT(child->db_parent->db_level == db->db_level);
 			ASSERT(child->db_blkptr !=
-			    &dn->dn_phys->dn_blkptr[child->db_blkid]);
+			    &((blkptr_t *)dn->dn_phys->dn_blkptr)[child->db_blkid]);
 			mutex_exit(&child->db_mtx);
 			continue;
 		}
