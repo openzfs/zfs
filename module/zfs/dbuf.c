@@ -586,7 +586,8 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 
 		ASSERT3U(bonuslen, <=, db->db.db_size);
 		db->db.db_data = zio_buf_alloc(DN_MAX_BONUSLEN);
-		arc_space_consume(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
+		arc_space_consume(DN_MAX_BONUSLEN, ARC_SPACE_OTHER,
+		    ARC_BUFC_METADATA);
 		if (bonuslen < DN_MAX_BONUSLEN)
 			bzero(db->db.db_data, DN_MAX_BONUSLEN);
 		if (bonuslen)
@@ -797,7 +798,8 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	if (db->db_blkid == DMU_BONUS_BLKID) {
 		/* Note that the data bufs here are zio_bufs */
 		dr->dt.dl.dr_data = zio_buf_alloc(DN_MAX_BONUSLEN);
-		arc_space_consume(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
+		arc_space_consume(DN_MAX_BONUSLEN, ARC_SPACE_OTHER,
+		    ARC_BUFC_METADATA);
 		bcopy(db->db.db_data, dr->dt.dl.dr_data, DN_MAX_BONUSLEN);
 	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
 		int size = db->db.db_size;
@@ -1608,7 +1610,8 @@ dbuf_clear(dmu_buf_impl_t *db)
 		ASSERT(db->db.db_data != NULL);
 		if (db->db_blkid == DMU_BONUS_BLKID) {
 			zio_buf_free(db->db.db_data, DN_MAX_BONUSLEN);
-			arc_space_return(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
+			arc_space_return(DN_MAX_BONUSLEN, ARC_SPACE_OTHER,
+			    ARC_BUFC_METADATA);
 		}
 		db->db.db_data = NULL;
 		db->db_state = DB_UNCACHED;
@@ -1769,7 +1772,8 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 		db->db.db_offset = DMU_BONUS_BLKID;
 		db->db_state = DB_UNCACHED;
 		/* the bonus dbuf is not placed in the hash table */
-		arc_space_consume(sizeof (dmu_buf_impl_t), ARC_SPACE_OTHER);
+		arc_space_consume(sizeof (dmu_buf_impl_t), ARC_SPACE_OTHER,
+		    ARC_BUFC_METADATA);
 		return (db);
 	} else if (blkid == DMU_SPILL_BLKID) {
 		db->db.db_size = (blkptr != NULL) ?
@@ -1803,7 +1807,8 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 		dn->dn_unlisted_l0_blkid = db->db_blkid + 1;
 	db->db_state = DB_UNCACHED;
 	mutex_exit(&dn->dn_dbufs_mtx);
-	arc_space_consume(sizeof (dmu_buf_impl_t), ARC_SPACE_OTHER);
+	arc_space_consume(sizeof (dmu_buf_impl_t), ARC_SPACE_OTHER,
+	    ARC_BUFC_METADATA);
 
 	if (parent && parent != dn->dn_dbuf)
 		dbuf_add_ref(parent, db);
@@ -1882,7 +1887,8 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	ASSERT(db->db_data_pending == NULL);
 
 	kmem_cache_free(dbuf_cache, db);
-	arc_space_return(sizeof (dmu_buf_impl_t), ARC_SPACE_OTHER);
+	arc_space_return(sizeof (dmu_buf_impl_t), ARC_SPACE_OTHER,
+	    ARC_BUFC_METADATA);
 }
 
 void
@@ -2468,7 +2474,8 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 		if (*datap != db->db.db_data) {
 			zio_buf_free(*datap, DN_MAX_BONUSLEN);
-			arc_space_return(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
+			arc_space_return(DN_MAX_BONUSLEN, ARC_SPACE_OTHER,
+			    ARC_BUFC_METADATA);
 		}
 		db->db_data_pending = NULL;
 		drp = &db->db_last_dirty;

@@ -428,7 +428,9 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dn->dn_objset = os;
 	mutex_exit(&os->os_lock);
 
-	arc_space_consume(sizeof (dnode_t), ARC_SPACE_OTHER);
+	arc_space_consume(sizeof (dnode_t), ARC_SPACE_OTHER,
+	    ARC_BUFC_METADATA);
+
 	return (dn);
 }
 
@@ -478,7 +480,8 @@ dnode_destroy(dnode_t *dn)
 
 	dmu_zfetch_rele(&dn->dn_zfetch);
 	kmem_cache_free(dnode_cache, dn);
-	arc_space_return(sizeof (dnode_t), ARC_SPACE_OTHER);
+	arc_space_return(sizeof (dnode_t), ARC_SPACE_OTHER,
+	    ARC_BUFC_METADATA);
 }
 
 void
