@@ -1901,6 +1901,7 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 
 	evicted_state = (state == arc_mru) ? arc_mru_ghost : arc_mfu_ghost;
 
+top:
 	mutex_enter(&state->arcs_mtx);
 	mutex_enter(&evicted_state->arcs_mtx);
 
@@ -2015,6 +2016,13 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 
 	mutex_exit(&evicted_state->arcs_mtx);
 	mutex_exit(&state->arcs_mtx);
+
+	if (list == &state->arcs_list[ARC_BUFC_DATA] &&
+	    (bytes < 0 || bytes_evicted < bytes)) {
+		type = ARC_BUFC_METADATA;
+		list = &state->arcs_list[type];
+		goto top;
+	}
 
 	if (bytes_evicted < bytes)
 		dprintf("only evicted %lld bytes from %x\n",
@@ -2158,16 +2166,9 @@ arc_adjust(void)
 	    (int64_t)(arc_anon->arcs_size + arc_mru->arcs_size + arc_meta_used -
 	    arc_p));
 
-	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_DATA] > 0) {
-		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_DATA], adjustment);
+	if (adjustment > 0 && arc_mru->arcs_size > 0) {
+		delta = MIN(arc_mru->arcs_size, adjustment);
 		(void) arc_evict(arc_mru, 0, delta, FALSE, ARC_BUFC_DATA);
-		adjustment -= delta;
-	}
-
-	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustment);
-		(void) arc_evict(arc_mru, 0, delta, FALSE,
-		    ARC_BUFC_METADATA);
 	}
 
 	/*
@@ -2176,17 +2177,9 @@ arc_adjust(void)
 
 	adjustment = arc_size - arc_c;
 
-	if (adjustment > 0 && arc_mfu->arcs_lsize[ARC_BUFC_DATA] > 0) {
-		delta = MIN(adjustment, arc_mfu->arcs_lsize[ARC_BUFC_DATA]);
+	if (adjustment > 0 && arc_mfu->arcs_size > 0) {
+		delta = MIN(arc_mfu->arcs_size, adjustment);
 		(void) arc_evict(arc_mfu, 0, delta, FALSE, ARC_BUFC_DATA);
-		adjustment -= delta;
-	}
-
-	if (adjustment > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		int64_t delta = MIN(adjustment,
-		    arc_mfu->arcs_lsize[ARC_BUFC_METADATA]);
-		(void) arc_evict(arc_mfu, 0, delta, FALSE,
-		    ARC_BUFC_METADATA);
 	}
 
 	/*
@@ -2312,27 +2305,8 @@ arc_flush(spa_t *spa)
 	if (spa)
 		guid = spa_load_guid(spa);
 
-	while (list_head(&arc_mru->arcs_list[ARC_BUFC_DATA])) {
-		(void) arc_evict(arc_mru, guid, -1, FALSE, ARC_BUFC_DATA);
-		if (spa)
-			break;
-	}
-	while (list_head(&arc_mru->arcs_list[ARC_BUFC_METADATA])) {
-		(void) arc_evict(arc_mru, guid, -1, FALSE, ARC_BUFC_METADATA);
-		if (spa)
-			break;
-	}
-	while (list_head(&arc_mfu->arcs_list[ARC_BUFC_DATA])) {
-		(void) arc_evict(arc_mfu, guid, -1, FALSE, ARC_BUFC_DATA);
-		if (spa)
-			break;
-	}
-	while (list_head(&arc_mfu->arcs_list[ARC_BUFC_METADATA])) {
-		(void) arc_evict(arc_mfu, guid, -1, FALSE, ARC_BUFC_METADATA);
-		if (spa)
-			break;
-	}
-
+	arc_evict(arc_mru, guid, -1, FALSE, ARC_BUFC_DATA);
+	arc_evict(arc_mfu, guid, -1, FALSE, ARC_BUFC_DATA);
 	arc_evict_ghost(arc_mru_ghost, guid, -1, ARC_BUFC_DATA);
 	arc_evict_ghost(arc_mfu_ghost, guid, -1, ARC_BUFC_DATA);
 
@@ -2748,9 +2722,10 @@ arc_evict_needed(arc_buf_contents_t type)
 static void
 arc_get_data_buf(arc_buf_t *buf)
 {
-	arc_state_t		*state = buf->b_hdr->b_state;
-	uint64_t		size = buf->b_hdr->b_size;
-	arc_buf_contents_t	type = buf->b_hdr->b_type;
+	arc_state_t		*state     = buf->b_hdr->b_state;
+	uint64_t		size       = buf->b_hdr->b_size;
+	arc_buf_contents_t	type       = buf->b_hdr->b_type;
+	arc_buf_contents_t	evict_type = ARC_BUFC_DATA;
 
 	arc_adapt(size, state);
 
@@ -2791,7 +2766,12 @@ arc_get_data_buf(arc_buf_t *buf)
 		    mfu_space > arc_mfu->arcs_size) ? arc_mru : arc_mfu;
 	}
 
-	if ((buf->b_data = arc_evict(state, 0, size, TRUE, type)) == NULL) {
+	/* evict data buffers prior to metadata buffers, unless we're
+	 * over the metadata limit and adding a metadata buffer */
+	if (type == ARC_BUFC_METADATA && arc_meta_used >= arc_meta_limit)
+		evict_type = ARC_BUFC_METADATA;
+
+	if ((buf->b_data = arc_evict(state, 0, size, TRUE, evict_type)) == NULL) {
 		if (type == ARC_BUFC_METADATA) {
 			buf->b_data = zio_buf_alloc(size);
 			arc_space_consume(size, ARC_SPACE_DATA);
