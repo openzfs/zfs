@@ -172,9 +172,6 @@ int arc_evict_iterations = 100;
 /* number of seconds before growing cache again */
 int zfs_arc_grow_retry = 5;
 
-/* shift of arc_c for calculating both min and max arc_p */
-int zfs_arc_p_min_shift = 4;
-
 /* disable anon data aggressively growing arc_p */
 int zfs_arc_p_aggressive_disable = 1;
 
@@ -2335,7 +2332,6 @@ void
 arc_shrink(uint64_t bytes)
 {
 	if (arc_c > arc_c_min) {
-		uint64_t arc_p_min;
 		uint64_t to_free;
 
 		to_free = bytes ? bytes : arc_c >> zfs_arc_shrink_shift;
@@ -2345,13 +2341,12 @@ arc_shrink(uint64_t bytes)
 		else
 			arc_c = arc_c_min;
 
-		arc_p_min = (arc_c >> zfs_arc_p_min_shift);
 		to_free = bytes ? bytes : arc_p >> zfs_arc_shrink_shift;
 
-		if (arc_p > arc_p_min + to_free)
+		if (arc_p > to_free)
 			atomic_add_64(&arc_p, -to_free);
 		else
-			arc_p = arc_p_min;
+			arc_p = 0;
 
 		if (arc_c > arc_size)
 			arc_c = MAX(arc_size, arc_c_min);
@@ -2622,7 +2617,6 @@ static void
 arc_adapt(int bytes, arc_state_t *state)
 {
 	int mult;
-	uint64_t arc_p_min = (arc_c >> zfs_arc_p_min_shift);
 
 	if (state == arc_l2c_only)
 		return;
@@ -2641,7 +2635,7 @@ arc_adapt(int bytes, arc_state_t *state)
 		    1 : (arc_mfu_ghost->arcs_size/arc_mru_ghost->arcs_size));
 		mult = MIN(mult, 10); /* avoid wild arc_p adjustment */
 
-		arc_p = MIN(arc_c - arc_p_min, arc_p + bytes * mult);
+		arc_p = MIN(arc_c, arc_p + bytes * mult);
 	} else if (state == arc_mfu_ghost) {
 		uint64_t delta;
 
@@ -2650,7 +2644,7 @@ arc_adapt(int bytes, arc_state_t *state)
 		mult = MIN(mult, 10);
 
 		delta = MIN(bytes * mult, arc_p);
-		arc_p = MAX(arc_p_min, arc_p - delta);
+		arc_p = MAX(0, arc_p - delta);
 	}
 	ASSERT((int64_t)arc_p >= 0);
 
@@ -5562,9 +5556,6 @@ MODULE_PARM_DESC(zfs_arc_p_aggressive_disable, "disable aggressive arc_p grow");
 
 module_param(zfs_arc_shrink_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
-
-module_param(zfs_arc_p_min_shift, int, 0644);
-MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
 
 module_param(zfs_disable_dup_eviction, int, 0644);
 MODULE_PARM_DESC(zfs_disable_dup_eviction, "disable duplicate buffer eviction");
