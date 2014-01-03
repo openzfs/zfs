@@ -2279,24 +2279,47 @@ arc_do_user_evicts(void)
  * This is only used to enforce the tunable arc_meta_limit, if we are
  * unable to evict enough buffers notify the user via the prune callback.
  */
-void
-arc_adjust_meta(int64_t adjustment, boolean_t may_prune)
+static void
+arc_adjust_meta(void)
 {
-	int64_t delta;
+	int64_t adjustment, delta;
+
+	/* This slightly differs than the way we evict from the mru as a
+	 * whole (meta + non-meta) because we don't have a "target"
+	 * value (i.e. no "meta" arc_p) */
+	adjustment = arc_meta_used - arc_meta_limit;
 
 	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
 		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustment);
 		arc_evict(arc_mru, 0, delta, FALSE, ARC_BUFC_METADATA);
-		adjustment -= delta;
 	}
+
+	adjustment = arc_meta_used - arc_meta_limit;
 
 	if (adjustment > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
 		delta = MIN(arc_mfu->arcs_lsize[ARC_BUFC_METADATA], adjustment);
 		arc_evict(arc_mfu, 0, delta, FALSE, ARC_BUFC_METADATA);
-		adjustment -= delta;
 	}
 
-	if (may_prune && (adjustment > 0) && (arc_meta_used > arc_meta_limit))
+	adjustment = arc_mru->arcs_lsize[ARC_BUFC_METADATA] +
+	    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
+
+	if (adjustment > 0 && arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0){
+		delta = MIN(adjustment,
+		    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA]);
+		arc_evict_ghost(arc_mru_ghost, 0, delta, ARC_BUFC_METADATA);
+	}
+
+	adjustment = arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] +
+	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
+
+	if (adjustment > 0 && arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0){
+		delta = MIN(adjustment,
+		    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA]);
+		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_METADATA);
+	}
+
+	if (arc_meta_used > arc_meta_limit)
 		arc_do_user_prune(zfs_arc_meta_prune);
 }
 
@@ -2437,10 +2460,7 @@ arc_adapt_thread(void)
 		 * used to avoid collapsing the arc_c value when only the
 		 * arc_meta_limit is being exceeded.
 		 */
-		prune = (int64_t)arc_meta_used - (int64_t)arc_meta_limit;
-		if (prune > 0)
-			arc_adjust_meta(prune, B_TRUE);
-
+		arc_adjust_meta();
 
 		/*
 		* Adjust L2ARC headers
