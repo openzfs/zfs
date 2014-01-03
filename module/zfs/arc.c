@@ -2268,24 +2268,61 @@ arc_do_user_evicts(void)
  * This is only used to enforce the tunable arc_meta_limit, if we are
  * unable to evict enough buffers notify the user via the prune callback.
  */
-void
-arc_adjust_meta(int64_t adjustment, boolean_t may_prune)
+static void
+arc_adjust_meta(void)
 {
-	int64_t delta;
+	int64_t adjustmnt, delta;
 
-	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustment);
+	/*
+	 * This slightly differs than the way we evict from the mru in
+	 * arc_adjust because we don't have a "target" value (i.e. no
+	 * "meta" arc_p). As a result, I think we can completely
+	 * cannibalize the metadata in the MRU before we evict the
+	 * metadata from the MFU. I think we probably need to implement a
+	 * "metadata arc_p" value to do this properly.
+	 */
+	adjustmnt = arc_meta_used - arc_meta_limit;
+
+	if (adjustmnt > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustmnt);
 		arc_evict(arc_mru, 0, delta, FALSE, ARC_BUFC_METADATA);
-		adjustment -= delta;
+		adjustmnt -= delta;
 	}
 
-	if (adjustment > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		delta = MIN(arc_mfu->arcs_lsize[ARC_BUFC_METADATA], adjustment);
+	/*
+	 * We can't afford to recalculate adjustmnt here. If we do,
+	 * new metadata buffers can sneak into the MRU or ANON lists,
+	 * thus penalize the MFU metadata. Although the fudge factor is
+	 * small, it has been empirically shown to be significant for
+	 * certain workloads (e.g. creating many empty directories). As
+	 * such, we use the original calculation for adjustmnt, and
+	 * simply decrement the amount of data evicted from the MRU.
+	 */
+
+	if (adjustmnt > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+		delta = MIN(arc_mfu->arcs_lsize[ARC_BUFC_METADATA], adjustmnt);
 		arc_evict(arc_mfu, 0, delta, FALSE, ARC_BUFC_METADATA);
-		adjustment -= delta;
 	}
 
-	if (may_prune && (adjustment > 0) && (arc_meta_used > arc_meta_limit))
+	adjustmnt = arc_mru->arcs_lsize[ARC_BUFC_METADATA] +
+	    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
+
+	if (adjustmnt > 0 && arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+		delta = MIN(adjustmnt,
+		    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA]);
+		arc_evict_ghost(arc_mru_ghost, 0, delta, ARC_BUFC_METADATA);
+	}
+
+	adjustmnt = arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] +
+	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
+
+	if (adjustmnt > 0 && arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+		delta = MIN(adjustmnt,
+		    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA]);
+		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_METADATA);
+	}
+
+	if (arc_meta_used > arc_meta_limit)
 		arc_do_user_prune(zfs_arc_meta_prune);
 }
 
@@ -2405,7 +2442,6 @@ static void
 arc_adapt_thread(void)
 {
 	callb_cpr_t		cpr;
-	int64_t			prune;
 
 	CALLB_CPR_INIT(&cpr, &arc_reclaim_thr_lock, callb_generic_cpr, FTAG);
 
@@ -2441,14 +2477,7 @@ arc_adapt_thread(void)
 		if (arc_no_grow && ddi_get_lbolt() >= arc_grow_time)
 			arc_no_grow = FALSE;
 
-		/*
-		 * Keep meta data usage within limits, arc_shrink() is not
-		 * used to avoid collapsing the arc_c value when only the
-		 * arc_meta_limit is being exceeded.
-		 */
-		prune = (int64_t)arc_meta_used - (int64_t)arc_meta_limit;
-		if (prune > 0)
-			arc_adjust_meta(prune, B_TRUE);
+		arc_adjust_meta();
 
 		arc_adjust();
 
