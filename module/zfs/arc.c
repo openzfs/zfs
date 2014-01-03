@@ -2647,7 +2647,6 @@ arc_adapt(int bytes, arc_state_t *state)
 	if (state == arc_mru_ghost) {
 		mult = ((arc_mru_ghost->arcs_size >= arc_mfu_ghost->arcs_size) ?
 		    1 : (arc_mfu_ghost->arcs_size/arc_mru_ghost->arcs_size));
-		mult = MIN(mult, 10); /* avoid wild arc_p adjustment */
 
 		arc_p = MIN(arc_c, arc_p + bytes * mult);
 	} else if (state == arc_mfu_ghost) {
@@ -2655,7 +2654,6 @@ arc_adapt(int bytes, arc_state_t *state)
 
 		mult = ((arc_mfu_ghost->arcs_size >= arc_mru_ghost->arcs_size) ?
 		    1 : (arc_mru_ghost->arcs_size/arc_mfu_ghost->arcs_size));
-		mult = MIN(mult, 10);
 
 		delta = MIN(bytes * mult, arc_p);
 		arc_p = MAX(0, arc_p - delta);
