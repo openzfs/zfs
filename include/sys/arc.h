@@ -160,7 +160,6 @@ void arc_freed(spa_t *spa, const blkptr_t *bp);
 void arc_set_callback(arc_buf_t *buf, arc_evict_func_t *func, void *private);
 int arc_buf_evict(arc_buf_t *buf);
 
-void arc_adjust_meta(int64_t adjustment, boolean_t may_prune);
 void arc_flush(spa_t *spa);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(uint64_t reserve, uint64_t txg);

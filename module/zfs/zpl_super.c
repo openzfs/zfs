@@ -342,7 +342,7 @@ zpl_nr_cached_objects(struct super_block *sb)
 static void
 zpl_free_cached_objects(struct super_block *sb, int nr_to_scan)
 {
-	arc_adjust_meta(nr_to_scan * sizeof (znode_t), B_FALSE);
+	/* noop */
 }
 #endif /* HAVE_FREE_CACHED_OBJECTS */
 
