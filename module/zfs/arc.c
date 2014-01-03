@@ -175,6 +175,9 @@ int zfs_arc_grow_retry = 5;
 /* disable anon data aggressively growing arc_p */
 int zfs_arc_p_aggressive_disable = 1;
 
+/* disable arc_p adapt dampener in arc_adapt */
+int zfs_arc_p_dampener_disable = 1;
+
 /* log2(fraction of arc to reclaim) */
 int zfs_arc_shrink_shift = 5;
 
@@ -2633,7 +2636,9 @@ arc_adapt(int bytes, arc_state_t *state)
 	if (state == arc_mru_ghost) {
 		mult = ((arc_mru_ghost->arcs_size >= arc_mfu_ghost->arcs_size) ?
 		    1 : (arc_mfu_ghost->arcs_size/arc_mru_ghost->arcs_size));
-		mult = MIN(mult, 10); /* avoid wild arc_p adjustment */
+
+		if (!zfs_arc_p_dampener_disable)
+			mult = MIN(mult, 10); /* avoid wild arc_p adjustment */
 
 		arc_p = MIN(arc_c, arc_p + bytes * mult);
 	} else if (state == arc_mfu_ghost) {
@@ -2641,7 +2646,9 @@ arc_adapt(int bytes, arc_state_t *state)
 
 		mult = ((arc_mfu_ghost->arcs_size >= arc_mru_ghost->arcs_size) ?
 		    1 : (arc_mru_ghost->arcs_size/arc_mfu_ghost->arcs_size));
-		mult = MIN(mult, 10);
+
+		if (!zfs_arc_p_dampener_disable)
+			mult = MIN(mult, 10);
 
 		delta = MIN(bytes * mult, arc_p);
 		arc_p = MAX(0, arc_p - delta);
@@ -5553,6 +5560,9 @@ MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
 
 module_param(zfs_arc_p_aggressive_disable, int, 0644);
 MODULE_PARM_DESC(zfs_arc_p_aggressive_disable, "disable aggressive arc_p grow");
+
+module_param(zfs_arc_p_dampener_disable, int, 0644);
+MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
 
 module_param(zfs_arc_shrink_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
