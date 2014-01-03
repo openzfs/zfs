@@ -2172,8 +2172,7 @@ arc_adjust(void)
 	 */
 
 	adjustment = MIN((int64_t)(arc_size - arc_c),
-	    (int64_t)(arc_anon->arcs_size + arc_mru->arcs_size + arc_meta_used -
-	    arc_p));
+	    (int64_t)(arc_anon->arcs_size + arc_mru->arcs_size - arc_p));
 
 	if (adjustment > 0 && arc_mru->arcs_size > 0) {
 		delta = MIN(arc_mru->arcs_size, adjustment);
