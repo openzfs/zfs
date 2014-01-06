@@ -29,6 +29,7 @@
 #include <linux/mm.h>
 #include <linux/swap.h>
 #include <linux/highmem.h>
+#include <linux/vmalloc.h>
 #include <sys/types.h>
 #include <asm/uaccess.h>
 
