@@ -2580,7 +2580,8 @@ nvpair_native_embedded(nvstream_t *nvs, nvpair_t *nvp)
 		 * structure. The address may not be aligned, so we have
 		 * to use bzero.
 		 */
-		bzero(&packed->nvl_priv, sizeof (packed->nvl_priv));
+		bzero((char *)packed + offsetof(nvlist_t, nvl_priv),
+		    sizeof (uint64_t));
 	}
 
 	return (nvs_embedded(nvs, EMBEDDED_NVL(nvp)));
@@ -2608,7 +2609,8 @@ nvpair_native_embedded_array(nvstream_t *nvs, nvpair_t *nvp)
 			 * packed structure. The address may not be aligned,
 			 * so we have to use bzero.
 			 */
-			bzero(&packed->nvl_priv, sizeof (packed->nvl_priv));
+			bzero((char *)packed + offsetof(nvlist_t, nvl_priv),
+			    sizeof (uint64_t));
 	}
 
 	return (nvs_embedded_nvl_array(nvs, nvp, NULL));
