@@ -355,6 +355,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 {
 	znode_t	*zp;
 	struct inode *ip;
+	uint64_t mode;
 	uint64_t parent;
 	sa_bulk_attr_t bulk[9];
 	int count = 0;
@@ -386,7 +387,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL, &zp->z_mode, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GEN(zsb), NULL, &zp->z_gen, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb), NULL, &zp->z_size, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL, &zp->z_links, 8);
@@ -405,6 +406,8 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 		goto error;
 	}
+
+	zp->z_mode = mode;
 
 	/*
 	 * xattr znodes hold a reference on their unique parent
