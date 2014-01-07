@@ -105,14 +105,6 @@ libshare_init(void)
 {
 	libshare_nfs_init();
 	libshare_smb_init();
-
-	/*
-	 * This bit causes /etc/dfs/sharetab to be updated before libzfs gets a
-	 * chance to read that file; this is necessary because the sharetab file
-	 * might be out of sync with the NFS kernel exports (e.g. due to reboots
-	 * or users manually removing shares)
-	 */
-	sa_fini(sa_init(0));
 }
 
 static void
