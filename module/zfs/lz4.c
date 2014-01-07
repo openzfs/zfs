@@ -238,6 +238,9 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
  * kernel
  */
 #undef	LZ4_FORCE_SW_BITCOUNT
+#if defined(__sparc)
+#define	LZ4_FORCE_SW_BITCOUNT
+#endif
 
 /*
  * Compiler Options
