@@ -121,7 +121,35 @@ extern "C" {
 
 #define	_SUNOS_VTOC_16
 
-#else /* Currently only x86_64, i386, arm, and powerpc arches supported */
+/* sparc arch specific defines */
+#elif defined(__sparc) || defined(__sparc__)
+
+#if !defined(__sparc)
+#define	__sparc
+#endif
+
+#if !defined(__sparc__)
+#define	__sparc__
+#endif
+
+#define	_BIG_ENDIAN
+#define	_SUNOS_VTOC_16
+
+/* sparc64 arch specific defines */
+#elif defined(__sparc64) || defined(__sparc64__)
+
+#if !defined(__sparc64)
+#define	__sparc64
+#endif
+
+#if !defined(__sparc64__)
+#define	__sparc64__
+#endif
+
+#define	_BIG_ENDIAN
+#define	_SUNOS_VTOC_16
+
+#else /* Currently x86_64, i386, arm, powerpc, and sparc are supported */
 #error "Unsupported ISA type"
 #endif
 
