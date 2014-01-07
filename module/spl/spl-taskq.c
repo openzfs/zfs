@@ -843,7 +843,6 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 		    "%s/%d", name, i);
 		if (tqt->tqt_thread) {
 			list_add(&tqt->tqt_thread_list, &tq->tq_thread_list);
-			kthread_bind(tqt->tqt_thread, i % num_online_cpus());
 			set_user_nice(tqt->tqt_thread, PRIO_TO_NICE(pri));
 			wake_up_process(tqt->tqt_thread);
 			j++;
