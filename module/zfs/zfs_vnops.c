@@ -2392,6 +2392,8 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 {
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ITOZSB(ip);
+	uint32_t blksize;
+	u_longlong_t nblocks;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -2401,7 +2403,10 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	generic_fillattr(ip, sp);
 	ZFS_TIME_DECODE(&sp->atime, zp->z_atime);
 
-	sa_object_size(zp->z_sa_hdl, (uint32_t *)&sp->blksize, &sp->blocks);
+	sa_object_size(zp->z_sa_hdl, &blksize, &nblocks);
+	sp->blksize = blksize;
+	sp->blocks = nblocks;
+
 	if (unlikely(zp->z_blksz == 0)) {
 		/*
 		 * Block size hasn't been set; suggest maximal I/O transfers.
