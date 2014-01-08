@@ -1091,6 +1091,14 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 {
 	znode_t	*zp;
 
+	/*
+	 * If someone has not already unmounted this file system,
+	 * drain the iput_taskq to ensure all active references to the
+	 * zfs_sb_t have been handled only then can it be safely destroyed.
+	 */
+	if (zsb->z_os)
+		taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
+
 	rrw_enter(&zsb->z_teardown_lock, RW_WRITER, FTAG);
 
 	if (!unmounting) {
@@ -1103,14 +1111,6 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 		 */
 		shrink_dcache_sb(zsb->z_parent->z_sb);
 	}
-
-	/*
-	 * If someone has not already unmounted this file system,
-	 * drain the iput_taskq to ensure all active references to the
-	 * zfs_sb_t have been handled only then can it be safely destroyed.
-	 */
-	if (zsb->z_os)
-		taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
 
 	/*
 	 * Close the zil. NB: Can't close the zil while zfs_inactive
