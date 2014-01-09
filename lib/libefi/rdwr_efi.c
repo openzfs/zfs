@@ -194,8 +194,9 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 	} else if ((strncmp(dev_path, "/dev/md", 7) == 0)) {
 		strcpy(dki_info->dki_cname, "pseudo");
 		dki_info->dki_ctype = DKC_MD;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9]p%hu",
-		    dki_info->dki_dname,
+		strcpy(dki_info->dki_dname, "md");
+		rval = sscanf(dev_path, "/dev/md%[0-9]p%hu",
+		    dki_info->dki_dname + 2,
 		    &dki_info->dki_partition);
 	} else if ((strncmp(dev_path, "/dev/vd", 7) == 0)) {
 		strcpy(dki_info->dki_cname, "vd");
@@ -206,20 +207,23 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 	} else if ((strncmp(dev_path, "/dev/dm-", 8) == 0)) {
 		strcpy(dki_info->dki_cname, "pseudo");
 		dki_info->dki_ctype = DKC_VBD;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9-]p%hu",
-		    dki_info->dki_dname,
+		strcpy(dki_info->dki_dname, "dm-");
+		rval = sscanf(dev_path, "/dev/dm-%[0-9]p%hu",
+		    dki_info->dki_dname + 3,
 		    &dki_info->dki_partition);
 	} else if ((strncmp(dev_path, "/dev/ram", 8) == 0)) {
 		strcpy(dki_info->dki_cname, "pseudo");
 		dki_info->dki_ctype = DKC_PCMCIA_MEM;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9]p%hu",
-		    dki_info->dki_dname,
+		strcpy(dki_info->dki_dname, "ram");
+		rval = sscanf(dev_path, "/dev/ram%[0-9]p%hu",
+		    dki_info->dki_dname + 3,
 		    &dki_info->dki_partition);
 	} else if ((strncmp(dev_path, "/dev/loop", 9) == 0)) {
 		strcpy(dki_info->dki_cname, "pseudo");
 		dki_info->dki_ctype = DKC_VBD;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9]p%hu",
-		    dki_info->dki_dname,
+		strcpy(dki_info->dki_dname, "loop");
+		rval = sscanf(dev_path, "/dev/loop%[0-9]p%hu",
+		    dki_info->dki_dname + 4,
 		    &dki_info->dki_partition);
 	} else {
 		strcpy(dki_info->dki_dname, "unknown");
