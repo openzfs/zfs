@@ -145,13 +145,121 @@ read_disk_info(int fd, diskaddr_t *capacity, uint_t *lbsize)
 	return (0);
 }
 
+#if defined(__linux__)
+typedef struct path_entry {
+	char			cname[14];
+	ushort_t 		ctype;
+	char			prefix[16];
+	char			format[16];
+} path_entry_t;
+
+static const path_entry_t path_info[] = {
+	{
+		.cname =	"sd",
+		.ctype =	DKC_SCSI_CCS,
+		.prefix =	"/dev/sd",
+		.format	=	"%[a-zA-Z]%hu",
+	},
+	{
+		.cname =	"hd",
+		.ctype =	DKC_DIRECT,
+		.prefix =	"/dev/hd",
+		.format	=	"%[a-zA-Z]%hu",
+	},
+	{
+		.cname =	"md",
+		.ctype =	DKC_MD,
+		.prefix =	"/dev/md",
+		.format	=	"%[0-9]p%hu",
+	},
+	{
+		.cname =	"vd",
+		.ctype =	DKC_MD,
+		.prefix =	"/dev/vd",
+		.format	=	"%[a-zA-Z]%hu",
+	},
+	{
+		.cname =	"pseudo",
+		.ctype =	DKC_VBD,
+		.prefix =	"/dev/dm-",
+		.format	=	"%[0-9]p%hu",
+	},
+	{
+		.cname =	"pseudo",
+		.ctype =	DKC_SCSI_CCS,
+		.prefix =	"/dev/ram",
+		.format	=	"%[0-9]p%hu",
+	},
+	{
+		.cname =	"pseudo",
+		.ctype =	DKC_VBD,
+		.prefix =	"/dev/loop",
+		.format	=	"%[0-9]p%hu",
+	},
+};
+
+static int
+efi_parse_dev_path(struct dk_cinfo *dki_info, const char *dev_path,
+	const path_entry_t *entry, int *rval)
+{
+	if ((strncmp(dev_path, entry->prefix, strlen(entry->prefix)) == 0)) {
+		char match[16 + DK_DEVLEN];
+		ssize_t r;
+
+		r = strlcpy(dki_info->dki_cname, entry->cname,
+			sizeof(dki_info->dki_cname));
+		if (r >= sizeof(dki_info->dki_cname))
+			return -1;
+
+		dki_info->dki_ctype = entry->ctype;
+
+		r = strlcpy(match, entry->prefix, sizeof(match));
+		if (r >= sizeof(match))
+			return -1;
+
+		r = strlcat(match, entry->format, sizeof(match));
+		if ( r >= sizeof(match))
+			return -1;
+
+		r = strlcpy(dki_info->dki_dname,
+			entry->prefix + strlen("/dev/"),
+			sizeof(dki_info->dki_dname));
+		if (r >= sizeof(dki_info->dki_dname))
+			return -1;
+
+		/*
+		 * This conditional guarentees that sscanf has enough space to
+		 * avoid overflow into dki_info->dki_dname. Without it, values
+		 * such as /dev/sdaaaaaaaaaaaaaa1 would cause an overflow.
+		 * XXX: This does not properly handle a name such as
+		 * /dev/sda100000, which exceeds the precision of the ushort_t
+		 * used by dki_partition.
+		 */
+		if (strlen(dev_path) >= sizeof(dki_info->dki_dname) - 1
+			+ sizeof("/dev/"))
+			return -1;
+
+		*rval = sscanf(dev_path, match,
+			dki_info->dki_dname + *rval,
+			&dki_info->dki_partition);
+
+		return 1;
+
+	}
+
+	return 0;
+
+}
+#endif
+
 static int
 efi_get_info(int fd, struct dk_cinfo *dki_info)
 {
 #if defined(__linux__)
 	char *path;
 	char *dev_path;
-	int rval = 0;
+	int rval = 3;
+	int i;
 
 	memset(dki_info, 0, sizeof (*dki_info));
 
@@ -179,59 +287,21 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 	if (dev_path == NULL)
 		goto error;
 
-	if ((strncmp(dev_path, "/dev/sd", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "sd");
-		dki_info->dki_ctype = DKC_SCSI_CCS;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/hd", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "hd");
-		dki_info->dki_ctype = DKC_DIRECT;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/md", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_MD;
-		strcpy(dki_info->dki_dname, "md");
-		rval = sscanf(dev_path, "/dev/md%[0-9]p%hu",
-		    dki_info->dki_dname + 2,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/vd", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "vd");
-		dki_info->dki_ctype = DKC_MD;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/dm-", 8) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_VBD;
-		strcpy(dki_info->dki_dname, "dm-");
-		rval = sscanf(dev_path, "/dev/dm-%[0-9]p%hu",
-		    dki_info->dki_dname + 3,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/ram", 8) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_PCMCIA_MEM;
-		strcpy(dki_info->dki_dname, "ram");
-		rval = sscanf(dev_path, "/dev/ram%[0-9]p%hu",
-		    dki_info->dki_dname + 3,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/loop", 9) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_VBD;
-		strcpy(dki_info->dki_dname, "loop");
-		rval = sscanf(dev_path, "/dev/loop%[0-9]p%hu",
-		    dki_info->dki_dname + 4,
-		    &dki_info->dki_partition);
-	} else {
+	for ( i = 0 ; i < sizeof(path_info)/sizeof(path_info[0]); i++ )
+		switch (efi_parse_dev_path(dki_info, dev_path, &path_info[i],
+			&rval)) {
+		case 1:
+			break;
+		case -1:
+			errno = EINVAL;
+			goto error;
+		}
+
+	switch (rval) {
+	case 3:
 		strcpy(dki_info->dki_dname, "unknown");
 		strcpy(dki_info->dki_cname, "unknown");
 		dki_info->dki_ctype = DKC_UNKNOWN;
-	}
-
-	switch (rval) {
 	case 0:
 		errno = EINVAL;
 		goto error;
