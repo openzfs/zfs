@@ -2549,6 +2549,7 @@ static int
 __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 {
 	uint64_t pages;
+	int is_kswapd = current_is_kswapd();
 
 	/* The arc is considered warm once reclaim has occurred */
 	if (unlikely(arc_warm == B_FALSE))
@@ -2563,9 +2564,14 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	if (!(sc->gfp_mask & __GFP_FS))
 		return (-1);
 
-	/* Reclaim in progress */
-	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0)
+	/* Concurrent reclaim in progress, wait for it to finish. */
+	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0) {
+		if (!is_kswapd) {
+			mutex_enter(&arc_reclaim_thr_lock);
+			goto no_grow;
+		}
 		return (-1);
+	}
 
 	/*
 	 * Evict the requested number of pages by shrinking arc_c the
@@ -2578,6 +2584,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		arc_kmem_reap_now(ARC_RECLAIM_CONS, ptob(sc->nr_to_scan));
 	}
 
+no_grow:
 	/*
 	 * When direct reclaim is observed it usually indicates a rapid
 	 * increase in memory pressure.  This occurs because the kswapd
@@ -2585,7 +2592,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 * available.  In this case set arc_no_grow to briefly pause arc
 	 * growth to avoid compounding the memory pressure.
 	 */
-	if (current_is_kswapd()) {
+	if (is_kswapd) {
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		arc_no_grow = B_TRUE;
