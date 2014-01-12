@@ -264,7 +264,7 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize, objset_t *os)
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, ZVOL_ZAP_OBJ, TRUE, NULL);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, TXG_NOWAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 		return (SET_ERROR(error));
@@ -341,7 +341,8 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	    (error = zvol_check_volsize(volsize, doi->doi_data_block_size)))
 		goto out_doi;
 
-	VERIFY(dsl_prop_get_integer(name, "readonly", &readonly, NULL) == 0);
+	VERIFY(dsl_prop_get_int_ds(dmu_objset_ds(os),
+		    zfs_prop_to_name(ZFS_PROP_READONLY), &readonly) == 0);
 	if (readonly) {
 		error = SET_ERROR(EROFS);
 		goto out_doi;
