@@ -264,7 +264,7 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize, objset_t *os)
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, ZVOL_ZAP_OBJ, TRUE, NULL);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, TXG_NOWAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 		return (SET_ERROR(error));
