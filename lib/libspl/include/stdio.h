@@ -27,8 +27,8 @@
 #include_next <stdio.h>
 
 #ifndef _LIBSPL_STDIO_H
-#define _LIBSPL_STDIO_H
+#define	_LIBSPL_STDIO_H
 
-#define enable_extended_FILE_stdio(fd, sig)	((void) 0)
+#define	enable_extended_FILE_stdio(fd, sig)	((void) 0)
 
 #endif

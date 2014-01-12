@@ -25,6 +25,6 @@
  */
 
 #ifndef _LIBSPL_UTIL_SSCANF_H
-#define _LIBSPL_UTIL_SSCANF_H
+#define	_LIBSPL_UTIL_SSCANF_H
 
 #endif

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_SA_IMPL_H
@@ -153,7 +153,7 @@ struct sa_os {
  *
  * The header has a fixed portion with a variable number
  * of "lengths" depending on the number of variable sized
- * attribues which are determined by the "layout number"
+ * attributes which are determined by the "layout number"
  */
 
 #define	SA_MAGIC	0x2F505A  /* ZFS SA */

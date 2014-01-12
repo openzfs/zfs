@@ -100,12 +100,22 @@ struct vdev_cache {
 	kmutex_t	vc_lock;
 };
 
+typedef struct vdev_queue_class {
+	uint32_t	vqc_active;
+
+	/*
+	 * Sorted by offset or timestamp, depending on if the queue is
+	 * LBA-ordered vs FIFO.
+	 */
+	avl_tree_t	vqc_queued_tree;
+} vdev_queue_class_t;
+
 struct vdev_queue {
-	avl_tree_t	vq_deadline_tree;
-	avl_tree_t	vq_read_tree;
-	avl_tree_t	vq_write_tree;
-	avl_tree_t	vq_pending_tree;
-	hrtime_t	vq_io_complete_ts;
+	vdev_t		*vq_vdev;
+	vdev_queue_class_t vq_class[ZIO_PRIORITY_NUM_QUEUEABLE];
+	avl_tree_t	vq_active_tree;
+	uint64_t	vq_last_offset;
+	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
 	list_t		vq_io_list;
 	kmutex_t	vq_lock;

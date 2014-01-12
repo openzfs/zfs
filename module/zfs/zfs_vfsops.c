@@ -1091,6 +1091,14 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 {
 	znode_t	*zp;
 
+	/*
+	 * If someone has not already unmounted this file system,
+	 * drain the iput_taskq to ensure all active references to the
+	 * zfs_sb_t have been handled only then can it be safely destroyed.
+	 */
+	if (zsb->z_os)
+		taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
+
 	rrw_enter(&zsb->z_teardown_lock, RW_WRITER, FTAG);
 
 	if (!unmounting) {
@@ -1103,14 +1111,6 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 		 */
 		shrink_dcache_sb(zsb->z_parent->z_sb);
 	}
-
-	/*
-	 * If someone has not already unmounted this file system,
-	 * drain the iput_taskq to ensure all active references to the
-	 * zfs_sb_t have been handled only then can it be safely destroyed.
-	 */
-	if (zsb->z_os)
-		taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
 
 	/*
 	 * Close the zil. NB: Can't close the zil while zfs_inactive
@@ -1144,10 +1144,8 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	mutex_enter(&zsb->z_znodes_lock);
 	for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
 	    zp = list_next(&zsb->z_all_znodes, zp)) {
-		if (zp->z_sa_hdl) {
-			ASSERT(atomic_read(&ZTOI(zp)->i_count) > 0);
+		if (zp->z_sa_hdl)
 			zfs_znode_dmu_fini(zp);
-		}
 	}
 	mutex_exit(&zsb->z_znodes_lock);
 
@@ -1251,10 +1249,12 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 
 		atime_changed_cb(zsb, B_FALSE);
 		readonly_changed_cb(zsb, B_TRUE);
-		if ((error = dsl_prop_get_integer(osname,"xattr",&pval,NULL)))
+		if ((error = dsl_prop_get_integer(osname,
+		    "xattr", &pval, NULL)))
 			goto out;
 		xattr_changed_cb(zsb, pval);
-		if ((error = dsl_prop_get_integer(osname,"acltype",&pval,NULL)))
+		if ((error = dsl_prop_get_integer(osname,
+		    "acltype", &pval, NULL)))
 			goto out;
 		acltype_changed_cb(zsb, pval);
 		zsb->z_issnap = B_TRUE;
@@ -1480,7 +1480,7 @@ EXPORT_SYMBOL(zfs_suspend_fs);
 int
 zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 {
-	int err;
+	int err, err2;
 	znode_t *zp;
 	uint64_t sa_obj = 0;
 
@@ -1537,8 +1537,8 @@ zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 	mutex_enter(&zsb->z_znodes_lock);
 	for (zp = list_head(&zsb->z_all_znodes); zp;
 	    zp = list_next(&zsb->z_all_znodes, zp)) {
-		err = zfs_rezget(zp);
-		if (err) {
+		err2 = zfs_rezget(zp);
+		if (err2) {
 			remove_inode_hash(ZTOI(zp));
 			zp->z_is_stale = B_TRUE;
 		}

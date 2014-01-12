@@ -70,19 +70,16 @@ uiomove(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 		switch (uio->uio_segflg) {
 		case UIO_USERSPACE:
 		case UIO_USERISPACE:
-			/* p = kernel data pointer
-			 * iov->iov_base = user data pointer */
-
+			/*
+			 * p = kernel data pointer
+			 * iov->iov_base = user data pointer
+			 */
 			if (rw == UIO_READ) {
 				if (copy_to_user(iov->iov_base, p, cnt))
-					return EFAULT;
-				/* error = xcopyout_nta(p, iov->iov_base, cnt,
-				 * (uio->uio_extflg & UIO_COPY_CACHED)); */
+					return (EFAULT);
 			} else {
-				/* error = xcopyin_nta(iov->iov_base, p, cnt,
-				 * (uio->uio_extflg & UIO_COPY_CACHED)); */
 				if (copy_from_user(p, iov->iov_base, cnt))
-					return EFAULT;
+					return (EFAULT);
 			}
 			break;
 		case UIO_SYSSPACE:
@@ -103,7 +100,7 @@ uiomove(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 }
 EXPORT_SYMBOL(uiomove);
 
-#define fuword8(uptr, vptr) get_user((*vptr), (uptr))
+#define	fuword8(uptr, vptr)	get_user((*vptr), (uptr))
 
 /*
  * Fault in the pages of the first n bytes specified by the uio structure.
@@ -194,21 +191,18 @@ uiocopy(void *p, size_t n, enum uio_rw rw, struct uio *uio, size_t *cbytes)
 
 		case UIO_USERSPACE:
 		case UIO_USERISPACE:
-			/* p = kernel data pointer
-			 * iov->iov_base = user data pointer */
-
+			/*
+			 * p = kernel data pointer
+			 * iov->iov_base = user data pointer
+			 */
 			if (rw == UIO_READ) {
-				/* * UIO_READ = copy data from kernel to user * */
+				/* UIO_READ = copy data from kernel to user */
 				if (copy_to_user(iov->iov_base, p, cnt))
-					return EFAULT;
-				/* error = xcopyout_nta(p, iov->iov_base, cnt,
-				 * (uio->uio_extflg & UIO_COPY_CACHED)); */
+					return (EFAULT);
 			} else {
-				/* * UIO_WRITE = copy data from user to kernel * */
-				/* error = xcopyin_nta(iov->iov_base, p, cnt,
-				 * (uio->uio_extflg & UIO_COPY_CACHED)); */
+				/* UIO_WRITE = copy data from user to kernel */
 				if (copy_from_user(p, iov->iov_base, cnt))
-					return EFAULT;
+					return (EFAULT);
 			}
 			break;
 

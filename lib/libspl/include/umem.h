@@ -25,9 +25,10 @@
  */
 
 #ifndef _LIBSPL_UMEM_H
-#define _LIBSPL_UMEM_H
+#define	_LIBSPL_UMEM_H
 
-/* XXX: We should use the real portable umem library if it is detected
+/*
+ * XXX: We should use the real portable umem library if it is detected
  * at configure time.  However, if the library is not available, we can
  * use a trivial malloc based implementation.  This obviously impacts
  * performance, but unless you are using a full userspace build of zpool for
@@ -48,18 +49,18 @@ typedef void vmem_t;
 /*
  * Flags for umem_alloc/umem_free
  */
-#define UMEM_DEFAULT		0x0000  /* normal -- may fail */
-#define UMEM_NOFAIL		0x0100  /* Never fails */
+#define	UMEM_DEFAULT		0x0000  /* normal -- may fail */
+#define	UMEM_NOFAIL		0x0100  /* Never fails */
 
 /*
  * Flags for umem_cache_create()
  */
-#define UMC_NOTOUCH		0x00010000
-#define UMC_NODEBUG		0x00020000
-#define UMC_NOMAGAZINE		0x00040000
-#define UMC_NOHASH		0x00080000
+#define	UMC_NOTOUCH		0x00010000
+#define	UMC_NODEBUG		0x00020000
+#define	UMC_NOMAGAZINE		0x00040000
+#define	UMC_NOHASH		0x00080000
 
-#define UMEM_CACHE_NAMELEN	31
+#define	UMEM_CACHE_NAMELEN	31
 
 typedef int umem_nofail_callback_t(void);
 typedef int umem_constructor_t(void *, void *, int);
@@ -87,7 +88,7 @@ umem_alloc(size_t size, int flags)
 		ptr = malloc(size);
 	} while (ptr == NULL && (flags & UMEM_NOFAIL));
 
-	return ptr;
+	return (ptr);
 }
 
 static inline void *
@@ -105,10 +106,10 @@ umem_alloc_aligned(size_t size, size_t align, int flags)
 		    __func__, align);
 		if (flags & UMEM_NOFAIL)
 			abort();
-		return NULL;
+		return (NULL);
 	}
 
-	return ptr;
+	return (ptr);
 }
 
 static inline void *
@@ -120,7 +121,7 @@ umem_zalloc(size_t size, int flags)
 	if (ptr)
 		memset(ptr, 0, size);
 
-	return ptr;
+	return (ptr);
 }
 
 static inline void
@@ -133,15 +134,16 @@ static inline void
 umem_nofail_callback(umem_nofail_callback_t *cb) {}
 
 static inline umem_cache_t *
-umem_cache_create(char *name, size_t bufsize, size_t align,
-                  umem_constructor_t *constructor,
-                  umem_destructor_t *destructor,
-                  umem_reclaim_t *reclaim,
-		  void *priv, void *vmp, int cflags)
+umem_cache_create(
+    char *name, size_t bufsize, size_t align,
+    umem_constructor_t *constructor,
+    umem_destructor_t *destructor,
+    umem_reclaim_t *reclaim,
+    void *priv, void *vmp, int cflags)
 {
 	umem_cache_t *cp;
 
-	cp = umem_alloc(sizeof(umem_cache_t), UMEM_DEFAULT);
+	cp = umem_alloc(sizeof (umem_cache_t), UMEM_DEFAULT);
 	if (cp) {
 		strncpy(cp->cache_name, name, UMEM_CACHE_NAMELEN);
 		cp->cache_bufsize = bufsize;
@@ -154,13 +156,13 @@ umem_cache_create(char *name, size_t bufsize, size_t align,
 		cp->cache_cflags = cflags;
 	}
 
-	return cp;
+	return (cp);
 }
 
 static inline void
 umem_cache_destroy(umem_cache_t *cp)
 {
-	umem_free(cp, sizeof(umem_cache_t));
+	umem_free(cp, sizeof (umem_cache_t));
 }
 
 static inline void *
@@ -169,14 +171,15 @@ umem_cache_alloc(umem_cache_t *cp, int flags)
 	void *ptr;
 
 	if (cp->cache_align != 0)
-		ptr = umem_alloc_aligned(cp->cache_bufsize, cp->cache_align, flags);
+		ptr = umem_alloc_aligned(
+		    cp->cache_bufsize, cp->cache_align, flags);
 	else
 		ptr = umem_alloc(cp->cache_bufsize, flags);
 
 	if (ptr && cp->cache_constructor)
 		cp->cache_constructor(ptr, cp->cache_private, UMEM_DEFAULT);
 
-	return ptr;
+	return (ptr);
 }
 
 static inline void

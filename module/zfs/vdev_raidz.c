@@ -433,8 +433,11 @@ static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
 /*
  * Divides the IO evenly across all child vdevs; usually, dcols is
  * the number of children in the target vdev.
+ *
+ * Avoid inlining the function to keep vdev_raidz_io_start(), which
+ * is this functions only caller, as small as possible on the stack.
  */
-static raidz_map_t *
+noinline static raidz_map_t *
 vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
     uint64_t nparity)
 {
@@ -2185,7 +2188,7 @@ done:
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_data, rc->rc_size,
-			    ZIO_TYPE_WRITE, zio->io_priority,
+			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
 			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
 		}

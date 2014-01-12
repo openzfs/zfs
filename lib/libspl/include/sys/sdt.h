@@ -25,12 +25,12 @@
  */
 
 #ifndef _LIBSPL_SYS_SDT_H
-#define _LIBSPL_SYS_SDT_H
+#define	_LIBSPL_SYS_SDT_H
 
-#define DTRACE_PROBE(a)                  ((void) 0)
-#define DTRACE_PROBE1(a,b,c)             ((void) 0)
-#define DTRACE_PROBE2(a,b,c,d,e)         ((void) 0)
-#define DTRACE_PROBE3(a,b,c,d,e,f,g)     ((void) 0)
-#define DTRACE_PROBE4(a,b,c,d,e,f,g,h,i) ((void) 0)
+#define	DTRACE_PROBE(a)					((void) 0)
+#define	DTRACE_PROBE1(a, b, c)				((void) 0)
+#define	DTRACE_PROBE2(a, b, c, d, e)			((void) 0)
+#define	DTRACE_PROBE3(a, b, c, d, e, f, g)		((void) 0)
+#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void) 0)
 
 #endif

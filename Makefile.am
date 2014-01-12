@@ -41,7 +41,8 @@ dist-hook:
 		$(distdir)/META
 
 checkstyle:
-	find ${top_srcdir} -name '*.[hc]' -type f -exec scripts/cstyle.pl {} \;
+	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
+		! -name '*.mod.c' -type f -exec scripts/cstyle.pl {} \+
 
 ctags:
 	$(RM) $(top_srcdir)/tags

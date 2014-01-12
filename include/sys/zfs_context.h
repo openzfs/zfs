@@ -25,7 +25,7 @@
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
@@ -61,6 +61,7 @@
 #include <sys/zone.h>
 #include <sys/sdt.h>
 #include <sys/zfs_debug.h>
+#include <sys/zfs_delay.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
 #include <sys/ctype.h>
@@ -223,6 +224,8 @@ extern struct proc p0;
 typedef void (*thread_func_t)(void *);
 typedef void (*thread_func_arg_t)(void *);
 typedef pthread_t kt_did_t;
+
+#define	kpreempt(x)	((void)0)
 
 typedef struct kthread {
 	kt_did_t	t_tid;
@@ -707,6 +710,15 @@ void ksiddomain_rele(ksiddomain_t *);
 #define	DDI_SLEEP	KM_SLEEP
 #define	ddi_log_sysevent(_a, _b, _c, _d, _e, _f, _g) \
 	sysevent_post_event(_c, _d, _b, "libzpool", _e, _f)
+
+#define	zfs_sleep_until(wakeup)						\
+	do {								\
+		hrtime_t delta = wakeup - gethrtime();			\
+		struct timespec ts;					\
+		ts.tv_sec = delta / NANOSEC;				\
+		ts.tv_nsec = delta % NANOSEC;				\
+		(void) nanosleep(&ts, NULL);				\
+	} while (0)
 
 #endif /* _KERNEL */
 

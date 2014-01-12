@@ -47,7 +47,8 @@ static kmem_cache_t *lz4_cache;
 
 /*ARGSUSED*/
 size_t
-lz4_compress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+lz4_compress_zfs(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n)
 {
 	uint32_t bufsiz;
 	char *dest = d_start;
@@ -74,7 +75,8 @@ lz4_compress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int n
 
 /*ARGSUSED*/
 int
-lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n)
 {
 	const char *src = s_start;
 	uint32_t bufsiz = BE_IN32(src);
@@ -143,16 +145,16 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int
  * 	This function explicitly handles the CTX memory structure.
  *
  * 	ILLUMOS CHANGES: the CTX memory structure must be explicitly allocated
- * 	by the caller (either on the stack or using kmem_cache_alloc). Passing NULL
- * 	isn't valid.
+ * 	by the caller (either on the stack or using kmem_cache_alloc). Passing
+ * 	NULL isn't valid.
  *
  * LZ4_compress64kCtx() :
  * 	Same as LZ4_compressCtx(), but specific to small inputs (<64KB).
  * 	isize *Must* be <64KB, otherwise the output will be corrupted.
  *
  * 	ILLUMOS CHANGES: the CTX memory structure must be explicitly allocated
- * 	by the caller (either on the stack or using kmem_cache_alloc). Passing NULL
- * 	isn't valid.
+ * 	by the caller (either on the stack or using kmem_cache_alloc). Passing
+ * 	NULL isn't valid.
  */
 
 /*
@@ -236,6 +238,9 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int
  * kernel
  */
 #undef	LZ4_FORCE_SW_BITCOUNT
+#if defined(__sparc)
+#define	LZ4_FORCE_SW_BITCOUNT
+#endif
 
 /*
  * Compiler Options
@@ -267,7 +272,7 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int
 #define	unlikely(expr)	expect((expr) != 0, 0)
 #endif
 
-#define lz4_bswap16(x) ((unsigned short int) ((((x) >> 8) & 0xffu) | \
+#define	lz4_bswap16(x) ((unsigned short int) ((((x) >> 8) & 0xffu) | \
 	(((x) & 0xffu) << 8)))
 
 /* Basic types */
@@ -1009,4 +1014,3 @@ lz4_fini(void)
 		lz4_cache = NULL;
 	}
 }
-

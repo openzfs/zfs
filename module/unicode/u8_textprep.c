@@ -146,7 +146,7 @@
 /* The following are some convenience macros. */
 #define	U8_PUT_3BYTES_INTO_UTF32(u, b1, b2, b3)  \
 	(u) = ((((uint32_t)(b1) & 0x0F) << 12) | \
-	       (((uint32_t)(b2) & 0x3F) << 6)  | \
+		(((uint32_t)(b2) & 0x3F) << 6)  | \
 		((uint32_t)(b3) & 0x3F));
 
 #define	U8_SIMPLE_SWAP(a, b, t) \
@@ -2143,6 +2143,7 @@ spl_module_exit(unicode_fini);
 MODULE_DESCRIPTION("Unicode implementation");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
 MODULE_LICENSE(ZFS_META_LICENSE);
+MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 EXPORT_SYMBOL(u8_validate);
 EXPORT_SYMBOL(u8_strcmp);

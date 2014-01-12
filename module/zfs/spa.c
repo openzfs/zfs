@@ -83,7 +83,6 @@
 
 typedef enum zti_modes {
 	ZTI_MODE_FIXED,			/* value is # of threads (min 1) */
-	ZTI_MODE_ONLINE_PERCENT,	/* value is % of online CPUs */
 	ZTI_MODE_BATCH,			/* cpu-intensive; value is ignored */
 	ZTI_MODE_NULL,			/* don't create a taskq */
 	ZTI_NMODES
@@ -142,7 +141,7 @@ static inline int spa_load_impl(spa_t *spa, uint64_t, nvlist_t *config,
     char **ereport);
 static void spa_vdev_resilver_done(spa_t *spa);
 
-uint_t		zio_taskq_batch_pct = 100;	/* 1 thread per cpu in pset */
+uint_t		zio_taskq_batch_pct = 75;	/* 1 thread per cpu in pset */
 id_t		zio_taskq_psrset_bind = PS_NONE;
 boolean_t	zio_taskq_sysdc = B_TRUE;	/* use SDC scheduling class */
 uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
@@ -289,7 +288,7 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 
 	err = nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_PUSHPAGE);
 	if (err)
-		return err;
+		return (err);
 
 	mutex_enter(&spa->spa_props_lock);
 
@@ -489,7 +488,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 					break;
 				}
 
-				if ((error = dmu_objset_hold(strval,FTAG,&os)))
+				error = dmu_objset_hold(strval, FTAG, &os);
+				if (error)
 					break;
 
 				/* Must be ZPL and not gzip compressed. */
@@ -837,31 +837,27 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	tqs->stqs_count = count;
 	tqs->stqs_taskq = kmem_alloc(count * sizeof (taskq_t *), KM_SLEEP);
 
+	switch (mode) {
+	case ZTI_MODE_FIXED:
+		ASSERT3U(value, >=, 1);
+		value = MAX(value, 1);
+		break;
+
+	case ZTI_MODE_BATCH:
+		batch = B_TRUE;
+		flags |= TASKQ_THREADS_CPU_PCT;
+		value = zio_taskq_batch_pct;
+		break;
+
+	default:
+		panic("unrecognized mode for %s_%s taskq (%u:%u) in "
+		    "spa_activate()",
+		    zio_type_name[t], zio_taskq_types[q], mode, value);
+		break;
+	}
+
 	for (i = 0; i < count; i++) {
 		taskq_t *tq;
-
-		switch (mode) {
-		case ZTI_MODE_FIXED:
-			ASSERT3U(value, >=, 1);
-			value = MAX(value, 1);
-			break;
-
-		case ZTI_MODE_BATCH:
-			batch = B_TRUE;
-			flags |= TASKQ_THREADS_CPU_PCT;
-			value = zio_taskq_batch_pct;
-			break;
-
-		case ZTI_MODE_ONLINE_PERCENT:
-			flags |= TASKQ_THREADS_CPU_PCT;
-			break;
-
-		default:
-			panic("unrecognized mode for %s_%s taskq (%u:%u) in "
-			    "spa_activate()",
-			    zio_type_name[t], zio_taskq_types[q], mode, value);
-			break;
-		}
 
 		if (count > 1) {
 			(void) snprintf(name, sizeof (name), "%s_%s_%u",
@@ -878,7 +874,16 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 			tq = taskq_create_sysdc(name, value, 50, INT_MAX,
 			    spa->spa_proc, zio_taskq_basedc, flags);
 		} else {
-			tq = taskq_create_proc(name, value, maxclsyspri, 50,
+			pri_t pri = maxclsyspri;
+			/*
+			 * The write issue taskq can be extremely CPU
+			 * intensive.  Run it at slightly lower priority
+			 * than the other taskqs.
+			 */
+			if (t == ZIO_TYPE_WRITE && q == ZIO_TASKQ_ISSUE)
+				pri--;
+
+			tq = taskq_create_proc(name, value, pri, 50,
 			    INT_MAX, spa->spa_proc, flags);
 		}
 
@@ -2430,9 +2435,9 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 			    hostid != myhostid) {
 				nvlist_free(nvconfig);
 				cmn_err(CE_WARN, "pool '%s' could not be "
-				    "loaded as it was last accessed by "
-				    "another system (host: %s hostid: 0x%lx). "
-				    "See: http://zfsonlinux.org/msg/ZFS-8000-EY",
+				    "loaded as it was last accessed by another "
+				    "system (host: %s hostid: 0x%lx). See: "
+				    "http://zfsonlinux.org/msg/ZFS-8000-EY",
 				    spa_name(spa), hostname,
 				    (unsigned long)hostid);
 				return (SET_ERROR(EBADF));
@@ -4094,7 +4099,9 @@ spa_tryimport(nvlist_t *tryconfig)
 			if (dsl_dsobj_to_dsname(spa_name(spa),
 			    spa->spa_bootfs, tmpname) == 0) {
 				char *cp;
-				char *dsname = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+				char *dsname;
+
+				dsname = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
 
 				cp = strchr(tmpname, '/');
 				if (cp == NULL) {
@@ -5775,6 +5782,31 @@ spa_free_sync_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	return (0);
 }
 
+/*
+ * Note: this simple function is not inlined to make it easier to dtrace the
+ * amount of time spent syncing frees.
+ */
+static void
+spa_sync_frees(spa_t *spa, bplist_t *bpl, dmu_tx_t *tx)
+{
+	zio_t *zio = zio_root(spa, NULL, NULL, 0);
+	bplist_iterate(bpl, spa_free_sync_cb, zio, tx);
+	VERIFY(zio_wait(zio) == 0);
+}
+
+/*
+ * Note: this simple function is not inlined to make it easier to dtrace the
+ * amount of time spent syncing deferred frees.
+ */
+static void
+spa_sync_deferred_frees(spa_t *spa, dmu_tx_t *tx)
+{
+	zio_t *zio = zio_root(spa, NULL, NULL, 0);
+	VERIFY3U(bpobj_iterate(&spa->spa_deferred_bpobj,
+	    spa_free_sync_cb, zio, tx), ==, 0);
+	VERIFY0(zio_wait(zio));
+}
+
 static void
 spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 {
@@ -5836,7 +5868,7 @@ spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
 	if (sav->sav_count == 0) {
 		VERIFY(nvlist_add_nvlist_array(nvroot, config, NULL, 0) == 0);
 	} else {
-		list = kmem_alloc(sav->sav_count * sizeof (void *), KM_PUSHPAGE);
+		list = kmem_alloc(sav->sav_count*sizeof (void *), KM_PUSHPAGE);
 		for (i = 0; i < sav->sav_count; i++)
 			list[i] = vdev_config_generate(spa, sav->sav_vdevs[i],
 			    B_FALSE, VDEV_CONFIG_L2CACHE);
@@ -6102,7 +6134,6 @@ spa_sync(spa_t *spa, uint64_t txg)
 {
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	objset_t *mos = spa->spa_meta_objset;
-	bpobj_t *defer_bpo = &spa->spa_deferred_bpobj;
 	bplist_t *free_bpl = &spa->spa_free_bplist[txg & TXG_MASK];
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd;
@@ -6185,10 +6216,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	    !txg_list_empty(&dp->dp_sync_tasks, txg) ||
 	    ((dsl_scan_active(dp->dp_scan) ||
 	    txg_sync_waiting(dp)) && !spa_shutting_down(spa))) {
-		zio_t *zio = zio_root(spa, NULL, NULL, 0);
-		VERIFY3U(bpobj_iterate(defer_bpo,
-		    spa_free_sync_cb, zio, tx), ==, 0);
-		VERIFY0(zio_wait(zio));
+		spa_sync_deferred_frees(spa, tx);
 	}
 
 	/*
@@ -6206,13 +6234,10 @@ spa_sync(spa_t *spa, uint64_t txg)
 		dsl_pool_sync(dp, txg);
 
 		if (pass < zfs_sync_pass_deferred_free) {
-			zio_t *zio = zio_root(spa, NULL, NULL, 0);
-			bplist_iterate(free_bpl, spa_free_sync_cb,
-			    zio, tx);
-			VERIFY(zio_wait(zio) == 0);
+			spa_sync_frees(spa, free_bpl, tx);
 		} else {
 			bplist_iterate(free_bpl, bpobj_enqueue_cb,
-			    defer_bpo, tx);
+			    &spa->spa_deferred_bpobj, tx);
 		}
 
 		ddt_sync(spa, txg);

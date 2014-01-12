@@ -30,7 +30,7 @@
  */
 
 #ifndef LIBSPL_RPC_XDR_H
-#define LIBSPL_RPC_XDR_H
+#define	LIBSPL_RPC_XDR_H
 
 #include_next <rpc/xdr.h>
 
@@ -55,10 +55,10 @@ typedef struct xdr_bytesrec {
  * XDR_RDMANOCHUNK - for xdr implementaion over RDMA, sets private flags in
  *                   the XDR stream moving over RDMA.
  */
-#define XDR_PEEK      2
-#define XDR_SKIPBYTES 3
-#define XDR_RDMAGET   4
-#define XDR_RDMASET   5
+#define	XDR_PEEK	2
+#define	XDR_SKIPBYTES	3
+#define	XDR_RDMAGET	4
+#define	XDR_RDMASET	5
 
 extern bool_t xdr_control(XDR *xdrs, int request, void *info);
 

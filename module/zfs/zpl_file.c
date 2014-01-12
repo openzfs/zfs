@@ -23,6 +23,7 @@
  */
 
 
+#include <sys/dmu_objset.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
@@ -35,15 +36,16 @@ zpl_open(struct inode *ip, struct file *filp)
 	cred_t *cr = CRED();
 	int error;
 
+	error = generic_file_open(ip, filp);
+	if (error)
+		return (error);
+
 	crhold(cr);
 	error = -zfs_open(ip, filp->f_mode, filp->f_flags, cr);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
-	if (error)
-		return (error);
-
-	return generic_file_open(ip, filp);
+	return (error);
 }
 
 static int
@@ -167,9 +169,10 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 
 ssize_t
 zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
-     uio_seg_t segment, int flags, cred_t *cr)
+    uio_seg_t segment, int flags, cred_t *cr)
 {
 	int error;
+	ssize_t read;
 	struct iovec iov;
 	uio_t uio;
 
@@ -187,7 +190,10 @@ zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 	if (error < 0)
 		return (error);
 
-	return (len - uio.uio_resid);
+	read = len - uio.uio_resid;
+	task_io_account_read(read);
+
+	return (read);
 }
 
 static ssize_t
@@ -213,6 +219,7 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
     uio_seg_t segment, int flags, cred_t *cr)
 {
 	int error;
+	ssize_t wrote;
 	struct iovec iov;
 	uio_t uio;
 
@@ -230,7 +237,10 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 	if (error < 0)
 		return (error);
 
-	return (len - uio.uio_resid);
+	wrote = len - uio.uio_resid;
+	task_io_account_write(wrote);
+
+	return (wrote);
 }
 
 static ssize_t
@@ -270,7 +280,7 @@ zpl_llseek(struct file *filp, loff_t offset, int whence)
 	}
 #endif /* SEEK_HOLE && SEEK_DATA */
 
-	return generic_file_llseek(filp, offset, whence);
+	return (generic_file_llseek(filp, offset, whence));
 }
 
 /*
@@ -371,7 +381,7 @@ zpl_readpage(struct file *filp, struct page *pp)
 	}
 
 	unlock_page(pp);
-	return error;
+	return (error);
 }
 
 /*
@@ -412,7 +422,43 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 static int
 zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
-	return write_cache_pages(mapping, wbc, zpl_putpage, mapping);
+	znode_t		*zp = ITOZ(mapping->host);
+	zfs_sb_t	*zsb = ITOZSB(mapping->host);
+	enum writeback_sync_modes sync_mode;
+	int result;
+
+	ZFS_ENTER(zsb);
+	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		wbc->sync_mode = WB_SYNC_ALL;
+	ZFS_EXIT(zsb);
+	sync_mode = wbc->sync_mode;
+
+	/*
+	 * We don't want to run write_cache_pages() in SYNC mode here, because
+	 * that would make putpage() wait for a single page to be committed to
+	 * disk every single time, resulting in atrocious performance. Instead
+	 * we run it once in non-SYNC mode so that the ZIL gets all the data,
+	 * and then we commit it all in one go.
+	 */
+	wbc->sync_mode = WB_SYNC_NONE;
+	result = write_cache_pages(mapping, wbc, zpl_putpage, mapping);
+	if (sync_mode != wbc->sync_mode) {
+		ZFS_ENTER(zsb);
+		ZFS_VERIFY_ZP(zp);
+		zil_commit(zsb->z_log, zp->z_id);
+		ZFS_EXIT(zsb);
+
+		/*
+		 * We need to call write_cache_pages() again (we can't just
+		 * return after the commit) because the previous call in
+		 * non-SYNC mode does not guarantee that we got all the dirty
+		 * pages (see the implementation of write_cache_pages() for
+		 * details). That being said, this is a no-op in most cases.
+		 */
+		wbc->sync_mode = sync_mode;
+		result = write_cache_pages(mapping, wbc, zpl_putpage, mapping);
+	}
+	return (result);
 }
 
 /*
@@ -424,7 +470,10 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 static int
 zpl_writepage(struct page *pp, struct writeback_control *wbc)
 {
-	return zpl_putpage(pp, wbc, pp->mapping);
+	if (ITOZSB(pp->mapping->host)->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		wbc->sync_mode = WB_SYNC_ALL;
+
+	return (zpl_putpage(pp, wbc, pp->mapping));
 }
 
 /*
@@ -487,7 +536,7 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 static long
 zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	return zpl_ioctl(filp, cmd, arg);
+	return (zpl_ioctl(filp, cmd, arg));
 }
 #endif /* CONFIG_COMPAT */
 
@@ -496,7 +545,7 @@ const struct address_space_operations zpl_address_space_operations = {
 	.readpages	= zpl_readpages,
 	.readpage	= zpl_readpage,
 	.writepage	= zpl_writepage,
-	.writepages     = zpl_writepages,
+	.writepages	= zpl_writepages,
 };
 
 const struct file_operations zpl_file_operations = {
@@ -508,11 +557,11 @@ const struct file_operations zpl_file_operations = {
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
 #ifdef HAVE_FILE_FALLOCATE
-	.fallocate      = zpl_fallocate,
+	.fallocate	= zpl_fallocate,
 #endif /* HAVE_FILE_FALLOCATE */
-	.unlocked_ioctl = zpl_ioctl,
+	.unlocked_ioctl	= zpl_ioctl,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl   = zpl_compat_ioctl,
+	.compat_ioctl	= zpl_compat_ioctl,
 #endif
 };
 

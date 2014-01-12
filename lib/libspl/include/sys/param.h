@@ -25,7 +25,7 @@
  */
 
 #ifndef _LIBSPL_SYS_PARAM_H
-#define _LIBSPL_SYS_PARAM_H
+#define	_LIBSPL_SYS_PARAM_H
 
 #include_next <sys/param.h>
 #include <unistd.h>
@@ -43,20 +43,20 @@
  * Note that the blocked devices are assumed to have DEV_BSIZE
  * "sectors" and that fragments must be some multiple of this size.
  */
-#define MAXBSIZE   8192
-#define DEV_BSIZE  512
-#define DEV_BSHIFT 9     /* log2(DEV_BSIZE) */
+#define	MAXBSIZE	8192
+#define	DEV_BSIZE	512
+#define	DEV_BSHIFT	9		/* log2(DEV_BSIZE) */
 
-#define MAXNAMELEN      256
-#define MAXOFFSET_T     LLONG_MAX
+#define	MAXNAMELEN	256
+#define	MAXOFFSET_T	LLONG_MAX
 
-#define UID_NOBODY      60001   /* user ID no body */
-#define GID_NOBODY      UID_NOBODY
-#define UID_NOACCESS    60002   /* user ID no access */
+#define	UID_NOBODY	60001		/* user ID no body */
+#define	GID_NOBODY	UID_NOBODY
+#define	UID_NOACCESS	60002		/* user ID no access */
 
-#define MAXUID          UINT32_MAX      /* max user id */
-#define MAXPROJID       MAXUID          /* max project id */
+#define	MAXUID		UINT32_MAX	/* max user id */
+#define	MAXPROJID	MAXUID		/* max project id */
 
-#define PAGESIZE (sysconf(_SC_PAGESIZE))
+#define	PAGESIZE	(sysconf(_SC_PAGESIZE))
 
 #endif

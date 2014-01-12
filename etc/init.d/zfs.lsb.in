@@ -29,6 +29,8 @@ LOCKFILE=/var/lock/zfs
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+USE_DISK_BY_ID=0
+VERBOSE_MOUNT=0
 
 # Source zfs configuration.
 [ -r '/etc/default/zfs' ] &&  . /etc/default/zfs
@@ -69,13 +71,27 @@ start()
 
 	# Import all pools described by the cache file, and then mount
 	# all filesystem based on their properties.
-	if [ -f "$ZPOOL_CACHE" ] ; then
+	if [ "$USE_DISK_BY_ID" -eq 1 ]; then
+		log_begin_msg "Importing ZFS pools"
+		"$ZPOOL" import -d /dev/disk/by-id -aN 2>/dev/null
+		ret=$?
+		log_end_msg $ret
+		[ "$ret" -eq 0 ] && POOL_IMPORTED=1
+	elif [ -f "$ZPOOL_CACHE" ] ; then
 		log_begin_msg "Importing ZFS pools"
 		"$ZPOOL" import -c "$ZPOOL_CACHE" -aN 2>/dev/null
-		log_end_msg $?
+		ret=$?
+		log_end_msg $ret
+		[ "$ret" -eq 0 ] && POOL_IMPORTED=1
+	fi
+
+	if [ -n "$POOL_IMPORTED" ]; then
+		if [ "$VERBOSE_MOUNT" -eq 1 ]; then
+			verbose=v
+		fi
 
 		log_begin_msg "Mounting ZFS filesystems"
-		"$ZFS" mount -a
+		"$ZFS" mount -a$verbose
 		log_end_msg $?
 
 		log_begin_msg "Exporting ZFS filesystems"
@@ -90,8 +106,19 @@ stop()
 {
 	[ ! -f "$LOCKFILE" ] && return 3
 
+	log_begin_msg "Unsharing ZFS filesystems"
+	"$ZFS" unshare -a
+	log_end_msg $?
+
 	log_begin_msg "Unmounting ZFS filesystems"
 	"$ZFS" umount -a
+	log_end_msg $?
+
+	log_begin_msg "Exporting ZFS pools"
+	"$ZPOOL" list -H -o name | \
+	    while read pool; do
+		"$ZPOOL" export $pool
+	done
 	log_end_msg $?
 
 	rm -f "$LOCKFILE"

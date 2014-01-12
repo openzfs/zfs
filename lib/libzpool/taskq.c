@@ -157,7 +157,7 @@ taskq_dispatch_delay(taskq_t *tq,  task_func_t func, void *arg, uint_t tqflags,
 int
 taskq_empty_ent(taskq_ent_t *t)
 {
-	return t->tqent_next == NULL;
+	return (t->tqent_next == NULL);
 }
 
 void
@@ -287,7 +287,8 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	tq->tq_maxalloc = maxalloc;
 	tq->tq_task.tqent_next = &tq->tq_task;
 	tq->tq_task.tqent_prev = &tq->tq_task;
-	tq->tq_threadlist = kmem_alloc(nthreads*sizeof(kthread_t *), KM_SLEEP);
+	tq->tq_threadlist = kmem_alloc(nthreads * sizeof (kthread_t *),
+	    KM_SLEEP);
 
 	if (flags & TASKQ_PREPOPULATE) {
 		mutex_enter(&tq->tq_lock);

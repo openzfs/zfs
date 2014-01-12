@@ -23,11 +23,11 @@
  * Portions Copyright 2008 Sun Microsystems, Inc. All Rights reserved.
  */
 #ifndef _SYS_STACK_H
-#define _SYS_STACK_H
+#define	_SYS_STACK_H
 
 #include <pthread.h>
 
-#define STACK_BIAS	0
+#define	STACK_BIAS	0
 
 #ifdef __USE_GNU
 
@@ -39,7 +39,7 @@ stack_getbounds(stack_t *sp)
 
 	rc = pthread_getattr_np(pthread_self(), &attr);
 	if (rc)
-		return rc;
+		return (rc);
 
 	rc = pthread_attr_getstack(&attr, &sp->ss_sp, &sp->ss_size);
 	if (rc == 0)
@@ -47,7 +47,7 @@ stack_getbounds(stack_t *sp)
 
 	pthread_attr_destroy(&attr);
 
-	return rc;
+	return (rc);
 }
 
 static inline int
@@ -57,15 +57,17 @@ thr_stksegment(stack_t *sp)
 
 	rc = stack_getbounds(sp);
 	if (rc)
-		return rc;
+		return (rc);
 
-         /* thr_stksegment() is expected to set sp.ss_sp to the high stack
-	  * address, but the stack_getbounds() interface is expected to
-	  * set sp.ss_sp to the low address.  Adjust accordingly. */
+	/*
+	 * thr_stksegment() is expected to set sp.ss_sp to the high stack
+	 * address, but the stack_getbounds() interface is expected to
+	 * set sp.ss_sp to the low address.  Adjust accordingly.
+	 */
 	sp->ss_sp = (void *)(((uintptr_t)sp->ss_sp) + sp->ss_size);
 	sp->ss_flags = 0;
 
-	return rc;
+	return (rc);
 }
 
 #endif /* __USE_GNU */

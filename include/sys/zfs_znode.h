@@ -205,13 +205,13 @@ typedef struct znode {
 	uint64_t	z_pflags;	/* pflags (cached) */
 	uint64_t	z_uid;		/* uid fuid (cached) */
 	uint64_t	z_gid;		/* gid fuid (cached) */
-	mode_t		z_mode;		/* mode (cached) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
+	mode_t		z_mode;		/* mode (cached) */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
 	krwlock_t	z_xattr_lock;	/* xattr data lock */
-	nvlist_t	*z_xattr_cached;/* cached xattrs */
-	struct znode	*z_xattr_parent;/* xattr parent znode */
+	nvlist_t	*z_xattr_cached; /* cached xattrs */
+	struct znode	*z_xattr_parent; /* xattr parent znode */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
@@ -353,7 +353,8 @@ extern void zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 extern void zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp);
 extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-    znode_t *zp, offset_t off, ssize_t len, int ioflag);
+    znode_t *zp, offset_t off, ssize_t len, int ioflag,
+    zil_callback_t callback, void *callback_data);
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,

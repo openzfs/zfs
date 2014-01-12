@@ -3296,7 +3296,7 @@ vdev_deadman(vdev_t *vd)
 		vdev_queue_t *vq = &vd->vdev_queue;
 
 		mutex_enter(&vq->vq_lock);
-		if (avl_numnodes(&vq->vq_pending_tree) > 0) {
+		if (avl_numnodes(&vq->vq_active_tree) > 0) {
 			spa_t *spa = vd->vdev_spa;
 			zio_t *fio;
 			uint64_t delta;
@@ -3306,7 +3306,7 @@ vdev_deadman(vdev_t *vd)
 			 * if any I/O has been outstanding for longer than
 			 * the spa_deadman_synctime we log a zevent.
 			 */
-			fio = avl_first(&vq->vq_pending_tree);
+			fio = avl_first(&vq->vq_active_tree);
 			delta = gethrtime() - fio->io_timestamp;
 			if (delta > spa_deadman_synctime(spa)) {
 				zfs_dbgmsg("SLOW IO: zio timestamp %lluns, "

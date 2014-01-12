@@ -100,7 +100,7 @@ static taskq_t *zfs_expire_taskq;
 static zfs_snapentry_t *
 zfsctl_sep_alloc(void)
 {
-	return kmem_zalloc(sizeof (zfs_snapentry_t), KM_SLEEP);
+	return (kmem_zalloc(sizeof (zfs_snapentry_t), KM_SLEEP));
 }
 
 void
@@ -255,7 +255,6 @@ zfsctl_inode_lookup(zfs_sb_t *zsb, uint64_t id,
 void
 zfsctl_inode_destroy(struct inode *ip)
 {
-	return;
 }
 
 /*

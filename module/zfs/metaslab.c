@@ -32,7 +32,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 
-#define WITH_DF_BLOCK_ALLOCATOR
+#define	WITH_DF_BLOCK_ALLOCATOR
 
 /*
  * Allow allocations to switch to gang blocks quickly. We do this to
@@ -2021,7 +2021,8 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 	return (error);
 }
 
-void metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
+void
+metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);
@@ -2043,7 +2044,8 @@ void metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
-void metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
+void
+metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);

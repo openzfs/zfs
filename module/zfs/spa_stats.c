@@ -122,14 +122,14 @@ spa_read_history_update(kstat_t *ksp, int rw)
 
 		while ((srh = list_remove_head(&ssh->list))) {
 			ssh->size--;
-			kmem_free(srh, sizeof(spa_read_history_t));
+			kmem_free(srh, sizeof (spa_read_history_t));
 		}
 
 		ASSERT3U(ssh->size, ==, 0);
 	}
 
 	ksp->ks_ndata = ssh->size;
-	ksp->ks_data_size = ssh->size * sizeof(spa_read_history_t);
+	ksp->ks_data_size = ssh->size * sizeof (spa_read_history_t);
 
 	return (0);
 }
@@ -181,7 +181,7 @@ spa_read_history_destroy(spa_t *spa)
 	mutex_enter(&ssh->lock);
 	while ((srh = list_remove_head(&ssh->list))) {
 		ssh->size--;
-		kmem_free(srh, sizeof(spa_read_history_t));
+		kmem_free(srh, sizeof (spa_read_history_t));
 	}
 
 	ASSERT3U(ssh->size, ==, 0);
@@ -206,9 +206,9 @@ spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
 	if (zfs_read_history_hits == 0 && (aflags & ARC_CACHED))
 		return;
 
-	srh = kmem_zalloc(sizeof(spa_read_history_t), KM_PUSHPAGE);
-	strlcpy(srh->origin, zb->zb_func, sizeof(srh->origin));
-	strlcpy(srh->comm, getcomm(), sizeof(srh->comm));
+	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_PUSHPAGE);
+	strlcpy(srh->origin, zb->zb_func, sizeof (srh->origin));
+	strlcpy(srh->comm, getcomm(), sizeof (srh->comm));
 	srh->start  = gethrtime();
 	srh->objset = zb->zb_objset;
 	srh->object = zb->zb_object;
@@ -226,7 +226,7 @@ spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
 	while (ssh->size > zfs_read_history) {
 		ssh->size--;
 		rm = list_remove_tail(&ssh->list);
-		kmem_free(rm, sizeof(spa_read_history_t));
+		kmem_free(rm, sizeof (spa_read_history_t));
 	}
 
 	mutex_exit(&ssh->lock);
@@ -343,14 +343,14 @@ spa_txg_history_update(kstat_t *ksp, int rw)
 
 		while ((sth = list_remove_head(&ssh->list))) {
 			ssh->size--;
-			kmem_free(sth, sizeof(spa_txg_history_t));
+			kmem_free(sth, sizeof (spa_txg_history_t));
 		}
 
 		ASSERT3U(ssh->size, ==, 0);
 	}
 
 	ksp->ks_ndata = ssh->size;
-	ksp->ks_data_size = ssh->size * sizeof(spa_txg_history_t);
+	ksp->ks_data_size = ssh->size * sizeof (spa_txg_history_t);
 
 	return (0);
 }
@@ -402,7 +402,7 @@ spa_txg_history_destroy(spa_t *spa)
 	mutex_enter(&ssh->lock);
 	while ((sth = list_remove_head(&ssh->list))) {
 		ssh->size--;
-		kmem_free(sth, sizeof(spa_txg_history_t));
+		kmem_free(sth, sizeof (spa_txg_history_t));
 	}
 
 	ASSERT3U(ssh->size, ==, 0);
@@ -424,7 +424,7 @@ spa_txg_history_add(spa_t *spa, uint64_t txg)
 	if (zfs_txg_history == 0 && ssh->size == 0)
 		return;
 
-	sth = kmem_zalloc(sizeof(spa_txg_history_t), KM_PUSHPAGE);
+	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_PUSHPAGE);
 	sth->txg = txg;
 	sth->state = TXG_STATE_OPEN;
 	sth->times[TXG_STATE_BIRTH] = gethrtime();
@@ -437,7 +437,7 @@ spa_txg_history_add(spa_t *spa, uint64_t txg)
 	while (ssh->size > zfs_txg_history) {
 		ssh->size--;
 		rm = list_remove_tail(&ssh->list);
-		kmem_free(rm, sizeof(spa_txg_history_t));
+		kmem_free(rm, sizeof (spa_txg_history_t));
 	}
 
 	mutex_exit(&ssh->lock);
@@ -459,7 +459,7 @@ spa_txg_history_set(spa_t *spa, uint64_t txg, txg_state_t completed_state,
 
 	mutex_enter(&ssh->lock);
 	for (sth = list_head(&ssh->list); sth != NULL;
-	     sth = list_next(&ssh->list, sth)) {
+	    sth = list_next(&ssh->list, sth)) {
 		if (sth->txg == txg) {
 			sth->times[completed_state] = completed_time;
 			sth->state++;
@@ -488,7 +488,7 @@ spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
 
 	mutex_enter(&ssh->lock);
 	for (sth = list_head(&ssh->list); sth != NULL;
-	     sth = list_next(&ssh->list, sth)) {
+	    sth = list_next(&ssh->list, sth)) {
 		if (sth->txg == txg) {
 			sth->nread = nread;
 			sth->nwritten = nwritten;
@@ -536,7 +536,7 @@ spa_tx_assign_update(kstat_t *ksp, int rw)
 			break;
 
 	ksp->ks_ndata = i;
-	ksp->ks_data_size = i * sizeof(kstat_named_t);
+	ksp->ks_data_size = i * sizeof (kstat_named_t);
 
 	return (0);
 }
@@ -553,7 +553,7 @@ spa_tx_assign_init(spa_t *spa)
 	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
 
 	ssh->count = 42; /* power of two buckets for 1ns to 2,199s */
-	ssh->size = ssh->count * sizeof(kstat_named_t);
+	ssh->size = ssh->count * sizeof (kstat_named_t);
 	ssh->private = kmem_alloc(ssh->size, KM_SLEEP);
 
 	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));

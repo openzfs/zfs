@@ -2568,7 +2568,7 @@ get_columns(void)
 		columns = 999;
 	}
 
-	return columns;
+	return (columns);
 }
 
 int
@@ -5037,19 +5037,21 @@ get_history_one(zpool_handle_t *zhp, void *data)
 			}
 			(void) printf("%s [internal %s txg:%lld] %s", tbuf,
 			    zfs_history_event_names[ievent],
-			    (long long int)fnvlist_lookup_uint64(rec, ZPOOL_HIST_TXG),
+			    (longlong_t) fnvlist_lookup_uint64(
+			    rec, ZPOOL_HIST_TXG),
 			    fnvlist_lookup_string(rec, ZPOOL_HIST_INT_STR));
 		} else if (nvlist_exists(rec, ZPOOL_HIST_INT_NAME)) {
 			if (!cb->internal)
 				continue;
 			(void) printf("%s [txg:%lld] %s", tbuf,
-			    (long long int)fnvlist_lookup_uint64(rec, ZPOOL_HIST_TXG),
+			    (longlong_t) fnvlist_lookup_uint64(
+			    rec, ZPOOL_HIST_TXG),
 			    fnvlist_lookup_string(rec, ZPOOL_HIST_INT_NAME));
 			if (nvlist_exists(rec, ZPOOL_HIST_DSNAME)) {
 				(void) printf(" %s (%llu)",
 				    fnvlist_lookup_string(rec,
 				    ZPOOL_HIST_DSNAME),
-				    (long long unsigned int)fnvlist_lookup_uint64(rec,
+				    (u_longlong_t)fnvlist_lookup_uint64(rec,
 				    ZPOOL_HIST_DSID));
 			}
 			(void) printf(" %s", fnvlist_lookup_string(rec,
@@ -5165,10 +5167,10 @@ zpool_do_events_short(nvlist_t *nvl)
 	verify(nvlist_lookup_int64_array(nvl, FM_EREPORT_TIME, &tv, &n) == 0);
 	memset(str, ' ', 32);
 	(void) ctime_r((const time_t *)&tv[0], ctime_str);
-	(void) strncpy(str,    ctime_str+4,  6);             /* 'Jun 30'     */
-	(void) strncpy(str+7,  ctime_str+20, 4);             /* '1993'       */
-	(void) strncpy(str+12, ctime_str+11, 8);             /* '21:49:08'   */
-	(void) sprintf(str+20, ".%09lld", (longlong_t)tv[1]);/* '.123456789' */
+	(void) strncpy(str, ctime_str+4,  6);		/* 'Jun 30' */
+	(void) strncpy(str+7, ctime_str+20, 4);		/* '1993' */
+	(void) strncpy(str+12, ctime_str+11, 8);	/* '21:49:08' */
+	(void) sprintf(str+20, ".%09lld", (longlong_t)tv[1]); /* '.123456789' */
 	(void) printf(gettext("%s "), str);
 
 	verify(nvlist_lookup_string(nvl, FM_CLASS, &ptr) == 0);
@@ -5276,10 +5278,10 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 			printf(gettext("(%d embedded nvlists)\n"), nelem);
 			for (i = 0; i < nelem; i++) {
 				printf(gettext("%*s%s[%d] = %s\n"),
-				       depth, "", name, i, "(embedded nvlist)");
+				    depth, "", name, i, "(embedded nvlist)");
 				zpool_do_events_nvprint(val[i], depth + 8);
 				printf(gettext("%*s(end %s[%i])\n"),
-				       depth, "", name, i);
+				    depth, "", name, i);
 			}
 			printf(gettext("%*s(end %s)\n"), depth, "", name);
 			}
@@ -5357,7 +5359,8 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 
 			(void) nvpair_value_int64_array(nvp, &val, &nelem);
 			for (i = 0; i < nelem; i++)
-				printf(gettext("0x%llx "), (u_longlong_t)val[i]);
+				printf(gettext("0x%llx "),
+				    (u_longlong_t)val[i]);
 
 			break;
 			}
@@ -5368,7 +5371,8 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 
 			(void) nvpair_value_uint64_array(nvp, &val, &nelem);
 			for (i = 0; i < nelem; i++)
-				printf(gettext("0x%llx "), (u_longlong_t)val[i]);
+				printf(gettext("0x%llx "),
+				    (u_longlong_t)val[i]);
 
 			break;
 			}
@@ -5392,8 +5396,8 @@ zpool_do_events_next(ev_opts_t *opts)
 	nvlist_t *nvl;
 	int cleanup_fd, ret, dropped;
 
-        cleanup_fd = open(ZFS_DEV, O_RDWR);
-        VERIFY(cleanup_fd >= 0);
+	cleanup_fd = open(ZFS_DEV, O_RDWR);
+	VERIFY(cleanup_fd >= 0);
 
 	if (!opts->scripted)
 		(void) printf(gettext("%-30s %s\n"), "TIME", "CLASS");
@@ -5418,7 +5422,7 @@ zpool_do_events_next(ev_opts_t *opts)
 		nvlist_free(nvl);
 	}
 
-        VERIFY(0 == close(cleanup_fd));
+	VERIFY(0 == close(cleanup_fd));
 
 	return (ret);
 }
@@ -5476,7 +5480,7 @@ zpool_do_events(int argc, char **argv)
 	else
 		ret = zpool_do_events_next(&opts);
 
-	return ret;
+	return (ret);
 }
 
 static int
@@ -5690,8 +5694,7 @@ main(int argc, char **argv)
 	/*
 	 * Special case '-?'
 	 */
-	if ((strcmp(cmdname, "-?") == 0) ||
-	     strcmp(cmdname, "--help") == 0)
+	if ((strcmp(cmdname, "-?") == 0) || strcmp(cmdname, "--help") == 0)
 		usage(B_TRUE);
 
 	if ((g_zfs = libzfs_init()) == NULL)

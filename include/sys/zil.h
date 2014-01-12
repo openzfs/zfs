@@ -361,11 +361,15 @@ typedef enum {
 	WR_NUM_STATES	/* number of states */
 } itx_wr_state_t;
 
+typedef void (*zil_callback_t)(void *data);
+
 typedef struct itx {
 	list_node_t	itx_node;	/* linkage on zl_itx_list */
 	void		*itx_private;	/* type-specific opaque data */
 	itx_wr_state_t	itx_wr_state;	/* write state */
 	uint8_t		itx_sync;	/* synchronous transaction */
+	zil_callback_t	itx_callback;   /* Called when the itx is persistent */
+	void		*itx_callback_data; /* User data for the callback */
 	uint64_t	itx_sod;	/* record size on disk */
 	uint64_t	itx_oid;	/* object id */
 	lr_t		itx_lr;		/* common part of log record */
@@ -426,9 +430,9 @@ typedef struct zil_stats {
 
 extern zil_stats_t zil_stats;
 
-#define ZIL_STAT_INCR(stat, val) \
+#define	ZIL_STAT_INCR(stat, val) \
     atomic_add_64(&zil_stats.stat.value.ui64, (val));
-#define ZIL_STAT_BUMP(stat) \
+#define	ZIL_STAT_BUMP(stat) \
     ZIL_STAT_INCR(stat, 1);
 
 typedef int zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,

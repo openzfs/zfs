@@ -46,18 +46,85 @@
 #include <sys/zil_impl.h>
 #include <sys/dsl_userhold.h>
 
-int zfs_no_write_throttle = 0;
-int zfs_write_limit_shift = 3;			/* 1/8th of physical memory */
-int zfs_txg_synctime_ms = 1000;		/* target millisecs to sync a txg */
+/*
+ * ZFS Write Throttle
+ * ------------------
+ *
+ * ZFS must limit the rate of incoming writes to the rate at which it is able
+ * to sync data modifications to the backend storage. Throttling by too much
+ * creates an artificial limit; throttling by too little can only be sustained
+ * for short periods and would lead to highly lumpy performance. On a per-pool
+ * basis, ZFS tracks the amount of modified (dirty) data. As operations change
+ * data, the amount of dirty data increases; as ZFS syncs out data, the amount
+ * of dirty data decreases. When the amount of dirty data exceeds a
+ * predetermined threshold further modifications are blocked until the amount
+ * of dirty data decreases (as data is synced out).
+ *
+ * The limit on dirty data is tunable, and should be adjusted according to
+ * both the IO capacity and available memory of the system. The larger the
+ * window, the more ZFS is able to aggregate and amortize metadata (and data)
+ * changes. However, memory is a limited resource, and allowing for more dirty
+ * data comes at the cost of keeping other useful data in memory (for example
+ * ZFS data cached by the ARC).
+ *
+ * Implementation
+ *
+ * As buffers are modified dsl_pool_willuse_space() increments both the per-
+ * txg (dp_dirty_pertxg[]) and poolwide (dp_dirty_total) accounting of
+ * dirty space used; dsl_pool_dirty_space() decrements those values as data
+ * is synced out from dsl_pool_sync(). While only the poolwide value is
+ * relevant, the per-txg value is useful for debugging. The tunable
+ * zfs_dirty_data_max determines the dirty space limit. Once that value is
+ * exceeded, new writes are halted until space frees up.
+ *
+ * The zfs_dirty_data_sync tunable dictates the threshold at which we
+ * ensure that there is a txg syncing (see the comment in txg.c for a full
+ * description of transaction group stages).
+ *
+ * The IO scheduler uses both the dirty space limit and current amount of
+ * dirty data as inputs. Those values affect the number of concurrent IOs ZFS
+ * issues. See the comment in vdev_queue.c for details of the IO scheduler.
+ *
+ * The delay is also calculated based on the amount of dirty data.  See the
+ * comment above dmu_tx_delay() for details.
+ */
 
-unsigned long zfs_write_limit_min = 32 << 20;	/* min write limit is 32MB */
-unsigned long zfs_write_limit_max = 0;		/* max data payload per txg */
-unsigned long zfs_write_limit_inflated = 0;
-unsigned long zfs_write_limit_override = 0;
+/*
+ * zfs_dirty_data_max will be set to zfs_dirty_data_max_percent% of all memory,
+ * capped at zfs_dirty_data_max_max.  It can also be overridden with a module
+ * parameter.
+ */
+unsigned long zfs_dirty_data_max = 0;
+unsigned long zfs_dirty_data_max_max = 0;
+int zfs_dirty_data_max_percent = 10;
+int zfs_dirty_data_max_max_percent = 25;
 
-kmutex_t zfs_write_limit_lock;
+/*
+ * If there is at least this much dirty data, push out a txg.
+ */
+unsigned long zfs_dirty_data_sync = 64 * 1024 * 1024;
 
-static pgcnt_t old_physmem = 0;
+/*
+ * Once there is this amount of dirty data, the dmu_tx_delay() will kick in
+ * and delay each transaction.
+ * This value should be >= zfs_vdev_async_write_active_max_dirty_percent.
+ */
+int zfs_delay_min_dirty_percent = 60;
+
+/*
+ * This controls how quickly the delay approaches infinity.
+ * Larger values cause it to delay more for a given amount of dirty data.
+ * Therefore larger values will cause there to be less dirty data for a
+ * given throughput.
+ *
+ * For the smoothest delay, this value should be about 1 billion divided
+ * by the maximum number of operations per second.  This will smoothly
+ * handle between 10x and 1/10th this number.
+ *
+ * Note: zfs_delay_scale * zfs_dirty_data_max must be < 2^64, due to the
+ * multiply in dmu_tx_delay().
+ */
+unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 
 hrtime_t zfs_throttle_delay = MSEC2NSEC(10);
 hrtime_t zfs_throttle_resolution = MSEC2NSEC(10);
@@ -87,7 +154,6 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	dp->dp_spa = spa;
 	dp->dp_meta_rootbp = *bp;
 	rrw_init(&dp->dp_config_rwlock, B_TRUE);
-	dp->dp_write_limit = zfs_write_limit_min;
 	txg_init(dp, txg);
 
 	txg_list_create(&dp->dp_dirty_datasets,
@@ -100,6 +166,7 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	    offsetof(dsl_sync_task_t, dst_node));
 
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
 
 	dp->dp_iput_taskq = taskq_create("zfs_iput_taskq", 1, minclsyspri,
 	    1, 4, 0);
@@ -214,9 +281,9 @@ out:
 void
 dsl_pool_close(dsl_pool_t *dp)
 {
-	/* drop our references from dsl_pool_open() */
-
 	/*
+	 * Drop our references from dsl_pool_open().
+	 *
 	 * Since we held the origin_snap from "syncing" context (which
 	 * includes pool-opening context), it actually only got a "ref"
 	 * and not a hold, so just drop that here.
@@ -346,6 +413,34 @@ deadlist_enqueue_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	return (0);
 }
 
+static void
+dsl_pool_sync_mos(dsl_pool_t *dp, dmu_tx_t *tx)
+{
+	zio_t *zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+	dmu_objset_sync(dp->dp_meta_objset, zio, tx);
+	VERIFY0(zio_wait(zio));
+	dprintf_bp(&dp->dp_meta_rootbp, "meta objset rootbp is %s", "");
+	spa_set_rootblkptr(dp->dp_spa, &dp->dp_meta_rootbp);
+}
+
+static void
+dsl_pool_dirty_delta(dsl_pool_t *dp, int64_t delta)
+{
+	ASSERT(MUTEX_HELD(&dp->dp_lock));
+
+	if (delta < 0)
+		ASSERT3U(-delta, <=, dp->dp_dirty_total);
+
+	dp->dp_dirty_total += delta;
+
+	/*
+	 * Note: we signal even when increasing dp_dirty_total.
+	 * This ensures forward progress -- each thread wakes the next waiter.
+	 */
+	if (dp->dp_dirty_total <= zfs_dirty_data_max)
+		cv_signal(&dp->dp_spaceavail_cv);
+}
+
 void
 dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 {
@@ -354,29 +449,18 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	dsl_dir_t *dd;
 	dsl_dataset_t *ds;
 	objset_t *mos = dp->dp_meta_objset;
-	hrtime_t start, write_time;
-	uint64_t data_written;
-	int err;
 	list_t synced_datasets;
 
 	list_create(&synced_datasets, sizeof (dsl_dataset_t),
 	    offsetof(dsl_dataset_t, ds_synced_link));
 
-	/*
-	 * We need to copy dp_space_towrite() before doing
-	 * dsl_sync_task_sync(), because
-	 * dsl_dataset_snapshot_reserve_space() will increase
-	 * dp_space_towrite but not actually write anything.
-	 */
-	data_written = dp->dp_space_towrite[txg & TXG_MASK];
-
 	tx = dmu_tx_create_assigned(dp, txg);
 
-	dp->dp_read_overhead = 0;
-	start = gethrtime();
-
+	/*
+	 * Write out all dirty blocks of dirty datasets.
+	 */
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
+	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) != NULL) {
 		/*
 		 * We must not sync any non-MOS datasets twice, because
 		 * we may have taken a snapshot of them.  However, we
@@ -386,20 +470,25 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		list_insert_tail(&synced_datasets, ds);
 		dsl_dataset_sync(ds, zio, tx);
 	}
-	DTRACE_PROBE(pool_sync__1setup);
-	err = zio_wait(zio);
+	VERIFY0(zio_wait(zio));
 
-	write_time = gethrtime() - start;
-	ASSERT(err == 0);
-	DTRACE_PROBE(pool_sync__2rootzio);
+	/*
+	 * We have written all of the accounted dirty data, so our
+	 * dp_space_towrite should now be zero.  However, some seldom-used
+	 * code paths do not adhere to this (e.g. dbuf_undirty(), also
+	 * rounding error in dbuf_write_physdone).
+	 * Shore up the accounting of any dirtied space now.
+	 */
+	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
 
 	/*
 	 * After the data blocks have been written (ensured by the zio_wait()
 	 * above), update the user/group space accounting.
 	 */
-	for (ds = list_head(&synced_datasets); ds;
-	    ds = list_next(&synced_datasets, ds))
+	for (ds = list_head(&synced_datasets); ds != NULL;
+	    ds = list_next(&synced_datasets, ds)) {
 		dmu_objset_do_userquota_updates(ds->ds_objset, tx);
+	}
 
 	/*
 	 * Sync the datasets again to push out the changes due to
@@ -409,12 +498,12 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * about which blocks are part of the snapshot).
 	 */
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
+	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) != NULL) {
 		ASSERT(list_link_active(&ds->ds_synced_link));
 		dmu_buf_rele(ds->ds_dbuf, ds);
 		dsl_dataset_sync(ds, zio, tx);
 	}
-	err = zio_wait(zio);
+	VERIFY0(zio_wait(zio));
 
 	/*
 	 * Now that the datasets have been completely synced, we can
@@ -423,7 +512,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 *  - move dead blocks from the pending deadlist to the on-disk deadlist
 	 *  - release hold from dsl_dataset_dirty()
 	 */
-	while ((ds = list_remove_head(&synced_datasets))) {
+	while ((ds = list_remove_head(&synced_datasets)) != NULL) {
 		ASSERTV(objset_t *os = ds->ds_objset);
 		bplist_iterate(&ds->ds_pending_deadlist,
 		    deadlist_enqueue_cb, &ds->ds_deadlist, tx);
@@ -431,10 +520,9 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		dmu_buf_rele(ds->ds_dbuf, ds);
 	}
 
-	start = gethrtime();
-	while ((dd = txg_list_remove(&dp->dp_dirty_dirs, txg)))
+	while ((dd = txg_list_remove(&dp->dp_dirty_dirs, txg)) != NULL) {
 		dsl_dir_sync(dd, tx);
-	write_time += gethrtime() - start;
+	}
 
 	/*
 	 * The MOS's space is accounted for in the pool/$MOS
@@ -452,20 +540,10 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		dp->dp_mos_uncompressed_delta = 0;
 	}
 
-	start = gethrtime();
 	if (list_head(&mos->os_dirty_dnodes[txg & TXG_MASK]) != NULL ||
 	    list_head(&mos->os_free_dnodes[txg & TXG_MASK]) != NULL) {
-		zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-		dmu_objset_sync(mos, zio, tx);
-		err = zio_wait(zio);
-		ASSERT(err == 0);
-		dprintf_bp(&dp->dp_meta_rootbp, "meta objset rootbp is %s", "");
-		spa_set_rootblkptr(dp->dp_spa, &dp->dp_meta_rootbp);
+		dsl_pool_sync_mos(dp, tx);
 	}
-	write_time += gethrtime() - start;
-	DTRACE_PROBE2(pool_sync__4io, hrtime_t, write_time,
-	    hrtime_t, dp->dp_read_overhead);
-	write_time -= dp->dp_read_overhead;
 
 	/*
 	 * If we modify a dataset in the same txg that we want to destroy it,
@@ -476,72 +554,29 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * The MOS data dirtied by the sync_tasks will be synced on the next
 	 * pass.
 	 */
-	DTRACE_PROBE(pool_sync__3task);
 	if (!txg_list_empty(&dp->dp_sync_tasks, txg)) {
 		dsl_sync_task_t *dst;
 		/*
 		 * No more sync tasks should have been added while we
 		 * were syncing.
 		 */
-		ASSERT(spa_sync_pass(dp->dp_spa) == 1);
-		while ((dst = txg_list_remove(&dp->dp_sync_tasks, txg)))
+		ASSERT3U(spa_sync_pass(dp->dp_spa), ==, 1);
+		while ((dst = txg_list_remove(&dp->dp_sync_tasks, txg)) != NULL)
 			dsl_sync_task_sync(dst, tx);
 	}
 
 	dmu_tx_commit(tx);
 
-	dp->dp_space_towrite[txg & TXG_MASK] = 0;
-	ASSERT(dp->dp_tempreserved[txg & TXG_MASK] == 0);
-
-	/*
-	 * If the write limit max has not been explicitly set, set it
-	 * to a fraction of available physical memory (default 1/8th).
-	 * Note that we must inflate the limit because the spa
-	 * inflates write sizes to account for data replication.
-	 * Check this each sync phase to catch changing memory size.
-	 */
-	if (physmem != old_physmem && zfs_write_limit_shift) {
-		mutex_enter(&zfs_write_limit_lock);
-		old_physmem = physmem;
-		zfs_write_limit_max = ptob(physmem) >> zfs_write_limit_shift;
-		zfs_write_limit_inflated = MAX(zfs_write_limit_min,
-		    spa_get_asize(dp->dp_spa, zfs_write_limit_max));
-		mutex_exit(&zfs_write_limit_lock);
-	}
-
-	/*
-	 * Attempt to keep the sync time consistent by adjusting the
-	 * amount of write traffic allowed into each transaction group.
-	 * Weight the throughput calculation towards the current value:
-	 * 	thru = 3/4 old_thru + 1/4 new_thru
-	 *
-	 * Note: write_time is in nanosecs while dp_throughput is expressed in
-	 * bytes per millisecond.
-	 */
-	ASSERT(zfs_write_limit_min > 0);
-	if (data_written > zfs_write_limit_min / 8 &&
-	    write_time > MSEC2NSEC(1)) {
-		uint64_t throughput = data_written / NSEC2MSEC(write_time);
-
-		if (dp->dp_throughput)
-			dp->dp_throughput = throughput / 4 +
-			    3 * dp->dp_throughput / 4;
-		else
-			dp->dp_throughput = throughput;
-		dp->dp_write_limit = MIN(zfs_write_limit_inflated,
-		    MAX(zfs_write_limit_min,
-		    dp->dp_throughput * zfs_txg_synctime_ms));
-	}
+	DTRACE_PROBE2(dsl_pool_sync__done, dsl_pool_t *dp, dp, uint64_t, txg);
 }
 
 void
 dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 {
 	zilog_t *zilog;
-	dsl_dataset_t *ds;
 
 	while ((zilog = txg_list_remove(&dp->dp_dirty_zilogs, txg))) {
-		ds = dmu_objset_ds(zilog->zl_os);
+		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 		zil_clean(zilog, txg);
 		ASSERT(!dmu_objset_is_dirty(zilog->zl_os, txg));
 		dmu_buf_rele(ds->ds_dbuf, zilog);
@@ -583,84 +618,49 @@ dsl_pool_adjustedsize(dsl_pool_t *dp, boolean_t netfree)
 	return (space - resv);
 }
 
-int
-dsl_pool_tempreserve_space(dsl_pool_t *dp, uint64_t space, dmu_tx_t *tx)
+boolean_t
+dsl_pool_need_dirty_delay(dsl_pool_t *dp)
 {
-	uint64_t reserved = 0;
-	uint64_t write_limit = (zfs_write_limit_override ?
-	    zfs_write_limit_override : dp->dp_write_limit);
+	uint64_t delay_min_bytes =
+	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
+	boolean_t rv;
 
-	if (zfs_no_write_throttle) {
-		atomic_add_64(&dp->dp_tempreserved[tx->tx_txg & TXG_MASK],
-		    space);
-		return (0);
-	}
-
-	/*
-	 * Check to see if we have exceeded the maximum allowed IO for
-	 * this transaction group.  We can do this without locks since
-	 * a little slop here is ok.  Note that we do the reserved check
-	 * with only half the requested reserve: this is because the
-	 * reserve requests are worst-case, and we really don't want to
-	 * throttle based off of worst-case estimates.
-	 */
-	if (write_limit > 0) {
-		reserved = dp->dp_space_towrite[tx->tx_txg & TXG_MASK]
-		    + dp->dp_tempreserved[tx->tx_txg & TXG_MASK] / 2;
-
-		if (reserved && reserved > write_limit) {
-			DMU_TX_STAT_BUMP(dmu_tx_write_limit);
-			return (SET_ERROR(ERESTART));
-		}
-	}
-
-	atomic_add_64(&dp->dp_tempreserved[tx->tx_txg & TXG_MASK], space);
-
-	/*
-	 * If this transaction group is over 7/8ths capacity, delay
-	 * the caller 1 clock tick.  This will slow down the "fill"
-	 * rate until the sync process can catch up with us.
-	 */
-	if (reserved && reserved > (write_limit - (write_limit >> 3))) {
-		txg_delay(dp, tx->tx_txg, zfs_throttle_delay,
-		    zfs_throttle_resolution);
-	}
-
-	return (0);
+	mutex_enter(&dp->dp_lock);
+	if (dp->dp_dirty_total > zfs_dirty_data_sync)
+		txg_kick(dp);
+	rv = (dp->dp_dirty_total > delay_min_bytes);
+	mutex_exit(&dp->dp_lock);
+	return (rv);
 }
 
 void
-dsl_pool_tempreserve_clear(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx)
-{
-	ASSERT(dp->dp_tempreserved[tx->tx_txg & TXG_MASK] >= space);
-	atomic_add_64(&dp->dp_tempreserved[tx->tx_txg & TXG_MASK], -space);
-}
-
-void
-dsl_pool_memory_pressure(dsl_pool_t *dp)
-{
-	uint64_t space_inuse = 0;
-	int i;
-
-	if (dp->dp_write_limit == zfs_write_limit_min)
-		return;
-
-	for (i = 0; i < TXG_SIZE; i++) {
-		space_inuse += dp->dp_space_towrite[i];
-		space_inuse += dp->dp_tempreserved[i];
-	}
-	dp->dp_write_limit = MAX(zfs_write_limit_min,
-	    MIN(dp->dp_write_limit, space_inuse / 4));
-}
-
-void
-dsl_pool_willuse_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx)
+dsl_pool_dirty_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx)
 {
 	if (space > 0) {
 		mutex_enter(&dp->dp_lock);
-		dp->dp_space_towrite[tx->tx_txg & TXG_MASK] += space;
+		dp->dp_dirty_pertxg[tx->tx_txg & TXG_MASK] += space;
+		dsl_pool_dirty_delta(dp, space);
 		mutex_exit(&dp->dp_lock);
 	}
+}
+
+void
+dsl_pool_undirty_space(dsl_pool_t *dp, int64_t space, uint64_t txg)
+{
+	ASSERT3S(space, >=, 0);
+	if (space == 0)
+		return;
+
+	mutex_enter(&dp->dp_lock);
+	if (dp->dp_dirty_pertxg[txg & TXG_MASK] < space) {
+		/* XXX writing something we didn't dirty? */
+		space = dp->dp_dirty_pertxg[txg & TXG_MASK];
+	}
+	ASSERT3U(dp->dp_dirty_pertxg[txg & TXG_MASK], >=, space);
+	dp->dp_dirty_pertxg[txg & TXG_MASK] -= space;
+	ASSERT3U(dp->dp_dirty_total, >=, space);
+	dsl_pool_dirty_delta(dp, -space);
+	mutex_exit(&dp->dp_lock);
 }
 
 /* ARGSUSED */
@@ -1049,24 +1049,29 @@ dsl_pool_config_held(dsl_pool_t *dp)
 EXPORT_SYMBOL(dsl_pool_config_enter);
 EXPORT_SYMBOL(dsl_pool_config_exit);
 
-module_param(zfs_no_write_throttle, int, 0644);
-MODULE_PARM_DESC(zfs_no_write_throttle, "Disable write throttling");
+/* zfs_dirty_data_max_percent only applied at module load in arc_init(). */
+module_param(zfs_dirty_data_max_percent, int, 0444);
+MODULE_PARM_DESC(zfs_dirty_data_max_percent, "percent of ram can be dirty");
 
-module_param(zfs_write_limit_shift, int, 0444);
-MODULE_PARM_DESC(zfs_write_limit_shift, "log2(fraction of memory) per txg");
+/* zfs_dirty_data_max_max_percent only applied at module load in arc_init(). */
+module_param(zfs_dirty_data_max_max_percent, int, 0444);
+MODULE_PARM_DESC(zfs_dirty_data_max_max_percent,
+	"zfs_dirty_data_max upper bound as % of RAM");
 
-module_param(zfs_txg_synctime_ms, int, 0644);
-MODULE_PARM_DESC(zfs_txg_synctime_ms, "Target milliseconds between txg sync");
+module_param(zfs_delay_min_dirty_percent, int, 0644);
+MODULE_PARM_DESC(zfs_delay_min_dirty_percent, "transaction delay threshold");
 
-module_param(zfs_write_limit_min, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_min, "Min txg write limit");
+module_param(zfs_dirty_data_max, ulong, 0644);
+MODULE_PARM_DESC(zfs_dirty_data_max, "determines the dirty space limit");
 
-module_param(zfs_write_limit_max, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_max, "Max txg write limit");
+/* zfs_dirty_data_max_max only applied at module load in arc_init(). */
+module_param(zfs_dirty_data_max_max, ulong, 0444);
+MODULE_PARM_DESC(zfs_dirty_data_max_max,
+	"zfs_dirty_data_max upper bound in bytes");
 
-module_param(zfs_write_limit_inflated, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_inflated, "Inflated txg write limit");
+module_param(zfs_dirty_data_sync, ulong, 0644);
+MODULE_PARM_DESC(zfs_dirty_data_sync, "sync txg when this much dirty data");
 
-module_param(zfs_write_limit_override, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_override, "Override txg write limit");
+module_param(zfs_delay_scale, ulong, 0644);
+MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");
 #endif

@@ -31,9 +31,6 @@
 #include <sys/stat.h>
 #include <libzfs.h>
 #include <locale.h>
-#ifdef HAVE_LIBSELINUX
-#include <selinux/selinux.h>
-#endif /* HAVE_LIBSELINUX */
 
 libzfs_handle_t *g_zfs;
 
@@ -61,6 +58,10 @@ static const option_map_t option_map[] = {
 	{ MNTOPT_SYNC,		MS_SYNCHRONOUS,	ZS_COMMENT	},
 	{ MNTOPT_USER,		MS_USERS,	ZS_COMMENT	},
 	{ MNTOPT_USERS,		MS_USERS,	ZS_COMMENT	},
+	/* acl flags passed with util-linux-2.24 mount command */
+	{ MNTOPT_ACL,		MS_POSIXACL,	ZS_COMMENT	},
+	{ MNTOPT_NOACL,		MS_COMMENT,	ZS_COMMENT	},
+	{ MNTOPT_POSIXACL,	MS_POSIXACL,	ZS_COMMENT	},
 #ifdef MS_NOATIME
 	{ MNTOPT_NOATIME,	MS_NOATIME,	ZS_COMMENT	},
 #endif
@@ -73,11 +74,10 @@ static const option_map_t option_map[] = {
 #ifdef MS_STRICTATIME
 	{ MNTOPT_DFRATIME,	MS_STRICTATIME,	ZS_COMMENT	},
 #endif
-	{ MNTOPT_CONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
-	{ MNTOPT_NOCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
-	{ MNTOPT_FSCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
-	{ MNTOPT_DEFCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
-	{ MNTOPT_ROOTCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
+	{ MNTOPT_CONTEXT,	MS_COMMENT,	ZS_COMMENT	},
+	{ MNTOPT_FSCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
+	{ MNTOPT_DEFCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
+	{ MNTOPT_ROOTCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
 #ifdef MS_I_VERSION
 	{ MNTOPT_IVERSION,	MS_I_VERSION,	ZS_COMMENT	},
 #endif
@@ -268,7 +268,7 @@ out:
 	len = strlen(cwd);
 
 	/* Do not add one when cwd already ends in a trailing '/' */
-	if (!strncmp(cwd, dataset, len))
+	if (strncmp(cwd, dataset, len) == 0)
 		return (dataset + len + (cwd[len-1] != '/'));
 
 	return (dataset);
@@ -334,11 +334,35 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	return (MOUNT_SUCCESS);
 }
 
+static void
+__zfs_selinux_setcontext(const char *name, const char *context, char *mntopts,
+    char *mtabopt)
+{
+	char tmp[MNT_LINE_MAX];
+
+	snprintf(tmp, MNT_LINE_MAX, ",%s=\"%s\"", name, context);
+	strlcat(mntopts, tmp, MNT_LINE_MAX);
+	strlcat(mtabopt, tmp, MNT_LINE_MAX);
+}
+
+static void
+zfs_selinux_setcontext(zfs_handle_t *zhp, zfs_prop_t zpt, const char *name,
+    char *mntopts, char *mtabopt)
+{
+	char context[ZFS_MAXPROPLEN];
+
+	if (zfs_prop_get(zhp, zpt, context, sizeof (context),
+	    NULL, NULL, 0, B_FALSE) == 0) {
+		if (strcmp(context, "none") != 0)
+		    __zfs_selinux_setcontext(name, context, mntopts, mtabopt);
+	}
+}
+
 int
 main(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
-	char legacy[ZFS_MAXPROPLEN];
+	char prop[ZFS_MAXPROPLEN];
 	char mntopts[MNT_LINE_MAX] = { '\0' };
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char mtabopt[MNT_LINE_MAX] = { '\0' };
@@ -420,7 +444,7 @@ main(int argc, char **argv)
 			return (MOUNT_SYSERR);
 		case ENOENT:
 			(void) fprintf(stderr, gettext("filesystem '%s' "
-			    "cannot be mounted of due invalid option "
+			    "cannot be mounted due to invalid option "
 			    "'%s'.\n"), dataset, badopt);
 			(void) fprintf(stderr, gettext("Use the '-s' option "
 			    "to ignore the bad mount option.\n"));
@@ -432,22 +456,6 @@ main(int argc, char **argv)
 			return (MOUNT_SOFTWARE);
 		}
 	}
-
-#ifdef HAVE_LIBSELINUX
-	/*
-	 * Automatically add the default zfs context when selinux is enabled
-	 * and the caller has not specified their own context.  This must be
-	 * done until zfs is added to the default selinux policy configuration
-	 * as a known filesystem type which supports xattrs.
-	 */
-        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT)) {
-                (void) strlcat(mntopts, ",context=\"system_u:"
-                    "object_r:file_t:s0\"", sizeof (mntopts));
-                (void) strlcat(mtabopt, ",context=\"system_u:"
-                    "object_r:file_t:s0\"", sizeof (mtabopt));
-	}
-#endif /* HAVE_LIBSELINUX */
-
 
 	if (verbose)
 		(void) fprintf(stdout, gettext("mount.zfs:\n"
@@ -476,12 +484,36 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
+	/*
+	 * Checks to see if the ZFS_PROP_SELINUX_CONTEXT exists
+	 * if it does, create a tmp variable in case it's needed
+	 * checks to see if the selinux context is set to the default
+	 * if it is, allow the setting of the other context properties
+	 * this is needed because the 'context' property overrides others
+	 * if it is not the default, set the 'context' property
+	 */
+	if (zfs_prop_get(zhp, ZFS_PROP_SELINUX_CONTEXT, prop, sizeof (prop),
+	    NULL, NULL, 0, B_FALSE) == 0) {
+		if (strcmp(prop, "none") == 0) {
+			zfs_selinux_setcontext(zhp, ZFS_PROP_SELINUX_FSCONTEXT,
+			    MNTOPT_FSCONTEXT, mntopts, mtabopt);
+			zfs_selinux_setcontext(zhp, ZFS_PROP_SELINUX_DEFCONTEXT,
+			    MNTOPT_DEFCONTEXT, mntopts, mtabopt);
+			zfs_selinux_setcontext(zhp,
+			    ZFS_PROP_SELINUX_ROOTCONTEXT, MNTOPT_ROOTCONTEXT,
+			    mntopts, mtabopt);
+		} else {
+			__zfs_selinux_setcontext(MNTOPT_CONTEXT,
+			    prop, mntopts, mtabopt);
+		}
+	}
+
 	/* treat all snapshots as legacy mount points */
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT)
-		(void) strlcpy(legacy, ZFS_MOUNTPOINT_LEGACY, ZFS_MAXPROPLEN);
+		(void) strlcpy(prop, ZFS_MOUNTPOINT_LEGACY, ZFS_MAXPROPLEN);
 	else
-		(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, legacy,
-		    sizeof (legacy), NULL, NULL, 0, B_FALSE);
+		(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, prop,
+		    sizeof (prop), NULL, NULL, 0, B_FALSE);
 
 	zfs_close(zhp);
 	libzfs_fini(g_zfs);
@@ -497,17 +529,17 @@ main(int argc, char **argv)
 	 * using zfs as your root file system both rc.sysinit/umountroot and
 	 * systemd depend on 'mount -o remount <mountpoint>' to work.
 	 */
-	if (zfsutil && !strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
+	if (zfsutil && (strcmp(prop, ZFS_MOUNTPOINT_LEGACY) == 0)) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' cannot be mounted using 'zfs mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'mount -t zfs %s %s'.\n"
 		    "See zfs(8) for more information.\n"),
-		   dataset, mntpoint, dataset, mntpoint);
+		    dataset, mntpoint, dataset, mntpoint);
 		return (MOUNT_USAGE);
 	}
 
 	if (!zfsutil && !(remount || fake) &&
-	    strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
+	    strcmp(prop, ZFS_MOUNTPOINT_LEGACY)) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' cannot be mounted using 'mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'zfs mount %s'.\n"

@@ -35,93 +35,121 @@ extern "C" {
 #if defined(__x86_64) || defined(__x86_64__)
 
 #if !defined(__x86_64)
-#define __x86_64
+#define	__x86_64
 #endif
 
 #if !defined(__amd64)
-#define __amd64
+#define	__amd64
 #endif
 
 #if !defined(__x86)
-#define __x86
+#define	__x86
 #endif
 
 #if !defined(_LP64)
-#define _LP64
+#define	_LP64
 #endif
 
 #if !defined(_LITTLE_ENDIAN)
-#define _LITTLE_ENDIAN
+#define	_LITTLE_ENDIAN
 #endif
 
-#define        _SUNOS_VTOC_16
+#define	_SUNOS_VTOC_16
 
 /* i386 arch specific defines */
 #elif defined(__i386) || defined(__i386__)
 
 #if !defined(__i386)
-#define __i386
+#define	__i386
 #endif
 
 #if !defined(__x86)
-#define __x86
+#define	__x86
 #endif
 
 #if !defined(_ILP32)
-#define _ILP32
+#define	_ILP32
 #endif
 
 #if !defined(_LITTLE_ENDIAN)
-#define _LITTLE_ENDIAN
+#define	_LITTLE_ENDIAN
 #endif
 
-#define        _SUNOS_VTOC_16
+#define	_SUNOS_VTOC_16
 
 /* powerpc arch specific defines */
 #elif defined(__powerpc) || defined(__powerpc__)
 
 #if !defined(__powerpc)
-#define __powerpc
+#define	__powerpc
 #endif
 
 #if !defined(__powerpc__)
-#define __powerpc__
+#define	__powerpc__
 #endif
 
 #if !defined(_LP64)
 #ifdef __powerpc64__
-#define _LP64
+#define	_LP64
 #else
-#define _LP32
+#define	_LP32
 #endif
 #endif
 
 #if !defined(_BIG_ENDIAN)
-#define _BIG_ENDIAN
+#define	_BIG_ENDIAN
 #endif
 
-#define        _SUNOS_VTOC_16
+#define	_SUNOS_VTOC_16
 
 /* arm arch specific defines */
 #elif defined(__arm) || defined(__arm__)
 
 #if !defined(__arm)
-#define __arm
+#define	__arm
 #endif
 
 #if !defined(__arm__)
-#define __arm__
+#define	__arm__
 #endif
 
 #if defined(__ARMEL__)
-#define _LITTLE_ENDIAN
+#define	_LITTLE_ENDIAN
 #else
-#define _BIG_ENDIAN
+#define	_BIG_ENDIAN
 #endif
 
-#define        _SUNOS_VTOC_16
+#define	_SUNOS_VTOC_16
 
-#else /* Currently only x86_64, i386, arm, and powerpc arches supported */
+/* sparc arch specific defines */
+#elif defined(__sparc) || defined(__sparc__)
+
+#if !defined(__sparc)
+#define	__sparc
+#endif
+
+#if !defined(__sparc__)
+#define	__sparc__
+#endif
+
+#define	_BIG_ENDIAN
+#define	_SUNOS_VTOC_16
+
+/* sparc64 arch specific defines */
+#elif defined(__sparc64) || defined(__sparc64__)
+
+#if !defined(__sparc64)
+#define	__sparc64
+#endif
+
+#if !defined(__sparc64__)
+#define	__sparc64__
+#endif
+
+#define	_BIG_ENDIAN
+#define	_SUNOS_VTOC_16
+
+#else /* Currently x86_64, i386, arm, powerpc, and sparc are supported */
 #error "Unsupported ISA type"
 #endif
 

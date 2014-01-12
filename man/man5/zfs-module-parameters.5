@@ -1,0 +1,1364 @@
+'\" te
+.\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
+.\" The contents of this file are subject to the terms of the Common Development
+.\" and Distribution License (the "License").  You may not use this file except
+.\" in compliance with the License. You can obtain a copy of the license at
+.\" usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
+.\"
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License. When distributing Covered Code, include this
+.\" CDDL HEADER in each file and include the License file at
+.\" usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this
+.\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
+.\" own identifying information:
+.\" Portions Copyright [yyyy] [name of copyright owner]
+.TH ZFS-MODULE-PARAMETERS 5 "Nov 16, 2013"
+.SH NAME
+zfs\-module\-parameters \- ZFS module parameters
+.SH DESCRIPTION
+.sp
+.LP
+Description of the different parameters to the ZFS module.
+
+.SS "Module parameters"
+.sp
+.LP
+
+.sp
+.ne 2
+.na
+\fBl2arc_feed_again\fR (int)
+.ad
+.RS 12n
+Turbo L2ARC warmup
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_feed_min_ms\fR (ulong)
+.ad
+.RS 12n
+Min feed interval in milliseconds
+.sp
+Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_feed_secs\fR (ulong)
+.ad
+.RS 12n
+Seconds between L2ARC writing
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_headroom\fR (ulong)
+.ad
+.RS 12n
+Number of max device writes to precache
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_headroom_boost\fR (ulong)
+.ad
+.RS 12n
+Compressed l2arc_headroom multiplier
+.sp
+Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_nocompress\fR (int)
+.ad
+.RS 12n
+Skip compressing L2ARC buffers
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_noprefetch\fR (int)
+.ad
+.RS 12n
+Skip caching prefetched buffers
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_norw\fR (int)
+.ad
+.RS 12n
+No reads during writes
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_write_boost\fR (ulong)
+.ad
+.RS 12n
+Extra write bytes during device warmup
+.sp
+Default value: \fB8,388,608\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_write_max\fR (ulong)
+.ad
+.RS 12n
+Max write bytes per interval
+.sp
+Default value: \fB8,388,608\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_debug\fR (int)
+.ad
+.RS 12n
+Keep space maps in core to verify frees
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_config_path\fR (charp)
+.ad
+.RS 12n
+SPA config file
+.sp
+Default value: \fB/etc/zfs/zpool.cache\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_asize_inflation\fR (int)
+.ad
+.RS 12n
+Multiplication factor used to estimate actual disk consumption from the
+size of data being written. The default value is a worst case estimate,
+but lower values may be valid for a given pool depending on its
+configuration.  Pool administrators who understand the factors involved
+may wish to specify a more realistic inflation factor, particularly if
+they operate close to quota or capacity limits.
+.sp
+Default value: 24
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_array_rd_sz\fR (ulong)
+.ad
+.RS 12n
+Number of bytes in a array_read
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_block_cap\fR (uint)
+.ad
+.RS 12n
+Max number of blocks to fetch at a time
+.sp
+Default value: \fB256\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_max_streams\fR (uint)
+.ad
+.RS 12n
+Max number of streams per zfetch
+.sp
+Default value: \fB8\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_min_sec_reap\fR (uint)
+.ad
+.RS 12n
+Min time before stream reclaim
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_grow_retry\fR (int)
+.ad
+.RS 12n
+Seconds before growing arc size
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_max\fR (ulong)
+.ad
+.RS 12n
+Max arc size
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_memory_throttle_disable\fR (int)
+.ad
+.RS 12n
+Disable memory throttle
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_limit\fR (ulong)
+.ad
+.RS 12n
+Meta limit for arc size
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_prune\fR (int)
+.ad
+.RS 12n
+Bytes of meta data to prune
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_min\fR (ulong)
+.ad
+.RS 12n
+Min arc size
+.sp
+Default value: \fB100\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_min_prefetch_lifespan\fR (int)
+.ad
+.RS 12n
+Min life of prefetch block
+.sp
+Default value: \fB100\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_p_min_shift\fR (int)
+.ad
+.RS 12n
+arc_c shift to calc min/max arc_p
+.sp
+Default value: \fB4\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_shrink_shift\fR (int)
+.ad
+.RS 12n
+log2(fraction of arc to reclaim)
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_autoimport_disable\fR (int)
+.ad
+.RS 12n
+Disable pool import at module load
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dbuf_state_index\fR (int)
+.ad
+.RS 12n
+Calculate arc header index
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_enabled\fR (int)
+.ad
+.RS 12n
+Enable deadman timer
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_synctime_ms\fR (ulong)
+.ad
+.RS 12n
+Expiration time in milliseconds. This value has two meanings. First it is
+used to determine when the spa_deadman() logic should fire. By default the
+spa_deadman() will fire if spa_sync() has not completed in 1000 seconds.
+Secondly, the value determines if an I/O is considered "hung". Any I/O that
+has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
+in a zevent being logged.
+.sp
+Default value: \fB1,000,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dedup_prefetch\fR (int)
+.ad
+.RS 12n
+Enable prefetching dedup-ed blks
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_delay_min_dirty_percent\fR (int)
+.ad
+.RS 12n
+Start to delay each transaction once there is this amount of dirty data,
+expressed as a percentage of \fBzfs_dirty_data_max\fR.
+This value should be >= zfs_vdev_async_write_active_max_dirty_percent.
+See the section "ZFS TRANSACTION DELAY".
+.sp
+Default value: \fB60\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_delay_scale\fR (int)
+.ad
+.RS 12n
+This controls how quickly the transaction delay approaches infinity.
+Larger values cause longer delays for a given amount of dirty data.
+.sp
+For the smoothest delay, this value should be about 1 billion divided
+by the maximum number of operations per second.  This will smoothly
+handle between 10x and 1/10th this number.
+.sp
+See the section "ZFS TRANSACTION DELAY".
+.sp
+Note: \fBzfs_delay_scale\fR * \fBzfs_dirty_data_max\fR must be < 2^64.
+.sp
+Default value: \fB500,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dirty_data_max\fR (int)
+.ad
+.RS 12n
+Determines the dirty space limit in bytes.  Once this limit is exceeded, new
+writes are halted until space frees up. This parameter takes precedence
+over \fBzfs_dirty_data_max_percent\fR.
+See the section "ZFS TRANSACTION DELAY".
+.sp
+Default value: 10 percent of all memory, capped at \fBzfs_dirty_data_max_max\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dirty_data_max_max\fR (int)
+.ad
+.RS 12n
+Maximum allowable value of \fBzfs_dirty_data_max\fR, expressed in bytes.
+This limit is only enforced at module load time, and will be ignored if
+\fBzfs_dirty_data_max\fR is later changed.  This parameter takes
+precedence over \fBzfs_dirty_data_max_max_percent\fR. See the section
+"ZFS TRANSACTION DELAY".
+.sp
+Default value: 25% of physical RAM.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dirty_data_max_max_percent\fR (int)
+.ad
+.RS 12n
+Maximum allowable value of \fBzfs_dirty_data_max\fR, expressed as a
+percentage of physical RAM.  This limit is only enforced at module load
+time, and will be ignored if \fBzfs_dirty_data_max\fR is later changed.
+The parameter \fBzfs_dirty_data_max_max\fR takes precedence over this
+one. See the section "ZFS TRANSACTION DELAY".
+.sp
+Default value: 25
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dirty_data_max_percent\fR (int)
+.ad
+.RS 12n
+Determines the dirty space limit, expressed as a percentage of all
+memory.  Once this limit is exceeded, new writes are halted until space frees
+up.  The parameter \fBzfs_dirty_data_max\fR takes precedence over this
+one.  See the section "ZFS TRANSACTION DELAY".
+.sp
+Default value: 10%, subject to \fBzfs_dirty_data_max_max\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dirty_data_sync\fR (int)
+.ad
+.RS 12n
+Start syncing out a transaction group if there is at least this much dirty data.
+.sp
+Default value: \fB67,108,864\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_async_read_max_active\fR (int)
+.ad
+.RS 12n
+Maxium asynchronous read I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB3\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_async_read_min_active\fR (int)
+.ad
+.RS 12n
+Minimum asynchronous read I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_async_write_active_max_dirty_percent\fR (int)
+.ad
+.RS 12n
+When the pool has more than
+\fBzfs_vdev_async_write_active_max_dirty_percent\fR dirty data, use
+\fBzfs_vdev_async_write_max_active\fR to limit active async writes.  If
+the dirty data is between min and max, the active I/O limit is linearly
+interpolated. See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB60\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_async_write_active_min_dirty_percent\fR (int)
+.ad
+.RS 12n
+When the pool has less than
+\fBzfs_vdev_async_write_active_min_dirty_percent\fR dirty data, use
+\fBzfs_vdev_async_write_min_active\fR to limit active async writes.  If
+the dirty data is between min and max, the active I/O limit is linearly
+interpolated. See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB30\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_async_write_max_active\fR (int)
+.ad
+.RS 12n
+Maxium asynchronous write I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_async_write_min_active\fR (int)
+.ad
+.RS 12n
+Minimum asynchronous write I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_max_active\fR (int)
+.ad
+.RS 12n
+The maximum number of I/Os active to each device.  Ideally, this will be >=
+the sum of each queue's max_active.  It must be at least the sum of each
+queue's min_active.  See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_scrub_max_active\fR (int)
+.ad
+.RS 12n
+Maxium scrub I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_scrub_min_active\fR (int)
+.ad
+.RS 12n
+Minimum scrub I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_sync_read_max_active\fR (int)
+.ad
+.RS 12n
+Maxium synchronous read I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_sync_read_min_active\fR (int)
+.ad
+.RS 12n
+Minimum synchronous read I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_sync_write_max_active\fR (int)
+.ad
+.RS 12n
+Maxium synchronous write I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_sync_write_min_active\fR (int)
+.ad
+.RS 12n
+Minimum synchronous write I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_disable_dup_eviction\fR (int)
+.ad
+.RS 12n
+Disable duplicate buffer eviction
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_expire_snapshot\fR (int)
+.ad
+.RS 12n
+Seconds to expire .zfs/snapshot
+.sp
+Default value: \fB300\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_flags\fR (int)
+.ad
+.RS 12n
+Set additional debugging flags
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_free_min_time_ms\fR (int)
+.ad
+.RS 12n
+Min millisecs to free per txg
+.sp
+Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_immediate_write_sz\fR (long)
+.ad
+.RS 12n
+Largest data block to write to zil
+.sp
+Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_mdcomp_disable\fR (int)
+.ad
+.RS 12n
+Disable meta data compression
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_no_scrub_io\fR (int)
+.ad
+.RS 12n
+Set for no scrub I/O
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_no_scrub_prefetch\fR (int)
+.ad
+.RS 12n
+Set for no scrub prefetching
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_nocacheflush\fR (int)
+.ad
+.RS 12n
+Disable cache flushes
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_nopwrite_enabled\fR (int)
+.ad
+.RS 12n
+Enable NOP writes
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_pd_blks_max\fR (int)
+.ad
+.RS 12n
+Max number of blocks to prefetch
+.sp
+Default value: \fB100\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_prefetch_disable\fR (int)
+.ad
+.RS 12n
+Disable all ZFS prefetching
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_read_chunk_size\fR (long)
+.ad
+.RS 12n
+Bytes to read per chunk
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_read_history\fR (int)
+.ad
+.RS 12n
+Historic statistics for the last N reads
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_read_history_hits\fR (int)
+.ad
+.RS 12n
+Include cache hits in read history
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_recover\fR (int)
+.ad
+.RS 12n
+Set to attempt to recover from fatal errors. This should only be used as a
+last resort, as it typically results in leaked space, or worse.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_resilver_delay\fR (int)
+.ad
+.RS 12n
+Number of ticks to delay resilver
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_resilver_min_time_ms\fR (int)
+.ad
+.RS 12n
+Min millisecs to resilver per txg
+.sp
+Default value: \fB3,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_idle\fR (int)
+.ad
+.RS 12n
+Idle window in clock ticks
+.sp
+Default value: \fB50\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_min_time_ms\fR (int)
+.ad
+.RS 12n
+Min millisecs to scrub per txg
+.sp
+Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scrub_delay\fR (int)
+.ad
+.RS 12n
+Number of ticks to delay scrub
+.sp
+Default value: \fB4\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_send_corrupt_data\fR (int)
+.ad
+.RS 12n
+Allow to send corrupt data (ignore read/checksum errors when sending data)
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_sync_pass_deferred_free\fR (int)
+.ad
+.RS 12n
+Defer frees starting in this pass
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_sync_pass_dont_compress\fR (int)
+.ad
+.RS 12n
+Don't compress starting in this pass
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_sync_pass_rewrite\fR (int)
+.ad
+.RS 12n
+Rewrite new bps starting in this pass
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_top_maxinflight\fR (int)
+.ad
+.RS 12n
+Max I/Os per top-level
+.sp
+Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_txg_history\fR (int)
+.ad
+.RS 12n
+Historic statistics for the last N txgs
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_txg_timeout\fR (int)
+.ad
+.RS 12n
+Max seconds worth of delta per txg
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_aggregation_limit\fR (int)
+.ad
+.RS 12n
+Max vdev I/O aggregation size
+.sp
+Default value: \fB131,072\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_cache_bshift\fR (int)
+.ad
+.RS 12n
+Shift size to inflate reads too
+.sp
+Default value: \fB16\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_cache_max\fR (int)
+.ad
+.RS 12n
+Inflate reads small than max
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_cache_size\fR (int)
+.ad
+.RS 12n
+Total size of the per-disk cache
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_switch_us\fR (int)
+.ad
+.RS 12n
+Switch mirrors every N usecs
+.sp
+Default value: \fB10,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_read_gap_limit\fR (int)
+.ad
+.RS 12n
+Aggregate read I/O over gap
+.sp
+Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_scheduler\fR (charp)
+.ad
+.RS 12n
+I/O scheduler
+.sp
+Default value: \fBnoop\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_write_gap_limit\fR (int)
+.ad
+.RS 12n
+Aggregate write I/O over gap
+.sp
+Default value: \fB4,096\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_cols\fR (int)
+.ad
+.RS 12n
+Max event column width
+.sp
+Default value: \fB80\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_console\fR (int)
+.ad
+.RS 12n
+Log events to the console
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_len_max\fR (int)
+.ad
+.RS 12n
+Max event queue length
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzil_replay_disable\fR (int)
+.ad
+.RS 12n
+Disable intent logging replay
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzil_slog_limit\fR (ulong)
+.ad
+.RS 12n
+Max commit bytes to separate log device
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_bulk_flags\fR (int)
+.ad
+.RS 12n
+Additional flags to pass to bulk buffers
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_delay_max\fR (int)
+.ad
+.RS 12n
+Max zio millisec delay before posting event
+.sp
+Default value: \fB30,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_injection_enabled\fR (int)
+.ad
+.RS 12n
+Enable fault injection
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_requeue_io_start_cut_in_line\fR (int)
+.ad
+.RS 12n
+Prioritize requeued I/O
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_inhibit_dev\fR (uint)
+.ad
+.RS 12n
+Do not create zvol device nodes
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_major\fR (uint)
+.ad
+.RS 12n
+Major number for zvol device
+.sp
+Default value: \fB230\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_max_discard_blocks\fR (ulong)
+.ad
+.RS 12n
+Max number of blocks to discard at once
+.sp
+Default value: \fB16,384\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_threads\fR (uint)
+.ad
+.RS 12n
+Number of threads for zvol device
+.sp
+Default value: \fB32\fR.
+.RE
+
+.SH ZFS I/O SCHEDULER
+ZFS issues I/O operations to leaf vdevs to satisfy and complete I/Os.
+The I/O scheduler determines when and in what order those operations are
+issued.  The I/O scheduler divides operations into five I/O classes
+prioritized in the following order: sync read, sync write, async read,
+async write, and scrub/resilver.  Each queue defines the minimum and
+maximum number of concurrent operations that may be issued to the
+device.  In addition, the device has an aggregate maximum,
+\fBzfs_vdev_max_active\fR. Note that the sum of the per-queue minimums
+must not exceed the aggregate maximum.  If the sum of the per-queue
+maximums exceeds the aggregate maximum, then the number of active I/Os
+may reach \fBzfs_vdev_max_active\fR, in which case no further I/Os will
+be issued regardless of whether all per-queue minimums have been met.
+.sp
+For many physical devices, throughput increases with the number of
+concurrent operations, but latency typically suffers. Further, physical
+devices typically have a limit at which more concurrent operations have no
+effect on throughput or can actually cause it to decrease.
+.sp
+The scheduler selects the next operation to issue by first looking for an
+I/O class whose minimum has not been satisfied. Once all are satisfied and
+the aggregate maximum has not been hit, the scheduler looks for classes
+whose maximum has not been satisfied. Iteration through the I/O classes is
+done in the order specified above. No further operations are issued if the
+aggregate maximum number of concurrent operations has been hit or if there
+are no operations queued for an I/O class that has not hit its maximum.
+Every time an I/O is queued or an operation completes, the I/O scheduler
+looks for new operations to issue.
+.sp
+In general, smaller max_active's will lead to lower latency of synchronous
+operations.  Larger max_active's may lead to higher overall throughput,
+depending on underlying storage.
+.sp
+The ratio of the queues' max_actives determines the balance of performance
+between reads, writes, and scrubs.  E.g., increasing
+\fBzfs_vdev_scrub_max_active\fR will cause the scrub or resilver to complete
+more quickly, but reads and writes to have higher latency and lower throughput.
+.sp
+All I/O classes have a fixed maximum number of outstanding operations
+except for the async write class. Asynchronous writes represent the data
+that is committed to stable storage during the syncing stage for
+transaction groups. Transaction groups enter the syncing state
+periodically so the number of queued async writes will quickly burst up
+and then bleed down to zero. Rather than servicing them as quickly as
+possible, the I/O scheduler changes the maximum number of active async
+write I/Os according to the amount of dirty data in the pool.  Since
+both throughput and latency typically increase with the number of
+concurrent operations issued to physical devices, reducing the
+burstiness in the number of concurrent operations also stabilizes the
+response time of operations from other -- and in particular synchronous
+-- queues. In broad strokes, the I/O scheduler will issue more
+concurrent operations from the async write queue as there's more dirty
+data in the pool.
+.sp
+Async Writes
+.sp
+The number of concurrent operations issued for the async write I/O class
+follows a piece-wise linear function defined by a few adjustable points.
+.nf
+
+       |              o---------| <-- zfs_vdev_async_write_max_active
+  ^    |             /^         |
+  |    |            / |         |
+active |           /  |         |
+ I/O   |          /   |         |
+count  |         /    |         |
+       |        /     |         |
+       |-------o      |         | <-- zfs_vdev_async_write_min_active
+      0|_______^______|_________|
+       0%      |      |       100% of zfs_dirty_data_max
+               |      |
+               |      `-- zfs_vdev_async_write_active_max_dirty_percent
+               `--------- zfs_vdev_async_write_active_min_dirty_percent
+
+.fi
+Until the amount of dirty data exceeds a minimum percentage of the dirty
+data allowed in the pool, the I/O scheduler will limit the number of
+concurrent operations to the minimum. As that threshold is crossed, the
+number of concurrent operations issued increases linearly to the maximum at
+the specified maximum percentage of the dirty data allowed in the pool.
+.sp
+Ideally, the amount of dirty data on a busy pool will stay in the sloped
+part of the function between \fBzfs_vdev_async_write_active_min_dirty_percent\fR
+and \fBzfs_vdev_async_write_active_max_dirty_percent\fR. If it exceeds the
+maximum percentage, this indicates that the rate of incoming data is
+greater than the rate that the backend storage can handle. In this case, we
+must further throttle incoming writes, as described in the next section.
+
+.SH ZFS TRANSACTION DELAY
+We delay transactions when we've determined that the backend storage
+isn't able to accommodate the rate of incoming writes.
+.sp
+If there is already a transaction waiting, we delay relative to when
+that transaction will finish waiting.  This way the calculated delay time
+is independent of the number of threads concurrently executing
+transactions.
+.sp
+If we are the only waiter, wait relative to when the transaction
+started, rather than the current time.  This credits the transaction for
+"time already served", e.g. reading indirect blocks.
+.sp
+The minimum time for a transaction to take is calculated as:
+.nf
+    min_time = zfs_delay_scale * (dirty - min) / (max - dirty)
+    min_time is then capped at 100 milliseconds.
+.fi
+.sp
+The delay has two degrees of freedom that can be adjusted via tunables.  The
+percentage of dirty data at which we start to delay is defined by
+\fBzfs_delay_min_dirty_percent\fR. This should typically be at or above
+\fBzfs_vdev_async_write_active_max_dirty_percent\fR so that we only start to
+delay after writing at full speed has failed to keep up with the incoming write
+rate. The scale of the curve is defined by \fBzfs_delay_scale\fR. Roughly speaking,
+this variable determines the amount of delay at the midpoint of the curve.
+.sp
+.nf
+delay
+ 10ms +-------------------------------------------------------------*+
+      |                                                             *|
+  9ms +                                                             *+
+      |                                                             *|
+  8ms +                                                             *+
+      |                                                            * |
+  7ms +                                                            * +
+      |                                                            * |
+  6ms +                                                            * +
+      |                                                            * |
+  5ms +                                                           *  +
+      |                                                           *  |
+  4ms +                                                           *  +
+      |                                                           *  |
+  3ms +                                                          *   +
+      |                                                          *   |
+  2ms +                                              (midpoint) *    +
+      |                                                  |    **     |
+  1ms +                                                  v ***       +
+      |             zfs_delay_scale ---------->     ********         |
+    0 +-------------------------------------*********----------------+
+      0%                    <- zfs_dirty_data_max ->               100%
+.fi
+.sp
+Note that since the delay is added to the outstanding time remaining on the
+most recent transaction, the delay is effectively the inverse of IOPS.
+Here the midpoint of 500us translates to 2000 IOPS. The shape of the curve
+was chosen such that small changes in the amount of accumulated dirty data
+in the first 3/4 of the curve yield relatively small differences in the
+amount of delay.
+.sp
+The effects can be easier to understand when the amount of delay is
+represented on a log scale:
+.sp
+.nf
+delay
+100ms +-------------------------------------------------------------++
+      +                                                              +
+      |                                                              |
+      +                                                             *+
+ 10ms +                                                             *+
+      +                                                           ** +
+      |                                              (midpoint)  **  |
+      +                                                  |     **    +
+  1ms +                                                  v ****      +
+      +             zfs_delay_scale ---------->        *****         +
+      |                                             ****             |
+      +                                          ****                +
+100us +                                        **                    +
+      +                                       *                      +
+      |                                      *                       |
+      +                                     *                        +
+ 10us +                                     *                        +
+      +                                                              +
+      |                                                              |
+      +                                                              +
+      +--------------------------------------------------------------+
+      0%                    <- zfs_dirty_data_max ->               100%
+.fi
+.sp
+Note here that only as the amount of dirty data approaches its limit does
+the delay start to increase rapidly. The goal of a properly tuned system
+should be to keep the amount of dirty data out of that range by first
+ensuring that the appropriate limits are set for the I/O scheduler to reach
+optimal throughput on the backend storage, and then by changing the value
+of \fBzfs_delay_scale\fR to increase the steepness of the curve.

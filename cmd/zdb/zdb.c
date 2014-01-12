@@ -165,7 +165,8 @@ usage(void)
 	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
 	    "searching for uberblocks\n");
 	(void) fprintf(stderr, "        -M <number of inflight I/Os> -- "
-	    "specify the maximum number of checksumming I/Os [default is 200]\n");
+	    "specify the maximum number of checksumming I/Os "
+	    "[default is 200]\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -1319,7 +1320,8 @@ dump_deadlist(dsl_deadlist_t *dl)
 	    dle = AVL_NEXT(&dl->dl_tree, dle)) {
 		if (dump_opt['d'] >= 5) {
 			char buf[128];
-			(void) snprintf(buf, sizeof (buf), "mintxg %llu -> obj %llu",
+			(void) snprintf(buf, sizeof (buf),
+			    "mintxg %llu -> obj %llu",
 			    (longlong_t)dle->dle_mintxg,
 			    (longlong_t)dle->dle_bpobj.bpo_object);
 
@@ -1436,7 +1438,7 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 
 		(void) printf("\t\t%s = ", nvpair_name(elem));
 		nvpair_value_byte_array(elem, &value, &cnt);
-		for (idx = 0 ; idx < cnt ; ++idx) {
+		for (idx = 0; idx < cnt; ++idx) {
 			if (isprint(value[idx]))
 				(void) putchar(value[idx]);
 			else
@@ -2394,7 +2396,7 @@ dump_block_stats(spa_t *spa)
 	 * it's not part of any space map) is a double allocation,
 	 * reference to a freed block, or an unclaimed log block.
 	 */
-	bzero(&zcb, sizeof(zdb_cb_t));
+	bzero(&zcb, sizeof (zdb_cb_t));
 	zdb_leak_init(spa, &zcb);
 
 	/*

@@ -89,10 +89,14 @@ static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 static int
 vdev_mirror_pending(vdev_t *vd)
 {
-	return avl_numnodes(&vd->vdev_queue.vq_pending_tree);
+	return (avl_numnodes(&vd->vdev_queue.vq_active_tree));
 }
 
-static mirror_map_t *
+/*
+ * Avoid inlining the function to keep vdev_mirror_io_start(), which
+ * is this functions only caller, as small as possible on the stack.
+ */
+noinline static mirror_map_t *
 vdev_mirror_map_alloc(zio_t *zio)
 {
 	mirror_map_t *mm = NULL;
@@ -106,7 +110,8 @@ vdev_mirror_map_alloc(zio_t *zio)
 
 		c = BP_GET_NDVAS(zio->io_bp);
 
-		mm = kmem_zalloc(offsetof(mirror_map_t, mm_child[c]), KM_PUSHPAGE);
+		mm = kmem_zalloc(offsetof(mirror_map_t, mm_child[c]),
+		    KM_PUSHPAGE);
 		mm->mm_children = c;
 		mm->mm_replacing = B_FALSE;
 		mm->mm_preferred = spa_get_random(c);
@@ -136,7 +141,8 @@ vdev_mirror_map_alloc(zio_t *zio)
 
 		c = vd->vdev_children;
 
-		mm = kmem_zalloc(offsetof(mirror_map_t, mm_child[c]), KM_PUSHPAGE);
+		mm = kmem_zalloc(offsetof(mirror_map_t, mm_child[c]),
+		    KM_PUSHPAGE);
 		mm->mm_children = c;
 		mm->mm_replacing = (vd->vdev_ops == &vdev_replacing_ops ||
 		    vd->vdev_ops == &vdev_spare_ops);
@@ -493,7 +499,7 @@ vdev_mirror_io_done(zio_t *zio)
 			zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 			    mc->mc_vd, mc->mc_offset,
 			    zio->io_data, zio->io_size,
-			    ZIO_TYPE_WRITE, zio->io_priority,
+			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
 			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
 		}

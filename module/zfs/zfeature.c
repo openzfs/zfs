@@ -180,8 +180,8 @@ feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
 	zap_attribute_t *za;
 	char *buf;
 
-	zc = kmem_alloc(sizeof(zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof(zap_attribute_t), KM_SLEEP);
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 	buf = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
 	supported = B_TRUE;
@@ -215,8 +215,8 @@ feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
 	zap_cursor_fini(zc);
 
 	kmem_free(buf, MAXPATHLEN);
-	kmem_free(za, sizeof(zap_attribute_t));
-	kmem_free(zc, sizeof(zap_cursor_t));
+	kmem_free(za, sizeof (zap_attribute_t));
+	kmem_free(zc, sizeof (zap_cursor_t));
 
 	return (supported);
 }

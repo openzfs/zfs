@@ -26,7 +26,7 @@
  */
 
 #ifndef _SYS_VDEV_DISK_H
-#define _SYS_VDEV_DISK_H
+#define	_SYS_VDEV_DISK_H
 
 #ifdef _KERNEL
 #include <sys/vdev.h>

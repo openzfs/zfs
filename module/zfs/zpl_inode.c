@@ -42,7 +42,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	int error;
 
 	if (dlen(dentry) > ZFS_MAXNAMELEN)
-		return ERR_PTR(-ENAMETOOLONG);
+		return (ERR_PTR(-ENAMETOOLONG));
 
 	crhold(cr);
 	error = -zfs_lookup(dir, dname(dentry), &ip, 0, cr, NULL, NULL);
@@ -58,12 +58,12 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 
 	if (error) {
 		if (error == -ENOENT)
-			return d_splice_alias(NULL, dentry);
+			return (d_splice_alias(NULL, dentry));
 		else
-			return ERR_PTR(error);
+			return (ERR_PTR(error));
 	}
 
-	return d_splice_alias(ip, dentry);
+	return (d_splice_alias(ip, dentry));
 }
 
 void
@@ -97,7 +97,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	int error;
 
 	crhold(cr);
-	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	zpl_vap_init(vap, dir, mode, cr);
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
@@ -107,7 +107,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 		d_instantiate(dentry, ip);
 	}
 
-	kmem_free(vap, sizeof(vattr_t));
+	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -131,17 +131,18 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 		ASSERT(rdev == 0);
 
 	crhold(cr);
-	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	zpl_vap_init(vap, dir, mode, cr);
 	vap->va_rdev = rdev;
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
+		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
 		VERIFY0(zpl_init_acl(ip, dir));
 		d_instantiate(dentry, ip);
 	}
 
-	kmem_free(vap, sizeof(vattr_t));
+	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -171,16 +172,17 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 	int error;
 
 	crhold(cr);
-	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	zpl_vap_init(vap, dir, mode | S_IFDIR, cr);
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
 	if (error == 0) {
+		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
 		VERIFY0(zpl_init_acl(ip, dir));
 		d_instantiate(dentry, ip);
 	}
 
-	kmem_free(vap, sizeof(vattr_t));
+	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -237,7 +239,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 		return (error);
 
 	crhold(cr);
-	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	vap->va_mask = ia->ia_valid & ATTR_IATTR_MASK;
 	vap->va_mode = ia->ia_mode;
 	vap->va_uid = KUID_TO_SUID(ia->ia_uid);
@@ -251,7 +253,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	if (!error && (ia->ia_valid & ATTR_MODE))
 		error = zpl_chmod_acl(ip);
 
-	kmem_free(vap, sizeof(vattr_t));
+	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -282,14 +284,16 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	int error;
 
 	crhold(cr);
-	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr);
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
-	if (error == 0)
+	if (error == 0) {
+		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
 		d_instantiate(dentry, ip);
+	}
 
-	kmem_free(vap, sizeof(vattr_t));
+	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -345,7 +349,7 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	int error;
 
 	if (ip->i_nlink >= ZFS_LINK_MAX)
-		return -EMLINK;
+		return (-EMLINK);
 
 	crhold(cr);
 	ip->i_ctime = CURRENT_TIME_SEC;
@@ -367,7 +371,7 @@ out:
 
 #ifdef HAVE_INODE_TRUNCATE_RANGE
 static void
-zpl_truncate_range(struct inode* ip, loff_t start, loff_t end)
+zpl_truncate_range(struct inode *ip, loff_t start, loff_t end)
 {
 	cred_t *cr = CRED();
 	flock64_t bf;
@@ -398,7 +402,7 @@ zpl_truncate_range(struct inode* ip, loff_t start, loff_t end)
 static long
 zpl_fallocate(struct inode *ip, int mode, loff_t offset, loff_t len)
 {
-	return zpl_fallocate_common(ip, mode, offset, len);
+	return (zpl_fallocate_common(ip, mode, offset, len));
 }
 #endif /* HAVE_INODE_FALLOCATE */
 

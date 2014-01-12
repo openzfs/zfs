@@ -143,6 +143,10 @@ typedef enum {
 	ZFS_PROP_INCONSISTENT,		/* not exposed to the user */
 	ZFS_PROP_SNAPDEV,
 	ZFS_PROP_ACLTYPE,
+	ZFS_PROP_SELINUX_CONTEXT,
+	ZFS_PROP_SELINUX_FSCONTEXT,
+	ZFS_PROP_SELINUX_DEFCONTEXT,
+	ZFS_PROP_SELINUX_ROOTCONTEXT,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -768,6 +772,9 @@ typedef struct ddt_histogram {
  * /dev/zfs ioctl numbers.
  */
 typedef enum zfs_ioc {
+	/*
+	 * Illumos - 69/128 numbers reserved.
+	 */
 	ZFS_IOC_FIRST =	('Z' << 8),
 	ZFS_IOC = ZFS_IOC_FIRST,
 	ZFS_IOC_POOL_CREATE = ZFS_IOC_FIRST,
@@ -793,8 +800,6 @@ typedef enum zfs_ioc {
 	ZFS_IOC_DATASET_LIST_NEXT,
 	ZFS_IOC_SNAPSHOT_LIST_NEXT,
 	ZFS_IOC_SET_PROP,
-	ZFS_IOC_CREATE_MINOR,
-	ZFS_IOC_REMOVE_MINOR,
 	ZFS_IOC_CREATE,
 	ZFS_IOC_DESTROY,
 	ZFS_IOC_ROLLBACK,
@@ -807,7 +812,6 @@ typedef enum zfs_ioc {
 	ZFS_IOC_ERROR_LOG,
 	ZFS_IOC_CLEAR,
 	ZFS_IOC_PROMOTE,
-	ZFS_IOC_DESTROY_SNAPS,
 	ZFS_IOC_SNAPSHOT,
 	ZFS_IOC_DSOBJ_TO_DSNAME,
 	ZFS_IOC_OBJ_TO_PATH,
@@ -830,24 +834,36 @@ typedef enum zfs_ioc {
 	ZFS_IOC_DIFF,
 	ZFS_IOC_TMP_SNAPSHOT,
 	ZFS_IOC_OBJ_TO_STATS,
-	ZFS_IOC_EVENTS_NEXT,
-	ZFS_IOC_EVENTS_CLEAR,
-	ZFS_IOC_POOL_REGUID,
 	ZFS_IOC_SPACE_WRITTEN,
 	ZFS_IOC_SPACE_SNAPS,
+	ZFS_IOC_DESTROY_SNAPS,
+	ZFS_IOC_POOL_REGUID,
 	ZFS_IOC_POOL_REOPEN,
 	ZFS_IOC_SEND_PROGRESS,
 	ZFS_IOC_LOG_HISTORY,
 	ZFS_IOC_SEND_NEW,
 	ZFS_IOC_SEND_SPACE,
 	ZFS_IOC_CLONE,
+
+	/*
+	 * Linux - 3/64 numbers reserved.
+	 */
+	ZFS_IOC_LINUX = ('Z' << 8) + 0x80,
+	ZFS_IOC_EVENTS_NEXT,
+	ZFS_IOC_EVENTS_CLEAR,
+
+	/*
+	 * FreeBSD - 1/64 numbers reserved.
+	 */
+	ZFS_IOC_FREEBSD = ('Z' << 8) + 0xC0,
+
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 
 /*
  * zvol ioctl to get dataset name
  */
-#define BLKZNAME		_IOR(0x12,125,char[ZFS_MAXNAMELEN])
+#define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAXNAMELEN])
 
 /*
  * Internal SPA load state.  Used by FMA diagnosis engine.

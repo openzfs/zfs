@@ -355,6 +355,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 {
 	znode_t	*zp;
 	struct inode *ip;
+	uint64_t mode;
 	uint64_t parent;
 	sa_bulk_attr_t bulk[9];
 	int count = 0;
@@ -386,7 +387,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL, &zp->z_mode, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GEN(zsb), NULL, &zp->z_gen, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb), NULL, &zp->z_size, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL, &zp->z_links, 8);
@@ -405,6 +406,8 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 		goto error;
 	}
+
+	zp->z_mode = mode;
 
 	/*
 	 * xattr znodes hold a reference on their unique parent
@@ -440,7 +443,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 error:
 	unlock_new_inode(ip);
 	iput(ip);
-	return NULL;
+	return (NULL);
 }
 
 /*
@@ -647,7 +650,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	 * order for  DMU_OT_ZNODE is critical since it needs to be constructed
 	 * in the old znode_phys_t format.  Don't change this ordering
 	 */
-	sa_attrs = kmem_alloc(sizeof(sa_bulk_attr_t) * ZPL_END, KM_PUSHPAGE);
+	sa_attrs = kmem_alloc(sizeof (sa_bulk_attr_t) * ZPL_END, KM_PUSHPAGE);
 
 	if (obj_type == DMU_OT_ZNODE) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_ATIME(zsb),
@@ -749,7 +752,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		err = zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx);
 		ASSERT0(err);
 	}
-	kmem_free(sa_attrs, sizeof(sa_bulk_attr_t) * ZPL_END);
+	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	ZFS_OBJ_HOLD_EXIT(zsb, obj);
 }
 
@@ -1123,6 +1126,8 @@ zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
 
 	if (flag & ATTR_ATIME) {
 		ZFS_TIME_ENCODE(&now, zp->z_atime);
+		ZTOI(zp)->i_atime.tv_sec = zp->z_atime[0];
+		ZTOI(zp)->i_atime.tv_nsec = zp->z_atime[1];
 	}
 
 	if (flag & ATTR_MTIME) {
@@ -1205,7 +1210,6 @@ zfs_extend(znode_t *zp, uint64_t end)
 		zfs_range_unlock(rl);
 		return (0);
 	}
-top:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
@@ -1225,13 +1229,8 @@ top:
 		newblksz = 0;
 	}
 
-	error = dmu_tx_assign(tx, TXG_NOWAIT);
+	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
-		if (error == ERESTART) {
-			dmu_tx_wait(tx);
-			dmu_tx_abort(tx);
-			goto top;
-		}
 		dmu_tx_abort(tx);
 		zfs_range_unlock(rl);
 		return (error);
@@ -1419,13 +1418,8 @@ log:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
-	error = dmu_tx_assign(tx, TXG_NOWAIT);
+	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
-		if (error == ERESTART) {
-			dmu_tx_wait(tx);
-			dmu_tx_abort(tx);
-			goto log;
-		}
 		dmu_tx_abort(tx);
 		return (error);
 	}

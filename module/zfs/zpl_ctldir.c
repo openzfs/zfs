@@ -43,7 +43,7 @@ zpl_common_open(struct inode *ip, struct file *filp)
 	if (filp->f_mode & FMODE_WRITE)
 		return (-EACCES);
 
-	return generic_file_open(ip, filp);
+	return (generic_file_open(ip, filp));
 }
 
 /*
@@ -129,12 +129,12 @@ zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
 
 	if (error) {
 		if (error == -ENOENT)
-			return d_splice_alias(NULL, dentry);
+			return (d_splice_alias(NULL, dentry));
 		else
-			return ERR_PTR(error);
+			return (ERR_PTR(error));
 	}
 
-        return d_splice_alias(ip, dentry);
+	return (d_splice_alias(ip, dentry));
 }
 
 /*
@@ -174,7 +174,7 @@ zpl_snapdir_automount(struct path *path)
 	error = -zfsctl_mount_snapshot(path, 0);
 	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
 	if (error)
-		return ERR_PTR(error);
+		return (ERR_PTR(error));
 
 	/*
 	 * Rather than returning the new vfsmount for the snapshot we must
@@ -198,7 +198,7 @@ zpl_snapdir_revalidate(struct dentry *dentry, struct nameidata *i)
 zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
 #endif
 {
-	return 0;
+	return (0);
 }
 
 dentry_operations_t zpl_dops_snapdirs = {
@@ -237,13 +237,13 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 	crfree(cr);
 
 	if (error && error != -ENOENT)
-		return ERR_PTR(error);
+		return (ERR_PTR(error));
 
 	ASSERT(error == 0 || ip == NULL);
 	d_clear_d_op(dentry);
 	d_set_d_op(dentry, &zpl_dops_snapdirs);
 
-	return d_splice_alias(ip, dentry);
+	return (d_splice_alias(ip, dentry));
 }
 
 static int
@@ -334,7 +334,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
 	int error;
 
 	crhold(cr);
-	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	zpl_vap_init(vap, dip, mode | S_IFDIR, cr);
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);
@@ -344,7 +344,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
 		d_instantiate(dentry, ip);
 	}
 
-	kmem_free(vap, sizeof(vattr_t));
+	kmem_free(vap, sizeof (vattr_t));
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
 
@@ -423,12 +423,12 @@ zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
 
 	if (error) {
 		if (error == -ENOENT)
-			return d_splice_alias(NULL, dentry);
+			return (d_splice_alias(NULL, dentry));
 		else
-			return ERR_PTR(error);
+			return (ERR_PTR(error));
 	}
 
-	return d_splice_alias(ip, dentry);
+	return (d_splice_alias(ip, dentry));
 }
 
 static int
@@ -497,10 +497,11 @@ zpl_shares_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	}
 
 	error = -zfs_zget(zsb, zsb->z_shares_dir, &dzp);
-	if (error == 0)
-		error = -zfs_getattr_fast(dentry->d_inode, stat);
+	if (error == 0) {
+		error = -zfs_getattr_fast(ZTOI(dzp), stat);
+		iput(ZTOI(dzp));
+	}
 
-	iput(ZTOI(dzp));
 	ZFS_EXIT(zsb);
 	ASSERT3S(error, <=, 0);
 

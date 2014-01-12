@@ -370,13 +370,11 @@ static int
 dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
     int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp, uint32_t flags)
 {
-	dsl_pool_t *dp = NULL;
 	dmu_buf_t **dbp;
 	uint64_t blkid, nblks, i;
 	uint32_t dbuf_flags;
 	int err;
 	zio_t *zio;
-	hrtime_t start = 0;
 
 	ASSERT(length <= DMU_MAX_ACCESS);
 
@@ -402,11 +400,9 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		}
 		nblks = 1;
 	}
-	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_PUSHPAGE | KM_NODEBUG);
+	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks,
+	    KM_PUSHPAGE | KM_NODEBUG);
 
-	if (dn->dn_objset->os_dsl_dataset)
-		dp = dn->dn_objset->os_dsl_dataset->ds_dir->dd_pool;
-	start = gethrtime();
 	zio = zio_root(dn->dn_objset->os_spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, offset);
 	for (i = 0; i < nblks; i++) {
@@ -427,9 +423,6 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 
 	/* wait for async i/o */
 	err = zio_wait(zio);
-	/* track read overhead when we are in sync context */
-	if (dp && dsl_pool_sync_context(dp))
-		dp->dp_read_overhead += gethrtime() - start;
 	if (err) {
 		dmu_buf_rele_array(dbp, nblks, tag);
 		return (err);
@@ -511,12 +504,22 @@ dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, void *tag)
 	kmem_free(dbp, sizeof (dmu_buf_t *) * numbufs);
 }
 
+/*
+ * Issue prefetch i/os for the given blocks.
+ *
+ * Note: The assumption is that we *know* these blocks will be needed
+ * almost immediately.  Therefore, the prefetch i/os will be issued at
+ * ZIO_PRIORITY_SYNC_READ
+ *
+ * Note: indirect blocks and other metadata will be read synchronously,
+ * causing this function to block if they are not already cached.
+ */
 void
 dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 {
 	dnode_t *dn;
 	uint64_t blkid;
-	int nblks, i, err;
+	int nblks, err;
 
 	if (zfs_prefetch_disable)
 		return;
@@ -529,7 +532,7 @@ dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		blkid = dbuf_whichblock(dn, object * sizeof (dnode_phys_t));
-		dbuf_prefetch(dn, blkid);
+		dbuf_prefetch(dn, blkid, ZIO_PRIORITY_SYNC_READ);
 		rw_exit(&dn->dn_struct_rwlock);
 		return;
 	}
@@ -546,16 +549,18 @@ dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	if (dn->dn_datablkshift) {
 		int blkshift = dn->dn_datablkshift;
-		nblks = (P2ROUNDUP(offset+len, 1<<blkshift) -
-		    P2ALIGN(offset, 1<<blkshift)) >> blkshift;
+		nblks = (P2ROUNDUP(offset + len, 1 << blkshift) -
+		    P2ALIGN(offset, 1 << blkshift)) >> blkshift;
 	} else {
 		nblks = (offset < dn->dn_datablksz);
 	}
 
 	if (nblks != 0) {
+		int i;
+
 		blkid = dbuf_whichblock(dn, offset);
 		for (i = 0; i < nblks; i++)
-			dbuf_prefetch(dn, blkid+i);
+			dbuf_prefetch(dn, blkid + i, ZIO_PRIORITY_SYNC_READ);
 	}
 
 	rw_exit(&dn->dn_struct_rwlock);
@@ -873,9 +878,9 @@ static xuio_stats_t xuio_stats = {
 	{ "write_buf_nocopy",	KSTAT_DATA_UINT64 }
 };
 
-#define XUIOSTAT_INCR(stat, val)        \
-        atomic_add_64(&xuio_stats.stat.value.ui64, (val))
-#define XUIOSTAT_BUMP(stat)     XUIOSTAT_INCR(stat, 1)
+#define	XUIOSTAT_INCR(stat, val)        \
+	atomic_add_64(&xuio_stats.stat.value.ui64, (val))
+#define	XUIOSTAT_BUMP(stat)	XUIOSTAT_INCR(stat, 1)
 
 int
 dmu_xuio_init(xuio_t *xuio, int nblk)
@@ -1040,7 +1045,7 @@ dmu_req_copy(void *arg_buf, int size, int *offset, struct request *req)
 		bv->bv_len -= tocpy;
 	}
 
-	return 0;
+	return (0);
 }
 
 static void
@@ -1063,13 +1068,13 @@ dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
 	struct bio *bio_new;
 
 	if (bio == NULL)
-		return EINVAL;
+		return (EINVAL);
 
 	while (bio) {
 		bio_new = bio_clone(bio, GFP_NOIO);
 		if (bio_new == NULL) {
 			dmu_bio_put(bio_root);
-			return ENOMEM;
+			return (ENOMEM);
 		}
 
 		if (bio_last) {
@@ -1085,7 +1090,7 @@ dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
 
 	*bio_copy = bio_root;
 
-	return 0;
+	return (0);
 }
 
 int
@@ -1102,7 +1107,7 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 	 * to be reading in parallel.
 	 */
 	err = dmu_buf_hold_array(os, object, offset, size, TRUE, FTAG,
-				 &numbufs, &dbp);
+	    &numbufs, &dbp);
 	if (err)
 		return (err);
 
@@ -1164,7 +1169,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 		return (0);
 
 	err = dmu_buf_hold_array(os, object, offset, size, FALSE, FTAG,
-				 &numbufs, &dbp);
+	    &numbufs, &dbp);
 	if (err)
 		return (err);
 
@@ -1559,8 +1564,8 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 
 	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx), zgd->zgd_bp,
 	    zgd->zgd_db->db_data, zgd->zgd_db->db_size, zp,
-	    dmu_sync_late_arrival_ready, dmu_sync_late_arrival_done, dsa,
-	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, zb));
+	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done, dsa,
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL|ZIO_FLAG_FASTWRITE, zb));
 
 	return (0);
 }
@@ -1699,8 +1704,9 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 
 	zio_nowait(arc_write(pio, os->os_spa, txg,
 	    bp, dr->dt.dl.dr_data, DBUF_IS_L2CACHEABLE(db),
-	    DBUF_IS_L2COMPRESSIBLE(db), &zp, dmu_sync_ready, dmu_sync_done,
-	    dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, &zb));
+	    DBUF_IS_L2COMPRESSIBLE(db), &zp, dmu_sync_ready,
+	    NULL, dmu_sync_done, dsa, ZIO_PRIORITY_SYNC_WRITE,
+	    ZIO_FLAG_CANFAIL, &zb));
 
 	return (0);
 }

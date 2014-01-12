@@ -2790,12 +2790,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				return (-1);
 			}
 		}
-		if (!flags->dryrun && zhp->zfs_type == ZFS_TYPE_VOLUME &&
-		    zvol_remove_link(hdl, zhp->zfs_name) != 0) {
-			zfs_close(zhp);
-			zcmd_free_nvlists(&zc);
-			return (-1);
-		}
 		zfs_close(zhp);
 	} else {
 		/*
@@ -3001,10 +2995,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (h != NULL) {
 			if (h->zfs_type == ZFS_TYPE_VOLUME) {
 				*cp = '@';
-				err = zvol_create_link(hdl, h->zfs_name);
-				if (err == 0 && ioctl_err == 0)
-					err = zvol_create_link(hdl,
-					    zc.zc_value);
 			} else if (newfs || stream_avl) {
 				/*
 				 * Track the first/top of hierarchy fs,

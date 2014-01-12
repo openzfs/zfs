@@ -461,9 +461,6 @@ libzfs_fru_clear(libzfs_handle_t *hdl, boolean_t final)
 void
 libzfs_fru_clear(libzfs_handle_t *hdl, boolean_t final)
 {
-	return;
 }
 
 #endif /* HAVE_LIBTOPO */
-
-

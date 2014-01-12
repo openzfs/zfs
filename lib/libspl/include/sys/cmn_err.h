@@ -25,6 +25,6 @@
  */
 
 #ifndef _LIBSPL_SYS_CMN_ERR_H
-#define _LIBSPL_SYS_CMN_ERR_H
+#define	_LIBSPL_SYS_CMN_ERR_H
 
 #endif

@@ -310,7 +310,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	}
 
 	/* First do a bulk query of the attributes that aren't cached */
-	bulk = kmem_alloc(sizeof(sa_bulk_attr_t) * 20, KM_SLEEP);
+	bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * 20, KM_SLEEP);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CRTIME(zsb), NULL, &crtime, 16);
@@ -324,7 +324,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	    &znode_acl, 88);
 
 	if (sa_bulk_lookup_locked(hdl, bulk, count) != 0) {
-		kmem_free(bulk, sizeof(sa_bulk_attr_t) * 20);
+		kmem_free(bulk, sizeof (sa_bulk_attr_t) * 20);
 		goto done;
 	}
 
@@ -333,7 +333,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	 * it is such a way to pick up an already existing layout number
 	 */
 	count = 0;
-	sa_attrs = kmem_zalloc(sizeof(sa_bulk_attr_t) * 20, KM_SLEEP);
+	sa_attrs = kmem_zalloc(sizeof (sa_bulk_attr_t) * 20, KM_SLEEP);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_MODE(zsb), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_SIZE(zsb), NULL,
 	    &zp->z_size, 8);
@@ -390,8 +390,8 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 		    znode_acl.z_acl_extern_obj, tx));
 
 	zp->z_is_sa = B_TRUE;
-	kmem_free(sa_attrs, sizeof(sa_bulk_attr_t) * 20);
-	kmem_free(bulk, sizeof(sa_bulk_attr_t) * 20);
+	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * 20);
+	kmem_free(bulk, sizeof (sa_bulk_attr_t) * 20);
 done:
 	if (drop_lock)
 		mutex_exit(&zp->z_lock);

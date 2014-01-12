@@ -26,7 +26,7 @@
  *
  * This is an addition to the zfs device driver to add, modify and remove SMB
  * shares using the 'net share' command that comes with Samba.
-
+ *
  * TESTING
  * Make sure that samba listens to 'localhost' (127.0.0.1) and that the options
  * 'usershare max shares' and 'usershare owner only' have been rewied/set
@@ -64,7 +64,7 @@ static boolean_t smb_available(void);
 
 static sa_fstype_t *smb_fstype;
 
-/**
+/*
  * Retrieve the list of SMB shares.
  */
 static int
@@ -83,7 +83,7 @@ smb_retrieve_shares(void)
 	/* opendir(), stat() */
 	shares_dir = opendir(SHARE_DIR);
 	if (shares_dir == NULL)
-		return SA_SYSTEM_ERR;
+		return (SA_SYSTEM_ERR);
 
 	/* Go through the directory, looking for shares */
 	while ((directory = readdir(shares_dir))) {
@@ -91,7 +91,7 @@ smb_retrieve_shares(void)
 			continue;
 
 		snprintf(file_path, sizeof (file_path),
-			 "%s/%s", SHARE_DIR, directory->d_name);
+		    "%s/%s", SHARE_DIR, directory->d_name);
 
 		if (stat(file_path, &eStat) == -1) {
 			rc = SA_SYSTEM_ERR;
@@ -108,17 +108,17 @@ smb_retrieve_shares(void)
 
 		name = strdup(directory->d_name);
 		if (name == NULL) {
-			 rc = SA_NO_MEMORY;
-			 goto out;
+			rc = SA_NO_MEMORY;
+			goto out;
 		}
 
-		while (fgets(line, sizeof(line), share_file_fp)) {
+		while (fgets(line, sizeof (line), share_file_fp)) {
 			if (line[0] == '#')
 				continue;
 
 			/* Trim trailing new-line character(s). */
 			while (line[strlen(line) - 1] == '\r' ||
-			       line[strlen(line) - 1] == '\n')
+			    line[strlen(line) - 1] == '\n')
 				line[strlen(line) - 1] = '\0';
 
 			/* Split the line in two, separated by '=' */
@@ -155,24 +155,25 @@ smb_retrieve_shares(void)
 
 				strncpy(shares->name, name,
 					sizeof (shares->name));
-				shares->name [sizeof(shares->name)-1] = '\0';
+				shares->name [sizeof (shares->name) - 1] = '\0';
 
 				strncpy(shares->path, path,
-					sizeof (shares->path));
-				shares->path [sizeof(shares->path)-1] = '\0';
+				    sizeof (shares->path));
+				shares->path [sizeof (shares->path) - 1] = '\0';
 
 				strncpy(shares->comment, comment,
-					sizeof (shares->comment));
-				shares->comment[sizeof(shares->comment)-1]='\0';
+				    sizeof (shares->comment));
+				shares->comment[sizeof (shares->comment)-1] =
+				    '\0';
 
 				shares->guest_ok = atoi(guest_ok);
 
 				shares->next = new_shares;
 				new_shares = shares;
 
-				name     = NULL;
-				path     = NULL;
-				comment  = NULL;
+				name = NULL;
+				path = NULL;
+				comment = NULL;
 				guest_ok = NULL;
 			}
 		}
@@ -190,10 +191,10 @@ out:
 
 	smb_shares = new_shares;
 
-	return rc;
+	return (rc);
 }
 
-/**
+/*
  * Used internally by smb_enable_share to enable sharing for a single host.
  */
 static int
@@ -204,8 +205,8 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 	int rc;
 
 	/* Support ZFS share name regexp '[[:alnum:]_-.: ]' */
-	strncpy(name, sharename, sizeof(name));
-	name [sizeof(name)-1] = '\0';
+	strncpy(name, sharename, sizeof (name));
+	name [sizeof (name)-1] = '\0';
 
 	pos = name;
 	while (*pos != '\0') {
@@ -220,32 +221,34 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 		++pos;
 	}
 
-	/* CMD: net -S NET_CMD_ARG_HOST usershare add Test1 /share/Test1 \
-	 *      "Comment" "Everyone:F" */
-	snprintf(comment, sizeof(comment), "Comment: %s", sharepath);
+	/*
+	 * CMD: net -S NET_CMD_ARG_HOST usershare add Test1 /share/Test1 \
+	 *      "Comment" "Everyone:F"
+	 */
+	snprintf(comment, sizeof (comment), "Comment: %s", sharepath);
 
-	argv[0]  = NET_CMD_PATH;
-	argv[1]  = (char*)"-S";
-	argv[2]  = NET_CMD_ARG_HOST;
-	argv[3]  = (char*)"usershare";
-	argv[4]  = (char*)"add";
-	argv[5]  = (char*)name;
-	argv[6]  = (char*)sharepath;
-	argv[7]  = (char*)comment;
+	argv[0] = NET_CMD_PATH;
+	argv[1] = (char *)"-S";
+	argv[2] = NET_CMD_ARG_HOST;
+	argv[3] = (char *)"usershare";
+	argv[4] = (char *)"add";
+	argv[5] = (char *)name;
+	argv[6] = (char *)sharepath;
+	argv[7] = (char *)comment;
 	argv[8] = "Everyone:F";
 	argv[9] = NULL;
 
 	rc = libzfs_run_process(argv[0], argv, 0);
 	if (rc < 0)
-		return SA_SYSTEM_ERR;
+		return (SA_SYSTEM_ERR);
 
 	/* Reload the share file */
 	(void) smb_retrieve_shares();
 
-	return SA_OK;
+	return (SA_OK);
 }
 
-/**
+/*
  * Enables SMB sharing for the specified share.
  */
 static int
@@ -254,20 +257,21 @@ smb_enable_share(sa_share_impl_t impl_share)
 	char *shareopts;
 
 	if (!smb_available())
-		return SA_SYSTEM_ERR;
+		return (SA_SYSTEM_ERR);
 
 	shareopts = FSINFO(impl_share, smb_fstype)->shareopts;
 	if (shareopts == NULL) /* on/off */
-		return SA_SYSTEM_ERR;
+		return (SA_SYSTEM_ERR);
 
 	if (strcmp(shareopts, "off") == 0)
-		return SA_OK;
+		return (SA_OK);
 
 	/* Magic: Enable (i.e., 'create new') share */
-	return smb_enable_share_one(impl_share->dataset, impl_share->sharepath);
+	return (smb_enable_share_one(impl_share->dataset,
+	    impl_share->sharepath));
 }
 
-/**
+/*
  * Used internally by smb_disable_share to disable sharing for a single host.
  */
 static int
@@ -278,21 +282,21 @@ smb_disable_share_one(const char *sharename)
 
 	/* CMD: net -S NET_CMD_ARG_HOST usershare delete Test1 */
 	argv[0] = NET_CMD_PATH;
-	argv[1] = (char*)"-S";
+	argv[1] = (char *)"-S";
 	argv[2] = NET_CMD_ARG_HOST;
-	argv[3] = (char*)"usershare";
-	argv[4] = (char*)"delete";
+	argv[3] = (char *)"usershare";
+	argv[4] = (char *)"delete";
 	argv[5] = strdup(sharename);
 	argv[6] = NULL;
 
 	rc = libzfs_run_process(argv[0], argv, 0);
 	if (rc < 0)
-		return SA_SYSTEM_ERR;
+		return (SA_SYSTEM_ERR);
 	else
-		return SA_OK;
+		return (SA_OK);
 }
 
-/**
+/*
  * Disables SMB sharing for the specified share.
  */
 static int
@@ -305,20 +309,20 @@ smb_disable_share(sa_share_impl_t impl_share)
 		 * The share can't possibly be active, so nothing
 		 * needs to be done to disable it.
 		 */
-		return SA_OK;
+		return (SA_OK);
 	}
 
 	while (shares != NULL) {
 		if (strcmp(impl_share->sharepath, shares->path) == 0)
-			return smb_disable_share_one(shares->name);
+			return (smb_disable_share_one(shares->name));
 
 		shares = shares->next;
 	}
 
-	return SA_OK;
+	return (SA_OK);
 }
 
-/**
+/*
  * Checks whether the specified SMB share options are syntactically correct.
  */
 static int
@@ -326,34 +330,34 @@ smb_validate_shareopts(const char *shareopts)
 {
 	/* TODO: Accept 'name' and sec/acl (?) */
 	if ((strcmp(shareopts, "off") == 0) || (strcmp(shareopts, "on") == 0))
-		return SA_OK;
+		return (SA_OK);
 
-	return SA_SYNTAX_ERR;
+	return (SA_SYNTAX_ERR);
 }
 
-/**
+/*
  * Checks whether a share is currently active.
  */
 static boolean_t
 smb_is_share_active(sa_share_impl_t impl_share)
 {
 	if (!smb_available())
-		return B_FALSE;
+		return (B_FALSE);
 
 	/* Retrieve the list of (possible) active shares */
 	smb_retrieve_shares();
 
 	while (smb_shares != NULL) {
 		if (strcmp(impl_share->sharepath, smb_shares->path) == 0)
-			return B_TRUE;
+			return (B_TRUE);
 
 		smb_shares = smb_shares->next;
 	}
 
-	return B_FALSE;
+	return (B_FALSE);
 }
 
-/**
+/*
  * Called to update a share's options. A share's options might be out of
  * date if the share was loaded from disk and the "sharesmb" dataset
  * property has changed in the meantime. This function also takes care
@@ -367,8 +371,8 @@ smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	boolean_t needs_reshare = B_FALSE;
 	char *old_shareopts;
 
-	if(!impl_share)
-		return SA_SYSTEM_ERR;
+	if (!impl_share)
+		return (SA_SYSTEM_ERR);
 
 	FSINFO(impl_share, smb_fstype)->active =
 	    smb_is_share_active(impl_share);
@@ -384,7 +388,7 @@ smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	shareopts_dup = strdup(shareopts);
 
 	if (shareopts_dup == NULL)
-		return SA_NO_MEMORY;
+		return (SA_NO_MEMORY);
 
 	if (old_shareopts != NULL)
 		free(old_shareopts);
@@ -394,10 +398,10 @@ smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	if (needs_reshare)
 		smb_enable_share(impl_share);
 
-	return SA_OK;
+	return (SA_OK);
 }
 
-/**
+/*
  * Clears a share's SMB options. Used by libshare to
  * clean up shares that are about to be free()'d.
  */
@@ -427,15 +431,15 @@ smb_available(void)
 
 	if (lstat(SHARE_DIR, &statbuf) != 0 ||
 	    !S_ISDIR(statbuf.st_mode))
-		return B_FALSE;
+		return (B_FALSE);
 
 	if (access(NET_CMD_PATH, F_OK) != 0)
-		return B_FALSE;
+		return (B_FALSE);
 
-	return B_TRUE;
+	return (B_TRUE);
 }
 
-/**
+/*
  * Initializes the SMB functionality of libshare.
  */
 void

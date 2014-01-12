@@ -500,7 +500,8 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 		return (0);
 
 	dsda.dsda_snaps = snaps;
-        VERIFY0(nvlist_alloc(&dsda.dsda_successful_snaps, NV_UNIQUE_NAME, KM_PUSHPAGE));
+	VERIFY0(nvlist_alloc(&dsda.dsda_successful_snaps,
+	    NV_UNIQUE_NAME, KM_PUSHPAGE));
 	dsda.dsda_defer = defer;
 	dsda.dsda_errlist = errlist;
 
@@ -519,8 +520,8 @@ dsl_destroy_snapshot(const char *name, boolean_t defer)
 	nvlist_t *nvl;
 	nvlist_t *errlist;
 
-        VERIFY0(nvlist_alloc(&nvl, NV_UNIQUE_NAME, KM_PUSHPAGE));
-        VERIFY0(nvlist_alloc(&errlist, NV_UNIQUE_NAME, KM_PUSHPAGE));
+	VERIFY0(nvlist_alloc(&nvl, NV_UNIQUE_NAME, KM_PUSHPAGE));
+	VERIFY0(nvlist_alloc(&errlist, NV_UNIQUE_NAME, KM_PUSHPAGE));
 
 	fnvlist_add_boolean(nvl, name);
 	error = dsl_destroy_snapshots_nvl(nvl, defer, errlist);

@@ -441,8 +441,8 @@ line: while (<$filehandle>) {
 
 	# check for errors that might occur in comments and in code.
 
-	# allow spaces to be used to draw pictures in header comments.
-	if (/[^ ]     / && !/".*     .*"/ && !$in_header_comment) {
+	# allow spaces to be used to draw pictures in all comments.
+	if (/[^ ]     / && !/".*     .*"/ && !$in_comment) {
 		err("spaces instead of tabs");
 	}
 	if (/^ / && !/^ \*[ \t\/]/ && !/^ \*$/ &&

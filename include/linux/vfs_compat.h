@@ -24,7 +24,7 @@
  */
 
 #ifndef _ZFS_VFS_H
-#define _ZFS_VFS_H
+#define	_ZFS_VFS_H
 
 /*
  * 2.6.28 API change,
@@ -71,7 +71,10 @@ truncate_setsize(struct inode *ip, loff_t new)
 extern atomic_long_t zfs_bdi_seq;
 
 static inline int
-bdi_setup_and_register(struct backing_dev_info *bdi,char *name,unsigned int cap)
+bdi_setup_and_register(
+	struct backing_dev_info *bdi,
+	char *name,
+	unsigned int cap)
 {
 	char tmp[32];
 	int error;
@@ -99,7 +102,7 @@ bdi_setup_and_register(struct backing_dev_info *bdi,char *name,unsigned int cap)
  * LOOKUP_RCU flag introduced to distinguish rcu-walk from ref-walk cases.
  */
 #ifndef LOOKUP_RCU
-#define LOOKUP_RCU      0x0
+#define	LOOKUP_RCU	0x0
 #endif /* LOOKUP_RCU */
 
 /*
@@ -136,7 +139,7 @@ typedef	int		zpl_umode_t;
  * configure check in config/kernel-clear-inode.m4 for full details.
  */
 #if defined(HAVE_EVICT_INODE) && !defined(HAVE_CLEAR_INODE)
-#define clear_inode(ip)		end_writeback(ip)
+#define	clear_inode(ip)		end_writeback(ip)
 #endif /* HAVE_EVICT_INODE && !HAVE_CLEAR_INODE */
 
 /*
@@ -144,18 +147,21 @@ typedef	int		zpl_umode_t;
  * The sget() helper function now takes the mount flags as an argument.
  */
 #ifdef HAVE_5ARG_SGET
-#define zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, fl, mtd)
+#define	zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, fl, mtd)
 #else
-#define zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, mtd)
+#define	zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, mtd)
 #endif /* HAVE_5ARG_SGET */
 
-#define ZFS_IOC_GETFLAGS	FS_IOC_GETFLAGS
-#define ZFS_IOC_SETFLAGS	FS_IOC_SETFLAGS
+#define	ZFS_IOC_GETFLAGS	FS_IOC_GETFLAGS
+#define	ZFS_IOC_SETFLAGS	FS_IOC_SETFLAGS
 
 #if defined(SEEK_HOLE) && defined(SEEK_DATA) && !defined(HAVE_LSEEK_EXECUTE)
 static inline loff_t
-lseek_execute(struct file *filp, struct inode *inode,
-	      loff_t offset, loff_t maxsize)
+lseek_execute(
+	struct file *filp,
+	struct inode *inode,
+	loff_t offset,
+	loff_t maxsize)
 {
 	if (offset < 0 && !(filp->f_mode & FMODE_UNSIGNED_OFFSET))
 		return (-EINVAL);
@@ -186,7 +192,7 @@ lseek_execute(struct file *filp, struct inode *inode,
  */
 #include <linux/posix_acl.h>
 #ifndef HAVE_POSIX_ACL_CACHING
-#define ACL_NOT_CACHED ((void *)(-1))
+#define	ACL_NOT_CACHED ((void *)(-1))
 #endif /* HAVE_POSIX_ACL_CACHING */
 
 #if defined(HAVE_POSIX_ACL_RELEASE) && !defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
@@ -224,14 +230,14 @@ zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
 	if ((newer != ACL_NOT_CACHED) && (newer != NULL))
 		posix_acl_dup(newer);
 
-	switch(type) {
+	switch (type) {
 	case ACL_TYPE_ACCESS:
 		older = ip->i_acl;
-		rcu_assign_pointer(ip->i_acl,newer);
+		rcu_assign_pointer(ip->i_acl, newer);
 		break;
 	case ACL_TYPE_DEFAULT:
 		older = ip->i_default_acl;
-		rcu_assign_pointer(ip->i_default_acl,newer);
+		rcu_assign_pointer(ip->i_default_acl, newer);
 		break;
 	}
 
@@ -276,11 +282,11 @@ posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
 		*acl = NULL;
 	}
 
-        return (error);
+	return (error);
 }
 
 static inline int
-posix_acl_create(struct posix_acl** acl, int flags, umode_t* umodep) {
+posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep) {
 	struct posix_acl *oldacl = *acl;
 	mode_t mode = *umodep;
 	int error;
