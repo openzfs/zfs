@@ -39,18 +39,20 @@
 # channel 86:00.0 1         C
 # channel 86:00.0 0         D
 #
-# #    Linux	Mapped
-# #    Slot	Slot
-# slot 1        7
-# slot 2        10
-# slot 3        3
-# slot 4        6
-# slot 5        2
-# slot 6        8
-# slot 7        1
-# slot 8        4
-# slot 9        9
-# slot 10       5
+# # Custom mapping for Channel A
+#
+# #    Linux      Mapped
+# #    Slot       Slot      Channel
+# slot 1          7         A
+# slot 2          10        A
+# slot 3          3         A
+# slot 4          6         A
+#
+# # Default mapping for B, C, and D
+# slot 1          4
+# slot 2          2
+# slot 3          1
+# slot 4          3
 
 # #
 # # Example vdev_id.conf - sas_switch
@@ -110,10 +112,11 @@ EOF
 
 map_slot() {
 	local LINUX_SLOT=$1
+	local CHANNEL=$2
 	local MAPPED_SLOT=
 
-	MAPPED_SLOT=`awk "\\$1 == \"slot\" && \\$2 == ${LINUX_SLOT} \
-			{ print \\$3; exit }" $CONFIG`
+	MAPPED_SLOT=`awk "\\$1 == \"slot\" && \\$2 == ${LINUX_SLOT} && \
+			\\$4 ~ /^(${CHANNEL}|)$/ { print \\$3; exit }" $CONFIG`
 	if [ -z "$MAPPED_SLOT" ] ; then
 		MAPPED_SLOT=$LINUX_SLOT
 	fi
@@ -254,8 +257,8 @@ sas_handler() {
 		return
 	fi
 
-	SLOT=`map_slot $SLOT`
 	CHAN=`map_channel $PCI_ID $PORT`
+	SLOT=`map_slot $SLOT $CHAN`
 	if [ -z "$CHAN" ] ; then
 		return
 	fi
