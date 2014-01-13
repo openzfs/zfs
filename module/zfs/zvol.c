@@ -231,6 +231,31 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 	return (SET_ERROR(error));
 }
 
+static void
+zvol_size_changed(zvol_state_t *zv, uint64_t volsize)
+{
+	struct block_device *bdev;
+
+	bdev = bdget_disk(zv->zv_disk, 0);
+	if (bdev == NULL)
+		return;
+/*
+ * 2.6.28 API change
+ * Added check_disk_size_change() helper function.
+ */
+#ifdef HAVE_CHECK_DISK_SIZE_CHANGE
+	set_capacity(zv->zv_disk, volsize >> 9);
+	zv->zv_volsize = volsize;
+	check_disk_size_change(zv->zv_disk, bdev);
+#else
+	zv->zv_volsize = volsize;
+	zv->zv_changed = 1;
+	(void) check_disk_change(bdev);
+#endif /* HAVE_CHECK_DISK_SIZE_CHANGE */
+
+	bdput(bdev);
+}
+
 /*
  * Sanity check volume size.
  */
@@ -254,9 +279,8 @@ zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
  * Ensure the zap is flushed then inform the VFS of the capacity change.
  */
 static int
-zvol_update_volsize(zvol_state_t *zv, uint64_t volsize, objset_t *os)
+zvol_update_volsize(uint64_t volsize, objset_t *os)
 {
-	struct block_device *bdev;
 	dmu_tx_t *tx;
 	int error;
 
@@ -274,32 +298,23 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize, objset_t *os)
 	    &volsize, tx);
 	dmu_tx_commit(tx);
 
-	if (error)
-		return (SET_ERROR(error));
+	if (error == 0)
+		error = dmu_free_long_range(os,
+		    ZVOL_OBJ, volsize, DMU_OBJECT_END);
 
-	error = dmu_free_long_range(os,
-	    ZVOL_OBJ, volsize, DMU_OBJECT_END);
-	if (error)
-		return (SET_ERROR(error));
+	return (error);
+}
 
-	bdev = bdget_disk(zv->zv_disk, 0);
-	if (!bdev)
-		return (SET_ERROR(EIO));
-/*
- * 2.6.28 API change
- * Added check_disk_size_change() helper function.
- */
-#ifdef HAVE_CHECK_DISK_SIZE_CHANGE
-	set_capacity(zv->zv_disk, volsize >> 9);
-	zv->zv_volsize = volsize;
-	check_disk_size_change(zv->zv_disk, bdev);
-#else
-	zv->zv_volsize = volsize;
-	zv->zv_changed = 1;
-	(void) check_disk_change(bdev);
-#endif /* HAVE_CHECK_DISK_SIZE_CHANGE */
+static int
+zvol_update_live_volsize(zvol_state_t *zv, uint64_t volsize)
+{
+	zvol_size_changed(zv, volsize);
 
-	bdput(bdev);
+	/*
+	 * We should post a event here describing the expansion.  However,
+	 * the zfs_ereport_post() interface doesn't nicely support posting
+	 * events for zvols, it assumes events relate to vdevs or zios.
+	 */
 
 	return (0);
 }
@@ -310,11 +325,12 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize, objset_t *os)
 int
 zvol_set_volsize(const char *name, uint64_t volsize)
 {
-	zvol_state_t *zv;
-	dmu_object_info_t *doi;
+	zvol_state_t *zv = NULL;
 	objset_t *os = NULL;
-	uint64_t readonly;
 	int error;
+	dmu_object_info_t *doi;
+	uint64_t readonly;
+	boolean_t owned = B_FALSE;
 
 	error = dsl_prop_get_integer(name,
 	    zfs_prop_to_name(ZFS_PROP_READONLY), &readonly, NULL);
@@ -324,44 +340,40 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		return (SET_ERROR(EROFS));
 
 	mutex_enter(&zvol_state_lock);
-
 	zv = zvol_find_by_name(name);
-	if (zv == NULL) {
-		error = SET_ERROR(ENXIO);
-		goto out;
+
+	if (zv == NULL || zv->zv_objset == NULL) {
+		if ((error = dmu_objset_own(name, DMU_OST_ZVOL, B_FALSE,
+		    FTAG, &os)) != 0) {
+			mutex_exit(&zvol_state_lock);
+			return (SET_ERROR(error));
+		}
+		owned = B_TRUE;
+		if (zv != NULL)
+			zv->zv_objset = os;
+	} else {
+		os = zv->zv_objset;
 	}
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
-	error = dmu_objset_hold(name, FTAG, &os);
-	if (error)
-		goto out_doi;
-
 	if ((error = dmu_object_info(os, ZVOL_OBJ, doi)) ||
 	    (error = zvol_check_volsize(volsize, doi->doi_data_block_size)))
-		goto out_doi;
+		goto out;
 
-	VERIFY(dsl_prop_get_integer(name, "readonly", &readonly, NULL) == 0);
-	if (readonly) {
-		error = SET_ERROR(EROFS);
-		goto out_doi;
-	}
-
-	if (zv->zv_flags & ZVOL_RDONLY) {
-		error = SET_ERROR(EROFS);
-		goto out_doi;
-	}
-
-	error = zvol_update_volsize(zv, volsize, os);
-out_doi:
+	error = zvol_update_volsize(volsize, os);
 	kmem_free(doi, sizeof (dmu_object_info_t));
+
+	if (error == 0 && zv != NULL)
+		error = zvol_update_live_volsize(zv, volsize);
 out:
-	if (os)
-		dmu_objset_rele(os, FTAG);
-
+	if (owned) {
+		dmu_objset_disown(os, FTAG);
+		if (zv != NULL)
+			zv->zv_objset = NULL;
+	}
 	mutex_exit(&zvol_state_lock);
-
-	return (SET_ERROR(error));
+	return (error);
 }
 
 /*
