@@ -49,9 +49,17 @@ connected to the disk enclosure being mapped.
 \fIname\fR - specifies the name of the channel.
 
 .TP
-\fIslot\fR <old> <new>
-Maps a disk slot number as reported by the operating system
-to an alternative slot number.
+\fIslot\fR <old> <new> [channel]
+Maps a disk slot number as reported by the operating system to an
+alternative slot number.  If the \fIchannel\fR parameter is specified
+then the mapping is only applied to slots in the named channel,
+otherwise the mapping is applied to all channels. The first-specified
+\fIslot\fR rule that can match a slot takes precedence.  Therefore a
+channel-specific mapping for a given slot should generally appear before
+a generic mapping for the same slot.  In this way a custom mapping may
+be applied to a particular channel and a default mapping applied to the
+others.
+
 .TP
 \fImultipath\fR <yes|no>
 Specifies whether
@@ -84,99 +92,69 @@ device is connected to.  The default is 4.
 A non-multipath configuration with direct-attached SAS enclosures and an
 arbitrary slot re-mapping.
 .P
+.nf
 	multipath     no
-.br
 	topology      sas_direct
-.br
 	phys_per_port 4
-.br
 
-.br
 	#       PCI_SLOT HBA PORT  CHANNEL NAME
-.br
 	channel 85:00.0  1         A
-.br
 	channel 85:00.0  0         B
-.br
 	channel 86:00.0  1         C
-.br
 	channel 86:00.0  0         D
-.br
 
-.br
+	# Custom mapping for Channel A
+
 	#    Linux      Mapped
-.br
-	#    Slot       Slot
-.br
-	slot 1          7
-.br
-	slot 2          10
-.br
-	slot 3          3
-.br
-	slot 4          6
-.br
-	slot 5          2
-.br
-	slot 6          8
-.br
-	slot 7          1
-.br
-	slot 8          4
-.br
-	slot 9          9
-.br
-	slot 10         5
-.br
+	#    Slot       Slot      Channel
+	slot 1          7         A
+	slot 2          10        A
+	slot 3          3         A
+	slot 4          6         A
+
+	# Default mapping for B, C, and D
+
+	slot 1          4
+	slot 2          2
+	slot 3          1
+	slot 4          3
+.fi
 .P
 A SAS-switch topology.  Note that the
 .I channel
 keyword takes only two arguments in this example.
 .P
+.nf
 	topology      sas_switch
-.br
 
-.br
 	#       SWITCH PORT  CHANNEL NAME
-.br
 	channel 1            A
-.br
 	channel 2            B
-.br
 	channel 3            C
-.br
 	channel 4            D
-.br
+.fi
 .P
 A multipath configuration.  Note that channel names have multiple
 definitions - one per physical path.
 .P
+.nf
 	multipath yes
-.br
 
-.br
 	#       PCI_SLOT HBA PORT  CHANNEL NAME
-.br
 	channel 85:00.0  1         A
-.br
 	channel 85:00.0  0         B
-.br
 	channel 86:00.0  1         A
-.br
 	channel 86:00.0  0         B
-.br
+.fi
 .P
 A configuration using device link aliases.
 .P
-.br
+.nf
 	#     by-vdev
-.br
 	#     name     fully qualified or base name of device link
-.br
 	alias d1       /dev/disk/by-id/wwn-0x5000c5002de3b9ca
-.br
 	alias d2       wwn-0x5000c5002def789e
-.br
+.fi
 .P
 
 .SH FILES

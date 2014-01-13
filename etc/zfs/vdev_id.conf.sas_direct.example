@@ -8,15 +8,18 @@ channel 85:00.0 0         B
 channel 86:00.0 1         C
 channel 86:00.0 0         D
 
+
+# Custom mapping for Channel A
+
 #    Linux      Mapped
-#    Slot       Slot
-slot 1          7
-slot 2          10
-slot 3          3
-slot 4          6
-slot 5          2
-slot 6          8
-slot 7          1
-slot 8          4
-slot 9          9
-slot 10         5
+#    Slot       Slot      Channel
+slot 1          7         A
+slot 2          10        A
+slot 3          3         A
+slot 4          6         A
+
+# Default mapping for B, C, and D
+slot 1          4
+slot 2          2
+slot 3          1
+slot 4          3
