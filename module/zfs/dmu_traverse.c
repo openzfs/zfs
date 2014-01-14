@@ -391,7 +391,7 @@ prefetch_dnode_metadata(traverse_data_t *td, const dnode_phys_t *dnp,
 
 	for (j = 0; j < dnp->dn_nblkptr; j++) {
 		SET_BOOKMARK(&czb, objset, object, dnp->dn_nlevels - 1, j);
-		traverse_prefetch_metadata(td, &dnp->dn_blkptr[j], &czb);
+		traverse_prefetch_metadata(td, &((blkptr_t *)dnp->dn_blkptr)[j], &czb);
 	}
 
 	if (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
@@ -409,7 +409,7 @@ traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
 
 	for (j = 0; j < dnp->dn_nblkptr; j++) {
 		SET_BOOKMARK(&czb, objset, object, dnp->dn_nlevels - 1, j);
-		err = traverse_visitbp(td, dnp, &dnp->dn_blkptr[j], &czb);
+		err = traverse_visitbp(td, dnp, &((blkptr_t *)dnp->dn_blkptr)[j], &czb);
 		if (err != 0) {
 			if (!TD_HARD(td))
 				break;

@@ -1070,7 +1070,7 @@ dump_indirect(dnode_t *dn)
 	for (j = 0; j < dnp->dn_nblkptr; j++) {
 		czb.zb_blkid = j;
 		(void) visit_indirect(dmu_objset_spa(dn->dn_objset), dnp,
-		    &dnp->dn_blkptr[j], &czb);
+		    &((blkptr_t *)dnp->dn_blkptr)[j], &czb);
 	}
 
 	(void) printf("\n");
