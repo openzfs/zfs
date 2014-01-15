@@ -422,7 +422,7 @@ spa_txg_history_destroy(spa_t *spa)
  * Add a new txg to historical record.
  */
 void
-spa_txg_history_add(spa_t *spa, uint64_t txg)
+spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
 	spa_txg_history_t *sth, *rm;
@@ -433,7 +433,7 @@ spa_txg_history_add(spa_t *spa, uint64_t txg)
 	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_PUSHPAGE);
 	sth->txg = txg;
 	sth->state = TXG_STATE_OPEN;
-	sth->times[TXG_STATE_BIRTH] = gethrtime();
+	sth->times[TXG_STATE_BIRTH] = birth_time;
 
 	mutex_enter(&ssh->lock);
 
