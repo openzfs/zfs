@@ -557,8 +557,9 @@ typedef enum txg_state {
 	TXG_STATE_BIRTH		= 0,
 	TXG_STATE_OPEN		= 1,
 	TXG_STATE_QUIESCED	= 2,
-	TXG_STATE_SYNCED	= 3,
-	TXG_STATE_COMMITTED	= 4,
+	TXG_STATE_WAIT_FOR_SYNC	= 3,
+	TXG_STATE_SYNCED	= 4,
+	TXG_STATE_COMMITTED	= 5,
 } txg_state_t;
 
 extern void spa_stats_init(spa_t *spa);
