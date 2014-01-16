@@ -555,6 +555,9 @@ txg_sync_thread(dsl_pool_t *dp)
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 
+		spa_txg_history_set(spa, txg, TXG_STATE_WAIT_FOR_SYNC,
+		    gethrtime());
+
 		start = ddi_get_lbolt();
 		spa_sync(spa, txg);
 		delta = ddi_get_lbolt() - start;
