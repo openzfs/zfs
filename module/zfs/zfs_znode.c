@@ -1109,25 +1109,89 @@ zfs_zinactive(znode_t *zp)
 		ZFS_OBJ_HOLD_EXIT(zsb, z_id);
 }
 
+static inline int
+zfs_compare_timespec(struct timespec *t1, struct timespec *t2)
+{
+	if (t1->tv_sec < t2->tv_sec)
+		return (-1);
+
+	if (t1->tv_sec > t2->tv_sec)
+		return (1);
+
+	return (t1->tv_nsec - t2->tv_nsec);
+}
+
+/*
+ *  Determine whether the znode's atime must be updated.  The logic mostly
+ *  duplicates the Linux kernel's relatime_need_update() functionality.
+ *  This function is only called if the underlying filesystem actually has
+ *  atime updates enabled.
+ */
+static inline boolean_t
+zfs_atime_need_update(znode_t *zp, timestruc_t *now)
+{
+	if (!ZTOZSB(zp)->z_relatime)
+		return (B_TRUE);
+
+	/*
+	 * In relatime mode, only update the atime if the previous atime
+	 * is earlier than either the ctime or mtime or if at least a day
+	 * has passed since the last update of atime.
+	 */
+	if (zfs_compare_timespec(&ZTOI(zp)->i_mtime, &ZTOI(zp)->i_atime) >= 0)
+		return (B_TRUE);
+
+	if (zfs_compare_timespec(&ZTOI(zp)->i_ctime, &ZTOI(zp)->i_atime) >= 0)
+		return (B_TRUE);
+
+	if ((long)now->tv_sec - ZTOI(zp)->i_atime.tv_sec >= 24*60*60)
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
+/*
+ * Prepare to update znode time stamps.
+ *
+ *	IN:	zp	- znode requiring timestamp update
+ *		flag	- ATTR_MTIME, ATTR_CTIME, ATTR_ATIME flags
+ *		have_tx	- true of caller is creating a new txg
+ *
+ *	OUT:	zp	- new atime (via underlying inode's i_atime)
+ *		mtime	- new mtime
+ *		ctime	- new ctime
+ *
+ * NOTE: The arguments are somewhat redundant.  The following condition
+ * is always true:
+ *
+ *		have_tx == !(flag & ATTR_ATIME)
+ */
 void
 zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
     uint64_t ctime[2], boolean_t have_tx)
 {
 	timestruc_t	now;
 
+	ASSERT(have_tx == !(flag & ATTR_ATIME));
 	gethrestime(&now);
 
-	if (have_tx) {	/* will sa_bulk_update happen really soon? */
+	/*
+	 * NOTE: The following test intentionally does not update z_atime_dirty
+	 * in the case where an ATIME update has been requested but for which
+	 * the update is omitted due to relatime logic.  The rationale being
+	 * that if the flag was set somewhere else, we should leave it alone
+	 * here.
+	 */
+	if (flag & ATTR_ATIME) {
+		if (zfs_atime_need_update(zp, &now)) {
+			ZFS_TIME_ENCODE(&now, zp->z_atime);
+			ZTOI(zp)->i_atime.tv_sec = zp->z_atime[0];
+			ZTOI(zp)->i_atime.tv_nsec = zp->z_atime[1];
+			zp->z_atime_dirty = 1;
+		}
+	} else {
 		zp->z_atime_dirty = 0;
 		zp->z_seq++;
-	} else {
-		zp->z_atime_dirty = 1;
-	}
-
-	if (flag & ATTR_ATIME) {
-		ZFS_TIME_ENCODE(&now, zp->z_atime);
-		ZTOI(zp)->i_atime.tv_sec = zp->z_atime[0];
-		ZTOI(zp)->i_atime.tv_nsec = zp->z_atime[1];
 	}
 
 	if (flag & ATTR_MTIME) {

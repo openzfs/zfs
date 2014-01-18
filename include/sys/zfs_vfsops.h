@@ -65,6 +65,7 @@ typedef struct zfs_sb {
 	boolean_t	z_utf8;		/* utf8-only */
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_atime;	/* enable atimes mount option */
+	boolean_t	z_relatime;	/* enable relatime mount option */
 	boolean_t	z_unmounted;	/* unmounted */
 	rrwlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
