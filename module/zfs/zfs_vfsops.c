@@ -138,6 +138,12 @@ atime_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+relatime_changed_cb(void *arg, uint64_t newval)
+{
+	((zfs_sb_t *)arg)->z_relatime = newval;
+}
+
+static void
 xattr_changed_cb(void *arg, uint64_t newval)
 {
 	zfs_sb_t *zsb = arg;
@@ -275,6 +281,8 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
 	error = dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ATIME), atime_changed_cb, zsb);
+	error = dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_RELATIME), relatime_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_XATTR), xattr_changed_cb, zsb);
 	error = error ? error : dsl_prop_register(ds,
@@ -314,6 +322,8 @@ unregister:
 	 */
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_ATIME),
 	    atime_changed_cb, zsb);
+	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_RELATIME),
+	    relatime_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_XATTR),
 	    xattr_changed_cb, zsb);
 	(void) dsl_prop_unregister(ds, zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
@@ -912,6 +922,9 @@ zfs_unregister_callbacks(zfs_sb_t *zsb)
 	if (!dmu_objset_is_snapshot(os)) {
 		ds = dmu_objset_ds(os);
 		VERIFY(dsl_prop_unregister(ds, "atime", atime_changed_cb,
+		    zsb) == 0);
+
+		VERIFY(dsl_prop_unregister(ds, "relatime", relatime_changed_cb,
 		    zsb) == 0);
 
 		VERIFY(dsl_prop_unregister(ds, "xattr", xattr_changed_cb,
