@@ -10,7 +10,24 @@
 
 %bcond_with    debug
 %bcond_with    blkid
+%bcond_with    systemd
 
+# Generic enable switch for systemd
+%if %{with systemd}
+%define _systemd 1
+%endif
+
+# Fedora >= 15 comes with systemd, but only >= 18 has
+# the proper macros
+%if 0%{?fedora} >= 18
+%define _systemd 1
+%endif
+
+# opensuse >= 12.1 comes with systemd, but only >= 13.1
+# has the proper macros
+%if 0%{?suse_version} >= 1310
+%define _systemd 1
+%endif
 
 Name:           @PACKAGE@
 Version:        @VERSION@
@@ -37,6 +54,12 @@ BuildRequires:  libuuid-devel
 %if %{with blkid}
 BuildRequires:  libblkid-devel
 %endif
+%endif
+%if 0%{?_systemd}
+Requires(post): systemd
+Requires(preun): systemd
+Requires(postun): systemd
+BuildRequires: systemd
 %endif
 
 %description
@@ -85,6 +108,11 @@ image which is ZFS aware.
 %else
     %define blkid --without-blkid
 %endif
+%if 0%{?_systemd}
+    %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
+%else
+    %define systemd --enable-sysvinit --disable-systemd
+%endif
 
 %setup -q
 
@@ -95,7 +123,8 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
-    %{blkid}
+    %{blkid} \
+    %{systemd}
 make %{?_smp_mflags}
 
 %install
@@ -105,16 +134,28 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
 /sbin/ldconfig
+%if 0%{?_systemd}
+%systemd_post zfs.target
+%else
 [ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
+%endif
 exit 0
 
 %preun
+%if 0%{?_systemd}
+%systemd_preun zfs.target
+%else
 if [ $1 -eq 0 ] ; then
     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
 fi
+%endif
 exit 0
 
-%postun -p /sbin/ldconfig
+%postun
+/sbin/ldconfig
+%if 0%{?_systemd}
+%systemd_postun zfs.target
+%endif
 
 %files
 %doc AUTHORS COPYRIGHT DISCLAIMER
@@ -129,7 +170,13 @@ exit 0
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
 %config(noreplace) %{_sysconfdir}/%{name}
+%if 0%{?_systemd}
+/usr/lib/modules-load.d/*
+%{_unitdir}/*
+%{_presetdir}/*
+%else
 %{_sysconfdir}/init.d/*
+%endif
 
 %files devel
 %{_libdir}/*.so
