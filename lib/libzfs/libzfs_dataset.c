@@ -640,14 +640,27 @@ libzfs_mnttab_update(libzfs_handle_t *hdl)
 
 	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
 		mnttab_node_t *mtn;
+		avl_index_t where;
 
 		if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0)
 			continue;
+
 		mtn = zfs_alloc(hdl, sizeof (mnttab_node_t));
 		mtn->mtn_mt.mnt_special = zfs_strdup(hdl, entry.mnt_special);
 		mtn->mtn_mt.mnt_mountp = zfs_strdup(hdl, entry.mnt_mountp);
 		mtn->mtn_mt.mnt_fstype = zfs_strdup(hdl, entry.mnt_fstype);
 		mtn->mtn_mt.mnt_mntopts = zfs_strdup(hdl, entry.mnt_mntopts);
+
+		/* Exclude duplicate mounts */
+		if (avl_find(&hdl->libzfs_mnttab_cache, mtn, &where) != NULL) {
+			free(mtn->mtn_mt.mnt_special);
+			free(mtn->mtn_mt.mnt_mountp);
+			free(mtn->mtn_mt.mnt_fstype);
+			free(mtn->mtn_mt.mnt_mntopts);
+			free(mtn);
+			continue;
+		}
+
 		avl_add(&hdl->libzfs_mnttab_cache, mtn);
 	}
 
