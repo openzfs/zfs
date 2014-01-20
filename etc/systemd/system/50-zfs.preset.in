@@ -1,0 +1,2 @@
+# ZFS is enabled by default
+enable zfs.*

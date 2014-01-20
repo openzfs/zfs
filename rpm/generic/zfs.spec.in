@@ -3,6 +3,7 @@
 %if 0%{?fedora} >= 17
 %global _udevdir    %{_prefix}/lib/udev
 %global _dracutdir  %{_prefix}/lib/dracut
+%define _systemd     1
 %else
 %global _udevdir    /lib/udev
 %global _dracutdir  %{_prefix}/share/dracut
@@ -37,6 +38,12 @@ BuildRequires:  libuuid-devel
 %if %{with blkid}
 BuildRequires:  libblkid-devel
 %endif
+%endif
+%if 0%{?_systemd}
+Requires(post): systemd
+Requires(preun): systemd
+Requires(postun): systemd
+BuildRequires: systemd
 %endif
 
 %description
@@ -85,6 +92,11 @@ image which is ZFS aware.
 %else
     %define blkid --without-blkid
 %endif
+%if 0%{?_systemd}
+    %define systemd --with-systemddir=%{_unitdir} --with-systemdpresetdir=%{_prefix}/lib/systemd/system-preset
+%else
+    %define systemd --without-systemd --without-systemdpresetdir
+%endif
 
 %setup -q
 
@@ -95,26 +107,42 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
-    %{blkid}
+    %{blkid} \
+    %{systemd}
 make %{?_smp_mflags}
 
 %install
 %{__rm} -rf $RPM_BUILD_ROOT
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
+%if 0%{?_systemd}
+rm %{?buildroot}%{_sysconfdir}/init.d
+%endif
 
 %post
 /sbin/ldconfig
+%if 0%{?_systemd}
+%systemd_post zfs.target
+%else
 [ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
+%endif
 exit 0
 
 %preun
+%if 0%{?_systemd}
+%systemd_preun zfs.target
+%else
 if [ $1 -eq 0 ] ; then
     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
 fi
+%endif
 exit 0
 
-%postun -p /sbin/ldconfig
+%postun
+/sbin/ldconfig
+%if 0%{?_systemd}
+%systemd_postun zfs.target
+%endif
 
 %files
 %doc AUTHORS COPYRIGHT DISCLAIMER
@@ -129,7 +157,11 @@ exit 0
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
 %config(noreplace) %{_sysconfdir}/%{name}
+%if 0%{?_systemd}
+%{_unitdir}/*
+%else
 %{_sysconfdir}/init.d/*
+%endif
 
 %files devel
 %{_libdir}/*.so
