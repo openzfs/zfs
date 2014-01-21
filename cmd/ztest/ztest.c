@@ -6035,6 +6035,7 @@ ztest_init(ztest_shared_t *zs)
 	}
 	VERIFY3U(0, ==, spa_create(ztest_opts.zo_pool, nvroot, props, NULL));
 	nvlist_free(nvroot);
+	nvlist_free(props);
 
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	zs->zs_metaslab_sz =
