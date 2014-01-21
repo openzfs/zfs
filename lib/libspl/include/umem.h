@@ -109,6 +109,8 @@ umem_alloc_aligned(size_t size, size_t align, int flags)
 		return (NULL);
 	}
 
+	ASSERT0(P2PHASE(ptr, align));
+
 	return (ptr);
 }
 
