@@ -65,6 +65,7 @@ if [ $(id -u) != 0 ]; then
 fi
 
 if [ ${UNLOAD} ]; then
+	kill_zed
 	umount -t zfs -a
 	stack_check
 	unload_modules
