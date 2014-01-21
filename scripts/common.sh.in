@@ -38,6 +38,7 @@ sbindir=@sbindir@
 udevdir=@udevdir@
 udevruledir=@udevruledir@
 sysconfdir=@sysconfdir@
+localstatedir=@localstatedir@
 
 ETCDIR=${ETCDIR:-/etc}
 DEVDIR=${DEVDIR:-/dev/disk/by-vdev}
@@ -71,6 +72,8 @@ SCSIRESCAN=${SCSIRESCAN:-/usr/bin/scsi-rescan}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
 UDEVADM=${UDEVADM:-/sbin/udevadm}
 AWK=${AWK:-/usr/bin/awk}
+
+ZED_PIDFILE=${ZED_PIDFILE:-${localstatedir}/run/zed.pid}
 
 COLOR_BLACK="\033[0;30m"
 COLOR_DK_GRAY="\033[1;30m"
@@ -744,4 +747,10 @@ stack_check() {
 			cat $STACK_TRACE
 		fi
 	fi
+}
+
+kill_zed() {
+        if [ -f $ZED_PIDFILE ]; then
+		kill $(cat $ZED_PIDFILE)
+        fi
 }
