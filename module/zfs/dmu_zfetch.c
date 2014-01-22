@@ -138,7 +138,8 @@ dmu_zfetch_colinear(zfetch_t *zf, zstream_t *zh)
 			diff = z_comp->zst_offset - z_walk->zst_offset;
 			if (z_comp->zst_offset + diff == zh->zst_offset) {
 				z_walk->zst_offset = zh->zst_offset;
-				z_walk->zst_direction = diff < 0 ? -1 : 1;
+				z_walk->zst_direction = diff < 0 ?
+				    ZFETCH_BACKWARD : ZFETCH_FORWARD;
 				z_walk->zst_stride =
 				    diff * z_walk->zst_direction;
 				z_walk->zst_ph_offset =
@@ -156,7 +157,8 @@ dmu_zfetch_colinear(zfetch_t *zf, zstream_t *zh)
 			diff = z_walk->zst_offset - z_comp->zst_offset;
 			if (z_walk->zst_offset + diff == zh->zst_offset) {
 				z_walk->zst_offset = zh->zst_offset;
-				z_walk->zst_direction = diff < 0 ? -1 : 1;
+				z_walk->zst_direction = diff < 0 ?
+				    ZFETCH_BACKWARD : ZFETCH_FORWARD;
 				z_walk->zst_stride =
 				    diff * z_walk->zst_direction;
 				z_walk->zst_ph_offset =
