@@ -1213,6 +1213,7 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 {
 	spa_t *spa = zio->io_spa;
 	zio_type_t t = zio->io_type;
+	zio_t *lio = zio->io_logical ? zio->io_logical : zio;
 	int flags = (cutinline ? TQ_FRONT : 0);
 
 	/*
@@ -1238,6 +1239,9 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 		q++;
 
 	ASSERT3U(q, <, ZIO_TASKQ_TYPES);
+
+	if (lio->io_flags & ZIO_FLAG_TRYHARD)
+		flags |= TQ_PUSHPAGE_THREAD;
 
 	/*
 	 * NB: We are assuming that the zio can only be dispatched
@@ -1395,6 +1399,17 @@ zio_wait(zio_t *zio)
 	ASSERT(zio->io_executor == NULL);
 
 	zio->io_waiter = curthread;
+
+#ifdef _KERNEL
+	/*
+	 * For I/Os which the txg_sync thread is waiting on the flag
+	 * ZIO_FLAG_SYNC_THREAD is set in the logical root zio.  This
+	 * allows the lower layers to identify this as a critical I/O
+	 * which means KM_PUSHPAGE must be used to prevent a deadlock.
+	 */
+	if (current->flags & PF_NOFS)
+		zio->io_flags |= ZIO_FLAG_TRYHARD;
+#endif /* _KERNEL */
 
 	__zio_execute(zio);
 

@@ -199,7 +199,7 @@ enum zio_flag {
 	ZIO_FLAG_FASTWRITE	= 1 << 28
 };
 
-#define	ZIO_FLAG_MUSTSUCCEED		0
+#define	ZIO_FLAG_MUSTSUCCEED		ZIO_FLAG_TRYHARD
 
 #define	ZIO_DDT_CHILD_FLAGS(zio)				\
 	(((zio)->io_flags & ZIO_FLAG_DDT_INHERIT) |		\
