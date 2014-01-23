@@ -258,9 +258,9 @@ static int
 spa_txg_history_headers(char *buf, size_t size)
 {
 	size = snprintf(buf, size - 1, "%-8s %-16s %-5s %-12s %-12s %-12s "
-	    "%-8s %-8s %-12s %-12s %-12s\n", "txg", "birth", "state",
+	    "%-8s %-8s %-12s %-12s %-12s %-12s\n", "txg", "birth", "state",
 	    "nreserved", "nread", "nwritten", "reads", "writes",
-	    "otime", "qtime", "stime");
+	    "otime", "qtime", "wtime", "stime");
 	buf[size] = '\0';
 
 	return (0);
@@ -270,13 +270,14 @@ static int
 spa_txg_history_data(char *buf, size_t size, void *data)
 {
 	spa_txg_history_t *sth = (spa_txg_history_t *)data;
-	uint64_t open = 0, quiesce = 0, sync = 0;
+	uint64_t open = 0, quiesce = 0, wait = 0, sync = 0;
 	char state;
 
 	switch (sth->state) {
 		case TXG_STATE_BIRTH:		state = 'B';	break;
 		case TXG_STATE_OPEN:		state = 'O';	break;
 		case TXG_STATE_QUIESCED:	state = 'Q';	break;
+		case TXG_STATE_WAIT_FOR_SYNC:	state = 'W';	break;
 		case TXG_STATE_SYNCED:		state = 'S';	break;
 		case TXG_STATE_COMMITTED:	state = 'C';	break;
 		default:			state = '?';	break;
@@ -290,17 +291,22 @@ spa_txg_history_data(char *buf, size_t size, void *data)
 		quiesce = sth->times[TXG_STATE_QUIESCED] -
 		    sth->times[TXG_STATE_OPEN];
 
-	if (sth->times[TXG_STATE_SYNCED])
-		sync = sth->times[TXG_STATE_SYNCED] -
+	if (sth->times[TXG_STATE_WAIT_FOR_SYNC])
+		wait = sth->times[TXG_STATE_WAIT_FOR_SYNC] -
 		    sth->times[TXG_STATE_QUIESCED];
 
+	if (sth->times[TXG_STATE_SYNCED])
+		sync = sth->times[TXG_STATE_SYNCED] -
+		    sth->times[TXG_STATE_WAIT_FOR_SYNC];
+
 	size = snprintf(buf, size - 1, "%-8llu %-16llu %-5c %-12llu "
-	    "%-12llu %-12llu %-8llu %-8llu %-12llu %-12llu %-12llu\n",
+	    "%-12llu %-12llu %-8llu %-8llu %-12llu %-12llu %-12llu %-12llu\n",
 	    (longlong_t)sth->txg, sth->times[TXG_STATE_BIRTH], state,
 	    (u_longlong_t)sth->nreserved,
 	    (u_longlong_t)sth->nread, (u_longlong_t)sth->nwritten,
 	    (u_longlong_t)sth->reads, (u_longlong_t)sth->writes,
-	    (u_longlong_t)open, (u_longlong_t)quiesce, (u_longlong_t)sync);
+	    (u_longlong_t)open, (u_longlong_t)quiesce, (u_longlong_t)wait,
+	    (u_longlong_t)sync);
 	buf[size] = '\0';
 
 	return (0);
@@ -416,7 +422,7 @@ spa_txg_history_destroy(spa_t *spa)
  * Add a new txg to historical record.
  */
 void
-spa_txg_history_add(spa_t *spa, uint64_t txg)
+spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
 	spa_txg_history_t *sth, *rm;
@@ -427,7 +433,7 @@ spa_txg_history_add(spa_t *spa, uint64_t txg)
 	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_PUSHPAGE);
 	sth->txg = txg;
 	sth->state = TXG_STATE_OPEN;
-	sth->times[TXG_STATE_BIRTH] = gethrtime();
+	sth->times[TXG_STATE_BIRTH] = birth_time;
 
 	mutex_enter(&ssh->lock);
 

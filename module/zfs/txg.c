@@ -377,8 +377,8 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	tx->tx_open_txg++;
 	tx->tx_open_time = gethrtime();
 
-	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_OPEN, gethrtime());
-	spa_txg_history_add(dp->dp_spa, tx->tx_open_txg);
+	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_OPEN, tx->tx_open_time);
+	spa_txg_history_add(dp->dp_spa, tx->tx_open_txg, tx->tx_open_time);
 
 	DTRACE_PROBE2(txg__quiescing, dsl_pool_t *, dp, uint64_t, txg);
 	DTRACE_PROBE2(txg__opened, dsl_pool_t *, dp, uint64_t, tx->tx_open_txg);
@@ -554,6 +554,8 @@ txg_sync_thread(dsl_pool_t *dp)
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
+
+		spa_txg_history_set(spa, txg, TXG_STATE_WAIT_FOR_SYNC, gethrtime());
 
 		start = ddi_get_lbolt();
 		spa_sync(spa, txg);
