@@ -5,11 +5,18 @@ phys_per_port 4
 # Additionally create /dev/by-enclousure/ symlinks for enclosure devices
 enclosure_symlinks	yes
 
-#       PCI_ID  HBA PORT  CHANNEL NAME
-channel 85:00.0 1         A
-channel 85:00.0 0         B
-channel 86:00.0 1         C
-channel 86:00.0 0         D
+# In this example, enclosure "B" is daisy-chained off of
+# enclosure "A", so we specify an enclosure number to
+# distinguish between them.  Daisy-chained enclosures are
+# numbered starting from 0. The other channels are not
+# daisy-chained so the enclosure number is omitted.
+
+#       PCI_ID  HBA PORT  ENCLOSURE  CHANNEL NAME
+channel 85:00.0 1         0          A
+channel 85:00.0 1         1          B
+channel 85:00.0 0                    C
+channel 86:00.0 1                    D
+channel 86:00.0 0                    E
 
 
 # Custom mapping for Channel A
@@ -21,7 +28,7 @@ slot 2          10        A
 slot 3          3         A
 slot 4          6         A
 
-# Default mapping for B, C, and D
+# Default mapping for channels B-E
 slot 1          4
 slot 2          2
 slot 3          1

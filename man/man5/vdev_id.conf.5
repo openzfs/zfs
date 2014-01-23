@@ -34,7 +34,7 @@ L2ARC device with an alias.
 defined by udev.  This may be an absolute path or the base filename.
 
 .TP
-\fIchannel\fR [pci_slot] <port> <name>
+\fIchannel\fR [pci_slot] <port> [enclosure_id] <name>
 Maps a physical path to a channel name (typically representing a single
 disk enclosure).
 
@@ -58,6 +58,11 @@ This argument is not used in sas_switch mode.
 
 \fIport\fR - specifies the numeric identifier of the HBA or SAS switch port
 connected to the disk enclosure being mapped.
+
+\fIenclosure_id\fR - specifies the numeric identifier of an enclosure in
+a daisy-chained configuration.  Daisy-chained enclosures are numbered
+starting from 0.  This parameter may be omitted for enclosures that are
+not daisy-chained.
 
 \fIname\fR - specifies the name of the channel.
 
@@ -132,11 +137,18 @@ arbitrary slot re-mapping.
 	phys_per_port 4
 	slot          bay
 
-	#       PCI_SLOT HBA PORT  CHANNEL NAME
-	channel 85:00.0  1         A
-	channel 85:00.0  0         B
-	channel 86:00.0  1         C
-	channel 86:00.0  0         D
+	# In this example, enclosure "B" is daisy-chained off of
+	# enclosure "A", so we specify an enclosure number to
+	# distinguish between them.  Daisy-chained enclosures are
+	# numbered starting from 0. The other channels are not
+	# daisy-chained so the enclosure number is omitted.
+
+	#       PCI_SLOT HBA PORT  ENCLOSURE  CHANNEL NAME
+	channel 85:00.0  1         0          A
+	channel 85:00.0  1         1          B
+	channel 85:00.0  0                    C
+	channel 86:00.0  1                    D
+	channel 86:00.0  0                    E
 
 	# Custom mapping for Channel A
 
@@ -147,7 +159,7 @@ arbitrary slot re-mapping.
 	slot 3          3         A
 	slot 4          6         A
 
-	# Default mapping for B, C, and D
+	# Default mapping for channels B-E
 
 	slot 1          4
 	slot 2          2
@@ -162,11 +174,17 @@ keyword takes only two arguments in this example.
 .nf
 	topology      sas_switch
 
-	#       SWITCH PORT  CHANNEL NAME
-	channel 1            A
-	channel 2            B
-	channel 3            C
-	channel 4            D
+	# In this example, enclosure "B" is daisy-chained off of
+	# enclosure "A", so we specify an enclosure number to
+	# distinguish between them.  Daisy-chained enclosures are
+	# numbered starting from 0. The other channels are not
+	# daisy-chained so the enclosure number is omitted.
+
+	#       SWITCH PORT  ENCLOSURE  CHANNEL NAME
+	channel 1            0          A
+	channel 1            1          B
+	channel 2                       C
+	channel 3                       D
 .fi
 .P
 A multipath configuration.  Note that channel names have multiple

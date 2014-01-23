@@ -34,11 +34,12 @@
 # phys_per_port 4
 # slot          bay
 #
-# #       PCI_ID  HBA PORT  CHANNEL NAME
-# channel 85:00.0 1         A
-# channel 85:00.0 0         B
-# channel 86:00.0 1         C
-# channel 86:00.0 0         D
+# #       PCI_ID  HBA PORT  ENCLOSURE  CHANNEL NAME
+# channel 85:00.0 1         0          A
+# channel 85:00.0 1         1          B
+# channel 85:00.0 0                    C
+# channel 86:00.0 1                    D
+# channel 86:00.0 0                    E
 #
 # # Custom mapping for Channel A
 #
@@ -49,7 +50,8 @@
 # slot 3          3         A
 # slot 4          6         A
 #
-# # Default mapping for B, C, and D
+# # Default mapping for channels B-E
+#
 # slot 1          4
 # slot 2          2
 # slot 3          1
@@ -61,11 +63,11 @@
 #
 # topology      sas_switch
 #
-# #       SWITCH PORT  CHANNEL NAME
-# channel 1            A
-# channel 2            B
-# channel 3            C
-# channel 4            D
+# #       SWITCH PORT  ENCLOSURE  CHANNEL NAME
+# channel 1            0          A
+# channel 1            1          B
+# channel 2                       C
+# channel 3                       D
 
 # #
 # # Example vdev_id.conf - multipath
@@ -133,13 +135,32 @@ map_channel() {
 
 	case $TOPOLOGY in
 		"sas_switch")
-		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \\$2 == ${PORT} \
-			{ print \\$3; exit }" $CONFIG`
+		MAPPED_CHAN=`awk "{
+			if (\\$1 == \"channel\" && \\$4 &&
+			    \\$2 == \"${PORT}\" && \\$3 == \"${ENCLOSURE}\") {
+				print \\$4;
+				exit;
+			} else if (\\$1 == \"channel\" && !\\$4 &&
+				   \\$2 == \"${PORT}\") {
+				print \\$3;
+				exit;
+			}
+		}" $CONFIG`
 		;;
 		"sas_direct"|"scsi")
-		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \
-			\\$2 == \"${PCI_ID}\" && \\$3 == ${PORT} \
-			{ print \\$4; exit }" $CONFIG`
+		MAPPED_CHAN=`awk "{
+			if (\\$1 == \"channel\" && \\$5 &&
+			    \\$2 == \"${PCI_ID}\" && \\$3 == \"${PORT}\" &&
+			    \\$4 == \"${ENCLOSURE}\") {
+				print \\$5;
+				exit;
+			} else if (\\$1 == \"channel\" && !\\$5 &&
+				   \\$2 == \"${PCI_ID}\" &&
+				   \\$3 == \"${PORT}\") {
+				print \\$4;
+				exit;
+			}
+		}" $CONFIG`
 		;;
 	esac
 	printf "%s" ${MAPPED_CHAN}
@@ -299,7 +320,8 @@ sas_handler() {
 		return
 	fi
 
-	CHAN=`map_channel $PCI_ID $PORT`
+	ENCLOSURE=`echo $end_device_dir | awk -F: '{gsub(/.*\//,""); print $2}'`
+	CHAN=`map_channel $PCI_ID $PORT $ENCLOSURE`
 	SLOT=`map_slot $SLOT $CHAN`
 	if [ -z "$CHAN" ] ; then
 		return
