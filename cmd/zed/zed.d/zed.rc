@@ -26,3 +26,9 @@
 
 # The syslog tag for marking zed events.
 #ZED_SYSLOG_TAG="zed"
+
+# Replace a device with a hot spare after N I/O errors are detected.
+#ZED_SPARE_ON_IO_ERRORS=1
+
+# Replace a device with a hot spare after N checksum errors are detected.
+#ZED_SPARE_ON_CHECKSUM_ERRORS=10
