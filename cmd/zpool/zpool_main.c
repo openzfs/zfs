@@ -5377,7 +5377,18 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 			break;
 			}
 
-		case DATA_TYPE_STRING_ARRAY:
+		case DATA_TYPE_STRING_ARRAY: {
+			char **str;
+			uint_t i, nelem;
+
+			(void) nvpair_value_string_array(nvp, &str, &nelem);
+			for (i = 0; i < nelem; i++)
+				printf(gettext("\"%s\" "),
+				    str[i] ? str[i] : "<NULL>");
+
+			break;
+			}
+
 		case DATA_TYPE_BOOLEAN_ARRAY:
 		case DATA_TYPE_BYTE_ARRAY:
 		case DATA_TYPE_DOUBLE:
