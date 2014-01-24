@@ -467,7 +467,7 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 	if ((zhp = zpool_open(g_zfs, pool)) == NULL)
 		return (-1);
 
-	record->zi_guid = strtoull(device, &end, 16);
+	record->zi_guid = strtoull(device, &end, 0);
 	if (record->zi_guid == 0 || *end != '\0') {
 		tgt = zpool_find_vdev(zhp, device, &isspare, &iscache, NULL);
 
