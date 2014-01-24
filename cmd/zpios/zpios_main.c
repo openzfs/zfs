@@ -568,8 +568,8 @@ run_region_sizes(cmd_args_t *args)
 
 	while (rc == 0 && get_next(&args->current_S, &args->S)) {
 		if (args->current_S < args->current_C) {
-			fprintf(stderr, "Error: in any run chunksize can "
-				"not be smaller than regionsize.\n");
+			fprintf(stderr, "Error: in any run chunksize must "
+			    "be strictly smaller than regionsize.\n");
 			return (EINVAL);
 		}
 
