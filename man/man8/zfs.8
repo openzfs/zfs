@@ -738,7 +738,7 @@ the \fBxattr=sa\fR property.  See the \fBxattr\fR property for more details.
 .ad
 .sp .6
 .RS 4n
-Controls whether the access time for files is updated when they are read. Turning this property off avoids producing write traffic when reading files and can result in significant performance gains, though it might confuse mailers and other similar utilities. The default value is \fBon\fR.
+Controls whether the access time for files is updated when they are read. Turning this property off avoids producing write traffic when reading files and can result in significant performance gains, though it might confuse mailers and other similar utilities. The default value is \fBon\fR.  See also \fBrelatime\fR below.
 .RE
 
 .sp
@@ -1019,6 +1019,17 @@ The minimum amount of space guaranteed to a dataset, not including its descenden
 If \fBrefreservation\fR is set, a snapshot is only allowed if there is enough free pool space outside of this reservation to accommodate the current number of "referenced" bytes in the dataset.
 .sp
 This property can also be referred to by its shortened column name, \fBrefreserv\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBrelatime\fR=\fBon\fR | \fBoff\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls the manner in which the access time is updated when \fBatime=on\fR is set.  Turning this property \fBon\fR causes the access time to be updated relative to the modify or change time.  Access time is only updated if the previous access time was earlier than the current modify or change time or if the existing access time hasn't been updated within the past 24 hours.  The default value is \fBoff\fR.
 .RE
 
 .sp
@@ -3184,6 +3195,7 @@ pool/home/bob  usedbyrefreservation  0                      -
 pool/home/bob  logbias               latency                default
 pool/home/bob  dedup                 off                    default
 pool/home/bob  mlslabel              none                   default
+pool/home/bob  relatime              off                    default
 .fi
 .in -2
 .sp
