@@ -39,12 +39,16 @@ dist_zedexec_SCRIPTS = \
 	$(top_srcdir)/cmd/zed/zed.d/all-debug.sh \
 	$(top_srcdir)/cmd/zed/zed.d/all-syslog.sh \
 	$(top_srcdir)/cmd/zed/zed.d/checksum-email.sh \
+	$(top_srcdir)/cmd/zed/zed.d/checksum-spare.sh \
+	$(top_srcdir)/cmd/zed/zed.d/io-spare.sh \
 	$(top_srcdir)/cmd/zed/zed.d/resilver.finish-email.sh \
 	$(top_srcdir)/cmd/zed/zed.d/scrub.finish-email.sh
 
 zedconfdefaults = \
 	all-syslog.sh \
 	checksum-email.sh \
+	checksum-spare.sh \
+	io-spare.sh \
 	resilver.finish-email.sh \
 	scrub.finish-email.sh
 
