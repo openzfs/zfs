@@ -11,6 +11,11 @@
 
 %bcond_with    debug
 %bcond_with    blkid
+%bcond_with    systemd
+
+%if %{with systemd}
+%define _systemd 1
+%endif
 
 
 Name:           @PACKAGE@
@@ -93,9 +98,9 @@ image which is ZFS aware.
     %define blkid --without-blkid
 %endif
 %if 0%{?_systemd}
-    %define systemd --with-systemddir=%{_unitdir} --with-systemdpresetdir=%{_prefix}/lib/systemd/system-preset
+    %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
 %else
-    %define systemd --without-systemd --without-systemdpresetdir
+    %define systemd --enable-sysvinit --disable-systemd
 %endif
 
 %setup -q
@@ -115,9 +120,6 @@ make %{?_smp_mflags}
 %{__rm} -rf $RPM_BUILD_ROOT
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
-%if 0%{?_systemd}
-rm %{?buildroot}%{_sysconfdir}/init.d
-%endif
 
 %post
 /sbin/ldconfig
@@ -159,6 +161,7 @@ exit 0
 %config(noreplace) %{_sysconfdir}/%{name}
 %if 0%{?_systemd}
 %{_unitdir}/*
+%{_presetdir}/*
 %else
 %{_sysconfdir}/init.d/*
 %endif
