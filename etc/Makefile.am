@@ -1,1 +1,2 @@
-SUBDIRS = init.d zfs systemd
+SUBDIRS = zfs $(ZFS_INIT_SYSTEMD) $(ZFS_INIT_SYSV)
+DIST_SUBDIRS= init.d zfs systemd
