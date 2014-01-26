@@ -5,4 +5,4 @@ DefaultDependencies=no
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=modprobe zfs
+ExecStart=/sbin/modprobe zfs
