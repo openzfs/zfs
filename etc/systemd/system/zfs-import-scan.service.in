@@ -1,4 +1,4 @@
-Unit]
+[Unit]
 Description=Import ZFS pools by device scanning
 DefaultDependencies=no
 Requires=zfs-module.service
