@@ -3,7 +3,6 @@
 %if 0%{?fedora} >= 17
 %global _udevdir    %{_prefix}/lib/udev
 %global _dracutdir  %{_prefix}/lib/dracut
-%define _systemd     1
 %else
 %global _udevdir    /lib/udev
 %global _dracutdir  %{_prefix}/share/dracut
@@ -13,10 +12,20 @@
 %bcond_with    blkid
 %bcond_with    systemd
 
+# Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
 %endif
 
+# Fedora >= 15 comes with systemd
+%if 0%{?fedora} >= 15
+%define _systemd 1
+%endif
+
+# opensuse >= 12.1 comes with systemd
+%if 0%{?suse_version} >= 1210
+%define _systemd 1
+%endif
 
 Name:           @PACKAGE@
 Version:        @VERSION@
