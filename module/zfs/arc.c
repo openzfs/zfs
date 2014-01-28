@@ -768,8 +768,8 @@ static kcondvar_t l2arc_feed_thr_cv;
 static uint8_t l2arc_thread_exit;
 
 static void l2arc_read_done(zio_t *zio);
-static void l2arc_hdr_stat_add(arc_buf_contents_t type);
-static void l2arc_hdr_stat_remove(arc_buf_contents_t type);
+static void l2arc_hdr_stat_add(void);
+static void l2arc_hdr_stat_remove(void);
 static boolean_t l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *ab);
 static l2arc_dev_t *l2arc_dev_get_next(void);
 static void l2arc_evict_headers(l2arc_dev_t *dev, uint64_t target_sz);
@@ -945,6 +945,7 @@ hdr_cons(void *vbuf, void *unused, int kmflag)
 	mutex_init(&buf->b_freeze_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_link_init(&buf->b_arc_node);
 	list_link_init(&buf->b_l2node);
+	arc_space_consume(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS);
 
 	return (0);
 }
@@ -957,6 +958,7 @@ buf_cons(void *vbuf, void *unused, int kmflag)
 
 	bzero(buf, sizeof (arc_buf_t));
 	mutex_init(&buf->b_evict_lock, NULL, MUTEX_DEFAULT, NULL);
+	arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 
 	return (0);
 }
@@ -975,6 +977,7 @@ hdr_dest(void *vbuf, void *unused)
 	refcount_destroy(&buf->b_refcnt);
 	cv_destroy(&buf->b_cv);
 	mutex_destroy(&buf->b_freeze_lock);
+	arc_space_return(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS);
 }
 
 /* ARGSUSED */
@@ -984,6 +987,7 @@ buf_dest(void *vbuf, void *unused)
 	arc_buf_t *buf = vbuf;
 
 	mutex_destroy(&buf->b_evict_lock);
+	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 }
 
 static void
@@ -1345,19 +1349,17 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *ab, kmutex_t *hash_lock)
 
 	/* adjust l2arc hdr stats */
 	if (new_state == arc_l2c_only)
-		l2arc_hdr_stat_add(ab->b_type);
+		l2arc_hdr_stat_add();
 	else if (old_state == arc_l2c_only)
-		l2arc_hdr_stat_remove(ab->b_type);
+		l2arc_hdr_stat_remove();
 }
 
 void
-arc_space_consume(uint64_t space, arc_space_type_t space_type,
-    arc_buf_contents_t buf_type)
+arc_space_consume(uint64_t space, arc_space_type_t type)
 {
-	ASSERT(space_type >= 0 && space_type < ARC_SPACE_NUMTYPES);
-	ASSERT(buf_type >= 0 && buf_type < ARC_BUFC_NUMTYPES);
+	ASSERT(type >= 0 && type < ARC_SPACE_NUMTYPES);
 
-	switch (space_type) {
+	switch (type) {
 	default:
 		break;
 	case ARC_SPACE_DATA:
@@ -1378,23 +1380,19 @@ arc_space_consume(uint64_t space, arc_space_type_t space_type,
 	 * as these buffers are not limited by the same restrictions as
 	 * those two values (i.e. we don't want the L2ARC headers to
 	 * encumber the data restricted by arc_meta_used or arc_c_max) */
-	if (space_type == ARC_SPACE_L2HDRS)
+	if (type == ARC_SPACE_L2HDRS)
 		return;
 
-	if (buf_type == ARC_BUFC_METADATA)
-		ARCSTAT_INCR(arcstat_meta_used, space);
-
+	ARCSTAT_INCR(arcstat_meta_used, space);
 	atomic_add_64(&arc_size, space);
 }
 
 void
-arc_space_return(uint64_t space, arc_space_type_t space_type,
-    arc_buf_contents_t buf_type)
+arc_space_return(uint64_t space, arc_space_type_t type)
 {
-	ASSERT(space_type >= 0 && space_type < ARC_SPACE_NUMTYPES);
-	ASSERT(buf_type >= 0 && buf_type < ARC_BUFC_NUMTYPES);
+	ASSERT(type >= 0 && type < ARC_SPACE_NUMTYPES);
 
-	switch (space_type) {
+	switch (type) {
 	default:
 		break;
 	case ARC_SPACE_DATA:
@@ -1411,16 +1409,13 @@ arc_space_return(uint64_t space, arc_space_type_t space_type,
 		break;
 	}
 
-	if (space_type == ARC_SPACE_L2HDRS)
+	if (type == ARC_SPACE_L2HDRS)
 		return;
 
-	if (buf_type == ARC_BUFC_METADATA) {
-		ASSERT(arc_meta_used >= space);
-		if (arc_meta_max < arc_meta_used)
-			arc_meta_max = arc_meta_used;
-		ARCSTAT_INCR(arcstat_meta_used, -space);
-	}
-
+	ASSERT(arc_meta_used >= space);
+	if (arc_meta_max < arc_meta_used)
+		arc_meta_max = arc_meta_used;
+	ARCSTAT_INCR(arcstat_meta_used, -space);
 	ASSERT(arc_size >= space);
 	atomic_add_64(&arc_size, -space);
 }
@@ -1433,7 +1428,6 @@ arc_buf_alloc(spa_t *spa, int size, void *tag, arc_buf_contents_t type)
 
 	ASSERT3U(size, >, 0);
 	hdr = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
-	arc_space_consume(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS, type);
 	ASSERT(BUF_EMPTY(hdr));
 	hdr->b_size = size;
 	hdr->b_type = type;
@@ -1446,7 +1440,6 @@ arc_buf_alloc(spa_t *spa, int size, void *tag, arc_buf_contents_t type)
 	hdr->b_mfu_ghost_hits = 0;
 	hdr->b_l2_hits = 0;
 	buf = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
-	arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS, hdr->b_type);
 	buf->b_hdr = hdr;
 	buf->b_data = NULL;
 	buf->b_efunc = NULL;
@@ -1522,7 +1515,6 @@ arc_buf_clone(arc_buf_t *from)
 	ASSERT(hdr->b_state != arc_anon);
 
 	buf = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
-	arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS, hdr->b_type);
 	buf->b_hdr = hdr;
 	buf->b_data = NULL;
 	buf->b_efunc = NULL;
@@ -1606,24 +1598,26 @@ arc_buf_data_free(arc_buf_t *buf, void (*free_func)(void *, size_t))
 static void
 arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t all)
 {
-	arc_buf_contents_t type = buf->b_hdr->b_type;
 	arc_buf_t **bufp;
 
 	/* free up data associated with the buf */
 	if (buf->b_data) {
 		arc_state_t *state = buf->b_hdr->b_state;
 		uint64_t size = buf->b_hdr->b_size;
+		arc_buf_contents_t type = buf->b_hdr->b_type;
 
 		arc_cksum_verify(buf);
 		arc_buf_unwatch(buf);
 
 		if (!recycle) {
-			arc_space_return(size, ARC_SPACE_DATA, type);
 			if (type == ARC_BUFC_METADATA) {
 				arc_buf_data_free(buf, zio_buf_free);
+				arc_space_return(size, ARC_SPACE_DATA);
 			} else {
 				ASSERT(type == ARC_BUFC_DATA);
 				arc_buf_data_free(buf, zio_data_buf_free);
+				ARCSTAT_INCR(arcstat_data_size, -size);
+				atomic_add_64(&arc_size, -size);
 			}
 		}
 		if (list_link_active(&buf->b_hdr->b_arc_node)) {
@@ -1666,7 +1660,6 @@ arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t all)
 
 	/* clean up the buf */
 	buf->b_hdr = NULL;
-	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS, type);
 	kmem_cache_free(buf_cache, buf);
 }
 
@@ -1701,10 +1694,9 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			ARCSTAT_INCR(arcstat_l2_size, -hdr->b_size);
 			ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
 			kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
-			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS,
-			    hdr->b_type);
+			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 			if (hdr->b_state == arc_l2c_only)
-				l2arc_hdr_stat_remove(hdr->b_type);
+				l2arc_hdr_stat_remove();
 			hdr->b_l2hdr = NULL;
 		}
 
@@ -1742,7 +1734,6 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 	ASSERT(!list_link_active(&hdr->b_arc_node));
 	ASSERT3P(hdr->b_hash_next, ==, NULL);
 	ASSERT3P(hdr->b_acb, ==, NULL);
-	arc_space_return(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS, hdr->b_type);
 	kmem_cache_free(hdr_cache, hdr);
 }
 
@@ -2255,7 +2246,6 @@ arc_do_user_evicts(void)
 	mutex_enter(&arc_eviction_mtx);
 	while (arc_eviction_list != NULL) {
 		arc_buf_t *buf = arc_eviction_list;
-		arc_buf_contents_t type = buf->b_hdr->b_type;
 		arc_eviction_list = buf->b_next;
 		mutex_enter(&buf->b_evict_lock);
 		buf->b_hdr = NULL;
@@ -2267,7 +2257,6 @@ arc_do_user_evicts(void)
 
 		buf->b_efunc = NULL;
 		buf->b_private = NULL;
-		arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS, type);
 		kmem_cache_free(buf_cache, buf);
 		mutex_enter(&arc_eviction_mtx);
 	}
@@ -2756,12 +2745,14 @@ arc_get_data_buf(arc_buf_t *buf)
 	 * just allocate a new buffer.
 	 */
 	if (!arc_evict_needed(type)) {
-		arc_space_consume(size, ARC_SPACE_DATA, type);
 		if (type == ARC_BUFC_METADATA) {
 			buf->b_data = zio_buf_alloc(size);
+			arc_space_consume(size, ARC_SPACE_DATA);
 		} else {
 			ASSERT(type == ARC_BUFC_DATA);
 			buf->b_data = zio_data_buf_alloc(size);
+			ARCSTAT_INCR(arcstat_data_size, size);
+			atomic_add_64(&arc_size, size);
 		}
 		goto out;
 	}
@@ -2792,9 +2783,9 @@ arc_get_data_buf(arc_buf_t *buf)
 		evict_type = ARC_BUFC_METADATA;
 
 	if ((buf->b_data = arc_evict(state, 0, size, TRUE, evict_type)) == NULL) {
-		arc_space_consume(size, ARC_SPACE_DATA, type);
 		if (type == ARC_BUFC_METADATA) {
 			buf->b_data = zio_buf_alloc(size);
+			arc_space_consume(size, ARC_SPACE_DATA);
 
 			/*
 			 * If we are unable to recycle an existing meta buffer
@@ -2807,6 +2798,8 @@ arc_get_data_buf(arc_buf_t *buf)
 		} else {
 			ASSERT(type == ARC_BUFC_DATA);
 			buf->b_data = zio_data_buf_alloc(size);
+			ARCSTAT_INCR(arcstat_data_size, size);
+			atomic_add_64(&arc_size, size);
 		}
 
 		ARCSTAT_BUMP(arcstat_recycle_miss);
@@ -3284,8 +3277,6 @@ top:
 			if (*arc_flags & ARC_L2COMPRESS)
 				hdr->b_flags |= ARC_L2COMPRESS;
 			buf = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
-			arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS,
-			    hdr->b_type);
 			buf->b_hdr = hdr;
 			buf->b_data = NULL;
 			buf->b_efunc = NULL;
@@ -3592,7 +3583,6 @@ arc_buf_evict(arc_buf_t *buf)
 	buf->b_private = NULL;
 	buf->b_hdr = NULL;
 	buf->b_next = NULL;
-	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS, hdr->b_type);
 	kmem_cache_free(buf_cache, buf);
 	return (1);
 }
@@ -3610,7 +3600,6 @@ arc_release(arc_buf_t *buf, void *tag)
 	kmutex_t *hash_lock = NULL;
 	l2arc_buf_hdr_t *l2hdr;
 	uint64_t buf_size = 0;
-	arc_buf_contents_t buf_type;
 
 	/*
 	 * It would be nice to assert that if it's DMU metadata (level >
@@ -3640,7 +3629,6 @@ arc_release(arc_buf_t *buf, void *tag)
 		hdr->b_l2hdr = NULL;
 	}
 	buf_size = hdr->b_size;
-	buf_type = hdr->b_type;
 
 	/*
 	 * Do we have more than one buf?
@@ -3689,7 +3677,6 @@ arc_release(arc_buf_t *buf, void *tag)
 		mutex_exit(hash_lock);
 
 		nhdr = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
-		arc_space_consume(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS, type);
 		nhdr->b_size = blksz;
 		nhdr->b_spa = spa;
 		nhdr->b_type = type;
@@ -3735,7 +3722,7 @@ arc_release(arc_buf_t *buf, void *tag)
 		ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
-		arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS, buf_type);
+		arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 		ARCSTAT_INCR(arcstat_l2_size, -buf_size);
 		mutex_exit(&l2arc_buflist_mtx);
 	}
@@ -4466,17 +4453,17 @@ l2arc_write_interval(clock_t began, uint64_t wanted, uint64_t wrote)
 }
 
 static void
-l2arc_hdr_stat_add(arc_buf_contents_t type)
+l2arc_hdr_stat_add(void)
 {
-	arc_space_consume(HDR_SIZE, ARC_SPACE_L2HDRS, type);
-	arc_space_return(HDR_SIZE, ARC_SPACE_HDRS, type);
+	arc_space_consume(HDR_SIZE, ARC_SPACE_L2HDRS);
+	arc_space_return(HDR_SIZE, ARC_SPACE_HDRS);
 }
 
 static void
-l2arc_hdr_stat_remove(arc_buf_contents_t type)
+l2arc_hdr_stat_remove(void)
 {
-	arc_space_consume(HDR_SIZE, ARC_SPACE_HDRS, type);
-	arc_space_return(HDR_SIZE, ARC_SPACE_L2HDRS, type);
+	arc_space_consume(HDR_SIZE, ARC_SPACE_HDRS);
+	arc_space_return(HDR_SIZE, ARC_SPACE_L2HDRS);
 }
 
 /*
@@ -4632,8 +4619,7 @@ l2arc_write_done(zio_t *zio)
 			ARCSTAT_INCR(arcstat_l2_asize, -abl2->b_asize);
 			ab->b_l2hdr = NULL;
 			kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
-			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS,
-			    ab->b_type);
+			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 			ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 		}
 
@@ -4646,7 +4632,6 @@ l2arc_write_done(zio_t *zio)
 	}
 
 	atomic_inc_64(&l2arc_writes_done);
-	arc_space_return(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS, head->b_type);
 	kmem_cache_free(hdr_cache, head);
 	mutex_exit(&l2arc_buflist_mtx);
 
@@ -4888,8 +4873,7 @@ top:
 				ARCSTAT_INCR(arcstat_l2_asize, -abl2->b_asize);
 				ab->b_l2hdr = NULL;
 				kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
-				arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS,
-				    ab->b_type);
+				arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 				ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 			}
 			list_remove(buflist, ab);
@@ -4972,7 +4956,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	uint64_t guid = spa_load_guid(spa);
 	int try;
 	const boolean_t do_headroom_boost = *headroom_boost;
-	arc_buf_contents_t type = ARC_BUFC_METADATA;
 
 	ASSERT(dev->l2ad_vdev != NULL);
 
@@ -4983,8 +4966,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	write_sz = write_asize = write_psize = 0;
 	full = B_FALSE;
 	head = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
-	arc_space_consume(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS, type);
-	head->b_type = type;
 	head->b_flags |= ARC_L2_WRITE_HEAD;
 
 	/*
@@ -5077,8 +5058,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			l2hdr = kmem_zalloc(sizeof (l2arc_buf_hdr_t),
 			    KM_PUSHPAGE);
 			l2hdr->b_dev = dev;
-			arc_space_consume(L2HDR_SIZE, ARC_SPACE_L2HDRS,
-			    ab->b_type);
+			arc_space_consume(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 
 			ab->b_flags |= ARC_L2_WRITING;
 
@@ -5122,8 +5102,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	if (pio == NULL) {
 		ASSERT0(write_sz);
 		mutex_exit(&l2arc_buflist_mtx);
-		arc_space_return(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS,
-		    head->b_type);
 		kmem_cache_free(hdr_cache, head);
 		return (0);
 	}

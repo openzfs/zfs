@@ -122,10 +122,8 @@ typedef struct arc_buf_info {
 	enum zio_compress	abi_l2arc_compress;
 } arc_buf_info_t;
 
-void arc_space_consume(uint64_t space, arc_space_type_t space_type,
-    arc_buf_contents_t buf_type);
-void arc_space_return(uint64_t space, arc_space_type_t space_type,
-    arc_buf_contents_t buf_type);
+void arc_space_consume(uint64_t space, arc_space_type_t type);
+void arc_space_return(uint64_t space, arc_space_type_t type);
 arc_buf_t *arc_buf_alloc(spa_t *spa, int size, void *tag,
     arc_buf_contents_t type);
 arc_buf_t *arc_loan_buf(spa_t *spa, int size);
