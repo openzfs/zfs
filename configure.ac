@@ -115,6 +115,7 @@ AC_CONFIG_FILES([
 	cmd/zed/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
+	contrib/initramfs/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
