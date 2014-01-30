@@ -189,6 +189,19 @@ Requires:       dracut
 This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
 
+%if 0%{?_initramfs}
+%package initramfs
+Summary:        Initramfs module
+Group:          System Environment/Kernel
+Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       %{name} = %{version}-%{release}
+Requires:       initramfs-tools
+
+%description initramfs
+This package contains a initramfs module used to construct an initramfs
+image which is ZFS aware.
+%endif
+
 %prep
 %if %{with debug}
     %define debug --enable-debug
@@ -302,6 +315,16 @@ exit 0
 %files dracut
 %doc dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
+
+%if 0%{?_initramfs}
+%files initramfs
+%doc contrib/initramfs/README.initramfs.markdown
+/usr/share/initramfs-tools/*
+%else
+# Since we're not building the initramfs package,
+# ignore those files.
+%exclude /usr/share/initramfs-tools
+%endif
 
 %changelog
 * Wed Apr  8 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4-1
