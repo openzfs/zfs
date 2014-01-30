@@ -1,4 +1,4 @@
-SUBDIRS = zpool-config zpios-test zpios-profile
+SUBDIRS = zpool-config zpios-test zpios-profile zfs-initramfs
 
 EXTRA_DIST = dkms.mkconf dkms.postbuild kmodtool zfs2zol-patch.sed cstyle.pl
 

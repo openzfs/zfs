@@ -266,6 +266,7 @@ exit 0
 %else
 %{_sysconfdir}/init.d/*
 %endif
+%{_sysconfdir}/default/*
 
 %files -n libzpool2
 %{_libdir}/libzpool.so.*
@@ -293,6 +294,7 @@ exit 0
 %files dracut
 %doc dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
+%{_datadir}/initramfs-tools
 
 %changelog
 * Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1

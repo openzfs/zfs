@@ -127,6 +127,7 @@ AC_CONFIG_FILES([
 	include/sys/fm/Makefile
 	include/sys/fm/fs/Makefile
 	scripts/Makefile
+	scripts/zfs-initramfs/Makefile
 	scripts/zpios-profile/Makefile
 	scripts/zpios-test/Makefile
 	scripts/zpool-config/Makefile
