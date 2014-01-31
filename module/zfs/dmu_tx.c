@@ -656,8 +656,15 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 		uint64_t end = (off + len) >> shift;
 		uint64_t i;
 
-		ASSERT(dn->dn_datablkshift != 0);
 		ASSERT(dn->dn_indblkshift != 0);
+
+		/*
+		 * dnode_reallocate() can result in an object with indirect
+		 * blocks having an odd data block size.  In this case,
+		 * just check the single block.
+		 */
+		if (dn->dn_datablkshift == 0)
+			start = end = 0;
 
 		zio = zio_root(tx->tx_pool->dp_spa,
 		    NULL, NULL, ZIO_FLAG_CANFAIL);
