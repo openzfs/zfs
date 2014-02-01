@@ -743,8 +743,8 @@ struct l2arc_buf_hdr {
 	/* compression applied to buffer data */
 	enum zio_compress	b_compress;
 	/* real alloc'd buffer size depending on b_compress applied */
-	uint32_t		b_asize;
 	uint32_t		b_hits;
+	uint64_t		b_asize;
 	/* temporary buffer holder for in-flight compressed data */
 	void			*b_tmp_cdata;
 };
