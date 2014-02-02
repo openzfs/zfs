@@ -599,15 +599,18 @@ zed_conf_read_state(struct zed_conf *zcp, uint64_t *eidp, int64_t etime[])
 	len += iov[2].iov_len = sizeof (etime[1]);
 
 	n = readv(zcp->state_fd, iov, 3);
-	if (n < 0) {
+	if (n == 0) {
+		*eidp = 0;
+	} else if (n < 0) {
 		zed_log_msg(LOG_WARNING,
-		    "Failed to read state file: %s", strerror(errno));
+		    "Failed to read state file \"%s\": %s",
+		    zcp->state_file, strerror(errno));
 		return (-1);
-	}
-	if (n != len) {
+	} else if (n != len) {
 		errno = EIO;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to read state file: Read %d of %d bytes", n, len);
+		    "Failed to read state file \"%s\": Read %d of %d bytes",
+		    zcp->state_file, n, len);
 		return (-1);
 	}
 	return (0);
@@ -649,18 +652,21 @@ zed_conf_write_state(struct zed_conf *zcp, uint64_t eid, int64_t etime[])
 	n = writev(zcp->state_fd, iov, 3);
 	if (n < 0) {
 		zed_log_msg(LOG_WARNING,
-		    "Failed to write state file: %s", strerror(errno));
+		    "Failed to write state file \"%s\": %s",
+		    zcp->state_file, strerror(errno));
 		return (-1);
 	}
 	if (n != len) {
 		errno = EIO;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to write state file: Wrote %d of %d bytes", n, len);
+		    "Failed to write state file \"%s\": Wrote %d of %d bytes",
+		    zcp->state_file, n, len);
 		return (-1);
 	}
 	if (fdatasync(zcp->state_fd) < 0) {
-		zed_log_msg(LOG_WARNING, "Failed to sync state file: %s",
-		    strerror(errno));
+		zed_log_msg(LOG_WARNING,
+		    "Failed to sync state file \"%s\": %s",
+		    zcp->state_file, strerror(errno));
 		return (-1);
 	}
 	return (0);
