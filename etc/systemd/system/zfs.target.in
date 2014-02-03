@@ -1,0 +1,7 @@
+[Unit]
+Description=ZFS startup target
+Requires=zfs-mount.service
+Requires=zfs-share.service
+
+[Install]
+WantedBy=multi-user.target
