@@ -125,7 +125,26 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		    &scn->scn_phys);
 		if (err == ENOENT)
 			return (0);
-		else if (err)
+		/*
+		 * zfsonlinux compatibility hack - Some versions of zfsonlinux
+		 * created "scan" with an extra 64-bit integer added to the
+		 * zbookmark_t.  Handle this case and copy scn_state into the
+		 * dsl_scan_t for use below.
+		 */
+		if (err == EOVERFLOW) {
+			uint64_t zaptmp[SCAN_PHYS_NUMINTS + 1];
+
+			err = zap_lookup(dp->dp_meta_objset,
+				DMU_POOL_DIRECTORY_OBJECT,
+				DMU_POOL_SCAN, sizeof (uint64_t),
+				SCAN_PHYS_NUMINTS + 1,
+				&zaptmp);
+			if (err == 0)
+				scn->scn_phys.scn_state =
+					zaptmp[offsetof(dsl_scan_phys_t,
+						scn_state) / sizeof (uint64_t)];
+		}
+		if (err)
 			return (err);
 
 		if (scn->scn_phys.scn_state == DSS_SCANNING &&
