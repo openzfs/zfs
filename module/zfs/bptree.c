@@ -197,9 +197,9 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 		if (free) {
 			if (err == ERESTART) {
 				/* save bookmark for future resume */
-				ASSERT3U(bte.be_zb.zb_objset, ==,
+				ASSERT3U(bte.be_zb.zb_phys.zb_objset, ==,
 				    ZB_DESTROYED_OBJSET);
-				ASSERT0(bte.be_zb.zb_level);
+				ASSERT0(bte.be_zb.zb_phys.zb_level);
 				dmu_write(os, obj, i * sizeof (bte),
 				    sizeof (bte), &bte, tx);
 				break;

@@ -62,8 +62,8 @@ static void
 bookmark_to_name(zbookmark_t *zb, char *buf, size_t len)
 {
 	(void) snprintf(buf, len, "%llx:%llx:%llx:%llx",
-	    (u_longlong_t)zb->zb_objset, (u_longlong_t)zb->zb_object,
-	    (u_longlong_t)zb->zb_level, (u_longlong_t)zb->zb_blkid);
+	    (u_longlong_t)zb->zb_phys.zb_objset, (u_longlong_t)zb->zb_phys.zb_object,
+	    (u_longlong_t)zb->zb_phys.zb_level, (u_longlong_t)zb->zb_phys.zb_blkid);
 }
 
 /*
@@ -73,13 +73,13 @@ bookmark_to_name(zbookmark_t *zb, char *buf, size_t len)
 static void
 name_to_bookmark(char *buf, zbookmark_t *zb)
 {
-	zb->zb_objset = strtonum(buf, &buf);
+	zb->zb_phys.zb_objset = strtonum(buf, &buf);
 	ASSERT(*buf == ':');
-	zb->zb_object = strtonum(buf + 1, &buf);
+	zb->zb_phys.zb_object = strtonum(buf + 1, &buf);
 	ASSERT(*buf == ':');
-	zb->zb_level = (int)strtonum(buf + 1, &buf);
+	zb->zb_phys.zb_level = (int)strtonum(buf + 1, &buf);
 	ASSERT(*buf == ':');
-	zb->zb_blkid = strtonum(buf + 1, &buf);
+	zb->zb_phys.zb_blkid = strtonum(buf + 1, &buf);
 	ASSERT(*buf == '\0');
 }
 #endif

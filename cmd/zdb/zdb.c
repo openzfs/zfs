@@ -941,16 +941,16 @@ static uint64_t
 blkid2offset(const dnode_phys_t *dnp, const blkptr_t *bp, const zbookmark_t *zb)
 {
 	if (dnp == NULL) {
-		ASSERT(zb->zb_level < 0);
-		if (zb->zb_object == 0)
-			return (zb->zb_blkid);
-		return (zb->zb_blkid * BP_GET_LSIZE(bp));
+		ASSERT(zb->zb_phys.zb_level < 0);
+		if (zb->zb_phys.zb_object == 0)
+			return (zb->zb_phys.zb_blkid);
+		return (zb->zb_phys.zb_blkid * BP_GET_LSIZE(bp));
 	}
 
-	ASSERT(zb->zb_level >= 0);
+	ASSERT(zb->zb_phys.zb_level >= 0);
 
-	return ((zb->zb_blkid <<
-	    (zb->zb_level * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT))) *
+	return ((zb->zb_phys.zb_blkid <<
+	    (zb->zb_phys.zb_level * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT))) *
 	    dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 }
 
@@ -991,15 +991,15 @@ print_indirect(blkptr_t *bp, const zbookmark_t *zb,
 	int l;
 
 	ASSERT3U(BP_GET_TYPE(bp), ==, dnp->dn_type);
-	ASSERT3U(BP_GET_LEVEL(bp), ==, zb->zb_level);
+	ASSERT3U(BP_GET_LEVEL(bp), ==, zb->zb_phys.zb_level);
 
 	(void) printf("%16llx ", (u_longlong_t)blkid2offset(dnp, bp, zb));
 
-	ASSERT(zb->zb_level >= 0);
+	ASSERT(zb->zb_phys.zb_level >= 0);
 
 	for (l = dnp->dn_nlevels - 1; l >= -1; l--) {
-		if (l == zb->zb_level) {
-			(void) printf("L%llx", (u_longlong_t)zb->zb_level);
+		if (l == zb->zb_phys.zb_level) {
+			(void) printf("L%llx", (u_longlong_t)zb->zb_phys.zb_level);
 		} else {
 			(void) printf(" ");
 		}
@@ -1039,9 +1039,9 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		for (i = 0; i < epb; i++, cbp++) {
 			zbookmark_t czb;
 
-			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
-			    zb->zb_level - 1,
-			    zb->zb_blkid * epb + i);
+			SET_BOOKMARK(&czb, zb->zb_phys.zb_objset, zb->zb_phys.zb_object,
+			    zb->zb_phys.zb_level - 1,
+			    zb->zb_phys.zb_blkid * epb + i);
 			err = visit_indirect(spa, dnp, cbp, &czb);
 			if (err)
 				break;
@@ -1068,7 +1068,7 @@ dump_indirect(dnode_t *dn)
 	SET_BOOKMARK(&czb, dmu_objset_id(dn->dn_objset),
 	    dn->dn_object, dnp->dn_nlevels - 1, 0);
 	for (j = 0; j < dnp->dn_nblkptr; j++) {
-		czb.zb_blkid = j;
+		czb.zb_phys.zb_blkid = j;
 		(void) visit_indirect(dmu_objset_spa(dn->dn_objset), dnp,
 		    &dnp->dn_blkptr[j], &czb);
 	}
@@ -2166,10 +2166,10 @@ zdb_blkptr_done(zio_t *zio)
 		    "Got error %d reading "
 		    "<%llu, %llu, %lld, %llx> %s -- skipping\n",
 		    ioerr,
-		    (u_longlong_t)zb->zb_objset,
-		    (u_longlong_t)zb->zb_object,
-		    (u_longlong_t)zb->zb_level,
-		    (u_longlong_t)zb->zb_blkid,
+		    (u_longlong_t)zb->zb_phys.zb_objset,
+		    (u_longlong_t)zb->zb_phys.zb_object,
+		    (u_longlong_t)zb->zb_phys.zb_level,
+		    (u_longlong_t)zb->zb_phys.zb_blkid,
 		    blkbuf);
 	}
 	mutex_exit(&spa->spa_scrub_lock);
@@ -2200,7 +2200,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		int flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCRUB | ZIO_FLAG_RAW;
 
 		/* If it's an intent log block, failure is expected. */
-		if (zb->zb_level == ZB_ZIL_LEVEL)
+		if (zb->zb_phys.zb_level == ZB_ZIL_LEVEL)
 			flags |= ZIO_FLAG_SPECULATIVE;
 
 		mutex_enter(&spa->spa_scrub_lock);
@@ -2219,9 +2219,9 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		sprintf_blkptr(blkbuf, bp);
 		(void) printf("objset %llu object %llu "
 		    "level %lld offset 0x%llx %s\n",
-		    (u_longlong_t)zb->zb_objset,
-		    (u_longlong_t)zb->zb_object,
-		    (longlong_t)zb->zb_level,
+		    (u_longlong_t)zb->zb_phys.zb_objset,
+		    (u_longlong_t)zb->zb_phys.zb_object,
+		    (longlong_t)zb->zb_phys.zb_level,
 		    (u_longlong_t)blkid2offset(dnp, bp, zb),
 		    blkbuf);
 	}
@@ -2593,10 +2593,10 @@ zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (bp == NULL)
 		return (0);
 
-	if (dump_opt['S'] > 1 && zb->zb_level == ZB_ROOT_LEVEL) {
+	if (dump_opt['S'] > 1 && zb->zb_phys.zb_level == ZB_ROOT_LEVEL) {
 		(void) printf("traversing objset %llu, %llu objects, "
 		    "%lu blocks so far\n",
-		    (u_longlong_t)zb->zb_objset,
+		    (u_longlong_t)zb->zb_phys.zb_objset,
 		    (u_longlong_t)bp->blk_fill,
 		    avl_numnodes(t));
 	}

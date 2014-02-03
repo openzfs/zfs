@@ -255,21 +255,32 @@ extern const char *zio_type_name[ZIO_TYPES];
  * Therefore it must not change size or alignment between 32/64 bit
  * compilation options.
  */
-struct zbookmark {
+struct zbookmark_phys {
 	uint64_t	zb_objset;
 	uint64_t	zb_object;
 	int64_t		zb_level;
 	uint64_t	zb_blkid;
+};
+
+struct zbookmark {
+	/*
+	 * The zbookmark_phys must be the first member.
+	 */
+	struct zbookmark_phys zb_phys;
+
+	/*
+	 * Add additional members here; they're not stored on-disk.
+	 */
 	char *		zb_func;
 };
 
 #define	SET_BOOKMARK(zb, objset, object, level, blkid)  \
 {                                                       \
-	(zb)->zb_objset = objset;                       \
-	(zb)->zb_object = object;                       \
-	(zb)->zb_level = level;                         \
-	(zb)->zb_blkid = blkid;                         \
-	(zb)->zb_func = FTAG;                           \
+	(zb)->zb_phys.zb_objset = objset;		\
+	(zb)->zb_phys.zb_object = object;		\
+	(zb)->zb_phys.zb_level = level;			\
+	(zb)->zb_phys.zb_blkid = blkid;			\
+	(zb)->zb_func = FTAG;				\
 }
 
 #define	ZB_DESTROYED_OBJSET	(-1ULL)
@@ -282,12 +293,12 @@ struct zbookmark {
 #define	ZB_ZIL_LEVEL		(-2LL)
 
 #define	ZB_IS_ZERO(zb)						\
-	((zb)->zb_objset == 0 && (zb)->zb_object == 0 &&	\
-	(zb)->zb_level == 0 && (zb)->zb_blkid == 0)
+	((zb)->zb_phys.zb_objset == 0 && (zb)->zb_phys.zb_object == 0 &&	\
+	(zb)->zb_phys.zb_level == 0 && (zb)->zb_phys.zb_blkid == 0)
 #define	ZB_IS_ROOT(zb)				\
-	((zb)->zb_object == ZB_ROOT_OBJECT &&	\
-	(zb)->zb_level == ZB_ROOT_LEVEL &&	\
-	(zb)->zb_blkid == ZB_ROOT_BLKID)
+	((zb)->zb_phys.zb_object == ZB_ROOT_OBJECT &&	\
+	(zb)->zb_phys.zb_level == ZB_ROOT_LEVEL &&	\
+	(zb)->zb_phys.zb_blkid == ZB_ROOT_BLKID)
 
 typedef struct zio_prop {
 	enum zio_checksum	zp_checksum;

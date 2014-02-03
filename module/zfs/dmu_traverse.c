@@ -164,7 +164,7 @@ resume_skip_check(traverse_data_t *td, const dnode_phys_t *dnp,
 		 * If we found the block we're trying to resume from, zero
 		 * the bookmark out to indicate that we have resumed.
 		 */
-		ASSERT3U(zb->zb_object, <=, td->td_resume->zb_object);
+		ASSERT3U(zb->zb_phys.zb_object, <=, td->td_resume->zb_phys.zb_object);
 		if (bcmp(zb, td->td_resume, sizeof (*zb)) == 0) {
 			bzero(td->td_resume, sizeof (*zb));
 			if (td->td_flags & TRAVERSE_POST)
@@ -178,7 +178,7 @@ static void
 traverse_pause(traverse_data_t *td, const zbookmark_t *zb)
 {
 	ASSERT(td->td_resume != NULL);
-	ASSERT0(zb->zb_level);
+	ASSERT0(zb->zb_phys.zb_level);
 	bcopy(zb, td->td_resume, sizeof (*td->td_resume));
 }
 
@@ -271,18 +271,18 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		czb = kmem_alloc(sizeof (zbookmark_t), KM_PUSHPAGE);
 
 		for (i = 0; i < epb; i++) {
-			SET_BOOKMARK(czb, zb->zb_objset, zb->zb_object,
-			    zb->zb_level - 1,
-			    zb->zb_blkid * epb + i);
+			SET_BOOKMARK(czb, zb->zb_phys.zb_objset, zb->zb_phys.zb_object,
+			    zb->zb_phys.zb_level - 1,
+			    zb->zb_phys.zb_blkid * epb + i);
 			traverse_prefetch_metadata(td,
 			    &((blkptr_t *)buf->b_data)[i], czb);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			SET_BOOKMARK(czb, zb->zb_objset, zb->zb_object,
-			    zb->zb_level - 1,
-			    zb->zb_blkid * epb + i);
+			SET_BOOKMARK(czb, zb->zb_phys.zb_objset, zb->zb_phys.zb_object,
+			    zb->zb_phys.zb_level - 1,
+			    zb->zb_phys.zb_blkid * epb + i);
 			err = traverse_visitbp(td, dnp,
 			    &((blkptr_t *)buf->b_data)[i], czb);
 			if (err != 0) {
@@ -306,14 +306,14 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		dnp = buf->b_data;
 
 		for (i = 0; i < epb; i++) {
-			prefetch_dnode_metadata(td, &dnp[i], zb->zb_objset,
-			    zb->zb_blkid * epb + i);
+			prefetch_dnode_metadata(td, &dnp[i], zb->zb_phys.zb_objset,
+			    zb->zb_phys.zb_blkid * epb + i);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			err = traverse_dnode(td, &dnp[i], zb->zb_objset,
-			    zb->zb_blkid * epb + i);
+			err = traverse_dnode(td, &dnp[i], zb->zb_phys.zb_objset,
+			    zb->zb_phys.zb_blkid * epb + i);
 			if (err != 0) {
 				if (!TD_HARD(td))
 					break;
@@ -332,16 +332,16 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 		osp = buf->b_data;
 		dnp = &osp->os_meta_dnode;
-		prefetch_dnode_metadata(td, dnp, zb->zb_objset,
+		prefetch_dnode_metadata(td, dnp, zb->zb_phys.zb_objset,
 		    DMU_META_DNODE_OBJECT);
 		if (arc_buf_size(buf) >= sizeof (objset_phys_t)) {
 			prefetch_dnode_metadata(td, &osp->os_groupused_dnode,
-			    zb->zb_objset, DMU_GROUPUSED_OBJECT);
+			    zb->zb_phys.zb_objset, DMU_GROUPUSED_OBJECT);
 			prefetch_dnode_metadata(td, &osp->os_userused_dnode,
-			    zb->zb_objset, DMU_USERUSED_OBJECT);
+			    zb->zb_phys.zb_objset, DMU_USERUSED_OBJECT);
 		}
 
-		err = traverse_dnode(td, dnp, zb->zb_objset,
+		err = traverse_dnode(td, dnp, zb->zb_phys.zb_objset,
 		    DMU_META_DNODE_OBJECT);
 		if (err && TD_HARD(td)) {
 			lasterr = err;
@@ -349,7 +349,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		}
 		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
 			dnp = &osp->os_groupused_dnode;
-			err = traverse_dnode(td, dnp, zb->zb_objset,
+			err = traverse_dnode(td, dnp, zb->zb_phys.zb_objset,
 			    DMU_GROUPUSED_OBJECT);
 		}
 		if (err && TD_HARD(td)) {
@@ -358,7 +358,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		}
 		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
 			dnp = &osp->os_userused_dnode;
-			err = traverse_dnode(td, dnp, zb->zb_objset,
+			err = traverse_dnode(td, dnp, zb->zb_phys.zb_objset,
 			    DMU_USERUSED_OBJECT);
 		}
 	}

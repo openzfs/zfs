@@ -70,7 +70,7 @@ zio_match_handler(zbookmark_t *zb, uint64_t type,
 	/*
 	 * Check for a match against the MOS, which is based on type
 	 */
-	if (zb->zb_objset == DMU_META_OBJSET &&
+	if (zb->zb_phys.zb_objset == DMU_META_OBJSET &&
 	    record->zi_objset == DMU_META_OBJSET &&
 	    record->zi_object == DMU_META_DNODE_OBJECT) {
 		if (record->zi_type == DMU_OT_NONE ||
@@ -84,11 +84,11 @@ zio_match_handler(zbookmark_t *zb, uint64_t type,
 	/*
 	 * Check for an exact match.
 	 */
-	if (zb->zb_objset == record->zi_objset &&
-	    zb->zb_object == record->zi_object &&
-	    zb->zb_level == record->zi_level &&
-	    zb->zb_blkid >= record->zi_start &&
-	    zb->zb_blkid <= record->zi_end &&
+	if (zb->zb_phys.zb_objset == record->zi_objset &&
+	    zb->zb_phys.zb_object == record->zi_object &&
+	    zb->zb_phys.zb_level == record->zi_level &&
+	    zb->zb_phys.zb_blkid >= record->zi_start &&
+	    zb->zb_phys.zb_blkid <= record->zi_end &&
 	    error == record->zi_error)
 		return (record->zi_freq == 0 ||
 		    spa_get_random(100) < record->zi_freq);

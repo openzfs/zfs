@@ -546,7 +546,7 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (bp == NULL)
 		return (0);
 
-	if (zb->zb_level == ZB_ZIL_LEVEL) {
+	if (zb->zb_phys.zb_level == ZB_ZIL_LEVEL) {
 		ASSERT(zilog != NULL);
 		/*
 		 * It's a block in the intent log.  It has no
