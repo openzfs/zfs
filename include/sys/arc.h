@@ -86,6 +86,7 @@ typedef enum arc_buf_contents {
  */
 typedef enum arc_space_type {
 	ARC_SPACE_DATA,
+	ARC_SPACE_META,
 	ARC_SPACE_HDRS,
 	ARC_SPACE_L2HDRS,
 	ARC_SPACE_OTHER,
