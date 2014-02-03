@@ -32,6 +32,7 @@ ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 USE_DISK_BY_ID=0
 VERBOSE_MOUNT=0
 DO_OVERLAY_MOUNTS=0
+MOUNT_EXTRA_OPTIONS=""
 
 # Source zfs configuration.
 [ -r '/etc/default/zfs' ] &&  . /etc/default/zfs
@@ -96,7 +97,7 @@ start()
 		fi
 
 		log_begin_msg "Mounting ZFS filesystems"
-		"$ZFS" mount -a$verbose$overlay
+		"$ZFS" mount -a$verbose$overlay$MOUNT_EXTRA_OPTIONS
 		log_end_msg $?
 
 		log_begin_msg "Exporting ZFS filesystems"
