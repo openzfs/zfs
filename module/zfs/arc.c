@@ -308,6 +308,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_size;
 	kstat_named_t arcstat_hdr_size;
 	kstat_named_t arcstat_data_size;
+	kstat_named_t arcstat_meta_size;
 	kstat_named_t arcstat_other_size;
 	kstat_named_t arcstat_anon_size;
 	kstat_named_t arcstat_anon_evict_data;
@@ -395,6 +396,7 @@ static arc_stats_t arc_stats = {
 	{ "size",			KSTAT_DATA_UINT64 },
 	{ "hdr_size",			KSTAT_DATA_UINT64 },
 	{ "data_size",			KSTAT_DATA_UINT64 },
+	{ "meta_size",			KSTAT_DATA_UINT64 },
 	{ "other_size",			KSTAT_DATA_UINT64 },
 	{ "anon_size",			KSTAT_DATA_UINT64 },
 	{ "anon_evict_data",		KSTAT_DATA_UINT64 },
@@ -1367,6 +1369,9 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	case ARC_SPACE_DATA:
 		ARCSTAT_INCR(arcstat_data_size, space);
 		break;
+	case ARC_SPACE_META:
+		ARCSTAT_INCR(arcstat_meta_size, space);
+		break;
 	case ARC_SPACE_OTHER:
 		ARCSTAT_INCR(arcstat_other_size, space);
 		break;
@@ -1378,7 +1383,9 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	ARCSTAT_INCR(arcstat_meta_used, space);
+	if (type != ARC_SPACE_DATA)
+		ARCSTAT_INCR(arcstat_meta_used, space);
+
 	atomic_add_64(&arc_size, space);
 }
 
@@ -1393,6 +1400,9 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	case ARC_SPACE_DATA:
 		ARCSTAT_INCR(arcstat_data_size, -space);
 		break;
+	case ARC_SPACE_META:
+		ARCSTAT_INCR(arcstat_meta_size, -space);
+		break;
 	case ARC_SPACE_OTHER:
 		ARCSTAT_INCR(arcstat_other_size, -space);
 		break;
@@ -1404,10 +1414,13 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	ASSERT(arc_meta_used >= space);
-	if (arc_meta_max < arc_meta_used)
-		arc_meta_max = arc_meta_used;
-	ARCSTAT_INCR(arcstat_meta_used, -space);
+	if (type != ARC_SPACE_DATA) {
+		ASSERT(arc_meta_used >= space);
+		if (arc_meta_max < arc_meta_used)
+			arc_meta_max = arc_meta_used;
+		ARCSTAT_INCR(arcstat_meta_used, -space);
+	}
+
 	ASSERT(arc_size >= space);
 	atomic_add_64(&arc_size, -space);
 }
@@ -1604,12 +1617,11 @@ arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t all)
 		if (!recycle) {
 			if (type == ARC_BUFC_METADATA) {
 				arc_buf_data_free(buf, zio_buf_free);
-				arc_space_return(size, ARC_SPACE_DATA);
+				arc_space_return(size, ARC_SPACE_META);
 			} else {
 				ASSERT(type == ARC_BUFC_DATA);
 				arc_buf_data_free(buf, zio_data_buf_free);
-				ARCSTAT_INCR(arcstat_data_size, -size);
-				atomic_add_64(&arc_size, -size);
+				arc_space_return(size, ARC_SPACE_DATA);
 			}
 		}
 		if (list_link_active(&buf->b_hdr->b_arc_node)) {
@@ -2759,12 +2771,11 @@ arc_get_data_buf(arc_buf_t *buf)
 	if (!arc_evict_needed(type)) {
 		if (type == ARC_BUFC_METADATA) {
 			buf->b_data = zio_buf_alloc(size);
-			arc_space_consume(size, ARC_SPACE_DATA);
+			arc_space_consume(size, ARC_SPACE_META);
 		} else {
 			ASSERT(type == ARC_BUFC_DATA);
 			buf->b_data = zio_data_buf_alloc(size);
-			ARCSTAT_INCR(arcstat_data_size, size);
-			atomic_add_64(&arc_size, size);
+			arc_space_consume(size, ARC_SPACE_DATA);
 		}
 		goto out;
 	}
@@ -2809,7 +2820,7 @@ arc_get_data_buf(arc_buf_t *buf)
 	if ((buf->b_data = arc_evict(state, 0, size, recycle, evict)) == NULL) {
 		if (type == ARC_BUFC_METADATA) {
 			buf->b_data = zio_buf_alloc(size);
-			arc_space_consume(size, ARC_SPACE_DATA);
+			arc_space_consume(size, ARC_SPACE_META);
 
 			/*
 			 * If we are unable to recycle an existing meta buffer
@@ -2824,8 +2835,7 @@ arc_get_data_buf(arc_buf_t *buf)
 		} else {
 			ASSERT(type == ARC_BUFC_DATA);
 			buf->b_data = zio_data_buf_alloc(size);
-			ARCSTAT_INCR(arcstat_data_size, size);
-			atomic_add_64(&arc_size, size);
+			arc_space_consume(size, ARC_SPACE_DATA);
 		}
 
 		/* Only bump this if we tried to recycle and failed */
