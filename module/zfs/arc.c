@@ -4113,8 +4113,8 @@ arc_init(void)
 	arc_c = arc_c_max;
 	arc_p = (arc_c >> 1);
 
-	/* limit meta-data to 1/4 of the arc capacity */
-	arc_meta_limit = arc_c_max / 4;
+	/* limit meta-data to 3/4 of the arc capacity */
+	arc_meta_limit = (3 * arc_c_max) / 4;
 	arc_meta_max = 0;
 
 	/* Allow the tunable to override if it is reasonable */
