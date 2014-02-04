@@ -123,7 +123,38 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
 		    &scn->scn_phys);
-		if (err == ENOENT)
+		/*
+		 * Workaround for zfsonlinux/zfs#2094 erratum
+		 */
+		if (err == EOVERFLOW) {
+			uint64_t zaptmp[SCAN_PHYS_NUMINTS + 1];
+			VERIFY(SCAN_PHYS_NUMINTS == 24);
+			VERIFY(offsetof(dsl_scan_phys_t, scn_flags)
+				== (23 * sizeof(uint64_t)));
+
+			err = zap_lookup(dp->dp_meta_objset,
+				DMU_POOL_DIRECTORY_OBJECT,
+				DMU_POOL_SCAN, sizeof (uint64_t),
+				SCAN_PHYS_NUMINTS + 1,
+				&zaptmp);
+			if (err == 0) {
+				uint64_t overflow = zaptmp[SCAN_PHYS_NUMINTS];
+
+				if (overflow >> 1)
+					return (EOVERFLOW);
+
+				bcopy(zaptmp, &scn->scn_phys,
+					SCAN_PHYS_NUMINTS * sizeof(uint64_t));
+				scn->scn_phys.scn_flags = overflow;
+
+				printk(KERN_ALERT
+					"ZFS: Detected ZoL issue #2094 "
+					"on pool \"%s\". "
+					"Please run a scrub.",
+					spa->spa_name);
+			}
+		}
+		else if (err == ENOENT)
 			return (0);
 		else if (err)
 			return (err);
