@@ -1,0 +1,240 @@
+# This is a script with common functions etc used by zfs-mount and zfs-share.
+#
+# It is _NOT_ to be called independently
+
+PATH=/sbin:/bin:/usr/bin:/usr/sbin
+
+# Source function library
+if [ -f /lib/lsb/init-functions ]; then
+	. /lib/lsb/init-functions
+elif [ -f /etc/rc.d/init.d/functions ]; then
+	. /etc/rc.d/init.d/functions
+fi
+
+# Of course the functions we need is called differently
+# on different distributions - it would be way to easy
+# otherwise!!
+if type log_failure_msg > /dev/null ; then
+	# LSB functions
+	log_begin_msg=log_begin_msg
+	log_failure_msg=log_failure_msg
+	log_progress_msg=log_progress_msg
+elif type success > /dev/null ; then
+	# Fedora/RedHat functions
+	log_begin_msg=success
+	log_failure_msg=failure
+	log_progress_msg=echo -n
+elif type einfo > /dev/null ; then
+	# Gentoo functions
+	log_begin_msg=einfo
+	log_failure_msg=eerror
+	log_progress_msg=echo -n
+else
+	log_begin_msg=echo -n
+	log_failure_msg=echo
+	log_progress_msg=echo -n
+fi
+
+# The log_end_msg is a little different - it's both an
+# echo of a failed message and a return of a code number.
+# So if it doesn't exist, we define a very simple one
+# that would do the work.
+if ! type log_end_msg > /dev/null ; then
+	log_end_msg() {
+		ret=$1
+		if [ "$ret" -ge 1 ]; then
+			echo " failed!"
+		else
+			echo " success"
+		fi
+		return $ret
+	}
+fi
+log_end_msg=log_end_msg
+
+# Paths to what we need
+ZFS="@sbindir@/zfs"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+
+# Sencible defaults
+ZFS_MOUNT='yes'
+ZFS_UNMOUNT='yes'
+LOCKDIR=/var/lock/zfs
+
+# Source zfs configuration, overriding the defaults
+if [ -f /etc/default/zfs ]; then
+	. /etc/default/zfs
+elif [ -f /etc/sysconfig/zfs ]; then
+	. /etc/sysconfig/zfs
+fi
+
+[ ! -d "$LOCKDIR" ] && mkdir $LOCKDIR
+
+# ----------------------------------------------------
+
+zfs_installed() {
+	$log_begin_msg "Checking if zfs userspace tools present"
+	if [ ! -x $ZPOOL ]; then
+		$log_failure_msg "$ZPOOL binary not found."
+		$log_end_msg 1
+	fi
+	if [ ! -x $ZFS ]; then
+		$log_failure_msg "$ZFS binary not found."
+		$log_end_msg 1
+	fi
+	$log_end_msg 0
+}
+
+# Do a lot of checks to make sure it's 'safe' to continue with import/mount etc
+checksystem()
+{
+	if [ -z "$init" ]; then
+		# Not interactive
+		grep -qiE '(^|[^\\](\\\\)* )zfs=(off|no)( |$)' /proc/cmdline && exit 3
+	fi
+
+	[ -f "$LOCKDIR/$servicename" ] && return 3
+
+	# Check if ZFS is installed.  If not, comply to FC standards and bail
+	zfs_installed || {
+		$log_failure_msg "not installed"
+		return 5
+	}
+
+	# Requires selinux policy which has not been written.
+	if [ -r "/selinux/enforce" ] &&
+	   [ "$(cat /selinux/enforce)" == "1" ]; then
+
+		$log_failure_msg "SELinux ZFS policy required"
+		return 4
+	fi
+
+	# Delay until all required block devices are present.
+	if [ -x /sbin/udevadm ]; then
+		/sbin/udevadm settle
+	elif [ -x /sbin/udevsettle ]; then
+		/sbin/udevsettle
+	fi
+
+	# Load the zfs module stack
+	if ! grep -q zfs /proc/modules ; then
+		$log_begin_msg "Loading kernel ZFS infrastructure: "
+		modprobe zfs || {
+			$log_failure_msg "Could not load zfs module"
+			$log_end_msg 1
+			return 5
+		}
+		$log_end_msg 0
+	fi
+	sleep 1
+
+	# fix mtab to include already-mounted fs filesystems, in case there are any
+	# we ONLY do this if mtab does not point to /proc/mounts
+	# which is the case in some systems (systemd may bring that soon)
+	if ! readlink /etc/mtab | grep -q /proc ; then
+		if grep -qE "(^/dev/zd|^/dev/zvol| zfs )" /proc/mounts ; then
+			$log_begin_msg "Registering already-mounted ZFS filesystems and volumes: "
+			reregister_mounts || {
+				$log_end_msg 1
+				return 150
+			}
+		fi
+	fi
+
+	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
+	# This should be handled by rc.sysinit but lets be paranoid.
+	awk '$2 == "/" { exit 1 }' /etc/mtab
+	RETVAL=$?
+	if [ "$RETVAL" -eq 0 ]; then
+		/bin/mount -f /
+	fi
+
+	if ! [ `uname -m` == "x86_64" ]; then
+		echo "Warning: You're not running 64bit. Currently native zfs in";
+		echo "         linux is only supported and tested on 64bit.";
+		# should we break here? People doing this should know what they
+		# do, thus i'm not breaking here.
+	fi
+}
+
+depend()
+{
+	# Try to allow people to mix and match fstab with ZFS in a way that makes sense.
+	if [ "$(mountinfo -s /)" == 'zfs' ]; then
+		before localmount
+	else
+		after localmount
+	fi
+
+	# bootmisc will log to /var which may be a different zfs than root.
+	before bootmisc logger
+	use mtab
+	keyword -lxc -openvz -prefix -vserver
+}
+
+reregister_mounts() {
+	cat /etc/mtab | while read -r fs mntpnt fstype opts rest ; do
+		fs=`printf '%b\n' "$fs"`
+		mntpnt=`printf '%b\n' "$mntpnt"`
+		if [ "$fstype" == "zfs" ] ; then
+			if [ "$mntpnt" == "/" ] ; then
+				mount -f -o zfsutil -t zfs --move / /removethismountpointhoweverpossible
+				umount --fake /removethismountpointhoweverpossible
+			else
+				umount --fake "$mntpnt"
+			fi
+		elif echo "$fs" | grep -qE "^/dev/(zd|zvol)" ; then
+			if [ "$mntpnt" == "/" ] ; then
+				mount -f -t "$fstype" --move / /removethismountpointhoweverpossible
+				umount --fake /removethismountpointhoweverpossible
+			else
+				umount --fake "$mntpnt"
+			fi
+		fi
+	done
+	cat /proc/mounts | while read -r fs mntpnt fstype opts rest ; do
+		fs=`printf '%b\n' "$fs"`
+		mntpnt=`printf '%b\n' "$mntpnt"`
+		if [ "$fstype" == "zfs" ] ; then
+			mount -f -t zfs -o zfsutil "$fs" "$mntpnt"
+		elif echo "$fs" | grep -q "^/dev/zd" ; then
+			mount -f -t "$fstype" -o "$opts" "$fs" "$mntpnt"
+		fi
+	done
+}
+
+# i need a bash guru to simplify this, since this is copy and paste, but donno how
+# to correctly dereference variable names in bash, or how to do this right
+
+declare -A MTAB
+declare -A FSTAB
+
+# first parameter is a regular expression that filters mtab
+read_mtab() {
+        for fs in "${!MTAB[@]}" ; do unset MTAB["$fs"] ; done
+        while read -r fs mntpnt fstype opts blah ; do
+                fs=`printf '%b\n' "$fs"`
+                MTAB["$fs"]=$mntpnt
+        done < <(grep -E "$1" /etc/mtab)
+}
+
+in_mtab() {
+        [ "${MTAB[$1]}" != "" ]
+        return $?
+}
+
+# first parameter is a regular expression that filters fstab
+read_fstab() {
+        for fs in "${!FSTAB[@]}" ; do unset FSTAB["$fs"] ; done
+        while read -r fs mntpnt fstype opts blah ; do
+                fs=`printf '%b\n' "$fs"`
+                FSTAB["$fs"]=$mntpnt
+        done < <(grep -E "$1" /etc/fstab)
+}
+
+in_fstab() {
+        [ "${FSTAB[$1]}" != "" ]
+        return $?
+}
+
