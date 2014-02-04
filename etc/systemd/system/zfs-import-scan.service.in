@@ -1,0 +1,11 @@
+[Unit]
+Description=Import ZFS pools by device scanning
+DefaultDependencies=no
+Requires=systemd-udev-settle.service
+After=systemd-udev-settle.service
+ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@sbindir@/zpool import -d /dev/disk/by-id -aN

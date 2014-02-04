@@ -1,0 +1,11 @@
+[Unit]
+Description=ZFS file system shares
+After=nfs-server.service
+After=smb.service
+PartOf=nfs-server.service
+PartOf=smb.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@sbindir@/zfs share -a
