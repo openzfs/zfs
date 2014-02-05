@@ -125,7 +125,26 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		    &scn->scn_phys);
 		if (err == ENOENT)
 			return (0);
-		else if (err)
+		/*
+		 * zfsonlinux compatibility hack - Some versions of zfsonlinux
+		 * created "scan" with an extra 64-bit integer added to the
+		 * zbookmark_t.  Handle this case and copy scn_state into the
+		 * dsl_scan_t for use below.
+		 */
+		if (err == EOVERFLOW) {
+			uint64_t zaptmp[SCAN_PHYS_NUMINTS + 1];
+
+			err = zap_lookup(dp->dp_meta_objset,
+				DMU_POOL_DIRECTORY_OBJECT,
+				DMU_POOL_SCAN, sizeof (uint64_t),
+				SCAN_PHYS_NUMINTS + 1,
+				&zaptmp);
+			if (err == 0)
+				scn->scn_phys.scn_state =
+					zaptmp[offsetof(dsl_scan_phys_t,
+						scn_state) / sizeof (uint64_t)];
+		}
+		if (err)
 			return (err);
 
 		if (scn->scn_phys.scn_state == DSS_SCANNING &&
@@ -395,7 +414,7 @@ dsl_scan_check_pause(dsl_scan_t *scn, const zbookmark_t *zb)
 	int mintime;
 
 	/* we never skip user/group accounting objects */
-	if (zb && (int64_t)zb->zb_object < 0)
+	if (zb && (int64_t)zb->zb_phys.zb_object < 0)
 		return (B_FALSE);
 
 	if (scn->scn_pausing)
@@ -405,7 +424,7 @@ dsl_scan_check_pause(dsl_scan_t *scn, const zbookmark_t *zb)
 		return (B_FALSE); /* we're resuming */
 
 	/* We only know how to resume from level-0 blocks. */
-	if (zb && zb->zb_level != 0)
+	if (zb && zb->zb_phys.zb_level != 0)
 		return (B_FALSE);
 
 	mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
@@ -417,10 +436,10 @@ dsl_scan_check_pause(dsl_scan_t *scn, const zbookmark_t *zb)
 	    spa_shutting_down(scn->scn_dp->dp_spa)) {
 		if (zb) {
 			dprintf("pausing at bookmark %llx/%llx/%llx/%llx\n",
-			    (longlong_t)zb->zb_objset,
-			    (longlong_t)zb->zb_object,
-			    (longlong_t)zb->zb_level,
-			    (longlong_t)zb->zb_blkid);
+			    (longlong_t)zb->zb_phys.zb_objset,
+			    (longlong_t)zb->zb_phys.zb_object,
+			    (longlong_t)zb->zb_phys.zb_level,
+			    (longlong_t)zb->zb_phys.zb_blkid);
 			scn->scn_phys.scn_bookmark = *zb;
 		}
 		dprintf("pausing at DDT bookmark %llx/%llx/%llx/%llx\n",
@@ -553,7 +572,7 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
 	 * We never skip over user/group accounting objects (obj<0)
 	 */
 	if (!ZB_IS_ZERO(&scn->scn_phys.scn_bookmark) &&
-	    (int64_t)zb->zb_object >= 0) {
+	    (int64_t)zb->zb_phys.zb_object >= 0) {
 		/*
 		 * If we already visited this bp & everything below (in
 		 * a prior txg sync), don't bother doing it again.
@@ -568,12 +587,12 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
 		 * again.
 		 */
 		if (bcmp(zb, &scn->scn_phys.scn_bookmark, sizeof (*zb)) == 0 ||
-		    zb->zb_object > scn->scn_phys.scn_bookmark.zb_object) {
+		    zb->zb_phys.zb_object > scn->scn_phys.scn_bookmark.zb_phys.zb_object) {
 			dprintf("resuming at %llx/%llx/%llx/%llx\n",
-			    (longlong_t)zb->zb_objset,
-			    (longlong_t)zb->zb_object,
-			    (longlong_t)zb->zb_level,
-			    (longlong_t)zb->zb_blkid);
+			    (longlong_t)zb->zb_phys.zb_objset,
+			    (longlong_t)zb->zb_phys.zb_object,
+			    (longlong_t)zb->zb_phys.zb_level,
+			    (longlong_t)zb->zb_phys.zb_blkid);
 			bzero(&scn->scn_phys.scn_bookmark, sizeof (*zb));
 		}
 	}
@@ -606,15 +625,15 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			return (err);
 		}
 		for (i = 0, cbp = (*bufp)->b_data; i < epb; i++, cbp++) {
-			dsl_scan_prefetch(scn, *bufp, cbp, zb->zb_objset,
-			    zb->zb_object, zb->zb_blkid * epb + i);
+			dsl_scan_prefetch(scn, *bufp, cbp, zb->zb_phys.zb_objset,
+			    zb->zb_phys.zb_object, zb->zb_phys.zb_blkid * epb + i);
 		}
 		for (i = 0, cbp = (*bufp)->b_data; i < epb; i++, cbp++) {
 			zbookmark_t czb;
 
-			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
-			    zb->zb_level - 1,
-			    zb->zb_blkid * epb + i);
+			SET_BOOKMARK(&czb, zb->zb_phys.zb_objset, zb->zb_phys.zb_object,
+			    zb->zb_phys.zb_level - 1,
+			    zb->zb_phys.zb_blkid * epb + i);
 			dsl_scan_visitbp(cbp, &czb, dnp,
 			    *bufp, ds, scn, ostype, tx);
 		}
@@ -643,12 +662,12 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			for (j = 0; j < cdnp->dn_nblkptr; j++) {
 				blkptr_t *cbp = &cdnp->dn_blkptr[j];
 				dsl_scan_prefetch(scn, *bufp, cbp,
-				    zb->zb_objset, zb->zb_blkid * epb + i, j);
+				    zb->zb_phys.zb_objset, zb->zb_phys.zb_blkid * epb + i, j);
 			}
 		}
 		for (i = 0, cdnp = (*bufp)->b_data; i < epb; i++, cdnp++) {
 			dsl_scan_visitdnode(scn, ds, ostype,
-			    cdnp, *bufp, zb->zb_blkid * epb + i, tx);
+			    cdnp, *bufp, zb->zb_phys.zb_blkid * epb + i, tx);
 		}
 
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
@@ -750,7 +769,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 	 * dprintf_bp(bp,
 	 *    "visiting ds=%p/%llu zb=%llx/%llx/%llx/%llx buf=%p bp=%p",
 	 *    ds, ds ? ds->ds_object : 0,
-	 *    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
+	 *    zb->zb_phys.zb_objset, zb->zb_phys.zb_object, zb->zb_phys.zb_level, zb->zb_phys.zb_blkid,
 	 *    pbuf, bp);
 	 */
 
@@ -812,10 +831,10 @@ dsl_scan_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
 		return;
 
-	if (scn->scn_phys.scn_bookmark.zb_objset == ds->ds_object) {
+	if (scn->scn_phys.scn_bookmark.zb_phys.zb_objset == ds->ds_object) {
 		if (dsl_dataset_is_snapshot(ds)) {
 			/* Note, scn_cur_{min,max}_txg stays the same. */
-			scn->scn_phys.scn_bookmark.zb_objset =
+			scn->scn_phys.scn_bookmark.zb_phys.zb_objset =
 			    ds->ds_phys->ds_next_snap_obj;
 			zfs_dbgmsg("destroying ds %llu; currently traversing; "
 			    "reset zb_objset to %llu",
@@ -875,8 +894,8 @@ dsl_scan_ds_snapshotted(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	ASSERT(ds->ds_phys->ds_prev_snap_obj != 0);
 
-	if (scn->scn_phys.scn_bookmark.zb_objset == ds->ds_object) {
-		scn->scn_phys.scn_bookmark.zb_objset =
+	if (scn->scn_phys.scn_bookmark.zb_phys.zb_objset == ds->ds_object) {
+		scn->scn_phys.scn_bookmark.zb_phys.zb_objset =
 		    ds->ds_phys->ds_prev_snap_obj;
 		zfs_dbgmsg("snapshotting ds %llu; currently traversing; "
 		    "reset zb_objset to %llu",
@@ -907,14 +926,14 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
 		return;
 
-	if (scn->scn_phys.scn_bookmark.zb_objset == ds1->ds_object) {
-		scn->scn_phys.scn_bookmark.zb_objset = ds2->ds_object;
+	if (scn->scn_phys.scn_bookmark.zb_phys.zb_objset == ds1->ds_object) {
+		scn->scn_phys.scn_bookmark.zb_phys.zb_objset = ds2->ds_object;
 		zfs_dbgmsg("clone_swap ds %llu; currently traversing; "
 		    "reset zb_objset to %llu",
 		    (u_longlong_t)ds1->ds_object,
 		    (u_longlong_t)ds2->ds_object);
-	} else if (scn->scn_phys.scn_bookmark.zb_objset == ds2->ds_object) {
-		scn->scn_phys.scn_bookmark.zb_objset = ds1->ds_object;
+	} else if (scn->scn_phys.scn_bookmark.zb_phys.zb_objset == ds2->ds_object) {
+		scn->scn_phys.scn_bookmark.zb_phys.zb_objset = ds1->ds_object;
 		zfs_dbgmsg("clone_swap ds %llu; currently traversing; "
 		    "reset zb_objset to %llu",
 		    (u_longlong_t)ds2->ds_object,
@@ -1222,7 +1241,7 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	const ddt_key_t *ddk = &dde->dde_key;
 	ddt_phys_t *ddp = dde->dde_phys;
 	blkptr_t bp;
-	zbookmark_t zb = { 0 };
+	zbookmark_t zb = { { 0 }, 0 };
 	int p;
 
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
@@ -1255,7 +1274,7 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			return;
 	}
 
-	if (scn->scn_phys.scn_bookmark.zb_objset == DMU_META_OBJSET) {
+	if (scn->scn_phys.scn_bookmark.zb_phys.zb_objset == DMU_META_OBJSET) {
 		/* First do the MOS & ORIGIN */
 
 		scn->scn_phys.scn_cur_min_txg = scn->scn_phys.scn_min_txg;
@@ -1274,7 +1293,7 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			    dp->dp_origin_snap->ds_object, tx);
 		}
 		ASSERT(!scn->scn_pausing);
-	} else if (scn->scn_phys.scn_bookmark.zb_objset !=
+	} else if (scn->scn_phys.scn_bookmark.zb_phys.zb_objset !=
 	    ZB_DESTROYED_OBJSET) {
 		/*
 		 * If we were paused, continue from here.  Note if the
@@ -1282,7 +1301,7 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 		 * be -1, so we will skip this and find a new objset
 		 * below.
 		 */
-		dsl_scan_visitds(scn, scn->scn_phys.scn_bookmark.zb_objset, tx);
+		dsl_scan_visitds(scn, scn->scn_phys.scn_bookmark.zb_phys.zb_objset, tx);
 		if (scn->scn_pausing)
 			return;
 	}
@@ -1500,17 +1519,17 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		    (longlong_t)scn->scn_phys.scn_ddt_bookmark.ddb_type,
 		    (longlong_t)scn->scn_phys.scn_ddt_bookmark.ddb_checksum,
 		    (longlong_t)scn->scn_phys.scn_ddt_bookmark.ddb_cursor);
-		ASSERT(scn->scn_phys.scn_bookmark.zb_objset == 0);
-		ASSERT(scn->scn_phys.scn_bookmark.zb_object == 0);
-		ASSERT(scn->scn_phys.scn_bookmark.zb_level == 0);
-		ASSERT(scn->scn_phys.scn_bookmark.zb_blkid == 0);
+		ASSERT(scn->scn_phys.scn_bookmark.zb_phys.zb_objset == 0);
+		ASSERT(scn->scn_phys.scn_bookmark.zb_phys.zb_object == 0);
+		ASSERT(scn->scn_phys.scn_bookmark.zb_phys.zb_level == 0);
+		ASSERT(scn->scn_phys.scn_bookmark.zb_phys.zb_blkid == 0);
 	} else {
 		zfs_dbgmsg("doing scan sync txg %llu; bm=%llu/%llu/%llu/%llu",
 		    (longlong_t)tx->tx_txg,
-		    (longlong_t)scn->scn_phys.scn_bookmark.zb_objset,
-		    (longlong_t)scn->scn_phys.scn_bookmark.zb_object,
-		    (longlong_t)scn->scn_phys.scn_bookmark.zb_level,
-		    (longlong_t)scn->scn_phys.scn_bookmark.zb_blkid);
+		    (longlong_t)scn->scn_phys.scn_bookmark.zb_phys.zb_objset,
+		    (longlong_t)scn->scn_phys.scn_bookmark.zb_phys.zb_object,
+		    (longlong_t)scn->scn_phys.scn_bookmark.zb_phys.zb_level,
+		    (longlong_t)scn->scn_phys.scn_bookmark.zb_phys.zb_blkid);
 	}
 
 	scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
@@ -1674,7 +1693,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	}
 
 	/* If it's an intent log block, failure is expected. */
-	if (zb->zb_level == ZB_ZIL_LEVEL)
+	if (zb->zb_phys.zb_level == ZB_ZIL_LEVEL)
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
 	for (d = 0; d < BP_GET_NDVAS(bp); d++) {

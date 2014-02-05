@@ -3568,19 +3568,19 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 		nvlist_t *nv;
 
 		/* ignoring zb_blkid and zb_level for now */
-		if (i > 0 && zb[i-1].zb_objset == zb[i].zb_objset &&
-		    zb[i-1].zb_object == zb[i].zb_object)
+		if (i > 0 && zb[i-1].zb_phys.zb_objset == zb[i].zb_phys.zb_objset &&
+		    zb[i-1].zb_phys.zb_object == zb[i].zb_phys.zb_object)
 			continue;
 
 		if (nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_SLEEP) != 0)
 			goto nomem;
 		if (nvlist_add_uint64(nv, ZPOOL_ERR_DATASET,
-		    zb[i].zb_objset) != 0) {
+		    zb[i].zb_phys.zb_objset) != 0) {
 			nvlist_free(nv);
 			goto nomem;
 		}
 		if (nvlist_add_uint64(nv, ZPOOL_ERR_OBJECT,
-		    zb[i].zb_object) != 0) {
+		    zb[i].zb_phys.zb_object) != 0) {
 			nvlist_free(nv);
 			goto nomem;
 		}

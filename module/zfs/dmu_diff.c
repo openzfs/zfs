@@ -115,18 +115,18 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (issig(JUSTLOOKING) && issig(FORREAL))
 		return (SET_ERROR(EINTR));
 
-	if (zb->zb_object != DMU_META_DNODE_OBJECT)
+	if (zb->zb_phys.zb_object != DMU_META_DNODE_OBJECT)
 		return (0);
 
 	if (bp == NULL) {
-		uint64_t span = DBP_SPAN(dnp, zb->zb_level);
-		uint64_t dnobj = (zb->zb_blkid * span) >> DNODE_SHIFT;
+		uint64_t span = DBP_SPAN(dnp, zb->zb_phys.zb_level);
+		uint64_t dnobj = (zb->zb_phys.zb_blkid * span) >> DNODE_SHIFT;
 
 		err = report_free_dnode_range(da, dnobj,
 		    dnobj + (span >> DNODE_SHIFT) - 1);
 		if (err)
 			return (err);
-	} else if (zb->zb_level == 0) {
+	} else if (zb->zb_phys.zb_level == 0) {
 		dnode_phys_t *blk;
 		arc_buf_t *abuf;
 		uint32_t aflags = ARC_WAIT;
@@ -140,7 +140,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 		blk = abuf->b_data;
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
-			uint64_t dnobj = (zb->zb_blkid <<
+			uint64_t dnobj = (zb->zb_phys.zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
 			err = report_dnode(da, dnobj, blk+i);
 			if (err)

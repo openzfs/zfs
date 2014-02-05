@@ -210,10 +210,10 @@ spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
 	strlcpy(srh->origin, zb->zb_func, sizeof (srh->origin));
 	strlcpy(srh->comm, getcomm(), sizeof (srh->comm));
 	srh->start  = gethrtime();
-	srh->objset = zb->zb_objset;
-	srh->object = zb->zb_object;
-	srh->level  = zb->zb_level;
-	srh->blkid  = zb->zb_blkid;
+	srh->objset = zb->zb_phys.zb_objset;
+	srh->object = zb->zb_phys.zb_object;
+	srh->level  = zb->zb_phys.zb_level;
+	srh->blkid  = zb->zb_phys.zb_blkid;
 	srh->aflags = aflags;
 	srh->pid    = getpid();
 

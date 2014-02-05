@@ -346,16 +346,16 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			fm_payload_set(ereport,
 			    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJSET,
 			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_objset,
+			    zio->io_logical->io_bookmark.zb_phys.zb_objset,
 			    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJECT,
 			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_object,
+			    zio->io_logical->io_bookmark.zb_phys.zb_object,
 			    FM_EREPORT_PAYLOAD_ZFS_ZIO_LEVEL,
 			    DATA_TYPE_INT64,
-			    zio->io_logical->io_bookmark.zb_level,
+			    zio->io_logical->io_bookmark.zb_phys.zb_level,
 			    FM_EREPORT_PAYLOAD_ZFS_ZIO_BLKID,
 			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_blkid, NULL);
+			    zio->io_logical->io_bookmark.zb_phys.zb_blkid, NULL);
 	} else if (vd != NULL) {
 		/*
 		 * If we have a vdev but no zio, this is a device fault, and the

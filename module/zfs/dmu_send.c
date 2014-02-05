@@ -382,17 +382,17 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (issig(JUSTLOOKING) && issig(FORREAL))
 		return (SET_ERROR(EINTR));
 
-	if (zb->zb_object != DMU_META_DNODE_OBJECT &&
-	    DMU_OBJECT_IS_SPECIAL(zb->zb_object)) {
+	if (zb->zb_phys.zb_object != DMU_META_DNODE_OBJECT &&
+	    DMU_OBJECT_IS_SPECIAL(zb->zb_phys.zb_object)) {
 		return (0);
-	} else if (bp == NULL && zb->zb_object == DMU_META_DNODE_OBJECT) {
-		uint64_t span = BP_SPAN(dnp, zb->zb_level);
-		uint64_t dnobj = (zb->zb_blkid * span) >> DNODE_SHIFT;
+	} else if (bp == NULL && zb->zb_phys.zb_object == DMU_META_DNODE_OBJECT) {
+		uint64_t span = BP_SPAN(dnp, zb->zb_phys.zb_level);
+		uint64_t dnobj = (zb->zb_phys.zb_blkid * span) >> DNODE_SHIFT;
 		err = dump_freeobjects(dsp, dnobj, span >> DNODE_SHIFT);
 	} else if (bp == NULL) {
-		uint64_t span = BP_SPAN(dnp, zb->zb_level);
-		err = dump_free(dsp, zb->zb_object, zb->zb_blkid * span, span);
-	} else if (zb->zb_level > 0 || type == DMU_OT_OBJSET) {
+		uint64_t span = BP_SPAN(dnp, zb->zb_phys.zb_level);
+		err = dump_free(dsp, zb->zb_phys.zb_object, zb->zb_phys.zb_blkid * span, span);
+	} else if (zb->zb_phys.zb_level > 0 || type == DMU_OT_OBJSET) {
 		return (0);
 	} else if (type == DMU_OT_DNODE) {
 		dnode_phys_t *blk;
@@ -408,7 +408,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 		blk = abuf->b_data;
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
-			uint64_t dnobj = (zb->zb_blkid <<
+			uint64_t dnobj = (zb->zb_phys.zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
 			err = dump_dnode(dsp, dnobj, blk+i);
 			if (err != 0)
@@ -425,7 +425,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		err = dump_spill(dsp, zb->zb_object, blksz, abuf->b_data);
+		err = dump_spill(dsp, zb->zb_phys.zb_object, blksz, abuf->b_data);
 		(void) arc_buf_remove_ref(abuf, &abuf);
 	} else { /* it's a level-0 block of a regular object */
 		uint32_t aflags = ARC_WAIT;
@@ -449,7 +449,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 			}
 		}
 
-		err = dump_data(dsp, type, zb->zb_object, zb->zb_blkid * blksz,
+		err = dump_data(dsp, type, zb->zb_phys.zb_object, zb->zb_phys.zb_blkid * blksz,
 		    blksz, bp, abuf->b_data);
 		(void) arc_buf_remove_ref(abuf, &abuf);
 	}

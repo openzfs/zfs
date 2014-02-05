@@ -2576,7 +2576,7 @@ zio_vdev_io_start(zio_t *zio)
 	 */
 	if (!(zio->io_flags & ZIO_FLAG_SCAN_THREAD) && zio->io_bp != NULL &&
 	    vd == vd->vdev_top && !vd->vdev_islog &&
-	    zio->io_bookmark.zb_objset != DMU_META_OBJSET &&
+	    zio->io_bookmark.zb_phys.zb_objset != DMU_META_OBJSET &&
 	    zio->io_txg != spa_syncing_txg(spa)) {
 		uint64_t old = spa->spa_last_io;
 		uint64_t new = ddi_get_lbolt64();
@@ -3301,39 +3301,39 @@ zbookmark_is_before(const dnode_phys_t *dnp, const zbookmark_t *zb1,
 {
 	uint64_t zb1nextL0, zb2thisobj;
 
-	ASSERT(zb1->zb_objset == zb2->zb_objset);
-	ASSERT(zb2->zb_level == 0);
+	ASSERT(zb1->zb_phys.zb_objset == zb2->zb_phys.zb_objset);
+	ASSERT(zb2->zb_phys.zb_level == 0);
 
 	/*
 	 * A bookmark in the deadlist is considered to be after
 	 * everything else.
 	 */
-	if (zb2->zb_object == DMU_DEADLIST_OBJECT)
+	if (zb2->zb_phys.zb_object == DMU_DEADLIST_OBJECT)
 		return (B_TRUE);
 
 	/* The objset_phys_t isn't before anything. */
 	if (dnp == NULL)
 		return (B_FALSE);
 
-	zb1nextL0 = (zb1->zb_blkid + 1) <<
-	    ((zb1->zb_level) * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT));
+	zb1nextL0 = (zb1->zb_phys.zb_blkid + 1) <<
+	    ((zb1->zb_phys.zb_level) * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT));
 
-	zb2thisobj = zb2->zb_object ? zb2->zb_object :
-	    zb2->zb_blkid << (DNODE_BLOCK_SHIFT - DNODE_SHIFT);
+	zb2thisobj = zb2->zb_phys.zb_object ? zb2->zb_phys.zb_object :
+	    zb2->zb_phys.zb_blkid << (DNODE_BLOCK_SHIFT - DNODE_SHIFT);
 
-	if (zb1->zb_object == DMU_META_DNODE_OBJECT) {
+	if (zb1->zb_phys.zb_object == DMU_META_DNODE_OBJECT) {
 		uint64_t nextobj = zb1nextL0 *
 		    (dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT) >> DNODE_SHIFT;
 		return (nextobj <= zb2thisobj);
 	}
 
-	if (zb1->zb_object < zb2thisobj)
+	if (zb1->zb_phys.zb_object < zb2thisobj)
 		return (B_TRUE);
-	if (zb1->zb_object > zb2thisobj)
+	if (zb1->zb_phys.zb_object > zb2thisobj)
 		return (B_FALSE);
-	if (zb2->zb_object == DMU_META_DNODE_OBJECT)
+	if (zb2->zb_phys.zb_object == DMU_META_DNODE_OBJECT)
 		return (B_FALSE);
-	return (zb1nextL0 <= zb2->zb_blkid);
+	return (zb1nextL0 <= zb2->zb_phys.zb_blkid);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
