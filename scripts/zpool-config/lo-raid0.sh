@@ -3,10 +3,9 @@
 # 4 Device Loopback Raid-0 Configuration
 #
 
-FILES="/tmp/zpool-vdev0  \
-       /tmp/zpool-vdev1  \
-       /tmp/zpool-vdev2  \
-       /tmp/zpool-vdev3"
+FILEDIR=${FILEDIR:-/var/tmp}
+FILES=${FILES:-"$FILEDIR/file-vdev0 $FILEDIR/file-vdev1 \
+    $FILEDIR/file-vdev2 $FILEDIR/file-vdev3"}
 DEVICES=""
 
 zpool_create() {

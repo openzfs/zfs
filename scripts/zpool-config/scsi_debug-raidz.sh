@@ -9,9 +9,8 @@ SDHOSTS=${SDHOSTS:-1}
 SDTGTS=${SDTGTS:-1}
 SDLUNS=${SDLUNS:-1}
 LDMOD=/sbin/modprobe
-FILES="/tmp/zpool-vdev0  \
-       /tmp/zpool-vdev1  \
-       /tmp/zpool-vdev2"
+FILEDIR=${FILEDIR:-/var/tmp}
+FILES=${FILES:-"$FILEDIR/file-vdev0 $FILEDIR/file-vdev1 $FILEDIR/file-vdev2"}
 DEVICES=""
 
 zpool_create() {
