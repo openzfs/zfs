@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2014 RackTop Systems.
  */
 
 #include <sys/dmu_objset.h>
@@ -1371,7 +1372,7 @@ get_clones_stat(dsl_dataset_t *ds, nvlist_t *nv)
 	 * Only trust it if it has the right number of entries.
 	 */
 	if (ds->ds_phys->ds_next_clones_obj != 0) {
-		ASSERT0(zap_count(mos, ds->ds_phys->ds_next_clones_obj,
+		VERIFY0(zap_count(mos, ds->ds_phys->ds_next_clones_obj,
 		    &count));
 	}
 	if (count != ds->ds_phys->ds_num_children - 1)
