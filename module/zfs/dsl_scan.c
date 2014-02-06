@@ -64,8 +64,8 @@ int zfs_scan_idle = 50;			/* idle window in clock ticks */
 int zfs_scan_min_time_ms = 1000; /* min millisecs to scrub per txg */
 int zfs_free_min_time_ms = 1000; /* min millisecs to free per txg */
 int zfs_resilver_min_time_ms = 3000; /* min millisecs to resilver per txg */
-int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
-int zfs_no_scrub_prefetch = B_FALSE; /* set to disable srub prefetching */
+bool zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
+bool zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetching */
 enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 int dsl_scan_delay_completion = B_FALSE; /* set to delay scan completion */
 
@@ -1778,9 +1778,9 @@ MODULE_PARM_DESC(zfs_free_min_time_ms, "Min millisecs to free per txg");
 module_param(zfs_resilver_min_time_ms, int, 0644);
 MODULE_PARM_DESC(zfs_resilver_min_time_ms, "Min millisecs to resilver per txg");
 
-module_param(zfs_no_scrub_io, int, 0644);
+module_param(zfs_no_scrub_io, bool, 0644);
 MODULE_PARM_DESC(zfs_no_scrub_io, "Set to disable scrub I/O");
 
-module_param(zfs_no_scrub_prefetch, int, 0644);
+module_param(zfs_no_scrub_prefetch, bool, 0644);
 MODULE_PARM_DESC(zfs_no_scrub_prefetch, "Set to disable scrub prefetching");
 #endif

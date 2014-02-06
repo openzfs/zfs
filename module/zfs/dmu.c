@@ -51,7 +51,7 @@
 /*
  * Enable/disable nopwrite feature.
  */
-int zfs_nopwrite_enabled = 1;
+bool zfs_nopwrite_enabled = B_TRUE;
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
@@ -1754,7 +1754,7 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 	dnode_rele(dn, FTAG);
 }
 
-int zfs_mdcomp_disable = 0;
+bool zfs_mdcomp_disable = B_FALSE;
 
 void
 dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
@@ -2068,10 +2068,10 @@ EXPORT_SYMBOL(dmu_assign_arcbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 
-module_param(zfs_mdcomp_disable, int, 0644);
+module_param(zfs_mdcomp_disable, bool, 0644);
 MODULE_PARM_DESC(zfs_mdcomp_disable, "Disable meta data compression");
 
-module_param(zfs_nopwrite_enabled, int, 0644);
+module_param(zfs_nopwrite_enabled, bool, 0644);
 MODULE_PARM_DESC(zfs_nopwrite_enabled, "Enable NOP writes");
 
 #endif

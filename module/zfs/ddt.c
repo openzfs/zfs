@@ -43,7 +43,7 @@ static kmem_cache_t *ddt_entry_cache;
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
  */
-int zfs_dedup_prefetch = 1;
+bool zfs_dedup_prefetch = B_TRUE;
 
 static const ddt_ops_t *ddt_ops[DDT_TYPES] = {
 	&ddt_zap_ops,
@@ -1226,6 +1226,6 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-module_param(zfs_dedup_prefetch, int, 0644);
+module_param(zfs_dedup_prefetch, bool, 0644);
 MODULE_PARM_DESC(zfs_dedup_prefetch, "Enable prefetching dedup-ed blks");
 #endif

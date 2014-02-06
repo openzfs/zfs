@@ -185,10 +185,10 @@ int zfs_arc_shrink_shift = 5;
 int zfs_arc_min_prefetch_lifespan = HZ;
 
 /* disable arc proactive arc throttle due to low memory */
-int zfs_arc_memory_throttle_disable = 1;
+bool zfs_arc_memory_throttle_disable = B_TRUE;
 
 /* disable duplicate buffer eviction */
-int zfs_disable_dup_eviction = 0;
+bool zfs_disable_dup_eviction = B_FALSE;
 
 /*
  * If this percent of memory is free, don't throttle.
@@ -691,10 +691,10 @@ unsigned long l2arc_headroom = L2ARC_HEADROOM;		/* # of dev writes */
 unsigned long l2arc_headroom_boost = L2ARC_HEADROOM_BOOST;
 unsigned long l2arc_feed_secs = L2ARC_FEED_SECS;	/* interval seconds */
 unsigned long l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
-int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
-int l2arc_nocompress = B_FALSE;			/* don't compress bufs */
-int l2arc_feed_again = B_TRUE;			/* turbo warmup */
-int l2arc_norw = B_FALSE;			/* no reads during writes */
+bool l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
+bool l2arc_nocompress = B_FALSE;		/* don't compress bufs */
+bool l2arc_feed_again = B_TRUE;			/* turbo warmup */
+bool l2arc_norw = B_FALSE;			/* no reads during writes */
 
 /*
  * L2ARC Internals
@@ -5554,10 +5554,10 @@ MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
 module_param(zfs_arc_p_min_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
 
-module_param(zfs_disable_dup_eviction, int, 0644);
+module_param(zfs_disable_dup_eviction, bool, 0644);
 MODULE_PARM_DESC(zfs_disable_dup_eviction, "disable duplicate buffer eviction");
 
-module_param(zfs_arc_memory_throttle_disable, int, 0644);
+module_param(zfs_arc_memory_throttle_disable, bool, 0644);
 MODULE_PARM_DESC(zfs_arc_memory_throttle_disable, "disable memory throttle");
 
 module_param(zfs_arc_min_prefetch_lifespan, int, 0644);
@@ -5581,16 +5581,16 @@ MODULE_PARM_DESC(l2arc_feed_secs, "Seconds between L2ARC writing");
 module_param(l2arc_feed_min_ms, ulong, 0644);
 MODULE_PARM_DESC(l2arc_feed_min_ms, "Min feed interval in milliseconds");
 
-module_param(l2arc_noprefetch, int, 0644);
+module_param(l2arc_noprefetch, bool, 0644);
 MODULE_PARM_DESC(l2arc_noprefetch, "Skip caching prefetched buffers");
 
-module_param(l2arc_nocompress, int, 0644);
+module_param(l2arc_nocompress, bool, 0644);
 MODULE_PARM_DESC(l2arc_nocompress, "Skip compressing L2ARC buffers");
 
-module_param(l2arc_feed_again, int, 0644);
+module_param(l2arc_feed_again, bool, 0644);
 MODULE_PARM_DESC(l2arc_feed_again, "Turbo L2ARC warmup");
 
-module_param(l2arc_norw, int, 0644);
+module_param(l2arc_norw, bool, 0644);
 MODULE_PARM_DESC(l2arc_norw, "No reads during writes");
 
 #endif

@@ -78,7 +78,7 @@
 
 int zfs_zevent_len_max = 0;
 int zfs_zevent_cols = 80;
-int zfs_zevent_console = 0;
+bool zfs_zevent_console = B_FALSE;
 
 static int zevent_len_cur = 0;
 static int zevent_waiters = 0;
@@ -1553,7 +1553,7 @@ MODULE_PARM_DESC(zfs_zevent_len_max, "Max event queue length");
 module_param(zfs_zevent_cols, int, 0644);
 MODULE_PARM_DESC(zfs_zevent_cols, "Max event column width");
 
-module_param(zfs_zevent_console, int, 0644);
+module_param(zfs_zevent_console, bool, 0644);
 MODULE_PARM_DESC(zfs_zevent_console, "Log events to the console");
 
 #endif /* _KERNEL */

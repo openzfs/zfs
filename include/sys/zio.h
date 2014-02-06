@@ -553,7 +553,7 @@ extern void zio_fini(void);
  * Fault injection
  */
 struct zinject_record;
-extern uint32_t zio_injection_enabled;
+extern bool zio_injection_enabled;
 extern int zio_inject_fault(char *name, int flags, int *id,
     struct zinject_record *record);
 extern int zio_inject_list_next(int *id, char *name, size_t buflen,

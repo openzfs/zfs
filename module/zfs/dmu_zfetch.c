@@ -40,7 +40,7 @@
  * until we can get this working the way we want it to.
  */
 
-int zfs_prefetch_disable = 0;
+bool zfs_prefetch_disable = B_FALSE;
 
 /* max # of streams per zfetch */
 unsigned int	zfetch_max_streams = 8;
@@ -731,7 +731,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t offset, uint64_t size, int prefetched)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-module_param(zfs_prefetch_disable, int, 0644);
+module_param(zfs_prefetch_disable, bool, 0644);
 MODULE_PARM_DESC(zfs_prefetch_disable, "Disable all ZFS prefetching");
 
 module_param(zfetch_max_streams, uint, 0644);

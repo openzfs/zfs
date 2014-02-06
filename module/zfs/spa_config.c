@@ -65,7 +65,7 @@ static uint64_t spa_config_generation = 1;
  * userland pools when doing testing.
  */
 char *spa_config_path = ZPOOL_CACHE;
-int zfs_autoimport_disable = 0;
+bool zfs_autoimport_disable = B_FALSE;
 
 /*
  * Called when the module is first loaded, this routine loads the configuration
@@ -527,7 +527,7 @@ EXPORT_SYMBOL(spa_config_update);
 module_param(spa_config_path, charp, 0444);
 MODULE_PARM_DESC(spa_config_path, "SPA config file (/etc/zfs/zpool.cache)");
 
-module_param(zfs_autoimport_disable, int, 0644);
+module_param(zfs_autoimport_disable, bool, 0644);
 MODULE_PARM_DESC(zfs_autoimport_disable, "Disable pool import at module load");
 
 #endif

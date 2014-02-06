@@ -621,7 +621,7 @@ void dmu_xuio_clear(struct xuio *uio, int i);
 void xuio_stat_wbuf_copied(void);
 void xuio_stat_wbuf_nocopy(void);
 
-extern int zfs_prefetch_disable;
+extern bool zfs_prefetch_disable;
 
 /*
  * Asynchronously try to read in the data.
@@ -810,7 +810,7 @@ int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */
 extern uint64_t zfs_crc64_table[256];
 
-extern int zfs_mdcomp_disable;
+extern bool zfs_mdcomp_disable;
 
 #ifdef	__cplusplus
 }

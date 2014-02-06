@@ -52,7 +52,7 @@
 #include <sys/dsl_destroy.h>
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
-int zfs_send_corrupt_data = B_FALSE;
+bool zfs_send_corrupt_data = B_FALSE;
 
 static char *dmu_recv_tag = "dmu_recv_tag";
 static const char *recv_clone_name = "%recv";
@@ -1851,6 +1851,6 @@ dmu_objset_is_receiving(objset_t *os)
 }
 
 #if defined(_KERNEL)
-module_param(zfs_send_corrupt_data, int, 0644);
+module_param(zfs_send_corrupt_data, bool, 0644);
 MODULE_PARM_DESC(zfs_send_corrupt_data, "Allow sending corrupt data");
 #endif

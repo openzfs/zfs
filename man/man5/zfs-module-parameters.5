@@ -27,12 +27,12 @@ Description of the different parameters to the ZFS module.
 .sp
 .ne 2
 .na
-\fBl2arc_feed_again\fR (int)
+\fBl2arc_feed_again\fR (bool)
 .ad
 .RS 12n
 Turbo L2ARC warmup
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR or \fBY\fR to enable turbo warmup (default) and \fB0\fR \fBN\fR to disable.
 .RE
 
 .sp
@@ -82,34 +82,34 @@ Default value: \fB200\fR.
 .sp
 .ne 2
 .na
-\fBl2arc_nocompress\fR (int)
+\fBl2arc_nocompress\fR (bool)
 .ad
 .RS 12n
 Skip compressing L2ARC buffers
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to skip compressing L2ARC buffers and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
 .ne 2
 .na
-\fBl2arc_noprefetch\fR (int)
+\fBl2arc_noprefetch\fR (bool)
 .ad
 .RS 12n
 Skip caching prefetched buffers
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR or \fBY\fR to skip caching prefetched buffers (default) and \fB0\fR or \fBN\fR for no.
 .RE
 
 .sp
 .ne 2
 .na
-\fBl2arc_norw\fR (int)
+\fBl2arc_norw\fR (bool)
 .ad
 .RS 12n
 No reads during writes
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable reads during writes and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -137,12 +137,12 @@ Default value: \fB8,388,608\fR.
 .sp
 .ne 2
 .na
-\fBmetaslab_debug\fR (int)
+\fBmetaslab_debug\fR (bool)
 .ad
 .RS 12n
 Keep space maps in core to verify frees
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to enable debugging and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -241,12 +241,12 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_arc_memory_throttle_disable\fR (int)
+\fBzfs_arc_memory_throttle_disable\fR (bool)
 .ad
 .RS 12n
 Disable memory throttle
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR or \fBY\fR to disable memory throttle (default) and \fB0\fR or \fBN\fR for no.
 .RE
 
 .sp
@@ -318,12 +318,12 @@ Default value: \fB5\fR.
 .sp
 .ne 2
 .na
-\fBzfs_autoimport_disable\fR (int)
+\fBzfs_autoimport_disable\fR (bool)
 .ad
 .RS 12n
 Disable pool import at module load
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable automatic pool import and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -340,12 +340,12 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_deadman_enabled\fR (int)
+\fBzfs_deadman_enabled\fR (bool)
 .ad
 .RS 12n
 Enable deadman timer
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR or \fBY\fR to enable deadman timer (default) and \fB0\fR or \fBN\fR to disable.
 .RE
 
 .sp
@@ -367,12 +367,12 @@ Default value: \fB1,000,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_dedup_prefetch\fR (int)
+\fBzfs_dedup_prefetch\fR (bool)
 .ad
 .RS 12n
-Enable prefetching dedup-ed blks
+Enable prefetching dedup-ed blocks
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR or \fBY\fR to enable prefetching dedup-ed blocks (default) and \fB0\fR or \fBN\fR to disable.
 .RE
 
 .sp
@@ -644,12 +644,12 @@ Default value: \fB10\fR.
 .sp
 .ne 2
 .na
-\fBzfs_disable_dup_eviction\fR (int)
+\fBzfs_disable_dup_eviction\fR (bool)
 .ad
 .RS 12n
 Disable duplicate buffer eviction
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable duplicate buffer eviction and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -699,56 +699,56 @@ Default value: \fB32,768\fR.
 .sp
 .ne 2
 .na
-\fBzfs_mdcomp_disable\fR (int)
+\fBzfs_mdcomp_disable\fR (bool)
 .ad
 .RS 12n
 Disable meta data compression
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable meta data compression and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
 .ne 2
 .na
-\fBzfs_no_scrub_io\fR (int)
+\fBzfs_no_scrub_io\fR (bool)
 .ad
 .RS 12n
 Set for no scrub I/O
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable scrub i/o and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
 .ne 2
 .na
-\fBzfs_no_scrub_prefetch\fR (int)
+\fBzfs_no_scrub_prefetch\fR (bool)
 .ad
 .RS 12n
 Set for no scrub prefetching
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR disable scrub prefetching and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
 .ne 2
 .na
-\fBzfs_nocacheflush\fR (int)
+\fBzfs_nocacheflush\fR (bool)
 .ad
 .RS 12n
 Disable cache flushes
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
 .ne 2
 .na
-\fBzfs_nopwrite_enabled\fR (int)
+\fBzfs_nopwrite_enabled\fR (bool)
 .ad
 .RS 12n
 Enable NOP writes
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR or \fBY\fR to enable NOP writes (default) and \fB0\fR or \fBN\fR to disable.
 .RE
 
 .sp
@@ -765,12 +765,12 @@ Default value: \fB100\fR.
 .sp
 .ne 2
 .na
-\fBzfs_prefetch_disable\fR (int)
+\fBzfs_prefetch_disable\fR (bool)
 .ad
 .RS 12n
 Disable all ZFS prefetching
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable prefetch and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -798,12 +798,12 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_read_history_hits\fR (int)
+\fBzfs_read_history_hits\fR (bool)
 .ad
 .RS 12n
 Include cache hits in read history
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to include cache hits in read history and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -876,12 +876,12 @@ Default value: \fB4\fR.
 .sp
 .ne 2
 .na
-\fBzfs_send_corrupt_data\fR (int)
+\fBzfs_send_corrupt_data\fR (bool)
 .ad
 .RS 12n
 Allow to send corrupt data (ignore read/checksum errors when sending data)
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to ignore r/w errors  and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -1050,12 +1050,12 @@ Default value: \fB80\fR.
 .sp
 .ne 2
 .na
-\fBzfs_zevent_console\fR (int)
+\fBzfs_zevent_console\fR (bool)
 .ad
 .RS 12n
 Log events to the console
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to log events to the console and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -1072,12 +1072,12 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzil_replay_disable\fR (int)
+\fBzil_replay_disable\fR (bool)
 .ad
 .RS 12n
 Disable intent logging replay
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to disable intent logging replay and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -1116,12 +1116,12 @@ Default value: \fB30,000\fR.
 .sp
 .ne 2
 .na
-\fBzio_injection_enabled\fR (int)
+\fBzio_injection_enabled\fR (bool)
 .ad
 .RS 12n
 Enable fault injection
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to enable fault injection and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
@@ -1138,12 +1138,12 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzvol_inhibit_dev\fR (uint)
+\fBzvol_inhibit_dev\fR (bool)
 .ad
 .RS 12n
 Do not create zvol device nodes
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR or \fBY\fR to inhibit zvol device nodes and \fB0\fR or \fBN\fR for no (default).
 .RE
 
 .sp
