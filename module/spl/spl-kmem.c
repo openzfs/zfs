@@ -46,6 +46,19 @@ EXPORT_SYMBOL(spl_kmem_cache_expire);
 module_param(spl_kmem_cache_expire, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
 
+unsigned int spl_kmem_cache_obj_per_slab = SPL_KMEM_CACHE_OBJ_PER_SLAB;
+module_param(spl_kmem_cache_obj_per_slab, uint, 0644);
+MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab, "Number of objects per slab");
+
+unsigned int spl_kmem_cache_obj_per_slab_min = SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN;
+module_param(spl_kmem_cache_obj_per_slab_min, uint, 0644);
+MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab_min,
+    "Minimal number of objects per slab");
+
+unsigned int spl_kmem_cache_max_size = 32;
+module_param(spl_kmem_cache_max_size, uint, 0644);
+MODULE_PARM_DESC(spl_kmem_cache_max_size, "Maximum size of slab in MB");
+
 /*
  * The minimum amount of memory measured in pages to be free at all
  * times on the system.  This is similar to Linux's zone->pages_min
@@ -1355,10 +1368,10 @@ spl_cache_age(void *data)
 
 /*
  * Size a slab based on the size of each aligned object plus spl_kmem_obj_t.
- * When on-slab we want to target SPL_KMEM_CACHE_OBJ_PER_SLAB.  However,
+ * When on-slab we want to target spl_kmem_cache_obj_per_slab.  However,
  * for very small objects we may end up with more than this so as not
  * to waste space in the minimal allocation of a single page.  Also for
- * very large objects we may use as few as SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN,
+ * very large objects we may use as few as spl_kmem_cache_obj_per_slab_min,
  * lower than this and we will fail.
  */
 static int
@@ -1367,7 +1380,7 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 	uint32_t sks_size, obj_size, max_size;
 
 	if (skc->skc_flags & KMC_OFFSLAB) {
-		*objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
+		*objs = spl_kmem_cache_obj_per_slab;
 		*size = P2ROUNDUP(sizeof(spl_kmem_slab_t), PAGE_SIZE);
 		SRETURN(0);
 	} else {
@@ -1377,12 +1390,12 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 		if (skc->skc_flags & KMC_KMEM)
 			max_size = ((uint32_t)1 << (MAX_ORDER-3)) * PAGE_SIZE;
 		else
-			max_size = (32 * 1024 * 1024);
+			max_size = (spl_kmem_cache_max_size * 1024 * 1024);
 
 		/* Power of two sized slab */
 		for (*size = PAGE_SIZE; *size <= max_size; *size *= 2) {
 			*objs = (*size - sks_size) / obj_size;
-			if (*objs >= SPL_KMEM_CACHE_OBJ_PER_SLAB)
+			if (*objs >= spl_kmem_cache_obj_per_slab)
 				SRETURN(0);
 		}
 
@@ -1393,7 +1406,7 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 		 */
 		*size = max_size;
 		*objs = (*size - sks_size) / obj_size;
-		if (*objs >= SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN)
+		if (*objs >= (spl_kmem_cache_obj_per_slab_min))
 			SRETURN(0);
 	}
 
