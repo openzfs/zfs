@@ -554,6 +554,7 @@ test_9() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 300M ${FULL_NAME} || fail 3
+	udev_trigger
 
 	# Dump the events, there should be at least 5 lines.
 	${ZPOOL} events >${TMP_EVENTS} || fail 4
