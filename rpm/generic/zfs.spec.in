@@ -48,6 +48,10 @@ Requires:       spl = %{version}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 
+# zfs-fuse provides the same commands and man pages that ZoL does. Renaming
+# those on either side would conflict with all available documentation.
+Conflicts:      zfs-fuse
+
 %if 0%{?rhel}%{?fedora}%{?suse_version}
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
