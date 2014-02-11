@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/python
 #
 # $Id: arc_summary.pl,v 388:e27800740aa2 2011-07-08 02:53:29Z jhell $
 #
@@ -58,6 +58,14 @@ kstat_pobj = re.compile("^([^:]+):\s+(.+)\s*$", flags=re.M)
 
 
 def get_Kstat():
+    def load_proc_kstats(fn, namespace):
+        kstats = [line.strip() for line in open(fn)]
+        del kstats[0:2]
+        for kstat in kstats:
+            kstat = kstat.strip()
+            name, unused, value = kstat.split()
+            Kstat[namespace + name] = D(value)
+
     Kstats = [
         "hw.pagesize",
         "hw.physmem",
@@ -74,27 +82,12 @@ def get_Kstat():
         "kstat.zfs",
         "vfs.zfs"
     ]
-
-    sysctls = " ".join(str(x) for x in Kstats)
-    p = Popen("/sbin/sysctl -q %s" % sysctls, stdin=PIPE,
-        stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
-    p.wait()
-
-    kstat_pull = p.communicate()[0].split('\n')
-    if p.returncode != 0:
-        sys.exit(1)
-
     Kstat = {}
-    for kstat in kstat_pull:
-        kstat = kstat.strip()
-        mobj = kstat_pobj.match(kstat)
-        if mobj:
-            key = mobj.group(1).strip()
-            val = mobj.group(2).strip()
-            Kstat[key] = D(val)
+    load_proc_kstats('/proc/spl/kstat/zfs/arcstats', 'kstat.zfs.misc.arcstats.')
+    load_proc_kstats('/proc/spl/kstat/zfs/zfetchstats', 'kstat.zfs.misc.zfetchstats.')
+    load_proc_kstats('/proc/spl/kstat/zfs/vdev_cache_stats', 'kstat.zfs.misc.vdev_cache_stats.')
 
     return Kstat
-
 
 def div1():
     sys.stdout.write("\n")
@@ -179,220 +172,9 @@ def fPerc(lVal=0, rVal=0, Decimal=2):
         return str("%0." + str(Decimal) + "f") % 100 + "%"
 
 
-def get_system_memory(Kstat):
-    def mem_rounded(mem_size):
-        chip_size = 1
-        chip_guess = (int(mem_size) / 8) - 1
-        while chip_guess != 0:
-            chip_guess >>= 1
-            chip_size <<= 1
-
-        mem_round = (int(mem_size / chip_size) + 1) * chip_size
-        return mem_round
-
-    output = {}
-
-    pagesize = Kstat["hw.pagesize"]
-    mem_hw = mem_rounded(Kstat["hw.physmem"])
-    mem_phys = Kstat["hw.physmem"]
-    mem_all = Kstat["vm.stats.vm.v_page_count"] * pagesize
-    mem_wire = Kstat["vm.stats.vm.v_wire_count"] * pagesize
-    mem_active = Kstat["vm.stats.vm.v_active_count"] * pagesize
-    mem_inactive = Kstat["vm.stats.vm.v_inactive_count"] * pagesize
-    mem_cache = Kstat["vm.stats.vm.v_cache_count"] * pagesize
-    mem_free = Kstat["vm.stats.vm.v_free_count"] * pagesize
-
-    mem_gap_vm = mem_all - (
-        mem_wire + mem_active + mem_inactive + mem_cache + mem_free
-        )
-
-    mem_total = mem_hw
-    mem_avail = mem_inactive + mem_cache + mem_free
-    mem_used = mem_total - mem_avail
-    output["active"] = {
-        'per': fPerc(mem_active, mem_all),
-        'num': fBytes(mem_active),
-    }
-    output["inact"] = {
-        'per': fPerc(mem_inactive, mem_all),
-        'num': fBytes(mem_inactive),
-    }
-    output["wired"] = {
-        'per': fPerc(mem_wire, mem_all),
-        'num': fBytes(mem_wire),
-    }
-    output["cache"] = {
-        'per': fPerc(mem_cache, mem_all),
-        'num': fBytes(mem_cache),
-    }
-    output["free"] = {
-        'per': fPerc(mem_free, mem_all),
-        'num': fBytes(mem_free),
-    }
-    output["gap"] = {
-        'per': fPerc(mem_gap_vm, mem_all),
-        'num': fBytes(mem_gap_vm),
-    }
-    output["real_installed"] = fBytes(mem_hw)
-    output["real_available"] = {
-        'per': fPerc(mem_phys, mem_hw),
-        'num': fBytes(mem_phys),
-    }
-    output["real_managed"] = {
-        'per': fPerc(mem_all, mem_phys),
-        'num': fBytes(mem_all),
-    }
-    output["logical_total"] = fBytes(mem_total)
-    output["logical_used"] = {
-        'per': fPerc(mem_used, mem_total),
-        'num': fBytes(mem_used),
-    }
-    output["logical_free"] = {
-        'per': fPerc(mem_avail, mem_total),
-        'num': fBytes(mem_avail),
-    }
-
-    swap_total = Kstat["vm.swap_total"]
-    output["swap_total"] = fBytes(swap_total)
-    output["swap_reserved"] = fBytes(Kstat["vm.swap_reserved"])
-
-    if int(swap_total) > 0:
-        proc = Popen(
-            "/usr/sbin/swapinfo -k|tail -1|awk '{print $3}'",
-            shell=True,
-            stdout=PIPE,
-            stderr=PIPE,
-        )
-        try:
-            swap_used = int(proc.communicate()[0])
-        except:
-            swap_used = 0
-        output['swap_used'] = fBytes(swap_used * 1024)
-    else:
-        output['swap_used'] = fBytes(0)
-
-    output['kmem_map_size'] = Kstat["vm.kmem_map_size"]
-    output['kmem_map_free'] = Kstat["vm.kmem_map_free"]
-
-    return output
-
-
-def _system_memory(Kstat):
-
-    arc = get_system_memory(Kstat)
-
-    sys.stdout.write("System Memory:\n")
-    sys.stdout.write("\n")
-    sys.stdout.write("\t%s\t%s Active,\t" % (
-        arc['active']['per'],
-        arc['active']['num'],
-        )
-    )
-
-    sys.stdout.write("%s\t%s Inact\n" % (
-        arc['inact']['per'],
-        arc['inact']['num'],
-        )
-    )
-    sys.stdout.write("\t%s\t%s Wired,\t" % (
-        arc['wired']['per'],
-        arc['wired']['num'],
-        )
-    )
-    sys.stdout.write("%s\t%s Cache\n" % (
-        arc['cache']['per'],
-        arc['cache']['num'],
-        )
-    )
-    sys.stdout.write("\t%s\t%s Free,\t" % (
-        arc['free']['per'],
-        arc['free']['num'],
-        )
-    )
-    sys.stdout.write("%s\t%s Gap\n" % (
-        arc['gap']['per'],
-        arc['gap']['num'],
-        )
-    )
-    sys.stdout.write("\n")
-    sys.stdout.write("\tReal Installed:\t\t\t\t%s\n" % arc['real_installed'])
-    sys.stdout.write("\tReal Available:\t\t\t%s\t%s\n" % (
-        arc['real_available']['per'],
-        arc['real_available']['num'],
-        )
-    )
-    sys.stdout.write("\tReal Managed:\t\t\t%s\t%s\n" % (
-        arc['real_managed']['per'],
-        arc['real_managed']['num'],
-        )
-    )
-
-    sys.stdout.write("\n")
-    sys.stdout.write("\tLogical Total:\t\t\t\t%s\n" % arc['logical_total'])
-    sys.stdout.write("\tLogical Used:\t\t\t%s\t%s\n" % (
-        arc['logical_used']['per'],
-        arc['logical_used']['num'],
-        )
-    )
-    sys.stdout.write("\tLogical Free:\t\t\t%s\t%s\n" % (
-        arc['logical_free']['per'],
-        arc['logical_free']['num'],
-        )
-    )
-    sys.stdout.write("\n")
-
-    cmd1 = """
-        /sbin/kldstat | \
-        /usr/bin/awk '
-            BEGIN {
-                print "16i 0";
-            }
-            NR > 1 {
-                print toupper($4) "+";
-            }
-           END {
-                print "p";
-           }
-        ' | /usr/bin/dc
-    """
-
-    cmd2 = """
-        /usr/bin/vmstat -m | \
-        /usr/bin/sed -Ee '1s/.*/0/;s/.* ([0-9]+)K.*/\\1+/;$s/$/1024*p/' | \
-        /usr/bin/dc
-    """
-
-    p1 = Popen(cmd1, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
-    p2 = Popen(cmd2, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
-
-    ktext = D(p1.communicate()[0].strip())
-    kdata = D(p2.communicate()[0].strip())
-
-    if p1.returncode != 0 or p2.returncode != 0:
-        sys.exit(1)
-
-    kmem = ktext + kdata
-    kmem_map_size = arc['kmem_map_size']
-    kmem_map_free = arc['kmem_map_free']
-    kmem_map_total = kmem_map_size + kmem_map_free
-
-    sys.stdout.write("Kernel Memory:\t\t\t\t\t%s\n" % fBytes(kmem))
-    sys.stdout.write("\tData:\t\t\t\t%s\t%s\n" % (fPerc(kdata, kmem), fBytes(kdata)))
-    sys.stdout.write("\tText:\t\t\t\t%s\t%s\n\n" % (fPerc(ktext, kmem), fBytes(ktext)))
-
-    sys.stdout.write("Kernel Memory Map:\t\t\t\t%s\n" % fBytes(kmem_map_total))
-    sys.stdout.write("\tSize:\t\t\t\t%s\t%s\n" % (fPerc(kmem_map_size, kmem_map_total), fBytes(kmem_map_size)))
-    sys.stdout.write("\tFree:\t\t\t\t%s\t%s\n" % (fPerc(kmem_map_free, kmem_map_total), fBytes(kmem_map_free)))
-
-
 def get_arc_summary(Kstat):
 
     output = {}
-    if "vfs.zfs.version.spa" not in Kstat:
-        return {}
-
-    spa = Kstat["vfs.zfs.version.spa"]
-    zpl = Kstat["vfs.zfs.version.zpl"]
     memory_throttle_count = Kstat[
         "kstat.zfs.misc.arcstats.memory_throttle_count"
         ]
@@ -402,13 +184,10 @@ def get_arc_summary(Kstat):
     else:
         output['health'] = 'HEALTHY'
 
-    output['storage_pool_ver'] = spa
-    output['filesystem_ver'] = zpl
     output['memory_throttle_count'] = fHits(memory_throttle_count)
 
     ### ARC Misc. ###
     deleted = Kstat["kstat.zfs.misc.arcstats.deleted"]
-    #evict_skip = Kstat["kstat.zfs.misc.arcstats.evict_skip"]
     mutex_miss = Kstat["kstat.zfs.misc.arcstats.mutex_miss"]
     recycle_miss = Kstat["kstat.zfs.misc.arcstats.recycle_miss"]
 
@@ -514,8 +293,6 @@ def _arc_summary(Kstat):
 
     sys.stdout.write("ARC Summary: (%s)\n" % arc['health'])
 
-    sys.stdout.write("\tStorage pool Version:\t\t\t%d\n" % arc['storage_pool_ver'])
-    sys.stdout.write("\tFilesystem Version:\t\t\t%d\n" % arc['filesystem_ver'])
     sys.stdout.write("\tMemory Throttle Count:\t\t\t%s\n" % arc['memory_throttle_count'])
     sys.stdout.write("\n")
 
@@ -580,9 +357,6 @@ def _arc_summary(Kstat):
 
 def get_arc_efficiency(Kstat):
     output = {}
-
-    if "vfs.zfs.version.spa" not in Kstat:
-        return
 
     arc_hits = Kstat["kstat.zfs.misc.arcstats.hits"]
     arc_misses = Kstat["kstat.zfs.misc.arcstats.misses"]
@@ -816,9 +590,6 @@ def _arc_efficiency(Kstat):
 def get_l2arc_summary(Kstat):
     output = {}
 
-    if "vfs.zfs.version.spa" not in Kstat:
-        return
-
     l2_abort_lowmem = Kstat["kstat.zfs.misc.arcstats.l2_abort_lowmem"]
     l2_cksum_bad = Kstat["kstat.zfs.misc.arcstats.l2_cksum_bad"]
     l2_evict_lock_retry = Kstat["kstat.zfs.misc.arcstats.l2_evict_lock_retry"]
@@ -831,22 +602,9 @@ def get_l2arc_summary(Kstat):
     l2_misses = Kstat["kstat.zfs.misc.arcstats.l2_misses"]
     l2_rw_clash = Kstat["kstat.zfs.misc.arcstats.l2_rw_clash"]
     l2_size = Kstat["kstat.zfs.misc.arcstats.l2_size"]
-    l2_write_buffer_bytes_scanned = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_bytes_scanned"]
-    l2_write_buffer_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_iter"]
-    l2_write_buffer_list_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_list_iter"]
-    l2_write_buffer_list_null_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_list_null_iter"]
-    #l2_write_bytes = Kstat["kstat.zfs.misc.arcstats.l2_write_bytes"]
-    l2_write_full = Kstat["kstat.zfs.misc.arcstats.l2_write_full"]
-    #l2_write_in_l2 = Kstat["kstat.zfs.misc.arcstats.l2_write_in_l2"]
-    l2_write_io_in_progress = Kstat["kstat.zfs.misc.arcstats.l2_write_io_in_progress"]
-    #l2_write_not_cacheable = Kstat["kstat.zfs.misc.arcstats.l2_write_not_cacheable"]
-    l2_write_passed_headroom = Kstat["kstat.zfs.misc.arcstats.l2_write_passed_headroom"]
-    #l2_write_pios = Kstat["kstat.zfs.misc.arcstats.l2_write_pios"]
-    l2_write_spa_mismatch = Kstat["kstat.zfs.misc.arcstats.l2_write_spa_mismatch"]
-    l2_write_trylock_fail = Kstat["kstat.zfs.misc.arcstats.l2_write_trylock_fail"]
+    l2_asize = Kstat["kstat.zfs.misc.arcstats.l2_asize"]
     l2_writes_done = Kstat["kstat.zfs.misc.arcstats.l2_writes_done"]
     l2_writes_error = Kstat["kstat.zfs.misc.arcstats.l2_writes_error"]
-    #l2_writes_hdr_miss = Kstat["kstat.zfs.misc.arcstats.l2_writes_hdr_miss"]
     l2_writes_sent = Kstat["kstat.zfs.misc.arcstats.l2_writes_sent"]
 
     l2_access_total = (l2_hits + l2_misses)
@@ -854,6 +612,7 @@ def get_l2arc_summary(Kstat):
 
     output['l2_access_total'] = l2_access_total
     output['l2_size'] = l2_size
+    output['l2_asize'] = l2_asize
 
     if l2_size > 0 and l2_access_total > 0:
 
@@ -862,19 +621,18 @@ def get_l2arc_summary(Kstat):
         else:
             output["health"] = "HEALTHY"
 
-        output["passed_headroom"] = fHits(l2_write_passed_headroom)
-        output["tried_lock_failure"] = fHits(l2_write_trylock_fail)
-        output["io_in_progress"] = fHits(l2_write_io_in_progress)
         output["low_memory_aborts"] = fHits(l2_abort_lowmem)
         output["free_on_write"] = fHits(l2_free_on_write)
-        output["writes_while_full"] = fHits(l2_write_full)
         output["rw_clashes"] = fHits(l2_rw_clash)
         output["bad_checksums"] = fHits(l2_cksum_bad)
         output["io_errors"] = fHits(l2_io_error)
-        output["spa_mismatch"] = fHits(l2_write_spa_mismatch)
 
         output["l2_arc_size"] = {}
         output["l2_arc_size"]["adative"] = fBytes(l2_size)
+        output["l2_arc_size"]["actual"] = {
+            'per': fPerc(l2_asize, l2_size),
+            'num': fBytes(l2_asize)
+            }
         output["l2_arc_size"]["head_size"] = {
             'per': fPerc(l2_hdr_size, l2_size),
             'num': fBytes(l2_hdr_size),
@@ -897,10 +655,6 @@ def get_l2arc_summary(Kstat):
         output['l2_arc_breakdown']['feeds'] = fHits(l2_feeds)
 
         output['l2_arc_buffer'] = {}
-        output['l2_arc_buffer']['bytes_scanned'] = fBytes(l2_write_buffer_bytes_scanned)
-        output['l2_arc_buffer']['buffer_iterations'] = fHits(l2_write_buffer_iter)
-        output['l2_arc_buffer']['list_iterations'] = fHits(l2_write_buffer_list_iter)
-        output['l2_arc_buffer']['null_list_iterations'] = fHits(l2_write_buffer_list_null_iter)
 
         output['l2_arc_writes'] = {}
         output['l2_writes_done'] = l2_writes_done
@@ -929,9 +683,6 @@ def get_l2arc_summary(Kstat):
 
 def _l2arc_summary(Kstat):
 
-    if not Kstat["vfs.zfs.version.spa"]:
-        return
-
     arc = get_l2arc_summary(Kstat)
 
     if arc['l2_size'] > 0 and arc['l2_access_total'] > 0:
@@ -940,19 +691,19 @@ def _l2arc_summary(Kstat):
             sys.stdout.write("(DEGRADED)\n")
         else:
             sys.stdout.write("(HEALTHY)\n")
-        sys.stdout.write("\tPassed Headroom:\t\t\t%s\n" % arc['passed_headroom'])
-        sys.stdout.write("\tTried Lock Failures:\t\t\t%s\n" % arc['tried_lock_failure'])
-        sys.stdout.write("\tIO In Progress:\t\t\t\t%s\n" % arc['io_in_progress'])
         sys.stdout.write("\tLow Memory Aborts:\t\t\t%s\n" % arc['low_memory_aborts'])
         sys.stdout.write("\tFree on Write:\t\t\t\t%s\n" % arc['free_on_write'])
-        sys.stdout.write("\tWrites While Full:\t\t\t%s\n" % arc['writes_while_full'])
         sys.stdout.write("\tR/W Clashes:\t\t\t\t%s\n" % arc['rw_clashes'])
         sys.stdout.write("\tBad Checksums:\t\t\t\t%s\n" % arc['bad_checksums'])
         sys.stdout.write("\tIO Errors:\t\t\t\t%s\n" % arc['io_errors'])
-        sys.stdout.write("\tSPA Mismatch:\t\t\t\t%s\n" % arc['spa_mismatch'])
         sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Size: (Adaptive)\t\t\t\t%s\n" % arc["l2_arc_size"]["adative"])
+        sys.stdout.write("\tCompressed:\t\t\t%s\t%s\n" % (
+            arc["l2_arc_size"]["actual"]["per"],
+            arc["l2_arc_size"]["actual"]["num"],
+            )
+        )
         sys.stdout.write("\tHeader Size:\t\t\t%s\t%s\n" % (
             arc["l2_arc_size"]["head_size"]["per"],
             arc["l2_arc_size"]["head_size"]["num"],
@@ -982,13 +733,6 @@ def _l2arc_summary(Kstat):
         sys.stdout.write("\tFeeds:\t\t\t\t\t%s\n" % arc['l2_arc_breakdown']['feeds'])
         sys.stdout.write("\n")
 
-        sys.stdout.write("L2 ARC Buffer:\n")
-        sys.stdout.write("\tBytes Scanned:\t\t\t\t%s\n" % arc['l2_arc_buffer']['bytes_scanned'])
-        sys.stdout.write("\tBuffer Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['buffer_iterations'])
-        sys.stdout.write("\tList Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['list_iterations'])
-        sys.stdout.write("\tNULL List Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['null_list_iterations'])
-        sys.stdout.write("\n")
-
         sys.stdout.write("L2 ARC Writes:\n")
         if arc['l2_writes_done'] != arc['l2_writes_sent']:
             sys.stdout.write("\tWrites Sent: (%s)\t\t\t\t%s\n" % (
@@ -1016,9 +760,6 @@ def _l2arc_summary(Kstat):
 
 def get_dmu_summary(Kstat):
     output = {}
-
-    if "vfs.zfs.version.spa" not in Kstat:
-        return output
 
     zfetch_bogus_streams = Kstat["kstat.zfs.misc.zfetchstats.bogus_streams"]
     zfetch_colinear_hits = Kstat["kstat.zfs.misc.zfetchstats.colinear_hits"]
@@ -1120,6 +861,7 @@ def _dmu_summary(Kstat):
 
     if arc['zfetch_access_total'] > 0:
         sys.stdout.write("File-Level Prefetch: (%s)" % arc['file_level_prefetch']['health'])
+        sys.stdout.write("\n")
 
         sys.stdout.write("DMU Efficiency:\t\t\t\t\t%s\n" % arc['dmu']['efficiency']['value'])
         sys.stdout.write("\tHit Ratio:\t\t\t%s\t%s\n" % (
@@ -1197,9 +939,6 @@ def _dmu_summary(Kstat):
 
 def get_vdev_summary(Kstat):
     output = {}
-
-    if "vfs.zfs.version.spa" not in Kstat:
-        return
 
     vdev_cache_delegations = Kstat["kstat.zfs.misc.vdev_cache_stats.delegations"]
     vdev_cache_misses = Kstat["kstat.zfs.misc.vdev_cache_stats.misses"]
@@ -1312,13 +1051,11 @@ def _sysctl_summary(Kstat):
 
 
 unSub = [
-    _system_memory,
     _arc_summary,
     _arc_efficiency,
     _l2arc_summary,
     _dmu_summary,
     _vdev_summary,
-    _sysctl_summary
 ]
 
 
