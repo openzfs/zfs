@@ -1312,13 +1312,13 @@ def _sysctl_summary(Kstat):
 
 
 unSub = [
-    _system_memory,
+    #_system_memory,
     _arc_summary,
     _arc_efficiency,
-    _l2arc_summary,
-    _dmu_summary,
-    _vdev_summary,
-    _sysctl_summary
+    #_l2arc_summary,
+    #_dmu_summary,
+    #_vdev_summary,
+    #_sysctl_summary
 ]
 
 
