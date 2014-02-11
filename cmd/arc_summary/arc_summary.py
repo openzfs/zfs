@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/python
 #
 # $Id: arc_summary.pl,v 388:e27800740aa2 2011-07-08 02:53:29Z jhell $
 #
@@ -58,6 +58,14 @@ kstat_pobj = re.compile("^([^:]+):\s+(.+)\s*$", flags=re.M)
 
 
 def get_Kstat():
+    def load_proc_kstats(fn, namespace):
+        kstats = [line.strip() for line in open(fn)]
+        del kstats[0:2]
+        for kstat in kstats:
+            kstat = kstat.strip()
+            name, unused, value = kstat.split()
+            Kstat[namespace + name] = D(value)
+
     Kstats = [
         "hw.pagesize",
         "hw.physmem",
@@ -75,26 +83,17 @@ def get_Kstat():
         "vfs.zfs"
     ]
 
-    sysctls = " ".join(str(x) for x in Kstats)
-    p = Popen("/sbin/sysctl -q %s" % sysctls, stdin=PIPE,
-        stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
-    p.wait()
-
-    kstat_pull = p.communicate()[0].split('\n')
-    if p.returncode != 0:
-        sys.exit(1)
+    #sysctls = " ".join(str(x) for x in Kstats)
+    #p = Popen("/sbin/sysctl -q %s" % sysctls, stdin=PIPE,
+    #    stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
+    #p.wait()
 
     Kstat = {}
-    for kstat in kstat_pull:
-        kstat = kstat.strip()
-        mobj = kstat_pobj.match(kstat)
-        if mobj:
-            key = mobj.group(1).strip()
-            val = mobj.group(2).strip()
-            Kstat[key] = D(val)
+    load_proc_kstats('/proc/spl/kstat/zfs/arcstats', 'kstat.zfs.misc.arcstats.')
+    load_proc_kstats('/proc/spl/kstat/zfs/zfetchstats', 'kstat.zfs.misc.zfetchstats.')
+    load_proc_kstats('/proc/spl/kstat/zfs/vdev_cache_stats', 'kstat.zfs.misc.vdev_cache_stats.')
 
     return Kstat
-
 
 def div1():
     sys.stdout.write("\n")
@@ -388,11 +387,11 @@ def _system_memory(Kstat):
 def get_arc_summary(Kstat):
 
     output = {}
-    if "vfs.zfs.version.spa" not in Kstat:
-        return {}
+    #if "vfs.zfs.version.spa" not in Kstat:
+    #    return {}
 
-    spa = Kstat["vfs.zfs.version.spa"]
-    zpl = Kstat["vfs.zfs.version.zpl"]
+    #spa = Kstat["vfs.zfs.version.spa"]
+    #zpl = Kstat["vfs.zfs.version.zpl"]
     memory_throttle_count = Kstat[
         "kstat.zfs.misc.arcstats.memory_throttle_count"
         ]
@@ -402,8 +401,8 @@ def get_arc_summary(Kstat):
     else:
         output['health'] = 'HEALTHY'
 
-    output['storage_pool_ver'] = spa
-    output['filesystem_ver'] = zpl
+    #output['storage_pool_ver'] = spa
+    #output['filesystem_ver'] = zpl
     output['memory_throttle_count'] = fHits(memory_throttle_count)
 
     ### ARC Misc. ###
@@ -514,8 +513,8 @@ def _arc_summary(Kstat):
 
     sys.stdout.write("ARC Summary: (%s)\n" % arc['health'])
 
-    sys.stdout.write("\tStorage pool Version:\t\t\t%d\n" % arc['storage_pool_ver'])
-    sys.stdout.write("\tFilesystem Version:\t\t\t%d\n" % arc['filesystem_ver'])
+    #sys.stdout.write("\tStorage pool Version:\t\t\t%d\n" % arc['storage_pool_ver'])
+    #sys.stdout.write("\tFilesystem Version:\t\t\t%d\n" % arc['filesystem_ver'])
     sys.stdout.write("\tMemory Throttle Count:\t\t\t%s\n" % arc['memory_throttle_count'])
     sys.stdout.write("\n")
 
@@ -581,8 +580,8 @@ def _arc_summary(Kstat):
 def get_arc_efficiency(Kstat):
     output = {}
 
-    if "vfs.zfs.version.spa" not in Kstat:
-        return
+    #if "vfs.zfs.version.spa" not in Kstat:
+    #    return
 
     arc_hits = Kstat["kstat.zfs.misc.arcstats.hits"]
     arc_misses = Kstat["kstat.zfs.misc.arcstats.misses"]
@@ -1017,8 +1016,8 @@ def _l2arc_summary(Kstat):
 def get_dmu_summary(Kstat):
     output = {}
 
-    if "vfs.zfs.version.spa" not in Kstat:
-        return output
+    #if "vfs.zfs.version.spa" not in Kstat:
+    #    return output
 
     zfetch_bogus_streams = Kstat["kstat.zfs.misc.zfetchstats.bogus_streams"]
     zfetch_colinear_hits = Kstat["kstat.zfs.misc.zfetchstats.colinear_hits"]
@@ -1198,8 +1197,8 @@ def _dmu_summary(Kstat):
 def get_vdev_summary(Kstat):
     output = {}
 
-    if "vfs.zfs.version.spa" not in Kstat:
-        return
+    #if "vfs.zfs.version.spa" not in Kstat:
+    #    return
 
     vdev_cache_delegations = Kstat["kstat.zfs.misc.vdev_cache_stats.delegations"]
     vdev_cache_misses = Kstat["kstat.zfs.misc.vdev_cache_stats.misses"]
@@ -1316,8 +1315,8 @@ unSub = [
     _arc_summary,
     _arc_efficiency,
     #_l2arc_summary,
-    #_dmu_summary,
-    #_vdev_summary,
+    _dmu_summary,
+    _vdev_summary,
     #_sysctl_summary
 ]
 
