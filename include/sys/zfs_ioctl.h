@@ -259,6 +259,7 @@ typedef struct zinject_record {
 #define	ZINJECT_FLUSH_ARC	0x2
 #define	ZINJECT_UNLOAD_SPA	0x4
 
+#define	ZEVENT_NONE		0x0
 #define	ZEVENT_NONBLOCK		0x1
 #define	ZEVENT_SIZE		1024
 
