@@ -90,6 +90,7 @@ cols = {
     "l2read":     [6, 1000, "Total L2ARC accesses per second"],
     "l2hit%":     [6, 100, "L2ARC access hit percentage"],
     "l2miss%":    [7, 100, "L2ARC access miss percentage"],
+    "l2asize":    [7, 1024, "Actual (compressed) size of the L2ARC"],
     "l2size":     [6, 1024, "Size of the L2ARC"],
     "l2bytes":    [7, 1024, "bytes read per second from the L2ARC"],
 }
@@ -394,6 +395,7 @@ def calculate():
         v["l2hit%"] = 100 * v["l2hits"] / v["l2read"] if v["l2read"] > 0 else 0
 
         v["l2miss%"] = 100 - v["l2hit%"] if v["l2read"] > 0 else 0
+        v["l2asize"] = cur["l2_asize"]
         v["l2size"] = cur["l2_size"]
         v["l2bytes"] = d["l2_read_bytes"] / sint
 
