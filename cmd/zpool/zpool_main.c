@@ -49,6 +49,7 @@
 #include <sys/stat.h>
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
+#include <sys/zfs_ioctl.h>
 
 #include <libzfs.h>
 
@@ -5465,7 +5466,7 @@ zpool_do_events_next(ev_opts_t *opts)
 
 	while (1) {
 		ret = zpool_events_next(g_zfs, &nvl, &dropped,
-		    !!opts->follow, zevent_fd);
+		    (opts->follow ? ZEVENT_NONE : ZEVENT_NONBLOCK), zevent_fd);
 		if (ret || nvl == NULL)
 			break;
 
