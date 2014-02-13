@@ -815,8 +815,8 @@ def _arc_efficiency(Kstat):
 def get_l2arc_summary(Kstat):
     output = {}
 
-    if "vfs.zfs.version.spa" not in Kstat:
-        return
+    #if "vfs.zfs.version.spa" not in Kstat:
+    #    return
 
     l2_abort_lowmem = Kstat["kstat.zfs.misc.arcstats.l2_abort_lowmem"]
     l2_cksum_bad = Kstat["kstat.zfs.misc.arcstats.l2_cksum_bad"]
@@ -830,19 +830,19 @@ def get_l2arc_summary(Kstat):
     l2_misses = Kstat["kstat.zfs.misc.arcstats.l2_misses"]
     l2_rw_clash = Kstat["kstat.zfs.misc.arcstats.l2_rw_clash"]
     l2_size = Kstat["kstat.zfs.misc.arcstats.l2_size"]
-    l2_write_buffer_bytes_scanned = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_bytes_scanned"]
-    l2_write_buffer_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_iter"]
-    l2_write_buffer_list_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_list_iter"]
-    l2_write_buffer_list_null_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_list_null_iter"]
+    #l2_write_buffer_bytes_scanned = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_bytes_scanned"] # not in ZoL?
+    #l2_write_buffer_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_iter"] # not in ZoL?
+    #l2_write_buffer_list_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_list_iter"] # not in ZoL?
+    #l2_write_buffer_list_null_iter = Kstat["kstat.zfs.misc.arcstats.l2_write_buffer_list_null_iter"] # not in ZoL?
     #l2_write_bytes = Kstat["kstat.zfs.misc.arcstats.l2_write_bytes"]
-    l2_write_full = Kstat["kstat.zfs.misc.arcstats.l2_write_full"]
+    #l2_write_full = Kstat["kstat.zfs.misc.arcstats.l2_write_full"]  # not in ZoL?
     #l2_write_in_l2 = Kstat["kstat.zfs.misc.arcstats.l2_write_in_l2"]
-    l2_write_io_in_progress = Kstat["kstat.zfs.misc.arcstats.l2_write_io_in_progress"]
+    #l2_write_io_in_progress = Kstat["kstat.zfs.misc.arcstats.l2_write_io_in_progress"] # not in ZoL?
     #l2_write_not_cacheable = Kstat["kstat.zfs.misc.arcstats.l2_write_not_cacheable"]
-    l2_write_passed_headroom = Kstat["kstat.zfs.misc.arcstats.l2_write_passed_headroom"]
+    #l2_write_passed_headroom = Kstat["kstat.zfs.misc.arcstats.l2_write_passed_headroom"]  # not in ZoL?
     #l2_write_pios = Kstat["kstat.zfs.misc.arcstats.l2_write_pios"]
-    l2_write_spa_mismatch = Kstat["kstat.zfs.misc.arcstats.l2_write_spa_mismatch"]
-    l2_write_trylock_fail = Kstat["kstat.zfs.misc.arcstats.l2_write_trylock_fail"]
+    #l2_write_spa_mismatch = Kstat["kstat.zfs.misc.arcstats.l2_write_spa_mismatch"]   # not in ZoL?
+    #l2_write_trylock_fail = Kstat["kstat.zfs.misc.arcstats.l2_write_trylock_fail"]  # not in ZoL?
     l2_writes_done = Kstat["kstat.zfs.misc.arcstats.l2_writes_done"]
     l2_writes_error = Kstat["kstat.zfs.misc.arcstats.l2_writes_error"]
     #l2_writes_hdr_miss = Kstat["kstat.zfs.misc.arcstats.l2_writes_hdr_miss"]
@@ -861,16 +861,16 @@ def get_l2arc_summary(Kstat):
         else:
             output["health"] = "HEALTHY"
 
-        output["passed_headroom"] = fHits(l2_write_passed_headroom)
-        output["tried_lock_failure"] = fHits(l2_write_trylock_fail)
-        output["io_in_progress"] = fHits(l2_write_io_in_progress)
+        #output["passed_headroom"] = fHits(l2_write_passed_headroom)
+        #output["tried_lock_failure"] = fHits(l2_write_trylock_fail)
+        #output["io_in_progress"] = fHits(l2_write_io_in_progress)
         output["low_memory_aborts"] = fHits(l2_abort_lowmem)
         output["free_on_write"] = fHits(l2_free_on_write)
-        output["writes_while_full"] = fHits(l2_write_full)
+        #output["writes_while_full"] = fHits(l2_write_full)
         output["rw_clashes"] = fHits(l2_rw_clash)
         output["bad_checksums"] = fHits(l2_cksum_bad)
         output["io_errors"] = fHits(l2_io_error)
-        output["spa_mismatch"] = fHits(l2_write_spa_mismatch)
+        #output["spa_mismatch"] = fHits(l2_write_spa_mismatch)
 
         output["l2_arc_size"] = {}
         output["l2_arc_size"]["adative"] = fBytes(l2_size)
@@ -896,10 +896,10 @@ def get_l2arc_summary(Kstat):
         output['l2_arc_breakdown']['feeds'] = fHits(l2_feeds)
 
         output['l2_arc_buffer'] = {}
-        output['l2_arc_buffer']['bytes_scanned'] = fBytes(l2_write_buffer_bytes_scanned)
-        output['l2_arc_buffer']['buffer_iterations'] = fHits(l2_write_buffer_iter)
-        output['l2_arc_buffer']['list_iterations'] = fHits(l2_write_buffer_list_iter)
-        output['l2_arc_buffer']['null_list_iterations'] = fHits(l2_write_buffer_list_null_iter)
+        #output['l2_arc_buffer']['bytes_scanned'] = fBytes(l2_write_buffer_bytes_scanned)
+        #output['l2_arc_buffer']['buffer_iterations'] = fHits(l2_write_buffer_iter)
+        #output['l2_arc_buffer']['list_iterations'] = fHits(l2_write_buffer_list_iter)
+        #output['l2_arc_buffer']['null_list_iterations'] = fHits(l2_write_buffer_list_null_iter)
 
         output['l2_arc_writes'] = {}
         output['l2_writes_done'] = l2_writes_done
@@ -928,8 +928,8 @@ def get_l2arc_summary(Kstat):
 
 def _l2arc_summary(Kstat):
 
-    if not Kstat["vfs.zfs.version.spa"]:
-        return
+    #if not Kstat["vfs.zfs.version.spa"]:
+    #    return
 
     arc = get_l2arc_summary(Kstat)
 
@@ -939,16 +939,16 @@ def _l2arc_summary(Kstat):
             sys.stdout.write("(DEGRADED)\n")
         else:
             sys.stdout.write("(HEALTHY)\n")
-        sys.stdout.write("\tPassed Headroom:\t\t\t%s\n" % arc['passed_headroom'])
-        sys.stdout.write("\tTried Lock Failures:\t\t\t%s\n" % arc['tried_lock_failure'])
-        sys.stdout.write("\tIO In Progress:\t\t\t\t%s\n" % arc['io_in_progress'])
+        #sys.stdout.write("\tPassed Headroom:\t\t\t%s\n" % arc['passed_headroom'])
+        #sys.stdout.write("\tTried Lock Failures:\t\t\t%s\n" % arc['tried_lock_failure'])
+        #sys.stdout.write("\tIO In Progress:\t\t\t\t%s\n" % arc['io_in_progress'])
         sys.stdout.write("\tLow Memory Aborts:\t\t\t%s\n" % arc['low_memory_aborts'])
         sys.stdout.write("\tFree on Write:\t\t\t\t%s\n" % arc['free_on_write'])
-        sys.stdout.write("\tWrites While Full:\t\t\t%s\n" % arc['writes_while_full'])
+        #sys.stdout.write("\tWrites While Full:\t\t\t%s\n" % arc['writes_while_full'])
         sys.stdout.write("\tR/W Clashes:\t\t\t\t%s\n" % arc['rw_clashes'])
         sys.stdout.write("\tBad Checksums:\t\t\t\t%s\n" % arc['bad_checksums'])
         sys.stdout.write("\tIO Errors:\t\t\t\t%s\n" % arc['io_errors'])
-        sys.stdout.write("\tSPA Mismatch:\t\t\t\t%s\n" % arc['spa_mismatch'])
+        #sys.stdout.write("\tSPA Mismatch:\t\t\t\t%s\n" % arc['spa_mismatch'])
         sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Size: (Adaptive)\t\t\t\t%s\n" % arc["l2_arc_size"]["adative"])
@@ -981,12 +981,12 @@ def _l2arc_summary(Kstat):
         sys.stdout.write("\tFeeds:\t\t\t\t\t%s\n" % arc['l2_arc_breakdown']['feeds'])
         sys.stdout.write("\n")
 
-        sys.stdout.write("L2 ARC Buffer:\n")
-        sys.stdout.write("\tBytes Scanned:\t\t\t\t%s\n" % arc['l2_arc_buffer']['bytes_scanned'])
-        sys.stdout.write("\tBuffer Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['buffer_iterations'])
-        sys.stdout.write("\tList Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['list_iterations'])
-        sys.stdout.write("\tNULL List Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['null_list_iterations'])
-        sys.stdout.write("\n")
+        #sys.stdout.write("L2 ARC Buffer:\n")
+        #sys.stdout.write("\tBytes Scanned:\t\t\t\t%s\n" % arc['l2_arc_buffer']['bytes_scanned'])
+        #sys.stdout.write("\tBuffer Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['buffer_iterations'])
+        #sys.stdout.write("\tList Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['list_iterations'])
+        #sys.stdout.write("\tNULL List Iterations:\t\t\t%s\n" % arc['l2_arc_buffer']['null_list_iterations'])
+        #sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Writes:\n")
         if arc['l2_writes_done'] != arc['l2_writes_sent']:
@@ -1314,7 +1314,7 @@ unSub = [
     #_system_memory,
     _arc_summary,
     _arc_efficiency,
-    #_l2arc_summary,
+    _l2arc_summary,
     _dmu_summary,
     _vdev_summary,
     #_sysctl_summary
