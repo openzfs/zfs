@@ -1119,6 +1119,7 @@ def _dmu_summary(Kstat):
 
     if arc['zfetch_access_total'] > 0:
         sys.stdout.write("File-Level Prefetch: (%s)" % arc['file_level_prefetch']['health'])
+        sys.stdout.write("\n")
 
         sys.stdout.write("DMU Efficiency:\t\t\t\t\t%s\n" % arc['dmu']['efficiency']['value'])
         sys.stdout.write("\tHit Ratio:\t\t\t%s\t%s\n" % (
