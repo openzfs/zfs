@@ -207,7 +207,6 @@ spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
 		return;
 
 	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_PUSHPAGE);
-	strlcpy(srh->origin, zb->zb_func, sizeof (srh->origin));
 	strlcpy(srh->comm, getcomm(), sizeof (srh->comm));
 	srh->start  = gethrtime();
 	srh->objset = zb->zb_objset;
