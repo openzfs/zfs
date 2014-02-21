@@ -548,6 +548,7 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_CAN_RDONLY		"can_rdonly"	/* not stored on disk */
 #define	ZPOOL_CONFIG_FEATURES_FOR_READ	"features_for_read"
 #define	ZPOOL_CONFIG_FEATURE_STATS	"feature_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_ERRATA		"errata"	/* not stored on disk */
 /*
  * The persistent vdev state is stored as separate values rather than a single
  * 'vdev_state' entry.  This is because a device can be in multiple states, such
@@ -704,6 +705,15 @@ typedef enum dsl_scan_state {
 	DSS_NUM_STATES
 } dsl_scan_state_t;
 
+/*
+ * Errata described by http://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
+ * of this enum must be maintained to ensure the errata identifiers map to
+ * the correct documentation.  New errata may only be appended to the list
+ * and must contain corresponding documentation at the above link.
+ */
+typedef enum zpool_errata {
+	ZPOOL_ERRATA_NONE,
+} zpool_errata_t;
 
 /*
  * Vdev statistics.  Note: all fields should be 64-bit because this
