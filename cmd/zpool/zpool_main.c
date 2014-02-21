@@ -1608,7 +1608,7 @@ show_import(nvlist_t *config)
 	uint64_t guid;
 	char *msgid;
 	nvlist_t *nvroot;
-	int reason;
+	zpool_status_t reason;
 	const char *health;
 	uint_t vsc;
 	int namewidth;
@@ -4125,7 +4125,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 	status_cbdata_t *cbp = data;
 	nvlist_t *config, *nvroot;
 	char *msgid;
-	int reason;
+	zpool_status_t reason;
 	const char *health;
 	uint_t c;
 	vdev_stat_t *vs;
