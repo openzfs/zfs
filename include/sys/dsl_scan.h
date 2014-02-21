@@ -72,6 +72,8 @@ typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 } dsl_scan_flags_t;
 
+#define	DSL_SCAN_FLAGS_MASK (DSF_VISIT_DS_AGAIN)
+
 /*
  * Every pool will have one dsl_scan_t and this structure will contain
  * in-memory information about the scan and a pointer to the on-disk

@@ -236,6 +236,7 @@ struct spa {
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	hrtime_t	spa_sync_starttime;	/* starting time of spa_sync */
 	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
+	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
 
 	/*

@@ -1608,7 +1608,8 @@ show_import(nvlist_t *config)
 	uint64_t guid;
 	char *msgid;
 	nvlist_t *nvroot;
-	int reason;
+	zpool_status_t reason;
+	zpool_errata_t errata;
 	const char *health;
 	uint_t vsc;
 	int namewidth;
@@ -1627,7 +1628,7 @@ show_import(nvlist_t *config)
 	    (uint64_t **)&vs, &vsc) == 0);
 	health = zpool_state_to_name(vs->vs_state, vs->vs_aux);
 
-	reason = zpool_import_status(config, &msgid);
+	reason = zpool_import_status(config, &msgid, &errata);
 
 	(void) printf(gettext("   pool: %s\n"), name);
 	(void) printf(gettext("     id: %llu\n"), (u_longlong_t)guid);
@@ -1715,6 +1716,11 @@ show_import(nvlist_t *config)
 		    "resilvered.\n"));
 		break;
 
+	case ZPOOL_STATUS_ERRATA:
+		(void) printf(gettext(" status: Errata #%d detected.\n"),
+		    errata);
+		break;
+
 	default:
 		/*
 		 * No other status can be seen when importing pools.
@@ -1736,6 +1742,34 @@ show_import(nvlist_t *config)
 			(void) printf(gettext(" action: The pool can be "
 			    "imported using its name or numeric "
 			    "identifier and\n\tthe '-f' flag.\n"));
+		} else if (reason == ZPOOL_STATUS_ERRATA) {
+			switch (errata) {
+			case ZPOOL_ERRATA_NONE:
+				break;
+
+			case ZPOOL_ERRATA_ZOL_2094_SCRUB:
+				(void) printf(gettext(" action: The pool can "
+				    "be imported using its name or numeric "
+				    "identifier,\n\thowever there is a compat"
+				    "ibility issue which should be corrected"
+				    "\n\tby running 'zpool scrub'\n"));
+				break;
+
+			case ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY:
+				(void) printf(gettext(" action: The pool can"
+				    "not be imported with this version of ZFS "
+				    "due to\n\tan active asynchronous destroy. "
+				    "Revert to an earlier version\n\tand "
+				    "allow the destroy to complete before "
+				    "updating.\n"));
+				break;
+
+			default:
+				/*
+				 * All errata must contain an action message.
+				 */
+				assert(0);
+			}
 		} else {
 			(void) printf(gettext(" action: The pool can be "
 			    "imported using its name or numeric "
@@ -4125,13 +4159,14 @@ status_callback(zpool_handle_t *zhp, void *data)
 	status_cbdata_t *cbp = data;
 	nvlist_t *config, *nvroot;
 	char *msgid;
-	int reason;
+	zpool_status_t reason;
+	zpool_errata_t errata;
 	const char *health;
 	uint_t c;
 	vdev_stat_t *vs;
 
 	config = zpool_get_config(zhp, NULL);
-	reason = zpool_get_status(zhp, &msgid);
+	reason = zpool_get_status(zhp, &msgid, &errata);
 
 	cbp->cb_count++;
 
@@ -4347,6 +4382,28 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "device(s) and run 'zpool online',\n"
 		    "\tor ignore the intent log records by running "
 		    "'zpool clear'.\n"));
+		break;
+
+	case ZPOOL_STATUS_ERRATA:
+		(void) printf(gettext("status: Errata #%d detected.\n"),
+		    errata);
+
+		switch (errata) {
+		case ZPOOL_ERRATA_NONE:
+			break;
+
+		case ZPOOL_ERRATA_ZOL_2094_SCRUB:
+			(void) printf(gettext("action: To correct the issue "
+			    "run 'zpool scrub'.\n"));
+			break;
+
+		default:
+			/*
+			 * All errata which allow the pool to be imported
+			 * must contain an action message.
+			 */
+			assert(0);
+		}
 		break;
 
 	default:
