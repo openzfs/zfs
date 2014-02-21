@@ -365,6 +365,8 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	    txg) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_GUID,
 	    spa_guid(spa)) == 0);
+	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_ERRATA,
+	    spa->spa_errata) == 0);
 	VERIFY(spa->spa_comment == NULL || nvlist_add_string(config,
 	    ZPOOL_CONFIG_COMMENT, spa->spa_comment) == 0);
 
