@@ -123,6 +123,42 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
 		    &scn->scn_phys);
+		/*
+		 * Detect if the pool contains the signature of #2094.  If it
+		 * does properly update the scn->scn_phys structure and notify
+		 * the administrator by setting an errata for the pool.
+		 */
+		if (err == EOVERFLOW) {
+			uint64_t zaptmp[SCAN_PHYS_NUMINTS + 1];
+			VERIFY3S(SCAN_PHYS_NUMINTS, ==, 24);
+			VERIFY3S(offsetof(dsl_scan_phys_t, scn_flags), ==,
+			    (23 * sizeof (uint64_t)));
+
+			err = zap_lookup(dp->dp_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_SCAN,
+			    sizeof (uint64_t), SCAN_PHYS_NUMINTS + 1, &zaptmp);
+			if (err == 0) {
+				uint64_t overflow = zaptmp[SCAN_PHYS_NUMINTS];
+
+				if (overflow & ~DSL_SCAN_FLAGS_MASK ||
+				    scn->scn_async_destroying) {
+					spa->spa_errata =
+					    ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY;
+					return (EOVERFLOW);
+				}
+
+				bcopy(zaptmp, &scn->scn_phys,
+				    SCAN_PHYS_NUMINTS * sizeof (uint64_t));
+				scn->scn_phys.scn_flags = overflow;
+
+				/* Required scrub already in progress. */
+				if (scn->scn_phys.scn_state == DSS_FINISHED ||
+				    scn->scn_phys.scn_state == DSS_CANCELED)
+					spa->spa_errata =
+					    ZPOOL_ERRATA_ZOL_2094_SCRUB;
+			}
+		}
+
 		if (err == ENOENT)
 			return (0);
 		else if (err)
@@ -319,6 +355,9 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	}
 
 	scn->scn_phys.scn_end_time = gethrestime_sec();
+
+	if (spa->spa_errata == ZPOOL_ERRATA_ZOL_2094_SCRUB)
+		spa->spa_errata = 0;
 }
 
 /* ARGSUSED */

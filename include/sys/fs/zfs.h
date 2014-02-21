@@ -713,6 +713,8 @@ typedef enum dsl_scan_state {
  */
 typedef enum zpool_errata {
 	ZPOOL_ERRATA_NONE,
+	ZPOOL_ERRATA_ZOL_2094_SCRUB,
+	ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY,
 } zpool_errata_t;
 
 /*

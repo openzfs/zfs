@@ -1747,6 +1747,23 @@ show_import(nvlist_t *config)
 			case ZPOOL_ERRATA_NONE:
 				break;
 
+			case ZPOOL_ERRATA_ZOL_2094_SCRUB:
+				(void) printf(gettext(" action: The pool can "
+				    "be imported using its name or numeric "
+				    "identifier,\n\thowever there is a compat"
+				    "ibility issue which should be corrected"
+				    "\n\tby running 'zpool scrub'\n"));
+				break;
+
+			case ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY:
+				(void) printf(gettext(" action: The pool can"
+				    "not be imported with this version of ZFS "
+				    "due to\n\tan active asynchronous destroy. "
+				    "Revert to an earlier version\n\tand "
+				    "allow the destroy to complete before "
+				    "updating.\n"));
+				break;
+
 			default:
 				/*
 				 * All errata must contain an action message.
@@ -4373,6 +4390,11 @@ status_callback(zpool_handle_t *zhp, void *data)
 
 		switch (errata) {
 		case ZPOOL_ERRATA_NONE:
+			break;
+
+		case ZPOOL_ERRATA_ZOL_2094_SCRUB:
+			(void) printf(gettext("action: To correct the issue "
+			    "run 'zpool scrub'.\n"));
 			break;
 
 		default:
