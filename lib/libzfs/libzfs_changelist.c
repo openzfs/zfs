@@ -99,7 +99,8 @@ changelist_prefix(prop_changelist_t *clp)
 	int ret = 0;
 
 	if (clp->cl_prop != ZFS_PROP_MOUNTPOINT &&
-	    clp->cl_prop != ZFS_PROP_SHARESMB)
+	    clp->cl_prop != ZFS_PROP_SHARESMB &&
+	    clp->cl_prop != ZFS_PROP_SHAREISCSI)
 		return (0);
 
 	for (cn = uu_list_first(clp->cl_list); cn != NULL;
@@ -136,6 +137,17 @@ changelist_prefix(prop_changelist_t *clp)
 			default:
 				break;
 			}
+		} else if (ZFS_IS_VOLUME(cn->cn_handle) && cn->cn_shared &&
+			    clp->cl_realprop == ZFS_PROP_NAME) {
+			/* If this was a rename, unshare the zvol */
+
+			/*
+			 * XXX: Sometimes (quite often actually), the rename
+			 *      IOCTL that follows hangs (because of this?
+			 *      - works without it, but the old share won't
+			 *  get removed/unshared)...
+			 */
+			(void) zfs_unshare_iscsi(cn->cn_handle, NULL);
 		}
 	}
 
@@ -234,8 +246,8 @@ changelist_postfix(prop_changelist_t *clp)
 		mounted = zfs_is_mounted(cn->cn_handle, NULL);
 
 		if (!mounted && (cn->cn_mounted ||
-		    ((sharenfs || sharesmb || shareiscsi ||
-		    clp->cl_waslegacy) && (zfs_prop_get_int(cn->cn_handle,
+		    ((sharenfs || sharesmb || clp->cl_waslegacy) &&
+		    (zfs_prop_get_int(cn->cn_handle,
 		    ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON)))) {
 			if (zfs_mount(cn->cn_handle, NULL, 0) != 0)
 				errors++;
@@ -248,26 +260,10 @@ changelist_postfix(prop_changelist_t *clp)
 		 * if the filesystem is currently shared, so that we can
 		 * adopt any new options.
 		 */
-		if (sharenfs && mounted)
-			errors += zfs_share_nfs(cn->cn_handle);
+		if (((sharenfs || sharesmb) && mounted) || shareiscsi)
+			errors += zfs_share(cn->cn_handle);
 		else if (cn->cn_shared || clp->cl_waslegacy)
-			errors += zfs_unshare_nfs(cn->cn_handle, NULL);
-		if (sharesmb && mounted)
-			errors += zfs_share_smb(cn->cn_handle);
-		else if (cn->cn_shared || clp->cl_waslegacy)
-			errors += zfs_unshare_smb(cn->cn_handle, NULL);
-
-		/*
-		 * XXX: This is wrong somehow - needs to be fixed properly.
-		 *	In practice it works, it just looks wrong (considering
-		 *	above code...
-		 */
-		if (shareiscsi && !cn->cn_shared)
-			errors += zfs_share_iscsi(cn->cn_handle);
-		if (cn->cn_shared) {
-			errors += zfs_unshare_iscsi(cn->cn_handle, NULL);
-			errors += zfs_share_iscsi(cn->cn_handle);
-		}
+			errors += zfs_unshare(cn->cn_handle);
 	}
 
 	return (errors ? -1 : 0);
@@ -564,7 +560,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	 */
 	if (prop == ZFS_PROP_NAME || prop == ZFS_PROP_ZONED ||
 	    prop == ZFS_PROP_MOUNTPOINT || prop == ZFS_PROP_SHARENFS ||
-	    prop == ZFS_PROP_SHARESMB || prop == ZFS_PROP_SHAREISCSI) {
+	    prop == ZFS_PROP_SHARESMB) {
 
 		if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT,
 		    property, sizeof (property),
@@ -633,7 +629,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 		return (clp);
 
 	/*
-	 * If watching SHARENFS, SHARESMB then
+	 * If watching SHARENFS or SHARESMB then
 	 * also watch its companion property.
 	 */
 	/* TODO: add SHAREISCSI ? */

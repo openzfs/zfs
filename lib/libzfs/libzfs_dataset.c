@@ -3911,6 +3911,14 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			(void) changelist_postfix(cl);
 	} else {
 		if (!recursive) {
+			/*
+			 * XXX: This 'removes' the old ZVOL name from the
+			 *      list, making changelist_postfix() not
+			 *      removing the old share, which leaves
+			 *      TWO shares - the old and the new!
+			 *
+			 *      But why does it work for NFS and SMB!?
+			 */
 			changelist_rename(cl, zfs_get_name(zhp), target);
 			ret = changelist_postfix(cl);
 		}
