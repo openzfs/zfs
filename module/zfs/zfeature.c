@@ -204,7 +204,7 @@ feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
 				char *desc = "";
 
 				if (zap_lookup(os, desc_obj, za->za_name,
-				    1, sizeof (buf), buf) == 0)
+				    1, MAXPATHLEN, buf) == 0)
 					desc = buf;
 
 				VERIFY(nvlist_add_string(unsup_feat,
