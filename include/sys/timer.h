@@ -35,6 +35,20 @@
 #define ddi_get_lbolt()			((clock_t)jiffies)
 #define ddi_get_lbolt64()		((int64_t)get_jiffies_64())
 
+#define ddi_time_before(a, b)		(typecheck(clock_t, a) && \
+					typecheck(clock_t, b) && \
+					((a) - (b) < 0))
+#define ddi_time_after(a, b)		ddi_time_before(b, a)
+#define ddi_time_before_eq(a, b)	(!ddi_time_after(a, b))
+#define ddi_time_after_eq(a, b)		ddi_time_before_eq(b, a)
+
+#define ddi_time_before64(a, b)		(typecheck(int64_t, a) && \
+					typecheck(int64_t, b) && \
+					((a) - (b) < 0))
+#define ddi_time_after64(a, b)		ddi_time_before64(b, a)
+#define ddi_time_before_eq64(a, b)	(!ddi_time_after64(a, b))
+#define ddi_time_after_eq64(a, b)	ddi_time_before_eq64(b, a)
+
 #define delay(ticks)			schedule_timeout_uninterruptible(ticks)
 
 #define SEC_TO_TICK(sec)		((sec) * HZ)

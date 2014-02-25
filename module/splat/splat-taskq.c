@@ -82,7 +82,7 @@ typedef struct splat_taskq_arg {
 	atomic_t *count;
 	int order[SPLAT_TASKQ_ORDER_MAX];
 	unsigned int depth;
-	unsigned long expire;
+	clock_t expire;
 	taskq_t *tq;
 	taskq_ent_t *tqe;
 	spinlock_t lock;
@@ -1140,7 +1140,7 @@ splat_taskq_test9_func(void *arg)
 	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
 	ASSERT(tq_arg);
 
-	if (ddi_get_lbolt() >= tq_arg->expire)
+	if (ddi_time_after_eq(ddi_get_lbolt(), tq_arg->expire))
 		atomic_inc(tq_arg->count);
 
 	kmem_free(tq_arg, sizeof(splat_taskq_arg_t));
@@ -1228,7 +1228,7 @@ splat_taskq_test10_func(void *arg)
 	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
 	uint8_t rnd;
 
-	if (ddi_get_lbolt() >= tq_arg->expire)
+	if (ddi_time_after_eq(ddi_get_lbolt(), tq_arg->expire))
 		atomic_inc(tq_arg->count);
 
 	/* Randomly sleep to further perturb the system */
@@ -1249,7 +1249,7 @@ splat_taskq_test10(struct file *file, void *arg)
 	int canceled = 0;
 	int completed = 0;
 	int blocked = 0;
-	unsigned long start, cancel;
+	clock_t start, cancel;
 
 	tqas = vmalloc(sizeof(*tqas) * nr_tasks);
 	if (tqas == NULL)
@@ -1327,7 +1327,7 @@ splat_taskq_test10(struct file *file, void *arg)
 	start = ddi_get_lbolt();
 	i = 0;
 
-	while (ddi_get_lbolt() < start + 5 * HZ) {
+	while (ddi_time_before(ddi_get_lbolt(), start + 5 * HZ)) {
 		taskqid_t id;
 		uint32_t rnd;
 
