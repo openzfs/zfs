@@ -584,6 +584,16 @@ extern vnode_t *rootdir;
 #define	ddi_get_lbolt64()	(gethrtime() >> 23)
 #define	hz	119	/* frequency when using gethrtime() >> 23 for lbolt */
 
+#define	ddi_time_before(a, b)		(a < b)
+#define	ddi_time_after(a, b)		ddi_time_before(b, a)
+#define	ddi_time_before_eq(a, b)	(!ddi_time_after(a, b))
+#define	ddi_time_after_eq(a, b)		ddi_time_before_eq(b, a)
+
+#define	ddi_time_before64(a, b)		(a < b)
+#define	ddi_time_after64(a, b)		ddi_time_before64(b, a)
+#define	ddi_time_before_eq64(a, b)	(!ddi_time_after64(a, b))
+#define	ddi_time_after_eq64(a, b)	ddi_time_before_eq64(b, a)
+
 extern void delay(clock_t ticks);
 
 #define	SEC_TO_TICK(sec)	((sec) * hz)

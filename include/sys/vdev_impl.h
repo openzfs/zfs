@@ -86,7 +86,7 @@ typedef const struct vdev_ops {
 struct vdev_cache_entry {
 	char		*ve_data;
 	uint64_t	ve_offset;
-	uint64_t	ve_lastused;
+	clock_t		ve_lastused;
 	avl_node_t	ve_offset_node;
 	avl_node_t	ve_lastused_node;
 	uint32_t	ve_hits;

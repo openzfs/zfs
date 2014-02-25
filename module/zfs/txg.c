@@ -480,7 +480,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 	vdev_stat_t *vs1, *vs2;
-	uint64_t start, delta;
+	clock_t start, delta;
 
 #ifdef _KERNEL
 	/*
@@ -498,7 +498,7 @@ txg_sync_thread(dsl_pool_t *dp)
 
 	start = delta = 0;
 	for (;;) {
-		uint64_t timer, timeout;
+		clock_t timer, timeout;
 		uint64_t txg;
 		uint64_t ndirty;
 
