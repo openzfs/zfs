@@ -591,8 +591,21 @@ zvol_write(void *arg)
 	ASSERT(!(current->flags & PF_NOFS));
 	current->flags |= PF_NOFS;
 
-	if (req->cmd_flags & VDEV_REQ_FLUSH)
+	if (req->cmd_flags & VDEV_REQ_FLUSH) {
+		struct block_device *bdev;
+
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+		/*
+		 * Invalidate the Linux buffer cache on each flush.
+		 */
+		bdev = bdget_disk(zv->zv_disk, 0);
+		if (bdev != NULL) {
+			invalidate_bdev(bdev);
+			bdput(bdev);
+		}
+
+	}
 
 	/*
 	 * Some requests are just for flush and nothing else.
