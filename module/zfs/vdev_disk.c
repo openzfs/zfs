@@ -643,6 +643,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio->bi_bdev = bdev;
 	zio->io_delay = jiffies_64;
 	submit_bio(VDEV_WRITE_FLUSH_FUA, bio);
+	invalidate_bdev(bdev);
 
 	return (0);
 }
