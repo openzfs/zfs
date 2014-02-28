@@ -570,7 +570,7 @@ extern void spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time);
 extern int spa_txg_history_set(spa_t *spa,  uint64_t txg,
     txg_state_t completed_state, hrtime_t completed_time);
 extern int spa_txg_history_set_io(spa_t *spa,  uint64_t txg, uint64_t nread,
-    uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t nreserved);
+    uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t ndirty);
 extern void spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs);
 
 /* Pool configuration locks */

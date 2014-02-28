@@ -248,7 +248,7 @@ typedef struct spa_txg_history {
 	uint64_t	nwritten;	/* number of bytes written */
 	uint64_t	reads;		/* number of read operations */
 	uint64_t	writes;		/* number of write operations */
-	uint64_t	nreserved;	/* number of bytes reserved */
+	uint64_t	ndirty;		/* number of dirty bytes */
 	hrtime_t	times[TXG_STATE_COMMITTED]; /* completion times */
 	list_node_t	sth_link;
 } spa_txg_history_t;
@@ -258,7 +258,7 @@ spa_txg_history_headers(char *buf, size_t size)
 {
 	size = snprintf(buf, size - 1, "%-8s %-16s %-5s %-12s %-12s %-12s "
 	    "%-8s %-8s %-12s %-12s %-12s %-12s\n", "txg", "birth", "state",
-	    "nreserved", "nread", "nwritten", "reads", "writes",
+	    "ndirty", "nread", "nwritten", "reads", "writes",
 	    "otime", "qtime", "wtime", "stime");
 	buf[size] = '\0';
 
@@ -301,7 +301,7 @@ spa_txg_history_data(char *buf, size_t size, void *data)
 	size = snprintf(buf, size - 1, "%-8llu %-16llu %-5c %-12llu "
 	    "%-12llu %-12llu %-8llu %-8llu %-12llu %-12llu %-12llu %-12llu\n",
 	    (longlong_t)sth->txg, sth->times[TXG_STATE_BIRTH], state,
-	    (u_longlong_t)sth->nreserved,
+	    (u_longlong_t)sth->ndirty,
 	    (u_longlong_t)sth->nread, (u_longlong_t)sth->nwritten,
 	    (u_longlong_t)sth->reads, (u_longlong_t)sth->writes,
 	    (u_longlong_t)open, (u_longlong_t)quiesce, (u_longlong_t)wait,
@@ -482,7 +482,7 @@ spa_txg_history_set(spa_t *spa, uint64_t txg, txg_state_t completed_state,
  */
 int
 spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
-    uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t nreserved)
+    uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t ndirty)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
 	spa_txg_history_t *sth;
@@ -499,7 +499,7 @@ spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
 			sth->nwritten = nwritten;
 			sth->reads = reads;
 			sth->writes = writes;
-			sth->nreserved = nreserved;
+			sth->ndirty = ndirty;
 			error = 0;
 			break;
 		}

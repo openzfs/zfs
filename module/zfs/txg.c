@@ -500,6 +500,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	for (;;) {
 		uint64_t timer, timeout;
 		uint64_t txg;
+		uint64_t ndirty;
 
 		timeout = zfs_txg_timeout * hz;
 
@@ -557,6 +558,7 @@ txg_sync_thread(dsl_pool_t *dp)
 
 		spa_txg_history_set(spa, txg, TXG_STATE_WAIT_FOR_SYNC,
 		    gethrtime());
+		ndirty = dp->dp_dirty_pertxg[txg & TXG_MASK];
 
 		start = ddi_get_lbolt();
 		spa_sync(spa, txg);
@@ -579,7 +581,7 @@ txg_sync_thread(dsl_pool_t *dp)
 		    vs2->vs_bytes[ZIO_TYPE_WRITE]-vs1->vs_bytes[ZIO_TYPE_WRITE],
 		    vs2->vs_ops[ZIO_TYPE_READ]-vs1->vs_ops[ZIO_TYPE_READ],
 		    vs2->vs_ops[ZIO_TYPE_WRITE]-vs1->vs_ops[ZIO_TYPE_WRITE],
-		    dp->dp_dirty_pertxg[txg & TXG_MASK]);
+		    ndirty);
 		spa_txg_history_set(spa, txg, TXG_STATE_SYNCED, gethrtime());
 	}
 }
