@@ -130,10 +130,8 @@ typedef struct dmu_tx_stats {
 	kstat_named_t dmu_tx_error;
 	kstat_named_t dmu_tx_suspended;
 	kstat_named_t dmu_tx_group;
-	kstat_named_t dmu_tx_how;
 	kstat_named_t dmu_tx_memory_reserve;
 	kstat_named_t dmu_tx_memory_reclaim;
-	kstat_named_t dmu_tx_memory_inflight;
 	kstat_named_t dmu_tx_dirty_throttle;
 	kstat_named_t dmu_tx_dirty_delay;
 	kstat_named_t dmu_tx_dirty_over_max;
