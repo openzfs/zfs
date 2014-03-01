@@ -815,20 +815,23 @@ dsl_dir_willuse_space(dsl_dir_t *dd, int64_t space, dmu_tx_t *tx)
 	int64_t parent_space;
 	uint64_t est_used;
 
-	mutex_enter(&dd->dd_lock);
-	if (space > 0)
-		dd->dd_space_towrite[tx->tx_txg & TXG_MASK] += space;
+	do {
+		mutex_enter(&dd->dd_lock);
+		if (space > 0)
+			dd->dd_space_towrite[tx->tx_txg & TXG_MASK] += space;
 
-	est_used = dsl_dir_space_towrite(dd) + dd->dd_phys->dd_used_bytes;
-	parent_space = parent_delta(dd, est_used, space);
-	mutex_exit(&dd->dd_lock);
+		est_used = dsl_dir_space_towrite(dd) +
+		    dd->dd_phys->dd_used_bytes;
+		parent_space = parent_delta(dd, est_used, space);
+		mutex_exit(&dd->dd_lock);
 
-	/* Make sure that we clean up dd_space_to* */
-	dsl_dir_dirty(dd, tx);
+		/* Make sure that we clean up dd_space_to* */
+		dsl_dir_dirty(dd, tx);
 
-	/* XXX this is potentially expensive and unnecessary... */
-	if (parent_space && dd->dd_parent)
-		dsl_dir_willuse_space(dd->dd_parent, parent_space, tx);
+		/* XXX this is potentially expensive and unnecessary... */
+		dd = dd->dd_parent;
+		space = parent_space;
+	} while (space && dd);
 }
 
 /* call from syncing context when we actually write/free space for this dd */
