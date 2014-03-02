@@ -422,7 +422,6 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 			if (f->zhp->zfs_dmustats.dds_guid ==
 			    zhp->zfs_dmustats.dds_guid) {
 				if (ida->allowrecursion) {
-					zfs_close(zhp);
 					return (0);
 				} else {
 					zfs_error_aux(zhp->zfs_hdl,
@@ -434,7 +433,6 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 					    dgettext(TEXT_DOMAIN,
 					    "cannot determine dependent "
 					    "datasets"));
-					zfs_close(zhp);
 					return (err);
 				}
 			}
@@ -452,9 +450,6 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 
 	if (!first && err == 0)
 		err = ida->func(zhp, ida->data);
-	else
-		zfs_close(zhp);
-
 	return (err);
 }
 
@@ -462,11 +457,19 @@ int
 zfs_iter_dependents(zfs_handle_t *zhp, boolean_t allowrecursion,
     zfs_iter_f func, void *data)
 {
+	int ret = -1;
+	zfs_handle_t *dzhp = NULL;
 	iter_dependents_arg_t ida;
 	ida.allowrecursion = allowrecursion;
 	ida.stack = NULL;
 	ida.func = func;
 	ida.data = data;
 	ida.first = B_TRUE;
-	return (iter_dependents_cb(zfs_handle_dup(zhp), &ida));
+
+	if ((dzhp = zfs_handle_dup(zhp)) != NULL) {
+		ret = iter_dependents_cb(dzhp, &ida);
+		(void) zfs_close(dzhp);
+	}
+
+	return (ret);
 }
