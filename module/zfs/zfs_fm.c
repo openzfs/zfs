@@ -113,6 +113,11 @@ zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
 }
 
 static void
+zfs_zevent_post_cb_noop(nvlist_t *nvl, nvlist_t *detector)
+{
+}
+
+static void
 zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
     const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
     uint64_t stateoroffset, uint64_t size)
@@ -768,12 +773,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
 	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio, offset, length);
 
 	if (report->zcr_ereport == NULL) {
-		report->zcr_free(report->zcr_cbdata, report->zcr_cbinfo);
-		if (report->zcr_ckinfo != NULL) {
-			kmem_free(report->zcr_ckinfo,
-			    sizeof (*report->zcr_ckinfo));
-		}
-		kmem_free(report, sizeof (*report));
+		zfs_ereport_free_checksum(report);
 		return;
 	}
 #endif
@@ -789,13 +789,15 @@ zfs_ereport_finish_checksum(zio_cksum_report_t *report,
     const void *good_data, const void *bad_data, boolean_t drop_if_identical)
 {
 #ifdef _KERNEL
-	zfs_ecksum_info_t *info = NULL;
+	zfs_ecksum_info_t *info;
+
 	info = annotate_ecksum(report->zcr_ereport, report->zcr_ckinfo,
 	    good_data, bad_data, report->zcr_length, drop_if_identical);
-
 	if (info != NULL)
 		zfs_zevent_post(report->zcr_ereport,
 		    report->zcr_detector, zfs_zevent_post_cb);
+	else
+		zfs_zevent_post_cb(report->zcr_ereport, report->zcr_detector);
 
 	report->zcr_ereport = report->zcr_detector = NULL;
 	if (info != NULL)
@@ -826,7 +828,8 @@ void
 zfs_ereport_send_interim_checksum(zio_cksum_report_t *report)
 {
 #ifdef _KERNEL
-	zfs_zevent_post(report->zcr_ereport, report->zcr_detector, NULL);
+	zfs_zevent_post(report->zcr_ereport, report->zcr_detector,
+	    zfs_zevent_post_cb_noop);
 #endif
 }
 
