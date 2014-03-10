@@ -3665,6 +3665,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	if (l2hdr) {
 		mutex_enter(&l2arc_buflist_mtx);
 		hdr->b_l2hdr = NULL;
+		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 	}
 	buf_size = hdr->b_size;
 
@@ -3758,7 +3759,6 @@ arc_release(arc_buf_t *buf, void *tag)
 
 	if (l2hdr) {
 		ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
-		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_cache_free(l2arc_hdr_cache, l2hdr);
 		arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 		ARCSTAT_INCR(arcstat_l2_size, -buf_size);
