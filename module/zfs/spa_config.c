@@ -208,6 +208,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 {
 	spa_config_dirent_t *dp, *tdp;
 	nvlist_t *nvl;
+	char *spa_name;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -253,8 +254,13 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 			if (nvl == NULL)
 				VERIFY(nvlist_alloc(&nvl, NV_UNIQUE_NAME,
 				    KM_PUSHPAGE) == 0);
+			if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME) {
+				VERIFY0(nvlist_lookup_string(spa->spa_config,
+					ZPOOL_CONFIG_POOL_NAME, &spa_name));
+			} else
+				spa_name = spa->spa_name;
 
-			VERIFY(nvlist_add_nvlist(nvl, spa->spa_name,
+			VERIFY(nvlist_add_nvlist(nvl, spa_name,
 			    spa->spa_config) == 0);
 			mutex_exit(&spa->spa_props_lock);
 		}
@@ -337,6 +343,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	unsigned long hostid = 0;
 	boolean_t locked = B_FALSE;
 	uint64_t split_guid;
+	char *spa_name;
 
 	if (vd == NULL) {
 		vd = rvd;
@@ -353,12 +360,18 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (txg == -1ULL)
 		txg = spa->spa_config_txg;
 
+	if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME) {
+		VERIFY0(nvlist_lookup_string(spa->spa_config,
+			ZPOOL_CONFIG_POOL_NAME, &spa_name));
+	} else
+		spa_name = spa->spa_name;
+
 	VERIFY(nvlist_alloc(&config, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
 
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_VERSION,
 	    spa_version(spa)) == 0);
 	VERIFY(nvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME,
-	    spa_name(spa)) == 0);
+	    spa_name) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE,
 	    spa_state(spa)) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_TXG,
