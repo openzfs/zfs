@@ -230,11 +230,20 @@ def print_header():
         sys.stdout.write("%*s%s" % (cols[col][0], col, sep))
     sys.stdout.write("\n")
 
+def get_terminal_lines():
+    try:
+        import fcntl, termios, struct
+        data = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234')
+        sz = struct.unpack('hh', data)
+        return sz[0]
+    except:
+        pass
 
 def init():
     global sint
     global count
     global hdr
+    global hdr_intr
     global xhdr
     global opfile
     global sep
@@ -303,6 +312,10 @@ def init():
 
     if xflag:
         hdr = xhdr
+
+    lines = get_terminal_lines()
+    if lines:
+        hdr_intr = lines - 3
 
     # check if L2ARC exists
     snap_stats()
@@ -400,7 +413,7 @@ def calculate():
         v["l2bytes"] = d["l2_read_bytes"] / sint
 
 
-def sighandler():
+def sighandler(foo, bar):
     sys.exit(0)
 
 
