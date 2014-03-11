@@ -51,7 +51,7 @@ import re
 import copy
 
 from decimal import Decimal
-from signal import signal, SIGINT
+from signal import signal, SIGINT, SIG_DFL
 
 cols = {
     # HDR:        [Size, Scale, Description]
@@ -400,10 +400,6 @@ def calculate():
         v["l2bytes"] = d["l2_read_bytes"] / sint
 
 
-def sighandler():
-    sys.exit(0)
-
-
 def main():
     global sint
     global count
@@ -416,7 +412,7 @@ def main():
     if count > 0:
         count_flag = 1
 
-    signal(SIGINT, sighandler)
+    signal(SIGINT, SIG_DFL)
     while True:
         if i == 0:
             print_header()
