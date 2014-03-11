@@ -398,7 +398,7 @@ def calculate():
         v["l2bytes"] = d["l2_read_bytes"] / sint
 
 
-def sighandler():
+def sighandler(foo, bar):
     sys.exit(0)
 
 
