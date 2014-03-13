@@ -864,6 +864,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_LINUX = ('Z' << 8) + 0x80,
 	ZFS_IOC_EVENTS_NEXT,
 	ZFS_IOC_EVENTS_CLEAR,
+	ZFS_IOC_EVENTS_SEEK,
 
 	/*
 	 * FreeBSD - 1/64 numbers reserved.

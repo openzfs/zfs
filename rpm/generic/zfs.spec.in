@@ -167,6 +167,7 @@ exit 0
 %{_sbindir}/*
 %{_bindir}/*
 %{_libdir}/*.so.*
+%{_libexecdir}/%{name}
 %{_mandir}/man1/*
 %{_mandir}/man5/*
 %{_mandir}/man8/*
