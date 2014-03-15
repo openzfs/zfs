@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_NO_AGGRESSIVE_LOOP_OPTIMIZATIONS], [
 	saved_flags="$CFLAGS"
 	CFLAGS="$CFLAGS -fno-aggressive-loop-optimizations"
 
-	AC_RUN_IFELSE([AC_LANG_PROGRAM([], [])], [
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 		NO_AGGRESSIVE_LOOP_OPTIMIZATIONS=-fno-aggressive-loop-optimizations
 		AC_MSG_RESULT([yes])
 	], [
