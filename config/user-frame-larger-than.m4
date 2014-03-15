@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_FRAME_LARGER_THAN], [
 	saved_flags="$CFLAGS"
 	CFLAGS="$CFLAGS -Wframe-larger-than=1024"
 
-	AC_RUN_IFELSE([AC_LANG_PROGRAM([], [])],
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])],
 	[
 		FRAME_LARGER_THAN=-Wframe-larger-than=1024
 		AC_MSG_RESULT([yes])
