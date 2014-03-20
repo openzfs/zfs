@@ -295,10 +295,8 @@ static int
 iter_handlers(int (*func)(int, const char *, zinject_record_t *, void *),
     void *data)
 {
-	zfs_cmd_t zc;
+	zfs_cmd_t zc = {"\0"};
 	int ret;
-
-	zc.zc_guid = 0;
 
 	while (ioctl(zfs_fd, ZFS_IOC_INJECT_LIST_NEXT, &zc) == 0)
 		if ((ret = func((int)zc.zc_guid, zc.zc_name,
@@ -422,7 +420,7 @@ static int
 cancel_one_handler(int id, const char *pool, zinject_record_t *record,
     void *data)
 {
-	zfs_cmd_t zc;
+	zfs_cmd_t zc = {"\0"};
 
 	zc.zc_guid = (uint64_t)id;
 
@@ -455,7 +453,7 @@ cancel_all_handlers(void)
 static int
 cancel_handler(int id)
 {
-	zfs_cmd_t zc;
+	zfs_cmd_t zc = {"\0"};
 
 	zc.zc_guid = (uint64_t)id;
 
@@ -477,7 +475,7 @@ static int
 register_handler(const char *pool, int flags, zinject_record_t *record,
     int quiet)
 {
-	zfs_cmd_t zc;
+	zfs_cmd_t zc = {"\0"};
 
 	(void) strcpy(zc.zc_name, pool);
 	zc.zc_inject_record = *record;
@@ -534,7 +532,7 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 int
 perform_action(const char *pool, zinject_record_t *record, int cmd)
 {
-	zfs_cmd_t zc;
+	zfs_cmd_t zc = {"\0"};
 
 	ASSERT(cmd == VDEV_STATE_DEGRADED || cmd == VDEV_STATE_FAULTED);
 	(void) strlcpy(zc.zc_name, pool, sizeof (zc.zc_name));
