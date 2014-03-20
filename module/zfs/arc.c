@@ -20,9 +20,9 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright 2013 Nexenta Systems, Inc.  All rights reserved.
  */
 
 /*
@@ -3268,6 +3268,8 @@ top:
 		vdev_t *vd = NULL;
 		uint64_t addr = 0;
 		boolean_t devw = B_FALSE;
+		enum zio_compress b_compress = ZIO_COMPRESS_OFF;
+		uint64_t b_asize = 0;
 
 		if (hdr == NULL) {
 			/* this block is not in the cache */
@@ -3337,10 +3339,12 @@ top:
 		hdr->b_acb = acb;
 		hdr->b_flags |= ARC_IO_IN_PROGRESS;
 
-		if (HDR_L2CACHE(hdr) && hdr->b_l2hdr != NULL &&
+		if (hdr->b_l2hdr != NULL &&
 		    (vd = hdr->b_l2hdr->b_dev->l2ad_vdev) != NULL) {
 			devw = hdr->b_l2hdr->b_dev->l2ad_writing;
 			addr = hdr->b_l2hdr->b_daddr;
+			b_compress = hdr->b_l2hdr->b_compress;
+			b_asize = hdr->b_l2hdr->b_asize;
 			/*
 			 * Lock out device removal.
 			 */
@@ -3389,7 +3393,7 @@ top:
 				cb->l2rcb_bp = *bp;
 				cb->l2rcb_zb = *zb;
 				cb->l2rcb_flags = zio_flags;
-				cb->l2rcb_compress = hdr->b_l2hdr->b_compress;
+				cb->l2rcb_compress = b_compress;
 
 				ASSERT(addr >= VDEV_LABEL_START_SIZE &&
 				    addr + size < vd->vdev_psize -
@@ -3401,8 +3405,7 @@ top:
 				 * Issue a null zio if the underlying buffer
 				 * was squashed to zero size by compression.
 				 */
-				if (hdr->b_l2hdr->b_compress ==
-				    ZIO_COMPRESS_EMPTY) {
+				if (b_compress == ZIO_COMPRESS_EMPTY) {
 					rzio = zio_null(pio, spa, vd,
 					    l2arc_read_done, cb,
 					    zio_flags | ZIO_FLAG_DONT_CACHE |
@@ -3411,8 +3414,8 @@ top:
 					    ZIO_FLAG_DONT_RETRY);
 				} else {
 					rzio = zio_read_phys(pio, vd, addr,
-					    hdr->b_l2hdr->b_asize,
-					    buf->b_data, ZIO_CHECKSUM_OFF,
+					    b_asize, buf->b_data,
+					    ZIO_CHECKSUM_OFF,
 					    l2arc_read_done, cb, priority,
 					    zio_flags | ZIO_FLAG_DONT_CACHE |
 					    ZIO_FLAG_CANFAIL |
@@ -3421,8 +3424,7 @@ top:
 				}
 				DTRACE_PROBE2(l2arc__read, vdev_t *, vd,
 				    zio_t *, rzio);
-				ARCSTAT_INCR(arcstat_l2_read_bytes,
-				    hdr->b_l2hdr->b_asize);
+				ARCSTAT_INCR(arcstat_l2_read_bytes, b_asize);
 
 				if (*arc_flags & ARC_NOWAIT) {
 					zio_nowait(rzio);
