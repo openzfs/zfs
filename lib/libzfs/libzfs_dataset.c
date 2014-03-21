@@ -1655,6 +1655,15 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 		 * Refresh the statistics so the new property is reflected.
 		 */
 		(void) get_stats(zhp);
+
+		/*
+		 * Remount the filesystem to propagate the change
+		 * if one of the options handled by the generic
+		 * Linux namespace layer has been modified.
+		 */
+		if (zfs_is_namespace_prop(prop) &&
+		    zfs_is_mounted(zhp, NULL))
+			ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
 	}
 
 error:
