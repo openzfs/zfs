@@ -12,7 +12,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BDI_SETUP_AND_REGISTER],
 	ZFS_LINUX_TRY_COMPILE_SYMBOL([
 		#include <linux/backing-dev.h>
 	], [
-		bdi_setup_and_register(NULL, NULL, 0);
+		(void) bdi_setup_and_register(NULL, NULL, 0);
 	], [bdi_setup_and_register], [mm/backing-dev.c], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BDI_SETUP_AND_REGISTER, 1,
