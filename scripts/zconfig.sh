@@ -217,15 +217,26 @@ test_3() {
 	zconfig_zvol_device_stat 10 ${POOL_NAME} ${FULL_ZVOL_NAME} \
 	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 11
 
+	# Toggle the snapdev and observe snapshot device links toggled
+	${ZFS} set snapdev=hidden ${FULL_ZVOL_NAME} || fail 12
+	
+	zconfig_zvol_device_stat 7 ${POOL_NAME} ${FULL_ZVOL_NAME} \
+	    "invalid" ${FULL_CLONE_NAME} || fail 13
+
+	${ZFS} set snapdev=visible ${FULL_ZVOL_NAME} || fail 14
+
+	zconfig_zvol_device_stat 10 ${POOL_NAME} ${FULL_ZVOL_NAME} \
+	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 15
+
 	# Destroy the pool and consequently the devices
-	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 12
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 16
 
 	# verify the devices were removed
 	zconfig_zvol_device_stat 0 ${POOL_NAME} ${FULL_ZVOL_NAME} \
-	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 13
+	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 17
 
-	${ZFS_SH} -u || fail 14
-	rm -f ${TMP_CACHE} || fail 15
+	${ZFS_SH} -u || fail 18
+	rm -f ${TMP_CACHE} || fail 19
 
 	pass
 }

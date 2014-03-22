@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
 #include <assert.h>
@@ -1321,4 +1322,25 @@ int
 spl_fstrans_check(void)
 {
 	return (0);
+}
+
+void
+zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
+{
+}
+
+void
+zvol_remove_minor(spa_t *spa, const char *name, boolean_t async)
+{
+}
+
+void
+zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
+{
+}
+
+void
+zvol_rename_minors(spa_t *spa, const char *oldname, const char *newname,
+    boolean_t async)
+{
 }

@@ -24,6 +24,7 @@
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2014 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -1913,9 +1914,8 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(zap_add(mos, dsl_dir_phys(newparent)->dd_child_dir_zapobj,
 	    dd->dd_myname, 8, 1, &dd->dd_object, tx));
 
-#ifdef _KERNEL
-	zvol_rename_minors(ddra->ddra_oldname, ddra->ddra_newname);
-#endif
+	zvol_rename_minors(dp->dp_spa, ddra->ddra_oldname,
+	    ddra->ddra_newname, B_TRUE);
 
 	dsl_prop_notify_all(dd);
 

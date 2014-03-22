@@ -23,6 +23,7 @@
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
 #ifndef _SYS_SPA_IMPL_H
@@ -252,6 +253,7 @@ struct spa {
 	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
+	taskq_t		*spa_zvol_taskq;	/* Taskq for minor managment */
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements

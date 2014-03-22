@@ -26,6 +26,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2015 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015, STRATO AG, Inc. All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -900,6 +901,8 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	spa_history_log_internal_ds(ds, "create", tx, "");
+	zvol_create_minors(dp->dp_spa, doca->doca_name, B_TRUE);
+
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dir_rele(pdd, FTAG);
 }
@@ -993,6 +996,7 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
 	    "origin=%s (%llu)", namebuf, origin->ds_object);
+	zvol_create_minors(dp->dp_spa, doca->doca_clone, B_TRUE);
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);
