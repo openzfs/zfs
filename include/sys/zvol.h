@@ -38,7 +38,6 @@ extern int zvol_check_volblocksize(const char *name, uint64_t volblocksize);
 extern int zvol_get_stats(objset_t *os, nvlist_t *nv);
 extern boolean_t zvol_is_zvol(const char *);
 extern void zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx);
-extern int zvol_create_minor(const char *name);
 extern int zvol_create_minors(const char *name);
 extern int zvol_remove_minor(const char *name);
 extern void zvol_remove_minors(const char *name);
