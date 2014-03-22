@@ -868,6 +868,8 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	spa_history_log_internal_ds(ds, "create", tx, "");
+	zvol_create_minors(dp->dp_spa, doca->doca_name, B_TRUE);
+
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dir_rele(pdd, FTAG);
 }
@@ -961,6 +963,7 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
 	    "origin=%s (%llu)", namebuf, origin->ds_object);
+	zvol_create_minors(dp->dp_spa, doca->doca_clone, B_TRUE);
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);
