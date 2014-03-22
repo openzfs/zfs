@@ -1138,6 +1138,9 @@ spa_activate(spa_t *spa, int mode)
 	avl_create(&spa->spa_errlist_last,
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
 	    offsetof(spa_error_entry_t, se_avl));
+
+	spa->spa_zvol_taskq = taskq_create("z_zvol", 1, defclsyspri,
+	    1, INT_MAX, 0);
 }
 
 /*
@@ -1155,6 +1158,10 @@ spa_deactivate(spa_t *spa)
 	ASSERT(spa->spa_state != POOL_STATE_UNINITIALIZED);
 
 	spa_evicting_os_wait(spa);
+
+	zvol_remove_minors(spa, spa_name(spa), B_FALSE);
+	taskq_wait(spa->spa_zvol_taskq);
+	taskq_destroy(spa->spa_zvol_taskq);
 
 	txg_list_destroy(&spa->spa_vdev_txg_list);
 
@@ -3093,10 +3100,8 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 		mutex_exit(&spa_namespace_lock);
 	}
 
-#ifdef _KERNEL
 	if (firstopen)
-		zvol_create_minors(spa->spa_name);
-#endif
+		zvol_create_minors(spa, spa_name(spa), B_TRUE);
 
 	*spapp = spa;
 
@@ -4216,10 +4221,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	mutex_exit(&spa_namespace_lock);
 	spa_history_log_version(spa, "import");
-
-#ifdef _KERNEL
-	zvol_create_minors(pool);
-#endif
+	zvol_create_minors(spa, pool, B_TRUE);
 
 	return (0);
 }

@@ -56,6 +56,7 @@
 #include <sys/dsl_bookmark.h>
 #include <sys/zfeature.h>
 #include <sys/bqueue.h>
+#include <sys/zvol.h>
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
 int zfs_send_corrupt_data = B_FALSE;
@@ -2668,6 +2669,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		dsl_dataset_phys(ds)->ds_flags &= ~DS_FLAG_INCONSISTENT;
 	}
 	drc->drc_newsnapobj = dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj;
+	zvol_create_minors(dp->dp_spa, drc->drc_tofs, B_TRUE);
 	/*
 	 * Release the hold from dmu_recv_begin.  This must be done before
 	 * we return to open context, so that when we free the dataset's dnode,

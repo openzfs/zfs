@@ -1426,6 +1426,7 @@ dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx)
 			dsl_props_set_sync_impl(ds->ds_prev,
 			    ZPROP_SRC_LOCAL, ddsa->ddsa_props, tx);
 		}
+		zvol_create_minors(dp->dp_spa, nvpair_name(pair), B_TRUE);
 		dsl_dataset_rele(ds, FTAG);
 	}
 }
@@ -1499,16 +1500,6 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 		}
 		fnvlist_free(suspended);
 	}
-
-#ifdef _KERNEL
-	if (error == 0) {
-		for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
-		    pair = nvlist_next_nvpair(snaps, pair)) {
-			char *snapname = nvpair_name(pair);
-			zvol_create_minors(snapname);
-		}
-	}
-#endif
 
 	return (error);
 }
@@ -1932,6 +1923,8 @@ dsl_dataset_rename_snapshot_sync_impl(dsl_pool_t *dp,
 	VERIFY0(zap_add(dp->dp_meta_objset,
 	    dsl_dataset_phys(hds)->ds_snapnames_zapobj,
 	    ds->ds_snapname, 8, 1, &ds->ds_object, tx));
+	zvol_rename_minors(dp->dp_spa, ddrsa->ddrsa_oldsnapname,
+	    ddrsa->ddrsa_newsnapname, B_TRUE);
 
 	dsl_dataset_rele(ds, FTAG);
 	return (0);
@@ -1960,11 +1953,6 @@ int
 dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive)
 {
-#ifdef _KERNEL
-	char *oldname, *newname;
-#endif
-	int error;
-
 	dsl_dataset_rename_snapshot_arg_t ddrsa;
 
 	ddrsa.ddrsa_fsname = fsname;
@@ -1972,22 +1960,9 @@ dsl_dataset_rename_snapshot(const char *fsname,
 	ddrsa.ddrsa_newsnapname = newsnapname;
 	ddrsa.ddrsa_recursive = recursive;
 
-	error = dsl_sync_task(fsname, dsl_dataset_rename_snapshot_check,
+	return (dsl_sync_task(fsname, dsl_dataset_rename_snapshot_check,
 	    dsl_dataset_rename_snapshot_sync, &ddrsa,
-	    1, ZFS_SPACE_CHECK_RESERVED);
-
-	if (error)
-	    return (SET_ERROR(error));
-
-#ifdef _KERNEL
-	oldname = kmem_asprintf("%s@%s", fsname, oldsnapname);
-	newname = kmem_asprintf("%s@%s", fsname, newsnapname);
-	zvol_rename_minors(oldname, newname);
-	strfree(newname);
-	strfree(oldname);
-#endif
-
-	return (0);
+	    1, ZFS_SPACE_CHECK_RESERVED));
 }
 
 /*
