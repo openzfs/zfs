@@ -47,6 +47,9 @@
 #include <sys/zvol.h>
 #include <linux/blkdev_compat.h>
 
+static int
+zvol_create_minors_cb(const char *dsname, void *arg);
+
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_threads = 32;
@@ -1310,30 +1313,7 @@ zvol_free(zvol_state_t *zv)
 }
 
 static int
-__zvol_snapdev_hidden(const char *name)
-{
-	uint64_t snapdev;
-	char *parent;
-	char *atp;
-	int error = 0;
-
-	parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
-	(void) strlcpy(parent, name, MAXPATHLEN);
-
-	if ((atp = strrchr(parent, '@')) != NULL) {
-		*atp = '\0';
-		error = dsl_prop_get_integer(parent, "snapdev", &snapdev, NULL);
-		if ((error == 0) && (snapdev == ZFS_SNAPDEV_HIDDEN))
-			error = SET_ERROR(ENODEV);
-	}
-
-	kmem_free(parent, MAXPATHLEN);
-
-	return (SET_ERROR(error));
-}
-
-static int
-__zvol_create_minor(const char *name, boolean_t ignore_snapdev)
+__zvol_create_minor(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -1348,12 +1328,6 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 	if (zv) {
 		error = SET_ERROR(EEXIST);
 		goto out;
-	}
-
-	if (ignore_snapdev == B_FALSE) {
-		error = __zvol_snapdev_hidden(name);
-		if (error)
-			goto out;
 	}
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
@@ -1430,15 +1404,35 @@ out:
  * Create a block device minor node and setup the linkage between it
  * and the specified volume.  Once this function returns the block
  * device is live and ready for use.
+ * Check the snapdev option before traversing snapshots of the 'name'.
  */
-int
-zvol_create_minor(const char *name)
+static int
+zvol_create_minor(const char *name, uint64_t snapdev)
 {
 	int error;
 
-	mutex_enter(&zvol_state_lock);
-	error = __zvol_create_minor(name, B_FALSE);
-	mutex_exit(&zvol_state_lock);
+	if (strchr(name, '@') == 0) {
+		/* create minor for the 'name' explicitly */
+		mutex_enter(&zvol_state_lock);
+		error = __zvol_create_minor(name);
+		mutex_exit(&zvol_state_lock);
+		if (error == 0 && snapdev == ZFS_SNAPDEV_VISIBLE) {
+			/*
+			 * traverse snapshots only, do not traverse children,
+			 * and skip the 'name'
+			 */
+			error = dmu_objset_find((char *)name,
+			    zvol_create_minors_cb, (void *)name,
+			    DS_FIND_SNAPSHOTS);
+		}
+	} else {
+		if (snapdev == ZFS_SNAPDEV_VISIBLE) {
+			/* create minor for the snapshot */
+			mutex_enter(&zvol_state_lock);
+			error = __zvol_create_minor(name);
+			mutex_exit(&zvol_state_lock);
+		}
+	}
 
 	return (SET_ERROR(error));
 }
@@ -1502,25 +1496,66 @@ __zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	set_disk_ro(zv->zv_disk, readonly);
 }
 
+/* Mask errors to continue dmu_objset_find() traversal */
 static int
 zvol_create_minors_cb(const char *dsname, void *arg)
 {
-	(void) zvol_create_minor(dsname);
+	const char *name = (const char *)arg;
+	uint64_t snapdev;
+	int error;
+
+	/* skip the designated dataset */
+	if (name && strcmp(dsname, name) == 0)
+		return (0);
+
+	error = dsl_prop_get_integer(dsname, "snapdev", &snapdev, NULL);
+	if (error)
+		return (0);
+
+	(void) zvol_create_minor(dsname, snapdev);
 
 	return (0);
 }
 
 /*
  * Create minors for specified dataset including children and snapshots.
+ * Pay attention to the 'snapdev' property and traverse the snapshots
+ * only if the property is set.
  */
 int
 zvol_create_minors(const char *name)
 {
 	int error = 0;
 
-	if (!zvol_inhibit_dev)
-		error = dmu_objset_find((char *)name, zvol_create_minors_cb,
-		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	/*
+	 * dmu_objset_find() does not expect snapshot name (with '@') in its
+	 * first argument. So, check for the '@' in the name.
+	 */
+	if (!zvol_inhibit_dev) {
+		char *atp, *parent;
+
+		parent = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+		(void) strlcpy(parent, name, MAXPATHLEN);
+
+		if ((atp = strrchr(parent, '@')) != NULL) {
+			uint64_t snapdev;
+
+			*atp = '\0';
+			error = dsl_prop_get_integer(parent, "snapdev",
+			    &snapdev, NULL);
+
+			if (error == 0 && snapdev == ZFS_SNAPDEV_VISIBLE) {
+				mutex_enter(&zvol_state_lock);
+				error = __zvol_create_minor(name);
+				mutex_exit(&zvol_state_lock);
+			}
+		} else {
+			error = dmu_objset_find(parent, zvol_create_minors_cb,
+			    NULL, DS_FIND_CHILDREN);
+		}
+
+		kmem_free(parent, MAXPATHLEN);
+	}
 
 	return (SET_ERROR(error));
 }
@@ -1602,7 +1637,7 @@ snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
 	switch (snapdev) {
 		case ZFS_SNAPDEV_VISIBLE:
 			mutex_enter(&zvol_state_lock);
-			(void) __zvol_create_minor(dsname, B_TRUE);
+			(void) __zvol_create_minor(dsname);
 			mutex_exit(&zvol_state_lock);
 			break;
 		case ZFS_SNAPDEV_HIDDEN:
