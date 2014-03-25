@@ -862,6 +862,7 @@ zfs_zget(zfs_sb_t *zsb, uint64_t obj_num, znode_t **zpp)
 
 	*zpp = NULL;
 
+again:
 	ZFS_OBJ_HOLD_ENTER(zsb, obj_num);
 
 	err = sa_buf_hold(zsb->z_os, obj_num, NULL, &db);
@@ -898,7 +899,26 @@ zfs_zget(zfs_sb_t *zsb, uint64_t obj_num, znode_t **zpp)
 		if (zp->z_unlinked) {
 			err = SET_ERROR(ENOENT);
 		} else {
-			igrab(ZTOI(zp));
+			/*
+			 * If igrab() returns NULL the VFS has independently
+			 * determined the inode should be evicted and has
+			 * called iput_final() to start the eviction process.
+			 * The SA handle is still valid but because the VFS
+			 * requires that the eviction succeed we must drop
+			 * our locks and references to allow the eviction to
+			 * complete.  The zfs_zget() may then be retried.
+			 *
+			 * This unlikely case could be optimized by registering
+			 * a sops->drop_inode() callback.  The callback would
+			 * need to detect the active SA hold thereby informing
+			 * the VFS that this inode should not be evicted.
+			 */
+			if (igrab(ZTOI(zp)) == NULL) {
+				mutex_exit(&zp->z_lock);
+				sa_buf_rele(db, NULL);
+				ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+				goto again;
+			}
 			*zpp = zp;
 			err = 0;
 		}
