@@ -60,4 +60,32 @@ extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
                                   int state, pri_t pri);
 extern void __thread_exit(void);
 
+/*
+ * spl_kthread_create - Wrapper providing pre-3.13 semantics for
+ * kthread_create() in which it is not killable and less likely
+ * to return -ENOMEM.
+ */
+static inline struct task_struct *
+spl_kthread_create(int (*func)(void *), void *data, const char namefmt[], ...)
+{
+	struct task_struct *tsk;
+	va_list args;
+
+	va_start(args, namefmt);
+	do {
+		tsk = kthread_create_on_node(func, data,
+			-1, namefmt, args);
+		if (IS_ERR(tsk)) {
+			if (signal_pending(current)) {
+				clear_thread_flag(TIF_SIGPENDING);
+				continue;
+			}
+			if (PTR_ERR(tsk) == -ENOMEM)
+				continue;
+			return (NULL);
+		} else
+			return (tsk);
+	} while (1);
+}
+
 #endif  /* _SPL_THREAD_H */

@@ -126,7 +126,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	tp->tp_state = state;
 	tp->tp_pri   = pri;
 
-	tsk = kthread_create(thread_generic_wrapper, (void *)tp,
+	tsk = spl_kthread_create(thread_generic_wrapper, (void *)tp,
 			     "%s", tp->tp_name);
 	if (IS_ERR(tsk)) {
 		SERROR("Failed to create thread: %ld\n", PTR_ERR(tsk));

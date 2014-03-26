@@ -839,7 +839,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 		tqt->tqt_tq = tq;
 		tqt->tqt_id = 0;
 
-		tqt->tqt_thread = kthread_create(taskq_thread, tqt,
+		tqt->tqt_thread = spl_kthread_create(taskq_thread, tqt,
 		    "%s/%d", name, i);
 		if (tqt->tqt_thread) {
 			list_add(&tqt->tqt_thread_list, &tq->tq_thread_list);

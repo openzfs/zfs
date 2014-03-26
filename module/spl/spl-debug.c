@@ -38,6 +38,7 @@
 #include <linux/file_compat.h>
 #include <linux/swap.h>
 #include <sys/sysmacros.h>
+#include <sys/thread.h>
 #include <spl-debug.h>
 #include <spl-trace.h>
 #include <spl-ctl.h>
@@ -415,7 +416,7 @@ spl_debug_dumplog(int flags)
                 spl_debug_dumplog_internal(&dp);
         } else {
 
-                tsk = kthread_create(spl_debug_dumplog_thread,(void *)&dp,"spl_debug");
+                tsk = spl_kthread_create(spl_debug_dumplog_thread,(void *)&dp,"spl_debug");
                 if (tsk == NULL)
                         return -ENOMEM;
 

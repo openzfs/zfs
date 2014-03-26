@@ -108,7 +108,7 @@ splat_condvar_test1(struct file *file, void *arg)
 		ct[i].ct_cvp = &cv;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST1_NAME;
 		ct[i].ct_rc = 0;
-		ct[i].ct_thread = kthread_create(splat_condvar_test12_thread,
+		ct[i].ct_thread = spl_kthread_create(splat_condvar_test12_thread,
 		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
 		if (!IS_ERR(ct[i].ct_thread)) {
@@ -173,7 +173,7 @@ splat_condvar_test2(struct file *file, void *arg)
 		ct[i].ct_cvp = &cv;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST2_NAME;
 		ct[i].ct_rc = 0;
-		ct[i].ct_thread = kthread_create(splat_condvar_test12_thread,
+		ct[i].ct_thread = spl_kthread_create(splat_condvar_test12_thread,
 		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
 		if (!IS_ERR(ct[i].ct_thread)) {
@@ -254,7 +254,7 @@ splat_condvar_test3(struct file *file, void *arg)
 		ct[i].ct_cvp = &cv;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST3_NAME;
 		ct[i].ct_rc = 0;
-		ct[i].ct_thread = kthread_create(splat_condvar_test34_thread,
+		ct[i].ct_thread = spl_kthread_create(splat_condvar_test34_thread,
 		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
 		if (!IS_ERR(ct[i].ct_thread)) {
@@ -324,7 +324,7 @@ splat_condvar_test4(struct file *file, void *arg)
 		ct[i].ct_cvp = &cv;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST3_NAME;
 		ct[i].ct_rc = 0;
-		ct[i].ct_thread = kthread_create(splat_condvar_test34_thread,
+		ct[i].ct_thread = spl_kthread_create(splat_condvar_test34_thread,
 		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
 		if (!IS_ERR(ct[i].ct_thread)) {
