@@ -263,9 +263,13 @@ zpl_forget_cached_acl(struct inode *ip, int type) {
 #define	zpl_inode_owner_or_capable(ip)		is_owner_or_cap(ip)
 #endif /* HAVE_INODE_OWNER_OR_CAPABLE */
 
-#ifndef HAVE_POSIX_ACL_CHMOD
+#ifndef HAVE___POSIX_ACL_CHMOD
+#ifdef HAVE_POSIX_ACL_CHMOD
+#define	__posix_acl_chmod(acl, gfp, mode)	posix_acl_chmod(acl, gfp, mode)
+#define	__posix_acl_create(acl, gfp, mode)	posix_acl_create(acl, gfp, mode)
+#else
 static inline int
-posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
+__posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
 	struct posix_acl *oldacl = *acl;
 	mode_t mode = umode;
 	int error;
@@ -286,7 +290,7 @@ posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
 }
 
 static inline int
-posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep) {
+__posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep) {
 	struct posix_acl *oldacl = *acl;
 	mode_t mode = *umodep;
 	int error;
@@ -308,6 +312,7 @@ posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep) {
 	return (error);
 }
 #endif /* HAVE_POSIX_ACL_CHMOD */
+#endif /* HAVE___POSIX_ACL_CHMOD */
 
 #ifndef HAVE_CURRENT_UMASK
 static inline int
