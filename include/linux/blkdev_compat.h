@@ -286,6 +286,16 @@ struct req_iterator {
 		bio_for_each_segment(bvl, _iter.bio, _iter.i)
 #endif /* HAVE_RQ_FOR_EACH_SEGMENT */
 
+#ifdef HAVE_BIO_BVEC_ITER
+#define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
+#define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
+#define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#else
+#define	BIO_BI_SECTOR(bio)	(bio)->bi_sector
+#define	BIO_BI_SIZE(bio)	(bio)->bi_size
+#define	BIO_BI_IDX(bio)		(bio)->bi_idx
+#endif
+
 /*
  * Portable helper for correctly setting the FAILFAST flags.  The
  * correct usage has changed 3 times from 2.6.12 to 2.6.38.
