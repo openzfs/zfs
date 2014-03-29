@@ -1011,13 +1011,13 @@ xuio_stat_wbuf_nocopy()
 static int
 dmu_req_copy(void *arg_buf, int size, struct request *req, size_t req_offset)
 {
-	struct bio_vec *bv;
+	struct bio_vec bv, *bvp;
 	struct req_iterator iter;
 	char *bv_buf;
 	int tocpy, bv_len, bv_offset;
 	int offset = 0;
 
-	rq_for_each_segment(bv, req, iter) {
+	rq_for_each_segment4(bv, bvp, req, iter) {
 		/*
 		 * Fully consumed the passed arg_buf. We use goto here because
 		 * rq_for_each_segment is a double loop
@@ -1027,19 +1027,19 @@ dmu_req_copy(void *arg_buf, int size, struct request *req, size_t req_offset)
 			goto out;
 
 		/* Skip already copied bv */
-		if (req_offset >=  bv->bv_len) {
-			req_offset -= bv->bv_len;
+		if (req_offset >=  bv.bv_len) {
+			req_offset -= bv.bv_len;
 			continue;
 		}
 
-		bv_len = bv->bv_len - req_offset;
-		bv_offset = bv->bv_offset + req_offset;
+		bv_len = bv.bv_len - req_offset;
+		bv_offset = bv.bv_offset + req_offset;
 		req_offset = 0;
 
 		tocpy = MIN(bv_len, size - offset);
 		ASSERT3S(tocpy, >=, 0);
 
-		bv_buf = page_address(bv->bv_page) + bv_offset;
+		bv_buf = page_address(bv.bv_page) + bv_offset;
 		ASSERT3P(bv_buf, !=, NULL);
 
 		if (rq_data_dir(req) == WRITE)
