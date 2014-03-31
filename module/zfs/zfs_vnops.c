@@ -3851,10 +3851,11 @@ zfs_putpage_commit_cb(void *arg)
 /*
  * Push a page out to disk, once the page is on stable storage the
  * registered commit callback will be run as notification of completion.
+ * Callers are responsible for calling zil_commit()
  *
- *	IN:	ip	- page mapped for inode.
- *		pp	- page to push (page is locked)
- *		wbc	- writeback control data
+ *	IN:	pp	- page to push (page is locked)
+ *		wbc	- writeback control
+ *		data	- inode for mapped page
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -3863,15 +3864,15 @@ zfs_putpage_commit_cb(void *arg)
  *	ip - ctime|mtime updated
  */
 /* ARGSUSED */
-int
-zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
+static int
+zfs_putapage(struct page *pp, struct writeback_control *wbc, void *data)
 {
+	struct inode	*ip = (struct inode *)data;
 	znode_t		*zp = ITOZ(ip);
 	zfs_sb_t	*zsb = ITOZSB(ip);
 	loff_t		offset;
 	loff_t		pgoff;
 	unsigned int	pglen;
-	rl_t		*rl;
 	dmu_tx_t	*tx;
 	caddr_t		va;
 	int		err = 0;
@@ -3879,10 +3880,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
 
-	ZFS_ENTER(zsb);
-	ZFS_VERIFY_ZP(zp);
-
 	ASSERT(PageLocked(pp));
+	ASSERT(!PageWriteback(pp));
 
 	pgoff = page_offset(pp);	/* Page byte-offset in file */
 	offset = i_size_read(ip);	/* File length in bytes */
@@ -3892,7 +3891,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Page is beyond end of file */
 	if (pgoff >= offset) {
 		unlock_page(pp);
-		ZFS_EXIT(zsb);
 		return (0);
 	}
 
@@ -3915,24 +3913,17 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	set_page_writeback(pp);
 	unlock_page(pp);
 
-	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
 	tx = dmu_tx_create(zsb->z_os);
-
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
-	err = dmu_tx_assign(tx, TXG_NOWAIT);
+	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err != 0) {
-		if (err == ERESTART)
-			dmu_tx_wait(tx);
-
 		dmu_tx_abort(tx);
 		__set_page_dirty_nobuffers(pp);
 		ClearPageError(pp);
 		end_page_writeback(pp);
-		zfs_range_unlock(rl);
-		ZFS_EXIT(zsb);
 		return (err);
 	}
 
@@ -3957,19 +3948,126 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	    zfs_putpage_commit_cb, pp);
 	dmu_tx_commit(tx);
 
+	return (err);
+}
+
+int
+zfs_putpage_single(struct page *pp, struct writeback_control *wbc)
+{
+	struct inode	*ip = pp->mapping->host;
+	znode_t		*zp = ITOZ(ip);
+	zfs_sb_t	*zsb = ITOZSB(ip);
+	rl_t		*rl;
+	loff_t		pgoff;
+	unsigned int	pglen;
+	int error;
+
+	ASSERT(PageLocked(pp));
+	ASSERT(!(current->flags & PF_NOFS));
+
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
+
+	pgoff = page_offset(pp);	/* Page byte-offset in file */
+	pglen = PAGE_CACHE_SIZE;	/* Page length in bytes */
+
+	/*
+	 * Annotate this call path with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	current->flags |= PF_NOFS;
+
+	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
+	error = zfs_putapage(pp, wbc, (void *)ip);
 	zfs_range_unlock(rl);
 
-	if (wbc->sync_mode != WB_SYNC_NONE) {
-		/*
-		 * Note that this is rarely called under writepages(), because
-		 * writepages() normally handles the entire commit for
-		 * performance reasons.
-		 */
+	if (wbc->sync_mode == WB_SYNC_ALL ||
+	    zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zsb->z_log, zp->z_id);
+
+	current->flags &= ~PF_NOFS;
+	ZFS_EXIT(zsb);
+
+	return (error);
+}
+
+int
+zfs_putpage(struct inode *ip, struct writeback_control *wbc)
+{
+	znode_t				*zp = ITOZ(ip);
+	zfs_sb_t			*zsb = ITOZSB(ip);
+	struct address_space		*mp = ip->i_mapping;
+	enum writeback_sync_modes	sync_mode;
+	rl_t				*rl;
+	pgoff_t				index, end;
+	uint64_t			off, len;
+	int				error;
+
+	ASSERT(!(current->flags & PF_NOFS));
+	ASSERT(wbc);
+
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
+
+	if (mp->nrpages == 0) {
+		ZFS_EXIT(zsb);
+		return (0);
 	}
 
+	/*
+	 * Annotate this call path with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	current->flags |= PF_NOFS;
+
+	if (wbc->range_cyclic) {
+		index = 0;
+		end = -1;
+		off = 0;
+		len = UINT64_MAX;
+	} else {
+		ASSERT3U(wbc->range_end, >=, wbc->range_start);
+		index = wbc->range_start >> PAGE_CACHE_SHIFT;
+		end = wbc->range_end >> PAGE_CACHE_SHIFT;
+		off = wbc->range_start;
+		len = wbc->range_end - wbc->range_start;
+	}
+
+	sync_mode = wbc->sync_mode;
+	wbc->sync_mode = WB_SYNC_NONE;
+
+	rl = zfs_range_lock(zp, off, len, RL_WRITER);
+	error = write_cache_pages(mp, wbc, &zfs_putapage, ip);
+	zfs_range_unlock(rl);
+
+	if (sync_mode == WB_SYNC_ALL || zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) {
+		zil_commit(zsb->z_log, zp->z_id);
+
+		/*
+		 * We need to call write_cache_pages() again (we can't just
+		 * return after the commit) because the previous call in
+		 * non-SYNC mode does not guarantee that we got all the dirty
+		 * pages (see the implementation of write_cache_pages() for
+		 * details).  A second non-SYNC mode call after zil_commit()
+		 * will ensure all pages skipped in the first pass are written.
+		 * That being said, this is a no-op in most cases.
+		 */
+		if (error == 0) {
+			rl = zfs_range_lock(zp, off, len, RL_WRITER);
+			error = write_cache_pages(mp, wbc, &zfs_putapage, ip);
+			zfs_range_unlock(rl);
+
+			zil_commit(zsb->z_log, zp->z_id);
+		}
+	}
+
+	wbc->sync_mode = sync_mode;
+	current->flags &= ~PF_NOFS;
 	ZFS_EXIT(zsb);
-	return (err);
+
+	return (error);
 }
 
 /*
