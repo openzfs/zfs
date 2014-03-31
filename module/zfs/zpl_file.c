@@ -399,66 +399,16 @@ zpl_readpages(struct file *filp, struct address_space *mapping,
 }
 
 int
-zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
-{
-	struct address_space *mapping = data;
-
-	ASSERT(PageLocked(pp));
-	ASSERT(!PageWriteback(pp));
-	ASSERT(!(current->flags & PF_NOFS));
-
-	/*
-	 * Annotate this call path with a flag that indicates that it is
-	 * unsafe to use KM_SLEEP during memory allocations due to the
-	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
-	 */
-	current->flags |= PF_NOFS;
-	(void) zfs_putpage(mapping->host, pp, wbc);
-	current->flags &= ~PF_NOFS;
-
-	return (0);
-}
-
-static int
 zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
-	znode_t		*zp = ITOZ(mapping->host);
-	zfs_sb_t	*zsb = ITOZSB(mapping->host);
-	enum writeback_sync_modes sync_mode;
-	int result;
+	cred_t *cr = CRED();
+	int err;
 
-	ZFS_ENTER(zsb);
-	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		wbc->sync_mode = WB_SYNC_ALL;
-	ZFS_EXIT(zsb);
-	sync_mode = wbc->sync_mode;
+	crhold(cr);
+	err = -zfs_putpage(mapping->host, wbc, cr);
+	crfree(cr);
 
-	/*
-	 * We don't want to run write_cache_pages() in SYNC mode here, because
-	 * that would make putpage() wait for a single page to be committed to
-	 * disk every single time, resulting in atrocious performance. Instead
-	 * we run it once in non-SYNC mode so that the ZIL gets all the data,
-	 * and then we commit it all in one go.
-	 */
-	wbc->sync_mode = WB_SYNC_NONE;
-	result = write_cache_pages(mapping, wbc, zpl_putpage, mapping);
-	if (sync_mode != wbc->sync_mode) {
-		ZFS_ENTER(zsb);
-		ZFS_VERIFY_ZP(zp);
-		zil_commit(zsb->z_log, zp->z_id);
-		ZFS_EXIT(zsb);
-
-		/*
-		 * We need to call write_cache_pages() again (we can't just
-		 * return after the commit) because the previous call in
-		 * non-SYNC mode does not guarantee that we got all the dirty
-		 * pages (see the implementation of write_cache_pages() for
-		 * details). That being said, this is a no-op in most cases.
-		 */
-		wbc->sync_mode = sync_mode;
-		result = write_cache_pages(mapping, wbc, zpl_putpage, mapping);
-	}
-	return (result);
+	return (err);
 }
 
 /*
@@ -467,13 +417,24 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
  * which never call .write().  These dirty pages are kept in sync with
  * the ARC buffers via this hook.
  */
-static int
+int
 zpl_writepage(struct page *pp, struct writeback_control *wbc)
 {
-	if (ITOZSB(pp->mapping->host)->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		wbc->sync_mode = WB_SYNC_ALL;
+	cred_t *cr = CRED();
+	int err;
 
-	return (zpl_putpage(pp, wbc, pp->mapping));
+	ASSERT(PageLocked(pp));
+
+	if (pp->mapping == NULL) {
+		unlock_page(pp);
+		return (0);
+	}
+
+	crhold(cr);
+	err = -zfs_putpage_single(pp, wbc, cr);
+	crfree(cr);
+
+	return (err);
 }
 
 /*
