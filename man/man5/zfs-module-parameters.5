@@ -137,10 +137,21 @@ Default value: \fB8,388,608\fR.
 .sp
 .ne 2
 .na
-\fBmetaslab_debug\fR (int)
+\fBmetaslab_debug_load\fR (int)
 .ad
 .RS 12n
-Keep space maps in core to verify frees
+Load all metaslabs during pool import.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_debug_unload\fR (int)
+.ad
+.RS 12n
+Prevent metaslabs from being unloaded.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
