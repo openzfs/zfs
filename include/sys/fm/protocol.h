@@ -70,6 +70,7 @@ extern "C" {
 #define	FM_EREPORT_DETECTOR		"detector"
 #define	FM_EREPORT_ENA			"ena"
 #define	FM_EREPORT_TIME			"time"
+#define	FM_EREPORT_EID			"eid"
 
 /* list.* event payload member names */
 #define	FM_LIST_EVENT_SIZE		"list-sz"

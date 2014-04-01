@@ -2167,7 +2167,7 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 
 	verify(nvlist_alloc(&search, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
-	guid = strtoull(path, &end, 10);
+	guid = strtoull(path, &end, 0);
 	if (guid != 0 && *end == '\0') {
 		verify(nvlist_add_uint64(search, ZPOOL_CONFIG_GUID, guid) == 0);
 	} else if (zpool_vdev_is_interior(path)) {
@@ -3783,27 +3783,28 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp)
 }
 
 /*
- * Retrieve the next event.  If there is a new event available 'nvp' will
- * contain a newly allocated nvlist and 'dropped' will be set to the number
- * of missed events since the last call to this function.  When 'nvp' is
- * set to NULL it indicates no new events are available.  In either case
- * the function returns 0 and it is up to the caller to free 'nvp'.  In
- * the case of a fatal error the function will return a non-zero value.
- * When the function is called in blocking mode it will not return until
- * a new event is available.
+ * Retrieve the next event given the passed 'zevent_fd' file descriptor.
+ * If there is a new event available 'nvp' will contain a newly allocated
+ * nvlist and 'dropped' will be set to the number of missed events since
+ * the last call to this function.  When 'nvp' is set to NULL it indicates
+ * no new events are available.  In either case the function returns 0 and
+ * it is up to the caller to free 'nvp'.  In the case of a fatal error the
+ * function will return a non-zero value.  When the function is called in
+ * blocking mode (the default, unless the ZEVENT_NONBLOCK flag is passed),
+ * it will not return until a new event is available.
  */
 int
 zpool_events_next(libzfs_handle_t *hdl, nvlist_t **nvp,
-    int *dropped, int block, int cleanup_fd)
+    int *dropped, unsigned flags, int zevent_fd)
 {
 	zfs_cmd_t zc = {"\0"};
 	int error = 0;
 
 	*nvp = NULL;
 	*dropped = 0;
-	zc.zc_cleanup_fd = cleanup_fd;
+	zc.zc_cleanup_fd = zevent_fd;
 
-	if (!block)
+	if (flags & ZEVENT_NONBLOCK)
 		zc.zc_guid = ZEVENT_NONBLOCK;
 
 	if (zcmd_alloc_dst_nvlist(hdl, &zc, ZEVENT_SIZE) != 0)
@@ -3818,7 +3819,7 @@ retry:
 			goto out;
 		case ENOENT:
 			/* Blocking error case should not occur */
-			if (block)
+			if (!(flags & ZEVENT_NONBLOCK))
 				error = zpool_standard_error_fmt(hdl, errno,
 				    dgettext(TEXT_DOMAIN, "cannot get event"));
 
@@ -3868,6 +3869,42 @@ zpool_events_clear(libzfs_handle_t *hdl, int *count)
 		*count = (int)zc.zc_cookie; /* # of events cleared */
 
 	return (0);
+}
+
+/*
+ * Seek to a specific EID, ZEVENT_SEEK_START, or ZEVENT_SEEK_END for
+ * the passed zevent_fd file handle.  On success zero is returned,
+ * otherwise -1 is returned and hdl->libzfs_error is set to the errno.
+ */
+int
+zpool_events_seek(libzfs_handle_t *hdl, uint64_t eid, int zevent_fd)
+{
+	zfs_cmd_t zc = {"\0"};
+	int error = 0;
+
+	zc.zc_guid = eid;
+	zc.zc_cleanup_fd = zevent_fd;
+
+	if (zfs_ioctl(hdl, ZFS_IOC_EVENTS_SEEK, &zc) != 0) {
+		switch (errno) {
+		case ENOENT:
+			error = zfs_error_fmt(hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "cannot get event"));
+			break;
+
+		case ENOMEM:
+			error = zfs_error_fmt(hdl, EZFS_NOMEM,
+			    dgettext(TEXT_DOMAIN, "cannot get event"));
+			break;
+
+		default:
+			error = zpool_standard_error_fmt(hdl, errno,
+			    dgettext(TEXT_DOMAIN, "cannot get event"));
+			break;
+		}
+	}
+
+	return (error);
 }
 
 void

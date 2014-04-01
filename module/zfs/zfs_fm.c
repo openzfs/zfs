@@ -251,6 +251,11 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	if (vd != NULL) {
 		vdev_t *pvd = vd->vdev_parent;
 		vdev_queue_t *vq = &vd->vdev_queue;
+		vdev_stat_t *vs = &vd->vdev_stat;
+		vdev_t *spare_vd;
+		uint64_t *spare_guids;
+		char **spare_paths;
+		int i, spare_count;
 
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID,
 		    DATA_TYPE_UINT64, vd->vdev_guid,
@@ -282,6 +287,16 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			    DATA_TYPE_UINT64, vq->vq_io_delta_ts, NULL);
 		}
 
+		if (vs != NULL) {
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_READ_ERRORS,
+			    DATA_TYPE_UINT64, vs->vs_read_errors,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_WRITE_ERRORS,
+			    DATA_TYPE_UINT64, vs->vs_write_errors,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_CKSUM_ERRORS,
+			    DATA_TYPE_UINT64, vs->vs_checksum_errors, NULL);
+		}
+
 		if (pvd != NULL) {
 			fm_payload_set(ereport,
 			    FM_EREPORT_PAYLOAD_ZFS_PARENT_GUID,
@@ -298,6 +313,28 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 				    FM_EREPORT_PAYLOAD_ZFS_PARENT_DEVID,
 				    DATA_TYPE_STRING, pvd->vdev_devid, NULL);
 		}
+
+		spare_count = spa->spa_spares.sav_count;
+		spare_paths = kmem_zalloc(sizeof (char *) * spare_count,
+		    KM_PUSHPAGE);
+		spare_guids = kmem_zalloc(sizeof (uint64_t) * spare_count,
+		    KM_PUSHPAGE);
+
+		for (i = 0; i < spare_count; i++) {
+			spare_vd = spa->spa_spares.sav_vdevs[i];
+			if (spare_vd) {
+				spare_paths[i] = spare_vd->vdev_path;
+				spare_guids[i] = spare_vd->vdev_guid;
+			}
+		}
+
+		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_VDEV_SPARE_PATHS,
+		    DATA_TYPE_STRING_ARRAY, spare_count, spare_paths,
+		    FM_EREPORT_PAYLOAD_ZFS_VDEV_SPARE_GUIDS,
+		    DATA_TYPE_UINT64_ARRAY, spare_count, spare_guids, NULL);
+
+		kmem_free(spare_guids, sizeof (uint64_t) * spare_count);
+		kmem_free(spare_paths, sizeof (char *) * spare_count);
 	}
 
 	if (zio != NULL) {
@@ -834,15 +871,18 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 
 	(void) snprintf(class, sizeof (class), "%s.%s.%s", FM_RSRC_RESOURCE,
 	    ZFS_ERROR_CLASS, name);
-	VERIFY(nvlist_add_uint8(resource, FM_VERSION, FM_RSRC_VERSION) == 0);
-	VERIFY(nvlist_add_string(resource, FM_CLASS, class) == 0);
-	VERIFY(nvlist_add_uint64(resource,
-	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)) == 0);
+	VERIFY0(nvlist_add_uint8(resource, FM_VERSION, FM_RSRC_VERSION));
+	VERIFY0(nvlist_add_string(resource, FM_CLASS, class));
+	VERIFY0(nvlist_add_uint64(resource,
+	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)));
+	VERIFY0(nvlist_add_int32(resource,
+	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, spa_load_state(spa)));
+
 	if (vd) {
-		VERIFY(nvlist_add_uint64(resource,
-		    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, vd->vdev_guid) == 0);
-		VERIFY(nvlist_add_uint64(resource,
-		    FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, vd->vdev_state) == 0);
+		VERIFY0(nvlist_add_uint64(resource,
+		    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, vd->vdev_guid));
+		VERIFY0(nvlist_add_uint64(resource,
+		    FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, vd->vdev_state));
 	}
 
 	zfs_zevent_post(resource, NULL, zfs_zevent_post_cb);
