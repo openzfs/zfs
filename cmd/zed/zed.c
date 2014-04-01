@@ -97,10 +97,10 @@ _setup_sig_handlers(void)
 static void
 _lock_memory(void)
 {
-#if ! _POSIX_MEMLOCK
+#if ! HAVE_MLOCKALL
 	zed_log_die("Failed to lock memory pages: mlockall() not supported");
 
-#else /* _POSIX_MEMLOCK */
+#else /* HAVE_MLOCKALL */
 	int i = 0;
 	const int max_tries = 10;
 
