@@ -84,6 +84,14 @@ static int zevent_len_cur = 0;
 static int zevent_waiters = 0;
 static int zevent_flags = 0;
 
+/*
+ * The EID (Event IDentifier) is used to uniquely tag a zevent when it is
+ * posted.  The posted EIDs are monotonically increasing but not persistent.
+ * They will be reset to the initial value (1) each time the kernel module is
+ * loaded.
+ */
+static uint64_t zevent_eid = 0;
+
 static kmutex_t zevent_lock;
 static list_t zevent_list;
 static kcondvar_t zevent_cv;
@@ -498,6 +506,7 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
 	int64_t tv_array[2];
 	timestruc_t tv;
+	uint64_t eid;
 	size_t nvl_size = 0;
 	zevent_t *ev;
 
@@ -505,6 +514,12 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 	tv_array[0] = tv.tv_sec;
 	tv_array[1] = tv.tv_nsec;
 	if (nvlist_add_int64_array(nvl, FM_EREPORT_TIME, tv_array, 2)) {
+		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
+		return;
+	}
+
+	eid = atomic_inc_64_nv(&zevent_eid);
+	if (nvlist_add_uint64(nvl, FM_EREPORT_EID, eid)) {
 		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
 		return;
 	}
@@ -527,6 +542,7 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 	ev->ev_nvl = nvl;
 	ev->ev_detector = detector;
 	ev->ev_cb = cb;
+	ev->ev_eid = eid;
 
 	mutex_enter(&zevent_lock);
 	zfs_zevent_insert(ev);
@@ -642,6 +658,67 @@ zfs_zevent_wait(zfs_zevent_t *ze)
 		error = EINTR;
 
 	zevent_waiters--;
+out:
+	mutex_exit(&zevent_lock);
+
+	return (error);
+}
+
+/*
+ * The caller may seek to a specific EID by passing that EID.  If the EID
+ * is still available in the posted list of events the cursor is positioned
+ * there.  Otherwise ENOENT is returned and the cursor is not moved.
+ *
+ * There are two reserved EIDs which may be passed and will never fail.
+ * ZEVENT_SEEK_START positions the cursor at the start of the list, and
+ * ZEVENT_SEEK_END positions the cursor at the end of the list.
+ */
+int
+zfs_zevent_seek(zfs_zevent_t *ze, uint64_t eid)
+{
+	zevent_t *ev;
+	int error = 0;
+
+	mutex_enter(&zevent_lock);
+
+	if (eid == ZEVENT_SEEK_START) {
+		if (ze->ze_zevent)
+			list_remove(&ze->ze_zevent->ev_ze_list, ze);
+
+		ze->ze_zevent = NULL;
+		goto out;
+	}
+
+	if (eid == ZEVENT_SEEK_END) {
+		if (ze->ze_zevent)
+			list_remove(&ze->ze_zevent->ev_ze_list, ze);
+
+		ev = list_head(&zevent_list);
+		if (ev) {
+			ze->ze_zevent = ev;
+			list_insert_head(&ev->ev_ze_list, ze);
+		} else {
+			ze->ze_zevent = NULL;
+		}
+
+		goto out;
+	}
+
+	for (ev = list_tail(&zevent_list); ev != NULL;
+	    ev = list_prev(&zevent_list, ev)) {
+		if (ev->ev_eid == eid) {
+			if (ze->ze_zevent)
+				list_remove(&ze->ze_zevent->ev_ze_list, ze);
+
+			ze->ze_zevent = ev;
+			list_insert_head(&ev->ev_ze_list, ze);
+			break;
+		}
+	}
+
+	if (ev == NULL)
+		error = ENOENT;
+
 out:
 	mutex_exit(&zevent_lock);
 
