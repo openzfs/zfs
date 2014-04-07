@@ -244,7 +244,7 @@ splat_kmem_test4(struct file *file, void *arg)
 #define SPLAT_KMEM_TEST_MAGIC		0x004488CCUL
 #define SPLAT_KMEM_CACHE_NAME		"kmem_test"
 #define SPLAT_KMEM_OBJ_COUNT		1024
-#define SPLAT_KMEM_OBJ_RECLAIM		1000 /* objects */
+#define SPLAT_KMEM_OBJ_RECLAIM		32 /* objects */
 #define SPLAT_KMEM_THREADS		32
 
 #define KCP_FLAG_READY			0x01
@@ -895,7 +895,8 @@ splat_kmem_test8(struct file *file, void *arg)
 		goto out_kct;
 	}
 
-	for (i = 0; i < 60; i++) {
+	/* Force reclaim every 1/10 a second for 60 seconds. */
+	for (i = 0; i < 600; i++) {
 		kmem_cache_reap_now(kcp->kcp_cache);
 		splat_kmem_cache_test_debug(file, SPLAT_KMEM_TEST8_NAME, kcp);
 
@@ -903,7 +904,7 @@ splat_kmem_test8(struct file *file, void *arg)
 			break;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(HZ);
+		schedule_timeout(HZ / 10);
 	}
 
 	if (kcp->kcp_cache->skc_obj_total == 0) {
@@ -1271,7 +1272,7 @@ splat_kmem_test13(struct file *file, void *arg)
 			break;
 		}
 
-		dp = (dummy_page_t *)__get_free_page(GFP_KERNEL | __GFP_NORETRY);
+		dp = (dummy_page_t *)__get_free_page(GFP_KERNEL);
 		if (!dp) {
 			fails++;
 			splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
