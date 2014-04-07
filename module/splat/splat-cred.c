@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/cred.h>
+#include <sys/random.h>
 #include "splat-internal.h"
 
 #define SPLAT_CRED_NAME			"cred"
@@ -166,42 +167,89 @@ splat_cred_test2(struct file *file, void *arg)
 } /* splat_cred_test2() */
 
 /*
- * On most/all systems it can be expected that a task with root
- * permissions also is a member of the root group,  Since the
- * test suite is always run as root we check first that CRED() is
- * a member of the root group, and secondly that it is not a member
- * of our fake group.  This test will break is someone happens to
- * create group number NGROUPS_MAX-1 and then added root to it.
+ * Verify the groupmember() works correctly by constructing an interesting
+ * CRED() and checking that the expected gids are part of it.
  */
 static int
 splat_cred_test3(struct file *file, void *arg)
 {
-	gid_t root_gid, fake_gid;
-	int rc;
+	gid_t known_gid, missing_gid, tmp_gid;
+	unsigned char rnd;
+	struct group_info *gi;
+	int i, rc;
 
-	root_gid = 0;
-	fake_gid = NGROUPS_MAX-1;
+	get_random_bytes((void *)&rnd, 1);
+	known_gid = (rnd > 0) ? rnd : 1;
+	missing_gid = 0;
 
-	rc = groupmember(root_gid, CRED());
-	if (!rc) {
-		splat_vprint(file, SPLAT_CRED_TEST3_NAME,
-			     "Failed root git %d expected to be member "
-			     "of CRED() groups: %d\n", root_gid, rc);
-		return -EIDRM;
+	/*
+	 * Create an interesting known set of gids for test purposes. The
+	 * gids are pseudo randomly selected are will be in the range of
+	 * 1:(NGROUPS_MAX-1).  Gid 0 is explicitly avoided so we can reliably
+	 * test for its absence in the test cases.
+	 */
+	gi = groups_alloc(NGROUPS_SMALL);
+	if (gi == NULL) {
+		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Failed create "
+		    "group_info for known gids: %d\n", -ENOMEM);
+		rc = -ENOMEM;
+		goto show_groups;
 	}
 
-	rc = groupmember(fake_gid, CRED());
+	for (i = 0, tmp_gid = known_gid; i < NGROUPS_SMALL; i++) {
+		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Adding gid %d "
+		    "to current CRED() (%d/%d)\n", tmp_gid, i, gi->ngroups);
+#ifdef HAVE_KUIDGID_T
+		GROUP_AT(gi, i) = make_kgid(current_user_ns(), tmp_gid);
+#else
+		GROUP_AT(gi, i) = tmp_gid;
+#endif /* HAVE_KUIDGID_T */
+		tmp_gid = ((tmp_gid * 17) % (NGROUPS_MAX - 1)) + 1;
+	}
+
+	/* Set the new groups in the CRED() and release our reference. */
+	rc = set_current_groups(gi);
+	put_group_info(gi);
+
 	if (rc) {
-		splat_vprint(file, SPLAT_CRED_TEST3_NAME,
-			     "Failed fake git %d expected not to be member "
-			     "of CRED() groups: %d\n", fake_gid, rc);
-		return -EIDRM;
+		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Failed to add "
+		    "gid %d to current group: %d\n", known_gid, rc);
+		goto show_groups;
 	}
 
-	splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Success root gid "
-		     "is a member of the expected groups: %d\n", rc);
+	/* Verify groupmember() finds the known_gid in the CRED() */
+	rc = groupmember(known_gid, CRED());
+	if (!rc) {
+		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Failed to find "
+		    "known gid %d in CRED()'s groups.\n", known_gid);
+		rc = -EIDRM;
+		goto show_groups;
+	}
 
-	return rc;
+	/* Verify groupmember() does NOT finds the missing gid in the CRED() */
+	rc = groupmember(missing_gid, CRED());
+	if (rc) {
+		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Failed missing "
+		    "gid %d was found in CRED()'s groups.\n", missing_gid);
+		rc = -EIDRM;
+		goto show_groups;
+	}
+
+	splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Success groupmember() "
+	    "correctly detects expected gids in CRED(): %d\n", rc);
+
+show_groups:
+	if (rc) {
+		int i, grps = crgetngroups(CRED());
+
+		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "%d groups: ", grps);
+		for (i = 0; i < grps; i++)
+			splat_print(file, "%d ", crgetgroups(CRED())[i]);
+		splat_print(file, "%s", "\n");
+	}
+
+
+	return (rc);
 } /* splat_cred_test3() */
 
 splat_subsystem_t *

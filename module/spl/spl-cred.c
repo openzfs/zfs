@@ -44,7 +44,8 @@ cr_groups_search(const struct group_info *group_info, kgid_t grp)
 cr_groups_search(const struct group_info *group_info, gid_t grp)
 #endif
 {
-	unsigned int left, right;
+	unsigned int left, right, mid;
+	int cmp;
 
 	if (!group_info)
 		return 0;
@@ -52,8 +53,10 @@ cr_groups_search(const struct group_info *group_info, gid_t grp)
 	left = 0;
 	right = group_info->ngroups;
 	while (left < right) {
-		unsigned int mid = (left+right)/2;
-		int cmp = KGID_TO_SGID(grp) - KGID_TO_SGID(GROUP_AT(group_info, mid));
+		mid = (left + right) / 2;
+		cmp = KGID_TO_SGID(grp) -
+		    KGID_TO_SGID(GROUP_AT(group_info, mid));
+
 		if (cmp > 0)
 			left = mid + 1;
 		else if (cmp < 0)
@@ -120,7 +123,7 @@ crgetgroups(const cred_t *cr)
 	return gids;
 }
 
-/* Check if the passed gid is available is in supplied credential. */
+/* Check if the passed gid is available in supplied credential. */
 int
 groupmember(gid_t gid, const cred_t *cr)
 {
@@ -128,7 +131,7 @@ groupmember(gid_t gid, const cred_t *cr)
 	int rc;
 
 	gi = get_group_info(cr->group_info);
-	rc = cr_groups_search(cr->group_info, SGID_TO_KGID(gid));
+	rc = cr_groups_search(gi, SGID_TO_KGID(gid));
 	put_group_info(gi);
 
 	return rc;
