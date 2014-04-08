@@ -44,6 +44,4 @@ void zed_file_close_from(int fd);
 
 int zed_file_close_on_exec(int fd);
 
-int zed_file_create_dirs(const char *dir_name);
-
 #endif	/* !ZED_FILE_H */
