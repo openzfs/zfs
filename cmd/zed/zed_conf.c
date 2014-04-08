@@ -29,6 +29,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -435,6 +436,7 @@ int
 zed_conf_write_pid(struct zed_conf *zcp)
 {
 	char dirbuf[PATH_MAX];
+	mode_t dirmode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
 	int n;
 	char *p;
 	mode_t mask;
@@ -457,10 +459,12 @@ zed_conf_write_pid(struct zed_conf *zcp)
 	if (p)
 		*p = '\0';
 
-	/* FIXME: Replace with mkdirp()? (lib/libspl/mkdirp.c) */
-	if (zed_file_create_dirs(dirbuf) < 0)
+	if ((mkdirp(dirbuf, dirmode) < 0) && (errno != EEXIST)) {
+		zed_log_msg(LOG_WARNING,
+		    "Failed to create directory \"%s\": %s",
+		    dirbuf, strerror(errno));
 		return (-1);
-
+	}
 	(void) unlink(zcp->pid_file);
 
 	mask = umask(0);
@@ -494,6 +498,7 @@ int
 zed_conf_open_state(struct zed_conf *zcp)
 {
 	char dirbuf[PATH_MAX];
+	mode_t dirmode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
 	int n;
 	char *p;
 	int rv;
@@ -515,10 +520,12 @@ zed_conf_open_state(struct zed_conf *zcp)
 	if (p)
 		*p = '\0';
 
-	/* FIXME: Replace with mkdirp()? (lib/libspl/mkdirp.c) */
-	if (zed_file_create_dirs(dirbuf) < 0)
+	if ((mkdirp(dirbuf, dirmode) < 0) && (errno != EEXIST)) {
+		zed_log_msg(LOG_WARNING,
+		    "Failed to create directory \"%s\": %s",
+		    dirbuf, strerror(errno));
 		return (-1);
-
+	}
 	if (zcp->state_fd >= 0) {
 		if (close(zcp->state_fd) < 0) {
 			zed_log_msg(LOG_WARNING,
