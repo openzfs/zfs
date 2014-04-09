@@ -137,3 +137,31 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	SRETURN((kthread_t *)tsk);
 }
 EXPORT_SYMBOL(__thread_create);
+
+/*
+ * spl_kthread_create - Wrapper providing pre-3.13 semantics for
+ * kthread_create() in which it is not killable and less likely
+ * to return -ENOMEM.
+ */
+struct task_struct *
+spl_kthread_create(int (*func)(void *), void *data, const char namefmt[], ...)
+{
+	struct task_struct *tsk;
+	va_list args;
+
+	va_start(args, namefmt);
+	do {
+		tsk = kthread_create(func, data, namefmt, args);
+		if (IS_ERR(tsk)) {
+			if (signal_pending(current)) {
+				clear_thread_flag(TIF_SIGPENDING);
+				continue;
+			}
+			if (PTR_ERR(tsk) == -ENOMEM)
+				continue;
+			return (NULL);
+		} else
+			return (tsk);
+	} while (1);
+}
+EXPORT_SYMBOL(spl_kthread_create);
