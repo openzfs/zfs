@@ -207,7 +207,11 @@ load_module() {
 		echo "Loading ${NAME} ($@)"
 	fi
 
-	${LDMOD} $* &>/dev/null || ERROR="Failed to load $1" return 1
+	${LDMOD} $* &>/dev/null
+	if [ $? -ne 0 ]; then
+		echo "Failed to load ${NAME} ($@)"
+		return 1
+	fi
 
 	return 0
 }
@@ -216,7 +220,7 @@ load_modules() {
 	mkdir -p /etc/zfs
 
 	for MOD in ${KERNEL_MODULES[*]}; do
-		load_module ${MOD}
+		load_module ${MOD} >/dev/null
 	done
 
 	for MOD in ${MODULES[*]}; do
