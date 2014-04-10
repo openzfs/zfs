@@ -72,8 +72,8 @@ if [ ${UNLOAD} ]; then
 else
 	stack_clear
 	check_modules || die "${ERROR}"
-	load_modules "$@"
-	wait_udev /dev/zfs 30
+	load_modules "$@" || die "Failed to load modules"
+	wait_udev /dev/zfs 30 || die "'/dev/zfs' was not created"
 fi
 
 exit 0
