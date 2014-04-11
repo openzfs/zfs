@@ -148,10 +148,13 @@ spl_kthread_create(int (*func)(void *), void *data, const char namefmt[], ...)
 {
 	struct task_struct *tsk;
 	va_list args;
+	char name[TASK_COMM_LEN];
 
 	va_start(args, namefmt);
+	vsnprintf(name, sizeof(name), namefmt, args);
+	va_end(args);
 	do {
-		tsk = kthread_create(func, data, namefmt, args);
+		tsk = kthread_create(func, data, "%s", name);
 		if (IS_ERR(tsk)) {
 			if (signal_pending(current)) {
 				clear_thread_flag(TIF_SIGPENDING);
