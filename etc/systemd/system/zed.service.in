@@ -5,9 +5,5 @@ After=zfs-import-cache.service
 After=zfs-import-scan.service
 
 [Service]
-Type=forking
-ExecStart=@sbindir@/zed
-PIDFile=@runstatedir@/zed.pid
-User=root
-Group=root
+ExecStart=@sbindir@/zed -F
 Restart=on-abort
