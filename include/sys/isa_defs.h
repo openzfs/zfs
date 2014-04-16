@@ -75,7 +75,7 @@
 #endif
 
 /* arm arch specific defines */
-#elif defined(__arm) || defined(__arm__)
+#elif defined(__arm) || defined(__arm__) || defined(__aarch64__)
 
 #if !defined(__arm)
 #define __arm
@@ -85,7 +85,7 @@
 #define __arm__
 #endif
 
-#if defined(__ARMEL__)
+#if defined(__ARMEL__) || defined(__AARCH64EL__)
 #define _LITTLE_ENDIAN
 #else
 #define _BIG_ENDIAN
