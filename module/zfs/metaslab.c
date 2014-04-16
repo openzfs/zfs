@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -703,7 +703,7 @@ metaslab_ff_alloc(metaslab_t *msp, uint64_t size)
 	 * may exist in the same region.
 	 */
 	uint64_t align = size & -size;
-	uint64_t *cursor = &msp->ms_lbas[highbit(align) - 1];
+	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
 	avl_tree_t *t = &msp->ms_tree->rt_root;
 
 	return (metaslab_block_picker(t, cursor, size, align));
@@ -744,7 +744,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 	 * may exist in the same region.
 	 */
 	uint64_t align = size & -size;
-	uint64_t *cursor = &msp->ms_lbas[highbit(align) - 1];
+	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
 	range_tree_t *rt = msp->ms_tree;
 	avl_tree_t *t = &rt->rt_root;
 	uint64_t max_size = metaslab_block_maxsize(msp);
@@ -869,7 +869,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 	avl_tree_t *t = &msp->ms_tree->rt_root;
 	avl_index_t where;
 	range_seg_t *rs, rsearch;
-	uint64_t hbit = highbit(size);
+	uint64_t hbit = highbit64(size);
 	uint64_t *cursor = &msp->ms_lbas[hbit - 1];
 	uint64_t max_size = metaslab_block_maxsize(msp);
 
@@ -1117,7 +1117,7 @@ metaslab_weight_factor(metaslab_t *msp)
 	if (msp->ms_sm == NULL) {
 		vdev_t *vd = msp->ms_group->mg_vd;
 
-		i = highbit(msp->ms_size) - 1;
+		i = highbit64(msp->ms_size) - 1;
 		sectors = msp->ms_size >> vd->vdev_ashift;
 		return (sectors * i * vd->vdev_ashift);
 	}

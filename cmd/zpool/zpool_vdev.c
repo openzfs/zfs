@@ -740,7 +740,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		int sector_size;
 
 		if (check_sector_size_database(path, &sector_size) == B_TRUE)
-			ashift = highbit(sector_size) - 1;
+			ashift = highbit64(sector_size) - 1;
 	}
 
 	if (ashift > 0)

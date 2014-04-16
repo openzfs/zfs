@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -60,7 +60,7 @@ range_tree_stat_verify(range_tree_t *rt)
 	for (rs = avl_first(&rt->rt_root); rs != NULL;
 	    rs = AVL_NEXT(&rt->rt_root, rs)) {
 		uint64_t size = rs->rs_end - rs->rs_start;
-		int idx	= highbit(size) - 1;
+		int idx	= highbit64(size) - 1;
 
 		hist[idx]++;
 		ASSERT3U(hist[idx], !=, 0);
@@ -79,7 +79,7 @@ static void
 range_tree_stat_incr(range_tree_t *rt, range_seg_t *rs)
 {
 	uint64_t size = rs->rs_end - rs->rs_start;
-	int idx = highbit(size) - 1;
+	int idx = highbit64(size) - 1;
 
 	ASSERT3U(idx, <,
 	    sizeof (rt->rt_histogram) / sizeof (*rt->rt_histogram));
@@ -93,7 +93,7 @@ static void
 range_tree_stat_decr(range_tree_t *rt, range_seg_t *rs)
 {
 	uint64_t size = rs->rs_end - rs->rs_start;
-	int idx = highbit(size) - 1;
+	int idx = highbit64(size) - 1;
 
 	ASSERT3U(idx, <,
 	    sizeof (rt->rt_histogram) / sizeof (*rt->rt_histogram));
@@ -299,10 +299,10 @@ range_tree_remove(void *arg, uint64_t start, uint64_t size)
 }
 
 static range_seg_t *
-range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size,
-    avl_index_t *wherep)
+range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 {
-	range_seg_t rsearch, *rs;
+	avl_index_t where;
+	range_seg_t rsearch;
 	uint64_t end = start + size;
 
 	ASSERT(MUTEX_HELD(rt->rt_lock));
@@ -310,9 +310,14 @@ range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size,
 
 	rsearch.rs_start = start;
 	rsearch.rs_end = end;
-	rs = avl_find(&rt->rt_root, &rsearch, wherep);
+	return (avl_find(&rt->rt_root, &rsearch, &where));
+}
 
-	if (rs != NULL && rs->rs_start <= start && rs->rs_end >= end)
+static range_seg_t *
+range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
+{
+	range_seg_t *rs = range_tree_find_impl(rt, start, size);
+	if (rs != NULL && rs->rs_start <= start && rs->rs_end >= start + size)
 		return (rs);
 	return (NULL);
 }
@@ -321,10 +326,9 @@ void
 range_tree_verify(range_tree_t *rt, uint64_t off, uint64_t size)
 {
 	range_seg_t *rs;
-	avl_index_t where;
 
 	mutex_enter(rt->rt_lock);
-	rs = range_tree_find(rt, off, size, &where);
+	rs = range_tree_find(rt, off, size);
 	if (rs != NULL)
 		panic("freeing free block; rs=%p", (void *)rs);
 	mutex_exit(rt->rt_lock);
@@ -333,9 +337,23 @@ range_tree_verify(range_tree_t *rt, uint64_t off, uint64_t size)
 boolean_t
 range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size)
 {
-	avl_index_t where;
+	return (range_tree_find(rt, start, size) != NULL);
+}
 
-	return (range_tree_find(rt, start, size, &where) != NULL);
+/*
+ * Ensure that this range is not in the tree, regardless of whether
+ * it is currently in the tree.
+ */
+void
+range_tree_clear(range_tree_t *rt, uint64_t start, uint64_t size)
+{
+	range_seg_t *rs;
+
+	while ((rs = range_tree_find_impl(rt, start, size)) != NULL) {
+		uint64_t free_start = MAX(rs->rs_start, start);
+		uint64_t free_end = MIN(rs->rs_end, start + size);
+		range_tree_remove(rt, free_start, free_end - free_start);
+	}
 }
 
 void
