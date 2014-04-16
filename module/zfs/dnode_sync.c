@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -32,6 +32,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dataset.h>
 #include <sys/spa.h>
+#include <sys/range_tree.h>
 #include <sys/zfeature.h>
 
 static void
@@ -321,7 +322,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
  * and "free" all the blocks contained there.
  */
 static void
-dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks,
+dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
     dmu_tx_t *tx)
 {
 	blkptr_t *bp = dn->dn_phys->dn_blkptr;
@@ -376,6 +377,22 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 		    dn->dn_phys->dn_maxblkid == 0 ||
 		    dnode_next_offset(dn, 0, &off, 1, 1, 0) != 0);
 	}
+}
+
+typedef struct dnode_sync_free_range_arg {
+	dnode_t *dsfra_dnode;
+	dmu_tx_t *dsfra_tx;
+} dnode_sync_free_range_arg_t;
+
+static void
+dnode_sync_free_range(void *arg, uint64_t blkid, uint64_t nblks)
+{
+	dnode_sync_free_range_arg_t *dsfra = arg;
+	dnode_t *dn = dsfra->dsfra_dnode;
+
+	mutex_exit(&dn->dn_mtx);
+	dnode_sync_free_range_impl(dn, blkid, nblks, dsfra->dsfra_tx);
+	mutex_enter(&dn->dn_mtx);
 }
 
 /*
@@ -539,7 +556,6 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 void
 dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 {
-	free_range_t *rp;
 	dnode_phys_t *dnp = dn->dn_phys;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	list_t *list = &dn->dn_dirty_records[txgoff];
@@ -598,9 +614,9 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		    SPA_MINBLOCKSIZE) == 0);
 		ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[0]) ||
 		    dn->dn_maxblkid == 0 || list_head(list) != NULL ||
-		    avl_last(&dn->dn_ranges[txgoff]) ||
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT ==
-		    dnp->dn_datablkszsec);
+		    dnp->dn_datablkszsec ||
+		    range_tree_space(dn->dn_free_ranges[txgoff]) != 0);
 		dnp->dn_datablkszsec =
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT;
 		dn->dn_next_blksz[txgoff] = 0;
@@ -659,13 +675,16 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	/* process all the "freed" ranges in the file */
-	while ((rp = avl_last(&dn->dn_ranges[txgoff]))) {
-		dnode_sync_free_range(dn, rp->fr_blkid, rp->fr_nblks, tx);
-		/* grab the mutex so we don't race with dnode_block_freed() */
+	if (dn->dn_free_ranges[txgoff] != NULL) {
+		dnode_sync_free_range_arg_t dsfra;
+		dsfra.dsfra_dnode = dn;
+		dsfra.dsfra_tx = tx;
 		mutex_enter(&dn->dn_mtx);
-		avl_remove(&dn->dn_ranges[txgoff], rp);
+		range_tree_vacate(dn->dn_free_ranges[txgoff],
+		    dnode_sync_free_range, &dsfra);
+		range_tree_destroy(dn->dn_free_ranges[txgoff]);
+		dn->dn_free_ranges[txgoff] = NULL;
 		mutex_exit(&dn->dn_mtx);
-		kmem_free(rp, sizeof (free_range_t));
 	}
 
 	if (freeing_dnode) {
