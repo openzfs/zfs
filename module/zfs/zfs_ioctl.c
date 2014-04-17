@@ -5584,7 +5584,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 {
 	zfs_cmd_t *zc;
 	uint_t vecnum;
-	int error, rc, len = 0, flag = 0;
+	int error, rc, flag = 0;
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
 	nvlist_t *innvl = NULL;
@@ -5651,9 +5651,13 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	len = strcspn(zc->zc_name, "/@#") + 1;
-	saved_poolname = kmem_alloc(len, KM_SLEEP);
-	(void) strlcpy(saved_poolname, zc->zc_name, len);
+	saved_poolname = strdup(zc->zc_name);
+	if (saved_poolname == NULL) {
+		error = SET_ERROR(ENOMEM);
+		goto out;
+	} else {
+		saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
+	}
 
 	if (vec->zvec_func != NULL) {
 		nvlist_t *outnvl;
@@ -5721,7 +5725,7 @@ out:
 		(void) tsd_set(zfs_allow_log_key, saved_poolname);
 	} else {
 		if (saved_poolname != NULL)
-			kmem_free(saved_poolname, len);
+			strfree(saved_poolname);
 	}
 
 	kmem_free(zc, sizeof (zfs_cmd_t));
