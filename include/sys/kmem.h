@@ -57,47 +57,6 @@
 #endif
 
 /*
- * PF_NOFS is a per-process debug flag which is set in current->flags to
- * detect when a process is performing an unsafe allocation.  All tasks
- * with PF_NOFS set must strictly use KM_PUSHPAGE for allocations because
- * if they enter direct reclaim and initiate I/O the may deadlock.
- *
- * When debugging is disabled, any incorrect usage will be detected and
- * a call stack with warning will be printed to the console.  The flags
- * will then be automatically corrected to allow for safe execution.  If
- * debugging is enabled this will be treated as a fatal condition.
- *
- * To avoid any risk of conflicting with the existing PF_ flags.  The
- * PF_NOFS bit shadows the rarely used PF_MUTEX_TESTER bit.  Only when
- * CONFIG_RT_MUTEX_TESTER is not set, and we know this bit is unused,
- * will the PF_NOFS bit be valid.  Happily, most existing distributions
- * ship a kernel with CONFIG_RT_MUTEX_TESTER disabled.
- */
-#if !defined(CONFIG_RT_MUTEX_TESTER) && defined(PF_MUTEX_TESTER)
-#define	PF_NOFS	PF_MUTEX_TESTER
-
-static inline void
-sanitize_flags(struct task_struct *p, gfp_t *flags)
-{
-	if (unlikely((p->flags & PF_NOFS) && (*flags & (__GFP_IO|__GFP_FS)))) {
-#ifdef NDEBUG
-		printk(KERN_WARNING "Fixing allocation for task %s (%d) "
-		    "which used GFP flags 0x%x with PF_NOFS set\n",
-		    p->comm, p->pid, *flags);
-		spl_dumpstack();
-		*flags &= ~(__GFP_IO|__GFP_FS);
-#else
-		PANIC("FATAL allocation for task %s (%d) which used GFP "
-		    "flags 0x%x with PF_NOFS set\n", p->comm, p->pid, *flags);
-#endif /* NDEBUG */
-	}
-}
-#else
-#define PF_NOFS			0x00000000
-#define sanitize_flags(p, fl)	((void)0)
-#endif /* !defined(CONFIG_RT_MUTEX_TESTER) && defined(PF_MUTEX_TESTER) */
-
-/*
  * __GFP_NOFAIL looks like it will be removed from the kernel perhaps as
  * early as 2.6.32.  To avoid this issue when it occurs in upstream kernels
  * we retry the allocation here as long as it is not __GFP_WAIT (GFP_ATOMIC).
@@ -108,8 +67,6 @@ static inline void *
 kmalloc_nofail(size_t size, gfp_t flags)
 {
 	void *ptr;
-
-	sanitize_flags(current, &flags);
 
 	do {
 		ptr = kmalloc(size, flags);
@@ -123,8 +80,6 @@ kzalloc_nofail(size_t size, gfp_t flags)
 {
 	void *ptr;
 
-	sanitize_flags(current, &flags);
-
 	do {
 		ptr = kzalloc(size, flags);
 	} while (ptr == NULL && (flags & __GFP_WAIT));
@@ -137,8 +92,6 @@ kmalloc_node_nofail(size_t size, gfp_t flags, int node)
 {
 	void *ptr;
 
-	sanitize_flags(current, &flags);
-
 	do {
 		ptr = kmalloc_node(size, flags, node);
 	} while (ptr == NULL && (flags & __GFP_WAIT));
@@ -150,8 +103,6 @@ static inline void *
 vmalloc_nofail(size_t size, gfp_t flags)
 {
 	void *ptr;
-
-	sanitize_flags(current, &flags);
 
 	/*
 	 * Retry failed __vmalloc() allocations once every second.  The
