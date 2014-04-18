@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -58,7 +58,6 @@ struct metaslab_group {
 	kmutex_t		mg_lock;
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
-	uint64_t		mg_alloc_failures;
 	boolean_t		mg_allocatable;		/* can we allocate? */
 	uint64_t		mg_free_capacity;	/* percentage free */
 	int64_t			mg_bias;
