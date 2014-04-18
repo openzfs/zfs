@@ -207,11 +207,12 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
  * Little Endian or Big Endian?
  * Note: overwrite the below #define if you know your architecture endianess.
  */
-#if (defined(__BIG_ENDIAN__) || defined(__BIG_ENDIAN) || \
-	defined(_BIG_ENDIAN) || defined(_ARCH_PPC) || defined(__PPC__) || \
+#if (defined(_KERNEL) && (defined(__BIG_ENDIAN__) || defined(__BIG_ENDIAN) || \
+	defined(_BIG_ENDIAN))) || defined(_ARCH_PPC) || defined(__PPC__) || \
 	defined(__PPC) || defined(PPC) || defined(__powerpc__) || \
 	defined(__powerpc) || defined(powerpc) || \
-	((defined(__BYTE_ORDER__)&&(__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))))
+	(!defined(_KERNEL) && defined(__BYTE_ORDER__) && \
+	(__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))
 #define	LZ4_BIG_ENDIAN 1
 #else
 /*
