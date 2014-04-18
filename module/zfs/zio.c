@@ -60,8 +60,6 @@ kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 int zio_bulk_flags = 0;
 int zio_delay_max = ZIO_DELAY_MAX;
 
-extern int zfs_mg_alloc_failures;
-
 /*
  * The following actions directly effect the spa's sync-to-convergence logic.
  * The values below define the sync pass when we start performing the action.
@@ -192,13 +190,6 @@ zio_init(void)
 		if (zio_data_buf_cache[c - 1] == NULL)
 			zio_data_buf_cache[c - 1] = zio_data_buf_cache[c];
 	}
-
-	/*
-	 * The zio write taskqs have 1 thread per cpu, allow 1/2 of the taskqs
-	 * to fail 3 times per txg or 8 failures, whichever is greater.
-	 */
-	if (zfs_mg_alloc_failures == 0)
-		zfs_mg_alloc_failures = MAX((3 * max_ncpus / 2), 8);
 
 	zio_inject_init();
 
