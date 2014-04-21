@@ -925,7 +925,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 
 		/* Skip properties not valid for this type. */
 		if ((flags & DSL_PROP_GET_SNAPSHOT) && prop != ZPROP_INVAL &&
-		    !zfs_prop_valid_for_type(prop, ZFS_TYPE_SNAPSHOT))
+		    !zfs_prop_valid_for_type(prop, ZFS_TYPE_SNAPSHOT, B_FALSE))
 			continue;
 
 		/* Skip properties already defined. */

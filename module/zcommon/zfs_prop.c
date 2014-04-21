@@ -391,7 +391,7 @@ zfs_prop_init(void)
 	    PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<size> | none", "RESERV");
 	zprop_register_number(ZFS_PROP_VOLSIZE, "volsize", 0, PROP_DEFAULT,
-	    ZFS_TYPE_VOLUME, "<size>", "VOLSIZE");
+	    ZFS_TYPE_SNAPSHOT | ZFS_TYPE_VOLUME, "<size>", "VOLSIZE");
 	zprop_register_number(ZFS_PROP_REFQUOTA, "refquota", 0, PROP_DEFAULT,
 	    ZFS_TYPE_FILESYSTEM, "<size> | none", "REFQUOTA");
 	zprop_register_number(ZFS_PROP_REFRESERVATION, "refreservation", 0,
@@ -555,9 +555,9 @@ zfs_prop_random_value(zfs_prop_t prop, uint64_t seed)
  * Returns TRUE if the property applies to any of the given dataset types.
  */
 boolean_t
-zfs_prop_valid_for_type(int prop, zfs_type_t types)
+zfs_prop_valid_for_type(int prop, zfs_type_t types, boolean_t headcheck)
 {
-	return (zprop_valid_for_type(prop, types));
+	return (zprop_valid_for_type(prop, types, headcheck));
 }
 
 zprop_type_t
