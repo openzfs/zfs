@@ -864,7 +864,8 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	ASSERT(ISP2(size));
 
 	if (skc->skc_flags & KMC_KMEM)
-		ptr = (void *)__get_free_pages(flags, get_order(size));
+		ptr = (void *)__get_free_pages(flags | __GFP_COMP,
+		    get_order(size));
 	else
 		ptr = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
 
