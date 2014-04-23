@@ -127,7 +127,6 @@ main(int argc, char *argv[])
 	}
 
 	send_stream = stdin;
-	pcksum = zc;
 	while (ssread(drr, sizeof (dmu_replay_record_t), &zc)) {
 
 		if (first) {
