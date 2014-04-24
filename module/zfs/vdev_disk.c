@@ -484,6 +484,13 @@ bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 		else
 			page = virt_to_page(bio_ptr);
 
+		/*
+		 * Some network related block device uses tcp_sendpage, which
+		 * doesn't behave well when using 0-count page, this is a
+		 * safety net to catch them.
+		 */
+		ASSERT3S(page_count(page), >, 0);
+
 		if (bio_add_page(bio, page, size, offset) != size)
 			break;
 
