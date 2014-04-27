@@ -150,6 +150,7 @@ extern unsigned long spl_hostid;
 
 /* Missing misc functions */
 extern int highbit(unsigned long i);
+extern int highbit64(uint64_t i);
 extern uint32_t zone_get_hostid(void *zone);
 extern void spl_setup(void);
 extern void spl_cleanup(void);
@@ -171,6 +172,9 @@ extern void spl_cleanup(void);
 #endif
 #ifndef roundup
 #define roundup(x, y)		((((x) + ((y) - 1)) / (y)) * (y))
+#endif
+#ifndef howmany
+#define howmany(x, y)		(((x) + ((y) - 1)) / (y))
 #endif
 
 /*
