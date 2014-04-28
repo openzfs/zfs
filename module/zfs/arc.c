@@ -3986,9 +3986,14 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 
 	if (reserve > arc_c/4 && !arc_no_grow)
 		arc_c = MIN(arc_c_max, reserve * 4);
+
+	/*
+	 * Throttle when the calculated memory footprint for the TXG
+	 * exceeds the target ARC size.
+	 */
 	if (reserve > arc_c) {
 		DMU_TX_STAT_BUMP(dmu_tx_memory_reserve);
-		return (SET_ERROR(ENOMEM));
+		return (SET_ERROR(ERESTART));
 	}
 
 	/*
