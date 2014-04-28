@@ -24,6 +24,7 @@
  */
 
 #include <sys/abd.h>
+#include <sys/arc.h>
 #include <sys/zio.h>
 #ifdef _KERNEL
 #include <linux/kernel.h>
@@ -1021,6 +1022,9 @@ static kmem_cache_t *abd_struct_cache = NULL;
  * It shares the underlying buffer with the original ABD.
  * Use abd_put to free. The original ABD(allocated from abd_alloc) must
  * not be freed before any of its derived ABD.
+ *
+ * As this isn't a new ABD block and it is short lived, we don't
+ * track this in the ARC allocations
  */
 abd_t *
 abd_get_offset(abd_t *sabd, size_t off)
@@ -1034,7 +1038,7 @@ abd_get_offset(abd_t *sabd, size_t off)
 
 	abd_set_magic(abd);
 	abd->abd_size = sabd->abd_size - off;
-	abd->abd_flags = sabd->abd_flags & ~ABD_F_OWNER;
+	abd->abd_flags = (sabd->abd_flags & ~ABD_F_OWNER) | ABD_F_CHILD;
 
 	if (ABD_IS_LINEAR(sabd)) {
 		abd->abd_offset = 0;
@@ -1081,6 +1085,8 @@ abd_get_from_buf(void *buf, size_t size)
 	abd->abd_nents = 1;
 	abd->abd_buf = buf;
 
+	arc_space_consume(sizeof(*abd), ARC_SPACE_ABD_HDRS);
+
 	return (abd);
 }
 
@@ -1095,6 +1101,8 @@ abd_put(abd_t *abd)
 	ABD_CHECK(abd);
 	ASSERT(!(abd->abd_flags & ABD_F_OWNER));
 
+	if (!(abd->abd_flags & ABD_F_CHILD))
+	        arc_space_return(sizeof(*abd), ARC_SPACE_ABD_HDRS);
 	abd_clear_magic(abd);
 	kmem_cache_free(abd_struct_cache, abd);
 }
@@ -1215,7 +1223,8 @@ __abd_alloc_scatter(size_t size, int highmem)
 	abd_sg_alloc_table(abd, pages, n);
 
 	kmem_free(pages, sizeof (*pages) * n);
-
+	arc_space_consume(sizeof(*abd), ARC_SPACE_ABD_HDRS);
+	arc_space_consume(PAGESIZE * n, ARC_SPACE_ABD_DATA);
 	return (abd);
 }
 
@@ -1245,7 +1254,8 @@ abd_alloc_linear(size_t size)
 	abd->abd_nents = 1;
 
 	abd->abd_buf = zio_buf_alloc(size);
-
+	arc_space_consume(sizeof(*abd), ARC_SPACE_ABD_HDRS);
+	arc_space_consume(size, ARC_SPACE_ABD_DATA);
 	return (abd);
 }
 
@@ -1267,6 +1277,8 @@ abd_free_scatter(abd_t *abd, size_t size)
 
 	abd_sg_free_table(abd);
 	kmem_cache_free(abd_struct_cache, abd);
+	arc_space_return(sizeof(*abd), ARC_SPACE_ABD_HDRS);
+	arc_space_return(PAGESIZE * n, ARC_SPACE_ABD_DATA);
 }
 
 static void
@@ -1275,6 +1287,8 @@ abd_free_linear(abd_t *abd, size_t size)
 	abd_clear_magic(abd);
 	zio_buf_free(abd->abd_buf, size);
 	kmem_cache_free(abd_struct_cache, abd);
+	arc_space_return(sizeof(*abd), ARC_SPACE_ABD_HDRS);
+	arc_space_return(size, ARC_SPACE_ABD_DATA);
 }
 
 /*

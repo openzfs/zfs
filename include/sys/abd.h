@@ -60,6 +60,7 @@ typedef struct arc_buf_data {
 #define	ABD_F_LINEAR	(1)		/* abd is linear */
 #define	ABD_F_OWNER	(1<<1)		/* abd owns the buffer */
 #define	ABD_F_HIGHMEM	(1<<2)		/* abd uses highmem */
+#define ABD_F_CHILD	(1<<3)		/* abd is a child of another abd */
 
 #define	ABD_IS_SCATTER(abd)	(!((abd)->abd_flags & ABD_F_LINEAR))
 #define	ABD_IS_LINEAR(abd)	(!ABD_IS_SCATTER(abd))
