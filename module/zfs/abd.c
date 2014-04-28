@@ -25,6 +25,7 @@
 
 #include <sys/abd.h>
 #include <sys/zio.h>
+#include <sys/arc.h>
 #ifdef _KERNEL
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -940,7 +941,8 @@ static inline abd_t *
 abd_alloc_struct(int nr_pages)
 {
 	abd_t *abd;
-	size_t asize = sizeof (abd_t) + nr_pages*sizeof (struct scatterlist);
+	const size_t asize = sizeof (abd_t) +
+	    nr_pages*sizeof (struct scatterlist);
 	/*
 	 * If the maximum block size increases, inline sgl might not fit into
 	 * a single page. We might want to consider using chained sgl if
@@ -958,6 +960,7 @@ abd_alloc_struct(int nr_pages)
 	}
 #endif
 	ASSERT(abd);
+	arc_space_consume(asize, ARC_SPACE_ABD_HDRS);
 
 	return (abd);
 }
@@ -965,6 +968,8 @@ abd_alloc_struct(int nr_pages)
 static inline void
 abd_free_struct(abd_t *abd, int nr_pages)
 {
+	const int size = sizeof (abd_t) +
+	    nr_pages * sizeof (struct scatterlist);
 #ifndef DEBUG_ABD
 	kmem_free(abd, sizeof (abd_t) + nr_pages*sizeof (struct scatterlist));
 #else
@@ -974,6 +979,7 @@ abd_free_struct(abd_t *abd, int nr_pages)
 	}
 	umem_free(abd, sizeof (abd_t) + nr_pages*sizeof (struct scatterlist));
 #endif
+	arc_space_return(size, ARC_SPACE_ABD_HDRS);
 }
 
 /*
@@ -1086,7 +1092,7 @@ retry:
 		sg_set_page(&abd->abd_sgl[i], page,
 		    (i == n-1 ? last_size : PAGE_SIZE), 0);
 	}
-
+	arc_space_consume(n * PAGE_SIZE, ARC_SPACE_ABD_DATA);
 	return (abd);
 }
 
@@ -1137,6 +1143,7 @@ abd_free_scatter(abd_t *abd, size_t size)
 		if (page)
 			__free_page(page);
 	}
+	arc_space_return(n * PAGE_SIZE, ARC_SPACE_ABD_DATA);
 	abd_free_struct(abd, n);
 }
 
