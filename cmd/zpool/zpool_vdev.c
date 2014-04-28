@@ -377,7 +377,7 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 	 * using check_file() to see if it's safe.  The one safe
 	 * case is a spare device shared between multiple pools.
 	 */
-	if (strcmp(value, "zfs") == 0) {
+	if (strcmp(value, "zfs_member") == 0) {
 		err = check_file(path, force, isspare);
 	} else {
 		if (force) {
