@@ -366,7 +366,7 @@ void
 rw_destroy(krwlock_t *rwlp)
 {
 	ASSERT3U(rwlp->rw_magic, ==, RW_MAGIC);
-
+	ASSERT(rwlp->rw_readers == 0 && rwlp->rw_wr_owner == RW_INIT);
 	VERIFY3S(pthread_rwlock_destroy(&rwlp->rw_lock), ==, 0);
 	rwlp->rw_magic = 0;
 }
