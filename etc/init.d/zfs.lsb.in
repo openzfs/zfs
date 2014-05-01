@@ -49,14 +49,6 @@ start()
 {
 	[ -f "$LOCKFILE" ] && return 3
 
-	# Requires selinux policy which has not been written.
-	if [ -r "/selinux/enforce" ] &&
-	   [ "$(cat /selinux/enforce)" = "1" ]; then
-
-		log_failure_msg "SELinux ZFS policy required"
-		return 4
-	fi
-
 	# Delay until all required block devices are present.
 	udevadm settle
 
