@@ -134,22 +134,3 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS], [
 	])
 ])
 
-dnl #
-dnl # 2.6.39 API change,
-dnl # The is_owner_or_cap() macro was replaced by inode_owner_or_capable(),
-dnl # this is used for permission checks in the xattr call paths.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OWNER_OR_CAPABLE], [
-	AC_MSG_CHECKING([whether inode_owner_or_capable() exists])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		inode_owner_or_capable(NULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_INODE_OWNER_OR_CAPABLE, 1,
-		    [inode_owner_or_capable() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
