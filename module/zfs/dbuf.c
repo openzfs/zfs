@@ -263,7 +263,10 @@ dbuf_evict_user(dmu_buf_impl_t *db)
 boolean_t
 dbuf_is_metadata(dmu_buf_impl_t *db)
 {
-	if (db->db_level > 0) {
+	/*
+	 * Consider indirect blocks and spill blocks to be meta data.
+	 */
+	if (db->db_level > 0 || db->db_blkid == DMU_SPILL_BLKID) {
 		return (B_TRUE);
 	} else {
 		boolean_t is_metadata;
