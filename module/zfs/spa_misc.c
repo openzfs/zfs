@@ -1552,7 +1552,9 @@ dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 
 	if (asize != 0 && spa->spa_deflate) {
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
-		dsize = (asize >> SPA_MINBLOCKSHIFT) * vd->vdev_deflate_ratio;
+		if (vd != NULL)
+			dsize = (asize >> SPA_MINBLOCKSHIFT) *
+			    vd->vdev_deflate_ratio;
 	}
 
 	return (dsize);
