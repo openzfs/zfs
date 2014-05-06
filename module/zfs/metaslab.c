@@ -2118,5 +2118,6 @@ module_param(metaslab_debug_load, int, 0644);
 MODULE_PARM_DESC(metaslab_debug_load, "load all metaslabs during pool import");
 
 module_param(metaslab_debug_unload, int, 0644);
-MODULE_PARM_DESC(metaslab_debug_unload, "prevent metaslabs from being unloaded");
+MODULE_PARM_DESC(metaslab_debug_unload,
+	"prevent metaslabs from being unloaded");
 #endif /* _KERNEL && HAVE_SPL */
