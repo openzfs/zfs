@@ -95,8 +95,12 @@
 #define minclsyspri			(MAX_RT_PRIO)
 #define maxclsyspri			(MAX_PRIO-1)
 
+#ifndef NICE_TO_PRIO
 #define NICE_TO_PRIO(nice)		(MAX_RT_PRIO + (nice) + 20)
+#endif
+#ifndef PRIO_TO_NICE
 #define PRIO_TO_NICE(prio)		((prio) - MAX_RT_PRIO - 20)
+#endif
 
 /* Missing macros
  */
