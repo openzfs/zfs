@@ -414,13 +414,16 @@ vn_rename(const char *oldname, const char *newname, int x1)
 			SGOTO(exit4, rc);
 	}
 
-#ifdef HAVE_4ARGS_VFS_RENAME
+#if defined(HAVE_4ARGS_VFS_RENAME)
 	rc = vfs_rename(old_dir->d_inode, old_dentry,
 	    new_dir->d_inode, new_dentry);
-#else
+#elif defined(HAVE_5ARGS_VFS_RENAME)
 	rc = vfs_rename(old_dir->d_inode, old_dentry,
 	    new_dir->d_inode, new_dentry, NULL);
-#endif /* HAVE_4ARGS_VFS_RENAME */
+#else
+	rc = vfs_rename(old_dir->d_inode, old_dentry,
+	    new_dir->d_inode, new_dentry, NULL, 0);
+#endif
 exit4:
 	unlock_rename(new_dir, old_dir);
 exit3:
@@ -574,13 +577,16 @@ vn_rename(const char *oldname, const char *newname, int x1)
         if (new_dentry == trap)
                 SGOTO(exit5, rc);
 
-#ifdef HAVE_4ARGS_VFS_RENAME
+#if defined(HAVE_4ARGS_VFS_RENAME)
 	rc = vfs_rename(old_dir->d_inode, old_dentry,
 	    new_dir->d_inode, new_dentry);
-#else
+#elif defined(HAVE_5ARGS_VFS_RENAME)
 	rc = vfs_rename(old_dir->d_inode, old_dentry,
 	    new_dir->d_inode, new_dentry, NULL);
-#endif /* HAVE_4ARGS_VFS_RENAME */
+#else
+	rc = vfs_rename(old_dir->d_inode, old_dentry,
+	    new_dir->d_inode, new_dentry, NULL, 0);
+#endif
 exit5:
         dput(new_dentry);
 exit4:

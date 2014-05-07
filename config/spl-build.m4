@@ -1907,7 +1907,28 @@ AC_DEFUN([SPL_AC_4ARGS_VFS_RENAME],
 			AC_DEFINE(HAVE_5ARGS_VFS_RENAME, 1,
 				  [vfs_rename() wants 5 args])
 		],[
-			AC_MSG_ERROR(no)
+			AC_MSG_RESULT(no)
+			dnl #
+			dnl # Linux 3.15 API change
+			dnl # Added flags
+			dnl #
+			AC_MSG_CHECKING([whether vfs_rename() wants 6 args])
+			SPL_LINUX_TRY_COMPILE([
+				#include <linux/fs.h>
+			],[
+				vfs_rename((struct inode *) NULL,
+					(struct dentry *) NULL,
+					(struct inode *) NULL,
+					(struct dentry *) NULL,
+					(struct inode **) NULL,
+					(unsigned int) 0);
+			],[
+				AC_MSG_RESULT(yes)
+				AC_DEFINE(HAVE_6ARGS_VFS_RENAME, 1,
+					  [vfs_rename() wants 6 args])
+			],[
+				AC_MSG_ERROR(no)
+			])
 		])
 	])
 ])
