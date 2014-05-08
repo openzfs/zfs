@@ -191,7 +191,7 @@
 #include "zfs_comutil.h"
 
 kmutex_t zfsdev_state_lock;
-list_t zfsdev_state_list;
+zfsdev_state_t *zfsdev_state_list;
 
 extern void zfs_init(void);
 extern void zfs_fini(void);
@@ -5447,11 +5447,9 @@ zfsdev_get_state_impl(minor_t minor, enum zfsdev_state_type which)
 {
 	zfsdev_state_t *zs;
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-
-	for (zs = list_head(&zfsdev_state_list); zs != NULL;
-	    zs = list_next(&zfsdev_state_list, zs)) {
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
 		if (zs->zs_minor == minor) {
+			smp_rmb();
 			switch (which) {
 			case ZST_ONEXIT:
 				return (zs->zs_onexit);
@@ -5471,9 +5469,7 @@ zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
 {
 	void *ptr;
 
-	mutex_enter(&zfsdev_state_lock);
 	ptr = zfsdev_get_state_impl(minor, which);
-	mutex_exit(&zfsdev_state_lock);
 
 	return (ptr);
 }
@@ -5514,8 +5510,9 @@ zfsdev_minor_alloc(void)
 static int
 zfsdev_state_init(struct file *filp)
 {
-	zfsdev_state_t *zs;
+	zfsdev_state_t *zs, *zsprev = NULL;
 	minor_t minor;
+	boolean_t newzs = B_FALSE;
 
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
@@ -5523,16 +5520,40 @@ zfsdev_state_init(struct file *filp)
 	if (minor == 0)
 		return (SET_ERROR(ENXIO));
 
-	zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+		if (zs->zs_minor == -1)
+			break;
+		zsprev = zs;
+	}
+
+	if (!zs) {
+		zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+		newzs = B_TRUE;
+	}
 
 	zs->zs_file = filp;
-	zs->zs_minor = minor;
 	filp->private_data = zs;
 
 	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
 	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
 
-	list_insert_tail(&zfsdev_state_list, zs);
+
+	/*
+	 * In order to provide for lock-free concurrent read access
+	 * to the minor list in zfsdev_get_state_impl(), new entries
+	 * must be completely written before linking them into the
+	 * list whereas existing entries are already linked; the last
+	 * operation must be updating zs_minor (from -1 to the new
+	 * value).
+	 */
+	if (newzs) {
+		zs->zs_minor = minor;
+		smp_wmb();
+		zsprev->zs_next = zs;
+	} else {
+		smp_wmb();
+		zs->zs_minor = minor;
+	}
 
 	return (0);
 }
@@ -5546,11 +5567,9 @@ zfsdev_state_destroy(struct file *filp)
 	ASSERT(filp->private_data != NULL);
 
 	zs = filp->private_data;
+	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
-
-	list_remove(&zfsdev_state_list, zs);
-	kmem_free(zs, sizeof (zfsdev_state_t));
 
 	return (0);
 }
@@ -5762,8 +5781,8 @@ zfs_attach(void)
 	int error;
 
 	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&zfsdev_state_list, sizeof (zfsdev_state_t),
-	    offsetof(zfsdev_state_t, zs_next));
+	zfsdev_state_list = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+	zfsdev_state_list->zs_minor = -1;
 
 	error = misc_register(&zfs_misc);
 	if (error != 0) {
@@ -5778,13 +5797,21 @@ static void
 zfs_detach(void)
 {
 	int error;
+	zfsdev_state_t *zs, *zsprev = NULL;
 
 	error = misc_deregister(&zfs_misc);
 	if (error != 0)
 		printk(KERN_INFO "ZFS: misc_deregister() failed %d\n", error);
 
 	mutex_destroy(&zfsdev_state_lock);
-	list_destroy(&zfsdev_state_list);
+
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+		if (zsprev)
+			kmem_free(zsprev, sizeof (zfsdev_state_t));
+		zsprev = zs;
+	}
+	if (zsprev)
+		kmem_free(zsprev, sizeof (zfsdev_state_t));
 }
 
 static void

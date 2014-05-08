@@ -371,8 +371,15 @@ enum zfsdev_state_type {
 	ZST_ALL,
 };
 
+/*
+ * The zfsdev_state_t structure is managed as a singly-linked list
+ * from which items are never deleted.  This allows for lock-free
+ * reading of the list so long as assignments to the zs_next and
+ * reads from zs_minor are performed atomically.  Empty items are
+ * indicated by storing -1 into zs_minor.
+ */
 typedef struct zfsdev_state {
-	list_node_t		zs_next;	/* next zfsdev_state_t link */
+	struct zfsdev_state	*zs_next;	/* next zfsdev_state_t link */
 	struct file		*zs_file;	/* associated file struct */
 	minor_t			zs_minor;	/* made up minor number */
 	void			*zs_onexit;	/* onexit data */
