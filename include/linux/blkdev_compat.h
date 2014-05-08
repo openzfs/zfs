@@ -284,7 +284,41 @@ struct req_iterator {
 #define	rq_for_each_segment(bvl, _rq, _iter)                    \
 	__rq_for_each_bio(_iter.bio, _rq)                       \
 		bio_for_each_segment(bvl, _iter.bio, _iter.i)
+
+#define	HAVE_RQ_FOR_EACH_SEGMENT_BVP 1
 #endif /* HAVE_RQ_FOR_EACH_SEGMENT */
+
+/*
+ * 3.14 API change
+ * rq_for_each_segment changed from taking bio_vec * to taking bio_vec.
+ * We provide rq_for_each_segment4 which takes both.
+ * You should not modify the fields in @bv and @bvp.
+ *
+ * Note: the if-else is just to inject the assignment before the loop body.
+ */
+#ifdef HAVE_RQ_FOR_EACH_SEGMENT_BVP
+#define	rq_for_each_segment4(bv, bvp, rq, iter)	\
+	rq_for_each_segment(bvp, rq, iter)	\
+		if ((bv = *bvp), 0)		\
+			;			\
+		else
+#else
+#define	rq_for_each_segment4(bv, bvp, rq, iter)	\
+	rq_for_each_segment(bv, rq, iter)	\
+		if ((bvp = &bv), 0)		\
+			;			\
+		else
+#endif
+
+#ifdef HAVE_BIO_BVEC_ITER
+#define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
+#define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
+#define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#else
+#define	BIO_BI_SECTOR(bio)	(bio)->bi_sector
+#define	BIO_BI_SIZE(bio)	(bio)->bi_size
+#define	BIO_BI_IDX(bio)		(bio)->bi_idx
+#endif
 
 /*
  * Portable helper for correctly setting the FAILFAST flags.  The

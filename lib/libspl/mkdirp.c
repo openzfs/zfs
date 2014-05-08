@@ -146,8 +146,10 @@ simplify(const char *str)
 	 *  bail out if there is nothing there.
 	 */
 
-	if (!str)
+	if (!str) {
+		errno = ENOENT;
 		return (NULL);
+	}
 
 	/*
 	 *  Get a copy of the argument.

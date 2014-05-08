@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Verify that an assortment of known good reference pools can be imported
 # using different versions of the ZoL code.
@@ -233,30 +233,30 @@ pool_create() {
 		cd $POOL_DIR_SRC
 	fi
 
-	$ZFS_SH zfs="spa_config_path=$POOL_DIR_PRISTINE" || fail
+	$ZFS_SH zfs="spa_config_path=$POOL_DIR_PRISTINE" || fail 1
 
 	# Create a file vdev RAIDZ pool.
 	FILEDIR="$POOL_DIR_PRISTINE" $ZPOOL_CREATE \
-	    -c file-raidz -p $POOL_TAG -v >/dev/null || fail
+	    -c file-raidz -p $POOL_TAG -v >/dev/null || fail 2
 
 	# Create a pool/fs filesystem with some random contents.
-	$ZFS_CMD create $POOL_TAG/fs || fail
+	$ZFS_CMD create $POOL_TAG/fs || fail 3
 	populate /$POOL_TAG/fs/ 10 100
 
 	# Snapshot that filesystem, clone it, remove the files/dirs,
 	# replace them with new files/dirs.
-	$ZFS_CMD snap $POOL_TAG/fs@snap || fail
-	$ZFS_CMD clone $POOL_TAG/fs@snap $POOL_TAG/clone || fail
-	rm -Rf /$POOL_TAG/clone/* || fail
+	$ZFS_CMD snap $POOL_TAG/fs@snap || fail 4
+	$ZFS_CMD clone $POOL_TAG/fs@snap $POOL_TAG/clone || fail 5
+	rm -Rf /$POOL_TAG/clone/* || fail 6
 	populate /$POOL_TAG/clone/ 10 100
 
 	# Scrub the pool, delay slightly, then export it.  It is now
 	# somewhat interesting for testing purposes.
-	$ZPOOL_CMD scrub $POOL_TAG || fail
+	$ZPOOL_CMD scrub $POOL_TAG || fail 7
 	sleep 10
-	$ZPOOL_CMD export $POOL_TAG || fail
+	$ZPOOL_CMD export $POOL_TAG || fail 8
 
-	$ZFS_SH -u || fail
+	$ZFS_SH -u || fail 9
 }
 
 # If the zfs-images directory doesn't exist fetch a copy from Github then
@@ -265,7 +265,7 @@ if [ ! -d $IMAGES_DIR ]; then
 	IMAGES_DIR="$TEST_DIR/zfs-images"
 	mkdir -p $IMAGES_DIR
 	curl -sL $IMAGES_TAR | \
-	    tar -xz -C $IMAGES_DIR --strip-components=1 || fail
+	    tar -xz -C $IMAGES_DIR --strip-components=1 || fail 10
 fi
 
 # Given the available images in the zfs-images directory substitute the
@@ -295,6 +295,10 @@ fi
 
 if [ ! -d $TEST_DIR ]; then
 	mkdir -p $TEST_DIR
+fi
+
+if [ ! -d $SRC_DIR ]; then
+	mkdir -p $SRC_DIR
 fi
 
 # Print a header for all tags which are being tested.
@@ -330,7 +334,7 @@ for TAG in $SRC_TAGS; do
 	elif  [ "$SPL_TAG" = "installed" ]; then
 		skip_nonewline
 	else
-		cd $SPLSRC
+		cd $SRC_DIR
 
 		if [ ! -d $SRC_DIR_SPL ]; then
 			mkdir -p $SRC_DIR_SPL
@@ -344,9 +348,9 @@ for TAG in $SRC_TAGS; do
 			rm $SRC_DIR_SPL/$SPL_TAG.tar
 			echo -n -e "${COLOR_GREEN}Local${COLOR_RESET}\t\t"
 		else
-			mkdir -p $SPL_DIR || fail
+			mkdir -p $SPL_DIR || fail 1
 			curl -sL $SPL_URL | tar -xz -C $SPL_DIR \
-			    --strip-components=1 || fail
+			    --strip-components=1 || fail 2
 			echo -n -e "${COLOR_GREEN}Remote${COLOR_RESET}\t\t"
 		fi
 	fi
@@ -366,7 +370,7 @@ for TAG in $SRC_TAGS; do
 	elif  [ "$ZFS_TAG" = "installed" ]; then
 		skip_nonewline
 	else
-		cd $SRCDIR
+		cd $SRC_DIR
 
 		if [ ! -d $SRC_DIR_ZFS ]; then
 			mkdir -p $SRC_DIR_ZFS
@@ -380,9 +384,9 @@ for TAG in $SRC_TAGS; do
 			rm $SRC_DIR_ZFS/$ZFS_TAG.tar
 			echo -n -e "${COLOR_GREEN}Local${COLOR_RESET}\t\t"
 		else
-			mkdir -p $ZFS_DIR || fail
+			mkdir -p $ZFS_DIR || fail 1
 			curl -sL $ZFS_URL | tar -xz -C $ZFS_DIR \
-			    --strip-components=1 || fail
+			    --strip-components=1 || fail 2
 			echo -n -e "${COLOR_GREEN}Remote${COLOR_RESET}\t\t"
 		fi
 	fi
@@ -401,9 +405,9 @@ for TAG in $SRC_TAGS; do
 	else
 		cd $SPL_DIR
 		make distclean &>/dev/null
-		sh ./autogen.sh &>/dev/null || fail
-		./configure &>/dev/null || fail
-		make -s -j$CPUS &>/dev/null || fail
+		sh ./autogen.sh &>/dev/null || fail 1
+		./configure &>/dev/null || fail 2
+		make -s -j$CPUS &>/dev/null || fail 3
 		pass_nonewline
 	fi
 done
@@ -421,9 +425,9 @@ for TAG in $SRC_TAGS; do
 	else
 		cd $ZFS_DIR
 		make distclean &>/dev/null
-		sh ./autogen.sh &>/dev/null || fail
-		./configure --with-spl=$SPL_DIR &>/dev/null || fail
-		make -s -j$CPUS &>/dev/null || fail
+		sh ./autogen.sh &>/dev/null || fail 1
+		./configure --with-spl=$SPL_DIR &>/dev/null || fail 2
+		make -s -j$CPUS &>/dev/null || fail 3
 		pass_nonewline
 	fi
 done
@@ -443,7 +447,7 @@ for TAG in $POOL_TAGS; do
 	# Use the existing compressed image if available.
 	if [ -f $POOL_BZIP ]; then
 		tar -xjf $POOL_BZIP -C $POOL_DIR_PRISTINE \
-		    --strip-components=1 || fail
+		    --strip-components=1 || fail 1
 	# Use the installed version to create the pool.
 	elif  [ "$TAG" = "installed" ]; then
 		pool_create $TAG
@@ -468,7 +472,8 @@ for TAG in $POOL_TAGS; do
 		fi
 		$ZFS_SH zfs="spa_config_path=$POOL_DIR_COPY"
 
-		cp -a --sparse=always $POOL_DIR_PRISTINE $POOL_DIR_COPY || fail
+		cp -a --sparse=always $POOL_DIR_PRISTINE \
+		    $POOL_DIR_COPY || fail 2
 		POOL_NAME=`$ZPOOL_CMD import -d $POOL_DIR_COPY | \
 		    awk '/pool:/ { print $2; exit 0 }'`
 
@@ -477,13 +482,13 @@ for TAG in $POOL_TAGS; do
 			fail_nonewline
 			ERROR=1
 		else
-			$ZPOOL_CMD export $POOL_NAME || fail
+			$ZPOOL_CMD export $POOL_NAME || fail 3
 			pass_nonewline
 		fi
 
 		rm -Rf $POOL_DIR_COPY
 
-		$ZFS_SH -u || fail
+		$ZFS_SH -u || fail 4
 	done
 	printf "\n"
 done

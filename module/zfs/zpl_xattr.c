@@ -924,7 +924,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		}
 
 		mode = ip->i_mode;
-		error = posix_acl_create(&acl, GFP_KERNEL, &mode);
+		error = __posix_acl_create(&acl, GFP_KERNEL, &mode);
 		if (error >= 0) {
 			ip->i_mode = mode;
 			mark_inode_dirty(ip);
@@ -954,7 +954,7 @@ zpl_chmod_acl(struct inode *ip)
 	if (IS_ERR(acl) || !acl)
 		return (PTR_ERR(acl));
 
-	error = posix_acl_chmod(&acl, GFP_KERNEL, ip->i_mode);
+	error = __posix_acl_chmod(&acl, GFP_KERNEL, ip->i_mode);
 	if (!error)
 		error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
 

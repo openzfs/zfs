@@ -38,6 +38,7 @@ sbindir=@sbindir@
 udevdir=@udevdir@
 udevruledir=@udevruledir@
 sysconfdir=@sysconfdir@
+localstatedir=@localstatedir@
 
 ETCDIR=${ETCDIR:-/etc}
 DEVDIR=${DEVDIR:-/dev/disk/by-vdev}
@@ -71,6 +72,8 @@ SCSIRESCAN=${SCSIRESCAN:-/usr/bin/scsi-rescan}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
 UDEVADM=${UDEVADM:-/sbin/udevadm}
 AWK=${AWK:-/usr/bin/awk}
+
+ZED_PIDFILE=${ZED_PIDFILE:-${localstatedir}/run/zed.pid}
 
 COLOR_BLACK="\033[0;30m"
 COLOR_DK_GRAY="\033[1;30m"
@@ -204,7 +207,11 @@ load_module() {
 		echo "Loading ${NAME} ($@)"
 	fi
 
-	${LDMOD} $* &>/dev/null || ERROR="Failed to load $1" return 1
+	${LDMOD} $* &>/dev/null
+	if [ $? -ne 0 ]; then
+		echo "Failed to load ${NAME} ($@)"
+		return 1
+	fi
 
 	return 0
 }
@@ -213,7 +220,7 @@ load_modules() {
 	mkdir -p /etc/zfs
 
 	for MOD in ${KERNEL_MODULES[*]}; do
-		load_module ${MOD}
+		load_module ${MOD} >/dev/null
 	done
 
 	for MOD in ${MODULES[*]}; do
@@ -285,34 +292,61 @@ check_loop_utils() {
 
 
 #
-# Find and return an unused loopback device.
+# Find and return an unused loop device.  A new /dev/loopN node will be
+# created if required.  The kernel loop driver will automatically register
+# the minor as long as it's less than /sys/module/loop/parameters/max_loop.
 #
 unused_loop_device() {
-	for DEVICE in `ls -1 /dev/loop[0-9]* 2>/dev/null`; do
-		${LOSETUP} ${DEVICE} &>/dev/null
-		if [ $? -ne 0 ]; then
-			echo ${DEVICE}
-			return
-		fi
-	done
+	local DEVICE=`${LOSETUP} -f`
+	local MAX_LOOP_PATH="/sys/module/loop/parameters/max_loop"
+	local MAX_LOOP;
 
-	die "Error: Unable to find unused loopback device"
+	# An existing /dev/loopN device was available.
+	if [ -n "${DEVICE}" ]; then
+		echo "${DEVICE}"
+		return 0
+	fi
+
+	# Create a new /dev/loopN provided we are not at MAX_LOOP.
+	if [ -f "${MAX_LOOP_PATH}" ]; then
+		MAX_LOOP=`cat /sys/module/loop/parameters/max_loop`
+		if [ ${MAX_LOOP} -eq 0 ]; then
+			MAX_LOOP=255
+		fi
+
+		for (( i=0; i<=${MAX_LOOP}; i++ )); do
+			DEVICE="/dev/loop$i"
+
+			if [ -b "${DEVICE}" ]; then
+				continue
+			else
+				mknod -m660 "${DEVICE}" b 7 $i
+				chown root.disk "${DEVICE}"
+				chmod 666 "${DEVICE}"
+
+				echo "${DEVICE}"
+				return 0
+			fi
+		done
+	fi
+
+	die "Error: Unable to create new loopback device"
 }
 
 #
 # This can be slightly dangerous because the loop devices we are
 # cleaning up may not be ours.  However, if the devices are currently
 # in use we will not be able to remove them, and we only remove
-# devices which include 'zpool' in the name.  So any damage we might
-# do should be limited to other zfs related testing.
+# devices which include 'zpool' or 'deleted' in the name.  So any
+# damage we might do should be limited to other zfs related testing.
 #
 cleanup_loop_devices() {
 	local TMP_FILE=`mktemp`
 
 	${LOSETUP} -a | tr -d '()' >${TMP_FILE}
 	${AWK} -F":" -v losetup="$LOSETUP" \
-	    '/zpool/ { system("losetup -d "$1) }' ${TMP_FILE}
-	${AWK} -F" " '/zpool/ { system("rm -f "$3) }' ${TMP_FILE}
+	    '/zpool/ || /deleted/ { system("losetup -d "$1) }' ${TMP_FILE}
+	${AWK} -F" " '/zpool/ || /deleted/ { system("rm -f "$3) }' ${TMP_FILE}
 
 	rm -f ${TMP_FILE}
 }
@@ -744,4 +778,10 @@ stack_check() {
 			cat $STACK_TRACE
 		fi
 	fi
+}
+
+kill_zed() {
+        if [ -f $ZED_PIDFILE ]; then
+		kill $(cat $ZED_PIDFILE)
+        fi
 }

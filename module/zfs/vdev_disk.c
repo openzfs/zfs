@@ -432,11 +432,11 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
 		    "bi_next: %p, bi_flags: %lx, bi_rw: %lu, bi_vcnt: %d\n"
 		    "bi_idx: %d, bi_size: %d, bi_end_io: %p, bi_cnt: %d\n",
 		    bio->bi_next, bio->bi_flags, bio->bi_rw, bio->bi_vcnt,
-		    bio->bi_idx, bio->bi_size, bio->bi_end_io,
+		    BIO_BI_IDX(bio), BIO_BI_SIZE(bio), bio->bi_end_io,
 		    atomic_read(&bio->bi_cnt));
 
 #ifndef HAVE_2ARGS_BIO_END_IO_T
-	if (bio->bi_size)
+	if (BIO_BI_SIZE(bio))
 		return (1);
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 
@@ -483,6 +483,13 @@ bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 			page = vmalloc_to_page(bio_ptr);
 		else
 			page = virt_to_page(bio_ptr);
+
+		/*
+		 * Some network related block device uses tcp_sendpage, which
+		 * doesn't behave well when using 0-count page, this is a
+		 * safety net to catch them.
+		 */
+		ASSERT3S(page_count(page), >, 0);
 
 		if (bio_add_page(bio, page, size, offset) != size)
 			break;
@@ -556,7 +563,7 @@ retry:
 		vdev_disk_dio_get(dr);
 
 		dr->dr_bio[i]->bi_bdev = bdev;
-		dr->dr_bio[i]->bi_sector = bio_offset >> 9;
+		BIO_BI_SECTOR(dr->dr_bio[i]) = bio_offset >> 9;
 		dr->dr_bio[i]->bi_rw = dr->dr_rw;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
@@ -565,8 +572,8 @@ retry:
 		bio_size = bio_map(dr->dr_bio[i], bio_ptr, bio_size);
 
 		/* Advance in buffer and construct another bio if needed */
-		bio_ptr    += dr->dr_bio[i]->bi_size;
-		bio_offset += dr->dr_bio[i]->bi_size;
+		bio_ptr    += BIO_BI_SIZE(dr->dr_bio[i]);
+		bio_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 	}
 
 	/* Extra reference to protect dio_request during submit_bio */

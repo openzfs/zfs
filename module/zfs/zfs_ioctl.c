@@ -4860,11 +4860,11 @@ zfs_ioc_release(const char *pool, nvlist_t *holds, nvlist_t *errlist)
 /*
  * inputs:
  * zc_guid		flags (ZEVENT_NONBLOCK)
+ * zc_cleanup_fd	zevent file descriptor
  *
  * outputs:
  * zc_nvlist_dst	next nvlist event
  * zc_cookie		dropped events since last get
- * zc_cleanup_fd	cleanup-on-exit file descriptor
  */
 static int
 zfs_ioc_events_next(zfs_cmd_t *zc)
@@ -4917,6 +4917,28 @@ zfs_ioc_events_clear(zfs_cmd_t *zc)
 	zc->zc_cookie = count;
 
 	return (0);
+}
+
+/*
+ * inputs:
+ * zc_guid		eid | ZEVENT_SEEK_START | ZEVENT_SEEK_END
+ * zc_cleanup		zevent file descriptor
+ */
+static int
+zfs_ioc_events_seek(zfs_cmd_t *zc)
+{
+	zfs_zevent_t *ze;
+	minor_t minor;
+	int error;
+
+	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	if (error != 0)
+		return (error);
+
+	error = zfs_zevent_seek(ze, zc->zc_guid);
+	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+
+	return (error);
 }
 
 /*
@@ -5393,6 +5415,8 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_NONE);
 	zfs_ioctl_register_legacy(ZFS_IOC_EVENTS_CLEAR, zfs_ioc_events_clear,
 	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_NONE);
+	zfs_ioctl_register_legacy(ZFS_IOC_EVENTS_SEEK, zfs_ioc_events_seek,
+	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_NONE);
 }
 
 int
@@ -5560,7 +5584,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 {
 	zfs_cmd_t *zc;
 	uint_t vecnum;
-	int error, rc, len = 0, flag = 0;
+	int error, rc, flag = 0;
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
 	nvlist_t *innvl = NULL;
@@ -5627,9 +5651,13 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	len = strcspn(zc->zc_name, "/@#") + 1;
-	saved_poolname = kmem_alloc(len, KM_SLEEP);
-	(void) strlcpy(saved_poolname, zc->zc_name, len);
+	saved_poolname = strdup(zc->zc_name);
+	if (saved_poolname == NULL) {
+		error = SET_ERROR(ENOMEM);
+		goto out;
+	} else {
+		saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
+	}
 
 	if (vec->zvec_func != NULL) {
 		nvlist_t *outnvl;
@@ -5697,7 +5725,7 @@ out:
 		(void) tsd_set(zfs_allow_log_key, saved_poolname);
 	} else {
 		if (saved_poolname != NULL)
-			kmem_free(saved_poolname, len);
+			strfree(saved_poolname);
 	}
 
 	kmem_free(zc, sizeof (zfs_cmd_t));

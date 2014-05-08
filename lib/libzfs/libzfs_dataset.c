@@ -948,7 +948,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			goto error;
 		}
 
-		if (!zfs_prop_valid_for_type(prop, type)) {
+		if (!zfs_prop_valid_for_type(prop, type, B_FALSE)) {
 			zfs_error_aux(hdl,
 			    dgettext(TEXT_DOMAIN, "'%s' does not "
 			    "apply to datasets of this type"), propname);
@@ -1610,7 +1610,7 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 	/*
 	 * Check to see if the value applies to this type
 	 */
-	if (!zfs_prop_valid_for_type(prop, zhp->zfs_type))
+	if (!zfs_prop_valid_for_type(prop, zhp->zfs_type, B_FALSE))
 		return (zfs_error(hdl, EZFS_PROPTYPE, errbuf));
 
 	/*
@@ -1655,6 +1655,15 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 		 * Refresh the statistics so the new property is reflected.
 		 */
 		(void) get_stats(zhp);
+
+		/*
+		 * Remount the filesystem to propagate the change
+		 * if one of the options handled by the generic
+		 * Linux namespace layer has been modified.
+		 */
+		if (zfs_is_namespace_prop(prop) &&
+		    zfs_is_mounted(zhp, NULL))
+			ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
 	}
 
 error:
@@ -1751,6 +1760,14 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 
 	*source = NULL;
 
+	/*
+	 * If the property is being fetched for a snapshot, check whether
+	 * the property is valid for the snapshot's head dataset type.
+	 */
+	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT &&
+		!zfs_prop_valid_for_type(prop, zhp->zfs_head_type, B_TRUE))
+			return (-1);
+
 	switch (prop) {
 	case ZFS_PROP_ATIME:
 		mntopt_on = MNTOPT_ATIME;
@@ -1821,8 +1838,6 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		mnt.mnt_mntopts = zhp->zfs_mntopts;
 
 	switch (prop) {
-	case ZFS_PROP_ATIME:
-	case ZFS_PROP_RELATIME:
 	case ZFS_PROP_DEVICES:
 	case ZFS_PROP_EXEC:
 	case ZFS_PROP_READONLY:
@@ -1845,6 +1860,8 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		}
 		break;
 
+	case ZFS_PROP_ATIME:
+	case ZFS_PROP_RELATIME:
 	case ZFS_PROP_CANMOUNT:
 	case ZFS_PROP_VOLSIZE:
 	case ZFS_PROP_QUOTA:
@@ -1871,8 +1888,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_NORMALIZE:
 	case ZFS_PROP_UTF8ONLY:
 	case ZFS_PROP_CASE:
-		if (!zfs_prop_valid_for_type(prop, zhp->zfs_head_type) ||
-		    zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
+		if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
 			return (-1);
 		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 		if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_OBJSET_ZPLPROPS, &zc)) {
@@ -2115,7 +2131,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	/*
 	 * Check to see if this property applies to our object
 	 */
-	if (!zfs_prop_valid_for_type(prop, zhp->zfs_type))
+	if (!zfs_prop_valid_for_type(prop, zhp->zfs_type, B_FALSE))
 		return (-1);
 
 	if (received && zfs_prop_readonly(prop))
@@ -2436,7 +2452,7 @@ zfs_prop_get_numeric(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t *value,
 	/*
 	 * Check to see if this property applies to our object
 	 */
-	if (!zfs_prop_valid_for_type(prop, zhp->zfs_type)) {
+	if (!zfs_prop_valid_for_type(prop, zhp->zfs_type, B_FALSE)) {
 		return (zfs_error_fmt(zhp->zfs_hdl, EZFS_PROPTYPE,
 		    dgettext(TEXT_DOMAIN, "cannot get property '%s'"),
 		    zfs_prop_to_name(prop)));

@@ -1004,93 +1004,53 @@ xuio_stat_wbuf_nocopy()
 
 /*
  * Copy up to size bytes between arg_buf and req based on the data direction
- * described by the req.  If an entire req's data cannot be transfered the
- * req's is updated such that it's current index and bv offsets correctly
- * reference any residual data which could not be copied.  The return value
- * is the number of bytes successfully copied to arg_buf.
+ * described by the req.  If an entire req's data cannot be transfered in one
+ * pass, you should pass in @req_offset to indicate where to continue. The
+ * return value is the number of bytes successfully copied to arg_buf.
  */
 static int
-dmu_req_copy(void *arg_buf, int size, int *offset, struct request *req)
+dmu_req_copy(void *arg_buf, int size, struct request *req, size_t req_offset)
 {
-	struct bio_vec *bv;
+	struct bio_vec bv, *bvp;
 	struct req_iterator iter;
 	char *bv_buf;
-	int tocpy;
+	int tocpy, bv_len, bv_offset;
+	int offset = 0;
 
-	*offset = 0;
-	rq_for_each_segment(bv, req, iter) {
+	rq_for_each_segment4(bv, bvp, req, iter) {
+		/*
+		 * Fully consumed the passed arg_buf. We use goto here because
+		 * rq_for_each_segment is a double loop
+		 */
+		ASSERT3S(offset, <=, size);
+		if (size == offset)
+			goto out;
 
-		/* Fully consumed the passed arg_buf */
-		ASSERT3S(*offset, <=, size);
-		if (size == *offset)
-			break;
-
-		/* Skip fully consumed bv's */
-		if (bv->bv_len == 0)
+		/* Skip already copied bv */
+		if (req_offset >=  bv.bv_len) {
+			req_offset -= bv.bv_len;
 			continue;
+		}
 
-		tocpy = MIN(bv->bv_len, size - *offset);
+		bv_len = bv.bv_len - req_offset;
+		bv_offset = bv.bv_offset + req_offset;
+		req_offset = 0;
+
+		tocpy = MIN(bv_len, size - offset);
 		ASSERT3S(tocpy, >=, 0);
 
-		bv_buf = page_address(bv->bv_page) + bv->bv_offset;
+		bv_buf = page_address(bv.bv_page) + bv_offset;
 		ASSERT3P(bv_buf, !=, NULL);
 
 		if (rq_data_dir(req) == WRITE)
-			memcpy(arg_buf + *offset, bv_buf, tocpy);
+			memcpy(arg_buf + offset, bv_buf, tocpy);
 		else
-			memcpy(bv_buf, arg_buf + *offset, tocpy);
+			memcpy(bv_buf, arg_buf + offset, tocpy);
 
-		*offset += tocpy;
-		bv->bv_offset += tocpy;
-		bv->bv_len -= tocpy;
+		offset += tocpy;
 	}
-
-	return (0);
-}
-
-static void
-dmu_bio_put(struct bio *bio)
-{
-	struct bio *bio_next;
-
-	while (bio) {
-		bio_next = bio->bi_next;
-		bio_put(bio);
-		bio = bio_next;
-	}
-}
-
-static int
-dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
-{
-	struct bio *bio_root = NULL;
-	struct bio *bio_last = NULL;
-	struct bio *bio_new;
-
-	if (bio == NULL)
-		return (EINVAL);
-
-	while (bio) {
-		bio_new = bio_clone(bio, GFP_NOIO);
-		if (bio_new == NULL) {
-			dmu_bio_put(bio_root);
-			return (ENOMEM);
-		}
-
-		if (bio_last) {
-			bio_last->bi_next = bio_new;
-			bio_last = bio_new;
-		} else {
-			bio_root = bio_new;
-			bio_last = bio_new;
-		}
-
-		bio = bio->bi_next;
-	}
-
-	*bio_copy = bio_root;
-
-	return (0);
+out:
+	return (offset);
 }
 
 int
@@ -1098,9 +1058,9 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 {
 	uint64_t size = blk_rq_bytes(req);
 	uint64_t offset = blk_rq_pos(req) << 9;
-	struct bio *bio_saved = req->bio;
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
+	size_t req_offset;
 
 	/*
 	 * NB: we could do this block-at-a-time, but it's nice
@@ -1111,17 +1071,7 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 	if (err)
 		return (err);
 
-	/*
-	 * Clone the bio list so the bv->bv_offset and bv->bv_len members
-	 * can be safely modified.  The original bio list is relinked in to
-	 * the request when the function exits.  This is required because
-	 * some file systems blindly assume that these values will remain
-	 * constant between bio_submit() and the IO completion callback.
-	 */
-	err = dmu_bio_clone(bio_saved, &req->bio);
-	if (err)
-		goto error;
-
+	req_offset = 0;
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
 		dmu_buf_t *db = dbp[i];
@@ -1133,7 +1083,8 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 		if (tocpy == 0)
 			break;
 
-		err = dmu_req_copy(db->db_data + bufoff, tocpy, &didcpy, req);
+		didcpy = dmu_req_copy(db->db_data + bufoff, tocpy, req,
+		    req_offset);
 
 		if (didcpy < tocpy)
 			err = EIO;
@@ -1143,12 +1094,9 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 
 		size -= tocpy;
 		offset += didcpy;
+		req_offset += didcpy;
 		err = 0;
 	}
-
-	dmu_bio_put(req->bio);
-	req->bio = bio_saved;
-error:
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
 	return (err);
@@ -1159,11 +1107,9 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 {
 	uint64_t size = blk_rq_bytes(req);
 	uint64_t offset = blk_rq_pos(req) << 9;
-	struct bio *bio_saved = req->bio;
 	dmu_buf_t **dbp;
-	int numbufs;
-	int err = 0;
-	int i;
+	int numbufs, i, err;
+	size_t req_offset;
 
 	if (size == 0)
 		return (0);
@@ -1173,17 +1119,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 	if (err)
 		return (err);
 
-	/*
-	 * Clone the bio list so the bv->bv_offset and bv->bv_len members
-	 * can be safely modified.  The original bio list is relinked in to
-	 * the request when the function exits.  This is required because
-	 * some file systems blindly assume that these values will remain
-	 * constant between bio_submit() and the IO completion callback.
-	 */
-	err = dmu_bio_clone(bio_saved, &req->bio);
-	if (err)
-		goto error;
-
+	req_offset = 0;
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
 		dmu_buf_t *db = dbp[i];
@@ -1202,7 +1138,8 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		err = dmu_req_copy(db->db_data + bufoff, tocpy, &didcpy, req);
+		didcpy = dmu_req_copy(db->db_data + bufoff, tocpy, req,
+		    req_offset);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -1215,14 +1152,11 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 
 		size -= tocpy;
 		offset += didcpy;
+		req_offset += didcpy;
 		err = 0;
 	}
 
-	dmu_bio_put(req->bio);
-	req->bio = bio_saved;
-error:
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
-
 	return (err);
 }
 

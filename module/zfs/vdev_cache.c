@@ -123,9 +123,9 @@ vdev_cache_lastused_compare(const void *a1, const void *a2)
 	const vdev_cache_entry_t *ve1 = a1;
 	const vdev_cache_entry_t *ve2 = a2;
 
-	if (ve1->ve_lastused < ve2->ve_lastused)
+	if (ddi_time_before(ve1->ve_lastused, ve2->ve_lastused))
 		return (-1);
-	if (ve1->ve_lastused > ve2->ve_lastused)
+	if (ddi_time_after(ve1->ve_lastused, ve2->ve_lastused))
 		return (1);
 
 	/*

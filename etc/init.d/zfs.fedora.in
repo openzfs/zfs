@@ -126,12 +126,6 @@ start()
 		return 5
 	}
 
-        # Requires selinux policy which has not been written.
-        if [ -r "/selinux/enforce" ] &&
-           [ "$(cat /selinux/enforce)" = "1" ]; then
-                action $"SELinux ZFS policy required: " /bin/false || return 6
-        fi
-
 	# Delay until all required block devices are present.
 	udevadm settle
 

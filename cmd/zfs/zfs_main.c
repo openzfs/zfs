@@ -846,7 +846,7 @@ zfs_do_create(int argc, char **argv)
 	 * if the user doesn't want the dataset automatically mounted,
 	 * then skip the mount/share step
 	 */
-	if (zfs_prop_valid_for_type(ZFS_PROP_CANMOUNT, type))
+	if (zfs_prop_valid_for_type(ZFS_PROP_CANMOUNT, type, B_FALSE))
 		canmount = zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT);
 
 	/*
@@ -1429,7 +1429,7 @@ get_callback(zfs_handle_t *zhp, void *data)
 				if (pl->pl_all)
 					continue;
 				if (!zfs_prop_valid_for_type(pl->pl_prop,
-				    ZFS_TYPE_DATASET)) {
+				    ZFS_TYPE_DATASET, B_FALSE)) {
 					(void) fprintf(stderr,
 					    gettext("No such property '%s'\n"),
 					    zfs_prop_to_name(pl->pl_prop));
@@ -1763,7 +1763,7 @@ inherit_recurse_cb(zfs_handle_t *zhp, void *data)
 	 * are not valid for this type of dataset.
 	 */
 	if (prop != ZPROP_INVAL &&
-	    !zfs_prop_valid_for_type(prop, zfs_get_type(zhp)))
+	    !zfs_prop_valid_for_type(prop, zfs_get_type(zhp), B_FALSE))
 		return (0);
 
 	return (zfs_prop_inherit(zhp, cb->cb_propname, cb->cb_received) != 0);
@@ -5862,7 +5862,11 @@ share_mount(int op, int argc, char **argv)
 		 * display any active ZFS mounts.  We hide any snapshots, since
 		 * they are controlled automatically.
 		 */
-		rewind(mnttab_file);
+
+		/* Reopen MNTTAB to prevent reading stale data from open file */
+		if (freopen(MNTTAB, "r", mnttab_file) == NULL)
+			return (ENOENT);
+
 		while (getmntent(mnttab_file, &entry) == 0) {
 			if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0 ||
 			    strchr(entry.mnt_special, '@') != NULL)
@@ -5965,7 +5969,11 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	/*
 	 * Search for the given (major,minor) pair in the mount table.
 	 */
-	rewind(mnttab_file);
+
+	/* Reopen MNTTAB to prevent reading stale data from open file */
+	if (freopen(MNTTAB, "r", mnttab_file) == NULL)
+		return (ENOENT);
+
 	while ((ret = getextmntent(mnttab_file, &entry, 0)) == 0) {
 		if (entry.mnt_major == major(statbuf.st_dev) &&
 		    entry.mnt_minor == minor(statbuf.st_dev))
@@ -6119,7 +6127,10 @@ unshare_unmount(int op, int argc, char **argv)
 		    ((tree = uu_avl_create(pool, NULL, UU_DEFAULT)) == NULL))
 			nomem();
 
-		rewind(mnttab_file);
+		/* Reopen MNTTAB to prevent reading stale data from open file */
+		if (freopen(MNTTAB, "r", mnttab_file) == NULL)
+			return (ENOENT);
+
 		while (getmntent(mnttab_file, &entry) == 0) {
 
 			/* ignore non-ZFS entries */
