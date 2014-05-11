@@ -5634,6 +5634,9 @@ EXPORT_SYMBOL(arc_getbuf_func);
 EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
+module_param(arc_lotsfree_percent, int, 0644);
+MODULE_PARM_DESC(arc_lotsfree_percent, "Low water mark for throttling ARC");
+
 module_param(zfs_arc_min, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
 

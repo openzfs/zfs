@@ -27,6 +27,17 @@ Description of the different parameters to the ZFS module.
 .sp
 .ne 2
 .na
+\fBarc_lotsfree_percent\fR (int)
+.ad
+.RS 12n
+ARC will throttle when free memory hits this percentage.
+.sp
+The default value is \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2arc_feed_again\fR (int)
 .ad
 .RS 12n
