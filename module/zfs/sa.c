@@ -594,7 +594,7 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 	ASSERT(IS_P2ALIGNED(full_space, 8));
 
 	for (i = 0; i != attr_count; i++) {
-		boolean_t is_var_sz;
+		boolean_t is_var_sz, might_spill_here;
 
 		*total = P2ROUNDUP(*total, 8);
 		*total += attr_desc[i].sa_length;
@@ -605,6 +605,11 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		if (is_var_sz) {
 			var_size++;
 		}
+
+		might_spill_here =
+		    buftype == SA_BONUS && *index == -1 &&
+		    (*total + P2ROUNDUP(hdrsize, 8)) >
+		    (full_space - sizeof (blkptr_t));
 
 		if (is_var_sz && var_size > 1) {
 			/*
@@ -622,7 +627,7 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 				 * spill-over.
 				 */
 				hdrsize += sizeof (uint16_t);
-				if (*index != -1)
+				if (*index != -1 || might_spill_here)
 					extra_hdrsize += sizeof (uint16_t);
 			} else {
 				ASSERT(buftype == SA_BONUS);
@@ -639,11 +644,8 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		 * space.  The sum is used later for sizing bonus
 		 * and spill buffer.
 		 */
-		if (buftype == SA_BONUS && *index == -1 &&
-		    (*total + P2ROUNDUP(hdrsize, 8)) >
-		    (full_space - sizeof (blkptr_t))) {
+		if (might_spill_here)
 			*index = i;
-		}
 
 		if ((*total + P2ROUNDUP(hdrsize, 8)) > full_space &&
 		    buftype == SA_BONUS)
