@@ -37,6 +37,8 @@
  * Virtual device vector for files.
  */
 
+static taskq_t *vdev_file_taskq;
+
 static void
 vdev_file_hold(vdev_t *vd)
 {
@@ -212,7 +214,7 @@ vdev_file_io_start(zio_t *zio)
 			 * the sync must be dispatched to a different context.
 			 */
 			if (spl_fstrans_check()) {
-				VERIFY3U(taskq_dispatch(system_taskq,
+				VERIFY3U(taskq_dispatch(vdev_file_taskq,
 				    vdev_file_io_fsync, zio, TQ_SLEEP), !=,
 				    TASKQID_INVALID);
 				return;
@@ -231,7 +233,7 @@ vdev_file_io_start(zio_t *zio)
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
 
-	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
+	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, TASKQID_INVALID);
 }
 
@@ -253,6 +255,21 @@ vdev_ops_t vdev_file_ops = {
 	VDEV_TYPE_FILE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
+
+void
+vdev_file_init(void)
+{
+	vdev_file_taskq = taskq_create("z_vdev_file", MAX(boot_ncpus, 16),
+	    minclsyspri, boot_ncpus, INT_MAX, TASKQ_DYNAMIC);
+
+	VERIFY(vdev_file_taskq);
+}
+
+void
+vdev_file_fini(void)
+{
+	taskq_destroy(vdev_file_taskq);
+}
 
 /*
  * From userland we access disks just like files.
