@@ -1,10 +1,12 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(USER_AS_FLAGS)
+AM_CCASFLAGS = -D__ASSEMBLY__ $(USER_AS_FLAGS)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
+	-I$(top_srcdir)/lib/libspl/include \
+	-I$(top_srcdir)/include/$(TARGET_ASM_DIR)
 
 lib_LTLIBRARIES = libzpool.la
 
@@ -94,7 +96,11 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/zio_compress.c \
 	$(top_srcdir)/module/zfs/zio_inject.c \
 	$(top_srcdir)/module/zfs/zle.c \
-	$(top_srcdir)/module/zfs/zrlock.c
+	$(top_srcdir)/module/zfs/zrlock.c \
+	$(top_srcdir)/module/zfs/$(TARGET_ASM_DIR)/sha256-ssse3-asm.S \
+	$(top_srcdir)/module/zfs/$(TARGET_ASM_DIR)/sha256-avx-asm.S \
+	$(top_srcdir)/module/zfs/$(TARGET_ASM_DIR)/sha256-avx2-asm.S \
+	$(top_srcdir)/module/zfs/$(TARGET_ASM_DIR)/sha256_x86.c
 
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \

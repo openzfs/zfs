@@ -26,6 +26,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
+#include <sys/sha256.h>
 
 /*
  * SHA-256 checksum, as specified in FIPS 180-3, available at:
@@ -71,7 +72,7 @@ static const uint32_t SHA256_K[64] = {
 };
 
 static void
-SHA256Transform(uint32_t *H, const uint8_t *cp)
+sha256_transform_block(uint32_t *H, const uint8_t *cp)
 {
 	uint32_t a, b, c, d, e, f, g, h, t, T1, T2, W[64];
 
@@ -96,8 +97,9 @@ SHA256Transform(uint32_t *H, const uint8_t *cp)
 	H[4] += e; H[5] += f; H[6] += g; H[7] += h;
 }
 
-void
-zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
+#ifdef DEBUG_SHA256
+static void
+zio_checksum_SHA256_old(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	uint32_t H[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
 	    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
@@ -105,7 +107,7 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	int i, padsize;
 
 	for (i = 0; i < (size & ~63ULL); i += 64)
-		SHA256Transform(H, (uint8_t *)buf + i);
+		sha256_transform_block(H, (uint8_t *)buf + i);
 
 	for (padsize = 0; i < size; i++)
 		pad[padsize++] = *((uint8_t *)buf + i);
@@ -117,11 +119,64 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 		pad[padsize++] = (size << 3) >> i;
 
 	for (i = 0; i < padsize; i += 64)
-		SHA256Transform(H, pad + i);
+		sha256_transform_block(H, pad + i);
 
 	ZIO_SET_CHECKSUM(zcp,
 	    (uint64_t)H[0] << 32 | H[1],
 	    (uint64_t)H[2] << 32 | H[3],
 	    (uint64_t)H[4] << 32 | H[5],
 	    (uint64_t)H[6] << 32 | H[7]);
+}
+#endif
+
+void (*sha256_transform)(const void *, uint32_t *, uint64_t);
+
+void
+sha256_transform_generic(const void *buf, uint32_t *H, uint64_t blks)
+{
+	int i;
+	for (i = 0; i < blks; i++)
+		sha256_transform_block(H, buf + (i << SHA256_SHIFT));
+}
+
+void
+zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	uint32_t H[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+	    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+	uint8_t pad[128];
+	int i, padsize;
+#ifdef DEBUG_SHA256
+	zio_cksum_t zcp_old;
+	zio_checksum_SHA256_old(buf, size, &zcp_old);
+#endif
+
+	sha256_transform(buf, H, size >> SHA256_SHIFT);
+
+	for (padsize = 0, i = size & ~63ULL; i < size; i++)
+		pad[padsize++] = *((uint8_t *)buf + i);
+
+	for (pad[padsize++] = 0x80; (padsize & 63) != 56; padsize++)
+		pad[padsize] = 0;
+
+	for (i = 56; i >= 0; i -= 8)
+		pad[padsize++] = (size << 3) >> i;
+
+	sha256_transform(pad, H, padsize >> SHA256_SHIFT);
+
+	ZIO_SET_CHECKSUM(zcp,
+	    (uint64_t)H[0] << 32 | H[1],
+	    (uint64_t)H[2] << 32 | H[3],
+	    (uint64_t)H[4] << 32 | H[5],
+	    (uint64_t)H[6] << 32 | H[7]);
+#ifdef DEBUG_SHA256
+	VERIFY0(memcmp(zcp, &zcp_old, sizeof (zcp_old)));
+#endif
+}
+
+void
+zio_checksum_SHA256_init(void)
+{
+	sha256_transform = sha256_transform_generic;
+	arch_sha256_init();
 }
