@@ -129,11 +129,11 @@ zio_init(void)
 	vmem_t *data_alloc_arena = NULL;
 
 	zio_cache = kmem_cache_create("zio_cache", sizeof (zio_t), 0,
-	    zio_cons, zio_dest, NULL, NULL, NULL, KMC_KMEM);
+	    zio_cons, zio_dest, NULL, NULL, NULL, 0);
 	zio_link_cache = kmem_cache_create("zio_link_cache",
-	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, KMC_KMEM);
+	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 	zio_vdev_cache = kmem_cache_create("zio_vdev_cache", sizeof (vdev_io_t),
-	    PAGESIZE, NULL, NULL, NULL, NULL, NULL, KMC_VMEM);
+	    PAGESIZE, NULL, NULL, NULL, NULL, NULL, 0);
 
 	/*
 	 * For small buffers, we want a cache for each multiple of
@@ -170,17 +170,6 @@ zio_init(void)
 		if (align != 0) {
 			char name[36];
 			int flags = zio_bulk_flags;
-
-			/*
-			 * The smallest buffers (512b) are heavily used and
-			 * experience a lot of churn.  The slabs allocated
-			 * for them are also relatively small (32K).  Thus
-			 * in over to avoid expensive calls to vmalloc() we
-			 * make an exception to the usual slab allocation
-			 * policy and force these buffers to be kmem backed.
-			 */
-			if (size == (1 << SPA_MINBLOCKSHIFT))
-				flags |= KMC_KMEM;
 
 			(void) sprintf(name, "zio_buf_%lu", (ulong_t)size);
 			zio_buf_cache[c] = kmem_cache_create(name, size,
