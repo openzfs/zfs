@@ -561,6 +561,8 @@ typedef struct send_data {
 	const char *fromsnap;
 	const char *tosnap;
 	boolean_t recursive;
+	boolean_t seenfrom;
+	boolean_t seento;
 
 	/*
 	 * The header nvlist is of the following format:
@@ -595,19 +597,38 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	uint64_t guid = zhp->zfs_dmustats.dds_guid;
 	char *snapname;
 	nvlist_t *nv;
+	boolean_t isfromsnap, istosnap;
 
 	snapname = strrchr(zhp->zfs_name, '@')+1;
+	isfromsnap = (sd->fromsnap != NULL &&
+	    strcmp(sd->fromsnap, snapname) == 0);
+	istosnap = (sd->tosnap != NULL && (strcmp(sd->tosnap, snapname) == 0));
 
-	VERIFY(0 == nvlist_add_uint64(sd->parent_snaps, snapname, guid));
 	/*
 	 * NB: if there is no fromsnap here (it's a newly created fs in
 	 * an incremental replication), we will substitute the tosnap.
 	 */
-	if ((sd->fromsnap && strcmp(snapname, sd->fromsnap) == 0) ||
-	    (sd->parent_fromsnap_guid == 0 && sd->tosnap &&
-	    strcmp(snapname, sd->tosnap) == 0)) {
+	if (isfromsnap || (sd->parent_fromsnap_guid == 0 && istosnap)) {
 		sd->parent_fromsnap_guid = guid;
 	}
+
+	if (!sd->recursive) {
+		if (!sd->seenfrom && isfromsnap) {
+			sd->seenfrom = B_TRUE;
+			zfs_close(zhp);
+			return (0);
+		}
+
+		if (sd->seento || !sd->seenfrom) {
+			zfs_close(zhp);
+			return (0);
+		}
+
+		if (istosnap)
+			sd->seento = B_TRUE;
+	}
+
+	VERIFY(0 == nvlist_add_uint64(sd->parent_snaps, snapname, guid));
 
 	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
 	send_iterate_prop(zhp, nv);
