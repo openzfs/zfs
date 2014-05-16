@@ -57,6 +57,16 @@ EXPORT_SYMBOL(spl_kmem_cache_expire);
 module_param(spl_kmem_cache_expire, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
 
+/*
+ * KMC_RECLAIM_ONCE is set as the default until zfsonlinux/spl#268 is
+ * definitively resolved.  Depending on the system configuration and
+ * workload this may increase the likelihood of out of memory events.
+ * For those cases it is advised that this option be set to zero.
+ */
+unsigned int spl_kmem_cache_reclaim = KMC_RECLAIM_ONCE;
+module_param(spl_kmem_cache_reclaim, uint, 0644);
+MODULE_PARM_DESC(spl_kmem_cache_reclaim, "Single reclaim pass (0x1)");
+
 unsigned int spl_kmem_cache_obj_per_slab = SPL_KMEM_CACHE_OBJ_PER_SLAB;
 module_param(spl_kmem_cache_obj_per_slab, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab, "Number of objects per slab");
@@ -2235,7 +2245,7 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
     struct shrink_control *sc)
 {
 	spl_kmem_cache_t *skc;
-	int unused = 0;
+	int alloc = 0;
 
 	down_read(&spl_kmem_cache_sem);
 	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
@@ -2244,24 +2254,25 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 			   MAX(sc->nr_to_scan >> fls64(skc->skc_slab_objs), 1));
 
 		/*
-		 * Presume everything alloc'ed in reclaimable, this ensures
+		 * Presume everything alloc'ed is reclaimable, this ensures
 		 * we are called again with nr_to_scan > 0 so can try and
 		 * reclaim.  The exact number is not important either so
 		 * we forgo taking this already highly contented lock.
 		 */
-		unused += skc->skc_obj_alloc;
+		alloc += skc->skc_obj_alloc;
 	}
 	up_read(&spl_kmem_cache_sem);
 
 	/*
-	 * After performing reclaim always return -1 to indicate we cannot
-	 * perform additional reclaim.  This prevents shrink_slabs() from
-	 * repeatedly invoking this generic shrinker and potentially spinning.
+	 * When KMC_RECLAIM_ONCE is set allow only a single reclaim pass.
+	 * This functionality only exists to work around a rare issue where
+	 * shrink_slabs() is repeatedly invoked by many cores causing the
+	 * system to thrash.
 	 */
-	if (sc->nr_to_scan)
-		return -1;
+	if ((spl_kmem_cache_reclaim & KMC_RECLAIM_ONCE) && sc->nr_to_scan)
+		return (-1);
 
-	return unused;
+	return MAX((alloc * sysctl_vfs_cache_pressure) / 100, 0);
 }
 
 SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);

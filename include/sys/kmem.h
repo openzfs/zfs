@@ -385,6 +385,8 @@ typedef enum kmem_cbrc {
 #define KMC_EXPIRE_AGE		0x1     /* Due to age */
 #define KMC_EXPIRE_MEM		0x2     /* Due to low memory */
 
+#define	KMC_RECLAIM_ONCE	0x1	/* Force a single shrinker pass */
+
 extern unsigned int spl_kmem_cache_expire;
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
