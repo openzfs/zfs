@@ -4389,6 +4389,17 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "'zpool clear'.\n"));
 		break;
 
+	case ZPOOL_STATUS_HOSTID_MISMATCH:
+		(void) printf(gettext("status: Mismatch between pool hostid "
+		    "and system hostid on imported pool.\n\tThis pool was "
+		    "previously imported into a system with a different "
+		    "hostid,\n\tand then was verbatim imported into this "
+		    "system.\n"));
+		(void) printf(gettext("action: Export this pool on all systems "
+		    "on which it is imported.\n"
+		    "\tThen import it to correct the mismatch.\n"));
+		break;
+
 	case ZPOOL_STATUS_ERRATA:
 		(void) printf(gettext("status: Errata #%d detected.\n"),
 		    errata);
