@@ -45,6 +45,10 @@ ExclusiveArch:  i386 i686 x86_64
 ExcludeArch:    ppc ppc64
 
 Requires:       spl = %{version}
+Requires:       libzpool2 = %{version}
+Requires:       libnvpair1 = %{version}
+Requires:       libuutil1 = %{version}
+Requires:       libzfs2 = %{version}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 
@@ -67,14 +71,73 @@ BuildRequires: systemd
 %endif
 
 %description
-This package contains the ZFS command line utilities and libraries.
+This package contains the ZFS command line utilities.
 
-%package devel
+%package -n libzpool2
+Summary:        Native ZFS pool library for Linux
+Group:          System Environment/Kernel
+
+%description -n libzpool2
+This package contains the zpool library, which provides support
+for managing zpools
+
+%post-n libzpool2 -p /sbin/ldconfig
+%postun -n libzpool2 -p /sbin/ldconfig
+
+%package -n libnvpair1
+Summary:        Solaris name-value library for Linux
+Group:          System Environment/Kernel
+
+%description -n libnvpair1
+This package contains routines for packing and unpacking name-value
+pairs.  This functionality is used to portably transport data across
+process boundaries, between kernel and user space, and can be used
+to write self describing data structures on disk.
+
+%post-n libnvpair1 -p /sbin/ldconfig
+%postun -n libnvpair1 -p /sbin/ldconfig
+
+%package -n libuutil1
+Summary:        Solaris userland utility library for Linux
+Group:          System Environment/Kernel
+
+%description -n libuutil1
+This library provides a variety of compatibility functions for ZFS on Linux:
+ * libspl: The Solaris Porting Layer userland library, which provides APIs
+   that make it possible to run Solaris user code in a Linux environment
+   with relatively minimal modification.
+ * libavl: The Adelson-Velskii Landis balanced binary tree manipulation
+   library.
+ * libefi: The Extensible Firmware Interface library for GUID disk
+   partitioning.
+ * libshare: NFS, SMB, and iSCSI service integration for ZFS.
+
+%post-n libuutil1 -p /sbin/ldconfig
+%postun -n libuutil1 -p /sbin/ldconfig
+
+%package -n libzfs2
+Summary:        Native ZFS filesystem library for Linux
+Group:          System Environment/Kernel
+
+%description -n libzfs2
+This package provides support for managing ZFS filesystems
+
+%post-n libzfs2 -p /sbin/ldconfig
+%postun -n libzfs2 -p /sbin/ldconfig
+
+%package -n libzfs2-devel
 Summary:        Development headers
 Group:          System Environment/Kernel
-Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       libzfs2 = %{version}
+Requires:       libzpool2 = %{version}
+Requires:       libnvpair1 = %{version}
+Requires:       libuutil1 = %{version}
+Provides:       libzpool2-devel
+Provides:       libnvpair1-devel
+Provides:       libuutil1-devel
+Obsoletes:      zfs-devel
 
-%description devel
+%description -n libzfs2-devel
 This package contains the header files needed for building additional
 applications against the ZFS libraries.
 
@@ -137,7 +200,6 @@ make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
-/sbin/ldconfig
 %if 0%{?_systemd}
 %systemd_post zfs.target
 %else
@@ -156,17 +218,13 @@ fi
 exit 0
 
 %postun
-/sbin/ldconfig
 %if 0%{?_systemd}
 %systemd_postun zfs.target
 %endif
 
 %files
-%doc AUTHORS COPYRIGHT DISCLAIMER
-%doc OPENSOLARIS.LICENSE README.markdown
 %{_sbindir}/*
 %{_bindir}/*
-%{_libdir}/*.so.*
 %{_libexecdir}/%{name}
 %{_mandir}/man1/*
 %{_mandir}/man5/*
@@ -183,9 +241,23 @@ exit 0
 %{_sysconfdir}/init.d/*
 %endif
 
-%files devel
+%files -n libzpool2
+%{_libdir}/libzpool.so.*
+
+%files -n libnvpair1
+%{_libdir}/libnvpair.so.*
+
+%files -n libuutil1
+%{_libdir}/libuutil.so.*
+
+%files -n libzfs2
+%{_libdir}/libzfs*.so.*
+
+%files -n libzfs2-devel
 %{_libdir}/*.so
 %{_includedir}/*
+%doc AUTHORS COPYRIGHT DISCLAIMER
+%doc OPENSOLARIS.LICENSE README.markdown
 
 %files test
 %{_datadir}/%{name}
