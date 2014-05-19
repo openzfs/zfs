@@ -333,7 +333,7 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 	mg->mg_class = mc;
 	mg->mg_activation_count = 0;
 
-	mg->mg_taskq = taskq_create("metaslab_group_tasksq", metaslab_load_pct,
+	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
 	    minclsyspri, 10, INT_MAX, TASKQ_THREADS_CPU_PCT);
 
 	return (mg);
@@ -351,6 +351,7 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	 */
 	ASSERT(mg->mg_activation_count <= 0);
 
+	taskq_destroy(mg->mg_taskq);
 	avl_destroy(&mg->mg_metaslab_tree);
 	mutex_destroy(&mg->mg_lock);
 	kmem_free(mg, sizeof (metaslab_group_t));
