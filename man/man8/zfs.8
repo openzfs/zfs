@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2013 by Delphix. All rights reserved.
+.\" Copyright (c) 2014 by Delphix. All rights reserved.
 .\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -1013,6 +1013,37 @@ This property can also be referred to by its shortened column name, \fBrecsize\f
 .sp
 .ne 2
 .mk
+.na
+\fB\fBredundant_metadata\fR=\fBall\fR | \fBmost\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls what types of metadata are stored redundantly.  ZFS stores an
+extra copy of metadata, so that if a single block is corrupted, the
+amount of user data lost is limited.  This extra copy is in addition to
+any redundancy provided at the pool level (e.g. by mirroring or RAID-Z),
+and is in addition to an extra copy specified by the \fBcopies\fR
+property (up to a total of 3 copies).  For example if the pool is
+mirrored, \fBcopies\fR=2, and \fBredundant_metadata\fR=most, then ZFS
+stores 6 copies of most metadata, and 4 copies of data and some
+metadata.
+.sp
+When set to \fBall\fR, ZFS stores an extra copy of all metadata.  If a
+single on-disk block is corrupt, at worst a single block of user data
+(which is \fBrecordsize\fR bytes long) can be lost.
+.sp
+When set to \fBmost\fR, ZFS stores an extra copy of most types of
+metadata.  This can improve performance of random writes, because less
+metadata must be written.  In practice, at worst about 100 blocks (of
+\fBrecordsize\fR bytes each) of user data can be lost if a single
+on-disk block is corrupt.  The exact behavior of which metadata blocks
+are stored redundantly may change in future releases.
+.sp
+The default value is \fBall\fR.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fBrefquota\fR=\fIsize\fR | \fBnone\fR\fR
 .ad

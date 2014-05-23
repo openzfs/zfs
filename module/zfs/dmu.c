@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -1688,6 +1688,12 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 
 int zfs_mdcomp_disable = 0;
 
+/*
+ * When the "redundant_metadata" property is set to "most", only indirect
+ * blocks of this level and higher will have an additional ditto block.
+ */
+int zfs_redundant_metadata_most_ditto_level = 2;
+
 void
 dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 {
@@ -1727,6 +1733,13 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		if (zio_checksum_table[checksum].ci_correctable < 1 ||
 		    zio_checksum_table[checksum].ci_eck)
 			checksum = ZIO_CHECKSUM_FLETCHER_4;
+
+		if (os->os_redundant_metadata == ZFS_REDUNDANT_METADATA_ALL ||
+		    (os->os_redundant_metadata ==
+		    ZFS_REDUNDANT_METADATA_MOST &&
+		    (level >= zfs_redundant_metadata_most_ditto_level ||
+		    DMU_OT_IS_METADATA(type) || (wp & WP_SPILL))))
+			copies++;
 	} else if (wp & WP_NOFILL) {
 		ASSERT(level == 0);
 
@@ -1774,7 +1787,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	zp->zp_compress = compress;
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;
 	zp->zp_level = level;
-	zp->zp_copies = MIN(copies + ismd, spa_max_replication(os->os_spa));
+	zp->zp_copies = MIN(copies, spa_max_replication(os->os_spa));
 	zp->zp_dedup = dedup;
 	zp->zp_dedup_verify = dedup && dedup_verify;
 	zp->zp_nopwrite = nopwrite;
