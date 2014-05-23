@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -114,13 +114,13 @@ dmu_objset_id(objset_t *os)
 	return (ds ? ds->ds_object : 0);
 }
 
-uint64_t
+zfs_sync_type_t
 dmu_objset_syncprop(objset_t *os)
 {
 	return (os->os_sync);
 }
 
-uint64_t
+zfs_logbias_op_t
 dmu_objset_logbias(objset_t *os)
 {
 	return (os->os_logbias);
@@ -226,6 +226,20 @@ sync_changed_cb(void *arg, uint64_t newval)
 	os->os_sync = newval;
 	if (os->os_zil)
 		zil_set_sync(os->os_zil, newval);
+}
+
+static void
+redundant_metadata_changed_cb(void *arg, uint64_t newval)
+{
+	objset_t *os = arg;
+
+	/*
+	 * Inheritance and range checking should have been done by now.
+	 */
+	ASSERT(newval == ZFS_REDUNDANT_METADATA_ALL ||
+	    newval == ZFS_REDUNDANT_METADATA_MOST);
+
+	os->os_redundant_metadata = newval;
 }
 
 static void
@@ -363,6 +377,12 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    zfs_prop_to_name(ZFS_PROP_SYNC),
 				    sync_changed_cb, os);
 			}
+			if (err == 0) {
+				err = dsl_prop_register(ds,
+				    zfs_prop_to_name(
+				    ZFS_PROP_REDUNDANT_METADATA),
+				    redundant_metadata_changed_cb, os);
+			}
 		}
 		if (err != 0) {
 			VERIFY(arc_buf_remove_ref(os->os_phys_buf,
@@ -376,9 +396,9 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_compress = ZIO_COMPRESS_LZJB;
 		os->os_copies = spa_max_replication(spa);
 		os->os_dedup_checksum = ZIO_CHECKSUM_OFF;
-		os->os_dedup_verify = 0;
-		os->os_logbias = 0;
-		os->os_sync = 0;
+		os->os_dedup_verify = B_FALSE;
+		os->os_logbias = ZFS_LOGBIAS_LATENCY;
+		os->os_sync = ZFS_SYNC_STANDARD;
 		os->os_primary_cache = ZFS_CACHE_ALL;
 		os->os_secondary_cache = ZFS_CACHE_ALL;
 	}
@@ -623,6 +643,9 @@ dmu_objset_evict(objset_t *os)
 			VERIFY0(dsl_prop_unregister(ds,
 			    zfs_prop_to_name(ZFS_PROP_SYNC),
 			    sync_changed_cb, os));
+			VERIFY0(dsl_prop_unregister(ds,
+			    zfs_prop_to_name(ZFS_PROP_REDUNDANT_METADATA),
+			    redundant_metadata_changed_cb, os));
 		}
 		VERIFY0(dsl_prop_unregister(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
