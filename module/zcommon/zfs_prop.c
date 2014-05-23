@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -210,7 +210,18 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static zprop_index_t redundant_metadata_table[] = {
+		{ "all",	ZFS_REDUNDANT_METADATA_ALL },
+		{ "most",	ZFS_REDUNDANT_METADATA_MOST },
+		{ NULL }
+	};
+
 	/* inherit index properties */
+	zprop_register_index(ZFS_PROP_REDUNDANT_METADATA, "redundant_metadata",
+	    ZFS_REDUNDANT_METADATA_ALL,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "all | most", "REDUND_MD",
+	    redundant_metadata_table);
 	zprop_register_index(ZFS_PROP_SYNC, "sync", ZFS_SYNC_STANDARD,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "standard | always | disabled", "SYNC",
