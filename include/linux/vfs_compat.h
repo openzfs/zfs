@@ -250,16 +250,6 @@ zpl_forget_cached_acl(struct inode *ip, int type) {
 }
 #endif /* HAVE_POSIX_ACL_RELEASE */
 
-/*
- * 2.6.38 API change,
- * The is_owner_or_cap() function was renamed to inode_owner_or_capable().
- */
-#ifdef HAVE_INODE_OWNER_OR_CAPABLE
-#define	zpl_inode_owner_or_capable(ip)		inode_owner_or_capable(ip)
-#else
-#define	zpl_inode_owner_or_capable(ip)		is_owner_or_cap(ip)
-#endif /* HAVE_INODE_OWNER_OR_CAPABLE */
-
 #ifndef HAVE___POSIX_ACL_CHMOD
 #ifdef HAVE_POSIX_ACL_CHMOD
 #define	__posix_acl_chmod(acl, gfp, mode)	posix_acl_chmod(acl, gfp, mode)
@@ -311,6 +301,13 @@ __posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep) {
 #endif /* HAVE_POSIX_ACL_CHMOD */
 #endif /* HAVE___POSIX_ACL_CHMOD */
 
+#ifdef HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T
+typedef umode_t zpl_equivmode_t;
+#else
+typedef mode_t zpl_equivmode_t;
+#endif /* HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T */
+#endif /* CONFIG_FS_POSIX_ACL */
+
 #ifndef HAVE_CURRENT_UMASK
 static inline int
 current_umask(void)
@@ -319,11 +316,14 @@ current_umask(void)
 }
 #endif /* HAVE_CURRENT_UMASK */
 
-#ifdef HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T
-typedef umode_t zpl_equivmode_t;
+/*
+ * 2.6.38 API change,
+ * The is_owner_or_cap() function was renamed to inode_owner_or_capable().
+ */
+#ifdef HAVE_INODE_OWNER_OR_CAPABLE
+#define	zpl_inode_owner_or_capable(ip)		inode_owner_or_capable(ip)
 #else
-typedef mode_t zpl_equivmode_t;
-#endif /* HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T */
-#endif /* CONFIG_FS_POSIX_ACL */
+#define	zpl_inode_owner_or_capable(ip)		is_owner_or_cap(ip)
+#endif /* HAVE_INODE_OWNER_OR_CAPABLE */
 
 #endif /* _ZFS_VFS_H */
