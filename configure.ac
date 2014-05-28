@@ -128,6 +128,7 @@ AC_CONFIG_FILES([
 	include/sys/fs/Makefile
 	include/sys/fm/Makefile
 	include/sys/fm/fs/Makefile
+	include/asm-generic/Makefile
 	scripts/Makefile
 	scripts/zpios-profile/Makefile
 	scripts/zpios-test/Makefile
