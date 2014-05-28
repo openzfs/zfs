@@ -1,0 +1,13 @@
+src = @abs_top_srcdir@/module/asm-x86_64
+obj = @abs_builddir@
+
+MODULE := asm-x86_64
+
+EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
+
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+$(MODULE)-objs += sha256-ssse3-asm.o
+$(MODULE)-objs += sha256-avx-asm.o
+$(MODULE)-objs += sha256-avx2-asm.o
+$(MODULE)-objs += sha256_x86_64.o
