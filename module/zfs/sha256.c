@@ -113,7 +113,7 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	uint8_t pad[128];
 	int i, padsize;
 
-	sha256_transform_generic(buf, H, size >> SHA256_SHIFT);
+	sha256_transform(buf, H, size >> SHA256_SHIFT);
 
 	for (padsize = 0, i = size & ~63ULL; i < size; i++)
 		pad[padsize++] = *((uint8_t *)buf + i);
@@ -124,11 +124,20 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	for (i = 56; i >= 0; i -= 8)
 		pad[padsize++] = (size << 3) >> i;
 
-	sha256_transform_generic(pad, H, padsize >> SHA256_SHIFT);
+	sha256_transform(pad, H, padsize >> SHA256_SHIFT);
 
 	ZIO_SET_CHECKSUM(zcp,
 	    (uint64_t)H[0] << 32 | H[1],
 	    (uint64_t)H[2] << 32 | H[3],
 	    (uint64_t)H[4] << 32 | H[5],
 	    (uint64_t)H[6] << 32 | H[7]);
+}
+
+void (*sha256_transform)(const void *, uint32_t *, uint64_t);
+
+void
+zio_checksum_SHA256_init(void)
+{
+	sha256_transform = sha256_transform_generic;
+	arch_sha256_init();
 }
