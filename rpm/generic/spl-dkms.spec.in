@@ -1,3 +1,5 @@
+%{?!packager: %define packager Brian Behlendorf <behlendorf1@llnl.gov>}
+
 %define module  @PACKAGE@
 %define mkconf  scripts/dkms.mkconf
 
@@ -60,11 +62,16 @@ echo -e "support or upgrade DKMS to a more current version."
 exit 1
 
 %preun
-dkms remove -m %{module} -v %{version} --all --rpm_safe_upgrade
+# Only remove the modules if they are for this %{version}-%{release}.  A
+# package upgrade can replace them if only the %{release} is changed.
+RELEASE="/var/lib/dkms/%{module}/%{version}/build/%{module}.release"
+if [ -f $RELEASE ] && [ `cat $RELEASE`%{?dist} = "%{version}-%{release}" ]; then
+    echo -e
+    echo -e "Uninstall of %{module} module (version %{version}) beginning:"
+    dkms remove -m %{module} -v %{version} --all --rpm_safe_upgrade
+fi
 exit 0
 
 %changelog
-* Wed Aug 21 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.2-1
-- Released 0.6.2-1
-* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
-- First official stable release.
+* %(date "+%a %b %d %Y") %packager %{version}-%{release}
+- Automatic build by DKMS
