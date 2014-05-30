@@ -135,9 +135,48 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 
 void (*sha256_transform)(const void *, uint32_t *, uint64_t);
 
+#ifdef ZFS_DEBUG
+#define	SHA256_NR_TEST 4
+
+static const char *test_str[SHA256_NR_TEST] = {
+	"abcdefghijklmnopqrstuvwxyz012345678",
+	"abcdefghijklmnopqrstuvwxyz0123456789",
+	"the quick brown fox jumps over the lazy dog",
+	"The quick brown fox jumps over the lazy dog",
+};
+
+static const zio_cksum_t test_zc[SHA256_NR_TEST] = {
+	{{ 0xab297465f02553de, 0xf36470e31b10aa37,
+	0x5df65ca60bd6b9cf, 0xd47fdb0020c78e07 }},
+
+	{{ 0x011fc2994e39d251, 0x141540f87a69092b,
+	0x3f22a86767f7283d, 0xe7eeedb3897bedf6 }},
+
+	{{ 0x05c6e08f1d9fdafa, 0x03147fcb8f82f124,
+	0xc76d2f70e3d989dc, 0x8aadb5e7d7450bec }},
+
+	{{ 0xd7a8fbb307d78094, 0x69ca9abcb0082e4f,
+	0x8d5651e46d3cdb76, 0x2d02d0bf37c9e592 }},
+};
+
+static void sha256_test(void)
+{
+	int i;
+	zio_cksum_t zc;
+
+	for (i = 0; i < SHA256_NR_TEST; i++) {
+		zio_checksum_SHA256(test_str[i], strlen(test_str[i]), &zc);
+		VERIFY0(memcmp(&zc, &test_zc[i], sizeof (zio_cksum_t)));
+	}
+}
+#endif /* ZFS_DEBUG */
+
 void
 zio_checksum_SHA256_init(void)
 {
 	sha256_transform = sha256_transform_generic;
 	arch_sha256_init();
+#ifdef ZFS_DEBUG
+	sha256_test();
+#endif
 }
