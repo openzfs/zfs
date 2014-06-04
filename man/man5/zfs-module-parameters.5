@@ -189,7 +189,7 @@ Default value: 24
 \fBzfetch_array_rd_sz\fR (ulong)
 .ad
 .RS 12n
-Number of bytes in a array_read
+If prefetching is enabled, disable prefetching for reads larger than this size.
 .sp
 Default value: \fB1,048,576\fR.
 .RE
@@ -200,7 +200,7 @@ Default value: \fB1,048,576\fR.
 \fBzfetch_block_cap\fR (uint)
 .ad
 .RS 12n
-Max number of blocks to fetch at a time
+Max number of blocks to prefetch at a time
 .sp
 Default value: \fB256\fR.
 .RE
@@ -211,7 +211,7 @@ Default value: \fB256\fR.
 \fBzfetch_max_streams\fR (uint)
 .ad
 .RS 12n
-Max number of streams per zfetch
+Max number of streams per zfetch (prefetch streams per file).
 .sp
 Default value: \fB8\fR.
 .RE
@@ -222,7 +222,7 @@ Default value: \fB8\fR.
 \fBzfetch_min_sec_reap\fR (uint)
 .ad
 .RS 12n
-Min time before stream reclaim
+Min time before an active prefetch stream can be reclaimed
 .sp
 Default value: \fB2\fR.
 .RE
@@ -343,7 +343,7 @@ Default value: \fB5\fR.
 \fBzfs_autoimport_disable\fR (int)
 .ad
 .RS 12n
-Disable pool import at module load
+Disable pool import at module load by ignoring the cache file (typically \fB/etc/zfs/zpool.cache\fR).
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -846,7 +846,9 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_resilver_delay\fR (int)
 .ad
 .RS 12n
-Number of ticks to delay resilver
+Number of ticks to delay prior to issuing a resilver I/O operation when
+a non-resilver or non-scrub I/O operation has occurred within the past
+\fBzfs_scan_idle\fR ticks.
 .sp
 Default value: \fB2\fR.
 .RE
@@ -868,7 +870,10 @@ Default value: \fB3,000\fR.
 \fBzfs_scan_idle\fR (int)
 .ad
 .RS 12n
-Idle window in clock ticks
+Idle window in clock ticks.  During a scrub or a resilver, if
+a non-scrub or non-resilver I/O operation has occurred during this
+window, the next scrub or resilver operation is delayed by, respectively
+\fBzfs_scrub_delay\fR or \fBzfs_resilver_delay\fR ticks.
 .sp
 Default value: \fB50\fR.
 .RE
@@ -890,7 +895,9 @@ Default value: \fB1,000\fR.
 \fBzfs_scrub_delay\fR (int)
 .ad
 .RS 12n
-Number of ticks to delay scrub
+Number of ticks to delay prior to issuing a scrub I/O operation when
+a non-scrub or non-resilver I/O operation has occurred within the past
+\fBzfs_scan_idle\fR ticks.
 .sp
 Default value: \fB4\fR.
 .RE
@@ -945,7 +952,7 @@ Default value: \fB2\fR.
 \fBzfs_top_maxinflight\fR (int)
 .ad
 .RS 12n
-Max I/Os per top-level
+Max I/Os per top-level vdev during scrub or resilver operations.
 .sp
 Default value: \fB32\fR.
 .RE
