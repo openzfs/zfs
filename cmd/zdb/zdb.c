@@ -1047,6 +1047,16 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp)
 		return;
 	}
 
+	if (BP_IS_EMBEDDED(bp)) {
+		(void) sprintf(blkbuf,
+		    "EMBEDDED et=%u %llxL/%llxP B=%llu",
+		    (int)BPE_GET_ETYPE(bp),
+		    (u_longlong_t)BPE_GET_LSIZE(bp),
+		    (u_longlong_t)BPE_GET_PSIZE(bp),
+		    (u_longlong_t)bp->blk_birth);
+		return;
+	}
+
 	blkbuf[0] = '\0';
 
 	for (i = 0; i < ndvas; i++)
@@ -1066,7 +1076,7 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp)
 		    "%llxL/%llxP F=%llu B=%llu/%llu",
 		    (u_longlong_t)BP_GET_LSIZE(bp),
 		    (u_longlong_t)BP_GET_PSIZE(bp),
-		    (u_longlong_t)bp->blk_fill,
+		    (u_longlong_t)BP_GET_FILL(bp),
 		    (u_longlong_t)bp->blk_birth,
 		    (u_longlong_t)BP_PHYSICAL_BIRTH(bp));
 	}
@@ -1079,8 +1089,10 @@ print_indirect(blkptr_t *bp, const zbookmark_t *zb,
 	char blkbuf[BP_SPRINTF_LEN];
 	int l;
 
-	ASSERT3U(BP_GET_TYPE(bp), ==, dnp->dn_type);
-	ASSERT3U(BP_GET_LEVEL(bp), ==, zb->zb_level);
+	if (!BP_IS_EMBEDDED(bp)) {
+		ASSERT3U(BP_GET_TYPE(bp), ==, dnp->dn_type);
+		ASSERT3U(BP_GET_LEVEL(bp), ==, zb->zb_level);
+	}
 
 	(void) printf("%16llx ", (u_longlong_t)blkid2offset(dnp, bp, zb));
 
@@ -1134,10 +1146,10 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 			err = visit_indirect(spa, dnp, cbp, &czb);
 			if (err)
 				break;
-			fill += cbp->blk_fill;
+			fill += BP_GET_FILL(cbp);
 		}
 		if (!err)
-			ASSERT3U(fill, ==, bp->blk_fill);
+			ASSERT3U(fill, ==, BP_GET_FILL(bp));
 		(void) arc_buf_remove_ref(buf, &buf);
 	}
 
@@ -1861,14 +1873,14 @@ dump_dir(objset_t *os)
 
 	if (dds.dds_type == DMU_OST_META) {
 		dds.dds_creation_txg = TXG_INITIAL;
-		usedobjs = os->os_rootbp->blk_fill;
+		usedobjs = BP_GET_FILL(os->os_rootbp);
 		refdbytes = os->os_spa->spa_dsl_pool->
 		    dp_mos_dir->dd_phys->dd_used_bytes;
 	} else {
 		dmu_objset_space(os, &refdbytes, &scratch, &usedobjs, &scratch);
 	}
 
-	ASSERT3U(usedobjs, ==, os->os_rootbp->blk_fill);
+	ASSERT3U(usedobjs, ==, BP_GET_FILL(os->os_rootbp));
 
 	zdb_nicenum(refdbytes, numbuf);
 
@@ -2171,6 +2183,9 @@ typedef struct zdb_cb {
 	zdb_blkstats_t	zcb_type[ZB_TOTAL + 1][ZDB_OT_TOTAL + 1];
 	uint64_t	zcb_dedup_asize;
 	uint64_t	zcb_dedup_blocks;
+	uint64_t	zcb_embedded_blocks[NUM_BP_EMBEDDED_TYPES];
+	uint64_t	zcb_embedded_histogram[NUM_BP_EMBEDDED_TYPES]
+	    [BPE_PAYLOAD_SIZE];
 	uint64_t	zcb_start;
 	uint64_t	zcb_lastprint;
 	uint64_t	zcb_totalasize;
@@ -2202,6 +2217,13 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		zb->zb_psize += BP_GET_PSIZE(bp);
 		zb->zb_count++;
 		zb->zb_psize_histogram[BP_GET_PSIZE(bp) >> SPA_MINBLOCKSHIFT]++;
+	}
+
+	if (BP_IS_EMBEDDED(bp)) {
+		zcb->zcb_embedded_blocks[BPE_GET_ETYPE(bp)]++;
+		zcb->zcb_embedded_histogram[BPE_GET_ETYPE(bp)]
+		    [BPE_GET_PSIZE(bp)]++;
+		return;
 	}
 
 	if (dump_opt['L'])
@@ -2301,7 +2323,8 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	is_metadata = (BP_GET_LEVEL(bp) != 0 || DMU_OT_IS_METADATA(type));
 
-	if (dump_opt['c'] > 1 || (dump_opt['c'] && is_metadata)) {
+	if (!BP_IS_EMBEDDED(bp) &&
+	    (dump_opt['c'] > 1 || (dump_opt['c'] && is_metadata))) {
 		size_t size = BP_GET_PSIZE(bp);
 		void *data = zio_data_buf_alloc(size);
 		int flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCRUB | ZIO_FLAG_RAW;
@@ -2497,8 +2520,9 @@ dump_block_stats(spa_t *spa)
 	zdb_blkstats_t *zb, *tzb;
 	uint64_t norm_alloc, norm_space, total_alloc, total_found;
 	int flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_HARD;
-	int leaks = 0;
+	boolean_t leaks = B_FALSE;
 	int e;
+	bp_embedded_type_t i;
 
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
 	    (dump_opt['c'] || !dump_opt['L']) ? "to verify " : "",
@@ -2587,7 +2611,7 @@ dump_block_stats(spa_t *spa)
 		    (u_longlong_t)total_alloc,
 		    (dump_opt['L']) ? "unreachable" : "leaked",
 		    (longlong_t)(total_alloc - total_found));
-		leaks = 1;
+		leaks = B_TRUE;
 	}
 
 	if (tzb->zb_count == 0)
@@ -2616,6 +2640,23 @@ dump_block_stats(spa_t *spa)
 	    (double)zcb.zcb_dedup_asize / tzb->zb_asize + 1.0);
 	(void) printf("\tSPA allocated: %10llu     used: %5.2f%%\n",
 	    (u_longlong_t)norm_alloc, 100.0 * norm_alloc / norm_space);
+
+	for (i = 0; i < NUM_BP_EMBEDDED_TYPES; i++) {
+		if (zcb.zcb_embedded_blocks[i] == 0)
+			continue;
+		(void) printf("\n");
+		(void) printf("\tadditional, non-pointer bps of type %u: "
+		    "%10llu\n",
+		    i, (u_longlong_t)zcb.zcb_embedded_blocks[i]);
+
+		if (dump_opt['b'] >= 3) {
+			(void) printf("\t number of (compressed) bytes:  "
+			    "number of bps\n");
+			dump_histogram(zcb.zcb_embedded_histogram[i],
+			    sizeof (zcb.zcb_embedded_histogram[i]) /
+			    sizeof (zcb.zcb_embedded_histogram[i][0]), 0);
+		}
+	}
 
 	if (dump_opt['b'] >= 2) {
 		int l, t, level;
@@ -2718,14 +2759,14 @@ zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	avl_index_t where;
 	zdb_ddt_entry_t *zdde, zdde_search;
 
-	if (BP_IS_HOLE(bp))
+	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
 		return (0);
 
 	if (dump_opt['S'] > 1 && zb->zb_level == ZB_ROOT_LEVEL) {
 		(void) printf("traversing objset %llu, %llu objects, "
 		    "%lu blocks so far\n",
 		    (u_longlong_t)zb->zb_objset,
-		    (u_longlong_t)bp->blk_fill,
+		    (u_longlong_t)BP_GET_FILL(bp),
 		    avl_numnodes(t));
 	}
 

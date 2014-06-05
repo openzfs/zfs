@@ -1525,7 +1525,7 @@ dsl_dataset_space(dsl_dataset_t *ds,
 		else
 			*availbytesp = 0;
 	}
-	*usedobjsp = ds->ds_phys->ds_bp.blk_fill;
+	*usedobjsp = BP_GET_FILL(&ds->ds_phys->ds_bp);
 	*availobjsp = DN_MAX_OBJECT - *usedobjsp;
 }
 

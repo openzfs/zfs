@@ -1515,6 +1515,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		}
 		if (err == ERESTART)
 			return;
+		/* finished; verify that space accounting went to zero */
+		ASSERT0(dp->dp_free_dir->dd_phys->dd_used_bytes);
+		ASSERT0(dp->dp_free_dir->dd_phys->dd_compressed_bytes);
+		ASSERT0(dp->dp_free_dir->dd_phys->dd_uncompressed_bytes);
 	}
 
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
@@ -1699,6 +1703,9 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		return (0);
 
 	count_block(dp->dp_blkstats, bp);
+
+	if (BP_IS_EMBEDDED(bp))
+		return (0);
 
 	ASSERT(DSL_SCAN_IS_SCRUB_RESILVER(scn));
 	if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
