@@ -116,6 +116,7 @@ typedef struct dsl_scan {
 	/* for freeing blocks */
 	boolean_t scn_is_bptree;
 	boolean_t scn_async_destroying;
+	boolean_t scn_async_stalled;
 
 	/* for debugging / information */
 	uint64_t scn_visited_this_txg;

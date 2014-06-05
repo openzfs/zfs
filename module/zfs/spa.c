@@ -238,17 +238,23 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 	}
 
 	if (pool != NULL) {
-		dsl_dir_t *freedir = pool->dp_free_dir;
-
 		/*
 		 * The $FREE directory was introduced in SPA_VERSION_DEADLISTS,
 		 * when opening pools before this version freedir will be NULL.
 		 */
-		if (freedir != NULL) {
+		if (pool->dp_free_dir != NULL) {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING, NULL,
-			    freedir->dd_phys->dd_used_bytes, src);
+			    pool->dp_free_dir->dd_phys->dd_used_bytes, src);
 		} else {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING,
+			    NULL, 0, src);
+		}
+
+		if (pool->dp_leak_dir != NULL) {
+			spa_prop_add_list(*nvp, ZPOOL_PROP_LEAKED, NULL,
+			    pool->dp_leak_dir->dd_phys->dd_used_bytes, src);
+		} else {
+			spa_prop_add_list(*nvp, ZPOOL_PROP_LEAKED,
 			    NULL, 0, src);
 		}
 	}

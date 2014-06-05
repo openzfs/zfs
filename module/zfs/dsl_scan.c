@@ -65,7 +65,7 @@ int zfs_scan_min_time_ms = 1000; /* min millisecs to scrub per txg */
 int zfs_free_min_time_ms = 1000; /* min millisecs to free per txg */
 int zfs_resilver_min_time_ms = 3000; /* min millisecs to resilver per txg */
 int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
-int zfs_no_scrub_prefetch = B_FALSE; /* set to disable srub prefetching */
+int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
 enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 int dsl_scan_delay_completion = B_FALSE; /* set to delay scan completion */
 
@@ -1417,7 +1417,7 @@ dsl_scan_active(dsl_scan_t *scn)
 	if (spa_shutting_down(spa))
 		return (B_FALSE);
 	if (scn->scn_phys.scn_state == DSS_SCANNING ||
-	    scn->scn_async_destroying)
+	    (scn->scn_async_destroying && !scn->scn_async_stalled))
 		return (B_TRUE);
 
 	if (spa_version(scn->scn_dp->dp_spa) >= SPA_VERSION_DEADLISTS) {
@@ -1432,7 +1432,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	dsl_scan_t *scn = dp->dp_scan;
 	spa_t *spa = dp->dp_spa;
-	int err;
+	int err = 0;
 
 	/*
 	 * Check for scn_restart_txg before checking spa_load_state, so
@@ -1450,7 +1450,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		dsl_scan_setup_sync(&func, tx);
 	}
 
-	if (!dsl_scan_active(scn) ||
+	/*
+	 * If the scan is inactive due to a stalled async destroy, try again.
+	 */
+	if ((!scn->scn_async_stalled && !dsl_scan_active(scn)) ||
 	    spa_sync_pass(dp->dp_spa) > 1)
 		return;
 
@@ -1460,10 +1463,11 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	spa->spa_scrub_active = B_TRUE;
 
 	/*
-	 * First process the free list.  If we pause the free, don't do
-	 * any scanning.  This ensures that there is no free list when
-	 * we are scanning, so the scan code doesn't have to worry about
-	 * traversing it.
+	 * First process the async destroys.  If we pause, don't do
+	 * any scrubbing or resilvering.  This ensures that there are no
+	 * async destroys while we are scanning, so the scan code doesn't
+	 * have to worry about traversing it.  It is also faster to free the
+	 * blocks than to scrub them.
 	 */
 	if (spa_version(dp->dp_spa) >= SPA_VERSION_DEADLISTS) {
 		scn->scn_is_bptree = B_FALSE;
@@ -1473,48 +1477,92 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		    dsl_scan_free_block_cb, scn, tx);
 		VERIFY3U(0, ==, zio_wait(scn->scn_zio_root));
 
-		if (err == 0 && spa_feature_is_active(spa,
-		    SPA_FEATURE_ASYNC_DESTROY)) {
-			ASSERT(scn->scn_async_destroying);
-			scn->scn_is_bptree = B_TRUE;
-			scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
-			    NULL, ZIO_FLAG_MUSTSUCCEED);
-			err = bptree_iterate(dp->dp_meta_objset,
-			    dp->dp_bptree_obj, B_TRUE, dsl_scan_free_block_cb,
-			    scn, tx);
-			VERIFY0(zio_wait(scn->scn_zio_root));
+		if (err != 0 && err != ERESTART)
+			zfs_panic_recover("error %u from bpobj_iterate()", err);
+	}
 
-			if (err == 0) {
-				/* finished; deactivate async destroy feature */
-				spa_feature_decr(spa, SPA_FEATURE_ASYNC_DESTROY,
-				    tx);
-				ASSERT(!spa_feature_is_active(spa,
-				    SPA_FEATURE_ASYNC_DESTROY));
-				VERIFY0(zap_remove(dp->dp_meta_objset,
-				    DMU_POOL_DIRECTORY_OBJECT,
-				    DMU_POOL_BPTREE_OBJ, tx));
-				VERIFY0(bptree_free(dp->dp_meta_objset,
-				    dp->dp_bptree_obj, tx));
-				dp->dp_bptree_obj = 0;
-				scn->scn_async_destroying = B_FALSE;
-			}
+	if (err == 0 && spa_feature_is_active(spa, SPA_FEATURE_ASYNC_DESTROY)) {
+		ASSERT(scn->scn_async_destroying);
+		scn->scn_is_bptree = B_TRUE;
+		scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
+		    NULL, ZIO_FLAG_MUSTSUCCEED);
+		err = bptree_iterate(dp->dp_meta_objset,
+		    dp->dp_bptree_obj, B_TRUE, dsl_scan_free_block_cb, scn, tx);
+		VERIFY0(zio_wait(scn->scn_zio_root));
+
+		if (err == EIO || err == ECKSUM) {
+			err = 0;
+		} else if (err != 0 && err != ERESTART) {
+			zfs_panic_recover("error %u from "
+			    "traverse_dataset_destroyed()", err);
 		}
-		if (scn->scn_visited_this_txg) {
-			zfs_dbgmsg("freed %llu blocks in %llums from "
-			    "free_bpobj/bptree txg %llu",
-			    (longlong_t)scn->scn_visited_this_txg,
-			    (longlong_t)
-			    NSEC2MSEC(gethrtime() - scn->scn_sync_start_time),
-			    (longlong_t)tx->tx_txg);
-			scn->scn_visited_this_txg = 0;
-			/*
-			 * Re-sync the ddt so that we can further modify
-			 * it when doing bprewrite.
-			 */
-			ddt_sync(spa, tx->tx_txg);
+
+		/*
+		 * If we didn't make progress, mark the async destroy as
+		 * stalled, so that we will not initiate a spa_sync() on
+		 * its behalf.
+		 */
+		scn->scn_async_stalled = (scn->scn_visited_this_txg == 0);
+
+		if (bptree_is_empty(dp->dp_meta_objset, dp->dp_bptree_obj)) {
+			/* finished; deactivate async destroy feature */
+			spa_feature_decr(spa, SPA_FEATURE_ASYNC_DESTROY, tx);
+			ASSERT(!spa_feature_is_active(spa,
+			    SPA_FEATURE_ASYNC_DESTROY));
+			VERIFY0(zap_remove(dp->dp_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_BPTREE_OBJ, tx));
+			VERIFY0(bptree_free(dp->dp_meta_objset,
+			    dp->dp_bptree_obj, tx));
+			dp->dp_bptree_obj = 0;
+			scn->scn_async_destroying = B_FALSE;
 		}
-		if (err == ERESTART)
-			return;
+	}
+	if (scn->scn_visited_this_txg) {
+		zfs_dbgmsg("freed %llu blocks in %llums from "
+		    "free_bpobj/bptree txg %llu; err=%u",
+		    (longlong_t)scn->scn_visited_this_txg,
+		    (longlong_t)
+		    NSEC2MSEC(gethrtime() - scn->scn_sync_start_time),
+		    (longlong_t)tx->tx_txg, err);
+		scn->scn_visited_this_txg = 0;
+
+		/*
+		 * Write out changes to the DDT that may be required as a
+		 * result of the blocks freed.  This ensures that the DDT
+		 * is clean when a scrub/resilver runs.
+		 */
+		ddt_sync(spa, tx->tx_txg);
+	}
+	if (err != 0)
+		return;
+	if (!scn->scn_async_destroying && zfs_free_leak_on_eio &&
+	    (dp->dp_free_dir->dd_phys->dd_used_bytes != 0 ||
+	    dp->dp_free_dir->dd_phys->dd_compressed_bytes != 0 ||
+	    dp->dp_free_dir->dd_phys->dd_uncompressed_bytes != 0)) {
+		/*
+		 * We have finished background destroying, but there is still
+		 * some space left in the dp_free_dir. Transfer this leaked
+		 * space to the dp_leak_dir.
+		 */
+		if (dp->dp_leak_dir == NULL) {
+			rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
+			(void) dsl_dir_create_sync(dp, dp->dp_root_dir,
+			    LEAK_DIR_NAME, tx);
+			VERIFY0(dsl_pool_open_special_dir(dp,
+			    LEAK_DIR_NAME, &dp->dp_leak_dir));
+			rrw_exit(&dp->dp_config_rwlock, FTAG);
+		}
+		dsl_dir_diduse_space(dp->dp_leak_dir, DD_USED_HEAD,
+		    dp->dp_free_dir->dd_phys->dd_used_bytes,
+		    dp->dp_free_dir->dd_phys->dd_compressed_bytes,
+		    dp->dp_free_dir->dd_phys->dd_uncompressed_bytes, tx);
+		dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
+		    -dp->dp_free_dir->dd_phys->dd_used_bytes,
+		    -dp->dp_free_dir->dd_phys->dd_compressed_bytes,
+		    -dp->dp_free_dir->dd_phys->dd_uncompressed_bytes, tx);
+	}
+	if (!scn->scn_async_destroying) {
 		/* finished; verify that space accounting went to zero */
 		ASSERT0(dp->dp_free_dir->dd_phys->dd_used_bytes);
 		ASSERT0(dp->dp_free_dir->dd_phys->dd_compressed_bytes);
