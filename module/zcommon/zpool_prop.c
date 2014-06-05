@@ -81,6 +81,8 @@ zpool_prop_init(void)
 	    ZFS_TYPE_POOL, "<size>", "FREE");
 	zprop_register_number(ZPOOL_PROP_FREEING, "freeing", 0, PROP_READONLY,
 	    ZFS_TYPE_POOL, "<size>", "FREEING");
+	zprop_register_number(ZPOOL_PROP_LEAKED, "leaked", 0, PROP_READONLY,
+	    ZFS_TYPE_POOL, "<size>", "LEAKED");
 	zprop_register_number(ZPOOL_PROP_ALLOCATED, "allocated", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<size>", "ALLOC");
 	zprop_register_number(ZPOOL_PROP_EXPANDSZ, "expandsize", 0,
