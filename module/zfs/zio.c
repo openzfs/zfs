@@ -3355,13 +3355,6 @@ zbookmark_is_before(const dnode_phys_t *dnp, const zbookmark_t *zb1,
 	ASSERT(zb1->zb_objset == zb2->zb_objset);
 	ASSERT(zb2->zb_level == 0);
 
-	/*
-	 * A bookmark in the deadlist is considered to be after
-	 * everything else.
-	 */
-	if (zb2->zb_object == DMU_DEADLIST_OBJECT)
-		return (B_TRUE);
-
 	/* The objset_phys_t isn't before anything. */
 	if (dnp == NULL)
 		return (B_FALSE);
