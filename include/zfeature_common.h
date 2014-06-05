@@ -46,6 +46,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_ENABLED_TXG,
 	SPA_FEATURE_HOLE_BIRTH,
 	SPA_FEATURE_EXTENSIBLE_DATASET,
+	SPA_FEATURE_EMBEDDED_DATA,
 	SPA_FEATURE_BOOKMARKS,
 	SPA_FEATURES
 } spa_feature_t;
@@ -65,7 +66,7 @@ typedef struct zfeature_info {
 	const spa_feature_t *fi_depends;
 } zfeature_info_t;
 
-typedef int (zfeature_func_t)(zfeature_info_t *fi, void *arg);
+typedef int (zfeature_func_t)(zfeature_info_t *, void *);
 
 #define	ZFS_FEATURE_DEBUG
 
@@ -74,8 +75,8 @@ extern zfeature_info_t spa_feature_table[SPA_FEATURES];
 extern boolean_t zfeature_is_valid_guid(const char *);
 
 extern boolean_t zfeature_is_supported(const char *);
-extern int zfeature_lookup_name(const char *name, spa_feature_t *res);
-extern boolean_t zfeature_depends_on(spa_feature_t fid, spa_feature_t check);
+extern int zfeature_lookup_name(const char *, spa_feature_t *);
+extern boolean_t zfeature_depends_on(spa_feature_t, spa_feature_t);
 
 extern void zpool_feature_init(void);
 

@@ -4,6 +4,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/avl.h \
 	$(top_srcdir)/include/sys/avl_impl.h \
+	$(top_srcdir)/include/sys/blkptr.h \
 	$(top_srcdir)/include/sys/bplist.h \
 	$(top_srcdir)/include/sys/bpobj.h \
 	$(top_srcdir)/include/sys/bptree.h \

@@ -124,17 +124,13 @@ const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
 };
 
 int
-dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
-    void *tag, dmu_buf_t **dbp, int flags)
+dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
+    void *tag, dmu_buf_t **dbp)
 {
 	dnode_t *dn;
 	uint64_t blkid;
 	dmu_buf_impl_t *db;
 	int err;
-	int db_flags = DB_RF_CANFAIL;
-
-	if (flags & DMU_READ_NO_PREFETCH)
-		db_flags |= DB_RF_NOPREFETCH;
 
 	err = dnode_hold(os, object, FTAG, &dn);
 	if (err)
@@ -143,18 +139,37 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	db = dbuf_hold(dn, blkid, tag);
 	rw_exit(&dn->dn_struct_rwlock);
+	dnode_rele(dn, FTAG);
+
 	if (db == NULL) {
-		err = SET_ERROR(EIO);
-	} else {
+		*dbp = NULL;
+		return (SET_ERROR(EIO));
+	}
+
+	*dbp = &db->db;
+	return (err);
+}
+
+int
+dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
+    void *tag, dmu_buf_t **dbp, int flags)
+{
+	int err;
+	int db_flags = DB_RF_CANFAIL;
+
+	if (flags & DMU_READ_NO_PREFETCH)
+		db_flags |= DB_RF_NOPREFETCH;
+
+	err = dmu_buf_hold_noread(os, object, offset, tag, dbp);
+	if (err == 0) {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)(*dbp);
 		err = dbuf_read(db, NULL, db_flags);
-		if (err) {
+		if (err != 0) {
 			dbuf_rele(db, tag);
-			db = NULL;
+			*dbp = NULL;
 		}
 	}
 
-	dnode_rele(dn, FTAG);
-	*dbp = &db->db; /* NULL db plus first field offset is NULL */
 	return (err);
 }
 
@@ -852,6 +867,25 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
+void
+dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
+    void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
+    int compressed_size, int byteorder, dmu_tx_t *tx)
+{
+	dmu_buf_t *db;
+
+	ASSERT3U(etype, <, NUM_BP_EMBEDDED_TYPES);
+	ASSERT3U(comp, <, ZIO_COMPRESS_FUNCTIONS);
+	VERIFY0(dmu_buf_hold_noread(os, object, offset,
+	    FTAG, &db));
+
+	dmu_buf_write_embedded(db,
+	    data, (bp_embedded_type_t)etype, (enum zio_compress)comp,
+	    uncompressed_size, compressed_size, byteorder, tx);
+
+	dmu_buf_rele(db, FTAG);
+}
+
 /*
  * DMU support for xuio
  */
@@ -1393,7 +1427,7 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 			 * block size still needs to be known for replay.
 			 */
 			BP_SET_LSIZE(bp, db->db_size);
-		} else {
+		} else if (!BP_IS_EMBEDDED(bp)) {
 			ASSERT(BP_GET_LEVEL(bp) == 0);
 			bp->blk_fill = 1;
 		}
@@ -1664,9 +1698,15 @@ dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 {
 	dnode_t *dn;
 
-	/* XXX assumes dnode_hold will not get an i/o error */
-	(void) dnode_hold(os, object, FTAG, &dn);
-	ASSERT(checksum < ZIO_CHECKSUM_FUNCTIONS);
+	/*
+	 * Send streams include each object's checksum function.  This
+	 * check ensures that the receiving system can understand the
+	 * checksum function transmitted.
+	 */
+	ASSERT3U(checksum, <, ZIO_CHECKSUM_LEGACY_FUNCTIONS);
+
+	VERIFY0(dnode_hold(os, object, FTAG, &dn));
+	ASSERT3U(checksum, <, ZIO_CHECKSUM_FUNCTIONS);
 	dn->dn_checksum = checksum;
 	dnode_setdirty(dn, tx);
 	dnode_rele(dn, FTAG);
@@ -1678,9 +1718,14 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 {
 	dnode_t *dn;
 
-	/* XXX assumes dnode_hold will not get an i/o error */
-	(void) dnode_hold(os, object, FTAG, &dn);
-	ASSERT(compress < ZIO_COMPRESS_FUNCTIONS);
+	/*
+	 * Send streams include each object's compression function.  This
+	 * check ensures that the receiving system can understand the
+	 * compression function transmitted.
+	 */
+	ASSERT3U(compress, <, ZIO_COMPRESS_LEGACY_FUNCTIONS);
+
+	VERIFY0(dnode_hold(os, object, FTAG, &dn));
 	dn->dn_compress = compress;
 	dnode_setdirty(dn, tx);
 	dnode_rele(dn, FTAG);
@@ -1843,7 +1888,7 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_max_offset = (dn->dn_maxblkid + 1) * dn->dn_datablksz;
 	doi->doi_fill_count = 0;
 	for (i = 0; i < dnp->dn_nblkptr; i++)
-		doi->doi_fill_count += dnp->dn_blkptr[i].blk_fill;
+		doi->doi_fill_count += BP_GET_FILL(&dnp->dn_blkptr[i]);
 }
 
 void

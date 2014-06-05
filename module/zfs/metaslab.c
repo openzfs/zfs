@@ -2236,6 +2236,7 @@ metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
 	vdev_t *vd;
 
 	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(!BP_IS_EMBEDDED(bp));
 	ASSERT(psize > 0);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
@@ -2259,6 +2260,7 @@ metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 	vdev_t *vd;
 
 	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(!BP_IS_EMBEDDED(bp));
 	ASSERT(psize > 0);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
