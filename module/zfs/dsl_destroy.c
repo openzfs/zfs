@@ -546,7 +546,7 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	struct killarg *ka = arg;
 	dmu_tx_t *tx = ka->tx;
 
-	if (BP_IS_HOLE(bp))
+	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
 		return (0);
 
 	if (zb->zb_level == ZB_ZIL_LEVEL) {
@@ -596,6 +596,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	uint64_t count;
 	objset_t *mos;
 
+	ASSERT(!dsl_dataset_is_snapshot(ds));
 	if (dsl_dataset_is_snapshot(ds))
 		return (SET_ERROR(EINVAL));
 
@@ -708,7 +709,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    ds->ds_prev->ds_phys->ds_num_children == 2 &&
 	    ds->ds_prev->ds_userrefs == 0);
 
-	/* Remove our reservation */
+	/* Remove our reservation. */
 	if (ds->ds_reserved != 0) {
 		dsl_dataset_set_refreservation_sync_impl(ds,
 		    (ZPROP_SRC_NONE | ZPROP_SRC_LOCAL | ZPROP_SRC_RECEIVED),

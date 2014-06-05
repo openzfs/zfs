@@ -439,6 +439,8 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 }
 
 /*
+ * Generate a zfs send stream for the specified snapshot and write it to
+ * the specified file descriptor.
  *
  * "snapname" is the full name of the snapshot to send (e.g. "pool/fs@snap")
  *
@@ -452,9 +454,15 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
  * snapshot in the origin, etc.
  *
  * "fd" is the file descriptor to write the send stream to.
+ *
+ * If "flags" contains LZC_SEND_FLAG_EMBED_DATA, the stream is permitted
+ * to contain DRR_WRITE_EMBEDDED records with drr_etype==BP_EMBEDDED_TYPE_DATA,
+ * which the receiving system must support (as indicated by support
+ * for the "embedded_data" feature).
  */
 int
-lzc_send(const char *snapname, const char *from, int fd)
+lzc_send(const char *snapname, const char *from, int fd,
+    enum lzc_send_flags flags)
 {
 	nvlist_t *args;
 	int err;
@@ -463,6 +471,8 @@ lzc_send(const char *snapname, const char *from, int fd)
 	fnvlist_add_int32(args, "fd", fd);
 	if (from != NULL)
 		fnvlist_add_string(args, "fromsnap", from);
+	if (flags & LZC_SEND_FLAG_EMBED_DATA)
+		fnvlist_add_boolean(args, "embedok");
 	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);
 	nvlist_free(args);
 	return (err);

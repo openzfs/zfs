@@ -36,6 +36,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/arc.h>
 #include <sys/ddt.h>
+#include <sys/blkptr.h>
 #include <sys/zfeature.h>
 
 /*
@@ -243,7 +244,7 @@ zio_buf_alloc(size_t size)
 {
 	size_t c = (size - 1) >> SPA_MINBLOCKSHIFT;
 
-	ASSERT(c < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
+	ASSERT3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
 	return (kmem_cache_alloc(zio_buf_cache[c], KM_PUSHPAGE | KM_NODEBUG));
 }
@@ -711,6 +712,16 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 	zio->io_physdone = physdone;
 	zio->io_prop = *zp;
 
+	/*
+	 * Data can be NULL if we are going to call zio_write_override() to
+	 * provide the already-allocated BP.  But we may need the data to
+	 * verify a dedup hit (if requested).  In this case, don't try to
+	 * dedup (just take the already-allocated BP verbatim).
+	 */
+	if (data == NULL && zio->io_prop.zp_dedup_verify) {
+		zio->io_prop.zp_dedup = zio->io_prop.zp_dedup_verify = B_FALSE;
+	}
+
 	return (zio);
 }
 
@@ -750,6 +761,14 @@ zio_write_override(zio_t *zio, blkptr_t *bp, int copies, boolean_t nopwrite)
 void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
+
+	/*
+	 * The check for EMBEDDED is a performance optimization.  We
+	 * process the free here (by ignoring it) rather than
+	 * putting it on the list and then processing it in zio_free_sync().
+	 */
+	if (BP_IS_EMBEDDED(bp))
+		return;
 	metaslab_check_free(spa, bp);
 
 	/*
@@ -774,12 +793,12 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	zio_t *zio;
 	enum zio_stage stage = ZIO_FREE_PIPELINE;
 
-	dprintf_bp(bp, "freeing in txg %llu, pass %u",
-	    (longlong_t)txg, spa->spa_sync_pass);
-
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(spa_syncing_txg(spa) == txg);
 	ASSERT(spa_sync_pass(spa) < zfs_sync_pass_deferred_free);
+
+	if (BP_IS_EMBEDDED(bp))
+		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
 
 	metaslab_check_free(spa, bp);
 	arc_freed(spa, bp);
@@ -804,6 +823,11 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
     zio_done_func_t *done, void *private, enum zio_flag flags)
 {
 	zio_t *zio;
+
+	dprintf_bp(bp, "claiming in txg %llu", txg);
+
+	if (BP_IS_EMBEDDED(bp))
+		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
 
 	/*
 	 * A claim is an allocation of a specific block.  Claims are needed
@@ -1011,10 +1035,18 @@ zio_read_bp_init(zio_t *zio)
 	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
 	    zio->io_child_type == ZIO_CHILD_LOGICAL &&
 	    !(zio->io_flags & ZIO_FLAG_RAW)) {
-		uint64_t psize = BP_GET_PSIZE(bp);
+		uint64_t psize =
+		    BP_IS_EMBEDDED(bp) ? BPE_GET_PSIZE(bp) : BP_GET_PSIZE(bp);
 		void *cbuf = zio_buf_alloc(psize);
 
 		zio_push_transform(zio, cbuf, psize, psize, zio_decompress);
+	}
+
+	if (BP_IS_EMBEDDED(bp) && BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA) {
+		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+		decode_embedded_bp_compressed(bp, zio->io_data);
+	} else {
+		ASSERT(!BP_IS_EMBEDDED(bp));
 	}
 
 	if (!DMU_OT_IS_METADATA(BP_GET_TYPE(bp)) && BP_GET_LEVEL(bp) == 0)
@@ -1059,6 +1091,9 @@ zio_write_bp_init(zio_t *zio)
 
 		*bp = *zio->io_bp_override;
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+
+		if (BP_IS_EMBEDDED(bp))
+			return (ZIO_PIPELINE_CONTINUE);
 
 		/*
 		 * If we've been overridden and nopwrite is set then
@@ -1108,7 +1143,7 @@ zio_write_bp_init(zio_t *zio)
 			compress = ZIO_COMPRESS_OFF;
 
 		/* Make sure someone doesn't change their mind on overwrites */
-		ASSERT(MIN(zp->zp_copies + BP_IS_GANG(bp),
+		ASSERT(BP_IS_EMBEDDED(bp) || MIN(zp->zp_copies + BP_IS_GANG(bp),
 		    spa_max_replication(spa)) == BP_GET_NDVAS(bp));
 	}
 
@@ -1118,9 +1153,38 @@ zio_write_bp_init(zio_t *zio)
 		if (psize == 0 || psize == lsize) {
 			compress = ZIO_COMPRESS_OFF;
 			zio_buf_free(cbuf, lsize);
+		} else if (!zp->zp_dedup && psize <= BPE_PAYLOAD_SIZE &&
+		    zp->zp_level == 0 && !DMU_OT_HAS_FILL(zp->zp_type) &&
+		    spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA)) {
+			encode_embedded_bp_compressed(bp,
+			    cbuf, compress, lsize, psize);
+			BPE_SET_ETYPE(bp, BP_EMBEDDED_TYPE_DATA);
+			BP_SET_TYPE(bp, zio->io_prop.zp_type);
+			BP_SET_LEVEL(bp, zio->io_prop.zp_level);
+			zio_buf_free(cbuf, lsize);
+			bp->blk_birth = zio->io_txg;
+			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+			ASSERT(spa_feature_is_active(spa,
+			    SPA_FEATURE_EMBEDDED_DATA));
+			return (ZIO_PIPELINE_CONTINUE);
 		} else {
-			ASSERT(psize < lsize);
-			zio_push_transform(zio, cbuf, psize, lsize, NULL);
+			/*
+			 * Round up compressed size to MINBLOCKSIZE and
+			 * zero the tail.
+			 */
+			size_t rounded =
+			    P2ROUNDUP(psize, (size_t)SPA_MINBLOCKSIZE);
+			if (rounded > psize) {
+				bzero((char *)cbuf + psize, rounded - psize);
+				psize = rounded;
+			}
+			if (psize == lsize) {
+				compress = ZIO_COMPRESS_OFF;
+				zio_buf_free(cbuf, lsize);
+			} else {
+				zio_push_transform(zio, cbuf,
+				    psize, lsize, NULL);
+			}
 		}
 	}
 
@@ -2873,7 +2937,7 @@ zio_checksum_verified(zio_t *zio)
 /*
  * ==========================================================================
  * Error rank.  Error are ranked in the order 0, ENXIO, ECKSUM, EIO, other.
- * An error of 0 indictes success.  ENXIO indicates whole-device failure,
+ * An error of 0 indicates success.  ENXIO indicates whole-device failure,
  * which may be transient (e.g. unplugged) or permament.  ECKSUM and EIO
  * indicate errors that are specific to one I/O, and most likely permanent.
  * Any other error is presumed to be worse because we weren't expecting it.
@@ -2979,7 +3043,7 @@ zio_done(zio_t *zio)
 		for (w = 0; w < ZIO_WAIT_TYPES; w++)
 			ASSERT(zio->io_children[c][w] == 0);
 
-	if (zio->io_bp != NULL) {
+	if (zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {
 		ASSERT(zio->io_bp->blk_pad[0] == 0);
 		ASSERT(zio->io_bp->blk_pad[1] == 0);
 		ASSERT(bcmp(zio->io_bp, &zio->io_bp_copy,
