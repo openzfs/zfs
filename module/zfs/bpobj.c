@@ -192,6 +192,13 @@ bpobj_close(bpobj_t *bpo)
 	mutex_destroy(&bpo->bpo_lock);
 }
 
+static boolean_t
+bpobj_hasentries(bpobj_t *bpo)
+{
+	return (bpo->bpo_phys->bpo_num_blkptrs != 0 ||
+	    (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_num_subobjs != 0));
+}
+
 static int
 bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
     boolean_t free)
@@ -332,9 +339,11 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 
 out:
 	/* If there are no entries, there should be no bytes. */
-	ASSERT(bpo->bpo_phys->bpo_num_blkptrs > 0 ||
-	    (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_num_subobjs > 0) ||
-	    bpo->bpo_phys->bpo_bytes == 0);
+	if (!bpobj_hasentries(bpo)) {
+		ASSERT0(bpo->bpo_phys->bpo_bytes);
+		ASSERT0(bpo->bpo_phys->bpo_comp);
+		ASSERT0(bpo->bpo_phys->bpo_uncomp);
+	}
 
 	mutex_exit(&bpo->bpo_lock);
 	return (err);
@@ -378,7 +387,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	VERIFY3U(0, ==, bpobj_open(&subbpo, bpo->bpo_os, subobj));
 	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
 
-	if (used == 0) {
+	if (!bpobj_hasentries(&subbpo)) {
 		/* No point in having an empty subobj. */
 		bpobj_close(&subbpo);
 		bpobj_free(bpo->bpo_os, subobj, tx);
@@ -453,12 +462,28 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
 
+	if (BP_IS_EMBEDDED(bp)) {
+		/*
+		 * The bpobj will compress better without the payload.
+		 *
+		 * Note that we store EMBEDDED bp's because they have an
+		 * uncompressed size, which must be accounted for.  An
+		 * alternative would be to add their size to bpo_uncomp
+		 * without storing the bp, but that would create additional
+		 * complications: bpo_uncomp would be inconsistent with the
+		 * set of BP's stored, and bpobj_iterate() wouldn't visit
+		 * all the space accounted for in the bpobj.
+		 */
+		bzero(&stored_bp, sizeof (stored_bp));
+		stored_bp.blk_prop = bp->blk_prop;
+		stored_bp.blk_birth = bp->blk_birth;
+	} else if (!BP_GET_DEDUP(bp)) {
+		/* The bpobj will compress better without the checksum */
+		bzero(&stored_bp.blk_cksum, sizeof (stored_bp.blk_cksum));
+	}
+
 	/* We never need the fill count. */
 	stored_bp.blk_fill = 0;
-
-	/* The bpobj will compress better if we can leave off the checksum */
-	if (!BP_GET_DEDUP(bp))
-		bzero(&stored_bp.blk_cksum, sizeof (stored_bp.blk_cksum));
 
 	mutex_enter(&bpo->bpo_lock);
 

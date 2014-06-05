@@ -1872,7 +1872,7 @@ static int
 spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
 {
-	if (!BP_IS_HOLE(bp)) {
+	if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
 		zio_t *rio = arg;
 		size_t size = BP_GET_PSIZE(bp);
 		void *data = zio_data_buf_alloc(size);
@@ -2423,9 +2423,8 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_ENABLED_TXG)) {
 		if (spa_dir_prop(spa, DMU_POOL_FEATURE_ENABLED_TXG,
-		    &spa->spa_feat_enabled_txg_obj) != 0) {
+		    &spa->spa_feat_enabled_txg_obj) != 0)
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
-		}
 	}
 
 	spa->spa_is_initializing = B_TRUE;
@@ -5333,11 +5332,6 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		ASSERT(!locked);
 		ASSERT(vd == vd->vdev_top);
 
-		/*
-		 * XXX - Once we have bp-rewrite this should
-		 * become the common case.
-		 */
-
 		mg = vd->vdev_mg;
 
 		/*
@@ -6487,7 +6481,7 @@ spa_upgrade(spa_t *spa, uint64_t version)
 	 * possible.
 	 */
 	ASSERT(SPA_VERSION_IS_SUPPORTED(spa->spa_uberblock.ub_version));
-	ASSERT(version >= spa->spa_uberblock.ub_version);
+	ASSERT3U(version, >=, spa->spa_uberblock.ub_version);
 
 	spa->spa_uberblock.ub_version = version;
 	vdev_config_dirty(spa->spa_root_vdev);

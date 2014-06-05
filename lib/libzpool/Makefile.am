@@ -21,6 +21,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zcommon/zpool_prop.c \
 	$(top_srcdir)/module/zcommon/zprop_common.c \
 	$(top_srcdir)/module/zfs/arc.c \
+	$(top_srcdir)/module/zfs/blkptr.c \
 	$(top_srcdir)/module/zfs/bplist.c \
 	$(top_srcdir)/module/zfs/bpobj.c \
 	$(top_srcdir)/module/zfs/bptree.c \
