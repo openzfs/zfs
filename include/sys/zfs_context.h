@@ -614,12 +614,12 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID	((int)pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
 
-#define	ptob(x)		((x) * PAGESIZE)
+#define	ptob(x)		((x) * SPL_PAGESIZE)
 
 extern uint64_t physmem;
 
