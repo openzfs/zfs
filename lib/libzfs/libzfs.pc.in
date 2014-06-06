@@ -1,0 +1,13 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libzfs
+Description: LibZFS library
+Version: @VERSION@
+URL: http://zfsonlinux.org
+Requires: libzfs_core
+#Conflicts:
+Cflags: -I${includedir}
+Libs: -L${libdir} -lzfs
