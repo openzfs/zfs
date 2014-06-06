@@ -601,6 +601,8 @@ The following property can be set at creation time:
 Pool sector size exponent, to the power of 2 (internally referred to as "ashift"). I/O operations will be aligned to the specified size boundaries. Additionally, the minimum (disk) write size will be set to the specified size, so this represents a space vs. performance trade-off. The typical case for setting this property is when performance is important and the underlying disks use 4KiB sectors but report 512B sectors to the OS (for compatibility reasons); in that case, set \fBashift=12\fR (which is 1<<12 = 4096).
 .LP
 For optimal performance, the pool sector size should be greater than or equal to the sector size of the underlying disks. Since the property cannot be changed after pool creation, if in a given pool, you \fIever\fR want to use drives that \fIreport\fR 4KiB sectors, you must set \fBashift=12\fR at pool creation time.
+.LP
+Keep in mind is that the \fBashift\fR is \fIvdev\fR specific and is not a \fIpool\fR global.  This means that when adding new vdevs to an existing pool you may need to specify the \fBashift\fR.
 .RE
 
 .sp
@@ -834,7 +836,7 @@ Displays the configuration that would be used without actually adding the \fBvde
 .ad
 .sp .6
 .RS 4n
-Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is "ashift".
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.  \fBDo note\fR that some properties (among them \fBashift\fR) are \fInot\fR inherited from a previous vdev. They are vdev specific, not pool specific.
 .RE
 
 Do not add a disk that is currently configured as a quorum device to a zpool. After a disk is in the pool, that disk can then be configured as a quorum device.
