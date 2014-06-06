@@ -1129,7 +1129,15 @@ smbmount //127.0.0.1/share_tmp /mnt/tmp -o user=workgroup/turbo,password=obrut,u
 .ad
 .sp .6
 .RS 4n
-Controls whether the file system is shared via \fBNFS\fR, and what options are used. A file system with a \fBsharenfs\fR property of \fBoff\fR is managed through traditional tools such as \fBshare\fR(1M), \fBunshare\fR(1M), and \fBdfstab\fR(4). Otherwise, the file system is automatically shared and unshared with the \fBzfs share\fR and \fBzfs unshare\fR commands. If the property is set to \fBon\fR, the \fBshare\fR(1M) command is invoked with no options. Otherwise, the \fBshare\fR(1M) command is invoked with options equivalent to the contents of this property.
+Controls whether the file system is shared via \fBNFS\fR, and what options are used. A file system with a \fBsharenfs\fR property of \fBoff\fR is managed with the \fBexportfs\fR(8) command and entries in \fB/etc/exports\fR file. Otherwise, the file system is automatically shared and unshared with the \fBzfs share\fR and \fBzfs unshare\fR commands. If the property is set to \fBon\fR, the dataset is shared using the \fBexportfs\fR(8) command in the following manner (see \fBexportfs\fR(8) for the meaning of the different options):
+.sp
+.in +4
+.nf
+/usr/sbin/exportfs -i -o sec=sys,rw,no_subtree_check,no_root_squash,mountpoint *:<mountpoint of dataset>
+.fi
+.in -4
+.sp
+Otherwise, the \fBexportfs\fR(8) command is invoked with options equivalent to the contents of this property.
 .sp
 When the \fBsharenfs\fR property is changed for a dataset, the dataset and any children inheriting the property are re-shared with the new options, only if the property was previously \fBoff\fR, or if they were shared before the property was changed. If the new property is \fBoff\fR, the file systems are unshared.
 .RE
