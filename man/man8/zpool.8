@@ -78,13 +78,13 @@ zpool \- configures ZFS storage pools
 .LP
 .nf
 \fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
-     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] \fB-a\fR
+     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR\] [\fB-T\fR\]] \fB-a\fR
 .fi
 
 .LP
 .nf
 \fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
-     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] \fIpool\fR |\fIid\fR [\fInewpool\fR]
+     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR] [\fB-T\fR\]] [\fB-t\fR]] \fIpool\fR |\fIid\fR [\fInewpool\fR]
 .fi
 
 .LP
@@ -1296,6 +1296,28 @@ Import the pool without mounting any file systems.
 Used with the \fB-F\fR recovery option. Determines whether a non-importable pool can be made importable again, but does not actually perform the pool recovery. For more details about pool recovery mode, see the \fB-F\fR option, above.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-X\fR\fR
+.ad
+.RS 21n
+Used with the \fB-F\fR recovery option. Determines whether extreme measures to find a valid txg should take place.  This allows the pool to be rolled back to a txg which is no longer guaranteed to be consistent.  Pools imported at an inconsistent txg may contain uncorrectable checksum errors.  For more details about pool recovery mode, see the \fB-F\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-T\fR\fR
+.ad
+.RS 21n
+Specify the txg to use for rollback.  Implies \fB-FX\fR. For more details about pool recovery mode, see the \fB-X\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
+.RE
+
 .RE
 
 .sp
@@ -1406,6 +1428,30 @@ Sets the "\fBcachefile\fR" property to "\fBnone\fR" and the "\fIaltroot\fR" prop
 .sp .6
 .RS 4n
 Used with the \fB-F\fR recovery option. Determines whether a non-importable pool can be made importable again, but does not actually perform the pool recovery. For more details about pool recovery mode, see the \fB-F\fR option, above.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-X\fR\fR
+.ad
+.sp .6
+.RS 4n
+Used with the \fB-F\fR recovery option. Determines whether extreme measures to find a valid txg should take place.  This allows the pool to be rolled back to a txg which is no longer guaranteed to be consistent.  Pools imported at an inconsistent txg may contain uncorrectable checksum errors.  For more details about pool recovery mode, see the \fB-F\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-T\fR\fR
+.ad
+.sp .6
+.RS 4n
+Specify the txg to use for rollback.  Implies \fB-FX\fR. For more details about pool recovery mode, see the \fB-X\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
 .RE
 
 .sp
