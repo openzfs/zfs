@@ -1,11 +1,18 @@
 %global _sbindir    /sbin
 %global _libdir     /%{_lib}
-%if 0%{?fedora} >= 17
-%global _udevdir    %{_prefix}/lib/udev
-%global _dracutdir  %{_prefix}/lib/dracut
-%else
-%global _udevdir    /lib/udev
+
+%if 0%{!?_dracutdir}
+%if 0%{?fedora} <= 16 || 0%{?redhat} <= 6 || 0%{?centos} <= 6
 %global _dracutdir  %{_prefix}/share/dracut
+%else
+%global _dracutdir  %{_prefix}/lib/dracut
+%endif
+%endif
+
+%if 0%{?fedora} <= 16 || 0%{?redhat} <= 6 || 0%{?centos} <= 6
+%global _udevdir    /lib/udev
+%else
+%global _udevdir    %{_prefix}/lib/udev
 %endif
 
 %bcond_with    debug
