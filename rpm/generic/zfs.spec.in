@@ -9,10 +9,12 @@
 %endif
 %endif
 
+%if 0%{!?_udevdir}
 %if 0%{?fedora} <= 16 || 0%{?redhat} <= 6 || 0%{?centos} <= 6
 %global _udevdir    /lib/udev
 %else
 %global _udevdir    %{_prefix}/lib/udev
+%endif
 %endif
 
 %bcond_with    debug
