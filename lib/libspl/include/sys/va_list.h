@@ -29,7 +29,9 @@
 
 #include <stdarg.h>
 
-#ifndef __va_list
+#ifdef HAVE_MUSL
+typedef void* __va_list;
+#else
 typedef __gnuc_va_list __va_list;
 #endif
 

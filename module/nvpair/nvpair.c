@@ -3251,8 +3251,12 @@ nvs_xdr_nvpair(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
 			return (0);
 
 		/* sanity check the size parameter */
+#ifndef HAVE_TIRPC
 		if (!xdr_control(xdr, XDR_GET_BYTES_AVAIL, &bytesrec))
 			return (EFAULT);
+#else
+		xdr_control(xdr, XDR_GET_BYTES_AVAIL, &bytesrec);
+#endif
 
 		if (*size > NVS_XDR_MAX_LEN(bytesrec.xc_num_avail))
 			return (EFAULT);

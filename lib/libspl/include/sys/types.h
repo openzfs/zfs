@@ -60,6 +60,7 @@ typedef long		spgcnt_t;	/* signed number of pages */
 typedef longlong_t	hrtime_t;
 typedef struct timespec	timestruc_t;
 typedef struct timespec timespec_t;
+#define HAVE_HR_TYPES
 
 typedef short		pri_t;
 
