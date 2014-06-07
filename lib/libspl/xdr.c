@@ -29,7 +29,7 @@
  * under license from the Regents of the University of California.
  */
 
-#if 0
+#ifndef HAVE_TIRPC
 #include <rpc/xdr.h>
 
 /*

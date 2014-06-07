@@ -60,6 +60,8 @@ typedef struct xdr_bytesrec {
 #define	XDR_RDMAGET	4
 #define	XDR_RDMASET	5
 
-//extern bool_t xdr_control(XDR *xdrs, int request, void *info);
+#ifndef HAVE_TIRPC
+extern bool_t xdr_control(XDR *xdrs, int request, void *info);
+#endif
 
 #endif
