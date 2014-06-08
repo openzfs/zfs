@@ -3186,6 +3186,7 @@ main(int argc, char **argv)
 	char *target;
 	nvlist_t *policy = NULL;
 	uint64_t max_txg = UINT64_MAX;
+	int flags = ZFS_IMPORT_MISSING_LOG;
 	int rewind = ZPOOL_NEVER_REWIND;
 	char *spa_config_path_env;
 
@@ -3203,7 +3204,7 @@ main(int argc, char **argv)
 	if (spa_config_path_env != NULL)
 		spa_config_path = spa_config_path_env;
 
-	while ((c = getopt(argc, argv, "bcdhilmM:suCDRSAFLXevp:t:U:P")) != -1) {
+	while ((c = getopt(argc, argv, "bcdhilmM:suCDRSAFLVXevp:t:U:P")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -3228,6 +3229,9 @@ main(int argc, char **argv)
 		case 'e':
 		case 'P':
 			dump_opt[c]++;
+			break;
+		case 'V':
+			flags = ZFS_IMPORT_VERBATIM;
 			break;
 		case 'v':
 			verbose++;
@@ -3340,11 +3344,7 @@ main(int argc, char **argv)
 				fatal("can't open '%s': %s",
 				    target, strerror(ENOMEM));
 			}
-			if ((error = spa_import(name, cfg, NULL,
-			    ZFS_IMPORT_MISSING_LOG)) != 0) {
-				error = spa_import(name, cfg, NULL,
-				    ZFS_IMPORT_VERBATIM);
-			}
+			error = spa_import(name, cfg, NULL, flags);
 		}
 	}
 

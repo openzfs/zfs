@@ -19,7 +19,7 @@
 \fBzdb\fR - Display zpool debugging and consistency information
 
 .SH "SYNOPSIS"
-\fBzdb\fR [-CumdibcsDvhLXFPA] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
+\fBzdb\fR [-CumdibcsDvhLVXFPA] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
     [-U \fIcache\fR] [-M \fIinflight I/Os\fR] [\fIpoolname\fR
     [\fIobject\fR ...]]
 
@@ -427,6 +427,17 @@ Enable verbosity. Specify multiple times for increased verbosity.
 .RS 4n
 Attempt \'extreme\' transaction rewind, that is attempt the same recovery as
 \fB-F\fR but read transactions otherwise deemed too old.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-V\fR
+.ad
+.sp .6
+.RS 4n
+Attempt a verbatim import. This mimics the behavior of the kernel when loading
+a pool from a cachefile.
 .RE
 
 .P
