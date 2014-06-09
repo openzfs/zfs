@@ -338,6 +338,8 @@ AC_DEFUN([ZFS_AC_SPL], [
 				splbuild="${splsrc}/${LINUX_VERSION}"
 			], [ test -e "${splsrc}/spl_config.h" ], [
 				splbuild="${splsrc}"
+			], [ find -L "${splsrc}" -name spl_config.h 2> /dev/null | grep -wq spl_config.h ], [
+				splbuild=$(find -L "${splsrc}" -name spl_config.h | sed 's,/spl_config.h,,')
 			], [
 				splbuild="[Not found]"
 			])

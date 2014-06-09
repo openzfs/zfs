@@ -1,7 +1,7 @@
 udevrule_DATA = \
-	$(top_srcdir)/udev/rules.d/69-vdev.rules \
-	$(top_srcdir)/udev/rules.d/60-zvol.rules \
-	$(top_srcdir)/udev/rules.d/90-zfs.rules
+	69-vdev.rules \
+	60-zvol.rules \
+	90-zfs.rules
 
 EXTRA_DIST = \
 	$(top_srcdir)/udev/rules.d/69-vdev.rules.in \
@@ -14,7 +14,7 @@ $(udevrule_DATA):
 		-e 's,@udevdir\@,$(udevdir),g' \
 		-e 's,@udevruledir\@,$(udevruledir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		'$@.in' >'$@'
+		"$(top_srcdir)/udev/rules.d/$@.in" > '$@'
 
 distclean-local::
 	-$(RM) $(udevrule_DATA)

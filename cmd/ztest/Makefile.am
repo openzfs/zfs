@@ -9,7 +9,7 @@ DEFAULT_INCLUDES += \
 sbin_PROGRAMS = ztest
 
 ztest_SOURCES = \
-	$(top_srcdir)/cmd/ztest/ztest.c
+	ztest.c
 
 ztest_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \

@@ -4,25 +4,25 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
 
-EXTRA_DIST = $(top_srcdir)/cmd/zed/zed.d/README
+EXTRA_DIST = zed.d/README
 
 sbin_PROGRAMS = zed
 
 zed_SOURCES = \
-	$(top_srcdir)/cmd/zed/zed.c \
-	$(top_srcdir)/cmd/zed/zed.h \
-	$(top_srcdir)/cmd/zed/zed_conf.c \
-	$(top_srcdir)/cmd/zed/zed_conf.h \
-	$(top_srcdir)/cmd/zed/zed_event.c \
-	$(top_srcdir)/cmd/zed/zed_event.h \
-	$(top_srcdir)/cmd/zed/zed_exec.c \
-	$(top_srcdir)/cmd/zed/zed_exec.h \
-	$(top_srcdir)/cmd/zed/zed_file.c \
-	$(top_srcdir)/cmd/zed/zed_file.h \
-	$(top_srcdir)/cmd/zed/zed_log.c \
-	$(top_srcdir)/cmd/zed/zed_log.h \
-	$(top_srcdir)/cmd/zed/zed_strings.c \
-	$(top_srcdir)/cmd/zed/zed_strings.h
+	zed.c \
+	zed.h \
+	zed_conf.c \
+	zed_conf.h \
+	zed_event.c \
+	zed_event.h \
+	zed_exec.c \
+	zed_exec.h \
+	zed_file.c \
+	zed_file.h \
+	zed_log.c \
+	zed_log.h \
+	zed_strings.c \
+	zed_strings.h
 
 zed_LDADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
@@ -35,22 +35,22 @@ zed_LDADD = \
 zedconfdir = $(sysconfdir)/zfs/zed.d
 
 dist_zedconf_DATA = \
-	$(top_srcdir)/cmd/zed/zed.d/zed-functions.sh \
-	$(top_srcdir)/cmd/zed/zed.d/zed.rc
+	zed.d/zed-functions.sh \
+	zed.d/zed.rc
 
 zedexecdir = $(libexecdir)/zfs/zed.d
 
 dist_zedexec_SCRIPTS = \
-	$(top_srcdir)/cmd/zed/zed.d/all-debug.sh \
-	$(top_srcdir)/cmd/zed/zed.d/all-syslog.sh \
-	$(top_srcdir)/cmd/zed/zed.d/checksum-notify.sh \
-	$(top_srcdir)/cmd/zed/zed.d/checksum-spare.sh \
-	$(top_srcdir)/cmd/zed/zed.d/data-notify.sh \
-	$(top_srcdir)/cmd/zed/zed.d/generic-notify.sh \
-	$(top_srcdir)/cmd/zed/zed.d/io-notify.sh \
-	$(top_srcdir)/cmd/zed/zed.d/io-spare.sh \
-	$(top_srcdir)/cmd/zed/zed.d/resilver.finish-notify.sh \
-	$(top_srcdir)/cmd/zed/zed.d/scrub.finish-notify.sh
+	zed.d/all-debug.sh \
+	zed.d/all-syslog.sh \
+	zed.d/checksum-notify.sh \
+	zed.d/checksum-spare.sh \
+	zed.d/data-notify.sh \
+	zed.d/generic-notify.sh \
+	zed.d/io-notify.sh \
+	zed.d/io-spare.sh \
+	zed.d/resilver.finish-notify.sh \
+	zed.d/scrub.finish-notify.sh
 
 zedconfdefaults = \
 	all-syslog.sh \

@@ -7,8 +7,8 @@ DEFAULT_INCLUDES += \
 sbin_PROGRAMS = zdb
 
 zdb_SOURCES = \
-	$(top_srcdir)/cmd/zdb/zdb.c \
-	$(top_srcdir)/cmd/zdb/zdb_il.c
+	zdb.c \
+	zdb_il.c
 
 zdb_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \

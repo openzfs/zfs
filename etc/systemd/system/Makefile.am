@@ -1,12 +1,13 @@
 systemdpreset_DATA = \
-	$(top_srcdir)/etc/systemd/system/50-zfs.preset
+	50-zfs.preset
+
 systemdunit_DATA = \
-	$(top_srcdir)/etc/systemd/system/zed.service \
-	$(top_srcdir)/etc/systemd/system/zfs-import-cache.service \
-	$(top_srcdir)/etc/systemd/system/zfs-import-scan.service \
-	$(top_srcdir)/etc/systemd/system/zfs-mount.service \
-	$(top_srcdir)/etc/systemd/system/zfs-share.service \
-	$(top_srcdir)/etc/systemd/system/zfs.target
+	zed.service \
+	zfs-import-cache.service \
+	zfs-import-scan.service \
+	zfs-mount.service \
+	zfs-share.service \
+	zfs.target
 
 EXTRA_DIST = \
 	$(top_srcdir)/etc/systemd/system/zed.service.in \
@@ -22,14 +23,14 @@ $(systemdunit_DATA):
 		-e 's,@runstatedir\@,$(runstatedir),g' \
 		-e 's,@sbindir\@,$(sbindir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		'$@.in' >'$@'
+		"$(top_srcdir)/etc/systemd/system/$@.in" >'$@'
 
 $(systemdpreset_DATA):
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
 		-e 's,@runstatedir\@,$(runstatedir),g' \
 		-e 's,@sbindir\@,$(sbindir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		'$@.in' >'$@'
+		"$(top_srcdir)/etc/systemd/system/$@.in" >'$@'
 
 distclean-local::
 	-$(RM) $(systemdunit_DATA) $(systemdpreset_DATA)
