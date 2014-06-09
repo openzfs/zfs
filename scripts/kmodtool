@@ -94,6 +94,7 @@ This package provides the akmod package for the ${kmodname} kernel modules.
 nohup ${prefix}/sbin/akmods --from-akmod-posttrans --akmod ${kmodname} &> /dev/null &
 
 %files -n akmod-${kmodname}
+%exclude /usr/lib/modules/*/modules.*
 %defattr(-,root,root,-)
 %{_usrsrc}/akmods/*
 
@@ -126,6 +127,7 @@ ${kmodname} kernel module(s) for the newest kernel${dashvariant},
 to make sure you get it together with a new kernel.
 
 %files        -n kmod-${kmodname}${dashvariant}
+%exclude /usr/lib/modules/*/modules.*
 %defattr(644,root,root,755)
 EOF
 }
@@ -191,6 +193,7 @@ EOF
 This package provides the ${kmodname} kernel modules built for the Linux
 kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
 %files        -n kmod-${kmodname}-${kernel_uname_r}
+%exclude /usr/lib/modules/*/modules.*
 %defattr(644,root,root,755)
 %dir $prefix/lib/modules/${kernel_uname_r}/extra
 ${prefix}/lib/modules/${kernel_uname_r}/extra/${kmodname}/
@@ -234,6 +237,7 @@ which depend on the ${kmodname} kernel module.  It may optionally require
 the ${kmodname}-devel-<kernel> objects for the newest kernel.
 
 %files        -n kmod-${kmodname}-devel
+%exclude /usr/lib/modules/*/modules.*
 %defattr(644,root,root,755)
 %{_usrsrc}/${kmodname}-%{version}
 EOF
@@ -293,6 +297,7 @@ This package provides objects and symbols required to build kernel modules
 which depend on the ${kmodname} kernel modules built for the Linux
 kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
 %files        -n kmod-${kmodname}-devel-${kernel_uname_r}
+%exclude /usr/lib/modules/*/modules.*
 %defattr(644,root,root,755)
 %{_usrsrc}/${kmodname}-%{version}/${kernel_uname_r}
 
@@ -328,6 +333,7 @@ ${kmodname} kernel module(s) for the newest kernel${kernel_variant}.
 to make sure you get it together with a new kernel.
 
 %files        -n kmod-${kmodname}${kernel_variant}
+%exclude /usr/lib/modules/*/modules.*
 %defattr(644,root,root,755)
 
 
