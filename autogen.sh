@@ -1,4 +1,4 @@
 #!/bin/sh
 
-autoreconf -fiv
-rm -Rf autom4te.cache
+autoreconf -fiv $(dirname $0)/configure.ac
+rm -Rf $(dirname $0)/autom4te.cache
