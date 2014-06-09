@@ -63,7 +63,7 @@ srpm-common: dist
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	$(RPMBUILD) \
+	LANG=C $(RPMBUILD) \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		$(def) -bs $$rpmbuild/SPECS/$$rpmspec || exit 1; \
@@ -79,7 +79,7 @@ rpm-common:
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	${RPMBUILD} \
+	LANG=C ${RPMBUILD} \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		$(def) --rebuild $$rpmpkg || exit 1; \
