@@ -17,17 +17,3 @@ AC_HELP_STRING([--enable-musl], [compile with musl as the C library]),
   AC_SUBST(TIRPC_LIBS)
 fi])
 ])
-dnl
-dnl musl support
-dnl
-
-AC_DEFUN([ZFS_AC_CONFIG_USER_MUSL], [
-AC_ARG_ENABLE(musl,
-AC_HELP_STRING([--enable-musl], [compile with musl as the C library]),
-[if test x$enableval = xyes; then
-  AC_DEFINE(HAVE_MUSL, [Define to 1 if musl is being used as the C library])
-fi])
-if test "x$enable_musl = "xyes"; then
-   PKG_CHECK_MODULES(TIRPC,libtirpc)
-fi
-])
