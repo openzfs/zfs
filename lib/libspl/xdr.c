@@ -29,6 +29,7 @@
  * under license from the Regents of the University of California.
  */
 
+#ifndef HAVE_TIRPC
 #include <rpc/xdr.h>
 
 /*
@@ -76,3 +77,4 @@ xdr_control(XDR *xdrs, int request, void *info)
 	}
 	return (FALSE);
 }
+#endif
