@@ -793,6 +793,17 @@ vdev_remove_parent(vdev_t *cvd)
 		cvd->vdev_orig_guid = cvd->vdev_guid;
 		cvd->vdev_guid += guid_delta;
 		cvd->vdev_guid_sum += guid_delta;
+
+		/*
+		 * If pool not set for autoexpand, we need to also preserve
+		 * mvd's asize to prevent automatic expansion of cvd.
+		 * Otherwise if we are adjusting the mirror by attaching and
+		 * detaching children of non-uniform sizes, the mirror could
+		 * autoexpand, unexpectedly requiring larger devices to
+		 * re-establish the mirror.
+		 */
+		if (!cvd->vdev_spa->spa_autoexpand)
+			cvd->vdev_asize = mvd->vdev_asize;
 	}
 	cvd->vdev_id = mvd->vdev_id;
 	vdev_add_child(pvd, cvd);
