@@ -180,7 +180,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 
 	VERIFY3S(pthread_attr_init(&attr), ==, 0);
 	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
-	VERIFY3S(pthread_attr_setguardsize(&attr, PAGESIZE), ==, 0);
+	VERIFY3S(pthread_attr_setguardsize(&attr, SPL_PAGESIZE), ==, 0);
 	VERIFY3S(pthread_attr_setdetachstate(&attr, detachstate), ==, 0);
 
 	VERIFY3S(pthread_create(&kt->t_tid, &attr, &zk_thread_helper, kt),

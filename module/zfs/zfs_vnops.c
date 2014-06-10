@@ -364,7 +364,7 @@ update_pages(struct inode *ip, int64_t start, int len,
  * On Read:	We "read" preferentially from memory mapped pages,
  *		else we default from the dmu buffer.
  *
- * NOTE: We will always "break up" the IO into PAGESIZE uiomoves when
+ * NOTE: We will always "break up" the IO into SPL_PAGESIZE uiomoves when
  *	 the file is memory mapped.
  */
 static int
@@ -4118,11 +4118,11 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	 */
 	page_idx = 0;
 	cur_pp   = pl[0];
-	for (total = io_off + io_len; io_off < total; io_off += PAGESIZE) {
+	for (total = io_off + io_len; io_off < total; io_off += SPL_PAGESIZE) {
 		caddr_t va;
 
 		va = kmap(cur_pp);
-		err = dmu_read(os, zp->z_id, io_off, PAGESIZE, va,
+		err = dmu_read(os, zp->z_id, io_off, SPL_PAGESIZE, va,
 		    DMU_READ_PREFETCH);
 		kunmap(cur_pp);
 		if (err) {

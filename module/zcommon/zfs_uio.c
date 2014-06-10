@@ -144,7 +144,7 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 				bcopy(p, &tmp, 1);
 				break;
 			}
-			incr = MIN(cnt, PAGESIZE);
+			incr = MIN(cnt, SPL_PAGESIZE);
 			p += incr;
 			cnt -= incr;
 		}
