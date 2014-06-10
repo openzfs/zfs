@@ -118,6 +118,10 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 
+#if(!defined(RLIM64_INFINITY) && defined(HAVE_MUSL))
+#define RLIM64_INFINITY RLIM_INFINITY
+#endif 
+
 /*
  * Stack
  */
@@ -148,9 +152,9 @@ extern void dprintf_setup(int *argc, char **argv);
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
 extern void cmn_err(int, const char *, ...);
-extern void vcmn_err(int, const char *, __va_list);
+extern void vcmn_err(int, const char *, va_list);
 extern void panic(const char *, ...);
-extern void vpanic(const char *, __va_list);
+extern void vpanic(const char *, va_list);
 
 #define	fm_panic	panic
 
@@ -614,12 +618,12 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID	((uint_t)pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
 
-#define	ptob(x)		((x) * PAGESIZE)
+#define	ptob(x)		((x) * SPL_PAGESIZE)
 
 extern uint64_t physmem;
 
