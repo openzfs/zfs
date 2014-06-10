@@ -72,6 +72,12 @@ extern void __assert(const char *, const char *, int);
 #define	VERIFY	verify
 #define	ASSERT	assert
 
+#if(!defined(__assert) && defined(HAVE_MUSL))
+#define __assert(ex, file, line) __assert_fail(ex, file, line, __func__)
+#else
+extern void __assert(const char *, const char *, int);
+#endif
+
 /* BEGIN CSTYLED */
 #define	VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE) do { \
 	const TYPE __left = (TYPE)(LEFT); \
