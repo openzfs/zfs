@@ -16,4 +16,4 @@ zhack_LDADD = \
 	$(top_builddir)/lib/libzfs/libzfs.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 
-zhack_LDADD += $(ZLIB)
+zhack_LDADD += $(ZLIB) $(TIRPC_LIBS)
