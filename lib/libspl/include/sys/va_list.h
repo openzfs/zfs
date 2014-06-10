@@ -30,7 +30,11 @@
 #include <stdarg.h>
 
 #ifndef __va_list
+#ifdef __gnuc_va_list 
 typedef __gnuc_va_list __va_list;
+#else
+typedef void* __va_list;
+#endif
 #endif
 
 #endif
