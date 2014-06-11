@@ -1,9 +1,9 @@
 
 ACLOCAL_AMFLAGS = -I config
 
-include $(top_srcdir)/config/rpm.am
-include $(top_srcdir)/config/deb.am
-include $(top_srcdir)/config/tgz.am
+include config/rpm.am
+include config/deb.am
+include config/tgz.am
 
 SUBDIRS = include rpm
 if CONFIG_USER
@@ -40,11 +40,11 @@ dist-hook:
 		$(distdir)/META
 
 ctags:
-	$(RM) $(top_srcdir)/tags
+	$(RM) tags
 	find $(top_srcdir) -name .git -prune -o -name '*.[hc]' | xargs ctags
 
 etags:
-	$(RM) $(top_srcdir)/TAGS
+	$(RM) TAGS
 	find $(top_srcdir) -name .pc -prune -o -name '*.[hc]' | xargs etags -a
 
 tags: ctags etags

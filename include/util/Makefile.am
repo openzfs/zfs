@@ -2,7 +2,7 @@ COMMON_H =
 
 KERNEL_H = \
 	$(top_srcdir)/include/util/qsort.h \
-        $(top_srcdir)/include/util/sscanf.h
+	$(top_srcdir)/include/util/sscanf.h
 
 USER_H =
 
