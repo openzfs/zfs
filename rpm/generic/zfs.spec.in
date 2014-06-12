@@ -2,7 +2,7 @@
 %global _libdir     /%{_lib}
 
 # Set the default udev directory based on distribution.
-%if 0%{!?_udevdir}
+%if %{undefined _udevdir}
 %if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
 %global _udevdir    %{_prefix}/lib/udev
 %else
@@ -11,16 +11,16 @@
 %endif
 
 # Set the default udevrule directory based on distribution.
-%if 0%{!?_udevruledir}
+%if %{undefined _udevruledir}
 %if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
-%global _udevruledir    %{_prefix}/lib/udevrule/rules.d
+%global _udevruledir    %{_prefix}/lib/udev/rules.d
 %else
-%global _udevruledir    /lib/udevrule/rules.d
+%global _udevruledir    /lib/udev/rules.d
 %endif
 %endif
 
 # Set the default dracut directory based on distribution.
-%if 0%{!?_dracutdir}
+%if %{undefined _dracutdir}
 %if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
 %global _dracutdir  %{_prefix}/lib/dracut
 %else
