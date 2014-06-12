@@ -1242,6 +1242,8 @@ metaslab_preload(void *arg)
 	metaslab_t *msp = arg;
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
 
+	ASSERT(!MUTEX_HELD(&msp->ms_group->mg_lock));
+
 	mutex_enter(&msp->ms_lock);
 	metaslab_load_wait(msp);
 	if (!msp->ms_loaded)
@@ -1266,19 +1268,36 @@ metaslab_group_preload(metaslab_group_t *mg)
 		taskq_wait(mg->mg_taskq);
 		return;
 	}
-	mutex_enter(&mg->mg_lock);
 
+	mutex_enter(&mg->mg_lock);
 	/*
-	 * Prefetch the next potential metaslabs
+	 * Load the next potential metaslabs
 	 */
-	for (msp = avl_first(t); msp != NULL; msp = AVL_NEXT(t, msp)) {
+	msp = avl_first(t);
+	while (msp != NULL) {
+		metaslab_t *msp_next = AVL_NEXT(t, msp);
 
 		/* If we have reached our preload limit then we're done */
 		if (++m > metaslab_preload_limit)
 			break;
 
+		/*
+		 * We must drop the metaslab group lock here to preserve
+		 * lock ordering with the ms_lock (when grabbing both
+		 * the mg_lock and the ms_lock, the ms_lock must be taken
+		 * first).  As a result, it is possible that the ordering
+		 * of the metaslabs within the avl tree may change before
+		 * we reacquire the lock. The metaslab cannot be removed from
+		 * the tree while we're in syncing context so it is safe to
+		 * drop the mg_lock here. If the metaslabs are reordered
+		 * nothing will break -- we just may end up loading a
+		 * less than optimal one.
+		 */
+		mutex_exit(&mg->mg_lock);
 		VERIFY(taskq_dispatch(mg->mg_taskq, metaslab_preload,
 		    msp, TQ_PUSHPAGE) != 0);
+		mutex_enter(&mg->mg_lock);
+		msp = msp_next;
 	}
 	mutex_exit(&mg->mg_lock);
 }
