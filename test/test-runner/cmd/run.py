@@ -31,9 +31,9 @@ from threading import Timer
 from time import time
 
 BASEDIR = '/var/tmp/test_results'
-KILL = '/usr/bin/kill'
-TRUE = '/usr/bin/true'
-SUDO = '/usr/bin/sudo'
+KILL = 'kill'
+TRUE = 'true'
+SUDO = 'sudo'
 
 
 class Result(object):
@@ -155,6 +155,12 @@ class Cmd(object):
 
         if not user or user is me:
             return cmd
+
+        if not os.path.isfile(cmd):
+            if os.path.isfile(cmd+'.ksh') and os.access(cmd+'.ksh', os.X_OK):
+                cmd += '.ksh'
+            if os.path.isfile(cmd+'.sh') and os.access(cmd+'.sh', os.X_OK):
+                cmd += '.sh'
 
         ret = '%s -E -u %s %s' % (SUDO, user, cmd)
         return ret.split(' ')
@@ -688,7 +694,9 @@ def verify_file(pathname):
     if os.path.isdir(pathname) or os.path.islink(pathname):
         return False
 
-    if os.path.isfile(pathname) and os.access(pathname, os.X_OK):
+    if os.path.isfile(pathname) and os.access(pathname, os.X_OK) or \
+            os.path.isfile(pathname+'.ksh') and os.access(pathname+'.ksh', os.X_OK) or \
+            os.path.isfile(pathname+'.sh') and os.access(pathname+'.sh', os.X_OK):
         return True
 
     return False
