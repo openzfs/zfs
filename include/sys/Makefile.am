@@ -40,11 +40,13 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/rrwlock.h \
 	$(top_srcdir)/include/sys/sa.h \
 	$(top_srcdir)/include/sys/sa_impl.h \
+	$(top_srcdir)/include/sys/sdt.h \
 	$(top_srcdir)/include/sys/spa_boot.h \
 	$(top_srcdir)/include/sys/space_map.h \
 	$(top_srcdir)/include/sys/space_reftree.h \
 	$(top_srcdir)/include/sys/spa.h \
 	$(top_srcdir)/include/sys/spa_impl.h \
+	$(top_srcdir)/include/sys/trace.h \
 	$(top_srcdir)/include/sys/txg.h \
 	$(top_srcdir)/include/sys/txg_impl.h \
 	$(top_srcdir)/include/sys/u8_textprep_data.h \

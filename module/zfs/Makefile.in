@@ -52,6 +52,7 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/spa_stats.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/space_map.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/space_reftree.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/txg.o
+$(MODULE)-objs += @top_srcdir@/module/zfs/trace.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/uberblock.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/unique.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/vdev.o
