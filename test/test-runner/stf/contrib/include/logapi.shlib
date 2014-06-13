@@ -113,7 +113,7 @@ function log_neg_expect
 
 	"$@" 2>$logfile
 	typeset status=$?
-	out="/usr/bin/cat $logfile"
+	out="$CAT $logfile"
 
 	# unexpected status
 	if (( $status == 0 )); then
@@ -132,7 +132,7 @@ function log_neg_expect
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
 	else
-		$out | /usr/bin/egrep -i "internal error|assertion failed" \
+		$out | $EGREP -i "internal error|assertion failed" \
 			> /dev/null 2>&1
 		# internal error or assertion failed
 		if (( $? == 0 )); then
@@ -140,7 +140,7 @@ function log_neg_expect
 			_printerror "$@" "internal error or assertion failure" \
 				" exited $status"
 		elif [[ -n $expect ]] ; then
-			$out | /usr/bin/grep -i "$expect" > /dev/null 2>&1
+			$out | $GREP -i "$expect" > /dev/null 2>&1
 			if (( $? == 0 )); then
 				ret=0
 			else
@@ -177,13 +177,13 @@ function log_pos
 
 	"$@" 2>$logfile
 	typeset status=$?
-	out="/usr/bin/cat $logfile"
+	out="$CAT $logfile"
 
 	if (( $status != 0 )) ; then
 		print -u2 $($out)
 		_printerror "$@" "exited $status"
 	else
-		$out | /usr/bin/egrep -i "internal error|assertion failed" \
+		$out | $EGREP -i "internal error|assertion failed" \
 			> /dev/null 2>&1
 		# internal error or assertion failed
 		if [[ $? -eq 0 ]]; then
@@ -376,9 +376,9 @@ function _recursive_output #logfile
 
 	while [[ -e $logfile ]]; do
 		if [[ -z $2 || $logfile != $1 ]]; then
-			/usr/bin/cat $logfile
+			$CAT $logfile
 		fi
-		/usr/bin/rm -f $logfile
+		$RM -f $logfile
 		logfile="$logfile.$$"
         done
 }
