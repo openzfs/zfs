@@ -44,7 +44,6 @@ log_assert "zfs fails with unexpected scenarios."
 
 #verify zfs failed if ZFS_DEV cannot be opened
 ZFS_DEV=/dev/zfs
-MNTTAB=/etc/mnttab
 
 for file in $ZFS_DEV $MNTTAB; do
 	if [[ -e $file ]]; then

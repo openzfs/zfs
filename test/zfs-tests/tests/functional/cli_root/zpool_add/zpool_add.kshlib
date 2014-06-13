@@ -97,7 +97,7 @@ function find_vfstab_dev
 #
 function find_mnttab_dev
 {
-	typeset mnttab="/etc/mnttab"
+	typeset mnttab="$MNTTAB"
 	typeset tmpfile="/tmp/mnttab.tmp"
 	typeset mnttabdev
 	typeset mnttabdevs=""
