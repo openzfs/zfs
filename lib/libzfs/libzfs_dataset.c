@@ -1765,8 +1765,10 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	 * the property is valid for the snapshot's head dataset type.
 	 */
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT &&
-		!zfs_prop_valid_for_type(prop, zhp->zfs_head_type, B_TRUE))
+		!zfs_prop_valid_for_type(prop, zhp->zfs_head_type, B_TRUE)) {
+			*val = zfs_prop_default_numeric(prop);
 			return (-1);
+	}
 
 	switch (prop) {
 	case ZFS_PROP_ATIME:
