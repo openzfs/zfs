@@ -27,6 +27,12 @@
 #include "../file_common.h"
 #include <libgen.h>
 
+#ifdef _LINUX
+typedef unsigned char   uchar_t;
+typedef long long       longlong_t;
+typedef longlong_t      offset_t;
+#endif
+
 static unsigned char bigbuffer[BIGBUFFERSIZE];
 
 /*

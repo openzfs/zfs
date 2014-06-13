@@ -29,6 +29,10 @@
 #include <unistd.h>
 #include <errno.h>
 
+#ifdef _LINUX
+typedef enum boolean { B_FALSE, B_TRUE } boolean_t;
+#endif
+
 static void
 usage(char *progname)
 {

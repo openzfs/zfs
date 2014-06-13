@@ -174,6 +174,7 @@ crtfile(char *pname)
 		exit(errno);
 	}
 
+#ifndef _LINUX
 	if ((afd = openat(fd, "xattr", O_CREAT | O_RDWR | O_XATTR, 0777)) < 0) {
 		(void) fprintf(stderr, "openat failed.\n[%d]: %s.\n",
 		    errno, strerror(errno));
@@ -186,6 +187,7 @@ crtfile(char *pname)
 	}
 
 	(void) close(afd);
+#endif
 	(void) close(fd);
 	free(pbuf);
 }
