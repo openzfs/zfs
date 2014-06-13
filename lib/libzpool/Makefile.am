@@ -66,6 +66,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/spa_stats.c \
 	$(top_srcdir)/module/zfs/space_map.c \
 	$(top_srcdir)/module/zfs/txg.c \
+	$(top_srcdir)/module/zfs/trace.c \
 	$(top_srcdir)/module/zfs/uberblock.c \
 	$(top_srcdir)/module/zfs/unique.c \
 	$(top_srcdir)/module/zfs/vdev.c \
