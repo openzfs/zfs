@@ -16,10 +16,12 @@
 # Copyright 2014, OmniTI Computer Consulting, Inc. All rights reserved.
 #
 
-export STF_SUITE="/opt/zfs-tests"
-export STF_TOOLS="/opt/test-runner/stf"
-runner="/opt/test-runner/bin/run"
+export STF_SUITE="${STF_SUITE:-/opt/zfs-tests}"
+export STF_TOOLS="${STF_TOOLS:-/opt/test-runner/stf}"
+runner="$STF_TOOLS/../bin/run"
 auto_detect=false
+
+. $STF_SUITE/include/default.cfg
 
 function fail
 {
@@ -27,11 +29,11 @@ function fail
 	exit ${2:-1}
 }
 
-function find_disks
+function find_disks_zfstest
 {
-	typeset all_disks=$(echo '' | sudo /usr/sbin/format | awk \
+	typeset all_disks=$(echo '' | sudo $FORMAT | $AWK \
 	    '/c[0-9]/ {print $2}')
-	typeset used_disks=$(/sbin/zpool status | awk \
+	typeset used_disks=$($ZPOOL status | $AWK \
 	    '/c[0-9]*t[0-9a-f]*d[0-9]/ {print $1}' | sed 's/s[0-9]//g')
 
 	typeset disk used avail_disks
@@ -48,7 +50,7 @@ function find_disks
 
 function find_rpool
 {
-	typeset ds=$(/usr/sbin/mount | awk '/^\/ / {print $3}')
+	typeset ds=$($MOUNT | $AWK '/^\/ / {print $3}')
 	echo ${ds%%/*}
 }
 
@@ -61,9 +63,12 @@ function find_runfile
 		distro=openindiana
 	elif [[ 0 -ne $(grep -c OmniOS /etc/release 2>/dev/null) ]]; then
 		distro=omnios
+	elif [[ -n "$LINUX" ]]; then
+		distro=linux
 	fi
 
-	[[ -n $distro ]] && echo $STF_SUITE/runfiles/$distro.run
+	[[ -n $distro && -f "$STF_SUITE/runfiles/$distro.run" ]] && \
+	    echo $STF_SUITE/runfiles/$distro.run
 }
 
 function verify_id
@@ -73,16 +78,20 @@ function verify_id
 	sudo -n id >/dev/null 2>&1
 	[[ $? -eq 0 ]] || fail "User must be able to sudo without a password."
 
-	typeset -i priv_cnt=$(ppriv $$ | egrep -v \
-	    ": basic$|	L:| <none>|$$:" | wc -l)
-	[[ $priv_cnt -ne 0 ]] && fail "User must only have basic privileges."
+	if [[ -z "$LINUX" ]]; then
+	    typeset -i priv_cnt=$($PPRIV $$ | $EGREP -v \
+		": basic$|	L:| <none>|$$:" | wc -l)
+	    [[ $priv_cnt -ne 0 ]] && fail "User must only have basic privileges."
+	fi
 }
 
 function verify_disks
 {
+	[[ -n "$LINUX" ]] && return 0
+
 	typeset disk
 	for disk in $DISKS; do
-		sudo /usr/sbin/prtvtoc /dev/rdsk/${disk}s0 >/dev/null 2>&1
+		sudo $PRTVTOC /dev/rdsk/${disk}s0 >/dev/null 2>&1
 		[[ $? -eq 0 ]] || return 1
 	done
 	return 0
@@ -108,7 +117,7 @@ shift $((OPTIND - 1))
 
 # If the user specified -a, then use free disks, otherwise use those in $DISKS.
 if $auto_detect; then
-	export DISKS=$(find_disks)
+	export DISKS=$(find_disks_zfstest)
 elif [[ -z $DISKS ]]; then
 	fail "\$DISKS not set in env, and -a not specified."
 else
@@ -123,12 +132,15 @@ else
 	KEEP+="|^$(find_rpool)\$"
 fi
 
+# Create the test directories (since move from / to /var/tmp)
+for dir in $TESTDIR $TESTDIR0 $TESTDIR1 $TESTDIR2; do
+	$MKDIR -p $dir
+done
+
 [[ -z $runfile ]] && runfile=$(find_runfile)
 [[ -z $runfile ]] && fail "Couldn't determine distro"
 
-. $STF_SUITE/include/default.cfg
-
-num_disks=$(echo $DISKS | awk '{print NF}')
+num_disks=$(echo $DISKS | $AWK '{print NF}')
 [[ $num_disks -lt 3 ]] && fail "Not enough disks to run ZFS Test Suite"
 
 $runner $quiet -c $runfile
