@@ -16,4 +16,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER], [
 dnl #
 dnl #	Checks for library functions
 	AC_CHECK_FUNCS([mlockall])
+dnl #
+dnl #	Checks for commands
+	AC_MSG_COMMAND_KSH
 ])
