@@ -33,7 +33,6 @@ MODULE-OPTIONS:
 
 $0 zfs="zfs_prefetch_disable=1"
 $0 zfs="zfs_prefetch_disable=1 zfs_mdcomp_disable=1"
-$0 spl="spl_debug_mask=0"
 
 EOF
 }

@@ -25,99 +25,22 @@
 
 #include <sys/zfs_context.h>
 
-#if !defined(_KERNEL) || !defined(__linux__)
 list_t zfs_dbgmsgs;
 int zfs_dbgmsg_size;
 kmutex_t zfs_dbgmsgs_lock;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
-#endif
 
-/*
- * Enable various debugging features.
- */
-int zfs_flags = 0;
-
-/*
- * zfs_recover can be set to nonzero to attempt to recover from
- * otherwise-fatal errors, typically caused by on-disk corruption.  When
- * set, calls to zfs_panic_recover() will turn into warning messages.
- * This should only be used as a last resort, as it typically results
- * in leaked space, or worse.
- */
-int zfs_recover = B_FALSE;
-
-/*
- * If destroy encounters an EIO while reading metadata (e.g. indirect
- * blocks), space referenced by the missing metadata can not be freed.
- * Normally this causes the background destroy to become "stalled", as
- * it is unable to make forward progress.  While in this stalled state,
- * all remaining space to free from the error-encountering filesystem is
- * "temporarily leaked".  Set this flag to cause it to ignore the EIO,
- * permanently leak the space from indirect blocks that can not be read,
- * and continue to free everything else that it can.
- *
- * The default, "stalling" behavior is useful if the storage partially
- * fails (i.e. some but not all i/os fail), and then later recovers.  In
- * this case, we will be able to continue pool operations while it is
- * partially failed, and when it recovers, we can continue to free the
- * space, with no leaks.  However, note that this case is actually
- * fairly rare.
- *
- * Typically pools either (a) fail completely (but perhaps temporarily,
- * e.g. a top-level vdev going offline), or (b) have localized,
- * permanent errors (e.g. disk returns the wrong data due to bit flip or
- * firmware bug).  In case (a), this setting does not matter because the
- * pool will be suspended and the sync thread will not be able to make
- * forward progress regardless.  In case (b), because the error is
- * permanent, the best we can do is leak the minimum amount of space,
- * which is what setting this flag will do.  Therefore, it is reasonable
- * for this flag to normally be set, but we chose the more conservative
- * approach of not setting it, so that there is no possibility of
- * leaking space in the "partial temporary" failure case.
- */
-int zfs_free_leak_on_eio = B_FALSE;
-
-
-void
-zfs_panic_recover(const char *fmt, ...)
-{
-	va_list adx;
-
-	va_start(adx, fmt);
-	vcmn_err(zfs_recover ? CE_WARN : CE_PANIC, fmt, adx);
-	va_end(adx);
-}
-
-/*
- * Debug logging is enabled by default for production kernel builds.
- * The overhead for this is negligible and the logs can be valuable when
- * debugging.  For non-production user space builds all debugging except
- * logging is enabled since performance is no longer a concern.
- */
 void
 zfs_dbgmsg_init(void)
 {
-#if !defined(_KERNEL) || !defined(__linux__)
 	list_create(&zfs_dbgmsgs, sizeof (zfs_dbgmsg_t),
 	    offsetof(zfs_dbgmsg_t, zdm_node));
 	mutex_init(&zfs_dbgmsgs_lock, NULL, MUTEX_DEFAULT, NULL);
-#endif
-
-	if (zfs_flags == 0) {
-#if defined(_KERNEL)
-		zfs_flags = ZFS_DEBUG_DPRINTF;
-		spl_debug_set_mask(spl_debug_get_mask() | SD_DPRINTF);
-		spl_debug_set_subsys(spl_debug_get_subsys() | SS_USER1);
-#else
-		zfs_flags = ~ZFS_DEBUG_DPRINTF;
-#endif /* _KERNEL */
-	}
 }
 
 void
 zfs_dbgmsg_fini(void)
 {
-#if !defined(_KERNEL) || !defined(__linux__)
 	zfs_dbgmsg_t *zdm;
 
 	while ((zdm = list_remove_head(&zfs_dbgmsgs)) != NULL) {
@@ -127,25 +50,24 @@ zfs_dbgmsg_fini(void)
 	}
 	mutex_destroy(&zfs_dbgmsgs_lock);
 	ASSERT0(zfs_dbgmsg_size);
-#endif
 }
 
-#if !defined(_KERNEL) || !defined(__linux__)
 /*
- * Print these messages by running:
- * echo ::zfs_dbgmsg | mdb -k
+ * To get this data enable the zfs__dbgmsg tracepoint as shown:
  *
- * Monitor these messages by running:
- * dtrace -qn 'zfs-dbgmsg{printf("%s\n", stringof(arg0))}'
+ * # Enable zfs__dbgmsg tracepoint, clear the tracepoint ring buffer
+ * $ echo 1 > /sys/kernel/debug/tracing/events/zfs/enable
+ * $ echo 0 > /sys/kernel/debug/tracing/trace
  *
- * When used with libzpool, monitor with:
- * dtrace -qn 'zfs$pid::zfs_dbgmsg:probe1{printf("%s\n", copyinstr(arg1))}'
+ * # Dump the ring buffer.
+ * $ cat /sys/kernel/debug/tracing/trace
  */
 void
 zfs_dbgmsg(const char *fmt, ...)
 {
 	int size;
 	va_list adx;
+	char *nl;
 	zfs_dbgmsg_t *zdm;
 
 	va_start(adx, fmt);
@@ -156,12 +78,19 @@ zfs_dbgmsg(const char *fmt, ...)
 	 * There is one byte of string in sizeof (zfs_dbgmsg_t), used
 	 * for the terminating null.
 	 */
-	zdm = kmem_alloc(sizeof (zfs_dbgmsg_t) + size, KM_SLEEP);
+	zdm = kmem_alloc(sizeof (zfs_dbgmsg_t) + size, KM_PUSHPAGE);
 	zdm->zdm_timestamp = gethrestime_sec();
 
 	va_start(adx, fmt);
 	(void) vsnprintf(zdm->zdm_msg, size + 1, fmt, adx);
 	va_end(adx);
+
+	/*
+	 * Get rid of trailing newline.
+	 */
+	nl = strrchr(zdm->zdm_msg, '\n');
+	if (nl != NULL)
+		*nl = '\0';
 
 	DTRACE_PROBE1(zfs__dbgmsg, char *, zdm->zdm_msg);
 
@@ -180,6 +109,7 @@ zfs_dbgmsg(const char *fmt, ...)
 void
 zfs_dbgmsg_print(const char *tag)
 {
+#if !defined(_KERNEL)
 	zfs_dbgmsg_t *zdm;
 
 	(void) printf("ZFS_DBGMSG(%s):\n", tag);
@@ -188,17 +118,5 @@ zfs_dbgmsg_print(const char *tag)
 	    zdm = list_next(&zfs_dbgmsgs, zdm))
 		(void) printf("%s\n", zdm->zdm_msg);
 	mutex_exit(&zfs_dbgmsgs_lock);
+#endif /* !_KERNEL */
 }
-#endif
-
-#if defined(_KERNEL)
-module_param(zfs_flags, int, 0644);
-MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
-
-module_param(zfs_recover, int, 0644);
-MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
-
-module_param(zfs_free_leak_on_eio, int, 0644);
-MODULE_PARM_DESC(zfs_free_leak_on_eio,
-	"Set to ignore IO errors during free and permanently leak the space");
-#endif /* _KERNEL */

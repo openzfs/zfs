@@ -38,14 +38,6 @@ extern "C" {
 #define	FALSE 0
 #endif
 
-/*
- * ZFS debugging - Always enabled for user space builds.
- */
-
-#if !defined(ZFS_DEBUG) && !defined(_KERNEL)
-#define	ZFS_DEBUG
-#endif
-
 extern int zfs_flags;
 extern int zfs_recover;
 extern int zfs_free_leak_on_eio;
@@ -59,29 +51,15 @@ extern int zfs_free_leak_on_eio;
 #define	ZFS_DEBUG_ZIO_FREE		(1<<6)
 #define	ZFS_DEBUG_HISTOGRAM_VERIFY	(1<<7)
 
-/*
- * Always log zfs debug messages to the spl debug subsystem as SS_USER1.
- * When the SPL is configured with debugging enabled these messages will
- * appear in the internal spl debug log, otherwise they are a no-op.
- */
-#if defined(_KERNEL)
-
-#include <spl-debug.h>
-#define	dprintf(...)                                                   \
-	if (zfs_flags & ZFS_DEBUG_DPRINTF)                             \
-		__SDEBUG(NULL, SS_USER1, SD_DPRINTF, __VA_ARGS__)
-
-/*
- * When zfs is running is user space the debugging is always enabled.
- * The messages will be printed using the __dprintf() function and
- * filtered based on the zfs_flags variable.
- */
-#else
-#define	dprintf(...)                                                   \
-	if (zfs_flags & ZFS_DEBUG_DPRINTF)                             \
+#if defined(HAVE_DECLARE_EVENT_CLASS) || !defined(_KERNEL)
+extern void __dprintf(const char *file, const char *func,
+    int line, const char *fmt, ...);
+#define	dprintf(...) \
+	if (zfs_flags & ZFS_DEBUG_DPRINTF) \
 		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
-
-#endif /* _KERNEL */
+#else
+#define	dprintf(...) ((void)0)
+#endif /* HAVE_DECLARE_EVENT_CLASS || !_KERNEL */
 
 extern void zfs_panic_recover(const char *fmt, ...);
 
@@ -93,12 +71,8 @@ typedef struct zfs_dbgmsg {
 
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);
-#if defined(_KERNEL) && defined(__linux__)
-#define	zfs_dbgmsg(...) dprintf(__VA_ARGS__)
-#else
 extern void zfs_dbgmsg(const char *fmt, ...);
 extern void zfs_dbgmsg_print(const char *tag);
-#endif
 
 #ifndef _KERNEL
 extern int dprintf_find_string(const char *string);

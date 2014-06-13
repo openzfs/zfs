@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -20,17 +19,21 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Each Linux tracepoints subsystem must define CREATE_TRACE_POINTS in one
+ * (and only one) C file, so this dummy file exists for that purpose.
  */
 
-#ifndef _LIBSPL_SYS_SDT_H
-#define	_LIBSPL_SYS_SDT_H
+#include <sys/arc_impl.h>
+#include <sys/vdev_impl.h>
+#include <sys/zio.h>
+#include <sys/dbuf.h>
+#include <sys/dmu_objset.h>
+#include <sys/dsl_dataset.h>
+#include <sys/dmu_tx.h>
+#include <sys/dnode.h>
+#include <sys/zfs_znode.h>
+#include <sys/zil_impl.h>
+#include <sys/zrlock.h>
 
-#define	DTRACE_PROBE(a)					((void) 0)
-#define	DTRACE_PROBE1(a, b, c)				((void) 0)
-#define	DTRACE_PROBE2(a, b, c, d, e)			((void) 0)
-#define	DTRACE_PROBE3(a, b, c, d, e, f, g)		((void) 0)
-#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void) 0)
-
-#endif
+#define	CREATE_TRACE_POINTS
+#include <sys/trace.h>

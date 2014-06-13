@@ -66,6 +66,7 @@
 #include <sys/sunddi.h>
 #include <sys/ctype.h>
 #include <sys/disp.h>
+#include <sys/trace.h>
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
 
@@ -140,15 +141,12 @@
 #define	CE_PANIC	3	/* panic		*/
 #define	CE_IGNORE	4	/* print nothing	*/
 
-extern int aok;
-
 /*
  * ZFS debugging
  */
 
 extern void dprintf_setup(int *argc, char **argv);
-extern void __dprintf(const char *file, const char *func,
-    int line, const char *fmt, ...);
+
 extern void cmn_err(int, const char *, ...);
 extern void vcmn_err(int, const char *, va_list);
 extern void panic(const char *, ...);
@@ -156,7 +154,8 @@ extern void vpanic(const char *, va_list);
 
 #define	fm_panic	panic
 
-#ifdef __sun
+extern int aok;
+
 /*
  * DTrace SDT probes have different signatures in userland than they do in
  * kernel.  If they're being used in kernel code, re-define them out of
@@ -202,9 +201,6 @@ extern void vpanic(const char *, va_list);
  * "return (SET_ERROR(log_error(EINVAL, info)));" would log the error twice).
  */
 #define	SET_ERROR(err) (ZFS_SET_ERROR(err), err)
-#else
-#define	SET_ERROR(err) (err)
-#endif
 
 /*
  * Threads.  TS_STACK_MIN is dictated by the minimum allowed pthread stack
