@@ -145,6 +145,7 @@
 #include <sys/kstat.h>
 #include <sys/dmu_tx.h>
 #include <zfs_fletcher.h>
+#include "trace.h"
 
 #ifndef _KERNEL
 /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
@@ -1567,7 +1568,7 @@ arc_buf_add_ref(arc_buf_t *buf, void* tag)
 
 	ASSERT(hdr->b_state == arc_mru || hdr->b_state == arc_mfu);
 	add_reference(hdr, hash_lock, tag);
-	DTRACE_PROBE1(arc__hit, arc_buf_hdr_t *, hdr);
+	trace_zfs_arc_arc_hit(hdr);
 	arc_access(hdr, hash_lock);
 	mutex_exit(hash_lock);
 	ARCSTAT_BUMP(arcstat_hits);
@@ -2004,7 +2005,7 @@ top:
 				ASSERT(HDR_IN_HASH_TABLE(ab));
 				ab->b_flags |= ARC_IN_HASH_TABLE;
 				ab->b_flags &= ~ARC_BUF_AVAILABLE;
-				DTRACE_PROBE1(arc__evict, arc_buf_hdr_t *, ab);
+				trace_zfs_arc_arc_evict(ab);
 			}
 			if (!have_lock)
 				mutex_exit(hash_lock);
@@ -2118,7 +2119,7 @@ top:
 				arc_hdr_destroy(ab);
 			}
 
-			DTRACE_PROBE1(arc__delete, arc_buf_hdr_t *, ab);
+			trace_zfs_arc_arc_delete(ab);
 			if (bytes >= 0 && bytes_deleted >= bytes)
 				break;
 		} else if (bytes < 0) {
@@ -2888,7 +2889,7 @@ arc_access(arc_buf_hdr_t *buf, kmutex_t *hash_lock)
 
 		ASSERT(buf->b_arc_access == 0);
 		buf->b_arc_access = ddi_get_lbolt();
-		DTRACE_PROBE1(new_state__mru, arc_buf_hdr_t *, buf);
+		trace_zfs_arc_new_state_mru(buf);
 		arc_change_state(arc_mru, buf, hash_lock);
 
 	} else if (buf->b_state == arc_mru) {
@@ -2926,7 +2927,7 @@ arc_access(arc_buf_hdr_t *buf, kmutex_t *hash_lock)
 			 * most frequently used state.
 			 */
 			buf->b_arc_access = now;
-			DTRACE_PROBE1(new_state__mfu, arc_buf_hdr_t *, buf);
+			trace_zfs_arc_new_state_mfu(buf);
 			arc_change_state(arc_mfu, buf, hash_lock);
 		}
 		atomic_inc_32(&buf->b_mru_hits);
@@ -2943,10 +2944,10 @@ arc_access(arc_buf_hdr_t *buf, kmutex_t *hash_lock)
 			new_state = arc_mru;
 			if (refcount_count(&buf->b_refcnt) > 0)
 				buf->b_flags &= ~ARC_PREFETCH;
-			DTRACE_PROBE1(new_state__mru, arc_buf_hdr_t *, buf);
+			trace_zfs_arc_new_state_mru(buf);
 		} else {
 			new_state = arc_mfu;
-			DTRACE_PROBE1(new_state__mfu, arc_buf_hdr_t *, buf);
+			trace_zfs_arc_new_state_mfu(buf);
 		}
 
 		buf->b_arc_access = ddi_get_lbolt();
@@ -2989,7 +2990,7 @@ arc_access(arc_buf_hdr_t *buf, kmutex_t *hash_lock)
 		}
 
 		buf->b_arc_access = ddi_get_lbolt();
-		DTRACE_PROBE1(new_state__mfu, arc_buf_hdr_t *, buf);
+		trace_zfs_arc_new_state_mfu(buf);
 		arc_change_state(new_state, buf, hash_lock);
 
 		atomic_inc_32(&buf->b_mfu_ghost_hits);
@@ -3000,7 +3001,7 @@ arc_access(arc_buf_hdr_t *buf, kmutex_t *hash_lock)
 		 */
 
 		buf->b_arc_access = ddi_get_lbolt();
-		DTRACE_PROBE1(new_state__mfu, arc_buf_hdr_t *, buf);
+		trace_zfs_arc_new_state_mfu(buf);
 		arc_change_state(arc_mfu, buf, hash_lock);
 	} else {
 		ASSERT(!"invalid arc state");
@@ -3249,7 +3250,7 @@ top:
 		    refcount_count(&hdr->b_refcnt) == 0) {
 			hdr->b_flags |= ARC_PREFETCH;
 		}
-		DTRACE_PROBE1(arc__hit, arc_buf_hdr_t *, hdr);
+		trace_zfs_arc_arc_hit(hdr);
 		arc_access(hdr, hash_lock);
 		if (*arc_flags & ARC_L2CACHE)
 			hdr->b_flags |= ARC_L2CACHE;
@@ -3383,7 +3384,7 @@ top:
 			    !(l2arc_noprefetch && HDR_PREFETCH(hdr))) {
 				l2arc_read_callback_t *cb;
 
-				DTRACE_PROBE1(l2arc__hit, arc_buf_hdr_t *, hdr);
+				trace_zfs_arc_l2arc_hit(hdr);
 				ARCSTAT_BUMP(arcstat_l2_hits);
 				atomic_inc_32(&hdr->b_l2hdr->b_hits);
 
@@ -3438,8 +3439,7 @@ top:
 
 				/* l2arc read error; goto zio_read() */
 			} else {
-				DTRACE_PROBE1(l2arc__miss,
-				    arc_buf_hdr_t *, hdr);
+				trace_zfs_arc_l2arc_miss(hdr);
 				ARCSTAT_BUMP(arcstat_l2_misses);
 				if (HDR_L2_WRITING(hdr))
 					ARCSTAT_BUMP(arcstat_l2_rw_clash);
@@ -3449,8 +3449,7 @@ top:
 			if (vd != NULL)
 				spa_config_exit(spa, SCL_L2ARC, vd);
 			if (l2arc_ndev != 0) {
-				DTRACE_PROBE1(l2arc__miss,
-				    arc_buf_hdr_t *, hdr);
+				trace_zfs_arc_l2arc_miss(hdr);
 				ARCSTAT_BUMP(arcstat_l2_misses);
 			}
 		}

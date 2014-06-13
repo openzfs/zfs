@@ -1,6 +1,7 @@
 MODULE := zfs
 
 EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
+EXTRA_CFLAGS += -I$(src)
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
@@ -48,6 +49,7 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/spa_misc.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/spa_stats.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/space_map.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/txg.o
+$(MODULE)-objs += @top_srcdir@/module/zfs/trace.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/uberblock.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/unique.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/vdev.o
