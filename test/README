@@ -1,0 +1,86 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2013 by Delphix. All rights reserved.
+#
+
+illumos Testing README
+
+1. A Brief History of usr/src/test
+2. How to Run These Tests
+3. How to Develop New Tests
+4. Porting Tests from Other Frameworks
+
+--------------------------------------------------------------------------------
+
+1. A Brief History of usr/src/test
+
+The tests here come in two varieties - tests written from scratch, and tests
+that have been ported from the Solaris Test Collection. Not all of the STC
+tests have been ported, and a forked repository of those that have been made
+publicly available may currently be found here:
+
+	https://bitbucket.org/illumos/illumos-stc/
+
+Regardless of origin, all of these tests are executed using the run(1) script
+described in the next section.
+
+2. How to Run These Tests
+
+Currently, all the test suites under usr/src/test provide a wrapper script
+around run(1). These wrappers allow environment variables to be set up which
+may (for example) allow the script to specify which disks may be used by a test
+suite, and which must be preserved. Additionally, the wrappers allow options to
+run(1) to be passed through so that a user may specify a custom configuration
+file for a test suite. For specifics on the options available in the framework
+itself, please see the run(1) manpage.
+
+3. How to Develop New Tests
+
+New tests should mimic the directory layout of existing tests to the degree
+possible. This includes the following directories:
+
+cmd - Any support binaries or scripts used by the tests in this package.
+doc - READMEs or other support documentation to be delivered with the package.
+runfiles -  Configuration files that dictate how the tests are run.
+tests - The tests themselves (see below).
+
+The tests you create will be run, and given a PASS or FAIL status in accordance
+with the exit value returned by the test. A test may also be marked SKIPPED in
+the event that a prerequisite test is marked FAIL, or marked KILLED in the
+event the test times out. Note that there is no way to force a test to be
+marked SKIPPED; this is intentional. If a test must be skipped due to
+insufficient resources for example, then a wrapper script should be provided
+that chooses or creates an appropriate configuration file. The goal of every
+run is that every test is marked PASS.
+
+4. Porting Tests from Other Frameworks
+
+STF (Solaris Test Framework)
+
+Porting tests from this framework is relatively straightforward. For the most
+part the tests can be arranged in the new directory structure and added to the
+configuration file. The template for a configuration file can easily be created
+using the -w option to run(1). There are a few other changes that may be
+required:
+
+Some STF tests consume the values of variables from the user's environment.
+These variables must be set before beginning the test run either manually, or
+via a wrapper script.
+
+Groups of tests in STF can automatically source .cfg files specified in the
+'stf_description' file that exists in an STF directory. Ported tests that
+require any of these variables must manually source the .cfg file instead.
+
+The configuration file of a newly ported test must specify the user the test
+should run as, along with the timeout value. In STF, these are also specified
+in the 'stf_description' file.

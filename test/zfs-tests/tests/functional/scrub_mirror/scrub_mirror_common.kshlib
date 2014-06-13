@@ -1,0 +1,78 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013 by Delphix. All rights reserved.
+#
+. $STF_SUITE/tests/functional/scrub_mirror/default.cfg
+
+function overwrite_verify_mirror
+{
+	typeset POOL=$1
+	typeset AFFECTED_DEVICE=$2
+	typeset OVERWRITING_DEVICE=$3
+
+	typeset atfile=0
+	set -A files
+	set -A cksums
+	set -A newcksums
+
+	while (( atfile < FILE_COUNT )); do
+		files[$atfile]=$TESTDIR/file.$atfile
+		log_must $FILE_WRITE -o create -f $TESTDIR/file.$atfile \
+			-b $FILE_SIZE -c 1
+		cksums[$atfile]=$($CKSUM ${files[$atfile]})
+		(( atfile = atfile + 1 ))
+	done
+
+	# dd the affected side of the mirror
+	log_must $DD if=$OVERWRITING_DEVICE of=/dev/dsk/$AFFECTED_DEVICE \
+		seek=8 bs=$DD_BLOCK count=$(( DD_COUNT - 8 )) conv=notrunc
+
+	log_must $ZPOOL scrub $POOL
+
+	while is_pool_scrubbing $POOL; do
+		$SLEEP 2
+	done
+
+	atfile=0
+
+	typeset -i failedcount=0
+	while (( atfile < FILE_COUNT )); do
+		files[$atfile]=$TESTDIR/file.$atfile
+		newcksum=$($CKSUM ${files[$atfile]})
+		if [[ $newcksum != ${cksums[$atfile]} ]]; then
+			(( failedcount = failedcount + 1 ))
+		fi
+		$RM -f ${files[$atfile]}
+		(( atfile = atfile + 1 ))
+	done
+
+	if (( $failedcount > 0 )); then
+		log_fail "of the $FILE_COUNT files $failedcount did not " \
+		    "have the same checksum before and after."
+	fi
+}
