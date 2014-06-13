@@ -1,0 +1,37 @@
+#!/bin/bash
+
+sparse=0
+if [[ "$1" == "-s" ]]; then
+	sparse=1
+	shift
+fi
+
+size=$1 ; shift
+files="$*"
+
+ERR=0
+if [[ "$sparse" -eq 1 ]]; then
+	for file in $files; do
+		truncate -s $size $file
+		ret=$?
+		if [[ "$ret" -gt 0 ]]; then
+			ERR=$ret
+			continue
+		fi
+	done
+else
+	for file in $files; do
+		size=${size%%[mM]}
+		dd if=/dev/zero of=$file bs=1M count=$size \
+			2> /dev/null
+		ret=$?
+		if [[ "$ret" -gt 0 ]]; then
+			ERR=$ret
+			continue
+		fi
+	done
+fi
+
+sync
+
+exit $ERR
