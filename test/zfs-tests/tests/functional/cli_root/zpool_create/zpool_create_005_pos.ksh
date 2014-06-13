@@ -74,7 +74,7 @@ done
 log_must $MKDIR -p $TESTDIR
 typeset -i i=1
 while (( i < 4 )); do
-	log_must $MKFILE $FILESIZE $TESTDIR/file.$i
+	log_must $MKFILE -s $FILESIZE $TESTDIR/file.$i
 
 	(( i = i + 1 ))
 done

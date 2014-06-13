@@ -63,8 +63,8 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 VDEV1=$mntpnt/vdev1; VDEV2=$mntpnt/vdev2;
 VDEV3=$mntpnt/vdev3; VDEV4=$mntpnt/vdev4;
 
-log_must $MKFILE 64m $VDEV1 $VDEV2 $VDEV3
-log_must $MKFILE 100m $VDEV4
+log_must $MKFILE -s 64m $VDEV1 $VDEV2 $VDEV3
+log_must $MKFILE -s 100m $VDEV4
 
 run_and_verify -p "$MPOOL" "$ZPOOL create $MPOOL mirror $VDEV1 $VDEV2"
 run_and_verify -p "$MPOOL" "$ZPOOL add -f $MPOOL spare $VDEV3"

@@ -56,7 +56,7 @@ function cleanup
 log_assert "Verify that a ZFS volume can act as dump device."
 log_onexit cleanup
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
 safe_dumpadm $voldev

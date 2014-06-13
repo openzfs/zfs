@@ -66,7 +66,7 @@ while ((i < 5)); do
 
 	log_must $ZFS create $USEDTEST/fs$i
 	log_must $ZFS set reservation="$r_size"M $USEDTEST/fs$i
-	log_must $MKFILE 48M $mntpnt/fs$i/file$i
+	log_must $MKFILE -s 48M $mntpnt/fs$i/file$i
 
 	if is_global_zone; then
 		log_must $ZFS create -V 32M $USEDTEST/vol$i

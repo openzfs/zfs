@@ -60,7 +60,7 @@ log_must $ZFS set refquota=10M $fs
 log_must $ZFS create $fs/subfs
 
 mntpnt=$(get_prop mountpoint $fs/subfs)
-log_must $MKFILE 20M $mntpnt/$TESTFILE
+log_must $MKFILE -s 20M $mntpnt/$TESTFILE
 
 typeset -i used quota refquota
 used=$(get_prop used $fs)
@@ -71,7 +71,7 @@ if [[ $used -lt $refquota ]]; then
 	log_fail "ERROR: $used < $refquota subfs quotas are limited by refquota"
 fi
 
-log_mustnot $MKFILE 20M $mntpnt/$TESTFILE.2
+log_mustnot $MKFILE -s 20M $mntpnt/$TESTFILE.2
 used=$(get_prop used $fs)
 quota=$(get_prop quota $fs)
 ((used = used / (1024 * 1024)))

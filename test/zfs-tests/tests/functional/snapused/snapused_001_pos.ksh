@@ -70,11 +70,11 @@ while ((i < 5)); do
 	log_must $ZFS set refreservation="$r_size"M $USEDTEST
 
 	#usedbydataset
-	log_must $MKFILE 16M $mntpnt/file$i
+	log_must $MKFILE -s 16M $mntpnt/file$i
 
 	#usedbychildren
 	log_must $ZFS create $USEDTEST/fs$i
-	log_must $MKFILE 16M $mntpnt/fs$i/file$i
+	log_must $MKFILE -s 16M $mntpnt/fs$i/file$i
 
 	if is_global_zone; then
 		log_must $ZFS create -V 16M $USEDTEST/vol$i

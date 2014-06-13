@@ -99,7 +99,7 @@ arguments[${#arguments[@]}]="bootfs=$bigname"
 # Create a pool called bootfs (so-called, so as to trip any clashes between
 # property name, and pool name)
 # Also create a filesystem in this pool
-log_must $MKFILE 64m /tmp/zpool_set_002.$$.dat
+log_must $MKFILE -s 64m /tmp/zpool_set_002.$$.dat
 log_must $ZPOOL create bootfs /tmp/zpool_set_002.$$.dat
 log_must $ZFS create bootfs/root
 

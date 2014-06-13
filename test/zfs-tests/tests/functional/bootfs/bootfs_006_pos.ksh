@@ -46,10 +46,10 @@ then
 	log_unsupported "bootfs pool property not supported on this release."
 fi
 
-VDEV1=/bootfs_006_pos_a.$$.dat
-VDEV2=/bootfs_006_pos_b.$$.dat
-VDEV3=/bootfs_006_pos_c.$$.dat
-VDEV4=/bootfs_006_pos_d.$$.dat
+VDEV1=$TESTDIR/bootfs_006_pos_a.$$.dat
+VDEV2=$TESTDIR/bootfs_006_pos_b.$$.dat
+VDEV3=$TESTDIR/bootfs_006_pos_c.$$.dat
+VDEV4=$TESTDIR/bootfs_006_pos_d.$$.dat
 
 function verify_bootfs { # $POOL
 	POOL=$1
@@ -92,7 +92,7 @@ log_assert "Pools of correct vdev types accept boot property"
 
 
 log_onexit cleanup
-log_must $MKFILE 64m $VDEV1 $VDEV2 $VDEV3 $VDEV4
+log_must $MKFILE -s 64m $VDEV1 $VDEV2 $VDEV3 $VDEV4
 
 
 ## the following configurations are supported bootable pools

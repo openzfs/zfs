@@ -65,7 +65,7 @@ typeset snap_fs=$QFS@snap
 
 log_must $ZFS set groupquota@$QGROUP=500m $QFS
 mkmount_writable $QFS
-log_must user_run $QUSER1 $MKFILE 50m $QFILE
+log_must user_run $QUSER1 $MKFILE -s 50m $QFILE
 
 $SYNC
 

@@ -58,9 +58,9 @@ fi
 log_assert "Valid datasets are accepted as bootfs property values"
 log_onexit cleanup
 
-typeset VDEV=/bootfs_001_pos_a.$$.dat
+typeset VDEV=$TESTDIR/bootfs_001_pos_a.$$.dat
 
-log_must $MKFILE 400m $VDEV
+log_must $MKFILE -s 400m $VDEV
 create_pool "$TESTPOOL" "$VDEV"
 log_must $ZFS create $TESTPOOL/$TESTFS
 

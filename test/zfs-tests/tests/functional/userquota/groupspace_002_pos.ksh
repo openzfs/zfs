@@ -57,7 +57,7 @@ log_assert "Check the zfs groupspace used and quota"
 
 log_must $ZFS set groupquota@$QGROUP=500m $QFS
 mkmount_writable $QFS
-log_must user_run $QUSER1 $MKFILE 100m $QFILE
+log_must user_run $QUSER1 $MKFILE -s 100m $QFILE
 
 $SYNC
 

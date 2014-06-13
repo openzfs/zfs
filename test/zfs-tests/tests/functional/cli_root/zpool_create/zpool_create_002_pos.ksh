@@ -79,9 +79,9 @@ create_pool "$TESTPOOL" "${disk}s${SLICE0}"
 log_must $ECHO "y" | $NEWFS /dev/rdsk/${disk}s${SLICE1} >/dev/null 2>&1
 create_blockfile $FILESIZE $TESTDIR0/$FILEDISK0 ${disk}s${SLICE4}
 create_blockfile $FILESIZE1 $TESTDIR1/$FILEDISK1 ${disk}s${SLICE5}
-log_must $MKFILE $SIZE /var/tmp/$FILEDISK0
-log_must $MKFILE $SIZE /var/tmp/$FILEDISK1
-log_must $MKFILE $SIZE /var/tmp/$FILEDISK2
+log_must $MKFILE -s $SIZE /var/tmp/$FILEDISK0
+log_must $MKFILE -s $SIZE /var/tmp/$FILEDISK1
+log_must $MKFILE -s $SIZE /var/tmp/$FILEDISK2
 
 log_must $ZPOOL export $TESTPOOL
 log_note "'zpool create' without '-f' will fail " \
@@ -91,7 +91,7 @@ create_pool "$TESTPOOL1" "${disk}s${SLICE0}"
 log_must poolexists $TESTPOOL1
 
 log_note "'zpool create' without '-f' will fail " \
-	"while device is using by an ufs filesystem."
+	"while device is using by an $NEWFS_DEFAULT_FS filesystem."
 log_mustnot $ZPOOL create "$TESTPOOL2" "${disk}s${SLICE1}"
 create_pool "$TESTPOOL2" "${disk}s${SLICE1}"
 log_must poolexists $TESTPOOL2

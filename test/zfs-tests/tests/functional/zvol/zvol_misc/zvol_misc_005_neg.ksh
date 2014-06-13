@@ -60,7 +60,7 @@ function cleanup
 log_assert "Verify a device cannot be dump and swap at the same time."
 log_onexit cleanup
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
 # If device in swap list, it cannot be dump device

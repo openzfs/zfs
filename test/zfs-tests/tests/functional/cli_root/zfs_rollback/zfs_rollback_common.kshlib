@@ -71,21 +71,25 @@ function setup_snap_env
 	if datasetexists $VOL && \
 		[[ $type == 'volume' ]]; then
 		#
-		# At the first time, Make a UFS file system in volume and
-		# mount it. Otherwise, only check if this ufs file system
+		# At the first time, Make a UFS|EXT2 file system in volume and
+		# mount it. Otherwise, only check if this ufs|ext2 file system
 		# was mounted.
 		#
 		log_must eval "$ECHO "y" | \
-			$NEWFS -v /dev/zvol/dsk/$VOL > /dev/null 2>&1"
+			$NEWFS -v $ZVOL_DEVDIR/$VOL > /dev/null 2>&1"
 
 		[[ ! -d $TESTDIR1 ]] && log_must $MKDIR $TESTDIR1
 
-		# Make sure the ufs filesystem hasn't been mounted,
+		# Make sure the ufs|ext2 filesystem hasn't been mounted,
 		# then mount the new ufs filesystem.
-		$DF -lhF ufs "/dev/zvol/dsk/$VOL" > /dev/null 2>&1
+		if [[ -n "$LINUX" ]]; then
+			$DF -lhTt $NEWFS_DEFAULT_FS "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
+		else
+			$DF -lhF $NEWFS_DEFAULT_FS "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
+		fi
 		if (( $? != 0 )); then
 			log_must $MOUNT \
-				/dev/zvol/dsk/$TESTPOOL/$TESTVOL $TESTDIR1
+				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1
 		fi
 	fi
 
@@ -155,7 +159,11 @@ function cleanup_env
 
 	$PKILL ${DD##*/}
 
-	$DF -lhF ufs "/dev/zvol/dsk/$VOL" > /dev/null 2>&1
+	if [[ -n "$LINUX" ]]; then
+		$DF -lhTt $NEWFS_DEFAULT_FS "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
+	else
+		$DF -lhF $NEWFS_DEFAULT_FS "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
+	fi
 	if (( $? == 0 )); then
 		log_must $UMOUNT -f $TESTDIR1
 	fi
@@ -298,7 +306,7 @@ function write_mountpoint_dir
 		log_must ismounted $dir
 	else
 		dir=$TESTDIR1
-		log_must ismounted $dir "ufs"
+		log_must ismounted $dir "$NEWFS_DEFAULT_FS"
 	fi
 	$DD if=/dev/urandom of=$dir/$TESTFILE1 &
 	log_must $SLEEP 3

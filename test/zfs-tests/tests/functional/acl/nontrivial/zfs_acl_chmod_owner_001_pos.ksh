@@ -129,7 +129,7 @@ function operate_node_owner
 	new_owner=$(get_owner $node)
 
 	if [[ $new_owner != $old_owner ]]; then
-		$TAR xpf $TESTDIR/$ARCHIVEFILE
+		$TAR $unpack_preserve $TESTDIR/$ARCHIVEFILE
 	fi
 
 	if [[ $ret -eq 0 ]]; then
@@ -165,7 +165,7 @@ function operate_node_group
 	new_group=$(get_group $node)
 
 	if [[ $new_group != $old_group ]]; then
-		$TAR xpf $TESTDIR/$ARCHIVEFILE
+		$TAR $unpack_preserve $TESTDIR/$ARCHIVEFILE
 	fi
 
 	if [[ $ret -eq 0 ]]; then
@@ -273,7 +273,7 @@ function test_chmod_basic_access
 		for acl_t in $a_access; do
 			log_must $SU $user -c "$CHMOD A+$flag:$acl_t $node"
 
-			$TAR cpf $TESTDIR/$ARCHIVEFILE basedir
+			$TAR $pack_preserve $TESTDIR/$ARCHIVEFILE basedir
 
 			check_chmod_results $user $node $flag $acl_t $g_usr \
 			    $o_usr

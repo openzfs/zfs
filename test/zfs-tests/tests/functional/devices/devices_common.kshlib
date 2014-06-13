@@ -44,7 +44,11 @@ function create_dev_file
 
 	case $filetype in
 		b)
-			devtype=$($DF -n / | $AWK '{print $3}')
+			if [[ -n "$LINUX" ]]; then
+				devtype=$($DF -T / | $AWK '{print $2}')
+			else
+				devtype=$($DF -n / | $AWK '{print $3}')
+			fi
 			case $devtype in
 				zfs)
 					rootpool=$($DF / | \
@@ -72,6 +76,8 @@ function create_dev_file
 					[[ -z $devstr ]] && \
 						log_fail "Can not get block device file."
 					;;
+				ext2)
+					# TODO: Linux version
 				*)
 					log_unsupported "Unsupported fstype " \
 						"for / ($devtype)," \

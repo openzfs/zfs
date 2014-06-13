@@ -63,13 +63,13 @@ log_must $ZFS set quota=25M $fs
 log_must $ZFS set reserv=10M $subfs
 log_must $ZFS set refreserv=20M $subfs
 mntpnt=$(get_prop mountpoint $fs)
-log_mustnot $MKFILE 15M $mntpnt/$TESTFILE
+log_mustnot $MKFILE -s 15M $mntpnt/$TESTFILE
 
 log_must $RM -f $mntpnt/$TESTFILE
 
 log_must $ZFS set reserv=20M $subfs
 log_must $ZFS set refreserv=10M $subfs
-log_mustnot $MKFILE 15M $mntpnt/$TESTFILE
+log_mustnot $MKFILE -s 15M $mntpnt/$TESTFILE
 
 log_pass "Reservations are enforced using the maximum of " \
 	"'reserv' and 'refreserv'"

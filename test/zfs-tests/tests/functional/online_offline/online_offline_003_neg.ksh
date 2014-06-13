@@ -92,7 +92,7 @@ typeset -i index=0
 specials_list=""
 i=0
 while [[ $i != 3 ]]; do
-	$MKFILE 100m $TESTDIR/$TESTFILE1.$i
+	$MKFILE -s 100m $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
 	((i = i + 1))

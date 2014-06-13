@@ -91,14 +91,14 @@ set -A csnapfile "${csnapdir}/$TESTSNAP/$TESTFILE0" "${csnapdir}/$TESTSNAP1/$TES
 # setup for promote testing
 typeset -i i=0
 while (( i < 4 )); do
-	log_must $MKFILE $FILESIZE ${file[i]}
+	log_must $MKFILE -s $FILESIZE ${file[i]}
 	(( i>0 )) && log_must $RM -f ${file[((i-1))]}
 	log_must $ZFS snapshot ${snap[i]}
 
 	(( i = i + 1 ))
 done
 log_must $ZFS clone ${snap[2]} $clone
-log_must $MKFILE $FILESIZE /$clone/$CLONEFILE
+log_must $MKFILE -s $FILESIZE /$clone/$CLONEFILE
 log_must $RM -f /$clone/$TESTFILE2
 log_must $ZFS snapshot ${csnap[3]}
 

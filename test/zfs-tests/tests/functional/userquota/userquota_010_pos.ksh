@@ -56,18 +56,18 @@ log_must $ZFS set userquota@$QUSER1=$UQUOTA_SIZE $QFS
 log_must $ZFS set groupquota@$QGROUP=$GQUOTA_SIZE $QFS
 
 mkmount_writable $QFS
-log_must user_run $QUSER1 $MKFILE $UQUOTA_SIZE $QFILE
+log_must user_run $QUSER1 $MKFILE -s $UQUOTA_SIZE $QFILE
 $SYNC
 
 log_must eval "$ZFS get -p userused@$QUSER1 $QFS >/dev/null 2>&1"
 log_must eval "$ZFS get -p groupused@$GROUPUSED $QFS >/dev/null 2>&1"
 
-log_mustnot user_run $QUSER1 $MKFILE 1 $OFILE
+log_mustnot user_run $QUSER1 $MKFILE -s 1 $OFILE
 
 log_must $RM -f $QFILE
 
 log_note "overwrite to $QFS to make it exceed userquota"
-log_mustnot user_run $QUSER1 $MKFILE $GQUOTA_SIZE $QFILE
+log_mustnot user_run $QUSER1 $MKFILE -s $GQUOTA_SIZE $QFILE
 
 log_must eval "$ZFS get -p userused@$QUSER1 $QFS >/dev/null 2>&1"
 log_must eval "$ZFS get -p groupused@$GROUPUSED $QFS >/dev/null 2>&1"

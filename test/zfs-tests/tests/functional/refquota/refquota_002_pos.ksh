@@ -61,7 +61,7 @@ log_must $ZFS set quota=15M $fs
 log_must $ZFS set refquota=25M $fs
 
 mntpnt=$(get_prop mountpoint $fs)
-log_mustnot $MKFILE 20M $mntpnt/$TESTFILE
+log_mustnot $MKFILE -s 20M $mntpnt/$TESTFILE
 typeset -i used quota
 used=$(get_prop used $fs)
 quota=$(get_prop quota $fs)
@@ -78,7 +78,7 @@ log_must $RM $mntpnt/$TESTFILE
 log_must $ZFS set quota=25M $fs
 log_must $ZFS set refquota=15M $fs
 
-log_mustnot $MKFILE 20M $mntpnt/$TESTFILE
+log_mustnot $MKFILE -s 20M $mntpnt/$TESTFILE
 used=$(get_prop used $fs)
 refquota=$(get_prop refquota $fs)
 ((used = used / (1024 * 1024)))

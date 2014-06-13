@@ -112,7 +112,7 @@ function cleanup
 	done
 
 	[[ -e $DEVICE_DIR/$DEVICE_ARCHIVE ]] && \
-		log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+		log_must $TAR $unpack_opts $DEVICE_DIR/$DEVICE_ARCHIVE
 }
 
 function cleanup_all
@@ -126,7 +126,7 @@ function cleanup_all
 		if  [[ -e $file ]]; then
 			log_must $RM $file
 		fi
-		log_must $MKFILE $FILE_SIZE $file
+		log_must $MKFILE -s $FILE_SIZE $file
 		((i += 1))
 	done
 
@@ -142,7 +142,7 @@ log_assert "Verify that import could handle device overlapped."
 CWD=$PWD
 
 cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
-log_must $TAR cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
+log_must $TAR $pack_opts $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
 
 checksum1=$($SUM $MYTESTFILE | $AWK '{print $1}')
 
@@ -164,7 +164,7 @@ while (( i < ${#vdevs[*]} )); do
 	while (( j < ${#vdevs[*]} )); do
 
 		(( j != 0 )) && \
-			log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+			log_must $TAR $unpack_opts $DEVICE_DIR/$DEVICE_ARCHIVE
 
 		typeset -i overlap=1
 		typeset -i begin

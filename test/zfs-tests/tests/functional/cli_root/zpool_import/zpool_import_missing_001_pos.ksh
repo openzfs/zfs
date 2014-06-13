@@ -89,7 +89,7 @@ function recreate_files
 	log_must $RM -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must $MKFILE $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must $MKFILE -s $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -131,7 +131,7 @@ while (( i < ${#vdevs[*]} )); do
 		# Restore all device files.
 		#
 		[[ -n $backup ]] && \
-			log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+			log_must $TAR $unpack_opts $DEVICE_DIR/$DEVICE_ARCHIVE
 
 		for device in $DEVICE_FILES ; do
 			log_must $RM -f $device
@@ -143,7 +143,7 @@ while (( i < ${#vdevs[*]} )); do
 			# Backup all device files while filesystem prepared.
 			#
 			if [[ -z $backup ]]; then
-				log_must $TAR cf $DEVICE_DIR/$DEVICE_ARCHIVE \
+				log_must $TAR $pack_opts $DEVICE_DIR/$DEVICE_ARCHIVE \
 					${DEVICE_FILE}*
 				backup="true"
 			fi

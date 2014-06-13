@@ -53,11 +53,11 @@ function create_pool_test
 }
 
 #
-# Create a ufs file system and make a file within the file
+# Create a ufs|ext2 file system and make a file within the file
 # system for storage pool vdev
 # $1, file size
 # $2, file name
-# $3, disk name to create ufs file system
+# $3, disk name to create ufs|ext2 file system
 #
 function create_blockfile
 {
@@ -67,7 +67,7 @@ function create_blockfile
 	typeset dir=`$DIRNAME $file`
 
 	if [[ -d $dir ]]; then
-		ismounted $dir ufs
+		ismounted $dir $NEWFS_DEFAULT_FS
 		(( $? == 0 )) && \
 			log_must $UMOUNT -f $dir
 	else
@@ -76,14 +76,14 @@ function create_blockfile
 
 	$ECHO "y" | $NEWFS /dev/rdsk/$disk >/dev/null 2>&1
 	(( $? != 0 )) &&
-		log_fail "Create ufs file system fail."
+		log_fail "Create $NEWFS_DEFAULT_FS file system fail."
 
         log_must $MOUNT /dev/dsk/$disk $dir
-        log_must $MKFILE $size $file
+        log_must $MKFILE -s $size $file
 }
 
 #
-# Umount the ufs filesystem and remove the mountpoint
+# Umount the ufs|ext2 filesystem and remove the mountpoint
 # $1, the mount point
 #
 function clean_blockfile
@@ -92,9 +92,16 @@ function clean_blockfile
 
 	for dir in $dirs; do
 		if [[ -d $dir ]]; then
-			if ismounted $dir ufs; then
-				typeset dev=$($DF -lhF ufs | $GREP "$dir" | \
-					$AWK '{print $1}')
+			if ismounted $dir $NEWFS_DEFAULT_FS; then
+				if [[ -n "$LINUX" ]]; then
+					typeset dev=$($DF -lhTt $NEWFS_DEFAULT_FS | \
+						$GREP "$dir" | \
+						$AWK '{print $2}')
+				else
+					typeset dev=$($DF -lhF $NEWFS_DEFAULT_FS | \
+						$GREP "$dir" | \
+						$AWK '{print $1}')
+				fi
 				log_must $UMOUNT -f $dir
 				create_pool ${TESTPOOL}.tmp $dev
 				destroy_pool ${TESTPOOL}.tmp

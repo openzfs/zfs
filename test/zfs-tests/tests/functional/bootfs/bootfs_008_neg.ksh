@@ -54,13 +54,13 @@ function cleanup {
 typeset assert_msg="setting bootfs on a dataset which has gzip \
     compression enabled will fail"
 
-typeset VDEV=/bootfs_008_neg_a.$$.dat
+typeset VDEV=$TESTDIR/bootfs_008_neg_a.$$.dat
 typeset COMP_FS=$TESTPOOL/COMP_FS
 
 log_onexit cleanup
 log_assert $assert_msg
 
-log_must $MKFILE 300m $VDEV
+log_must $MKFILE -s 300m $VDEV
 log_must $ZPOOL create $TESTPOOL $VDEV
 log_must $ZFS create $COMP_FS
 

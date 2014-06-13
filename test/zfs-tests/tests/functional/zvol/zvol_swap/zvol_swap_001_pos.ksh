@@ -59,7 +59,7 @@ log_assert "Verify that a zvol can be used as a swap device"
 
 log_onexit cleanup
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 log_note "Add zvol volume as swap space"
 log_must $SWAP -a $voldev
 

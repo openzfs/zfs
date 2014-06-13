@@ -71,7 +71,7 @@ log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
 for files in $TESTDIR/file1 $TESTDIR/file2
 do
-	log_must $MKFILE 63m $files
+	log_must $MKFILE -s 63m $files
 done
 
 set -A args \

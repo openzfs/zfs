@@ -55,7 +55,7 @@ function cleanup
 log_assert "zfs volume as dumpdevice should have 128k volblocksize"
 log_onexit cleanup
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
 typeset oblksize=$($ZFS get -H -o value volblocksize $TESTPOOL/$TESTVOL)

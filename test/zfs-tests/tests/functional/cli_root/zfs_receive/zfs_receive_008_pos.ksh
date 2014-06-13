@@ -90,7 +90,7 @@ for orig_fs in $datasets ; do
 
 	typeset mnt_file=$mntpnt/file1
 
-	log_must $MKFILE 100m $mnt_file
+	log_must $MKFILE -s 100m $mnt_file
 	log_must $ZFS snapshot $orig_snap
 	log_must eval "$ZFS send $orig_snap > $fbackup"
 

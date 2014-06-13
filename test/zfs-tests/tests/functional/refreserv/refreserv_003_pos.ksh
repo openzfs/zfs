@@ -61,13 +61,13 @@ log_must $ZFS set quota=25M $fs
 log_must $ZFS set refreservation=10M $fs
 
 mntpnt=$(get_prop mountpoint $fs)
-log_must $MKFILE 7M $mntpnt/$TESTFILE
+log_must $MKFILE -s 7M $mntpnt/$TESTFILE
 log_must $ZFS snapshot $fs@snap
 
-log_must $MKFILE 7M $mntpnt/$TESTFILE.2
+log_must $MKFILE -s 7M $mntpnt/$TESTFILE.2
 log_must $ZFS snapshot $fs@snap2
 
-log_must $MKFILE 7M $mntpnt/$TESTFILE.3
+log_must $MKFILE -s 7M $mntpnt/$TESTFILE.3
 log_mustnot $ZFS snapshot $fs@snap3
 if datasetexists $fs@snap3 ; then
 	log_fail "ERROR: $fs@snap3 should not exists."

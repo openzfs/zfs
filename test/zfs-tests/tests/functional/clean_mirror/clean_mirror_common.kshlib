@@ -55,7 +55,7 @@ function overwrite_verify_mirror
 	done
 
 	# dd the primary side of the mirror
-	log_must $DD if=$OVERWRITING_DEVICE of=/dev/dsk/$AFFECTED_DEVICE \
+	do_dd must $DD if=$OVERWRITING_DEVICE of=/dev/dsk/$AFFECTED_DEVICE \
 		seek=8 bs=$DD_BLOCK count=$(( DD_COUNT - 8 )) conv=notrunc
 
 	atfile=0

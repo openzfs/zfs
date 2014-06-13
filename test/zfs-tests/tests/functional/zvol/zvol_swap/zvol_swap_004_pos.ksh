@@ -55,7 +55,7 @@ for vbs in 512 1024 2048 4096 8192 16384 32768 65536 131072; do
 	for multiplier in 1 32 16384 131072; do
 		((volsize = vbs * multiplier))
 		vol="$TESTPOOL/vol_$volsize"
-		swapname="/dev/zvol/dsk/$vol"
+		swapname="$ZVOL_DEVDIR/$vol"
 
 		# Create a sparse volume to test larger sizes
 		log_must $ZFS create -s -b $vbs -V $volsize $vol

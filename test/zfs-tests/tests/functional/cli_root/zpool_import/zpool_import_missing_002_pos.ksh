@@ -69,7 +69,7 @@ function cleanup
 {
 	cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
 	[[ -e $DEVICE_DIR/$DEVICE_ARCHIVE ]] && \
-		log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+		log_must $TAR $unpack_opts $DEVICE_DIR/$DEVICE_ARCHIVE
 
 	poolexists $TESTPOOL1 || \
 		log_must $ZPOOL import -d $DEVICE_DIR $TESTPOOL1
@@ -88,7 +88,7 @@ function cleanup_all
 	while (( i < $MAX_NUM )); do
 		typeset dev_file=${DEVICE_DIR}/${DEVICE_FILE}$i
 		if [[ ! -e ${dev_file} ]]; then
-			log_must $MKFILE $FILE_SIZE ${dev_file}
+			log_must $MKFILE -s $FILE_SIZE ${dev_file}
 		fi
 		((i += 1))
 	done
@@ -123,7 +123,7 @@ typeset action
 while (( i < ${#vdevs[*]} )); do
 
 	(( i != 0 )) && \
-		log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+		log_must $TAR $unpack_opts $DEVICE_DIR/$DEVICE_ARCHIVE
 
 	setup_filesystem "$DEVICE_FILES" \
 		$TESTPOOL1 $TESTFS $TESTDIR1 \
@@ -145,7 +145,7 @@ while (( i < ${#vdevs[*]} )); do
 		# Restore all device files.
 		#
 		[[ -n $backup ]] && \
-			log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+			log_must $TAR $unpack_opts $DEVICE_DIR/$DEVICE_ARCHIVE
 
 		log_must $RM -f $BACKUP_DEVICE_DIR/*
 
@@ -158,7 +158,7 @@ while (( i < ${#vdevs[*]} )); do
 			# Backup all device files while filesystem prepared.
 			#
 			if [[ -z $backup ]] ; then
-				log_must $TAR cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
+				log_must $TAR $pack_opts $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
 				backup="true"
 			fi
 

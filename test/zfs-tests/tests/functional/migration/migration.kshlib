@@ -43,7 +43,7 @@
 #	srcdir: is the directory where the testfile is
 #	cmd:	is the command to be executed.
 #		E.g.
-#		$TAR cf $TESTDIR/tar$$.tar
+#		$TAR $pack_opts $TESTDIR/tar$$.tar
 #
 function prepare #srcdir cmd
 {
@@ -82,7 +82,7 @@ function prepare #srcdir cmd
 #	oldsumb: is the second part of the values returned by sum
 #	cmd: is the command to be executed;
 #		E.g.
-#		"$TAR xf $TESTDIR/tar$$.tar"
+#		"$TAR $unpack_opts $TESTDIR/tar$$.tar"
 #
 function migrate #destdir oldsuma oldsumb cmd
 {

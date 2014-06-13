@@ -39,10 +39,18 @@
 function check_atime_updated
 {
 	typeset filename=$1
+	typeset ls_opt
 
-	typeset before=$($LS -Eu $filename | $AWK '{print $7}')
+	if [[ -n "$LINUX" ]]; then
+		# TODO: ls atime option
+		ls_opt="-l -u --time=atime --full-time"
+	else
+		ls_opt="-Eu"
+	fi
+
+	typeset before=$($LS $ls_opt $filename | $AWK '{print $7}')
 	log_must $CAT $filename
-	typeset after=$($LS -Eu $filename | $AWK '{print $7}')
+	typeset after=$($LS $ls_opt $filename | $AWK '{print $7}')
 
 	if [[ $before != $after ]]; then
 		return 0

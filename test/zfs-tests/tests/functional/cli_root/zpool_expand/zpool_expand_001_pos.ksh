@@ -72,8 +72,8 @@ done
 for type in " " mirror raidz raidz2; do
 
 	log_must $ZPOOL create -o autoexpand=on $TESTPOOL1 $type \
-	    /dev/zvol/dsk/$VFS/vol1  /dev/zvol/dsk/$VFS/vol2 \
-	    /dev/zvol/dsk/$VFS/vol3
+	    $ZVOL_DEVDIR/$VFS/vol1  /dev/zvol/dsk/$VFS/vol2 \
+	    $ZVOL_DEVDIR/$VFS/vol3
 
 	typeset autoexp=$(get_pool_prop autoexpand $TESTPOOL1)
 	if [[ $autoexp != "on" ]]; then

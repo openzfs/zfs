@@ -34,12 +34,12 @@
 verify_runnable "global"
 
 # create a version 1 pool
-log_must $MKFILE 64m /tmp/zpool_version_1.dat
+log_must $MKFILE -s 64m /tmp/zpool_version_1.dat
 log_must $ZPOOL create -o version=1 $TESTPOOL /tmp/zpool_version_1.dat
 
 
 # create another version 1 pool
-log_must $MKFILE 64m /tmp/zpool2_version_1.dat
+log_must $MKFILE -s 64m /tmp/zpool2_version_1.dat
 log_must $ZPOOL create -o version=1 $TESTPOOL2 /tmp/zpool2_version_1.dat
 
 log_pass

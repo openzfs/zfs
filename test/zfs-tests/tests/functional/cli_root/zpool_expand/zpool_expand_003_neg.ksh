@@ -70,8 +70,8 @@ for i  in 1 2 3; do
 done
 
 for type in " " mirror raidz raidz2; do
-	log_must $ZPOOL create $TESTPOOL1 $type /dev/zvol/dsk/$VFS/vol1 \
-	    /dev/zvol/dsk/$VFS/vol2 /dev/zvol/dsk/$VFS/vol3
+	log_must $ZPOOL create $TESTPOOL1 $type $ZVOL_DEVDIR/$VFS/vol1 \
+	    $ZVOL_DEVDIR/$VFS/vol2 /dev/zvol/dsk/$VFS/vol3
 
 	typeset autoexp=$(get_pool_prop autoexpand $TESTPOOL1)
 	if [[ $autoexp != "off" ]]; then

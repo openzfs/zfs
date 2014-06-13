@@ -40,8 +40,8 @@
 # STRATEGY:
 # 1. Create a pool
 # 2. Create a zvol volume
-# 3. Create a ufs file system ontop of the zvol
-# 4. Mount the ufs file system
+# 3. Create a ufs|ext2 file system ontop of the zvol
+# 4. Mount the ufs|ext2 file system
 # 5. Fill volume until ENOSPC is returned
 #
 

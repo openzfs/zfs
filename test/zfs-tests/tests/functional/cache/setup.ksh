@@ -40,6 +40,6 @@ fi
 
 log_must $RM -rf $VDIR $VDIR2
 log_must $MKDIR -p $VDIR $VDIR2
-log_must $MKFILE $SIZE $VDEV $VDEV2
+log_must $MKFILE -s $SIZE $VDEV $VDEV2
 
 log_pass

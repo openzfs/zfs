@@ -79,6 +79,6 @@ fi
 # Add /dev/zvol/rdsk device
 log_must $ZPOOL create $TESTPOOL2 $VDEV2
 log_must $ZFS create -V $SIZE $TESTPOOL2/$TESTVOL
-log_mustnot $ZPOOL add $TESTPOOL cache /dev/zvol/rdsk/$TESTPOOL2/$TESTVOL
+log_mustnot $ZPOOL add $TESTPOOL cache $ZVOL_RDEVDIR/$TESTPOOL2/$TESTVOL
 
 log_pass "Cache device can only be block devices."

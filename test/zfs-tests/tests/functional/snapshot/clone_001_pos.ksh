@@ -61,7 +61,7 @@ set -A args "$SNAPFS" "$SNAPDIR" "$TESTPOOL/$TESTCLONE" "$TESTDIR.0" \
 
 function setup_all
 {
-	create_pool $TESTPOOL1 /dev/zvol/dsk/$TESTPOOL/$TESTVOL
+	create_pool $TESTPOOL1 $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 	log_must $ZFS create $TESTPOOL1/$TESTFS
 	log_must $ZFS set mountpoint=$TESTDIR2 $TESTPOOL1/$TESTFS
 

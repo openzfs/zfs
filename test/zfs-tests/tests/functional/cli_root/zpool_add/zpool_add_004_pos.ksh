@@ -65,8 +65,8 @@ create_pool "$TESTPOOL1" "${disk}s${SLICE1}"
 log_must poolexists "$TESTPOOL1"
 log_must $ZFS create -V $VOLSIZE $TESTPOOL1/$TESTVOL
 
-log_must $ZPOOL add "$TESTPOOL" /dev/zvol/dsk/$TESTPOOL1/$TESTVOL
+log_must $ZPOOL add "$TESTPOOL" $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
 
-log_must iscontained "$TESTPOOL" "/dev/zvol/dsk/$TESTPOOL1/$TESTVOL"
+log_must iscontained "$TESTPOOL" "$ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL"
 
 log_pass "'zpool add <pool> <vdev> ...' adds zfs volume to the pool successfully"

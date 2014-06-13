@@ -65,7 +65,7 @@ log_must $ZFS create $fs1
 mntpnt1=$(get_prop mountpoint $fs1)
 
 testfile=$mntpnt/$TESTFILE0; testfile1=$mntpnt1/$TESTFILE1
-log_must $MKFILE 1M $testfile $testfile1
+log_must $MKFILE -s 1M $testfile $testfile1
 
 log_must $ZFS unmount $fs1
 log_must $ZFS set mountpoint=$mntpnt $fs1
@@ -73,7 +73,7 @@ log_mustnot $ZFS mount $fs1
 log_must $ZFS mount -O $fs1
 
 # Create new file in override mountpoint
-log_must $MKFILE 1M $mntpnt/$TESTFILE2
+log_must $MKFILE -s 1M $mntpnt/$TESTFILE2
 
 # Verify the underlying file system inaccessible
 log_mustnot $LS $testfile

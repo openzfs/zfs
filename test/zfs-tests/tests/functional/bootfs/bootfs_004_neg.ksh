@@ -47,7 +47,7 @@ function cleanup {
 	if poolexists $POOL; then
 		log_must $ZPOOL destroy $POOL
 	fi
-	$RM /bootfs_004.$$.dat
+	$RM $TESTDIR/bootfs_004.$$.dat
 }
 
 
@@ -74,14 +74,14 @@ pools[${#pools[@]}]="$bigname"
 
 
 
-$MKFILE 64m /bootfs_004.$$.dat
+$MKFILE -s 64m $TESTDIR/bootfs_004.$$.dat
 
 typeset -i i=0;
 
 while [ $i -lt "${#pools[@]}" ]
 do
 	POOL=${pools[$i]}/$TESTFS
-	log_mustnot $ZPOOL create $POOL /bootfs_004.$$.dat
+	log_mustnot $ZPOOL create $POOL $TESTDIR/bootfs_004.$$.dat
 	log_mustnot $ZFS create $POOL/$TESTFS
 	log_mustnot $ZPOOL set bootfs=$POOL/$TESTFS $POOL
 

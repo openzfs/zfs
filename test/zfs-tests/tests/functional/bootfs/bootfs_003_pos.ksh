@@ -46,7 +46,7 @@ function cleanup {
 	if poolexists $POOL ; then
 		log_must $ZPOOL destroy $POOL
 	fi
-	$RM /bootfs_003.$$.dat
+	$RM $TESTDIR/bootfs_003.$$.dat
 }
 
 
@@ -59,14 +59,14 @@ fi
 log_onexit cleanup
 
 log_assert "Valid pool names are accepted by zpool set bootfs"
-$MKFILE 64m /bootfs_003.$$.dat
+$MKFILE -s 64m $TESTDIR/bootfs_003.$$.dat
 
 typeset -i i=0;
 
 while [ $i -lt "${#pools[@]}" ]
 do
 	POOL=${pools[$i]}
-	log_must $ZPOOL create $POOL /bootfs_003.$$.dat
+	log_must $ZPOOL create $POOL $TESTDIR/bootfs_003.$$.dat
 	log_must $ZFS create $POOL/$TESTFS
 
 	log_must $ZPOOL set bootfs=$POOL/$TESTFS $POOL

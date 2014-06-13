@@ -86,12 +86,12 @@ do
 		log_must $CHMOD ${ops[i]} $obj
 	done
 	log_note "Archive the file and directory."
-	log_must $TAR cpf $TARFILE $file $dir
+	log_must $TAR $pack_preserve $TARFILE $file $dir
 
 	log_note "Restore the tar archive."
 	log_must $MV $TARFILE $TESTDIR1
 	cd $TESTDIR1
-	log_must $TAR xpf $TARFILE
+	log_must $TAR $unpack_preserve $TARFILE
 
 	log_note "Verify the ACLs of restored file/directory have no changes."
 	for obj in $file $dir; do

@@ -69,11 +69,11 @@ while ((i < 5)); do
 	((r_size=(i+1)*16))
 	log_must $ZFS set refreservation="$r_size"M $USEDTEST
 
-	log_must $MKFILE 16M $mntpnt/file$i
+	log_must $MKFILE -s 16M $mntpnt/file$i
 
 	log_must $ZFS create $USEDTEST/fs$i
 	log_must $ZFS set refreservation="$r_size"M $USEDTEST/fs$i
-	log_must $MKFILE 16M $mntpnt/fs$i/file$i
+	log_must $MKFILE -s 16M $mntpnt/fs$i/file$i
 
 	if is_global_zone; then
 		log_must $ZFS create -V 16M $USEDTEST/vol$i
@@ -85,7 +85,7 @@ while ((i < 5)); do
 
 	mntpnt_cln=$(get_prop mountpoint $USEDTEST/cln$i)
 	log_must $ZFS set refreservation="$r_size"M $USEDTEST/cln$i
-	log_must $MKFILE 16M $mntpnt_cln/file_cln$i
+	log_must $MKFILE -s 16M $mntpnt_cln/file_cln$i
 
 	check_usedbyrefreservation $USEDTEST
 

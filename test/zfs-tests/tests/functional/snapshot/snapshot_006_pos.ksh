@@ -96,7 +96,7 @@ done
 log_note "Create a tarball from $TESTDIR1 contents..."
 CWD=$PWD
 cd $TESTDIR1 || log_fail "Could not cd $TESTDIR1"
-log_must $TAR cf $TESTDIR1/tarball.original.tar file*
+log_must $TAR $pack_opts $TESTDIR1/tarball.original.tar file*
 cd $CWD || log_fail "Could not cd $CWD"
 
 log_note "Create a snapshot and mount it..."
@@ -108,7 +108,7 @@ log_must $RM -f $TESTDIR1/file* > /dev/null 2>&1
 log_note "Create tarball of snapshot..."
 CWD=$PWD
 cd $SNAPDIR1 || log_fail "Could not cd $SNAPDIR1"
-log_must $TAR cf $TESTDIR1/tarball.snapshot.tar file*
+log_must $TAR $pack_opts $TESTDIR1/tarball.snapshot.tar file*
 cd $CWD || log_fail "Could not cd $CWD"
 
 log_must $MKDIR $TESTDIR1/original
@@ -116,10 +116,10 @@ log_must $MKDIR $TESTDIR1/snapshot
 
 CWD=$PWD
 cd $TESTDIR1/original || log_fail "Could not cd $TESTDIR1/original"
-log_must $TAR xf $TESTDIR1/tarball.original.tar
+log_must $TAR $unpack_opts $TESTDIR1/tarball.original.tar
 
 cd $TESTDIR1/snapshot || log_fail "Could not cd $TESTDIR1/snapshot"
-log_must $TAR xf $TESTDIR1/tarball.snapshot.tar
+log_must $TAR $unpack_opts $TESTDIR1/tarball.snapshot.tar
 
 cd $CWD || log_fail "Could not cd $CWD"
 

@@ -144,7 +144,7 @@ function test_n_check
 		*)	log_fail "Unsupported dataset: '$dtst'."
 	esac
 
-	# Firstly, umount ufs filesystem which was created by zfs volume.
+	# Firstly, umount ufs|ext2 filesystem which was created by zfs volume.
 	if is_global_zone; then
 		log_must $UMOUNT -f $TESTDIR1
 	fi

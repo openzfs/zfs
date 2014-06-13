@@ -84,9 +84,9 @@ do
 				(( offset = offset + 1 ))
 			fi
 			(( fsize = offset ))
-			log_must $MKFILE $fsize $single_blk_file
+			log_must $MKFILE -s $fsize $single_blk_file
 			(( fsize = blksize + offset ))
-			log_must $MKFILE $fsize $multi_blk_file
+			log_must $MKFILE -s $fsize $multi_blk_file
 
 			(( blksize = blksize * 2 ))
 		done

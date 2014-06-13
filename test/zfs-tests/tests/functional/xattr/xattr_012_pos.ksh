@@ -79,7 +79,7 @@ fi
 
 FS_SIZE=$($ZFS get -p -H -o value used $TESTPOOL/$TESTFS)
 
-log_must $RUNAT $TESTDIR/myfile.$$ $MKFILE 200m xattr
+log_must $RUNAT $TESTDIR/myfile.$$ $MKFILE -s 200m xattr
 
 #Make sure the newly created file is counted into zpool usage
 log_must $SYNC

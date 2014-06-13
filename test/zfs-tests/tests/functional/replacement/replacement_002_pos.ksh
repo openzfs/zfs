@@ -128,7 +128,7 @@ function attach_test
 specials_list=""
 i=0
 while [[ $i != 2 ]]; do
-	$MKFILE 100m $TESTDIR/$TESTFILE1.$i
+	$MKFILE -s 100m $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
 	((i = i + 1))
@@ -137,7 +137,7 @@ done
 #
 # Create a replacement disk special file.
 #
-$MKFILE 100m $TESTDIR/$REPLACEFILE
+$MKFILE -s 100m $TESTDIR/$REPLACEFILE
 
 for op in "" "-f"; do
 	create_pool $TESTPOOL1 mirror $specials_list

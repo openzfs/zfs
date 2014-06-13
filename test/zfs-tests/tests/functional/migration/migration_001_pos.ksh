@@ -56,10 +56,10 @@ log_assert "Migrating test file from ZFS fs to ZFS fs using tar"
 
 log_onexit cleanup
 
-prepare $DNAME "$TAR cf $TESTDIR/tar$$.tar $BNAME"
+prepare $DNAME "$TAR $pack_opts $TESTDIR/tar$$.tar $BNAME"
 (( $? != 0 )) && log_fail "Unable to create src archive"
 
-migrate $TESTDIR $SUMA $SUMB "$TAR xf $TESTDIR/tar$$.tar"
+migrate $TESTDIR $SUMA $SUMB "$TAR $unpack_opts $TESTDIR/tar$$.tar"
 (( $? != 0 )) && log_fail "Uable to successfully migrate test file from" \
     "ZFS fs to ZFS fs"
 

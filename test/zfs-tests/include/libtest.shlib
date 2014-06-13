@@ -1226,7 +1226,7 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	#
 	if verify_slog_support ; then
 		typeset sdevs="/var/tmp/sdev1 /var/tmp/sdev2"
-		log_must $MKFILE 100M $sdevs
+		log_must $MKFILE -s 100M $sdevs
 		log_must $ZPOOL add $pool_name log mirror $sdevs
 	fi
 
@@ -1258,12 +1258,12 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 
 	# add our zvol to the zone
 	$ECHO "add device" >> $zone_conf
-	$ECHO "set match=/dev/zvol/dsk/$pool_name/zone_zvol" >> $zone_conf
+	$ECHO "set match=$ZVOL_DEVDIR/$pool_name/zone_zvol" >> $zone_conf
 	$ECHO "end" >> $zone_conf
 
 	# add a corresponding zvol rdsk to the zone
 	$ECHO "add device" >> $zone_conf
-	$ECHO "set match=/dev/zvol/rdsk/$pool_name/zone_zvol" >> $zone_conf
+	$ECHO "set match=$ZVOL_RDEVDIR/$pool_name/zone_zvol" >> $zone_conf
 	$ECHO "end" >> $zone_conf
 
 	# once it's supported, we'll add our filesystem to the zone
@@ -1970,7 +1970,7 @@ function safe_to_destroy_pool { # $1 the pool name
 			$AWK '{print $1}')
 
 		# this is a list of the zvols that make up the pool
-		ZVOLPOOL=$($ZPOOL status -v $pool | $GREP "/dev/zvol/dsk/$1$" \
+		ZVOLPOOL=$($ZPOOL status -v $pool | $GREP "$ZVOL_DEVDIR/$1$" \
 		    | $AWK '{print $1}')
 
 		# also want to determine if it's a file-based pool using an
@@ -2341,7 +2341,7 @@ function verify_slog_support
 	typeset sdev=$dir/b
 
 	$MKDIR -p $dir
-	$MKFILE 64M $vdev $sdev
+	$MKFILE -s 64M $vdev $sdev
 
 	typeset -i ret=0
 	if ! $ZPOOL create -n $pool $vdev log $sdev > /dev/null 2>&1; then

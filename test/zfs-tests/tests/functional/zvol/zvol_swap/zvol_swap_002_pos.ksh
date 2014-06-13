@@ -47,7 +47,7 @@ verify_runnable "global"
 log_assert "Using a zvol as swap space, fill /tmp to 80%."
 
 vol=$TESTPOOL/$TESTVOL
-swapdev=/dev/zvol/dsk/$vol
+swapdev=$ZVOL_DEVDIR/$vol
 log_must $SWAP -a $swapdev
 
 # Get 80% of the number of 512 blocks in the zvol

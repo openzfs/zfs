@@ -165,12 +165,12 @@ create_xattr $TESTDIR/tar.$$ passwd /etc/passwd
 
 log_must cd $TESTDIR
 
-log_must $TAR cf noxattr.tar tar.$$
+log_must $TAR $pack_opts noxattr.tar tar.$$
 log_must $TAR c@f xattr.tar tar.$$
 log_must $RM $TESTDIR/tar.$$
 
 # we should have no xattr here
-log_must $TAR xf xattr.tar
+log_must $TAR $unpack_opts xattr.tar
 log_mustnot eval "$RUNAT $TESTDIR/tar.$$ $CAT passwd > /dev/null 2>&1"
 log_must $RM $TESTDIR/tar.$$
 
@@ -180,7 +180,7 @@ verify_xattr tar.$$ passwd /etc/passwd
 log_must $RM $TESTDIR/tar.$$
 
 # we should have no xattr here
-log_must $TAR xf $TESTDIR/noxattr.tar
+log_must $TAR $unpack_opts $TESTDIR/noxattr.tar
 log_mustnot eval "$RUNAT $TESTDIR/tar.$$ $CAT passwd > /dev/null 2>&1"
 log_must $RM $TESTDIR/tar.$$
 

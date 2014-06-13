@@ -67,7 +67,7 @@ log_assert "Verify that a zvol device can be used as a swap device" \
 
 log_onexit cleanup
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 VFSTAB_FILE=/etc/vfstab
 NEW_VFSTAB_FILE=/var/tmp/zvol_vfstab.$$
 PREV_VFSTAB_FILE=/var/tmp/zvol_vfstab.PREV.$$

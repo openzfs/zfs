@@ -53,6 +53,9 @@ for user in root $ZFS_ACL_STAFF1; do
 	[[ ! -d $INI_DIR ]] && log_must usr_exec $MKDIR -m 777 $INI_DIR
 	log_must usr_exec $MKTREE -b $INI_DIR -l 6 -d 2 -f 2
 
+	typeset acl_opt
+	[[ -z "$LINUX" ]] && acl_opt="-@"
+
 	#
 	# Enter into initial directory and record all directory information,
 	# then pax all the files to $TMP_DIR/files.pax.
@@ -62,7 +65,7 @@ for user in root $ZFS_ACL_STAFF1; do
 	paxout=$TMP_DIR/files.tar
 	cd $INI_DIR
 	log_must eval "record_cksum $INI_DIR $initout > /dev/null 2>&1"
-	log_must eval "usr_exec $PAX -w -x ustar -@ -f $paxout *>/dev/null 2>&1"
+	log_must eval "usr_exec $PAX -w -x ustar $acl_opt -f $paxout *>/dev/null 2>&1"
 
 	#
 	# Enter into test directory and tar $TMP_DIR/files.pax to current

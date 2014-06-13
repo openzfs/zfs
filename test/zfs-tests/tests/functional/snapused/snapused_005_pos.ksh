@@ -62,7 +62,7 @@ mntpnt=$(get_prop mountpoint $USEDTEST)
 while ((i < 5)); do
 	((r_size=(i+1)*16))
 
-	log_must $MKFILE "$r_size"M $mntpnt/file$i
+	log_must $MKFILE -s "$r_size"M $mntpnt/file$i
 
 	log_must $ZFS snapshot $USEDTEST@snap$i
 	check_usedbysnapshots $USEDTEST

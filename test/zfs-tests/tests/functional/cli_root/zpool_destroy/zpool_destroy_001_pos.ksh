@@ -74,7 +74,7 @@ partition_disk $SLICE_SIZE $DISK 2
 create_pool "$TESTPOOL" "${DISK}s${SLICE0}"
 create_pool "$TESTPOOL1" "${DISK}s${SLICE1}"
 log_must $ZFS create -s -V $VOLSIZE $TESTPOOL1/$TESTVOL
-create_pool "$TESTPOOL2" "/dev/zvol/dsk/$TESTPOOL1/$TESTVOL"
+create_pool "$TESTPOOL2" "$ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL"
 
 typeset -i i=0
 while (( i < ${#datasets[*]} )); do

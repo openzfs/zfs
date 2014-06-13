@@ -63,16 +63,16 @@ mntpnt=$(get_prop mountpoint $USEDTEST)
 while ((i < 5)); do
 	((r_size=(i+1)*16))
 
-	log_must $MKFILE 16M $mntpnt/file$i
-	log_must $MKFILE "$r_size"M $mntpnt/file_var$i
+	log_must $MKFILE -s 16M $mntpnt/file$i
+	log_must $MKFILE -s "$r_size"M $mntpnt/file_var$i
 	log_must $ZFS snapshot -r $USEDTEST@snap$i
 
 	log_must $ZFS clone $USEDTEST@snap$i $USEDTEST/cln$i
 	log_must $ZFS set is:cloned=yes $USEDTEST/cln$i
 
 	mntpnt_cln=$(get_prop mountpoint $USEDTEST/cln$i)
-	log_must $MKFILE 16M $mntpnt_cln/file_cln$i
-	log_must $MKFILE "$r_size"M $mntpnt_cln/file_cln_var$i
+	log_must $MKFILE -s 16M $mntpnt_cln/file_cln$i
+	log_must $MKFILE -s "$r_size"M $mntpnt_cln/file_cln_var$i
 
 	check_usedbydataset $USEDTEST
 

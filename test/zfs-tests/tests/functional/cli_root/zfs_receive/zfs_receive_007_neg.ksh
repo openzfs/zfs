@@ -61,9 +61,9 @@ ibackup=/var/tmp/ibackup.$$
 datasetexists $fs || log_must $ZFS create $fs
 
 mntpnt=$(get_prop mountpoint $fs) || log_fail "get_prop mountpoint $fs"
-log_must $MKFILE 10m $mntpnt/file1
+log_must $MKFILE -s 10m $mntpnt/file1
 log_must $ZFS snapshot $snap1
-log_must $MKFILE 10m $mntpnt/file2
+log_must $MKFILE -s 10m $mntpnt/file2
 log_must $ZFS snapshot $snap2
 
 log_must eval "$ZFS send -i $snap1 $snap2 > $ibackup"
@@ -72,7 +72,7 @@ log_must $ZFS destroy $snap1
 log_must $ZFS destroy $snap2
 log_mustnot eval "$ZFS receive -F $fs < $ibackup"
 
-log_must $MKFILE 20m $mntpnt/file1
+log_must $MKFILE -s 20m $mntpnt/file1
 log_must $RM -rf $mntpnt/file2
 log_must $ZFS snapshot $snap1
 log_mustnot eval "$ZFS receive -F $snap2 < $ibackup"

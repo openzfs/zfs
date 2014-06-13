@@ -33,7 +33,7 @@
 #
 # STRATEGY:
 #	1. Create volume
-#	2. Create UFS filesystem based on the volume
+#	2. Create UFS|EXT2 filesystem based on the volume
 #	3. Set the copies property of volume to 1,2 or 3
 #	4. Copy specified size data into each filesystem
 #	5. Verify that the volume space is charged as expected
@@ -43,7 +43,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	if ismounted $mntp ufs ; then
+	if ismounted $mntp $NEWFS_DEFAULT_FS ; then
 		log_must $UMOUNT $mntp
 	fi
 
@@ -67,7 +67,7 @@ if [[ ! -d $mntp ]]; then
 fi
 
 for val in 1 2 3; do
-	do_vol_test ufs $val $mntp
+	do_vol_test $NEWFS_DEFAULT_FS $val $mntp
 done
 
 log_pass "The volume space used by multiple copies is charged correctly as expected. "

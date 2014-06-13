@@ -49,7 +49,7 @@ function cleanup
 	destroy_pool $TESTPOOL1
 
 	log_must $RM $VDEV0 $VDEV1
-	log_must $MKFILE $FILE_SIZE $VDEV0 $VDEV1
+	log_must $MKFILE -s $FILE_SIZE $VDEV0 $VDEV1
 }
 
 log_assert "Destroyed pools are not listed unless with -D option is specified."

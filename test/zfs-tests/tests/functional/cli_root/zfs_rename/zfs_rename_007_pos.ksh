@@ -64,7 +64,7 @@ function target_obj
 	if [[ $type == "filesystem" ]]; then
 		obj=$(get_prop mountpoint $dtst)/${SRC_FILE##*/}
 	elif [[ $type == "volume" ]]; then
-		obj=/dev/zvol/dsk/$dtst
+		obj=$ZVOL_DEVDIR/$dtst
 	fi
 
 	echo $obj
@@ -78,7 +78,7 @@ log_onexit cleanup
 BS=512 ; CNT=2048
 SRC_FILE=/tmp/srcfile.$$
 DST_FILE=/tmp/dstfile.$$
-log_must $DD if=/dev/random of=$SRC_FILE bs=$BS count=$CNT
+log_must $DD if=/dev/urandom of=$SRC_FILE bs=$BS count=$CNT
 
 fs=$TESTPOOL/$TESTFS/fs.$$
 fsclone=$TESTPOOL/$TESTFS/fsclone.$$

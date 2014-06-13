@@ -120,7 +120,7 @@ while (( availspace > DFILESIZE )) && (( i < 3 )) ; do
 	(( i += 1 ))
 
 	if [[ -n $globalzone ]] ; then
-		log_must $MKFILE $FILESIZE ${file}$i
+		log_must $MKFILE -s $FILESIZE ${file}$i
 		eval pool=\$TESTPOOL$i
 		log_must $ZPOOL create $pool ${file}$i
 	else

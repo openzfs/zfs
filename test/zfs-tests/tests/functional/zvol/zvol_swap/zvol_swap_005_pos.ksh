@@ -48,7 +48,7 @@ assertion="Verify the sum of swaplow and swaplen is less or equal to volsize"
 log_assert $assertion
 
 typeset vol=$TESTPOOL/$TESTVOL
-typeset swapname="/dev/zvol/dsk/$vol"
+typeset swapname="$ZVOL_DEVDIR/$vol"
 typeset -i pageblocks volblocks max_swaplow
 #
 # Both swaplow and swaplen are the desired length of

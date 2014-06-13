@@ -64,7 +64,7 @@ log_assert "'zfs rename' should fail while datasets are within different pool."
 additional_setup
 
 typeset FILESIZE=64m
-log_must $MKFILE $FILESIZE $TESTDIR/$TESTFILE1
+log_must $MKFILE -s $FILESIZE $TESTDIR/$TESTFILE1
 create_pool $TESTPOOL1 $TESTDIR/$TESTFILE1
 
 for src in ${src_dataset[@]} ; do

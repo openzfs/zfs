@@ -106,12 +106,12 @@ csnap=$clone@$TESTSNAP
 csnapfile=/$clone/.zfs/snapshot/$TESTSNAP/$TESTFILE0
 
 # setup for promte testing
-log_must $MKFILE $FILESIZE $file0
+log_must $MKFILE -s $FILESIZE $file0
 log_must $ZFS snapshot $snap
-log_must $MKFILE $FILESIZE $file1
+log_must $MKFILE -s $FILESIZE $file1
 log_must $RM -f $file0
 log_must $ZFS clone $snap $clone
-log_must $MKFILE $FILESIZE $cfile
+log_must $MKFILE -s $FILESIZE $cfile
 
 log_must $ZFS promote $clone
 # verify the 'promote' operation

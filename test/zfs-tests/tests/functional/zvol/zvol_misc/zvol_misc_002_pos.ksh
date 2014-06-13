@@ -61,11 +61,11 @@ TESTVOL='testvol'
 BLOCKSZ=$(( 1024 * 1024 ))
 NUM_WRITES=40
 
-$ECHO "y" | $NEWFS -v /dev/zvol/rdsk/$TESTPOOL/$TESTVOL >/dev/null 2>&1
+$ECHO "y" | $NEWFS -v $ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL >/dev/null 2>&1
 (( $? != 0 )) && log_fail "Unable to newfs(1M) $TESTPOOL/$TESTVOL"
 
 log_must $MKDIR $TESTDIR
-log_must $MOUNT /dev/zvol/dsk/$TESTPOOL/$TESTVOL $TESTDIR
+log_must $MOUNT $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR
 
 typeset -i fn=0
 typeset -i retval=0
@@ -84,7 +84,7 @@ done
 log_must $LOCKFS -f $TESTDIR
 log_must $ZFS snapshot $TESTPOOL/$TESTVOL@snap
 
-$FSCK -n /dev/zvol/rdsk/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
+$FSCK -n $ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
 retval=$?
 (( $retval == 39 )) || log_fail "$FSCK exited with wrong value $retval "
 

@@ -60,7 +60,7 @@ function cleanup
 log_assert "Verify zpool creation and newfs on dump zvol is denied."
 log_onexit cleanup
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
 safe_dumpadm $voldev

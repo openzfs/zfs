@@ -61,9 +61,12 @@ for user in root $ZFS_ACL_STAFF1; do
 	initout=$TMP_DIR/initout.$$
 	paxout=$TMP_DIR/files.pax
 
+	typeset acl_opt
+	[[ -z "$LINUX" ]] && acl_opt="-@"
+
 	cd $INI_DIR
 	log_must eval "record_cksum $INI_DIR $initout > /dev/null 2>&1"
-	log_must eval "usr_exec $PAX -w -@ -f $paxout * > /dev/null 2>&1"
+	log_must eval "usr_exec $PAX -w $acl_opt -f $paxout * > /dev/null 2>&1"
 
 	#
 	# Enter into test directory and pax $TMP_DIR/files.pax to current
@@ -73,7 +76,7 @@ for user in root $ZFS_ACL_STAFF1; do
 	[[ ! -d $TST_DIR ]] && log_must usr_exec $MKDIR -m 777 $TST_DIR
 	testout=$TMP_DIR/testout.$$
 	cd $TST_DIR
-	log_must eval "usr_exec $PAX -r -@ -f $paxout > /dev/null 2>&1"
+	log_must eval "usr_exec $PAX -r $acl_opt -f $paxout > /dev/null 2>&1"
 	log_must eval "record_cksum $TST_DIR $testout > /dev/null 2>&1"
 
 	log_must usr_exec $DIFF $initout $testout

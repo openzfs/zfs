@@ -84,7 +84,7 @@ function verify_snapshot
 log_assert "Verify the ability to take snapshots of zvols used as dump or swap."
 log_onexit cleanup
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
 # create snapshot over dump zvol

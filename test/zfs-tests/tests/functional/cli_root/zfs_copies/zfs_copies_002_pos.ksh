@@ -79,20 +79,32 @@ done
 log_note "Verify 'ls -s' can correctly list the space charged."
 for val in 1 2 3; do
 	blks=`$LS -ls /$TESTPOOL/fs_$val/$FILE | $AWK '{print $1}'`
-	(( used = blks * 512 / (1024 * 1024) ))
+	if [[ -n "$LINUX" ]]; then
+		(( used = blks * 1024 / (1024 * 1024) ))
+	else
+		(( used = blks * 512 / (1024 * 1024) ))
+	fi
 	check_used $used $val
 done
 
+typeset du_opt
+if [[ -n "$LINUX" ]]; then
+	df_opt="-t zfs"
+else
+	df_opt="-F zfs"
+fi
+
 log_note "Verify df(1M) can corectly display the space charged."
 for val in 1 2 3; do
-	used=`$DF -F zfs -h /$TESTPOOL/fs_$val/$FILE | $GREP $TESTPOOL/fs_$val \
+	used=`$DF -h /$TESTPOOL/fs_$val/$FILE | $GREP $TESTPOOL/fs_$val \
 		| $AWK '{print $3}'`
 	check_used $used $val
 done
 
 log_note "Verify du(1) can correctly display the space charged."
 for val in 1 2 3; do
-	used=`$DU -h /$TESTPOOL/fs_$val/$FILE | $AWK '{print $1}'`
+	used=`$DU $du_opt -h /$TESTPOOL/fs_$val/$FILE | $AWK '{print $1}'`
+	# NOTE: On Linux, creating a sparse file won't show up correctly in list.
 	check_used $used $val
 done
 

@@ -63,15 +63,15 @@ log_must $ZFS create $sub
 log_must $ZFS set refquota=10M $fs
 mntpnt=$(get_prop mountpoint $fs)
 
-log_mustnot $MKFILE 11M $mntpnt/file
-log_must $MKFILE 9M $mntpnt/file
+log_mustnot $MKFILE -s 11M $mntpnt/file
+log_must $MKFILE -s 9M $mntpnt/file
 log_must $ZFS snapshot $fs@snap
-log_mustnot $MKFILE 2M $mntpnt/file2
+log_mustnot $MKFILE -s 2M $mntpnt/file2
 
 mntpnt=$(get_prop mountpoint $sub)
-log_must $MKFILE 10M $mntpnt/file
+log_must $MKFILE -s 10M $mntpnt/file
 log_must $ZFS snapshot $sub@snap
-log_must $MKFILE 10 $mntpnt/file2
+log_must $MKFILE -s 10 $mntpnt/file2
 
 log_pass "refquota limits the amount of space a dataset can consume, " \
 	"but does not include space used by descendents."

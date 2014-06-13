@@ -65,7 +65,7 @@ vdev1=$TESTDIR/file1
 vdev2=$TESTDIR/file2
 vdev3=$TESTDIR/file3
 for vdev in $vdev1 $vdev2 $vdev3; do
-	$MKFILE 64m $vdev
+	$MKFILE -s 64m $vdev
 done
 
 set -A cmds "create $pool mirror $vdev1 $vdev2" "list $pool" "iostat $pool" \

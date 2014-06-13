@@ -61,7 +61,7 @@ log_assert \
 
 typeset pool_vdev=/var/tmp/pool_dev.$$
 
-log_must $MKFILE 500m $pool_vdev
+log_must $MKFILE -s 500m $pool_vdev
 
 if poolexists $TESTPOOL1; then
 	$ZPOOL destroy $TESTPOOL1

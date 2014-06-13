@@ -69,7 +69,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0
 while ((i < 5)); do
-	log_must $MKFILE 64M $mntpnt/vdev$i
+	log_must $MKFILE -s 64M $mntpnt/vdev$i
 	eval vdev$i=$mntpnt/vdev$i
 	((i += 1))
 done

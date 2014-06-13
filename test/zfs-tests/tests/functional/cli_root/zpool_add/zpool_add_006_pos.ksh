@@ -114,13 +114,13 @@ function setup_vdevs #<disk>
 	# Create a pool first using the first file, and make subsequent files
 	# ready as vdevs to add to the pool
 
-	log_must $MKFILE ${file_size}m ${TESTDIR}/file.$count
+	log_must $MKFILE -s ${file_size}m ${TESTDIR}/file.$count
 	create_pool "$TESTPOOL1" "${TESTDIR}/file.$count"
 	log_must poolexists "$TESTPOOL1"
 
 	while (( count < vdevs_num )); do # minus 1 to avoid space non-enough
 		(( count = count + 1 ))
-		log_must $MKFILE ${file_size}m ${TESTDIR}/file.$count
+		log_must $MKFILE -s ${file_size}m ${TESTDIR}/file.$count
 		vdevs_list="$vdevs_list ${TESTDIR}/file.$count"
 	done
 }
@@ -144,7 +144,7 @@ log_must $ZPOOL add -f "$TESTPOOL1" $vdevs_list
 log_must iscontained "$TESTPOOL1" "$vdevs_list"
 
 (( file_size = file_size * (vdevs_num/40 + 1 ) ))
-log_mustnot $MKFILE ${file_size}m ${TESTDIR}/broken_file
+log_mustnot $MKFILE -s ${file_size}m ${TESTDIR}/broken_file
 
 log_mustnot $ZPOOL add -f "$TESTPOOL1" ${TESTDIR}/broken_file
 log_mustnot iscontained "$TESTPOOL1" "${TESTDIR}/broken_file"

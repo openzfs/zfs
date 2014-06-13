@@ -71,13 +71,13 @@ csnap=$clone@$TESTSNAP
 csnap1=$clone@$TESTSNAP1
 
 # setup for promote testing
-log_must $MKFILE $FILESIZE $TESTDIR/$TESTFILE0
+log_must $MKFILE -s $FILESIZE $TESTDIR/$TESTFILE0
 log_must $ZFS snapshot $snap
-log_must $MKFILE $FILESIZE $TESTDIR/$TESTFILE1
+log_must $MKFILE -s $FILESIZE $TESTDIR/$TESTFILE1
 log_must $RM -f $testdir/$TESTFILE0
 log_must $ZFS snapshot $snap1
 log_must $ZFS clone $snap1 $clone
-log_must $MKFILE $FILESIZE /$clone/$CLONEFILE
+log_must $MKFILE -s $FILESIZE /$clone/$CLONEFILE
 
 log_must $ZFS promote $clone
 

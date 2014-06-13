@@ -59,18 +59,17 @@ function setup_testenv #[dtst]
 	# Volume test is only availible on globle zone
 	if ! datasetexists $VOL && is_global_zone; then
 		log_must $ZFS create -V $VOLSIZE $VOL
-
-		$ECHO "y" | $NEWFS /dev/zvol/dsk/$VOL > /dev/null 2>&1
+		$ECHO "y" | $NEWFS $ZVOL_DEVDIR/$VOL > /dev/null 2>&1
 		if (( $? == 0 )); then
-			log_note "SUCCESS: $NEWFS /dev/zvol/dsk/$VOL>/dev/null"
+			log_note "SUCCESS: $NEWFS $ZVOL_DEVDIR/$VOL>/dev/null"
 		else
-			log_fail "$NEWFS /dev/zvol/dsk/$VOL > /dev/null"
+			log_fail "$NEWFS $ZVOL_DEVDIR/$VOL > /dev/null"
 		fi
 
 		if [[ ! -d $TESTDIR1 ]]; then
 			log_must $MKDIR $TESTDIR1
 		fi
-		log_must $MOUNT /dev/zvol/dsk/$VOL $TESTDIR1
+		log_must $MOUNT $ZVOL_DEVDIR/$VOL $TESTDIR1
 	fi
 
 	if [[ $dtst == snap || $dtst == clone ]]; then
@@ -96,7 +95,7 @@ function setup_testenv #[dtst]
 #
 function cleanup_testenv
 {
-	if is_global_zone && ismounted "$TESTDIR1" "ufs" ; then
+	if is_global_zone && ismounted "$TESTDIR1" "$NEWFS_DEFAULT_FS" ; then
 		log_must $UMOUNT -f $TESTDIR1
 	fi
 	if [[ -d $TESTDIR1 ]]; then

@@ -41,7 +41,7 @@ verify_runnable "both"
 set -A datasets \
 	"$TESTPOOL" "$ZFSROOT/$TESTPOOL" \
 	"$TESTPOOL/$TESTCTR" "$ZFSROOT/$TESTPOOL/$TESTCTR" \
-	"$TESTPOOL/$TESTVOL" "/dev/zvol/dsk/$TESTPOOL/$TESTVOL"
+	"$TESTPOOL/$TESTVOL" "$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL"
 
 log_assert "Verify that unsharing a dataset other than filesystem fails."
 

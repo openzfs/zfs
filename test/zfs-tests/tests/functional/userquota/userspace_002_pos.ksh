@@ -60,7 +60,7 @@ log_must $ZFS set userquota@$QUSER1=100m $QFS
 
 mkmount_writable $QFS
 
-log_must user_run $QUSER1 $MKFILE 50m $QFILE
+log_must user_run $QUSER1 $MKFILE -s 50m $QFILE
 $SYNC
 
 typeset snapfs=$QFS@snap

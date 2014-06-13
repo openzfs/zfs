@@ -40,7 +40,7 @@ default_mirror_setup_noexit $DISK1 $DISK2
 mntpnt=$(get_prop mountpoint $TESTPOOL)
 typeset -i i=0
 while ((i < 10)); do
-	log_must $MKFILE 500M $mntpnt/bigfile.$i
+	log_must $MKFILE -s 500M $mntpnt/bigfile.$i
 	((i += 1))
 done
 

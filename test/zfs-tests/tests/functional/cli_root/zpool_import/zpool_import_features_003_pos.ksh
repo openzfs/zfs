@@ -52,7 +52,7 @@ function cleanup
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 
 	log_must $RM $VDEV0
-	log_must $MKFILE $FILE_SIZE $VDEV0
+	log_must $MKFILE -s $FILE_SIZE $VDEV0
 }
 
 log_assert "Pool with active read-only compatible features can be imported."

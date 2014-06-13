@@ -1434,7 +1434,7 @@ function verify_vol_rollback
 	log_must $ZFS snapshot $snap
 	oldval=$(datasetcksum $vol)
 
-	log_must $DD if=/dev/random of=/dev/zvol/rdsk/$vol \
+	log_must $DD if=/dev/urandom of=/$ZVOL_RDEVDIR/$vol \
 		bs=512 count=1
 
 	user_run $user $ZFS rollback -R $snap

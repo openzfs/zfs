@@ -52,9 +52,9 @@ function cleanup
 {
 	# cleanup zfs pool and dataset
 	if datasetexists $vol_name; then
-		$SWAP -l | $GREP /dev/zvol/dsk/$vol_name > /dev/null 2>&1
+		$SWAP -l | $GREP $ZVOL_DEVDIR/$vol_name > /dev/null 2>&1
 		if [[ $? -eq 0 ]]; then
-			$SWAP -d /dev/zvol/dsk/${vol_name}
+			$SWAP -d $ZVOL_DEVDIR/${vol_name}
 		fi
 	fi
 
@@ -83,13 +83,13 @@ log_onexit cleanup
 #
 create_pool $TESTPOOL $pool_dev
 log_must $ZFS create -V 100m $vol_name
-log_must $SWAP -a /dev/zvol/dsk/$vol_name
+log_must $SWAP -a $ZVOL_DEVDIR/$vol_name
 for opt in "-n" "" "-f"; do
-	log_mustnot $ZPOOL create $opt $TESTPOOL1 /dev/zvol/dsk/${vol_name}
+	log_mustnot $ZPOOL create $opt $TESTPOOL1 $ZVOL_DEVDIR/${vol_name}
 done
 
 # cleanup
-log_must $SWAP -d /dev/zvol/dsk/${vol_name}
+log_must $SWAP -d $ZVOL_DEVDIR/${vol_name}
 log_must $ZFS destroy $vol_name
 log_must $ZPOOL destroy $TESTPOOL
 

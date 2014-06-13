@@ -126,7 +126,7 @@ function setup_vdevs #<disk>
 	typeset -l count=0
 	typeset PIDLIST=""
 	while (( count < vdevs_num )); do
-		$MKFILE ${file_size}m ${TESTDIR}/file.$count &
+		$MKFILE -s ${file_size}m ${TESTDIR}/file.$count &
 		PIDLIST="$PIDLIST $!"
 		vdevs_list="$vdevs_list ${TESTDIR}/file.$count"
 		(( count = count + 1 ))
@@ -173,7 +173,7 @@ left_space=$(get_prop "available" $TESTPOOL/$TESTFS)
 # Count the broken file size. make sure it should be greater than $left_space
 # so, here, we plus a number -- $file_size, this number can be any other number.
 (( file_size = left_space / (1024 * 1024) + file_size ))
-log_mustnot $MKFILE ${file_size}m ${TESTDIR}/broken_file
+log_mustnot $MKFILE -s ${file_size}m ${TESTDIR}/broken_file
 vdevs_list="$vdevs_list ${TESTDIR}/broken_file"
 
 log_mustnot $ZPOOL create -f $TESTPOOL2 $vdevs_list

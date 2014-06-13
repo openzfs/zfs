@@ -59,7 +59,7 @@ log_onexit cleanup
 # Create another pool for negative testing, which clears pool error
 # with vdev device not in the pool vdev devices.
 file=$TESTDIR/file.$$
-log_must $MKFILE $FILESIZE $file
+log_must $MKFILE -s $FILESIZE $file
 log_must $ZPOOL create $TESTPOOL1 $file
 
 set -A args "" "-?" "--%" "-1234567" "0.0001" "0.7644" "-0.7644" \

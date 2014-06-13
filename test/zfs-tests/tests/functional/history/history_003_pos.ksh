@@ -60,7 +60,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 (( $? != 0 )) && log_fail "get_prop mountpoint $TESTPOOL"
 
 VDEV0=$mntpnt/vdev0; VDEV1=$mntpnt/vdev1
-log_must $MKFILE 100m $VDEV0 $VDEV1
+log_must $MKFILE -s 100m $VDEV0 $VDEV1
 
 spool=smallpool.$$; sfs=smallfs.$$
 log_must $ZPOOL create $spool $VDEV0 $VDEV1

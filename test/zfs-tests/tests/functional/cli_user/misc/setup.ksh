@@ -116,14 +116,14 @@ then
 
 	# Now create several virtual disks to test zpool with
 
-	$MKFILE 100m /$TESTDIR/disk1.dat
-	$MKFILE 100m /$TESTDIR/disk2.dat
-	$MKFILE 100m /$TESTDIR/disk3.dat
-	$MKFILE 100m /$TESTDIR/disk-additional.dat
-	$MKFILE 100m /$TESTDIR/disk-export.dat
-	$MKFILE 100m /$TESTDIR/disk-offline.dat
-	$MKFILE 100m /$TESTDIR/disk-spare1.dat
-	$MKFILE 100m /$TESTDIR/disk-spare2.dat
+	$MKFILE -s 100m /$TESTDIR/disk1.dat
+	$MKFILE -s 100m /$TESTDIR/disk2.dat
+	$MKFILE -s 100m /$TESTDIR/disk3.dat
+	$MKFILE -s 100m /$TESTDIR/disk-additional.dat
+	$MKFILE -s 100m /$TESTDIR/disk-export.dat
+	$MKFILE -s 100m /$TESTDIR/disk-offline.dat
+	$MKFILE -s 100m /$TESTDIR/disk-spare1.dat
+	$MKFILE -s 100m /$TESTDIR/disk-spare2.dat
 
 	# and create a pool we can perform attach remove replace,
 	# etc. operations with

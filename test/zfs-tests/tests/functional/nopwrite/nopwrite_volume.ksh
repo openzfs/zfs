@@ -31,8 +31,8 @@
 verify_runnable "global"
 origin="$TESTPOOL/$TESTVOL"
 clone="$TESTPOOL/clone"
-vol="/dev/zvol/rdsk/$origin"
-volclone="/dev/zvol/rdsk/$clone"
+vol="$ZVOL_RDEVDIR/$origin"
+volclone="$ZVOL_RDEVDIR/$clone"
 log_onexit cleanup
 
 function cleanup

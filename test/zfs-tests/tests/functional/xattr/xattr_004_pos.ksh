@@ -33,54 +33,54 @@
 #
 # DESCRIPTION:
 #
-# Creating files on ufs and tmpfs, and copying those files to ZFS with
+# Creating files on ufs|ext2 and tmpfs, and copying those files to ZFS with
 # appropriate cp flags, the xattrs will still be readable.
 #
 # STRATEGY:
-#	1. Create files in ufs and tmpfs with xattrs
+#	1. Create files in ufs|ext2 and tmpfs with xattrs
 #       2. Copy those files to zfs
 #	3. Ensure the xattrs can be read and written
 #	4. Do the same in reverse.
 #
 
 # we need to be able to create zvols to hold our test
-# ufs filesystem.
+# ufs|ext2 filesystem.
 verify_runnable "global"
 
 # Make sure we clean up properly
 function cleanup {
 
-	if [ $( ismounted /tmp/ufs.$$ ufs ) ]
+	if [ $( ismounted /tmp/$NEWFS_DEFAULT_FS.$$ $NEWFS_DEFAULT_FS ) ]
 	then
-		log_must $UMOUNT /tmp/ufs.$$
-		log_must $RM -rf /tmp/ufs.$$
+		log_must $UMOUNT /tmp/$NEWFS_DEFAULT_FS.$$
+		log_must $RM -rf /tmp/$NEWFS_DEFAULT_FS.$$
 	fi
 }
 
-log_assert "Files from ufs,tmpfs with xattrs copied to zfs retain xattr info."
+log_assert "Files from $NEWFS_DEFAULT_FS,tmpfs with xattrs copied to zfs retain xattr info."
 log_onexit cleanup
 
-# Create a UFS file system that we can work in
+# Create a UFS|EXT2 file system that we can work in
 log_must $ZFS create -V128m $TESTPOOL/$TESTFS/zvol
-log_must eval "$ECHO y | $NEWFS /dev/zvol/dsk/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
+log_must eval "$ECHO y | $NEWFS $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
 
-log_must $MKDIR /tmp/ufs.$$
-log_must $MOUNT /dev/zvol/dsk/$TESTPOOL/$TESTFS/zvol /tmp/ufs.$$
+log_must $MKDIR /tmp/$NEWFS_DEFAULT_FS.$$
+log_must $MOUNT $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol /tmp/$NEWFS_DEFAULT_FS.$$
 
-# Create files in ufs and tmpfs, and set some xattrs on them.
-log_must $TOUCH /tmp/ufs.$$/ufs-file.$$
+# Create files in ufs|ext2 and tmpfs, and set some xattrs on them.
+log_must $TOUCH /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$
 log_must $TOUCH /tmp/tmpfs-file.$$
 
-log_must $RUNAT /tmp/ufs.$$/ufs-file.$$ $CP /etc/passwd .
+log_must $RUNAT /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ $CP /etc/passwd .
 log_must $RUNAT /tmp/tmpfs-file.$$ $CP /etc/group .
 
 # copy those files to ZFS
-log_must $CP -@ /tmp/ufs.$$/ufs-file.$$ $TESTDIR
+log_must $CP -@ /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ $TESTDIR
 log_must $CP -@ /tmp/tmpfs-file.$$ $TESTDIR
 
 # ensure the xattr information has been copied correctly
-log_must $RUNAT $TESTDIR/ufs-file.$$ $DIFF passwd /etc/passwd
+log_must $RUNAT $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ $DIFF passwd /etc/passwd
 log_must $RUNAT $TESTDIR/tmpfs-file.$$ $DIFF group /etc/group
 
-log_must $UMOUNT /tmp/ufs.$$
-log_pass "Files from ufs,tmpfs with xattrs copied to zfs retain xattr info."
+log_must $UMOUNT /tmp/$NEWFS_DEFAULT_FS.$$
+log_pass "Files from $NEWFS_DEFAULT_FS,tmpfs with xattrs copied to zfs retain xattr info."

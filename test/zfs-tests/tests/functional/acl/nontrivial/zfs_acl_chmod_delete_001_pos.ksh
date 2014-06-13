@@ -67,7 +67,7 @@ verify_runnable "both"
 function cleanup
 {
 	if [[ ! -e $target ]]; then
-		log_must $TAR xpf $TESTDIR/$ARCHIVEFILE
+		log_must $TAR $unpack_preserve $TESTDIR/$ARCHIVEFILE
 	fi
 
 	(( ${#cwd} != 0 )) && cd $cwd
@@ -123,7 +123,7 @@ function operate_node #user node
 			return 1
 		fi
 	else
-		log_must $TAR xpf $TESTDIR/$ARCHIVEFILE
+		log_must $TAR $unpack_preserve $TESTDIR/$ARCHIVEFILE
 		if [[ $ret -ne 0 ]]; then
 			log_note "$node removed, but return code is $ret."
 			return 1
@@ -214,7 +214,7 @@ function test_chmod_basic_access #node g_usr o_usr
 			[[ -n $acl_t ]] && \
 				log_must usr_exec $CHMOD A+$flag:$acl_t $node
 
-			log_must $TAR cpf $TESTDIR/$ARCHIVEFILE basedir
+			log_must $TAR $pack_preserve $TESTDIR/$ARCHIVEFILE basedir
 
 			check_chmod_results "$node" "$flag" \
 				 "$acl_p" "$acl_t" "$g_usr" "$o_usr"

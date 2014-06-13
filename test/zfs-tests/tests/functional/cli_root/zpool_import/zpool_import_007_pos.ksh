@@ -54,7 +54,7 @@ function cleanup
 	log_must $RM -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must $MKFILE $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must $MKFILE -s $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -82,7 +82,7 @@ log_must $ZPOOL import -d $DEVICE_DIR -D -f $target
 log_must $ZPOOL destroy $TESTPOOL1
 
 log_note "For raidz, two destroyed pool's devices were used, import failed."
-log_must $MKFILE $FILE_SIZE $VDEV0
+log_must $MKFILE -s $FILE_SIZE $VDEV0
 log_must $ZPOOL create $TESTPOOL2 $VDEV0 $VDEV1
 log_mustnot $ZPOOL import -d $DEVICE_DIR -D -f $target
 log_must $ZPOOL destroy $TESTPOOL2

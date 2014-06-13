@@ -43,7 +43,7 @@ do
 	fi
 done
 
-voldev=/dev/zvol/dsk/$TESTPOOL/$TESTVOL
+voldev=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 if is_swap_inuse $voldev ; then
 	log_must $SWAP -d $voldev
 fi
