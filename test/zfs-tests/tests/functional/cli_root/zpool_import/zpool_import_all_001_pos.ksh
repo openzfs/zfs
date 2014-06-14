@@ -160,6 +160,16 @@ log_must $ZPOOL export ${TESTPOOL}-0
 [[ -d /${TESTPOOL}-0 ]] && \
 	log_must $RM -rf /${TESTPOOL}-0
 
+if [[ -n "$LINUX" ]]; then
+	# Setup partition mappings with kpartx
+	set -- $($KPARTX -av $ZFS_DISK1 | head -n1)
+	loop=$($ECHO $8 | $SED 's,.*/,,')
+
+	# Override variables
+	ZFS_DISK1="/dev/mapper/$loop"
+	ZFS_DISK2="/dev/mapper/$loop"
+fi
+
 #
 # setup exported pools on normal devices
 #
@@ -170,7 +180,13 @@ while (( number <= $GROUP_NUM )); do
 		continue
 	fi
 
-	setup_single_disk "${ZFS_DISK1}s${number}" \
+	if [[ -n "$LINUX" ]]; then
+		part=p
+	else
+		part=s
+	fi
+
+	setup_single_disk "${ZFS_DISK1}${part}${number}" \
 		"${TESTPOOL}-$number" \
 		"$TESTFS" \
 		"$TESTDIR.$number"
