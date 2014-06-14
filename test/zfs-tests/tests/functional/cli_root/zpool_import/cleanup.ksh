@@ -40,8 +40,15 @@ for pool in "$TESTPOOL" "$TESTPOOL1"; do
 	destroy_pool "$pool"
 done
 
-ismounted $DEVICE_DIR ufs
+typeset FS="ufs"
+[[ -n "$LINUX" ]] && FS="ext2"
+ismounted $DEVICE_DIR $FS
 (( $? == 0 )) && log_must $UMOUNT -f $DEVICE_DIR
+
+if [[ -n "$LINUX" ]]; then
+	# Remove the partition mappings created in setup.
+	$KPARTX -d $ZFS_DISK1
+fi
 
 for dir in "$TESTDIR" "$TESTDIR1" "$DEVICE_DIR" ; do
 	[[ -d $dir ]] && \
