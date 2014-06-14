@@ -49,9 +49,9 @@ function create_old_pool
 	for pool_file in $POOL_FILES; do
 		log_must $BZCAT \
 		    $STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/$pool_file.bz2 \
-		    >/$TESTPOOL/$pool_file
+		    >/var/tmp/test_results/$pool_file
 	done
-	log_must $ZPOOL import -d /$TESTPOOL $POOL_NAME
+	log_must $ZPOOL import -d /var/tmp/test_results $POOL_NAME
 
 	# Now put some random contents into the pool.
 	COUNT=0
@@ -94,8 +94,8 @@ function destroy_upgraded_pool {
 		log_must $ZPOOL destroy $POOL_NAME
 	fi
 	for file in $POOL_FILES; do
-		if [ -e /$TESTPOOL/$file ]; then
-			$RM /$TESTPOOL/$file
+		if [ -e /var/tmp/test_results/$file ]; then
+			$RM /var/tmp/test_results/$file
 		fi
 	done
 }
