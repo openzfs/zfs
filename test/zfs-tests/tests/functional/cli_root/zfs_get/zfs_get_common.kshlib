@@ -68,6 +68,11 @@ function gen_option_str # $elements $prefix $separator $counter
 			# Random select elements from the array
 			(( item = $RANDOM % ${#elements[@]} ))
 
+			if [[ -n "$LINUX" && ${elements[item]} == "aclmode" ]]; then
+				(( j += 1 ))
+				continue
+			fi
+
 			if (( ${#comb_str} == 0 )); then
 				comb_str=${elements[item]}
 			else

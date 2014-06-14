@@ -112,16 +112,22 @@ create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 create_snapshot $TESTPOOL/$TESTVOL $TESTSNAP
 
 typeset -i i=0
+typeset -i j=0
 while ((i < ${#dataset[@]})); do
 	for opt in "${options[@]}"; do
-		for prop in ${all_props[@]}; do
-			eval "$ZFS get $opt $prop ${dataset[i]} > \
+		while (( $j < ${#all_props[*]} )); do
+			if [[ -n "$LINUX" && ${all_props[$j]} == "aclmode" ]]; then
+				((j += 1))
+				continue
+			fi
+			eval "$ZFS get $opt ${all_props[$j]} ${dataset[i]} > \
 			    $TESTDIR/$TESTFILE0"
 			ret=$?
 			if [[ $ret != 0 ]]; then
 				log_fail "$ZFS get returned: $ret"
 			fi
-			check_return_value ${dataset[i]} "$prop" "$opt"
+			check_return_value ${dataset[i]} "${all_props[$j]}" "$opt"
+			((j += 1))
 		done
 	done
 	((i += 1))

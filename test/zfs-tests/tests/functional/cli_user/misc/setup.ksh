@@ -87,6 +87,10 @@ while [[ $i -lt ${#props[*]} ]]
 do
 	prop_name=${props[$i]}
 	prop_val=${prop_vals[$i]}
+	if [[ -n "$LINUX" && $prop_name == "aclmode" ]]; then
+		((i += 1))
+		continue
+	fi
 	log_must $ZFS set $prop_name=$prop_val $TESTPOOL/$TESTFS/prop
 	i=$(( $i + 1 ))
 done

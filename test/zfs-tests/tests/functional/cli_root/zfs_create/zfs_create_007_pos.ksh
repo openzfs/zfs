@@ -63,6 +63,10 @@ typeset -i i=0
 typeset opts=""
 
 while (( $i < ${#RW_VOL_PROP[*]} )); do
+	if [[ -n "$LINUX" && ${RW_FS_PROP[$i]} == *"aclmode"* ]]; then
+		((i += 1))
+		continue
+	fi
 	if [[ ${RW_VOL_PROP[$i]} != *"checksum"* ]]; then
 		opts="$opts -o ${RW_VOL_PROP[$i]}"
 	fi

@@ -56,6 +56,10 @@ log_assert "'zfs create -o property=value filesystem' can successfully create \
 
 typeset -i i=0
 while (( $i < ${#RW_FS_PROP[*]} )); do
+	if [[ -n "$LINUX" && ${RW_FS_PROP[$i]} == *"aclmode"* ]]; then
+		((i += 1))
+		continue
+	fi
 	log_must $ZFS create -o ${RW_FS_PROP[$i]} $TESTPOOL/$TESTFS1
 	datasetexists $TESTPOOL/$TESTFS1 || \
 		log_fail "zfs create $TESTPOOL/$TESTFS1 fail."

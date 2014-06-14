@@ -58,6 +58,10 @@ typeset -i i=0
 typeset opts=""
 
 while (( $i < ${#RW_FS_PROP[*]} )); do
+	if [[ -n "$LINUX" && ${RW_FS_PROP[$i]} == *"aclmode"* ]]; then
+		((i += 1))
+		continue
+	fi
         if [[ ${RW_FS_PROP[$i]} != *"checksum"* ]]; then
 		opts="$opts -o ${RW_FS_PROP[$i]}"
 	fi
@@ -70,6 +74,10 @@ datasetexists $TESTPOOL/$TESTFS1 || \
 
 i=0
 while (( $i < ${#RW_FS_PROP[*]} )); do
+	if [[ -n "$LINUX" && ${RW_FS_PROP[$i]} == *"aclmode"* ]]; then
+		((i += 1))
+		continue
+	fi
         if [[ ${RW_FS_PROP[$i]} != *"checksum"* ]]; then
 		propertycheck $TESTPOOL/$TESTFS1 ${RW_FS_PROP[i]} || \
 			log_fail "${RW_FS_PROP[i]} is failed to set."
