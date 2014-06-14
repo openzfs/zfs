@@ -52,6 +52,19 @@ while (( i <= $GROUP_NUM )); do
 	(( i = i + 1 ))
 done
 
+if [[ -n "$LINUX" ]]; then
+	# Setup partition mappings with kpartx
+	set -- $($KPARTX -av $ZFS_DISK1 | head -n1)
+	loop=$($ECHO $8 | $SED 's,.*/,,')
+
+	# Override variables
+	ZFSSIDE_DISK1="/dev/mapper/$loop"p1
+	ZFSSIDE_DISK2="/dev/mapper/$loop"p2
+else
+	typeset rdsk=/dev/rdsk/
+	typeset dsk=/dev/dsk/
+fi
+
 create_pool "$TESTPOOL" "$ZFSSIDE_DISK1"
 
 if [[ -d $TESTDIR ]]; then
@@ -62,14 +75,16 @@ fi
 log_must $ZFS create $TESTPOOL/$TESTFS
 log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
-$ECHO "y" | $NEWFS -v /dev/rdsk/$ZFSSIDE_DISK2 >/dev/null 2>&1
+typeset FS="UFS"
+[[ -n "$LINUX" ]] && FS="EXT2"
+$ECHO "y" | $NEWFS -v $rdsk$ZFSSIDE_DISK2 >/dev/null 2>&1
 (( $? != 0 )) &&
-	log_untested "Unable to setup a UFS file system"
+	log_untested "Unable to setup a $FS file system"
 
 [[ ! -d $DEVICE_DIR ]] && \
 	log_must $MKDIR -p $DEVICE_DIR
 
-log_must $MOUNT /dev/dsk/$ZFSSIDE_DISK2 $DEVICE_DIR
+log_must $MOUNT $dsk$ZFSSIDE_DISK2 $DEVICE_DIR
 
 i=0
 while (( i < $MAX_NUM )); do
