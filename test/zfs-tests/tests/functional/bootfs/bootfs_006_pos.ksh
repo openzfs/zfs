@@ -57,7 +57,7 @@ function verify_bootfs { # $POOL
 
 	log_must $ZPOOL set bootfs=$POOL/$TESTFS $POOL
 	VAL=$($ZPOOL get bootfs $POOL | $TAIL -1 | $AWK '{print $3}' )
-	if [ $VAL != "$POOL/$TESTFS" ]
+	if [ $VAL == "$POOL/$TESTFS" ]
 	then
 		log_must $ZPOOL status -v $POOL
 		log_fail \
@@ -69,9 +69,13 @@ function verify_bootfs { # $POOL
 function verify_no_bootfs { # $POOL
 	POOL=$1
 	log_must $ZFS create $POOL/$TESTFS
-	log_mustnot $ZPOOL set bootfs=$POOL/$TESTFS $POOL
+	if [[ -n "$LINUX" ]]; then
+		log_must $ZPOOL set bootfs=$POOL/$TESTFS $POOL
+	else
+		log_mustnot $ZPOOL set bootfs=$POOL/$TESTFS $POOL
+	fi
 	VAL=$($ZPOOL get bootfs $POOL | $TAIL -1 | $AWK '{print $3}' )
-	if [ $VAL == "$POOL/$TESTFS" ]
+	if [ $VAL != "$POOL/$TESTFS" ]
 	then
 		log_must $ZPOOL status -v $POOL
 		log_fail "set/get unexpectedly failed $VAL != $POOL/$TESTFS"
@@ -114,6 +118,7 @@ log_must $ZPOOL create $TESTPOOL mirror $VDEV1 $VDEV2 spare $VDEV3
 verify_bootfs $TESTPOOL
 
 ## the following configurations are not supported as bootable pools
+# TODO: All of these works in Linux.
 
 # stripe
 log_must $ZPOOL create $TESTPOOL $VDEV1 $VDEV2

@@ -76,7 +76,12 @@ log_must $ZFS create $TESTPOOL/$TESTFS
 log_must $ZFS snapshot $TESTPOOL/$TESTFS@snap
 log_must $ZFS create -V 10m $TESTPOOL/vol
 
-log_mustnot $ZPOOL set bootfs=$TESTPOOL/$TESTFS@snap $TESTPOOL
-log_mustnot $ZPOOL set bootfs=$TESTPOOL/vol $TESTPOOL
+if [[ -n "$LINUX" ]]; then
+	log_must $ZPOOL set bootfs=$TESTPOOL/$TESTFS@snap $TESTPOOL
+	log_must $ZPOOL set bootfs=$TESTPOOL/vol $TESTPOOL
+else
+	log_mustnot $ZPOOL set bootfs=$TESTPOOL/$TESTFS@snap $TESTPOOL
+	log_mustnot $ZPOOL set bootfs=$TESTPOOL/vol $TESTPOOL
+fi
 
 log_pass "Invalid datasets are rejected as boot property values"
