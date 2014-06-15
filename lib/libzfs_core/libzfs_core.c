@@ -44,7 +44,7 @@
  *  to commit to it once it is more complete and we determine that it
  *  meets the needs of all consumers.
  *
- *  - Programatic Error Handling.  libzfs_core communicates errors with
+ *  - Programmatic Error Handling.  libzfs_core communicates errors with
  *  defined error numbers, and doesn't print anything to stdout/stderr.
  *
  *  - Thin Layer.  libzfs_core is a thin layer, marshaling arguments
@@ -350,7 +350,7 @@ lzc_exists(const char *dataset)
  * added to errlist, but will not cause an overall failure.
  *
  * The return value will be 0 if all holds, for snapshots that existed,
- * were succesfully created.
+ * were successfully created.
  *
  * Otherwise the return value will be the errno of a (unspecified) hold that
  * failed and no holds will be created.
