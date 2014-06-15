@@ -823,7 +823,7 @@ function get_pool_prop # property pool
 			return 1
 		fi
 	else
-		log_note "Pool $pool not exists."
+		log_note "Pool $pool does not exists."
 		return 1
 	fi
 
@@ -1116,7 +1116,7 @@ function destroy_pool #pool
 			[[ -d $mtpt ]] && \
 				log_must $RM -rf $mtpt
 		else
-			log_note "Pool not exist. ($pool)"
+			log_note "Pool does not exist. ($pool)"
 			return 1
 		fi
 	fi

@@ -43,9 +43,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	if poolexists $TESTPOOL1; then
-		destroy_pool $TESTPOOL1
-	fi
+	# destroy_pool verifies before destroy
+	destroy_pool $TESTPOOL1
 
 	if datasetexists $vol; then
 		log_must $ZFS destroy $vol

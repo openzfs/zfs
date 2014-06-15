@@ -103,7 +103,7 @@ function cleanup_testenv
 		log_must $RM -rf $TESTDIR1
 	fi
 
-	$PKILL $MKBUSY
+	$PKILL -f $MKBUSY
 
 	if datasetexists $CTR; then
 		log_must $ZFS destroy -Rf $CTR
