@@ -56,6 +56,11 @@ function cleanup
 			log_must $ZFS destroy -rRf $ds
 		fi
 	done
+	if [[ -n "$LINUX" && -n "$def_cor_pat" ]]; then
+		echo "$def_cor_pat" > /proc/sys/kernel/core_pattern
+		echo "$def_cor_suid" > /proc/sys/fs/suid_dumpable
+		ulimit -c $ulimit
+	fi
 }
 
 log_assert "With ZFS_ABORT set, all zfs commands can abort and generate a " \
@@ -89,7 +94,17 @@ typeset badparams=("" "create" "destroy" "snapshot" "rollback" "clone" \
     "promote" "rename" "list -*" "set" "get -*" "inherit" "mount -A" \
     "unmount" "share" "unshare" "send" "receive")
 
-log_must $COREADM -p ${corepath}/core.%f
+if [[ -n "$LINUX" && -f "/proc/sys/kernel/core_pattern" ]]; then
+	# NOTE: This file is only provided if the kernel was built
+	#       with the CONFIG_ELF_CORE configuration option
+	typeset def_cor_pat=$(cat /proc/sys/kernel/core_pattern)
+	typeset def_cor_suid=$(cat /proc/sys/fs/suid_dumpable)
+	typeset ulimit=$(ulimit -c)
+	echo "${corepath}/core.%e" > /proc/sys/kernel/core_pattern
+	ulimit -c unlimited
+else
+	log_must $COREADM -p ${corepath}/core.%f
+fi
 log_must export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
