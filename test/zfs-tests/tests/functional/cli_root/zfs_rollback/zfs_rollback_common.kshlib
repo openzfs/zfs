@@ -75,8 +75,12 @@ function setup_snap_env
 		# mount it. Otherwise, only check if this ufs|ext2 file system
 		# was mounted.
 		#
-		log_must eval "$ECHO "y" | \
-			$NEWFS -v $ZVOL_DEVDIR/$VOL > /dev/null 2>&1"
+		if [[ -n "$LINUX" ]]; then
+			log_must $NEWFS -q $ZVOL_DEVDIR/$VOL
+		else
+			log_must eval "$ECHO "y" | \
+				$NEWFS -v $ZVOL_DEVDIR/$VOL > /dev/null 2>&1"
+		fi
 
 		[[ ! -d $TESTDIR1 ]] && log_must $MKDIR $TESTDIR1
 
@@ -172,6 +176,13 @@ function cleanup_env
 	[[ -d $TESTDIR1 ]] && log_must $RM -rf $TESTDIR1/*
 
 	for dtst in $FS $VOL; do
+		if ismounted $ZVOL_DEVDIR/$dtst zvol; then
+			link=$(readlink -f $ZVOL_DEVDIR/$dtst)
+			$UMOUNT -f $link
+		elif ismounted $ZVOL_$RDEVDIR/$dtst zvol; then
+			link=$(readlink -f $ZVOL_RDEVDIR/$dtst)
+			$UMOUNT -f $link
+		fi
 		for snap in $TESTSNAP $TESTSNAP1 $TESTSNAP2; do
 			if snapexists $dtst@$snap; then
 				 log_must $ZFS destroy -Rf $dtst@$snap
