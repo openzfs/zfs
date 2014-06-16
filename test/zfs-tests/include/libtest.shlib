@@ -662,18 +662,33 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 	    log_fail "The slice, size or disk name is unspecified."
 	typeset format_file=/var/tmp/format_in.$$
 
-	$ECHO "partition" >$format_file
-	$ECHO "$slicenum" >> $format_file
-	$ECHO "" >> $format_file
-	$ECHO "" >> $format_file
-	$ECHO "$start" >> $format_file
-	$ECHO "$size" >> $format_file
-	$ECHO "label" >> $format_file
-	$ECHO "" >> $format_file
-	$ECHO "q" >> $format_file
-	$ECHO "q" >> $format_file
+	if [[ -n "$LINUX" ]]; then
+		# [start] [size] [id] <bootable> <c,h,s> <c,h,s>
+		typeset -i end=${size%%m}
+		if [[ -z "$start" ]]; then
+			# First part - start at cyl=1
+			start=1
 
-	$FORMAT -e -s -d $disk -f $format_file
+			$FORMAT -s $disk mklabel msdos
+		else
+			((end = start + end))
+		fi
+
+		$FORMAT -s $disk mkpart primary $start $end
+	else
+		$ECHO "partition" >$format_file
+		$ECHO "$slicenum" >> $format_file
+		$ECHO "" >> $format_file
+		$ECHO "" >> $format_file
+		$ECHO "$start" >> $format_file
+		$ECHO "$size" >> $format_file
+		$ECHO "label" >> $format_file
+		$ECHO "" >> $format_file
+		$ECHO "q" >> $format_file
+		$ECHO "q" >> $format_file
+
+		$FORMAT -e -s -d $disk -f $format_file
+	fi
 	typeset ret_val=$?
 	$RM -f $format_file
 	[[ $ret_val -ne 0 ]] && \
@@ -687,7 +702,7 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 function get_endslice #<disk> <slice>
 {
 	typeset disk=$1
-	typeset slice=$2
+	typeset -i slice=$2
 	if [[ -z $disk || -z $slice ]] ; then
 		log_fail "The disk name or slice number is unspecified."
 	fi
@@ -696,19 +711,28 @@ function get_endslice #<disk> <slice>
 	disk=${disk#/dev/rdsk/}
 	disk=${disk%s*}
 
-	typeset -i ratio=0
-	ratio=$($PRTVTOC /dev/rdsk/${disk}s2 | \
-		$GREP "sectors\/cylinder" | \
-		$AWK '{print $2}')
+	if [[ -n "$LINUX" ]]; then
+		((slice == 0 || slice == 1)) && ((slice += 1))
+		endcyl=$(parted -s /var/tmp/zfs_test-1 print | \
+			$GREP "^ $slice" | \
+			$AWK '{print $3}' | \
+			$SED 's,MB,,')
+	else
+		typeset -i ratio=0
+		ratio=$($PRTVTOC /dev/rdsk/${disk}s2 | \
+			$GREP "sectors\/cylinder" | \
+			$AWK '{print $2}')
 
-	if ((ratio == 0)); then
-		return
+		if ((ratio == 0)); then
+			return
+		fi
+
+		typeset -i endcyl=$($PRTVTOC -h /dev/rdsk/${disk}s2 |
+			$NAWK -v token="$slice" '{if ($1==token) print $6}')
+
+		((endcyl = (endcyl + 1) / ratio))
 	fi
 
-	typeset -i endcyl=$($PRTVTOC -h /dev/rdsk/${disk}s2 |
-		$NAWK -v token="$slice" '{if ($1==token) print $6}')
-
-	((endcyl = (endcyl + 1) / ratio))
 	echo $endcyl
 }
 
@@ -929,15 +953,23 @@ function is_shared
 		fi
 	fi
 
-	for mtpt in `$SHARE | $AWK '{print $2}'` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
+	if [[ -n "$LINUX" ]]; then
+		for mtpt in `$SHARE | $AWK '{print $1}'` ; do
+			if [[ $mtpt == $fs ]] ; then
+				return 0
+			fi
+		done
+	else
+		for mtpt in `$SHARE | $AWK '{print $2}'` ; do
+			if [[ $mtpt == $fs ]] ; then
+				return 0
+			fi
+		done
 
-	typeset stat=$($SVCS -H -o STA nfs/server:default)
-	if [[ $stat != "ON" ]]; then
-		log_note "Current nfs/server status: $stat"
+		typeset stat=$($SVCS -H -o STA nfs/server:default)
+		if [[ $stat != "ON" ]]; then
+			log_note "Current nfs/server status: $stat"
+		fi
 	fi
 
 	return 1
@@ -987,8 +1019,15 @@ function setup_nfs_server
 		return
 	fi
 
-	typeset nfs_fmri="svc:/network/nfs/server:default"
-	if [[ $($SVCS -Ho STA $nfs_fmri) != "ON" ]]; then
+	typeset -i sharing=0
+	if [[ -n "$LINUX" ]]; then
+		[[ $(rpcinfo -p localhost | egrep ' nfs$' | wc -l) -gt 0 ]] && sharing=1
+	else
+		typeset nfs_fmri="svc:/network/nfs/server:default"
+		[[ $($SVCS -Ho STA $nfs_fmri) != "ON" ]] && sharing=1
+	fi
+
+	if [[ $sharing == 1 ]]; then
 		#
 		# Only really sharing operation can enable NFS server
 		# to online permanently.
@@ -1000,7 +1039,11 @@ function setup_nfs_server
 		fi
 
 		log_must $MKDIR $dummy
-		log_must $SHARE $dummy
+		if [[ -n "$LINUX" ]]; then
+			log_must $SHARE "*:$dummy"
+		else
+			log_must $SHARE $dummy
+		fi
 
 		#
 		# Waiting for fmri's status to be the final status.
@@ -1014,15 +1057,19 @@ function setup_nfs_server
 		while [[ timeout -ne 0 && $($SVCS -Ho STA $nfs_fmri) == *'*' ]]
 		do
 			log_must $SLEEP 1
-
+	
 			((timeout -= 1))
 		done
-
-		log_must $UNSHARE $dummy
+	
+		if [[ -n "$LINUX" ]]; then
+			log_must $UNSHARE -u "*:$dummy"
+		else
+			log_must $UNSHARE $dummy
+		fi
 		log_must $RM -rf $dummy
+	
+		log_note "Current NFS status: '$($SVCS -Ho STA,FMRI $nfs_fmri)'"
 	fi
-
-	log_note "Current NFS status: '$($SVCS -Ho STA,FMRI $nfs_fmri)'"
 }
 
 #
@@ -1682,6 +1729,28 @@ function get_remote_pkgpath
 }
 
 #/**
+# Wrapper function to find and locate free disks
+#*/
+function find_disks
+{
+	if [[ -n "$LINUX" ]]; then
+		$ECHO $(find_disks_linux "$@")
+	else
+		$ECHO $(find_disks_bsd "$@")
+	fi
+}
+
+#/**
+# Simply return the $DISKS we've specified in
+# the shell environment. These are sparse files
+# so use them at will...
+#*/
+function find_disks_linux
+{
+	$ECHO "$@"
+}
+
+#/**
 # A function to find and locate free disks on a system or from given
 # disks as the parameter. It works by locating disks that are in use
 # as swap devices, SVM devices, and dump devices, and also disks
@@ -1692,7 +1761,7 @@ function get_remote_pkgpath
 #
 # @return a string containing the list of available disks
 #*/
-function find_disks
+function find_disks_bsd
 {
 	sfi=/tmp/swaplist.$$
 	msi=/tmp/metastat.$$
@@ -1736,7 +1805,7 @@ EOF
 	unused=""
 	for disk in $disks; do
 	# Check for mounted
-		$GREP "${disk}[sp]" /etc/mnttab >/dev/null
+		$GREP "${disk}[sp]" $MNTTAB >/dev/null
 		(($? == 0)) && continue
 	# Check for swap
 		$GREP "${disk}[sp]" $sfi >/dev/null
@@ -1839,6 +1908,9 @@ function add_group #<group_name>
 	while true; do
 		$GROUPADD -g $gid $group > /dev/null 2>&1
 		typeset -i ret=$?
+		if [[ -n "$LINUX" ]] && [[ $ret -eq 9 ]]; then
+			ret=4
+		fi
 		case $ret in
 			0) return 0 ;;
 			# The gid is not  unique
@@ -1860,13 +1932,13 @@ function del_group #<group_name>
 		log_fail "group name is necessary."
 	fi
 
-	$GROUPMOD -n $grp $grp > /dev/null 2>&1
+	$GETENT group $grp > /dev/null 2>&1
 	typeset -i ret=$?
 	case $ret in
 		# Group does not exist.
-		6) return 0 ;;
+		2) return 0 ;;
 		# Name already exists as a group name
-		9) log_must $GROUPDEL $grp ;;
+		0) log_must $GROUPDEL $grp ;;
 		*) return 1 ;;
 	esac
 
@@ -2443,7 +2515,7 @@ function get_rootfs
 {
 	typeset rootfs=""
 	rootfs=$($AWK '{if ($2 == "/" && $3 == "zfs") print $1}' \
-		/etc/mnttab)
+		$MNTTAB)
 	if [[ -z "$rootfs" ]]; then
 		log_fail "Can not get rootfs"
 	fi
@@ -2465,7 +2537,7 @@ function get_rootpool
 	typeset rootfs=""
 	typeset rootpool=""
 	rootfs=$($AWK '{if ($2 == "/" && $3 =="zfs") print $1}' \
-		 /etc/mnttab)
+		 $MNTTAB)
 	if [[ -z "$rootfs" ]]; then
 		log_fail "Can not get rootpool"
 	fi
@@ -2498,10 +2570,18 @@ function get_substr #src_str pos offset
 #
 function is_physical_device #device
 {
-	typeset device=${1#/dev/dsk/}
-	device=${device#/dev/rdsk/}
+	if [[ -n "$LINUX" ]]; then
+	    typeset device=${1#/dev/}
+	    device=${device#/dev/}
 
-	$ECHO $device | $EGREP "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
+	    $ECHO $device | $EGREP "^[sh]d+[a-z]+[0-9]+$" > /dev/null 2>&1
+	else
+	    typeset device=${1#/dev/dsk/}
+	    device=${device#/dev/rdsk/}
+
+	    $ECHO $device | $EGREP "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
+	fi
+
 	return $?
 }
 
