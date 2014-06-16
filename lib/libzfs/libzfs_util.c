@@ -508,6 +508,21 @@ zfs_alloc(libzfs_handle_t *hdl, size_t size)
 }
 
 /*
+ * A safe form of malloc() that doesn't depend on libzfs_handle_t
+ */
+void *
+safe_malloc(size_t size) {
+	void *data;
+
+	if ((data = calloc(1, size)) == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
+
+	return (data);
+}
+
+/*
  * A safe form of asprintf() which will die if the allocation fails.
  */
 /*PRINTFLIKE2*/

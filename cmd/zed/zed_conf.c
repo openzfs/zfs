@@ -51,9 +51,7 @@ zed_conf_create(void)
 {
 	struct zed_conf *zcp;
 
-	zcp = malloc(sizeof (*zcp));
-	if (!zcp)
-		goto nomem;
+	zcp = safe_malloc(sizeof (*zcp));
 
 	memset(zcp, 0, sizeof (*zcp));
 

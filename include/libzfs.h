@@ -690,6 +690,7 @@ extern int zfs_spa_version(zfs_handle_t *, int *);
 extern int zfs_append_partition(char *path, size_t max_len);
 extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
 extern int zfs_strcmp_pathname(char *name, char *cmp_name, int wholedisk);
+extern void *safe_malloc(size_t);
 
 /*
  * Mount support functions.
