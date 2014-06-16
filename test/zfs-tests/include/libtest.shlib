@@ -71,6 +71,25 @@ function ismounted
 
 			[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
 		;;
+		ext2)
+			out=$($DF -F $fstype $1 2>/dev/null)
+			ret=$?
+			(($ret != 0)) && return $ret
+
+			set -- `$ECHO "$out"`
+			dir=$6
+			name=$1
+
+			[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
+		;;
+		zvol)
+			if [[ -L "$ZVOL_DEVDIR/$1" ]]; then
+				link=$(readlink -f $ZVOL_DEVDIR/$1)
+				[[ -n "$link" ]] && \
+					$MOUNT | $GREP -q "^$link" && \
+						return 0
+			fi
+		;;
 	esac
 
 	return 1
