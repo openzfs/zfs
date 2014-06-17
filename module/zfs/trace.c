@@ -23,6 +23,8 @@
  */
 
 #include <sys/arc_impl.h>
+#include <sys/vdev_impl.h>
+#include <sys/zio.h>
 
 #define CREATE_TRACE_POINTS
 #include "trace.h"

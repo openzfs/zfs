@@ -31,6 +31,8 @@
 #define trace_zfs_arc_new_state_mfu(a) ((void)0)
 #define trace_zfs_arc_l2arc_hit(a)     ((void)0)
 #define trace_zfs_arc_l2arc_miss(a)    ((void)0)
+#define trace_zfs_arc_l2arc_read(a,b)  ((void)0)
+#define trace_zfs_arc_l2arc_write(a,b) ((void)0)
 
 #else
 
@@ -48,22 +50,22 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	TP_PROTO(arc_buf_hdr_t *ab),
 	TP_ARGS(ab),
 	TP_STRUCT__entry(
-		__array(uint64_t, dva_word, 2)
-		__field(uint64_t, birth)
-		__field(uint64_t, cksum0)
-		__field(uint32_t, flags)
-		__field(uint32_t, datacnt)
-		__field(uint64_t, type)
-		__field(uint64_t, size)
-		__field(uint64_t, spa)
-		__field(uint64_t, state_type)
-		__field(clock_t,  access)
-		__field(uint32_t, mru_hits)
-		__field(uint32_t, mru_ghost_hits)
-		__field(uint32_t, mfu_hits)
-		__field(uint32_t, mfu_ghost_hits)
-		__field(uint32_t, l2_hits)
-		__field(int32_t,  refcount)
+		__array(uint64_t,           dva_word, 2)
+		__field(uint64_t,           birth)
+		__field(uint64_t,           cksum0)
+		__field(uint32_t,           flags)
+		__field(uint32_t,           datacnt)
+		__field(arc_buf_contents_t, type)
+		__field(uint64_t,           size)
+		__field(uint64_t,           spa)
+		__field(arc_state_type_t,   state_type)
+		__field(clock_t,            access)
+		__field(uint32_t,           mru_hits)
+		__field(uint32_t,           mru_ghost_hits)
+		__field(uint32_t,           mfu_hits)
+		__field(uint32_t,           mfu_ghost_hits)
+		__field(uint32_t,           l2_hits)
+		__field(int32_t,            refcount)
 	),
 	TP_fast_assign(
 		__entry->dva_word[0]    = ab->b_dva.dva_word[0];
@@ -84,8 +86,8 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 		__entry->l2_hits        = ab->b_l2_hits;
 		__entry->refcount       = ab->b_refcnt.rc_count;
 	),
-	TP_printk("dva %llu:%llu birth %llu cksum0 0x%llx flags 0x%x "
-		  "datacnt %u type %llu size %llu spa %llu state_type %llu "
+	TP_printk("dva 0x%llx:0x%llx birth %llu cksum0 0x%llx flags 0x%x "
+		  "datacnt %u type %u size %llu spa %llu state_type %u "
 		  "access %lu mru_hits %u mru_ghost_hits %u mfu_hits %u "
 		  "mfu_ghost_hits %u l2_hits %u refcount %i",
 		  __entry->dva_word[0], __entry->dva_word[1],
@@ -108,6 +110,70 @@ DEFINE_ARC_BUF_HDR_EVENT(zfs_arc_new_state_mru);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc_new_state_mfu);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc_l2arc_hit);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc_l2arc_miss);
+
+DECLARE_EVENT_CLASS(zfs_l2arc_rw_class,
+	TP_PROTO(vdev_t *vd, zio_t *zio),
+	TP_ARGS(vd, zio),
+	TP_STRUCT__entry(
+		__field(uint64_t,       vdev_id)
+		__field(uint64_t,       vdev_guid)
+		__field(uint64_t,       vdev_state)
+		__field(zio_type_t,     io_type)
+		__field(int,            io_cmd)
+		__field(zio_priority_t, io_priority)
+		__field(uint64_t,       io_size)
+		__field(uint64_t,       io_orig_size)
+		__field(uint64_t,       io_offset)
+		__field(hrtime_t,       io_timestamp)
+		__field(hrtime_t,       io_delta)
+		__field(uint64_t,       io_delay)
+		__field(enum zio_flag,  io_flags)
+		__field(enum zio_stage, io_stage)
+		__field(enum zio_stage, io_pipeline)
+		__field(enum zio_flag,  io_orig_flags)
+		__field(enum zio_stage, io_orig_stage)
+		__field(enum zio_stage, io_orig_pipeline)
+	),
+	TP_fast_assign(
+		__entry->vdev_id          = vd->vdev_id;
+		__entry->vdev_guid        = vd->vdev_guid;
+		__entry->vdev_state       = vd->vdev_state;
+		__entry->io_type          = zio->io_type;
+		__entry->io_cmd           = zio->io_cmd;
+		__entry->io_priority      = zio->io_priority;
+		__entry->io_size          = zio->io_size;
+		__entry->io_orig_size     = zio->io_orig_size;
+		__entry->io_offset        = zio->io_offset;
+		__entry->io_timestamp     = zio->io_timestamp;
+		__entry->io_delta         = zio->io_delta;
+		__entry->io_delay         = zio->io_delay;
+		__entry->io_flags         = zio->io_flags;
+		__entry->io_stage         = zio->io_stage;
+		__entry->io_pipeline      = zio->io_pipeline;
+		__entry->io_orig_flags    = zio->io_orig_flags;
+		__entry->io_orig_stage    = zio->io_orig_stage;
+		__entry->io_orig_pipeline = zio->io_orig_pipeline;
+	),
+	TP_printk("vdev { id %llu guid %llu state %llu } zio { type %u "
+		  "cmd %i prio %u size %llu orig_size %llu "
+		  "offset %llu timestamp %llu delta %llu delay %llu "
+		  "flags 0x%x stage 0x%x pipeline 0x%x orig_flags 0x%x "
+		  "orig_stage 0x%x orig_pipeline 0x%x }",
+		  __entry->vdev_id, __entry->vdev_guid, __entry->vdev_state,
+		  __entry->io_type, __entry->io_cmd, __entry->io_priority,
+		  __entry->io_size, __entry->io_orig_size, __entry->io_offset,
+		  __entry->io_timestamp, __entry->io_delta, __entry->io_delay,
+		  __entry->io_flags, __entry->io_stage, __entry->io_pipeline,
+		  __entry->io_orig_flags, __entry->io_orig_stage,
+		  __entry->io_orig_pipeline)
+);
+
+#define DEFINE_L2ARC_RW_EVENT(name) \
+DEFINE_EVENT(zfs_l2arc_rw_class, name, \
+	TP_PROTO(vdev_t *vd, zio_t *zio), \
+	TP_ARGS(vd, zio))
+DEFINE_L2ARC_RW_EVENT(zfs_arc_l2arc_read);
+DEFINE_L2ARC_RW_EVENT(zfs_arc_l2arc_write);
 
 #endif /* _TRACE_ZFS_H */
 

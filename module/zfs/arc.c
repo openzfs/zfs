@@ -3322,8 +3322,7 @@ top:
 					    ZIO_FLAG_DONT_PROPAGATE |
 					    ZIO_FLAG_DONT_RETRY, B_FALSE);
 				}
-				DTRACE_PROBE2(l2arc__read, vdev_t *, vd,
-				    zio_t *, rzio);
+				trace_zfs_arc_l2arc_read(vd, rzio);
 				ARCSTAT_INCR(arcstat_l2_read_bytes, b_asize);
 
 				if (*arc_flags & ARC_NOWAIT) {
@@ -5047,8 +5046,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			    NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_CANFAIL, B_FALSE);
 
-			DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev,
-			    zio_t *, wzio);
+			trace_zfs_arc_l2arc_write(dev->l2ad_vdev, wzio);
 			(void) zio_nowait(wzio);
 
 			write_asize += buf_sz;
