@@ -22,7 +22,7 @@
  * Copyright (c) 2014 by Prakash Surya. All rights reserved.
  */
 
-#ifndef _KERNEL
+#if !defined(_KERNEL) || !defined(HAVE_DECLARE_EVENT_CLASS)
 
 #define trace_zfs_arc_arc_hit(a)       ((void)0)
 #define trace_zfs_arc_arc_evict(a)     ((void)0)
