@@ -130,7 +130,11 @@ done
 
 #Testing legacy mounted filesystem
 log_must $ZFS set mountpoint=legacy $fs1
-log_must $MOUNT -F zfs $fs1 /tmp/$dir
+if [[ -n "$LINUX" ]]; then
+	log_must $MOUNT -t zfs $fs1 /tmp/$dir
+else
+	log_must $MOUNT -F zfs $fs1 /tmp/$dir
+fi
 for opt in "" "-f"; do
 	log_mustnot eval "$ZFS unmount $opt $fs1 >/dev/null 2>&1"
 done

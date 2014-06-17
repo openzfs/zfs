@@ -59,7 +59,10 @@ log_mustnot $ZPOOL destroy $rootpool
 
 # Remount any filesystems that the destroy attempt unmounted.
 while read ds mntpt; do
-	mounted $ds || log_must $MOUNT -Fzfs $ds $mntpt
+	if [[ -n "$LINUX" ]]; then
+		mounted $ds || log_must $MOUNT -tzfs $ds $mntpt
+	else
+		mounted $ds || log_must $MOUNT -Fzfs $ds $mntpt
 done < $tmpfile
 $RM -f $tmpfile
 

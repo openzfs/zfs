@@ -77,18 +77,50 @@ log_must $ZFS set mountpoint=legacy $testfs
 
 typeset i=0
 while ((i < ${#args[@]})); do
-	log_must $MOUNT -F zfs -o ${args[$i]} $testfs $tmpmnt
+	if [[ -n "$LINUX" ]]; then
+		# Mount options differ slightly on Linux, so translate
+		case ${args[$i]} in
+			devices)	args[$i]="dev"		;;
+			/devices/)	args[$i]=",dev,"	;;
+			nodevices)	args[$i]="nodev"	;;
+			/nodevices)	args[$i]=",nodev,"	;;
+			nbmand)		args[$i]="mand"		;;
+			nonbmand)	args[$i]="nomand"	;;
+			setuid)		args[$i]="suid"		;;
+			nosetuid)	args[$i]="nosuid"	;;
+		esac
+		log_must $MOUNT -t zfs -o ${args[$i]} $testfs $tmpmnt
+	else
+		log_must $MOUNT -F zfs -o ${args[$i]} $testfs $tmpmnt
+	fi
 	msg=$($MOUNT | $GREP "^$tmpmnt ")
 
 	# In LZ, a user with all zone privileges can never with "devices"
 	if ! is_global_zone && [[ ${args[$i]} == devices ]] ; then
-		args[((i+1))]="/nodevices/"
+		if [[ -n "$LINUX" ]]; then
+			args[((i+1))]=",nodev,"
+		else
+			args[((i+1))]="/nodevices/"
+		fi
 	fi
 
-	$ECHO $msg | $GREP "${args[((i+1))]}" > /dev/null 2>&1
-	if (($? != 0)) ; then
-		log_fail "Expected option: ${args[((i+1))]} \n" \
-			 "Real option: $msg"
+	# On Linux 'dev' is a default option, and if specified, doesn't
+	# show up in the mount list. So just skip the test - if we got
+	# this far, the mount succeeded!
+	if [[ ${args[((i+1))]} == ",dev," ]]; then
+		if [[ -n "$LINUX" ]]; then
+			mknod /tmpmnt.26226/zero c 1 5
+			if (($? != 0)) ; then
+				log_fail "Expected option: ${args[((i+1))]} \n" \
+					"Can't create device, dev option failed"
+			fi
+		else
+			$ECHO $msg | $GREP "${args[((i+1))]}" > /dev/null 2>&1
+			if (($? != 0)) ; then
+				log_fail "Expected option: ${args[((i+1))]} \n" \
+					 "Real option: $msg"
+			fi
+		fi
 	fi
 
 	log_must $UMOUNT $tmpmnt
