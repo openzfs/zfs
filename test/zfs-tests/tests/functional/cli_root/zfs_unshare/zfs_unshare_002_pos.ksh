@@ -44,8 +44,13 @@ function cleanup
 {
 	typeset -i i=0
 	while (( i < ${#mntp_fs[*]} )); do
-		is_shared ${mntp_fs[i]} && \
-			log_must $UNSHARE -F nfs ${mntp_fs[i]}
+		if is_shared ${mntp_fs[i]}; then
+			if [[ -n "$LINUX" ]]; then
+				log_must $UNSHARE -u "*:${mntp_fs[i]}"
+			else
+				log_must $UNSHARE -F nfs ${mntp_fs[i]}
+			fi
+		fi
 
 		((i = i + 2))
 	done
@@ -86,7 +91,11 @@ function test_legacy_unshare # <mntp> <filesystem>
 	    log_fail "'zfs set sharenfs=off' fails to make ZFS " \
 	    "filesystem $filesystem unshared."
 
-	log_must $SHARE -F nfs $mntp
+	if [[ -n "$LINUX" ]]; then
+		log_must $SHARE "*:$mntp"
+	else
+		log_must $SHARE -F nfs $mntp
+	fi
 	is_shared $mntp || \
 	    log_fail "'share' command fails to share ZFS file system."
 	#
@@ -150,7 +159,11 @@ done
 #
 i=0
 while (( i < ${#mntp_fs[*]} )); do
-        $SHARE -F nfs ${mntp_fs[i]}
+	if [[ -n "$LINUX" ]]; then
+	        $SHARE "*:${mntp_fs[i]}"
+	else
+	        $SHARE -F nfs ${mntp_fs[i]}
+	fi
         is_shared ${mntp_fs[i]} || \
                 log_fail "'$SHARE' shares ZFS filesystem failed."
 

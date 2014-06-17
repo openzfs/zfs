@@ -58,6 +58,7 @@ log_onexit cleanup
 
 cleanup
 
+# TODO: Needs to be translated to Linux - libshare/nfs is a little flaky
 typeset -i i=0
 while (( i < ${#shareopts[*]} ))
 do

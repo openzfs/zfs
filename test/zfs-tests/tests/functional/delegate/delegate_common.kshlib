@@ -926,7 +926,11 @@ function verify_fs_share
 	if [[ $stat != "ON" ]]; then
 		log_note "Current nfs/server status: $stat"
 		# legacy share
-		user_run $user $SHARE $mntpt
+		if [[ -n "$LINUX" ]]; then
+			$SHARE "*:$mntpt"
+		else
+			user_run $user $SHARE $mntpt
+		fi
 		if is_shared $fs; then
 			return 1
 		fi
@@ -946,27 +950,51 @@ function verify_fs_share
 	$RM -rf $tmpshare
 
 	log_must $MKDIR -p $tmpshare
-	log_must $SHARE $tmpshare
+	if [[ -n "$LINUX" ]]; then
+		log_must $SHARE "*:$tmpshare"
+	else
+		log_must $SHARE $tmpshare
+	fi
 
 	# legacy share
-	user_run $user $SHARE $mntpt
+	if [[ -n "$LINUX" ]]; then
+		$SHARE "*:$mntpt"
+	else
+		user_run $user $SHARE $mntpt
+	fi
 	if ! is_shared $fs ; then
-		log_must $UNSHARE $tmpshare
+		if [[ -n "$LINUX" ]]; then
+			log_must $UNSHARE -u "*:$tmpshare"
+		else
+			log_must $UNSHARE $tmpshare
+		fi
 		log_must $RM -rf $tmpshare
 		return 1
 	fi
-	log_must $UNSHARE $mntpt
+	if [[ -n "$LINUX" ]]; then
+		log_must $UNSHARE -u "*:$mntpt"
+	else
+		log_must $UNSHARE $mntpt
+	fi
 
 	# sharenfs=on
 	log_must $ZFS set sharenfs=on $fs
 	user_run $user $ZFS share $fs
 	if ! is_shared $fs; then
-		log_must $UNSHARE $tmpshare
+		if [[ -n "$LINUX" ]]; then
+			log_must $UNSHARE -u "*:$tmpshare"
+		else
+			log_must $UNSHARE $tmpshare
+		fi
 		log_must $RM -rf $tmpshare
 		return 1
 	fi
 
-	log_must $UNSHARE $tmpshare
+	if [[ -n "$LINUX" ]]; then
+		log_must $UNSHARE -u "*:$tmpshare"
+	else
+		log_must $UNSHARE $tmpshare
+	fi
 	log_must $RM -rf $tmpshare
 
 	return 0
@@ -1338,7 +1366,11 @@ function verify_fs_sharenfs
 	typeset tmpshare=/var/tmp/a.$$
 	$RM -rf $tmpshare
 	log_must $MKDIR -p $tmpshare
-	log_must $SHARE $tmpshare
+	if [[ -n "$LINUX" ]]; then
+		log_must $SHARE "*:$tmpshare"
+	else
+		log_must $SHARE $tmpshare
+	fi
 
 	log_note "$user $ZFS set $perm=${modes[$n]} $fs"
 	user_run $user $ZFS set $perm=${modes[$n]} $fs
@@ -1357,18 +1389,30 @@ function verify_fs_sharenfs
 	log_must $ZFS unallow $user share $fs
 
 	if [[ $n -eq 0 ]] && ! is_shared $fs ; then
-		log_must $UNSHARE $tmpshare
+		if [[ -n "$LINUX" ]]; then
+			log_must $UNSHARE -u "*:$tmpshare"
+		else
+			log_must $UNSHARE $tmpshare
+		fi
 		log_must $RM -rf $tmpshare
 		return 1
 	fi
 
 	if [[ $n -eq 1 ]] && is_shared $fs ; then
-		log_must $UNSHARE $tmpshare
+		if [[ -n "$LINUX" ]]; then
+			log_must $UNSHARE -u "*:$tmpshare"
+		else
+			log_must $UNSHARE $tmpshare
+		fi
 		log_must $RM -rf $tmpshare
 		return 1
 	fi
 
-	log_must $UNSHARE $tmpshare
+	if [[ -n "$LINUX" ]]; then
+		log_must $UNSHARE -u "*:$tmpshare"
+	else
+		log_must $UNSHARE $tmpshare
+	fi
 	log_must $RM -rf $tmpshare
 
 	return 0
@@ -1434,7 +1478,7 @@ function verify_vol_rollback
 	log_must $ZFS snapshot $snap
 	oldval=$(datasetcksum $vol)
 
-	log_must $DD if=/dev/urandom of=/$ZVOL_RDEVDIR/$vol \
+	do_dd must $DD if=/dev/urandom of=$ZVOL_RDEVDIR/$vol \
 		bs=512 count=1
 
 	user_run $user $ZFS rollback -R $snap
