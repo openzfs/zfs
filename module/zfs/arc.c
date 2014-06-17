@@ -4509,8 +4509,7 @@ l2arc_write_done(zio_t *zio)
 	ASSERT(head != NULL);
 	buflist = dev->l2ad_buflist;
 	ASSERT(buflist != NULL);
-	DTRACE_PROBE2(l2arc__iodone, zio_t *, zio,
-	    l2arc_write_callback_t *, cb);
+	trace_zfs_arc_l2arc_iodone(zio, cb);
 
 	if (zio->io_error != 0)
 		ARCSTAT_BUMP(arcstat_l2_writes_error);

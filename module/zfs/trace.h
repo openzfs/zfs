@@ -24,15 +24,16 @@
 
 #if !defined(_KERNEL) || !defined(HAVE_DECLARE_EVENT_CLASS)
 
-#define trace_zfs_arc_arc_hit(a)       ((void)0)
-#define trace_zfs_arc_arc_evict(a)     ((void)0)
-#define trace_zfs_arc_arc_delete(a)    ((void)0)
-#define trace_zfs_arc_new_state_mru(a) ((void)0)
-#define trace_zfs_arc_new_state_mfu(a) ((void)0)
-#define trace_zfs_arc_l2arc_hit(a)     ((void)0)
-#define trace_zfs_arc_l2arc_miss(a)    ((void)0)
-#define trace_zfs_arc_l2arc_read(a,b)  ((void)0)
-#define trace_zfs_arc_l2arc_write(a,b) ((void)0)
+#define trace_zfs_arc_arc_hit(a)        ((void)0)
+#define trace_zfs_arc_arc_evict(a)      ((void)0)
+#define trace_zfs_arc_arc_delete(a)     ((void)0)
+#define trace_zfs_arc_new_state_mru(a)  ((void)0)
+#define trace_zfs_arc_new_state_mfu(a)  ((void)0)
+#define trace_zfs_arc_l2arc_hit(a)      ((void)0)
+#define trace_zfs_arc_l2arc_miss(a)     ((void)0)
+#define trace_zfs_arc_l2arc_read(a,b)   ((void)0)
+#define trace_zfs_arc_l2arc_write(a,b)  ((void)0)
+#define trace_zfs_arc_l2arc_iodone(a,b) ((void)0)
 
 #else
 
@@ -45,6 +46,9 @@
 #include <linux/tracepoint.h>
 
 typedef struct arc_buf_hdr arc_buf_hdr_t;
+typedef struct zio zio_t;
+typedef struct vdev vdev_t;
+typedef struct l2arc_write_callback l2arc_write_callback_t;
 
 DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	TP_PROTO(arc_buf_hdr_t *ab),
@@ -86,10 +90,10 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 		__entry->l2_hits        = ab->b_l2_hits;
 		__entry->refcount       = ab->b_refcnt.rc_count;
 	),
-	TP_printk("dva 0x%llx:0x%llx birth %llu cksum0 0x%llx flags 0x%x "
-		  "datacnt %u type %u size %llu spa %llu state_type %u "
-		  "access %lu mru_hits %u mru_ghost_hits %u mfu_hits %u "
-		  "mfu_ghost_hits %u l2_hits %u refcount %i",
+	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu cksum0 0x%llx "
+		  "flags 0x%x datacnt %u type %u size %llu spa %llu "
+		  "state_type %u access %lu mru_hits %u mru_ghost_hits %u "
+		  "mfu_hits %u mfu_ghost_hits %u l2_hits %u refcount %i }",
 		  __entry->dva_word[0], __entry->dva_word[1],
 		  __entry->birth, __entry->cksum0, __entry->flags,
 		  __entry->datacnt, __entry->type, __entry->size,
@@ -174,6 +178,61 @@ DEFINE_EVENT(zfs_l2arc_rw_class, name, \
 	TP_ARGS(vd, zio))
 DEFINE_L2ARC_RW_EVENT(zfs_arc_l2arc_read);
 DEFINE_L2ARC_RW_EVENT(zfs_arc_l2arc_write);
+
+DECLARE_EVENT_CLASS(zfs_l2arc_iodone_class,
+	TP_PROTO(zio_t *zio, l2arc_write_callback_t *cb),
+	TP_ARGS(zio, cb),
+	TP_STRUCT__entry(
+		__field(zio_type_t,     io_type)
+		__field(int,            io_cmd)
+		__field(zio_priority_t, io_priority)
+		__field(uint64_t,       io_size)
+		__field(uint64_t,       io_orig_size)
+		__field(uint64_t,       io_offset)
+		__field(hrtime_t,       io_timestamp)
+		__field(hrtime_t,       io_delta)
+		__field(uint64_t,       io_delay)
+		__field(enum zio_flag,  io_flags)
+		__field(enum zio_stage, io_stage)
+		__field(enum zio_stage, io_pipeline)
+		__field(enum zio_flag,  io_orig_flags)
+		__field(enum zio_stage, io_orig_stage)
+		__field(enum zio_stage, io_orig_pipeline)
+	),
+	TP_fast_assign(
+		__entry->io_type          = zio->io_type;
+		__entry->io_cmd           = zio->io_cmd;
+		__entry->io_priority      = zio->io_priority;
+		__entry->io_size          = zio->io_size;
+		__entry->io_orig_size     = zio->io_orig_size;
+		__entry->io_offset        = zio->io_offset;
+		__entry->io_timestamp     = zio->io_timestamp;
+		__entry->io_delta         = zio->io_delta;
+		__entry->io_delay         = zio->io_delay;
+		__entry->io_flags         = zio->io_flags;
+		__entry->io_stage         = zio->io_stage;
+		__entry->io_pipeline      = zio->io_pipeline;
+		__entry->io_orig_flags    = zio->io_orig_flags;
+		__entry->io_orig_stage    = zio->io_orig_stage;
+		__entry->io_orig_pipeline = zio->io_orig_pipeline;
+	),
+	TP_printk("zio { type %u cmd %i prio %u size %llu orig_size %llu "
+		  "offset %llu timestamp %llu delta %llu delay %llu "
+		  "flags 0x%x stage 0x%x pipeline 0x%x orig_flags 0x%x "
+		  "orig_stage 0x%x orig_pipeline 0x%x }",
+		  __entry->io_type, __entry->io_cmd, __entry->io_priority,
+		  __entry->io_size, __entry->io_orig_size, __entry->io_offset,
+		  __entry->io_timestamp, __entry->io_delta, __entry->io_delay,
+		  __entry->io_flags, __entry->io_stage, __entry->io_pipeline,
+		  __entry->io_orig_flags, __entry->io_orig_stage,
+		  __entry->io_orig_pipeline)
+);
+
+#define DEFINE_L2ARC_IODONE_EVENT(name) \
+DEFINE_EVENT(zfs_l2arc_iodone_class, name, \
+	TP_PROTO(zio_t *zio, l2arc_write_callback_t *cb), \
+	TP_ARGS(zio, cb))
+DEFINE_L2ARC_IODONE_EVENT(zfs_arc_l2arc_iodone);
 
 #endif /* _TRACE_ZFS_H */
 
