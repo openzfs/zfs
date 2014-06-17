@@ -57,6 +57,7 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 		__field(uint64_t, size)
 		__field(uint64_t, spa)
 		__field(uint64_t, state_type)
+		__field(clock_t,  access)
 		__field(uint32_t, mru_hits)
 		__field(uint32_t, mru_ghost_hits)
 		__field(uint32_t, mfu_hits)
@@ -75,6 +76,7 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 		__entry->size           = ab->b_size;
 		__entry->spa            = ab->b_spa;
 		__entry->state_type     = ab->b_state->arcs_state;
+		__entry->access         = ab->b_arc_access;
 		__entry->mru_hits       = ab->b_mru_hits;
 		__entry->mru_ghost_hits = ab->b_mru_ghost_hits;
 		__entry->mfu_hits       = ab->b_mfu_hits;
@@ -84,15 +86,15 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	),
 	TP_printk("dva %llu:%llu birth %llu cksum0 0x%llx flags 0x%x "
 		  "datacnt %u type %llu size %llu spa %llu state_type %llu "
-		  "mru_hits %u mru_ghost_hits %u mfu_hits %u "
+		  "access %lu mru_hits %u mru_ghost_hits %u mfu_hits %u "
 		  "mfu_ghost_hits %u l2_hits %u refcount %i",
 		  __entry->dva_word[0], __entry->dva_word[1],
 		  __entry->birth, __entry->cksum0, __entry->flags,
 		  __entry->datacnt, __entry->type, __entry->size,
-		  __entry->spa, __entry->state_type, __entry->mru_hits,
-		  __entry->mru_ghost_hits, __entry->mfu_hits,
-		  __entry->mfu_ghost_hits, __entry->l2_hits,
-		  __entry->refcount)
+		  __entry->spa, __entry->state_type, __entry->access,
+		  __entry->mru_hits, __entry->mru_ghost_hits,
+		  __entry->mfu_hits, __entry->mfu_ghost_hits,
+		  __entry->l2_hits, __entry->refcount)
 );
 
 #define DEFINE_ARC_BUF_HDR_EVENT(name) \
