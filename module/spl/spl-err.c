@@ -39,6 +39,27 @@ static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
 static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 #endif
 
+int
+spl_PANIC(char *filename, const char *functionname,
+    int lineno, const char *fmt, ...) {
+	char msg[MAXMSGLEN];
+	va_list ap;
+
+	va_start(ap, fmt);
+	if (vsnprintf(msg, sizeof (msg), fmt, ap) == sizeof (msg))
+		msg[sizeof (msg) - 1] = '\0';
+	va_end(ap);
+#ifdef NDEBUG
+	printk(KERN_EMERG "%s", msg);
+#else
+	spl_debug_msg(NULL, 0, 0,
+	     filename, functionname, lineno, "%s", msg);
+#endif
+	spl_debug_bug(filename, functionname, lineno, 0);
+	return 1;
+}
+EXPORT_SYMBOL(spl_PANIC);
+
 void
 vpanic(const char *fmt, va_list ap)
 {

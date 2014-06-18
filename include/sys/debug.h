@@ -54,28 +54,23 @@
 #define SPL_DEBUG_STR	""
 
 #define PANIC(fmt, a...)						\
-do {									\
-	printk(KERN_EMERG fmt, ## a);					\
-	spl_debug_bug(__FILE__, __FUNCTION__, __LINE__, 0);		\
-} while (0)
+	spl_PANIC(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)
 
 #define __ASSERT(x)			((void)0)
 #define ASSERT(x)			((void)0)
 #define ASSERTF(x, y, z...)		((void)0)
 #define ASSERTV(x)
 #define VERIFY(cond)							\
-do {									\
-	if (unlikely(!(cond)))						\
-		PANIC("VERIFY(" #cond ") failed\n");			\
-} while (0)
+	(void)(unlikely(!(cond)) &&					\
+		spl_PANIC(__FILE__, __FUNCTION__, __LINE__,		\
+		"%s", "VERIFY(" #cond ") failed\n"))
 
 #define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST)			\
-do {									\
-	if (!((TYPE)(LEFT) OP (TYPE)(RIGHT)))				\
-		PANIC("VERIFY3(" #LEFT " " #OP " " #RIGHT ") "		\
+	(void)((!((TYPE)(LEFT) OP (TYPE)(RIGHT))) &&			\
+		spl_PANIC(__FILE__, __FUNCTION__, __LINE__,		\
+		"VERIFY3(" #LEFT " " #OP " " #RIGHT ") "		\
 		    "failed (" FMT " " #OP " " FMT ")\n",		\
-		    CAST (LEFT), CAST (RIGHT));				\
-} while (0)
+		    CAST (LEFT), CAST (RIGHT)))
 
 #define VERIFY3S(x,y,z)	VERIFY3_IMPL(x, y, z, int64_t, "%lld", (long long))
 #define VERIFY3U(x,y,z)	VERIFY3_IMPL(x, y, z, uint64_t, "%llu",		\
@@ -94,11 +89,7 @@ do {									\
 #define SPL_DEBUG_STR	" (DEBUG mode)"
 
 #define PANIC(fmt, a...)						\
-do {									\
-	spl_debug_msg(NULL, 0, 0,					\
-	     __FILE__, __FUNCTION__, __LINE__,	fmt, ## a);		\
-	spl_debug_bug(__FILE__, __FUNCTION__, __LINE__, 0);		\
-} while (0)
+	spl_PANIC(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)
 
 /* ASSERTION that is safe to use within the debug system */
 #define __ASSERT(cond)							\
@@ -111,24 +102,21 @@ do {									\
 
 /* ASSERTION that will debug log used outside the debug sysytem */
 #define ASSERT(cond)							\
-do {									\
-	if (unlikely(!(cond)))						\
-		PANIC("ASSERTION(" #cond ") failed\n");			\
-} while (0)
+	(void)(unlikely(!(cond)) &&					\
+		spl_PANIC(__FILE__, __FUNCTION__, __LINE__,		\
+		"%s", "ASSERTION(" #cond ") failed\n"))
 
 #define ASSERTF(cond, fmt, a...)					\
-do {									\
-	if (unlikely(!(cond)))						\
-		PANIC("ASSERTION(" #cond ") failed: " fmt, ## a);	\
-} while (0)
+	(void)(unlikely(!(cond)) &&					\
+		spl_PANIC(__FILE__, __FUNCTION__, __LINE__,		\
+		"ASSERTION(" #cond ") failed: " fmt, ## a))
 
 #define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST)			\
-do {									\
-	if (!((TYPE)(LEFT) OP (TYPE)(RIGHT)))				\
-		PANIC("VERIFY3(" #LEFT " " #OP " " #RIGHT ") "		\
+	(void)((!((TYPE)(LEFT) OP (TYPE)(RIGHT))) &&			\
+		spl_PANIC(__FILE__, __FUNCTION__, __LINE__,		\
+		"VERIFY3(" #LEFT " " #OP " " #RIGHT ") "		\
 		    "failed (" FMT " " #OP " " FMT ")\n",		\
-		    CAST (LEFT), CAST (RIGHT));				\
-} while (0)
+		    CAST (LEFT), CAST (RIGHT)))
 
 #define VERIFY3S(x,y,z)	VERIFY3_IMPL(x, y, z, int64_t, "%lld", (long long))
 #define VERIFY3U(x,y,z)	VERIFY3_IMPL(x, y, z, uint64_t, "%llu",		\
@@ -145,6 +133,12 @@ do {									\
 #define VERIFY(x)	ASSERT(x)
 
 #endif /* NDEBUG */
+
+/*
+ * Helpers for the Solaris debug macros above
+ */
+extern int spl_PANIC(char *filename, const char *functionname,
+	int lineno, const char *fmt, ...);
 
 /*
  * Compile-time assertion. The condition 'x' must be constant.
