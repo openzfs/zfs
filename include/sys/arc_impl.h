@@ -131,6 +131,19 @@ struct arc_buf_hdr {
 	list_node_t		b_l2node;
 };
 
+typedef struct l2arc_dev {
+	vdev_t			*l2ad_vdev;	/* vdev */
+	spa_t			*l2ad_spa;	/* spa */
+	uint64_t		l2ad_hand;	/* next write location */
+	uint64_t		l2ad_start;	/* first addr on device */
+	uint64_t		l2ad_end;	/* last addr on device */
+	uint64_t		l2ad_evict;	/* last addr eviction reached */
+	boolean_t		l2ad_first;	/* first sweep through */
+	boolean_t		l2ad_writing;	/* currently writing */
+	list_t			*l2ad_buflist;	/* buffer list */
+	list_node_t		l2ad_node;	/* device list node */
+} l2arc_dev_t;
+
 #ifdef __cplusplus
 }
 #endif

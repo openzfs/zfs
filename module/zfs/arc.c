@@ -603,19 +603,6 @@ int l2arc_norw = B_FALSE;			/* no reads during writes */
 /*
  * L2ARC Internals
  */
-typedef struct l2arc_dev {
-	vdev_t			*l2ad_vdev;	/* vdev */
-	spa_t			*l2ad_spa;	/* spa */
-	uint64_t		l2ad_hand;	/* next write location */
-	uint64_t		l2ad_start;	/* first addr on device */
-	uint64_t		l2ad_end;	/* last addr on device */
-	uint64_t		l2ad_evict;	/* last addr eviction reached */
-	boolean_t		l2ad_first;	/* first sweep through */
-	boolean_t		l2ad_writing;	/* currently writing */
-	list_t			*l2ad_buflist;	/* buffer list */
-	list_node_t		l2ad_node;	/* device list node */
-} l2arc_dev_t;
-
 static list_t L2ARC_dev_list;			/* device list */
 static list_t *l2arc_dev_list;			/* device list pointer */
 static kmutex_t l2arc_dev_mtx;			/* device list mutex */
@@ -4725,8 +4712,7 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	} else {
 		taddr = dev->l2ad_hand + distance;
 	}
-	DTRACE_PROBE4(l2arc__evict, l2arc_dev_t *, dev, list_t *, buflist,
-	    uint64_t, taddr, boolean_t, all);
+	trace_zfs_arc_l2arc_evict(dev, buflist, taddr, all);
 
 top:
 	mutex_enter(&l2arc_buflist_mtx);

@@ -24,17 +24,18 @@
 
 #if !defined(_KERNEL) || !defined(HAVE_DECLARE_EVENT_CLASS)
 
-#define trace_zfs_arc_arc_hit(a)        ((void)0)
-#define trace_zfs_arc_arc_evict(a)      ((void)0)
-#define trace_zfs_arc_arc_delete(a)     ((void)0)
-#define trace_zfs_arc_new_state_mru(a)  ((void)0)
-#define trace_zfs_arc_new_state_mfu(a)  ((void)0)
-#define trace_zfs_arc_l2arc_hit(a)      ((void)0)
-#define trace_zfs_arc_l2arc_miss(a)     ((void)0)
-#define trace_zfs_arc_l2arc_read(a,b)   ((void)0)
-#define trace_zfs_arc_l2arc_write(a,b)  ((void)0)
-#define trace_zfs_arc_l2arc_iodone(a,b) ((void)0)
-#define trace_zfs_arc_arc_miss(a,b,c,d) ((void)0)
+#define trace_zfs_arc_arc_hit(a)           ((void)0)
+#define trace_zfs_arc_arc_evict(a)         ((void)0)
+#define trace_zfs_arc_arc_delete(a)        ((void)0)
+#define trace_zfs_arc_new_state_mru(a)     ((void)0)
+#define trace_zfs_arc_new_state_mfu(a)     ((void)0)
+#define trace_zfs_arc_l2arc_hit(a)         ((void)0)
+#define trace_zfs_arc_l2arc_miss(a)        ((void)0)
+#define trace_zfs_arc_l2arc_read(a,b)      ((void)0)
+#define trace_zfs_arc_l2arc_write(a,b)     ((void)0)
+#define trace_zfs_arc_l2arc_iodone(a,b)    ((void)0)
+#define trace_zfs_arc_arc_miss(a,b,c,d)    ((void)0)
+#define trace_zfs_arc_l2arc_evict(a,b,c,d) ((void)0)
 
 #else
 
@@ -45,6 +46,7 @@
 #define _TRACE_ZFS_H
 
 #include <linux/tracepoint.h>
+#include <sys/types.h>
 
 typedef struct arc_buf_hdr arc_buf_hdr_t;
 typedef struct zio zio_t;
@@ -52,6 +54,7 @@ typedef struct vdev vdev_t;
 typedef struct l2arc_write_callback l2arc_write_callback_t;
 typedef struct blkptr blkptr_t;
 typedef struct zbookmark zbookmark_t;
+typedef struct l2arc_dev l2arc_dev_t;
 
 DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	TP_PROTO(arc_buf_hdr_t *ab),
@@ -336,6 +339,53 @@ DEFINE_EVENT(zfs_arc_miss_class, name, \
 		 const blkptr_t *bp, uint64_t size, const zbookmark_t *zb), \
 	TP_ARGS(hdr, bp, size, zb))
 DEFINE_ARC_MISS_EVENT(zfs_arc_arc_miss);
+
+DECLARE_EVENT_CLASS(zfs_l2arc_evict_class,
+	TP_PROTO(l2arc_dev_t *dev,
+		 list_t *buflist, uint64_t taddr, boolean_t all),
+	TP_ARGS(dev, buflist, taddr, all),
+	TP_STRUCT__entry(
+		__field(uint64_t,       vdev_id)
+		__field(uint64_t,       vdev_guid)
+		__field(uint64_t,       vdev_state)
+		__field(uint64_t,       l2ad_hand)
+		__field(uint64_t,       l2ad_start)
+		__field(uint64_t,       l2ad_end)
+		__field(uint64_t,       l2ad_evict)
+		__field(boolean_t,      l2ad_first)
+		__field(boolean_t,      l2ad_writing)
+		__field(uint64_t,       taddr)
+		__field(boolean_t,      all)
+	),
+	TP_fast_assign(
+		__entry->vdev_id      = dev->l2ad_vdev->vdev_id;
+		__entry->vdev_guid    = dev->l2ad_vdev->vdev_guid;
+		__entry->vdev_state   = dev->l2ad_vdev->vdev_state;
+		__entry->l2ad_hand    = dev->l2ad_hand;
+		__entry->l2ad_start   = dev->l2ad_start;
+		__entry->l2ad_end     = dev->l2ad_end;
+		__entry->l2ad_evict   = dev->l2ad_evict;
+		__entry->l2ad_first   = dev->l2ad_first;
+		__entry->l2ad_writing = dev->l2ad_writing;
+		__entry->taddr        = taddr;
+		__entry->all          = all;
+	),
+	TP_printk("l2ad { vdev { id %llu guid %llu state %llu } "
+		  "hand %llu start %llu end %llu evict %llu "
+		  "first %d writing %d } taddr %llu all %d",
+		  __entry->vdev_id, __entry->vdev_guid, __entry->vdev_state,
+		  __entry->l2ad_hand, __entry->l2ad_start,
+		  __entry->l2ad_end, __entry->l2ad_evict,
+		  __entry->l2ad_first, __entry->l2ad_writing,
+		  __entry->taddr, __entry->all)
+);
+
+#define DEFINE_L2ARC_EVICT_EVENT(name) \
+DEFINE_EVENT(zfs_l2arc_evict_class, name, \
+	TP_PROTO(l2arc_dev_t *dev, \
+		 list_t *buflist, uint64_t taddr, boolean_t all), \
+	TP_ARGS(dev, buflist, taddr, all))
+DEFINE_L2ARC_EVICT_EVENT(zfs_arc_l2arc_evict);
 
 #endif /* _TRACE_ZFS_H */
 
