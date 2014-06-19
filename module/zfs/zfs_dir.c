@@ -623,7 +623,6 @@ zfs_rmnode(znode_t *zp)
 	dmu_tx_t	*tx;
 	uint64_t	acl_obj;
 	uint64_t	xattr_obj;
-	uint64_t	count;
 	int		error;
 
 	ASSERT(zp->z_links == 0);
@@ -633,27 +632,13 @@ zfs_rmnode(znode_t *zp)
 	 * If this is an attribute directory, purge its contents.
 	 */
 	if (S_ISDIR(ZTOI(zp)->i_mode) && (zp->z_pflags & ZFS_XATTR)) {
-		error = zap_count(os, zp->z_id, &count);
-		if (error) {
-			zfs_znode_dmu_fini(zp);
-			return;
-		}
-
-		if (count > 0) {
-			taskq_t *taskq;
-
+		if (zfs_purgedir(zp) != 0) {
 			/*
-			 * There are still directory entries in this xattr
-			 * directory.  Let zfs_unlinked_drain() deal with
-			 * them to avoid deadlocking this process in the
-			 * zfs_purgedir()->zfs_zget()->ilookup() callpath
-			 * on the xattr inode's I_FREEING bit.
+			 * Not enough space to delete some xattrs.
+			 * Leave it in the unlinked set.
 			 */
-			taskq = dsl_pool_iput_taskq(dmu_objset_pool(os));
-			taskq_dispatch(taskq, (task_func_t *)
-			    zfs_unlinked_drain, zsb, TQ_SLEEP);
-
 			zfs_znode_dmu_fini(zp);
+
 			return;
 		}
 	}
