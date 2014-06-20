@@ -26,6 +26,8 @@
 #ifndef _ZFS_VFS_H
 #define	_ZFS_VFS_H
 
+#include <sys/taskq.h>
+
 /*
  * 2.6.28 API change,
  * Added insert_inode_locked() helper function, prior to this most callers
