@@ -42,7 +42,7 @@ zpool \- configures ZFS storage pools
 .LP
 .nf
 \fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR]
-     ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] \fIpool\fR \fIvdev\fR ...
+     ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...
 .fi
 
 .LP
@@ -920,7 +920,7 @@ Clears device errors in a pool. If no arguments are specified, all device errors
 .ne 2
 .mk
 .na
-\fB\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] \fIpool\fR \fIvdev\fR ...\fR
+\fB\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1011,6 +1011,17 @@ Equivalent to "-o cachefile=none,altroot=\fIroot\fR"
 .sp .6
 .RS 4n
 Sets the mount point for the root dataset. The default mount point is "/\fIpool\fR" or "\fBaltroot\fR/\fIpool\fR" if \fBaltroot\fR is specified. The mount point must be an absolute path, "\fBlegacy\fR", or "\fBnone\fR". For more information on dataset mount points, see \fBzfs\fR(8).
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-t\fR \fItname\fR\fR
+.ad
+.sp .6
+.RS 4n
+Sets the in-core pool name to "\fBtname\fR" while the on-disk name will be the name specified as the pool name "\fBpool\fR". This will set the default cachefile property to none. This is intended to handle name space collisions when creating pools for other systems, such as virtual machines or physical machines whose pools live on network block devices.
 .RE
 
 .RE
