@@ -145,7 +145,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR
+\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
 .fi
 
 .LP
@@ -1750,11 +1750,13 @@ Sets the given property on the specified pool. See the "Properties" section for 
 .ne 2
 .mk
 .na
-\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR
+\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
 .ad
 .sp .6
 .RS 4n
-Split devices off \fIpool\fR creating \fInewpool\fR.  All \fBvdev\fRs in \fIpool\fR must be mirrors.  At the time of the split, \fInewpool\fR will be a replica of \fIpool\fR.
+Split devices off \fIpool\fR creating \fInewpool\fR. All \fBvdev\fRs in \fIpool\fR must be mirrors and the pool must not be in the process of resilvering. At the time of the split, \fInewpool\fR will be a replica of \fIpool\fR. By default, the last device in each mirror is split from \fIpool\fR to create \fInewpool\fR.
+
+The optional \fIdevice\fR specification causes the specified device(s) to be included in the new pool and, should any devices remain unspecified, the last device in each mirror is used as would be by default.
 
 .sp
 .ne 2
