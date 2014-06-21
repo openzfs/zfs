@@ -25,6 +25,10 @@
 #include <sys/arc_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
+#include <sys/dmu_tx.h>
+#include <sys/dnode.h>
+#include <sys/zfs_znode.h>
+#include <sys/zil_impl.h>
 
 #define CREATE_TRACE_POINTS
 #include <sys/trace.h>
