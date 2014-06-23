@@ -428,6 +428,7 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 	rl_t *new;
 
 	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
+	ASSERT3U(len, >, 0);
 
 	new = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
 	new->r_zp = zp;
