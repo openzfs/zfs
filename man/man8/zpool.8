@@ -1503,7 +1503,7 @@ Specify the txg to use for rollback.  Implies \fB-FX\fR. For more details about 
 .ad
 .sp .6
 .RS 4n
-Used with "\fBnewpool\fR". Specifies that "\fBnewpool\fR" is temporary. Temporary pool names last until export. Ensures that the original pool name will be used in all label updates and therefore is retained upon export.
+Used with "\fBnewpool\fR". Specifies that "\fBnewpool\fR" is temporary. Temporary pool names last until export. Ensures that the original pool name will be used in all label updates and therefore is retained upon export. Will also set -o cachefile=none when not explicitly specified.
 .RE
 
 .sp
