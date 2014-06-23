@@ -485,6 +485,18 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 	return (0);
 }
 
+static int
+add_prop_list_default(const char *propname, char *propval, nvlist_t **props,
+    boolean_t poolprop)
+{
+	char *pval;
+
+	if (nvlist_lookup_string(*props, propname, &pval) == 0)
+		return (0);
+
+	return (add_prop_list(propname, propval, props, B_TRUE));
+}
+
 /*
  * zpool add [-fn] [-o property=value] <pool> <vdev> ...
  *
@@ -2068,11 +2080,7 @@ zpool_do_import(int argc, char **argv)
 			if (add_prop_list(zpool_prop_to_name(
 			    ZPOOL_PROP_ALTROOT), optarg, &props, B_TRUE))
 				goto error;
-			if (nvlist_lookup_string(props,
-			    zpool_prop_to_name(ZPOOL_PROP_CACHEFILE),
-			    &propval) == 0)
-				break;
-			if (add_prop_list(zpool_prop_to_name(
+			if (add_prop_list_default(zpool_prop_to_name(
 			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
 				goto error;
 			break;
