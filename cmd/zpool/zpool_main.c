@@ -2086,6 +2086,9 @@ zpool_do_import(int argc, char **argv)
 			break;
 		case 't':
 			flags |= ZFS_IMPORT_TEMP_NAME;
+			if (add_prop_list_default(zpool_prop_to_name(
+			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
+				goto error;
 			break;
 
 		case 'T':
