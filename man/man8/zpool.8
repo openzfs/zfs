@@ -130,7 +130,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool replace\fR [\fB-f\fR] \fIpool\fR \fIdevice\fR [\fInew_device\fR]
+\fBzpool replace\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR]  \fIpool\fR \fIdevice\fR [\fInew_device\fR]
 .fi
 
 .LP
@@ -1676,7 +1676,7 @@ Removes the specified device from the pool. This command currently only supports
 .ne 2
 .mk
 .na
-\fB\fBzpool replace\fR [\fB-f\fR] \fIpool\fR \fIold_device\fR [\fInew_device\fR]\fR
+\fB\fBzpool replace\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIold_device\fR [\fInew_device\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -1694,6 +1694,17 @@ The size of \fInew_device\fR must be greater than or equal to the minimum size o
 .RS 6n
 .rt  
 Forces use of \fInew_device\fR, even if its appears to be in use. Not all devices can be overridden in this manner.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR \fIproperty=value\fR
+.ad
+.sp .6n
+.RS 6n
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.  \fBDo note\fR that some properties (among them \fBashift\fR) are \fInot\fR inherited from a previous vdev. They are vdev specific, not pool specific.
 .RE
 
 .RE
