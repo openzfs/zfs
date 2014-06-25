@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -51,7 +51,7 @@ typedef struct zilog zilog_t;
 typedef struct spa_aux_vdev spa_aux_vdev_t;
 typedef struct ddt ddt_t;
 typedef struct ddt_entry ddt_entry_t;
-typedef struct zbookmark zbookmark_t;
+typedef struct zbookmark_phys zbookmark_phys_t;
 
 struct dsl_pool;
 struct dsl_dataset;
@@ -720,7 +720,7 @@ typedef enum txg_state {
 
 extern void spa_stats_init(spa_t *spa);
 extern void spa_stats_destroy(spa_t *spa);
-extern void spa_read_history_add(spa_t *spa, const zbookmark_t *zb,
+extern void spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb,
     uint32_t aflags);
 extern void spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time);
 extern int spa_txg_history_set(spa_t *spa,  uint64_t txg,
@@ -842,7 +842,7 @@ extern void spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
     dmu_tx_t *tx, const char *fmt, ...);
 
 /* error handling */
-struct zbookmark;
+struct zbookmark_phys;
 extern void spa_log_error(spa_t *spa, zio_t *zio);
 extern void zfs_ereport_post(const char *class, spa_t *spa, vdev_t *vd,
     zio_t *zio, uint64_t stateoroffset, uint64_t length);

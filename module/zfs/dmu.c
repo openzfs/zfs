@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -1509,7 +1509,7 @@ dmu_sync_late_arrival_done(zio_t *zio)
 
 static int
 dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
-    zio_prop_t *zp, zbookmark_t *zb)
+    zio_prop_t *zp, zbookmark_phys_t *zb)
 {
 	dmu_sync_arg_t *dsa;
 	dmu_tx_t *tx;
@@ -1570,7 +1570,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dsl_dataset_t *ds = os->os_dsl_dataset;
 	dbuf_dirty_record_t *dr;
 	dmu_sync_arg_t *dsa;
-	zbookmark_t zb;
+	zbookmark_phys_t zb;
 	zio_prop_t zp;
 	dnode_t *dn;
 

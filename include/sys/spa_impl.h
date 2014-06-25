@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -46,9 +46,9 @@ extern "C" {
 #endif
 
 typedef struct spa_error_entry {
-	zbookmark_t	se_bookmark;
-	char		*se_name;
-	avl_node_t	se_avl;
+	zbookmark_phys_t	se_bookmark;
+	char			*se_name;
+	avl_node_t		se_avl;
 } spa_error_entry_t;
 
 typedef struct spa_history_phys {

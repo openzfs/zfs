@@ -285,7 +285,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_rootbp = bp;
 	if (!BP_IS_HOLE(os->os_rootbp)) {
 		uint32_t aflags = ARC_WAIT;
-		zbookmark_t zb;
+		zbookmark_phys_t zb;
 		SET_BOOKMARK(&zb, ds ? ds->ds_object : DMU_META_OBJSET,
 		    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 
@@ -1018,7 +1018,7 @@ void
 dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 {
 	int txgoff;
-	zbookmark_t zb;
+	zbookmark_phys_t zb;
 	zio_prop_t zp;
 	zio_t *zio;
 	list_t *list;

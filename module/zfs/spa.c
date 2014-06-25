@@ -790,7 +790,7 @@ spa_error_entry_compare(const void *a, const void *b)
 	int ret;
 
 	ret = bcmp(&sa->se_bookmark, &sb->se_bookmark,
-	    sizeof (zbookmark_t));
+	    sizeof (zbookmark_phys_t));
 
 	if (ret < 0)
 		return (-1);
@@ -1876,7 +1876,7 @@ spa_load_verify_done(zio_t *zio)
 /*ARGSUSED*/
 static int
 spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
+    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
 		zio_t *rio = arg;

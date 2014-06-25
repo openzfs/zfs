@@ -577,7 +577,7 @@ static void
 dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 {
 	dnode_t *dn;
-	zbookmark_t zb;
+	zbookmark_phys_t zb;
 	uint32_t aflags = ARC_NOWAIT;
 
 	DB_DNODE_ENTER(db);
@@ -1922,7 +1922,7 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid, zio_priority_t prio)
 		if (bp && !BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
 			dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 			uint32_t aflags = ARC_NOWAIT | ARC_PREFETCH;
-			zbookmark_t zb;
+			zbookmark_phys_t zb;
 
 			SET_BOOKMARK(&zb, ds ? ds->ds_object : DMU_META_OBJSET,
 			    dn->dn_object, 0, blkid);
@@ -2845,7 +2845,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	objset_t *os;
 	dmu_buf_impl_t *parent = db->db_parent;
 	uint64_t txg = tx->tx_txg;
-	zbookmark_t zb;
+	zbookmark_phys_t zb;
 	zio_prop_t zp;
 	zio_t *zio;
 	int wp_flag = 0;

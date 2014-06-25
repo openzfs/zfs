@@ -23,7 +23,7 @@
  * Copyright (c) 2011 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -449,7 +449,7 @@ backup_do_embed(dmu_sendarg_t *dsp, const blkptr_t *bp)
 /* ARGSUSED */
 static int
 backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
+    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	dmu_sendarg_t *dsp = arg;
 	dmu_object_type_t type = bp ? BP_GET_TYPE(bp) : DMU_OT_NONE;
