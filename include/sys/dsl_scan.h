@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_SCAN_H
@@ -62,7 +62,7 @@ typedef struct dsl_scan_phys {
 	uint64_t scn_errors;	/* scan I/O error count */
 	uint64_t scn_ddt_class_max;
 	ddt_bookmark_t scn_ddt_bookmark;
-	zbookmark_t scn_bookmark;
+	zbookmark_phys_t scn_bookmark;
 	uint64_t scn_flags; /* dsl_scan_flags_t */
 } dsl_scan_phys_t;
 
