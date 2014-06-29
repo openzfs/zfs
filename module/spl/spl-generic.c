@@ -664,9 +664,6 @@ __init spl_init(void)
 	if ((rc = spl_kmem_init_kallsyms_lookup()))
 		SGOTO(out10, rc);
 
-	if ((rc = spl_vn_init_kallsyms_lookup()))
-		SGOTO(out10, rc);
-
 	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
 	       SPL_META_RELEASE, SPL_DEBUG_STR);
 	SRETURN(rc);

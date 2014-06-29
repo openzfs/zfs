@@ -91,23 +91,5 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 #define spl_inode_unlock(ip)		(up(&(ip)->i_sem))
 #endif /* HAVE_INODE_I_MUTEX */
 
-#ifdef HAVE_KERN_PATH_PARENT_HEADER
-# ifndef HAVE_KERN_PATH_PARENT_SYMBOL
-typedef int (*kern_path_parent_t)(const char *, struct nameidata *);
-extern kern_path_parent_t kern_path_parent_fn;
-#  define spl_kern_path_parent(path, nd)	kern_path_parent_fn(path, nd)
-# else
-#  define spl_kern_path_parent(path, nd)	kern_path_parent(path, nd)
-# endif /* HAVE_KERN_PATH_PARENT_SYMBOL */
-#else
-# define spl_kern_path_parent(path, nd)	path_lookup(path, LOOKUP_PARENT, nd)
-#endif /* HAVE_KERN_PATH_PARENT_HEADER */
-
-#ifdef HAVE_KERN_PATH_LOCKED
-typedef struct dentry * (*kern_path_locked_t)(const char *, struct path *);
-extern kern_path_locked_t kern_path_locked_fn;
-# define spl_kern_path_locked(name, path)	kern_path_locked_fn(name, path)
-#endif /* HAVE_KERN_PATH_LOCKED */
-
 #endif /* SPL_FILE_COMPAT_H */
 

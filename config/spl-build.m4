@@ -28,7 +28,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SHRINKER_CALLBACK
-	SPL_AC_PATH_IN_NAMEIDATA
 	SPL_AC_TASK_CURR
 	SPL_AC_CTL_UNNUMBERED
 	SPL_AC_CTL_NAME
@@ -81,9 +80,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERNEL_FALLOCATE
 	SPL_AC_SHRINK_DCACHE_MEMORY
 	SPL_AC_SHRINK_ICACHE_MEMORY
-	SPL_AC_KERN_PATH_PARENT_HEADER
-	SPL_AC_KERN_PATH_PARENT_SYMBOL
-	SPL_AC_KERN_PATH_LOCKED
+	SPL_AC_KERN_PATH
 	SPL_AC_CONFIG_KALLSYMS
 	SPL_AC_CONFIG_ZLIB_INFLATE
 	SPL_AC_CONFIG_ZLIB_DEFLATE
@@ -988,28 +985,6 @@ AC_DEFUN([SPL_AC_SHRINKER_CALLBACK],[
 		])
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 2.6.25 API change,
-dnl # struct path entry added to struct nameidata
-dnl #
-AC_DEFUN([SPL_AC_PATH_IN_NAMEIDATA],
-	[AC_MSG_CHECKING([whether struct path used in struct nameidata])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/namei.h>
-	],[
-		struct nameidata nd __attribute__ ((unused));
-
-		nd.path.mnt = NULL;
-		nd.path.dentry = NULL;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PATH_IN_NAMEIDATA, 1,
-		          [struct path used in struct nameidata])
-	],[
-		AC_MSG_RESULT(no)
-	])
 ])
 
 dnl #
@@ -2279,56 +2254,41 @@ AC_DEFUN([SPL_AC_SHRINK_ICACHE_MEMORY],
 ])
 
 dnl #
-dnl # 2.6.39 API compat,
-dnl # The path_lookup() function has been renamed to kern_path_parent()
-dnl # and the flags argument has been removed.  The only behavior now
-dnl # offered is that of LOOKUP_PARENT.  The spl already always passed
-dnl # this flag so dropping the flag does not impact us.
+dnl # 2.6.28 API change
+dnl # The kern_path() function has been introduced. We adopt it as the new way
+dnl # of looking up paths. When it is not available, we emulate it using the
+dnl # older interfaces.
 dnl #
-AC_DEFUN([SPL_AC_KERN_PATH_PARENT_HEADER], [
-	SPL_CHECK_SYMBOL_HEADER(
-		[kern_path_parent],
-		[int kern_path_parent(const char \*, struct nameidata \*)],
-		[include/linux/namei.h],
-		[AC_DEFINE(HAVE_KERN_PATH_PARENT_HEADER, 1,
-		[kern_path_parent() is available])],
-		[])
-])
-
-dnl #
-dnl # 3.1 API compat,
-dnl # The kern_path_parent() symbol is no longer exported by the kernel.
-dnl # However, it remains the prefered interface and since we still have
-dnl # access to the prototype we dynamically lookup the required address.
-dnl #
-AC_DEFUN([SPL_AC_KERN_PATH_PARENT_SYMBOL],
-	[AC_MSG_CHECKING([whether kern_path_parent() is available])
+AC_DEFUN([SPL_AC_KERN_PATH],
+	[AC_MSG_CHECKING([whether kern_path() is available])
 	SPL_LINUX_TRY_COMPILE_SYMBOL([
 		#include <linux/namei.h>
 	], [
-		kern_path_parent(NULL, NULL);
-	], [kern_path_parent], [fs/namei.c], [
+		int r = kern_path(NULL, 0, NULL);
+	], [kern_path], [fs/namei.c], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KERN_PATH_PARENT_SYMBOL, 1,
-		          [kern_path_parent() is available])
+		AC_DEFINE(HAVE_KERN_PATH, 1,
+		          [kern_path() is available])
 	], [
 		AC_MSG_RESULT(no)
-	])
-])
+		AC_MSG_CHECKING([whether path_lookup() is available])
+		SPL_LINUX_TRY_COMPILE_SYMBOL([
+			#include <linux/namei.h>
+		], [
+			int r = path_lookup(NULL, 0, NULL);
+		], [path_lookup], [fs/namei.c], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_KERN_PATH, 1,
+				  [kern_path() is available])
+		], [
+			AC_MSG_RESULT(no)
+			AC_MSG_ERROR([
+	*** Neither kern_path() nor path_lookup() is available.
+	*** Please file an issue:
+	*** https://github.com/zfsonlinux/spl/issues/new])
 
-dnl #
-dnl # 3.6 API compat,
-dnl # The kern_path_parent() function was replaced by the kern_path_locked()
-dnl # function to eliminate all struct nameidata usage outside fs/namei.c.
-dnl #
-AC_DEFUN([SPL_AC_KERN_PATH_LOCKED], [
-	SPL_CHECK_SYMBOL_HEADER(
-		[kern_path_locked],
-		[struct dentry \*kern_path_locked(const char \*, struct path \*)],
-		[include/linux/namei.h],
-		[AC_DEFINE(HAVE_KERN_PATH_LOCKED, 1,
-		[kern_path_locked() is available])],
-		[])
+		])
+	])
 ])
 
 dnl #

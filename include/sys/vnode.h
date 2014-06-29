@@ -103,14 +103,6 @@
 #define CREATE_XATTR_DIR	0x04
 #define ATTR_NOACLCHECK		0x20
 
-#ifdef HAVE_PATH_IN_NAMEIDATA
-# define nd_dentry	path.dentry
-# define nd_mnt		path.mnt
-#else
-# define nd_dentry	dentry
-# define nd_mnt		mnt
-#endif
-
 typedef enum vtype {
 	VNON		= 0,
 	VREG		= 1,
@@ -194,7 +186,6 @@ extern file_t *vn_getf(int fd);
 extern void vn_releasef(int fd);
 extern int vn_set_pwd(const char *filename);
 
-int spl_vn_init_kallsyms_lookup(void);
 int spl_vn_init(void);
 void spl_vn_fini(void);
 

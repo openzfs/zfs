@@ -44,17 +44,6 @@ static spl_kmem_cache_t *vn_file_cache;
 static DEFINE_SPINLOCK(vn_file_lock);
 static LIST_HEAD(vn_file_list);
 
-#ifdef HAVE_KERN_PATH_PARENT_HEADER
-#ifndef HAVE_KERN_PATH_PARENT_SYMBOL
-kern_path_parent_t kern_path_parent_fn = SYMBOL_POISON;
-EXPORT_SYMBOL(kern_path_parent_fn);
-#endif /* HAVE_KERN_PATH_PARENT_SYMBOL */
-#endif /* HAVE_KERN_PATH_PARENT_HEADER */
-
-#ifdef HAVE_KERN_PATH_LOCKED
-kern_path_locked_t kern_path_locked_fn = SYMBOL_POISON;
-#endif /* HAVE_KERN_PATH_LOCKED */
-
 vtype_t
 vn_mode_to_vtype(mode_t mode)
 {
@@ -307,7 +296,104 @@ vn_seek(vnode_t *vp, offset_t ooff, offset_t *noffp, void *ct)
 }
 EXPORT_SYMBOL(vn_seek);
 
-#ifdef HAVE_KERN_PATH_LOCKED
+/*
+ * kern_path() was introduced in Linux 2.6.28. We duplicate it as a
+ * compatibility shim for earlier kernels.
+ */
+#ifndef HAVE_KERN_PATH
+int
+kern_path(const char *name, unsigned int flags, struct path *path)
+{
+	struct nameidata nd;
+	int rc = path_lookup(name, flags, &nd);
+	if (!rc)
+		*path = nd.path;
+	return rc;
+}
+#endif /* HAVE_KERN_PATH */
+
+/*
+ * spl_basename() takes a NULL-terminated string s as input containing a path.
+ * It returns a char pointer to a string and a length that describe the
+ * basename of the path. If the basename is not "." or "/", it will be an index
+ * into the string. While the string should be NULL terminated, the section
+ * referring to the basename is not. spl_basename is dual-licensed GPLv2+ and
+ * CC0. Anyone wishing to reuse it in another codebase may pick either license.
+ */
+static void
+spl_basename(const char *s, const char **str, int *len)
+{
+	size_t i, end;
+
+	ASSERT(str);
+	ASSERT(len);
+
+	if (!s || !*s) {
+		*str = ".";
+		*len = 1;
+		return;
+	}
+
+	i = strlen(s) - 1;
+
+	while (i && s[i--] == '/');
+
+	if (i == 0) {
+		*str = "/";
+		*len = 1;
+		return;
+	}
+
+	end = i;
+
+	for (end = i; i; i--) {
+		if (s[i] == '/') {
+			*str = &s[i+1];
+			*len = end - i + 1;
+			return;
+		}
+	}
+
+	*str = s;
+	*len = end + 1;
+}
+
+static struct dentry *
+spl_kern_path_locked(const char *name, struct path *path)
+{
+	struct path parent;
+	struct dentry *dentry;
+	const char *basename;
+	int len;
+	int rc;
+
+	ASSERT(name);
+	ASSERT(path);
+
+	spl_basename(name, &basename, &len);
+
+	/* We do not accept "." or ".." */
+	if (len <= 2 && basename[0] == '.')
+		if (len == 1 || basename[1] == '.')
+			return (ERR_PTR(-EACCES));
+
+	rc = kern_path(name, LOOKUP_PARENT, &parent);
+	if (rc)
+		return (ERR_PTR(rc));
+
+	spl_inode_lock_nested(parent.dentry->d_inode, I_MUTEX_PARENT);
+
+	dentry = lookup_one_len(basename, parent.dentry, len);
+	if (IS_ERR(dentry)) {
+		spl_inode_unlock(parent.dentry->d_inode);
+		path_put(&parent);
+	} else {
+		*path = parent;
+	}
+
+	return (dentry);
+}
+
 /* Based on do_unlinkat() from linux/fs/namei.c */
 int
 vn_remove(const char *path, uio_seg_t seg, int flags)
@@ -328,11 +414,10 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
 			SGOTO(slashes, rc = 0);
 
 		inode = dentry->d_inode;
-		if (!inode)
-			SGOTO(slashes, rc = 0);
-
 		if (inode)
-			ihold(inode);
+			atomic_inc(&inode->i_count);
+		else
+			SGOTO(slashes, rc = 0);
 
 #ifdef HAVE_2ARGS_VFS_UNLINK
 		rc = vfs_unlink(parent.dentry->d_inode, dentry);
@@ -436,172 +521,6 @@ exit:
 	SRETURN(-rc);
 }
 EXPORT_SYMBOL(vn_rename);
-
-#else
-static struct dentry *
-vn_lookup_hash(struct nameidata *nd)
-{
-	return lookup_one_len((const char *)nd->last.name,
-			      nd->nd_dentry, nd->last.len);
-} /* lookup_hash() */
-
-static void
-vn_path_release(struct nameidata *nd)
-{
-	dput(nd->nd_dentry);
-	mntput(nd->nd_mnt);
-}
-
-/* Modified do_unlinkat() from linux/fs/namei.c, only uses exported symbols */
-int
-vn_remove(const char *path, uio_seg_t seg, int flags)
-{
-        struct dentry *dentry;
-        struct nameidata nd;
-        struct inode *inode = NULL;
-        int rc = 0;
-        SENTRY;
-
-        ASSERT(seg == UIO_SYSSPACE);
-        ASSERT(flags == RMFILE);
-
-	rc = spl_kern_path_parent(path, &nd);
-        if (rc)
-                SGOTO(exit, rc);
-
-        rc = -EISDIR;
-        if (nd.last_type != LAST_NORM)
-                SGOTO(exit1, rc);
-
-        spl_inode_lock_nested(nd.nd_dentry->d_inode, I_MUTEX_PARENT);
-        dentry = vn_lookup_hash(&nd);
-        rc = PTR_ERR(dentry);
-        if (!IS_ERR(dentry)) {
-                /* Why not before? Because we want correct rc value */
-                if (nd.last.name[nd.last.len])
-                        SGOTO(slashes, rc);
-
-                inode = dentry->d_inode;
-                if (inode)
-                        atomic_inc(&inode->i_count);
-#ifdef HAVE_2ARGS_VFS_UNLINK
-		rc = vfs_unlink(nd.nd_dentry->d_inode, dentry);
-#else
-		rc = vfs_unlink(nd.nd_dentry->d_inode, dentry, NULL);
-#endif /* HAVE_2ARGS_VFS_UNLINK */
-exit2:
-                dput(dentry);
-        }
-
-        spl_inode_unlock(nd.nd_dentry->d_inode);
-        if (inode)
-                iput(inode);    /* truncate the inode here */
-exit1:
-        vn_path_release(&nd);
-exit:
-        SRETURN(-rc);
-
-slashes:
-        rc = !dentry->d_inode ? -ENOENT :
-                S_ISDIR(dentry->d_inode->i_mode) ? -EISDIR : -ENOTDIR;
-        SGOTO(exit2, rc);
-} /* vn_remove() */
-EXPORT_SYMBOL(vn_remove);
-
-/* Modified do_rename() from linux/fs/namei.c, only uses exported symbols */
-int
-vn_rename(const char *oldname, const char *newname, int x1)
-{
-        struct dentry *old_dir, *new_dir;
-        struct dentry *old_dentry, *new_dentry;
-        struct dentry *trap;
-        struct nameidata oldnd, newnd;
-        int rc = 0;
-	SENTRY;
-
-        rc = spl_kern_path_parent(oldname, &oldnd);
-        if (rc)
-                SGOTO(exit, rc);
-
-        rc = spl_kern_path_parent(newname, &newnd);
-        if (rc)
-                SGOTO(exit1, rc);
-
-        rc = -EXDEV;
-        if (oldnd.nd_mnt != newnd.nd_mnt)
-                SGOTO(exit2, rc);
-
-        old_dir = oldnd.nd_dentry;
-        rc = -EBUSY;
-        if (oldnd.last_type != LAST_NORM)
-                SGOTO(exit2, rc);
-
-        new_dir = newnd.nd_dentry;
-        if (newnd.last_type != LAST_NORM)
-                SGOTO(exit2, rc);
-
-        trap = lock_rename(new_dir, old_dir);
-
-        old_dentry = vn_lookup_hash(&oldnd);
-
-        rc = PTR_ERR(old_dentry);
-        if (IS_ERR(old_dentry))
-                SGOTO(exit3, rc);
-
-        /* source must exist */
-        rc = -ENOENT;
-        if (!old_dentry->d_inode)
-                SGOTO(exit4, rc);
-
-        /* unless the source is a directory trailing slashes give -ENOTDIR */
-        if (!S_ISDIR(old_dentry->d_inode->i_mode)) {
-                rc = -ENOTDIR;
-                if (oldnd.last.name[oldnd.last.len])
-                        SGOTO(exit4, rc);
-                if (newnd.last.name[newnd.last.len])
-                        SGOTO(exit4, rc);
-        }
-
-        /* source should not be ancestor of target */
-        rc = -EINVAL;
-        if (old_dentry == trap)
-                SGOTO(exit4, rc);
-
-        new_dentry = vn_lookup_hash(&newnd);
-        rc = PTR_ERR(new_dentry);
-        if (IS_ERR(new_dentry))
-                SGOTO(exit4, rc);
-
-        /* target should not be an ancestor of source */
-        rc = -ENOTEMPTY;
-        if (new_dentry == trap)
-                SGOTO(exit5, rc);
-
-#if defined(HAVE_4ARGS_VFS_RENAME)
-	rc = vfs_rename(old_dir->d_inode, old_dentry,
-	    new_dir->d_inode, new_dentry);
-#elif defined(HAVE_5ARGS_VFS_RENAME)
-	rc = vfs_rename(old_dir->d_inode, old_dentry,
-	    new_dir->d_inode, new_dentry, NULL);
-#else
-	rc = vfs_rename(old_dir->d_inode, old_dentry,
-	    new_dir->d_inode, new_dentry, NULL, 0);
-#endif
-exit5:
-        dput(new_dentry);
-exit4:
-        dput(old_dentry);
-exit3:
-        unlock_rename(new_dir, old_dir);
-exit2:
-        vn_path_release(&newnd);
-exit1:
-        vn_path_release(&oldnd);
-exit:
-        SRETURN(-rc);
-}
-EXPORT_SYMBOL(vn_rename);
-#endif /* HAVE_KERN_PATH_LOCKED */
 
 int
 vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
@@ -968,31 +887,6 @@ vn_file_cache_destructor(void *buf, void *cdrarg)
 
 	mutex_destroy(&fp->f_lock);
 } /* vn_file_cache_destructor() */
-
-int spl_vn_init_kallsyms_lookup(void)
-{
-#ifdef HAVE_KERN_PATH_PARENT_HEADER
-#ifndef HAVE_KERN_PATH_PARENT_SYMBOL
-	kern_path_parent_fn = (kern_path_parent_t)
-		spl_kallsyms_lookup_name("kern_path_parent");
-	if (!kern_path_parent_fn) {
-		printk(KERN_ERR "Error: Unknown symbol kern_path_parent\n");
-		return -EFAULT;
-	}
-#endif /* HAVE_KERN_PATH_PARENT_SYMBOL */
-#endif /* HAVE_KERN_PATH_PARENT_HEADER */
-
-#ifdef HAVE_KERN_PATH_LOCKED
-        kern_path_locked_fn = (kern_path_locked_t)
-                spl_kallsyms_lookup_name("kern_path_locked");
-        if (!kern_path_locked_fn) {
-                printk(KERN_ERR "Error: Unknown symbol kern_path_locked\n");
-                return -EFAULT;
-        }
-#endif
-
-	return (0);
-}
 
 int
 spl_vn_init(void)
