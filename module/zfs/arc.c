@@ -2380,19 +2380,22 @@ arc_shrink(uint64_t bytes)
 	if (arc_c > arc_c_min) {
 		uint64_t to_free;
 
-		to_free = bytes ? bytes : arc_c >> zfs_arc_shrink_shift;
-
-		if (arc_c > arc_c_min + to_free)
-			atomic_add_64(&arc_c, -to_free);
-		else
-			arc_c = arc_c_min;
-
-		to_free = bytes ? bytes : arc_p >> zfs_arc_shrink_shift;
-
+		/*
+		 * The arc_p/arc_c ratio must be kept intact when
+		 * shrinking by bytes.
+		 */
+		to_free = bytes ? (bytes * arc_p) / arc_c :
+				  arc_p >> zfs_arc_shrink_shift;
 		if (arc_p > to_free)
 			atomic_add_64(&arc_p, -to_free);
 		else
 			arc_p = 0;
+
+		to_free = bytes ? bytes : arc_c >> zfs_arc_shrink_shift;
+		if (arc_c > arc_c_min + to_free)
+			atomic_add_64(&arc_c, -to_free);
+		else
+			arc_c = arc_c_min;
 
 		if (arc_c > arc_size)
 			arc_c = MAX(arc_size, arc_c_min);
@@ -4104,7 +4107,7 @@ arc_init(void)
 	spl_register_shrinker(&arc_shrinker);
 #endif
 
-	/* set min cache to zero */
+	/* set min cache to 4M */
 	arc_c_min = 4<<20;
 	/* set max to 1/2 of all memory */
 	arc_c_max = arc_c * 4;
