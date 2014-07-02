@@ -3342,7 +3342,7 @@ zfs_unmount_snap(const char *snapname)
 
 	dsname = kmem_alloc(ptr - snapname + 1, KM_SLEEP);
 	strlcpy(dsname, snapname, ptr - snapname + 1);
-	fullname = strdup(snapname);
+	fullname = safe_strdup(snapname);
 
 	if (zfs_sb_hold(dsname, FTAG, &zsb, B_FALSE) == 0) {
 		ASSERT(!dsl_pool_config_held(dmu_objset_pool(zsb->z_os)));
@@ -5670,13 +5670,9 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	saved_poolname = strdup(zc->zc_name);
-	if (saved_poolname == NULL) {
-		error = SET_ERROR(ENOMEM);
-		goto out;
-	} else {
-		saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
-	}
+	saved_poolname = safe_strdup(zc->zc_name);
+	
+	saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
 
 	if (vec->zvec_func != NULL) {
 		nvlist_t *outnvl;

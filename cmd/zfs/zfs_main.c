@@ -320,17 +320,6 @@ nomem(void)
 	exit(1);
 }
 
-static char *
-safe_strdup(char *str)
-{
-	char *dupstr = strdup(str);
-
-	if (dupstr == NULL)
-		nomem();
-
-	return (dupstr);
-}
-
 /*
  * Callback routine that will print out information for each of
  * the properties.
@@ -1035,11 +1024,11 @@ destroy_print_cb(zfs_handle_t *zhp, void *arg)
 
 	if (nvlist_exists(cb->cb_nvl, name)) {
 		if (cb->cb_firstsnap == NULL)
-			cb->cb_firstsnap = strdup(name);
+			cb->cb_firstsnap = safe_strdup(name);
 		if (cb->cb_prevsnap != NULL)
 			free(cb->cb_prevsnap);
 		/* this snap continues the current range */
-		cb->cb_prevsnap = strdup(name);
+		cb->cb_prevsnap = safe_strdup(name);
 		if (cb->cb_firstsnap == NULL || cb->cb_prevsnap == NULL)
 			nomem();
 		if (cb->cb_verbose) {
@@ -6398,12 +6387,9 @@ zfs_do_diff(int argc, char **argv)
 
 	copy = NULL;
 	if (*fromsnap != '@')
-		copy = strdup(fromsnap);
+		copy = safe_strdup(fromsnap);
 	else if (tosnap)
-		copy = strdup(tosnap);
-	if (copy == NULL)
-		usage(B_FALSE);
-
+		copy = safe_strdup(tosnap);
 	if ((atp = strchr(copy, '@')))
 		*atp = '\0';
 

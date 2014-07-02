@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <regex.h>
+#include "libzfs.h"
 #include "zpios.h"
 
 /* extracts an unsigned int (64) and K,M,G,T from the string */
@@ -158,9 +159,7 @@ split_string(const char *optarg, char *pattern, range_repeat_t *range)
 	if ((rc = regex_match(optarg, pattern)))
 		return (rc);
 
-	cp = strdup(optarg);
-	if (cp == NULL)
-		return (ENOMEM);
+	cp = safe_strdup(optarg);
 
 	do {
 		/*
@@ -256,9 +255,7 @@ set_load_params(cmd_args_t *args, char *optarg)
 	char *param, *search, comma[] = ",";
 	int rc = 0;
 
-	search = strdup(optarg);
-	if (search == NULL)
-		return (ENOMEM);
+	search = safe_strdup(optarg);
 
 	while ((param = strtok(search, comma)) != NULL) {
 		search = NULL;

@@ -166,14 +166,8 @@ libzfs_fru_gather(topo_hdl_t *thp, tnode_t *tn, void *arg)
 		return (TOPO_WALK_NEXT);
 	}
 
-	if ((frup->zf_device = strdup(devpath)) == NULL ||
-	    (frup->zf_fru = strdup(frustr)) == NULL) {
-		free(frup->zf_device);
-		free(frup);
-		_topo_hdl_strfree(thp, devpath);
-		_topo_hdl_strfree(thp, frustr);
-		return (TOPO_WALK_NEXT);
-	}
+	frup->zf_device = safe_strdup(devpath);
+	frup->zf_fru = safe_strdup(devpath);
 
 	_topo_hdl_strfree(thp, devpath);
 	_topo_hdl_strfree(thp, frustr);

@@ -579,6 +579,24 @@ zfs_strdup(libzfs_handle_t *hdl, const char *str)
 }
 
 /*
+ * A safe form of strdup() that does not depend on libzfs_handle_t
+ */
+char *
+safe_strdup(const char *str)
+{
+	char *ret;
+
+	ret = strdup(str);
+
+	if (ret == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
+
+	return (ret);
+}
+
+/*
  * Convert a number to an appropriately human-readable output.
  */
 void
@@ -882,7 +900,7 @@ zfs_resolve_shortname(const char *name, char *path, size_t len)
 	errno = ENOENT;
 
 	if (env) {
-		envdup = strdup(env);
+		envdup = safe_strdup(env);
 		dir = strtok(envdup, ":");
 		while (dir && error) {
 			(void) snprintf(path, len, "%s/%s", dir, name);
@@ -919,7 +937,7 @@ zfs_strcmp_shortname(char *name, char *cmp_name, int wholedisk)
 	env = getenv("ZPOOL_IMPORT_PATH");
 
 	if (env) {
-		envdup = strdup(env);
+		envdup = safe_strdup(env);
 		dir = strtok(envdup, ":");
 	} else {
 		dir =  zpool_default_import_path[i];

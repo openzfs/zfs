@@ -114,9 +114,7 @@ parse_option(char *mntopt, unsigned long *mntflags,
 	char *ptr, *name, *value = NULL;
 	int error = 0;
 
-	name = strdup(mntopt);
-	if (name == NULL)
-		return (ENOMEM);
+	name = safe_strdup(mntopt);
 
 	for (ptr = name; ptr && *ptr; ptr++) {
 		if (*ptr == '=') {
@@ -156,9 +154,7 @@ parse_options(char *mntopts, unsigned long *mntflags, unsigned long *zfsflags,
 	int error = 0, quote = 0, flag = 0, count = 0;
 	char *ptr, *opt, *opts;
 
-	opts = strdup(mntopts);
-	if (opts == NULL)
-		return (ENOMEM);
+	opts = safe_strdup(mntopts);
 
 	*mntflags = 0;
 	opt = NULL;
@@ -249,7 +245,7 @@ parse_dataset(char *dataset)
 		if (error) {
 			nvlist_free(config);
 		} else {
-			dataset = strdup(name);
+			dataset = safe_strdup(name);
 			nvlist_free(config);
 			return (dataset);
 		}

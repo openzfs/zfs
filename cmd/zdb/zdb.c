@@ -1968,7 +1968,7 @@ dump_label(const char *dev)
 		path = safe_malloc(len);
 		(void) snprintf(path, len, "%s%s", "/dev/rdsk/", dev + 9);
 	} else {
-		path = strdup(dev);
+		path = safe_strdup(dev);
 	}
 
 	if ((fd = open64(path, O_RDONLY)) < 0) {
@@ -2900,7 +2900,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	char *s, *p, *dup, *vdev, *flagstr;
 	int i, error;
 
-	dup = strdup(thing);
+	dup = safe_strdup(thing);
 	s = strtok(dup, ":");
 	vdev = s ? s : "";
 	s = strtok(NULL, ":");

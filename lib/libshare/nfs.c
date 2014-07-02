@@ -64,10 +64,7 @@ foreach_nfs_shareopt(const char *shareopts,
 	if (shareopts == NULL)
 		return (SA_OK);
 
-	shareopts_dup = strdup(shareopts);
-
-	if (shareopts_dup == NULL)
-		return (SA_NO_MEMORY);
+	shareopts_dup = safe_strdup(shareopts);
 
 	opt = shareopts_dup;
 	was_nul = 0;
@@ -143,10 +140,7 @@ foreach_nfs_host_cb(const char *opt, const char *value, void *pcookie)
 
 		access = opt;
 
-		host_dup = strdup(value);
-
-		if (host_dup == NULL)
-			return (SA_NO_MEMORY);
+		host_dup = safe_strdup(value);
 
 		host = host_dup;
 
@@ -211,13 +205,9 @@ get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
 		 * Solaris host specifier, e.g. @192.168.0.0/16; we just need
 		 * to skip the @ in this case
 		 */
-		*plinux_hostspec = strdup(solaris_hostspec + 1);
+		*plinux_hostspec = safe_strdup(solaris_hostspec + 1);
 	} else {
-		*plinux_hostspec = strdup(solaris_hostspec);
-	}
-
-	if (*plinux_hostspec == NULL) {
-		return (SA_NO_MEMORY);
+		*plinux_hostspec = safe_strdup(solaris_hostspec);
 	}
 
 	return (SA_OK);
@@ -602,10 +592,7 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 		nfs_disable_share(impl_share);
 	}
 
-	shareopts_dup = strdup(shareopts);
-
-	if (shareopts_dup == NULL)
-		return (SA_NO_MEMORY);
+	shareopts_dup = safe_strdup(shareopts);
 
 	if (old_shareopts != NULL)
 		free(old_shareopts);
