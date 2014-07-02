@@ -33,22 +33,6 @@
 #include "zpool_util.h"
 
 /*
- * Utility function to guarantee malloc() success.
- */
-void *
-safe_malloc(size_t size)
-{
-	void *data;
-
-	if ((data = calloc(1, size)) == NULL) {
-		(void) fprintf(stderr, "internal error: out of memory\n");
-		exit(1);
-	}
-
-	return (data);
-}
-
-/*
  * Display an out of memory error message and abort the current program.
  */
 void
