@@ -107,9 +107,14 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
 		d_instantiate(dentry, ip);
+
+		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+		if (error == 0)
+			error = zpl_init_acl(ip, dir);
+
+		if (error)
+			(void) zfs_remove(dir, dname(dentry), cr);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -145,9 +150,14 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
 		d_instantiate(dentry, ip);
+
+		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+		if (error == 0)
+			error = zpl_init_acl(ip, dir);
+
+		if (error)
+			(void) zfs_remove(dir, dname(dentry), cr);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -191,9 +201,14 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 	cookie = spl_fstrans_mark();
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
 		d_instantiate(dentry, ip);
+
+		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+		if (error == 0)
+			error = zpl_init_acl(ip, dir);
+
+		if (error)
+			(void) zfs_rmdir(dir, dname(dentry), NULL, cr, 0);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -318,8 +333,11 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	cookie = spl_fstrans_mark();
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
 		d_instantiate(dentry, ip);
+
+		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+		if (error)
+			(void) zfs_remove(dir, dname(dentry), cr);
 	}
 
 	spl_fstrans_unmark(cookie);
