@@ -54,6 +54,11 @@
 #include <sys/vtoc.h>
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
+#ifdef __linux__
+#include <sched.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#endif
 
 #include <sys/vdev_impl.h>
 #ifdef HAVE_LIBBLKID
@@ -1383,10 +1388,56 @@ name_or_guid_exists(zpool_handle_t *zhp, void *data)
 	return (found);
 }
 
+#ifdef __linux__
+/*
+ * zpool_udevadm_trigger() will attempt to run udevadm trigger to ensure that
+ * all device symlinks are in /dev. This is racy because udevadm does not
+ * actually generate symlinks. Instead, it communicates with udev over the
+ * uevent interface to generate symlinks. We call sched_yield() in an attempt
+ * to close the race, but there is no guarantee that is sufficient. Also, not
+ * all Linux systems use udev. Therefore, this function is intended to make a
+ * best effort attempt to ensure that the appropriate device symlinks are in
+ * /dev. It is expected to work in the majority of cases when we have missing
+ * device symlinks, but it cannot handle all such cases.
+ */
+void
+zpool_udevadm_trigger(void)
+{
+	static char *const argv[] = { "udevadm", "trigger",
+		"--property-match=DEVTYPE=partition",
+		"--property-match=DEVTYPE=disk", NULL };
+	const char *binary = NULL;
+	int pid;
+
+	if (access("/sbin/udevadm", F_OK | X_OK) == 0)
+		binary = "/sbin/udevadm";
+	else if (access("/usr/sbin/udevadm", F_OK | X_OK) == 0)
+		binary = "/usr/sbin/udevadm";
+	else
+		return;
+
+	pid = fork();
+
+	if (pid > 0) {
+		(void) waitpid(pid, NULL, 0);
+		(void) sched_yield();
+	} else if (pid == 0) {
+		int r = execvp(binary, argv);
+		(void) fprintf(stderr, gettext("Attempt to execute %s trigger"
+		    " to failed with error '%d'.\n"), binary, r);
+	}
+}
+#endif
+
+
 nvlist_t *
 zpool_search_import(libzfs_handle_t *hdl, importargs_t *import)
 {
 	verify(import->poolname == NULL || import->guid == 0);
+
+#ifdef __linux__
+	zpool_udevadm_trigger();
+#endif
 
 	if (import->unique)
 		import->exists = zpool_iter(hdl, name_or_guid_exists, import);
