@@ -320,21 +320,6 @@ nomem(void)
 	exit(1);
 }
 
-/*
- * Utility function to guarantee malloc() success.
- */
-
-void *
-safe_malloc(size_t size)
-{
-	void *data;
-
-	if ((data = calloc(1, size)) == NULL)
-		nomem();
-
-	return (data);
-}
-
 static char *
 safe_strdup(char *str)
 {
