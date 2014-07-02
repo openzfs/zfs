@@ -514,7 +514,9 @@ void *
 safe_malloc(size_t size) {
 	void *data;
 
-	if ((data = calloc(1, size)) == NULL) {
+	data = calloc(1, size);
+
+	if (data == NULL) {
 		(void) fprintf(stderr, "internal error: out of memory\n");
 		exit(1);
 	}
