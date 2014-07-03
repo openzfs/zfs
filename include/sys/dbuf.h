@@ -266,14 +266,15 @@ void dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag);
 dmu_buf_impl_t *dbuf_find(struct dnode *dn, uint8_t level, uint64_t blkid);
 
 int dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags);
-void dbuf_will_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
-void dbuf_fill_done(dmu_buf_impl_t *db, dmu_tx_t *tx);
 void dmu_buf_will_not_fill(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_will_fill(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_fill_done(dmu_buf_t *db, dmu_tx_t *tx);
 void dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx);
 dbuf_dirty_record_t *dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 arc_buf_t *dbuf_loan_arcbuf(dmu_buf_impl_t *db);
+void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
+    bp_embedded_type_t etype, enum zio_compress comp,
+    int uncompressed_size, int compressed_size, int byteorder, dmu_tx_t *tx);
 
 void dbuf_clear(dmu_buf_impl_t *db);
 void dbuf_evict(dmu_buf_impl_t *db);
@@ -295,20 +296,6 @@ void dbuf_stats_destroy(void);
 #define	DB_DNODE_ENTER(_db)	(zrl_add(&DB_DNODE_LOCK(_db)))
 #define	DB_DNODE_EXIT(_db)	(zrl_remove(&DB_DNODE_LOCK(_db)))
 #define	DB_DNODE_HELD(_db)	(!zrl_is_zero(&DB_DNODE_LOCK(_db)))
-#define	DB_GET_SPA(_spa_p, _db) {		\
-	dnode_t *__dn;				\
-	DB_DNODE_ENTER(_db);			\
-	__dn = DB_DNODE(_db);			\
-	*(_spa_p) = __dn->dn_objset->os_spa;	\
-	DB_DNODE_EXIT(_db);			\
-}
-#define	DB_GET_OBJSET(_os_p, _db) {		\
-	dnode_t *__dn;				\
-	DB_DNODE_ENTER(_db);			\
-	__dn = DB_DNODE(_db);			\
-	*(_os_p) = __dn->dn_objset;		\
-	DB_DNODE_EXIT(_db);			\
-}
 
 void dbuf_init(void);
 void dbuf_fini(void);
@@ -358,7 +345,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	dprintf_dbuf_bp(db, bp, fmt, ...) do {				\
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) {				\
 	char *__blkbuf = kmem_alloc(BP_SPRINTF_LEN, KM_PUSHPAGE);	\
-	sprintf_blkptr(__blkbuf, bp);					\
+	snprintf_blkptr(__blkbuf, BP_SPRINTF_LEN, bp);		\
 	dprintf_dbuf(db, fmt " %s\n", __VA_ARGS__, __blkbuf);		\
 	kmem_free(__blkbuf, BP_SPRINTF_LEN);				\
 	}								\

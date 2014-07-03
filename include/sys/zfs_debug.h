@@ -48,6 +48,7 @@ extern "C" {
 
 extern int zfs_flags;
 extern int zfs_recover;
+extern int zfs_free_leak_on_eio;
 
 #define	ZFS_DEBUG_DPRINTF	(1<<0)
 #define	ZFS_DEBUG_DBUF_VERIFY	(1<<1)

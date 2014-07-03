@@ -22,40 +22,36 @@
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
 /*
  * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
-#ifndef	_ZFS_NAMECHECK_H
-#define	_ZFS_NAMECHECK_H
+#ifndef _SYS_SPACE_REFTREE_H
+#define	_SYS_SPACE_REFTREE_H
+
+#include <sys/range_tree.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-typedef enum {
-	NAME_ERR_LEADING_SLASH,		/* name begins with leading slash */
-	NAME_ERR_EMPTY_COMPONENT,	/* name contains an empty component */
-	NAME_ERR_TRAILING_SLASH,	/* name ends with a slash */
-	NAME_ERR_INVALCHAR,		/* invalid character found */
-	NAME_ERR_MULTIPLE_AT,		/* multiple '@' characters found */
-	NAME_ERR_NOLETTER,		/* pool doesn't begin with a letter */
-	NAME_ERR_RESERVED,		/* entire name is reserved */
-	NAME_ERR_DISKLIKE,		/* reserved disk name (c[0-9].*) */
-	NAME_ERR_TOOLONG,		/* name is too long */
-	NAME_ERR_NO_AT,			/* permission set is missing '@' */
-} namecheck_err_t;
+typedef struct space_ref {
+	avl_node_t	sr_node;	/* AVL node */
+	uint64_t	sr_offset;	/* range offset (start or end) */
+	int64_t		sr_refcnt;	/* associated reference count */
+} space_ref_t;
 
-#define	ZFS_PERMSET_MAXLEN	64
-
-int pool_namecheck(const char *, namecheck_err_t *, char *);
-int dataset_namecheck(const char *, namecheck_err_t *, char *);
-int mountpoint_namecheck(const char *, namecheck_err_t *);
-int zfs_component_namecheck(const char *, namecheck_err_t *, char *);
-int permset_namecheck(const char *, namecheck_err_t *, char *);
+void space_reftree_create(avl_tree_t *t);
+void space_reftree_destroy(avl_tree_t *t);
+void space_reftree_add_seg(avl_tree_t *t, uint64_t start, uint64_t end,
+    int64_t refcnt);
+void space_reftree_add_map(avl_tree_t *t, range_tree_t *rt, int64_t refcnt);
+void space_reftree_generate_map(avl_tree_t *t, range_tree_t *rt,
+    int64_t minref);
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif	/* _ZFS_NAMECHECK_H */
+#endif	/* _SYS_SPACE_REFTREE_H */

@@ -118,7 +118,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (zb->zb_object != DMU_META_DNODE_OBJECT)
 		return (0);
 
-	if (bp == NULL) {
+	if (BP_IS_HOLE(bp)) {
 		uint64_t span = DBP_SPAN(dnp, zb->zb_level);
 		uint64_t dnobj = (zb->zb_blkid * span) >> DNODE_SHIFT;
 
@@ -187,7 +187,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 		return (error);
 	}
 
-	if (!dsl_dataset_is_before(tosnap, fromsnap)) {
+	if (!dsl_dataset_is_before(tosnap, fromsnap, 0)) {
 		dsl_dataset_rele(fromsnap, FTAG);
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);

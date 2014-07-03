@@ -159,9 +159,14 @@ int
 zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp)
 {
 	avl_tree_t *t = &zilog->zl_bp_tree;
-	const dva_t *dva = BP_IDENTITY(bp);
+	const dva_t *dva;
 	zil_bp_node_t *zn;
 	avl_index_t where;
+
+	if (BP_IS_EMBEDDED(bp))
+		return (0);
+
+	dva = BP_IDENTITY(bp);
 
 	if (avl_find(t, dva, &where) != NULL)
 		return (SET_ERROR(EEXIST));
@@ -395,7 +400,8 @@ zil_claim_log_block(zilog_t *zilog, blkptr_t *bp, void *tx, uint64_t first_txg)
 	 * Claim log block if not already committed and not already claimed.
 	 * If tx == NULL, just verify that the block is claimable.
 	 */
-	if (bp->blk_birth < first_txg || zil_bp_tree_add(zilog, bp) != 0)
+	if (BP_IS_HOLE(bp) || bp->blk_birth < first_txg ||
+	    zil_bp_tree_add(zilog, bp) != 0)
 		return (0);
 
 	return (zio_wait(zio_claim(NULL, zilog->zl_spa,
@@ -445,7 +451,8 @@ zil_free_log_record(zilog_t *zilog, lr_t *lrc, void *tx, uint64_t claim_txg)
 	 * If we previously claimed it, we need to free it.
 	 */
 	if (claim_txg != 0 && lrc->lrc_txtype == TX_WRITE &&
-	    bp->blk_birth >= claim_txg && zil_bp_tree_add(zilog, bp) == 0)
+	    bp->blk_birth >= claim_txg && zil_bp_tree_add(zilog, bp) == 0 &&
+	    !BP_IS_HOLE(bp))
 		zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
 
 	return (0);
@@ -861,7 +868,7 @@ zil_lwb_write_done(zio_t *zio)
 	ASSERT(BP_GET_BYTEORDER(zio->io_bp) == ZFS_HOST_BYTEORDER);
 	ASSERT(!BP_IS_GANG(zio->io_bp));
 	ASSERT(!BP_IS_HOLE(zio->io_bp));
-	ASSERT(zio->io_bp->blk_fill == 0);
+	ASSERT(BP_GET_FILL(zio->io_bp) == 0);
 
 	/*
 	 * Ensure the lwb buffer pointer is cleared before releasing

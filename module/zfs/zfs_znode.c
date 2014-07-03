@@ -543,7 +543,6 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	dmu_buf_t	*db;
 	timestruc_t	now;
 	uint64_t	gen, obj;
-	int		err;
 	int		bonuslen;
 	sa_handle_t	*sa_hdl;
 	dmu_object_type_t obj_type;
@@ -576,10 +575,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	 */
 	if (S_ISDIR(vap->va_mode)) {
 		if (zsb->z_replay) {
-			err = zap_create_claim_norm(zsb->z_os, obj,
+			VERIFY0(zap_create_claim_norm(zsb->z_os, obj,
 			    zsb->z_norm, DMU_OT_DIRECTORY_CONTENTS,
-			    obj_type, bonuslen, tx);
-			ASSERT0(err);
+			    obj_type, bonuslen, tx));
 		} else {
 			obj = zap_create_norm(zsb->z_os,
 			    zsb->z_norm, DMU_OT_DIRECTORY_CONTENTS,
@@ -587,10 +585,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		}
 	} else {
 		if (zsb->z_replay) {
-			err = dmu_object_claim(zsb->z_os, obj,
+			VERIFY0(dmu_object_claim(zsb->z_os, obj,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
-			    obj_type, bonuslen, tx);
-			ASSERT0(err);
+			    obj_type, bonuslen, tx));
 		} else {
 			obj = dmu_object_alloc(zsb->z_os,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
@@ -769,8 +766,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 
 	if (obj_type == DMU_OT_ZNODE ||
 	    acl_ids->z_aclp->z_version < ZFS_ACL_VERSION_FUID) {
-		err = zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx);
-		ASSERT0(err);
+		VERIFY0(zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx));
 	}
 	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	ZFS_OBJ_HOLD_EXIT(zsb, obj);

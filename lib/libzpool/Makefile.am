@@ -21,6 +21,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zcommon/zpool_prop.c \
 	$(top_srcdir)/module/zcommon/zprop_common.c \
 	$(top_srcdir)/module/zfs/arc.c \
+	$(top_srcdir)/module/zfs/blkptr.c \
 	$(top_srcdir)/module/zfs/bplist.c \
 	$(top_srcdir)/module/zfs/bpobj.c \
 	$(top_srcdir)/module/zfs/bptree.c \
@@ -38,6 +39,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/dmu_zfetch.c \
 	$(top_srcdir)/module/zfs/dnode.c \
 	$(top_srcdir)/module/zfs/dnode_sync.c \
+	$(top_srcdir)/module/zfs/dsl_bookmark.c \
 	$(top_srcdir)/module/zfs/dsl_dataset.c \
 	$(top_srcdir)/module/zfs/dsl_deadlist.c \
 	$(top_srcdir)/module/zfs/dsl_deleg.c \
@@ -53,6 +55,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/lzjb.c \
 	$(top_srcdir)/module/zfs/lz4.c \
 	$(top_srcdir)/module/zfs/metaslab.c \
+	$(top_srcdir)/module/zfs/range_tree.c \
 	$(top_srcdir)/module/zfs/refcount.c \
 	$(top_srcdir)/module/zfs/rrwlock.c \
 	$(top_srcdir)/module/zfs/sa.c \
@@ -65,6 +68,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/spa_misc.c \
 	$(top_srcdir)/module/zfs/spa_stats.c \
 	$(top_srcdir)/module/zfs/space_map.c \
+	$(top_srcdir)/module/zfs/space_reftree.c \
 	$(top_srcdir)/module/zfs/txg.c \
 	$(top_srcdir)/module/zfs/uberblock.c \
 	$(top_srcdir)/module/zfs/unique.c \

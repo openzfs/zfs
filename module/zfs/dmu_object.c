@@ -27,6 +27,8 @@
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
+#include <sys/zap.h>
+#include <sys/zfeature.h>
 
 uint64_t
 dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
@@ -196,10 +198,63 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 	return (error);
 }
 
+/*
+ * Turn this object from old_type into DMU_OTN_ZAP_METADATA, and bump the
+ * refcount on SPA_FEATURE_EXTENSIBLE_DATASET.
+ *
+ * Only for use from syncing context, on MOS objects.
+ */
+void
+dmu_object_zapify(objset_t *mos, uint64_t object, dmu_object_type_t old_type,
+    dmu_tx_t *tx)
+{
+	dnode_t *dn;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	VERIFY0(dnode_hold(mos, object, FTAG, &dn));
+	if (dn->dn_type == DMU_OTN_ZAP_METADATA) {
+		dnode_rele(dn, FTAG);
+		return;
+	}
+	ASSERT3U(dn->dn_type, ==, old_type);
+	ASSERT0(dn->dn_maxblkid);
+	dn->dn_next_type[tx->tx_txg & TXG_MASK] = dn->dn_type =
+	    DMU_OTN_ZAP_METADATA;
+	dnode_setdirty(dn, tx);
+	dnode_rele(dn, FTAG);
+
+	mzap_create_impl(mos, object, 0, 0, tx);
+
+	spa_feature_incr(dmu_objset_spa(mos),
+	    SPA_FEATURE_EXTENSIBLE_DATASET, tx);
+}
+
+void
+dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	dmu_object_type_t t;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	VERIFY0(dnode_hold(mos, object, FTAG, &dn));
+	t = dn->dn_type;
+	dnode_rele(dn, FTAG);
+
+	if (t == DMU_OTN_ZAP_METADATA) {
+		spa_feature_decr(dmu_objset_spa(mos),
+		    SPA_FEATURE_EXTENSIBLE_DATASET, tx);
+	}
+	VERIFY0(dmu_object_free(mos, object, tx));
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_object_alloc);
 EXPORT_SYMBOL(dmu_object_claim);
 EXPORT_SYMBOL(dmu_object_reclaim);
 EXPORT_SYMBOL(dmu_object_free);
 EXPORT_SYMBOL(dmu_object_next);
+EXPORT_SYMBOL(dmu_object_zapify);
+EXPORT_SYMBOL(dmu_object_free_zapified);
 #endif

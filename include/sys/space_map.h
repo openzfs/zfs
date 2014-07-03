@@ -24,65 +24,71 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_SPACE_MAP_H
 #define	_SYS_SPACE_MAP_H
 
 #include <sys/avl.h>
+#include <sys/range_tree.h>
 #include <sys/dmu.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-typedef const struct space_map_ops space_map_ops_t;
+/*
+ * The size of the space map object has increased to include a histogram.
+ * The SPACE_MAP_SIZE_V0 designates the original size and is used to
+ * maintain backward compatibility.
+ */
+#define	SPACE_MAP_SIZE_V0	(3 * sizeof (uint64_t))
+#define	SPACE_MAP_HISTOGRAM_SIZE(sm)			\
+	(sizeof ((sm)->sm_phys->smp_histogram) /	\
+	sizeof ((sm)->sm_phys->smp_histogram[0]))
 
+/*
+ * The space_map_phys is the on-disk representation of the space map.
+ * Consumers of space maps should never reference any of the members of this
+ * structure directly. These members may only be updated in syncing context.
+ *
+ * Note the smp_object is no longer used but remains in the structure
+ * for backward compatibility.
+ */
+typedef struct space_map_phys {
+	uint64_t	smp_object;	/* on-disk space map object */
+	uint64_t	smp_objsize;	/* size of the object */
+	uint64_t	smp_alloc;	/* space allocated from the map */
+	uint64_t	smp_pad[5];	/* reserved */
+
+	/*
+	 * The smp_histogram maintains a histogram of free regions. Each
+	 * bucket, smp_histogram[i], contains the number of free regions
+	 * whose size is:
+	 * 2^(i+sm_shift) <= size of free region in bytes < 2^(i+sm_shift+1)
+	 */
+	uint64_t	smp_histogram[32]; /* histogram of free space */
+} space_map_phys_t;
+
+/*
+ * The space map object defines a region of space, its size, how much is
+ * allocated, and the on-disk object that stores this information.
+ * Consumers of space maps may only access the members of this structure.
+ */
 typedef struct space_map {
-	avl_tree_t	sm_root;	/* offset-ordered segment AVL tree */
-	uint64_t	sm_space;	/* sum of all segments in the map */
 	uint64_t	sm_start;	/* start of map */
 	uint64_t	sm_size;	/* size of map */
 	uint8_t		sm_shift;	/* unit shift */
-	uint8_t		sm_loaded;	/* map loaded? */
-	uint8_t		sm_loading;	/* map loading? */
-	uint8_t		sm_condensing;	/* map condensing? */
-	kcondvar_t	sm_load_cv;	/* map load completion */
-	space_map_ops_t	*sm_ops;	/* space map block picker ops vector */
-	avl_tree_t	*sm_pp_root;	/* size-ordered, picker-private tree */
-	void		*sm_ppd;	/* picker-private data */
+	uint64_t	sm_length;	/* synced length */
+	uint64_t	sm_alloc;	/* synced space allocated */
+	objset_t	*sm_os;		/* objset for this map */
+	uint64_t	sm_object;	/* object id for this map */
+	uint32_t	sm_blksz;	/* block size for space map */
+	dmu_buf_t	*sm_dbuf;	/* space_map_phys_t dbuf */
+	space_map_phys_t *sm_phys;	/* on-disk space map */
 	kmutex_t	*sm_lock;	/* pointer to lock that protects map */
 } space_map_t;
-
-typedef struct space_seg {
-	avl_node_t	ss_node;	/* AVL node */
-	avl_node_t	ss_pp_node;	/* AVL picker-private node */
-	uint64_t	ss_start;	/* starting offset of this segment */
-	uint64_t	ss_end;		/* ending offset (non-inclusive) */
-} space_seg_t;
-
-typedef struct space_ref {
-	avl_node_t	sr_node;	/* AVL node */
-	uint64_t	sr_offset;	/* offset (start or end) */
-	int64_t		sr_refcnt;	/* associated reference count */
-} space_ref_t;
-
-typedef struct space_map_obj {
-	uint64_t	smo_object;	/* on-disk space map object */
-	uint64_t	smo_objsize;	/* size of the object */
-	uint64_t	smo_alloc;	/* space allocated from the map */
-} space_map_obj_t;
-
-struct space_map_ops {
-	void	(*smop_load)(space_map_t *sm);
-	void	(*smop_unload)(space_map_t *sm);
-	uint64_t (*smop_alloc)(space_map_t *sm, uint64_t size);
-	void	(*smop_claim)(space_map_t *sm, uint64_t start, uint64_t size);
-	void	(*smop_free)(space_map_t *sm, uint64_t start, uint64_t size);
-	uint64_t (*smop_max)(space_map_t *sm);
-	boolean_t (*smop_fragmented)(space_map_t *sm);
-};
 
 /*
  * debug entry
@@ -124,61 +130,45 @@ struct space_map_ops {
 
 #define	SM_RUN_MAX			SM_RUN_DECODE(~0ULL)
 
-#define	SM_ALLOC	0x0
-#define	SM_FREE		0x1
+typedef enum {
+	SM_ALLOC,
+	SM_FREE
+} maptype_t;
 
 /*
  * The data for a given space map can be kept on blocks of any size.
  * Larger blocks entail fewer i/o operations, but they also cause the
  * DMU to keep more data in-core, and also to waste more i/o bandwidth
  * when only a few blocks have changed since the last transaction group.
- * This could use a lot more research, but for now, set the freelist
- * block size to 4k (2^12).
+ * Rather than having a fixed block size for all space maps the block size
+ * can adjust as needed (see space_map_max_blksz). Set the initial block
+ * size for the space map to 4k.
  */
-#define	SPACE_MAP_BLOCKSHIFT	12
+#define	SPACE_MAP_INITIAL_BLOCKSIZE	(1ULL << 12)
 
-typedef void space_map_func_t(space_map_t *sm, uint64_t start, uint64_t size);
+int space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype);
 
-extern void space_map_init(void);
-extern void space_map_fini(void);
-extern void space_map_create(space_map_t *sm, uint64_t start, uint64_t size,
-    uint8_t shift, kmutex_t *lp);
-extern void space_map_destroy(space_map_t *sm);
-extern void space_map_add(space_map_t *sm, uint64_t start, uint64_t size);
-extern void space_map_remove(space_map_t *sm, uint64_t start, uint64_t size);
-extern boolean_t space_map_contains(space_map_t *sm,
-    uint64_t start, uint64_t size);
-extern space_seg_t *space_map_find(space_map_t *sm, uint64_t start,
-    uint64_t size, avl_index_t *wherep);
-extern void space_map_swap(space_map_t **msrc, space_map_t **mdest);
-extern void space_map_vacate(space_map_t *sm,
-    space_map_func_t *func, space_map_t *mdest);
-extern void space_map_walk(space_map_t *sm,
-    space_map_func_t *func, space_map_t *mdest);
+void space_map_histogram_clear(space_map_t *sm);
+void space_map_histogram_add(space_map_t *sm, range_tree_t *rt,
+    dmu_tx_t *tx);
 
-extern void space_map_load_wait(space_map_t *sm);
-extern int space_map_load(space_map_t *sm, space_map_ops_t *ops,
-    uint8_t maptype, space_map_obj_t *smo, objset_t *os);
-extern void space_map_unload(space_map_t *sm);
+void space_map_update(space_map_t *sm);
 
-extern uint64_t space_map_alloc(space_map_t *sm, uint64_t size);
-extern void space_map_claim(space_map_t *sm, uint64_t start, uint64_t size);
-extern void space_map_free(space_map_t *sm, uint64_t start, uint64_t size);
-extern uint64_t space_map_maxsize(space_map_t *sm);
+uint64_t space_map_object(space_map_t *sm);
+uint64_t space_map_allocated(space_map_t *sm);
+uint64_t space_map_length(space_map_t *sm);
 
-extern void space_map_sync(space_map_t *sm, uint8_t maptype,
-    space_map_obj_t *smo, objset_t *os, dmu_tx_t *tx);
-extern void space_map_truncate(space_map_obj_t *smo,
-    objset_t *os, dmu_tx_t *tx);
+void space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
+    dmu_tx_t *tx);
+void space_map_truncate(space_map_t *sm, dmu_tx_t *tx);
+uint64_t space_map_alloc(objset_t *os, dmu_tx_t *tx);
+void space_map_free(space_map_t *sm, dmu_tx_t *tx);
 
-extern void space_map_ref_create(avl_tree_t *t);
-extern void space_map_ref_destroy(avl_tree_t *t);
-extern void space_map_ref_add_seg(avl_tree_t *t,
-    uint64_t start, uint64_t end, int64_t refcnt);
-extern void space_map_ref_add_map(avl_tree_t *t,
-    space_map_t *sm, int64_t refcnt);
-extern void space_map_ref_generate_map(avl_tree_t *t,
-    space_map_t *sm, int64_t minref);
+int space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
+    uint64_t start, uint64_t size, uint8_t shift, kmutex_t *lp);
+void space_map_close(space_map_t *sm);
+
+int64_t space_map_alloc_delta(space_map_t *sm);
 
 #ifdef	__cplusplus
 }
