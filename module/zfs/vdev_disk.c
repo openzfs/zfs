@@ -502,6 +502,22 @@ bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 	return (bio_size);
 }
 
+static inline void
+vdev_submit_bio(int rw, struct bio *bio)
+{
+#ifdef HAVE_CURRENT_BIO_TAIL
+	struct bio **bio_tail = current->bio_tail;
+	current->bio_tail = NULL;
+	submit_bio(rw, bio);
+	current->bio_tail = bio_tail;
+#else
+	struct bio_list *bio_list = current->bio_list;
+	current->bio_list = NULL;
+	submit_bio(rw, bio);
+	current->bio_list = bio_list;
+#endif
+}
+
 static int
 __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
     size_t kbuf_size, uint64_t kbuf_offset, int flags)
@@ -577,7 +593,7 @@ retry:
 		bio_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 	}
 
-	/* Extra reference to protect dio_request during submit_bio */
+	/* Extra reference to protect dio_request during vdev_submit_bio */
 	vdev_disk_dio_get(dr);
 	if (zio)
 		zio->io_delay = jiffies_64;
@@ -585,7 +601,7 @@ retry:
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
-			submit_bio(dr->dr_rw, dr->dr_bio[i]);
+			vdev_submit_bio(dr->dr_rw, dr->dr_bio[i]);
 
 	/*
 	 * On synchronous blocking requests we wait for all bio the completion
@@ -651,7 +667,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio->bi_private = zio;
 	bio->bi_bdev = bdev;
 	zio->io_delay = jiffies_64;
-	submit_bio(VDEV_WRITE_FLUSH_FUA, bio);
+	vdev_submit_bio(VDEV_WRITE_FLUSH_FUA, bio);
 	invalidate_bdev(bdev);
 
 	return (0);

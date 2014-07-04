@@ -1044,15 +1044,16 @@ xuio_stat_wbuf_nocopy()
  * return value is the number of bytes successfully copied to arg_buf.
  */
 static int
-dmu_req_copy(void *arg_buf, int size, struct request *req, size_t req_offset)
+dmu_bio_copy(void *arg_buf, int size, struct bio *bio, size_t bio_offset)
 {
-	struct bio_vec bv, *bvp;
-	struct req_iterator iter;
+	struct bio_vec bv, *bvp = &bv;
+	bvec_iterator_t iter;
 	char *bv_buf;
 	int tocpy, bv_len, bv_offset;
 	int offset = 0;
 
-	rq_for_each_segment4(bv, bvp, req, iter) {
+	bio_for_each_segment4(bv, bvp, bio, iter) {
+
 		/*
 		 * Fully consumed the passed arg_buf. We use goto here because
 		 * rq_for_each_segment is a double loop
@@ -1061,23 +1062,23 @@ dmu_req_copy(void *arg_buf, int size, struct request *req, size_t req_offset)
 		if (size == offset)
 			goto out;
 
-		/* Skip already copied bv */
-		if (req_offset >=  bv.bv_len) {
-			req_offset -= bv.bv_len;
+		/* Skip already copied bvp */
+		if (bio_offset >= bvp->bv_len) {
+			bio_offset -= bvp->bv_len;
 			continue;
 		}
 
-		bv_len = bv.bv_len - req_offset;
-		bv_offset = bv.bv_offset + req_offset;
-		req_offset = 0;
+		bv_len = bvp->bv_len - bio_offset;
+		bv_offset = bvp->bv_offset + bio_offset;
+		bio_offset = 0;
 
 		tocpy = MIN(bv_len, size - offset);
 		ASSERT3S(tocpy, >=, 0);
 
-		bv_buf = page_address(bv.bv_page) + bv_offset;
+		bv_buf = page_address(bvp->bv_page) + bv_offset;
 		ASSERT3P(bv_buf, !=, NULL);
 
-		if (rq_data_dir(req) == WRITE)
+		if (bio_data_dir(bio) == WRITE)
 			memcpy(arg_buf + offset, bv_buf, tocpy);
 		else
 			memcpy(bv_buf, arg_buf + offset, tocpy);
@@ -1089,13 +1090,13 @@ out:
 }
 
 int
-dmu_read_req(objset_t *os, uint64_t object, struct request *req)
+dmu_read_bio(objset_t *os, uint64_t object, struct bio *bio)
 {
-	uint64_t size = blk_rq_bytes(req);
-	uint64_t offset = blk_rq_pos(req) << 9;
+	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	uint64_t size = BIO_BI_SIZE(bio);
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
-	size_t req_offset;
+	size_t bio_offset;
 
 	/*
 	 * NB: we could do this block-at-a-time, but it's nice
@@ -1106,7 +1107,7 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 	if (err)
 		return (err);
 
-	req_offset = 0;
+	bio_offset = 0;
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
 		dmu_buf_t *db = dbp[i];
@@ -1118,8 +1119,8 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 		if (tocpy == 0)
 			break;
 
-		didcpy = dmu_req_copy(db->db_data + bufoff, tocpy, req,
-		    req_offset);
+		didcpy = dmu_bio_copy(db->db_data + bufoff, tocpy, bio,
+		    bio_offset);
 
 		if (didcpy < tocpy)
 			err = EIO;
@@ -1129,7 +1130,7 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 
 		size -= tocpy;
 		offset += didcpy;
-		req_offset += didcpy;
+		bio_offset += didcpy;
 		err = 0;
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
@@ -1138,13 +1139,13 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 }
 
 int
-dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
+dmu_write_bio(objset_t *os, uint64_t object, struct bio *bio, dmu_tx_t *tx)
 {
-	uint64_t size = blk_rq_bytes(req);
-	uint64_t offset = blk_rq_pos(req) << 9;
+	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	uint64_t size = BIO_BI_SIZE(bio);
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
-	size_t req_offset;
+	size_t bio_offset;
 
 	if (size == 0)
 		return (0);
@@ -1154,7 +1155,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 	if (err)
 		return (err);
 
-	req_offset = 0;
+	bio_offset = 0;
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
 		dmu_buf_t *db = dbp[i];
@@ -1173,8 +1174,8 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		didcpy = dmu_req_copy(db->db_data + bufoff, tocpy, req,
-		    req_offset);
+		didcpy = dmu_bio_copy(db->db_data + bufoff, tocpy, bio,
+		    bio_offset);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -1187,7 +1188,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 
 		size -= tocpy;
 		offset += didcpy;
-		req_offset += didcpy;
+		bio_offset += didcpy;
 		err = 0;
 	}
 
