@@ -295,10 +295,16 @@ struct req_iterator {
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#define	bio_for_each_segment4(bv, bvp, b, i)	\
+	bio_for_each_segment((bv), (b), (i))
+typedef struct bvec_iter bvec_iterator_t;
 #else
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_idx
+#define	bio_for_each_segment4(bv, bvp, b, i)	\
+	bio_for_each_segment((bvp), (b), (i))
+typedef int bvec_iterator_t;
 #endif
 
 /*
@@ -457,16 +463,29 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #define	VDEV_REQ_FUA			REQ_FUA
 #else
 #define	VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
+#ifdef HAVE_BIO_RW_BARRIER
+#define	VDEV_REQ_FLUSH			(1 << BIO_RW_BARRIER)
+#define	VDEV_REQ_FUA			(1 << BIO_RW_BARRIER)
+#else
 #define	VDEV_REQ_FLUSH			REQ_HARDBARRIER
 #define	VDEV_REQ_FUA			REQ_FUA
+#endif
 #endif
 
 /*
  * 2.6.32 API change
  * Use the normal I/O patch for discards.
  */
-#ifdef REQ_DISCARD
+#ifdef QUEUE_FLAG_DISCARD
+#ifdef HAVE_BIO_RW_DISCARD
+#define	VDEV_REQ_DISCARD		(1 << BIO_RW_DISCARD)
+#else
 #define	VDEV_REQ_DISCARD		REQ_DISCARD
+#endif
+#else
+#error	"Allowing the build will cause discard requests to become writes "
+	"potentially triggering the DMU_MAX_ACCESS assertion. Please file a "
+	"an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
 #endif
 
 /*
