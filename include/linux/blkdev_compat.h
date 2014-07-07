@@ -53,14 +53,6 @@ __blk_queue_flush(struct request_queue *q, unsigned int flags)
 }
 #endif /* HAVE_BLK_QUEUE_FLUSH && HAVE_BLK_QUEUE_FLUSH_GPL_ONLY */
 
-#ifndef HAVE_BLK_RQ_POS
-static inline sector_t
-blk_rq_pos(struct request *req)
-{
-	return (req->sector);
-}
-#endif /* HAVE_BLK_RQ_POS */
-
 #ifndef HAVE_BLK_RQ_SECTORS
 static inline unsigned int
 blk_rq_sectors(struct request *req)
