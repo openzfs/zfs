@@ -36,20 +36,6 @@
 typedef unsigned __bitwise__ fmode_t;
 #endif /* HAVE_FMODE_T */
 
-#ifndef HAVE_BLK_FETCH_REQUEST
-static inline struct request *
-blk_fetch_request(struct request_queue *q)
-{
-	struct request *req;
-
-	req = elv_next_request(q);
-	if (req)
-		blkdev_dequeue_request(req);
-
-	return (req);
-}
-#endif /* HAVE_BLK_FETCH_REQUEST */
-
 /*
  * 2.6.36 API change,
  * The blk_queue_flush() interface has replaced blk_queue_ordered()
