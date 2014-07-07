@@ -260,14 +260,6 @@ get_disk_ro(struct gendisk *disk)
 }
 #endif /* HAVE_GET_DISK_RO */
 
-#ifndef HAVE_RQ_IS_SYNC
-static inline bool
-rq_is_sync(struct request *req)
-{
-	return (req->flags & REQ_RW_SYNC);
-}
-#endif /* HAVE_RQ_IS_SYNC */
-
 #ifdef HAVE_BIO_BVEC_ITER
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
