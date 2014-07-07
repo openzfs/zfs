@@ -677,6 +677,7 @@ void dmu_tx_abort(dmu_tx_t *tx);
 int dmu_tx_assign(dmu_tx_t *tx, enum txg_how txg_how);
 void dmu_tx_wait(dmu_tx_t *tx);
 void dmu_tx_commit(dmu_tx_t *tx);
+void dmu_tx_mark_netfree(dmu_tx_t *tx);
 
 /*
  * To register a commit callback, dmu_tx_callback_register() must be called.
