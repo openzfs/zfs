@@ -52,29 +52,6 @@ __blk_queue_flush(struct request_queue *q, unsigned int flags)
 	q->flush_flags = flags & (REQ_FLUSH | REQ_FUA);
 }
 #endif /* HAVE_BLK_QUEUE_FLUSH && HAVE_BLK_QUEUE_FLUSH_GPL_ONLY */
-
-#ifndef HAVE_BLK_RQ_SECTORS
-static inline unsigned int
-blk_rq_sectors(struct request *req)
-{
-	return (req->nr_sectors);
-}
-#endif /* HAVE_BLK_RQ_SECTORS */
-
-#if !defined(HAVE_BLK_RQ_BYTES) || defined(HAVE_BLK_RQ_BYTES_GPL_ONLY)
-/*
- * Define required to avoid conflicting 2.6.29 non-static prototype for a
- * GPL-only version of the helper.  As of 2.6.31 the helper is available
- * to non-GPL modules in the form of a static inline in the header.
- */
-#define	blk_rq_bytes __blk_rq_bytes
-static inline unsigned int
-__blk_rq_bytes(struct request *req)
-{
-	return (blk_rq_sectors(req) << 9);
-}
-#endif /* !HAVE_BLK_RQ_BYTES || HAVE_BLK_RQ_BYTES_GPL_ONLY */
-
 /*
  * Most of the blk_* macros were removed in 2.6.36.  Ostensibly this was
  * done to improve readability and allow easier grepping.  However, from
