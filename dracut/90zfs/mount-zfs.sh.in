@@ -49,6 +49,8 @@ mount_zfs_root() {
 	fi
 	if [ "$?" != "0" ] ; then
 		warn "ZFS: something went wrong while mounting root filesystem"
+		warn "Try to mount it manually; the system will continue when you leave the shell"
+		action_on_fail
 	fi
 }
 
