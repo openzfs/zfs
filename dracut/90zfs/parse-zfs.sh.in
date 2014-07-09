@@ -3,20 +3,20 @@
 case "$root" in
 	ZFS|ZFS:|ZFS:AUTO|ZFS:auto)
 		root="ZFS:auto"
-		zfsroot="true"
+		ZFSROOT="true"
 		rootok=1
-		seek_bootfs=1
+		SEEK_BOOTFS=1
 		;;
 
 	ZFS:*|ZFS=*)
 		root="${root:4}"
-		zfsroot="true"
+		ZFSROOT="true"
 		rootok=1
-		seek_bootfs=0
+		SEEK_BOOTFS=0
 		;;
 esac
 
-if [ "$zfsroot" = "true" ] ; then
+if [ "$ZFSROOT" = "true" ] ; then
 	info "ZFS: root = $root"
-	info "ZFS: seek_bootfs = $seek_bootfs"
+	info "ZFS: SEEK_BOOTFS = $SEEK_BOOTFS"
 fi

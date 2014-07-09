@@ -14,14 +14,17 @@ cmdline() {
 }
 
 installkernel() {
-	instmods zfs spl
+	instmods zfs
 }
 
 install() {
 	inst_hook cmdline 90 "$moddir/parse-zfs.sh"
 	inst_hook mount 99 "$moddir/mount-zfs.sh"
+	inst_rules 60-zvol.rules
+	inst_rules 69-vdev.rules
+	inst_rules 90-zfs.rules
 	inst @sbindir@/zpool
 	inst @sbindir@/zfs
 	inst @sbindir@/mount.zfs
-	inst_multiple -o @sbindir@/zdb @sysconfdir@/zfs/zpool.cache @sysconfdir@/hostid /usr/bin/hostid
+	inst_multiple -o @sbindir@/zdb @sysconfdir@/zfs/zpool.cache @sysconfdir@/hostid @sysconfdir@/zfs/vdev.conf /usr/bin/hostid
 }

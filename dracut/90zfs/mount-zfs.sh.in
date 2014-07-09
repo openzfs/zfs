@@ -1,21 +1,21 @@
 #!/bin/sh
 
-zpoolforce=""
+ZPOOL_FORCE=""
 for p in $(getargs rd.zpool.force=) ; do
 	if [ "$p" = "1" ] ; then
-		zpoolforce="-f"
+		ZPOOL_FORCE="-f"
 	else
-		zpoolforce=""
+		ZPOOL_FORCE=""
 	fi
 done
 
-if [ "${zfsroot}" = "true" ] ; then
+if [ "${ZFSROOT}" = "true" ] ; then
 	udevsettle
-	if [ $seek_bootfs -eq 1 ] ; then
+	if [ $SEEK_BOOTFS -eq 1 ] ; then
 		bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
 		if [ "$?" != "0" ] || [ "$bootfs" = "no pools available" ] || [ -z "$bootfs" ] ; then
 			info "ZFS: Failed to get bootfs, trying more thoroughly"
-			zpool import -N -a "${zpoolforce}"
+			zpool import -N -a "${ZPOOL_FORCE}"
 			bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
 			if [ "$?" != "0" ] || [ "$bootfs" = "" ] || [ $bootfs = "no pools available" ] ; then
 				rootok=0
@@ -30,7 +30,7 @@ if [ "${zfsroot}" = "true" ] ; then
 		bootfs="${root}"
 		info "ZFS: pool = $pool"
 		info "ZFS: bootfs = $bootfs"
-		if ! zpool import -N "$zpoolforce" "$pool" ; then
+		if ! zpool import -N "$ZPOOL_FORCE" "$pool" ; then
 			warn "ZFS: unable to import pool $pool"
 			rootok=0
 		fi
