@@ -9,15 +9,18 @@ for p in $(getargs rd.zpool.force=) ; do
 	fi
 done
 
-if [ "${ZFSROOT}" = "true" ] ; then
+mount_zfs_root() {
+	local _bootfs= _pool= mountpoint=
+
 	udevsettle
+
 	if [ $SEEK_BOOTFS -eq 1 ] ; then
-		bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
-		if [ "$?" != "0" ] || [ "$bootfs" = "no pools available" ] || [ -z "$bootfs" ] ; then
+		_bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
+		if [ "$?" != "0" ] || [ "$_bootfs" = "no pools available" ] || [ -z "$_bootfs" ] ; then
 			info "ZFS: Failed to get bootfs, trying more thoroughly"
 			zpool import -N -a "${ZPOOL_FORCE}"
-			bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
-			if [ "$?" != "0" ] || [ "$bootfs" = "" ] || [ $bootfs = "no pools available" ] ; then
+			_bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
+			if [ "$?" != "0" ] || [ -z "$_bootfs" ] || [ $_bootfs = "no pools available" ] ; then
 				rootok=0
 				die "ZFS: Failed to find bootfs, consider specifying it manually"
 				zpool list -H -o name | while read exppool ; do
@@ -26,27 +29,31 @@ if [ "${ZFSROOT}" = "true" ] ; then
 			fi
 		fi
 	else
-		pool="${root%%/*}"
-		bootfs="${root}"
-		info "ZFS: pool = $pool"
-		info "ZFS: bootfs = $bootfs"
-		if ! zpool import -N "$ZPOOL_FORCE" "$pool" ; then
-			warn "ZFS: unable to import pool $pool"
+		_pool="${root%%/*}"
+		_bootfs="${root}"
+		info "ZFS: pool = $_pool"
+		info "ZFS: bootfs = $_bootfs"
+		if ! zpool import -N "$ZPOOL_FORCE" "$_pool" ; then
+			warn "ZFS: unable to import pool $_pool"
 			rootok=0
 		fi
 	fi
 
-	mp=`zfs get -H -o value mountpoint $bootfs`
-	info "ZFS: mp = $mp"
-	info "ZFS: bootfs = $bootfs"
-	if [ "$mp" = "legacy" ] ; then
-		mount -o rw -t zfs "$bootfs" "$NEWROOT" && ROOT_MOUNTED=yes
+	_mountpoint=`zfs get -H -o value mountpoint $_bootfs`
+	info "ZFS: mountpoint = $_mountpoint"
+	info "ZFS: bootfs = $_bootfs"
+	if [ "$_mountpoint" = "legacy" ] ; then
+		mount -o rw -t zfs "$_bootfs" "$NEWROOT" && ROOT_MOUNTED=yes
 	else
-		mount -o rw,zfsutil -t zfs "$bootfs" "$NEWROOT" && ROOT_MOUNTED=yes
+		mount -o rw,zfsutil -t zfs "$_bootfs" "$NEWROOT" && ROOT_MOUNTED=yes
 	fi
 	if [ "$?" != "0" ] ; then
 		warn "ZFS: something went wrong while mounting root filesystem"
 	fi
+}
+
+if [ "${ZFSROOT}" = "true" ] ; then
+	mount_zfs_root
 else
 	info "zfs not used"
 fi
