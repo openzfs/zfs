@@ -2120,4 +2120,8 @@ MODULE_PARM_DESC(metaslab_debug_load, "load all metaslabs during pool import");
 module_param(metaslab_debug_unload, int, 0644);
 MODULE_PARM_DESC(metaslab_debug_unload,
 	"prevent metaslabs from being unloaded");
+
+module_param(zfs_mg_noalloc_threshold, int, 0644);
+MODULE_PARM_DESC(zfs_mg_noalloc_threshold,
+	"percentage of free space for metaslab group to allow allocation");
 #endif /* _KERNEL && HAVE_SPL */
