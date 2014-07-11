@@ -1398,8 +1398,6 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 	}
 
-	metaslab_group_alloc_update(mg);
-
 	/*
 	 * If the map is loaded but no longer active, evict it as soon as all
 	 * future allocations have synced.  (If we unloaded it now and then
@@ -1427,6 +1425,8 @@ metaslab_sync_reassess(metaslab_group_t *mg)
 	vdev_t *vd = mg->mg_vd;
 	int64_t failures = mg->mg_alloc_failures;
 	int m;
+
+	metaslab_group_alloc_update(mg);
 
 	/*
 	 * Re-evaluate all metaslabs which have lower offsets than the
