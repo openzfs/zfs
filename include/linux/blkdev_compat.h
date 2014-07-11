@@ -31,6 +31,7 @@
 
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
+#include <linux/backing-dev.h>
 
 #ifndef HAVE_FMODE_T
 typedef unsigned __bitwise__ fmode_t;
@@ -127,6 +128,16 @@ __blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
 	blk_queue_max_hw_segments(q, max_segments);
 }
 #endif
+
+static inline void
+blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
+{
+#ifdef HAVE_BLK_QUEUE_BDI_DYNAMIC
+	q->backing_dev_info->ra_pages = ra_pages;
+#else
+	q->backing_dev_info.ra_pages = ra_pages;
+#endif
+}
 
 #ifndef HAVE_GET_DISK_RO
 static inline int
