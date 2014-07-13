@@ -488,7 +488,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	 * unsafe to use KM_SLEEP during memory allocations due to the
 	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
 	 */
-	current->flags |= PF_NOFS;
+	current->flags |= PF_FSTRANS;
 #endif /* _KERNEL */
 
 	txg_thread_enter(tx, &cpr);
