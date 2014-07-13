@@ -1361,7 +1361,11 @@ static zio_pipe_stage_t *zio_pipeline[];
 void
 zio_execute(zio_t *zio)
 {
+	fstrans_cookie_t cookie;
+
+	cookie = spl_fstrans_mark();
 	__zio_execute(zio);
+	spl_fstrans_unmark(cookie);
 }
 
 __attribute__((always_inline))
