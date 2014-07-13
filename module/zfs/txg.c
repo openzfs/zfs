@@ -483,15 +483,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	vdev_stat_t *vs1, *vs2;
 	clock_t start, delta;
 
-#ifdef _KERNEL
-	/*
-	 * Annotate this process with a flag that indicates that it is
-	 * unsafe to use KM_SLEEP during memory allocations due to the
-	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
-	 */
-	current->flags |= PF_NOFS;
-#endif /* _KERNEL */
-
+	(void) spl_fstrans_mark();
 	txg_thread_enter(tx, &cpr);
 
 	vs1 = kmem_alloc(sizeof (vdev_stat_t), KM_PUSHPAGE);
