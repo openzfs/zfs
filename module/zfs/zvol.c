@@ -582,14 +582,14 @@ zvol_write(void *arg)
 	int error = 0;
 	dmu_tx_t *tx;
 	rl_t *rl;
+	fstrans_cookie_t cookie;
 
 	/*
 	 * Annotate this call path with a flag that indicates that it is
 	 * unsafe to use KM_SLEEP during memory allocations due to the
 	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
 	 */
-	ASSERT(!(current->flags & PF_NOFS));
-	current->flags |= PF_NOFS;
+	cookie = spl_fstrans_mark();
 
 	if (req->cmd_flags & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -630,7 +630,7 @@ zvol_write(void *arg)
 
 	blk_end_request(req, -error, size);
 out:
-	current->flags &= ~PF_NOFS;
+	spl_fstrans_unmark(cookie);
 }
 
 #ifdef HAVE_BLK_QUEUE_DISCARD
@@ -644,14 +644,14 @@ zvol_discard(void *arg)
 	uint64_t end = start + blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
+	fstrans_cookie_t cookie;
 
 	/*
 	 * Annotate this call path with a flag that indicates that it is
 	 * unsafe to use KM_SLEEP during memory allocations due to the
 	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
 	 */
-	ASSERT(!(current->flags & PF_NOFS));
-	current->flags |= PF_NOFS;
+	cookie = spl_fstrans_mark();
 
 	if (end > zv->zv_volsize) {
 		blk_end_request(req, -EIO, blk_rq_bytes(req));
@@ -684,7 +684,7 @@ zvol_discard(void *arg)
 
 	blk_end_request(req, -error, blk_rq_bytes(req));
 out:
-	current->flags &= ~PF_NOFS;
+	spl_fstrans_unmark(cookie);
 }
 #endif /* HAVE_BLK_QUEUE_DISCARD */
 
