@@ -153,7 +153,7 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	if (skc->skc_flags & KMC_KMEM)
 		ptr = (void *)__get_free_pages(lflags, get_order(size));
 	else
-		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
+		ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
@@ -1098,7 +1098,9 @@ spl_cache_grow_work(void *data)
 	sks = spl_slab_alloc(skc, ska->ska_flags);
 	memalloc_noio_restore(noio_flag);
 #else
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 	sks = spl_slab_alloc(skc, ska->ska_flags);
+	spl_fstrans_unmark(cookie);
 #endif
 	spin_lock(&skc->skc_lock);
 	if (sks) {

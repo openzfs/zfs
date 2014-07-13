@@ -184,7 +184,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 */
 		if (unlikely(size > spl_kmem_alloc_max)) {
 			if (flags & KM_VMEM) {
-				ptr = __vmalloc(size, lflags, PAGE_KERNEL);
+				ptr = spl_vmalloc(size, lflags, PAGE_KERNEL);
 			} else {
 				return (NULL);
 			}

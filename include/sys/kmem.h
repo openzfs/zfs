@@ -25,6 +25,7 @@
 #ifndef _SPL_KMEM_H
 #define	_SPL_KMEM_H
 
+#include <sys/debug.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
 
@@ -70,6 +71,39 @@ kmem_flags_convert(int flags)
 		lflags |= __GFP_ZERO;
 
 	return (lflags);
+}
+
+typedef struct {
+	struct task_struct *fstrans_thread;
+	unsigned int saved_flags;
+} fstrans_cookie_t;
+
+static inline fstrans_cookie_t
+spl_fstrans_mark(void)
+{
+	fstrans_cookie_t cookie;
+
+	cookie.fstrans_thread = current;
+	cookie.saved_flags = current->flags & PF_FSTRANS;
+	current->flags |= PF_FSTRANS;
+
+	return (cookie);
+}
+
+static inline void
+spl_fstrans_unmark(fstrans_cookie_t cookie)
+{
+	ASSERT3P(cookie.fstrans_thread, ==, current);
+	ASSERT(current->flags & PF_FSTRANS);
+
+	current->flags &= ~(PF_FSTRANS);
+	current->flags |= cookie.saved_flags;
+}
+
+static inline int
+spl_fstrans_check(void)
+{
+	return (current->flags & PF_FSTRANS);
 }
 
 #ifdef HAVE_ATOMIC64_T
