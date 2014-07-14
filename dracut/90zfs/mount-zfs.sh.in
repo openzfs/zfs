@@ -15,10 +15,24 @@ if [ -n "${ZPOOL_FORCE}" ] ; then
 	info "ZFS: Will forcibly import pools"
 fi
 
+wait_for_devzfs() {
+	local _time=20
+	while [ $_time -le 0 ] ; do
+		if [ -c "/dev/zfs" ] ; then
+			break
+		else
+			sleep 0.5
+			_time=$((_time - 1))
+		fi
+	done
+	return 0
+}
+
 mount_zfs_root() {
 	local _bootfs= _pool= _mountpoint=
 
 	udevsettle  # wait for all block devices to show up
+	wait_for_devzfs  # wait for /dev/zfs
 
 	if [ $SEEK_BOOTFS -eq 1 ] ; then
 		_bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
@@ -39,10 +53,17 @@ mount_zfs_root() {
 		_bootfs="${root}"
 		info "ZFS: pool = $_pool"
 		info "ZFS: bootfs = $_bootfs"
-		if ! zpool import -N "${ZPOOL_FORCE}" "$_pool" ; then
-			warn "ZFS: unable to import pool $_pool"
-			rootok=0
+
+		if zpool list -H -o name "$_pool" >/dev/null 2>&1 ; then
+			info "ZFS: $_pool is already imported"
+		else
+			info "ZFS: trying to import pool $_pool"
+			if ! zpool import -N "${ZPOOL_FORCE}" "$_pool" ; then
+				warn "ZFS: unable to import pool $_pool"
+				rootok=0
+			fi
 		fi
+
 	fi
 
 	_mountpoint=`zfs get -H -o value mountpoint $_bootfs`
