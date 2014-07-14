@@ -52,7 +52,6 @@ mount_zfs_root() {
 		_pool="${root%%/*}"
 		_bootfs="${root}"
 		info "ZFS: pool = $_pool"
-		info "ZFS: bootfs = $_bootfs"
 
 		if zpool list -H -o name "$_pool" >/dev/null 2>&1 ; then
 			info "ZFS: $_pool is already imported"
@@ -67,8 +66,8 @@ mount_zfs_root() {
 	fi
 
 	_mountpoint=`zfs get -H -o value mountpoint $_bootfs`
-	info "ZFS: mountpoint = $_mountpoint"
 	info "ZFS: bootfs = $_bootfs"
+	info "ZFS: mountpoint = $_mountpoint"
 	if [ "$_mountpoint" = "legacy" ] ; then
 		mount -o rw -t zfs "$_bootfs" "$NEWROOT" && ROOT_MOUNTED=yes
 	else
