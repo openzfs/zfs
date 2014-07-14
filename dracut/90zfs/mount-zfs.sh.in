@@ -1,18 +1,24 @@
 #!/bin/sh
 
+type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
+
 ZPOOL_FORCE=""
 for p in $(getargs rd.zpool.force=) ; do
-	if [ "$p" = "1" ] ; then
+	if [ "$p" = "1" ] || [ "$p" = "yes" ] || [ "$p" = "true" ] ; then
 		ZPOOL_FORCE="-f"
 	else
 		ZPOOL_FORCE=""
 	fi
 done
 
-mount_zfs_root() {
-	local _bootfs= _pool= mountpoint=
+if [ -n "${ZPOOL_FORCE}" ] ; then
+	info "ZFS: Will forcibly import pools"
+fi
 
-	udevsettle
+mount_zfs_root() {
+	local _bootfs= _pool= _mountpoint=
+
+	udevsettle  # wait for all block devices to show up
 
 	if [ $SEEK_BOOTFS -eq 1 ] ; then
 		_bootfs=`zpool list -H -o bootfs | sed -n '/-/ !p' | sed 'q'`
@@ -33,7 +39,7 @@ mount_zfs_root() {
 		_bootfs="${root}"
 		info "ZFS: pool = $_pool"
 		info "ZFS: bootfs = $_bootfs"
-		if ! zpool import -N "$ZPOOL_FORCE" "$_pool" ; then
+		if ! zpool import -N "${ZPOOL_FORCE}" "$_pool" ; then
 			warn "ZFS: unable to import pool $_pool"
 			rootok=0
 		fi
@@ -49,7 +55,8 @@ mount_zfs_root() {
 	fi
 	if [ "$?" != "0" ] ; then
 		warn "ZFS: something went wrong while mounting root filesystem"
-		warn "Try to mount it manually; the system will continue when you leave the shell"
+		warn "Try to mount it manually under $NEWROOT"
+		warn "The system will continue when you leave the shell"
 		action_on_fail
 	fi
 }
@@ -57,5 +64,5 @@ mount_zfs_root() {
 if [ "${ZFSROOT}" = "true" ] ; then
 	mount_zfs_root
 else
-	info "zfs not used"
+	info "ZFS is not used"
 fi
