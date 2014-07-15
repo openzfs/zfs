@@ -511,6 +511,21 @@ zfs_inode_update(znode_t *zp)
 	spin_unlock(&ip->i_lock);
 }
 
+/*
+ * Safely mark an inode dirty.  Inodes which are part of a read-only
+ * file system or snapshot may not be dirtied.
+ */
+void
+zfs_mark_inode_dirty(struct inode *ip)
+{
+	zfs_sb_t *zsb = ITOZSB(ip);
+
+	if (zfs_is_readonly(zsb) || dmu_objset_is_snapshot(zsb->z_os))
+		return;
+
+	mark_inode_dirty(ip);
+}
+
 static uint64_t empty_xattr;
 static uint64_t pad[4];
 static zfs_acl_phys_t acl_phys;

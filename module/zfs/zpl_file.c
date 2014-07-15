@@ -55,7 +55,7 @@ zpl_release(struct inode *ip, struct file *filp)
 	int error;
 
 	if (ITOZ(ip)->z_atime_dirty)
-		mark_inode_dirty(ip);
+		zfs_mark_inode_dirty(ip);
 
 	crhold(cr);
 	error = -zfs_close(ip, filp->f_flags, cr);
@@ -445,7 +445,8 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	if (sync_mode != wbc->sync_mode) {
 		ZFS_ENTER(zsb);
 		ZFS_VERIFY_ZP(zp);
-		zil_commit(zsb->z_log, zp->z_id);
+		if (zsb->z_log != NULL)
+			zil_commit(zsb->z_log, zp->z_id);
 		ZFS_EXIT(zsb);
 
 		/*
