@@ -233,6 +233,52 @@ Default value: 24
 .sp
 .ne 2
 .na
+\fBspa_load_verify_data\fR (int)
+.ad
+.RS 12n
+Whether to traverse data blocks during an "extreme rewind" (\fB-X\fR)
+import.  Use 0 to disable and 1 to enable.
+
+An extreme rewind import normally performs a full traversal of all
+blocks in the pool for verification.  If this parameter is set to 0,
+the traversal skips non-metadata blocks.  It can be toggled once the
+import has started to stop or start the traversal of non-metadata blocks.
+.sp
+Default value: 1
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_load_verify_metadata\fR (int)
+.ad
+.RS 12n
+Whether to traverse blocks during an "extreme rewind" (\fB-X\fR)
+pool import.  Use 0 to disable and 1 to enable.
+
+An extreme rewind import normally performs a full traversal of all
+blocks in the pool for verification.  If this parameter is set to 1,
+the traversal is not performed.  It can be toggled once the import has
+started to stop or start the traversal.
+.sp
+Default value: 1
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_load_verify_maxinflight\fR (int)
+.ad
+.RS 12n
+Maximum concurrent I/Os during the traversal performed during an "extreme
+rewind" (\fB-X\fR) pool import.
+.sp
+Default value: 10000
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfetch_array_rd_sz\fR (ulong)
 .ad
 .RS 12n
