@@ -211,8 +211,7 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 }
 
 /*
- * Remove an entry from the hash table.  This operation will
- * fail if there are any existing holds on the db.
+ * Remove an entry from the hash table.  It must be in the EVICTING state.
  */
 static void
 dbuf_hash_remove(dmu_buf_impl_t *db)
@@ -226,7 +225,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	idx = hv & h->hash_table_mask;
 
 	/*
-	 * We musn't hold db_mtx to maintin lock ordering:
+	 * We musn't hold db_mtx to maintain lock ordering:
 	 * DBUF_HASH_MUTEX > db_mtx.
 	 */
 	ASSERT(refcount_is_zero(&db->db_holds));
@@ -487,7 +486,6 @@ static void
 dbuf_set_data(dmu_buf_impl_t *db, arc_buf_t *buf)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
-	ASSERT(db->db_buf == NULL || !arc_has_callback(db->db_buf));
 	db->db_buf = buf;
 	if (buf != NULL) {
 		ASSERT(buf->b_data != NULL);
@@ -1595,12 +1593,15 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
  * when we are not holding the dn_dbufs_mtx, we can't clear the
  * entry in the dn_dbufs list.  We have to wait until dbuf_destroy()
  * in this case.  For callers from the DMU we will usually see:
- *	dbuf_clear()->arc_buf_evict()->dbuf_do_evict()->dbuf_destroy()
+ *	dbuf_clear()->arc_clear_callback()->dbuf_do_evict()->dbuf_destroy()
  * For the arc callback, we will usually see:
  *	dbuf_do_evict()->dbuf_clear();dbuf_destroy()
  * Sometimes, though, we will get a mix of these two:
- *	DMU: dbuf_clear()->arc_buf_evict()
+ *	DMU: dbuf_clear()->arc_clear_callback()
  *	ARC: dbuf_do_evict()->dbuf_destroy()
+ *
+ * This routine will dissociate the dbuf from the arc, by calling
+ * arc_clear_callback(), but will not evict the data from the ARC.
  */
 void
 dbuf_clear(dmu_buf_impl_t *db)
@@ -1608,7 +1609,7 @@ dbuf_clear(dmu_buf_impl_t *db)
 	dnode_t *dn;
 	dmu_buf_impl_t *parent = db->db_parent;
 	dmu_buf_impl_t *dndb;
-	int dbuf_gone = FALSE;
+	boolean_t dbuf_gone = B_FALSE;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(refcount_is_zero(&db->db_holds));
@@ -1654,7 +1655,7 @@ dbuf_clear(dmu_buf_impl_t *db)
 	}
 
 	if (db->db_buf)
-		dbuf_gone = arc_buf_evict(db->db_buf);
+		dbuf_gone = arc_clear_callback(db->db_buf);
 
 	if (!dbuf_gone)
 		mutex_exit(&db->db_mtx);
@@ -1831,8 +1832,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 static int
 dbuf_do_evict(void *private)
 {
-	arc_buf_t *buf = private;
-	dmu_buf_impl_t *db = buf->b_private;
+	dmu_buf_impl_t *db = private;
 
 	if (!MUTEX_HELD(&db->db_mtx))
 		mutex_enter(&db->db_mtx);
@@ -2239,11 +2239,23 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 			 * block on-disk. If so, then we simply evict
 			 * ourselves.
 			 */
-			if (!DBUF_IS_CACHEABLE(db) ||
-			    arc_buf_eviction_needed(db->db_buf))
+			if (!DBUF_IS_CACHEABLE(db)) {
+				if (db->db_blkptr != NULL &&
+				    !BP_IS_HOLE(db->db_blkptr) &&
+				    !BP_IS_EMBEDDED(db->db_blkptr)) {
+					spa_t *spa =
+					    dmu_objset_spa(db->db_objset);
+					blkptr_t bp = *db->db_blkptr;
+					dbuf_clear(db);
+					arc_freed(spa, &bp);
+				} else {
+					dbuf_clear(db);
+				}
+			} else if (arc_buf_eviction_needed(db->db_buf)) {
 				dbuf_clear(db);
-			else
+			} else {
 				mutex_exit(&db->db_mtx);
+			}
 		}
 	} else {
 		mutex_exit(&db->db_mtx);

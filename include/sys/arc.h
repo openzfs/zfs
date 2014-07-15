@@ -136,7 +136,6 @@ void arc_buf_info(arc_buf_t *buf, arc_buf_info_t *abi, int state_index);
 int arc_buf_size(arc_buf_t *buf);
 void arc_release(arc_buf_t *buf, void *tag);
 int arc_released(arc_buf_t *buf);
-int arc_has_callback(arc_buf_t *buf);
 void arc_buf_sigsegv(int sig, siginfo_t *si, void *unused);
 void arc_buf_freeze(arc_buf_t *buf);
 void arc_buf_thaw(arc_buf_t *buf);
@@ -159,7 +158,7 @@ void arc_remove_prune_callback(arc_prune_t *p);
 void arc_freed(spa_t *spa, const blkptr_t *bp);
 
 void arc_set_callback(arc_buf_t *buf, arc_evict_func_t *func, void *private);
-int arc_buf_evict(arc_buf_t *buf);
+boolean_t arc_clear_callback(arc_buf_t *buf);
 
 void arc_flush(spa_t *spa);
 void arc_tempreserve_clear(uint64_t reserve);
