@@ -37,6 +37,7 @@
 #include <linux/proc_compat.h>
 #include <linux/file_compat.h>
 #include <linux/swap.h>
+#include <linux/ratelimit.h>
 #include <sys/sysmacros.h>
 #include <sys/thread.h>
 #include <spl-debug.h>
@@ -1073,15 +1074,22 @@ spl_debug_get_mb(void)
 }
 EXPORT_SYMBOL(spl_debug_get_mb);
 
-void spl_debug_dumpstack(struct task_struct *tsk)
+/*
+ * Limit the number of stack traces dumped to not more than 5 every
+ * 60 seconds to prevent denial-of-service attacks from debug code.
+ */
+DEFINE_RATELIMIT_STATE(dumpstack_ratelimit_state, 60 * HZ, 5);
+
+void
+spl_debug_dumpstack(struct task_struct *tsk)
 {
-        extern void show_task(struct task_struct *);
+	if (__ratelimit(&dumpstack_ratelimit_state)) {
+		if (tsk == NULL)
+			tsk = current;
 
-        if (tsk == NULL)
-                tsk = current;
-
-        printk("SPL: Showing stack for process %d\n", tsk->pid);
-        dump_stack();
+		printk("SPL: Showing stack for process %d\n", tsk->pid);
+		dump_stack();
+	}
 }
 EXPORT_SYMBOL(spl_debug_dumpstack);
 
