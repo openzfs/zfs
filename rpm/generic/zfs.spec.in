@@ -29,7 +29,7 @@
 %endif
 
 %bcond_with    debug
-%bcond_with    blkid
+%bcond_without blkid
 %bcond_with    systemd
 
 # Generic enable switch for systemd
