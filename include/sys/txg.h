@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_TXG_H
@@ -118,6 +118,7 @@ extern void txg_wait_callbacks(struct dsl_pool *dp);
 extern void txg_list_create(txg_list_t *tl, size_t offset);
 extern void txg_list_destroy(txg_list_t *tl);
 extern boolean_t txg_list_empty(txg_list_t *tl, uint64_t txg);
+extern boolean_t txg_all_lists_empty(txg_list_t *tl);
 extern boolean_t txg_list_add(txg_list_t *tl, void *p, uint64_t txg);
 extern boolean_t txg_list_add_tail(txg_list_t *tl, void *p, uint64_t txg);
 extern void *txg_list_remove(txg_list_t *tl, uint64_t txg);
