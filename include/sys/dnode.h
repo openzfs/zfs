@@ -138,9 +138,31 @@ typedef struct dnode_phys {
 
 	uint64_t dn_pad3[4];
 
-	blkptr_t dn_blkptr[1];
-	uint8_t dn_bonus[DN_MAX_BONUSLEN - sizeof (blkptr_t)];
-	blkptr_t dn_spill;
+	/*
+	 * The tail region is 448 bytes, and there are three ways to
+	 * look at it.
+	 *
+	 * 0       64      128     192     256     320     384     448 (offset)
+	 * +---------------+---------------+---------------+-------+
+	 * | dn_blkptr[0]  | dn_blkptr[1]  | dn_blkptr[2]  | /     |
+	 * +---------------+---------------+---------------+-------+
+	 * | dn_blkptr[0]  | dn_bonus[0..319]                      |
+	 * +---------------+-----------------------+---------------+
+	 * | dn_blkptr[0]  | /                     | dn_spill      |
+	 * +---------------+-----------------------+---------------+
+	 */
+	union {
+		blkptr_t dn_blkptr[1+DN_MAX_BONUSLEN/sizeof (blkptr_t)];
+		struct {
+			blkptr_t __dn_ignore1;
+			uint8_t dn_bonus[DN_MAX_BONUSLEN];
+		};
+		struct {
+			blkptr_t __dn_ignore2;
+			uint8_t __dn_ignore3[DN_MAX_BONUSLEN-sizeof (blkptr_t)];
+			blkptr_t dn_spill;
+		};
+	};
 } dnode_phys_t;
 
 typedef struct dnode {
