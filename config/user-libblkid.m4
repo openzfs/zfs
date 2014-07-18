@@ -16,20 +16,13 @@ dnl # Otherwise we disable blkid support and resort to manual probing.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_USER_LIBBLKID], [
 	AC_ARG_WITH([blkid],
-		[AS_HELP_STRING([--with-blkid],
-		[support blkid caching @<:@default=check@:>@])],
+		[AS_HELP_STRING([--without-blkid],
+		[disable suport for  blkid])],
 		[],
-		[with_blkid=check])
+		[with_blkid=yes])
 
 	LIBBLKID=
-	AS_IF([test "x$with_blkid" = xyes],
-	[
-		AC_SUBST([LIBBLKID], ["-lblkid"])
-		AC_DEFINE([HAVE_LIBBLKID], 1,
-			[Define if you have libblkid])
-	])
-
-	AS_IF([test "x$with_blkid" = xcheck],
+	AS_IF([test "x$with_blkid" != xno],
 	[
 		AC_CHECK_LIB([blkid], [blkid_get_cache],
 		[
@@ -96,17 +89,13 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBBLKID], [
 			[
 				rm -f $ZFS_DEV
 				AC_MSG_RESULT([no])
-				AS_IF([test "x$with_blkid" != xcheck],
-					[AC_MSG_FAILURE(
-					[--with-blkid given but unavailable])])
+				AC_MSG_FAILURE([libblkid test failed (--without-libblkid to disable)])
 			])
 
 			LIBS="$saved_LIBS"
 		],
 		[
-			AS_IF([test "x$with_blkid" != xcheck],
-				[AC_MSG_FAILURE(
-				[--with-blkid given but unavailable])])
+			AC_MSG_FAILURE([libblkid test failed (--without-libblkid to disable)])
 		]
 		[])
 	])
