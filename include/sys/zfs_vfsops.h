@@ -67,7 +67,7 @@ typedef struct zfs_sb {
 	boolean_t	z_atime;	/* enable atimes mount option */
 	boolean_t	z_relatime;	/* enable relatime mount option */
 	boolean_t	z_unmounted;	/* unmounted */
-	rrwlock_t	z_teardown_lock;
+	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
