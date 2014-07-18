@@ -82,6 +82,31 @@ void rrw_tsd_destroy(void *arg);
 #define	RRW_LOCK_HELD(x) \
 	(rrw_held(x, RW_WRITER) || rrw_held(x, RW_READER))
 
+/*
+ * A reader-mostly lock implementation, tuning above reader-writer locks
+ * for hightly parallel read acquisitions, pessimizing write acquisitions.
+ *
+ * This should be a prime number.  See comment in rrwlock.c near
+ * RRM_TD_LOCK() for details.
+ */
+#define	RRM_NUM_LOCKS		17
+typedef struct rrmlock {
+	rrwlock_t	locks[RRM_NUM_LOCKS];
+} rrmlock_t;
+
+void rrm_init(rrmlock_t *rrl, boolean_t track_all);
+void rrm_destroy(rrmlock_t *rrl);
+void rrm_enter(rrmlock_t *rrl, krw_t rw, void *tag);
+void rrm_enter_read(rrmlock_t *rrl, void *tag);
+void rrm_enter_write(rrmlock_t *rrl);
+void rrm_exit(rrmlock_t *rrl, void *tag);
+boolean_t rrm_held(rrmlock_t *rrl, krw_t rw);
+
+#define	RRM_READ_HELD(x)	rrm_held(x, RW_READER)
+#define	RRM_WRITE_HELD(x)	rrm_held(x, RW_WRITER)
+#define	RRM_LOCK_HELD(x) \
+	(rrm_held(x, RW_WRITER) || rrm_held(x, RW_READER))
+
 #ifdef	__cplusplus
 }
 #endif

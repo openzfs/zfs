@@ -1451,7 +1451,7 @@ zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
 	if (get_zfs_sb(name, zsbp) != 0)
 		error = zfs_sb_create(name, zsbp);
 	if (error == 0) {
-		rrw_enter(&(*zsbp)->z_teardown_lock, (writer) ? RW_WRITER :
+		rrm_enter(&(*zsbp)->z_teardown_lock, (writer) ? RW_WRITER :
 		    RW_READER, tag);
 		if ((*zsbp)->z_unmounted) {
 			/*
@@ -1459,7 +1459,7 @@ zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
 			 * thread should be just about to disassociate the
 			 * objset from the zsb.
 			 */
-			rrw_exit(&(*zsbp)->z_teardown_lock, tag);
+			rrm_exit(&(*zsbp)->z_teardown_lock, tag);
 			return (SET_ERROR(EBUSY));
 		}
 	}
@@ -1469,7 +1469,7 @@ zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
 static void
 zfs_sb_rele(zfs_sb_t *zsb, void *tag)
 {
-	rrw_exit(&zsb->z_teardown_lock, tag);
+	rrm_exit(&zsb->z_teardown_lock, tag);
 
 	if (zsb->z_sb) {
 		deactivate_super(zsb->z_sb);

@@ -286,3 +286,91 @@ rrw_tsd_destroy(void *arg)
 		    (void *)curthread, (void *)rn->rn_rrl);
 	}
 }
+
+/*
+ * A reader-mostly lock implementation, tuning above reader-writer locks
+ * for hightly parallel read acquisitions, while pessimizing writes.
+ *
+ * The idea is to split single busy lock into array of locks, so that
+ * each reader can lock only one of them for read, depending on result
+ * of simple hash function.  That proportionally reduces lock congestion.
+ * Writer same time has to sequentially aquire write on all the locks.
+ * That makes write aquisition proportionally slower, but in places where
+ * it is used (filesystem unmount) performance is not critical.
+ *
+ * All the functions below are direct wrappers around functions above.
+ */
+void
+rrm_init(rrmlock_t *rrl, boolean_t track_all)
+{
+	int i;
+
+	for (i = 0; i < RRM_NUM_LOCKS; i++)
+		rrw_init(&rrl->locks[i], track_all);
+}
+
+void
+rrm_destroy(rrmlock_t *rrl)
+{
+	int i;
+
+	for (i = 0; i < RRM_NUM_LOCKS; i++)
+		rrw_destroy(&rrl->locks[i]);
+}
+
+void
+rrm_enter(rrmlock_t *rrl, krw_t rw, void *tag)
+{
+	if (rw == RW_READER)
+		rrm_enter_read(rrl, tag);
+	else
+		rrm_enter_write(rrl);
+}
+
+/*
+ * This maps the current thread to a specific lock.  Note that the lock
+ * must be released by the same thread that acquired it.  We do this
+ * mapping by taking the thread pointer mod a prime number.  We examine
+ * only the low 32 bits of the thread pointer, because 32-bit division
+ * is faster than 64-bit division, and the high 32 bits have little
+ * entropy anyway.
+ */
+#define	RRM_TD_LOCK()	(((uint32_t)(uintptr_t)(curthread)) % RRM_NUM_LOCKS)
+
+void
+rrm_enter_read(rrmlock_t *rrl, void *tag)
+{
+	rrw_enter_read(&rrl->locks[RRM_TD_LOCK()], tag);
+}
+
+void
+rrm_enter_write(rrmlock_t *rrl)
+{
+	int i;
+
+	for (i = 0; i < RRM_NUM_LOCKS; i++)
+		rrw_enter_write(&rrl->locks[i]);
+}
+
+void
+rrm_exit(rrmlock_t *rrl, void *tag)
+{
+	int i;
+
+	if (rrl->locks[0].rr_writer == curthread) {
+		for (i = 0; i < RRM_NUM_LOCKS; i++)
+			rrw_exit(&rrl->locks[i], tag);
+	} else {
+		rrw_exit(&rrl->locks[RRM_TD_LOCK()], tag);
+	}
+}
+
+boolean_t
+rrm_held(rrmlock_t *rrl, krw_t rw)
+{
+	if (rw == RW_WRITER) {
+		return (rrw_held(&rrl->locks[0], rw));
+	} else {
+		return (rrw_held(&rrl->locks[RRM_TD_LOCK()], rw));
+	}
+}
