@@ -509,6 +509,7 @@ zfs_inode_update(znode_t *zp)
 
 	i_size_write(ip, zp->z_size);
 	spin_unlock(&ip->i_lock);
+	mark_inode_dirty(ip);
 }
 
 /*
