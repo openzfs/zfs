@@ -137,6 +137,18 @@ Default value: \fB8,388,608\fR.
 .sp
 .ne 2
 .na
+\fBmetaslab_bias_enabled\fR (int)
+.ad
+.RS 12n
+Enable metaslab group biasing based on its vdev's over- or under-utilization
+relative to the pool.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
 \fBmetaslab_debug_load\fR (int)
 .ad
 .RS 12n
@@ -154,6 +166,41 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 Prevent metaslabs from being unloaded.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_fragmentation_factor_enabled\fR (int)
+.ad
+.RS 12n
+Enable use of the fragmentation metric in computing metaslab weights.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_preload_enabled\fR (int)
+.ad
+.RS 12n
+Enable metaslab group preloading.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_lba_weighting_enabled\fR (int)
+.ad
+.RS 12n
+Give more weight to metaslabs with lower LBAs, assuming they have
+greater bandwidth as is typically the case on a modern constant
+angular velocity disk drive.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
 .RE
 
 .sp
@@ -764,6 +811,35 @@ Default value: \fB32,768\fR.
 Disable meta data compression
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_fragmentation_threshold\fR (int)
+.ad
+.RS 12n
+Allow metaslabs to keep their active state as long as their fragmentation
+percentage is less than or equal to this value. An active metaslab that
+exceeds this threshold will no longer keep its active status allowing
+better metaslabs to be selected.
+.sp
+Default value: \fB70\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_mg_fragmentation_threshold\fR (int)
+.ad
+.RS 12n
+Metaslab groups are considered eligible for allocations if their
+fragmenation metric (measured as a percentage) is less than or equal to
+this value. If a metaslab group exceeds this threshold then it will be
+skipped unless all metaslab groups within the metaslab class have also
+crossed this threshold.
+.sp
+Default value: \fB85\fR.
 .RE
 
 .sp
