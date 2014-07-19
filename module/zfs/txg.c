@@ -539,7 +539,9 @@ txg_sync_thread(dsl_pool_t *dp)
 			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
 		}
 
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
 		vdev_get_stats(spa->spa_root_vdev, vs1);
+		spa_config_exit(spa, SCL_ALL, FTAG);
 
 		/*
 		 * Consume the quiesced txg which has been handed off to
@@ -575,7 +577,9 @@ txg_sync_thread(dsl_pool_t *dp)
 		 */
 		txg_dispatch_callbacks(dp, txg);
 
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
 		vdev_get_stats(spa->spa_root_vdev, vs2);
+		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa_txg_history_set_io(spa, txg,
 		    vs2->vs_bytes[ZIO_TYPE_READ]-vs1->vs_bytes[ZIO_TYPE_READ],
 		    vs2->vs_bytes[ZIO_TYPE_WRITE]-vs1->vs_bytes[ZIO_TYPE_WRITE],

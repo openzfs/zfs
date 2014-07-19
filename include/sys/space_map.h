@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_SPACE_MAP_H
@@ -44,9 +44,7 @@ extern "C" {
  * maintain backward compatibility.
  */
 #define	SPACE_MAP_SIZE_V0	(3 * sizeof (uint64_t))
-#define	SPACE_MAP_HISTOGRAM_SIZE(sm)			\
-	(sizeof ((sm)->sm_phys->smp_histogram) /	\
-	sizeof ((sm)->sm_phys->smp_histogram[0]))
+#define	SPACE_MAP_HISTOGRAM_SIZE	32
 
 /*
  * The space_map_phys is the on-disk representation of the space map.
@@ -68,7 +66,7 @@ typedef struct space_map_phys {
 	 * whose size is:
 	 * 2^(i+sm_shift) <= size of free region in bytes < 2^(i+sm_shift+1)
 	 */
-	uint64_t	smp_histogram[32]; /* histogram of free space */
+	uint64_t	smp_histogram[SPACE_MAP_HISTOGRAM_SIZE];
 } space_map_phys_t;
 
 /*

@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -87,6 +87,8 @@ zpool_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_POOL, "<size>", "ALLOC");
 	zprop_register_number(ZPOOL_PROP_EXPANDSZ, "expandsize", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<size>", "EXPANDSZ");
+	zprop_register_number(ZPOOL_PROP_FRAGMENTATION, "fragmentation", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<percent>", "FRAG");
 	zprop_register_number(ZPOOL_PROP_CAPACITY, "capacity", 0, PROP_READONLY,
 	    ZFS_TYPE_POOL, "<size>", "CAP");
 	zprop_register_number(ZPOOL_PROP_GUID, "guid", 0, PROP_READONLY,

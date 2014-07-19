@@ -2151,11 +2151,16 @@ vdev_remove(vdev_t *vd, uint64_t txg)
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_meta_objset;
 	dmu_tx_t *tx;
-	int m;
+	int m, i;
 
 	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
 	if (vd->vdev_ms != NULL) {
+		metaslab_group_t *mg = vd->vdev_mg;
+
+		metaslab_group_histogram_verify(mg);
+		metaslab_class_histogram_verify(mg->mg_class);
+
 		for (m = 0; m < vd->vdev_ms_count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
 
@@ -2163,12 +2168,27 @@ vdev_remove(vdev_t *vd, uint64_t txg)
 				continue;
 
 			mutex_enter(&msp->ms_lock);
+			/*
+			 * If the metaslab was not loaded when the vdev
+			 * was removed then the histogram accounting may
+			 * not be accurate. Update the histogram information
+			 * here so that we ensure that the metaslab group
+			 * and metaslab class are up-to-date.
+			 */
+			metaslab_group_histogram_remove(mg, msp);
+
 			VERIFY0(space_map_allocated(msp->ms_sm));
 			space_map_free(msp->ms_sm, tx);
 			space_map_close(msp->ms_sm);
 			msp->ms_sm = NULL;
 			mutex_exit(&msp->ms_lock);
 		}
+
+		metaslab_group_histogram_verify(mg);
+		metaslab_class_histogram_verify(mg->mg_class);
+		for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
+			ASSERT0(mg->mg_histogram[i]);
+
 	}
 
 	if (vd->vdev_ms_array) {
@@ -2621,8 +2641,11 @@ vdev_accessible(vdev_t *vd, zio_t *zio)
 void
 vdev_get_stats(vdev_t *vd, vdev_stat_t *vs)
 {
-	vdev_t *rvd = vd->vdev_spa->spa_root_vdev;
+	spa_t *spa = vd->vdev_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
 	int c, t;
+
+	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
 
 	mutex_enter(&vd->vdev_stat_lock);
 	bcopy(&vd->vdev_stat, vs, sizeof (*vs));
@@ -2632,7 +2655,8 @@ vdev_get_stats(vdev_t *vd, vdev_stat_t *vs)
 	if (vd->vdev_ops->vdev_op_leaf)
 		vs->vs_rsize += VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
 	vs->vs_esize = vd->vdev_max_asize - vd->vdev_asize;
-	mutex_exit(&vd->vdev_stat_lock);
+	if (vd->vdev_aux == NULL && vd == vd->vdev_top)
+		vs->vs_fragmentation = vd->vdev_mg->mg_fragmentation;
 
 	/*
 	 * If we're getting stats on the root vdev, aggregate the I/O counts
@@ -2643,15 +2667,14 @@ vdev_get_stats(vdev_t *vd, vdev_stat_t *vs)
 			vdev_t *cvd = rvd->vdev_child[c];
 			vdev_stat_t *cvs = &cvd->vdev_stat;
 
-			mutex_enter(&vd->vdev_stat_lock);
 			for (t = 0; t < ZIO_TYPES; t++) {
 				vs->vs_ops[t] += cvs->vs_ops[t];
 				vs->vs_bytes[t] += cvs->vs_bytes[t];
 			}
 			cvs->vs_scan_removing = cvd->vdev_removing;
-			mutex_exit(&vd->vdev_stat_lock);
 		}
 	}
+	mutex_exit(&vd->vdev_stat_lock);
 }
 
 void

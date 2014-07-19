@@ -205,10 +205,10 @@ space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
 		 * reached the maximum bucket size. Accumulate all ranges
 		 * larger than the max bucket size into the last bucket.
 		 */
-		if (idx < SPACE_MAP_HISTOGRAM_SIZE(sm) - 1) {
+		if (idx < SPACE_MAP_HISTOGRAM_SIZE - 1) {
 			ASSERT3U(idx + sm->sm_shift, ==, i);
 			idx++;
-			ASSERT3U(idx, <, SPACE_MAP_HISTOGRAM_SIZE(sm));
+			ASSERT3U(idx, <, SPACE_MAP_HISTOGRAM_SIZE);
 		}
 	}
 }
