@@ -1,7 +1,7 @@
 #!/bin/bash
 
 check() {
-	require_binaries zpool zfs mount.zfs || return 1
+	type -P mount.zfs zfs zpool >/dev/null || return 1
 	return 0
 }
 
@@ -27,5 +27,9 @@ install() {
 	inst @sbindir@/zpool
 	inst @sbindir@/zfs
 	inst @sbindir@/mount.zfs
-	inst_multiple -o @sbindir@/zdb @sysconfdir@/zfs/zpool.cache @sysconfdir@/hostid @sysconfdir@/zfs/vdev.conf /usr/bin/hostid
+	for opt_f in sbindir@/zdb @sysconfdir@/zfs/zpool.cache @sysconfdir@/hostid @sysconfdir@/zfs/vdev.conf /usr/bin/hostid ; do
+		if [ -e "${opt_f}" ] ; then
+			inst "${opt_f}"
+		fi
+	done
 }

@@ -9,7 +9,7 @@ case "$root" in
 		;;
 
 	ZFS:*|ZFS=*)
-		root="${root:4}"
+		root="${root#ZFS?}"
 		ZFSROOT="true"
 		rootok=1
 		SEEK_BOOTFS=0
