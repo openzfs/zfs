@@ -47,8 +47,8 @@ zpool_create() {
 	${LVCREATE} --size=${LVSIZE} --stripes=${LVSTRIPES} \
 		--name=${LVNAME} ${VGNAME} >/dev/null || exit 3
 
-	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${DEVICES}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} \
+	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${DEVICES}
+	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} \
 		${DEVICES} || (zpool_dm_destroy && exit 4)
 }
 

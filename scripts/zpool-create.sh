@@ -14,7 +14,7 @@ PROG=zpool-create.sh
 usage() {
 cat << EOF
 USAGE:
-$0 [hvcp]
+$0 [hvfdcp]
 
 DESCRIPTION:
         Create one of several predefined zpool configurations.
@@ -23,6 +23,7 @@ OPTIONS:
         -h      Show this message
         -v      Verbose
         -f      Force everything
+        -d      Disable all features
         -c      Configuration for zpool
         -p      Name for zpool
         -d      Destroy zpool (default create)
@@ -52,10 +53,11 @@ check_config() {
 ZPOOL_CONFIG=unknown
 ZPOOL_NAME=tank
 ZPOOL_DESTROY=
+ZPOOL_FLAGS=${ZPOOL_FLAGS:-""}
 ZPOOL_OPTIONS=""
 ZFS_OPTIONS=""
 
-while getopts 'hvfc:p:dl:s:' OPTION; do
+while getopts 'hvfdc:p:dl:s:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -63,11 +65,15 @@ while getopts 'hvfc:p:dl:s:' OPTION; do
 		;;
 	v)
 		VERBOSE=1
-		VERBOSE_FLAG="-v"
+		ZPOOL_FLAGS="$ZPOOL_FLAGS -v"
 		;;
 	f)
 		FORCE=1
-		FORCE_FLAG="-f"
+		ZPOOL_FLAGS="$ZPOOL_FLAGS -f"
+		;;
+	d)
+		NO_FEATURES=1
+		ZPOOL_FLAGS="$ZPOOL_FLAGS -d"
 		;;
 	c)
 		ZPOOL_CONFIG=${ZPOOLDIR}/${OPTARG}.sh
