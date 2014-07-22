@@ -33,8 +33,8 @@ zpool_create() {
 	${PARTED} -s ${SDDEVICE} mklabel gpt ||                              \
 		(${RMMOD} scsi_debug && die "Error $? creating gpt label")
 
-	msg "${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${SDDEVICE}"
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${SDDEVICE} ||           \
+	msg "${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${SDDEVICE}"
+	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${SDDEVICE} ||           \
 		(${RMMOD} scsi_debug && exit 1)
 }
 
