@@ -362,7 +362,7 @@ zfs_prop_init(void)
 	    "<1.00x or higher if compressed>", "REFRATIO");
 	zprop_register_number(ZFS_PROP_VOLBLOCKSIZE, "volblocksize",
 	    ZVOL_DEFAULT_BLOCKSIZE, PROP_ONETIME,
-	    ZFS_TYPE_VOLUME, "512 to 128k, power of 2",	"VOLBLOCK");
+	    ZFS_TYPE_VOLUME, "512 to 8M, power of 2",	"VOLBLOCK");
 	zprop_register_number(ZFS_PROP_USEDSNAP, "usedbysnapshots", 0,
 	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<size>",
 	    "USEDSNAP");
@@ -400,8 +400,8 @@ zfs_prop_init(void)
 
 	/* inherit number properties */
 	zprop_register_number(ZFS_PROP_RECORDSIZE, "recordsize",
-	    SPA_MAXBLOCKSIZE, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM, "512 to 128k, power of 2", "RECSIZE");
+	    SPA_OLD_MAXBLOCKSIZE, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "512 to 8M, power of 2", "RECSIZE");
 
 	/* hidden properties */
 	zprop_register_hidden(ZFS_PROP_CREATETXG, "createtxg", PROP_TYPE_NUMBER,

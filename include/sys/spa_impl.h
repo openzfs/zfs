@@ -198,6 +198,8 @@ struct spa {
 	vdev_t		*spa_pending_vdev;	/* pending vdev additions */
 	kmutex_t	spa_props_lock;		/* property lock */
 	uint64_t	spa_pool_props_object;	/* object for properties */
+	kmutex_t	spa_maxblksz_lock;	/* max block size lock */
+	uint64_t	spa_maxblksz;		/* max block size */
 	uint64_t	spa_bootfs;		/* default boot filesystem */
 	uint64_t	spa_failmode;		/* failure mode for the pool */
 	uint64_t	spa_delegation;		/* delegation on/off */

@@ -489,8 +489,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 
 	if (blocksize == 0)
 		blocksize = 1 << zfs_default_bs;
-	else if (blocksize > SPA_MAXBLOCKSIZE)
-		blocksize = SPA_MAXBLOCKSIZE;
+	else if (blocksize > spa_get_maxblksz(dn->dn_objset->os_spa))
+		blocksize = spa_get_maxblksz(dn->dn_objset->os_spa);
 	else
 		blocksize = P2ROUNDUP(blocksize, SPA_MINBLOCKSIZE);
 

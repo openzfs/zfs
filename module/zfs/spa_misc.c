@@ -483,6 +483,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	mutex_init(&spa->spa_scrub_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_suspend_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_vdev_top_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&spa->spa_maxblksz_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	cv_init(&spa->spa_async_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_proc_cv, NULL, CV_DEFAULT, NULL);
@@ -610,6 +611,7 @@ spa_remove(spa_t *spa)
 	mutex_destroy(&spa->spa_scrub_lock);
 	mutex_destroy(&spa->spa_suspend_lock);
 	mutex_destroy(&spa->spa_vdev_top_lock);
+	mutex_destroy(&spa->spa_maxblksz_lock);
 
 	kmem_free(spa, sizeof (spa_t));
 }
@@ -1476,6 +1478,33 @@ spa_update_dspace(spa_t *spa)
 {
 	spa->spa_dspace = metaslab_class_get_dspace(spa_normal_class(spa)) +
 	    ddt_get_dedup_dspace(spa);
+}
+
+/*
+ * XXX: This locking feels too heavy weight.  Do to have rarely this
+ * value changes we should be able to do something better.
+ */
+uint64_t
+spa_get_maxblksz(spa_t *spa)
+{
+	uint64_t maxblksz;
+
+	mutex_enter(&spa->spa_maxblksz_lock);
+	maxblksz = spa->spa_maxblksz;
+	mutex_exit(&spa->spa_maxblksz_lock);
+
+	return (maxblksz);
+}
+
+void
+spa_set_maxblksz(spa_t *spa, uint64_t maxblksz)
+{
+	ASSERT(maxblksz == SPA_OLD_MAXBLOCKSIZE ||
+	    maxblksz == SPA_MAXBLOCKSIZE);
+
+	mutex_enter(&spa->spa_maxblksz_lock);
+	spa->spa_maxblksz = maxblksz;
+	mutex_exit(&spa->spa_maxblksz_lock);
 }
 
 /*
