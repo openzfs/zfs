@@ -16,9 +16,9 @@ zpool_create() {
 			&>/dev/null || die "Error $? creating ${FILE}"
 	done
 
-	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} \
+	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} \
 		mirror ${FILES_M1} mirror ${FILES_M2}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} \
+	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} \
 		mirror ${FILES_M1} mirror ${FILES_M2} || exit 1
 }
 
