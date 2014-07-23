@@ -62,7 +62,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool get\fR [\fB-p\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
+\fBzpool get\fR [\fB-pH\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
 .fi
 
 .LP
@@ -1077,6 +1077,17 @@ See the "Properties" section for more information on the available pool properti
 .RS 6n
 .rt
 Display numbers in parseable (exact) values.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-H\fR\fR
+.ad
+.RS 6n
+.rt
+Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
 .RE
 
 .RE

@@ -266,7 +266,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_EVENTS:
 		return (gettext("\tevents [-vHfc]\n"));
 	case HELP_GET:
-		return (gettext("\tget [-p] <\"all\" | property[,...]> "
+		return (gettext("\tget [-pH] <\"all\" | property[,...]> "
 		    "<pool> ...\n"));
 	case HELP_SET:
 		return (gettext("\tset <property=value> <pool> \n"));
@@ -5617,10 +5617,14 @@ zpool_do_get(int argc, char **argv)
 	int c, ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "p")) != -1) {
+	while ((c = getopt(argc, argv, "pH")) != -1) {
 		switch (c) {
 		case 'p':
 			cb.cb_literal = B_TRUE;
+			break;
+
+		case 'H':
+			cb.cb_scripted = B_TRUE;
 			break;
 
 		case '?':
