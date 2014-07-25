@@ -98,7 +98,7 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	 */
 	ASSERT(!scn->scn_async_destroying);
 	scn->scn_async_destroying = spa_feature_is_active(dp->dp_spa,
-	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY]);
+	    SPA_FEATURE_ASYNC_DESTROY);
 
 	err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    "scrub_func", sizeof (uint64_t), 1, &f);
@@ -1415,7 +1415,6 @@ dsl_scan_active(dsl_scan_t *scn)
 		return (B_FALSE);
 	if (spa_shutting_down(spa))
 		return (B_FALSE);
-
 	if (scn->scn_phys.scn_state == DSS_SCANNING ||
 	    scn->scn_async_destroying)
 		return (B_TRUE);
@@ -1474,7 +1473,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		VERIFY3U(0, ==, zio_wait(scn->scn_zio_root));
 
 		if (err == 0 && spa_feature_is_active(spa,
-		    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+		    SPA_FEATURE_ASYNC_DESTROY)) {
 			ASSERT(scn->scn_async_destroying);
 			scn->scn_is_bptree = B_TRUE;
 			scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
@@ -1485,11 +1484,11 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			VERIFY0(zio_wait(scn->scn_zio_root));
 
 			if (err == 0) {
-				zfeature_info_t *feat = &spa_feature_table
-				    [SPA_FEATURE_ASYNC_DESTROY];
 				/* finished; deactivate async destroy feature */
-				spa_feature_decr(spa, feat, tx);
-				ASSERT(!spa_feature_is_active(spa, feat));
+				spa_feature_decr(spa, SPA_FEATURE_ASYNC_DESTROY,
+				    tx);
+				ASSERT(!spa_feature_is_active(spa,
+				    SPA_FEATURE_ASYNC_DESTROY));
 				VERIFY0(zap_remove(dp->dp_meta_objset,
 				    DMU_POOL_DIRECTORY_OBJECT,
 				    DMU_POOL_BPTREE_OBJ, tx));

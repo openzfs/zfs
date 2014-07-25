@@ -619,7 +619,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 			continue;
 		}
 
-		if (doi.doi_type == DMU_OT_DSL_DATASET) {
+		if (doi.doi_bonus_type == DMU_OT_DSL_DATASET) {
 			dsl_dataset_t *ds;
 			uint64_t txg = txg_start;
 

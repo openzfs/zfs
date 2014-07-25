@@ -273,6 +273,9 @@ typedef struct dmu_sendarg {
 	uint64_t dsa_last_data_offset;
 } dmu_sendarg_t;
 
+void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
+void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -565,16 +565,20 @@ get_metaslab_refcount(vdev_t *vd)
 static int
 verify_spacemap_refcounts(spa_t *spa)
 {
-	int expected_refcount, actual_refcount;
+	uint64_t expected_refcount = 0;
+	uint64_t actual_refcount;
 
-	expected_refcount = spa_feature_get_refcount(spa,
-	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM]);
+	(void) feature_get_refcount(spa,
+	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM],
+	    &expected_refcount);
 	actual_refcount = get_dtl_refcount(spa->spa_root_vdev);
 	actual_refcount += get_metaslab_refcount(spa->spa_root_vdev);
 
 	if (expected_refcount != actual_refcount) {
-		(void) printf("space map refcount mismatch: expected %d != "
-		    "actual %d\n", expected_refcount, actual_refcount);
+		(void) printf("space map refcount mismatch: expected %lld != "
+		    "actual %lld\n",
+		    (longlong_t)expected_refcount,
+		    (longlong_t)actual_refcount);
 		return (2);
 	}
 	return (0);
@@ -676,8 +680,7 @@ dump_metaslab(metaslab_t *msp)
 	}
 
 	if (dump_opt['m'] > 1 && sm != NULL &&
-	    spa_feature_is_active(spa,
-	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM])) {
+	    spa_feature_is_active(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
 		/*
 		 * The space map histogram represents free space in chunks
 		 * of sm_shift (i.e. bucket 0 refers to 2^sm_shift).
@@ -2515,8 +2518,7 @@ dump_block_stats(spa_t *spa)
 		(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
 		    count_block_cb, &zcb, NULL);
 	}
-	if (spa_feature_is_active(spa,
-	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+	if (spa_feature_is_active(spa, SPA_FEATURE_ASYNC_DESTROY)) {
 		VERIFY3U(0, ==, bptree_iterate(spa->spa_meta_objset,
 		    spa->spa_dsl_pool->dp_bptree_obj, B_FALSE, count_block_cb,
 		    &zcb, NULL));
@@ -2832,7 +2834,7 @@ dump_zpool(spa_t *spa)
 			}
 
 			if (spa_feature_is_active(spa,
-			    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+			    SPA_FEATURE_ASYNC_DESTROY)) {
 				dump_bptree(spa->spa_meta_objset,
 				    spa->spa_dsl_pool->dp_bptree_obj,
 				    "Pool dataset frees");

@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -578,7 +578,12 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	    BP_GET_LSIZE(&dnp->dn_blkptr[0]) ==
 	    dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 
-	if (dn->dn_next_blksz[txgoff]) {
+	if (dn->dn_next_type[txgoff] != 0) {
+		dnp->dn_type = dn->dn_type;
+		dn->dn_next_type[txgoff] = 0;
+	}
+
+	if (dn->dn_next_blksz[txgoff] != 0) {
 		ASSERT(P2PHASE(dn->dn_next_blksz[txgoff],
 		    SPA_MINBLOCKSIZE) == 0);
 		ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[0]) ||
@@ -591,7 +596,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dn->dn_next_blksz[txgoff] = 0;
 	}
 
-	if (dn->dn_next_bonuslen[txgoff]) {
+	if (dn->dn_next_bonuslen[txgoff] != 0) {
 		if (dn->dn_next_bonuslen[txgoff] == DN_ZERO_BONUSLEN)
 			dnp->dn_bonuslen = 0;
 		else
@@ -600,7 +605,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dn->dn_next_bonuslen[txgoff] = 0;
 	}
 
-	if (dn->dn_next_bonustype[txgoff]) {
+	if (dn->dn_next_bonustype[txgoff] != 0) {
 		ASSERT(DMU_OT_IS_VALID(dn->dn_next_bonustype[txgoff]));
 		dnp->dn_bonustype = dn->dn_next_bonustype[txgoff];
 		dn->dn_next_bonustype[txgoff] = 0;
@@ -618,7 +623,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dn->dn_rm_spillblk[txgoff] = 0;
 	}
 
-	if (dn->dn_next_indblkshift[txgoff]) {
+	if (dn->dn_next_indblkshift[txgoff] != 0) {
 		ASSERT(dnp->dn_nlevels == 1);
 		dnp->dn_indblkshift = dn->dn_next_indblkshift[txgoff];
 		dn->dn_next_indblkshift[txgoff] = 0;

@@ -482,8 +482,6 @@ space_map_truncate(space_map_t *sm, dmu_tx_t *tx)
 {
 	objset_t *os = sm->sm_os;
 	spa_t *spa = dmu_objset_spa(os);
-	zfeature_info_t *space_map_histogram =
-	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM];
 	dmu_object_info_t doi;
 	int bonuslen;
 
@@ -493,7 +491,7 @@ space_map_truncate(space_map_t *sm, dmu_tx_t *tx)
 	VERIFY0(dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx));
 	dmu_object_info_from_db(sm->sm_dbuf, &doi);
 
-	if (spa_feature_is_enabled(spa, space_map_histogram)) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
 		bonuslen = sizeof (space_map_phys_t);
 		ASSERT3U(bonuslen, <=, dmu_bonus_max());
 	} else {
@@ -533,13 +531,11 @@ uint64_t
 space_map_alloc(objset_t *os, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_objset_spa(os);
-	zfeature_info_t *space_map_histogram =
-	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM];
 	uint64_t object;
 	int bonuslen;
 
-	if (spa_feature_is_enabled(spa, space_map_histogram)) {
-		spa_feature_incr(spa, space_map_histogram, tx);
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
+		spa_feature_incr(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM, tx);
 		bonuslen = sizeof (space_map_phys_t);
 		ASSERT3U(bonuslen, <=, dmu_bonus_max());
 	} else {
@@ -557,20 +553,20 @@ void
 space_map_free(space_map_t *sm, dmu_tx_t *tx)
 {
 	spa_t *spa;
-	zfeature_info_t *space_map_histogram =
-	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM];
 
 	if (sm == NULL)
 		return;
 
 	spa = dmu_objset_spa(sm->sm_os);
-	if (spa_feature_is_enabled(spa, space_map_histogram)) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
 		dmu_object_info_t doi;
 
 		dmu_object_info_from_db(sm->sm_dbuf, &doi);
 		if (doi.doi_bonus_size != SPACE_MAP_SIZE_V0) {
-			VERIFY(spa_feature_is_active(spa, space_map_histogram));
-			spa_feature_decr(spa, space_map_histogram, tx);
+			VERIFY(spa_feature_is_active(spa,
+			    SPA_FEATURE_SPACEMAP_HISTOGRAM));
+			spa_feature_decr(spa,
+			    SPA_FEATURE_SPACEMAP_HISTOGRAM, tx);
 		}
 	}
 
