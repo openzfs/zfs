@@ -1409,6 +1409,17 @@ This flag sets the SELinux context for unlabeled files.  See \fBselinux\fR(8) fo
 This flag sets the SELinux context for the root inode of the filesystem.  See \fBselinux\fR(8) for more information.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fBoverlay\fR=\fBon\fR | \fBoff\fR\fR
+.ad
+.sp .6
+.RS 4n
+Allow mounting on a busy directory or a directory which already contains files/directories. This is the default mount behavior for Linux filesystems.  However, for consistency with ZFS on other platforms overlay mounts are disabled by default.  Set \fBoverlay=on\fR to enable overlay mounts.
+.RE
+
 .SS "Temporary Mount Point Properties"
 .LP
 When a file system is mounted, either through \fBmount\fR(8) for legacy mounts or the \fBzfs mount\fR command for normal file systems, its mount options are set according to its properties. The correlation between properties and mount options is as follows:
