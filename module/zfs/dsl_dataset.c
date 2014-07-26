@@ -122,7 +122,9 @@ int
 dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
     boolean_t async)
 {
-	int used, compressed, uncompressed;
+	int used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
+	int compressed = BP_GET_PSIZE(bp);
+	int uncompressed = BP_GET_UCSIZE(bp);
 
 	if (BP_IS_HOLE(bp))
 		return (0);
@@ -130,11 +132,6 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(bp->blk_birth <= tx->tx_txg);
 
-	used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
-	compressed = BP_GET_PSIZE(bp);
-	uncompressed = BP_GET_UCSIZE(bp);
-
-	ASSERT(used > 0);
 	if (ds == NULL) {
 		dsl_free(tx->tx_pool, tx->tx_txg, bp);
 		dsl_pool_mos_diduse_space(tx->tx_pool,
@@ -232,7 +229,8 @@ boolean_t
 dsl_dataset_block_freeable(dsl_dataset_t *ds, const blkptr_t *bp,
     uint64_t blk_birth)
 {
-	if (blk_birth <= dsl_dataset_prev_snap_txg(ds))
+	if (blk_birth <= dsl_dataset_prev_snap_txg(ds) ||
+	    (bp != NULL && BP_IS_HOLE(bp)))
 		return (B_FALSE);
 
 	ddt_prefetch(dsl_dataset_get_spa(ds), bp);

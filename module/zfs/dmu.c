@@ -684,7 +684,7 @@ dmu_free_long_range(objset_t *os, uint64_t object,
 	 * will take the fast path, and (b) dnode_reallocate() can verify
 	 * that the entire file has been freed.
 	 */
-	if (offset == 0 && length == DMU_OBJECT_END)
+	if (err == 0 && offset == 0 && length == DMU_OBJECT_END)
 		dn->dn_maxblkid = 0;
 
 	dnode_rele(dn, FTAG);
@@ -1314,10 +1314,8 @@ arc_buf_t *
 dmu_request_arcbuf(dmu_buf_t *handle, int size)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
-	spa_t *spa;
 
-	DB_GET_SPA(&spa, db);
-	return (arc_loan_buf(spa, size));
+	return (arc_loan_buf(db->db_objset->os_spa, size));
 }
 
 /*
