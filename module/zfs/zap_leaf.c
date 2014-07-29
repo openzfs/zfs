@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  */
 
 /*
@@ -105,16 +105,16 @@ zap_leaf_byteswap(zap_leaf_phys_t *buf, int size)
 {
 	int i;
 	zap_leaf_t l;
-	l.l_bs = highbit(size)-1;
+	l.l_bs = highbit64(size) - 1;
 	l.l_phys = buf;
 
-	buf->l_hdr.lh_block_type = 	BSWAP_64(buf->l_hdr.lh_block_type);
-	buf->l_hdr.lh_prefix = 		BSWAP_64(buf->l_hdr.lh_prefix);
-	buf->l_hdr.lh_magic = 		BSWAP_32(buf->l_hdr.lh_magic);
-	buf->l_hdr.lh_nfree = 		BSWAP_16(buf->l_hdr.lh_nfree);
-	buf->l_hdr.lh_nentries = 	BSWAP_16(buf->l_hdr.lh_nentries);
-	buf->l_hdr.lh_prefix_len = 	BSWAP_16(buf->l_hdr.lh_prefix_len);
-	buf->l_hdr.lh_freelist = 	BSWAP_16(buf->l_hdr.lh_freelist);
+	buf->l_hdr.lh_block_type =	BSWAP_64(buf->l_hdr.lh_block_type);
+	buf->l_hdr.lh_prefix =		BSWAP_64(buf->l_hdr.lh_prefix);
+	buf->l_hdr.lh_magic =		BSWAP_32(buf->l_hdr.lh_magic);
+	buf->l_hdr.lh_nfree =		BSWAP_16(buf->l_hdr.lh_nfree);
+	buf->l_hdr.lh_nentries =	BSWAP_16(buf->l_hdr.lh_nentries);
+	buf->l_hdr.lh_prefix_len =	BSWAP_16(buf->l_hdr.lh_prefix_len);
+	buf->l_hdr.lh_freelist =	BSWAP_16(buf->l_hdr.lh_freelist);
 
 	for (i = 0; i < ZAP_LEAF_HASH_NUMENTRIES(&l); i++)
 		buf->l_hash[i] = BSWAP_16(buf->l_hash[i]);
@@ -157,7 +157,7 @@ zap_leaf_init(zap_leaf_t *l, boolean_t sort)
 {
 	int i;
 
-	l->l_bs = highbit(l->l_dbuf->db_size)-1;
+	l->l_bs = highbit64(l->l_dbuf->db_size) - 1;
 	zap_memset(&l->l_phys->l_hdr, 0, sizeof (struct zap_leaf_header));
 	zap_memset(l->l_phys->l_hash, CHAIN_END, 2*ZAP_LEAF_HASH_NUMENTRIES(l));
 	for (i = 0; i < ZAP_LEAF_NUMCHUNKS(l); i++) {
