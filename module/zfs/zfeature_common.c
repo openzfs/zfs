@@ -200,3 +200,8 @@ zpool_feature_init(void)
 	    "Enhanced dataset functionality, used by other features.",
 	    B_FALSE, B_FALSE, B_FALSE, NULL);
 }
+
+#if defined(_KERNEL)
+module_param(zfeature_checks_disable, int, 0644);
+MODULE_PARM_DESC(zfeature_checks_disable, "Disable all feature checks while opening pools");
+#endif
