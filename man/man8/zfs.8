@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2012 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Delphix. All rights reserved.
 .\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -54,6 +54,11 @@ zfs \- configures ZFS file systems
 .LP
 .nf
 \fBzfs\fR \fBdestroy\fR [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
+.fi
+
+.LP
+.nf
+\fBzfs\fR \fBdestroy\fR \fIfilesystem\fR|\fIvolume\fR#\fIbookmark\fR
 .fi
 
 .LP
@@ -164,7 +169,17 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
+\fBzfs\fR \fBbookmark\fR \fIsnapshot\fR \fIbookmark\fR
+.fi
+
+.LP
+.nf
 \fBzfs\fR \fBsend\fR [\fB-DnPpRv\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+.fi
+
+.LP
+.nf
+\fBzfs\fR \fBsend\fR [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
@@ -1684,6 +1699,17 @@ behavior for mounted file systems in use.
 .ne 2
 .mk
 .na
+\fBzfs destroy\fR \fIfilesystem\fR|\fIvolume\fR#\fIbookmark\fR
+.ad
+.sp .6
+.RS 4n
+The given bookmark is destroyed.
+
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBzfs snapshot\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem@snapname\fR|\fIvolume@snapname\fR\fR ...
 .ad
 .sp .6
@@ -1721,9 +1747,9 @@ Sets the specified property; see \fBzfs create\fR for details.
 .ad
 .sp .6
 .RS 4n
-Roll back the given dataset to a previous snapshot. When a dataset is rolled back, all data that has changed since the snapshot is discarded, and the dataset reverts to the state at the time of the snapshot. By default, the command refuses to roll back to a snapshot other than the most recent one. In order to do so, all intermediate snapshots must be destroyed by specifying the \fB-r\fR option.
+Roll back the given dataset to a previous snapshot. When a dataset is rolled back, all data that has changed since the snapshot is discarded, and the dataset reverts to the state at the time of the snapshot. By default, the command refuses to roll back to a snapshot other than the most recent one. In order to do so, all intermediate snapshots and bookmarks must be destroyed by specifying the \fB-r\fR option.
 .sp
-The \fB-rR\fR options do not recursively destroy the child snapshots of a recursive snapshot. Only the top-level recursive snapshot is destroyed by either of these options. To completely roll back a recursive snapshot, you must rollback the individual child snapshots.
+The \fB-rR\fR options do not recursively destroy the child snapshots of a recursive snapshot. Only direct snapshots of the specified filesystem are destroyed by either of these options. To completely roll back a recursive snapshot, you must rollback the individual child snapshots.
 .sp
 .ne 2
 .mk
@@ -1732,7 +1758,7 @@ The \fB-rR\fR options do not recursively destroy the child snapshots of a recurs
 .ad
 .sp .6
 .RS 4n
-Recursively destroy any snapshots more recent than the one specified.
+Destroy any snapshots and bookmarks more recent than the one specified.
 .RE
 
 .sp
@@ -1743,7 +1769,7 @@ Recursively destroy any snapshots more recent than the one specified.
 .ad
 .sp .6
 .RS 4n
-Recursively destroy any more recent snapshots, as well as any clones of those snapshots.
+Recursively destroy any more recent snapshots and bookmarks, as well as any clones of those snapshots.
 .RE
 
 .sp
@@ -1999,7 +2025,7 @@ Same as the \fB-s\fR option, but sorts by property in descending order.
 .ad
 .sp .6
 .RS 4n
-A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR, \fBsnap\fR, \fBvolume\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
+A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR, \fBsnap\fR, \fBvolume\fR, \fBbookmark\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
 .RE
 
 .RE
@@ -2037,7 +2063,7 @@ Displays properties for the given datasets. If no datasets are specified, then t
 
 All columns are displayed by default, though this can be controlled by using the \fB-o\fR option. This command takes a comma-separated list of properties as described in the "Native Properties" and "User Properties" sections.
 .sp
-The special value \fBall\fR can be used to display all properties that apply to the given dataset's type (filesystem, volume, or snapshot).
+The special value \fBall\fR can be used to display all properties that apply to the given dataset's type (filesystem, volume snapshot, or bookmark).
 .sp
 .ne 2
 .mk
@@ -2525,6 +2551,24 @@ Unshare the specified filesystem. The command can also be given a path to a \fBZ
 .ne 2
 .mk
 .na
+\fB\fBzfs bookmark\fR \fIsnapshot\fR \fIbookmark\fR\fR
+.ad
+.sp .6
+.RS 4n
+Creates a bookmark of the given snapshot.  Bookmarks mark the point in time
+when the snapshot was created, and can be used as the incremental source for
+a \fBzfs send\fR command.
+.sp
+This feature must be enabled to be used.
+See \fBzpool-features\fR(5) for details on ZFS feature flags and the
+\fBbookmarks\fR feature.
+.RE
+
+
+.RE
+.sp
+.ne 2
+.na
 \fBzfs send\fR [\fB-DnPpRv\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .ad
 .sp .6
@@ -2538,7 +2582,7 @@ Creates a stream representation of the second \fIsnapshot\fR, which is written t
 .ad
 .sp .6
 .RS 4n
-Generate an incremental stream from the first \fIsnapshot\fR to the second \fIsnapshot\fR. The incremental source (the first \fIsnapshot\fR) can be specified as the last component of the snapshot name (for example, the part after the \fB@\fR), and it is assumed to be from the same file system as the second \fIsnapshot\fR.
+Generate an incremental stream from the first \fIsnapshot\fR (the incremental source) to the second \fIsnapshot\fR (the incremental target).  The incremental source can be specified as the last component of the snapshot name (the \fB@\fR character and following) and it is assumed to be from the same file system as the incremental target.
 .sp
 If the destination is a clone, the source may be the origin snapshot, which must be fully specified (for example, \fBpool/fs@origin\fR, not just \fB@origin\fR).
 .RE
@@ -2551,7 +2595,7 @@ If the destination is a clone, the source may be the origin snapshot, which must
 .ad
 .sp .6
 .RS 4n
-Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source snapshot may be specified as with the \fB-i\fR option.
+Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source may be specified as with the \fB-i\fR option.
 .RE
 
 .sp
@@ -2626,6 +2670,39 @@ includes a per-second report of how much data has been sent.
 The format of the stream is committed. You will be able to receive your streams on future versions of \fBZFS\fR.
 .RE
 
+.RE
+.sp
+.ne 2
+.na
+\fBzfs send\fR [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+.ad
+.sp .6
+.RS 4n
+Generate a send stream, which may be of a filesystem, and may be
+incremental from a bookmark.  If the destination is a filesystem or volume,
+the pool must be read-only, or the filesystem must not be mounted.  When the
+stream generated from a filesystem or volume is received, the default snapshot
+name will be "--head--".
+
+.sp
+.ne 2
+.na
+\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR
+.ad
+.sp .6
+.RS 4n
+Generate an incremental send stream.  The incremental source must be an earlier
+snapshot in the destination's history. It will commonly be an earlier
+snapshot in the destination's filesystem, in which case it can be
+specified as the last component of the name (the \fB#\fR or \fB@\fR character
+and following).
+.sp
+If the incremental target is a clone, the incremental source can
+be the origin snapshot, or an earlier snapshot in the origin's filesystem,
+or the origin's origin, etc.
+.RE
+
+.RE
 .sp
 .ne 2
 .mk
@@ -2659,6 +2736,7 @@ The \fB-d\fR and \fB-e\fR options cause the file system name of the target snaps
 .RS 4n
 Discard the first element of the sent snapshot's file system name, using the remaining elements to determine the name of the target file system for the new snapshot as described in the paragraph above.
 .RE
+
 
 .sp
 .ne 2

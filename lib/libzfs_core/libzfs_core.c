@@ -439,18 +439,30 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 }
 
 /*
- * If fromsnap is NULL, a full (non-incremental) stream will be sent.
+ *
+ * "snapname" is the full name of the snapshot to send (e.g. "pool/fs@snap")
+ *
+ * If "from" is NULL, a full (non-incremental) stream will be sent.
+ * If "from" is non-NULL, it must be the full name of a snapshot or
+ * bookmark to send an incremental from (e.g. "pool/fs@earlier_snap" or
+ * "pool/fs#earlier_bmark").  If non-NULL, the specified snapshot or
+ * bookmark must represent an earlier point in the history of "snapname").
+ * It can be an earlier snapshot in the same filesystem or zvol as "snapname",
+ * or it can be the origin of "snapname"'s filesystem, or an earlier
+ * snapshot in the origin, etc.
+ *
+ * "fd" is the file descriptor to write the send stream to.
  */
 int
-lzc_send(const char *snapname, const char *fromsnap, int fd)
+lzc_send(const char *snapname, const char *from, int fd)
 {
 	nvlist_t *args;
 	int err;
 
 	args = fnvlist_alloc();
 	fnvlist_add_int32(args, "fd", fd);
-	if (fromsnap != NULL)
-		fnvlist_add_string(args, "fromsnap", fromsnap);
+	if (from != NULL)
+		fnvlist_add_string(args, "fromsnap", from);
 	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);
 	nvlist_free(args);
 	return (err);
@@ -604,4 +616,98 @@ lzc_rollback(const char *fsname, char *snapnamebuf, int snapnamelen)
 		(void) strlcpy(snapnamebuf, snapname, snapnamelen);
 	}
 	return (err);
+}
+
+/*
+ * Creates bookmarks.
+ *
+ * The bookmarks nvlist maps from name of the bookmark (e.g. "pool/fs#bmark") to
+ * the name of the snapshot (e.g. "pool/fs@snap").  All the bookmarks and
+ * snapshots must be in the same pool.
+ *
+ * The returned results nvlist will have an entry for each bookmark that failed.
+ * The value will be the (int32) error code.
+ *
+ * The return value will be 0 if all bookmarks were created, otherwise it will
+ * be the errno of a (undetermined) bookmarks that failed.
+ */
+int
+lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
+{
+	nvpair_t *elem;
+	int error;
+	char pool[MAXNAMELEN];
+
+	/* determine the pool name */
+	elem = nvlist_next_nvpair(bookmarks, NULL);
+	if (elem == NULL)
+		return (0);
+	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
+	pool[strcspn(pool, "/#")] = '\0';
+
+	error = lzc_ioctl(ZFS_IOC_BOOKMARK, pool, bookmarks, errlist);
+
+	return (error);
+}
+
+/*
+ * Retrieve bookmarks.
+ *
+ * Retrieve the list of bookmarks for the given file system. The props
+ * parameter is an nvlist of property names (with no values) that will be
+ * returned for each bookmark.
+ *
+ * The following are valid properties on bookmarks, all of which are numbers
+ * (represented as uint64 in the nvlist)
+ *
+ * "guid" - globally unique identifier of the snapshot it refers to
+ * "createtxg" - txg when the snapshot it refers to was created
+ * "creation" - timestamp when the snapshot it refers to was created
+ *
+ * The format of the returned nvlist as follows:
+ * <short name of bookmark> -> {
+ *     <name of property> -> {
+ *         "value" -> uint64
+ *     }
+ *  }
+ */
+int
+lzc_get_bookmarks(const char *fsname, nvlist_t *props, nvlist_t **bmarks)
+{
+	return (lzc_ioctl(ZFS_IOC_GET_BOOKMARKS, fsname, props, bmarks));
+}
+
+/*
+ * Destroys bookmarks.
+ *
+ * The keys in the bmarks nvlist are the bookmarks to be destroyed.
+ * They must all be in the same pool.  Bookmarks are specified as
+ * <fs>#<bmark>.
+ *
+ * Bookmarks that do not exist will be silently ignored.
+ *
+ * The return value will be 0 if all bookmarks that existed were destroyed.
+ *
+ * Otherwise the return value will be the errno of a (undetermined) bookmark
+ * that failed, no bookmarks will be destroyed, and the errlist will have an
+ * entry for each bookmarks that failed.  The value in the errlist will be
+ * the (int32) error code.
+ */
+int
+lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
+{
+	nvpair_t *elem;
+	int error;
+	char pool[MAXNAMELEN];
+
+	/* determine the pool name */
+	elem = nvlist_next_nvpair(bmarks, NULL);
+	if (elem == NULL)
+		return (0);
+	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
+	pool[strcspn(pool, "/#")] = '\0';
+
+	error = lzc_ioctl(ZFS_IOC_DESTROY_BOOKMARKS, pool, bmarks, errlist);
+
+	return (error);
 }

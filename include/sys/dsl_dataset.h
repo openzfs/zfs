@@ -76,6 +76,13 @@ struct dsl_pool;
  */
 
 /*
+ * This field's value is the object ID of a zap object which contains the
+ * bookmarks of this dataset.  If it is present, then this dataset is counted
+ * in the refcount of the SPA_FEATURES_BOOKMARKS feature.
+ */
+#define	DS_FIELD_BOOKMARK_NAMES "com.delphix:bookmarks"
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */
@@ -127,6 +134,7 @@ typedef struct dsl_dataset {
 
 	/* only used in syncing context, only valid for non-snapshots: */
 	struct dsl_dataset *ds_prev;
+	uint64_t ds_bookmarks;  /* DMU_OTN_ZAP_METADATA */
 
 	/* has internal locking: */
 	dsl_deadlist_t ds_deadlist;
@@ -247,7 +255,8 @@ int dsl_dataset_set_refquota(const char *dsname, zprop_source_t source,
 int dsl_dataset_set_refreservation(const char *dsname, zprop_source_t source,
     uint64_t reservation);
 
-boolean_t dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier);
+boolean_t dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier,
+    uint64_t earlier_txg);
 void dsl_dataset_long_hold(dsl_dataset_t *ds, void *tag);
 void dsl_dataset_long_rele(dsl_dataset_t *ds, void *tag);
 boolean_t dsl_dataset_long_held(dsl_dataset_t *ds);
@@ -270,6 +279,7 @@ int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
 int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx);
 void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
     zprop_source_t source, uint64_t value, dmu_tx_t *tx);
+void dsl_dataset_zapify(dsl_dataset_t *ds, dmu_tx_t *tx);
 int dsl_dataset_rollback(const char *fsname, void *owner, nvlist_t *result);
 
 #ifdef ZFS_DEBUG
