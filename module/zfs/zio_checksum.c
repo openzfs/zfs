@@ -110,7 +110,7 @@ zio_checksum_dedup_select(spa_t *spa, enum zio_checksum child,
 	if (child == ZIO_CHECKSUM_ON)
 		return (spa_dedup_checksum(spa));
 
-	if (child == (ZIO_CHECKSUM_ON | ZIO_CHECKSUM_VERIFY))
+	if (child == (enum zio_checksum)(ZIO_CHECKSUM_ON | ZIO_CHECKSUM_VERIFY))
 		return (spa_dedup_checksum(spa) | ZIO_CHECKSUM_VERIFY);
 
 	ASSERT(zio_checksum_table[child & ZIO_CHECKSUM_MASK].ci_dedup ||

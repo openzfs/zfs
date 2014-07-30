@@ -149,7 +149,8 @@ typedef enum {
 	ZFS_PROP_SELINUX_DEFCONTEXT,
 	ZFS_PROP_SELINUX_ROOTCONTEXT,
 	ZFS_PROP_RELATIME,
-	ZFS_NUM_PROPS
+	ZFS_NUM_PROPS,
+	ZFS_PROP_INVALID = -1           /* used as error return value */
 } zfs_prop_t;
 
 typedef enum {
@@ -192,7 +193,8 @@ typedef enum {
 	ZPOOL_PROP_COMMENT,
 	ZPOOL_PROP_EXPANDSZ,
 	ZPOOL_PROP_FREEING,
-	ZPOOL_NUM_PROPS
+	ZPOOL_NUM_PROPS,
+	ZPOOL_PROP_INVALID = -1         /* used as error return value */
 } zpool_prop_t;
 
 /* Small enough to not hog a whole line of printout in zpool(1M). */

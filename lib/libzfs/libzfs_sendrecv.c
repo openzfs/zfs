@@ -3130,7 +3130,7 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
 	    &zcksum)))
 		return (err);
 
-	if (drr.drr_type == DRR_END || drr.drr_type == BSWAP_32(DRR_END)) {
+	if (drr.drr_type == DRR_END || (uint32_t)drr.drr_type == BSWAP_32(DRR_END)) {
 		/* It's the double end record at the end of a package */
 		return (ENODATA);
 	}
