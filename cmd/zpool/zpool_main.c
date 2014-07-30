@@ -241,7 +241,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
-		return (gettext("\tlist [-Hv] [-o property[,...]] "
+		return (gettext("\tlist [-Hvp] [-o property[,...]] "
 		    "[-T d|u] [pool] ... [interval [count]]\n"));
 	case HELP_OFFLINE:
 		return (gettext("\toffline [-t] <pool> <device> ...\n"));
@@ -2862,6 +2862,7 @@ zpool_do_iostat(int argc, char **argv)
 
 typedef struct list_cbdata {
 	boolean_t	cb_verbose;
+	boolean_t	cb_literal;
 	int		cb_namewidth;
 	boolean_t	cb_scripted;
 	zprop_list_t	*cb_proplist;
@@ -3136,7 +3137,7 @@ zpool_do_list(int argc, char **argv)
 	boolean_t first = B_TRUE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":Ho:T:v")) != -1) {
+	while ((c = getopt(argc, argv, ":Ho:T:vp")) != -1) {
 		switch (c) {
 		case 'H':
 			cb.cb_scripted = B_TRUE;
@@ -3149,6 +3150,9 @@ zpool_do_list(int argc, char **argv)
 			break;
 		case 'v':
 			cb.cb_verbose = B_TRUE;
+			break;
+		case 'p':
+			cb.cb_literal = B_TRUE;
 			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "
