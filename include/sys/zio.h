@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -82,6 +82,12 @@ enum zio_checksum {
 	ZIO_CHECKSUM_FUNCTIONS
 };
 
+/*
+ * The number of "legacy" compression functions which can be set on individual
+ * objects.
+ */
+#define	ZIO_CHECKSUM_LEGACY_FUNCTIONS ZIO_CHECKSUM_ZILOG2
+
 #define	ZIO_CHECKSUM_ON_VALUE	ZIO_CHECKSUM_FLETCHER_4
 #define	ZIO_CHECKSUM_DEFAULT	ZIO_CHECKSUM_ON
 
@@ -110,6 +116,12 @@ enum zio_compress {
 	ZIO_COMPRESS_LZ4,
 	ZIO_COMPRESS_FUNCTIONS
 };
+
+/*
+ * The number of "legacy" compression functions which can be set on individual
+ * objects.
+ */
+#define	ZIO_COMPRESS_LEGACY_FUNCTIONS ZIO_COMPRESS_LZ4
 
 #define	ZIO_COMPRESS_ON_VALUE	ZIO_COMPRESS_LZJB
 #define	ZIO_COMPRESS_DEFAULT	ZIO_COMPRESS_OFF
@@ -251,11 +263,11 @@ extern const char *zio_type_name[ZIO_TYPES];
  * Note: this structure is called a bookmark because its original purpose
  * was to remember where to resume a pool-wide traverse.
  *
- * Note: this structure is passed between userland and the kernel.
- * Therefore it must not change size or alignment between 32/64 bit
- * compilation options.
+ * Note: this structure is passed between userland and the kernel, and is
+ * stored on disk (by virtue of being incorporated into other on-disk
+ * structures, e.g. dsl_scan_phys_t).
  */
-struct zbookmark {
+struct zbookmark_phys {
 	uint64_t	zb_objset;
 	uint64_t	zb_object;
 	int64_t		zb_level;
@@ -371,7 +383,7 @@ typedef struct zio_link {
 
 struct zio {
 	/* Core information about this I/O */
-	zbookmark_t	io_bookmark;
+	zbookmark_phys_t	io_bookmark;
 	zio_prop_t	io_prop;
 	zio_type_t	io_type;
 	enum zio_child	io_child_type;
@@ -452,17 +464,17 @@ extern zio_t *zio_root(spa_t *spa,
 
 extern zio_t *zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, void *data,
     uint64_t size, zio_done_func_t *done, void *private,
-    zio_priority_t priority, enum zio_flag flags, const zbookmark_t *zb);
+    zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb);
 
 extern zio_t *zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     void *data, uint64_t size, const zio_prop_t *zp,
     zio_done_func_t *ready, zio_done_func_t *physdone, zio_done_func_t *done,
     void *private,
-    zio_priority_t priority, enum zio_flag flags, const zbookmark_t *zb);
+    zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb);
 
 extern zio_t *zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     void *data, uint64_t size, zio_done_func_t *done, void *private,
-    zio_priority_t priority, enum zio_flag flags, zbookmark_t *zb);
+    zio_priority_t priority, enum zio_flag flags, zbookmark_phys_t *zb);
 
 extern void zio_write_override(zio_t *zio, blkptr_t *bp, int copies,
     boolean_t nopwrite);
@@ -583,9 +595,9 @@ extern void zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 /* Called from spa_sync(), but primarily an injection handler */
 extern void spa_handle_ignored_writes(spa_t *spa);
 
-/* zbookmark functions */
+/* zbookmark_phys functions */
 boolean_t zbookmark_is_before(const struct dnode_phys *dnp,
-    const zbookmark_t *zb1, const zbookmark_t *zb2);
+    const zbookmark_phys_t *zb1, const zbookmark_phys_t *zb2);
 
 #ifdef	__cplusplus
 }

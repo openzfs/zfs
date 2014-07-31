@@ -23,7 +23,7 @@
  * Copyright (c) 2011 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -50,7 +50,9 @@
 #include <sys/zfs_onexit.h>
 #include <sys/dmu_send.h>
 #include <sys/dsl_destroy.h>
+#include <sys/blkptr.h>
 #include <sys/dsl_bookmark.h>
+#include <sys/zfeature.h>
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
 int zfs_send_corrupt_data = B_FALSE;
@@ -197,7 +199,7 @@ dump_free(dmu_sendarg_t *dsp, uint64_t object, uint64_t offset,
 }
 
 static int
-dump_data(dmu_sendarg_t *dsp, dmu_object_type_t type,
+dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type,
     uint64_t object, uint64_t offset, int blksz, const blkptr_t *bp, void *data)
 {
 	struct drr_write *drrw = &(dsp->dsa_drr->drr_u.drr_write);
@@ -232,18 +234,64 @@ dump_data(dmu_sendarg_t *dsp, dmu_object_type_t type,
 	drrw->drr_offset = offset;
 	drrw->drr_length = blksz;
 	drrw->drr_toguid = dsp->dsa_toguid;
-	drrw->drr_checksumtype = BP_GET_CHECKSUM(bp);
-	if (zio_checksum_table[drrw->drr_checksumtype].ci_dedup)
-		drrw->drr_checksumflags |= DRR_CHECKSUM_DEDUP;
-	DDK_SET_LSIZE(&drrw->drr_key, BP_GET_LSIZE(bp));
-	DDK_SET_PSIZE(&drrw->drr_key, BP_GET_PSIZE(bp));
-	DDK_SET_COMPRESS(&drrw->drr_key, BP_GET_COMPRESS(bp));
-	drrw->drr_key.ddk_cksum = bp->blk_cksum;
+	if (BP_IS_EMBEDDED(bp)) {
+		/*
+		 * There's no pre-computed checksum of embedded BP's, so
+		 * (like fletcher4-checkummed blocks) userland will have
+		 * to compute a dedup-capable checksum itself.
+		 */
+		drrw->drr_checksumtype = ZIO_CHECKSUM_OFF;
+	} else {
+		drrw->drr_checksumtype = BP_GET_CHECKSUM(bp);
+		if (zio_checksum_table[drrw->drr_checksumtype].ci_dedup)
+			drrw->drr_checksumflags |= DRR_CHECKSUM_DEDUP;
+		DDK_SET_LSIZE(&drrw->drr_key, BP_GET_LSIZE(bp));
+		DDK_SET_PSIZE(&drrw->drr_key, BP_GET_PSIZE(bp));
+		DDK_SET_COMPRESS(&drrw->drr_key, BP_GET_COMPRESS(bp));
+		drrw->drr_key.ddk_cksum = bp->blk_cksum;
+	}
 
 	if (dump_bytes(dsp, dsp->dsa_drr, sizeof (dmu_replay_record_t)) != 0)
 		return (SET_ERROR(EINTR));
 	if (dump_bytes(dsp, data, blksz) != 0)
 		return (SET_ERROR(EINTR));
+	return (0);
+}
+
+static int
+dump_write_embedded(dmu_sendarg_t *dsp, uint64_t object, uint64_t offset,
+    int blksz, const blkptr_t *bp)
+{
+	char buf[BPE_PAYLOAD_SIZE];
+	struct drr_write_embedded *drrw =
+	    &(dsp->dsa_drr->drr_u.drr_write_embedded);
+
+	if (dsp->dsa_pending_op != PENDING_NONE) {
+		if (dump_bytes(dsp, dsp->dsa_drr,
+		    sizeof (dmu_replay_record_t)) != 0)
+			return (EINTR);
+		dsp->dsa_pending_op = PENDING_NONE;
+	}
+
+	ASSERT(BP_IS_EMBEDDED(bp));
+
+	bzero(dsp->dsa_drr, sizeof (dmu_replay_record_t));
+	dsp->dsa_drr->drr_type = DRR_WRITE_EMBEDDED;
+	drrw->drr_object = object;
+	drrw->drr_offset = offset;
+	drrw->drr_length = blksz;
+	drrw->drr_toguid = dsp->dsa_toguid;
+	drrw->drr_compression = BP_GET_COMPRESS(bp);
+	drrw->drr_etype = BPE_GET_ETYPE(bp);
+	drrw->drr_lsize = BPE_GET_LSIZE(bp);
+	drrw->drr_psize = BPE_GET_PSIZE(bp);
+
+	decode_embedded_bp_compressed(bp, buf);
+
+	if (dump_bytes(dsp, dsp->dsa_drr, sizeof (dmu_replay_record_t)) != 0)
+		return (EINTR);
+	if (dump_bytes(dsp, buf, P2ROUNDUP(drrw->drr_psize, 8)) != 0)
+		return (EINTR);
 	return (0);
 }
 
@@ -367,6 +415,33 @@ dump_dnode(dmu_sendarg_t *dsp, uint64_t object, dnode_phys_t *dnp)
 	return (0);
 }
 
+static boolean_t
+backup_do_embed(dmu_sendarg_t *dsp, const blkptr_t *bp)
+{
+	if (!BP_IS_EMBEDDED(bp))
+		return (B_FALSE);
+
+	/*
+	 * Compression function must be legacy, or explicitly enabled.
+	 */
+	if ((BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_LEGACY_FUNCTIONS &&
+	    !(dsp->dsa_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA_LZ4)))
+		return (B_FALSE);
+
+	/*
+	 * Embed type must be explicitly enabled.
+	 */
+	switch (BPE_GET_ETYPE(bp)) {
+	case BP_EMBEDDED_TYPE_DATA:
+		if (dsp->dsa_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)
+			return (B_TRUE);
+		break;
+	default:
+		return (B_FALSE);
+	}
+	return (B_FALSE);
+}
+
 #define	BP_SPAN(dnp, level) \
 	(((uint64_t)dnp->dn_datablkszsec) << (SPA_MINBLOCKSHIFT + \
 	(level) * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT)))
@@ -374,7 +449,7 @@ dump_dnode(dmu_sendarg_t *dsp, uint64_t object, dnode_phys_t *dnp)
 /* ARGSUSED */
 static int
 backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
+    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	dmu_sendarg_t *dsp = arg;
 	dmu_object_type_t type = bp ? BP_GET_TYPE(bp) : DMU_OT_NONE;
@@ -435,11 +510,17 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 		err = dump_spill(dsp, zb->zb_object, blksz, abuf->b_data);
 		(void) arc_buf_remove_ref(abuf, &abuf);
+	} else if (backup_do_embed(dsp, bp)) {
+		/* it's an embedded level-0 block of a regular object */
+		int blksz = dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT;
+		err = dump_write_embedded(dsp, zb->zb_object,
+		    zb->zb_blkid * blksz, blksz, bp);
 	} else { /* it's a level-0 block of a regular object */
 		uint32_t aflags = ARC_WAIT;
 		arc_buf_t *abuf;
 		int blksz = BP_GET_LSIZE(bp);
 
+		ASSERT3U(blksz, ==, dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 		ASSERT0(zb->zb_level);
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
@@ -458,7 +539,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 			}
 		}
 
-		err = dump_data(dsp, type, zb->zb_object, zb->zb_blkid * blksz,
+		err = dump_write(dsp, type, zb->zb_object, zb->zb_blkid * blksz,
 		    blksz, bp, abuf->b_data);
 		(void) arc_buf_remove_ref(abuf, &abuf);
 	}
@@ -472,14 +553,15 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
  */
 static int
 dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
-    zfs_bookmark_phys_t *fromzb, boolean_t is_clone, int outfd,
-    vnode_t *vp, offset_t *off)
+    zfs_bookmark_phys_t *fromzb, boolean_t is_clone, boolean_t embedok,
+    int outfd, vnode_t *vp, offset_t *off)
 {
 	objset_t *os;
 	dmu_replay_record_t *drr;
 	dmu_sendarg_t *dsp;
 	int err;
 	uint64_t fromtxg = 0;
+	uint64_t featureflags = 0;
 
 	err = dmu_objset_from_ds(ds, &os);
 	if (err != 0) {
@@ -502,12 +584,22 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 			return (SET_ERROR(EINVAL));
 		}
 		if (version >= ZPL_VERSION_SA) {
-			DMU_SET_FEATUREFLAGS(
-			    drr->drr_u.drr_begin.drr_versioninfo,
-			    DMU_BACKUP_FEATURE_SA_SPILL);
+			featureflags |= DMU_BACKUP_FEATURE_SA_SPILL;
 		}
 	}
 #endif
+
+	if (embedok &&
+	    spa_feature_is_active(dp->dp_spa, SPA_FEATURE_EMBEDDED_DATA)) {
+		featureflags |= DMU_BACKUP_FEATURE_EMBED_DATA;
+		if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS))
+			featureflags |= DMU_BACKUP_FEATURE_EMBED_DATA_LZ4;
+	} else {
+		embedok = B_FALSE;
+	}
+
+	DMU_SET_FEATUREFLAGS(drr->drr_u.drr_begin.drr_versioninfo,
+	    featureflags);
 
 	drr->drr_u.drr_begin.drr_creation_time =
 	    ds->ds_phys->ds_creation_time;
@@ -540,6 +632,7 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 	ZIO_SET_CHECKSUM(&dsp->dsa_zc, 0, 0, 0, 0);
 	dsp->dsa_pending_op = PENDING_NONE;
 	dsp->dsa_incremental = (fromzb != NULL);
+	dsp->dsa_featureflags = featureflags;
 
 	mutex_enter(&ds->ds_sendstream_lock);
 	list_insert_head(&ds->ds_sendstreams, dsp);
@@ -591,7 +684,7 @@ out:
 
 int
 dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
-    int outfd, vnode_t *vp, offset_t *off)
+    boolean_t embedok, int outfd, vnode_t *vp, offset_t *off)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
@@ -625,10 +718,10 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 		zb.zbm_guid = fromds->ds_phys->ds_guid;
 		is_clone = (fromds->ds_dir != ds->ds_dir);
 		dsl_dataset_rele(fromds, FTAG);
-		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone,
+		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone, embedok,
 		    outfd, vp, off);
 	} else {
-		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE,
+		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE, embedok,
 		    outfd, vp, off);
 	}
 	dsl_dataset_rele(ds, FTAG);
@@ -636,7 +729,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 }
 
 int
-dmu_send(const char *tosnap, const char *fromsnap,
+dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     int outfd, vnode_t *vp, offset_t *off)
 {
 	dsl_pool_t *dp;
@@ -703,10 +796,10 @@ dmu_send(const char *tosnap, const char *fromsnap,
 			dsl_pool_rele(dp, FTAG);
 			return (err);
 		}
-		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone,
+		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone, embedok,
 		    outfd, vp, off);
 	} else {
-		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE,
+		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE, embedok,
 		    outfd, vp, off);
 	}
 	if (owned)
@@ -861,6 +954,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	uint64_t fromguid = drrb->drr_fromguid;
 	int flags = drrb->drr_flags;
 	int error;
+	uint64_t featureflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
 	dsl_dataset_t *ds;
 	const char *tofs = drba->drba_cookie->drc_tofs;
 
@@ -874,11 +968,22 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 
 	/* Verify pool version supports SA if SA_SPILL feature set */
-	if ((DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
-	    DMU_BACKUP_FEATURE_SA_SPILL) &&
-	    spa_version(dp->dp_spa) < SPA_VERSION_SA) {
+	if ((featureflags & DMU_BACKUP_FEATURE_SA_SPILL) &&
+	    spa_version(dp->dp_spa) < SPA_VERSION_SA)
 		return (SET_ERROR(ENOTSUP));
-	}
+
+	/*
+	 * The receiving code doesn't know how to translate a WRITE_EMBEDDED
+	 * record to a plan WRITE record, so the pool must have the
+	 * EMBEDDED_DATA feature enabled if the stream has WRITE_EMBEDDED
+	 * records.  Same with WRITE_EMBEDDED records that use LZ4 compression.
+	 */
+	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) &&
+	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_EMBEDDED_DATA))
+		return (SET_ERROR(ENOTSUP));
+	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA_LZ4) &&
+	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS))
+		return (SET_ERROR(ENOTSUP));
 
 	error = dsl_dataset_hold(dp, tofs, FTAG, &ds);
 	if (error == 0) {
@@ -1153,7 +1258,6 @@ backup_byteswap(dmu_replay_record_t *drr)
 		break;
 	case DRR_OBJECT:
 		DO64(drr_object.drr_object);
-		/* DO64(drr_object.drr_allocation_txg); */
 		DO32(drr_object.drr_type);
 		DO32(drr_object.drr_bonustype);
 		DO32(drr_object.drr_blksz);
@@ -1190,6 +1294,14 @@ backup_byteswap(dmu_replay_record_t *drr)
 		DO64(drr_write_byref.drr_key.ddk_cksum.zc_word[2]);
 		DO64(drr_write_byref.drr_key.ddk_cksum.zc_word[3]);
 		DO64(drr_write_byref.drr_key.ddk_prop);
+		break;
+	case DRR_WRITE_EMBEDDED:
+		DO64(drr_write_embedded.drr_object);
+		DO64(drr_write_embedded.drr_offset);
+		DO64(drr_write_embedded.drr_length);
+		DO64(drr_write_embedded.drr_toguid);
+		DO32(drr_write_embedded.drr_lsize);
+		DO32(drr_write_embedded.drr_psize);
 		break;
 	case DRR_FREE:
 		DO64(drr_free.drr_object);
@@ -1380,7 +1492,7 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 	int err;
 	guid_map_entry_t gmesrch;
 	guid_map_entry_t *gmep;
-	avl_index_t	where;
+	avl_index_t where;
 	objset_t *ref_os = NULL;
 	dmu_buf_t *dbp;
 
@@ -1405,7 +1517,7 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 
 	err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
 	    drrwbr->drr_refoffset, FTAG, &dbp, DMU_READ_PREFETCH);
-	if (err)
+	if (err != 0)
 		return (err);
 
 	tx = dmu_tx_create(os);
@@ -1420,6 +1532,48 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 	dmu_write(os, drrwbr->drr_object,
 	    drrwbr->drr_offset, drrwbr->drr_length, dbp->db_data, tx);
 	dmu_buf_rele(dbp, FTAG);
+	dmu_tx_commit(tx);
+	return (0);
+}
+
+static int
+restore_write_embedded(struct restorearg *ra, objset_t *os,
+    struct drr_write_embedded *drrwnp)
+{
+	dmu_tx_t *tx;
+	int err;
+	void *data;
+
+	if (drrwnp->drr_offset + drrwnp->drr_length < drrwnp->drr_offset)
+		return (EINVAL);
+
+	if (drrwnp->drr_psize > BPE_PAYLOAD_SIZE)
+		return (EINVAL);
+
+	if (drrwnp->drr_etype >= NUM_BP_EMBEDDED_TYPES)
+		return (EINVAL);
+	if (drrwnp->drr_compression >= ZIO_COMPRESS_FUNCTIONS)
+		return (EINVAL);
+
+	data = restore_read(ra, P2ROUNDUP(drrwnp->drr_psize, 8));
+	if (data == NULL)
+		return (ra->err);
+
+	tx = dmu_tx_create(os);
+
+	dmu_tx_hold_write(tx, drrwnp->drr_object,
+	    drrwnp->drr_offset, drrwnp->drr_length);
+	err = dmu_tx_assign(tx, TXG_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		return (err);
+	}
+
+	dmu_write_embedded(os, drrwnp->drr_object,
+	    drrwnp->drr_offset, data, drrwnp->drr_etype,
+	    drrwnp->drr_compression, drrwnp->drr_lsize, drrwnp->drr_psize,
+	    ra->byteswap ^ ZFS_HOST_BYTEORDER, tx);
+
 	dmu_tx_commit(tx);
 	return (0);
 }
@@ -1616,6 +1770,13 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 			struct drr_write_byref drrwbr =
 			    drr->drr_u.drr_write_byref;
 			ra.err = restore_write_byref(&ra, os, &drrwbr);
+			break;
+		}
+		case DRR_WRITE_EMBEDDED:
+		{
+			struct drr_write_embedded drrwe =
+			    drr->drr_u.drr_write_embedded;
+			ra.err = restore_write_embedded(&ra, os, &drrwe);
 			break;
 		}
 		case DRR_FREE:

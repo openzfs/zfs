@@ -1293,7 +1293,10 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 			(void) strlcpy(type, dmu_ot[BP_GET_TYPE(bp)].ot_name,
 			    sizeof (type));
 		}
-		checksum = zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_name;
+		if (!BP_IS_EMBEDDED(bp)) {
+			checksum =
+			    zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_name;
+		}
 		compress = zio_compress_table[BP_GET_COMPRESS(bp)].ci_name;
 	}
 
@@ -1588,7 +1591,7 @@ bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp)
 	uint64_t dsize = 0;
 	int d;
 
-	for (d = 0; d < SPA_DVAS_PER_BP; d++)
+	for (d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	return (dsize);
@@ -1602,7 +1605,7 @@ bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
-	for (d = 0; d < SPA_DVAS_PER_BP; d++)
+	for (d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);

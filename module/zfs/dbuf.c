@@ -40,6 +40,8 @@
 #include <sys/dmu_zfetch.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
+#include <sys/zfeature.h>
+#include <sys/blkptr.h>
 #include <sys/range_tree.h>
 
 struct dbuf_hold_impl_data {
@@ -575,7 +577,7 @@ static void
 dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 {
 	dnode_t *dn;
-	zbookmark_t zb;
+	zbookmark_phys_t zb;
 	uint32_t aflags = ARC_NOWAIT;
 
 	DB_DNODE_ENTER(db);
@@ -1492,6 +1494,38 @@ dbuf_fill_done(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	mutex_exit(&db->db_mtx);
 }
 
+void
+dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
+    bp_embedded_type_t etype, enum zio_compress comp,
+    int uncompressed_size, int compressed_size, int byteorder,
+    dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbuf;
+	struct dirty_leaf *dl;
+	dmu_object_type_t type;
+
+	DB_DNODE_ENTER(db);
+	type = DB_DNODE(db)->dn_type;
+	DB_DNODE_EXIT(db);
+
+	ASSERT0(db->db_level);
+	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
+
+	dmu_buf_will_not_fill(dbuf, tx);
+
+	ASSERT3U(db->db_last_dirty->dr_txg, ==, tx->tx_txg);
+	dl = &db->db_last_dirty->dt.dl;
+	encode_embedded_bp_compressed(&dl->dr_overridden_by,
+	    data, comp, uncompressed_size, compressed_size);
+	BPE_SET_ETYPE(&dl->dr_overridden_by, etype);
+	BP_SET_TYPE(&dl->dr_overridden_by, type);
+	BP_SET_LEVEL(&dl->dr_overridden_by, 0);
+	BP_SET_BYTEORDER(&dl->dr_overridden_by, byteorder);
+
+	dl->dr_override_state = DR_OVERRIDDEN;
+	dl->dr_overridden_by.blk_birth = db->db_last_dirty->dr_txg;
+}
+
 /*
  * Directly assign a provided arc buf to a given dbuf if it's not referenced
  * by anybody except our caller. Otherwise copy arcbuf's contents to dbuf.
@@ -1885,10 +1919,10 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid, zio_priority_t prio)
 	}
 
 	if (dbuf_findbp(dn, 0, blkid, TRUE, &db, &bp, NULL) == 0) {
-		if (bp && !BP_IS_HOLE(bp)) {
+		if (bp && !BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
 			dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 			uint32_t aflags = ARC_NOWAIT | ARC_PREFETCH;
-			zbookmark_t zb;
+			zbookmark_phys_t zb;
 
 			SET_BOOKMARK(&zb, ds ? ds->ds_object : DMU_META_OBJSET,
 			    dn->dn_object, 0, blkid);
@@ -2575,7 +2609,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	uint64_t fill = 0;
 	int i;
 
-	ASSERT(db->db_blkptr == bp);
+	ASSERT3P(db->db_blkptr, ==, bp);
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
@@ -2587,7 +2621,8 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		ASSERT((db->db_blkid != DMU_SPILL_BLKID &&
 		    BP_GET_TYPE(bp) == dn->dn_type) ||
 		    (db->db_blkid == DMU_SPILL_BLKID &&
-		    BP_GET_TYPE(bp) == dn->dn_bonustype));
+		    BP_GET_TYPE(bp) == dn->dn_bonustype) ||
+		    BP_IS_EMBEDDED(bp));
 		ASSERT(BP_GET_LEVEL(bp) == db->db_level);
 	}
 
@@ -2628,12 +2663,13 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		for (i = db->db.db_size >> SPA_BLKPTRSHIFT; i > 0; i--, ibp++) {
 			if (BP_IS_HOLE(ibp))
 				continue;
-			fill += ibp->blk_fill;
+			fill += BP_GET_FILL(ibp);
 		}
 	}
 	DB_DNODE_EXIT(db);
 
-	bp->blk_fill = fill;
+	if (!BP_IS_EMBEDDED(bp))
+		bp->blk_fill = fill;
 
 	mutex_exit(&db->db_mtx);
 }
@@ -2745,7 +2781,8 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 			    dn->dn_phys->dn_maxblkid >> (db->db_level * epbs));
 			ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==,
 			    db->db.db_size);
-			arc_set_callback(db->db_buf, dbuf_do_evict, db);
+			if (!arc_released(db->db_buf))
+				arc_set_callback(db->db_buf, dbuf_do_evict, db);
 		}
 		DB_DNODE_EXIT(db);
 		mutex_destroy(&dr->dt.di.dr_mtx);
@@ -2808,7 +2845,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	objset_t *os;
 	dmu_buf_impl_t *parent = db->db_parent;
 	uint64_t txg = tx->tx_txg;
-	zbookmark_t zb;
+	zbookmark_phys_t zb;
 	zio_prop_t zp;
 	zio_t *zio;
 	int wp_flag = 0;
@@ -2871,10 +2908,16 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	dmu_write_policy(os, dn, db->db_level, wp_flag, &zp);
 	DB_DNODE_EXIT(db);
 
-	if (db->db_level == 0 && dr->dt.dl.dr_override_state == DR_OVERRIDDEN) {
-		ASSERT(db->db_state != DB_NOFILL);
+	if (db->db_level == 0 &&
+	    dr->dt.dl.dr_override_state == DR_OVERRIDDEN) {
+		/*
+		 * The BP for this block has been provided by open context
+		 * (by dmu_sync() or dmu_buf_write_embedded()).
+		 */
+		void *contents = (data != NULL) ? data->b_data : NULL;
+
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
-		    db->db_blkptr, data->b_data, arc_buf_size(data), &zp,
+		    db->db_blkptr, contents, db->db.db_size, &zp,
 		    dbuf_write_override_ready, NULL, dbuf_write_override_done,
 		    dr, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 		mutex_enter(&db->db_mtx);
