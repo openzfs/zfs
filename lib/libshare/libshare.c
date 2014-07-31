@@ -356,12 +356,7 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 	}
 
 	if (dataset != NULL) {
-		dataset_dup = strdup(dataset);
-
-		if (dataset_dup == NULL) {
-			rc = SA_NO_MEMORY;
-			goto err;
-		}
+		dataset_dup = safe_strdup(dataset);
 	}
 
 	free(impl_share->dataset);
@@ -373,12 +368,7 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 	while (fstype != NULL) {
 		if (strcmp(fstype->name, proto) == 0) {
 			if (resource != NULL) {
-				resource_dup = strdup(resource);
-
-				if (resource_dup == NULL) {
-					rc = SA_NO_MEMORY;
-					goto err;
-				}
+				resource_dup = safe_strdup(resource);
 			}
 
 			free(FSINFO(impl_share, fstype)->resource);
@@ -740,12 +730,7 @@ alloc_share(const char *sharepath)
 	if (impl_share == NULL)
 		return (NULL);
 
-	impl_share->sharepath = strdup(sharepath);
-
-	if (impl_share->sharepath == NULL) {
-		free(impl_share);
-		return (NULL);
-	}
+	impl_share->sharepath = safe_strdup(sharepath);
 
 	impl_share->fsinfo = calloc(sizeof (sa_share_fsinfo_t), fstypes_count);
 

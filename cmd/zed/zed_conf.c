@@ -51,9 +51,7 @@ zed_conf_create(void)
 {
 	struct zed_conf *zcp;
 
-	zcp = malloc(sizeof (*zcp));
-	if (!zcp)
-		goto nomem;
+	zcp = safe_malloc(sizeof (*zcp));
 
 	memset(zcp, 0, sizeof (*zcp));
 
@@ -65,23 +63,12 @@ zed_conf_create(void)
 	zcp->zfs_hdl = NULL;		/* opened via zed_event_init() */
 	zcp->zevent_fd = -1;		/* opened via zed_event_init() */
 
-	if (!(zcp->conf_file = strdup(ZED_CONF_FILE)))
-		goto nomem;
-
-	if (!(zcp->pid_file = strdup(ZED_PID_FILE)))
-		goto nomem;
-
-	if (!(zcp->script_dir = strdup(ZED_SCRIPT_DIR)))
-		goto nomem;
-
-	if (!(zcp->state_file = strdup(ZED_STATE_FILE)))
-		goto nomem;
+	zcp->conf_file = safe_strdup(ZED_CONF_FILE);
+	zcp->pid_file = safe_strdup(ZED_PID_FILE);
+	zcp->script_dir = safe_strdup(ZED_SCRIPT_DIR);
+	zcp->state_file = safe_strdup(ZED_STATE_FILE);
 
 	return (zcp);
-
-nomem:
-	zed_log_die("Failed to create conf: %s", strerror(errno));
-	return (NULL);
 }
 
 /*
@@ -225,7 +212,7 @@ _zed_conf_parse_path(char **resultp, const char *path)
 		free(*resultp);
 
 	if (path[0] == '/') {
-		*resultp = strdup(path);
+		*resultp = safe_strdup(path);
 	} else if (!getcwd(buf, sizeof (buf))) {
 		zed_log_die("Failed to get current working dir: %s",
 		    strerror(errno));
@@ -234,10 +221,8 @@ _zed_conf_parse_path(char **resultp, const char *path)
 	} else if (strlcat(buf, path, sizeof (buf)) >= sizeof (buf)) {
 		zed_log_die("Failed to copy path: %s", strerror(ENAMETOOLONG));
 	} else {
-		*resultp = strdup(buf);
+		*resultp = safe_strdup(buf);
 	}
-	if (!*resultp)
-		zed_log_die("Failed to copy path: %s", strerror(ENOMEM));
 }
 
 /*

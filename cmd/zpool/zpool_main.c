@@ -2196,7 +2196,7 @@ zpool_do_import(int argc, char **argv)
 	if ((searchdirs == NULL) && (env = getenv("ZPOOL_IMPORT_PATH"))) {
 		char *dir;
 
-		envdup = strdup(env);
+		envdup = safe_strdup(env);
 
 		dir = strtok(envdup, ":");
 		while (dir != NULL) {

@@ -508,6 +508,23 @@ zfs_alloc(libzfs_handle_t *hdl, size_t size)
 }
 
 /*
+ * A safe form of malloc() that doesn't depend on libzfs_handle_t
+ */
+void *
+safe_malloc(size_t size) {
+	void *data;
+
+	data = calloc(1, size);
+
+	if (data == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
+
+	return (data);
+}
+
+/*
  * A safe form of asprintf() which will die if the allocation fails.
  */
 /*PRINTFLIKE2*/
@@ -557,6 +574,24 @@ zfs_strdup(libzfs_handle_t *hdl, const char *str)
 
 	if ((ret = strdup(str)) == NULL)
 		(void) no_memory(hdl);
+
+	return (ret);
+}
+
+/*
+ * A safe form of strdup() that does not depend on libzfs_handle_t
+ */
+char *
+safe_strdup(const char *str)
+{
+	char *ret;
+
+	ret = strdup(str);
+
+	if (ret == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
 
 	return (ret);
 }
@@ -865,7 +900,7 @@ zfs_resolve_shortname(const char *name, char *path, size_t len)
 	errno = ENOENT;
 
 	if (env) {
-		envdup = strdup(env);
+		envdup = safe_strdup(env);
 		dir = strtok(envdup, ":");
 		while (dir && error) {
 			(void) snprintf(path, len, "%s/%s", dir, name);
@@ -902,7 +937,7 @@ zfs_strcmp_shortname(char *name, char *cmp_name, int wholedisk)
 	env = getenv("ZPOOL_IMPORT_PATH");
 
 	if (env) {
-		envdup = strdup(env);
+		envdup = safe_strdup(env);
 		dir = strtok(envdup, ":");
 	} else {
 		dir =  zpool_default_import_path[i];

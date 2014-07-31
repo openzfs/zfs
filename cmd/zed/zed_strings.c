@@ -32,6 +32,7 @@
 #include <sys/avl.h>
 #include <sys/sysmacros.h>
 #include "zed_strings.h"
+#include <libzfs.h>
 
 struct zed_strings {
 	avl_tree_t tree;
@@ -83,7 +84,7 @@ zed_strings_create(void)
 {
 	zed_strings_t *zsp;
 
-	zsp = malloc(sizeof (*zsp));
+	zsp = safe_malloc(sizeof (*zsp));
 	if (!zsp)
 		return (NULL);
 
@@ -131,7 +132,7 @@ zed_strings_add(zed_strings_t *zsp, const char *s)
 		return (-1);
 	}
 	len = sizeof (zed_strings_node_t) + strlen(s) + 1;
-	np = malloc(len);
+	np = safe_malloc(len);
 	if (!np)
 		return (-1);
 

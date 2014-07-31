@@ -694,6 +694,8 @@ extern boolean_t zfs_bookmark_exists(const char *path);
 extern int zfs_append_partition(char *path, size_t max_len);
 extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
 extern int zfs_strcmp_pathname(char *name, char *cmp_name, int wholedisk);
+extern void *safe_malloc(size_t);
+extern char *safe_strdup(const char *str);
 
 /*
  * Mount support functions.

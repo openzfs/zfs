@@ -152,7 +152,7 @@ import_pool(const char *target, boolean_t readonly)
 
 	g_importargs.unique = B_TRUE;
 	g_importargs.can_be_active = readonly;
-	g_pool = strdup(target);
+	g_pool = safe_strdup(target);
 	if ((sepp = strpbrk(g_pool, "/@")) != NULL)
 		*sepp = '\0';
 	g_importargs.poolname = g_pool;
@@ -327,7 +327,7 @@ zhack_do_feature_enable(int argc, char **argv)
 			feature.fi_can_readonly = B_TRUE;
 			break;
 		case 'd':
-			desc = strdup(optarg);
+			desc = safe_strdup(optarg);
 			break;
 		default:
 			usage();
@@ -336,7 +336,7 @@ zhack_do_feature_enable(int argc, char **argv)
 	}
 
 	if (desc == NULL)
-		desc = strdup("zhack injected");
+		desc = safe_strdup("zhack injected");
 	feature.fi_desc = desc;
 
 	argc -= optind;

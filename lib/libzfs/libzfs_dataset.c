@@ -3054,11 +3054,11 @@ zfs_create_ancestors(libzfs_handle_t *hdl, const char *path)
 	if (check_parents(hdl, path, NULL, B_TRUE, &prefix) != 0)
 		return (-1);
 
-	if ((path_copy = strdup(path)) != NULL) {
-		rc = create_parents(hdl, path_copy, prefix);
-		free(path_copy);
-	}
-	if (path_copy == NULL || rc != 0)
+	path_copy = safe_strdup(path);
+	rc = create_parents(hdl, path_copy, prefix);
+	free(path_copy);
+
+	if (rc != 0)
 		return (-1);
 
 	return (0);

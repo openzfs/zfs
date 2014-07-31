@@ -36,6 +36,7 @@
 #include "zed_file.h"
 #include "zed_log.h"
 #include "zed_strings.h"
+#include <libzfs.h>
 
 #define	ZEVENT_FILENO	3
 
@@ -61,9 +62,7 @@ _zed_exec_create_env(zed_strings_t *zsp)
 	for (q = zed_strings_first(zsp); q; q = zed_strings_next(zsp))
 		buflen += strlen(q) + 1;
 
-	buf = malloc(buflen);
-	if (!buf)
-		return (NULL);
+	buf = safe_malloc(buflen);
 
 	pp = (char **) buf;
 	p = buf + (num_ptrs * sizeof (char *));

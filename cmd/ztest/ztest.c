@@ -124,6 +124,7 @@
 #include <math.h>
 #include <sys/fs/zfs.h>
 #include <libnvpair.h>
+#include <libzfs.h>
 
 static int ztest_fd_data = -1;
 static int ztest_fd_rand = -1;
@@ -2710,7 +2711,7 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	VERIFY(nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) == 0);
 
-	schild = malloc(rvd->vdev_children * sizeof (nvlist_t *));
+	schild = safe_malloc(rvd->vdev_children * sizeof (nvlist_t *));
 	for (c = 0; c < children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		nvlist_t **mchild;

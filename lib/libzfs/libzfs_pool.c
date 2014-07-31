@@ -2019,8 +2019,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 			 * that the srchval is composed of a type and
 			 * vdev id pair (i.e. mirror-4).
 			 */
-			if ((type = strdup(srchval)) == NULL)
-				return (NULL);
+			type = safe_strdup(srchval);
 
 			if ((p = strrchr(type, '-')) == NULL) {
 				free(type);
@@ -3291,8 +3290,7 @@ devid_to_path(char *devid_str)
 	if (ret != 0)
 		return (NULL);
 
-	if ((path = strdup(list[0].devname)) == NULL)
-		return (NULL);
+	path = safe_strdup(list[0].devname);
 
 	devid_free_nmlist(list);
 

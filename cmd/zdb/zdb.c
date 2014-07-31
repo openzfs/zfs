@@ -1499,9 +1499,7 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 	if (error || sa_xattr_size == 0)
 		return;
 
-	sa_xattr_packed = malloc(sa_xattr_size);
-	if (sa_xattr_packed == NULL)
-		return;
+	sa_xattr_packed = safe_malloc(sa_xattr_size);
 
 	error = sa_lookup(hdl, sa_attr_table[ZPL_DXATTR],
 	    sa_xattr_packed, sa_xattr_size);
@@ -1996,11 +1994,7 @@ dump_cachefile(const char *cachefile)
 		exit(1);
 	}
 
-	if ((buf = malloc(statbuf.st_size)) == NULL) {
-		(void) fprintf(stderr, "failed to allocate %llu bytes\n",
-		    (u_longlong_t)statbuf.st_size);
-		exit(1);
-	}
+	buf = safe_malloc(statbuf.st_size);
 
 	if (read(fd, buf, statbuf.st_size) != statbuf.st_size) {
 		(void) fprintf(stderr, "failed to read %llu bytes\n",
@@ -2061,10 +2055,10 @@ dump_label(const char *dev)
 
 	if (strncmp(dev, "/dev/dsk/", 9) == 0) {
 		len++;
-		path = malloc(len);
+		path = safe_malloc(len);
 		(void) snprintf(path, len, "%s%s", "/dev/rdsk/", dev + 9);
 	} else {
-		path = strdup(dev);
+		path = safe_strdup(dev);
 	}
 
 	if ((fd = open64(path, O_RDONLY)) < 0) {
@@ -3038,7 +3032,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	char *s, *p, *dup, *vdev, *flagstr;
 	int i, error;
 
-	dup = strdup(thing);
+	dup = safe_strdup(thing);
 	s = strtok(dup, ":");
 	vdev = s ? s : "";
 	s = strtok(NULL, ":");
@@ -3519,7 +3513,7 @@ main(int argc, char **argv)
 	if (!dump_opt['R']) {
 		if (argc > 0) {
 			zopt_objects = argc;
-			zopt_object = calloc(zopt_objects, sizeof (uint64_t));
+			zopt_object = safe_malloc(zopt_objects * sizeof (uint64_t));
 			for (i = 0; i < zopt_objects; i++) {
 				errno = 0;
 				zopt_object[i] = strtoull(argv[i], NULL, 0);

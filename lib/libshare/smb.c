@@ -106,11 +106,7 @@ smb_retrieve_shares(void)
 			goto out;
 		}
 
-		name = strdup(directory->d_name);
-		if (name == NULL) {
-			rc = SA_NO_MEMORY;
-			goto out;
-		}
+		name = safe_strdup(directory->d_name);
 
 		while (fgets(line, sizeof (line), share_file_fp)) {
 			if (line[0] == '#')
@@ -130,11 +126,7 @@ smb_retrieve_shares(void)
 			value = token + 1;
 			*token = '\0';
 
-			dup_value = strdup(value);
-			if (dup_value == NULL) {
-				rc = SA_NO_MEMORY;
-				goto out;
-			}
+			dup_value = safe_strdup(value);
 
 			if (strcmp(key, "path") == 0)
 				path = dup_value;
@@ -286,7 +278,7 @@ smb_disable_share_one(const char *sharename)
 	argv[2] = NET_CMD_ARG_HOST;
 	argv[3] = (char *)"usershare";
 	argv[4] = (char *)"delete";
-	argv[5] = strdup(sharename);
+	argv[5] = safe_strdup(sharename);
 	argv[6] = NULL;
 
 	rc = libzfs_run_process(argv[0], argv, 0);
@@ -385,10 +377,7 @@ smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 		smb_disable_share(impl_share);
 	}
 
-	shareopts_dup = strdup(shareopts);
-
-	if (shareopts_dup == NULL)
-		return (SA_NO_MEMORY);
+	shareopts_dup = safe_strdup(shareopts);
 
 	if (old_shareopts != NULL)
 		free(old_shareopts);
