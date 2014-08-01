@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2013 Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -126,7 +126,7 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
 const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
-	{ ZTI_N(8),	ZTI_NULL,	ZTI_BATCH,	ZTI_NULL }, /* READ */
+	{ ZTI_N(8),	ZTI_NULL,	ZTI_P(12, 8),	ZTI_NULL }, /* READ */
 	{ ZTI_BATCH,	ZTI_N(5),	ZTI_N(16),	ZTI_N(5) }, /* WRITE */
 	{ ZTI_P(4, 8),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* CLAIM */
