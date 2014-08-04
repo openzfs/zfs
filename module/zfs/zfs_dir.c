@@ -46,6 +46,7 @@
 #include <sys/policy.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
+#include <sys/zfs_vnops.h>
 #include <sys/fs/zfs.h>
 #include "fs/fs_subr.h"
 #include <sys/zap.h>
@@ -528,7 +529,7 @@ zfs_purgedir(znode_t *dzp)
 		error = dmu_tx_assign(tx, TXG_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
-			iput(ZTOI(xzp));
+			zfs_iput_async(ZTOI(xzp));
 			skipped += 1;
 			continue;
 		}
@@ -541,7 +542,7 @@ zfs_purgedir(znode_t *dzp)
 			skipped += 1;
 		dmu_tx_commit(tx);
 
-		iput(ZTOI(xzp));
+		zfs_iput_async(ZTOI(xzp));
 	}
 	zap_cursor_fini(&zc);
 	if (error != ENOENT)
@@ -729,7 +730,7 @@ zfs_rmnode(znode_t *zp)
 	dmu_tx_commit(tx);
 out:
 	if (xzp)
-		iput(ZTOI(xzp));
+		zfs_iput_async(ZTOI(xzp));
 }
 
 static uint64_t
