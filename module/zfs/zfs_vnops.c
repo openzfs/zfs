@@ -101,7 +101,7 @@
  *	pushing cached pages (which acquires range locks) and syncing out
  *	cached atime changes.  Third, zfs_zinactive() may require a new tx,
  *	which could deadlock the system if you were already holding one.
- *	If you must call iput() within a tx then use iput_ASYNC().
+ *	If you must call iput() within a tx then use zfs_iput_async().
  *
  *  (3)	All range locks must be grabbed before calling dmu_tx_assign(),
  *	as they can span dmu_tx_assign() calls.
@@ -927,12 +927,17 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 }
 EXPORT_SYMBOL(zfs_write);
 
-static void
-iput_async(struct inode *ip, taskq_t *taskq)
+void
+zfs_iput_async(struct inode *ip)
 {
+	objset_t *os = ITOZSB(ip)->z_os;
+
 	ASSERT(atomic_read(&ip->i_count) > 0);
+	ASSERT(os != NULL);
+
 	if (atomic_read(&ip->i_count) == 1)
-		taskq_dispatch(taskq, (task_func_t *)iput, ip, TQ_PUSHPAGE);
+		taskq_dispatch(dsl_pool_iput_taskq(dmu_objset_pool(os)),
+		    (task_func_t *)iput, ip, TQ_PUSHPAGE);
 	else
 		iput(ip);
 }
@@ -941,7 +946,6 @@ void
 zfs_get_done(zgd_t *zgd, int error)
 {
 	znode_t *zp = zgd->zgd_private;
-	objset_t *os = ZTOZSB(zp)->z_os;
 
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
@@ -952,7 +956,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	 * Release the vnode asynchronously as we currently have the
 	 * txg stopped from syncing.
 	 */
-	iput_async(ZTOI(zp), dsl_pool_iput_taskq(dmu_objset_pool(os)));
+	zfs_iput_async(ZTOI(zp));
 
 	if (error == 0 && zgd->zgd_bp)
 		zil_add_block(zgd->zgd_zilog, zgd->zgd_bp);
@@ -994,7 +998,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		 * Release the vnode asynchronously as we currently have the
 		 * txg stopped from syncing.
 		 */
-		iput_async(ZTOI(zp), dsl_pool_iput_taskq(dmu_objset_pool(os)));
+		zfs_iput_async(ZTOI(zp));
 		return (SET_ERROR(ENOENT));
 	}
 
