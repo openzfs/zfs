@@ -33,6 +33,7 @@
 #include <linux/writeback.h>
 #include <linux/falloc.h>
 #include <linux/task_io_accounting_ops.h>
+#include <linux/aio.h>
 
 /* zpl_inode.c */
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
@@ -46,9 +47,11 @@ extern dentry_operations_t zpl_dentry_operations;
 
 /* zpl_file.c */
 extern ssize_t zpl_read_common(struct inode *ip, const char *buf,
-    size_t len, loff_t pos, uio_seg_t segment, int flags, cred_t *cr);
+    size_t len, loff_t *ppos, uio_seg_t segment, int flags,
+    cred_t *cr);
 extern ssize_t zpl_write_common(struct inode *ip, const char *buf,
-    size_t len, loff_t pos, uio_seg_t segment, int flags, cred_t *cr);
+    size_t len, loff_t *ppos, uio_seg_t segment, int flags,
+    cred_t *cr);
 extern long zpl_fallocate_common(struct inode *ip, int mode,
     loff_t offset, loff_t len);
 
