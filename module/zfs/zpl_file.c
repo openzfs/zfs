@@ -115,6 +115,12 @@ zpl_fsync(struct file *filp, struct dentry *dentry, int datasync)
 	return (error);
 }
 
+static int
+zpl_aio_fsync(struct kiocb *kiocb, int datasync)
+{
+	struct file *filp = kiocb->ki_filp;
+	return (zpl_fsync(filp, filp->f_path.dentry, datasync));
+}
 #elif defined(HAVE_FSYNC_WITHOUT_DENTRY)
 /*
  * Linux 2.6.35 - 3.0 API,
@@ -137,6 +143,11 @@ zpl_fsync(struct file *filp, int datasync)
 	return (error);
 }
 
+static int
+zpl_aio_fsync(struct kiocb *kiocb, int datasync)
+{
+	return (zpl_fsync(kiocb->ki_filp, datasync));
+}
 #elif defined(HAVE_FSYNC_RANGE)
 /*
  * Linux 3.1 - 3.x API,
@@ -163,26 +174,30 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 
 	return (error);
 }
+
+static int
+zpl_aio_fsync(struct kiocb *kiocb, int datasync)
+{
+	return (zpl_fsync(kiocb->ki_filp, kiocb->ki_pos,
+	    kiocb->ki_pos + kiocb->ki_nbytes, datasync));
+}
 #else
 #error "Unsupported fops->fsync() implementation"
 #endif
 
-ssize_t
-zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
-    uio_seg_t segment, int flags, cred_t *cr)
+static inline ssize_t
+zpl_read_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
+    unsigned long nr_segs, loff_t *ppos, uio_seg_t segment,
+    int flags, cred_t *cr)
 {
-	int error;
 	ssize_t read;
-	struct iovec iov;
 	uio_t uio;
+	int error;
 
-	iov.iov_base = (void *)buf;
-	iov.iov_len = len;
-
-	uio.uio_iov = &iov;
-	uio.uio_resid = len;
-	uio.uio_iovcnt = 1;
-	uio.uio_loffset = pos;
+	uio.uio_iov = (struct iovec *)iovp;
+	uio.uio_resid = count;
+	uio.uio_iovcnt = nr_segs;
+	uio.uio_loffset = *ppos;
 	uio.uio_limit = MAXOFFSET_T;
 	uio.uio_segflg = segment;
 
@@ -190,10 +205,24 @@ zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 	if (error < 0)
 		return (error);
 
-	read = len - uio.uio_resid;
+	read = count - uio.uio_resid;
+	*ppos += read;
 	task_io_account_read(read);
 
 	return (read);
+}
+
+inline ssize_t
+zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
+    uio_seg_t segment, int flags, cred_t *cr)
+{
+	struct iovec iov;
+
+	iov.iov_base = (void *)buf;
+	iov.iov_len = len;
+
+	return (zpl_read_common_iovec(ip, &iov, len, 1, ppos, segment,
+	    flags, cr));
 }
 
 static ssize_t
@@ -203,33 +232,50 @@ zpl_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 	ssize_t read;
 
 	crhold(cr);
-	read = zpl_read_common(filp->f_mapping->host, buf, len, *ppos,
+	read = zpl_read_common(filp->f_mapping->host, buf, len, ppos,
 	    UIO_USERSPACE, filp->f_flags, cr);
 	crfree(cr);
 
-	if (read < 0)
-		return (read);
-
-	*ppos += read;
 	return (read);
 }
 
-ssize_t
-zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
-    uio_seg_t segment, int flags, cred_t *cr)
+static ssize_t
+zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
+	unsigned long nr_segs, loff_t pos)
 {
-	int error;
+	cred_t *cr = CRED();
+	struct file *filp = kiocb->ki_filp;
+	size_t count = kiocb->ki_nbytes;
+	ssize_t read;
+	size_t alloc_size = sizeof (struct iovec) * nr_segs;
+	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
+	bcopy(iovp, iov_tmp, alloc_size);
+
+	ASSERT(iovp);
+
+	crhold(cr);
+	read = zpl_read_common_iovec(filp->f_mapping->host, iov_tmp, count,
+	    nr_segs, &kiocb->ki_pos, UIO_USERSPACE, filp->f_flags, cr);
+	crfree(cr);
+
+	kmem_free(iov_tmp, alloc_size);
+
+	return (read);
+}
+
+static inline ssize_t
+zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
+    unsigned long nr_segs, loff_t *ppos, uio_seg_t segment,
+    int flags, cred_t *cr)
+{
 	ssize_t wrote;
-	struct iovec iov;
 	uio_t uio;
+	int error;
 
-	iov.iov_base = (void *)buf;
-	iov.iov_len = len;
-
-	uio.uio_iov = &iov;
-	uio.uio_resid = len,
-	uio.uio_iovcnt = 1;
-	uio.uio_loffset = pos;
+	uio.uio_iov = (struct iovec *)iovp;
+	uio.uio_resid = count;
+	uio.uio_iovcnt = nr_segs;
+	uio.uio_loffset = *ppos;
 	uio.uio_limit = MAXOFFSET_T;
 	uio.uio_segflg = segment;
 
@@ -237,10 +283,23 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 	if (error < 0)
 		return (error);
 
-	wrote = len - uio.uio_resid;
+	wrote = count - uio.uio_resid;
+	*ppos += wrote;
 	task_io_account_write(wrote);
 
 	return (wrote);
+}
+inline ssize_t
+zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
+    uio_seg_t segment, int flags, cred_t *cr)
+{
+	struct iovec iov;
+
+	iov.iov_base = (void *)buf;
+	iov.iov_len = len;
+
+	return (zpl_write_common_iovec(ip, &iov, len, 1, ppos, segment,
+	    flags, cr));
 }
 
 static ssize_t
@@ -250,14 +309,34 @@ zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 	ssize_t wrote;
 
 	crhold(cr);
-	wrote = zpl_write_common(filp->f_mapping->host, buf, len, *ppos,
+	wrote = zpl_write_common(filp->f_mapping->host, buf, len, ppos,
 	    UIO_USERSPACE, filp->f_flags, cr);
 	crfree(cr);
 
-	if (wrote < 0)
-		return (wrote);
+	return (wrote);
+}
 
-	*ppos += wrote;
+static ssize_t
+zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
+	unsigned long nr_segs, loff_t pos)
+{
+	cred_t *cr = CRED();
+	struct file *filp = kiocb->ki_filp;
+	size_t count = kiocb->ki_nbytes;
+	ssize_t wrote;
+	size_t alloc_size = sizeof (struct iovec) * nr_segs;
+	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
+	bcopy(iovp, iov_tmp, alloc_size);
+
+	ASSERT(iovp);
+
+	crhold(cr);
+	wrote = zpl_write_common_iovec(filp->f_mapping->host, iov_tmp, count,
+	    nr_segs, &kiocb->ki_pos, UIO_USERSPACE, filp->f_flags, cr);
+	crfree(cr);
+
+	kmem_free(iov_tmp, alloc_size);
+
 	return (wrote);
 }
 
@@ -646,8 +725,11 @@ const struct file_operations zpl_file_operations = {
 	.llseek		= zpl_llseek,
 	.read		= zpl_read,
 	.write		= zpl_write,
+	.aio_read	= zpl_aio_read,
+	.aio_write	= zpl_aio_write,
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
+	.aio_fsync	= zpl_aio_fsync,
 #ifdef HAVE_FILE_FALLOCATE
 	.fallocate	= zpl_fallocate,
 #endif /* HAVE_FILE_FALLOCATE */
