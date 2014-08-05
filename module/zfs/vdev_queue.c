@@ -659,7 +659,6 @@ vdev_queue_io_to_issue(vdev_queue_t *vq)
 	zio_priority_t p;
 	avl_index_t idx;
 	vdev_queue_class_t *vqc;
-	zio_t *search;
 
 again:
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
@@ -678,11 +677,10 @@ again:
 	 * For FIFO queues (sync), issue the i/o with the lowest timestamp.
 	 */
 	vqc = &vq->vq_class[p];
-	search = zio_buf_alloc(sizeof (*search));
-	search->io_timestamp = 0;
-	search->io_offset = vq->vq_last_offset + 1;
-	VERIFY3P(avl_find(&vqc->vqc_queued_tree, search, &idx), ==, NULL);
-	zio_buf_free(search, sizeof (*search));
+	vq->vq_io_search.io_timestamp = 0;
+	vq->vq_io_search.io_offset = vq->vq_last_offset + 1;
+	VERIFY3P(avl_find(&vqc->vqc_queued_tree, &vq->vq_io_search,
+	    &idx), ==, NULL);
 	zio = avl_nearest(&vqc->vqc_queued_tree, idx, AVL_AFTER);
 	if (zio == NULL)
 		zio = avl_first(&vqc->vqc_queued_tree);

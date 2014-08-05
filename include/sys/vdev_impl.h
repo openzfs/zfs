@@ -118,6 +118,7 @@ struct vdev_queue {
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
 	list_t		vq_io_list;
+	zio_t		vq_io_search; /* used as local for stack reduction */
 	kmutex_t	vq_lock;
 };
 
