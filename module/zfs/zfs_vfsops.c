@@ -436,13 +436,19 @@ zfs_userquota_prop_to_obj(zfs_sb_t *zsb, zfs_userquota_prop_t type)
 {
 	switch (type) {
 	case ZFS_PROP_USERUSED:
+	case ZFS_PROP_USERDNUSED:
 		return (DMU_USERUSED_OBJECT);
+	case ZFS_PROP_GROUPDNUSED:
 	case ZFS_PROP_GROUPUSED:
 		return (DMU_GROUPUSED_OBJECT);
 	case ZFS_PROP_USERQUOTA:
 		return (zsb->z_userquota_obj);
 	case ZFS_PROP_GROUPQUOTA:
 		return (zsb->z_groupquota_obj);
+	case ZFS_PROP_USERDNQUOTA:
+		return (zsb->z_userdnquota_obj);
+	case ZFS_PROP_GROUPDNQUOTA:
+		return (zsb->z_groupdnquota_obj);
 	default:
 		return (SET_ERROR(ENOTSUP));
 	}
@@ -458,8 +464,14 @@ zfs_userspace_many(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 	zap_attribute_t za;
 	zfs_useracct_t *buf = vbuf;
 	uint64_t obj;
+	int offset = 0;
 
 	if (!dmu_objset_userspace_present(zsb->z_os))
+		return (SET_ERROR(ENOTSUP));
+
+	if ((type == ZFS_PROP_USERDNUSED || type == ZFS_PROP_USERDNUSED ||
+	     type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA) &&
+	    !dmu_objset_userdnspace_present(zsb->z_os))
 		return (SET_ERROR(ENOTSUP));
 
 	obj = zfs_userquota_prop_to_obj(zsb, type);
@@ -468,6 +480,9 @@ zfs_userspace_many(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 		return (0);
 	}
 
+	if (type == ZFS_PROP_USERDNUSED || type == ZFS_PROP_USERDNUSED)
+		offset = strlen("dn-");
+
 	for (zap_cursor_init_serialized(&zc, zsb->z_os, obj, *cookiep);
 	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
 	    zap_cursor_advance(&zc)) {
@@ -475,7 +490,10 @@ zfs_userspace_many(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 		    *bufsizep)
 			break;
 
-		fuidstr_to_sid(zsb, za.za_name,
+		if (za.za_name[0] == 'd' && offset == 0)
+			continue;
+
+		fuidstr_to_sid(zsb, za.za_name + offset,
 		    buf->zu_domain, sizeof (buf->zu_domain), &buf->zu_rid);
 
 		buf->zu_space = za.za_first_integer;
@@ -516,7 +534,8 @@ int
 zfs_userspace_one(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t *valp)
 {
-	char buf[32];
+	char buf[35] = "dn-";
+	int offset = 0;
 	int err;
 	uint64_t obj;
 
@@ -525,11 +544,19 @@ zfs_userspace_one(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 	if (!dmu_objset_userspace_present(zsb->z_os))
 		return (SET_ERROR(ENOTSUP));
 
+	if ((type == ZFS_PROP_USERDNUSED || type == ZFS_PROP_USERDNUSED ||
+	     type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA) &&
+	    !dmu_objset_userdnspace_present(zsb->z_os))
+		return (SET_ERROR(ENOTSUP));
+
 	obj = zfs_userquota_prop_to_obj(zsb, type);
 	if (obj == 0)
 		return (0);
 
-	err = id_to_fuidstr(zsb, domain, rid, buf, B_FALSE);
+	if (type == ZFS_PROP_USERDNUSED || type == ZFS_PROP_USERDNUSED)
+		offset = strlen("dn-");
+
+	err = id_to_fuidstr(zsb, domain, rid, buf + offset, B_FALSE);
 	if (err)
 		return (err);
 
@@ -550,14 +577,21 @@ zfs_set_userquota(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 	uint64_t *objp;
 	boolean_t fuid_dirtied;
 
+	/* XXX: inode quota not supported by ZPL yet */
 	if (type != ZFS_PROP_USERQUOTA && type != ZFS_PROP_GROUPQUOTA)
 		return (SET_ERROR(EINVAL));
 
 	if (zsb->z_version < ZPL_VERSION_USERSPACE)
 		return (SET_ERROR(ENOTSUP));
 
-	objp = (type == ZFS_PROP_USERQUOTA) ? &zsb->z_userquota_obj :
-	    &zsb->z_groupquota_obj;
+	if (type == ZFS_PROP_USERQUOTA)
+		objp = &zsb->z_userquota_obj;
+	else if (type == ZFS_PROP_USERDNQUOTA)
+		objp = &zsb->z_userdnquota_obj;
+	else if (type == ZFS_PROP_GROUPQUOTA)
+		objp = &zsb->z_groupquota_obj;
+	else
+		objp = &zsb->z_groupdnquota_obj;
 
 	err = id_to_fuidstr(zsb, domain, rid, buf, B_TRUE);
 	if (err)

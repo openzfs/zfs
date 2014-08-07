@@ -39,6 +39,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/int_limits.h>
 #include <sys/nvpair.h>
+#include <sys/zfeature.h>
 #include "zfs_comutil.h"
 
 /*
@@ -119,6 +120,7 @@ static zfs_version_spa_map_t zfs_version_table[] = {
 	{ZPL_VERSION_FUID, SPA_VERSION_FUID},
 	{ZPL_VERSION_USERSPACE, SPA_VERSION_USERSPACE},
 	{ZPL_VERSION_SA, SPA_VERSION_SA},
+	{ZPL_VERSION_USERDNSPACE, SPA_FEATURE_USERDN_ACCOUNTING},
 	{0, 0}
 };
 

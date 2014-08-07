@@ -88,6 +88,8 @@ typedef struct zfs_sb {
 	kmutex_t	z_lock;
 	uint64_t	z_userquota_obj;
 	uint64_t	z_groupquota_obj;
+	uint64_t	z_userdnquota_obj;
+	uint64_t	z_groupdnquota_obj;
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 #define	ZFS_OBJ_MTX_SZ	256
