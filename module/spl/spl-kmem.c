@@ -58,12 +58,13 @@ module_param(spl_kmem_cache_expire, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
 
 /*
- * KMC_RECLAIM_ONCE is set as the default until zfsonlinux/spl#268 is
- * definitively resolved.  Depending on the system configuration and
- * workload this may increase the likelihood of out of memory events.
- * For those cases it is advised that this option be set to zero.
+ * The default behavior is to report the number of objects remaining in the
+ * cache.  This allows the Linux VM to repeatedly reclaim objects from the
+ * cache when memory is low satisfy other memory allocations.  Alternately,
+ * setting this value to KMC_RECLAIM_ONCE limits how aggressively the cache
+ * is reclaimed.  This may increase the likelihood of out of memory events.
  */
-unsigned int spl_kmem_cache_reclaim = KMC_RECLAIM_ONCE;
+unsigned int spl_kmem_cache_reclaim = 0;
 module_param(spl_kmem_cache_reclaim, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_reclaim, "Single reclaim pass (0x1)");
 
