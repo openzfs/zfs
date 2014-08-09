@@ -94,6 +94,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_2ARGS_VFS_GETATTR
 	SPL_AC_USLEEP_RANGE
 	SPL_AC_KMEM_CACHE_ALLOCFLAGS
+	SPL_AC_WAIT_ON_BIT
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -2568,5 +2569,30 @@ AC_DEFUN([SPL_AC_KMEM_CACHE_ALLOCFLAGS], [
 		],[
 			AC_MSG_RESULT(no)
 		])
+	])
+])
+
+dnl #
+dnl # 3.17 API change,
+dnl # wait_on_bit() no longer requires an action argument. The former
+dnl # "wait_on_bit" interface required an 'action' function to be provided
+dnl # which does the actual waiting. There were over 20 such functions in the
+dnl # kernel, many of them identical, though most cases can be satisfied by one
+dnl # of just two functions: one which uses io_schedule() and one which just
+dnl # uses schedule().  This API change was made to consolidate all of those
+dnl # redundant wait functions.
+dnl #
+AC_DEFUN([SPL_AC_WAIT_ON_BIT], [
+	AC_MSG_CHECKING([whether wait_on_bit() takes an action])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/wait.h>
+	],[
+		int (*action)(void *) = NULL;
+		wait_on_bit(NULL, 0, action, 0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_WAIT_ON_BIT_ACTION, 1, [yes])
+	],[
+		AC_MSG_RESULT(no)
 	])
 ])

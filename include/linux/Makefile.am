@@ -17,6 +17,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/linux/sysctl_compat.h \
 	$(top_srcdir)/include/linux/time_compat.h \
 	$(top_srcdir)/include/linux/uaccess_compat.h \
+	$(top_srcdir)/include/linux/wait_compat.h \
 	$(top_srcdir)/include/linux/zlib_compat.h
 
 USER_H =

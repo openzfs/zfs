@@ -1900,13 +1900,6 @@ spl_cache_grow_wait(spl_kmem_cache_t *skc)
 	return !test_bit(KMC_BIT_GROWING, &skc->skc_flags);
 }
 
-static int
-spl_cache_reclaim_wait(void *word)
-{
-	schedule();
-	return 0;
-}
-
 /*
  * No available objects on any slabs, create a new slab.  Note that this
  * functionality is disabled for KMC_SLAB caches which are backed by the
@@ -1928,8 +1921,8 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	 * then return so the local magazine can be rechecked for new objects.
 	 */
 	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags)) {
-		rc = wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
-		    spl_cache_reclaim_wait, TASK_UNINTERRUPTIBLE);
+		rc = spl_wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
+		    TASK_UNINTERRUPTIBLE);
 		SRETURN(rc ? rc : -EAGAIN);
 	}
 
