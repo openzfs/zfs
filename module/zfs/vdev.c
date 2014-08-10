@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -36,6 +36,7 @@
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
 #include <sys/space_map.h>
+#include <sys/space_reftree.h>
 #include <sys/zio.h>
 #include <sys/zap.h>
 #include <sys/fs/zfs.h>
@@ -193,7 +194,7 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	pvd->vdev_children = MAX(pvd->vdev_children, id + 1);
 	newsize = pvd->vdev_children * sizeof (vdev_t *);
 
-	newchild = kmem_zalloc(newsize, KM_PUSHPAGE);
+	newchild = kmem_alloc(newsize, KM_PUSHPAGE);
 	if (pvd->vdev_child != NULL) {
 		bcopy(pvd->vdev_child, newchild, oldsize);
 		kmem_free(pvd->vdev_child, oldsize);
@@ -263,7 +264,7 @@ vdev_compact_children(vdev_t *pvd)
 		if (pvd->vdev_child[c])
 			newc++;
 
-	newchild = kmem_alloc(newc * sizeof (vdev_t *), KM_PUSHPAGE);
+	newchild = kmem_zalloc(newc * sizeof (vdev_t *), KM_PUSHPAGE);
 
 	for (c = newc = 0; c < oldc; c++) {
 		if ((cvd = pvd->vdev_child[c]) != NULL) {
@@ -324,7 +325,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	mutex_init(&vd->vdev_stat_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&vd->vdev_probe_lock, NULL, MUTEX_DEFAULT, NULL);
 	for (t = 0; t < DTL_TYPES; t++) {
-		space_map_create(&vd->vdev_dtl[t], 0, -1ULL, 0,
+		vd->vdev_dtl[t] = range_tree_create(NULL, NULL,
 		    &vd->vdev_dtl_lock);
 	}
 	txg_list_create(&vd->vdev_ms_list,
@@ -510,7 +511,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	    alloctype == VDEV_ALLOC_ROOTPOOL)) {
 		if (alloctype == VDEV_ALLOC_LOAD) {
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DTL,
-			    &vd->vdev_dtl_smo.smo_object);
+			    &vd->vdev_dtl_object);
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_UNSPARE,
 			    &vd->vdev_unspare);
 		}
@@ -633,9 +634,10 @@ vdev_free(vdev_t *vd)
 	txg_list_destroy(&vd->vdev_dtl_list);
 
 	mutex_enter(&vd->vdev_dtl_lock);
+	space_map_close(vd->vdev_dtl_sm);
 	for (t = 0; t < DTL_TYPES; t++) {
-		space_map_unload(&vd->vdev_dtl[t]);
-		space_map_destroy(&vd->vdev_dtl[t]);
+		range_tree_vacate(vd->vdev_dtl[t], NULL, NULL);
+		range_tree_destroy(vd->vdev_dtl[t]);
 	}
 	mutex_exit(&vd->vdev_dtl_lock);
 
@@ -793,6 +795,17 @@ vdev_remove_parent(vdev_t *cvd)
 		cvd->vdev_orig_guid = cvd->vdev_guid;
 		cvd->vdev_guid += guid_delta;
 		cvd->vdev_guid_sum += guid_delta;
+
+		/*
+		 * If pool not set for autoexpand, we need to also preserve
+		 * mvd's asize to prevent automatic expansion of cvd.
+		 * Otherwise if we are adjusting the mirror by attaching and
+		 * detaching children of non-uniform sizes, the mirror could
+		 * autoexpand, unexpectedly requiring larger devices to
+		 * re-establish the mirror.
+		 */
+		if (!cvd->vdev_spa->spa_autoexpand)
+			cvd->vdev_asize = mvd->vdev_asize;
 	}
 	cvd->vdev_id = mvd->vdev_id;
 	vdev_add_child(pvd, cvd);
@@ -848,27 +861,16 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	vd->vdev_ms_count = newc;
 
 	for (m = oldc; m < newc; m++) {
-		space_map_obj_t smo = { 0, 0, 0 };
+		uint64_t object = 0;
+
 		if (txg == 0) {
-			uint64_t object = 0;
 			error = dmu_read(mos, vd->vdev_ms_array,
 			    m * sizeof (uint64_t), sizeof (uint64_t), &object,
 			    DMU_READ_PREFETCH);
 			if (error)
 				return (error);
-			if (object != 0) {
-				dmu_buf_t *db;
-				error = dmu_bonus_hold(mos, object, FTAG, &db);
-				if (error)
-					return (error);
-				ASSERT3U(db->db_size, >=, sizeof (smo));
-				bcopy(db->db_data, &smo, sizeof (smo));
-				ASSERT3U(smo.smo_object, ==, object);
-				dmu_buf_rele(db, FTAG);
-			}
 		}
-		vd->vdev_ms[m] = metaslab_init(vd->vdev_mg, &smo,
-		    m << vd->vdev_ms_shift, 1ULL << vd->vdev_ms_shift, txg);
+		vd->vdev_ms[m] = metaslab_init(vd->vdev_mg, m, object, txg);
 	}
 
 	if (txg == 0)
@@ -896,9 +898,12 @@ vdev_metaslab_fini(vdev_t *vd)
 
 	if (vd->vdev_ms != NULL) {
 		metaslab_group_passivate(vd->vdev_mg);
-		for (m = 0; m < count; m++)
-			if (vd->vdev_ms[m] != NULL)
-				metaslab_fini(vd->vdev_ms[m]);
+		for (m = 0; m < count; m++) {
+			metaslab_t *msp = vd->vdev_ms[m];
+
+			if (msp != NULL)
+				metaslab_fini(msp);
+		}
 		kmem_free(vd->vdev_ms, count * sizeof (metaslab_t *));
 		vd->vdev_ms = NULL;
 	}
@@ -1561,9 +1566,10 @@ vdev_create(vdev_t *vd, uint64_t txg, boolean_t isreplacing)
 	}
 
 	/*
-	 * Recursively initialize all labels.
+	 * Recursively load DTLs and initialize all labels.
 	 */
-	if ((error = vdev_label_init(vd, txg, isreplacing ?
+	if ((error = vdev_dtl_load(vd)) != 0 ||
+	    (error = vdev_label_init(vd, txg, isreplacing ?
 	    VDEV_LABEL_REPLACE : VDEV_LABEL_CREATE)) != 0) {
 		vdev_close(vd);
 		return (error);
@@ -1578,7 +1584,7 @@ vdev_metaslab_set_size(vdev_t *vd)
 	/*
 	 * Aim for roughly 200 metaslabs per vdev.
 	 */
-	vd->vdev_ms_shift = highbit(vd->vdev_asize / 200);
+	vd->vdev_ms_shift = highbit64(vd->vdev_asize / 200);
 	vd->vdev_ms_shift = MAX(vd->vdev_ms_shift, SPA_MAXBLOCKSHIFT);
 }
 
@@ -1597,6 +1603,18 @@ vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
 		(void) txg_list_add(&vd->vdev_dtl_list, arg, txg);
 
 	(void) txg_list_add(&vd->vdev_spa->spa_vdev_txg_list, vd, txg);
+}
+
+void
+vdev_dirty_leaves(vdev_t *vd, int flags, uint64_t txg)
+{
+	int c;
+
+	for (c = 0; c < vd->vdev_children; c++)
+		vdev_dirty_leaves(vd->vdev_child[c], flags, txg);
+
+	if (vd->vdev_ops->vdev_op_leaf)
+		vdev_dirty(vd->vdev_top, flags, vd, txg);
 }
 
 /*
@@ -1640,31 +1658,31 @@ vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
 void
 vdev_dtl_dirty(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 {
-	space_map_t *sm = &vd->vdev_dtl[t];
+	range_tree_t *rt = vd->vdev_dtl[t];
 
 	ASSERT(t < DTL_TYPES);
 	ASSERT(vd != vd->vdev_spa->spa_root_vdev);
 	ASSERT(spa_writeable(vd->vdev_spa));
 
-	mutex_enter(sm->sm_lock);
-	if (!space_map_contains(sm, txg, size))
-		space_map_add(sm, txg, size);
-	mutex_exit(sm->sm_lock);
+	mutex_enter(rt->rt_lock);
+	if (!range_tree_contains(rt, txg, size))
+		range_tree_add(rt, txg, size);
+	mutex_exit(rt->rt_lock);
 }
 
 boolean_t
 vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 {
-	space_map_t *sm = &vd->vdev_dtl[t];
+	range_tree_t *rt = vd->vdev_dtl[t];
 	boolean_t dirty = B_FALSE;
 
 	ASSERT(t < DTL_TYPES);
 	ASSERT(vd != vd->vdev_spa->spa_root_vdev);
 
-	mutex_enter(sm->sm_lock);
-	if (sm->sm_space != 0)
-		dirty = space_map_contains(sm, txg, size);
-	mutex_exit(sm->sm_lock);
+	mutex_enter(rt->rt_lock);
+	if (range_tree_space(rt) != 0)
+		dirty = range_tree_contains(rt, txg, size);
+	mutex_exit(rt->rt_lock);
 
 	return (dirty);
 }
@@ -1672,12 +1690,12 @@ vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 boolean_t
 vdev_dtl_empty(vdev_t *vd, vdev_dtl_type_t t)
 {
-	space_map_t *sm = &vd->vdev_dtl[t];
+	range_tree_t *rt = vd->vdev_dtl[t];
 	boolean_t empty;
 
-	mutex_enter(sm->sm_lock);
-	empty = (sm->sm_space == 0);
-	mutex_exit(sm->sm_lock);
+	mutex_enter(rt->rt_lock);
+	empty = (range_tree_space(rt) == 0);
+	mutex_exit(rt->rt_lock);
 
 	return (empty);
 }
@@ -1688,14 +1706,14 @@ vdev_dtl_empty(vdev_t *vd, vdev_dtl_type_t t)
 static uint64_t
 vdev_dtl_min(vdev_t *vd)
 {
-	space_seg_t *ss;
+	range_seg_t *rs;
 
 	ASSERT(MUTEX_HELD(&vd->vdev_dtl_lock));
-	ASSERT3U(vd->vdev_dtl[DTL_MISSING].sm_space, !=, 0);
+	ASSERT3U(range_tree_space(vd->vdev_dtl[DTL_MISSING]), !=, 0);
 	ASSERT0(vd->vdev_children);
 
-	ss = avl_first(&vd->vdev_dtl[DTL_MISSING].sm_root);
-	return (ss->ss_start - 1);
+	rs = avl_first(&vd->vdev_dtl[DTL_MISSING]->rt_root);
+	return (rs->rs_start - 1);
 }
 
 /*
@@ -1704,14 +1722,14 @@ vdev_dtl_min(vdev_t *vd)
 static uint64_t
 vdev_dtl_max(vdev_t *vd)
 {
-	space_seg_t *ss;
+	range_seg_t *rs;
 
 	ASSERT(MUTEX_HELD(&vd->vdev_dtl_lock));
-	ASSERT3U(vd->vdev_dtl[DTL_MISSING].sm_space, !=, 0);
+	ASSERT3U(range_tree_space(vd->vdev_dtl[DTL_MISSING]), !=, 0);
 	ASSERT0(vd->vdev_children);
 
-	ss = avl_last(&vd->vdev_dtl[DTL_MISSING].sm_root);
-	return (ss->ss_end);
+	rs = avl_last(&vd->vdev_dtl[DTL_MISSING]->rt_root);
+	return (rs->rs_end);
 }
 
 /*
@@ -1732,7 +1750,7 @@ vdev_dtl_should_excise(vdev_t *vd)
 	ASSERT0(vd->vdev_children);
 
 	if (vd->vdev_resilver_txg == 0 ||
-	    vd->vdev_dtl[DTL_MISSING].sm_space == 0)
+	    range_tree_space(vd->vdev_dtl[DTL_MISSING]) == 0)
 		return (B_TRUE);
 
 	/*
@@ -1802,35 +1820,35 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 			 * positive refcnt -- either 1 or 2.  We then convert
 			 * the reference tree into the new DTL_MISSING map.
 			 */
-			space_map_ref_create(&reftree);
-			space_map_ref_add_map(&reftree,
-			    &vd->vdev_dtl[DTL_MISSING], 1);
-			space_map_ref_add_seg(&reftree, 0, scrub_txg, -1);
-			space_map_ref_add_map(&reftree,
-			    &vd->vdev_dtl[DTL_SCRUB], 2);
-			space_map_ref_generate_map(&reftree,
-			    &vd->vdev_dtl[DTL_MISSING], 1);
-			space_map_ref_destroy(&reftree);
+			space_reftree_create(&reftree);
+			space_reftree_add_map(&reftree,
+			    vd->vdev_dtl[DTL_MISSING], 1);
+			space_reftree_add_seg(&reftree, 0, scrub_txg, -1);
+			space_reftree_add_map(&reftree,
+			    vd->vdev_dtl[DTL_SCRUB], 2);
+			space_reftree_generate_map(&reftree,
+			    vd->vdev_dtl[DTL_MISSING], 1);
+			space_reftree_destroy(&reftree);
 		}
-		space_map_vacate(&vd->vdev_dtl[DTL_PARTIAL], NULL, NULL);
-		space_map_walk(&vd->vdev_dtl[DTL_MISSING],
-		    space_map_add, &vd->vdev_dtl[DTL_PARTIAL]);
+		range_tree_vacate(vd->vdev_dtl[DTL_PARTIAL], NULL, NULL);
+		range_tree_walk(vd->vdev_dtl[DTL_MISSING],
+		    range_tree_add, vd->vdev_dtl[DTL_PARTIAL]);
 		if (scrub_done)
-			space_map_vacate(&vd->vdev_dtl[DTL_SCRUB], NULL, NULL);
-		space_map_vacate(&vd->vdev_dtl[DTL_OUTAGE], NULL, NULL);
+			range_tree_vacate(vd->vdev_dtl[DTL_SCRUB], NULL, NULL);
+		range_tree_vacate(vd->vdev_dtl[DTL_OUTAGE], NULL, NULL);
 		if (!vdev_readable(vd))
-			space_map_add(&vd->vdev_dtl[DTL_OUTAGE], 0, -1ULL);
+			range_tree_add(vd->vdev_dtl[DTL_OUTAGE], 0, -1ULL);
 		else
-			space_map_walk(&vd->vdev_dtl[DTL_MISSING],
-			    space_map_add, &vd->vdev_dtl[DTL_OUTAGE]);
+			range_tree_walk(vd->vdev_dtl[DTL_MISSING],
+			    range_tree_add, vd->vdev_dtl[DTL_OUTAGE]);
 
 		/*
 		 * If the vdev was resilvering and no longer has any
 		 * DTLs then reset its resilvering flag.
 		 */
 		if (vd->vdev_resilver_txg != 0 &&
-		    vd->vdev_dtl[DTL_MISSING].sm_space == 0 &&
-		    vd->vdev_dtl[DTL_OUTAGE].sm_space == 0)
+		    range_tree_space(vd->vdev_dtl[DTL_MISSING]) == 0 &&
+		    range_tree_space(vd->vdev_dtl[DTL_OUTAGE]) == 0)
 			vd->vdev_resilver_txg = 0;
 
 		mutex_exit(&vd->vdev_dtl_lock);
@@ -1842,6 +1860,8 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 
 	mutex_enter(&vd->vdev_dtl_lock);
 	for (t = 0; t < DTL_TYPES; t++) {
+		int c;
+
 		/* account for child's outage in parent's missing map */
 		int s = (t == DTL_MISSING) ? DTL_OUTAGE: t;
 		if (t == DTL_SCRUB)
@@ -1852,46 +1872,56 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 			minref = vd->vdev_nparity + 1;	/* RAID-Z */
 		else
 			minref = vd->vdev_children;	/* any kind of mirror */
-		space_map_ref_create(&reftree);
+		space_reftree_create(&reftree);
 		for (c = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
 			mutex_enter(&cvd->vdev_dtl_lock);
-			space_map_ref_add_map(&reftree, &cvd->vdev_dtl[s], 1);
+			space_reftree_add_map(&reftree, cvd->vdev_dtl[s], 1);
 			mutex_exit(&cvd->vdev_dtl_lock);
 		}
-		space_map_ref_generate_map(&reftree, &vd->vdev_dtl[t], minref);
-		space_map_ref_destroy(&reftree);
+		space_reftree_generate_map(&reftree, vd->vdev_dtl[t], minref);
+		space_reftree_destroy(&reftree);
 	}
 	mutex_exit(&vd->vdev_dtl_lock);
 }
 
-static int
+int
 vdev_dtl_load(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
-	space_map_obj_t *smo = &vd->vdev_dtl_smo;
 	objset_t *mos = spa->spa_meta_objset;
-	dmu_buf_t *db;
-	int error;
+	int error = 0;
+	int c;
 
-	ASSERT(vd->vdev_children == 0);
+	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_dtl_object != 0) {
+		ASSERT(!vd->vdev_ishole);
 
-	if (smo->smo_object == 0)
-		return (0);
+		error = space_map_open(&vd->vdev_dtl_sm, mos,
+		    vd->vdev_dtl_object, 0, -1ULL, 0, &vd->vdev_dtl_lock);
+		if (error)
+			return (error);
+		ASSERT(vd->vdev_dtl_sm != NULL);
 
-	ASSERT(!vd->vdev_ishole);
+		mutex_enter(&vd->vdev_dtl_lock);
 
-	if ((error = dmu_bonus_hold(mos, smo->smo_object, FTAG, &db)) != 0)
+		/*
+		 * Now that we've opened the space_map we need to update
+		 * the in-core DTL.
+		 */
+		space_map_update(vd->vdev_dtl_sm);
+
+		error = space_map_load(vd->vdev_dtl_sm,
+		    vd->vdev_dtl[DTL_MISSING], SM_ALLOC);
+		mutex_exit(&vd->vdev_dtl_lock);
+
 		return (error);
+	}
 
-	ASSERT3U(db->db_size, >=, sizeof (*smo));
-	bcopy(db->db_data, smo, sizeof (*smo));
-	dmu_buf_rele(db, FTAG);
-
-	mutex_enter(&vd->vdev_dtl_lock);
-	error = space_map_load(&vd->vdev_dtl[DTL_MISSING],
-	    NULL, SM_ALLOC, smo, mos);
-	mutex_exit(&vd->vdev_dtl_lock);
+	for (c = 0; c < vd->vdev_children; c++) {
+		error = vdev_dtl_load(vd->vdev_child[c]);
+		if (error != 0)
+			break;
+	}
 
 	return (error);
 }
@@ -1900,64 +1930,74 @@ void
 vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
-	space_map_obj_t *smo = &vd->vdev_dtl_smo;
-	space_map_t *sm = &vd->vdev_dtl[DTL_MISSING];
+	range_tree_t *rt = vd->vdev_dtl[DTL_MISSING];
 	objset_t *mos = spa->spa_meta_objset;
-	space_map_t smsync;
-	kmutex_t smlock;
-	dmu_buf_t *db;
+	range_tree_t *rtsync;
+	kmutex_t rtlock;
 	dmu_tx_t *tx;
+	uint64_t object = space_map_object(vd->vdev_dtl_sm);
 
 	ASSERT(!vd->vdev_ishole);
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 
-	if (vd->vdev_detached) {
-		if (smo->smo_object != 0) {
-			VERIFY0(dmu_object_free(mos, smo->smo_object, tx));
-			smo->smo_object = 0;
-		}
+	if (vd->vdev_detached || vd->vdev_top->vdev_removing) {
+		mutex_enter(&vd->vdev_dtl_lock);
+		space_map_free(vd->vdev_dtl_sm, tx);
+		space_map_close(vd->vdev_dtl_sm);
+		vd->vdev_dtl_sm = NULL;
+		mutex_exit(&vd->vdev_dtl_lock);
 		dmu_tx_commit(tx);
 		return;
 	}
 
-	if (smo->smo_object == 0) {
-		ASSERT(smo->smo_objsize == 0);
-		ASSERT(smo->smo_alloc == 0);
-		smo->smo_object = dmu_object_alloc(mos,
-		    DMU_OT_SPACE_MAP, 1 << SPACE_MAP_BLOCKSHIFT,
-		    DMU_OT_SPACE_MAP_HEADER, sizeof (*smo), tx);
-		ASSERT(smo->smo_object != 0);
+	if (vd->vdev_dtl_sm == NULL) {
+		uint64_t new_object;
+
+		new_object = space_map_alloc(mos, tx);
+		VERIFY3U(new_object, !=, 0);
+
+		VERIFY0(space_map_open(&vd->vdev_dtl_sm, mos, new_object,
+		    0, -1ULL, 0, &vd->vdev_dtl_lock));
+		ASSERT(vd->vdev_dtl_sm != NULL);
+	}
+
+	mutex_init(&rtlock, NULL, MUTEX_DEFAULT, NULL);
+
+	rtsync = range_tree_create(NULL, NULL, &rtlock);
+
+	mutex_enter(&rtlock);
+
+	mutex_enter(&vd->vdev_dtl_lock);
+	range_tree_walk(rt, range_tree_add, rtsync);
+	mutex_exit(&vd->vdev_dtl_lock);
+
+	space_map_truncate(vd->vdev_dtl_sm, tx);
+	space_map_write(vd->vdev_dtl_sm, rtsync, SM_ALLOC, tx);
+	range_tree_vacate(rtsync, NULL, NULL);
+
+	range_tree_destroy(rtsync);
+
+	mutex_exit(&rtlock);
+	mutex_destroy(&rtlock);
+
+	/*
+	 * If the object for the space map has changed then dirty
+	 * the top level so that we update the config.
+	 */
+	if (object != space_map_object(vd->vdev_dtl_sm)) {
+		zfs_dbgmsg("txg %llu, spa %s, DTL old object %llu, "
+		    "new object %llu", txg, spa_name(spa), object,
+		    space_map_object(vd->vdev_dtl_sm));
 		vdev_config_dirty(vd->vdev_top);
 	}
 
-	mutex_init(&smlock, NULL, MUTEX_DEFAULT, NULL);
-
-	space_map_create(&smsync, sm->sm_start, sm->sm_size, sm->sm_shift,
-	    &smlock);
-
-	mutex_enter(&smlock);
+	dmu_tx_commit(tx);
 
 	mutex_enter(&vd->vdev_dtl_lock);
-	space_map_walk(sm, space_map_add, &smsync);
+	space_map_update(vd->vdev_dtl_sm);
 	mutex_exit(&vd->vdev_dtl_lock);
-
-	space_map_truncate(smo, mos, tx);
-	space_map_sync(&smsync, SM_ALLOC, smo, mos, tx);
-	space_map_vacate(&smsync, NULL, NULL);
-
-	space_map_destroy(&smsync);
-
-	mutex_exit(&smlock);
-	mutex_destroy(&smlock);
-
-	VERIFY(0 == dmu_bonus_hold(mos, smo->smo_object, FTAG, &db));
-	dmu_buf_will_dirty(db, tx);
-	ASSERT3U(db->db_size, >=, sizeof (*smo));
-	bcopy(smo, db->db_data, sizeof (*smo));
-	dmu_buf_rele(db, FTAG);
-
-	dmu_tx_commit(tx);
 }
 
 /*
@@ -2007,7 +2047,7 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 
 	if (vd->vdev_children == 0) {
 		mutex_enter(&vd->vdev_dtl_lock);
-		if (vd->vdev_dtl[DTL_MISSING].sm_space != 0 &&
+		if (range_tree_space(vd->vdev_dtl[DTL_MISSING]) != 0 &&
 		    vdev_writeable(vd)) {
 
 			thismin = vdev_dtl_min(vd);
@@ -2115,29 +2155,25 @@ vdev_remove(vdev_t *vd, uint64_t txg)
 
 	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
-	if (vd->vdev_dtl_smo.smo_object) {
-		ASSERT0(vd->vdev_dtl_smo.smo_alloc);
-		(void) dmu_object_free(mos, vd->vdev_dtl_smo.smo_object, tx);
-		vd->vdev_dtl_smo.smo_object = 0;
-	}
-
 	if (vd->vdev_ms != NULL) {
 		for (m = 0; m < vd->vdev_ms_count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
 
-			if (msp == NULL || msp->ms_smo.smo_object == 0)
+			if (msp == NULL || msp->ms_sm == NULL)
 				continue;
 
-			ASSERT0(msp->ms_smo.smo_alloc);
-			(void) dmu_object_free(mos, msp->ms_smo.smo_object, tx);
-			msp->ms_smo.smo_object = 0;
+			mutex_enter(&msp->ms_lock);
+			VERIFY0(space_map_allocated(msp->ms_sm));
+			space_map_free(msp->ms_sm, tx);
+			space_map_close(msp->ms_sm);
+			msp->ms_sm = NULL;
+			mutex_exit(&msp->ms_lock);
 		}
 	}
 
 	if (vd->vdev_ms_array) {
 		(void) dmu_object_free(mos, vd->vdev_ms_array, tx);
 		vd->vdev_ms_array = 0;
-		vd->vdev_ms_shift = 0;
 	}
 	dmu_tx_commit(tx);
 }

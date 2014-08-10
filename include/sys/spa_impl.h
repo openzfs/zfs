@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -38,15 +38,17 @@
 #include <sys/refcount.h>
 #include <sys/bplist.h>
 #include <sys/bpobj.h>
+#include <sys/zfeature.h>
+#include <zfeature_common.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
 typedef struct spa_error_entry {
-	zbookmark_t	se_bookmark;
-	char		*se_name;
-	avl_node_t	se_avl;
+	zbookmark_phys_t	se_bookmark;
+	char			*se_name;
+	avl_node_t		se_avl;
 } spa_error_entry_t;
 
 typedef struct spa_history_phys {
@@ -232,6 +234,9 @@ struct spa {
 	uint64_t	spa_feat_for_write_obj;	/* required to write to pool */
 	uint64_t	spa_feat_for_read_obj;	/* required to read from pool */
 	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
+	uint64_t	spa_feat_enabled_txg_obj; /* Feature enabled txg */
+	/* cache feature refcounts */
+	uint64_t	spa_feat_refcount_cache[SPA_FEATURES];
 	taskqid_t	spa_deadman_tqid;	/* Task id */
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	hrtime_t	spa_sync_starttime;	/* starting time of spa_sync */

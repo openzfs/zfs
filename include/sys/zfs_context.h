@@ -1,31 +1,30 @@
 /*
  * CDDL HEADER START
  *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
+ * The contents of this file are subject to the terms of the Common Development
+ * and Distribution License (the "License").  You may not use this file except
+ * in compliance with the License.
  *
- * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
- * or http://www.opensolaris.org/os/licensing.
- * See the License for the specific language governing permissions
- * and limitations under the License.
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or
+ * http://www.opensolaris.org/os/licensing.  See the License for the specific
+ * language governing permissions and limitations under the License.
  *
- * When distributing Covered Code, include this CDDL HEADER in each
- * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
+ * When distributing Covered Code, include this CDDL HEADER in each file and
+ * include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add
+ * the following below this CDDL HEADER, with the fields enclosed by brackets
+ * "[]" replaced with your own identifying information: Portions Copyright
+ * [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.  Use is subject
+ * to license terms.
  */
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
@@ -618,7 +617,7 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-#define	CPU_SEQID	((uint_t)pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID	((long long)pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
@@ -627,7 +626,7 @@ extern void delay(clock_t ticks);
 
 extern uint64_t physmem;
 
-extern int highbit(ulong_t i);
+extern int highbit64(uint64_t i);
 extern int random_get_bytes(uint8_t *ptr, size_t len);
 extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
 

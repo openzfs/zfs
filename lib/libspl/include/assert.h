@@ -42,6 +42,17 @@ __assert_c99(const char *expr, const char *file, int line, const char *func)
 }
 #endif  /* __assert_c99 */
 
+#ifndef __assert
+static inline void
+__assert(const char *expr, const char *file, int line)
+{
+	fprintf(stderr, "%s:%i: %s: Assertion failed.\n", file, line, expr);
+	abort();
+}
+#else
+extern void __assert(const char *, const char *, int);
+#endif
+
 #ifndef verify
 #if defined(__STDC__)
 #if __STDC_VERSION__ - 0 >= 199901L

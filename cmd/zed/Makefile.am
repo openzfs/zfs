@@ -27,6 +27,7 @@ zed_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libzfs/libzfs.la \
+	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 	$(TIRPC_LIBS)
 
 zedconfdir = $(sysconfdir)/zfs/zed.d

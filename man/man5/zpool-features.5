@@ -1,5 +1,5 @@
 '\" te
-.\" Copyright (c) 2012 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -13,7 +13,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZPOOL-FEATURES 5 "Feb 4, 2013"
+.TH ZPOOL-FEATURES 5 "Aug 27, 2013"
 .SH NAME
 zpool\-features \- ZFS pool feature descriptions
 .SH DESCRIPTION
@@ -223,11 +223,166 @@ When the \fBlz4_compress\fR feature is set to \fBenabled\fR, the
 administrator can turn on \fBlz4\fR compression on any dataset on the
 pool using the \fBzfs\fR(8) command. Please note that doing so will
 immediately activate the \fBlz4_compress\fR feature on the underlying
-pool (even before any data is written). Since this feature is not
-read-only compatible, this operation will render the pool unimportable
-on systems without support for the \fBlz4_compress\fR feature. At the
-moment, this operation cannot be reversed. Booting off of
-\fBlz4\fR-compressed root pools is supported.
+pool (even before any data is written), and the feature will not be
+deactivated. Since this feature is not read-only compatible, this
+operation will render the pool unimportable on systems without support
+for the \fBlz4_compress\fR feature. Booting off of \fBlz4\fR-compressed
+root pools is supported.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBspacemap_histogram\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:spacemap_histogram
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This features allows ZFS to maintain more information about how free space
+is organized within the pool. If this feature is \fBenabled\fR, ZFS will
+set this feature to \fBactive\fR when a new space map object is created or
+an existing space map is upgraded to the new format. Once the feature is
+\fBactive\fR, it will remain in that state until the pool is destroyed.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBextensible_dataset\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:extensible_dataset
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	none
+.TE
+
+This feature allows more flexible use of internal ZFS data structures,
+and exists for other features to depend on.
+
+This feature will be \fBactive\fR when the first dependent feature uses it,
+and will be returned to the \fBenabled\fR state when all datasets that use
+this feature are destroyed.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBbookmarks\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:bookmarks
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables use of the \fBzfs bookmark\fR subcommand.
+
+This feature is \fBactive\fR while any bookmarks exist in the pool.
+All bookmarks in the pool can be listed by running
+\fBzfs list -t bookmark -r \fIpoolname\fR\fR.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBenabled_txg\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:enabled_txg
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+Once this feature is enabled ZFS records the transaction group number
+in which new features are enabled. This has no user-visible impact,
+but other features may depend on this feature.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will
+never return to being \fBenabled\fB.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBhole_birth\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:hole_birth
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	enabled_txg
+.TE
+
+This feature improves performance of incremental sends ("zfs send -i")
+and receives for objects with many holes. The most common case of
+hole-filled objects is zvols.
+
+An incremental send stream from snapshot \fBA\fR to snapshot \fBB\fR
+contains information about every block that changed between \fBA\fR and
+\fBB\fR. Blocks which did not change between those snapshots can be
+identified and omitted from the stream using a piece of metadata called
+the 'block birth time', but birth times are not recorded for holes (blocks
+filled only with zeroes). Since holes created after \fBA\fR cannot be
+distinguished from holes created before \fBA\fR, information about every
+hole in the entire filesystem or zvol is included in the send stream.
+
+For workloads where holes are rare this is not a problem. However, when
+incrementally replicating filesystems or zvols with many holes (for
+example a zvol formatted with another filesystem) a lot of time will
+be spent sending and receiving unnecessary information about holes that
+already exist on the receiving side.
+
+Once the \fBhole_birth\fR feature has been enabled the block birth times
+of all new holes will be recorded. Incremental sends between snapshots
+created after this feature is enabled will use this new metadata to avoid
+sending information about holes that already exist on the receiving side.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will
+never return to being \fBenabled\fB.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBembedded_data\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:embedded_data
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	none
+.TE
+
+This feature improves the performance and compression ratio of
+highly-compressible blocks.  Blocks whose contents can compress to 112 bytes
+or smaller can take advantage of this feature.
+
+When this feature is enabled, the contents of highly-compressible blocks are
+stored in the block "pointer" itself (a misnomer in this case, as it contains
+the compresseed data, rather than a pointer to its location on disk).  Thus
+the space of the block (one sector, typically 512 bytes or 4KB) is saved,
+and no additional i/o is needed to read and write the data block.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will
+never return to being \fBenabled\fR.
 
 .RE
 

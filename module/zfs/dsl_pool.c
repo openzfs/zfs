@@ -245,8 +245,14 @@ dsl_pool_open(dsl_pool_t *dp)
 		    dp->dp_meta_objset, obj));
 	}
 
-	if (spa_feature_is_active(dp->dp_spa,
-	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+	/*
+	 * Note: errors ignored, because the leak dir will not exist if we
+	 * have not encountered a leak yet.
+	 */
+	(void) dsl_pool_open_special_dir(dp, LEAK_DIR_NAME,
+	    &dp->dp_leak_dir);
+
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY)) {
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
 		    &dp->dp_bptree_obj);
@@ -254,8 +260,7 @@ dsl_pool_open(dsl_pool_t *dp)
 			goto out;
 	}
 
-	if (spa_feature_is_active(dp->dp_spa,
-	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ])) {
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
 		    &dp->dp_empty_bpobj);
@@ -294,6 +299,8 @@ dsl_pool_close(dsl_pool_t *dp)
 		dsl_dir_rele(dp->dp_mos_dir, dp);
 	if (dp->dp_free_dir)
 		dsl_dir_rele(dp->dp_free_dir, dp);
+	if (dp->dp_leak_dir)
+		dsl_dir_rele(dp->dp_leak_dir, dp);
 	if (dp->dp_root_dir)
 		dsl_dir_rele(dp->dp_root_dir, dp);
 

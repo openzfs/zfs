@@ -29,7 +29,7 @@
 list_t zfs_dbgmsgs;
 int zfs_dbgmsg_size;
 kmutex_t zfs_dbgmsgs_lock;
-int zfs_dbgmsg_maxsize = 1<<20; /* 1MB */
+int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 #endif
 
 /*
@@ -44,7 +44,38 @@ int zfs_flags = 0;
  * This should only be used as a last resort, as it typically results
  * in leaked space, or worse.
  */
-int zfs_recover = 0;
+int zfs_recover = B_FALSE;
+
+/*
+ * If destroy encounters an EIO while reading metadata (e.g. indirect
+ * blocks), space referenced by the missing metadata can not be freed.
+ * Normally this causes the background destroy to become "stalled", as
+ * it is unable to make forward progress.  While in this stalled state,
+ * all remaining space to free from the error-encountering filesystem is
+ * "temporarily leaked".  Set this flag to cause it to ignore the EIO,
+ * permanently leak the space from indirect blocks that can not be read,
+ * and continue to free everything else that it can.
+ *
+ * The default, "stalling" behavior is useful if the storage partially
+ * fails (i.e. some but not all i/os fail), and then later recovers.  In
+ * this case, we will be able to continue pool operations while it is
+ * partially failed, and when it recovers, we can continue to free the
+ * space, with no leaks.  However, note that this case is actually
+ * fairly rare.
+ *
+ * Typically pools either (a) fail completely (but perhaps temporarily,
+ * e.g. a top-level vdev going offline), or (b) have localized,
+ * permanent errors (e.g. disk returns the wrong data due to bit flip or
+ * firmware bug).  In case (a), this setting does not matter because the
+ * pool will be suspended and the sync thread will not be able to make
+ * forward progress regardless.  In case (b), because the error is
+ * permanent, the best we can do is leak the minimum amount of space,
+ * which is what setting this flag will do.  Therefore, it is reasonable
+ * for this flag to normally be set, but we chose the more conservative
+ * approach of not setting it, so that there is no possibility of
+ * leaking space in the "partial temporary" failure case.
+ */
+int zfs_free_leak_on_eio = B_FALSE;
 
 
 void
@@ -163,4 +194,8 @@ MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
 
 module_param(zfs_recover, int, 0644);
 MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
+
+module_param(zfs_free_leak_on_eio, int, 0644);
+MODULE_PARM_DESC(zfs_free_leak_on_eio,
+	"Set to ignore IO errors during free and permanently leak the space");
 #endif /* _KERNEL */

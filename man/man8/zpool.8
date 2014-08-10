@@ -62,7 +62,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool get\fR [\fB-p\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
+\fBzpool get\fR [\fB-pH\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
 .fi
 
 .LP
@@ -78,13 +78,13 @@ zpool \- configures ZFS storage pools
 .LP
 .nf
 \fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
-     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] \fB-a\fR
+     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR\] [\fB-T\fR\]] \fB-a\fR
 .fi
 
 .LP
 .nf
 \fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
-     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] \fIpool\fR |\fIid\fR [\fInewpool\fR]
+     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR] [\fB-T\fR\]] [\fB-t\fR]] \fIpool\fR |\fIid\fR [\fInewpool\fR]
 .fi
 
 .LP
@@ -130,7 +130,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool replace\fR [\fB-f\fR] \fIpool\fR \fIdevice\fR [\fInew_device\fR]
+\fBzpool replace\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR]  \fIpool\fR \fIdevice\fR [\fInew_device\fR]
 .fi
 
 .LP
@@ -145,7 +145,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR
+\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
 .fi
 
 .LP
@@ -568,6 +568,7 @@ Total size of the storage pool.
 .ad
 .RS 20n
 .rt
+.sp
 Information about unsupported features that are enabled on the pool. See
 \fBzpool-features\fR(5) for details.
 .RE
@@ -601,6 +602,8 @@ The following property can be set at creation time:
 Pool sector size exponent, to the power of 2 (internally referred to as "ashift"). I/O operations will be aligned to the specified size boundaries. Additionally, the minimum (disk) write size will be set to the specified size, so this represents a space vs. performance trade-off. The typical case for setting this property is when performance is important and the underlying disks use 4KiB sectors but report 512B sectors to the OS (for compatibility reasons); in that case, set \fBashift=12\fR (which is 1<<12 = 4096).
 .LP
 For optimal performance, the pool sector size should be greater than or equal to the sector size of the underlying disks. Since the property cannot be changed after pool creation, if in a given pool, you \fIever\fR want to use drives that \fIreport\fR 4KiB sectors, you must set \fBashift=12\fR at pool creation time.
+.LP
+Keep in mind is that the \fBashift\fR is \fIvdev\fR specific and is not a \fIpool\fR global.  This means that when adding new vdevs to an existing pool you may need to specify the \fBashift\fR.
 .RE
 
 .sp
@@ -834,7 +837,7 @@ Displays the configuration that would be used without actually adding the \fBvde
 .ad
 .sp .6
 .RS 4n
-Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is "ashift".
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.  \fBDo note\fR that some properties (among them \fBashift\fR) are \fInot\fR inherited from a previous vdev. They are vdev specific, not pool specific.
 .RE
 
 Do not add a disk that is currently configured as a quorum device to a zpool. After a disk is in the pool, that disk can then be configured as a quorum device.
@@ -1076,6 +1079,17 @@ See the "Properties" section for more information on the available pool properti
 Display numbers in parseable (exact) values.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-H\fR\fR
+.ad
+.RS 6n
+.rt
+Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
+.RE
+
 .RE
 
 .sp
@@ -1294,6 +1308,28 @@ Import the pool without mounting any file systems.
 Used with the \fB-F\fR recovery option. Determines whether a non-importable pool can be made importable again, but does not actually perform the pool recovery. For more details about pool recovery mode, see the \fB-F\fR option, above.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-X\fR\fR
+.ad
+.RS 21n
+Used with the \fB-F\fR recovery option. Determines whether extreme measures to find a valid txg should take place.  This allows the pool to be rolled back to a txg which is no longer guaranteed to be consistent.  Pools imported at an inconsistent txg may contain uncorrectable checksum errors.  For more details about pool recovery mode, see the \fB-F\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-T\fR\fR
+.ad
+.RS 21n
+Specify the txg to use for rollback.  Implies \fB-FX\fR. For more details about pool recovery mode, see the \fB-X\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
+.RE
+
 .RE
 
 .sp
@@ -1404,6 +1440,30 @@ Sets the "\fBcachefile\fR" property to "\fBnone\fR" and the "\fIaltroot\fR" prop
 .sp .6
 .RS 4n
 Used with the \fB-F\fR recovery option. Determines whether a non-importable pool can be made importable again, but does not actually perform the pool recovery. For more details about pool recovery mode, see the \fB-F\fR option, above.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-X\fR\fR
+.ad
+.sp .6
+.RS 4n
+Used with the \fB-F\fR recovery option. Determines whether extreme measures to find a valid txg should take place.  This allows the pool to be rolled back to a txg which is no longer guaranteed to be consistent.  Pools imported at an inconsistent txg may contain uncorrectable checksum errors.  For more details about pool recovery mode, see the \fB-F\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-T\fR\fR
+.ad
+.sp .6
+.RS 4n
+Specify the txg to use for rollback.  Implies \fB-FX\fR. For more details about pool recovery mode, see the \fB-X\fR option, above.
+\fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
 .RE
 
 .sp
@@ -1627,7 +1687,7 @@ Removes the specified device from the pool. This command currently only supports
 .ne 2
 .mk
 .na
-\fB\fBzpool replace\fR [\fB-f\fR] \fIpool\fR \fIold_device\fR [\fInew_device\fR]\fR
+\fB\fBzpool replace\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIold_device\fR [\fInew_device\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -1645,6 +1705,17 @@ The size of \fInew_device\fR must be greater than or equal to the minimum size o
 .RS 6n
 .rt  
 Forces use of \fInew_device\fR, even if its appears to be in use. Not all devices can be overridden in this manner.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR \fIproperty=value\fR
+.ad
+.sp .6n
+.RS 6n
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.  \fBDo note\fR that some properties (among them \fBashift\fR) are \fInot\fR inherited from a previous vdev. They are vdev specific, not pool specific.
 .RE
 
 .RE
@@ -1690,11 +1761,13 @@ Sets the given property on the specified pool. See the "Properties" section for 
 .ne 2
 .mk
 .na
-\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR
+\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
 .ad
 .sp .6
 .RS 4n
-Split devices off \fIpool\fR creating \fInewpool\fR.  All \fBvdev\fRs in \fIpool\fR must be mirrors.  At the time of the split, \fInewpool\fR will be a replica of \fIpool\fR.
+Split devices off \fIpool\fR creating \fInewpool\fR. All \fBvdev\fRs in \fIpool\fR must be mirrors and the pool must not be in the process of resilvering. At the time of the split, \fInewpool\fR will be a replica of \fIpool\fR. By default, the last device in each mirror is split from \fIpool\fR to create \fInewpool\fR.
+
+The optional \fIdevice\fR specification causes the specified device(s) to be included in the new pool and, should any devices remain unspecified, the last device in each mirror is used as would be by default.
 
 .sp
 .ne 2

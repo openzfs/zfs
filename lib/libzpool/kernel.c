@@ -901,7 +901,7 @@ static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
 static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 
 void
-vpanic(const char *fmt, va_list adx)
+vpanic(const char *fmt, __va_list adx)
 {
 	(void) fprintf(stderr, "error: ");
 	(void) vfprintf(stderr, fmt, adx);
@@ -921,7 +921,7 @@ panic(const char *fmt, ...)
 }
 
 void
-vcmn_err(int ce, const char *fmt, va_list adx)
+vcmn_err(int ce, const char *fmt, __va_list adx)
 {
 	if (ce == CE_PANIC)
 		vpanic(fmt, adx);
@@ -1014,17 +1014,15 @@ delay(clock_t ticks)
  * High order bit is 31 (or 63 in _LP64 kernel).
  */
 int
-highbit(ulong_t i)
+highbit64(uint64_t i)
 {
 	register int h = 1;
 
 	if (i == 0)
 		return (0);
-#ifdef _LP64
-	if (i & 0xffffffff00000000ul) {
+	if (i & 0xffffffff00000000ULL) {
 		h += 32; i >>= 32;
 	}
-#endif
 	if (i & 0xffff0000) {
 		h += 16; i >>= 16;
 	}

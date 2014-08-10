@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <ctype.h>
@@ -316,6 +316,7 @@ zpool_get_prop_literal(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_ALLOCATED:
 		case ZPOOL_PROP_FREE:
 		case ZPOOL_PROP_FREEING:
+		case ZPOOL_PROP_LEAKED:
 		case ZPOOL_PROP_EXPANDSZ:
 		case ZPOOL_PROP_ASHIFT:
 			if (literal)
@@ -459,10 +460,9 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 		prop = zpool_name_to_prop(propname);
 		if (prop == ZPROP_INVAL && zpool_prop_feature(propname)) {
 			int err;
-			zfeature_info_t *feature;
 			char *fname = strchr(propname, '@') + 1;
 
-			err = zfeature_lookup_name(fname, &feature);
+			err = zfeature_lookup_name(fname, NULL);
 			if (err != 0) {
 				ASSERT3U(err, ==, ENOENT);
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -877,14 +877,14 @@ zpool_prop_get_feature(zpool_handle_t *zhp, const char *propname, char *buf,
 	 */
 	if (supported) {
 		int ret;
-		zfeature_info_t *fi;
+		spa_feature_t fid;
 
-		ret = zfeature_lookup_name(feature, &fi);
+		ret = zfeature_lookup_name(feature, &fid);
 		if (ret != 0) {
 			(void) strlcpy(buf, "-", len);
 			return (ENOTSUP);
 		}
-		feature = fi->fi_guid;
+		feature = spa_feature_table[fid].fi_guid;
 	}
 
 	if (nvlist_lookup_uint64(features, feature, &refcount) == 0)
@@ -2753,10 +2753,11 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 
 	case EDOM:
 		/*
-		 * The new device has a different alignment requirement.
+		 * The new device has a different optimal sector size.
 		 */
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "devices have different sector alignment"));
+		    "new device has a different optimal sector size; use the "
+		    "option '-o ashift=N' to override the optimal size"));
 		(void) zfs_error(hdl, EZFS_BADDEV, msg);
 		break;
 
@@ -3499,7 +3500,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 static int
 zbookmark_compare(const void *a, const void *b)
 {
-	return (memcmp(a, b, sizeof (zbookmark_t)));
+	return (memcmp(a, b, sizeof (zbookmark_phys_t)));
 }
 
 /*
@@ -3511,7 +3512,7 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 {
 	zfs_cmd_t zc = {"\0"};
 	uint64_t count;
-	zbookmark_t *zb = NULL;
+	zbookmark_phys_t *zb = NULL;
 	int i;
 
 	/*
@@ -3524,7 +3525,7 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	if (count == 0)
 		return (0);
 	if ((zc.zc_nvlist_dst = (uintptr_t)zfs_alloc(zhp->zpool_hdl,
-	    count * sizeof (zbookmark_t))) == (uintptr_t)NULL)
+	    count * sizeof (zbookmark_phys_t))) == (uintptr_t)NULL)
 		return (-1);
 	zc.zc_nvlist_dst_size = count;
 	(void) strcpy(zc.zc_name, zhp->zpool_name);
@@ -3533,11 +3534,14 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 		    &zc) != 0) {
 			free((void *)(uintptr_t)zc.zc_nvlist_dst);
 			if (errno == ENOMEM) {
+				void *dst;
+
 				count = zc.zc_nvlist_dst_size;
-				if ((zc.zc_nvlist_dst = (uintptr_t)
-				    zfs_alloc(zhp->zpool_hdl, count *
-				    sizeof (zbookmark_t))) == (uintptr_t)NULL)
+				dst = zfs_alloc(zhp->zpool_hdl, count *
+				    sizeof (zbookmark_phys_t));
+				if (dst == NULL)
 					return (-1);
+				zc.zc_nvlist_dst = (uintptr_t)dst;
 			} else {
 				return (-1);
 			}
@@ -3553,11 +3557,11 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	 * _not_ copied as part of the process.  So we point the start of our
 	 * array appropriate and decrement the total number of elements.
 	 */
-	zb = ((zbookmark_t *)(uintptr_t)zc.zc_nvlist_dst) +
+	zb = ((zbookmark_phys_t *)(uintptr_t)zc.zc_nvlist_dst) +
 	    zc.zc_nvlist_dst_size;
 	count -= zc.zc_nvlist_dst_size;
 
-	qsort(zb, count, sizeof (zbookmark_t), zbookmark_compare);
+	qsort(zb, count, sizeof (zbookmark_phys_t), zbookmark_compare);
 
 	verify(nvlist_alloc(nverrlistp, 0, KM_SLEEP) == 0);
 
