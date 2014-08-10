@@ -3965,7 +3965,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		 * writepages() normally handles the entire commit for
 		 * performance reasons.
 		 */
-		zil_commit(zsb->z_log, zp->z_id);
+		if (zsb->z_log != NULL)
+			zil_commit(zsb->z_log, zp->z_id);
 	}
 
 	ZFS_EXIT(zsb);

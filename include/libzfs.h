@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2013 Nexenta Systems, Inc. All rights reserved.
@@ -39,6 +39,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/avl.h>
 #include <ucred.h>
+#include <libzfs_core.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -204,6 +205,7 @@ extern int zpool_log_history(libzfs_handle_t *, const char *);
 extern int libzfs_errno(libzfs_handle_t *);
 extern const char *libzfs_error_action(libzfs_handle_t *);
 extern const char *libzfs_error_description(libzfs_handle_t *);
+extern int zfs_standard_error(libzfs_handle_t *, int, const char *);
 extern void libzfs_mnttab_init(libzfs_handle_t *);
 extern void libzfs_mnttab_fini(libzfs_handle_t *);
 extern void libzfs_mnttab_cache(libzfs_handle_t *, boolean_t);
@@ -557,6 +559,7 @@ extern int zfs_iter_filesystems(zfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_snapshots(zfs_handle_t *, boolean_t, zfs_iter_f, void *);
 extern int zfs_iter_snapshots_sorted(zfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_snapspec(zfs_handle_t *, const char *, zfs_iter_f, void *);
+extern int zfs_iter_bookmarks(zfs_handle_t *, zfs_iter_f, void *);
 
 typedef struct get_all_cb {
 	zfs_handle_t	**cb_handles;
@@ -612,12 +615,16 @@ typedef struct sendflags {
 
 	/* show progress (ie. -v) */
 	boolean_t progress;
+
+	/* WRITE_EMBEDDED records of type DATA are permitted */
+	boolean_t embed_data;
 } sendflags_t;
 
 typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);
 
 extern int zfs_send(zfs_handle_t *, const char *, const char *,
     sendflags_t *, int, snapfilter_cb_t, void *, nvlist_t **);
+extern int zfs_send_one(zfs_handle_t *, const char *, int, enum lzc_send_flags);
 
 extern int zfs_promote(zfs_handle_t *);
 extern int zfs_hold(zfs_handle_t *, const char *, const char *,
@@ -687,6 +694,7 @@ extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, char *, zfs_type_t);
 extern boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
     zfs_type_t);
 extern int zfs_spa_version(zfs_handle_t *, int *);
+extern boolean_t zfs_bookmark_exists(const char *path);
 extern int zfs_append_partition(char *path, size_t max_len);
 extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
 extern int zfs_strcmp_pathname(char *name, char *cmp_name, int wholedisk);

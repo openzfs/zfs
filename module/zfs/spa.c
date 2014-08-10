@@ -238,17 +238,23 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 	}
 
 	if (pool != NULL) {
-		dsl_dir_t *freedir = pool->dp_free_dir;
-
 		/*
 		 * The $FREE directory was introduced in SPA_VERSION_DEADLISTS,
 		 * when opening pools before this version freedir will be NULL.
 		 */
-		if (freedir != NULL) {
+		if (pool->dp_free_dir != NULL) {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING, NULL,
-			    freedir->dd_phys->dd_used_bytes, src);
+			    pool->dp_free_dir->dd_phys->dd_used_bytes, src);
 		} else {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING,
+			    NULL, 0, src);
+		}
+
+		if (pool->dp_leak_dir != NULL) {
+			spa_prop_add_list(*nvp, ZPOOL_PROP_LEAKED, NULL,
+			    pool->dp_leak_dir->dd_phys->dd_used_bytes, src);
+		} else {
+			spa_prop_add_list(*nvp, ZPOOL_PROP_LEAKED,
 			    NULL, 0, src);
 		}
 	}
@@ -784,7 +790,7 @@ spa_error_entry_compare(const void *a, const void *b)
 	int ret;
 
 	ret = bcmp(&sa->se_bookmark, &sb->se_bookmark,
-	    sizeof (zbookmark_t));
+	    sizeof (zbookmark_phys_t));
 
 	if (ret < 0)
 		return (-1);
@@ -1259,6 +1265,15 @@ spa_unload(spa_t *spa)
 
 	bpobj_close(&spa->spa_deferred_bpobj);
 
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+
+	/*
+	 * Close all vdevs.
+	 */
+	if (spa->spa_root_vdev)
+		vdev_free(spa->spa_root_vdev);
+	ASSERT(spa->spa_root_vdev == NULL);
+
 	/*
 	 * Close the dsl pool.
 	 */
@@ -1270,19 +1285,11 @@ spa_unload(spa_t *spa)
 
 	ddt_unload(spa);
 
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 
 	/*
 	 * Drop and purge level 2 cache
 	 */
 	spa_l2cache_drop(spa);
-
-	/*
-	 * Close all vdevs.
-	 */
-	if (spa->spa_root_vdev)
-		vdev_free(spa->spa_root_vdev);
-	ASSERT(spa->spa_root_vdev == NULL);
 
 	for (i = 0; i < spa->spa_spares.sav_count; i++)
 		vdev_free(spa->spa_spares.sav_vdevs[i]);
@@ -1869,9 +1876,9 @@ spa_load_verify_done(zio_t *zio)
 /*ARGSUSED*/
 static int
 spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
+    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
-	if (bp != NULL) {
+	if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
 		zio_t *rio = arg;
 		size_t size = BP_GET_PSIZE(bp);
 		void *data = zio_data_buf_alloc(size);
@@ -2327,6 +2334,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	if (spa_version(spa) >= SPA_VERSION_FEATURES) {
 		boolean_t missing_feat_read = B_FALSE;
 		nvlist_t *unsup_feat, *enabled_feat;
+		spa_feature_t i;
 
 		if (spa_dir_prop(spa, DMU_POOL_FEATURES_FOR_READ,
 		    &spa->spa_feat_for_read_obj) != 0) {
@@ -2346,14 +2354,12 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		enabled_feat = fnvlist_alloc();
 		unsup_feat = fnvlist_alloc();
 
-		if (!feature_is_supported(spa->spa_meta_objset,
-		    spa->spa_feat_for_read_obj, spa->spa_feat_desc_obj,
+		if (!spa_features_check(spa, B_FALSE,
 		    unsup_feat, enabled_feat))
 			missing_feat_read = B_TRUE;
 
 		if (spa_writeable(spa) || state == SPA_LOAD_TRYIMPORT) {
-			if (!feature_is_supported(spa->spa_meta_objset,
-			    spa->spa_feat_for_write_obj, spa->spa_feat_desc_obj,
+			if (!spa_features_check(spa, B_TRUE,
 			    unsup_feat, enabled_feat)) {
 				missing_feat_write = B_TRUE;
 			}
@@ -2399,6 +2405,32 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 			return (spa_vdev_err(rvd, VDEV_AUX_UNSUP_FEAT,
 			    ENOTSUP));
 		}
+
+		/*
+		 * Load refcounts for ZFS features from disk into an in-memory
+		 * cache during SPA initialization.
+		 */
+		for (i = 0; i < SPA_FEATURES; i++) {
+			uint64_t refcount;
+
+			error = feature_get_refcount_from_disk(spa,
+			    &spa_feature_table[i], &refcount);
+			if (error == 0) {
+				spa->spa_feat_refcount_cache[i] = refcount;
+			} else if (error == ENOTSUP) {
+				spa->spa_feat_refcount_cache[i] =
+				    SPA_FEATURE_DISABLED;
+			} else {
+				return (spa_vdev_err(rvd,
+				    VDEV_AUX_CORRUPT_DATA, EIO));
+			}
+		}
+	}
+
+	if (spa_feature_is_active(spa, SPA_FEATURE_ENABLED_TXG)) {
+		if (spa_dir_prop(spa, DMU_POOL_FEATURE_ENABLED_TXG,
+		    &spa->spa_feat_enabled_txg_obj) != 0)
+			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	}
 
 	spa->spa_is_initializing = B_TRUE;
@@ -3901,8 +3933,6 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		spa_config_sync(spa, B_FALSE, B_TRUE);
 
 		mutex_exit(&spa_namespace_lock);
-		spa_history_log_version(spa, "import");
-
 		return (0);
 	}
 
@@ -4570,7 +4600,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	vdev_dirty(tvd, VDD_DTL, newvd, txg);
 
 	/*
-	 * Restart the resilver
+	 * Schedule the resilver to restart in the future. We do this to
+	 * ensure that dmu_sync-ed blocks have been stitched into the
+	 * respective datasets.
 	 */
 	dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
 
@@ -5195,7 +5227,7 @@ spa_vdev_remove_evacuate(spa_t *spa, vdev_t *vd)
 	ASSERT0(vd->vdev_stat.vs_alloc);
 	txg = spa_vdev_config_enter(spa);
 	vd->vdev_removing = B_TRUE;
-	vdev_dirty(vd, 0, NULL, txg);
+	vdev_dirty_leaves(vd, VDD_DTL, txg);
 	vdev_config_dirty(vd);
 	spa_vdev_config_exit(spa, NULL, txg, 0, FTAG);
 
@@ -5305,11 +5337,6 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	} else if (vd != NULL && vd->vdev_islog) {
 		ASSERT(!locked);
 		ASSERT(vd == vd->vdev_top);
-
-		/*
-		 * XXX - Once we have bp-rewrite this should
-		 * become the common case.
-		 */
 
 		mg = vd->vdev_mg;
 
@@ -5821,7 +5848,7 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 
 	/*
 	 * Write full (SPA_CONFIG_BLOCKSIZE) blocks of configuration
-	 * information.  This avoids the dbuf_will_dirty() path and
+	 * information.  This avoids the dmu_buf_will_dirty() path and
 	 * saves us a pre-read to get data we don't actually care about.
 	 */
 	bufsize = P2ROUNDUP((uint64_t)nvsize, SPA_CONFIG_BLOCKSIZE);
@@ -5956,7 +5983,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		zpool_prop_t prop;
 		const char *propname;
 		zprop_type_t proptype;
-		zfeature_info_t *feature;
+		spa_feature_t fid;
 
 		prop = zpool_name_to_prop(nvpair_name(elem));
 		switch ((int)prop) {
@@ -5967,15 +5994,15 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			ASSERT(zpool_prop_feature(nvpair_name(elem)));
 
 			fname = strchr(nvpair_name(elem), '@') + 1;
-			VERIFY3U(0, ==, zfeature_lookup_name(fname, &feature));
+			VERIFY0(zfeature_lookup_name(fname, &fid));
 
-			spa_feature_enable(spa, feature, tx);
+			spa_feature_enable(spa, fid, tx);
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=enabled", nvpair_name(elem));
 			break;
 
 		case ZPOOL_PROP_VERSION:
-			VERIFY(nvpair_value_uint64(elem, &intval) == 0);
+			intval = fnvpair_value_uint64(elem);
 			/*
 			 * The version is synced seperatly before other
 			 * properties and should be correct by now.
@@ -5999,7 +6026,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			 */
 			break;
 		case ZPOOL_PROP_COMMENT:
-			VERIFY(nvpair_value_string(elem, &strval) == 0);
+			strval = fnvpair_value_string(elem);
 			if (spa->spa_comment != NULL)
 				spa_strfree(spa->spa_comment);
 			spa->spa_comment = spa_strdup(strval);
@@ -6031,23 +6058,23 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 
 			if (nvpair_type(elem) == DATA_TYPE_STRING) {
 				ASSERT(proptype == PROP_TYPE_STRING);
-				VERIFY(nvpair_value_string(elem, &strval) == 0);
-				VERIFY(zap_update(mos,
+				strval = fnvpair_value_string(elem);
+				VERIFY0(zap_update(mos,
 				    spa->spa_pool_props_object, propname,
-				    1, strlen(strval) + 1, strval, tx) == 0);
+				    1, strlen(strval) + 1, strval, tx));
 				spa_history_log_internal(spa, "set", tx,
 				    "%s=%s", nvpair_name(elem), strval);
 			} else if (nvpair_type(elem) == DATA_TYPE_UINT64) {
-				VERIFY(nvpair_value_uint64(elem, &intval) == 0);
+				intval = fnvpair_value_uint64(elem);
 
 				if (proptype == PROP_TYPE_INDEX) {
 					const char *unused;
-					VERIFY(zpool_prop_index_to_string(
-					    prop, intval, &unused) == 0);
+					VERIFY0(zpool_prop_index_to_string(
+					    prop, intval, &unused));
 				}
-				VERIFY(zap_update(mos,
+				VERIFY0(zap_update(mos,
 				    spa->spa_pool_props_object, propname,
-				    8, 1, &intval, tx) == 0);
+				    8, 1, &intval, tx));
 				spa_history_log_internal(spa, "set", tx,
 				    "%s=%lld", nvpair_name(elem), intval);
 			} else {
@@ -6460,7 +6487,7 @@ spa_upgrade(spa_t *spa, uint64_t version)
 	 * possible.
 	 */
 	ASSERT(SPA_VERSION_IS_SUPPORTED(spa->spa_uberblock.ub_version));
-	ASSERT(version >= spa->spa_uberblock.ub_version);
+	ASSERT3U(version, >=, spa->spa_uberblock.ub_version);
 
 	spa->spa_uberblock.ub_version = version;
 	vdev_config_dirty(spa->spa_root_vdev);

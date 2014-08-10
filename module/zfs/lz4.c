@@ -115,6 +115,8 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
  * 		writes beyond dest + osize, and is therefore protected
  * 		against malicious data packets.
  * 	note : destination buffer must be already allocated
+ *	note : real_LZ4_uncompress() is not used in ZFS so its code
+ *	       is not present here.
  *
  * Advanced Functions
  *
@@ -866,6 +868,9 @@ real_LZ4_compress(const char *source, char *dest, int isize, int osize)
  *	it will never read outside of the input buffer. A corrupted input
  *	will produce an error result, a negative int, indicating the position
  *	of the error within input stream.
+ *
+ * Note[2]: real_LZ4_uncompress(), referred to above, is not used in ZFS so
+ *	its code is not present here.
  */
 
 static int
@@ -902,6 +907,9 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 		}
 		/* copy literals */
 		cpy = op + length;
+		/* CORNER-CASE: cpy might overflow. */
+		if (cpy < op)
+			goto _output_error;	/* cpy was overflowed, bail! */
 		if ((cpy > oend - COPYLENGTH) ||
 		    (ip + length > iend - COPYLENGTH)) {
 			if (cpy > oend)

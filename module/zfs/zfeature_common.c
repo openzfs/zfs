@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -88,39 +88,30 @@ zfeature_is_valid_guid(const char *name)
 boolean_t
 zfeature_is_supported(const char *guid)
 {
+	spa_feature_t i;
+
 	if (zfeature_checks_disable)
 		return (B_TRUE);
 
-	return (0 == zfeature_lookup_guid(guid, NULL));
-}
-
-int
-zfeature_lookup_guid(const char *guid, zfeature_info_t **res)
-{
-	int i;
-
 	for (i = 0; i < SPA_FEATURES; i++) {
 		zfeature_info_t *feature = &spa_feature_table[i];
-		if (strcmp(guid, feature->fi_guid) == 0) {
-			if (res != NULL)
-				*res = feature;
-			return (0);
-		}
+		if (strcmp(guid, feature->fi_guid) == 0)
+			return (B_TRUE);
 	}
 
-	return (ENOENT);
+	return (B_FALSE);
 }
 
 int
-zfeature_lookup_name(const char *name, zfeature_info_t **res)
+zfeature_lookup_name(const char *name, spa_feature_t *res)
 {
-	int i;
+	spa_feature_t i;
 
 	for (i = 0; i < SPA_FEATURES; i++) {
 		zfeature_info_t *feature = &spa_feature_table[i];
 		if (strcmp(name, feature->fi_uname) == 0) {
 			if (res != NULL)
-				*res = feature;
+				*res = i;
 			return (0);
 		}
 	}
@@ -128,12 +119,25 @@ zfeature_lookup_name(const char *name, zfeature_info_t **res)
 	return (ENOENT);
 }
 
+boolean_t
+zfeature_depends_on(spa_feature_t fid, spa_feature_t check) {
+	zfeature_info_t *feature = &spa_feature_table[fid];
+	int i;
+
+	for (i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++) {
+		if (feature->fi_depends[i] == check)
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
 static void
-zfeature_register(int fid, const char *guid, const char *name, const char *desc,
-    boolean_t readonly, boolean_t mos, zfeature_info_t **deps)
+zfeature_register(spa_feature_t fid, const char *guid, const char *name,
+    const char *desc, boolean_t readonly, boolean_t mos,
+    boolean_t activate_on_enable, const spa_feature_t *deps)
 {
 	zfeature_info_t *feature = &spa_feature_table[fid];
-	static zfeature_info_t *nodeps[] = { NULL };
+	static spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
 	ASSERT(name != NULL);
 	ASSERT(desc != NULL);
@@ -144,11 +148,13 @@ zfeature_register(int fid, const char *guid, const char *name, const char *desc,
 	if (deps == NULL)
 		deps = nodeps;
 
+	feature->fi_feature = fid;
 	feature->fi_guid = guid;
 	feature->fi_uname = name;
 	feature->fi_desc = desc;
 	feature->fi_can_readonly = readonly;
 	feature->fi_mos = mos;
+	feature->fi_activate_on_enable = activate_on_enable;
 	feature->fi_depends = deps;
 }
 
@@ -157,11 +163,59 @@ zpool_feature_init(void)
 {
 	zfeature_register(SPA_FEATURE_ASYNC_DESTROY,
 	    "com.delphix:async_destroy", "async_destroy",
-	    "Destroy filesystems asynchronously.", B_TRUE, B_FALSE, NULL);
+	    "Destroy filesystems asynchronously.", B_TRUE, B_FALSE,
+	    B_FALSE, NULL);
+
 	zfeature_register(SPA_FEATURE_EMPTY_BPOBJ,
 	    "com.delphix:empty_bpobj", "empty_bpobj",
-	    "Snapshots use less space.", B_TRUE, B_FALSE, NULL);
+	    "Snapshots use less space.", B_TRUE, B_FALSE,
+	    B_FALSE, NULL);
+
 	zfeature_register(SPA_FEATURE_LZ4_COMPRESS,
 	    "org.illumos:lz4_compress", "lz4_compress",
-	    "LZ4 compression algorithm support.", B_FALSE, B_FALSE, NULL);
+	    "LZ4 compression algorithm support.", B_FALSE, B_FALSE,
+	    B_FALSE, NULL);
+
+	zfeature_register(SPA_FEATURE_SPACEMAP_HISTOGRAM,
+	    "com.delphix:spacemap_histogram", "spacemap_histogram",
+	    "Spacemaps maintain space histograms.", B_TRUE, B_FALSE,
+	    B_FALSE, NULL);
+
+	zfeature_register(SPA_FEATURE_ENABLED_TXG,
+	    "com.delphix:enabled_txg", "enabled_txg",
+	    "Record txg at which a feature is enabled", B_TRUE, B_FALSE,
+	    B_FALSE, NULL);
+
+	{
+	static const spa_feature_t hole_birth_deps[] = {
+		SPA_FEATURE_ENABLED_TXG,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_HOLE_BIRTH,
+	    "com.delphix:hole_birth", "hole_birth",
+	    "Retain hole birth txg for more precise zfs send",
+	    B_FALSE, B_TRUE, B_TRUE, hole_birth_deps);
+	}
+
+	zfeature_register(SPA_FEATURE_EXTENSIBLE_DATASET,
+	    "com.delphix:extensible_dataset", "extensible_dataset",
+	    "Enhanced dataset functionality, used by other features.",
+	    B_FALSE, B_FALSE, B_FALSE, NULL);
+
+	{
+	static const spa_feature_t bookmarks_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+
+	zfeature_register(SPA_FEATURE_BOOKMARKS,
+	    "com.delphix:bookmarks", "bookmarks",
+	    "\"zfs bookmark\" command",
+	    B_TRUE, B_FALSE, B_FALSE, bookmarks_deps);
+	}
+
+	zfeature_register(SPA_FEATURE_EMBEDDED_DATA,
+	    "com.delphix:embedded_data", "embedded_data",
+	    "Blocks which compress very well use even less space.",
+	    B_FALSE, B_TRUE, B_TRUE, NULL);
 }

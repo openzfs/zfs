@@ -428,7 +428,7 @@ spa_lookup(const char *name)
 	 * If it's a full dataset name, figure out the pool name and
 	 * just use that.
 	 */
-	cp = strpbrk(search.spa_name, "/@");
+	cp = strpbrk(search.spa_name, "/@#");
 	if (cp != NULL)
 		*cp = '\0';
 
@@ -469,6 +469,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa_t *spa;
 	spa_config_dirent_t *dp;
 	int t;
+	int i;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -547,6 +548,15 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	}
 
 	spa->spa_debug = ((zfs_flags & ZFS_DEBUG_SPA) != 0);
+
+	/*
+	 * As a pool is being created, treat all features as disabled by
+	 * setting SPA_FEATURE_DISABLED for all entries in the feature
+	 * refcount cache.
+	 */
+	for (i = 0; i < SPA_FEATURES; i++) {
+		spa->spa_feat_refcount_cache[i] = SPA_FEATURE_DISABLED;
+	}
 
 	return (spa);
 }
@@ -986,7 +996,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 		txg_wait_synced(spa->spa_dsl_pool, txg);
 
 	if (vd != NULL) {
-		ASSERT(!vd->vdev_detached || vd->vdev_dtl_smo.smo_object == 0);
+		ASSERT(!vd->vdev_detached || vd->vdev_dtl_sm == NULL);
 		spa_config_enter(spa, SCL_ALL, spa, RW_WRITER);
 		vdev_free(vd);
 		spa_config_exit(spa, SCL_ALL, spa);
@@ -1094,17 +1104,27 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
  */
 
 void
-spa_activate_mos_feature(spa_t *spa, const char *feature)
+spa_activate_mos_feature(spa_t *spa, const char *feature, dmu_tx_t *tx)
 {
-	(void) nvlist_add_boolean(spa->spa_label_features, feature);
-	vdev_config_dirty(spa->spa_root_vdev);
+	if (!nvlist_exists(spa->spa_label_features, feature)) {
+		fnvlist_add_boolean(spa->spa_label_features, feature);
+		/*
+		 * When we are creating the pool (tx_txg==TXG_INITIAL), we can't
+		 * dirty the vdev config because lock SCL_CONFIG is not held.
+		 * Thankfully, in this case we don't need to dirty the config
+		 * because it will be written out anyway when we finish
+		 * creating the pool.
+		 */
+		if (tx->tx_txg != TXG_INITIAL)
+			vdev_config_dirty(spa->spa_root_vdev);
+	}
 }
 
 void
 spa_deactivate_mos_feature(spa_t *spa, const char *feature)
 {
-	(void) nvlist_remove_all(spa->spa_label_features, feature);
-	vdev_config_dirty(spa->spa_root_vdev);
+	if (nvlist_remove_all(spa->spa_label_features, feature) == 0)
+		vdev_config_dirty(spa->spa_root_vdev);
 }
 
 /*
@@ -1255,7 +1275,7 @@ spa_generate_guid(spa_t *spa)
 }
 
 void
-sprintf_blkptr(char *buf, const blkptr_t *bp)
+snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 {
 	char type[256];
 	char *checksum = NULL;
@@ -1273,11 +1293,15 @@ sprintf_blkptr(char *buf, const blkptr_t *bp)
 			(void) strlcpy(type, dmu_ot[BP_GET_TYPE(bp)].ot_name,
 			    sizeof (type));
 		}
-		checksum = zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_name;
+		if (!BP_IS_EMBEDDED(bp)) {
+			checksum =
+			    zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_name;
+		}
 		compress = zio_compress_table[BP_GET_COMPRESS(bp)].ci_name;
 	}
 
-	SPRINTF_BLKPTR(snprintf, ' ', buf, bp, type, checksum, compress);
+	SNPRINTF_BLKPTR(snprintf, ' ', buf, buflen, bp, type, checksum,
+	    compress);
 }
 
 void
@@ -1567,7 +1591,7 @@ bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp)
 	uint64_t dsize = 0;
 	int d;
 
-	for (d = 0; d < SPA_DVAS_PER_BP; d++)
+	for (d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	return (dsize);
@@ -1581,7 +1605,7 @@ bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
-	for (d = 0; d < SPA_DVAS_PER_BP; d++)
+	for (d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
@@ -1655,7 +1679,7 @@ spa_init(int mode)
 	fm_init();
 	refcount_init();
 	unique_init();
-	space_map_init();
+	range_tree_init();
 	ddt_init();
 	zio_init();
 	dmu_init();
@@ -1682,7 +1706,7 @@ spa_fini(void)
 	dmu_fini();
 	zio_fini();
 	ddt_fini();
-	space_map_fini();
+	range_tree_fini();
 	unique_fini();
 	refcount_fini();
 	fm_fini();
@@ -1873,7 +1897,7 @@ EXPORT_SYMBOL(spa_strdup);
 EXPORT_SYMBOL(spa_strfree);
 EXPORT_SYMBOL(spa_get_random);
 EXPORT_SYMBOL(spa_generate_guid);
-EXPORT_SYMBOL(sprintf_blkptr);
+EXPORT_SYMBOL(snprintf_blkptr);
 EXPORT_SYMBOL(spa_freeze);
 EXPORT_SYMBOL(spa_upgrade);
 EXPORT_SYMBOL(spa_evict_all);

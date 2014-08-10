@@ -1,11 +1,31 @@
 %global _sbindir    /sbin
 %global _libdir     /%{_lib}
-%if 0%{?fedora} >= 17
+
+# Set the default udev directory based on distribution.
+%if %{undefined _udevdir}
+%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
 %global _udevdir    %{_prefix}/lib/udev
-%global _dracutdir  %{_prefix}/lib/dracut
 %else
 %global _udevdir    /lib/udev
+%endif
+%endif
+
+# Set the default udevrule directory based on distribution.
+%if %{undefined _udevruledir}
+%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
+%global _udevruledir    %{_prefix}/lib/udev/rules.d
+%else
+%global _udevruledir    /lib/udev/rules.d
+%endif
+%endif
+
+# Set the default dracut directory based on distribution.
+%if %{undefined _dracutdir}
+%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
+%global _dracutdir  %{_prefix}/lib/dracut
+%else
 %global _dracutdir  %{_prefix}/share/dracut
+%endif
 %endif
 
 %bcond_with    debug
@@ -192,6 +212,7 @@ image which is ZFS aware.
 %configure \
     --with-config=user \
     --with-udevdir=%{_udevdir} \
+    --with-udevruledir=%{_udevruledir} \
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
@@ -272,6 +293,8 @@ exit 0
 %{_dracutdir}/modules.d/*
 
 %changelog
+* Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1
+- Released 0.6.3-1
 * Wed Aug 21 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.2-1
 - Released 0.6.2-1
 * Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1

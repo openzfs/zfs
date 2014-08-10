@@ -161,23 +161,25 @@
  */
 
 typedef enum {
-	FEATURE_ACTION_ENABLE,
 	FEATURE_ACTION_INCR,
 	FEATURE_ACTION_DECR,
 } feature_action_t;
 
 /*
- * Checks that the features active in the specified object are supported by
+ * Checks that the active features in the pool are supported by
  * this software.  Adds each unsupported feature (name -> description) to
  * the supplied nvlist.
  */
 boolean_t
-feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
+spa_features_check(spa_t *spa, boolean_t for_write,
     nvlist_t *unsup_feat, nvlist_t *enabled_feat)
 {
+	objset_t *os = spa->spa_meta_objset;
 	boolean_t supported;
 	zap_cursor_t *zc;
 	zap_attribute_t *za;
+	uint64_t obj = for_write ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
 	char *buf;
 
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
@@ -203,8 +205,8 @@ feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
 			if (NULL != unsup_feat) {
 				char *desc = "";
 
-				if (zap_lookup(os, desc_obj, za->za_name,
-				    1, MAXPATHLEN, buf) == 0)
+				if (zap_lookup(os, spa->spa_feat_desc_obj,
+				    za->za_name, 1, MAXPATHLEN, buf) == 0)
 					desc = buf;
 
 				VERIFY(nvlist_add_string(unsup_feat,
@@ -221,13 +223,38 @@ feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
 	return (supported);
 }
 
-static int
-feature_get_refcount(objset_t *os, uint64_t read_obj, uint64_t write_obj,
-    zfeature_info_t *feature, uint64_t *res)
+/*
+ * Use an in-memory cache of feature refcounts for quick retrieval.
+ *
+ * Note: well-designed features will not need to use this; they should
+ * use spa_feature_is_enabled() and spa_feature_is_active() instead.
+ * However, this is non-static for zdb and zhack.
+ */
+int
+feature_get_refcount(spa_t *spa, zfeature_info_t *feature, uint64_t *res)
+{
+	ASSERT(VALID_FEATURE_FID(feature->fi_feature));
+	if (spa->spa_feat_refcount_cache[feature->fi_feature] ==
+	    SPA_FEATURE_DISABLED) {
+		return (SET_ERROR(ENOTSUP));
+	}
+	*res = spa->spa_feat_refcount_cache[feature->fi_feature];
+	return (0);
+}
+
+/*
+ * Note: well-designed features will not need to use this; they should
+ * use spa_feature_is_enabled() and spa_feature_is_active() instead.
+ * However, this is non-static for zdb and zhack.
+ */
+int
+feature_get_refcount_from_disk(spa_t *spa, zfeature_info_t *feature,
+    uint64_t *res)
 {
 	int err;
 	uint64_t refcount;
-	uint64_t zapobj = feature->fi_can_readonly ? write_obj : read_obj;
+	uint64_t zapobj = feature->fi_can_readonly ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
 
 	/*
 	 * If the pool is currently being created, the feature objects may not
@@ -236,8 +263,8 @@ feature_get_refcount(objset_t *os, uint64_t read_obj, uint64_t write_obj,
 	if (zapobj == 0)
 		return (SET_ERROR(ENOTSUP));
 
-	err = zap_lookup(os, zapobj, feature->fi_guid, sizeof (uint64_t), 1,
-	    &refcount);
+	err = zap_lookup(spa->spa_meta_objset, zapobj,
+	    feature->fi_guid, sizeof (uint64_t), 1, &refcount);
 	if (err != 0) {
 		if (err == ENOENT)
 			return (SET_ERROR(ENOTSUP));
@@ -248,49 +275,135 @@ feature_get_refcount(objset_t *os, uint64_t read_obj, uint64_t write_obj,
 	return (0);
 }
 
+
 static int
-feature_do_action(objset_t *os, uint64_t read_obj, uint64_t write_obj,
-    uint64_t desc_obj, zfeature_info_t *feature, feature_action_t action,
+feature_get_enabled_txg(spa_t *spa, zfeature_info_t *feature, uint64_t *res) {
+	ASSERTV(uint64_t enabled_txg_obj = spa->spa_feat_enabled_txg_obj);
+
+	ASSERT(zfeature_depends_on(feature->fi_feature,
+	    SPA_FEATURE_ENABLED_TXG));
+
+	if (!spa_feature_is_enabled(spa, feature->fi_feature)) {
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	ASSERT(enabled_txg_obj != 0);
+
+	VERIFY0(zap_lookup(spa->spa_meta_objset, spa->spa_feat_enabled_txg_obj,
+	    feature->fi_guid, sizeof (uint64_t), 1, res));
+
+	return (0);
+}
+
+/*
+ * This function is non-static for zhack; it should otherwise not be used
+ * outside this file.
+ */
+void
+feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
     dmu_tx_t *tx)
 {
-	int error;
-	uint64_t refcount;
-	uint64_t zapobj = feature->fi_can_readonly ? write_obj : read_obj;
+	uint64_t zapobj;
+
+	ASSERT(VALID_FEATURE_OR_NONE(feature->fi_feature));
+	zapobj = feature->fi_can_readonly ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
+	VERIFY0(zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
+	    sizeof (uint64_t), 1, &refcount, tx));
+
+	/*
+	 * feature_sync is called directly from zhack, allowing the
+	 * creation of arbitrary features whose fi_feature field may
+	 * be greater than SPA_FEATURES. When called from zhack, the
+	 * zfeature_info_t object's fi_feature field will be set to
+	 * SPA_FEATURE_NONE.
+	 */
+	if (feature->fi_feature != SPA_FEATURE_NONE) {
+		uint64_t *refcount_cache =
+		    &spa->spa_feat_refcount_cache[feature->fi_feature];
+		VERIFY3U(*refcount_cache, ==,
+		    atomic_swap_64(refcount_cache, refcount));
+	}
+
+	if (refcount == 0)
+		spa_deactivate_mos_feature(spa, feature->fi_guid);
+	else if (feature->fi_mos)
+		spa_activate_mos_feature(spa, feature->fi_guid, tx);
+}
+
+/*
+ * This function is non-static for zhack; it should otherwise not be used
+ * outside this file.
+ */
+void
+feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
+{
+	uint64_t initial_refcount = feature->fi_activate_on_enable ? 1 : 0;
+	uint64_t zapobj = feature->fi_can_readonly ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
+	int i;
 
 	ASSERT(0 != zapobj);
 	ASSERT(zfeature_is_valid_guid(feature->fi_guid));
-
-	error = zap_lookup(os, zapobj, feature->fi_guid,
-	    sizeof (uint64_t), 1, &refcount);
+	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
 
 	/*
-	 * If we can't ascertain the status of the specified feature, an I/O
-	 * error occurred.
+	 * If the feature is already enabled, ignore the request.
 	 */
-	if (error != 0 && error != ENOENT)
-		return (error);
+	if (zap_contains(spa->spa_meta_objset, zapobj, feature->fi_guid) == 0)
+		return;
+
+	for (i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++)
+		spa_feature_enable(spa, feature->fi_depends[i], tx);
+
+	VERIFY0(zap_update(spa->spa_meta_objset, spa->spa_feat_desc_obj,
+	    feature->fi_guid, 1, strlen(feature->fi_desc) + 1,
+	    feature->fi_desc, tx));
+
+	feature_sync(spa, feature, initial_refcount, tx);
+
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_ENABLED_TXG)) {
+		uint64_t enabling_txg = dmu_tx_get_txg(tx);
+
+		if (spa->spa_feat_enabled_txg_obj == 0ULL) {
+			spa->spa_feat_enabled_txg_obj =
+			    zap_create_link(spa->spa_meta_objset,
+			    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_FEATURE_ENABLED_TXG, tx);
+		}
+		spa_feature_incr(spa, SPA_FEATURE_ENABLED_TXG, tx);
+
+		VERIFY0(zap_add(spa->spa_meta_objset,
+		    spa->spa_feat_enabled_txg_obj, feature->fi_guid,
+		    sizeof (uint64_t), 1, &enabling_txg, tx));
+	}
+}
+
+static void
+feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
+    dmu_tx_t *tx)
+{
+	uint64_t refcount = 0;
+	zfeature_info_t *feature = &spa_feature_table[fid];
+	ASSERTV(uint64_t zapobj = feature->fi_can_readonly ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj);
+
+	ASSERT(VALID_FEATURE_FID(fid));
+	ASSERT(0 != zapobj);
+	ASSERT(zfeature_is_valid_guid(feature->fi_guid));
+
+	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
+
+	VERIFY3U(feature_get_refcount(spa, feature, &refcount), !=, ENOTSUP);
 
 	switch (action) {
-	case FEATURE_ACTION_ENABLE:
-		/*
-		 * If the feature is already enabled, ignore the request.
-		 */
-		if (error == 0)
-			return (0);
-		refcount = 0;
-		break;
 	case FEATURE_ACTION_INCR:
-		if (error == ENOENT)
-			return (SET_ERROR(ENOTSUP));
-		if (refcount == UINT64_MAX)
-			return (SET_ERROR(EOVERFLOW));
+		VERIFY3U(refcount, !=, UINT64_MAX);
 		refcount++;
 		break;
 	case FEATURE_ACTION_DECR:
-		if (error == ENOENT)
-			return (SET_ERROR(ENOTSUP));
-		if (refcount == 0)
-			return (SET_ERROR(EOVERFLOW));
+		VERIFY3U(refcount, !=, 0);
 		refcount--;
 		break;
 	default:
@@ -298,42 +411,7 @@ feature_do_action(objset_t *os, uint64_t read_obj, uint64_t write_obj,
 		break;
 	}
 
-	if (action == FEATURE_ACTION_ENABLE) {
-		int i;
-
-		for (i = 0; feature->fi_depends[i] != NULL; i++) {
-			zfeature_info_t *dep = feature->fi_depends[i];
-
-			error = feature_do_action(os, read_obj, write_obj,
-			    desc_obj, dep, FEATURE_ACTION_ENABLE, tx);
-			if (error != 0)
-				return (error);
-		}
-	}
-
-	error = zap_update(os, zapobj, feature->fi_guid,
-	    sizeof (uint64_t), 1, &refcount, tx);
-	if (error != 0)
-		return (error);
-
-	if (action == FEATURE_ACTION_ENABLE) {
-		error = zap_update(os, desc_obj,
-		    feature->fi_guid, 1, strlen(feature->fi_desc) + 1,
-		    feature->fi_desc, tx);
-		if (error != 0)
-			return (error);
-	}
-
-	if (action == FEATURE_ACTION_INCR && refcount == 1 && feature->fi_mos) {
-		spa_activate_mos_feature(dmu_objset_spa(os), feature->fi_guid);
-	}
-
-	if (action == FEATURE_ACTION_DECR && refcount == 0) {
-		spa_deactivate_mos_feature(dmu_objset_spa(os),
-		    feature->fi_guid);
-	}
-
-	return (0);
+	feature_sync(spa, feature, refcount, tx);
 }
 
 void
@@ -361,72 +439,74 @@ spa_feature_create_zap_objects(spa_t *spa, dmu_tx_t *tx)
  * Enable any required dependencies, then enable the requested feature.
  */
 void
-spa_feature_enable(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
+spa_feature_enable(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
 {
 	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
-	VERIFY3U(0, ==, feature_do_action(spa->spa_meta_objset,
-	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
-	    spa->spa_feat_desc_obj, feature, FEATURE_ACTION_ENABLE, tx));
+	ASSERT(VALID_FEATURE_FID(fid));
+	feature_enable_sync(spa, &spa_feature_table[fid], tx);
 }
 
-/*
- * If the specified feature has not yet been enabled, this function returns
- * ENOTSUP; otherwise, this function increments the feature's refcount (or
- * returns EOVERFLOW if the refcount cannot be incremented). This function must
- * be called from syncing context.
- */
 void
-spa_feature_incr(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
+spa_feature_incr(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
 {
-	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
-	VERIFY3U(0, ==, feature_do_action(spa->spa_meta_objset,
-	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
-	    spa->spa_feat_desc_obj, feature, FEATURE_ACTION_INCR, tx));
+	feature_do_action(spa, fid, FEATURE_ACTION_INCR, tx);
 }
 
-/*
- * If the specified feature has not yet been enabled, this function returns
- * ENOTSUP; otherwise, this function decrements the feature's refcount (or
- * returns EOVERFLOW if the refcount is already 0). This function must
- * be called from syncing context.
- */
 void
-spa_feature_decr(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
+spa_feature_decr(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
 {
-	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
-	VERIFY3U(0, ==, feature_do_action(spa->spa_meta_objset,
-	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
-	    spa->spa_feat_desc_obj, feature, FEATURE_ACTION_DECR, tx));
+	feature_do_action(spa, fid, FEATURE_ACTION_DECR, tx);
 }
 
 boolean_t
-spa_feature_is_enabled(spa_t *spa, zfeature_info_t *feature)
+spa_feature_is_enabled(spa_t *spa, spa_feature_t fid)
 {
 	int err;
 	uint64_t refcount = 0;
 
+	ASSERT(VALID_FEATURE_FID(fid));
 	if (spa_version(spa) < SPA_VERSION_FEATURES)
 		return (B_FALSE);
 
-	err = feature_get_refcount(spa->spa_meta_objset,
-	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
-	    feature, &refcount);
+	err = feature_get_refcount(spa, &spa_feature_table[fid], &refcount);
 	ASSERT(err == 0 || err == ENOTSUP);
 	return (err == 0);
 }
 
 boolean_t
-spa_feature_is_active(spa_t *spa, zfeature_info_t *feature)
+spa_feature_is_active(spa_t *spa, spa_feature_t fid)
 {
 	int err;
 	uint64_t refcount = 0;
 
+	ASSERT(VALID_FEATURE_FID(fid));
 	if (spa_version(spa) < SPA_VERSION_FEATURES)
 		return (B_FALSE);
 
-	err = feature_get_refcount(spa->spa_meta_objset,
-	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
-	    feature, &refcount);
+	err = feature_get_refcount(spa, &spa_feature_table[fid], &refcount);
 	ASSERT(err == 0 || err == ENOTSUP);
 	return (err == 0 && refcount > 0);
+}
+
+/*
+ * For the feature specified by fid (which must depend on
+ * SPA_FEATURE_ENABLED_TXG), return the TXG at which it was enabled in the
+ * OUT txg argument.
+ *
+ * Returns B_TRUE if the feature is enabled, in which case txg will be filled
+ * with the transaction group in which the specified feature was enabled.
+ * Returns B_FALSE otherwise (i.e. if the feature is not enabled).
+ */
+boolean_t
+spa_feature_enabled_txg(spa_t *spa, spa_feature_t fid, uint64_t *txg) {
+	int err;
+
+	ASSERT(VALID_FEATURE_FID(fid));
+	if (spa_version(spa) < SPA_VERSION_FEATURES)
+		return (B_FALSE);
+
+	err = feature_get_enabled_txg(spa, &spa_feature_table[fid], txg);
+	ASSERT(err == 0 || err == ENOTSUP);
+
+	return (err == 0);
 }

@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
  * Copyright (c) 2012 by Cyril Plisko. All rights reserved.
  */
@@ -248,8 +248,8 @@ get_usage(zpool_help_t idx) {
 	case HELP_ONLINE:
 		return (gettext("\tonline <pool> <device> ...\n"));
 	case HELP_REPLACE:
-		return (gettext("\treplace [-f] <pool> <device> "
-		    "[new-device]\n"));
+		return (gettext("\treplace [-f] [-o property=value] "
+		    "<pool> <device> [new-device]\n"));
 	case HELP_REMOVE:
 		return (gettext("\tremove <pool> <device> ...\n"));
 	case HELP_REOPEN:
@@ -266,7 +266,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_EVENTS:
 		return (gettext("\tevents [-vHfc]\n"));
 	case HELP_GET:
-		return (gettext("\tget [-p] <\"all\" | property[,...]> "
+		return (gettext("\tget [-pH] <\"all\" | property[,...]> "
 		    "<pool> ...\n"));
 	case HELP_SET:
 		return (gettext("\tset <property=value> <pool> \n"));
@@ -1030,7 +1030,7 @@ zpool_do_create(int argc, char **argv)
 		 * Hand off to libzfs.
 		 */
 		if (enable_all_pool_feat) {
-			int i;
+			spa_feature_t i;
 			for (i = 0; i < SPA_FEATURES; i++) {
 				char propname[MAXPATHLEN];
 				zfeature_info_t *feat = &spa_feature_table[i];
@@ -5617,10 +5617,14 @@ zpool_do_get(int argc, char **argv)
 	int c, ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "p")) != -1) {
+	while ((c = getopt(argc, argv, "pH")) != -1) {
 		switch (c) {
 		case 'p':
 			cb.cb_literal = B_TRUE;
+			break;
+
+		case 'H':
+			cb.cb_scripted = B_TRUE;
 			break;
 
 		case '?':

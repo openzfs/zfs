@@ -192,7 +192,7 @@ spa_read_history_destroy(spa_t *spa)
 }
 
 void
-spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
+spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb, uint32_t aflags)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
 	spa_read_history_t *srh, *rm;

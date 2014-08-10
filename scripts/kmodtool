@@ -64,7 +64,7 @@ print_akmodtemplate ()
 	cat <<EOF
 
 %global akmod_install mkdir -p \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/; \\\
-rpmbuild --define "_sourcedir %{_sourcedir}" \\\
+LANG=C rpmbuild --define "_sourcedir %{_sourcedir}" \\\
 --define "_srcrpmdir \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/" \\\
 -bs --nodeps %{_specdir}/%{name}.spec ; \\\
 ln -s \$(ls \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/) \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/${kmodname}-kmod.latest

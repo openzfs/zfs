@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -374,7 +374,7 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 
 	if (*(uint64_t *)db->db_data != ZBT_MICRO) {
 		mutex_init(&zap->zap_f.zap_num_entries_mtx, 0, 0, 0);
-		zap->zap_f.zap_block_shift = highbit(db->db_size) - 1;
+		zap->zap_f.zap_block_shift = highbit64(db->db_size) - 1;
 	} else {
 		zap->zap_ismicro = TRUE;
 	}
@@ -572,7 +572,7 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 	return (err);
 }
 
-static void
+void
 mzap_create_impl(objset_t *os, uint64_t obj, int normflags, zap_flags_t flags,
     dmu_tx_t *tx)
 {
@@ -862,8 +862,8 @@ zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 int
 zap_contains(objset_t *os, uint64_t zapobj, const char *name)
 {
-	int err = (zap_lookup_norm(os, zapobj, name, 0,
-	    0, NULL, MT_EXACT, NULL, 0, NULL));
+	int err = zap_lookup_norm(os, zapobj, name, 0,
+	    0, NULL, MT_EXACT, NULL, 0, NULL);
 	if (err == EOVERFLOW || err == EINVAL)
 		err = 0; /* found, but skipped reading the value */
 	return (err);

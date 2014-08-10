@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -35,8 +35,7 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/dmu_zfetch.h>
-
-static int free_range_compar(const void *node1, const void *node2);
+#include <sys/range_tree.h>
 
 static kmem_cache_t *dnode_cache;
 /*
@@ -92,9 +91,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		list_link_init(&dn->dn_dirty_link[i]);
-		avl_create(&dn->dn_ranges[i], free_range_compar,
-		    sizeof (free_range_t),
-		    offsetof(struct free_range, fr_node));
+		dn->dn_free_ranges[i] = NULL;
 		list_create(&dn->dn_dirty_records[i],
 		    sizeof (dbuf_dirty_record_t),
 		    offsetof(dbuf_dirty_record_t, dr_dirty_node));
@@ -142,7 +139,7 @@ dnode_dest(void *arg, void *unused)
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		ASSERT(!list_link_active(&dn->dn_dirty_link[i]));
-		avl_destroy(&dn->dn_ranges[i]);
+		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
 		list_destroy(&dn->dn_dirty_records[i]);
 		ASSERT0(dn->dn_next_nblkptr[i]);
 		ASSERT0(dn->dn_next_nlevels[i]);
@@ -313,19 +310,6 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 	}
 }
 
-static int
-free_range_compar(const void *node1, const void *node2)
-{
-	const free_range_t *rp1 = node1;
-	const free_range_t *rp2 = node2;
-
-	if (rp1->fr_blkid < rp2->fr_blkid)
-		return (-1);
-	else if (rp1->fr_blkid > rp2->fr_blkid)
-		return (1);
-	else return (0);
-}
-
 void
 dnode_setbonuslen(dnode_t *dn, int newsize, dmu_tx_t *tx)
 {
@@ -374,7 +358,7 @@ dnode_setdblksz(dnode_t *dn, int size)
 	    1<<(sizeof (dn->dn_phys->dn_datablkszsec) * 8));
 	dn->dn_datablksz = size;
 	dn->dn_datablkszsec = size >> SPA_MINBLOCKSHIFT;
-	dn->dn_datablkshift = ISP2(size) ? highbit(size - 1) : 0;
+	dn->dn_datablkshift = ISP2(size) ? highbit64(size - 1) : 0;
 }
 
 static dnode_t *
@@ -530,7 +514,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 		ASSERT0(dn->dn_next_blksz[i]);
 		ASSERT(!list_link_active(&dn->dn_dirty_link[i]));
 		ASSERT3P(list_head(&dn->dn_dirty_records[i]), ==, NULL);
-		ASSERT0(avl_numnodes(&dn->dn_ranges[i]));
+		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
 	}
 
 	dn->dn_type = ot;
@@ -695,7 +679,8 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 		list_move_tail(&ndn->dn_dirty_records[i],
 		    &odn->dn_dirty_records[i]);
 	}
-	bcopy(&odn->dn_ranges[0], &ndn->dn_ranges[0], sizeof (odn->dn_ranges));
+	bcopy(&odn->dn_free_ranges[0], &ndn->dn_free_ranges[0],
+	    sizeof (odn->dn_free_ranges));
 	ndn->dn_allocated_txg = odn->dn_allocated_txg;
 	ndn->dn_free_txg = odn->dn_free_txg;
 	ndn->dn_assigned_txg = odn->dn_assigned_txg;
@@ -758,8 +743,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 		list_create(&odn->dn_dirty_records[i],
 		    sizeof (dbuf_dirty_record_t),
 		    offsetof(dbuf_dirty_record_t, dr_dirty_node));
-		odn->dn_ranges[i].avl_root = NULL;
-		odn->dn_ranges[i].avl_numnodes = 0;
+		odn->dn_free_ranges[i] = NULL;
 		odn->dn_next_nlevels[i] = 0;
 		odn->dn_next_indblkshift[i] = 0;
 		odn->dn_next_bonustype[i] = 0;
@@ -1335,7 +1319,7 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 
 	/* Check for any allocated blocks beyond the first */
-	if (dn->dn_phys->dn_maxblkid != 0)
+	if (dn->dn_maxblkid != 0)
 		goto fail;
 
 	mutex_enter(&dn->dn_dbufs_mtx);
@@ -1463,59 +1447,6 @@ out:
 }
 
 void
-dnode_clear_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
-{
-	avl_tree_t *tree = &dn->dn_ranges[tx->tx_txg&TXG_MASK];
-	avl_index_t where;
-	free_range_t *rp;
-	free_range_t rp_tofind;
-	uint64_t endblk = blkid + nblks;
-
-	ASSERT(MUTEX_HELD(&dn->dn_mtx));
-	ASSERT(nblks <= UINT64_MAX - blkid); /* no overflow */
-
-	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
-	    blkid, nblks, tx->tx_txg);
-	rp_tofind.fr_blkid = blkid;
-	rp = avl_find(tree, &rp_tofind, &where);
-	if (rp == NULL)
-		rp = avl_nearest(tree, where, AVL_BEFORE);
-	if (rp == NULL)
-		rp = avl_nearest(tree, where, AVL_AFTER);
-
-	while (rp && (rp->fr_blkid <= blkid + nblks)) {
-		uint64_t fr_endblk = rp->fr_blkid + rp->fr_nblks;
-		free_range_t *nrp = AVL_NEXT(tree, rp);
-
-		if (blkid <= rp->fr_blkid && endblk >= fr_endblk) {
-			/* clear this entire range */
-			avl_remove(tree, rp);
-			kmem_free(rp, sizeof (free_range_t));
-		} else if (blkid <= rp->fr_blkid &&
-		    endblk > rp->fr_blkid && endblk < fr_endblk) {
-			/* clear the beginning of this range */
-			rp->fr_blkid = endblk;
-			rp->fr_nblks = fr_endblk - endblk;
-		} else if (blkid > rp->fr_blkid && blkid < fr_endblk &&
-		    endblk >= fr_endblk) {
-			/* clear the end of this range */
-			rp->fr_nblks = blkid - rp->fr_blkid;
-		} else if (blkid > rp->fr_blkid && endblk < fr_endblk) {
-			/* clear a chunk out of this range */
-			free_range_t *new_rp =
-			    kmem_alloc(sizeof (free_range_t), KM_PUSHPAGE);
-
-			new_rp->fr_blkid = endblk;
-			new_rp->fr_nblks = fr_endblk - endblk;
-			avl_insert_here(tree, new_rp, rp, AVL_AFTER);
-			rp->fr_nblks = blkid - rp->fr_blkid;
-		}
-		/* there may be no overlap */
-		rp = nrp;
-	}
-}
-
-void
 dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db;
@@ -1545,7 +1476,13 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	} else {
 		ASSERT(dn->dn_maxblkid == 0);
 		if (off == 0 && len >= blksz) {
-			/* Freeing the whole block; fast-track this request */
+			/*
+			 * Freeing the whole block; fast-track this request.
+			 * Note that we won't dirty any indirect blocks,
+			 * which is fine because we will be freeing the entire
+			 * file and thus all indirect blocks will be freed
+			 * by free_children().
+			 */
 			blkid = 0;
 			nblks = 1;
 			goto done;
@@ -1572,7 +1509,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			if (db->db_last_dirty ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr))) {
 				rw_exit(&dn->dn_struct_rwlock);
-				dbuf_will_dirty(db, tx);
+				dmu_buf_will_dirty(&db->db, tx);
 				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 				data = db->db.db_data;
 				bzero(data + blkoff, head);
@@ -1608,7 +1545,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			if (db->db_last_dirty ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr))) {
 				rw_exit(&dn->dn_struct_rwlock);
-				dbuf_will_dirty(db, tx);
+				dmu_buf_will_dirty(&db->db, tx);
 				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 				bzero(db->db.db_data, tail);
 			}
@@ -1629,18 +1566,18 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		nblks += 1;
 
 	/*
-	 * Read in and mark all the level-1 indirects dirty,
-	 * so that they will stay in memory until syncing phase.
-	 * Always dirty the first and last indirect to make sure
-	 * we dirty all the partial indirects.
+	 * Dirty the first and last indirect blocks, as they (and/or their
+	 * parents) will need to be written out if they were only
+	 * partially freed.  Interior indirect blocks will be themselves freed,
+	 * by free_children(), so they need not be dirtied.  Note that these
+	 * interior blocks have already been prefetched by dmu_tx_hold_free().
 	 */
 	if (dn->dn_nlevels > 1) {
-		uint64_t i, first, last;
-		int shift = epbs + dn->dn_datablkshift;
+		uint64_t first, last;
 
 		first = blkid >> epbs;
 		if ((db = dbuf_hold_level(dn, 1, first, FTAG))) {
-			dbuf_will_dirty(db, tx);
+			dmu_buf_will_dirty(&db->db, tx);
 			dbuf_rele(db, FTAG);
 		}
 		if (trunc)
@@ -1648,55 +1585,33 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		else
 			last = (blkid + nblks - 1) >> epbs;
 		if (last > first && (db = dbuf_hold_level(dn, 1, last, FTAG))) {
-			dbuf_will_dirty(db, tx);
+			dmu_buf_will_dirty(&db->db, tx);
 			dbuf_rele(db, FTAG);
 		}
-		for (i = first + 1; i < last; i++) {
-			uint64_t ibyte = i << shift;
-			int err;
-
-			err = dnode_next_offset(dn,
-			    DNODE_FIND_HAVELOCK, &ibyte, 1, 1, 0);
-			i = ibyte >> shift;
-			if (err == ESRCH || i >= last)
-				break;
-			ASSERT(err == 0);
-			db = dbuf_hold_level(dn, 1, i, FTAG);
-			if (db) {
-				dbuf_will_dirty(db, tx);
-				dbuf_rele(db, FTAG);
-			}
-		}
 	}
+
 done:
 	/*
 	 * Add this range to the dnode range list.
 	 * We will finish up this free operation in the syncing phase.
 	 */
 	mutex_enter(&dn->dn_mtx);
-	dnode_clear_range(dn, blkid, nblks, tx);
 	{
-		free_range_t *rp, *found;
-		avl_index_t where;
-		avl_tree_t *tree = &dn->dn_ranges[tx->tx_txg&TXG_MASK];
-
-		/* Add new range to dn_ranges */
-		rp = kmem_alloc(sizeof (free_range_t), KM_PUSHPAGE);
-		rp->fr_blkid = blkid;
-		rp->fr_nblks = nblks;
-		found = avl_find(tree, rp, &where);
-		ASSERT(found == NULL);
-		avl_insert(tree, rp, where);
-		dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
-		    blkid, nblks, tx->tx_txg);
+	int txgoff = tx->tx_txg & TXG_MASK;
+	if (dn->dn_free_ranges[txgoff] == NULL) {
+		dn->dn_free_ranges[txgoff] =
+		    range_tree_create(NULL, NULL, &dn->dn_mtx);
 	}
+	range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
+	range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
+	}
+	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
+	    blkid, nblks, tx->tx_txg);
 	mutex_exit(&dn->dn_mtx);
 
 	dbuf_free_range(dn, blkid, blkid + nblks - 1, tx);
 	dnode_setdirty(dn, tx);
 out:
-	if (trunc && dn->dn_maxblkid >= (off >> blkshift))
-		dn->dn_maxblkid = (off >> blkshift ? (off >> blkshift) - 1 : 0);
 
 	rw_exit(&dn->dn_struct_rwlock);
 }
@@ -1719,7 +1634,6 @@ dnode_spill_freed(dnode_t *dn)
 uint64_t
 dnode_block_freed(dnode_t *dn, uint64_t blkid)
 {
-	free_range_t range_tofind;
 	void *dp = spa_get_dsl(dn->dn_objset->os_spa);
 	int i;
 
@@ -1739,20 +1653,10 @@ dnode_block_freed(dnode_t *dn, uint64_t blkid)
 	if (blkid == DMU_SPILL_BLKID)
 		return (dnode_spill_freed(dn));
 
-	range_tofind.fr_blkid = blkid;
 	mutex_enter(&dn->dn_mtx);
 	for (i = 0; i < TXG_SIZE; i++) {
-		free_range_t *range_found;
-		avl_index_t idx;
-
-		range_found = avl_find(&dn->dn_ranges[i], &range_tofind, &idx);
-		if (range_found) {
-			ASSERT(range_found->fr_nblks > 0);
-			break;
-		}
-		range_found = avl_nearest(&dn->dn_ranges[i], idx, AVL_BEFORE);
-		if (range_found &&
-		    range_found->fr_blkid + range_found->fr_nblks > blkid)
+		if (dn->dn_free_ranges[i] != NULL &&
+		    range_tree_contains(dn->dn_free_ranges[i], blkid, 1))
 			break;
 	}
 	mutex_exit(&dn->dn_mtx);
@@ -1873,8 +1777,10 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		data = db->db.db_data;
 	}
 
-	if (db && txg &&
-	    (db->db_blkptr == NULL || db->db_blkptr->blk_birth <= txg)) {
+
+	if (db != NULL && txg != 0 && (db->db_blkptr == NULL ||
+	    db->db_blkptr->blk_birth <= txg ||
+	    BP_IS_HOLE(db->db_blkptr))) {
 		/*
 		 * This can only happen when we are searching up the tree
 		 * and these conditions mean that we need to keep climbing.
@@ -1908,8 +1814,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		*offset = *offset >> span;
 		for (i = BF64_GET(*offset, 0, epbs);
 		    i >= 0 && i < epb; i += inc) {
-			if (bp[i].blk_fill >= minfill &&
-			    bp[i].blk_fill <= maxfill &&
+			if (BP_GET_FILL(&bp[i]) >= minfill &&
+			    BP_GET_FILL(&bp[i]) <= maxfill &&
 			    (hole || bp[i].blk_birth > txg))
 				break;
 			if (inc > 0 || *offset > 0)
