@@ -29,7 +29,7 @@
 
 #include <stdlib.h>
 
-#if (defined(HAVE_MUSL) && !defined(__DEFINED_dev_t))
+#if !defined(__DEFINED_dev_t)
 #define __NEED_dev_t
 #include <bits/alltypes.h>
 #endif
