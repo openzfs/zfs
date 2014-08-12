@@ -148,9 +148,9 @@ extern void dprintf_setup(int *argc, char **argv);
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
 extern void cmn_err(int, const char *, ...);
-extern void vcmn_err(int, const char *, __va_list);
+extern void vcmn_err(int, const char *, va_list);
 extern void panic(const char *, ...);
-extern void vpanic(const char *, __va_list);
+extern void vpanic(const char *, va_list);
 
 #define	fm_panic	panic
 
