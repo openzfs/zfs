@@ -62,6 +62,37 @@ truncate_setsize(struct inode *ip, loff_t new)
 }
 #endif /* HAVE_TRUNCATE_SETSIZE */
 
+/*
+ * 3.4 API change,
+ * Add truncate_pagecache_range if it is not exported by the Linux kernel.
+ *
+ * Comment from the Linux kernel sources:
+ *
+ * This function should typically be called before the filesystem
+ * releases resources associated with the freed range (eg. deallocates
+ * blocks). This way, pagecache will always stay logically coherent
+ * with on-disk format, and the filesystem would not have to deal with
+ * situations such as writepage being called for a page that has already
+ * had its underlying blocks deallocated.
+ */
+#ifndef HAVE_TRUNCATE_PAGECACHE_RANGE
+static inline void
+truncate_pagecache_range(struct inode *ip, loff_t off, loff_t endoff)
+{
+	struct address_space *mapping = ip->i_mapping;
+	loff_t unmap_start, unmap_end;
+
+	ASSERT(ISP2(PAGE_SIZE));
+	unmap_start = roundup(off, PAGE_SIZE);
+	unmap_end = ((1 + endoff) & (PAGE_SIZE - 1)) - 1;
+
+	if ((uint64_t)unmap_end > (uint64_t)unmap_start)
+		unmap_mapping_range(mapping, unmap_start,
+		    1 + unmap_end - unmap_start, 0);
+	truncate_inode_pages_range(mapping, off, endoff);
+}
+#endif /*  HAVE_TRUNCATE_PAGECACHE_RANGE */
+
 #if defined(HAVE_BDI) && !defined(HAVE_BDI_SETUP_AND_REGISTER)
 /*
  * 2.6.34 API change,
