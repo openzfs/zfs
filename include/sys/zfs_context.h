@@ -1,26 +1,25 @@
 /*
  * CDDL HEADER START
  *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
+ * The contents of this file are subject to the terms of the Common Development
+ * and Distribution License (the "License").  You may not use this file except
+ * in compliance with the License.
  *
- * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
- * or http://www.opensolaris.org/os/licensing.
- * See the License for the specific language governing permissions
- * and limitations under the License.
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or
+ * http://www.opensolaris.org/os/licensing.  See the License for the specific
+ * language governing permissions and limitations under the License.
  *
- * When distributing Covered Code, include this CDDL HEADER in each
- * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
+ * When distributing Covered Code, include this CDDL HEADER in each file and
+ * include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add
+ * the following below this CDDL HEADER, with the fields enclosed by brackets
+ * "[]" replaced with your own identifying information: Portions Copyright
+ * [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.  Use is subject
+ * to license terms.
  */
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
@@ -118,6 +117,10 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 
+#if(!defined(RLIM64_INFINITY) && defined(HAVE_MUSL))
+#define RLIM64_INFINITY RLIM_INFINITY
+#endif 
+
 /*
  * Stack
  */
@@ -148,9 +151,9 @@ extern void dprintf_setup(int *argc, char **argv);
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
 extern void cmn_err(int, const char *, ...);
-extern void vcmn_err(int, const char *, __va_list);
+extern void vcmn_err(int, const char *, va_list);
 extern void panic(const char *, ...);
-extern void vpanic(const char *, __va_list);
+extern void vpanic(const char *, va_list);
 
 #define	fm_panic	panic
 
@@ -614,12 +617,12 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID	((long long)pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
 
-#define	ptob(x)		((x) * PAGESIZE)
+#define	ptob(x)		((x) * SPL_PAGESIZE)
 
 extern uint64_t physmem;
 

@@ -135,6 +135,7 @@
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/dsl_pool.h>
+#include <linux/param.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #include <vm/anon.h>
@@ -1006,7 +1007,7 @@ buf_init(void)
 	 * with an average 64K block size.  The table will take up
 	 * totalmem*sizeof(void*)/64K (eg. 128KB/GB with 8-byte pointers).
 	 */
-	while (hsize * 65536 < physmem * PAGESIZE)
+	while (hsize * 65536 < physmem * SPL_PAGESIZE)
 		hsize <<= 1;
 retry:
 	buf_hash_table.ht_mask = hsize - 1;
@@ -2506,7 +2507,7 @@ arc_adapt_thread(void)
 
 		/* Allow the module options to be changed */
 		if (zfs_arc_max > 64 << 20 &&
-		    zfs_arc_max < physmem * PAGESIZE &&
+		    zfs_arc_max < physmem * SPL_PAGESIZE &&
 		    zfs_arc_max != arc_c_max)
 			arc_c_max = zfs_arc_max;
 
@@ -4124,7 +4125,7 @@ arc_init(void)
 	zfs_arc_min_prefetch_lifespan = 1 * hz;
 
 	/* Start out with 1/8 of all memory */
-	arc_c = physmem * PAGESIZE / 8;
+	arc_c = physmem * SPL_PAGESIZE / 8;
 
 #ifdef _KERNEL
 	/*
@@ -4150,7 +4151,7 @@ arc_init(void)
 	 * Allow the tunables to override our calculations if they are
 	 * reasonable (ie. over 64MB)
 	 */
-	if (zfs_arc_max > 64<<20 && zfs_arc_max < physmem * PAGESIZE)
+	if (zfs_arc_max > 64<<20 && zfs_arc_max < physmem * SPL_PAGESIZE)
 		arc_c_max = zfs_arc_max;
 	if (zfs_arc_min > 0 && zfs_arc_min <= arc_c_max)
 		arc_c_min = zfs_arc_min;
@@ -4249,11 +4250,11 @@ arc_init(void)
 	 * zfs_dirty_data_max_max (default 25% of physical memory).
 	 */
 	if (zfs_dirty_data_max_max == 0)
-		zfs_dirty_data_max_max = physmem * PAGESIZE *
+		zfs_dirty_data_max_max = physmem * SPL_PAGESIZE *
 		    zfs_dirty_data_max_max_percent / 100;
 
 	if (zfs_dirty_data_max == 0) {
-		zfs_dirty_data_max = physmem * PAGESIZE *
+		zfs_dirty_data_max = physmem * SPL_PAGESIZE *
 		    zfs_dirty_data_max_percent / 100;
 		zfs_dirty_data_max = MIN(zfs_dirty_data_max,
 		    zfs_dirty_data_max_max);

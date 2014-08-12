@@ -133,13 +133,13 @@ zio_init(void)
 	zio_link_cache = kmem_cache_create("zio_link_cache",
 	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 	zio_vdev_cache = kmem_cache_create("zio_vdev_cache", sizeof (vdev_io_t),
-	    PAGESIZE, NULL, NULL, NULL, NULL, NULL, 0);
+	    SPL_PAGESIZE, NULL, NULL, NULL, NULL, NULL, 0);
 
 	/*
 	 * For small buffers, we want a cache for each multiple of
 	 * SPA_MINBLOCKSIZE.  For medium-size buffers, we want a cache
 	 * for each quarter-power of 2.  For large buffers, we want
-	 * a cache for each multiple of PAGESIZE.
+	 * a cache for each multiple of SPL_PAGESIZE.
 	 */
 	for (c = 0; c < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; c++) {
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
@@ -156,13 +156,13 @@ zio_init(void)
 		 * kernel when modifying a non-watched buffer that shares the
 		 * page with a watched buffer.
 		 */
-		if (arc_watch && !IS_P2ALIGNED(size, PAGESIZE))
+		if (arc_watch && !IS_P2ALIGNED(size, SPL_PAGESIZE))
 			continue;
 #endif
 		if (size <= 4 * SPA_MINBLOCKSIZE) {
 			align = SPA_MINBLOCKSIZE;
-		} else if (IS_P2ALIGNED(size, PAGESIZE)) {
-			align = PAGESIZE;
+		} else if (IS_P2ALIGNED(size, SPL_PAGESIZE)) {
+			align = SPL_PAGESIZE;
 		} else if (IS_P2ALIGNED(size, p2 >> 2)) {
 			align = p2 >> 2;
 		}

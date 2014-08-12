@@ -180,7 +180,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 
 	VERIFY3S(pthread_attr_init(&attr), ==, 0);
 	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
-	VERIFY3S(pthread_attr_setguardsize(&attr, PAGESIZE), ==, 0);
+	VERIFY3S(pthread_attr_setguardsize(&attr, SPL_PAGESIZE), ==, 0);
 	VERIFY3S(pthread_attr_setdetachstate(&attr, detachstate), ==, 0);
 
 	VERIFY3S(pthread_create(&kt->t_tid, &attr, &zk_thread_helper, kt),
@@ -901,7 +901,7 @@ static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
 static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 
 void
-vpanic(const char *fmt, va_list adx)
+vpanic(const char *fmt, __va_list adx)
 {
 	(void) fprintf(stderr, "error: ");
 	(void) vfprintf(stderr, fmt, adx);
@@ -921,7 +921,7 @@ panic(const char *fmt, ...)
 }
 
 void
-vcmn_err(int ce, const char *fmt, va_list adx)
+vcmn_err(int ce, const char *fmt, __va_list adx)
 {
 	if (ce == CE_PANIC)
 		vpanic(fmt, adx);

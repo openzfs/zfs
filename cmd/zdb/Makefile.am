@@ -17,4 +17,4 @@ zdb_LDADD = \
 	$(top_builddir)/lib/libzfs/libzfs.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 
-zdb_LDADD += $(ZLIB)
+zdb_LDADD += $(ZLIB) $(TIRPC_LIBS)
