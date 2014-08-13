@@ -506,16 +506,17 @@ int
 efi_rescan(int fd)
 {
 #if defined(__linux__)
-	int retry = 5;
+	int retry = 10;
 	int error;
 
 	/* Notify the kernel a devices partition table has been updated */
 	while ((error = ioctl(fd, BLKRRPART)) != 0) {
-		if (--retry == 0) {
+		if ((--retry == 0) || (errno != EBUSY)) {
 			(void) fprintf(stderr, "the kernel failed to rescan "
 			    "the partition table: %d\n", errno);
 			return (-1);
 		}
+		usleep(50000);
 	}
 #endif
 
