@@ -1264,6 +1264,13 @@ dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
 	/* If we might wait, we must not hold the config lock. */
 	ASSERT(txg_how != TXG_WAIT || !dsl_pool_config_held(tx->tx_pool));
 
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	/*
+	 * Mark the process as being inside a filesystem transaction.
+	 */
+	tx->tx_cookie = spl_fstrans_mark();
+#endif
+
 	while ((err = dmu_tx_try_assign(tx, txg_how)) != 0) {
 		dmu_tx_unassign(tx);
 
@@ -1412,6 +1419,9 @@ dmu_tx_commit(dmu_tx_t *tx)
 	    refcount_count(&tx->tx_space_freed));
 #endif
 	kmem_free(tx, sizeof (dmu_tx_t));
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	spl_fstrans_unmark(tx->tx_cookie);
+#endif
 }
 
 void
@@ -1445,6 +1455,9 @@ dmu_tx_abort(dmu_tx_t *tx)
 	    refcount_count(&tx->tx_space_freed));
 #endif
 	kmem_free(tx, sizeof (dmu_tx_t));
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	spl_fstrans_unmark(tx->tx_cookie);
+#endif
 }
 
 uint64_t
