@@ -1395,13 +1395,16 @@ metaslab_fragmentation(metaslab_t *msp)
 	 * so that we upgrade next time we encounter it.
 	 */
 	if (msp->ms_sm->sm_dbuf->db_size != sizeof (space_map_phys_t)) {
-		uint64_t txg = spa_syncing_txg(spa);
 		vdev_t *vd = msp->ms_group->mg_vd;
 
-		msp->ms_condense_wanted = B_TRUE;
-		vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
-		spa_dbgmsg(spa, "txg %llu, requesting force condense: "
-		    "msp %p, vd %p", txg, msp, vd);
+		if (spa_writeable(vd->vdev_spa)) {
+			uint64_t txg = spa_syncing_txg(spa);
+
+			msp->ms_condense_wanted = B_TRUE;
+			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
+			spa_dbgmsg(spa, "txg %llu, requesting force condense: "
+			    "msp %p, vd %p", txg, msp, vd);
+		}
 		return (ZFS_FRAG_INVALID);
 	}
 
