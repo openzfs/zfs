@@ -1409,6 +1409,18 @@ This flag sets the SELinux context for unlabeled files.  See \fBselinux\fR(8) fo
 This flag sets the SELinux context for the root inode of the filesystem.  See \fBselinux\fR(8) for more information.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fBoverlay\fR=\fBon\fR | \fBoff\fR\fR
+.ad
+.sp .6
+.RS 4n
+Allow mounting on a busy directory and/or a directory which already contains files/directories. This is the default mount type in Linux, but not in ZFS. In ZFS, if a mount point contains anything (files, devices, directories etc), the mount is disallowed.
+With this enabled, ZFS will allow such a mount, that would othervise be denied.
+.RE
+
 .SS "Temporary Mount Point Properties"
 .LP
 When a file system is mounted, either through \fBmount\fR(8) for legacy mounts or the \fBzfs mount\fR command for normal file systems, its mount options are set according to its properties. The correlation between properties and mount options is as follows:
