@@ -1,7 +1,7 @@
 '\" te
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
-.\" Copyright (c) 2012 by Delphix. All Rights Reserved.
+.\" Copyright (c) 2013 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License"). You may not use this file except
@@ -500,6 +500,17 @@ Amount of uninitialized space within the pool or device that can be used to
 increase the total capacity of the pool.  Uninitialized space consists of
 any space on an EFI labeled vdev which has not been brought online
 (i.e. zpool online -e).  This space occurs when a LUN is dynamically expanded.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBfragmentation\fR\fR
+.ad
+.RS 20n
+.rt
+The amount of fragmentation in the pool.
 .RE
 
 .sp
@@ -1587,7 +1598,7 @@ Specify \fBu\fR for a printed representation of the internal representation of t
 .ad
 .RS 12n
 .rt  
-Comma-separated list of properties to display. See the "Properties" section for a list of valid properties. The default list is "name, size, used, available, expandsize, capacity, dedupratio, health, altroot"
+Comma-separated list of properties to display. See the "Properties" section for a list of valid properties. The default list is "name, size, used, available, fragmentation, expandsize, capacity, dedupratio, health, altroot"
 .RE
 
 .sp
@@ -2002,10 +2013,10 @@ The results from this command are similar to the following:
 .in +2
 .nf
 # \fBzpool list\fR
-     NAME    SIZE  ALLOC   FREE  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
-     rpool  19.9G  8.43G  11.4G         -    42%  1.00x  ONLINE  -
-     tank   61.5G  20.0G  41.5G         -    32%  1.00x  ONLINE  -
-     zion       -      -      -         -      -      -  FAULTED -
+NAME    SIZE  ALLOC   FREE   FRAG  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
+rpool  19.9G  8.43G  11.4G    33%         -    42%  1.00x  ONLINE  -
+tank   61.5G  20.0G  41.5G    48%         -    32%  1.00x  ONLINE  -
+zion       -      -      -      -         -      -      -  FAULTED -
 .fi
 .in -2
 .sp
@@ -2212,9 +2223,9 @@ The command to remove the mirrored log \fBmirror-2\fR is:
 \fBExample 15 \fRDisplaying expanded space on a device
 .sp
 .LP
-The following command dipslays the detailed information for the \fIdata\fR
+The following command displays the detailed information for the \fIdata\fR
 pool. This pool is comprised of a single \fIraidz\fR vdev where one of its
-devices increased its capacity by 1GB. In this example, the pool will not 
+devices increased its capacity by 10GB. In this example, the pool will not 
 be able to utilized this extra capacity until all the devices under the
 \fIraidz\fR vdev have been expanded.
 
@@ -2222,12 +2233,12 @@ be able to utilized this extra capacity until all the devices under the
 .in +2
 .nf
 # \fBzpool list -v data\fR
-   NAME         SIZE  ALLOC   FREE  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
-   data        17.9G   174K  17.9G         -     0%  1.00x  ONLINE  -
-     raidz1    17.9G   174K  17.9G         -
-       c4t2d0      -      -      -        1G
-       c4t3d0      -      -      -         -
-       c4t4d0      -      -      -         - 
+NAME         SIZE  ALLOC   FREE   FRAG  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
+data        23.9G  14.6G  9.30G    48%         -    61%  1.00x  ONLINE  -
+  raidz1    23.9G  14.6G  9.30G    48%         -
+    c1t1d0      -      -      -      -         -
+    c1t2d0      -      -      -      -       10G
+    c1t3d0      -      -      -      -         -
 .fi
 .in -2
 

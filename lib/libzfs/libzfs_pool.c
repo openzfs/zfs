@@ -274,6 +274,15 @@ zpool_get_prop_literal(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			intval = zpool_get_prop_int(zhp, prop, &src);
 			(void) snprintf(buf, len, "%llu", (u_longlong_t)intval);
 			break;
+		case ZPOOL_PROP_FRAGMENTATION:
+			intval = zpool_get_prop_int(zhp, prop, &src);
+			if (intval == UINT64_MAX) {
+				(void) strlcpy(buf, "-", len);
+			} else {
+				(void) snprintf(buf, len, "%llu%%",
+				    (u_longlong_t)intval);
+			}
+			break;
 
 		case ZPOOL_PROP_ALTROOT:
 		case ZPOOL_PROP_CACHEFILE:
