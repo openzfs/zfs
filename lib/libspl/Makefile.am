@@ -1,12 +1,12 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(TIRPC_CFLAGS)
 
 SUBDIRS = include $(TARGET_ASM_DIR)
 DIST_SUBDIRS = include asm-generic asm-i386 asm-x86_64
 
 DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/lib/libspl/include
+	-I$(top_srcdir)/lib/libspl/include $(TIRPC_CFLAGS)
 
 AM_CCASFLAGS = \
 	-I$(top_srcdir)/lib/libspl/include
@@ -30,4 +30,4 @@ libspl_la_SOURCES = \
 	$(top_srcdir)/lib/libspl/include/sys/list.h \
 	$(top_srcdir)/lib/libspl/include/sys/list_impl.h
 
-libspl_la_LIBADD = -lrt
+libspl_la_LIBADD = -lrt $(TIRPC_LDFLAGS)
