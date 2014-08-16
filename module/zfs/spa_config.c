@@ -40,6 +40,7 @@
 #include <sys/kobj.h>
 #include <sys/zone.h>
 #endif
+#include <sys/resource.h>
 
 /*
  * Pool configuration repository.
