@@ -102,9 +102,12 @@
 #define PRIO_TO_NICE(prio)		((prio) - MAX_RT_PRIO - 20)
 #endif
 
-/* Missing macros
+/*
+ * Missing macros
  */
+#ifndef PAGESIZE
 #define PAGESIZE			PAGE_SIZE
+#endif
 
 /* from Solaris sys/byteorder.h */
 #define BSWAP_8(x)	((x) & 0xff)
