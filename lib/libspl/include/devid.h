@@ -29,6 +29,11 @@
 
 #include <stdlib.h>
 
+#ifndef __dev_t_defined
+#define __NEED_dev_t
+#include <bits/alltypes.h>
+#endif
+
 typedef int ddi_devid_t;
 
 typedef struct devid_nmlist {
