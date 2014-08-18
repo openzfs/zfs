@@ -75,6 +75,7 @@
 #include <sys/cred.h>
 #include <sys/attr.h>
 #include <sys/zpl.h>
+#include <sys/resource.h>
 
 /*
  * Programming rules.

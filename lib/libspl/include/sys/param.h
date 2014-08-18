@@ -29,6 +29,7 @@
 
 #include_next <sys/param.h>
 #include <unistd.h>
+#include <linux/param.h>
 
 /*
  * File system parameters and macros.
