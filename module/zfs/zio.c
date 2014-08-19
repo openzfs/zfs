@@ -1381,7 +1381,9 @@ __attribute__((always_inline))
 static inline void
 __zio_execute(zio_t *zio)
 {
+	mutex_enter(&zio->io_lock);
 	zio->io_executor = curthread;
+	mutex_exit(&zio->io_lock);
 
 	while (zio->io_stage < ZIO_STAGE_DONE) {
 		enum zio_stage pipeline = zio->io_pipeline;
@@ -1459,7 +1461,9 @@ zio_wait(zio_t *zio)
 	ASSERT(zio->io_stage == ZIO_STAGE_OPEN);
 	VERIFY(zio->io_executor == NULL);
 
+	mutex_enter(&zio->io_lock);
 	zio->io_waiter = curthread;
+	mutex_exit(&zio->io_lock);
 
 	__zio_execute(zio);
 
@@ -3320,12 +3324,13 @@ zio_done(zio_t *zio)
 		zio_notify_parent(pio, zio, ZIO_WAIT_DONE);
 	}
 
+	mutex_enter(&zio->io_lock);
 	if (zio->io_waiter != NULL) {
-		mutex_enter(&zio->io_lock);
 		zio->io_executor = NULL;
 		cv_broadcast(&zio->io_cv);
 		mutex_exit(&zio->io_lock);
 	} else {
+		mutex_exit(&zio->io_lock);
 		zio_destroy(zio);
 	}
 
