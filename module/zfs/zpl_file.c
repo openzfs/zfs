@@ -558,38 +558,53 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 
 /*
  * The only flag combination which matches the behavior of zfs_space()
- * is FALLOC_FL_PUNCH_HOLE.  This flag was introduced in the 2.6.38 kernel.
+ * is FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE.  The FALLOC_FL_PUNCH_HOLE
+ * flag was introduced in the 2.6.38 kernel.
  */
+#if defined(HAVE_FILE_FALLOCATE) || defined(HAVE_INODE_FALLOCATE)
 long
 zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 {
-	cred_t *cr = CRED();
 	int error = -EOPNOTSUPP;
 
-	if (mode & FALLOC_FL_KEEP_SIZE)
-		return (-EOPNOTSUPP);
+#if defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)
+	cred_t *cr = CRED();
+	flock64_t bf;
+	loff_t olen;
+
+	if (mode != (FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE))
+		return (error);
 
 	crhold(cr);
 
-#ifdef FALLOC_FL_PUNCH_HOLE
-	if (mode & FALLOC_FL_PUNCH_HOLE) {
-		flock64_t bf;
+	if (offset < 0 || len <= 0)
+		return (-EINVAL);
 
-		bf.l_type = F_WRLCK;
-		bf.l_whence = 0;
-		bf.l_start = offset;
-		bf.l_len = len;
-		bf.l_pid = 0;
+	spl_inode_lock(ip);
+	olen = i_size_read(ip);
 
-		error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
+	if (offset > olen) {
+		spl_inode_unlock(ip);
+		return (0);
 	}
-#endif /* FALLOC_FL_PUNCH_HOLE */
+	if (offset + len > olen)
+		len = olen - offset;
+	bf.l_type = F_WRLCK;
+	bf.l_whence = 0;
+	bf.l_start = offset;
+	bf.l_len = len;
+	bf.l_pid = 0;
+
+	error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
+	spl_inode_unlock(ip);
 
 	crfree(cr);
+#endif /* defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE) */
 
 	ASSERT3S(error, <=, 0);
 	return (error);
 }
+#endif /* defined(HAVE_FILE_FALLOCATE) || defined(HAVE_INODE_FALLOCATE) */
 
 #ifdef HAVE_FILE_FALLOCATE
 static long

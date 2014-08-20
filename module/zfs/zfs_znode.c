@@ -1345,6 +1345,50 @@ zfs_extend(znode_t *zp, uint64_t end)
 }
 
 /*
+ * zfs_zero_partial_page - Modeled after update_pages() but
+ * with different arguments and semantics for use by zfs_freesp().
+ *
+ * Zeroes a piece of a single page cache entry for zp at offset
+ * start and length len.
+ *
+ * Caller must acquire a range lock on the file for the region
+ * being zeroed in order that the ARC and page cache stay in sync.
+ */
+static void
+zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
+{
+	struct address_space *mp = ZTOI(zp)->i_mapping;
+	struct page *pp;
+	int64_t	off;
+	void *pb;
+
+	ASSERT((start & PAGE_CACHE_MASK) ==
+	    ((start + len - 1) & PAGE_CACHE_MASK));
+
+	off = start & (PAGE_CACHE_SIZE - 1);
+	start &= PAGE_CACHE_MASK;
+
+	pp = find_lock_page(mp, start >> PAGE_CACHE_SHIFT);
+	if (pp) {
+		if (mapping_writably_mapped(mp))
+			flush_dcache_page(pp);
+
+		pb = kmap(pp);
+		bzero(pb + off, len);
+		kunmap(pp);
+
+		if (mapping_writably_mapped(mp))
+			flush_dcache_page(pp);
+
+		mark_page_accessed(pp);
+		SetPageUptodate(pp);
+		ClearPageError(pp);
+		unlock_page(pp);
+		page_cache_release(pp);
+	}
+}
+
+/*
  * Free space in a file.
  *
  *	IN:	zp	- znode of file to free data in.
@@ -1378,6 +1422,40 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 
 	error = dmu_free_long_range(zsb->z_os, zp->z_id, off, len);
 
+	/*
+	 * Zero partial page cache entries.  This must be done under a
+	 * range lock in order to keep the ARC and page cache in sync.
+	 */
+	if (zp->z_is_mapped) {
+		loff_t first_page, last_page, page_len;
+		loff_t first_page_offset, last_page_offset;
+
+		/* first possible full page in hole */
+		first_page = (off + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+		/* last page of hole */
+		last_page = (off + len) >> PAGE_CACHE_SHIFT;
+
+		/* offset of first_page */
+		first_page_offset = first_page << PAGE_CACHE_SHIFT;
+		/* offset of last_page */
+		last_page_offset = last_page << PAGE_CACHE_SHIFT;
+
+		if (first_page > last_page) {
+			/* entire punched area within a single page */
+			zfs_zero_partial_page(zp, off, len);
+		} else {
+			/* beginning of punched area at the end of a page */
+			page_len  = first_page_offset - off;
+			if (page_len > 0)
+				zfs_zero_partial_page(zp, off, page_len);
+
+			/* end of punched area at the beginning of a page */
+			page_len = off + len - last_page_offset;
+			if (page_len > 0)
+				zfs_zero_partial_page(zp, last_page_offset,
+				    page_len);
+		}
+	}
 	zfs_range_unlock(rl);
 
 	return (error);
@@ -1479,8 +1557,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 		error =  zfs_extend(zp, off+len);
 		if (error == 0 && log)
 			goto log;
-		else
-			return (error);
+		goto out;
 	}
 
 	/*
@@ -1500,7 +1577,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 			error = zfs_extend(zp, off+len);
 	}
 	if (error || !log)
-		return (error);
+		goto out;
 log:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -1508,7 +1585,7 @@ log:
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		return (error);
+		goto out;
 	}
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL, mtime, 16);
@@ -1522,8 +1599,40 @@ log:
 	zfs_log_truncate(zilog, tx, TX_TRUNCATE, zp, off, len);
 
 	dmu_tx_commit(tx);
+
 	zfs_inode_update(zp);
-	return (0);
+	error = 0;
+
+out:
+	/*
+	 * Truncate the page cache - for file truncate operations, use
+	 * the purpose-built API for truncations.  For punching operations,
+	 * truncate only whole pages within the region; partial pages are
+	 * zeroed under a range lock in zfs_free_range().
+	 */
+	if (len == 0)
+		truncate_setsize(ZTOI(zp), off);
+	else if (zp->z_is_mapped) {
+		loff_t first_page, last_page;
+		loff_t first_page_offset, last_page_offset;
+
+		/* first possible full page in hole */
+		first_page = (off + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+		/* last page of hole */
+		last_page = (off + len) >> PAGE_CACHE_SHIFT;
+
+		/* offset of first_page */
+		first_page_offset = first_page << PAGE_CACHE_SHIFT;
+		/* offset of last_page */
+		last_page_offset = last_page << PAGE_CACHE_SHIFT;
+
+		/* truncate whole pages */
+		if (last_page_offset > first_page_offset) {
+			truncate_inode_pages_range(ZTOI(zp)->i_mapping,
+			    first_page_offset, last_page_offset - 1);
+		}
+	}
+	return (error);
 }
 
 void
