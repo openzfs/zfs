@@ -2565,8 +2565,6 @@ top:
 		if (err)
 			goto out3;
 
-		truncate_setsize(ip, vap->va_size);
-
 		/*
 		 * XXX - Note, we are not providing any open
 		 * mode flags here (like FNDELAY), so we may
