@@ -277,6 +277,22 @@ Default value: \fB2\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_average_blocksize\fR (int)
+.ad
+.RS 12n
+The ARC's buffer hash table is sized based on the assumption of an average
+block size of \fBzfs_arc_average_blocksize\fR (default 8K).  This works out
+to roughly 1MB of hash table per 1GB of physical memory with 8-byte pointers.
+For configurations with a known larger average block size this value can be
+increased to reduce the memory footprint.
+
+.sp
+Default value: \fB8192\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_grow_retry\fR (int)
 .ad
 .RS 12n

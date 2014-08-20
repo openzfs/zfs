@@ -193,6 +193,9 @@ int zfs_arc_memory_throttle_disable = 1;
 /* disable duplicate buffer eviction */
 int zfs_disable_dup_eviction = 0;
 
+/* average block used to size buf_hash_table */
+int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
+
 /*
  * If this percent of memory is free, don't throttle.
  */
@@ -1003,10 +1006,11 @@ buf_init(void)
 
 	/*
 	 * The hash table is big enough to fill all of physical memory
-	 * with an average 64K block size.  The table will take up
-	 * totalmem*sizeof(void*)/64K (eg. 128KB/GB with 8-byte pointers).
+	 * with an average block size of zfs_arc_average_blocksize (default 8K).
+	 * By default, the table will take up
+	 * totalmem * sizeof(void*) / 8K (1MB per GB with 8-byte pointers).
 	 */
-	while (hsize * 65536 < physmem * PAGESIZE)
+	while (hsize * zfs_arc_average_blocksize < physmem * PAGESIZE)
 		hsize <<= 1;
 retry:
 	buf_hash_table.ht_mask = hsize - 1;
@@ -5656,6 +5660,9 @@ MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
 
 module_param(zfs_disable_dup_eviction, int, 0644);
 MODULE_PARM_DESC(zfs_disable_dup_eviction, "disable duplicate buffer eviction");
+
+module_param(zfs_arc_average_blocksize, int, 0444);
+MODULE_PARM_DESC(zfs_arc_average_blocksize, "Target average block size");
 
 module_param(zfs_arc_memory_throttle_disable, int, 0644);
 MODULE_PARM_DESC(zfs_arc_memory_throttle_disable, "disable memory throttle");
