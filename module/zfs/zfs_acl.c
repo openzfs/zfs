@@ -1742,9 +1742,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 	int		error;
 	zfs_sb_t	*zsb = ZTOZSB(dzp);
 	zfs_acl_t	*paclp;
-#ifdef HAVE_KSID
-	gid_t		gid;
-#endif /* HAVE_KSID */
+	gid_t		gid = crgetgid(cr);
 	boolean_t	need_chmod = B_TRUE;
 	boolean_t	inherited = B_FALSE;
 
