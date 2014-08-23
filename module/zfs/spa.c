@@ -1516,8 +1516,14 @@ spa_load_l2cache(spa_t *spa)
 
 			(void) vdev_validate_aux(vd);
 
-			if (!vdev_is_dead(vd))
-				l2arc_add_vdev(spa, vd);
+			if (!vdev_is_dead(vd)) {
+				boolean_t do_rebuild = B_FALSE;
+
+				(void) nvlist_lookup_boolean_value(l2cache[i],
+				    ZPOOL_CONFIG_L2CACHE_PERSISTENT,
+				    &do_rebuild);
+				l2arc_add_vdev(spa, vd, do_rebuild);
+			}
 		}
 	}
 
@@ -2806,6 +2812,8 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		 */
 		dsl_pool_clean_tmp_userrefs(spa->spa_dsl_pool);
 	}
+
+	spa_async_request(spa, SPA_ASYNC_L2CACHE_REBUILD);
 
 	return (0);
 }
@@ -5768,6 +5776,12 @@ spa_async_thread(spa_t *spa)
 	 */
 	if (tasks & SPA_ASYNC_RESILVER)
 		dsl_resilver_restart(spa->spa_dsl_pool, 0);
+
+	/*
+	 * Kick off L2 cache rebuilding.
+	 */
+	if (tasks & SPA_ASYNC_L2CACHE_REBUILD)
+		l2arc_spa_rebuild_start(spa);
 
 	/*
 	 * Let the world know that we're done.

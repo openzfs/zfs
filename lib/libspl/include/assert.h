@@ -21,6 +21,7 @@
  */
 /*
  * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -95,5 +96,15 @@ extern void __assert(const char *, const char *, int);
 #define	ASSERT0(x)		VERIFY0(x)
 #define	ASSERTV(x)		x
 #endif  /* NDEBUG */
+
+/*
+ * Compile-time assertion. The condition 'x' must be constant.
+ */
+#define	CTASSERT_GLOBAL(x)	_CTASSERT(x, __LINE__)
+#define	CTASSERT(x)		{_CTASSERT(x, __LINE__); }
+#define	_CTASSERT(x, y)		__CTASSERT(x, y)
+#define	__CTASSERT(x, y)	\
+	typedef char __attribute__((unused))	\
+	__compile_time_assertion__ ## y[(x) ? 1 : -1]
 
 #endif  /* _LIBSPL_ASSERT_H */

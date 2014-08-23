@@ -71,6 +71,41 @@
  */
 
 /*
+ *
+ * External users typically access ARC buffers via a two-dimensional
+ * hash table lookup, using the DVA, spa_t pointer value and the
+ * birth TXG number as the key. The hash value is derived by
+ * buf_hash(), which spits out a 64-bit hash index. This index
+ * is then subdivided into two portions, the L1 and L2 portion,
+ * by masking it with ht_mask_L1 and ht_mask_L2:
+ *
+ *                     ,---- L1 portion ----,,---- L2 portion -----,
+ * 64-bit hash index   |                    ||                     |
+ * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|
+ *
+ * These are then used as lookup indices into the hash table to
+ * find the two-dimensional coordinate of the appropriate hash
+ * bucket: ht_table[L1][L2]. Sizing the hash table is done at
+ * boot from the amount of physical memory. We start with a base
+ * value of 2^12 hash buckets and then evaluate whether this
+ * number, multiplied by 2^zfs_arc_ht_base_masklen (the minimum
+ * mask length), is greater than or equal to the amount of
+ * physical memory. If not, we double the number of hash buckets
+ * and repeat. Ultimately, this gives us an exponent for the
+ * number of hash buckets we are going to need (e.g. if we need
+ * 2^16 buckets, then the exponent is 16). We then divide this
+ * into two halves, which represent the size of the two dimensions
+ * of the 2D hash table (if the exponent isn't even, the L1 half
+ * is rounded up and the L2 half is rounded down). Finally, we
+ * allocate the main row array and fill all columns with column
+ * arrays.
+ *
+ * Using the default settings these values translate to ~1 MB of
+ * hash tables for each 1 GB of physical memory. This also scales
+ * well to bigmem systems. On systems with 16 TB of physical
+ * memory the hash table will be 16 GB in total size and consist
+ * of 65536 columns, each of 256k.
+ *
  * The locking model:
  *
  * A new reference to a cache buffer can be obtained in two
@@ -83,7 +118,13 @@
  *
  * Buffers do not have their own mutexes, rather they rely on the
  * hash table mutexes for the bulk of their protection (i.e. most
- * fields in the arc_buf_hdr_t are protected by these mutexes).
+ * fields in the arc_buf_hdr_t are protected by these mutexes). The
+ * specific mutex is selected by taking its hash value and masking
+ * it by ht_lock_mask, which then produces an index into the mutex
+ * table. The size of the lock table is derived from the amount of
+ * physical memory, which is simply divided by
+ * 2^zfs_arc_ht_lock_shift, giving the number of locks, with a
+ * minimum of MIN_BUF_LOCKS.
  *
  * buf_hash_find() returns the appropriate mutex (held) when it
  * locates the requested buffer in the hash table.  It returns
@@ -145,6 +186,9 @@
 #include <sys/kstat.h>
 #include <sys/dmu_tx.h>
 #include <zfs_fletcher.h>
+#include <sys/byteorder.h>
+#include <sys/spa_impl.h>
+#include <sys/debug.h>
 
 #ifndef _KERNEL
 /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
@@ -217,6 +261,18 @@ static boolean_t arc_warm;
 unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
+
+/*
+ * Used to calculate the size of ARC hash tables and number of hash locks.
+ * See buf_init().
+ */
+uint64_t zfs_arc_ht_base_masklen = 13;
+/*
+ * We want to allocate one hash lock for every 4GB of memory with a minimum
+ * of MIN_BUF_LOCKS.
+ */
+uint64_t zfs_arc_ht_lock_shift = 32;
+#define	MIN_BUF_LOCKS	256
 
 /*
  * Note that buffers can be in one of 6 states:
@@ -350,6 +406,21 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_compress_successes;
 	kstat_named_t arcstat_l2_compress_zeros;
 	kstat_named_t arcstat_l2_compress_failures;
+	kstat_named_t arcstat_l2_log_writes;
+	kstat_named_t arcstat_l2_log_avg_size;
+	kstat_named_t arcstat_l2_data_to_meta_ratio;
+	kstat_named_t arcstat_l2_rebuild_successes;
+	kstat_named_t arcstat_l2_rebuild_abort_unsupported;
+	kstat_named_t arcstat_l2_rebuild_abort_timeout;
+	kstat_named_t arcstat_l2_rebuild_abort_io_errors;
+	kstat_named_t arcstat_l2_rebuild_abort_cksum_errors;
+	kstat_named_t arcstat_l2_rebuild_abort_loop_errors;
+	kstat_named_t arcstat_l2_rebuild_abort_lowmem;
+	kstat_named_t arcstat_l2_rebuild_size;
+	kstat_named_t arcstat_l2_rebuild_bufs;
+	kstat_named_t arcstat_l2_rebuild_bufs_precached;
+	kstat_named_t arcstat_l2_rebuild_psize;
+	kstat_named_t arcstat_l2_rebuild_logs;
 	kstat_named_t arcstat_memory_throttle_count;
 	kstat_named_t arcstat_duplicate_buffers;
 	kstat_named_t arcstat_duplicate_buffers_size;
@@ -438,6 +509,21 @@ static arc_stats_t arc_stats = {
 	{ "l2_compress_successes",	KSTAT_DATA_UINT64 },
 	{ "l2_compress_zeros",		KSTAT_DATA_UINT64 },
 	{ "l2_compress_failures",	KSTAT_DATA_UINT64 },
+	{ "l2_log_writes",		KSTAT_DATA_UINT64 },
+	{ "l2_log_avg_size",		KSTAT_DATA_UINT64 },
+	{ "l2_data_to_meta_ratio",	KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_successes",	KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_unsupported",	KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_timeout",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_io_errors",	KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_cksum_errors",	KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_loop_errors",	KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_lowmem",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_psize",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_bufs",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_bufs_precached",	KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_size",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_logs",		KSTAT_DATA_UINT64 },
 	{ "memory_throttle_count",	KSTAT_DATA_UINT64 },
 	{ "duplicate_buffers",		KSTAT_DATA_UINT64 },
 	{ "duplicate_buffers_size",	KSTAT_DATA_UINT64 },
@@ -490,6 +576,25 @@ static arc_stats_t arc_stats = {
 			ARCSTAT_BUMP(arcstat_##notstat1##_##notstat2##_##stat);\
 		}							\
 	}
+
+/*
+ * This macro allows us to use kstats as floating averages. Each time we
+ * update this kstat, we first factor it and the update value by
+ * ARCSTAT_AVG_FACTOR to shrink the new value's contribution to the overall
+ * average. This macro assumes that integer loads and stores are atomic, but
+ * is not safe for multiple writers updating the kstat in parallel (only the
+ * last writer's update will remain).
+ */
+#define	ARCSTAT_F_AVG_FACTOR	3
+#define	ARCSTAT_F_AVG(stat, value) \
+	do { \
+		uint64_t x = ARCSTAT(stat); \
+		x = x - x / ARCSTAT_F_AVG_FACTOR + \
+		    (value) / ARCSTAT_F_AVG_FACTOR; \
+		ARCSTAT(stat) = x; \
+		_NOTE(NOTREACHED) \
+		_NOTE(CONSTCOND) \
+	} while (0)
 
 kstat_t			*arc_ksp;
 static arc_state_t	*arc_anon;
@@ -657,18 +762,25 @@ struct ht_lock {
 #endif
 };
 
-#define	BUF_LOCKS 256
 typedef struct buf_hash_table {
-	uint64_t ht_mask;
-	arc_buf_hdr_t **ht_table;
-	struct ht_lock ht_locks[BUF_LOCKS];
+	uint64_t	ht_mask, ht_mask_L1, ht_mask_L2;
+	uint64_t	ht_masklen_L1, ht_masklen_L2;
+	arc_buf_hdr_t	***ht_table;
+	struct ht_lock	*ht_locks;
+	uint64_t	ht_num_locks, ht_lock_mask;
 } buf_hash_table_t;
 
 static buf_hash_table_t buf_hash_table;
 
 #define	BUF_HASH_INDEX(spa, dva, birth) \
 	(buf_hash(spa, dva, birth) & buf_hash_table.ht_mask)
-#define	BUF_HASH_LOCK_NTRY(idx) (buf_hash_table.ht_locks[idx & (BUF_LOCKS-1)])
+#define	BUF_HASH_INDEX1(idx) \
+	((idx >> buf_hash_table.ht_masklen_L2) & buf_hash_table.ht_mask_L1)
+#define	BUF_HASH_INDEX2(idx)	(idx & buf_hash_table.ht_mask_L2)
+#define	BUF_HASH_TABLE(idx)	(buf_hash_table.ht_table[BUF_HASH_INDEX1(idx)] \
+	[BUF_HASH_INDEX2(idx)])
+#define	BUF_HASH_LOCK_NTRY(idx)	\
+	(buf_hash_table.ht_locks[idx & buf_hash_table.ht_lock_mask])
 #define	BUF_HASH_LOCK(idx)	(&(BUF_HASH_LOCK_NTRY(idx).ht_lock))
 #define	HDR_LOCK(hdr) \
 	(BUF_HASH_LOCK(BUF_HASH_INDEX(hdr->b_spa, &hdr->b_dva, hdr->b_birth)))
@@ -707,19 +819,7 @@ int l2arc_norw = B_FALSE;			/* no reads during writes */
 /*
  * L2ARC Internals
  */
-typedef struct l2arc_dev {
-	vdev_t			*l2ad_vdev;	/* vdev */
-	spa_t			*l2ad_spa;	/* spa */
-	uint64_t		l2ad_hand;	/* next write location */
-	uint64_t		l2ad_start;	/* first addr on device */
-	uint64_t		l2ad_end;	/* last addr on device */
-	uint64_t		l2ad_evict;	/* last addr eviction reached */
-	boolean_t		l2ad_first;	/* first sweep through */
-	boolean_t		l2ad_writing;	/* currently writing */
-	list_t			*l2ad_buflist;	/* buffer list */
-	list_node_t		l2ad_node;	/* device list node */
-} l2arc_dev_t;
-
+typedef struct l2arc_dev l2arc_dev_t;
 static list_t L2ARC_dev_list;			/* device list */
 static list_t *l2arc_dev_list;			/* device list pointer */
 static kmutex_t l2arc_dev_mtx;			/* device list mutex */
@@ -742,6 +842,8 @@ typedef struct l2arc_read_callback {
 typedef struct l2arc_write_callback {
 	l2arc_dev_t	*l2wcb_dev;		/* device info */
 	arc_buf_hdr_t	*l2wcb_head;		/* head of write buflist */
+	/* list of in-flight l2arc_log_buf_t's */
+	list_t		l2wcb_log_buf_list;
 } l2arc_write_callback_t;
 
 struct l2arc_buf_hdr {
@@ -770,15 +872,307 @@ static kcondvar_t l2arc_feed_thr_cv;
 static uint8_t l2arc_thread_exit;
 
 static void l2arc_read_done(zio_t *zio);
-static void l2arc_hdr_stat_add(void);
+static void l2arc_hdr_stat_add(boolean_t from_arc);
 static void l2arc_hdr_stat_remove(void);
+static l2arc_dev_t *l2arc_vdev_get(vdev_t *vd);
 
 static boolean_t l2arc_compress_buf(l2arc_buf_hdr_t *l2hdr);
 static void l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr,
     enum zio_compress c);
 static void l2arc_release_cdata_buf(arc_buf_hdr_t *ab);
 
-static uint64_t
+enum {
+	L2ARC_UBERBLOCK_EVICT_FIRST = (1 << 0)	/* mirror of l2ad_first */
+};
+
+/*
+ * Pointer used in persistent L2ARC (for pointing to logs & ARC buffers).
+ */
+typedef struct l2arc_logptr {
+	uint64_t	l2lp_daddr;	/* device address of log */
+	/*
+	 * l2lp_prop is the same format as the blk_prop in blkptr_t:
+	 *	* logical size (in sectors)
+	 *	* physical (compressed) size (in sectors)
+	 *	* compression algorithm (we always LZ4-compress l2arc logs)
+	 *	* checksum algorithm (used for l2lp_cksum)
+	 *	* object type & level (unused for now)
+	 */
+	uint64_t	l2lp_prop;
+	zio_cksum_t	l2lp_cksum;	/* fletcher4 of log */
+} l2arc_logptr_t;
+
+/*
+ * The persistent L2ARC uberblock.
+ */
+typedef struct l2arc_uberblock_phys {
+	uint64_t	l2u_magic;
+	zio_cksum_t	l2u_self_cksum;		/* fletcher4 of fields below */
+
+	/*
+	 * Global L2ARC device state and metadata.
+	 */
+	uint64_t	l2u_spa_guid;
+	uint64_t	l2u_evict_tail;		/* current evict pointer */
+	uint64_t	l2u_alloc_space;	/* vdev space alloc status */
+	uint64_t	l2u_flags;		/* l2arc_uberblock_flags_t */
+
+	/*
+	 * Start of log chain. [0] -> newest log, [1] -> one older (used for
+	 * initiating prefetch).
+	 */
+	l2arc_logptr_t	l2u_start_lps[2];
+
+	const uint64_t	l2u_pad[43];		/* pad to 512 bytes */
+} l2arc_uberblock_phys_t;
+CTASSERT_GLOBAL(sizeof (l2arc_uberblock_phys_t) == SPA_MINBLOCKSIZE);
+
+/*
+ * A single ARC buffer header entry in a l2arc_log_phys_t.
+ */
+typedef struct l2arc_log_ent_phys {
+	dva_t			l2le_dva;	/* dva of buffer */
+	uint64_t		l2le_birth;	/* birth txg of buffer */
+	uint64_t		l2le_cksum0;
+	zio_cksum_t		l2le_freeze_cksum;
+	/*
+	 * l2le_prop is the same format as the blk_prop in blkptr_t:
+	 *	* logical size (in sectors)
+	 *	* physical (compressed) size (in sectors)
+	 *	* compression algorithm
+	 *	* checksum algorithm (used for cksum0)
+	 *	* object type & level (used to restore arc_buf_contents_t)
+	 */
+	uint64_t		l2le_prop;
+	uint64_t		l2le_daddr;	/* buf location on l2dev */
+	uint64_t		l2le_flags;
+	const uint64_t		l2le_pad[5];	/* resv'd for future use */
+} l2arc_log_ent_phys_t;
+
+/*
+ * These design limits give us the following overhead (before compression):
+ *	avg_blk_sz	overhead
+ *	1k		12.51 %
+ *	2k		 6.26 %
+ *	4k		 3.13 %
+ *	8k		 1.56 %
+ *	16k		 0.78 %
+ *	32k		 0.39 %
+ *	64k		 0.20 %
+ *	128k		 0.10 %
+ * Compression should be able to sequeeze these down by about a factor of 2x.
+ */
+#define	L2ARC_LOG_PHYS_SIZE			(128 * 1024)	/* 128k */
+#define	L2ARC_LOG_PHYS_HEADER_LEN		(128)
+#define	L2ARC_LOG_PHYS_ENTRIES			/* 1023 entries */	\
+	((L2ARC_LOG_PHYS_SIZE - L2ARC_LOG_PHYS_HEADER_LEN) /		\
+	sizeof (l2arc_log_ent_phys_t))
+/*
+ * Maximum amount of data in an l2arc log (used to terminate rebuilding
+ * before we hit the write head and restore potentially corrupted blocks).
+ */
+#define	L2ARC_LOG_MAX_PAYLOAD_SIZE	\
+	(SPA_MAXBLOCKSIZE * L2ARC_LOG_PHYS_ENTRIES)
+/*
+ * For the persistency and rebuild algorithms to operate reliably we need
+ * the L2ARC device to at least be able to hold 3 full log entries (otherwise
+ * excessive log buffer looping might confuse the log chain end detection).
+ * Under normal circumstances this is not a problem, since this is somewhere
+ * around only 400 MB.
+ */
+#define	L2ARC_PERSIST_MIN_SIZE	(3 * L2ARC_LOG_MAX_PAYLOAD_SIZE)
+
+/*
+ * A log of up to 1023 ARC buffer log entries, chained into the persistent
+ * L2ARC metadata linked list.
+ */
+typedef struct l2arc_log_phys {
+	/* Header - see L2ARC_LOG_PHYS_HEADER_LEN above */
+	uint64_t		l2l_magic;
+	l2arc_logptr_t		l2l_back2_lp;	/* back 2 steps in chain */
+	uint64_t		l2l_pad[9];	/* resv'd for future use */
+	/* Payload */
+	l2arc_log_ent_phys_t	l2l_entries[L2ARC_LOG_PHYS_ENTRIES];
+} l2arc_log_phys_t;
+
+CTASSERT_GLOBAL(IS_P2ALIGNED(sizeof (l2arc_log_phys_t), SPA_MINBLOCKSIZE));
+CTASSERT_GLOBAL(sizeof (l2arc_log_phys_t) == L2ARC_LOG_PHYS_SIZE);
+CTASSERT_GLOBAL(offsetof(l2arc_log_phys_t, l2l_entries) -
+    offsetof(l2arc_log_phys_t, l2l_magic) == L2ARC_LOG_PHYS_HEADER_LEN);
+
+/*
+ * These structures hold in-flight l2arc_log_phys_t's as they're being written
+ * to the L2ARC device. They may be compressed, hence typed as uint8_t[].
+ */
+typedef struct l2arc_log_buf {
+	uint8_t		l2lb_log[sizeof (l2arc_log_phys_t)];
+	list_node_t	l2lb_node;
+} l2arc_log_buf_t;
+
+/* Macros for the manipulation fields in the blk_prop format of blkptr_t */
+#define	BLKPROP_GET_LSIZE(_obj, _field)		\
+	BF64_GET_SB((_obj)->_field, 0, 16, SPA_MINBLOCKSHIFT, 1)
+#define	BLKPROP_SET_LSIZE(_obj, _field, x)	\
+	BF64_SET_SB((_obj)->_field, 0, 16, SPA_MINBLOCKSHIFT, 1, x)
+#define	BLKPROP_GET_PSIZE(_obj, _field)		\
+	BF64_GET_SB((_obj)->_field, 16, 16, SPA_MINBLOCKSHIFT, 1)
+#define	BLKPROP_SET_PSIZE(_obj, _field, x)	\
+	BF64_SET_SB((_obj)->_field, 16, 16, SPA_MINBLOCKSHIFT, 1, x)
+#define	BLKPROP_GET_COMPRESS(_obj, _field)	\
+	BF64_GET((_obj)->_field, 32, 8)
+#define	BLKPROP_SET_COMPRESS(_obj, _field, x)	\
+	BF64_SET((_obj)->_field, 32, 8, x)
+#define	BLKPROP_GET_CHECKSUM(_obj, _field)	\
+	BF64_GET((_obj)->_field, 40, 8)
+#define	BLKPROP_SET_CHECKSUM(_obj, _field, x)	\
+	BF64_SET((_obj)->_field, 40, 8, x)
+#define	BLKPROP_GET_TYPE(_obj, _field)		\
+	BF64_GET((_obj)->_field, 48, 8)
+#define	BLKPROP_SET_TYPE(_obj, _field, x)	\
+	BF64_SET((_obj)->_field, 48, 8, x)
+
+/* Macros for manipulating a l2arc_logptr_t->l2lp_prop field */
+#define	LP_GET_LSIZE(_add)		BLKPROP_GET_LSIZE(_add, l2lp_prop)
+#define	LP_SET_LSIZE(_add, x)		BLKPROP_SET_LSIZE(_add, l2lp_prop, x)
+#define	LP_GET_PSIZE(_add)		BLKPROP_GET_PSIZE(_add, l2lp_prop)
+#define	LP_SET_PSIZE(_add, x)		BLKPROP_SET_PSIZE(_add, l2lp_prop, x)
+#define	LP_GET_COMPRESS(_add)		BLKPROP_GET_COMPRESS(_add, l2lp_prop)
+#define	LP_SET_COMPRESS(_add, x)	BLKPROP_SET_COMPRESS(_add, l2lp_prop, x)
+#define	LP_GET_CHECKSUM(_add)		BLKPROP_GET_CHECKSUM(_add, l2lp_prop)
+#define	LP_SET_CHECKSUM(_add, x)	BLKPROP_SET_CHECKSUM(_add, l2lp_prop, x)
+#define	LP_GET_TYPE(_add)		BLKPROP_GET_TYPE(_add, l2lp_prop)
+#define	LP_SET_TYPE(_add, x)		BLKPROP_SET_TYPE(_add, l2lp_prop, x)
+
+/* Macros for manipulating a l2arc_log_ent_phys_t->l2le_prop field */
+#define	LE_GET_LSIZE(_le)	BLKPROP_GET_LSIZE(_le, l2le_prop)
+#define	LE_SET_LSIZE(_le, x)	BLKPROP_SET_LSIZE(_le, l2le_prop, x)
+#define	LE_GET_PSIZE(_le)	BLKPROP_GET_PSIZE(_le, l2le_prop)
+#define	LE_SET_PSIZE(_le, x)	BLKPROP_SET_PSIZE(_le, l2le_prop, x)
+#define	LE_GET_COMPRESS(_le)	BLKPROP_GET_COMPRESS(_le, l2le_prop)
+#define	LE_SET_COMPRESS(_le, x)	BLKPROP_SET_COMPRESS(_le, l2le_prop, x)
+#define	LE_GET_CHECKSUM(_le)	BLKPROP_GET_CHECKSUM(_le, l2le_prop)
+#define	LE_SET_CHECKSUM(_le, x)	BLKPROP_SET_CHECKSUM(_le, l2le_prop, x)
+#define	LE_GET_TYPE(_le)	BLKPROP_GET_TYPE(_le, l2le_prop)
+#define	LE_SET_TYPE(_le, x)	BLKPROP_SET_TYPE(_le, l2le_prop, x)
+
+#define	PTR_SWAP(x, y)		\
+	do {			\
+		void *tmp = (x);\
+		x = y;		\
+		y = tmp;	\
+		_NOTE(CONSTCOND)\
+	} while (0)
+
+#define	L2ARC_UBERBLOCK_MAGIC	0x12bab10c00000001LLU
+#define	L2ARC_LOG_MAGIC		0xdb0faba600000001LLU
+
+#define	L2ARC_REBUILD_TIMEOUT	300	/* a rebuild may take at most 300s */
+/*
+ * These are the flags we allow to persist in L2ARC logs. The other flags
+ * of an ARC buffer pertain to the buffer's runtime behavior.
+ */
+#define	L2ARC_PERSIST_FLAGS \
+	(ARC_IN_HASH_TABLE | ARC_L2CACHE | ARC_L2COMPRESS | ARC_PREFETCH)
+
+/*
+ * Used during L2ARC rebuild after each read operation to check whether we
+ * haven't exceeded the rebuild timeout value.
+ */
+#define	L2ARC_CHECK_REBUILD_TIMEOUT(_deadline_) \
+	do { \
+		if ((_deadline_) != 0 && (_deadline_) < ddi_get_lbolt64()) { \
+			ARCSTAT_BUMP(arcstat_l2_rebuild_timeout); \
+			cmn_err(CE_WARN, "L2ARC rebuild is taking too long, " \
+			    "dropping remaining L2ARC metadata."); \
+			return; \
+		} \
+		_NOTE(CONSTCOND) \
+	} while (0)
+
+struct l2arc_dev {
+	vdev_t			*l2ad_vdev;	/* vdev */
+	spa_t			*l2ad_spa;	/* spa */
+	uint64_t		l2ad_hand;	/* next write location */
+	uint64_t		l2ad_start;	/* first addr on device */
+	uint64_t		l2ad_end;	/* last addr on device */
+	uint64_t		l2ad_evict;	/* last addr eviction reached */
+	boolean_t		l2ad_first;	/* first sweep through */
+	boolean_t		l2ad_writing;	/* currently writing */
+	list_t			*l2ad_buflist;	/* buffer list */
+	list_node_t		l2ad_node;	/* device list node */
+	l2arc_uberblock_phys_t	l2ad_ublk;	/* persistent uberblock */
+	l2arc_log_phys_t	l2ad_log;	/* currently open log */
+	int			l2ad_log_ent_idx; /* index into current log */
+	/* number of bytes in current log's payload */
+	uint64_t		l2ad_log_payload_asize;
+	/* flag indicating whether a rebuild is scheduled or is going on */
+	boolean_t		l2ad_rebuild;
+};
+
+/*
+ * Performance tuning of L2ARC persistency:
+ *
+ * l2arc_rebuild_enabled : Controls whether L2ARC device adds (either at
+ *		pool import or when adding one manually later) will attempt
+ *		to rebuild L2ARC buffer contents. In special circumstances,
+ *		the administrator may want to set this to B_FALSE, if they
+ *		are having trouble importing a pool or attaching an L2ARC
+ *		device (e.g. the L2ARC device is slow to read in stored log
+ *		metadata, or the metadata has become somehow
+ *		fragmented/unusable).
+ * l2arc_rebuild_timeout : A hard timeout value on L2ARC rebuilding to help
+ *		avoid a slow L2ARC device from preventing pool import. If we
+ *		are not done rebuilding an L2ARC device by this time, we
+ *		stop the rebuild and return immediately.
+ */
+boolean_t l2arc_rebuild_enabled = B_TRUE;
+uint64_t l2arc_rebuild_timeout = L2ARC_REBUILD_TIMEOUT;
+
+/*
+ * L2ARC persistency rebuild routines.
+ */
+static void l2arc_dev_rebuild_start(l2arc_dev_t *dev);
+static int l2arc_rebuild(l2arc_dev_t *dev);
+static void l2arc_log_restore(l2arc_dev_t *dev, uint64_t load_guid,
+    l2arc_log_phys_t *log, uint64_t log_psize);
+static void l2arc_hdr_restore(const l2arc_log_ent_phys_t *le,
+    l2arc_dev_t *dev, uint64_t guid);
+
+/*
+ * L2ARC persistency read I/O routines.
+ */
+static int l2arc_uberblock_read(l2arc_dev_t *dev, l2arc_uberblock_phys_t *ublk);
+static int l2arc_log_read(l2arc_dev_t *dev,
+    const l2arc_logptr_t *this_lp, const l2arc_logptr_t *next_lp,
+    l2arc_log_phys_t *this_log, l2arc_log_phys_t *next_log,
+    uint8_t *this_log_buf, uint8_t *next_log_buf,
+    zio_t *this_io, zio_t **next_io);
+static boolean_t l2arc_log_ptr_valid(l2arc_dev_t *dev,
+    const l2arc_logptr_t *lp);
+static zio_t *l2arc_log_prefetch(vdev_t *vd, const l2arc_logptr_t *lp,
+    uint8_t *log_buf);
+static void l2arc_log_prefetch_abort(zio_t *zio);
+
+/*
+ * L2ARC persistency write I/O routines.
+ */
+static void l2arc_dev_uberblock_update(l2arc_dev_t *dev, zio_t *pio);
+static void l2arc_dev_log_commit(l2arc_dev_t *dev, zio_t *pio,
+    l2arc_write_callback_t *cb);
+
+/*
+ * L2ARC persistency auxilliary routines.
+ */
+static void l2arc_uberblock_checksum(const l2arc_uberblock_phys_t *ublk,
+    zio_cksum_t *cksum);
+static boolean_t l2arc_dev_log_insert(l2arc_dev_t *dev,
+    const arc_buf_hdr_t *ab);
+static inline boolean_t l2arc_range_check_overlap(uint64_t bottom,
+    uint64_t top, uint64_t check);
+static boolean_t l2arc_check_rebuild_timeout_hit(int64_t deadline);
+static uint64_t l2arc_metadata_write_overhead(uint64_t writesz);
+
+static inline uint64_t
 buf_hash(uint64_t spa, const dva_t *dva, uint64_t birth)
 {
 	uint8_t *vdva = (uint8_t *)dva;
@@ -805,7 +1199,7 @@ buf_hash(uint64_t spa, const dva_t *dva, uint64_t birth)
 	((buf)->b_dva.dva_word[1] == (dva)->dva_word[1]) &&	\
 	((buf)->b_birth == birth) && ((buf)->b_spa == spa)
 
-static void
+static inline void
 buf_discard_identity(arc_buf_hdr_t *hdr)
 {
 	hdr->b_dva.dva_word[0] = 0;
@@ -824,8 +1218,7 @@ buf_hash_find(uint64_t spa, const blkptr_t *bp, kmutex_t **lockp)
 	arc_buf_hdr_t *buf;
 
 	mutex_enter(hash_lock);
-	for (buf = buf_hash_table.ht_table[idx]; buf != NULL;
-	    buf = buf->b_hash_next) {
+	for (buf = BUF_HASH_TABLE(idx); buf != NULL; buf = buf->b_hash_next) {
 		if (BUF_EQUAL(spa, dva, birth, buf)) {
 			*lockp = hash_lock;
 			return (buf);
@@ -855,14 +1248,14 @@ buf_hash_insert(arc_buf_hdr_t *buf, kmutex_t **lockp)
 	ASSERT(!HDR_IN_HASH_TABLE(buf));
 	*lockp = hash_lock;
 	mutex_enter(hash_lock);
-	for (fbuf = buf_hash_table.ht_table[idx], i = 0; fbuf != NULL;
+	for (fbuf = BUF_HASH_TABLE(idx), i = 0; fbuf != NULL;
 	    fbuf = fbuf->b_hash_next, i++) {
 		if (BUF_EQUAL(buf->b_spa, &buf->b_dva, buf->b_birth, fbuf))
 			return (fbuf);
 	}
 
-	buf->b_hash_next = buf_hash_table.ht_table[idx];
-	buf_hash_table.ht_table[idx] = buf;
+	buf->b_hash_next = BUF_HASH_TABLE(idx);
+	BUF_HASH_TABLE(idx) = buf;
 	buf->b_flags |= ARC_IN_HASH_TABLE;
 
 	/* collect some hash table performance data */
@@ -889,7 +1282,7 @@ buf_hash_remove(arc_buf_hdr_t *buf)
 	ASSERT(MUTEX_HELD(BUF_HASH_LOCK(idx)));
 	ASSERT(HDR_IN_HASH_TABLE(buf));
 
-	bufp = &buf_hash_table.ht_table[idx];
+	bufp = &BUF_HASH_TABLE(idx);
 	while ((fbuf = *bufp) != buf) {
 		ASSERT(fbuf != NULL);
 		bufp = &fbuf->b_hash_next;
@@ -901,8 +1294,7 @@ buf_hash_remove(arc_buf_hdr_t *buf)
 	/* collect some hash table performance data */
 	ARCSTAT_BUMPDOWN(arcstat_hash_elements);
 
-	if (buf_hash_table.ht_table[idx] &&
-	    buf_hash_table.ht_table[idx]->b_hash_next == NULL)
+	if (BUF_HASH_TABLE(idx) && BUF_HASH_TABLE(idx)->b_hash_next == NULL)
 		ARCSTAT_BUMPDOWN(arcstat_hash_chains);
 }
 
@@ -916,21 +1308,35 @@ static kmem_cache_t *l2arc_hdr_cache;
 static void
 buf_fini(void)
 {
+	uint64_t ht_size_L1, ht_size_L2;
 	int i;
 
+	ht_size_L1 = 1 << buf_hash_table.ht_masklen_L1;
+	ht_size_L2 = 1 << buf_hash_table.ht_masklen_L2;
+	for (i = 0; i < ht_size_L1; i++) {
+#if defined(_KERNEL) && defined(HAVE_SPL)
+		vmem_free(buf_hash_table.ht_table[i], ht_size_L2 *
+		    sizeof (void *));
+#else
+		kmem_free(buf_hash_table.ht_table[i], ht_size_L2 *
+		    sizeof (void *));
+#endif
+	}
+	for (i = 0; i < buf_hash_table.ht_num_locks; i++)
+		mutex_destroy(&buf_hash_table.ht_locks[i].ht_lock);
 #if defined(_KERNEL) && defined(HAVE_SPL)
 	/*
 	 * Large allocations which do not require contiguous pages
-	 * should be using vmem_free() in the linux kernel\
+	 * should be using vmem_free() in the linux kernel
 	 */
-	vmem_free(buf_hash_table.ht_table,
-	    (buf_hash_table.ht_mask + 1) * sizeof (void *));
+	vmem_free(buf_hash_table.ht_table, ht_size_L1 * sizeof (void *));
+	vmem_free(buf_hash_table.ht_locks, sizeof (struct ht_lock) *
+	    buf_hash_table.ht_num_locks);
 #else
-	kmem_free(buf_hash_table.ht_table,
-	    (buf_hash_table.ht_mask + 1) * sizeof (void *));
+	kmem_free(buf_hash_table.ht_table, ht_size_L1 * sizeof (void *));
+	kmem_free(buf_hash_table.ht_locks, sizeof (struct ht_lock) *
+	    buf_hash_table.ht_num_locks);
 #endif
-	for (i = 0; i < BUF_LOCKS; i++)
-		mutex_destroy(&buf_hash_table.ht_locks[i].ht_lock);
 	kmem_cache_destroy(hdr_cache);
 	kmem_cache_destroy(buf_cache);
 	kmem_cache_destroy(l2arc_hdr_cache);
@@ -1001,34 +1407,53 @@ static void
 buf_init(void)
 {
 	uint64_t *ct;
-	uint64_t hsize = 1ULL << 12;
+	uint64_t ht_masklen = 12;
+	uint64_t ht_size_L1, ht_size_L2;
 	int i, j;
 
-	/*
-	 * The hash table is big enough to fill all of physical memory
-	 * with an average block size of zfs_arc_average_blocksize (default 8K).
-	 * By default, the table will take up
-	 * totalmem * sizeof(void*) / 8K (1MB per GB with 8-byte pointers).
-	 */
-	while (hsize * zfs_arc_average_blocksize < physmem * PAGESIZE)
-		hsize <<= 1;
-retry:
-	buf_hash_table.ht_mask = hsize - 1;
+	while ((1ULL << (ht_masklen + zfs_arc_ht_base_masklen)) <
+	    physmem * PAGESIZE)
+		ht_masklen++;
+	buf_hash_table.ht_masklen_L2 = ht_masklen / 2;	/* L2 rounded down */
+	buf_hash_table.ht_masklen_L1 = ht_masklen -
+	    buf_hash_table.ht_masklen_L2;		/* L1 gets remainder */
+	ht_size_L1 = 1ULL << buf_hash_table.ht_masklen_L1;
+	ht_size_L2 = 1ULL << buf_hash_table.ht_masklen_L2;
+	buf_hash_table.ht_mask_L1 = ht_size_L1 - 1;
+	buf_hash_table.ht_mask_L2 = ht_size_L2 - 1;
+	buf_hash_table.ht_mask = (1ULL << ht_masklen) - 1;
+
+	buf_hash_table.ht_num_locks = MAX((physmem * PAGESIZE) >>
+	    zfs_arc_ht_lock_shift, MIN_BUF_LOCKS);
+	buf_hash_table.ht_lock_mask = buf_hash_table.ht_num_locks - 1;
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 	/*
 	 * Large allocations which do not require contiguous pages
 	 * should be using vmem_alloc() in the linux kernel
 	 */
 	buf_hash_table.ht_table =
-	    vmem_zalloc(hsize * sizeof (void*), KM_SLEEP);
+	    vmem_alloc(ht_size_L1 * sizeof (arc_buf_hdr_t **), KM_SLEEP);
+	buf_hash_table.ht_locks = vmem_zalloc(sizeof (struct ht_lock) *
+	    buf_hash_table.ht_num_locks, KM_SLEEP);
+	for (i = 0; i < ht_size_L1; i++) {
+		buf_hash_table.ht_table[i] = vmem_zalloc(ht_size_L2 *
+		    sizeof (arc_buf_hdr_t *), KM_SLEEP);
+	}
 #else
 	buf_hash_table.ht_table =
-	    kmem_zalloc(hsize * sizeof (void*), KM_NOSLEEP);
+	    kmem_alloc(ht_size_L1 * sizeof (arc_buf_hdr_t **), KM_SLEEP);
+	buf_hash_table.ht_locks = kmem_zalloc(sizeof (struct ht_lock) *
+	    buf_hash_table.ht_num_locks, KM_SLEEP);
+	for (i = 0; i < ht_size_L1; i++) {
+		buf_hash_table.ht_table[i] = kmem_zalloc(ht_size_L2 *
+		    sizeof (arc_buf_hdr_t *), KM_SLEEP);
+	}
 #endif
-	if (buf_hash_table.ht_table == NULL) {
-		ASSERT(hsize > (1ULL << 8));
-		hsize >>= 1;
-		goto retry;
+
+	for (i = 0; i < buf_hash_table.ht_num_locks; i++) {
+		mutex_init(&buf_hash_table.ht_locks[i].ht_lock,
+		    NULL, MUTEX_DEFAULT, NULL);
 	}
 
 	hdr_cache = kmem_cache_create("arc_buf_hdr_t", sizeof (arc_buf_hdr_t),
@@ -1041,11 +1466,6 @@ retry:
 	for (i = 0; i < 256; i++)
 		for (ct = zfs_crc64_table + i, *ct = i, j = 8; j > 0; j--)
 			*ct = (*ct >> 1) ^ (-(*ct & 1) & ZFS_CRC64_POLY);
-
-	for (i = 0; i < BUF_LOCKS; i++) {
-		mutex_init(&buf_hash_table.ht_locks[i].ht_lock,
-		    NULL, MUTEX_DEFAULT, NULL);
-	}
 }
 
 #define	ARC_MINTIME	(hz>>4) /* 62 ms */
@@ -1361,7 +1781,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *ab, kmutex_t *hash_lock)
 
 	/* adjust l2arc hdr stats */
 	if (new_state == arc_l2c_only)
-		l2arc_hdr_stat_add();
+		l2arc_hdr_stat_add(old_state != arc_anon);
 	else if (old_state == arc_l2c_only)
 		l2arc_hdr_stat_remove();
 }
@@ -1466,6 +1886,33 @@ arc_buf_alloc(spa_t *spa, int size, void *tag, arc_buf_contents_t type)
 	(void) refcount_add(&hdr->b_refcnt, tag);
 
 	return (buf);
+}
+
+/*
+ * Allocates an empty arc_buf_hdr structure (lacking any data buffer).
+ * This is used during l2arc reconstruction to make empty ARC buffers
+ * which circumvent the regular disk->arc->l2arc path and instead come
+ * into being in the reverse order, i.e. l2arc->arc->(disk).
+ */
+arc_buf_hdr_t *
+arc_buf_hdr_alloc(uint64_t guid, int size, arc_buf_contents_t type)
+{
+	arc_buf_hdr_t *hdr;
+
+	ASSERT3U(size, >, 0);
+	hdr = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
+	ASSERT(BUF_EMPTY(hdr));
+	hdr->b_size = size;
+	hdr->b_type = type;
+	hdr->b_spa = guid;
+	hdr->b_state = arc_anon;
+	hdr->b_arc_access = 0;
+	hdr->b_buf = NULL;
+	hdr->b_datacnt = 0;
+	hdr->b_flags = 0;
+	ASSERT(refcount_is_zero(&hdr->b_refcnt));
+
+	return (hdr);
 }
 
 static char *arc_onloan_tag = "onloan";
@@ -1713,9 +2160,9 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			    -l2hdr->b_asize, 0, 0);
 			kmem_cache_free(l2arc_hdr_cache, l2hdr);
 			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
+			hdr->b_l2hdr = NULL;
 			if (hdr->b_state == arc_l2c_only)
 				l2arc_hdr_stat_remove();
-			hdr->b_l2hdr = NULL;
 		}
 
 		if (!buflist_held)
@@ -3379,6 +3826,9 @@ top:
 
 		if (hdr->b_l2hdr != NULL &&
 		    (vd = hdr->b_l2hdr->b_dev->l2ad_vdev) != NULL) {
+			/*
+			 * Need to stash these before letting go of hash_lock
+			 */
 			devw = hdr->b_l2hdr->b_dev->l2ad_writing;
 			addr = hdr->b_l2hdr->b_daddr;
 			b_compress = hdr->b_l2hdr->b_compress;
@@ -4442,6 +4892,84 @@ arc_fini(void)
  *
  * These three functions determine what to write, how much, and how quickly
  * to send writes.
+ *
+ * L2ARC persistency:
+ *
+ * When writing buffers to L2ARC, we periodically add some metadata to
+ * make sure we can pick them up after reboot, thus dramatically reducing
+ * the impact that any downtime has on the performance of storage systems
+ * with large caches.
+ *
+ * The implementation works fairly simply by integrating the following two
+ * modifications:
+ *
+ * *) Every now and then we mix in a piece of metadata (called a log) in to
+ *    the L2ARC write. This allows us to understand what's been written,
+ *    so that we can rebuild the arc_buf_hdr_t structures of the main ARC
+ *    buffers. The log also includes a "back-reference" pointer to the
+ *    previous log, forming a back-linked list of logs on the L2ARC device.
+ *
+ * *) We reserve SPA_MINBLOCKSIZE of space at the start of each L2ARC device
+ *    for our header bookkeeping purposes. This contains an uberblock, which
+ *    contains our top-level reference structures. We update it each time we
+ *    write a new log, so that we're able to locate it in the L2ARC device.
+ *    If this write results in an inconsistent uberblock (e.g. due to power
+ *    failure), we detect this by verifying the uberblock's checksum and
+ *    simply drop the entries from L2ARC.
+ *
+ * Implementation diagram:
+ *
+ * +=== L2ARC device (not to scale) ======================================+
+ * |       ____________newest log pointers_____________                   |
+ * |      /                                  \1 back   \latest            |
+ * |     /                                    V         V                 |
+ * ||L2uberblock|---|bufs |log|bufs |log|bufs |log|bufs |log|---(empty)---|
+ * |                       ^       / ^       / ^       /                  |
+ * |                       `-prev-'  `-prev-'  `-prev-'                   |
+ * |                         log       log       log                      |
+ * +======================================================================+
+ *
+ * On-device data structures:
+ *
+ * L2ARC uberblock:	l2arc_uberblock_phys_t
+ * L2ARC log:		l2arc_log_phys_t
+ *
+ * L2ARC reconstruction:
+ *
+ * When writing data, we simply write in the standard rotary fashion,
+ * evicting buffers as we go and simply writing new data over them (writing
+ * a new log every now and then). This obviously means that once we loop
+ * around the end of the device, we will start cutting into an already
+ * committed log (and its referenced data buffers), like so:
+ *
+ *    current write head__       __old tail
+ *                        \     /
+ *                        V    V
+ * <--|bufs |log|bufs |log|    |bufs |log|bufs |log|-->
+ *                         ^    ^^^^^^^^^___________________________________
+ *                         |                                                \
+ *                   <<nextwrite>> may overwrite this log and/or its bufs --'
+ *
+ * When importing the pool, we detect this situation and use it to stop
+ * our scanning process (see l2arc_rebuild).
+ *
+ * There is one significant caveat to consider when rebuilding ARC contents
+ * from an L2ARC device: what about invalidated buffers? Given the above
+ * construction, we cannot update logs which we've already written to amend
+ * them to remove buffers which were invalidated. Thus, during reconstruction,
+ * we might be populating the cache with buffers for data that's not on the
+ * main pool anymore, or may have been overwritten!
+ *
+ * As it turns out, this isn't a problem. Every arc_read request includes
+ * both the DVA and, crucially, the birth TXG of the BP the caller is
+ * looking for. So even if the cache were populated by completely rotten
+ * blocks for data that had been long deleted and/or overwritten, we'll
+ * never actually return bad data from the cache, since the DVA with the
+ * birth TXG uniquely identify a block in space and time - once created,
+ * a block is immutable on disk. The worst thing we have done is wasted
+ * some time and memory at l2arc rebuild to reconstruct outdated ARC
+ * entries that will get dropped from the l2arc as it is being updated
+ * with new blocks.
  */
 
 static boolean_t
@@ -4508,10 +5036,11 @@ l2arc_write_interval(clock_t began, uint64_t wanted, uint64_t wrote)
 }
 
 static void
-l2arc_hdr_stat_add(void)
+l2arc_hdr_stat_add(boolean_t from_arc)
 {
 	ARCSTAT_INCR(arcstat_l2_hdr_size, HDR_SIZE);
-	ARCSTAT_INCR(arcstat_hdr_size, -HDR_SIZE);
+	if (from_arc)
+		ARCSTAT_INCR(arcstat_hdr_size, -HDR_SIZE);
 }
 
 static void
@@ -4545,7 +5074,10 @@ l2arc_dev_get_next(void)
 	first = NULL;
 	next = l2arc_dev_last;
 	do {
-		/* loop around the list looking for a non-faulted vdev */
+		/*
+		 * Loop around the list looking for a non-faulted vdev
+		 * and one that isn't currently doing an L2ARC rebuild.
+		 */
 		if (next == NULL) {
 			next = list_head(l2arc_dev_list);
 		} else {
@@ -4560,10 +5092,10 @@ l2arc_dev_get_next(void)
 		else if (next == first)
 			break;
 
-	} while (vdev_is_dead(next->l2ad_vdev));
+	} while (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild);
 
 	/* if we were unable to find any usable vdevs, return NULL */
-	if (vdev_is_dead(next->l2ad_vdev))
+	if (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild)
 		next = NULL;
 
 	l2arc_dev_last = next;
@@ -4620,6 +5152,7 @@ l2arc_write_done(zio_t *zio)
 	l2arc_buf_hdr_t *abl2;
 	kmutex_t *hash_lock;
 	int64_t bytes_dropped = 0;
+	l2arc_log_buf_t *log_buf;
 
 	cb = zio->io_private;
 	ASSERT(cb != NULL);
@@ -4691,6 +5224,16 @@ l2arc_write_done(zio_t *zio)
 
 	l2arc_do_free_on_write();
 
+	for (log_buf = list_tail(&cb->l2wcb_log_buf_list); log_buf != NULL;
+	    log_buf = list_tail(&cb->l2wcb_log_buf_list)) {
+		(void) list_remove_tail(&cb->l2wcb_log_buf_list);
+#if defined(_KERNEL) && defined(HAVE_SPL)
+		vmem_free(log_buf, sizeof (*log_buf));
+#else
+		kmem_free(log_buf, sizeof (*log_buf));
+#endif
+	}
+	list_destroy(&cb->l2wcb_log_buf_list);
 	kmem_free(cb, sizeof (l2arc_write_callback_t));
 }
 
@@ -4842,6 +5385,9 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 		return;
 	}
 
+	/* Need to add in the worst case scenario of log metadata overhead. */
+	distance += l2arc_metadata_write_overhead(distance);
+
 	if (dev->l2ad_hand >= (dev->l2ad_end - (2 * distance))) {
 		/*
 		 * When nearing the end of the device, evict to the end
@@ -4975,6 +5521,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	uint64_t guid = spa_load_guid(spa);
 	int try;
 	const boolean_t do_headroom_boost = *headroom_boost;
+	boolean_t ublk_update = B_FALSE;
 
 	ASSERT(dev->l2ad_vdev != NULL);
 
@@ -4982,6 +5529,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	*headroom_boost = B_FALSE;
 
 	pio = NULL;
+	cb = NULL;
 	write_sz = write_asize = write_psize = 0;
 	full = B_FALSE;
 	head = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
@@ -5067,6 +5615,9 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 				    KM_PUSHPAGE);
 				cb->l2wcb_dev = dev;
 				cb->l2wcb_head = head;
+				list_create(&cb->l2wcb_log_buf_list,
+				    sizeof (l2arc_log_buf_t),
+				    offsetof(l2arc_log_buf_t, l2lb_node));
 				pio = zio_root(spa, l2arc_write_done, cb,
 				    ZIO_FLAG_CANFAIL);
 			}
@@ -5183,9 +5734,16 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			write_psize += buf_p_sz;
 			dev->l2ad_hand += buf_p_sz;
 		}
-	}
 
+		if (l2arc_dev_log_insert(dev, ab)) {
+			l2arc_dev_log_commit(dev, pio, cb);
+			ublk_update = B_TRUE;
+		}
+	}
 	mutex_exit(&l2arc_buflist_mtx);
+
+	if (ublk_update)
+		l2arc_dev_uberblock_update(dev, pio);
 
 	ASSERT3U(write_asize, <=, target_sz);
 	ARCSTAT_BUMP(arcstat_l2_writes_sent);
@@ -5198,7 +5756,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	 * Bump device hand to the device start if it is approaching the end.
 	 * l2arc_evict() will already have evicted ahead for this case.
 	 */
-	if (dev->l2ad_hand >= (dev->l2ad_end - target_sz)) {
+	if (dev->l2ad_hand + target_sz +
+	    l2arc_metadata_write_overhead(target_sz) >= dev->l2ad_end) {
 		dev->l2ad_hand = dev->l2ad_start;
 		dev->l2ad_evict = dev->l2ad_start;
 		dev->l2ad_first = B_FALSE;
@@ -5464,25 +6023,35 @@ l2arc_feed_thread(void)
 boolean_t
 l2arc_vdev_present(vdev_t *vd)
 {
-	l2arc_dev_t *dev;
+	return (l2arc_vdev_get(vd) != NULL);
+}
 
-	mutex_enter(&l2arc_dev_mtx);
+static l2arc_dev_t *
+l2arc_vdev_get(vdev_t *vd)
+{
+	l2arc_dev_t	*dev;
+	boolean_t	held = MUTEX_HELD(&l2arc_dev_mtx);
+
+	if (!held)
+		mutex_enter(&l2arc_dev_mtx);
 	for (dev = list_head(l2arc_dev_list); dev != NULL;
 	    dev = list_next(l2arc_dev_list, dev)) {
 		if (dev->l2ad_vdev == vd)
 			break;
 	}
-	mutex_exit(&l2arc_dev_mtx);
+	if (!held)
+		mutex_exit(&l2arc_dev_mtx);
 
-	return (dev != NULL);
+	return (dev);
 }
 
 /*
  * Add a vdev for use by the L2ARC.  By this point the spa has already
- * validated the vdev and opened it.
+ * validated the vdev and opened it. The `rebuild' flag indicates whether
+ * we should attempt an L2ARC persistency rebuild.
  */
 void
-l2arc_add_vdev(spa_t *spa, vdev_t *vd)
+l2arc_add_vdev(spa_t *spa, vdev_t *vd, boolean_t rebuild)
 {
 	l2arc_dev_t *adddev;
 
@@ -5491,10 +6060,15 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	/*
 	 * Create a new l2arc device entry.
 	 */
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	adddev = vmem_zalloc(sizeof (l2arc_dev_t), KM_SLEEP);
+#else
 	adddev = kmem_zalloc(sizeof (l2arc_dev_t), KM_SLEEP);
+#endif
 	adddev->l2ad_spa = spa;
 	adddev->l2ad_vdev = vd;
-	adddev->l2ad_start = VDEV_LABEL_START_SIZE;
+	/* leave an extra SPA_MINBLOCKSIZE for l2arc uberblock */
+	adddev->l2ad_start = VDEV_LABEL_START_SIZE + SPA_MINBLOCKSIZE;
 	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
 	adddev->l2ad_hand = adddev->l2ad_start;
 	adddev->l2ad_evict = adddev->l2ad_start;
@@ -5518,6 +6092,16 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	mutex_enter(&l2arc_dev_mtx);
 	list_insert_head(l2arc_dev_list, adddev);
 	atomic_inc_64(&l2arc_ndev);
+	if (rebuild && l2arc_rebuild_enabled &&
+	    adddev->l2ad_end - adddev->l2ad_start > L2ARC_PERSIST_MIN_SIZE) {
+		/*
+		 * Just mark the device as pending for a rebuild. We won't
+		 * be starting a rebuild in line here as it would block pool
+		 * import. Instead spa_load_impl will hand that off to an
+		 * async task which will call l2arc_spa_rebuild_start.
+		 */
+		adddev->l2ad_rebuild = B_TRUE;
+	}
 	mutex_exit(&l2arc_dev_mtx);
 }
 
@@ -5556,7 +6140,11 @@ l2arc_remove_vdev(vdev_t *vd)
 	l2arc_evict(remdev, 0, B_TRUE);
 	list_destroy(remdev->l2ad_buflist);
 	kmem_free(remdev->l2ad_buflist, sizeof (list_t));
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	vmem_free(remdev, sizeof (l2arc_dev_t));
+#else
 	kmem_free(remdev, sizeof (l2arc_dev_t));
+#endif
 }
 
 void
@@ -5624,6 +6212,756 @@ l2arc_stop(void)
 	while (l2arc_thread_exit != 0)
 		cv_wait(&l2arc_feed_thr_cv, &l2arc_feed_thr_lock);
 	mutex_exit(&l2arc_feed_thr_lock);
+}
+
+/*
+ * Punches out rebuild threads for the L2ARC devices in a spa. This should
+ * be called as one of the final steps of a pool import.
+ */
+void
+l2arc_spa_rebuild_start(spa_t *spa)
+{
+	l2arc_dev_t	*dev;
+	int i;
+	/*
+	 * Locate the spa's l2arc devices and kick off rebuild threads.
+	 */
+	mutex_enter(&l2arc_dev_mtx);
+	for (i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		dev = l2arc_vdev_get(spa->spa_l2cache.sav_vdevs[i]);
+		if (dev == NULL)
+			continue;
+		if (dev->l2ad_rebuild) {
+			(void) thread_create(NULL, 0, l2arc_dev_rebuild_start,
+			    dev, 0, &p0, TS_RUN, minclsyspri);
+		}
+	}
+	mutex_exit(&l2arc_dev_mtx);
+}
+
+/*
+ * Main entry point for L2ARC rebuilding.
+ */
+static void
+l2arc_dev_rebuild_start(l2arc_dev_t *dev)
+{
+	spa_t *spa = dev->l2ad_spa;
+	vdev_t *vd = dev->l2ad_vdev;
+
+	/* Lock out device removal. */
+	spa_config_enter(spa, SCL_L2ARC, vd, RW_READER);
+	ASSERT(dev->l2ad_rebuild);
+	(void) l2arc_rebuild(dev);
+	dev->l2ad_rebuild = B_FALSE;
+	spa_config_exit(spa, SCL_L2ARC, vd);
+	thread_exit();
+}
+
+/*
+ * This function implements the actual L2ARC metadata rebuild. It:
+ *
+ * 1) reads the device's uberblock
+ * 2) if a good uberblock is found, starts reading the log chain
+ * 3) restores each log's contents to memory (reconstructing arc_buf_hdr_t's)
+ *
+ * Operation stops under any of the following conditions:
+ *
+ * 1) We reach the end of the log chain (the back-reference in the log is
+ *    invalid or loops over our starting point).
+ * 2) We encounter *any* error condition (cksum errors, io errors, looped
+ *    logs, etc.).
+ * 3) The l2arc_rebuild_timeout is hit - this is a final resort to protect
+ *    from making severely fragmented L2ARC logs or slow L2ARC devices
+ *    prevent a machine from finishing a pool import (and thus letting the
+ *    administrator take corrective action, e.g. by kicking the misbehaving
+ *    L2ARC device out of the pool, or by reimporting the pool with L2ARC
+ *    rebuilding disabled).
+ */
+static int
+l2arc_rebuild(l2arc_dev_t *dev)
+{
+	int			err;
+	l2arc_log_phys_t	*this_log, *next_log;
+	uint8_t			*this_log_buf, *next_log_buf;
+	zio_t			*this_io = NULL, *next_io = NULL;
+	int64_t			deadline;
+	l2arc_logptr_t		log_ptrs[2];
+	boolean_t		first_pass;
+	uint64_t		load_guid;
+
+	load_guid = spa_load_guid(dev->l2ad_vdev->vdev_spa);
+	deadline = ddi_get_lbolt64() + hz * l2arc_rebuild_timeout;
+	/*
+	 * Uberblock processing phase.
+	 */
+	if ((err = l2arc_uberblock_read(dev, &dev->l2ad_ublk)) != 0) {
+		/* uberblock corrupted, start a new one */
+		bzero(&dev->l2ad_ublk, sizeof (dev->l2ad_ublk));
+		return (err);
+	}
+	if (l2arc_check_rebuild_timeout_hit(deadline))
+		return (ETIMEDOUT);
+
+	/* Retrieve the persistent L2ARC device state */
+	dev->l2ad_evict = dev->l2ad_ublk.l2u_evict_tail;
+	dev->l2ad_hand = vdev_psize_to_asize(dev->l2ad_vdev,
+	    dev->l2ad_ublk.l2u_start_lps[0].l2lp_daddr +
+	    LP_GET_PSIZE(&dev->l2ad_ublk.l2u_start_lps[0]));
+	dev->l2ad_first = !!(dev->l2ad_ublk.l2u_flags &
+	    L2ARC_UBERBLOCK_EVICT_FIRST);
+
+	/* Prepare the rebuild processing state */
+	bcopy(dev->l2ad_ublk.l2u_start_lps, log_ptrs, sizeof (log_ptrs));
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	this_log = vmem_zalloc(sizeof (*this_log), KM_SLEEP);
+	next_log = vmem_zalloc(sizeof (*next_log), KM_SLEEP);
+	this_log_buf = vmem_zalloc(sizeof (l2arc_log_phys_t), KM_SLEEP);
+	next_log_buf = vmem_zalloc(sizeof (l2arc_log_phys_t), KM_SLEEP);
+#else
+	this_log = kmem_zalloc(sizeof (*this_log), KM_SLEEP);
+	next_log = kmem_zalloc(sizeof (*next_log), KM_SLEEP);
+	this_log_buf = kmem_zalloc(sizeof (l2arc_log_phys_t), KM_SLEEP);
+	next_log_buf = kmem_zalloc(sizeof (l2arc_log_phys_t), KM_SLEEP);
+#endif
+	first_pass = B_TRUE;
+
+	/* Start the rebuild process */
+	for (;;) {
+		if (!l2arc_log_ptr_valid(dev, &log_ptrs[0]))
+			/* We hit an invalid log address, end the rebuild. */
+			break;
+
+		if ((err = l2arc_log_read(dev, &log_ptrs[0], &log_ptrs[1],
+		    this_log, next_log, this_log_buf, next_log_buf,
+		    this_io, &next_io)) != 0)
+			break;
+
+		/* Protection against infinite loops of logs. */
+		if (l2arc_range_check_overlap(log_ptrs[1].l2lp_daddr,
+		    log_ptrs[0].l2lp_daddr,
+		    dev->l2ad_ublk.l2u_start_lps[0].l2lp_daddr) &&
+		    !first_pass) {
+			ARCSTAT_BUMP(arcstat_l2_rebuild_abort_loop_errors);
+			err = (ELOOP);
+			break;
+		}
+
+		/*
+		 * Now that we know that the next_log checks out alright, we
+		 * can start reconstruction from this log - we can be sure
+		 * that the L2ARC write hand has not yet reached any of our
+		 * buffers.
+		 */
+		l2arc_log_restore(dev, load_guid, this_log,
+		    LP_GET_PSIZE(&log_ptrs[0]));
+
+		/*
+		 * End of list detection. We can look ahead two steps in the
+		 * log chain and if the 2nd log from this_log dips below the
+		 * initial chain starting point, then we know two hings:
+		 *	1) it can't be valid, and
+		 *	2) the next_log's ARC entries might have already been
+		 *	partially overwritten and so we should stop before
+		 *	we restore it
+		 */
+		if (l2arc_range_check_overlap(this_log->l2l_back2_lp.l2lp_daddr,
+		    log_ptrs[0].l2lp_daddr,
+		    dev->l2ad_ublk.l2u_start_lps[0].l2lp_daddr) && !first_pass)
+			break;
+
+		/* log restored, continue with next one in the list */
+		log_ptrs[0] = log_ptrs[1];
+		log_ptrs[1] = this_log->l2l_back2_lp;
+		PTR_SWAP(this_log, next_log);
+		PTR_SWAP(this_log_buf, next_log_buf);
+		this_io = next_io;
+		next_io = NULL;
+		first_pass = B_FALSE;
+
+		if (l2arc_check_rebuild_timeout_hit(deadline)) {
+			err = (ETIMEDOUT);
+			break;
+		}
+	}
+	if (next_io != NULL)
+		l2arc_log_prefetch_abort(next_io);
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	vmem_free(this_log, sizeof (*this_log));
+	vmem_free(next_log, sizeof (*next_log));
+	vmem_free(this_log_buf, sizeof (l2arc_log_phys_t));
+	vmem_free(next_log_buf, sizeof (l2arc_log_phys_t));
+#else
+	kmem_free(this_log, sizeof (*this_log));
+	kmem_free(next_log, sizeof (*next_log));
+	kmem_free(this_log_buf, sizeof (l2arc_log_phys_t));
+	kmem_free(next_log_buf, sizeof (l2arc_log_phys_t));
+#endif
+	if (err == 0)
+		ARCSTAT_BUMP(arcstat_l2_rebuild_successes);
+
+	return (err);
+}
+
+/*
+ * Restores the payload of a log to ARC. This creates empty ARC hdr entries
+ * which only contain an l2arc hdr, essentially restoring the buffers to
+ * their L2ARC evicted state. This function also updates space usage on the
+ * L2ARC vdev to make sure it tracks restored buffers.
+ */
+static void
+l2arc_log_restore(l2arc_dev_t *dev, uint64_t load_guid,
+    l2arc_log_phys_t *log, uint64_t log_psize)
+{
+	uint64_t	size = 0, psize = 0;
+	int i;
+
+	mutex_enter(&l2arc_buflist_mtx);
+
+	for (i = L2ARC_LOG_PHYS_ENTRIES - 1; i >= 0; i--) {
+		/*
+		 * Restore goes in the reverse direction to preserve correct
+		 * temporal ordering of buffers in the l2ad_buflist.
+		 */
+		l2arc_hdr_restore(&log->l2l_entries[i], dev, load_guid);
+		size += LE_GET_LSIZE(&log->l2l_entries[i]);
+		psize += LE_GET_PSIZE(&log->l2l_entries[i]);
+	}
+	mutex_exit(&l2arc_buflist_mtx);
+
+	/*
+	 * Record rebuild stats:
+	 *	size	Virtual in-memory size of restored buffer data in ARC
+	 *	psize	Physical occupied size of restored buffers in the L2ARC
+	 *	bufs	Number of ARC buffer headers restored
+	 *	logs	Number of L2ARC log entries processed during restore
+	 */
+	ARCSTAT_INCR(arcstat_l2_rebuild_size, size);
+	ARCSTAT_INCR(arcstat_l2_rebuild_psize, psize);
+	ARCSTAT_INCR(arcstat_l2_rebuild_bufs, L2ARC_LOG_PHYS_ENTRIES);
+	ARCSTAT_BUMP(arcstat_l2_rebuild_logs);
+	ARCSTAT_F_AVG(arcstat_l2_log_avg_size, log_psize);
+	ARCSTAT_F_AVG(arcstat_l2_data_to_meta_ratio, psize / log_psize);
+	vdev_space_update(dev->l2ad_vdev, psize, 0, 0);
+}
+
+/*
+ * Restores a single ARC buf hdr from a log. The ARC buffer is put into
+ * a state indicating that it has been evicted to L2ARC.
+ */
+static void
+l2arc_hdr_restore(const l2arc_log_ent_phys_t *le, l2arc_dev_t *dev,
+    uint64_t load_guid)
+{
+	arc_buf_hdr_t	*hdr, *exists;
+	kmutex_t	*hash_lock;
+	arc_buf_contents_t	type = LE_GET_TYPE(le);
+	l2arc_buf_hdr_t		*l2hdr;
+
+	hdr = arc_buf_hdr_alloc(load_guid, LE_GET_LSIZE(le), type);
+	hdr->b_dva = le->l2le_dva;
+	hdr->b_birth = le->l2le_birth;
+	hdr->b_cksum0 = le->l2le_cksum0;
+	hdr->b_size = LE_GET_LSIZE(le);
+	exists = buf_hash_insert(hdr, &hash_lock);
+	if (exists) {
+		/* Buffer was already cached, no need to restore it. */
+		mutex_exit(hash_lock);
+		arc_hdr_destroy(hdr);
+		ARCSTAT_BUMP(arcstat_l2_rebuild_bufs_precached);
+		return;
+	}
+	hdr->b_flags = le->l2le_flags;
+	mutex_enter(&hdr->b_freeze_lock);
+	ASSERT(hdr->b_freeze_cksum == NULL);
+	hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t), KM_PUSHPAGE);
+	*hdr->b_freeze_cksum = le->l2le_freeze_cksum;
+	mutex_exit(&hdr->b_freeze_lock);
+
+	/* now rebuild the l2arc entry */
+	ASSERT(hdr->b_l2hdr == NULL);
+	arc_space_consume(sizeof (*l2hdr), ARC_SPACE_L2HDRS);
+	l2hdr = kmem_zalloc(sizeof (*l2hdr), KM_PUSHPAGE);
+	l2hdr->b_dev = dev;
+	l2hdr->b_daddr = le->l2le_daddr;
+	l2hdr->b_compress = LE_GET_COMPRESS(le);
+	if (l2hdr->b_compress != ZIO_COMPRESS_EMPTY)
+		l2hdr->b_asize = LE_GET_PSIZE(le);
+	else
+		l2hdr->b_asize = 0;
+	hdr->b_l2hdr = l2hdr;
+	list_insert_tail(dev->l2ad_buflist, hdr);
+	ARCSTAT_INCR(arcstat_l2_size, hdr->b_size);
+	ARCSTAT_INCR(arcstat_l2_asize, l2hdr->b_asize);
+
+	arc_change_state(arc_l2c_only, hdr, hash_lock);
+	mutex_exit(hash_lock);
+}
+
+/*
+ * Attempts to read the uberblock on the provided L2ARC device and writes
+ * it to `ub'. On success, this function returns 0, otherwise the appropriate
+ * error code is returned.
+ */
+static int
+l2arc_uberblock_read(l2arc_dev_t *dev, l2arc_uberblock_phys_t *ublk)
+{
+	int		err;
+	uint64_t	guid;
+	zio_cksum_t	cksum;
+
+	guid = spa_guid(dev->l2ad_vdev->vdev_spa);
+
+	if ((err = zio_wait(zio_read_phys(NULL, dev->l2ad_vdev,
+	    VDEV_LABEL_START_SIZE, sizeof (*ublk), ublk,
+	    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
+	    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY, B_FALSE))) != 0) {
+		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_io_errors);
+		return (err);
+	}
+
+	if (ublk->l2u_magic == BSWAP_64(L2ARC_UBERBLOCK_MAGIC))
+		byteswap_uint64_array(ublk, sizeof (*ublk));
+
+	if (ublk->l2u_magic != L2ARC_UBERBLOCK_MAGIC ||
+	    ublk->l2u_spa_guid != guid) {
+		/*
+		 * Attempt to rebuild a device containing no actual uberblock
+		 * or containing an uberblock from some other pool.
+		 */
+		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_unsupported);
+		return (ENOTSUP);
+	}
+
+	l2arc_uberblock_checksum(ublk, &cksum);
+	if (!ZIO_CHECKSUM_EQUAL(ublk->l2u_self_cksum, cksum)) {
+		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_cksum_errors);
+		return (EINVAL);
+	}
+	if (ublk->l2u_evict_tail < dev->l2ad_start ||
+	    ublk->l2u_evict_tail >= dev->l2ad_end) {
+		/* Data in uberblock is invalid for this device. */
+		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_unsupported);
+		return (EINVAL);
+	}
+
+	return (0);
+}
+
+/*
+ * Reads L2ARC logs from storage and validates their contents.
+ *
+ * This function implements a simple prefetcher to make sure that while
+ * we're processing one buffer the L2ARC is already prefetching the next
+ * one in the chain.
+ *
+ * The arguments this_lp and next_lp point to the current and next log
+ * address in the log chain. Similarly, this_log and next_log hold the
+ * l2arc_log_phys_t's of the current and next L2ARC log. The this_log_buf
+ * and next_log_buf must be buffers of appropriate to hold a raw
+ * l2arc_log_phys_t (they are used as catch buffers for read ops prior to
+ * buffer decompression).
+ *
+ * The `this_io' and `next_io' arguments are used for log prefetching.
+ * When issuing the first log IO during rebuild, you should pass NULL for
+ * `this_io'. This function will then issue a sync IO to read the log and
+ * also issue an async IO to fetch the next log in the log chain. The
+ * prefetch IO is returned in `next_io'. On subsequent calls to this
+ * function, pass the value returned in `next_io' from the previous call
+ * as `this_io' and a fresh `next_io' pointer to hold the next prefetch IO.
+ * Prior to the call, you should initialize your `next_io' pointer to be
+ * NULL. If no prefetch IO was issued, the pointer is left set at NULL.
+ *
+ * On success, this function returns 0, otherwise it returns an appropriate
+ * error code. On error the prefetching IO is aborted and cleared before
+ * returning from this function. Therefore, if we return `success', the
+ * caller can assume that we have taken care of cleanup of prefetch IOs.
+ */
+static int
+l2arc_log_read(l2arc_dev_t *dev,
+    const l2arc_logptr_t *this_lp, const l2arc_logptr_t *next_lp,
+    l2arc_log_phys_t *this_log, l2arc_log_phys_t *next_log,
+    uint8_t *this_log_buf, uint8_t *next_log_buf,
+    zio_t *this_io, zio_t **next_io)
+{
+	int err = 0;
+	zio_cksum_t cksum;
+
+	ASSERT(this_lp != NULL && next_lp != NULL);
+	ASSERT(this_log != NULL && next_log != NULL);
+	ASSERT(this_log_buf != NULL && next_log_buf != NULL);
+	ASSERT(next_io != NULL && *next_io == NULL);
+	ASSERT(l2arc_log_ptr_valid(dev, this_lp));
+
+	/*
+	 * Check to see if we have issued the IO for this log in a previous
+	 * run. If not, this is the first call, so issue it now.
+	 */
+	if (this_io == NULL) {
+		this_io = l2arc_log_prefetch(dev->l2ad_vdev, this_lp,
+		    this_log_buf);
+	}
+
+	/*
+	 * Peek to see if we can start issuing the next IO immediately.
+	 */
+	if (l2arc_log_ptr_valid(dev, next_lp)) {
+		uint64_t this_start, this_end, next_start, next_end;
+
+		/* Detect malformed log references and loops */
+		this_start = this_lp->l2lp_daddr;
+		this_end = this_start + LP_GET_PSIZE(this_lp);
+		next_start = next_lp->l2lp_daddr;
+		next_end = next_start + LP_GET_PSIZE(next_lp);
+		if ((next_start >= this_start && next_start < this_end) ||
+		    (next_end >= this_start && next_end < this_end)) {
+			ARCSTAT_BUMP(arcstat_l2_rebuild_abort_loop_errors);
+			cmn_err(CE_WARN, "Looping L2ARC metadata reference "
+			    "detected, aborting rebuild.");
+			err = (EINVAL);
+			goto cleanup;
+		}
+		/*
+		 * Start issuing IO for the next log early - this should
+		 * help keep the L2ARC device busy while we decompress
+		 * and restore this log.
+		 */
+		*next_io = l2arc_log_prefetch(dev->l2ad_vdev, next_lp,
+		    next_log_buf);
+	}
+
+	/* Wait for the IO to read this log to complete */
+	if ((err = zio_wait(this_io)) != 0) {
+		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_io_errors);
+		goto cleanup;
+	}
+
+	/* Make sure the buffer checks out */
+	fletcher_4_native(this_log_buf, LP_GET_PSIZE(this_lp), &cksum);
+	if (!ZIO_CHECKSUM_EQUAL(cksum, this_lp->l2lp_cksum)) {
+		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_cksum_errors);
+		err = (EINVAL);
+		goto cleanup;
+	}
+
+	/* Now we can take our time decoding this buffer */
+	switch (LP_GET_COMPRESS(this_lp)) {
+	case ZIO_COMPRESS_OFF:
+		bcopy(this_log_buf, this_log, sizeof (*this_log));
+		break;
+	case ZIO_COMPRESS_LZ4:
+		if ((err = zio_decompress_data(LP_GET_COMPRESS(this_lp),
+		    this_log_buf, this_log, LP_GET_PSIZE(this_lp),
+		    sizeof (*this_log))) != 0) {
+			err = (EINVAL);
+			goto cleanup;
+		}
+		break;
+	default:
+		err = (EINVAL);
+		goto cleanup;
+	}
+	if (this_log->l2l_magic == BSWAP_64(L2ARC_LOG_MAGIC))
+		byteswap_uint64_array(this_log, sizeof (*this_log));
+	if (this_log->l2l_magic != L2ARC_LOG_MAGIC) {
+		err = (EINVAL);
+		goto cleanup;
+	}
+cleanup:
+	/* Abort an in-flight prefetch I/O in case of error */
+	if (err != 0 && *next_io != NULL) {
+		l2arc_log_prefetch_abort(*next_io);
+		*next_io = NULL;
+	}
+	return (err);
+}
+
+/*
+ * Validates an L2ARC log address to make sure that it can be read from
+ * the provided L2ARC device. Returns B_TRUE if the address is within
+ * the device's bounds, or B_FALSE if not.
+ */
+static boolean_t
+l2arc_log_ptr_valid(l2arc_dev_t *dev, const l2arc_logptr_t *lp)
+{
+	uint64_t psize, end;
+
+	psize = LP_GET_PSIZE(lp);
+	end = lp->l2lp_daddr + psize;
+
+	return (end < dev->l2ad_end && psize != 0 &&
+	    psize <= sizeof (l2arc_log_phys_t) &&
+	    lp->l2lp_daddr >= dev->l2ad_start);
+}
+
+/*
+ * Starts an asynchronous read IO to read a log. This is used in log
+ * reconstruction to start reading the next log before we are done
+ * decoding and reconstructing the current log, to keep the l2arc device
+ * nice and hot with read IO to process.
+ * The returned zio will contain a newly allocated memory buffers for the IO
+ * data which should then be freed by the caller once the zio is no longer
+ * needed (i.e. due to it having completed). If you wish to abort this
+ * zio, you should do so using l2arc_log_prefetch_abort, which takes care
+ * of disposing of the allocated buffers correctly.
+ */
+static zio_t *
+l2arc_log_prefetch(vdev_t *vd, const l2arc_logptr_t *la, uint8_t *log_buf)
+{
+	uint32_t psize;
+	zio_t *pio;
+
+	psize = LP_GET_PSIZE(la);
+	ASSERT(psize <= sizeof (l2arc_log_phys_t));
+	pio = zio_root(vd->vdev_spa, NULL, NULL, ZIO_FLAG_DONT_CACHE |
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
+	    ZIO_FLAG_DONT_RETRY);
+	(void) zio_nowait(zio_read_phys(pio, vd, la->l2lp_daddr, psize,
+	    log_buf, ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
+	    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY, B_FALSE));
+
+	return (pio);
+}
+
+/*
+ * Aborts a zio returned from l2arc_log_prefetch and frees the data
+ * buffers allocated for it.
+ */
+static void
+l2arc_log_prefetch_abort(zio_t *zio)
+{
+	(void) zio_wait(zio);
+}
+
+/*
+ * Creates a zio to update the uberblock on an l2arc device. The zio is
+ * initiated as a child of `pio'.
+ */
+static void
+l2arc_dev_uberblock_update(l2arc_dev_t *dev, zio_t *pio)
+{
+	zio_t *wzio;
+	vdev_stat_t st;
+	l2arc_uberblock_phys_t *ublk = &dev->l2ad_ublk;
+
+	vdev_get_stats(dev->l2ad_vdev, &st);
+
+	ublk->l2u_magic = L2ARC_UBERBLOCK_MAGIC;
+	ublk->l2u_spa_guid = spa_guid(dev->l2ad_vdev->vdev_spa);
+	ublk->l2u_evict_tail = dev->l2ad_evict;
+	ublk->l2u_alloc_space = st.vs_alloc;
+	ublk->l2u_flags = 0;
+	if (dev->l2ad_first)
+		ublk->l2u_flags |= L2ARC_UBERBLOCK_EVICT_FIRST;
+
+	/* checksum operation goes last */
+	l2arc_uberblock_checksum(ublk, &ublk->l2u_self_cksum);
+
+	CTASSERT(sizeof (*ublk) >= SPA_MINBLOCKSIZE &&
+	    sizeof (*ublk) <= SPA_MAXBLOCKSIZE);
+	wzio = zio_write_phys(pio, dev->l2ad_vdev, VDEV_LABEL_START_SIZE,
+	    sizeof (*ublk), ublk, ZIO_CHECKSUM_OFF, NULL,
+	    NULL, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_CANFAIL, B_FALSE);
+	DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev,
+	    zio_t *, wzio);
+	(void) zio_nowait(wzio);
+}
+
+/*
+ * Commits a log to the L2ARC device. This routine is invoked from
+ * l2arc_write_buffers when the log fills up.
+ * This function allocates some memory to temporarily hold the serialized
+ * buffer to be written. This is then released in l2arc_write_done.
+ */
+static void
+l2arc_dev_log_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
+{
+	l2arc_log_phys_t	*log = &dev->l2ad_log;
+	uint64_t		psize, asize, rounded;
+	l2arc_log_buf_t		*log_buf;
+	zio_t			*wzio;
+
+	VERIFY(dev->l2ad_log_ent_idx == L2ARC_LOG_PHYS_ENTRIES);
+
+	/* link the buffer into the log chain */
+	log->l2l_back2_lp = dev->l2ad_ublk.l2u_start_lps[1];
+	log->l2l_magic = L2ARC_LOG_MAGIC;
+
+	/* try to compress the buffer */
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	log_buf = vmem_zalloc(sizeof (*log_buf), KM_SLEEP);
+#else
+	log_buf = kmem_zalloc(sizeof (*log_buf), KM_SLEEP);
+#endif
+	list_insert_tail(&cb->l2wcb_log_buf_list, log_buf);
+	VERIFY((psize = zio_compress_data(ZIO_COMPRESS_LZ4, log,
+	    log_buf->l2lb_log, sizeof (*log))) != 0);
+
+	rounded = P2ROUNDUP(psize, (size_t)SPA_MINBLOCKSIZE);
+	if (rounded > psize)
+		psize = rounded;
+
+	/*
+	 * Update the start log pointer in the uberblock to point to the
+	 * log we're about to write.
+	 */
+	dev->l2ad_ublk.l2u_start_lps[1] = dev->l2ad_ublk.l2u_start_lps[0];
+	dev->l2ad_ublk.l2u_start_lps[0].l2lp_daddr = dev->l2ad_hand;
+	LP_SET_LSIZE(&dev->l2ad_ublk.l2u_start_lps[0], sizeof (*log));
+	LP_SET_PSIZE(&dev->l2ad_ublk.l2u_start_lps[0], psize);
+	LP_SET_CHECKSUM(&dev->l2ad_ublk.l2u_start_lps[0],
+	    ZIO_CHECKSUM_FLETCHER_4);
+	LP_SET_TYPE(&dev->l2ad_ublk.l2u_start_lps[0], 0);
+	if (psize < sizeof (*log)) {
+		/* compression succeeded */
+		LP_SET_COMPRESS(&dev->l2ad_ublk.l2u_start_lps[0],
+		    ZIO_COMPRESS_LZ4);
+	} else {
+		/* compression failed */
+		bcopy(log, log_buf->l2lb_log, sizeof (*log));
+		LP_SET_COMPRESS(&dev->l2ad_ublk.l2u_start_lps[0],
+		    ZIO_COMPRESS_OFF);
+	}
+	/* checksum what we're about to write */
+	fletcher_4_native(log_buf->l2lb_log, psize,
+	    &dev->l2ad_ublk.l2u_start_lps[0].l2lp_cksum);
+
+	/* perform the write itself */
+	CTASSERT(L2ARC_LOG_PHYS_SIZE >= SPA_MINBLOCKSIZE &&
+	    L2ARC_LOG_PHYS_SIZE <= SPA_MAXBLOCKSIZE);
+	wzio = zio_write_phys(pio, dev->l2ad_vdev, dev->l2ad_hand,
+	    psize, log_buf->l2lb_log, ZIO_CHECKSUM_OFF, NULL, NULL,
+	    ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_CANFAIL, B_FALSE);
+	DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev, zio_t *, wzio);
+	(void) zio_nowait(wzio);
+
+	/* realign the device hand */
+	asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
+	dev->l2ad_hand += asize;
+	VERIFY(dev->l2ad_hand <= dev->l2ad_evict || dev->l2ad_first);
+	vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
+
+	/* bump the kstats */
+	ARCSTAT_INCR(arcstat_l2_write_bytes, psize);
+	ARCSTAT_BUMP(arcstat_l2_log_writes);
+	ARCSTAT_F_AVG(arcstat_l2_log_avg_size, asize);
+	ARCSTAT_F_AVG(arcstat_l2_data_to_meta_ratio,
+	    dev->l2ad_log_payload_asize / asize);
+
+	dev->l2ad_log_ent_idx = dev->l2ad_log_payload_asize = 0;
+}
+
+/*
+ * Computes the checksum of `ublk' and stores it in `cksum'.
+ */
+static void
+l2arc_uberblock_checksum(const l2arc_uberblock_phys_t *ublk, zio_cksum_t *cksum)
+{
+	fletcher_4_native((uint8_t *)ublk +
+	    offsetof(l2arc_uberblock_phys_t, l2u_spa_guid),
+	    sizeof (*ublk) - offsetof(l2arc_uberblock_phys_t, l2u_spa_guid),
+	    cksum);
+}
+
+/*
+ * Inserts ARC buffer `ab' into the current L2ARC log on the device. The buffer
+ * being inserted must be present in L2ARC.
+ * Returns B_TRUE if the L2ARC log is full and needs to be committed to L2ARC,
+ * or B_FALSE if it still has room for more ARC buffers.
+ */
+static boolean_t
+l2arc_dev_log_insert(l2arc_dev_t *dev, const arc_buf_hdr_t *ab)
+{
+	l2arc_log_phys_t *log = &dev->l2ad_log;
+	l2arc_log_ent_phys_t *le;
+	const l2arc_buf_hdr_t *l2hdr = ab->b_l2hdr;
+	int index = dev->l2ad_log_ent_idx++;
+
+	ASSERT(l2hdr != NULL);
+	ASSERT(index < L2ARC_LOG_PHYS_ENTRIES);
+
+	le = &log->l2l_entries[index];
+	bzero(le, sizeof (*le));
+	le->l2le_dva = ab->b_dva;
+	le->l2le_birth = ab->b_birth;
+	le->l2le_cksum0 = ab->b_cksum0;
+	le->l2le_flags = ab->b_flags & L2ARC_PERSIST_FLAGS;
+	le->l2le_daddr = l2hdr->b_daddr;
+	LE_SET_LSIZE(le, ab->b_size);
+	if (l2hdr->b_compress != ZIO_COMPRESS_EMPTY)
+		LE_SET_PSIZE(le, l2hdr->b_asize);
+	LE_SET_COMPRESS(le, l2hdr->b_compress);
+	le->l2le_freeze_cksum = *ab->b_freeze_cksum;
+	LE_SET_CHECKSUM(le, ZIO_CHECKSUM_FLETCHER_2);
+	LE_SET_TYPE(le, ab->b_type);
+	dev->l2ad_log_payload_asize += l2hdr->b_asize;
+
+	return (dev->l2ad_log_ent_idx == L2ARC_LOG_PHYS_ENTRIES);
+}
+
+/*
+ * Checks whether a given L2ARC device address sits in a time-sequential
+ * range. The trick here is that the L2ARC is a rotary buffer, so we can't
+ * just do a range comparison, we need to handle the situation in which the
+ * range wraps around the end of the L2ARC device. Arguments:
+ *	bottom	Lower end of the range to check (written to earlier).
+ *	top	Upper end of the range to check (written to later).
+ *	check	The address for which we want to determine if it sits in
+ *		between the top and bottom.
+ *
+ * The 3-way conditional below represents the following cases:
+ *
+ *	bottom < top : Sequentially ordered case:
+ *	  <check>--------+-------------------+
+ *	                 |  (overlap here?)  |
+ *	 L2ARC dev       V                   V
+ *	 |---------------<bottom>============<top>--------------|
+ *
+ *	bottom > top: Looped-around case:
+ *	                      <check>--------+------------------+
+ *	                                     |  (overlap here?) |
+ *	 L2ARC dev                           V                  V
+ *	 |===============<top>---------------<bottom>===========|
+ *	 ^               ^
+ *	 |  (or here?)   |
+ *	 +---------------+---------<check>
+ *
+ *	top == bottom : Just a single address comparison.
+ */
+static inline boolean_t
+l2arc_range_check_overlap(uint64_t bottom, uint64_t top, uint64_t check)
+{
+	if (bottom < top)
+		return (bottom <= check && check <= top);
+	else if (bottom > top)
+		return (check <= top || bottom <= check);
+	else
+		return (check == top);
+}
+
+/*
+ * Checks whether a rebuild timeout deadline has been hit and if it has,
+ * increments the appropriate error counters.
+ */
+static boolean_t
+l2arc_check_rebuild_timeout_hit(int64_t deadline)
+{
+	if (deadline != 0 && deadline < ddi_get_lbolt64()) {
+		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_timeout);
+		cmn_err(CE_WARN, "L2ARC rebuild is taking too long, "
+		    "dropping remaining L2ARC metadata.");
+		return (B_TRUE);
+	} else {
+		return (B_FALSE);
+	}
+}
+
+static uint64_t
+l2arc_metadata_write_overhead(uint64_t writesz)
+{
+	return ((writesz / SPA_MINBLOCKSIZE / L2ARC_LOG_PHYS_ENTRIES)
+	    + 1) * L2ARC_LOG_PHYS_SIZE;
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
