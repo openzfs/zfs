@@ -22,6 +22,9 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright 2013 Saso Kiselkov, All rights reserved.
+ */
 
 #ifndef	_SYS_LIST_H
 #define	_SYS_LIST_H
@@ -32,6 +35,19 @@
 extern "C" {
 #endif
 
+/*
+ * Please note that a list_node_t contains pointers back to its parent list_t
+ * so you cannot copy the list_t around once it has been initialized. In
+ * particular, this kind of construct won't work:
+ *
+ * struct { list_t l; } a, b;
+ * list_create(&a.l, ...);
+ * b = a;    <= This will break the list in `b', as the `l' element in `a'
+ *              got copied to a different memory address.
+ *
+ * When copying structures with lists use list_move_tail() to move the list
+ * from the src to dst (the source reference will then become invalid).
+ */
 typedef struct list_node list_node_t;
 typedef struct list list_t;
 
