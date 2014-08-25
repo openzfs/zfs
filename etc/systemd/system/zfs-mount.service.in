@@ -7,7 +7,6 @@ Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=zfs-import-cache.service
 After=zfs-import-scan.service
-After=cryptsetup.target
 Before=local-fs.target
 
 [Service]
