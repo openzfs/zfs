@@ -430,7 +430,13 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 /*
  * Write the PID file specified in [zcp].
  * Return 0 on success, -1 on error.
- * XXX: This must be called after fork()ing to become a daemon.
+ * This must be called after fork()ing to become a daemon (so the correct PID
+ *   is recorded), but before daemonization is complete and the parent process
+ *   exits (for synchronization with systemd).
+ * FIXME: Only update the PID file after verifying the PID previously stored
+ *   in the PID file no longer exists or belongs to a foreign process
+ *   in order to ensure the daemon cannot be started more than once.
+ *   (This check is currently done by zed_conf_open_state().)
  */
 int
 zed_conf_write_pid(struct zed_conf *zcp)
