@@ -25,6 +25,7 @@
  */
 
 #include <assert.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,6 +41,7 @@ static struct {
 	unsigned do_syslog:1;
 	int level;
 	char id[ZED_LOG_MAX_ID_LEN];
+	int pipe_fd[2];
 } _ctx;
 
 void
@@ -53,6 +55,8 @@ zed_log_init(const char *identity)
 	} else {
 		_ctx.id[0] = '\0';
 	}
+	_ctx.pipe_fd[0] = -1;
+	_ctx.pipe_fd[1] = -1;
 }
 
 void
@@ -60,6 +64,97 @@ zed_log_fini()
 {
 	if (_ctx.do_syslog) {
 		closelog();
+	}
+}
+
+/*
+ * Create pipe for communicating daemonization status between the parent and
+ *   child processes across the double-fork().
+ */
+void
+zed_log_pipe_open(void)
+{
+	if ((_ctx.pipe_fd[0] != -1) || (_ctx.pipe_fd[1] != -1))
+		zed_log_die("Invalid use of zed_log_pipe_open in PID %d",
+		    (int) getpid());
+
+	if (pipe(_ctx.pipe_fd) < 0)
+		zed_log_die("Failed to create daemonize pipe in PID %d: %s",
+		    (int) getpid(), strerror(errno));
+}
+
+/*
+ * Close the read-half of the daemonize pipe.
+ * This should be called by the child after fork()ing from the parent since
+ *   the child will never read from this pipe.
+ */
+void
+zed_log_pipe_close_reads(void)
+{
+	if (_ctx.pipe_fd[0] < 0)
+		zed_log_die(
+		    "Invalid use of zed_log_pipe_close_reads in PID %d",
+		    (int) getpid());
+
+	if (close(_ctx.pipe_fd[0]) < 0)
+		zed_log_die(
+		    "Failed to close reads on daemonize pipe in PID %d: %s",
+		    (int) getpid(), strerror(errno));
+
+	_ctx.pipe_fd[0] = -1;
+}
+
+/*
+ * Close the write-half of the daemonize pipe.
+ * This should be called by the parent after fork()ing its child since the
+ *   parent will never write to this pipe.
+ * This should also be called by the child once initialization is complete
+ *   in order to signal the parent that it can safely exit.
+ */
+void
+zed_log_pipe_close_writes(void)
+{
+	if (_ctx.pipe_fd[1] < 0)
+		zed_log_die(
+		    "Invalid use of zed_log_pipe_close_writes in PID %d",
+		    (int) getpid());
+
+	if (close(_ctx.pipe_fd[1]) < 0)
+		zed_log_die(
+		    "Failed to close writes on daemonize pipe in PID %d: %s",
+		    (int) getpid(), strerror(errno));
+
+	_ctx.pipe_fd[1] = -1;
+}
+
+/*
+ * Block on reading from the daemonize pipe until signaled by the child
+ *   (via zed_log_pipe_close_writes()) that initialization is complete.
+ * This should only be called by the parent while waiting to exit after
+ *   fork()ing the child.
+ */
+void
+zed_log_pipe_wait(void)
+{
+	ssize_t n;
+	char c;
+
+	if (_ctx.pipe_fd[0] < 0)
+		zed_log_die("Invalid use of zed_log_pipe_wait in PID %d",
+		    (int) getpid());
+
+	for (;;) {
+		n = read(_ctx.pipe_fd[0], &c, sizeof (c));
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			zed_log_die(
+			    "Failed to read from daemonize pipe in PID %d: %s",
+			    (int) getpid(), strerror(errno));
+		}
+		if (n == 0) {
+			break;
+		}
 	}
 }
 
