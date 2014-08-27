@@ -29,15 +29,7 @@
 #ifndef _LIBSPL_UNISTD_H
 #define	_LIBSPL_UNISTD_H
 
-#if !defined(HAVE_IOCTL_IN_UNISTD_H)
-#if defined(HAVE_IOCTL_IN_SYS_IOCTL_H)
 #include <sys/ioctl.h>
-#elif defined(HAVE_IOCTL_IN_STROPTS_H)
-#include <stropts.h>
-#else /* HAVE_IOCTL_IN_STROPTS_H */
-#error "System call ioctl() unavailable"
-#endif /* HAVE_IOCTL_IN_SYS_IOCTL_H */
-#endif /* !HAVE_IOCTL_IN_UNISTD_H */
 
 #if !defined(HAVE_ISSETUGID)
 #include <sys/types.h>
