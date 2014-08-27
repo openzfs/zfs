@@ -90,6 +90,8 @@ AC_CONFIG_FILES([
 	lib/libunicode/Makefile
 	lib/libuutil/Makefile
 	lib/libzpool/Makefile
+	lib/libzfs/libzfs.pc
+	lib/libzfs/libzfs_core.pc
 	lib/libzfs/Makefile
 	lib/libzfs_core/Makefile
 	lib/libshare/Makefile
