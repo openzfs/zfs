@@ -103,7 +103,7 @@ zed_conf_destroy(struct zed_conf *zcp)
 	if (zcp->pid_file) {
 		if ((unlink(zcp->pid_file) < 0) && (errno != ENOENT))
 			zed_log_msg(LOG_WARNING,
-			    "Failed to remove pid file \"%s\": %s",
+			    "Failed to remove PID file \"%s\": %s",
 			    zcp->pid_file, strerror(errno));
 	}
 	if (zcp->conf_file)
@@ -450,14 +450,14 @@ zed_conf_write_pid(struct zed_conf *zcp)
 
 	if (!zcp || !zcp->pid_file) {
 		errno = EINVAL;
-		zed_log_msg(LOG_ERR, "Failed to write pid file: %s",
+		zed_log_msg(LOG_ERR, "Failed to write PID file: %s",
 		    strerror(errno));
 		return (-1);
 	}
 	n = strlcpy(dirbuf, zcp->pid_file, sizeof (dirbuf));
 	if (n >= sizeof (dirbuf)) {
 		errno = ENAMETOOLONG;
-		zed_log_msg(LOG_WARNING, "Failed to write pid file: %s",
+		zed_log_msg(LOG_WARNING, "Failed to write PID file: %s",
 		    strerror(errno));
 		return (-1);
 	}
@@ -479,13 +479,13 @@ zed_conf_write_pid(struct zed_conf *zcp)
 	umask(mask);
 
 	if (!fp) {
-		zed_log_msg(LOG_WARNING, "Failed to open pid file \"%s\": %s",
+		zed_log_msg(LOG_WARNING, "Failed to open PID file \"%s\": %s",
 		    zcp->pid_file, strerror(errno));
 	} else if (fprintf(fp, "%d\n", (int) getpid()) == EOF) {
-		zed_log_msg(LOG_WARNING, "Failed to write pid file \"%s\": %s",
+		zed_log_msg(LOG_WARNING, "Failed to write PID file \"%s\": %s",
 		    zcp->pid_file, strerror(errno));
 	} else if (fclose(fp) == EOF) {
-		zed_log_msg(LOG_WARNING, "Failed to close pid file \"%s\": %s",
+		zed_log_msg(LOG_WARNING, "Failed to close PID file \"%s\": %s",
 		    zcp->pid_file, strerror(errno));
 	} else {
 		return (0);
@@ -564,7 +564,7 @@ zed_conf_open_state(struct zed_conf *zcp)
 			    zcp->state_file);
 		} else if (pid > 0) {
 			zed_log_msg(LOG_WARNING,
-			    "Found pid %d bound to state file \"%s\"",
+			    "Found PID %d bound to state file \"%s\"",
 			    pid, zcp->state_file);
 		} else {
 			zed_log_msg(LOG_WARNING,

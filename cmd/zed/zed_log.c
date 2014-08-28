@@ -33,38 +33,40 @@
 #include <syslog.h>
 #include "zed_log.h"
 
-#define	ZED_LOG_MAX_ID_LEN	64
 #define	ZED_LOG_MAX_LOG_LEN	1024
 
 static struct {
 	unsigned do_stderr:1;
 	unsigned do_syslog:1;
-	int level;
-	char id[ZED_LOG_MAX_ID_LEN];
+	const char *identity;
+	int priority;
 	int pipe_fd[2];
 } _ctx;
 
+/*
+ * Initialize the logging subsystem.
+ */
 void
 zed_log_init(const char *identity)
 {
-	const char *p;
-
 	if (identity) {
-		p = (p = strrchr(identity, '/')) ? p + 1 : identity;
-		strlcpy(_ctx.id, p, sizeof (_ctx.id));
+		const char *p = strrchr(identity, '/');
+		_ctx.identity = (p != NULL) ? p + 1 : identity;
 	} else {
-		_ctx.id[0] = '\0';
+		_ctx.identity = NULL;
 	}
 	_ctx.pipe_fd[0] = -1;
 	_ctx.pipe_fd[1] = -1;
 }
 
+/*
+ * Shutdown the logging subsystem.
+ */
 void
-zed_log_fini()
+zed_log_fini(void)
 {
-	if (_ctx.do_syslog) {
-		closelog();
-	}
+	zed_log_stderr_close();
+	zed_log_syslog_close();
 }
 
 /*
@@ -158,78 +160,72 @@ zed_log_pipe_wait(void)
 	}
 }
 
+/*
+ * Start logging messages at the syslog [priority] level or higher to stderr.
+ *   Refer to syslog(3) for valid priority values.
+ */
 void
-zed_log_stderr_open(int level)
+zed_log_stderr_open(int priority)
 {
 	_ctx.do_stderr = 1;
-	_ctx.level = level;
+	_ctx.priority = priority;
 }
 
+/*
+ * Stop logging messages to stderr.
+ */
 void
 zed_log_stderr_close(void)
 {
-	_ctx.do_stderr = 0;
+	if (_ctx.do_stderr)
+		_ctx.do_stderr = 0;
 }
 
+/*
+ * Start logging messages to syslog.
+ *   Refer to syslog(3) for valid option/facility values.
+ */
 void
 zed_log_syslog_open(int facility)
 {
-	const char *identity;
-
 	_ctx.do_syslog = 1;
-	identity = (_ctx.id[0] == '\0') ? NULL : _ctx.id;
-	openlog(identity, LOG_NDELAY, facility);
+	openlog(_ctx.identity, LOG_NDELAY | LOG_PID, facility);
 }
 
+/*
+ * Stop logging messages to syslog.
+ */
 void
 zed_log_syslog_close(void)
 {
-	_ctx.do_syslog = 0;
-	closelog();
+	if (_ctx.do_syslog) {
+		_ctx.do_syslog = 0;
+		closelog();
+	}
 }
 
+/*
+ * Auxiliary function to log a message to syslog and/or stderr.
+ */
 static void
 _zed_log_aux(int priority, const char *fmt, va_list vargs)
 {
 	char buf[ZED_LOG_MAX_LOG_LEN];
-	char *syslogp;
-	char *p;
-	int len;
 	int n;
 
-	assert(fmt != NULL);
+	if (!fmt)
+		return;
 
-	syslogp = NULL;
-	p = buf;
-	len = sizeof (buf);
-
-	if (_ctx.id[0] != '\0') {
-		n = snprintf(p, len, "%s: ", _ctx.id);
-		if ((n < 0) || (n >= len)) {
-			p += len - 1;
-			len = 0;
-		} else {
-			p += n;
-			len -= n;
-		}
+	n = vsnprintf(buf, sizeof (buf), fmt, vargs);
+	if ((n < 0) || (n >= sizeof (buf))) {
+		buf[sizeof (buf) - 2] = '+';
+		buf[sizeof (buf) - 1] = '\0';
 	}
-	if ((len > 0) && fmt) {
-		syslogp = p;
-		n = vsnprintf(p, len, fmt, vargs);
-		if ((n < 0) || (n >= len)) {
-			p += len - 1;
-			len = 0;
-		} else {
-			p += n;
-			len -= n;
-		}
-	}
-	*p = '\0';
 
-	if (_ctx.do_syslog && syslogp)
-		syslog(priority, "%s", syslogp);
+	if (_ctx.do_syslog)
+		syslog(priority, "%s", buf);
 
-	if (_ctx.do_stderr && priority <= _ctx.level)
+	if (_ctx.do_stderr && (priority <= _ctx.priority))
 		fprintf(stderr, "%s\n", buf);
 }
 
