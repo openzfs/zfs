@@ -145,7 +145,7 @@ zed_file_unlock(int fd)
 /*
  * Test whether an exclusive advisory lock could be obtained for the open
  *   file descriptor [fd].
- * Return 0 if the file is not locked, >0 for the pid of another process
+ * Return 0 if the file is not locked, >0 for the PID of another process
  *   holding a conflicting lock, or -1 on error (with errno set).
  */
 pid_t
