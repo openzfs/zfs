@@ -4602,11 +4602,32 @@ typedef struct upgrade_cbdata {
 } upgrade_cbdata_t;
 
 static int
+check_unsupp_fs(zfs_handle_t *zhp, void *unsupp_fs)
+{
+	int zfs_version = (int) zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
+	int *count = (int *)unsupp_fs;
+
+	if (zfs_version > ZPL_VERSION) {
+		(void) printf(gettext("%s (v%d) is not supported by this "
+		    "implementation of ZFS.\n"),
+		    zfs_get_name(zhp), zfs_version);
+		(*count)++;
+	}
+
+	zfs_iter_filesystems(zhp, check_unsupp_fs, unsupp_fs);
+
+	zfs_close(zhp);
+
+	return (0);
+}
+
+static int
 upgrade_version(zpool_handle_t *zhp, uint64_t version)
 {
 	int ret;
 	nvlist_t *config;
 	uint64_t oldversion;
+	int unsupp_fs = 0;
 
 	config = zpool_get_config(zhp, NULL);
 	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
@@ -4614,6 +4635,17 @@ upgrade_version(zpool_handle_t *zhp, uint64_t version)
 
 	assert(SPA_VERSION_IS_SUPPORTED(oldversion));
 	assert(oldversion < version);
+
+	ret = zfs_iter_root(zpool_get_handle(zhp), check_unsupp_fs, &unsupp_fs);
+	if (ret != 0)
+		return (ret);
+
+	if (unsupp_fs) {
+		(void) printf(gettext("Upgrade not performed due to %d "
+		    "unsupported filesystems (max v%d).\n"),
+		    unsupp_fs, (int) ZPL_VERSION);
+		return (1);
+	}
 
 	ret = zpool_upgrade(zhp, version);
 	if (ret != 0)
