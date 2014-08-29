@@ -8,6 +8,6 @@ USER_H =
 EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)
 
 if CONFIG_KERNEL
-kerneldir = /usr/src/spl-$(VERSION)/include/sys/fs
+kerneldir = @prefix@/src/spl-$(VERSION)/include/sys/fs
 kernel_HEADERS = $(KERNEL_H)
 endif
