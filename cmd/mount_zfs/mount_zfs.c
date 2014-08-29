@@ -363,6 +363,7 @@ main(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
 	char prop[ZFS_MAXPROPLEN];
+	uint64_t zfs_version = 0;
 	char mntopts[MNT_LINE_MAX] = { '\0' };
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char mtabopt[MNT_LINE_MAX] = { '\0' };
@@ -515,6 +516,18 @@ main(int argc, char **argv)
 		(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, prop,
 		    sizeof (prop), NULL, NULL, 0, B_FALSE);
 
+	/*
+	 * Fetch the max supported zfs version in case we get ENOTSUP
+	 * back from the mount command, since we need the zfs handle
+	 * to do so.
+	 */
+	zfs_version = zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
+	if (zfs_version == 0) {
+		fprintf(stderr, gettext("unable to fetch "
+		    "ZFS version for filesystem '%s'\n"), dataset);
+		return (MOUNT_SYSERR);
+	}
+
 	zfs_close(zhp);
 	libzfs_fini(g_zfs);
 
@@ -551,22 +564,36 @@ main(int argc, char **argv)
 	if (!fake) {
 		error = mount(dataset, mntpoint, MNTTYPE_ZFS,
 		    mntflags, mntopts);
-		if (error) {
-			switch (errno) {
-			case ENOENT:
-				(void) fprintf(stderr, gettext("mount point "
-				    "'%s' does not exist\n"), mntpoint);
-				return (MOUNT_SYSERR);
-			case EBUSY:
-				(void) fprintf(stderr, gettext("filesystem "
-				    "'%s' is already mounted\n"), dataset);
-				return (MOUNT_BUSY);
-			default:
-				(void) fprintf(stderr, gettext("filesystem "
-				    "'%s' can not be mounted due to error "
-				    "%d\n"), dataset, errno);
-				return (MOUNT_USAGE);
+	}
+
+	if (error) {
+		switch (errno) {
+		case ENOENT:
+			(void) fprintf(stderr, gettext("mount point "
+			    "'%s' does not exist\n"), mntpoint);
+			return (MOUNT_SYSERR);
+		case EBUSY:
+			(void) fprintf(stderr, gettext("filesystem "
+			    "'%s' is already mounted\n"), dataset);
+			return (MOUNT_BUSY);
+		case ENOTSUP:
+			if (zfs_version > ZPL_VERSION) {
+				(void) fprintf(stderr,
+				    gettext("filesystem '%s' (v%d) is not "
+				    "supported by this implementation of "
+				    "ZFS (max v%d).\n"), dataset,
+				    (int) zfs_version, (int) ZPL_VERSION);
+			} else {
+				(void) fprintf(stderr,
+				    gettext("filesystem '%s' mount "
+				    "failed for unknown reason.\n"), dataset);
 			}
+			return (MOUNT_SYSERR);
+		default:
+			(void) fprintf(stderr, gettext("filesystem "
+			    "'%s' can not be mounted due to error "
+			    "%d\n"), dataset, errno);
+			return (MOUNT_USAGE);
 		}
 	}
 
