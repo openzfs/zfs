@@ -12,10 +12,10 @@ endif
 if CONFIG_KERNEL
 SUBDIRS += module
 
-extradir = /usr/src/zfs-$(VERSION)
+extradir = @prefix@/src/zfs-$(VERSION)
 extra_HEADERS = zfs.release.in zfs_config.h.in
 
-kerneldir = /usr/src/zfs-$(VERSION)/$(LINUX_VERSION)
+kerneldir = @prefix@/src/zfs-$(VERSION)/$(LINUX_VERSION)
 nodist_kernel_HEADERS = zfs.release zfs_config.h module/$(LINUX_SYMBOLS)
 endif
 
