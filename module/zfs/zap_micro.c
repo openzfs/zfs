@@ -446,6 +446,7 @@ int
 zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
 {
+	dmu_object_info_t doi;
 	zap_t *zap;
 	dmu_buf_t *db;
 	krw_t lt;
@@ -457,13 +458,9 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 	if (err)
 		return (err);
 
-#ifdef ZFS_DEBUG
-	{
-		dmu_object_info_t doi;
-		dmu_object_info_from_db(db, &doi);
-		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
-	}
-#endif
+	dmu_object_info_from_db(db, &doi);
+	if (DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
+		return (SET_ERROR(EINVAL));
 
 	zap = dmu_buf_get_user(db);
 	if (zap == NULL)
