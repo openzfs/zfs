@@ -272,10 +272,12 @@ AC_DEFUN([ZFS_AC_SPL], [
 	dnl # source directory.  In order of preference:
 	dnl #
 	splsrc0="/var/lib/dkms/spl/${VERSION}/build"
-	splsrc1="/usr/src/spl-${VERSION}/${LINUX_VERSION}"
-	splsrc2="/usr/src/spl-${VERSION}"
-	splsrc3="../spl/"
-	splsrc4="$LINUX"
+	splsrc1="/usr/local/src/spl-${VERSION}/${LINUX_VERSION}"
+	splsrc2="/usr/local/src/spl-${VERSION}"
+	splsrc3="/usr/src/spl-${VERSION}/${LINUX_VERSION}"
+	splsrc4="/usr/src/spl-${VERSION}"
+	splsrc5="../spl/"
+	splsrc6="$LINUX"
 
 	AC_MSG_CHECKING([spl source directory])
 	AS_IF([test -z "${splsrc}"], [
@@ -289,6 +291,10 @@ AC_DEFUN([ZFS_AC_SPL], [
 			splsrc=$(readlink -f "${splsrc3}")
 		], [ test -e "${splsrc4}/spl.release.in" ], [
 			splsrc=${splsrc4}
+		], [ test -e "${splsrc5}/spl.release.in"], [
+			splsrc=$(readlink -f "${splsrc5}")
+		], [ test -e "${splsrc6}/spl.release.in" ], [
+			splsrc=${splsrc6}
 		], [
 			splsrc="[Not found]"
 		])
