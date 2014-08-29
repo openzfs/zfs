@@ -12,7 +12,7 @@
 #   4: unsupported event class
 #   5: internal error
 # State File Format:
-#   POOL:TIME_OF_LAST_EMAIL
+#   POOL;TIME_OF_LAST_EMAIL
 #
 test -f "${ZED_SCRIPT_DIR}/zed.rc" && . "${ZED_SCRIPT_DIR}/zed.rc"
 
@@ -47,7 +47,7 @@ flock -x 8
 
 # Query state for last time email was sent for this pool.
 TIME_NOW=`date +%s`
-TIME_LAST=`egrep "^${ZEVENT_POOL}:" "${STATEFILE}" 2>/dev/null | cut -d: -f2`
+TIME_LAST=`egrep "^${ZEVENT_POOL};" "${STATEFILE}" 2>/dev/null | cut -d ";" -f2`
 if test -n "${TIME_LAST}"; then
   TIME_DELTA=`expr "${TIME_NOW}" - "${TIME_LAST}"`
   if test "${TIME_DELTA}" -lt "${ZED_EMAIL_INTERVAL_SECS:=3600}"; then
@@ -67,8 +67,8 @@ EOF
 MAIL_STATUS=$?
 
 # Update state.
-egrep -v "^${ZEVENT_POOL}:" "${STATEFILE}" 2>/dev/null > "${STATEFILE}.$$"
-echo "${ZEVENT_POOL}:${TIME_NOW}" >> "${STATEFILE}.$$"
+egrep -v "^${ZEVENT_POOL};" "${STATEFILE}" 2>/dev/null > "${STATEFILE}.$$"
+echo "${ZEVENT_POOL};${TIME_NOW}" >> "${STATEFILE}.$$"
 mv -f "${STATEFILE}.$$" "${STATEFILE}"
 
 if test "${MAIL_STATUS}" -ne 0; then
