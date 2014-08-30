@@ -43,7 +43,7 @@ static kmem_cache_t *ddt_entry_cache;
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
  */
-int zfs_dedup_prefetch = 1;
+int zfs_dedup_prefetch = 0;
 
 static const ddt_ops_t *ddt_ops[DDT_TYPES] = {
 	&ddt_zap_ops,
