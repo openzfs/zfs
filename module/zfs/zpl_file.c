@@ -486,14 +486,15 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 {
 	cred_t *cr = CRED();
 	int error = -EOPNOTSUPP;
-
+        int flag = 0;
+#ifdef FALLOC_FL_PUNCH_HOLE
+	flag = mode & FALLOC_FL_PUNCH_HOLE;
+#endif /* FALLOC_FL_PUNCH_HOLE */
 	if (mode & FALLOC_FL_KEEP_SIZE)
 		return (-EOPNOTSUPP);
 
 	crhold(cr);
-
-#ifdef FALLOC_FL_PUNCH_HOLE
-	if (mode & FALLOC_FL_PUNCH_HOLE) {
+        if (mode == 0||flag) {
 		flock64_t bf;
 
 		bf.l_type = F_WRLCK;
@@ -504,7 +505,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 
 		error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
 	}
-#endif /* FALLOC_FL_PUNCH_HOLE */
+
 
 	crfree(cr);
 
