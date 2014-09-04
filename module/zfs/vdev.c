@@ -2655,8 +2655,9 @@ vdev_get_stats(vdev_t *vd, vdev_stat_t *vs)
 	if (vd->vdev_ops->vdev_op_leaf)
 		vs->vs_rsize += VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
 	vs->vs_esize = vd->vdev_max_asize - vd->vdev_asize;
-	if (vd->vdev_aux == NULL && vd == vd->vdev_top)
+	if (vd->vdev_aux == NULL && vd == vd->vdev_top && !vd->vdev_ishole) {
 		vs->vs_fragmentation = vd->vdev_mg->mg_fragmentation;
+	}
 
 	/*
 	 * If we're getting stats on the root vdev, aggregate the I/O counts
