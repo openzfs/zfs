@@ -695,6 +695,11 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		return;
 	}
 
+	if (dn->dn_next_nlevels[txgoff]) {
+		dnode_increase_indirection(dn, tx);
+		dn->dn_next_nlevels[txgoff] = 0;
+	}
+
 	if (dn->dn_next_nblkptr[txgoff]) {
 		/* this should only happen on a realloc */
 		ASSERT(dn->dn_allocated_txg == tx->tx_txg);
@@ -718,11 +723,6 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dnp->dn_nblkptr = dn->dn_next_nblkptr[txgoff];
 		dn->dn_next_nblkptr[txgoff] = 0;
 		mutex_exit(&dn->dn_mtx);
-	}
-
-	if (dn->dn_next_nlevels[txgoff]) {
-		dnode_increase_indirection(dn, tx);
-		dn->dn_next_nlevels[txgoff] = 0;
 	}
 
 	dbuf_sync_list(list, tx);
