@@ -846,6 +846,9 @@ dprintf_setup(int *argc, char **argv)
 	 */
 	if (dprintf_find_string("on"))
 		dprintf_print_all = 1;
+
+	if (dprintf_string != NULL)
+		zfs_flags |= ZFS_DEBUG_DPRINTF;
 }
 
 /*
