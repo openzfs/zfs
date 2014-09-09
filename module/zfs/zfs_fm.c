@@ -309,6 +309,16 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			    FM_EREPORT_PAYLOAD_ZFS_PARENT_TYPE,
 			    DATA_TYPE_STRING, pvd->vdev_ops->vdev_op_type,
 			    NULL);
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ASIZE,
+			    DATA_TYPE_UINT64, pvd->vdev_asize,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_PSIZE,
+			    DATA_TYPE_UINT64, pvd->vdev_psize,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_MIN_ASIZE,
+			    DATA_TYPE_UINT64, pvd->vdev_min_asize,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_MAX_ASIZE,
+			    DATA_TYPE_UINT64, pvd->vdev_max_asize,
+			    NULL);
 			if (pvd->vdev_path)
 				fm_payload_set(ereport,
 				    FM_EREPORT_PAYLOAD_ZFS_PARENT_PATH,
