@@ -1009,7 +1009,7 @@ zfs_rezget(znode_t *zp)
 	}
 
 	if (zp->z_xattr_parent) {
-		iput(ZTOI(zp->z_xattr_parent));
+		zfs_iput_async(ZTOI(zp->z_xattr_parent));
 		zp->z_xattr_parent = NULL;
 	}
 	rw_exit(&zp->z_xattr_lock);
