@@ -633,6 +633,24 @@ Alternate root directory. If set, this directory is prepended to any mount point
 
 .sp
 .LP
+The following property can only be set at import time:
+.sp
+.ne 2
+.mk
+.na
+\fB\fBreadonly\fR=\fBon\fR | \fBoff\fR\fR
+.ad
+.sp .6
+.RS 4n
+If set to \fBon\fR, the pool will be imported in read-only mode: Synchronous data in the intent log will not be accessible, properties of the pool can not be changed and datasets of the pool can only be mounted read-only.  The \fBreadonly\fR property of its datasets will be implicitly set to \fBon\fR.
+
+It can also be specified by its column name of \fBrdonly\fR.
+
+To write to a read-only pool, a export and import of the pool is required.
+.RE
+
+.sp
+.LP
 The following properties can be set at creation time and import time, and later changed with the \fBzpool set\fR command:
 .sp
 .ne 2
