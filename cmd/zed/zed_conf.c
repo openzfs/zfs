@@ -86,6 +86,7 @@ nomem:
 
 /*
  * Destroy the configuration [zcp].
+ *
  * Note: zfs_hdl & zevent_fd are destroyed via zed_event_fini().
  */
 void
@@ -126,8 +127,9 @@ zed_conf_destroy(struct zed_conf *zcp)
 
 /*
  * Display command-line help and exit.
+ *
  * If [got_err] is 0, output to stdout and exit normally;
- *   otherwise, output to stderr and exit with a failure status.
+ * otherwise, output to stderr and exit with a failure status.
  */
 static void
 _zed_conf_display_help(const char *prog, int got_err)
@@ -307,6 +309,7 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 
 /*
  * Parse the configuration file into the configuration [zcp].
+ *
  * FIXME: Not yet implemented.
  */
 void
@@ -318,10 +321,12 @@ zed_conf_parse_file(struct zed_conf *zcp)
 
 /*
  * Scan the [zcp] script_dir for files to exec based on the event class.
- *   Files must be executable by user, but not writable by group or other.
- *   Dotfiles are ignored.
+ * Files must be executable by user, but not writable by group or other.
+ * Dotfiles are ignored.
+ *
  * Return 0 on success with an updated set of scripts,
- *   or -1 on error with errno set.
+ * or -1 on error with errno set.
+ *
  * FIXME: Check if script_dir and all parent dirs are secure.
  */
 int
@@ -430,13 +435,15 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 /*
  * Write the PID file specified in [zcp].
  * Return 0 on success, -1 on error.
+ *
  * This must be called after fork()ing to become a daemon (so the correct PID
- *   is recorded), but before daemonization is complete and the parent process
- *   exits (for synchronization with systemd).
+ * is recorded), but before daemonization is complete and the parent process
+ * exits (for synchronization with systemd).
+ *
  * FIXME: Only update the PID file after verifying the PID previously stored
- *   in the PID file no longer exists or belongs to a foreign process
- *   in order to ensure the daemon cannot be started more than once.
- *   (This check is currently done by zed_conf_open_state().)
+ * in the PID file no longer exists or belongs to a foreign process
+ * in order to ensure the daemon cannot be started more than once.
+ * (This check is currently done by zed_conf_open_state().)
  */
 int
 zed_conf_write_pid(struct zed_conf *zcp)
@@ -497,6 +504,7 @@ zed_conf_write_pid(struct zed_conf *zcp)
 /*
  * Open and lock the [zcp] state_file.
  * Return 0 on success, -1 on error.
+ *
  * FIXME: If state_file exists, verify ownership & permissions.
  * FIXME: Move lock to pid_file instead.
  */
@@ -577,11 +585,9 @@ zed_conf_open_state(struct zed_conf *zcp)
 }
 
 /*
- * Read the opened [zcp] state_file to obtain the eid & etime
- *   of the last event processed.
- * Write the state from the last event to the [eidp] & [etime] args
- *   passed by reference.
- * Note that etime[] is an array of size 2.
+ * Read the opened [zcp] state_file to obtain the eid & etime of the last event
+ * processed.  Write the state from the last event to the [eidp] & [etime] args
+ * passed by reference.  Note that etime[] is an array of size 2.
  * Return 0 on success, -1 on error.
  */
 int
@@ -631,8 +637,7 @@ zed_conf_read_state(struct zed_conf *zcp, uint64_t *eidp, int64_t etime[])
 
 /*
  * Write the [eid] & [etime] of the last processed event to the opened
- *   [zcp] state_file.
- * Note that etime[] is an array of size 2.
+ * [zcp] state_file.  Note that etime[] is an array of size 2.
  * Return 0 on success, -1 on error.
  */
 int

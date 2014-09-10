@@ -86,12 +86,13 @@ zed_event_fini(struct zed_conf *zcp)
 
 /*
  * Seek to the event specified by [saved_eid] and [saved_etime].
- *   This protects against processing a given event more than once.
+ * This protects against processing a given event more than once.
  * Return 0 upon a successful seek to the specified event, or -1 otherwise.
+ *
  * A zevent is considered to be uniquely specified by its (eid,time) tuple.
- *   The unsigned 64b eid is set to 1 when the kernel module is loaded, and
- *   incremented by 1 for each new event.  Since the state file can persist
- *   across a kernel module reload, the time must be checked to ensure a match.
+ * The unsigned 64b eid is set to 1 when the kernel module is loaded, and
+ * incremented by 1 for each new event.  Since the state file can persist
+ * across a kernel module reload, the time must be checked to ensure a match.
  */
 int
 zed_event_seek(struct zed_conf *zcp, uint64_t saved_eid, int64_t saved_etime[])
@@ -427,8 +428,9 @@ _zed_event_value_is_hex(const char *name)
 
 /*
  * Convert the nvpair [nvp] to a string which is added to the environment
- *   of the child process.
+ * of the child process.
  * Return 0 on success, -1 on error.
+ *
  * FIXME: Refactor with cmd/zpool/zpool_main.c:zpool_do_events_nvprint()?
  */
 static void
@@ -639,7 +641,8 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp, const char *fmt, ...)
 
 /*
  * Restrict various environment variables to safe and sane values
- *   when constructing the environment for the child process.
+ * when constructing the environment for the child process.
+ *
  * Reference: Secure Programming Cookbook by Viega & Messier, Section 1.1.
  */
 static void
@@ -669,7 +672,8 @@ _zed_event_add_env_restrict(uint64_t eid, zed_strings_t *zsp)
 
 /*
  * Preserve specified variables from the parent environment
- *   when constructing the environment for the child process.
+ * when constructing the environment for the child process.
+ *
  * Reference: Secure Programming Cookbook by Viega & Messier, Section 1.1.
  */
 static void
@@ -692,9 +696,9 @@ _zed_event_add_env_preserve(uint64_t eid, zed_strings_t *zsp)
 
 /*
  * Compute the "subclass" by removing the first 3 components of [class]
- *   (which seem to always be either "ereport.fs.zfs" or "resource.fs.zfs").
+ * (which seem to always be either "ereport.fs.zfs" or "resource.fs.zfs").
  * Return a pointer inside the string [class], or NULL if insufficient
- *   components exist.
+ * components exist.
  */
 static const char *
 _zed_event_get_subclass(const char *class)
@@ -717,10 +721,10 @@ _zed_event_get_subclass(const char *class)
 
 /*
  * Convert the zevent time from a 2-element array of 64b integers
- *   into a more convenient form:
- * TIME_SECS is the second component of the time.
- * TIME_NSECS is the nanosecond component of the time.
- * TIME_STRING is an almost-RFC3339-compliant string representation.
+ * into a more convenient form:
+ * - TIME_SECS is the second component of the time.
+ * - TIME_NSECS is the nanosecond component of the time.
+ * - TIME_STRING is an almost-RFC3339-compliant string representation.
  */
 static void
 _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
@@ -781,7 +785,7 @@ zed_event_service(struct zed_conf *zcp)
 		zed_log_msg(LOG_WARNING, "Missed %d events", n_dropped);
 		/*
 		 * FIXME: Increase max size of event nvlist in
-		 *   /sys/module/zfs/parameters/zfs_zevent_len_max ?
+		 * /sys/module/zfs/parameters/zfs_zevent_len_max ?
 		 */
 	}
 	if (nvlist_lookup_uint64(nvl, "eid", &eid) != 0) {
