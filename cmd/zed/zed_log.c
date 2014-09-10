@@ -71,7 +71,7 @@ zed_log_fini(void)
 
 /*
  * Create pipe for communicating daemonization status between the parent and
- *   child processes across the double-fork().
+ * child processes across the double-fork().
  */
 void
 zed_log_pipe_open(void)
@@ -87,8 +87,9 @@ zed_log_pipe_open(void)
 
 /*
  * Close the read-half of the daemonize pipe.
+ *
  * This should be called by the child after fork()ing from the parent since
- *   the child will never read from this pipe.
+ * the child will never read from this pipe.
  */
 void
 zed_log_pipe_close_reads(void)
@@ -108,10 +109,12 @@ zed_log_pipe_close_reads(void)
 
 /*
  * Close the write-half of the daemonize pipe.
+ *
  * This should be called by the parent after fork()ing its child since the
- *   parent will never write to this pipe.
+ * parent will never write to this pipe.
+ *
  * This should also be called by the child once initialization is complete
- *   in order to signal the parent that it can safely exit.
+ * in order to signal the parent that it can safely exit.
  */
 void
 zed_log_pipe_close_writes(void)
@@ -131,9 +134,10 @@ zed_log_pipe_close_writes(void)
 
 /*
  * Block on reading from the daemonize pipe until signaled by the child
- *   (via zed_log_pipe_close_writes()) that initialization is complete.
+ * (via zed_log_pipe_close_writes()) that initialization is complete.
+ *
  * This should only be called by the parent while waiting to exit after
- *   fork()ing the child.
+ * fork()ing the child.
  */
 void
 zed_log_pipe_wait(void)
@@ -162,7 +166,7 @@ zed_log_pipe_wait(void)
 
 /*
  * Start logging messages at the syslog [priority] level or higher to stderr.
- *   Refer to syslog(3) for valid priority values.
+ * Refer to syslog(3) for valid priority values.
  */
 void
 zed_log_stderr_open(int priority)
@@ -183,7 +187,7 @@ zed_log_stderr_close(void)
 
 /*
  * Start logging messages to syslog.
- *   Refer to syslog(3) for valid option/facility values.
+ * Refer to syslog(3) for valid option/facility values.
  */
 void
 zed_log_syslog_open(int facility)
@@ -231,7 +235,7 @@ _zed_log_aux(int priority, const char *fmt, va_list vargs)
 
 /*
  * Log a message at the given [priority] level specified by the printf-style
- *   format string [fmt].
+ * format string [fmt].
  */
 void
 zed_log_msg(int priority, const char *fmt, ...)

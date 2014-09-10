@@ -91,11 +91,13 @@ _setup_sig_handlers(void)
 
 /*
  * Lock all current and future pages in the virtual memory address space.
- *   Access to locked pages will never be delayed by a page fault.
+ * Access to locked pages will never be delayed by a page fault.
+ *
  * EAGAIN is tested up to max_tries in case this is a transient error.
+ *
  * Note that memory locks are not inherited by a child created via fork()
- *   and are automatically removed during an execve().  As such, this must
- *   be called after the daemon fork()s (when running in the background).
+ * and are automatically removed during an execve().  As such, this must
+ * be called after the daemon fork()s (when running in the background).
  */
 static void
 _lock_memory(void)
@@ -121,10 +123,11 @@ _lock_memory(void)
 
 /*
  * Start daemonization of the process including the double fork().
+ *
  * The parent process will block here until _finish_daemonize() is called
- *   (in the grandchild process), at which point the parent process will exit.
- *   This prevents the parent process from exiting until initialization is
- *   complete.
+ * (in the grandchild process), at which point the parent process will exit.
+ * This prevents the parent process from exiting until initialization is
+ * complete.
  */
 static void
 _start_daemonize(void)
@@ -182,8 +185,9 @@ _start_daemonize(void)
 
 /*
  * Finish daemonization of the process by closing stdin/stdout/stderr.
+ *
  * This must be called at the end of initialization after all external
- *   communication channels are established and accessible.
+ * communication channels are established and accessible.
  */
 static void
 _finish_daemonize(void)

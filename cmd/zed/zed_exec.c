@@ -41,7 +41,7 @@
 
 /*
  * Create an environment string array for passing to execve() using the
- *   NAME=VALUE strings in container [zsp].
+ * NAME=VALUE strings in container [zsp].
  * Return a newly-allocated environment, or NULL on error.
  */
 static char **
@@ -82,9 +82,10 @@ _zed_exec_create_env(zed_strings_t *zsp)
 
 /*
  * Fork a child process to handle event [eid].  The program [prog]
- *   in directory [dir] is executed with the envionment [env].
+ * in directory [dir] is executed with the envionment [env].
+ *
  * The file descriptor [zfd] is the zevent_fd used to track the
- *   current cursor location within the zevent nvlist.
+ * current cursor location within the zevent nvlist.
  */
 static void
 _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
@@ -156,14 +157,17 @@ restart:
 
 /*
  * Process the event [eid] by synchronously invoking all scripts with a
- *   matching class prefix.
+ * matching class prefix.
+ *
  * Each executable in [scripts] from the directory [dir] is matched against
- *   the event's [class], [subclass], and the "all" class (which matches
- *   all events).  Every script with a matching class prefix is invoked.
- *   The NAME=VALUE strings in [envs] will be passed to the script as
- *   environment variables.
+ * the event's [class], [subclass], and the "all" class (which matches
+ * all events).  Every script with a matching class prefix is invoked.
+ * The NAME=VALUE strings in [envs] will be passed to the script as
+ * environment variables.
+ *
  * The file descriptor [zfd] is the zevent_fd used to track the
- *   current cursor location within the zevent nvlist.
+ * current cursor location within the zevent nvlist.
+ *
  * Return 0 on success, -1 on error.
  */
 int

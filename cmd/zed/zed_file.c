@@ -93,7 +93,7 @@ zed_file_write_n(int fd, void *buf, size_t n)
 /*
  * Set an exclusive advisory lock on the open file descriptor [fd].
  * Return 0 on success, 1 if a conflicting lock is held by another process,
- *   or -1 on error (with errno set).
+ * or -1 on error (with errno set).
  */
 int
 zed_file_lock(int fd)
@@ -144,9 +144,9 @@ zed_file_unlock(int fd)
 
 /*
  * Test whether an exclusive advisory lock could be obtained for the open
- *   file descriptor [fd].
+ * file descriptor [fd].
  * Return 0 if the file is not locked, >0 for the PID of another process
- *   holding a conflicting lock, or -1 on error (with errno set).
+ * holding a conflicting lock, or -1 on error (with errno set).
  */
 pid_t
 zed_file_is_locked(int fd)
@@ -201,8 +201,9 @@ zed_file_close_from(int lowfd)
 
 /*
  * Set the CLOEXEC flag on file descriptor [fd] so it will be automatically
- *   closed upon successful execution of one of the exec functions.
+ * closed upon successful execution of one of the exec functions.
  * Return 0 on success, or -1 on error.
+ *
  * FIXME: No longer needed?
  */
 int
