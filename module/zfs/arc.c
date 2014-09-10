@@ -1434,12 +1434,12 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 }
 
 arc_buf_t *
-arc_buf_alloc(spa_t *spa, int size, void *tag, arc_buf_contents_t type)
+arc_buf_alloc(spa_t *spa, uint64_t size, void *tag, arc_buf_contents_t type)
 {
 	arc_buf_hdr_t *hdr;
 	arc_buf_t *buf;
 
-	ASSERT3U(size, >, 0);
+	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
 	hdr = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
 	ASSERT(BUF_EMPTY(hdr));
 	hdr->b_size = size;
@@ -1477,7 +1477,7 @@ static char *arc_onloan_tag = "onloan";
  * freed.
  */
 arc_buf_t *
-arc_loan_buf(spa_t *spa, int size)
+arc_loan_buf(spa_t *spa, uint64_t size)
 {
 	arc_buf_t *buf;
 
@@ -1837,7 +1837,7 @@ arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 	return (no_callback);
 }
 
-int
+uint64_t
 arc_buf_size(arc_buf_t *buf)
 {
 	return (buf->b_hdr->b_size);
@@ -3306,6 +3306,22 @@ top:
 		boolean_t devw = B_FALSE;
 		enum zio_compress b_compress = ZIO_COMPRESS_OFF;
 		uint64_t b_asize = 0;
+
+		/*
+		 * Gracefully handle a damaged logical block size as a
+		 * checksum error by passing a dummy zio to the done callback.
+		 */
+		if (size > SPA_MAXBLOCKSIZE) {
+			if (done) {
+				rzio = zio_null(pio, spa, NULL,
+				    NULL, NULL, zio_flags);
+				rzio->io_error = ECKSUM;
+				done(rzio, buf, private);
+				zio_nowait(rzio);
+			}
+			rc = ECKSUM;
+			goto out;
+		}
 
 		if (hdr == NULL) {
 			/* this block is not in the cache */
