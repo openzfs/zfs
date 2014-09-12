@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright 2014 HybridCluster. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -107,11 +108,9 @@ dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
 
 int
 dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
-    int blocksize, dmu_object_type_t bonustype, int bonuslen)
+    int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	dnode_t *dn;
-	dmu_tx_t *tx;
-	int nblkptr;
 	int err;
 
 	if (object == DMU_META_DNODE_OBJECT)
@@ -122,44 +121,9 @@ dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	if (err)
 		return (err);
 
-	if (dn->dn_type == ot && dn->dn_datablksz == blocksize &&
-	    dn->dn_bonustype == bonustype && dn->dn_bonuslen == bonuslen) {
-		/* nothing is changing, this is a noop */
-		dnode_rele(dn, FTAG);
-		return (0);
-	}
-
-	if (bonustype == DMU_OT_SA) {
-		nblkptr = 1;
-	} else {
-		nblkptr = 1 + ((DN_MAX_BONUSLEN - bonuslen) >> SPA_BLKPTRSHIFT);
-	}
-
-	/*
-	 * If we are losing blkptrs or changing the block size this must
-	 * be a new file instance.   We must clear out the previous file
-	 * contents before we can change this type of metadata in the dnode.
-	 */
-	if (dn->dn_nblkptr > nblkptr || dn->dn_datablksz != blocksize) {
-		err = dmu_free_long_range(os, object, 0, DMU_OBJECT_END);
-		if (err)
-			goto out;
-	}
-
-	tx = dmu_tx_create(os);
-	dmu_tx_hold_bonus(tx, object);
-	err = dmu_tx_assign(tx, TXG_WAIT);
-	if (err) {
-		dmu_tx_abort(tx);
-		goto out;
-	}
-
 	dnode_reallocate(dn, ot, blocksize, bonustype, bonuslen, tx);
 
-	dmu_tx_commit(tx);
-out:
 	dnode_rele(dn, FTAG);
-
 	return (err);
 }
 
