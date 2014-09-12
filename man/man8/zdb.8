@@ -526,5 +526,10 @@ dedup = 1.11, compress = 1.80, copies = 1.00, dedup * compress / copies = 2.00
 .in -2
 .sp
 
+.SH "ENVIRONMENT VARIABLES"
+.TP
+.B "SPA_CONFIG_PATH"
+Override the default \fBspa_config_path\fR (\fI/etc/zfs/zpool.cache\fR) setting. If \fB-U\fR flag is specified it will override this environment variable settings once again.
+
 .SH "SEE ALSO"
 zfs(8), zpool(8)

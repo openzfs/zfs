@@ -2297,6 +2297,15 @@ An error occurred.
 Invalid command line options were specified.
 .RE
 
+.SH "ENVIRONMENT VARIABLES"
+.TP
+.B "ZFS_ABORT
+Cause \fBzpool\fR to dump core on exit for the purposes of running \fB::findleaks\fR.
+.TP
+.B "ZPOOL_IMPORT_PATH"
+The search path for devices or files to use with the pool. This is a colon-separated list of directories in which \fBzpool\fR looks for device nodes and files.
+Similar to the \fB-d\fR option in \fIzpool import\fR.
+
 .SH SEE ALSO
 .sp
 .LP
