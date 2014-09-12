@@ -1312,21 +1312,15 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(raw, elem)) != NULL) {
-		verify(nvpair_value_nvlist(elem, &src) == 0);
+		src = fnvpair_value_nvlist(elem);
 
-		verify(nvlist_lookup_string(src, ZPOOL_CONFIG_POOL_NAME,
-		    &name) == 0);
+		name = fnvlist_lookup_string(src, ZPOOL_CONFIG_POOL_NAME);
 		if (poolname != NULL && strcmp(poolname, name) != 0)
 			continue;
 
-		verify(nvlist_lookup_uint64(src, ZPOOL_CONFIG_POOL_GUID,
-		    &this_guid) == 0);
-		if (guid != 0) {
-			verify(nvlist_lookup_uint64(src, ZPOOL_CONFIG_POOL_GUID,
-			    &this_guid) == 0);
-			if (guid != this_guid)
-				continue;
-		}
+		this_guid = fnvlist_lookup_uint64(src, ZPOOL_CONFIG_POOL_GUID);
+		if (guid != 0 && guid != this_guid)
+			continue;
 
 		if (pool_active(hdl, name, this_guid, &active) != 0) {
 			nvlist_free(raw);
