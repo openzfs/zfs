@@ -1328,12 +1328,25 @@ backup_byteswap(dmu_replay_record_t *drr)
 #undef DO32
 }
 
+static inline uint8_t
+deduce_nblkptr(dmu_object_type_t bonus_type, uint64_t bonus_size)
+{
+	if (bonus_type == DMU_OT_SA) {
+		return (1);
+	} else {
+		return (1 +
+		    ((DN_MAX_BONUSLEN - bonus_size) >> SPA_BLKPTRSHIFT));
+	}
+}
+
 noinline static int
 restore_object(struct restorearg *ra, objset_t *os, struct drr_object *drro)
 {
-	int err;
+	dmu_object_info_t doi;
 	dmu_tx_t *tx;
 	void *data = NULL;
+	uint64_t object;
+	int err;
 
 	if (drro->drr_type == DMU_OT_NONE ||
 	    !DMU_OT_IS_VALID(drro->drr_type) ||
@@ -1347,10 +1360,11 @@ restore_object(struct restorearg *ra, objset_t *os, struct drr_object *drro)
 		return (SET_ERROR(EINVAL));
 	}
 
-	err = dmu_object_info(os, drro->drr_object, NULL);
+	err = dmu_object_info(os, drro->drr_object, &doi);
 
 	if (err != 0 && err != ENOENT)
 		return (SET_ERROR(EINVAL));
+	object = err == 0 ? drro->drr_object : DMU_NEW_OBJECT;
 
 	if (drro->drr_bonuslen) {
 		data = restore_read(ra, P2ROUNDUP(drro->drr_bonuslen, 8));
@@ -1358,35 +1372,51 @@ restore_object(struct restorearg *ra, objset_t *os, struct drr_object *drro)
 			return (ra->err);
 	}
 
-	if (err == ENOENT) {
-		/* currently free, want to be allocated */
-		tx = dmu_tx_create(os);
-		dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
-		err = dmu_tx_assign(tx, TXG_WAIT);
-		if (err != 0) {
-			dmu_tx_abort(tx);
-			return (err);
+	/*
+	 * If we are losing blkptrs or changing the block size this must
+	 * be a new file instance.  We must clear out the previous file
+	 * contents before we can change this type of metadata in the dnode.
+	 */
+	if (err == 0) {
+		int nblkptr;
+
+		nblkptr = deduce_nblkptr(drro->drr_bonustype,
+		    drro->drr_bonuslen);
+
+		if (drro->drr_blksz != doi.doi_data_block_size ||
+		    nblkptr < doi.doi_nblkptr) {
+			err = dmu_free_long_range(os, drro->drr_object,
+			    0, DMU_OBJECT_END);
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
 		}
-		err = dmu_object_claim(os, drro->drr_object,
-		    drro->drr_type, drro->drr_blksz,
-		    drro->drr_bonustype, drro->drr_bonuslen, tx);
-		dmu_tx_commit(tx);
-	} else {
-		/* currently allocated, want to be allocated */
-		err = dmu_object_reclaim(os, drro->drr_object,
-		    drro->drr_type, drro->drr_blksz,
-		    drro->drr_bonustype, drro->drr_bonuslen);
-	}
-	if (err != 0) {
-		return (SET_ERROR(EINVAL));
 	}
 
 	tx = dmu_tx_create(os);
-	dmu_tx_hold_bonus(tx, drro->drr_object);
+	dmu_tx_hold_bonus(tx, object);
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
 		return (err);
+	}
+
+	if (object == DMU_NEW_OBJECT) {
+		/* currently free, want to be allocated */
+		err = dmu_object_claim(os, drro->drr_object,
+		    drro->drr_type, drro->drr_blksz,
+		    drro->drr_bonustype, drro->drr_bonuslen, tx);
+	} else if (drro->drr_type != doi.doi_type ||
+	    drro->drr_blksz != doi.doi_data_block_size ||
+	    drro->drr_bonustype != doi.doi_bonus_type ||
+	    drro->drr_bonuslen != doi.doi_bonus_size) {
+		/* currently allocated, but with different properties */
+		err = dmu_object_reclaim(os, drro->drr_object,
+		    drro->drr_type, drro->drr_blksz,
+		    drro->drr_bonustype, drro->drr_bonuslen, tx);
+	}
+	if (err != 0) {
+		dmu_tx_commit(tx);
+		return (SET_ERROR(EINVAL));
 	}
 
 	dmu_object_set_checksum(os, drro->drr_object, drro->drr_checksumtype,
