@@ -44,6 +44,7 @@
  */
 #ifdef _KERNEL
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <sys/uio_impl.h>
 

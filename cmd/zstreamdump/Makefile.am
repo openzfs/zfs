@@ -16,4 +16,4 @@ zstreamdump_LDADD = \
 	$(top_builddir)/lib/libzfs/libzfs.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 
-zstreamdump_LDADD += $(ZLIB)
+zstreamdump_LDADD += $(ZLIB) $(TIRPC_LIBS)

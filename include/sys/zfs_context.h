@@ -118,6 +118,10 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 
+#ifndef RLIM64_INFINITY
+#define RLIM64_INFINITY (~0ULL)
+#endif 
+
 /*
  * Stack
  */
@@ -614,7 +618,7 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID	((long long)pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
