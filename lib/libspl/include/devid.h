@@ -28,6 +28,7 @@
 #define	_LIBSPL_DEVID_H
 
 #include <stdlib.h>
+#include <sys/types.h>
 
 typedef int ddi_devid_t;
 
