@@ -1864,6 +1864,15 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 	mutex_enter(&msp->ms_lock);
 
+	/*
+	 * Note: metaslab_condense() clears the space_map's histogram.
+	 * Therefore we muse verify and remove this histogram before
+	 * condensing.
+	 */
+	metaslab_group_histogram_verify(mg);
+	metaslab_class_histogram_verify(mg->mg_class);
+	metaslab_group_histogram_remove(mg, msp);
+
 	if (msp->ms_loaded && spa_sync_pass(spa) == 1 &&
 	    metaslab_should_condense(msp)) {
 		metaslab_condense(msp, txg, tx);
@@ -1872,9 +1881,6 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		space_map_write(msp->ms_sm, *freetree, SM_FREE, tx);
 	}
 
-	metaslab_group_histogram_verify(mg);
-	metaslab_class_histogram_verify(mg->mg_class);
-	metaslab_group_histogram_remove(mg, msp);
 	if (msp->ms_loaded) {
 		/*
 		 * When the space map is loaded, we have an accruate

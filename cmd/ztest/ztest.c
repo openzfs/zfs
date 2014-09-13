@@ -998,7 +998,7 @@ ztest_random_spa_version(uint64_t initial_version)
  * Find the largest ashift used
  */
 static uint64_t
-ztest_spa_get_ashift() {
+ztest_spa_get_ashift(void) {
 	uint64_t i;
 	uint64_t ashift = SPA_MINBLOCKSHIFT;
 	vdev_t *rvd = ztest_spa->spa_root_vdev;
