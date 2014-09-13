@@ -61,4 +61,8 @@
 #define	PAGESIZE		PAGE_SIZE
 #endif
 
+#ifndef HZ
+#define HZ 100
+#endif
+
 #endif
