@@ -58,7 +58,7 @@
 #define	MAXPROJID	MAXUID		/* max project id */
 
 #ifndef	PAGESIZE
-#define	PAGESIZE	(sysconf(_SC_PAGESIZE))
-#endif /* PAGESIZE */
+#define	PAGESIZE		PAGE_SIZE
+#endif
 
 #endif
