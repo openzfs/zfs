@@ -67,7 +67,7 @@ int zfs_condense_pct = 200;
 /*
  * Condensing a metaslab is not guaranteed to actually reduce the amount of
  * space used on disk. In particular, a space map uses data in increments of
- * MAX(1 << ashift, SPACE_MAP_INITIAL_BLOCKSIZE), so a metaslab might use the
+ * MAX(1 << ashift, space_map_blksz), so a metaslab might use the
  * same number of blocks after condensing. Since the goal of condensing is to
  * reduce the number of IOPs required to read the space map, we only want to
  * condense when we can be sure we will reduce the number of blocks used by the
@@ -1864,6 +1864,15 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 	mutex_enter(&msp->ms_lock);
 
+	/*
+	 * Note: metaslab_condense() clears the space_map's histogram.
+	 * Therefore we muse verify and remove this histogram before
+	 * condensing.
+	 */
+	metaslab_group_histogram_verify(mg);
+	metaslab_class_histogram_verify(mg->mg_class);
+	metaslab_group_histogram_remove(mg, msp);
+
 	if (msp->ms_loaded && spa_sync_pass(spa) == 1 &&
 	    metaslab_should_condense(msp)) {
 		metaslab_condense(msp, txg, tx);
@@ -1872,9 +1881,6 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		space_map_write(msp->ms_sm, *freetree, SM_FREE, tx);
 	}
 
-	metaslab_group_histogram_verify(mg);
-	metaslab_class_histogram_verify(mg->mg_class);
-	metaslab_group_histogram_remove(mg, msp);
 	if (msp->ms_loaded) {
 		/*
 		 * When the space map is loaded, we have an accruate
