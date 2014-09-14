@@ -2365,7 +2365,7 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 
 	spl_slab_reclaim(skc, count, 1);
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
-	smp_mb__after_clear_bit();
+	smp_wmb();
 	wake_up_bit(&skc->skc_flags, KMC_BIT_REAPING);
 out:
 	atomic_dec(&skc->skc_ref);
