@@ -118,6 +118,10 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 
+#ifndef RLIM64_INFINITY
+#define RLIM64_INFINITY (~0ULL)
+#endif 
+
 /*
  * Stack
  */
