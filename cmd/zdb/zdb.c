@@ -75,8 +75,10 @@
 
 #ifndef lint
 extern int zfs_recover;
+extern uint64_t zfs_arc_max, zfs_arc_meta_limit;
 #else
 int zfs_recover;
+uint64_t zfs_arc_max, zfs_arc_meta_limit;
 #endif
 
 const char cmdname[] = "zdb";
@@ -88,7 +90,7 @@ extern void dump_intent_log(zilog_t *);
 uint64_t *zopt_object = NULL;
 int zopt_objects = 0;
 libzfs_handle_t *g_zfs;
-uint64_t max_inflight = 200;
+uint64_t max_inflight = 1000;
 
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
@@ -2390,7 +2392,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	zcb->zcb_readfails = 0;
 
-	if (dump_opt['b'] < 5 && isatty(STDERR_FILENO) &&
+	if (dump_opt['b'] < 5 &&
 	    gethrtime() > zcb->zcb_lastprint + NANOSEC) {
 		uint64_t now = gethrtime();
 		char buf[10];
@@ -2473,7 +2475,7 @@ static void
 zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 {
 	zcb->zcb_spa = spa;
-	int c, m;
+	uint64_t c, m;
 
 	if (!dump_opt['L']) {
 		vdev_t *rvd = spa->spa_root_vdev;
@@ -2492,6 +2494,15 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 				 * interfaces.
 				 */
 				if (msp->ms_sm != NULL) {
+					(void) fprintf(stderr,
+					    "\rloading space map for "
+					    "vdev %llu of %llu, "
+					    "metaslab %llu of %llu ...",
+					    (longlong_t)c,
+					    (longlong_t)rvd->vdev_children,
+					    (longlong_t)m,
+					    (longlong_t)vd->vdev_ms_count);
+
 					msp->ms_ops = &zdb_metaslab_ops;
 					VERIFY0(space_map_load(msp->ms_sm,
 					    msp->ms_tree, SM_ALLOC));
@@ -2500,6 +2511,7 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 				mutex_exit(&msp->ms_lock);
 			}
 		}
+		(void) fprintf(stderr, "\n");
 	}
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
@@ -3502,6 +3514,12 @@ main(int argc, char **argv)
 		(void) fprintf(stderr, "-p option requires use of -e\n");
 		usage();
 	}
+
+	/*
+	 * ZDB does not typically re-read blocks; therefore limit the ARC
+	 * to 256 MB, which can be used entirely for metadata.
+	 */
+	zfs_arc_max = zfs_arc_meta_limit = 256 * 1024 * 1024;
 
 	kernel_init(FREAD);
 	if ((g_zfs = libzfs_init()) == NULL)
