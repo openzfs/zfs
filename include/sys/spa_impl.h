@@ -204,7 +204,8 @@ struct spa {
 	uint64_t	spa_failmode;		/* failure mode for the pool */
 	uint64_t	spa_delegation;		/* delegation on/off */
 	list_t		spa_config_list;	/* previous cache file(s) */
-	zio_t		*spa_async_zio_root;	/* root of all async I/O */
+	/* per-CPU array of root of async I/O: */
+	zio_t		**spa_async_zio_root;
 	zio_t		*spa_suspend_zio_root;	/* root of all suspended I/O */
 	kmutex_t	spa_suspend_lock;	/* protects suspend_zio_root */
 	kcondvar_t	spa_suspend_cv;		/* notification of resume */

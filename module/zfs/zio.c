@@ -1474,7 +1474,7 @@ zio_nowait(zio_t *zio)
 		 */
 		spa_t *spa = zio->io_spa;
 
-		zio_add_child(spa->spa_async_zio_root, zio);
+		zio_add_child(spa->spa_async_zio_root[CPU_SEQID], zio);
 	}
 
 	__zio_execute(zio);
