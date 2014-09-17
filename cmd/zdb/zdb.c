@@ -2565,7 +2565,7 @@ dump_block_stats(spa_t *spa)
 	uint64_t norm_alloc, norm_space, total_alloc, total_found;
 	int flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_HARD;
 	boolean_t leaks = B_FALSE;
-	int e;
+	int e, c;
 	bp_embedded_type_t i;
 
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
@@ -2614,10 +2614,12 @@ dump_block_stats(spa_t *spa)
 	 * all async I/Os to complete.
 	 */
 	if (dump_opt['c']) {
-		(void) zio_wait(spa->spa_async_zio_root);
-		spa->spa_async_zio_root = zio_root(spa, NULL, NULL,
-		    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE |
-		    ZIO_FLAG_GODFATHER);
+		for (c = 0; c < max_ncpus; c++) {
+			(void) zio_wait(spa->spa_async_zio_root[c]);
+			spa->spa_async_zio_root[c] = zio_root(spa, NULL, NULL,
+			    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE |
+			    ZIO_FLAG_GODFATHER);
+		}
 	}
 
 	if (zcb.zcb_haderrors) {
