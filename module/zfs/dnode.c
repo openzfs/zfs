@@ -1902,6 +1902,15 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 		    flags, offset, lvl, blkfill, txg);
 	}
 
+	/*
+	 * There's always a "virtual hole" at the end of the object, even
+	 * if all BP's which physically exist are non-holes.
+	 */
+	if ((flags & DNODE_FIND_HOLE) && error == ESRCH && txg == 0 &&
+	    minlvl == 1 && blkfill == 1 && !(flags & DNODE_FIND_BACKWARDS)) {
+		error = 0;
+	}
+
 	if (error == 0 && (flags & DNODE_FIND_BACKWARDS ?
 	    initial_offset < *offset : initial_offset > *offset))
 		error = SET_ERROR(ESRCH);
