@@ -814,7 +814,7 @@ zed_event_service(struct zed_conf *zcp)
 		_zed_event_add_var(eid, zsp, "%s%s=%d",
 		    ZED_VAR_PREFIX, "PID", (int) getpid());
 		_zed_event_add_var(eid, zsp, "%s%s=%s",
-		    ZED_VAR_PREFIX, "SCRIPT_DIR", zcp->script_dir);
+		    ZED_VAR_PREFIX, "ZEDLET_DIR", zcp->zedlet_dir);
 
 		subclass = _zed_event_get_subclass(class);
 		_zed_event_add_var(eid, zsp, "%s%s=%s",
@@ -823,7 +823,7 @@ zed_event_service(struct zed_conf *zcp)
 		_zed_event_add_time_strings(eid, zsp, etime);
 
 		zed_exec_process(eid, class, subclass,
-		    zcp->script_dir, zcp->scripts, zsp, zcp->zevent_fd);
+		    zcp->zedlet_dir, zcp->zedlets, zsp, zcp->zevent_fd);
 
 		zed_conf_write_state(zcp, eid, etime);
 
