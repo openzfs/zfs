@@ -14,7 +14,7 @@
 # State File Format:
 #   POOL;TIME_OF_LAST_EMAIL
 #
-test -f "${ZED_SCRIPT_DIR}/zed.rc" && . "${ZED_SCRIPT_DIR}/zed.rc"
+test -f "${ZED_ZEDLET_DIR}/zed.rc" && . "${ZED_ZEDLET_DIR}/zed.rc"
 
 test -n "${ZEVENT_POOL}" || exit 5
 test -n "${ZEVENT_SUBCLASS}" || exit 5

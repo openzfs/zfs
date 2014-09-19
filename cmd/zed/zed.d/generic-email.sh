@@ -12,7 +12,7 @@
 #   2: email suppressed
 #   3: missing executable
 #
-test -f "${ZED_SCRIPT_DIR}/zed.rc" && . "${ZED_SCRIPT_DIR}/zed.rc"
+test -f "${ZED_ZEDLET_DIR}/zed.rc" && . "${ZED_ZEDLET_DIR}/zed.rc"
 
 # Only send email if ZED_EMAIL has been configured.
 test -n "${ZED_EMAIL}" || exit 2
