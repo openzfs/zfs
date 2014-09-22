@@ -920,12 +920,7 @@ zil_lwb_write_init(zilog_t *zilog, lwb_t *lwb)
 	}
 
 	/* Lock so zil_sync() doesn't fastwrite_unmark after zio is created */
-	mutex_enter(&zilog->zl_lock);
 	if (lwb->lwb_zio == NULL) {
-		if (!lwb->lwb_fastwrite) {
-			metaslab_fastwrite_mark(zilog->zl_spa, &lwb->lwb_blk);
-			lwb->lwb_fastwrite = 1;
-		}
 		lwb->lwb_zio = zio_rewrite(zilog->zl_root_zio, zilog->zl_spa,
 		    0, &lwb->lwb_blk, lwb->lwb_buf, BP_GET_LSIZE(&lwb->lwb_blk),
 		    zil_lwb_write_done, lwb, ZIO_PRIORITY_SYNC_WRITE,
