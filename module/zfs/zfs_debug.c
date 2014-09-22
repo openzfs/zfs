@@ -133,10 +133,15 @@ zfs_dbgmsg_fini(void)
 #if !defined(_KERNEL) || !defined(__linux__)
 /*
  * Print these messages by running:
- * echo ::zfs_dbgmsg | mdb -k
  *
- * Monitor these messages by running:
- * 	dtrace -q -n 'zfs-dbgmsg{printf("%s\n", stringof(arg0))}'
+ * 1. To get the base of the log file
+ *    cat /proc/sys/kernel/spl/debug/path
+ *
+ * 2. Trigger a dump of all messages
+ *    echo -1 > /proc/sys/kernel/spl/debug/dump
+ *
+ * Convert the dump into text file
+ *    <splsrcdir>/cmd/spl /tmp/spl-log.* /tmp/spl.txt
  */
 void
 zfs_dbgmsg(const char *fmt, ...)
