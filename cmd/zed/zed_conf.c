@@ -51,11 +51,9 @@ zed_conf_create(void)
 {
 	struct zed_conf *zcp;
 
-	zcp = malloc(sizeof (*zcp));
+	zcp = calloc(1, sizeof (*zcp));
 	if (!zcp)
 		goto nomem;
-
-	memset(zcp, 0, sizeof (*zcp));
 
 	zcp->syslog_facility = LOG_DAEMON;
 	zcp->min_events = ZED_MIN_EVENTS;
