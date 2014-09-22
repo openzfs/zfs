@@ -65,6 +65,21 @@ uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
 int zfs_condense_pct = 200;
 
 /*
+ * Condensing a metaslab is not guaranteed to actually reduce the amount of
+ * space used on disk. In particular, a space map uses data in increments of
+ * MAX(1 << ashift, SPACE_MAP_INITIAL_BLOCKSIZE), so a metaslab might use the
+ * same number of blocks after condensing. Since the goal of condensing is to
+ * reduce the number of IOPs required to read the space map, we only want to
+ * condense when we can be sure we will reduce the number of blocks used by the
+ * space map. Unfortunately, we cannot precisely compute whether or not this is
+ * the case in metaslab_should_condense since we are holding ms_lock. Instead,
+ * we apply the following heuristic: do not condense a spacemap unless the
+ * uncondensed size consumes greater than zfs_metaslab_condense_block_threshold
+ * blocks.
+ */
+int zfs_metaslab_condense_block_threshold = 4;
+
+/*
  * The zfs_mg_noalloc_threshold defines which metaslab groups should
  * be eligible for allocation. The value is defined as a percentage of
  * free space. Metaslab groups that have more free space than
@@ -1633,6 +1648,8 @@ metaslab_group_preload(metaslab_group_t *mg)
  * times the size than the free space range tree representation
  * (i.e. zfs_condense_pct = 110 and in-core = 1MB, minimal = 1.1.MB).
  *
+ * 3. The on-disk size of the space map should actually decrease.
+ *
  * Checking the first condition is tricky since we don't want to walk
  * the entire AVL tree calculating the estimated on-disk size. Instead we
  * use the size-ordered range tree in the metaslab and calculate the
@@ -1643,13 +1660,21 @@ metaslab_group_preload(metaslab_group_t *mg)
  * To determine the second criterion we use a best-case estimate and assume
  * each segment can be represented on-disk as a single 64-bit entry. We refer
  * to this best-case estimate as the space map's minimal form.
+ *
+ * Unfortunately, we cannot compute the on-disk size of the space map in this
+ * context because we cannot accurately compute the effects of compression, etc.
+ * Instead, we apply the heuristic described in the block comment for
+ * zfs_metaslab_condense_block_threshold - we only condense if the space used
+ * is greater than a threshold number of blocks.
  */
 static boolean_t
 metaslab_should_condense(metaslab_t *msp)
 {
 	space_map_t *sm = msp->ms_sm;
 	range_seg_t *rs;
-	uint64_t size, entries, segsz;
+	uint64_t size, entries, segsz, object_size, optimal_size, record_size;
+	dmu_object_info_t doi;
+	uint64_t vdev_blocksize = 1 << msp->ms_group->mg_vd->vdev_ashift;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loaded);
@@ -1674,9 +1699,15 @@ metaslab_should_condense(metaslab_t *msp)
 	entries = size / (MIN(size, SM_RUN_MAX));
 	segsz = entries * sizeof (uint64_t);
 
-	return (segsz <= space_map_length(msp->ms_sm) &&
-	    space_map_length(msp->ms_sm) >= (zfs_condense_pct *
-	    sizeof (uint64_t) * avl_numnodes(&msp->ms_tree->rt_root)) / 100);
+	optimal_size = sizeof (uint64_t) * avl_numnodes(&msp->ms_tree->rt_root);
+	object_size = space_map_length(msp->ms_sm);
+
+	dmu_object_info_from_db(sm->sm_dbuf, &doi);
+	record_size = MAX(doi.doi_data_block_size, vdev_blocksize);
+
+	return (segsz <= object_size &&
+	    object_size >= (optimal_size * zfs_condense_pct / 100) &&
+	    object_size > zfs_metaslab_condense_block_threshold * record_size);
 }
 
 /*
