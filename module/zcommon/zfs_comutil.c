@@ -215,7 +215,7 @@ const char *zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS] = {
  * interval:	Interval time in seconds
  */
 void
-zfs_ratelimit_init(zfs_ratelimit_t *rl, unsigned int burst,
+zfs_ratelimit_init(zfs_ratelimit_t *rl, unsigned int *burst,
     unsigned int interval)
 {
 	rl->count = 0;
@@ -270,7 +270,7 @@ zfs_ratelimit(zfs_ratelimit_t *rl)
 		rl->start = now;
 		rl->count = 0;
 	} else {
-		if (rl->count >= rl->burst) {
+		if (rl->count >= *rl->burst) {
 			rc = 0;	/* We're ratelimiting */
 		}
 	}

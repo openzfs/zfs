@@ -60,9 +60,15 @@ dist_zpoolexec_SCRIPTS = \
 	zpool.d/pend_sec \
 	zpool.d/off_ucor \
 	zpool.d/ata_err \
+	zpool.d/nvme_err \
 	zpool.d/pwr_cyc \
 	zpool.d/upath \
-	zpool.d/vendor
+	zpool.d/vendor \
+	zpool.d/smart_test \
+	zpool.d/test_type \
+	zpool.d/test_status \
+	zpool.d/test_progress \
+	zpool.d/test_ended
 
 zpoolconfdefaults = \
 	enc \
@@ -98,9 +104,15 @@ zpoolconfdefaults = \
 	pend_sec \
 	off_ucor \
 	ata_err \
+	nvme_err \
 	pwr_cyc \
 	upath \
-	vendor
+	vendor \
+	smart_test \
+	test_type \
+	test_status \
+	test_progress \
+	test_ended
 
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zpoolconfdir)"

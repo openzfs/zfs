@@ -767,7 +767,11 @@ function zero_partitions #<whole_disk_name>
 	typeset i
 
 	if is_linux; then
-		log_must parted $DEV_DSKDIR/$diskname -s -- mklabel gpt
+		DSK=$DEV_DSKDIR/$diskname
+		DSK=$(echo $DSK | sed -e "s|//|/|g")
+		log_must parted $DSK -s -- mklabel gpt
+		blockdev --rereadpt $DSK 2>/dev/null
+		block_device_wait
 	else
 		for i in 0 1 3 4 5 6 7
 		do
@@ -795,10 +799,11 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 	typeset start=$2
 	typeset size=$3
 	typeset disk=$4
-	[[ -z $slicenum || -z $size || -z $disk ]] && \
-	    log_fail "The slice, size or disk name is unspecified."
 
 	if is_linux; then
+		if [[ -z $size || -z $disk ]]; then
+			log_fail "The size or disk name is unspecified."
+		fi
 		typeset size_mb=${size%%[mMgG]}
 
 		size_mb=${size_mb%%[mMgG][bB]}
@@ -841,6 +846,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
 		block_device_wait
 	else
+		if [[ -z $slicenum || -z $size || -z $disk ]]; then
+			log_fail "The slice, size or disk name is unspecified."
+		fi
+
 		typeset format_file=/var/tmp/format_in.$$
 
 		echo "partition" >$format_file
@@ -3340,8 +3349,31 @@ function wait_replacing #pool
 }
 
 #
+# Wait for a pool to be scrubbed
+#
+# $1 pool name
+# $2 number of seconds to wait (optional)
+#
+# Returns true when pool has been scrubbed, or false if there's a timeout or if
+# no scrub was done.
+#
+function wait_scrubbed
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset iter=${2:-10}
+	for i in {1..$iter} ; do
+		if is_pool_scrubbed $pool ; then
+			return 0
+		fi
+		sleep 1
+	done
+	return 1
+}
+
+#
 # Setup custom environment for the ZED.
 #
+# $@ Optional list of zedlets to run under zed.
 function zed_setup
 {
 	if ! is_linux; then
@@ -3359,6 +3391,7 @@ function zed_setup
 	if [[ -e $VDEVID_CONF_ETC ]]; then
 		log_fail "Must not have $VDEVID_CONF_ETC file present on system"
 	fi
+	EXTRA_ZEDLETS=$@
 
 	# Create a symlink for /etc/zfs/vdev_id.conf file.
 	log_must ln -s $VDEVID_CONF $VDEVID_CONF_ETC
@@ -3368,32 +3401,44 @@ function zed_setup
 	log_must cp ${ZEDLET_ETC_DIR}/zed.rc $ZEDLET_DIR
 	log_must cp ${ZEDLET_ETC_DIR}/zed-functions.sh $ZEDLET_DIR
 
+	# Scripts must only be user writable.
+	if [[ -n "$EXTRA_ZEDLETS" ]] ; then
+		saved_umask=$(umask)
+		log_must umask 0022
+		for i in $EXTRA_ZEDLETS ; do
+			log_must cp ${ZEDLET_LIBEXEC_DIR}/$i $ZEDLET_DIR
+		done
+		log_must umask $saved_umask
+	fi
+
 	# Customize the zed.rc file to enable the full debug log.
 	log_must sed -i '/\#ZED_DEBUG_LOG=.*/d' $ZEDLET_DIR/zed.rc
 	echo "ZED_DEBUG_LOG=$ZED_DEBUG_LOG" >>$ZEDLET_DIR/zed.rc
 
-	# Scripts must only be user writable.
-	saved_umask=$(umask)
-	log_must umask 0022
-	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-syslog.sh $ZEDLET_DIR
-	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-debug.sh $ZEDLET_DIR
-	log_must umask $saved_umask
 }
 
 #
 # Cleanup custom ZED environment.
 #
+# $@ Optional list of zedlets to remove from our test zed.d directory.
 function zed_cleanup
 {
 	if ! is_linux; then
 		return
 	fi
+	EXTRA_ZEDLETS=$@
 
 	log_must rm -f ${ZEDLET_DIR}/zed.rc
 	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
 	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
 	log_must rm -f ${ZEDLET_DIR}/all-debug.sh
 	log_must rm -f ${ZEDLET_DIR}/state
+
+	if [[ -n "$EXTRA_ZEDLETS" ]] ; then
+		for i in $EXTRA_ZEDLETS ; do
+			log_must rm -f ${ZEDLET_DIR}/$i
+		done
+	fi
 	log_must rm -f $ZED_LOG
 	log_must rm -f $ZED_DEBUG_LOG
 	log_must rm -f $VDEVID_CONF_ETC
@@ -3425,7 +3470,7 @@ function zed_start
 	# run ZED in the background and redirect foreground logging
 	# output to $ZED_LOG.
 	log_must truncate -s 0 $ZED_DEBUG_LOG
-	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
+	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
 	    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 
 	return 0
@@ -3597,4 +3642,20 @@ function get_tunable_impl
 	esac
 
 	return 1
+}
+
+#
+# Get actual devices used by the pool (i.e. linux sdb1 not sdb).
+#
+function get_pool_devices #testpool #devdir
+{
+	typeset testpool=$1
+	typeset devdir=$2
+	typeset out=""
+
+	if is_linux; then
+		out=$(zpool status -P $testpool |grep ${devdir} | awk '{print $1}')
+		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
+	fi
+	echo $out
 }

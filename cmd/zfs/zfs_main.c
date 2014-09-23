@@ -6072,7 +6072,7 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 
 		(void) fprintf(stderr, gettext("cannot %s '%s': "
 		    "Contains partially-completed state from "
-		    "\"zfs receive -r\", which can be resumed with "
+		    "\"zfs receive -s\", which can be resumed with "
 		    "\"zfs send -t\"\n"),
 		    cmdname, zfs_get_name(zhp));
 		return (1);

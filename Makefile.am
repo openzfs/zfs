@@ -23,16 +23,18 @@ EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE
 
+@CODE_COVERAGE_RULES@
+
 distclean-local::
 	-$(RM) -R autom4te*.cache
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
 		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
-		-o -name '.*.rej' -o -name '.script-config' -o -size 0 \
-		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \
-		-o -name 'Makefile' -o -name 'Module.symvers' \
-		-o -name '*.order' -o -name '*.markers' \) \
+		-o -name '.*.rej' -o -size 0 -o -name '*%' -o -name '.*.cmd' \
+		-o -name 'core' -o -name 'Makefile' -o -name 'Module.symvers' \
+		-o -name '*.order' -o -name '*.markers' -o -name '*.gcda' \
+		-o -name '*.gcno' \) \
 		-type f -print | xargs $(RM)
 
 dist-hook:

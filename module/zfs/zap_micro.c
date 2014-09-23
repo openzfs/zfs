@@ -363,6 +363,41 @@ mze_find_unused_cd(zap_t *zap, uint64_t hash)
 	return (cd);
 }
 
+/*
+ * Each mzap entry requires at max : 4 chunks
+ * 3 chunks for names + 1 chunk for value.
+ */
+#define	MZAP_ENT_CHUNKS	(1 + ZAP_LEAF_ARRAY_NCHUNKS(MZAP_NAME_LEN) + \
+	ZAP_LEAF_ARRAY_NCHUNKS(sizeof (uint64_t)))
+
+/*
+ * Check if the current entry keeps the colliding entries under the fatzap leaf
+ * size.
+ */
+static boolean_t
+mze_canfit_fzap_leaf(zap_name_t *zn, uint64_t hash)
+{
+	zap_t *zap = zn->zn_zap;
+	mzap_ent_t mze_tofind;
+	mzap_ent_t *mze;
+	avl_index_t idx;
+	avl_tree_t *avl = &zap->zap_m.zap_avl;
+	uint32_t mzap_ents = 0;
+
+	mze_tofind.mze_hash = hash;
+	mze_tofind.mze_cd = 0;
+
+	for (mze = avl_find(avl, &mze_tofind, &idx);
+	    mze && mze->mze_hash == hash; mze = AVL_NEXT(avl, mze)) {
+		mzap_ents++;
+	}
+
+	/* Include the new entry being added */
+	mzap_ents++;
+
+	return (ZAP_LEAF_NUMCHUNKS_DEF > (mzap_ents * MZAP_ENT_CHUNKS));
+}
+
 static void
 mze_remove(zap_t *zap, mzap_ent_t *mze)
 {
@@ -1191,7 +1226,8 @@ zap_add_impl(zap_t *zap, const char *key,
 		err = fzap_add(zn, integer_size, num_integers, val, tag, tx);
 		zap = zn->zn_zap;	/* fzap_add() may change zap */
 	} else if (integer_size != 8 || num_integers != 1 ||
-	    strlen(key) >= MZAP_NAME_LEN) {
+	    strlen(key) >= MZAP_NAME_LEN ||
+	    !mze_canfit_fzap_leaf(zn, zn->zn_hash)) {
 		err = mzap_upgrade(&zn->zn_zap, tag, tx, 0);
 		if (err == 0) {
 			err = fzap_add(zn, integer_size, num_integers, val,

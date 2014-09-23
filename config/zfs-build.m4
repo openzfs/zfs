@@ -6,35 +6,74 @@ AC_DEFUN([ZFS_AC_LICENSE], [
 	AC_MSG_RESULT([$ZFS_META_LICENSE])
 ])
 
+AC_DEFUN([ZFS_AC_DEBUG_ENABLE], [
+	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
+	HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG -Werror"
+	DEBUG_CFLAGS="-DDEBUG -Werror"
+	DEBUG_STACKFLAGS="-fstack-check"
+	DEBUG_ZFS="_with_debug"
+	AC_DEFINE(ZFS_DEBUG, 1, [zfs debugging enabled])
+])
+
+AC_DEFUN([ZFS_AC_DEBUG_DISABLE], [
+	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
+	HOSTCFLAGS="${HOSTCFLAGS} -DNDEBUG "
+	DEBUG_CFLAGS="-DNDEBUG"
+	DEBUG_STACKFLAGS=""
+	DEBUG_ZFS="_without_debug"
+])
+
 AC_DEFUN([ZFS_AC_DEBUG], [
-	AC_MSG_CHECKING([whether debugging is enabled])
+	AC_MSG_CHECKING([whether assertion support will be enabled])
 	AC_ARG_ENABLE([debug],
 		[AS_HELP_STRING([--enable-debug],
-		[Enable generic debug support @<:@default=no@:>@])],
+		[Enable assertion support @<:@default=no@:>@])],
 		[],
 		[enable_debug=no])
 
-	AS_IF([test "x$enable_debug" = xyes],
-	[
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
-		HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG -Werror"
-		DEBUG_CFLAGS="-DDEBUG -Werror"
-		DEBUG_STACKFLAGS="-fstack-check"
-		DEBUG_ZFS="_with_debug"
-		AC_DEFINE(ZFS_DEBUG, 1, [zfs debugging enabled])
-	],
-	[
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
-		HOSTCFLAGS="${HOSTCFLAGS} -DNDEBUG "
-		DEBUG_CFLAGS="-DNDEBUG"
-		DEBUG_STACKFLAGS=""
-		DEBUG_ZFS="_without_debug"
-	])
+	AS_CASE(["x$enable_debug"],
+		["xyes"],
+		[ZFS_AC_DEBUG_ENABLE],
+		["xno"],
+		[ZFS_AC_DEBUG_DISABLE],
+		[AC_MSG_ERROR([Unknown option $enable_debug])])
 
-	AC_SUBST(DEBUG_CFLAGS)
 	AC_SUBST(DEBUG_STACKFLAGS)
 	AC_SUBST(DEBUG_ZFS)
 	AC_MSG_RESULT([$enable_debug])
+])
+
+AC_DEFUN([ZFS_AC_DEBUGINFO_KERNEL], [
+	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS CONFIG_DEBUG_INFO=y"
+	KERNELCPPFLAGS="${KERNELCPPFLAGS} -fno-inline"
+])
+
+AC_DEFUN([ZFS_AC_DEBUGINFO_USER], [
+	DEBUG_CFLAGS="${DEBUG_CFLAGS} -g -fno-inline"
+])
+
+AC_DEFUN([ZFS_AC_DEBUGINFO], [
+	AC_MSG_CHECKING([whether debuginfo support will be forced])
+	AC_ARG_ENABLE([debuginfo],
+		[AS_HELP_STRING([--enable-debuginfo],
+		[Force generation of debuginfo @<:@default=no@:>@])],
+		[],
+		[enable_debuginfo=no])
+
+	AS_CASE(["x$enable_debuginfo"],
+		["xyes"],
+		[ZFS_AC_DEBUGINFO_KERNEL
+		ZFS_AC_DEBUGINFO_USER],
+		["xkernel"],
+		[ZFS_AC_DEBUGINFO_KERNEL],
+		["xuser"],
+		[ZFS_AC_DEBUGINFO_USER],
+		["xno"],
+		[],
+		[AC_MSG_ERROR([Unknown option $enable_debug])])
+
+	AC_SUBST(DEBUG_CFLAGS)
+	AC_MSG_RESULT([$enable_debuginfo])
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
@@ -121,9 +160,24 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1"'
-	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)" $(DEFINE_INITRAMFS)'
+	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)" $(DEFINE_INITRAMFS) $(DEFINE_SYSTEMD)'
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)" --define "require_spldir $(SPL)" --define "require_splobj $(SPL_OBJ)" --define "ksrc $(LINUX)" --define "kobj $(LINUX_OBJ)"'
+	RPM_DEFINE_KMOD+=' --define "_wrong_version_format_terminate_build 0"'
+
 	RPM_DEFINE_DKMS=
+
+	dnl # Override default lib directory on Debian/Ubuntu systems.  The provided
+	dnl # /usr/lib/rpm/platform/<arch>/macros files do not specify the correct
+	dnl # path for multiarch systems as described by the packaging guidelines.
+	dnl #
+	dnl # https://wiki.ubuntu.com/MultiarchSpec
+	dnl # https://wiki.debian.org/Multiarch/Implementation
+	dnl #
+	AS_IF([test "$DEFAULT_PACKAGE" = "deb"], [
+		MULTIARCH_LIBDIR="lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+		RPM_DEFINE_UTIL+=' --define "_lib $(MULTIARCH_LIBDIR)"'
+		AC_SUBST(MULTIARCH_LIBDIR)
+	])
 
 	SRPM_DEFINE_COMMON='--define "build_src_rpm 1"'
 	SRPM_DEFINE_UTIL=

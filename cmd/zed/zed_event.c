@@ -733,12 +733,14 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 
 /*
  * Restrict various environment variables to safe and sane values
- * when constructing the environment for the child process.
+ * when constructing the environment for the child process, unless
+ * we're running with a custom $PATH (like under the ZFS test suite).
  *
  * Reference: Secure Programming Cookbook by Viega & Messier, Section 1.1.
  */
 static void
-_zed_event_add_env_restrict(uint64_t eid, zed_strings_t *zsp)
+_zed_event_add_env_restrict(uint64_t eid, zed_strings_t *zsp,
+    const char *path)
 {
 	const char *env_restrict[][2] = {
 		{ "IFS",		" \t\n" },
@@ -753,11 +755,35 @@ _zed_event_add_env_restrict(uint64_t eid, zed_strings_t *zsp)
 		{ "ZFS_RELEASE",	ZFS_META_RELEASE },
 		{ NULL,			NULL }
 	};
+
+	/*
+	 * If we have a custom $PATH, use the default ZFS binary locations
+	 * instead of the hard-coded ones.
+	 */
+	const char *env_path[][2] = {
+		{ "IFS",		" \t\n" },
+		{ "PATH",		NULL }, /* $PATH copied in later on */
+		{ "ZDB",		"zdb" },
+		{ "ZED",		"zed" },
+		{ "ZFS",		"zfs" },
+		{ "ZINJECT",		"zinject" },
+		{ "ZPOOL",		"zpool" },
+		{ "ZFS_ALIAS",		ZFS_META_ALIAS },
+		{ "ZFS_VERSION",	ZFS_META_VERSION },
+		{ "ZFS_RELEASE",	ZFS_META_RELEASE },
+		{ NULL,			NULL }
+	};
 	const char *(*pa)[2];
 
 	assert(zsp != NULL);
 
-	for (pa = env_restrict; *(*pa); pa++) {
+	pa = path != NULL ? env_path : env_restrict;
+
+	for (; *(*pa); pa++) {
+		/* Use our custom $PATH if we have one */
+		if (path != NULL && strcmp((*pa)[0], "PATH") == 0)
+			(*pa)[1] = path;
+
 		_zed_event_add_var(eid, zsp, NULL, (*pa)[0], "%s", (*pa)[1]);
 	}
 }
@@ -902,7 +928,7 @@ zed_event_service(struct zed_conf *zcp)
 		while ((nvp = nvlist_next_nvpair(nvl, nvp)))
 			_zed_event_add_nvpair(eid, zsp, nvp);
 
-		_zed_event_add_env_restrict(eid, zsp);
+		_zed_event_add_env_restrict(eid, zsp, zcp->path);
 		_zed_event_add_env_preserve(eid, zsp);
 
 		_zed_event_add_var(eid, zsp, ZED_VAR_PREFIX, "PID",

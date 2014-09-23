@@ -655,7 +655,7 @@ Because the kernel destroys and recreates this file when pools are added and
 removed, care should be taken when attempting to access this file.
 When the last pool using a
 .Sy cachefile
-is exported or destroyed, the file is removed.
+is exported or destroyed, the file will be empty.
 .It Sy comment Ns = Ns Ar text
 A text string consisting of printable ASCII characters that will be stored
 such that it is available even if the pool becomes faulted.
@@ -733,7 +733,7 @@ man page.  In order to enable this property each host must set a unique hostid.
 See
 .Xr genhostid 1
 .Xr zgenhostid 8
-.Xr spl-module-paramters 5
+.Xr spl-module-parameters 5
 for additional details.  The default value is
 .Sy off .
 .It Sy version Ns = Ns Ar version
@@ -2087,10 +2087,10 @@ is faulted due to a missing device.
 The results from this command are similar to the following:
 .Bd -literal
 # zpool list
-NAME    SIZE  ALLOC   FREE   FRAG  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
-rpool  19.9G  8.43G  11.4G    33%         -    42%  1.00x  ONLINE  -
-tank   61.5G  20.0G  41.5G    48%         -    32%  1.00x  ONLINE  -
-zion       -      -      -      -         -      -      -  FAULTED -
+NAME    SIZE  ALLOC   FREE  EXPANDSZ   FRAG    CAP  DEDUP  HEALTH  ALTROOT
+rpool  19.9G  8.43G  11.4G         -    33%    42%  1.00x  ONLINE  -
+tank   61.5G  20.0G  41.5G         -    48%    32%  1.00x  ONLINE  -
+zion       -      -      -         -      -      -      -  FAULTED -
 .Ed
 .It Sy Example 7 No Destroying a ZFS Storage Pool
 The following command destroys the pool
@@ -2215,12 +2215,12 @@ In this example, the pool will not be able to utilize this extra capacity until
 all the devices under the raidz vdev have been expanded.
 .Bd -literal
 # zpool list -v data
-NAME         SIZE  ALLOC   FREE   FRAG  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
-data        23.9G  14.6G  9.30G    48%         -    61%  1.00x  ONLINE  -
-  raidz1    23.9G  14.6G  9.30G    48%         -
-    sda         -      -      -      -         -
-    sdb         -      -      -      -       10G
-    sdc         -      -      -      -         -
+NAME         SIZE  ALLOC   FREE  EXPANDSZ   FRAG    CAP  DEDUP  HEALTH  ALTROOT
+data        23.9G  14.6G  9.30G         -    48%    61%  1.00x  ONLINE  -
+  raidz1    23.9G  14.6G  9.30G         -    48%
+    sda         -      -      -         -      -
+    sdb         -      -      -       10G      -
+    sdc         -      -      -         -      -
 .Ed
 .It Sy Example 16 No Adding output columns
 Additional columns can be added to the

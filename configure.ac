@@ -50,11 +50,13 @@ AC_PROG_CC
 AC_PROG_LIBTOOL
 AM_PROG_AS
 AM_PROG_CC_C_O
+AX_CODE_COVERAGE
 
 ZFS_AC_LICENSE
 ZFS_AC_PACKAGE
 ZFS_AC_CONFIG
 ZFS_AC_DEBUG
+ZFS_AC_DEBUGINFO
 
 AC_CONFIG_FILES([
 	Makefile
@@ -151,6 +153,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/callbacks/Makefile
 	tests/zfs-tests/cmd/Makefile
 	tests/zfs-tests/cmd/chg_usr_exec/Makefile
+	tests/zfs-tests/cmd/user_ns_exec/Makefile
 	tests/zfs-tests/cmd/devname2devid/Makefile
 	tests/zfs-tests/cmd/dir_rd_update/Makefile
 	tests/zfs-tests/cmd/file_check/Makefile
@@ -282,6 +285,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/threadsappend/Makefile
 	tests/zfs-tests/tests/functional/tmpfile/Makefile
 	tests/zfs-tests/tests/functional/truncate/Makefile
+	tests/zfs-tests/tests/functional/user_namespace/Makefile
 	tests/zfs-tests/tests/functional/userquota/Makefile
 	tests/zfs-tests/tests/functional/upgrade/Makefile
 	tests/zfs-tests/tests/functional/vdev_zaps/Makefile

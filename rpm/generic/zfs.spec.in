@@ -87,11 +87,11 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 %endif
+
 %if 0%{?_systemd}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
-BuildRequires: systemd
 %endif
 
 # The zpool iostat/status -c scripts call some utilities like lsblk and iostat
@@ -245,7 +245,14 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
 %if 0%{?_systemd}
+%if 0%{?systemd_post:1}
 %systemd_post %{systemd_svcs}
+%else
+if [ "$1" = "1" -o "$1" = "install" ] ; then
+    # Initial installation
+    systemctl preset %{systemd_svcs} >/dev/null || true
+fi
+%endif
 %else
 if [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --add zfs-import
@@ -258,9 +265,17 @@ exit 0
 
 %preun
 %if 0%{?_systemd}
+%if 0%{?systemd_preun:1}
 %systemd_preun %{systemd_svcs}
 %else
-if [ "$1" = "0" ] && [ -x /sbin/chkconfig ]; then
+if [ "$1" = "0" -o "$1" = "remove" ] ; then
+    # Package removal, not upgrade
+    systemctl --no-reload disable %{systemd_svcs} >/dev/null || true
+    systemctl stop %{systemd_svcs} >/dev/null || true
+fi
+%endif
+%else
+if [ "$1" = "0" -o "$1" = "remove" ] && [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --del zfs-import
     /sbin/chkconfig --del zfs-mount
     /sbin/chkconfig --del zfs-share
@@ -271,7 +286,11 @@ exit 0
 
 %postun
 %if 0%{?_systemd}
+%if 0%{?systemd_postun:1}
 %systemd_postun %{systemd_svcs}
+%else
+systemctl --system daemon-reload >/dev/null || true
+%endif
 %endif
 
 %files

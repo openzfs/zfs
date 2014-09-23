@@ -474,7 +474,7 @@ def main():
                 "help",
                 "infile",
                 "outfile",
-                "seperator",
+                "separator",
                 "types",
                 "verbose",
                 "extended"
@@ -499,7 +499,7 @@ def main():
             ofile = arg
         if opt in ('-r', '--raw'):
             raw += 1
-        if opt in ('-s', '--seperator'):
+        if opt in ('-s', '--separator'):
             sep = arg
         if opt in ('-t', '--types'):
             tflag = True

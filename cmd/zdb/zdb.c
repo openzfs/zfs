@@ -2716,16 +2716,16 @@ dump_label(const char *dev)
 		exit(1);
 	}
 
-	if (ioctl(fd, BLKFLSBUF) != 0)
-		(void) printf("failed to invalidate cache '%s' : %s\n", path,
-		    strerror(errno));
-
 	if (fstat64_blk(fd, &statbuf) != 0) {
 		(void) printf("failed to stat '%s': %s\n", path,
 		    strerror(errno));
 		(void) close(fd);
 		exit(1);
 	}
+
+	if (S_ISBLK(statbuf.st_mode) && ioctl(fd, BLKFLSBUF) != 0)
+		(void) printf("failed to invalidate cache '%s' : %s\n", path,
+		    strerror(errno));
 
 	avl_create(&config_tree, cksum_record_compare,
 	    sizeof (cksum_record_t), offsetof(cksum_record_t, link));
@@ -3313,7 +3313,7 @@ dump_block_stats(spa_t *spa)
 	uint64_t norm_alloc, norm_space, total_alloc, total_found;
 	int flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_HARD;
 	boolean_t leaks = B_FALSE;
-	int e, c;
+	int e, c, err;
 	bp_embedded_type_t i;
 
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
@@ -3354,7 +3354,7 @@ dump_block_stats(spa_t *spa)
 
 	zcb.zcb_totalasize = metaslab_class_get_alloc(spa_normal_class(spa));
 	zcb.zcb_start = zcb.zcb_lastprint = gethrtime();
-	zcb.zcb_haderrors |= traverse_pool(spa, 0, flags, zdb_blkptr_cb, &zcb);
+	err = traverse_pool(spa, 0, flags, zdb_blkptr_cb, &zcb);
 
 	/*
 	 * If we've traversed the data blocks then we need to wait for those
@@ -3369,6 +3369,12 @@ dump_block_stats(spa_t *spa)
 			    ZIO_FLAG_GODFATHER);
 		}
 	}
+
+	/*
+	 * Done after zio_wait() since zcb_haderrors is modified in
+	 * zdb_blkptr_done()
+	 */
+	zcb.zcb_haderrors |= err;
 
 	if (zcb.zcb_haderrors) {
 		(void) printf("\nError counts:\n\n");
@@ -3889,13 +3895,6 @@ name:
 	return (NULL);
 }
 
-/* ARGSUSED */
-static int
-random_get_pseudo_bytes_cb(void *buf, size_t len, void *unused)
-{
-	return (random_get_pseudo_bytes(buf, len));
-}
-
 /*
  * Read a block from a pool and print it out.  The syntax of the
  * block descriptor is:
@@ -4058,16 +4057,7 @@ zdb_read_block(char *thing, spa_t *spa)
 		 * every decompress function at every inflated blocksize.
 		 */
 		enum zio_compress c;
-		void *pbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 		void *lbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
-
-		abd_copy_to_buf(pbuf2, pabd, psize);
-
-		VERIFY0(abd_iterate_func(pabd, psize, SPA_MAXBLOCKSIZE - psize,
-		    random_get_pseudo_bytes_cb, NULL));
-
-		VERIFY0(random_get_pseudo_bytes((uint8_t *)pbuf2 + psize,
-		    SPA_MAXBLOCKSIZE - psize));
 
 		/*
 		 * XXX - On the one hand, with SPA_MAXBLOCKSIZE at 16MB,
@@ -4078,13 +4068,29 @@ zdb_read_block(char *thing, spa_t *spa)
 		for (lsize = psize + SPA_MINBLOCKSIZE;
 		    lsize <= SPA_MAXBLOCKSIZE; lsize += SPA_MINBLOCKSIZE) {
 			for (c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++) {
+				/*
+				 * ZLE can easily decompress non zle stream.
+				 * So have an option to disable it.
+				 */
+				if (c == ZIO_COMPRESS_ZLE &&
+				    getenv("ZDB_NO_ZLE"))
+					continue;
+
 				(void) fprintf(stderr,
 				    "Trying %05llx -> %05llx (%s)\n",
 				    (u_longlong_t)psize, (u_longlong_t)lsize,
 				    zio_compress_table[c].ci_name);
+
+				/*
+				 * We randomize lbuf2, and decompress to both
+				 * lbuf and lbuf2. This way, we will know if
+				 * decompression fill exactly to lsize.
+				 */
+				VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
+
 				if (zio_decompress_data(c, pabd,
 				    lbuf, psize, lsize) == 0 &&
-				    zio_decompress_data_buf(c, pbuf2,
+				    zio_decompress_data(c, pabd,
 				    lbuf2, psize, lsize) == 0 &&
 				    bcmp(lbuf, lbuf2, lsize) == 0)
 					break;
@@ -4092,11 +4098,9 @@ zdb_read_block(char *thing, spa_t *spa)
 			if (c != ZIO_COMPRESS_FUNCTIONS)
 				break;
 		}
-
-		umem_free(pbuf2, SPA_MAXBLOCKSIZE);
 		umem_free(lbuf2, SPA_MAXBLOCKSIZE);
 
-		if (lsize <= psize) {
+		if (lsize > SPA_MAXBLOCKSIZE) {
 			(void) printf("Decompress of %s failed\n", thing);
 			goto out;
 		}
@@ -4135,11 +4139,12 @@ zdb_embedded_block(char *thing)
 {
 	blkptr_t bp;
 	unsigned long long *words = (void *)&bp;
-	char buf[SPA_MAXBLOCKSIZE];
+	char *buf;
 	int err;
 
-	memset(&bp, 0, sizeof (blkptr_t));
+	buf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 
+	bzero(&bp, sizeof (bp));
 	err = sscanf(thing, "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx:"
 	    "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx",
 	    words + 0, words + 1, words + 2, words + 3,
@@ -4157,6 +4162,7 @@ zdb_embedded_block(char *thing)
 		exit(1);
 	}
 	zdb_dump_block_raw(buf, BPE_GET_LSIZE(&bp), 0);
+	umem_free(buf, SPA_MAXBLOCKSIZE);
 }
 
 int
@@ -4171,7 +4177,7 @@ main(int argc, char **argv)
 	int error = 0;
 	char **searchdirs = NULL;
 	int nsearch = 0;
-	char *target;
+	char *target, *target_pool;
 	nvlist_t *policy = NULL;
 	uint64_t max_txg = UINT64_MAX;
 	int flags = ZFS_IMPORT_MISSING_LOG;
@@ -4374,6 +4380,20 @@ main(int argc, char **argv)
 	error = 0;
 	target = argv[0];
 
+	if (strpbrk(target, "/@") != NULL) {
+		size_t targetlen;
+
+		target_pool = strdup(target);
+		*strpbrk(target_pool, "/@") = '\0';
+
+		target_is_spa = B_FALSE;
+		targetlen = strlen(target);
+		if (targetlen && target[targetlen - 1] == '/')
+			target[targetlen - 1] = '\0';
+	} else {
+		target_pool = target;
+	}
+
 	if (dump_opt['e']) {
 		importargs_t args = { 0 };
 		nvlist_t *cfg = NULL;
@@ -4382,8 +4402,10 @@ main(int argc, char **argv)
 		args.path = searchdirs;
 		args.can_be_active = B_TRUE;
 
-		error = zpool_tryimport(g_zfs, target, &cfg, &args);
+		error = zpool_tryimport(g_zfs, target_pool, &cfg, &args);
+
 		if (error == 0) {
+
 			if (nvlist_add_nvlist(cfg,
 			    ZPOOL_REWIND_POLICY, policy) != 0) {
 				fatal("can't open '%s': %s",
@@ -4398,19 +4420,13 @@ main(int argc, char **argv)
 				(void) printf("\nConfiguration for import:\n");
 				dump_nvlist(cfg, 8);
 			}
-			error = spa_import(target, cfg, NULL,
+			error = spa_import(target_pool, cfg, NULL,
 			    flags | ZFS_IMPORT_SKIP_MMP);
 		}
 	}
 
-	if (strpbrk(target, "/@") != NULL) {
-		size_t targetlen;
-
-		target_is_spa = B_FALSE;
-		targetlen = strlen(target);
-		if (targetlen && target[targetlen - 1] == '/')
-			target[targetlen - 1] = '\0';
-	}
+	if (target_pool != target)
+		free(target_pool);
 
 	if (error == 0) {
 		if (target_is_spa || dump_opt['R']) {

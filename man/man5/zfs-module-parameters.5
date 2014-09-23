@@ -677,17 +677,6 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_arc_p_aggressive_disable\fR (int)
-.ad
-.RS 12n
-Disable aggressive arc_p growth
-.sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_arc_p_dampener_disable\fR (int)
 .ad
 .RS 12n
@@ -748,6 +737,34 @@ Default value: \fB0\fR.
 Disable pool import at module load by ignoring the cache file (typically \fB/etc/zfs/zpool.cache\fR).
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_checksums_per_second\fR (int)
+.ad
+.RS 12n
+Rate limit checksum events to this many per second.  Note that this should
+not be set below the zed thresholds (currently 10 checksums over 10 sec)
+or else zed may not trigger any action.
+.sp
+Default value: 20
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_commit_timeout_pct\fR (int)
+.ad
+.RS 12n
+This controls the amount of time that a ZIL block (lwb) will remain "open"
+when it isn't "full", and it has a thread waiting for it to be committed to
+stable storage.  The timeout is scaled based on a percentage of the last lwb
+latency to avoid significantly impacting the latency of each individual
+transaction record (itx).
+.sp
+Default value: \fB5\fR%.
 .RE
 
 .sp
@@ -875,6 +892,17 @@ See the section "ZFS TRANSACTION DELAY".
 Note: \fBzfs_delay_scale\fR * \fBzfs_dirty_data_max\fR must be < 2^64.
 .sp
 Default value: \fB500,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_delays_per_second\fR (int)
+.ad
+.RS 12n
+Rate limit IO delay events to this many per second.
+.sp
+Default value: 20
 .RE
 
 .sp
