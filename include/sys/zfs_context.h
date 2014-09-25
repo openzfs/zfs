@@ -208,11 +208,8 @@ extern void vpanic(const char *, va_list);
  */
 #define	TS_MAGIC		0x72f158ab4261e538ull
 #define	TS_RUN			0x00000002
-#ifdef __linux__
-#define	STACK_SIZE		8192	/* Linux x86 and amd64 */
-#else
-#define	STACK_SIZE		24576	/* Solaris */
-#endif
+#define	TS_STACK_MIN		PTHREAD_STACK_MIN
+#define	TS_STACK_MAX		(256 * 1024)
 
 /* in libzpool, p0 exists only to have its address taken */
 typedef struct proc {

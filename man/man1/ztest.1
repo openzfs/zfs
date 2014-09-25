@@ -144,6 +144,22 @@ Maybe you'd like to run ztest for longer? To do so simply use the -T
 option and specify the runlength in seconds like so:
 .IP
 ztest -f / -V -T 120
+
+.SH "ENVIRONMENT VARIABLES"
+.TP
+.B "ZFS_STACK_SIZE=stacksize"
+Limit the default stack size to \fBstacksize\fR bytes for the purpose of
+detecting and debugging kernel stack overflows.  For x86_64 platforms this
+value should be set as follows to simulate these platforms: \fB8192\fR
+(Linux), \fB20480\fR (Illumos), \fB16384\fR (FreeBSD).
+
+In practice you may need to set these value slightly higher because
+differences in stack usage between kernel and user space can lead to spurious
+stack overflows (especially when debugging is enabled).  The specified value
+will be rounded up to a floor of PTHREAD_STACK_MIN which is the minimum stack
+required for a NULL procedure in user space.
+
+By default the stack size is limited to 256K.
 .SH "SEE ALSO"
 .BR "zpool (1)" ","
 .BR "zfs (1)" ","
