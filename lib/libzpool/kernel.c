@@ -146,41 +146,41 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 {
 	kthread_t *kt;
 	pthread_attr_t attr;
-	size_t stack;
+	char *stkstr;
 
-	ASSERT3S(state & ~TS_RUN, ==, 0);
+	ASSERT0(state & ~TS_RUN);
 
 	kt = umem_zalloc(sizeof (kthread_t), UMEM_NOFAIL);
 	kt->t_func = func;
 	kt->t_arg = arg;
 
+	VERIFY0(pthread_attr_init(&attr));
+	VERIFY0(pthread_attr_setdetachstate(&attr, detachstate));
+
 	/*
-	 * The Solaris kernel stack size is 24k for x86/x86_64.
-	 * The Linux kernel stack size is 8k for x86/x86_64.
-	 *
-	 * We reduce the default stack size in userspace, to ensure
-	 * we observe stack overruns in user space as well as in
-	 * kernel space. In practice we can't set the userspace stack
-	 * size to 8k because differences in stack usage between kernel
-	 * space and userspace could lead to spurious stack overflows
-	 * (especially when debugging is enabled). Nevertheless, we try
-	 * to set it to the lowest value that works (currently 8k*4).
-	 * PTHREAD_STACK_MIN is the minimum stack required for a NULL
-	 * procedure in user space and is added in to the stack
-	 * requirements.
+	 * We allow the default stack size in user space to be specified by
+	 * setting the ZFS_STACK_SIZE environment variable.  This allows us
+	 * the convenience of observing and debugging stack overruns in
+	 * user space.  Explicitly specified stack sizes will be honored.
+	 * The usage of ZFS_STACK_SIZE is discussed further in the
+	 * ENVIRONMENT VARIABLES sections of the ztest(1) man page.
 	 */
+	if (stksize == 0) {
+		stkstr = getenv("ZFS_STACK_SIZE");
 
-	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE) * 4;
+		if (stkstr == NULL)
+			stksize = TS_STACK_MAX;
+		else
+			stksize = MAX(atoi(stkstr), TS_STACK_MIN);
+	}
 
-	VERIFY3S(pthread_attr_init(&attr), ==, 0);
-	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
-	VERIFY3S(pthread_attr_setguardsize(&attr, PAGESIZE), ==, 0);
-	VERIFY3S(pthread_attr_setdetachstate(&attr, detachstate), ==, 0);
+	VERIFY3S(stksize, >, 0);
+	stksize = P2ROUNDUP(MAX(stksize, TS_STACK_MIN), PAGESIZE);
+	VERIFY0(pthread_attr_setstacksize(&attr, stksize));
+	VERIFY0(pthread_attr_setguardsize(&attr, PAGESIZE));
 
-	VERIFY3S(pthread_create(&kt->t_tid, &attr, &zk_thread_helper, kt),
-	    ==, 0);
-
-	VERIFY3S(pthread_attr_destroy(&attr), ==, 0);
+	VERIFY0(pthread_create(&kt->t_tid, &attr, &zk_thread_helper, kt));
+	VERIFY0(pthread_attr_destroy(&attr));
 
 	return (kt);
 }

@@ -203,16 +203,17 @@ extern void vpanic(const char *, va_list);
 #else
 #define	SET_ERROR(err) (err)
 #endif
+
 /*
- * Threads
+ * Threads.  TS_STACK_MIN is dictated by the minimum allowed pthread stack
+ * size.  While TS_STACK_MAX is somewhat arbitrary, it was selected to be
+ * large enough for the expected stack depth while small enough to avoid
+ * exhausting address space with high thread counts.
  */
 #define	TS_MAGIC		0x72f158ab4261e538ull
 #define	TS_RUN			0x00000002
-#ifdef __linux__
-#define	STACK_SIZE		8192	/* Linux x86 and amd64 */
-#else
-#define	STACK_SIZE		24576	/* Solaris */
-#endif
+#define	TS_STACK_MIN		PTHREAD_STACK_MIN
+#define	TS_STACK_MAX		(256 * 1024)
 
 /* in libzpool, p0 exists only to have its address taken */
 typedef struct proc {
