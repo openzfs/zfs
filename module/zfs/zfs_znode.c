@@ -1440,6 +1440,13 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 		/* offset of last_page */
 		last_page_offset = last_page << PAGE_CACHE_SHIFT;
 
+		/* truncate whole pages */
+		if (last_page_offset > first_page_offset) {
+			truncate_inode_pages_range(ZTOI(zp)->i_mapping,
+			    first_page_offset, last_page_offset - 1);
+		}
+
+		/* truncate sub-page ranges */
 		if (first_page > last_page) {
 			/* entire punched area within a single page */
 			zfs_zero_partial_page(zp, off, len);
@@ -1607,31 +1614,10 @@ out:
 	/*
 	 * Truncate the page cache - for file truncate operations, use
 	 * the purpose-built API for truncations.  For punching operations,
-	 * truncate only whole pages within the region; partial pages are
-	 * zeroed under a range lock in zfs_free_range().
+	 * the truncation is handled under a range lock in zfs_free_range.
 	 */
 	if (len == 0)
 		truncate_setsize(ZTOI(zp), off);
-	else if (zp->z_is_mapped) {
-		loff_t first_page, last_page;
-		loff_t first_page_offset, last_page_offset;
-
-		/* first possible full page in hole */
-		first_page = (off + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-		/* last page of hole */
-		last_page = (off + len) >> PAGE_CACHE_SHIFT;
-
-		/* offset of first_page */
-		first_page_offset = first_page << PAGE_CACHE_SHIFT;
-		/* offset of last_page */
-		last_page_offset = last_page << PAGE_CACHE_SHIFT;
-
-		/* truncate whole pages */
-		if (last_page_offset > first_page_offset) {
-			truncate_inode_pages_range(ZTOI(zp)->i_mapping,
-			    first_page_offset, last_page_offset - 1);
-		}
-	}
 	return (error);
 }
 
