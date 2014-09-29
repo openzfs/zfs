@@ -49,24 +49,19 @@
 #include <linux/cdev.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/miscdevice.h>
 #include <sys/types.h>
 #include <sys/debug.h>
 #include <sys/mutex.h>
 #include "splat-internal.h"
 
-static spl_class *splat_class;
-static spl_device *splat_device;
 static struct list_head splat_module_list;
 static spinlock_t splat_module_lock;
 
 static int
 splat_open(struct inode *inode, struct file *file)
 {
-	unsigned int minor = iminor(inode);
 	splat_info_t *info;
-
-	if (minor >= SPLAT_MINORS)
-		return -ENXIO;
 
 	info = (splat_info_t *)kmalloc(sizeof(*info), GFP_KERNEL);
 	if (info == NULL)
@@ -92,11 +87,7 @@ splat_open(struct inode *inode, struct file *file)
 static int
 splat_release(struct inode *inode, struct file *file)
 {
-	unsigned int minor = iminor(inode);
 	splat_info_t *info = (splat_info_t *)file->private_data;
-
-	if (minor >= SPLAT_MINORS)
-		return -ENXIO;
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -458,15 +449,11 @@ splat_ioctl_cmd(struct file *file, unsigned int cmd, unsigned long arg)
 static long
 splat_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-        unsigned int minor = iminor(file->f_dentry->d_inode);
 	int rc = 0;
 
 	/* Ignore tty ioctls */
 	if ((cmd & 0xffffff00) == ((int)'T') << 8)
 		return -ENOTTY;
-
-	if (minor >= SPLAT_MINORS)
-		return -ENXIO;
 
 	switch (cmd) {
 		case SPLAT_CFG:
@@ -500,12 +487,8 @@ splat_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static ssize_t splat_write(struct file *file, const char __user *buf,
                          size_t count, loff_t *ppos)
 {
-        unsigned int minor = iminor(file->f_dentry->d_inode);
 	splat_info_t *info = (splat_info_t *)file->private_data;
 	int rc = 0;
-
-	if (minor >= SPLAT_MINORS)
-		return -ENXIO;
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -537,12 +520,8 @@ out:
 static ssize_t splat_read(struct file *file, char __user *buf,
 		        size_t count, loff_t *ppos)
 {
-        unsigned int minor = iminor(file->f_dentry->d_inode);
 	splat_info_t *info = (splat_info_t *)file->private_data;
 	int rc = 0;
-
-	if (minor >= SPLAT_MINORS)
-		return -ENXIO;
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -571,12 +550,8 @@ out:
 
 static loff_t splat_seek(struct file *file, loff_t offset, int origin)
 {
-        unsigned int minor = iminor(file->f_dentry->d_inode);
 	splat_info_t *info = (splat_info_t *)file->private_data;
 	int rc = -EINVAL;
-
-	if (minor >= SPLAT_MINORS)
-		return -ENXIO;
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -605,7 +580,6 @@ static loff_t splat_seek(struct file *file, loff_t offset, int origin)
 	return rc;
 }
 
-static struct cdev splat_cdev;
 static struct file_operations splat_fops = {
 	.owner		= THIS_MODULE,
 	.open		= splat_open,
@@ -619,11 +593,16 @@ static struct file_operations splat_fops = {
 	.llseek		= splat_seek,
 };
 
+static struct miscdevice splat_misc = {
+	.minor		= MISC_DYNAMIC_MINOR,
+	.name		= SPLAT_NAME,
+	.fops		= &splat_fops,
+};
+
 static int
 splat_init(void)
 {
-	dev_t dev;
-	int rc;
+	int error;
 
 	spin_lock_init(&splat_module_lock);
 	INIT_LIST_HEAD(&splat_module_list);
@@ -645,52 +624,25 @@ splat_init(void)
 	SPLAT_SUBSYSTEM_INIT(zlib);
 	SPLAT_SUBSYSTEM_INIT(linux);
 
-	dev = MKDEV(SPLAT_MAJOR, 0);
-        if ((rc = register_chrdev_region(dev, SPLAT_MINORS, SPLAT_NAME)))
-		goto error;
-
-	/* Support for registering a character driver */
-	cdev_init(&splat_cdev, &splat_fops);
-	splat_cdev.owner = THIS_MODULE;
-	kobject_set_name(&splat_cdev.kobj, SPLAT_NAME);
-	if ((rc = cdev_add(&splat_cdev, dev, SPLAT_MINORS))) {
-		printk(KERN_ERR "SPLAT: Error adding cdev, %d\n", rc);
-		kobject_put(&splat_cdev.kobj);
-		unregister_chrdev_region(dev, SPLAT_MINORS);
-		goto error;
+	error = misc_register(&splat_misc);
+	if (error) {
+		printk(KERN_INFO "SPLAT: misc_register() failed %d\n", error);
+	} else {
+		printk(KERN_INFO "SPLAT: Loaded module v%s-%s%s\n",
+		    SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
 	}
 
-	/* Support for udev make driver info available in sysfs */
-        splat_class = spl_class_create(THIS_MODULE, "splat");
-	if (IS_ERR(splat_class)) {
-		rc = PTR_ERR(splat_class);
-		printk(KERN_ERR "SPLAT: Error creating splat class, %d\n", rc);
-		cdev_del(&splat_cdev);
-		unregister_chrdev_region(dev, SPLAT_MINORS);
-		goto error;
-	}
-
-	splat_device = spl_device_create(splat_class, NULL,
-					 MKDEV(SPLAT_MAJOR, 0),
-					 NULL, SPLAT_NAME);
-
-	printk(KERN_INFO "SPLAT: Loaded module v%s-%s%s\n",
-	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
-	return 0;
-error:
-	printk(KERN_ERR "SPLAT: Error registering splat device, %d\n", rc);
-	return rc;
+	return (error);
 }
 
 static int
 splat_fini(void)
 {
-	dev_t dev = MKDEV(SPLAT_MAJOR, 0);
+	int error;
 
-        spl_device_destroy(splat_class, splat_device, dev);
-        spl_class_destroy(splat_class);
-        cdev_del(&splat_cdev);
-        unregister_chrdev_region(dev, SPLAT_MINORS);
+	error = misc_deregister(&splat_misc);
+	if (error)
+		printk(KERN_INFO "SPLAT: misc_deregister() failed %d\n", error);
 
 	SPLAT_SUBSYSTEM_FINI(linux);
 	SPLAT_SUBSYSTEM_FINI(zlib);
@@ -711,9 +663,9 @@ splat_fini(void)
 
 	ASSERT(list_empty(&splat_module_list));
 	printk(KERN_INFO "SPLAT: Unloaded module v%s-%s%s\n",
-	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
+	    SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
 
-	return 0;
+	return (0);
 }
 
 spl_module_init(splat_init);

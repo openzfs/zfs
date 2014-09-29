@@ -34,9 +34,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
 	SPL_AC_FLS64
-	SPL_AC_DEVICE_CREATE
-	SPL_AC_5ARGS_DEVICE_CREATE
-	SPL_AC_CLASS_DEVICE_CREATE
 	SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT
 	SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE
 	SPL_AC_TIMESPEC_SUB
@@ -1071,64 +1068,6 @@ AC_DEFUN([SPL_AC_FLS64],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_FLS64, 1, [fls64() is available])
 	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.18 API change, check whether device_create() is available.
-dnl # Device_create() was introduced in 2.6.18 and depricated 
-dnl # class_device_create() which was fully removed in 2.6.26.
-dnl #
-AC_DEFUN([SPL_AC_DEVICE_CREATE],
-	[AC_MSG_CHECKING([whether device_create() is available])
-	SPL_CHECK_SYMBOL_EXPORT([device_create], [drivers/base/core.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_DEVICE_CREATE, 1,
-		          [device_create() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.27 API change,
-dnl # device_create() uses 5 args, new 'drvdata' argument.
-dnl #
-AC_DEFUN([SPL_AC_5ARGS_DEVICE_CREATE], [
-	AC_MSG_CHECKING([whether device_create() wants 5 args])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/device.h>
-	],[
-		device_create(NULL, NULL, 0, NULL, "%d", 1);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_5ARGS_DEVICE_CREATE, 1,
-		          [device_create wants 5 args])
-	],[
-		AC_MSG_RESULT(no)
-	])
-	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 2.6.13 API change, check whether class_device_create() is available.
-dnl # Class_device_create() was introduced in 2.6.13 and depricated
-dnl # class_simple_device_add() which was fully removed in 2.6.13.
-dnl #
-AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE],
-	[AC_MSG_CHECKING([whether class_device_create() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/device.h>
-	], [
-		class_device_create(NULL, NULL, 0, NULL, NULL);
-	], [class_device_create], [drivers/base/class.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
-		          [class_device_create() is available])
-	], [
 		AC_MSG_RESULT(no)
 	])
 ])
