@@ -76,6 +76,14 @@ AC_DEFUN([SPL_AC_META], [
 			AC_SUBST([RELEASE])
 		fi
 
+		SPL_META_LICENSE=_SPL_AC_META_GETVAL([License]);
+		if test -n "$SPL_META_LICENSE"; then
+			AC_DEFINE_UNQUOTED([SPL_META_LICENSE], ["$SPL_META_LICENSE"],
+				[Define the project license.]
+			)
+			AC_SUBST([SPL_META_LICENSE])
+		fi
+
 		if test -n "$SPL_META_NAME" -a -n "$SPL_META_VERSION"; then
 				SPL_META_ALIAS="$SPL_META_NAME-$SPL_META_VERSION"
 				test -n "$SPL_META_RELEASE" && 

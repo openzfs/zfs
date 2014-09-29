@@ -85,12 +85,6 @@ mutex_owner(kmutex_t *mp)
  })
 #define mutex_exit(mp)                  mutex_unlock(&(mp)->m)
 
-#ifdef HAVE_GPL_ONLY_SYMBOLS
-# define mutex_enter_nested(mp, sc)     mutex_lock_nested(&(mp)->m, sc)
-#else
-# define mutex_enter_nested(mp, sc)     mutex_enter(mp)
-#endif /* HAVE_GPL_ONLY_SYMBOLS */
-
 #else /* HAVE_MUTEX_OWNER */
 
 typedef struct {
@@ -196,19 +190,6 @@ spl_mutex_clear_owner(kmutex_t *mp)
         spl_mutex_clear_owner(mp);                                      \
         mutex_unlock(MUTEX(mp));                                        \
 })
-
-#ifdef HAVE_GPL_ONLY_SYMBOLS
-# define mutex_enter_nested(mp, sc)                                     \
-({                                                                      \
-        mutex_lock_nested(MUTEX(mp), sc);                               \
-        spl_mutex_set_owner(mp);                                        \
-})
-#else
-# define mutex_enter_nested(mp, sc)                                     \
-({                                                                      \
-        mutex_enter(mp);                                                \
-})
-#endif
 
 #endif /* HAVE_MUTEX_OWNER */
 

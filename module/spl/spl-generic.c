@@ -740,7 +740,7 @@ EXPORT_SYMBOL(spl_cleanup);
 module_init(spl_init);
 module_exit(spl_fini);
 
-MODULE_AUTHOR("Lawrence Livermore National Labs");
 MODULE_DESCRIPTION("Solaris Porting Layer");
-MODULE_LICENSE("GPL");
+MODULE_AUTHOR(SPL_META_AUTHOR);
+MODULE_LICENSE(SPL_META_LICENSE);
 MODULE_VERSION(SPL_META_VERSION "-" SPL_META_RELEASE);

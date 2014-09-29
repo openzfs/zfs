@@ -426,11 +426,11 @@ AC_DEFUN([SPL_AC_PACKAGE], [
 ])
 
 AC_DEFUN([SPL_AC_LICENSE], [
+	AC_MSG_CHECKING([spl author])
+	AC_MSG_RESULT([$SPL_META_AUTHOR])
+
 	AC_MSG_CHECKING([spl license])
-	LICENSE=GPL
-	AC_MSG_RESULT([$LICENSE])
-	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DHAVE_GPL_ONLY_SYMBOLS"
-	AC_SUBST(LICENSE)
+	AC_MSG_RESULT([$SPL_META_LICENSE])
 ])
 
 AC_DEFUN([SPL_AC_CONFIG], [
@@ -737,7 +737,8 @@ AC_DEFUN([SPL_CHECK_HEADER],
 ])
 
 dnl #
-dnl # Basic toolchain sanity check.
+dnl # Basic toolchain sanity check.  Verify that kernel modules can
+dnl # be built and which symbols can be used.
 dnl #
 AC_DEFUN([SPL_AC_TEST_MODULE],
 	[AC_MSG_CHECKING([whether modules can be built])
@@ -752,6 +753,18 @@ AC_DEFUN([SPL_AC_TEST_MODULE],
 	*** Unable to build an empty module.
 	*** Please run 'make scripts' inside the kernel source tree.])
 		fi
+	])
+
+	AC_RUN_IFELSE([
+		AC_LANG_PROGRAM([
+			#include "$LINUX/include/linux/license.h"
+		], [
+			return !license_is_gpl_compatible("$SPL_META_LICENSE");
+		])
+	], [
+		AC_DEFINE([SPL_IS_GPL_COMPATIBLE], [1],
+		    [Define to 1 if GPL-only symbols can be used])
+	], [
 	])
 ])
 
