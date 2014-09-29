@@ -28,7 +28,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SHRINKER_CALLBACK
-	SPL_AC_TASK_CURR
 	SPL_AC_CTL_UNNUMBERED
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
@@ -998,23 +997,6 @@ AC_DEFUN([SPL_AC_SHRINKER_CALLBACK],[
 ])
 
 dnl #
-dnl # Custom SPL patch may export this system it is not required
-dnl #
-AC_DEFUN([SPL_AC_TASK_CURR],
-	[AC_MSG_CHECKING([whether task_curr() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/sched.h>
-	], [
-		task_curr(NULL);
-	], [task_curr], [kernel/sched.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_TASK_CURR, 1, [task_curr() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.19 API change,
 dnl # Use CTL_UNNUMBERED when binary sysctl is not required
 dnl #
@@ -1220,7 +1202,9 @@ AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
 
 dnl #
 dnl # 2.6.29 API change,
-dnl # Adaptive mutexs introduced.
+dnl # Adaptive mutexs were introduced which track the mutex owner.  The
+dnl # mutex wrappers leverage this functionality to avoid tracking the
+dnl # owner multipe times.
 dnl #
 AC_DEFUN([SPL_AC_MUTEX_OWNER], [
 	AC_MSG_CHECKING([whether struct mutex has owner])

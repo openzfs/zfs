@@ -105,30 +105,6 @@ Default value: \fB/etc/hostid\fR.
 .sp
 .ne 2
 .na
-\fBmutex_spin_max\fR (int)
-.ad
-.RS 12n
-Spin a maximum of N times to acquire lock
-.sp
-.ne 2
-.na
-\fBPossible values:\fR
-.sp
-.RS 12n
- \fB0\fR		Never spin when trying to acquire lock
-.sp
-\fB-1\fR		Spin until acquired or holder yields without dropping lock
-.sp
-\fB1-MAX_INT\fR	Spin for N attempts before sleeping for lock
-.RE
-.sp
-.ne -4
-Default value: \fB0\fR.
-.RE
-
-.sp
-.ne 2
-.na
 \fBspl_taskq_thread_bind\fR (int)
 .ad
 .RS 12n
