@@ -814,10 +814,11 @@ splat_taskq_test6_func(void *arg)
 	spin_lock(&tq_arg->lock);
 	tq_arg->order[tq_arg->flag] = tq_id->id;
 	tq_arg->flag++;
+	spin_unlock(&tq_arg->lock);
+
 	splat_vprint(tq_arg->file, tq_arg->name,
 		     "Taskqid %d complete for taskq '%s'\n",
 		     tq_id->id, tq_arg->name);
-	spin_unlock(&tq_arg->lock);
 }
 
 static int
