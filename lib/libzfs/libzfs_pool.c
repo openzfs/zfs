@@ -720,6 +720,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			}
 			break;
 		}
+
 	}
 
 	return (retprops);
