@@ -26,7 +26,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_TYPE_ATOMIC64_CMPXCHG
 	SPL_AC_TYPE_ATOMIC64_XCHG
 	SPL_AC_TYPE_UINTPTR_T
-	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SHRINKER_CALLBACK
 	SPL_AC_CTL_UNNUMBERED
 	SPL_AC_CTL_NAME
@@ -869,25 +868,6 @@ AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
 		          [kernel defines uintptr_t])
 	],[
 		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # 2.6.21 API change,
-dnl # 'register_sysctl_table' use only one argument instead of two
-dnl #
-AC_DEFUN([SPL_AC_2ARGS_REGISTER_SYSCTL],
-	[AC_MSG_CHECKING([whether register_sysctl_table() wants 2 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sysctl.h>
-	],[
-		(void) register_sysctl_table(NULL, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_2ARGS_REGISTER_SYSCTL, 1,
-		          [register_sysctl_table() wants 2 args])
-	],[
-		AC_MSG_RESULT(no)
 	])
 ])
 

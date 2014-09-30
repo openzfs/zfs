@@ -1127,7 +1127,7 @@ spl_proc_init(void)
         SENTRY;
 
 #ifdef CONFIG_SYSCTL
-        spl_header = spl_register_sysctl_table(spl_root, 0);
+        spl_header = register_sysctl_table(spl_root);
 	if (spl_header == NULL)
 		SRETURN(-EUNATCH);
 #endif /* CONFIG_SYSCTL */
@@ -1160,7 +1160,7 @@ out:
 #endif
 		remove_proc_entry("spl", NULL);
 #ifdef CONFIG_SYSCTL
-	        spl_unregister_sysctl_table(spl_header);
+	        unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
 	}
 
@@ -1181,7 +1181,7 @@ spl_proc_fini(void)
 
 #ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);
-        spl_unregister_sysctl_table(spl_header);
+        unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
 
         SEXIT;
