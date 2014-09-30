@@ -35,12 +35,10 @@
 #include <sys/dmu.h>
 #include <sys/txg.h>
 #include <sys/dsl_destroy.h>
-#include <linux/cdev.h>
+#include <linux/miscdevice.h>
 #include "zpios-internal.h"
 
 
-static spl_class *zpios_class;
-static spl_device *zpios_device;
 static char *zpios_tag = "zpios_tag";
 
 static int
@@ -928,11 +926,7 @@ cleanup:
 static int
 zpios_open(struct inode *inode, struct file *file)
 {
-	unsigned int minor = iminor(inode);
 	zpios_info_t *info;
-
-	if (minor >= ZPIOS_MINORS)
-		return (-ENXIO);
 
 	info = (zpios_info_t *)kmem_alloc(sizeof (*info), KM_SLEEP);
 	if (info == NULL)
@@ -956,11 +950,7 @@ zpios_open(struct inode *inode, struct file *file)
 static int
 zpios_release(struct inode *inode, struct file *file)
 {
-	unsigned int minor = iminor(inode);
 	zpios_info_t *info = (zpios_info_t *)file->private_data;
-
-	if (minor >= ZPIOS_MINORS)
-		return (-ENXIO);
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -1143,15 +1133,11 @@ out_cmd:
 static long
 zpios_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	unsigned int minor = iminor(file->f_dentry->d_inode);
 	int rc = 0;
 
 	/* Ignore tty ioctls */
 	if ((cmd & 0xffffff00) == ((int)'T') << 8)
 		return (-ENOTTY);
-
-	if (minor >= ZPIOS_MINORS)
-		return (-ENXIO);
 
 	switch (cmd) {
 		case ZPIOS_CFG:
@@ -1187,12 +1173,8 @@ static ssize_t
 zpios_write(struct file *file, const char __user *buf,
     size_t count, loff_t *ppos)
 {
-	unsigned int minor = iminor(file->f_dentry->d_inode);
 	zpios_info_t *info = (zpios_info_t *)file->private_data;
 	int rc = 0;
-
-	if (minor >= ZPIOS_MINORS)
-		return (-ENXIO);
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -1224,12 +1206,8 @@ out:
 static ssize_t
 zpios_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 {
-	unsigned int minor = iminor(file->f_dentry->d_inode);
 	zpios_info_t *info = (zpios_info_t *)file->private_data;
 	int rc = 0;
-
-	if (minor >= ZPIOS_MINORS)
-		return (-ENXIO);
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -1258,12 +1236,8 @@ out:
 
 static loff_t zpios_seek(struct file *file, loff_t offset, int origin)
 {
-	unsigned int minor = iminor(file->f_dentry->d_inode);
 	zpios_info_t *info = (zpios_info_t *)file->private_data;
 	int rc = -EINVAL;
-
-	if (minor >= ZPIOS_MINORS)
-		return (-ENXIO);
 
 	ASSERT(info);
 	ASSERT(info->info_buffer);
@@ -1292,7 +1266,6 @@ static loff_t zpios_seek(struct file *file, loff_t offset, int origin)
 	return (rc);
 }
 
-static struct cdev zpios_cdev;
 static struct file_operations zpios_fops = {
 	.owner		= THIS_MODULE,
 	.open		= zpios_open,
@@ -1306,55 +1279,45 @@ static struct file_operations zpios_fops = {
 	.llseek		= zpios_seek,
 };
 
+static struct miscdevice zpios_misc = {
+	.minor		= MISC_DYNAMIC_MINOR,
+	.name		= ZPIOS_NAME,
+	.fops		= &zpios_fops,
+};
+
+#ifdef DEBUG
+#define	ZFS_DEBUG_STR   " (DEBUG mode)"
+#else
+#define	ZFS_DEBUG_STR   ""
+#endif
+
 static int
 zpios_init(void)
 {
-	dev_t dev;
-	int rc;
+	int error;
 
-	dev = MKDEV(ZPIOS_MAJOR, 0);
-	if ((rc = register_chrdev_region(dev, ZPIOS_MINORS, ZPIOS_NAME)))
-		goto error;
-
-	/* Support for registering a character driver */
-	cdev_init(&zpios_cdev, &zpios_fops);
-	zpios_cdev.owner = THIS_MODULE;
-	kobject_set_name(&zpios_cdev.kobj, ZPIOS_NAME);
-	if ((rc = cdev_add(&zpios_cdev, dev, ZPIOS_MINORS))) {
-		printk(KERN_ERR "ZPIOS: Error adding cdev, %d\n", rc);
-		kobject_put(&zpios_cdev.kobj);
-		unregister_chrdev_region(dev, ZPIOS_MINORS);
-		goto error;
+	error = misc_register(&zpios_misc);
+	if (error) {
+		printk(KERN_INFO "ZPIOS: misc_register() failed %d\n", error);
+	} else {
+		printk(KERN_INFO "ZPIOS: Loaded module v%s-%s%s\n",
+		    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 	}
 
-	/* Support for udev make driver info available in sysfs */
-	zpios_class = spl_class_create(THIS_MODULE, ZPIOS_NAME);
-	if (IS_ERR(zpios_class)) {
-		rc = PTR_ERR(zpios_class);
-		printk(KERN_ERR "ZPIOS: Error creating zpios class, %d\n", rc);
-		cdev_del(&zpios_cdev);
-		unregister_chrdev_region(dev, ZPIOS_MINORS);
-		goto error;
-	}
-
-	zpios_device = spl_device_create(zpios_class, NULL,
-	    dev, NULL, ZPIOS_NAME);
-
-	return (0);
-error:
-	printk(KERN_ERR "ZPIOS: Error registering zpios device, %d\n", rc);
-	return (rc);
+	return (error);
 }
 
 static int
 zpios_fini(void)
 {
-	dev_t dev = MKDEV(ZPIOS_MAJOR, 0);
+	int error;
 
-	spl_device_destroy(zpios_class, zpios_device, dev);
-	spl_class_destroy(zpios_class);
-	cdev_del(&zpios_cdev);
-	unregister_chrdev_region(dev, ZPIOS_MINORS);
+	error = misc_deregister(&zpios_misc);
+	if (error)
+		printk(KERN_INFO "ZPIOS: misc_deregister() failed %d\n", error);
+
+	printk(KERN_INFO "ZPIOS: Unloaded module v%s-%s%s\n",
+	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 
 	return (0);
 }
