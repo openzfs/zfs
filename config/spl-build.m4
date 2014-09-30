@@ -27,7 +27,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_TYPE_ATOMIC64_XCHG
 	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_SHRINKER_CALLBACK
-	SPL_AC_CTL_UNNUMBERED
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
@@ -973,27 +972,6 @@ AC_DEFUN([SPL_AC_SHRINKER_CALLBACK],[
 		])
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 2.6.19 API change,
-dnl # Use CTL_UNNUMBERED when binary sysctl is not required
-dnl #
-AC_DEFUN([SPL_AC_CTL_UNNUMBERED],
-	[AC_MSG_CHECKING([whether unnumbered sysctl support exists])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sysctl.h>
-	],[
-		#ifndef CTL_UNNUMBERED
-		#error CTL_UNNUMBERED undefined
-		#endif
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CTL_UNNUMBERED, 1,
-		          [unnumbered sysctl support exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
 ])
 
 dnl #

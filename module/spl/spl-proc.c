@@ -49,131 +49,13 @@ static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
 #endif
 
-#ifdef CONFIG_SYSCTL
 static struct ctl_table_header *spl_header = NULL;
-#endif /* CONFIG_SYSCTL */
-
 static struct proc_dir_entry *proc_spl = NULL;
 #ifdef DEBUG_KMEM
 static struct proc_dir_entry *proc_spl_kmem = NULL;
 static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
 #endif /* DEBUG_KMEM */
 struct proc_dir_entry *proc_spl_kstat = NULL;
-
-#ifdef HAVE_CTL_NAME
-#ifdef HAVE_CTL_UNNUMBERED
-
-#define CTL_SPL			CTL_UNNUMBERED
-#define CTL_SPL_DEBUG		CTL_UNNUMBERED
-#define CTL_SPL_VM		CTL_UNNUMBERED
-#define CTL_SPL_MUTEX		CTL_UNNUMBERED
-#define CTL_SPL_KMEM		CTL_UNNUMBERED
-#define CTL_SPL_KSTAT		CTL_UNNUMBERED
-
-#define CTL_VERSION		CTL_UNNUMBERED /* Version */
-#define CTL_HOSTID		CTL_UNNUMBERED /* Host id by /usr/bin/hostid */
-#define CTL_KALLSYMS		CTL_UNNUMBERED /* kallsyms_lookup_name addr */
-
-#define CTL_DEBUG_SUBSYS	CTL_UNNUMBERED /* Debug subsystem */
-#define CTL_DEBUG_MASK		CTL_UNNUMBERED /* Debug mask */
-#define CTL_DEBUG_PRINTK	CTL_UNNUMBERED /* All messages to console */
-#define CTL_DEBUG_MB		CTL_UNNUMBERED /* Debug buffer size */
-#define CTL_DEBUG_BINARY	CTL_UNNUMBERED /* Binary data in buffer */
-#define CTL_DEBUG_CATASTROPHE	CTL_UNNUMBERED /* Set if BUG'd or panic'd */
-#define CTL_DEBUG_PANIC_ON_BUG	CTL_UNNUMBERED /* Should panic on BUG */
-#define CTL_DEBUG_PATH		CTL_UNNUMBERED /* Dump log location */
-#define CTL_DEBUG_DUMP		CTL_UNNUMBERED /* Dump debug buffer to file */
-#define CTL_DEBUG_FORCE_BUG	CTL_UNNUMBERED /* Hook to force a BUG */
-#define CTL_DEBUG_STACK_SIZE	CTL_UNNUMBERED /* Max observed stack size */
-
-#define CTL_CONSOLE_RATELIMIT	CTL_UNNUMBERED /* Ratelimit console messages */
-#define CTL_CONSOLE_MAX_DELAY_CS CTL_UNNUMBERED /* Max delay skip messages */
-#define CTL_CONSOLE_MIN_DELAY_CS CTL_UNNUMBERED /* Init delay skip messages */
-#define CTL_CONSOLE_BACKOFF	CTL_UNNUMBERED /* Delay increase factor */
-
-#define CTL_VM_MINFREE		CTL_UNNUMBERED /* Minimum free memory */
-#define CTL_VM_DESFREE		CTL_UNNUMBERED /* Desired free memory */
-#define CTL_VM_LOTSFREE		CTL_UNNUMBERED /* Lots of free memory */
-#define CTL_VM_NEEDFREE		CTL_UNNUMBERED /* Need free memory */
-#define CTL_VM_SWAPFS_MINFREE	CTL_UNNUMBERED /* Minimum swapfs memory */
-#define CTL_VM_SWAPFS_RESERVE	CTL_UNNUMBERED /* Reserved swapfs memory */
-#define CTL_VM_AVAILRMEM	CTL_UNNUMBERED /* Easily available memory */
-#define CTL_VM_FREEMEM		CTL_UNNUMBERED /* Free memory */
-#define CTL_VM_PHYSMEM		CTL_UNNUMBERED /* Total physical memory */
-
-#ifdef DEBUG_KMEM
-#define CTL_KMEM_KMEMUSED	CTL_UNNUMBERED /* Alloc'd kmem bytes */
-#define CTL_KMEM_KMEMMAX	CTL_UNNUMBERED /* Max alloc'd by kmem bytes */
-#define CTL_KMEM_VMEMUSED	CTL_UNNUMBERED /* Alloc'd vmem bytes */
-#define CTL_KMEM_VMEMMAX	CTL_UNNUMBERED /* Max alloc'd by vmem bytes */
-#define CTL_KMEM_SLAB_KMEMTOTAL	CTL_UNNUMBERED /* Total kmem slab size */
-#define CTL_KMEM_SLAB_KMEMALLOC	CTL_UNNUMBERED /* Alloc'd kmem slab size */
-#define CTL_KMEM_SLAB_KMEMMAX	CTL_UNNUMBERED /* Max kmem slab size */
-#define CTL_KMEM_SLAB_VMEMTOTAL	CTL_UNNUMBERED /* Total vmem slab size */
-#define CTL_KMEM_SLAB_VMEMALLOC	CTL_UNNUMBERED /* Alloc'd vmem slab size */
-#define CTL_KMEM_SLAB_VMEMMAX	CTL_UNNUMBERED /* Max vmem slab size */
-#endif
-
-#else /* HAVE_CTL_UNNUMBERED */
-
-enum {
-	CTL_SPL = 0x87,
-	CTL_SPL_DEBUG = 0x88,
-	CTL_SPL_VM = 0x89,
-	CTL_SPL_MUTEX = 0x90,
-	CTL_SPL_KMEM = 0x91,
-	CTL_SPL_KSTAT = 0x92,
-};
-
-enum {
-	CTL_VERSION = 1,		/* Version */
-	CTL_HOSTID,			/* Host id reported by /usr/bin/hostid */
-	CTL_KALLSYMS,			/* Address of kallsyms_lookup_name */
-
-#ifdef DEBUG_LOG
-	CTL_DEBUG_SUBSYS,		/* Debug subsystem */
-	CTL_DEBUG_MASK,			/* Debug mask */
-	CTL_DEBUG_PRINTK,		/* Force all messages to console */
-	CTL_DEBUG_MB,			/* Debug buffer size */
-	CTL_DEBUG_BINARY,		/* Include binary data in buffer */
-	CTL_DEBUG_CATASTROPHE,		/* Set if we have BUG'd or panic'd */
-	CTL_DEBUG_PANIC_ON_BUG,		/* Set if we should panic on BUG */
-	CTL_DEBUG_PATH,			/* Dump log location */
-	CTL_DEBUG_DUMP,			/* Dump debug buffer to file */
-	CTL_DEBUG_FORCE_BUG,		/* Hook to force a BUG */
-	CTL_DEBUG_STACK_SIZE,		/* Max observed stack size */
-#endif
-
-	CTL_CONSOLE_RATELIMIT,		/* Ratelimit console messages */
-	CTL_CONSOLE_MAX_DELAY_CS,	/* Max delay which we skip messages */
-	CTL_CONSOLE_MIN_DELAY_CS,	/* Init delay which we skip messages */
-	CTL_CONSOLE_BACKOFF,		/* Delay increase factor */
-
-	CTL_VM_MINFREE,			/* Minimum free memory threshold */
-	CTL_VM_DESFREE,			/* Desired free memory threshold */
-	CTL_VM_LOTSFREE,		/* Lots of free memory threshold */
-	CTL_VM_NEEDFREE,		/* Need free memory deficit */
-	CTL_VM_SWAPFS_MINFREE,		/* Minimum swapfs memory */
-	CTL_VM_SWAPFS_RESERVE,		/* Reserved swapfs memory */
-	CTL_VM_AVAILRMEM,		/* Easily available memory */
-	CTL_VM_FREEMEM,			/* Free memory */
-	CTL_VM_PHYSMEM,			/* Total physical memory */
-
-#ifdef DEBUG_KMEM
-	CTL_KMEM_KMEMUSED,		/* Alloc'd kmem bytes */
-	CTL_KMEM_KMEMMAX,		/* Max alloc'd by kmem bytes */
-	CTL_KMEM_VMEMUSED,		/* Alloc'd vmem bytes */
-	CTL_KMEM_VMEMMAX,		/* Max alloc'd by vmem bytes */
-	CTL_KMEM_SLAB_KMEMTOTAL,	/* Total kmem slab size */
-	CTL_KMEM_SLAB_KMEMALLOC,	/* Alloc'd kmem slab size */
-	CTL_KMEM_SLAB_KMEMMAX,		/* Max kmem slab size */
-	CTL_KMEM_SLAB_VMEMTOTAL,	/* Total vmem slab size */
-	CTL_KMEM_SLAB_VMEMALLOC,	/* Alloc'd vmem slab size */
-	CTL_KMEM_SLAB_VMEMMAX,		/* Max vmem slab size */
-#endif
-};
-#endif /* HAVE_CTL_UNNUMBERED */
-#endif /* HAVE_CTL_NAME */
 
 static int
 proc_copyin_string(char *kbuffer, int kbuffer_size,
@@ -738,7 +620,6 @@ static struct file_operations proc_slab_operations = {
 #ifdef DEBUG_LOG
 static struct ctl_table spl_debug_table[] = {
         {
-                CTL_NAME    (CTL_DEBUG_SUBSYS)
                 .procname = "subsystem",
                 .data     = &spl_debug_subsys,
                 .maxlen   = sizeof(unsigned long),
@@ -746,7 +627,6 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dobitmasks
         },
         {
-                CTL_NAME    (CTL_DEBUG_MASK)
                 .procname = "mask",
                 .data     = &spl_debug_mask,
                 .maxlen   = sizeof(unsigned long),
@@ -754,7 +634,6 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dobitmasks
         },
         {
-                CTL_NAME    (CTL_DEBUG_PRINTK)
                 .procname = "printk",
                 .data     = &spl_debug_printk,
                 .maxlen   = sizeof(unsigned long),
@@ -762,13 +641,11 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dobitmasks
         },
         {
-                CTL_NAME    (CTL_DEBUG_MB)
                 .procname = "mb",
                 .mode     = 0644,
                 .proc_handler = &proc_debug_mb,
         },
         {
-                CTL_NAME    (CTL_DEBUG_BINARY)
                 .procname = "binary",
                 .data     = &spl_debug_binary,
                 .maxlen   = sizeof(int),
@@ -776,7 +653,6 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_DEBUG_CATASTROPHE)
                 .procname = "catastrophe",
                 .data     = &spl_debug_catastrophe,
                 .maxlen   = sizeof(int),
@@ -784,7 +660,6 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_DEBUG_PANIC_ON_BUG)
                 .procname = "panic_on_bug",
                 .data     = &spl_debug_panic_on_bug,
                 .maxlen   = sizeof(int),
@@ -792,7 +667,6 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec
         },
         {
-                CTL_NAME    (CTL_DEBUG_PATH)
                 .procname = "path",
                 .data     = spl_debug_file_path,
                 .maxlen   = sizeof(spl_debug_file_path),
@@ -800,18 +674,16 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dostring,
         },
         {
-                CTL_NAME    (CTL_DEBUG_DUMP)
                 .procname = "dump",
                 .mode     = 0200,
                 .proc_handler = &proc_dump_kernel,
         },
-        {       CTL_NAME    (CTL_DEBUG_FORCE_BUG)
+        {
                 .procname = "force_bug",
                 .mode     = 0200,
                 .proc_handler = &proc_force_bug,
         },
         {
-                CTL_NAME    (CTL_CONSOLE_RATELIMIT)
                 .procname = "console_ratelimit",
                 .data     = &spl_console_ratelimit,
                 .maxlen   = sizeof(int),
@@ -819,28 +691,24 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_CONSOLE_MAX_DELAY_CS)
                 .procname = "console_max_delay_centisecs",
                 .maxlen   = sizeof(int),
                 .mode     = 0644,
                 .proc_handler = &proc_console_max_delay_cs,
         },
         {
-                CTL_NAME    (CTL_CONSOLE_MIN_DELAY_CS)
                 .procname = "console_min_delay_centisecs",
                 .maxlen   = sizeof(int),
                 .mode     = 0644,
                 .proc_handler = &proc_console_min_delay_cs,
         },
         {
-                CTL_NAME    (CTL_CONSOLE_BACKOFF)
                 .procname = "console_backoff",
                 .maxlen   = sizeof(int),
                 .mode     = 0644,
                 .proc_handler = &proc_console_backoff,
         },
         {
-                CTL_NAME    (CTL_DEBUG_STACK_SIZE)
                 .procname = "stack_max",
                 .data     = &spl_debug_stack,
                 .maxlen   = sizeof(int),
@@ -853,7 +721,6 @@ static struct ctl_table spl_debug_table[] = {
 
 static struct ctl_table spl_vm_table[] = {
         {
-                CTL_NAME    (CTL_VM_MINFREE)
                 .procname = "minfree",
                 .data     = &minfree,
                 .maxlen   = sizeof(int),
@@ -861,7 +728,6 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_VM_DESFREE)
                 .procname = "desfree",
                 .data     = &desfree,
                 .maxlen   = sizeof(int),
@@ -869,7 +735,6 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_VM_LOTSFREE)
                 .procname = "lotsfree",
                 .data     = &lotsfree,
                 .maxlen   = sizeof(int),
@@ -877,7 +742,6 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_VM_NEEDFREE)
                 .procname = "needfree",
                 .data     = &needfree,
                 .maxlen   = sizeof(int),
@@ -885,7 +749,6 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_VM_SWAPFS_MINFREE)
                 .procname = "swapfs_minfree",
                 .data     = &swapfs_minfree,
                 .maxlen   = sizeof(int),
@@ -893,7 +756,6 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_VM_SWAPFS_RESERVE)
                 .procname = "swapfs_reserve",
                 .data     = &swapfs_reserve,
                 .maxlen   = sizeof(int),
@@ -901,13 +763,11 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                CTL_NAME    (CTL_VM_AVAILRMEM)
                 .procname = "availrmem",
                 .mode     = 0444,
                 .proc_handler = &proc_doavailrmem,
         },
         {
-                CTL_NAME    (CTL_VM_FREEMEM)
                 .procname = "freemem",
                 .data     = (void *)2,
                 .maxlen   = sizeof(int),
@@ -915,7 +775,6 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dofreemem,
         },
         {
-                CTL_NAME    (CTL_VM_PHYSMEM)
                 .procname = "physmem",
                 .data     = &physmem,
                 .maxlen   = sizeof(int),
@@ -928,7 +787,6 @@ static struct ctl_table spl_vm_table[] = {
 #ifdef DEBUG_KMEM
 static struct ctl_table spl_kmem_table[] = {
         {
-                CTL_NAME    (CTL_KMEM_KMEMUSED)
                 .procname = "kmem_used",
                 .data     = &kmem_alloc_used,
 # ifdef HAVE_ATOMIC64_T
@@ -940,7 +798,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_domemused,
         },
         {
-                CTL_NAME    (CTL_KMEM_KMEMMAX)
                 .procname = "kmem_max",
                 .data     = &kmem_alloc_max,
                 .maxlen   = sizeof(unsigned long),
@@ -950,7 +807,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doulongvec_minmax,
         },
         {
-                CTL_NAME    (CTL_KMEM_VMEMUSED)
                 .procname = "vmem_used",
                 .data     = &vmem_alloc_used,
 # ifdef HAVE_ATOMIC64_T
@@ -962,7 +818,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_domemused,
         },
         {
-                CTL_NAME    (CTL_KMEM_VMEMMAX)
                 .procname = "vmem_max",
                 .data     = &vmem_alloc_max,
                 .maxlen   = sizeof(unsigned long),
@@ -972,7 +827,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doulongvec_minmax,
         },
         {
-                CTL_NAME    (CTL_KMEM_SLAB_KMEMTOTAL)
                 .procname = "slab_kmem_total",
 		.data     = (void *)(KMC_KMEM | KMC_TOTAL),
                 .maxlen   = sizeof(unsigned long),
@@ -982,7 +836,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doslab,
         },
         {
-                CTL_NAME    (CTL_KMEM_SLAB_KMEMALLOC)
                 .procname = "slab_kmem_alloc",
 		.data     = (void *)(KMC_KMEM | KMC_ALLOC),
                 .maxlen   = sizeof(unsigned long),
@@ -992,7 +845,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doslab,
         },
         {
-                CTL_NAME    (CTL_KMEM_SLAB_KMEMMAX)
                 .procname = "slab_kmem_max",
 		.data     = (void *)(KMC_KMEM | KMC_MAX),
                 .maxlen   = sizeof(unsigned long),
@@ -1002,7 +854,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doslab,
         },
         {
-                CTL_NAME    (CTL_KMEM_SLAB_VMEMTOTAL)
                 .procname = "slab_vmem_total",
 		.data     = (void *)(KMC_VMEM | KMC_TOTAL),
                 .maxlen   = sizeof(unsigned long),
@@ -1012,7 +863,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doslab,
         },
         {
-                CTL_NAME    (CTL_KMEM_SLAB_VMEMALLOC)
                 .procname = "slab_vmem_alloc",
 		.data     = (void *)(KMC_VMEM | KMC_ALLOC),
                 .maxlen   = sizeof(unsigned long),
@@ -1022,7 +872,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doslab,
         },
         {
-                CTL_NAME    (CTL_KMEM_SLAB_VMEMMAX)
                 .procname = "slab_vmem_max",
 		.data     = (void *)(KMC_VMEM | KMC_MAX),
                 .maxlen   = sizeof(unsigned long),
@@ -1044,7 +893,6 @@ static struct ctl_table spl_table[] = {
          * sysctl(8) prefers to go via /proc for portability.
          */
         {
-                CTL_NAME    (CTL_VERSION)
                 .procname = "version",
                 .data     = spl_version,
                 .maxlen   = sizeof(spl_version),
@@ -1052,7 +900,6 @@ static struct ctl_table spl_table[] = {
                 .proc_handler = &proc_dostring,
         },
         {
-                CTL_NAME    (CTL_HOSTID)
                 .procname = "hostid",
                 .data     = &spl_hostid,
                 .maxlen   = sizeof(unsigned long),
@@ -1061,7 +908,6 @@ static struct ctl_table spl_table[] = {
         },
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
         {
-                CTL_NAME    (CTL_KALLSYMS)
                 .procname = "kallsyms_lookup_name",
                 .data     = &spl_kallsyms_lookup_name_fn,
                 .maxlen   = sizeof(unsigned long),
@@ -1071,28 +917,24 @@ static struct ctl_table spl_table[] = {
 #endif
 #ifdef DEBUG_LOG
 	{
-		CTL_NAME    (CTL_SPL_DEBUG)
 		.procname = "debug",
 		.mode     = 0555,
 		.child    = spl_debug_table,
 	},
 #endif
 	{
-		CTL_NAME    (CTL_SPL_VM)
 		.procname = "vm",
 		.mode     = 0555,
 		.child    = spl_vm_table,
 	},
 #ifdef DEBUG_KMEM
 	{
-		CTL_NAME    (CTL_SPL_KMEM)
 		.procname = "kmem",
 		.mode     = 0555,
 		.child    = spl_kmem_table,
 	},
 #endif
 	{
-		CTL_NAME    (CTL_SPL_KSTAT)
 		.procname = "kstat",
 		.mode     = 0555,
 		.child    = spl_kstat_table,
@@ -1102,7 +944,6 @@ static struct ctl_table spl_table[] = {
 
 static struct ctl_table spl_dir[] = {
         {
-                CTL_NAME    (CTL_SPL)
                 .procname = "spl",
                 .mode     = 0555,
                 .child    = spl_table,
@@ -1112,7 +953,9 @@ static struct ctl_table spl_dir[] = {
 
 static struct ctl_table spl_root[] = {
 	{
-	CTL_NAME    (CTL_KERN)
+#ifdef HAVE_CTL_NAME
+	.ctl_name = CTL_KERN,
+#endif
 	.procname = "kernel",
 	.mode = 0555,
 	.child = spl_dir,
@@ -1126,11 +969,9 @@ spl_proc_init(void)
 	int rc = 0;
         SENTRY;
 
-#ifdef CONFIG_SYSCTL
         spl_header = register_sysctl_table(spl_root);
 	if (spl_header == NULL)
 		SRETURN(-EUNATCH);
-#endif /* CONFIG_SYSCTL */
 
 	proc_spl = proc_mkdir("spl", NULL);
 	if (proc_spl == NULL)
@@ -1159,9 +1000,7 @@ out:
 		remove_proc_entry("kmem", proc_spl);
 #endif
 		remove_proc_entry("spl", NULL);
-#ifdef CONFIG_SYSCTL
 	        unregister_sysctl_table(spl_header);
-#endif /* CONFIG_SYSCTL */
 	}
 
         SRETURN(rc);
@@ -1179,10 +1018,8 @@ spl_proc_fini(void)
 #endif
 	remove_proc_entry("spl", NULL);
 
-#ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);
         unregister_sysctl_table(spl_header);
-#endif /* CONFIG_SYSCTL */
 
         SEXIT;
 }
