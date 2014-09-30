@@ -31,7 +31,6 @@
 #include <linux/uaccess_compat.h>
 #include <linux/file_compat.h>
 #include <linux/list_compat.h>
-#include <linux/time_compat.h>
 #include <linux/bitops_compat.h>
 #include <linux/smp_compat.h>
 #include <linux/kallsyms_compat.h>

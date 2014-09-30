@@ -23,74 +23,57 @@
 \*****************************************************************************/
 
 #ifndef _SPL_TIME_H
-#define _SPL_TIME_H
+#define	_SPL_TIME_H
 
-/*
- * Structure returned by gettimeofday(2) system call,
- * and used in other calls.
- */
 #include <linux/module.h>
 #include <linux/time.h>
 #include <sys/types.h>
 #include <sys/timer.h>
 
 #if defined(CONFIG_64BIT)
-#define TIME_MAX			INT64_MAX
-#define TIME_MIN			INT64_MIN
+#define	TIME_MAX			INT64_MAX
+#define	TIME_MIN			INT64_MIN
 #else
-#define TIME_MAX			INT32_MAX
-#define TIME_MIN			INT32_MIN
+#define	TIME_MAX			INT32_MAX
+#define	TIME_MIN			INT32_MIN
 #endif
 
-#define SEC				1
-#define MILLISEC			1000
-#define MICROSEC			1000000
-#define NANOSEC				1000000000
+#define	SEC				1
+#define	MILLISEC			1000
+#define	MICROSEC			1000000
+#define	NANOSEC				1000000000
 
 #define	MSEC2NSEC(m)	((hrtime_t)(m) * (NANOSEC / MILLISEC))
 #define	NSEC2MSEC(n)	((n) / (NANOSEC / MILLISEC))
 
-/* Already defined in include/linux/time.h */
-#undef CLOCK_THREAD_CPUTIME_ID
-#undef CLOCK_REALTIME
-#undef CLOCK_MONOTONIC
-#undef CLOCK_PROCESS_CPUTIME_ID
+#define	hz				HZ
 
-typedef enum clock_type {
-	__CLOCK_REALTIME0 =		0,	/* obsolete; same as CLOCK_REALTIME */
-	CLOCK_VIRTUAL =			1,	/* thread's user-level CPU clock */
-	CLOCK_THREAD_CPUTIME_ID	=	2,	/* thread's user+system CPU clock */
-	CLOCK_REALTIME =		3,	/* wall clock */
-	CLOCK_MONOTONIC =		4,	/* high resolution monotonic clock */
-	CLOCK_PROCESS_CPUTIME_ID =	5,	/* process's user+system CPU clock */
-	CLOCK_HIGHRES =			CLOCK_MONOTONIC,	/* alternate name */
-	CLOCK_PROF =			CLOCK_THREAD_CPUTIME_ID,/* alternate name */
-} clock_type_t;
+#define	TIMESPEC_OVERFLOW(ts)		\
+	((ts)->tv_sec < TIME_MIN || (ts)->tv_sec > TIME_MAX)
 
-#define hz					\
-({						\
-        ASSERT(HZ >= 100 && HZ <= MICROSEC);	\
-        HZ;					\
-})
-
-extern void __gethrestime(timestruc_t *);
-extern int __clock_gettime(clock_type_t, timespec_t *);
-extern hrtime_t __gethrtime(void);
-
-#define gethrestime(ts)			__gethrestime(ts)
-#define clock_gettime(fl, tp)		__clock_gettime(fl, tp)
-#define gethrtime()			__gethrtime()
-
-static __inline__ time_t
-gethrestime_sec(void)
+static inline void
+gethrestime(timestruc_t *now)
 {
-        timestruc_t now;
-
-        __gethrestime(&now);
-        return now.tv_sec;
+	struct timespec ts;
+	getnstimeofday(&ts);
+	now->tv_sec = ts.tv_sec;
+	now->tv_nsec = ts.tv_nsec;
 }
 
-#define TIMESPEC_OVERFLOW(ts)		\
-	((ts)->tv_sec < TIME_MIN || (ts)->tv_sec > TIME_MAX)
+static inline time_t
+gethrestime_sec(void)
+{
+	struct timespec ts;
+	getnstimeofday(&ts);
+	return (ts.tv_sec);
+}
+
+static inline hrtime_t
+gethrtime(void)
+{
+	struct timespec now;
+	getrawmonotonic(&now);
+	return (((hrtime_t)now.tv_sec * NSEC_PER_SEC) + now.tv_nsec);
+}
 
 #endif  /* _SPL_TIME_H */

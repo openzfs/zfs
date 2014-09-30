@@ -30,12 +30,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
-	SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT
-	SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE
-	SPL_AC_TIMESPEC_SUB
 	SPL_AC_UACCESS_HEADER
 	SPL_AC_KMALLOC_NODE
-	SPL_AC_MONOTONIC_CLOCK
 	SPL_AC_INODE_I_MUTEX
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
@@ -993,66 +989,6 @@ AC_DEFUN([SPL_AC_CTL_NAME], [
 ])
 
 dnl #
-dnl # 2.6.26 API change, set_normalized_timespec() is exported.
-dnl #
-AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT],
-	[AC_MSG_CHECKING([whether set_normalized_timespec() is available as export])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/time.h>
-	], [
-		set_normalized_timespec(NULL, 0, 0);
-	], [set_normalized_timespec], [kernel/time.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_EXPORT, 1,
-		          [set_normalized_timespec() is available as export])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.16 API change, set_normalize_timespec() moved to time.c
-dnl # previously it was available in time.h as an inline.
-dnl #
-AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE], [
-	AC_MSG_CHECKING([whether set_normalized_timespec() is an inline])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/time.h>
-		void set_normalized_timespec(struct timespec *ts,
-		                             time_t sec, long nsec) { }
-	],
-	[],
-	[
-		AC_MSG_RESULT(no)
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_INLINE, 1,
-		          [set_normalized_timespec() is available as inline])
-	])
-])
-
-dnl #
-dnl # 2.6.18 API change,
-dnl # timespec_sub() inline function available in linux/time.h
-dnl #
-AC_DEFUN([SPL_AC_TIMESPEC_SUB], [
-	AC_MSG_CHECKING([whether timespec_sub() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/time.h>
-	],[
-		struct timespec a = { 0 };
-		struct timespec b = { 0 };
-		struct timespec c __attribute__ ((unused));
-		c = timespec_sub(a, b);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_TIMESPEC_SUB, 1, [timespec_sub() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.18 API change,
 dnl # added linux/uaccess.h
 dnl #
@@ -1075,26 +1011,6 @@ AC_DEFUN([SPL_AC_KMALLOC_NODE], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_KMALLOC_NODE, 1, [kmalloc_node() is available])
 	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.9 API change,
-dnl # check whether 'monotonic_clock()' is available it may
-dnl # be available for some archs but not others.
-dnl #
-AC_DEFUN([SPL_AC_MONOTONIC_CLOCK],
-	[AC_MSG_CHECKING([whether monotonic_clock() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/timex.h>
-	], [
-		monotonic_clock();
-	], [monotonic_clock], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_MONOTONIC_CLOCK, 1,
-		          [monotonic_clock() is available])
-	], [
 		AC_MSG_RESULT(no)
 	])
 ])
