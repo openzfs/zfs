@@ -2276,7 +2276,7 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 	if ((spl_kmem_cache_reclaim & KMC_RECLAIM_ONCE) && sc->nr_to_scan)
 		return (-1);
 
-	return MAX((alloc * sysctl_vfs_cache_pressure) / 100, 0);
+	return (MAX(alloc, 0));
 }
 
 SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);
