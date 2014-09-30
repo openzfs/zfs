@@ -30,7 +30,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
-	SPL_AC_FLS64
 	SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT
 	SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE
 	SPL_AC_TIMESPEC_SUB
@@ -988,24 +987,6 @@ AC_DEFUN([SPL_AC_CTL_NAME], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_CTL_NAME, 1, [struct ctl_table has ctl_name])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.16 API change.
-dnl # Check if 'fls64()' is available
-dnl #
-AC_DEFUN([SPL_AC_FLS64],
-	[AC_MSG_CHECKING([whether fls64() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/bitops.h>
-	],[
-		return fls64(0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_FLS64, 1, [fls64() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])

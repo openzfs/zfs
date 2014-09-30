@@ -977,7 +977,7 @@ spl_sko_from_obj(spl_kmem_cache_t *skc, void *obj)
 static inline uint32_t
 spl_offslab_size(spl_kmem_cache_t *skc)
 {
-	return 1UL << (highbit(spl_obj_size(skc)) + 1);
+	return 1UL << (fls64(spl_obj_size(skc)) + 1);
 }
 
 /*

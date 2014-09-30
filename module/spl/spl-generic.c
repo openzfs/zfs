@@ -64,68 +64,6 @@ DECLARE_WAIT_QUEUE_HEAD(spl_kallsyms_lookup_name_waitq);
 kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn = SYMBOL_POISON;
 #endif
 
-int
-highbit(unsigned long i)
-{
-        register int h = 1;
-        SENTRY;
-
-        if (i == 0)
-                SRETURN(0);
-#if BITS_PER_LONG == 64
-        if (i & 0xffffffff00000000ul) {
-                h += 32; i >>= 32;
-        }
-#endif
-        if (i & 0xffff0000) {
-                h += 16; i >>= 16;
-        }
-        if (i & 0xff00) {
-                h += 8; i >>= 8;
-        }
-        if (i & 0xf0) {
-                h += 4; i >>= 4;
-        }
-        if (i & 0xc) {
-                h += 2; i >>= 2;
-        }
-        if (i & 0x2) {
-                h += 1;
-        }
-        SRETURN(h);
-}
-EXPORT_SYMBOL(highbit);
-
-int
-highbit64(uint64_t i)
-{
-        register int h = 1;
-        SENTRY;
-
-        if (i == 0)
-                SRETURN(0);
-        if (i & 0xffffffff00000000ull) {
-                h += 32; i >>= 32;
-        }
-        if (i & 0xffff0000) {
-                h += 16; i >>= 16;
-        }
-        if (i & 0xff00) {
-                h += 8; i >>= 8;
-        }
-        if (i & 0xf0) {
-                h += 4; i >>= 4;
-        }
-        if (i & 0xc) {
-                h += 2; i >>= 2;
-        }
-        if (i & 0x2) {
-                h += 1;
-        }
-        SRETURN(h);
-}
-EXPORT_SYMBOL(highbit64);
-
 #if BITS_PER_LONG == 32
 /*
  * Support 64/64 => 64 division on a 32-bit platform.  While the kernel
