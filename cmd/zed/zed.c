@@ -259,7 +259,8 @@ main(int argc, char *argv[])
 	if (zcp->do_memlock)
 		_lock_memory();
 
-	(void) zed_conf_write_pid(zcp);
+	if ((zed_conf_write_pid(zcp) < 0) && (!zcp->do_force))
+		exit(EXIT_FAILURE);
 
 	if (!zcp->do_foreground)
 		_finish_daemonize();
