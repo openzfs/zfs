@@ -1391,7 +1391,7 @@ spl_cache_age(void *data)
 	atomic_inc(&skc->skc_ref);
 
 	if (!(skc->skc_flags & KMC_NOMAGAZINE))
-		spl_on_each_cpu(spl_magazine_age, skc, 1);
+		on_each_cpu(spl_magazine_age, skc, 1);
 
 	spl_slab_reclaim(skc, skc->skc_reap, 0);
 

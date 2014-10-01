@@ -29,7 +29,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_PDE_DATA
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
-	SPL_AC_3ARGS_ON_EACH_CPU
 	SPL_AC_KALLSYMS_LOOKUP_NAME
 	SPL_AC_GET_VMALLOC_INFO
 	SPL_AC_PGDAT_HELPERS
@@ -970,28 +969,6 @@ AC_DEFUN([SPL_AC_MUTEX_OWNER_TASK_STRUCT], [
 		AC_MSG_RESULT(no)
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 2.6.27 API change,
-dnl # on_each_cpu() uses 3 args, no 'retry' argument
-dnl #
-AC_DEFUN([SPL_AC_3ARGS_ON_EACH_CPU], [
-	AC_MSG_CHECKING([whether on_each_cpu() wants 3 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/interrupt.h>
-		#include <linux/smp.h>
-
-		void on_each_cpu_func(void *data) { return; }
-	],[
-		on_each_cpu(on_each_cpu_func, NULL, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_3ARGS_ON_EACH_CPU, 1,
-		          [on_each_cpu wants 3 args])
-	],[
-		AC_MSG_RESULT(no)
-	])
 ])
 
 dnl #
