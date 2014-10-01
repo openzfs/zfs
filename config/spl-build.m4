@@ -28,7 +28,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_PDE_DATA
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
-	SPL_AC_KALLSYMS_LOOKUP_NAME
 	SPL_AC_USER_PATH_DIR
 	SPL_AC_SET_FS_PWD
 	SPL_AC_SET_FS_PWD_WITH_CONST
@@ -47,7 +46,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_FALLOCATE
 	SPL_AC_KERN_PATH
-	SPL_AC_CONFIG_KALLSYMS
 	SPL_AC_CONFIG_ZLIB_INFLATE
 	SPL_AC_CONFIG_ZLIB_DEFLATE
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
@@ -958,25 +956,6 @@ AC_DEFUN([SPL_AC_MUTEX_OWNER_TASK_STRUCT], [
 ])
 
 dnl #
-dnl # 2.6.18 API change,
-dnl # kallsyms_lookup_name no longer exported
-dnl #
-AC_DEFUN([SPL_AC_KALLSYMS_LOOKUP_NAME],
-	[AC_MSG_CHECKING([whether kallsyms_lookup_name() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/kallsyms.h>
-	], [
-		kallsyms_lookup_name(NULL);
-	], [kallsyms_lookup_name], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KALLSYMS_LOOKUP_NAME, 1,
-		          [kallsyms_lookup_name() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.10 API change,
 dnl # PDE is replaced by PDE_DATA
 dnl #
@@ -1498,26 +1477,6 @@ AC_DEFUN([SPL_AC_KERN_PATH],
 	*** https://github.com/zfsonlinux/spl/issues/new])
 
 		])
-	])
-])
-
-dnl #
-dnl # /proc/kallsyms support,
-dnl # Verify the kernel has CONFIG_KALLSYMS support enabled.
-dnl #
-AC_DEFUN([SPL_AC_CONFIG_KALLSYMS], [
-	AC_MSG_CHECKING([whether CONFIG_KALLSYMS is defined])
-	SPL_LINUX_TRY_COMPILE([
-		#if !defined(CONFIG_KALLSYMS)
-		#error CONFIG_KALLSYMS not defined
-		#endif
-	],[ ],[
-		AC_MSG_RESULT([yes])
-	],[
-		AC_MSG_RESULT([no])
-		AC_MSG_ERROR([
-	*** This kernel does not include the required kallsyms support.
-	*** Rebuild the kernel with CONFIG_KALLSYMS=y set.])
 	])
 ])
 

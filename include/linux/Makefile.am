@@ -5,7 +5,6 @@ KERNEL_H = \
 	$(top_srcdir)/include/linux/compiler_compat.h \
 	$(top_srcdir)/include/linux/delay_compat.h \
 	$(top_srcdir)/include/linux/file_compat.h \
-	$(top_srcdir)/include/linux/kallsyms_compat.h \
 	$(top_srcdir)/include/linux/list_compat.h \
 	$(top_srcdir)/include/linux/math64_compat.h \
 	$(top_srcdir)/include/linux/mm_compat.h \

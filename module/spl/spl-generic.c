@@ -59,11 +59,6 @@ MODULE_PARM_DESC(spl_hostid, "The system hostid.");
 proc_t p0 = { 0 };
 EXPORT_SYMBOL(p0);
 
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
-DECLARE_WAIT_QUEUE_HEAD(spl_kallsyms_lookup_name_waitq);
-kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn = SYMBOL_POISON;
-#endif
-
 #if BITS_PER_LONG == 32
 /*
  * Support 64/64 => 64 division on a 32-bit platform.  While the kernel
@@ -490,64 +485,6 @@ zone_get_hostid(void *zone)
 }
 EXPORT_SYMBOL(zone_get_hostid);
 
-/*
- * The kallsyms_lookup_name() kernel function is not an exported symbol in
- * Linux 2.6.19 through 2.6.32 inclusive.
- *
- * This function replaces the functionality by performing an upcall to user
- * space where /proc/kallsyms is consulted for the requested address.
- *
- */
-#define GET_KALLSYMS_ADDR_CMD \
-	"exec 0</dev/null " \
-	"     1>/proc/sys/kernel/spl/kallsyms_lookup_name " \
-	"     2>/dev/null; " \
-	"awk  '{ if ( $3 == \"kallsyms_lookup_name\" ) { print $1 } }' " \
-	"     /proc/kallsyms "
-
-static int
-set_kallsyms_lookup_name(void)
-{
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
-	char *argv[] = { "/bin/sh",
-	                 "-c",
-			 GET_KALLSYMS_ADDR_CMD,
-	                 NULL };
-	char *envp[] = { "HOME=/",
-	                 "TERM=linux",
-	                 "PATH=/sbin:/usr/sbin:/bin:/usr/bin",
-	                 NULL };
-	int rc;
-
-	rc = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-
-	/*
-	 * Due to I/O buffering the helper may return successfully before
-	 * the proc handler has a chance to execute.  To catch this case
-	 * wait up to 1 second to verify spl_kallsyms_lookup_name_fn was
-	 * updated to a non SYMBOL_POISON value.
-	 */
-	if (rc == 0) {
-		rc = wait_event_timeout(spl_kallsyms_lookup_name_waitq,
-		    spl_kallsyms_lookup_name_fn != SYMBOL_POISON, HZ);
-		if (rc == 0)
-			rc = -ETIMEDOUT;
-		else if (spl_kallsyms_lookup_name_fn == SYMBOL_POISON)
-			rc = -EFAULT;
-		else
-			rc = 0;
-	}
-
-	if (rc)
-		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
-		       argv[0], argv[1], argv[2], rc);
-
-	return (rc);
-#else
-	return (0);
-#endif /* HAVE_KALLSYMS_LOOKUP_NAME */
-}
-
 static int
 __init spl_init(void)
 {
@@ -583,14 +520,10 @@ __init spl_init(void)
 	if ((rc = spl_zlib_init()))
 		SGOTO(out9, rc);
 
-	if ((rc = set_kallsyms_lookup_name()))
-		SGOTO(out10, rc = -EADDRNOTAVAIL);
-
 	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
 	       SPL_META_RELEASE, SPL_DEBUG_STR);
 	SRETURN(rc);
-out10:
-	spl_zlib_fini();
+
 out9:
 	spl_tsd_fini();
 out8:

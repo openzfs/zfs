@@ -409,51 +409,6 @@ SPL_PROC_HANDLER(proc_dohostid)
         SRETURN(rc);
 }
 
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
-SPL_PROC_HANDLER(proc_dokallsyms_lookup_name)
-{
-        int len, rc = 0;
-        char *end, str[32];
-	SENTRY;
-
-        if (write) {
-		/* This may only be set once at module load time */
-		if (spl_kallsyms_lookup_name_fn != SYMBOL_POISON)
-			SRETURN(-EEXIST);
-
-		/* We can't use spl_proc_doulongvec_minmax() in the write
-		 * case here because the address while a hex value has no
-		 * leading 0x which confuses the helper function. */
-                rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
-                if (rc < 0)
-                        SRETURN(rc);
-
-                spl_kallsyms_lookup_name_fn =
-			(kallsyms_lookup_name_t)simple_strtoul(str, &end, 16);
-		wake_up(&spl_kallsyms_lookup_name_waitq);
-
-		if (str == end)
-			SRETURN(-EINVAL);
-
-                *ppos += *lenp;
-        } else {
-                len = snprintf(str, sizeof(str), "%lx",
-			       (unsigned long)spl_kallsyms_lookup_name_fn);
-                if (*ppos >= len)
-                        rc = 0;
-                else
-                        rc = proc_copyout_string(buffer,*lenp,str+*ppos,"\n");
-
-                if (rc >= 0) {
-                        *lenp = rc;
-                        *ppos += rc;
-                }
-        }
-
-        SRETURN(rc);
-}
-#endif /* HAVE_KALLSYMS_LOOKUP_NAME */
-
 #ifdef DEBUG_KMEM
 static void
 slab_seq_show_headers(struct seq_file *f)
@@ -792,15 +747,6 @@ static struct ctl_table spl_table[] = {
                 .mode     = 0644,
                 .proc_handler = &proc_dohostid,
         },
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
-        {
-                .procname = "kallsyms_lookup_name",
-                .data     = &spl_kallsyms_lookup_name_fn,
-                .maxlen   = sizeof(unsigned long),
-                .mode     = 0644,
-                .proc_handler = &proc_dokallsyms_lookup_name,
-        },
-#endif
 #ifdef DEBUG_LOG
 	{
 		.procname = "debug",
