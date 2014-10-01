@@ -381,7 +381,7 @@ spl_kern_path_locked(const char *name, struct path *path)
 	if (rc)
 		return (ERR_PTR(rc));
 
-	spl_inode_lock_nested(parent.dentry->d_inode, I_MUTEX_PARENT);
+	spl_inode_lock(parent.dentry->d_inode);
 
 	dentry = lookup_one_len(basename, parent.dentry, len);
 	if (IS_ERR(dentry)) {

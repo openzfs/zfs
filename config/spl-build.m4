@@ -27,7 +27,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
-	SPL_AC_INODE_I_MUTEX
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
 	SPL_AC_MUTEX_LOCK_NESTED
@@ -921,26 +920,6 @@ AC_DEFUN([SPL_AC_CTL_NAME], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_CTL_NAME, 1, [struct ctl_table has ctl_name])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.16 API change,
-dnl # check whether 'struct inode' has i_mutex
-dnl #
-AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
-	AC_MSG_CHECKING([whether struct inode has i_mutex])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-		#include <linux/mutex.h>
-	],[
-		struct inode i;
-		mutex_init(&i.i_mutex);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_INODE_I_MUTEX, 1, [struct inode has i_mutex])
 	],[
 		AC_MSG_RESULT(no)
 	])

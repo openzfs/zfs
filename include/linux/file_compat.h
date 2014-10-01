@@ -81,15 +81,8 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 # define spl_filp_fsync(fp, sync)	file_fsync(fp, (fp)->f_dentry, sync)
 #endif /* HAVE_VFS_FSYNC */
 
-#ifdef HAVE_INODE_I_MUTEX
-#define spl_inode_lock(ip)		(mutex_lock(&(ip)->i_mutex))
-#define spl_inode_lock_nested(ip, type)	(mutex_lock_nested((&(ip)->i_mutex),  \
-					(type)))
-#define spl_inode_unlock(ip)		(mutex_unlock(&(ip)->i_mutex))
-#else
-#define spl_inode_lock(ip)		(down(&(ip)->i_sem))
-#define spl_inode_unlock(ip)		(up(&(ip)->i_sem))
-#endif /* HAVE_INODE_I_MUTEX */
+#define	spl_inode_lock(ip)		mutex_lock(&(ip)->i_mutex)
+#define	spl_inode_unlock(ip)		mutex_unlock(&(ip)->i_mutex)
 
 #endif /* SPL_FILE_COMPAT_H */
 
