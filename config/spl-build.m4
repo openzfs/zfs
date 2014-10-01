@@ -29,7 +29,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_PDE_DATA
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
-	SPL_AC_MUTEX_LOCK_NESTED
 	SPL_AC_3ARGS_ON_EACH_CPU
 	SPL_AC_KALLSYMS_LOOKUP_NAME
 	SPL_AC_GET_VMALLOC_INFO
@@ -971,29 +970,6 @@ AC_DEFUN([SPL_AC_MUTEX_OWNER_TASK_STRUCT], [
 		AC_MSG_RESULT(no)
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 2.6.18 API change,
-dnl # First introduced 'mutex_lock_nested()' in include/linux/mutex.h,
-dnl # as part of the mutex validator.  Fallback to using 'mutex_lock()' 
-dnl # if the mutex validator is disabled or otherwise unavailable.
-dnl #
-AC_DEFUN([SPL_AC_MUTEX_LOCK_NESTED], [
-	AC_MSG_CHECKING([whether mutex_lock_nested() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mutex.h>
-	],[
-		struct mutex mutex;
-		mutex_init(&mutex);
-		mutex_lock_nested(&mutex, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_MUTEX_LOCK_NESTED, 1,
-		[mutex_lock_nested() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
 ])
 
 dnl #
