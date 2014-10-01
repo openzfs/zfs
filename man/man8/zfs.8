@@ -3707,6 +3707,21 @@ M       F       /tank/test/modified
 .in -2
 .sp
 
+.LP
+\fBExample 24\fR Creating a bookmark
+.sp
+.LP
+The following example create a bookmark to a snapshot. This bookmark can then
+be used instead of snapshot in send streams.
+
+.sp
+.in +2
+.nf
+# zfs bookmark rpool@snapshot rpool#bookmark
+.fi
+.in -2
+.sp
+
 .SH "ENVIRONMENT VARIABLES"
 .TP
 .B "ZFS_ABORT
