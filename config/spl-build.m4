@@ -23,7 +23,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_DEBUG_KMEM_TRACKING
 	SPL_AC_TEST_MODULE
 	SPL_AC_ATOMIC_SPINLOCK
-	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_SHRINKER_CALLBACK
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
@@ -804,25 +803,6 @@ AC_DEFUN([SPL_AC_ATOMIC_SPINLOCK], [
 
 	AC_MSG_CHECKING([whether kernel defines atomic64_t])
 	AC_MSG_RESULT([$have_atomic64_t])
-])
-
-dnl #
-dnl # 2.6.24 API change,
-dnl # check if uintptr_t typedef is defined
-dnl #
-AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
-	[AC_MSG_CHECKING([whether kernel defines uintptr_t])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/types.h>
-	],[
-		uintptr_t *ptr __attribute__ ((unused));
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_UINTPTR_T, 1,
-		          [kernel defines uintptr_t])
-	],[
-		AC_MSG_RESULT([no])
-	])
 ])
 
 AC_DEFUN([SPL_AC_SHRINKER_CALLBACK],[

@@ -44,10 +44,6 @@
 #include <linux/delay.h>
 #include <linux/wait_compat.h>
 
-#ifndef HAVE_UINTPTR_T
-typedef unsigned long			uintptr_t;
-#endif
-
 #ifndef ULLONG_MAX
 #define ULLONG_MAX			(~0ULL)
 #endif
