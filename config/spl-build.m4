@@ -46,8 +46,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KVASPRINTF
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_FALLOCATE
-	SPL_AC_SHRINK_DCACHE_MEMORY
-	SPL_AC_SHRINK_ICACHE_MEMORY
 	SPL_AC_KERN_PATH
 	SPL_AC_CONFIG_KALLSYMS
 	SPL_AC_CONFIG_ZLIB_INFLATE
@@ -1460,48 +1458,6 @@ AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK, 1,
 		          [rwsem_is_locked() acquires sem->wait_lock])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.xx API compat,
-dnl # There currently exists no exposed API to partially shrink the dcache.
-dnl # The expected mechanism to shrink the cache is a registered shrinker
-dnl # which is called during memory pressure.
-dnl #
-AC_DEFUN([SPL_AC_SHRINK_DCACHE_MEMORY],
-	[AC_MSG_CHECKING([whether shrink_dcache_memory() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/dcache.h>
-	], [
-		shrink_dcache_memory(0, 0);
-	], [shrink_dcache_memory], [fs/dcache.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SHRINK_DCACHE_MEMORY, 1,
-		          [shrink_dcache_memory() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.xx API compat,
-dnl # There currently exists no exposed API to partially shrink the icache.
-dnl # The expected mechanism to shrink the cache is a registered shrinker
-dnl # which is called during memory pressure.
-dnl #
-AC_DEFUN([SPL_AC_SHRINK_ICACHE_MEMORY],
-	[AC_MSG_CHECKING([whether shrink_icache_memory() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/dcache.h>
-	], [
-		shrink_icache_memory(0, 0);
-	], [shrink_icache_memory], [fs/inode.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SHRINK_ICACHE_MEMORY, 1,
-		          [shrink_icache_memory() is available])
 	], [
 		AC_MSG_RESULT(no)
 	])

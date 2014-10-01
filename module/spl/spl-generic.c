@@ -490,7 +490,6 @@ zone_get_hostid(void *zone)
 }
 EXPORT_SYMBOL(zone_get_hostid);
 
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
 /*
  * The kallsyms_lookup_name() kernel function is not an exported symbol in
  * Linux 2.6.19 through 2.6.32 inclusive.
@@ -499,7 +498,6 @@ EXPORT_SYMBOL(zone_get_hostid);
  * space where /proc/kallsyms is consulted for the requested address.
  *
  */
-
 #define GET_KALLSYMS_ADDR_CMD \
 	"exec 0</dev/null " \
 	"     1>/proc/sys/kernel/spl/kallsyms_lookup_name " \
@@ -510,6 +508,7 @@ EXPORT_SYMBOL(zone_get_hostid);
 static int
 set_kallsyms_lookup_name(void)
 {
+#ifndef HAVE_KALLSYMS_LOOKUP_NAME
 	char *argv[] = { "/bin/sh",
 	                 "-c",
 			 GET_KALLSYMS_ADDR_CMD,
@@ -543,9 +542,11 @@ set_kallsyms_lookup_name(void)
 		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
 		       argv[0], argv[1], argv[2], rc);
 
-	return rc;
+	return (rc);
+#else
+	return (0);
+#endif /* HAVE_KALLSYMS_LOOKUP_NAME */
 }
-#endif
 
 static int
 __init spl_init(void)
@@ -582,13 +583,8 @@ __init spl_init(void)
 	if ((rc = spl_zlib_init()))
 		SGOTO(out9, rc);
 
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
 	if ((rc = set_kallsyms_lookup_name()))
 		SGOTO(out10, rc = -EADDRNOTAVAIL);
-#endif /* HAVE_KALLSYMS_LOOKUP_NAME */
-
-	if ((rc = spl_kmem_init_kallsyms_lookup()))
-		SGOTO(out10, rc);
 
 	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
 	       SPL_META_RELEASE, SPL_DEBUG_STR);

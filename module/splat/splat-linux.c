@@ -30,61 +30,8 @@
 #define SPLAT_LINUX_DESC		"Kernel Compatibility Tests"
 
 #define SPLAT_LINUX_TEST1_ID		0x1001
-#define SPLAT_LINUX_TEST1_NAME		"shrink_dcache"
-#define SPLAT_LINUX_TEST1_DESC		"Shrink dcache test"
-
-#define SPLAT_LINUX_TEST2_ID		0x1002
-#define SPLAT_LINUX_TEST2_NAME		"shrink_icache"
-#define SPLAT_LINUX_TEST2_DESC		"Shrink icache test"
-
-#define SPLAT_LINUX_TEST3_ID		0x1003
-#define SPLAT_LINUX_TEST3_NAME		"shrinker"
-#define SPLAT_LINUX_TEST3_DESC		"Shrinker test"
-
-
-/*
- * Attempt to shrink the dcache memory.  This is simply a functional
- * to ensure we can correctly call the shrinker.  We don't check that
- * the cache actually decreased because we have no control over what
- * else may be running on the system.  This avoid false positives.
- */
-static int
-splat_linux_test1(struct file *file, void *arg)
-{
-	int remain_before;
-	int remain_after;
-
-	remain_before = shrink_dcache_memory(0, GFP_KERNEL);
-	remain_after = shrink_dcache_memory(KMC_REAP_CHUNK, GFP_KERNEL);
-
-	splat_vprint(file, SPLAT_LINUX_TEST1_NAME,
-	    "Shrink dcache memory, remain %d -> %d\n",
-	    remain_before, remain_after);
-
-	return 0;
-}
-
-/*
- * Attempt to shrink the icache memory.  This is simply a functional
- * to ensure we can correctly call the shrinker.  We don't check that
- * the cache actually decreased because we have no control over what
- * else may be running on the system.  This avoid false positives.
- */
-static int
-splat_linux_test2(struct file *file, void *arg)
-{
-	int remain_before;
-	int remain_after;
-
-	remain_before = shrink_icache_memory(0, GFP_KERNEL);
-	remain_after = shrink_icache_memory(KMC_REAP_CHUNK, GFP_KERNEL);
-
-	splat_vprint(file, SPLAT_LINUX_TEST2_NAME,
-	    "Shrink icache memory, remain %d -> %d\n",
-	    remain_before, remain_after);
-
-	return 0;
-}
+#define SPLAT_LINUX_TEST1_NAME		"shrinker"
+#define SPLAT_LINUX_TEST1_DESC		"Shrinker test"
 
 /*
  * Wait queue used to eliminate race between dropping of slab
@@ -117,17 +64,17 @@ __splat_linux_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
 		splat_linux_shrinker_size = splat_linux_shrinker_size -
 		    MIN(sc->nr_to_scan, splat_linux_shrinker_size);
 
-		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST3_NAME,
+		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST1_NAME,
 		    "Reclaimed %lu objects, size now %lu\n",
 		    sc->nr_to_scan, splat_linux_shrinker_size);
 	} else {
-		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST3_NAME,
+		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST1_NAME,
 		    "Cache size is %lu\n", splat_linux_shrinker_size);
 	}
 
 	/* Far more calls than expected abort drop_slab as a failsafe */
 	if (failsafe > 100) {
-		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST3_NAME,
+		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST1_NAME,
 		    "Far more calls than expected (%d), size now %lu\n",
 		   failsafe, splat_linux_shrinker_size);
 		return -1;
@@ -168,7 +115,7 @@ splat_linux_drop_slab(struct file *file)
 
 	rc = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (rc)
-		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
+		splat_vprint(file, SPLAT_LINUX_TEST1_NAME,
 	            "Failed user helper '%s %s %s', rc = %d\n",
 		    argv[0], argv[1], argv[2], rc);
 
@@ -185,7 +132,7 @@ splat_linux_drop_slab(struct file *file)
  * API and this test ensures the compatibility code is correct.
  */
 static int
-splat_linux_test3(struct file *file, void *arg)
+splat_linux_test1(struct file *file, void *arg)
 {
 	int rc = -EINVAL;
 
@@ -196,7 +143,7 @@ splat_linux_test3(struct file *file, void *arg)
 	 * use is detected.
 	 */
 	if (splat_linux_shrinker_size || splat_linux_shrinker_file) {
-		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
+		splat_vprint(file, SPLAT_LINUX_TEST1_NAME,
 		    "Failed due to concurrent shrinker test, rc = %d\n", rc);
 		return (rc);
 	}
@@ -218,7 +165,7 @@ splat_linux_test3(struct file *file, void *arg)
 	 */
 	rc = wait_event_timeout(shrinker_wait, !splat_linux_shrinker_size, HZ);
 	if (!rc) {
-		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
+		splat_vprint(file, SPLAT_LINUX_TEST1_NAME,
 		    "Failed cache shrinking timed out, size now %lu",
 		    splat_linux_shrinker_size);
 		rc = -ETIMEDOUT;
@@ -227,7 +174,7 @@ splat_linux_test3(struct file *file, void *arg)
 	}
 
 	if (!rc && splat_linux_shrinker_size != 0) {
-		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
+		splat_vprint(file, SPLAT_LINUX_TEST1_NAME,
 		    "Failed cache was not shrunk to 0, size now %lu",
 		    splat_linux_shrinker_size);
 		rc = -EDOM;
@@ -260,10 +207,6 @@ splat_linux_init(void)
 
 	SPLAT_TEST_INIT(sub, SPLAT_LINUX_TEST1_NAME, SPLAT_LINUX_TEST1_DESC,
 			SPLAT_LINUX_TEST1_ID, splat_linux_test1);
-	SPLAT_TEST_INIT(sub, SPLAT_LINUX_TEST2_NAME, SPLAT_LINUX_TEST2_DESC,
-			SPLAT_LINUX_TEST2_ID, splat_linux_test2);
-	SPLAT_TEST_INIT(sub, SPLAT_LINUX_TEST3_NAME, SPLAT_LINUX_TEST3_DESC,
-			SPLAT_LINUX_TEST3_ID, splat_linux_test3);
 
 	return sub;
 }
@@ -272,8 +215,6 @@ void
 splat_linux_fini(splat_subsystem_t *sub)
 {
 	ASSERT(sub);
-	SPLAT_TEST_FINI(sub, SPLAT_LINUX_TEST3_ID);
-	SPLAT_TEST_FINI(sub, SPLAT_LINUX_TEST2_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_LINUX_TEST1_ID);
 
 	kfree(sub);

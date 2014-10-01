@@ -110,16 +110,6 @@ EXPORT_SYMBOL(zio_alloc_arena);
 vmem_t *zio_arena = NULL;
 EXPORT_SYMBOL(zio_arena);
 
-#ifndef HAVE_SHRINK_DCACHE_MEMORY
-shrink_dcache_memory_t shrink_dcache_memory_fn = SYMBOL_POISON;
-EXPORT_SYMBOL(shrink_dcache_memory_fn);
-#endif /* HAVE_SHRINK_DCACHE_MEMORY */
-
-#ifndef HAVE_SHRINK_ICACHE_MEMORY
-shrink_icache_memory_t shrink_icache_memory_fn = SYMBOL_POISON;
-EXPORT_SYMBOL(shrink_icache_memory_fn);
-#endif /* HAVE_SHRINK_ICACHE_MEMORY */
-
 size_t
 vmem_size(vmem_t *vmp, int typemask)
 {
@@ -2315,27 +2305,6 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 #define spl_kmem_init_tracking(list, lock, size)
 #define spl_kmem_fini_tracking(list, lock)
 #endif /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
-
-/*
- * Called at module init when it is safe to use spl_kallsyms_lookup_name()
- */
-int
-spl_kmem_init_kallsyms_lookup(void)
-{
-#ifndef HAVE_SHRINK_DCACHE_MEMORY
-	/* When shrink_dcache_memory_fn == NULL support is disabled */
-	shrink_dcache_memory_fn = (shrink_dcache_memory_t)
-		spl_kallsyms_lookup_name("shrink_dcache_memory");
-#endif /* HAVE_SHRINK_DCACHE_MEMORY */
-
-#ifndef HAVE_SHRINK_ICACHE_MEMORY
-	/* When shrink_icache_memory_fn == NULL support is disabled */
-	shrink_icache_memory_fn = (shrink_icache_memory_t)
-		spl_kallsyms_lookup_name("shrink_icache_memory");
-#endif /* HAVE_SHRINK_ICACHE_MEMORY */
-
-	return 0;
-}
 
 int
 spl_kmem_init(void)
