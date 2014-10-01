@@ -33,31 +33,14 @@
 #include <sys/types.h>
 #include <asm/uaccess.h>
 
-/* These values are loosely coupled with the VM page reclaim.
- * Linux uses its own heuristics to trigger page reclamation, and
- * because those interface are difficult to interface with.  These
- * values should only be considered as a rough guide to the system
- * memory state and not as direct evidence that page reclamation.
- * is or is not currently in progress.
- */
-#define membar_producer()		smp_wmb()
-
-#define physmem				totalram_pages
-#define freemem				nr_free_pages()
-#define availrmem			spl_kmem_availrmem()
-
-extern pgcnt_t minfree;			/* Sum of zone->pages_min */
-extern pgcnt_t desfree;			/* Sum of zone->pages_low */
-extern pgcnt_t lotsfree;		/* Sum of zone->pages_high */
-extern pgcnt_t needfree;		/* Always 0 unused in new Solaris */
-extern pgcnt_t swapfs_minfree;		/* Solaris default value */
-extern pgcnt_t swapfs_reserve;		/* Solaris default value */
+#define	membar_producer()		smp_wmb()
+#define	physmem				totalram_pages
+#define	freemem				nr_free_pages()
 
 extern vmem_t *heap_arena;		/* primary kernel heap arena */
 extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 extern vmem_t *zio_arena;		/* arena for allocating zio memory */
 
-extern pgcnt_t spl_kmem_availrmem(void);
 extern size_t vmem_size(vmem_t *vmp, int typemask);
 
 #define	VMEM_ALLOC	0x01
@@ -67,54 +50,8 @@ extern size_t vmem_size(vmem_t *vmp, int typemask);
 #define	VMALLOC_TOTAL	(VMALLOC_END - VMALLOC_START)
 #endif
 
-#ifdef HAVE_PGDAT_HELPERS
-/* Source linux/mm/mmzone.c */
-# ifndef HAVE_FIRST_ONLINE_PGDAT
-typedef struct pglist_data *(*first_online_pgdat_t)(void);
-extern first_online_pgdat_t first_online_pgdat_fn;
-# define first_online_pgdat()	first_online_pgdat_fn()
-# endif /* HAVE_FIRST_ONLINE_PGDAT */
-
-# ifndef HAVE_NEXT_ONLINE_PGDAT
-typedef struct pglist_data *(*next_online_pgdat_t)(struct pglist_data *);
-extern next_online_pgdat_t next_online_pgdat_fn;
-# define next_online_pgdat(pgd)	next_online_pgdat_fn(pgd)
-# endif /* HAVE_NEXT_ONLINE_PGDAT */
-
-# ifndef HAVE_NEXT_ZONE
-typedef struct zone *(*next_zone_t)(struct zone *);
-extern next_zone_t next_zone_fn;
-# define next_zone(zone)	next_zone_fn(zone)
-# endif /* HAVE_NEXT_ZONE */
-
-#else /* HAVE_PGDAT_HELPERS */
-
-# ifndef HAVE_PGDAT_LIST
-extern struct pglist_data *pgdat_list_addr;
-# define pgdat_list		pgdat_list_addr
-# endif /* HAVE_PGDAT_LIST */
-
-#endif /* HAVE_PGDAT_HELPERS */
-
-/* Source linux/mm/vmstat.c */
-#if defined(NEED_GET_ZONE_COUNTS) && !defined(HAVE_GET_ZONE_COUNTS)
-typedef void (*get_zone_counts_t)(unsigned long *, unsigned long *,
-				  unsigned long *);
-extern get_zone_counts_t get_zone_counts_fn;
-# define get_zone_counts(a,i,f)	get_zone_counts_fn(a,i,f)
-#endif /* NEED_GET_ZONE_COUNTS && !HAVE_GET_ZONE_COUNTS */
-
-typedef enum spl_zone_stat_item {
-	SPL_NR_FREE_PAGES,
-	SPL_NR_INACTIVE,
-	SPL_NR_ACTIVE,
-	SPL_NR_ZONE_STAT_ITEMS
-} spl_zone_stat_item_t;
-
-extern unsigned long spl_global_page_state(spl_zone_stat_item_t);
-
-#define xcopyin(from, to, size)		copy_from_user(to, from, size)
-#define xcopyout(from, to, size)	copy_to_user(to, from, size)
+#define	xcopyin(from, to, size)		copy_from_user(to, from, size)
+#define	xcopyout(from, to, size)	copy_to_user(to, from, size)
 
 static __inline__ int
 copyin(const void *from, void *to, size_t len)

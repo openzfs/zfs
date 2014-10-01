@@ -1052,9 +1052,8 @@ splat_kmem_test10(struct file *file, void *arg)
 
 		for (alloc = 1; alloc <= 1024; alloc *= 2) {
 
-			/* Skip tests which exceed available memory.  We
-			 * leverage availrmem here for some extra testing */
-			if (size * alloc * SPLAT_KMEM_THREADS > availrmem / 2)
+			/* Skip tests which exceed 1/2 of physical memory. */
+			if (size * alloc * SPLAT_KMEM_THREADS > physmem / 2)
 				continue;
 
 			rc = splat_kmem_cache_thread_test(file, arg,

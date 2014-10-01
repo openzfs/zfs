@@ -28,22 +28,6 @@
 #include <linux/mm.h>
 #include <linux/fs.h>
 
-/*
- * Linux 2.6.31 API Change.
- * Individual pages_{min,low,high} moved in to watermark array.
- */
-#ifndef min_wmark_pages
-#define min_wmark_pages(z)	(z->pages_min)
-#endif
-
-#ifndef low_wmark_pages
-#define low_wmark_pages(z)	(z->pages_low)
-#endif
-
-#ifndef high_wmark_pages
-#define high_wmark_pages(z)	(z->pages_high)
-#endif
-
 #if !defined(HAVE_SHRINK_CONTROL_STRUCT)
 struct shrink_control {
 	gfp_t gfp_mask;

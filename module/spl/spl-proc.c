@@ -454,55 +454,6 @@ SPL_PROC_HANDLER(proc_dokallsyms_lookup_name)
 }
 #endif /* HAVE_KALLSYMS_LOOKUP_NAME */
 
-SPL_PROC_HANDLER(proc_doavailrmem)
-{
-        int len, rc = 0;
-	char str[32];
-	SENTRY;
-
-        if (write) {
-                *ppos += *lenp;
-        } else {
-		len = snprintf(str, sizeof(str), "%lu",
-			       (unsigned long)availrmem);
-		if (*ppos >= len)
-			rc = 0;
-		else
-			rc = proc_copyout_string(buffer,*lenp,str+*ppos,"\n");
-
-		if (rc >= 0) {
-			*lenp = rc;
-			*ppos += rc;
-		}
-        }
-
-        SRETURN(rc);
-}
-
-SPL_PROC_HANDLER(proc_dofreemem)
-{
-        int len, rc = 0;
-	char str[32];
-	SENTRY;
-
-        if (write) {
-                *ppos += *lenp;
-        } else {
-		len = snprintf(str, sizeof(str), "%lu", (unsigned long)freemem);
-		if (*ppos >= len)
-			rc = 0;
-		else
-			rc = proc_copyout_string(buffer,*lenp,str+*ppos,"\n");
-
-		if (rc >= 0) {
-			*lenp = rc;
-			*ppos += rc;
-		}
-        }
-
-        SRETURN(rc);
-}
-
 #ifdef DEBUG_KMEM
 static void
 slab_seq_show_headers(struct seq_file *f)
@@ -719,71 +670,6 @@ static struct ctl_table spl_debug_table[] = {
 };
 #endif /* DEBUG_LOG */
 
-static struct ctl_table spl_vm_table[] = {
-        {
-                .procname = "minfree",
-                .data     = &minfree,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "desfree",
-                .data     = &desfree,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "lotsfree",
-                .data     = &lotsfree,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "needfree",
-                .data     = &needfree,
-                .maxlen   = sizeof(int),
-                .mode     = 0444,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "swapfs_minfree",
-                .data     = &swapfs_minfree,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "swapfs_reserve",
-                .data     = &swapfs_reserve,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "availrmem",
-                .mode     = 0444,
-                .proc_handler = &proc_doavailrmem,
-        },
-        {
-                .procname = "freemem",
-                .data     = (void *)2,
-                .maxlen   = sizeof(int),
-                .mode     = 0444,
-                .proc_handler = &proc_dofreemem,
-        },
-        {
-                .procname = "physmem",
-                .data     = &physmem,
-                .maxlen   = sizeof(int),
-                .mode     = 0444,
-                .proc_handler = &proc_dointvec,
-        },
-	{0},
-};
-
 #ifdef DEBUG_KMEM
 static struct ctl_table spl_kmem_table[] = {
         {
@@ -922,11 +808,6 @@ static struct ctl_table spl_table[] = {
 		.child    = spl_debug_table,
 	},
 #endif
-	{
-		.procname = "vm",
-		.mode     = 0555,
-		.child    = spl_vm_table,
-	},
 #ifdef DEBUG_KMEM
 	{
 		.procname = "kmem",
