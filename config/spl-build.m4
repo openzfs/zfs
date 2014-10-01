@@ -27,7 +27,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
-	SPL_AC_KMALLOC_NODE
 	SPL_AC_INODE_I_MUTEX
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
@@ -922,25 +921,6 @@ AC_DEFUN([SPL_AC_CTL_NAME], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_CTL_NAME, 1, [struct ctl_table has ctl_name])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.12 API change,
-dnl # check whether 'kmalloc_node()' is available.
-dnl #
-AC_DEFUN([SPL_AC_KMALLOC_NODE], [
-	AC_MSG_CHECKING([whether kmalloc_node() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/slab.h>
-	],[
-		void *a __attribute__ ((unused));
-		a = kmalloc_node(1, GFP_KERNEL, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KMALLOC_NODE, 1, [kmalloc_node() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])
