@@ -67,6 +67,7 @@
 #include <sys/ctype.h>
 #include <sys/disp.h>
 #include <linux/dcache_compat.h>
+#include <linux/utsname_compat.h>
 
 #else /* _KERNEL */
 
@@ -117,6 +118,7 @@
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
 #include <sys/debug.h>
+#include <sys/utsname.h>
 
 /*
  * Stack
@@ -672,6 +674,9 @@ extern int ddi_strtoul(const char *str, char **nptr, int base,
 
 extern int ddi_strtoull(const char *str, char **nptr, int base,
     u_longlong_t *result);
+
+typedef struct utsname	utsname_t;
+extern utsname_t *utsname(void);
 
 /* ZFS Boot Related stuff. */
 

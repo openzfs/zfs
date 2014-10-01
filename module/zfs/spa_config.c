@@ -32,7 +32,6 @@
 #include <sys/fs/zfs.h>
 #include <sys/vdev_impl.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/utsname.h>
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
@@ -408,8 +407,8 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID,
 		    hostid) == 0);
 	}
-	VERIFY(nvlist_add_string(config, ZPOOL_CONFIG_HOSTNAME,
-	    utsname.nodename) == 0);
+	VERIFY0(nvlist_add_string(config, ZPOOL_CONFIG_HOSTNAME,
+	    utsname()->nodename));
 
 	if (vd != rvd) {
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_TOP_GUID,

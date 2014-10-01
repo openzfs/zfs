@@ -32,7 +32,6 @@
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_dir.h>
-#include <sys/utsname.h>
 #include <sys/cmn_err.h>
 #include <sys/sunddi.h>
 #include <sys/cred.h>
@@ -236,9 +235,8 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 #endif
 
 	fnvlist_add_uint64(nvl, ZPOOL_HIST_TIME, gethrestime_sec());
-#ifdef _KERNEL
-	fnvlist_add_string(nvl, ZPOOL_HIST_HOST, utsname.nodename);
-#endif
+	fnvlist_add_string(nvl, ZPOOL_HIST_HOST, utsname()->nodename);
+
 	if (nvlist_exists(nvl, ZPOOL_HIST_CMD)) {
 		zfs_dbgmsg("command: %s",
 		    fnvlist_lookup_string(nvl, ZPOOL_HIST_CMD));
@@ -546,11 +544,12 @@ spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
 void
 spa_history_log_version(spa_t *spa, const char *operation)
 {
+	utsname_t *u = utsname();
+
 	spa_history_log_internal(spa, operation, NULL,
 	    "pool version %llu; software version %llu/%d; uts %s %s %s %s",
 	    (u_longlong_t)spa_version(spa), SPA_VERSION, ZPL_VERSION,
-	    utsname.nodename, utsname.release, utsname.version,
-	    utsname.machine);
+	    u->nodename, u->release, u->version, u->machine);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
