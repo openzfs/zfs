@@ -99,6 +99,7 @@ zed_conf_destroy(struct zed_conf *zcp)
 			zed_log_msg(LOG_WARNING,
 			    "Failed to close state file \"%s\": %s",
 			    zcp->state_file, strerror(errno));
+		zcp->state_fd = -1;
 	}
 	if (zcp->pid_file) {
 		if ((unlink(zcp->pid_file) < 0) && (errno != ENOENT))
@@ -113,21 +114,26 @@ zed_conf_destroy(struct zed_conf *zcp)
 			    zcp->pid_file, strerror(errno));
 		zcp->pid_fd = -1;
 	}
-	if (zcp->conf_file)
+	if (zcp->conf_file) {
 		free(zcp->conf_file);
-
-	if (zcp->pid_file)
+		zcp->conf_file = NULL;
+	}
+	if (zcp->pid_file) {
 		free(zcp->pid_file);
-
-	if (zcp->zedlet_dir)
+		zcp->pid_file = NULL;
+	}
+	if (zcp->zedlet_dir) {
 		free(zcp->zedlet_dir);
-
-	if (zcp->state_file)
+		zcp->zedlet_dir = NULL;
+	}
+	if (zcp->state_file) {
 		free(zcp->state_file);
-
-	if (zcp->zedlets)
+		zcp->state_file = NULL;
+	}
+	if (zcp->zedlets) {
 		zed_strings_destroy(zcp->zedlets);
-
+		zcp->zedlets = NULL;
+	}
 	free(zcp);
 }
 
