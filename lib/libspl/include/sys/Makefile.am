@@ -47,7 +47,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/types.h \
 	$(top_srcdir)/lib/libspl/include/sys/tzfile.h \
 	$(top_srcdir)/lib/libspl/include/sys/uio.h \
-	$(top_srcdir)/lib/libspl/include/sys/utsname.h \
 	$(top_srcdir)/lib/libspl/include/sys/va_list.h \
 	$(top_srcdir)/lib/libspl/include/sys/varargs.h \
 	$(top_srcdir)/lib/libspl/include/sys/vnode.h \

@@ -673,6 +673,9 @@ extern int ddi_strtoul(const char *str, char **nptr, int base,
 extern int ddi_strtoull(const char *str, char **nptr, int base,
     u_longlong_t *result);
 
+typedef struct utsname	utsname_t;
+extern utsname_t *utsname(void);
+
 /* ZFS Boot Related stuff. */
 
 struct _buf {

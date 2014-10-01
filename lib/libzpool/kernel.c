@@ -47,10 +47,7 @@ int aok;
 uint64_t physmem;
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 char hw_serial[HW_HOSTID_LEN];
-
-struct utsname utsname = {
-	"userland", "libzpool", "1", "1", "na"
-};
+struct utsname hw_utsname;
 
 /* this only exists to have its address taken */
 struct proc p0;
@@ -1089,6 +1086,12 @@ ddi_strtoull(const char *str, char **nptr, int base, u_longlong_t *result)
 	return (0);
 }
 
+utsname_t *
+utsname(void)
+{
+	return (&hw_utsname);
+}
+
 /*
  * =========================================================================
  * kernel emulation setup & teardown
@@ -1121,6 +1124,7 @@ kernel_init(int mode)
 
 	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
 	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);
+	VERIFY0(uname(&hw_utsname));
 
 	thread_init();
 	system_taskq_init();
