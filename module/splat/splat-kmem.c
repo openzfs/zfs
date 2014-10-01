@@ -77,10 +77,6 @@
 #define SPLAT_KMEM_TEST11_DESC		"Slab memory overcommit test"
 #endif
 
-#define SPLAT_KMEM_TEST12_ID		0x010c
-#define SPLAT_KMEM_TEST12_NAME		"vmem_size"
-#define SPLAT_KMEM_TEST12_DESC		"Memory zone test"
-
 #define SPLAT_KMEM_TEST13_ID		0x010d
 #define SPLAT_KMEM_TEST13_NAME		"slab_reclaim"
 #define SPLAT_KMEM_TEST13_DESC		"Slab direct memory reclaim test"
@@ -1104,84 +1100,6 @@ splat_kmem_test11(struct file *file, void *arg)
 }
 #endif
 
-/*
- * Check vmem_size() behavior by acquiring the alloc/free/total vmem
- * space, then allocate a known buffer size from vmem space.  We can
- * then check that vmem_size() values were updated properly with in
- * a fairly small tolerence.  The tolerance is important because we
- * are not the only vmem consumer on the system.  Other unrelated
- * allocations might occur during the small test window.  The vmem
- * allocation itself may also add in a little extra private space to
- * the buffer.  Finally, verify total space always remains unchanged.
- */
-static int
-splat_kmem_test12(struct file *file, void *arg)
-{
-	size_t alloc1, free1, total1;
-	size_t alloc2, free2, total2;
-	int size = 8*1024*1024;
-	void *ptr;
-
-	alloc1 = vmem_size(NULL, VMEM_ALLOC);
-	free1  = vmem_size(NULL, VMEM_FREE);
-	total1 = vmem_size(NULL, VMEM_ALLOC | VMEM_FREE);
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%lu "
-		     "free=%lu total=%lu\n", (unsigned long)alloc1,
-		     (unsigned long)free1, (unsigned long)total1);
-
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Alloc %d bytes\n", size);
-	ptr = vmem_alloc(size, KM_SLEEP);
-	if (!ptr) {
-		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-		             "Failed to alloc %d bytes\n", size);
-		return -ENOMEM;
-	}
-
-	alloc2 = vmem_size(NULL, VMEM_ALLOC);
-	free2  = vmem_size(NULL, VMEM_FREE);
-	total2 = vmem_size(NULL, VMEM_ALLOC | VMEM_FREE);
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%lu "
-		     "free=%lu total=%lu\n", (unsigned long)alloc2,
-		     (unsigned long)free2, (unsigned long)total2);
-
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Free %d bytes\n", size);
-	vmem_free(ptr, size);
-	if (alloc2 < (alloc1 + size - (size / 100)) ||
-	    alloc2 > (alloc1 + size + (size / 100))) {
-		splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Failed "
-			     "VMEM_ALLOC size: %lu != %lu+%d (+/- 1%%)\n",
-		             (unsigned long)alloc2,(unsigned long)alloc1,size);
-		return -ERANGE;
-	}
-
-	if (free2 < (free1 - size - (size / 100)) ||
-	    free2 > (free1 - size + (size / 100))) {
-		splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Failed "
-			     "VMEM_FREE size: %lu != %lu-%d (+/- 1%%)\n",
-		             (unsigned long)free2, (unsigned long)free1, size);
-		return -ERANGE;
-	}
-
-	if (total1 != total2) {
-		splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Failed "
-			     "VMEM_ALLOC | VMEM_FREE not constant: "
-		             "%lu != %lu\n", (unsigned long)total2,
-			     (unsigned long)total1);
-		return -ERANGE;
-	}
-
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-	             "VMEM_ALLOC within tolerance: ~%ld%% (%ld/%d)\n",
-	             (long)abs(alloc1 + (long)size - alloc2) * 100 / (long)size,
-	             (long)abs(alloc1 + (long)size - alloc2), size);
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-	             "VMEM_FREE within tolerance:  ~%ld%% (%ld/%d)\n",
-	             (long)abs((free1 - (long)size) - free2) * 100 / (long)size,
-	             (long)abs((free1 - (long)size) - free2), size);
-
-	return 0;
-}
-
 typedef struct dummy_page {
 	struct list_head dp_list;
 	char             dp_pad[PAGE_SIZE - sizeof(struct list_head)];
@@ -1360,8 +1278,6 @@ splat_kmem_init(void)
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST11_NAME, SPLAT_KMEM_TEST11_DESC,
 			SPLAT_KMEM_TEST11_ID, splat_kmem_test11);
 #endif
-	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST12_NAME, SPLAT_KMEM_TEST12_DESC,
-			SPLAT_KMEM_TEST12_ID, splat_kmem_test12);
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST13_NAME, SPLAT_KMEM_TEST13_DESC,
 			SPLAT_KMEM_TEST13_ID, splat_kmem_test13);
 
@@ -1373,7 +1289,6 @@ splat_kmem_fini(splat_subsystem_t *sub)
 {
 	ASSERT(sub);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST13_ID);
-	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST12_ID);
 #if 0
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST11_ID);
 #endif

@@ -148,11 +148,6 @@ EXPORT_SYMBOL(zio_alloc_arena);
 vmem_t *zio_arena = NULL;
 EXPORT_SYMBOL(zio_arena);
 
-#ifndef HAVE_GET_VMALLOC_INFO
-get_vmalloc_info_t get_vmalloc_info_fn = SYMBOL_POISON;
-EXPORT_SYMBOL(get_vmalloc_info_fn);
-#endif /* HAVE_GET_VMALLOC_INFO */
-
 #ifdef HAVE_PGDAT_HELPERS
 # ifndef HAVE_FIRST_ONLINE_PGDAT
 first_online_pgdat_t first_online_pgdat_fn = SYMBOL_POISON;
@@ -270,20 +265,11 @@ EXPORT_SYMBOL(spl_kmem_availrmem);
 size_t
 vmem_size(vmem_t *vmp, int typemask)
 {
-        struct vmalloc_info vmi;
-	size_t size = 0;
+	ASSERT3P(vmp, ==, NULL);
+	ASSERT3S(typemask & VMEM_ALLOC, ==, VMEM_ALLOC);
+	ASSERT3S(typemask & VMEM_FREE, ==, VMEM_FREE);
 
-	ASSERT(vmp == NULL);
-	ASSERT(typemask & (VMEM_ALLOC | VMEM_FREE));
-
-	get_vmalloc_info(&vmi);
-	if (typemask & VMEM_ALLOC)
-		size += (size_t)vmi.used;
-
-	if (typemask & VMEM_FREE)
-		size += (size_t)(VMALLOC_TOTAL - vmi.used);
-
-	return size;
+	return (VMALLOC_TOTAL);
 }
 EXPORT_SYMBOL(vmem_size);
 
@@ -2500,15 +2486,6 @@ spl_kmem_init_globals(void)
 int
 spl_kmem_init_kallsyms_lookup(void)
 {
-#ifndef HAVE_GET_VMALLOC_INFO
-	get_vmalloc_info_fn = (get_vmalloc_info_t)
-		spl_kallsyms_lookup_name("get_vmalloc_info");
-	if (!get_vmalloc_info_fn) {
-		printk(KERN_ERR "Error: Unknown symbol get_vmalloc_info\n");
-		return -EFAULT;
-	}
-#endif /* HAVE_GET_VMALLOC_INFO */
-
 #ifdef HAVE_PGDAT_HELPERS
 # ifndef HAVE_FIRST_ONLINE_PGDAT
 	first_online_pgdat_fn = (first_online_pgdat_t)
