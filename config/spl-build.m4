@@ -27,7 +27,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_CTL_NAME
 	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
-	SPL_AC_UACCESS_HEADER
 	SPL_AC_KMALLOC_NODE
 	SPL_AC_INODE_I_MUTEX
 	SPL_AC_MUTEX_OWNER
@@ -926,14 +925,6 @@ AC_DEFUN([SPL_AC_CTL_NAME], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-])
-
-dnl #
-dnl # 2.6.18 API change,
-dnl # added linux/uaccess.h
-dnl #
-AC_DEFUN([SPL_AC_UACCESS_HEADER], [
-	SPL_CHECK_HEADER([linux/uaccess.h], [UACCESS], [], [])
 ])
 
 dnl #
