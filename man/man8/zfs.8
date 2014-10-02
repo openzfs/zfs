@@ -353,6 +353,16 @@ If needed, \fBZFS\fR file systems can also be managed with traditional tools (\f
 .SS "Deduplication"
 .LP
 Deduplication is the process for removing redundant data at the block-level, reducing the total amount of data stored. If a file system has the \fBdedup\fR property enabled, duplicate data blocks are removed synchronously.  The result is that only unique data is stored and common components are shared among files.
+.sp
+\fBWARNING: DO NOT ENABLE DEDUPLICATION UNLESS YOU NEED IT AND KNOW EXACTLY WHAT YOU ARE DOING!\fR
+.sp
+Deduplicating data is a very resource-intensive operation. It is generally recommended that you have \fIat least\fR 1.25 GB of RAM per 1 TB of storage when you enable deduplication. But calculating the exact requirenments is a somewhat complicated affair. Please see the \fBOracle Dedup Guide\fR for more information..
+.sp
+Enabling deduplication on an improperly-designed system will result in extreme performance issues (extremely slow filesystem and snapshot deletions etc.) and can potentially lead to data loss (i.e. unimportable pool due to memory exhaustion) if your system is not built for this purpose. Deduplication affects the processing power (CPU), disks (and the controller) as well as primary (real) memory.
+.sp
+Before creating a pool with deduplication enabled, ensure that you have planned your hardware requirements appropriately and implemented appropriate recovery practices, such as regular backups.
+.sp
+Unless necessary, deduplication should NOT be enabled on a system. Instead, consider using \fIcompression=lz4\fR, as a less resource-intensive alternative.
 .SS "Native Properties"
 .LP
 Properties are divided into two types, native properties and user-defined (or "user") properties. Native properties either export internal statistics or control \fBZFS\fR behavior. In addition, native properties are either editable or read-only. User properties have no effect on \fBZFS\fR behavior, but you can use them to annotate datasets in a way that is meaningful in your environment. For more information about user properties, see the "User Properties" section, below.
@@ -833,6 +843,8 @@ Changing this property only affects newly-written data. Therefore, set this prop
 Controls whether deduplication is in effect for a dataset. The default value is \fBoff\fR. The default checksum used for deduplication is \fBsha256\fR (subject to change). When \fBdedup\fR is enabled, the \fBdedup\fR checksum algorithm overrides the \fBchecksum\fR property. Setting the value to \fBverify\fR is equivalent to specifying \fBsha256,verify\fR.
 .sp
 If the property is set to \fBverify\fR, then, whenever two blocks have the same signature, ZFS will do a byte-for-byte comparison with the existing block to ensure that the contents are identical.
+.sp
+Unless necessary, deduplication should NOT be enabled on a system. See \fBDeduplication\fR above.
 .RE
 
 .sp
