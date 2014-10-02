@@ -35,9 +35,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_2ARGS_VFS_FSYNC
 	SPL_AC_INODE_TRUNCATE_RANGE
 	SPL_AC_FS_STRUCT_SPINLOCK
-	SPL_AC_CRED_STRUCT
 	SPL_AC_KUIDGID_T
-	SPL_AC_GROUPS_SEARCH
 	SPL_AC_PUT_TASK_STRUCT
 	SPL_AC_5ARGS_PROC_HANDLER
 	SPL_AC_KVASPRINTF
@@ -1136,26 +1134,6 @@ AC_DEFUN([SPL_AC_FS_STRUCT_SPINLOCK], [
 ])
 
 dnl #
-dnl # 2.6.29 API change,
-dnl # check whether 'struct cred' exists
-dnl #
-AC_DEFUN([SPL_AC_CRED_STRUCT], [
-	AC_MSG_CHECKING([whether struct cred exists])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/cred.h>
-	],[
-		struct cred *cr __attribute__ ((unused));
-		cr  = NULL;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CRED_STRUCT, 1, [struct cred exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-
-dnl #
 dnl # User namespaces, use kuid_t in place of uid_t
 dnl # where available. Not strictly a user namespaces thing
 dnl # but it should prevent surprises
@@ -1180,30 +1158,6 @@ AC_DEFUN([SPL_AC_KUIDGID_T], [
 			AC_DEFINE(HAVE_KUIDGID_T, 1, [kuid_t/kgid_t in use])
 		])
 	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # Custom SPL patch may export this symbol.
-dnl #
-AC_DEFUN([SPL_AC_GROUPS_SEARCH],
-	[AC_MSG_CHECKING([whether groups_search() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/cred.h>
-		#ifdef HAVE_KUIDGID_T
-		#include <linux/uidgid.h>
-		#endif
-	], [
-		#ifdef HAVE_KUIDGID_T
-		groups_search(NULL, KGIDT_INIT(0));
-		#else
-		groups_search(NULL, 0);
-		#endif
-	], [groups_search], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GROUPS_SEARCH, 1, [groups_search() is available])
-	], [
 		AC_MSG_RESULT(no)
 	])
 ])
