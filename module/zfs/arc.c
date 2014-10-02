@@ -2608,6 +2608,9 @@ static int
 __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 {
 	uint64_t pages;
+#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+	uint64_t oldpages;
+#endif
 
 	/* The arc is considered warm once reclaim has occurred */
 	if (unlikely(arc_warm == B_FALSE))
@@ -2632,8 +2635,17 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 * reap whatever we can from the various arc slabs.
 	 */
 	if (pages > 0) {
+#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+		oldpages = btop(arc_evictable_memory());
+#endif
 		arc_kmem_reap_now(ARC_RECLAIM_AGGR, ptob(sc->nr_to_scan));
 		pages = btop(arc_evictable_memory());
+#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+		if (pages > oldpages)
+			pages = pages - oldpages;
+		else
+			pages = 0;
+#endif
 	} else {
 		arc_kmem_reap_now(ARC_RECLAIM_CONS, ptob(sc->nr_to_scan));
 		pages = -1;
