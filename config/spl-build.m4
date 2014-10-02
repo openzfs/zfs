@@ -1163,8 +1163,8 @@ AC_DEFUN([SPL_AC_KUIDGID_T], [
 ])
 
 dnl #
-dnl # 2.6.x API change,
-dnl # __put_task_struct() was exported in RHEL5 but unavailable elsewhere.
+dnl # 2.6.39 API change,
+dnl # __put_task_struct() was exported by the mainline kernel.
 dnl #
 AC_DEFUN([SPL_AC_PUT_TASK_STRUCT],
 	[AC_MSG_CHECKING([whether __put_task_struct() is available])
