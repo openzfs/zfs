@@ -37,7 +37,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_FS_STRUCT_SPINLOCK
 	SPL_AC_KUIDGID_T
 	SPL_AC_PUT_TASK_STRUCT
-	SPL_AC_KVASPRINTF
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_FALLOCATE
 	SPL_AC_KERN_PATH
@@ -1175,24 +1174,6 @@ AC_DEFUN([SPL_AC_PUT_TASK_STRUCT],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_PUT_TASK_STRUCT, 1,
 		          [__put_task_struct() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.x API change,
-dnl # kvasprintf() function added.
-dnl #
-AC_DEFUN([SPL_AC_KVASPRINTF],
-	[AC_MSG_CHECKING([whether kvasprintf() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/kernel.h>
-	], [
-		kvasprintf(0, NULL, *((va_list*)NULL));
-	], [kvasprintf], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KVASPRINTF, 1, [kvasprintf() is available])
 	], [
 		AC_MSG_RESULT(no)
 	])

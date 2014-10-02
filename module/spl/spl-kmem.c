@@ -128,29 +128,6 @@ kmem_debugging(void)
 }
 EXPORT_SYMBOL(kmem_debugging);
 
-#ifndef HAVE_KVASPRINTF
-/* Simplified asprintf. */
-char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
-{
-	unsigned int len;
-	char *p;
-	va_list aq;
-
-	va_copy(aq, ap);
-	len = vsnprintf(NULL, 0, fmt, aq);
-	va_end(aq);
-
-	p = kmalloc(len+1, gfp);
-	if (!p)
-		return NULL;
-
-	vsnprintf(p, len+1, fmt, ap);
-
-	return p;
-}
-EXPORT_SYMBOL(kvasprintf);
-#endif /* HAVE_KVASPRINTF */
-
 char *
 kmem_vasprintf(const char *fmt, va_list ap)
 {
