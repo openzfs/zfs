@@ -28,7 +28,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_PDE_DATA
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
-	SPL_AC_USER_PATH_DIR
 	SPL_AC_SET_FS_PWD
 	SPL_AC_SET_FS_PWD_WITH_CONST
 	SPL_AC_2ARGS_VFS_UNLINK
@@ -969,25 +968,6 @@ AC_DEFUN([SPL_AC_PDE_DATA], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_PDE_DATA, 1, [yes])
 	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.27 API change,
-dnl # The user_path_dir() replaces __user_walk()
-dnl #
-AC_DEFUN([SPL_AC_USER_PATH_DIR],
-	[AC_MSG_CHECKING([whether user_path_dir() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/fcntl.h>
-		#include <linux/namei.h>
-	], [
-		user_path_dir(NULL, NULL);
-	], [user_path_at], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_USER_PATH_DIR, 1, [user_path_dir() is available])
-	], [
 		AC_MSG_RESULT(no)
 	])
 ])

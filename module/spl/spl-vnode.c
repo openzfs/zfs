@@ -798,11 +798,7 @@ set_fs_pwd(struct fs_struct *fs, struct path *path)
 int
 vn_set_pwd(const char *filename)
 {
-#ifdef HAVE_USER_PATH_DIR
         struct path path;
-#else
-        struct nameidata nd;
-#endif /* HAVE_USER_PATH_DIR */
         mm_segment_t saved_fs;
         int rc;
         SENTRY;
@@ -815,7 +811,6 @@ vn_set_pwd(const char *filename)
         saved_fs = get_fs();
         set_fs(get_ds());
 
-# ifdef HAVE_USER_PATH_DIR
         rc = user_path_dir(filename, &path);
         if (rc)
                 SGOTO(out, rc);
@@ -828,21 +823,6 @@ vn_set_pwd(const char *filename)
 
 dput_and_out:
         path_put(&path);
-# else
-        rc = __user_walk(filename,
-                         LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_CHDIR, &nd);
-        if (rc)
-                SGOTO(out, rc);
-
-        rc = vfs_permission(&nd, MAY_EXEC);
-        if (rc)
-                SGOTO(dput_and_out, rc);
-
-        set_fs_pwd(current->fs, &nd.path);
-
-dput_and_out:
-        path_put(&nd.path);
-# endif /* HAVE_USER_PATH_DIR */
 out:
 	set_fs(saved_fs);
 
