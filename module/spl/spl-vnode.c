@@ -297,22 +297,6 @@ vn_seek(vnode_t *vp, offset_t ooff, offset_t *noffp, void *ct)
 EXPORT_SYMBOL(vn_seek);
 
 /*
- * kern_path() was introduced in Linux 2.6.28. We duplicate it as a
- * compatibility shim for earlier kernels.
- */
-#ifndef HAVE_KERN_PATH
-int
-kern_path(const char *name, unsigned int flags, struct path *path)
-{
-	struct nameidata nd;
-	int rc = path_lookup(name, flags, &nd);
-	if (!rc)
-		*path = nd.path;
-	return rc;
-}
-#endif /* HAVE_KERN_PATH */
-
-/*
  * spl_basename() takes a NULL-terminated string s as input containing a path.
  * It returns a char pointer to a string and a length that describe the
  * basename of the path. If the basename is not "." or "/", it will be an index

@@ -39,7 +39,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_PUT_TASK_STRUCT
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_FALLOCATE
-	SPL_AC_KERN_PATH
 	SPL_AC_CONFIG_ZLIB_INFLATE
 	SPL_AC_CONFIG_ZLIB_DEFLATE
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
@@ -1323,44 +1322,6 @@ AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED],
 		          [rwsem_is_locked() acquires sem->wait_lock])
 	], [
 		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.28 API change
-dnl # The kern_path() function has been introduced. We adopt it as the new way
-dnl # of looking up paths. When it is not available, we emulate it using the
-dnl # older interfaces.
-dnl #
-AC_DEFUN([SPL_AC_KERN_PATH],
-	[AC_MSG_CHECKING([whether kern_path() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/namei.h>
-	], [
-		int r = kern_path(NULL, 0, NULL);
-	], [kern_path], [fs/namei.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KERN_PATH, 1,
-		          [kern_path() is available])
-	], [
-		AC_MSG_RESULT(no)
-		AC_MSG_CHECKING([whether path_lookup() is available])
-		SPL_LINUX_TRY_COMPILE_SYMBOL([
-			#include <linux/namei.h>
-		], [
-			int r = path_lookup(NULL, 0, NULL);
-		], [path_lookup], [fs/namei.c], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_KERN_PATH, 1,
-				  [kern_path() is available])
-		], [
-			AC_MSG_RESULT(no)
-			AC_MSG_ERROR([
-	*** Neither kern_path() nor path_lookup() is available.
-	*** Please file an issue:
-	*** https://github.com/zfsonlinux/spl/issues/new])
-
-		])
 	])
 ])
 
