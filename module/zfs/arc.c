@@ -2590,27 +2590,39 @@ arc_evictable_memory(void) {
 	return (ghost_clean + MAX((int64_t)arc_size - (int64_t)arc_c_min, 0));
 }
 
-static int
+/*
+ * If sc->nr_to_scan is zero, the caller is requesting a query of the
+ * number of objects which can potentially be freed.  If it is nonzero,
+ * the request is to free that many objects.
+ *
+ * Linux kernels >= 3.12 have the count_objects and scan_objects callbacks
+ * in struct shrinker and also require the shrinker to return the number
+ * of objects freed.
+ *
+ * Older kernels require the shrinker to return the number of freeable
+ * objects following the freeing of nr_to_free.
+ */
+static spl_shrinker_t
 __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 {
-	uint64_t pages;
+	int64_t pages;
 
 	/* The arc is considered warm once reclaim has occurred */
 	if (unlikely(arc_warm == B_FALSE))
 		arc_warm = B_TRUE;
 
 	/* Return the potential number of reclaimable pages */
-	pages = btop(arc_evictable_memory());
+	pages = btop((int64_t)arc_evictable_memory());
 	if (sc->nr_to_scan == 0)
 		return (pages);
 
 	/* Not allowed to perform filesystem reclaim */
 	if (!(sc->gfp_mask & __GFP_FS))
-		return (-1);
+		return (SHRINK_STOP);
 
 	/* Reclaim in progress */
 	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0)
-		return (-1);
+		return (SHRINK_STOP);
 
 	/*
 	 * Evict the requested number of pages by shrinking arc_c the
@@ -2619,10 +2631,15 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 */
 	if (pages > 0) {
 		arc_kmem_reap_now(ARC_RECLAIM_AGGR, ptob(sc->nr_to_scan));
+
+#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+		pages = MAX(pages - btop(arc_evictable_memory()), 0);
+#else
 		pages = btop(arc_evictable_memory());
+#endif
 	} else {
 		arc_kmem_reap_now(ARC_RECLAIM_CONS, ptob(sc->nr_to_scan));
-		pages = -1;
+		pages = SHRINK_STOP;
 	}
 
 	/*
