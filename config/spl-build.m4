@@ -37,7 +37,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_FS_STRUCT_SPINLOCK
 	SPL_AC_KUIDGID_T
 	SPL_AC_PUT_TASK_STRUCT
-	SPL_AC_5ARGS_PROC_HANDLER
 	SPL_AC_KVASPRINTF
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_FALLOCATE
@@ -1177,25 +1176,6 @@ AC_DEFUN([SPL_AC_PUT_TASK_STRUCT],
 		AC_DEFINE(HAVE_PUT_TASK_STRUCT, 1,
 		          [__put_task_struct() is available])
 	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.32 API change,
-dnl # Unused 'struct file *' removed from prototype.
-dnl #
-AC_DEFUN([SPL_AC_5ARGS_PROC_HANDLER], [
-	AC_MSG_CHECKING([whether proc_handler() wants 5 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sysctl.h>
-	],[
-		proc_dostring(NULL, 0, NULL, NULL, NULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_5ARGS_PROC_HANDLER, 1,
-		          [proc_handler() wants 5 args])
-	],[
 		AC_MSG_RESULT(no)
 	])
 ])

@@ -11,7 +11,6 @@ KERNEL_H = \
 	$(top_srcdir)/include/linux/module_compat.h \
 	$(top_srcdir)/include/linux/proc_compat.h \
 	$(top_srcdir)/include/linux/rwsem_compat.h \
-	$(top_srcdir)/include/linux/sysctl_compat.h \
 	$(top_srcdir)/include/linux/wait_compat.h \
 	$(top_srcdir)/include/linux/zlib_compat.h
 

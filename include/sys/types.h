@@ -32,7 +32,6 @@
 #include <linux/list_compat.h>
 #include <linux/bitops_compat.h>
 #include <linux/module_compat.h>
-#include <linux/sysctl_compat.h>
 #include <linux/proc_compat.h>
 #include <linux/math64_compat.h>
 #include <linux/zlib_compat.h>

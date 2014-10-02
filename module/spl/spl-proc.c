@@ -111,7 +111,9 @@ proc_copyout_string(char *ubuffer, int ubuffer_size,
 }
 
 #ifdef DEBUG_LOG
-SPL_PROC_HANDLER(proc_dobitmasks)
+static int
+proc_dobitmasks(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         unsigned long *mask = table->data;
         int is_subsys = (mask == &spl_debug_subsys) ? 1 : 0;
@@ -152,7 +154,9 @@ SPL_PROC_HANDLER(proc_dobitmasks)
         SRETURN(rc);
 }
 
-SPL_PROC_HANDLER(proc_debug_mb)
+static int
+proc_debug_mb(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         char str[32];
         int rc, len;
@@ -181,7 +185,9 @@ SPL_PROC_HANDLER(proc_debug_mb)
         SRETURN(rc);
 }
 
-SPL_PROC_HANDLER(proc_dump_kernel)
+static int
+proc_dump_kernel(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	SENTRY;
 
@@ -195,7 +201,9 @@ SPL_PROC_HANDLER(proc_dump_kernel)
         SRETURN(0);
 }
 
-SPL_PROC_HANDLER(proc_force_bug)
+static int
+proc_force_bug(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	SENTRY;
 
@@ -207,7 +215,9 @@ SPL_PROC_HANDLER(proc_force_bug)
 	SRETURN(0);
 }
 
-SPL_PROC_HANDLER(proc_console_max_delay_cs)
+static int
+proc_console_max_delay_cs(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int rc, max_delay_cs;
         spl_ctl_table dummy = *table;
@@ -219,7 +229,7 @@ SPL_PROC_HANDLER(proc_console_max_delay_cs)
 
         if (write) {
                 max_delay_cs = 0;
-                rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
+                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
                 if (rc < 0)
                         SRETURN(rc);
 
@@ -233,13 +243,15 @@ SPL_PROC_HANDLER(proc_console_max_delay_cs)
                 spl_console_max_delay = d;
         } else {
                 max_delay_cs = (spl_console_max_delay * 100) / HZ;
-                rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
+                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
         }
 
         SRETURN(rc);
 }
 
-SPL_PROC_HANDLER(proc_console_min_delay_cs)
+static int
+proc_console_min_delay_cs(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int rc, min_delay_cs;
         spl_ctl_table dummy = *table;
@@ -251,7 +263,7 @@ SPL_PROC_HANDLER(proc_console_min_delay_cs)
 
         if (write) {
                 min_delay_cs = 0;
-                rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
+                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
                 if (rc < 0)
                         SRETURN(rc);
 
@@ -265,13 +277,15 @@ SPL_PROC_HANDLER(proc_console_min_delay_cs)
                 spl_console_min_delay = d;
         } else {
                 min_delay_cs = (spl_console_min_delay * 100) / HZ;
-                rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
+                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
         }
 
         SRETURN(rc);
 }
 
-SPL_PROC_HANDLER(proc_console_backoff)
+static int
+proc_console_backoff(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int rc, backoff;
         spl_ctl_table dummy = *table;
@@ -282,7 +296,7 @@ SPL_PROC_HANDLER(proc_console_backoff)
 
         if (write) {
                 backoff = 0;
-                rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
+                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
                 if (rc < 0)
                         SRETURN(rc);
 
@@ -292,7 +306,7 @@ SPL_PROC_HANDLER(proc_console_backoff)
                 spl_console_backoff = backoff;
         } else {
                 backoff = spl_console_backoff;
-                rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
+                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
         }
 
         SRETURN(rc);
@@ -300,7 +314,9 @@ SPL_PROC_HANDLER(proc_console_backoff)
 #endif /* DEBUG_LOG */
 
 #ifdef DEBUG_KMEM
-SPL_PROC_HANDLER(proc_domemused)
+static int
+proc_domemused(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int rc = 0;
         unsigned long min = 0, max = ~0, val;
@@ -320,14 +336,15 @@ SPL_PROC_HANDLER(proc_domemused)
 # else
                 val = atomic_read((atomic_t *)table->data);
 # endif /* HAVE_ATOMIC64_T */
-                rc = spl_proc_doulongvec_minmax(&dummy, write, filp,
-                                                buffer, lenp, ppos);
+                rc = proc_doulongvec_minmax(&dummy, write, buffer, lenp, ppos);
         }
 
         SRETURN(rc);
 }
 
-SPL_PROC_HANDLER(proc_doslab)
+static int
+proc_doslab(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int rc = 0;
         unsigned long min = 0, max = ~0, val = 0, mask;
@@ -367,22 +384,23 @@ SPL_PROC_HANDLER(proc_doslab)
                 }
 
                 up_read(&spl_kmem_cache_sem);
-                rc = spl_proc_doulongvec_minmax(&dummy, write, filp,
-                                                buffer, lenp, ppos);
+                rc = proc_doulongvec_minmax(&dummy, write, buffer, lenp, ppos);
         }
 
         SRETURN(rc);
 }
 #endif /* DEBUG_KMEM */
 
-SPL_PROC_HANDLER(proc_dohostid)
+static int
+proc_dohostid(struct ctl_table *table, int write,
+    void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int len, rc = 0;
         char *end, str[32];
         SENTRY;
 
         if (write) {
-                /* We can't use spl_proc_doulongvec_minmax() in the write
+                /* We can't use proc_doulongvec_minmax() in the write
                  * case here because hostid while a hex value has no
                  * leading 0x which confuses the helper function. */
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
