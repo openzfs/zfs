@@ -64,7 +64,7 @@ MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
  * setting this value to KMC_RECLAIM_ONCE limits how aggressively the cache
  * is reclaimed.  This may increase the likelihood of out of memory events.
  */
-unsigned int spl_kmem_cache_reclaim = 0;
+unsigned int spl_kmem_cache_reclaim = 0 /* KMC_RECLAIM_ONCE */;
 module_param(spl_kmem_cache_reclaim, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_reclaim, "Single reclaim pass (0x1)");
 
@@ -2048,14 +2048,24 @@ EXPORT_SYMBOL(spl_kmem_cache_free);
  * report that they contain unused objects.  Because of this we only
  * register one shrinker function in the shim layer for all slab caches.
  * We always attempt to shrink all caches when this generic shrinker
- * is called.  The shrinker should return the number of free objects
- * in the cache when called with nr_to_scan == 0 but not attempt to
- * free any objects.  When nr_to_scan > 0 it is a request that nr_to_scan
- * objects should be freed, which differs from Solaris semantics.
- * Solaris semantics are to free all available objects which may (and
- * probably will) be more objects than the requested nr_to_scan.
+ * is called.
+ *
+ * If sc->nr_to_scan is zero, the caller is requesting a query of the
+ * number of objects which can potentially be freed.  If it is nonzero,
+ * the request is to free that many objects.
+ *
+ * Linux kernels >= 3.12 have the count_objects and scan_objects callbacks
+ * in struct shrinker and also require the shrinker to return the number
+ * of objects freed.
+ *
+ * Older kernels require the shrinker to return the number of freeable
+ * objects following the freeing of nr_to_free.
+ *
+ * Linux semantics differ from those under Solaris, which are to
+ * free all available objects which may (and probably will) be more
+ * objects than the requested nr_to_scan.
  */
-static int
+static spl_shrinker_t
 __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
     struct shrink_control *sc)
 {
@@ -2064,17 +2074,22 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 
 	down_read(&spl_kmem_cache_sem);
 	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
-		if (sc->nr_to_scan)
+		if (sc->nr_to_scan) {
+#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+			uint64_t oldalloc = skc->skc_obj_alloc;
 			spl_kmem_cache_reap_now(skc,
 			   MAX(sc->nr_to_scan >> fls64(skc->skc_slab_objs), 1));
-
-		/*
-		 * Presume everything alloc'ed is reclaimable, this ensures
-		 * we are called again with nr_to_scan > 0 so can try and
-		 * reclaim.  The exact number is not important either so
-		 * we forgo taking this already highly contented lock.
-		 */
-		alloc += skc->skc_obj_alloc;
+			if (oldalloc > skc->skc_obj_alloc)
+				alloc += oldalloc - skc->skc_obj_alloc;
+#else
+			spl_kmem_cache_reap_now(skc,
+			   MAX(sc->nr_to_scan >> fls64(skc->skc_slab_objs), 1));
+			alloc += skc->skc_obj_alloc;
+#endif /* HAVE_SPLIT_SHRINKER_CALLBACK */
+		} else {
+			/* Request to query number of freeable objects */
+			alloc += skc->skc_obj_alloc;
+		}
 	}
 	up_read(&spl_kmem_cache_sem);
 
@@ -2085,7 +2100,7 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 	 * system to thrash.
 	 */
 	if ((spl_kmem_cache_reclaim & KMC_RECLAIM_ONCE) && sc->nr_to_scan)
-		return (-1);
+		return (SHRINK_STOP);
 
 	return (MAX(alloc, 0));
 }
@@ -2196,7 +2211,7 @@ spl_kmem_reap(void)
 	sc.nr_to_scan = KMC_REAP_CHUNK;
 	sc.gfp_mask = GFP_KERNEL;
 
-	__spl_kmem_cache_generic_shrinker(NULL, &sc);
+	(void) __spl_kmem_cache_generic_shrinker(NULL, &sc);
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 

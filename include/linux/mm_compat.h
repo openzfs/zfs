@@ -199,4 +199,11 @@ fn ## _scan_objects(struct shrinker *shrink, struct shrink_control *sc)	\
 #error "Unknown shrinker callback"
 #endif
 
+#if defined(HAVE_SPLIT_SHRINKER_CALLBACK)
+typedef unsigned long	spl_shrinker_t;
+#else
+typedef int		spl_shrinker_t;
+#define	SHRINK_STOP	(-1)
+#endif
+
 #endif /* SPL_MM_COMPAT_H */

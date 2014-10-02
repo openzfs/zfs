@@ -44,11 +44,13 @@ SPL_SHRINKER_DECLARE(splat_linux_shrinker, splat_linux_shrinker_fn, 1);
 static unsigned long splat_linux_shrinker_size = 0;
 static struct file *splat_linux_shrinker_file = NULL;
 
-static int
+static spl_shrinker_t
 __splat_linux_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
 {
 	static int failsafe = 0;
 	static unsigned long last_splat_linux_shrinker_size = 0;
+	unsigned long size;
+	spl_shrinker_t count;
 
 	/*
 	 * shrinker_size can only decrease or stay the same between callbacks
@@ -61,13 +63,21 @@ __splat_linux_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
 	last_splat_linux_shrinker_size = splat_linux_shrinker_size;
 
 	if (sc->nr_to_scan) {
-		splat_linux_shrinker_size = splat_linux_shrinker_size -
-		    MIN(sc->nr_to_scan, splat_linux_shrinker_size);
+		size = MIN(sc->nr_to_scan, splat_linux_shrinker_size);
+		splat_linux_shrinker_size -= size;
 
 		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST1_NAME,
 		    "Reclaimed %lu objects, size now %lu\n",
-		    sc->nr_to_scan, splat_linux_shrinker_size);
+		    size, splat_linux_shrinker_size);
+
+#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+		count = size;
+#else
+		count = splat_linux_shrinker_size;
+#endif /* HAVE_SPLIT_SHRINKER_CALLBACK */
+
 	} else {
+		count = splat_linux_shrinker_size;
 		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST1_NAME,
 		    "Cache size is %lu\n", splat_linux_shrinker_size);
 	}
@@ -77,7 +87,7 @@ __splat_linux_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
 		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST1_NAME,
 		    "Far more calls than expected (%d), size now %lu\n",
 		   failsafe, splat_linux_shrinker_size);
-		return -1;
+		return (SHRINK_STOP);
 	} else {
 		/*
 		 * We only increment failsafe if it doesn't trigger.  This
@@ -89,7 +99,7 @@ __splat_linux_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
 	/* Shrinker has run, so signal back to test. */
 	wake_up(&shrinker_wait);
 
-	return (int)splat_linux_shrinker_size;
+	return (count);
 }
 
 SPL_SHRINKER_CALLBACK_WRAPPER(splat_linux_shrinker_fn);
