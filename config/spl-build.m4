@@ -1011,6 +1011,10 @@ AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
 	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
+dnl #
+dnl # 3.13 API change
+dnl # vfs_unlink() updated to take a third delegated_inode argument.
+dnl #
 AC_DEFUN([SPL_AC_2ARGS_VFS_UNLINK],
 	[AC_MSG_CHECKING([whether vfs_unlink() wants 2 args])
 	SPL_LINUX_TRY_COMPILE([
@@ -1045,6 +1049,10 @@ AC_DEFUN([SPL_AC_2ARGS_VFS_UNLINK],
 	])
 ])
 
+dnl #
+dnl # 3.13 and 3.15 API changes
+dnl # Added delegated inode and flags argument.
+dnl #
 AC_DEFUN([SPL_AC_4ARGS_VFS_RENAME],
 	[AC_MSG_CHECKING([whether vfs_rename() wants 4 args])
 	SPL_LINUX_TRY_COMPILE([
