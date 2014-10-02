@@ -766,34 +766,32 @@ vn_releasef(int fd)
 } /* releasef() */
 EXPORT_SYMBOL(releasef);
 
-#ifndef HAVE_SET_FS_PWD
-void
-#  ifdef HAVE_SET_FS_PWD_WITH_CONST
-set_fs_pwd(struct fs_struct *fs, const struct path *path)
-#  else
-set_fs_pwd(struct fs_struct *fs, struct path *path)
-#  endif
+static void
+#ifdef HAVE_SET_FS_PWD_WITH_CONST
+vn_set_fs_pwd(struct fs_struct *fs, const struct path *path)
+#else
+vn_set_fs_pwd(struct fs_struct *fs, struct path *path)
+#endif /* HAVE_SET_FS_PWD_WITH_CONST */
 {
 	struct path old_pwd;
 
-#  ifdef HAVE_FS_STRUCT_SPINLOCK
+#ifdef HAVE_FS_STRUCT_SPINLOCK
 	spin_lock(&fs->lock);
 	old_pwd = fs->pwd;
 	fs->pwd = *path;
 	path_get(path);
 	spin_unlock(&fs->lock);
-#  else
+#else
 	write_lock(&fs->lock);
 	old_pwd = fs->pwd;
 	fs->pwd = *path;
 	path_get(path);
 	write_unlock(&fs->lock);
-#  endif /* HAVE_FS_STRUCT_SPINLOCK */
+#endif /* HAVE_FS_STRUCT_SPINLOCK */
 
 	if (old_pwd.dentry)
 		path_put(&old_pwd);
 }
-#endif /* HAVE_SET_FS_PWD */
 
 int
 vn_set_pwd(const char *filename)
@@ -819,7 +817,7 @@ vn_set_pwd(const char *filename)
         if (rc)
                 SGOTO(dput_and_out, rc);
 
-        set_fs_pwd(current->fs, &path);
+        vn_set_fs_pwd(current->fs, &path);
 
 dput_and_out:
         path_put(&path);
