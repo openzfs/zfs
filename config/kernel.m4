@@ -420,8 +420,8 @@ AC_DEFUN([ZFS_AC_SPL], [
 dnl #
 dnl # Basic toolchain sanity check.
 dnl #
-AC_DEFUN([ZFS_AC_TEST_MODULE],
-	[AC_MSG_CHECKING([whether modules can be built])
+AC_DEFUN([ZFS_AC_TEST_MODULE], [
+	AC_MSG_CHECKING([whether modules can be built])
 	ZFS_LINUX_TRY_COMPILE([],[],[
 		AC_MSG_RESULT([yes])
 	],[
@@ -442,10 +442,16 @@ dnl # detected at configure time and cause a build failure.  Otherwise
 dnl # modules may be successfully built that behave incorrectly.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
-
-	AS_IF([test "$ZFS_META_LICENSE" = GPL], [
-		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
-			[Define to 1 if licensed under the GPL])
+	AC_RUN_IFELSE([
+		AC_LANG_PROGRAM([
+			#include "$LINUX/include/linux/license.h"
+		], [
+			return !license_is_gpl_compatible("$ZFS_META_LICENSE");
+		])
+	], [
+		AC_DEFINE([ZFS_IS_GPL_COMPATIBLE], [1],
+		    [Define to 1 if GPL-only symbols can be used])
+	], [
 	])
 
 	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC

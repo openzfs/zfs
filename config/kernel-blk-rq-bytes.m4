@@ -26,7 +26,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_RQ_BYTES], [
 		#include <linux/module.h>
 		#include <linux/blkdev.h>
 
-		MODULE_LICENSE("CDDL");
+		MODULE_LICENSE("$ZFS_META_LICENSE");
 	],[
 		struct request *req = NULL;
 		(void) blk_rq_bytes(req);
