@@ -876,7 +876,11 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 			if (error)
 				return (error);
 		}
-		vd->vdev_ms[m] = metaslab_init(vd->vdev_mg, m, object, txg);
+
+		error = metaslab_init(vd->vdev_mg, m, object, txg,
+		    &(vd->vdev_ms[m]));
+		if (error)
+			return (error);
 	}
 
 	if (txg == 0)
