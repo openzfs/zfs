@@ -77,6 +77,9 @@ command line and determine if ZFS is the active root filesystem.
 * `mount-zfs.sh`: Run later in initramfs boot process after udev has settled
 to mount the root dataset.
 
+* `export-zfs.sh`: Run on shutdown after dracut has restored the initramfs
+and pivoted to it, allowing for a clean unmount and export of the ZFS root.
+
 `module-setup.sh`
 ---------------
 
@@ -164,3 +167,25 @@ import can lead to serious data corruption and loss of pools, so this option
 should be used with extreme caution.  Note that even with this flag set, if
 the required zpool was auto-imported by the kernel module, no additional
 `zpool import` commands are run, so nothing is forced.
+
+`export-zfs.sh`
+-------------
+
+Normally the zpool containing the root dataset cannot be exported on
+shutdown as it is still in use by the init process. To work around this,
+Dracut is able to restore the initramfs on shutdown and pivot to it.
+All remaining process are then running from a ramdisk, allowing for a
+clean unmount and export of the ZFS root. The theory of operation is
+described in detail in the [Dracut manual](https://www.kernel.org/pub/linux/utils/boot/dracut/dracut.html#_dracut_on_shutdown).
+
+This script will try to export all remaining zpools after Dracut has
+pivoted to the initramfs. If an initial regular export is not successful,
+Dracut will call this script once more with the `final` option,
+in which case a forceful export is attempted.
+
+Other Dracut modules include similar shutdown scripts and Dracut
+invokes these scripts round-robin until they succeed. In particular,
+the `90dm` module installs a script which tries to close and remove
+all device mapper targets. Thus, if there are ZVOLs containing
+dm-crypt volumes or if the zpool itself is backed by a dm-crypt
+volume, the shutdown scripts will try to untangle this.
