@@ -67,5 +67,7 @@ case "$root" in
 		else
 			mount -o zfsutil -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
 		fi
+
+		need_shutdown
 		;;
 esac
