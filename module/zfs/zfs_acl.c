@@ -1162,7 +1162,8 @@ zfs_acl_chown_setattr(znode_t *zp)
 	ASSERT(MUTEX_HELD(&zp->z_lock));
 	ASSERT(MUTEX_HELD(&zp->z_acl_lock));
 
-	if ((error = zfs_acl_node_read(zp, B_TRUE, &aclp, B_FALSE)) == 0)
+	error = zfs_acl_node_read(zp, B_TRUE, &aclp, B_FALSE);
+	if (error == 0 && aclp->z_acl_count > 0)
 		zp->z_mode = zfs_mode_compute(zp->z_mode, aclp,
 		    &zp->z_pflags, zp->z_uid, zp->z_gid);
 
