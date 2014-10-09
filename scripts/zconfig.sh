@@ -96,6 +96,7 @@ test_1() {
 	# Unload/load the module stack and verify the pool persists.
 	${ZFS_SH} -u || fail 4
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 5
+	${ZPOOL} import -c ${TMP_CACHE} ${POOL_NAME} || fail 5
 	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 6
 	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 7
 
@@ -126,8 +127,7 @@ test_2() {
 	${ZFS_SH} -u || fail 4
 	rm -f ${TMP_CACHE} || fail 5
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 6
-	${ZPOOL} import | grep ${POOL_NAME} >/dev/null || fail 7
-	${ZPOOL} import -f ${POOL_NAME} || fail 8
+	${ZPOOL} import -d /dev ${POOL_NAME} || fail 8
 	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 9
 	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 10
 
@@ -266,6 +266,7 @@ test_4() {
 
 	# Load the modules, list the pools to ensure they are opened
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 10
+	${ZPOOL} import -c ${TMP_CACHE} ${POOL_NAME} || fail 10
 	${ZPOOL} list &>/dev/null
 
 	# Verify the devices were created
