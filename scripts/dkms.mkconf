@@ -56,7 +56,7 @@ PRE_BUILD="configure
     }
   )
 "
-POST_INSTALL="scripts/dkms.postinst
+POST_BUILD="scripts/dkms.postbuild
   -n \${PACKAGE_NAME}
   -v \${PACKAGE_VERSION}
   -a \${arch}
