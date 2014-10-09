@@ -248,7 +248,7 @@ zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
 	size_t count = kiocb->ki_nbytes;
 	ssize_t read;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
-	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
+	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP | KM_NODEBUG);
 	bcopy(iovp, iov_tmp, alloc_size);
 
 	ASSERT(iovp);
@@ -325,7 +325,7 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
 	size_t count = kiocb->ki_nbytes;
 	ssize_t wrote;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
-	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
+	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP | KM_NODEBUG);
 	bcopy(iovp, iov_tmp, alloc_size);
 
 	ASSERT(iovp);
