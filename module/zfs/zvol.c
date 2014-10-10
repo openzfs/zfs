@@ -632,14 +632,19 @@ zvol_discard(struct bio *bio)
 		return (SET_ERROR(EIO));
 
 	/*
-	 * Align the request to volume block boundaries. If we don't,
-	 * then this will force dnode_free_range() to zero out the
-	 * unaligned parts, which is slow (read-modify-write) and
-	 * useless since we are not freeing any space by doing so.
-	 * XXX: We should handle secure discard by zeroing out unaligned parts.
+	 * Align the request to volume block boundaries when REQ_SECURE is
+	 * available, but not requested. If we don't, then this will force
+	 * dnode_free_range() to zero out the unaligned parts, which is slow
+	 * (read-modify-write) and useless since we are not freeing any space
+	 * by doing so. Kernels that do not support REQ_SECURE (2.6.32 through
+	 * 2.6.35) will not receive this optimization.
 	 */
-	start = P2ROUNDUP(start, zv->zv_volblocksize);
-	end = P2ALIGN(end, zv->zv_volblocksize);
+#ifdef REQ_SECURE
+	if (!(bio->bi_rw & REQ_SECURE))
+		start = P2ROUNDUP(start, zv->zv_volblocksize);
+		end = P2ALIGN(end, zv->zv_volblocksize);
+	}
+#ifdef
 
 	if (start >= end)
 		return (0);
