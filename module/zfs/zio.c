@@ -60,6 +60,7 @@ kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 int zio_bulk_flags = 0;
 int zio_delay_max = ZIO_DELAY_MAX;
+int zio_recursion_threshold = 16; /* Threshold to redispatch zio_t objects */
 
 /*
  * The following actions directly effect the spa's sync-to-convergence logic.
@@ -516,6 +517,7 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait)
 
 	if (*countp == 0 && pio->io_stall == countp) {
 		pio->io_stall = NULL;
+		pio->io_recursion_count = zio->io_recursion_count + 1;
 		mutex_exit(&pio->io_lock);
 		__zio_execute(pio);
 	} else {
@@ -975,6 +977,8 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	if (vd->vdev_ops->vdev_op_leaf && zio->io_logical != NULL)
 		zio->io_logical->io_phys_children++;
 
+	zio->io_recursion_count = pio->io_recursion_count + 1;
+
 	return (zio);
 }
 
@@ -1268,6 +1272,9 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	zio_type_t t = zio->io_type;
 	int flags = (cutinline ? TQ_FRONT : 0);
 
+	/* Reset the notify counter */
+	zio->io_recursion_count = 0;
+
 	/*
 	 * If we're a config writer or a probe, the normal issue and
 	 * interrupt threads may all be blocked waiting for the config lock.
@@ -1390,6 +1397,16 @@ __zio_execute(zio_t *zio)
 		dp = spa_get_dsl(zio->io_spa);
 		cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
 		    zio_requeue_io_start_cut_in_line : B_FALSE;
+
+		/*
+		 * Deep call graphs can cause us to overrun the stack.
+		 * Redispatch ZIO when we hit zio_recursion_threshold.
+		 */
+		if (zio->io_recursion_count &&
+		    (zio->io_recursion_count >= zio_recursion_threshold)) {
+			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, B_TRUE);
+			return;
+		}
 
 		/*
 		 * If we are in interrupt context and this pipeline stage
