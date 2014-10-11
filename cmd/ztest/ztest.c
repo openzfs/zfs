@@ -124,6 +124,9 @@
 #include <math.h>
 #include <sys/fs/zfs.h>
 #include <libnvpair.h>
+#ifdef __GNUC__
+#include <execinfo.h> /* for backtrace() */
+#endif
 
 static int ztest_fd_data = -1;
 static int ztest_fd_rand = -1;
@@ -479,6 +482,30 @@ const char *
 _umem_logging_init(void)
 {
 	return ("fail,contents"); /* $UMEM_LOGGING setting */
+}
+
+#define	BACKTRACE_SZ	100
+
+static void sig_handler(int signo)
+{
+	struct sigaction action;
+#ifdef __GNUC__ /* backtrace() is a GNU extension */
+	int nptrs;
+	void *buffer[BACKTRACE_SZ];
+
+	nptrs = backtrace(buffer, BACKTRACE_SZ);
+	backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
+#endif
+
+	/*
+	 * Restore default action and re-raise signal so SIGSEGV and
+	 * SIGABRT can trigger a core dump.
+	 */
+	action.sa_handler = SIG_DFL;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	(void) sigaction(signo, &action, NULL);
+	raise(signo);
 }
 
 #define	FATAL_MSG_SZ	1024
@@ -6264,10 +6291,27 @@ main(int argc, char **argv)
 	boolean_t hasalt;
 	int f;
 	char *fd_data_str = getenv("ZTEST_FD_DATA");
+	struct sigaction action;
 
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
 
 	dprintf_setup(&argc, argv);
+
+	action.sa_handler = sig_handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+
+	if (sigaction(SIGSEGV, &action, NULL) < 0) {
+		(void) fprintf(stderr, "ztest: cannot catch SIGSEGV: %s.\n",
+		    strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	if (sigaction(SIGABRT, &action, NULL) < 0) {
+		(void) fprintf(stderr, "ztest: cannot catch SIGABRT: %s.\n",
+		    strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 
 	ztest_fd_rand = open("/dev/urandom", O_RDONLY);
 	ASSERT3S(ztest_fd_rand, >=, 0);
