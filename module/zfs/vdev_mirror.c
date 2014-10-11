@@ -300,7 +300,7 @@ vdev_mirror_child_select(zio_t *zio)
 		mc = &mm->mm_child[c];
 		if (mc->mc_tried || mc->mc_skipped)
 			continue;
-		if (!vdev_readable(mc->mc_vd)) {
+		if (mc->mc_vd == NULL || !vdev_readable(mc->mc_vd)) {
 			mc->mc_error = SET_ERROR(ENXIO);
 			mc->mc_tried = 1;	/* don't even try */
 			mc->mc_skipped = 1;
