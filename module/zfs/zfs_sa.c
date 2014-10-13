@@ -64,6 +64,10 @@ sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 	{"ZPL_SCANSTAMP", 32, SA_UINT8_ARRAY, 0},
 	{"ZPL_DACL_ACES", 0, SA_ACL, 0},
 	{"ZPL_DXATTR", 0, SA_UINT8_ARRAY, 0},
+	{"ZPL_SECURITY_SELINUX", 0, SA_UINT8_ARRAY, 0},
+	{"ZPL_SECURITY_CAPABILITY", 0, SA_UINT8_ARRAY, 0},
+	{"ZPL_SYSTEM_POSIX_ACL_ACCESS", 0, SA_UINT8_ARRAY, 0},
+	{"ZPL_SYSTEM_POSIX_ACL_DEFAULT", 0, SA_UINT8_ARRAY, 0},
 	{NULL, 0, 0, 0}
 };
 
@@ -248,8 +252,11 @@ zfs_sa_set_xattr(znode_t *zp)
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {
-		error = sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
-		    obj, size, tx);
+		if (nvlist_next_nvpair(zp->z_xattr_cached, NULL))
+			error = sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
+			    obj, size, tx);
+		else
+			error = sa_remove(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), tx);
 		if (error)
 			dmu_tx_abort(tx);
 		else
@@ -260,6 +267,164 @@ out_free:
 out:
 	return (error);
 }
+
+static void
+zfs_sa_remove_xattr(znode_t *zp, const char *attrname,
+	int dxsize, dmu_tx_t *tx)
+{
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	char *obj;
+	int error = 0;
+
+	/*
+	 * Get the ZPL_DXATTR xattr if it's not cached.
+	 */
+	if (zp->z_xattr_cached == NULL) {
+		error = nvlist_alloc(&zp->z_xattr_cached,
+			    NV_UNIQUE_NAME, KM_SLEEP);
+		if (error)
+			return;
+		obj = sa_spill_alloc(KM_SLEEP);
+		error = sa_lookup(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
+		    obj, dxsize);
+		if (!error)
+			error = nvlist_unpack(obj, dxsize,
+			    &zp->z_xattr_cached, KM_SLEEP);
+		sa_spill_free(obj);
+	}
+	if (error || zp->z_xattr_cached == NULL)
+		return;
+
+	/*
+	 * Try to remove it.
+	 */
+	error = nvlist_remove(zp->z_xattr_cached, attrname, DATA_TYPE_BYTE_ARRAY);
+	if (error)
+		return;
+
+	/*
+	 * If the ZPL_DXATTR SA is not empty, update it to remove the xattr.
+	 * If it is empty, remove the ZPL_DXATTR SA.
+	 */
+	if (nvlist_next_nvpair(zp->z_xattr_cached, NULL)) {
+		char *obj;
+		size_t size;
+
+		error = nvlist_size(zp->z_xattr_cached, &size, NV_ENCODE_XDR);
+		if (error)
+			return;
+
+		obj = sa_spill_alloc(KM_SLEEP);
+
+		error = nvlist_pack(zp->z_xattr_cached, &obj, &size,
+		    NV_ENCODE_XDR, KM_SLEEP);
+		if (error) {
+			sa_spill_free(obj);
+			return;
+		}
+
+		(void) sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
+		    obj, size, tx);
+
+		sa_spill_free(obj);
+	} else {
+		(void) sa_remove(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), tx);
+	}
+}
+
+int
+zfs_sa_native_set_xattr(znode_t *zp, zpl_attr_t attr,
+	const char *attrname, const void *value, size_t size,
+	dmu_tx_t *tx)
+{
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	int error, dxsize;
+	void *obj = NULL;
+	boolean_t havetx = B_FALSE;
+
+	ASSERT(RW_WRITE_HELD(&zp->z_xattr_lock));
+	ASSERT(zp->z_is_sa);
+
+	/*
+	 * Temporary copy of otherwise read-only value to
+	 * satisfy the non-const API of the lower-level SA
+	 * functions.
+	 */
+	if (value) {
+		obj = sa_spill_alloc(KM_SLEEP);
+		bcopy(value, obj, size);
+	}
+
+	if (tx)
+		havetx = B_TRUE;
+	else
+		tx = dmu_tx_create(zsb->z_os);
+
+	dmu_tx_hold_sa_create(tx, size);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
+
+	if (!havetx) {
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error) {
+			dmu_tx_abort(tx);
+			goto out;
+		}
+	}
+
+	/*
+	 * Remove an identical instance of this xattr from the ZPL_DXATTR SA.
+	 */
+	if (sa_size(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), &dxsize) == 0)
+		zfs_sa_remove_xattr(zp, attrname, dxsize, tx);
+
+	/*
+	 * Remove or update the native SA xattr.
+	 */
+	if (value)
+		error = sa_update(zp->z_sa_hdl, zsb->z_attr_table[attr],
+		    obj, size, tx);
+	else {
+		error = sa_remove(zp->z_sa_hdl, zsb->z_attr_table[attr], tx);
+	}
+
+	if (!havetx) {
+		if (error)
+			dmu_tx_abort(tx);
+		else
+			dmu_tx_commit(tx);
+	}
+out:
+	if (value)
+		sa_spill_free(obj);
+	return (error);
+}
+
+int
+zfs_sa_native_get_xattr(znode_t *zp, zpl_attr_t attr, void *value, size_t *size)
+{
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	size_t bufsize = *size;
+	int attr_size;
+	int error;
+
+	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
+	ASSERT(zp->z_is_sa);
+
+	error = sa_size(zp->z_sa_hdl, zsb->z_attr_table[attr], &attr_size);
+	if (error)
+		return (error);
+	*size = attr_size;
+	if (bufsize == 0 || value == NULL)
+		return (0);
+	if (bufsize < attr_size)
+		return (ERANGE);
+	error = sa_lookup(zp->z_sa_hdl, zsb->z_attr_table[attr],
+	    value, attr_size);
+	if (error)
+		return (error);
+	return (0);
+}
+
 
 /*
  * I'm not convinced we should do any of this upgrade.
@@ -416,6 +581,8 @@ EXPORT_SYMBOL(zfs_attr_table);
 EXPORT_SYMBOL(zfs_sa_readlink);
 EXPORT_SYMBOL(zfs_sa_symlink);
 EXPORT_SYMBOL(zfs_sa_get_scanstamp);
+EXPORT_SYMBOL(zfs_sa_native_set_xattr);
+EXPORT_SYMBOL(zfs_sa_native_get_xattr);
 EXPORT_SYMBOL(zfs_sa_set_scanstamp);
 EXPORT_SYMBOL(zfs_sa_get_xattr);
 EXPORT_SYMBOL(zfs_sa_set_xattr);

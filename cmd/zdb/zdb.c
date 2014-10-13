@@ -1583,7 +1583,7 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 	while ((elem = nvlist_next_nvpair(sa_xattr, elem)) != NULL)
 		sa_xattr_entries++;
 
-	(void) printf("\tSA xattrs: %d bytes, %d entries\n\n",
+	(void) printf("\tSA xattrs: %d bytes, %d entries\n",
 	    sa_xattr_size, sa_xattr_entries);
 	while ((elem = nvlist_next_nvpair(sa_xattr, elem)) != NULL) {
 		uchar_t *value;
@@ -1604,6 +1604,55 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 	free(sa_xattr_packed);
 }
 
+static void
+dump_znode_native_sa_xattr(sa_handle_t *hdl)
+{
+	int error;
+	boolean_t didheader = B_FALSE;
+	int i;
+	int attr_size, idx;
+	uchar_t *attr_buf;
+	static struct {
+		char *name;
+		zpl_attr_t attr;
+	} sa_xattrs[] = {
+		{ "security.selinux", ZPL_SECURITY_SELINUX },
+		{ "security.capability", ZPL_SECURITY_CAPABILITY },
+		{ "system.posix_acl_access", ZPL_SYSTEM_POSIX_ACL_ACCESS },
+		{ "system.posix_acl_default", ZPL_SYSTEM_POSIX_ACL_DEFAULT },
+		{ NULL, 0 }
+	};
+
+	for (i = 0; sa_xattrs[i].name != NULL; ++i) {
+		error = sa_size(hdl, sa_attr_table[sa_xattrs[i].attr],
+		    &attr_size);
+		if (error)
+			continue;
+		attr_buf = malloc(attr_size);
+		if (attr_buf == NULL)
+			continue;
+		error = sa_lookup(hdl, sa_attr_table[sa_xattrs[i].attr],
+		    attr_buf, attr_size);
+		if (error) {
+			free(attr_buf);
+			continue;
+		}
+		if (!didheader) {
+			(void) printf("\tNative SA xattrs:\n");
+			didheader = B_TRUE;
+		}
+		(void) printf("\t\t%s = ", sa_xattrs[i].name);
+		for (idx = 0; idx < attr_size; ++idx) {
+			if (isprint(attr_buf[idx]))
+				(void) putchar(attr_buf[idx]);
+			else
+				(void) printf("\\%3.3o", attr_buf[idx]);
+		}
+		(void) putchar('\n');
+		free(attr_buf);
+	}
+}
+
 /*ARGSUSED*/
 static void
 dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
@@ -1618,6 +1667,7 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	sa_bulk_attr_t bulk[12];
 	int idx = 0;
 	int error;
+	sa_hdr_phys_t *sahdr = data;
 
 	if (!sa_loaded) {
 		uint64_t sa_attrs = 0;
@@ -1686,6 +1736,8 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	z_mtime = (time_t)modtm[0];
 	z_ctime = (time_t)chgtm[0];
 
+	(void) printf("\tSA hdrsize %d\n", SA_HDR_SIZE(sahdr));
+	(void) printf("\tSA layout %d\n", SA_HDR_LAYOUT_NUM(sahdr));
 	(void) printf("\tpath	%s\n", path);
 	dump_uidgid(os, uid, gid);
 	(void) printf("\tatime	%s", ctime(&z_atime));
@@ -1705,6 +1757,7 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	    sizeof (uint64_t)) == 0)
 		(void) printf("\trdev	0x%016llx\n", (u_longlong_t)rdev);
 	dump_znode_sa_xattr(hdl);
+	dump_znode_native_sa_xattr(hdl);
 	sa_handle_destroy(hdl);
 }
 
