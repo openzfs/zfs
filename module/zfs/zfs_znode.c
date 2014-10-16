@@ -1471,7 +1471,6 @@ top:
 int
 zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 {
-	struct inode *ip = ZTOI(zp);
 	dmu_tx_t *tx;
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	zilog_t *zilog = zsb->z_log;
@@ -1491,15 +1490,6 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 			goto log;
 		else
 			return (error);
-	}
-
-	/*
-	 * Check for any locks in the region to be freed.
-	 */
-	if (ip->i_flock && mandatory_lock(ip)) {
-		uint64_t length = (len ? len : zp->z_size - off);
-		if (!lock_may_write(ip, off, length))
-			return (SET_ERROR(EAGAIN));
 	}
 
 	if (len == 0) {
