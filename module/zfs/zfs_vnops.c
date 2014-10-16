@@ -474,15 +474,6 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	/*
-	 * Check for mandatory locks
-	 */
-	if (mandatory_lock(ip) &&
-	    !lock_may_read(ip, uio->uio_loffset, uio->uio_resid)) {
-		ZFS_EXIT(zsb);
-		return (SET_ERROR(EAGAIN));
-	}
-
-	/*
 	 * If we're in FRSYNC mode, sync out this znode before reading it.
 	 */
 	if (ioflag & FRSYNC || zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
@@ -648,15 +639,6 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	if (woff < 0) {
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EINVAL));
-	}
-
-	/*
-	 * Check for mandatory locks before calling zfs_range_lock()
-	 * in order to prevent a deadlock with locks set via fcntl().
-	 */
-	if (mandatory_lock(ip) && !lock_may_write(ip, woff, n)) {
-		ZFS_EXIT(zsb);
-		return (SET_ERROR(EAGAIN));
 	}
 
 	/*
