@@ -36,7 +36,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT
 	SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE
 	SPL_AC_TIMESPEC_SUB
-	SPL_AC_INIT_UTSNAME
 	SPL_AC_UACCESS_HEADER
 	SPL_AC_KMALLOC_NODE
 	SPL_AC_MONOTONIC_CLOCK
@@ -1109,25 +1108,6 @@ AC_DEFUN([SPL_AC_TIMESPEC_SUB], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_TIMESPEC_SUB, 1, [timespec_sub() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.19 API change,
-dnl # check if init_utsname() is available in linux/utsname.h
-dnl #
-AC_DEFUN([SPL_AC_INIT_UTSNAME], [
-	AC_MSG_CHECKING([whether init_utsname() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/utsname.h>
-	],[
-		struct new_utsname *a __attribute__ ((unused));
-		a = init_utsname();
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_INIT_UTSNAME, 1, [init_utsname() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])

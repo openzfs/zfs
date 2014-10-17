@@ -37,7 +37,6 @@
 #include <sys/debug.h>
 #include <sys/proc.h>
 #include <sys/kstat.h>
-#include <sys/utsname.h>
 #include <sys/file.h>
 #include <linux/kmod.h>
 #include <linux/proc_compat.h>
@@ -437,17 +436,6 @@ __put_task_struct(struct task_struct *t)
 }
 EXPORT_SYMBOL(__put_task_struct);
 #endif /* HAVE_PUT_TASK_STRUCT */
-
-struct new_utsname *__utsname(void)
-{
-#ifdef HAVE_INIT_UTSNAME
-	return init_utsname();
-#else
-	return &system_utsname;
-#endif
-}
-EXPORT_SYMBOL(__utsname);
-
 
 /*
  * Read the unique system identifier from the /etc/hostid file.
