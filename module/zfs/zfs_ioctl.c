@@ -29,6 +29,7 @@
  * Copyright (c) 201i3 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  */
 
 /*
@@ -245,8 +246,6 @@ static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t *);
 static int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
-
-static int zfs_prop_activate_feature(spa_t *spa, spa_feature_t feature);
 
 static void
 history_str_free(char *buf)
@@ -2402,37 +2401,6 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		}
 		break;
 	}
-	case ZFS_PROP_COMPRESSION:
-	{
-		if (intval == ZIO_COMPRESS_LZ4) {
-			spa_t *spa;
-
-			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
-				return (err);
-
-			/*
-			 * Setting the LZ4 compression algorithm activates
-			 * the feature.
-			 */
-			if (!spa_feature_is_active(spa,
-			    SPA_FEATURE_LZ4_COMPRESS)) {
-				if ((err = zfs_prop_activate_feature(spa,
-				    SPA_FEATURE_LZ4_COMPRESS)) != 0) {
-					spa_close(spa, FTAG);
-					return (err);
-				}
-			}
-
-			spa_close(spa, FTAG);
-		}
-		/*
-		 * We still want the default set action to be performed in the
-		 * caller, we only performed zfeature settings here.
-		 */
-		err = -1;
-		break;
-	}
-
 	default:
 		err = -1;
 	}
@@ -3828,56 +3796,6 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	}
 
 	return (zfs_secpolicy_setprop(dsname, prop, pair, CRED()));
-}
-
-/*
- * Checks for a race condition to make sure we don't increment a feature flag
- * multiple times.
- */
-static int
-zfs_prop_activate_feature_check(void *arg, dmu_tx_t *tx)
-{
-	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	spa_feature_t *featurep = arg;
-
-	if (!spa_feature_is_active(spa, *featurep))
-		return (0);
-	else
-		return (SET_ERROR(EBUSY));
-}
-
-/*
- * The callback invoked on feature activation in the sync task caused by
- * zfs_prop_activate_feature.
- */
-static void
-zfs_prop_activate_feature_sync(void *arg, dmu_tx_t *tx)
-{
-	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	spa_feature_t *featurep = arg;
-
-	spa_feature_incr(spa, *featurep, tx);
-}
-
-/*
- * Activates a feature on a pool in response to a property setting. This
- * creates a new sync task which modifies the pool to reflect the feature
- * as being active.
- */
-static int
-zfs_prop_activate_feature(spa_t *spa, spa_feature_t feature)
-{
-	int err;
-
-	/* EBUSY here indicates that the feature is already active */
-	err = dsl_sync_task(spa_name(spa),
-	    zfs_prop_activate_feature_check, zfs_prop_activate_feature_sync,
-	    &feature, 2);
-
-	if (err != 0 && err != EBUSY)
-		return (err);
-	else
-		return (0);
 }
 
 /*

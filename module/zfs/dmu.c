@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -43,6 +44,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
 #include <sys/sa.h>
+#include <sys/zfeature.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #include <sys/zfs_znode.h>
@@ -1765,8 +1767,16 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		 * XXX -- we should design a compression algorithm
 		 * that specializes in arrays of bps.
 		 */
-		compress = zfs_mdcomp_disable ? ZIO_COMPRESS_EMPTY :
-		    ZIO_COMPRESS_LZJB;
+		boolean_t lz4_ac = spa_feature_is_active(os->os_spa,
+		    SPA_FEATURE_LZ4_COMPRESS);
+
+		if (zfs_mdcomp_disable) {
+			compress = ZIO_COMPRESS_EMPTY;
+		} else if (lz4_ac) {
+			compress = ZIO_COMPRESS_LZ4;
+		} else {
+			compress = ZIO_COMPRESS_LZJB;
+		}
 
 		/*
 		 * Metadata always gets checksummed.  If the data
