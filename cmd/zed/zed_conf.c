@@ -419,7 +419,7 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 			    direntp->d_name);
 			continue;
 		}
-		if (zed_strings_add(zedlets, direntp->d_name) < 0) {
+		if (zed_strings_add(zedlets, NULL, direntp->d_name) < 0) {
 			zed_log_msg(LOG_WARNING,
 			    "Failed to register \"%s\": %s",
 			    direntp->d_name, strerror(errno));

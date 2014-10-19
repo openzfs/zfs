@@ -43,6 +43,8 @@
 #include "zed_log.h"
 #include "zed_strings.h"
 
+#define	MAXBUF	4096
+
 /*
  * Open the libzfs interface.
  */
@@ -427,6 +429,103 @@ _zed_event_value_is_hex(const char *name)
 }
 
 /*
+ * Add an environment variable for [eid] to the container [zsp].
+ *
+ * The variable name is the concatenation of [prefix] and [name] converted to
+ * uppercase with non-alphanumeric characters converted to underscores;
+ * [prefix] is optional, and [name] must begin with an alphabetic character.
+ * If the converted variable name already exists within the container [zsp],
+ * its existing value will be replaced with the new value.
+ *
+ * The variable value is specified by the format string [fmt].
+ *
+ * Returns 0 on success, and -1 on error (with errno set).
+ *
+ * All environment variables in [zsp] should be added through this function.
+ */
+static int
+_zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, const char *name, const char *fmt, ...)
+{
+	char keybuf[MAXBUF];
+	char valbuf[MAXBUF];
+	char *dstp;
+	const char *srcp;
+	const char *lastp;
+	int n;
+	int buflen;
+	va_list vargs;
+
+	assert(zsp != NULL);
+	assert(fmt != NULL);
+
+	if (!name) {
+		errno = EINVAL;
+		zed_log_msg(LOG_WARNING,
+		    "Failed to add variable for eid=%llu: Name is empty", eid);
+		return (-1);
+	} else if (!isalpha(name[0])) {
+		errno = EINVAL;
+		zed_log_msg(LOG_WARNING,
+		    "Failed to add variable for eid=%llu: "
+		    "Name \"%s\" is invalid", eid, name);
+		return (-1);
+	}
+	/*
+	 * Construct the string key by converting PREFIX (if present) and NAME.
+	 */
+	dstp = keybuf;
+	lastp = keybuf + sizeof (keybuf);
+	if (prefix) {
+		for (srcp = prefix; *srcp && (dstp < lastp); srcp++)
+			*dstp++ = isalnum(*srcp) ? toupper(*srcp) : '_';
+	}
+	for (srcp = name; *srcp && (dstp < lastp); srcp++)
+		*dstp++ = isalnum(*srcp) ? toupper(*srcp) : '_';
+
+	if (dstp == lastp) {
+		errno = ENAMETOOLONG;
+		zed_log_msg(LOG_WARNING,
+		    "Failed to add variable for eid=%llu: Name too long", eid);
+		return (-1);
+	}
+	*dstp = '\0';
+	/*
+	 * Construct the string specified by "[PREFIX][NAME]=[FMT]".
+	 */
+	dstp = valbuf;
+	buflen = sizeof (valbuf);
+	n = strlcpy(dstp, keybuf, buflen);
+	if (n >= sizeof (valbuf)) {
+		errno = EMSGSIZE;
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
+		    keybuf, eid, "Exceeded buffer size");
+		return (-1);
+	}
+	dstp += n;
+	buflen -= n;
+
+	*dstp++ = '=';
+	buflen--;
+
+	va_start(vargs, fmt);
+	n = vsnprintf(dstp, buflen, fmt, vargs);
+	va_end(vargs);
+
+	if ((n < 0) || (n >= buflen)) {
+		errno = EMSGSIZE;
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
+		    keybuf, eid, "Exceeded buffer size");
+		return (-1);
+	} else if (zed_strings_add(zsp, keybuf, valbuf) < 0) {
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
+		    keybuf, eid, strerror(errno));
+		return (-1);
+	}
+	return (0);
+}
+
+/*
  * Convert the nvpair [nvp] to a string which is added to the environment
  * of the child process.
  * Return 0 on success, -1 on error.
@@ -438,11 +537,8 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 {
 	const char *name;
 	data_type_t type;
-	char buf[4096];
-	int buflen;
+	char buf[MAXBUF];
 	int n;
-	char *p;
-	const char *q;
 	const char *fmt;
 
 	boolean_t b;
@@ -458,133 +554,108 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 
 	name = nvpair_name(nvp);
 	type = nvpair_type(nvp);
-	buflen = sizeof (buf);
 
-	/* Copy NAME prefix for ZED zevent namespace. */
-	n = strlcpy(buf, ZEVENT_VAR_PREFIX, sizeof (buf));
-	if (n >= sizeof (buf)) {
-		zed_log_msg(LOG_WARNING,
-		    "Failed to convert nvpair \"%s\" for eid=%llu: %s",
-		    name, eid, "Exceeded buffer size");
-		return;
-	}
-	buflen -= n;
-	p = buf + n;
-
-	/* Convert NAME to alphanumeric uppercase. */
-	for (q = name; *q && (buflen > 0); q++) {
-		*p++ = isalnum(*q) ? toupper(*q) : '_';
-		buflen--;
-	}
-
-	/* Separate NAME from VALUE. */
-	if (buflen > 0) {
-		*p++ = '=';
-		buflen--;
-	}
-	*p = '\0';
-
-	/* Convert VALUE. */
 	switch (type) {
 	case DATA_TYPE_BOOLEAN:
-		n = snprintf(p, buflen, "%s", "1");
+		n = snprintf(buf, sizeof (buf), "%s", "1");
 		break;
 	case DATA_TYPE_BOOLEAN_VALUE:
 		(void) nvpair_value_boolean_value(nvp, &b);
-		n = snprintf(p, buflen, "%s", b ? "1" : "0");
+		n = snprintf(buf, sizeof (buf), "%s", b ? "1" : "0");
 		break;
 	case DATA_TYPE_BYTE:
 		(void) nvpair_value_byte(nvp, &i8);
-		n = snprintf(p, buflen, "%d", i8);
+		n = snprintf(buf, sizeof (buf), "%d", i8);
 		break;
 	case DATA_TYPE_INT8:
 		(void) nvpair_value_int8(nvp, (int8_t *) &i8);
-		n = snprintf(p, buflen, "%d", i8);
+		n = snprintf(buf, sizeof (buf), "%d", i8);
 		break;
 	case DATA_TYPE_UINT8:
 		(void) nvpair_value_uint8(nvp, &i8);
-		n = snprintf(p, buflen, "%u", i8);
+		n = snprintf(buf, sizeof (buf), "%u", i8);
 		break;
 	case DATA_TYPE_INT16:
 		(void) nvpair_value_int16(nvp, (int16_t *) &i16);
-		n = snprintf(p, buflen, "%d", i16);
+		n = snprintf(buf, sizeof (buf), "%d", i16);
 		break;
 	case DATA_TYPE_UINT16:
 		(void) nvpair_value_uint16(nvp, &i16);
-		n = snprintf(p, buflen, "%u", i16);
+		n = snprintf(buf, sizeof (buf), "%u", i16);
 		break;
 	case DATA_TYPE_INT32:
 		(void) nvpair_value_int32(nvp, (int32_t *) &i32);
-		n = snprintf(p, buflen, "%d", i32);
+		n = snprintf(buf, sizeof (buf), "%d", i32);
 		break;
 	case DATA_TYPE_UINT32:
 		(void) nvpair_value_uint32(nvp, &i32);
-		n = snprintf(p, buflen, "%u", i32);
+		n = snprintf(buf, sizeof (buf), "%u", i32);
 		break;
 	case DATA_TYPE_INT64:
 		(void) nvpair_value_int64(nvp, (int64_t *) &i64);
-		n = snprintf(p, buflen, "%lld", (longlong_t) i64);
+		n = snprintf(buf, sizeof (buf), "%lld", (longlong_t) i64);
 		break;
 	case DATA_TYPE_UINT64:
 		(void) nvpair_value_uint64(nvp, &i64);
 		fmt = _zed_event_value_is_hex(name) ? "0x%.16llX" : "%llu";
-		n = snprintf(p, buflen, fmt, (u_longlong_t) i64);
+		n = snprintf(buf, sizeof (buf), fmt, (u_longlong_t) i64);
 		break;
 	case DATA_TYPE_DOUBLE:
 		(void) nvpair_value_double(nvp, &d);
-		n = snprintf(p, buflen, "%g", d);
+		n = snprintf(buf, sizeof (buf), "%g", d);
 		break;
 	case DATA_TYPE_HRTIME:
 		(void) nvpair_value_hrtime(nvp, (hrtime_t *) &i64);
-		n = snprintf(p, buflen, "%llu", (u_longlong_t) i64);
+		n = snprintf(buf, sizeof (buf), "%llu", (u_longlong_t) i64);
 		break;
 	case DATA_TYPE_NVLIST:
 		/* FIXME */
-		n = snprintf(p, buflen, "%s", "_NOT_IMPLEMENTED_");
+		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
 		break;
 	case DATA_TYPE_STRING:
 		(void) nvpair_value_string(nvp, &str);
-		n = snprintf(p, buflen, "%s", (str ? str : "<NULL>"));
+		n = snprintf(buf, sizeof (buf), "%s", (str ? str : "<NULL>"));
 		break;
 	case DATA_TYPE_BOOLEAN_ARRAY:
 		/* FIXME */
-		n = snprintf(p, buflen, "%s", "_NOT_IMPLEMENTED_");
+		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
 		break;
 	case DATA_TYPE_BYTE_ARRAY:
 		/* FIXME */
-		n = snprintf(p, buflen, "%s", "_NOT_IMPLEMENTED_");
+		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
 		break;
 	case DATA_TYPE_INT8_ARRAY:
-		n = _zed_event_convert_int8_array(p, buflen, nvp);
+		n = _zed_event_convert_int8_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_UINT8_ARRAY:
-		n = _zed_event_convert_uint8_array(p, buflen, nvp);
+		n = _zed_event_convert_uint8_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_INT16_ARRAY:
-		n = _zed_event_convert_int16_array(p, buflen, nvp);
+		n = _zed_event_convert_int16_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_UINT16_ARRAY:
-		n = _zed_event_convert_uint16_array(p, buflen, nvp);
+		n = _zed_event_convert_uint16_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_INT32_ARRAY:
-		n = _zed_event_convert_int32_array(p, buflen, nvp);
+		n = _zed_event_convert_int32_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_UINT32_ARRAY:
-		n = _zed_event_convert_uint32_array(p, buflen, nvp);
+		n = _zed_event_convert_uint32_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_INT64_ARRAY:
-		n = _zed_event_convert_int64_array(p, buflen, nvp);
+		n = _zed_event_convert_int64_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_UINT64_ARRAY:
 		fmt = _zed_event_value_is_hex(name) ? "0x%.16llX " : "%llu ";
-		n = _zed_event_convert_uint64_array(p, buflen, nvp, fmt);
+		n = _zed_event_convert_uint64_array(buf, sizeof (buf),
+		    nvp, fmt);
 		break;
 	case DATA_TYPE_STRING_ARRAY:
-		n = _zed_event_convert_string_array(p, buflen, nvp);
+		n = _zed_event_convert_string_array(buf, sizeof (buf), nvp);
 		break;
 	case DATA_TYPE_NVLIST_ARRAY:
 		/* FIXME */
-		n = snprintf(p, buflen, "%s", "_NOT_IMPLEMENTED_");
+		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
 		break;
 	default:
 		zed_log_msg(LOG_WARNING,
@@ -598,45 +669,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		    name, eid, "Exceeded buffer size");
 		return;
 	}
-	if (zed_strings_add(zsp, buf) < 0) {
-		zed_log_msg(LOG_WARNING,
-		    "Failed to convert nvpair \"%s\" for eid=%llu: %s",
-		    name, eid, strerror(ENOMEM));
-		return;
-	}
-}
-
-/*
- * Add the environment variable specified by the format string [fmt].
- */
-static void
-_zed_event_add_var(uint64_t eid, zed_strings_t *zsp, const char *fmt, ...)
-{
-	char buf[4096];
-	va_list vargs;
-	int n;
-	const char *p;
-	size_t namelen;
-
-	assert(zsp != NULL);
-	assert(fmt != NULL);
-
-	va_start(vargs, fmt);
-	n = vsnprintf(buf, sizeof (buf), fmt, vargs);
-	va_end(vargs);
-	p = strchr(buf, '=');
-	namelen = (p) ? p - buf : strlen(buf);
-
-	if ((n < 0) || (n >= sizeof (buf))) {
-		zed_log_msg(LOG_WARNING, "Failed to add %.*s for eid=%llu: %s",
-		    namelen, buf, eid, "Exceeded buffer size");
-	} else if (!p) {
-		zed_log_msg(LOG_WARNING, "Failed to add %.*s for eid=%llu: %s",
-		    namelen, buf, eid, "Missing assignment");
-	} else if (zed_strings_add(zsp, buf) < 0) {
-		zed_log_msg(LOG_WARNING, "Failed to add %.*s for eid=%llu: %s",
-		    namelen, buf, eid, strerror(ENOMEM));
-	}
+	_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, name, "%s", buf);
 }
 
 /*
@@ -648,25 +681,25 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp, const char *fmt, ...)
 static void
 _zed_event_add_env_restrict(uint64_t eid, zed_strings_t *zsp)
 {
-	const char *env_restrict[] = {
-		"IFS= \t\n",
-		"PATH=" _PATH_STDPATH,
-		"ZDB=" SBINDIR "/zdb",
-		"ZED=" SBINDIR "/zed",
-		"ZFS=" SBINDIR "/zfs",
-		"ZINJECT=" SBINDIR "/zinject",
-		"ZPOOL=" SBINDIR "/zpool",
-		"ZFS_ALIAS=" ZFS_META_ALIAS,
-		"ZFS_VERSION=" ZFS_META_VERSION,
-		"ZFS_RELEASE=" ZFS_META_RELEASE,
-		NULL
+	const char *env_restrict[][2] = {
+		{ "IFS",		" \t\n" },
+		{ "PATH",		_PATH_STDPATH },
+		{ "ZDB",		SBINDIR "/zdb" },
+		{ "ZED",		SBINDIR "/zed" },
+		{ "ZFS",		SBINDIR "/zfs" },
+		{ "ZINJECT",		SBINDIR "/zinject" },
+		{ "ZPOOL",		SBINDIR "/zpool" },
+		{ "ZFS_ALIAS",		ZFS_META_ALIAS },
+		{ "ZFS_VERSION",	ZFS_META_VERSION },
+		{ "ZFS_RELEASE",	ZFS_META_RELEASE },
+		{ NULL,			NULL }
 	};
-	const char **pp;
+	const char *(*pa)[2];
 
 	assert(zsp != NULL);
 
-	for (pp = env_restrict; *pp; pp++) {
-		_zed_event_add_var(eid, zsp, "%s", *pp);
+	for (pa = env_restrict; *(*pa); pa++) {
+		_zed_event_add_var(eid, zsp, NULL, (*pa)[0], "%s", (*pa)[1]);
 	}
 }
 
@@ -683,14 +716,14 @@ _zed_event_add_env_preserve(uint64_t eid, zed_strings_t *zsp)
 		"TZ",
 		NULL
 	};
-	const char **pp;
-	const char *p;
+	const char **keyp;
+	const char *val;
 
 	assert(zsp != NULL);
 
-	for (pp = env_preserve; *pp; pp++) {
-		if ((p = getenv(*pp)))
-			_zed_event_add_var(eid, zsp, "%s=%s", *pp, p);
+	for (keyp = env_preserve; *keyp; keyp++) {
+		if ((val = getenv(*keyp)))
+			_zed_event_add_var(eid, zsp, NULL, *keyp, "%s", val);
 	}
 }
 
@@ -735,10 +768,10 @@ _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 	assert(zsp != NULL);
 	assert(etime != NULL);
 
-	_zed_event_add_var(eid, zsp, "%s%s=%lld",
-	    ZEVENT_VAR_PREFIX, "TIME_SECS", (long long int) etime[0]);
-	_zed_event_add_var(eid, zsp, "%s%s=%lld",
-	    ZEVENT_VAR_PREFIX, "TIME_NSECS", (long long int) etime[1]);
+	_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "TIME_SECS",
+	    "%lld", (long long int) etime[0]);
+	_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "TIME_NSECS",
+	    "%lld", (long long int) etime[1]);
 
 	if (!(stp = localtime((const time_t *) &etime[0]))) {
 		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%llu: %s",
@@ -747,8 +780,8 @@ _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%llu: %s",
 		    ZEVENT_VAR_PREFIX, "TIME_STRING", eid, "strftime error");
 	} else {
-		_zed_event_add_var(eid, zsp, "%s%s=%s",
-		    ZEVENT_VAR_PREFIX, "TIME_STRING", buf);
+		_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "TIME_STRING",
+		    "%s", buf);
 	}
 }
 
@@ -811,15 +844,13 @@ zed_event_service(struct zed_conf *zcp)
 		_zed_event_add_env_restrict(eid, zsp);
 		_zed_event_add_env_preserve(eid, zsp);
 
-		_zed_event_add_var(eid, zsp, "%s%s=%d",
-		    ZED_VAR_PREFIX, "PID", (int) getpid());
-		_zed_event_add_var(eid, zsp, "%s%s=%s",
-		    ZED_VAR_PREFIX, "ZEDLET_DIR", zcp->zedlet_dir);
-
+		_zed_event_add_var(eid, zsp, ZED_VAR_PREFIX, "PID",
+		    "%d", (int) getpid());
+		_zed_event_add_var(eid, zsp, ZED_VAR_PREFIX, "ZEDLET_DIR",
+		    "%s", zcp->zedlet_dir);
 		subclass = _zed_event_get_subclass(class);
-		_zed_event_add_var(eid, zsp, "%s%s=%s",
-		    ZEVENT_VAR_PREFIX, "SUBCLASS",
-		    (subclass ? subclass : class));
+		_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "SUBCLASS",
+		    "%s", (subclass ? subclass : class));
 		_zed_event_add_time_strings(eid, zsp, etime);
 
 		zed_exec_process(eid, class, subclass,
