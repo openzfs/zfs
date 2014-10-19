@@ -1730,10 +1730,8 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 			if (attr == newattr) {
 				if (length == 0)
 					++length_idx;
-				if (action == SA_REMOVE) {
-					j++;
+				if (action == SA_REMOVE)
 					continue;
-				}
 				ASSERT(length == 0);
 				ASSERT(action == SA_REPLACE);
 				SA_ADD_BULK_ATTR(attr_desc, j, attr,
