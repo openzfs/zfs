@@ -40,7 +40,8 @@ struct zed_strings {
 
 struct zed_strings_node {
 	avl_node_t node;
-	char string[];
+	char *key;
+	char *val;
 };
 
 typedef struct zed_strings_node zed_strings_node_t;
@@ -59,9 +60,9 @@ _zed_strings_node_compare(const void *x1, const void *x2)
 	assert(x1 != NULL);
 	assert(x2 != NULL);
 
-	s1 = ((const zed_strings_node_t *) x1)->string;
+	s1 = ((const zed_strings_node_t *) x1)->key;
 	assert(s1 != NULL);
-	s2 = ((const zed_strings_node_t *) x2)->string;
+	s2 = ((const zed_strings_node_t *) x2)->key;
 	assert(s2 != NULL);
 	rv = strcmp(s1, s2);
 
@@ -94,7 +95,62 @@ zed_strings_create(void)
 }
 
 /*
- * Destroy the string container [zsp] and all strings within.
+ * Destroy the string node [np].
+ */
+static void
+_zed_strings_node_destroy(zed_strings_node_t *np)
+{
+	if (!np)
+		return;
+
+	if (np->key) {
+		if (np->key != np->val)
+			free(np->key);
+		np->key = NULL;
+	}
+	if (np->val) {
+		free(np->val);
+		np->val = NULL;
+	}
+	free(np);
+}
+
+/*
+ * Return a new string node for storing the string [val], or NULL on error.
+ * If [key] is specified, it will be used to index the node; otherwise,
+ * the string [val] will be used.
+ */
+zed_strings_node_t *
+_zed_strings_node_create(const char *key, const char *val)
+{
+	zed_strings_node_t *np;
+
+	assert(val != NULL);
+
+	np = calloc(1, sizeof (*np));
+	if (!np)
+		return (NULL);
+
+	np->val = strdup(val);
+	if (!np->val)
+		goto nomem;
+
+	if (key) {
+		np->key = strdup(key);
+		if (!np->key)
+			goto nomem;
+	} else {
+		np->key = np->val;
+	}
+	return (np);
+
+nomem:
+	_zed_strings_node_destroy(np);
+	return (NULL);
+}
+
+/*
+ * Destroy the string container [zsp] and all nodes within.
  */
 void
 zed_strings_destroy(zed_strings_t *zsp)
@@ -107,36 +163,41 @@ zed_strings_destroy(zed_strings_t *zsp)
 
 	cookie = NULL;
 	while ((np = avl_destroy_nodes(&zsp->tree, &cookie)))
-		free(np);
+		_zed_strings_node_destroy(np);
 
 	avl_destroy(&zsp->tree);
 	free(zsp);
 }
 
 /*
- * Add a copy of the string [s] to the container [zsp].
+ * Add a copy of the string [s] indexed by [key] to the container [zsp].
+ * If [key] already exists within the container [zsp], it will be replaced
+ * with the new string [s].
+ * If [key] is NULL, the string [s] will be used as the key.
  * Return 0 on success, or -1 on error.
- *
- * FIXME: Handle dup strings.
  */
 int
-zed_strings_add(zed_strings_t *zsp, const char *s)
+zed_strings_add(zed_strings_t *zsp, const char *key, const char *s)
 {
-	size_t len;
-	zed_strings_node_t *np;
+	zed_strings_node_t *newp, *oldp;
 
 	if (!zsp || !s) {
 		errno = EINVAL;
 		return (-1);
 	}
-	len = sizeof (zed_strings_node_t) + strlen(s) + 1;
-	np = calloc(1, len);
-	if (!np)
+	if (key == s)
+		key = NULL;
+
+	newp = _zed_strings_node_create(key, s);
+	if (!newp)
 		return (-1);
 
-	assert((char *) np->string + strlen(s) < (char *) np + len);
-	(void) strcpy(np->string, s);
-	avl_add(&zsp->tree, np);
+	oldp = avl_find(&zsp->tree, newp, NULL);
+	if (oldp) {
+		avl_remove(&zsp->tree, oldp);
+		_zed_strings_node_destroy(oldp);
+	}
+	avl_add(&zsp->tree, newp);
 	return (0);
 }
 
@@ -157,7 +218,7 @@ zed_strings_first(zed_strings_t *zsp)
 	if (!zsp->iteratorp)
 		return (NULL);
 
-	return (((zed_strings_node_t *) zsp->iteratorp)->string);
+	return (((zed_strings_node_t *) zsp->iteratorp)->val);
 
 }
 
@@ -181,7 +242,7 @@ zed_strings_next(zed_strings_t *zsp)
 	if (!zsp->iteratorp)
 		return (NULL);
 
-	return (((zed_strings_node_t *)zsp->iteratorp)->string);
+	return (((zed_strings_node_t *)zsp->iteratorp)->val);
 }
 
 /*
