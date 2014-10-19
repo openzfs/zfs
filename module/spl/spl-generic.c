@@ -37,7 +37,6 @@
 #include <sys/debug.h>
 #include <sys/proc.h>
 #include <sys/kstat.h>
-#include <sys/utsname.h>
 #include <sys/file.h>
 #include <linux/kmod.h>
 #include <linux/proc_compat.h>
@@ -59,73 +58,6 @@ MODULE_PARM_DESC(spl_hostid, "The system hostid.");
 
 proc_t p0 = { 0 };
 EXPORT_SYMBOL(p0);
-
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
-DECLARE_WAIT_QUEUE_HEAD(spl_kallsyms_lookup_name_waitq);
-kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn = SYMBOL_POISON;
-#endif
-
-int
-highbit(unsigned long i)
-{
-        register int h = 1;
-        SENTRY;
-
-        if (i == 0)
-                SRETURN(0);
-#if BITS_PER_LONG == 64
-        if (i & 0xffffffff00000000ul) {
-                h += 32; i >>= 32;
-        }
-#endif
-        if (i & 0xffff0000) {
-                h += 16; i >>= 16;
-        }
-        if (i & 0xff00) {
-                h += 8; i >>= 8;
-        }
-        if (i & 0xf0) {
-                h += 4; i >>= 4;
-        }
-        if (i & 0xc) {
-                h += 2; i >>= 2;
-        }
-        if (i & 0x2) {
-                h += 1;
-        }
-        SRETURN(h);
-}
-EXPORT_SYMBOL(highbit);
-
-int
-highbit64(uint64_t i)
-{
-        register int h = 1;
-        SENTRY;
-
-        if (i == 0)
-                SRETURN(0);
-        if (i & 0xffffffff00000000ull) {
-                h += 32; i >>= 32;
-        }
-        if (i & 0xffff0000) {
-                h += 16; i >>= 16;
-        }
-        if (i & 0xff00) {
-                h += 8; i >>= 8;
-        }
-        if (i & 0xf0) {
-                h += 4; i >>= 4;
-        }
-        if (i & 0xc) {
-                h += 2; i >>= 2;
-        }
-        if (i & 0x2) {
-                h += 1;
-        }
-        SRETURN(h);
-}
-EXPORT_SYMBOL(highbit64);
 
 #if BITS_PER_LONG == 32
 /*
@@ -438,17 +370,6 @@ __put_task_struct(struct task_struct *t)
 EXPORT_SYMBOL(__put_task_struct);
 #endif /* HAVE_PUT_TASK_STRUCT */
 
-struct new_utsname *__utsname(void)
-{
-#ifdef HAVE_INIT_UTSNAME
-	return init_utsname();
-#else
-	return &system_utsname;
-#endif
-}
-EXPORT_SYMBOL(__utsname);
-
-
 /*
  * Read the unique system identifier from the /etc/hostid file.
  *
@@ -564,63 +485,6 @@ zone_get_hostid(void *zone)
 }
 EXPORT_SYMBOL(zone_get_hostid);
 
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
-/*
- * The kallsyms_lookup_name() kernel function is not an exported symbol in
- * Linux 2.6.19 through 2.6.32 inclusive.
- *
- * This function replaces the functionality by performing an upcall to user
- * space where /proc/kallsyms is consulted for the requested address.
- *
- */
-
-#define GET_KALLSYMS_ADDR_CMD \
-	"exec 0</dev/null " \
-	"     1>/proc/sys/kernel/spl/kallsyms_lookup_name " \
-	"     2>/dev/null; " \
-	"awk  '{ if ( $3 == \"kallsyms_lookup_name\" ) { print $1 } }' " \
-	"     /proc/kallsyms "
-
-static int
-set_kallsyms_lookup_name(void)
-{
-	char *argv[] = { "/bin/sh",
-	                 "-c",
-			 GET_KALLSYMS_ADDR_CMD,
-	                 NULL };
-	char *envp[] = { "HOME=/",
-	                 "TERM=linux",
-	                 "PATH=/sbin:/usr/sbin:/bin:/usr/bin",
-	                 NULL };
-	int rc;
-
-	rc = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-
-	/*
-	 * Due to I/O buffering the helper may return successfully before
-	 * the proc handler has a chance to execute.  To catch this case
-	 * wait up to 1 second to verify spl_kallsyms_lookup_name_fn was
-	 * updated to a non SYMBOL_POISON value.
-	 */
-	if (rc == 0) {
-		rc = wait_event_timeout(spl_kallsyms_lookup_name_waitq,
-		    spl_kallsyms_lookup_name_fn != SYMBOL_POISON, HZ);
-		if (rc == 0)
-			rc = -ETIMEDOUT;
-		else if (spl_kallsyms_lookup_name_fn == SYMBOL_POISON)
-			rc = -EFAULT;
-		else
-			rc = 0;
-	}
-
-	if (rc)
-		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
-		       argv[0], argv[1], argv[2], rc);
-
-	return rc;
-}
-#endif
-
 static int
 __init spl_init(void)
 {
@@ -656,19 +520,10 @@ __init spl_init(void)
 	if ((rc = spl_zlib_init()))
 		SGOTO(out9, rc);
 
-#ifndef HAVE_KALLSYMS_LOOKUP_NAME
-	if ((rc = set_kallsyms_lookup_name()))
-		SGOTO(out10, rc = -EADDRNOTAVAIL);
-#endif /* HAVE_KALLSYMS_LOOKUP_NAME */
-
-	if ((rc = spl_kmem_init_kallsyms_lookup()))
-		SGOTO(out10, rc);
-
 	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
 	       SPL_META_RELEASE, SPL_DEBUG_STR);
 	SRETURN(rc);
-out10:
-	spl_zlib_fini();
+
 out9:
 	spl_tsd_fini();
 out8:
@@ -740,7 +595,7 @@ EXPORT_SYMBOL(spl_cleanup);
 module_init(spl_init);
 module_exit(spl_fini);
 
-MODULE_AUTHOR("Lawrence Livermore National Labs");
 MODULE_DESCRIPTION("Solaris Porting Layer");
-MODULE_LICENSE("GPL");
+MODULE_AUTHOR(SPL_META_AUTHOR);
+MODULE_LICENSE(SPL_META_LICENSE);
 MODULE_VERSION(SPL_META_VERSION "-" SPL_META_RELEASE);

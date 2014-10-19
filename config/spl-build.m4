@@ -23,65 +23,21 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_DEBUG_KMEM_TRACKING
 	SPL_AC_TEST_MODULE
 	SPL_AC_ATOMIC_SPINLOCK
-	SPL_AC_TYPE_ATOMIC64_CMPXCHG
-	SPL_AC_TYPE_ATOMIC64_XCHG
-	SPL_AC_TYPE_UINTPTR_T
-	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SHRINKER_CALLBACK
-	SPL_AC_TASK_CURR
-	SPL_AC_CTL_UNNUMBERED
 	SPL_AC_CTL_NAME
-	SPL_AC_VMALLOC_INFO
 	SPL_AC_PDE_DATA
-	SPL_AC_FLS64
-	SPL_AC_DEVICE_CREATE
-	SPL_AC_5ARGS_DEVICE_CREATE
-	SPL_AC_CLASS_DEVICE_CREATE
-	SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT
-	SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE
-	SPL_AC_TIMESPEC_SUB
-	SPL_AC_INIT_UTSNAME
-	SPL_AC_UACCESS_HEADER
-	SPL_AC_KMALLOC_NODE
-	SPL_AC_MONOTONIC_CLOCK
-	SPL_AC_INODE_I_MUTEX
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_OWNER_TASK_STRUCT
-	SPL_AC_MUTEX_LOCK_NESTED
-	SPL_AC_3ARGS_ON_EACH_CPU
-	SPL_AC_KALLSYMS_LOOKUP_NAME
-	SPL_AC_GET_VMALLOC_INFO
-	SPL_AC_PGDAT_HELPERS
-	SPL_AC_FIRST_ONLINE_PGDAT
-	SPL_AC_NEXT_ONLINE_PGDAT
-	SPL_AC_NEXT_ZONE
-	SPL_AC_PGDAT_LIST
-	SPL_AC_GLOBAL_PAGE_STATE
-	SPL_AC_ZONE_STAT_ITEM_FREE
-	SPL_AC_ZONE_STAT_ITEM_INACTIVE
-	SPL_AC_ZONE_STAT_ITEM_ACTIVE
-	SPL_AC_GET_ZONE_COUNTS
-	SPL_AC_USER_PATH_DIR
-	SPL_AC_SET_FS_PWD
 	SPL_AC_SET_FS_PWD_WITH_CONST
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
-	SPL_AC_VFS_FSYNC
 	SPL_AC_2ARGS_VFS_FSYNC
 	SPL_AC_INODE_TRUNCATE_RANGE
 	SPL_AC_FS_STRUCT_SPINLOCK
-	SPL_AC_CRED_STRUCT
 	SPL_AC_KUIDGID_T
-	SPL_AC_GROUPS_SEARCH
 	SPL_AC_PUT_TASK_STRUCT
-	SPL_AC_5ARGS_PROC_HANDLER
-	SPL_AC_KVASPRINTF
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_FALLOCATE
-	SPL_AC_SHRINK_DCACHE_MEMORY
-	SPL_AC_SHRINK_ICACHE_MEMORY
-	SPL_AC_KERN_PATH
-	SPL_AC_CONFIG_KALLSYMS
 	SPL_AC_CONFIG_ZLIB_INFLATE
 	SPL_AC_CONFIG_ZLIB_DEFLATE
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
@@ -426,11 +382,11 @@ AC_DEFUN([SPL_AC_PACKAGE], [
 ])
 
 AC_DEFUN([SPL_AC_LICENSE], [
+	AC_MSG_CHECKING([spl author])
+	AC_MSG_RESULT([$SPL_META_AUTHOR])
+
 	AC_MSG_CHECKING([spl license])
-	LICENSE=GPL
-	AC_MSG_RESULT([$LICENSE])
-	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DHAVE_GPL_ONLY_SYMBOLS"
-	AC_SUBST(LICENSE)
+	AC_MSG_RESULT([$SPL_META_LICENSE])
 ])
 
 AC_DEFUN([SPL_AC_CONFIG], [
@@ -737,7 +693,8 @@ AC_DEFUN([SPL_CHECK_HEADER],
 ])
 
 dnl #
-dnl # Basic toolchain sanity check.
+dnl # Basic toolchain sanity check.  Verify that kernel modules can
+dnl # be built and which symbols can be used.
 dnl #
 AC_DEFUN([SPL_AC_TEST_MODULE],
 	[AC_MSG_CHECKING([whether modules can be built])
@@ -752,6 +709,18 @@ AC_DEFUN([SPL_AC_TEST_MODULE],
 	*** Unable to build an empty module.
 	*** Please run 'make scripts' inside the kernel source tree.])
 		fi
+	])
+
+	AC_RUN_IFELSE([
+		AC_LANG_PROGRAM([
+			#include "$LINUX/include/linux/license.h"
+		], [
+			return !license_is_gpl_compatible("$SPL_META_LICENSE");
+		])
+	], [
+		AC_DEFINE([SPL_IS_GPL_COMPATIBLE], [1],
+		    [Define to 1 if GPL-only symbols can be used])
+	], [
 	])
 ])
 
@@ -805,82 +774,6 @@ AC_DEFUN([SPL_AC_ATOMIC_SPINLOCK], [
 
 	AC_MSG_CHECKING([whether kernel defines atomic64_t])
 	AC_MSG_RESULT([$have_atomic64_t])
-])
-
-dnl #
-dnl # 2.6.24 API change,
-dnl # check if atomic64_cmpxchg is defined
-dnl #
-AC_DEFUN([SPL_AC_TYPE_ATOMIC64_CMPXCHG],
-	[AC_MSG_CHECKING([whether kernel defines atomic64_cmpxchg])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		atomic64_cmpxchg((atomic64_t *)NULL, 0, 0);
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_ATOMIC64_CMPXCHG, 1,
-		          [kernel defines atomic64_cmpxchg])
-	],[
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # 2.6.24 API change,
-dnl # check if atomic64_xchg is defined
-dnl #
-AC_DEFUN([SPL_AC_TYPE_ATOMIC64_XCHG],
-	[AC_MSG_CHECKING([whether kernel defines atomic64_xchg])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		atomic64_xchg((atomic64_t *)NULL, 0);
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_ATOMIC64_XCHG, 1,
-		          [kernel defines atomic64_xchg])
-	],[
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # 2.6.24 API change,
-dnl # check if uintptr_t typedef is defined
-dnl #
-AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
-	[AC_MSG_CHECKING([whether kernel defines uintptr_t])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/types.h>
-	],[
-		uintptr_t *ptr __attribute__ ((unused));
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_UINTPTR_T, 1,
-		          [kernel defines uintptr_t])
-	],[
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # 2.6.21 API change,
-dnl # 'register_sysctl_table' use only one argument instead of two
-dnl #
-AC_DEFUN([SPL_AC_2ARGS_REGISTER_SYSCTL],
-	[AC_MSG_CHECKING([whether register_sysctl_table() wants 2 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sysctl.h>
-	],[
-		(void) register_sysctl_table(NULL, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_2ARGS_REGISTER_SYSCTL, 1,
-		          [register_sysctl_table() wants 2 args])
-	],[
-		AC_MSG_RESULT(no)
-	])
 ])
 
 AC_DEFUN([SPL_AC_SHRINKER_CALLBACK],[
@@ -988,44 +881,6 @@ AC_DEFUN([SPL_AC_SHRINKER_CALLBACK],[
 ])
 
 dnl #
-dnl # Custom SPL patch may export this system it is not required
-dnl #
-AC_DEFUN([SPL_AC_TASK_CURR],
-	[AC_MSG_CHECKING([whether task_curr() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/sched.h>
-	], [
-		task_curr(NULL);
-	], [task_curr], [kernel/sched.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_TASK_CURR, 1, [task_curr() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.19 API change,
-dnl # Use CTL_UNNUMBERED when binary sysctl is not required
-dnl #
-AC_DEFUN([SPL_AC_CTL_UNNUMBERED],
-	[AC_MSG_CHECKING([whether unnumbered sysctl support exists])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sysctl.h>
-	],[
-		#ifndef CTL_UNNUMBERED
-		#error CTL_UNNUMBERED undefined
-		#endif
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CTL_UNNUMBERED, 1,
-		          [unnumbered sysctl support exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.33 API change,
 dnl # Removed .ctl_name from struct ctl_table.
 dnl #
@@ -1045,230 +900,10 @@ AC_DEFUN([SPL_AC_CTL_NAME], [
 ])
 
 dnl #
-dnl # 2.6.16 API change.
-dnl # Check if 'fls64()' is available
-dnl #
-AC_DEFUN([SPL_AC_FLS64],
-	[AC_MSG_CHECKING([whether fls64() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/bitops.h>
-	],[
-		return fls64(0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_FLS64, 1, [fls64() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.18 API change, check whether device_create() is available.
-dnl # Device_create() was introduced in 2.6.18 and depricated 
-dnl # class_device_create() which was fully removed in 2.6.26.
-dnl #
-AC_DEFUN([SPL_AC_DEVICE_CREATE],
-	[AC_MSG_CHECKING([whether device_create() is available])
-	SPL_CHECK_SYMBOL_EXPORT([device_create], [drivers/base/core.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_DEVICE_CREATE, 1,
-		          [device_create() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.27 API change,
-dnl # device_create() uses 5 args, new 'drvdata' argument.
-dnl #
-AC_DEFUN([SPL_AC_5ARGS_DEVICE_CREATE], [
-	AC_MSG_CHECKING([whether device_create() wants 5 args])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/device.h>
-	],[
-		device_create(NULL, NULL, 0, NULL, "%d", 1);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_5ARGS_DEVICE_CREATE, 1,
-		          [device_create wants 5 args])
-	],[
-		AC_MSG_RESULT(no)
-	])
-	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 2.6.13 API change, check whether class_device_create() is available.
-dnl # Class_device_create() was introduced in 2.6.13 and depricated
-dnl # class_simple_device_add() which was fully removed in 2.6.13.
-dnl #
-AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE],
-	[AC_MSG_CHECKING([whether class_device_create() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/device.h>
-	], [
-		class_device_create(NULL, NULL, 0, NULL, NULL);
-	], [class_device_create], [drivers/base/class.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
-		          [class_device_create() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.26 API change, set_normalized_timespec() is exported.
-dnl #
-AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT],
-	[AC_MSG_CHECKING([whether set_normalized_timespec() is available as export])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/time.h>
-	], [
-		set_normalized_timespec(NULL, 0, 0);
-	], [set_normalized_timespec], [kernel/time.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_EXPORT, 1,
-		          [set_normalized_timespec() is available as export])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.16 API change, set_normalize_timespec() moved to time.c
-dnl # previously it was available in time.h as an inline.
-dnl #
-AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE], [
-	AC_MSG_CHECKING([whether set_normalized_timespec() is an inline])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/time.h>
-		void set_normalized_timespec(struct timespec *ts,
-		                             time_t sec, long nsec) { }
-	],
-	[],
-	[
-		AC_MSG_RESULT(no)
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_INLINE, 1,
-		          [set_normalized_timespec() is available as inline])
-	])
-])
-
-dnl #
-dnl # 2.6.18 API change,
-dnl # timespec_sub() inline function available in linux/time.h
-dnl #
-AC_DEFUN([SPL_AC_TIMESPEC_SUB], [
-	AC_MSG_CHECKING([whether timespec_sub() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/time.h>
-	],[
-		struct timespec a = { 0 };
-		struct timespec b = { 0 };
-		struct timespec c __attribute__ ((unused));
-		c = timespec_sub(a, b);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_TIMESPEC_SUB, 1, [timespec_sub() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.19 API change,
-dnl # check if init_utsname() is available in linux/utsname.h
-dnl #
-AC_DEFUN([SPL_AC_INIT_UTSNAME], [
-	AC_MSG_CHECKING([whether init_utsname() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/utsname.h>
-	],[
-		struct new_utsname *a __attribute__ ((unused));
-		a = init_utsname();
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_INIT_UTSNAME, 1, [init_utsname() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.18 API change,
-dnl # added linux/uaccess.h
-dnl #
-AC_DEFUN([SPL_AC_UACCESS_HEADER], [
-	SPL_CHECK_HEADER([linux/uaccess.h], [UACCESS], [], [])
-])
-
-dnl #
-dnl # 2.6.12 API change,
-dnl # check whether 'kmalloc_node()' is available.
-dnl #
-AC_DEFUN([SPL_AC_KMALLOC_NODE], [
-	AC_MSG_CHECKING([whether kmalloc_node() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/slab.h>
-	],[
-		void *a __attribute__ ((unused));
-		a = kmalloc_node(1, GFP_KERNEL, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KMALLOC_NODE, 1, [kmalloc_node() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.9 API change,
-dnl # check whether 'monotonic_clock()' is available it may
-dnl # be available for some archs but not others.
-dnl #
-AC_DEFUN([SPL_AC_MONOTONIC_CLOCK],
-	[AC_MSG_CHECKING([whether monotonic_clock() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/timex.h>
-	], [
-		monotonic_clock();
-	], [monotonic_clock], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_MONOTONIC_CLOCK, 1,
-		          [monotonic_clock() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.16 API change,
-dnl # check whether 'struct inode' has i_mutex
-dnl #
-AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
-	AC_MSG_CHECKING([whether struct inode has i_mutex])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-		#include <linux/mutex.h>
-	],[
-		struct inode i;
-		mutex_init(&i.i_mutex);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_INODE_I_MUTEX, 1, [struct inode has i_mutex])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.29 API change,
-dnl # Adaptive mutexs introduced.
+dnl # Adaptive mutexs were introduced which track the mutex owner.  The
+dnl # mutex wrappers leverage this functionality to avoid tracking the
+dnl # owner multipe times.
 dnl #
 AC_DEFUN([SPL_AC_MUTEX_OWNER], [
 	AC_MSG_CHECKING([whether struct mutex has owner])
@@ -1313,107 +948,6 @@ AC_DEFUN([SPL_AC_MUTEX_OWNER_TASK_STRUCT], [
 ])
 
 dnl #
-dnl # 2.6.18 API change,
-dnl # First introduced 'mutex_lock_nested()' in include/linux/mutex.h,
-dnl # as part of the mutex validator.  Fallback to using 'mutex_lock()' 
-dnl # if the mutex validator is disabled or otherwise unavailable.
-dnl #
-AC_DEFUN([SPL_AC_MUTEX_LOCK_NESTED], [
-	AC_MSG_CHECKING([whether mutex_lock_nested() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mutex.h>
-	],[
-		struct mutex mutex;
-		mutex_init(&mutex);
-		mutex_lock_nested(&mutex, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_MUTEX_LOCK_NESTED, 1,
-		[mutex_lock_nested() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.27 API change,
-dnl # on_each_cpu() uses 3 args, no 'retry' argument
-dnl #
-AC_DEFUN([SPL_AC_3ARGS_ON_EACH_CPU], [
-	AC_MSG_CHECKING([whether on_each_cpu() wants 3 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/interrupt.h>
-		#include <linux/smp.h>
-
-		void on_each_cpu_func(void *data) { return; }
-	],[
-		on_each_cpu(on_each_cpu_func, NULL, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_3ARGS_ON_EACH_CPU, 1,
-		          [on_each_cpu wants 3 args])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.18 API change,
-dnl # kallsyms_lookup_name no longer exported
-dnl #
-AC_DEFUN([SPL_AC_KALLSYMS_LOOKUP_NAME],
-	[AC_MSG_CHECKING([whether kallsyms_lookup_name() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/kallsyms.h>
-	], [
-		kallsyms_lookup_name(NULL);
-	], [kallsyms_lookup_name], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KALLSYMS_LOOKUP_NAME, 1,
-		          [kallsyms_lookup_name() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # Proposed API change,
-dnl # This symbol is not available in stock kernels.  You may build a
-dnl # custom kernel with the *-spl-export-symbols.patch which will export
-dnl # these symbols for use.  If your already rolling a custom kernel for
-dnl # your environment this is recommended.
-dnl #
-AC_DEFUN([SPL_AC_GET_VMALLOC_INFO],
-	[AC_MSG_CHECKING([whether get_vmalloc_info() is available])
-	SPL_CHECK_SYMBOL_EXPORT([get_vmalloc_info], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GET_VMALLOC_INFO, 1,
-		          [get_vmalloc_info() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 3.10 API change,
-dnl # struct vmalloc_info is now declared in linux/vmalloc.h
-dnl #
-AC_DEFUN([SPL_AC_VMALLOC_INFO], [
-	AC_MSG_CHECKING([whether struct vmalloc_info is declared])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/vmalloc.h>
-		struct vmalloc_info { void *a; };
-	],[
-		return 0;
-	],[
-		AC_MSG_RESULT(no)
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_VMALLOC_INFO, 1, [yes])
-	])
-])
-
-dnl #
 dnl # 3.10 API change,
 dnl # PDE is replaced by PDE_DATA
 dnl #
@@ -1427,354 +961,6 @@ AC_DEFUN([SPL_AC_PDE_DATA], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_PDE_DATA, 1, [yes])
 	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.17 API change
-dnl # The helper functions first_online_pgdat(), next_online_pgdat(), and
-dnl # next_zone() are introduced to simplify for_each_zone().  These symbols
-dnl # were exported in 2.6.17 for use by modules which was consistent with
-dnl # the previous implementation of for_each_zone().  From 2.6.18 - 2.6.19
-dnl # the symbols were exported as 'unused', and by 2.6.20 they exports
-dnl # were dropped entirely leaving modules no way to directly iterate over
-dnl # the zone list.  Because we need access to the zone helpers we check
-dnl # if the kernel contains the old or new implementation.  Then we check
-dnl # to see if the symbols we need for each version are available.  If they
-dnl # are not, dynamically aquire the addresses with kallsyms_lookup_name().
-dnl #
-AC_DEFUN([SPL_AC_PGDAT_HELPERS], [
-	AC_MSG_CHECKING([whether symbol *_pgdat exist])
-	grep -q -E 'first_online_pgdat' $LINUX/include/linux/mmzone.h 2>/dev/null
-	rc=$?
-	if test $rc -eq 0; then
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_PGDAT_HELPERS, 1, [pgdat helpers are available])
-	else
-		AC_MSG_RESULT([no])
-	fi
-])
-
-dnl #
-dnl # Proposed API change,
-dnl # This symbol is not available in stock kernels.  You may build a
-dnl # custom kernel with the *-spl-export-symbols.patch which will export
-dnl # these symbols for use.  If your already rolling a custom kernel for
-dnl # your environment this is recommended.
-dnl #
-AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT],
-	[AC_MSG_CHECKING([whether first_online_pgdat() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/mmzone.h>
-	], [
-		first_online_pgdat();
-	], [first_online_pgdat], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_FIRST_ONLINE_PGDAT, 1,
-		          [first_online_pgdat() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # Proposed API change,
-dnl # This symbol is not available in stock kernels.  You may build a
-dnl # custom kernel with the *-spl-export-symbols.patch which will export
-dnl # these symbols for use.  If your already rolling a custom kernel for
-dnl # your environment this is recommended.
-dnl #
-AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT],
-	[AC_MSG_CHECKING([whether next_online_pgdat() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/mmzone.h>
-	], [
-		next_online_pgdat(NULL);
-	], [next_online_pgdat], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_NEXT_ONLINE_PGDAT, 1,
-		          [next_online_pgdat() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # Proposed API change,
-dnl # This symbol is not available in stock kernels.  You may build a
-dnl # custom kernel with the *-spl-export-symbols.patch which will export
-dnl # these symbols for use.  If your already rolling a custom kernel for
-dnl # your environment this is recommended.
-dnl #
-AC_DEFUN([SPL_AC_NEXT_ZONE],
-	[AC_MSG_CHECKING([whether next_zone() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/mmzone.h>
-	], [
-		next_zone(NULL);
-	], [next_zone], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_NEXT_ZONE, 1, [next_zone() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.17 API change,
-dnl # See SPL_AC_PGDAT_HELPERS for details.
-dnl #
-AC_DEFUN([SPL_AC_PGDAT_LIST],
-	[AC_MSG_CHECKING([whether pgdat_list is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/topology.h>
-		pg_data_t *tmp = pgdat_list;
-	], [], [pgdat_list], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PGDAT_LIST, 1, [pgdat_list is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.18 API change,
-dnl # First introduced global_page_state() support as an inline.
-dnl #
-AC_DEFUN([SPL_AC_GLOBAL_PAGE_STATE], [
-	AC_MSG_CHECKING([whether global_page_state() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		unsigned long state __attribute__ ((unused));
-		state = global_page_state(0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GLOBAL_PAGE_STATE, 1,
-		          [global_page_state() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.21 API change (plus subsequent naming convention changes),
-dnl # Public global zone stats now include a free page count.  However
-dnl # the enumerated names of the counters have changed since this API
-dnl # was introduced.  We need to deduce the corrent name to use.  This
-dnl # replaces the priviate get_zone_counts() interface.
-dnl #
-dnl # NR_FREE_PAGES was available from 2.6.21 to current kernels, which
-dnl # is 2.6.30 as of when this was written.
-dnl #
-AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_FREE], [
-	AC_MSG_CHECKING([whether page state NR_FREE_PAGES is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		enum zone_stat_item zsi __attribute__ ((unused));
-		zsi = NR_FREE_PAGES;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES, 1,
-		          [Page state NR_FREE_PAGES is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.21 API change (plus subsequent naming convention changes),
-dnl # Public global zone stats now include an inactive page count.  However
-dnl # the enumerated names of the counters have changed since this API
-dnl # was introduced.  We need to deduce the corrent name to use.  This
-dnl # replaces the priviate get_zone_counts() interface.
-dnl #
-dnl # NR_INACTIVE was available from 2.6.21 to 2.6.27 and included both
-dnl # anonymous and file inactive pages.  As of 2.6.28 it was split in
-dnl # to NR_INACTIVE_ANON and NR_INACTIVE_FILE.
-dnl #
-AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_INACTIVE], [
-	AC_MSG_CHECKING([whether page state NR_INACTIVE is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		enum zone_stat_item zsi __attribute__ ((unused));
-		zsi = NR_INACTIVE;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_INACTIVE, 1,
-		          [Page state NR_INACTIVE is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	AC_MSG_CHECKING([whether page state NR_INACTIVE_ANON is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		enum zone_stat_item zsi __attribute__ ((unused));
-		zsi = NR_INACTIVE_ANON;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON, 1,
-		          [Page state NR_INACTIVE_ANON is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	AC_MSG_CHECKING([whether page state NR_INACTIVE_FILE is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		enum zone_stat_item zsi __attribute__ ((unused));
-		zsi = NR_INACTIVE_FILE;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE, 1,
-		          [Page state NR_INACTIVE_FILE is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.21 API change (plus subsequent naming convention changes),
-dnl # Public global zone stats now include an active page count.  However
-dnl # the enumerated names of the counters have changed since this API
-dnl # was introduced.  We need to deduce the corrent name to use.  This
-dnl # replaces the priviate get_zone_counts() interface.
-dnl #
-dnl # NR_ACTIVE was available from 2.6.21 to 2.6.27 and included both
-dnl # anonymous and file active pages.  As of 2.6.28 it was split in
-dnl # to NR_ACTIVE_ANON and NR_ACTIVE_FILE.
-dnl #
-AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_ACTIVE], [
-	AC_MSG_CHECKING([whether page state NR_ACTIVE is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		enum zone_stat_item zsi __attribute__ ((unused));
-		zsi = NR_ACTIVE;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_ACTIVE, 1,
-		          [Page state NR_ACTIVE is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	AC_MSG_CHECKING([whether page state NR_ACTIVE_ANON is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		enum zone_stat_item zsi __attribute__ ((unused));
-		zsi = NR_ACTIVE_ANON;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON, 1,
-		          [Page state NR_ACTIVE_ANON is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	AC_MSG_CHECKING([whether page state NR_ACTIVE_FILE is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mm.h>
-	],[
-		enum zone_stat_item zsi __attribute__ ((unused));
-		zsi = NR_ACTIVE_FILE;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE, 1,
-		          [Page state NR_ACTIVE_FILE is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # Proposed API change for legacy kernels.
-dnl # This symbol is not available in older kernels.  For kernels post
-dnl # 2.6.21 the global_page_state() API is used to get free/inactive/active
-dnl # page state information.  This symbol is only used in legacy kernels
-dnl # any only as a last resort.
-dnl
-AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
-	AC_MSG_CHECKING([whether symbol get_zone_counts is needed])
-	SPL_LINUX_TRY_COMPILE([
-	],[
-		#if !defined(HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES)
-		#error "global_page_state needs NR_FREE_PAGES"
-		#endif
-
-		#if !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE) && \
-		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON) && \
-		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE)
-		#error "global_page_state needs NR_ACTIVE*"
-		#endif
-
-		#if !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE) && \
-		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON) && \
-		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE)
-		#error "global_page_state needs NR_INACTIVE*"
-		#endif
-	],[
-		AC_MSG_RESULT(no)
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(NEED_GET_ZONE_COUNTS, 1,
-		          [get_zone_counts() is needed])
-
-		AC_MSG_CHECKING([whether get_zone_counts() is available])
-		SPL_LINUX_TRY_COMPILE_SYMBOL([
-			#include <linux/mmzone.h>
-		], [
-			get_zone_counts(NULL, NULL, NULL);
-		], [get_zone_counts], [], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
-			          [get_zone_counts() is available])
-		], [
-			AC_MSG_RESULT(no)
-		])
-	])
-])
-
-dnl #
-dnl # 2.6.27 API change,
-dnl # The user_path_dir() replaces __user_walk()
-dnl #
-AC_DEFUN([SPL_AC_USER_PATH_DIR],
-	[AC_MSG_CHECKING([whether user_path_dir() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/fcntl.h>
-		#include <linux/namei.h>
-	], [
-		user_path_dir(NULL, NULL);
-	], [user_path_at], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_USER_PATH_DIR, 1, [user_path_dir() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # Symbol available in RHEL kernels not in stock kernels.
-dnl #
-AC_DEFUN([SPL_AC_SET_FS_PWD],
-	[AC_MSG_CHECKING([whether set_fs_pwd() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/spinlock.h>
-		#include <linux/fs_struct.h>
-	], [
-		(void) set_fs_pwd;
-	], [set_fs_pwd], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SET_FS_PWD, 1, [set_fs_pwd() is available])
-	], [
 		AC_MSG_RESULT(no)
 	])
 ])
@@ -1819,6 +1005,10 @@ AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
 	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
+dnl #
+dnl # 3.13 API change
+dnl # vfs_unlink() updated to take a third delegated_inode argument.
+dnl #
 AC_DEFUN([SPL_AC_2ARGS_VFS_UNLINK],
 	[AC_MSG_CHECKING([whether vfs_unlink() wants 2 args])
 	SPL_LINUX_TRY_COMPILE([
@@ -1853,6 +1043,10 @@ AC_DEFUN([SPL_AC_2ARGS_VFS_UNLINK],
 	])
 ])
 
+dnl #
+dnl # 3.13 and 3.15 API changes
+dnl # Added delegated inode and flags argument.
+dnl #
 AC_DEFUN([SPL_AC_4ARGS_VFS_RENAME],
 	[AC_MSG_CHECKING([whether vfs_rename() wants 4 args])
 	SPL_LINUX_TRY_COMPILE([
@@ -1936,26 +1130,6 @@ AC_DEFUN([SPL_AC_FS_STRUCT_SPINLOCK], [
 ])
 
 dnl #
-dnl # 2.6.29 API change,
-dnl # check whether 'struct cred' exists
-dnl #
-AC_DEFUN([SPL_AC_CRED_STRUCT], [
-	AC_MSG_CHECKING([whether struct cred exists])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/cred.h>
-	],[
-		struct cred *cr __attribute__ ((unused));
-		cr  = NULL;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CRED_STRUCT, 1, [struct cred exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-
-dnl #
 dnl # User namespaces, use kuid_t in place of uid_t
 dnl # where available. Not strictly a user namespaces thing
 dnl # but it should prevent surprises
@@ -1985,32 +1159,8 @@ AC_DEFUN([SPL_AC_KUIDGID_T], [
 ])
 
 dnl #
-dnl # Custom SPL patch may export this symbol.
-dnl #
-AC_DEFUN([SPL_AC_GROUPS_SEARCH],
-	[AC_MSG_CHECKING([whether groups_search() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/cred.h>
-		#ifdef HAVE_KUIDGID_T
-		#include <linux/uidgid.h>
-		#endif
-	], [
-		#ifdef HAVE_KUIDGID_T
-		groups_search(NULL, KGIDT_INIT(0));
-		#else
-		groups_search(NULL, 0);
-		#endif
-	], [groups_search], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GROUPS_SEARCH, 1, [groups_search() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.x API change,
-dnl # __put_task_struct() was exported in RHEL5 but unavailable elsewhere.
+dnl # 2.6.39 API change,
+dnl # __put_task_struct() was exported by the mainline kernel.
 dnl #
 AC_DEFUN([SPL_AC_PUT_TASK_STRUCT],
 	[AC_MSG_CHECKING([whether __put_task_struct() is available])
@@ -2022,61 +1172,6 @@ AC_DEFUN([SPL_AC_PUT_TASK_STRUCT],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_PUT_TASK_STRUCT, 1,
 		          [__put_task_struct() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.32 API change,
-dnl # Unused 'struct file *' removed from prototype.
-dnl #
-AC_DEFUN([SPL_AC_5ARGS_PROC_HANDLER], [
-	AC_MSG_CHECKING([whether proc_handler() wants 5 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sysctl.h>
-	],[
-		proc_dostring(NULL, 0, NULL, NULL, NULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_5ARGS_PROC_HANDLER, 1,
-		          [proc_handler() wants 5 args])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.x API change,
-dnl # kvasprintf() function added.
-dnl #
-AC_DEFUN([SPL_AC_KVASPRINTF],
-	[AC_MSG_CHECKING([whether kvasprintf() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/kernel.h>
-	], [
-		kvasprintf(0, NULL, *((va_list*)NULL));
-	], [kvasprintf], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KVASPRINTF, 1, [kvasprintf() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.29 API change,
-dnl # vfs_fsync() funcation added, prior to this use file_fsync().
-dnl #
-AC_DEFUN([SPL_AC_VFS_FSYNC],
-	[AC_MSG_CHECKING([whether vfs_fsync() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/fs.h>
-	], [
-		(void) vfs_fsync;
-	], [vfs_fsync], [fs/sync.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_VFS_FSYNC, 1, [vfs_fsync() is available])
 	], [
 		AC_MSG_RESULT(no)
 	])
@@ -2208,106 +1303,6 @@ AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED],
 		          [rwsem_is_locked() acquires sem->wait_lock])
 	], [
 		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.xx API compat,
-dnl # There currently exists no exposed API to partially shrink the dcache.
-dnl # The expected mechanism to shrink the cache is a registered shrinker
-dnl # which is called during memory pressure.
-dnl #
-AC_DEFUN([SPL_AC_SHRINK_DCACHE_MEMORY],
-	[AC_MSG_CHECKING([whether shrink_dcache_memory() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/dcache.h>
-	], [
-		shrink_dcache_memory(0, 0);
-	], [shrink_dcache_memory], [fs/dcache.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SHRINK_DCACHE_MEMORY, 1,
-		          [shrink_dcache_memory() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.xx API compat,
-dnl # There currently exists no exposed API to partially shrink the icache.
-dnl # The expected mechanism to shrink the cache is a registered shrinker
-dnl # which is called during memory pressure.
-dnl #
-AC_DEFUN([SPL_AC_SHRINK_ICACHE_MEMORY],
-	[AC_MSG_CHECKING([whether shrink_icache_memory() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/dcache.h>
-	], [
-		shrink_icache_memory(0, 0);
-	], [shrink_icache_memory], [fs/inode.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SHRINK_ICACHE_MEMORY, 1,
-		          [shrink_icache_memory() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.28 API change
-dnl # The kern_path() function has been introduced. We adopt it as the new way
-dnl # of looking up paths. When it is not available, we emulate it using the
-dnl # older interfaces.
-dnl #
-AC_DEFUN([SPL_AC_KERN_PATH],
-	[AC_MSG_CHECKING([whether kern_path() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/namei.h>
-	], [
-		int r = kern_path(NULL, 0, NULL);
-	], [kern_path], [fs/namei.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KERN_PATH, 1,
-		          [kern_path() is available])
-	], [
-		AC_MSG_RESULT(no)
-		AC_MSG_CHECKING([whether path_lookup() is available])
-		SPL_LINUX_TRY_COMPILE_SYMBOL([
-			#include <linux/namei.h>
-		], [
-			int r = path_lookup(NULL, 0, NULL);
-		], [path_lookup], [fs/namei.c], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_KERN_PATH, 1,
-				  [kern_path() is available])
-		], [
-			AC_MSG_RESULT(no)
-			AC_MSG_ERROR([
-	*** Neither kern_path() nor path_lookup() is available.
-	*** Please file an issue:
-	*** https://github.com/zfsonlinux/spl/issues/new])
-
-		])
-	])
-])
-
-dnl #
-dnl # /proc/kallsyms support,
-dnl # Verify the kernel has CONFIG_KALLSYMS support enabled.
-dnl #
-AC_DEFUN([SPL_AC_CONFIG_KALLSYMS], [
-	AC_MSG_CHECKING([whether CONFIG_KALLSYMS is defined])
-	SPL_LINUX_TRY_COMPILE([
-		#if !defined(CONFIG_KALLSYMS)
-		#error CONFIG_KALLSYMS not defined
-		#endif
-	],[ ],[
-		AC_MSG_RESULT([yes])
-	],[
-		AC_MSG_RESULT([no])
-		AC_MSG_ERROR([
-	*** This kernel does not include the required kallsyms support.
-	*** Rebuild the kernel with CONFIG_KALLSYMS=y set.])
 	])
 ])
 

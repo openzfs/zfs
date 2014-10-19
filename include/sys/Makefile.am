@@ -90,7 +90,6 @@ KERNEL_H = \
 	$(top_srcdir)/include/sys/u8_textprep.h \
 	$(top_srcdir)/include/sys/uio.h \
 	$(top_srcdir)/include/sys/unistd.h \
-	$(top_srcdir)/include/sys/utsname.h \
 	$(top_srcdir)/include/sys/va_list.h \
 	$(top_srcdir)/include/sys/varargs.h \
 	$(top_srcdir)/include/sys/vfs.h \

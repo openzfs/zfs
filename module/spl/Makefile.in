@@ -14,7 +14,6 @@ $(MODULE)-objs += @top_srcdir@/module/spl/spl-taskq.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-rwlock.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-vnode.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-err.o
-$(MODULE)-objs += @top_srcdir@/module/spl/spl-time.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-kobj.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-generic.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-atomic.o

@@ -59,37 +59,25 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 	if (fp->f_op->fallocate)
 		error = fp->f_op->fallocate(fp, mode, offset, len);
 #else
-# ifdef HAVE_INODE_FALLOCATE
+#ifdef HAVE_INODE_FALLOCATE
 	if (fp->f_dentry && fp->f_dentry->d_inode &&
 	    fp->f_dentry->d_inode->i_op->fallocate)
 		error = fp->f_dentry->d_inode->i_op->fallocate(
 		    fp->f_dentry->d_inode, mode, offset, len);
-# endif /* HAVE_INODE_FALLOCATE */
+#endif /* HAVE_INODE_FALLOCATE */
 #endif /*HAVE_FILE_FALLOCATE */
 
 	return (error);
 }
 
-#ifdef HAVE_VFS_FSYNC
-# ifdef HAVE_2ARGS_VFS_FSYNC
-#  define spl_filp_fsync(fp, sync)	vfs_fsync(fp, sync)
-# else
-#  define spl_filp_fsync(fp, sync)	vfs_fsync(fp, (fp)->f_dentry, sync)
-# endif /* HAVE_2ARGS_VFS_FSYNC */
+#ifdef HAVE_2ARGS_VFS_FSYNC
+#define	spl_filp_fsync(fp, sync)	vfs_fsync(fp, sync)
 #else
-# include <linux/buffer_head.h>
-# define spl_filp_fsync(fp, sync)	file_fsync(fp, (fp)->f_dentry, sync)
-#endif /* HAVE_VFS_FSYNC */
+#define	spl_filp_fsync(fp, sync)	vfs_fsync(fp, (fp)->f_dentry, sync)
+#endif /* HAVE_2ARGS_VFS_FSYNC */
 
-#ifdef HAVE_INODE_I_MUTEX
-#define spl_inode_lock(ip)		(mutex_lock(&(ip)->i_mutex))
-#define spl_inode_lock_nested(ip, type)	(mutex_lock_nested((&(ip)->i_mutex),  \
-					(type)))
-#define spl_inode_unlock(ip)		(mutex_unlock(&(ip)->i_mutex))
-#else
-#define spl_inode_lock(ip)		(down(&(ip)->i_sem))
-#define spl_inode_unlock(ip)		(up(&(ip)->i_sem))
-#endif /* HAVE_INODE_I_MUTEX */
+#define	spl_inode_lock(ip)		mutex_lock(&(ip)->i_mutex)
+#define	spl_inode_unlock(ip)		mutex_unlock(&(ip)->i_mutex)
 
 #endif /* SPL_FILE_COMPAT_H */
 

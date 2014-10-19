@@ -4,3 +4,5 @@ Branch:       1.0
 Version:      0.6.3
 Release:      1
 Release-Tags: relext
+License:      GPL
+Author:       OpenZFS on Linux

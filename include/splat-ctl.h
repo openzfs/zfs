@@ -32,8 +32,6 @@
  * ensure 32-bit/64-bit interoperability over ioctl()'s only types with
  * fixed sizes can be used.
  */
-#define SPLAT_MAJOR			225 /* XXX - Arbitrary */
-#define SPLAT_MINORS                    1
 #define SPLAT_NAME			"splatctl"
 #define SPLAT_DEV			"/dev/splatctl"
 

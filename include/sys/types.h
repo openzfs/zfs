@@ -28,26 +28,17 @@
 #include <linux/types.h>
 #include <sys/sysmacros.h>
 
-#include <linux/uaccess_compat.h>
 #include <linux/file_compat.h>
 #include <linux/list_compat.h>
-#include <linux/time_compat.h>
 #include <linux/bitops_compat.h>
-#include <linux/smp_compat.h>
-#include <linux/kallsyms_compat.h>
-#include <linux/mutex_compat.h>
 #include <linux/module_compat.h>
-#include <linux/sysctl_compat.h>
 #include <linux/proc_compat.h>
 #include <linux/math64_compat.h>
 #include <linux/zlib_compat.h>
 #include <linux/mm_compat.h>
 #include <linux/delay.h>
 #include <linux/wait_compat.h>
-
-#ifndef HAVE_UINTPTR_T
-typedef unsigned long			uintptr_t;
-#endif
+#include <linux/uaccess.h>
 
 #ifndef ULLONG_MAX
 #define ULLONG_MAX			(~0ULL)

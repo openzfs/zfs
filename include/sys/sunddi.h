@@ -31,7 +31,6 @@
 #include <sys/mutex.h>
 #include <sys/u8_textprep.h>
 #include <sys/vnode.h>
-#include <spl-device.h>
 
 typedef int ddi_devid_t;
 

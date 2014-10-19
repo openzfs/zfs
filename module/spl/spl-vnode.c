@@ -297,22 +297,6 @@ vn_seek(vnode_t *vp, offset_t ooff, offset_t *noffp, void *ct)
 EXPORT_SYMBOL(vn_seek);
 
 /*
- * kern_path() was introduced in Linux 2.6.28. We duplicate it as a
- * compatibility shim for earlier kernels.
- */
-#ifndef HAVE_KERN_PATH
-int
-kern_path(const char *name, unsigned int flags, struct path *path)
-{
-	struct nameidata nd;
-	int rc = path_lookup(name, flags, &nd);
-	if (!rc)
-		*path = nd.path;
-	return rc;
-}
-#endif /* HAVE_KERN_PATH */
-
-/*
  * spl_basename() takes a NULL-terminated string s as input containing a path.
  * It returns a char pointer to a string and a length that describe the
  * basename of the path. If the basename is not "." or "/", it will be an index
@@ -381,7 +365,7 @@ spl_kern_path_locked(const char *name, struct path *path)
 	if (rc)
 		return (ERR_PTR(rc));
 
-	spl_inode_lock_nested(parent.dentry->d_inode, I_MUTEX_PARENT);
+	spl_inode_lock(parent.dentry->d_inode);
 
 	dentry = lookup_one_len(basename, parent.dentry, len);
 	if (IS_ERR(dentry)) {
@@ -766,43 +750,37 @@ vn_releasef(int fd)
 } /* releasef() */
 EXPORT_SYMBOL(releasef);
 
-#ifndef HAVE_SET_FS_PWD
-void
-#  ifdef HAVE_SET_FS_PWD_WITH_CONST
-set_fs_pwd(struct fs_struct *fs, const struct path *path)
-#  else
-set_fs_pwd(struct fs_struct *fs, struct path *path)
-#  endif
+static void
+#ifdef HAVE_SET_FS_PWD_WITH_CONST
+vn_set_fs_pwd(struct fs_struct *fs, const struct path *path)
+#else
+vn_set_fs_pwd(struct fs_struct *fs, struct path *path)
+#endif /* HAVE_SET_FS_PWD_WITH_CONST */
 {
 	struct path old_pwd;
 
-#  ifdef HAVE_FS_STRUCT_SPINLOCK
+#ifdef HAVE_FS_STRUCT_SPINLOCK
 	spin_lock(&fs->lock);
 	old_pwd = fs->pwd;
 	fs->pwd = *path;
 	path_get(path);
 	spin_unlock(&fs->lock);
-#  else
+#else
 	write_lock(&fs->lock);
 	old_pwd = fs->pwd;
 	fs->pwd = *path;
 	path_get(path);
 	write_unlock(&fs->lock);
-#  endif /* HAVE_FS_STRUCT_SPINLOCK */
+#endif /* HAVE_FS_STRUCT_SPINLOCK */
 
 	if (old_pwd.dentry)
 		path_put(&old_pwd);
 }
-#endif /* HAVE_SET_FS_PWD */
 
 int
 vn_set_pwd(const char *filename)
 {
-#ifdef HAVE_USER_PATH_DIR
         struct path path;
-#else
-        struct nameidata nd;
-#endif /* HAVE_USER_PATH_DIR */
         mm_segment_t saved_fs;
         int rc;
         SENTRY;
@@ -815,7 +793,6 @@ vn_set_pwd(const char *filename)
         saved_fs = get_fs();
         set_fs(get_ds());
 
-# ifdef HAVE_USER_PATH_DIR
         rc = user_path_dir(filename, &path);
         if (rc)
                 SGOTO(out, rc);
@@ -824,25 +801,10 @@ vn_set_pwd(const char *filename)
         if (rc)
                 SGOTO(dput_and_out, rc);
 
-        set_fs_pwd(current->fs, &path);
+        vn_set_fs_pwd(current->fs, &path);
 
 dput_and_out:
         path_put(&path);
-# else
-        rc = __user_walk(filename,
-                         LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_CHDIR, &nd);
-        if (rc)
-                SGOTO(out, rc);
-
-        rc = vfs_permission(&nd, MAY_EXEC);
-        if (rc)
-                SGOTO(dput_and_out, rc);
-
-        set_fs_pwd(current->fs, &nd.path);
-
-dput_and_out:
-        path_put(&nd.path);
-# endif /* HAVE_USER_PATH_DIR */
 out:
 	set_fs(saved_fs);
 

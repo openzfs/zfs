@@ -28,124 +28,12 @@
 #include <linux/mm.h>
 #include <linux/fs.h>
 
-/*
- * Linux 2.6.31 API Change.
- * Individual pages_{min,low,high} moved in to watermark array.
- */
-#ifndef min_wmark_pages
-#define min_wmark_pages(z)	(z->pages_min)
-#endif
-
-#ifndef low_wmark_pages
-#define low_wmark_pages(z)	(z->pages_low)
-#endif
-
-#ifndef high_wmark_pages
-#define high_wmark_pages(z)	(z->pages_high)
-#endif
-
 #if !defined(HAVE_SHRINK_CONTROL_STRUCT)
 struct shrink_control {
 	gfp_t gfp_mask;
 	unsigned long nr_to_scan;
 };
 #endif /* HAVE_SHRINK_CONTROL_STRUCT */
-
-/*
- * 2.6.xx API compat,
- * There currently exists no exposed API to partially shrink the dcache.
- * The expected mechanism to shrink the cache is a registered shrinker
- * which is called during memory pressure.
- */
-#ifndef HAVE_SHRINK_DCACHE_MEMORY
-# if defined(HAVE_SHRINK_CONTROL_STRUCT)
-typedef int (*shrink_dcache_memory_t)(struct shrinker *,
-    struct shrink_control *);
-extern shrink_dcache_memory_t shrink_dcache_memory_fn;
-#  define shrink_dcache_memory(nr, gfp)                                      \
-({                                                                           \
-	struct shrink_control sc = { .nr_to_scan = nr, .gfp_mask = gfp };    \
-	int __ret__ = 0;                                                     \
-                                                                             \
-	if (shrink_dcache_memory_fn)                                         \
-		__ret__ = shrink_dcache_memory_fn(NULL, &sc);                \
-                                                                             \
-	__ret__;                                                             \
-})
-# elif defined(HAVE_3ARGS_SHRINKER_CALLBACK)
-typedef int (*shrink_dcache_memory_t)(struct shrinker *, int, gfp_t);
-extern shrink_dcache_memory_t shrink_dcache_memory_fn;
-#  define shrink_dcache_memory(nr, gfp)                                      \
-({                                                                           \
-	int __ret__ = 0;                                                     \
-                                                                             \
-	if (shrink_dcache_memory_fn)                                         \
-		__ret__ = shrink_dcache_memory_fn(NULL, nr, gfp);            \
-                                                                             \
-	__ret__;                                                             \
-})
-# else
-typedef int (*shrink_dcache_memory_t)(int, gfp_t);
-extern shrink_dcache_memory_t shrink_dcache_memory_fn;
-#  define shrink_dcache_memory(nr, gfp)                                      \
-({                                                                           \
-	int __ret__ = 0;                                                     \
-                                                                             \
-	if (shrink_dcache_memory_fn)                                         \
-		__ret__ = shrink_dcache_memory_fn(nr, gfp);                  \
-                                                                             \
-	__ret__;                                                             \
-})
-# endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
-#endif /* HAVE_SHRINK_DCACHE_MEMORY */
-
-/*
- * 2.6.xx API compat,
- * There currently exists no exposed API to partially shrink the icache.
- * The expected mechanism to shrink the cache is a registered shrinker
- * which is called during memory pressure.
- */
-#ifndef HAVE_SHRINK_ICACHE_MEMORY
-# if defined(HAVE_SHRINK_CONTROL_STRUCT)
-typedef int (*shrink_icache_memory_t)(struct shrinker *,
-    struct shrink_control *);
-extern shrink_icache_memory_t shrink_icache_memory_fn;
-#  define shrink_icache_memory(nr, gfp)                                      \
-({                                                                           \
-	struct shrink_control sc = { .nr_to_scan = nr, .gfp_mask = gfp };    \
-	int __ret__ = 0;                                                     \
-                                                                             \
-	if (shrink_icache_memory_fn)                                         \
-		__ret__ = shrink_icache_memory_fn(NULL, &sc);                \
-                                                                             \
-	__ret__;                                                             \
-})
-# elif defined(HAVE_3ARGS_SHRINKER_CALLBACK)
-typedef int (*shrink_icache_memory_t)(struct shrinker *, int, gfp_t);
-extern shrink_icache_memory_t shrink_icache_memory_fn;
-#  define shrink_icache_memory(nr, gfp)                                      \
-({                                                                           \
-	int __ret__ = 0;                                                     \
-                                                                             \
-	if (shrink_icache_memory_fn)                                         \
-		__ret__ = shrink_icache_memory_fn(NULL, nr, gfp);            \
-                                                                             \
-	__ret__;                                                             \
-})
-# else
-typedef int (*shrink_icache_memory_t)(int, gfp_t);
-extern shrink_icache_memory_t shrink_icache_memory_fn;
-#  define shrink_icache_memory(nr, gfp)                                      \
-({                                                                           \
-	int __ret__ = 0;                                                     \
-                                                                             \
-	if (shrink_icache_memory_fn)                                         \
-		__ret__ = shrink_icache_memory_fn(nr, gfp);                  \
-                                                                             \
-	__ret__;                                                             \
-})
-# endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
-#endif /* HAVE_SHRINK_ICACHE_MEMORY */
 
 /*
  * Due to frequent changes in the shrinker API the following
