@@ -3975,6 +3975,9 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	int		error;
 	int		cnt = 0;
 
+	if (zfs_is_readonly(zsb) || dmu_objset_is_snapshot(zsb->z_os))
+		return (0);
+
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
 
