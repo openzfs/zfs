@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -327,7 +327,7 @@ vdev_mirror_child_select(zio_t *zio)
 	return (-1);
 }
 
-static int
+static void
 vdev_mirror_io_start(zio_t *zio)
 {
 	mirror_map_t *mm;
@@ -352,7 +352,8 @@ vdev_mirror_io_start(zio_t *zio)
 				    zio->io_type, zio->io_priority, 0,
 				    vdev_mirror_scrub_done, mc));
 			}
-			return (ZIO_PIPELINE_CONTINUE);
+			zio_execute(zio);
+			return;
 		}
 		/*
 		 * For normal reads just pick one child.
@@ -378,7 +379,7 @@ vdev_mirror_io_start(zio_t *zio)
 		c++;
 	}
 
-	return (ZIO_PIPELINE_CONTINUE);
+	zio_execute(zio);
 }
 
 static int
