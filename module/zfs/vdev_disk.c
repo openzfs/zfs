@@ -520,7 +520,7 @@ retry:
 		return (ENOMEM);
 
 	if (zio && !(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)))
-			bio_set_flags_failfast(bdev, &flags);
+		bio_set_flags_failfast(bdev, &flags);
 
 	dr->dr_zio = zio;
 	dr->dr_rw = flags;
@@ -554,7 +554,8 @@ retry:
 
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
 		    bio_nr_pages(bio_ptr, bio_size));
-		if (dr->dr_bio[i] == NULL) {
+		/* bio_alloc() with __GFP_WAIT never returns NULL */
+		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
 			return (ENOMEM);
 		}
@@ -642,7 +643,8 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 		return (ENXIO);
 
 	bio = bio_alloc(GFP_NOIO, 0);
-	if (!bio)
+	/* bio_alloc() with __GFP_WAIT never returns NULL */
+	if (unlikely(bio == NULL))
 		return (ENOMEM);
 
 	bio->bi_end_io = vdev_disk_io_flush_completion;
