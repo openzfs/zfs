@@ -1928,7 +1928,7 @@ top:
 
 	if (bytes_evicted < bytes)
 		dprintf("only evicted %lld bytes from %x\n",
-		    (longlong_t)bytes_evicted, state);
+		    (longlong_t)bytes_evicted, state->arcs_state);
 
 	if (skipped)
 		ARCSTAT_INCR(arcstat_evict_skip, skipped);

@@ -1436,7 +1436,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 
 	gen_mask = -1ULL >> (64 - 8 * i);
 
-	dprintf("getting %llu [%u mask %llx]\n", object, fid_gen, gen_mask);
+	dprintf("getting %llu [%llu mask %llx]\n", object, fid_gen, gen_mask);
 	if ((err = zfs_zget(zsb, object, &zp))) {
 		ZFS_EXIT(zsb);
 		return (err);
@@ -1447,7 +1447,8 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	if (zp_gen == 0)
 		zp_gen = 1;
 	if (zp->z_unlinked || zp_gen != fid_gen) {
-		dprintf("znode gen (%u) != fid gen (%u)\n", zp_gen, fid_gen);
+		dprintf("znode gen (%llu) != fid gen (%llu)\n", zp_gen,
+		    fid_gen);
 		iput(ZTOI(zp));
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EINVAL));
