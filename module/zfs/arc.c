@@ -657,7 +657,7 @@ struct ht_lock {
 #endif
 };
 
-#define	BUF_LOCKS 256
+#define	BUF_LOCKS 8192
 typedef struct buf_hash_table {
 	uint64_t ht_mask;
 	arc_buf_hdr_t **ht_table;
