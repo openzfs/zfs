@@ -221,7 +221,7 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 
 		if (zfs_free_leak_on_eio)
 			flags |= TRAVERSE_HARD;
-		zfs_dbgmsg("bptree index %d: traversing from min_txg=%lld "
+		zfs_dbgmsg("bptree index %lld: traversing from min_txg=%lld "
 		    "bookmark %lld/%lld/%lld/%lld",
 		    i, (longlong_t)bte.be_birth_txg,
 		    (longlong_t)bte.be_zb.zb_objset,

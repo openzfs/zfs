@@ -427,7 +427,7 @@ space_map_truncate(space_map_t *sm, dmu_tx_t *tx)
 	    doi.doi_bonus_size != sizeof (space_map_phys_t)) ||
 	    doi.doi_data_block_size != space_map_blksz) {
 		zfs_dbgmsg("txg %llu, spa %s, reallocating: "
-		    "old bonus %u, old blocksz %u", dmu_tx_get_txg(tx),
+		    "old bonus %llu, old blocksz %u", dmu_tx_get_txg(tx),
 		    spa_name(spa), doi.doi_bonus_size, doi.doi_data_block_size);
 
 		space_map_free(sm, tx);
