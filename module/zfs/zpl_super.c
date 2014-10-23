@@ -251,9 +251,15 @@ static int
 zpl_get_sb(struct file_system_type *fs_type, int flags,
     const char *osname, void *data, struct vfsmount *mnt)
 {
+	int ret;
 	zpl_mount_data_t zmd = { osname, data };
 
-	return (get_sb_nodev(fs_type, flags, &zmd, zpl_fill_super, mnt));
+	ret = get_sb_nodev(fs_type, flags, &zmd, zpl_fill_super, mnt);
+	if (ret)
+		return ret;
+
+	((zfs_sb_t*)mnt->mnt_sb->s_fs_info)->z_mnt = mnt;
+	return (0);
 }
 #endif /* HAVE_MOUNT_NODEV */
 
