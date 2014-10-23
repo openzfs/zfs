@@ -3522,11 +3522,13 @@ main(int argc, char **argv)
 		usage();
 	}
 
+#if defined(_LP64)
 	/*
 	 * ZDB does not typically re-read blocks; therefore limit the ARC
 	 * to 256 MB, which can be used entirely for metadata.
 	 */
 	zfs_arc_max = zfs_arc_meta_limit = 256 * 1024 * 1024;
+#endif
 
 	kernel_init(FREAD);
 	if ((g_zfs = libzfs_init()) == NULL)
