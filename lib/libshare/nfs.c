@@ -44,71 +44,8 @@ static sa_fstype_t *nfs_fstype;
  */
 static int nfs_exportfs_temp_fd = -1;
 
-typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
-    void *cookie);
-
 typedef int (*nfs_host_callback_t)(const char *sharepath, const char *host,
     const char *security, const char *access, void *cookie);
-
-/*
- * Invokes the specified callback function for each Solaris share option
- * listed in the specified string.
- */
-static int
-foreach_nfs_shareopt(const char *shareopts,
-    nfs_shareopt_callback_t callback, void *cookie)
-{
-	char *shareopts_dup, *opt, *cur, *value;
-	int was_nul, rc;
-
-	if (shareopts == NULL)
-		return (SA_OK);
-
-	shareopts_dup = strdup(shareopts);
-
-	if (shareopts_dup == NULL)
-		return (SA_NO_MEMORY);
-
-	opt = shareopts_dup;
-	was_nul = 0;
-
-	while (1) {
-		cur = opt;
-
-		while (*cur != ',' && *cur != '\0')
-			cur++;
-
-		if (*cur == '\0')
-			was_nul = 1;
-
-		*cur = '\0';
-
-		if (cur > opt) {
-			value = strchr(opt, '=');
-
-			if (value != NULL) {
-				*value = '\0';
-				value++;
-			}
-
-			rc = callback(opt, value, cookie);
-
-			if (rc != SA_OK) {
-				free(shareopts_dup);
-				return (rc);
-			}
-		}
-
-		opt = cur + 1;
-
-		if (was_nul)
-			break;
-	}
-
-	free(shareopts_dup);
-
-	return (0);
-}
 
 typedef struct nfs_host_cookie_s {
 	nfs_host_callback_t callback;
@@ -118,7 +55,7 @@ typedef struct nfs_host_cookie_s {
 } nfs_host_cookie_t;
 
 /*
- * Helper function for foreach_nfs_host. This function checks whether the
+ * Helper function for foreach_host. This function checks whether the
  * current share option is a host specification and invokes a callback
  * function with information about the host.
  */
@@ -390,7 +327,7 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts)
 	(void) add_linux_shareopt(plinux_opts, "no_root_squash", NULL);
 	(void) add_linux_shareopt(plinux_opts, "mountpoint", NULL);
 
-	rc = foreach_nfs_shareopt(shareopts, get_linux_shareopts_cb,
+	rc = foreach_shareopt(shareopts, get_linux_shareopts_cb,
 	    plinux_opts);
 
 	if (rc != SA_OK) {
