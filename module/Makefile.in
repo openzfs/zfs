@@ -22,7 +22,8 @@ modules_install:
 	@# Install the kernel modules
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` $@ \
 		INSTALL_MOD_PATH=$(DESTDIR)$(INSTALL_MOD_PATH) \
-		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)
+		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
+		KERNELRELEASE=@LINUX_VERSION@
 	@# Remove extraneous build products when packaging
 	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
 	if [ -n $$kmoddir ]; then \
