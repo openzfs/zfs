@@ -555,7 +555,10 @@ retry:
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
 		    bio_nr_pages(bio_ptr, bio_size));
 		/* bio_alloc() with __GFP_WAIT never returns NULL */
-		ASSERT(dr->dr_bio[i] != NULL);
+		if (unlikely(dr->dr_bio[i] == NULL)) {
+			vdev_disk_dio_free(dr);
+			return (ENOMEM);
+		}
 
 		/* Matching put called by vdev_disk_physio_completion */
 		vdev_disk_dio_get(dr);
@@ -641,7 +644,8 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 
 	bio = bio_alloc(GFP_NOIO, 0);
 	/* bio_alloc() with __GFP_WAIT never returns NULL */
-	ASSERT(bio != NULL);
+	if (unlikely(bio == NULL))
+		return (ENOMEM);
 
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
