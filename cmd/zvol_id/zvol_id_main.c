@@ -23,6 +23,8 @@
  * Use is subject to license terms.
  */
 
+#include <ctype.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -56,6 +58,7 @@ main(int argc, char **argv)
 	char *dev_name;
 	struct stat64 statbuf;
 	int dev_minor, dev_part;
+	int i;
 
 	if (argc < 2) {
 		printf("Usage: %s /dev/zvol_device_node\n", argv[0]);
@@ -88,6 +91,11 @@ main(int argc, char **argv)
 		    dev_part);
 	else
 		snprintf(zvol_name_part, ZFS_MAXNAMELEN, "%s", zvol_name);
+
+	for (i = 0; i < strlen(zvol_name_part); i++) {
+		if (isblank(zvol_name_part[i]))
+			zvol_name_part[i] = '+';
+	}
 
 	printf("%s\n", zvol_name_part);
 	close(fd);
