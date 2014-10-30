@@ -444,7 +444,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 	boolean_t isactive;
 	uint64_t hostid;
 	nvlist_t *nvl;
-	boolean_t found_one = B_FALSE;
 	boolean_t valid_top_config = B_FALSE;
 
 	if (nvlist_alloc(&ret, 0, 0) != 0)
@@ -813,14 +812,8 @@ add_pool:
 		if (nvlist_add_nvlist(ret, name, config) != 0)
 			goto nomem;
 
-		found_one = B_TRUE;
 		nvlist_free(config);
 		config = NULL;
-	}
-
-	if (!found_one) {
-		nvlist_free(ret);
-		ret = NULL;
 	}
 
 	return (ret);
