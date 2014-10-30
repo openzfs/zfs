@@ -289,7 +289,7 @@ mutex_destroy(kmutex_t *mp)
 {
 	ASSERT3U(mp->m_magic, ==, MTX_MAGIC);
 	ASSERT3P(mp->m_owner, ==, MTX_INIT);
-	VERIFY3S(pthread_mutex_destroy(&(mp)->m_lock), ==, 0);
+	ASSERT0(pthread_mutex_destroy(&(mp)->m_lock));
 	mp->m_owner = MTX_DEST;
 	mp->m_magic = 0;
 }
