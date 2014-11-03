@@ -2213,6 +2213,8 @@ typedef struct zdb_blkstats {
 	uint64_t zb_lsize;
 	uint64_t zb_psize;
 	uint64_t zb_count;
+	uint64_t zb_gangs;
+	uint64_t zb_ditto_samevdev;
 	uint64_t zb_psize_histogram[PSIZE_HISTO_SIZE];
 } zdb_blkstats_t;
 
@@ -2264,6 +2266,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : ZB_TOTAL;
 		int t = (i & 1) ? type : ZDB_OT_TOTAL;
+		int equal;
 		zdb_blkstats_t *zb = &zcb->zcb_type[l][t];
 
 		zb->zb_asize += BP_GET_ASIZE(bp);
@@ -2271,6 +2274,27 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		zb->zb_psize += BP_GET_PSIZE(bp);
 		zb->zb_count++;
 		zb->zb_psize_histogram[BP_GET_PSIZE(bp) >> SPA_MINBLOCKSHIFT]++;
+
+		zb->zb_gangs += BP_COUNT_GANG(bp);
+
+		switch (BP_GET_NDVAS(bp)) {
+		case 2:
+			if (DVA_GET_VDEV(&bp->blk_dva[0]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[1]))
+				zb->zb_ditto_samevdev++;
+			break;
+		case 3:
+			equal = (DVA_GET_VDEV(&bp->blk_dva[0]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[1])) +
+			    (DVA_GET_VDEV(&bp->blk_dva[0]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[2])) +
+			    (DVA_GET_VDEV(&bp->blk_dva[1]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[2]));
+			if (equal != 0)
+				zb->zb_ditto_samevdev++;
+			break;
+		}
+
 	}
 
 	if (BP_IS_EMBEDDED(bp)) {
@@ -2685,6 +2709,8 @@ dump_block_stats(spa_t *spa)
 	(void) printf("\n");
 	(void) printf("\tbp count:      %10llu\n",
 	    (u_longlong_t)tzb->zb_count);
+	(void) printf("\tganged count:  %10llu\n",
+	    (longlong_t)tzb->zb_gangs);
 	(void) printf("\tbp logical:    %10llu      avg: %6llu\n",
 	    (u_longlong_t)tzb->zb_lsize,
 	    (u_longlong_t)(tzb->zb_lsize / tzb->zb_count));
@@ -2723,6 +2749,11 @@ dump_block_stats(spa_t *spa)
 		}
 	}
 
+	if (tzb->zb_ditto_samevdev != 0) {
+		(void) printf("\tDittoed blocks on same vdev: %llu\n",
+		    (longlong_t)tzb->zb_ditto_samevdev);
+	}
+
 	if (dump_opt['b'] >= 2) {
 		int l, t, level;
 		(void) printf("\nBlocks\tLSIZE\tPSIZE\tASIZE"
@@ -2730,7 +2761,7 @@ dump_block_stats(spa_t *spa)
 
 		for (t = 0; t <= ZDB_OT_TOTAL; t++) {
 			char csize[32], lsize[32], psize[32], asize[32];
-			char avg[32];
+			char avg[32], gang[32];
 			char *typename;
 
 			if (t < DMU_OT_NUMTYPES)
@@ -2771,6 +2802,7 @@ dump_block_stats(spa_t *spa)
 				zdb_nicenum(zb->zb_psize, psize);
 				zdb_nicenum(zb->zb_asize, asize);
 				zdb_nicenum(zb->zb_asize / zb->zb_count, avg);
+				zdb_nicenum(zb->zb_gangs, gang);
 
 				(void) printf("%6s\t%5s\t%5s\t%5s\t%5s"
 				    "\t%5.2f\t%6.2f\t",
@@ -2783,6 +2815,11 @@ dump_block_stats(spa_t *spa)
 				else
 					(void) printf("    L%d %s\n",
 					    level, typename);
+
+				if (dump_opt['b'] >= 3 && zb->zb_gangs > 0) {
+					(void) printf("\t number of ganged "
+					    "blocks: %s\n", gang);
+				}
 
 				if (dump_opt['b'] >= 4) {
 					(void) printf("psize "
