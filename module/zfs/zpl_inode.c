@@ -86,11 +86,29 @@ static int
 zpl_init_xattrs(struct inode *ip, struct inode *dir, struct dentry *dentry)
 {
 	int error;
+	nvlist_t *xattrs;
+	nvpair_t *xattr;
 
-	error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+	xattrs = fnvlist_alloc();
+	error = zpl_xattr_security_init(ip, dir, &dentry->d_name, &xattrs);
 	if (error == 0)
-		error = zpl_init_acl(ip, dir);
+		error = zpl_init_acl(ip, dir, &xattrs);
 
+	for (xattr = nvlist_next_nvpair(xattrs, NULL);
+	    xattr != NULL; xattr = nvlist_next_nvpair(xattrs, xattr)) {
+                uchar_t *value;
+                uint_t cnt;
+
+                error = nvpair_value_byte_array(xattr, &value, &cnt);
+		if (error)
+			break;
+		error = zpl_xattr_set(ip, nvpair_name(xattr), value,
+		    cnt, 0);
+		if (error)
+			break;
+	}
+	
+	fnvlist_free(xattrs);
 	return (error);
 }
 
