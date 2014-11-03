@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 /*
@@ -282,7 +282,7 @@ dsl_deleg_set(const char *ddname, nvlist_t *nvp, boolean_t unset)
 
 	return (dsl_sync_task(ddname, dsl_deleg_check,
 	    unset ? dsl_deleg_unset_sync : dsl_deleg_set_sync,
-	    &dda, fnvlist_num_pairs(nvp)));
+	    &dda, fnvlist_num_pairs(nvp), ZFS_SPACE_CHECK_RESERVED));
 }
 
 /*

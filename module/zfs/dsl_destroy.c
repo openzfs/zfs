@@ -520,7 +520,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 
 	error = dsl_sync_task(nvpair_name(pair),
 	    dsl_destroy_snapshot_check, dsl_destroy_snapshot_sync,
-	    &dsda, 0);
+	    &dsda, 0, ZFS_SPACE_CHECK_NONE);
 	fnvlist_free(dsda.dsda_successful_snaps);
 
 	return (error);
@@ -918,7 +918,8 @@ dsl_destroy_head(const char *name)
 		objset_t *os;
 
 		error = dsl_sync_task(name, dsl_destroy_head_check,
-		    dsl_destroy_head_begin_sync, &ddha, 0);
+		    dsl_destroy_head_begin_sync, &ddha,
+		    0, ZFS_SPACE_CHECK_NONE);
 		if (error != 0)
 			return (error);
 
@@ -944,7 +945,7 @@ dsl_destroy_head(const char *name)
 	}
 
 	return (dsl_sync_task(name, dsl_destroy_head_check,
-	    dsl_destroy_head_sync, &ddha, 0));
+	    dsl_destroy_head_sync, &ddha, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 /*

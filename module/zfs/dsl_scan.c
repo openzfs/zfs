@@ -388,7 +388,7 @@ int
 dsl_scan_cancel(dsl_pool_t *dp)
 {
 	return (dsl_sync_task(spa_name(dp->dp_spa), dsl_scan_cancel_check,
-	    dsl_scan_cancel_sync, NULL, 3));
+	    dsl_scan_cancel_sync, NULL, 3, ZFS_SPACE_CHECK_RESERVED));
 }
 
 static void dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
@@ -1848,7 +1848,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
-	    dsl_scan_setup_sync, &func, 0));
+	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
