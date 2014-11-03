@@ -26,6 +26,11 @@
  * Portions Copyright 2012 Martin Matuska <martin@matuska.org>
  */
 
+/*
+ * Copyright (c) 2013 by Delphix. All rights reserved.
+ */
+
+#include <ctype.h>
 #include <libnvpair.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +40,16 @@
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
 #include <zfs_fletcher.h>
+
+/*
+ * If dump mode is enabled, the number of bytes to print per line
+ */
+#define	BYTES_PER_LINE	16
+/*
+ * If dump mode is enabled, the number of bytes to group together, separated
+ * by newlines or spaces
+ */
+#define	DUMP_GROUPING	4
 
 uint64_t total_write_size = 0;
 uint64_t total_stream_len = 0;
@@ -46,9 +61,11 @@ boolean_t do_cksum = B_TRUE;
 static void
 usage(void)
 {
-	(void) fprintf(stderr, "usage: zstreamdump [-v] [-C] < file\n");
+	(void) fprintf(stderr, "usage: zstreamdump [-v] [-C] [-d] < file\n");
 	(void) fprintf(stderr, "\t -v -- verbose\n");
 	(void) fprintf(stderr, "\t -C -- suppress checksum verification\n");
+	(void) fprintf(stderr, "\t -d -- dump contents of blocks modified, "
+	    "implies verbose\n");
 	exit(1);
 }
 
@@ -76,6 +93,70 @@ ssread(void *buf, size_t len, zio_cksum_t *cksum)
 	return (outlen);
 }
 
+/*
+ * Print part of a block in ASCII characters
+ */
+static void
+print_ascii_block(char *subbuf, int length)
+{
+	int i;
+
+	for (i = 0; i < length; i++) {
+		char char_print = isprint(subbuf[i]) ? subbuf[i] : '.';
+		if (i != 0 && i % DUMP_GROUPING == 0) {
+			(void) printf(" ");
+		}
+		(void) printf("%c", char_print);
+	}
+	(void) printf("\n");
+}
+
+/*
+ * print_block - Dump the contents of a modified block to STDOUT
+ *
+ * Assume that buf has capacity evenly divisible by BYTES_PER_LINE
+ */
+static void
+print_block(char *buf, int length)
+{
+	int i;
+	/*
+	 * Start printing ASCII characters at a constant offset, after
+	 * the hex prints. Leave 3 characters per byte on a line (2 digit
+	 * hex number plus 1 space) plus spaces between characters and
+	 * groupings
+	 */
+	int ascii_start = BYTES_PER_LINE * 3 +
+	    BYTES_PER_LINE / DUMP_GROUPING + 2;
+
+	for (i = 0; i < length; i += BYTES_PER_LINE) {
+		int j;
+		int this_line_length = MIN(BYTES_PER_LINE, length - i);
+		int print_offset = 0;
+
+		for (j = 0; j < this_line_length; j++) {
+			int buf_offset = i + j;
+
+			/*
+			 * Separate every DUMP_GROUPING bytes by a space.
+			 */
+			if (buf_offset % DUMP_GROUPING == 0) {
+				print_offset += printf(" ");
+			}
+
+			/*
+			 * Print the two-digit hex value for this byte.
+			 */
+			unsigned char hex_print = buf[buf_offset];
+			print_offset += printf("%02x ", hex_print);
+		}
+
+		(void) printf("%*s", ascii_start - print_offset, " ");
+
+		print_ascii_block(buf + i, this_line_length);
+	}
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -96,16 +177,26 @@ main(int argc, char *argv[])
 	char c;
 	boolean_t verbose = B_FALSE;
 	boolean_t first = B_TRUE;
+	/*
+	 * dump flag controls whether the contents of any modified data blocks
+	 * are printed to the console during processing of the stream. Warning:
+	 * for large streams, this can obviously lead to massive prints.
+	 */
+	boolean_t dump = B_FALSE;
 	int err;
 	zio_cksum_t zc = { { 0 } };
 	zio_cksum_t pcksum = { { 0 } };
 
-	while ((c = getopt(argc, argv, ":vC")) != -1) {
+	while ((c = getopt(argc, argv, ":vCd")) != -1) {
 		switch (c) {
 		case 'C':
 			do_cksum = B_FALSE;
 			break;
 		case 'v':
+			verbose = B_TRUE;
+			break;
+		case 'd':
+			dump = B_TRUE;
 			verbose = B_TRUE;
 			break;
 		case ':':
@@ -131,6 +222,10 @@ main(int argc, char *argv[])
 	send_stream = stdin;
 	while (ssread(drr, sizeof (dmu_replay_record_t), &zc)) {
 
+		/*
+		 * If this is the first DMU record being processed, check for
+		 * the magic bytes and figure out the endian-ness based on them.
+		 */
 		if (first) {
 			if (drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC)) {
 				do_byteswap = B_TRUE;
@@ -213,7 +308,7 @@ main(int argc, char *argv[])
 				nvlist_t *nv;
 				int sz = drr->drr_payloadlen;
 
-				if (sz > 1<<20) {
+				if (sz > INITIAL_BUFLEN) {
 					free(buf);
 					buf = malloc(sz);
 				}
@@ -289,8 +384,12 @@ main(int argc, char *argv[])
 				    drro->drr_bonuslen);
 			}
 			if (drro->drr_bonuslen > 0) {
-				(void) ssread(buf,
-				    P2ROUNDUP(drro->drr_bonuslen, 8), &zc);
+				(void) ssread(buf, P2ROUNDUP(drro->drr_bonuslen,
+				    8), &zc);
+				if (dump) {
+					print_block(buf,
+					    P2ROUNDUP(drro->drr_bonuslen, 8));
+				}
 			}
 			break;
 
@@ -320,6 +419,10 @@ main(int argc, char *argv[])
 				drrw->drr_key.ddk_prop =
 				    BSWAP_64(drrw->drr_key.ddk_prop);
 			}
+			/*
+			 * If this is verbose and/or dump output,
+			 * print info on the modified block
+			 */
 			if (verbose) {
 				(void) printf("WRITE object = %llu type = %u "
 				    "checksum type = %u\n"
@@ -332,7 +435,16 @@ main(int argc, char *argv[])
 				    (u_longlong_t)drrw->drr_length,
 				    (u_longlong_t)drrw->drr_key.ddk_prop);
 			}
+			/*
+			 * Read the contents of the block in from STDIN to buf
+			 */
 			(void) ssread(buf, drrw->drr_length, &zc);
+			/*
+			 * If in dump mode
+			 */
+			if (dump) {
+				print_block(buf, drrw->drr_length);
+			}
 			total_write_size += drrw->drr_length;
 			break;
 
@@ -399,6 +511,9 @@ main(int argc, char *argv[])
 				    (long long unsigned int)drrs->drr_length);
 			}
 			(void) ssread(buf, drrs->drr_length, &zc);
+			if (dump) {
+				print_block(buf, drrs->drr_length);
+			}
 			break;
 		case DRR_WRITE_EMBEDDED:
 			if (do_byteswap) {
