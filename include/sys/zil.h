@@ -90,7 +90,6 @@ typedef struct zil_chain {
 } zil_chain_t;
 
 #define	ZIL_MIN_BLKSZ	4096ULL
-#define	ZIL_MAX_BLKSZ	SPA_MAXBLOCKSIZE
 
 /*
  * The words of a log block checksum.
