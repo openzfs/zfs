@@ -43,7 +43,7 @@ bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 		if (!spa_feature_is_active(spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 			ASSERT0(dp->dp_empty_bpobj);
 			dp->dp_empty_bpobj =
-			    bpobj_alloc(os, SPA_MAXBLOCKSIZE, tx);
+			    bpobj_alloc(os, SPA_OLD_MAXBLOCKSIZE, tx);
 			VERIFY(zap_add(os,
 			    DMU_POOL_DIRECTORY_OBJECT,
 			    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
@@ -397,7 +397,8 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
 	if (bpo->bpo_phys->bpo_subobjs == 0) {
 		bpo->bpo_phys->bpo_subobjs = dmu_object_alloc(bpo->bpo_os,
-		    DMU_OT_BPOBJ_SUBOBJ, SPA_MAXBLOCKSIZE, DMU_OT_NONE, 0, tx);
+		    DMU_OT_BPOBJ_SUBOBJ, SPA_OLD_MAXBLOCKSIZE,
+		    DMU_OT_NONE, 0, tx);
 	}
 
 	ASSERT0(dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, &doi));

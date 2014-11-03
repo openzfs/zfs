@@ -1040,9 +1040,14 @@ ztest_spa_get_ashift(void) {
 static int
 ztest_random_blocksize(void)
 {
-	// Choose a block size >= the ashift.
-	uint64_t block_shift =
-	    ztest_random(SPA_MAXBLOCKSHIFT - ztest_spa_get_ashift() + 1);
+	/*
+	 * Choose a block size >= the ashift.
+	 * If the SPA supports new MAXBLOCKSIZE, test up to 1MB blocks.
+	 */
+	int maxbs = SPA_OLD_MAXBLOCKSHIFT;
+	if (spa_maxblocksize(ztest_spa) == SPA_MAXBLOCKSIZE)
+		maxbs = 20;
+	uint64_t block_shift = ztest_random(maxbs - ztest_spa_get_ashift() + 1);
 	return (1 << (SPA_MINBLOCKSHIFT + block_shift));
 }
 
@@ -4972,7 +4977,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	char *path0;
 	char *pathrand;
 	size_t fsize;
-	int bshift = SPA_MAXBLOCKSHIFT + 2;	/* don't scrog all labels */
+	int bshift = SPA_OLD_MAXBLOCKSHIFT + 2;	/* don't scrog all labels */
 	int iters = 1000;
 	int maxfaults;
 	int mirror_save;

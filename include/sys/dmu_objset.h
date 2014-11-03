@@ -95,6 +95,7 @@ struct objset {
 	zfs_cache_type_t os_secondary_cache;
 	zfs_sync_type_t os_sync;
 	zfs_redundant_metadata_type_t os_redundant_metadata;
+	int os_recordsize;
 
 	/* no lock needed: */
 	struct dmu_tx *os_synctx; /* XXX sketchy */

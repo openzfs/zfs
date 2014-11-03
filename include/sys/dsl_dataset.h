@@ -83,6 +83,13 @@ struct dsl_pool;
 #define	DS_FIELD_BOOKMARK_NAMES "com.delphix:bookmarks"
 
 /*
+ * This field is present (with value=0) if this dataset may contain large
+ * blocks (>128KB).  If it is present, then this dataset
+ * is counted in the refcount of the SPA_FEATURE_LARGE_BLOCKS feature.
+ */
+#define	DS_FIELD_LARGE_BLOCKS "org.open-zfs:large_blocks"
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */
@@ -135,6 +142,8 @@ typedef struct dsl_dataset {
 	/* only used in syncing context, only valid for non-snapshots: */
 	struct dsl_dataset *ds_prev;
 	uint64_t ds_bookmarks;  /* DMU_OTN_ZAP_METADATA */
+	boolean_t ds_large_blocks;
+	boolean_t ds_need_large_blocks;
 
 	/* has internal locking: */
 	dsl_deadlist_t ds_deadlist;
@@ -244,6 +253,8 @@ int dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
 int dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap, dsl_dataset_t *last,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 boolean_t dsl_dataset_is_dirty(dsl_dataset_t *ds);
+int dsl_dataset_activate_large_blocks(const char *dsname);
+void dsl_dataset_activate_large_blocks_sync_impl(uint64_t dsobj, dmu_tx_t *tx);
 
 int dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf);
 

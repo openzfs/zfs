@@ -492,7 +492,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		 * If the write would overflow the largest block then split it.
 		 */
 		if (write_state != WR_INDIRECT && resid > ZIL_MAX_LOG_DATA)
-			len = SPA_MAXBLOCKSIZE >> 1;
+			len = SPA_OLD_MAXBLOCKSIZE >> 1;
 		else
 			len = resid;
 

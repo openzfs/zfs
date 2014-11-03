@@ -56,7 +56,8 @@ valid_char(char c, boolean_t after_colon)
 {
 	return ((c >= 'a' && c <= 'z') ||
 	    (c >= '0' && c <= '9') ||
-	    c == (after_colon ? '_' : '.'));
+	    (after_colon && c == '_') ||
+	    (!after_colon && (c == '.' || c == '-')));
 }
 
 /*
@@ -230,4 +231,15 @@ zpool_feature_init(void)
 	    "com.delphix:embedded_data", "embedded_data",
 	    "Blocks which compress very well use even less space.",
 	    B_FALSE, B_TRUE, B_TRUE, NULL);
+
+	{
+	static const spa_feature_t large_blocks_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LARGE_BLOCKS,
+	    "org.open-zfs:large_blocks", "large_blocks",
+	    "Support for blocks larger than 128KB.", B_FALSE, B_FALSE, B_FALSE,
+	    large_blocks_deps);
+	}
 }

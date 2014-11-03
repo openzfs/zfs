@@ -455,6 +455,10 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
  *
  * "fd" is the file descriptor to write the send stream to.
  *
+ * If "flags" contains LZC_SEND_FLAG_LARGE_BLOCK, the stream is permitted
+ * to contain DRR_WRITE records with drr_length > 128K, and DRR_OBJECT
+ * records with drr_blksz > 128K.
+ *
  * If "flags" contains LZC_SEND_FLAG_EMBED_DATA, the stream is permitted
  * to contain DRR_WRITE_EMBEDDED records with drr_etype==BP_EMBEDDED_TYPE_DATA,
  * which the receiving system must support (as indicated by support
@@ -471,6 +475,8 @@ lzc_send(const char *snapname, const char *from, int fd,
 	fnvlist_add_int32(args, "fd", fd);
 	if (from != NULL)
 		fnvlist_add_string(args, "fromsnap", from);
+	if (flags & LZC_SEND_FLAG_LARGE_BLOCK)
+		fnvlist_add_boolean(args, "largeblockok");
 	if (flags & LZC_SEND_FLAG_EMBED_DATA)
 		fnvlist_add_boolean(args, "embedok");
 	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);

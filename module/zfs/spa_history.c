@@ -89,7 +89,7 @@ spa_history_create_obj(spa_t *spa, dmu_tx_t *tx)
 
 	ASSERT(spa->spa_history == 0);
 	spa->spa_history = dmu_object_alloc(mos, DMU_OT_SPA_HISTORY,
-	    SPA_MAXBLOCKSIZE, DMU_OT_SPA_HISTORY_OFFSETS,
+	    SPA_OLD_MAXBLOCKSIZE, DMU_OT_SPA_HISTORY_OFFSETS,
 	    sizeof (spa_history_phys_t), tx);
 
 	VERIFY(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
