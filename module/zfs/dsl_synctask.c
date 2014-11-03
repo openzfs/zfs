@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -64,7 +64,8 @@ dsl_null_checkfunc(void *arg, dmu_tx_t *tx)
  */
 int
 dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
-    dsl_syncfunc_t *syncfunc, void *arg, int blocks_modified)
+    dsl_syncfunc_t *syncfunc, void *arg,
+    int blocks_modified, zfs_space_check_t space_check)
 {
 	spa_t *spa;
 	dmu_tx_t *tx;
@@ -84,6 +85,7 @@ top:
 	dst.dst_pool = dp;
 	dst.dst_txg = dmu_tx_get_txg(tx);
 	dst.dst_space = blocks_modified << DST_AVG_BLKSHIFT;
+	dst.dst_space_check = space_check;
 	dst.dst_checkfunc = checkfunc != NULL ? checkfunc : dsl_null_checkfunc;
 	dst.dst_syncfunc = syncfunc;
 	dst.dst_arg = arg;
@@ -117,13 +119,14 @@ top:
 
 void
 dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, dmu_tx_t *tx)
+    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
 {
 	dsl_sync_task_t *dst = kmem_zalloc(sizeof (*dst), KM_SLEEP);
 
 	dst->dst_pool = dp;
 	dst->dst_txg = dmu_tx_get_txg(tx);
 	dst->dst_space = blocks_modified << DST_AVG_BLKSHIFT;
+	dst->dst_space_check = space_check;
 	dst->dst_checkfunc = dsl_null_checkfunc;
 	dst->dst_syncfunc = syncfunc;
 	dst->dst_arg = arg;
@@ -140,25 +143,34 @@ void
 dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = dst->dst_pool;
-	uint64_t quota, used;
 
 	ASSERT0(dst->dst_error);
 
 	/*
-	 * Check for sufficient space.  We just check against what's
-	 * on-disk; we don't want any in-flight accounting to get in our
-	 * way, because open context may have already used up various
-	 * in-core limits (arc_tempreserve, dsl_pool_tempreserve).
+	 * Check for sufficient space.
+	 *
+	 * When the sync task was created, the caller specified the
+	 * type of space checking required.  See the comment in
+	 * zfs_space_check_t for details on the semantics of each
+	 * type of space checking.
+	 *
+	 * We just check against what's on-disk; we don't want any
+	 * in-flight accounting to get in our way, because open context
+	 * may have already used up various in-core limits
+	 * (arc_tempreserve, dsl_pool_tempreserve).
 	 */
-	quota = dsl_pool_adjustedsize(dp, B_FALSE) -
-	    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
-	used = dp->dp_root_dir->dd_phys->dd_used_bytes;
-	/* MOS space is triple-dittoed, so we multiply by 3. */
-	if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
-		dst->dst_error = SET_ERROR(ENOSPC);
-		if (dst->dst_nowaiter)
-			kmem_free(dst, sizeof (*dst));
-		return;
+	if (dst->dst_space_check != ZFS_SPACE_CHECK_NONE) {
+		uint64_t quota = dsl_pool_adjustedsize(dp,
+		    dst->dst_space_check == ZFS_SPACE_CHECK_RESERVED) -
+		    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
+		uint64_t used = dp->dp_root_dir->dd_phys->dd_used_bytes;
+		/* MOS space is triple-dittoed, so we multiply by 3. */
+		if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
+			dst->dst_error = SET_ERROR(ENOSPC);
+			if (dst->dst_nowaiter)
+				kmem_free(dst, sizeof (*dst));
+			return;
+		}
 	}
 
 	/*

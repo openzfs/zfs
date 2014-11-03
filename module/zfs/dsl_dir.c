@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2014 Joyent, Inc. All rights reserved.
  */
@@ -642,7 +642,8 @@ dsl_dir_activate_fs_ss_limit(const char *ddname)
 	int error;
 
 	error = dsl_sync_task(ddname, dsl_dir_actv_fs_ss_limit_check,
-	    dsl_dir_actv_fs_ss_limit_sync, (void *)ddname, 0);
+	    dsl_dir_actv_fs_ss_limit_sync, (void *)ddname, 0,
+	    ZFS_SPACE_CHECK_RESERVED);
 
 	if (error == EALREADY)
 		error = 0;
@@ -1502,7 +1503,7 @@ dsl_dir_set_quota(const char *ddname, zprop_source_t source, uint64_t quota)
 	ddsqra.ddsqra_value = quota;
 
 	return (dsl_sync_task(ddname, dsl_dir_set_quota_check,
-	    dsl_dir_set_quota_sync, &ddsqra, 0));
+	    dsl_dir_set_quota_sync, &ddsqra, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 int
@@ -1623,7 +1624,7 @@ dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
 	ddsqra.ddsqra_value = reservation;
 
 	return (dsl_sync_task(ddname, dsl_dir_set_reservation_check,
-	    dsl_dir_set_reservation_sync, &ddsqra, 0));
+	    dsl_dir_set_reservation_sync, &ddsqra, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 static dsl_dir_t *
@@ -1902,7 +1903,8 @@ dsl_dir_rename(const char *oldname, const char *newname)
 	ddra.ddra_cred = CRED();
 
 	return (dsl_sync_task(oldname,
-	    dsl_dir_rename_check, dsl_dir_rename_sync, &ddra, 3));
+	    dsl_dir_rename_check, dsl_dir_rename_sync, &ddra,
+	    3, ZFS_SPACE_CHECK_RESERVED));
 }
 
 int
