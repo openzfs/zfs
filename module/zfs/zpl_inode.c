@@ -83,6 +83,18 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, zpl_umode_t mode, cred_t *cr)
 }
 
 static int
+zpl_init_xattrs(struct inode *ip, struct inode *dir, struct dentry *dentry)
+{
+	int error;
+
+	error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+	if (error == 0)
+		error = zpl_init_acl(ip, dir);
+
+	return (error);
+}
+
+static int
 #ifdef HAVE_CREATE_NAMEIDATA
 zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
     struct nameidata *nd)
@@ -102,8 +114,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 
@@ -137,8 +148,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 
@@ -177,8 +187,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 
