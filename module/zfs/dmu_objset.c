@@ -865,7 +865,8 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 	doca.doca_type = type;
 
 	return (dsl_sync_task(name,
-	    dmu_objset_create_check, dmu_objset_create_sync, &doca, 5));
+	    dmu_objset_create_check, dmu_objset_create_sync, &doca,
+	    5, ZFS_SPACE_CHECK_NORMAL));
 }
 
 typedef struct dmu_objset_clone_arg {
@@ -964,7 +965,8 @@ dmu_objset_clone(const char *clone, const char *origin)
 	doca.doca_cred = CRED();
 
 	return (dsl_sync_task(clone,
-	    dmu_objset_clone_check, dmu_objset_clone_sync, &doca, 5));
+	    dmu_objset_clone_check, dmu_objset_clone_sync, &doca,
+	    5, ZFS_SPACE_CHECK_NORMAL));
 }
 
 int

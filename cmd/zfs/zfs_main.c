@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland.  All rights reserved.
  * Copyright 2013 Nexenta Systems, Inc. All rights reserved.
@@ -6636,6 +6636,9 @@ zfs_do_bookmark(int argc, char **argv)
 		case ENOTSUP:
 			err_msg = "bookmark feature not enabled";
 			break;
+		case ENOSPC:
+			err_msg = "out of space";
+			break;
 		default:
 			err_msg = "unknown error";
 			break;
@@ -6644,7 +6647,7 @@ zfs_do_bookmark(int argc, char **argv)
 		    dgettext(TEXT_DOMAIN, err_msg));
 	}
 
-	return (ret);
+	return (ret != 0);
 
 usage:
 	usage(B_FALSE);

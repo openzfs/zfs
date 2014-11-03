@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -362,7 +362,7 @@ zhack_do_feature_enable(int argc, char **argv)
 		    feature.fi_guid);
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    zhack_feature_enable_sync, &feature, 5));
+	    zhack_feature_enable_sync, &feature, 5, ZFS_SPACE_CHECK_NORMAL));
 
 	spa_close(spa, FTAG);
 
@@ -473,7 +473,8 @@ zhack_do_feature_ref(int argc, char **argv)
 	}
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    decr ? feature_decr_sync : feature_incr_sync, &feature, 5));
+	    decr ? feature_decr_sync : feature_incr_sync, &feature,
+	    5, ZFS_SPACE_CHECK_NORMAL));
 
 	spa_close(spa, FTAG);
 }

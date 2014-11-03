@@ -1191,7 +1191,7 @@ dmu_recv_begin(char *tofs, char *tosnap, struct drr_begin *drrb,
 	drba.drba_cred = CRED();
 
 	return (dsl_sync_task(tofs, dmu_recv_begin_check, dmu_recv_begin_sync,
-	    &drba, 5));
+	    &drba, 5, ZFS_SPACE_CHECK_NORMAL));
 }
 
 struct restorearg {
@@ -2108,7 +2108,7 @@ dmu_recv_existing_end(dmu_recv_cookie_t *drc)
 
 	error = dsl_sync_task(drc->drc_tofs,
 	    dmu_recv_end_check, dmu_recv_end_sync, drc,
-	    dmu_recv_end_modified_blocks);
+	    dmu_recv_end_modified_blocks, ZFS_SPACE_CHECK_NORMAL);
 
 	if (error != 0)
 		dmu_recv_cleanup_ds(drc);
@@ -2122,7 +2122,7 @@ dmu_recv_new_end(dmu_recv_cookie_t *drc)
 
 	error = dsl_sync_task(drc->drc_tofs,
 	    dmu_recv_end_check, dmu_recv_end_sync, drc,
-	    dmu_recv_end_modified_blocks);
+	    dmu_recv_end_modified_blocks, ZFS_SPACE_CHECK_NORMAL);
 
 	if (error != 0) {
 		dmu_recv_cleanup_ds(drc);

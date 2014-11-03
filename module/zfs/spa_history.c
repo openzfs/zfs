@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -323,7 +323,7 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 
 	/* Kick this off asynchronously; errors are ignored. */
 	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync,
-	    nvarg, 0, tx);
+	    nvarg, 0, ZFS_SPACE_CHECK_NONE, tx);
 	dmu_tx_commit(tx);
 
 	/* spa_history_log_sync will free nvl */
@@ -458,7 +458,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 		spa_history_log_sync(nvl, tx);
 	} else {
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    spa_history_log_sync, nvl, 0, tx);
+		    spa_history_log_sync, nvl, 0, ZFS_SPACE_CHECK_NONE, tx);
 	}
 	/* spa_history_log_sync() will free nvl */
 }
