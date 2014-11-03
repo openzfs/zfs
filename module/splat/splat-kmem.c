@@ -799,6 +799,10 @@ splat_kmem_test6(struct file *file, void *arg)
 	if (rc)
 		return rc;
 
+	rc = splat_kmem_cache_test(file, arg, name, 16*1024*1024, 0, KMC_VMEM);
+	if (rc)
+		return rc;
+
 	/* Off slab (default + kmem + vmem) */
 	rc = splat_kmem_cache_test(file, arg, name, 256*1024, 0, KMC_OFFSLAB);
 	if (rc)
@@ -810,6 +814,11 @@ splat_kmem_test6(struct file *file, void *arg)
 		return rc;
 
 	rc = splat_kmem_cache_test(file, arg, name, 1024*1024, 0,
+	    KMC_VMEM | KMC_OFFSLAB);
+	if (rc)
+		return rc;
+
+	rc = splat_kmem_cache_test(file, arg, name, 16*1024*1024, 0,
 	    KMC_VMEM | KMC_OFFSLAB);
 
 	return rc;
