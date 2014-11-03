@@ -96,13 +96,16 @@ typedef enum drr_headertype {
 /* flags #3 - #15 are reserved for incompatible closed-source implementations */
 #define	DMU_BACKUP_FEATURE_EMBED_DATA		(1<<16)
 #define	DMU_BACKUP_FEATURE_EMBED_DATA_LZ4	(1<<17)
+/* flag #18 is reserved for a Delphix feature */
+#define	DMU_BACKUP_FEATURE_LARGE_BLOCKS		(1<<19)
 
 /*
  * Mask of all supported backup features
  */
 #define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_DEDUP | \
     DMU_BACKUP_FEATURE_DEDUPPROPS | DMU_BACKUP_FEATURE_SA_SPILL | \
-    DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_EMBED_DATA_LZ4)
+    DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_EMBED_DATA_LZ4 | \
+    DMU_BACKUP_FEATURE_LARGE_BLOCKS)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))

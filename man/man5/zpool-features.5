@@ -411,5 +411,26 @@ never return to being \fBenabled\fR.
 
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBlarge_blocks\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.open-zfs:large_block
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+The \fBlarge_block\fR feature allows the record size on a dataset to be
+set larger than 128KB.
+
+This feature becomes \fBactive\fR once a \fBrecordsize\fR property has been
+set larger than 128KB, and will return to being \fBenabled\fR once all
+filesystems that have ever had their recordsize larger than 128KB are destroyed.
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)

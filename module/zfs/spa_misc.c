@@ -1985,6 +1985,15 @@ spa_debug_enabled(spa_t *spa)
 	return (spa->spa_debug);
 }
 
+int
+spa_maxblocksize(spa_t *spa)
+{
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_BLOCKS))
+		return (SPA_MAXBLOCKSIZE);
+	else
+		return (SPA_OLD_MAXBLOCKSIZE);
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* Namespace manipulation */
 EXPORT_SYMBOL(spa_lookup);
@@ -2040,6 +2049,7 @@ EXPORT_SYMBOL(spa_suspended);
 EXPORT_SYMBOL(spa_bootfs);
 EXPORT_SYMBOL(spa_delegation);
 EXPORT_SYMBOL(spa_meta_objset);
+EXPORT_SYMBOL(spa_maxblocksize);
 
 /* Miscellaneous support routines */
 EXPORT_SYMBOL(spa_rename);

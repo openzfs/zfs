@@ -56,7 +56,6 @@ uint64_t total_stream_len = 0;
 FILE *send_stream = 0;
 boolean_t do_byteswap = B_FALSE;
 boolean_t do_cksum = B_TRUE;
-#define	INITIAL_BUFLEN (1<<20)
 
 static void
 usage(void)
@@ -67,6 +66,18 @@ usage(void)
 	(void) fprintf(stderr, "\t -d -- dump contents of blocks modified, "
 	    "implies verbose\n");
 	exit(1);
+}
+
+static void *
+safe_malloc(size_t size)
+{
+	void *rv = malloc(size);
+	if (rv == NULL) {
+		(void) fprintf(stderr, "ERROR; failed to allocate %u bytes\n",
+		    (unsigned)size);
+		abort();
+	}
+	return (rv);
 }
 
 /*
@@ -160,7 +171,7 @@ print_block(char *buf, int length)
 int
 main(int argc, char *argv[])
 {
-	char *buf = malloc(INITIAL_BUFLEN);
+	char *buf = safe_malloc(SPA_MAXBLOCKSIZE);
 	uint64_t drr_record_count[DRR_NUMTYPES] = { 0 };
 	uint64_t total_records = 0;
 	dmu_replay_record_t thedrr;
@@ -308,9 +319,9 @@ main(int argc, char *argv[])
 				nvlist_t *nv;
 				int sz = drr->drr_payloadlen;
 
-				if (sz > INITIAL_BUFLEN) {
+				if (sz > SPA_MAXBLOCKSIZE) {
 					free(buf);
-					buf = malloc(sz);
+					buf = safe_malloc(sz);
 				}
 				(void) ssread(buf, sz, &zc);
 				if (ferror(send_stream))

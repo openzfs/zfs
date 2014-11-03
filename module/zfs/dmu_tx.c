@@ -241,7 +241,7 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		return;
 
 	min_bs = SPA_MINBLOCKSHIFT;
-	max_bs = SPA_MAXBLOCKSHIFT;
+	max_bs = highbit64(txh->txh_tx->tx_objset->os_recordsize) - 1;
 	min_ibs = DN_MIN_INDBLKSHIFT;
 	max_ibs = DN_MAX_INDBLKSHIFT;
 
@@ -310,6 +310,14 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			 */
 			ASSERT(dn->dn_datablkshift != 0);
 			min_bs = max_bs = dn->dn_datablkshift;
+		} else {
+			/*
+			 * The blocksize can increase up to the recordsize,
+			 * or if it is already more than the recordsize,
+			 * up to the next power of 2.
+			 */
+			min_bs = highbit64(dn->dn_datablksz - 1);
+			max_bs = MAX(max_bs, highbit64(dn->dn_datablksz - 1));
 		}
 
 		/*
@@ -745,11 +753,11 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 		bp = &dn->dn_phys->dn_blkptr[0];
 		if (dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
 		    bp, bp->blk_birth))
-			txh->txh_space_tooverwrite += SPA_MAXBLOCKSIZE;
+			txh->txh_space_tooverwrite += MZAP_MAX_BLKSZ;
 		else
-			txh->txh_space_towrite += SPA_MAXBLOCKSIZE;
+			txh->txh_space_towrite += MZAP_MAX_BLKSZ;
 		if (!BP_IS_HOLE(bp))
-			txh->txh_space_tounref += SPA_MAXBLOCKSIZE;
+			txh->txh_space_tounref += MZAP_MAX_BLKSZ;
 		return;
 	}
 
@@ -1546,18 +1554,18 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 
 	/* If blkptr doesn't exist then add space to towrite */
 	if (!(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
-		txh->txh_space_towrite += SPA_MAXBLOCKSIZE;
+		txh->txh_space_towrite += SPA_OLD_MAXBLOCKSIZE;
 	} else {
 		blkptr_t *bp;
 
 		bp = &dn->dn_phys->dn_spill;
 		if (dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
 		    bp, bp->blk_birth))
-			txh->txh_space_tooverwrite += SPA_MAXBLOCKSIZE;
+			txh->txh_space_tooverwrite += SPA_OLD_MAXBLOCKSIZE;
 		else
-			txh->txh_space_towrite += SPA_MAXBLOCKSIZE;
+			txh->txh_space_towrite += SPA_OLD_MAXBLOCKSIZE;
 		if (!BP_IS_HOLE(bp))
-			txh->txh_space_tounref += SPA_MAXBLOCKSIZE;
+			txh->txh_space_tounref += SPA_OLD_MAXBLOCKSIZE;
 	}
 }
 

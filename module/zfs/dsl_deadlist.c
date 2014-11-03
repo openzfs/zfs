@@ -148,7 +148,7 @@ uint64_t
 dsl_deadlist_alloc(objset_t *os, dmu_tx_t *tx)
 {
 	if (spa_version(dmu_objset_spa(os)) < SPA_VERSION_DEADLISTS)
-		return (bpobj_alloc(os, SPA_MAXBLOCKSIZE, tx));
+		return (bpobj_alloc(os, SPA_OLD_MAXBLOCKSIZE, tx));
 	return (zap_create(os, DMU_OT_DEADLIST, DMU_OT_DEADLIST_HDR,
 	    sizeof (dsl_deadlist_phys_t), tx));
 }
@@ -185,7 +185,7 @@ dle_enqueue(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
 {
 	if (dle->dle_bpobj.bpo_object ==
 	    dmu_objset_pool(dl->dl_os)->dp_empty_bpobj) {
-		uint64_t obj = bpobj_alloc(dl->dl_os, SPA_MAXBLOCKSIZE, tx);
+		uint64_t obj = bpobj_alloc(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
 		bpobj_close(&dle->dle_bpobj);
 		bpobj_decr_empty(dl->dl_os, tx);
 		VERIFY3U(0, ==, bpobj_open(&dle->dle_bpobj, dl->dl_os, obj));
@@ -259,7 +259,7 @@ dsl_deadlist_add_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 
 	dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
 	dle->dle_mintxg = mintxg;
-	obj = bpobj_alloc_empty(dl->dl_os, SPA_MAXBLOCKSIZE, tx);
+	obj = bpobj_alloc_empty(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
 	VERIFY3U(0, ==, bpobj_open(&dle->dle_bpobj, dl->dl_os, obj));
 	avl_add(&dl->dl_tree, dle);
 
@@ -344,7 +344,7 @@ dsl_deadlist_clone(dsl_deadlist_t *dl, uint64_t maxtxg,
 		if (dle->dle_mintxg >= maxtxg)
 			break;
 
-		obj = bpobj_alloc_empty(dl->dl_os, SPA_MAXBLOCKSIZE, tx);
+		obj = bpobj_alloc_empty(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
 		VERIFY3U(0, ==, zap_add_int_key(dl->dl_os, newobj,
 		    dle->dle_mintxg, obj, tx));
 	}
