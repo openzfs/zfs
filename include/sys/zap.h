@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_H
@@ -379,11 +379,6 @@ void zap_cursor_advance(zap_cursor_t *zc);
  * fewer than 2^22 (4.2 million) entries in the zap object.
  */
 uint64_t zap_cursor_serialize(zap_cursor_t *zc);
-
-/*
- * Advance the cursor to the attribute having the given key.
- */
-int zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt);
 
 /*
  * Initialize a zap cursor pointing to the position recorded by
