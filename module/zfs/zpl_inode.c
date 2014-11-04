@@ -90,9 +90,9 @@ zpl_init_xattrs(struct inode *ip, struct inode *dir, struct dentry *dentry)
 	nvpair_t *xattr;
 
 	xattrs = fnvlist_alloc();
-	error = zpl_xattr_security_init(ip, dir, &dentry->d_name, &xattrs);
-	if (error == 0)
-		error = zpl_init_acl(ip, dir, &xattrs);
+	error = zpl_xattr_security_init(ip, dir, &dentry->d_name, xattrs);
+	if (error == 0 && !S_ISLNK(ip->i_mode))
+		error = zpl_init_acl(ip, dir, xattrs);
 
 	for (xattr = nvlist_next_nvpair(xattrs, NULL);
 	    xattr != NULL; xattr = nvlist_next_nvpair(xattrs, xattr)) {
@@ -316,7 +316,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 
