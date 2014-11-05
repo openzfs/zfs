@@ -1321,6 +1321,40 @@ def _sysctl_summary(Kstat):
             sys.stdout.write("\t\# %s\n" % sysctl_descriptions[name])
         sys.stdout.write(format % (name, value))
 
+# The spl stats file, /proc/spl/kmem/slab, has a different format than other
+# Kstats files as seen in funciton get_Kstat. For that reason, it requires
+# special processing. This function then reads the file, and returns
+# the allocated spl and hte overall size of spl.
+def get_splstats():
+    p = Popen('cat /proc/spl/kmem/slab', stdin=PIPE,
+        stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
+    p.wait()
+                           
+    splstat_pull = p.communicate()[0].split('\n')
+                                                        
+    spl_size = 0
+    spl_alloc = 0
+
+    for stat in splstat_pull:
+        split_stat = stat.split()
+        try: 
+            spl_size += D(split_stat[2])
+            spl_alloc += D(split_stat[3])
+        except:
+            pass
+        
+    return spl_size, spl_alloc
+
+# Prints a summary of SPL statistics.
+# Kstat: Unused parameter, only included so that it can be called in the same
+#       manner as other functions listed in unSub. Instead, this function
+#       gets its data from calling get_splstats().
+def _spl_summary(Kstat):
+    spl_size, spl_alloc = get_splstats()
+    sys.stdout.write("SPL Memory Usage:\n") 
+    sys.stdout.write("\tSPL Slab Used:\t\t\t\t%s\n" % fBytes(spl_alloc))
+    sys.stdout.write("\tSPL Slab Allocated:\t\t\t%s\n" % fBytes(spl_size))
+
 
 unSub = [
     #_system_memory,
@@ -1329,6 +1363,7 @@ unSub = [
     _l2arc_summary,
     _dmu_summary,
     _vdev_summary,
+    _spl_summary,
     #_sysctl_summary
 ]
 
