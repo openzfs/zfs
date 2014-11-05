@@ -1049,7 +1049,6 @@ def _sysctl_summary(Kstat):
             sys.stdout.write("\t\# %s\n" % sysctl_descriptions[name])
         sys.stdout.write(format % (name, value))
 
-
 unSub = [
     _arc_summary,
     _arc_efficiency,
@@ -1059,15 +1058,13 @@ unSub = [
 ]
 
 
-def _call_all():
+def _call_all(Kstat):
     page = 1
-    Kstat = get_Kstat()
     for unsub in unSub:
         unsub(Kstat)
         sys.stdout.write("\t\t\t\t\t\t\t\tPage: %2d" % page)
         div2()
         page += 1
-
 
 def zfs_header():
     daydate = time.strftime("%a %b %d %H:%M:%S %Y")
@@ -1094,19 +1091,20 @@ def main():
         if opt == '-p':
             args['p'] = arg
 
+    Kstat = get_Kstat()
+
     if args:
         alternate_sysctl_layout = True if 'a' in args else False
         show_sysctl_descriptions = True if 'd' in args else False
         try:
             zfs_header()
-            unSub[int(args['p']) - 1]()
+            unSub[int(args['p']) - 1](Kstat)
             div2()
 
-        except:
-            _call_all()
-
+        except Exception, e:
+            _call_all(Kstat)
     else:
-        _call_all()
+        _call_all(Kstat)
 
 
 if __name__ == '__main__':
