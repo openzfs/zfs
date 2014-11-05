@@ -1057,15 +1057,6 @@ unSub = [
     _vdev_summary,
 ]
 
-
-def _call_all(Kstat):
-    page = 1
-    for unsub in unSub:
-        unsub(Kstat)
-        sys.stdout.write("\t\t\t\t\t\t\t\tPage: %2d" % page)
-        div2()
-        page += 1
-
 def zfs_header():
     daydate = time.strftime("%a %b %d %H:%M:%S %Y")
 
@@ -1093,19 +1084,25 @@ def main():
 
     Kstat = get_Kstat()
 
-    if args:
-        alternate_sysctl_layout = True if 'a' in args else False
-        show_sysctl_descriptions = True if 'd' in args else False
+    alternate_sysctl_layout = 'a' in args
+    show_sysctl_descriptions = 'd' in args
+
+    pages = []
+
+    if 'p' in args:
         try:
-            zfs_header()
-            unSub[int(args['p']) - 1](Kstat)
-            div2()
-
-        except Exception, e:
-            _call_all(Kstat)
+            pages.append(unSub[int(args['p']) - 1])
+        except IndexError , e:
+            sys.stderr.write('the argument to -p must be between 1 and ' + 
+                    str(len(unSub)) + '\n')
+            sys.exit()
     else:
-        _call_all(Kstat)
+        pages = unSub
 
+    zfs_header()
+    for page in pages:
+        page(Kstat)
+        div2()
 
 if __name__ == '__main__':
     main()
