@@ -97,7 +97,6 @@ def div1():
 
 
 def div2():
-    div1()
     sys.stdout.write("\n")
 
 
@@ -1049,7 +1048,6 @@ def _sysctl_summary(Kstat):
             sys.stdout.write("\t\# %s\n" % sysctl_descriptions[name])
         sys.stdout.write(format % (name, value))
 
-
 unSub = [
     _arc_summary,
     _arc_efficiency,
@@ -1057,17 +1055,6 @@ unSub = [
     _dmu_summary,
     _vdev_summary,
 ]
-
-
-def _call_all():
-    page = 1
-    Kstat = get_Kstat()
-    for unsub in unSub:
-        unsub(Kstat)
-        sys.stdout.write("\t\t\t\t\t\t\t\tPage: %2d" % page)
-        div2()
-        page += 1
-
 
 def zfs_header():
     daydate = time.strftime("%a %b %d %H:%M:%S %Y")
@@ -1094,20 +1081,27 @@ def main():
         if opt == '-p':
             args['p'] = arg
 
-    if args:
-        alternate_sysctl_layout = True if 'a' in args else False
-        show_sysctl_descriptions = True if 'd' in args else False
+    Kstat = get_Kstat()
+
+    alternate_sysctl_layout = 'a' in args
+    show_sysctl_descriptions = 'd' in args
+
+    pages = []
+
+    if 'p' in args:
         try:
-            zfs_header()
-            unSub[int(args['p']) - 1]()
-            div2()
-
-        except:
-            _call_all()
-
+            pages.append(unSub[int(args['p']) - 1])
+        except IndexError , e:
+            sys.stderr.write('the argument to -p must be between 1 and ' +
+                    str(len(unSub)) + '\n')
+            sys.exit()
     else:
-        _call_all()
+        pages = unSub
 
+    zfs_header()
+    for page in pages:
+        page(Kstat)
+        div2()
 
 if __name__ == '__main__':
     main()
