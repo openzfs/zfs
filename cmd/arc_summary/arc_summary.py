@@ -1421,17 +1421,5 @@ def main():
         _call_all(Kstat)
 
 
-#    if args:
-#        try:
-#            zfs_header()
-#            unSub[int(args['p']) - 1](Kstat)
-#            div2()
-#
-#        except Exception, e:
-#            _call_all(Kstat)
-#    else:
-#        _call_all(Kstat)
-
-
 if __name__ == '__main__':
     main()
