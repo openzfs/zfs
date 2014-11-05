@@ -2192,6 +2192,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	uint64_t val;
 	char *str;
 	const char *strval;
+	int err;
 	boolean_t received = zfs_is_recvd_props_mode(zhp);
 
 	/*
@@ -2461,16 +2462,25 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			break;
 
 		case PROP_TYPE_STRING:
-			(void) strlcpy(propbuf,
-			    getprop_string(zhp, prop, &source), proplen);
+			(void) strlcpy(propbuf, getprop_string(zhp, prop,
+			    &source), proplen);
 			break;
 
 		case PROP_TYPE_INDEX:
-			if (get_numeric_property(zhp, prop, src,
-			    &source, &val) != 0)
+			err = get_numeric_property(zhp, prop, src,
+			    &source, &val);
+			switch (err) {
+			case -1:
+				strval = getprop_string(zhp, prop, &source);
+				break;
+			case 0:
+				if (zfs_prop_index_to_string(prop, val,
+				    &strval) != 0)
+					return (-1);
+				break;
+			default:
 				return (-1);
-			if (zfs_prop_index_to_string(prop, val, &strval) != 0)
-				return (-1);
+			}
 			(void) strlcpy(propbuf, strval, proplen);
 			break;
 

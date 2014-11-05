@@ -2511,7 +2511,15 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	if (zfs_prop_get_type(prop) == PROP_TYPE_STRING)
 		return (-1);
 
-	VERIFY(0 == nvpair_value_uint64(pair, &intval));
+	if (((nvpair_type(pair) == DATA_TYPE_STRING) &&
+	    (zfs_prop_get_type(prop) == PROP_TYPE_INDEX))) {
+		char *strval;
+		if (nvpair_value_string(pair, &strval) != 0)
+			return (-1);
+		if (zfs_prop_string_to_index(prop, strval, &intval) != 0)
+			return (-1);
+	} else
+		VERIFY(0 == nvpair_value_uint64(pair, &intval));
 
 	switch (prop) {
 	case ZFS_PROP_QUOTA:
@@ -2655,20 +2663,29 @@ retry:
 			err = zfs_check_settable(dsname, pair, CRED());
 
 		if (err == 0) {
+			nvlist_t *tnvl = NULL;
 			err = zfs_prop_set_special(dsname, source, pair);
 			if (err == -1) {
 				/*
 				 * For better performance we build up a list of
 				 * properties to set in a single transaction.
 				 */
-				err = nvlist_add_nvpair(genericnvl, pair);
+				tnvl = genericnvl;
 			} else if (err != 0 && nvl != retrynvl) {
 				/*
 				 * This may be a spurious error caused by
 				 * receiving quota and reservation out of order.
 				 * Try again in a second pass.
 				 */
-				err = nvlist_add_nvpair(retrynvl, pair);
+				tnvl = retrynvl;
+			}
+			if (tnvl) {
+				if (nvpair_type(propval) == DATA_TYPE_STRING &&
+				    zfs_prop_get_type(prop) == PROP_TYPE_INDEX)
+					err = nvlist_add_uint64(tnvl, propname,
+					    intval);
+				else
+					err = nvlist_add_nvpair(tnvl, pair);
 			}
 		}
 
