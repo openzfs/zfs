@@ -2612,8 +2612,19 @@ retry:
 			}
 		} else if (err == 0) {
 			if (nvpair_type(propval) == DATA_TYPE_STRING) {
-				if (zfs_prop_get_type(prop) != PROP_TYPE_STRING)
+				switch (zfs_prop_get_type(prop)) {
+				case PROP_TYPE_INDEX:
+					strval = fnvpair_value_string(propval);
+					if (zfs_prop_string_to_index(prop,
+					    strval, &intval) != 0)
+						err = SET_ERROR(EINVAL);
+					break;
+				case PROP_TYPE_STRING:
+					break;
+				default:
 					err = SET_ERROR(EINVAL);
+					break;
+				}
 			} else if (nvpair_type(propval) == DATA_TYPE_UINT64) {
 				const char *unused;
 
