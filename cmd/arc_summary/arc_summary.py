@@ -1355,7 +1355,6 @@ def _spl_summary(Kstat):
     sys.stdout.write("\tSPL Slab Used:\t\t\t\t%s\n" % fBytes(spl_alloc))
     sys.stdout.write("\tSPL Slab Allocated:\t\t\t%s\n" % fBytes(spl_size))
 
-
 unSub = [
     #_system_memory,
     _arc_summary,
@@ -1377,7 +1376,10 @@ def _call_all(Kstat):
         page += 1
 
 def _call_one(Kstat, function):
-    function(Kstat)
+    try: 
+        function(Kstat)
+    except KeyError, ke:
+        sys.stderr.write("[%s] missing, aborting current output page.\n" % ke)
 
 def zfs_header():
     daydate = time.strftime("%a %b %d %H:%M:%S %Y")
