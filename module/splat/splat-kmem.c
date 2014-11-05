@@ -313,7 +313,7 @@ splat_kmem_cache_test_kct_alloc(kmem_cache_priv_t *kcp, int id)
 {
 	kmem_cache_thread_t *kct;
 
-	ASSERTF(id < SPLAT_KMEM_THREADS, "id=%d\n", id);
+	ASSERT3S(id, <, SPLAT_KMEM_THREADS);
 	ASSERT(kcp->kcp_kct[id] == NULL);
 
 	kct = kmem_zalloc(sizeof(kmem_cache_thread_t), KM_SLEEP);

@@ -55,13 +55,6 @@
 
 #include <sys/kmem.h>
 #include <sys/zmod.h>
-#include <spl-debug.h>
-
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
-#endif
-
-#define DEBUG_SUBSYSTEM SS_ZLIB
 
 static spl_kmem_cache_t *zlib_workspace_cache;
 
@@ -200,7 +193,6 @@ int
 spl_zlib_init(void)
 {
 	int size;
-        SENTRY;
 
 	size = MAX(spl_zlib_deflate_workspacesize(MAX_WBITS, MAX_MEM_LEVEL),
 	    zlib_inflate_workspacesize());
@@ -210,16 +202,14 @@ spl_zlib_init(void)
 	    size, 0, NULL, NULL, NULL, NULL, NULL,
 	    KMC_VMEM | KMC_NOEMERGENCY);
         if (!zlib_workspace_cache)
-		SRETURN(1);
+		return (1);
 
-        SRETURN(0);
+        return (0);
 }
 
 void
 spl_zlib_fini(void)
 {
-        SENTRY;
 	kmem_cache_destroy(zlib_workspace_cache);
         zlib_workspace_cache = NULL;
-        SEXIT;
 }

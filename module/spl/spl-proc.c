@@ -30,13 +30,6 @@
 #include <linux/seq_file.h>
 #include <linux/proc_compat.h>
 #include <linux/version.h>
-#include <spl-debug.h>
-
-#ifdef SS_DEBUG_SUBSYS
-#undef SS_DEBUG_SUBSYS
-#endif
-
-#define SS_DEBUG_SUBSYS SS_PROC
 
 #if defined(CONSTIFY_PLUGIN) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0)
 typedef struct ctl_table __no_const spl_ctl_table;
@@ -110,209 +103,6 @@ proc_copyout_string(char *ubuffer, int ubuffer_size,
         return size;
 }
 
-#ifdef DEBUG_LOG
-static int
-proc_dobitmasks(struct ctl_table *table, int write,
-    void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-        unsigned long *mask = table->data;
-        int is_subsys = (mask == &spl_debug_subsys) ? 1 : 0;
-        int is_printk = (mask == &spl_debug_printk) ? 1 : 0;
-        int size = 512, rc;
-        char *str;
-        SENTRY;
-
-        str = kmem_alloc(size, KM_SLEEP);
-        if (str == NULL)
-                SRETURN(-ENOMEM);
-
-        if (write) {
-                rc = proc_copyin_string(str, size, buffer, *lenp);
-                if (rc < 0)
-                        SRETURN(rc);
-
-                rc = spl_debug_str2mask(mask, str, is_subsys);
-                /* Always print BUG/ASSERT to console, so keep this mask */
-                if (is_printk)
-                        *mask |= SD_EMERG;
-
-                *ppos += *lenp;
-        } else {
-                rc = spl_debug_mask2str(str, size, *mask, is_subsys);
-                if (*ppos >= rc)
-                        rc = 0;
-                else
-                        rc = proc_copyout_string(buffer, *lenp,
-                                                 str + *ppos, "\n");
-                if (rc >= 0) {
-                        *lenp = rc;
-                        *ppos += rc;
-                }
-        }
-
-        kmem_free(str, size);
-        SRETURN(rc);
-}
-
-static int
-proc_debug_mb(struct ctl_table *table, int write,
-    void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-        char str[32];
-        int rc, len;
-        SENTRY;
-
-        if (write) {
-                rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
-                if (rc < 0)
-                        SRETURN(rc);
-
-                rc = spl_debug_set_mb(simple_strtoul(str, NULL, 0));
-                *ppos += *lenp;
-        } else {
-                len = snprintf(str, sizeof(str), "%d", spl_debug_get_mb());
-                if (*ppos >= len)
-                        rc = 0;
-                else
-                        rc = proc_copyout_string(buffer,*lenp,str+*ppos,"\n");
-
-                if (rc >= 0) {
-                        *lenp = rc;
-                        *ppos += rc;
-                }
-        }
-
-        SRETURN(rc);
-}
-
-static int
-proc_dump_kernel(struct ctl_table *table, int write,
-    void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-	SENTRY;
-
-        if (write) {
-               spl_debug_dumplog(0);
-                *ppos += *lenp;
-        } else {
-                *lenp = 0;
-        }
-
-        SRETURN(0);
-}
-
-static int
-proc_force_bug(struct ctl_table *table, int write,
-    void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-	SENTRY;
-
-        if (write)
-		PANIC("Crashing due to forced panic\n");
-        else
-                *lenp = 0;
-
-	SRETURN(0);
-}
-
-static int
-proc_console_max_delay_cs(struct ctl_table *table, int write,
-    void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-        int rc, max_delay_cs;
-        spl_ctl_table dummy = *table;
-        long d;
-	SENTRY;
-
-        dummy.data = &max_delay_cs;
-        dummy.proc_handler = &proc_dointvec;
-
-        if (write) {
-                max_delay_cs = 0;
-                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
-                if (rc < 0)
-                        SRETURN(rc);
-
-                if (max_delay_cs <= 0)
-                        SRETURN(-EINVAL);
-
-                d = (max_delay_cs * HZ) / 100;
-                if (d == 0 || d < spl_console_min_delay)
-                        SRETURN(-EINVAL);
-
-                spl_console_max_delay = d;
-        } else {
-                max_delay_cs = (spl_console_max_delay * 100) / HZ;
-                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
-        }
-
-        SRETURN(rc);
-}
-
-static int
-proc_console_min_delay_cs(struct ctl_table *table, int write,
-    void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-        int rc, min_delay_cs;
-        spl_ctl_table dummy = *table;
-        long d;
-	SENTRY;
-
-        dummy.data = &min_delay_cs;
-        dummy.proc_handler = &proc_dointvec;
-
-        if (write) {
-                min_delay_cs = 0;
-                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
-                if (rc < 0)
-                        SRETURN(rc);
-
-                if (min_delay_cs <= 0)
-                        SRETURN(-EINVAL);
-
-                d = (min_delay_cs * HZ) / 100;
-                if (d == 0 || d > spl_console_max_delay)
-                        SRETURN(-EINVAL);
-
-                spl_console_min_delay = d;
-        } else {
-                min_delay_cs = (spl_console_min_delay * 100) / HZ;
-                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
-        }
-
-        SRETURN(rc);
-}
-
-static int
-proc_console_backoff(struct ctl_table *table, int write,
-    void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-        int rc, backoff;
-        spl_ctl_table dummy = *table;
-	SENTRY;
-
-        dummy.data = &backoff;
-        dummy.proc_handler = &proc_dointvec;
-
-        if (write) {
-                backoff = 0;
-                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
-                if (rc < 0)
-                        SRETURN(rc);
-
-                if (backoff <= 0)
-                        SRETURN(-EINVAL);
-
-                spl_console_backoff = backoff;
-        } else {
-                backoff = spl_console_backoff;
-                rc = proc_dointvec(&dummy, write, buffer, lenp, ppos);
-        }
-
-        SRETURN(rc);
-}
-#endif /* DEBUG_LOG */
-
 #ifdef DEBUG_KMEM
 static int
 proc_domemused(struct ctl_table *table, int write,
@@ -321,7 +111,6 @@ proc_domemused(struct ctl_table *table, int write,
         int rc = 0;
         unsigned long min = 0, max = ~0, val;
         spl_ctl_table dummy = *table;
-	SENTRY;
 
         dummy.data = &val;
         dummy.proc_handler = &proc_dointvec;
@@ -339,7 +128,7 @@ proc_domemused(struct ctl_table *table, int write,
                 rc = proc_doulongvec_minmax(&dummy, write, buffer, lenp, ppos);
         }
 
-        SRETURN(rc);
+        return (rc);
 }
 
 static int
@@ -350,7 +139,6 @@ proc_doslab(struct ctl_table *table, int write,
         unsigned long min = 0, max = ~0, val = 0, mask;
         spl_ctl_table dummy = *table;
         spl_kmem_cache_t *skc;
-        SENTRY;
 
         dummy.data = &val;
         dummy.proc_handler = &proc_dointvec;
@@ -387,7 +175,7 @@ proc_doslab(struct ctl_table *table, int write,
                 rc = proc_doulongvec_minmax(&dummy, write, buffer, lenp, ppos);
         }
 
-        SRETURN(rc);
+        return (rc);
 }
 #endif /* DEBUG_KMEM */
 
@@ -397,7 +185,6 @@ proc_dohostid(struct ctl_table *table, int write,
 {
         int len, rc = 0;
         char *end, str[32];
-        SENTRY;
 
         if (write) {
                 /* We can't use proc_doulongvec_minmax() in the write
@@ -405,11 +192,11 @@ proc_dohostid(struct ctl_table *table, int write,
                  * leading 0x which confuses the helper function. */
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
                 if (rc < 0)
-                        SRETURN(rc);
+                        return (rc);
 
                 spl_hostid = simple_strtoul(str, &end, 16);
                 if (str == end)
-                        SRETURN(-EINVAL);
+                        return (-EINVAL);
 
         } else {
                 len = snprintf(str, sizeof(str), "%lx", spl_hostid);
@@ -424,7 +211,7 @@ proc_dohostid(struct ctl_table *table, int write,
                 }
         }
 
-        SRETURN(rc);
+        return (rc);
 }
 
 #ifdef DEBUG_KMEM
@@ -487,7 +274,6 @@ slab_seq_start(struct seq_file *f, loff_t *pos)
 {
         struct list_head *p;
         loff_t n = *pos;
-        SENTRY;
 
 	down_read(&spl_kmem_cache_sem);
         if (!n)
@@ -497,20 +283,19 @@ slab_seq_start(struct seq_file *f, loff_t *pos)
         while (n--) {
                 p = p->next;
                 if (p == &spl_kmem_cache_list)
-                        SRETURN(NULL);
+                        return (NULL);
         }
 
-        SRETURN(list_entry(p, spl_kmem_cache_t, skc_list));
+        return (list_entry(p, spl_kmem_cache_t, skc_list));
 }
 
 static void *
 slab_seq_next(struct seq_file *f, void *p, loff_t *pos)
 {
 	spl_kmem_cache_t *skc = p;
-        SENTRY;
 
         ++*pos;
-        SRETURN((skc->skc_list.next == &spl_kmem_cache_list) ?
+        return ((skc->skc_list.next == &spl_kmem_cache_list) ?
 	       NULL : list_entry(skc->skc_list.next,spl_kmem_cache_t,skc_list));
 }
 
@@ -540,108 +325,6 @@ static struct file_operations proc_slab_operations = {
         .release        = seq_release,
 };
 #endif /* DEBUG_KMEM */
-
-#ifdef DEBUG_LOG
-static struct ctl_table spl_debug_table[] = {
-        {
-                .procname = "subsystem",
-                .data     = &spl_debug_subsys,
-                .maxlen   = sizeof(unsigned long),
-                .mode     = 0644,
-                .proc_handler = &proc_dobitmasks
-        },
-        {
-                .procname = "mask",
-                .data     = &spl_debug_mask,
-                .maxlen   = sizeof(unsigned long),
-                .mode     = 0644,
-                .proc_handler = &proc_dobitmasks
-        },
-        {
-                .procname = "printk",
-                .data     = &spl_debug_printk,
-                .maxlen   = sizeof(unsigned long),
-                .mode     = 0644,
-                .proc_handler = &proc_dobitmasks
-        },
-        {
-                .procname = "mb",
-                .mode     = 0644,
-                .proc_handler = &proc_debug_mb,
-        },
-        {
-                .procname = "binary",
-                .data     = &spl_debug_binary,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "catastrophe",
-                .data     = &spl_debug_catastrophe,
-                .maxlen   = sizeof(int),
-                .mode     = 0444,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "panic_on_bug",
-                .data     = &spl_debug_panic_on_bug,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec
-        },
-        {
-                .procname = "path",
-                .data     = spl_debug_file_path,
-                .maxlen   = sizeof(spl_debug_file_path),
-                .mode     = 0644,
-                .proc_handler = &proc_dostring,
-        },
-        {
-                .procname = "dump",
-                .mode     = 0200,
-                .proc_handler = &proc_dump_kernel,
-        },
-        {
-                .procname = "force_bug",
-                .mode     = 0200,
-                .proc_handler = &proc_force_bug,
-        },
-        {
-                .procname = "console_ratelimit",
-                .data     = &spl_console_ratelimit,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .procname = "console_max_delay_centisecs",
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_console_max_delay_cs,
-        },
-        {
-                .procname = "console_min_delay_centisecs",
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_console_min_delay_cs,
-        },
-        {
-                .procname = "console_backoff",
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_console_backoff,
-        },
-        {
-                .procname = "stack_max",
-                .data     = &spl_debug_stack,
-                .maxlen   = sizeof(int),
-                .mode     = 0444,
-                .proc_handler = &proc_dointvec,
-        },
-	{0},
-};
-#endif /* DEBUG_LOG */
 
 #ifdef DEBUG_KMEM
 static struct ctl_table spl_kmem_table[] = {
@@ -765,13 +448,6 @@ static struct ctl_table spl_table[] = {
                 .mode     = 0644,
                 .proc_handler = &proc_dohostid,
         },
-#ifdef DEBUG_LOG
-	{
-		.procname = "debug",
-		.mode     = 0555,
-		.child    = spl_debug_table,
-	},
-#endif
 #ifdef DEBUG_KMEM
 	{
 		.procname = "kmem",
@@ -812,31 +488,38 @@ int
 spl_proc_init(void)
 {
 	int rc = 0;
-        SENTRY;
 
         spl_header = register_sysctl_table(spl_root);
 	if (spl_header == NULL)
-		SRETURN(-EUNATCH);
+		return (-EUNATCH);
 
 	proc_spl = proc_mkdir("spl", NULL);
-	if (proc_spl == NULL)
-		SGOTO(out, rc = -EUNATCH);
+	if (proc_spl == NULL) {
+		rc = -EUNATCH;
+		goto out;
+	}
 
 #ifdef DEBUG_KMEM
         proc_spl_kmem = proc_mkdir("kmem", proc_spl);
-        if (proc_spl_kmem == NULL)
-                SGOTO(out, rc = -EUNATCH);
+        if (proc_spl_kmem == NULL) {
+                rc = -EUNATCH;
+		goto out;
+	}
 
 	proc_spl_kmem_slab = proc_create_data("slab", 0444,
 		proc_spl_kmem, &proc_slab_operations, NULL);
-        if (proc_spl_kmem_slab == NULL)
-		SGOTO(out, rc = -EUNATCH);
+        if (proc_spl_kmem_slab == NULL) {
+		rc = -EUNATCH;
+		goto out;
+	}
 
 #endif /* DEBUG_KMEM */
 
         proc_spl_kstat = proc_mkdir("kstat", proc_spl);
-        if (proc_spl_kstat == NULL)
-                SGOTO(out, rc = -EUNATCH);
+        if (proc_spl_kstat == NULL) {
+                rc = -EUNATCH;
+		goto out;
+	}
 out:
 	if (rc) {
 		remove_proc_entry("kstat", proc_spl);
@@ -848,14 +531,12 @@ out:
 	        unregister_sysctl_table(spl_header);
 	}
 
-        SRETURN(rc);
+        return (rc);
 }
 
 void
 spl_proc_fini(void)
 {
-        SENTRY;
-
 	remove_proc_entry("kstat", proc_spl);
 #ifdef DEBUG_KMEM
         remove_proc_entry("slab", proc_spl_kmem);
@@ -865,6 +546,4 @@ spl_proc_fini(void)
 
         ASSERT(spl_header != NULL);
         unregister_sysctl_table(spl_header);
-
-        SEXIT;
 }

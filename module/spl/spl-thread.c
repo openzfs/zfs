@@ -27,13 +27,6 @@
 #include <sys/thread.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
-#include <spl-debug.h>
-
-#ifdef SS_DEBUG_SUBSYS
-#undef SS_DEBUG_SUBSYS
-#endif
-
-#define SS_DEBUG_SUBSYS SS_THREAD
 
 /*
  * Thread interfaces
@@ -73,8 +66,6 @@ thread_generic_wrapper(void *arg)
 void
 __thread_exit(void)
 {
-	SENTRY;
-	SEXIT;
 	tsd_exit();
 	complete_and_exit(NULL, 0);
 	/* Unreachable */
@@ -92,7 +83,6 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	thread_priv_t *tp;
 	struct task_struct *tsk;
 	char *p;
-	SENTRY;
 
 	/* Option pp is simply ignored */
 	/* Variable stack size unsupported */
@@ -100,7 +90,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	tp = kmem_alloc(sizeof(thread_priv_t), KM_PUSHPAGE);
 	if (tp == NULL)
-		SRETURN(NULL);
+		return (NULL);
 
 	tp->tp_magic = TP_MAGIC;
 	tp->tp_name_size = strlen(name) + 1;
@@ -108,7 +98,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	tp->tp_name = kmem_alloc(tp->tp_name_size, KM_PUSHPAGE);
         if (tp->tp_name == NULL) {
 		kmem_free(tp, sizeof(thread_priv_t));
-		SRETURN(NULL);
+		return (NULL);
 	}
 
 	strncpy(tp->tp_name, name, tp->tp_name_size);
@@ -128,13 +118,11 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	tsk = spl_kthread_create(thread_generic_wrapper, (void *)tp,
 			     "%s", tp->tp_name);
-	if (IS_ERR(tsk)) {
-		SERROR("Failed to create thread: %ld\n", PTR_ERR(tsk));
-		SRETURN(NULL);
-	}
+	if (IS_ERR(tsk))
+		return (NULL);
 
 	wake_up_process(tsk);
-	SRETURN((kthread_t *)tsk);
+	return ((kthread_t *)tsk);
 }
 EXPORT_SYMBOL(__thread_create);
 

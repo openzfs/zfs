@@ -27,13 +27,6 @@
 #include <sys/types.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
-#include <spl-debug.h>
-
-#ifdef SS_DEBUG_SUBSYS
-#undef SS_DEBUG_SUBSYS
-#endif
-
-#define SS_DEBUG_SUBSYS SS_XDR
 
 /*
  * SPL's XDR mem implementation.
@@ -150,7 +143,6 @@ xdrmem_create(XDR *xdrs, const caddr_t addr, const uint_t size,
 			xdrs->x_ops = &xdrmem_decode_ops;
 			break;
 		default:
-			SWARN("Invalid op value: %d\n", op);
 			xdrs->x_ops = NULL; /* Let the caller know we failed */
 			return;
 	}
@@ -160,7 +152,6 @@ xdrmem_create(XDR *xdrs, const caddr_t addr, const uint_t size,
 	xdrs->x_addr_end = addr + size;
 
 	if (xdrs->x_addr_end < xdrs->x_addr) {
-		SWARN("Overflow while creating xdrmem: %p, %u\n", addr, size);
 		xdrs->x_ops = NULL;
 	}
 }
@@ -171,10 +162,8 @@ xdrmem_control(XDR *xdrs, int req, void *info)
 {
 	struct xdr_bytesrec *rec = (struct xdr_bytesrec *) info;
 
-	if (req != XDR_GET_BYTES_AVAIL) {
-		SWARN("Called with unknown request: %d\n", req);
+	if (req != XDR_GET_BYTES_AVAIL)
 		return FALSE;
-	}
 
 	rec->xc_is_last_record = TRUE; /* always TRUE in xdrmem streams */
 	rec->xc_num_avail = xdrs->x_addr_end - xdrs->x_addr;

@@ -25,7 +25,6 @@
 #ifndef _SPLAT_INTERNAL_H
 #define _SPLAT_INTERNAL_H
 
-#include "spl-debug.h"
 #include "splat-ctl.h"
 #include <sys/mutex.h>
 

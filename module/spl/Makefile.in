@@ -6,7 +6,6 @@ EXTRA_CFLAGS = $(SPL_MODULE_CFLAGS) @KERNELCPPFLAGS@
 # Solaris porting layer module
 obj-$(CONFIG_SPL) := $(MODULE).o
 
-$(MODULE)-objs += @top_srcdir@/module/spl/spl-debug.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-proc.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-kmem.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-thread.o

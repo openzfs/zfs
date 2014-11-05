@@ -74,27 +74,27 @@
  * ship a kernel with CONFIG_RT_MUTEX_TESTER disabled.
  */
 #if !defined(CONFIG_RT_MUTEX_TESTER) && defined(PF_MUTEX_TESTER)
-# define PF_NOFS			PF_MUTEX_TESTER
+#define	PF_NOFS	PF_MUTEX_TESTER
 
 static inline void
 sanitize_flags(struct task_struct *p, gfp_t *flags)
 {
 	if (unlikely((p->flags & PF_NOFS) && (*flags & (__GFP_IO|__GFP_FS)))) {
-# ifdef NDEBUG
-		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "Fixing allocation for "
-		   "task %s (%d) which used GFP flags 0x%x with PF_NOFS set\n",
-		    p->comm, p->pid, flags);
-		spl_debug_dumpstack(p);
+#ifdef NDEBUG
+		printk(KERN_WARNING "Fixing allocation for task %s (%d) "
+		    "which used GFP flags 0x%x with PF_NOFS set\n",
+		    p->comm, p->pid, *flags);
+		spl_dumpstack();
 		*flags &= ~(__GFP_IO|__GFP_FS);
-# else
+#else
 		PANIC("FATAL allocation for task %s (%d) which used GFP "
-		    "flags 0x%x with PF_NOFS set\n", p->comm, p->pid, flags);
-# endif /* NDEBUG */
+		    "flags 0x%x with PF_NOFS set\n", p->comm, p->pid, *flags);
+#endif /* NDEBUG */
 	}
 }
 #else
-# define PF_NOFS			0x00000000
-# define sanitize_flags(p, fl)		((void)0)
+#define PF_NOFS			0x00000000
+#define sanitize_flags(p, fl)	((void)0)
 #endif /* !defined(CONFIG_RT_MUTEX_TESTER) && defined(PF_MUTEX_TESTER) */
 
 /*

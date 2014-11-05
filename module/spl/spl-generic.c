@@ -40,13 +40,6 @@
 #include <sys/file.h>
 #include <linux/kmod.h>
 #include <linux/proc_compat.h>
-#include <spl-debug.h>
-
-#ifdef SS_DEBUG_SUBSYS
-#undef SS_DEBUG_SUBSYS
-#endif
-
-#define SS_DEBUG_SUBSYS SS_GENERIC
 
 char spl_version[32] = "SPL v" SPL_META_VERSION "-" SPL_META_RELEASE;
 EXPORT_SYMBOL(spl_version);
@@ -490,39 +483,36 @@ __init spl_init(void)
 {
 	int rc = 0;
 
-	if ((rc = spl_debug_init()))
-		return rc;
-
 	if ((rc = spl_kmem_init()))
-		SGOTO(out1, rc);
+		goto out1;
 
 	if ((rc = spl_mutex_init()))
-		SGOTO(out2, rc);
+		goto out2;
 
 	if ((rc = spl_rw_init()))
-		SGOTO(out3, rc);
+		goto out3;
 
 	if ((rc = spl_taskq_init()))
-		SGOTO(out4, rc);
+		goto out4;
 
 	if ((rc = spl_vn_init()))
-		SGOTO(out5, rc);
+		goto out5;
 
 	if ((rc = spl_proc_init()))
-		SGOTO(out6, rc);
+		goto out6;
 
 	if ((rc = spl_kstat_init()))
-		SGOTO(out7, rc);
+		goto out7;
 
 	if ((rc = spl_tsd_init()))
-		SGOTO(out8, rc);
+		goto out8;
 
 	if ((rc = spl_zlib_init()))
-		SGOTO(out9, rc);
+		goto out9;
 
 	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
 	       SPL_META_RELEASE, SPL_DEBUG_STR);
-	SRETURN(rc);
+	return (rc);
 
 out9:
 	spl_tsd_fini();
@@ -541,19 +531,16 @@ out3:
 out2:
 	spl_kmem_fini();
 out1:
-	spl_debug_fini();
-
 	printk(KERN_NOTICE "SPL: Failed to Load Solaris Porting Layer "
 	       "v%s-%s%s, rc = %d\n", SPL_META_VERSION, SPL_META_RELEASE,
 	       SPL_DEBUG_STR, rc);
+
 	return rc;
 }
 
 static void
 spl_fini(void)
 {
-	SENTRY;
-
 	printk(KERN_NOTICE "SPL: Unloaded module v%s-%s%s\n",
 	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
 	spl_zlib_fini();
@@ -565,7 +552,6 @@ spl_fini(void)
 	spl_rw_fini();
 	spl_mutex_fini();
 	spl_kmem_fini();
-	spl_debug_fini();
 }
 
 /* Called when a dependent module is loaded */

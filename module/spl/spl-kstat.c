@@ -26,13 +26,7 @@
 
 #include <linux/seq_file.h>
 #include <sys/kstat.h>
-#include <spl-debug.h>
 
-#ifdef SS_DEBUG_SUBSYS
-#undef SS_DEBUG_SUBSYS
-#endif
-
-#define SS_DEBUG_SUBSYS SS_KSTAT
 #ifndef HAVE_PDE_DATA
 #define PDE_DATA(x) (PDE(x)->data)
 #endif
@@ -344,7 +338,6 @@ static void *
 kstat_seq_data_addr(kstat_t *ksp, loff_t n)
 {
         void *rc = NULL;
-        SENTRY;
 
 	switch (ksp->ks_type) {
                 case KSTAT_TYPE_RAW:
@@ -369,7 +362,7 @@ kstat_seq_data_addr(kstat_t *ksp, loff_t n)
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
 
-        SRETURN(rc);
+        return (rc);
 }
 
 static void *
@@ -378,7 +371,6 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
         loff_t n = *pos;
         kstat_t *ksp = (kstat_t *)f->private;
         ASSERT(ksp->ks_magic == KS_MAGIC);
-        SENTRY;
 
 	mutex_enter(ksp->ks_lock);
 
@@ -393,12 +385,12 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
 	ksp->ks_snaptime = gethrtime();
 
         if (!n && kstat_seq_show_headers(f))
-		SRETURN(NULL);
+		return (NULL);
 
         if (n >= ksp->ks_ndata)
-                SRETURN(NULL);
+                return (NULL);
 
-        SRETURN(kstat_seq_data_addr(ksp, n));
+        return (kstat_seq_data_addr(ksp, n));
 }
 
 static void *
@@ -406,13 +398,12 @@ kstat_seq_next(struct seq_file *f, void *p, loff_t *pos)
 {
         kstat_t *ksp = (kstat_t *)f->private;
         ASSERT(ksp->ks_magic == KS_MAGIC);
-        SENTRY;
 
         ++*pos;
         if (*pos >= ksp->ks_ndata)
-                SRETURN(NULL);
+                return (NULL);
 
-        SRETURN(kstat_seq_data_addr(ksp, *pos));
+        return (kstat_seq_data_addr(ksp, *pos));
 }
 
 static void
@@ -689,19 +680,16 @@ EXPORT_SYMBOL(__kstat_delete);
 int
 spl_kstat_init(void)
 {
-	SENTRY;
 	mutex_init(&kstat_module_lock, NULL, MUTEX_DEFAULT, NULL);
 	INIT_LIST_HEAD(&kstat_module_list);
         kstat_id = 0;
-	SRETURN(0);
+	return (0);
 }
 
 void
 spl_kstat_fini(void)
 {
-	SENTRY;
 	ASSERT(list_empty(&kstat_module_list));
 	mutex_destroy(&kstat_module_lock);
-	SEXIT;
 }
 

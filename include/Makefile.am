@@ -5,8 +5,6 @@ COMMON_H =
 KERNEL_H = \
 	$(top_srcdir)/include/splat-ctl.h \
 	$(top_srcdir)/include/spl-ctl.h \
-	$(top_srcdir)/include/spl-debug.h \
-	$(top_srcdir)/include/spl-trace.h \
 	$(top_srcdir)/include/strings.h \
 	$(top_srcdir)/include/unistd.h
 

@@ -25,18 +25,10 @@
 \*****************************************************************************/
 
 #include <sys/condvar.h>
-#include <spl-debug.h>
-
-#ifdef SS_DEBUG_SUBSYS
-#undef SS_DEBUG_SUBSYS
-#endif
-
-#define SS_DEBUG_SUBSYS SS_CONDVAR
 
 void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 {
-	SENTRY;
 	ASSERT(cvp);
 	ASSERT(name == NULL);
 	ASSERT(type == CV_DEFAULT);
@@ -48,8 +40,6 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 	atomic_set(&cvp->cv_waiters, 0);
 	atomic_set(&cvp->cv_refs, 1);
 	cvp->cv_mutex = NULL;
-
-	SEXIT;
 }
 EXPORT_SYMBOL(__cv_init);
 
@@ -68,7 +58,6 @@ cv_destroy_wakeup(kcondvar_t *cvp)
 void
 __cv_destroy(kcondvar_t *cvp)
 {
-	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 
@@ -83,8 +72,6 @@ __cv_destroy(kcondvar_t *cvp)
 	ASSERT3S(atomic_read(&cvp->cv_refs), ==, 0);
 	ASSERT3S(atomic_read(&cvp->cv_waiters), ==, 0);
 	ASSERT3S(waitqueue_active(&cvp->cv_event), ==, 0);
-
-	SEXIT;
 }
 EXPORT_SYMBOL(__cv_destroy);
 
@@ -92,7 +79,6 @@ static void
 cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 {
 	DEFINE_WAIT(wait);
-	SENTRY;
 
 	ASSERT(cvp);
         ASSERT(mp);
@@ -127,8 +113,6 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 
 	finish_wait(&cvp->cv_event, &wait);
 	atomic_dec(&cvp->cv_refs);
-
-	SEXIT;
 }
 
 void
@@ -161,7 +145,6 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp,
 {
 	DEFINE_WAIT(wait);
 	clock_t time_left;
-	SENTRY;
 
 	ASSERT(cvp);
         ASSERT(mp);
@@ -179,7 +162,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp,
 	time_left = expire_time - jiffies;
 	if (time_left <= 0) {
 		atomic_dec(&cvp->cv_refs);
-		SRETURN(-1);
+		return (-1);
 	}
 
 	prepare_to_wait_exclusive(&cvp->cv_event, &wait, state);
@@ -201,7 +184,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp,
 	finish_wait(&cvp->cv_event, &wait);
 	atomic_dec(&cvp->cv_refs);
 
-	SRETURN(time_left > 0 ? time_left : -1);
+	return (time_left > 0 ? time_left : -1);
 }
 
 clock_t
@@ -229,7 +212,6 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp,
 	DEFINE_WAIT(wait);
 	hrtime_t time_left, now;
 	unsigned long time_left_us;
-	SENTRY;
 
 	ASSERT(cvp);
 	ASSERT(mp);
@@ -247,7 +229,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp,
 	time_left = expire_time - now;
 	if (time_left <= 0) {
 		atomic_dec(&cvp->cv_refs);
-		SRETURN(-1);
+		return (-1);
 	}
 	time_left_us = time_left / NSEC_PER_USEC;
 
@@ -273,7 +255,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp,
 	atomic_dec(&cvp->cv_refs);
 
 	time_left = expire_time - gethrtime();
-	SRETURN(time_left > 0 ? time_left : -1);
+	return (time_left > 0 ? time_left : -1);
 }
 
 /*
@@ -302,7 +284,6 @@ EXPORT_SYMBOL(cv_timedwait_hires);
 void
 __cv_signal(kcondvar_t *cvp)
 {
-	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 	atomic_inc(&cvp->cv_refs);
@@ -315,14 +296,12 @@ __cv_signal(kcondvar_t *cvp)
 		wake_up(&cvp->cv_event);
 
 	atomic_dec(&cvp->cv_refs);
-	SEXIT;
 }
 EXPORT_SYMBOL(__cv_signal);
 
 void
 __cv_broadcast(kcondvar_t *cvp)
 {
-	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 	atomic_inc(&cvp->cv_refs);
@@ -333,6 +312,5 @@ __cv_broadcast(kcondvar_t *cvp)
 		wake_up_all(&cvp->cv_event);
 
 	atomic_dec(&cvp->cv_refs);
-	SEXIT;
 }
 EXPORT_SYMBOL(__cv_broadcast);

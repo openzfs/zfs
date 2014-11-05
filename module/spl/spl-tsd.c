@@ -61,14 +61,6 @@
 #include <sys/kmem.h>
 #include <sys/thread.h>
 #include <sys/tsd.h>
-#include <spl-debug.h>
-
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
-#endif
-
-#define DEBUG_SUBSYSTEM SS_TSD
-#define DEBUG_SUBSYSTEM SS_TSD
 
 typedef struct tsd_hash_bin {
 	spinlock_t		hb_lock;
@@ -108,7 +100,6 @@ tsd_hash_search(tsd_hash_table_t *table, uint_t key, pid_t pid)
 	tsd_hash_entry_t *entry;
 	tsd_hash_bin_t *bin;
 	ulong_t hash;
-	SENTRY;
 
 	hash = hash_long((ulong_t)key * (ulong_t)pid, table->ht_bits);
 	bin = &table->ht_bins[hash];
@@ -117,12 +108,12 @@ tsd_hash_search(tsd_hash_table_t *table, uint_t key, pid_t pid)
 		entry = list_entry(node, tsd_hash_entry_t, he_list);
 		if ((entry->he_key == key) && (entry->he_pid == pid)) {
 			spin_unlock(&bin->hb_lock);
-			SRETURN(entry);
+			return (entry);
 		}
 	}
 
 	spin_unlock(&bin->hb_lock);
-	SRETURN(NULL);
+	return (NULL);
 }
 
 /*
@@ -136,7 +127,6 @@ static void
 tsd_hash_dtor(struct hlist_head *work)
 {
 	tsd_hash_entry_t *entry;
-	SENTRY;
 
 	while (!hlist_empty(work)) {
 		entry = hlist_entry(work->first, tsd_hash_entry_t, he_list);
@@ -147,8 +137,6 @@ tsd_hash_dtor(struct hlist_head *work)
 
 		kmem_free(entry, sizeof(tsd_hash_entry_t));
 	}
-
-	SEXIT;
 }
 
 /*
@@ -170,14 +158,13 @@ tsd_hash_add(tsd_hash_table_t *table, uint_t key, pid_t pid, void *value)
 	tsd_hash_bin_t *bin;
 	ulong_t hash;
 	int rc = 0;
-	SENTRY;
 
 	ASSERT3P(tsd_hash_search(table, key, pid), ==, NULL);
 
 	/* New entry allocate structure, set value, and add to hash */
 	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
-		SRETURN(ENOMEM);
+		return (ENOMEM);
 
 	entry->he_key = key;
 	entry->he_pid = pid;
@@ -209,7 +196,7 @@ tsd_hash_add(tsd_hash_table_t *table, uint_t key, pid_t pid, void *value)
 	spin_unlock(&bin->hb_lock);
 	spin_unlock(&table->ht_lock);
 
-	SRETURN(rc);
+	return (rc);
 }
 
 /*
@@ -230,14 +217,13 @@ tsd_hash_add_key(tsd_hash_table_t *table, uint_t *keyp, dtor_func_t dtor)
 	tsd_hash_bin_t *bin;
 	ulong_t hash;
 	int keys_checked = 0;
-	SENTRY;
 
 	ASSERT3P(table, !=, NULL);
 
 	/* Allocate entry to be used as a destructor for this key */
 	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
-		SRETURN(ENOMEM);
+		return (ENOMEM);
 
 	/* Determine next available key value */
 	spin_lock(&table->ht_lock);
@@ -249,7 +235,7 @@ tsd_hash_add_key(tsd_hash_table_t *table, uint_t *keyp, dtor_func_t dtor)
 		/* Ensure failure when all TSD_KEYS_MAX keys are in use */
 		if (keys_checked++ >= TSD_KEYS_MAX) {
 			spin_unlock(&table->ht_lock);
-			SRETURN(ENOENT);
+			return (ENOENT);
 		}
 
 		tmp_entry = tsd_hash_search(table, table->ht_key, DTOR_PID);
@@ -273,7 +259,7 @@ tsd_hash_add_key(tsd_hash_table_t *table, uint_t *keyp, dtor_func_t dtor)
 	spin_unlock(&bin->hb_lock);
 	spin_unlock(&table->ht_lock);
 
-	SRETURN(0);
+	return (0);
 }
 
 /*
@@ -291,12 +277,11 @@ tsd_hash_add_pid(tsd_hash_table_t *table, pid_t pid)
 	tsd_hash_entry_t *entry;
 	tsd_hash_bin_t *bin;
 	ulong_t hash;
-	SENTRY;
 
 	/* Allocate entry to be used as the process reference */
 	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
-		SRETURN(ENOMEM);
+		return (ENOMEM);
 
 	spin_lock(&table->ht_lock);
 	entry->he_key = PID_KEY;
@@ -316,7 +301,7 @@ tsd_hash_add_pid(tsd_hash_table_t *table, pid_t pid)
 	spin_unlock(&bin->hb_lock);
 	spin_unlock(&table->ht_lock);
 
-	SRETURN(0);
+	return (0);
 }
 
 /*
@@ -328,14 +313,10 @@ tsd_hash_add_pid(tsd_hash_table_t *table, pid_t pid)
 static void
 tsd_hash_del(tsd_hash_table_t *table, tsd_hash_entry_t *entry)
 {
-	SENTRY;
-
 	ASSERT(spin_is_locked(&table->ht_lock));
 	hlist_del(&entry->he_list);
 	list_del_init(&entry->he_key_list);
 	list_del_init(&entry->he_pid_list);
-
-	SEXIT;
 }
 
 /*
@@ -350,17 +331,16 @@ tsd_hash_table_init(uint_t bits)
 {
 	tsd_hash_table_t *table;
 	int hash, size = (1 << bits);
-	SENTRY;
 
 	table = kmem_zalloc(sizeof(tsd_hash_table_t), KM_SLEEP);
 	if (table == NULL)
-		SRETURN(NULL);
+		return (NULL);
 
 	table->ht_bins = kmem_zalloc(sizeof(tsd_hash_bin_t) * size,
 	    KM_SLEEP | KM_NODEBUG);
 	if (table->ht_bins == NULL) {
 		kmem_free(table, sizeof(tsd_hash_table_t));
-		SRETURN(NULL);
+		return (NULL);
 	}
 
 	for (hash = 0; hash < size; hash++) {
@@ -372,7 +352,7 @@ tsd_hash_table_init(uint_t bits)
 	table->ht_bits = bits;
 	table->ht_key = 1;
 
-	SRETURN(table);
+	return (table);
 }
 
 /*
@@ -390,7 +370,6 @@ tsd_hash_table_fini(tsd_hash_table_t *table)
 	tsd_hash_bin_t *bin;
 	tsd_hash_entry_t *entry;
 	int size, i;
-	SENTRY;
 
 	ASSERT3P(table, !=, NULL);
 	spin_lock(&table->ht_lock);
@@ -410,8 +389,6 @@ tsd_hash_table_fini(tsd_hash_table_t *table)
 	tsd_hash_dtor(&work);
 	kmem_free(table->ht_bins, sizeof(tsd_hash_bin_t)*(1<<table->ht_bits));
 	kmem_free(table, sizeof(tsd_hash_table_t));
-
-	SEXIT;
 }
 
 /*
@@ -432,20 +409,19 @@ tsd_set(uint_t key, void *value)
 	tsd_hash_entry_t *entry;
 	pid_t pid;
 	int rc;
-	SENTRY;
 
 	table = tsd_hash_table;
 	pid = curthread->pid;
 	ASSERT3P(table, !=, NULL);
 
 	if ((key == 0) || (key > TSD_KEYS_MAX))
-		SRETURN(EINVAL);
+		return (EINVAL);
 
 	/* Entry already exists in hash table update value */
 	entry = tsd_hash_search(table, key, pid);
 	if (entry) {
 		entry->he_value = value;
-		SRETURN(0);
+		return (0);
 	}
 
 	/* Add a process entry to the hash if not yet exists */
@@ -453,11 +429,11 @@ tsd_set(uint_t key, void *value)
 	if (entry == NULL) {
 		rc = tsd_hash_add_pid(table, pid);
 		if (rc)
-			SRETURN(rc);
+			return (rc);
 	}
 
 	rc = tsd_hash_add(table, key, pid, value);
-	SRETURN(rc);
+	return (rc);
 }
 EXPORT_SYMBOL(tsd_set);
 
@@ -473,18 +449,17 @@ void *
 tsd_get(uint_t key)
 {
 	tsd_hash_entry_t *entry;
-	SENTRY;
 
 	ASSERT3P(tsd_hash_table, !=, NULL);
 
 	if ((key == 0) || (key > TSD_KEYS_MAX))
-		SRETURN(NULL);
+		return (NULL);
 
 	entry = tsd_hash_search(tsd_hash_table, key, curthread->pid);
 	if (entry == NULL)
-		SRETURN(NULL);
+		return (NULL);
 
-	SRETURN(entry->he_value);
+	return (entry->he_value);
 }
 EXPORT_SYMBOL(tsd_get);
 
@@ -503,17 +478,11 @@ EXPORT_SYMBOL(tsd_get);
 void
 tsd_create(uint_t *keyp, dtor_func_t dtor)
 {
-	SENTRY;
-
 	ASSERT3P(keyp, !=, NULL);
-	if (*keyp) {
-		SEXIT;
+	if (*keyp)
 		return;
-	}
 
 	(void)tsd_hash_add_key(tsd_hash_table, keyp, dtor);
-
-	SEXIT;
 }
 EXPORT_SYMBOL(tsd_create);
 
@@ -534,7 +503,6 @@ tsd_destroy(uint_t *keyp)
 	tsd_hash_entry_t *dtor_entry, *entry;
 	tsd_hash_bin_t *dtor_entry_bin, *entry_bin;
 	ulong_t hash;
-	SENTRY;
 
 	table = tsd_hash_table;
 	ASSERT3P(table, !=, NULL);
@@ -543,7 +511,6 @@ tsd_destroy(uint_t *keyp)
 	dtor_entry = tsd_hash_search(table, *keyp, DTOR_PID);
 	if (dtor_entry == NULL) {
 		spin_unlock(&table->ht_lock);
-		SEXIT;
 		return;
 	}
 
@@ -580,8 +547,6 @@ tsd_destroy(uint_t *keyp)
 
 	tsd_hash_dtor(&work);
 	*keyp = 0;
-
-	SEXIT;
 }
 EXPORT_SYMBOL(tsd_destroy);
 
@@ -601,7 +566,6 @@ tsd_exit(void)
 	tsd_hash_entry_t *pid_entry, *entry;
 	tsd_hash_bin_t *pid_entry_bin, *entry_bin;
 	ulong_t hash;
-	SENTRY;
 
 	table = tsd_hash_table;
 	ASSERT3P(table, !=, NULL);
@@ -610,7 +574,6 @@ tsd_exit(void)
 	pid_entry = tsd_hash_search(table, PID_KEY, curthread->pid);
 	if (pid_entry == NULL) {
 		spin_unlock(&table->ht_lock);
-		SEXIT;
 		return;
 	}
 
@@ -646,28 +609,22 @@ tsd_exit(void)
 	spin_unlock(&table->ht_lock);
 
 	tsd_hash_dtor(&work);
-
-	SEXIT;
 }
 EXPORT_SYMBOL(tsd_exit);
 
 int
 spl_tsd_init(void)
 {
-	SENTRY;
-
 	tsd_hash_table = tsd_hash_table_init(TSD_HASH_TABLE_BITS_DEFAULT);
 	if (tsd_hash_table == NULL)
-		SRETURN(1);
+		return (1);
 
-	SRETURN(0);
+	return (0);
 }
 
 void
 spl_tsd_fini(void)
 {
-	SENTRY;
 	tsd_hash_table_fini(tsd_hash_table);
 	tsd_hash_table = NULL;
-	SEXIT;
 }

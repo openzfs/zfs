@@ -37,10 +37,6 @@ PRE_BUILD="configure
       then
         echo --enable-debug
       fi
-      if [[ \${SPL_DKMS_ENABLE_DEBUG_LOG,,} == @(y|yes) ]]
-      then
-        echo --enable-debug-log
-      fi
       if [[ \${SPL_DKMS_ENABLE_DEBUG_KMEM,,} == @(y|yes) ]]
       then
         echo --enable-debug-kmem
