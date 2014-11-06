@@ -6,6 +6,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_SPL
 	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_CONFIG
+	ZFS_AC_KERNEL_DECLARE_EVENT_CLASS
 	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	ZFS_AC_KERNEL_TYPE_FMODE_T
@@ -506,9 +507,18 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
 ])
 
 dnl #
-dnl # ZFS_LINUX_CONFTEST
+dnl # ZFS_LINUX_CONFTEST_H
 dnl #
-AC_DEFUN([ZFS_LINUX_CONFTEST], [
+AC_DEFUN([ZFS_LINUX_CONFTEST_H], [
+cat - <<_ACEOF >conftest.h
+$1
+_ACEOF
+])
+
+dnl #
+dnl # ZFS_LINUX_CONFTEST_C
+dnl #
+AC_DEFUN([ZFS_LINUX_CONFTEST_C], [
 cat confdefs.h - <<_ACEOF >conftest.c
 $1
 _ACEOF
@@ -534,13 +544,14 @@ dnl #
 dnl # ZFS_LINUX_COMPILE_IFELSE / like AC_COMPILE_IFELSE
 dnl #
 AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
-	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST([$1])])
+	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST_C([$1])])
+	m4_ifvaln([$6], [ZFS_LINUX_CONFTEST_H([$6])], [ZFS_LINUX_CONFTEST_H([])])
 	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
 	echo "obj-m := conftest.o" >build/Makefile
 	modpost_flag=''
 	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c conftest.h build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
 		[$4],
 		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
@@ -626,4 +637,17 @@ AC_DEFUN([ZFS_LINUX_TRY_COMPILE_SYMBOL], [
 			$5
 		fi
 	fi
+])
+
+dnl #
+dnl # ZFS_LINUX_TRY_COMPILE_HEADER
+dnl # like ZFS_LINUX_TRY_COMPILE, except the contents conftest.h are
+dnl # provided via the fifth parameter
+dnl #
+AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER],
+	[ZFS_LINUX_COMPILE_IFELSE(
+	[AC_LANG_SOURCE([ZFS_LANG_PROGRAM([[$1]], [[$2]])])],
+	[modules],
+	[test -s build/conftest.o],
+	[$3], [$4], [AC_LANG_SOURCE([$5])])
 ])
