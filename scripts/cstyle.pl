@@ -597,8 +597,9 @@ line: while (<$filehandle>) {
 	if (/\(\s/) {
 		err("whitespace after left paren");
 	}
-	# allow "for" statements to have empty "continue" clauses
-	if (/\s\)/ && !/^\s*for \([^;]*;[^;]*; \)/) {
+	# Allow "for" statements to have empty "continue" clauses.
+	# Allow right paren on its own line unless we're being picky (-p).
+	if (/\s\)/ && !/^\s*for \([^;]*;[^;]*; \)/ && ($picky || !/^\s*\)/)) {
 		err("whitespace before right paren");
 	}
 	if (/^\s*\(void\)[^ ]/) {
