@@ -875,15 +875,18 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 	int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 	uint64_t first_l1 = start >> epbs;
 	uint64_t last_l1 = end >> epbs;
+	boolean_t freespill =
+	    (start == DMU_SPILL_BLKID || end == DMU_SPILL_BLKID);
 
-	if (end > dn->dn_maxblkid && (end != DMU_SPILL_BLKID)) {
+	if (end > dn->dn_maxblkid && !freespill) {
 		end = dn->dn_maxblkid;
 		last_l1 = end >> epbs;
 	}
 	dprintf_dnode(dn, "start=%llu end=%llu\n", start, end);
 
 	mutex_enter(&dn->dn_dbufs_mtx);
-	if (start >= dn->dn_unlisted_l0_blkid * dn->dn_datablksz) {
+	if (start >= dn->dn_unlisted_l0_blkid * dn->dn_datablksz &&
+	    !freespill) {
 		/* There can't be any dbufs in this range; no need to search. */
 		mutex_exit(&dn->dn_dbufs_mtx);
 		return;
@@ -919,7 +922,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		if (db->db_level != 0)
 			continue;
 		dprintf_dbuf(db, "found buf %s\n", "");
-		if (db->db_blkid < start || db->db_blkid > end)
+		if ((db->db_blkid < start || db->db_blkid > end) && !freespill)
 			continue;
 
 		/* found a level 0 buffer in the range */
