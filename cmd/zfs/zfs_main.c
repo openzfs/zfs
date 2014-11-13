@@ -2882,6 +2882,10 @@ zfs_do_userspace(int argc, char **argv)
  * '-r' is specified.
  */
 typedef struct list_cbdata {
+	nvlist_t	*cb_nvlist;
+	void		*cb_data;
+	int		cb_nbelem;
+	boolean_t	cb_json;
 	boolean_t	cb_first;
 	boolean_t	cb_literal;
 	boolean_t	cb_scripted;
@@ -2944,9 +2948,19 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 	nvlist_t *propval;
 	char *propstr;
 	boolean_t right_justify;
+	nvlist_t *nv_dict_props;
+
+	if (cb->cb_json) {
+		cb->cb_nbelem++;
+		cb->cb_data = realloc(cb->cb_data,
+		    sizeof (nvlist_t *) * cb->cb_nbelem);
+		nvlist_alloc(&(((nvlist_t **)cb->cb_data)[cb->cb_nbelem - 1]),
+		    NV_UNIQUE_NAME, 0);
+		nv_dict_props = ((nvlist_t **)cb->cb_data)[cb->cb_nbelem - 1];
+	}
 
 	for (; pl != NULL; pl = pl->pl_next) {
-		if (!first) {
+		if (!first && ! cb->cb_json) {
 			if (cb->cb_scripted)
 				(void) printf("\t");
 			else
@@ -2992,20 +3006,28 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 			right_justify = B_FALSE;
 		}
 
-		/*
-		 * If this is being called in scripted mode, or if this is the
-		 * last column and it is left-justified, don't include a width
-		 * format specifier.
-		 */
-		if (cb->cb_scripted || (pl->pl_next == NULL && !right_justify))
-			(void) printf("%s", propstr);
-		else if (right_justify)
-			(void) printf("%*s", (int)pl->pl_width, propstr);
-		else
-			(void) printf("%-*s", (int)pl->pl_width, propstr);
+		if (cb->cb_json) {
+			nvlist_add_string(nv_dict_props,
+				zfs_prop_column_name(pl->pl_prop),
+			    	propstr);
+		} else {
+			/*
+			 * If this is being called in scripted mode, or if this is the
+			 * last column and it is left-justified, don't include a width
+			 * format specifier.
+			 */
+			if (cb->cb_scripted || (pl->pl_next == NULL && !right_justify))
+				(void) printf("%s", propstr);
+			else if (right_justify)
+				(void) printf("%*s", (int)pl->pl_width, propstr);
+			else
+				(void) printf("%-*s", (int)pl->pl_width, propstr);
+		}
 	}
 
-	(void) printf("\n");
+	if (! cb->cb_json) {
+		(void) printf("\n");
+	}
 }
 
 /*
@@ -3015,14 +3037,39 @@ static int
 list_callback(zfs_handle_t *zhp, void *data)
 {
 	list_cbdata_t *cbp = data;
+	nvlist_t 	**nvlist_array;
+	nvlist_t	*tmp;
+	int		i;
 
-	if (cbp->cb_first) {
-		if (!cbp->cb_scripted)
-			print_header(cbp);
-		cbp->cb_first = B_FALSE;
+	if (zhp) {
+		if (cbp->cb_first) {
+			if (!cbp->cb_scripted && ! cbp->cb_json)
+				print_header(cbp);
+			if (cbp->cb_json) {
+				verify(nvlist_alloc(&cbp->cb_nvlist,
+					 NV_UNIQUE_NAME, 0) == 0);
+				cbp->cb_nbelem = 0;
+				cbp->cb_data = NULL;
+			}
+			cbp->cb_first = B_FALSE;
+		}
+
+		print_dataset(zhp, cbp);
+	} else if (!zhp && cbp->cb_json) {
+		nvlist_add_string(cbp->cb_nvlist, "cmd", "zfs list");
+		nvlist_add_nvlist_array(cbp->cb_nvlist, "output",
+		    (nvlist_t **)cbp->cb_data, cbp->cb_nbelem - 1);
+		nvlist_print_json(stdout, cbp->cb_nvlist);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		nvlist_array = (nvlist_t **)cbp->cb_data;
+		for (i = 0; i < cbp->cb_nbelem; i++) {
+			tmp = nvlist_array[i];
+			nvlist_free(tmp);
+		}
+		free(nvlist_array);
+		nvlist_free(cbp->cb_nvlist);
 	}
-
-	print_dataset(zhp, cbp);
 
 	return (0);
 }
@@ -3044,8 +3091,10 @@ zfs_do_list(int argc, char **argv)
 	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "HS:d:o:prs:t:")) != -1) {
+	while ((c = getopt(argc, argv, "JHS:d:o:prs:t:")) != -1) {
 		switch (c) {
+		case 'J':
+			cb.cb_json = B_TRUE;
 		case 'o':
 			fields = optarg;
 			break;
@@ -3164,7 +3213,6 @@ zfs_do_list(int argc, char **argv)
 
 	if (ret == 0 && cb.cb_first && !cb.cb_scripted)
 		(void) fprintf(stderr, gettext("no datasets available\n"));
-
 	return (ret);
 }
 
