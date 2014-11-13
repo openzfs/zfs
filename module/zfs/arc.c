@@ -5619,6 +5619,8 @@ l2arc_stop(void)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(arc_buf_size);
+EXPORT_SYMBOL(arc_write);
 EXPORT_SYMBOL(arc_read);
 EXPORT_SYMBOL(arc_buf_remove_ref);
 EXPORT_SYMBOL(arc_buf_info);
