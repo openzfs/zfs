@@ -24,9 +24,10 @@
  *  Solaris Porting LAyer Tests (SPLAT) Task Queue Tests.
 \*****************************************************************************/
 
-#include <sys/taskq.h>
-#include <sys/random.h>
 #include <sys/kmem.h>
+#include <sys/random.h>
+#include <sys/taskq.h>
+#include <linux/delay.h>
 #include "splat-internal.h"
 
 #define SPLAT_TASKQ_NAME		"taskq"

@@ -43,16 +43,17 @@
  *  of regression tests or particular tests.
 \*****************************************************************************/
 
-#include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/vmalloc.h>
-#include <linux/cdev.h>
-#include <linux/fs.h>
-#include <linux/uaccess.h>
-#include <linux/miscdevice.h>
-#include <sys/types.h>
 #include <sys/debug.h>
 #include <sys/mutex.h>
+#include <sys/types.h>
+#include <linux/cdev.h>
+#include <linux/fs.h>
+#include <linux/miscdevice.h>
+#include <linux/module.h>
+#include <linux/module_compat.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+#include <linux/vmalloc.h>
 #include "splat-internal.h"
 
 static struct list_head splat_module_list;

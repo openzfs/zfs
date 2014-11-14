@@ -24,9 +24,11 @@
  *  Solaris Porting LAyer Tests (SPLAT) Read/Writer Lock Tests.
 \*****************************************************************************/
 
+#include <sys/random.h>
 #include <sys/rwlock.h>
 #include <sys/taskq.h>
-#include <sys/random.h>
+#include <linux/delay.h>
+#include <linux/mm_compat.h>
 #include "splat-internal.h"
 
 #define SPLAT_RWLOCK_NAME		"rwlock"

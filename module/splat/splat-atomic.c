@@ -27,6 +27,7 @@
 #include <sys/atomic.h>
 #include <sys/thread.h>
 #include <sys/mutex.h>
+#include <linux/mm_compat.h>
 #include <linux/slab.h>
 #include "splat-internal.h"
 

@@ -27,6 +27,7 @@
 #include <sys/cred.h>
 #include <sys/vnode.h>
 #include <linux/falloc.h>
+#include <linux/file_compat.h>
 
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 EXPORT_SYMBOL(rootdir);

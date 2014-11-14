@@ -26,6 +26,8 @@
 
 #include <sys/mutex.h>
 #include <sys/taskq.h>
+#include <linux/delay.h>
+#include <linux/mm_compat.h>
 #include "splat-internal.h"
 
 #define SPLAT_MUTEX_NAME                "mutex"

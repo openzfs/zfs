@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/sunddi.h>
+#include <linux/math64_compat.h>
 #include "splat-internal.h"
 
 #define SPLAT_GENERIC_NAME		"generic"
