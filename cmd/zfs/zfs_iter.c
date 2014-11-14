@@ -476,8 +476,7 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	    node = uu_avl_next(cb.cb_avl, node))
 		ret |= callback(node->zn_handle, data);
 
-	if (!node)
-		callback(NULL, data);
+	callback(NULL, data);
 
 	/*
 	 * Finally, clean up the AVL tree.

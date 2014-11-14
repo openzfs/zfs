@@ -3009,19 +3009,22 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 		if (cb->cb_json) {
 			nvlist_add_string(nv_dict_props,
 				zfs_prop_column_name(pl->pl_prop),
-			    	propstr);
+					propstr);
 		} else {
-			/*
-			 * If this is being called in scripted mode, or if this is the
-			 * last column and it is left-justified, don't include a width
-			 * format specifier.
-			 */
-			if (cb->cb_scripted || (pl->pl_next == NULL && !right_justify))
+		/*
+		 * If this is being called in scripted mode, or if this is the
+		 * last column and it is left-justified, don't include a width
+		 * format specifier.
+		 */
+			if (cb->cb_scripted || (pl->pl_next == NULL &&
+				!right_justify))
 				(void) printf("%s", propstr);
 			else if (right_justify)
-				(void) printf("%*s", (int)pl->pl_width, propstr);
+				(void) printf("%*s",
+					(int)pl->pl_width, propstr);
 			else
-				(void) printf("%-*s", (int)pl->pl_width, propstr);
+				(void) printf("%-*s",
+					(int)pl->pl_width, propstr);
 		}
 	}
 
@@ -3047,7 +3050,7 @@ list_callback(zfs_handle_t *zhp, void *data)
 				print_header(cbp);
 			if (cbp->cb_json) {
 				verify(nvlist_alloc(&cbp->cb_nvlist,
-					 NV_UNIQUE_NAME, 0) == 0);
+					NV_UNIQUE_NAME, 0) == 0);
 				cbp->cb_nbelem = 0;
 				cbp->cb_data = NULL;
 			}
