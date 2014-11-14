@@ -3061,7 +3061,7 @@ list_callback(zfs_handle_t *zhp, void *data)
 	} else if (!zhp && cbp->cb_json) {
 		nvlist_add_string(cbp->cb_nvlist, "cmd", "zfs list");
 		nvlist_add_nvlist_array(cbp->cb_nvlist, "output",
-		    (nvlist_t **)cbp->cb_data, cbp->cb_nbelem - 1);
+		    (nvlist_t **)cbp->cb_data, cbp->cb_nbelem);
 		nvlist_print_json(stdout, cbp->cb_nvlist);
 		fprintf(stdout, "\n");
 		fflush(stdout);
