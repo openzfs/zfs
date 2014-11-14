@@ -186,6 +186,7 @@
 #include <sys/zfeature.h>
 
 #include <linux/miscdevice.h>
+#include <linux/module_compat.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"

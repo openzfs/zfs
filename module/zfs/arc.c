@@ -140,6 +140,7 @@
 #include <vm/anon.h>
 #include <sys/fs/swapnode.h>
 #include <sys/zpl.h>
+#include <linux/mm_compat.h>
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
