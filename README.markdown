@@ -9,7 +9,9 @@ includes fully functional and stable SPA, DMU, ZVOL, and ZPL layers.
 Full documentation for installing ZoL on your favorite Linux distribution can
 be found at: <http://zfsonlinux.org>
 
-The goal of this fork, is to jsonify all ZFS commands output (such as zfs list, zpool list). To do so, we reuse some existing functions and have implemented the -J flag, we have created a specific function to display json (print_json) which takes two (char*)arrays as arguments (keywords and values).
+The goal of this fork, is to jsonify all ZFS commands output (such as zfs list, zpool list). To do so, we reuse some existing functions and have implemented the -J flag, we used the json library of joyent based on nvpairlib :
+
+https://github.com/joyent/illumos-joyent/blob/master/usr/src/lib/libnvpair/nvpair_json.c.
 
 This feature request from Alyseo and project goal history is available here :
 
