@@ -613,13 +613,15 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	uint64_t guid = zhp->zfs_dmustats.dds_guid;
 	char *snapname;
 	nvlist_t *nv;
-	boolean_t isfromsnap, istosnap;
+	boolean_t isfromsnap, istosnap, istosnapwithnofrom;
 
 	snapname = strrchr(zhp->zfs_name, '@')+1;
 	isfromsnap = (sd->fromsnap != NULL &&
 	    strcmp(sd->fromsnap, snapname) == 0);
 	istosnap = (sd->tosnap != NULL && (strcmp(sd->tosnap, snapname) == 0));
+	istosnapwithnofrom = (istosnap && sd->fromsnap == NULL);
 
+	VERIFY(0 == nvlist_add_uint64(sd->parent_snaps, snapname, guid));
 	/*
 	 * NB: if there is no fromsnap here (it's a newly created fs in
 	 * an incremental replication), we will substitute the tosnap.
@@ -635,7 +637,7 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 			return (0);
 		}
 
-		if (sd->seento || !sd->seenfrom) {
+		if ((sd->seento || !sd->seenfrom) && !istosnapwithnofrom) {
 			zfs_close(zhp);
 			return (0);
 		}
@@ -643,8 +645,6 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 		if (istosnap)
 			sd->seento = B_TRUE;
 	}
-
-	VERIFY(0 == nvlist_add_uint64(sd->parent_snaps, snapname, guid));
 
 	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
 	send_iterate_prop(zhp, nv);
@@ -2695,12 +2695,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		ret = zcmd_write_src_nvlist(hdl, &zc, props);
 		if (err)
 			nvlist_free(props);
-
-		if (0 == nvlist_lookup_nvlist(fs, "snapprops", &props)) {
-			VERIFY(0 == nvlist_lookup_nvlist(props,
-			    snapname, &snapprops_nvlist));
-		}
-
 		if (ret != 0)
 			return (-1);
 	}
