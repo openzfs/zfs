@@ -26,7 +26,7 @@
  *
  * ZFS volume emulation driver.
  *
- * Makes a DMU object look like a volume of arbitrary size, up to 2^64 bytes.
+ * Makes a DMU objectset look like a volume of arbitrary size, up to 2^64 bytes.
  * Volumes are accessed through the symbolic links named:
  *
  * /dev/<pool_name>/<dataset_name>
