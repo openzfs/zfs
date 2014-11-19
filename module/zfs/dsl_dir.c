@@ -321,7 +321,7 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 	/* Make sure the name is in the specified pool. */
 	spaname = spa_name(dp->dp_spa);
 	if (strcmp(buf, spaname) != 0) {
-		err = SET_ERROR(EINVAL);
+		err = SET_ERROR(EXDEV);
 		goto error;
 	}
 
@@ -1209,7 +1209,7 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 	if (dd->dd_pool != newparent->dd_pool) {
 		dsl_dir_rele(newparent, FTAG);
 		dsl_dir_rele(dd, FTAG);
-		return (SET_ERROR(ENXIO));
+		return (SET_ERROR(EXDEV));
 	}
 
 	/* new name should not already exist */
