@@ -479,7 +479,7 @@ bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 		if (size > bio_size)
 			size = bio_size;
 
-		if (kmem_virt(bio_ptr))
+		if (is_vmalloc_addr(bio_ptr))
 			page = vmalloc_to_page(bio_ptr);
 		else
 			page = virt_to_page(bio_ptr);

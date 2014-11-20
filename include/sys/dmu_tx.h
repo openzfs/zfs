@@ -34,6 +34,11 @@
 #include <sys/txg.h>
 #include <sys/refcount.h>
 
+/* Include sys/kmem.h on Linux for fstrans_cookie_t */
+#if defined(_KERNEL) && defined(HAVE_SPL)
+#include <sys/kmem.h>
+#endif
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -84,6 +89,9 @@ struct dmu_tx {
 	uint64_t tx_space_tounref;
 	refcount_t tx_space_written;
 	refcount_t tx_space_freed;
+#endif
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	fstrans_cookie_t tx_cookie;
 #endif
 };
 
