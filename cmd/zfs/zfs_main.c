@@ -2882,6 +2882,7 @@ zfs_do_userspace(int argc, char **argv)
  * '-r' is specified.
  */
 typedef struct	list_cbdata {
+	boolean_t		cb_ldjson;
 	boolean_t		cb_json;
 	boolean_t		cb_first;
 	boolean_t		cb_literal;
@@ -3069,6 +3070,63 @@ json_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 }
 
 /*
+ * Given a dataset and a list of fields, create nvlist with all properties
+ * according to the described layout.
+ */
+static void
+ldjson_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
+{
+	zprop_list_t *pl = cb->cb_proplist;
+	char property[ZFS_MAXPROPLEN];
+	nvlist_t *userprops = zfs_get_user_props(zhp);
+	nvlist_t *propval;
+	char *propstr;
+
+	cb->cb_nvlist = fnvlist_alloc();
+
+	for (; pl != NULL; pl = pl->pl_next) {
+		if (pl->pl_prop == ZFS_PROP_NAME) {
+			(void) strlcpy(property, zfs_get_name(zhp),
+			    sizeof (property));
+			propstr = property;
+		} else if (pl->pl_prop != ZPROP_INVAL) {
+			if (zfs_prop_get(zhp, pl->pl_prop, property,
+			    sizeof (property), NULL, NULL, 0,
+			    cb->cb_literal) != 0)
+				propstr = "-";
+			else
+				propstr = property;
+		} else if (zfs_prop_userquota(pl->pl_user_prop)) {
+			if (zfs_prop_get_userquota(zhp, pl->pl_user_prop,
+			    property, sizeof (property), cb->cb_literal) != 0)
+				propstr = "-";
+			else
+				propstr = property;
+		} else if (zfs_prop_written(pl->pl_user_prop)) {
+			if (zfs_prop_get_written(zhp, pl->pl_user_prop,
+			    property, sizeof (property), cb->cb_literal) != 0)
+				propstr = "-";
+			else
+				propstr = property;
+		} else {
+			if (nvlist_lookup_nvlist(userprops,
+			    pl->pl_user_prop, &propval) != 0)
+				propstr = "-";
+			else
+				verify(nvlist_lookup_string(propval,
+				    ZPROP_VALUE, &propstr) == 0);
+		}
+
+		fnvlist_add_string(cb->cb_nvlist, zfs_prop_to_name(pl->pl_prop),
+		    propstr);
+	}
+	nvlist_print_json(stdout, cb->cb_nvlist);
+	fprintf(stdout, "\n");
+	fflush(stdout);
+	fnvlist_free(cb->cb_nvlist);
+}
+
+/*
  * Generic callback function to list a dataset or snapshot.
  */
 static int
@@ -3103,6 +3161,22 @@ json_list_callback(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
+/*
+ * callback function to list a dataset or snapshot in nvlist_t for (ld)jsonify.
+ */
+static int
+ldjson_list_callback(zfs_handle_t *zhp, void *data)
+{
+	list_cbdata_t	*cbp = data;
+
+	if (cbp->cb_first)
+		cbp->cb_first = B_FALSE;
+
+	ldjson_dataset(zhp, cbp);
+
+	return (0);
+}
+
 static int
 zfs_do_list(int argc, char **argv)
 {
@@ -3120,14 +3194,20 @@ zfs_do_list(int argc, char **argv)
 	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "JHS:d:o:prs:t:")) != -1) {
+	while ((c = getopt(argc, argv, "jJHS:d:o:prs:t:")) != -1) {
 		switch (c) {
 		case 'J':
 			cb.cb_json = B_TRUE;
+			cb.cb_literal = B_TRUE;
 			cb.cb_nvlist = fnvlist_alloc();
 			cb.cb_nbelem = 0;
 			cb.cb_data = NULL;
-			fnvlist_add_string(cb.cb_nvlist, "cmd", "zfs list");
+			flags |= ZFS_ITER_LITERAL_PROPS;
+			break;
+		case 'j':
+			cb.cb_ldjson = B_TRUE;
+			cb.cb_literal = B_TRUE;
+			flags |= ZFS_ITER_LITERAL_PROPS;
 			break;
 		case 'o':
 			fields = optarg;
@@ -3239,7 +3319,23 @@ zfs_do_list(int argc, char **argv)
 
 	cb.cb_first = B_TRUE;
 
-	if (cb.cb_json) {
+	if (cb.cb_ldjson) {
+		ret = zfs_for_each(argc, argv, flags, types, sortcol,
+		    &cb.cb_proplist, limit, ldjson_list_callback, &cb);
+		cb.cb_nvlist = fnvlist_alloc();
+
+		if (cb.cb_first && ret == 0) {
+			fnvlist_add_string(cb.cb_nvlist, "stderr",
+			    "no datasets available");
+		} else {
+			fnvlist_add_string(cb.cb_nvlist, "stderr", "");
+		}
+
+		nvlist_print_json(stdout, cb.cb_nvlist);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		fnvlist_free(cb.cb_nvlist);
+	} else if (cb.cb_json) {
 		ret = zfs_for_each(argc, argv, flags, types, sortcol,
 		    &cb.cb_proplist, limit, json_list_callback, &cb);
 		fnvlist_add_nvlist_array(cb.cb_nvlist, "stdout",
@@ -3248,6 +3344,8 @@ zfs_do_list(int argc, char **argv)
 		if (ret == 0 && cb.cb_first) {
 			fnvlist_add_string(cb.cb_nvlist, "stderr",
 			    "no datasets available");
+		} else {
+			fnvlist_add_string(cb.cb_nvlist, "stderr", "");
 		}
 
 		nvlist_print_json(stdout, cb.cb_nvlist);
@@ -3267,7 +3365,8 @@ zfs_do_list(int argc, char **argv)
 	zprop_free_list(cb.cb_proplist);
 	zfs_free_sort_columns(sortcol);
 
-	if (ret == 0 && cb.cb_first && !cb.cb_scripted && !cb.cb_json)
+	if (ret == 0 && cb.cb_first && !cb.cb_scripted &&
+	    (!cb.cb_json && !cb.cb_ldjson))
 		(void) fprintf(stderr, gettext("no datasets available\n"));
 	return (ret);
 }
