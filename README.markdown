@@ -13,6 +13,8 @@ The goal of this fork, is to jsonify all ZFS commands output (such as zfs list, 
 
 https://github.com/joyent/illumos-joyent/blob/master/usr/src/lib/libnvpair/nvpair_json.c.
 
+The option -j is for an ldjson output .
+
 This feature request from Alyseo and project goal history is available here :
 
 http://lists.open-zfs.org/pipermail/developer/2014-September/000847.html
@@ -23,77 +25,60 @@ Standard output :
 
 ```
 zfs list
-NAME         USED  AVAIL  REFER  MOUNTPOINT
-tank        7,66M  1,48G    29K  /tank
-tank/test   1,25M  1,48G    16K  -
-tank/test1  1,25M  1,48G    16K  -
-tank/test2  1,25M  1,48G    16K  -
-tank/test3  1,25M  1,48G    16K  -
-tank/test4  1,25M  1,48G    16K  -
-tank/test5  1,25M  1,48G    16K  -
+NAME        USED  AVAIL  REFER  MOUNTPOINT
+tank       1,31M   983M    19K  /tank
+tank/toto  1,25M   984M     8K  -
+tank1      59,5K   984M    19K  /tank1
+tank2      59,5K  3,72G    19K  /tank2
 ```
 
-the json output :
+the json output with -J:
 
 ```json
-{"cmd":"zfs list","output:":[{"name":"tank","used":"8035328","available":"1585800192","referenced":"29696","mountpoint":"/tank"},{"name":"tank/test","used":"1310720","available":"1587094528","referenced":"16384","mountpoint":"-"},{"name":"tank/test1","used":"1310720","available":"1587094528","referenced":"16384","mountpoint":"-"},{"name":"tank/test2","used":"1310720","available":"1587094528","referenced":"16384","mountpoint":"-"},{"name":"tank/test3","used":"1310720","available":"1587094528","referenced":"16384","mountpoint":"-"},{"name":"tank/test4","used":"1310720","available":"1587094528","referenced":"16384","mountpoint":"-"},{"name":"tank/test5","used":"1310720","available":"1587094528","referenced":"16384","mountpoint":"-"}]}
+{"stdout":[{"name":"tank","used":"1376256","available":"1030422528","referenced":"19456","mountpoint":"/tank"},{"name":"tank/toto","used":"1310720","available":"1031725056","referenced":"8192","mountpoint":"-"},{"name":"tank1","used":"60928","available":"1031737856","referenced":"19456","mountpoint":"/tank1"},{"name":"tank2","used":"60928","available":"3996586496","referenced":"19456","mountpoint":"/tank2"}],"stderr":""}
 ```
 
 Output of command can be piped on 'python -mjson.tool' to have pretty json code :
 
-```
 {
-    "cmd": "zfs list",
-    "output:": [
-        {
-            "available": "1585800192",
-            "mountpoint": "/tank",
-            "name": "tank",
-            "referenced": "29696",
-            "used": "8035328"
-        },
-        {
-            "available": "1587094528",
-            "mountpoint": "-",
-            "name": "tank/test",
-            "referenced": "16384",
-            "used": "1310720"
-        },
-        {
-            "available": "1587094528",
-            "mountpoint": "-",
-            "name": "tank/test1",
-            "referenced": "16384",
-            "used": "1310720"
-        },
-        {
-            "available": "1587094528",
-            "mountpoint": "-",
-            "name": "tank/test2",
-            "referenced": "16384",
-            "used": "1310720"
-        },
-        {
-            "available": "1587094528",
-            "mountpoint": "-",
-            "name": "tank/test3",
-            "referenced": "16384",
-            "used": "1310720"
-        },
-        {
-            "available": "1587094528",
-            "mountpoint": "-",
-            "name": "tank/test4",
-            "referenced": "16384",
-            "used": "1310720"
-        },
-        {
-            "available": "1587094528",
-            "mountpoint": "-",
-            "name": "tank/test5",
-            "referenced": "16384",
-            "used": "1310720"
-        }
-    ]
+	"stderr": "", 
+		"stdout": [
+		{
+			"available": "1030422528", 
+			"mountpoint": "/tank", 
+			"name": "tank", 
+			"referenced": "19456", 
+			"used": "1376256"
+		}, 
+		{
+			"available": "1031725056", 
+			"mountpoint": "-", 
+			"name": "tank/toto", 
+			"referenced": "8192", 
+			"used": "1310720"
+		}, 
+		{
+			"available": "1031737856", 
+			"mountpoint": "/tank1", 
+			"name": "tank1", 
+			"referenced": "19456", 
+			"used": "60928"
+		}, 
+		{
+			"available": "3996586496", 
+			"mountpoint": "/tank2", 
+			"name": "tank2", 
+			"referenced": "19456", 
+			"used": "60928"
+		}
+	]
 }
+```
+the json output with -j :
+```json
+{"name":"tank","used":"1376256","available":"1030422528","referenced":"19456","mountpoint":"/tank"}
+{"name":"tank/toto","used":"1310720","available":"1031725056","referenced":"8192","mountpoint":"-"}
+{"name":"tank1","used":"60928","available":"1031737856","referenced":"19456","mountpoint":"/tank1"}
+{"name":"tank2","used":"60928","available":"3996586496","referenced":"19456","mountpoint":"/tank2"}
+{"stderr":""}
 ```
