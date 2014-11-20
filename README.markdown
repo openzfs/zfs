@@ -39,7 +39,7 @@ the json output with -J:
 ```
 
 Output of command can be piped on 'python -mjson.tool' to have pretty json code :
-
+```json
 {
 	"stderr": "", 
 		"stdout": [
