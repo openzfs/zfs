@@ -77,7 +77,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		goto skip_open;
 	}
 
-	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_PUSHPAGE);
+	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_SLEEP);
 
 	/*
 	 * We always open the files from the root of the global zone, even if
@@ -215,7 +215,7 @@ vdev_file_io_start(zio_t *zio)
 	}
 
 	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
-	    TQ_PUSHPAGE), !=, 0);
+	    TQ_SLEEP), !=, 0);
 
 	return (ZIO_PIPELINE_STOP);
 }

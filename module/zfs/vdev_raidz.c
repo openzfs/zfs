@@ -486,7 +486,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 
 	ASSERT3U(acols, <=, scols);
 
-	rm = kmem_alloc(offsetof(raidz_map_t, rm_col[scols]), KM_PUSHPAGE);
+	rm = kmem_alloc(offsetof(raidz_map_t, rm_col[scols]), KM_SLEEP);
 
 	rm->rm_cols = acols;
 	rm->rm_scols = scols;
@@ -1227,7 +1227,7 @@ vdev_raidz_matrix_reconstruct(raidz_map_t *rm, int n, int nmissing,
 	size_t psize;
 
 	psize = sizeof (invlog[0][0]) * n * nmissing;
-	p = kmem_alloc(psize, KM_PUSHPAGE);
+	p = kmem_alloc(psize, KM_SLEEP);
 
 	for (pp = p, i = 0; i < nmissing; i++) {
 		invlog[i] = pp;
@@ -1344,7 +1344,7 @@ vdev_raidz_reconstruct_general(raidz_map_t *rm, int *tgts, int ntgts)
 
 	psize = (sizeof (rows[0][0]) + sizeof (invrows[0][0])) *
 	    nmissing_rows * n + sizeof (used[0]) * n;
-	p = kmem_alloc(psize, KM_PUSHPAGE);
+	p = kmem_alloc(psize, KM_SLEEP);
 
 	for (pp = p, i = 0; i < nmissing_rows; i++) {
 		rows[i] = pp;

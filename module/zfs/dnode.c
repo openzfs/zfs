@@ -366,7 +366,7 @@ static dnode_t *
 dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
     uint64_t object, dnode_handle_t *dnh)
 {
-	dnode_t *dn = kmem_cache_alloc(dnode_cache, KM_PUSHPAGE);
+	dnode_t *dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
 
 	ASSERT(!POINTER_IS_VALID(dn->dn_objset));
 	dn->dn_moved = 0;
@@ -1070,7 +1070,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag,
 		int i;
 		dnode_children_t *winner;
 		children_dnodes = kmem_alloc(sizeof (dnode_children_t) +
-		    (epb - 1) * sizeof (dnode_handle_t), KM_PUSHPAGE);
+		    (epb - 1) * sizeof (dnode_handle_t), KM_SLEEP);
 		children_dnodes->dnc_count = epb;
 		dnh = &children_dnodes->dnc_children[0];
 		for (i = 0; i < epb; i++) {

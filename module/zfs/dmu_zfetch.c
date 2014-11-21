@@ -706,7 +706,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t offset, uint64_t size, int prefetched)
 				return;
 			}
 			newstream =
-			    kmem_zalloc(sizeof (zstream_t), KM_PUSHPAGE);
+			    kmem_zalloc(sizeof (zstream_t), KM_SLEEP);
 		}
 
 		newstream->zst_offset = zst.zst_offset;

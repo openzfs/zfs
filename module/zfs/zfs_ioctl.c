@@ -254,7 +254,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 {
 	const char *newfile;
 	size_t size = 4096;
-	char *buf = kmem_alloc(size, KM_PUSHPAGE);
+	char *buf = kmem_alloc(size, KM_SLEEP);
 	char *nl;
 	va_list adx;
 
@@ -5827,7 +5827,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 			}
 		}
 
-		VERIFY0(nvlist_alloc(&outnvl, NV_UNIQUE_NAME, KM_PUSHPAGE));
+		outnvl = fnvlist_alloc();
 		error = vec->zvec_func(zc->zc_name, innvl, outnvl);
 
 		if (error == 0 && vec->zvec_allow_log &&
