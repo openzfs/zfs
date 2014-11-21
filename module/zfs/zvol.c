@@ -825,7 +825,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	ASSERT(zio != NULL);
 	ASSERT(size != 0);
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_PUSHPAGE);
+	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_zilog = zv->zv_zilog;
 	zgd->zgd_rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 
@@ -1234,7 +1234,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zvol_state_t *zv;
 	int error = 0;
 
-	zv = kmem_zalloc(sizeof (zvol_state_t), KM_PUSHPAGE);
+	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 
 	spin_lock_init(&zv->zv_lock);
 	list_link_init(&zv->zv_next);
@@ -1314,7 +1314,7 @@ __zvol_snapdev_hidden(const char *name)
 	char *atp;
 	int error = 0;
 
-	parent = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+	parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 	(void) strlcpy(parent, name, MAXPATHLEN);
 
 	if ((atp = strrchr(parent, '@')) != NULL) {
@@ -1353,7 +1353,7 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 			goto out;
 	}
 
-	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_PUSHPAGE);
+	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
 	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
 	if (error)
@@ -1565,7 +1565,7 @@ zvol_rename_minors(const char *oldname, const char *newname)
 
 	oldnamelen = strlen(oldname);
 	newnamelen = strlen(newname);
-	name = kmem_alloc(MAXNAMELEN, KM_PUSHPAGE);
+	name = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 
 	mutex_enter(&zvol_state_lock);
 

@@ -203,7 +203,7 @@ spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb, uint32_t aflags)
 	if (zfs_read_history_hits == 0 && (aflags & ARC_CACHED))
 		return;
 
-	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_PUSHPAGE);
+	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_SLEEP);
 	strlcpy(srh->comm, getcomm(), sizeof (srh->comm));
 	srh->start  = gethrtime();
 	srh->objset = zb->zb_objset;
@@ -423,7 +423,7 @@ spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time)
 	if (zfs_txg_history == 0 && ssh->size == 0)
 		return;
 
-	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_PUSHPAGE);
+	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_SLEEP);
 	sth->txg = txg;
 	sth->state = TXG_STATE_OPEN;
 	sth->times[TXG_STATE_BIRTH] = birth_time;

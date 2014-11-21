@@ -62,7 +62,7 @@ ddt_zap_lookup(objset_t *os, uint64_t object, ddt_entry_t *dde)
 	uint64_t one, csize;
 	int error;
 
-	cbuf = kmem_alloc(sizeof (dde->dde_phys) + 1, KM_PUSHPAGE);
+	cbuf = kmem_alloc(sizeof (dde->dde_phys) + 1, KM_SLEEP);
 
 	error = zap_length_uint64(os, object, (uint64_t *)&dde->dde_key,
 	    DDT_KEY_WORDS, &one, &csize);

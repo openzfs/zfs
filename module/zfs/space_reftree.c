@@ -94,7 +94,7 @@ space_reftree_add_node(avl_tree_t *t, uint64_t offset, int64_t refcnt)
 {
 	space_ref_t *sr;
 
-	sr = kmem_alloc(sizeof (*sr), KM_PUSHPAGE);
+	sr = kmem_alloc(sizeof (*sr), KM_SLEEP);
 	sr->sr_offset = offset;
 	sr->sr_refcnt = refcnt;
 

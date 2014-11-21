@@ -342,7 +342,7 @@ zap_leaf_array_match(zap_leaf_t *l, zap_name_t *zn,
 
 		ASSERT(zn->zn_key_intlen == sizeof (*thiskey));
 		thiskey = kmem_alloc(array_numints * sizeof (*thiskey),
-		    KM_PUSHPAGE);
+		    KM_SLEEP);
 
 		zap_leaf_array_read(l, chunk, sizeof (*thiskey), array_numints,
 		    sizeof (*thiskey), array_numints, thiskey);
@@ -354,7 +354,7 @@ zap_leaf_array_match(zap_leaf_t *l, zap_name_t *zn,
 
 	ASSERT(zn->zn_key_intlen == 1);
 	if (zn->zn_matchtype == MT_FIRST) {
-		char *thisname = kmem_alloc(array_numints, KM_PUSHPAGE);
+		char *thisname = kmem_alloc(array_numints, KM_SLEEP);
 		boolean_t match;
 
 		zap_leaf_array_read(l, chunk, sizeof (char), array_numints,

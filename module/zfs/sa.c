@@ -434,10 +434,10 @@ sa_add_layout_entry(objset_t *os, sa_attr_type_t *attrs, int attr_count,
 	avl_index_t loc;
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
-	tb = kmem_zalloc(sizeof (sa_lot_t), KM_PUSHPAGE);
+	tb = kmem_zalloc(sizeof (sa_lot_t), KM_SLEEP);
 	tb->lot_attr_count = attr_count;
 	tb->lot_attrs = kmem_alloc(sizeof (sa_attr_type_t) * attr_count,
-	    KM_PUSHPAGE);
+	    KM_SLEEP);
 	bcopy(attrs, tb->lot_attrs, sizeof (sa_attr_type_t) * attr_count);
 	tb->lot_num = lot_num;
 	tb->lot_hash = hash;
@@ -740,7 +740,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		buf_space = hdl->sa_bonus->db_size - hdrsize;
 
 	attrs_start = attrs = kmem_alloc(sizeof (sa_attr_type_t) * attr_count,
-	    KM_PUSHPAGE);
+	    KM_SLEEP);
 	lot_count = 0;
 
 	for (i = 0, len_idx = 0, hash = -1ULL; i != attr_count; i++) {
@@ -864,7 +864,7 @@ sa_attr_table_setup(objset_t *os, sa_attr_reg_t *reg_attrs, int count)
 	dmu_objset_type_t ostype = dmu_objset_type(os);
 
 	sa->sa_user_table =
-	    kmem_zalloc(count * sizeof (sa_attr_type_t), KM_PUSHPAGE);
+	    kmem_zalloc(count * sizeof (sa_attr_type_t), KM_SLEEP);
 	sa->sa_user_table_sz = count * sizeof (sa_attr_type_t);
 
 	if (sa->sa_reg_attr_obj != 0) {
@@ -923,7 +923,7 @@ sa_attr_table_setup(objset_t *os, sa_attr_reg_t *reg_attrs, int count)
 
 	sa->sa_num_attrs = sa_attr_count;
 	tb = sa->sa_attr_table =
-	    kmem_zalloc(sizeof (sa_attr_table_t) * sa_attr_count, KM_PUSHPAGE);
+	    kmem_zalloc(sizeof (sa_attr_table_t) * sa_attr_count, KM_SLEEP);
 
 	/*
 	 * Attribute table is constructed from requested attribute list,
@@ -948,7 +948,7 @@ sa_attr_table_setup(objset_t *os, sa_attr_reg_t *reg_attrs, int count)
 				continue;
 			}
 			tb[ATTR_NUM(value)].sa_name =
-			    kmem_zalloc(strlen(za.za_name) +1, KM_PUSHPAGE);
+			    kmem_zalloc(strlen(za.za_name) +1, KM_SLEEP);
 			(void) strlcpy(tb[ATTR_NUM(value)].sa_name, za.za_name,
 			    strlen(za.za_name) +1);
 		}
@@ -974,7 +974,7 @@ sa_attr_table_setup(objset_t *os, sa_attr_reg_t *reg_attrs, int count)
 			tb[i].sa_registered = B_FALSE;
 			tb[i].sa_name =
 			    kmem_zalloc(strlen(sa_legacy_attrs[i].sa_name) +1,
-			    KM_PUSHPAGE);
+			    KM_SLEEP);
 			(void) strlcpy(tb[i].sa_name,
 			    sa_legacy_attrs[i].sa_name,
 			    strlen(sa_legacy_attrs[i].sa_name) + 1);
@@ -992,7 +992,7 @@ sa_attr_table_setup(objset_t *os, sa_attr_reg_t *reg_attrs, int count)
 		tb[attr_id].sa_byteswap = reg_attrs[i].sa_byteswap;
 		tb[attr_id].sa_attr = attr_id;
 		tb[attr_id].sa_name =
-		    kmem_zalloc(strlen(reg_attrs[i].sa_name) + 1, KM_PUSHPAGE);
+		    kmem_zalloc(strlen(reg_attrs[i].sa_name) + 1, KM_SLEEP);
 		(void) strlcpy(tb[attr_id].sa_name, reg_attrs[i].sa_name,
 		    strlen(reg_attrs[i].sa_name) + 1);
 	}
@@ -1029,7 +1029,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, sa_attr_reg_t *reg_attrs, int count,
 		return (0);
 	}
 
-	sa = kmem_zalloc(sizeof (sa_os_t), KM_PUSHPAGE);
+	sa = kmem_zalloc(sizeof (sa_os_t), KM_SLEEP);
 	mutex_init(&sa->sa_lock, NULL, MUTEX_DEFAULT, NULL);
 	sa->sa_master_obj = sa_obj;
 
@@ -1077,7 +1077,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, sa_attr_reg_t *reg_attrs, int count,
 			uint64_t lot_num;
 
 			lot_attrs = kmem_zalloc(sizeof (sa_attr_type_t) *
-			    za.za_num_integers, KM_PUSHPAGE);
+			    za.za_num_integers, KM_SLEEP);
 
 			if ((error = (zap_lookup(os, sa->sa_layout_attr_obj,
 			    za.za_name, 2, za.za_num_integers,
@@ -1563,14 +1563,14 @@ sa_find_idx_tab(objset_t *os, dmu_object_type_t bonustype, void *data)
 	}
 
 	/* No such luck, create a new entry */
-	idx_tab = kmem_zalloc(sizeof (sa_idx_tab_t), KM_PUSHPAGE);
+	idx_tab = kmem_zalloc(sizeof (sa_idx_tab_t), KM_SLEEP);
 	idx_tab->sa_idx_tab =
-	    kmem_zalloc(sizeof (uint32_t) * sa->sa_num_attrs, KM_PUSHPAGE);
+	    kmem_zalloc(sizeof (uint32_t) * sa->sa_num_attrs, KM_SLEEP);
 	idx_tab->sa_layout = tb;
 	refcount_create(&idx_tab->sa_refcount);
 	if (tb->lot_var_sizes)
 		idx_tab->sa_variable_lengths = kmem_alloc(sizeof (uint16_t) *
-		    tb->lot_var_sizes, KM_PUSHPAGE);
+		    tb->lot_var_sizes, KM_SLEEP);
 
 	sa_attr_iter(os, hdr, bonustype, sa_build_idx_tab,
 	    tb, idx_tab);

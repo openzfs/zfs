@@ -838,7 +838,7 @@ real_LZ4_compress(const char *source, char *dest, int isize, int osize)
 	int result;
 
 	ASSERT(lz4_cache != NULL);
-	ctx = kmem_cache_alloc(lz4_cache, KM_PUSHPAGE);
+	ctx = kmem_cache_alloc(lz4_cache, KM_SLEEP);
 
 	/*
 	 * out of kernel memory, gently fall through - this will disable

@@ -982,7 +982,7 @@ arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 		return;
 	}
 	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t),
-	    KM_PUSHPAGE);
+	    KM_SLEEP);
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
 	    buf->b_hdr->b_freeze_cksum);
 	mutex_exit(&buf->b_hdr->b_freeze_lock);
@@ -1481,7 +1481,7 @@ arc_buf_data_free(arc_buf_t *buf, void (*free_func)(void *, size_t))
 
 	if (HDR_L2_WRITING(hdr)) {
 		l2arc_data_free_t *df;
-		df = kmem_alloc(sizeof (l2arc_data_free_t), KM_PUSHPAGE);
+		df = kmem_alloc(sizeof (l2arc_data_free_t), KM_SLEEP);
 		df->l2df_data = buf->b_data;
 		df->l2df_size = hdr->b_size;
 		df->l2df_func = free_func;
@@ -3146,7 +3146,7 @@ top:
 				arc_callback_t	*acb = NULL;
 
 				acb = kmem_zalloc(sizeof (arc_callback_t),
-				    KM_PUSHPAGE);
+				    KM_SLEEP);
 				acb->acb_done = done;
 				acb->acb_private = private;
 				if (pio != NULL)
@@ -3288,7 +3288,7 @@ top:
 
 		ASSERT(!GHOST_STATE(hdr->b_state));
 
-		acb = kmem_zalloc(sizeof (arc_callback_t), KM_PUSHPAGE);
+		acb = kmem_zalloc(sizeof (arc_callback_t), KM_SLEEP);
 		acb->acb_done = done;
 		acb->acb_private = private;
 
@@ -3345,7 +3345,7 @@ top:
 				atomic_inc_32(&hdr->b_l2hdr->b_hits);
 
 				cb = kmem_zalloc(sizeof (l2arc_read_callback_t),
-				    KM_PUSHPAGE);
+				    KM_SLEEP);
 				cb->l2rcb_buf = buf;
 				cb->l2rcb_spa = spa;
 				cb->l2rcb_bp = *bp;
@@ -3875,7 +3875,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 		hdr->b_flags |= ARC_L2CACHE;
 	if (l2arc_compress)
 		hdr->b_flags |= ARC_L2COMPRESS;
-	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_PUSHPAGE);
+	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_SLEEP);
 	callback->awcb_ready = ready;
 	callback->awcb_physdone = physdone;
 	callback->awcb_done = done;
@@ -4983,7 +4983,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 				list_insert_head(dev->l2ad_buflist, head);
 
 				cb = kmem_alloc(sizeof (l2arc_write_callback_t),
-				    KM_PUSHPAGE);
+				    KM_SLEEP);
 				cb->l2wcb_dev = dev;
 				cb->l2wcb_head = head;
 				pio = zio_root(spa, l2arc_write_done, cb,
@@ -4993,7 +4993,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			/*
 			 * Create and add a new L2ARC header.
 			 */
-			l2hdr = kmem_cache_alloc(l2arc_hdr_cache, KM_PUSHPAGE);
+			l2hdr = kmem_cache_alloc(l2arc_hdr_cache, KM_SLEEP);
 			l2hdr->b_dev = dev;
 			l2hdr->b_daddr = 0;
 			arc_space_consume(L2HDR_SIZE, ARC_SPACE_L2HDRS);

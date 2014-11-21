@@ -314,7 +314,7 @@ retry:
 	 * Large allocations which do not require contiguous pages
 	 * should be using vmem_alloc() in the linux kernel
 	 */
-	h->hash_table = vmem_zalloc(hsize * sizeof (void *), KM_PUSHPAGE);
+	h->hash_table = vmem_zalloc(hsize * sizeof (void *), KM_SLEEP);
 #else
 	h->hash_table = kmem_zalloc(hsize * sizeof (void *), KM_NOSLEEP);
 #endif
@@ -1120,7 +1120,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		dn->dn_dirtyctx =
 		    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN);
 		ASSERT(dn->dn_dirtyctx_firstset == NULL);
-		dn->dn_dirtyctx_firstset = kmem_alloc(1, KM_PUSHPAGE);
+		dn->dn_dirtyctx_firstset = kmem_alloc(1, KM_SLEEP);
 	}
 	mutex_exit(&dn->dn_mtx);
 
@@ -1197,7 +1197,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 * to make a copy of it so that the changes we make in this
 	 * transaction group won't leak out when we sync the older txg.
 	 */
-	dr = kmem_zalloc(sizeof (dbuf_dirty_record_t), KM_PUSHPAGE);
+	dr = kmem_zalloc(sizeof (dbuf_dirty_record_t), KM_SLEEP);
 	list_link_init(&dr->dr_dirty_node);
 	if (db->db_level == 0) {
 		void *data_old = db->db_buf;
@@ -1763,7 +1763,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 	ASSERT(dn->dn_type != DMU_OT_NONE);
 
-	db = kmem_cache_alloc(dbuf_cache, KM_PUSHPAGE);
+	db = kmem_cache_alloc(dbuf_cache, KM_SLEEP);
 
 	db->db_objset = os;
 	db->db.db_object = dn->dn_object;
@@ -2058,7 +2058,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid, int fail_sparse,
 	int error;
 
 	dh = kmem_zalloc(sizeof (struct dbuf_hold_impl_data) *
-	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_PUSHPAGE);
+	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_SLEEP);
 	__dbuf_hold_impl_init(dh, dn, level, blkid, fail_sparse, tag, dbp, 0);
 
 	error = __dbuf_hold_impl(dh);

@@ -214,8 +214,8 @@ dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 	if (ds->ds_dir->dd_phys->dd_clones == 0)
 		return;
 
-	zc = kmem_alloc(sizeof (zap_cursor_t), KM_PUSHPAGE);
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 
 	for (zap_cursor_init(zc, mos, ds->ds_dir->dd_phys->dd_clones);
 	    zap_cursor_retrieve(zc, za) == 0;
@@ -504,7 +504,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 
 	dsda.dsda_snaps = snaps;
 	VERIFY0(nvlist_alloc(&dsda.dsda_successful_snaps,
-	    NV_UNIQUE_NAME, KM_PUSHPAGE));
+	    NV_UNIQUE_NAME, KM_SLEEP));
 	dsda.dsda_defer = defer;
 	dsda.dsda_errlist = errlist;
 
@@ -520,11 +520,8 @@ int
 dsl_destroy_snapshot(const char *name, boolean_t defer)
 {
 	int error;
-	nvlist_t *nvl;
-	nvlist_t *errlist;
-
-	VERIFY0(nvlist_alloc(&nvl, NV_UNIQUE_NAME, KM_PUSHPAGE));
-	VERIFY0(nvlist_alloc(&errlist, NV_UNIQUE_NAME, KM_PUSHPAGE));
+	nvlist_t *nvl = fnvlist_alloc();
+	nvlist_t *errlist = fnvlist_alloc();
 
 	fnvlist_add_boolean(nvl, name);
 	error = dsl_destroy_snapshots_nvl(nvl, defer, errlist);

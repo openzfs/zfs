@@ -115,7 +115,7 @@ fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags)
 	    1<<FZAP_BLOCK_SHIFT(zap), FTAG, &db, DMU_READ_NO_PREFETCH));
 	dmu_buf_will_dirty(db, tx);
 
-	l = kmem_zalloc(sizeof (zap_leaf_t), KM_PUSHPAGE);
+	l = kmem_zalloc(sizeof (zap_leaf_t), KM_SLEEP);
 	l->l_dbuf = db;
 	l->l_phys = db->db_data;
 
@@ -392,7 +392,7 @@ static zap_leaf_t *
 zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 {
 	void *winner;
-	zap_leaf_t *l = kmem_alloc(sizeof (zap_leaf_t), KM_PUSHPAGE);
+	zap_leaf_t *l = kmem_alloc(sizeof (zap_leaf_t), KM_SLEEP);
 
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
@@ -454,7 +454,7 @@ zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 
 	ASSERT(blkid != 0);
 
-	l = kmem_alloc(sizeof (zap_leaf_t), KM_PUSHPAGE);
+	l = kmem_alloc(sizeof (zap_leaf_t), KM_SLEEP);
 	rw_init(&l->l_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&l->l_rwlock, RW_WRITER);
 	l->l_blkid = blkid;
@@ -972,7 +972,7 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 	if (mask == 0)
 		mask = -1ULL;
 
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 	for (zap_cursor_init(&zc, os, zapobj);
 	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {

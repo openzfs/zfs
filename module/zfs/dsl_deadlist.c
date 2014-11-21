@@ -82,7 +82,7 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	    zap_cursor_advance(&zc)) {
 		dsl_deadlist_entry_t *dle;
 
-		dle = kmem_alloc(sizeof (*dle), KM_PUSHPAGE);
+		dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
 		dle->dle_mintxg = strtonum(za.za_name, NULL);
 		VERIFY3U(0, ==, bpobj_open(&dle->dle_bpobj, dl->dl_os,
 		    za.za_first_integer));
@@ -254,7 +254,7 @@ dsl_deadlist_add_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 
 	dsl_deadlist_load_tree(dl);
 
-	dle = kmem_alloc(sizeof (*dle), KM_PUSHPAGE);
+	dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
 	dle->dle_mintxg = mintxg;
 	obj = bpobj_alloc_empty(dl->dl_os, SPA_MAXBLOCKSIZE, tx);
 	VERIFY3U(0, ==, bpobj_open(&dle->dle_bpobj, dl->dl_os, obj));
