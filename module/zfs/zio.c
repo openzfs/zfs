@@ -2879,7 +2879,8 @@ zio_checksum_verify(zio_t *zio)
 
 	if ((error = zio_checksum_error(zio, &info)) != 0) {
 		zio->io_error = error;
-		if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
+		if (error == ECKSUM &&
+		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 			zfs_ereport_start_checksum(zio->io_spa,
 			    zio->io_vd, zio, zio->io_offset,
 			    zio->io_size, NULL, &info);
