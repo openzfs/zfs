@@ -5423,7 +5423,6 @@ LIBZFS_CORE_WRAPPER_FUNC(release)
 LIBZFS_CORE_WRAPPER_FUNC(get_holds)
 LIBZFS_CORE_WRAPPER_FUNC(rollback)
 LIBZFS_CORE_WRAPPER_FUNC(bookmark)
-LIBZFS_CORE_WRAPPER_FUNC(get_bookmarks)
 LIBZFS_CORE_WRAPPER_FUNC(destroy_bookmarks)
 
 /*
@@ -5535,14 +5534,6 @@ static const zfs_stable_ioc_vec_t zfs_stable_ioc_vec[] = {
 	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
 	.zvec_smush_outnvlist	= B_TRUE,
 	.zvec_allow_log		= B_TRUE,
-},
-{	.zvec_name		= "zfs_get_bookmarks",
-	.zvec_func		= zfs_stable_ioc_zfs_get_bookmarks,
-	.zvec_secpolicy		= zfs_secpolicy_read,
-	.zvec_namecheck		= DATASET_NAME,
-	.zvec_pool_check	= POOL_CHECK_SUSPENDED,
-	.zvec_smush_outnvlist	= B_FALSE,
-	.zvec_allow_log		= B_FALSE,
 },
 {	.zvec_name		= "zfs_destroy_bookmarks",
 	.zvec_func		= zfs_stable_ioc_zfs_destroy_bookmarks,

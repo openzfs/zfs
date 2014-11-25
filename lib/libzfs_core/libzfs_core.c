@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2015 ClusterHQ. All rights reserved.
  */
 
 /*
@@ -116,7 +117,7 @@ libzfs_core_fini(void)
 }
 
 static int
-lzc_ioctl(zfs_ioc_t ioc, const char *name,
+lzc_ioctl_impl(zfs_ioc_t ioc, const char *name,
     nvlist_t *source, nvlist_t **resultp)
 {
 	zfs_cmd_t zc = {"\0"};
@@ -169,6 +170,29 @@ out:
 	return (error);
 }
 
+static int
+lzc_ioctl(const char *cmd, const char *name, nvlist_t *source,
+    nvlist_t *opts, nvlist_t **resultp, uint64_t version)
+{
+	nvlist_t *args = fnvlist_alloc();
+	int error;
+
+	ASSERT(*cmd);
+
+	fnvlist_add_string(args, "cmd", cmd);
+	if (source)
+		fnvlist_add_nvlist(args, "innvl", source);
+	if (opts)
+		fnvlist_add_nvlist(args, "opts", opts);
+	fnvlist_add_uint64(args, "version", version);
+
+	error = lzc_ioctl_impl(ZFS_IOC_LIBZFS_CORE, name, args, resultp);
+
+	fnvlist_free(args);
+
+	return (error);
+}
+
 int
 lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props)
 {
@@ -177,7 +201,7 @@ lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props)
 	fnvlist_add_int32(args, "type", type);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
-	error = lzc_ioctl(ZFS_IOC_CREATE, fsname, args, NULL);
+	error = lzc_ioctl("zfs_create", fsname, args, NULL, NULL, 0);
 	nvlist_free(args);
 	return (error);
 }
@@ -191,7 +215,7 @@ lzc_clone(const char *fsname, const char *origin,
 	fnvlist_add_string(args, "origin", origin);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
-	error = lzc_ioctl(ZFS_IOC_CLONE, fsname, args, NULL);
+	error = lzc_ioctl("zfs_clone", fsname, args, NULL, NULL, 0);
 	nvlist_free(args);
 	return (error);
 }
@@ -233,7 +257,7 @@ lzc_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t **errlist)
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
 
-	error = lzc_ioctl(ZFS_IOC_SNAPSHOT, pool, args, errlist);
+	error = lzc_ioctl("zfs_snapshot", pool, args, NULL, errlist, 0);
 	nvlist_free(args);
 
 	return (error);
@@ -283,7 +307,7 @@ lzc_destroy_snaps(nvlist_t *snaps, boolean_t defer, nvlist_t **errlist)
 	if (defer)
 		fnvlist_add_boolean(args, "defer");
 
-	error = lzc_ioctl(ZFS_IOC_DESTROY_SNAPS, pool, args, errlist);
+	error = lzc_ioctl("zfs_destroy_snaps", pool, args, NULL, errlist, 0);
 	nvlist_free(args);
 
 	return (error);
@@ -309,7 +333,7 @@ lzc_snaprange_space(const char *firstsnap, const char *lastsnap,
 	args = fnvlist_alloc();
 	fnvlist_add_string(args, "firstsnap", firstsnap);
 
-	err = lzc_ioctl(ZFS_IOC_SPACE_SNAPS, lastsnap, args, &result);
+	err = lzc_ioctl("zfs_space_snaps", lastsnap, args, NULL, &result, 0);
 	nvlist_free(args);
 	if (err == 0)
 		*usedp = fnvlist_lookup_uint64(result, "used");
@@ -378,7 +402,7 @@ lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
 	if (cleanup_fd != -1)
 		fnvlist_add_int32(args, "cleanup_fd", cleanup_fd);
 
-	error = lzc_ioctl(ZFS_IOC_HOLD, pool, args, errlist);
+	error = lzc_ioctl("zfs_hold", pool, args, NULL, errlist, 0);
 	nvlist_free(args);
 	return (error);
 }
@@ -418,7 +442,7 @@ lzc_release(nvlist_t *holds, nvlist_t **errlist)
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/@")] = '\0';
 
-	return (lzc_ioctl(ZFS_IOC_RELEASE, pool, holds, errlist));
+	return (lzc_ioctl("zfs_release", pool, holds, NULL, errlist, 0));
 }
 
 /*
@@ -433,7 +457,7 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 {
 	int error;
 	nvlist_t *innvl = fnvlist_alloc();
-	error = lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, innvl, holdsp);
+	error = lzc_ioctl("zfs_get_holds", snapname, innvl, NULL, holdsp, 0);
 	fnvlist_free(innvl);
 	return (error);
 }
@@ -473,7 +497,7 @@ lzc_send(const char *snapname, const char *from, int fd,
 		fnvlist_add_string(args, "fromsnap", from);
 	if (flags & LZC_SEND_FLAG_EMBED_DATA)
 		fnvlist_add_boolean(args, "embedok");
-	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);
+	err = lzc_ioctl("zfs_send", snapname, args, NULL, NULL, 0);
 	nvlist_free(args);
 	return (err);
 }
@@ -491,7 +515,7 @@ lzc_send_space(const char *snapname, const char *fromsnap, uint64_t *spacep)
 	args = fnvlist_alloc();
 	if (fromsnap != NULL)
 		fnvlist_add_string(args, "fromsnap", fromsnap);
-	err = lzc_ioctl(ZFS_IOC_SEND_SPACE, snapname, args, &result);
+	err = lzc_ioctl("zfs_send_space", snapname, args, NULL, &result, 0);
 	nvlist_free(args);
 	if (err == 0)
 		*spacep = fnvlist_lookup_uint64(result, "space");
@@ -619,7 +643,7 @@ lzc_rollback(const char *fsname, char *snapnamebuf, int snapnamelen)
 	int err;
 
 	args = fnvlist_alloc();
-	err = lzc_ioctl(ZFS_IOC_ROLLBACK, fsname, args, &result);
+	err = lzc_ioctl("zfs_rollback", fsname, args, NULL, &result, 0);
 	nvlist_free(args);
 	if (err == 0 && snapnamebuf != NULL) {
 		const char *snapname = fnvlist_lookup_string(result, "target");
@@ -655,7 +679,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/#")] = '\0';
 
-	error = lzc_ioctl(ZFS_IOC_BOOKMARK, pool, bookmarks, errlist);
+	error = lzc_ioctl("zfs_bookmark", pool, bookmarks, NULL, errlist, 0);
 
 	return (error);
 }
@@ -684,7 +708,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
 int
 lzc_get_bookmarks(const char *fsname, nvlist_t *props, nvlist_t **bmarks)
 {
-	return (lzc_ioctl(ZFS_IOC_GET_BOOKMARKS, fsname, props, bmarks));
+	return (lzc_ioctl_impl(ZFS_IOC_GET_BOOKMARKS, fsname, props, bmarks));
 }
 
 /*
@@ -717,7 +741,8 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/#")] = '\0';
 
-	error = lzc_ioctl(ZFS_IOC_DESTROY_BOOKMARKS, pool, bmarks, errlist);
+	error = lzc_ioctl("zfs_destroy_bookmarks", pool, bmarks, NULL, errlist,
+	    0);
 
 	return (error);
 }
