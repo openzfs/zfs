@@ -88,12 +88,12 @@ Json output with -j :
 
 Example implemented for "zpool list" :
 
-#zpool list -J
+zpool list -J
 ```json
 {"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}],"stderr":""}
 ```
 
-#zpool list -J | python -m json.tool
+zpool list -J | python -m json.tool
 ```json
 {
     "stderr": "", 
@@ -125,17 +125,17 @@ Example implemented for "zpool list" :
     ]
 }
 ```
-#zpool list -j 
+zpool list -j 
 ```json
 {"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
 {"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
 {"stderr":""}
 ```
-#zpool list -Jv
+zpool list -Jv
 ```json 
 {"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"992M","allocated":"28,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop4","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop5","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"992M","allocated":"47,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop6","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop7","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}],"stderr":""}
 ```
-#zpool list -Jv |python -m json.tool 
+zpool list -Jv |python -m json.tool 
 ```json
 {
     "stderr": "", 
@@ -288,7 +288,7 @@ Example implemented for "zpool list" :
 }
 ```
 
-#zpool list -jv
+zpool list -jv
 ```json
 {"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"992M","allocated":"28,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop4","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop5","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"992M","allocated":"47,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop6","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop7","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}
 {"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}
