@@ -175,6 +175,7 @@ pool_list_iter(zpool_list_t *zlp, int unavail, zpool_iter_f func,
 	return (ret);
 }
 
+
 /*
  * Remove the given pool from the list.  When running iostat, we want to remove
  * those pools that no longer exist.

@@ -82,3 +82,213 @@ the json output with -j :
 {"name":"tank2","used":"60928","available":"3996586496","referenced":"19456","mountpoint":"/tank2"}
 {"stderr":""}
 ```
+
+
+Example implemented for "zpool list" :
+
+#zpool list -J
+```json
+{"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}],"stderr":""}
+```
+
+#zpool list -J | python -m json.tool
+```json
+{
+    "stderr": "", 
+    "stdout": [
+        {
+            "allocated": "76K", 
+            "altroot": "-", 
+            "capacity": "0%", 
+            "dedupratio": "1.00x", 
+            "expandsize": "-", 
+            "fragmentation": "0%", 
+            "free": "1,94G", 
+            "health": "ONLINE", 
+            "name": "lincoln", 
+            "size": "1,94G"
+        }, 
+        {
+            "allocated": "204K", 
+            "altroot": "-", 
+            "capacity": "0%", 
+            "dedupratio": "1.00x", 
+            "expandsize": "-", 
+            "fragmentation": "0%", 
+            "free": "3,23G", 
+            "health": "ONLINE", 
+            "name": "tank", 
+            "size": "3,23G"
+        }
+    ]
+}
+```
+#zpool list -j 
+```json
+{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
+{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
+{"stderr":""}
+```
+#zpool list -Jv
+```json 
+{"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"992M","allocated":"28,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop4","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop5","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"992M","allocated":"47,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop6","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop7","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}],"stderr":""}
+```
+#zpool list -Jv |python -m json.tool 
+```json
+{
+    "stderr": "", 
+    "stdout": [
+        {
+            "allocated": "76K", 
+            "altroot": "-", 
+            "capacity": "0%", 
+            "dedupratio": "1.00x", 
+            "devices": [
+                {
+                    "allocated": "28,5K", 
+                    "capacity": "0%", 
+                    "devices": [
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop4", 
+                            "size": "-"
+                        }, 
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop5", 
+                            "size": "-"
+                        }
+                    ], 
+                    "expandsize": "-", 
+                    "fragmentation": "0%", 
+                    "free": "992M", 
+                    "name": "mirror", 
+                    "size": "992M"
+                }, 
+                {
+                    "allocated": "47,5K", 
+                    "capacity": "0%", 
+                    "devices": [
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop6", 
+                            "size": "-"
+                        }, 
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop7", 
+                            "size": "-"
+                        }
+                    ], 
+                    "expandsize": "-", 
+                    "fragmentation": "0%", 
+                    "free": "992M", 
+                    "name": "mirror", 
+                    "size": "992M"
+                }
+            ], 
+            "expandsize": "-", 
+            "fragmentation": "0%", 
+            "free": "1,94G", 
+            "health": "ONLINE", 
+            "name": "lincoln", 
+            "size": "1,94G"
+        }, 
+        {
+            "allocated": "204K", 
+            "altroot": "-", 
+            "capacity": "0%", 
+            "dedupratio": "1.00x", 
+            "devices": [
+                {
+                    "allocated": "71K", 
+                    "capacity": "0%", 
+                    "devices": [
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop0", 
+                            "size": "-"
+                        }, 
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop1", 
+                            "size": "-"
+                        }
+                    ], 
+                    "expandsize": "-", 
+                    "fragmentation": "0%", 
+                    "free": "1016M", 
+                    "name": "mirror", 
+                    "size": "1016M"
+                }, 
+                {
+                    "allocated": "132K", 
+                    "capacity": "0%", 
+                    "devices": [
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop2", 
+                            "size": "-"
+                        }, 
+                        {
+                            "allocated": "-", 
+                            "capacity": "-", 
+                            "expandsize": "-", 
+                            "fragmentation": "-", 
+                            "free": "-", 
+                            "name": "loop3", 
+                            "size": "-"
+                        }
+                    ], 
+                    "expandsize": "-", 
+                    "fragmentation": "0%", 
+                    "free": "2,23G", 
+                    "name": "mirror", 
+                    "size": "2,23G"
+                }
+            ], 
+            "expandsize": "-", 
+            "fragmentation": "0%", 
+            "free": "3,23G", 
+            "health": "ONLINE", 
+            "name": "tank", 
+            "size": "3,23G"
+        }
+    ]
+}
+```
+
+#zpool list -jv
+```json
+{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"992M","allocated":"28,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop4","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop5","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"992M","allocated":"47,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop6","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop7","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}
+{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}
+{"stderr":""}
+```

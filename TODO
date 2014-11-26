@@ -1,0 +1,7 @@
+[x] create -J & -j in zfs list
+[x] create -J & -j in zpool list 
+[x] create -J & -j in zpool list -v 
+[ ] implement the error in json for zfs create 
+[ ] implement the error in json for zpool create 
+[ ] implement the error in json for zpool destroy
+[pending ] implement -J & -j in zpool status + error 
