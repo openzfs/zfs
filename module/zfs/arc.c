@@ -219,6 +219,7 @@ static boolean_t arc_warm;
 unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
+unsigned long zfs_arc_meta_min = 0;
 
 /* The 6 states: */
 static arc_state_t ARC_anon;
@@ -325,6 +326,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_meta_used;
 	kstat_named_t arcstat_meta_limit;
 	kstat_named_t arcstat_meta_max;
+	kstat_named_t arcstat_meta_min;
 } arc_stats_t;
 
 static arc_stats_t arc_stats = {
@@ -413,6 +415,7 @@ static arc_stats_t arc_stats = {
 	{ "arc_meta_used",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_limit",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_max",		KSTAT_DATA_UINT64 },
+	{ "arc_meta_min",		KSTAT_DATA_UINT64 }
 };
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
@@ -478,6 +481,7 @@ static arc_state_t	*arc_l2c_only;
 #define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
 #define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
 #define	arc_meta_limit	ARCSTAT(arcstat_meta_limit) /* max size for metadata */
+#define	arc_meta_min	ARCSTAT(arcstat_meta_min) /* min size for metadata */
 #define	arc_meta_used	ARCSTAT(arcstat_meta_used) /* size of metadata */
 #define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
 
@@ -1791,7 +1795,7 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 	arc_state_t *evicted_state;
 	uint64_t bytes_evicted = 0, skipped = 0, missed = 0;
 	arc_buf_hdr_t *ab, *ab_prev = NULL;
-	list_t *list = &state->arcs_list[type];
+	list_t *list;
 	kmutex_t *hash_lock;
 	boolean_t have_lock;
 	void *stolen = NULL;
@@ -1805,6 +1809,50 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 top:
 	mutex_enter(&state->arcs_mtx);
 	mutex_enter(&evicted_state->arcs_mtx);
+
+	/*
+	 * Decide which "type" (data vs metadata) to recycle from.
+	 *
+	 * If we are over the metadata limit, recycle from metadata.
+	 * If we are under the metadata minimum, recycle from data.
+	 * Otherwise, recycle from whichever type has the oldest (least
+	 * recently accessed) header.
+	 */
+	if (recycle) {
+		arc_buf_hdr_t *data_hdr =
+		    list_tail(&state->arcs_list[ARC_BUFC_DATA]);
+		arc_buf_hdr_t *metadata_hdr =
+		    list_tail(&state->arcs_list[ARC_BUFC_METADATA]);
+		arc_buf_contents_t realtype;
+		if (data_hdr == NULL) {
+			realtype = ARC_BUFC_METADATA;
+		} else if (metadata_hdr == NULL) {
+			realtype = ARC_BUFC_DATA;
+		} else if (arc_meta_used >= arc_meta_limit) {
+			realtype = ARC_BUFC_METADATA;
+		} else if (arc_meta_used <= arc_meta_min) {
+			realtype = ARC_BUFC_DATA;
+		} else {
+			if (data_hdr->b_arc_access <
+			    metadata_hdr->b_arc_access) {
+				realtype = ARC_BUFC_DATA;
+			} else {
+				realtype = ARC_BUFC_METADATA;
+			}
+		}
+		if (realtype != type) {
+			/*
+			 * If we want to evict from a different list,
+			 * we can not recycle, because DATA vs METADATA
+			 * buffers are segregated into different kmem
+			 * caches (and vmem arenas).
+			 */
+			type = realtype;
+			recycle = B_FALSE;
+		}
+	}
+
+	list = &state->arcs_list[type];
 
 	for (ab = list_tail(list); ab; ab = ab_prev) {
 		ab_prev = list_prev(list, ab);
@@ -2414,7 +2462,10 @@ arc_adapt_thread(void)
 		    zfs_arc_meta_limit != arc_meta_limit)
 			arc_meta_limit = zfs_arc_meta_limit;
 
-
+		if (zfs_arc_meta_min > 0 &&
+			zfs_arc_meta_min <= arc_c_min &&
+			zfs_arc_meta_min != arc_meta_min)
+			arc_meta_min = zfs_arc_meta_min;
 
 	}
 
@@ -4063,6 +4114,12 @@ arc_init(void)
 	if (zfs_arc_meta_limit > 0 && zfs_arc_meta_limit <= arc_c_max)
 		arc_meta_limit = zfs_arc_meta_limit;
 
+	if (zfs_arc_meta_min > 0) {
+		arc_meta_min = zfs_arc_meta_min;
+	} else {
+		arc_meta_min = arc_c_min / 2;
+	}
+
 	/* if kmem_flags are set, lets try to use less memory */
 	if (kmem_debugging())
 		arc_c = arc_c / 2;
@@ -5563,6 +5620,9 @@ MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
 
 module_param(zfs_arc_meta_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
+
+module_param(zfs_arc_meta_min, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_meta_min, "Meta minimum for arc size");
 
 module_param(zfs_arc_meta_prune, int, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_prune, "Bytes of meta data to prune");
