@@ -41,6 +41,7 @@
 #include <sys/bitmap.h>
 #include <sys/cmn_err.h>
 #include <sys/kmem.h>
+#include <sys/vmem.h>
 #include <sys/taskq.h>
 #include <sys/buf.h>
 #include <sys/param.h>
@@ -391,7 +392,6 @@ extern void kstat_set_raw_ops(kstat_t *ksp,
 #define	KM_SLEEP		UMEM_NOFAIL
 #define	KM_PUSHPAGE		KM_SLEEP
 #define	KM_NOSLEEP		UMEM_DEFAULT
-#define	KM_NODEBUG		0x0
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KMEM		0x0
 #define	KMC_VMEM		0x0

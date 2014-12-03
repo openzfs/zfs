@@ -246,7 +246,7 @@ zio_buf_alloc(size_t size)
 
 	ASSERT3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
-	return (kmem_cache_alloc(zio_buf_cache[c], KM_PUSHPAGE | KM_NODEBUG));
+	return (kmem_cache_alloc(zio_buf_cache[c], KM_PUSHPAGE));
 }
 
 /*
@@ -262,8 +262,7 @@ zio_data_buf_alloc(size_t size)
 
 	ASSERT(c < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
-	return (kmem_cache_alloc(zio_data_buf_cache[c],
-	    KM_PUSHPAGE | KM_NODEBUG));
+	return (kmem_cache_alloc(zio_data_buf_cache[c], KM_PUSHPAGE));
 }
 
 void

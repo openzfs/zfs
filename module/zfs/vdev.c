@@ -856,7 +856,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT(oldc <= newc);
 
-	mspp = kmem_zalloc(newc * sizeof (*mspp), KM_PUSHPAGE | KM_NODEBUG);
+	mspp = kmem_zalloc(newc * sizeof (*mspp), KM_PUSHPAGE);
 
 	if (oldc != 0) {
 		bcopy(vd->vdev_ms, mspp, oldc * sizeof (*mspp));
