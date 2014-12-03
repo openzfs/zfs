@@ -262,7 +262,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	if (dp->dp_blkstats == NULL) {
 		dp->dp_blkstats = kmem_alloc(sizeof (zfs_all_blkstats_t),
-		    KM_PUSHPAGE | KM_NODEBUG);
+		    KM_PUSHPAGE);
 	}
 	bzero(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
 

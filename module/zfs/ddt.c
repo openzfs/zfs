@@ -834,7 +834,7 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 {
 	ddt_t *ddt;
 
-	ddt = kmem_cache_alloc(ddt_cache, KM_PUSHPAGE | KM_NODEBUG);
+	ddt = kmem_cache_alloc(ddt_cache, KM_PUSHPAGE);
 	bzero(ddt, sizeof (ddt_t));
 
 	mutex_init(&ddt->ddt_lock, NULL, MUTEX_DEFAULT, NULL);

@@ -520,7 +520,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
-	spa = kmem_zalloc(sizeof (spa_t), KM_PUSHPAGE | KM_NODEBUG);
+	spa = kmem_zalloc(sizeof (spa_t), KM_PUSHPAGE);
 
 	mutex_init(&spa->spa_async_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_errlist_lock, NULL, MUTEX_DEFAULT, NULL);

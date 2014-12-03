@@ -1192,8 +1192,7 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 
 	lrsize = P2ROUNDUP_TYPED(lrsize, sizeof (uint64_t), size_t);
 
-	itx = kmem_alloc(offsetof(itx_t, itx_lr) + lrsize,
-	    KM_PUSHPAGE | KM_NODEBUG);
+	itx = vmem_alloc(offsetof(itx_t, itx_lr) + lrsize, KM_PUSHPAGE);
 	itx->itx_lr.lrc_txtype = txtype;
 	itx->itx_lr.lrc_reclen = lrsize;
 	itx->itx_sod = lrsize; /* if write & WR_NEED_COPY will be increased */
@@ -1208,7 +1207,7 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 void
 zil_itx_destroy(itx_t *itx)
 {
-	kmem_free(itx, offsetof(itx_t, itx_lr) + itx->itx_lr.lrc_reclen);
+	vmem_free(itx, offsetof(itx_t, itx_lr) + itx->itx_lr.lrc_reclen);
 }
 
 /*

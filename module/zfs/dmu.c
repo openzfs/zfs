@@ -417,8 +417,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		}
 		nblks = 1;
 	}
-	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks,
-	    KM_PUSHPAGE | KM_NODEBUG);
+	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_PUSHPAGE);
 
 	zio = zio_root(dn->dn_objset->os_spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, offset);

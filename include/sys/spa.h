@@ -29,6 +29,7 @@
 
 #include <sys/avl.h>
 #include <sys/zfs_context.h>
+#include <sys/kstat.h>
 #include <sys/nvpair.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
