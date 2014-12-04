@@ -43,6 +43,20 @@
 
 
 /*
+ * Linux 3.16 replaced smp_mb__{before,after}_{atomic,clear}_{dec,inc,bit}()
+ * with smp_mb__{before,after}_atomic() because they were redundant. This is
+ * only used inside our SLAB allocator, so we implement an internal wrapper
+ * here to give us smp_mb__{before,after}_atomic() on older kernels.
+ */
+#ifndef smp_mb__before_atomic
+#define	smp_mb__before_atomic(x) smp_mb__before_clear_bit(x)
+#endif
+
+#ifndef smp_mb__after_atomic
+#define	smp_mb__after_atomic(x) smp_mb__after_clear_bit(x)
+#endif
+
+/*
  * Cache expiration was implemented because it was part of the default Solaris
  * kmem_cache behavior.  The idea is that per-cpu objects which haven't been
  * accessed in several seconds should be returned to the cache.  On the other
@@ -1110,8 +1124,10 @@ spl_cache_grow_work(void *data)
 	}
 
 	atomic_dec(&skc->skc_ref);
+	smp_mb__before_atomic();
 	clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
 	clear_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
+	smp_mb__after_atomic();
 	wake_up_all(&skc->skc_waitq);
 	spin_unlock(&skc->skc_lock);
 
@@ -1164,7 +1180,8 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 
 		ska = kmalloc(sizeof (*ska), kmem_flags_convert(flags));
 		if (ska == NULL) {
-			clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
+			clear_bit_unlock(KMC_BIT_GROWING, &skc->skc_flags);
+			smp_mb__after_atomic();
 			wake_up_all(&skc->skc_waitq);
 			return (-ENOMEM);
 		}
@@ -1616,8 +1633,8 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 	}
 
 	spl_slab_reclaim(skc, count, 1);
-	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
-	smp_wmb();
+	clear_bit_unlock(KMC_BIT_REAPING, &skc->skc_flags);
+	smp_mb__after_atomic();
 	wake_up_bit(&skc->skc_flags, KMC_BIT_REAPING);
 out:
 	atomic_dec(&skc->skc_ref);
