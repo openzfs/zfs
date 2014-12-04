@@ -1064,22 +1064,43 @@ def zfs_header():
     div2()
 
 
+def usage():
+    sys.stdout.write("Usage: arc_summary.py [-h] [-a] [-d] [-p PAGE]\n\n")
+    sys.stdout.write("\t -h, --help           : "
+            "Print this help message and exit\n")
+    sys.stdout.write("\t -a, --alternate      : "
+            "Show an alternate sysctl layout\n")
+    sys.stdout.write("\t -d, --description    : "
+            "Show the sysctl descriptions\n")
+    sys.stdout.write("\t -p PAGE, --page=PAGE : "
+            "Select a single output page to display,\n")
+    sys.stdout.write("\t                        "
+            "should be an integer between 1 and " + str(len(unSub)) + "\n\n")
+    sys.stdout.write("Examples:\n")
+    sys.stdout.write("\tarc_summary.py -a\n")
+    sys.stdout.write("\tarc_summary.py -p 4\n")
+    sys.stdout.write("\tarc_summary.py -ad\n")
+    sys.stdout.write("\tarc_summary.py --page=2\n")
+
 def main():
     global show_sysctl_descriptions
     global alternate_sysctl_layout
 
     opts, args = getopt.getopt(
-        sys.argv[1:], "adp:"
+        sys.argv[1:], "adp:h", ["alternate", "description", "page=", "help"]
     )
 
     args = {}
     for opt, arg in opts:
-        if opt == '-a':
+        if opt in ('-a', '--alternate'):
             args['a'] = True
-        if opt == '-d':
+        if opt in ('-d', '--description'):
             args['d'] = True
-        if opt == '-p':
+        if opt in ('-p', '--page'):
             args['p'] = arg
+        if opt in ('-h', '--help'):
+            usage()
+            sys.exit()
 
     Kstat = get_Kstat()
 
