@@ -71,6 +71,25 @@ module_param(spl_kmem_cache_expire, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
 
 /*
+ * Cache magazines are an optimization designed to minimize the cost of
+ * allocating memory.  They do this by keeping a per-cpu cache of recently
+ * freed objects, which can then be reallocated without taking a lock. This
+ * can improve performance on highly contended caches.  However, because
+ * objects in magazines will prevent otherwise empty slabs from being
+ * immediately released this may not be ideal for low memory machines.
+ *
+ * For this reason spl_kmem_cache_magazine_size can be used to set a maximum
+ * magazine size.  When this value is set to 0 the magazine size will be
+ * automatically determined based on the object size.  Otherwise magazines
+ * will be limited to 2-256 objects per magazine (i.e per cpu).  Magazines
+ * may never be entirely disabled in this implementation.
+ */
+unsigned int spl_kmem_cache_magazine_size = 0;
+module_param(spl_kmem_cache_magazine_size, uint, 0444);
+MODULE_PARM_DESC(spl_kmem_cache_magazine_size,
+	"Default magazine size (2-256), set automatically (0)\n");
+
+/*
  * The default behavior is to report the number of objects remaining in the
  * cache.  This allows the Linux VM to repeatedly reclaim objects from the
  * cache when memory is low satisfy other memory allocations.  Alternately,
@@ -362,45 +381,31 @@ spl_slab_free(spl_kmem_slab_t *sks,
 }
 
 /*
- * Traverse all the partial slabs attached to a cache and free those which
- * are currently empty, and have not been touched for skc_delay seconds to
- * avoid thrashing.  The count argument is passed to optionally cap the
- * number of slabs reclaimed, a count of zero means try and reclaim
- * everything.  When flag the is set available slabs freed regardless of age.
+ * Reclaim empty slabs at the end of the partial list.
  */
 static void
-spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
+spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
 	spl_kmem_slab_t *sks, *m;
 	spl_kmem_obj_t *sko, *n;
 	LIST_HEAD(sks_list);
 	LIST_HEAD(sko_list);
 	uint32_t size = 0;
-	int i = 0;
 
 	/*
-	 * Move empty slabs and objects which have not been touched in
-	 * skc_delay seconds on to private lists to be freed outside
-	 * the spin lock.  This delay time is important to avoid thrashing
-	 * however when flag is set the delay will not be used.
+	 * Empty slabs and objects must be moved to a private list so they
+	 * can be safely freed outside the spin lock.  All empty slabs are
+	 * at the end of skc->skc_partial_list, therefore once a non-empty
+	 * slab is found we can stop scanning.
 	 */
 	spin_lock(&skc->skc_lock);
 	list_for_each_entry_safe_reverse(sks, m,
 	    &skc->skc_partial_list, sks_list) {
-		/*
-		 * All empty slabs are at the end of skc->skc_partial_list,
-		 * therefore once a non-empty slab is found we can stop
-		 * scanning.  Additionally, stop when reaching the target
-		 * reclaim 'count' if a non-zero threshold is given.
-		 */
-		if ((sks->sks_ref > 0) || (count && i >= count))
+
+		if (sks->sks_ref > 0)
 			break;
 
-		if (time_after(jiffies, sks->sks_age + skc->skc_delay * HZ) ||
-		    flag) {
-			spl_slab_free(sks, &sks_list, &sko_list);
-			i++;
-		}
+		spl_slab_free(sks, &sks_list, &sko_list);
 	}
 	spin_unlock(&skc->skc_lock);
 
@@ -633,7 +638,7 @@ spl_cache_age(void *data)
 	if (!(skc->skc_flags & KMC_NOMAGAZINE))
 		on_each_cpu(spl_magazine_age, skc, 1);
 
-	spl_slab_reclaim(skc, skc->skc_reap, 0);
+	spl_slab_reclaim(skc);
 
 	while (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags) && !id) {
 		id = taskq_dispatch_delay(
@@ -709,6 +714,9 @@ spl_magazine_size(spl_kmem_cache_t *skc)
 {
 	uint32_t obj_size = spl_obj_size(skc);
 	int size;
+
+	if (spl_kmem_cache_magazine_size > 0)
+		return (MAX(MIN(spl_kmem_cache_magazine_size, 256), 2));
 
 	/* Per-magazine sizes below assume a 4Kib page size */
 	if (obj_size > (PAGE_SIZE * 256))
@@ -1030,7 +1038,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 
 	if (skc->skc_flags & (KMC_KMEM | KMC_VMEM)) {
 		spl_magazine_destroy(skc);
-		spl_slab_reclaim(skc, 0, 1);
+		spl_slab_reclaim(skc);
 	} else {
 		ASSERT(skc->skc_flags & KMC_SLAB);
 		kmem_cache_destroy(skc->skc_linux_cache);
@@ -1433,6 +1441,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 {
 	spl_kmem_magazine_t *skm;
 	unsigned long flags;
+	int do_reclaim = 0;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
@@ -1473,14 +1482,23 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	skm = skc->skc_mag[smp_processor_id()];
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 
-	/* Per-CPU cache full, flush it to make space */
-	if (unlikely(skm->skm_avail >= skm->skm_size))
+	/*
+	 * Per-CPU cache full, flush it to make space for this object,
+	 * this may result in an empty slab which can be reclaimed once
+	 * interrupts are re-enabled.
+	 */
+	if (unlikely(skm->skm_avail >= skm->skm_size)) {
 		spl_cache_flush(skc, skm, skm->skm_refill);
+		do_reclaim = 1;
+	}
 
 	/* Available space in cache, use it */
 	skm->skm_objs[skm->skm_avail++] = obj;
 
 	local_irq_restore(flags);
+
+	if (do_reclaim)
+		spl_slab_reclaim(skc);
 out:
 	atomic_dec(&skc->skc_ref);
 }
@@ -1621,7 +1639,7 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 		} while (do_reclaim);
 	}
 
-	/* Reclaim from the magazine then the slabs ignoring age and delay. */
+	/* Reclaim from the magazine and free all now empty slabs. */
 	if (spl_kmem_cache_expire & KMC_EXPIRE_MEM) {
 		spl_kmem_magazine_t *skm;
 		unsigned long irq_flags;
@@ -1632,7 +1650,7 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 		local_irq_restore(irq_flags);
 	}
 
-	spl_slab_reclaim(skc, count, 1);
+	spl_slab_reclaim(skc);
 	clear_bit_unlock(KMC_BIT_REAPING, &skc->skc_flags);
 	smp_mb__after_atomic();
 	wake_up_bit(&skc->skc_flags, KMC_BIT_REAPING);

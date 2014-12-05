@@ -123,6 +123,28 @@ Default value: \fBKMALLOC_MAX_SIZE/4\fR.
 .sp
 .ne 2
 .na
+\fBspl_kmem_cache_magazine_size\fR (uint)
+.ad
+.RS 12n
+Cache magazines are an optimization designed to minimize the cost of
+allocating memory.  They do this by keeping a per-cpu cache of recently
+freed objects, which can then be reallocated without taking a lock. This
+can improve performance on highly contended caches.  However, because
+objects in magazines will prevent otherwise empty slabs from being
+immediately released this may not be ideal for low memory machines.
+.sp
+For this reason \fBspl_kmem_cache_magazine_size\fR can be used to set a
+maximum magazine size.  When this value is set to 0 the magazine size will
+be automatically determined based on the object size.  Otherwise magazines
+will be limited to 2-256 objects per magazine (i.e per cpu).  Magazines
+may never be entirely disabled in this implementation.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBspl_hostid\fR (ulong)
 .ad
 .RS 12n
