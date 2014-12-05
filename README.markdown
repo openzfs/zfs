@@ -19,7 +19,7 @@ http://lists.open-zfs.org/pipermail/developer/2014-September/000847.html
 http://lists.open-zfs.org/pipermail/developer/2014-November/000934.html
 
 
-## Installation
+## Installation (for debian)
 
 before install the dependencies 
 ```bash
@@ -37,7 +37,7 @@ cd ..
 ```
 now clone the zfs (branch with json implementation)"
 ```bash
-git clone -b nvlist https://git.alyseo.com/42/zfs-json.git
+git clone -b json https://github.com/Alyseo/zfs 
 cd zfs-json
 ./autogen
 ./configure
