@@ -50,18 +50,18 @@ implemented for "zfs list" :
 
 Standard output :
 
-zfs list
+### zfs list
 NAME        USED  AVAIL  REFER  MOUNTPOINT
 tank       1,31M   983M    19K  /tank
 tank/toto  1,25M   984M     8K  -
 tank1      59,5K   984M    19K  /tank1
 tank2      59,5K  3,72G    19K  /tank2
 
-Json output with -J:
+### Json output with -J:
 ```json
 {"stdout":[{"name":"tank","used":"1376256","available":"1030422528","referenced":"19456","mountpoint":"/tank"},{"name":"tank/toto","used":"1310720","available":"1031725056","referenced":"8192","mountpoint":"-"},{"name":"tank1","used":"60928","available":"1031737856","referenced":"19456","mountpoint":"/tank1"},{"name":"tank2","used":"60928","available":"3996586496","referenced":"19456","mountpoint":"/tank2"}],"stderr":""}
 ```
-Output (with -J only) can be piped on 'python -mjson.tool' to have pretty json code :
+### Output (with -J only) can be piped on 'python -mjson.tool' to have pretty json code :
 ```json
 {
     "stderr": "", 
@@ -98,7 +98,7 @@ Output (with -J only) can be piped on 'python -mjson.tool' to have pretty json c
 }
 ```
 
-Json output with -j :
+### Json output with -j :
 ```json
 {"name":"tank","used":"1376256","available":"1030422528","referenced":"19456","mountpoint":"/tank"}
 {"name":"tank/toto","used":"1310720","available":"1031725056","referenced":"8192","mountpoint":"-"}
@@ -107,13 +107,13 @@ Json output with -j :
 {"stderr":""}
 ```
 
-Example implemented for "zpool list" :
+### Example implemented for "zpool list" :
 
-zpool list -J
+### zpool list -J
 ```json
 {"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}],"stderr":""}
 ```
-zpool list -J | python -m json.tool
+### zpool list -J | python -m json.tool
 ```json
 {
     "stderr": "", 
@@ -145,17 +145,17 @@ zpool list -J | python -m json.tool
     ]
 }
 ```
-zpool list -j
+### zpool list -j
 ```json
 {"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
 {"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
 {"stderr":""}
 ```
-zpool list -Jv
+### zpool list -Jv
 ```json
 {"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"992M","allocated":"28,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop4","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop5","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"992M","allocated":"47,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop6","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop7","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}],"stderr":""}
 ```
-zpool list -Jv |python -m json.tool
+### zpool list -Jv |python -m json.tool
 ```json
 {
     "stderr": "", 
@@ -313,12 +313,14 @@ zpool list -Jv |python -m json.tool
 {"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}
 {"stderr":""}
 ```
+example implemented for 'zpool status ' :
+
 ### zpool status -J
 ```json
 {"stdout":[{"pool":"tank","state":"ONLINE","scan":"none requested","config":{"name":"tank","state":"ONLINE","read":"0","write":"0","checksum":"0","devices":[{"name":"mirror-0","state":"ONLINE","read":"0","write":"0","checksum":"0","devices":[{"name":"loop0","state":"ONLINE","read":"0","write":"0","checksum":"0"},{"name":"loop1","state":"ONLINE","read":"0","write":"0","checksum":"0"}]}]},"stderr":""},{"pool":"tank1","state":"DEGRADED","status":"One or more devices could not be used because the label is missing or invalid.Sufficient replicas exist for the pool to continuefunctioning in a degraded state.","action":" Replace the device using 'zpool replace'","see":"http://zfsonlinux.org/msg/ZFS-8000-4J","scan":"none requested","config":{"name":"tank1","state":"DEGRADED","read":"0","write":"0","checksum":"0","devices":[{"name":"mirror-0","state":"DEGRADED","read":"0","write":"0","checksum":"0","devices":[{"name":"loop6","state":"UNAVAIL","read":"0","write":"0","checksum":"0"},{"name":"loop5","state":"ONLINE","read":"0","write":"0","checksum":"0"}]}]},"stderr":"corrupted data"}]}
 ```
 
-#### zpool status -J | python -m json.tool
+### zpool status -J | python -m json.tool
 ```json
 {
     "stdout": [
