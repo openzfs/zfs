@@ -45,7 +45,7 @@ static dbuf_stats_t dbuf_stats_hash_table;
 static int
 dbuf_stats_hash_table_headers(char *buf, size_t size)
 {
-	size = snprintf(buf, size - 1,
+	(void) snprintf(buf, size,
 	    "%-88s | %-124s | %s\n"
 	    "%-16s %-8s %-8s %-8s %-8s %-8s %-8s %-5s %-5s %5s | "
 	    "%-5s %-5s %-6s %-8s %-6s %-8s %-12s "
@@ -57,7 +57,6 @@ dbuf_stats_hash_table_headers(char *buf, size_t size)
 	    "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
 	    "l2_comp", "aholds", "dtype", "btype", "data_bs", "meta_bs",
 	    "bsize", "lvls", "dholds", "blocks", "dsize");
-	buf[size] = '\0';
 
 	return (0);
 }
@@ -75,7 +74,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	if (dn)
 		__dmu_object_info_from_dnode(dn, &doi);
 
-	size = snprintf(buf, size - 1,
+	(void) snprintf(buf, size,
 	    "%-16s %-8llu %-8lld %-8lld %-8lld %-8llu %-8llu %-5d %-5d %-5lu | "
 	    "%-5d %-5d %-6lld 0x%-6x %-6lu %-8llu %-12llu "
 	    "%-6lu %-6lu %-6lu %-6lu %-6lu %-8llu %-8llu %-8d %-5lu | "
@@ -118,7 +117,6 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    (ulong_t)refcount_count(&dn->dn_holds),
 	    (u_longlong_t)doi.doi_fill_count,
 	    (u_longlong_t)doi.doi_max_offset);
-	buf[size] = '\0';
 
 	return (size);
 }

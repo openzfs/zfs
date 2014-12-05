@@ -2673,7 +2673,7 @@ If the \fB-i\fR or \fB-I\fR flags are used in conjunction with the \fB-R\fR flag
 .ad
 .sp .6
 .RS 4n
-Generate a deduplicated stream. Blocks which would have been sent multiple times in the send stream will only be sent once. The receiving system must also support this feature to recieve a deduplicated stream.  This flag can be used regardless of the dataset's dedup  property, but performance will be much better if the filesystem uses a dedup-capable checksum (eg.  sha256).
+Generate a deduplicated stream. Blocks which would have been sent multiple times in the send stream will only be sent once. The receiving system must also support this feature to receive a deduplicated stream.  This flag can be used regardless of the dataset's dedup  property, but performance will be much better if the filesystem uses a dedup-capable checksum (eg.  sha256).
 .RE
 
 .sp

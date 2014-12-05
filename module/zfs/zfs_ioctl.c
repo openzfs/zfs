@@ -186,6 +186,7 @@
 #include <sys/zfeature.h>
 
 #include <linux/miscdevice.h>
+#include <linux/module_compat.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
@@ -246,6 +247,55 @@ static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t *);
 static int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
+
+#if defined(HAVE_DECLARE_EVENT_CLASS)
+void
+__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
+{
+	const char *newfile;
+	size_t size = 4096;
+	char *buf = kmem_alloc(size, KM_PUSHPAGE);
+	char *nl;
+	va_list adx;
+
+	/*
+	 * Get rid of annoying prefix to filename.
+	 */
+	newfile = strrchr(file, '/');
+	if (newfile != NULL) {
+		newfile = newfile + 1; /* Get rid of leading / */
+	} else {
+		newfile = file;
+	}
+
+	va_start(adx, fmt);
+	(void) vsnprintf(buf, size, fmt, adx);
+	va_end(adx);
+
+	/*
+	 * Get rid of trailing newline.
+	 */
+	nl = strrchr(buf, '\n');
+	if (nl != NULL)
+		*nl = '\0';
+
+	/*
+	 * To get this data enable the zfs__dprintf trace point as shown:
+	 *
+	 * # Enable zfs__dprintf tracepoint, clear the tracepoint ring buffer
+	 * $ echo 1 > /sys/module/zfs/parameters/zfs_flags
+	 * $ echo 1 > /sys/kernel/debug/tracing/events/zfs/enable
+	 * $ echo 0 > /sys/kernel/debug/tracing/trace
+	 *
+	 * # Dump the ring buffer.
+	 * $ cat /sys/kernel/debug/tracing/trace
+	 */
+	DTRACE_PROBE4(zfs__dprintf,
+	    char *, newfile, char *, func, int, line, char *, buf);
+
+	kmem_free(buf, size);
+}
+#endif /* HAVE_DECLARE_EVENT_CLASS */
 
 static void
 history_str_free(char *buf)

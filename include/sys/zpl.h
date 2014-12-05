@@ -26,14 +26,15 @@
 #define	_SYS_ZPL_H
 
 #include <sys/vfs.h>
-#include <linux/vfs_compat.h>
-#include <linux/xattr_compat.h>
+#include <linux/aio.h>
 #include <linux/dcache_compat.h>
 #include <linux/exportfs.h>
-#include <linux/writeback.h>
 #include <linux/falloc.h>
+#include <linux/file_compat.h>
 #include <linux/task_io_accounting_ops.h>
-#include <linux/aio.h>
+#include <linux/vfs_compat.h>
+#include <linux/writeback.h>
+#include <linux/xattr_compat.h>
 
 /* zpl_inode.c */
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,

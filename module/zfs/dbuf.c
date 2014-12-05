@@ -869,13 +869,16 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db, *db_next;
 	uint64_t txg = tx->tx_txg;
+	boolean_t freespill =
+	    (start == DMU_SPILL_BLKID || end == DMU_SPILL_BLKID);
 
-	if (end > dn->dn_maxblkid && (end != DMU_SPILL_BLKID))
+	if (end > dn->dn_maxblkid && !freespill)
 		end = dn->dn_maxblkid;
 	dprintf_dnode(dn, "start=%llu end=%llu\n", start, end);
 
 	mutex_enter(&dn->dn_dbufs_mtx);
-	if (start >= dn->dn_unlisted_l0_blkid * dn->dn_datablksz) {
+	if (start >= dn->dn_unlisted_l0_blkid * dn->dn_datablksz &&
+	    !freespill) {
 		/* There can't be any dbufs in this range; no need to search. */
 		mutex_exit(&dn->dn_dbufs_mtx);
 		return;
@@ -896,7 +899,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 
 		if (db->db_level != 0)
 			continue;
-		if (db->db_blkid < start || db->db_blkid > end)
+		if ((db->db_blkid < start || db->db_blkid > end) && !freespill)
 			continue;
 
 		/* found a level 0 buffer in the range */
@@ -2996,4 +2999,5 @@ EXPORT_SYMBOL(dmu_buf_set_user_ie);
 EXPORT_SYMBOL(dmu_buf_update_user);
 EXPORT_SYMBOL(dmu_buf_get_user);
 EXPORT_SYMBOL(dmu_buf_freeable);
+EXPORT_SYMBOL(dmu_buf_get_blkptr);
 #endif

@@ -36,6 +36,7 @@
 #include <sys/txg.h>
 #include <sys/dsl_destroy.h>
 #include <linux/miscdevice.h>
+#include <linux/module_compat.h>
 #include "zpios-internal.h"
 
 

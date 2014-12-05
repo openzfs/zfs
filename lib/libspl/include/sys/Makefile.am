@@ -33,7 +33,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/param.h \
 	$(top_srcdir)/lib/libspl/include/sys/priv.h \
 	$(top_srcdir)/lib/libspl/include/sys/processor.h \
-	$(top_srcdir)/lib/libspl/include/sys/sdt.h \
 	$(top_srcdir)/lib/libspl/include/sys/stack.h \
 	$(top_srcdir)/lib/libspl/include/sys/stat.h \
 	$(top_srcdir)/lib/libspl/include/sys/stropts.h \
