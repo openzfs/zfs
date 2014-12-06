@@ -491,7 +491,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		dnode_phys_t *blk;
 		int i;
 		int blksz = BP_GET_LSIZE(bp);
-		uint32_t aflags = ARC_WAIT;
+		arc_flags_t aflags = ARC_FLAG_WAIT;
 		arc_buf_t *abuf;
 
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
@@ -509,7 +509,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		}
 		(void) arc_buf_remove_ref(abuf, &abuf);
 	} else if (type == DMU_OT_SA) {
-		uint32_t aflags = ARC_WAIT;
+		arc_flags_t aflags = ARC_FLAG_WAIT;
 		arc_buf_t *abuf;
 		int blksz = BP_GET_LSIZE(bp);
 
@@ -527,7 +527,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		err = dump_write_embedded(dsp, zb->zb_object,
 		    zb->zb_blkid * blksz, blksz, bp);
 	} else { /* it's a level-0 block of a regular object */
-		uint32_t aflags = ARC_WAIT;
+		arc_flags_t aflags = ARC_FLAG_WAIT;
 		arc_buf_t *abuf;
 		int blksz = BP_GET_LSIZE(bp);
 		void *buf;
