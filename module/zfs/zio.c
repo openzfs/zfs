@@ -2132,7 +2132,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 
 		if (ddp->ddp_phys_birth != 0) {
 			arc_buf_t *abuf = NULL;
-			uint32_t aflags = ARC_WAIT;
+			arc_flags_t aflags = ARC_FLAG_WAIT;
 			blkptr_t blk = *zio->io_bp;
 			int error;
 
