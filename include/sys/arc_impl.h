@@ -107,7 +107,7 @@ struct arc_buf_hdr {
 
 	arc_buf_hdr_t		*b_hash_next;
 	arc_buf_t		*b_buf;
-	uint32_t		b_flags;
+	arc_flags_t		b_flags;
 	uint32_t		b_datacnt;
 
 	arc_callback_t		*b_acb;
