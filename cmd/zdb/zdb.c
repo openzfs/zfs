@@ -1169,7 +1169,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 	print_indirect(bp, zb, dnp);
 
 	if (BP_GET_LEVEL(bp) > 0 && !BP_IS_HOLE(bp)) {
-		uint32_t flags = ARC_WAIT;
+		arc_flags_t flags = ARC_FLAG_WAIT;
 		int i;
 		blkptr_t *cbp;
 		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;

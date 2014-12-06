@@ -577,7 +577,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 {
 	dnode_t *dn;
 	zbookmark_phys_t zb;
-	uint32_t aflags = ARC_NOWAIT;
+	uint32_t aflags = ARC_FLAG_NOWAIT;
 	int err;
 
 	DB_DNODE_ENTER(db);
@@ -632,9 +632,9 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 	mutex_exit(&db->db_mtx);
 
 	if (DBUF_IS_L2CACHEABLE(db))
-		aflags |= ARC_L2CACHE;
+		aflags |= ARC_FLAG_L2CACHE;
 	if (DBUF_IS_L2COMPRESSIBLE(db))
-		aflags |= ARC_L2COMPRESS;
+		aflags |= ARC_FLAG_L2COMPRESS;
 
 	SET_BOOKMARK(&zb, db->db_objset->os_dsl_dataset ?
 	    db->db_objset->os_dsl_dataset->ds_object : DMU_META_OBJSET,
@@ -646,7 +646,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 	    dbuf_read_done, db, ZIO_PRIORITY_SYNC_READ,
 	    (*flags & DB_RF_CANFAIL) ? ZIO_FLAG_CANFAIL : ZIO_FLAG_MUSTSUCCEED,
 	    &aflags, &zb);
-	if (aflags & ARC_CACHED)
+	if (aflags & ARC_FLAG_CACHED)
 		*flags |= DB_RF_CACHED;
 
 	return (SET_ERROR(err));
@@ -1931,7 +1931,8 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid, zio_priority_t prio)
 	if (dbuf_findbp(dn, 0, blkid, TRUE, &db, &bp, NULL) == 0) {
 		if (bp && !BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
 			dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
-			uint32_t aflags = ARC_NOWAIT | ARC_PREFETCH;
+			arc_flags_t aflags =
+			    ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
 			zbookmark_phys_t zb;
 
 			SET_BOOKMARK(&zb, ds ? ds->ds_object : DMU_META_OBJSET,

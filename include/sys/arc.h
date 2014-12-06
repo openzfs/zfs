@@ -57,6 +57,36 @@ struct arc_prune {
 	refcount_t		p_refcnt;
 };
 
+typedef enum arc_flags
+{
+	/*
+	 * Public flags that can be passed into the ARC by external consumers.
+	 */
+	ARC_FLAG_NONE			= 1 << 0,	/* No flags set */
+	ARC_FLAG_WAIT			= 1 << 1,	/* perform sync I/O */
+	ARC_FLAG_NOWAIT			= 1 << 2,	/* perform async I/O */
+	ARC_FLAG_PREFETCH		= 1 << 3,	/* I/O is a prefetch */
+	ARC_FLAG_CACHED			= 1 << 4,	/* I/O was in cache */
+	ARC_FLAG_L2CACHE		= 1 << 5,	/* cache in L2ARC */
+	ARC_FLAG_L2COMPRESS		= 1 << 6,	/* compress in L2ARC */
+
+	/*
+	 * Private ARC flags.  These flags are private ARC only flags that
+	 * will show up in b_flags in the arc_hdr_buf_t. These flags should
+	 * only be set by ARC code.
+	 */
+	ARC_FLAG_IN_HASH_TABLE		= 1 << 7,	/* buffer is hashed */
+	ARC_FLAG_IO_IN_PROGRESS		= 1 << 8,	/* I/O in progress */
+	ARC_FLAG_IO_ERROR		= 1 << 9,	/* I/O failed for buf */
+	ARC_FLAG_FREED_IN_READ		= 1 << 10,	/* freed during read */
+	ARC_FLAG_BUF_AVAILABLE		= 1 << 11,	/* block not in use */
+	ARC_FLAG_INDIRECT		= 1 << 12,	/* indirect block */
+	ARC_FLAG_FREE_IN_PROGRESS	= 1 << 13,	/*  about to be freed */
+	ARC_FLAG_L2_WRITING		= 1 << 14,	/* write in progress */
+	ARC_FLAG_L2_EVICTED		= 1 << 15,	/* evicted during I/O */
+	ARC_FLAG_L2_WRITE_HEAD		= 1 << 16,	/* head of write list */
+} arc_flags_t;
+
 struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
@@ -71,15 +101,6 @@ typedef enum arc_buf_contents {
 	ARC_BUFC_METADATA,			/* buffer contains metadata */
 	ARC_BUFC_NUMTYPES
 } arc_buf_contents_t;
-/*
- * These are the flags we pass into calls to the arc
- */
-#define	ARC_WAIT	(1 << 1)	/* perform I/O synchronously */
-#define	ARC_NOWAIT	(1 << 2)	/* perform I/O asynchronously */
-#define	ARC_PREFETCH	(1 << 3)	/* I/O is a prefetch */
-#define	ARC_CACHED	(1 << 4)	/* I/O was already in cache */
-#define	ARC_L2CACHE	(1 << 5)	/* cache in L2ARC */
-#define	ARC_L2COMPRESS	(1 << 6)	/* compress in L2ARC */
 
 /*
  * The following breakdows of arc_size exist for kstat only.
@@ -146,7 +167,7 @@ int arc_referenced(arc_buf_t *buf);
 
 int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     arc_done_func_t *done, void *private, zio_priority_t priority, int flags,
-    uint32_t *arc_flags, const zbookmark_phys_t *zb);
+    arc_flags_t *arc_flags, const zbookmark_phys_t *zb);
 zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
     blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, boolean_t l2arc_compress,
     const zio_prop_t *zp, arc_done_func_t *ready, arc_done_func_t *physdone,
