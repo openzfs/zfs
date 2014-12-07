@@ -10,4 +10,5 @@ PartOf=smb.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+ExecStartPre=-@bindir@/rm /etc/dfs/sharetab
 ExecStart=@sbindir@/zfs share -a
