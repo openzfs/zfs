@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #ifndef _SPL_KMEM_H
 #define	_SPL_KMEM_H
@@ -36,18 +36,18 @@ extern void strfree(char *str);
 /*
  * Memory allocation interfaces
  */
-#define KM_SLEEP	GFP_KERNEL	/* Can sleep, never fails */
-#define KM_NOSLEEP	GFP_ATOMIC	/* Can not sleep, may fail */
-#define KM_PUSHPAGE	(GFP_NOIO | __GFP_HIGH)	/* Use reserved memory */
-#define KM_NODEBUG	__GFP_NOWARN	/* Suppress warnings */
-#define KM_FLAGS	__GFP_BITS_MASK
-#define KM_VMFLAGS	GFP_LEVEL_MASK
+#define	KM_SLEEP	GFP_KERNEL	/* Can sleep, never fails */
+#define	KM_NOSLEEP	GFP_ATOMIC	/* Can not sleep, may fail */
+#define	KM_PUSHPAGE	(GFP_NOIO | __GFP_HIGH)	/* Use reserved memory */
+#define	KM_NODEBUG	__GFP_NOWARN	/* Suppress warnings */
+#define	KM_FLAGS	__GFP_BITS_MASK
+#define	KM_VMFLAGS	GFP_LEVEL_MASK
 
 /*
  * Used internally, the kernel does not need to support this flag
  */
 #ifndef __GFP_ZERO
-# define __GFP_ZERO                     0x8000
+#define	__GFP_ZERO	0x8000
 #endif
 
 /*
@@ -66,7 +66,7 @@ kmalloc_nofail(size_t size, gfp_t flags)
 		ptr = kmalloc(size, flags);
 	} while (ptr == NULL && (flags & __GFP_WAIT));
 
-	return ptr;
+	return (ptr);
 }
 
 static inline void *
@@ -78,7 +78,7 @@ kzalloc_nofail(size_t size, gfp_t flags)
 		ptr = kzalloc(size, flags);
 	} while (ptr == NULL && (flags & __GFP_WAIT));
 
-	return ptr;
+	return (ptr);
 }
 
 static inline void *
@@ -90,7 +90,7 @@ kmalloc_node_nofail(size_t size, gfp_t flags, int node)
 		ptr = kmalloc_node(size, flags, node);
 	} while (ptr == NULL && (flags & __GFP_WAIT));
 
-	return ptr;
+	return (ptr);
 }
 
 #ifdef DEBUG_KMEM
@@ -98,29 +98,23 @@ kmalloc_node_nofail(size_t size, gfp_t flags, int node)
 /*
  * Memory accounting functions to be used only when DEBUG_KMEM is set.
  */
-# ifdef HAVE_ATOMIC64_T
-
-# define kmem_alloc_used_add(size)      atomic64_add(size, &kmem_alloc_used)
-# define kmem_alloc_used_sub(size)      atomic64_sub(size, &kmem_alloc_used)
-# define kmem_alloc_used_read()         atomic64_read(&kmem_alloc_used)
-# define kmem_alloc_used_set(size)      atomic64_set(&kmem_alloc_used, size)
-
+#ifdef HAVE_ATOMIC64_T
+#define	kmem_alloc_used_add(size)	atomic64_add(size, &kmem_alloc_used)
+#define	kmem_alloc_used_sub(size)	atomic64_sub(size, &kmem_alloc_used)
+#define	kmem_alloc_used_read()		atomic64_read(&kmem_alloc_used)
+#define	kmem_alloc_used_set(size)	atomic64_set(&kmem_alloc_used, size)
 extern atomic64_t kmem_alloc_used;
 extern unsigned long long kmem_alloc_max;
-
-# else  /* HAVE_ATOMIC64_T */
-
-# define kmem_alloc_used_add(size)      atomic_add(size, &kmem_alloc_used)
-# define kmem_alloc_used_sub(size)      atomic_sub(size, &kmem_alloc_used)
-# define kmem_alloc_used_read()         atomic_read(&kmem_alloc_used)
-# define kmem_alloc_used_set(size)      atomic_set(&kmem_alloc_used, size)
-
+#else  /* HAVE_ATOMIC64_T */
+#define	kmem_alloc_used_add(size)	atomic_add(size, &kmem_alloc_used)
+#define	kmem_alloc_used_sub(size)	atomic_sub(size, &kmem_alloc_used)
+#define	kmem_alloc_used_read()		atomic_read(&kmem_alloc_used)
+#define	kmem_alloc_used_set(size)	atomic_set(&kmem_alloc_used, size)
 extern atomic_t kmem_alloc_used;
 extern unsigned long long kmem_alloc_max;
+#endif /* HAVE_ATOMIC64_T */
 
-# endif /* HAVE_ATOMIC64_T */
-
-# ifdef DEBUG_KMEM_TRACKING
+#ifdef DEBUG_KMEM_TRACKING
 /*
  * DEBUG_KMEM && DEBUG_KMEM_TRACKING
  *
@@ -132,18 +126,18 @@ extern unsigned long long kmem_alloc_max;
  * be enabled for debugging.  This feature may be enabled by passing
  * --enable-debug-kmem-tracking to configure.
  */
-#  define kmem_alloc(sz, fl)            kmem_alloc_track((sz), (fl),           \
-                                             __FUNCTION__, __LINE__, 0, 0)
-#  define kmem_zalloc(sz, fl)           kmem_alloc_track((sz), (fl)|__GFP_ZERO,\
-                                             __FUNCTION__, __LINE__, 0, 0)
-#  define kmem_alloc_node(sz, fl, nd)   kmem_alloc_track((sz), (fl),           \
-                                             __FUNCTION__, __LINE__, 1, nd)
-#  define kmem_free(ptr, sz)            kmem_free_track((ptr), (sz))
+#define	kmem_alloc(sz, fl)		kmem_alloc_track((sz), (fl),           \
+					__FUNCTION__, __LINE__, 0, 0)
+#define	kmem_zalloc(sz, fl)		kmem_alloc_track((sz), (fl)|__GFP_ZERO,\
+					__FUNCTION__, __LINE__, 0, 0)
+#define	kmem_alloc_node(sz, fl, nd)	kmem_alloc_track((sz), (fl),           \
+					__FUNCTION__, __LINE__, 1, nd)
+#define	kmem_free(ptr, sz)		kmem_free_track((ptr), (sz))
 
 extern void *kmem_alloc_track(size_t, int, const char *, int, int, int);
 extern void kmem_free_track(const void *, size_t);
 
-# else /* DEBUG_KMEM_TRACKING */
+#else /* DEBUG_KMEM_TRACKING */
 /*
  * DEBUG_KMEM && !DEBUG_KMEM_TRACKING
  *
@@ -153,18 +147,18 @@ extern void kmem_free_track(const void *, size_t);
  * will be reported on the console.  To disable this basic accounting
  * pass the --disable-debug-kmem option to configure.
  */
-#  define kmem_alloc(sz, fl)            kmem_alloc_debug((sz), (fl),           \
-                                             __FUNCTION__, __LINE__, 0, 0)
-#  define kmem_zalloc(sz, fl)           kmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
-                                             __FUNCTION__, __LINE__, 0, 0)
-#  define kmem_alloc_node(sz, fl, nd)   kmem_alloc_debug((sz), (fl),           \
-                                             __FUNCTION__, __LINE__, 1, nd)
-#  define kmem_free(ptr, sz)            kmem_free_debug((ptr), (sz))
+#define	kmem_alloc(sz, fl)		kmem_alloc_debug((sz), (fl),           \
+					__FUNCTION__, __LINE__, 0, 0)
+#define	kmem_zalloc(sz, fl)		kmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
+					__FUNCTION__, __LINE__, 0, 0)
+#define	kmem_alloc_node(sz, fl, nd)	kmem_alloc_debug((sz), (fl),           \
+					__FUNCTION__, __LINE__, 1, nd)
+#define	kmem_free(ptr, sz)		kmem_free_debug((ptr), (sz))
 
 extern void *kmem_alloc_debug(size_t, int, const char *, int, int, int);
 extern void kmem_free_debug(const void *, size_t);
 
-# endif /* DEBUG_KMEM_TRACKING */
+#endif /* DEBUG_KMEM_TRACKING */
 #else /* DEBUG_KMEM */
 /*
  * !DEBUG_KMEM && !DEBUG_KMEM_TRACKING
@@ -173,17 +167,17 @@ extern void kmem_free_debug(const void *, size_t);
  * minimal memory accounting.  To enable basic accounting pass the
  * --enable-debug-kmem option to configure.
  */
-# define kmem_alloc(sz, fl)             kmalloc_nofail((sz), (fl))
-# define kmem_zalloc(sz, fl)            kzalloc_nofail((sz), (fl))
-# define kmem_alloc_node(sz, fl, nd)    kmalloc_node_nofail((sz), (fl), (nd))
-# define kmem_free(ptr, sz)             ((void)(sz), kfree(ptr))
+#define	kmem_alloc(sz, fl)		kmalloc_nofail((sz), (fl))
+#define	kmem_zalloc(sz, fl)		kzalloc_nofail((sz), (fl))
+#define	kmem_alloc_node(sz, fl, nd)	kmalloc_node_nofail((sz), (fl), (nd))
+#define	kmem_free(ptr, sz)		((void)(sz), kfree(ptr))
 
 #endif /* DEBUG_KMEM */
 
 int spl_kmem_init(void);
 void spl_kmem_fini(void);
 
-#define kmem_virt(ptr)			(((ptr) >= (void *)VMALLOC_START) && \
-					 ((ptr) <  (void *)VMALLOC_END))
+#define	kmem_virt(ptr)			(((ptr) >= (void *)VMALLOC_START) && \
+					((ptr) <  (void *)VMALLOC_END))
 
 #endif	/* _SPL_KMEM_H */

@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,9 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
- *  Solaris Porting Layer (SPL) Kmem Implementation.
-\*****************************************************************************/
+ */
 
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
@@ -76,7 +74,7 @@ MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab, "Number of objects per slab");
 unsigned int spl_kmem_cache_obj_per_slab_min = SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN;
 module_param(spl_kmem_cache_obj_per_slab_min, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab_min,
-    "Minimal number of objects per slab");
+	"Minimal number of objects per slab");
 
 unsigned int spl_kmem_cache_max_size = 32;
 module_param(spl_kmem_cache_max_size, uint, 0644);
@@ -95,12 +93,12 @@ unsigned int spl_kmem_cache_slab_limit = 0;
 #endif
 module_param(spl_kmem_cache_slab_limit, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_slab_limit,
-    "Objects less than N bytes use the Linux slab");
+	"Objects less than N bytes use the Linux slab");
 
 unsigned int spl_kmem_cache_kmem_limit = (PAGE_SIZE / 4);
 module_param(spl_kmem_cache_kmem_limit, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
-    "Objects less than N bytes use the kmalloc");
+	"Objects less than N bytes use the kmalloc");
 
 /*
  * Slab allocation interfaces
@@ -114,7 +112,7 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
  *    breaker for the SPL which contains particularly expensive
  *    initializers for mutex's, condition variables, etc.  We also
  *    require a minimal level of cleanup for these data types unlike
- *    many Linux data type which do need to be explicitly destroyed.
+ *    many Linux data types which do need to be explicitly destroyed.
  *
  * 2) Virtual address space backed slab.  Callers of the Solaris slab
  *    expect it to work well for both small are very large allocations.
@@ -135,7 +133,7 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
  *
  * XXX: Improve the partial slab list by carefully maintaining a
  *      strict ordering of fullest to emptiest slabs based on
- *      the slab reference count.  This guarantees the when freeing
+ *      the slab reference count.  This guarantees that when freeing
  *      slabs back to the system we need only linearly traverse the
  *      last N slabs in the list to discover all the freeable slabs.
  *
@@ -149,7 +147,7 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
 
 struct list_head spl_kmem_cache_list;   /* List of caches */
 struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
-taskq_t *spl_kmem_cache_taskq;          /* Task queue for ageing / reclaim */
+taskq_t *spl_kmem_cache_taskq;		/* Task queue for ageing / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 
@@ -173,7 +171,7 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
 
-	return ptr;
+	return (ptr);
 }
 
 static void
@@ -204,8 +202,8 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 static inline uint32_t
 spl_sks_size(spl_kmem_cache_t *skc)
 {
-	return P2ROUNDUP_TYPED(sizeof(spl_kmem_slab_t),
-	       skc->skc_obj_align, uint32_t);
+	return (P2ROUNDUP_TYPED(sizeof (spl_kmem_slab_t),
+	    skc->skc_obj_align, uint32_t));
 }
 
 /*
@@ -216,8 +214,8 @@ spl_obj_size(spl_kmem_cache_t *skc)
 {
 	uint32_t align = skc->skc_obj_align;
 
-	return P2ROUNDUP_TYPED(skc->skc_obj_size, align, uint32_t) +
-	       P2ROUNDUP_TYPED(sizeof(spl_kmem_obj_t), align, uint32_t);
+	return (P2ROUNDUP_TYPED(skc->skc_obj_size, align, uint32_t) +
+	    P2ROUNDUP_TYPED(sizeof (spl_kmem_obj_t), align, uint32_t));
 }
 
 /*
@@ -226,8 +224,8 @@ spl_obj_size(spl_kmem_cache_t *skc)
 static inline spl_kmem_obj_t *
 spl_sko_from_obj(spl_kmem_cache_t *skc, void *obj)
 {
-	return obj + P2ROUNDUP_TYPED(skc->skc_obj_size,
-	       skc->skc_obj_align, uint32_t);
+	return (obj + P2ROUNDUP_TYPED(skc->skc_obj_size,
+	    skc->skc_obj_align, uint32_t));
 }
 
 /*
@@ -237,7 +235,7 @@ spl_sko_from_obj(spl_kmem_cache_t *skc, void *obj)
 static inline uint32_t
 spl_offslab_size(spl_kmem_cache_t *skc)
 {
-	return 1UL << (fls64(spl_obj_size(skc)) + 1);
+	return (1UL << (fls64(spl_obj_size(skc)) + 1));
 }
 
 /*
@@ -320,8 +318,8 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 out:
 	if (rc) {
 		if (skc->skc_flags & KMC_OFFSLAB)
-			list_for_each_entry_safe(sko, n, &sks->sks_free_list,
-						 sko_list)
+			list_for_each_entry_safe(sko,
+			    n, &sks->sks_free_list, sko_list)
 				kv_free(skc, sko->sko_addr, offslab_size);
 
 		kv_free(skc, base, skc->skc_slab_size);
@@ -338,7 +336,7 @@ out:
  */
 static void
 spl_slab_free(spl_kmem_slab_t *sks,
-	      struct list_head *sks_list, struct list_head *sko_list)
+    struct list_head *sks_list, struct list_head *sko_list)
 {
 	spl_kmem_cache_t *skc;
 
@@ -363,7 +361,7 @@ spl_slab_free(spl_kmem_slab_t *sks,
 }
 
 /*
- * Traverses all the partial slabs attached to a cache and free those
+ * Traverse all the partial slabs attached to a cache and free those
  * which which are currently empty, and have not been touched for
  * skc_delay seconds to  avoid thrashing.  The count argument is
  * passed to optionally cap the number of slabs reclaimed, a count
@@ -387,7 +385,8 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 	 * however when flag is set the delay will not be used.
 	 */
 	spin_lock(&skc->skc_lock);
-	list_for_each_entry_safe_reverse(sks,m,&skc->skc_partial_list,sks_list){
+	list_for_each_entry_safe_reverse(sks, m,
+	    &skc->skc_partial_list, sks_list) {
 		/*
 		 * All empty slabs are at the end of skc->skc_partial_list,
 		 * therefore once a non-empty slab is found we can stop
@@ -397,7 +396,8 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 		if ((sks->sks_ref > 0) || (count && i >= count))
 			break;
 
-		if (time_after(jiffies,sks->sks_age+skc->skc_delay*HZ)||flag) {
+		if (time_after(jiffies, sks->sks_age + skc->skc_delay * HZ) ||
+		    flag) {
 			spl_slab_free(sks, &sks_list, &sko_list);
 			i++;
 		}
@@ -443,10 +443,10 @@ spl_emergency_search(struct rb_root *root, void *obj)
 		else if (address > (unsigned long)ske->ske_obj)
 			node = node->rb_right;
 		else
-			return ske;
+			return (ske);
 	}
 
-	return NULL;
+	return (NULL);
 }
 
 static int
@@ -465,13 +465,13 @@ spl_emergency_insert(struct rb_root *root, spl_kmem_emergency_t *ske)
 		else if (address > (unsigned long)ske_tmp->ske_obj)
 			new = &((*new)->rb_right);
 		else
-			return 0;
+			return (0);
 	}
 
 	rb_link_node(&ske->ske_node, parent, new);
 	rb_insert_color(&ske->ske_node, root);
 
-	return 1;
+	return (1);
 }
 
 /*
@@ -490,7 +490,7 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 	if (!empty)
 		return (-EEXIST);
 
-	ske = kmalloc(sizeof(*ske), flags);
+	ske = kmalloc(sizeof (*ske), flags);
 	if (ske == NULL)
 		return (-ENOMEM);
 
@@ -565,7 +565,7 @@ __spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 
 	skm->skm_avail -= count;
 	memmove(skm->skm_objs, &(skm->skm_objs[count]),
-	        sizeof(void *) * skm->skm_avail);
+	    sizeof (void *) * skm->skm_avail);
 }
 
 static void
@@ -666,7 +666,7 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 
 	if (skc->skc_flags & KMC_OFFSLAB) {
 		*objs = spl_kmem_cache_obj_per_slab;
-		*size = P2ROUNDUP(sizeof(spl_kmem_slab_t), PAGE_SIZE);
+		*size = P2ROUNDUP(sizeof (spl_kmem_slab_t), PAGE_SIZE);
 		return (0);
 	} else {
 		sks_size = spl_sks_size(skc);
@@ -731,8 +731,8 @@ static spl_kmem_magazine_t *
 spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 {
 	spl_kmem_magazine_t *skm;
-	int size = sizeof(spl_kmem_magazine_t) +
-	           sizeof(void *) * skc->skc_mag_size;
+	int size = sizeof (spl_kmem_magazine_t) +
+	    sizeof (void *) * skc->skc_mag_size;
 
 	skm = kmem_alloc_node(size, KM_SLEEP, cpu_to_node(cpu));
 	if (skm) {
@@ -754,8 +754,8 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 static void
 spl_magazine_free(spl_kmem_magazine_t *skm)
 {
-	int size = sizeof(spl_kmem_magazine_t) +
-	           sizeof(void *) * skm->skm_size;
+	int size = sizeof (spl_kmem_magazine_t) +
+	    sizeof (void *) * skm->skm_size;
 
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 	ASSERT(skm->skm_avail == 0);
@@ -802,11 +802,11 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return;
 
-        for_each_online_cpu(i) {
+	for_each_online_cpu(i) {
 		skm = skc->skc_mag[i];
 		spl_cache_flush(skc, skm, skm->skm_avail);
 		spl_magazine_free(skm);
-        }
+	}
 }
 
 /*
@@ -832,12 +832,10 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  */
 spl_kmem_cache_t *
 spl_kmem_cache_create(char *name, size_t size, size_t align,
-                      spl_kmem_ctor_t ctor,
-                      spl_kmem_dtor_t dtor,
-                      spl_kmem_reclaim_t reclaim,
-                      void *priv, void *vmp, int flags)
+    spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor, spl_kmem_reclaim_t reclaim,
+    void *priv, void *vmp, int flags)
 {
-        spl_kmem_cache_t *skc;
+	spl_kmem_cache_t *skc;
 	int rc;
 
 	/*
@@ -851,13 +849,13 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	might_sleep();
 
 	/*
-	 * Allocate memory for a new cache an initialize it.  Unfortunately,
+	 * Allocate memory for a new cache and initialize it.  Unfortunately,
 	 * this usually ends up being a large allocation of ~32k because
 	 * we need to allocate enough memory for the worst case number of
 	 * cpus in the magazine, skc_mag[NR_CPUS].  Because of this we
 	 * explicitly pass KM_NODEBUG to suppress the kmem warning
 	 */
-	skc = kmem_zalloc(sizeof(*skc), KM_SLEEP| KM_NODEBUG);
+	skc = kmem_zalloc(sizeof (*skc), KM_SLEEP| KM_NODEBUG);
 	if (skc == NULL)
 		return (NULL);
 
@@ -865,7 +863,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_name_size = strlen(name) + 1;
 	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, KM_SLEEP);
 	if (skc->skc_name == NULL) {
-		kmem_free(skc, sizeof(*skc));
+		kmem_free(skc, sizeof (*skc));
 		return (NULL);
 	}
 	strncpy(skc->skc_name, name, skc->skc_name_size);
@@ -923,7 +921,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 		 * Objects smaller than spl_kmem_cache_slab_limit can
 		 * use the Linux slab for better space-efficiency.  By
 		 * default this functionality is disabled until its
-		 * performance characters are fully understood.
+		 * performance characteristics are fully understood.
 		 */
 		if (spl_kmem_cache_slab_limit &&
 		    size <= (size_t)spl_kmem_cache_slab_limit)
@@ -980,20 +978,20 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	return (skc);
 out:
 	kmem_free(skc->skc_name, skc->skc_name_size);
-	kmem_free(skc, sizeof(*skc));
+	kmem_free(skc, sizeof (*skc));
 	return (NULL);
 }
 EXPORT_SYMBOL(spl_kmem_cache_create);
 
 /*
- * Register a move callback to for cache defragmentation.
+ * Register a move callback for cache defragmentation.
  * XXX: Unimplemented but harmless to stub out for now.
  */
 void
 spl_kmem_cache_set_move(spl_kmem_cache_t *skc,
     kmem_cbrc_t (move)(void *, void *, size_t, void *))
 {
-        ASSERT(move != NULL);
+	ASSERT(move != NULL);
 }
 EXPORT_SYMBOL(spl_kmem_cache_set_move);
 
@@ -1022,9 +1020,11 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 
 	taskq_cancel_id(spl_kmem_cache_taskq, id);
 
-	/* Wait until all current callers complete, this is mainly
+	/*
+	 * Wait until all current callers complete, this is mainly
 	 * to catch the case where a low memory situation triggers a
-	 * cache reaping action which races with this destroy. */
+	 * cache reaping action which races with this destroy.
+	 */
 	wait_event(wq, atomic_read(&skc->skc_ref) == 0);
 
 	if (skc->skc_flags & (KMC_KMEM | KMC_VMEM)) {
@@ -1037,8 +1037,10 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 
 	spin_lock(&skc->skc_lock);
 
-	/* Validate there are no objects in use and free all the
-	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers. */
+	/*
+	 * Validate there are no objects in use and free all the
+	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers.
+	 */
 	ASSERT3U(skc->skc_slab_alloc, ==, 0);
 	ASSERT3U(skc->skc_obj_alloc, ==, 0);
 	ASSERT3U(skc->skc_slab_total, ==, 0);
@@ -1049,7 +1051,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	kmem_free(skc->skc_name, skc->skc_name_size);
 	spin_unlock(&skc->skc_lock);
 
-	kmem_free(skc, sizeof(*skc));
+	kmem_free(skc, sizeof (*skc));
 }
 EXPORT_SYMBOL(spl_kmem_cache_destroy);
 
@@ -1089,7 +1091,7 @@ spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
 			skc->skc_slab_max = skc->skc_slab_alloc;
 	}
 
-	return sko->sko_addr;
+	return (sko->sko_addr);
 }
 
 /*
@@ -1127,7 +1129,7 @@ spl_cache_grow_work(void *data)
 static int
 spl_cache_grow_wait(spl_kmem_cache_t *skc)
 {
-	return !test_bit(KMC_BIT_GROWING, &skc->skc_flags);
+	return (!test_bit(KMC_BIT_GROWING, &skc->skc_flags));
 }
 
 /*
@@ -1164,7 +1166,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	if (test_and_set_bit(KMC_BIT_GROWING, &skc->skc_flags) == 0) {
 		spl_kmem_alloc_t *ska;
 
-		ska = kmalloc(sizeof(*ska), flags);
+		ska = kmalloc(sizeof (*ska), flags);
 		if (ska == NULL) {
 			clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
 			wake_up_all(&skc->skc_waitq);
@@ -1192,7 +1194,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 		rc = spl_emergency_alloc(skc, flags, obj);
 	} else {
 		remaining = wait_event_timeout(skc->skc_waitq,
-					       spl_cache_grow_wait(skc), HZ);
+		    spl_cache_grow_wait(skc), HZ);
 
 		if (!remaining && test_bit(KMC_BIT_VMEM, &skc->skc_flags)) {
 			spin_lock(&skc->skc_lock);
@@ -1249,9 +1251,11 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 			if (skm != skc->skc_mag[smp_processor_id()])
 				goto out;
 
-			/* Potentially rescheduled to the same CPU but
+			/*
+			 * Potentially rescheduled to the same CPU but
 			 * allocations may have occurred from this CPU while
-			 * we were sleeping so recalculate max refill. */
+			 * we were sleeping so recalculate max refill.
+			 */
 			refill = MIN(refill, skm->skm_size - skm->skm_avail);
 
 			spin_lock(&skc->skc_lock);
@@ -1260,17 +1264,21 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 
 		/* Grab the next available slab */
 		sks = list_entry((&skc->skc_partial_list)->next,
-		                 spl_kmem_slab_t, sks_list);
+		    spl_kmem_slab_t, sks_list);
 		ASSERT(sks->sks_magic == SKS_MAGIC);
 		ASSERT(sks->sks_ref < sks->sks_objs);
 		ASSERT(!list_empty(&sks->sks_free_list));
 
-		/* Consume as many objects as needed to refill the requested
-		 * cache.  We must also be careful not to overfill it. */
-		while (sks->sks_ref < sks->sks_objs && refill-- > 0 && ++count) {
+		/*
+		 * Consume as many objects as needed to refill the requested
+		 * cache.  We must also be careful not to overfill it.
+		 */
+		while (sks->sks_ref < sks->sks_objs && refill-- > 0 &&
+		    ++count) {
 			ASSERT(skm->skm_avail < skm->skm_size);
 			ASSERT(count < skm->skm_size);
-			skm->skm_objs[skm->skm_avail++]=spl_cache_obj(skc,sks);
+			skm->skm_objs[skm->skm_avail++] =
+			    spl_cache_obj(skc, sks);
 		}
 
 		/* Move slab to skc_complete_list when full */
@@ -1308,16 +1316,20 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	sks->sks_ref--;
 	skc->skc_obj_alloc--;
 
-	/* Move slab to skc_partial_list when no longer full.  Slabs
+	/*
+	 * Move slab to skc_partial_list when no longer full.  Slabs
 	 * are added to the head to keep the partial list is quasi-full
-	 * sorted order.  Fuller at the head, emptier at the tail. */
+	 * sorted order.  Fuller at the head, emptier at the tail.
+	 */
 	if (sks->sks_ref == (sks->sks_objs - 1)) {
 		list_del(&sks->sks_list);
 		list_add(&sks->sks_list, &skc->skc_partial_list);
 	}
 
-	/* Move empty slabs to the end of the partial list so
-	 * they can be easily found and freed during reclamation. */
+	/*
+	 * Move empty slabs to the end of the partial list so
+	 * they can be easily found and freed during reclamation.
+	 */
 	if (sks->sks_ref == 0) {
 		list_del(&sks->sks_list);
 		list_add_tail(&sks->sks_list, &skc->skc_partial_list);
@@ -1359,10 +1371,12 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	local_irq_disable();
 
 restart:
-	/* Safe to update per-cpu structure without lock, but
+	/*
+	 * Safe to update per-cpu structure without lock, but
 	 * in the restart case we must be careful to reacquire
 	 * the local magazine since this may have changed
-	 * when we need to grow the cache. */
+	 * when we need to grow the cache.
+	 */
 	skm = skc->skc_mag[smp_processor_id()];
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 
@@ -1438,10 +1452,12 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 
 	local_irq_save(flags);
 
-	/* Safe to update per-cpu structure without lock, but
+	/*
+	 * Safe to update per-cpu structure without lock, but
 	 * no remote memory allocation tracking is being performed
 	 * it is entirely possible to allocate an object from one
-	 * CPU cache and return it to another. */
+	 * CPU cache and return it to another.
+	 */
 	skm = skc->skc_mag[smp_processor_id()];
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 
@@ -1495,12 +1511,12 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 #ifdef HAVE_SPLIT_SHRINKER_CALLBACK
 			uint64_t oldalloc = skc->skc_obj_alloc;
 			spl_kmem_cache_reap_now(skc,
-			   MAX(sc->nr_to_scan >> fls64(skc->skc_slab_objs), 1));
+			    MAX(sc->nr_to_scan>>fls64(skc->skc_slab_objs), 1));
 			if (oldalloc > skc->skc_obj_alloc)
 				alloc += oldalloc - skc->skc_obj_alloc;
 #else
 			spl_kmem_cache_reap_now(skc,
-			   MAX(sc->nr_to_scan >> fls64(skc->skc_slab_objs), 1));
+			    MAX(sc->nr_to_scan>>fls64(skc->skc_slab_objs), 1));
 			alloc += skc->skc_obj_alloc;
 #endif /* HAVE_SPLIT_SHRINKER_CALLBACK */
 		} else {
@@ -1581,7 +1597,7 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 			spin_lock(&skc->skc_lock);
 			do_reclaim =
 			    (skc->skc_slab_total > 0) &&
-			    ((skc->skc_slab_total - skc->skc_slab_alloc) == 0) &&
+			    ((skc->skc_slab_total-skc->skc_slab_alloc) == 0) &&
 			    (skc->skc_obj_alloc < objects);
 
 			objects = skc->skc_obj_alloc;

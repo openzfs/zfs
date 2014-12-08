@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #ifndef _SPL_KMEM_CACHE_H
 #define	_SPL_KMEM_CACHE_H
@@ -33,7 +33,7 @@
  * allocated from the physical or virtal memory address space.  The virtual
  * slabs allow for good behavior when allocation large objects of identical
  * size.  This slab implementation also supports both constructors and
- * destructions which the Linux slab does not.
+ * destructors which the Linux slab does not.
  */
 enum {
 	KMC_BIT_NOTOUCH		= 0,	/* Don't update ages */
@@ -46,8 +46,8 @@ enum {
 	KMC_BIT_SLAB		= 7,	/* Use Linux slab cache */
 	KMC_BIT_OFFSLAB		= 8,	/* Objects not on slab */
 	KMC_BIT_NOEMERGENCY	= 9,	/* Disable emergency objects */
-	KMC_BIT_DEADLOCKED      = 14,	/* Deadlock detected */
-	KMC_BIT_GROWING         = 15,   /* Growing in progress */
+	KMC_BIT_DEADLOCKED	= 14,	/* Deadlock detected */
+	KMC_BIT_GROWING		= 15,	/* Growing in progress */
 	KMC_BIT_REAPING		= 16,	/* Reaping in progress */
 	KMC_BIT_DESTROY		= 17,	/* Destroy in progress */
 	KMC_BIT_TOTAL		= 18,	/* Proc handler helper bit */
@@ -64,29 +64,29 @@ typedef enum kmem_cbrc {
 	KMEM_CBRC_DONT_KNOW	= 4,	/* Object unknown */
 } kmem_cbrc_t;
 
-#define KMC_NOTOUCH		(1 << KMC_BIT_NOTOUCH)
-#define KMC_NODEBUG		(1 << KMC_BIT_NODEBUG)
-#define KMC_NOMAGAZINE		(1 << KMC_BIT_NOMAGAZINE)
-#define KMC_NOHASH		(1 << KMC_BIT_NOHASH)
-#define KMC_QCACHE		(1 << KMC_BIT_QCACHE)
-#define KMC_KMEM		(1 << KMC_BIT_KMEM)
-#define KMC_VMEM		(1 << KMC_BIT_VMEM)
-#define KMC_SLAB		(1 << KMC_BIT_SLAB)
-#define KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
-#define KMC_NOEMERGENCY		(1 << KMC_BIT_NOEMERGENCY)
-#define KMC_DEADLOCKED		(1 << KMC_BIT_DEADLOCKED)
-#define KMC_GROWING		(1 << KMC_BIT_GROWING)
-#define KMC_REAPING		(1 << KMC_BIT_REAPING)
-#define KMC_DESTROY		(1 << KMC_BIT_DESTROY)
-#define KMC_TOTAL		(1 << KMC_BIT_TOTAL)
-#define KMC_ALLOC		(1 << KMC_BIT_ALLOC)
-#define KMC_MAX			(1 << KMC_BIT_MAX)
+#define	KMC_NOTOUCH		(1 << KMC_BIT_NOTOUCH)
+#define	KMC_NODEBUG		(1 << KMC_BIT_NODEBUG)
+#define	KMC_NOMAGAZINE		(1 << KMC_BIT_NOMAGAZINE)
+#define	KMC_NOHASH		(1 << KMC_BIT_NOHASH)
+#define	KMC_QCACHE		(1 << KMC_BIT_QCACHE)
+#define	KMC_KMEM		(1 << KMC_BIT_KMEM)
+#define	KMC_VMEM		(1 << KMC_BIT_VMEM)
+#define	KMC_SLAB		(1 << KMC_BIT_SLAB)
+#define	KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
+#define	KMC_NOEMERGENCY		(1 << KMC_BIT_NOEMERGENCY)
+#define	KMC_DEADLOCKED		(1 << KMC_BIT_DEADLOCKED)
+#define	KMC_GROWING		(1 << KMC_BIT_GROWING)
+#define	KMC_REAPING		(1 << KMC_BIT_REAPING)
+#define	KMC_DESTROY		(1 << KMC_BIT_DESTROY)
+#define	KMC_TOTAL		(1 << KMC_BIT_TOTAL)
+#define	KMC_ALLOC		(1 << KMC_BIT_ALLOC)
+#define	KMC_MAX			(1 << KMC_BIT_MAX)
 
-#define KMC_REAP_CHUNK		INT_MAX
-#define KMC_DEFAULT_SEEKS	1
+#define	KMC_REAP_CHUNK		INT_MAX
+#define	KMC_DEFAULT_SEEKS	1
 
-#define KMC_EXPIRE_AGE		0x1     /* Due to age */
-#define KMC_EXPIRE_MEM		0x2     /* Due to low memory */
+#define	KMC_EXPIRE_AGE		0x1	/* Due to age */
+#define	KMC_EXPIRE_MEM		0x2	/* Due to low memory */
 
 #define	KMC_RECLAIM_ONCE	0x1	/* Force a single shrinker pass */
 
@@ -94,19 +94,19 @@ extern unsigned int spl_kmem_cache_expire;
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
 
-#define SKM_MAGIC			0x2e2e2e2e
-#define SKO_MAGIC			0x20202020
-#define SKS_MAGIC			0x22222222
-#define SKC_MAGIC			0x2c2c2c2c
+#define	SKM_MAGIC			0x2e2e2e2e
+#define	SKO_MAGIC			0x20202020
+#define	SKS_MAGIC			0x22222222
+#define	SKC_MAGIC			0x2c2c2c2c
 
-#define SPL_KMEM_CACHE_DELAY		15	/* Minimum slab release age */
-#define SPL_KMEM_CACHE_REAP		0	/* Default reap everything */
-#define SPL_KMEM_CACHE_OBJ_PER_SLAB	16	/* Target objects per slab */
-#define SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	1	/* Minimum objects per slab */
-#define SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
+#define	SPL_KMEM_CACHE_DELAY		15	/* Minimum slab release age */
+#define	SPL_KMEM_CACHE_REAP		0	/* Default reap everything */
+#define	SPL_KMEM_CACHE_OBJ_PER_SLAB	16	/* Target objects per slab */
+#define	SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	1	/* Minimum objects per slab */
+#define	SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
 
-#define POINTER_IS_VALID(p)		0	/* Unimplemented */
-#define POINTER_INVALIDATE(pp)			/* Unimplemented */
+#define	POINTER_IS_VALID(p)		0	/* Unimplemented */
+#define	POINTER_INVALIDATE(pp)			/* Unimplemented */
 
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
@@ -124,14 +124,14 @@ typedef struct spl_kmem_magazine {
 } spl_kmem_magazine_t;
 
 typedef struct spl_kmem_obj {
-        uint32_t		sko_magic;	/* Sanity magic */
+	uint32_t		sko_magic;	/* Sanity magic */
 	void			*sko_addr;	/* Buffer address */
 	struct spl_kmem_slab	*sko_slab;	/* Owned by slab */
 	struct list_head	sko_list;	/* Free object list linkage */
 } spl_kmem_obj_t;
 
 typedef struct spl_kmem_slab {
-        uint32_t		sks_magic;	/* Sanity magic */
+	uint32_t		sks_magic;	/* Sanity magic */
 	uint32_t		sks_objs;	/* Objects per slab */
 	struct spl_kmem_cache	*sks_cache;	/* Owned by cache */
 	struct list_head	sks_list;	/* Slab list linkage */
@@ -174,14 +174,14 @@ typedef struct spl_kmem_cache {
 	atomic_t		skc_ref;	/* Ref count callers */
 	taskqid_t		skc_taskqid;	/* Slab reclaim task */
 	struct list_head	skc_list;	/* List of caches linkage */
-	struct list_head	skc_complete_list;/* Completely alloc'ed */
-	struct list_head	skc_partial_list; /* Partially alloc'ed */
+	struct list_head	skc_complete_list; /* Completely alloc'ed */
+	struct list_head	skc_partial_list;  /* Partially alloc'ed */
 	struct rb_root		skc_emergency_tree; /* Min sized objects */
 	spinlock_t		skc_lock;	/* Cache lock */
 	wait_queue_head_t	skc_waitq;	/* Allocation waiters */
 	uint64_t		skc_slab_fail;	/* Slab alloc failures */
-	uint64_t		skc_slab_create;/* Slab creates */
-	uint64_t		skc_slab_destroy;/* Slab destroys */
+	uint64_t		skc_slab_create;  /* Slab creates */
+	uint64_t		skc_slab_destroy; /* Slab destroys */
 	uint64_t		skc_slab_total;	/* Slab total current */
 	uint64_t		skc_slab_alloc;	/* Slab alloc current */
 	uint64_t		skc_slab_max;	/* Slab max historic  */
@@ -192,30 +192,31 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_emergency; /* Obj emergency current */
 	uint64_t		skc_obj_emergency_max; /* Obj emergency max */
 } spl_kmem_cache_t;
-#define kmem_cache_t		spl_kmem_cache_t
+#define	kmem_cache_t		spl_kmem_cache_t
 
 extern spl_kmem_cache_t *spl_kmem_cache_create(char *name, size_t size,
-	size_t align, spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor,
-	spl_kmem_reclaim_t reclaim, void *priv, void *vmp, int flags);
+    size_t align, spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor,
+    spl_kmem_reclaim_t reclaim, void *priv, void *vmp, int flags);
 extern void spl_kmem_cache_set_move(spl_kmem_cache_t *,
-	kmem_cbrc_t (*)(void *, void *, size_t, void *));
+    kmem_cbrc_t (*)(void *, void *, size_t, void *));
 extern void spl_kmem_cache_destroy(spl_kmem_cache_t *skc);
 extern void *spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags);
 extern void spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj);
 extern void spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count);
 extern void spl_kmem_reap(void);
 
-#define kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags) \
-        spl_kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags)
-#define kmem_cache_set_move(skc, move)	spl_kmem_cache_set_move(skc, move)
-#define kmem_cache_destroy(skc)		spl_kmem_cache_destroy(skc)
-#define kmem_cache_alloc(skc, flags)	spl_kmem_cache_alloc(skc, flags)
-#define kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)
-#define kmem_cache_reap_now(skc)	\
-        spl_kmem_cache_reap_now(skc, skc->skc_reap)
-#define kmem_reap()			spl_kmem_reap()
-#define kmem_virt(ptr)			(((ptr) >= (void *)VMALLOC_START) && \
-					 ((ptr) <  (void *)VMALLOC_END))
+#define	kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl) \
+    spl_kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl)
+#define	kmem_cache_set_move(skc, move)	spl_kmem_cache_set_move(skc, move)
+#define	kmem_cache_destroy(skc)		spl_kmem_cache_destroy(skc)
+#define	kmem_cache_alloc(skc, flags)	spl_kmem_cache_alloc(skc, flags)
+#define	kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)
+#define	kmem_cache_reap_now(skc)	\
+    spl_kmem_cache_reap_now(skc, skc->skc_reap)
+#define	kmem_reap()			spl_kmem_reap()
+#define	kmem_virt(ptr)			\
+    (((ptr) >= (void *)VMALLOC_START) && \
+    ((ptr) <  (void *)VMALLOC_END))
 
 /*
  * Allow custom slab allocation flags to be set for KMC_SLAB based caches.

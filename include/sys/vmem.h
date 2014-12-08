@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #ifndef _SPL_VMEM_H
 #define	_SPL_VMEM_H
@@ -40,11 +40,11 @@ extern size_t vmem_size(vmem_t *vmp, int typemask);
 /*
  * Memory allocation interfaces
  */
-#define VMEM_ALLOC      0x01
-#define VMEM_FREE       0x02
+#define	VMEM_ALLOC	0x01
+#define	VMEM_FREE	0x02
 
 #ifndef VMALLOC_TOTAL
-#define VMALLOC_TOTAL   (VMALLOC_END - VMALLOC_START)
+#define	VMALLOC_TOTAL	(VMALLOC_END - VMALLOC_START)
 #endif
 
 static inline void *
@@ -78,7 +78,7 @@ vmalloc_nofail(size_t size, gfp_t flags)
 		}
 	}
 
-	return ptr;
+	return (ptr);
 }
 
 static inline void *
@@ -90,7 +90,7 @@ vzalloc_nofail(size_t size, gfp_t flags)
 	if (ptr)
 		memset(ptr, 0, (size));
 
-	return ptr;
+	return (ptr);
 }
 
 #ifdef DEBUG_KMEM
@@ -98,29 +98,29 @@ vzalloc_nofail(size_t size, gfp_t flags)
 /*
  * Memory accounting functions to be used only when DEBUG_KMEM is set.
  */
-# ifdef HAVE_ATOMIC64_T
+#ifdef HAVE_ATOMIC64_T
 
-# define vmem_alloc_used_add(size)      atomic64_add(size, &vmem_alloc_used)
-# define vmem_alloc_used_sub(size)      atomic64_sub(size, &vmem_alloc_used)
-# define vmem_alloc_used_read()         atomic64_read(&vmem_alloc_used)
-# define vmem_alloc_used_set(size)      atomic64_set(&vmem_alloc_used, size)
+#define	vmem_alloc_used_add(size)	atomic64_add(size, &vmem_alloc_used)
+#define	vmem_alloc_used_sub(size)	atomic64_sub(size, &vmem_alloc_used)
+#define	vmem_alloc_used_read()		atomic64_read(&vmem_alloc_used)
+#define	vmem_alloc_used_set(size)	atomic64_set(&vmem_alloc_used, size)
 
 extern atomic64_t vmem_alloc_used;
 extern unsigned long long vmem_alloc_max;
 
-# else  /* HAVE_ATOMIC64_T */
+#else  /* HAVE_ATOMIC64_T */
 
-# define vmem_alloc_used_add(size)      atomic_add(size, &vmem_alloc_used)
-# define vmem_alloc_used_sub(size)      atomic_sub(size, &vmem_alloc_used)
-# define vmem_alloc_used_read()         atomic_read(&vmem_alloc_used)
-# define vmem_alloc_used_set(size)      atomic_set(&vmem_alloc_used, size)
+#define	vmem_alloc_used_add(size)	atomic_add(size, &vmem_alloc_used)
+#define	vmem_alloc_used_sub(size)	atomic_sub(size, &vmem_alloc_used)
+#define	vmem_alloc_used_read()		atomic_read(&vmem_alloc_used)
+#define	vmem_alloc_used_set(size)	atomic_set(&vmem_alloc_used, size)
 
 extern atomic_t vmem_alloc_used;
 extern unsigned long long vmem_alloc_max;
 
-# endif /* HAVE_ATOMIC64_T */
+#endif /* HAVE_ATOMIC64_T */
 
-# ifdef DEBUG_KMEM_TRACKING
+#ifdef DEBUG_KMEM_TRACKING
 /*
  * DEBUG_KMEM && DEBUG_KMEM_TRACKING
  *
@@ -132,18 +132,18 @@ extern unsigned long long vmem_alloc_max;
  * be enabled for debugging.  This feature may be enabled by passing
  * --enable-debug-kmem-tracking to configure.
  */
-#  define vmem_alloc(sz, fl)            vmem_alloc_track((sz), (fl),           \
-                                             __FUNCTION__, __LINE__)
-#  define vmem_zalloc(sz, fl)           vmem_alloc_track((sz), (fl)|__GFP_ZERO,\
-                                             __FUNCTION__, __LINE__)
-#  define vmem_free(ptr, sz)            vmem_free_track((ptr), (sz))
+#define	vmem_alloc(sz, fl)		vmem_alloc_track((sz), (fl),           \
+					__FUNCTION__, __LINE__)
+#define	vmem_zalloc(sz, fl)		vmem_alloc_track((sz), (fl)|__GFP_ZERO,\
+					__FUNCTION__, __LINE__)
+#define	vmem_free(ptr, sz)		vmem_free_track((ptr), (sz))
 
 extern void *kmem_alloc_track(size_t, int, const char *, int, int, int);
 extern void kmem_free_track(const void *, size_t);
 extern void *vmem_alloc_track(size_t, int, const char *, int);
 extern void vmem_free_track(const void *, size_t);
 
-# else /* DEBUG_KMEM_TRACKING */
+#else /* DEBUG_KMEM_TRACKING */
 /*
  * DEBUG_KMEM && !DEBUG_KMEM_TRACKING
  *
@@ -153,16 +153,16 @@ extern void vmem_free_track(const void *, size_t);
  * will be reported on the console.  To disable this basic accounting
  * pass the --disable-debug-kmem option to configure.
  */
-#  define vmem_alloc(sz, fl)            vmem_alloc_debug((sz), (fl),           \
-                                             __FUNCTION__, __LINE__)
-#  define vmem_zalloc(sz, fl)           vmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
-                                             __FUNCTION__, __LINE__)
-#  define vmem_free(ptr, sz)            vmem_free_debug((ptr), (sz))
+#define	vmem_alloc(sz, fl)		vmem_alloc_debug((sz), (fl),           \
+					__FUNCTION__, __LINE__)
+#define	vmem_zalloc(sz, fl)		vmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
+					__FUNCTION__, __LINE__)
+#define	vmem_free(ptr, sz)		vmem_free_debug((ptr), (sz))
 
 extern void *vmem_alloc_debug(size_t, int, const char *, int);
 extern void vmem_free_debug(const void *, size_t);
 
-# endif /* DEBUG_KMEM_TRACKING */
+#endif /* DEBUG_KMEM_TRACKING */
 #else /* DEBUG_KMEM */
 /*
  * !DEBUG_KMEM && !DEBUG_KMEM_TRACKING
@@ -171,9 +171,9 @@ extern void vmem_free_debug(const void *, size_t);
  * minimal memory accounting.  To enable basic accounting pass the
  * --enable-debug-kmem option to configure.
  */
-# define vmem_alloc(sz, fl)             vmalloc_nofail((sz), (fl))
-# define vmem_zalloc(sz, fl)            vzalloc_nofail((sz), (fl))
-# define vmem_free(ptr, sz)             ((void)(sz), vfree(ptr))
+#define	vmem_alloc(sz, fl)		vmalloc_nofail((sz), (fl))
+#define	vmem_zalloc(sz, fl)		vzalloc_nofail((sz), (fl))
+#define	vmem_free(ptr, sz)		((void)(sz), vfree(ptr))
 
 #endif /* DEBUG_KMEM */
 

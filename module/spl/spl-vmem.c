@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,9 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
- *  Solaris Porting Layer (SPL) Kmem Implementation.
-\*****************************************************************************/
+ */
 
 #include <sys/debug.h>
 #include <sys/vmem.h>
@@ -57,18 +55,19 @@ EXPORT_SYMBOL(vmem_size);
 #ifdef DEBUG_KMEM
 
 /* Shim layer memory accounting */
-# ifdef HAVE_ATOMIC64_T
+#ifdef HAVE_ATOMIC64_T
 atomic64_t vmem_alloc_used = ATOMIC64_INIT(0);
 unsigned long long vmem_alloc_max = 0;
-# else  /* HAVE_ATOMIC64_T */
+#else  /* HAVE_ATOMIC64_T */
 atomic_t vmem_alloc_used = ATOMIC_INIT(0);
 unsigned long long vmem_alloc_max = 0;
-# endif /* HAVE_ATOMIC64_T */
+#endif /* HAVE_ATOMIC64_T */
 
 EXPORT_SYMBOL(vmem_alloc_used);
 EXPORT_SYMBOL(vmem_alloc_max);
 
-/* When DEBUG_KMEM_TRACKING is enabled not only will total bytes be tracked
+/*
+ * When DEBUG_KMEM_TRACKING is enabled not only will total bytes be tracked
  * but also the location of every alloc and free.  When the SPL module is
  * unloaded a list of all leaked addresses and where they were allocated
  * will be dumped to the console.  Enabling this feature has a significant
@@ -79,18 +78,18 @@ EXPORT_SYMBOL(vmem_alloc_max);
  * debugging enabled for anything other than debugging  we need to minimize
  * the contention by moving to a lock per xmem_table entry model.
  */
-# ifdef DEBUG_KMEM_TRACKING
+#ifdef DEBUG_KMEM_TRACKING
 
-#  define VMEM_HASH_BITS          10
-#  define VMEM_TABLE_SIZE         (1 << VMEM_HASH_BITS)
+#define	VMEM_HASH_BITS		10
+#define	VMEM_TABLE_SIZE		(1 << VMEM_HASH_BITS)
 
 typedef struct kmem_debug {
-	struct hlist_node kd_hlist;     /* Hash node linkage */
-	struct list_head kd_list;       /* List of all allocations */
-	void *kd_addr;                  /* Allocation pointer */
-	size_t kd_size;                 /* Allocation size */
-	const char *kd_func;            /* Allocation function */
-	int kd_line;                    /* Allocation line */
+	struct hlist_node kd_hlist;	/* Hash node linkage */
+	struct list_head kd_list;	/* List of all allocations */
+	void *kd_addr;			/* Allocation pointer */
+	size_t kd_size;			/* Allocation size */
+	const char *kd_func;		/* Allocation function */
+	int kd_line;			/* Allocation line */
 } kmem_debug_t;
 
 spinlock_t vmem_lock;
@@ -111,12 +110,12 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 	ASSERT(flags & KM_SLEEP);
 
 	/* Function may be called with KM_NOSLEEP so failure is possible */
-	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
+	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof (kmem_debug_t),
 	    flags & ~__GFP_ZERO);
 	if (unlikely(dptr == NULL)) {
 		printk(KERN_WARNING "debug vmem_alloc(%ld, 0x%x) "
 		    "at %s:%d failed (%lld/%llu)\n",
-		    sizeof(kmem_debug_t), flags, func, line,
+		    sizeof (kmem_debug_t), flags, func, line,
 		    vmem_alloc_used_read(), vmem_alloc_max);
 	} else {
 		/*
@@ -194,7 +193,7 @@ vmem_free_track(const void *ptr, size_t size)
 	vmem_alloc_used_sub(size);
 	kfree(dptr->kd_func);
 
-	memset((void *)dptr, 0x5a, sizeof(kmem_debug_t));
+	memset((void *)dptr, 0x5a, sizeof (kmem_debug_t));
 	kfree(dptr);
 
 	memset((void *)ptr, 0x5a, size);
@@ -202,7 +201,7 @@ vmem_free_track(const void *ptr, size_t size)
 }
 EXPORT_SYMBOL(vmem_free_track);
 
-# else /* DEBUG_KMEM_TRACKING */
+#else /* DEBUG_KMEM_TRACKING */
 
 void *
 vmem_alloc_debug(size_t size, int flags, const char *func, int line)
@@ -242,7 +241,7 @@ vmem_free_debug(const void *ptr, size_t size)
 }
 EXPORT_SYMBOL(vmem_free_debug);
 
-# endif /* DEBUG_KMEM_TRACKING */
+#endif /* DEBUG_KMEM_TRACKING */
 #endif /* DEBUG_KMEM */
 
 #if defined(DEBUG_KMEM) && defined(DEBUG_KMEM_TRACKING)
@@ -255,15 +254,19 @@ spl_sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 	ASSERT(str != NULL && len >= 17);
 	memset(str, 0, len);
 
-	/* Check for a fully printable string, and while we are at
-         * it place the printable characters in the passed buffer. */
+	/*
+	 * Check for a fully printable string, and while we are at
+	 * it place the printable characters in the passed buffer.
+	 */
 	for (i = 0; i < size; i++) {
 		str[i] = ((char *)(kd->kd_addr))[i];
 		if (isprint(str[i])) {
 			continue;
 		} else {
-			/* Minimum number of printable characters found
-			 * to make it worthwhile to print this as ascii. */
+			/*
+			 * Minimum number of printable characters found
+			 * to make it worthwhile to print this as ascii.
+			 */
 			if (i > min)
 				break;
 
@@ -274,17 +277,17 @@ spl_sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 
 	if (!flag) {
 		sprintf(str, "%02x%02x%02x%02x%02x%02x%02x%02x",
-		        *((uint8_t *)kd->kd_addr),
-		        *((uint8_t *)kd->kd_addr + 2),
-		        *((uint8_t *)kd->kd_addr + 4),
-		        *((uint8_t *)kd->kd_addr + 6),
-		        *((uint8_t *)kd->kd_addr + 8),
-		        *((uint8_t *)kd->kd_addr + 10),
-		        *((uint8_t *)kd->kd_addr + 12),
-		        *((uint8_t *)kd->kd_addr + 14));
+		    *((uint8_t *)kd->kd_addr),
+		    *((uint8_t *)kd->kd_addr + 2),
+		    *((uint8_t *)kd->kd_addr + 4),
+		    *((uint8_t *)kd->kd_addr + 6),
+		    *((uint8_t *)kd->kd_addr + 8),
+		    *((uint8_t *)kd->kd_addr + 10),
+		    *((uint8_t *)kd->kd_addr + 12),
+		    *((uint8_t *)kd->kd_addr + 14));
 	}
 
-	return str;
+	return (str);
 }
 
 static int
@@ -311,18 +314,18 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 	spin_lock_irqsave(lock, flags);
 	if (!list_empty(list))
 		printk(KERN_WARNING "%-16s %-5s %-16s %s:%s\n", "address",
-		       "size", "data", "func", "line");
+		    "size", "data", "func", "line");
 
 	list_for_each_entry(kd, list, kd_list)
 		printk(KERN_WARNING "%p %-5d %-16s %s:%d\n", kd->kd_addr,
-		       (int)kd->kd_size, spl_sprintf_addr(kd, str, 17, 8),
-		       kd->kd_func, kd->kd_line);
+		    (int)kd->kd_size, spl_sprintf_addr(kd, str, 17, 8),
+		    kd->kd_func, kd->kd_line);
 
 	spin_unlock_irqrestore(lock, flags);
 }
 #else /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
-#define spl_kmem_init_tracking(list, lock, size)
-#define spl_kmem_fini_tracking(list, lock)
+#define	spl_kmem_init_tracking(list, lock, size)
+#define	spl_kmem_fini_tracking(list, lock)
 #endif /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
 
 int
@@ -342,10 +345,12 @@ void
 spl_vmem_fini(void)
 {
 #ifdef DEBUG_KMEM
-	/* Display all unreclaimed memory addresses, including the
+	/*
+	 * Display all unreclaimed memory addresses, including the
 	 * allocation size and the first few bytes of what's located
 	 * at that address to aid in debugging.  Performance is not
-	 * a serious concern here since it is module unload time. */
+	 * a serious concern here since it is module unload time.
+	 */
 	if (vmem_alloc_used_read() != 0)
 		printk(KERN_WARNING "vmem leaked %ld/%llu bytes\n",
 		    vmem_alloc_used_read(), vmem_alloc_max);
