@@ -26,6 +26,7 @@
 #define	_SPL_KMEM_H
 
 #include <linux/slab.h>
+#include <linux/sched.h>
 
 extern int kmem_debugging(void);
 extern char *kmem_vasprintf(const char *fmt, va_list ap);
@@ -36,68 +37,41 @@ extern void strfree(char *str);
 /*
  * Memory allocation interfaces
  */
-#define	KM_SLEEP	GFP_KERNEL	/* Can sleep, never fails */
-#define	KM_NOSLEEP	GFP_ATOMIC	/* Can not sleep, may fail */
-#define	KM_PUSHPAGE	(GFP_NOIO | __GFP_HIGH)	/* Use reserved memory */
-#define	KM_NODEBUG	__GFP_NOWARN	/* Suppress warnings */
-#define	KM_FLAGS	__GFP_BITS_MASK
-#define	KM_VMFLAGS	GFP_LEVEL_MASK
+#define	KM_SLEEP	0x0000	/* can block for memory; success guaranteed */
+#define	KM_NOSLEEP	0x0001	/* cannot block for memory; may fail */
+#define	KM_PUSHPAGE	0x0004	/* can block for memory; may use reserve */
+#define	KM_ZERO		0x1000	/* zero the allocation */
+#define	KM_VMEM		0x2000	/* caller is vmem_* wrapper */
+
+#define	KM_PUBLIC_MASK	(KM_SLEEP | KM_NOSLEEP | KM_PUSHPAGE)
 
 /*
- * Used internally, the kernel does not need to support this flag
+ * Convert a KM_* flags mask to its Linux GFP_* counterpart.  The conversion
+ * function is context aware which means that KM_SLEEP allocations can be
+ * safely used in syncing contexts which have set PF_FSTRANS.
  */
-#ifndef __GFP_ZERO
-#define	__GFP_ZERO	0x8000
-#endif
-
-/*
- * __GFP_NOFAIL looks like it will be removed from the kernel perhaps as
- * early as 2.6.32.  To avoid this issue when it occurs in upstream kernels
- * we retry the allocation here as long as it is not __GFP_WAIT (GFP_ATOMIC).
- * I would prefer the caller handle the failure case cleanly but we are
- * trying to emulate Solaris and those are not the Solaris semantics.
- */
-static inline void *
-kmalloc_nofail(size_t size, gfp_t flags)
+static inline gfp_t
+kmem_flags_convert(int flags)
 {
-	void *ptr;
+	gfp_t lflags = __GFP_NOWARN | __GFP_COMP;
 
-	do {
-		ptr = kmalloc(size, flags);
-	} while (ptr == NULL && (flags & __GFP_WAIT));
+	if (flags & KM_NOSLEEP) {
+		lflags |= GFP_ATOMIC | __GFP_NORETRY;
+	} else {
+		lflags |= GFP_KERNEL;
+		if ((current->flags & PF_FSTRANS))
+			lflags &= ~(__GFP_IO|__GFP_FS);
+	}
 
-	return (ptr);
+	if (flags & KM_PUSHPAGE)
+		lflags |= __GFP_HIGH;
+
+	if (flags & KM_ZERO)
+		lflags |= __GFP_ZERO;
+
+	return (lflags);
 }
 
-static inline void *
-kzalloc_nofail(size_t size, gfp_t flags)
-{
-	void *ptr;
-
-	do {
-		ptr = kzalloc(size, flags);
-	} while (ptr == NULL && (flags & __GFP_WAIT));
-
-	return (ptr);
-}
-
-static inline void *
-kmalloc_node_nofail(size_t size, gfp_t flags, int node)
-{
-	void *ptr;
-
-	do {
-		ptr = kmalloc_node(size, flags, node);
-	} while (ptr == NULL && (flags & __GFP_WAIT));
-
-	return (ptr);
-}
-
-#ifdef DEBUG_KMEM
-
-/*
- * Memory accounting functions to be used only when DEBUG_KMEM is set.
- */
 #ifdef HAVE_ATOMIC64_T
 #define	kmem_alloc_used_add(size)	atomic64_add(size, &kmem_alloc_used)
 #define	kmem_alloc_used_sub(size)	atomic64_sub(size, &kmem_alloc_used)
@@ -114,70 +88,29 @@ extern atomic_t kmem_alloc_used;
 extern unsigned long long kmem_alloc_max;
 #endif /* HAVE_ATOMIC64_T */
 
-#ifdef DEBUG_KMEM_TRACKING
+extern unsigned int spl_kmem_alloc_warn;
+extern unsigned int spl_kmem_alloc_max;
+
+#define	kmem_alloc(sz, fl)	spl_kmem_alloc((sz), (fl), __func__, __LINE__)
+#define	kmem_zalloc(sz, fl)	spl_kmem_zalloc((sz), (fl), __func__, __LINE__)
+#define	kmem_free(ptr, sz)	spl_kmem_free((ptr), (sz))
+
+extern void *spl_kmem_alloc(size_t sz, int fl, const char *func, int line);
+extern void *spl_kmem_zalloc(size_t sz, int fl, const char *func, int line);
+extern void spl_kmem_free(const void *ptr, size_t sz);
+
 /*
- * DEBUG_KMEM && DEBUG_KMEM_TRACKING
- *
- * The maximum level of memory debugging.  All memory will be accounted
- * for and each allocation will be explicitly tracked.  Any allocation
- * which is leaked will be reported on module unload and the exact location
- * where that memory was allocation will be reported.  This level of memory
- * tracking will have a significant impact on performance and should only
- * be enabled for debugging.  This feature may be enabled by passing
- * --enable-debug-kmem-tracking to configure.
+ * The following functions are only available for internal use.
  */
-#define	kmem_alloc(sz, fl)		kmem_alloc_track((sz), (fl),           \
-					__FUNCTION__, __LINE__, 0, 0)
-#define	kmem_zalloc(sz, fl)		kmem_alloc_track((sz), (fl)|__GFP_ZERO,\
-					__FUNCTION__, __LINE__, 0, 0)
-#define	kmem_alloc_node(sz, fl, nd)	kmem_alloc_track((sz), (fl),           \
-					__FUNCTION__, __LINE__, 1, nd)
-#define	kmem_free(ptr, sz)		kmem_free_track((ptr), (sz))
+extern void *spl_kmem_alloc_impl(size_t size, int flags, int node);
+extern void *spl_kmem_alloc_debug(size_t size, int flags, int node);
+extern void *spl_kmem_alloc_track(size_t size, int flags,
+    const char *func, int line, int node);
+extern void spl_kmem_free_impl(const void *buf, size_t size);
+extern void spl_kmem_free_debug(const void *buf, size_t size);
+extern void spl_kmem_free_track(const void *buf, size_t size);
 
-extern void *kmem_alloc_track(size_t, int, const char *, int, int, int);
-extern void kmem_free_track(const void *, size_t);
-
-#else /* DEBUG_KMEM_TRACKING */
-/*
- * DEBUG_KMEM && !DEBUG_KMEM_TRACKING
- *
- * The default build will set DEBUG_KEM.  This provides basic memory
- * accounting with little to no impact on performance.  When the module
- * is unloaded in any memory was leaked the total number of leaked bytes
- * will be reported on the console.  To disable this basic accounting
- * pass the --disable-debug-kmem option to configure.
- */
-#define	kmem_alloc(sz, fl)		kmem_alloc_debug((sz), (fl),           \
-					__FUNCTION__, __LINE__, 0, 0)
-#define	kmem_zalloc(sz, fl)		kmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
-					__FUNCTION__, __LINE__, 0, 0)
-#define	kmem_alloc_node(sz, fl, nd)	kmem_alloc_debug((sz), (fl),           \
-					__FUNCTION__, __LINE__, 1, nd)
-#define	kmem_free(ptr, sz)		kmem_free_debug((ptr), (sz))
-
-extern void *kmem_alloc_debug(size_t, int, const char *, int, int, int);
-extern void kmem_free_debug(const void *, size_t);
-
-#endif /* DEBUG_KMEM_TRACKING */
-#else /* DEBUG_KMEM */
-/*
- * !DEBUG_KMEM && !DEBUG_KMEM_TRACKING
- *
- * All debugging is disabled.  There will be no overhead even for
- * minimal memory accounting.  To enable basic accounting pass the
- * --enable-debug-kmem option to configure.
- */
-#define	kmem_alloc(sz, fl)		kmalloc_nofail((sz), (fl))
-#define	kmem_zalloc(sz, fl)		kzalloc_nofail((sz), (fl))
-#define	kmem_alloc_node(sz, fl, nd)	kmalloc_node_nofail((sz), (fl), (nd))
-#define	kmem_free(ptr, sz)		((void)(sz), kfree(ptr))
-
-#endif /* DEBUG_KMEM */
-
-int spl_kmem_init(void);
-void spl_kmem_fini(void);
-
-#define	kmem_virt(ptr)			(((ptr) >= (void *)VMALLOC_START) && \
-					((ptr) <  (void *)VMALLOC_END))
+extern int spl_kmem_init(void);
+extern void spl_kmem_fini(void);
 
 #endif	/* _SPL_KMEM_H */

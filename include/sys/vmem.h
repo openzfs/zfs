@@ -47,135 +47,60 @@ extern size_t vmem_size(vmem_t *vmp, int typemask);
 #define	VMALLOC_TOTAL	(VMALLOC_END - VMALLOC_START)
 #endif
 
-static inline void *
-vmalloc_nofail(size_t size, gfp_t flags)
-{
-	void *ptr;
-
-	/*
-	 * Retry failed __vmalloc() allocations once every second.  The
-	 * rational for the delay is that the likely failure modes are:
-	 *
-	 * 1) The system has completely exhausted memory, in which case
-	 *    delaying 1 second for the memory reclaim to run is reasonable
-	 *    to avoid thrashing the system.
-	 * 2) The system has memory but has exhausted the small virtual
-	 *    address space available on 32-bit systems.  Retrying the
-	 *    allocation immediately will only result in spinning on the
-	 *    virtual address space lock.  It is better delay a second and
-	 *    hope that another process will free some of the address space.
-	 *    But the bottom line is there is not much we can actually do
-	 *    since we can never safely return a failure and honor the
-	 *    Solaris semantics.
-	 */
-	while (1) {
-		ptr = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
-		if (unlikely((ptr == NULL) && (flags & __GFP_WAIT))) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(HZ);
-		} else {
-			break;
-		}
-	}
-
-	return (ptr);
-}
-
-static inline void *
-vzalloc_nofail(size_t size, gfp_t flags)
-{
-	void *ptr;
-
-	ptr = vmalloc_nofail(size, flags);
-	if (ptr)
-		memset(ptr, 0, (size));
-
-	return (ptr);
-}
-
-#ifdef DEBUG_KMEM
-
 /*
- * Memory accounting functions to be used only when DEBUG_KMEM is set.
- */
-#ifdef HAVE_ATOMIC64_T
-
-#define	vmem_alloc_used_add(size)	atomic64_add(size, &vmem_alloc_used)
-#define	vmem_alloc_used_sub(size)	atomic64_sub(size, &vmem_alloc_used)
-#define	vmem_alloc_used_read()		atomic64_read(&vmem_alloc_used)
-#define	vmem_alloc_used_set(size)	atomic64_set(&vmem_alloc_used, size)
-
-extern atomic64_t vmem_alloc_used;
-extern unsigned long long vmem_alloc_max;
-
-#else  /* HAVE_ATOMIC64_T */
-
-#define	vmem_alloc_used_add(size)	atomic_add(size, &vmem_alloc_used)
-#define	vmem_alloc_used_sub(size)	atomic_sub(size, &vmem_alloc_used)
-#define	vmem_alloc_used_read()		atomic_read(&vmem_alloc_used)
-#define	vmem_alloc_used_set(size)	atomic_set(&vmem_alloc_used, size)
-
-extern atomic_t vmem_alloc_used;
-extern unsigned long long vmem_alloc_max;
-
-#endif /* HAVE_ATOMIC64_T */
-
-#ifdef DEBUG_KMEM_TRACKING
-/*
- * DEBUG_KMEM && DEBUG_KMEM_TRACKING
+ * vmem_* is an interface to a low level arena-based memory allocator on
+ * Illumos that is used to allocate virtual address space. The kmem SLAB
+ * allocator allocates slabs from it. Then the generic allocation functions
+ * kmem_{alloc,zalloc,free}() are layered on top of SLAB allocators.
  *
- * The maximum level of memory debugging.  All memory will be accounted
- * for and each allocation will be explicitly tracked.  Any allocation
- * which is leaked will be reported on module unload and the exact location
- * where that memory was allocation will be reported.  This level of memory
- * tracking will have a significant impact on performance and should only
- * be enabled for debugging.  This feature may be enabled by passing
- * --enable-debug-kmem-tracking to configure.
- */
-#define	vmem_alloc(sz, fl)		vmem_alloc_track((sz), (fl),           \
-					__FUNCTION__, __LINE__)
-#define	vmem_zalloc(sz, fl)		vmem_alloc_track((sz), (fl)|__GFP_ZERO,\
-					__FUNCTION__, __LINE__)
-#define	vmem_free(ptr, sz)		vmem_free_track((ptr), (sz))
-
-extern void *kmem_alloc_track(size_t, int, const char *, int, int, int);
-extern void kmem_free_track(const void *, size_t);
-extern void *vmem_alloc_track(size_t, int, const char *, int);
-extern void vmem_free_track(const void *, size_t);
-
-#else /* DEBUG_KMEM_TRACKING */
-/*
- * DEBUG_KMEM && !DEBUG_KMEM_TRACKING
+ * On Linux, the primary means of doing allocations is via kmalloc(), which
+ * is similarly layered on top of something called the buddy allocator. The
+ * buddy allocator is not available to kernel modules, it uses physical
+ * memory addresses rather than virtual memory addresses and is prone to
+ * fragmentation.
  *
- * The default build will set DEBUG_KEM.  This provides basic memory
- * accounting with little to no impact on performance.  When the module
- * is unloaded in any memory was leaked the total number of leaked bytes
- * will be reported on the console.  To disable this basic accounting
- * pass the --disable-debug-kmem option to configure.
- */
-#define	vmem_alloc(sz, fl)		vmem_alloc_debug((sz), (fl),           \
-					__FUNCTION__, __LINE__)
-#define	vmem_zalloc(sz, fl)		vmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
-					__FUNCTION__, __LINE__)
-#define	vmem_free(ptr, sz)		vmem_free_debug((ptr), (sz))
-
-extern void *vmem_alloc_debug(size_t, int, const char *, int);
-extern void vmem_free_debug(const void *, size_t);
-
-#endif /* DEBUG_KMEM_TRACKING */
-#else /* DEBUG_KMEM */
-/*
- * !DEBUG_KMEM && !DEBUG_KMEM_TRACKING
+ * Linux sets aside a relatively small address space for in-kernel virtual
+ * memory from which allocations can be done using vmalloc().  It might seem
+ * like a good idea to use vmalloc() to implement something similar to
+ * Illumos' allocator. However, this has the following problems:
  *
- * All debugging is disabled.  There will be no overhead even for
- * minimal memory accounting.  To enable basic accounting pass the
- * --enable-debug-kmem option to configure.
+ * 1. Page directory table allocations are hard coded to use GFP_KERNEL.
+ *    Consequently, any KM_PUSHPAGE or KM_NOSLEEP allocations done using
+ *    vmalloc() will not have proper semantics.
+ *
+ * 2. Address space exhaustion is a real issue on 32-bit platforms where
+ *    only a few 100MB are available. The kernel will handle it by spinning
+ *    when it runs out of address space.
+ *
+ * 3. All vmalloc() allocations and frees are protected by a single global
+ *    lock which serializes all allocations.
+ *
+ * 4. Accessing /proc/meminfo and /proc/vmallocinfo will iterate the entire
+ *    list. The former will sum the allocations while the latter will print
+ *    them to user space in a way that user space can keep the lock held
+ *    indefinitely.  When the total number of mapped allocations is large
+ *    (several 100,000) a large amount of time will be spent waiting on locks.
+ *
+ * 5. Linux has a wait_on_bit() locking primitive that assumes physical
+ *    memory is used, it simply does not work on virtual memory.  Certain
+ *    Linux structures (e.g. the superblock) use them and might be embedded
+ *    into a structure from Illumos.  This makes using Linux virtual memory
+ *    unsafe in certain situations.
+ *
+ * It follows that we cannot obtain identical semantics to those on Illumos.
+ * Consequently, we implement the kmem_{alloc,zalloc,free}() functions in
+ * such a way that they can be used as drop-in replacements for small vmem_*
+ * allocations (8MB in size or smaller) and map vmem_{alloc,zalloc,free}()
+ * to them.
  */
-#define	vmem_alloc(sz, fl)		vmalloc_nofail((sz), (fl))
-#define	vmem_zalloc(sz, fl)		vzalloc_nofail((sz), (fl))
-#define	vmem_free(ptr, sz)		((void)(sz), vfree(ptr))
 
-#endif /* DEBUG_KMEM */
+#define	vmem_alloc(sz, fl)	spl_vmem_alloc((sz), (fl), __func__, __LINE__)
+#define	vmem_zalloc(sz, fl)	spl_vmem_zalloc((sz), (fl), __func__, __LINE__)
+#define	vmem_free(ptr, sz)	spl_vmem_free((ptr), (sz))
+
+extern void *spl_vmem_alloc(size_t sz, int fl, const char *func, int line);
+extern void *spl_vmem_zalloc(size_t sz, int fl, const char *func, int line);
+extern void spl_vmem_free(const void *ptr, size_t sz);
 
 int spl_vmem_init(void);
 void spl_vmem_fini(void);

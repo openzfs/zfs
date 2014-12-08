@@ -130,19 +130,6 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
  * One serious concern I do have about this method is the relatively
  * small virtual address space on 32bit arches.  This will seriously
  * constrain the size of the slab caches and their performance.
- *
- * XXX: Improve the partial slab list by carefully maintaining a
- *      strict ordering of fullest to emptiest slabs based on
- *      the slab reference count.  This guarantees that when freeing
- *      slabs back to the system we need only linearly traverse the
- *      last N slabs in the list to discover all the freeable slabs.
- *
- * XXX: NUMA awareness for optionally allocating memory close to a
- *      particular core.  This can be advantageous if you know the slab
- *      object will be short lived and primarily accessed from one core.
- *
- * XXX: Slab coloring may also yield performance improvements and would
- *      be desirable to implement.
  */
 
 struct list_head spl_kmem_cache_list;   /* List of caches */
@@ -158,15 +145,15 @@ SPL_SHRINKER_DECLARE(spl_kmem_cache_shrinker,
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 {
+	gfp_t lflags = kmem_flags_convert(flags);
 	void *ptr;
 
 	ASSERT(ISP2(size));
 
 	if (skc->skc_flags & KMC_KMEM)
-		ptr = (void *)__get_free_pages(flags | __GFP_COMP,
-		    get_order(size));
+		ptr = (void *)__get_free_pages(lflags, get_order(size));
 	else
-		ptr = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
+		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
@@ -361,12 +348,11 @@ spl_slab_free(spl_kmem_slab_t *sks,
 }
 
 /*
- * Traverse all the partial slabs attached to a cache and free those
- * which which are currently empty, and have not been touched for
- * skc_delay seconds to  avoid thrashing.  The count argument is
- * passed to optionally cap the number of slabs reclaimed, a count
- * of zero means try and reclaim everything.  When flag is set we
- * always free an available slab regardless of age.
+ * Traverse all the partial slabs attached to a cache and free those which
+ * are currently empty, and have not been touched for skc_delay seconds to
+ * avoid thrashing.  The count argument is passed to optionally cap the
+ * number of slabs reclaimed, a count of zero means try and reclaim
+ * everything.  When flag the is set available slabs freed regardless of age.
  */
 static void
 spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
@@ -480,6 +466,7 @@ spl_emergency_insert(struct rb_root *root, spl_kmem_emergency_t *ske)
 static int
 spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 {
+	gfp_t lflags = kmem_flags_convert(flags);
 	spl_kmem_emergency_t *ske;
 	int empty;
 
@@ -490,11 +477,11 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 	if (!empty)
 		return (-EEXIST);
 
-	ske = kmalloc(sizeof (*ske), flags);
+	ske = kmalloc(sizeof (*ske), lflags);
 	if (ske == NULL)
 		return (-ENOMEM);
 
-	ske->ske_obj = kmalloc(skc->skc_obj_size, flags);
+	ske->ske_obj = kmalloc(skc->skc_obj_size, lflags);
 	if (ske->ske_obj == NULL) {
 		kfree(ske);
 		return (-ENOMEM);
@@ -734,7 +721,7 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 	int size = sizeof (spl_kmem_magazine_t) +
 	    sizeof (void *) * skc->skc_mag_size;
 
-	skm = kmem_alloc_node(size, KM_SLEEP, cpu_to_node(cpu));
+	skm = kmalloc_node(size, GFP_KERNEL, cpu_to_node(cpu));
 	if (skm) {
 		skm->skm_magic = SKM_MAGIC;
 		skm->skm_avail = 0;
@@ -754,13 +741,9 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 static void
 spl_magazine_free(spl_kmem_magazine_t *skm)
 {
-	int size = sizeof (spl_kmem_magazine_t) +
-	    sizeof (void *) * skm->skm_size;
-
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 	ASSERT(skm->skm_avail == 0);
-
-	kmem_free(skm, size);
+	kfree(skm);
 }
 
 /*
@@ -835,6 +818,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
     spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor, spl_kmem_reclaim_t reclaim,
     void *priv, void *vmp, int flags)
 {
+	gfp_t lflags = kmem_flags_convert(KM_SLEEP);
 	spl_kmem_cache_t *skc;
 	int rc;
 
@@ -852,18 +836,17 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	 * Allocate memory for a new cache and initialize it.  Unfortunately,
 	 * this usually ends up being a large allocation of ~32k because
 	 * we need to allocate enough memory for the worst case number of
-	 * cpus in the magazine, skc_mag[NR_CPUS].  Because of this we
-	 * explicitly pass KM_NODEBUG to suppress the kmem warning
+	 * cpus in the magazine, skc_mag[NR_CPUS].
 	 */
-	skc = kmem_zalloc(sizeof (*skc), KM_SLEEP| KM_NODEBUG);
+	skc = kzalloc(sizeof (*skc), lflags);
 	if (skc == NULL)
 		return (NULL);
 
 	skc->skc_magic = SKC_MAGIC;
 	skc->skc_name_size = strlen(name) + 1;
-	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, KM_SLEEP);
+	skc->skc_name = (char *)kmalloc(skc->skc_name_size, lflags);
 	if (skc->skc_name == NULL) {
-		kmem_free(skc, sizeof (*skc));
+		kfree(skc);
 		return (NULL);
 	}
 	strncpy(skc->skc_name, name, skc->skc_name_size);
@@ -962,7 +945,11 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 			goto out;
 		}
 
-		kmem_cache_set_allocflags(skc, __GFP_COMP);
+#if defined(HAVE_KMEM_CACHE_ALLOCFLAGS)
+		skc->skc_linux_cache->allocflags |= __GFP_COMP;
+#elif defined(HAVE_KMEM_CACHE_GFPFLAGS)
+		skc->skc_linux_cache->gfpflags |= __GFP_COMP;
+#endif
 		skc->skc_flags |= KMC_NOMAGAZINE;
 	}
 
@@ -977,8 +964,8 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 
 	return (skc);
 out:
-	kmem_free(skc->skc_name, skc->skc_name_size);
-	kmem_free(skc, sizeof (*skc));
+	kfree(skc->skc_name);
+	kfree(skc);
 	return (NULL);
 }
 EXPORT_SYMBOL(spl_kmem_cache_create);
@@ -1048,10 +1035,10 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	ASSERT3U(skc->skc_obj_emergency, ==, 0);
 	ASSERT(list_empty(&skc->skc_complete_list));
 
-	kmem_free(skc->skc_name, skc->skc_name_size);
 	spin_unlock(&skc->skc_lock);
 
-	kmem_free(skc, sizeof (*skc));
+	kfree(skc->skc_name);
+	kfree(skc);
 }
 EXPORT_SYMBOL(spl_kmem_cache_destroy);
 
@@ -1106,7 +1093,13 @@ spl_cache_grow_work(void *data)
 	spl_kmem_cache_t *skc = ska->ska_cache;
 	spl_kmem_slab_t *sks;
 
-	sks = spl_slab_alloc(skc, ska->ska_flags | __GFP_NORETRY | KM_NODEBUG);
+#if defined(PF_MEMALLOC_NOIO)
+	unsigned noio_flag = memalloc_noio_save();
+	sks = spl_slab_alloc(skc, ska->ska_flags);
+	memalloc_noio_restore(noio_flag);
+#else
+	sks = spl_slab_alloc(skc, ska->ska_flags);
+#endif
 	spin_lock(&skc->skc_lock);
 	if (sks) {
 		skc->skc_slab_total++;
@@ -1140,8 +1133,9 @@ spl_cache_grow_wait(spl_kmem_cache_t *skc)
 static int
 spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 {
-	int remaining, rc;
+	int remaining, rc = 0;
 
+	ASSERT0(flags & ~KM_PUBLIC_MASK);
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
 	might_sleep();
@@ -1166,7 +1160,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	if (test_and_set_bit(KMC_BIT_GROWING, &skc->skc_flags) == 0) {
 		spl_kmem_alloc_t *ska;
 
-		ska = kmalloc(sizeof (*ska), flags);
+		ska = kmalloc(sizeof (*ska), kmem_flags_convert(flags));
 		if (ska == NULL) {
 			clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
 			wake_up_all(&skc->skc_waitq);
@@ -1175,7 +1169,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 
 		atomic_inc(&skc->skc_ref);
 		ska->ska_cache = skc;
-		ska->ska_flags = flags & ~__GFP_FS;
+		ska->ska_flags = flags;
 		taskq_init_ent(&ska->ska_tqe);
 		taskq_dispatch_ent(spl_kmem_cache_taskq,
 		    spl_cache_grow_work, ska, 0, &ska->ska_tqe);
@@ -1347,9 +1341,9 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	spl_kmem_magazine_t *skm;
 	void *obj = NULL;
 
+	ASSERT0(flags & ~KM_PUBLIC_MASK);
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
-	ASSERT(flags & KM_SLEEP);
 
 	atomic_inc(&skc->skc_ref);
 
@@ -1360,9 +1354,8 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	 */
 	if (skc->skc_flags & KMC_SLAB) {
 		struct kmem_cache *slc = skc->skc_linux_cache;
-
 		do {
-			obj = kmem_cache_alloc(slc, flags | __GFP_COMP);
+			obj = kmem_cache_alloc(slc, kmem_flags_convert(flags));
 		} while ((obj == NULL) && !(flags & KM_NOSLEEP));
 
 		goto ret;
@@ -1445,7 +1438,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	 * are guaranteed to have physical addresses.  They must be removed
 	 * from the tree of emergency objects and the freed.
 	 */
-	if ((skc->skc_flags & KMC_VMEM) && !kmem_virt(obj)) {
+	if ((skc->skc_flags & KMC_VMEM) && !is_vmalloc_addr(obj)) {
 		spl_emergency_free(skc, obj);
 		goto out;
 	}

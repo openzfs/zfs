@@ -354,26 +354,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doulongvec_minmax,
         },
         {
-                .procname = "vmem_used",
-                .data     = &vmem_alloc_used,
-# ifdef HAVE_ATOMIC64_T
-                .maxlen   = sizeof(atomic64_t),
-# else
-                .maxlen   = sizeof(atomic_t),
-# endif /* HAVE_ATOMIC64_T */
-                .mode     = 0444,
-                .proc_handler = &proc_domemused,
-        },
-        {
-                .procname = "vmem_max",
-                .data     = &vmem_alloc_max,
-                .maxlen   = sizeof(unsigned long),
-                .extra1   = &table_min,
-                .extra2   = &table_max,
-                .mode     = 0444,
-                .proc_handler = &proc_doulongvec_minmax,
-        },
-        {
                 .procname = "slab_kmem_total",
 		.data     = (void *)(KMC_KMEM | KMC_TOTAL),
                 .maxlen   = sizeof(unsigned long),

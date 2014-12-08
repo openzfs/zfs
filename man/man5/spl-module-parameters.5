@@ -83,6 +83,46 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBspl_kmem_alloc_warn\fR (uint)
+.ad
+.RS 12n
+As a general rule kmem_alloc() allocations should be small, preferably
+just a few pages since they must by physically contiguous.  Therefore, a
+rate limited warning will be printed to the console for any kmem_alloc()
+which exceeds a reasonable threshold.
+
+The default warning threshold is set to eight pages but capped at 32K to
+accommodate systems using large pages.  This value was selected to be small
+enough to ensure the largest allocations are quickly noticed and fixed.
+But large enough to avoid logging any warnings when a allocation size is
+larger than optimal but not a serious concern.  Since this value is tunable,
+developers are encouraged to set it lower when testing so any new largish
+allocations are quickly caught.  These warnings may be disabled by setting
+the threshold to zero.
+.sp
+Default value: \fB32K\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_kmem_alloc_max\fR (uint)
+.ad
+.RS 12n
+Large kmem_alloc() allocations will fail if they exceed KMALLOC_MAX_SIZE.
+Allocations which are marginally smaller than this limit may succeed but
+should still be avoided due to the expense of locating a contiguous range
+of free pages.  Therefore, a maximum kmem size with reasonable safely
+margin of 4x is set.  Kmem_alloc() allocations larger than this maximum
+will quickly fail.  Vmem_alloc() allocations less than or equal to this
+value will use kmalloc(), but shift to vmalloc() when exceeding this value.
+.sp
+Default value: \fBKMALLOC_MAX_SIZE/4\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBspl_hostid\fR (ulong)
 .ad
 .RS 12n

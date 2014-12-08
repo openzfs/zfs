@@ -95,11 +95,11 @@ splat_kmem_test1(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, count, rc = 0;
 
-	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
+	while ((!rc) && (size <= spl_kmem_alloc_warn)) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
-			ptr[i] = kmem_alloc(size, KM_SLEEP | KM_NODEBUG);
+			ptr[i] = kmem_alloc(size, KM_SLEEP);
 			if (ptr[i])
 				count++;
 		}
@@ -127,11 +127,11 @@ splat_kmem_test2(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, j, count, rc = 0;
 
-	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
+	while ((!rc) && (size <= spl_kmem_alloc_warn)) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
-			ptr[i] = kmem_zalloc(size, KM_SLEEP | KM_NODEBUG);
+			ptr[i] = kmem_zalloc(size, KM_SLEEP);
 			if (ptr[i])
 				count++;
 		}
@@ -171,7 +171,11 @@ splat_kmem_test3(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, count, rc = 0;
 
-	while ((!rc) && (size <= (PAGE_SIZE * 1024))) {
+	/*
+	 * Test up to 4x the maximum kmem_alloc() size to ensure both
+	 * the kmem_alloc() and vmem_alloc() call paths are used.
+	 */
+	while ((!rc) && (size <= (4 * spl_kmem_alloc_max))) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_VMEM_ALLOC_COUNT; i++) {
@@ -203,7 +207,11 @@ splat_kmem_test4(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, j, count, rc = 0;
 
-	while ((!rc) && (size <= (PAGE_SIZE * 1024))) {
+	/*
+	 * Test up to 4x the maximum kmem_zalloc() size to ensure both
+	 * the kmem_zalloc() and vmem_zalloc() call paths are used.
+	 */
+	while ((!rc) && (size <= (4 * spl_kmem_alloc_max))) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_VMEM_ALLOC_COUNT; i++) {

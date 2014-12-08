@@ -202,6 +202,7 @@ extern void spl_kmem_cache_set_move(spl_kmem_cache_t *,
 extern void spl_kmem_cache_destroy(spl_kmem_cache_t *skc);
 extern void *spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags);
 extern void spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj);
+extern void spl_kmem_cache_set_allocflags(spl_kmem_cache_t *skc, gfp_t flags);
 extern void spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count);
 extern void spl_kmem_reap(void);
 
@@ -214,29 +215,6 @@ extern void spl_kmem_reap(void);
 #define	kmem_cache_reap_now(skc)	\
     spl_kmem_cache_reap_now(skc, skc->skc_reap)
 #define	kmem_reap()			spl_kmem_reap()
-#define	kmem_virt(ptr)			\
-    (((ptr) >= (void *)VMALLOC_START) && \
-    ((ptr) <  (void *)VMALLOC_END))
-
-/*
- * Allow custom slab allocation flags to be set for KMC_SLAB based caches.
- * One use for this function is to ensure the __GFP_COMP flag is part of
- * the default allocation mask which ensures higher order allocations are
- * properly refcounted.  This flag was added to the default ->allocflags
- * as of Linux 3.11.
- */
-static inline void
-kmem_cache_set_allocflags(spl_kmem_cache_t *skc, gfp_t flags)
-{
-	if (skc->skc_linux_cache == NULL)
-		return;
-
-#if defined(HAVE_KMEM_CACHE_ALLOCFLAGS)
-	skc->skc_linux_cache->allocflags |= flags;
-#elif defined(HAVE_KMEM_CACHE_GFPFLAGS)
-	skc->skc_linux_cache->gfpflags |= flags;
-#endif
-}
 
 /*
  * The following functions are only available for internal use.
