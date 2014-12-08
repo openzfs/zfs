@@ -22,8 +22,8 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
 \*****************************************************************************/
 
-#ifndef _SPL_PROC_H
-#define _SPL_PROC_H
+#ifndef _SPL_PROC_COMPAT_H
+#define _SPL_PROC_COMPAT_H
 
 #include <linux/proc_fs.h>
 
@@ -32,4 +32,4 @@ extern struct proc_dir_entry *proc_spl_kstat;
 int spl_proc_init(void);
 void spl_proc_fini(void);
 
-#endif /* SPL_PROC_H */
+#endif /* SPL_PROC_COMPAT_H */

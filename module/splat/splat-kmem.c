@@ -25,7 +25,10 @@
 \*****************************************************************************/
 
 #include <sys/kmem.h>
+#include <sys/kmem_cache.h>
+#include <sys/vmem.h>
 #include <sys/thread.h>
+#include <sys/vmsystm.h>
 #include "splat-internal.h"
 
 #define SPLAT_KMEM_NAME			"kmem"

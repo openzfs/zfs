@@ -29,6 +29,8 @@
 #include <sys/vmsystm.h>
 #include <sys/kobj.h>
 #include <sys/kmem.h>
+#include <sys/kmem_cache.h>
+#include <sys/vmem.h>
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
 #include <sys/taskq.h>
@@ -38,6 +40,7 @@
 #include <sys/proc.h>
 #include <sys/kstat.h>
 #include <sys/file.h>
+#include <linux/ctype.h>
 #include <linux/kmod.h>
 #include <linux/math64_compat.h>
 #include <linux/proc_compat.h>
@@ -480,11 +483,45 @@ zone_get_hostid(void *zone)
 EXPORT_SYMBOL(zone_get_hostid);
 
 static int
+spl_kvmem_init(void)
+{
+	int rc = 0;
+
+	rc = spl_kmem_init();
+	if (rc)
+		goto out1;
+
+	rc = spl_vmem_init();
+	if (rc)
+		goto out2;
+
+	rc = spl_kmem_cache_init();
+	if (rc)
+		goto out3;
+
+	return (rc);
+out3:
+	spl_vmem_fini();
+out2:
+	spl_kmem_fini();
+out1:
+	return (rc);
+}
+
+static void
+spl_kvmem_fini(void)
+{
+	spl_kmem_cache_fini();
+	spl_vmem_fini();
+	spl_kmem_fini();
+}
+
+static int
 __init spl_init(void)
 {
 	int rc = 0;
 
-	if ((rc = spl_kmem_init()))
+	if ((rc = spl_kvmem_init()))
 		goto out1;
 
 	if ((rc = spl_mutex_init()))
@@ -530,7 +567,7 @@ out4:
 out3:
 	spl_mutex_fini();
 out2:
-	spl_kmem_fini();
+	spl_kvmem_fini();
 out1:
 	printk(KERN_NOTICE "SPL: Failed to Load Solaris Porting Layer "
 	       "v%s-%s%s, rc = %d\n", SPL_META_VERSION, SPL_META_RELEASE,
@@ -552,7 +589,7 @@ spl_fini(void)
 	spl_taskq_fini();
 	spl_rw_fini();
 	spl_mutex_fini();
-	spl_kmem_fini();
+	spl_kvmem_fini();
 }
 
 /* Called when a dependent module is loaded */

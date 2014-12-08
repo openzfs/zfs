@@ -61,6 +61,7 @@
 #include <sys/kmem.h>
 #include <sys/thread.h>
 #include <sys/tsd.h>
+#include <linux/hash.h>
 
 typedef struct tsd_hash_bin {
 	spinlock_t		hb_lock;

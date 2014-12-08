@@ -26,9 +26,14 @@
 
 #include <sys/systeminfo.h>
 #include <sys/kstat.h>
+#include <sys/kmem.h>
+#include <sys/kmem_cache.h>
+#include <sys/vmem.h>
+#include <linux/ctype.h>
 #include <linux/kmod.h>
 #include <linux/seq_file.h>
 #include <linux/proc_compat.h>
+#include <linux/uaccess.h>
 #include <linux/version.h>
 
 #if defined(CONSTIFY_PLUGIN) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0)

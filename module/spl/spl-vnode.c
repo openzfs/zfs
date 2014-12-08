@@ -26,6 +26,7 @@
 
 #include <sys/cred.h>
 #include <sys/vnode.h>
+#include <sys/kmem_cache.h>
 #include <linux/falloc.h>
 #include <linux/file_compat.h>
 

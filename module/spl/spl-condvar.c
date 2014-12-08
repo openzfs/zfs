@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/condvar.h>
+#include <sys/time.h>
 
 void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
