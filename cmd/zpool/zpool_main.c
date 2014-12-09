@@ -50,7 +50,7 @@
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
 #include <sys/zfs_ioctl.h>
-
+#include <libnvpair.h>
 #include <libzfs.h>
 
 #include "zpool_util.h"
@@ -3039,12 +3039,11 @@ json_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 	for (; pl != NULL; pl = pl->pl_next) {
 
 		if (pl->pl_prop != ZPROP_INVAL) {
-			if (zpool_get_prop(zhp, pl->pl_prop, property,
+			if (zpool_get_json_prop(zhp, pl->pl_prop, property,
 			    sizeof (property), NULL) != 0)
 				propstr = "-";
 			else
 				propstr = property;
-
 		} else if ((zpool_prop_feature(pl->pl_user_prop) ||
 		    zpool_prop_unsupported(pl->pl_user_prop)) &&
 		    zpool_prop_get_feature(zhp, pl->pl_user_prop, property,
@@ -3053,7 +3052,6 @@ json_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 		} else {
 			propstr = "-";
 		}
-
 		fnvlist_add_string(nv_dict_props,
 			zpool_prop_to_name(pl->pl_prop),
 				propstr);
@@ -3073,7 +3071,7 @@ ldjson_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 	for (; pl != NULL; pl = pl->pl_next) {
 
 		if (pl->pl_prop != ZPROP_INVAL) {
-			if (zpool_get_prop(zhp, pl->pl_prop, property,
+			if (zpool_get_json_prop(zhp, pl->pl_prop, property,
 			    sizeof (property), NULL) != 0)
 				propstr = "-";
 			else
@@ -3228,22 +3226,24 @@ json_line_convert(zpool_prop_t prop, uint64_t value, boolean_t scripted,
 			if (value == 0)
 				(void) strlcpy(propval, "-", sizeof (propval));
 			else
-				zfs_nicenum(value, propval, sizeof (propval));
+			snprintf(propval, sizeof (propval),
+			    " %llu", (unsigned long long) value);
 			break;
 		case ZPOOL_PROP_FRAGMENTATION:
 			if (value == ZFS_FRAG_INVALID) {
 				(void) strlcpy(propval, "-", sizeof (propval));
 			} else {
 				(void) snprintf(propval, sizeof (propval),
-				    "%llu%%", (unsigned long long)value);
+				    "%llu", (unsigned long long)value);
 			}
 			break;
 		case ZPOOL_PROP_CAPACITY:
-			(void) snprintf(propval, sizeof (propval), "%llu%%",
+			(void) snprintf(propval, sizeof (propval), "%llu",
 			    (unsigned long long)value);
 			break;
 		default:
-			zfs_nicenum(value, propval, sizeof (propval));
+			snprintf(propval, sizeof (propval),
+			    "%llu", (unsigned long long) value);
 		}
 	if (!valid)
 		(void) strlcpy(propval, "-", sizeof (propval));
@@ -3270,7 +3270,6 @@ json_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	if (name != NULL) {
 		boolean_t toplevel = (vs->vs_space != 0);
 		uint64_t cap;
-
 		fnvlist_add_string(*array, "name", name);
 		fnvlist_add_string(*array, "size",
 		    json_line_convert(ZPOOL_PROP_SIZE, vs->vs_space, scripted,
@@ -3295,7 +3294,6 @@ json_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		    toplevel));
 
 	}
-
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0)
 		return;
@@ -3333,7 +3331,6 @@ list_callback(zpool_handle_t *zhp, void *data)
 	print_pool(zhp, cbp);
 	if (!cbp->cb_verbose)
 		return (0);
-
 	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 	    &nvroot) == 0);
 	print_list_stats(zhp, NULL, nvroot, cbp, 0);
@@ -4871,7 +4868,7 @@ char
 		verify(nvpair_value_string(nvp, &desc) == 0);
 
 		if (strlen(desc) > 0) {
-			(void) sprintf(ret, "%s", nvpair_name(nvp), desc);
+			(void) sprintf(ret, "%s (%s)", nvpair_name(nvp), desc);
 		} else {
 			(void) sprintf(ret, "%s", nvpair_name(nvp));
 		}
@@ -4915,7 +4912,6 @@ json_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	}
 
 	nv_dict_array = fnvlist_alloc();
-	// fnvlist_add_nvlist(nv_dict_props, "config", nv_dict_array);
 	fnvlist_add_string(nv_dict_props, "name", name);
 	fnvlist_add_string(nv_dict_props, "state", state);
 
@@ -4935,27 +4931,26 @@ json_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
 		(void) printf("  was %s", path);
 	} else if (vs->vs_aux != 0) {
-		(void) printf("  ");
 
 		switch (vs->vs_aux) {
 		case VDEV_AUX_OPEN_FAILED:
-			(void) printf(gettext("cannot open"));
+		sprintf(errors, gettext("cannot open"));
 			break;
 
 		case VDEV_AUX_BAD_GUID_SUM:
-			(void) printf(gettext("missing device"));
+			sprintf(errors, gettext("missing device"));
 			break;
 
 		case VDEV_AUX_NO_REPLICAS:
-			(void) printf(gettext("insufficient replicas"));
+			sprintf(errors, gettext("insufficient replicas"));
 			break;
 
 		case VDEV_AUX_VERSION_NEWER:
-			(void) printf(gettext("newer version"));
+			sprintf(errors, gettext("newer version"));
 			break;
 
 		case VDEV_AUX_UNSUP_FEAT:
-			(void) printf(gettext("unsupported feature(s)"));
+			sprintf(errors, gettext("unsupported feature(s)"));
 			break;
 
 		case VDEV_AUX_SPARED:
@@ -4964,15 +4959,16 @@ json_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 			if (zpool_iter(g_zfs, find_spare, &cb) == 1) {
 				if (strcmp(zpool_get_name(cb.cb_zhp),
 				    zpool_get_name(zhp)) == 0)
-					(void) printf(gettext("currently in "
-					    "use"));
+					sprintf(errors, gettext(
+						"currently in use"));
 				else
-					(void) printf(gettext("in use by "
-					    "pool '%s'"),
+					(void) sprintf(errors, gettext(
+					    "in use by pool '%s'"),
 					    zpool_get_name(cb.cb_zhp));
 				zpool_close(cb.cb_zhp);
 			} else {
-				(void) printf(gettext("currently in use"));
+				fnvlist_add_string(nv_dict_props,
+				    "stderr", gettext("currently in use"));
 			}
 			break;
 
@@ -4990,11 +4986,13 @@ json_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 			break;
 
 		case VDEV_AUX_EXTERNAL:
-			(void) printf(gettext("external device fault"));
+			(void) sprintf(errors,
+			    gettext("external device fault"));
 			break;
 
 		case VDEV_AUX_SPLIT_POOL:
-			(void) printf(gettext("split into new pool"));
+			(void) sprintf(errors,
+			    gettext("split into new pool"));
 			break;
 
 		default:
@@ -5044,7 +5042,6 @@ json_scan_status(pool_scan_stat_t *ps, nvlist_t *nvlist)
 	uint_t rate;
 	double fraction_done;
 	char processed_buf[7], examined_buf[7], total_buf[7], rate_buf[7];
-	size_t  testsize = 0;
 	char *strbuff;
 	/* If there's never been a scan, there's not much to say. */
 
@@ -5210,14 +5207,12 @@ json_status_callback(zpool_handle_t *zhp, void *data)
 	const char *health;
 	uint_t c;
 	vdev_stat_t *vs;
-	char str[128];
 	config = zpool_get_config(zhp, NULL);
 	reason = zpool_get_status(zhp, &msgid, &errata);
-	char *buffstr;
+	char *buffstr = NULL;
 	cbp->cb_count++;
 	char errors[1024];
 	nvlist_t		*nv_dict_props;
-	nvlist_t 		*nv_dict_array;
 
 	cbp->cb_nbelem++;
 	cbp->cb_data = realloc(cbp->cb_data,
@@ -5597,14 +5592,12 @@ ldjson_status_callback(zpool_handle_t *zhp, void *data)
 	const char *health;
 	uint_t c;
 	vdev_stat_t *vs;
-	char str[128];
 	config = zpool_get_config(zhp, NULL);
 	reason = zpool_get_status(zhp, &msgid, &errata);
 	char *buffstr;
 	cbp->cb_count++;
 	char errors[1024];
 	nvlist_t		*nv_dict_props;
-	nvlist_t 		*nv_dict_array;
 
 	cbp->cb_nbelem++;
 	cbp->cb_data = realloc(cbp->cb_data,

@@ -21,11 +21,11 @@ http://lists.open-zfs.org/pipermail/developer/2014-November/000934.html
 
 ## Installation (for debian)
 
-before install the dependencies 
+before install the dependencies
 ```bash
 apt-get install libtool build-essential gawk alien fakeroot linux-headers-$(uname -r) zlib1g-dev uuid-dev libblkid-dev libselinux-dev parted lsscsi wget automake
 ```
-next install the spl : 
+next install the spl :
 ```bash
 git clone https://github.com/zfsonlinux/spl.git
 cd spl
@@ -37,7 +37,7 @@ cd ..
 ```
 now clone the zfs (branch with json implementation)"
 ```bash
-git clone -b json https://github.com/Alyseo/zfs 
+git clone -b json https://github.com/Alyseo/zfs
 cd zfs-json
 ./autogen
 ./configure
@@ -64,34 +64,34 @@ tank2      59,5K  3,72G    19K  /tank2
 ### Output (with -J only) can be piped on 'python -mjson.tool' to have pretty json code :
 ```json
 {
-    "stderr": "", 
+    "stderr": "",
         "stdout": [
         {
-            "available": "1030422528", 
-            "mountpoint": "/tank", 
-            "name": "tank", 
-            "referenced": "19456", 
+            "available": "1030422528",
+            "mountpoint": "/tank",
+            "name": "tank",
+            "referenced": "19456",
             "used": "1376256"
-        }, 
+        },
         {
-            "available": "1031725056", 
-            "mountpoint": "-", 
-            "name": "tank/toto", 
-            "referenced": "8192", 
+            "available": "1031725056",
+            "mountpoint": "-",
+            "name": "tank/toto",
+            "referenced": "8192",
             "used": "1310720"
-        }, 
+        },
         {
-            "available": "1031737856", 
-            "mountpoint": "/tank1", 
-            "name": "tank1", 
-            "referenced": "19456", 
+            "available": "1031737856",
+            "mountpoint": "/tank1",
+            "name": "tank1",
+            "referenced": "19456",
             "used": "60928"
-        }, 
+        },
         {
-            "available": "3996586496", 
-            "mountpoint": "/tank2", 
-            "name": "tank2", 
-            "referenced": "19456", 
+            "available": "3996586496",
+            "mountpoint": "/tank2",
+            "name": "tank2",
+            "referenced": "19456",
             "used": "60928"
         }
     ]
@@ -111,206 +111,108 @@ tank2      59,5K  3,72G    19K  /tank2
 
 ### zpool list -J
 ```json
-{"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}],"stderr":""}
+{"stdout":[{"name":"tanka","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"},{"name":"tankb","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}],"stderr":""}
 ```
 ### zpool list -J | python -m json.tool
 ```json
 {
-    "stderr": "", 
+    "stderr": "",
     "stdout": [
         {
-            "allocated": "76K", 
-            "altroot": "-", 
-            "capacity": "0%", 
-            "dedupratio": "1.00x", 
-            "expandsize": "-", 
-            "fragmentation": "0%", 
-            "free": "1,94G", 
-            "health": "ONLINE", 
-            "name": "lincoln", 
-            "size": "1,94G"
-        }, 
+            "allocated": "57856",
+            "altroot": "-",
+            "capacity": "0%",
+            "dedupratio": "1.00x",
+            "expandsize": "-",
+            "fragmentation": "0%",
+            "free": "3271499264",
+            "health": "ONLINE",
+            "name": "tanka",
+            "size": "3271557120"
+        },
         {
-            "allocated": "204K", 
-            "altroot": "-", 
-            "capacity": "0%", 
-            "dedupratio": "1.00x", 
-            "expandsize": "-", 
-            "fragmentation": "0%", 
-            "free": "3,23G", 
-            "health": "ONLINE", 
-            "name": "tank", 
-            "size": "3,23G"
+            "allocated": "57856",
+            "altroot": "-",
+            "capacity": "0%",
+            "dedupratio": "1.00x",
+            "expandsize": "-",
+            "fragmentation": "0%",
+            "free": "3271499264",
+            "health": "ONLINE",
+            "name": "tankb",
+            "size": "3271557120"
         }
     ]
 }
 ```
 ### zpool list -j
 ```json
-{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
-{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
+{"name":"tanka","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
+{"name":"tankb","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-"}
 {"stderr":""}
 ```
 ### zpool list -Jv
 ```json
-{"stdout":[{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"992M","allocated":"28,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop4","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop5","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"992M","allocated":"47,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop6","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop7","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]},{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}],"stderr":""}
+{"stdout":[{"name":"tanka","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"loop0","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0","capacity":"0"}]},{"name":"tankb","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"loop1","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0","capacity":"0"}]}],"stderr":""}
 ```
 ### zpool list -Jv |python -m json.tool
 ```json
 {
-    "stderr": "", 
+    "stderr": "",
     "stdout": [
         {
-            "allocated": "76K", 
-            "altroot": "-", 
-            "capacity": "0%", 
-            "dedupratio": "1.00x", 
+            "allocated": "57856",
+            "altroot": "-",
+            "capacity": "0%",
+            "dedupratio": "1.00x",
             "devices": [
                 {
-                    "allocated": "28,5K", 
-                    "capacity": "0%", 
-                    "devices": [
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop4", 
-                            "size": "-"
-                        }, 
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop5", 
-                            "size": "-"
-                        }
-                    ], 
-                    "expandsize": "-", 
-                    "fragmentation": "0%", 
-                    "free": "992M", 
-                    "name": "mirror", 
-                    "size": "992M"
-                }, 
-                {
-                    "allocated": "47,5K", 
-                    "capacity": "0%", 
-                    "devices": [
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop6", 
-                            "size": "-"
-                        }, 
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop7", 
-                            "size": "-"
-                        }
-                    ], 
-                    "expandsize": "-", 
-                    "fragmentation": "0%", 
-                    "free": "992M", 
-                    "name": "mirror", 
-                    "size": "992M"
+                    "allocated": "57856",
+                    "capacity": "0",
+                    "expandsize": "-",
+                    "fragmentation": "0",
+                    "free": "3271499264",
+                    "name": "loop0",
+                    "size": "3271557120"
                 }
-            ], 
-            "expandsize": "-", 
-            "fragmentation": "0%", 
-            "free": "1,94G", 
-            "health": "ONLINE", 
-            "name": "lincoln", 
-            "size": "1,94G"
-        }, 
+            ],
+            "expandsize": "-",
+            "fragmentation": "0%",
+            "free": "3271499264",
+            "health": "ONLINE",
+            "name": "tanka",
+            "size": "3271557120"
+        },
         {
-            "allocated": "204K", 
-            "altroot": "-", 
-            "capacity": "0%", 
-            "dedupratio": "1.00x", 
+            "allocated": "57856",
+            "altroot": "-",
+            "capacity": "0%",
+            "dedupratio": "1.00x",
             "devices": [
                 {
-                    "allocated": "71K", 
-                    "capacity": "0%", 
-                    "devices": [
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop0", 
-                            "size": "-"
-                        }, 
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop1", 
-                            "size": "-"
-                        }
-                    ], 
-                    "expandsize": "-", 
-                    "fragmentation": "0%", 
-                    "free": "1016M", 
-                    "name": "mirror", 
-                    "size": "1016M"
-                }, 
-                {
-                    "allocated": "132K", 
-                    "capacity": "0%", 
-                    "devices": [
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop2", 
-                            "size": "-"
-                        }, 
-                        {
-                            "allocated": "-", 
-                            "capacity": "-", 
-                            "expandsize": "-", 
-                            "fragmentation": "-", 
-                            "free": "-", 
-                            "name": "loop3", 
-                            "size": "-"
-                        }
-                    ], 
-                    "expandsize": "-", 
-                    "fragmentation": "0%", 
-                    "free": "2,23G", 
-                    "name": "mirror", 
-                    "size": "2,23G"
+                    "allocated": "57856",
+                    "capacity": "0",
+                    "expandsize": "-",
+                    "fragmentation": "0",
+                    "free": "3271499264",
+                    "name": "loop1",
+                    "size": "3271557120"
                 }
-            ], 
-            "expandsize": "-", 
-            "fragmentation": "0%", 
-            "free": "3,23G", 
-            "health": "ONLINE", 
-            "name": "tank", 
-            "size": "3,23G"
+            ],
+            "expandsize": "-",
+            "fragmentation": "0%",
+            "free": "3271499264",
+            "health": "ONLINE",
+            "name": "tankb",
+            "size": "3271557120"
         }
     ]
 }
 ```
 ### zpool list -jv
 ```json
-{"name":"lincoln","size":"1,94G","allocated":"76K","free":"1,94G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"992M","allocated":"28,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop4","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop5","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"992M","allocated":"47,5K","free":"992M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop6","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop7","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}
-{"name":"tank","size":"3,23G","allocated":"204K","free":"3,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"mirror","size":"1016M","allocated":"71K","free":"1016M","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop0","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop1","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]},{"name":"mirror","size":"2,23G","allocated":"132K","free":"2,23G","expandsize":"-","fragmentation":"0%","capacity":"0%","devices":[{"name":"loop2","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"},{"name":"loop3","size":"-","allocated":"-","free":"-","expandsize":"-","fragmentation":"-","capacity":"-"}]}]}
+{"name":"tanka","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"loop0","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0","capacity":"0"}]}
+{"name":"tankb","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0%","capacity":"0%","dedupratio":"1.00x","health":"ONLINE","altroot":"-","devices":[{"name":"loop1","size":"3271557120","allocated":"57856","free":"3271499264","expandsize":"-","fragmentation":"0","capacity":"0"}]}
 {"stderr":""}
 ```
 example implemented for 'zpool status ' :
