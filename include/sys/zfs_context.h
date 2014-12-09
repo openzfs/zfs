@@ -41,6 +41,7 @@
 #include <sys/bitmap.h>
 #include <sys/cmn_err.h>
 #include <sys/kmem.h>
+#include <sys/kmem_cache.h>
 #include <sys/vmem.h>
 #include <sys/taskq.h>
 #include <sys/buf.h>
