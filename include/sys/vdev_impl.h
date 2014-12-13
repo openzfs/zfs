@@ -50,7 +50,6 @@ extern "C" {
  * Forward declarations that lots of things need.
  */
 typedef struct vdev_queue vdev_queue_t;
-typedef struct vdev_io vdev_io_t;
 typedef struct vdev_cache vdev_cache_t;
 typedef struct vdev_cache_entry vdev_cache_entry_t;
 
@@ -117,14 +116,8 @@ struct vdev_queue {
 	uint64_t	vq_last_offset;
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
-	list_t		vq_io_list;
 	zio_t		vq_io_search; /* used as local for stack reduction */
 	kmutex_t	vq_lock;
-};
-
-struct vdev_io {
-	char		vi_buffer[SPA_MAXBLOCKSIZE]; /* Must be first */
-	list_node_t	vi_node;
 };
 
 /*
