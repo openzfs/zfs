@@ -36,6 +36,7 @@
 #include <sys/zio.h>
 #include <sys/dmu_zfetch.h>
 #include <sys/range_tree.h>
+#include <sys/trace_dnode.h>
 
 static kmem_cache_t *dnode_cache;
 /*

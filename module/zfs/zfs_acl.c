@@ -52,6 +52,7 @@
 #include <sys/dnode.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
+#include <sys/trace_acl.h>
 #include "fs/fs_subr.h"
 
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE

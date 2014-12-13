@@ -150,6 +150,11 @@ typedef struct l2arc_dev {
 	list_node_t		l2ad_node;	/* device list node */
 } l2arc_dev_t;
 
+typedef struct l2arc_write_callback {
+	l2arc_dev_t	*l2wcb_dev;		/* device info */
+	arc_buf_hdr_t	*l2wcb_head;		/* head of write buflist */
+} l2arc_write_callback_t;
+
 #ifdef __cplusplus
 }
 #endif

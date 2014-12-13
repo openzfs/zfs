@@ -39,6 +39,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/metaslab.h>
+#include <sys/trace_zil.h>
 
 /*
  * The zfs intent log (ZIL) saves transaction records of system calls
