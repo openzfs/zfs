@@ -53,21 +53,115 @@
 #define	DTRACE_PROBE4(name, t1, arg1, t2, arg2, t3, arg3, t4, arg4) \
 	trace_zfs_##name((arg1), (arg2), (arg3), (arg4))
 
-typedef struct arc_buf_hdr arc_buf_hdr_t;
-typedef struct zio zio_t;
-typedef struct vdev vdev_t;
-typedef struct l2arc_write_callback l2arc_write_callback_t;
-typedef struct blkptr blkptr_t;
-typedef struct zbookmark_phys zbookmark_phys_t;
-typedef struct l2arc_dev l2arc_dev_t;
-typedef struct dmu_buf_impl dmu_buf_impl_t;
-typedef struct dmu_tx dmu_tx_t;
-typedef struct dnode dnode_t;
-typedef struct dsl_pool dsl_pool_t;
-typedef struct znode znode_t;
-typedef struct zfs_ace_hdr zfs_ace_hdr_t;
-typedef struct zilog zilog_t;
-typedef struct zrlock zrlock_t;
+/*
+ * Generic support for four argument tracepoints of the form:
+ *
+ * DTRACE_PROBE4(...,
+ *     const char *, ...,
+ *     const char *, ...,
+ *     int, ...,
+ *     uintptr_t, ...);
+ */
+DECLARE_EVENT_CLASS(zfs_set_error_class,
+	TP_PROTO(const char *file, const char *function, int line,
+	    uintptr_t error),
+	TP_ARGS(file, function, line, error),
+	TP_STRUCT__entry(
+	    __field(const char *,	file)
+	    __field(const char *,	function)
+	    __field(int,		line)
+	    __field(uintptr_t,		error)
+	),
+	TP_fast_assign(
+	    __entry->file = strchr(file, '/') ? strrchr(file, '/') + 1 : file;
+	    __entry->function		= function;
+	    __entry->line		= line;
+	    __entry->error		= error;
+	),
+	TP_printk("%s:%d:%s(): error 0x%lx", __entry->file, __entry->line,
+	    __entry->function, __entry->error)
+);
+
+#define	DEFINE_SET_ERROR_EVENT(name) \
+DEFINE_EVENT(zfs_set_error_class, name, \
+	TP_PROTO(const char *file, const char *function, int line, \
+	    uintptr_t error), \
+	TP_ARGS(file, function, line, error))
+DEFINE_SET_ERROR_EVENT(zfs_set__error);
+
+/*
+ * Generic support for four argument tracepoints of the form:
+ *
+ * DTRACE_PROBE4(...,
+ *     const char *, ...,
+ *     const char *, ...,
+ *     int, ...,
+ *     const char *, ...);
+ */
+DECLARE_EVENT_CLASS(zfs_dprintf_class,
+	TP_PROTO(const char *file, const char *function, int line,
+	    const char *msg),
+	TP_ARGS(file, function, line, msg),
+	TP_STRUCT__entry(
+	    __field(const char *,	file)
+	    __field(const char *,	function)
+	    __field(int,		line)
+	    __string(msg, msg)
+	),
+	TP_fast_assign(
+	    __entry->file		= file;
+	    __entry->function		= function;
+	    __entry->line		= line;
+	    __assign_str(msg, msg);
+	),
+	TP_printk("%s:%d:%s(): %s", __entry->file, __entry->line,
+	    __entry->function, __get_str(msg))
+);
+
+#define	DEFINE_DPRINTF_EVENT(name) \
+DEFINE_EVENT(zfs_dprintf_class, name, \
+	TP_PROTO(const char *file, const char *function, int line, \
+	    const char *msg), \
+	TP_ARGS(file, function, line, msg))
+DEFINE_DPRINTF_EVENT(zfs_zfs__dprintf);
+
+/*
+ * Generic support for one argument tracepoints of the form:
+ *
+ * DTRACE_PROBE1(...,
+ *     const char *, ...);
+ */
+DECLARE_EVENT_CLASS(zfs_dbgmsg_class,
+	TP_PROTO(const char *msg),
+	TP_ARGS(msg),
+	TP_STRUCT__entry(
+	    __string(msg, msg)
+	),
+	TP_fast_assign(
+	    __assign_str(msg, msg);
+	),
+	TP_printk("%s", __get_str(msg))
+);
+
+#define	DEFINE_DBGMSG_EVENT(name) \
+DEFINE_EVENT(zfs_dbgmsg_class, name, \
+	TP_PROTO(const char *msg), \
+	TP_ARGS(msg))
+DEFINE_DBGMSG_EVENT(zfs_zfs__dbgmsg);
+
+#endif /* _TRACE_ZFS_H */
+
+/*
+ * The following tracepoint event declarations are intentionally outside
+ * of the _TRACD_ZFS_H multiple inclusion guard. This allows trace.h to
+ * be included from zfs_context.h so that dprintf, dbgmsg, and SET_ERROR
+ * are made readily available. But zfs_context.h is often included
+ * before the other headers needed by the events declared below.
+ * Therefore the code below allows multiple inclusion, but with guards
+ * against missing dependencies and multiple declaration around each
+ * event class. Files using the events declared below may need to
+ * explicitly include trace.h after including the required headers.
+ */
 
 /*
  * Generic support for one argument tracepoints of the form:
@@ -75,6 +169,11 @@ typedef struct zrlock zrlock_t;
  * DTRACE_PROBE1(...,
  *     arc_buf_hdr_t *, ...);
  */
+
+#if defined(_SYS_ARC_H_END)
+#if !defined(_ARC_BUF_HDR_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ARC_BUF_HDR_CLASS
+
 DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	TP_PROTO(arc_buf_hdr_t *ab),
 	TP_ARGS(ab),
@@ -140,6 +239,9 @@ DEFINE_ARC_BUF_HDR_EVENT(zfs_new_state__mru);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_new_state__mfu);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__hit);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__miss);
+
+#endif /* _SYS_ARC_H_END */
+#endif /* _ARC_BUF_HDR_CLASS */
 
 /*
  * Generic support for two argument tracepoints of the form:
@@ -228,6 +330,9 @@ DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__miss);
 	__entry->zp_level, __entry->zp_copies, __entry->zp_dedup,	\
 	__entry->zp_dedup_verify, __entry->zp_nopwrite
 
+#if defined(_SYS_VDEV_H_END) && defined(_ZIO_H_END) && defined(_SYS_ARC_H_END)
+#if !defined(_ZFS_L2ARC_RW_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_L2ARC_RW_CLASS
 
 DECLARE_EVENT_CLASS(zfs_l2arc_rw_class,
 	TP_PROTO(vdev_t *vd, zio_t *zio),
@@ -256,6 +361,9 @@ DEFINE_EVENT(zfs_l2arc_rw_class, name, \
 DEFINE_L2ARC_RW_EVENT(zfs_l2arc__read);
 DEFINE_L2ARC_RW_EVENT(zfs_l2arc__write);
 
+#endif /* _ZFS_L2ARC_RW_CLASS */
+#endif /* _SYS_VDEV_H_END && _ZIO_H_END && _SYS_ARC_H_END */
+
 /*
  * Generic support for two argument tracepoints of the form:
  *
@@ -263,6 +371,11 @@ DEFINE_L2ARC_RW_EVENT(zfs_l2arc__write);
  *     zio_t *, ...,
  *     l2arc_write_callback_t *, ...);
  */
+
+#if defined(_ZIO_H_END) && defined(_SYS_ARC_IMPL_H_END)
+#if !defined(_ZFS_L2ARC_IODONE_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_L2ARC_IODONE_CLASS
+
 DECLARE_EVENT_CLASS(zfs_l2arc_iodone_class,
 	TP_PROTO(zio_t *zio, l2arc_write_callback_t *cb),
 	TP_ARGS(zio, cb),
@@ -277,6 +390,9 @@ DEFINE_EVENT(zfs_l2arc_iodone_class, name, \
 	TP_ARGS(zio, cb))
 DEFINE_L2ARC_IODONE_EVENT(zfs_l2arc__iodone);
 
+#endif /* _ZFS_L2ARC_IODONE_CLASS */
+#endif /* _ZIO_H_END && _SYS_ARC_IMPL_H_END */
+
 /*
  * Generic support for four argument tracepoints of the form:
  *
@@ -286,6 +402,11 @@ DEFINE_L2ARC_IODONE_EVENT(zfs_l2arc__iodone);
  *     uint64_t,
  *     const zbookmark_phys_t *);
  */
+
+#if defined(_SYS_SPA_H_END) && defined(_SYS_ARC_H_END)
+#if !defined(_ZFS_ARC_MISS_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_ARC_MISS_CLASS
+
 DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	TP_PROTO(arc_buf_hdr_t *hdr,
 	    const blkptr_t *bp, uint64_t size, const zbookmark_phys_t *zb),
@@ -388,6 +509,9 @@ DEFINE_EVENT(zfs_arc_miss_class, name, \
 	TP_ARGS(hdr, bp, size, zb))
 DEFINE_ARC_MISS_EVENT(zfs_arc__miss);
 
+#endif /* _ZFS_ARC_MISS_CLASS */
+#endif /* _SYS_SPA_H_END && _SYS_ARC_H_END */
+
 /*
  * Generic support for four argument tracepoints of the form:
  *
@@ -397,6 +521,11 @@ DEFINE_ARC_MISS_EVENT(zfs_arc__miss);
  *     uint64_t, ...,
  *     boolean_t, ...);
  */
+
+#if defined(_SYS_ARC_IMPL_H_END)
+#if !defined(_ZFS_L2ARC_EVICT_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_L2ARC_EVICT_CLASS
+
 DECLARE_EVENT_CLASS(zfs_l2arc_evict_class,
 	TP_PROTO(l2arc_dev_t *dev,
 	    list_t *buflist, uint64_t taddr, boolean_t all),
@@ -448,6 +577,9 @@ DEFINE_EVENT(zfs_l2arc_evict_class, name, \
 	TP_ARGS(dev, buflist, taddr, all))
 DEFINE_L2ARC_EVICT_EVENT(zfs_l2arc__evict);
 
+#endif /* _ZFS_L2ARC_EVICT_CLASS */
+#endif /* _SYS_ARC_IMPL_H_END */
+
 /*
  * Generic support for three argument tracepoints of the form:
  *
@@ -456,6 +588,11 @@ DEFINE_L2ARC_EVICT_EVENT(zfs_l2arc__evict);
  *     uint64_t, ...,
  *     uint64_t, ...);
  */
+
+#ifdef _SYS_DMU_H_END
+#if !defined(_ZFS_DELAY_MINTIME_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_DELAY_MINTIME_CLASS
+
 DECLARE_EVENT_CLASS(zfs_delay_mintime_class,
 	TP_PROTO(dmu_tx_t *tx, uint64_t dirty, uint64_t min_tx_time),
 	TP_ARGS(tx, dirty, min_tx_time),
@@ -523,6 +660,9 @@ DEFINE_EVENT(zfs_delay_mintime_class, name, \
 	TP_ARGS(tx, dirty, min_tx_time))
 DEFINE_DELAY_MINTIME_EVENT(zfs_delay__mintime);
 
+#endif /* _ZFS_DELAY_MINTIME_CLASS */
+#endif /* _SYS_DMU_H_END */
+
 /*
  * Generic support for three argument tracepoints of the form:
  *
@@ -531,6 +671,11 @@ DEFINE_DELAY_MINTIME_EVENT(zfs_delay__mintime);
  *     int64_t, ...,
  *     uint32_t, ...);
  */
+
+#ifdef _SYS_DNODE_H_END
+#if !defined(_ZFS_DNODE_MOVE_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_DNODE_MOVE_CLASS
+
 DECLARE_EVENT_CLASS(zfs_dnode_move_class,
 	TP_PROTO(dnode_t *dn, int64_t refcount, uint32_t dbufs),
 	TP_ARGS(dn, refcount, dbufs),
@@ -598,6 +743,9 @@ DEFINE_EVENT(zfs_dnode_move_class, name, \
 	TP_ARGS(dn, refcount, dbufs))
 DEFINE_DNODE_MOVE_EVENT(zfs_dnode__move);
 
+#endif /* _ZFS_DNODE_MOVE_CLASS */
+#endif /* _SYS_DNODE_H_END */
+
 /*
  * Generic support for two argument tracepoints of the form:
  *
@@ -605,6 +753,11 @@ DEFINE_DNODE_MOVE_EVENT(zfs_dnode__move);
  *     dsl_pool_t *, ...,
  *     uint64_t, ...);
  */
+
+#if defined(_SYS_DSL_POOL_H_END)
+#if !defined(_ZFS_TXG_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_TXG_CLASS
+
 DECLARE_EVENT_CLASS(zfs_txg_class,
 	TP_PROTO(dsl_pool_t *dp, uint64_t txg),
 	TP_ARGS(dp, txg),
@@ -628,6 +781,9 @@ DEFINE_TXG_EVENT(zfs_txg__syncing);
 DEFINE_TXG_EVENT(zfs_txg__synced);
 DEFINE_TXG_EVENT(zfs_txg__quiesced);
 
+#endif /* _ZFS_TXG_CLASS */
+#endif /* _SYS_DSL_POOL_H_END */
+
 /*
  * Generic support for three argument tracepoints of the form:
  *
@@ -636,6 +792,11 @@ DEFINE_TXG_EVENT(zfs_txg__quiesced);
  *     zfs_ace_hdr_t *, ...,
  *     uint32_t, ...);
  */
+
+#if defined(_SYS_FS_ZFS_ZNODE_H_END) && defined(_SYS_FS_ZFS_ACL_H_END)
+#if !defined(_ZFS_ACE_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_ACE_CLASS
+
 DECLARE_EVENT_CLASS(zfs_ace_class,
 	TP_PROTO(znode_t *zn, zfs_ace_hdr_t *ace, uint32_t mask_matched),
 	TP_ARGS(zn, ace, mask_matched),
@@ -748,12 +909,20 @@ DEFINE_EVENT(zfs_ace_class, name, \
 DEFINE_ACE_EVENT(zfs_zfs__ace__denies);
 DEFINE_ACE_EVENT(zfs_zfs__ace__allows);
 
+#endif /* _ZFS_ACE_CLASS */
+#endif /* _SYS_FS_ZFS_ZNODE_H_END && _SYS_FS_ZFS_ACL_H_END */
+
 /*
  * Generic support for one argument tracepoints of the form:
  *
  * DTRACE_PROBE1(...,
  *     zilog_t *, ...);
  */
+
+#ifdef _SYS_ZIL_IMPL_H_END
+#if !defined(_ZFS_ZIL_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_ZIL_CLASS
+
 DECLARE_EVENT_CLASS(zfs_zil_class,
 	TP_PROTO(zilog_t *zilog),
 	TP_ARGS(zilog),
@@ -833,6 +1002,9 @@ DEFINE_EVENT(zfs_zil_class, name, \
 DEFINE_ZIL_EVENT(zfs_zil__cw1);
 DEFINE_ZIL_EVENT(zfs_zil__cw2);
 
+#endif /* _ZFS_ZIL_CLASS */
+#endif /* _SYS_ZIL_IMPL_H_END */
+
 /*
  * Generic support for two argument tracepoints of the form:
  *
@@ -840,6 +1012,11 @@ DEFINE_ZIL_EVENT(zfs_zil__cw2);
  *     dmu_buf_impl_t *, ...,
  *     zio_t *, ...);
  */
+
+#ifdef _SYS_DBUF_H_END
+#if !defined(_ZFS_DBUF_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_DBUF_CLASS
+
 #define	DBUF_TP_STRUCT_ENTRY					\
 	__field(const char *,	os_spa)				\
 	__field(uint64_t,	ds_object)			\
@@ -890,6 +1067,9 @@ DEFINE_EVENT(zfs_dbuf_class, name, \
 	TP_ARGS(db, zio))
 DEFINE_DBUF_EVENT(zfs_blocked__read);
 
+#endif /* _ZFS_DBUF_CLASS */
+#endif /* _SYS_DBUF_H_END */
+
 /*
  * Generic support for two argument tracepoints of the form:
  *
@@ -897,6 +1077,11 @@ DEFINE_DBUF_EVENT(zfs_blocked__read);
  *     zrlock_t *, ...,
  *     uint32_t, ...);
  */
+
+#ifdef _SYS_ZRLOCK_H_END
+#if !defined(_ZFS_ZRLOCK_CLASS) || defined(TRACE_HEADER_MULTI_READ)
+#define	_ZFS_ZRLOCK_CLASS
+
 DECLARE_EVENT_CLASS(zfs_zrlock_class,
 	TP_PROTO(zrlock_t *zrl, uint32_t n),
 	TP_ARGS(zrl, n),
@@ -932,103 +1117,8 @@ DEFINE_EVENT(zfs_zrlock_class, name, \
 	TP_ARGS(zrl, n))
 DEFINE_ZRLOCK_EVENT(zfs_zrlock__reentry);
 
-/*
- * Generic support for four argument tracepoints of the form:
- *
- * DTRACE_PROBE4(...,
- *     const char *, ...,
- *     const char *, ...,
- *     int, ...,
- *     uintptr_t, ...);
- */
-DECLARE_EVENT_CLASS(zfs_set_error_class,
-	TP_PROTO(const char *file, const char *function, int line,
-	    uintptr_t error),
-	TP_ARGS(file, function, line, error),
-	TP_STRUCT__entry(
-	    __field(const char *,	file)
-	    __field(const char *,	function)
-	    __field(int,		line)
-	    __field(uintptr_t,		error)
-	),
-	TP_fast_assign(
-	    __entry->file = strchr(file, '/') ? strrchr(file, '/') + 1 : file;
-	    __entry->function		= function;
-	    __entry->line		= line;
-	    __entry->error		= error;
-	),
-	TP_printk("%s:%d:%s(): error 0x%lx", __entry->file, __entry->line,
-	    __entry->function, __entry->error)
-);
-
-#define	DEFINE_SET_ERROR_EVENT(name) \
-DEFINE_EVENT(zfs_set_error_class, name, \
-	TP_PROTO(const char *file, const char *function, int line, \
-	    uintptr_t error), \
-	TP_ARGS(file, function, line, error))
-DEFINE_SET_ERROR_EVENT(zfs_set__error);
-
-/*
- * Generic support for four argument tracepoints of the form:
- *
- * DTRACE_PROBE4(...,
- *     const char *, ...,
- *     const char *, ...,
- *     int, ...,
- *     const char *, ...);
- */
-DECLARE_EVENT_CLASS(zfs_dprintf_class,
-	TP_PROTO(const char *file, const char *function, int line,
-	    const char *msg),
-	TP_ARGS(file, function, line, msg),
-	TP_STRUCT__entry(
-	    __field(const char *,	file)
-	    __field(const char *,	function)
-	    __field(int,		line)
-	    __string(msg, msg)
-	),
-	TP_fast_assign(
-	    __entry->file		= file;
-	    __entry->function		= function;
-	    __entry->line		= line;
-	    __assign_str(msg, msg);
-	),
-	TP_printk("%s:%d:%s(): %s", __entry->file, __entry->line,
-	    __entry->function, __get_str(msg))
-);
-
-#define	DEFINE_DPRINTF_EVENT(name) \
-DEFINE_EVENT(zfs_dprintf_class, name, \
-	TP_PROTO(const char *file, const char *function, int line, \
-	    const char *msg), \
-	TP_ARGS(file, function, line, msg))
-DEFINE_DPRINTF_EVENT(zfs_zfs__dprintf);
-
-/*
- * Generic support for one argument tracepoints of the form:
- *
- * DTRACE_PROBE1(...,
- *     const char *, ...);
- */
-DECLARE_EVENT_CLASS(zfs_dbgmsg_class,
-	TP_PROTO(const char *msg),
-	TP_ARGS(msg),
-	TP_STRUCT__entry(
-	    __string(msg, msg)
-	),
-	TP_fast_assign(
-	    __assign_str(msg, msg);
-	),
-	TP_printk("%s", __get_str(msg))
-);
-
-#define	DEFINE_DBGMSG_EVENT(name) \
-DEFINE_EVENT(zfs_dbgmsg_class, name, \
-	TP_PROTO(const char *msg), \
-	TP_ARGS(msg))
-DEFINE_DBGMSG_EVENT(zfs_zfs__dbgmsg);
-
-#endif /* _TRACE_ZFS_H */
+#endif /* _ZFS_ZRLOCK_CLASS */
+#endif /* _SYS_ZRLOCK_H_END */
 
 #undef TRACE_INCLUDE_PATH
 #define	TRACE_INCLUDE_PATH sys

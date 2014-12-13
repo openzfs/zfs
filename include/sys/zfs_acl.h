@@ -244,4 +244,7 @@ int zfs_acl_chown_setattr(struct znode *);
 #ifdef	__cplusplus
 }
 #endif
+
+#define	_SYS_FS_ZFS_ACL_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif	/* _SYS_FS_ZFS_ACL_H */

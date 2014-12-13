@@ -147,4 +147,6 @@ typedef struct zil_bp_node {
 }
 #endif
 
+#define	_SYS_ZIL_IMPL_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif	/* _SYS_ZIL_IMPL_H */
