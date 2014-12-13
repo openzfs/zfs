@@ -45,6 +45,7 @@
 #include <sys/zfeature.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_userhold.h>
+#include <sys/trace_txg.h>
 
 /*
  * ZFS Write Throttle

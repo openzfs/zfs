@@ -38,6 +38,7 @@
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
 #include <sys/varargs.h>
+#include <sys/trace_dmu.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);

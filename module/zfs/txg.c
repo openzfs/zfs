@@ -32,6 +32,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_scan.h>
 #include <sys/callb.h>
+#include <sys/trace_txg.h>
 
 /*
  * ZFS Transaction Groups

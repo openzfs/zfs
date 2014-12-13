@@ -37,3 +37,11 @@
 
 #define	CREATE_TRACE_POINTS
 #include <sys/trace.h>
+#include <sys/trace_acl.h>
+#include <sys/trace_arc.h>
+#include <sys/trace_dbuf.h>
+#include <sys/trace_dmu.h>
+#include <sys/trace_dnode.h>
+#include <sys/trace_txg.h>
+#include <sys/trace_zil.h>
+#include <sys/trace_zrlock.h>
