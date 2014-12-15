@@ -649,5 +649,5 @@ AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER],
 	[AC_LANG_SOURCE([ZFS_LANG_PROGRAM([[$1]], [[$2]])])],
 	[modules],
 	[test -s build/conftest.o],
-	[$3], [$4], [AC_LANG_SOURCE([$5])])
+	[$3], [$4], [$5])
 ])
