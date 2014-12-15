@@ -106,7 +106,7 @@ Group:          System Environment/Kernel
 This package contains the zpool library, which provides support
 for managing zpools
 
-%post-n libzpool2 -p /sbin/ldconfig
+%post -n libzpool2 -p /sbin/ldconfig
 %postun -n libzpool2 -p /sbin/ldconfig
 
 %package -n libnvpair1
@@ -119,7 +119,7 @@ pairs.  This functionality is used to portably transport data across
 process boundaries, between kernel and user space, and can be used
 to write self describing data structures on disk.
 
-%post-n libnvpair1 -p /sbin/ldconfig
+%post -n libnvpair1 -p /sbin/ldconfig
 %postun -n libnvpair1 -p /sbin/ldconfig
 
 %package -n libuutil1
@@ -137,7 +137,7 @@ This library provides a variety of compatibility functions for ZFS on Linux:
    partitioning.
  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
 
-%post-n libuutil1 -p /sbin/ldconfig
+%post -n libuutil1 -p /sbin/ldconfig
 %postun -n libuutil1 -p /sbin/ldconfig
 
 %package -n libzfs2
@@ -147,7 +147,7 @@ Group:          System Environment/Kernel
 %description -n libzfs2
 This package provides support for managing ZFS filesystems
 
-%post-n libzfs2 -p /sbin/ldconfig
+%post -n libzfs2 -p /sbin/ldconfig
 %postun -n libzfs2 -p /sbin/ldconfig
 
 %package -n libzfs2-devel
