@@ -47,6 +47,15 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/spa.h \
 	$(top_srcdir)/include/sys/spa_impl.h \
 	$(top_srcdir)/include/sys/trace.h \
+	$(top_srcdir)/include/sys/trace_acl.h \
+	$(top_srcdir)/include/sys/trace_arc.h \
+	$(top_srcdir)/include/sys/trace_dbgmsg.h \
+	$(top_srcdir)/include/sys/trace_dbuf.h \
+	$(top_srcdir)/include/sys/trace_dmu.h \
+	$(top_srcdir)/include/sys/trace_dnode.h \
+	$(top_srcdir)/include/sys/trace_txg.h \
+	$(top_srcdir)/include/sys/trace_zil.h \
+	$(top_srcdir)/include/sys/trace_zrlock.h \
 	$(top_srcdir)/include/sys/txg.h \
 	$(top_srcdir)/include/sys/txg_impl.h \
 	$(top_srcdir)/include/sys/u8_textprep_data.h \
