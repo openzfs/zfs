@@ -68,7 +68,7 @@ required to perform an allocation.  Conversely, a smaller value will minimize
 the footprint and improve cache reclaim time but individual allocations may
 take longer.
 .sp
-Default value: \fB16\fR
+Default value: \fB8\fR
 .RE
 
 .sp
@@ -96,7 +96,7 @@ the maximum cache object size to \fBspl_kmem_cache_max_size\fR /
 \fBspl_kmem_cache_obj_per_slab\fR.  Caches may not be created with
 object sized larger than this limit.
 .sp
-Default value: \fB32\fR
+Default value: \fB32 (64-bit) or 4 (32-bit)\fR
 .RE
 
 .sp

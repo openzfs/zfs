@@ -101,9 +101,24 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 
 #define	SPL_KMEM_CACHE_DELAY		15	/* Minimum slab release age */
 #define	SPL_KMEM_CACHE_REAP		0	/* Default reap everything */
-#define	SPL_KMEM_CACHE_OBJ_PER_SLAB	16	/* Target objects per slab */
+#define	SPL_KMEM_CACHE_OBJ_PER_SLAB	8	/* Target objects per slab */
 #define	SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	1	/* Minimum objects per slab */
 #define	SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
+#ifdef _LP64
+#define	SPL_KMEM_CACHE_MAX_SIZE		32	/* Max slab size in MB */
+#else
+#define	SPL_KMEM_CACHE_MAX_SIZE		4	/* Max slab size in MB */
+#endif
+
+#define	SPL_MAX_ORDER			(MAX_ORDER - 3)
+#define	SPL_MAX_ORDER_NR_PAGES		(1 << (SPL_MAX_ORDER - 1))
+
+#ifdef CONFIG_SLUB
+#define	SPL_MAX_KMEM_CACHE_ORDER	PAGE_ALLOC_COSTLY_ORDER
+#define	SPL_MAX_KMEM_ORDER_NR_PAGES	(1 << (SPL_MAX_KMEM_CACHE_ORDER - 1))
+#else
+#define	SPL_MAX_KMEM_ORDER_NR_PAGES	(KMALLOC_MAX_SIZE >> PAGE_SHIFT)
+#endif
 
 #define	POINTER_IS_VALID(p)		0	/* Unimplemented */
 #define	POINTER_INVALIDATE(pp)			/* Unimplemented */

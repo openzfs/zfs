@@ -109,7 +109,7 @@ module_param(spl_kmem_cache_obj_per_slab_min, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab_min,
 	"Minimal number of objects per slab");
 
-unsigned int spl_kmem_cache_max_size = 32;
+unsigned int spl_kmem_cache_max_size = SPL_KMEM_CACHE_MAX_SIZE;
 module_param(spl_kmem_cache_max_size, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_max_size, "Maximum size of slab in MB");
 
@@ -128,7 +128,13 @@ module_param(spl_kmem_cache_slab_limit, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_slab_limit,
 	"Objects less than N bytes use the Linux slab");
 
-unsigned int spl_kmem_cache_kmem_limit = (PAGE_SIZE / 4);
+/*
+ * This value defaults to a threshold designed to avoid allocations which
+ * have been deemed costly by the kernel.
+ */
+unsigned int spl_kmem_cache_kmem_limit =
+    ((1 << (PAGE_ALLOC_COSTLY_ORDER - 1)) * PAGE_SIZE) /
+    SPL_KMEM_CACHE_OBJ_PER_SLAB;
 module_param(spl_kmem_cache_kmem_limit, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
 	"Objects less than N bytes use the kmalloc");
@@ -181,12 +187,12 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	gfp_t lflags = kmem_flags_convert(flags);
 	void *ptr;
 
-	ASSERT(ISP2(size));
-
-	if (skc->skc_flags & KMC_KMEM)
+	if (skc->skc_flags & KMC_KMEM) {
+		ASSERT(ISP2(size));
 		ptr = (void *)__get_free_pages(lflags, get_order(size));
-	else
+	} else {
 		ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
+	}
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
@@ -198,7 +204,6 @@ static void
 kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 {
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
-	ASSERT(ISP2(size));
 
 	/*
 	 * The Linux direct reclaim path uses this out of band value to
@@ -210,10 +215,12 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 	if (current->reclaim_state)
 		current->reclaim_state->reclaimed_slab += size >> PAGE_SHIFT;
 
-	if (skc->skc_flags & KMC_KMEM)
+	if (skc->skc_flags & KMC_KMEM) {
+		ASSERT(ISP2(size));
 		free_pages((unsigned long)ptr, get_order(size));
-	else
+	} else {
 		vfree(ptr);
+	}
 }
 
 /*
@@ -668,40 +675,48 @@ spl_cache_age(void *data)
 static int
 spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 {
-	uint32_t sks_size, obj_size, max_size;
+	uint32_t sks_size, obj_size, max_size, tgt_size, tgt_objs;
 
 	if (skc->skc_flags & KMC_OFFSLAB) {
-		*objs = spl_kmem_cache_obj_per_slab;
-		*size = P2ROUNDUP(sizeof (spl_kmem_slab_t), PAGE_SIZE);
-		return (0);
+		tgt_objs = spl_kmem_cache_obj_per_slab;
+		tgt_size = P2ROUNDUP(sizeof (spl_kmem_slab_t), PAGE_SIZE);
+
+		if ((skc->skc_flags & KMC_KMEM) &&
+		    (spl_obj_size(skc) > (SPL_MAX_ORDER_NR_PAGES * PAGE_SIZE)))
+			return (-ENOSPC);
 	} else {
 		sks_size = spl_sks_size(skc);
 		obj_size = spl_obj_size(skc);
-
-		if (skc->skc_flags & KMC_KMEM)
-			max_size = ((uint32_t)1 << (MAX_ORDER-3)) * PAGE_SIZE;
-		else
-			max_size = (spl_kmem_cache_max_size * 1024 * 1024);
-
-		/* Power of two sized slab */
-		for (*size = PAGE_SIZE; *size <= max_size; *size *= 2) {
-			*objs = (*size - sks_size) / obj_size;
-			if (*objs >= spl_kmem_cache_obj_per_slab)
-				return (0);
-		}
+		max_size = (spl_kmem_cache_max_size * 1024 * 1024);
+		tgt_size = (spl_kmem_cache_obj_per_slab * obj_size + sks_size);
 
 		/*
-		 * Unable to satisfy target objects per slab, fall back to
-		 * allocating a maximally sized slab and assuming it can
-		 * contain the minimum objects count use it.  If not fail.
+		 * KMC_KMEM slabs are allocated by __get_free_pages() which
+		 * rounds up to the nearest order.  Knowing this the size
+		 * should be rounded up to the next power of two with a hard
+		 * maximum defined by the maximum allowed allocation order.
 		 */
-		*size = max_size;
-		*objs = (*size - sks_size) / obj_size;
-		if (*objs >= (spl_kmem_cache_obj_per_slab_min))
-			return (0);
+		if (skc->skc_flags & KMC_KMEM) {
+			max_size = SPL_MAX_ORDER_NR_PAGES * PAGE_SIZE;
+			tgt_size = MIN(max_size,
+			    PAGE_SIZE * (1 << MAX(get_order(tgt_size) - 1, 1)));
+		}
+
+		if (tgt_size <= max_size) {
+			tgt_objs = (tgt_size - sks_size) / obj_size;
+		} else {
+			tgt_objs = (max_size - sks_size) / obj_size;
+			tgt_size = (tgt_objs * obj_size) + sks_size;
+		}
 	}
 
-	return (-ENOSPC);
+	if (tgt_objs == 0)
+		return (-ENOSPC);
+
+	*objs = tgt_objs;
+	*size = tgt_size;
+
+	return (0);
 }
 
 /*
@@ -960,6 +975,11 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 		if (rc)
 			goto out;
 	} else {
+		if (size > (SPL_MAX_KMEM_ORDER_NR_PAGES * PAGE_SIZE)) {
+			rc = EINVAL;
+			goto out;
+		}
+
 		skc->skc_linux_cache = kmem_cache_create(
 		    skc->skc_name, size, align, 0, NULL);
 		if (skc->skc_linux_cache == NULL) {
@@ -1406,8 +1426,11 @@ restart:
 		skm->skm_age = jiffies;
 	} else {
 		obj = spl_cache_refill(skc, skm, flags);
-		if (obj == NULL)
+		if ((obj == NULL) && !(flags & KM_NOSLEEP))
 			goto restart;
+
+		local_irq_enable();
+		goto ret;
 	}
 
 	local_irq_enable();
@@ -1427,7 +1450,6 @@ ret:
 
 	return (obj);
 }
-
 EXPORT_SYMBOL(spl_kmem_cache_alloc);
 
 /*
