@@ -1215,7 +1215,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 		rc = spl_emergency_alloc(skc, flags, obj);
 	} else {
 		remaining = wait_event_timeout(skc->skc_waitq,
-		    spl_cache_grow_wait(skc), HZ);
+		    spl_cache_grow_wait(skc), HZ / 10);
 
 		if (!remaining && test_bit(KMC_BIT_VMEM, &skc->skc_flags)) {
 			spin_lock(&skc->skc_lock);
