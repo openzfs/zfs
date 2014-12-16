@@ -202,7 +202,6 @@ sa_attr_type_t sa_dummy_zpl_layout[] = { 0 };
 
 static int sa_legacy_attr_count = 16;
 static kmem_cache_t *sa_cache = NULL;
-static kmem_cache_t *spill_cache = NULL;
 
 /*ARGSUSED*/
 static int
@@ -234,8 +233,6 @@ sa_cache_init(void)
 	sa_cache = kmem_cache_create("sa_cache",
 	    sizeof (sa_handle_t), 0, sa_cache_constructor,
 	    sa_cache_destructor, NULL, NULL, NULL, 0);
-	spill_cache = kmem_cache_create("spill_cache",
-	    SPA_MAXBLOCKSIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
 void
@@ -243,21 +240,6 @@ sa_cache_fini(void)
 {
 	if (sa_cache)
 		kmem_cache_destroy(sa_cache);
-
-	if (spill_cache)
-		kmem_cache_destroy(spill_cache);
-}
-
-void *
-sa_spill_alloc(int flags)
-{
-	return (kmem_cache_alloc(spill_cache, flags));
-}
-
-void
-sa_spill_free(void *obj)
-{
-	kmem_cache_free(spill_cache, obj);
 }
 
 static int
@@ -1672,6 +1654,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	void *old_data[2];
 	int bonus_attr_count = 0;
 	int bonus_data_size = 0;
+	int spill_data_size = 0;
 	int spill_attr_count = 0;
 	int error;
 	uint16_t length;
@@ -1701,8 +1684,8 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	/* Bring spill buffer online if it isn't currently */
 
 	if ((error = sa_get_spill(hdl)) == 0) {
-		ASSERT3U(hdl->sa_spill->db_size, <=, SPA_MAXBLOCKSIZE);
-		old_data[1] = sa_spill_alloc(KM_SLEEP);
+		spill_data_size = hdl->sa_spill->db_size;
+		old_data[1] = zio_buf_alloc(spill_data_size);
 		bcopy(hdl->sa_spill->db_data, old_data[1],
 		    hdl->sa_spill->db_size);
 		spill_attr_count =
@@ -1787,7 +1770,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	if (old_data[0])
 		kmem_free(old_data[0], bonus_data_size);
 	if (old_data[1])
-		sa_spill_free(old_data[1]);
+		zio_buf_free(old_data[1], spill_data_size);
 	kmem_free(attr_desc, sizeof (sa_bulk_attr_t) * attr_count);
 
 	return (error);
@@ -2077,8 +2060,6 @@ EXPORT_SYMBOL(sa_replace_all_by_template_locked);
 EXPORT_SYMBOL(sa_enabled);
 EXPORT_SYMBOL(sa_cache_init);
 EXPORT_SYMBOL(sa_cache_fini);
-EXPORT_SYMBOL(sa_spill_alloc);
-EXPORT_SYMBOL(sa_spill_free);
 EXPORT_SYMBOL(sa_set_sa_object);
 EXPORT_SYMBOL(sa_hdrsize);
 EXPORT_SYMBOL(sa_handle_lock);
