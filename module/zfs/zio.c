@@ -3393,6 +3393,10 @@ EXPORT_SYMBOL(zio_handle_fault_injection);
 EXPORT_SYMBOL(zio_handle_device_injection);
 EXPORT_SYMBOL(zio_handle_label_injection);
 EXPORT_SYMBOL(zio_type_name);
+EXPORT_SYMBOL(zio_buf_alloc);
+EXPORT_SYMBOL(zio_data_buf_alloc);
+EXPORT_SYMBOL(zio_buf_free);
+EXPORT_SYMBOL(zio_data_buf_free);
 
 module_param(zio_bulk_flags, int, 0644);
 MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
