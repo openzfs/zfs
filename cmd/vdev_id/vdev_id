@@ -116,7 +116,7 @@ map_slot() {
 	local MAPPED_SLOT=
 
 	MAPPED_SLOT=`awk "\\$1 == \"slot\" && \\$2 == ${LINUX_SLOT} && \
-			\\$4 ~ /^(${CHANNEL}|)$/ { print \\$3; exit }" $CONFIG`
+			\\$4 ~ /^${CHANNEL}$|^$/ { print \\$3; exit }" $CONFIG`
 	if [ -z "$MAPPED_SLOT" ] ; then
 		MAPPED_SLOT=$LINUX_SLOT
 	fi
