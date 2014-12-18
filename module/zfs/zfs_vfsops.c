@@ -1068,7 +1068,7 @@ zfs_root(zfs_sb_t *zsb, struct inode **ipp)
 }
 EXPORT_SYMBOL(zfs_root);
 
-#ifdef HAVE_SHRINK
+#if defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK)
 int
 zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 {
@@ -1080,13 +1080,17 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	};
 
 	ZFS_ENTER(zsb);
+#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+	*objects = (*shrinker->scan_objects)(shrinker, &sc);
+#else
 	*objects = (*shrinker->shrink)(shrinker, &sc);
+#endif
 	ZFS_EXIT(zsb);
 
 	return (0);
 }
 EXPORT_SYMBOL(zfs_sb_prune);
-#endif /* HAVE_SHRINK */
+#endif /* defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK) */
 
 /*
  * Teardown the zfs_sb_t.
