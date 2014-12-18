@@ -268,7 +268,7 @@ zpl_kill_sb(struct super_block *sb)
 #endif /* HAVE_S_INSTANCES_LIST_HEAD */
 }
 
-#ifdef HAVE_SHRINK
+#if defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK)
 /*
  * Linux 3.1 - 3.x API
  *
@@ -288,17 +288,17 @@ zpl_prune_sb(struct super_block *sb, void *arg)
 	error = -zfs_sb_prune(sb, *(unsigned long *)arg, &objects);
 	ASSERT3S(error, <=, 0);
 }
-#endif /* HAVE_SHRINK */
+#endif /* defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK) */
 
 void
 zpl_prune_sbs(int64_t bytes_to_scan, void *private)
 {
-#ifdef HAVE_SHRINK
+#if defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK)
 	unsigned long nr_to_scan = (bytes_to_scan / sizeof (znode_t));
 
 	iterate_supers_type(&zpl_fs_type, zpl_prune_sb, &nr_to_scan);
 	kmem_reap();
-#endif /* HAVE_SHRINK */
+#endif /* defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK) */
 }
 
 #ifdef HAVE_NR_CACHED_OBJECTS
