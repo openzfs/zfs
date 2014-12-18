@@ -97,7 +97,6 @@ def div1():
 
 
 def div2():
-    div1()
     sys.stdout.write("\n")
 
 
