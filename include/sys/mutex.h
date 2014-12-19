@@ -44,6 +44,7 @@ typedef enum {
  */
 typedef struct {
         struct mutex m;
+	spinlock_t m_lock;	/* used for serializing mutex_exit */
 } kmutex_t;
 
 static inline kthread_t *
@@ -70,6 +71,7 @@ mutex_owner(kmutex_t *mp)
         ASSERT(type == MUTEX_DEFAULT);                                  \
                                                                         \
         __mutex_init(&(mp)->m, #mp, &__key);                            \
+	spin_lock_init(&(mp)->m_lock);					\
 })
 
 #undef mutex_destroy
@@ -84,12 +86,37 @@ mutex_owner(kmutex_t *mp)
         ASSERT3P(mutex_owner(mp), !=, current);				\
         mutex_lock(&(mp)->m);						\
 })
-#define mutex_exit(mp)                  mutex_unlock(&(mp)->m)
+/*
+ * The reason for the spinlock:
+ *
+ * The Linux mutex is designed with a fast-path/slow-path design such that it
+ * does not guarantee serialization upon itself, allowing a race where latter
+ * acquirers finish mutex_unlock before former ones.
+ *
+ * The race renders it unsafe to be used for serializing the freeing of an
+ * object in which the mutex is embedded, where the latter acquirer could go
+ * on to free the object while the former one is still doing mutex_unlock and
+ * causing memory corruption.
+ *
+ * However, there are many places in ZFS where the mutex is used for
+ * serializing object freeing, and the code is shared among other OSes without
+ * this issue. Thus, we need the spinlock to force the serialization on
+ * mutex_exit().
+ *
+ * See http://lwn.net/Articles/575477/ for the information about the race.
+ */
+#define mutex_exit(mp)							\
+({									\
+	spin_lock(&(mp)->m_lock);					\
+	mutex_unlock(&(mp)->m);						\
+	spin_unlock(&(mp)->m_lock);					\
+})
 
 #else /* HAVE_MUTEX_OWNER */
 
 typedef struct {
         struct mutex m_mutex;
+	spinlock_t m_lock;
         kthread_t *m_owner;
 } kmutex_t;
 
@@ -125,6 +152,7 @@ spl_mutex_clear_owner(kmutex_t *mp)
         ASSERT(type == MUTEX_DEFAULT);                                  \
                                                                         \
         __mutex_init(MUTEX(mp), #mp, &__key);                           \
+	spin_lock_init(&(mp)->m_lock);					\
         spl_mutex_clear_owner(mp);                                      \
 })
 
@@ -153,8 +181,10 @@ spl_mutex_clear_owner(kmutex_t *mp)
 
 #define mutex_exit(mp)                                                  \
 ({                                                                      \
+	spin_lock(&(mp)->m_lock);					\
         spl_mutex_clear_owner(mp);                                      \
         mutex_unlock(MUTEX(mp));                                        \
+	spin_unlock(&(mp)->m_lock);					\
 })
 
 #endif /* HAVE_MUTEX_OWNER */
