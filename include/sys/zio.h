@@ -45,6 +45,11 @@ extern "C" {
  */
 #define	ZEC_MAGIC	0x210da7ab10c7a11ULL
 
+/*
+ * Debug zio redzone magic
+ */
+#define	ZIO_MAGIC	0x210210210210210ULL
+
 typedef struct zio_eck {
 	uint64_t	zec_magic;	/* for validation, endianness	*/
 	zio_cksum_t	zec_cksum;	/* 256-bit checksum		*/
@@ -446,6 +451,7 @@ struct zio {
 	zio_gang_node_t	*io_gang_tree;
 	void		*io_executor;
 	void		*io_waiter;
+	uint64_t	io_magic;
 	kmutex_t	io_lock;
 	kcondvar_t	io_cv;
 

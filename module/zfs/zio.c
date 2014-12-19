@@ -98,7 +98,10 @@ zio_cons(void *arg, void *unused, int kmflag)
 {
 	zio_t *zio = arg;
 
+	/* Verify the constructor never runs twice on the same object. */
+	VERIFY3U(zio->io_magic, !=, ZIO_MAGIC);
 	bzero(zio, sizeof (zio_t));
+	zio->io_magic = ZIO_MAGIC;
 
 	mutex_init(&zio->io_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&zio->io_cv, NULL, CV_DEFAULT, NULL);
@@ -120,6 +123,14 @@ zio_dest(void *arg, void *unused)
 	cv_destroy(&zio->io_cv);
 	list_destroy(&zio->io_parent_list);
 	list_destroy(&zio->io_child_list);
+
+	/*
+	 * Verify the destructor never runs twice on the same object, and
+	 * poison the object to catch any use-after-free type of bugs.
+	 */
+	VERIFY3U(zio->io_magic, !=, ~ZIO_MAGIC);
+	memset(zio, 'z', sizeof (zio_t));
+	zio->io_magic = ~ZIO_MAGIC;
 }
 
 void
@@ -553,6 +564,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	ASSERT(vd || stage == ZIO_STAGE_OPEN);
 
 	zio = kmem_cache_alloc(zio_cache, KM_PUSHPAGE);
+	VERIFY3U(zio->io_magic, ==, ZIO_MAGIC);
 
 	if (vd != NULL)
 		zio->io_child_type = ZIO_CHILD_VDEV;
@@ -647,6 +659,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 static void
 zio_destroy(zio_t *zio)
 {
+	VERIFY3U(zio->io_magic, ==, ZIO_MAGIC);
 	kmem_cache_free(zio_cache, zio);
 }
 
@@ -1007,7 +1020,7 @@ zio_flush(zio_t *zio, vdev_t *vd)
 void
 zio_shrink(zio_t *zio, uint64_t size)
 {
-	ASSERT(zio->io_executor == NULL);
+	VERIFY(zio->io_executor == NULL);
 	ASSERT(zio->io_orig_size == zio->io_size);
 	ASSERT(size <= zio->io_size);
 
@@ -1368,7 +1381,9 @@ __attribute__((always_inline))
 static inline void
 __zio_execute(zio_t *zio)
 {
+	mutex_enter(&zio->io_lock);
 	zio->io_executor = curthread;
+	mutex_exit(&zio->io_lock);
 
 	while (zio->io_stage < ZIO_STAGE_DONE) {
 		enum zio_stage pipeline = zio->io_pipeline;
@@ -1380,6 +1395,7 @@ __zio_execute(zio_t *zio)
 		ASSERT(!MUTEX_HELD(&zio->io_lock));
 		ASSERT(ISP2(stage));
 		ASSERT(zio->io_stall == NULL);
+		VERIFY3U(zio->io_magic, ==, ZIO_MAGIC);
 
 		do {
 			stage <<= 1;
@@ -1443,15 +1459,19 @@ zio_wait(zio_t *zio)
 	int error;
 
 	ASSERT(zio->io_stage == ZIO_STAGE_OPEN);
-	ASSERT(zio->io_executor == NULL);
+	VERIFY(zio->io_executor == NULL);
 
+	mutex_enter(&zio->io_lock);
 	zio->io_waiter = curthread;
+	mutex_exit(&zio->io_lock);
 
 	__zio_execute(zio);
 
 	mutex_enter(&zio->io_lock);
-	while (zio->io_executor != NULL)
+	while (zio->io_executor != NULL) {
+		VERIFY3U(zio->io_magic, ==, ZIO_MAGIC);
 		cv_wait_io(&zio->io_cv, &zio->io_lock);
+	}
 	mutex_exit(&zio->io_lock);
 
 	error = zio->io_error;
@@ -1463,7 +1483,7 @@ zio_wait(zio_t *zio)
 void
 zio_nowait(zio_t *zio)
 {
-	ASSERT(zio->io_executor == NULL);
+	VERIFY(zio->io_executor == NULL);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL &&
 	    zio_unique_parent(zio) == NULL) {
@@ -3325,12 +3345,13 @@ zio_done(zio_t *zio)
 		zio_notify_parent(pio, zio, ZIO_WAIT_DONE);
 	}
 
+	mutex_enter(&zio->io_lock);
 	if (zio->io_waiter != NULL) {
-		mutex_enter(&zio->io_lock);
 		zio->io_executor = NULL;
 		cv_broadcast(&zio->io_cv);
 		mutex_exit(&zio->io_lock);
 	} else {
+		mutex_exit(&zio->io_lock);
 		zio_destroy(zio);
 	}
 
