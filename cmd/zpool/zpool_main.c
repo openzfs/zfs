@@ -4685,8 +4685,8 @@ upgrade_version(zpool_handle_t *zhp, uint64_t version)
 		return (ret);
 
 	if (unsupp_fs) {
-		(void) fprintf(stderr, gettext("Upgrade not performed due to %d "
-		    "unsupported filesystems (max v%d).\n"),
+		(void) fprintf(stderr, gettext("Upgrade not performed due "
+		    "to %d unsupported filesystems (max v%d).\n"),
 		    unsupp_fs, (int) ZPL_VERSION);
 		return (1);
 	}
