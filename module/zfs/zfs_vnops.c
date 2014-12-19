@@ -3899,14 +3899,13 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	}
 #endif
 
+	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
+
 	set_page_writeback(pp);
 	unlock_page(pp);
 
-	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
 	tx = dmu_tx_create(zsb->z_os);
-
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
-
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 	err = dmu_tx_assign(tx, TXG_NOWAIT);
