@@ -932,6 +932,10 @@ zvol_first_open(zvol_state_t *zv)
 			return (-SET_ERROR(ERESTARTSYS));
 	}
 
+	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
+	if (error)
+		goto out_mutex;
+
 	/* lie and say we're read-only */
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
 	if (error)
@@ -954,7 +958,6 @@ zvol_first_open(zvol_state_t *zv)
 	zv->zv_volsize = volsize;
 	zv->zv_zilog = zil_open(os, zvol_get_data);
 
-	VERIFY(dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL) == 0);
 	if (ro || dmu_objset_is_snapshot(os) ||
 	    !spa_writeable(dmu_objset_spa(os))) {
 		set_disk_ro(zv->zv_disk, 1);
