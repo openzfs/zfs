@@ -604,4 +604,6 @@ boolean_t zbookmark_is_before(const struct dnode_phys *dnp,
 }
 #endif
 
+#define	_ZIO_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif	/* _ZIO_H */

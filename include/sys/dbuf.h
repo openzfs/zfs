@@ -366,4 +366,6 @@ _NOTE(CONSTCOND) } while (0)
 }
 #endif
 
+#define	_SYS_DBUF_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif /* _SYS_DBUF_H */

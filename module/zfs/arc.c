@@ -147,6 +147,7 @@
 #include <sys/dmu_tx.h>
 #include <zfs_fletcher.h>
 #include <sys/arc_impl.h>
+#include <sys/trace.h>
 
 #ifndef _KERNEL
 /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
@@ -624,11 +625,6 @@ typedef struct l2arc_read_callback {
 	int			l2rcb_flags;		/* original flags */
 	enum zio_compress	l2rcb_compress;		/* applied compress */
 } l2arc_read_callback_t;
-
-typedef struct l2arc_write_callback {
-	l2arc_dev_t	*l2wcb_dev;		/* device info */
-	arc_buf_hdr_t	*l2wcb_head;		/* head of write buflist */
-} l2arc_write_callback_t;
 
 struct l2arc_buf_hdr {
 	/* protected by arc_buf_hdr  mutex */

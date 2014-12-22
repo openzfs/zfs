@@ -901,4 +901,6 @@ extern int spa_mode_global;			/* mode, e.g. FREAD | FWRITE */
 }
 #endif
 
+#define	_SYS_SPA_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif	/* _SYS_SPA_H */

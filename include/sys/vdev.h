@@ -160,4 +160,6 @@ extern int vdev_label_init(vdev_t *vd, uint64_t txg, vdev_labeltype_t reason);
 }
 #endif
 
+#define	_SYS_VDEV_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif	/* _SYS_VDEV_H */

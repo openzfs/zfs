@@ -383,4 +383,6 @@ extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
 }
 #endif
 
+#define	_SYS_FS_ZFS_ZNODE_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif	/* _SYS_FS_ZFS_ZNODE_H */

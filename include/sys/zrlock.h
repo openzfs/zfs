@@ -63,4 +63,6 @@ extern kthread_t *zrl_owner(zrlock_t *);
 }
 #endif
 
+#define	_SYS_ZRLOCK_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif /* _SYS_ZRLOCK_H */

@@ -831,4 +831,6 @@ extern int zfs_mdcomp_disable;
 }
 #endif
 
+#define	_SYS_DMU_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif	/* _SYS_DMU_H */

@@ -174,4 +174,6 @@ void dsl_pool_rele(dsl_pool_t *dp, void *tag);
 }
 #endif
 
+#define	_SYS_DSL_POOL_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif /* _SYS_DSL_POOL_H */

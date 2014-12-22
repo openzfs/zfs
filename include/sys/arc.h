@@ -187,4 +187,6 @@ extern boolean_t arc_watch;
 }
 #endif
 
+#define	_SYS_ARC_H_END /* Used as #ifdef guard by tracepoints. */
+
 #endif /* _SYS_ARC_H */
