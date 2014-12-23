@@ -1980,7 +1980,7 @@ EXPORT_SYMBOL(spa_mode);
 
 EXPORT_SYMBOL(spa_namespace_lock);
 
-module_param(zfs_flags, int, 0644);
+module_param(zfs_flags, uint, 0644);
 MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
 
 module_param(zfs_recover, int, 0644);
