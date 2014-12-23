@@ -50,7 +50,7 @@
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
 #include <sys/zfs_ioctl.h>
-
+#include <libnvpair.h>
 #include <libzfs.h>
 
 #include "zpool_util.h"
@@ -2886,6 +2886,12 @@ zpool_do_iostat(int argc, char **argv)
 }
 
 typedef struct list_cbdata {
+	boolean_t	cb_ldjson;
+	boolean_t	cb_json;
+	nvlist_t	*cb_nvlist;
+	void		*cb_data;
+	int			cb_nbelem;
+	boolean_t	cb_first;
 	boolean_t	cb_verbose;
 	int		cb_namewidth;
 	boolean_t	cb_scripted;
@@ -2951,12 +2957,12 @@ print_header(list_cbdata_t *cb)
 static void
 print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 {
-	zprop_list_t *pl = cb->cb_proplist;
-	boolean_t first = B_TRUE;
-	char property[ZPOOL_MAXPROPLEN];
-	char *propstr;
-	boolean_t right_justify;
-	size_t width;
+	zprop_list_t 	*pl = cb->cb_proplist;
+	boolean_t 		first = B_TRUE;
+	char 			property[ZPOOL_MAXPROPLEN];
+	char 			*propstr;
+	boolean_t		right_justify;
+	size_t			width;
 
 	for (; pl != NULL; pl = pl->pl_next) {
 
@@ -3011,6 +3017,79 @@ print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 	}
 
 	(void) printf("\n");
+}
+
+/*
+ * PRINT POOL JSON COMMENT TODO
+ */
+static void
+json_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
+{
+	zprop_list_t 	*pl = cb->cb_proplist;
+	char 			property[ZPOOL_MAXPROPLEN];
+	char 			*propstr;
+	nvlist_t		*nv_dict_props;
+
+	cb->cb_nbelem++;
+	cb->cb_data = realloc(cb->cb_data,
+	    sizeof (nvlist_t *) * cb->cb_nbelem);
+	nv_dict_props = fnvlist_alloc();
+	((nvlist_t **)cb->cb_data)[cb->cb_nbelem - 1] = nv_dict_props;
+
+	for (; pl != NULL; pl = pl->pl_next) {
+
+		if (pl->pl_prop != ZPROP_INVAL) {
+			if (zpool_get_json_prop(zhp, pl->pl_prop, property,
+			    sizeof (property), NULL) != 0)
+				propstr = "-";
+			else
+				propstr = property;
+		} else if ((zpool_prop_feature(pl->pl_user_prop) ||
+		    zpool_prop_unsupported(pl->pl_user_prop)) &&
+		    zpool_prop_get_feature(zhp, pl->pl_user_prop, property,
+		    sizeof (property)) == 0) {
+			propstr = property;
+		} else {
+			propstr = "-";
+		}
+		fnvlist_add_string(nv_dict_props,
+			zpool_prop_to_name(pl->pl_prop),
+				propstr);
+	}
+}
+
+/*
+ * PRINT POOL LDJSON COMMENT TODO
+ */
+static void
+ldjson_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
+{
+	zprop_list_t 	*pl = cb->cb_proplist;
+	char 			property[ZPOOL_MAXPROPLEN];
+	char 			*propstr;
+
+	for (; pl != NULL; pl = pl->pl_next) {
+
+		if (pl->pl_prop != ZPROP_INVAL) {
+			if (zpool_get_json_prop(zhp, pl->pl_prop, property,
+			    sizeof (property), NULL) != 0)
+				propstr = "-";
+			else
+				propstr = property;
+
+		} else if ((zpool_prop_feature(pl->pl_user_prop) ||
+		    zpool_prop_unsupported(pl->pl_user_prop)) &&
+		    zpool_prop_get_feature(zhp, pl->pl_user_prop, property,
+		    sizeof (property)) == 0) {
+			propstr = property;
+		} else {
+			propstr = "-";
+		}
+
+		fnvlist_add_string(cb->cb_nvlist,
+		    zpool_prop_to_name(pl->pl_prop),
+		    propstr);
+	}
 }
 
 static void
@@ -3136,6 +3215,106 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	}
 }
 
+static char *
+json_line_convert(zpool_prop_t prop, uint64_t value, boolean_t scripted,
+    boolean_t valid)
+{
+	char propval[64];
+
+	switch (prop) {
+		case ZPOOL_PROP_EXPANDSZ:
+			if (value == 0)
+				(void) strlcpy(propval, "-", sizeof (propval));
+			else
+			snprintf(propval, sizeof (propval),
+			    " %llu", (unsigned long long) value);
+			break;
+		case ZPOOL_PROP_FRAGMENTATION:
+			if (value == ZFS_FRAG_INVALID) {
+				(void) strlcpy(propval, "-", sizeof (propval));
+			} else {
+				(void) snprintf(propval, sizeof (propval),
+				    "%llu", (unsigned long long)value);
+			}
+			break;
+		case ZPOOL_PROP_CAPACITY:
+			(void) snprintf(propval, sizeof (propval), "%llu",
+			    (unsigned long long)value);
+			break;
+		default:
+			snprintf(propval, sizeof (propval),
+			    "%llu", (unsigned long long) value);
+		}
+	if (!valid)
+		(void) strlcpy(propval, "-", sizeof (propval));
+	return (strdup(propval));
+}
+
+/*
+ * Function for verbose output in json
+ */
+void
+json_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
+    list_cbdata_t *cb, nvlist_t **array)
+{
+	nvlist_t **child;
+	vdev_stat_t *vs;
+	uint_t c, children;
+	char *vname;
+	boolean_t scripted = cb->cb_scripted;
+	nvlist_t **always;
+
+	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0);
+
+	if (name != NULL) {
+		boolean_t toplevel = (vs->vs_space != 0);
+		uint64_t cap;
+		fnvlist_add_string(*array, "name", name);
+		fnvlist_add_string(*array, "size",
+		    json_line_convert(ZPOOL_PROP_SIZE, vs->vs_space, scripted,
+		    toplevel));
+		fnvlist_add_string(*array, "allocated",
+		    json_line_convert(ZPOOL_PROP_ALLOCATED, vs->vs_alloc,
+		    scripted, toplevel));
+		fnvlist_add_string(*array, "free",
+		    json_line_convert(ZPOOL_PROP_FREE,
+		    vs->vs_space - vs->vs_alloc, scripted, toplevel));
+		fnvlist_add_string(*array, "expandsize",
+		    json_line_convert(ZPOOL_PROP_EXPANDSZ, vs->vs_esize,
+		    scripted, B_TRUE));
+		fnvlist_add_string(*array, "fragmentation",
+		    json_line_convert(ZPOOL_PROP_FRAGMENTATION,
+		    vs->vs_fragmentation, scripted,
+		    (vs->vs_fragmentation != ZFS_FRAG_INVALID && toplevel)));
+		cap = (vs->vs_space == 0) ? 0 :
+		    (vs->vs_alloc * 100 / vs->vs_space);
+		fnvlist_add_string(*array, "capacity",
+		    json_line_convert(ZPOOL_PROP_CAPACITY, cap, scripted,
+		    toplevel));
+
+	}
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		return;
+
+	always = (nvlist_t **)malloc(sizeof (nvlist_t *) * children);
+
+	for (c = 0; c < children; c++) {
+		uint64_t ishole = B_FALSE;
+
+		if (nvlist_lookup_uint64(child[c],
+		    ZPOOL_CONFIG_IS_HOLE, &ishole) == 0 && ishole)
+			continue;
+
+		vname = zpool_vdev_name(g_zfs, zhp, child[c], B_FALSE);
+		always[c] = fnvlist_alloc();
+		json_list_stats(zhp, vname, child[c], cb, &(always[c]));
+		free(vname);
+	}
+
+	fnvlist_add_nvlist_array(*array, "devices", always, children);
+}
 
 /*
  * Generic callback function to list a pool.
@@ -3152,11 +3331,61 @@ list_callback(zpool_handle_t *zhp, void *data)
 	print_pool(zhp, cbp);
 	if (!cbp->cb_verbose)
 		return (0);
-
 	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 	    &nvroot) == 0);
 	print_list_stats(zhp, NULL, nvroot, cbp, 0);
 
+	return (0);
+}
+
+/*
+ * Generic callback function to list a pool in nvlist_t for jsonify.
+ */
+int
+json_list_callback(zpool_handle_t *zhp, void *data)
+{
+	list_cbdata_t *cbp = data;
+	nvlist_t *config;
+	nvlist_t *nvroot;
+	nvlist_t *dev;
+
+	config = zpool_get_config(zhp, NULL);
+
+	json_pool(zhp, cbp);
+	if (cbp->cb_verbose) {
+		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+		    &nvroot) == 0);
+		dev = ((nvlist_t **)cbp->cb_data)[cbp->cb_nbelem - 1];
+		json_list_stats(zhp, NULL, nvroot, cbp, &dev);
+	}
+
+	return (0);
+}
+
+/*
+ * Generic callback function to list a pool in nvlist_t for jsonify.
+ */
+int
+ldjson_list_callback(zpool_handle_t *zhp, void *data)
+{
+	list_cbdata_t *cbp = data;
+	nvlist_t *config;
+	nvlist_t *nvroot;
+
+	config = zpool_get_config(zhp, NULL);
+	cbp->cb_nvlist = fnvlist_alloc();
+
+	ldjson_pool(zhp, cbp);
+	if (cbp->cb_verbose) {
+		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+		    &nvroot) == 0);
+		json_list_stats(zhp, NULL, nvroot, cbp, &(cbp->cb_nvlist));
+	}
+
+	nvlist_print_json(stdout, cbp->cb_nvlist);
+	fprintf(stdout, "\n");
+	fflush(stdout);
+	fnvlist_free(cbp->cb_nvlist);
 	return (0);
 }
 
@@ -3188,8 +3417,17 @@ zpool_do_list(int argc, char **argv)
 	boolean_t first = B_TRUE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":Ho:T:v")) != -1) {
+	while ((c = getopt(argc, argv, ":jJHo:T:v")) != -1) {
 		switch (c) {
+		case 'J':
+			cb.cb_json = B_TRUE;
+			cb.cb_nvlist = fnvlist_alloc();
+			cb.cb_nbelem = 0;
+			cb.cb_data = NULL;
+			break;
+		case 'j':
+			cb.cb_ldjson = B_TRUE;
+			break;
 		case 'H':
 			cb.cb_scripted = B_TRUE;
 			break;
@@ -3225,7 +3463,8 @@ zpool_do_list(int argc, char **argv)
 	if ((list = pool_list_get(argc, argv, &cb.cb_proplist, &ret)) == NULL)
 		return (1);
 
-	if (argc == 0 && !cb.cb_scripted && pool_list_count(list) == 0) {
+	if (argc == 0 && !cb.cb_scripted && pool_list_count(list) == 0 &&
+	    (!cb.cb_json && !cb.cb_ldjson)) {
 		(void) printf(gettext("no pools available\n"));
 		zprop_free_list(cb.cb_proplist);
 		return (0);
@@ -3234,17 +3473,61 @@ zpool_do_list(int argc, char **argv)
 	for (;;) {
 		pool_list_update(list);
 
-		if (pool_list_count(list) == 0)
+		if ((!cb.cb_json && !cb.cb_ldjson) &&
+		    pool_list_count(list) == 0)
 			break;
 
 		if (timestamp_fmt != NODATE)
 			print_timestamp(timestamp_fmt);
 
-		if (!cb.cb_scripted && (first || cb.cb_verbose)) {
+		if ((!cb.cb_json && !cb.cb_ldjson) && !cb.cb_scripted &&
+		    (first || cb.cb_verbose)) {
 			print_header(&cb);
 			first = B_FALSE;
 		}
-		ret = pool_list_iter(list, B_TRUE, list_callback, &cb);
+
+		if (cb.cb_ldjson) {
+			ret = pool_list_iter(list, B_TRUE, ldjson_list_callback,
+			    &cb);
+			cb.cb_nvlist = fnvlist_alloc();
+
+			if (pool_list_count(list) == 0) {
+				fnvlist_add_string(cb.cb_nvlist, "stderr",
+				    "no pools available");
+			} else {
+				fnvlist_add_string(cb.cb_nvlist, "stderr", "");
+			}
+
+			nvlist_print_json(stdout, cb.cb_nvlist);
+			fprintf(stdout, "\n");
+			fflush(stdout);
+			fnvlist_free(cb.cb_nvlist);
+		} else if (cb.cb_json) {
+			ret = pool_list_iter(list, B_TRUE, json_list_callback,
+			    &cb);
+			fnvlist_add_nvlist_array(cb.cb_nvlist, "stdout",
+			    (nvlist_t **)cb.cb_data, cb.cb_nbelem);
+
+			if (pool_list_count(list) == 0) {
+				fnvlist_add_string(cb.cb_nvlist, "stderr",
+				    "no pools available");
+			} else {
+				fnvlist_add_string(cb.cb_nvlist, "stderr", "");
+			}
+
+			nvlist_print_json(stdout, cb.cb_nvlist);
+			fprintf(stdout, "\n");
+			fflush(stdout);
+
+			while (((cb.cb_nbelem)--) > 0)
+				fnvlist_free(((nvlist_t **)(cb.cb_data))
+				    [cb.cb_nbelem]);
+
+			free(cb.cb_data);
+			fnvlist_free(cb.cb_nvlist);
+		} else {
+			ret = pool_list_iter(list, B_TRUE, list_callback, &cb);
+		}
 
 		if (interval == 0)
 			break;
@@ -3964,7 +4247,12 @@ zpool_do_scrub(int argc, char **argv)
 }
 
 typedef struct status_cbdata {
-	int		cb_count;
+	boolean_t	cb_ldjson;
+	boolean_t	cb_json;
+	nvlist_t	*cb_nvlist;
+	void		*cb_data;
+	int			cb_nbelem;
+	int			cb_count;
 	boolean_t	cb_allpools;
 	boolean_t	cb_verbose;
 	boolean_t	cb_explain;
@@ -4560,7 +4848,1123 @@ status_callback(zpool_handle_t *zhp, void *data)
 
 	return (0);
 }
+char
+*zpool_json_unsup_feat(nvlist_t *config)
+{
+	nvlist_t *nvinfo, *unsup_feat;
+	nvpair_t *nvp;
+	char ret[1024];
 
+	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO, &nvinfo) ==
+	    0);
+	verify(nvlist_lookup_nvlist(nvinfo, ZPOOL_CONFIG_UNSUP_FEAT,
+	    &unsup_feat) == 0);
+
+	for (nvp = nvlist_next_nvpair(unsup_feat, NULL); nvp != NULL;
+	    nvp = nvlist_next_nvpair(unsup_feat, nvp)) {
+		char *desc;
+
+		verify(nvpair_type(nvp) == DATA_TYPE_STRING);
+		verify(nvpair_value_string(nvp, &desc) == 0);
+
+		if (strlen(desc) > 0) {
+			(void) sprintf(ret, "%s (%s)", nvpair_name(nvp), desc);
+		} else {
+			(void) sprintf(ret, "%s", nvpair_name(nvp));
+		}
+	}
+	return (ret);
+}
+
+void
+json_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
+    int namewidth, int depth, boolean_t isspare,
+    nvlist_t *nv_dict_props, char * errors)
+{
+	nvlist_t **child;
+	uint_t c, children;
+	pool_scan_stat_t *ps = NULL;
+	vdev_stat_t *vs;
+	char rbuf[6], wbuf[6], cbuf[6];
+	char *vname;
+	uint64_t notpresent;
+	spare_cbdata_t cb;
+	char *state;
+	nvlist_t **nv_dict_array;
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		children = 0;
+
+	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0);
+
+	state = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+	if (isspare) {
+		/*
+		 * For hot spares, we use the terms 'INUSE' and 'AVAILABLE' for
+		 * online drives.
+		 */
+		if (vs->vs_aux == VDEV_AUX_SPARED)
+			state = "INUSE";
+		else if (vs->vs_state == VDEV_STATE_HEALTHY)
+			state = "AVAIL";
+	}
+
+	nv_dict_array = fnvlist_alloc();
+	fnvlist_add_string(nv_dict_props, "name", name);
+	fnvlist_add_string(nv_dict_props, "state", state);
+
+	if (!isspare) {
+		zfs_nicenum(vs->vs_read_errors, rbuf, sizeof (rbuf));
+		zfs_nicenum(vs->vs_write_errors, wbuf, sizeof (wbuf));
+		zfs_nicenum(vs->vs_checksum_errors, cbuf, sizeof (cbuf));
+		fnvlist_add_string(nv_dict_props, "read", rbuf);
+		fnvlist_add_string(nv_dict_props, "write", wbuf);
+		fnvlist_add_string(nv_dict_props, "checksum", cbuf);
+
+	}
+
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
+	    &notpresent) == 0) {
+		char *path;
+		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
+		(void) printf("  was %s", path);
+	} else if (vs->vs_aux != 0) {
+
+		switch (vs->vs_aux) {
+		case VDEV_AUX_OPEN_FAILED:
+		sprintf(errors, gettext("cannot open"));
+			break;
+
+		case VDEV_AUX_BAD_GUID_SUM:
+			sprintf(errors, gettext("missing device"));
+			break;
+
+		case VDEV_AUX_NO_REPLICAS:
+			sprintf(errors, gettext("insufficient replicas"));
+			break;
+
+		case VDEV_AUX_VERSION_NEWER:
+			sprintf(errors, gettext("newer version"));
+			break;
+
+		case VDEV_AUX_UNSUP_FEAT:
+			sprintf(errors, gettext("unsupported feature(s)"));
+			break;
+
+		case VDEV_AUX_SPARED:
+			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
+			    &cb.cb_guid) == 0);
+			if (zpool_iter(g_zfs, find_spare, &cb) == 1) {
+				if (strcmp(zpool_get_name(cb.cb_zhp),
+				    zpool_get_name(zhp)) == 0)
+					sprintf(errors, gettext(
+						"currently in use"));
+				else
+					(void) sprintf(errors, gettext(
+					    "in use by pool '%s'"),
+					    zpool_get_name(cb.cb_zhp));
+				zpool_close(cb.cb_zhp);
+			} else {
+				fnvlist_add_string(nv_dict_props,
+				    "stderr", gettext("currently in use"));
+			}
+			break;
+
+		case VDEV_AUX_ERR_EXCEEDED:
+			(void) sprintf(errors, gettext("too many errors"));
+			break;
+
+		case VDEV_AUX_IO_FAILURE:
+			(void) sprintf(errors,
+			    gettext("experienced I/O failures"));
+			break;
+
+		case VDEV_AUX_BAD_LOG:
+			(void) sprintf(errors, gettext("bad intent log"));
+			break;
+
+		case VDEV_AUX_EXTERNAL:
+			(void) sprintf(errors,
+			    gettext("external device fault"));
+			break;
+
+		case VDEV_AUX_SPLIT_POOL:
+			(void) sprintf(errors,
+			    gettext("split into new pool"));
+			break;
+
+		default:
+			(void) sprintf(errors, gettext("corrupted data"));
+			break;
+		}
+	}
+
+	(void) nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_SCAN_STATS,
+	    (uint64_t **)&ps, &c);
+
+	if (ps && ps->pss_state == DSS_SCANNING &&
+	    vs->vs_scan_processed != 0 && children == 0) {
+		(void) printf(gettext("  (%s)"),
+		    (ps->pss_func == POOL_SCAN_RESILVER) ?
+		    "resilvering" : "repairing");
+	}
+
+		nv_dict_array = malloc(sizeof (nvlist_t *) * children);
+	for (c = 0; c < children; c++) {
+		uint64_t islog = B_FALSE, ishole = B_FALSE;
+
+		/* Don't print logs or holes here */
+		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
+		    &islog);
+		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_HOLE,
+		    &ishole);
+		if (islog || ishole)
+			continue;
+		vname = zpool_vdev_name(g_zfs, zhp, child[c], B_TRUE);
+		nv_dict_array[c] = fnvlist_alloc();
+		json_status_config(zhp, vname, child[c],
+		    namewidth, depth + 2, isspare, nv_dict_array[c], errors);
+		free(vname);
+	}
+	if (children != 0)
+		fnvlist_add_nvlist_array(nv_dict_props, "devices",
+		    nv_dict_array, children);
+}
+
+void
+json_scan_status(pool_scan_stat_t *ps, nvlist_t *nvlist)
+{
+	time_t start, end;
+	uint64_t elapsed, mins_left, hours_left;
+	uint64_t pass_exam, examined, total;
+	uint_t rate;
+	double fraction_done;
+	char processed_buf[7], examined_buf[7], total_buf[7], rate_buf[7];
+	char *strbuff;
+	/* If there's never been a scan, there's not much to say. */
+
+
+	if (ps == NULL || ps->pss_func == POOL_SCAN_NONE ||
+	    ps->pss_func >= POOL_SCAN_FUNCS) {
+		fnvlist_add_string(nvlist, "scan", gettext("none requested"));
+		return;
+	}
+
+	start = ps->pss_start_time;
+	end = ps->pss_end_time;
+	zfs_nicenum(ps->pss_processed, processed_buf, sizeof (processed_buf));
+
+	assert(ps->pss_func == POOL_SCAN_SCRUB ||
+	    ps->pss_func == POOL_SCAN_RESILVER);
+	/*
+	 * Scan is finished or canceled.
+	 */
+	if (ps->pss_state == DSS_FINISHED) {
+		uint64_t minutes_taken = (end - start) / 60;
+		char *fmt = NULL;
+
+		if (ps->pss_func == POOL_SCAN_SCRUB) {
+			fmt = gettext("scrub repaired %s in %lluh%um with "
+			    "%llu errors on %s");
+		} else if (ps->pss_func == POOL_SCAN_RESILVER) {
+			fmt = gettext("resilvered %s in %lluh%um with "
+			    "%llu errors on %s");
+		}
+				/* LINTED */
+		strbuff = (char *)malloc(sizeof (char *) * 1024);
+		(void) sprintf(strbuff, processed_buf,
+		    (u_longlong_t)(minutes_taken / 60),
+		    (uint_t)(minutes_taken % 60),
+		    (u_longlong_t)ps->pss_errors,
+		    ctime((time_t *)&end));
+		fnvlist_add_string(nvlist, "scan", strbuff);
+		return;
+	} else if (ps->pss_state == DSS_CANCELED) {
+		if (ps->pss_func == POOL_SCAN_SCRUB) {
+			strbuff = (char *) malloc(sizeof (char *) * 1024);
+			(void) sprintf(strbuff, gettext("scrub canceled on %s"),
+			    ctime(&end));
+		fnvlist_add_string(nvlist, "scan", strbuff);
+		} else if (ps->pss_func == POOL_SCAN_RESILVER) {
+			strbuff = (char *) malloc(sizeof (char *) * 1024);
+			(void) sprintf(strbuff,
+			    gettext("resilver canceled on %s"),
+			    ctime(&end));
+		fnvlist_add_string(nvlist, "scan", strbuff);
+		}
+		return;
+	}
+
+	assert(ps->pss_state == DSS_SCANNING);
+
+	/*
+	 * Scan is in progress.
+	 */
+	if (ps->pss_func == POOL_SCAN_SCRUB) {
+		strbuff = (char *) malloc(sizeof (char *) * 1024);
+		(void) sprintf(strbuff, gettext("scrub in progress since %s"),
+		    ctime(&start));
+		fnvlist_add_string(nvlist, "scan", strbuff);
+
+	} else if (ps->pss_func == POOL_SCAN_RESILVER) {
+		strbuff = (char *) malloc(sizeof (char *) * 1024);
+		(void) sprintf(strbuff,
+		    gettext("resilver in progress since %s"),
+		    ctime(&start));
+		fnvlist_add_string(nvlist, "scan", strbuff);
+	}
+
+	examined = ps->pss_examined ? ps->pss_examined : 1;
+	total = ps->pss_to_examine;
+	fraction_done = (double)examined / total;
+
+	/* elapsed time for this pass */
+	elapsed = time(NULL) - ps->pss_pass_start;
+	elapsed = elapsed ? elapsed : 1;
+	pass_exam = ps->pss_pass_exam ? ps->pss_pass_exam : 1;
+	rate = pass_exam / elapsed;
+	rate = rate ? rate : 1;
+	mins_left = ((total - examined) / rate) / 60;
+	hours_left = mins_left / 60;
+
+	zfs_nicenum(examined, examined_buf, sizeof (examined_buf));
+	zfs_nicenum(total, total_buf, sizeof (total_buf));
+	zfs_nicenum(rate, rate_buf, sizeof (rate_buf));
+
+	/*
+	 * do not print estimated time if hours_left is more than 30 days
+	 */
+	strbuff = (char *) malloc(sizeof (char *) * 1024);
+	(void) sprintf(strbuff, gettext("%s scanned out of %s at %s/s"),
+	    examined_buf, total_buf, rate_buf);
+		fnvlist_add_string(nvlist, "scan", strbuff);
+	if (hours_left < (30 * 24)) {
+		(void) sprintf(strbuff, gettext(", %lluh%um to go\n"),
+		    (u_longlong_t)hours_left, (uint_t)(mins_left % 60));
+		fnvlist_add_string(nvlist, "scan", strbuff);
+	} else {
+		(void) sprintf(strbuff, gettext(
+		    ", (scan is slow, no estimated time)\n"));
+		fnvlist_add_string(nvlist, "scan", strbuff);
+	}
+
+	if (ps->pss_func == POOL_SCAN_RESILVER) {
+		(void) sprintf(strbuff, gettext("%s resilvered, %.2f%% done\n"),
+		    processed_buf, 100 * fraction_done);
+		fnvlist_add_string(nvlist, "scan", strbuff);
+	} else if (ps->pss_func == POOL_SCAN_SCRUB) {
+		(void) sprintf(strbuff, gettext("%s repaired, %.2f%% done\n"),
+		    processed_buf, 100 * fraction_done);
+		fnvlist_add_string(nvlist, "scan", strbuff);
+	}
+}
+
+static void
+json_error_log(zpool_handle_t *zhp, char *errors)
+{
+	nvlist_t *nverrlist = NULL;
+	nvpair_t *elem;
+	char *pathname;
+	size_t len = MAXPATHLEN * 2;
+
+	if (zpool_get_errlog(zhp, &nverrlist) != 0) {
+		(void) sprintf(errors, "List of errors unavailable "
+		    "(insufficient privileges)");
+		return;
+	}
+
+
+	pathname = safe_malloc(len);
+	elem = NULL;
+	while ((elem = nvlist_next_nvpair(nverrlist, elem)) != NULL) {
+		nvlist_t *nv;
+		uint64_t dsobj, obj;
+
+		verify(nvpair_value_nvlist(elem, &nv) == 0);
+		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_DATASET,
+		    &dsobj) == 0);
+		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT,
+		    &obj) == 0);
+		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
+	(void) sprintf(errors, "Permanent errors have been "
+	    "detected in the following files : %7s %s\n", "", pathname);
+	}
+	free(pathname);
+	nvlist_free(nverrlist);
+}
+
+int
+json_status_callback(zpool_handle_t *zhp, void *data)
+{
+	status_cbdata_t *cbp = data;
+	nvlist_t		*nvlist;
+	nvlist_t *config, *nvroot;
+	char *msgid;
+	zpool_status_t reason;
+	zpool_errata_t errata;
+	const char *health;
+	uint_t c;
+	vdev_stat_t *vs;
+	config = zpool_get_config(zhp, NULL);
+	reason = zpool_get_status(zhp, &msgid, &errata);
+	char *buffstr = NULL;
+	cbp->cb_count++;
+	char errors[1024];
+	nvlist_t		*nv_dict_props;
+
+	cbp->cb_nbelem++;
+	cbp->cb_data = realloc(cbp->cb_data,
+	    sizeof (nvlist_t *) * cbp->cb_nbelem);
+	nv_dict_props = fnvlist_alloc();
+	((nvlist_t **)cbp->cb_data)[cbp->cb_nbelem - 1] = nv_dict_props;
+	/*
+	 * If we were given 'zpool status -x', only report those pools with
+	 * problems.
+	 */
+	if (cbp->cb_explain &&
+	    (reason == ZPOOL_STATUS_OK ||
+	    reason == ZPOOL_STATUS_VERSION_OLDER ||
+	    reason == ZPOOL_STATUS_FEAT_DISABLED)) {
+		if (!cbp->cb_allpools) {
+			(void) printf(gettext("pool '%s' is healthy\n"),
+			    zpool_get_name(zhp));
+			if (cbp->cb_first)
+				cbp->cb_first = B_FALSE;
+		}
+		return (0);
+	}
+
+	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvroot) == 0);
+	verify(nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0);
+	health = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+
+	fnvlist_add_string(nv_dict_props, "pool", zpool_get_name(zhp));
+	fnvlist_add_string(nv_dict_props, "state", health);
+
+	switch (reason) {
+	case ZPOOL_STATUS_MISSING_DEV_R:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices could not "
+		    "be opened.  Sufficient replicas exist for the pool to "
+		    "continue functioning in a degraded state"));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Attach the missing device and "
+		    "online it using 'zpool online'"));
+		break;
+
+	case ZPOOL_STATUS_MISSING_DEV_NR:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext(" One or more devices could not "
+		    "be opened.  There are insufficientreplicas for the "
+		    "pool to continue functioning."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Attach the missing device and "
+		    "online it using 'zpool online'."));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_LABEL_R:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices could not "
+		    "be used because the label is missing or invalid."
+		    "Sufficient replicas exist for the pool to continue"
+		    "functioning in a degraded state."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext(" Replace the device using "
+		    "'zpool replace'"));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_LABEL_NR:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices could not "
+		    "be used because the label is missing or invalid."
+		    "There are insufficient replicas for the pool to"
+		    "continuefunctioning"));
+		zpool_explain_recover(zpool_get_handle(zhp),
+		    zpool_get_name(zhp), reason, config);
+		break;
+
+	case ZPOOL_STATUS_FAILING_DEV:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "experienced an unrecoverable error.  An attempt was "
+		    "made to correct the error.  Applications are "
+		    "unaffected."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Determine if the device needs "
+		    "to be replaced, and clear the errors using "
+		    "'zpool clear' or replace the device with 'zpool "
+		    "replace'."));
+		break;
+
+	case ZPOOL_STATUS_OFFLINE_DEV:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "been taken offline by the administrator. Sufficient "
+		    "replicas exist for the pool to continue functioning in "
+		    "a degraded state."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Online the device using "
+		    "'zpool online' or replace the device with 'zpool "
+		    "replace'."));
+		break;
+
+	case ZPOOL_STATUS_REMOVED_DEV:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "been removed by the administrator. Sufficient "
+		    "replicas exist for the pool to continue functioning in "
+		    "a degraded state."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Online the device using "
+		    "'zpool online' or replace the device with 'zpool "
+		    "replace'. "));
+		break;
+
+	case ZPOOL_STATUS_RESILVERING:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices is "
+		    "currently being resilvered.  The pool will continue "
+		    "to function, possibly in a degraded state. "));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Wait for the resilver to "
+		    "complete."));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_DATA:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "experienced an error resulting in data corruption.  "
+		    "Applications may be affected."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext(" Restore the file in question "
+		    "if possible.  Otherwise restore the entire pool from "
+		    "backup."));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_POOL:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("The pool metadata is corrupted "
+		    "and the pool cannot be opened."));
+		zpool_explain_recover(zpool_get_handle(zhp),
+		    zpool_get_name(zhp), reason, config);
+		break;
+
+	case ZPOOL_STATUS_VERSION_OLDER:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("The pool is formatted using a "
+		    "legacy on-disk format.  The pool can still be used, "
+		    "but some features are unavailable."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext(" Upgrade the pool using 'zpool "
+		    "upgrade'.  Once this is done, the pool will no longer "
+		    "be accessible on software that does not support "
+		    "feature flags."));
+		break;
+
+	case ZPOOL_STATUS_VERSION_NEWER:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("The pool has been upgraded to a "
+		    "newer, incompatible on-disk version. The pool cannot "
+		    "be accessed on this system."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Access the pool from a system "
+		    "running more recent software, or restore the pool from "
+		    "backup."));
+		break;
+
+	case ZPOOL_STATUS_FEAT_DISABLED:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("Some supported features are not "
+		    "enabled on the pool. The pool can still be used, but "
+		    "some features are unavailable."
+		    "action : Enable all features using "
+		    "'zpool upgrade'. Once this is done, the pool may no "
+		    "longer be accessible by software that does not support"
+		    "the features. See zool-features(5) for details."));
+		break;
+
+	case ZPOOL_STATUS_UNSUP_FEAT_READ:
+		sprintf(buffstr, gettext(
+		    "The pool cannot be accessed on "
+		    "this system because it uses the following feature(s) "
+		    "not supported on this system: %s action :"
+		    " Access the pool from a system "
+		    "that supports the required feature(s), or restore the "
+		    "pool from backup."), zpool_json_unsup_feat(config));
+		fnvlist_add_string(nv_dict_props, "status", buffstr);
+		break;
+	case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
+		sprintf(buffstr, gettext("The pool can only be accessed "
+		    "in read-only mode on this sytem. It cannot be "
+		    "accessed in read-write mode because it uses the "
+		    "following feature(s) not supported on this system: "
+		    "%s action :"
+		    " The pool cannot be accessed in "
+		    "read-write mode. Import the pool with"
+		    "-o readonly=on, access the pool from a system that "
+		    "supports the required feature(s), or restore the "
+		    "pool from backup."), zpool_json_unsup_feat(config));
+		fnvlist_add_string(nv_dict_props, "status", buffstr);
+		break;
+
+	case ZPOOL_STATUS_FAULTED_DEV_R:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices are "
+		    "faulted in response to persistent errors.Sufficient "
+		    "replicas exist for the pool to continue functioning "
+		    "in a degraded state."
+		    "action Replace the faulted device, "
+		    "or use 'zpool clear' to mark the device repaired."));
+		break;
+
+	case ZPOOL_STATUS_FAULTED_DEV_NR:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices are "
+		    "faulted in response to persistent errors.  There are "
+		    "insufficient replicas for the pool to continue "
+		    "functioning."
+		    "action : Destroy and re-create the pool "
+		    "from a backup source.  Manually marking the device"
+		    "repaired using 'zpool clear' may allow some data "
+		    "to be recovered."));
+		break;
+
+	case ZPOOL_STATUS_IO_FAILURE_WAIT:
+	case ZPOOL_STATUS_IO_FAILURE_CONTINUE:
+		fnvlist_add_string(nv_dict_props,
+		    "status:", gettext("One or more devices are "
+		    "faulted in response to IO failures. "
+		    "action : Make sure the affected devices "
+		    "are connected, then run 'zpool clear'."));
+		break;
+
+	case ZPOOL_STATUS_BAD_LOG:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("An intent log record "
+		    "could not be read."
+		    "Waiting for adminstrator intervention to fix the "
+		    "faulted pool. "
+		    "action : Either restore the affected "
+		    "device(s) and run 'zpool online',"
+		    "or ignore the intent log records by running "
+		    "'zpool clear'."));
+		break;
+
+	case ZPOOL_STATUS_HOSTID_MISMATCH:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("Mismatch between pool hostid "
+		    "and system hostid on imported pool.This pool was "
+		    "previously imported into a system with a different "
+		    "hostid, and then was verbatim imported into this "
+		    "system. "
+		    "action : Export this pool on all systems "
+		    "on which it is imported."
+		    " Then import it to correct the mismatch. "));
+		break;
+	case ZPOOL_STATUS_ERRATA:
+		fnvlist_add_string(nv_dict_props, "status",
+		    gettext("Errata detected."));
+
+		switch (errata) {
+			case ZPOOL_ERRATA_NONE:
+				break;
+
+			case ZPOOL_ERRATA_ZOL_2094_SCRUB:
+				fnvlist_add_string(nv_dict_props,
+				    "action", gettext(" To correct the issue "
+				    "run 'zpool scrub'."));
+				break;
+
+			default:
+				/*
+				 * All errata which allow
+				 * the pool to be imported
+				 * must contain an action message.
+				 */
+				assert(0);
+			}
+			break;
+
+	default:
+			/*
+			 * The remaining errors
+			 * can't actually be generated, yet.
+			 */
+		assert(reason == ZPOOL_STATUS_OK);
+	}
+
+	if (msgid != NULL) {
+		buffstr = malloc(sizeof (char) * 1024);
+		sprintf(buffstr, "http://zfsonlinux.org/msg/%s",
+		    msgid);
+		fnvlist_add_string(nv_dict_props, "see", buffstr);
+	}
+
+	if (config != NULL) {
+		int namewidth;
+		uint64_t nerr;
+		nvlist_t **spares, **l2cache;
+		uint_t nspares, nl2cache;
+		pool_scan_stat_t *ps = NULL;
+
+		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
+		json_scan_status(ps, nv_dict_props);
+
+		namewidth = max_width(zhp, nvroot, 0, 0);
+		if (namewidth < 10)
+			namewidth = 10;
+
+		nvlist = fnvlist_alloc();
+		json_status_config(zhp, zpool_get_name(zhp), nvroot,
+		    namewidth, 0, B_FALSE, nvlist, errors);
+		// fnvlist_add_nvlist(nv_dict_props, "config", nvlist);
+
+		if (num_logs(nvroot) > 0)
+			// print_logs(zhp, nvroot, namewidth, B_TRUE);
+		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
+		    &l2cache, &nl2cache) == 0)
+			// print_l2cache(zhp, l2cache, nl2cache, namewidth);
+
+		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
+		    &spares, &nspares) == 0)
+			// print_spares(zhp, spares, nspares, namewidth);
+
+		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
+		    &nerr) == 0) {
+			nvlist_t *nverrlist = NULL;
+
+			/*
+			 * If the approximate error count is small, get a
+			 * precise count by fetching the entire log and
+			 * uniquifying the results.
+			 */
+			if (nerr > 0 && nerr < 100 && !cbp->cb_verbose &&
+			    zpool_get_errlog(zhp, &nverrlist) == 0) {
+				nvpair_t *elem;
+
+				elem = NULL;
+				nerr = 0;
+				while ((elem = nvlist_next_nvpair(nverrlist,
+				    elem)) != NULL) {
+					nerr++;
+				}
+			}
+			nvlist_free(nverrlist);
+
+			// (void) printf("\n");
+
+			if (nerr == 0)
+				(void) sprintf(errors, " ");
+			else if (!cbp->cb_verbose)
+				(void) sprintf(errors, gettext(
+				    "errors: %llu data "
+				    "errors, use '-v' for a list"),
+				    (u_longlong_t)nerr);
+			else
+				json_error_log(zhp, errors);
+		}
+
+		if (cbp->cb_dedup_stats)
+			print_dedup_stats(config);
+	} else {
+		(void) sprintf(errors, gettext(
+		    "config: The configuration cannot be "
+		    "determined.\n"));
+	}
+		fnvlist_add_nvlist(nv_dict_props, "config", nvlist);
+		fnvlist_add_string(nv_dict_props, "stderr", errors);
+	return (0);
+}
+int
+ldjson_status_callback(zpool_handle_t *zhp, void *data)
+{
+	status_cbdata_t *cbp = data;
+	nvlist_t		*nvlist;
+	nvlist_t *config, *nvroot;
+	char *msgid;
+	zpool_status_t reason;
+	zpool_errata_t errata;
+	const char *health;
+	uint_t c;
+	vdev_stat_t *vs;
+	config = zpool_get_config(zhp, NULL);
+	reason = zpool_get_status(zhp, &msgid, &errata);
+	char *buffstr;
+	cbp->cb_count++;
+	char errors[1024];
+	nvlist_t		*nv_dict_props;
+
+	cbp->cb_nbelem++;
+	cbp->cb_data = realloc(cbp->cb_data,
+	    sizeof (nvlist_t *) * cbp->cb_nbelem);
+	nv_dict_props = fnvlist_alloc();
+	((nvlist_t **)cbp->cb_data)[cbp->cb_nbelem - 1] = nv_dict_props;
+	/*
+	 * If we were given 'zpool status -x', only report those pools with
+	 * problems.
+	 */
+	if (cbp->cb_explain &&
+	    (reason == ZPOOL_STATUS_OK ||
+	    reason == ZPOOL_STATUS_VERSION_OLDER ||
+	    reason == ZPOOL_STATUS_FEAT_DISABLED)) {
+		if (!cbp->cb_allpools) {
+			(void) printf(gettext("pool '%s' is healthy\n"),
+			    zpool_get_name(zhp));
+			if (cbp->cb_first)
+				cbp->cb_first = B_FALSE;
+		}
+		return (0);
+	}
+
+	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvroot) == 0);
+	verify(nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0);
+	health = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+
+	fnvlist_add_string(nv_dict_props, "pool", zpool_get_name(zhp));
+	fnvlist_add_string(nv_dict_props, "state", health);
+	switch (reason) {
+	case ZPOOL_STATUS_MISSING_DEV_R:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices could not "
+		    "be opened.  Sufficient replicas exist for the pool to "
+		    "continue functioning in a degraded state"));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Attach the missing device and "
+		    "online it using 'zpool online'"));
+		break;
+
+	case ZPOOL_STATUS_MISSING_DEV_NR:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext(" One or more devices could not "
+		    "be opened.  There are insufficientreplicas for the "
+		    "pool to continue functioning."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Attach the missing device and "
+		    "online it using 'zpool online'."));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_LABEL_R:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices could not "
+		    "be used because the label is missing or invalid."
+		    "Sufficient replicas exist for the pool to continue"
+		    "functioning in a degraded state."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext(" Replace the device using "
+		    "'zpool replace'"));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_LABEL_NR:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices could not "
+		    "be used because the label is missing or invalid."
+		    "There are insufficient replicas for the pool to"
+		    "continuefunctioning"));
+		zpool_explain_recover(zpool_get_handle(zhp),
+		    zpool_get_name(zhp), reason, config);
+		break;
+
+	case ZPOOL_STATUS_FAILING_DEV:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "experienced an unrecoverable error.  An attempt was "
+		    "made to correct the error.  Applications are "
+		    "unaffected."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Determine if the device needs "
+		    "to be replaced, and clear the errors using "
+		    "'zpool clear' or replace the device with 'zpool "
+		    "replace'."));
+		break;
+
+	case ZPOOL_STATUS_OFFLINE_DEV:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "been taken offline by the administrator. Sufficient "
+		    "replicas exist for the pool to continue functioning in "
+		    "a degraded state."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Online the device using "
+		    "'zpool online' or replace the device with 'zpool "
+		    "replace'."));
+		break;
+
+	case ZPOOL_STATUS_REMOVED_DEV:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "been removed by the administrator. Sufficient "
+		    "replicas exist for the pool to continue functioning in "
+		    "a degraded state."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Online the device using "
+		    "'zpool online' or replace the device with 'zpool "
+		    "replace'. "));
+		break;
+
+	case ZPOOL_STATUS_RESILVERING:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices is "
+		    "currently being resilvered.  The pool will continue "
+		    "to function, possibly in a degraded state. "));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Wait for the resilver to "
+		    "complete."));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_DATA:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices has "
+		    "experienced an error resulting in data corruption.  "
+		    "Applications may be affected."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext(" Restore the file in question "
+		    "if possible.  Otherwise restore the entire pool from "
+		    "backup."));
+		break;
+
+	case ZPOOL_STATUS_CORRUPT_POOL:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("The pool metadata is corrupted "
+		    "and the pool cannot be opened."));
+		zpool_explain_recover(zpool_get_handle(zhp),
+		    zpool_get_name(zhp), reason, config);
+		break;
+
+	case ZPOOL_STATUS_VERSION_OLDER:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("The pool is formatted using a "
+		    "legacy on-disk format.  The pool can still be used, "
+		    "but some features are unavailable."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext(" Upgrade the pool using 'zpool "
+		    "upgrade'.  Once this is done, the pool will no longer "
+		    "be accessible on software that does not support "
+		    "feature flags."));
+		break;
+
+	case ZPOOL_STATUS_VERSION_NEWER:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("The pool has been upgraded to a "
+		    "newer, incompatible on-disk version. The pool cannot "
+		    "be accessed on this system."));
+		fnvlist_add_string(nv_dict_props,
+		    "action", gettext("Access the pool from a system "
+		    "running more recent software, or restore the pool from "
+		    "backup."));
+		break;
+
+	case ZPOOL_STATUS_FEAT_DISABLED:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("Some supported features are not "
+		    "enabled on the pool. The pool can still be used, but "
+		    "some features are unavailable."
+		    "action : Enable all features using "
+		    "'zpool upgrade'. Once this is done, the pool may no "
+		    "longer be accessible by software that does not support"
+		    "the features. See zool-features(5) for details."));
+		break;
+
+	case ZPOOL_STATUS_UNSUP_FEAT_READ:
+		sprintf(buffstr, gettext("The pool cannot be accessed on "
+		    "this system because it uses the following feature(s) "
+		    "not supported on this system:"
+		    " %s action : Access the pool from a system "
+		    "that supports the required feature(s), or restore the "
+		    "pool from backup."), zpool_json_unsup_feat(config));
+		fnvlist_add_string(nv_dict_props, "status", buffstr);
+		break;
+	case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
+		sprintf(buffstr, gettext("The pool can only be accessed "
+		    "in read-only mode on this sytem. It cannot be "
+		    "accessed in read-write mode because it uses the "
+		    "following feature(s) not supported on this system:"
+		    " %s action : The pool cannot be accessed in "
+		    "read-write mode. Import the pool with"
+		    "-o readonly=on, access the pool from a system that "
+		    "supports the required feature(s), or restore the "
+		    "pool from backup."), zpool_json_unsup_feat(config));
+		fnvlist_add_string(nv_dict_props, "status", buffstr);
+		break;
+
+	case ZPOOL_STATUS_FAULTED_DEV_R:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices are "
+		    "faulted in response to persistent errors.Sufficient "
+		    "replicas exist for the pool to continue functioning "
+		    "in a degraded state."
+		    "action Replace the faulted device, "
+		    "or use 'zpool clear' to mark the device repaired."));
+		break;
+
+	case ZPOOL_STATUS_FAULTED_DEV_NR:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("One or more devices are "
+		    "faulted in response to persistent errors.  There are "
+		    "insufficient replicas for the pool to continue "
+		    "functioning."
+		    "action : Destroy and re-create the pool "
+		    "from a backup source.  Manually marking the device"
+		    "repaired using 'zpool clear' may allow some data "
+		    "to be recovered."));
+		break;
+
+	case ZPOOL_STATUS_IO_FAILURE_WAIT:
+	case ZPOOL_STATUS_IO_FAILURE_CONTINUE:
+		fnvlist_add_string(nv_dict_props,
+		    "status:", gettext("One or more devices are "
+		    "faulted in response to IO failures. "
+		    "action : Make sure the affected devices "
+		    "are connected, then run 'zpool clear'."));
+		break;
+
+	case ZPOOL_STATUS_BAD_LOG:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("An intent log record "
+		    "could not be read."
+		    "Waiting for adminstrator intervention to fix the "
+		    "faulted pool. "
+		    "action : Either restore the affected "
+		    "device(s) and run 'zpool online',"
+		    "or ignore the intent log records by running "
+		    "'zpool clear'."));
+		break;
+
+	case ZPOOL_STATUS_HOSTID_MISMATCH:
+		fnvlist_add_string(nv_dict_props,
+		    "status", gettext("Mismatch between pool hostid "
+		    "and system hostid on imported pool.This pool was "
+		    "previously imported into a system with a different "
+		    "hostid, and then was verbatim imported into this "
+		    "system. "
+		    "action : Export this pool on all systems "
+		    "on which it is imported."
+		    " Then import it to correct the mismatch. "));
+		break;
+	case ZPOOL_STATUS_ERRATA:
+		fnvlist_add_string(nv_dict_props, "status",
+		    gettext("Errata detected."));
+
+		switch (errata) {
+			case ZPOOL_ERRATA_NONE:
+				break;
+
+			case ZPOOL_ERRATA_ZOL_2094_SCRUB:
+				fnvlist_add_string(nv_dict_props,
+				    "action", gettext(" To correct the issue "
+				    "run 'zpool scrub'."));
+				break;
+
+			default:
+				/*
+				 * All errata which allow
+				 * the pool to be imported
+				 * must contain an action message.
+				 */
+				assert(0);
+			}
+			break;
+
+	default:
+			/*
+			 * The remaining errors
+			 * can't actually be generated, yet.
+			 */
+		assert(reason == ZPOOL_STATUS_OK);
+	}
+
+	if (msgid != NULL) {
+		buffstr = malloc(sizeof (char) * 1024);
+		sprintf(buffstr, "http://zfsonlinux.org/msg/%s",
+		    msgid);
+		fnvlist_add_string(nv_dict_props, "see", buffstr);
+	}
+
+	if (config != NULL) {
+		int namewidth;
+		uint64_t nerr;
+		nvlist_t **spares, **l2cache;
+		uint_t nspares, nl2cache;
+		pool_scan_stat_t *ps = NULL;
+
+		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
+		json_scan_status(ps, nv_dict_props);
+
+		namewidth = max_width(zhp, nvroot, 0, 0);
+		if (namewidth < 10)
+			namewidth = 10;
+
+		nvlist = fnvlist_alloc();
+		json_status_config(zhp, zpool_get_name(zhp), nvroot,
+		    namewidth, 0, B_FALSE, nvlist, errors);
+		// fnvlist_add_nvlist(nv_dict_props, "config", nvlist);
+
+		if (num_logs(nvroot) > 0)
+			// print_logs(zhp, nvroot, namewidth, B_TRUE);
+		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
+		    &l2cache, &nl2cache) == 0)
+			// print_l2cache(zhp, l2cache, nl2cache, namewidth);
+
+		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
+		    &spares, &nspares) == 0)
+			// print_spares(zhp, spares, nspares, namewidth);
+
+		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
+		    &nerr) == 0) {
+			nvlist_t *nverrlist = NULL;
+
+			/*
+			 * If the approximate error count is small, get a
+			 * precise count by fetching the entire log and
+			 * uniquifying the results.
+			 */
+			if (nerr > 0 && nerr < 100 && !cbp->cb_verbose &&
+			    zpool_get_errlog(zhp, &nverrlist) == 0) {
+				nvpair_t *elem;
+
+				elem = NULL;
+				nerr = 0;
+				while ((elem = nvlist_next_nvpair(nverrlist,
+				    elem)) != NULL) {
+					nerr++;
+				}
+			}
+			nvlist_free(nverrlist);
+
+			// (void) printf("\n");
+
+			if (nerr == 0)
+				(void) sprintf(errors, " ");
+			else if (!cbp->cb_verbose)
+				(void) sprintf(errors, gettext(
+				    "errors: %llu data "
+				    "errors, use '-v' for a list"),
+				    (u_longlong_t)nerr);
+			else
+				json_error_log(zhp, errors);
+		}
+
+		if (cbp->cb_dedup_stats)
+			print_dedup_stats(config);
+	} else {
+		(void) sprintf(errors, gettext(
+		    "config: The configuration cannot be "
+		    "determined."));
+	}
+		fnvlist_add_nvlist(nv_dict_props, "config", nvlist);
+		fnvlist_add_string(nv_dict_props, "stderr", errors);
+		nvlist_print_json(stdout, nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+	return (0);
+}
 /*
  * zpool status [-vx] [-T d|u] [pool] ... [interval [count]]
  *
@@ -4580,8 +5984,17 @@ zpool_do_status(int argc, char **argv)
 	status_cbdata_t cb = { 0 };
 
 	/* check options */
-	while ((c = getopt(argc, argv, "vxDT:")) != -1) {
+	while ((c = getopt(argc, argv, "JjvxDT:")) != -1) {
 		switch (c) {
+		case 'J':
+			cb.cb_json = B_TRUE;
+			cb.cb_nvlist = fnvlist_alloc();
+			cb.cb_nbelem = 0;
+			cb.cb_data = NULL;
+			break;
+		case 'j':
+			cb.cb_ldjson = B_TRUE;
+			break;
 		case 'v':
 			cb.cb_verbose = B_TRUE;
 			break;
@@ -4614,15 +6027,34 @@ zpool_do_status(int argc, char **argv)
 	for (;;) {
 		if (timestamp_fmt != NODATE)
 			print_timestamp(timestamp_fmt);
+		if (cb.cb_json) {
+			ret = for_each_pool(argc, argv, B_TRUE, NULL,
+			    json_status_callback, &cb);
+			fnvlist_add_nvlist_array(cb.cb_nvlist,
+			    "stdout", cb.cb_data, cb.cb_nbelem);
+		} else if (cb.cb_ldjson && ! cb.cb_json) {
+			ret = for_each_pool(argc, argv, B_TRUE, NULL,
+			    ldjson_status_callback, &cb);
+		} else {
+			ret = for_each_pool(argc, argv, B_TRUE, NULL,
+			    status_callback, &cb);
+		}
 
-		ret = for_each_pool(argc, argv, B_TRUE, NULL,
-		    status_callback, &cb);
-
-		if (argc == 0 && cb.cb_count == 0)
-			(void) fprintf(stderr, gettext("no pools available\n"));
-		else if (cb.cb_explain && cb.cb_first && cb.cb_allpools)
-			(void) printf(gettext("all pools are healthy\n"));
-
+		if (argc == 0 && cb.cb_count == 0) {
+			if (!cb.cb_json && !cb.cb_ldjson)
+				(void) fprintf(stderr,
+				    gettext("no pools available\n"));
+			else
+				fnvlist_add_string(cb.cb_nvlist,
+				    "stderr", "no pools available");
+		} else if (cb.cb_explain && cb.cb_first && cb.cb_allpools) {
+			if (!cb.cb_json && !cb.cb_ldjson)
+				(void) printf
+				    (gettext("all pools are healthy\n"));
+			else
+				fnvlist_add_string(cb.cb_nvlist, "stderr",
+				    "all pools are healthy");
+		}
 		if (ret != 0)
 			return (ret);
 
@@ -4633,6 +6065,11 @@ zpool_do_status(int argc, char **argv)
 			break;
 
 		(void) sleep(interval);
+	}
+	if (cb.cb_json) {
+		nvlist_print_json(stdout, cb.cb_nvlist);
+		fprintf(stdout, "\n");
+		fflush(stdout);
 	}
 
 	return (0);

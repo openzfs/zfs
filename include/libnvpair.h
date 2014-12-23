@@ -49,6 +49,12 @@ extern void nvlist_print(FILE *, nvlist_t *);
 extern void dump_nvlist(nvlist_t *, int);
 
 /*
+ * JSON
+ */
+
+int nvlist_print_json(FILE *fp, nvlist_t *nvl);
+
+/*
  * Private nvlist printing interface that allows the caller some control
  * over output rendering (as opposed to nvlist_print and dump_nvlist).
  *
