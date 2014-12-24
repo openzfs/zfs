@@ -43,6 +43,7 @@
 #include <sys/zfeature.h>
 #include <sys/blkptr.h>
 #include <sys/range_tree.h>
+#include <sys/trace_dbuf.h>
 
 struct dbuf_hold_impl_data {
 	/* Function arguments */
