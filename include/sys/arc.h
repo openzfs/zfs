@@ -81,10 +81,29 @@ typedef enum arc_flags
 	ARC_FLAG_FREED_IN_READ		= 1 << 10,	/* freed during read */
 	ARC_FLAG_BUF_AVAILABLE		= 1 << 11,	/* block not in use */
 	ARC_FLAG_INDIRECT		= 1 << 12,	/* indirect block */
-	ARC_FLAG_FREE_IN_PROGRESS	= 1 << 13,	/*  about to be freed */
-	ARC_FLAG_L2_WRITING		= 1 << 14,	/* write in progress */
-	ARC_FLAG_L2_EVICTED		= 1 << 15,	/* evicted during I/O */
-	ARC_FLAG_L2_WRITE_HEAD		= 1 << 16,	/* head of write list */
+	ARC_FLAG_L2_WRITING		= 1 << 13,	/* write in progress */
+	ARC_FLAG_L2_EVICTED		= 1 << 14,	/* evicted during I/O */
+	ARC_FLAG_L2_WRITE_HEAD		= 1 << 15,	/* head of write list */
+	/* indicates that the buffer contains metadata (otherwise, data) */
+	ARC_FLAG_BUFC_METADATA		= 1 << 16,
+
+	/* Flags specifying whether optional hdr struct fields are defined */
+	ARC_FLAG_HAS_L1HDR		= 1 << 17,
+	ARC_FLAG_HAS_L2HDR		= 1 << 18,
+
+	/*
+	 * The arc buffer's compression mode is stored in the top 7 bits of the
+	 * flags field, so these dummy flags are included so that MDB can
+	 * interpret the enum properly.
+	 */
+	ARC_FLAG_COMPRESS_0		= 1 << 24,
+	ARC_FLAG_COMPRESS_1		= 1 << 25,
+	ARC_FLAG_COMPRESS_2		= 1 << 26,
+	ARC_FLAG_COMPRESS_3		= 1 << 27,
+	ARC_FLAG_COMPRESS_4		= 1 << 28,
+	ARC_FLAG_COMPRESS_5		= 1 << 29,
+	ARC_FLAG_COMPRESS_6		= 1 << 30
+
 } arc_flags_t;
 
 struct arc_buf {
