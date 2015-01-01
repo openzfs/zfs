@@ -1903,9 +1903,13 @@ zfs_do_inherit(int argc, char **argv)
 			if (prop == ZFS_PROP_QUOTA ||
 			    prop == ZFS_PROP_RESERVATION ||
 			    prop == ZFS_PROP_REFQUOTA ||
-			    prop == ZFS_PROP_REFRESERVATION)
+			    prop == ZFS_PROP_REFRESERVATION) {
 				(void) fprintf(stderr, gettext("use 'zfs set "
 				    "%s=none' to clear\n"), propname);
+				(void) fprintf(stderr, gettext("use 'zfs "
+				    "inherit -S %s' to revert to received "
+				    "value\n"), propname);
+			}
 			return (1);
 		}
 		if (received && (prop == ZFS_PROP_VOLSIZE ||
