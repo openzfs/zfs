@@ -117,7 +117,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBinherit\fR [\fB-r\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume|snapshot\fR ...
+\fBzfs\fR \fBinherit\fR [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume|snapshot\fR ...
 .fi
 
 .LP
@@ -2110,7 +2110,7 @@ Displays properties for the given datasets. If no datasets are specified, then t
      property  Property name
      value     Property value
      source    Property source. Can either be local, default,
-               temporary, inherited, or none (-).
+               temporary, inherited, received, or none (-).
 .fi
 .in -2
 .sp
@@ -2170,7 +2170,7 @@ A comma-separated list of columns to display. \fBname,property,value,source\fR i
 .ad
 .sp .6
 .RS 4n
-A comma-separated list of sources to display. Those properties coming from a source other than those in this list are ignored. Each source must be one of the following: \fBlocal,default,inherited,temporary,none\fR. The default value is all sources.
+A comma-separated list of sources to display. Those properties coming from a source other than those in this list are ignored. Each source must be one of the following: \fBlocal,default,inherited,received,temporary,none\fR. The default value is all sources.
 .RE
 
 .sp
@@ -2190,11 +2190,11 @@ Display numbers in parsable (exact) values.
 .ne 2
 .mk
 .na
-\fB\fBzfs inherit\fR [\fB-r\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
+\fB\fBzfs inherit\fR [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
 .RS 4n
-Clears the specified property, causing it to be inherited from an ancestor. If no ancestor has the property set, then the default value is used. See the "Properties" section for a listing of default values, and details on which properties can be inherited.
+Clears the specified property, causing it to be inherited from an ancestor, restored to default if no ancestor has the property set, or with the \fB-S\fR option reverted to the received value if one exists.  See the "Properties" section for a listing of default values, and details on which properties can be inherited.
 .sp
 .ne 2
 .mk
@@ -2204,6 +2204,16 @@ Clears the specified property, causing it to be inherited from an ancestor. If n
 .sp .6
 .RS 4n
 Recursively inherit the given property for all children.
+.RE
+.sp
+.ne 2
+.na
+\fB\fB-S\fR\fR
+.ad
+.sp .6
+.RS 4n
+Revert the property to the received value if one exists; otherwise operate as
+if the \fB-S\fR option was not specified.
 .RE
 
 .RE
@@ -3462,6 +3472,17 @@ The following command causes \fBpool/home/bob\fR and \fBpool/home/anne\fR to inh
 .in +2
 .nf
 # \fBzfs inherit checksum pool/home/bob pool/home/anne\fR
+.fi
+.in -2
+.sp
+.LP
+The following command causes \fBpool/home/bob\fR to revert to the received
+value for the \fBquota\fR property if it exists.
+
+.sp
+.in +2
+.nf
+# \fBzfs inherit -S quota pool/home/bob
 .fi
 .in -2
 .sp
