@@ -67,6 +67,7 @@
 #include <sys/spa_boot.h>
 #include <sys/zpl.h>
 #include "zfs_comutil.h"
+#include <linux/parser.h>
 
 
 /*ARGSUSED*/
@@ -1198,11 +1199,68 @@ EXPORT_SYMBOL(zfs_sb_teardown);
 atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 #endif /* HAVE_BDI && !HAVE_BDI_SETUP_AND_REGISTER */
 
+enum {
+	Opt_uid, Opt_gid,
+	Opt_dirowner, Opt_dirgroup,
+	Opt_err
+};
+
+static const match_table_t zfs_tokens = {
+	{Opt_uid, "uid=%u"},
+	{Opt_gid, "gid=%u"},
+	{Opt_dirowner, "dirowner"},
+	{Opt_dirgroup, "dirgroup"},
+	{Opt_err, NULL},
+};
+
+static void
+parse_options(zfs_sb_t *zsb, char *options)
+{
+	char *p;
+	substring_t args[MAX_OPT_ARGS];
+	int option;
+
+	/* Defaults */
+	zsb->z_fs_uid = 0;
+	zsb->z_fs_gid = 0;
+	zsb->z_fs_dirowner = B_FALSE;
+	zsb->z_fs_dirgroup = B_FALSE;
+
+	if (!options)
+		return;
+
+	while ((p = strsep(&options, ",")) != NULL) {
+		int token;
+
+		if (!*p)
+			continue;
+
+		token = match_token(p, zfs_tokens, args);
+		switch (token) {
+		case Opt_uid:
+			if (!match_int(&args[0], &option))
+				zsb->z_fs_uid = option;
+			break;
+		case Opt_gid:
+			if (!match_int(&args[0], &option))
+				zsb->z_fs_gid = option;
+			break;
+		case Opt_dirowner:
+			zsb->z_fs_dirowner = B_TRUE;
+			break;
+		case Opt_dirgroup:
+			zsb->z_fs_dirgroup = B_TRUE;
+			break;
+		}
+	}
+}
+
 int
 zfs_domount(struct super_block *sb, void *data, int silent)
 {
 	zpl_mount_data_t *zmd = data;
 	const char *osname = zmd->z_osname;
+	char *z_data = zmd->z_data;
 	zfs_sb_t *zsb;
 	struct inode *root_inode;
 	uint64_t recordsize;
@@ -1223,6 +1281,9 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	sb->s_time_gran = 1;
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
+
+	/* ZoL-specific mount options */
+	parse_options(zsb, z_data);
 
 #ifdef HAVE_BDI
 	/*
@@ -1367,6 +1428,7 @@ zfs_remount(struct super_block *sb, int *flags, char *data)
 	 * All namespace flags (MNT_*) and super block flags (MS_*) will
 	 * be handled by the Linux VFS.  Only handle custom options here.
 	 */
+	parse_options(sb->s_fs_info, data);
 	return (0);
 }
 EXPORT_SYMBOL(zfs_remount);

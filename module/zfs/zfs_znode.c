@@ -397,8 +397,20 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	    &parent, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zsb), NULL,
 	    &zp->z_atime, 16);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL, &zp->z_uid, 8);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL, &zp->z_gid, 8);
+	if (zsb->z_fs_uid) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
+		    &zp->z_realuid, 8);
+		zp->z_uid = zsb->z_fs_uid;
+	} else
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
+		    &zp->z_uid, 8);
+	if (zsb->z_fs_gid) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL,
+		    &zp->z_realgid, 8);
+		zp->z_gid = zsb->z_fs_gid;
+	} else
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL,
+		    &zp->z_gid, 8);
 
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 || zp->z_gen == 0) {
 		if (hdl == NULL)
@@ -1044,10 +1056,20 @@ zfs_rezget(znode_t *zp)
 	    &zp->z_pflags, sizeof (zp->z_pflags));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zsb), NULL,
 	    &zp->z_atime, sizeof (zp->z_atime));
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
-	    &zp->z_uid, sizeof (zp->z_uid));
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL,
-	    &zp->z_gid, sizeof (zp->z_gid));
+	if (zsb->z_fs_uid) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
+		    &zp->z_realuid, sizeof (zp->z_realuid));
+		zp->z_uid = zsb->z_fs_uid;
+	} else
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
+		    &zp->z_uid, sizeof (zp->z_uid));
+	if (zsb->z_fs_gid) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL,
+		    &zp->z_realgid, sizeof (zp->z_realgid));
+		zp->z_gid = zsb->z_fs_gid;
+	} else
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL,
+		    &zp->z_gid, sizeof (zp->z_gid));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL,
 	    &mode, sizeof (mode));
 

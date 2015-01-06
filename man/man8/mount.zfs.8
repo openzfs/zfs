@@ -79,11 +79,20 @@ Print the usage message.
 This flag sets the SELinux context for all files in the filesytem
 under that mountpoint.
 .TP
+.BI "\-o dirgroup
+Set the group of newly-created files to that of the directory in which they are created.
+.TP
+.BI "\-o dirowner
+Set the owner of newly-created files to that of the directory in which they are created.
+.TP
 .BI "\-o fscontext"
 This flag sets the SELinux context for the filesytem being mounted.
 .TP
 .BI "\-o defcontext"
 This flag sets the SELinux context for unlabled files.
+.TP
+.BI "\-o gid=\fIvalue\fR"
+Causes all files to appear to have the specified group.
 .TP
 .BI "\-o rootcontext"
 This flag sets the SELinux context for the root inode of the filesystem.
@@ -95,6 +104,9 @@ has an entry in the /etc/fstab file.
 .TP
 .BI "\-o noxattr"
 This private flag disables extended attributes.
+.TP
+.BI "\-o uid=\fIvalue\fR"
+Causes all files to appear to have the specified owner.
 .TP
 .BI "\-o xattr
 This private flag enables extended attributes and, if appropriate,

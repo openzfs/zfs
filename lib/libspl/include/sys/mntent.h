@@ -95,6 +95,12 @@
 #define	MNTOPT_ACL	"acl"		/* passed by util-linux-2.24 mount */
 #define	MNTOPT_NOACL	"noacl"		/* likewise */
 #define	MNTOPT_POSIXACL	"posixacl"	/* likewise */
+#define	MNTOPT_UID	"uid"		/* likewise */
+#define	MNTOPT_GID	"gid"		/* likewise */
+#define	MNTOPT_DIROWNER	"dirowner"	/* owner inherits from directory */
+#define	MNTOPT_NODIROWNER	"nodirowner"
+#define	MNTOPT_DIRGROUP	"dirgroup"	/* group inherits from directory */
+#define	MNTOPT_NODIRGROUP	"nodirgroup"
 
 #define	ZS_COMMENT	0x00000000	/* comment */
 #define	ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */

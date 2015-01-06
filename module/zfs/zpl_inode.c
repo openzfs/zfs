@@ -69,11 +69,19 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 void
 zpl_vap_init(vattr_t *vap, struct inode *dir, zpl_umode_t mode, cred_t *cr)
 {
+	zfs_sb_t *zsb = ITOZSB(dir);
+
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
-	vap->va_uid = crgetfsuid(cr);
 
-	if (dir && dir->i_mode & S_ISGID) {
+	if (dir && zsb->z_fs_uid && zsb->z_fs_dirowner)
+		vap->va_uid = ITOZ(dir)->z_realuid;
+	else
+		vap->va_uid = crgetfsuid(cr);
+
+	if (dir && zsb->z_fs_gid && zsb->z_fs_dirgroup) {
+		vap->va_gid = ITOZ(dir)->z_realgid;
+	} else if (dir && dir->i_mode & S_ISGID) {
 		vap->va_gid = KGID_TO_SGID(dir->i_gid);
 		if (S_ISDIR(mode))
 			vap->va_mode |= S_ISGID;

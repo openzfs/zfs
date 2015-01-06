@@ -357,6 +357,25 @@ zfs_add_option(zfs_handle_t *zhp, char *options, int len,
 }
 
 static int
+zfs_add_option_string(zfs_handle_t *zhp, char *options, int len,
+    zfs_prop_t prop, char *mntopt)
+{
+	char value[ZFS_MAXPROPLEN];
+	int error;
+
+	error = zfs_prop_get(zhp, prop, value, sizeof (value),
+	    NULL, NULL, 0, B_FALSE);
+	if (error == 0 && strcmp(value, "none")) {
+		(void) strlcat(options, ",", len);
+		(void) strlcat(options, mntopt, len);
+		(void) strlcat(options, "=", len);
+		(void) strlcat(options, value, len);
+	}
+
+	return (0);
+}
+
+static int
 zfs_add_options(zfs_handle_t *zhp, char *options, int len)
 {
 	int error = 0;
@@ -375,6 +394,15 @@ zfs_add_options(zfs_handle_t *zhp, char *options, int len)
 	    ZFS_PROP_XATTR, MNTOPT_XATTR, MNTOPT_NOXATTR);
 	error = error ? error : zfs_add_option(zhp, options, len,
 	    ZFS_PROP_NBMAND, MNTOPT_NBMAND, MNTOPT_NONBMAND);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_DIROWNER, MNTOPT_DIROWNER, MNTOPT_NODIROWNER);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_DIRGROUP, MNTOPT_DIRGROUP, MNTOPT_NODIRGROUP);
+
+	error = error ? error : zfs_add_option_string(zhp, options,
+	    len, ZFS_PROP_UID, MNTOPT_UID);
+	error = error ? error : zfs_add_option_string(zhp, options,
+	    len, ZFS_PROP_UID, MNTOPT_GID);
 
 	return (error);
 }
