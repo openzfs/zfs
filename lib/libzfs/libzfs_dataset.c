@@ -256,7 +256,7 @@ zfs_json_validate_name(nvlist_t *nv_dict_errors,
 			if (hdl != NULL)
 				zfs_json_error_aux(nv_dict_errors,
 				    hdl, dgettext(TEXT_DOMAIN,
-				    "snapshot delimiter '@'",
+				    "snapshot delimiter '@'"
 				    " in filesystem name"));
 		return (0);
 	}
