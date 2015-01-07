@@ -1,3 +1,0 @@
-[submodule "scripts/zfs-images"]
-	path = scripts/zfs-images
-	url = https://github.com/zfsonlinux/zfs-images

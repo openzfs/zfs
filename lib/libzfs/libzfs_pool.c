@@ -235,158 +235,6 @@ zpool_pool_state_to_name(pool_state_t state)
 	return (gettext("UNKNOWN"));
 }
 
-
-int
-zpool_get_json_prop_literal(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
-    size_t len, zprop_source_t *srctype, boolean_t literal)
-{
-	uint64_t intval;
-	const char *strval;
-	zprop_source_t src = ZPROP_SRC_NONE;
-	nvlist_t *nvroot;
-	vdev_stat_t *vs;
-	uint_t vsc;
-
-	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
-		switch (prop) {
-		case ZPOOL_PROP_NAME:
-			(void) strlcpy(buf, zpool_get_name(zhp), len);
-			break;
-
-		case ZPOOL_PROP_HEALTH:
-			(void) strlcpy(buf, "FAULTED", len);
-			break;
-
-		case ZPOOL_PROP_GUID:
-			intval = zpool_get_prop_int(zhp, prop, &src);
-			(void) snprintf(buf, len, "%llu", (u_longlong_t)intval);
-			break;
-
-		case ZPOOL_PROP_ALTROOT:
-		case ZPOOL_PROP_CACHEFILE:
-		case ZPOOL_PROP_COMMENT:
-			if (zhp->zpool_props != NULL ||
-			    zpool_get_all_props(zhp) == 0) {
-				(void) strlcpy(buf,
-				    zpool_get_prop_string(zhp, prop, &src),
-				    len);
-				if (srctype != NULL)
-					*srctype = src;
-				return (0);
-			}
-			/* FALLTHROUGH */
-		default:
-			(void) strlcpy(buf, "-", len);
-			break;
-		}
-
-		if (srctype != NULL)
-			*srctype = src;
-		return (0);
-	}
-
-	if (zhp->zpool_props == NULL && zpool_get_all_props(zhp) &&
-	    prop != ZPOOL_PROP_NAME)
-		return (-1);
-
-	switch (zpool_prop_get_type(prop)) {
-	case PROP_TYPE_STRING:
-		(void) strlcpy(buf, zpool_get_prop_string(zhp, prop, &src),
-		    len);
-		break;
-
-	case PROP_TYPE_NUMBER:
-		intval = zpool_get_prop_int(zhp, prop, &src);
-
-		switch (prop) {
-		case ZPOOL_PROP_SIZE:
-		case ZPOOL_PROP_ALLOCATED:
-		case ZPOOL_PROP_FREE:
-		case ZPOOL_PROP_FREEING:
-		case ZPOOL_PROP_LEAKED:
-		case ZPOOL_PROP_ASHIFT:
-		(void) snprintf(buf, len, "%llu",
-		    (u_longlong_t)intval);
-		break;
-
-		case ZPOOL_PROP_EXPANDSZ:
-			if (intval == 0) {
-				(void) strlcpy(buf, "-", len);
-			} else {
-				(void) snprintf(buf, len, "%llu",
-				    (u_longlong_t)intval);
-			}
-			break;
-
-		case ZPOOL_PROP_CAPACITY:
-			(void) snprintf(buf, len, "%llu%%",
-			    (u_longlong_t)intval);
-			break;
-
-		case ZPOOL_PROP_FRAGMENTATION:
-			if (intval == UINT64_MAX) {
-				(void) strlcpy(buf, "-", len);
-			} else {
-				(void) snprintf(buf, len, "%llu%%",
-				    (u_longlong_t)intval);
-			}
-			break;
-
-		case ZPOOL_PROP_DEDUPRATIO:
-			(void) snprintf(buf, len, "%llu.%02llux",
-			    (u_longlong_t)(intval / 100),
-			    (u_longlong_t)(intval % 100));
-			break;
-
-		case ZPOOL_PROP_HEALTH:
-			verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
-			    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
-			verify(nvlist_lookup_uint64_array(nvroot,
-			    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc)
-			    == 0);
-
-			(void) strlcpy(buf, zpool_state_to_name(intval,
-			    vs->vs_aux), len);
-			break;
-		case ZPOOL_PROP_VERSION:
-			if (intval >= SPA_VERSION_FEATURES) {
-				(void) snprintf(buf, len, "-");
-				break;
-			}
-			/* FALLTHROUGH */
-		default:
-			(void) snprintf(buf, len, "%llu", (u_longlong_t)intval);
-		}
-		break;
-
-	case PROP_TYPE_INDEX:
-		intval = zpool_get_prop_int(zhp, prop, &src);
-		if (zpool_prop_index_to_string(prop, intval, &strval)
-		    != 0)
-			return (-1);
-		(void) strlcpy(buf, strval, len);
-		break;
-
-	default:
-		abort();
-	}
-
-	if (srctype)
-		*srctype = src;
-
-	return (0);
-}
-
-int
-zpool_get_json_prop(zpool_handle_t *zhp,
-    zpool_prop_t prop, char *buf, size_t len,
-    zprop_source_t *srctype)
-{
-	return (zpool_get_json_prop_literal(zhp, prop,
-	    buf, len, srctype, B_FALSE));
-}
-
-
 /*
  * API compatibility wrapper around zpool_get_prop_literal
  */
@@ -1197,6 +1045,148 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	return (B_TRUE);
 }
 
+char *
+zpool_json_name_valid(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
+{
+	namecheck_err_t why;
+	char what;
+	int ret;
+
+	ret = pool_namecheck(pool, &why, &what);
+
+	/*
+	 * The rules for reserved pool names were extended at a later point.
+	 * But we need to support users with existing pools that may now be
+	 * invalid.  So we only check for this expanded set of names during a
+	 * create (or import), and only in userland.
+	 */
+	if (ret == 0 && !isopen &&
+	    (strncmp(pool, "mirror", 6) == 0 ||
+	    strncmp(pool, "raidz", 5) == 0 ||
+	    strncmp(pool, "spare", 5) == 0 ||
+	    strcmp(pool, "log") == 0)) {
+		if (hdl != NULL)
+			zfs_json_error_aux(nv_dict_errors, hdl,
+			    dgettext(TEXT_DOMAIN, "name is reserved"));
+		return (B_FALSE);
+	}
+
+
+	if (ret != 0) {
+		if (hdl != NULL) {
+			switch (why) {
+			case NAME_ERR_TOOLONG:
+				zfs_json_error_aux(nv_dict_errors, hdl,
+				    "name is too long");
+				break;
+
+			case NAME_ERR_INVALCHAR:
+				zfs_json_error_aux(hdl,
+				    "invalid character '%c' in pool name",
+				    nv_dict_errors, what);
+				break;
+
+			case NAME_ERR_NOLETTER:
+				zfs_json_error_aux(nv_dict_errors, hdl,
+				    dgettext(TEXT_DOMAIN,
+				    "name must begin with a letter"));
+				break;
+
+			case NAME_ERR_RESERVED:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "name is reserved"));
+				break;
+
+			case NAME_ERR_DISKLIKE:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "pool name is reserved"));
+				break;
+
+			case NAME_ERR_LEADING_SLASH:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "leading slash in name"));
+				break;
+
+			case NAME_ERR_EMPTY_COMPONENT:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "empty component in name"));
+				break;
+
+			case NAME_ERR_TRAILING_SLASH:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "trailing slash in name"));
+				break;
+
+			case NAME_ERR_MULTIPLE_AT:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "multiple '@' delimiters in name"));
+				break;
+			case NAME_ERR_NO_AT:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "permission set is missing '@'"));
+				break;
+			}
+		}
+		return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
+/*
+ * Open a handle to the given pool, even if the pool is currently in the FAULTED
+ * state.
+ */
+
+zpool_handle_t *
+zpool_json_open_canfail(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, const char *pool)
+{
+	zpool_handle_t *zhp;
+	boolean_t missing;
+	char error[1024];
+	char errbuff[1024];
+
+	/*
+	 * Make sure the pool name is valid.
+	 */
+	if (!zpool_json_name_valid(nv_dict_errors, hdl, B_TRUE, pool)) {
+		sprintf(error, dgettext(TEXT_DOMAIN,
+		    "cannot open '%s' : %s "),
+		    pool, errbuff);
+		return (NULL);
+	}
+
+	if ((zhp = zfs_alloc(hdl, sizeof (zpool_handle_t))) == NULL)
+		return (NULL);
+
+	zhp->zpool_hdl = hdl;
+	(void) strlcpy(zhp->zpool_name, pool, sizeof (zhp->zpool_name));
+
+	if (zpool_refresh_stats(zhp, &missing) != 0) {
+		zpool_close(zhp);
+		return (NULL);
+	}
+
+	if (missing) {
+		sprintf(error, dgettext(TEXT_DOMAIN,
+		    "cannot open '%s': no such pool"), pool);
+		fnvlist_add_string(nv_dict_errors, "stderr", error);
+		zpool_close(zhp);
+		return (NULL);
+	}
+
+	return (zhp);
+}
+
 /*
  * Open a handle to the given pool, even if the pool is currently in the FAULTED
  * state.
@@ -1274,6 +1264,30 @@ zpool_open_silent(libzfs_handle_t *hdl, const char *pool, zpool_handle_t **ret)
  * Similar to zpool_open_canfail(), but refuses to open pools in the faulted
  * state.
  */
+
+zpool_handle_t *
+zpool_json_open(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, const char *pool)
+{
+	zpool_handle_t *zhp;
+
+	if ((zhp = zpool_json_open_canfail(nv_dict_errors,
+	    hdl, pool)) == NULL)
+		return (NULL);
+
+	if (zhp->zpool_state == POOL_STATE_UNAVAIL) {
+		(void) zfs_json_error_fmt(nv_dict_errors,
+		    hdl, EZFS_POOLUNAVAIL,
+		    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
+		    zhp->zpool_name);
+		zpool_close(zhp);
+		return (NULL);
+	}
+
+	return (zhp);
+}
+
+
 zpool_handle_t *
 zpool_open(libzfs_handle_t *hdl, const char *pool)
 {

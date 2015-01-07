@@ -237,6 +237,198 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	}
 }
 
+
+/*
+ * JSON
+ */
+
+void
+zfs_json_error_aux(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	(void) vsnprintf(hdl->libzfs_desc, sizeof (hdl->libzfs_desc),
+	    fmt, ap);
+	hdl->libzfs_desc_active = 1;
+
+	va_end(ap);
+}
+
+static void
+zfs_json_verror(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
+{
+	char errors[1024];
+	boolean_t unknown;
+
+	(void) vsnprintf(hdl->libzfs_action, sizeof (hdl->libzfs_action),
+	    fmt, ap);
+	hdl->libzfs_error = error;
+
+	if (hdl->libzfs_desc_active)
+		hdl->libzfs_desc_active = 0;
+	else
+		hdl->libzfs_desc[0] = '\0';
+
+	if (hdl->libzfs_printerr) {
+		if (error == EZFS_UNKNOWN) {
+			(void) sprintf(errors, dgettext(TEXT_DOMAIN, "internal "
+			    "error: %s\n"), libzfs_error_description(hdl));
+			abort();
+		}
+		(void) sprintf(errors, "%s: %s", hdl->libzfs_action,
+		    libzfs_error_description(hdl));
+		fnvlist_add_string(nv_dict_errors, "stderr", errors);
+		if (error == EZFS_NOMEM)
+			exit(1);
+	}
+}
+
+
+/*PRINTFLIKE3*/
+
+int
+zfs_json_error_fmt(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, int error, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	zfs_json_verror(nv_dict_errors, hdl, error, fmt, ap);
+
+	va_end(ap);
+
+	return (-1);
+}
+
+int
+zfs_json_error(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, int error, const char *msg)
+{
+	return (zfs_json_error_fmt(nv_dict_errors, hdl, error, "%s", msg));
+}
+
+
+static int
+zfs_json_common_error(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
+{
+	switch (error) {
+	case EPERM:
+	case EACCES:
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_PERM, fmt, ap);
+		return (-1);
+
+	case ECANCELED:
+		zfs_json_verror(nv_dict_errors,
+		    hdl, EZFS_NODELEGATION, fmt, ap);
+		return (-1);
+
+	case EIO:
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_IO, fmt, ap);
+		return (-1);
+
+	case EFAULT:
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_FAULT, fmt, ap);
+		return (-1);
+
+	case EINTR:
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_INTR, fmt, ap);
+		return (-1);
+	}
+
+	return (0);
+}
+
+
+
+/*PRINTFLIKE3*/
+int
+zfs_json_standard_error_fmt(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, int error, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	if (zfs_json_common_error(nv_dict_errors,
+	    hdl, error, fmt, ap) != 0) {
+		va_end(ap);
+		return (-1);
+	}
+
+	switch (error) {
+	case ENXIO:
+	case ENODEV:
+	case EPIPE:
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_IO, fmt, ap);
+		break;
+
+	case ENOENT:
+		zfs_json_error_aux(nv_dict_errors, hdl, dgettext(TEXT_DOMAIN,
+		    "dataset does not exist"));
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_NOENT, fmt, ap);
+		break;
+
+	case ENOSPC:
+	case EDQUOT:
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_NOSPC, fmt, ap);
+		return (-1);
+
+	case EEXIST:
+		zfs_json_error_aux(nv_dict_errors, hdl, dgettext(TEXT_DOMAIN,
+		    "dataset already exists"));
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_EXISTS, fmt, ap);
+		break;
+
+	case EBUSY:
+		zfs_json_error_aux(nv_dict_errors, hdl, dgettext(TEXT_DOMAIN,
+		    "dataset is busy"));
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_BUSY, fmt, ap);
+		break;
+	case EROFS:
+		zfs_json_verror(nv_dict_errors,
+		    hdl, EZFS_POOLREADONLY, fmt, ap);
+		break;
+	case ENAMETOOLONG:
+		zfs_json_verror(nv_dict_errors,
+		    hdl, EZFS_NAMETOOLONG, fmt, ap);
+		break;
+	case ENOTSUP:
+		zfs_json_verror(nv_dict_errors,
+		    hdl, EZFS_BADVERSION, fmt, ap);
+		break;
+	case EAGAIN:
+		zfs_json_error_aux(nv_dict_errors, hdl, dgettext(TEXT_DOMAIN,
+		    "pool I/O is currently suspended"));
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_POOLUNAVAIL, fmt, ap);
+		break;
+	default:
+		zfs_json_error_aux(nv_dict_errors, hdl, strerror(error));
+		zfs_json_verror(nv_dict_errors, hdl, EZFS_UNKNOWN, fmt, ap);
+		break;
+	}
+
+	va_end(ap);
+	return (-1);
+}
+
+int
+zfs_json_standard_error(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, int error, const char *msg)
+{
+	return (zfs_json_standard_error_fmt(nv_dict_errors,
+	    hdl, error, "%s", msg));
+}
+
+/*
+ * !json
+ */
+
 /*PRINTFLIKE2*/
 void
 zfs_error_aux(libzfs_handle_t *hdl, const char *fmt, ...)
@@ -1332,6 +1524,82 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
  * properties or creating a volume.  'buf' is used to place an extended error
  * message for the caller to use.
  */
+
+int
+zfs_json_nicestrtonum(nvlist_t *nv_dict_error,
+    libzfs_handle_t *hdl, const char *value, uint64_t *num)
+{
+	char *end;
+	int shift;
+	char error[1024];
+		*num = 0;
+
+	/* Check to see if this looks like a number.  */
+	if ((value[0] < '0' || value[0] > '9') && value[0] != '.') {
+		if (hdl) {
+				sprintf(error, "bad numeric value '%s'", value);
+				zfs_json_error_aux(nv_dict_error, hdl, error);
+			}
+		return (-1);
+	}
+
+	/* Rely on strtoull() to process the numeric portion.  */
+	errno = 0;
+	*num = strtoull(value, &end, 10);
+
+	/*
+	 * Check for ERANGE, which indicates that the value is too large to fit
+	 * in a 64-bit value.
+	 */
+	if (errno == ERANGE) {
+		if (hdl)
+			zfs_json_error_aux(nv_dict_error,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "numeric value is too large"));
+		return (-1);
+	}
+
+	/*
+	 * If we have a decimal value, then do the computation with floating
+	 * point arithmetic.  Otherwise, use standard arithmetic.
+	 */
+	if (*end == '.') {
+		double fval = strtod(value, &end);
+
+		if ((shift = str2shift(hdl, end)) == -1)
+			return (-1);
+
+		fval *= pow(2, shift);
+
+		if (fval > UINT64_MAX) {
+			if (hdl)
+				zfs_json_error_aux(nv_dict_error,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "numeric value is too large"));
+			return (-1);
+		}
+
+		*num = (uint64_t)fval;
+	} else {
+		if ((shift = str2shift(hdl, end)) == -1)
+			return (-1);
+
+		/* Check for overflow */
+		if (shift >= 64 || (*num << shift) >> shift != *num) {
+			if (hdl)
+				zfs_json_error_aux(nv_dict_error,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "numeric value is too large"), nv_dict_error);
+			return (-1);
+		}
+
+		*num <<= shift;
+	}
+
+	return (0);
+}
+
+
 int
 zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 {

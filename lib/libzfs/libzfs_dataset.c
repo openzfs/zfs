@@ -180,6 +180,117 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 	return (-1);
 }
 
+	int
+zfs_json_validate_name(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, const char *path, int type,
+    boolean_t modifying)
+{
+	namecheck_err_t why;
+	char what;
+
+	(void) zfs_prop_get_table();
+	if (dataset_namecheck(path, &why, &what) != 0) {
+		if (hdl != NULL) {
+			switch (why) {
+			case NAME_ERR_TOOLONG:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "name is too long"));
+				break;
+
+			case NAME_ERR_LEADING_SLASH:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "leading slash in name"));
+				break;
+
+			case NAME_ERR_EMPTY_COMPONENT:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "empty component in name"));
+				break;
+
+			case NAME_ERR_TRAILING_SLASH:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "trailing slash in name"));
+				break;
+
+			case NAME_ERR_INVALCHAR:
+				zfs_json_error_aux(nv_dict_errors, hdl,
+				    dgettext(TEXT_DOMAIN, "invalid character "
+				    "'%c' in name"), what);
+				break;
+
+			case NAME_ERR_MULTIPLE_AT:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "multiple '@' delimiters in name"));
+				break;
+
+			case NAME_ERR_NOLETTER:
+				zfs_json_error_aux(nv_dict_errors, hdl,
+				    dgettext(TEXT_DOMAIN,
+				    "pool doesn't begin with a letter"));
+				break;
+
+			case NAME_ERR_RESERVED:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "name is reserved"));
+				break;
+
+			case NAME_ERR_DISKLIKE:
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "reserved disk name"));
+				break;
+			default:
+				break;
+			}
+		}
+		return (0);
+	}
+		if (!(type & ZFS_TYPE_SNAPSHOT) && strchr(
+		    path, '@') != NULL) {
+			if (hdl != NULL)
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "snapshot delimiter '@'",
+				    " in filesystem name"));
+		return (0);
+	}
+
+	if (type == ZFS_TYPE_SNAPSHOT && strchr(path, '@') == NULL) {
+		if (hdl != NULL)
+			zfs_json_error_aux(nv_dict_errors, hdl,
+			    dgettext(TEXT_DOMAIN,
+			    "missing '@' delimiter in snapshot name"));
+		return (0);
+	}
+
+	if (modifying && strchr(path, '%') != NULL) {
+		if (hdl != NULL)
+			zfs_json_error_aux(nv_dict_errors,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "invalid character %c in name"), '%');
+		return (0);
+	}
+
+	return (-1);
+}
+
+
+int
+zfs_json_name_valid(nvlist_t *nv_dict_errors, const char *name, zfs_type_t type)
+{
+	if (type == ZFS_TYPE_POOL)
+		return (zpool_json_name_valid(nv_dict_errors,
+		    NULL, B_FALSE, name));
+	return (zfs_json_validate_name(nv_dict_errors,
+	    NULL, name, type, B_FALSE));
+}
+
 int
 zfs_name_valid(const char *name, zfs_type_t type)
 {
@@ -615,6 +726,7 @@ make_bookmark_handle(zfs_handle_t *parent, const char *path,
  * argument is a mask of acceptable types.  The function will print an
  * appropriate error message and return NULL if it can't be opened.
  */
+
 zfs_handle_t *
 zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 {
@@ -652,6 +764,50 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 	return (zhp);
 }
 
+
+zfs_handle_t *
+zfs_json_open(nvlist_t *nv_dict_errors,
+	    libzfs_handle_t *hdl, const char *path, int types)
+{
+	zfs_handle_t *zhp;
+	char errbuf[1024];
+
+	(void) snprintf(errbuf, sizeof (errbuf),
+	    dgettext(TEXT_DOMAIN, "cannot open '%s'"), path);
+
+	/*
+	 * Validate the name before we even try to open it.
+	 */
+	if (!zfs_json_validate_name(nv_dict_errors,
+	    hdl, path, ZFS_TYPE_DATASET, B_FALSE)) {
+		zfs_json_error_aux(nv_dict_errors,
+		    hdl, dgettext(TEXT_DOMAIN,
+		    "invalid dataset name"));
+		(void) zfs_json_error(nv_dict_errors,
+		    hdl, EZFS_INVALIDNAME, errbuf);
+		return (NULL);
+	}
+
+	/*
+	 * Try to get stats for the dataset, which will tell us if it exists.
+	 */
+	errno = 0;
+	if ((zhp = make_dataset_handle(hdl, path)) == NULL) {
+		(void) zfs_json_standard_error(nv_dict_errors,
+		    hdl, errno, errbuf);
+		return (NULL);
+	}
+
+	if (!(types & zhp->zfs_type)) {
+		(void) zfs_json_error(nv_dict_errors,
+		    hdl, EZFS_BADTYPE, errbuf);
+		zfs_close(zhp);
+		return (NULL);
+	}
+
+	return (zhp);
+}
+
 /*
  * Release a ZFS handle.  Nothing to do but free the associated memory.
  */
@@ -678,7 +834,8 @@ libzfs_mnttab_cache_compare(const void *arg1, const void *arg2)
 	const mnttab_node_t *mtn2 = arg2;
 	int rv;
 
-	rv = strcmp(mtn1->mtn_mt.mnt_special, mtn2->mtn_mt.mnt_special);
+	rv = strcmp(mtn1->mtn_mt.mnt_special,
+	    mtn2->mtn_mt.mnt_special);
 
 	if (rv == 0)
 		return (0);
@@ -688,9 +845,12 @@ libzfs_mnttab_cache_compare(const void *arg1, const void *arg2)
 void
 libzfs_mnttab_init(libzfs_handle_t *hdl)
 {
-	assert(avl_numnodes(&hdl->libzfs_mnttab_cache) == 0);
-	avl_create(&hdl->libzfs_mnttab_cache, libzfs_mnttab_cache_compare,
-	    sizeof (mnttab_node_t), offsetof(mnttab_node_t, mtn_node));
+	assert(avl_numnodes(
+	    &hdl->libzfs_mnttab_cache) == 0);
+	avl_create(&hdl->libzfs_mnttab_cache,
+	    libzfs_mnttab_cache_compare,
+	    sizeof (mnttab_node_t),
+	    offsetof(mnttab_node_t, mtn_node));
 }
 
 int
@@ -2942,11 +3102,128 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 	return (0);
 }
 
+static int
+check_json_parents(nvlist_t *nv_dict_errors,\
+    libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
+    boolean_t accept_ancestor, int *prefixlen)
+{
+	zfs_cmd_t zc = {"\0"};
+	char parent[ZFS_MAXNAMELEN];
+	char *slash;
+	zfs_handle_t *zhp;
+	char errbuf[1024];
+	uint64_t is_zoned;
+
+	(void) snprintf(errbuf, sizeof (errbuf),
+	    dgettext(TEXT_DOMAIN, "cannot create '%s'"), path);
+
+	/* get parent, and check to see if this is just a pool */
+	if (parent_name(path, parent, sizeof (parent)) != 0) {
+		zfs_json_error_aux(nv_dict_errors,
+		    hdl, dgettext(TEXT_DOMAIN,
+		    "missing dataset name"));
+		return (zfs_json_error(nv_dict_errors, hdl,
+		    EZFS_INVALIDNAME, errbuf));
+	}
+
+	/* check to see if the pool exists */
+	if ((slash = strchr(parent, '/')) == NULL)
+		slash = parent + strlen(parent);
+	(void) strncpy(zc.zc_name, parent, slash - parent);
+	zc.zc_name[slash - parent] = '\0';
+	if (ioctl(hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, &zc) != 0 &&
+	    errno == ENOENT) {
+		zfs_json_error_aux(nv_dict_errors,
+		    hdl, dgettext(TEXT_DOMAIN,
+		    "no such pool '%s'"), zc.zc_name);
+		return (zfs_json_error(nv_dict_errors,
+		    hdl, EZFS_NOENT, errbuf));
+	}
+
+	/* check to see if the parent dataset exists */
+	while ((zhp = make_dataset_handle(hdl, parent)) == NULL) {
+		if (errno == ENOENT && accept_ancestor) {
+			/*
+			 * Go deeper to find an ancestor, give up on top level.
+			 */
+			if (parent_name(parent, parent, sizeof (parent)) != 0) {
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "no such pool '%s'"), zc.zc_name);
+				return (zfs_json_error(nv_dict_errors,
+				    hdl, EZFS_NOENT, errbuf));
+			}
+		} else if (errno == ENOENT) {
+			zfs_json_error_aux(nv_dict_errors,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "parent does not exist"));
+			return (zfs_json_error(nv_dict_errors,
+			    hdl, EZFS_NOENT, errbuf));
+		} else
+			return (zfs_json_standard_error(nv_dict_errors,
+			    hdl, errno, errbuf));
+	}
+
+	is_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
+	if (zoned != NULL)
+		*zoned = is_zoned;
+
+	/* we are in a non-global zone, but parent is in the global zone */
+	if (getzoneid() != GLOBAL_ZONEID && !is_zoned) {
+		(void) zfs_json_standard_error(nv_dict_errors,
+		    hdl, EPERM, errbuf);
+		zfs_close(zhp);
+		return (-1);
+	}
+
+	/* make sure parent is a filesystem */
+	if (zfs_get_type(zhp) != ZFS_TYPE_FILESYSTEM) {
+		zfs_json_error_aux(nv_dict_errors,
+		    hdl, dgettext(TEXT_DOMAIN,
+		    "parent is not a filesystem"));
+		(void) zfs_json_error(nv_dict_errors,
+		    hdl, EZFS_BADTYPE, errbuf);
+		zfs_close(zhp);
+		return (-1);
+	}
+
+	zfs_close(zhp);
+	if (prefixlen != NULL)
+		*prefixlen = strlen(parent);
+	return (0);
+}
+
 /*
  * Finds whether the dataset of the given type(s) exists.
  */
+
 boolean_t
-zfs_dataset_exists(libzfs_handle_t *hdl, const char *path, zfs_type_t types)
+zfs_json_dataset_exists(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, const char *path, zfs_type_t types)
+{
+	zfs_handle_t *zhp;
+
+	if (!zfs_json_validate_name(nv_dict_errors,
+	    hdl, path, types, B_FALSE))
+		return (B_FALSE);
+
+	/*
+	 * Try to get stats for the dataset, which will tell us if it exists.
+	 */
+	if ((zhp = make_dataset_handle(hdl, path)) != NULL) {
+		int ds_type = zhp->zfs_type;
+
+		zfs_close(zhp);
+		if (types & ds_type)
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+
+boolean_t
+zfs_dataset_exists(libzfs_handle_t *hdl,
+    const char *path, zfs_type_t types)
 {
 	zfs_handle_t *zhp;
 
@@ -3208,6 +3485,177 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 
 	return (0);
 }
+
+/*
+ * Json
+ */
+
+int
+zfs_json_create(nvlist_t *nv_dict_errors,
+    libzfs_handle_t *hdl, const char *path,
+    zfs_type_t type, nvlist_t *props)
+{
+	int ret;
+	uint64_t size = 0;
+	uint64_t blocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
+	char errbuf[1024];
+	uint64_t zoned;
+	dmu_objset_type_t ost;
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot create '%s'"), path);
+
+	/* validate the path, taking care to note the extended error message */
+	if (!zfs_json_validate_name(nv_dict_errors, hdl, path, type, B_TRUE))
+		return (zfs_json_error(nv_dict_errors, hdl,
+		    EZFS_INVALIDNAME, errbuf));
+
+	/* validate parents exist */
+	if (check_json_parents(nv_dict_errors,
+	    hdl, path, &zoned, B_FALSE, NULL) != 0)
+		return (-1);
+
+	/*
+	 * The failure modes when creating a dataset of a different type over
+	 * one that already exists is a little strange.  In particular, if you
+	 * try to create a dataset on top of an existing dataset, the ioctl()
+	 * will return ENOENT, not EEXIST.  To prevent this from happening, we
+	 * first try to see if the dataset exists.
+	 */
+	if (zfs_dataset_exists(hdl, path, ZFS_TYPE_DATASET)) {
+		zfs_json_error_aux(nv_dict_errors, hdl, dgettext(TEXT_DOMAIN,
+		    "dataset already exists"));
+		return (zfs_json_error(nv_dict_errors,
+		    hdl, EZFS_EXISTS, errbuf));
+	}
+
+	if (type == ZFS_TYPE_VOLUME)
+		ost = DMU_OST_ZVOL;
+	else
+		ost = DMU_OST_ZFS;
+
+	if (props && (props = zfs_valid_proplist(hdl, type, props,
+	    zoned, NULL, errbuf)) == 0)
+		return (-1);
+
+	if (type == ZFS_TYPE_VOLUME) {
+		/*
+		 * If we are creating a volume, the size and block size must
+		 * satisfy a few restraints.  First, the blocksize must be a
+		 * valid block size between SPA_{MIN,MAX}BLOCKSIZE.  Second, the
+		 * volsize must be a multiple of the block size, and cannot be
+		 * zero.
+		 */
+		if (props == NULL || nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_VOLSIZE), &size) != 0) {
+			nvlist_free(props);
+			zfs_json_error_aux(nv_dict_errors,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "missing volume size"));
+			return (zfs_json_error(nv_dict_errors,
+			    hdl, EZFS_BADPROP, errbuf));
+		}
+
+		if ((ret = nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
+		    &blocksize)) != 0) {
+			if (ret == ENOENT) {
+				blocksize = zfs_prop_default_numeric(
+				    ZFS_PROP_VOLBLOCKSIZE);
+			} else {
+				nvlist_free(props);
+				zfs_json_error_aux(nv_dict_errors,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "missing volume block size"));
+				return (zfs_json_error(nv_dict_errors,
+				    hdl, EZFS_BADPROP, errbuf));
+			}
+		}
+
+		if (size == 0) {
+			nvlist_free(props);
+			zfs_json_error_aux(nv_dict_errors,
+			    nv_dict_errors, hdl, dgettext(TEXT_DOMAIN,
+			    "volume size cannot be zero"));
+			return (zfs_json_error(nv_dict_errors,
+			    nv_dict_errors, hdl, EZFS_BADPROP, errbuf));
+		}
+
+		if (size % blocksize != 0) {
+			nvlist_free(props);
+			zfs_json_error_aux(nv_dict_errors,
+			    nv_dict_errors, hdl, dgettext(TEXT_DOMAIN,
+			    "volume size must be a multiple of volume block "
+			    "size"));
+			return (zfs_json_error(nv_dict_errors,
+			    hdl, EZFS_BADPROP, errbuf));
+		}
+	}
+
+	/* create the dataset */
+	ret = lzc_create(path, ost, props);
+	nvlist_free(props);
+
+	/* check for failure */
+	if (ret != 0) {
+		char parent[ZFS_MAXNAMELEN];
+		(void) parent_name(path, parent, sizeof (parent));
+
+		switch (errno) {
+		case ENOENT:
+			zfs_json_error_aux(nv_dict_errors,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "no such parent '%s'"), parent);
+			return (zfs_json_error(nv_dict_errors,
+			    hdl, EZFS_NOENT, errbuf));
+
+		case EINVAL:
+			zfs_json_error_aux(nv_dict_errors,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "parent '%s' is not a filesystem"), parent);
+			return (zfs_json_error(nv_dict_errors,
+			    hdl, EZFS_BADTYPE, errbuf));
+
+		case EDOM:
+			zfs_json_error_aux(nv_dict_errors,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "volume block size must be power of 2 from "
+			    "%u to %uk"),
+			    (uint_t)SPA_MINBLOCKSIZE,
+			    (uint_t)SPA_MAXBLOCKSIZE >> 10);
+
+			return (zfs_json_error(nv_dict_errors,
+			    hdl, EZFS_BADPROP, errbuf));
+
+		case ENOTSUP:
+			zfs_json_error_aux(nv_dict_errors,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "pool must be upgraded to set this "
+			    "property or value"));
+			return (zfs_json_error(nv_dict_errors, hdl,
+			    EZFS_BADVERSION, errbuf));
+#ifdef _ILP32
+		case EOVERFLOW:
+			/*
+			 * This platform can't address a volume this big.
+			 */
+			if (type == ZFS_TYPE_VOLUME)
+				return (zfs_json_error(hdl, EZFS_VOLTOOBIG,
+				    errbuf));
+#endif
+			/* FALLTHROUGH */
+		default:
+			return (zfs_json_standard_error(nv_dict_errors,
+			    hdl, errno, errbuf));
+		}
+	}
+
+	return (0);
+}
+
+/*
+ * !Json
+ */
 
 /*
  * Destroys the given dataset.  The caller must make sure that the filesystem

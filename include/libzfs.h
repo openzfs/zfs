@@ -40,7 +40,7 @@
 #include <sys/avl.h>
 #include <ucred.h>
 #include <libzfs_core.h>
-// #include <libzfs_impl.h>
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -180,6 +180,7 @@ typedef struct zfs_allow {
 	avl_tree_t z_group;
 	avl_tree_t z_everyone;
 } zfs_allow_t;
+
 /*
  * Basic handle types
  */
@@ -292,22 +293,8 @@ extern const char *zpool_prop_to_name(zpool_prop_t);
 extern const char *zpool_prop_values(zpool_prop_t);
 
 /*
- * Json
- */
-
-int zpool_get_json_prop_literal(zpool_handle_t *zhp,
-    zpool_prop_t prop, char *buf, size_t len,
-    zprop_source_t *srctype, boolean_t literal);
-
-int zpool_get_json_prop(zpool_handle_t *zhp,
-    zpool_prop_t prop, char *buf, size_t len,
-    zprop_source_t *srctype);
-
-
-/*
  * Pool health statistics.
  */
-
 typedef enum {
 	/*
 	 * The following correspond to faults as defined in the (fault.fs.zfs.*)
