@@ -258,7 +258,7 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return (gettext("\trollback [-rRf] <snapshot>\n"));
 	case HELP_SEND:
-		return (gettext("\tsend [-DnPpRrve] [-[iI] snapshot] "
+		return (gettext("\tsend [-DnPpRrveG] [-[iI] snapshot] "
 		    "<snapshot>\n"
 		    "\tsend [-e] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"));
@@ -3679,7 +3679,7 @@ zfs_do_send(int argc, char **argv)
 	boolean_t extraverbose = B_FALSE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":i:I:RDpvnPe")) != -1) {
+	while ((c = getopt(argc, argv, ":i:I:RDpvnPeG")) != -1) {
 		switch (c) {
 		case 'i':
 			if (fromname)
@@ -3716,6 +3716,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'e':
 			flags.embed_data = B_TRUE;
+			break;
+		case 'G':
+			flags.user_properties = B_TRUE;
 			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "
@@ -3759,7 +3762,7 @@ zfs_do_send(int argc, char **argv)
 
 		if (flags.replicate || flags.doall || flags.props ||
 		    flags.dedup || flags.dryrun || flags.verbose ||
-		    flags.progress) {
+		    flags.user_properties || flags.progress) {
 			(void) fprintf(stderr,
 			    gettext("Error: "
 			    "Unsupported flag with filesystem or bookmark.\n"));

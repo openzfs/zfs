@@ -606,6 +606,9 @@ typedef struct sendflags {
 
 	/* send properties (ie, -p) */
 	boolean_t props;
+	
+	/* send only user properties (ie, -p) */
+	boolean_t user_properties;
 
 	/* do not send (no-op, ie. -n) */
 	boolean_t dryrun;

@@ -576,6 +576,7 @@ typedef struct send_data {
 	nvlist_t *snapprops;
 	const char *fromsnap;
 	const char *tosnap;
+        boolean_t user_properties;
 	boolean_t recursive;
 	boolean_t seenfrom;
 	boolean_t seento;
@@ -605,6 +606,7 @@ typedef struct send_data {
 } send_data_t;
 
 static void send_iterate_prop(zfs_handle_t *zhp, nvlist_t *nv);
+static void send_iterate_user_prop(zfs_handle_t *zhp, nvlist_t *nv);
 
 static int
 send_iterate_snap(zfs_handle_t *zhp, void *arg)
@@ -648,6 +650,36 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 
 	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
 	send_iterate_prop(zhp, nv);
+	VERIFY(0 == nvlist_add_nvlist(sd->snapprops, snapname, nv));
+	nvlist_free(nv);
+
+	zfs_close(zhp);
+	return (0);
+}
+
+static int
+send_iterate_snap_with_up(zfs_handle_t *zhp, void *arg)
+{
+	send_data_t *sd = arg;
+	uint64_t guid = zhp->zfs_dmustats.dds_guid;
+	char *snapname;
+	nvlist_t *nv;
+
+	snapname = strrchr(zhp->zfs_name, '@')+1;
+
+	VERIFY(0 == nvlist_add_uint64(sd->parent_snaps, snapname, guid));
+	/*
+	 * NB: if there is no fromsnap here (it's a newly created fs in
+	 * an incremental replication), we will substitute the tosnap.
+	 */
+	if ((sd->fromsnap && strcmp(snapname, sd->fromsnap) == 0) ||
+	    (sd->parent_fromsnap_guid == 0 && sd->tosnap &&
+	    strcmp(snapname, sd->tosnap) == 0)) {
+		sd->parent_fromsnap_guid = guid;
+	}
+
+	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
+	send_iterate_user_prop(zhp, nv);
 	VERIFY(0 == nvlist_add_nvlist(sd->snapprops, snapname, nv));
 	nvlist_free(nv);
 
@@ -719,6 +751,50 @@ send_iterate_prop(zfs_handle_t *zhp, nvlist_t *nv)
 			    ZPROP_VALUE, &value) == 0);
 			VERIFY(0 == nvlist_add_string(nv, propname, value));
 		} else {
+			uint64_t value;
+			verify(nvlist_lookup_uint64(propnv,
+			    ZPROP_VALUE, &value) == 0);
+			VERIFY(0 == nvlist_add_uint64(nv, propname, value));
+		}
+	}
+}
+
+static void
+send_iterate_user_prop(zfs_handle_t *zhp, nvlist_t *nv)
+{
+	nvpair_t *elem = NULL;
+
+	while ((elem = nvlist_next_nvpair(zhp->zfs_user_props, elem)) != NULL) {
+		char *propname = nvpair_name(elem);
+		zfs_prop_t prop = zfs_name_to_prop(propname);
+		nvlist_t *propnv;
+
+		if (!zfs_prop_user(propname)) {
+			/*
+			 * Realistically, this should never happen.  However,
+			 * we want the ability to add DSL properties without
+			 * needing to make incompatible version changes.  We
+			 * need to ignore unknown properties to allow older
+			 * software to still send datasets containing these
+			 * properties, with the unknown properties elided.
+			 */
+			if (prop == ZPROP_INVAL)
+				continue;
+
+			if (zfs_prop_readonly(prop))
+				continue;
+		}
+
+		verify(nvpair_value_nvlist(elem, &propnv) == 0);
+
+		if (zfs_prop_user(propname) ||
+		    zfs_prop_get_type(prop) == PROP_TYPE_STRING) {
+			char *value;
+			verify(nvlist_lookup_string(propnv,
+			    ZPROP_VALUE, &value) == 0);
+			VERIFY(0 == nvlist_add_string(nv, propname, value));
+		}
+		 else {
 			uint64_t value;
 			verify(nvlist_lookup_uint64(propnv,
 			    ZPROP_VALUE, &value) == 0);
@@ -823,6 +899,85 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	return (0);
 }
 
+static int
+send_iterate_fs_with_up(zfs_handle_t *zhp, void *arg)
+{
+	send_data_t *sd = arg;
+	nvlist_t *nvfs, *nv;
+	int rv = 0;
+	uint64_t guid = zhp->zfs_dmustats.dds_guid;
+	char guidstring[64];
+	
+	VERIFY(0 == nvlist_alloc(&nvfs, NV_UNIQUE_NAME, 0));
+	VERIFY(0 == nvlist_add_string(nvfs, "name", zhp->zfs_name));
+	VERIFY(0 == nvlist_add_uint64(nvfs, "parentfromsnap",
+	    sd->parent_fromsnap_guid));
+
+
+	/* iterate over props */
+	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
+	send_iterate_user_prop(zhp, nv);
+	VERIFY(0 == nvlist_add_nvlist(nvfs, "props", nv));
+	nvlist_free(nv);
+	
+	sd->parent_fromsnap_guid = 0;
+	VERIFY(0 == nvlist_alloc(&sd->parent_snaps, NV_UNIQUE_NAME, 0));
+	VERIFY(0 == nvlist_alloc(&sd->snapprops, NV_UNIQUE_NAME, 0));
+	(void) zfs_iter_snapshots_sorted(zhp, send_iterate_snap_with_up, sd);
+	VERIFY(0 == nvlist_add_nvlist(nvfs, "snaps", sd->parent_snaps));
+	VERIFY(0 == nvlist_add_nvlist(nvfs, "snapprops", sd->snapprops));
+	nvlist_free(sd->parent_snaps);
+	nvlist_free(sd->snapprops);
+	
+	/* add this fs to nvlist */
+	(void) snprintf(guidstring, sizeof (guidstring),
+	    "0x%llx", (longlong_t)guid);
+	VERIFY(0 == nvlist_add_nvlist(sd->fss, guidstring, nvfs));
+	nvlist_free(nvfs);
+
+	/* iterate over children */
+	if (sd->recursive)
+		rv = zfs_iter_filesystems(zhp, send_iterate_fs_with_up, sd);
+
+	zfs_close(zhp);
+	return (rv);
+}
+
+static int
+gather_nvlist_up(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
+    const char *tosnap, boolean_t user_properties, 
+    nvlist_t **nvlp, avl_tree_t **avlp)
+{
+	zfs_handle_t *zhp;
+	send_data_t sd = { 0 };
+	int error;
+	zhp = zfs_open(hdl, fsname, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+	if (zhp == NULL)
+		return (EZFS_BADTYPE);
+
+	VERIFY(0 == nvlist_alloc(&sd.fss, NV_UNIQUE_NAME, 0));
+	sd.fromsnap = fromsnap;
+	sd.tosnap = tosnap;
+	sd.user_properties = user_properties;
+
+	if ((error = send_iterate_fs_with_up(zhp, &sd)) != 0) {
+		nvlist_free(sd.fss);
+		if (avlp != NULL)
+			*avlp = NULL;
+		*nvlp = NULL;
+		return (error);
+	}
+
+	if (avlp != NULL && (*avlp = fsavl_create(sd.fss)) == NULL) {
+		nvlist_free(sd.fss);
+		*nvlp = NULL;
+		return (EZFS_NOMEM);
+	}
+
+	*nvlp = sd.fss;
+	return (0);
+}
+
 /*
  * Routines specific to "zfs send"
  */
@@ -832,7 +987,7 @@ typedef struct send_dump_data {
 	const char *tosnap;
 	char prevsnap[ZFS_MAXNAMELEN];
 	uint64_t prevsnap_obj;
-	boolean_t seenfrom, seento, replicate, doall, fromorigin;
+	boolean_t seenfrom, seento, replicate, doall, fromorigin, user_properties;
 	boolean_t verbose, dryrun, parsable, progress, embed_data;
 	int outfd;
 	boolean_t err;
@@ -1438,13 +1593,13 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		}
 	}
 
-	if (flags->replicate || flags->doall || flags->props) {
+	if (flags->replicate || flags->doall || flags->props || flags->user_properties) {
 		dmu_replay_record_t drr = { 0 };
 		char *packbuf = NULL;
 		size_t buflen = 0;
 		zio_cksum_t zc = { { 0 } };
 
-		if (flags->replicate || flags->props) {
+		if (flags->replicate || flags->props || flags->user_properties) {
 			nvlist_t *hdrnv;
 
 			VERIFY(0 == nvlist_alloc(&hdrnv, NV_UNIQUE_NAME, 0));
@@ -1457,9 +1612,19 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 				VERIFY(0 == nvlist_add_boolean(hdrnv,
 				    "not_recursive"));
 			}
-
-			err = gather_nvlist(zhp->zfs_hdl, zhp->zfs_name,
-			    fromsnap, tosnap, flags->replicate, &fss, &fsavl);
+			
+			/* 
+			 * if -G is send, then flags->user_properties
+			 * should not have both replicate and user_properties
+			 */
+			if(flags->user_properties) {
+				err = gather_nvlist_up(zhp->zfs_hdl, zhp->zfs_name,
+			    fromsnap, tosnap, flags->user_properties, &fss, &fsavl);
+			}
+			else {
+				err = gather_nvlist(zhp->zfs_hdl, zhp->zfs_name,
+					fromsnap, tosnap, flags->replicate, &fss, &fsavl);
+			}
 			if (err)
 				goto err_out;
 			VERIFY(0 == nvlist_add_nvlist(hdrnv, "fss", fss));
@@ -1520,6 +1685,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	else
 		sdd.outfd = outfd;
 	sdd.replicate = flags->replicate;
+	sdd.user_properties = flags->user_properties;
 	sdd.doall = flags->doall;
 	sdd.fromorigin = flags->fromorigin;
 	sdd.fss = fss;
@@ -1626,7 +1792,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	}
 
 	if (!flags->dryrun && (flags->replicate || flags->doall ||
-	    flags->props)) {
+	    flags->props || flags->user_properties)) {
 		/*
 		 * write final end record.  NB: want to do this even if
 		 * there was some error, because it might not be totally
