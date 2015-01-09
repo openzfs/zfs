@@ -202,7 +202,7 @@ zfs_range_proxify(avl_tree_t *tree, rl_t *rl)
 	rl->r_cnt = 0;
 
 	/* create a proxy range lock */
-	proxy = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	proxy = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	proxy->r_off = rl->r_off;
 	proxy->r_len = rl->r_len;
 	proxy->r_cnt = 1;
@@ -231,7 +231,7 @@ zfs_range_split(avl_tree_t *tree, rl_t *rl, uint64_t off)
 	ASSERT(rl->r_read_wanted == B_FALSE);
 
 	/* create the rear proxy range lock */
-	rear = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	rear = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	rear->r_off = off;
 	rear->r_len = rl->r_off + rl->r_len - off;
 	rear->r_cnt = rl->r_cnt;
@@ -256,7 +256,7 @@ zfs_range_new_proxy(avl_tree_t *tree, uint64_t off, uint64_t len)
 	rl_t *rl;
 
 	ASSERT(len);
-	rl = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	rl = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	rl->r_off = off;
 	rl->r_len = len;
 	rl->r_cnt = 1;
@@ -429,7 +429,7 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 
 	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
 
-	new = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	new = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	new->r_zp = zp;
 	new->r_off = off;
 	if (len + off < off)	/* overflow */

@@ -577,19 +577,12 @@ zvol_write(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = blk_rq_pos(req) << 9;
 	uint64_t size = blk_rq_bytes(req);
 	int error = 0;
 	dmu_tx_t *tx;
 	rl_t *rl;
-
-	/*
-	 * Annotate this call path with a flag that indicates that it is
-	 * unsafe to use KM_SLEEP during memory allocations due to the
-	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
-	 */
-	ASSERT(!(current->flags & PF_NOFS));
-	current->flags |= PF_NOFS;
 
 	if (req->cmd_flags & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -598,7 +591,7 @@ zvol_write(void *arg)
 	 * Some requests are just for flush and nothing else.
 	 */
 	if (size == 0) {
-		blk_end_request(req, 0, size);
+		error = 0;
 		goto out;
 	}
 
@@ -612,7 +605,6 @@ zvol_write(void *arg)
 	if (error) {
 		dmu_tx_abort(tx);
 		zfs_range_unlock(rl);
-		blk_end_request(req, -error, size);
 		goto out;
 	}
 
@@ -628,9 +620,9 @@ zvol_write(void *arg)
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
-	blk_end_request(req, -error, size);
 out:
-	current->flags &= ~PF_NOFS;
+	blk_end_request(req, -error, size);
+	spl_fstrans_unmark(cookie);
 }
 
 #ifdef HAVE_BLK_QUEUE_DISCARD
@@ -640,21 +632,14 @@ zvol_discard(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t start = blk_rq_pos(req) << 9;
 	uint64_t end = start + blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
 
-	/*
-	 * Annotate this call path with a flag that indicates that it is
-	 * unsafe to use KM_SLEEP during memory allocations due to the
-	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
-	 */
-	ASSERT(!(current->flags & PF_NOFS));
-	current->flags |= PF_NOFS;
-
 	if (end > zv->zv_volsize) {
-		blk_end_request(req, -EIO, blk_rq_bytes(req));
+		error = EIO;
 		goto out;
 	}
 
@@ -668,7 +653,7 @@ zvol_discard(void *arg)
 	end = P2ALIGN(end, zv->zv_volblocksize);
 
 	if (start >= end) {
-		blk_end_request(req, 0, blk_rq_bytes(req));
+		error = 0;
 		goto out;
 	}
 
@@ -681,10 +666,9 @@ zvol_discard(void *arg)
 	 */
 
 	zfs_range_unlock(rl);
-
-	blk_end_request(req, -error, blk_rq_bytes(req));
 out:
-	current->flags &= ~PF_NOFS;
+	blk_end_request(req, -error, blk_rq_bytes(req));
+	spl_fstrans_unmark(cookie);
 }
 #endif /* HAVE_BLK_QUEUE_DISCARD */
 
@@ -700,14 +684,15 @@ zvol_read(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = blk_rq_pos(req) << 9;
 	uint64_t size = blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
 
 	if (size == 0) {
-		blk_end_request(req, 0, size);
-		return;
+		error = 0;
+		goto out;
 	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
@@ -720,7 +705,9 @@ zvol_read(void *arg)
 	if (error == ECKSUM)
 		error = SET_ERROR(EIO);
 
+out:
 	blk_end_request(req, -error, size);
+	spl_fstrans_unmark(cookie);
 }
 
 /*
@@ -838,7 +825,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	ASSERT(zio != NULL);
 	ASSERT(size != 0);
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_PUSHPAGE);
+	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_zilog = zv->zv_zilog;
 	zgd->zgd_rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 
@@ -1247,7 +1234,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zvol_state_t *zv;
 	int error = 0;
 
-	zv = kmem_zalloc(sizeof (zvol_state_t), KM_PUSHPAGE);
+	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 
 	spin_lock_init(&zv->zv_lock);
 	list_link_init(&zv->zv_next);
@@ -1327,7 +1314,7 @@ __zvol_snapdev_hidden(const char *name)
 	char *atp;
 	int error = 0;
 
-	parent = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+	parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 	(void) strlcpy(parent, name, MAXPATHLEN);
 
 	if ((atp = strrchr(parent, '@')) != NULL) {
@@ -1366,7 +1353,7 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 			goto out;
 	}
 
-	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_PUSHPAGE);
+	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
 	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
 	if (error)
@@ -1578,7 +1565,7 @@ zvol_rename_minors(const char *oldname, const char *newname)
 
 	oldnamelen = strlen(oldname);
 	newnamelen = strlen(newname);
-	name = kmem_alloc(MAXNAMELEN, KM_PUSHPAGE);
+	name = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 
 	mutex_enter(&zvol_state_lock);
 

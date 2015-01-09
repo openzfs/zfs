@@ -78,7 +78,7 @@ zfs_dbgmsg(const char *fmt, ...)
 	 * There is one byte of string in sizeof (zfs_dbgmsg_t), used
 	 * for the terminating null.
 	 */
-	zdm = kmem_alloc(sizeof (zfs_dbgmsg_t) + size, KM_PUSHPAGE);
+	zdm = kmem_alloc(sizeof (zfs_dbgmsg_t) + size, KM_SLEEP);
 	zdm->zdm_timestamp = gethrestime_sec();
 
 	va_start(adx, fmt);

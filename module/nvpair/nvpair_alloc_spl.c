@@ -30,13 +30,13 @@
 static void *
 nv_alloc_sleep_spl(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_alloc(size, KM_SLEEP | KM_NODEBUG));
+	return (kmem_alloc(size, KM_SLEEP));
 }
 
 static void *
 nv_alloc_pushpage_spl(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_alloc(size, KM_PUSHPAGE | KM_NODEBUG));
+	return (kmem_alloc(size, KM_PUSHPAGE));
 }
 
 static void *

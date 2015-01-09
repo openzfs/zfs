@@ -501,7 +501,7 @@ spa_deadman(void *arg)
 		vdev_deadman(spa->spa_root_vdev);
 
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_taskq,
-	    spa_deadman, spa, TQ_PUSHPAGE, ddi_get_lbolt() +
+	    spa_deadman, spa, KM_SLEEP, ddi_get_lbolt() +
 	    NSEC_TO_TICK(spa->spa_deadman_synctime));
 }
 
@@ -520,7 +520,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
-	spa = kmem_zalloc(sizeof (spa_t), KM_PUSHPAGE | KM_NODEBUG);
+	spa = kmem_zalloc(sizeof (spa_t), KM_SLEEP);
 
 	mutex_init(&spa->spa_async_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_errlist_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -570,12 +570,12 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	list_create(&spa->spa_config_list, sizeof (spa_config_dirent_t),
 	    offsetof(spa_config_dirent_t, scd_link));
 
-	dp = kmem_zalloc(sizeof (spa_config_dirent_t), KM_PUSHPAGE);
+	dp = kmem_zalloc(sizeof (spa_config_dirent_t), KM_SLEEP);
 	dp->scd_path = altroot ? NULL : spa_strdup(spa_config_path);
 	list_insert_head(&spa->spa_config_list, dp);
 
 	VERIFY(nvlist_alloc(&spa->spa_load_info, NV_UNIQUE_NAME,
-	    KM_PUSHPAGE) == 0);
+	    KM_SLEEP) == 0);
 
 	if (config != NULL) {
 		nvlist_t *features;
@@ -591,7 +591,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 
 	if (spa->spa_label_features == NULL) {
 		VERIFY(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
-		    KM_PUSHPAGE) == 0);
+		    KM_SLEEP) == 0);
 	}
 
 	spa->spa_debug = ((zfs_flags & ZFS_DEBUG_SPA) != 0);
@@ -772,7 +772,7 @@ spa_aux_add(vdev_t *vd, avl_tree_t *avl)
 	if ((aux = avl_find(avl, &search, &where)) != NULL) {
 		aux->aux_count++;
 	} else {
-		aux = kmem_zalloc(sizeof (spa_aux_t), KM_PUSHPAGE);
+		aux = kmem_zalloc(sizeof (spa_aux_t), KM_SLEEP);
 		aux->aux_guid = vd->vdev_guid;
 		aux->aux_count = 1;
 		avl_insert(avl, aux, where);
@@ -1280,7 +1280,7 @@ spa_strdup(const char *s)
 	char *new;
 
 	len = strlen(s);
-	new = kmem_alloc(len + 1, KM_PUSHPAGE);
+	new = kmem_alloc(len + 1, KM_SLEEP);
 	bcopy(s, new, len);
 	new[len] = '\0';
 

@@ -248,7 +248,7 @@ zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
 	size_t count = kiocb->ki_nbytes;
 	ssize_t read;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
-	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP | KM_NODEBUG);
+	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
 	bcopy(iovp, iov_tmp, alloc_size);
 
 	ASSERT(iovp);
@@ -325,7 +325,7 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
 	size_t count = kiocb->ki_nbytes;
 	ssize_t wrote;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
-	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP | KM_NODEBUG);
+	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
 	bcopy(iovp, iov_tmp, alloc_size);
 
 	ASSERT(iovp);
@@ -481,19 +481,14 @@ int
 zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 {
 	struct address_space *mapping = data;
+	fstrans_cookie_t cookie;
 
 	ASSERT(PageLocked(pp));
 	ASSERT(!PageWriteback(pp));
-	ASSERT(!(current->flags & PF_NOFS));
 
-	/*
-	 * Annotate this call path with a flag that indicates that it is
-	 * unsafe to use KM_SLEEP during memory allocations due to the
-	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
-	 */
-	current->flags |= PF_NOFS;
+	cookie = spl_fstrans_mark();
 	(void) zfs_putpage(mapping->host, pp, wbc);
-	current->flags &= ~PF_NOFS;
+	spl_fstrans_unmark(cookie);
 
 	return (0);
 }

@@ -192,7 +192,7 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
 {
 	metaslab_class_t *mc;
 
-	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_PUSHPAGE);
+	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_SLEEP);
 
 	mc->mc_spa = spa;
 	mc->mc_rotor = NULL;
@@ -286,7 +286,7 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 		return;
 
 	mc_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
-	    KM_PUSHPAGE);
+	    KM_SLEEP);
 
 	for (c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
@@ -482,7 +482,7 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
 	metaslab_group_t *mg;
 
-	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_PUSHPAGE);
+	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_SLEEP);
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&mg->mg_metaslab_tree, metaslab_compare,
 	    sizeof (metaslab_t), offsetof(struct metaslab, ms_group_node));
@@ -598,7 +598,7 @@ metaslab_group_histogram_verify(metaslab_group_t *mg)
 		return;
 
 	mg_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
-	    KM_PUSHPAGE);
+	    KM_SLEEP);
 
 	ASSERT3U(RANGE_TREE_HISTOGRAM_SIZE, >=,
 	    SPACE_MAP_HISTOGRAM_SIZE + ashift);
@@ -1246,7 +1246,7 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 	metaslab_t *ms;
 	int error;
 
-	ms = kmem_zalloc(sizeof (metaslab_t), KM_PUSHPAGE);
+	ms = kmem_zalloc(sizeof (metaslab_t), KM_SLEEP);
 	mutex_init(&ms->ms_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&ms->ms_load_cv, NULL, CV_DEFAULT, NULL);
 	ms->ms_id = id;
@@ -1639,7 +1639,7 @@ metaslab_group_preload(metaslab_group_t *mg)
 		 */
 		mutex_exit(&mg->mg_lock);
 		VERIFY(taskq_dispatch(mg->mg_taskq, metaslab_preload,
-		    msp, TQ_PUSHPAGE) != 0);
+		    msp, TQ_SLEEP) != 0);
 		mutex_enter(&mg->mg_lock);
 		msp = msp_next;
 	}

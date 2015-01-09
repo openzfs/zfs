@@ -328,9 +328,7 @@ void
 vdev_queue_init(vdev_t *vd)
 {
 	vdev_queue_t *vq = &vd->vdev_queue;
-	int max_active_sum;
 	zio_priority_t p;
-	int i;
 
 	mutex_init(&vq->vq_lock, NULL, MUTEX_DEFAULT, NULL);
 	vq->vq_vdev = vd;
@@ -352,38 +350,17 @@ vdev_queue_init(vdev_t *vd)
 		    vdev_queue_offset_compare,
 		    sizeof (zio_t), offsetof(struct zio, io_queue_node));
 	}
-
-	/*
-	 * A list of buffers which can be used for aggregate I/O, this
-	 * avoids the need to allocate them on demand when memory is low.
-	 */
-	list_create(&vq->vq_io_list, sizeof (vdev_io_t),
-	    offsetof(vdev_io_t, vi_node));
-
-	max_active_sum = zfs_vdev_sync_read_max_active +
-	    zfs_vdev_sync_write_max_active + zfs_vdev_async_read_max_active +
-	    zfs_vdev_async_write_max_active + zfs_vdev_scrub_max_active;
-	for (i = 0; i < max_active_sum; i++)
-		list_insert_tail(&vq->vq_io_list, zio_vdev_alloc());
 }
 
 void
 vdev_queue_fini(vdev_t *vd)
 {
 	vdev_queue_t *vq = &vd->vdev_queue;
-	vdev_io_t *vi;
 	zio_priority_t p;
 
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++)
 		avl_destroy(&vq->vq_class[p].vqc_queued_tree);
 	avl_destroy(&vq->vq_active_tree);
-
-	while ((vi = list_head(&vq->vq_io_list)) != NULL) {
-		list_remove(&vq->vq_io_list, vi);
-		zio_vdev_free(vi);
-	}
-
-	list_destroy(&vq->vq_io_list);
 
 	mutex_destroy(&vq->vq_lock);
 }
@@ -468,9 +445,6 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 static void
 vdev_queue_agg_io_done(zio_t *aio)
 {
-	vdev_queue_t *vq = &aio->io_vd->vdev_queue;
-	vdev_io_t *vi = aio->io_data;
-
 	if (aio->io_type == ZIO_TYPE_READ) {
 		zio_t *pio;
 		while ((pio = zio_walk_parents(aio)) != NULL) {
@@ -479,9 +453,7 @@ vdev_queue_agg_io_done(zio_t *aio)
 		}
 	}
 
-	mutex_enter(&vq->vq_lock);
-	list_insert_tail(&vq->vq_io_list, vi);
-	mutex_exit(&vq->vq_lock);
+	zio_buf_free(aio->io_data, aio->io_size);
 }
 
 /*
@@ -496,7 +468,6 @@ vdev_queue_agg_io_done(zio_t *aio)
 static zio_t *
 vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 {
-	vdev_io_t *vi;
 	zio_t *first, *last, *aio, *dio, *mandatory, *nio;
 	uint64_t maxgap = 0;
 	uint64_t size;
@@ -528,12 +499,6 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 
 	if (zio->io_type == ZIO_TYPE_READ)
 		maxgap = zfs_vdev_read_gap_limit;
-
-	vi = list_head(&vq->vq_io_list);
-	if (vi == NULL) {
-		vi = zio_vdev_alloc();
-		list_insert_head(&vq->vq_io_list, vi);
-	}
 
 	/*
 	 * We can aggregate I/Os that are sufficiently adjacent and of
@@ -622,13 +587,11 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	if (first == last)
 		return (NULL);
 
-	ASSERT(vi != NULL);
-
 	size = IO_SPAN(first, last);
 	ASSERT3U(size, <=, zfs_vdev_aggregation_limit);
 
 	aio = zio_vdev_delegated_io(first->io_vd, first->io_offset,
-	    vi, size, first->io_type, zio->io_priority,
+	    zio_buf_alloc(size), size, first->io_type, zio->io_priority,
 	    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 	    vdev_queue_agg_io_done, NULL);
 	aio->io_timestamp = first->io_timestamp;
@@ -654,8 +617,6 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		zio_vdev_io_bypass(dio);
 		zio_execute(dio);
 	} while (dio != last);
-
-	list_remove(&vq->vq_io_list, vi);
 
 	return (aio);
 }

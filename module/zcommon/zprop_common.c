@@ -175,7 +175,7 @@ zprop_iter_common(zprop_func func, void *cb, boolean_t show_all,
 	size = num_props * sizeof (zprop_desc_t *);
 
 #if defined(_KERNEL)
-	order = kmem_alloc(size, KM_PUSHPAGE);
+	order = kmem_alloc(size, KM_SLEEP);
 #else
 	if ((order = malloc(size)) == NULL)
 		return (ZPROP_CONT);

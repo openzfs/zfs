@@ -824,7 +824,7 @@ zpl_get_acl(struct inode *ip, int type)
 
 	size = zpl_xattr_get(ip, name, NULL, 0);
 	if (size > 0) {
-		value = kmem_alloc(size, KM_PUSHPAGE);
+		value = kmem_alloc(size, KM_SLEEP);
 		size = zpl_xattr_get(ip, name, value, size);
 	}
 

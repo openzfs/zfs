@@ -41,6 +41,8 @@
 #include <sys/bitmap.h>
 #include <sys/cmn_err.h>
 #include <sys/kmem.h>
+#include <sys/kmem_cache.h>
+#include <sys/vmem.h>
 #include <sys/taskq.h>
 #include <sys/buf.h>
 #include <sys/param.h>
@@ -391,7 +393,6 @@ extern void kstat_set_raw_ops(kstat_t *ksp,
 #define	KM_SLEEP		UMEM_NOFAIL
 #define	KM_PUSHPAGE		KM_SLEEP
 #define	KM_NOSLEEP		UMEM_DEFAULT
-#define	KM_NODEBUG		0x0
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KMEM		0x0
 #define	KMC_VMEM		0x0
@@ -447,7 +448,6 @@ typedef struct taskq_ent {
 
 #define	TQ_SLEEP	KM_SLEEP	/* Can block for memory */
 #define	TQ_NOSLEEP	KM_NOSLEEP	/* cannot block for memory; may fail */
-#define	TQ_PUSHPAGE	KM_PUSHPAGE	/* Cannot perform I/O */
 #define	TQ_NOQUEUE	0x02		/* Do not enqueue if can't dispatch */
 #define	TQ_FRONT	0x08		/* Queue in front */
 
@@ -733,6 +733,11 @@ void ksiddomain_rele(ksiddomain_t *);
 		(void) nanosleep(&ts, NULL);				\
 	} while (0)
 
-#endif /* _KERNEL */
+typedef int fstrans_cookie_t;
 
+extern fstrans_cookie_t spl_fstrans_mark(void);
+extern void spl_fstrans_unmark(fstrans_cookie_t);
+extern int spl_fstrans_check(void);
+
+#endif /* _KERNEL */
 #endif	/* _SYS_ZFS_CONTEXT_H */

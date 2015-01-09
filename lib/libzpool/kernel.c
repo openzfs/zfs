@@ -1275,3 +1275,20 @@ zfs_onexit_cb_data(minor_t minor, uint64_t action_handle, void **data)
 {
 	return (0);
 }
+
+fstrans_cookie_t
+spl_fstrans_mark(void)
+{
+	return ((fstrans_cookie_t) 0);
+}
+
+void
+spl_fstrans_unmark(fstrans_cookie_t cookie)
+{
+}
+
+int
+spl_fstrans_check(void)
+{
+	return (0);
+}
