@@ -140,6 +140,15 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
 	"Objects less than N bytes use the kmalloc");
 
 /*
+ * The number of threads available to allocate new slabs for caches.  This
+ * should not need to be tuned but it is available for performance analysis.
+ */
+unsigned int spl_kmem_cache_kmem_threads = 4;
+module_param(spl_kmem_cache_kmem_threads, uint, 0444);
+MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
+	"Number of spl_kmem_cache threads");
+
+/*
  * Slab allocation interfaces
  *
  * While the Linux slab implementation was inspired by the Solaris
@@ -544,14 +553,14 @@ spl_emergency_free(spl_kmem_cache_t *skc, void *obj)
 
 	spin_lock(&skc->skc_lock);
 	ske = spl_emergency_search(&skc->skc_emergency_tree, obj);
-	if (likely(ske)) {
+	if (ske) {
 		rb_erase(&ske->ske_node, &skc->skc_emergency_tree);
 		skc->skc_obj_emergency--;
 		skc->skc_obj_total--;
 	}
 	spin_unlock(&skc->skc_lock);
 
-	if (unlikely(ske == NULL))
+	if (ske == NULL)
 		return (-ENOENT);
 
 	kfree(ske->ske_obj);
@@ -1237,7 +1246,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 		remaining = wait_event_timeout(skc->skc_waitq,
 		    spl_cache_grow_wait(skc), HZ / 10);
 
-		if (!remaining && test_bit(KMC_BIT_VMEM, &skc->skc_flags)) {
+		if (!remaining) {
 			spin_lock(&skc->skc_lock);
 			if (test_bit(KMC_BIT_GROWING, &skc->skc_flags)) {
 				set_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
@@ -1464,6 +1473,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	spl_kmem_magazine_t *skm;
 	unsigned long flags;
 	int do_reclaim = 0;
+	int do_emergency = 0;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
@@ -1484,13 +1494,18 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	}
 
 	/*
-	 * Only virtual slabs may have emergency objects and these objects
-	 * are guaranteed to have physical addresses.  They must be removed
-	 * from the tree of emergency objects and the freed.
+	 * While a cache has outstanding emergency objects all freed objects
+	 * must be checked.  However, since emergency objects will never use
+	 * a virtual address these objects can be safely excluded as an
+	 * optimization.
 	 */
-	if ((skc->skc_flags & KMC_VMEM) && !is_vmalloc_addr(obj)) {
-		spl_emergency_free(skc, obj);
-		goto out;
+	if (!is_vmalloc_addr(obj)) {
+		spin_lock(&skc->skc_lock);
+		do_emergency = (skc->skc_obj_emergency > 0);
+		spin_unlock(&skc->skc_lock);
+
+		if (do_emergency && (spl_emergency_free(skc, obj) == 0))
+			goto out;
 	}
 
 	local_irq_save(flags);
@@ -1702,7 +1717,7 @@ spl_kmem_cache_init(void)
 	init_rwsem(&spl_kmem_cache_sem);
 	INIT_LIST_HEAD(&spl_kmem_cache_list);
 	spl_kmem_cache_taskq = taskq_create("spl_kmem_cache",
-	    1, maxclsyspri, 1, 32, TASKQ_PREPOPULATE);
+	    spl_kmem_cache_kmem_threads, maxclsyspri, 1, 32, TASKQ_PREPOPULATE);
 	spl_register_shrinker(&spl_kmem_cache_shrinker);
 
 	return (0);
