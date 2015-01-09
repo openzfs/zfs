@@ -219,4 +219,9 @@ zpool_feature_init(void)
 	    "com.delphix:embedded_data", "embedded_data",
 	    "Blocks which compress very well use even less space.",
 	    B_FALSE, B_TRUE, B_TRUE, NULL);
+
+	zfeature_register(SPA_FEATURE_USERDN_ACCOUNTING,
+            "org.zfsonlinux:user_dnode_accounting", "userdn_accounting",
+            "User/Group dnode accounting.", B_TRUE, B_FALSE,
+            B_FALSE, NULL);
 }

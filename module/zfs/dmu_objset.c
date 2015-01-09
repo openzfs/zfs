@@ -46,6 +46,7 @@
 #include <sys/sa.h>
 #include <sys/zfs_onexit.h>
 #include <sys/dsl_destroy.h>
+#include <sys/zfeature.h>
 
 /*
  * Needed to close a window in dnode_move() that allows the objset to be freed
@@ -742,6 +743,9 @@ dmu_objset_create_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_phys->os_type = type;
 	if (dmu_objset_userused_enabled(os)) {
 		os->os_phys->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
+		if (dmu_objset_userdnused_enabled(os))
+			os->os_phys->os_flags |=
+				OBJSET_FLAG_USERDNACCOUNTING_COMPLETE;
 		os->os_flags = os->os_phys->os_flags;
 	}
 
@@ -1125,6 +1129,14 @@ dmu_objset_userused_enabled(objset_t *os)
 	    DMU_USERUSED_DNODE(os) != NULL);
 }
 
+boolean_t
+dmu_objset_userdnused_enabled(objset_t *os)
+{
+	return dmu_objset_userused_enabled(os) &&
+	       spa_feature_is_enabled(os->os_spa,
+				      SPA_FEATURE_USERDN_ACCOUNTING);
+}
+
 static void
 do_userquota_update(objset_t *os, uint64_t used, uint64_t flags,
     uint64_t user, uint64_t group, boolean_t subtract, dmu_tx_t *tx)
@@ -1137,6 +1149,28 @@ do_userquota_update(objset_t *os, uint64_t used, uint64_t flags,
 		    user, delta, tx));
 		VERIFY3U(0, ==, zap_increment_int(os, DMU_GROUPUSED_OBJECT,
 		    group, delta, tx));
+	}
+}
+
+static void
+do_userdnquota_update(objset_t *os, uint64_t flags, uint64_t user,
+    uint64_t group, boolean_t subtract, dmu_tx_t *tx)
+{
+	if (flags & DNODE_FLAG_USERDNUSED_ACCOUNTED) {
+		char name[23];
+
+		if (!spa_feature_is_active(os->os_spa,
+					   SPA_FEATURE_USERDN_ACCOUNTING))
+			spa_feature_incr(os->os_spa,
+					 SPA_FEATURE_USERDN_ACCOUNTING, tx);
+
+		(void) snprintf(name, sizeof (name), "dn-%llx", (longlong_t)user);
+		VERIFY3U(0, ==, zap_increment(os, DMU_USERUSED_OBJECT, name,
+		    subtract ? -1 : 1, tx));
+
+		(void) snprintf(name, sizeof (name), "dn-%llx", (longlong_t)group);
+		VERIFY3U(0, ==, zap_increment(os, DMU_GROUPUSED_OBJECT, name,
+		    subtract ? -1 : 1, tx));
 	}
 }
 
@@ -1178,11 +1212,15 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 		if (flags & DN_ID_OLD_EXIST)  {
 			do_userquota_update(os, dn->dn_oldused, dn->dn_oldflags,
 			    dn->dn_olduid, dn->dn_oldgid, B_TRUE, tx);
+			do_userdnquota_update(os, dn->dn_oldflags, dn->dn_olduid,
+			    dn->dn_oldgid, B_TRUE, tx);
 		}
 		if (flags & DN_ID_NEW_EXIST) {
 			do_userquota_update(os, DN_USED_BYTES(dn->dn_phys),
 			    dn->dn_phys->dn_flags,  dn->dn_newuid,
 			    dn->dn_newgid, B_FALSE, tx);
+			do_userdnquota_update(os, dn->dn_phys->dn_flags,
+			    dn->dn_newuid, dn->dn_newgid, B_FALSE, tx);
 		}
 
 		mutex_enter(&dn->dn_mtx);
@@ -1354,18 +1392,18 @@ dmu_objset_userspace_present(objset_t *os)
 	    OBJSET_FLAG_USERACCOUNTING_COMPLETE);
 }
 
-int
-dmu_objset_userspace_upgrade(objset_t *os)
+boolean_t
+dmu_objset_userdnspace_present(objset_t *os)
+{
+	return (os->os_phys->os_flags &
+	    OBJSET_FLAG_USERDNACCOUNTING_COMPLETE);
+}
+
+static int
+dmu_objset_space_upgrade(objset_t *os)
 {
 	uint64_t obj;
 	int err = 0;
-
-	if (dmu_objset_userspace_present(os))
-		return (0);
-	if (!dmu_objset_userused_enabled(os))
-		return (SET_ERROR(ENOTSUP));
-	if (dmu_objset_is_snapshot(os))
-		return (SET_ERROR(EINVAL));
 
 	/*
 	 * We simply need to mark every object dirty, so that it will be
@@ -1397,8 +1435,47 @@ dmu_objset_userspace_upgrade(objset_t *os)
 		dmu_buf_rele(db, FTAG);
 		dmu_tx_commit(tx);
 	}
+	return (0);
+}
+
+int
+dmu_objset_userspace_upgrade(objset_t *os)
+{
+	int err = 0;
+
+	if (dmu_objset_userspace_present(os))
+		return (0);
+	if (!dmu_objset_userused_enabled(os))
+		return (SET_ERROR(ENOTSUP));
+	if (dmu_objset_is_snapshot(os))
+		return (SET_ERROR(EINVAL));
+
+	err = dmu_objset_space_upgrade(os);
+	if (err)
+		return (err);
 
 	os->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
+	txg_wait_synced(dmu_objset_pool(os), 0);
+	return (0);
+}
+
+int
+dmu_objset_userdnspace_upgrade(objset_t *os)
+{
+	int err = 0;
+
+	if (dmu_objset_userdnspace_present(os))
+		return (0);
+	if (dmu_objset_is_snapshot(os))
+		return (0);
+	if (!dmu_objset_userdnused_enabled(os))
+		return (SET_ERROR(ENOTSUP));
+
+	err = dmu_objset_space_upgrade(os);
+	if (err)
+		return (err);
+
+	os->os_flags |= OBJSET_FLAG_USERDNACCOUNTING_COMPLETE;
 	txg_wait_synced(dmu_objset_pool(os), 0);
 	return (0);
 }
@@ -1841,4 +1918,7 @@ EXPORT_SYMBOL(dmu_objset_userquota_get_ids);
 EXPORT_SYMBOL(dmu_objset_userused_enabled);
 EXPORT_SYMBOL(dmu_objset_userspace_upgrade);
 EXPORT_SYMBOL(dmu_objset_userspace_present);
+EXPORT_SYMBOL(dmu_objset_userdnused_enabled);
+EXPORT_SYMBOL(dmu_objset_userdnspace_upgrade);
+EXPORT_SYMBOL(dmu_objset_userdnspace_present);
 #endif
