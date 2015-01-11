@@ -54,17 +54,14 @@
 static inline void
 gethrestime(timestruc_t *now)
 {
-	struct timespec ts;
-	getnstimeofday(&ts);
-	now->tv_sec = ts.tv_sec;
-	now->tv_nsec = ts.tv_nsec;
+	*now = current_kernel_time();
 }
 
 static inline time_t
 gethrestime_sec(void)
 {
 	struct timespec ts;
-	getnstimeofday(&ts);
+	ts = current_kernel_time();
 	return (ts.tv_sec);
 }
 
