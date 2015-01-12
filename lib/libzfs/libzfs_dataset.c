@@ -1874,6 +1874,17 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		mntopt_on = MNTOPT_NBMAND;
 		mntopt_off = MNTOPT_NONBMAND;
 		break;
+
+	case ZFS_PROP_DIROWNER:
+		mntopt_on = MNTOPT_DIROWNER;
+		mntopt_off = MNTOPT_NODIROWNER;
+		break;
+
+	case ZFS_PROP_DIRGROUP:
+		mntopt_on = MNTOPT_DIRGROUP;
+		mntopt_off = MNTOPT_NODIRGROUP;
+		break;
+
 	default:
 		break;
 	}
@@ -1910,6 +1921,8 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_SETUID:
 	case ZFS_PROP_XATTR:
 	case ZFS_PROP_NBMAND:
+	case ZFS_PROP_DIROWNER:
+	case ZFS_PROP_DIRGROUP:
 		*val = getprop_uint64(zhp, prop, source);
 
 		if (received)

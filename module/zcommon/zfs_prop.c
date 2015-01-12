@@ -297,6 +297,10 @@ zfs_prop_init(void)
 	    boolean_table);
 	zprop_register_index(ZFS_PROP_OVERLAY, "overlay", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "OVERLAY", boolean_table);
+	zprop_register_index(ZFS_PROP_DIROWNER, "dirowner", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "DIROWNER", boolean_table);
+	zprop_register_index(ZFS_PROP_DIRGROUP, "dirgroup", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "DIRGROUP", boolean_table);
 
 	/* default index properties */
 	zprop_register_index(ZFS_PROP_VERSION, "version", 0, PROP_DEFAULT,
@@ -360,6 +364,12 @@ zfs_prop_init(void)
 	zprop_register_string(ZFS_PROP_SELINUX_ROOTCONTEXT, "rootcontext",
 	    "none", PROP_DEFAULT, ZFS_TYPE_DATASET, "<selinux rootcontext>",
 	    "ROOTCONTEXT");
+	zprop_register_string(ZFS_PROP_UID, "uid",
+	    "none", PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "<uid|username>",
+	    "UID");
+	zprop_register_string(ZFS_PROP_GID, "gid",
+	    "none", PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "<gid|groupname>",
+	    "GID");
 
 	/* readonly number properties */
 	zprop_register_number(ZFS_PROP_USED, "used", 0, PROP_READONLY,

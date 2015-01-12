@@ -447,6 +447,16 @@ This property is \fBon\fR if the snapshot has been marked for deferred destructi
 
 .sp
 .ne 2
+.na
+\fB\fBgid\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls whether the \fBgid\fR=\fIid\fR option is passed to mount.zfs(8) when importing or mounting a filesystem.  It causes all files to appear to have the specified group owner.
+.RE
+
+.sp
+.ne 2
 .mk
 .na
 \fB\fBlogicalreferenced\fR\fR
@@ -536,6 +546,16 @@ property.
 .sp .6
 .RS 4n
 The type of dataset: \fBfilesystem\fR, \fBvolume\fR, or \fBsnapshot\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBuid\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls whether the \fBuid\fR=\fIid\fR option is passed to mount.zfs(8) when importing or mounting a filesystem.  It causes all files to appear to have the specified owner.
 .RE
 
 .sp
@@ -856,6 +876,28 @@ Unless necessary, deduplication should NOT be enabled on a system. See \fBDedupl
 .sp .6
 .RS 4n
 Controls whether device nodes can be opened on this file system. The default value is \fBon\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBdirgroup\fR=\fBon\fR | \fBoff\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls whether the \fBdirgroup\fR option is passed to mount.zfs(8) when importing or mounting a filesystem.  It causes newly-created files to inherit the group id of their containing directory. The default value is \fBoff\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBdirowner\fR=\fBon\fR | \fBoff\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls whether the \fBdirowner\fR option is passed to mount.zfs(8) when importing or mounting a filesystem.  It causes newly-created files to inherit the owner id of their containing directory. The default value is \fBoff\fR.
 .RE
 
 .sp
