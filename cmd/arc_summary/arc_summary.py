@@ -46,14 +46,14 @@ import sys
 import time
 import getopt
 import re
-
+from os import listdir
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
 
 usetunable = True
-show_sysctl_descriptions = False
-alternate_sysctl_layout = False
+show_tunable_descriptions = False
+alternate_tunable_layout = False
 kstat_pobj = re.compile("^([^:]+):\s+(.+)\s*$", flags=re.M)
 
 
@@ -1016,70 +1016,59 @@ def _vdev_summary(Kstat):
         ))
 
 
-def get_systl_summary(Kstat):
-    output = {}
-    return output
+def _tunable_summary(Kstat):
+    global show_tunable_descriptions
+    global alternate_tunable_layout
 
+    names = listdir("/sys/module/zfs/parameters/")
 
-def _sysctl_summary(Kstat):
-    global show_sysctl_descriptions
-    global alternate_sysctl_layout
+    values = {}
+    for name in names:
+        with open("/sys/module/zfs/parameters/" + name) as f: value = f.read()
+        values[name] = value.strip()
 
-    Tunable = [
-        "kern.maxusers",
-        "vm.kmem_size",
-        "vm.kmem_size_scale",
-        "vm.kmem_size_min",
-        "vm.kmem_size_max",
-        "vfs.zfs"
-    ]
+    descriptions = {}
 
-    if not usetunable:
-        return
+    if show_tunable_descriptions:
+        try:
+            command = ["/sbin/modinfo", "zfs", "-0"]
+            p = Popen(command, stdin=PIPE, stdout=PIPE,
+                    stderr=PIPE, shell=False, close_fds=True)
+            p.wait()
 
-    sysctl_descriptions = {}
-    if show_sysctl_descriptions:
-        tunables = " ".join(str(x) for x in Tunable)
-        p = Popen("/sbin/sysctl -qde %s" % tunables, stdin=PIPE,
-            stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
-        p.wait()
+            description_list = p.communicate()[0].strip().split('\0')
 
-        descriptions = p.communicate()[0].split('\n')
-        if p.returncode != 0:
-            sys.exit(1)
+            if p.returncode == 0:
+                for tunable in description_list:
+                    if tunable[0:5] == 'parm:':
+                        tunable = tunable[5:].strip()
+                        name, description = tunable.split(':', 1)
+                        if not description:
+                            description = "Description unavailable"
+                        descriptions[name] = description
+            else:
+                sys.stderr.write("%s: '%s' exited with code %i\n" %
+                        (sys.argv[0], command[0], p.returncode))
+                sys.stderr.write("Tunable descriptions will be disabled.\n")
+        except OSError as e:
+            sys.stderr.write("%s: Cannot run '%s': %s\n" %
+                    (sys.argv[0], command[0], e.strerror))
+            sys.stderr.write("Tunable descriptions will be disabled.\n")
 
-        for tunable in descriptions:
-            if not tunable:
-                continue
-            tunable = tunable.strip()
-            name, description = tunable.split('=')[:2]
-            name = name.strip()
-            description = description.strip()
-            if not description:
-                description = "Description unavailable"
-            sysctl_descriptions[name] = description
-
-    tunables = " ".join(str(x) for x in Tunable)
-    p = Popen("/sbin/sysctl -qe %s" % tunables, stdin=PIPE,
-        stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
-    p.wait()
-
-    zfs_tunables = p.communicate()[0].split('\n')
-    if p.returncode != 0:
-        sys.exit(1)
-
-    sys.stdout.write("ZFS Tunable (sysctl):\n")
-    for tunable in zfs_tunables:
-        if not tunable:
+    sys.stdout.write("ZFS Tunable:\n")
+    for name in names:
+        if not name:
             continue
-        tunable = tunable.strip()
-        name, value = tunable.split("=")[0:2]
-        name = name.strip()
-        value = D(value.strip())
-        format = "\t%s=%d\n" if alternate_sysctl_layout else "\t%-40s%d\n"
-        if show_sysctl_descriptions:
-            sys.stdout.write("\t\# %s\n" % sysctl_descriptions[name])
-        sys.stdout.write(format % (name, value))
+
+        format = "\t%-50s%s\n"
+        if alternate_tunable_layout:
+            format = "\t%s=%s\n"
+
+        if show_tunable_descriptions and descriptions.has_key(name):
+            sys.stdout.write("\t# %s\n" % descriptions[name])
+
+        sys.stdout.write(format % (name, values[name]))
+
 
 unSub = [
     _arc_summary,
@@ -1087,7 +1076,9 @@ unSub = [
     _l2arc_summary,
     _dmu_summary,
     _vdev_summary,
+    _tunable_summary
 ]
+
 
 def zfs_header():
     daydate = time.strftime("%a %b %d %H:%M:%S %Y")
@@ -1116,8 +1107,8 @@ def usage():
     sys.stdout.write("\tarc_summary.py --page=2\n")
 
 def main():
-    global show_sysctl_descriptions
-    global alternate_sysctl_layout
+    global show_tunable_descriptions
+    global alternate_tunable_layout
 
     opts, args = getopt.getopt(
         sys.argv[1:], "adp:h", ["alternate", "description", "page=", "help"]
@@ -1137,8 +1128,8 @@ def main():
 
     Kstat = get_Kstat()
 
-    alternate_sysctl_layout = 'a' in args
-    show_sysctl_descriptions = 'd' in args
+    alternate_tunable_layout = 'a' in args
+    show_tunable_descriptions = 'd' in args
 
     pages = []
 
@@ -1146,7 +1137,7 @@ def main():
         try:
             pages.append(unSub[int(args['p']) - 1])
         except IndexError , e:
-            sys.stderr.write('the argument to -p must be between 1 and ' + 
+            sys.stderr.write('the argument to -p must be between 1 and ' +
                     str(len(unSub)) + '\n')
             sys.exit()
     else:
