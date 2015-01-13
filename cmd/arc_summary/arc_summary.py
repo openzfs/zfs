@@ -83,9 +83,12 @@ def get_Kstat():
         "vfs.zfs"
     ]
     Kstat = {}
-    load_proc_kstats('/proc/spl/kstat/zfs/arcstats', 'kstat.zfs.misc.arcstats.')
-    load_proc_kstats('/proc/spl/kstat/zfs/zfetchstats', 'kstat.zfs.misc.zfetchstats.')
-    load_proc_kstats('/proc/spl/kstat/zfs/vdev_cache_stats', 'kstat.zfs.misc.vdev_cache_stats.')
+    load_proc_kstats('/proc/spl/kstat/zfs/arcstats',
+            'kstat.zfs.misc.arcstats.')
+    load_proc_kstats('/proc/spl/kstat/zfs/zfetchstats',
+            'kstat.zfs.misc.zfetchstats.')
+    load_proc_kstats('/proc/spl/kstat/zfs/vdev_cache_stats',
+            'kstat.zfs.misc.vdev_cache_stats.')
 
     return Kstat
 
@@ -292,15 +295,19 @@ def _arc_summary(Kstat):
 
     sys.stdout.write("ARC Summary: (%s)\n" % arc['health'])
 
-    sys.stdout.write("\tMemory Throttle Count:\t\t\t%s\n" % arc['memory_throttle_count'])
+    sys.stdout.write("\tMemory Throttle Count:\t\t\t%s\n" %
+            arc['memory_throttle_count'])
     sys.stdout.write("\n")
 
     ### ARC Misc. ###
     sys.stdout.write("ARC Misc:\n")
     sys.stdout.write("\tDeleted:\t\t\t\t%s\n" % arc['arc_misc']['deleted'])
-    sys.stdout.write("\tRecycle Misses:\t\t\t\t%s\n" % arc['arc_misc']['recycle_miss'])
-    sys.stdout.write("\tMutex Misses:\t\t\t\t%s\n" % arc['arc_misc']['mutex_miss'])
-    sys.stdout.write("\tEvict Skips:\t\t\t\t%s\n" % arc['arc_misc']['mutex_miss'])
+    sys.stdout.write("\tRecycle Misses:\t\t\t\t%s\n" %
+            arc['arc_misc']['recycle_miss'])
+    sys.stdout.write("\tMutex Misses:\t\t\t\t%s\n" %
+            arc['arc_misc']['mutex_miss'])
+    sys.stdout.write("\tEvict Skips:\t\t\t\t%s\n" %
+            arc['arc_misc']['mutex_miss'])
     sys.stdout.write("\n")
 
     ### ARC Sizing ###
@@ -343,15 +350,19 @@ def _arc_summary(Kstat):
 
     ### ARC Hash Breakdown ###
     sys.stdout.write("ARC Hash Breakdown:\n")
-    sys.stdout.write("\tElements Max:\t\t\t\t%s\n" % arc['arc_hash_break']['elements_max'])
+    sys.stdout.write("\tElements Max:\t\t\t\t%s\n" %
+            arc['arc_hash_break']['elements_max'])
     sys.stdout.write("\tElements Current:\t\t%s\t%s\n" % (
         arc['arc_hash_break']['elements_current']['per'],
         arc['arc_hash_break']['elements_current']['num'],
         )
     )
-    sys.stdout.write("\tCollisions:\t\t\t\t%s\n" % arc['arc_hash_break']['collisions'])
-    sys.stdout.write("\tChain Max:\t\t\t\t%s\n" % arc['arc_hash_break']['chain_max'])
-    sys.stdout.write("\tChains:\t\t\t\t\t%s\n" % arc['arc_hash_break']['chains'])
+    sys.stdout.write("\tCollisions:\t\t\t\t%s\n" %
+            arc['arc_hash_break']['collisions'])
+    sys.stdout.write("\tChain Max:\t\t\t\t%s\n" %
+            arc['arc_hash_break']['chain_max'])
+    sys.stdout.write("\tChains:\t\t\t\t\t%s\n" %
+            arc['arc_hash_break']['chains'])
 
 
 def get_arc_efficiency(Kstat):
@@ -480,7 +491,8 @@ def get_arc_efficiency(Kstat):
 def _arc_efficiency(Kstat):
     arc = get_arc_efficiency(Kstat)
 
-    sys.stdout.write("ARC Total accesses:\t\t\t\t\t%s\n" % arc['total_accesses'])
+    sys.stdout.write("ARC Total accesses:\t\t\t\t\t%s\n" %
+            arc['total_accesses'])
     sys.stdout.write("\tCache Hit Ratio:\t\t%s\t%s\n" % (
         arc['cache_hit_ratio']['per'],
         arc['cache_hit_ratio']['num'],
@@ -690,14 +702,16 @@ def _l2arc_summary(Kstat):
             sys.stdout.write("(DEGRADED)\n")
         else:
             sys.stdout.write("(HEALTHY)\n")
-        sys.stdout.write("\tLow Memory Aborts:\t\t\t%s\n" % arc['low_memory_aborts'])
+        sys.stdout.write("\tLow Memory Aborts:\t\t\t%s\n" %
+                arc['low_memory_aborts'])
         sys.stdout.write("\tFree on Write:\t\t\t\t%s\n" % arc['free_on_write'])
         sys.stdout.write("\tR/W Clashes:\t\t\t\t%s\n" % arc['rw_clashes'])
         sys.stdout.write("\tBad Checksums:\t\t\t\t%s\n" % arc['bad_checksums'])
         sys.stdout.write("\tIO Errors:\t\t\t\t%s\n" % arc['io_errors'])
         sys.stdout.write("\n")
 
-        sys.stdout.write("L2 ARC Size: (Adaptive)\t\t\t\t%s\n" % arc["l2_arc_size"]["adative"])
+        sys.stdout.write("L2 ARC Size: (Adaptive)\t\t\t\t%s\n" %
+                arc["l2_arc_size"]["adative"])
         sys.stdout.write("\tCompressed:\t\t\t%s\t%s\n" % (
             arc["l2_arc_size"]["actual"]["per"],
             arc["l2_arc_size"]["actual"]["num"],
@@ -710,13 +724,17 @@ def _l2arc_summary(Kstat):
         )
         sys.stdout.write("\n")
 
-        if arc["l2_arc_evicts"]['lock_retries'] + arc["l2_arc_evicts"]["reading"] > 0:
+        if arc["l2_arc_evicts"]['lock_retries'] + \
+                arc["l2_arc_evicts"]["reading"] > 0:
             sys.stdout.write("L2 ARC Evicts:\n")
-            sys.stdout.write("\tLock Retries:\t\t\t\t%s\n" % arc["l2_arc_evicts"]['lock_retries'])
-            sys.stdout.write("\tUpon Reading:\t\t\t\t%s\n" % arc["l2_arc_evicts"]["reading"])
+            sys.stdout.write("\tLock Retries:\t\t\t\t%s\n" %
+                    arc["l2_arc_evicts"]['lock_retries'])
+            sys.stdout.write("\tUpon Reading:\t\t\t\t%s\n" %
+                    arc["l2_arc_evicts"]["reading"])
             sys.stdout.write("\n")
 
-        sys.stdout.write("L2 ARC Breakdown:\t\t\t\t%s\n" % arc['l2_arc_breakdown']['value'])
+        sys.stdout.write("L2 ARC Breakdown:\t\t\t\t%s\n" %
+                arc['l2_arc_breakdown']['value'])
         sys.stdout.write("\tHit Ratio:\t\t\t%s\t%s\n" % (
             arc['l2_arc_breakdown']['hit_ratio']['per'],
             arc['l2_arc_breakdown']['hit_ratio']['num'],
@@ -729,7 +747,8 @@ def _l2arc_summary(Kstat):
             )
         )
 
-        sys.stdout.write("\tFeeds:\t\t\t\t\t%s\n" % arc['l2_arc_breakdown']['feeds'])
+        sys.stdout.write("\tFeeds:\t\t\t\t\t%s\n" %
+                arc['l2_arc_breakdown']['feeds'])
         sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Writes:\n")
@@ -762,12 +781,16 @@ def get_dmu_summary(Kstat):
 
     zfetch_bogus_streams = Kstat["kstat.zfs.misc.zfetchstats.bogus_streams"]
     zfetch_colinear_hits = Kstat["kstat.zfs.misc.zfetchstats.colinear_hits"]
-    zfetch_colinear_misses = Kstat["kstat.zfs.misc.zfetchstats.colinear_misses"]
+    zfetch_colinear_misses = \
+            Kstat["kstat.zfs.misc.zfetchstats.colinear_misses"]
     zfetch_hits = Kstat["kstat.zfs.misc.zfetchstats.hits"]
     zfetch_misses = Kstat["kstat.zfs.misc.zfetchstats.misses"]
-    zfetch_reclaim_failures = Kstat["kstat.zfs.misc.zfetchstats.reclaim_failures"]
-    zfetch_reclaim_successes = Kstat["kstat.zfs.misc.zfetchstats.reclaim_successes"]
-    zfetch_streams_noresets = Kstat["kstat.zfs.misc.zfetchstats.streams_noresets"]
+    zfetch_reclaim_failures = \
+            Kstat["kstat.zfs.misc.zfetchstats.reclaim_failures"]
+    zfetch_reclaim_successes = \
+            Kstat["kstat.zfs.misc.zfetchstats.reclaim_successes"]
+    zfetch_streams_noresets = \
+            Kstat["kstat.zfs.misc.zfetchstats.streams_noresets"]
     zfetch_streams_resets = Kstat["kstat.zfs.misc.zfetchstats.streams_resets"]
     zfetch_stride_hits = Kstat["kstat.zfs.misc.zfetchstats.stride_hits"]
     zfetch_stride_misses = Kstat["kstat.zfs.misc.zfetchstats.stride_misses"]
@@ -776,7 +799,8 @@ def get_dmu_summary(Kstat):
     zfetch_colinear_total = (zfetch_colinear_hits + zfetch_colinear_misses)
     zfetch_health_count = (zfetch_bogus_streams)
     zfetch_reclaim_total = (zfetch_reclaim_successes + zfetch_reclaim_failures)
-    zfetch_streams_total = (zfetch_streams_resets + zfetch_streams_noresets + zfetch_bogus_streams)
+    zfetch_streams_total = (zfetch_streams_resets + zfetch_streams_noresets +
+            zfetch_bogus_streams)
     zfetch_stride_total = (zfetch_stride_hits + zfetch_stride_misses)
     output['zfetch_access_total'] = zfetch_access_total
 
@@ -859,10 +883,12 @@ def _dmu_summary(Kstat):
     arc = get_dmu_summary(Kstat)
 
     if arc['zfetch_access_total'] > 0:
-        sys.stdout.write("File-Level Prefetch: (%s)" % arc['file_level_prefetch']['health'])
+        sys.stdout.write("File-Level Prefetch: (%s)" %
+                arc['file_level_prefetch']['health'])
         sys.stdout.write("\n")
 
-        sys.stdout.write("DMU Efficiency:\t\t\t\t\t%s\n" % arc['dmu']['efficiency']['value'])
+        sys.stdout.write("DMU Efficiency:\t\t\t\t\t%s\n" %
+                arc['dmu']['efficiency']['value'])
         sys.stdout.write("\tHit Ratio:\t\t\t%s\t%s\n" % (
             arc['dmu']['efficiency']['hit_ratio']['per'],
             arc['dmu']['efficiency']['hit_ratio']['num'],
@@ -876,7 +902,8 @@ def _dmu_summary(Kstat):
 
         sys.stdout.write("\n")
 
-        sys.stdout.write("\tColinear:\t\t\t\t%s\n" % arc['dmu']['colinear']['value'])
+        sys.stdout.write("\tColinear:\t\t\t\t%s\n" %
+                arc['dmu']['colinear']['value'])
         sys.stdout.write("\t  Hit Ratio:\t\t\t%s\t%s\n" % (
             arc['dmu']['colinear']['hit_ratio']['per'],
             arc['dmu']['colinear']['hit_ratio']['num'],
@@ -891,7 +918,8 @@ def _dmu_summary(Kstat):
 
         sys.stdout.write("\n")
 
-        sys.stdout.write("\tStride:\t\t\t\t\t%s\n" % arc['dmu']['stride']['value'])
+        sys.stdout.write("\tStride:\t\t\t\t\t%s\n" %
+                arc['dmu']['stride']['value'])
         sys.stdout.write("\t  Hit Ratio:\t\t\t%s\t%s\n" % (
             arc['dmu']['stride']['hit_ratio']['per'],
             arc['dmu']['stride']['hit_ratio']['num'],
@@ -907,7 +935,8 @@ def _dmu_summary(Kstat):
         sys.stdout.write("\n")
         sys.stdout.write("DMU Misc: %s\n" % arc['dmu_misc']['status'])
 
-        sys.stdout.write("\tReclaim:\t\t\t\t%s\n" % arc['dmu_misc']['reclaim']['value'])
+        sys.stdout.write("\tReclaim:\t\t\t\t%s\n" %
+                arc['dmu_misc']['reclaim']['value'])
         sys.stdout.write("\t  Successes:\t\t\t%s\t%s\n" % (
             arc['dmu_misc']['reclaim']['successes']['per'],
             arc['dmu_misc']['reclaim']['successes']['num'],
@@ -920,7 +949,8 @@ def _dmu_summary(Kstat):
             )
         )
 
-        sys.stdout.write("\n\tStreams:\t\t\t\t%s\n" % arc['dmu_misc']['streams']['value'])
+        sys.stdout.write("\n\tStreams:\t\t\t\t%s\n" %
+                arc['dmu_misc']['streams']['value'])
         sys.stdout.write("\t  +Resets:\t\t\t%s\t%s\n" % (
             arc['dmu_misc']['streams']['plus_resets']['per'],
             arc['dmu_misc']['streams']['plus_resets']['num'],
@@ -933,16 +963,19 @@ def _dmu_summary(Kstat):
             )
         )
 
-        sys.stdout.write("\t  Bogus:\t\t\t\t%s\n" % arc['dmu_misc']['streams']['bogus'])
+        sys.stdout.write("\t  Bogus:\t\t\t\t%s\n" %
+                arc['dmu_misc']['streams']['bogus'])
 
 
 def get_vdev_summary(Kstat):
     output = {}
 
-    vdev_cache_delegations = Kstat["kstat.zfs.misc.vdev_cache_stats.delegations"]
+    vdev_cache_delegations = \
+            Kstat["kstat.zfs.misc.vdev_cache_stats.delegations"]
     vdev_cache_misses = Kstat["kstat.zfs.misc.vdev_cache_stats.misses"]
     vdev_cache_hits = Kstat["kstat.zfs.misc.vdev_cache_stats.hits"]
-    vdev_cache_total = (vdev_cache_misses + vdev_cache_hits + vdev_cache_delegations)
+    vdev_cache_total = (vdev_cache_misses + vdev_cache_hits +
+            vdev_cache_delegations)
 
     output['vdev_cache_total'] = vdev_cache_total
 
