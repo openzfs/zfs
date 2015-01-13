@@ -34,6 +34,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/efi_partition.h \
 	$(top_srcdir)/include/sys/metaslab.h \
 	$(top_srcdir)/include/sys/metaslab_impl.h \
+	$(top_srcdir)/include/sys/multilist.h \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
 	$(top_srcdir)/include/sys/range_tree.h \
