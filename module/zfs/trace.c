@@ -23,6 +23,7 @@
  * (and only one) C file, so this dummy file exists for that purpose.
  */
 
+#include <sys/multilist.h>
 #include <sys/arc_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
