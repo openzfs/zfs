@@ -38,6 +38,12 @@ extern "C" {
 #include <sys/spa.h>
 #include <sys/refcount.h>
 
+/*
+ * Used by arc_flush() to inform arc_evict_state() that it should evict
+ * all available buffers from the arc state being passed in.
+ */
+#define	ARC_EVICT_ALL	-1ULL
+
 typedef struct arc_buf_hdr arc_buf_hdr_t;
 typedef struct arc_buf arc_buf_t;
 typedef struct arc_prune arc_prune_t;
@@ -146,7 +152,6 @@ typedef enum arc_state_type {
 typedef struct arc_buf_info {
 	arc_state_type_t	abi_state_type;
 	arc_buf_contents_t	abi_state_contents;
-	uint64_t		abi_state_index;
 	uint32_t		abi_flags;
 	uint32_t		abi_datacnt;
 	uint64_t		abi_size;
@@ -200,7 +205,7 @@ void arc_freed(spa_t *spa, const blkptr_t *bp);
 void arc_set_callback(arc_buf_t *buf, arc_evict_func_t *func, void *private);
 boolean_t arc_clear_callback(arc_buf_t *buf);
 
-void arc_flush(spa_t *spa);
+void arc_flush(spa_t *spa, boolean_t retry);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(uint64_t reserve, uint64_t txg);
 

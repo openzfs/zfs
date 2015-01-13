@@ -67,10 +67,22 @@ extern "C" {
  */
 
 typedef struct arc_state {
-	list_t	arcs_list[ARC_BUFC_NUMTYPES];	/* list of evictable buffers */
-	uint64_t arcs_lsize[ARC_BUFC_NUMTYPES];	/* amount of evictable data */
-	uint64_t arcs_size;	/* total amount of data in this state */
-	kmutex_t arcs_mtx;
+	/*
+	 * list of evictable buffers
+	 */
+	multilist_t arcs_list[ARC_BUFC_NUMTYPES];
+	/*
+	 * total amount of evictable data in this state
+	 */
+	uint64_t arcs_lsize[ARC_BUFC_NUMTYPES];
+	/*
+	 * total amount of data in this state; this includes: evictable,
+	 * non-evictable, ARC_BUFC_DATA, and ARC_BUFC_METADATA.
+	 */
+	uint64_t arcs_size;
+	/*
+	 * supports the "dbufs" kstat
+	 */
 	arc_state_type_t arcs_state;
 } arc_state_t;
 
@@ -136,7 +148,7 @@ typedef struct l1arc_buf_hdr {
 
 	/* protected by arc state mutex */
 	arc_state_t		*b_state;
-	list_node_t		b_arc_node;
+	multilist_node_t	b_arc_node;
 
 	/* updated atomically */
 	clock_t			b_arc_access;
