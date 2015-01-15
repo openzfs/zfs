@@ -163,7 +163,7 @@ typedef struct spl_kmem_alloc {
 
 typedef struct spl_kmem_emergency {
 	struct rb_node		ske_node;	/* Emergency tree linkage */
-	void			*ske_obj;	/* Buffer address */
+	unsigned long		ske_obj;	/* Buffer address */
 } spl_kmem_emergency_t;
 
 typedef struct spl_kmem_cache {

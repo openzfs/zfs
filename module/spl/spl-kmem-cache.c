@@ -459,9 +459,9 @@ spl_emergency_search(struct rb_root *root, void *obj)
 	while (node) {
 		ske = container_of(node, spl_kmem_emergency_t, ske_node);
 
-		if (address < (unsigned long)ske->ske_obj)
+		if (address < ske->ske_obj)
 			node = node->rb_left;
-		else if (address > (unsigned long)ske->ske_obj)
+		else if (address > ske->ske_obj)
 			node = node->rb_right;
 		else
 			return (ske);
@@ -475,15 +475,15 @@ spl_emergency_insert(struct rb_root *root, spl_kmem_emergency_t *ske)
 {
 	struct rb_node **new = &(root->rb_node), *parent = NULL;
 	spl_kmem_emergency_t *ske_tmp;
-	unsigned long address = (unsigned long)ske->ske_obj;
+	unsigned long address = ske->ske_obj;
 
 	while (*new) {
 		ske_tmp = container_of(*new, spl_kmem_emergency_t, ske_node);
 
 		parent = *new;
-		if (address < (unsigned long)ske_tmp->ske_obj)
+		if (address < ske_tmp->ske_obj)
 			new = &((*new)->rb_left);
-		else if (address > (unsigned long)ske_tmp->ske_obj)
+		else if (address > ske_tmp->ske_obj)
 			new = &((*new)->rb_right);
 		else
 			return (0);
@@ -503,6 +503,7 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 {
 	gfp_t lflags = kmem_flags_convert(flags);
 	spl_kmem_emergency_t *ske;
+	int order = get_order(skc->skc_obj_size);
 	int empty;
 
 	/* Last chance use a partial slab if one now exists */
@@ -516,8 +517,8 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 	if (ske == NULL)
 		return (-ENOMEM);
 
-	ske->ske_obj = kmalloc(skc->skc_obj_size, lflags);
-	if (ske->ske_obj == NULL) {
+	ske->ske_obj = __get_free_pages(lflags, order);
+	if (ske->ske_obj == 0) {
 		kfree(ske);
 		return (-ENOMEM);
 	}
@@ -533,12 +534,12 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 	spin_unlock(&skc->skc_lock);
 
 	if (unlikely(!empty)) {
-		kfree(ske->ske_obj);
+		free_pages(ske->ske_obj, order);
 		kfree(ske);
 		return (-EINVAL);
 	}
 
-	*obj = ske->ske_obj;
+	*obj = (void *)ske->ske_obj;
 
 	return (0);
 }
@@ -550,6 +551,7 @@ static int
 spl_emergency_free(spl_kmem_cache_t *skc, void *obj)
 {
 	spl_kmem_emergency_t *ske;
+	int order = get_order(skc->skc_obj_size);
 
 	spin_lock(&skc->skc_lock);
 	ske = spl_emergency_search(&skc->skc_emergency_tree, obj);
@@ -563,7 +565,7 @@ spl_emergency_free(spl_kmem_cache_t *skc, void *obj)
 	if (ske == NULL)
 		return (-ENOENT);
 
-	kfree(ske->ske_obj);
+	free_pages(ske->ske_obj, order);
 	kfree(ske);
 
 	return (0);
