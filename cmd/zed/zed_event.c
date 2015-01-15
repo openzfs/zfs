@@ -159,250 +159,6 @@ zed_event_seek(struct zed_conf *zcp, uint64_t saved_eid, int64_t saved_etime[])
 	return (found ? 0 : -1);
 }
 
-static int
-_zed_event_convert_int8_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	int8_t *i8p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_int8_array(nvp, &i8p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%d ", i8p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_uint8_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	uint8_t *u8p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_uint8_array(nvp, &u8p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%u ", u8p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_int16_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	int16_t *i16p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_int16_array(nvp, &i16p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%d ", i16p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_uint16_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	uint16_t *u16p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_uint16_array(nvp, &u16p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%u ", u16p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_int32_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	int32_t *i32p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_int32_array(nvp, &i32p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%d ", i32p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_uint32_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	uint32_t *u32p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_uint32_array(nvp, &u32p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%u ", u32p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_int64_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	int64_t *i64p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_int64_array(nvp, &i64p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%lld ", (u_longlong_t) i64p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_uint64_array(char *buf, int buflen, nvpair_t *nvp,
-    const char *fmt)
-{
-	uint64_t *u64p;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_uint64_array(nvp, &u64p, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, fmt, (u_longlong_t) u64p[i]);
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
-static int
-_zed_event_convert_string_array(char *buf, int buflen, nvpair_t *nvp)
-{
-	char **strp;
-	uint_t nelem;
-	uint_t i;
-	char *p;
-	int n;
-
-	assert(buf != NULL);
-
-	(void) nvpair_value_string_array(nvp, &strp, &nelem);
-	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%s ", strp[i] ? strp[i] : "<NULL>");
-		if ((n < 0) || (n >= buflen)) {
-			*buf = '\0';
-			return (-1);
-		}
-		p += n;
-		buflen -= n;
-	}
-	if (nelem > 0)
-		*--p = '\0';
-
-	return (p - buf);
-}
-
 /*
  * Return non-zero if nvpair [name] should be formatted in hex; o/w, return 0.
  */
@@ -525,6 +281,288 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
 	return (0);
 }
 
+static int
+_zed_event_add_array_err(uint64_t eid, const char *name)
+{
+	errno = EMSGSIZE;
+	zed_log_msg(LOG_WARNING,
+	    "Failed to convert nvpair \"%s\" for eid=%llu: "
+	    "Exceeded buffer size", name, eid);
+	return (-1);
+}
+
+static int
+_zed_event_add_int8_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	int8_t *i8p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_INT8_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_int8_array(nvp, &i8p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%d ", i8p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_uint8_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	uint8_t *u8p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_UINT8_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_uint8_array(nvp, &u8p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%u ", u8p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_int16_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	int16_t *i16p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_INT16_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_int16_array(nvp, &i16p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%d ", i16p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_uint16_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	uint16_t *u16p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_UINT16_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_uint16_array(nvp, &u16p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%u ", u16p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_int32_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	int32_t *i32p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_INT32_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_int32_array(nvp, &i32p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%d ", i32p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_uint32_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	uint32_t *u32p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_UINT32_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_uint32_array(nvp, &u32p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%u ", u32p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_int64_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	int64_t *i64p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_INT64_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_int64_array(nvp, &i64p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%lld ", (u_longlong_t) i64p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_uint64_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	const char *fmt;
+	uint64_t *u64p;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_UINT64_ARRAY));
+
+	name = nvpair_name(nvp);
+	fmt = _zed_event_value_is_hex(name) ? "0x%.16llX " : "%llu ";
+	(void) nvpair_value_uint64_array(nvp, &u64p, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, fmt, (u_longlong_t) u64p[i]);
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
+static int
+_zed_event_add_string_array(uint64_t eid, zed_strings_t *zsp,
+    const char *prefix, nvpair_t *nvp)
+{
+	char buf[MAXBUF];
+	int buflen = sizeof (buf);
+	const char *name;
+	char **strp;
+	uint_t nelem;
+	uint_t i;
+	char *p;
+	int n;
+
+	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_STRING_ARRAY));
+
+	name = nvpair_name(nvp);
+	(void) nvpair_value_string_array(nvp, &strp, &nelem);
+	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
+		n = snprintf(p, buflen, "%s ", strp[i] ? strp[i] : "<NULL>");
+		if ((n < 0) || (n >= buflen))
+			return (_zed_event_add_array_err(eid, name));
+		p += n;
+		buflen -= n;
+	}
+	if (nelem > 0)
+		*--p = '\0';
+
+	return (_zed_event_add_var(eid, zsp, prefix, name, "%s", buf));
+}
+
 /*
  * Convert the nvpair [nvp] to a string which is added to the environment
  * of the child process.
@@ -537,10 +575,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 {
 	const char *name;
 	data_type_t type;
-	char buf[MAXBUF];
-	int n;
-	const char *fmt;
-
+	const char *prefix = ZEVENT_VAR_PREFIX;
 	boolean_t b;
 	double d;
 	uint8_t i8;
@@ -557,119 +592,115 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 
 	switch (type) {
 	case DATA_TYPE_BOOLEAN:
-		n = snprintf(buf, sizeof (buf), "%s", "1");
+		_zed_event_add_var(eid, zsp, prefix, name, "%s", "1");
 		break;
 	case DATA_TYPE_BOOLEAN_VALUE:
 		(void) nvpair_value_boolean_value(nvp, &b);
-		n = snprintf(buf, sizeof (buf), "%s", b ? "1" : "0");
+		_zed_event_add_var(eid, zsp, prefix, name, "%s", b ? "1" : "0");
 		break;
 	case DATA_TYPE_BYTE:
 		(void) nvpair_value_byte(nvp, &i8);
-		n = snprintf(buf, sizeof (buf), "%d", i8);
+		_zed_event_add_var(eid, zsp, prefix, name, "%d", i8);
 		break;
 	case DATA_TYPE_INT8:
 		(void) nvpair_value_int8(nvp, (int8_t *) &i8);
-		n = snprintf(buf, sizeof (buf), "%d", i8);
+		_zed_event_add_var(eid, zsp, prefix, name, "%d", i8);
 		break;
 	case DATA_TYPE_UINT8:
 		(void) nvpair_value_uint8(nvp, &i8);
-		n = snprintf(buf, sizeof (buf), "%u", i8);
+		_zed_event_add_var(eid, zsp, prefix, name, "%u", i8);
 		break;
 	case DATA_TYPE_INT16:
 		(void) nvpair_value_int16(nvp, (int16_t *) &i16);
-		n = snprintf(buf, sizeof (buf), "%d", i16);
+		_zed_event_add_var(eid, zsp, prefix, name, "%d", i16);
 		break;
 	case DATA_TYPE_UINT16:
 		(void) nvpair_value_uint16(nvp, &i16);
-		n = snprintf(buf, sizeof (buf), "%u", i16);
+		_zed_event_add_var(eid, zsp, prefix, name, "%u", i16);
 		break;
 	case DATA_TYPE_INT32:
 		(void) nvpair_value_int32(nvp, (int32_t *) &i32);
-		n = snprintf(buf, sizeof (buf), "%d", i32);
+		_zed_event_add_var(eid, zsp, prefix, name, "%d", i32);
 		break;
 	case DATA_TYPE_UINT32:
 		(void) nvpair_value_uint32(nvp, &i32);
-		n = snprintf(buf, sizeof (buf), "%u", i32);
+		_zed_event_add_var(eid, zsp, prefix, name, "%u", i32);
 		break;
 	case DATA_TYPE_INT64:
 		(void) nvpair_value_int64(nvp, (int64_t *) &i64);
-		n = snprintf(buf, sizeof (buf), "%lld", (longlong_t) i64);
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    "%lld", (longlong_t) i64);
 		break;
 	case DATA_TYPE_UINT64:
 		(void) nvpair_value_uint64(nvp, &i64);
-		fmt = _zed_event_value_is_hex(name) ? "0x%.16llX" : "%llu";
-		n = snprintf(buf, sizeof (buf), fmt, (u_longlong_t) i64);
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    (_zed_event_value_is_hex(name) ? "0x%.16llX" : "%llu"),
+		    (u_longlong_t) i64);
 		break;
 	case DATA_TYPE_DOUBLE:
 		(void) nvpair_value_double(nvp, &d);
-		n = snprintf(buf, sizeof (buf), "%g", d);
+		_zed_event_add_var(eid, zsp, prefix, name, "%g", d);
 		break;
 	case DATA_TYPE_HRTIME:
 		(void) nvpair_value_hrtime(nvp, (hrtime_t *) &i64);
-		n = snprintf(buf, sizeof (buf), "%llu", (u_longlong_t) i64);
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    "%llu", (u_longlong_t) i64);
 		break;
 	case DATA_TYPE_NVLIST:
-		/* FIXME */
-		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
 		break;
 	case DATA_TYPE_STRING:
 		(void) nvpair_value_string(nvp, &str);
-		n = snprintf(buf, sizeof (buf), "%s", (str ? str : "<NULL>"));
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    "%s", (str ? str : "<NULL>"));
 		break;
 	case DATA_TYPE_BOOLEAN_ARRAY:
-		/* FIXME */
-		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
 		break;
 	case DATA_TYPE_BYTE_ARRAY:
-		/* FIXME */
-		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
 		break;
 	case DATA_TYPE_INT8_ARRAY:
-		n = _zed_event_convert_int8_array(buf, sizeof (buf), nvp);
+		_zed_event_add_int8_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_UINT8_ARRAY:
-		n = _zed_event_convert_uint8_array(buf, sizeof (buf), nvp);
+		_zed_event_add_uint8_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_INT16_ARRAY:
-		n = _zed_event_convert_int16_array(buf, sizeof (buf), nvp);
+		_zed_event_add_int16_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_UINT16_ARRAY:
-		n = _zed_event_convert_uint16_array(buf, sizeof (buf), nvp);
+		_zed_event_add_uint16_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_INT32_ARRAY:
-		n = _zed_event_convert_int32_array(buf, sizeof (buf), nvp);
+		_zed_event_add_int32_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_UINT32_ARRAY:
-		n = _zed_event_convert_uint32_array(buf, sizeof (buf), nvp);
+		_zed_event_add_uint32_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_INT64_ARRAY:
-		n = _zed_event_convert_int64_array(buf, sizeof (buf), nvp);
+		_zed_event_add_int64_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_UINT64_ARRAY:
-		fmt = _zed_event_value_is_hex(name) ? "0x%.16llX " : "%llu ";
-		n = _zed_event_convert_uint64_array(buf, sizeof (buf),
-		    nvp, fmt);
+		_zed_event_add_uint64_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_STRING_ARRAY:
-		n = _zed_event_convert_string_array(buf, sizeof (buf), nvp);
+		_zed_event_add_string_array(eid, zsp, prefix, nvp);
 		break;
 	case DATA_TYPE_NVLIST_ARRAY:
-		/* FIXME */
-		n = snprintf(buf, sizeof (buf), "%s", "_NOT_IMPLEMENTED_");
+		_zed_event_add_var(eid, zsp, prefix, name,
+		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
 		break;
 	default:
+		errno = EINVAL;
 		zed_log_msg(LOG_WARNING,
 		    "Failed to convert nvpair \"%s\" for eid=%llu: "
 		    "Unrecognized type=%u", name, eid, (unsigned int) type);
-		return;
+		break;
 	}
-	if ((n < 0) || (n >= sizeof (buf))) {
-		zed_log_msg(LOG_WARNING,
-		    "Failed to convert nvpair \"%s\" for eid=%llu: %s",
-		    name, eid, "Exceeded buffer size");
-		return;
-	}
-	_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, name, "%s", buf);
 }
 
 /*
