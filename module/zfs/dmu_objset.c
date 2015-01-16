@@ -279,7 +279,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
 
-	os = kmem_zalloc(sizeof (objset_t), KM_PUSHPAGE);
+	os = kmem_zalloc(sizeof (objset_t), KM_SLEEP);
 	os->os_dsl_dataset = ds;
 	os->os_spa = spa;
 	os->os_rootbp = bp;
@@ -1573,7 +1573,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	}
 
 	thisobj = dd->dd_phys->dd_head_dataset_obj;
-	attr = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
+	attr = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 
 	/*
 	 * Iterate over all children.
@@ -1685,7 +1685,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
 	}
 
 	thisobj = dd->dd_phys->dd_head_dataset_obj;
-	attr = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
+	attr = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 
 	/*
 	 * Iterate over all children.

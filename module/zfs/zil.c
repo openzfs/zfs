@@ -172,7 +172,7 @@ zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp)
 	if (avl_find(t, dva, &where) != NULL)
 		return (SET_ERROR(EEXIST));
 
-	zn = kmem_alloc(sizeof (zil_bp_node_t), KM_PUSHPAGE);
+	zn = kmem_alloc(sizeof (zil_bp_node_t), KM_SLEEP);
 	zn->zn_dva = *dva;
 	avl_insert(t, zn, where);
 
@@ -464,7 +464,7 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, uint64_t txg, boolean_t fastwrite)
 {
 	lwb_t *lwb;
 
-	lwb = kmem_cache_alloc(zil_lwb_cache, KM_PUSHPAGE);
+	lwb = kmem_cache_alloc(zil_lwb_cache, KM_SLEEP);
 	lwb->lwb_zilog = zilog;
 	lwb->lwb_blk = *bp;
 	lwb->lwb_fastwrite = fastwrite;
@@ -815,7 +815,7 @@ zil_add_block(zilog_t *zilog, const blkptr_t *bp)
 	for (i = 0; i < ndvas; i++) {
 		zvsearch.zv_vdev = DVA_GET_VDEV(&bp->blk_dva[i]);
 		if (avl_find(t, &zvsearch, &where) == NULL) {
-			zv = kmem_alloc(sizeof (*zv), KM_PUSHPAGE);
+			zv = kmem_alloc(sizeof (*zv), KM_SLEEP);
 			zv->zv_vdev = zvsearch.zv_vdev;
 			avl_insert(t, zv, where);
 		}
@@ -1192,8 +1192,7 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 
 	lrsize = P2ROUNDUP_TYPED(lrsize, sizeof (uint64_t), size_t);
 
-	itx = kmem_alloc(offsetof(itx_t, itx_lr) + lrsize,
-	    KM_PUSHPAGE | KM_NODEBUG);
+	itx = vmem_alloc(offsetof(itx_t, itx_lr) + lrsize, KM_SLEEP);
 	itx->itx_lr.lrc_txtype = txtype;
 	itx->itx_lr.lrc_reclen = lrsize;
 	itx->itx_sod = lrsize; /* if write & WR_NEED_COPY will be increased */
@@ -1208,7 +1207,7 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 void
 zil_itx_destroy(itx_t *itx)
 {
-	kmem_free(itx, offsetof(itx_t, itx_lr) + itx->itx_lr.lrc_reclen);
+	vmem_free(itx, offsetof(itx_t, itx_lr) + itx->itx_lr.lrc_reclen);
 }
 
 /*
@@ -1360,7 +1359,7 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 		ASSERT(itxg->itxg_sod == 0);
 		itxg->itxg_txg = txg;
 		itxs = itxg->itxg_itxs = kmem_zalloc(sizeof (itxs_t),
-		    KM_PUSHPAGE);
+		    KM_SLEEP);
 
 		list_create(&itxs->i_sync_list, sizeof (itx_t),
 		    offsetof(itx_t, itx_node));
@@ -1381,7 +1380,7 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 		ian = avl_find(t, &foid, &where);
 		if (ian == NULL) {
 			ian = kmem_alloc(sizeof (itx_async_node_t),
-			    KM_PUSHPAGE);
+			    KM_SLEEP);
 			list_create(&ian->ia_list, sizeof (itx_t),
 			    offsetof(itx_t, itx_node));
 			ian->ia_foid = foid;
@@ -1799,7 +1798,7 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	zilog_t *zilog;
 	int i;
 
-	zilog = kmem_zalloc(sizeof (zilog_t), KM_PUSHPAGE);
+	zilog = kmem_zalloc(sizeof (zilog_t), KM_SLEEP);
 
 	zilog->zl_header = zh_phys;
 	zilog->zl_os = os;
@@ -2205,7 +2204,7 @@ zil_replay(objset_t *os, void *arg, zil_replay_func_t replay_func[TX_MAX_TYPE])
 	zr.zr_replay = replay_func;
 	zr.zr_arg = arg;
 	zr.zr_byteswap = BP_SHOULD_BYTESWAP(&zh->zh_log);
-	zr.zr_lr = vmem_alloc(2 * SPA_MAXBLOCKSIZE, KM_PUSHPAGE);
+	zr.zr_lr = vmem_alloc(2 * SPA_MAXBLOCKSIZE, KM_SLEEP);
 
 	/*
 	 * Wait for in-progress removes to sync before starting replay.

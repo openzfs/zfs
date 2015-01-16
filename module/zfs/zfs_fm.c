@@ -321,9 +321,9 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 
 		spare_count = spa->spa_spares.sav_count;
 		spare_paths = kmem_zalloc(sizeof (char *) * spare_count,
-		    KM_PUSHPAGE);
+		    KM_SLEEP);
 		spare_guids = kmem_zalloc(sizeof (uint64_t) * spare_count,
-		    KM_PUSHPAGE);
+		    KM_SLEEP);
 
 		for (i = 0; i < spare_count; i++) {
 			spare_vd = spa->spa_spares.sav_vdevs[i];
@@ -583,7 +583,7 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	size_t offset = 0;
 	ssize_t start = -1;
 
-	zfs_ecksum_info_t *eip = kmem_zalloc(sizeof (*eip), KM_PUSHPAGE);
+	zfs_ecksum_info_t *eip = kmem_zalloc(sizeof (*eip), KM_SLEEP);
 
 	/* don't do any annotation for injected checksum errors */
 	if (info != NULL && info->zbc_injected)
@@ -752,7 +752,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
     struct zio *zio, uint64_t offset, uint64_t length, void *arg,
     zio_bad_cksum_t *info)
 {
-	zio_cksum_report_t *report = kmem_zalloc(sizeof (*report), KM_PUSHPAGE);
+	zio_cksum_report_t *report = kmem_zalloc(sizeof (*report), KM_SLEEP);
 
 	if (zio->io_vsd != NULL)
 		zio->io_vsd_ops->vsd_cksum_report(zio, report, arg);
@@ -761,7 +761,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
 
 	/* copy the checksum failure information if it was provided */
 	if (info != NULL) {
-		report->zcr_ckinfo = kmem_zalloc(sizeof (*info), KM_PUSHPAGE);
+		report->zcr_ckinfo = kmem_zalloc(sizeof (*info), KM_SLEEP);
 		bcopy(info, report->zcr_ckinfo, sizeof (*info));
 	}
 

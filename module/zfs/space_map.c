@@ -364,7 +364,7 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 	ASSERT(os != NULL);
 	ASSERT(object != 0);
 
-	sm = kmem_alloc(sizeof (space_map_t), KM_PUSHPAGE);
+	sm = kmem_alloc(sizeof (space_map_t), KM_SLEEP);
 
 	sm->sm_start = start;
 	sm->sm_size = size;

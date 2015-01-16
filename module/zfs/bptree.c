@@ -134,7 +134,7 @@ bptree_add(objset_t *os, uint64_t obj, blkptr_t *bp, uint64_t birth_txg,
 	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
 	bt = db->db_data;
 
-	bte = kmem_zalloc(sizeof (*bte), KM_PUSHPAGE);
+	bte = kmem_zalloc(sizeof (*bte), KM_SLEEP);
 	bte->be_birth_txg = birth_txg;
 	bte->be_bp = *bp;
 	dmu_write(os, obj, bt->bt_end * sizeof (*bte), sizeof (*bte), bte, tx);

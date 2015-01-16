@@ -449,7 +449,7 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			    TASKQ_THREADS_CPU_PCT | TASKQ_PREPOPULATE);
 		}
 
-		cb_list = kmem_alloc(sizeof (list_t), KM_PUSHPAGE);
+		cb_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
 		list_create(cb_list, sizeof (dmu_tx_callback_t),
 		    offsetof(dmu_tx_callback_t, dcb_node));
 
@@ -483,19 +483,11 @@ txg_sync_thread(dsl_pool_t *dp)
 	vdev_stat_t *vs1, *vs2;
 	clock_t start, delta;
 
-#ifdef _KERNEL
-	/*
-	 * Annotate this process with a flag that indicates that it is
-	 * unsafe to use KM_SLEEP during memory allocations due to the
-	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
-	 */
-	current->flags |= PF_NOFS;
-#endif /* _KERNEL */
-
+	(void) spl_fstrans_mark();
 	txg_thread_enter(tx, &cpr);
 
-	vs1 = kmem_alloc(sizeof (vdev_stat_t), KM_PUSHPAGE);
-	vs2 = kmem_alloc(sizeof (vdev_stat_t), KM_PUSHPAGE);
+	vs1 = kmem_alloc(sizeof (vdev_stat_t), KM_SLEEP);
+	vs2 = kmem_alloc(sizeof (vdev_stat_t), KM_SLEEP);
 
 	start = delta = 0;
 	for (;;) {

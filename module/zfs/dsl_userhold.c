@@ -166,8 +166,7 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 		    (u_longlong_t)ds->ds_object);
 
 		if (nvlist_lookup_nvlist(tmpholds, name, &tags) != 0) {
-			VERIFY0(nvlist_alloc(&tags, NV_UNIQUE_NAME,
-			    KM_PUSHPAGE));
+			tags = fnvlist_alloc();
 			fnvlist_add_boolean(tags, htag);
 			fnvlist_add_nvlist(tmpholds, name, tags);
 			fnvlist_free(tags);
@@ -226,7 +225,7 @@ dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, minor_t minor)
 	}
 
 	ASSERT(spa != NULL);
-	ca = kmem_alloc(sizeof (*ca), KM_PUSHPAGE);
+	ca = kmem_alloc(sizeof (*ca), KM_SLEEP);
 
 	(void) strlcpy(ca->zhca_spaname, spa_name(spa),
 	    sizeof (ca->zhca_spaname));
@@ -243,7 +242,7 @@ dsl_dataset_user_hold_sync_one(dsl_dataset_t *ds, const char *htag,
 	nvlist_t *tmpholds;
 
 	if (minor != 0)
-		VERIFY0(nvlist_alloc(&tmpholds, NV_UNIQUE_NAME, KM_PUSHPAGE));
+		tmpholds = fnvlist_alloc();
 	else
 		tmpholds = NULL;
 	dsl_dataset_user_hold_sync_one_impl(tmpholds, ds, htag, minor, now, tx);
@@ -260,7 +259,7 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
 	uint64_t now = gethrestime_sec();
 
 	if (dduha->dduha_minor != 0)
-		VERIFY0(nvlist_alloc(&tmpholds, NV_UNIQUE_NAME, KM_PUSHPAGE));
+		tmpholds = fnvlist_alloc();
 	else
 		tmpholds = NULL;
 	for (pair = nvlist_next_nvpair(dduha->dduha_chkholds, NULL);
@@ -315,8 +314,7 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 		return (0);
 
 	dduha.dduha_holds = holds;
-	VERIFY0(nvlist_alloc(&dduha.dduha_chkholds, NV_UNIQUE_NAME,
-		KM_PUSHPAGE));
+	dduha.dduha_chkholds = fnvlist_alloc();
 	dduha.dduha_errlist = errlist;
 	dduha.dduha_minor = cleanup_minor;
 
@@ -365,7 +363,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 	numholds = 0;
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	zapobj = ds->ds_phys->ds_userrefs_obj;
-	VERIFY0(nvlist_alloc(&holds_found, NV_UNIQUE_NAME, KM_PUSHPAGE));
+	VERIFY0(nvlist_alloc(&holds_found, NV_UNIQUE_NAME, KM_SLEEP));
 
 	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
@@ -605,9 +603,9 @@ dsl_dataset_user_release_impl(nvlist_t *holds, nvlist_t *errlist,
 	ddura.ddura_holds = holds;
 	ddura.ddura_errlist = errlist;
 	VERIFY0(nvlist_alloc(&ddura.ddura_todelete, NV_UNIQUE_NAME,
-	    KM_PUSHPAGE));
+	    KM_SLEEP));
 	VERIFY0(nvlist_alloc(&ddura.ddura_chkholds, NV_UNIQUE_NAME,
-	    KM_PUSHPAGE));
+	    KM_SLEEP));
 
 	error = dsl_sync_task(pool, dsl_dataset_user_release_check,
 	    dsl_dataset_user_release_sync, &ddura, 0);
@@ -657,7 +655,7 @@ dsl_dataset_get_holds(const char *dsname, nvlist_t *nvl)
 		zap_attribute_t *za;
 		zap_cursor_t zc;
 
-		za = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
+		za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 		for (zap_cursor_init(&zc, ds->ds_dir->dd_pool->dp_meta_objset,
 		    ds->ds_phys->ds_userrefs_obj);
 		    zap_cursor_retrieve(&zc, za) == 0;
