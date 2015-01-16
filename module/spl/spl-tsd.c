@@ -61,6 +61,7 @@
 #include <sys/kmem.h>
 #include <sys/thread.h>
 #include <sys/tsd.h>
+#include <linux/hash.h>
 
 typedef struct tsd_hash_bin {
 	spinlock_t		hb_lock;
@@ -336,8 +337,7 @@ tsd_hash_table_init(uint_t bits)
 	if (table == NULL)
 		return (NULL);
 
-	table->ht_bins = kmem_zalloc(sizeof(tsd_hash_bin_t) * size,
-	    KM_SLEEP | KM_NODEBUG);
+	table->ht_bins = kmem_zalloc(sizeof(tsd_hash_bin_t) * size, KM_SLEEP);
 	if (table->ht_bins == NULL) {
 		kmem_free(table, sizeof(tsd_hash_table_t));
 		return (NULL);

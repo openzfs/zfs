@@ -27,6 +27,7 @@
 
 #include "splat-ctl.h"
 #include <sys/mutex.h>
+#include <linux/file_compat.h>
 
 #define SPLAT_SUBSYSTEM_INIT(type)                                      \
 ({      splat_subsystem_t *_sub_;                                       \

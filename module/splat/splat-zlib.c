@@ -27,6 +27,7 @@
 #include <sys/zmod.h>
 #include <sys/random.h>
 #include <sys/kmem.h>
+#include <sys/vmem.h>
 #include "splat-internal.h"
 
 #define SPLAT_ZLIB_NAME			"zlib"

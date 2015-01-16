@@ -37,19 +37,6 @@
 #define	physmem				totalram_pages
 #define	freemem				nr_free_pages()
 
-extern vmem_t *heap_arena;		/* primary kernel heap arena */
-extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
-extern vmem_t *zio_arena;		/* arena for allocating zio memory */
-
-extern size_t vmem_size(vmem_t *vmp, int typemask);
-
-#define	VMEM_ALLOC	0x01
-#define	VMEM_FREE	0x02
-
-#ifndef VMALLOC_TOTAL
-#define	VMALLOC_TOTAL	(VMALLOC_END - VMALLOC_START)
-#endif
-
 #define	xcopyin(from, to, size)		copy_from_user(to, from, size)
 #define	xcopyout(from, to, size)	copy_to_user(to, from, size)
 

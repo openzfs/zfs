@@ -25,8 +25,10 @@
 \*****************************************************************************/
 
 #include <sys/kmem.h>
+#include <sys/vmem.h>
 #include <sys/random.h>
 #include <sys/taskq.h>
+#include <sys/timer.h>
 #include <linux/delay.h>
 #include "splat-internal.h"
 

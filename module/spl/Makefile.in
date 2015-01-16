@@ -8,6 +8,8 @@ obj-$(CONFIG_SPL) := $(MODULE).o
 
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-proc.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-kmem.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-kmem-cache.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-vmem.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-thread.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-taskq.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-rwlock.o

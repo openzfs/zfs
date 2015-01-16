@@ -26,6 +26,7 @@
 
 #include <linux/seq_file.h>
 #include <sys/kstat.h>
+#include <sys/vmem.h>
 
 #ifndef HAVE_PDE_DATA
 #define PDE_DATA(x) (PDE(x)->data)

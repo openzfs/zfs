@@ -48,7 +48,6 @@ typedef long long			longlong_t;
 typedef long long			offset_t;
 typedef struct task_struct		kthread_t;
 typedef struct task_struct		proc_t;
-typedef struct vmem { }			vmem_t;
 typedef short				pri_t;
 typedef struct timespec			timestruc_t; /* definition per SVr4 */
 typedef struct timespec			timespec_t;

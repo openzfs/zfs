@@ -26,9 +26,14 @@
 
 #include <sys/systeminfo.h>
 #include <sys/kstat.h>
+#include <sys/kmem.h>
+#include <sys/kmem_cache.h>
+#include <sys/vmem.h>
+#include <linux/ctype.h>
 #include <linux/kmod.h>
 #include <linux/seq_file.h>
 #include <linux/proc_compat.h>
+#include <linux/uaccess.h>
 #include <linux/version.h>
 
 #if defined(CONSTIFY_PLUGIN) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0)
@@ -342,26 +347,6 @@ static struct ctl_table spl_kmem_table[] = {
         {
                 .procname = "kmem_max",
                 .data     = &kmem_alloc_max,
-                .maxlen   = sizeof(unsigned long),
-                .extra1   = &table_min,
-                .extra2   = &table_max,
-                .mode     = 0444,
-                .proc_handler = &proc_doulongvec_minmax,
-        },
-        {
-                .procname = "vmem_used",
-                .data     = &vmem_alloc_used,
-# ifdef HAVE_ATOMIC64_T
-                .maxlen   = sizeof(atomic64_t),
-# else
-                .maxlen   = sizeof(atomic_t),
-# endif /* HAVE_ATOMIC64_T */
-                .mode     = 0444,
-                .proc_handler = &proc_domemused,
-        },
-        {
-                .procname = "vmem_max",
-                .data     = &vmem_alloc_max,
                 .maxlen   = sizeof(unsigned long),
                 .extra1   = &table_min,
                 .extra2   = &table_max,
