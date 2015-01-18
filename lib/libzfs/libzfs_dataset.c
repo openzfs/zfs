@@ -2864,7 +2864,7 @@ parent_name(const char *path, char *buf, size_t buflen)
  * 'zoned' property, which is used to validate property settings when creating
  * new datasets.
  */
-static int
+int
 check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
     boolean_t accept_ancestor, int *prefixlen)
 {
