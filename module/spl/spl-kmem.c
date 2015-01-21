@@ -80,7 +80,7 @@ kmem_vasprintf(const char *fmt, va_list ap)
 
 	do {
 		va_copy(aq, ap);
-		ptr = kvasprintf(GFP_KERNEL, fmt, aq);
+		ptr = kvasprintf(kmem_flags_convert(KM_SLEEP), fmt, aq);
 		va_end(aq);
 	} while (ptr == NULL);
 
@@ -96,7 +96,7 @@ kmem_asprintf(const char *fmt, ...)
 
 	do {
 		va_start(ap, fmt);
-		ptr = kvasprintf(GFP_KERNEL, fmt, ap);
+		ptr = kvasprintf(kmem_flags_convert(KM_SLEEP), fmt, ap);
 		va_end(ap);
 	} while (ptr == NULL);
 

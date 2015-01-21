@@ -33,7 +33,7 @@ kobj_open_file(const char *name)
 	vnode_t *vp;
 	int rc;
 
-	file = kmalloc(sizeof(_buf_t), GFP_KERNEL);
+	file = kmalloc(sizeof(_buf_t), kmem_flags_convert(KM_SLEEP));
 	if (file == NULL)
 		return ((_buf_t *)-1UL);
 

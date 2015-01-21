@@ -196,7 +196,7 @@ vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
 	ASSERT(vp == rootdir);
 
 	len = strlen(path) + 2;
-	realpath = kmalloc(len, GFP_KERNEL);
+	realpath = kmalloc(len, kmem_flags_convert(KM_SLEEP));
 	if (!realpath)
 		return (ENOMEM);
 
