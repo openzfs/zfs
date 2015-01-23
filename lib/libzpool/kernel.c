@@ -1107,6 +1107,30 @@ umem_out_of_memory(void)
 	return (0);
 }
 
+static unsigned long
+get_spl_hostid(void)
+{
+	FILE *f;
+	unsigned long hostid;
+
+	f = fopen("/sys/module/spl/parameters/spl_hostid", "r");
+	if (!f)
+		return (0);
+	if (fscanf(f, "%lu", &hostid) != 1)
+		hostid = 0;
+	fclose(f);
+	return (hostid & 0xffffffff);
+}
+
+unsigned long
+get_system_hostid(void)
+{
+	unsigned long system_hostid = get_spl_hostid();
+	if (system_hostid == 0)
+		system_hostid = gethostid() & 0xffffffff;
+	return (system_hostid);
+}
+
 void
 kernel_init(int mode)
 {
@@ -1120,7 +1144,7 @@ kernel_init(int mode)
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));
 
 	(void) snprintf(hw_serial, sizeof (hw_serial), "%ld",
-	    (mode & FWRITE) ? gethostid() : 0);
+	    (mode & FWRITE) ? get_system_hostid() : 0);
 
 	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
 	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);

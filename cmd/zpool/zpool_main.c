@@ -1917,7 +1917,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	} else if (state != POOL_STATE_EXPORTED &&
 	    !(flags & ZFS_IMPORT_ANY_HOST)) {
 		uint64_t hostid = 0;
-		unsigned long system_hostid = gethostid() & 0xffffffff;
+		unsigned long system_hostid = get_system_hostid();
 
 		(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID,
 		    &hostid);

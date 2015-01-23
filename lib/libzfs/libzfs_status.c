@@ -195,7 +195,7 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	uint64_t suspended;
 	uint64_t hostid = 0;
 	uint64_t errata = 0;
-	unsigned long system_hostid = gethostid() & 0xffffffff;
+	unsigned long system_hostid = get_system_hostid();
 
 	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
 	    &version) == 0);
