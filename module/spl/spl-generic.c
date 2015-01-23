@@ -467,12 +467,14 @@ zone_get_hostid(void *zone)
 	if (first) {
 		first = 0;
 
+		spl_hostid &= HW_HOSTID_MASK;
 		/*
 		 * Get the hostid if it was not passed as a module parameter.
 		 * Try reading the /etc/hostid file directly.
 		 */
-		if (hostid_read())
+		if (spl_hostid == 0 && hostid_read())
 			spl_hostid = 0;
+
 
 		printk(KERN_NOTICE "SPL: using hostid 0x%08x\n",
 			(unsigned int) spl_hostid);
