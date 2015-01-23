@@ -494,8 +494,7 @@ static arc_buf_hdr_t arc_eviction_hdr;
 static void arc_get_data_buf(arc_buf_t *buf);
 static void arc_access(arc_buf_hdr_t *buf, kmutex_t *hash_lock);
 static int arc_evict_needed(arc_buf_contents_t type);
-static void arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes,
-    arc_buf_contents_t type);
+static void arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes);
 static void arc_buf_watch(arc_buf_t *buf);
 
 static boolean_t l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *ab);
@@ -1963,7 +1962,6 @@ top:
 	 * that evicting from the ghost list in this hot code path, leave
 	 * this chore to the arc_reclaim_thread().
 	 */
-
 	return (stolen);
 }
 
@@ -1972,12 +1970,11 @@ top:
  * bytes.  Destroy the buffers that are removed.
  */
 static void
-arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes,
-    arc_buf_contents_t type)
+arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes)
 {
 	arc_buf_hdr_t *ab, *ab_prev;
 	arc_buf_hdr_t marker;
-	list_t *list = &state->arcs_list[ARC_BUFC_TYPE_MASK(type)];
+	list_t *list = &state->arcs_list[ARC_BUFC_DATA];
 	kmutex_t *hash_lock;
 	uint64_t bytes_deleted = 0;
 	uint64_t bufs_skipped = 0;
@@ -2112,7 +2109,7 @@ arc_adjust(void)
 
 	if (adjustment > 0 && arc_mru_ghost->arcs_size > 0) {
 		delta = MIN(arc_mru_ghost->arcs_size, adjustment);
-		arc_evict_ghost(arc_mru_ghost, 0, delta, ARC_BUFC_DATA);
+		arc_evict_ghost(arc_mru_ghost, 0, delta);
 	}
 
 	adjustment =
@@ -2120,7 +2117,7 @@ arc_adjust(void)
 
 	if (adjustment > 0 && arc_mfu_ghost->arcs_size > 0) {
 		delta = MIN(arc_mfu_ghost->arcs_size, adjustment);
-		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_DATA);
+		arc_evict_ghost(arc_mfu_ghost, 0, delta);
 	}
 }
 
@@ -2236,7 +2233,7 @@ arc_adjust_meta(void)
 	if (adjustmnt > 0 && arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
 		delta = MIN(adjustmnt,
 		    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA]);
-		arc_evict_ghost(arc_mru_ghost, 0, delta, ARC_BUFC_METADATA);
+		arc_evict_ghost(arc_mru_ghost, 0, delta);
 	}
 
 	adjustmnt = arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] +
@@ -2245,7 +2242,7 @@ arc_adjust_meta(void)
 	if (adjustmnt > 0 && arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
 		delta = MIN(adjustmnt,
 		    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA]);
-		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_METADATA);
+		arc_evict_ghost(arc_mfu_ghost, 0, delta);
 	}
 
 	if (arc_meta_used > arc_meta_limit)
@@ -2285,8 +2282,8 @@ arc_flush(spa_t *spa)
 			break;
 	}
 
-	arc_evict_ghost(arc_mru_ghost, guid, -1, ARC_BUFC_DATA);
-	arc_evict_ghost(arc_mfu_ghost, guid, -1, ARC_BUFC_DATA);
+	arc_evict_ghost(arc_mru_ghost, guid, -1);
+	arc_evict_ghost(arc_mfu_ghost, guid, -1);
 
 	mutex_enter(&arc_reclaim_thr_lock);
 	arc_do_user_evicts();
