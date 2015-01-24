@@ -216,8 +216,6 @@ extern void ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len);
 extern ddt_t *ddt_select(spa_t *spa, const blkptr_t *bp);
 extern void ddt_enter(ddt_t *ddt);
 extern void ddt_exit(ddt_t *ddt);
-extern void ddt_init(void);
-extern void ddt_fini(void);
 extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add);
 extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
