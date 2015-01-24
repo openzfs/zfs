@@ -1738,7 +1738,6 @@ spa_init(int mode)
 	refcount_init();
 	unique_init();
 	range_tree_init();
-	ddt_init();
 	zio_init();
 	dmu_init();
 	zil_init();
@@ -1764,7 +1763,6 @@ spa_fini(void)
 	zil_fini();
 	dmu_fini();
 	zio_fini();
-	ddt_fini();
 	range_tree_fini();
 	unique_fini();
 	refcount_fini();
