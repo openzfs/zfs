@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2013 by Joyent, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -434,7 +435,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		ASSERT3U(val, ==, obj);
 	}
 #endif
-	VERIFY0(dsl_dataset_snap_remove(ds_head, ds->ds_snapname, tx));
+	VERIFY0(dsl_dataset_snap_remove(ds_head, ds->ds_snapname, tx, B_TRUE));
 	dsl_dataset_rele(ds_head, FTAG);
 
 	if (ds_prev != NULL)
@@ -661,6 +662,17 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 	VERIFY0(dsl_dir_hold_obj(dp, ddobj, NULL, FTAG, &dd));
 
 	ASSERT0(dd->dd_phys->dd_head_dataset_obj);
+
+	/*
+	 * Decrement the filesystem count for all parent filesystems.
+	 *
+	 * When we receive an incremental stream into a filesystem that already
+	 * exists, a temporary clone is created.  We never count this temporary
+	 * clone, whose name begins with a '%'.
+	 */
+	if (dd->dd_myname[0] != '%' && dd->dd_parent != NULL)
+		dsl_fs_ss_count_adjust(dd->dd_parent, -1,
+		    DD_FIELD_FILESYSTEM_COUNT, tx);
 
 	/*
 	 * Remove our reservation. The impl() routine avoids setting the
