@@ -1040,10 +1040,17 @@ arc_buf_thaw(arc_buf_t *buf)
 void
 arc_buf_freeze(arc_buf_t *buf)
 {
+	fstrans_cookie_t cookie;
 	kmutex_t *hash_lock;
 
 	if (!(zfs_flags & ZFS_DEBUG_MODIFY))
 		return;
+
+	/*
+	 * Direct reclaim could cause us to try to evict a buffer protected by
+	 * hash_lock.
+	 */
+	cookie = spl_fstrans_mark();
 
 	hash_lock = HDR_LOCK(buf->b_hdr);
 	mutex_enter(hash_lock);
@@ -1053,6 +1060,7 @@ arc_buf_freeze(arc_buf_t *buf)
 	arc_cksum_compute(buf, B_FALSE);
 	mutex_exit(hash_lock);
 
+	spl_fstrans_unmark(cookie);
 }
 
 static void
@@ -2953,6 +2961,7 @@ arc_read_done(zio_t *zio)
 	kmutex_t	*hash_lock = NULL;
 	arc_callback_t	*callback_list, *acb;
 	int		freeable = FALSE;
+	fstrans_cookie_t cookie;
 
 	buf = zio->io_private;
 	hdr = buf->b_hdr;
@@ -2976,6 +2985,12 @@ arc_read_done(zio_t *zio)
 
 		found = buf_hash_find(hdr->b_spa, zio->io_bp,
 		    &hash_lock);
+
+		/*
+		 * Direct reclaim could deadlock on holding the hash_lock.
+		 */
+		if (hash_lock)
+			cookie = spl_fstrans_mark();
 
 		ASSERT((found == NULL && HDR_FREED_IN_READ(hdr) &&
 		    hash_lock == NULL) ||
@@ -3053,6 +3068,7 @@ arc_read_done(zio_t *zio)
 	cv_broadcast(&hdr->b_cv);
 
 	if (hash_lock) {
+		spl_fstrans_unmark(cookie);
 		mutex_exit(hash_lock);
 	} else {
 		/*
@@ -3109,9 +3125,19 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, arc_done_func_t *done,
 	arc_buf_hdr_t *hdr = NULL;
 	arc_buf_t *buf = NULL;
 	kmutex_t *hash_lock = NULL;
+	fstrans_cookie_t cookie;
 	zio_t *rzio;
 	uint64_t guid = spa_load_guid(spa);
 	int rc = 0;
+
+	/*
+	 * Direct reclaim could cause us to try to evict a buffer protected by
+	 * hash_lock. We could try to be more granular by only marking when we
+	 * actually have the lock. That would be prone to regressions as new
+	 * code is merged from Illumos. The one allocation that is clearly not
+	 * in need of such protection is explicitly exluded from it below.
+	 */
+	cookie = spl_fstrans_mark();
 
 	ASSERT(!BP_IS_EMBEDDED(bp) ||
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
@@ -3340,8 +3366,10 @@ top:
 				ARCSTAT_BUMP(arcstat_l2_hits);
 				atomic_inc_32(&hdr->b_l2hdr->b_hits);
 
+				spl_fstrans_unmark(cookie);
 				cb = kmem_zalloc(sizeof (l2arc_read_callback_t),
 				    KM_SLEEP);
+				cookie = spl_fstrans_mark();
 				cb->l2rcb_buf = buf;
 				cb->l2rcb_spa = spa;
 				cb->l2rcb_bp = *bp;
@@ -3421,6 +3449,7 @@ top:
 	}
 
 out:
+	spl_fstrans_unmark(cookie);
 	spa_read_history_add(spa, zb, *arc_flags);
 	return (rc);
 }
@@ -4890,6 +4919,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	uint64_t guid = spa_load_guid(spa);
 	int try;
 	const boolean_t do_headroom_boost = *headroom_boost;
+	fstrans_cookie_t cookie;
 
 	ASSERT(dev->l2ad_vdev != NULL);
 
@@ -4970,6 +5000,12 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 				break;
 			}
 
+			/*
+			 * Direct reclaim could cause us to try to evict a
+			 * buffer protected by hash_lock.
+			 */
+			cookie = spl_fstrans_mark();
+
 			if (pio == NULL) {
 				/*
 				 * Insert a dummy header on the buflist so
@@ -5021,6 +5057,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			arc_cksum_verify(ab->b_buf);
 			arc_cksum_compute(ab->b_buf, B_TRUE);
 
+			spl_fstrans_unmark(cookie);
 			mutex_exit(hash_lock);
 
 			write_sz += buf_sz;

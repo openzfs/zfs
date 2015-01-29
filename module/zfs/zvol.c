@@ -577,7 +577,6 @@ zvol_write(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
-	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = blk_rq_pos(req) << 9;
 	uint64_t size = blk_rq_bytes(req);
 	int error = 0;
@@ -622,7 +621,6 @@ zvol_write(void *arg)
 
 out:
 	blk_end_request(req, -error, size);
-	spl_fstrans_unmark(cookie);
 }
 
 #ifdef HAVE_BLK_QUEUE_DISCARD
@@ -632,7 +630,6 @@ zvol_discard(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
-	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t start = blk_rq_pos(req) << 9;
 	uint64_t end = start + blk_rq_bytes(req);
 	int error;
@@ -668,7 +665,6 @@ zvol_discard(void *arg)
 	zfs_range_unlock(rl);
 out:
 	blk_end_request(req, -error, blk_rq_bytes(req));
-	spl_fstrans_unmark(cookie);
 }
 #endif /* HAVE_BLK_QUEUE_DISCARD */
 
@@ -684,7 +680,6 @@ zvol_read(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
-	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = blk_rq_pos(req) << 9;
 	uint64_t size = blk_rq_bytes(req);
 	int error;
@@ -707,7 +702,6 @@ zvol_read(void *arg)
 
 out:
 	blk_end_request(req, -error, size);
-	spl_fstrans_unmark(cookie);
 }
 
 /*

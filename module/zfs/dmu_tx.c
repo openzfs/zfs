@@ -1265,6 +1265,12 @@ dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
 	/* If we might wait, we must not hold the config lock. */
 	ASSERT(txg_how != TXG_WAIT || !dsl_pool_config_held(tx->tx_pool));
 
+	/*
+	 * Direct reclaim can trigger recursive DMU transactions via atime
+	 * updates. Recursive DMU transactions will deadlock.
+	 */
+	tx->tx_cookie = spl_fstrans_mark();
+
 	while ((err = dmu_tx_try_assign(tx, txg_how)) != 0) {
 		dmu_tx_unassign(tx);
 
@@ -1413,6 +1419,7 @@ dmu_tx_commit(dmu_tx_t *tx)
 	    refcount_count(&tx->tx_space_freed));
 #endif
 	kmem_free(tx, sizeof (dmu_tx_t));
+	spl_fstrans_unmark(tx->tx_cookie);
 }
 
 void
@@ -1446,6 +1453,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 	    refcount_count(&tx->tx_space_freed));
 #endif
 	kmem_free(tx, sizeof (dmu_tx_t));
+	spl_fstrans_unmark(tx->tx_cookie);
 }
 
 uint64_t
