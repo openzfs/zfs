@@ -1192,7 +1192,7 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 
 	lrsize = P2ROUNDUP_TYPED(lrsize, sizeof (uint64_t), size_t);
 
-	itx = vmem_alloc(offsetof(itx_t, itx_lr) + lrsize, KM_SLEEP);
+	itx = zio_data_buf_alloc(offsetof(itx_t, itx_lr) + lrsize);
 	itx->itx_lr.lrc_txtype = txtype;
 	itx->itx_lr.lrc_reclen = lrsize;
 	itx->itx_sod = lrsize; /* if write & WR_NEED_COPY will be increased */
@@ -1207,7 +1207,7 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 void
 zil_itx_destroy(itx_t *itx)
 {
-	vmem_free(itx, offsetof(itx_t, itx_lr) + itx->itx_lr.lrc_reclen);
+	zio_data_buf_free(itx, offsetof(itx_t, itx_lr)+itx->itx_lr.lrc_reclen);
 }
 
 /*
@@ -1228,8 +1228,7 @@ zil_itxg_clean(itxs_t *itxs)
 		if (itx->itx_callback != NULL)
 			itx->itx_callback(itx->itx_callback_data);
 		list_remove(list, itx);
-		kmem_free(itx, offsetof(itx_t, itx_lr) +
-		    itx->itx_lr.lrc_reclen);
+		zil_itx_destroy(itx);
 	}
 
 	cookie = NULL;
@@ -1240,8 +1239,7 @@ zil_itxg_clean(itxs_t *itxs)
 			if (itx->itx_callback != NULL)
 				itx->itx_callback(itx->itx_callback_data);
 			list_remove(list, itx);
-			kmem_free(itx, offsetof(itx_t, itx_lr) +
-			    itx->itx_lr.lrc_reclen);
+			zil_itx_destroy(itx);
 		}
 		list_destroy(list);
 		kmem_free(ian, sizeof (itx_async_node_t));
@@ -1308,8 +1306,7 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 		if (itx->itx_callback != NULL)
 			itx->itx_callback(itx->itx_callback_data);
 		list_remove(&clean_list, itx);
-		kmem_free(itx, offsetof(itx_t, itx_lr) +
-		    itx->itx_lr.lrc_reclen);
+		zil_itx_destroy(itx);
 	}
 	list_destroy(&clean_list);
 }
@@ -1589,8 +1586,7 @@ zil_commit_writer(zilog_t *zilog)
 		if (itx->itx_callback != NULL)
 			itx->itx_callback(itx->itx_callback_data);
 		list_remove(&zilog->zl_itx_commit_list, itx);
-		kmem_free(itx, offsetof(itx_t, itx_lr)
-		    + itx->itx_lr.lrc_reclen);
+		zil_itx_destroy(itx);
 	}
 
 	mutex_enter(&zilog->zl_lock);
