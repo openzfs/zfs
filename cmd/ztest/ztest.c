@@ -4795,6 +4795,9 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 		(void) ztest_dsl_prop_set_uint64(zd->zd_name, proplist[p],
 		    ztest_random_dsl_prop(proplist[p]), (int)ztest_random(2));
 
+	VERIFY0(ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_RECORDSIZE,
+	    ztest_random_blocksize(), (int)ztest_random(2)));
+
 	(void) rw_unlock(&ztest_name_lock);
 }
 
