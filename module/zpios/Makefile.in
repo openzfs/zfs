@@ -1,7 +1,0 @@
-MODULE := zpios
-
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
-obj-$(CONFIG_ZFS) := $(MODULE).o
-
-$(MODULE)-objs += @top_srcdir@/module/zpios/pios.o

@@ -1,9 +1,0 @@
-*.ko
-*.ko.unsigned
-*.ko.out
-*.ko.out.sig
-.*.cmd
-
-/.tmp_versions
-/Module.markers
-/Module.symvers
