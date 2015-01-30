@@ -149,6 +149,7 @@ inline void *
 spl_kmem_alloc_impl(size_t size, int flags, int node)
 {
 	gfp_t lflags = kmem_flags_convert(flags);
+	int use_vmem = 0;
 	void *ptr;
 
 	/*
@@ -182,7 +183,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 * impact performance so frequently manipulating the virtual
 		 * address space is strongly discouraged.
 		 */
-		if (unlikely(size > spl_kmem_alloc_max)) {
+		if ((size > spl_kmem_alloc_max) || use_vmem) {
 			if (flags & KM_VMEM) {
 				ptr = spl_vmalloc(size, lflags, PAGE_KERNEL);
 			} else {
@@ -194,6 +195,15 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 
 		if (likely(ptr) || (flags & KM_NOSLEEP))
 			return (ptr);
+
+		/*
+		 * For vmem_alloc() and vmem_zalloc() callers retry immediately
+		 * using spl_vmalloc() which is unlikely to fail.
+		 */
+		if ((flags & KM_VMEM) && (use_vmem == 0))  {
+			use_vmem = 1;
+			continue;
+		}
 
 		if (unlikely(__ratelimit(&kmem_alloc_ratelimit_state))) {
 			printk(KERN_WARNING
