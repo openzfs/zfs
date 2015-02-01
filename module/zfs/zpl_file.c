@@ -738,11 +738,11 @@ const struct file_operations zpl_file_operations = {
 	.llseek		= zpl_llseek,
 	.read		= zpl_read,
 	.write		= zpl_write,
-	.aio_read	= zpl_aio_read,
-	.aio_write	= zpl_aio_write,
+/*	.aio_read	= zpl_aio_read,
+	.aio_write	= zpl_aio_write, */
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
-	.aio_fsync	= zpl_aio_fsync,
+/*	.aio_fsync	= zpl_aio_fsync, */
 #ifdef HAVE_FILE_FALLOCATE
 	.fallocate	= zpl_fallocate,
 #endif /* HAVE_FILE_FALLOCATE */
