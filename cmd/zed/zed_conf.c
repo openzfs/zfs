@@ -21,7 +21,8 @@
 
 /*
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
- * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
+ * Authoritative copyright attribution can be found in the git commit log:
+ * <https://github.com/zfsonlinux/zfs.git>.
  */
 
 #include <assert.h>
@@ -198,8 +199,6 @@ _zed_conf_display_license(void)
 	    "  <http://opensource.org/licenses/CDDL-1.0>.",
 	    "Developed at Lawrence Livermore National Laboratory"
 	    " (LLNL-CODE-403049).",
-	    "Copyright (C) 2013-2014"
-	    " Lawrence Livermore National Security, LLC.",
 	    "",
 	    NULL
 	};

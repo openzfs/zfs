@@ -19,7 +19,8 @@
 .\" CDDL HEADER END
 .\"
 .\" Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
-.\" Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
+.\" Authoritative copyright attribution can be found in the git commit log:
+.\" <https://github.com/zfsonlinux/zfs.git>.
 .\"
 .TH ZED 8 "Octember 1, 2013" "ZFS on Linux" "System Administration Commands"
 
@@ -249,12 +250,6 @@ Internationalization support via gettext has not been added.
 The configuration file is not yet implemented.
 .PP
 The diagnosis engine is not yet implemented.
-
-.SH COPYRIGHT
-.PP
-Developed at Lawrence Livermore National Laboratory (LLNL\-CODE\-403049).
-.br
-Copyright (C) 2013\-2014 Lawrence Livermore National Security, LLC.
 
 .SH LICENSE
 .PP

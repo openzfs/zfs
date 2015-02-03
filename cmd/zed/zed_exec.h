@@ -21,7 +21,8 @@
 
 /*
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
- * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
+ * Authoritative copyright attribution can be found in the git commit log:
+ * <https://github.com/zfsonlinux/zfs.git>.
  */
 
 #ifndef	ZED_EXEC_H
