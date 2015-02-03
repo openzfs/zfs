@@ -67,6 +67,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	arc_buf_info_t abi = { 0 };
 	dmu_object_info_t doi = { 0 };
 	dnode_t *dn = DB_DNODE(db);
+	size_t nwritten;
 
 	if (db->db_buf)
 		arc_buf_info(db->db_buf, &abi, zfs_dbuf_state_index);
@@ -74,7 +75,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	if (dn)
 		__dmu_object_info_from_dnode(dn, &doi);
 
-	(void) snprintf(buf, size,
+	nwritten = snprintf(buf, size,
 	    "%-16s %-8llu %-8lld %-8lld %-8lld %-8llu %-8llu %-5d %-5d %-5lu | "
 	    "%-5d %-5d %-6lld 0x%-6x %-6lu %-8llu %-12llu "
 	    "%-6lu %-6lu %-6lu %-6lu %-6lu %-8llu %-8llu %-8d %-5lu | "
@@ -118,7 +119,9 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    (u_longlong_t)doi.doi_fill_count,
 	    (u_longlong_t)doi.doi_max_offset);
 
-	return (size);
+	if (nwritten >= size)
+		return (size);
+	return (nwritten + 1);
 }
 
 static int
