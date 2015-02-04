@@ -3,7 +3,7 @@ zfs unshare -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_unshare.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_unshare.json",
     "type":"object",
     "name": "zfs unshare -J",
     "version": "1.0",

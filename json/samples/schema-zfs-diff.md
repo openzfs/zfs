@@ -2,7 +2,7 @@ zfs diff -j :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_diff.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_diff.json",
     "type":"object",
     "name": "zfs diff -J",
     "version": "1.0" ,
@@ -28,22 +28,22 @@ zfs diff -j :
                     "properties":{
                         "M": {
                             "type":"string",
-                            "description": "Indicates the file/directory was modified in the later dataset",
+                            "description": "Indicates the file directory was modified in the later dataset",
                             "required":false
                         },
                         "R": {
                             "type":"string",
-                            "description": "Indicates the file/directory was renamed in the later dataset",
+                            "description": "Indicates the file directory was renamed in the later dataset",
                             "required":false
                         },
                         "-": {
                             "type":"string",
-                            "description": "Indicates the file/directory was removed in the later dataset",
+                            "description": "Indicates the file directory was removed in the later dataset",
                             "required":false
                         },
                         "+": {
                             "type":"string",
-                            "description": ""Indicates the file/directory was added in the later dataset"",
+                            "description": "Indicates the file directory was added in the later dataset",
                             "required":false
                         }
                     }

@@ -3,7 +3,7 @@ zpool split -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_split.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_split.json",
     "type":"object",
     "name": "zpool split -J",
     "version": "1.0",

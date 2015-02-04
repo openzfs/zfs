@@ -5,6 +5,7 @@ zfs mount -J :
     "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_mount.json",
     "type":"object",
     "name": "zfs mount -J",
+    "version": "1.0",
     "description": "mount a filesystem",
     "required":true,
     "properties":{

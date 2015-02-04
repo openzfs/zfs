@@ -4,7 +4,7 @@ zpool list -J :
 
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_list.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_list.json",
     "type":"object",
     "name": "zpool list -J",
     "version": "1.0",

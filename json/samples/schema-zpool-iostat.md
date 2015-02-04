@@ -3,7 +3,9 @@ zpool  iostat -J :
 
 {
     "type":"object",
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_iostat.json" ,
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_iostat.json" ,
+    "name": "zpool iostat -J",
+    "version": "1.0", 
     "required":false,
     "properties":{
         "stderr": {

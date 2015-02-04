@@ -1,7 +1,7 @@
 zpool create  -J :
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_create.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_create.json",
     "type":"object",
     "name": "zpool create -J",
     "version": "1.0",

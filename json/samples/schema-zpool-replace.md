@@ -3,7 +3,7 @@ zpool replace -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_replace.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_replace.json",
     "type":"object",
     "name": "zpool replace -J",
     "version": "1.0",

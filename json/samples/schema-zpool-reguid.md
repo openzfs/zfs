@@ -1,7 +1,7 @@
 zpool reguid -J :
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_reguid.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_reguid.json",
     "type":"object",
     "name": "zpool reguid -J",
     "version": "1.0",

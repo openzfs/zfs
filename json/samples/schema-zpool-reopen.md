@@ -1,7 +1,7 @@
 zpool reopen -J :
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_reopen.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_reopen.json",
     "type":"object",
     "name": "zpool reopen -J",
     "version": "1.0",

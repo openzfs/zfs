@@ -2,7 +2,7 @@ zfs get -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_get.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_get.json",
     "type":"object",
     "name": "zfs get -J",
     "version": "1.0" ,
@@ -28,7 +28,7 @@ zfs get -J :
                         "name": {
                             "type":"string",
                             "description": "name of volume ",
-                            "required":true
+                            "required":false
                         },
                         "property": {
                             "type":"string",

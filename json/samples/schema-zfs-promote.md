@@ -3,7 +3,7 @@ zpool promote -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_promote.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_promote.json",
     "type":"object",
     "name": "zfs promote -J",
     "version": "1.0",

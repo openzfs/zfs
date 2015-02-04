@@ -6,6 +6,7 @@ zfs clone -J :
     "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_clone.json",
     "type":"object",
     "name": "zfs clone -J",
+    "version": "1.0",
     "description": "clone a zvol",
     "required":true,
     "properties":{

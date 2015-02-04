@@ -5,6 +5,7 @@ zfs realease -J :
     "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_release.json",
     "type":"object",
     "name": "zfs release -J",
+    "version": "1.0",
     "description": "eelease a hold on a snapshot",
     "required":true,
     "properties":{

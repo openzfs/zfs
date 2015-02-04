@@ -3,7 +3,7 @@ zpool attach -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_attach.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_attach.json",
     "type":"object",
     "name": "zfs attach -J",
     "version": "1.0",

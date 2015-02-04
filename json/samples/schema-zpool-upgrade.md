@@ -5,6 +5,7 @@ zpool upgrade -J :
     "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_upgrade.json",
     "type":"object",
     "name": "zpool upgrade -J",
+    "version": "1.0",
     "description": "Upgrading ZFS Storage Pools",
     "required":true,
     "properties":{

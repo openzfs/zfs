@@ -3,7 +3,7 @@ zfs send -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_send.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_send.json",
     "type":"object",
     "name": "zfs send -J",
     "version": "1.0",

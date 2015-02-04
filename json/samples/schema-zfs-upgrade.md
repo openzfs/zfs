@@ -5,6 +5,7 @@ zfs upgrade -J :
     "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_upgrade.json",
     "type":"object",
     "name": "zfs upgrade -J",
+    "version": "1.0",
     "description": "Upgrading ZFS vol",
     "required":true,
     "properties":{

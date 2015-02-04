@@ -3,7 +3,7 @@ zfs inherit -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_inherit.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_inherit.json",
     "type":"object",
     "name": "zfs inhertit -J",
     "version": "1.0",
