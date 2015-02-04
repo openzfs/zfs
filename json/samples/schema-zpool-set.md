@@ -3,9 +3,10 @@ zpool set -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_set.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_set.json",
     "type":"object",
     "name": "zpool set -J",
+    "version": "1.0",
     "description": "manage zfs pool storage properties",
     "required":true,
     "properties":{

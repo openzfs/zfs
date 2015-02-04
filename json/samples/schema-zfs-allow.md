@@ -3,9 +3,10 @@ zfs allow -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_allow.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_allow.json",
     "type":"object",
     "name": "zfs allow -J",
+    "version": "1.0",
     "description": "delegate zfs permissions",
     "required":true,
     "properties":{

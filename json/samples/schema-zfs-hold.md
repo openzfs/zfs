@@ -3,9 +3,10 @@ zfs hold -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_hold.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_hold.json",
     "type":"object",
     "name": "zfs hold -J",
+    "version": "1.0",
     "description": "hold zfs snapshot",
     "required":true,
     "properties":{

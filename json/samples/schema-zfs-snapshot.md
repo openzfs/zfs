@@ -3,9 +3,10 @@ zfs snapshot -j :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_snapshot.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_snapshot.json",
     "type":"object",
     "name": "zfs snapshot -j ",
+    "version": "1.0",
     "description": "create a snapshop ",
     "required":true,
     "properties":{

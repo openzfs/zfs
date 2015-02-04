@@ -1,12 +1,11 @@
 zfs list -J :
 
 ```json
-
-
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_list.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_list.json",
     "type":"object",
     "name": "zfs list -J",
+    "version": "1.0" ,
     "description": "list all volume of filesystem",
     "required":true,
     "properties":{
@@ -24,7 +23,7 @@ zfs list -J :
             "items":
                 {
                     "type":"object",
-                    "name": "volume",
+                    "type": "type of volume",
                     "required":false,
                     "properties":{
                         "available": {

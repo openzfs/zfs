@@ -3,9 +3,10 @@ zpool offline -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_offline.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_offline.json",
     "type":"object",
     "name": "zpool offline -J",
+    "version": "1.0",
     "description": "bring a devide offline",
     "required":true,
     "properties":{

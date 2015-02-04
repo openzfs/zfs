@@ -4,9 +4,10 @@ zpool status -J :
 
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_status.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_status.json",
     "type":"object",
     "name": "zpool stastus -J",
+    "version": "1.0",
     "description": " Displays  the detailed health status for the given pools",
     "required":false,
     "properties":{

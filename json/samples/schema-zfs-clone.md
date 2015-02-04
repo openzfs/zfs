@@ -3,7 +3,7 @@ zfs clone -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_clone.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_clone.json",
     "type":"object",
     "name": "zfs clone -J",
     "description": "clone a zvol",

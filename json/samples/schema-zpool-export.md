@@ -3,9 +3,10 @@ zpool export -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_export.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_export.json",
     "type":"object",
     "name": "zfs export -J",
+    "version": "1.0",
     "description": "export a storage pool",
     "required":true,
     "properties":{

@@ -3,9 +3,10 @@ zfs unallow unallow-J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_unallow.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_unallow.json",
     "type":"object",
     "name": "zfs unallow -J",
+    "version": "1.0",
     "description": "unallow zfs permissions",
     "required":true,
     "properties":{

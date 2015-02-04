@@ -4,8 +4,9 @@ zpool list -Jv :
 
 {
 	"type":"object",
-	"$schema": "http://json-schema.org/draft-03/schema",
+	"$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zpool_list_verbose.json",
 	"name": "zpool list -Jv",
+	"version": "1.0",
 	"description": "list all pool whit verbose mode",
 	"id": "#zpool list -Jv",
 	"required":true,

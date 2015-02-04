@@ -3,9 +3,10 @@ zfs create -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_create.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_create.json",
     "type":"object",
     "name": "zfs create -J",
+    "version": "1.0",
     "description": "create a zvol",
     "required":true,
     "properties":{
