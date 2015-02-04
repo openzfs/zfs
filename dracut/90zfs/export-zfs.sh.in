@@ -10,7 +10,7 @@ _do_zpool_export() {
 	fi
 
 	info "Exporting ZFS storage pools"
-	zpool list -H | while read fs rest ; do
+	for fs in `zpool list -H -o name` ; do
 		zpool export $force "$fs" || ret=$?
 	done
 
