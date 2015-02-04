@@ -538,20 +538,30 @@ sa_copy_data(sa_data_locator_t *func, void *datastart, void *target, int buflen)
 }
 
 /*
- * Determine several different sizes
- * first the sa header size
- * the number of bytes to be stored
- * if spill would occur the index in the attribute array is returned
+ * Determine several different values pertaining to system attribute
+ * buffers.
  *
- * the boolean will_spill will be set when spilling is necessary.  It
- * is only set when the buftype is SA_BONUS
+ * Return the size of the sa_hdr_phys_t header for the buffer. Each
+ * variable length attribute except the first contributes two bytes to
+ * the header size, which is then rounded up to an 8-byte boundary.
+ *
+ * The following output parameters are also computed.
+ *
+ *  index - The index of the first attribute in attr_desc that will
+ *  spill over. Only valid if will_spill is set.
+ *
+ *  total - The total number of bytes of all system attributes described
+ *  in attr_desc.
+ *
+ *  will_spill - Set when spilling is necessary. It is only set when
+ *  the buftype is SA_BONUS.
  */
 static int
 sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
     dmu_buf_t *db, sa_buf_type_t buftype, int *index, int *total,
     boolean_t *will_spill)
 {
-	int var_size = 0;
+	int var_size_count = 0;
 	int i;
 	int full_space;
 	int hdrsize;
@@ -577,6 +587,7 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 
 	for (i = 0; i != attr_count; i++) {
 		boolean_t is_var_sz, might_spill_here;
+		int tmp_hdrsize;
 
 		*total = P2ROUNDUP(*total, 8);
 		*total += attr_desc[i].sa_length;
@@ -584,31 +595,35 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 			continue;
 
 		is_var_sz = (SA_REGISTERED_LEN(sa, attr_desc[i].sa_attr) == 0);
-		if (is_var_sz) {
-			var_size++;
-		}
+		if (is_var_sz)
+			var_size_count++;
 
+		/*
+		 * Calculate what the SA header size would be if this
+		 * attribute doesn't spill.
+		 */
+		tmp_hdrsize = hdrsize + ((is_var_sz && var_size_count > 1) ?
+		    sizeof (uint16_t) : 0);
+
+		/*
+		 * Check whether this attribute spans into the space
+		 * that would be used by the spill block pointer should
+		 * a spill block be needed.
+		 */
 		might_spill_here =
 		    buftype == SA_BONUS && *index == -1 &&
-		    (*total + P2ROUNDUP(hdrsize, 8)) >
+		    (*total + P2ROUNDUP(tmp_hdrsize, 8)) >
 		    (full_space - sizeof (blkptr_t));
 
-		if (is_var_sz && var_size > 1) {
-			/*
-			 * Don't worry that the spill block might overflow.
-			 * It will be resized if needed in sa_build_layouts().
-			 */
+		if (is_var_sz && var_size_count > 1) {
 			if (buftype == SA_SPILL ||
-			    P2ROUNDUP(hdrsize + sizeof (uint16_t), 8) +
-			    *total < full_space) {
+			    tmp_hdrsize + *total < full_space) {
 				/*
-				 * Account for header space used by array of
-				 * optional sizes of variable-length attributes.
 				 * Record the extra header size in case this
 				 * increase needs to be reversed due to
 				 * spill-over.
 				 */
-				hdrsize += sizeof (uint16_t);
+				hdrsize = tmp_hdrsize;
 				if (*index != -1 || might_spill_here)
 					extra_hdrsize += sizeof (uint16_t);
 			} else {
@@ -621,10 +636,9 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		}
 
 		/*
-		 * find index of where spill *could* occur.
-		 * Then continue to count of remainder attribute
-		 * space.  The sum is used later for sizing bonus
-		 * and spill buffer.
+		 * Store index of where spill *could* occur. Then
+		 * continue to count the remaining attribute sizes. The
+		 * sum is used later for sizing bonus and spill buffer.
 		 */
 		if (might_spill_here)
 			*index = i;
@@ -657,9 +671,9 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	sa_buf_type_t buftype;
 	sa_hdr_phys_t *sahdr;
 	void *data_start;
-	int buf_space;
 	sa_attr_type_t *attrs, *attrs_start;
 	int i, lot_count;
+	int spill_idx;
 	int hdrsize;
 	int spillhdrsize = 0;
 	int used;
@@ -674,7 +688,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 
 	/* first determine bonus header size and sum of all attributes */
 	hdrsize = sa_find_sizes(sa, attr_desc, attr_count, hdl->sa_bonus,
-	    SA_BONUS, &i, &used, &spilling);
+	    SA_BONUS, &spill_idx, &used, &spilling);
 
 	if (used > SPA_MAXBLOCKSIZE)
 		return (SET_ERROR(EFBIG));
@@ -696,14 +710,13 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		}
 		dmu_buf_will_dirty(hdl->sa_spill, tx);
 
-		spillhdrsize = sa_find_sizes(sa, &attr_desc[i],
-		    attr_count - i, hdl->sa_spill, SA_SPILL, &i,
+		spillhdrsize = sa_find_sizes(sa, &attr_desc[spill_idx],
+		    attr_count - spill_idx, hdl->sa_spill, SA_SPILL, &i,
 		    &spill_used, &dummy);
 
 		if (spill_used > SPA_MAXBLOCKSIZE)
 			return (SET_ERROR(EFBIG));
 
-		buf_space = hdl->sa_spill->db_size - spillhdrsize;
 		if (BUF_SPACE_NEEDED(spill_used, spillhdrsize) >
 		    hdl->sa_spill->db_size)
 			VERIFY(0 == sa_resize_spill(hdl,
@@ -715,12 +728,6 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	sahdr = (sa_hdr_phys_t *)hdl->sa_bonus->db_data;
 	buftype = SA_BONUS;
 
-	if (spilling)
-		buf_space = (sa->sa_force_spill) ?
-		    0 : SA_BLKPTR_SPACE - hdrsize;
-	else
-		buf_space = hdl->sa_bonus->db_size - hdrsize;
-
 	attrs_start = attrs = kmem_alloc(sizeof (sa_attr_type_t) * attr_count,
 	    KM_SLEEP);
 	lot_count = 0;
@@ -729,14 +736,12 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		uint16_t length;
 
 		ASSERT(IS_P2ALIGNED(data_start, 8));
-		ASSERT(IS_P2ALIGNED(buf_space, 8));
 		attrs[i] = attr_desc[i].sa_attr;
 		length = SA_REGISTERED_LEN(sa, attrs[i]);
 		if (length == 0)
 			length = attr_desc[i].sa_length;
 
-		if (buf_space < length) {  /* switch to spill buffer */
-			VERIFY(spilling);
+		if (spilling && i == spill_idx) { /* switch to spill buffer */
 			VERIFY(bonustype == DMU_OT_SA);
 			if (buftype == SA_BONUS && !sa->sa_force_spill) {
 				sa_find_layout(hdl->sa_os, hash, attrs_start,
@@ -753,7 +758,6 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 			data_start = (void *)((uintptr_t)sahdr +
 			    spillhdrsize);
 			attrs_start = &attrs[i];
-			buf_space = hdl->sa_spill->db_size - spillhdrsize;
 			lot_count = 0;
 		}
 		hash ^= SA_ATTR_HASH(attrs[i]);
@@ -766,7 +770,6 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		}
 		data_start = (void *)P2ROUNDUP(((uintptr_t)data_start +
 		    length), 8);
-		buf_space -= P2ROUNDUP(length, 8);
 		lot_count++;
 	}
 
