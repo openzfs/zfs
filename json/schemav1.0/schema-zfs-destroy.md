@@ -1,5 +1,5 @@
 zfs destroy  -J :
-
+```json
 {
     "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zfs_destroy.json",
     "type":"object",
