@@ -1,15 +1,13 @@
 #!/bin/bash
 
-BASETANK="share"
+BASETANK=`zpool list -H | sed 's@	.*@@'`
 DATE=`date "+%Y%m%d"`
 
-TEST_SMBFS=0
-TEST_DESTROY=0
-
 if [ -z "$1" ]; then
-	echo "Usage: `basename $0` [unpack]<[smbfs][snapshot][all]>"
+	echo "Usage: `basename $0` [debug] [smbfs]"
 	exit 1
 fi
+CMDLINE="$*"
 
 set_onoff() {
 	type="$1"
@@ -35,21 +33,22 @@ check_exists() {
 }
 
 check_shares() {
-	if [ "$TEST_SMBFS" == "1" ]; then
-		echo "Shares:"
-		echo "=> usershare list:"
-		net usershare list
-		echo
-		echo "=> /etc/dfs/sharetab:"
-		cat /etc/dfs/sharetab
-		echo
+	if type list_smbfs.sh > /dev/null 2>&1; then
+	    list_smbfs.sh
+	else
+	    run "net conf listshares"
 	fi
+	run "cat /etc/dfs/sharetab"
 
-	sleep 2
+	echo
+
+	if ! echo "$CMDLINE" | egrep -qi "debug"; then
+		sleep 2
+	fi
 }
 
 test_header() {
-	echo "TEST: $*"
+	printf "TEST: %s\n" "$*"
 	echo "======================================"
 }
 
@@ -57,158 +56,109 @@ run() {
 	cmd="$*"
 
 	echo "CMD: $cmd"
-	$cmd
+	if ! echo "$CMDLINE" | egrep -qi "debug"; then
+		$cmd 2>&1 | while IFS= read line; do
+		    echo "     $line"
+		done
+	fi
 }
 
-# ---------
-# Needs more work...
-if echo "$*" | grep -qi "unpack"; then
-	zfs unmount -a
-	zfs unshare -a
-	run "zfs destroy -r $BASETANK/tests"
+check_mntpt() {
+	volnr=$1
 
-	sh /etc/init.d/zfs stop
-
-#	for tid in `grep ^tid /proc/net/iet/volume | sed "s@.*:\([0-9].*\) name.*@\1@"`
-#	do
-#		ietadm --op delete --tid $tid
-#	done
-
-	set -e
-	rmmod `lsmod | grep ^z | grep -v zlib_deflate | sed 's@ .*@@'` spl zlib_deflate
-
-	pushd / > /dev/null
-	[ -f "tmp/zfs.tgz" ] && tar xzf tmp/zfs.tgz && rm tmp/zfs.tgz
-	[ -f "tmp/spl.tgz" ] && tar xzf tmp/spl.tgz && rm tmp/spl.tgz
-	popd > /dev/null
-
-	depmod -a
-
-	sh /etc/init.d/zfs start
-	set +e
-fi
-
-# ---------
-if echo "$*" | egrep -qi "smbfs|all"; then
-	check_exists $BASETANK/tests
-
-	TEST_SMBFS=1
-
-	test_header "Exists || Create"
-	str=
-	for volnr in 1 2 3; do
-		check_exists $BASETANK/tests/smbfs$volnr
-
-		str="$str $BASETANK/tests/smbfs$volnr"
+	echo "CMD: mount | grep ^$BASETANK/tests/smbfs$volnr"
+	mount | grep ^$BASETANK/tests/smbfs$volnr | while IFS= read line; do
+	    echo "     $line"
 	done
-	run "zfs get sharesmb $str"
+}
 
-	# Set sharesmb=on
-	test_header "Enable SMB share"
-	for volnr in 1 2 3; do
-	    set_onoff sharesmb "$BASETANK/tests/smbfs$volnr" on
-	    check_shares
-	done
+# =================================================
 
-	# Share all
-	test_header "Share all (individually)"
-	for volnr in 1 2 3; do
-	    run "zfs share $BASETANK/tests/smbfs$volnr"
-	    check_shares
-	done
+# -------------------------------------------------
+test_header "Basic setup"
+check_exists $BASETANK/tests
 
-	# Unshare all
-	test_header "Unshare all (individually)"
-	for volnr in 1 2 3; do
-	    run "zfs unshare $BASETANK/tests/smbfs$volnr"
-	    check_shares
-	done
+str=
+for volnr in 1 2 3; do
+	check_exists $BASETANK/tests/smbfs$volnr
 
-	# Change mountpoint - first unshare and then share individual
-	test_header "Change mount point (unshare ; share)"
-	mkdir -p /tests
-	set_onoff sharesmb "$str" off
-	for volnr in 3 1 2; do
-		run "zfs set mountpoint=/tests/smbfs$volnr $BASETANK/tests/smbfs$volnr"
-		echo "CMD: mount | grep ^$BASETANK/tests/smbfs$volnr"
-		mount | grep ^$BASETANK/tests/smbfs$volnr
-		echo
+	str="$str $BASETANK/tests/smbfs$volnr"
+done
+run "zfs get sharesmb $str"
+check_shares
 
-		run "zfs mount $BASETANK/tests/smbfs$volnr"
-		echo "CMD: mount | grep ^$BASETANK/tests/smbfs$volnr"
-		mount | grep ^$BASETANK/tests/smbfs$volnr
-		echo
+# -------------------------------------------------
+echo ; test_header "Autoshare"
+for volnr in 1 2 3; do
+	set_onoff sharesmb "$BASETANK/tests/smbfs$volnr" on
+	check_shares
+done
 
-		set_onoff sharesmb "$BASETANK/tests/smbfs$volnr" on
-		check_shares
+# -------------------------------------------------
+echo ; test_header "Unshare single"
+for volnr in 1 2 3; do
+	run "zfs unshare $BASETANK/tests/smbfs$volnr"
+	check_shares
+done
 
-		run "zfs share $BASETANK/tests/smbfs$volnr"
-		check_shares
+# -------------------------------------------------
+echo ; test_header "Share single"
+for volnr in 1 2 3; do
+	# NOTE: This is expected to fail if dataset already
+	# 	existed (not created by script) and had
+	#	sharesmb=on set.
+	run "zfs share $BASETANK/tests/smbfs$volnr"
+	check_shares
+done
 
-		echo "-------------------"
-	done
+# -------------------------------------------------
+echo ; test_header "Autounshare"
+for volnr in 1 2 3; do
+	set_onoff sharesmb "$BASETANK/tests/smbfs$volnr" off
+	check_shares
+done
 
-	# Change mountpoint - remounting
-	test_header "Change mount point (remounting)"
-	for volnr in 3 1 2; do
-		run "zfs set mountpoint=/$BASETANK/tests/smbfs$volnr $BASETANK/tests/smbfs$volnr"
-		echo "CMD: mount | grep ^$BASETANK/tests/smbfs$volnr"
-		mount | grep ^$BASETANK/tests/smbfs$volnr
-		echo
-		# => Doesn't seem to remount (!?)
+# -------------------------------------------------
+# 1. Start out unshared ('Autounshare' above)
+# 2. Change the mountpoint
+# 3. Share
+# 4. Change mountpoint
+echo ; test_header "Change mount point (unshared ; shared)"
+mkdir -p /tests
+for volnr in 3 1 2; do
+	orig=`zfs get -H -o value mountpoint mypool/tests/smbfs$volnr`
 
-		run "zfs mount $BASETANK/tests/smbfs$volnr"
-		echo "CMD: mount | grep ^$BASETANK/tests/smbfs$volnr"
-		mount | grep ^$BASETANK/tests/smbfs$volnr
-		echo
-		# => Doesn't seem to reshare (!?)
+	check_mntpt $volnr
+	run "zfs set mountpoint=/tests/smbfs$volnr $BASETANK/tests/smbfs$volnr"
+	check_mntpt $volnr
+	echo
 
-		check_shares
-
-		run "zfs share $BASETANK/tests/smbfs$volnr"
-		check_shares
-
-		echo "-------------------"
-	done
-fi
-
-# ---------
-if echo "$*" | egrep -qi "smbfs|all"; then
-	test_header "Unshare + Share all"
-
-	run "zfs share -a" ; check_shares
-	run "zfs unshare -a" ; check_shares
-fi
-
-# ---------
-if echo "$*" | grep -qi "snapshot|all"; then
-	test_header "Snapshots"
-
-	echo ; echo "-------------------"
-	check_exists $BASETANK/tests/destroy
-	check_exists $BASETANK/tests/destroy/destroy1
-	run "zfs destroy -r $BASETANK/tests/destroy"
-
-	echo ; echo "-------------------"
-	check_exists $BASETANK/tests/destroy
-	run "zfs snapshot $BASETANK/tests/destroy@$DATE"
-	run "zfs destroy -r $BASETANK/tests/destroy"
-
-	echo ; echo "-------------------"
-	check_exists $BASETANK/tests/destroy
-	run "zfs snapshot $BASETANK/tests/destroy@$DATE"
-	run "zfs destroy -r $BASETANK/tests/destroy@$DATE"
-	run "zfs destroy -r $BASETANK/tests/destroy"
-fi
-
-if echo "$*" | egrep -qi "smbfs|snapshot|all"; then
-	test_header "Cleanup (Share all + Destroy all)"
-
-	run "zfs share -a"
+	set_onoff sharesmb "$BASETANK/tests/smbfs$volnr" on
 	check_shares
 
-	run "zfs destroy -r $BASETANK/tests"
+	run "zfs set mountpoint=$orig $BASETANK/tests/smbfs$volnr"
+	check_mntpt $volnr
 	check_shares
 
-	run "zfs list"
-fi
+	echo
+done
+
+# -------------------------------------------------
+echo ; test_header "Unshare all"
+run "zfs unshare -a"
+check_shares
+
+# -------------------------------------------------
+echo ; test_header "Share all"
+run "zfs share -a"
+check_shares
+
+# -------------------------------------------------
+echo ; test_header "Destroy all"
+run "zfs destroy -r $BASETANK/tests"
+check_shares
+
+# -------------------------------------------------
+echo ; test_header "End"
+run "zfs list"
+check_shares
