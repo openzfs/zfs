@@ -1328,20 +1328,20 @@ get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp)
 	if (size == 0)
 		return (SET_ERROR(EINVAL));
 
-	packed = kmem_alloc(size, KM_SLEEP);
+	packed = vmem_alloc(size, KM_SLEEP);
 
 	if ((error = ddi_copyin((void *)(uintptr_t)nvl, packed, size,
 	    iflag)) != 0) {
-		kmem_free(packed, size);
+		vmem_free(packed, size);
 		return (error);
 	}
 
 	if ((error = nvlist_unpack(packed, size, &list, 0)) != 0) {
-		kmem_free(packed, size);
+		vmem_free(packed, size);
 		return (error);
 	}
 
-	kmem_free(packed, size);
+	vmem_free(packed, size);
 
 	*nvp = list;
 	return (0);
