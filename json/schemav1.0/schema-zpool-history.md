@@ -1,0 +1,59 @@
+zpool history -J :
+```json
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "name": "zpool history -J",
+   "version": "1.0" ,
+   "description": "display history of zpool",
+   "required":true,
+  "properties": {
+    "stderr": {
+            "type":"string",
+            "title": "stderr",
+            "description": "error output of command",
+            "required":true
+    },
+      "stderr": {
+            "type":"string",
+            "title": "stderr",
+            "description": "error output of command",
+            "required":true
+        },
+        "stdout": {
+            "type":"array",
+            "description": "standard output of command",
+            "minitems": "0",
+            "required":true,
+            "items":
+                {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "date": {
+                      "type": "string"
+                    },
+                    "cmd": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+}
+
