@@ -2,7 +2,7 @@ zpool dzetach -J :
 
 ```json
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_detach.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zpool_detach.json",
     "type":"object",
     "name": "zfs detach -J",
     "version": "1.0",

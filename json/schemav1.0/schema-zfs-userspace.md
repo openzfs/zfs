@@ -2,7 +2,7 @@ zfs userspace -J :
 
 ```json
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_userspace.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zfs_userspace.json",
     "type":"object",
     "name": "zfs userspace -J",
     "version": "1.0" ,

@@ -2,7 +2,7 @@ zfs diff -j :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_diff.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zfs_diff.json",
     "type":"object",
     "name": "zfs diff -J",
     "version": "1.0" ,

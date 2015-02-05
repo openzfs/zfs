@@ -2,7 +2,7 @@
 zpool upgrade -J :
  ```json
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_upgrade.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zpool_upgrade.json",
     "type":"object",
     "name": "zpool upgrade -J",
     "version": "1.0",

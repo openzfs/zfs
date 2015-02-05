@@ -3,7 +3,7 @@ zfs receive -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zfs_receive.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zfs_receive.json",
     "type":"object",
     "name": "zfs receive -J",
     "version": "1.0",

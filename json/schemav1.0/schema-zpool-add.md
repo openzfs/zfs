@@ -2,7 +2,7 @@
 zpool add -J :
  ```json
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_add.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zpool_add.json",
     "type":"object",
     "name": "zpool add -J",
     "version": "1.0",

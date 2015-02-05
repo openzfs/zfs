@@ -1,7 +1,7 @@
 zfs destroy  -J :
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_destroy.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zfs_destroy.json",
     "type":"object",
     "name": "zfs destroy -J",
     "version": "1.0",

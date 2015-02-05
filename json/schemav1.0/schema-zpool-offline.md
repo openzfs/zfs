@@ -3,7 +3,7 @@ zpool offline -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_offline.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zpool_offline.json",
     "type":"object",
     "name": "zpool offline -J",
     "version": "1.0",

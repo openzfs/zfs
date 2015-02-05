@@ -3,7 +3,7 @@ zpool import -J :
 ```json
 
 {
-    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema/schema_zpool_export.json",
+    "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schemav1.0/schema/schema_zpool_export.json",
     "type":"object",
     "name": "zfs import -J",
     "version": "1.0",
