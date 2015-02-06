@@ -57,7 +57,6 @@ kmem_cache_t *zio_cache;
 kmem_cache_t *zio_link_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
-int zio_bulk_flags = 0;
 int zio_delay_max = ZIO_DELAY_MAX;
 
 /*
@@ -142,6 +141,7 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
+		size_t cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
 
 		while (p2 & (p2 - 1))
 			p2 &= p2 - 1;
@@ -166,16 +166,14 @@ zio_init(void)
 
 		if (align != 0) {
 			char name[36];
-			int flags = zio_bulk_flags;
-
 			(void) sprintf(name, "zio_buf_%lu", (ulong_t)size);
 			zio_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL, NULL, flags);
+			    align, NULL, NULL, NULL, NULL, NULL, cflags);
 
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, flags);
+			    data_alloc_arena, cflags);
 		}
 	}
 
@@ -3397,9 +3395,6 @@ EXPORT_SYMBOL(zio_buf_alloc);
 EXPORT_SYMBOL(zio_data_buf_alloc);
 EXPORT_SYMBOL(zio_buf_free);
 EXPORT_SYMBOL(zio_data_buf_free);
-
-module_param(zio_bulk_flags, int, 0644);
-MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
 
 module_param(zio_delay_max, int, 0644);
 MODULE_PARM_DESC(zio_delay_max, "Max zio millisec delay before posting event");
