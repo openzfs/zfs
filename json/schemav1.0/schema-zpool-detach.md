@@ -1,4 +1,4 @@
-zpool dzetach -J :
+zpool detach -J :
 
 ```json
 {
