@@ -72,7 +72,7 @@
  *   name, a dataset name, or nothing.  If the name is not well-formed,
  *   the ioctl will fail and the callback will not be called.
  *   Therefore, the callback can assume that the name is well-formed
- *   (e.g. is null-terminated, doesn't have more than one '@' character,
+ *   (e.g. is NULL-terminated, doesn't have more than one '@' character,
  *   doesn't have invalid characters).
  *
  * zfs_ioc_poolcheck_t pool_check
@@ -2040,17 +2040,27 @@ zfs_ioc_vdev_setfru(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * inputs:
+ * nv				nvlist handle
+ * stat				pointer to dmu_objset_stats_t for output
+ * os				Objset of filesystem (held by caller)
+ *
+ * outputs:
+ * *nv				property nvlist
+ * *stat			updated stats
+ *
+ * The caller frees the nvlist on success.
+ */
 static int
-zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
+zfs_ioc_objset_stats_impl(nvlist_t **nv, dmu_objset_stats_t *stat, objset_t *os)
 {
 	int error = 0;
-	nvlist_t *nv;
 
-	dmu_objset_fast_stat(os, &zc->zc_objset_stats);
+	dmu_objset_fast_stat(os, stat);
 
-	if (zc->zc_nvlist_dst != 0 &&
-	    (error = dsl_prop_get_all(os, &nv)) == 0) {
-		dmu_objset_stats(os, nv);
+	if (nv != 0 && (error = dsl_prop_get_all(os, nv)) == 0) {
+		dmu_objset_stats(os, *nv);
 		/*
 		 * NB: zvol_get_stats() will read the objset contents,
 		 * which we aren't supposed to do with a
@@ -2058,16 +2068,15 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 		 * inconsistent.  So this is a bit of a workaround...
 		 * XXX reading with out owning
 		 */
-		if (!zc->zc_objset_stats.dds_inconsistent &&
+		if (!stat->dds_inconsistent &&
 		    dmu_objset_type(os) == DMU_OST_ZVOL) {
-			error = zvol_get_stats(os, nv);
+			error = zvol_get_stats(os, *nv);
+			if (error)
+				nvlist_free(*nv);
 			if (error == EIO)
 				return (error);
 			VERIFY0(error);
 		}
-		if (error == 0)
-			error = put_nvlist(zc, nv);
-		nvlist_free(nv);
 	}
 
 	return (error);
@@ -2087,12 +2096,20 @@ static int
 zfs_ioc_objset_stats(zfs_cmd_t *zc)
 {
 	objset_t *os;
+	nvlist_t *nv;
 	int error;
 
 	error = dmu_objset_hold(zc->zc_name, FTAG, &os);
 	if (error == 0) {
-		error = zfs_ioc_objset_stats_impl(zc, os);
+		error = zfs_ioc_objset_stats_impl(&nv, &zc->zc_objset_stats,
+		    os);
+
 		dmu_objset_rele(os, FTAG);
+	}
+
+	if (error == 0) {
+		error = put_nvlist(zc, nv);
+		nvlist_free(nv);
 	}
 
 	return (error);
@@ -2212,10 +2229,18 @@ dataset_name_hidden(const char *name)
 	return (B_FALSE);
 }
 
+typedef struct zfs_list_t {
+	char *zl_name;
+	uint64_t zl_cookie;
+	uint64_t zl_obj;
+	dmu_objset_stats_t *zl_objset_stats;
+	nvlist_t *zl_nvlist;
+} zfs_list_t;
+
 /*
  * inputs:
- * zc_name		name of filesystem
- * zc_cookie		zap cursor
+ * zl_name		name of filesystem
+ * zl_cookie		zap cursor
  * zc_nvlist_dst_size	size of buffer for property nvlist
  *
  * outputs:
@@ -2225,47 +2250,50 @@ dataset_name_hidden(const char *name)
  * zc_nvlist_dst	property nvlist
  * zc_nvlist_dst_size	size of property nvlist
  */
-static int
-zfs_ioc_dataset_list_next(zfs_cmd_t *zc)
+int
+zfs_ioc_dataset_list_next_impl(zfs_list_t *zl)
 {
 	objset_t *os;
 	int error;
 	char *p;
-	size_t orig_len = strlen(zc->zc_name);
+	size_t orig_len = strlen(zl->zl_name);
 
 top:
-	if ((error = dmu_objset_hold(zc->zc_name, FTAG, &os))) {
+	if ((error = dmu_objset_hold(zl->zl_name, FTAG, &os))) {
 		if (error == ENOENT)
 			error = SET_ERROR(ESRCH);
 		return (error);
 	}
 
-	p = strrchr(zc->zc_name, '/');
+	p = strrchr(zl->zl_name, '/');
 	if (p == NULL || p[1] != '\0')
-		(void) strlcat(zc->zc_name, "/", sizeof (zc->zc_name));
-	p = zc->zc_name + strlen(zc->zc_name);
+		(void) strlcat(zl->zl_name, "/", sizeof (zl->zl_name));
+	p = zl->zl_name + strlen(zl->zl_name);
 
 	do {
 		error = dmu_dir_list_next(os,
-		    sizeof (zc->zc_name) - (p - zc->zc_name), p,
-		    NULL, &zc->zc_cookie);
+		    sizeof (zl->zl_name) - (p - zl->zl_name), p,
+		    NULL, &zl->zl_cookie);
 		if (error == ENOENT)
 			error = SET_ERROR(ESRCH);
-	} while (error == 0 && dataset_name_hidden(zc->zc_name));
-	dmu_objset_rele(os, FTAG);
+	} while (error == 0 && dataset_name_hidden(zl->zl_name));
 
 	/*
-	 * If it's an internal dataset (ie. with a '$' in its name),
+	 * if it's an internal dataset (ie. with a '$' in its name),
 	 * don't try to get stats for it, otherwise we'll return ENOENT.
 	 */
-	if (error == 0 && strchr(zc->zc_name, '$') == NULL) {
-		error = zfs_ioc_objset_stats(zc); /* fill in the stats */
+	if (error == 0 && strchr(zl->zl_name, '$') == NULL) {
+		/* fill in the stats */
+		error = zfs_ioc_objset_stats_impl(&zl->zl_nvlist,
+		    zl->zl_objset_stats, os);
 		if (error == ENOENT) {
-			/* We lost a race with destroy, get the next one. */
-			zc->zc_name[orig_len] = '\0';
+			dmu_objset_rele(os, FTAG);
+			/* we lost a race with destroy, get the next one. */
+			zl->zl_name[orig_len] = '\0';
 			goto top;
 		}
 	}
+	dmu_objset_rele(os, FTAG);
 	return (error);
 }
 
@@ -2282,12 +2310,12 @@ top:
  * zc_nvlist_dst_size	size of property nvlist
  */
 static int
-zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
+zfs_ioc_snapshot_list_next_impl(zfs_list_t *zl, boolean_t simple)
 {
 	objset_t *os;
 	int error;
 
-	error = dmu_objset_hold(zc->zc_name, FTAG, &os);
+	error = dmu_objset_hold(zl->zl_name, FTAG, &os);
 	if (error != 0) {
 		return (error == ENOENT ? ESRCH : error);
 	}
@@ -2296,28 +2324,36 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 	 * A dataset name of maximum length cannot have any snapshots,
 	 * so exit immediately.
 	 */
-	if (strlcat(zc->zc_name, "@", sizeof (zc->zc_name)) >= MAXNAMELEN) {
+	if (strlcat(zl->zl_name, "@", sizeof (zl->zl_name)) >= MAXNAMELEN) {
 		dmu_objset_rele(os, FTAG);
 		return (SET_ERROR(ESRCH));
 	}
 
 	error = dmu_snapshot_list_next(os,
-	    sizeof (zc->zc_name) - strlen(zc->zc_name),
-	    zc->zc_name + strlen(zc->zc_name), &zc->zc_obj, &zc->zc_cookie,
+	    sizeof (zl->zl_name) - strlen(zl->zl_name),
+	    zl->zl_name + strlen(zl->zl_name), &zl->zl_obj, &zl->zl_cookie,
 	    NULL);
 
-	if (error == 0 && !zc->zc_simple) {
+	if (error == 0 && !simple) {
 		dsl_dataset_t *ds;
 		dsl_pool_t *dp = os->os_dsl_dataset->ds_dir->dd_pool;
 
-		error = dsl_dataset_hold_obj(dp, zc->zc_obj, FTAG, &ds);
+		error = dsl_dataset_hold_obj(dp, zl->zl_obj, FTAG, &ds);
 		if (error == 0) {
 			objset_t *ossnap;
+			nvlist_t *nv;
 
 			error = dmu_objset_from_ds(ds, &ossnap);
-			if (error == 0)
-				error = zfs_ioc_objset_stats_impl(zc, ossnap);
+			if (error == 0) {
+				error = zfs_ioc_objset_stats_impl(&nv,
+				    zl->zl_objset_stats, ossnap);
+			}
 			dsl_dataset_rele(ds, FTAG);
+			if (error)
+				nvlist_free(nv);
+			else
+				zl->zl_nvlist = nv;
+
 		}
 	} else if (error == ENOENT) {
 		error = SET_ERROR(ESRCH);
@@ -2326,8 +2362,75 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 	dmu_objset_rele(os, FTAG);
 	/* if we failed, undo the @ that we tacked on to zc_name */
 	if (error != 0)
-		*strchr(zc->zc_name, '@') = '\0';
+		*strchr(zl->zl_name, '@') = '\0';
 	return (error);
+}
+
+static int
+zfs_ioc_list_next(zfs_cmd_t *zc, boolean_t snapshot)
+{
+	zfs_list_t zl;
+	int error;
+
+	zl.zl_name = zc->zc_name;
+	zl.zl_objset_stats = &zc->zc_objset_stats;
+	zl.zl_cookie = zc->zc_cookie;
+
+	if (snapshot) {
+		zl.zl_obj = zc->zc_obj;
+		error = zfs_ioc_snapshot_list_next_impl(&zl, zc->zc_simple);
+	} else {
+		error = zfs_ioc_dataset_list_next_impl(&zl);
+	}
+
+	if (error == 0) {
+		ASSERT(zl.zl_nvlist);
+		zc->zc_cookie = zl.zl_cookie;
+		if (snapshot)
+			zc->zc_obj = zl.zl_obj;
+		error = put_nvlist(zc, zl.zl_nvlist);
+		nvlist_free(zl.zl_nvlist);
+	}
+
+	return (error);
+}
+
+/*
+ * inputs:
+ * zc_name		name of filesystem
+ * zc_cookie		zap cursor
+ * zc_nvlist_dst_size	size of buffer for property nvlist
+ *
+ * outputs:
+ * zc_name		name of next filesystem
+ * zc_cookie		zap cursor
+ * zc_objset_stats	stats
+ * zc_nvlist_dst	property nvlist
+ * zc_nvlist_dst_size	size of property nvlist
+ */
+static int
+zfs_ioc_dataset_list_next(zfs_cmd_t *zc)
+{
+	return (zfs_ioc_list_next(zc, B_FALSE));
+}
+
+
+/*
+ * inputs:
+ * zc_name		name of filesystem
+ * zc_cookie		zap cursor
+ * zc_nvlist_dst_size	size of buffer for property nvlist
+ *
+ * outputs:
+ * zc_name		name of next snapshot
+ * zc_objset_stats	stats
+ * zc_nvlist_dst	property nvlist
+ * zc_nvlist_dst_size	size of property nvlist
+ */
+static int
+zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
+{
+	return (zfs_ioc_list_next(zc, B_TRUE));
 }
 
 static int
