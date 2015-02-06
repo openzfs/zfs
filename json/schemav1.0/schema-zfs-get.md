@@ -6,7 +6,7 @@ zfs get -J :
     "type":"object",
     "name": "zfs get -J",
     "version": "1.0" ,
-    "description": "list properties of  filesystem",
+    "description": "list properties of filesystem",
     "required":true,
     "properties":{
         "stderr": {
