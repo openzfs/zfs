@@ -1,4 +1,4 @@
-zfs diff -j :
+zfs diff -J :
 ```json
 
 {
