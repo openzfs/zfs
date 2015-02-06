@@ -18,6 +18,8 @@ http://lists.open-zfs.org/pipermail/developer/2014-September/000847.html
 
 http://lists.open-zfs.org/pipermail/developer/2014-November/000934.html
 
+http://lists.open-zfs.org/pipermail/developer/2015-February/001242.html
+
 #### Full status (json schemas description, community validation and code implemented) is availlable here :
 [STATUS](https://github.com/Alyseo/zfs/blob/json/json/STATUS.md)
 
