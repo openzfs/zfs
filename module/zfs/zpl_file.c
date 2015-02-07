@@ -617,7 +617,7 @@ zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
 static int
 zpl_ioctl_getflags(struct file *filp, void __user *arg)
 {
-	struct inode *ip = filp->f_dentry->d_inode;
+	struct inode *ip = file_inode(filp);
 	unsigned int ioctl_flags = 0;
 	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
 	int error;
@@ -653,7 +653,7 @@ zpl_ioctl_getflags(struct file *filp, void __user *arg)
 static int
 zpl_ioctl_setflags(struct file *filp, void __user *arg)
 {
-	struct inode	*ip = filp->f_dentry->d_inode;
+	struct inode	*ip = file_inode(filp);
 	uint64_t	zfs_flags = ITOZ(ip)->z_pflags;
 	unsigned int	ioctl_flags;
 	cred_t		*cr = CRED();

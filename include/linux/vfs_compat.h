@@ -21,6 +21,7 @@
 
 /*
  * Copyright (C) 2011 Lawrence Livermore National Security, LLC.
+ * Copyright (C) 2015 Jörg Thalheim.
  */
 
 #ifndef _ZFS_VFS_H
@@ -327,5 +328,17 @@ current_umask(void)
 #else
 #define	zpl_inode_owner_or_capable(ip)		is_owner_or_cap(ip)
 #endif /* HAVE_INODE_OWNER_OR_CAPABLE */
+
+/*
+ * 3.19 API change
+ * struct access f->f_dentry->d_inode was replaced by accessor function
+ * file_inode(f)
+ */
+#ifndef HAVE_FILE_INODE
+static inline struct inode *file_inode(const struct file *f)
+{
+	return (f->f_dentry->d_inode);
+}
+#endif /* HAVE_FILE_INODE */
 
 #endif /* _ZFS_VFS_H */
