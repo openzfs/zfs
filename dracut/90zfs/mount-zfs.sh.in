@@ -3,6 +3,9 @@
 . /lib/dracut-lib.sh
 
 ZPOOL_FORCE=""
+OLDIFS="$IFS"
+NEWLINE="
+"
 
 if getargbool 0 zfs_force -y zfs.force -y zfsforce ; then
 	warn "ZFS: Will force-import pools if necessary."
@@ -34,9 +37,12 @@ case "$root" in
 
 					# Re-export everything since we're not prepared to take
 					# responsibility for them.
-					zpool list -H | while read fs rest ; do
+					# Change IFS to allow for blanks in pool names.
+					IFS="$NEWLINE"
+					for fs in `zpool list -H -o name` ; do
 						zpool export "$fs"
 					done
+					IFS="$OLDIFS"
 
 					return 1
 				fi
@@ -46,11 +52,11 @@ case "$root" in
 			# Should have an explicit pool set, so just import it and we're done.
 			zfsbootfs="${root#zfs:}"
 			pool="${zfsbootfs%%/*}"
-			if ! zpool list -H $pool > /dev/null ; then
+			if ! zpool list -H "$pool" > /dev/null ; then
 				# pool wasn't imported automatically by the kernel module, so
 				# try it manually.
 				info "ZFS: Importing pool ${pool}..."
-				if ! zpool import -N ${ZPOOL_FORCE} $pool ; then
+				if ! zpool import -N ${ZPOOL_FORCE} "$pool" ; then
 					warn "ZFS: Unable to import pool ${pool}."
 					rootok=0
 
@@ -61,7 +67,7 @@ case "$root" in
 
 		# Above should have left our rpool imported and pool/dataset in $root.
 		# We need zfsutil for non-legacy mounts and not for legacy mounts.
-		mountpoint=`zfs get -H -o value mountpoint $zfsbootfs`
+		mountpoint=`zfs get -H -o value mountpoint "$zfsbootfs"`
 		if [ "$mountpoint" = "legacy" ] ; then
 			mount -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
 		else
