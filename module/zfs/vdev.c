@@ -1906,12 +1906,6 @@ vdev_dtl_load(vdev_t *vd)
 	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_dtl_object != 0) {
 		ASSERT(!vd->vdev_ishole);
 
-		/*
-		 * If the dtl cannot be sync'd there is no need to open it.
-		 */
-		if (!spa_writeable(spa))
-			return (0);
-
 		error = space_map_open(&vd->vdev_dtl_sm, mos,
 		    vd->vdev_dtl_object, 0, -1ULL, 0, &vd->vdev_dtl_lock);
 		if (error)

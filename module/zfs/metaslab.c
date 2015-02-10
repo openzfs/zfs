@@ -1255,10 +1255,9 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 
 	/*
 	 * We only open space map objects that already exist. All others
-	 * will be opened when we finally allocate an object for it.  For
-	 * readonly pools there is no need to open the space map object.
+	 * will be opened when we finally allocate an object for it.
 	 */
-	if (object != 0 && spa_writeable(vd->vdev_spa)) {
+	if (object != 0) {
 		error = space_map_open(&ms->ms_sm, mos, object, ms->ms_start,
 		    ms->ms_size, vd->vdev_ashift, &ms->ms_lock);
 
