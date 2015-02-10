@@ -27,7 +27,7 @@ object {
   "required": false
 }`;
 }* `{
-  "name": "zpool stastus -J",
+  "name": "zpool status -J",
   "version": "1.0",
   "description": " Displays  the detailed health status for the given pools",
   "required": false
