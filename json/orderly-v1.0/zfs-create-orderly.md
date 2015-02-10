@@ -15,7 +15,7 @@ object {
   "required": true
 }`;
 }* `{
-  "$schema": "https://github.com/Alyseo/zfs/tree/json/json/schema-1.0/schema_zfs_create.json",
+  schema_zfs_create.json",
   "name": "zfs create -J",
   "version": "1.0",
   "description": "create a zvol",
