@@ -1,3 +1,7 @@
+zpool status -J :
+
+```json
+
 object {
   array [object {object {string checksum`{"name":"checksum","description":"numbers of checksum errors","required":false}`;
   array [object {string checksum`{"name":"checksum","description":"Checksum errors, meaning that the device returned corrupted data as the result of a read request","required":false}`;
