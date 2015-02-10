@@ -46,12 +46,9 @@ install() {
 	fi
 
 	# Synchronize initramfs and system hostid
-	TMP=`mktemp`
 	AA=`hostid | cut -b 1,2`
 	BB=`hostid | cut -b 3,4`
 	CC=`hostid | cut -b 5,6`
 	DD=`hostid | cut -b 7,8`
-	printf "\x$DD\x$CC\x$BB\x$AA" >$TMP
-	inst_simple "$TMP" /etc/hostid
-	rm "$TMP"
+	printf "\x$DD\x$CC\x$BB\x$AA" > "$initdir/etc/hostid"
 }
