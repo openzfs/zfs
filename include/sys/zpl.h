@@ -31,6 +31,7 @@
 #include <linux/exportfs.h>
 #include <linux/falloc.h>
 #include <linux/file_compat.h>
+#include <linux/fs_compat.h>
 #include <linux/task_io_accounting_ops.h>
 #include <linux/vfs_compat.h>
 #include <linux/writeback.h>
