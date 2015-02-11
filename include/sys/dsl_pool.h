@@ -87,6 +87,7 @@ typedef struct dsl_pool {
 	struct dsl_dir *dp_root_dir;
 	struct dsl_dir *dp_mos_dir;
 	struct dsl_dir *dp_free_dir;
+	struct dsl_dir *dp_leak_dir;
 	struct dsl_dataset *dp_origin_snap;
 	uint64_t dp_root_dir_obj;
 	struct taskq *dp_iput_taskq;

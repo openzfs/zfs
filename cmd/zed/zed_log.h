@@ -33,7 +33,15 @@ void zed_log_init(const char *identity);
 
 void zed_log_fini(void);
 
-void zed_log_stderr_open(int level);
+void zed_log_pipe_open(void);
+
+void zed_log_pipe_close_reads(void);
+
+void zed_log_pipe_close_writes(void);
+
+void zed_log_pipe_wait(void);
+
+void zed_log_stderr_open(int priority);
 
 void zed_log_stderr_close(void);
 

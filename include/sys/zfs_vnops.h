@@ -79,6 +79,7 @@ extern int zfs_putpage(struct inode *ip, struct page *pp,
 extern int zfs_dirty_inode(struct inode *ip, int flags);
 extern int zfs_map(struct inode *ip, offset_t off, caddr_t *addrp,
     size_t len, unsigned long vm_flags);
+extern void zfs_iput_async(struct inode *ip);
 
 #ifdef	__cplusplus
 }

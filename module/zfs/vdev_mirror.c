@@ -111,7 +111,7 @@ vdev_mirror_map_alloc(zio_t *zio)
 		c = BP_GET_NDVAS(zio->io_bp);
 
 		mm = kmem_zalloc(offsetof(mirror_map_t, mm_child[c]),
-		    KM_PUSHPAGE);
+		    KM_SLEEP);
 		mm->mm_children = c;
 		mm->mm_replacing = B_FALSE;
 		mm->mm_preferred = spa_get_random(c);
@@ -142,7 +142,7 @@ vdev_mirror_map_alloc(zio_t *zio)
 		c = vd->vdev_children;
 
 		mm = kmem_zalloc(offsetof(mirror_map_t, mm_child[c]),
-		    KM_PUSHPAGE);
+		    KM_SLEEP);
 		mm->mm_children = c;
 		mm->mm_replacing = (vd->vdev_ops == &vdev_replacing_ops ||
 		    vd->vdev_ops == &vdev_spare_ops);
@@ -300,7 +300,7 @@ vdev_mirror_child_select(zio_t *zio)
 		mc = &mm->mm_child[c];
 		if (mc->mc_tried || mc->mc_skipped)
 			continue;
-		if (!vdev_readable(mc->mc_vd)) {
+		if (mc->mc_vd == NULL || !vdev_readable(mc->mc_vd)) {
 			mc->mc_error = SET_ERROR(ENXIO);
 			mc->mc_tried = 1;	/* don't even try */
 			mc->mc_skipped = 1;

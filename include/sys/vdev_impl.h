@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -50,7 +50,6 @@ extern "C" {
  * Forward declarations that lots of things need.
  */
 typedef struct vdev_queue vdev_queue_t;
-typedef struct vdev_io vdev_io_t;
 typedef struct vdev_cache vdev_cache_t;
 typedef struct vdev_cache_entry vdev_cache_entry_t;
 
@@ -117,13 +116,8 @@ struct vdev_queue {
 	uint64_t	vq_last_offset;
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
-	list_t		vq_io_list;
+	zio_t		vq_io_search; /* used as local for stack reduction */
 	kmutex_t	vq_lock;
-};
-
-struct vdev_io {
-	char		vi_buffer[SPA_MAXBLOCKSIZE]; /* Must be first */
-	list_node_t	vi_node;
 };
 
 /*
@@ -152,7 +146,6 @@ struct vdev {
 	vdev_t		*vdev_parent;	/* parent vdev			*/
 	vdev_t		**vdev_child;	/* array of children		*/
 	uint64_t	vdev_children;	/* number of children		*/
-	space_map_t	vdev_dtl[DTL_TYPES]; /* in-core dirty time logs	*/
 	vdev_stat_t	vdev_stat;	/* virtual device statistics	*/
 	boolean_t	vdev_expanding;	/* expand the vdev?		*/
 	boolean_t	vdev_reopening;	/* reopen in progress?		*/
@@ -174,19 +167,21 @@ struct vdev {
 	txg_node_t	vdev_txg_node;	/* per-txg dirty vdev linkage	*/
 	boolean_t	vdev_remove_wanted; /* async remove wanted?	*/
 	boolean_t	vdev_probe_wanted; /* async probe wanted?	*/
-	uint64_t	vdev_removing;	/* device is being removed?	*/
 	list_node_t	vdev_config_dirty_node; /* config dirty list	*/
 	list_node_t	vdev_state_dirty_node; /* state dirty list	*/
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
 	uint64_t	vdev_islog;	/* is an intent log device	*/
-	uint64_t	vdev_ishole;	/* is a hole in the namespace 	*/
+	uint64_t	vdev_removing;	/* device is being removed?	*/
+	boolean_t	vdev_ishole;	/* is a hole in the namespace 	*/
 
 	/*
 	 * Leaf vdev state.
 	 */
-	uint64_t	vdev_psize;	/* physical device capacity	*/
-	space_map_obj_t	vdev_dtl_smo;	/* dirty time log space map obj	*/
+	range_tree_t	*vdev_dtl[DTL_TYPES]; /* dirty time logs	*/
+	space_map_t	*vdev_dtl_sm;	/* dirty time log space map	*/
 	txg_node_t	vdev_dtl_node;	/* per-txg dirty DTL linkage	*/
+	uint64_t	vdev_dtl_object; /* DTL object			*/
+	uint64_t	vdev_psize;	/* physical device capacity	*/
 	uint64_t	vdev_wholedisk;	/* true if this is a whole disk */
 	uint64_t	vdev_offline;	/* persistent offline state	*/
 	uint64_t	vdev_faulted;	/* persistent faulted state	*/
@@ -200,18 +195,17 @@ struct vdev {
 	char		*vdev_fru;	/* physical FRU location	*/
 	uint64_t	vdev_not_present; /* not present during import	*/
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
-	hrtime_t	vdev_last_try;	/* last reopen time		*/
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
 	boolean_t	vdev_splitting;	/* split or repair in progress  */
 	boolean_t	vdev_delayed_close; /* delayed device close?	*/
-	uint8_t		vdev_tmpoffline; /* device taken offline temporarily? */
-	uint8_t		vdev_detached;	/* device detached?		*/
-	uint8_t		vdev_cant_read;	/* vdev is failing all reads	*/
-	uint8_t		vdev_cant_write; /* vdev is failing all writes	*/
-	uint64_t	vdev_isspare;	/* was a hot spare		*/
-	uint64_t	vdev_isl2cache;	/* was a l2cache device		*/
+	boolean_t	vdev_tmpoffline; /* device taken offline temporarily? */
+	boolean_t	vdev_detached;	/* device detached?		*/
+	boolean_t	vdev_cant_read;	/* vdev is failing all reads	*/
+	boolean_t	vdev_cant_write; /* vdev is failing all writes	*/
+	boolean_t	vdev_isspare;	/* was a hot spare		*/
+	boolean_t	vdev_isl2cache;	/* was a l2cache device		*/
 	vdev_queue_t	vdev_queue;	/* I/O deadline schedule queue	*/
 	vdev_cache_t	vdev_cache;	/* physical block cache		*/
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache vdevs		*/
@@ -238,8 +232,11 @@ struct vdev {
 #define	VDEV_PHYS_SIZE		(112 << 10)
 #define	VDEV_UBERBLOCK_RING	(128 << 10)
 
+/* The largest uberblock we support is 8k. */
+#define	MAX_UBERBLOCK_SHIFT (13)
 #define	VDEV_UBERBLOCK_SHIFT(vd)	\
-	MAX((vd)->vdev_top->vdev_ashift, UBERBLOCK_SHIFT)
+	MIN(MAX((vd)->vdev_top->vdev_ashift, UBERBLOCK_SHIFT), \
+	    MAX_UBERBLOCK_SHIFT)
 #define	VDEV_UBERBLOCK_COUNT(vd)	\
 	(VDEV_UBERBLOCK_RING >> VDEV_UBERBLOCK_SHIFT(vd))
 #define	VDEV_UBERBLOCK_OFFSET(vd, n)	\
@@ -312,9 +309,11 @@ extern void vdev_remove_parent(vdev_t *cvd);
 extern void vdev_load_log_state(vdev_t *nvd, vdev_t *ovd);
 extern boolean_t vdev_log_state_valid(vdev_t *vd);
 extern void vdev_load(vdev_t *vd);
+extern int vdev_dtl_load(vdev_t *vd);
 extern void vdev_sync(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_done(vdev_t *vd, uint64_t txg);
 extern void vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg);
+extern void vdev_dirty_leaves(vdev_t *vd, int flags, uint64_t txg);
 
 /*
  * Available vdev types.

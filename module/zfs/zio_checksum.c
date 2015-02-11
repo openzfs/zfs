@@ -126,7 +126,7 @@ zio_checksum_dedup_select(spa_t *spa, enum zio_checksum child,
 static void
 zio_checksum_gang_verifier(zio_cksum_t *zcp, blkptr_t *bp)
 {
-	dva_t *dva = BP_IDENTITY(bp);
+	const dva_t *dva = BP_IDENTITY(bp);
 	uint64_t txg = BP_PHYSICAL_BIRTH(bp);
 
 	ASSERT(BP_IS_GANG(bp));

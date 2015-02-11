@@ -137,6 +137,18 @@ Default value: \fB8,388,608\fR.
 .sp
 .ne 2
 .na
+\fBmetaslab_bias_enabled\fR (int)
+.ad
+.RS 12n
+Enable metaslab group biasing based on its vdev's over- or under-utilization
+relative to the pool.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
 \fBmetaslab_debug_load\fR (int)
 .ad
 .RS 12n
@@ -154,6 +166,52 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 Prevent metaslabs from being unloaded.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_fragmentation_factor_enabled\fR (int)
+.ad
+.RS 12n
+Enable use of the fragmentation metric in computing metaslab weights.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslabs_per_vdev\fR (int)
+.ad
+.RS 12n
+When a vdev is added, it will be divided into approximately (but no more than) this number of metaslabs.
+.sp
+Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_preload_enabled\fR (int)
+.ad
+.RS 12n
+Enable metaslab group preloading.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_lba_weighting_enabled\fR (int)
+.ad
+.RS 12n
+Give more weight to metaslabs with lower LBAs, assuming they have
+greater bandwidth as is typically the case on a modern constant
+angular velocity disk drive.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
 .RE
 
 .sp
@@ -181,6 +239,52 @@ may wish to specify a more realistic inflation factor, particularly if
 they operate close to quota or capacity limits.
 .sp
 Default value: 24
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_load_verify_data\fR (int)
+.ad
+.RS 12n
+Whether to traverse data blocks during an "extreme rewind" (\fB-X\fR)
+import.  Use 0 to disable and 1 to enable.
+
+An extreme rewind import normally performs a full traversal of all
+blocks in the pool for verification.  If this parameter is set to 0,
+the traversal skips non-metadata blocks.  It can be toggled once the
+import has started to stop or start the traversal of non-metadata blocks.
+.sp
+Default value: 1
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_load_verify_metadata\fR (int)
+.ad
+.RS 12n
+Whether to traverse blocks during an "extreme rewind" (\fB-X\fR)
+pool import.  Use 0 to disable and 1 to enable.
+
+An extreme rewind import normally performs a full traversal of all
+blocks in the pool for verification.  If this parameter is set to 1,
+the traversal is not performed.  It can be toggled once the import has
+started to stop or start the traversal.
+.sp
+Default value: 1
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_load_verify_maxinflight\fR (int)
+.ad
+.RS 12n
+Maximum concurrent I/Os during the traversal performed during an "extreme
+rewind" (\fB-X\fR) pool import.
+.sp
+Default value: 10000
 .RE
 
 .sp
@@ -225,6 +329,22 @@ Default value: \fB8\fR.
 Min time before an active prefetch stream can be reclaimed
 .sp
 Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_average_blocksize\fR (int)
+.ad
+.RS 12n
+The ARC's buffer hash table is sized based on the assumption of an average
+block size of \fBzfs_arc_average_blocksize\fR (default 8K).  This works out
+to roughly 1MB of hash table per 1GB of physical memory with 8-byte pointers.
+For configurations with a known larger average block size this value can be
+increased to reduce the memory footprint.
+
+.sp
+Default value: \fB8192\fR.
 .RE
 
 .sp
@@ -394,7 +514,7 @@ Default value: \fB1,000,000\fR.
 .RS 12n
 Enable prefetching dedup-ed blks
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR for yes and \fB0\fR to disable (default).
 .RE
 
 .sp
@@ -498,6 +618,17 @@ Default value: 10%, subject to \fBzfs_dirty_data_max_max\fR.
 Start syncing out a transaction group if there is at least this much dirty data.
 .sp
 Default value: \fB67,108,864\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_free_max_blocks\fR (ulong)
+.ad
+.RS 12n
+Maximum number of blocks freed in a single txg.
+.sp
+Default value: \fB100,000\fR.
 .RE
 
 .sp
@@ -691,9 +822,82 @@ Default value: \fB300\fR.
 \fBzfs_flags\fR (int)
 .ad
 .RS 12n
-Set additional debugging flags
+Set additional debugging flags. The following flags may be bitwise-or'd
+together.
 .sp
-Default value: \fB1\fR.
+.TS
+box;
+rB lB
+lB lB
+r l.
+Value	Symbolic Name
+	Description
+_
+1	ZFS_DEBUG_DPRINTF
+	Enable dprintf entries in the debug log.
+_
+2	ZFS_DEBUG_DBUF_VERIFY *
+	Enable extra dbuf verifications.
+_
+4	ZFS_DEBUG_DNODE_VERIFY *
+	Enable extra dnode verifications.
+_
+8	ZFS_DEBUG_SNAPNAMES
+	Enable snapshot name verification.
+_
+16	ZFS_DEBUG_MODIFY
+	Check for illegally modified ARC buffers.
+_
+32	ZFS_DEBUG_SPA
+	Enable spa_dbgmsg entries in the debug log.
+_
+64	ZFS_DEBUG_ZIO_FREE
+	Enable verification of block frees.
+_
+128	ZFS_DEBUG_HISTOGRAM_VERIFY
+	Enable extra spacemap histogram verifications.
+.TE
+.sp
+* Requires debug build.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_free_leak_on_eio\fR (int)
+.ad
+.RS 12n
+If destroy encounters an EIO while reading metadata (e.g. indirect
+blocks), space referenced by the missing metadata can not be freed.
+Normally this causes the background destroy to become "stalled", as
+it is unable to make forward progress.  While in this stalled state,
+all remaining space to free from the error-encountering filesystem is
+"temporarily leaked".  Set this flag to cause it to ignore the EIO,
+permanently leak the space from indirect blocks that can not be read,
+and continue to free everything else that it can.
+
+The default, "stalling" behavior is useful if the storage partially
+fails (i.e. some but not all i/os fail), and then later recovers.  In
+this case, we will be able to continue pool operations while it is
+partially failed, and when it recovers, we can continue to free the
+space, with no leaks.  However, note that this case is actually
+fairly rare.
+
+Typically pools either (a) fail completely (but perhaps temporarily,
+e.g. a top-level vdev going offline), or (b) have localized,
+permanent errors (e.g. disk returns the wrong data due to bit flip or
+firmware bug).  In case (a), this setting does not matter because the
+pool will be suspended and the sync thread will not be able to make
+forward progress regardless.  In case (b), because the error is
+permanent, the best we can do is leak the minimum amount of space,
+which is what setting this flag will do.  Therefore, it is reasonable
+for this flag to normally be set, but we chose the more conservative
+approach of not setting it, so that there is no possibility of
+leaking space in the "partial temporary" failure case.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -727,6 +931,61 @@ Default value: \fB32,768\fR.
 Disable meta data compression
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_fragmentation_threshold\fR (int)
+.ad
+.RS 12n
+Allow metaslabs to keep their active state as long as their fragmentation
+percentage is less than or equal to this value. An active metaslab that
+exceeds this threshold will no longer keep its active status allowing
+better metaslabs to be selected.
+.sp
+Default value: \fB70\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_mg_fragmentation_threshold\fR (int)
+.ad
+.RS 12n
+Metaslab groups are considered eligible for allocations if their
+fragmenation metric (measured as a percentage) is less than or equal to
+this value. If a metaslab group exceeds this threshold then it will be
+skipped unless all metaslab groups within the metaslab class have also
+crossed this threshold.
+.sp
+Default value: \fB85\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_mg_noalloc_threshold\fR (int)
+.ad
+.RS 12n
+Defines a threshold at which metaslab groups should be eligible for
+allocations.  The value is expressed as a percentage of free space
+beyond which a metaslab group is always eligible for allocations.
+If a metaslab group's free space is less than or equal to the
+the threshold, the allocator will avoid allocating to that group
+unless all groups in the pool have reached the threshold.  Once all
+groups have reached the threshold, all groups are allowed to accept
+allocations.  The default value of 0 disables the feature and causes
+all metaslab groups to be eligible for allocations.
+
+This parameter allows to deal with pools having heavily imbalanced
+vdevs such as would be the case when a new vdev has been added.
+Setting the threshold to a non-zero percentage will stop allocations
+from being made to vdevs that aren't filled to the specified percentage
+and allow lesser filled vdevs to acquire more allocations than they
+otherwise would under the old \fBzfs_mg_alloc_failures\fR facility.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -1118,17 +1377,6 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 Max commit bytes to separate log device
 .sp
 Default value: \fB1,048,576\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzio_bulk_flags\fR (int)
-.ad
-.RS 12n
-Additional flags to pass to bulk buffers
-.sp
-Default value: \fB0\fR.
 .RE
 
 .sp

@@ -25,8 +25,8 @@ zpool_create() {
 		--raid-devices=${MDCOUNT} ${MDDEVICES} \
 		&>/dev/null || (zpool_md_destroy && exit 1)
 
-	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${DEVICES}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} \
+	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${DEVICES}
+	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} \
 		${DEVICES} || (zpool_md_destroy && exit 2)
 }
 

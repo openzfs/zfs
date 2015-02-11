@@ -120,40 +120,13 @@ zpios_survey_pending() {
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
-# To avoid memory fragmentation issues our slab implementation can be
-# based on a virtual address space.  Interestingly, we take a pretty
-# substantial performance penalty for this somewhere in the low level
-# IO drivers.  If we back the slab with kmem pages we see far better
-# read performance numbers at the cost of memory fragmention and general
-# system instability due to large allocations.  This may be because of
-# an optimization in the low level drivers due to the contigeous kmem
-# based memory.  This needs to be explained.  The good news here is that
-# with zerocopy interfaces added at the DMU layer we could gaurentee
-# kmem based memory for a pool of pages.
-#
-# 0x100 = KMC_KMEM - Force kmem_* based slab
-# 0x200 = KMC_VMEM - Force vmem_* based slab
-zpios_survey_kmem() {
-	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+kmem"
-	print_header ${TEST_NAME}
-
-	${ZFS_SH} ${VERBOSE_FLAG}             \  
-		zfs="zio_bulk_flags=0x100" | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZFS_SH} -u ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-}
-
 # Apply all possible turning concurrently to get a best case number
 zpios_survey_all() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+all"
 	print_header ${TEST_NAME}
 
 	${ZFS_SH} ${VERBOSE_FLAG}                \  
-		zfs="zfs_vdev_max_pending=1024" \
-		zfs="zio_bulk_flags=0x100" |    \
+		zfs="zfs_vdev_max_pending=1024" | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
 		-o "--noprefetch --zerocopy"                           \
@@ -209,7 +182,6 @@ zpios_survey_prefetch
 zpios_survey_zerocopy
 zpios_survey_checksum
 zpios_survey_pending
-zpios_survey_kmem
 zpios_survey_all
 
 exit 0

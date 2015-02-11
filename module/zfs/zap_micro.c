@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -172,7 +172,7 @@ zap_name_free(zap_name_t *zn)
 zap_name_t *
 zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt)
 {
-	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_PUSHPAGE);
+	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);
 
 	zn->zn_zap = zap;
 	zn->zn_key_intlen = sizeof (*key);
@@ -202,7 +202,7 @@ zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt)
 zap_name_t *
 zap_name_alloc_uint64(zap_t *zap, const uint64_t *key, int numints)
 {
-	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_PUSHPAGE);
+	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);
 
 	ASSERT(zap->zap_normflags == 0);
 	zn->zn_zap = zap;
@@ -271,7 +271,7 @@ mze_insert(zap_t *zap, int chunkid, uint64_t hash)
 	ASSERT(zap->zap_ismicro);
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
-	mze = kmem_alloc(sizeof (mzap_ent_t), KM_PUSHPAGE);
+	mze = kmem_alloc(sizeof (mzap_ent_t), KM_SLEEP);
 	mze->mze_chunkid = chunkid;
 	mze->mze_hash = hash;
 	mze->mze_cd = MZE_PHYS(zap, mze)->mze_cd;
@@ -365,7 +365,7 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 
 	ASSERT3U(MZAP_ENT_LEN, ==, sizeof (mzap_ent_phys_t));
 
-	zap = kmem_zalloc(sizeof (zap_t), KM_PUSHPAGE);
+	zap = kmem_zalloc(sizeof (zap_t), KM_SLEEP);
 	rw_init(&zap->zap_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&zap->zap_rwlock, RW_WRITER);
 	zap->zap_objset = os;
@@ -374,7 +374,7 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 
 	if (*(uint64_t *)db->db_data != ZBT_MICRO) {
 		mutex_init(&zap->zap_f.zap_num_entries_mtx, 0, 0, 0);
-		zap->zap_f.zap_block_shift = highbit(db->db_size) - 1;
+		zap->zap_f.zap_block_shift = highbit64(db->db_size) - 1;
 	} else {
 		zap->zap_ismicro = TRUE;
 	}
@@ -446,6 +446,7 @@ int
 zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
 {
+	dmu_object_info_t doi;
 	zap_t *zap;
 	dmu_buf_t *db;
 	krw_t lt;
@@ -457,13 +458,9 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 	if (err)
 		return (err);
 
-#ifdef ZFS_DEBUG
-	{
-		dmu_object_info_t doi;
-		dmu_object_info_from_db(db, &doi);
-		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
-	}
-#endif
+	dmu_object_info_from_db(db, &doi);
+	if (DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
+		return (SET_ERROR(EINVAL));
 
 	zap = dmu_buf_get_user(db);
 	if (zap == NULL)
@@ -533,7 +530,7 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
 	sz = zap->zap_dbuf->db_size;
-	mzp = kmem_alloc(sz, KM_PUSHPAGE | KM_NODEBUG);
+	mzp = zio_buf_alloc(sz);
 	bcopy(zap->zap_dbuf->db_data, mzp, sz);
 	nchunks = zap->zap_m.zap_num_chunks;
 
@@ -541,7 +538,7 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 		err = dmu_object_set_blocksize(zap->zap_objset, zap->zap_object,
 		    1ULL << fzap_default_block_shift, 0, tx);
 		if (err) {
-			kmem_free(mzp, sz);
+			zio_buf_free(mzp, sz);
 			return (err);
 		}
 	}
@@ -567,12 +564,12 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 		if (err)
 			break;
 	}
-	kmem_free(mzp, sz);
+	zio_buf_free(mzp, sz);
 	*zapp = zap;
 	return (err);
 }
 
-static void
+void
 mzap_create_impl(objset_t *os, uint64_t obj, int normflags, zap_flags_t flags,
     dmu_tx_t *tx)
 {
@@ -862,8 +859,8 @@ zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 int
 zap_contains(objset_t *os, uint64_t zapobj, const char *name)
 {
-	int err = (zap_lookup_norm(os, zapobj, name, 0,
-	    0, NULL, MT_EXACT, NULL, 0, NULL));
+	int err = zap_lookup_norm(os, zapobj, name, 0,
+	    0, NULL, MT_EXACT, NULL, 0, NULL);
 	if (err == EOVERFLOW || err == EINVAL)
 		err = 0; /* found, but skipped reading the value */
 	return (err);

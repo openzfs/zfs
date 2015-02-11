@@ -42,8 +42,6 @@
 #include <stdint.h>
 #endif
 
-#define	ZPIOS_MAJOR			232 /* XXX - Arbitrary */
-#define	ZPIOS_MINORS			1
 #define	ZPIOS_NAME			"zpios"
 #define	ZPIOS_DEV			"/dev/zpios"
 

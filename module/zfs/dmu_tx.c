@@ -38,6 +38,7 @@
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
 #include <sys/varargs.h>
+#include <sys/trace_dmu.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
@@ -61,7 +62,7 @@ static kstat_t *dmu_tx_ksp;
 dmu_tx_t *
 dmu_tx_create_dd(dsl_dir_t *dd)
 {
-	dmu_tx_t *tx = kmem_zalloc(sizeof (dmu_tx_t), KM_PUSHPAGE);
+	dmu_tx_t *tx = kmem_zalloc(sizeof (dmu_tx_t), KM_SLEEP);
 	tx->tx_dir = dd;
 	if (dd != NULL)
 		tx->tx_pool = dd->dd_pool;
@@ -140,7 +141,7 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 		}
 	}
 
-	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_PUSHPAGE);
+	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_SLEEP);
 	txh->txh_tx = tx;
 	txh->txh_dnode = dn;
 #ifdef DEBUG_DMU_TX
@@ -1466,7 +1467,7 @@ dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *func, void *data)
 {
 	dmu_tx_callback_t *dcb;
 
-	dcb = kmem_alloc(sizeof (dmu_tx_callback_t), KM_PUSHPAGE);
+	dcb = kmem_alloc(sizeof (dmu_tx_callback_t), KM_SLEEP);
 
 	dcb->dcb_func = func;
 	dcb->dcb_data = data;

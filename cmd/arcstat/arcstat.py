@@ -51,7 +51,7 @@ import re
 import copy
 
 from decimal import Decimal
-from signal import signal, SIGINT, SIG_DFL
+from signal import signal, SIGINT, SIGWINCH, SIG_DFL
 
 cols = {
     # HDR:        [Size, Scale, Description]
@@ -61,10 +61,10 @@ cols = {
     "read":       [4, 1000, "Total ARC accesses per second"],
     "hit%":       [4, 100, "ARC Hit percentage"],
     "miss%":      [5, 100, "ARC miss percentage"],
-    "dhit":       [4, 1000, "Demand Data hits per second"],
-    "dmis":       [4, 1000, "Demand Data misses per second"],
-    "dh%":        [3, 100, "Demand Data hit percentage"],
-    "dm%":        [3, 100, "Demand Data miss percentage"],
+    "dhit":       [4, 1000, "Demand hits per second"],
+    "dmis":       [4, 1000, "Demand misses per second"],
+    "dh%":        [3, 100, "Demand hit percentage"],
+    "dm%":        [3, 100, "Demand miss percentage"],
     "phit":       [4, 1000, "Prefetch hits per second"],
     "pmis":       [4, 1000, "Prefetch misses per second"],
     "ph%":        [3, 100, "Prefetch hits percentage"],
@@ -83,7 +83,7 @@ cols = {
     "eskip":      [5, 1000, "evict_skip per second"],
     "mtxmis":     [6, 1000, "mutex_miss per second"],
     "rmis":       [4, 1000, "recycle_miss per second"],
-    "dread":      [5, 1000, "Demand data accesses per second"],
+    "dread":      [5, 1000, "Demand accesses per second"],
     "pread":      [5, 1000, "Prefetch accesses per second"],
     "l2hits":     [6, 1000, "L2ARC hits per second"],
     "l2miss":     [6, 1000, "L2ARC misses per second"],
@@ -239,11 +239,21 @@ def get_terminal_lines():
     except:
         pass
 
+def update_hdr_intr():
+    global hdr_intr
+
+    lines = get_terminal_lines()
+    if lines and lines > 3:
+        hdr_intr = lines - 3
+
+def resize_handler(signum, frame):
+    update_hdr_intr()
+
+
 def init():
     global sint
     global count
     global hdr
-    global hdr_intr
     global xhdr
     global opfile
     global sep
@@ -313,9 +323,7 @@ def init():
     if xflag:
         hdr = xhdr
 
-    lines = get_terminal_lines()
-    if lines:
-        hdr_intr = lines - 3
+    update_hdr_intr()
 
     # check if L2ARC exists
     snap_stats()
@@ -426,6 +434,7 @@ def main():
         count_flag = 1
 
     signal(SIGINT, SIG_DFL)
+    signal(SIGWINCH, resize_handler)
     while True:
         if i == 0:
             print_header()
@@ -439,7 +448,7 @@ def main():
                 break
             count -= 1
 
-        i = 0 if i == hdr_intr else i + 1
+        i = 0 if i >= hdr_intr else i + 1
         time.sleep(sint)
 
     if out:

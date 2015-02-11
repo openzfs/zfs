@@ -444,7 +444,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 	boolean_t isactive;
 	uint64_t hostid;
 	nvlist_t *nvl;
-	boolean_t found_one = B_FALSE;
 	boolean_t valid_top_config = B_FALSE;
 
 	if (nvlist_alloc(&ret, 0, 0) != 0)
@@ -813,14 +812,8 @@ add_pool:
 		if (nvlist_add_nvlist(ret, name, config) != 0)
 			goto nomem;
 
-		found_one = B_TRUE;
 		nvlist_free(config);
 		config = NULL;
-	}
-
-	if (!found_one) {
-		nvlist_free(ret);
-		ret = NULL;
 	}
 
 	return (ret);
@@ -1312,21 +1305,15 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(raw, elem)) != NULL) {
-		verify(nvpair_value_nvlist(elem, &src) == 0);
+		src = fnvpair_value_nvlist(elem);
 
-		verify(nvlist_lookup_string(src, ZPOOL_CONFIG_POOL_NAME,
-		    &name) == 0);
+		name = fnvlist_lookup_string(src, ZPOOL_CONFIG_POOL_NAME);
 		if (poolname != NULL && strcmp(poolname, name) != 0)
 			continue;
 
-		verify(nvlist_lookup_uint64(src, ZPOOL_CONFIG_POOL_GUID,
-		    &this_guid) == 0);
-		if (guid != 0) {
-			verify(nvlist_lookup_uint64(src, ZPOOL_CONFIG_POOL_GUID,
-			    &this_guid) == 0);
-			if (guid != this_guid)
-				continue;
-		}
+		this_guid = fnvlist_lookup_uint64(src, ZPOOL_CONFIG_POOL_GUID);
+		if (guid != 0 && guid != this_guid)
+			continue;
 
 		if (pool_active(hdl, name, this_guid, &active) != 0) {
 			nvlist_free(raw);

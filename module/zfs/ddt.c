@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -43,7 +43,7 @@ static kmem_cache_t *ddt_entry_cache;
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
  */
-int zfs_dedup_prefetch = 1;
+int zfs_dedup_prefetch = 0;
 
 static const ddt_ops_t *ddt_ops[DDT_TYPES] = {
 	&ddt_zap_ops,
@@ -116,12 +116,12 @@ ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 	error = zap_lookup(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT, name,
 	    sizeof (uint64_t), 1, &ddt->ddt_object[type][class]);
 
-	if (error)
+	if (error != 0)
 		return (error);
 
-	error = zap_lookup(ddt->ddt_os, ddt->ddt_spa->spa_ddt_stat_object, name,
+	VERIFY0(zap_lookup(ddt->ddt_os, ddt->ddt_spa->spa_ddt_stat_object, name,
 	    sizeof (uint64_t), sizeof (ddt_histogram_t) / sizeof (uint64_t),
-	    &ddt->ddt_histogram[type][class]);
+	    &ddt->ddt_histogram[type][class]));
 
 	/*
 	 * Seed the cached statistics.
@@ -138,8 +138,7 @@ ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 	ddo->ddo_dspace = doi.doi_physical_blocks_512 << 9;
 	ddo->ddo_mspace = doi.doi_fill_count * doi.doi_data_block_size;
 
-	ASSERT(error == 0);
-	return (error);
+	return (0);
 }
 
 static void
@@ -424,7 +423,7 @@ ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg)
 
 	ddt_stat_generate(ddt, dde, &dds);
 
-	bucket = highbit(dds.dds_ref_blocks) - 1;
+	bucket = highbit64(dds.dds_ref_blocks) - 1;
 	ASSERT(bucket >= 0);
 
 	ddh = &ddt->ddt_histogram[dde->dde_type][dde->dde_class];
@@ -518,7 +517,7 @@ ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total)
 {
 	ddt_histogram_t *ddh_total;
 
-	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_PUSHPAGE);
+	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_SLEEP);
 	ddt_get_dedup_histogram(spa, ddh_total);
 	ddt_histogram_stat(dds_total, ddh_total);
 	kmem_free(ddh_total, sizeof (ddt_histogram_t));
@@ -616,7 +615,10 @@ ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
 		bcopy(src, dst, s_len);
 	}
 
-	*version = (ZFS_HOST_BYTEORDER & DDT_COMPRESS_BYTEORDER_MASK) | cpfunc;
+	*version = cpfunc;
+	/* CONSTCOND */
+	if (ZFS_HOST_BYTEORDER)
+		*version |= DDT_COMPRESS_BYTEORDER_MASK;
 
 	return (c_len + 1);
 }
@@ -633,7 +635,8 @@ ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
 	else
 		bcopy(src, dst, d_len);
 
-	if ((version ^ ZFS_HOST_BYTEORDER) & DDT_COMPRESS_BYTEORDER_MASK)
+	if (((version & DDT_COMPRESS_BYTEORDER_MASK) != 0) !=
+	    (ZFS_HOST_BYTEORDER != 0))
 		byteswap_uint64_array(dst, d_len);
 }
 
@@ -682,7 +685,7 @@ ddt_alloc(const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
-	dde = kmem_cache_alloc(ddt_entry_cache, KM_PUSHPAGE);
+	dde = kmem_cache_alloc(ddt_entry_cache, KM_SLEEP);
 	bzero(dde, sizeof (ddt_entry_t));
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
@@ -831,7 +834,7 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 {
 	ddt_t *ddt;
 
-	ddt = kmem_cache_alloc(ddt_cache, KM_PUSHPAGE | KM_NODEBUG);
+	ddt = kmem_cache_alloc(ddt_cache, KM_SLEEP);
 	bzero(ddt, sizeof (ddt_t));
 
 	mutex_init(&ddt->ddt_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -934,7 +937,7 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 		return (B_TRUE);
 
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
-	dde = kmem_cache_alloc(ddt_entry_cache, KM_PUSHPAGE);
+	dde = kmem_cache_alloc(ddt_entry_cache, KM_SLEEP);
 
 	ddt_key_fill(&(dde->dde_key), bp);
 

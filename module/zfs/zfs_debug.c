@@ -20,73 +20,27 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
 
-#if !defined(_KERNEL) || !defined(__linux__)
 list_t zfs_dbgmsgs;
 int zfs_dbgmsg_size;
 kmutex_t zfs_dbgmsgs_lock;
-int zfs_dbgmsg_maxsize = 1<<20; /* 1MB */
-#endif
+int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 
-/*
- * Enable various debugging features.
- */
-int zfs_flags = 0;
-
-/*
- * zfs_recover can be set to nonzero to attempt to recover from
- * otherwise-fatal errors, typically caused by on-disk corruption.  When
- * set, calls to zfs_panic_recover() will turn into warning messages.
- * This should only be used as a last resort, as it typically results
- * in leaked space, or worse.
- */
-int zfs_recover = 0;
-
-
-void
-zfs_panic_recover(const char *fmt, ...)
-{
-	va_list adx;
-
-	va_start(adx, fmt);
-	vcmn_err(zfs_recover ? CE_WARN : CE_PANIC, fmt, adx);
-	va_end(adx);
-}
-
-/*
- * Debug logging is enabled by default for production kernel builds.
- * The overhead for this is negligible and the logs can be valuable when
- * debugging.  For non-production user space builds all debugging except
- * logging is enabled since performance is no longer a concern.
- */
 void
 zfs_dbgmsg_init(void)
 {
-#if !defined(_KERNEL) || !defined(__linux__)
 	list_create(&zfs_dbgmsgs, sizeof (zfs_dbgmsg_t),
 	    offsetof(zfs_dbgmsg_t, zdm_node));
 	mutex_init(&zfs_dbgmsgs_lock, NULL, MUTEX_DEFAULT, NULL);
-#endif
-
-	if (zfs_flags == 0) {
-#if defined(_KERNEL)
-		zfs_flags = ZFS_DEBUG_DPRINTF;
-		spl_debug_set_mask(spl_debug_get_mask() | SD_DPRINTF);
-		spl_debug_set_subsys(spl_debug_get_subsys() | SS_USER1);
-#else
-		zfs_flags = ~ZFS_DEBUG_DPRINTF;
-#endif /* _KERNEL */
-	}
 }
 
 void
 zfs_dbgmsg_fini(void)
 {
-#if !defined(_KERNEL) || !defined(__linux__)
 	zfs_dbgmsg_t *zdm;
 
 	while ((zdm = list_remove_head(&zfs_dbgmsgs)) != NULL) {
@@ -96,22 +50,24 @@ zfs_dbgmsg_fini(void)
 	}
 	mutex_destroy(&zfs_dbgmsgs_lock);
 	ASSERT0(zfs_dbgmsg_size);
-#endif
 }
 
-#if !defined(_KERNEL) || !defined(__linux__)
 /*
- * Print these messages by running:
- * echo ::zfs_dbgmsg | mdb -k
+ * To get this data enable the zfs__dbgmsg tracepoint as shown:
  *
- * Monitor these messages by running:
- * 	dtrace -q -n 'zfs-dbgmsg{printf("%s\n", stringof(arg0))}'
+ * # Enable zfs__dbgmsg tracepoint, clear the tracepoint ring buffer
+ * $ echo 1 > /sys/kernel/debug/tracing/events/zfs/enable
+ * $ echo 0 > /sys/kernel/debug/tracing/trace
+ *
+ * # Dump the ring buffer.
+ * $ cat /sys/kernel/debug/tracing/trace
  */
 void
 zfs_dbgmsg(const char *fmt, ...)
 {
 	int size;
 	va_list adx;
+	char *nl;
 	zfs_dbgmsg_t *zdm;
 
 	va_start(adx, fmt);
@@ -128,6 +84,13 @@ zfs_dbgmsg(const char *fmt, ...)
 	va_start(adx, fmt);
 	(void) vsnprintf(zdm->zdm_msg, size + 1, fmt, adx);
 	va_end(adx);
+
+	/*
+	 * Get rid of trailing newline.
+	 */
+	nl = strrchr(zdm->zdm_msg, '\n');
+	if (nl != NULL)
+		*nl = '\0';
 
 	DTRACE_PROBE1(zfs__dbgmsg, char *, zdm->zdm_msg);
 
@@ -146,6 +109,7 @@ zfs_dbgmsg(const char *fmt, ...)
 void
 zfs_dbgmsg_print(const char *tag)
 {
+#if !defined(_KERNEL)
 	zfs_dbgmsg_t *zdm;
 
 	(void) printf("ZFS_DBGMSG(%s):\n", tag);
@@ -154,13 +118,5 @@ zfs_dbgmsg_print(const char *tag)
 	    zdm = list_next(&zfs_dbgmsgs, zdm))
 		(void) printf("%s\n", zdm->zdm_msg);
 	mutex_exit(&zfs_dbgmsgs_lock);
+#endif /* !_KERNEL */
 }
-#endif
-
-#if defined(_KERNEL)
-module_param(zfs_flags, int, 0644);
-MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
-
-module_param(zfs_recover, int, 0644);
-MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
-#endif /* _KERNEL */

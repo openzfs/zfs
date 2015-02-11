@@ -63,10 +63,9 @@ typedef struct spa_read_history {
 static int
 spa_read_history_headers(char *buf, size_t size)
 {
-	size = snprintf(buf, size - 1, "%-8s %-16s %-8s %-8s %-8s %-8s %-8s "
+	(void) snprintf(buf, size, "%-8s %-16s %-8s %-8s %-8s %-8s %-8s "
 	    "%-24s %-8s %-16s\n", "UID", "start", "objset", "object",
 	    "level", "blkid", "aflags", "origin", "pid", "process");
-	buf[size] = '\0';
 
 	return (0);
 }
@@ -76,13 +75,12 @@ spa_read_history_data(char *buf, size_t size, void *data)
 {
 	spa_read_history_t *srh = (spa_read_history_t *)data;
 
-	size = snprintf(buf, size - 1, "%-8llu %-16llu 0x%-6llx "
+	(void) snprintf(buf, size, "%-8llu %-16llu 0x%-6llx "
 	    "%-8lli %-8lli %-8lli 0x%-6x %-24s %-8i %-16s\n",
 	    (u_longlong_t)srh->uid, srh->start,
 	    (longlong_t)srh->objset, (longlong_t)srh->object,
 	    (longlong_t)srh->level, (longlong_t)srh->blkid,
 	    srh->aflags, srh->origin, srh->pid, srh->comm);
-	buf[size] = '\0';
 
 	return (0);
 }
@@ -150,7 +148,6 @@ spa_read_history_init(spa_t *spa)
 	ssh->private = NULL;
 
 	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
-	name[KSTAT_STRLEN-1] = '\0';
 
 	ksp = kstat_create(name, 0, "reads", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -192,7 +189,7 @@ spa_read_history_destroy(spa_t *spa)
 }
 
 void
-spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
+spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb, uint32_t aflags)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
 	spa_read_history_t *srh, *rm;
@@ -206,7 +203,7 @@ spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
 	if (zfs_read_history_hits == 0 && (aflags & ARC_CACHED))
 		return;
 
-	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_PUSHPAGE);
+	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_SLEEP);
 	strlcpy(srh->comm, getcomm(), sizeof (srh->comm));
 	srh->start  = gethrtime();
 	srh->objset = zb->zb_objset;
@@ -256,11 +253,10 @@ typedef struct spa_txg_history {
 static int
 spa_txg_history_headers(char *buf, size_t size)
 {
-	size = snprintf(buf, size - 1, "%-8s %-16s %-5s %-12s %-12s %-12s "
+	(void) snprintf(buf, size, "%-8s %-16s %-5s %-12s %-12s %-12s "
 	    "%-8s %-8s %-12s %-12s %-12s %-12s\n", "txg", "birth", "state",
 	    "ndirty", "nread", "nwritten", "reads", "writes",
 	    "otime", "qtime", "wtime", "stime");
-	buf[size] = '\0';
 
 	return (0);
 }
@@ -298,7 +294,7 @@ spa_txg_history_data(char *buf, size_t size, void *data)
 		sync = sth->times[TXG_STATE_SYNCED] -
 		    sth->times[TXG_STATE_WAIT_FOR_SYNC];
 
-	size = snprintf(buf, size - 1, "%-8llu %-16llu %-5c %-12llu "
+	(void) snprintf(buf, size, "%-8llu %-16llu %-5c %-12llu "
 	    "%-12llu %-12llu %-8llu %-8llu %-12llu %-12llu %-12llu %-12llu\n",
 	    (longlong_t)sth->txg, sth->times[TXG_STATE_BIRTH], state,
 	    (u_longlong_t)sth->ndirty,
@@ -306,7 +302,6 @@ spa_txg_history_data(char *buf, size_t size, void *data)
 	    (u_longlong_t)sth->reads, (u_longlong_t)sth->writes,
 	    (u_longlong_t)open, (u_longlong_t)quiesce, (u_longlong_t)wait,
 	    (u_longlong_t)sync);
-	buf[size] = '\0';
 
 	return (0);
 }
@@ -376,7 +371,6 @@ spa_txg_history_init(spa_t *spa)
 	ssh->private = NULL;
 
 	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
-	name[KSTAT_STRLEN-1] = '\0';
 
 	ksp = kstat_create(name, 0, "txgs", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -429,7 +423,7 @@ spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time)
 	if (zfs_txg_history == 0 && ssh->size == 0)
 		return;
 
-	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_PUSHPAGE);
+	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_SLEEP);
 	sth->txg = txg;
 	sth->state = TXG_STATE_OPEN;
 	sth->times[TXG_STATE_BIRTH] = birth_time;
@@ -562,7 +556,6 @@ spa_tx_assign_init(spa_t *spa)
 	ssh->private = kmem_alloc(ssh->size, KM_SLEEP);
 
 	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
-	name[KSTAT_STRLEN-1] = '\0';
 
 	for (i = 0; i < ssh->count; i++) {
 		ks = &((kstat_named_t *)ssh->private)[i];
@@ -637,7 +630,6 @@ spa_io_history_init(spa_t *spa)
 	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
 
 	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
-	name[KSTAT_STRLEN-1] = '\0';
 
 	ksp = kstat_create(name, 0, "io", "disk", KSTAT_TYPE_IO, 1, 0);
 	ssh->kstat = ksp;

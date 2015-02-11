@@ -673,7 +673,7 @@ zfs_replay_write(zfs_sb_t *zsb, lr_write_t *lr, boolean_t byteswap)
 			zsb->z_replay_eof = eod;
 	}
 
-	written = zpl_write_common(ZTOI(zp), data, length, offset,
+	written = zpl_write_common(ZTOI(zp), data, length, &offset,
 	    UIO_SYSSPACE, 0, kcred);
 	if (written < 0)
 		error = -written;

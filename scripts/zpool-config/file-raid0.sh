@@ -15,8 +15,8 @@ zpool_create() {
 			&>/dev/null || die "Error $? creating ${FILE}"
 	done
 
-	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${FILES}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${FILES} || exit 1
+	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${FILES}
+	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${FILES} || exit 1
 }
 
 zpool_destroy() {

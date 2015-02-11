@@ -103,7 +103,7 @@ rrn_add(rrwlock_t *rrl, void *tag)
 {
 	rrw_node_t *rn;
 
-	rn = kmem_alloc(sizeof (*rn), KM_PUSHPAGE);
+	rn = kmem_alloc(sizeof (*rn), KM_SLEEP);
 	rn->rn_rrl = rrl;
 	rn->rn_next = tsd_get(rrw_tsd_key);
 	rn->rn_tag = tag;

@@ -426,7 +426,7 @@ zfs_zevent_alloc(void)
 {
 	zevent_t *ev;
 
-	ev = kmem_zalloc(sizeof (zevent_t), KM_PUSHPAGE);
+	ev = kmem_zalloc(sizeof (zevent_t), KM_SLEEP);
 	if (ev == NULL)
 		return (NULL);
 
@@ -499,9 +499,13 @@ zfs_zevent_insert(zevent_t *ev)
 }
 
 /*
- * Post a zevent
+ * Post a zevent. The cb will be called when nvl and detector are no longer
+ * needed, i.e.:
+ * - An error happened and a zevent can't be posted. In this case, cb is called
+ *   before zfs_zevent_post() returns.
+ * - The event is being drained and freed.
  */
-void
+int
 zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
 	int64_t tv_array[2];
@@ -509,25 +513,37 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 	uint64_t eid;
 	size_t nvl_size = 0;
 	zevent_t *ev;
+	int error;
+
+	ASSERT(cb != NULL);
 
 	gethrestime(&tv);
 	tv_array[0] = tv.tv_sec;
 	tv_array[1] = tv.tv_nsec;
-	if (nvlist_add_int64_array(nvl, FM_EREPORT_TIME, tv_array, 2)) {
+
+	error = nvlist_add_int64_array(nvl, FM_EREPORT_TIME, tv_array, 2);
+	if (error) {
 		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
-		return;
+		goto out;
 	}
 
 	eid = atomic_inc_64_nv(&zevent_eid);
-	if (nvlist_add_uint64(nvl, FM_EREPORT_EID, eid)) {
+	error = nvlist_add_uint64(nvl, FM_EREPORT_EID, eid);
+	if (error) {
 		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
-		return;
+		goto out;
 	}
 
-	(void) nvlist_size(nvl, &nvl_size, NV_ENCODE_NATIVE);
+	error = nvlist_size(nvl, &nvl_size, NV_ENCODE_NATIVE);
+	if (error) {
+		atomic_add_64(&erpt_kstat_data.erpt_dropped.value.ui64, 1);
+		goto out;
+	}
+
 	if (nvl_size > ERPT_DATA_SZ || nvl_size == 0) {
 		atomic_add_64(&erpt_kstat_data.erpt_dropped.value.ui64, 1);
-		return;
+		error = EOVERFLOW;
+		goto out;
 	}
 
 	if (zfs_zevent_console)
@@ -536,7 +552,8 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 	ev = zfs_zevent_alloc();
 	if (ev == NULL) {
 		atomic_add_64(&erpt_kstat_data.erpt_dropped.value.ui64, 1);
-		return;
+		error = ENOMEM;
+		goto out;
 	}
 
 	ev->ev_nvl = nvl;
@@ -548,6 +565,12 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 	zfs_zevent_insert(ev);
 	cv_broadcast(&zevent_cv);
 	mutex_exit(&zevent_lock);
+
+out:
+	if (error)
+		cb(nvl, detector);
+
+	return (error);
 }
 
 static int
@@ -753,7 +776,7 @@ zfs_zevent_destroy(zfs_zevent_t *ze)
 static void *
 i_fm_alloc(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_zalloc(size, KM_PUSHPAGE));
+	return (kmem_zalloc(size, KM_SLEEP));
 }
 
 /* ARGSUSED */
@@ -821,7 +844,7 @@ fm_nvlist_create(nv_alloc_t *nva)
 	nv_alloc_t *nvhdl;
 
 	if (nva == NULL) {
-		nvhdl = kmem_zalloc(sizeof (nv_alloc_t), KM_PUSHPAGE);
+		nvhdl = kmem_zalloc(sizeof (nv_alloc_t), KM_SLEEP);
 
 		if (nv_alloc_init(nvhdl, &fm_mem_alloc_ops, NULL, 0) != 0) {
 			kmem_free(nvhdl, sizeof (nv_alloc_t));

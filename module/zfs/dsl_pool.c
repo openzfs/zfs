@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -45,6 +45,7 @@
 #include <sys/zfeature.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_userhold.h>
+#include <sys/trace_txg.h>
 
 /*
  * ZFS Write Throttle
@@ -245,8 +246,14 @@ dsl_pool_open(dsl_pool_t *dp)
 		    dp->dp_meta_objset, obj));
 	}
 
-	if (spa_feature_is_active(dp->dp_spa,
-	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+	/*
+	 * Note: errors ignored, because the leak dir will not exist if we
+	 * have not encountered a leak yet.
+	 */
+	(void) dsl_pool_open_special_dir(dp, LEAK_DIR_NAME,
+	    &dp->dp_leak_dir);
+
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY)) {
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
 		    &dp->dp_bptree_obj);
@@ -254,8 +261,7 @@ dsl_pool_open(dsl_pool_t *dp)
 			goto out;
 	}
 
-	if (spa_feature_is_active(dp->dp_spa,
-	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ])) {
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
 		    &dp->dp_empty_bpobj);
@@ -294,6 +300,8 @@ dsl_pool_close(dsl_pool_t *dp)
 		dsl_dir_rele(dp->dp_mos_dir, dp);
 	if (dp->dp_free_dir)
 		dsl_dir_rele(dp->dp_free_dir, dp);
+	if (dp->dp_leak_dir)
+		dsl_dir_rele(dp->dp_leak_dir, dp);
 	if (dp->dp_root_dir)
 		dsl_dir_rele(dp->dp_root_dir, dp);
 
@@ -315,7 +323,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	mutex_destroy(&dp->dp_lock);
 	taskq_destroy(dp->dp_iput_taskq);
 	if (dp->dp_blkstats)
-		kmem_free(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
+		vmem_free(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
 	kmem_free(dp, sizeof (dsl_pool_t));
 }
 

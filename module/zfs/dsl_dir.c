@@ -32,6 +32,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dsl_deleg.h>
+#include <sys/dmu_impl.h>
 #include <sys/spa.h>
 #include <sys/metaslab.h>
 #include <sys/zap.h>
@@ -89,14 +90,14 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 	{
 		dmu_object_info_t doi;
 		dmu_object_info_from_db(dbuf, &doi);
-		ASSERT3U(doi.doi_type, ==, DMU_OT_DSL_DIR);
+		ASSERT3U(doi.doi_bonus_type, ==, DMU_OT_DSL_DIR);
 		ASSERT3U(doi.doi_bonus_size, >=, sizeof (dsl_dir_phys_t));
 	}
 #endif
 	if (dd == NULL) {
 		dsl_dir_t *winner;
 
-		dd = kmem_zalloc(sizeof (dsl_dir_t), KM_PUSHPAGE);
+		dd = kmem_zalloc(sizeof (dsl_dir_t), KM_SLEEP);
 		dd->dd_object = ddobj;
 		dd->dd_dbuf = dbuf;
 		dd->dd_pool = dp;
@@ -312,7 +313,7 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 	dsl_dir_t *dd;
 	uint64_t ddobj;
 
-	buf = kmem_alloc(MAXNAMELEN, KM_PUSHPAGE);
+	buf = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 	err = getcomponent(name, buf, &next);
 	if (err != 0)
 		goto error;
@@ -320,7 +321,7 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 	/* Make sure the name is in the specified pool. */
 	spaname = spa_name(dp->dp_spa);
 	if (strcmp(buf, spaname) != 0) {
-		err = SET_ERROR(EINVAL);
+		err = SET_ERROR(EXDEV);
 		goto error;
 	}
 
@@ -695,7 +696,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	    asize - ref_rsrv);
 	mutex_exit(&dd->dd_lock);
 
-	tr = kmem_zalloc(sizeof (struct tempreserve), KM_PUSHPAGE);
+	tr = kmem_zalloc(sizeof (struct tempreserve), KM_SLEEP);
 	tr->tr_ds = dd;
 	tr->tr_size = asize;
 	list_insert_tail(tr_list, tr);
@@ -729,7 +730,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 		return (0);
 	}
 
-	tr_list = kmem_alloc(sizeof (list_t), KM_PUSHPAGE);
+	tr_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
 	list_create(tr_list, sizeof (struct tempreserve),
 	    offsetof(struct tempreserve, tr_node));
 	ASSERT3S(asize, >, 0);
@@ -739,7 +740,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 	if (err == 0) {
 		struct tempreserve *tr;
 
-		tr = kmem_zalloc(sizeof (struct tempreserve), KM_PUSHPAGE);
+		tr = kmem_zalloc(sizeof (struct tempreserve), KM_SLEEP);
 		tr->tr_size = lsize;
 		list_insert_tail(tr_list, tr);
 	} else {
@@ -1208,7 +1209,7 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 	if (dd->dd_pool != newparent->dd_pool) {
 		dsl_dir_rele(newparent, FTAG);
 		dsl_dir_rele(dd, FTAG);
-		return (SET_ERROR(ENXIO));
+		return (SET_ERROR(EXDEV));
 	}
 
 	/* new name should not already exist */
@@ -1370,6 +1371,13 @@ dsl_dir_snap_cmtime_update(dsl_dir_t *dd)
 	mutex_enter(&dd->dd_lock);
 	dd->dd_snap_cmtime = t;
 	mutex_exit(&dd->dd_lock);
+}
+
+void
+dsl_dir_zapify(dsl_dir_t *dd, dmu_tx_t *tx)
+{
+	objset_t *mos = dd->dd_pool->dp_meta_objset;
+	dmu_object_zapify(mos, dd->dd_object, DMU_OT_DSL_DIR, tx);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

@@ -20,9 +20,10 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright 2014 HybridCluster. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -62,7 +63,7 @@ struct dsl_pool;
 struct dnode;
 struct drr_begin;
 struct drr_end;
-struct zbookmark;
+struct zbookmark_phys;
 struct spa;
 struct nvlist;
 struct arc_buf;
@@ -115,6 +116,14 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_METADATA) : \
 	dmu_ot[(int)(ot)].ot_metadata)
+
+/*
+ * These object types use bp_fill != 1 for their L0 bp's. Therefore they can't
+ * have their data embedded (i.e. use a BP_IS_EMBEDDED() bp), because bp_fill
+ * is repurposed for embedded BPs.
+ */
+#define	DMU_OT_HAS_FILL(ot) \
+	((ot) == DMU_OT_DNODE || (ot) == DMU_OT_OBJSET)
 
 #define	DMU_OT_BYTESWAP(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_BYTESWAP_MASK) : \
@@ -242,7 +251,6 @@ void zfs_znode_byteswap(void *buf, size_t size);
 
 #define	DMU_USERUSED_OBJECT	(-1ULL)
 #define	DMU_GROUPUSED_OBJECT	(-2ULL)
-#define	DMU_DEADLIST_OBJECT	(-3ULL)
 
 /*
  * artificial blkids for bonus buffer and spill blocks
@@ -290,6 +298,7 @@ typedef void dmu_buf_evict_func_t(struct dmu_buf *db, void *user_ptr);
 #define	DMU_POOL_FEATURES_FOR_WRITE	"features_for_write"
 #define	DMU_POOL_FEATURES_FOR_READ	"features_for_read"
 #define	DMU_POOL_FEATURE_DESCRIPTIONS	"feature_descriptions"
+#define	DMU_POOL_FEATURE_ENABLED_TXG	"feature_enabled_txg"
 #define	DMU_POOL_ROOT_DATASET		"root_dataset"
 #define	DMU_POOL_SYNC_BPOBJ		"sync_bplist"
 #define	DMU_POOL_ERRLOG_SCRUB		"errlog_scrub"
@@ -328,7 +337,7 @@ uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
 int dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
-    int blocksize, dmu_object_type_t bonustype, int bonuslen);
+    int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *txp);
 
 /*
  * Free an object from this objset.
@@ -389,6 +398,11 @@ void dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
  */
 void dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
     dmu_tx_t *tx);
+
+void
+dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
+    void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
+    int compressed_size, int byteorder, dmu_tx_t *tx);
 
 /*
  * Decide how to write a block: checksum, compression, number of copies, etc.
@@ -639,7 +653,8 @@ typedef struct dmu_object_info {
 	uint8_t doi_indirection;		/* 2 = dnode->indirect->data */
 	uint8_t doi_checksum;
 	uint8_t doi_compress;
-	uint8_t doi_pad[5];
+	uint8_t doi_nblkptr;
+	uint8_t doi_pad[4];
 	uint64_t doi_physical_blocks_512;	/* data + metadata, 512b blks */
 	uint64_t doi_max_offset;
 	uint64_t doi_fill_count;		/* number of non-empty blocks */
@@ -738,8 +753,8 @@ extern struct dsl_dataset *dmu_objset_ds(objset_t *os);
 extern void dmu_objset_name(objset_t *os, char *buf);
 extern dmu_objset_type_t dmu_objset_type(objset_t *os);
 extern uint64_t dmu_objset_id(objset_t *os);
-extern uint64_t dmu_objset_syncprop(objset_t *os);
-extern uint64_t dmu_objset_logbias(objset_t *os);
+extern zfs_sync_type_t dmu_objset_syncprop(objset_t *os);
+extern zfs_logbias_op_t dmu_objset_logbias(objset_t *os);
 extern int dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
     uint64_t *id, uint64_t *offp, boolean_t *case_conflict);
 extern int dmu_snapshot_lookup(objset_t *os, const char *name, uint64_t *val);

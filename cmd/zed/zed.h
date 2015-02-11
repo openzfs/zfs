@@ -43,9 +43,9 @@
 #define	ZED_STATE_FILE		RUNSTATEDIR "/zed.state"
 
 /*
- * Absolute path for the default zed script directory.
+ * Absolute path for the default zed zedlet directory.
  */
-#define	ZED_SCRIPT_DIR		SYSCONFDIR "/zfs/zed.d"
+#define	ZED_ZEDLET_DIR		SYSCONFDIR "/zfs/zed.d"
 
 /*
  * Reserved for future use.

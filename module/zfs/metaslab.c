@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -31,6 +31,8 @@
 #include <sys/metaslab_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
+#include <sys/spa_impl.h>
+#include <sys/zfeature.h>
 
 #define	WITH_DF_BLOCK_ALLOCATOR
 
@@ -39,12 +41,17 @@
  * avoid having to load lots of space_maps in a given txg. There are,
  * however, some cases where we want to avoid "fast" ganging and instead
  * we want to do an exhaustive search of all metaslabs on this device.
- * Currently we don't allow any gang, zil, or dump device related allocations
+ * Currently we don't allow any gang, slog, or dump device related allocations
  * to "fast" gang.
  */
 #define	CAN_FASTGANG(flags) \
 	(!((flags) & (METASLAB_GANG_CHILD | METASLAB_GANG_HEADER | \
 	METASLAB_GANG_AVOID)))
+
+#define	METASLAB_WEIGHT_PRIMARY		(1ULL << 63)
+#define	METASLAB_WEIGHT_SECONDARY	(1ULL << 62)
+#define	METASLAB_ACTIVE_MASK		\
+	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY)
 
 uint64_t metaslab_aliquot = 512ULL << 10;
 uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
@@ -58,17 +65,24 @@ uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
 int zfs_condense_pct = 200;
 
 /*
- * This value defines the number of allowed allocation failures per vdev.
- * If a device reaches this threshold in a given txg then we consider skipping
- * allocations on that device. The value of zfs_mg_alloc_failures is computed
- * in zio_init() unless it has been overridden in /etc/system.
+ * Condensing a metaslab is not guaranteed to actually reduce the amount of
+ * space used on disk. In particular, a space map uses data in increments of
+ * MAX(1 << ashift, space_map_blksz), so a metaslab might use the
+ * same number of blocks after condensing. Since the goal of condensing is to
+ * reduce the number of IOPs required to read the space map, we only want to
+ * condense when we can be sure we will reduce the number of blocks used by the
+ * space map. Unfortunately, we cannot precisely compute whether or not this is
+ * the case in metaslab_should_condense since we are holding ms_lock. Instead,
+ * we apply the following heuristic: do not condense a spacemap unless the
+ * uncondensed size consumes greater than zfs_metaslab_condense_block_threshold
+ * blocks.
  */
-int zfs_mg_alloc_failures = 0;
+int zfs_metaslab_condense_block_threshold = 4;
 
 /*
  * The zfs_mg_noalloc_threshold defines which metaslab groups should
  * be eligible for allocation. The value is defined as a percentage of
- * a free space. Metaslab groups that have more free space than
+ * free space. Metaslab groups that have more free space than
  * zfs_mg_noalloc_threshold are always eligible for allocations. Once
  * a metaslab group's free space is less than or equal to the
  * zfs_mg_noalloc_threshold the allocator will avoid allocating to that
@@ -79,6 +93,23 @@ int zfs_mg_alloc_failures = 0;
  * no metaslab group will be excluded based on this criterion.
  */
 int zfs_mg_noalloc_threshold = 0;
+
+/*
+ * Metaslab groups are considered eligible for allocations if their
+ * fragmenation metric (measured as a percentage) is less than or equal to
+ * zfs_mg_fragmentation_threshold. If a metaslab group exceeds this threshold
+ * then it will be skipped unless all metaslab groups within the metaslab
+ * class have also crossed this threshold.
+ */
+int zfs_mg_fragmentation_threshold = 85;
+
+/*
+ * Allow metaslabs to keep their active state as long as their fragmentation
+ * percentage is less than or equal to zfs_metaslab_fragmentation_threshold. An
+ * active metaslab that exceeds this threshold will no longer keep its active
+ * status allowing better metaslabs to be selected.
+ */
+int zfs_metaslab_fragmentation_threshold = 70;
 
 /*
  * When set will load all metaslabs when pool is first opened.
@@ -113,19 +144,43 @@ int metaslab_df_free_pct = 4;
 uint64_t metaslab_min_alloc_size = DMU_MAX_ACCESS;
 
 /*
- * Max number of space_maps to prefetch.
+ * Percentage of all cpus that can be used by the metaslab taskq.
  */
-int metaslab_prefetch_limit = SPA_DVAS_PER_BP;
+int metaslab_load_pct = 50;
 
 /*
- * Percentage bonus multiplier for metaslabs that are in the bonus area.
+ * Determines how many txgs a metaslab may remain loaded without having any
+ * allocations from it. As long as a metaslab continues to be used we will
+ * keep it loaded.
  */
-int metaslab_smo_bonus_pct = 150;
+int metaslab_unload_delay = TXG_SIZE * 2;
 
 /*
- * Should we be willing to write data to degraded vdevs?
+ * Max number of metaslabs per group to preload.
  */
-boolean_t zfs_write_to_degraded = B_FALSE;
+int metaslab_preload_limit = SPA_DVAS_PER_BP;
+
+/*
+ * Enable/disable preloading of metaslab.
+ */
+int metaslab_preload_enabled = B_TRUE;
+
+/*
+ * Enable/disable fragmentation weighting on metaslabs.
+ */
+int metaslab_fragmentation_factor_enabled = B_TRUE;
+
+/*
+ * Enable/disable lba weighting (i.e. outer tracks are given preference).
+ */
+int metaslab_lba_weighting_enabled = B_TRUE;
+
+/*
+ * Enable/disable metaslab group biasing.
+ */
+int metaslab_bias_enabled = B_TRUE;
+
+static uint64_t metaslab_fragmentation(metaslab_t *);
 
 /*
  * ==========================================================================
@@ -133,11 +188,11 @@ boolean_t zfs_write_to_degraded = B_FALSE;
  * ==========================================================================
  */
 metaslab_class_t *
-metaslab_class_create(spa_t *spa, space_map_ops_t *ops)
+metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
 {
 	metaslab_class_t *mc;
 
-	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_PUSHPAGE);
+	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_SLEEP);
 
 	mc->mc_spa = spa;
 	mc->mc_rotor = NULL;
@@ -220,6 +275,123 @@ metaslab_class_get_dspace(metaslab_class_t *mc)
 	return (spa_deflate(mc->mc_spa) ? mc->mc_dspace : mc->mc_space);
 }
 
+void
+metaslab_class_histogram_verify(metaslab_class_t *mc)
+{
+	vdev_t *rvd = mc->mc_spa->spa_root_vdev;
+	uint64_t *mc_hist;
+	int i, c;
+
+	if ((zfs_flags & ZFS_DEBUG_HISTOGRAM_VERIFY) == 0)
+		return;
+
+	mc_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
+	    KM_SLEEP);
+
+	for (c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		metaslab_group_t *mg = tvd->vdev_mg;
+
+		/*
+		 * Skip any holes, uninitialized top-levels, or
+		 * vdevs that are not in this metalab class.
+		 */
+		if (tvd->vdev_ishole || tvd->vdev_ms_shift == 0 ||
+		    mg->mg_class != mc) {
+			continue;
+		}
+
+		for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
+			mc_hist[i] += mg->mg_histogram[i];
+	}
+
+	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
+		VERIFY3U(mc_hist[i], ==, mc->mc_histogram[i]);
+
+	kmem_free(mc_hist, sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE);
+}
+
+/*
+ * Calculate the metaslab class's fragmentation metric. The metric
+ * is weighted based on the space contribution of each metaslab group.
+ * The return value will be a number between 0 and 100 (inclusive), or
+ * ZFS_FRAG_INVALID if the metric has not been set. See comment above the
+ * zfs_frag_table for more information about the metric.
+ */
+uint64_t
+metaslab_class_fragmentation(metaslab_class_t *mc)
+{
+	vdev_t *rvd = mc->mc_spa->spa_root_vdev;
+	uint64_t fragmentation = 0;
+	int c;
+
+	spa_config_enter(mc->mc_spa, SCL_VDEV, FTAG, RW_READER);
+
+	for (c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		metaslab_group_t *mg = tvd->vdev_mg;
+
+		/*
+		 * Skip any holes, uninitialized top-levels, or
+		 * vdevs that are not in this metalab class.
+		 */
+		if (tvd->vdev_ishole || tvd->vdev_ms_shift == 0 ||
+		    mg->mg_class != mc) {
+			continue;
+		}
+
+		/*
+		 * If a metaslab group does not contain a fragmentation
+		 * metric then just bail out.
+		 */
+		if (mg->mg_fragmentation == ZFS_FRAG_INVALID) {
+			spa_config_exit(mc->mc_spa, SCL_VDEV, FTAG);
+			return (ZFS_FRAG_INVALID);
+		}
+
+		/*
+		 * Determine how much this metaslab_group is contributing
+		 * to the overall pool fragmentation metric.
+		 */
+		fragmentation += mg->mg_fragmentation *
+		    metaslab_group_get_space(mg);
+	}
+	fragmentation /= metaslab_class_get_space(mc);
+
+	ASSERT3U(fragmentation, <=, 100);
+	spa_config_exit(mc->mc_spa, SCL_VDEV, FTAG);
+	return (fragmentation);
+}
+
+/*
+ * Calculate the amount of expandable space that is available in
+ * this metaslab class. If a device is expanded then its expandable
+ * space will be the amount of allocatable space that is currently not
+ * part of this metaslab class.
+ */
+uint64_t
+metaslab_class_expandable_space(metaslab_class_t *mc)
+{
+	vdev_t *rvd = mc->mc_spa->spa_root_vdev;
+	uint64_t space = 0;
+	int c;
+
+	spa_config_enter(mc->mc_spa, SCL_VDEV, FTAG, RW_READER);
+	for (c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		metaslab_group_t *mg = tvd->vdev_mg;
+
+		if (tvd->vdev_ishole || tvd->vdev_ms_shift == 0 ||
+		    mg->mg_class != mc) {
+			continue;
+		}
+
+		space += tvd->vdev_max_asize - tvd->vdev_asize;
+	}
+	spa_config_exit(mc->mc_spa, SCL_VDEV, FTAG);
+	return (space);
+}
+
 /*
  * ==========================================================================
  * Metaslab groups
@@ -239,9 +411,9 @@ metaslab_compare(const void *x1, const void *x2)
 	/*
 	 * If the weights are identical, use the offset to force uniqueness.
 	 */
-	if (m1->ms_map->sm_start < m2->ms_map->sm_start)
+	if (m1->ms_start < m2->ms_start)
 		return (-1);
-	if (m1->ms_map->sm_start > m2->ms_map->sm_start)
+	if (m1->ms_start > m2->ms_start)
 		return (1);
 
 	ASSERT3P(m1, ==, m2);
@@ -272,7 +444,15 @@ metaslab_group_alloc_update(metaslab_group_t *mg)
 	mg->mg_free_capacity = ((vs->vs_space - vs->vs_alloc) * 100) /
 	    (vs->vs_space + 1);
 
-	mg->mg_allocatable = (mg->mg_free_capacity > zfs_mg_noalloc_threshold);
+	/*
+	 * A metaslab group is considered allocatable if it has plenty
+	 * of free space or is not heavily fragmented. We only take
+	 * fragmentation into account if the metaslab group has a valid
+	 * fragmentation metric (i.e. a value between 0 and 100).
+	 */
+	mg->mg_allocatable = (mg->mg_free_capacity > zfs_mg_noalloc_threshold &&
+	    (mg->mg_fragmentation == ZFS_FRAG_INVALID ||
+	    mg->mg_fragmentation <= zfs_mg_fragmentation_threshold));
 
 	/*
 	 * The mc_alloc_groups maintains a count of the number of
@@ -293,6 +473,7 @@ metaslab_group_alloc_update(metaslab_group_t *mg)
 		mc->mc_alloc_groups--;
 	else if (!was_allocatable && mg->mg_allocatable)
 		mc->mc_alloc_groups++;
+
 	mutex_exit(&mg->mg_lock);
 }
 
@@ -301,13 +482,16 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
 	metaslab_group_t *mg;
 
-	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_PUSHPAGE);
+	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_SLEEP);
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&mg->mg_metaslab_tree, metaslab_compare,
 	    sizeof (metaslab_t), offsetof(struct metaslab, ms_group_node));
 	mg->mg_vd = vd;
 	mg->mg_class = mc;
 	mg->mg_activation_count = 0;
+
+	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
+	    minclsyspri, 10, INT_MAX, TASKQ_THREADS_CPU_PCT);
 
 	return (mg);
 }
@@ -324,6 +508,7 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	 */
 	ASSERT(mg->mg_activation_count <= 0);
 
+	taskq_destroy(mg->mg_taskq);
 	avl_destroy(&mg->mg_metaslab_tree);
 	mutex_destroy(&mg->mg_lock);
 	kmem_free(mg, sizeof (metaslab_group_t));
@@ -377,6 +562,9 @@ metaslab_group_passivate(metaslab_group_t *mg)
 		return;
 	}
 
+	taskq_wait(mg->mg_taskq);
+	metaslab_group_alloc_update(mg);
+
 	mgprev = mg->mg_prev;
 	mgnext = mg->mg_next;
 
@@ -392,20 +580,115 @@ metaslab_group_passivate(metaslab_group_t *mg)
 	mg->mg_next = NULL;
 }
 
+uint64_t
+metaslab_group_get_space(metaslab_group_t *mg)
+{
+	return ((1ULL << mg->mg_vd->vdev_ms_shift) * mg->mg_vd->vdev_ms_count);
+}
+
+void
+metaslab_group_histogram_verify(metaslab_group_t *mg)
+{
+	uint64_t *mg_hist;
+	vdev_t *vd = mg->mg_vd;
+	uint64_t ashift = vd->vdev_ashift;
+	int i, m;
+
+	if ((zfs_flags & ZFS_DEBUG_HISTOGRAM_VERIFY) == 0)
+		return;
+
+	mg_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
+	    KM_SLEEP);
+
+	ASSERT3U(RANGE_TREE_HISTOGRAM_SIZE, >=,
+	    SPACE_MAP_HISTOGRAM_SIZE + ashift);
+
+	for (m = 0; m < vd->vdev_ms_count; m++) {
+		metaslab_t *msp = vd->vdev_ms[m];
+
+		if (msp->ms_sm == NULL)
+			continue;
+
+		for (i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++)
+			mg_hist[i + ashift] +=
+			    msp->ms_sm->sm_phys->smp_histogram[i];
+	}
+
+	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i ++)
+		VERIFY3U(mg_hist[i], ==, mg->mg_histogram[i]);
+
+	kmem_free(mg_hist, sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE);
+}
+
+static void
+metaslab_group_histogram_add(metaslab_group_t *mg, metaslab_t *msp)
+{
+	metaslab_class_t *mc = mg->mg_class;
+	uint64_t ashift = mg->mg_vd->vdev_ashift;
+	int i;
+
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	if (msp->ms_sm == NULL)
+		return;
+
+	mutex_enter(&mg->mg_lock);
+	for (i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+		mg->mg_histogram[i + ashift] +=
+		    msp->ms_sm->sm_phys->smp_histogram[i];
+		mc->mc_histogram[i + ashift] +=
+		    msp->ms_sm->sm_phys->smp_histogram[i];
+	}
+	mutex_exit(&mg->mg_lock);
+}
+
+void
+metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
+{
+	metaslab_class_t *mc = mg->mg_class;
+	uint64_t ashift = mg->mg_vd->vdev_ashift;
+	int i;
+
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	if (msp->ms_sm == NULL)
+		return;
+
+	mutex_enter(&mg->mg_lock);
+	for (i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+		ASSERT3U(mg->mg_histogram[i + ashift], >=,
+		    msp->ms_sm->sm_phys->smp_histogram[i]);
+		ASSERT3U(mc->mc_histogram[i + ashift], >=,
+		    msp->ms_sm->sm_phys->smp_histogram[i]);
+
+		mg->mg_histogram[i + ashift] -=
+		    msp->ms_sm->sm_phys->smp_histogram[i];
+		mc->mc_histogram[i + ashift] -=
+		    msp->ms_sm->sm_phys->smp_histogram[i];
+	}
+	mutex_exit(&mg->mg_lock);
+}
+
 static void
 metaslab_group_add(metaslab_group_t *mg, metaslab_t *msp)
 {
-	mutex_enter(&mg->mg_lock);
 	ASSERT(msp->ms_group == NULL);
+	mutex_enter(&mg->mg_lock);
 	msp->ms_group = mg;
 	msp->ms_weight = 0;
 	avl_add(&mg->mg_metaslab_tree, msp);
 	mutex_exit(&mg->mg_lock);
+
+	mutex_enter(&msp->ms_lock);
+	metaslab_group_histogram_add(mg, msp);
+	mutex_exit(&msp->ms_lock);
 }
 
 static void
 metaslab_group_remove(metaslab_group_t *mg, metaslab_t *msp)
 {
+	mutex_enter(&msp->ms_lock);
+	metaslab_group_histogram_remove(mg, msp);
+	mutex_exit(&msp->ms_lock);
+
 	mutex_enter(&mg->mg_lock);
 	ASSERT(msp->ms_group == mg);
 	avl_remove(&mg->mg_metaslab_tree, msp);
@@ -418,9 +701,9 @@ metaslab_group_sort(metaslab_group_t *mg, metaslab_t *msp, uint64_t weight)
 {
 	/*
 	 * Although in principle the weight can be any value, in
-	 * practice we do not use values in the range [1, 510].
+	 * practice we do not use values in the range [1, 511].
 	 */
-	ASSERT(weight >= SPA_MINBLOCKSIZE-1 || weight == 0);
+	ASSERT(weight >= SPA_MINBLOCKSIZE || weight == 0);
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	mutex_enter(&mg->mg_lock);
@@ -432,9 +715,43 @@ metaslab_group_sort(metaslab_group_t *mg, metaslab_t *msp, uint64_t weight)
 }
 
 /*
+ * Calculate the fragmentation for a given metaslab group. We can use
+ * a simple average here since all metaslabs within the group must have
+ * the same size. The return value will be a value between 0 and 100
+ * (inclusive), or ZFS_FRAG_INVALID if less than half of the metaslab in this
+ * group have a fragmentation metric.
+ */
+uint64_t
+metaslab_group_fragmentation(metaslab_group_t *mg)
+{
+	vdev_t *vd = mg->mg_vd;
+	uint64_t fragmentation = 0;
+	uint64_t valid_ms = 0;
+	int m;
+
+	for (m = 0; m < vd->vdev_ms_count; m++) {
+		metaslab_t *msp = vd->vdev_ms[m];
+
+		if (msp->ms_fragmentation == ZFS_FRAG_INVALID)
+			continue;
+
+		valid_ms++;
+		fragmentation += msp->ms_fragmentation;
+	}
+
+	if (valid_ms <= vd->vdev_ms_count / 2)
+		return (ZFS_FRAG_INVALID);
+
+	fragmentation /= valid_ms;
+	ASSERT3U(fragmentation, <=, 100);
+	return (fragmentation);
+}
+
+/*
  * Determine if a given metaslab group should skip allocations. A metaslab
- * group should avoid allocations if its used capacity has crossed the
- * zfs_mg_noalloc_threshold and there is at least one metaslab group
+ * group should avoid allocations if its free capacity is less than the
+ * zfs_mg_noalloc_threshold or its fragmentation metric is greater than
+ * zfs_mg_fragmentation_threshold and there is at least one metaslab group
  * that can still handle allocations.
  */
 static boolean_t
@@ -445,13 +762,172 @@ metaslab_group_allocatable(metaslab_group_t *mg)
 	metaslab_class_t *mc = mg->mg_class;
 
 	/*
-	 * A metaslab group is considered allocatable if its free capacity
-	 * is greater than the set value of zfs_mg_noalloc_threshold, it's
-	 * associated with a slog, or there are no other metaslab groups
-	 * with free capacity greater than zfs_mg_noalloc_threshold.
+	 * We use two key metrics to determine if a metaslab group is
+	 * considered allocatable -- free space and fragmentation. If
+	 * the free space is greater than the free space threshold and
+	 * the fragmentation is less than the fragmentation threshold then
+	 * consider the group allocatable. There are two case when we will
+	 * not consider these key metrics. The first is if the group is
+	 * associated with a slog device and the second is if all groups
+	 * in this metaslab class have already been consider ineligible
+	 * for allocations.
 	 */
-	return (mg->mg_free_capacity > zfs_mg_noalloc_threshold ||
+	return ((mg->mg_free_capacity > zfs_mg_noalloc_threshold &&
+	    (mg->mg_fragmentation == ZFS_FRAG_INVALID ||
+	    mg->mg_fragmentation <= zfs_mg_fragmentation_threshold)) ||
 	    mc != spa_normal_class(spa) || mc->mc_alloc_groups == 0);
+}
+
+/*
+ * ==========================================================================
+ * Range tree callbacks
+ * ==========================================================================
+ */
+
+/*
+ * Comparison function for the private size-ordered tree. Tree is sorted
+ * by size, larger sizes at the end of the tree.
+ */
+static int
+metaslab_rangesize_compare(const void *x1, const void *x2)
+{
+	const range_seg_t *r1 = x1;
+	const range_seg_t *r2 = x2;
+	uint64_t rs_size1 = r1->rs_end - r1->rs_start;
+	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
+
+	if (rs_size1 < rs_size2)
+		return (-1);
+	if (rs_size1 > rs_size2)
+		return (1);
+
+	if (r1->rs_start < r2->rs_start)
+		return (-1);
+
+	if (r1->rs_start > r2->rs_start)
+		return (1);
+
+	return (0);
+}
+
+/*
+ * Create any block allocator specific components. The current allocators
+ * rely on using both a size-ordered range_tree_t and an array of uint64_t's.
+ */
+static void
+metaslab_rt_create(range_tree_t *rt, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT(msp->ms_tree == NULL);
+
+	avl_create(&msp->ms_size_tree, metaslab_rangesize_compare,
+	    sizeof (range_seg_t), offsetof(range_seg_t, rs_pp_node));
+}
+
+/*
+ * Destroy the block allocator specific components.
+ */
+static void
+metaslab_rt_destroy(range_tree_t *rt, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+	ASSERT0(avl_numnodes(&msp->ms_size_tree));
+
+	avl_destroy(&msp->ms_size_tree);
+}
+
+static void
+metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+	VERIFY(!msp->ms_condensing);
+	avl_add(&msp->ms_size_tree, rs);
+}
+
+static void
+metaslab_rt_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+	VERIFY(!msp->ms_condensing);
+	avl_remove(&msp->ms_size_tree, rs);
+}
+
+static void
+metaslab_rt_vacate(range_tree_t *rt, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+
+	/*
+	 * Normally one would walk the tree freeing nodes along the way.
+	 * Since the nodes are shared with the range trees we can avoid
+	 * walking all nodes and just reinitialize the avl tree. The nodes
+	 * will be freed by the range tree, so we don't want to free them here.
+	 */
+	avl_create(&msp->ms_size_tree, metaslab_rangesize_compare,
+	    sizeof (range_seg_t), offsetof(range_seg_t, rs_pp_node));
+}
+
+static range_tree_ops_t metaslab_rt_ops = {
+	metaslab_rt_create,
+	metaslab_rt_destroy,
+	metaslab_rt_add,
+	metaslab_rt_remove,
+	metaslab_rt_vacate
+};
+
+/*
+ * ==========================================================================
+ * Metaslab block operations
+ * ==========================================================================
+ */
+
+/*
+ * Return the maximum contiguous segment within the metaslab.
+ */
+uint64_t
+metaslab_block_maxsize(metaslab_t *msp)
+{
+	avl_tree_t *t = &msp->ms_size_tree;
+	range_seg_t *rs;
+
+	if (t == NULL || (rs = avl_last(t)) == NULL)
+		return (0ULL);
+
+	return (rs->rs_end - rs->rs_start);
+}
+
+uint64_t
+metaslab_block_alloc(metaslab_t *msp, uint64_t size)
+{
+	uint64_t start;
+	range_tree_t *rt = msp->ms_tree;
+
+	VERIFY(!msp->ms_condensing);
+
+	start = msp->ms_ops->msop_alloc(msp, size);
+	if (start != -1ULL) {
+		vdev_t *vd = msp->ms_group->mg_vd;
+
+		VERIFY0(P2PHASE(start, 1ULL << vd->vdev_ashift));
+		VERIFY0(P2PHASE(size, 1ULL << vd->vdev_ashift));
+		VERIFY3U(range_tree_space(rt) - size, <=, msp->ms_size);
+		range_tree_remove(rt, start, size);
+	}
+	return (start);
 }
 
 /*
@@ -459,30 +935,10 @@ metaslab_group_allocatable(metaslab_group_t *mg)
  * Common allocator routines
  * ==========================================================================
  */
-static int
-metaslab_segsize_compare(const void *x1, const void *x2)
-{
-	const space_seg_t *s1 = x1;
-	const space_seg_t *s2 = x2;
-	uint64_t ss_size1 = s1->ss_end - s1->ss_start;
-	uint64_t ss_size2 = s2->ss_end - s2->ss_start;
-
-	if (ss_size1 < ss_size2)
-		return (-1);
-	if (ss_size1 > ss_size2)
-		return (1);
-
-	if (s1->ss_start < s2->ss_start)
-		return (-1);
-	if (s1->ss_start > s2->ss_start)
-		return (1);
-
-	return (0);
-}
 
 #if defined(WITH_FF_BLOCK_ALLOCATOR) || \
     defined(WITH_DF_BLOCK_ALLOCATOR) || \
-    defined(WITH_CDF_BLOCK_ALLOCATOR)
+    defined(WITH_CF_BLOCK_ALLOCATOR)
 /*
  * This is a helper function that can be used by the allocator to find
  * a suitable block to allocate. This will search the specified AVL
@@ -492,24 +948,24 @@ static uint64_t
 metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
     uint64_t align)
 {
-	space_seg_t *ss, ssearch;
+	range_seg_t *rs, rsearch;
 	avl_index_t where;
 
-	ssearch.ss_start = *cursor;
-	ssearch.ss_end = *cursor + size;
+	rsearch.rs_start = *cursor;
+	rsearch.rs_end = *cursor + size;
 
-	ss = avl_find(t, &ssearch, &where);
-	if (ss == NULL)
-		ss = avl_nearest(t, where, AVL_AFTER);
+	rs = avl_find(t, &rsearch, &where);
+	if (rs == NULL)
+		rs = avl_nearest(t, where, AVL_AFTER);
 
-	while (ss != NULL) {
-		uint64_t offset = P2ROUNDUP(ss->ss_start, align);
+	while (rs != NULL) {
+		uint64_t offset = P2ROUNDUP(rs->rs_start, align);
 
-		if (offset + size <= ss->ss_end) {
+		if (offset + size <= rs->rs_end) {
 			*cursor = offset + size;
 			return (offset);
 		}
-		ss = AVL_NEXT(t, ss);
+		rs = AVL_NEXT(t, rs);
 	}
 
 	/*
@@ -522,69 +978,7 @@ metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
 	*cursor = 0;
 	return (metaslab_block_picker(t, cursor, size, align));
 }
-#endif /* WITH_FF/DF/CDF_BLOCK_ALLOCATOR */
-
-static void
-metaslab_pp_load(space_map_t *sm)
-{
-	space_seg_t *ss;
-
-	ASSERT(sm->sm_ppd == NULL);
-	sm->sm_ppd = kmem_zalloc(64 * sizeof (uint64_t), KM_PUSHPAGE);
-
-	sm->sm_pp_root = kmem_alloc(sizeof (avl_tree_t), KM_PUSHPAGE);
-	avl_create(sm->sm_pp_root, metaslab_segsize_compare,
-	    sizeof (space_seg_t), offsetof(struct space_seg, ss_pp_node));
-
-	for (ss = avl_first(&sm->sm_root); ss; ss = AVL_NEXT(&sm->sm_root, ss))
-		avl_add(sm->sm_pp_root, ss);
-}
-
-static void
-metaslab_pp_unload(space_map_t *sm)
-{
-	void *cookie = NULL;
-
-	kmem_free(sm->sm_ppd, 64 * sizeof (uint64_t));
-	sm->sm_ppd = NULL;
-
-	while (avl_destroy_nodes(sm->sm_pp_root, &cookie) != NULL) {
-		/* tear down the tree */
-	}
-
-	avl_destroy(sm->sm_pp_root);
-	kmem_free(sm->sm_pp_root, sizeof (avl_tree_t));
-	sm->sm_pp_root = NULL;
-}
-
-/* ARGSUSED */
-static void
-metaslab_pp_claim(space_map_t *sm, uint64_t start, uint64_t size)
-{
-	/* No need to update cursor */
-}
-
-/* ARGSUSED */
-static void
-metaslab_pp_free(space_map_t *sm, uint64_t start, uint64_t size)
-{
-	/* No need to update cursor */
-}
-
-/*
- * Return the maximum contiguous segment within the metaslab.
- */
-uint64_t
-metaslab_pp_maxsize(space_map_t *sm)
-{
-	avl_tree_t *t = sm->sm_pp_root;
-	space_seg_t *ss;
-
-	if (t == NULL || (ss = avl_last(t)) == NULL)
-		return (0ULL);
-
-	return (ss->ss_end - ss->ss_start);
-}
+#endif /* WITH_FF/DF/CF_BLOCK_ALLOCATOR */
 
 #if defined(WITH_FF_BLOCK_ALLOCATOR)
 /*
@@ -593,33 +987,27 @@ metaslab_pp_maxsize(space_map_t *sm)
  * ==========================================================================
  */
 static uint64_t
-metaslab_ff_alloc(space_map_t *sm, uint64_t size)
+metaslab_ff_alloc(metaslab_t *msp, uint64_t size)
 {
-	avl_tree_t *t = &sm->sm_root;
+	/*
+	 * Find the largest power of 2 block size that evenly divides the
+	 * requested size. This is used to try to allocate blocks with similar
+	 * alignment from the same area of the metaslab (i.e. same cursor
+	 * bucket) but it does not guarantee that other allocations sizes
+	 * may exist in the same region.
+	 */
 	uint64_t align = size & -size;
-	uint64_t *cursor = (uint64_t *)sm->sm_ppd + highbit(align) - 1;
+	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
+	avl_tree_t *t = &msp->ms_tree->rt_root;
 
 	return (metaslab_block_picker(t, cursor, size, align));
 }
 
-/* ARGSUSED */
-boolean_t
-metaslab_ff_fragmented(space_map_t *sm)
-{
-	return (B_TRUE);
-}
-
-static space_map_ops_t metaslab_ff_ops = {
-	metaslab_pp_load,
-	metaslab_pp_unload,
-	metaslab_ff_alloc,
-	metaslab_pp_claim,
-	metaslab_pp_free,
-	metaslab_pp_maxsize,
-	metaslab_ff_fragmented
+static metaslab_ops_t metaslab_ff_ops = {
+	metaslab_ff_alloc
 };
 
-space_map_ops_t *zfs_metaslab_ops = &metaslab_ff_ops;
+metaslab_ops_t *zfs_metaslab_ops = &metaslab_ff_ops;
 #endif /* WITH_FF_BLOCK_ALLOCATOR */
 
 #if defined(WITH_DF_BLOCK_ALLOCATOR)
@@ -632,16 +1020,24 @@ space_map_ops_t *zfs_metaslab_ops = &metaslab_ff_ops;
  * ==========================================================================
  */
 static uint64_t
-metaslab_df_alloc(space_map_t *sm, uint64_t size)
+metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 {
-	avl_tree_t *t = &sm->sm_root;
+	/*
+	 * Find the largest power of 2 block size that evenly divides the
+	 * requested size. This is used to try to allocate blocks with similar
+	 * alignment from the same area of the metaslab (i.e. same cursor
+	 * bucket) but it does not guarantee that other allocations sizes
+	 * may exist in the same region.
+	 */
 	uint64_t align = size & -size;
-	uint64_t *cursor = (uint64_t *)sm->sm_ppd + highbit(align) - 1;
-	uint64_t max_size = metaslab_pp_maxsize(sm);
-	int free_pct = sm->sm_space * 100 / sm->sm_size;
+	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
+	range_tree_t *rt = msp->ms_tree;
+	avl_tree_t *t = &rt->rt_root;
+	uint64_t max_size = metaslab_block_maxsize(msp);
+	int free_pct = range_tree_space(rt) * 100 / msp->ms_size;
 
-	ASSERT(MUTEX_HELD(sm->sm_lock));
-	ASSERT3U(avl_numnodes(&sm->sm_root), ==, avl_numnodes(sm->sm_pp_root));
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT3U(avl_numnodes(t), ==, avl_numnodes(&msp->ms_size_tree));
 
 	if (max_size < size)
 		return (-1ULL);
@@ -652,211 +1048,239 @@ metaslab_df_alloc(space_map_t *sm, uint64_t size)
 	 */
 	if (max_size < metaslab_df_alloc_threshold ||
 	    free_pct < metaslab_df_free_pct) {
-		t = sm->sm_pp_root;
+		t = &msp->ms_size_tree;
 		*cursor = 0;
 	}
 
 	return (metaslab_block_picker(t, cursor, size, 1ULL));
 }
 
-static boolean_t
-metaslab_df_fragmented(space_map_t *sm)
-{
-	uint64_t max_size = metaslab_pp_maxsize(sm);
-	int free_pct = sm->sm_space * 100 / sm->sm_size;
-
-	if (max_size >= metaslab_df_alloc_threshold &&
-	    free_pct >= metaslab_df_free_pct)
-		return (B_FALSE);
-
-	return (B_TRUE);
-}
-
-static space_map_ops_t metaslab_df_ops = {
-	metaslab_pp_load,
-	metaslab_pp_unload,
-	metaslab_df_alloc,
-	metaslab_pp_claim,
-	metaslab_pp_free,
-	metaslab_pp_maxsize,
-	metaslab_df_fragmented
+static metaslab_ops_t metaslab_df_ops = {
+	metaslab_df_alloc
 };
 
-space_map_ops_t *zfs_metaslab_ops = &metaslab_df_ops;
+metaslab_ops_t *zfs_metaslab_ops = &metaslab_df_ops;
 #endif /* WITH_DF_BLOCK_ALLOCATOR */
 
+#if defined(WITH_CF_BLOCK_ALLOCATOR)
 /*
  * ==========================================================================
- * Other experimental allocators
+ * Cursor fit block allocator -
+ * Select the largest region in the metaslab, set the cursor to the beginning
+ * of the range and the cursor_end to the end of the range. As allocations
+ * are made advance the cursor. Continue allocating from the cursor until
+ * the range is exhausted and then find a new range.
  * ==========================================================================
  */
-#if defined(WITH_CDF_BLOCK_ALLOCATOR)
 static uint64_t
-metaslab_cdf_alloc(space_map_t *sm, uint64_t size)
+metaslab_cf_alloc(metaslab_t *msp, uint64_t size)
 {
-	avl_tree_t *t = &sm->sm_root;
-	uint64_t *cursor = (uint64_t *)sm->sm_ppd;
-	uint64_t *extent_end = (uint64_t *)sm->sm_ppd + 1;
-	uint64_t max_size = metaslab_pp_maxsize(sm);
-	uint64_t rsize = size;
+	range_tree_t *rt = msp->ms_tree;
+	avl_tree_t *t = &msp->ms_size_tree;
+	uint64_t *cursor = &msp->ms_lbas[0];
+	uint64_t *cursor_end = &msp->ms_lbas[1];
 	uint64_t offset = 0;
 
-	ASSERT(MUTEX_HELD(sm->sm_lock));
-	ASSERT3U(avl_numnodes(&sm->sm_root), ==, avl_numnodes(sm->sm_pp_root));
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT3U(avl_numnodes(t), ==, avl_numnodes(&rt->rt_root));
 
-	if (max_size < size)
-		return (-1ULL);
+	ASSERT3U(*cursor_end, >=, *cursor);
 
-	ASSERT3U(*extent_end, >=, *cursor);
+	if ((*cursor + size) > *cursor_end) {
+		range_seg_t *rs;
 
-	/*
-	 * If we're running low on space switch to using the size
-	 * sorted AVL tree (best-fit).
-	 */
-	if ((*cursor + size) > *extent_end) {
+		rs = avl_last(&msp->ms_size_tree);
+		if (rs == NULL || (rs->rs_end - rs->rs_start) < size)
+			return (-1ULL);
 
-		t = sm->sm_pp_root;
-		*cursor = *extent_end = 0;
-
-		if (max_size > 2 * SPA_MAXBLOCKSIZE)
-			rsize = MIN(metaslab_min_alloc_size, max_size);
-		offset = metaslab_block_picker(t, extent_end, rsize, 1ULL);
-		if (offset != -1)
-			*cursor = offset + size;
-	} else {
-		offset = metaslab_block_picker(t, cursor, rsize, 1ULL);
+		*cursor = rs->rs_start;
+		*cursor_end = rs->rs_end;
 	}
-	ASSERT3U(*cursor, <=, *extent_end);
+
+	offset = *cursor;
+	*cursor += size;
+
 	return (offset);
 }
 
-static boolean_t
-metaslab_cdf_fragmented(space_map_t *sm)
-{
-	uint64_t max_size = metaslab_pp_maxsize(sm);
-
-	if (max_size > (metaslab_min_alloc_size * 10))
-		return (B_FALSE);
-	return (B_TRUE);
-}
-
-static space_map_ops_t metaslab_cdf_ops = {
-	metaslab_pp_load,
-	metaslab_pp_unload,
-	metaslab_cdf_alloc,
-	metaslab_pp_claim,
-	metaslab_pp_free,
-	metaslab_pp_maxsize,
-	metaslab_cdf_fragmented
+static metaslab_ops_t metaslab_cf_ops = {
+	metaslab_cf_alloc
 };
 
-space_map_ops_t *zfs_metaslab_ops = &metaslab_cdf_ops;
-#endif /* WITH_CDF_BLOCK_ALLOCATOR */
+metaslab_ops_t *zfs_metaslab_ops = &metaslab_cf_ops;
+#endif /* WITH_CF_BLOCK_ALLOCATOR */
 
 #if defined(WITH_NDF_BLOCK_ALLOCATOR)
+/*
+ * ==========================================================================
+ * New dynamic fit allocator -
+ * Select a region that is large enough to allocate 2^metaslab_ndf_clump_shift
+ * contiguous blocks. If no region is found then just use the largest segment
+ * that remains.
+ * ==========================================================================
+ */
+
+/*
+ * Determines desired number of contiguous blocks (2^metaslab_ndf_clump_shift)
+ * to request from the allocator.
+ */
 uint64_t metaslab_ndf_clump_shift = 4;
 
 static uint64_t
-metaslab_ndf_alloc(space_map_t *sm, uint64_t size)
+metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 {
-	avl_tree_t *t = &sm->sm_root;
+	avl_tree_t *t = &msp->ms_tree->rt_root;
 	avl_index_t where;
-	space_seg_t *ss, ssearch;
-	uint64_t hbit = highbit(size);
-	uint64_t *cursor = (uint64_t *)sm->sm_ppd + hbit - 1;
-	uint64_t max_size = metaslab_pp_maxsize(sm);
+	range_seg_t *rs, rsearch;
+	uint64_t hbit = highbit64(size);
+	uint64_t *cursor = &msp->ms_lbas[hbit - 1];
+	uint64_t max_size = metaslab_block_maxsize(msp);
 
-	ASSERT(MUTEX_HELD(sm->sm_lock));
-	ASSERT3U(avl_numnodes(&sm->sm_root), ==, avl_numnodes(sm->sm_pp_root));
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT3U(avl_numnodes(t), ==, avl_numnodes(&msp->ms_size_tree));
 
 	if (max_size < size)
 		return (-1ULL);
 
-	ssearch.ss_start = *cursor;
-	ssearch.ss_end = *cursor + size;
+	rsearch.rs_start = *cursor;
+	rsearch.rs_end = *cursor + size;
 
-	ss = avl_find(t, &ssearch, &where);
-	if (ss == NULL || (ss->ss_start + size > ss->ss_end)) {
-		t = sm->sm_pp_root;
+	rs = avl_find(t, &rsearch, &where);
+	if (rs == NULL || (rs->rs_end - rs->rs_start) < size) {
+		t = &msp->ms_size_tree;
 
-		ssearch.ss_start = 0;
-		ssearch.ss_end = MIN(max_size,
+		rsearch.rs_start = 0;
+		rsearch.rs_end = MIN(max_size,
 		    1ULL << (hbit + metaslab_ndf_clump_shift));
-		ss = avl_find(t, &ssearch, &where);
-		if (ss == NULL)
-			ss = avl_nearest(t, where, AVL_AFTER);
-		ASSERT(ss != NULL);
+		rs = avl_find(t, &rsearch, &where);
+		if (rs == NULL)
+			rs = avl_nearest(t, where, AVL_AFTER);
+		ASSERT(rs != NULL);
 	}
 
-	if (ss != NULL) {
-		if (ss->ss_start + size <= ss->ss_end) {
-			*cursor = ss->ss_start + size;
-			return (ss->ss_start);
-		}
+	if ((rs->rs_end - rs->rs_start) >= size) {
+		*cursor = rs->rs_start + size;
+		return (rs->rs_start);
 	}
 	return (-1ULL);
 }
 
-static boolean_t
-metaslab_ndf_fragmented(space_map_t *sm)
-{
-	uint64_t max_size = metaslab_pp_maxsize(sm);
-
-	if (max_size > (metaslab_min_alloc_size << metaslab_ndf_clump_shift))
-		return (B_FALSE);
-	return (B_TRUE);
-}
-
-
-static space_map_ops_t metaslab_ndf_ops = {
-	metaslab_pp_load,
-	metaslab_pp_unload,
-	metaslab_ndf_alloc,
-	metaslab_pp_claim,
-	metaslab_pp_free,
-	metaslab_pp_maxsize,
-	metaslab_ndf_fragmented
+static metaslab_ops_t metaslab_ndf_ops = {
+	metaslab_ndf_alloc
 };
 
-space_map_ops_t *zfs_metaslab_ops = &metaslab_ndf_ops;
+metaslab_ops_t *zfs_metaslab_ops = &metaslab_ndf_ops;
 #endif /* WITH_NDF_BLOCK_ALLOCATOR */
+
 
 /*
  * ==========================================================================
  * Metaslabs
  * ==========================================================================
  */
-metaslab_t *
-metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
-	uint64_t start, uint64_t size, uint64_t txg)
+
+/*
+ * Wait for any in-progress metaslab loads to complete.
+ */
+void
+metaslab_load_wait(metaslab_t *msp)
 {
-	vdev_t *vd = mg->mg_vd;
-	metaslab_t *msp;
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
-	msp = kmem_zalloc(sizeof (metaslab_t), KM_PUSHPAGE);
-	mutex_init(&msp->ms_lock, NULL, MUTEX_DEFAULT, NULL);
+	while (msp->ms_loading) {
+		ASSERT(!msp->ms_loaded);
+		cv_wait(&msp->ms_load_cv, &msp->ms_lock);
+	}
+}
 
-	msp->ms_smo_syncing = *smo;
+int
+metaslab_load(metaslab_t *msp)
+{
+	int error = 0;
+	int t;
+
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT(!msp->ms_loaded);
+	ASSERT(!msp->ms_loading);
+
+	msp->ms_loading = B_TRUE;
 
 	/*
-	 * We create the main space map here, but we don't create the
-	 * allocmaps and freemaps until metaslab_sync_done().  This serves
+	 * If the space map has not been allocated yet, then treat
+	 * all the space in the metaslab as free and add it to the
+	 * ms_tree.
+	 */
+	if (msp->ms_sm != NULL)
+		error = space_map_load(msp->ms_sm, msp->ms_tree, SM_FREE);
+	else
+		range_tree_add(msp->ms_tree, msp->ms_start, msp->ms_size);
+
+	msp->ms_loaded = (error == 0);
+	msp->ms_loading = B_FALSE;
+
+	if (msp->ms_loaded) {
+		for (t = 0; t < TXG_DEFER_SIZE; t++) {
+			range_tree_walk(msp->ms_defertree[t],
+			    range_tree_remove, msp->ms_tree);
+		}
+	}
+	cv_broadcast(&msp->ms_load_cv);
+	return (error);
+}
+
+void
+metaslab_unload(metaslab_t *msp)
+{
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	range_tree_vacate(msp->ms_tree, NULL, NULL);
+	msp->ms_loaded = B_FALSE;
+	msp->ms_weight &= ~METASLAB_ACTIVE_MASK;
+}
+
+int
+metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
+    metaslab_t **msp)
+{
+	vdev_t *vd = mg->mg_vd;
+	objset_t *mos = vd->vdev_spa->spa_meta_objset;
+	metaslab_t *ms;
+	int error;
+
+	ms = kmem_zalloc(sizeof (metaslab_t), KM_SLEEP);
+	mutex_init(&ms->ms_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&ms->ms_load_cv, NULL, CV_DEFAULT, NULL);
+	ms->ms_id = id;
+	ms->ms_start = id << vd->vdev_ms_shift;
+	ms->ms_size = 1ULL << vd->vdev_ms_shift;
+
+	/*
+	 * We only open space map objects that already exist. All others
+	 * will be opened when we finally allocate an object for it.
+	 */
+	if (object != 0) {
+		error = space_map_open(&ms->ms_sm, mos, object, ms->ms_start,
+		    ms->ms_size, vd->vdev_ashift, &ms->ms_lock);
+
+		if (error != 0) {
+			kmem_free(ms, sizeof (metaslab_t));
+			return (error);
+		}
+
+		ASSERT(ms->ms_sm != NULL);
+	}
+
+	/*
+	 * We create the main range tree here, but we don't create the
+	 * alloctree and freetree until metaslab_sync_done().  This serves
 	 * two purposes: it allows metaslab_sync_done() to detect the
 	 * addition of new space; and for debugging, it ensures that we'd
 	 * data fault on any attempt to use this metaslab before it's ready.
 	 */
-	msp->ms_map = kmem_zalloc(sizeof (space_map_t), KM_PUSHPAGE);
-	space_map_create(msp->ms_map, start, size,
-	    vd->vdev_ashift, &msp->ms_lock);
+	ms->ms_tree = range_tree_create(&metaslab_rt_ops, ms, &ms->ms_lock);
+	metaslab_group_add(mg, ms);
 
-	metaslab_group_add(mg, msp);
-
-	if (metaslab_debug_load && smo->smo_object != 0) {
-		mutex_enter(&msp->ms_lock);
-		VERIFY(space_map_load(msp->ms_map, mg->mg_class->mc_ops,
-		    SM_FREE, smo, spa_meta_objset(vd->vdev_spa)) == 0);
-		mutex_exit(&msp->ms_lock);
-	}
+	ms->ms_fragmentation = metaslab_fragmentation(ms);
+	ms->ms_ops = mg->mg_class->mc_ops;
 
 	/*
 	 * If we're opening an existing pool (txg == 0) or creating
@@ -865,64 +1289,181 @@ metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
 	 * does not become available until after this txg has synced.
 	 */
 	if (txg <= TXG_INITIAL)
-		metaslab_sync_done(msp, 0);
+		metaslab_sync_done(ms, 0);
+
+	/*
+	 * If metaslab_debug_load is set and we're initializing a metaslab
+	 * that has an allocated space_map object then load the its space
+	 * map so that can verify frees.
+	 */
+	if (metaslab_debug_load && ms->ms_sm != NULL) {
+		mutex_enter(&ms->ms_lock);
+		VERIFY0(metaslab_load(ms));
+		mutex_exit(&ms->ms_lock);
+	}
 
 	if (txg != 0) {
 		vdev_dirty(vd, 0, NULL, txg);
-		vdev_dirty(vd, VDD_METASLAB, msp, txg);
+		vdev_dirty(vd, VDD_METASLAB, ms, txg);
 	}
 
-	return (msp);
+	*msp = ms;
+
+	return (0);
 }
 
 void
 metaslab_fini(metaslab_t *msp)
 {
-	metaslab_group_t *mg = msp->ms_group;
 	int t;
 
-	vdev_space_update(mg->mg_vd,
-	    -msp->ms_smo.smo_alloc, 0, -msp->ms_map->sm_size);
+	metaslab_group_t *mg = msp->ms_group;
 
 	metaslab_group_remove(mg, msp);
 
 	mutex_enter(&msp->ms_lock);
 
-	space_map_unload(msp->ms_map);
-	space_map_destroy(msp->ms_map);
-	kmem_free(msp->ms_map, sizeof (*msp->ms_map));
+	VERIFY(msp->ms_group == NULL);
+	vdev_space_update(mg->mg_vd, -space_map_allocated(msp->ms_sm),
+	    0, -msp->ms_size);
+	space_map_close(msp->ms_sm);
+
+	metaslab_unload(msp);
+	range_tree_destroy(msp->ms_tree);
 
 	for (t = 0; t < TXG_SIZE; t++) {
-		space_map_destroy(msp->ms_allocmap[t]);
-		space_map_destroy(msp->ms_freemap[t]);
-		kmem_free(msp->ms_allocmap[t], sizeof (*msp->ms_allocmap[t]));
-		kmem_free(msp->ms_freemap[t], sizeof (*msp->ms_freemap[t]));
+		range_tree_destroy(msp->ms_alloctree[t]);
+		range_tree_destroy(msp->ms_freetree[t]);
 	}
 
 	for (t = 0; t < TXG_DEFER_SIZE; t++) {
-		space_map_destroy(msp->ms_defermap[t]);
-		kmem_free(msp->ms_defermap[t], sizeof (*msp->ms_defermap[t]));
+		range_tree_destroy(msp->ms_defertree[t]);
 	}
 
 	ASSERT0(msp->ms_deferspace);
 
 	mutex_exit(&msp->ms_lock);
+	cv_destroy(&msp->ms_load_cv);
 	mutex_destroy(&msp->ms_lock);
 
 	kmem_free(msp, sizeof (metaslab_t));
 }
 
-#define	METASLAB_WEIGHT_PRIMARY		(1ULL << 63)
-#define	METASLAB_WEIGHT_SECONDARY	(1ULL << 62)
-#define	METASLAB_ACTIVE_MASK		\
-	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY)
+#define	FRAGMENTATION_TABLE_SIZE	17
 
+/*
+ * This table defines a segment size based fragmentation metric that will
+ * allow each metaslab to derive its own fragmentation value. This is done
+ * by calculating the space in each bucket of the spacemap histogram and
+ * multiplying that by the fragmetation metric in this table. Doing
+ * this for all buckets and dividing it by the total amount of free
+ * space in this metaslab (i.e. the total free space in all buckets) gives
+ * us the fragmentation metric. This means that a high fragmentation metric
+ * equates to most of the free space being comprised of small segments.
+ * Conversely, if the metric is low, then most of the free space is in
+ * large segments. A 10% change in fragmentation equates to approximately
+ * double the number of segments.
+ *
+ * This table defines 0% fragmented space using 16MB segments. Testing has
+ * shown that segments that are greater than or equal to 16MB do not suffer
+ * from drastic performance problems. Using this value, we derive the rest
+ * of the table. Since the fragmentation value is never stored on disk, it
+ * is possible to change these calculations in the future.
+ */
+int zfs_frag_table[FRAGMENTATION_TABLE_SIZE] = {
+	100,	/* 512B	*/
+	100,	/* 1K	*/
+	98,	/* 2K	*/
+	95,	/* 4K	*/
+	90,	/* 8K	*/
+	80,	/* 16K	*/
+	70,	/* 32K	*/
+	60,	/* 64K	*/
+	50,	/* 128K	*/
+	40,	/* 256K	*/
+	30,	/* 512K	*/
+	20,	/* 1M	*/
+	15,	/* 2M	*/
+	10,	/* 4M	*/
+	5,	/* 8M	*/
+	0	/* 16M	*/
+};
+
+/*
+ * Calclate the metaslab's fragmentation metric. A return value
+ * of ZFS_FRAG_INVALID means that the metaslab has not been upgraded and does
+ * not support this metric. Otherwise, the return value should be in the
+ * range [0, 100].
+ */
+static uint64_t
+metaslab_fragmentation(metaslab_t *msp)
+{
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	uint64_t fragmentation = 0;
+	uint64_t total = 0;
+	boolean_t feature_enabled = spa_feature_is_enabled(spa,
+	    SPA_FEATURE_SPACEMAP_HISTOGRAM);
+	int i;
+
+	if (!feature_enabled)
+		return (ZFS_FRAG_INVALID);
+
+	/*
+	 * A null space map means that the entire metaslab is free
+	 * and thus is not fragmented.
+	 */
+	if (msp->ms_sm == NULL)
+		return (0);
+
+	/*
+	 * If this metaslab's space_map has not been upgraded, flag it
+	 * so that we upgrade next time we encounter it.
+	 */
+	if (msp->ms_sm->sm_dbuf->db_size != sizeof (space_map_phys_t)) {
+		vdev_t *vd = msp->ms_group->mg_vd;
+
+		if (spa_writeable(vd->vdev_spa)) {
+			uint64_t txg = spa_syncing_txg(spa);
+
+			msp->ms_condense_wanted = B_TRUE;
+			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
+			spa_dbgmsg(spa, "txg %llu, requesting force condense: "
+			    "msp %p, vd %p", txg, msp, vd);
+		}
+		return (ZFS_FRAG_INVALID);
+	}
+
+	for (i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+		uint64_t space = 0;
+		uint8_t shift = msp->ms_sm->sm_shift;
+		int idx = MIN(shift - SPA_MINBLOCKSHIFT + i,
+		    FRAGMENTATION_TABLE_SIZE - 1);
+
+		if (msp->ms_sm->sm_phys->smp_histogram[i] == 0)
+			continue;
+
+		space = msp->ms_sm->sm_phys->smp_histogram[i] << (i + shift);
+		total += space;
+
+		ASSERT3U(idx, <, FRAGMENTATION_TABLE_SIZE);
+		fragmentation += space * zfs_frag_table[idx];
+	}
+
+	if (total > 0)
+		fragmentation /= total;
+	ASSERT3U(fragmentation, <=, 100);
+	return (fragmentation);
+}
+
+/*
+ * Compute a weight -- a selection preference value -- for the given metaslab.
+ * This is based on the amount of free space, the level of fragmentation,
+ * the LBA range, and whether the metaslab is loaded.
+ */
 static uint64_t
 metaslab_weight(metaslab_t *msp)
 {
 	metaslab_group_t *mg = msp->ms_group;
-	space_map_t *sm = msp->ms_map;
-	space_map_obj_t *smo = &msp->ms_smo;
 	vdev_t *vd = mg->mg_vd;
 	uint64_t weight, space;
 
@@ -933,7 +1474,7 @@ metaslab_weight(metaslab_t *msp)
 	 * for us to do here.
 	 */
 	if (vd->vdev_removing) {
-		ASSERT0(smo->smo_alloc);
+		ASSERT0(space_map_allocated(msp->ms_sm));
 		ASSERT0(vd->vdev_ms_shift);
 		return (0);
 	}
@@ -941,7 +1482,30 @@ metaslab_weight(metaslab_t *msp)
 	/*
 	 * The baseline weight is the metaslab's free space.
 	 */
-	space = sm->sm_size - smo->smo_alloc;
+	space = msp->ms_size - space_map_allocated(msp->ms_sm);
+
+	msp->ms_fragmentation = metaslab_fragmentation(msp);
+	if (metaslab_fragmentation_factor_enabled &&
+	    msp->ms_fragmentation != ZFS_FRAG_INVALID) {
+		/*
+		 * Use the fragmentation information to inversely scale
+		 * down the baseline weight. We need to ensure that we
+		 * don't exclude this metaslab completely when it's 100%
+		 * fragmented. To avoid this we reduce the fragmented value
+		 * by 1.
+		 */
+		space = (space * (100 - (msp->ms_fragmentation - 1))) / 100;
+
+		/*
+		 * If space < SPA_MINBLOCKSIZE, then we will not allocate from
+		 * this metaslab again. The fragmentation metric may have
+		 * decreased the space to something smaller than
+		 * SPA_MINBLOCKSIZE, so reset the space to SPA_MINBLOCKSIZE
+		 * so that we can consume any remaining space.
+		 */
+		if (space > 0 && space < SPA_MINBLOCKSIZE)
+			space = SPA_MINBLOCKSIZE;
+	}
 	weight = space;
 
 	/*
@@ -953,101 +1517,44 @@ metaslab_weight(metaslab_t *msp)
 	 * In effect, this means that we'll select the metaslab with the most
 	 * free bandwidth rather than simply the one with the most free space.
 	 */
-	weight = 2 * weight -
-	    ((sm->sm_start >> vd->vdev_ms_shift) * weight) / vd->vdev_ms_count;
-	ASSERT(weight >= space && weight <= 2 * space);
+	if (metaslab_lba_weighting_enabled) {
+		weight = 2 * weight - (msp->ms_id * weight) / vd->vdev_ms_count;
+		ASSERT(weight >= space && weight <= 2 * space);
+	}
 
 	/*
-	 * For locality, assign higher weight to metaslabs which have
-	 * a lower offset than what we've already activated.
+	 * If this metaslab is one we're actively using, adjust its
+	 * weight to make it preferable to any inactive metaslab so
+	 * we'll polish it off. If the fragmentation on this metaslab
+	 * has exceed our threshold, then don't mark it active.
 	 */
-	if (sm->sm_start <= mg->mg_bonus_area)
-		weight *= (metaslab_smo_bonus_pct / 100);
-	ASSERT(weight >= space &&
-	    weight <= 2 * (metaslab_smo_bonus_pct / 100) * space);
-
-	if (sm->sm_loaded && !sm->sm_ops->smop_fragmented(sm)) {
-		/*
-		 * If this metaslab is one we're actively using, adjust its
-		 * weight to make it preferable to any inactive metaslab so
-		 * we'll polish it off.
-		 */
+	if (msp->ms_loaded && msp->ms_fragmentation != ZFS_FRAG_INVALID &&
+	    msp->ms_fragmentation <= zfs_metaslab_fragmentation_threshold) {
 		weight |= (msp->ms_weight & METASLAB_ACTIVE_MASK);
 	}
+
 	return (weight);
-}
-
-static void
-metaslab_prefetch(metaslab_group_t *mg)
-{
-	spa_t *spa = mg->mg_vd->vdev_spa;
-	metaslab_t *msp;
-	avl_tree_t *t = &mg->mg_metaslab_tree;
-	int m;
-
-	mutex_enter(&mg->mg_lock);
-
-	/*
-	 * Prefetch the next potential metaslabs
-	 */
-	for (msp = avl_first(t), m = 0; msp; msp = AVL_NEXT(t, msp), m++) {
-		space_map_t *sm = msp->ms_map;
-		space_map_obj_t *smo = &msp->ms_smo;
-
-		/* If we have reached our prefetch limit then we're done */
-		if (m >= metaslab_prefetch_limit)
-			break;
-
-		if (!sm->sm_loaded && smo->smo_object != 0) {
-			mutex_exit(&mg->mg_lock);
-			dmu_prefetch(spa_meta_objset(spa), smo->smo_object,
-			    0ULL, smo->smo_objsize);
-			mutex_enter(&mg->mg_lock);
-		}
-	}
-	mutex_exit(&mg->mg_lock);
 }
 
 static int
 metaslab_activate(metaslab_t *msp, uint64_t activation_weight)
 {
-	metaslab_group_t *mg = msp->ms_group;
-	space_map_t *sm = msp->ms_map;
-	space_map_ops_t *sm_ops = msp->ms_group->mg_class->mc_ops;
-	int t;
-
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	if ((msp->ms_weight & METASLAB_ACTIVE_MASK) == 0) {
-		space_map_load_wait(sm);
-		if (!sm->sm_loaded) {
-			space_map_obj_t *smo = &msp->ms_smo;
-
-			int error = space_map_load(sm, sm_ops, SM_FREE, smo,
-			    spa_meta_objset(msp->ms_group->mg_vd->vdev_spa));
-			if (error)  {
+		metaslab_load_wait(msp);
+		if (!msp->ms_loaded) {
+			int error = metaslab_load(msp);
+			if (error) {
 				metaslab_group_sort(msp->ms_group, msp, 0);
 				return (error);
 			}
-			for (t = 0; t < TXG_DEFER_SIZE; t++)
-				space_map_walk(msp->ms_defermap[t],
-				    space_map_claim, sm);
-
-		}
-
-		/*
-		 * Track the bonus area as we activate new metaslabs.
-		 */
-		if (sm->sm_start > mg->mg_bonus_area) {
-			mutex_enter(&mg->mg_lock);
-			mg->mg_bonus_area = sm->sm_start;
-			mutex_exit(&mg->mg_lock);
 		}
 
 		metaslab_group_sort(msp->ms_group, msp,
 		    msp->ms_weight | activation_weight);
 	}
-	ASSERT(sm->sm_loaded);
+	ASSERT(msp->ms_loaded);
 	ASSERT(msp->ms_weight & METASLAB_ACTIVE_MASK);
 
 	return (0);
@@ -1061,51 +1568,135 @@ metaslab_passivate(metaslab_t *msp, uint64_t size)
 	 * this metaslab again.  In that case, it had better be empty,
 	 * or we would be leaving space on the table.
 	 */
-	ASSERT(size >= SPA_MINBLOCKSIZE || msp->ms_map->sm_space == 0);
+	ASSERT(size >= SPA_MINBLOCKSIZE || range_tree_space(msp->ms_tree) == 0);
 	metaslab_group_sort(msp->ms_group, msp, MIN(msp->ms_weight, size));
 	ASSERT((msp->ms_weight & METASLAB_ACTIVE_MASK) == 0);
 }
 
+static void
+metaslab_preload(void *arg)
+{
+	metaslab_t *msp = arg;
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+
+	ASSERT(!MUTEX_HELD(&msp->ms_group->mg_lock));
+
+	mutex_enter(&msp->ms_lock);
+	metaslab_load_wait(msp);
+	if (!msp->ms_loaded)
+		(void) metaslab_load(msp);
+
+	/*
+	 * Set the ms_access_txg value so that we don't unload it right away.
+	 */
+	msp->ms_access_txg = spa_syncing_txg(spa) + metaslab_unload_delay + 1;
+	mutex_exit(&msp->ms_lock);
+}
+
+static void
+metaslab_group_preload(metaslab_group_t *mg)
+{
+	spa_t *spa = mg->mg_vd->vdev_spa;
+	metaslab_t *msp;
+	avl_tree_t *t = &mg->mg_metaslab_tree;
+	int m = 0;
+
+	if (spa_shutting_down(spa) || !metaslab_preload_enabled) {
+		taskq_wait(mg->mg_taskq);
+		return;
+	}
+
+	mutex_enter(&mg->mg_lock);
+	/*
+	 * Load the next potential metaslabs
+	 */
+	msp = avl_first(t);
+	while (msp != NULL) {
+		metaslab_t *msp_next = AVL_NEXT(t, msp);
+
+		/*
+		 * We preload only the maximum number of metaslabs specified
+		 * by metaslab_preload_limit. If a metaslab is being forced
+		 * to condense then we preload it too. This will ensure
+		 * that force condensing happens in the next txg.
+		 */
+		if (++m > metaslab_preload_limit && !msp->ms_condense_wanted) {
+			msp = msp_next;
+			continue;
+		}
+
+		/*
+		 * We must drop the metaslab group lock here to preserve
+		 * lock ordering with the ms_lock (when grabbing both
+		 * the mg_lock and the ms_lock, the ms_lock must be taken
+		 * first).  As a result, it is possible that the ordering
+		 * of the metaslabs within the avl tree may change before
+		 * we reacquire the lock. The metaslab cannot be removed from
+		 * the tree while we're in syncing context so it is safe to
+		 * drop the mg_lock here. If the metaslabs are reordered
+		 * nothing will break -- we just may end up loading a
+		 * less than optimal one.
+		 */
+		mutex_exit(&mg->mg_lock);
+		VERIFY(taskq_dispatch(mg->mg_taskq, metaslab_preload,
+		    msp, TQ_SLEEP) != 0);
+		mutex_enter(&mg->mg_lock);
+		msp = msp_next;
+	}
+	mutex_exit(&mg->mg_lock);
+}
+
 /*
- * Determine if the in-core space map representation can be condensed on-disk.
- * We would like to use the following criteria to make our decision:
+ * Determine if the space map's on-disk footprint is past our tolerance
+ * for inefficiency. We would like to use the following criteria to make
+ * our decision:
  *
  * 1. The size of the space map object should not dramatically increase as a
- * result of writing out our in-core free map.
+ * result of writing out the free space range tree.
  *
  * 2. The minimal on-disk space map representation is zfs_condense_pct/100
- * times the size than the in-core representation (i.e. zfs_condense_pct = 110
- * and in-core = 1MB, minimal = 1.1.MB).
+ * times the size than the free space range tree representation
+ * (i.e. zfs_condense_pct = 110 and in-core = 1MB, minimal = 1.1.MB).
+ *
+ * 3. The on-disk size of the space map should actually decrease.
  *
  * Checking the first condition is tricky since we don't want to walk
  * the entire AVL tree calculating the estimated on-disk size. Instead we
- * use the size-ordered AVL tree in the space map and calculate the
- * size required for the largest segment in our in-core free map. If the
+ * use the size-ordered range tree in the metaslab and calculate the
+ * size required to write out the largest segment in our free tree. If the
  * size required to represent that segment on disk is larger than the space
  * map object then we avoid condensing this map.
  *
  * To determine the second criterion we use a best-case estimate and assume
  * each segment can be represented on-disk as a single 64-bit entry. We refer
  * to this best-case estimate as the space map's minimal form.
+ *
+ * Unfortunately, we cannot compute the on-disk size of the space map in this
+ * context because we cannot accurately compute the effects of compression, etc.
+ * Instead, we apply the heuristic described in the block comment for
+ * zfs_metaslab_condense_block_threshold - we only condense if the space used
+ * is greater than a threshold number of blocks.
  */
 static boolean_t
 metaslab_should_condense(metaslab_t *msp)
 {
-	space_map_t *sm = msp->ms_map;
-	space_map_obj_t *smo = &msp->ms_smo_syncing;
-	space_seg_t *ss;
-	uint64_t size, entries, segsz;
+	space_map_t *sm = msp->ms_sm;
+	range_seg_t *rs;
+	uint64_t size, entries, segsz, object_size, optimal_size, record_size;
+	dmu_object_info_t doi;
+	uint64_t vdev_blocksize = 1 << msp->ms_group->mg_vd->vdev_ashift;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-	ASSERT(sm->sm_loaded);
+	ASSERT(msp->ms_loaded);
 
 	/*
-	 * Use the sm_pp_root AVL tree, which is ordered by size, to obtain
-	 * the largest segment in the in-core free map. If the tree is
-	 * empty then we should condense the map.
+	 * Use the ms_size_tree range tree, which is ordered by size, to
+	 * obtain the largest segment in the free tree. We always condense
+	 * metaslabs that are empty and metaslabs for which a condense
+	 * request has been made.
 	 */
-	ss = avl_last(sm->sm_pp_root);
-	if (ss == NULL)
+	rs = avl_last(&msp->ms_size_tree);
+	if (rs == NULL || msp->ms_condense_wanted)
 		return (B_TRUE);
 
 	/*
@@ -1114,103 +1705,106 @@ metaslab_should_condense(metaslab_t *msp)
 	 * larger on-disk than the entire current on-disk structure, then
 	 * clearly condensing will increase the on-disk structure size.
 	 */
-	size = (ss->ss_end - ss->ss_start) >> sm->sm_shift;
+	size = (rs->rs_end - rs->rs_start) >> sm->sm_shift;
 	entries = size / (MIN(size, SM_RUN_MAX));
 	segsz = entries * sizeof (uint64_t);
 
-	return (segsz <= smo->smo_objsize &&
-	    smo->smo_objsize >= (zfs_condense_pct *
-	    sizeof (uint64_t) * avl_numnodes(&sm->sm_root)) / 100);
+	optimal_size = sizeof (uint64_t) * avl_numnodes(&msp->ms_tree->rt_root);
+	object_size = space_map_length(msp->ms_sm);
+
+	dmu_object_info_from_db(sm->sm_dbuf, &doi);
+	record_size = MAX(doi.doi_data_block_size, vdev_blocksize);
+
+	return (segsz <= object_size &&
+	    object_size >= (optimal_size * zfs_condense_pct / 100) &&
+	    object_size > zfs_metaslab_condense_block_threshold * record_size);
 }
 
 /*
  * Condense the on-disk space map representation to its minimized form.
  * The minimized form consists of a small number of allocations followed by
- * the in-core free map.
+ * the entries of the free range tree.
  */
 static void
 metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 {
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
-	space_map_t *freemap = msp->ms_freemap[txg & TXG_MASK];
-	space_map_t condense_map;
-	space_map_t *sm = msp->ms_map;
-	objset_t *mos = spa_meta_objset(spa);
-	space_map_obj_t *smo = &msp->ms_smo_syncing;
+	range_tree_t *freetree = msp->ms_freetree[txg & TXG_MASK];
+	range_tree_t *condense_tree;
+	space_map_t *sm = msp->ms_sm;
 	int t;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT3U(spa_sync_pass(spa), ==, 1);
-	ASSERT(sm->sm_loaded);
+	ASSERT(msp->ms_loaded);
+
 
 	spa_dbgmsg(spa, "condensing: txg %llu, msp[%llu] %p, "
-	    "smo size %llu, segments %lu", txg,
-	    (msp->ms_map->sm_start / msp->ms_map->sm_size), msp,
-	    smo->smo_objsize, avl_numnodes(&sm->sm_root));
+	    "smp size %llu, segments %lu, forcing condense=%s", txg,
+	    msp->ms_id, msp, space_map_length(msp->ms_sm),
+	    avl_numnodes(&msp->ms_tree->rt_root),
+	    msp->ms_condense_wanted ? "TRUE" : "FALSE");
+
+	msp->ms_condense_wanted = B_FALSE;
 
 	/*
-	 * Create an map that is a 100% allocated map. We remove segments
+	 * Create an range tree that is 100% allocated. We remove segments
 	 * that have been freed in this txg, any deferred frees that exist,
 	 * and any allocation in the future. Removing segments should be
-	 * a relatively inexpensive operation since we expect these maps to
-	 * a small number of nodes.
+	 * a relatively inexpensive operation since we expect these trees to
+	 * have a small number of nodes.
 	 */
-	space_map_create(&condense_map, sm->sm_start, sm->sm_size,
-	    sm->sm_shift, sm->sm_lock);
-	space_map_add(&condense_map, condense_map.sm_start,
-	    condense_map.sm_size);
+	condense_tree = range_tree_create(NULL, NULL, &msp->ms_lock);
+	range_tree_add(condense_tree, msp->ms_start, msp->ms_size);
 
 	/*
-	 * Remove what's been freed in this txg from the condense_map.
+	 * Remove what's been freed in this txg from the condense_tree.
 	 * Since we're in sync_pass 1, we know that all the frees from
-	 * this txg are in the freemap.
+	 * this txg are in the freetree.
 	 */
-	space_map_walk(freemap, space_map_remove, &condense_map);
+	range_tree_walk(freetree, range_tree_remove, condense_tree);
 
-	for (t = 0; t < TXG_DEFER_SIZE; t++)
-		space_map_walk(msp->ms_defermap[t],
-		    space_map_remove, &condense_map);
+	for (t = 0; t < TXG_DEFER_SIZE; t++) {
+		range_tree_walk(msp->ms_defertree[t],
+		    range_tree_remove, condense_tree);
+	}
 
-	for (t = 1; t < TXG_CONCURRENT_STATES; t++)
-		space_map_walk(msp->ms_allocmap[(txg + t) & TXG_MASK],
-		    space_map_remove, &condense_map);
+	for (t = 1; t < TXG_CONCURRENT_STATES; t++) {
+		range_tree_walk(msp->ms_alloctree[(txg + t) & TXG_MASK],
+		    range_tree_remove, condense_tree);
+	}
 
 	/*
 	 * We're about to drop the metaslab's lock thus allowing
 	 * other consumers to change it's content. Set the
-	 * space_map's sm_condensing flag to ensure that
+	 * metaslab's ms_condensing flag to ensure that
 	 * allocations on this metaslab do not occur while we're
 	 * in the middle of committing it to disk. This is only critical
-	 * for the ms_map as all other space_maps use per txg
+	 * for the ms_tree as all other range trees use per txg
 	 * views of their content.
 	 */
-	sm->sm_condensing = B_TRUE;
+	msp->ms_condensing = B_TRUE;
 
 	mutex_exit(&msp->ms_lock);
-	space_map_truncate(smo, mos, tx);
+	space_map_truncate(sm, tx);
 	mutex_enter(&msp->ms_lock);
 
 	/*
 	 * While we would ideally like to create a space_map representation
 	 * that consists only of allocation records, doing so can be
-	 * prohibitively expensive because the in-core free map can be
+	 * prohibitively expensive because the in-core free tree can be
 	 * large, and therefore computationally expensive to subtract
-	 * from the condense_map. Instead we sync out two maps, a cheap
-	 * allocation only map followed by the in-core free map. While not
+	 * from the condense_tree. Instead we sync out two trees, a cheap
+	 * allocation only tree followed by the in-core free tree. While not
 	 * optimal, this is typically close to optimal, and much cheaper to
 	 * compute.
 	 */
-	space_map_sync(&condense_map, SM_ALLOC, smo, mos, tx);
-	space_map_vacate(&condense_map, NULL, NULL);
-	space_map_destroy(&condense_map);
+	space_map_write(sm, condense_tree, SM_ALLOC, tx);
+	range_tree_vacate(condense_tree, NULL, NULL);
+	range_tree_destroy(condense_tree);
 
-	space_map_sync(sm, SM_FREE, smo, mos, tx);
-	sm->sm_condensing = B_FALSE;
-
-	spa_dbgmsg(spa, "condensed: txg %llu, msp[%llu] %p, "
-	    "smo size %llu", txg,
-	    (msp->ms_map->sm_start / msp->ms_map->sm_size), msp,
-	    smo->smo_objsize);
+	space_map_write(sm, msp->ms_tree, SM_FREE, tx);
+	msp->ms_condensing = B_FALSE;
 }
 
 /*
@@ -1219,94 +1813,130 @@ metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 void
 metaslab_sync(metaslab_t *msp, uint64_t txg)
 {
-	vdev_t *vd = msp->ms_group->mg_vd;
+	metaslab_group_t *mg = msp->ms_group;
+	vdev_t *vd = mg->mg_vd;
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa_meta_objset(spa);
-	space_map_t *allocmap = msp->ms_allocmap[txg & TXG_MASK];
-	space_map_t **freemap = &msp->ms_freemap[txg & TXG_MASK];
-	space_map_t **freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-	space_map_t *sm = msp->ms_map;
-	space_map_obj_t *smo = &msp->ms_smo_syncing;
-	dmu_buf_t *db;
+	range_tree_t *alloctree = msp->ms_alloctree[txg & TXG_MASK];
+	range_tree_t **freetree = &msp->ms_freetree[txg & TXG_MASK];
+	range_tree_t **freed_tree =
+	    &msp->ms_freetree[TXG_CLEAN(txg) & TXG_MASK];
 	dmu_tx_t *tx;
+	uint64_t object = space_map_object(msp->ms_sm);
 
 	ASSERT(!vd->vdev_ishole);
 
 	/*
 	 * This metaslab has just been added so there's no work to do now.
 	 */
-	if (*freemap == NULL) {
-		ASSERT3P(allocmap, ==, NULL);
+	if (*freetree == NULL) {
+		ASSERT3P(alloctree, ==, NULL);
 		return;
 	}
 
-	ASSERT3P(allocmap, !=, NULL);
-	ASSERT3P(*freemap, !=, NULL);
-	ASSERT3P(*freed_map, !=, NULL);
+	ASSERT3P(alloctree, !=, NULL);
+	ASSERT3P(*freetree, !=, NULL);
+	ASSERT3P(*freed_tree, !=, NULL);
 
-	if (allocmap->sm_space == 0 && (*freemap)->sm_space == 0)
+	/*
+	 * Normally, we don't want to process a metaslab if there
+	 * are no allocations or frees to perform. However, if the metaslab
+	 * is being forced to condense we need to let it through.
+	 */
+	if (range_tree_space(alloctree) == 0 &&
+	    range_tree_space(*freetree) == 0 &&
+	    !msp->ms_condense_wanted)
 		return;
 
 	/*
 	 * The only state that can actually be changing concurrently with
-	 * metaslab_sync() is the metaslab's ms_map.  No other thread can
-	 * be modifying this txg's allocmap, freemap, freed_map, or smo.
-	 * Therefore, we only hold ms_lock to satify space_map ASSERTs.
-	 * We drop it whenever we call into the DMU, because the DMU
-	 * can call down to us (e.g. via zio_free()) at any time.
+	 * metaslab_sync() is the metaslab's ms_tree.  No other thread can
+	 * be modifying this txg's alloctree, freetree, freed_tree, or
+	 * space_map_phys_t. Therefore, we only hold ms_lock to satify
+	 * space_map ASSERTs. We drop it whenever we call into the DMU,
+	 * because the DMU can call down to us (e.g. via zio_free()) at
+	 * any time.
 	 */
 
 	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
-	if (smo->smo_object == 0) {
-		ASSERT(smo->smo_objsize == 0);
-		ASSERT(smo->smo_alloc == 0);
-		smo->smo_object = dmu_object_alloc(mos,
-		    DMU_OT_SPACE_MAP, 1 << SPACE_MAP_BLOCKSHIFT,
-		    DMU_OT_SPACE_MAP_HEADER, sizeof (*smo), tx);
-		ASSERT(smo->smo_object != 0);
-		dmu_write(mos, vd->vdev_ms_array, sizeof (uint64_t) *
-		    (sm->sm_start >> vd->vdev_ms_shift),
-		    sizeof (uint64_t), &smo->smo_object, tx);
+	if (msp->ms_sm == NULL) {
+		uint64_t new_object;
+
+		new_object = space_map_alloc(mos, tx);
+		VERIFY3U(new_object, !=, 0);
+
+		VERIFY0(space_map_open(&msp->ms_sm, mos, new_object,
+		    msp->ms_start, msp->ms_size, vd->vdev_ashift,
+		    &msp->ms_lock));
+		ASSERT(msp->ms_sm != NULL);
 	}
 
 	mutex_enter(&msp->ms_lock);
 
-	if (sm->sm_loaded && spa_sync_pass(spa) == 1 &&
+	/*
+	 * Note: metaslab_condense() clears the space_map's histogram.
+	 * Therefore we muse verify and remove this histogram before
+	 * condensing.
+	 */
+	metaslab_group_histogram_verify(mg);
+	metaslab_class_histogram_verify(mg->mg_class);
+	metaslab_group_histogram_remove(mg, msp);
+
+	if (msp->ms_loaded && spa_sync_pass(spa) == 1 &&
 	    metaslab_should_condense(msp)) {
 		metaslab_condense(msp, txg, tx);
 	} else {
-		space_map_sync(allocmap, SM_ALLOC, smo, mos, tx);
-		space_map_sync(*freemap, SM_FREE, smo, mos, tx);
+		space_map_write(msp->ms_sm, alloctree, SM_ALLOC, tx);
+		space_map_write(msp->ms_sm, *freetree, SM_FREE, tx);
 	}
 
-	space_map_vacate(allocmap, NULL, NULL);
+	if (msp->ms_loaded) {
+		/*
+		 * When the space map is loaded, we have an accruate
+		 * histogram in the range tree. This gives us an opportunity
+		 * to bring the space map's histogram up-to-date so we clear
+		 * it first before updating it.
+		 */
+		space_map_histogram_clear(msp->ms_sm);
+		space_map_histogram_add(msp->ms_sm, msp->ms_tree, tx);
+	} else {
+		/*
+		 * Since the space map is not loaded we simply update the
+		 * exisiting histogram with what was freed in this txg. This
+		 * means that the on-disk histogram may not have an accurate
+		 * view of the free space but it's close enough to allow
+		 * us to make allocation decisions.
+		 */
+		space_map_histogram_add(msp->ms_sm, *freetree, tx);
+	}
+	metaslab_group_histogram_add(mg, msp);
+	metaslab_group_histogram_verify(mg);
+	metaslab_class_histogram_verify(mg->mg_class);
 
 	/*
-	 * For sync pass 1, we avoid walking the entire space map and
-	 * instead will just swap the pointers for freemap and
-	 * freed_map. We can safely do this since the freed_map is
+	 * For sync pass 1, we avoid traversing this txg's free range tree
+	 * and instead will just swap the pointers for freetree and
+	 * freed_tree. We can safely do this since the freed_tree is
 	 * guaranteed to be empty on the initial pass.
 	 */
 	if (spa_sync_pass(spa) == 1) {
-		ASSERT0((*freed_map)->sm_space);
-		ASSERT0(avl_numnodes(&(*freed_map)->sm_root));
-		space_map_swap(freemap, freed_map);
+		range_tree_swap(freetree, freed_tree);
 	} else {
-		space_map_vacate(*freemap, space_map_add, *freed_map);
+		range_tree_vacate(*freetree, range_tree_add, *freed_tree);
 	}
+	range_tree_vacate(alloctree, NULL, NULL);
 
-	ASSERT0(msp->ms_allocmap[txg & TXG_MASK]->sm_space);
-	ASSERT0(msp->ms_freemap[txg & TXG_MASK]->sm_space);
+	ASSERT0(range_tree_space(msp->ms_alloctree[txg & TXG_MASK]));
+	ASSERT0(range_tree_space(msp->ms_freetree[txg & TXG_MASK]));
 
 	mutex_exit(&msp->ms_lock);
 
-	VERIFY0(dmu_bonus_hold(mos, smo->smo_object, FTAG, &db));
-	dmu_buf_will_dirty(db, tx);
-	ASSERT3U(db->db_size, >=, sizeof (*smo));
-	bcopy(smo, db->db_data, sizeof (*smo));
-	dmu_buf_rele(db, FTAG);
-
+	if (object != space_map_object(msp->ms_sm)) {
+		object = space_map_object(msp->ms_sm);
+		dmu_write(mos, vd->vdev_ms_array, sizeof (uint64_t) *
+		    msp->ms_id, sizeof (uint64_t), &object, tx);
+	}
 	dmu_tx_commit(tx);
 }
 
@@ -1317,13 +1947,10 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 void
 metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 {
-	space_map_obj_t *smo = &msp->ms_smo;
-	space_map_obj_t *smosync = &msp->ms_smo_syncing;
-	space_map_t *sm = msp->ms_map;
-	space_map_t **freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-	space_map_t **defer_map = &msp->ms_defermap[txg % TXG_DEFER_SIZE];
 	metaslab_group_t *mg = msp->ms_group;
 	vdev_t *vd = mg->mg_vd;
+	range_tree_t **freed_tree;
+	range_tree_t **defer_tree;
 	int64_t alloc_delta, defer_delta;
 	int t;
 
@@ -1333,63 +1960,63 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 
 	/*
 	 * If this metaslab is just becoming available, initialize its
-	 * allocmaps, freemaps, and defermap and add its capacity to the vdev.
+	 * alloctrees, freetrees, and defertree and add its capacity to
+	 * the vdev.
 	 */
-	if (*freed_map == NULL) {
-		ASSERT(*defer_map == NULL);
+	if (msp->ms_freetree[TXG_CLEAN(txg) & TXG_MASK] == NULL) {
 		for (t = 0; t < TXG_SIZE; t++) {
-			msp->ms_allocmap[t] = kmem_zalloc(sizeof (space_map_t),
-			    KM_PUSHPAGE);
-			space_map_create(msp->ms_allocmap[t], sm->sm_start,
-			    sm->sm_size, sm->sm_shift, sm->sm_lock);
-			msp->ms_freemap[t] = kmem_zalloc(sizeof (space_map_t),
-			    KM_PUSHPAGE);
-			space_map_create(msp->ms_freemap[t], sm->sm_start,
-			    sm->sm_size, sm->sm_shift, sm->sm_lock);
+			ASSERT(msp->ms_alloctree[t] == NULL);
+			ASSERT(msp->ms_freetree[t] == NULL);
+
+			msp->ms_alloctree[t] = range_tree_create(NULL, msp,
+			    &msp->ms_lock);
+			msp->ms_freetree[t] = range_tree_create(NULL, msp,
+			    &msp->ms_lock);
 		}
 
 		for (t = 0; t < TXG_DEFER_SIZE; t++) {
-			msp->ms_defermap[t] = kmem_zalloc(sizeof (space_map_t),
-			    KM_PUSHPAGE);
-			space_map_create(msp->ms_defermap[t], sm->sm_start,
-			    sm->sm_size, sm->sm_shift, sm->sm_lock);
+			ASSERT(msp->ms_defertree[t] == NULL);
+
+			msp->ms_defertree[t] = range_tree_create(NULL, msp,
+			    &msp->ms_lock);
 		}
 
-		freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-		defer_map = &msp->ms_defermap[txg % TXG_DEFER_SIZE];
-
-		vdev_space_update(vd, 0, 0, sm->sm_size);
+		vdev_space_update(vd, 0, 0, msp->ms_size);
 	}
 
-	alloc_delta = smosync->smo_alloc - smo->smo_alloc;
-	defer_delta = (*freed_map)->sm_space - (*defer_map)->sm_space;
+	freed_tree = &msp->ms_freetree[TXG_CLEAN(txg) & TXG_MASK];
+	defer_tree = &msp->ms_defertree[txg % TXG_DEFER_SIZE];
+
+	alloc_delta = space_map_alloc_delta(msp->ms_sm);
+	defer_delta = range_tree_space(*freed_tree) -
+	    range_tree_space(*defer_tree);
 
 	vdev_space_update(vd, alloc_delta + defer_delta, defer_delta, 0);
 
-	ASSERT(msp->ms_allocmap[txg & TXG_MASK]->sm_space == 0);
-	ASSERT(msp->ms_freemap[txg & TXG_MASK]->sm_space == 0);
+	ASSERT0(range_tree_space(msp->ms_alloctree[txg & TXG_MASK]));
+	ASSERT0(range_tree_space(msp->ms_freetree[txg & TXG_MASK]));
 
 	/*
-	 * If there's a space_map_load() in progress, wait for it to complete
+	 * If there's a metaslab_load() in progress, wait for it to complete
 	 * so that we have a consistent view of the in-core space map.
 	 */
-	space_map_load_wait(sm);
+	metaslab_load_wait(msp);
 
 	/*
-	 * Move the frees from the defer_map to this map (if it's loaded).
-	 * Swap the freed_map and the defer_map -- this is safe to do
-	 * because we've just emptied out the defer_map.
+	 * Move the frees from the defer_tree back to the free
+	 * range tree (if it's loaded). Swap the freed_tree and the
+	 * defer_tree -- this is safe to do because we've just emptied out
+	 * the defer_tree.
 	 */
-	space_map_vacate(*defer_map, sm->sm_loaded ? space_map_free : NULL, sm);
-	ASSERT0((*defer_map)->sm_space);
-	ASSERT0(avl_numnodes(&(*defer_map)->sm_root));
-	space_map_swap(freed_map, defer_map);
+	range_tree_vacate(*defer_tree,
+	    msp->ms_loaded ? range_tree_add : NULL, msp->ms_tree);
+	range_tree_swap(freed_tree, defer_tree);
 
-	*smo = *smosync;
+	space_map_update(msp->ms_sm);
 
 	msp->ms_deferspace += defer_delta;
 	ASSERT3S(msp->ms_deferspace, >=, 0);
-	ASSERT3S(msp->ms_deferspace, <=, sm->sm_size);
+	ASSERT3S(msp->ms_deferspace, <=, msp->ms_size);
 	if (msp->ms_deferspace != 0) {
 		/*
 		 * Keep syncing this metaslab until all deferred frees
@@ -1398,57 +2025,30 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 	}
 
-	metaslab_group_alloc_update(mg);
+	if (msp->ms_loaded && msp->ms_access_txg < txg) {
+		for (t = 1; t < TXG_CONCURRENT_STATES; t++) {
+			VERIFY0(range_tree_space(
+			    msp->ms_alloctree[(txg + t) & TXG_MASK]));
+		}
 
-	/*
-	 * If the map is loaded but no longer active, evict it as soon as all
-	 * future allocations have synced.  (If we unloaded it now and then
-	 * loaded a moment later, the map wouldn't reflect those allocations.)
-	 */
-	if (sm->sm_loaded && (msp->ms_weight & METASLAB_ACTIVE_MASK) == 0) {
-		int evictable = 1;
-
-		for (t = 1; t < TXG_CONCURRENT_STATES; t++)
-			if (msp->ms_allocmap[(txg + t) & TXG_MASK]->sm_space)
-				evictable = 0;
-
-		if (evictable && !metaslab_debug_unload)
-			space_map_unload(sm);
+		if (!metaslab_debug_unload)
+			metaslab_unload(msp);
 	}
 
 	metaslab_group_sort(mg, msp, metaslab_weight(msp));
-
 	mutex_exit(&msp->ms_lock);
 }
 
 void
 metaslab_sync_reassess(metaslab_group_t *mg)
 {
-	vdev_t *vd = mg->mg_vd;
-	int64_t failures = mg->mg_alloc_failures;
-	int m;
+	metaslab_group_alloc_update(mg);
+	mg->mg_fragmentation = metaslab_group_fragmentation(mg);
 
 	/*
-	 * Re-evaluate all metaslabs which have lower offsets than the
-	 * bonus area.
+	 * Preload the next potential metaslabs
 	 */
-	for (m = 0; m < vd->vdev_ms_count; m++) {
-		metaslab_t *msp = vd->vdev_ms[m];
-
-		if (msp->ms_map->sm_start > mg->mg_bonus_area)
-			break;
-
-		mutex_enter(&msp->ms_lock);
-		metaslab_group_sort(mg, msp, metaslab_weight(msp));
-		mutex_exit(&msp->ms_lock);
-	}
-
-	atomic_add_64(&mg->mg_alloc_failures, -failures);
-
-	/*
-	 * Prefetch the next potential metaslabs
-	 */
-	metaslab_prefetch(mg);
+	metaslab_group_preload(mg);
 }
 
 static uint64_t
@@ -1456,7 +2056,7 @@ metaslab_distance(metaslab_t *msp, dva_t *dva)
 {
 	uint64_t ms_shift = msp->ms_group->mg_vd->vdev_ms_shift;
 	uint64_t offset = DVA_GET_OFFSET(dva) >> ms_shift;
-	uint64_t start = msp->ms_map->sm_start >> ms_shift;
+	uint64_t start = msp->ms_id;
 
 	if (msp->ms_group->mg_vd->vdev_id != DVA_GET_VDEV(dva))
 		return (1ULL << 63);
@@ -1470,7 +2070,7 @@ metaslab_distance(metaslab_t *msp, dva_t *dva)
 
 static uint64_t
 metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
-    uint64_t txg, uint64_t min_distance, dva_t *dva, int d, int flags)
+    uint64_t txg, uint64_t min_distance, dva_t *dva, int d)
 {
 	spa_t *spa = mg->mg_vd->vdev_spa;
 	metaslab_t *msp = NULL;
@@ -1497,10 +2097,9 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 				spa_dbgmsg(spa, "%s: failed to meet weight "
 				    "requirement: vdev %llu, txg %llu, mg %p, "
 				    "msp %p, psize %llu, asize %llu, "
-				    "failures %llu, weight %llu",
-				    spa_name(spa), mg->mg_vd->vdev_id, txg,
-				    mg, msp, psize, asize,
-				    mg->mg_alloc_failures, msp->ms_weight);
+				    "weight %llu", spa_name(spa),
+				    mg->mg_vd->vdev_id, txg,
+				    mg, msp, psize, asize, msp->ms_weight);
 				mutex_exit(&mg->mg_lock);
 				return (-1ULL);
 			}
@@ -1508,7 +2107,7 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 			/*
 			 * If the selected metaslab is condensing, skip it.
 			 */
-			if (msp->ms_map->sm_condensing)
+			if (msp->ms_condensing)
 				continue;
 
 			was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
@@ -1516,7 +2115,8 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 				break;
 
 			target_distance = min_distance +
-			    (msp->ms_smo.smo_alloc ? 0 : min_distance >> 1);
+			    (space_map_allocated(msp->ms_sm) != 0 ? 0 :
+			    min_distance >> 1);
 
 			for (i = 0; i < d; i++)
 				if (metaslab_distance(msp, &dva[i]) <
@@ -1530,26 +2130,6 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 			return (-1ULL);
 
 		mutex_enter(&msp->ms_lock);
-
-		/*
-		 * If we've already reached the allowable number of failed
-		 * allocation attempts on this metaslab group then we
-		 * consider skipping it. We skip it only if we're allowed
-		 * to "fast" gang, the physical size is larger than
-		 * a gang block, and we're attempting to allocate from
-		 * the primary metaslab.
-		 */
-		if (mg->mg_alloc_failures > zfs_mg_alloc_failures &&
-		    CAN_FASTGANG(flags) && psize > SPA_GANGBLOCKSIZE &&
-		    activation_weight == METASLAB_WEIGHT_PRIMARY) {
-			spa_dbgmsg(spa, "%s: skipping metaslab group: "
-			    "vdev %llu, txg %llu, mg %p, psize %llu, "
-			    "asize %llu, failures %llu", spa_name(spa),
-			    mg->mg_vd->vdev_id, txg, mg, psize, asize,
-			    mg->mg_alloc_failures);
-			mutex_exit(&msp->ms_lock);
-			return (-1ULL);
-		}
 
 		/*
 		 * Ensure that the metaslab we have selected is still
@@ -1582,25 +2162,23 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 		 * we can't manipulate this metaslab until it's committed
 		 * to disk.
 		 */
-		if (msp->ms_map->sm_condensing) {
+		if (msp->ms_condensing) {
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
 
-		if ((offset = space_map_alloc(msp->ms_map, asize)) != -1ULL)
+		if ((offset = metaslab_block_alloc(msp, asize)) != -1ULL)
 			break;
 
-		atomic_inc_64(&mg->mg_alloc_failures);
-
-		metaslab_passivate(msp, space_map_maxsize(msp->ms_map));
-
+		metaslab_passivate(msp, metaslab_block_maxsize(msp));
 		mutex_exit(&msp->ms_lock);
 	}
 
-	if (msp->ms_allocmap[txg & TXG_MASK]->sm_space == 0)
+	if (range_tree_space(msp->ms_alloctree[txg & TXG_MASK]) == 0)
 		vdev_dirty(mg->mg_vd, VDD_METASLAB, msp, txg);
 
-	space_map_add(msp->ms_allocmap[txg & TXG_MASK], offset, asize);
+	range_tree_add(msp->ms_alloctree[txg & TXG_MASK], offset, asize);
+	msp->ms_access_txg = txg + metaslab_unload_delay;
 
 	mutex_exit(&msp->ms_lock);
 
@@ -1739,9 +2317,7 @@ top:
 		 */
 		if ((vd->vdev_stat.vs_write_errors > 0 ||
 		    vd->vdev_state < VDEV_STATE_HEALTHY) &&
-		    d == 0 && dshift == 3 &&
-		    !(zfs_write_to_degraded && vd->vdev_state ==
-		    VDEV_STATE_DEGRADED)) {
+		    d == 0 && dshift == 3 && vd->vdev_children == 0) {
 			all_zero = B_FALSE;
 			goto next;
 		}
@@ -1758,7 +2334,7 @@ top:
 		ASSERT(P2PHASE(asize, 1ULL << vd->vdev_ashift) == 0);
 
 		offset = metaslab_group_alloc(mg, psize, asize, txg, distance,
-		    dva, d, flags);
+		    dva, d);
 		if (offset != -1ULL) {
 			/*
 			 * If we've just selected this metaslab group,
@@ -1766,7 +2342,7 @@ top:
 			 * over- or under-used relative to the pool,
 			 * and set an allocation bias to even it out.
 			 */
-			if (mc->mc_aliquot == 0) {
+			if (mc->mc_aliquot == 0 && metaslab_bias_enabled) {
 				vdev_stat_t *vs = &vd->vdev_stat;
 				int64_t vu, cu;
 
@@ -1788,6 +2364,8 @@ top:
 				 */
 				mg->mg_bias = ((cu - vu) *
 				    (int64_t)mg->mg_aliquot) / 100;
+			} else if (!metaslab_bias_enabled) {
+				mg->mg_bias = 0;
 			}
 
 			if ((flags & METASLAB_FASTWRITE) ||
@@ -1869,13 +2447,22 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t txg, boolean_t now)
 	mutex_enter(&msp->ms_lock);
 
 	if (now) {
-		space_map_remove(msp->ms_allocmap[txg & TXG_MASK],
+		range_tree_remove(msp->ms_alloctree[txg & TXG_MASK],
 		    offset, size);
-		space_map_free(msp->ms_map, offset, size);
+
+		VERIFY(!msp->ms_condensing);
+		VERIFY3U(offset, >=, msp->ms_start);
+		VERIFY3U(offset + size, <=, msp->ms_start + msp->ms_size);
+		VERIFY3U(range_tree_space(msp->ms_tree) + size, <=,
+		    msp->ms_size);
+		VERIFY0(P2PHASE(offset, 1ULL << vd->vdev_ashift));
+		VERIFY0(P2PHASE(size, 1ULL << vd->vdev_ashift));
+		range_tree_add(msp->ms_tree, offset, size);
 	} else {
-		if (msp->ms_freemap[txg & TXG_MASK]->sm_space == 0)
+		if (range_tree_space(msp->ms_freetree[txg & TXG_MASK]) == 0)
 			vdev_dirty(vd, VDD_METASLAB, msp, txg);
-		space_map_add(msp->ms_freemap[txg & TXG_MASK], offset, size);
+		range_tree_add(msp->ms_freetree[txg & TXG_MASK],
+		    offset, size);
 	}
 
 	mutex_exit(&msp->ms_lock);
@@ -1910,10 +2497,10 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 	mutex_enter(&msp->ms_lock);
 
-	if ((txg != 0 && spa_writeable(spa)) || !msp->ms_map->sm_loaded)
+	if ((txg != 0 && spa_writeable(spa)) || !msp->ms_loaded)
 		error = metaslab_activate(msp, METASLAB_WEIGHT_SECONDARY);
 
-	if (error == 0 && !space_map_contains(msp->ms_map, offset, size))
+	if (error == 0 && !range_tree_contains(msp->ms_tree, offset, size))
 		error = SET_ERROR(ENOENT);
 
 	if (error || txg == 0) {	/* txg == 0 indicates dry run */
@@ -1921,12 +2508,16 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 		return (error);
 	}
 
-	space_map_claim(msp->ms_map, offset, size);
+	VERIFY(!msp->ms_condensing);
+	VERIFY0(P2PHASE(offset, 1ULL << vd->vdev_ashift));
+	VERIFY0(P2PHASE(size, 1ULL << vd->vdev_ashift));
+	VERIFY3U(range_tree_space(msp->ms_tree) - size, <=, msp->ms_size);
+	range_tree_remove(msp->ms_tree, offset, size);
 
 	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(1M) */
-		if (msp->ms_allocmap[txg & TXG_MASK]->sm_space == 0)
+		if (range_tree_space(msp->ms_alloctree[txg & TXG_MASK]) == 0)
 			vdev_dirty(vd, VDD_METASLAB, msp, txg);
-		space_map_add(msp->ms_allocmap[txg & TXG_MASK], offset, size);
+		range_tree_add(msp->ms_alloctree[txg & TXG_MASK], offset, size);
 	}
 
 	mutex_exit(&msp->ms_lock);
@@ -1959,7 +2550,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	for (d = 0; d < ndvas; d++) {
 		error = metaslab_alloc_dva(spa, mc, psize, dva, d, hintdva,
 		    txg, flags);
-		if (error) {
+		if (error != 0) {
 			for (d--; d >= 0; d--) {
 				metaslab_free_dva(spa, &dva[d], txg, B_TRUE);
 				bzero(&dva[d], sizeof (dva_t));
@@ -2036,6 +2627,7 @@ metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
 	vdev_t *vd;
 
 	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(!BP_IS_EMBEDDED(bp));
 	ASSERT(psize > 0);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
@@ -2059,6 +2651,7 @@ metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 	vdev_t *vd;
 
 	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(!BP_IS_EMBEDDED(bp));
 	ASSERT(psize > 0);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
@@ -2073,19 +2666,6 @@ metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
-static void
-checkmap(space_map_t *sm, uint64_t off, uint64_t size)
-{
-	space_seg_t *ss;
-	avl_index_t where;
-
-	mutex_enter(sm->sm_lock);
-	ss = space_map_find(sm, off, size, &where);
-	if (ss != NULL)
-		panic("freeing free block; ss=%p", (void *)ss);
-	mutex_exit(sm->sm_lock);
-}
-
 void
 metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 {
@@ -2096,28 +2676,52 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 	for (i = 0; i < BP_GET_NDVAS(bp); i++) {
-		uint64_t vdid = DVA_GET_VDEV(&bp->blk_dva[i]);
-		vdev_t *vd = vdev_lookup_top(spa, vdid);
-		uint64_t off = DVA_GET_OFFSET(&bp->blk_dva[i]);
+		uint64_t vdev = DVA_GET_VDEV(&bp->blk_dva[i]);
+		vdev_t *vd = vdev_lookup_top(spa, vdev);
+		uint64_t offset = DVA_GET_OFFSET(&bp->blk_dva[i]);
 		uint64_t size = DVA_GET_ASIZE(&bp->blk_dva[i]);
-		metaslab_t *ms = vd->vdev_ms[off >> vd->vdev_ms_shift];
+		metaslab_t *msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
-		if (ms->ms_map->sm_loaded)
-			checkmap(ms->ms_map, off, size);
+		if (msp->ms_loaded)
+			range_tree_verify(msp->ms_tree, offset, size);
 
 		for (j = 0; j < TXG_SIZE; j++)
-			checkmap(ms->ms_freemap[j], off, size);
+			range_tree_verify(msp->ms_freetree[j], offset, size);
 		for (j = 0; j < TXG_DEFER_SIZE; j++)
-			checkmap(ms->ms_defermap[j], off, size);
+			range_tree_verify(msp->ms_defertree[j], offset, size);
 	}
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(metaslab_debug_load, int, 0644);
-MODULE_PARM_DESC(metaslab_debug_load, "load all metaslabs during pool import");
-
 module_param(metaslab_debug_unload, int, 0644);
+module_param(metaslab_preload_enabled, int, 0644);
+module_param(zfs_mg_noalloc_threshold, int, 0644);
+module_param(zfs_mg_fragmentation_threshold, int, 0644);
+module_param(zfs_metaslab_fragmentation_threshold, int, 0644);
+module_param(metaslab_fragmentation_factor_enabled, int, 0644);
+module_param(metaslab_lba_weighting_enabled, int, 0644);
+module_param(metaslab_bias_enabled, int, 0644);
+
+MODULE_PARM_DESC(metaslab_debug_load,
+	"load all metaslabs when pool is first opened");
 MODULE_PARM_DESC(metaslab_debug_unload,
 	"prevent metaslabs from being unloaded");
+MODULE_PARM_DESC(metaslab_preload_enabled,
+	"preload potential metaslabs during reassessment");
+
+MODULE_PARM_DESC(zfs_mg_noalloc_threshold,
+	"percentage of free space for metaslab group to allow allocation");
+MODULE_PARM_DESC(zfs_mg_fragmentation_threshold,
+	"fragmentation for metaslab group to allow allocation");
+
+MODULE_PARM_DESC(zfs_metaslab_fragmentation_threshold,
+	"fragmentation for metaslab to allow allocation");
+MODULE_PARM_DESC(metaslab_fragmentation_factor_enabled,
+	"use the fragmentation metric to prefer less fragmented metaslabs");
+MODULE_PARM_DESC(metaslab_lba_weighting_enabled,
+	"prefer metaslabs with lower LBAs");
+MODULE_PARM_DESC(metaslab_bias_enabled,
+	"enable metaslab group biasing");
 #endif /* _KERNEL && HAVE_SPL */

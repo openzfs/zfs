@@ -1,6 +1,6 @@
 dnl #
-dnl # Check if posix_acl_release can be used from a CDDL module,
-dnl # The is_owner_or_cap macro was replaced by
+dnl # Check if posix_acl_release can be used from a ZFS_META_LICENSED
+dnl # module.  The is_owner_or_cap macro was replaced by
 dnl # inode_owner_or_capable
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_RELEASE], [
@@ -26,7 +26,7 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_RELEASE], [
 		#include <linux/fs.h>
 		#include <linux/posix_acl.h>
 
-		MODULE_LICENSE("CDDL");
+		MODULE_LICENSE("$ZFS_META_LICENSE");
 	],[
 		struct posix_acl* tmp = posix_acl_alloc(1, 0);
 		posix_acl_release(tmp);

@@ -19,16 +19,16 @@
 \fBzdb\fR - Display zpool debugging and consistency information
 
 .SH "SYNOPSIS"
-\fBzdb\fR [-CumdibcsDvhLXFPA] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
-    [-U \fIcache\fR] [-M \fIinflight I/Os\fR] [\fIpoolname\fR
-    [\fIobject\fR ...]]
+\fBzdb\fR [-CumdibcsDvhLMXFPA] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
+    [-U \fIcache\fR] [-I \fIinflight I/Os\fR]
+    [\fIpoolname\fR [\fIobject\fR ...]]
 
 .P
 \fBzdb\fR [-divPA] [-e [-p \fIpath\fR...]] [-U \fIcache\fR]
     \fIdataset\fR [\fIobject\fR ...]
 
 .P
-\fBzdb\fR -m [-LXFPA] [-t \fItxg\fR] [-e [-p \fIpath\fR...]] [-U \fIcache\fR]
+\fBzdb\fR -m [-MLXFPA] [-t \fItxg\fR] [-e [-p \fIpath\fR...]] [-U \fIcache\fR]
     \fIpoolname\fR [\fIvdev\fR [\fImetaslab\fR ...]]
 
 .P
@@ -190,6 +190,21 @@ verifies that all non-free blocks are referenced, which can be very expensive.
 .ne 2
 .na
 \fB-m\fR
+.ad
+.sp .6
+.RS 4n
+Display the offset, spacemap, and free space of each metaslab.
+When specified twice, also display information about the on-disk free
+space histogram associated with each metaslab. When specified three time,
+display the maximum contiguous free space, the in-core free space histogram,
+and the percentage of free space in each space map.  When specified
+four times display every spacemap record.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-M\fR
 .ad
 .sp .6
 .RS 4n
@@ -366,7 +381,7 @@ transactions.
 .sp
 .ne 2
 .na
-\fB-M \fIinflight I/Os\fR \fR
+\fB-I \fIinflight I/Os\fR \fR
 .ad
 .sp .6
 .RS 4n
@@ -427,6 +442,17 @@ Enable verbosity. Specify multiple times for increased verbosity.
 .RS 4n
 Attempt \'extreme\' transaction rewind, that is attempt the same recovery as
 \fB-F\fR but read transactions otherwise deemed too old.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-V\fR
+.ad
+.sp .6
+.RS 4n
+Attempt a verbatim import. This mimics the behavior of the kernel when loading
+a pool from a cachefile.
 .RE
 
 .P
@@ -499,6 +525,11 @@ dedup = 1.11, compress = 1.80, copies = 1.00, dedup * compress / copies = 2.00
 .fi
 .in -2
 .sp
+
+.SH "ENVIRONMENT VARIABLES"
+.TP
+.B "SPA_CONFIG_PATH"
+Override the default \fBspa_config_path\fR (\fI/etc/zfs/zpool.cache\fR) setting. If \fB-U\fR flag is specified it will override this environment variable settings once again.
 
 .SH "SEE ALSO"
 zfs(8), zpool(8)

@@ -28,7 +28,7 @@
 #  4: unsupported event class
 #  5: internal error
 #
-test -f "${ZED_SCRIPT_DIR}/zed.rc" && . "${ZED_SCRIPT_DIR}/zed.rc"
+test -f "${ZED_ZEDLET_DIR}/zed.rc" && . "${ZED_ZEDLET_DIR}/zed.rc"
 
 test -n "${ZEVENT_POOL}" || exit 5
 test -n "${ZEVENT_SUBCLASS}" || exit 5
@@ -54,10 +54,11 @@ flock -x 8
 # Given a <pool> and <device> return the status, (ONLINE, FAULTED, etc...).
 vdev_status() {
 	local POOL=$1
-	local VDEV=`basename $2`
+	local VDEV=$2
+	local T='	'	# tab character since '\t' isn't portable
 
-	${ZPOOL} status ${POOL} | \
-	    awk -v pat="${VDEV}|${VDEV/-part?}" '$0 ~ pat { print $1" "$2 }'
+	${ZPOOL} status ${POOL} | sed -n -e \
+	    "s,^[ $T]*\(.*$VDEV\(-part[0-9]\+\)\?\)[ $T]*\([A-Z]\+\).*,\1 \3,p"
 	return 0
 }
 

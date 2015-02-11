@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Portions Copyright 2011 Martin Matuska
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -32,6 +32,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_scan.h>
 #include <sys/callb.h>
+#include <sys/trace_txg.h>
 
 /*
  * ZFS Transaction Groups
@@ -448,7 +449,7 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			    TASKQ_THREADS_CPU_PCT | TASKQ_PREPOPULATE);
 		}
 
-		cb_list = kmem_alloc(sizeof (list_t), KM_PUSHPAGE);
+		cb_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
 		list_create(cb_list, sizeof (dmu_tx_callback_t),
 		    offsetof(dmu_tx_callback_t, dcb_node));
 
@@ -482,19 +483,11 @@ txg_sync_thread(dsl_pool_t *dp)
 	vdev_stat_t *vs1, *vs2;
 	clock_t start, delta;
 
-#ifdef _KERNEL
-	/*
-	 * Annotate this process with a flag that indicates that it is
-	 * unsafe to use KM_SLEEP during memory allocations due to the
-	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
-	 */
-	current->flags |= PF_NOFS;
-#endif /* _KERNEL */
-
+	(void) spl_fstrans_mark();
 	txg_thread_enter(tx, &cpr);
 
-	vs1 = kmem_alloc(sizeof (vdev_stat_t), KM_PUSHPAGE);
-	vs2 = kmem_alloc(sizeof (vdev_stat_t), KM_PUSHPAGE);
+	vs1 = kmem_alloc(sizeof (vdev_stat_t), KM_SLEEP);
+	vs2 = kmem_alloc(sizeof (vdev_stat_t), KM_SLEEP);
 
 	start = delta = 0;
 	for (;;) {
@@ -539,7 +532,9 @@ txg_sync_thread(dsl_pool_t *dp)
 			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
 		}
 
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
 		vdev_get_stats(spa->spa_root_vdev, vs1);
+		spa_config_exit(spa, SCL_ALL, FTAG);
 
 		/*
 		 * Consume the quiesced txg which has been handed off to
@@ -575,7 +570,9 @@ txg_sync_thread(dsl_pool_t *dp)
 		 */
 		txg_dispatch_callbacks(dp, txg);
 
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
 		vdev_get_stats(spa->spa_root_vdev, vs2);
+		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa_txg_history_set_io(spa, txg,
 		    vs2->vs_bytes[ZIO_TYPE_READ]-vs1->vs_bytes[ZIO_TYPE_READ],
 		    vs2->vs_bytes[ZIO_TYPE_WRITE]-vs1->vs_bytes[ZIO_TYPE_WRITE],
@@ -780,6 +777,26 @@ boolean_t
 txg_list_empty(txg_list_t *tl, uint64_t txg)
 {
 	return (tl->tl_head[txg & TXG_MASK] == NULL);
+}
+
+/*
+ * Returns true if all txg lists are empty.
+ *
+ * Warning: this is inherently racy (an item could be added immediately
+ * after this function returns). We don't bother with the lock because
+ * it wouldn't change the semantics.
+ */
+boolean_t
+txg_all_lists_empty(txg_list_t *tl)
+{
+	int i;
+
+	for (i = 0; i < TXG_SIZE; i++) {
+		if (!txg_list_empty(tl, i)) {
+			return (B_FALSE);
+		}
+	}
+	return (B_TRUE);
 }
 
 /*

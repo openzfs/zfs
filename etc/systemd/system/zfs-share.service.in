@@ -2,10 +2,13 @@
 Description=ZFS file system shares
 After=nfs-server.service
 After=smb.service
+After=zfs-mount.service
+Requires=zfs-mount.service
 PartOf=nfs-server.service
 PartOf=smb.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+ExecStartPre=-@bindir@/rm /etc/dfs/sharetab
 ExecStart=@sbindir@/zfs share -a

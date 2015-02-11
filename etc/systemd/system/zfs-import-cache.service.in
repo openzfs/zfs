@@ -3,6 +3,7 @@ Description=Import ZFS pools by cache file
 DefaultDependencies=no
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
+After=cryptsetup.target
 ConditionPathExists=@sysconfdir@/zfs/zpool.cache
 
 [Service]

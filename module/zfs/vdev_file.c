@@ -77,7 +77,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		goto skip_open;
 	}
 
-	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_PUSHPAGE);
+	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_SLEEP);
 
 	/*
 	 * We always open the files from the root of the global zone, even if
@@ -161,6 +161,17 @@ vdev_file_io_strategy(void *arg)
 	zio_interrupt(zio);
 }
 
+static void
+vdev_file_io_fsync(void *arg)
+{
+	zio_t *zio = (zio_t *)arg;
+	vdev_file_t *vf = zio->io_vd->vdev_tsd;
+
+	zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC, kcred, NULL);
+
+	zio_interrupt(zio);
+}
+
 static int
 vdev_file_io_start(zio_t *zio)
 {
@@ -180,6 +191,19 @@ vdev_file_io_start(zio_t *zio)
 			if (zfs_nocacheflush)
 				break;
 
+			/*
+			 * We cannot safely call vfs_fsync() when PF_FSTRANS
+			 * is set in the current context.  Filesystems like
+			 * XFS include sanity checks to verify it is not
+			 * already set, see xfs_vm_writepage().  Therefore
+			 * the sync must be dispatched to a different context.
+			 */
+			if (spl_fstrans_check()) {
+				VERIFY3U(taskq_dispatch(vdev_file_taskq,
+				    vdev_file_io_fsync, zio, TQ_SLEEP), !=, 0);
+				return (ZIO_PIPELINE_STOP);
+			}
+
 			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
 			    kcred, NULL);
 			break;
@@ -191,7 +215,7 @@ vdev_file_io_start(zio_t *zio)
 	}
 
 	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
-	    TQ_PUSHPAGE), !=, 0);
+	    TQ_SLEEP), !=, 0);
 
 	return (ZIO_PIPELINE_STOP);
 }

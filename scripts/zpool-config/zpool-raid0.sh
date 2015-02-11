@@ -70,8 +70,8 @@ zpool_create() {
         raid0_setup ${RANKS} ${CHANNELS}
 
 	ZPOOL_DEVICES="${RAID0S[*]} ${ZIL} ${L2ARC}"
-        msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${ZPOOL_DEVICES}
-        ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${ZPOOL_DEVICES} || exit 1
+        msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES}
+        ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES} || exit 1
 }
 
 zpool_destroy() {

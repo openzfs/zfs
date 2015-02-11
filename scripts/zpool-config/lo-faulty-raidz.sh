@@ -52,8 +52,8 @@ zpool_create() {
 		MDDEVICES="${MDDEVICES} ${MDDEVICE}"
 	done
 
-	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} raidz ${MDDEVICES}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} raidz ${MDDEVICES} ||    \
+	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} raidz ${MDDEVICES}
+	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} raidz ${MDDEVICES} ||    \
 		(destroy_md_devices "${MDDEVICES}" &&                        \
 		destroy_loop_devices "${LODEVICES}" && exit 1)
 

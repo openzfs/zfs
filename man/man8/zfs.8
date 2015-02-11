@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2012 by Delphix. All rights reserved.
+.\" Copyright (c) 2014 by Delphix. All rights reserved.
 .\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -54,6 +54,11 @@ zfs \- configures ZFS file systems
 .LP
 .nf
 \fBzfs\fR \fBdestroy\fR [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
+.fi
+
+.LP
+.nf
+\fBzfs\fR \fBdestroy\fR \fIfilesystem\fR|\fIvolume\fR#\fIbookmark\fR
 .fi
 
 .LP
@@ -164,7 +169,17 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-DnPpRv\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs\fR \fBbookmark\fR \fIsnapshot\fR \fIbookmark\fR
+.fi
+
+.LP
+.nf
+\fBzfs\fR \fBsend\fR [\fB-DnPpRve\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+.fi
+
+.LP
+.nf
+\fBzfs\fR \fBsend\fR [\fB-e\fR] [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
@@ -338,6 +353,16 @@ If needed, \fBZFS\fR file systems can also be managed with traditional tools (\f
 .SS "Deduplication"
 .LP
 Deduplication is the process for removing redundant data at the block-level, reducing the total amount of data stored. If a file system has the \fBdedup\fR property enabled, duplicate data blocks are removed synchronously.  The result is that only unique data is stored and common components are shared among files.
+.sp
+\fBWARNING: DO NOT ENABLE DEDUPLICATION UNLESS YOU NEED IT AND KNOW EXACTLY WHAT YOU ARE DOING!\fR
+.sp
+Deduplicating data is a very resource-intensive operation. It is generally recommended that you have \fIat least\fR 1.25 GB of RAM per 1 TB of storage when you enable deduplication. But calculating the exact requirenments is a somewhat complicated affair. Please see the \fBOracle Dedup Guide\fR for more information..
+.sp
+Enabling deduplication on an improperly-designed system will result in extreme performance issues (extremely slow filesystem and snapshot deletions etc.) and can potentially lead to data loss (i.e. unimportable pool due to memory exhaustion) if your system is not built for this purpose. Deduplication affects the processing power (CPU), disks (and the controller) as well as primary (real) memory.
+.sp
+Before creating a pool with deduplication enabled, ensure that you have planned your hardware requirements appropriately and implemented appropriate recovery practices, such as regular backups.
+.sp
+Unless necessary, deduplication should NOT be enabled on a system. Instead, consider using \fIcompression=lz4\fR, as a less resource-intensive alternative.
 .SS "Native Properties"
 .LP
 Properties are divided into two types, native properties and user-defined (or "user") properties. Native properties either export internal statistics or control \fBZFS\fR behavior. In addition, native properties are either editable or read-only. User properties have no effect on \fBZFS\fR behavior, but you can use them to annotate datasets in a way that is meaningful in your environment. For more information about user properties, see the "User Properties" section, below.
@@ -818,6 +843,8 @@ Changing this property only affects newly-written data. Therefore, set this prop
 Controls whether deduplication is in effect for a dataset. The default value is \fBoff\fR. The default checksum used for deduplication is \fBsha256\fR (subject to change). When \fBdedup\fR is enabled, the \fBdedup\fR checksum algorithm overrides the \fBchecksum\fR property. Setting the value to \fBverify\fR is equivalent to specifying \fBsha256,verify\fR.
 .sp
 If the property is set to \fBverify\fR, then, whenever two blocks have the same signature, ZFS will do a byte-for-byte comparison with the existing block to ensure that the contents are identical.
+.sp
+Unless necessary, deduplication should NOT be enabled on a system. See \fBDeduplication\fR above.
 .RE
 
 .sp
@@ -998,6 +1025,37 @@ This property can also be referred to by its shortened column name, \fBrecsize\f
 .sp
 .ne 2
 .mk
+.na
+\fB\fBredundant_metadata\fR=\fBall\fR | \fBmost\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls what types of metadata are stored redundantly.  ZFS stores an
+extra copy of metadata, so that if a single block is corrupted, the
+amount of user data lost is limited.  This extra copy is in addition to
+any redundancy provided at the pool level (e.g. by mirroring or RAID-Z),
+and is in addition to an extra copy specified by the \fBcopies\fR
+property (up to a total of 3 copies).  For example if the pool is
+mirrored, \fBcopies\fR=2, and \fBredundant_metadata\fR=most, then ZFS
+stores 6 copies of most metadata, and 4 copies of data and some
+metadata.
+.sp
+When set to \fBall\fR, ZFS stores an extra copy of all metadata.  If a
+single on-disk block is corrupt, at worst a single block of user data
+(which is \fBrecordsize\fR bytes long) can be lost.
+.sp
+When set to \fBmost\fR, ZFS stores an extra copy of most types of
+metadata.  This can improve performance of random writes, because less
+metadata must be written.  In practice, at worst about 100 blocks (of
+\fBrecordsize\fR bytes each) of user data can be lost if a single
+on-disk block is corrupt.  The exact behavior of which metadata blocks
+are stored redundantly may change in future releases.
+.sp
+The default value is \fBall\fR.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fBrefquota\fR=\fIsize\fR | \fBnone\fR\fR
 .ad
@@ -1363,6 +1421,17 @@ This flag sets the SELinux context for unlabeled files.  See \fBselinux\fR(8) fo
 This flag sets the SELinux context for the root inode of the filesystem.  See \fBselinux\fR(8) for more information.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fBoverlay\fR=\fBon\fR | \fBoff\fR\fR
+.ad
+.sp .6
+.RS 4n
+Allow mounting on a busy directory or a directory which already contains files/directories. This is the default mount behavior for Linux filesystems.  However, for consistency with ZFS on other platforms overlay mounts are disabled by default.  Set \fBoverlay=on\fR to enable overlay mounts.
+.RE
+
 .SS "Temporary Mount Point Properties"
 .LP
 When a file system is mounted, either through \fBmount\fR(8) for legacy mounts or the \fBzfs mount\fR command for normal file systems, its mount options are set according to its properties. The correlation between properties and mount options is as follows:
@@ -1684,6 +1753,17 @@ behavior for mounted file systems in use.
 .ne 2
 .mk
 .na
+\fBzfs destroy\fR \fIfilesystem\fR|\fIvolume\fR#\fIbookmark\fR
+.ad
+.sp .6
+.RS 4n
+The given bookmark is destroyed.
+
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBzfs snapshot\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem@snapname\fR|\fIvolume@snapname\fR\fR ...
 .ad
 .sp .6
@@ -1721,9 +1801,9 @@ Sets the specified property; see \fBzfs create\fR for details.
 .ad
 .sp .6
 .RS 4n
-Roll back the given dataset to a previous snapshot. When a dataset is rolled back, all data that has changed since the snapshot is discarded, and the dataset reverts to the state at the time of the snapshot. By default, the command refuses to roll back to a snapshot other than the most recent one. In order to do so, all intermediate snapshots must be destroyed by specifying the \fB-r\fR option.
+Roll back the given dataset to a previous snapshot. When a dataset is rolled back, all data that has changed since the snapshot is discarded, and the dataset reverts to the state at the time of the snapshot. By default, the command refuses to roll back to a snapshot other than the most recent one. In order to do so, all intermediate snapshots and bookmarks must be destroyed by specifying the \fB-r\fR option.
 .sp
-The \fB-rR\fR options do not recursively destroy the child snapshots of a recursive snapshot. Only the top-level recursive snapshot is destroyed by either of these options. To completely roll back a recursive snapshot, you must rollback the individual child snapshots.
+The \fB-rR\fR options do not recursively destroy the child snapshots of a recursive snapshot. Only direct snapshots of the specified filesystem are destroyed by either of these options. To completely roll back a recursive snapshot, you must rollback the individual child snapshots.
 .sp
 .ne 2
 .mk
@@ -1732,7 +1812,7 @@ The \fB-rR\fR options do not recursively destroy the child snapshots of a recurs
 .ad
 .sp .6
 .RS 4n
-Recursively destroy any snapshots more recent than the one specified.
+Destroy any snapshots and bookmarks more recent than the one specified.
 .RE
 
 .sp
@@ -1743,7 +1823,7 @@ Recursively destroy any snapshots more recent than the one specified.
 .ad
 .sp .6
 .RS 4n
-Recursively destroy any more recent snapshots, as well as any clones of those snapshots.
+Recursively destroy any more recent snapshots and bookmarks, as well as any clones of those snapshots.
 .RE
 
 .sp
@@ -1999,7 +2079,7 @@ Same as the \fB-s\fR option, but sorts by property in descending order.
 .ad
 .sp .6
 .RS 4n
-A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR, \fBsnap\fR, \fBvolume\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
+A comma-separated list of types to display, where \fItype\fR is one of \fBfilesystem\fR, \fBsnapshot\fR, \fBsnap\fR, \fBvolume\fR, \fBbookmark\fR, or \fBall\fR. For example, specifying \fB-t snapshot\fR displays only snapshots.
 .RE
 
 .RE
@@ -2037,7 +2117,7 @@ Displays properties for the given datasets. If no datasets are specified, then t
 
 All columns are displayed by default, though this can be controlled by using the \fB-o\fR option. This command takes a comma-separated list of properties as described in the "Native Properties" and "User Properties" sections.
 .sp
-The special value \fBall\fR can be used to display all properties that apply to the given dataset's type (filesystem, volume, or snapshot).
+The special value \fBall\fR can be used to display all properties that apply to the given dataset's type (filesystem, volume snapshot, or bookmark).
 .sp
 .ne 2
 .mk
@@ -2525,7 +2605,25 @@ Unshare the specified filesystem. The command can also be given a path to a \fBZ
 .ne 2
 .mk
 .na
-\fBzfs send\fR [\fB-DnPpRv\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fB\fBzfs bookmark\fR \fIsnapshot\fR \fIbookmark\fR\fR
+.ad
+.sp .6
+.RS 4n
+Creates a bookmark of the given snapshot.  Bookmarks mark the point in time
+when the snapshot was created, and can be used as the incremental source for
+a \fBzfs send\fR command.
+.sp
+This feature must be enabled to be used.
+See \fBzpool-features\fR(5) for details on ZFS feature flags and the
+\fBbookmarks\fR feature.
+.RE
+
+
+.RE
+.sp
+.ne 2
+.na
+\fBzfs send\fR [\fB-DnPpRve\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2538,7 +2636,7 @@ Creates a stream representation of the second \fIsnapshot\fR, which is written t
 .ad
 .sp .6
 .RS 4n
-Generate an incremental stream from the first \fIsnapshot\fR to the second \fIsnapshot\fR. The incremental source (the first \fIsnapshot\fR) can be specified as the last component of the snapshot name (for example, the part after the \fB@\fR), and it is assumed to be from the same file system as the second \fIsnapshot\fR.
+Generate an incremental stream from the first \fIsnapshot\fR (the incremental source) to the second \fIsnapshot\fR (the incremental target).  The incremental source can be specified as the last component of the snapshot name (the \fB@\fR character and following) and it is assumed to be from the same file system as the incremental target.
 .sp
 If the destination is a clone, the source may be the origin snapshot, which must be fully specified (for example, \fBpool/fs@origin\fR, not just \fB@origin\fR).
 .RE
@@ -2551,7 +2649,7 @@ If the destination is a clone, the source may be the origin snapshot, which must
 .ad
 .sp .6
 .RS 4n
-Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source snapshot may be specified as with the \fB-i\fR option.
+Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source may be specified as with the \fB-i\fR option.
 .RE
 
 .sp
@@ -2575,12 +2673,29 @@ If the \fB-i\fR or \fB-I\fR flags are used in conjunction with the \fB-R\fR flag
 .ad
 .sp .6
 .RS 4n
-Generate a deduplicated stream. Blocks which would have been sent multiple times in the send stream will only be sent once. The receiving system must also support this feature to recieve a deduplicated stream.  This flag can be used regardless of the dataset's dedup  property, but performance will be much better if the filesystem uses a dedup-capable checksum (eg.  sha256).
+Generate a deduplicated stream. Blocks which would have been sent multiple times in the send stream will only be sent once. The receiving system must also support this feature to receive a deduplicated stream.  This flag can be used regardless of the dataset's dedup  property, but performance will be much better if the filesystem uses a dedup-capable checksum (eg.  sha256).
 .RE
 
 .sp
 .ne 2
 .mk
+.na
+\fB\fB-e\fR\fR
+.ad
+.sp .6
+.RS 4n
+Generate a more compact stream by using WRITE_EMBEDDED records for blocks
+which are stored more compactly on disk by the \fBembedded_data\fR pool
+feature.  This flag has no effect if the \fBembedded_data\fR feature is
+disabled.  The receiving system must have the \fBembedded_data\fR feature
+enabled.  If the \fBlz4_compress\fR feature is active on the sending system,
+then the receiving system must have that feature enabled as well. See
+\fBzpool-features\fR(5) for details on ZFS feature flags and the
+\fBembedded_data\fR feature.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fB-p\fR\fR
 .ad
@@ -2626,6 +2741,39 @@ includes a per-second report of how much data has been sent.
 The format of the stream is committed. You will be able to receive your streams on future versions of \fBZFS\fR.
 .RE
 
+.RE
+.sp
+.ne 2
+.na
+\fBzfs send\fR [\fB-e\fR] [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+.ad
+.sp .6
+.RS 4n
+Generate a send stream, which may be of a filesystem, and may be
+incremental from a bookmark.  If the destination is a filesystem or volume,
+the pool must be read-only, or the filesystem must not be mounted.  When the
+stream generated from a filesystem or volume is received, the default snapshot
+name will be "--head--".
+
+.sp
+.ne 2
+.na
+\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR
+.ad
+.sp .6
+.RS 4n
+Generate an incremental send stream.  The incremental source must be an earlier
+snapshot in the destination's history. It will commonly be an earlier
+snapshot in the destination's filesystem, in which case it can be
+specified as the last component of the name (the \fB#\fR or \fB@\fR character
+and following).
+.sp
+If the incremental target is a clone, the incremental source can
+be the origin snapshot, or an earlier snapshot in the origin's filesystem,
+or the origin's origin, etc.
+.RE
+
+.RE
 .sp
 .ne 2
 .mk
@@ -2659,6 +2807,7 @@ The \fB-d\fR and \fB-e\fR options cause the file system name of the target snaps
 .RS 4n
 Discard the first element of the sent snapshot's file system name, using the remaining elements to determine the name of the target file system for the new snapshot as described in the paragraph above.
 .RE
+
 
 .sp
 .ne 2
@@ -2713,6 +2862,22 @@ Do not actually receive the stream. This can be useful in conjunction with the \
 Force a rollback of the file system to the most recent snapshot before performing the receive operation. If receiving an incremental replication stream (for example, one generated by \fBzfs send -R -[iI]\fR), destroy snapshots and file systems that do not exist on the sending side.
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fB-e\fR\fR
+.ad
+.sp .6
+.RS 4n
+Generate a more compact stream by using WRITE_EMBEDDED records for blocks
+which are stored more compactly on disk by the \fBembedded_data\fR pool
+feature.  This flag has no effect if the \fBembedded_data\fR feature is
+disabled.  The receiving system must have the \fBembedded_data\fR feature
+enabled.  If the \fBlz4_compress\fR feature is active on the sending system,
+then the receiving system must have that feature enabled as well. See
+\fBzpool-features\fR(5) for details on ZFS feature flags and the
+\fBembedded_data\fR feature.
+.RE
 .RE
 
 .sp
@@ -3553,6 +3718,26 @@ M       F       /tank/test/modified
 .fi
 .in -2
 .sp
+
+.LP
+\fBExample 24\fR Creating a bookmark
+.sp
+.LP
+The following example create a bookmark to a snapshot. This bookmark can then
+be used instead of snapshot in send streams.
+
+.sp
+.in +2
+.nf
+# zfs bookmark rpool@snapshot rpool#bookmark
+.fi
+.in -2
+.sp
+
+.SH "ENVIRONMENT VARIABLES"
+.TP
+.B "ZFS_ABORT
+Cause \fBzfs\fR to dump core on exit for the purposes of running \fB::findleaks\fR.
 
 .SH EXIT STATUS
 .LP

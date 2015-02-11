@@ -239,6 +239,7 @@ zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
 {
 	struct inode *dxip = NULL;
 	struct inode *xip = NULL;
+	loff_t pos = 0;
 	int error;
 
 	/* Lookup the xattr directory */
@@ -261,7 +262,7 @@ zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
 		goto out;
 	}
 
-	error = zpl_read_common(xip, value, size, 0, UIO_SYSSPACE, 0, cr);
+	error = zpl_read_common(xip, value, size, &pos, UIO_SYSSPACE, 0, cr);
 out:
 	if (xip)
 		iput(xip);
@@ -357,6 +358,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	ssize_t wrote;
 	int lookup_flags, error;
 	const int xattr_mode = S_IFREG | 0644;
+	loff_t pos = 0;
 
 	/*
 	 * Lookup the xattr directory.  When we're adding an entry pass
@@ -407,7 +409,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	if (error)
 		goto out;
 
-	wrote = zpl_write_common(xip, value, size, 0, UIO_SYSSPACE, 0, cr);
+	wrote = zpl_write_common(xip, value, size, &pos, UIO_SYSSPACE, 0, cr);
 	if (wrote < 0)
 		error = wrote;
 
@@ -751,7 +753,7 @@ zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
 				if (ip->i_mode != mode) {
 					ip->i_mode = mode;
 					ip->i_ctime = current_fs_time(sb);
-					mark_inode_dirty(ip);
+					zfs_mark_inode_dirty(ip);
 				}
 
 				if (error == 0)
@@ -822,7 +824,7 @@ zpl_get_acl(struct inode *ip, int type)
 
 	size = zpl_xattr_get(ip, name, NULL, 0);
 	if (size > 0) {
-		value = kmem_alloc(size, KM_PUSHPAGE);
+		value = kmem_alloc(size, KM_SLEEP);
 		size = zpl_xattr_get(ip, name, value, size);
 	}
 
@@ -909,7 +911,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		if (!acl) {
 			ip->i_mode &= ~current_umask();
 			ip->i_ctime = current_fs_time(ITOZSB(ip)->z_sb);
-			mark_inode_dirty(ip);
+			zfs_mark_inode_dirty(ip);
 			return (0);
 		}
 	}
@@ -927,7 +929,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		error = __posix_acl_create(&acl, GFP_KERNEL, &mode);
 		if (error >= 0) {
 			ip->i_mode = mode;
-			mark_inode_dirty(ip);
+			zfs_mark_inode_dirty(ip);
 			if (error > 0)
 				error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
 		}

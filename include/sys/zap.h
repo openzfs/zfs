@@ -141,6 +141,12 @@ uint64_t zap_create_link(objset_t *os, dmu_object_type_t ot,
     uint64_t parent_obj, const char *name, dmu_tx_t *tx);
 
 /*
+ * Initialize an already-allocated object.
+ */
+void mzap_create_impl(objset_t *os, uint64_t obj, int normflags,
+    zap_flags_t flags, dmu_tx_t *tx);
+
+/*
  * Create a new zapobj with no attributes from the given (unallocated)
  * object number.
  */

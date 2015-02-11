@@ -27,7 +27,7 @@ PRE_BUILD="configure
   --with-config=kernel
   --with-linux=\${kernel_source_dir}
   --with-linux-obj=\${kernel_source_dir}
-  --with-spl=\${dkms_tree}/spl/\${PACKAGE_VERSION}/build
+  --with-spl=\${source_tree}/spl-\${PACKAGE_VERSION}
   --with-spl-obj=\${dkms_tree}/spl/\${PACKAGE_VERSION}/\${kernelver}/\${arch}
   --with-spl-timeout=300
   \$(
@@ -47,7 +47,7 @@ PRE_BUILD="configure
     }
   )
 "
-POST_INSTALL="scripts/dkms.postinst
+POST_BUILD="scripts/dkms.postbuild
   -n \${PACKAGE_NAME}
   -v \${PACKAGE_VERSION}
   -a \${arch}

@@ -216,7 +216,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 {
 	nvlist_t *nv = NULL;
 
-	VERIFY(nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
+	nv = fnvlist_alloc();
 
 	fnvlist_add_string(nv, ZPOOL_CONFIG_TYPE, vd->vdev_ops->vdev_op_type);
 	if (!(flags & (VDEV_CONFIG_SPARE | VDEV_CONFIG_L2CACHE)))
@@ -283,9 +283,10 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			    vd->vdev_removing);
 	}
 
-	if (vd->vdev_dtl_smo.smo_object != 0)
+	if (vd->vdev_dtl_sm != NULL) {
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_DTL,
-		    vd->vdev_dtl_smo.smo_object);
+		    space_map_object(vd->vdev_dtl_sm));
+	}
 
 	if (vd->vdev_crtxg)
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_CREATE_TXG, vd->vdev_crtxg);
@@ -313,7 +314,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		ASSERT(!vd->vdev_ishole);
 
 		child = kmem_alloc(vd->vdev_children * sizeof (nvlist_t *),
-		    KM_PUSHPAGE);
+		    KM_SLEEP);
 
 		for (c = 0, idx = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
@@ -395,7 +396,7 @@ vdev_top_config_generate(spa_t *spa, nvlist_t *config)
 	uint64_t *array;
 	uint_t c, idx;
 
-	array = kmem_alloc(rvd->vdev_children * sizeof (uint64_t), KM_PUSHPAGE);
+	array = kmem_alloc(rvd->vdev_children * sizeof (uint64_t), KM_SLEEP);
 
 	for (c = 0, idx = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
@@ -598,7 +599,8 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	 * read-only.  Instead we look to see if the pools is marked
 	 * read-only in the namespace and set the state to active.
 	 */
-	if ((spa = spa_by_guid(pool_guid, device_guid)) != NULL &&
+	if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE &&
+	    (spa = spa_by_guid(pool_guid, device_guid)) != NULL &&
 	    spa_mode(spa) == FREAD)
 		state = POOL_STATE_ACTIVE;
 
@@ -726,7 +728,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * active hot spare (in which case we want to revert the
 		 * labels).
 		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
+		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
 		    spa_version(spa)) == 0);
@@ -739,7 +741,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		/*
 		 * For level 2 ARC devices, add a special label.
 		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
+		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
 		    spa_version(spa)) == 0);
@@ -766,7 +768,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	buf = vp->vp_nvlist;
 	buflen = sizeof (vp->vp_nvlist);
 
-	error = nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_PUSHPAGE);
+	error = nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP);
 	if (error != 0) {
 		nvlist_free(label);
 		zio_buf_free(vp, sizeof (vdev_phys_t));
@@ -1116,7 +1118,7 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg, int flags)
 	buf = vp->vp_nvlist;
 	buflen = sizeof (vp->vp_nvlist);
 
-	if (!nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_PUSHPAGE)) {
+	if (!nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP)) {
 		for (; l < VDEV_LABELS; l += 2) {
 			vdev_label_write(zio, vd, l, vp,
 			    offsetof(vdev_label_t, vl_vdev_phys),
@@ -1149,7 +1151,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 
 		ASSERT(!vd->vdev_ishole);
 
-		good_writes = kmem_zalloc(sizeof (uint64_t), KM_PUSHPAGE);
+		good_writes = kmem_zalloc(sizeof (uint64_t), KM_SLEEP);
 		vio = zio_null(zio, spa, NULL,
 		    (vd->vdev_islog || vd->vdev_aux != NULL) ?
 		    vdev_label_sync_ignore_done : vdev_label_sync_top_done,

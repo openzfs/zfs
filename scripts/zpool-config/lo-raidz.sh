@@ -21,8 +21,8 @@ zpool_create() {
 		DEVICES="${DEVICES} ${DEVICE}"
 	done
 
-	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} raidz ${DEVICES}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} raidz ${DEVICES} || exit 1
+	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} raidz ${DEVICES}
+	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} raidz ${DEVICES} || exit 1
 }
 
 zpool_destroy() {

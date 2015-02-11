@@ -25,7 +25,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_END_REQUEST], [
 		#include <linux/module.h>
 		#include <linux/blkdev.h>
 		
-		MODULE_LICENSE("CDDL");
+		MODULE_LICENSE("$ZFS_META_LICENSE");
 	],[
 		struct request *req = NULL;
 		(void) blk_end_request(req, 0, 0);

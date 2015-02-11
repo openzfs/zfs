@@ -127,20 +127,6 @@ static vdev_disk_db_entry_t vdev_disk_database[] = {
 	{"ATA     INTEL SSDSA2CW16", 8192},
 	{"ATA     INTEL SSDSA2CW30", 8192},
 	{"ATA     INTEL SSDSA2CW60", 8192},
-	{"ATA     INTEL SSDSC2BA10", 8192},
-	{"ATA     INTEL SSDSC2BA20", 8192},
-	{"ATA     INTEL SSDSC2BA40", 8192},
-	{"ATA     INTEL SSDSC2BA80", 8192},
-	{"ATA     INTEL SSDSC2BB08", 8192},
-	{"ATA     INTEL SSDSC2BB12", 8192},
-	{"ATA     INTEL SSDSC2BB16", 8192},
-	{"ATA     INTEL SSDSC2BB24", 8192},
-	{"ATA     INTEL SSDSC2BB30", 8192},
-	{"ATA     INTEL SSDSC2BB40", 8192},
-	{"ATA     INTEL SSDSC2BB48", 8192},
-	{"ATA     INTEL SSDSC2BB60", 8192},
-	{"ATA     INTEL SSDSC2BB80", 8192},
-	{"ATA     INTEL SSDSC2BW24", 8192},
 	{"ATA     INTEL SSDSC2CT06", 8192},
 	{"ATA     INTEL SSDSC2CT12", 8192},
 	{"ATA     INTEL SSDSC2CT18", 8192},
@@ -188,6 +174,24 @@ static vdev_disk_db_entry_t vdev_disk_database[] = {
 	{"ATA     SAMSUNG MCCOE32G", 4096},
 	{"ATA     SAMSUNG MCCOE64G", 4096},
 	{"ATA     SAMSUNG SSD PM80", 4096},
+	/* Flash drives optimized for 4KB IOs on larger pages */
+	{"ATA     INTEL SSDSC2BA10", 4096},
+	{"ATA     INTEL SSDSC2BA20", 4096},
+	{"ATA     INTEL SSDSC2BA40", 4096},
+	{"ATA     INTEL SSDSC2BA80", 4096},
+	{"ATA     INTEL SSDSC2BB08", 4096},
+	{"ATA     INTEL SSDSC2BB12", 4096},
+	{"ATA     INTEL SSDSC2BB16", 4096},
+	{"ATA     INTEL SSDSC2BB24", 4096},
+	{"ATA     INTEL SSDSC2BB30", 4096},
+	{"ATA     INTEL SSDSC2BB40", 4096},
+	{"ATA     INTEL SSDSC2BB48", 4096},
+	{"ATA     INTEL SSDSC2BB60", 4096},
+	{"ATA     INTEL SSDSC2BB80", 4096},
+	{"ATA     INTEL SSDSC2BW24", 4096},
+	{"ATA     INTEL SSDSC2BP24", 4096},
+	{"ATA     INTEL SSDSC2BP48", 4096},
+	{"NA      SmrtStorSDLKAE9W", 4096},
 	/* Imported from Open Solaris */
 	{"ATA     MARVELL SD88SA02", 4096},
 	/* Advanced format Hard drives */
@@ -203,6 +207,10 @@ static vdev_disk_db_entry_t vdev_disk_database[] = {
 	{"ATA     WDC WD20EARS-00M", 4096},
 	{"ATA     WDC WD20EARS-00S", 4096},
 	{"ATA     WDC WD20EARS-00Z", 4096},
+	{"ATA     WDC WD1600BEVT-0", 4096},
+	{"ATA     WDC WD2500BEVT-0", 4096},
+	{"ATA     WDC WD3200BEVT-0", 4096},
+	{"ATA     WDC WD5000BEVT-0", 4096},
 	/* Virtual disks: Assume zvols with default volblocksize */
 #if 0
 	{"ATA     QEMU HARDDISK   ", 8192},
@@ -740,7 +748,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		int sector_size;
 
 		if (check_sector_size_database(path, &sector_size) == B_TRUE)
-			ashift = highbit(sector_size) - 1;
+			ashift = highbit64(sector_size) - 1;
 	}
 
 	if (ashift > 0)

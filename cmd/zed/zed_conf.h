@@ -42,8 +42,9 @@ struct zed_conf {
 	int		max_events;		/* RESERVED FOR FUTURE USE */
 	char		*conf_file;		/* abs path to config file */
 	char		*pid_file;		/* abs path to pid file */
-	char		*script_dir;		/* abs path to script dir */
-	zed_strings_t	*scripts;		/* names of enabled scripts */
+	int		pid_fd;			/* fd to pid file for lock */
+	char		*zedlet_dir;		/* abs path to zedlet dir */
+	zed_strings_t	*zedlets;		/* names of enabled zedlets */
 	char		*state_file;		/* abs path to state file */
 	int		state_fd;		/* fd to state file */
 	libzfs_handle_t	*zfs_hdl;		/* handle to libzfs */

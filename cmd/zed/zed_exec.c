@@ -41,7 +41,7 @@
 
 /*
  * Create an environment string array for passing to execve() using the
- *   NAME=VALUE strings in container [zsp].
+ * NAME=VALUE strings in container [zsp].
  * Return a newly-allocated environment, or NULL on error.
  */
 static char **
@@ -61,7 +61,7 @@ _zed_exec_create_env(zed_strings_t *zsp)
 	for (q = zed_strings_first(zsp); q; q = zed_strings_next(zsp))
 		buflen += strlen(q) + 1;
 
-	buf = malloc(buflen);
+	buf = calloc(1, buflen);
 	if (!buf)
 		return (NULL);
 
@@ -82,9 +82,10 @@ _zed_exec_create_env(zed_strings_t *zsp)
 
 /*
  * Fork a child process to handle event [eid].  The program [prog]
- *   in directory [dir] is executed with the envionment [env].
+ * in directory [dir] is executed with the envionment [env].
+ *
  * The file descriptor [zfd] is the zevent_fd used to track the
- *   current cursor location within the zevent nvlist.
+ * current cursor location within the zevent nvlist.
  */
 static void
 _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
@@ -155,29 +156,32 @@ restart:
 }
 
 /*
- * Process the event [eid] by synchronously invoking all scripts with a
- *   matching class prefix.
- * Each executable in [scripts] from the directory [dir] is matched against
- *   the event's [class], [subclass], and the "all" class (which matches
- *   all events).  Every script with a matching class prefix is invoked.
- *   The NAME=VALUE strings in [envs] will be passed to the script as
- *   environment variables.
+ * Process the event [eid] by synchronously invoking all zedlets with a
+ * matching class prefix.
+ *
+ * Each executable in [zedlets] from the directory [dir] is matched against
+ * the event's [class], [subclass], and the "all" class (which matches
+ * all events).  Every zedlet with a matching class prefix is invoked.
+ * The NAME=VALUE strings in [envs] will be passed to the zedlet as
+ * environment variables.
+ *
  * The file descriptor [zfd] is the zevent_fd used to track the
- *   current cursor location within the zevent nvlist.
+ * current cursor location within the zevent nvlist.
+ *
  * Return 0 on success, -1 on error.
  */
 int
 zed_exec_process(uint64_t eid, const char *class, const char *subclass,
-    const char *dir, zed_strings_t *scripts, zed_strings_t *envs, int zfd)
+    const char *dir, zed_strings_t *zedlets, zed_strings_t *envs, int zfd)
 {
 	const char *class_strings[4];
 	const char *allclass = "all";
 	const char **csp;
-	const char *s;
+	const char *z;
 	char **e;
 	int n;
 
-	if (!dir || !scripts || !envs || zfd < 0)
+	if (!dir || !zedlets || !envs || zfd < 0)
 		return (-1);
 
 	csp = class_strings;
@@ -195,11 +199,11 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 
 	e = _zed_exec_create_env(envs);
 
-	for (s = zed_strings_first(scripts); s; s = zed_strings_next(scripts)) {
+	for (z = zed_strings_first(zedlets); z; z = zed_strings_next(zedlets)) {
 		for (csp = class_strings; *csp; csp++) {
 			n = strlen(*csp);
-			if ((strncmp(s, *csp, n) == 0) && !isalpha(s[n]))
-				_zed_exec_fork_child(eid, dir, s, e, zfd);
+			if ((strncmp(z, *csp, n) == 0) && !isalpha(z[n]))
+				_zed_exec_fork_child(eid, dir, z, e, zfd);
 		}
 	}
 	free(e);

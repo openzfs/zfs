@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_H
@@ -36,14 +36,24 @@
 extern "C" {
 #endif
 
-extern space_map_ops_t *zfs_metaslab_ops;
+typedef struct metaslab_ops {
+	uint64_t (*msop_alloc)(metaslab_t *msp, uint64_t size);
+} metaslab_ops_t;
 
-extern metaslab_t *metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
-    uint64_t start, uint64_t size, uint64_t txg);
-extern void metaslab_fini(metaslab_t *msp);
-extern void metaslab_sync(metaslab_t *msp, uint64_t txg);
-extern void metaslab_sync_done(metaslab_t *msp, uint64_t txg);
-extern void metaslab_sync_reassess(metaslab_group_t *mg);
+extern metaslab_ops_t *zfs_metaslab_ops;
+
+int metaslab_init(metaslab_group_t *, uint64_t, uint64_t, uint64_t,
+    metaslab_t **);
+void metaslab_fini(metaslab_t *);
+
+void metaslab_load_wait(metaslab_t *);
+int metaslab_load(metaslab_t *);
+void metaslab_unload(metaslab_t *);
+
+void metaslab_sync(metaslab_t *, uint64_t);
+void metaslab_sync_done(metaslab_t *, uint64_t);
+void metaslab_sync_reassess(metaslab_group_t *);
+uint64_t metaslab_block_maxsize(metaslab_t *);
 
 #define	METASLAB_HINTBP_FAVOR	0x0
 #define	METASLAB_HINTBP_AVOID	0x1
@@ -52,33 +62,36 @@ extern void metaslab_sync_reassess(metaslab_group_t *mg);
 #define	METASLAB_GANG_AVOID	0x8
 #define	METASLAB_FASTWRITE	0x10
 
-extern int metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
-    blkptr_t *bp, int ncopies, uint64_t txg, blkptr_t *hintbp, int flags);
-extern void metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg,
-    boolean_t now);
-extern int metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg);
-extern void metaslab_check_free(spa_t *spa, const blkptr_t *bp);
-extern void metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp);
-extern void metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp);
+int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
+    blkptr_t *, int, uint64_t, blkptr_t *, int);
+void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
+int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);
+void metaslab_check_free(spa_t *, const blkptr_t *);
+void metaslab_fastwrite_mark(spa_t *, const blkptr_t *);
+void metaslab_fastwrite_unmark(spa_t *, const blkptr_t *);
 
-extern metaslab_class_t *metaslab_class_create(spa_t *spa,
-    space_map_ops_t *ops);
-extern void metaslab_class_destroy(metaslab_class_t *mc);
-extern int metaslab_class_validate(metaslab_class_t *mc);
+metaslab_class_t *metaslab_class_create(spa_t *, metaslab_ops_t *);
+void metaslab_class_destroy(metaslab_class_t *);
+int metaslab_class_validate(metaslab_class_t *);
+void metaslab_class_histogram_verify(metaslab_class_t *);
+uint64_t metaslab_class_fragmentation(metaslab_class_t *);
+uint64_t metaslab_class_expandable_space(metaslab_class_t *);
 
-extern void metaslab_class_space_update(metaslab_class_t *mc,
-    int64_t alloc_delta, int64_t defer_delta,
-    int64_t space_delta, int64_t dspace_delta);
-extern uint64_t metaslab_class_get_alloc(metaslab_class_t *mc);
-extern uint64_t metaslab_class_get_space(metaslab_class_t *mc);
-extern uint64_t metaslab_class_get_dspace(metaslab_class_t *mc);
-extern uint64_t metaslab_class_get_deferred(metaslab_class_t *mc);
+void metaslab_class_space_update(metaslab_class_t *, int64_t, int64_t,
+    int64_t, int64_t);
+uint64_t metaslab_class_get_alloc(metaslab_class_t *);
+uint64_t metaslab_class_get_space(metaslab_class_t *);
+uint64_t metaslab_class_get_dspace(metaslab_class_t *);
+uint64_t metaslab_class_get_deferred(metaslab_class_t *);
 
-extern metaslab_group_t *metaslab_group_create(metaslab_class_t *mc,
-    vdev_t *vd);
-extern void metaslab_group_destroy(metaslab_group_t *mg);
-extern void metaslab_group_activate(metaslab_group_t *mg);
-extern void metaslab_group_passivate(metaslab_group_t *mg);
+metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
+void metaslab_group_destroy(metaslab_group_t *);
+void metaslab_group_activate(metaslab_group_t *);
+void metaslab_group_passivate(metaslab_group_t *);
+uint64_t metaslab_group_get_space(metaslab_group_t *);
+void metaslab_group_histogram_verify(metaslab_group_t *);
+uint64_t metaslab_group_fragmentation(metaslab_group_t *);
+void metaslab_group_histogram_remove(metaslab_group_t *, metaslab_t *);
 
 #ifdef	__cplusplus
 }

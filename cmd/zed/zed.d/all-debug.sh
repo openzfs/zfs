@@ -2,7 +2,7 @@
 #
 # Log all environment variables to ZED_DEBUG_LOG.
 #
-test -f "${ZED_SCRIPT_DIR}/zed.rc" && . "${ZED_SCRIPT_DIR}/zed.rc"
+test -f "${ZED_ZEDLET_DIR}/zed.rc" && . "${ZED_ZEDLET_DIR}/zed.rc"
 
 # Override the default umask to restrict access to a newly-created logfile.
 umask 077

@@ -182,7 +182,7 @@ zfs_create_share_dir(zfs_sb_t *zsb, dmu_tx_t *tx)
 	vattr.va_uid = crgetuid(kcred);
 	vattr.va_gid = crgetgid(kcred);
 
-	sharezp = kmem_cache_alloc(znode_cache, KM_PUSHPAGE);
+	sharezp = kmem_cache_alloc(znode_cache, KM_SLEEP);
 	sharezp->z_moved = 0;
 	sharezp->z_unlinked = 0;
 	sharezp->z_atime_dirty = 0;
@@ -256,7 +256,7 @@ zfs_inode_alloc(struct super_block *sb, struct inode **ip)
 {
 	znode_t *zp;
 
-	zp = kmem_cache_alloc(znode_cache, KM_PUSHPAGE);
+	zp = kmem_cache_alloc(znode_cache, KM_SLEEP);
 	*ip = ZTOI(zp);
 
 	return (0);
@@ -292,7 +292,7 @@ zfs_inode_destroy(struct inode *ip)
 	}
 
 	if (zp->z_xattr_parent) {
-		iput(ZTOI(zp->z_xattr_parent));
+		zfs_iput_async(ZTOI(zp->z_xattr_parent));
 		zp->z_xattr_parent = NULL;
 	}
 
@@ -511,6 +511,21 @@ zfs_inode_update(znode_t *zp)
 	spin_unlock(&ip->i_lock);
 }
 
+/*
+ * Safely mark an inode dirty.  Inodes which are part of a read-only
+ * file system or snapshot may not be dirtied.
+ */
+void
+zfs_mark_inode_dirty(struct inode *ip)
+{
+	zfs_sb_t *zsb = ITOZSB(ip);
+
+	if (zfs_is_readonly(zsb) || dmu_objset_is_snapshot(zsb->z_os))
+		return;
+
+	mark_inode_dirty(ip);
+}
+
 static uint64_t empty_xattr;
 static uint64_t pad[4];
 static zfs_acl_phys_t acl_phys;
@@ -543,7 +558,6 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	dmu_buf_t	*db;
 	timestruc_t	now;
 	uint64_t	gen, obj;
-	int		err;
 	int		bonuslen;
 	sa_handle_t	*sa_hdl;
 	dmu_object_type_t obj_type;
@@ -576,10 +590,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	 */
 	if (S_ISDIR(vap->va_mode)) {
 		if (zsb->z_replay) {
-			err = zap_create_claim_norm(zsb->z_os, obj,
+			VERIFY0(zap_create_claim_norm(zsb->z_os, obj,
 			    zsb->z_norm, DMU_OT_DIRECTORY_CONTENTS,
-			    obj_type, bonuslen, tx);
-			ASSERT0(err);
+			    obj_type, bonuslen, tx));
 		} else {
 			obj = zap_create_norm(zsb->z_os,
 			    zsb->z_norm, DMU_OT_DIRECTORY_CONTENTS,
@@ -587,10 +600,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		}
 	} else {
 		if (zsb->z_replay) {
-			err = dmu_object_claim(zsb->z_os, obj,
+			VERIFY0(dmu_object_claim(zsb->z_os, obj,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
-			    obj_type, bonuslen, tx);
-			ASSERT0(err);
+			    obj_type, bonuslen, tx));
 		} else {
 			obj = dmu_object_alloc(zsb->z_os,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
@@ -670,7 +682,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	 * order for  DMU_OT_ZNODE is critical since it needs to be constructed
 	 * in the old znode_phys_t format.  Don't change this ordering
 	 */
-	sa_attrs = kmem_alloc(sizeof (sa_bulk_attr_t) * ZPL_END, KM_PUSHPAGE);
+	sa_attrs = kmem_alloc(sizeof (sa_bulk_attr_t) * ZPL_END, KM_SLEEP);
 
 	if (obj_type == DMU_OT_ZNODE) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_ATIME(zsb),
@@ -769,8 +781,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 
 	if (obj_type == DMU_OT_ZNODE ||
 	    acl_ids->z_aclp->z_version < ZFS_ACL_VERSION_FUID) {
-		err = zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx);
-		ASSERT0(err);
+		VERIFY0(zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx));
 	}
 	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	ZFS_OBJ_HOLD_EXIT(zsb, obj);
@@ -998,7 +1009,7 @@ zfs_rezget(znode_t *zp)
 	}
 
 	if (zp->z_xattr_parent) {
-		iput(ZTOI(zp->z_xattr_parent));
+		zfs_iput_async(ZTOI(zp->z_xattr_parent));
 		zp->z_xattr_parent = NULL;
 	}
 	rw_exit(&zp->z_xattr_lock);
@@ -1334,6 +1345,50 @@ zfs_extend(znode_t *zp, uint64_t end)
 }
 
 /*
+ * zfs_zero_partial_page - Modeled after update_pages() but
+ * with different arguments and semantics for use by zfs_freesp().
+ *
+ * Zeroes a piece of a single page cache entry for zp at offset
+ * start and length len.
+ *
+ * Caller must acquire a range lock on the file for the region
+ * being zeroed in order that the ARC and page cache stay in sync.
+ */
+static void
+zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
+{
+	struct address_space *mp = ZTOI(zp)->i_mapping;
+	struct page *pp;
+	int64_t	off;
+	void *pb;
+
+	ASSERT((start & PAGE_CACHE_MASK) ==
+	    ((start + len - 1) & PAGE_CACHE_MASK));
+
+	off = start & (PAGE_CACHE_SIZE - 1);
+	start &= PAGE_CACHE_MASK;
+
+	pp = find_lock_page(mp, start >> PAGE_CACHE_SHIFT);
+	if (pp) {
+		if (mapping_writably_mapped(mp))
+			flush_dcache_page(pp);
+
+		pb = kmap(pp);
+		bzero(pb + off, len);
+		kunmap(pp);
+
+		if (mapping_writably_mapped(mp))
+			flush_dcache_page(pp);
+
+		mark_page_accessed(pp);
+		SetPageUptodate(pp);
+		ClearPageError(pp);
+		unlock_page(pp);
+		page_cache_release(pp);
+	}
+}
+
+/*
  * Free space in a file.
  *
  *	IN:	zp	- znode of file to free data in.
@@ -1367,6 +1422,47 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 
 	error = dmu_free_long_range(zsb->z_os, zp->z_id, off, len);
 
+	/*
+	 * Zero partial page cache entries.  This must be done under a
+	 * range lock in order to keep the ARC and page cache in sync.
+	 */
+	if (zp->z_is_mapped) {
+		loff_t first_page, last_page, page_len;
+		loff_t first_page_offset, last_page_offset;
+
+		/* first possible full page in hole */
+		first_page = (off + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+		/* last page of hole */
+		last_page = (off + len) >> PAGE_CACHE_SHIFT;
+
+		/* offset of first_page */
+		first_page_offset = first_page << PAGE_CACHE_SHIFT;
+		/* offset of last_page */
+		last_page_offset = last_page << PAGE_CACHE_SHIFT;
+
+		/* truncate whole pages */
+		if (last_page_offset > first_page_offset) {
+			truncate_inode_pages_range(ZTOI(zp)->i_mapping,
+			    first_page_offset, last_page_offset - 1);
+		}
+
+		/* truncate sub-page ranges */
+		if (first_page > last_page) {
+			/* entire punched area within a single page */
+			zfs_zero_partial_page(zp, off, len);
+		} else {
+			/* beginning of punched area at the end of a page */
+			page_len  = first_page_offset - off;
+			if (page_len > 0)
+				zfs_zero_partial_page(zp, off, page_len);
+
+			/* end of punched area at the beginning of a page */
+			page_len = off + len - last_page_offset;
+			if (page_len > 0)
+				zfs_zero_partial_page(zp, last_page_offset,
+				    page_len);
+		}
+	}
 	zfs_range_unlock(rl);
 
 	return (error);
@@ -1408,17 +1504,11 @@ zfs_trunc(znode_t *zp, uint64_t end)
 		zfs_range_unlock(rl);
 		return (error);
 	}
-top:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
-	error = dmu_tx_assign(tx, TXG_NOWAIT);
+	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
-		if (error == ERESTART) {
-			dmu_tx_wait(tx);
-			dmu_tx_abort(tx);
-			goto top;
-		}
 		dmu_tx_abort(tx);
 		zfs_range_unlock(rl);
 		return (error);
@@ -1456,7 +1546,6 @@ top:
 int
 zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 {
-	struct inode *ip = ZTOI(zp);
 	dmu_tx_t *tx;
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	zilog_t *zilog = zsb->z_log;
@@ -1474,17 +1563,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 		error =  zfs_extend(zp, off+len);
 		if (error == 0 && log)
 			goto log;
-		else
-			return (error);
-	}
-
-	/*
-	 * Check for any locks in the region to be freed.
-	 */
-	if (ip->i_flock && mandatory_lock(ip)) {
-		uint64_t length = (len ? len : zp->z_size - off);
-		if (!lock_may_write(ip, off, length))
-			return (SET_ERROR(EAGAIN));
+		goto out;
 	}
 
 	if (len == 0) {
@@ -1495,7 +1574,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 			error = zfs_extend(zp, off+len);
 	}
 	if (error || !log)
-		return (error);
+		goto out;
 log:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -1503,7 +1582,7 @@ log:
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		return (error);
+		goto out;
 	}
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL, mtime, 16);
@@ -1517,8 +1596,19 @@ log:
 	zfs_log_truncate(zilog, tx, TX_TRUNCATE, zp, off, len);
 
 	dmu_tx_commit(tx);
+
 	zfs_inode_update(zp);
-	return (0);
+	error = 0;
+
+out:
+	/*
+	 * Truncate the page cache - for file truncate operations, use
+	 * the purpose-built API for truncations.  For punching operations,
+	 * the truncation is handled under a range lock in zfs_free_range.
+	 */
+	if (len == 0)
+		truncate_setsize(ZTOI(zp), off);
+	return (error);
 }
 
 void
@@ -1606,13 +1696,13 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	vattr.va_uid = crgetuid(cr);
 	vattr.va_gid = crgetgid(cr);
 
-	rootzp = kmem_cache_alloc(znode_cache, KM_PUSHPAGE);
+	rootzp = kmem_cache_alloc(znode_cache, KM_SLEEP);
 	rootzp->z_moved = 0;
 	rootzp->z_unlinked = 0;
 	rootzp->z_atime_dirty = 0;
 	rootzp->z_is_sa = USE_SA(version, os);
 
-	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_PUSHPAGE | KM_NODEBUG);
+	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP);
 	zsb->z_os = os;
 	zsb->z_parent = zsb;
 	zsb->z_version = version;
@@ -1620,7 +1710,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	zsb->z_use_sa = USE_SA(version, os);
 	zsb->z_norm = norm;
 
-	sb = kmem_zalloc(sizeof (struct super_block), KM_PUSHPAGE);
+	sb = kmem_zalloc(sizeof (struct super_block), KM_SLEEP);
 	sb->s_fs_info = zsb;
 
 	ZTOI(rootzp)->i_sb = sb;

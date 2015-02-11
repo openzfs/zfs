@@ -25,6 +25,10 @@
  */
 
 /*
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ */
+
+/*
  * Print intent log header and statistics.
  */
 
@@ -48,7 +52,7 @@ print_log_bp(const blkptr_t *bp, const char *prefix)
 {
 	char blkbuf[BP_SPRINTF_LEN];
 
-	sprintf_blkptr(blkbuf, bp);
+	snprintf_blkptr(blkbuf, sizeof (blkbuf), bp);
 	(void) printf("%s%s\n", prefix, blkbuf);
 }
 
@@ -119,7 +123,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 {
 	char *data, *dlimit;
 	blkptr_t *bp = &lr->lr_blkptr;
-	zbookmark_t zb;
+	zbookmark_phys_t zb;
 	char buf[SPA_MAXBLOCKSIZE];
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int error;
@@ -133,6 +137,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 
 	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
 		(void) printf("%shas blkptr, %s\n", prefix,
+		    !BP_IS_HOLE(bp) &&
 		    bp->blk_birth >= spa_first_txg(zilog->zl_spa) ?
 		    "will claim" : "won't claim");
 		print_log_bp(bp, prefix);
@@ -140,8 +145,6 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 		if (BP_IS_HOLE(bp)) {
 			(void) printf("\t\t\tLSIZE 0x%llx\n",
 			    (u_longlong_t)BP_GET_LSIZE(bp));
-		}
-		if (bp->blk_birth == 0) {
 			bzero(buf, sizeof (buf));
 			(void) printf("%s<hole>\n", prefix);
 			return;
@@ -314,7 +317,8 @@ print_log_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 
 	if (verbose >= 5) {
 		(void) strcpy(blkbuf, ", ");
-		sprintf_blkptr(blkbuf + strlen(blkbuf), bp);
+		snprintf_blkptr(blkbuf + strlen(blkbuf),
+		    sizeof (blkbuf) - strlen(blkbuf), bp);
 	} else {
 		blkbuf[0] = '\0';
 	}
@@ -362,7 +366,7 @@ dump_intent_log(zilog_t *zilog)
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int i;
 
-	if (zh->zh_log.blk_birth == 0 || verbose < 1)
+	if (BP_IS_HOLE(&zh->zh_log) || verbose < 1)
 		return;
 
 	(void) printf("\n    ZIL header: claim_txg %llu, "

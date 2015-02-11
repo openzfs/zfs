@@ -3293,6 +3293,7 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+#include <linux/module_compat.h>
 
 static int nvpair_init(void) { return 0; }
 static int nvpair_fini(void) { return 0; }

@@ -26,17 +26,18 @@
 
 #include <sys/nvpair.h>
 #include <sys/kmem.h>
+#include <sys/vmem.h>
 
 static void *
 nv_alloc_sleep_spl(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_alloc(size, KM_SLEEP | KM_NODEBUG));
+	return (vmem_alloc(size, KM_SLEEP));
 }
 
 static void *
 nv_alloc_pushpage_spl(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_alloc(size, KM_PUSHPAGE | KM_NODEBUG));
+	return (vmem_alloc(size, KM_PUSHPAGE));
 }
 
 static void *

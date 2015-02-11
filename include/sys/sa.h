@@ -150,8 +150,6 @@ int sa_replace_all_by_template_locked(sa_handle_t *, sa_bulk_attr_t *,
 boolean_t sa_enabled(objset_t *);
 void sa_cache_init(void);
 void sa_cache_fini(void);
-void *sa_spill_alloc(int);
-void sa_spill_free(void *);
 int sa_set_sa_object(objset_t *, uint64_t);
 int sa_hdrsize(void *);
 void sa_handle_lock(sa_handle_t *);

@@ -237,7 +237,7 @@ pool_create() {
 
 	# Create a file vdev RAIDZ pool.
 	FILEDIR="$POOL_DIR_PRISTINE" $ZPOOL_CREATE \
-	    -c file-raidz -p $POOL_TAG -v >/dev/null || fail 2
+	    -c file-raidz -p $POOL_TAG -v -x >/dev/null || fail 2
 
 	# Create a pool/fs filesystem with some random contents.
 	$ZFS_CMD create $POOL_TAG/fs || fail 3

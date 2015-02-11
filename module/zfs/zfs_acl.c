@@ -52,6 +52,7 @@
 #include <sys/dnode.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
+#include <sys/trace_acl.h>
 #include "fs/fs_subr.h"
 
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE
@@ -453,7 +454,7 @@ zfs_acl_alloc(int vers)
 {
 	zfs_acl_t *aclp;
 
-	aclp = kmem_zalloc(sizeof (zfs_acl_t), KM_PUSHPAGE);
+	aclp = kmem_zalloc(sizeof (zfs_acl_t), KM_SLEEP);
 	list_create(&aclp->z_acl, sizeof (zfs_acl_node_t),
 	    offsetof(zfs_acl_node_t, z_next));
 	aclp->z_version = vers;
@@ -469,9 +470,9 @@ zfs_acl_node_alloc(size_t bytes)
 {
 	zfs_acl_node_t *aclnode;
 
-	aclnode = kmem_zalloc(sizeof (zfs_acl_node_t), KM_PUSHPAGE);
+	aclnode = kmem_zalloc(sizeof (zfs_acl_node_t), KM_SLEEP);
 	if (bytes) {
-		aclnode->z_acldata = kmem_alloc(bytes, KM_PUSHPAGE);
+		aclnode->z_acldata = kmem_alloc(bytes, KM_SLEEP);
 		aclnode->z_allocdata = aclnode->z_acldata;
 		aclnode->z_allocsize = bytes;
 		aclnode->z_size = bytes;
@@ -1162,7 +1163,8 @@ zfs_acl_chown_setattr(znode_t *zp)
 	ASSERT(MUTEX_HELD(&zp->z_lock));
 	ASSERT(MUTEX_HELD(&zp->z_acl_lock));
 
-	if ((error = zfs_acl_node_read(zp, B_TRUE, &aclp, B_FALSE)) == 0)
+	error = zfs_acl_node_read(zp, B_TRUE, &aclp, B_FALSE);
+	if (error == 0 && aclp->z_acl_count > 0)
 		zp->z_mode = zfs_mode_compute(zp->z_mode, aclp,
 		    &zp->z_pflags, zp->z_uid, zp->z_gid);
 
