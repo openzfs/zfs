@@ -110,6 +110,7 @@ libzpool_la_LIBADD += $(ZLIB)
 libzpool_la_LDFLAGS = -version-info 2:0:0
 
 EXTRA_DIST = \
+	$(top_srcdir)/module/zfs/abd.c \
 	$(top_srcdir)/module/zfs/vdev_disk.c \
 	$(top_srcdir)/module/zfs/zfs_acl.c \
 	$(top_srcdir)/module/zfs/zfs_ctldir.c \
