@@ -37,14 +37,19 @@ extern "C" {
  * fletcher checksum functions
  */
 
+#define	fletcher_init(zcp)		ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0)
+#define	fletcher_2_native_init		fletcher_init
+#define	fletcher_2_byteswap_init	fletcher_init
+#define	fletcher_4_native_init		fletcher_init
+#define	fletcher_4_byteswap_init	fletcher_init
 void fletcher_2_native(const void *, uint64_t, zio_cksum_t *);
 void fletcher_2_byteswap(const void *, uint64_t, zio_cksum_t *);
+int fletcher_2_incremental_native(const void *, uint64_t, void *);
+int fletcher_2_incremental_byteswap(const void *, uint64_t, void *);
 void fletcher_4_native(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_byteswap(const void *, uint64_t, zio_cksum_t *);
-void fletcher_4_incremental_native(const void *, uint64_t,
-    zio_cksum_t *);
-void fletcher_4_incremental_byteswap(const void *, uint64_t,
-    zio_cksum_t *);
+int fletcher_4_incremental_native(const void *, uint64_t, void *);
+int fletcher_4_incremental_byteswap(const void *, uint64_t, void *);
 
 #ifdef	__cplusplus
 }
