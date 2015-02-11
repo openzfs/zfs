@@ -1305,19 +1305,23 @@ ztest_tx_assign(dmu_tx_t *tx, uint64_t txg_how, const char *tag)
 }
 
 static void
-ztest_pattern_set(void *buf, uint64_t size, uint64_t value)
+ztest_pattern_set(abd_t *abd, uint64_t size, uint64_t value)
 {
+	void *buf = abd_borrow_buf(abd, size);
 	uint64_t *ip = buf;
 	uint64_t *ip_end = (uint64_t *)((uintptr_t)buf + (uintptr_t)size);
 
 	while (ip < ip_end)
 		*ip++ = value;
+
+	abd_return_buf_copy(abd, buf, size);
 }
 
 #ifndef NDEBUG
 static boolean_t
-ztest_pattern_match(void *buf, uint64_t size, uint64_t value)
+ztest_pattern_match(abd_t *abd, uint64_t size, uint64_t value)
 {
+	void *buf = abd_borrow_buf_copy(abd, size);
 	uint64_t *ip = buf;
 	uint64_t *ip_end = (uint64_t *)((uintptr_t)buf + (uintptr_t)size);
 	uint64_t diff = 0;
@@ -1325,6 +1329,7 @@ ztest_pattern_match(void *buf, uint64_t size, uint64_t value)
 	while (ip < ip_end)
 		diff |= (value - *ip++);
 
+	abd_return_buf(abd, buf, size);
 	return (diff == 0);
 }
 #endif
@@ -1364,7 +1369,8 @@ ztest_bt_bonus(dmu_buf_t *db)
 	dmu_object_info_from_db(db, &doi);
 	ASSERT3U(doi.doi_bonus_size, <=, db->db_size);
 	ASSERT3U(doi.doi_bonus_size, >=, sizeof (*bt));
-	bt = (void *)((char *)db->db_data + doi.doi_bonus_size - sizeof (*bt));
+	bt = (void *)((char *)ABD_TO_BUF(db->db_data) + doi.doi_bonus_size -
+	    sizeof (*bt));
 
 	return (bt);
 }
@@ -1726,7 +1732,7 @@ ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
 	if (abuf == NULL) {
 		dmu_write(os, lr->lr_foid, offset, length, data, tx);
 	} else {
-		bcopy(data, abuf->b_data, length);
+		abd_copy_from_buf(abuf->b_data, data, length);
 		dmu_assign_arcbuf(db, offset, abuf, tx);
 	}
 
@@ -4121,16 +4127,19 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		for (off = bigoff, j = 0; j < s; j++, off += chunksize) {
 			dmu_buf_t *dbt;
 			if (i != 5) {
-				bcopy((caddr_t)bigbuf + (off - bigoff),
-				    bigbuf_arcbufs[j]->b_data, chunksize);
+				abd_copy_from_buf(bigbuf_arcbufs[j]->b_data,
+				    (caddr_t)bigbuf + (off - bigoff),
+				    chunksize);
 			} else {
-				bcopy((caddr_t)bigbuf + (off - bigoff),
+				abd_copy_from_buf(
 				    bigbuf_arcbufs[2 * j]->b_data,
+				    (caddr_t)bigbuf + (off - bigoff),
 				    chunksize / 2);
-				bcopy((caddr_t)bigbuf + (off - bigoff) +
-				    chunksize / 2,
+
+				abd_copy_from_buf(
 				    bigbuf_arcbufs[2 * j + 1]->b_data,
-				    chunksize / 2);
+				    (caddr_t)bigbuf + (off - bigoff) +
+				    chunksize / 2, chunksize / 2);
 			}
 
 			if (i == 1) {
@@ -5181,7 +5190,7 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	enum zio_checksum checksum = spa_dedup_checksum(spa);
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
-	void *buf;
+	abd_t *buf;
 	blkptr_t blk;
 	int copies = 2 * ZIO_DEDUPDITTO_MIN;
 	int i;
@@ -5262,14 +5271,14 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	 * Damage the block.  Dedup-ditto will save us when we read it later.
 	 */
 	psize = BP_GET_PSIZE(&blk);
-	buf = zio_buf_alloc(psize);
+	buf = abd_alloc_linear(psize);
 	ztest_pattern_set(buf, psize, ~pattern);
 
 	(void) zio_wait(zio_rewrite(NULL, spa, 0, &blk,
 	    buf, psize, NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_INDUCE_DAMAGE, NULL));
 
-	zio_buf_free(buf, psize);
+	abd_free(buf, psize);
 
 	(void) rw_unlock(&ztest_name_lock);
 	umem_free(od, sizeof (ztest_od_t));
