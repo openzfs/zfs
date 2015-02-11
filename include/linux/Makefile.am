@@ -5,7 +5,8 @@ KERNEL_H = \
 	$(top_srcdir)/include/linux/xattr_compat.h \
 	$(top_srcdir)/include/linux/vfs_compat.h \
 	$(top_srcdir)/include/linux/blkdev_compat.h \
-	$(top_srcdir)/include/linux/utsname_compat.h
+	$(top_srcdir)/include/linux/utsname_compat.h \
+	$(top_srcdir)/include/linux/kmap_compat.h
 
 USER_H =
 
