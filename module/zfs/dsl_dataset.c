@@ -290,7 +290,7 @@ dsl_dataset_get_snapname(dsl_dataset_t *ds)
 	    FTAG, &headdbuf);
 	if (err != 0)
 		return (err);
-	headphys = headdbuf->db_data;
+	headphys = ABD_TO_BUF(headdbuf->db_data);
 	err = zap_value_search(dp->dp_meta_objset,
 	    headphys->ds_snapnames_zapobj, ds->ds_object, 0, ds->ds_snapname);
 	dmu_buf_rele(headdbuf, FTAG);
@@ -368,7 +368,7 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		ds = kmem_zalloc(sizeof (dsl_dataset_t), KM_SLEEP);
 		ds->ds_dbuf = dbuf;
 		ds->ds_object = dsobj;
-		ds->ds_phys = dbuf->db_data;
+		ds->ds_phys = ABD_TO_BUF(dbuf->db_data);
 		list_link_init(&ds->ds_synced_link);
 
 		mutex_init(&ds->ds_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -459,7 +459,7 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		}
 	}
 	ASSERT3P(ds->ds_dbuf, ==, dbuf);
-	ASSERT3P(ds->ds_phys, ==, dbuf->db_data);
+	ASSERT3P(ds->ds_phys, ==, ABD_TO_BUF(dbuf->db_data));
 	ASSERT(ds->ds_phys->ds_prev_snap_obj != 0 ||
 	    spa_version(dp->dp_spa) < SPA_VERSION_ORIGIN ||
 	    dp->dp_origin_snap == NULL || ds == dp->dp_origin_snap);
@@ -658,7 +658,7 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 	    DMU_OT_DSL_DATASET, sizeof (dsl_dataset_phys_t), tx);
 	VERIFY0(dmu_bonus_hold(mos, dsobj, FTAG, &dbuf));
 	dmu_buf_will_dirty(dbuf, tx);
-	dsphys = dbuf->db_data;
+	dsphys = ABD_TO_BUF(dbuf->db_data);
 	bzero(dsphys, sizeof (dsl_dataset_phys_t));
 	dsphys->ds_dir_obj = dd->dd_object;
 	dsphys->ds_flags = flags;
@@ -1064,7 +1064,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	    DMU_OT_DSL_DATASET, sizeof (dsl_dataset_phys_t), tx);
 	VERIFY0(dmu_bonus_hold(mos, dsobj, FTAG, &dbuf));
 	dmu_buf_will_dirty(dbuf, tx);
-	dsphys = dbuf->db_data;
+	dsphys = ABD_TO_BUF(dbuf->db_data);
 	bzero(dsphys, sizeof (dsl_dataset_phys_t));
 	dsphys->ds_dir_obj = ds->ds_dir->dd_object;
 	dsphys->ds_fsid_guid = unique_create();
