@@ -2426,16 +2426,14 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t txg, boolean_t now)
 	vdev_t *vd;
 	metaslab_t *msp;
 
-	ASSERT(DVA_IS_VALID(dva));
-
 	if (txg > spa_freeze_txg(spa))
 		return;
 
-	if ((vd = vdev_lookup_top(spa, vdev)) == NULL ||
+	if ((vd = vdev_lookup_top(spa, vdev)) == NULL || !DVA_IS_VALID(dva) ||
 	    (offset >> vd->vdev_ms_shift) >= vd->vdev_ms_count) {
-		cmn_err(CE_WARN, "metaslab_free_dva(): bad DVA %llu:%llu",
-		    (u_longlong_t)vdev, (u_longlong_t)offset);
-		ASSERT(0);
+		zfs_panic_recover("metaslab_free_dva(): bad DVA %llu:%llu:%llu",
+		    (u_longlong_t)vdev, (u_longlong_t)offset,
+		    (u_longlong_t)size);
 		return;
 	}
 
