@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Replace a device with a hot spare in response to IO or checksum errors.
 # The following actions will be performed automatically when the number
@@ -62,6 +62,17 @@ vdev_status() {
 	return 0
 }
 
+# Given a <device>, return the size
+vdev_size() {
+	local VDEV=`basename $1`
+
+	for dir in /dev /dev/disk/by-*; do
+		if [[ -L $dir/$VDEV ]]; then
+			blockdev --getsize64  $dir/$VDEV
+		fi
+	done
+}
+
 # Fault devices after N I/O errors.
 if [ "${ZEVENT_CLASS}" = "ereport.fs.zfs.io" ]; then
 	ERRORS=`expr ${ZEVENT_VDEV_READ_ERRORS} + ${ZEVENT_VDEV_WRITE_ERRORS}`
@@ -70,6 +81,7 @@ if [ "${ZEVENT_CLASS}" = "ereport.fs.zfs.io" ]; then
 	     ${ERRORS} -ge ${ZED_SPARE_ON_IO_ERRORS} ]; then
 		ACTION="fault"
 	fi
+
 # Degrade devices after N checksum errors.
 elif [ "${ZEVENT_CLASS}" = "ereport.fs.zfs.checksum" ]; then
 	ERRORS=${ZEVENT_VDEV_CKSUM_ERRORS}
@@ -78,12 +90,12 @@ elif [ "${ZEVENT_CLASS}" = "ereport.fs.zfs.checksum" ]; then
 	     ${ERRORS} -ge ${ZED_SPARE_ON_CHECKSUM_ERRORS} ]; then
 		ACTION="degrade"
 	fi
+
 else
 	ACTION=
 fi
 
 if [ -n "${ACTION}" ]; then
-
 	# Device is already FAULTED or DEGRADED
 	set -- `vdev_status ${ZEVENT_POOL} ${ZEVENT_VDEV_PATH}`
 	ZEVENT_VDEV_PATH_FOUND=$1
@@ -111,10 +123,18 @@ if [ -n "${ACTION}" ]; then
 	# Round robin through the spares selecting those which are available.
 	#
 	for SPARE in ${ZEVENT_VDEV_SPARE_PATHS}; do
+		orig_size=${ZEVENT_VDEV_SIZE}
+		spare_size=$(vdev_size ${SPARE})
+		echo "${ZEVENT_POOL}:${ZEVENT_VDEV_GUID} = '$orig_size'" >> /tmp/zed.out
+		echo "${ZEVENT_POOL}:${SPARE} = '$spare_size'" >> /tmp/zed.out
+
 		set -- `vdev_status ${ZEVENT_POOL} ${SPARE}`
 		SPARE_VDEV_FOUND=$1
 		STATUS=$2
+		echo "  SPARE_VDEV_FOUND='$SPARE_VDEV_FOUND', STATUS='$STATUS'" >> /tmp/zed.out
+
 		if [ "${STATUS}" = "AVAIL" ]; then
+			echo "  ${ZPOOL} replace ${ZEVENT_POOL} ${ZEVENT_VDEV_GUID} ${SPARE_VDEV_FOUND}" >> /tmp/zed.out
 			${ZPOOL} replace ${ZEVENT_POOL} \
 			    ${ZEVENT_VDEV_GUID} ${SPARE_VDEV_FOUND} && exit 0
 		fi
