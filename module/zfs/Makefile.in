@@ -102,3 +102,12 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/zrlock.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zvol.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_destroy.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_userhold.o
+
+#
+# Include arch specific Makefile if applicable
+#
+ifneq (,$(TARGET_ASM_DIR))
+ifneq (,$(wildcard $(src)/$(TARGET_ASM_DIR)/Makefile))
+include $(src)/$(TARGET_ASM_DIR)/Makefile
+endif
+endif

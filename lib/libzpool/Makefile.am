@@ -128,4 +128,8 @@ EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/zpl_super.c \
 	$(top_srcdir)/module/zfs/zpl_xattr.c \
 	$(top_srcdir)/module/zfs/zvol.c \
-	$(top_srcdir)/module/zpios/pios.c
+	$(top_srcdir)/module/zpios/pios.c \
+	$(top_srcdir)/module/zfs/asm-x86_64/sha256-ssse3-asm.S \
+	$(top_srcdir)/module/zfs/asm-x86_64/sha256-avx-asm.S \
+	$(top_srcdir)/module/zfs/asm-x86_64/sha256-avx2-asm.S \
+	$(top_srcdir)/module/zfs/asm-x86_64/sha256_x86_64.c
