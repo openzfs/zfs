@@ -705,8 +705,7 @@ ddt_free(ddt_entry_t *dde)
 		ASSERT(dde->dde_lead_zio[p] == NULL);
 
 	if (dde->dde_repair_data != NULL)
-		zio_buf_free(dde->dde_repair_data,
-		    DDK_GET_PSIZE(&dde->dde_key));
+		abd_free(dde->dde_repair_data, DDK_GET_PSIZE(&dde->dde_key));
 
 	cv_destroy(&dde->dde_cv);
 	kmem_cache_free(ddt_entry_cache, dde);

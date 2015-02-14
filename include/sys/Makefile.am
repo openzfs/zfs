@@ -3,6 +3,7 @@ SUBDIRS = fm fs
 COMMON_H = \
 	$(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/arc_impl.h \
+	$(top_srcdir)/include/sys/abd.h \
 	$(top_srcdir)/include/sys/avl.h \
 	$(top_srcdir)/include/sys/avl_impl.h \
 	$(top_srcdir)/include/sys/blkptr.h \

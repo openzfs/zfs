@@ -548,7 +548,7 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			break;
 		}
 
-		bp = dbuf->db.db_data;
+		bp = ABD_TO_BUF(dbuf->db.db_data);
 		bp += blkoff;
 
 		for (i = 0; i < tochk; i++) {
