@@ -2,7 +2,7 @@
 
 check() {
 	# We depend on udev-rules being loaded
-	[ "$1" = "-d" ] && return 0
+	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
 	which zpool >/dev/null 2>&1 || return 1
@@ -39,10 +39,11 @@ install() {
 	dracut_install hostid
 	dracut_install awk
 	dracut_install head
-	inst_hook cmdline 95 "$moddir/parse-zfs.sh"
-	inst_hook mount 98 "$moddir/mount-zfs.sh"
-	inst_hook shutdown 30 "$moddir/export-zfs.sh"
+	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
+	inst_hook mount 98 "${moddir}/mount-zfs.sh"
+	inst_hook shutdown 30 "${moddir}/export-zfs.sh"
 
+	inst_simple "${moddir}/zfs-lib.sh" "/lib/dracut-zfs-lib.sh"
 	if [ -e @sysconfdir@/zfs/zpool.cache ]; then
 		inst @sysconfdir@/zfs/zpool.cache
 	fi
@@ -56,5 +57,5 @@ install() {
 	BB=`hostid | cut -b 3,4`
 	CC=`hostid | cut -b 5,6`
 	DD=`hostid | cut -b 7,8`
-	printf "\x$DD\x$CC\x$BB\x$AA" > "$initdir/etc/hostid"
+	printf "\x${DD}\x${CC}\x${BB}\x${AA}" > "${initdir}/etc/hostid"
 }

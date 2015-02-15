@@ -80,6 +80,8 @@ to mount the root dataset.
 * `export-zfs.sh`: Run on shutdown after dracut has restored the initramfs
 and pivoted to it, allowing for a clean unmount and export of the ZFS root.
 
+* `zfs-lib.sh`: Utility functions used by the other files.
+
 `module-setup.sh`
 ---------------
 
