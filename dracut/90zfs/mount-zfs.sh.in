@@ -1,82 +1,45 @@
 #!/bin/sh
 
 . /lib/dracut-lib.sh
+. /lib/dracut-zfs-lib.sh
 
-ZPOOL_FORCE=""
-OLDIFS="$IFS"
-NEWLINE="
-"
+ZFS_DATASET=""
+ZFS_POOL=""
 
-if getargbool 0 zfs_force -y zfs.force -y zfsforce ; then
-	warn "ZFS: Will force-import pools if necessary."
-	ZPOOL_FORCE="-f"
-fi
+case "${root}" in
+	zfs:*) ;;
+	*) return ;;
+esac
 
 # Delay until all required block devices are present.
 udevadm settle
 
-case "$root" in
-	zfs:*)
-		# We have ZFS modules loaded, so we're able to import pools now.
-		if [ "$root" = "zfs:AUTO" ] ; then
-			# Need to parse bootfs attribute
-			info "ZFS: Attempting to detect root from imported ZFS pools."
+if [ "${root}" = "zfs:AUTO" ] ; then
+	ZFS_DATASET="$(find_bootfs)"
+	if [ $? -ne 0 ] ; then
+		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
+		ZFS_DATASET="$(find_bootfs)"
+		if [ $? -ne 0 ] ; then
+			warn "ZFS: No bootfs attribute found in importable pools."
+			export_all
 
-			# Might be imported by the kernel module, so try searching before
-			# we import anything.
-			zfsbootfs=`zpool list -H -o bootfs | sed -n '/^-$/ !p' | sed 'q'`
-			if [ $? -ne 0 ] || [ -z "$zfsbootfs" ] || \
-				[ "$zfsbootfs" = "no pools available" ] ; then
-				# Not there, so we need to import everything.
-				info "ZFS: Attempting to import additional pools."
-				zpool import -N -a ${ZPOOL_FORCE}
-				zfsbootfs=`zpool list -H -o bootfs | sed -n '/^-$/ !p' | sed 'q'`
-				if [ $? -ne 0 ] || [ -z "$zfsbootfs" ] || \
-					[ "$zfsbootfs" = "no pools available" ] ; then
-					rootok=0
-					pool=""
-
-					warn "ZFS: No bootfs attribute found in importable pools."
-
-					# Re-export everything since we're not prepared to take
-					# responsibility for them.
-					# Change IFS to allow for blanks in pool names.
-					IFS="$NEWLINE"
-					for fs in `zpool list -H -o name` ; do
-						zpool export "$fs"
-					done
-					IFS="$OLDIFS"
-
-					return 1
-				fi
-			fi
-			info "ZFS: Using ${zfsbootfs} as root."
-		else
-			# Should have an explicit pool set, so just import it and we're done.
-			zfsbootfs="${root#zfs:}"
-			pool="${zfsbootfs%%/*}"
-			if ! zpool list -H "$pool" > /dev/null ; then
-				# pool wasn't imported automatically by the kernel module, so
-				# try it manually.
-				info "ZFS: Importing pool ${pool}..."
-				if ! zpool import -N ${ZPOOL_FORCE} "$pool" ; then
-					warn "ZFS: Unable to import pool ${pool}."
-					rootok=0
-
-					return 1
-				fi
-			fi
+			rootok=0
+			return 1
 		fi
+	fi
+	info "ZFS: Using ${ZFS_DATASET} as root."
+fi
 
-		# Above should have left our rpool imported and pool/dataset in $root.
-		# We need zfsutil for non-legacy mounts and not for legacy mounts.
-		mountpoint=`zfs get -H -o value mountpoint "$zfsbootfs"`
-		if [ "$mountpoint" = "legacy" ] ; then
-			mount -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
-		else
-			mount -o zfsutil -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
-		fi
+ZFS_DATASET="${ZFS_DATASET:-${root#zfs:}}"
+ZFS_POOL="${ZFS_DATASET%%/*}"
 
-		need_shutdown
-		;;
-esac
+if import_pool "${ZFS_POOL}" ; then
+	info "ZFS: Mounting dataset ${ZFS_DATASET}..."
+	if mount_dataset "${ZFS_DATASET}" ; then
+		ROOTFS_MOUNTED=yes
+		return 0
+	fi
+fi
+
+rootok=0
+need_shutdown
