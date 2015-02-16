@@ -305,7 +305,6 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_evict_lock_retry;
 	kstat_named_t arcstat_l2_evict_reading;
 	kstat_named_t arcstat_l2_free_on_write;
-	kstat_named_t arcstat_l2_cdata_free_on_write;
 	kstat_named_t arcstat_l2_abort_lowmem;
 	kstat_named_t arcstat_l2_cksum_bad;
 	kstat_named_t arcstat_l2_io_error;
@@ -394,7 +393,6 @@ static arc_stats_t arc_stats = {
 	{ "l2_evict_lock_retry",	KSTAT_DATA_UINT64 },
 	{ "l2_evict_reading",		KSTAT_DATA_UINT64 },
 	{ "l2_free_on_write",		KSTAT_DATA_UINT64 },
-	{ "l2_cdata_free_on_write",	KSTAT_DATA_UINT64 },
 	{ "l2_abort_lowmem",		KSTAT_DATA_UINT64 },
 	{ "l2_cksum_bad",		KSTAT_DATA_UINT64 },
 	{ "l2_io_error",		KSTAT_DATA_UINT64 },
@@ -1492,21 +1490,6 @@ arc_buf_add_ref(arc_buf_t *buf, void* tag)
 	    data, metadata, hits);
 }
 
-static void
-arc_buf_free_on_write(abd_t *data, size_t size,
-    void (*free_func)(abd_t *, size_t))
-{
-	l2arc_data_free_t *df;
-
-	df = kmem_alloc(sizeof (l2arc_data_free_t), KM_SLEEP);
-	df->l2df_data = data;
-	df->l2df_size = size;
-	df->l2df_func = free_func;
-	mutex_enter(&l2arc_free_on_write_mtx);
-	list_insert_head(l2arc_free_on_write, df);
-	mutex_exit(&l2arc_free_on_write_mtx);
-}
-
 /*
  * Free the arc data buffer.  If it is an l2arc write in progress,
  * the buffer is placed on l2arc_free_on_write to be freed later.
@@ -1517,7 +1500,14 @@ arc_buf_data_free(arc_buf_t *buf, void (*free_func)(abd_t *, size_t))
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
 	if (HDR_L2_WRITING(hdr)) {
-		arc_buf_free_on_write(buf->b_data, hdr->b_size, free_func);
+		l2arc_data_free_t *df;
+		df = kmem_alloc(sizeof (l2arc_data_free_t), KM_SLEEP);
+		df->l2df_data = buf->b_data;
+		df->l2df_size = hdr->b_size;
+		df->l2df_func = free_func;
+		mutex_enter(&l2arc_free_on_write_mtx);
+		list_insert_head(l2arc_free_on_write, df);
+		mutex_exit(&l2arc_free_on_write_mtx);
 		ARCSTAT_BUMP(arcstat_l2_free_on_write);
 	} else {
 		free_func(buf->b_data, hdr->b_size);
@@ -1528,23 +1518,6 @@ arc_buf_data_free(arc_buf_t *buf, void (*free_func)(abd_t *, size_t))
  * Free up buf->b_data and if 'remove' is set, then pull the
  * arc_buf_t off of the the arc_buf_hdr_t's list and free it.
  */
-static void
-arc_buf_l2_cdata_free(arc_buf_hdr_t *hdr)
-{
-	l2arc_buf_hdr_t *l2hdr = hdr->b_l2hdr;
-
-	ASSERT(MUTEX_HELD(&l2arc_buflist_mtx));
-
-	if (l2hdr->b_tmp_cdata == NULL)
-		return;
-
-	ASSERT(HDR_L2_WRITING(hdr));
-	arc_buf_free_on_write(l2hdr->b_tmp_cdata, hdr->b_size,
-	    abd_free);
-	ARCSTAT_BUMP(arcstat_l2_cdata_free_on_write);
-	l2hdr->b_tmp_cdata = NULL;
-}
-
 static void
 arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t remove)
 {
@@ -1640,7 +1613,6 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 
 		if (l2hdr != NULL) {
 			list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
-			arc_buf_l2_cdata_free(hdr);
 			ARCSTAT_INCR(arcstat_l2_size, -hdr->b_size);
 			ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
 			vdev_space_update(l2hdr->b_dev->l2ad_vdev,
@@ -3669,7 +3641,6 @@ arc_release(arc_buf_t *buf, void *tag)
 	l2hdr = hdr->b_l2hdr;
 	if (l2hdr) {
 		mutex_enter(&l2arc_buflist_mtx);
-		arc_buf_l2_cdata_free(hdr);
 		hdr->b_l2hdr = NULL;
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 	}
@@ -4912,11 +4883,6 @@ top:
 				ARCSTAT_INCR(arcstat_l2_asize, -abl2->b_asize);
 				bytes_evicted += abl2->b_asize;
 				ab->b_l2hdr = NULL;
-				/*
-				 * We are destroying l2hdr, so ensure that
-				 * its compressed buffer, if any, is not leaked.
-				 */
-				ASSERT(abl2->b_tmp_cdata == NULL);
 				kmem_cache_free(l2arc_hdr_cache, abl2);
 				arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 				ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
@@ -5151,14 +5117,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 		buf_data = l2hdr->b_tmp_cdata;
 		buf_sz = l2hdr->b_asize;
 
-		/*
-		 * If the data has not been compressed, then clear b_tmp_cdata
-		 * to make sure that it points only to a temporary compression
-		 * buffer.
-		 */
-		if (!L2ARC_IS_VALID_COMPRESS(l2hdr->b_compress))
-			l2hdr->b_tmp_cdata = NULL;
-
 		/* Compression may have squashed the buffer to zero length. */
 		if (buf_sz != 0) {
 			uint64_t buf_p_sz;
@@ -5361,18 +5319,15 @@ l2arc_release_cdata_buf(arc_buf_hdr_t *ab)
 {
 	l2arc_buf_hdr_t *l2hdr = ab->b_l2hdr;
 
-	ASSERT(L2ARC_IS_VALID_COMPRESS(l2hdr->b_compress));
-	if (l2hdr->b_compress != ZIO_COMPRESS_EMPTY) {
+	if (l2hdr->b_compress == ZIO_COMPRESS_LZ4) {
 		/*
 		 * If the data was compressed, then we've allocated a
 		 * temporary buffer for it, so now we need to release it.
 		 */
 		ASSERT(l2hdr->b_tmp_cdata != NULL);
 		abd_free(l2hdr->b_tmp_cdata, ab->b_size);
-		l2hdr->b_tmp_cdata = NULL;
-	} else {
-		ASSERT(l2hdr->b_tmp_cdata == NULL);
 	}
+	l2hdr->b_tmp_cdata = NULL;
 }
 
 /*
