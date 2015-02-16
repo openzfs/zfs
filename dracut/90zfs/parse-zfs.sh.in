@@ -18,6 +18,7 @@ else
 	warn "ZFS: Pools may not import correctly."
 fi
 
+wait_for_zfs=0
 case "$root" in
 	""|zfs|zfs:)
 		# We'll take root unset, root=zfs, or root=zfs:
