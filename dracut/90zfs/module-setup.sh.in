@@ -37,12 +37,18 @@ install() {
 	dracut_install @udevdir@/zvol_id
 	dracut_install mount.zfs
 	dracut_install hostid
+	dracut_install awk
+	dracut_install head
 	inst_hook cmdline 95 "$moddir/parse-zfs.sh"
 	inst_hook mount 98 "$moddir/mount-zfs.sh"
 	inst_hook shutdown 30 "$moddir/export-zfs.sh"
 
 	if [ -e @sysconfdir@/zfs/zpool.cache ]; then
 		inst @sysconfdir@/zfs/zpool.cache
+	fi
+
+	if [ -e @sysconfdir@/zfs/vdev_id.conf ]; then
+		inst @sysconfdir@/zfs/vdev_id.conf
 	fi
 
 	# Synchronize initramfs and system hostid
