@@ -1,6 +1,6 @@
 #!/bin/sh
 
-. /lib/dracut-lib.sh
+command -v getarg >/dev/null || . /lib/dracut-lib.sh
 
 OLDIFS="${IFS}"
 NEWLINE="
