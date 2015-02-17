@@ -43,10 +43,6 @@
 /*
  * page
  */
-#ifndef PAGE_SIZE
-#define	PAGE_SIZE 4096
-#endif
-
 struct page;
 
 #define	alloc_page(gfp) \
@@ -105,6 +101,8 @@ sg_next(struct scatterlist *sg)
 
 #define	kmap(page)			((void *)page)
 #define	kunmap(page)			do { } while (0)
+#define	KM_USER0			(0)
+#define	KM_USER1			(1)
 #define	zfs_kmap_atomic(page, type)	((void *)page)
 #define	zfs_kunmap_atomic(addr, type)	do { } while (0)
 #define	pagefault_disable()		do { } while (0)
@@ -165,7 +163,7 @@ abd_miter_init_km(struct abd_miter *aiter, abd_t *abd, int rw, int km)
 	aiter->nents = abd->abd_nents;
 	aiter->rw = rw;
 #ifndef HAVE_1ARG_KMAP_ATOMIC
-	aiter->km_type = km;
+	aiter->km_type = (km ? KM_USER1 : KM_USER0);
 #endif
 }
 
@@ -207,7 +205,7 @@ abd_miter_map_x(struct abd_miter *aiter, int atomic)
 
 		if (atomic)
 			paddr = zfs_kmap_atomic(sg_page(aiter->sg),
-			    (aiter->km_type ? KM_USER1 : KM_USER0));
+			    aiter->km_type);
 		else
 			paddr = kmap(sg_page(aiter->sg));
 	}
@@ -237,8 +235,7 @@ abd_miter_unmap_x(struct abd_miter *aiter, int atomic)
 		if (atomic) {
 			if (aiter->rw == ABD_MITER_W)
 				flush_kernel_dcache_page(sg_page(aiter->sg));
-			zfs_kunmap_atomic(paddr,
-			    (aiter->km_type ? KM_USER1 : KM_USER0));
+			zfs_kunmap_atomic(paddr, aiter->km_type);
 		} else {
 			kunmap(sg_page(aiter->sg));
 		}
