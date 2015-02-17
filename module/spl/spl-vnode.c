@@ -623,14 +623,14 @@ EXPORT_SYMBOL(vn_space);
 
 /* Function must be called while holding the vn_file_lock */
 static file_t *
-file_find(int fd)
+file_find(int fd, struct task_struct *task)
 {
         file_t *fp;
 
 	ASSERT(spin_is_locked(&vn_file_lock));
 
         list_for_each_entry(fp, &vn_file_list,  f_list) {
-		if (fd == fp->f_fd && fp->f_task == current) {
+		if (fd == fp->f_fd && fp->f_task == task) {
 			ASSERT(atomic_read(&fp->f_ref) != 0);
                         return fp;
 		}
@@ -654,7 +654,7 @@ vn_getf(int fd)
 	/* Already open just take an extra reference */
 	spin_lock(&vn_file_lock);
 
-	fp = file_find(fd);
+	fp = file_find(fd, current);
 	if (fp) {
 		atomic_inc(&fp->f_ref);
 		spin_unlock(&vn_file_lock);
@@ -734,13 +734,21 @@ static void releasef_locked(file_t *fp)
 void
 vn_releasef(int fd)
 {
+	areleasef(fd, P_FINFO(current));
+}
+EXPORT_SYMBOL(releasef);
+
+void
+vn_areleasef(int fd, uf_info_t *fip)
+{
 	file_t *fp;
+	struct task_struct *task = (struct task_struct *)fip;
 
 	if (fd < 0)
 		return;
 
 	spin_lock(&vn_file_lock);
-	fp = file_find(fd);
+	fp = file_find(fd, task);
 	if (fp) {
 		atomic_dec(&fp->f_ref);
 		if (atomic_read(&fp->f_ref) > 0) {
@@ -755,7 +763,8 @@ vn_releasef(int fd)
 
 	return;
 } /* releasef() */
-EXPORT_SYMBOL(releasef);
+EXPORT_SYMBOL(areleasef);
+
 
 static void
 #ifdef HAVE_SET_FS_PWD_WITH_CONST

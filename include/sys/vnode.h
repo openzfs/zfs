@@ -40,6 +40,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/uio.h>
+#include <sys/user.h>
 #include <sys/sunldi.h>
 
 /*
@@ -184,6 +185,7 @@ extern int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
     offset_t offset, void *x6, void *x7);
 extern file_t *vn_getf(int fd);
 extern void vn_releasef(int fd);
+extern void vn_areleasef(int fd, uf_info_t *fip);
 extern int vn_set_pwd(const char *filename);
 
 int spl_vn_init(void);
@@ -198,6 +200,7 @@ void spl_vn_fini(void);
 #define vn_is_readonly(vp)			0
 #define getf					vn_getf
 #define releasef				vn_releasef
+#define areleasef				vn_areleasef
 
 extern vnode_t *rootdir;
 
