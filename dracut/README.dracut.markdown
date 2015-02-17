@@ -11,6 +11,12 @@ the dataset mountpoint property to '/'.
     $ zpool set bootfs=pool/dataset pool
     $ zfs set mountpoint=/ pool/dataset
 
+It is also possible to set the bootfs property for an entire pool, just in
+case you are not using a dedicated dataset for '/'.
+
+    $ zpool set bootfs=pool pool
+    $ zfs set mountpoint=/ pool
+
 Alternately, legacy mountpoints can be used by setting the 'root=' option
 on the kernel line of your grub.conf/menu.lst configuration file.  Then
 set the dataset mountpoint property to 'legacy'.
@@ -71,6 +77,8 @@ cache.  This file is not included in the initramfs.
 
 * `90-zfs.rules`: udev rules which trigger loading of the ZFS modules at boot.
 
+* `zfs-lib.sh`: Utility functions used by the other files.
+
 * `parse-zfs.sh`: Run early in the initramfs boot process to parse kernel
 command line and determine if ZFS is the active root filesystem.
 
@@ -80,10 +88,16 @@ to mount the root dataset.
 * `export-zfs.sh`: Run on shutdown after dracut has restored the initramfs
 and pivoted to it, allowing for a clean unmount and export of the ZFS root.
 
-* `zfs-lib.sh`: Utility functions used by the other files.
+`zfs-lib.sh`
+------------
+
+This file provides a few handy functions for working with ZFS. Those
+functions are used by the `mount-zfs.sh` and `export-zfs.sh` files.
+However, they could be used by any other file as well, as long as the file
+sources `/lib/dracut-zfs-lib.sh`.
 
 `module-setup.sh`
----------------
+-----------------
 
 This file is run by the Dracut script within the live system, not at boot
 time.  It's not included in the final initramfs.  Functions in this script
@@ -105,7 +119,7 @@ it.  If a generic initramfs is required, it may be preferable to omit these
 files and specify the `spl_hostid` from the boot loader instead.
 
 `parse-zfs.sh`
-------------
+--------------
 
 Run during the cmdline phase of the initramfs boot process, this script
 performs some basic sanity checks on kernel command line parameters to
@@ -137,7 +151,7 @@ phase of Dracut to wait for `/dev/zfs` to become available before attempting
 to mount anything.
 
 `mount-zfs.sh`
-------------
+--------------
 
 This script is run after udev has settled and all tasks in the initqueue
 have succeeded.  This ensures that `/dev/zfs` is available and that the
@@ -171,7 +185,7 @@ the required zpool was auto-imported by the kernel module, no additional
 `zpool import` commands are run, so nothing is forced.
 
 `export-zfs.sh`
--------------
+---------------
 
 Normally the zpool containing the root dataset cannot be exported on
 shutdown as it is still in use by the init process. To work around this,
