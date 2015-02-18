@@ -1,73 +1,63 @@
 #!/bin/sh
 #
 # Send email to ZED_EMAIL in response to a RESILVER.FINISH or SCRUB.FINISH.
-# By default, "zpool status" output will only be included in the email for
-#   a scrub.finish zevent if the pool is not healthy; to always include its
-#   output, set ZED_EMAIL_VERBOSE=1.
+#
+# By default, "zpool status" output will only be included for a scrub.finish
+# zevent if the pool is not healthy; to always include its output, set
+# ZED_EMAIL_VERBOSE=1.
+#
 # Exit codes:
 #   0: email sent
 #   1: email failed
-#   2: email suppressed
-#   3: missing executable
-#   4: unsupported event class
-#   5: internal error
-#
-test -f "${ZED_ZEDLET_DIR}/zed.rc" && . "${ZED_ZEDLET_DIR}/zed.rc"
+#   2: email not configured
+#   3: email suppressed
+#   9: internal error
 
-test -n "${ZEVENT_POOL}" || exit 5
-test -n "${ZEVENT_SUBCLASS}" || exit 5
+[ -f "${ZED_ZEDLET_DIR}/zed.rc" ] && . "${ZED_ZEDLET_DIR}/zed.rc"
+. "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
-if   test "${ZEVENT_SUBCLASS}" = "resilver.finish"; then
-  ACTION="resilvering"
-elif test "${ZEVENT_SUBCLASS}" = "scrub.finish"; then
-  ACTION="scrubbing"
+[ -n "${ZED_EMAIL}" ] || exit 2
+
+[ -n "${ZEVENT_POOL}" ] || exit 9
+[ -n "${ZEVENT_SUBCLASS}" ] || exit 9
+
+if   [ "${ZEVENT_SUBCLASS}" = "resilver.finish" ]; then
+    action="resilver"
+elif [ "${ZEVENT_SUBCLASS}" = "scrub.finish" ]; then
+    action="scrub"
 else
-  logger -t "${ZED_SYSLOG_TAG:=zed}" \
-    -p "${ZED_SYSLOG_PRIORITY:=daemon.warning}" \
-    `basename "$0"`: unsupported event class \"${ZEVENT_SUBCLASS}\"
-  exit 4
+    zed_log_err "unsupported event class \"${ZEVENT_SUBCLASS}\""
+    exit 9
 fi
 
-# Only send email if ZED_EMAIL has been configured.
-test -n "${ZED_EMAIL}" || exit 2
-
-# Ensure requisite executables are installed.
-if ! command -v "${MAIL:=mail}" >/dev/null 2>&1; then
-  logger -t "${ZED_SYSLOG_TAG:=zed}" \
-    -p "${ZED_SYSLOG_PRIORITY:=daemon.warning}" \
-    `basename "$0"`: "${MAIL}" not installed
-  exit 3
-fi
-if ! test -x "${ZPOOL}"; then
-  logger -t "${ZED_SYSLOG_TAG:=zed}" \
-    -p "${ZED_SYSLOG_PRIORITY:=daemon.warning}" \
-    `basename "$0"`: "${ZPOOL}" not installed
-  exit 3
-fi
+zed_check_cmd "mail" "${ZPOOL}" || exit 9
 
 # For scrub, suppress email if pool is healthy and verbosity is not enabled.
-if test "${ZEVENT_SUBCLASS}" = "scrub.finish"; then
-  HEALTHY=`"${ZPOOL}" status -x "${ZEVENT_POOL}" | \
-    grep "'${ZEVENT_POOL}' is healthy"`
-  test -n "${HEALTHY}" -a "${ZED_EMAIL_VERBOSE:=0}" = 0 && exit 2
+#
+if [ "${ZEVENT_SUBCLASS}" = "scrub.finish" ]; then
+    healthy="$("${ZPOOL}" status -x "${ZEVENT_POOL}" \
+        | grep "'${ZEVENT_POOL}' is healthy")"
+    [ -n "${healthy}" ] && [ "${ZED_EMAIL_VERBOSE}" -eq 0 ] && exit 3
 fi
 
-"${MAIL}" -s "ZFS ${ZEVENT_SUBCLASS} event for ${ZEVENT_POOL} on `hostname`" \
-  "${ZED_EMAIL}" <<EOF
-A ZFS pool has finished ${ACTION}:
+umask 077
+email_subject="ZFS ${ZEVENT_SUBCLASS} event for ${ZEVENT_POOL} on $(hostname)"
+email_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+cat > "${email_pathname}" <<EOF
+ZFS has finished a ${action}:
 
    eid: ${ZEVENT_EID}
-  host: `hostname`
+  host: $(hostname)
   time: ${ZEVENT_TIME_STRING}
-`"${ZPOOL}" status "${ZEVENT_POOL}"`
+$("${ZPOOL}" status "${ZEVENT_POOL}")
 EOF
-MAIL_STATUS=$?
 
-if test "${MAIL_STATUS}" -ne 0; then
-  logger -t "${ZED_SYSLOG_TAG:=zed}" \
-    -p "${ZED_SYSLOG_PRIORITY:=daemon.warning}" \
-    `basename "$0"`: "${MAIL}" exit="${MAIL_STATUS}"
-  exit 1
+mail -s "${email_subject}" "${ZED_EMAIL}" < "${email_pathname}"
+mail_status=$?
+
+if [ "${mail_status}" -ne 0 ]; then
+    zed_log_msg "mail exit=${mail_status}"
+    exit 1
 fi
-
+rm -f "${email_pathname}"
 exit 0

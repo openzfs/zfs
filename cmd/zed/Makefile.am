@@ -4,6 +4,8 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
 
+EXTRA_DIST = $(top_srcdir)/cmd/zed/zed.d/README
+
 sbin_PROGRAMS = zed
 
 zed_SOURCES = \
@@ -33,6 +35,7 @@ zed_LDADD = \
 zedconfdir = $(sysconfdir)/zfs/zed.d
 
 dist_zedconf_DATA = \
+	$(top_srcdir)/cmd/zed/zed.d/zed-functions.sh \
 	$(top_srcdir)/cmd/zed/zed.d/zed.rc
 
 zedexecdir = $(libexecdir)/zfs/zed.d

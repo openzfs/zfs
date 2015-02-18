@@ -1,81 +1,53 @@
 #!/bin/sh
 #
-# Send email to ZED_EMAIL in response to a DATA zevent.
-# Only one message per ZED_EMAIL_INTERVAL_SECS will be sent for a given
-#   class/pool combination.  This protects against spamming the recipient
-#   should multiple events occur together in time for the same pool.
+# Send email to ZED_EMAIL in response to a DATA error.
+#
+# Only one email per ZED_EMAIL_INTERVAL_SECS will be sent for a given
+# class/pool combination.  This protects against spamming the recipient
+# should multiple events occur together in time for the same pool.
+#
 # Exit codes:
 #   0: email sent
 #   1: email failed
-#   2: email suppressed
-#   3: missing executable
-#   4: unsupported event class
-#   5: internal error
-# State File Format:
-#   POOL;TIME_OF_LAST_EMAIL
-#
-test -f "${ZED_ZEDLET_DIR}/zed.rc" && . "${ZED_ZEDLET_DIR}/zed.rc"
+#   2: email not configured
+#   3: email suppressed
+#   9: internal error
 
-test -n "${ZEVENT_POOL}" || exit 5
-test -n "${ZEVENT_SUBCLASS}" || exit 5
+[ -f "${ZED_ZEDLET_DIR}/zed.rc" ] && . "${ZED_ZEDLET_DIR}/zed.rc"
+. "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
-if test "${ZEVENT_SUBCLASS}" != "data"; then \
-  logger -t "${ZED_SYSLOG_TAG:=zed}" \
-    -p "${ZED_SYSLOG_PRIORITY:=daemon.warning}" \
-    `basename "$0"`: unsupported event class \"${ZEVENT_SUBCLASS}\"
-  exit 4
+[ -n "${ZED_EMAIL}" ] || exit 2
+
+[ -n "${ZEVENT_POOL}" ] || exit 9
+[ -n "${ZEVENT_SUBCLASS}" ] || exit 9
+
+if [ "${ZEVENT_SUBCLASS}" != "data" ]; then \
+    zed_log_err "unsupported event class \"${ZEVENT_SUBCLASS}\""
+    exit 9
 fi
 
-# Only send email if ZED_EMAIL has been configured.
-test -n "${ZED_EMAIL}" || exit 2
+zed_check_cmd "mail" || exit 9
 
-# Ensure requisite executables are installed.
-if ! command -v "${MAIL:=mail}" >/dev/null 2>&1; then
-  logger -t "${ZED_SYSLOG_TAG:=zed}" \
-    -p "${ZED_SYSLOG_PRIORITY:=daemon.warning}" \
-    `basename "$0"`: "${MAIL}" not installed
-  exit 3
-fi
+zed_rate_limit "${ZEVENT_POOL};${ZEVENT_SUBCLASS};email" || exit 3
 
-NAME="zed.${ZEVENT_SUBCLASS}.email"
-LOCKFILE="${ZED_LOCKDIR:=/var/lock}/${NAME}.lock"
-STATEFILE="${ZED_RUNDIR:=/var/run}/${NAME}.state"
-
-# Obtain lock to ensure mutual exclusion for accessing state.
-exec 8> "${LOCKFILE}"
-flock -x 8
-
-# Query state for last time email was sent for this pool.
-TIME_NOW=`date +%s`
-TIME_LAST=`egrep "^${ZEVENT_POOL};" "${STATEFILE}" 2>/dev/null | cut -d ";" -f2`
-if test -n "${TIME_LAST}"; then
-  TIME_DELTA=`expr "${TIME_NOW}" - "${TIME_LAST}"`
-  if test "${TIME_DELTA}" -lt "${ZED_EMAIL_INTERVAL_SECS:=3600}"; then
-    exit 2
-  fi
-fi
-
-"${MAIL}" -s "ZFS ${ZEVENT_SUBCLASS} error for ${ZEVENT_POOL} on `hostname`" \
-  "${ZED_EMAIL}" <<EOF
+umask 077
+email_subject="ZFS ${ZEVENT_SUBCLASS} error for ${ZEVENT_POOL} on $(hostname)"
+email_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+cat > "${email_pathname}" <<EOF
 A ZFS ${ZEVENT_SUBCLASS} error has been detected:
 
    eid: ${ZEVENT_EID}
-  host: `hostname`
+  host: $(hostname)
   time: ${ZEVENT_TIME_STRING}
   pool: ${ZEVENT_POOL}
 EOF
-MAIL_STATUS=$?
 
-# Update state.
-egrep -v "^${ZEVENT_POOL};" "${STATEFILE}" 2>/dev/null > "${STATEFILE}.$$"
-echo "${ZEVENT_POOL};${TIME_NOW}" >> "${STATEFILE}.$$"
-mv -f "${STATEFILE}.$$" "${STATEFILE}"
+mail -s "${email_subject}" "${ZED_EMAIL}" < "${email_pathname}"
+mail_status=$?
 
-if test "${MAIL_STATUS}" -ne 0; then
-  logger -t "${ZED_SYSLOG_TAG:=zed}" \
-    -p "${ZED_SYSLOG_PRIORITY:=daemon.warning}" \
-    `basename "$0"`: "${MAIL}" exit="${MAIL_STATUS}"
-  exit 1
+if [ "${mail_status}" -ne 0 ]; then
+    zed_log_msg "mail exit=${mail_status}"
+    exit 1
 fi
-
+rm -f "${email_pathname}"
 exit 0
