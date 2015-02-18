@@ -3293,13 +3293,19 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-#include <linux/module_compat.h>
+static int __init
+nvpair_init(void)
+{
+	return (0);
+}
 
-static int nvpair_init(void) { return 0; }
-static int nvpair_fini(void) { return 0; }
+static void __exit
+nvpair_fini(void)
+{
+}
 
-spl_module_init(nvpair_init);
-spl_module_exit(nvpair_fini);
+module_init(nvpair_init);
+module_exit(nvpair_fini);
 
 MODULE_DESCRIPTION("Generic name/value pair implementation");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
