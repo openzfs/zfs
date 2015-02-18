@@ -518,8 +518,8 @@ spl_kvmem_fini(void)
 	spl_kmem_fini();
 }
 
-static int
-__init spl_init(void)
+static int __init
+spl_init(void)
 {
 	int rc = 0;
 
@@ -575,10 +575,10 @@ out1:
 	       "v%s-%s%s, rc = %d\n", SPL_META_VERSION, SPL_META_RELEASE,
 	       SPL_DEBUG_STR, rc);
 
-	return rc;
+	return (rc);
 }
 
-static void
+static void __exit
 spl_fini(void)
 {
 	printk(KERN_NOTICE "SPL: Unloaded module v%s-%s%s\n",
@@ -593,30 +593,6 @@ spl_fini(void)
 	spl_mutex_fini();
 	spl_kvmem_fini();
 }
-
-/* Called when a dependent module is loaded */
-void
-spl_setup(void)
-{
-        int rc;
-
-        /*
-         * At module load time the pwd is set to '/' on a Solaris system.
-         * On a Linux system will be set to whatever directory the caller
-         * was in when executing insmod/modprobe.
-         */
-        rc = vn_set_pwd("/");
-        if (rc)
-                printk("SPL: Warning unable to set pwd to '/': %d\n", rc);
-}
-EXPORT_SYMBOL(spl_setup);
-
-/* Called when a dependent module is unloaded */
-void
-spl_cleanup(void)
-{
-}
-EXPORT_SYMBOL(spl_cleanup);
 
 module_init(spl_init);
 module_exit(spl_fini);

@@ -50,7 +50,6 @@
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
-#include <linux/module_compat.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
@@ -600,7 +599,7 @@ static struct miscdevice splat_misc = {
 	.fops		= &splat_fops,
 };
 
-static int
+static int __init
 splat_init(void)
 {
 	int error;
@@ -636,7 +635,7 @@ splat_init(void)
 	return (error);
 }
 
-static int
+static void __exit
 splat_fini(void)
 {
 	int error;
@@ -665,12 +664,10 @@ splat_fini(void)
 	ASSERT(list_empty(&splat_module_list));
 	printk(KERN_INFO "SPLAT: Unloaded module v%s-%s%s\n",
 	    SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
-
-	return (0);
 }
 
-spl_module_init(splat_init);
-spl_module_exit(splat_fini);
+module_init(splat_init);
+module_exit(splat_fini);
 
 MODULE_DESCRIPTION("Solaris Porting LAyer Tests");
 MODULE_AUTHOR(SPL_META_AUTHOR);

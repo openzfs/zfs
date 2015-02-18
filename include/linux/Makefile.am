@@ -8,7 +8,6 @@ KERNEL_H = \
 	$(top_srcdir)/include/linux/list_compat.h \
 	$(top_srcdir)/include/linux/math64_compat.h \
 	$(top_srcdir)/include/linux/mm_compat.h \
-	$(top_srcdir)/include/linux/module_compat.h \
 	$(top_srcdir)/include/linux/proc_compat.h \
 	$(top_srcdir)/include/linux/rwsem_compat.h \
 	$(top_srcdir)/include/linux/wait_compat.h \
