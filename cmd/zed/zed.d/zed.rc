@@ -1,34 +1,60 @@
+##
 # zed.rc
+##
 
+##
 # Absolute path to the debug output file.
+#
 #ZED_DEBUG_LOG="/tmp/zed.debug.log"
 
+##
 # Email address of the zpool administrator.
 #   Email will only be sent if ZED_EMAIL is defined.
+# Disabled by default; uncomment to enable.
+#
 #ZED_EMAIL="root"
 
+##
+# Minimum number of seconds between emails for a similar event.
+#
+#ZED_EMAIL_INTERVAL_SECS=3600
+
+##
 # Email verbosity.
 #   If set to 0, suppress email if the pool is healthy.
 #   If set to 1, send email regardless of pool health.
+#
 #ZED_EMAIL_VERBOSE=0
 
-# Minimum number of seconds between emails sent for a similar event.
-#ZED_EMAIL_INTERVAL_SECS="3600"
-
+##
 # Default directory for zed lock files.
+#
 #ZED_LOCKDIR="/var/lock"
 
+##
 # Default directory for zed state files.
+#
 #ZED_RUNDIR="/var/run"
 
-# The syslog priority (eg, specified as a "facility.level" pair).
-#ZED_SYSLOG_PRIORITY="daemon.notice"
+##
+# Replace a device with a hot spare after N checksum errors are detected.
+# Disabled by default; uncomment to enable.
+#
+#ZED_SPARE_ON_CHECKSUM_ERRORS=10
 
-# The syslog tag for marking zed events.
-#ZED_SYSLOG_TAG="zed"
-
+##
 # Replace a device with a hot spare after N I/O errors are detected.
+# Disabled by default; uncomment to enable.
+#
 #ZED_SPARE_ON_IO_ERRORS=1
 
-# Replace a device with a hot spare after N checksum errors are detected.
-#ZED_SPARE_ON_CHECKSUM_ERRORS=10
+##
+# The syslog priority (e.g., specified as a "facility.level" pair).
+#
+#ZED_SYSLOG_PRIORITY="daemon.notice"
+
+##
+# The syslog tag for marking zed events.
+#
+#ZED_SYSLOG_TAG="zed"
+

@@ -33,6 +33,7 @@ zed_LDADD = \
 zedconfdir = $(sysconfdir)/zfs/zed.d
 
 dist_zedconf_DATA = \
+	$(top_srcdir)/cmd/zed/zed.d/zed-functions.sh \
 	$(top_srcdir)/cmd/zed/zed.d/zed.rc
 
 zedexecdir = $(libexecdir)/zfs/zed.d
