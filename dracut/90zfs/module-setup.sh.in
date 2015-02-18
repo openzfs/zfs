@@ -46,6 +46,10 @@ install() {
 	if [ -e @sysconfdir@/zfs/zpool.cache ]; then
 		inst @sysconfdir@/zfs/zpool.cache
 	fi
+	
+	if [ -e @sysconfdir@/zfs/vdev_id.conf ]; then
+		inst @sysconfdir@/zfs/vdev_id.conf
+	fi
 
 	if [ -e @sysconfdir@/zfs/vdev_id.conf ]; then
 		inst @sysconfdir@/zfs/vdev_id.conf
