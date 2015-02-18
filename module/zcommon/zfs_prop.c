@@ -678,13 +678,19 @@ zfs_prop_align_right(zfs_prop_t prop)
 #endif
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-#include <linux/module_compat.h>
+static int __init
+zcommon_init(void)
+{
+	return (0);
+}
 
-static int zcommon_init(void) { return 0; }
-static int zcommon_fini(void) { return 0; }
+static void __exit
+zcommon_fini(void)
+{
+}
 
-spl_module_init(zcommon_init);
-spl_module_exit(zcommon_fini);
+module_init(zcommon_init);
+module_exit(zcommon_fini);
 
 MODULE_DESCRIPTION("Generic ZFS support");
 MODULE_AUTHOR(ZFS_META_AUTHOR);

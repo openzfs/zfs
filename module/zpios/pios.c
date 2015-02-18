@@ -36,7 +36,6 @@
 #include <sys/txg.h>
 #include <sys/dsl_destroy.h>
 #include <linux/miscdevice.h>
-#include <linux/module_compat.h>
 #include "zpios-internal.h"
 
 
@@ -1292,7 +1291,7 @@ static struct miscdevice zpios_misc = {
 #define	ZFS_DEBUG_STR   ""
 #endif
 
-static int
+static int __init
 zpios_init(void)
 {
 	int error;
@@ -1308,7 +1307,7 @@ zpios_init(void)
 	return (error);
 }
 
-static int
+static void __exit
 zpios_fini(void)
 {
 	int error;
@@ -1319,12 +1318,10 @@ zpios_fini(void)
 
 	printk(KERN_INFO "ZPIOS: Unloaded module v%s-%s%s\n",
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
-
-	return (0);
 }
 
-spl_module_init(zpios_init);
-spl_module_exit(zpios_fini);
+module_init(zpios_init);
+module_exit(zpios_fini);
 
 MODULE_AUTHOR("LLNL / Sun");
 MODULE_DESCRIPTION("Kernel PIOS implementation");

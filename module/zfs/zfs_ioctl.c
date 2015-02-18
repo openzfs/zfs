@@ -186,7 +186,6 @@
 #include <sys/zfeature.h>
 
 #include <linux/miscdevice.h>
-#include <linux/module_compat.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
@@ -5954,10 +5953,17 @@ zfs_allow_log_destroy(void *arg)
 #define	ZFS_DEBUG_STR	""
 #endif
 
-int
+static int __init
 _init(void)
 {
 	int error;
+
+	error = vn_set_pwd("/");
+	if (error) {
+		printk(KERN_NOTICE
+		    "ZFS: Warning unable to set pwd to '/': %d\n", error);
+		return (error);
+	}
 
 	spa_init(FREAD | FWRITE);
 	zfs_init();
@@ -5996,7 +6002,7 @@ out1:
 	return (error);
 }
 
-int
+static void __exit
 _fini(void)
 {
 	zfs_detach();
@@ -6010,13 +6016,11 @@ _fini(void)
 
 	printk(KERN_NOTICE "ZFS: Unloaded module v%s-%s%s\n",
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
-
-	return (0);
 }
 
 #ifdef HAVE_SPL
-spl_module_init(_init);
-spl_module_exit(_fini);
+module_init(_init);
+module_exit(_fini);
 
 MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
