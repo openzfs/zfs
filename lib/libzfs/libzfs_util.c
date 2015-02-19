@@ -571,7 +571,7 @@ zfs_nicenum(uint64_t num, char *buf, size_t buflen)
 	int index = 0;
 	char u;
 
-	while (n >= 1024) {
+	while (n >= 1024 && index < 6) {
 		n /= 1024;
 		index++;
 	}
