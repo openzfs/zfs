@@ -272,6 +272,9 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 	uio_t uio;
 	int error;
 
+	if (flags & O_APPEND)
+		*ppos = i_size_read(ip);
+
 	uio.uio_iov = (struct iovec *)iovp;
 	uio.uio_resid = count;
 	uio.uio_iovcnt = nr_segs;
