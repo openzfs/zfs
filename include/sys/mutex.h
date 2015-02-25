@@ -35,81 +35,6 @@ typedef enum {
 	MUTEX_ADAPTIVE	= 2
 } kmutex_type_t;
 
-#if defined(HAVE_MUTEX_OWNER) && defined(CONFIG_SMP) && \
-	!defined(CONFIG_DEBUG_MUTEXES)
-
-typedef struct {
-	struct mutex		m;
-	spinlock_t		m_lock;	/* used for serializing mutex_exit */
-} kmutex_t;
-
-static inline kthread_t *
-mutex_owner(kmutex_t *mp)
-{
-#if defined(HAVE_MUTEX_OWNER_TASK_STRUCT)
-	return (ACCESS_ONCE(mp->m.owner));
-#else
-	struct thread_info *owner = ACCESS_ONCE(mp->m.owner);
-	if (owner)
-		return (owner->task);
-
-	return (NULL);
-#endif
-}
-
-#define	mutex_owned(mp)		(mutex_owner(mp) == current)
-#define	MUTEX_HELD(mp)		mutex_owned(mp)
-#define	MUTEX_NOT_HELD(mp)	(!MUTEX_HELD(mp))
-#undef mutex_init
-#define	mutex_init(mp, name, type, ibc)				\
-{								\
-	static struct lock_class_key __key;			\
-	ASSERT(type == MUTEX_DEFAULT);				\
-								\
-	__mutex_init(&(mp)->m, #mp, &__key);			\
-	spin_lock_init(&(mp)->m_lock);				\
-}
-
-#undef mutex_destroy
-#define	mutex_destroy(mp)					\
-{								\
-	VERIFY3P(mutex_owner(mp), ==, NULL);			\
-}
-
-#define	mutex_tryenter(mp)	mutex_trylock(&(mp)->m)
-#define	mutex_enter(mp)						\
-{								\
-	ASSERT3P(mutex_owner(mp), !=, current);			\
-	mutex_lock(&(mp)->m);					\
-}
-/*
- * The reason for the spinlock:
- *
- * The Linux mutex is designed with a fast-path/slow-path design such that it
- * does not guarantee serialization upon itself, allowing a race where latter
- * acquirers finish mutex_unlock before former ones.
- *
- * The race renders it unsafe to be used for serializing the freeing of an
- * object in which the mutex is embedded, where the latter acquirer could go
- * on to free the object while the former one is still doing mutex_unlock and
- * causing memory corruption.
- *
- * However, there are many places in ZFS where the mutex is used for
- * serializing object freeing, and the code is shared among other OSes without
- * this issue. Thus, we need the spinlock to force the serialization on
- * mutex_exit().
- *
- * See http://lwn.net/Articles/575477/ for the information about the race.
- */
-#define	mutex_exit(mp)						\
-{								\
-	spin_lock(&(mp)->m_lock);				\
-	mutex_unlock(&(mp)->m);					\
-	spin_unlock(&(mp)->m_lock);				\
-}
-
-#else /* HAVE_MUTEX_OWNER */
-
 typedef struct {
 	struct mutex		m_mutex;
 	spinlock_t		m_lock;	/* used for serializing mutex_exit */
@@ -175,6 +100,25 @@ spl_mutex_clear_owner(kmutex_t *mp)
 	spl_mutex_set_owner(mp);				\
 }
 
+/*
+ * The reason for the spinlock:
+ *
+ * The Linux mutex is designed with a fast-path/slow-path design such that it
+ * does not guarantee serialization upon itself, allowing a race where latter
+ * acquirers finish mutex_unlock before former ones.
+ *
+ * The race renders it unsafe to be used for serializing the freeing of an
+ * object in which the mutex is embedded, where the latter acquirer could go
+ * on to free the object while the former one is still doing mutex_unlock and
+ * causing memory corruption.
+ *
+ * However, there are many places in ZFS where the mutex is used for
+ * serializing object freeing, and the code is shared among other OSes without
+ * this issue. Thus, we need the spinlock to force the serialization on
+ * mutex_exit().
+ *
+ * See http://lwn.net/Articles/575477/ for the information about the race.
+ */
 #define	mutex_exit(mp)						\
 {								\
 	spin_lock(&(mp)->m_lock);				\
@@ -182,8 +126,6 @@ spl_mutex_clear_owner(kmutex_t *mp)
 	mutex_unlock(MUTEX(mp));				\
 	spin_unlock(&(mp)->m_lock);				\
 }
-
-#endif /* HAVE_MUTEX_OWNER */
 
 int spl_mutex_init(void);
 void spl_mutex_fini(void);

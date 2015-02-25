@@ -25,8 +25,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_SHRINKER_CALLBACK
 	SPL_AC_CTL_NAME
 	SPL_AC_PDE_DATA
-	SPL_AC_MUTEX_OWNER
-	SPL_AC_MUTEX_OWNER_TASK_STRUCT
 	SPL_AC_SET_FS_PWD_WITH_CONST
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
@@ -863,54 +861,6 @@ AC_DEFUN([SPL_AC_CTL_NAME], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-])
-
-dnl #
-dnl # 2.6.29 API change,
-dnl # Adaptive mutexs were introduced which track the mutex owner.  The
-dnl # mutex wrappers leverage this functionality to avoid tracking the
-dnl # owner multipe times.
-dnl #
-AC_DEFUN([SPL_AC_MUTEX_OWNER], [
-	AC_MSG_CHECKING([whether struct mutex has owner])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mutex.h>
-	],[
-		struct mutex mtx __attribute__ ((unused));
-		mtx.owner = NULL;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_MUTEX_OWNER, 1, [struct mutex has owner])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.39 API change,
-dnl # Owner type change.  A Linux mutex prior to 2.6.39 would store
-dnl # the owner as a thread_info pointer when CONFIG_DEBUG_MUTEXES
-dnl # was defined.  As of 2.6.39 this was changed to a task_struct
-dnl # pointer which frankly makes a lot more sense.
-dnl #
-AC_DEFUN([SPL_AC_MUTEX_OWNER_TASK_STRUCT], [
-	AC_MSG_CHECKING([whether struct mutex owner is a task_struct])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mutex.h>
-		#include <linux/sched.h>
-	],[
-		struct mutex mtx __attribute__ ((unused));
-		mtx.owner = current;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_MUTEX_OWNER_TASK_STRUCT, 1,
-		[struct mutex owner is a task_struct])
-	],[
-		AC_MSG_RESULT(no)
-	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
 dnl #
