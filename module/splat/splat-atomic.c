@@ -145,7 +145,7 @@ splat_atomic_test1(struct file *file, void *arg)
 
 	ap.ap_magic = SPLAT_ATOMIC_TEST_MAGIC;
 	ap.ap_file = file;
-	mutex_init(&ap.ap_lock, SPLAT_ATOMIC_TEST1_NAME, NULL, NULL);
+	mutex_init(&ap.ap_lock, SPLAT_ATOMIC_TEST1_NAME, MUTEX_DEFAULT, NULL);
 	init_waitqueue_head(&ap.ap_waitq);
 	ap.ap_atomic = SPLAT_ATOMIC_INIT_VALUE;
 	ap.ap_atomic_exited = 0;
