@@ -236,6 +236,7 @@ struct spa {
 	uint64_t	spa_feat_for_read_obj;	/* required to read from pool */
 	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
 	uint64_t	spa_feat_enabled_txg_obj; /* Feature enabled txg */
+	nvlist_t	*spa_feat_stats;	/* Cache of enabled features */
 	/* cache feature refcounts */
 	uint64_t	spa_feat_refcount_cache[SPA_FEATURES];
 	taskqid_t	spa_deadman_tqid;	/* Task id */
