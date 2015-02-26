@@ -228,7 +228,7 @@ spa_features_check(spa_t *spa, boolean_t for_write,
  *
  * Note: well-designed features will not need to use this; they should
  * use spa_feature_is_enabled() and spa_feature_is_active() instead.
- * However, this is non-static for zdb and zhack.
+ * However, this is non-static for zdb, zhack, and spa_add_feature_stats().
  */
 int
 feature_get_refcount(spa_t *spa, zfeature_info_t *feature, uint64_t *res)

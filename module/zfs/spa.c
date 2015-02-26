@@ -3202,14 +3202,10 @@ spa_add_l2cache(spa_t *spa, nvlist_t *config)
 }
 
 static void
-spa_add_feature_stats(spa_t *spa, nvlist_t *config)
+spa_feature_stats_from_disk(spa_t *spa, nvlist_t *features)
 {
-	nvlist_t *features;
 	zap_cursor_t zc;
 	zap_attribute_t za;
-
-	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
-	VERIFY(nvlist_alloc(&features, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 	if (spa->spa_feat_for_read_obj != 0) {
 		for (zap_cursor_init(&zc, spa->spa_meta_objset,
@@ -3218,7 +3214,7 @@ spa_add_feature_stats(spa_t *spa, nvlist_t *config)
 		    zap_cursor_advance(&zc)) {
 			ASSERT(za.za_integer_length == sizeof (uint64_t) &&
 			    za.za_num_integers == 1);
-			VERIFY3U(0, ==, nvlist_add_uint64(features, za.za_name,
+			VERIFY0(nvlist_add_uint64(features, za.za_name,
 			    za.za_first_integer));
 		}
 		zap_cursor_fini(&zc);
@@ -3231,15 +3227,57 @@ spa_add_feature_stats(spa_t *spa, nvlist_t *config)
 		    zap_cursor_advance(&zc)) {
 			ASSERT(za.za_integer_length == sizeof (uint64_t) &&
 			    za.za_num_integers == 1);
-			VERIFY3U(0, ==, nvlist_add_uint64(features, za.za_name,
+			VERIFY0(nvlist_add_uint64(features, za.za_name,
 			    za.za_first_integer));
 		}
 		zap_cursor_fini(&zc);
 	}
+}
 
-	VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_FEATURE_STATS,
-	    features) == 0);
-	nvlist_free(features);
+static void
+spa_feature_stats_from_cache(spa_t *spa, nvlist_t *features)
+{
+	int i;
+
+	for (i = 0; i < SPA_FEATURES; i++) {
+		zfeature_info_t feature = spa_feature_table[i];
+		uint64_t refcount;
+
+		if (feature_get_refcount(spa, &feature, &refcount) != 0)
+			continue;
+
+		VERIFY0(nvlist_add_uint64(features, feature.fi_guid, refcount));
+	}
+}
+
+/*
+ * Store a list of pool features and their reference counts in the
+ * config.
+ *
+ * The first time this is called on a spa, allocate a new nvlist, fetch
+ * the pool features and reference counts from disk, then save the list
+ * in the spa. In subsequent calls on the same spa use the saved nvlist
+ * and refresh its values from the cached reference counts.  This
+ * ensures we don't block here on I/O on a suspended pool so 'zpool
+ * clear' can resume the pool.
+ */
+static void
+spa_add_feature_stats(spa_t *spa, nvlist_t *config)
+{
+	nvlist_t *features = spa->spa_feat_stats;
+
+	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
+
+	if (features != NULL) {
+		spa_feature_stats_from_cache(spa, features);
+	} else {
+		VERIFY0(nvlist_alloc(&features, NV_UNIQUE_NAME, KM_SLEEP));
+		spa->spa_feat_stats = features;
+		spa_feature_stats_from_disk(spa, features);
+	}
+
+	VERIFY0(nvlist_add_nvlist(config, ZPOOL_CONFIG_FEATURE_STATS,
+	    features));
 }
 
 int

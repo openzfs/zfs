@@ -643,6 +643,7 @@ spa_remove(spa_t *spa)
 
 	nvlist_free(spa->spa_label_features);
 	nvlist_free(spa->spa_load_info);
+	nvlist_free(spa->spa_feat_stats);
 	spa_config_set(spa, NULL);
 
 	refcount_destroy(&spa->spa_refcount);
