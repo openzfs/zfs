@@ -5498,6 +5498,33 @@ zfs_stable_ioc_promote(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
 	return (error)
 }
 
+static int
+zfs_stable_ioc_set_props(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
+    nvlist_t *opts, uint64_t version)
+{
+	zprop_source_t source;
+	boolean_t received;
+	int error;
+
+	received = nvlist_exists(opts, "received");
+	source = (received ? ZPROP_SRC_RECEIVED : ZPROP_SRC_LOCAL);
+	if (received) {
+		nvlist_t *origprops;
+
+		if (dsl_prop_get_received(fsname, &origprops) == 0) {
+			(void) clear_received_props(fsname, origprops, innvl);
+			nvlist_free(origprops);
+		}
+
+		error = dsl_prop_set_hasrecvd(fsname);
+	}
+
+	if (error == 0)
+		error = zfs_set_prop_nvlist(fsname, source, innvl, outnvl);
+
+	return (error);
+}
+
 int
 pool_status_check(const char *name, zfs_ioc_namecheck_t type,
     zfs_ioc_poolcheck_t check);
@@ -5603,6 +5630,14 @@ static const zfs_stable_ioc_vec_t zfs_stable_ioc_vec[] = {
 	.zvec_namecheck		= DATASET_NAME,
 	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
 	.zvec_smush_outnvlist	= B_FALSE,
+	.zvec_allow_log		= B_TRUE,
+},
+{	.zvec_name		= "zfs_set_props",
+	.zvec_func		= zfs_stable_ioc_set_props,
+	.zvec_secpolicy		= zfs_secpolicy_config,
+	.zvec_namecheck		= DATASET_NAME,
+	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
+	.zvec_smush_outnvlist	= B_TRUE,
 	.zvec_allow_log		= B_TRUE,
 },
 {	.zvec_name		= "zfs_destroy_snaps",
