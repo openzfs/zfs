@@ -220,6 +220,15 @@ lzc_clone(const char *fsname, const char *origin,
 	return (error);
 }
 
+int
+lzc_promote(const char *fsname)
+{
+	int error;
+
+	error = lzc_ioctl("zfs_promote", fsname, NULL, NULL, NULL, 0);
+	return (error);
+}
+
 /*
  * Creates snapshots.
  *

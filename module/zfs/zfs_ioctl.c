@@ -5402,6 +5402,52 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	return (error);
 }
 
+static int
+zfs_stable_ioc_promote(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
+    nvlist_t *opts, uint64_t version)
+{
+	char parentname[MAXNAMELEN];
+	char conflsnap[MAXNAMELEN];
+	dsl_dataset_t *clone;
+	dsl_dataset_t *origin = NULL;
+	dsl_dir_t *dd;
+	char *cp;
+
+	error = dsl_pool_hold(fsname, FTAG, &dp);
+	if (error != 0)
+		return (error);
+
+	error = dsl_dataset_hold(dp, fsname, FTAG, &clone);
+	if (error == 0) {
+		dd = clone->ds_dir;
+		error = dsl_dataset_hold_obj(dd->dd_pool,
+		    dd->dd_phys->dd_origin_obj, FTAG, &origin);
+		if (error != 0) {
+			dsl_dataset_rele(clone, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			return (error);
+		}
+
+		dsl_dataset_name(origin, parentname);
+		dsl_dataset_rele(origin, FTAG);
+		dsl_dataset_rele(clone, FTAG);
+	}
+	dsl_pool_rele(dp, FTAG);
+
+	/*
+	 * We don't need to unmount *all* the origin fs's snapshots, but
+	 * it's easier.
+	 */
+	(void) dmu_objset_find(parentname,
+	    zfs_unmount_snap_cb, NULL, DS_FIND_SNAPSHOTS);
+
+	error = dsl_dataset_promote(fsname, conflsnap);
+	if (error != 0)
+		fnvlist_add_string(outnvl, "conflsnap", conflsnap);
+
+	return (error)
+}
+
 int
 pool_status_check(const char *name, zfs_ioc_namecheck_t type,
     zfs_ioc_poolcheck_t check);
@@ -5491,6 +5537,14 @@ static const zfs_stable_ioc_vec_t zfs_stable_ioc_vec[] = {
 	.zvec_namecheck		= DATASET_NAME,
 	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
 	.zvec_smush_outnvlist	= B_TRUE,
+	.zvec_allow_log		= B_TRUE,
+},
+{	.zvec_name		= "zfs_promote",
+	.zvec_func		= zfs_stable_ioc_promote,
+	.zvec_secpolicy		= zfs_secpolicy_promote,
+	.zvec_namecheck		= DATASET_NAME,
+	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
+	.zvec_smush_outnvlist	= B_FALSE,
 	.zvec_allow_log		= B_TRUE,
 },
 {	.zvec_name		= "zfs_destroy_snaps",
