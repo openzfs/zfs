@@ -554,6 +554,27 @@ lzc_send_space(const char *snapname, const char *fromsnap, uint64_t *spacep)
 	return (err);
 }
 
+/*
+ * Query number of bytes written in a given send stream
+ * for a given snapshot thus far.
+ */
+int
+lzc_send_progress(const char *snapname, int fd, uint64_t *bytesp)
+{
+	nvlist_t *args;
+	nvlist_t *result;
+	int err;
+
+	args = fnvlist_alloc();
+	fnvlist_add_int32(args, "fd", fd);
+	err = lzc_ioctl("zfs_send_progress", snapname, args, NULL, &result, 0);
+	nvlist_free(args);
+	if (err == 0)
+		*bytesp = fnvlist_lookup_uint64(result, "offset");
+	nvlist_free(result);
+	return (err);
+}
+
 static int
 recv_read(int fd, void *buf, int ilen)
 {

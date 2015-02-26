@@ -5403,6 +5403,56 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 static int
+zfs_stable_ioc_send_progress(const char *snapname, nvlist_t *innvl,
+     nvlist_t *outnvl, nvlist_t *opts, uint64_t version)
+{
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds;
+	dmu_sendarg_t *dsp = NULL;
+	int error;
+	int fd;
+
+	error = nvlist_lookup_int32(innvl, "fd", &fd);
+	if (error != 0)
+		return (SET_ERROR(EINVAL));
+
+	error = dsl_pool_hold(snapname, FTAG, &dp);
+	if (error != 0)
+		return (error);
+
+	error = dsl_dataset_hold(dp, snapname, FTAG, &ds);
+	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+	mutex_enter(&ds->ds_sendstream_lock);
+
+	/*
+	 * Iterate over all the send streams currently active on this dataset.
+	 * If there's one which matches the specified file descriptor _and_ the
+	 * stream was started by the current process, return the progress of
+	 * that stream.
+	 */
+	for (dsp = list_head(&ds->ds_sendstreams); dsp != NULL;
+	    dsp = list_next(&ds->ds_sendstreams, dsp)) {
+		if (dsp->dsa_outfd == fd &&
+		    dsp->dsa_proc->group_leader == curproc->group_leader)
+			break;
+	}
+
+	if (dsp != NULL)
+		fnvlist_add_uint64(outnvl, "offset", *(dsp->dsa_off));
+	else
+		error = SET_ERROR(ENOENT);
+
+	mutex_exit(&ds->ds_sendstream_lock);
+	dsl_dataset_rele(ds, FTAG);
+	dsl_pool_rele(dp, FTAG);
+	return (error);
+}
+
+static int
 zfs_stable_ioc_promote(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
     nvlist_t *opts, uint64_t version)
 {
@@ -5517,6 +5567,14 @@ static const zfs_stable_ioc_vec_t zfs_stable_ioc_vec[] = {
 },
 {	.zvec_name		= "zfs_send_space",
 	.zvec_func		= zfs_stable_ioc_zfs_send_space,
+	.zvec_secpolicy		= zfs_secpolicy_read,
+	.zvec_namecheck		= DATASET_NAME,
+	.zvec_pool_check	= POOL_CHECK_SUSPENDED,
+	.zvec_smush_outnvlist	= B_FALSE,
+	.zvec_allow_log		= B_FALSE,
+},
+{	.zvec_name		= "zfs_send_progress",
+	.zvec_func		= zfs_stable_ioc_send_progress,
 	.zvec_secpolicy		= zfs_secpolicy_read,
 	.zvec_namecheck		= DATASET_NAME,
 	.zvec_pool_check	= POOL_CHECK_SUSPENDED,
