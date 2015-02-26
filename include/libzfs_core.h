@@ -57,6 +57,7 @@ enum lzc_send_flags {
 };
 
 int lzc_send(const char *, const char *, int, enum lzc_send_flags);
+int lzc_send_ext(const char *, const char *, int, nvlist_t *);
 int lzc_receive(const char *, nvlist_t *, const char *, boolean_t, int);
 int lzc_send_space(const char *, const char *, uint64_t *);
 

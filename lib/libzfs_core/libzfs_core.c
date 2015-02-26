@@ -503,6 +503,28 @@ lzc_send(const char *snapname, const char *from, int fd,
 }
 
 /*
+ * Like lzc_send() but the additional flags and options are passed via an
+ * nvlist_t parameter.
+ */
+int
+lzc_send_ext(const char *snapname, const char *from, int fd, nvlist_t *params)
+{
+	nvlist_t *args;
+	int err;
+
+	args = fnvlist_alloc();
+	if (params != NULL)
+		fnvlist_merge(args, params);
+	fnvlist_add_int32(args, "fd", fd);
+	nvlist_remove_all(args, "fromsnap");
+	if (from != NULL)
+		fnvlist_add_string(args, "fromsnap", from);
+	err = lzc_ioctl("zfs_send", snapname, args, NULL, NULL, 0);
+	nvlist_free(args);
+	return (err);
+}
+
+/*
  * If fromsnap is NULL, a full (non-incremental) stream will be estimated.
  */
 int

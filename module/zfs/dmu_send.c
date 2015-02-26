@@ -730,14 +730,14 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
-    int outfd, vnode_t *vp, offset_t *off)
+    boolean_t fromorigin, int outfd, vnode_t *vp, offset_t *off)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
 	boolean_t owned = B_FALSE;
 
-	if (fromsnap != NULL && strpbrk(fromsnap, "@#") == NULL)
+	if ((fromsnap != NULL || fromorigin) && strpbrk(fromsnap, "@#") == NULL)
 		return (SET_ERROR(EINVAL));
 
 	err = dsl_pool_hold(tosnap, FTAG, &dp);
@@ -759,7 +759,32 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 		return (err);
 	}
 
-	if (fromsnap != NULL) {
+	if (fromorigin) {
+		zfs_bookmark_phys_t zb;
+		dsl_dataset_t *fromds;
+		uint64_t fromobj;
+
+		if (!dsl_dir_is_clone(tosnap->ds_dir)) {
+			dsl_dataset_rele(ds, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			return (SET_ERROR(EINVAL));
+		}
+		fromobj = ds->ds_dir->dd_phys->dd_origin_obj;
+		err = dsl_dataset_hold_obj(dp, fromobj, FTAG, &fromds);
+		if (err =! 0) {
+			dsl_dataset_rele(ds, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			return (err);
+		}
+		zb.zbm_creation_time =
+		    fromds->ds_phys->ds_creation_time;
+		zb.zbm_creation_txg =
+		    fromds->ds_phys->ds_creation_txg;
+		zb.zbm_guid = fromds->ds_phys->ds_guid;
+		dsl_dataset_rele(fromds, FTAG);
+		err = dmu_send_impl(FTAG, dp, ds, &zb, B_TRUE, embedok,
+		    outfd, vp, off);
+	} else if (fromsnap != NULL) {
 		zfs_bookmark_phys_t zb;
 		boolean_t is_clone = B_FALSE;
 		int fsnamelen = strchr(tosnap, '@') - tosnap;

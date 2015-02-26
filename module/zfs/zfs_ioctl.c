@@ -5322,6 +5322,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	int fd;
 	file_t *fp;
 	boolean_t embedok;
+	boolean_t fromorigin;
 
 	error = nvlist_lookup_int32(innvl, "fd", &fd);
 	if (error != 0)
@@ -5330,12 +5331,17 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	(void) nvlist_lookup_string(innvl, "fromsnap", &fromname);
 
 	embedok = nvlist_exists(innvl, "embedok");
+	fromorigin = nvlist_exists(innvl, "fromorigin");
+
+	if (fromname != NULL && fromorigin)
+		return (SET_ERROR(EINVAL));
 
 	if ((fp = getf(fd)) == NULL)
 		return (SET_ERROR(EBADF));
 
 	off = fp->f_offset;
-	error = dmu_send(snapname, fromname, embedok, fd, fp->f_vnode, &off);
+	error = dmu_send(snapname, fromname, embedok, fromorigin,
+	    fd, fp->f_vnode, &off);
 
 	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 		fp->f_offset = off;
