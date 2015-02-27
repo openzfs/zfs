@@ -5,9 +5,9 @@
 
 # Variable Defaults
 #
-: "${ZED_EMAIL_INTERVAL_SECS:=3600}"
-: "${ZED_EMAIL_VERBOSE:=0}"
 : "${ZED_LOCKDIR:="/var/lock"}"
+: "${ZED_NOTIFY_INTERVAL_SECS:=3600}"
+: "${ZED_NOTIFY_VERBOSE:=0}"
 : "${ZED_RUNDIR:="/var/run"}"
 : "${ZED_SYSLOG_PRIORITY:="daemon.notice"}"
 : "${ZED_SYSLOG_TAG:="zed"}"
@@ -171,6 +171,78 @@ zed_unlock()
 }
 
 
+# zed_notify (subject, pathname)
+#
+# Send a notification via all available methods.
+#
+# Arguments
+#   subject: notification subject
+#   pathname: pathname containing the notification message (OPTIONAL)
+#
+# Return
+#   0: notification succeeded via at least one method
+#   1: notification failed
+#   2: no notification methods configured
+#
+zed_notify()
+{
+    local subject="$1"
+    local pathname="$2"
+    local num_success=0
+    local num_failure=0
+
+    zed_notify_email "${subject}" "${pathname}"; rv=$?
+    [ "${rv}" -eq 0 ] && num_success=$((num_success + 1))
+    [ "${rv}" -eq 1 ] && num_failure=$((num_failure + 1))
+
+    [ "${num_success}" -gt 0 ] && return 0
+    [ "${num_failure}" -gt 0 ] && return 1
+    return 2
+}
+
+
+# zed_notify_email (subject, pathname)
+#
+# Send a notification via email to the address specified by ZED_EMAIL.
+#
+# Requires the mail executable to be installed in the standard PATH.
+#
+# Arguments
+#   subject: notification subject
+#   pathname: pathname containing the notification message (OPTIONAL)
+#
+# Globals
+#   ZED_EMAIL
+#
+# Return
+#   0: notification sent
+#   1: notification failed
+#   2: not configured
+#
+zed_notify_email()
+{
+    local subject="$1"
+    local pathname="${2:-"/dev/null"}"
+
+    [ -n "${ZED_EMAIL}" ] || return 2
+
+    [ -n "${subject}" ] || return 1
+    if [ ! -r "${pathname}" ]; then
+        zed_log_err "mail cannot read \"${pathname}\""
+        return 1
+    fi
+
+    zed_check_cmd "mail" || return 1
+
+    mail -s "${subject}" "${ZED_EMAIL}" < "${pathname}" >/dev/null 2>&1; rv=$?
+    if [ "${rv}" -ne 0 ]; then
+        zed_log_err "mail exit=${rv}"
+        return 1
+    fi
+    return 0
+}
+
+
 # zed_rate_limit (tag, [interval])
 #
 # Check whether an event of a given type [tag] has already occurred within the
@@ -183,7 +255,7 @@ zed_unlock()
 #   interval: time interval in seconds (OPTIONAL)
 #
 # Globals
-#   ZED_EMAIL_INTERVAL_SECS
+#   ZED_NOTIFY_INTERVAL_SECS
 #   ZED_RUNDIR
 #
 # Return
@@ -196,7 +268,7 @@ zed_unlock()
 zed_rate_limit()
 {
     local tag="$1"
-    local interval="${2:-${ZED_EMAIL_INTERVAL_SECS}}"
+    local interval="${2:-${ZED_NOTIFY_INTERVAL_SECS}}"
     local lockfile="zed.zedlet.state.lock"
     local lockfile_fd=9
     local statefile="${ZED_RUNDIR}/zed.zedlet.state"
