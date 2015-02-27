@@ -4262,30 +4262,30 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 	mutex_enter(&spa_namespace_lock);
 	spa_close(spa, FTAG);
 
+	if (spa->spa_state == POOL_STATE_UNINITIALIZED)
+		goto export_spa;
 	/*
-	 * The pool will be in core if it's openable,
-	 * in which case we can modify its state.
+	 * The pool will be in core if it's openable, in which case we can
+	 * modify its state.  Objsets may be open only because they're dirty,
+	 * so we have to force it to sync before checking spa_refcnt.
 	 */
-	if (spa->spa_state != POOL_STATE_UNINITIALIZED && spa->spa_sync_on) {
-		/*
-		 * Objsets may be open only because they're dirty, so we
-		 * have to force it to sync before checking spa_refcnt.
-		 */
+	if (spa->spa_sync_on)
 		txg_wait_synced(spa->spa_dsl_pool, 0);
 
-		/*
-		 * A pool cannot be exported or destroyed if there are active
-		 * references.  If we are resetting a pool, allow references by
-		 * fault injection handlers.
-		 */
-		if (!spa_refcount_zero(spa) ||
-		    (spa->spa_inject_ref != 0 &&
-		    new_state != POOL_STATE_UNINITIALIZED)) {
-			spa_async_resume(spa);
-			mutex_exit(&spa_namespace_lock);
-			return (SET_ERROR(EBUSY));
-		}
+	/*
+	 * A pool cannot be exported or destroyed if there are active
+	 * references.  If we are resetting a pool, allow references by
+	 * fault injection handlers.
+	 */
+	if (!spa_refcount_zero(spa) ||
+	    (spa->spa_inject_ref != 0 &&
+	    new_state != POOL_STATE_UNINITIALIZED)) {
+		spa_async_resume(spa);
+		mutex_exit(&spa_namespace_lock);
+		return (SET_ERROR(EBUSY));
+	}
 
+	if (spa->spa_sync_on) {
 		/*
 		 * A pool cannot be exported if it has an active shared spare.
 		 * This is to prevent other pools stealing the active spare
@@ -4314,6 +4314,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		}
 	}
 
+export_spa:
 	spa_event_notify(spa, NULL, FM_EREPORT_ZFS_POOL_DESTROY);
 
 	if (spa->spa_state != POOL_STATE_UNINITIALIZED) {
