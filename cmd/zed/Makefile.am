@@ -43,24 +43,24 @@ zedexecdir = $(libexecdir)/zfs/zed.d
 dist_zedexec_SCRIPTS = \
 	$(top_srcdir)/cmd/zed/zed.d/all-debug.sh \
 	$(top_srcdir)/cmd/zed/zed.d/all-syslog.sh \
-	$(top_srcdir)/cmd/zed/zed.d/checksum-email.sh \
+	$(top_srcdir)/cmd/zed/zed.d/checksum-notify.sh \
 	$(top_srcdir)/cmd/zed/zed.d/checksum-spare.sh \
-	$(top_srcdir)/cmd/zed/zed.d/data-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/generic-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/io-email.sh \
+	$(top_srcdir)/cmd/zed/zed.d/data-notify.sh \
+	$(top_srcdir)/cmd/zed/zed.d/generic-notify.sh \
+	$(top_srcdir)/cmd/zed/zed.d/io-notify.sh \
 	$(top_srcdir)/cmd/zed/zed.d/io-spare.sh \
-	$(top_srcdir)/cmd/zed/zed.d/resilver.finish-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/scrub.finish-email.sh
+	$(top_srcdir)/cmd/zed/zed.d/resilver.finish-notify.sh \
+	$(top_srcdir)/cmd/zed/zed.d/scrub.finish-notify.sh
 
 zedconfdefaults = \
 	all-syslog.sh \
-	checksum-email.sh \
+	checksum-notify.sh \
 	checksum-spare.sh \
-	data-email.sh \
-	io-email.sh \
+	data-notify.sh \
+	io-notify.sh \
 	io-spare.sh \
-	resilver.finish-email.sh \
-	scrub.finish-email.sh
+	resilver.finish-notify.sh \
+	scrub.finish-notify.sh
 
 install-data-local:
 	$(MKDIR_P) "$(DESTDIR)$(zedconfdir)"
