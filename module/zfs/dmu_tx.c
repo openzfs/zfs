@@ -925,7 +925,8 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 				match_object = TRUE;
 				break;
 			default:
-				ASSERT(!"bad txh_type");
+				cmn_err(CE_PANIC, "bad txh_type %d",
+				    txh->txh_type);
 			}
 		}
 		if (match_object && match_offset) {

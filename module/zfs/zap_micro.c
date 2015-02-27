@@ -965,7 +965,7 @@ again:
 		start = 0;
 		goto again;
 	}
-	ASSERT(!"out of entries!");
+	cmn_err(CE_PANIC, "out of entries!");
 }
 
 int

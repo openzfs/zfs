@@ -79,8 +79,9 @@ stv(int len, void *addr, uint64_t value)
 	case 8:
 		*(uint64_t *)addr = value;
 		return;
+	default:
+		cmn_err(CE_PANIC, "bad int len %d", len);
 	}
-	ASSERT(!"bad int len");
 }
 
 static uint64_t
@@ -95,8 +96,9 @@ ldv(int len, const void *addr)
 		return (*(uint32_t *)addr);
 	case 8:
 		return (*(uint64_t *)addr);
+	default:
+		cmn_err(CE_PANIC, "bad int len %d", len);
 	}
-	ASSERT(!"bad int len");
 	return (0xFEEDFACEDEADBEEFULL);
 }
 
@@ -147,7 +149,8 @@ zap_leaf_byteswap(zap_leaf_phys_t *buf, int size)
 			/* la_array doesn't need swapping */
 			break;
 		default:
-			ASSERT(!"bad leaf type");
+			cmn_err(CE_PANIC, "bad leaf type %d",
+			    lc->l_free.lf_type);
 		}
 	}
 }

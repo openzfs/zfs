@@ -2944,7 +2944,7 @@ arc_access(arc_buf_hdr_t *buf, kmutex_t *hash_lock)
 		DTRACE_PROBE1(new_state__mfu, arc_buf_hdr_t *, buf);
 		arc_change_state(arc_mfu, buf, hash_lock);
 	} else {
-		ASSERT(!"invalid arc state");
+		cmn_err(CE_PANIC, "invalid arc state 0x%p", buf->b_state);
 	}
 }
 
