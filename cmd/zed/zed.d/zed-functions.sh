@@ -195,6 +195,10 @@ zed_notify()
     [ "${rv}" -eq 0 ] && num_success=$((num_success + 1))
     [ "${rv}" -eq 1 ] && num_failure=$((num_failure + 1))
 
+    zed_notify_pushbullet "${subject}" "${pathname}"; rv=$?
+    [ "${rv}" -eq 0 ] && num_success=$((num_success + 1))
+    [ "${rv}" -eq 1 ] && num_failure=$((num_failure + 1))
+
     [ "${num_success}" -gt 0 ] && return 0
     [ "${num_failure}" -gt 0 ] && return 1
     return 2
@@ -237,6 +241,92 @@ zed_notify_email()
     mail -s "${subject}" "${ZED_EMAIL}" < "${pathname}" >/dev/null 2>&1; rv=$?
     if [ "${rv}" -ne 0 ]; then
         zed_log_err "mail exit=${rv}"
+        return 1
+    fi
+    return 0
+}
+
+
+# zed_notify_pushbullet (subject, pathname)
+#
+# Send a notification via Pushbullet <https://www.pushbullet.com/>.
+# The access token (ZED_PUSHBULLET_ACCESS_TOKEN) identifies this client to the
+# Pushbullet server.  The optional channel tag (ZED_PUSHBULLET_CHANNEL_TAG) is
+# for pushing to notification feeds that can be subscribed to; if a channel is
+# not defined, push notifications will instead be sent to all devices
+# associated with the account specified by the access token.
+#
+# Requires awk, curl, and sed executables to be installed in the standard PATH.
+#
+# References
+#   https://docs.pushbullet.com/
+#   https://www.pushbullet.com/security
+#
+# Arguments
+#   subject: notification subject
+#   pathname: pathname containing the notification message (OPTIONAL)
+#
+# Globals
+#   ZED_PUSHBULLET_ACCESS_TOKEN
+#   ZED_PUSHBULLET_CHANNEL_TAG
+#
+# Return
+#   0: notification sent
+#   1: notification failed
+#   2: not configured
+#
+zed_notify_pushbullet()
+{
+    local subject="$1"
+    local pathname="${2:-"/dev/null"}"
+    local msg_body
+    local msg_tag
+    local msg_json
+    local msg_out
+    local msg_err
+    local url="https://api.pushbullet.com/v2/pushes"
+
+    [ -n "${ZED_PUSHBULLET_ACCESS_TOKEN}" ] || return 2
+
+    [ -n "${subject}" ] || return 1
+    if [ ! -r "${pathname}" ]; then
+        zed_log_err "pushbullet cannot read \"${pathname}\""
+        return 1
+    fi
+
+    zed_check_cmd "awk" "curl" "sed" || return 1
+
+    # Escape the following characters in the message body for JSON:
+    # newline, backslash, double quote, horizontal tab, vertical tab,
+    # and carriage return.
+    #
+    msg_body="$(awk '{ ORS="\\n" } { gsub(/\\/, "\\\\"); gsub(/"/, "\\\"");
+        gsub(/\t/, "\\t"); gsub(/\f/, "\\f"); gsub(/\r/, "\\r"); print }' \
+        "${pathname}")"
+
+    # Push to a channel if one is configured.
+    #
+    [ -n "${ZED_PUSHBULLET_CHANNEL_TAG}" ] && msg_tag="$(printf \
+        '"channel_tag": "%s", ' "${ZED_PUSHBULLET_CHANNEL_TAG}")"
+
+    # Construct the JSON message for pushing a note.
+    #
+    msg_json="$(printf '{%s"type": "note", "title": "%s", "body": "%s"}' \
+        "${msg_tag}" "${subject}" "${msg_body}")"
+
+    # Send the POST request and check for errors.
+    #
+    msg_out="$(curl -u "${ZED_PUSHBULLET_ACCESS_TOKEN}:" -X POST "${url}" \
+        --header "Content-Type: application/json" --data-binary "${msg_json}" \
+        2>/dev/null)"; rv=$?
+    if [ "${rv}" -ne 0 ]; then
+        zed_log_err "curl exit=${rv}"
+        return 1
+    fi
+    msg_err="$(echo "${msg_out}" \
+        | sed -n -e 's/.*"error" *:.*"message" *: *"\([^"]*\)".*/\1/p')"
+    if [ -n "${msg_err}" ]; then
+        zed_log_err "pushbullet \"${msg_err}"\"
         return 1
     fi
     return 0

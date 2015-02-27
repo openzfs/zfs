@@ -1,5 +1,7 @@
 ##
 # zed.rc
+#
+# This file should be owned by root and permissioned 0600.
 ##
 
 ##
@@ -30,6 +32,24 @@
 #   If set to 1, send notification regardless of pool health.
 #
 #ZED_NOTIFY_VERBOSE=0
+
+##
+# Pushbullet access token.
+# This grants full access to your account -- protect it accordingly!
+#   <https://www.pushbullet.com/get-started>
+#   <https://www.pushbullet.com/account>
+# Disabled by default; uncomment to enable.
+#
+#ZED_PUSHBULLET_ACCESS_TOKEN=""
+
+##
+# Pushbullet channel tag for push notification feeds that can be subscribed to.
+#   <https://www.pushbullet.com/my-channel>
+# If not defined, push notifications will instead be sent to all devices
+#   associated with the account specified by the access token.
+# Disabled by default; uncomment to enable.
+#
+#ZED_PUSHBULLET_CHANNEL_TAG=""
 
 ##
 # Default directory for zed state files.

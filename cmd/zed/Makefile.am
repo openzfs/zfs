@@ -60,10 +60,11 @@ zedconfdefaults = \
 	resilver.finish-notify.sh \
 	scrub.finish-notify.sh
 
-install-data-local:
+install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zedconfdir)"
 	for f in $(zedconfdefaults); do \
 	  test -f "$(DESTDIR)$(zedconfdir)/$${f}" -o \
 	       -L "$(DESTDIR)$(zedconfdir)/$${f}" || \
 	    ln -s "$(zedexecdir)/$${f}" "$(DESTDIR)$(zedconfdir)"; \
 	done
+	chmod 0600 "$(DESTDIR)$(zedconfdir)/zed.rc"
