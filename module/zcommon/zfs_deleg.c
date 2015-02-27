@@ -227,7 +227,7 @@ zfs_deleg_whokey(char *attr, zfs_deleg_who_type_t type,
 		    ZFS_DELEG_FIELD_SEP_CHR);
 		break;
 	default:
-		ASSERT(!"bad zfs_deleg_who_type_t");
+		cmn_err(CE_PANIC, "bad zfs_deleg_who_type_t %d", type);
 	}
 }
 
