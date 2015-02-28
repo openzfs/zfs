@@ -1198,9 +1198,10 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 }
 EXPORT_SYMBOL(zfs_sb_teardown);
 
-#if defined(HAVE_BDI) && !defined(HAVE_BDI_SETUP_AND_REGISTER)
+#if !defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
+	!defined(HAVE_3ARGS_BDI_SETUP_AND_REGISTER)
 atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
-#endif /* HAVE_BDI && !HAVE_BDI_SETUP_AND_REGISTER */
+#endif
 
 int
 zfs_domount(struct super_block *sb, void *data, int silent)
@@ -1227,23 +1228,12 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	sb->s_time_gran = 1;
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
-
-#ifdef HAVE_BDI
-	/*
-	 * 2.6.32 API change,
-	 * Added backing_device_info (BDI) per super block interfaces.  A BDI
-	 * must be configured when using a non-device backed filesystem for
-	 * proper writeback.  This is not required for older pdflush kernels.
-	 *
-	 * NOTE: Linux read-ahead is disabled in favor of zfs read-ahead.
-	 */
 	zsb->z_bdi.ra_pages = 0;
 	sb->s_bdi = &zsb->z_bdi;
 
-	error = -bdi_setup_and_register(&zsb->z_bdi, "zfs", BDI_CAP_MAP_COPY);
+	error = -zpl_bdi_setup_and_register(&zsb->z_bdi, "zfs");
 	if (error)
 		goto out;
-#endif /* HAVE_BDI */
 
 	/* Set callback operations for the file system. */
 	sb->s_op = &zpl_super_operations;
@@ -1336,10 +1326,7 @@ zfs_umount(struct super_block *sb)
 
 	VERIFY(zfs_sb_teardown(zsb, B_TRUE) == 0);
 	os = zsb->z_os;
-
-#ifdef HAVE_BDI
 	bdi_destroy(sb->s_bdi);
-#endif /* HAVE_BDI */
 
 	/*
 	 * z_os will be NULL if there was an error in
