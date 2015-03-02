@@ -110,6 +110,7 @@ AC_CONFIG_FILES([
 	cmd/vdev_id/Makefile
 	cmd/arcstat/Makefile
 	cmd/dbufstat/Makefile
+	cmd/arc_summary/Makefile
 	cmd/zed/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
