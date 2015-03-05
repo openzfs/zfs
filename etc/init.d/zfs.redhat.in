@@ -26,6 +26,8 @@
 . /etc/rc.d/init.d/functions
 
 LOCKFILE=/var/lock/zfs
+ZED="@sbindir@/zed"
+ZED_PIDFILE="@runstatedir@/zed.pid"
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="/etc/zfs/zpool.cache"
@@ -54,6 +56,9 @@ start()
 
 	# Load the zfs module stack
 	/sbin/modprobe zfs
+
+	# Start the ZED for event handling
+	action $"Starting ZFS Event Daemon" daemon --pidfile="$ZED_PIDFILE" "$ZED"
 
 	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
 	# This should be handled by rc.sysinit but lets be paranoid.
@@ -102,6 +107,7 @@ stop()
 
 	action $"Unsharing ZFS filesystems" "$ZFS" unshare -a
 	action $"Unmounting ZFS filesystems" "$ZFS" umount -a
+	action $"Shutting down ZFS Event Daemon" killproc -p "$ZED_PIDFILE" "$ZED"
 
 	rm -f "$LOCKFILE"
 }
