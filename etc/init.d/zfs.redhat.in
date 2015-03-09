@@ -37,7 +37,7 @@ DO_OVERLAY_MOUNTS=0
 MOUNT_EXTRA_OPTIONS=""
 
 # Source zfs configuration.
-[ -r '/etc/sysconfig/zfs' ] &&  . /etc/default/zfs
+[ -r '/etc/sysconfig/zfs' ] &&  . /etc/sysconfig/zfs
 
 [ -x "$ZPOOL" ] || exit 1
 [ -x "$ZFS" ] || exit 2
