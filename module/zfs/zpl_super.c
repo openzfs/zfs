@@ -98,9 +98,13 @@ zpl_dirty_inode(struct inode *ip)
 static void
 zpl_evict_inode(struct inode *ip)
 {
+	fstrans_cookie_t cookie;
+
+	cookie = spl_fstrans_mark();
 	truncate_setsize(ip, 0);
 	clear_inode(ip);
 	zfs_inactive(ip);
+	spl_fstrans_unmark(cookie);
 }
 
 #else
@@ -108,7 +112,11 @@ zpl_evict_inode(struct inode *ip)
 static void
 zpl_clear_inode(struct inode *ip)
 {
+	fstrans_cookie_t cookie;
+
+	cookie = spl_fstrans_mark();
 	zfs_inactive(ip);
+	spl_fstrans_unmark(cookie);
 }
 
 static void
