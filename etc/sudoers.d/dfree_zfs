@@ -1,0 +1,5 @@
+Cmnd_Alias C_DFREE_ZFS =                 \
+  /sbin/zfs get -o value -Hp used *,     \
+  /sbin/zfs get -o value -Hp available *
+
+ALL ALL = (root) NOPASSWD: C_DFREE_ZFS

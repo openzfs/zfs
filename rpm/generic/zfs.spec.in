@@ -266,6 +266,7 @@ exit 0
 %else
 %{_sysconfdir}/init.d/*
 %endif
+%{_sysconfdir}/sudoers.d/*
 
 %files -n libzpool2
 %{_libdir}/libzpool.so.*
