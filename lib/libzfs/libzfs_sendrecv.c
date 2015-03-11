@@ -43,6 +43,7 @@
 #include <sys/mnttab.h>
 #include <sys/avl.h>
 #include <sys/debug.h>
+#include <sys/stat.h>
 #include <stddef.h>
 #include <pthread.h>
 #include <umem.h>
@@ -3297,6 +3298,48 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
 	int err;
 	int cleanup_fd;
 	uint64_t action_handle = 0;
+	struct stat sb;
+
+	/*
+	 * The only way fstat can fail is if we do not have a valid file
+	 * descriptor.
+	 */
+	if (fstat(infd, &sb) == -1) {
+		perror("fstat");
+		return (-2);
+	}
+
+#ifdef __linux__
+#ifndef F_SETPIPE_SZ
+#define	F_SETPIPE_SZ (F_SETLEASE + 7)
+#endif /* F_SETPIPE_SZ */
+
+#ifndef F_GETPIPE_SZ
+#define	F_GETPIPE_SZ (F_GETLEASE + 7)
+#endif /* F_GETPIPE_SZ */
+
+	/*
+	 * It is not uncommon for gigabytes to be processed in zfs receive.
+	 * Speculatively increase the buffer size via Linux-specific fcntl()
+	 * call.
+	 */
+	if (S_ISFIFO(sb.st_mode)) {
+		FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "r");
+
+		if (procf != NULL) {
+			unsigned long max_psize;
+			long cur_psize;
+			if (fscanf(procf, "%lu", &max_psize) > 0) {
+				cur_psize = fcntl(infd, F_GETPIPE_SZ);
+				if (cur_psize > 0 &&
+				    max_psize > (unsigned long) cur_psize)
+					(void) fcntl(infd, F_SETPIPE_SZ,
+					    max_psize);
+			}
+			fclose(procf);
+		}
+	}
+#endif /* __linux__ */
 
 	cleanup_fd = open(ZFS_DEV, O_RDWR);
 	VERIFY(cleanup_fd >= 0);
