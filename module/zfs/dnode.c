@@ -1158,12 +1158,18 @@ dnode_add_ref(dnode_t *dn, void *tag)
 void
 dnode_rele(dnode_t *dn, void *tag)
 {
+	mutex_enter(&dn->dn_mtx);
+	dnode_rele_and_unlock(dn, tag);
+}
+
+void
+dnode_rele_and_unlock(dnode_t *dn, void *tag)
+{
 	uint64_t refs;
 	/* Get while the hold prevents the dnode from moving. */
 	dmu_buf_impl_t *db = dn->dn_dbuf;
 	dnode_handle_t *dnh = dn->dn_handle;
 
-	mutex_enter(&dn->dn_mtx);
 	refs = refcount_remove(&dn->dn_holds, tag);
 	mutex_exit(&dn->dn_mtx);
 
