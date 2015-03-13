@@ -30,8 +30,8 @@
  * CDDL HEADER END
  */
 
-AC_INIT(m4_esyscmd_s(grep Name META | cut -d ':' -f 2 | tr -d ' '),
-	m4_esyscmd_s(grep Version META | cut -d ':' -f 2 | tr -d ' '))
+AC_INIT(m4_esyscmd(grep Name META | cut -d ':' -f 2 | tr -d ' \n'),
+	m4_esyscmd(grep Version META | cut -d ':' -f 2 | tr -d ' \n'))
 AC_LANG(C)
 ZFS_AC_META
 AC_CONFIG_AUX_DIR([config])
