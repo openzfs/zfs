@@ -978,6 +978,14 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 				 * destination buffer
 				 */
 				goto _output_error;
+			if ((ref + COPYLENGTH) > oend ||
+					(op + COPYLENGTH) > oend)
+				/*
+				 * If the part of the compression data are corrupted,
+				 * or the compression data is totally fake,
+				 * the memory access over the limit is possible.
+				 */
+				goto _output_error;
 			LZ4_SECURECOPY(ref, op, (oend - COPYLENGTH));
 			while (op < cpy)
 				*op++ = *ref++;
