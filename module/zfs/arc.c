@@ -158,8 +158,8 @@ static kmutex_t		arc_reclaim_thr_lock;
 static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
 static uint8_t		arc_thread_exit;
 
-/* number of bytes to prune from caches when at arc_meta_limit is reached */
-int zfs_arc_meta_prune = 1048576;
+/* number of objects to prune from caches when at arc_meta_limit is reached */
+int zfs_arc_meta_prune = 10000;
 
 typedef enum arc_reclaim_strategy {
 	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
@@ -1275,8 +1275,11 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	if (type != ARC_SPACE_DATA)
+	if (type != ARC_SPACE_DATA) {
 		ARCSTAT_INCR(arcstat_meta_used, space);
+		if (arc_meta_max < arc_meta_used)
+			arc_meta_max = arc_meta_used;
+	}
 
 	atomic_add_64(&arc_size, space);
 }
@@ -1308,8 +1311,6 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 
 	if (type != ARC_SPACE_DATA) {
 		ASSERT(arc_meta_used >= space);
-		if (arc_meta_max < arc_meta_used)
-			arc_meta_max = arc_meta_used;
 		ARCSTAT_INCR(arcstat_meta_used, -space);
 	}
 
@@ -2203,6 +2204,7 @@ arc_adjust_meta(void)
 {
 	int64_t adjustmnt, delta;
 
+restart:
 	/*
 	 * This slightly differs than the way we evict from the mru in
 	 * arc_adjust because we don't have a "target" value (i.e. no
@@ -2252,8 +2254,10 @@ arc_adjust_meta(void)
 		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_METADATA);
 	}
 
-	if (arc_meta_used > arc_meta_limit)
+	if (arc_meta_used > arc_meta_limit) {
 		arc_do_user_prune(zfs_arc_meta_prune);
+		goto restart;
+	}
 }
 
 /*
@@ -5606,7 +5610,7 @@ module_param(zfs_arc_meta_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
 
 module_param(zfs_arc_meta_prune, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_prune, "Bytes of meta data to prune");
+MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
 
 module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
