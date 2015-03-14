@@ -171,10 +171,10 @@ typedef enum arc_reclaim_strategy {
  * The number of iterations through arc_evict_*() before we
  * drop & reacquire the lock.
  */
-int arc_evict_iterations = 100;
+int arc_evict_iterations = 180;
 
 /* number of seconds before growing cache again */
-int zfs_arc_grow_retry = 5;
+int zfs_arc_grow_retry = 20;
 
 /* disable anon data aggressively growing arc_p */
 int zfs_arc_p_aggressive_disable = 1;
@@ -183,7 +183,7 @@ int zfs_arc_p_aggressive_disable = 1;
 int zfs_arc_p_dampener_disable = 1;
 
 /* log2(fraction of arc to reclaim) */
-int zfs_arc_shrink_shift = 5;
+int zfs_arc_shrink_shift = 4;
 
 /*
  * minimum lifespan of a prefetch block in clock ticks
