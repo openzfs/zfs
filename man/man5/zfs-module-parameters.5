@@ -397,9 +397,10 @@ Default value: \fB0\fR.
 \fBzfs_arc_meta_prune\fR (int)
 .ad
 .RS 12n
-Bytes of meta data to prune
+Number of meta data objects to scan (inodes/dentries) when attempting
+to prune the ARC cache in order to honor specified arc_meta_limit.
 .sp
-Default value: \fB1,048,576\fR.
+Default value: \fB10,000\fR.
 .RE
 
 .sp

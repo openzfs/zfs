@@ -158,8 +158,8 @@ static kmutex_t		arc_reclaim_thr_lock;
 static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
 static uint8_t		arc_thread_exit;
 
-/* number of bytes to prune from caches when at arc_meta_limit is reached */
-int zfs_arc_meta_prune = 1048576;
+/* number of objects to prune from caches when at arc_meta_limit is reached */
+int zfs_arc_meta_prune = 10000;
 
 typedef enum arc_reclaim_strategy {
 	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
@@ -220,6 +220,11 @@ static boolean_t arc_warm;
 unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
+
+/*
+ * Limit number of restarts in arc_adjust_meta
+ */
+unsigned long zfs_arc_adjust_meta_restarts = 1024;
 
 /* The 6 states: */
 static arc_state_t ARC_anon;
@@ -1275,8 +1280,11 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	if (type != ARC_SPACE_DATA)
+	if (type != ARC_SPACE_DATA) {
 		ARCSTAT_INCR(arcstat_meta_used, space);
+		if (arc_meta_max < arc_meta_used)
+			arc_meta_max = arc_meta_used;
+	}
 
 	atomic_add_64(&arc_size, space);
 }
@@ -1308,8 +1316,6 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 
 	if (type != ARC_SPACE_DATA) {
 		ASSERT(arc_meta_used >= space);
-		if (arc_meta_max < arc_meta_used)
-			arc_meta_max = arc_meta_used;
 		ARCSTAT_INCR(arcstat_meta_used, -space);
 	}
 
@@ -2202,7 +2208,9 @@ static void
 arc_adjust_meta(void)
 {
 	int64_t adjustmnt, delta;
+	unsigned long restarts = zfs_arc_adjust_meta_restarts;
 
+restart:
 	/*
 	 * This slightly differs than the way we evict from the mru in
 	 * arc_adjust because we don't have a "target" value (i.e. no
@@ -2252,8 +2260,13 @@ arc_adjust_meta(void)
 		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_METADATA);
 	}
 
-	if (arc_meta_used > arc_meta_limit)
+	if (arc_meta_used > arc_meta_limit) {
 		arc_do_user_prune(zfs_arc_meta_prune);
+		if (restarts > 0) {
+			restarts--;
+			goto restart;
+		}
+	}
 }
 
 /*
@@ -5602,11 +5615,14 @@ MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
 module_param(zfs_arc_max, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
 
+module_param(zfs_arc_adjust_meta_restarts, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_adjust_meta_restarts, "Limit number of restarts in arc_adjust_meta");
+
 module_param(zfs_arc_meta_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
 
 module_param(zfs_arc_meta_prune, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_prune, "Bytes of meta data to prune");
+MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
 
 module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
