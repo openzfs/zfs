@@ -653,7 +653,7 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	int i, error;
 	uint64_t sa_obj;
 
-	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP);
+	zsb = vmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP);
 
 	/*
 	 * We claim to always be readonly so we can open snapshots;
@@ -661,7 +661,7 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	 */
 	error = dmu_objset_own(osname, DMU_OST_ZFS, B_TRUE, zsb, &os);
 	if (error) {
-		kmem_free(zsb, sizeof (zfs_sb_t));
+		vmem_free(zsb, sizeof (zfs_sb_t));
 		return (error);
 	}
 
@@ -789,7 +789,7 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 out:
 	dmu_objset_disown(os, zsb);
 	*zsbp = NULL;
-	kmem_free(zsb, sizeof (zfs_sb_t));
+	vmem_free(zsb, sizeof (zfs_sb_t));
 	return (error);
 }
 EXPORT_SYMBOL(zfs_sb_create);
@@ -894,7 +894,7 @@ zfs_sb_free(zfs_sb_t *zsb)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
 	mutex_destroy(&zsb->z_ctldir_lock);
 	avl_destroy(&zsb->z_ctldir_snaps);
-	kmem_free(zsb, sizeof (zfs_sb_t));
+	vmem_free(zsb, sizeof (zfs_sb_t));
 }
 EXPORT_SYMBOL(zfs_sb_free);
 
