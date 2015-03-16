@@ -20,6 +20,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zcommon/zfs_uio.c \
 	$(top_srcdir)/module/zcommon/zpool_prop.c \
 	$(top_srcdir)/module/zcommon/zprop_common.c \
+	$(top_srcdir)/module/zfs/abd.c \
 	$(top_srcdir)/module/zfs/arc.c \
 	$(top_srcdir)/module/zfs/blkptr.c \
 	$(top_srcdir)/module/zfs/bplist.c \
@@ -55,6 +56,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/lzjb.c \
 	$(top_srcdir)/module/zfs/lz4.c \
 	$(top_srcdir)/module/zfs/metaslab.c \
+	$(top_srcdir)/module/zfs/multilist.c \
 	$(top_srcdir)/module/zfs/range_tree.c \
 	$(top_srcdir)/module/zfs/refcount.c \
 	$(top_srcdir)/module/zfs/rrwlock.c \
