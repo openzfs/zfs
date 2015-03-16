@@ -1781,7 +1781,7 @@ arc_buf_l2_cdata_free(arc_buf_hdr_t *hdr)
 	ASSERT(L2ARC_IS_VALID_COMPRESS(HDR_GET_COMPRESS(hdr)));
 
 	arc_buf_free_on_write(hdr->b_l1hdr.b_tmp_cdata,
-	    hdr->b_size, zio_data_buf_free);
+	    hdr->b_size, abd_free);
 
 	ARCSTAT_BUMP(arcstat_l2_cdata_free_on_write);
 	hdr->b_l1hdr.b_tmp_cdata = NULL;
