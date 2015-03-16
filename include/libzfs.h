@@ -406,7 +406,7 @@ struct zfs_cmd;
 extern const char *zfs_history_event_names[];
 
 extern char *zpool_vdev_name(libzfs_handle_t *, zpool_handle_t *, nvlist_t *,
-    boolean_t verbose);
+    nvlist_t *display_args);
 extern int zpool_upgrade(zpool_handle_t *, uint64_t);
 extern int zpool_get_history(zpool_handle_t *, nvlist_t **);
 extern int zpool_history_unpack(char *, uint64_t, uint64_t *,

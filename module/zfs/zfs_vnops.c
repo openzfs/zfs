@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -711,7 +711,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			error = SET_ERROR(EDQUOT);
 			break;
 		}
-
+		/* TODO: abd can't handle xuio */
 		if (xuio && abuf == NULL) {
 			ASSERT(i_iov < iovcnt);
 			aiov = &iovp[i_iov];
@@ -738,7 +738,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			    max_blksz);
 			ASSERT(abuf != NULL);
 			ASSERT(arc_buf_size(abuf) == max_blksz);
-			if ((error = uiocopy(abuf->b_data, max_blksz,
+			if ((error = abd_uiocopy(abuf->b_data, max_blksz,
 			    UIO_WRITE, uio, &cbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;
@@ -800,6 +800,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			 * block-aligned, use assign_arcbuf().  Otherwise,
 			 * write via dmu_write().
 			 */
+			/* TODO: abd can't handle xuio */
 			if (tx_bytes < max_blksz && (!write_eof ||
 			    aiov->iov_base != abuf->b_data)) {
 				ASSERT(xuio);
@@ -1507,6 +1508,7 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr)
 	uint64_t	obj = 0;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
+	boolean_t	may_delete_now;
 	boolean_t	unlinked;
 	uint64_t	txtype;
 	pathname_t	*realnmp = NULL;
@@ -1566,6 +1568,10 @@ top:
 		dnlc_remove(dvp, name);
 #endif /* HAVE_DNLC */
 
+	mutex_enter(&zp->z_lock);
+	may_delete_now = atomic_read(&ip->i_count) == 1 && !(zp->z_is_mapped);
+	mutex_exit(&zp->z_lock);
+
 	/*
 	 * We never delete the znode and always place it in the unlinked
 	 * set.  The dentry cache will always hold the last reference and
@@ -1590,6 +1596,14 @@ top:
 
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zsb->z_unlinkedobj, FALSE, NULL);
+
+	/*
+	 * Mark this transaction as typically resulting in a net free of
+	 * space, unless object removal will be delayed indefinitely
+	 * (due to active holds on the vnode due to the file being open).
+	 */
+	if (may_delete_now)
+		dmu_tx_mark_netfree(tx);
 
 	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
 	if (error) {
@@ -3865,6 +3879,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	uint64_t	mtime[2], ctime[2];
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
+	struct address_space *mapping;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -3911,10 +3926,56 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	 * 2) Before setting or clearing write back on a page the range lock
 	 *    must be held in order to prevent a lock inversion with the
 	 *    zfs_free_range() function.
+	 *
+	 * 3) However, if we set the write back bit after unlock the page,
+	 *    someone might come in the middle and invalidate the page unaware
+	 *    that we are doing writeback.
+	 *
+	 * To solve this seemingly paradox, we lock the page again after
+	 * aquiring the range lock and check the validity of the page. If all
+	 * is well, we set the write back bit and continue on.
 	 */
+
+	/* before we unlock_page, save the mapping, we'll check it later */
+	mapping = pp->mapping;
+	/*
+	 * write_cache_pages cleared the dirty bit, set it back before
+	 * unlock_page. Otherwise, it might get evicted without being written
+	 * to disk.
+	 * Note this is equivalent to redirty_page_for_writepage(), except we
+	 * don't increase wbc->pages_skipped.
+	 */
+	account_page_redirty(pp);
+	__set_page_dirty_nobuffers(pp);
 	unlock_page(pp);
+
 	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
+
+	/*
+	 * lock_page again to check validity and set_page_writeback.
+	 */
+	lock_page(pp);
+	/* page became invalid or was written, bail out */
+	if (mapping != pp->mapping || !PageDirty(pp)) {
+skip:
+		unlock_page(pp);
+		zfs_range_unlock(rl);
+		ZFS_EXIT(zsb);
+		return (0);
+	}
+	/* Someone start writing back before us */
+	if (PageWriteback(pp)) {
+		if (wbc->sync_mode == WB_SYNC_NONE)
+			goto skip;
+
+		wait_on_page_writeback(pp);
+	}
+	/* clear dirty bit if set */
+	if (!clear_page_dirty_for_io(pp))
+		goto skip;
+
 	set_page_writeback(pp);
+	unlock_page(pp);
 
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);

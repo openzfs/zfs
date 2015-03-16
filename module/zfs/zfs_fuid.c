@@ -120,7 +120,7 @@ zfs_fuid_table_load(objset_t *os, uint64_t fuid_obj, avl_tree_t *idx_tree,
 	ASSERT(fuid_obj != 0);
 	VERIFY(0 == dmu_bonus_hold(os, fuid_obj,
 	    FTAG, &db));
-	fuid_size = *(uint64_t *)db->db_data;
+	fuid_size = *(uint64_t *)ABD_TO_BUF(db->db_data);
 	dmu_buf_rele(db, FTAG);
 
 	if (fuid_size)  {
@@ -281,7 +281,7 @@ zfs_fuid_sync(zfs_sb_t *zsb, dmu_tx_t *tx)
 	VERIFY(0 == dmu_bonus_hold(zsb->z_os, zsb->z_fuid_obj,
 	    FTAG, &db));
 	dmu_buf_will_dirty(db, tx);
-	*(uint64_t *)db->db_data = zsb->z_fuid_size;
+	*(uint64_t *)ABD_TO_BUF(db->db_data) = zsb->z_fuid_size;
 	dmu_buf_rele(db, FTAG);
 
 	zsb->z_fuid_dirty = B_FALSE;
