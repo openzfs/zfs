@@ -1701,8 +1701,8 @@ arc_buf_add_ref(arc_buf_t *buf, void* tag)
 }
 
 static void
-arc_buf_free_on_write(void *data, size_t size,
-    void (*free_func)(void *, size_t))
+arc_buf_free_on_write(abd_t *data, size_t size,
+    void (*free_func)(abd_t *, size_t))
 {
 	l2arc_data_free_t *df;
 
