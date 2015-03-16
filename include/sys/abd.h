@@ -48,7 +48,7 @@ extern "C" {
 
 typedef struct arc_buf_data {
 #ifdef DEBUG_ABD
-	char		pad[PAGE_SIZE];	/* debug, coredumps when accessed */
+	char		pad[4096];	/* debug, coredumps when accessed */
 #endif
 	uint32_t	abd_magic;	/* ARC_BUF_DATA_MAGIC */
 	uint32_t	abd_flags;
