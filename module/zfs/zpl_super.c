@@ -299,10 +299,13 @@ zpl_prune_sb(struct super_block *sb, void *arg)
 #endif /* defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK) */
 
 void
-zpl_prune_sbs(int64_t nr_to_scan, void *private)
+zpl_prune_sbs(int64_t bytes_to_scan, void *private)
 {
 #if defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK)
+	unsigned long nr_to_scan = (bytes_to_scan / sizeof (znode_t));
+
 	iterate_supers_type(&zpl_fs_type, zpl_prune_sb, &nr_to_scan);
+	kmem_reap();
 #endif /* defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK) */
 }
 
