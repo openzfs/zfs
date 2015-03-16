@@ -1439,7 +1439,13 @@ sa_handle_get(objset_t *objset, uint64_t objid, void *userp,
 int
 sa_buf_hold(objset_t *objset, uint64_t obj_num, void *tag, dmu_buf_t **db)
 {
-	return (dmu_bonus_hold(objset, obj_num, tag, db));
+	fstrans_cookie_t cookie;
+	int rval;
+
+	cookie = spl_fstrans_mark();
+	rval = (dmu_bonus_hold(objset, obj_num, tag, db));
+	spl_fstrans_unmark(cookie);
+	return (rval);
 }
 
 void
