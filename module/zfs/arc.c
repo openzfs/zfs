@@ -2195,15 +2195,29 @@ arc_do_user_evicts(void)
 }
 
 /*
- * Evict only meta data objects from the cache leaving the data objects.
- * This is only used to enforce the tunable arc_meta_limit, if we are
- * unable to evict enough buffers notify the user via the prune callback.
+ * The goal of this function is to evict enough meta data buffers from the
+ * ARC in order to enforce the arc_meta_limit.  Acheiving this is slightly
+ * more complicated than it appears because it is common for data buffers
+ * to have holds of meta data buffers.  In addition, dnode meta data buffers
+ * will be held by the dnodes in the block preventing them from being freed.
+ * This means we can't simply traverse the ARC and expect to always find
+ * enough unheld meta data buffer to release.
+ *
+ * Therefore, this function has been updated to make alternating passes
+ * over the ARC releasing data buffers and then newly unheld meta data
+ * buffers.  This ensures forward progress is maintained and arc_meta_used
+ * will decrease.  Normally this is sufficient, but if required the ARC
+ * will call the registered prune callbacks causing dentry and inodes to
+ * be dropped from the VFS cache.  This will make dnode meta data buffers
+ * available for reclaim.
  */
 static void
 arc_adjust_meta(void)
 {
-	int64_t adjustmnt, delta;
+	int64_t adjustmnt, delta, prune = 0;
+	arc_buf_contents_t type = ARC_BUFC_DATA;
 
+restart:
 	/*
 	 * This slightly differs than the way we evict from the mru in
 	 * arc_adjust because we don't have a "target" value (i.e. no
@@ -2214,9 +2228,9 @@ arc_adjust_meta(void)
 	 */
 	adjustmnt = arc_meta_used - arc_meta_limit;
 
-	if (adjustmnt > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustmnt);
-		arc_evict(arc_mru, 0, delta, FALSE, ARC_BUFC_METADATA);
+	if (adjustmnt > 0 && arc_mru->arcs_lsize[type] > 0) {
+		delta = MIN(arc_mru->arcs_lsize[type], adjustmnt);
+		arc_evict(arc_mru, 0, delta, FALSE, type);
 		adjustmnt -= delta;
 	}
 
@@ -2230,31 +2244,46 @@ arc_adjust_meta(void)
 	 * simply decrement the amount of data evicted from the MRU.
 	 */
 
-	if (adjustmnt > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		delta = MIN(arc_mfu->arcs_lsize[ARC_BUFC_METADATA], adjustmnt);
-		arc_evict(arc_mfu, 0, delta, FALSE, ARC_BUFC_METADATA);
+	if (adjustmnt > 0 && arc_mfu->arcs_lsize[type] > 0) {
+		delta = MIN(arc_mfu->arcs_lsize[type], adjustmnt);
+		arc_evict(arc_mfu, 0, delta, FALSE, type);
 	}
 
-	adjustmnt = arc_mru->arcs_lsize[ARC_BUFC_METADATA] +
-	    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
+	adjustmnt = arc_meta_used - arc_meta_limit;
 
-	if (adjustmnt > 0 && arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+	if (adjustmnt > 0 && arc_mru_ghost->arcs_lsize[type] > 0) {
 		delta = MIN(adjustmnt,
-		    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA]);
-		arc_evict_ghost(arc_mru_ghost, 0, delta, ARC_BUFC_METADATA);
+		    arc_mru_ghost->arcs_lsize[type]);
+		arc_evict_ghost(arc_mru_ghost, 0, delta, type);
+		adjustmnt -= delta;
 	}
 
-	adjustmnt = arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] +
-	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
-
-	if (adjustmnt > 0 && arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+	if (adjustmnt > 0 && arc_mfu_ghost->arcs_lsize[type] > 0) {
 		delta = MIN(adjustmnt,
-		    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA]);
-		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_METADATA);
+		    arc_mfu_ghost->arcs_lsize[type]);
+		arc_evict_ghost(arc_mfu_ghost, 0, delta, type);
 	}
 
-	if (arc_meta_used > arc_meta_limit)
-		arc_do_user_prune(zfs_arc_meta_prune);
+	/*
+	 * If after attempting to make the requested adjustment to the ARC
+	 * the meta limit is still being exceeded.  Then request that the
+	 * higher layers drop some cached objects which have holds on ARC
+	 * meta buffers.  Requests to the upper layers will be made with
+	 * increasingly large scan sizes until the ARC is below the limit.
+	 */
+	if (arc_meta_used > arc_meta_limit) {
+		if (type == ARC_BUFC_DATA) {
+			type = ARC_BUFC_METADATA;
+		} else {
+			type = ARC_BUFC_DATA;
+
+			if (zfs_arc_meta_prune) {
+				prune += zfs_arc_meta_prune;
+				arc_do_user_prune(prune);
+			}
+		}
+		goto restart;
+	}
 }
 
 /*
