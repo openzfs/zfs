@@ -414,6 +414,20 @@ Default value: \fB10,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_meta_adjust_restarts\fR (ulong)
+.ad
+.RS 12n
+The number of restart passes to make while scanning the ARC attempting
+the free buffers in order to stay below the \fBzfs_arc_meta_limit\fR.
+This value should not need to be tuned but is available to facilitate
+performance analysis.
+.sp
+Default value: \fB4096\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_min\fR (ulong)
 .ad
 .RS 12n
