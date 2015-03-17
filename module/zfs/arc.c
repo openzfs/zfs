@@ -165,8 +165,8 @@ static kmutex_t		arc_user_evicts_lock;
 static kcondvar_t	arc_user_evicts_cv;
 static boolean_t	arc_user_evicts_thread_exit;
 
-/* number of bytes to prune from caches when at arc_meta_limit is reached */
-int zfs_arc_meta_prune = 1048576;
+/* number of objects to prune from caches when arc_meta_limit is reached */
+int zfs_arc_meta_prune = 10000;
 
 typedef enum arc_reclaim_strategy {
 	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
@@ -6298,7 +6298,7 @@ module_param(zfs_arc_meta_min, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_min, "Min arc metadata");
 
 module_param(zfs_arc_meta_prune, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_prune, "Bytes of meta data to prune");
+MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
 
 module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");

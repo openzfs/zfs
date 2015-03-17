@@ -386,7 +386,11 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_arc_meta_limit\fR (ulong)
 .ad
 .RS 12n
-Meta limit for arc size
+The maximum allowed size in bytes that meta data buffers are allowed to
+consume in the ARC.  When this limit is reached meta data buffers will
+be reclaimed even if the overall arc_c_max has not been reached.  This
+value defaults to 0 which indicates that 3/4 of the ARC may be used
+for meta data.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -397,9 +401,14 @@ Default value: \fB0\fR.
 \fBzfs_arc_meta_prune\fR (int)
 .ad
 .RS 12n
-Bytes of meta data to prune
+The number of dentries and inodes to be scanned looking for entries
+which can be dropped.  This may be required when the ARC reaches the
+\fBzfs_arc_meta_limit\fR because dentries and inodes can pin buffers
+in the ARC.  Increasing this value will cause to dentry and inode caches
+to be pruned more aggressively.  Setting this value to 0 will disable
+pruning the inode and dentry caches.
 .sp
-Default value: \fB1,048,576\fR.
+Default value: \fB10,000\fR.
 .RE
 
 .sp

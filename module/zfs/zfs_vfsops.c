@@ -1068,29 +1068,52 @@ zfs_root(zfs_sb_t *zsb, struct inode **ipp)
 }
 EXPORT_SYMBOL(zfs_root);
 
-#if defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK)
+/*
+ * The ARC has requested that the filesystem drop entries from the dentry
+ * and inode caches.  This can occur when the ARC needs to free meta data
+ * blocks but can't because they are all pinned by entries in these caches.
+ */
 int
 zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 {
 	zfs_sb_t *zsb = sb->s_fs_info;
+	int error = 0;
+#if defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK)
 	struct shrinker *shrinker = &sb->s_shrink;
 	struct shrink_control sc = {
 		.nr_to_scan = nr_to_scan,
 		.gfp_mask = GFP_KERNEL,
 	};
+#endif
 
 	ZFS_ENTER(zsb);
-#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
+
+#if defined(HAVE_SPLIT_SHRINKER_CALLBACK)
 	*objects = (*shrinker->scan_objects)(shrinker, &sc);
-#else
+#elif defined(HAVE_SHRINK)
 	*objects = (*shrinker->shrink)(shrinker, &sc);
+#else
+	/*
+	 * Linux kernels older than 3.1 do not support a per-filesystem
+	 * shrinker.  Therefore, we must fall back to the only available
+	 * interface which is to discard all unused dentries and inodes.
+	 * This behavior clearly isn't ideal but it's required so the ARC
+	 * may free memory.  The performance impact is mitigated by the
+	 * fact that the frequently accessed dentry and inode buffers will
+	 * still be in the ARC making them relatively cheap to recreate.
+	 */
+	*objects = 0;
+	shrink_dcache_parent(sb->s_root);
 #endif
 	ZFS_EXIT(zsb);
 
-	return (0);
+	dprintf_ds(zsb->z_os->os_dsl_dataset,
+	    "pruning, nr_to_scan=%lu objects=%d error=%d\n",
+	    nr_to_scan, *objects, error);
+
+	return (error);
 }
 EXPORT_SYMBOL(zfs_sb_prune);
-#endif /* defined(HAVE_SHRINK) || defined(HAVE_SPLIT_SHRINKER_CALLBACK) */
 
 /*
  * Teardown the zfs_sb_t.
@@ -1286,6 +1309,8 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 
 	if (!zsb->z_issnap)
 		zfsctl_create(zsb);
+
+	zsb->z_arc_prune = arc_add_prune_callback(zpl_prune_sb, sb);
 out:
 	if (error) {
 		dmu_objset_disown(zsb->z_os, zsb);
@@ -1324,6 +1349,7 @@ zfs_umount(struct super_block *sb)
 	zfs_sb_t *zsb = sb->s_fs_info;
 	objset_t *os;
 
+	arc_remove_prune_callback(zsb->z_arc_prune);
 	VERIFY(zfs_sb_teardown(zsb, B_TRUE) == 0);
 	os = zsb->z_os;
 	bdi_destroy(sb->s_bdi);
@@ -1682,7 +1708,6 @@ zfs_init(void)
 	zfs_znode_init();
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
 	register_filesystem(&zpl_fs_type);
-	(void) arc_add_prune_callback(zpl_prune_sbs, NULL);
 }
 
 void
