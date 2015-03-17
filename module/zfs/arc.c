@@ -1275,8 +1275,11 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	if (type != ARC_SPACE_DATA)
+	if (type != ARC_SPACE_DATA) {
 		ARCSTAT_INCR(arcstat_meta_used, space);
+		if (arc_meta_max < arc_meta_used)
+			arc_meta_max = arc_meta_used;
+	}
 
 	atomic_add_64(&arc_size, space);
 }
@@ -1308,8 +1311,6 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 
 	if (type != ARC_SPACE_DATA) {
 		ASSERT(arc_meta_used >= space);
-		if (arc_meta_max < arc_meta_used)
-			arc_meta_max = arc_meta_used;
 		ARCSTAT_INCR(arcstat_meta_used, -space);
 	}
 
