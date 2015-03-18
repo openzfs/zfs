@@ -814,6 +814,48 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 }
 
 /*
+ * Rename DSL directory (i.e. filesystems, volumes, snapshots)
+ *
+ * The opts flag accepts a boolean named "recursive" to signal that the
+ * mountpoint property on children should be updated.
+ *
+ * The following are the valid properties in opts, all of which are booleans:
+ *
+ * "recursive" - Rename mountpoints on child DSL directories
+ *
+ * If a recursive rename is done, an error occurs and errname is initialized, a
+ * string will be allocated with strdup() and returned via it. The caller must
+ * free it with strfree().
+ */
+int
+lzc_rename(const char *oldname, const char *newname, nvlist_t *opts,
+    char **errname)
+{
+	nvlist_t *args, *errlist;
+	int error;
+
+	if (newname == NULL || (oldname == NULL ||
+	    strlen(oldname) == 0 || strlen(newname) == 0))
+		return (EINVAL);
+
+	args = fnvlist_alloc();
+	errlist = (errname != NULL) ? fnvlist_alloc() : NULL;
+	fnvlist_add_string(args, "newname", newname);
+	error = lzc_ioctl("zfs_rename", oldname, args, opts, &errlist, 0);
+
+	if (error && errname != NULL) {
+		const char *name = fnvlist_lookup_string(errlist, "name");
+		*errname = strdup(name);
+	}
+
+	fnvlist_free(args);
+	if (errlist)
+		fnvlist_free(errlist);
+
+	return (error);
+}
+
+/*
  * List DSL directory/directories
  *
  * This is an asynchronous API call. The caller passes a file descriptor

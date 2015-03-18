@@ -439,6 +439,30 @@ zfs_secpolicy_read(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts, cred_t *cr)
 	return (SET_ERROR(ENOENT));
 }
 
+/*
+ * Policy for dataset rename operations. Requires rename permission and mount
+ * permission on dataset. Also requires create and mount permission on the new
+ * parent. Must be visible in the local zone.
+ */
+/* ARGSUSED */
+static int
+zfs_secpolicy_rename(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts, cred_t *cr)
+{
+	char *newname;
+	int error;
+
+	if (INGLOBALZONE(curproc) ||
+	    zone_dataset_visible(zc->zc_name, NULL))
+		return (0);
+
+	error = nvlist_lookup_string(innvl, "newname", &newname);
+	if (error)
+		return (error);
+
+
+	return (zfs_secpolicy_rename_perms(zc->zc_name, newname, cr));
+}
+
 static int
 zfs_dozonecheck_impl(const char *dataset, uint64_t zoned, cred_t *cr)
 {
@@ -935,7 +959,8 @@ zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
 
 /* ARGSUSED */
 static int
-zfs_secpolicy_rename(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts, cred_t *cr)
+zfs_secpolicy_rename_legacy(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts,
+	cred_t *cr)
 {
 	return (zfs_secpolicy_rename_perms(zc->zc_name, zc->zc_value, cr));
 }
@@ -2415,6 +2440,7 @@ zfs_ioc_list_next(zfs_cmd_t *zc, boolean_t snapshot)
 	zl.zl_name = zc->zc_name;
 	zl.zl_objset_stats = &zc->zc_objset_stats;
 	zl.zl_cookie = zc->zc_cookie;
+	zl.zl_nvlist = NULL;
 
 	if (snapshot) {
 		zl.zl_obj = zc->zc_obj;
@@ -3831,35 +3857,35 @@ recursive_unmount(const char *fsname, void *arg)
 	return (error);
 }
 
-/*
- * inputs:
- * zc_name	old name of dataset
- * zc_value	new name of dataset
- * zc_cookie	recursive flag (only valid for snapshots)
- *
- * outputs:	none
- */
+/* Note that newname is updated on failure when recursive */
 static int
-zfs_ioc_rename(zfs_cmd_t *zc)
+zfs_rename(const char *oldname, char *newname, boolean_t recursive)
 {
-	boolean_t recursive = zc->zc_cookie & 1;
 	char *at;
 
-	zc->zc_value[sizeof (zc->zc_value) - 1] = '\0';
-	if (dataset_namecheck(zc->zc_value, NULL, NULL) != 0 ||
-	    strchr(zc->zc_value, '%'))
+	/* Caller must NULL terminate newname. */
+	if (dataset_namecheck(newname, NULL, NULL) != 0 ||
+	    strchr(newname, '%'))
 		return (SET_ERROR(EINVAL));
 
-	at = strchr(zc->zc_name, '@');
+	at = strchr(oldname, '@');
 	if (at != NULL) {
 		/* snaps must be in same fs */
 		int error;
+		objset_t *os;
+		dmu_objset_type_t ostype;
 
-		if (strncmp(zc->zc_name, zc->zc_value, at - zc->zc_name + 1))
+		if (strncmp(oldname, newname, at - oldname + 1))
 			return (SET_ERROR(EXDEV));
 		*at = '\0';
-		if (zc->zc_objset_type == DMU_OST_ZFS) {
-			error = dmu_objset_find(zc->zc_name,
+
+		if ((error = dmu_objset_hold(oldname, FTAG, &os)) != 0)
+			return (error);
+		ostype = dmu_objset_type(os);
+		dmu_objset_rele(os, FTAG);
+
+		if (ostype == DMU_OST_ZFS) {
+			error = dmu_objset_find(oldname,
 			    recursive_unmount, at + 1,
 			    recursive ? DS_FIND_CHILDREN : 0);
 			if (error != 0) {
@@ -3867,14 +3893,31 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 				return (error);
 			}
 		}
-		error = dsl_dataset_rename_snapshot(zc->zc_name,
-		    at + 1, strchr(zc->zc_value, '@') + 1, recursive);
+		error = dsl_dataset_rename_snapshot(oldname,
+		    at + 1, strchr(newname, '@') + 1, recursive);
 		*at = '@';
 
 		return (error);
 	} else {
-		return (dsl_dir_rename(zc->zc_name, zc->zc_value));
+		return (dsl_dir_rename(oldname, newname));
 	}
+
+}
+
+/*
+ * inputs:
+ * zc_name	old name of dataset
+ * zc_value	new name of dataset
+ * zc_cookie	recursive flag (only valid for snapshots)
+ *
+ * outputs:
+ * zc_name	name of dataset which failed (only on failure if recursive)
+ */
+static int
+zfs_ioc_rename(zfs_cmd_t *zc)
+{
+	zc->zc_value[sizeof (zc->zc_value) - 1] = '\0';
+	return (zfs_rename(zc->zc_value, zc->zc_name, (zc->zc_cookie & 1)));
 }
 
 static int
@@ -5534,6 +5577,27 @@ zfs_stable_ioc_set_props(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
 	return (error);
 }
 
+static int
+zfs_stable_ioc_zfs_rename(const char *oldname, nvlist_t *innvl,
+    nvlist_t *outnvl, nvlist_t *opts, uint64_t version)
+{
+	char *newname;
+	char buf[ZFS_MAXNAMELEN];
+	int error;
+
+	error = nvlist_lookup_string(innvl, "newname", &newname);
+	if (error)
+		return (error);
+	(void) strlcpy(buf, newname, sizeof (buf));
+
+	error = zfs_rename(oldname, newname,
+	    nvlist_exists(opts, "recursive"));
+	if (error)
+		fnvlist_add_string(outnvl, "name", buf);
+
+	return (error);
+}
+
 int
 pool_status_check(const char *name, zfs_ioc_namecheck_t type,
     zfs_ioc_poolcheck_t check);
@@ -6130,6 +6194,14 @@ static const zfs_stable_ioc_vec_t zfs_stable_ioc_vec[] = {
 	.zvec_smush_outnvlist	= B_FALSE,
 	.zvec_allow_log		= B_TRUE,
 },
+{	.zvec_name		= "zfs_rename",
+	.zvec_func		= zfs_stable_ioc_zfs_rename,
+	.zvec_secpolicy		= zfs_secpolicy_rename,
+	.zvec_namecheck		= DATASET_NAME,
+	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
+	.zvec_smush_outnvlist	= B_TRUE,
+	.zvec_allow_log		= B_TRUE,
+},
 };
 
 static const ssize_t zfs_stable_ioc_vec_count =
@@ -6589,7 +6661,7 @@ zfs_ioctl_init(void)
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_DESTROY, zfs_ioc_destroy,
 	    zfs_secpolicy_destroy);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_RENAME, zfs_ioc_rename,
-	    zfs_secpolicy_rename);
+	    zfs_secpolicy_rename_legacy);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_RECV, zfs_ioc_recv,
 	    zfs_secpolicy_recv);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_PROMOTE, zfs_ioc_promote,

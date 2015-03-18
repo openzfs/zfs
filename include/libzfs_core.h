@@ -55,6 +55,9 @@ int lzc_hold(nvlist_t *, int, nvlist_t **);
 int lzc_release(nvlist_t *, nvlist_t **);
 int lzc_get_holds(const char *, nvlist_t **);
 
+int lzc_rename(const char *oldname, const char *newname, nvlist_t *opts,
+    char **errname);
+
 enum lzc_send_flags {
 	LZC_SEND_FLAG_EMBED_DATA = 1 << 0
 };

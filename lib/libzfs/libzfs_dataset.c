@@ -3758,7 +3758,6 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
     boolean_t force_unmount)
 {
 	int ret;
-	zfs_cmd_t zc = {"\0"};
 	char *delim;
 	prop_changelist_t *cl = NULL;
 	zfs_handle_t *zhrp = NULL;
@@ -3766,6 +3765,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 	char parent[ZFS_MAXNAMELEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char errbuf[1024];
+	char *errname;
+	nvlist_t *opts;
 
 	/* if we have the same exact name, just return success */
 	if (strcmp(zhp->zfs_name, target) == 0)
@@ -3884,23 +3885,19 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			goto error;
 	}
 
-	if (ZFS_IS_VOLUME(zhp))
-		zc.zc_objset_type = DMU_OST_ZVOL;
-	else
-		zc.zc_objset_type = DMU_OST_ZFS;
+	if (recursive) {
+		opts = fnvlist_alloc();
+		fnvlist_add_boolean(opts, "recursive");
+	}
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
-
-	zc.zc_cookie = recursive;
-
-	if ((ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_RENAME, &zc)) != 0) {
+	if ((ret = lzc_rename(zhp->zfs_name, target, opts, &errname)) != 0) {
 		/*
 		 * if it was recursive, the one that actually failed will
-		 * be in zc.zc_name
+		 * be in errname
 		 */
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "cannot rename '%s'"), zc.zc_name);
+		    "cannot rename '%s'"), errname);
+		strfree(errname);
 
 		if (recursive && errno == EEXIST) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -3924,6 +3921,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		}
 	}
 
+	if (recursive)
+		fnvlist_free(opts);
 error:
 	if (parentname) {
 		free(parentname);
