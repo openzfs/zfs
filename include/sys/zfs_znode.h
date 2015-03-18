@@ -253,6 +253,7 @@ typedef struct znode {
 #define	ZFS_ENTER(zsb) \
 	{ \
 		rrw_enter_read(&(zsb)->z_teardown_lock, FTAG); \
+		(zsb)->z_fstrans = spl_fstrans_mark(); \
 		if ((zsb)->z_unmounted) { \
 			ZFS_EXIT(zsb); \
 			return (EIO); \
@@ -262,6 +263,7 @@ typedef struct znode {
 /* Must be called before exiting the vop */
 #define	ZFS_EXIT(zsb) \
 	{ \
+		spl_fstrans_unmark((zsb)->z_fstrans); \
 		rrw_exit(&(zsb)->z_teardown_lock, FTAG); \
 		tsd_exit(); \
 	}
