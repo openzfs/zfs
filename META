@@ -2,7 +2,7 @@ Meta:         1
 Name:         zfs
 Branch:       1.0
 Version:      0.6.3
-Release:      1.2
+Release:      1.3
 Release-Tags: relext
 License:      CDDL
 Author:       Sun Microsystems/Oracle, Lawrence Livermore National Laboratory
