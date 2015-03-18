@@ -253,6 +253,7 @@ typedef struct znode {
 #define	ZFS_ENTER(zsb) \
 	{ \
 		rrw_enter_read(&(zsb)->z_teardown_lock, FTAG); \
+		(zsb)->z_fstrans = spl_fstrans_mark(); \
 		if ((zsb)->z_unmounted) { \
 			ZFS_EXIT(zsb); \
 			return (EIO); \
@@ -262,6 +263,7 @@ typedef struct znode {
 /* Must be called before exiting the vop */
 #define	ZFS_EXIT(zsb) \
 	{ \
+		spl_fstrans_unmark((zsb)->z_fstrans); \
 		rrw_exit(&(zsb)->z_teardown_lock, FTAG); \
 		tsd_exit(); \
 	}
@@ -285,8 +287,6 @@ typedef struct znode {
 	mutex_tryenter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 #define	ZFS_OBJ_HOLD_EXIT(zsb, obj_num) \
 	mutex_exit(ZFS_OBJ_MUTEX((zsb), (obj_num)))
-#define	ZFS_OBJ_HOLD_OWNED(zsb, obj_num) \
-	mutex_owned(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 
 /* Encode ZFS stored time values from a struct timespec */
 #define	ZFS_TIME_ENCODE(tp, stmp)		\
