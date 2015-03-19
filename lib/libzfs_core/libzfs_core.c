@@ -814,6 +814,32 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 }
 
 /*
+ * Resets a property on a  DSL directory (i.e. filesystems, volumes, snapshots)
+ * to its original value.
+ *
+ * The following are the valid properties in opts, all of which are booleans:
+ *
+ * "received" - resets property value to from `zfs recv` if it set a value
+ */
+int
+lzc_inherit(const char *fsname, const char *propname, nvlist_t *opts)
+{
+	nvlist_t *args;
+	int error;
+
+	if (fsname == NULL || (propname == NULL ||
+	    strlen(fsname) == 0 || strlen(propname) == 0))
+		return (EINVAL);
+
+	args = fnvlist_alloc();
+	fnvlist_add_string(args, "prop", propname);
+	error = lzc_ioctl("zfs_inherit", fsname, args, opts, NULL, 0);
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
  * Rename DSL directory (i.e. filesystems, volumes, snapshots)
  *
  * The opts flag accepts a boolean named "recursive" to signal that the

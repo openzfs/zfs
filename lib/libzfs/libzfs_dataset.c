@@ -1634,7 +1634,7 @@ error:
 int
 zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 {
-	zfs_cmd_t zc = {"\0"};
+	nvlist_t *opts = NULL;
 	int ret;
 	prop_changelist_t *cl;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
@@ -1644,8 +1644,8 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot inherit %s for '%s'"), propname, zhp->zfs_name);
 
-	zc.zc_cookie = received;
 	if ((prop = zfs_name_to_prop(propname)) == ZPROP_INVAL) {
+		ret = 0;
 		/*
 		 * For user properties, the amount of work we have to do is very
 		 * small, so just do it here.
@@ -1656,13 +1656,15 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 			return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 		}
 
-		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-		(void) strlcpy(zc.zc_value, propname, sizeof (zc.zc_value));
+		if (received) {
+			opts = fnvlist_alloc();
+			fnvlist_add_boolean(opts, "received");
+		}
 
-		if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_INHERIT_PROP, &zc) != 0)
-			return (zfs_standard_error(hdl, errno, errbuf));
+		if (ret == 0 && lzc_inherit(zhp->zfs_name, propname, opts) != 0)
+			ret = zfs_standard_error(hdl, errno, errbuf);
 
-		return (0);
+		goto out;
 	}
 
 	/*
@@ -1684,8 +1686,6 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 	 * Normalize the name, to get rid of shorthand abbreviations.
 	 */
 	propname = zfs_prop_to_name(prop);
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	(void) strlcpy(zc.zc_value, propname, sizeof (zc.zc_value));
 
 	if (prop == ZFS_PROP_MOUNTPOINT && getzoneid() == GLOBAL_ZONEID &&
 	    zfs_prop_get_int(zhp, ZFS_PROP_ZONED)) {
@@ -1711,7 +1711,12 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 	if ((ret = changelist_prefix(cl)) != 0)
 		goto error;
 
-	if ((ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_INHERIT_PROP, &zc)) != 0) {
+	if (received) {
+		opts = fnvlist_alloc();
+		fnvlist_add_boolean(opts, "received");
+	}
+
+	if ((ret = lzc_inherit(zhp->zfs_name, propname, opts)) != 0) {
 		return (zfs_standard_error(hdl, errno, errbuf));
 	} else {
 
@@ -1735,6 +1740,9 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 
 error:
 	changelist_free(cl);
+out:
+	if (opts)
+		fnvlist_free(opts);
 	return (ret);
 }
 

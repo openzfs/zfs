@@ -1224,22 +1224,43 @@ zfs_secpolicy_inject(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts, cred_t *cr)
 
 /* ARGSUSED */
 static int
-zfs_secpolicy_inherit_prop(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts,
+zfs_secpolicy_inherit_prop_impl(const char *fsname, const char *propname,
     cred_t *cr)
 {
-	zfs_prop_t prop = zfs_name_to_prop(zc->zc_value);
+	zfs_prop_t prop = zfs_name_to_prop(propname);
 
 	if (prop == ZPROP_INVAL) {
-		if (!zfs_prop_user(zc->zc_value))
+		if (!zfs_prop_user(propname))
 			return (SET_ERROR(EINVAL));
-		return (zfs_secpolicy_write_perms(zc->zc_name,
+		return (zfs_secpolicy_write_perms(fsname,
 		    ZFS_DELEG_PERM_USERPROP, cr));
 	} else {
-		return (zfs_secpolicy_setprop(zc->zc_name, prop,
+		return (zfs_secpolicy_setprop(fsname, prop,
 		    NULL, cr));
 	}
 }
+/* ARGSUSED */
+static int
+zfs_secpolicy_inherit_prop(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts,
+    cred_t *cr)
+{
+	char *propname;
+	int error;
 
+	if ((error = nvlist_lookup_string(innvl, "prop", &propname)))
+		return (error);
+
+	return (zfs_secpolicy_inherit_prop_impl(zc->zc_name, propname, cr));
+}
+
+/* ARGSUSED */
+static int
+zfs_secpolicy_inherit_prop_legacy(zfs_cmd_t *zc, nvlist_t *innvl,
+    nvlist_t *opts, cred_t *cr)
+{
+	return (zfs_secpolicy_inherit_prop_impl(zc->zc_name, zc->zc_value,
+	    cr));
+}
 static int
 zfs_secpolicy_userspace_one(zfs_cmd_t *zc, nvlist_t *innvl, nvlist_t *opts,
     cred_t *cr)
@@ -2925,20 +2946,10 @@ zfs_ioc_set_prop(zfs_cmd_t *zc)
 	return (error);
 }
 
-/*
- * inputs:
- * zc_name		name of filesystem
- * zc_value		name of property to inherit
- * zc_cookie		revert to received value if TRUE
- *
- * outputs:		none
- */
 static int
-zfs_ioc_inherit_prop(zfs_cmd_t *zc)
+zfs_inherit_prop(const char *fsname, const char *propname, boolean_t received)
 {
-	const char *propname = zc->zc_value;
 	zfs_prop_t prop = zfs_name_to_prop(propname);
-	boolean_t received = zc->zc_cookie;
 	zprop_source_t source = (received
 	    ? ZPROP_SRC_NONE		/* revert to received value, if any */
 	    : ZPROP_SRC_INHERITED);	/* explicitly inherit */
@@ -2981,7 +2992,7 @@ zfs_ioc_inherit_prop(zfs_cmd_t *zc)
 		}
 
 		pair = nvlist_next_nvpair(dummy, NULL);
-		err = zfs_prop_set_special(zc->zc_name, source, pair);
+		err = zfs_prop_set_special(fsname, source, pair);
 		nvlist_free(dummy);
 		if (err != -1)
 			return (err); /* special property already handled */
@@ -2997,7 +3008,22 @@ zfs_ioc_inherit_prop(zfs_cmd_t *zc)
 	}
 
 	/* property name has been validated by zfs_secpolicy_inherit_prop() */
-	return (dsl_prop_inherit(zc->zc_name, zc->zc_value, source));
+	return (dsl_prop_inherit(fsname, propname, source));
+}
+
+/*
+ * inputs:
+ * zc_name		name of filesystem
+ * zc_value		name of property to inherit
+ * zc_cookie		revert to received value if TRUE
+ *
+ * outputs:		none
+ */
+static int
+zfs_ioc_inherit_prop(zfs_cmd_t *zc)
+{
+	return (zfs_inherit_prop(zc->zc_name, zc->zc_value,
+	    !!(zc->zc_cookie)));
 }
 
 static int
@@ -4095,8 +4121,8 @@ zfs_check_clearable(char *dataset, nvlist_t *props, nvlist_t **errlist)
 
 		(void) strcpy(zc->zc_value, nvpair_name(pair));
 		if ((err = zfs_check_settable(dataset, pair, CRED())) != 0 ||
-		    (err = zfs_secpolicy_inherit_prop(zc, NULL, NULL, CRED()))
-		    != 0) {
+		    (err = zfs_secpolicy_inherit_prop_legacy(zc, NULL, NULL,
+		    CRED())) != 0) {
 			VERIFY(nvlist_remove_nvpair(props, pair) == 0);
 			VERIFY(nvlist_add_int32(errors,
 			    zc->zc_value, err) == 0);
@@ -5577,6 +5603,24 @@ zfs_stable_ioc_set_props(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
 	return (error);
 }
 
+
+/*
+ * XXX: Before we stabilize this, we should consider making it accept a list of
+ * things to inherit
+ */
+static int
+zfs_stable_ioc_zfs_inherit(const char *fsname, nvlist_t *innvl,
+    nvlist_t *outnvl, nvlist_t *opts, uint64_t version)
+{
+	char *propname;
+	int error;
+
+	if ((error = nvlist_lookup_string(innvl, "prop", &propname)))
+		return (error);
+
+	return (zfs_inherit_prop(fsname, propname,
+	    nvlist_exists(opts, "received")));
+}
 static int
 zfs_stable_ioc_zfs_rename(const char *oldname, nvlist_t *innvl,
     nvlist_t *outnvl, nvlist_t *opts, uint64_t version)
@@ -6202,6 +6246,14 @@ static const zfs_stable_ioc_vec_t zfs_stable_ioc_vec[] = {
 	.zvec_smush_outnvlist	= B_TRUE,
 	.zvec_allow_log		= B_TRUE,
 },
+{	.zvec_name		= "zfs_inherit",
+	.zvec_func		= zfs_stable_ioc_zfs_inherit,
+	.zvec_secpolicy		= zfs_secpolicy_inherit_prop,
+	.zvec_namecheck		= DATASET_NAME,
+	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
+	.zvec_smush_outnvlist	= B_FALSE,
+	.zvec_allow_log		= B_TRUE,
+},
 };
 
 static const ssize_t zfs_stable_ioc_vec_count =
@@ -6667,7 +6719,7 @@ zfs_ioctl_init(void)
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_PROMOTE, zfs_ioc_promote,
 	    zfs_secpolicy_promote);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_INHERIT_PROP,
-	    zfs_ioc_inherit_prop, zfs_secpolicy_inherit_prop);
+	    zfs_ioc_inherit_prop, zfs_secpolicy_inherit_prop_legacy);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_SET_FSACL, zfs_ioc_set_fsacl,
 	    zfs_secpolicy_set_fsacl);
 

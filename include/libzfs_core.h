@@ -55,6 +55,7 @@ int lzc_hold(nvlist_t *, int, nvlist_t **);
 int lzc_release(nvlist_t *, nvlist_t **);
 int lzc_get_holds(const char *, nvlist_t **);
 
+int lzc_inherit(const char *fsname, const char *propname, nvlist_t *opts);
 int lzc_rename(const char *oldname, const char *newname, nvlist_t *opts,
     char **errname);
 
