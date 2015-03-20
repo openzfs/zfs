@@ -222,7 +222,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_DETACH:
 		return (gettext("\tdetach <pool> <device>\n"));
 	case HELP_EXPORT:
-		return (gettext("\texport [-f] <pool> ...\n"));
+		return (gettext("\texport [-af] <pool> ...\n"));
 	case HELP_HISTORY:
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
@@ -1212,9 +1212,39 @@ zpool_do_destroy(int argc, char **argv)
 	return (ret);
 }
 
+typedef struct export_cbdata {
+	boolean_t force;
+	boolean_t hardforce;
+} export_cbdata_t;
+
+/*
+ * Export one pool
+ */
+int
+zpool_export_one(zpool_handle_t *zhp, void *data)
+{
+	export_cbdata_t *cb = data;
+
+	if (zpool_disable_datasets(zhp, cb->force) != 0)
+		return (1);
+
+	/* The history must be logged as part of the export */
+	log_history = B_FALSE;
+
+	if (cb->hardforce) {
+		if (zpool_export_force(zhp, history_str) != 0)
+			return (1);
+	} else if (zpool_export(zhp, cb->force, history_str) != 0) {
+		return (1);
+	}
+
+	return (0);
+}
+
 /*
  * zpool export [-f] <pool> ...
  *
+ *	-a	Export all pools
  *	-f	Forcefully unmount datasets
  *
  * Export the given pools.  By default, the command will attempt to cleanly
@@ -1224,16 +1254,18 @@ zpool_do_destroy(int argc, char **argv)
 int
 zpool_do_export(int argc, char **argv)
 {
+	export_cbdata_t cb;
+	boolean_t do_all = B_FALSE;
 	boolean_t force = B_FALSE;
 	boolean_t hardforce = B_FALSE;
-	int c;
-	zpool_handle_t *zhp;
-	int ret;
-	int i;
+	int c, ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fF")) != -1) {
+	while ((c = getopt(argc, argv, "afF")) != -1) {
 		switch (c) {
+		case 'a':
+			do_all = B_TRUE;
+			break;
 		case 'f':
 			force = B_TRUE;
 			break;
@@ -1247,8 +1279,20 @@ zpool_do_export(int argc, char **argv)
 		}
 	}
 
+	cb.force = force;
+	cb.hardforce = hardforce;
 	argc -= optind;
 	argv += optind;
+
+	if (do_all) {
+		if (argc != 0) {
+			(void) fprintf(stderr, gettext("too many arguments\n"));
+			usage(B_FALSE);
+		}
+
+		return (for_each_pool(argc, argv, B_TRUE, NULL,
+		    zpool_export_one, &cb));
+	}
 
 	/* check arguments */
 	if (argc < 1) {
@@ -1256,31 +1300,7 @@ zpool_do_export(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = 0;
-	for (i = 0; i < argc; i++) {
-		if ((zhp = zpool_open_canfail(g_zfs, argv[i])) == NULL) {
-			ret = 1;
-			continue;
-		}
-
-		if (zpool_disable_datasets(zhp, force) != 0) {
-			ret = 1;
-			zpool_close(zhp);
-			continue;
-		}
-
-		/* The history must be logged as part of the export */
-		log_history = B_FALSE;
-
-		if (hardforce) {
-			if (zpool_export_force(zhp, history_str) != 0)
-				ret = 1;
-		} else if (zpool_export(zhp, force, history_str) != 0) {
-			ret = 1;
-		}
-
-		zpool_close(zhp);
-	}
+	ret = for_each_pool(argc, argv, B_TRUE, NULL, zpool_export_one, &cb);
 
 	return (ret);
 }

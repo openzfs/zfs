@@ -57,7 +57,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool export\fR [\fB-f\fR] \fIpool\fR ...
+\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] \fIpool\fR ...
 .fi
 
 .LP
@@ -1059,11 +1059,13 @@ Forces any active datasets contained within the pool to be unmounted.
 Detaches \fIdevice\fR from a mirror. The operation is refused if there are no other valid replicas of the data.  If \fIdevice\fR may be re-added to the pool later on then consider the "\fBzpool offline\fR" command instead.
 .RE
 
+.RE
+
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool export\fR [\fB-f\fR] \fIpool\fR ...\fR
+\fB\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1076,10 +1078,21 @@ For pools to be portable, you must give the \fBzpool\fR command whole disks, not
 .ne 2
 .mk
 .na
+\fB\fB-a\fR\fR
+.ad
+.RS 6n
+.rt
+Exports all pools imported on the system.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-f\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Forcefully unmount all datasets, using the "\fBunmount -f\fR" command.
 .sp
 This command will forcefully export the pool even if it has a shared spare that is currently being used. This may lead to potential data corruption.
