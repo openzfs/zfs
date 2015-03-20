@@ -597,7 +597,7 @@ is_spare(nvlist_t *config, const char *path)
 	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) != 0 ||
 	    !inuse ||
 	    state != POOL_STATE_SPARE ||
-	    zpool_read_label(fd, &label) != 0) {
+	    zpool_read_label(fd, &label, NULL) != 0) {
 		free(name);
 		(void) close(fd);
 		return (B_FALSE);
