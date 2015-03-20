@@ -67,7 +67,7 @@ typedef struct {
 	    (type == MUTEX_ADAPTIVE) ||				\
 	    (type == MUTEX_FSTRANS));				\
 								\
-	__mutex_init(MUTEX(mp), #mp, &__key);			\
+	__mutex_init(MUTEX(mp), (name) ? (#name) : (#mp), &__key); \
 	spin_lock_init(&(mp)->m_lock);				\
 	(mp)->m_type = type;					\
 	(mp)->m_owner = NULL;					\
@@ -95,7 +95,19 @@ typedef struct {
 	_rc_;							\
 })
 
-#define	mutex_enter(mp)						\
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#define	mutex_enter_nested(mp, subclass)			\
+{								\
+	ASSERT3P(mutex_owner(mp), !=, current);			\
+	mutex_lock_nested(MUTEX(mp), (subclass));		\
+	(mp)->m_owner = current;				\
+	if ((mp)->m_type == MUTEX_FSTRANS) {			\
+		(mp)->m_saved_flags = current->flags;		\
+		current->flags |= PF_FSTRANS;			\
+	}							\
+}
+#else /* CONFIG_DEBUG_LOCK_ALLOC */
+#define	mutex_enter_nested(mp, subclass)			\
 {								\
 	ASSERT3P(mutex_owner(mp), !=, current);			\
 	mutex_lock(MUTEX(mp));					\
@@ -105,6 +117,9 @@ typedef struct {
 		current->flags |= PF_FSTRANS;			\
 	}							\
 }
+#endif /*  CONFIG_DEBUG_LOCK_ALLOC */
+
+#define	mutex_enter(mp) mutex_enter_nested((mp), 0)
 
 /*
  * The reason for the spinlock:
