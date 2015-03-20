@@ -389,6 +389,7 @@ typedef struct importargs {
 	int can_be_active : 1;	/* can the pool be active?		*/
 	int unique : 1;		/* does 'poolname' already exist?	*/
 	int exists : 1;		/* set on return if pool already exists	*/
+	int labels : 1;		/* require all vdev labels		*/
 } importargs_t;
 
 extern nvlist_t *zpool_search_import(libzfs_handle_t *, importargs_t *);
@@ -757,7 +758,7 @@ extern int zpool_in_use(libzfs_handle_t *, int, pool_state_t *, char **,
 /*
  * Label manipulation.
  */
-extern int zpool_read_label(int, nvlist_t **);
+extern int zpool_read_label(int, nvlist_t **, boolean_t);
 extern int zpool_clear_label(int);
 
 /*

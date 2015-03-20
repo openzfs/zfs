@@ -843,13 +843,14 @@ label_offset(uint64_t size, int l)
 
 /*
  * Given a file descriptor, read the label information and return an nvlist
- * describing the configuration, if there is one.
+ * describing the configuration, if there is one.  When the 'all' parameter
+ * is set require that all the labels be intact before returning the config.
  */
 int
-zpool_read_label(int fd, nvlist_t **config)
+zpool_read_label(int fd, nvlist_t **config, boolean_t all)
 {
 	struct stat64 statbuf;
-	int l;
+	int l, count = 0;
 	vdev_label_t *label;
 	uint64_t state, txg, size;
 
@@ -884,8 +885,19 @@ zpool_read_label(int fd, nvlist_t **config)
 			continue;
 		}
 
-		free(label);
-		return (0);
+		/* The caller requires only a single valid label. */
+		if (all == B_FALSE) {
+			free(label);
+			return (0);
+		}
+
+		/* The caller requires all the labels be valid */
+		if ((++count) == VDEV_LABELS) {
+			free(label);
+			return (0);
+		}
+
+		nvlist_free(*config);
 	}
 
 	free(label);
@@ -930,7 +942,8 @@ zpool_clear_label(int fd)
  * Use libblkid to quickly search for zfs devices
  */
 static int
-zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
+zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools,
+    importargs_t *iarg)
 {
 	blkid_cache cache;
 	blkid_dev_iterate iter;
@@ -972,7 +985,7 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 		if ((fd = open64(devname, O_RDONLY)) < 0)
 			continue;
 
-		err = zpool_read_label(fd, &config);
+		err = zpool_read_label(fd, &config, iarg->labels);
 		(void) close(fd);
 
 		if (err != 0) {
@@ -1037,7 +1050,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	if (dirs == 0) {
 #ifdef HAVE_LIBBLKID
 		/* Use libblkid to scan all device for their type */
-		if (zpool_find_import_blkid(hdl, &pools) == 0)
+		if (zpool_find_import_blkid(hdl, &pools, iarg) == 0)
 			goto skip_scanning;
 
 		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
@@ -1143,7 +1156,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
 				continue;
 
-			if ((zpool_read_label(fd, &config)) != 0) {
+			if ((zpool_read_label(fd, &config, iarg->labels))) {
 				(void) close(fd);
 				(void) no_memory(hdl);
 				goto error;
@@ -1461,7 +1474,7 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 
 	*inuse = B_FALSE;
 
-	if (zpool_read_label(fd, &config) != 0) {
+	if (zpool_read_label(fd, &config, B_FALSE) != 0) {
 		(void) no_memory(hdl);
 		return (-1);
 	}
