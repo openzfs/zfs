@@ -62,6 +62,11 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
+\fBzpool export\fR [\fB-af\fR]
+.fi
+
+.LP
+.nf
 \fBzpool get\fR [\fB-pH\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
 .fi
 
@@ -1072,6 +1077,47 @@ Exports the given pools from the system. All devices are marked as exported, but
 Before exporting the pool, all datasets within the pool are unmounted. A pool can not be exported if it has a shared spare that is currently being used.
 .sp
 For pools to be portable, you must give the \fBzpool\fR command whole disks, not just partitions, so that \fBZFS\fR can label the disks with portable \fBEFI\fR labels. Otherwise, disk drivers on platforms of different endianness will not recognize the disks.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-f\fR\fR
+.ad
+.RS 6n
+.rt  
+Forcefully unmount all datasets, using the "\fBunmount -f\fR" command.
+.sp
+This command will forcefully export the pool even if it has a shared spare that is currently being used. This may lead to potential data corruption.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool export\fR [\fB-af\fR]
+.ad
+.sp .6
+.RS 4n
+Export pool(s) from the system. All devices are marked as exported, but are still considered in use by other subsystems. The devices can be moved between systems (even those of different endianness) and imported as long as a sufficient number of devices are present.
+.sp
+Before exporting the pool, all datasets within the pool are unmounted. A pool can not be exported if it has a shared spare that is currently being used.
+.sp
+For pools to be portable, you must give the \fBzpool\fR command whole disks, not just partitions, so that \fBZFS\fR can label the disks with portable \fBEFI\fR labels. Otherwise, disk drivers on platforms of different endianness will not recognize the disks.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-a\fR\fR
+.ad
+.RS 6n
+.rt
+Exports all pools imported on the system. 
+.sp
+This command will export all pools imported to the system.
+.RE
+
 .sp
 .ne 2
 .mk
