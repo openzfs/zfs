@@ -2008,6 +2008,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *       -D     Scan for previously destroyed pools or import all or only
  *              specified destroyed pools.
  *
+ *       -l     Scan for devices where only a single vdev label is intact.
+ *              Without this option all four labels must exist.
+ *
  *       -R	Temporarily import the pool, with all mountpoints relative to
  *		the given root.  The pool will remain exported when the machine
  *		is rebooted.
@@ -2062,13 +2065,14 @@ zpool_do_import(int argc, char **argv)
 	boolean_t dryrun = B_FALSE;
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
+	boolean_t do_labels = B_TRUE;
 	uint64_t pool_state, txg = -1ULL;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
 	char *endptr;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:R:tT:VX")) != -1) {
+	while ((c = getopt(argc, argv, ":aCc:d:DEfFlmnNo:R:tT:VX")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
@@ -2097,6 +2101,9 @@ zpool_do_import(int argc, char **argv)
 			break;
 		case 'F':
 			do_rewind = B_TRUE;
+			break;
+		case 'l':
+			do_labels = B_FALSE;
 			break;
 		case 'm':
 			flags |= ZFS_IMPORT_MISSING_LOG;
@@ -2273,6 +2280,7 @@ zpool_do_import(int argc, char **argv)
 	idata.poolname = searchname;
 	idata.guid = searchguid;
 	idata.cachefile = cachefile;
+	idata.labels = do_labels;
 
 	pools = zpool_search_import(g_zfs, &idata);
 
