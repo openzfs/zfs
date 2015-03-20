@@ -66,6 +66,51 @@ query_vdev_status()
 }
 
 
+# notify (old_vdev, new_vdev, num_errors)
+#
+# Send a notification regarding the hot spare replacement.
+#
+# Arguments
+#   old_vdev: path of old vdev that has failed
+#   new_vdev: path of new vdev used as the hot spare replacement
+#   num_errors: number of errors that triggered this replacement
+#
+notify()
+{
+    local old_vdev="$1"
+    local new_vdev="$2"
+    local num_errors="$3"
+    local note_subject
+    local note_pathname
+    local s
+    local rv
+
+    umask 077
+    note_subject="ZFS hot spare replacement for ${ZEVENT_POOL} on $(hostname)"
+    note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+    {
+        [ "${num_errors}" -ne 1 ] 2>/dev/null && s="s"
+
+        echo "ZFS has replaced a failing device with a hot spare after" \
+            "${num_errors} ${ZEVENT_SUBCLASS} error${s}:"
+        echo
+        echo "   eid: ${ZEVENT_EID}"
+        echo " class: ${ZEVENT_SUBCLASS}"
+        echo "  host: $(hostname)"
+        echo "  time: ${ZEVENT_TIME_STRING}"
+        echo "   old: ${old_vdev}"
+        echo "   new: ${new_vdev}"
+
+        "${ZPOOL}" status "${ZEVENT_POOL}"
+
+    } > "${note_pathname}"
+
+    zed_notify "${note_subject}" "${note_pathname}"; rv=$?
+    rm -f "${note_pathname}"
+    return "${rv}"
+}
+
+
 # main
 #
 # Arguments
@@ -82,6 +127,8 @@ main()
     local vdev_path
     local vdev_status
     local spare
+    local spare_path
+    local spare_status
     local zpool_err
     local zpool_rv
     local rv
@@ -166,17 +213,18 @@ main()
 
             # shellcheck disable=SC2046
             set -- $(query_vdev_status "${ZEVENT_POOL}" "${spare}")
-            vdev_path="$1"
-            vdev_status="$2"
+            spare_path="$1"
+            spare_status="$2"
 
-            [ "${vdev_status}" = "AVAIL" ] || continue
+            [ "${spare_status}" = "AVAIL" ] || continue
 
             zpool_err="$("${ZPOOL}" replace "${ZEVENT_POOL}" \
-                "${ZEVENT_VDEV_GUID}" "${vdev_path}" 2>&1)"; zpool_rv=$?
+                "${ZEVENT_VDEV_GUID}" "${spare_path}" 2>&1)"; zpool_rv=$?
 
             if [ "${zpool_rv}" -ne 0 ]; then
                 [ -n "${zpool_err}" ] && zed_log_err "zpool ${zpool_err}"
             else
+                notify "${vdev_path}" "${spare_path}" "${num_errors}"
                 rv=0
                 break
             fi
