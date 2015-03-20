@@ -206,19 +206,7 @@ zpl_rmdir(struct inode * dir, struct dentry *dentry)
 static int
 zpl_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 {
-	boolean_t issnap = ITOZSB(dentry->d_inode)->z_issnap;
 	int error;
-
-	/*
-	 * Ensure MNT_SHRINKABLE is set on snapshots to ensure they are
-	 * unmounted automatically with the parent file system.  This
-	 * is done on the first getattr because it's not easy to get the
-	 * vfsmount structure at mount time.  This call path is explicitly
-	 * marked unlikely to avoid any performance impact.  FWIW, ext4
-	 * resorts to a similar trick for sysadmin convenience.
-	 */
-	if (unlikely(issnap && !(mnt->mnt_flags & MNT_SHRINKABLE)))
-		mnt->mnt_flags |= MNT_SHRINKABLE;
 
 	error = -zfs_getattr_fast(dentry->d_inode, stat);
 	ASSERT3S(error, <=, 0);

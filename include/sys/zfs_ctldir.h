@@ -52,12 +52,14 @@ typedef struct {
 	struct inode		*se_inode;
 	taskqid_t		se_taskqid;
 	avl_node_t		se_node;
+	struct dentry		*se_root_dentry;
 } zfs_snapentry_t;
 
 /* zfsctl generic functions */
 extern int snapentry_compare(const void *a, const void *b);
 extern boolean_t zfsctl_is_node(struct inode *ip);
 extern boolean_t zfsctl_is_snapdir(struct inode *ip);
+extern boolean_t zfsctl_is_ctl(struct inode *ip);
 extern void zfsctl_inode_inactive(struct inode *ip);
 extern void zfsctl_inode_destroy(struct inode *ip);
 extern int zfsctl_create(zfs_sb_t *zsb);

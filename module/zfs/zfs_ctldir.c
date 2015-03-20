@@ -81,10 +81,15 @@
 #include <sys/zfs_vnops.h>
 #include <sys/stat.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_deleg.h>
+#include <sys/dsl_dataset.h>
+#include <sys/dsl_prop.h>
+#include <sys/dsl_dir.h>
 #include <sys/mount.h>
 #include <sys/zpl.h>
+#include <sys/nvpair.h>
 #include "zfs_namecheck.h"
 
 /*
@@ -155,6 +160,14 @@ boolean_t
 zfsctl_is_snapdir(struct inode *ip)
 {
 	return (zfsctl_is_node(ip) && (ip->i_ino <= ZFSCTL_INO_SNAPDIRS));
+}
+
+boolean_t
+zfsctl_is_ctl(struct inode *ip)
+{
+	return (zfsctl_is_node(ip) && (ip->i_ino == ZFSCTL_INO_ROOT ||
+	    ip->i_ino == ZFSCTL_INO_SNAPDIR ||
+	    ip->i_ino == ZFSCTL_INO_SHARES));
 }
 
 /*
@@ -813,6 +826,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
+	struct path mnt_path = *path;
 	zfs_sb_t *zsb = ITOZSB(ip);
 	char *full_name, *full_path;
 	zfs_snapentry_t *sep;
@@ -859,6 +873,26 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	error = 0;
 	mutex_enter(&zsb->z_ctldir_lock);
 
+	path_get(&mnt_path);
+	error = follow_down(&mnt_path);
+	if (error) {
+		printk("ZFS: Cannot follow down snapshot mountpoint at %s: "
+		    "%d\n", full_path, error);
+		goto mutex_error;
+	}
+	if (mnt_path.mnt == path->mnt) {
+		printk("ZFS: snapshot %s auto mounted at %s unexpectedly "
+		    "unmounted\n", full_name, full_path);
+		error = SET_ERROR(ENOENT);
+		goto mutex_error;
+	}
+
+	/*
+	 * Ensure MNT_SHRINKABLE is set on snapshots to ensure they are
+	 * unmounted automatically with the parent file system.
+	 */
+	mnt_path.mnt->mnt_flags |= MNT_SHRINKABLE;
+
 	/*
 	 * Ensure a previous entry does not exist, if it does safely remove
 	 * it any cancel the outstanding expiration.  This can occur when a
@@ -876,12 +910,15 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	sep->se_name = full_name;
 	sep->se_path = full_path;
 	sep->se_inode = ip;
+	sep->se_root_dentry = mnt_path.dentry;
 	avl_add(&zsb->z_ctldir_snaps, sep);
 
 	sep->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
 	    zfsctl_expire_snapshot, sep, TQ_SLEEP,
 	    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
 
+mutex_error:
+	path_put(&mnt_path);
 	mutex_exit(&zsb->z_ctldir_lock);
 error:
 	if (error) {
@@ -894,77 +931,191 @@ error:
 	return (error);
 }
 
-/*
- * Check if this super block has a matching objset id.
- */
-static int
-zfsctl_test_super(struct super_block *sb, void *objsetidp)
+static char *
+zfsctl_get_mnt_path(zfs_sb_t *zsb)
 {
-	zfs_sb_t *zsb = sb->s_fs_info;
-	uint64_t objsetid = *(uint64_t *)objsetidp;
+	dsl_dataset_t *ds = zsb->z_os->os_dsl_dataset;
+	int error, altroot_len;
+	nvlist_t *nvp = NULL, *nv = NULL;
+	char *path = NULL, *relpath = NULL, *dname = NULL;
+	char *altroot = NULL, *setpoint = NULL;
 
-	return (dmu_objset_id(zsb->z_os) == objsetid);
+	if (zsb->z_mnt_path[0] != 0)
+		return (zsb->z_mnt_path);
+
+	path = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+	setpoint = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+
+	dsl_pool_config_enter(ds->ds_dir->dd_pool, FTAG);
+	error = dsl_prop_get_ds(ds, zfs_prop_to_name(ZFS_PROP_MOUNTPOINT), 1,
+	    sizeof (path), path, setpoint);
+	dsl_pool_config_exit(ds->ds_dir->dd_pool, FTAG);
+
+	if (!setpoint)
+		dsl_dataset_name(ds, path);
+	else {
+		dname = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+		dsl_dataset_name(ds, dname);
+		strcat(path, dname+strlen(setpoint));
+		kfree(dname);
+		kfree(setpoint);
+	}
+
+	error = spa_prop_get(zsb->z_os->os_spa, &nvp);
+	if (error) {
+		kfree(path);
+		return (ERR_PTR(-error));
+	}
+	error = nvlist_lookup_nvlist(nvp,
+			zpool_prop_to_name(ZPOOL_PROP_ALTROOT), &nv);
+	if (error)
+		altroot = "/";
+	else
+		altroot = fnvlist_lookup_string(nv, ZPROP_VALUE);
+
+	altroot_len = strlen(altroot);
+	relpath = path;
+	if (altroot[altroot_len-1] == '/' && path[0] == '/')
+		relpath++;
+	sprintf(zsb->z_mnt_path, "%s%s", altroot, relpath);
+	nvlist_free(nvp);
+	kfree(path);
+
+	return (zsb->z_mnt_path);
 }
 
-/*
- * Prevent a new super block from being allocated if an existing one
- * could not be located.  We only want to preform a lookup operation.
- */
 static int
-zfsctl_set_super(struct super_block *sb, void *objsetidp)
+zfsctl_get_snapshot_name(zfs_sb_t *zsb, uint64_t objsetid, char *name)
 {
-	return (-EEXIST);
+	int error, ret = ENOENT;
+	uint64_t id;
+	uint64_t cookie = 0;
+	boolean_t case_conflict;
+
+	do {
+		error = -dmu_snapshot_list_next(zsb->z_os, MAXNAMELEN,
+				name, &id, &cookie, &case_conflict);
+
+		if (error == 0 && id == objsetid) {
+			ret = 0;
+			break;
+		}
+	} while (error == 0);
+
+	return (ret);
+}
+
+static int
+zfsctl_lookup_snapshot_path(zfs_sb_t *zsb, uint64_t objsetid)
+{
+	struct path path;
+	char *mnt_path;
+	char *path_buff = NULL;
+	char *snapname = NULL;
+	int error, ret;
+
+	mnt_path = zfsctl_get_mnt_path(zsb);
+	if (IS_ERR(mnt_path))
+		return (PTR_ERR(mnt_path));
+	else if (mnt_path == NULL)
+		return (EINVAL);
+
+	path_buff = kmem_zalloc(PATH_MAX, KM_SLEEP);
+	snapname = kmem_zalloc(MAXNAMELEN, KM_SLEEP);
+	if (!path_buff || !snapname) {
+		error = ENOMEM;
+		goto out_path_buff;
+	}
+
+	error = zfsctl_get_snapshot_name(zsb, objsetid, snapname);
+	if (error)
+		goto out_path_buff;
+
+	ret = snprintf(path_buff, PATH_MAX, "%s/%s/%s/%s",
+	    mnt_path, ZFS_CTLDIR_NAME, ZFS_SNAPDIR_NAME, snapname);
+	if (ret > (PATH_MAX - 1)) {
+		error = EINVAL;
+		goto out_path_buff;
+	}
+
+	error = kern_path(path_buff, LOOKUP_FOLLOW | LOOKUP_DIRECTORY, &path);
+
+	if (!error)
+		path_put(&path);
+
+out_path_buff:
+	kmem_free(path_buff, PATH_MAX);
+	kmem_free(snapname, MAXNAMELEN);
+
+	return (error);
+}
+
+static zfs_sb_t *
+zfsctl_get_zsb(zfs_sb_t *zsb, uint64_t objsetid)
+{
+	int error;
+	zfs_snapentry_t *sep = NULL;
+	zfs_sb_t *snap_zsb = NULL;
+
+	mutex_enter(&zsb->z_ctldir_lock);
+
+	sep = avl_first(&zsb->z_ctldir_snaps);
+	while (sep != NULL) {
+		uint64_t id;
+		char *sname_simple = strchr(sep->se_name, '@');
+
+		if (!sname_simple) {
+			snap_zsb = ERR_PTR(EINVAL);
+			break;
+		}
+
+		sname_simple++;
+		dsl_pool_config_enter(dmu_objset_pool(zsb->z_os), FTAG);
+		error = dmu_snapshot_lookup(zsb->z_os, sname_simple, &id);
+		dsl_pool_config_exit(dmu_objset_pool(zsb->z_os), FTAG);
+		if (error) {
+			snap_zsb = ERR_PTR(error);
+			break;
+		}
+
+		if (id == objsetid) {
+			snap_zsb = sep->se_root_dentry->d_sb->s_fs_info;
+			break;
+		}
+
+		sep = AVL_NEXT(&zsb->z_ctldir_snaps, sep);
+	}
+
+	mutex_exit(&zsb->z_ctldir_lock);
+
+	return (snap_zsb);
 }
 
 int
 zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 {
 	zfs_sb_t *zsb = sb->s_fs_info;
-	struct super_block *sbp;
-	zfs_snapentry_t *sep;
-	uint64_t id;
-	int error;
+	int error = 0;
 
 	ASSERT(zsb->z_ctldir != NULL);
 
-	mutex_enter(&zsb->z_ctldir_lock);
-
-	/*
-	 * Verify that the snapshot is mounted.
-	 */
-	sep = avl_first(&zsb->z_ctldir_snaps);
-	while (sep != NULL) {
-		error = dmu_snapshot_lookup(zsb->z_os, sep->se_name, &id);
+	*zsbp = zfsctl_get_zsb(zsb, objsetid);
+	if (*zsbp == NULL) {
+		error = zfsctl_lookup_snapshot_path(zsb, objsetid);
 		if (error)
 			goto out;
 
-		if (id == objsetid)
-			break;
-
-		sep = AVL_NEXT(&zsb->z_ctldir_snaps, sep);
+		*zsbp = zfsctl_get_zsb(zsb, objsetid);
 	}
 
-	if (sep != NULL) {
-		/*
-		 * Lookup the mounted root rather than the covered mount
-		 * point.  This may fail if the snapshot has just been
-		 * unmounted by an unrelated user space process.  This
-		 * race cannot occur to an expired mount point because
-		 * we hold the zsb->z_ctldir_lock to prevent the race.
-		 */
-		sbp = zpl_sget(&zpl_fs_type, zfsctl_test_super,
-		    zfsctl_set_super, 0, &id);
-		if (IS_ERR(sbp)) {
-			error = -PTR_ERR(sbp);
-		} else {
-			*zsbp = sbp->s_fs_info;
-			deactivate_super(sbp);
-		}
-	} else {
-		error = SET_ERROR(EINVAL);
-	}
+	if (IS_ERR(*zsbp))
+		error = PTR_ERR(*zsbp);
+	else if (*zsbp == NULL)
+		error = ENOENT;
+	else
+		error = 0;
+
 out:
-	mutex_exit(&zsb->z_ctldir_lock);
 	ASSERT3S(error, >=, 0);
 
 	return (error);

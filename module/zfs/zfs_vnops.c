@@ -2405,6 +2405,16 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 
 	mutex_exit(&zp->z_lock);
 
+	/*
+	 * Required to prevent NFS client from detecting different inode
+	 * numbers of snapshot root dentry before and after snapshot mount.
+	 */
+	if (zsb->z_issnap) {
+		if (ip->i_sb->s_root->d_inode == ip)
+			sp->ino = ZFSCTL_INO_SNAPDIRS -
+				dmu_objset_id(zsb->z_os);
+	}
+
 	ZFS_EXIT(zsb);
 
 	return (0);
@@ -4347,19 +4357,35 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	uint64_t	object = zp->z_id;
 	zfid_short_t	*zfid;
 	int		size, i, error;
+	uint64_t	objsetid = 0;
 
 	ZFS_ENTER(zsb);
-	ZFS_VERIFY_ZP(zp);
 
-	if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zsb),
-	    &gen64, sizeof (uint64_t))) != 0) {
-		ZFS_EXIT(zsb);
-		return (error);
+	if (!zfsctl_is_snapdir(ip)) {
+		ZFS_VERIFY_ZP(zp);
+
+		if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zsb),
+		    &gen64, sizeof (uint64_t))) != 0) {
+			ZFS_EXIT(zsb);
+			return (error);
+		}
+
+		/* gen must be non-zero to distinguish from .zfs */
+		gen = (gen64) ? (uint32_t)gen64 : 1;
+
+		if (zsb->z_issnap) {
+			size = LONG_FID_LEN;
+			objsetid = dmu_objset_id(zsb->z_os);
+		} else {
+			size = SHORT_FID_LEN;
+		}
+	} else { /* snap dir */
+		gen = 0;
+		size = LONG_FID_LEN;
+		objsetid = ZFSCTL_INO_SNAPDIRS - ip->i_ino;
 	}
 
-	gen = (uint32_t)gen64;
 
-	size = (zsb->z_parent != zsb) ? LONG_FID_LEN : SHORT_FID_LEN;
 	if (fidp->fid_len < size) {
 		fidp->fid_len = size;
 		ZFS_EXIT(zsb);
@@ -4373,14 +4399,10 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	for (i = 0; i < sizeof (zfid->zf_object); i++)
 		zfid->zf_object[i] = (uint8_t)(object >> (8 * i));
 
-	/* Must have a non-zero generation number to distinguish from .zfs */
-	if (gen == 0)
-		gen = 1;
 	for (i = 0; i < sizeof (zfid->zf_gen); i++)
 		zfid->zf_gen[i] = (uint8_t)(gen >> (8 * i));
 
 	if (size == LONG_FID_LEN) {
-		uint64_t	objsetid = dmu_objset_id(zsb->z_os);
 		zfid_long_t	*zlfid;
 
 		zlfid = (zfid_long_t *)fidp;
