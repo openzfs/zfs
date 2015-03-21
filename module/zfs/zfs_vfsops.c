@@ -776,6 +776,9 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	rrw_init(&zsb->z_teardown_lock, B_FALSE);
 	rw_init(&zsb->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zsb->z_fuid_lock, NULL, RW_DEFAULT, NULL);
+
+	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ,
+	    KM_SLEEP);
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
 
@@ -789,6 +792,8 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 out:
 	dmu_objset_disown(os, zsb);
 	*zsbp = NULL;
+
+	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 	return (error);
 }
@@ -892,6 +897,7 @@ zfs_sb_free(zfs_sb_t *zsb)
 	rw_destroy(&zsb->z_fuid_lock);
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
+	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
 	mutex_destroy(&zsb->z_ctldir_lock);
 	avl_destroy(&zsb->z_ctldir_snaps);
 	kmem_free(zsb, sizeof (zfs_sb_t));
