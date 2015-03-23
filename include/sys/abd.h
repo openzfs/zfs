@@ -48,15 +48,20 @@ extern "C" {
 #define	PAGE_SIZE 4096
 #endif
 
+#ifndef PAGE_SHIFT
+#define	PAGE_SHIFT 12
+#endif
+
 #ifdef ZFS_DEBUG
 #define	DEBUG_ABD
+#define	PAGE_SHIFT 12
 #endif
 
 #endif	/* !_KERNEL */
 
 typedef struct arc_buf_data {
 #ifdef DEBUG_ABD
-	char		pad[PAGE_SIZE];	/* debug, coredumps when accessed */
+	char		pad[4096];	/* debug, coredumps when accessed */
 #endif
 	uint32_t	abd_magic;	/* ARC_BUF_DATA_MAGIC */
 	uint32_t	abd_flags;
