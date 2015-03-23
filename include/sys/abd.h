@@ -48,8 +48,13 @@ extern "C" {
 #define	PAGE_SIZE 4096
 #endif
 
+#ifndef PAGE_SHIFT
+#define	PAGE_SHIFT 12
+#endif
+
 #ifdef ZFS_DEBUG
 #define	DEBUG_ABD
+#define	PAGE_SHIFT 12
 #endif
 
 #endif	/* !_KERNEL */
