@@ -1033,7 +1033,7 @@ AC_DEFUN([SPL_AC_FS_STRUCT_SPINLOCK], [
 		#include <linux/sched.h>
 		#include <linux/fs_struct.h>
 	],[
-		struct fs_struct fs;
+		static struct fs_struct fs;
 		spin_lock_init(&fs.lock);
 	],[
 		AC_MSG_RESULT(yes)
