@@ -1,1 +1,1 @@
-SUBDIRS = generic
+SUBDIRS = generic redhat

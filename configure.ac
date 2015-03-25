@@ -134,6 +134,10 @@ AC_CONFIG_FILES([
 	scripts/zpool-config/Makefile
 	scripts/common.sh
 	rpm/Makefile
+	rpm/redhat/Makefile
+	rpm/redhat/zfs.spec
+	rpm/redhat/zfs-kmod.spec
+	rpm/redhat/zfs-dkms.spec
 	rpm/generic/Makefile
 	rpm/generic/zfs.spec
 	rpm/generic/zfs-kmod.spec

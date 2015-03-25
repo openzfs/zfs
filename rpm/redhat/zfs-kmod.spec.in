@@ -1,0 +1,86 @@
+%bcond_with     debug
+%bcond_with     debug_dmu_tx
+
+Name:           @PACKAGE@-kmod
+Version:        @VERSION@
+Release:        @RELEASE@%{?dist}
+
+Summary:        Kernel module(s)
+Group:          System Environment/Kernel
+License:        @ZFS_META_LICENSE@
+URL:            http://zfsonlinux.org/
+BuildRequires:  %kernel_module_package_buildreqs
+BuildRequires:  kmod-spl-devel = %{version}
+Source0:        @PACKAGE@-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+
+# Additional dependency information for the kmod sub-package must be specified
+# by generating a preamble text file which kmodtool can append to the spec file.
+%(/bin/echo -e "\
+Requires:       spl-kmod\n\
+Requires:       @PACKAGE@ = %{version}\n\
+Conflicts:      @PACKAGE@-dkms\n\n" > %{_sourcedir}/kmod-preamble)
+
+%description
+This package contains the ZFS kernel modules.
+
+%define kmod_name @PACKAGE@
+%define debug_package %{nil}
+
+%kernel_module_package -n %{kmod_name} -p %{_sourcedir}/kmod-preamble
+
+%define ksrc %{_usrsrc}/kernels/%{kverrel}
+%define kobj %{ksrc}
+%define splsrc %{_usrsrc}/spl-%{version}
+%define splobj %{splsrc}/%{kverrel}
+
+%package -n kmod-%{kmod_name}-devel
+Summary:        ZFS kernel module(s) devel common
+Group:          System Environment/Kernel
+Requires:       kmod-spl-devel = %{version}
+
+%description -n  kmod-%{kmod_name}-devel
+This package provides the header files and objects to build kernel modules
+which depend on the spl kernel module.
+
+%prep
+if ! [ -d "%{ksrc}"  ]; then
+        echo "Kernel build directory isn't set properly, cannot continue"
+        exit 1
+fi
+
+%if %{with debug}
+%define debug --enable-debug
+%else
+%define debug --disable-debug
+%endif
+
+%if %{with debug_dmu_tx}
+%define debug_dmu_tx --enable-debug-dmu-tx
+%else
+%define debug_dmu_tx --disable-debug-dmu-tx
+%endif
+
+%setup -n %{kmod_name}-%{version}
+%build
+%configure \
+        --with-config=kernel \
+        --with-linux=%{ksrc} \
+        --with-linux-obj=%{kobj} \
+        --with-spl="%{splsrc}" \
+        --with-spl-obj="%{splobj}" \
+        %{debug} \
+        %{debug_dmu_tx}
+make %{?_smp_mflags}
+
+%install
+make install \
+        DESTDIR=${RPM_BUILD_ROOT} \
+        INSTALL_MOD_DIR=extra/%{kmod_name}
+%{__rm} -f %{buildroot}/lib/modules/%{kverrel}/modules.*
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files -n kmod-%{kmod_name}-devel
+%{_usrsrc}/%{kmod_name}-%{version}
