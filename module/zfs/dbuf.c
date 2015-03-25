@@ -898,9 +898,14 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		db_next = list_next(&dn->dn_dbufs, db);
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 
+		/* Skip indirect blocks. */
 		if (db->db_level != 0)
 			continue;
-		if ((db->db_blkid < start || db->db_blkid > end) && !freespill)
+		/* Skip direct blocks outside the range. */
+		if (!freespill && (db->db_blkid < start || db->db_blkid > end))
+			continue;
+		/* Skip all direct blocks, only free spill blocks. */
+		if (freespill && (db->db_blkid != DMU_SPILL_BLKID))
 			continue;
 
 		/* found a level 0 buffer in the range */
