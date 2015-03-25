@@ -42,28 +42,28 @@ DECLARE_EVENT_CLASS(zfs_zrlock_class,
 	TP_PROTO(zrlock_t *zrl, uint32_t n),
 	TP_ARGS(zrl, n),
 	TP_STRUCT__entry(
-	    __field(int32_t,		zr_refcount)
+	    __field(int32_t,		refcount)
 #ifdef	ZFS_DEBUG
-	    __field(pid_t,		zr_owner_pid)
-	    __field(const char *,	zr_caller)
+	    __field(pid_t,		owner_pid)
+	    __field(const char *,	caller)
 #endif
 	    __field(uint32_t,		n)
 	),
 	TP_fast_assign(
-	    __entry->zr_refcount	= zrl->zr_refcount;
+	    __entry->refcount	= zrl->zr_refcount;
 #ifdef	ZFS_DEBUG
-	    __entry->zr_owner_pid	= zrl->zr_owner->pid;
-	    __entry->zr_caller		= zrl->zr_caller;
+	    __entry->owner_pid	= zrl->zr_owner ? zrl->zr_owner->pid : 0;
+	    __entry->caller	= zrl->zr_caller;
 #endif
-	    __entry->n			= n;
+	    __entry->n		= n;
 	),
 #ifdef	ZFS_DEBUG
 	TP_printk("zrl { refcount %d owner_pid %d caller %s } n %u",
-	    __entry->zr_refcount, __entry->zr_owner_pid, __entry->zr_caller,
+	    __entry->refcount, __entry->owner_pid, __entry->caller,
 	    __entry->n)
 #else
 	TP_printk("zrl { refcount %d } n %u",
-	    __entry->zr_refcount, __entry->n)
+	    __entry->refcount, __entry->n)
 #endif
 );
 
