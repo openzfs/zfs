@@ -1,0 +1,61 @@
+#!/bin/sh
+
+# !! This script is for ISCSI-SCST !!
+
+SYSFS=/sys/kernel/scst_tgt
+
+if [ ! -d $SYSFS ]; then
+    exit 1
+fi
+
+# Read 'iscsi-scst/README' in the SCST source directory
+# for more information.
+
+# Only edit AFTER the '-----' line !
+
+if [ -z "$1" ]; then
+    echo "Usage: `basename $0` [IQN:identifier]"
+    exit 1
+fi
+
+target_mod() {
+    param=$1
+    value=$2
+
+    dir=$SYSFS/targets/iscsi/$name
+
+    echo "$value" > $dir/$param
+}
+
+iscsi_mgmt() {
+    opts="$*"
+
+    echo "add_target_attribute $opts" > $SYSFS/targets/iscsi/mgmt
+}
+
+name=$1
+
+# ----------------------------------------------
+
+# Only edit this after this point.
+
+#iscsi_mgmt $name IncomingUser1 joe2 12charsecret2
+#iscsi_mgmt $name IncomingUser  joe  12charsecret
+#iscsi_mgmt $name OutgoingUser  jim1 12charpasswd
+#iscsi_mgmt $name allowed_portal 10.170.77.2
+
+target_mod InitialR2T			Yes
+target_mod ImmediateData		Yes
+
+target_mod MaxRecvDataSegmentLength	262144
+target_mod MaxXmitDataSegmentLength	65536
+
+target_mod MaxBurstLength		1048512
+target_mod FirstBurstLength		262144
+target_mod MaxOutstandingR2T		30
+target_mod QueuedCommands		32
+
+target_mod HeaderDigest			None
+target_mod DataDigest			None
+
+exit 0

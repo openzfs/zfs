@@ -1129,13 +1129,171 @@ Controls whether the set-\fBUID\fR bit is respected for the file system. The def
 .ne 2
 .mk
 .na
-\fB\fBshareiscsi\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBshareiscsi\fR=\fBon\fR | \fBoff\fR\fR | \fIopts\fR\fR
 .ad
 .sp .6
 .RS 4n
-Like the \fBsharenfs\fR property, \fBshareiscsi\fR indicates whether a \fBZFS\fR volume is exported as an \fBiSCSI\fR target. The acceptable values for this property are \fBon\fR, \fBoff\fR, and \fBtype=disk\fR. The default value is \fBoff\fR. In the future, other target types might be supported. For example, \fBtape\fR.
+Controls whether a \fBZFS\fR volume is exported as an \fBiSCSI\fR target. The file system is automatically shared and unshared with the zfs share and unshare commands. If the property is set to \fIon\fR, the \fBietadm(8)\fR or \fBtgtadm(8)\fR (depending on iSCSI implementation - see below) command is invokded with default options (see below) to create a iSCSI share. If the property is set to \fIoff\fR, the volume is unshared.
 .sp
-You might want to set \fBshareiscsi=on\fR for a file system so that all \fBZFS\fR volumes within the file system are shared by default. However, setting this property on a file system has no direct effect.
+On Linux, the following iSCSI target implementations is supported:
+.RS
+.IP \[bu] 2
+IET
+http://iscsitarget.sourceforge.net
+.IP \[bu] 2
+STGT
+http://stgt.berlios.de
+.IP \[bu] 2
+SCST
+http://scst.sourceforge.net
+.IP \[bu] 2
+LIO
+http://linux-iscsi.org
+.RE
+.sp
+and the following options (indepentent on implementation):
+.RS
+.IP \[bu] 2
+\fBname\fR
+(or it's alias \fBiqn\fR)
+.IP \[bu] 2
+\fBlun\fR
+.IP \[bu] 2
+\fBiomode\fR
+.sp
+.RS
+\fBNOTE\fR: Ignored for \fULIO\fR - no such option in the ConfigFS.
+.RE
+.IP \[bu] 2
+\fBtype\fR
+.IP \[bu] 2
+\fBblocksize\fR
+.sp
+.RS
+\fBNOTE\fR: Ignored for \fUSTGT\fR - no such option in \fBtgtadm\fR.
+.RE
+.IP \[bu] 2
+\fBinitiator\fR
+(or it's alias \fBacl\fR)
+.sp
+.RS
+\fBNOTE\fR: Only availible for \fBLIO\fR, \fBSCST\fR and \fBSTGT\fR.
+.RE
+.IP \[bu] 2
+\fBauthname\fR
+.IP \[bu] 2
+\fBauthpass\fR
+.RE
+.sp
+Discovery of which iSCSI implementation to use is automatic. However, if, for some very weird reason,
+all is installed (technically possible, although not recommended obviously), then the above order
+is used and first match is used.
+
+.sp
+Detailed information about the options:
+.RS
+.sp
+.IP \fBname\fR
+The \fBname\fR option is the full iSCSI Qualified Name (IQN), including identifier, such as:
+.sp
+.in +8
+iqn.2012-11.com.bayour:tank.some.volume
+.in -8
+.sp
+If \fBname\fR is not specified as an option, the module will either fetch the TID (\fBT\fRarget \fBID\fR) from \fB/etc/iscsi_target_id\fR or autogenerate it using the domain name and the current date (YYYY-MM). It will then add the volume name (the 'identifier' in iSCSI speech), replacing the slash characters in the dataset name with dots. If autogenerating the TID, the domainname needs to be set in \fB/etc/domainname\fR (by echo'ing the domain name to the file) or \fB/proc/sys/kernel/domainname\fR (by using sysctl - usually \fB/etc/sysctl.conf\fR) for the driver to work out the iqn correctly.
+.sp
+The content of the \fB/etc/iscsi_target_id\fR can look some thing like this:
+.sp
+.in +8
+iqn.2010-09.org.zfsonlinux
+.in -8
+.sp
+That is: The word 'iqn', a dot, year, a dash and the number of the month, a dot and then the reversed form of the domain for the machine (in this case \fBzfsonlinux.org\fR) and then a newline. The line must start at the first column (no leading spaces etc) and contain only one line. If the \fBname\fR option is used, the \fB/etc/iscsi_target_id\fR and the hosts domain name is ignored.
+.sp
+.IP \fBlun\fR
+The \fBlun\fR is an integer between 0 and 16384 (255 for \fBLIO\fR) and the first \fIlun\fR defined MUST be 0 (the default). For \fBSTGT\fR the default lun is 1, because \fULUN0\fR is the controller and can't have a device ('backing store' in \fBSTGT\fR speach).
+.sp
+.IP \fBiomode\fR
+The possible values for \fBiomode\fR when using \fBSCST\fR is \fIwt\fR (\fBW\fRrite-\fBT\fRhrough - the default), \fIwb\fR (\fBW\fRrite-\fBB\fRack caching) and \fIro\fR (\fBR\fRead-\fBO\fRnly).
+.sp
+\fBNOTE\fR: This is called \fIbstype\fR in \fBSTGT\fR and can be used as an alias for \fIiomode\fR.
+.sp
+\fBWARNING: IOMode=wb could lead to serious data loss from an unexpected system failure (power loss, system crash). Use at your own risk!\fR
+.sp
+For \fBSTGT\fR, the only possible values is: \fBrdwr\fR (the default), \fBaio\fR, \fBmmap\fR, \fBsg\fR and \fBssc\fR.
+.sp
+For \fBLIO\fR, the only possible values is: \fBrw\fR (\fBR\fRead-\fBW\fRrite - the default) and \fBro\fR (for \fBR\fRead-\fBO\fRnly).
+.sp
+This is a global setting for all \fBinitiator\fRs. To override individual access mode per initiator, see the \fBinitiator\fR option below.
+.sp
+.IP \fBtype\fR
+The possible options for \fBtype\fR on Linux is: \fIfileio\fR, \fIblockio\fR or \fInullio\fR. For compability with the *Solaris and *BSD implementations of ZFS, using either \fBtype=disk\fR or \fBtype=tape\fR is accepted, but will both be replaced with the default value \fBtype=blockio\fR.
+.sp
+\fBNOTE:\fR \fIIOMode\fR \fIwb\fR is replaced with \fIwt\fR if using \fBtype=blockio\fR, as it performs no caching.
+.sp
+For \fBSTGT\fR, the following additional values is accepted: \fBssc\fR and \fBpt\fR.
+.sp
+For \fBLIO\fR, the the following additional values is accepted: \fBiblock\fR (alias for \fBblockio\fR). With \fBLIO\fR, \fInullio\fR is an invalid choice. The \fIfileio\fR backstore is using synchronously data transfer and the \fIiblock\fR is using asynchronously data transfers.
+.sp
+.IP \fBblocksize\fR
+The possible values for \fBblocksize\fR is 512, 1024, 2048 or 4096 (the default). If any other value is specified, ZFS will fail with an error \fIcannot be set to invalid options\fR.
+.sp
+\fBWARNING: Once your data is written at a given block size, you cannot change it without risking corruption of your existing data.\fR
+.sp
+For \fBSTGT\fR, this option is ignored, since it isn't possible to specify a blocksize when creating a lun.
+.sp
+.IP \fBinitiator\fR
+This option is \fUonly\fR availible if using the \fBLIO\fR, \fBSCST\fR and \fBSTGT\fR iSCSI implementation.
+.sp
+To enable a target with access control, a mapped lun (for \fBLIO\fR) or security group (for \fBSCST\fR) must be created. For \fBLIO\fR and \fBSCST\fR, this value of this option is the full iSCSI Qualified Name (IQN) of a Initiator that can have access to this target. For \fBSTGT\fR it is the IP address of the initiator.
+.sp
+The format for this option is:
+.sp
+.in +4
+\fB<initiator iqn or ip>\fR[=\fB<access mode>\fR][;.....]
+.sp
+.in -4
+If access mode (\fBro\fR for read-only and \fBrw\fR for read-write) is not set, the value in \fBiomode\fR (if any) is used. Otherwise, \fBrw\fR is used.
+.sp
+\fBExample\fR:
+.in +4
+.sp
+iqn.1993-08.org.debian:01:a59a7552c4a
+.sp
+\fBor\fR:
+.sp
+iqn.1993-08.org.debian:01:a59a7552c4a=ro
+.in -4
+.sp
+If \fBinitiator\fR is specified, access is denied for any other initiator not listed here. For \fBSCST\fR, the regexp chars \fB*\fR and \fB?\fR can be used either alone or in combination with other chars to create a regexp of a initiator.
+.sp
+.IP \fBauthname\fR
+.sp
+If global user does not exist, create it and bind it to the target. When removing target, the user is NOT deleted (it might be in use by another target).
+.sp
+.IP \fBauthpass\fR
+.sp
+Password to use for for authenticating with authname.
+.sp
+For \fBSCST\fR, this needs to be at least 12 bytes long.
+.RE
+.RS
+.sp
+The \fBauthname\fR and \fBauthpass\fR is \fIglobal\fR for all targets. Meaning, that if you specify \fBuser1\fR and \fBpass1\fR for the first target, you can not specify \fBuser1\fR and \fBpass2\fR for the second. The first definition will be used. You will have to specify a different user/password combination for each target you create.
+.sp
+If \fBauthnane\fR and \fBauthpass\fR is set (both needs to be set to enable authentication), but not \fBinitiator\fR, any initiator can connect, but only with specified name and password. Since \fBIET\fR does not support \fBinitiator\fR, any initiator can connect, provided they supply the correct username and password.
+.RE
+.RE
+
+.RS 4n
+.sp
+The module will use the optional script/binary named \fB/sbin/zfs_share_iscsi\fR, if it exists and is executable, after the volume have been shared. The script is intended to do additional, local configuration on the target and lun that can not be done via the \fBshareiscsi\fR property. The only parameter to this script/binary is the TID number
+.sp
+The module will 'execute and forget'. Meaning, ZFS will not care about exit code nor any output it gives. So if the script/binary fails for some reason, it is up to the script to catch any problems - the ZFS module will not intervene.
+.sp
+Example scripts (one for each iSCSI implementation) have been included with the ZoL source code.
+.sp
+Examples on how to use \fBinitiator\fR, \fBauthname\fR and \fBauthpass\fR have been included in \fIExample 25\fR at the end of this document.
 .RE
 
 .sp
@@ -3523,11 +3681,8 @@ The following example shows how to create a \fBZFS\fR volume as an \fBiSCSI\fR t
 .nf
 # \fBzfs create -V 2g pool/volumes/vol1\fR
 # \fBzfs set shareiscsi=on pool/volumes/vol1\fR
-# \fBiscsitadm list target\fR
-Target: pool/volumes/vol1
- iSCSI Name: 
- iqn.1986-03.com.sun:02:7b4b02a6-3277-eb1b-e686-a24762c52a8c
- Connections: 0
+# \fBiscsiadm --mode node\fR
+192.168.69.8:3260,1 iqn.2012-11.com.bayour:pool.volumes.vol1
 .fi
 .in -2
 .sp
@@ -3734,6 +3889,79 @@ be used instead of snapshot in send streams.
 .in -2
 .sp
 
+.LP
+\fBExample 25\fR Sharing a volume via iSCSI, limiting access.
+
+.sp
+.LP
+This will create a read-only target, accessible by this one initiator only:
+.sp
+.in +2
+.nf
+# \fBzfs set shareiscsi=iomode=ro,initiator=iqn.1993-08.org.debian:01:a59a7552c4a rpool/zvol\fR
+.fi
+.in -2
+
+.sp
+.LP
+This will create a read-write target (even though \fBiomode=ro\fR - access mode in the \fBinitiator\fR option will override the value in \fBiomode\fR):
+.sp
+.in +2
+.nf
+# \fBzfs set shareiscsi=iomode=ro,initiator=iqn.1993-08.org.debian:01:a59a7552c4a=rw rpool/zvol\fR
+.fi
+.in -2
+
+.sp
+.LP
+This will create a read-only target for the first initiator (because no override value), but the second will be able to access it read-write mode. Only these two initiators will have access to the volume. Notice the semi-colon (\fB;\fR) to separate the initiators (because of the semi-colon, the options to \fBshareiscsi\fR needs to be enclosed in double quotes).
+.sp
+.in +2
+.nf
+# \fBzfs set shareiscsi="iomode=ro,initiator=iqn.1993-08.org.debian:01:a59a7552c4a;iqn.1993-08.org.debian:01:43a7a2e2641f=rw" rpool/zvol\fR
+.fi
+.in -2
+
+.sp
+.LP
+This is the opposite, it will create a read-write target for the first initiator and a read-only target for the second.
+.sp
+.in +2
+.nf
+# \fBzfs set shareiscsi="iomode=rw,initiator=iqn.1993-08.org.debian:01:a59a7552c4a;iqn.1993-08.org.debian:01:43a7a2e2641f=ro" rpool/zvol\fR
+.fi
+.in -2
+
+.sp
+.LP
+This can also be specified without using \fBiomode\fR.
+.sp
+.in +2
+.nf
+# \fBzfs set shareiscsi="initiator=iqn.1993-08.org.debian:01:a59a7552c4a=rw;iqn.1993-08.org.debian:01:43a7a2e2641f=ro" rpool/zvol\fR
+.fi
+.in -2
+
+.sp
+.LP
+This will create a target which is accessible to anyone, because of the astrix - any regexp could be used here. It is only accessible in read-only mode. It does give read-write access to the initiator IF it is authenticated with username and password as specified.
+.sp
+.in +2
+.nf
+# \fBzfs set shareiscsi="initiator=*=ro;iqn.1993-08.org.debian:01:43a7a2e2641f=rw,authname=iscsi-user1,authpass=secret1" rpool/zvol\fR
+.fi
+.in -2
+
+.sp
+.LP
+This will share a read-only target accessible only to the initiator specified and only if authenticated.
+.sp
+.in +2
+.nf
+# \fBzfs set shareiscsi=initiator=iqn.1993-08.org.debian:01:43a7a2e2641f=ro,authname=iscsi-user1,authpass=verysecret123 rpool/zvol\fR
+.fi
+.in -2
+
 .SH "ENVIRONMENT VARIABLES"
 .TP
 .B "ZFS_ABORT
@@ -3777,4 +4005,4 @@ Invalid command line options were specified.
 
 .SH SEE ALSO
 .LP
-\fBchmod\fR(2), \fBfsync\fR(2), \fBgzip\fR(1), \fBmount\fR(8), \fBssh\fR(1), \fBstat\fR(2), \fBwrite\fR(2), \fBzpool\fR(8)
+\fBchmod\fR(2), \fBfsync\fR(2), \fBgzip\fR(1), \fBmount\fR(8), \fBssh\fR(1), \fBstat\fR(2), \fBwrite\fR(2), \fBzpool\fR(8), \fBietd.conf\fR(8), \fBietadm\fR(8), \fBtgtadm\fR()

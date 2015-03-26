@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# !! This script is for ISCSI-SCST !!
+
+SYSFS=/sys/kernel/config/target
+
+if [ ! -d $SYSFS ]; then
+    exit 1
+fi
+
+# Only edit AFTER the '-----' line !
+
+if [ -z "$1" ]; then
+    echo "Usage: `basename $0` [IQN:identifier]"
+    exit 1
+fi
+
+find_iqn() {
+    tid=$1
+
+    find $SYSFS/iscsi/iqn.*/tpgt_$tid -maxdepth 0 -type d
+}
+
+find_iblock() {
+    tid=$1
+
+    find $SYSFS/core/{iblock,fileio}_$tid/iqn.* -maxdepth 0 -type d \
+	2> /dev/null
+}
+
+
+# lio_mod <parameter> <value>
+lio_mod() {
+    param=$1
+    value=$2
+
+    dir=$LIO_DIR/param/$param
+
+    if [ -f "$dir" ]; then
+	echo "$value" > $dir
+    else
+	echo "No such dir/param ($dir)"
+    fi
+}
+
+# tcm_mod <parameter> <value>
+tcm_mod() {
+    param=$1
+    value=$2
+
+    dir=$TCM_DIR/attrib/$param
+
+    if [ -f "$dir" ]; then
+	echo "$value" > $dir
+    else
+	echo "No such dir/param ($dir)"
+    fi
+}
+
+LIO_DIR=$(find_iqn $1)
+TCM_DIR=$(find_iblock $1)
+
+# ----------------------------------------------
+
+# Only edit this after this point.
+
+lio_mod InitialR2T			Yes
+lio_mod ImmediateData			Yes
+
+lio_mod MaxRecvDataSegmentLength	262144
+lio_mod MaxXmitDataSegmentLength	65536
+
+lio_mod MaxBurstLength			1048512
+lio_mod FirstBurstLength		262144
+lio_mod MaxOutstandingR2T		30
+lio_mod QueuedCommands			32
+
+lio_mod HeaderDigest			"None"
+lio_mod DataDigest			"None"
+lio_mod AuthMethod			"None"
+
+lio_mod MaxConnections			10
+
+lio_mod prod_mode_write_protect		0
+lio_mod demo_mode_write_protect		0
+lio_mod cache_dynamic_acls		1
+lio_mod default_cmdsn_depth		16
+lio_mod generate_node_acls		1
+lio_mod netif_timeout			2
+lio_mod login_timeout			15
+
+lio_mod OFMarkInt			"2048~65535"
+lio_mod IFMarkInt			"2048~65535"
+lio_mod OFMarker			No
+lio_mod IFMarker			No
+lio_mod ErrorRecoveryLevel		0
+lio_mod DataSequenceInOrder		Yes
+lio_mod DataPDUInOrder			Yes
+lio_mod DefaultTime2Retain		20
+lio_mod DefaultTime2Wait		2
+lio_mod TargetAlias			"LIO Target"
+
+
+#tcm_mod queue_depth			128
+
+tcm_mod emulate_3pc			1
+tcm_mod emulate_caw			1
+tcm_mod emulate_tpws			0
+tcm_mod emulate_tpu			1
+#tcm_mod emulate_tas			1
+#tcm_mod emulate_ua_intlck_ctrl		0
+tcm_mod emulate_write_cache		0
+tcm_mod emulate_fua_read		0
+tcm_mod emulate_fua_write		1
+tcm_mod emulate_dpo			0
+#tcm_mod emulate_model_alias		0
+
+exit 0
