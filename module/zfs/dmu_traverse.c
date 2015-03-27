@@ -213,6 +213,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 {
 	int err = 0;
 	arc_buf_t *buf = NULL;
+	prefetch_data_t *pd = td->td_pfd;
 
 	switch (resume_skip_check(td, dnp, zb)) {
 	case RESUME_SKIP_ALL:
@@ -249,16 +250,14 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		return (0);
 	}
 
-	if (td->td_pfd != NULL && !td->td_pfd->pd_exited &&
-	    prefetch_needed(td->td_pfd, bp)) {
-		mutex_enter(&td->td_pfd->pd_mtx);
-		ASSERT(td->td_pfd->pd_blks_fetched >= 0);
-		while (td->td_pfd->pd_blks_fetched == 0 &&
-		    !td->td_pfd->pd_exited)
-			cv_wait(&td->td_pfd->pd_cv, &td->td_pfd->pd_mtx);
-		td->td_pfd->pd_blks_fetched--;
-		cv_broadcast(&td->td_pfd->pd_cv);
-		mutex_exit(&td->td_pfd->pd_mtx);
+	if (pd != NULL && !pd->pd_exited && prefetch_needed(pd, bp)) {
+		mutex_enter(&pd->pd_mtx);
+		ASSERT(pd->pd_blks_fetched >= 0);
+		while (pd->pd_blks_fetched == 0 && !pd->pd_exited)
+			cv_wait(&pd->pd_cv, &pd->pd_mtx);
+		pd->pd_blks_fetched--;
+		cv_broadcast(&pd->pd_cv);
+		mutex_exit(&pd->pd_mtx);
 	}
 
 	if (BP_IS_HOLE(bp)) {
