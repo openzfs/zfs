@@ -3810,6 +3810,39 @@ zfs_ioc_destroy_bookmarks(const char *poolname, nvlist_t *innvl,
 	return (error);
 }
 
+
+/* If ostype is DMU_OST_NONE, we perform a lookup. */
+static int
+zfs_destroy_impl(const char *fsname, dmu_objset_type_t ostype,
+	boolean_t defer_destroy)
+{
+	int err;
+
+	if (ostype == DMU_OST_NONE) {
+		objset_t *os;
+
+		err = dmu_objset_hold(fsname, FTAG, &os);
+		if (err != 0)
+			return (err);
+		ostype = dmu_objset_type(os);
+		dmu_objset_rele(os, FTAG);
+	}
+
+	if (ostype == DMU_OST_ZFS) {
+		err = zfs_unmount_snap(fsname);
+		if (err != 0)
+			return (err);
+	}
+
+	if (strchr(fsname, '@'))
+		err = dsl_destroy_snapshot(fsname, defer_destroy);
+	else
+		err = dsl_destroy_head(fsname);
+	if (ostype == DMU_OST_ZVOL && err == 0)
+		(void) zvol_remove_minor(fsname);
+	return (err);
+}
+
 /*
  * inputs:
  * zc_name		name of dataset to destroy
@@ -3821,21 +3854,8 @@ zfs_ioc_destroy_bookmarks(const char *poolname, nvlist_t *innvl,
 static int
 zfs_ioc_destroy(zfs_cmd_t *zc)
 {
-	int err;
-
-	if (zc->zc_objset_type == DMU_OST_ZFS) {
-		err = zfs_unmount_snap(zc->zc_name);
-		if (err != 0)
-			return (err);
-	}
-
-	if (strchr(zc->zc_name, '@'))
-		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
-	else
-		err = dsl_destroy_head(zc->zc_name);
-	if (zc->zc_objset_type == DMU_OST_ZVOL && err == 0)
-		(void) zvol_remove_minor(zc->zc_name);
-	return (err);
+	return (zfs_destroy_impl(zc->zc_name, zc->zc_objset_type,
+	    zc->zc_defer_destroy));
 }
 
 /*
@@ -6088,6 +6108,14 @@ zfs_stable_ioc_zfs_list(const char *fsname, nvlist_t *innvl,
 	return (error);
 }
 
+static int
+zfs_stable_ioc_zfs_destroy(const char *fsname, nvlist_t *innvl,
+    nvlist_t *outnvl, nvlist_t *opts, uint64_t version)
+{
+	return (zfs_destroy_impl(fsname, DMU_OST_NONE,
+	    nvlist_exists(opts, "defer_destroy")));
+}
+
 /*
  * ioctl table for stable interface.
  * Functions use zfs_/zpool_ prefixes to distinguish between their uses
@@ -6249,6 +6277,14 @@ static const zfs_stable_ioc_vec_t zfs_stable_ioc_vec[] = {
 {	.zvec_name		= "zfs_inherit",
 	.zvec_func		= zfs_stable_ioc_zfs_inherit,
 	.zvec_secpolicy		= zfs_secpolicy_inherit_prop,
+	.zvec_namecheck		= DATASET_NAME,
+	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
+	.zvec_smush_outnvlist	= B_FALSE,
+	.zvec_allow_log		= B_TRUE,
+},
+{	.zvec_name		= "zfs_destroy",
+	.zvec_func		= zfs_stable_ioc_zfs_destroy,
+	.zvec_secpolicy		= zfs_secpolicy_destroy,
 	.zvec_namecheck		= DATASET_NAME,
 	.zvec_pool_check	= POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY,
 	.zvec_smush_outnvlist	= B_FALSE,

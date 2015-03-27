@@ -840,6 +840,34 @@ lzc_inherit(const char *fsname, const char *propname, nvlist_t *opts)
 }
 
 /*
+ * Destroys a DSL directory that is either a filesystems or a volume.
+ * Destroying snapshots and bookmarks is not currently supported. Call
+ * lzc_destroy_snaps and lzc_destroy_bookmarks for those respectively.
+ *
+ * The only currently valud property is the booleans "defer_destroy". It makes
+ * destruction asynchronous such that the only error code back is if we try to
+ * destroy something that does not exist. The caller must unmount the dataset
+ * before calling this. Otherwise, it will fail.
+ */
+
+int
+lzc_destroy_one(const char *fsname, nvlist_t *opts)
+{
+	nvlist_t *args;
+	int error;
+
+	if (fsname == NULL ||
+	    strlen(fsname) == 0)
+		return (EINVAL);
+
+	args = fnvlist_alloc();
+	error = lzc_ioctl("zfs_destroy", fsname, args, opts, NULL, 0);
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
  * Rename DSL directory (i.e. filesystems, volumes, snapshots)
  *
  * The opts flag accepts a boolean named "recursive" to signal that the
