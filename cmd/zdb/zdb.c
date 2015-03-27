@@ -1115,7 +1115,9 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp)
 
 	if (BP_IS_HOLE(bp)) {
 		(void) snprintf(blkbuf + strlen(blkbuf),
-		    buflen - strlen(blkbuf), "B=%llu",
+		    buflen - strlen(blkbuf),
+		    "%llxL B=%llu",
+		    (u_longlong_t)BP_GET_LSIZE(bp),
 		    (u_longlong_t)bp->blk_birth);
 	} else {
 		(void) snprintf(blkbuf + strlen(blkbuf),
