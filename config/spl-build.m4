@@ -229,7 +229,7 @@ AC_DEFUN([SPL_AC_RPM], [
 	RPM_SPEC_DIR="rpm/generic"
 	AC_ARG_WITH([spec],
 		AS_HELP_STRING([--with-spec=SPEC],
-		[Spec files 'generic|fedora']),
+		[Spec files 'generic']),
 		[RPM_SPEC_DIR="rpm/$withval"])
 
 	AC_MSG_CHECKING([whether spec files are available])
