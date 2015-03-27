@@ -70,6 +70,10 @@ AC_CONFIG_FILES([
 	include/vm/Makefile
 	scripts/Makefile
 	rpm/Makefile
+	rpm/redhat/Makefile
+	rpm/redhat/spl.spec
+	rpm/redhat/spl-kmod.spec
+	rpm/redhat/spl-dkms.spec
 	rpm/generic/Makefile
 	rpm/generic/spl.spec
 	rpm/generic/spl-kmod.spec
