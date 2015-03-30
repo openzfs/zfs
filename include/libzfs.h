@@ -753,7 +753,7 @@ extern int zfs_unshare_nfs(zfs_handle_t *, const char *);
 extern int zfs_unshare_smb(zfs_handle_t *, const char *);
 extern int zfs_unshareall_nfs(zfs_handle_t *);
 extern int zfs_unshareall_smb(zfs_handle_t *);
-extern int zfs_unshareall_bypath(zfs_handle_t *, const char *);
+extern int zfs_unshareall_bypath(zfs_handle_t *, const char *, const char *);
 extern int zfs_unshareall(zfs_handle_t *);
 extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
     void *, void *, int, zfs_share_op_t);
