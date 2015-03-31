@@ -5458,10 +5458,12 @@ zfs_stable_ioc_promote(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
 {
 	char parentname[MAXNAMELEN];
 	char conflsnap[MAXNAMELEN];
+	dsl_pool_t *dp;
 	dsl_dataset_t *clone;
 	dsl_dataset_t *origin = NULL;
 	dsl_dir_t *dd;
 	char *cp;
+	int error;
 
 	error = dsl_pool_hold(fsname, FTAG, &dp);
 	if (error != 0)
@@ -5495,7 +5497,7 @@ zfs_stable_ioc_promote(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
 	if (error != 0)
 		fnvlist_add_string(outnvl, "conflsnap", conflsnap);
 
-	return (error)
+	return (error);
 }
 
 static int
