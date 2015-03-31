@@ -643,7 +643,10 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 		return (NULL);
 	}
 
-	if (!(types & zhp->zfs_type)) {
+	/*
+	 * types == 0 is set when we have the kernel check the type for us.
+	 */
+	if (types && !(types & zhp->zfs_type)) {
 		(void) zfs_error(hdl, EZFS_BADTYPE, errbuf);
 		zfs_close(zhp);
 		return (NULL);

@@ -378,6 +378,7 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	int ret = 0;
 	zfs_node_t *node;
 	uu_avl_walk_t *walk;
+	zfs_type_t argtype;
 
 	avl_pool = uu_avl_pool_create("zfs_pool", sizeof (zfs_node_t),
 	    offsetof(zfs_node_t, zn_avlnode), zfs_sort, UU_DEFAULT);
@@ -386,7 +387,11 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 		nomem();
 
 	cb.cb_sortcol = sortcol;
-	cb.cb_flags = flags;
+	/*
+	 * XXX: We are phasing out the legacy recursive interface in
+	 * favor of the new stable list API.
+	 */
+	cb.cb_flags = flags & ~ZFS_ITER_RECURSE;
 	cb.cb_proplist = proplist;
 	cb.cb_types = types;
 	cb.cb_depth_limit = limit;
@@ -431,27 +436,29 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	if ((cb.cb_avl = uu_avl_create(avl_pool, NULL, UU_DEFAULT)) == NULL)
 		nomem();
 
+	/*
+	 * zfs_iter_generic() lets the kernel worry about default types.
+	 */
+	argtype = types * !!(flags & ZFS_ITER_TYPES_SPECIFIED);
 	if (argc == 0) {
 		/*
 		 * If given no arguments, iterate over all datasets.
 		 */
-		cb.cb_flags |= ZFS_ITER_RECURSE;
-		ret = zfs_iter_root(g_zfs, zfs_callback, &cb);
+		ret = zfs_iter_generic(g_zfs, NULL, argtype, (flags &
+		    ZFS_ITER_DEPTH_LIMIT) ? limit : -1, zfs_callback, &cb);
 	} else {
 		int i;
 		zfs_handle_t *zhp;
-		zfs_type_t argtype;
 
 		/*
 		 * If we're recursive, then we always allow filesystems as
 		 * arguments.  If we also are interested in snapshots, then we
 		 * can take volumes as well.
 		 */
-		argtype = types;
 		if (flags & ZFS_ITER_RECURSE) {
 			argtype |= ZFS_TYPE_FILESYSTEM;
 			if (types & ZFS_TYPE_SNAPSHOT)
-				argtype |= ZFS_TYPE_VOLUME;
+				argtype |= ZFS_TYPE_VOLUME | ZFS_TYPE_SNAPSHOT;
 		}
 
 		for (i = 0; i < argc; i++) {
@@ -462,7 +469,10 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 				zhp = zfs_open(g_zfs, argv[i], argtype);
 			}
 			if (zhp != NULL)
-				ret |= zfs_callback(zhp, &cb);
+				ret |= zfs_iter_generic(zfs_get_handle(zhp),
+				    zfs_get_name(zhp), argtype, (flags &
+				    ZFS_ITER_DEPTH_LIMIT) ? limit : -1,
+				    zfs_callback, &cb);
 			else
 				ret = 1;
 		}

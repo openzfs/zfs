@@ -38,6 +38,7 @@ extern "C" {
 int libzfs_core_init(void);
 void libzfs_core_fini(void);
 
+int lzc_list (const char *, int, nvlist_t *);
 int lzc_snapshot(nvlist_t *, nvlist_t *, nvlist_t **);
 int lzc_create(const char *, dmu_objset_type_t, nvlist_t *);
 int lzc_clone(const char *, const char *, nvlist_t *);

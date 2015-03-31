@@ -1714,7 +1714,7 @@ zfs_do_get(int argc, char **argv)
 
 		case 't':
 			types = 0;
-			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
+			flags |= ZFS_ITER_TYPES_SPECIFIED;
 			while (*optarg != '\0') {
 				static char *type_subopts[] = { "filesystem",
 				    "volume", "snapshot", "bookmark",
@@ -3034,14 +3034,13 @@ zfs_do_list(int argc, char **argv)
 	static char default_fields[] =
 	    "name,used,available,referenced,mountpoint";
 	int types = ZFS_TYPE_DATASET;
-	boolean_t types_specified = B_FALSE;
 	char *fields = NULL;
 	list_cbdata_t cb = { 0 };
 	char *value;
 	int limit = 0;
 	int ret = 0;
 	zfs_sort_column_t *sortcol = NULL;
-	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
+	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "HS:d:o:prs:t:")) != -1) {
@@ -3080,8 +3079,7 @@ zfs_do_list(int argc, char **argv)
 			break;
 		case 't':
 			types = 0;
-			types_specified = B_TRUE;
-			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
+			flags |= ZFS_ITER_TYPES_SPECIFIED;
 			while (*optarg != '\0') {
 				static char *type_subopts[] = { "filesystem",
 				    "volume", "snapshot", "snap", "bookmark",
@@ -3142,7 +3140,7 @@ zfs_do_list(int argc, char **argv)
 	/*
 	 * If "-o space" and no types were specified, don't display snapshots.
 	 */
-	if (strcmp(fields, "space") == 0 && types_specified == B_FALSE)
+	if (strcmp(fields, "space") == 0 && (flags & ZFS_ITER_TYPES_SPECIFIED))
 		types &= ~ZFS_TYPE_SNAPSHOT;
 
 	/*

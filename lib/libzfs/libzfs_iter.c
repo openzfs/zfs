@@ -35,6 +35,12 @@
 
 #include "libzfs_impl.h"
 
+/*
+ * XXX: Workaround for conflicting type declarations for sa_handle_t between
+ * sys/sa.h and libshare.h
+ */
+extern int dmu_objset_stat_nvlts(nvlist_t *nvl, dmu_objset_stats_t *stat);
+
 int
 zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
@@ -55,6 +61,169 @@ zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 		}
 	}
 	return (0);
+}
+
+static char *zfs_types[] = { "filesystem", "snapshot", "volume", "pool",
+	"bookmark" };
+
+#define	ZFS_TYPE_COUNT	(sizeof (zfs_types) / sizeof (&zfs_types[0]))
+
+static nvlist_t *
+zfs_type_to_nvl(zfs_type_t type)
+{
+	nvlist_t *nvl = fnvlist_alloc();
+	int i;
+
+	for (i = 0; i < ZFS_TYPE_COUNT; i++)
+		if (type & (1 << i))
+			fnvlist_add_boolean(nvl, zfs_types[i]);
+
+	return (nvl);
+}
+
+/*
+ * Iterate over all children filesystems (stable)
+ */
+int
+zfs_iter_generic(libzfs_handle_t *hdl, const char *name, zfs_type_t type,
+    int64_t depth, zfs_iter_f func, void *data)
+{
+	zfs_cmd_t zc = {"\0"};
+	zfs_handle_t *nzhp;
+	nvlist_t *tnvl;
+	nvlist_t *opts;
+	int fildes[2];
+	zfs_pipe_record_t zpr;
+	int ret;
+
+	if (zcmd_alloc_dst_nvlist(hdl, &zc, 0) != 0)
+		return (-1);
+
+	ret = pipe(fildes);
+	if (ret == -1) {
+		switch (errno) {
+		default:
+			ret = zfs_standard_error(hdl, errno,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot iterate filesystems"));
+			break;
+		}
+	}
+
+	opts = fnvlist_alloc();
+	switch (depth) {
+	case -1:
+		fnvlist_add_boolean(opts, "recurse");
+		break;
+	default:
+		if (depth < 0) {
+			fnvlist_free(opts);
+			return (-1);
+		}
+		fnvlist_add_uint64(opts, "recurse", depth);
+	}
+
+	tnvl = zfs_type_to_nvl(type);
+	fnvlist_add_nvlist(opts, "type", tnvl);
+
+	if ((ret = lzc_list(name, fildes[1], opts)) != 0) {
+		fnvlist_free(opts);
+		close(fildes[0]);
+		close(fildes[1]);
+		return (ret);
+	}
+	fnvlist_free(tnvl);
+	fnvlist_free(opts);
+
+	while ((ret = read(fildes[0], &zpr,
+	    sizeof (zfs_pipe_record_t))) == sizeof (uint64_t) &&
+	    zpr.zpr_data_size != 0 && zpr.zpr_err == 0) {
+		nvlist_t *nvl, *nvl_prop, *nvl_dds;
+		char *name;
+#ifdef  _LITTLE_ENDIAN
+		uint32_t size = (zpr.zpr_endian) ? zpr.zpr_data_size :
+		    BSWAP_32(zpr.zpr_data_size);
+#else
+		uint32_t size = (zpr.zpr_endian) ? BSWAP_32(zpr.zpr_data_size) :
+		    zpr.zpr_data_size;
+#endif
+		char *buf = umem_alloc(size, UMEM_NOFAIL);
+
+		ret = read(fildes[0], buf, size);
+
+		if (size != ret || (ret = nvlist_unpack(buf +
+		    zpr.zpr_header_size, size, &nvl, 0)) != 0) {
+			umem_free(buf, size);
+			goto out;
+		}
+
+		if ((ret = nvlist_lookup_nvlist(nvl, "properties", &nvl_prop))
+		    != 0 ||
+		    (ret = nvlist_lookup_string(nvl, "name", &name)) != 0 ||
+		    (ret = nvlist_lookup_nvlist(nvl, "dmu_objset_stats",
+		    &nvl_dds)) != 0 ||
+		    (ret = dmu_objset_stat_nvlts(nvl_dds, &zc.zc_objset_stats))
+		    != 0) {
+			ret = EINVAL;
+			umem_free(buf, size);
+			goto out;
+		}
+
+		strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
+		umem_free(buf, size);
+
+		zc.zc_nvlist_dst_size = fnvlist_size(nvl_prop);
+		if ((ret = zcmd_expand_dst_nvlist(hdl, &zc))) {
+			if (ret == -1)
+				ret = ENOMEM;
+			goto out;
+		}
+
+		ret = nvlist_pack(nvl_prop, (char **) &zc.zc_nvlist_dst,
+		    &zc.zc_nvlist_dst_size, NV_ENCODE_NATIVE, 0);
+
+		zc.zc_nvlist_dst_filled = B_TRUE;
+
+		/*
+		 * Errors here do not make sense, so we bail.
+		 */
+		if (strchr(name, '#') != NULL) {
+			zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+			if (zhp == NULL) {
+				ret = ENOMEM;
+				goto out;
+			}
+			zhp->zfs_hdl = hdl;
+			switch (zc.zc_objset_stats.dds_type) {
+			case DMU_OST_ZFS:
+				zhp->zfs_head_type = ZFS_TYPE_FILESYSTEM;
+				break;
+			case DMU_OST_ZVOL:
+				zhp->zfs_head_type = ZFS_TYPE_VOLUME;
+				break;
+			default:
+				ret = EINVAL;
+				goto out;
+			}
+			nzhp = make_bookmark_handle(zhp, name, nvl_prop);
+			free(zhp);
+			if (nzhp == NULL)
+				continue;
+		} else if ((ret != 0) ||
+		    (nzhp = make_dataset_handle_zc(hdl, &zc)) == NULL) {
+			ret = EINVAL;
+			goto out;
+		}
+
+		if ((ret = func(nzhp, data)) != 0)
+			goto out;
+	}
+
+out:
+	close(fildes[0]);
+	close(fildes[1]);
+	zcmd_free_nvlists(&zc);
+	return ((ret < 0) ? ret : 0);
 }
 
 static int

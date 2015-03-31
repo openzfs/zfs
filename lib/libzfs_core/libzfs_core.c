@@ -127,7 +127,8 @@ lzc_ioctl_impl(zfs_ioc_t ioc, const char *name,
 
 	ASSERT3S(g_refcount, >, 0);
 
-	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
+	if (name)
+		(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 
 	packed = fnvlist_pack(source, &size);
 	zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
@@ -808,6 +809,150 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 
 	error = lzc_ioctl("zfs_destroy_bookmarks", pool, bmarks, NULL, errlist,
 	    0);
+
+	return (error);
+}
+
+/*
+ * List DSL directory/directories
+ *
+ * This is an asynchronous API call. The caller passes a file descriptor
+ * through which output is received. The file descriptor should typically be
+ * the send side of a pipe, but this is not required.
+ *
+ * Preliminary error checks are done prior to the start of output and if
+ * successful, a return code of zero is provided. If unsuccessful, a non-zero
+ * error code is passed.
+ *
+ * The opts field is an nvlist which supports the following properties:
+ *
+ * Name		Type		Description
+ * "recurse"	boolean/uint64	List output for children.
+ * "type"	nvlist		List only types specified.
+ *
+ * If the passed name is that of a bookmark or snapshot, the recurse field is
+ * ignored. If all children are desired, recurse should be set to be a boolean
+ * type. If a recursion limit is desired, recurses hould be a uint64_t. If no
+ * type is specified, a default behavior consistent with the zfs list command
+ * is provided. Valid children of the type nvlist are:
+ *
+ * Name		Type		Description
+ * "all"	boolean		List output for all types
+ * "bookmark"	boolean		List output for bookmarks
+ * "filesystem"	boolean		List output for filesystems
+ * "snap"	boolean		List output for snapshots
+ * "snapshot"	boolean		List output for snapshots
+ * "volume"	boolean		List output for volumes
+ *
+ * Whenever a boolean type is specified, any type may be passed and be
+ * considered boolean. However, future extensions may accept alternate types
+ * and consequently, backward compatibility is only guarenteed to callers
+ * passing a boolean type that contains no value. A boolean that contains
+ * B_TRUE or B_FALSE is considered a separate type from a boolean that contains
+ * no value. Additionally, future enhancements to zfs may create a new type and
+ * callers that only wish to handle existing types should specify them
+ * explicitly rather than relying on the default behavior.
+ *
+ * The parent-child relationship is obeyed such all children of each
+ * pool/directory are output alongside their parents. However, no guarantees
+ * are made with regard to post-order/pre-order traversal or the order of
+ * bookmarks/snapshots, such that the order is allowed to change. Userland
+ * applications that are sensitive to a particular output order are expected to
+ * sort.
+ *
+ * The output consists of a record header followed immediately by XDR-encoded
+ * nvlist. The header format is as follows:
+ *
+ * Offset	Size		Description
+ * 0 bytes	4 bytes		XDR-nvlist size (unsigned)
+ * 4 bytes	1 byte		Header extension space (unsigned)
+ * 5 bytes	1 byte		Return code (unsigned)
+ * 6 bytes	1 byte		Endian bit (0 is BE, 1 is LE)
+ * 7 bytes	1 byte		Reserved
+ *
+ * Errors obtaining information for any record will be contained in the return
+ * code. The output for any record whose header return code contains an error
+ * is a XDR encoded nvlist whose contents are undefined, unless the size
+ * provided in the header is zero, in which case the output for that record is
+ * empty. The receiver is expected to check the endian bit field before
+ * processing the XDR-nvlist size and perform a byte-swap operation on the
+ * value should the endian-ness differ.
+ *
+ * Non-zero values in the reserved field and upper bits of the endian field
+ * imply a back-incompatible change. If the header extension field is non-zero
+ * when neither the reserved field nor the upper bits of the endian field are
+ * non-zero, the header should be assumed to have been extended in a
+ * backward-compatible way and the XDR-nvlist of the specified size shall
+ * follow the extended header. The lzc_list() library call will always request
+ * API version 0 request as part of the ioctl to userland.  Consequently, the
+ * kernel will return an API version 0 compatible-stream unless a change is
+ * requested via a future extension to the opts nvlist.
+ *
+ * The nvlist will have the following members:
+ *
+ * Name			Type		Description
+ * "name"		string		SPA/DSL name
+ * "dmu_objset_stats"	nvlist		DMU Objset Stats
+ * "properties"		nvlist		DSL properties
+ *
+ * Additional members may be added in future extensions.
+ *
+ * The "dmu_objset_stats" will have the following members:
+ *
+ * Name			Type		Description
+ * "dds_num_clones"	uint64_t	Number of clones
+ * "dds_creation_txg"	uint64_t	Creation transaction group
+ * "dds_guid"		uint64_t	Globally unique identifier
+ * "dds_type"		string		Type
+ * "dds_is_snapshot"	boolean		Is a snapshot
+ * "dds_inconsistent"	boolean		Is being received or destroyed
+ * "dds_origin"		string		Name of parent
+ *
+ * Additional members may be added in future extensions.
+ *
+ * The "dds_" prefix stands for "DSL Dataset". "dds_type" is a string
+ * representation of internal object types. Valid values at this time are:
+ *
+ * Name		Public	Description
+ * "NONE"	No	Uninitialized value
+ * "META"	No	Metadata
+ * "ZPL"	Yes	Dataset
+ * "ZVOL"	Yes	Volume
+ * "OTHER"	No	Undefined
+ * "ANY"	No	Open
+ *
+ * Only the public values will be returned for any output. The return of a
+ * value not on this list implies a record for a new storage type. The output
+ * should be consistent with existing types and the receiver can elect to
+ * either handle it in a manner consistent with existing types or skip it.
+ * Under no circumstance will an unlisted type be returned when types were
+ * explicitly provided via the opts nvlist.
+ *
+ * On bookmarks, the "dmu_objset_stats" of the parent DSL Dataset shall be
+ * returned. Consequently, "dds_is_snapshot" shall be false and identification
+ * of bookmarks shall be done by checking for the '#' character in the "name"
+ * member of the top level nvlist. This is done so that the type of the
+ * bookmarked DSL dataset may be known.
+ *
+ * End of output shall be signified by NULL record header. Userland is expected
+ * to close the file descriptor. Early termination can be signaled from
+ * userland by closing the file descriptor.
+ *
+ * The design of the output is intended to enable userland to perform readahead
+ * on the file descriptor. On certain platforms, libc may provide output
+ * buffering. Userland libraries and applications electing to perform readahead
+ * should take care not to block on a partially filled buffer when an end of
+ * stream NULL record is returned.
+ */
+int
+lzc_list(const char *name, int fdin, nvlist_t *opts)
+{
+	int error;
+	nvlist_t *innvl = fnvlist_alloc();
+
+	fnvlist_add_int32(innvl, "fd", fdin);
+	error = lzc_ioctl("zfs_list", name, innvl, opts, NULL, 0);
+	fnvlist_free(innvl);
 
 	return (error);
 }
