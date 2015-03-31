@@ -706,8 +706,10 @@ dsl_enforce_ds_ss_limits(dsl_dir_t *dd, zfs_prop_t prop, cred_t *cr)
 	    prop == ZFS_PROP_SNAPSHOT_LIMIT);
 
 #ifdef _KERNEL
+#if 0
 	if (crgetzoneid(cr) != GLOBAL_ZONEID)
 		return (ENFORCE_ALWAYS);
+#endif
 
 	if (secpolicy_zfs(cr) == 0)
 		return (ENFORCE_NEVER);
