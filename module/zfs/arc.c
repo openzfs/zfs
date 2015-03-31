@@ -933,7 +933,7 @@ retry:
 
 	for (i = 0; i < BUF_LOCKS; i++) {
 		mutex_init(&buf_hash_table.ht_locks[i].ht_lock,
-		    NULL, MUTEX_FSTRANS, NULL);
+		    NULL, MUTEX_DEFAULT, NULL);
 	}
 }
 
@@ -2412,9 +2412,11 @@ static void
 arc_adapt_thread(void)
 {
 	callb_cpr_t		cpr;
+	fstrans_cookie_t	cookie;
 
 	CALLB_CPR_INIT(&cpr, &arc_reclaim_thr_lock, callb_generic_cpr, FTAG);
 
+	cookie = spl_fstrans_mark();
 	mutex_enter(&arc_reclaim_thr_lock);
 	while (arc_thread_exit == 0) {
 #ifndef _KERNEL
@@ -2485,6 +2487,7 @@ arc_adapt_thread(void)
 	arc_thread_exit = 0;
 	cv_broadcast(&arc_reclaim_thr_cv);
 	CALLB_CPR_EXIT(&cpr);		/* drops arc_reclaim_thr_lock */
+	spl_fstrans_unmark(cookie);
 	thread_exit();
 }
 
@@ -5376,11 +5379,13 @@ l2arc_feed_thread(void)
 	uint64_t size, wrote;
 	clock_t begin, next = ddi_get_lbolt();
 	boolean_t headroom_boost = B_FALSE;
+	fstrans_cookie_t cookie;
 
 	CALLB_CPR_INIT(&cpr, &l2arc_feed_thr_lock, callb_generic_cpr, FTAG);
 
 	mutex_enter(&l2arc_feed_thr_lock);
 
+	cookie = spl_fstrans_mark();
 	while (l2arc_thread_exit == 0) {
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_interruptible(&l2arc_feed_thr_cv,
@@ -5454,6 +5459,7 @@ l2arc_feed_thread(void)
 		next = l2arc_write_interval(begin, size, wrote);
 		spa_config_exit(spa, SCL_L2ARC, dev);
 	}
+	spl_fstrans_unmark(cookie);
 
 	l2arc_thread_exit = 0;
 	cv_broadcast(&l2arc_feed_thr_cv);
@@ -5570,7 +5576,7 @@ l2arc_init(void)
 	mutex_init(&l2arc_feed_thr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&l2arc_feed_thr_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&l2arc_dev_mtx, NULL, MUTEX_DEFAULT, NULL);
-	mutex_init(&l2arc_buflist_mtx, NULL, MUTEX_FSTRANS, NULL);
+	mutex_init(&l2arc_buflist_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&l2arc_free_on_write_mtx, NULL, MUTEX_DEFAULT, NULL);
 
 	l2arc_dev_list = &L2ARC_dev_list;

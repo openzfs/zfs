@@ -1097,23 +1097,13 @@ zfs_zinactive(znode_t *zp)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	uint64_t z_id = zp->z_id;
-	boolean_t drop_mutex = 0;
 
 	ASSERT(zp->z_sa_hdl);
 
 	/*
 	 * Don't allow a zfs_zget() while were trying to release this znode.
-	 *
-	 * Linux allows direct memory reclaim which means that any KM_SLEEP
-	 * allocation may trigger inode eviction.  This can lead to a deadlock
-	 * through the ->shrink_icache_memory()->evict()->zfs_inactive()->
-	 * zfs_zinactive() call path.  To avoid this deadlock the process
-	 * must not reacquire the mutex when it is already holding it.
 	 */
-	if (!ZFS_OBJ_HOLD_OWNED(zsb, z_id)) {
-		ZFS_OBJ_HOLD_ENTER(zsb, z_id);
-		drop_mutex = 1;
-	}
+	ZFS_OBJ_HOLD_ENTER(zsb, z_id);
 
 	mutex_enter(&zp->z_lock);
 
@@ -1124,8 +1114,7 @@ zfs_zinactive(znode_t *zp)
 	if (zp->z_unlinked) {
 		mutex_exit(&zp->z_lock);
 
-		if (drop_mutex)
-			ZFS_OBJ_HOLD_EXIT(zsb, z_id);
+		ZFS_OBJ_HOLD_EXIT(zsb, z_id);
 
 		zfs_rmnode(zp);
 		return;
@@ -1134,8 +1123,7 @@ zfs_zinactive(znode_t *zp)
 	mutex_exit(&zp->z_lock);
 	zfs_znode_dmu_fini(zp);
 
-	if (drop_mutex)
-		ZFS_OBJ_HOLD_EXIT(zsb, z_id);
+	ZFS_OBJ_HOLD_EXIT(zsb, z_id);
 }
 
 static inline int
