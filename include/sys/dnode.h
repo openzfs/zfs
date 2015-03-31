@@ -233,7 +233,18 @@ typedef struct dnode {
 	refcount_t dn_holds;
 
 	kmutex_t dn_dbufs_mtx;
-	avl_tree_t dn_dbufs;		/* descendent dbufs */
+	/*
+	 * Descendent dbufs, ordered by dbuf_compare. Note that dn_dbufs
+	 * can contain multiple dbufs of the same (level, blkid) when a
+	 * dbuf is marked DB_EVICTING without being removed from
+	 * dn_dbufs. To maintain the avl invariant that there cannot be
+	 * duplicate entries, we order the dbufs by an arbitrary value -
+	 * their address in memory. This means that dn_dbufs cannot be used to
+	 * directly look up a dbuf. Instead, callers must use avl_walk, have
+	 * a reference to the dbuf, or look up a non-existant node with
+	 * db_state = DB_SEARCH (see dbuf_free_range for an example).
+	 */
+	avl_tree_t dn_dbufs;
 
 	/* protected by dn_struct_rwlock */
 	struct dmu_buf_impl *dn_bonus;	/* bonus buffer dbuf */
