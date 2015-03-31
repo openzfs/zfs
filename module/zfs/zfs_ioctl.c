@@ -5506,7 +5506,7 @@ zfs_stable_ioc_set_props(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl,
 {
 	zprop_source_t source;
 	boolean_t received;
-	int error;
+	int error = 0;
 
 	received = nvlist_exists(opts, "received");
 	source = (received ? ZPROP_SRC_RECEIVED : ZPROP_SRC_LOCAL);
