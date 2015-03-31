@@ -520,7 +520,7 @@ spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
 	dsl_dir_name(dd, namebuf);
 	fnvlist_add_string(nvl, ZPOOL_HIST_DSNAME, namebuf);
 	fnvlist_add_uint64(nvl, ZPOOL_HIST_DSID,
-	    dd->dd_phys->dd_head_dataset_obj);
+	    dsl_dir_phys(dd)->dd_head_dataset_obj);
 
 	va_start(adx, fmt);
 	log_internal(nvl, operation, dd->dd_pool->dp_spa, tx, fmt, adx);

@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/dsl_dataset.h>
@@ -120,6 +121,8 @@ dsl_deadlist_close(dsl_deadlist_t *dl)
 {
 	void *cookie = NULL;
 	dsl_deadlist_entry_t *dle;
+
+	dl->dl_os = NULL;
 
 	if (dl->dl_oldfmt) {
 		dl->dl_oldfmt = B_FALSE;
@@ -310,8 +313,9 @@ dsl_deadlist_regenerate(objset_t *os, uint64_t dlobj,
 	while (mrs_obj != 0) {
 		dsl_dataset_t *ds;
 		VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, mrs_obj, FTAG, &ds));
-		dsl_deadlist_add_key(&dl, ds->ds_phys->ds_prev_snap_txg, tx);
-		mrs_obj = ds->ds_phys->ds_prev_snap_obj;
+		dsl_deadlist_add_key(&dl,
+		    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
+		mrs_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 		dsl_dataset_rele(ds, FTAG);
 	}
 	dsl_deadlist_close(&dl);

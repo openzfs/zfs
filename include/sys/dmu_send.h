@@ -23,7 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _DMU_SEND_H
@@ -56,6 +56,7 @@ typedef struct dmu_recv_cookie {
 	zio_cksum_t drc_cksum;
 	uint64_t drc_newsnapobj;
 	void *drc_owner;
+	cred_t *drc_cred;
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *tofs, char *tosnap, struct drr_begin *drrb,
