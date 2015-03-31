@@ -1574,6 +1574,12 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 	spl_kmem_cache_t *skc;
 	int alloc = 0;
 
+	/*
+	 * No shrinking in a transaction context.  Can cause deadlocks.
+	 */
+	if (sc->nr_to_scan && spl_fstrans_check())
+		return (SHRINK_STOP);
+
 	down_read(&spl_kmem_cache_sem);
 	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
 		if (sc->nr_to_scan) {
