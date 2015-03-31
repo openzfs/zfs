@@ -267,7 +267,7 @@ typedef struct dnode_handle {
 
 typedef struct dnode_children {
 	size_t dnc_count;		/* number of children */
-	dnode_handle_t dnc_children[1];	/* sized dynamically */
+	dnode_handle_t dnc_children[];	/* sized dynamically */
 } dnode_children_t;
 
 typedef struct free_range {
