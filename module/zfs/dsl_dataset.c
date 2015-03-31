@@ -618,16 +618,14 @@ dsl_dataset_rele(dsl_dataset_t *ds, void *tag)
 void
 dsl_dataset_disown(dsl_dataset_t *ds, void *tag)
 {
-	ASSERT(ds->ds_owner == tag && ds->ds_dbuf != NULL);
+	ASSERT3P(ds->ds_owner, ==, tag);
+	ASSERT(ds->ds_dbuf != NULL);
 
 	mutex_enter(&ds->ds_lock);
 	ds->ds_owner = NULL;
 	mutex_exit(&ds->ds_lock);
 	dsl_dataset_long_rele(ds, tag);
-	if (ds->ds_dbuf != NULL)
-		dsl_dataset_rele(ds, tag);
-	else
-		dsl_dataset_evict(NULL, ds);
+	dsl_dataset_rele(ds, tag);
 }
 
 boolean_t
