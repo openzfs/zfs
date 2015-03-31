@@ -120,7 +120,7 @@ dsl_bookmark_create_check_impl(dsl_dataset_t *snapds, const char *bookmark_name,
 	int error;
 	zfs_bookmark_phys_t bmark_phys;
 
-	if (!dsl_dataset_is_snapshot(snapds))
+	if (!snapds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
 	error = dsl_bookmark_hold_ds(dp, bookmark_name,

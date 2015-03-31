@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -319,6 +320,8 @@ dsl_pool_close(dsl_pool_t *dp)
 	arc_flush(dp->dp_spa);
 	txg_fini(dp);
 	dsl_scan_fini(dp);
+	dmu_buf_user_evict_wait();
+
 	rrw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);
 	taskq_destroy(dp->dp_iput_taskq);
