@@ -764,14 +764,14 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 		dsl_dataset_t *fromds;
 		uint64_t fromobj;
 
-		if (!dsl_dir_is_clone(tosnap->ds_dir)) {
+		if (!dsl_dir_is_clone(ds->ds_dir)) {
 			dsl_dataset_rele(ds, FTAG);
 			dsl_pool_rele(dp, FTAG);
 			return (SET_ERROR(EINVAL));
 		}
 		fromobj = ds->ds_dir->dd_phys->dd_origin_obj;
 		err = dsl_dataset_hold_obj(dp, fromobj, FTAG, &fromds);
-		if (err =! 0) {
+		if (err != 0) {
 			dsl_dataset_rele(ds, FTAG);
 			dsl_pool_rele(dp, FTAG);
 			return (err);
