@@ -152,7 +152,7 @@ dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 	 */
 	quota = dsl_pool_adjustedsize(dp, B_FALSE) -
 	    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
-	used = dp->dp_root_dir->dd_phys->dd_used_bytes;
+	used = dsl_dir_phys(dp->dp_root_dir)->dd_used_bytes;
 	/* MOS space is triple-dittoed, so we multiply by 3. */
 	if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
 		dst->dst_error = SET_ERROR(ENOSPC);

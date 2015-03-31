@@ -497,7 +497,7 @@ zilog_dirty(zilog_t *zilog, uint64_t txg)
 	dsl_pool_t *dp = zilog->zl_dmu_pool;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
-	if (dsl_dataset_is_snapshot(ds))
+	if (ds->ds_is_snapshot)
 		panic("dirtying snapshot!");
 
 	if (txg_list_add(&dp->dp_dirty_zilogs, zilog, txg)) {

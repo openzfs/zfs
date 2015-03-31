@@ -105,8 +105,8 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 		}
 
 		/* Check for a local value. */
-		err = zap_lookup(mos, dd->dd_phys->dd_props_zapobj, propname,
-		    intsz, numints, buf);
+		err = zap_lookup(mos, dsl_dir_phys(dd)->dd_props_zapobj,
+		    propname, intsz, numints, buf);
 		if (err != ENOENT) {
 			if (setpoint != NULL && err == 0)
 				dsl_dir_name(dd, setpoint);
@@ -117,14 +117,14 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 		 * Skip the check for a received value if there is an explicit
 		 * inheritance entry.
 		 */
-		err = zap_contains(mos, dd->dd_phys->dd_props_zapobj,
+		err = zap_contains(mos, dsl_dir_phys(dd)->dd_props_zapobj,
 		    inheritstr);
 		if (err != 0 && err != ENOENT)
 			break;
 
 		if (err == ENOENT) {
 			/* Check for a received value. */
-			err = zap_lookup(mos, dd->dd_phys->dd_props_zapobj,
+			err = zap_lookup(mos, dsl_dir_phys(dd)->dd_props_zapobj,
 			    recvdstr, intsz, numints, buf);
 			if (err != ENOENT) {
 				if (setpoint != NULL && err == 0) {
@@ -163,19 +163,17 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 {
 	zfs_prop_t prop = zfs_name_to_prop(propname);
 	boolean_t inheritable;
-	boolean_t snapshot;
 	uint64_t zapobj;
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 	inheritable = (prop == ZPROP_INVAL || zfs_prop_inheritable(prop));
-	snapshot = (ds->ds_phys != NULL && dsl_dataset_is_snapshot(ds));
-	zapobj = (ds->ds_phys == NULL ? 0 : ds->ds_phys->ds_props_obj);
+	zapobj = dsl_dataset_phys(ds)->ds_props_obj;
 
 	if (zapobj != 0) {
 		objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 		int err;
 
-		ASSERT(snapshot);
+		ASSERT(ds->ds_is_snapshot);
 
 		/* Check for a local value. */
 		err = zap_lookup(mos, zapobj, propname, intsz, numints, buf);
@@ -215,7 +213,7 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 	}
 
 	return (dsl_prop_get_dd(ds->ds_dir, propname,
-	    intsz, numints, buf, setpoint, snapshot));
+	    intsz, numints, buf, setpoint, ds->ds_is_snapshot));
 }
 
 /*
@@ -327,7 +325,7 @@ dsl_prop_predict(dsl_dir_t *dd, const char *propname,
 	}
 
 	mos = dd->dd_pool->dp_meta_objset;
-	zapobj = dd->dd_phys->dd_props_zapobj;
+	zapobj = dsl_dir_phys(dd)->dd_props_zapobj;
 	recvdstr = kmem_asprintf("%s%s", propname, ZPROP_RECVD_SUFFIX);
 
 	version = spa_version(dd->dd_pool->dp_spa);
@@ -486,7 +484,8 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 		 * If the prop is set here, then this change is not
 		 * being inherited here or below; stop the recursion.
 		 */
-		err = zap_contains(mos, dd->dd_phys->dd_props_zapobj, propname);
+		err = zap_contains(mos, dsl_dir_phys(dd)->dd_props_zapobj,
+		    propname);
 		if (err == 0) {
 			dsl_dir_rele(dd, FTAG);
 			return;
@@ -497,7 +496,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 	mutex_enter(&dd->dd_lock);
 	for (cbr = list_head(&dd->dd_prop_cbs); cbr;
 	    cbr = list_next(&dd->dd_prop_cbs, cbr)) {
-		uint64_t propobj = cbr->cbr_ds->ds_phys->ds_props_obj;
+		uint64_t propobj = dsl_dataset_phys(cbr->cbr_ds)->ds_props_obj;
 
 		if (strcmp(cbr->cbr_propname, propname) != 0)
 			continue;
@@ -515,7 +514,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 
 	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 	for (zap_cursor_init(&zc, mos,
-	    dd->dd_phys->dd_child_dir_zapobj);
+	    dsl_dir_phys(dd)->dd_child_dir_zapobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
 		dsl_prop_changed_notify(dp, za->za_first_integer,
@@ -544,17 +543,17 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 
 	isint = (dodefault(propname, 8, 1, &intval) == 0);
 
-	if (ds->ds_phys != NULL && dsl_dataset_is_snapshot(ds)) {
+	if (ds->ds_is_snapshot) {
 		ASSERT(version >= SPA_VERSION_SNAP_PROPS);
-		if (ds->ds_phys->ds_props_obj == 0) {
+		if (dsl_dataset_phys(ds)->ds_props_obj == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);
-			ds->ds_phys->ds_props_obj =
+			dsl_dataset_phys(ds)->ds_props_obj =
 			    zap_create(mos,
 			    DMU_OT_DSL_PROPS, DMU_OT_NONE, 0, tx);
 		}
-		zapobj = ds->ds_phys->ds_props_obj;
+		zapobj = dsl_dataset_phys(ds)->ds_props_obj;
 	} else {
-		zapobj = ds->ds_dir->dd_phys->dd_props_zapobj;
+		zapobj = dsl_dir_phys(ds->ds_dir)->dd_props_zapobj;
 	}
 
 	if (version < SPA_VERSION_RECVD_PROPS) {
@@ -641,7 +640,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	if (isint) {
 		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
 
-		if (ds->ds_phys != NULL && dsl_dataset_is_snapshot(ds)) {
+		if (ds->ds_is_snapshot) {
 			dsl_prop_cb_record_t *cbr;
 			/*
 			 * It's a snapshot; nothing can inherit this
@@ -759,7 +758,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 		}
 	}
 
-	if (dsl_dataset_is_snapshot(ds) && version < SPA_VERSION_SNAP_PROPS) {
+	if (ds->ds_is_snapshot && version < SPA_VERSION_SNAP_PROPS) {
 		dsl_dataset_rele(ds, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
@@ -982,16 +981,16 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
-	if (dsl_dataset_is_snapshot(ds))
+	if (ds->ds_is_snapshot)
 		flags |= DSL_PROP_GET_SNAPSHOT;
 
 	ASSERT(dsl_pool_config_held(dp));
 
-	if (ds->ds_phys->ds_props_obj != 0) {
+	if (dsl_dataset_phys(ds)->ds_props_obj != 0) {
 		ASSERT(flags & DSL_PROP_GET_SNAPSHOT);
 		dsl_dataset_name(ds, setpoint);
-		err = dsl_prop_get_all_impl(mos, ds->ds_phys->ds_props_obj,
-		    setpoint, flags, *nvp);
+		err = dsl_prop_get_all_impl(mos,
+		    dsl_dataset_phys(ds)->ds_props_obj, setpoint, flags, *nvp);
 		if (err)
 			goto out;
 	}
@@ -1004,8 +1003,8 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 			flags |= DSL_PROP_GET_INHERITING;
 		}
 		dsl_dir_name(dd, setpoint);
-		err = dsl_prop_get_all_impl(mos, dd->dd_phys->dd_props_zapobj,
-		    setpoint, flags, *nvp);
+		err = dsl_prop_get_all_impl(mos,
+		    dsl_dir_phys(dd)->dd_props_zapobj, setpoint, flags, *nvp);
 		if (err)
 			break;
 	}

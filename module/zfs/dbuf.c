@@ -23,6 +23,7 @@
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -78,10 +79,16 @@ static void dbuf_destroy(dmu_buf_impl_t *db);
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 
+#ifndef __lint
+extern inline void dmu_buf_init_user(dmu_buf_user_t *dbu,
+    dmu_buf_evict_func_t *evict_func, dmu_buf_t **clear_on_evict_dbufp);
+#endif /* ! __lint */
+
 /*
  * Global data structures and functions for the dbuf cache.
  */
 static kmem_cache_t *dbuf_cache;
+static taskq_t *dbu_evict_taskq;
 
 /* ARGSUSED */
 static int
@@ -93,7 +100,7 @@ dbuf_cons(void *vdb, void *unused, int kmflag)
 	mutex_init(&db->db_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&db->db_changed, NULL, CV_DEFAULT, NULL);
 	refcount_create(&db->db_holds);
-	list_link_init(&db->db_link);
+
 	return (0);
 }
 
@@ -247,20 +254,72 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 
 static arc_evict_func_t dbuf_do_evict;
 
+typedef enum {
+	DBVU_EVICTING,
+	DBVU_NOT_EVICTING
+} dbvu_verify_type_t;
+
+static void
+dbuf_verify_user(dmu_buf_impl_t *db, dbvu_verify_type_t verify_type)
+{
+#ifdef ZFS_DEBUG
+	int64_t holds;
+
+	if (db->db_user == NULL)
+		return;
+
+	/* Only data blocks support the attachment of user data. */
+	ASSERT(db->db_level == 0);
+
+	/* Clients must resolve a dbuf before attaching user data. */
+	ASSERT(db->db.db_data != NULL);
+	ASSERT3U(db->db_state, ==, DB_CACHED);
+
+	holds = refcount_count(&db->db_holds);
+	if (verify_type == DBVU_EVICTING) {
+		/*
+		 * Immediate eviction occurs when holds == dirtycnt.
+		 * For normal eviction buffers, holds is zero on
+		 * eviction, except when dbuf_fix_old_data() calls
+		 * dbuf_clear_data().  However, the hold count can grow
+		 * during eviction even though db_mtx is held (see
+		 * dmu_bonus_hold() for an example), so we can only
+		 * test the generic invariant that holds >= dirtycnt.
+		 */
+		ASSERT3U(holds, >=, db->db_dirtycnt);
+	} else {
+		if (db->db_immediate_evict == TRUE)
+			ASSERT3U(holds, >=, db->db_dirtycnt);
+		else
+			ASSERT3U(holds, >, 0);
+	}
+#endif
+}
+
 static void
 dbuf_evict_user(dmu_buf_impl_t *db)
 {
+	dmu_buf_user_t *dbu = db->db_user;
+
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
-	if (db->db_level != 0 || db->db_evict_func == NULL)
+	if (dbu == NULL)
 		return;
 
-	if (db->db_user_data_ptr_ptr)
-		*db->db_user_data_ptr_ptr = db->db.db_data;
-	db->db_evict_func(&db->db, db->db_user_ptr);
-	db->db_user_ptr = NULL;
-	db->db_user_data_ptr_ptr = NULL;
-	db->db_evict_func = NULL;
+	dbuf_verify_user(db, DBVU_EVICTING);
+	db->db_user = NULL;
+
+#ifdef ZFS_DEBUG
+	if (dbu->dbu_clear_on_evict_dbufp != NULL)
+		*dbu->dbu_clear_on_evict_dbufp = NULL;
+#endif
+
+	/*
+	 * Invoke the callback from a taskq to avoid lock order reversals
+	 * and limit stack depth.
+	 */
+	taskq_dispatch_ent(dbu_evict_taskq, dbu->dbu_evict_func, dbu, 0,
+	    &dbu->dbu_tqent);
 }
 
 boolean_t
@@ -334,6 +393,12 @@ retry:
 		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_FSTRANS, NULL);
 
 	dbuf_stats_init(h);
+
+	/*
+	 * All entries are queued via taskq_dispatch_ent(), so min/maxalloc
+	 * configuration is not required.
+	 */
+	dbu_evict_taskq = taskq_create("dbu_evict", 1, minclsyspri, 0, 0, 0);
 }
 
 void
@@ -356,6 +421,7 @@ dbuf_fini(void)
 	kmem_free(h->hash_table, (h->hash_table_mask + 1) * sizeof (void *));
 #endif
 	kmem_cache_destroy(dbuf_cache);
+	taskq_destroy(dbu_evict_taskq);
 }
 
 /*
@@ -386,7 +452,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 		ASSERT3U(db->db_level, <, dn->dn_nlevels);
 		ASSERT(db->db_blkid == DMU_BONUS_BLKID ||
 		    db->db_blkid == DMU_SPILL_BLKID ||
-		    !list_is_empty(&dn->dn_dbufs));
+		    !avl_is_empty(&dn->dn_dbufs));
 	}
 	if (db->db_blkid == DMU_BONUS_BLKID) {
 		ASSERT(dn != NULL);
@@ -474,32 +540,27 @@ dbuf_verify(dmu_buf_impl_t *db)
 #endif
 
 static void
-dbuf_update_data(dmu_buf_impl_t *db)
+dbuf_clear_data(dmu_buf_impl_t *db)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
-	if (db->db_level == 0 && db->db_user_data_ptr_ptr) {
-		ASSERT(!refcount_is_zero(&db->db_holds));
-		*db->db_user_data_ptr_ptr = db->db.db_data;
-	}
+	dbuf_evict_user(db);
+	db->db_buf = NULL;
+	db->db.db_data = NULL;
+	if (db->db_state != DB_NOFILL)
+		db->db_state = DB_UNCACHED;
 }
 
 static void
 dbuf_set_data(dmu_buf_impl_t *db, arc_buf_t *buf)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT(buf != NULL);
+
 	db->db_buf = buf;
-	if (buf != NULL) {
-		ASSERT(buf->b_data != NULL);
-		db->db.db_data = buf->b_data;
-		if (!arc_released(buf))
-			arc_set_callback(buf, dbuf_do_evict, db);
-		dbuf_update_data(db);
-	} else {
-		dbuf_evict_user(db);
-		db->db.db_data = NULL;
-		if (db->db_state != DB_NOFILL)
-			db->db_state = DB_UNCACHED;
-	}
+	ASSERT(buf->b_data != NULL);
+	db->db.db_data = buf->b_data;
+	if (!arc_released(buf))
+		arc_set_callback(buf, dbuf_do_evict, db);
 }
 
 /*
@@ -521,7 +582,7 @@ dbuf_loan_arcbuf(dmu_buf_impl_t *db)
 	} else {
 		abuf = db->db_buf;
 		arc_loan_inuse_buf(abuf, db);
-		dbuf_set_data(db, NULL);
+		dbuf_clear_data(db);
 		mutex_exit(&db->db_mtx);
 	}
 	return (abuf);
@@ -600,7 +661,6 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 		if (bonuslen)
 			bcopy(DN_BONUS(dn->dn_phys), db->db.db_data, bonuslen);
 		DB_DNODE_EXIT(db);
-		dbuf_update_data(db);
 		db->db_state = DB_CACHED;
 		mutex_exit(&db->db_mtx);
 		return (0);
@@ -762,7 +822,7 @@ dbuf_noread(dmu_buf_impl_t *db)
 		dbuf_set_data(db, arc_buf_alloc(spa, db->db.db_size, db, type));
 		db->db_state = DB_FILL;
 	} else if (db->db_state == DB_NOFILL) {
-		dbuf_set_data(db, NULL);
+		dbuf_clear_data(db);
 	} else {
 		ASSERT3U(db->db_state, ==, DB_CACHED);
 	}
@@ -818,7 +878,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 		dr->dt.dl.dr_data = arc_buf_alloc(spa, size, db, type);
 		bcopy(db->db.db_data, dr->dt.dl.dr_data->b_data, size);
 	} else {
-		dbuf_set_data(db, NULL);
+		dbuf_clear_data(db);
 	}
 }
 
@@ -866,21 +926,33 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
  * receive; see comment below for details.
  */
 void
-dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
+dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
+    dmu_tx_t *tx)
 {
+	dmu_buf_impl_t db_search;
 	dmu_buf_impl_t *db, *db_next;
 	uint64_t txg = tx->tx_txg;
+	avl_index_t where;
 	boolean_t freespill =
-	    (start == DMU_SPILL_BLKID || end == DMU_SPILL_BLKID);
+	    (start_blkid == DMU_SPILL_BLKID || end_blkid == DMU_SPILL_BLKID);
 
-	if (end > dn->dn_maxblkid && !freespill)
-		end = dn->dn_maxblkid;
-	dprintf_dnode(dn, "start=%llu end=%llu\n", start, end);
+	if (end_blkid > dn->dn_maxblkid && !freespill)
+		end_blkid = dn->dn_maxblkid;
+	dprintf_dnode(dn, "start=%llu end=%llu\n", start_blkid, end_blkid);
+
+	db_search.db_level = 0;
+	db_search.db_blkid = start_blkid;
+	db_search.db_state = DB_SEARCH;
 
 	mutex_enter(&dn->dn_dbufs_mtx);
-	if (start >= dn->dn_unlisted_l0_blkid * dn->dn_datablksz &&
-	    !freespill) {
+	if (start_blkid >= dn->dn_unlisted_l0_blkid && !freespill) {
 		/* There can't be any dbufs in this range; no need to search. */
+#ifdef DEBUG
+		db = avl_find(&dn->dn_dbufs, &db_search, &where);
+		ASSERT3P(db, ==, NULL);
+		db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
+		ASSERT(db == NULL || db->db_level > 0);
+#endif
 		mutex_exit(&dn->dn_dbufs_mtx);
 		return;
 	} else if (dmu_objset_is_receiving(dn->dn_objset)) {
@@ -894,19 +966,25 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		atomic_inc_64(&zfs_free_range_recv_miss);
 	}
 
-	for (db = list_head(&dn->dn_dbufs); db != NULL; db = db_next) {
-		db_next = list_next(&dn->dn_dbufs, db);
+	db = avl_find(&dn->dn_dbufs, &db_search, &where);
+	ASSERT3P(db, ==, NULL);
+	db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
+
+	for (; db != NULL; db = db_next) {
+		db_next = AVL_NEXT(&dn->dn_dbufs, db);
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 
 		/* Skip indirect blocks. */
 		if (db->db_level != 0)
-			continue;
+			break;
 		/* Skip direct blocks outside the range. */
-		if (!freespill && (db->db_blkid < start || db->db_blkid > end))
-			continue;
+		if (!freespill && db->db_blkid > end_blkid)
+			break;
 		/* Skip all direct blocks, only free spill blocks. */
 		if (freespill && (db->db_blkid != DMU_SPILL_BLKID))
 			continue;
+
+		ASSERT3U(db->db_blkid, >=, start_blkid);
 
 		/* found a level 0 buffer in the range */
 		mutex_enter(&db->db_mtx);
@@ -1423,6 +1501,12 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		if (dr->dt.dl.dr_data != db->db_buf)
 			VERIFY(arc_buf_remove_ref(dr->dt.dl.dr_data, db));
 	}
+
+	if (db->db_level != 0) {
+		mutex_destroy(&dr->dt.di.dr_mtx);
+		list_destroy(&dr->dt.di.dr_children);
+	}
+
 	kmem_free(dr, sizeof (dbuf_dirty_record_t));
 
 	ASSERT(db->db_dirtycnt > 0);
@@ -1432,7 +1516,7 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		arc_buf_t *buf = db->db_buf;
 
 		ASSERT(db->db_state == DB_NOFILL || arc_released(buf));
-		dbuf_set_data(db, NULL);
+		dbuf_clear_data(db);
 		VERIFY(arc_buf_remove_ref(buf, db));
 		dbuf_evict(db);
 		return (B_TRUE);
@@ -1651,7 +1735,7 @@ dbuf_clear(dmu_buf_impl_t *db)
 	dn = DB_DNODE(db);
 	dndb = dn->dn_dbuf;
 	if (db->db_blkid != DMU_BONUS_BLKID && MUTEX_HELD(&dn->dn_dbufs_mtx)) {
-		list_remove(&dn->dn_dbufs, db);
+		avl_remove(&dn->dn_dbufs, db);
 		atomic_dec_32(&dn->dn_dbufs_count);
 		membar_producer();
 		DB_DNODE_EXIT(db);
@@ -1781,9 +1865,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_parent = parent;
 	db->db_blkptr = blkptr;
 
-	db->db_user_ptr = NULL;
-	db->db_user_data_ptr_ptr = NULL;
-	db->db_evict_func = NULL;
+	db->db_user = NULL;
 	db->db_immediate_evict = 0;
 	db->db_freed_in_flight = 0;
 
@@ -1823,7 +1905,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 		mutex_exit(&dn->dn_dbufs_mtx);
 		return (odb);
 	}
-	list_insert_head(&dn->dn_dbufs, db);
+	avl_add(&dn->dn_dbufs, db);
 	if (db->db_level == 0 && db->db_blkid >=
 	    dn->dn_unlisted_l0_blkid)
 		dn->dn_unlisted_l0_blkid = db->db_blkid + 1;
@@ -1882,7 +1964,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 			DB_DNODE_ENTER(db);
 			dn = DB_DNODE(db);
 			mutex_enter(&dn->dn_dbufs_mtx);
-			list_remove(&dn->dn_dbufs, db);
+			avl_remove(&dn->dn_dbufs, db);
 			atomic_dec_32(&dn->dn_dbufs_count);
 			mutex_exit(&dn->dn_dbufs_mtx);
 			DB_DNODE_EXIT(db);
@@ -1900,7 +1982,6 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	db->db_parent = NULL;
 	db->db_buf = NULL;
 
-	ASSERT(!list_link_active(&db->db_link));
 	ASSERT(db->db.db_data == NULL);
 	ASSERT(db->db_hash_next == NULL);
 	ASSERT(db->db_blkptr == NULL);
@@ -2034,7 +2115,6 @@ top:
 	}
 
 	(void) refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
-	dbuf_update_data(dh->dh_db);
 	DBUF_VERIFY(dh->dh_db);
 	mutex_exit(&dh->dh_db->db_mtx);
 
@@ -2272,7 +2352,7 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 			/*
 			 * This dbuf has anonymous data associated with it.
 			 */
-			dbuf_set_data(db, NULL);
+			dbuf_clear_data(db);
 			VERIFY(arc_buf_remove_ref(buf, db));
 			dbuf_evict(db);
 		} else {
@@ -2305,7 +2385,8 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 				} else {
 					dbuf_clear(db);
 				}
-			} else if (arc_buf_eviction_needed(db->db_buf)) {
+			} else if (db->db_objset->os_evicting ||
+			    arc_buf_eviction_needed(db->db_buf)) {
 				dbuf_clear(db);
 			} else {
 				mutex_exit(&db->db_mtx);
@@ -2324,56 +2405,57 @@ dbuf_refcount(dmu_buf_impl_t *db)
 }
 
 void *
-dmu_buf_set_user(dmu_buf_t *db_fake, void *user_ptr, void *user_data_ptr_ptr,
-    dmu_buf_evict_func_t *evict_func)
+dmu_buf_replace_user(dmu_buf_t *db_fake, dmu_buf_user_t *old_user,
+    dmu_buf_user_t *new_user)
 {
-	return (dmu_buf_update_user(db_fake, NULL, user_ptr,
-	    user_data_ptr_ptr, evict_func));
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+
+	mutex_enter(&db->db_mtx);
+	dbuf_verify_user(db, DBVU_NOT_EVICTING);
+	if (db->db_user == old_user)
+		db->db_user = new_user;
+	else
+		old_user = db->db_user;
+	dbuf_verify_user(db, DBVU_NOT_EVICTING);
+	mutex_exit(&db->db_mtx);
+
+	return (old_user);
 }
 
 void *
-dmu_buf_set_user_ie(dmu_buf_t *db_fake, void *user_ptr, void *user_data_ptr_ptr,
-    dmu_buf_evict_func_t *evict_func)
+dmu_buf_set_user(dmu_buf_t *db_fake, dmu_buf_user_t *user)
+{
+	return (dmu_buf_replace_user(db_fake, NULL, user));
+}
+
+void *
+dmu_buf_set_user_ie(dmu_buf_t *db_fake, dmu_buf_user_t *user)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
 	db->db_immediate_evict = TRUE;
-	return (dmu_buf_update_user(db_fake, NULL, user_ptr,
-	    user_data_ptr_ptr, evict_func));
+	return (dmu_buf_set_user(db_fake, user));
 }
 
 void *
-dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr, void *user_ptr,
-    void *user_data_ptr_ptr, dmu_buf_evict_func_t *evict_func)
+dmu_buf_remove_user(dmu_buf_t *db_fake, dmu_buf_user_t *user)
 {
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
-	ASSERT(db->db_level == 0);
-
-	ASSERT((user_ptr == NULL) == (evict_func == NULL));
-
-	mutex_enter(&db->db_mtx);
-
-	if (db->db_user_ptr == old_user_ptr) {
-		db->db_user_ptr = user_ptr;
-		db->db_user_data_ptr_ptr = user_data_ptr_ptr;
-		db->db_evict_func = evict_func;
-
-		dbuf_update_data(db);
-	} else {
-		old_user_ptr = db->db_user_ptr;
-	}
-
-	mutex_exit(&db->db_mtx);
-	return (old_user_ptr);
+	return (dmu_buf_replace_user(db_fake, user, NULL));
 }
 
 void *
 dmu_buf_get_user(dmu_buf_t *db_fake)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
-	ASSERT(!refcount_is_zero(&db->db_holds));
 
-	return (db->db_user_ptr);
+	dbuf_verify_user(db, DBVU_NOT_EVICTING);
+	return (db->db_user);
+}
+
+void
+dmu_buf_user_evict_wait()
+{
+	taskq_wait(dbu_evict_taskq);
 }
 
 boolean_t
@@ -3041,7 +3123,6 @@ EXPORT_SYMBOL(dbuf_refcount);
 EXPORT_SYMBOL(dbuf_sync_list);
 EXPORT_SYMBOL(dmu_buf_set_user);
 EXPORT_SYMBOL(dmu_buf_set_user_ie);
-EXPORT_SYMBOL(dmu_buf_update_user);
 EXPORT_SYMBOL(dmu_buf_get_user);
 EXPORT_SYMBOL(dmu_buf_freeable);
 EXPORT_SYMBOL(dmu_buf_get_blkptr);

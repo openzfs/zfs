@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
@@ -1934,6 +1935,10 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_REFQUOTA:
 	case ZFS_PROP_RESERVATION:
 	case ZFS_PROP_REFRESERVATION:
+	case ZFS_PROP_FILESYSTEM_LIMIT:
+	case ZFS_PROP_SNAPSHOT_LIMIT:
+	case ZFS_PROP_FILESYSTEM_COUNT:
+	case ZFS_PROP_SNAPSHOT_COUNT:
 		*val = getprop_uint64(zhp, prop, source);
 
 		if (*source == NULL) {
@@ -2336,6 +2341,30 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 				    (u_longlong_t)val);
 			else
 				zfs_nicenum(val, propbuf, proplen);
+		}
+		break;
+
+	case ZFS_PROP_FILESYSTEM_LIMIT:
+	case ZFS_PROP_SNAPSHOT_LIMIT:
+	case ZFS_PROP_FILESYSTEM_COUNT:
+	case ZFS_PROP_SNAPSHOT_COUNT:
+
+		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
+			return (-1);
+
+		/*
+		 * If limit is UINT64_MAX, we translate this into 'none' (unless
+		 * literal is set), and indicate that it's the default value.
+		 * Otherwise, we print the number nicely and indicate that it's
+		 * set locally.
+		 */
+		if (literal) {
+			(void) snprintf(propbuf, proplen, "%llu",
+			    (u_longlong_t)val);
+		} else if (val == UINT64_MAX) {
+			(void) strlcpy(propbuf, "none", proplen);
+		} else {
+			zfs_nicenum(val, propbuf, proplen);
 		}
 		break;
 

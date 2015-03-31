@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -402,57 +403,37 @@ dnode_sync_free_range(void *arg, uint64_t blkid, uint64_t nblks)
 void
 dnode_evict_dbufs(dnode_t *dn)
 {
-	int progress;
-	int pass = 0;
+	dmu_buf_impl_t db_marker;
+	dmu_buf_impl_t *db, *db_next;
 
-	do {
-		dmu_buf_impl_t *db, marker;
-		int evicting = FALSE;
+	mutex_enter(&dn->dn_dbufs_mtx);
+	for (db = avl_first(&dn->dn_dbufs); db != NULL; db = db_next) {
 
-		progress = FALSE;
-		mutex_enter(&dn->dn_dbufs_mtx);
-		list_insert_tail(&dn->dn_dbufs, &marker);
-		db = list_head(&dn->dn_dbufs);
-		for (; db != &marker; db = list_head(&dn->dn_dbufs)) {
-			list_remove(&dn->dn_dbufs, db);
-			list_insert_tail(&dn->dn_dbufs, db);
 #ifdef	DEBUG
-			DB_DNODE_ENTER(db);
-			ASSERT3P(DB_DNODE(db), ==, dn);
-			DB_DNODE_EXIT(db);
+		DB_DNODE_ENTER(db);
+		ASSERT3P(DB_DNODE(db), ==, dn);
+		DB_DNODE_EXIT(db);
 #endif	/* DEBUG */
 
-			mutex_enter(&db->db_mtx);
-			if (db->db_state == DB_EVICTING) {
-				progress = TRUE;
-				evicting = TRUE;
-				mutex_exit(&db->db_mtx);
-			} else if (refcount_is_zero(&db->db_holds)) {
-				progress = TRUE;
-				dbuf_clear(db); /* exits db_mtx for us */
-			} else {
-				mutex_exit(&db->db_mtx);
-			}
+		mutex_enter(&db->db_mtx);
+		if (db->db_state != DB_EVICTING &&
+		    refcount_is_zero(&db->db_holds)) {
+			db_marker.db_level = db->db_level;
+			db_marker.db_blkid = db->db_blkid;
+			db_marker.db_state = DB_SEARCH;
+			avl_insert_here(&dn->dn_dbufs, &db_marker, db,
+			    AVL_BEFORE);
 
+			dbuf_clear(db);
+
+			db_next = AVL_NEXT(&dn->dn_dbufs, &db_marker);
+			avl_remove(&dn->dn_dbufs, &db_marker);
+		} else {
+			mutex_exit(&db->db_mtx);
+			db_next = AVL_NEXT(&dn->dn_dbufs, db);
 		}
-		list_remove(&dn->dn_dbufs, &marker);
-		/*
-		 * NB: we need to drop dn_dbufs_mtx between passes so
-		 * that any DB_EVICTING dbufs can make progress.
-		 * Ideally, we would have some cv we could wait on, but
-		 * since we don't, just wait a bit to give the other
-		 * thread a chance to run.
-		 */
-		mutex_exit(&dn->dn_dbufs_mtx);
-		if (evicting)
-			delay(1);
-		pass++;
-		if ((pass % 100) == 0)
-			dprintf("Exceeded %d passes evicting dbufs\n", pass);
-	} while (progress);
-
-	if (pass >= 100)
-		dprintf("Required %d passes to evict dbufs\n", pass);
+	}
+	mutex_exit(&dn->dn_dbufs_mtx);
 
 	dnode_evict_bonus(dn);
 }
@@ -491,6 +472,9 @@ dnode_undirty_dbufs(list_t *list)
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||
 			    dr->dt.dl.dr_data == db->db_buf);
 			dbuf_unoverride(dr);
+		} else {
+			mutex_destroy(&dr->dt.di.dr_mtx);
+			list_destroy(&dr->dt.di.dr_children);
 		}
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
 		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg);
@@ -513,8 +497,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 
 	dnode_undirty_dbufs(&dn->dn_dirty_records[txgoff]);
 	dnode_evict_dbufs(dn);
-	ASSERT3P(list_head(&dn->dn_dbufs), ==, NULL);
-	ASSERT3P(dn->dn_bonus, ==, NULL);
+	ASSERT(avl_is_empty(&dn->dn_dbufs));
 
 	/*
 	 * XXX - It would be nice to assert this, but we may still
