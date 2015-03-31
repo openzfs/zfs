@@ -237,7 +237,8 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		 */
 		if (pool->dp_free_dir != NULL) {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING, NULL,
-			    pool->dp_free_dir->dd_phys->dd_used_bytes, src);
+			    dsl_dir_phys(pool->dp_free_dir)->dd_used_bytes,
+			    src);
 		} else {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING,
 			    NULL, 0, src);
@@ -245,7 +246,8 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 
 		if (pool->dp_leak_dir != NULL) {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_LEAKED, NULL,
-			    pool->dp_leak_dir->dd_phys->dd_used_bytes, src);
+			    dsl_dir_phys(pool->dp_leak_dir)->dd_used_bytes,
+			    src);
 		} else {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_LEAKED,
 			    NULL, 0, src);

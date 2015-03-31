@@ -481,12 +481,6 @@ void dmu_buf_rele_array(dmu_buf_t **, int numbufs, void *tag);
  *
  * user_ptr is for use by the user and can be obtained via dmu_buf_get_user().
  *
- * user_data_ptr_ptr should be NULL, or a pointer to a pointer which
- * will be set to db->db_data when you are allowed to access it.  Note
- * that db->db_data (the pointer) can change when you do dmu_buf_read(),
- * dmu_buf_tryupgrade(), dmu_buf_will_dirty(), or dmu_buf_will_fill().
- * *user_data_ptr_ptr will be set to the new value when it changes.
- *
  * If non-NULL, pageout func will be called when this buffer is being
  * excised from the cache, so that you can clean up the data structure
  * pointed to by user_ptr.
@@ -494,17 +488,16 @@ void dmu_buf_rele_array(dmu_buf_t **, int numbufs, void *tag);
  * dmu_evict_user() will call the pageout func for all buffers in a
  * objset with a given pageout func.
  */
-void *dmu_buf_set_user(dmu_buf_t *db, void *user_ptr, void *user_data_ptr_ptr,
+void *dmu_buf_set_user(dmu_buf_t *db, void *user_ptr,
     dmu_buf_evict_func_t *pageout_func);
 /*
  * set_user_ie is the same as set_user, but request immediate eviction
  * when hold count goes to zero.
  */
 void *dmu_buf_set_user_ie(dmu_buf_t *db, void *user_ptr,
-    void *user_data_ptr_ptr, dmu_buf_evict_func_t *pageout_func);
-void *dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr,
-    void *user_ptr, void *user_data_ptr_ptr,
     dmu_buf_evict_func_t *pageout_func);
+void *dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr,
+    void *user_ptr, dmu_buf_evict_func_t *pageout_func);
 void dmu_evict_user(objset_t *os, dmu_buf_evict_func_t *func);
 
 /*

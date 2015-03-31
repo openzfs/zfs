@@ -588,7 +588,7 @@ traverse_dataset(dsl_dataset_t *ds, uint64_t txg_start, int flags,
     blkptr_cb_t func, void *arg)
 {
 	return (traverse_impl(ds->ds_dir->dd_pool->dp_spa, ds, ds->ds_object,
-	    &ds->ds_phys->ds_bp, txg_start, NULL, flags, func, arg));
+	    &dsl_dataset_phys(ds)->ds_bp, txg_start, NULL, flags, func, arg));
 }
 
 int
@@ -643,8 +643,8 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 					continue;
 				break;
 			}
-			if (ds->ds_phys->ds_prev_snap_txg > txg)
-				txg = ds->ds_phys->ds_prev_snap_txg;
+			if (dsl_dataset_phys(ds)->ds_prev_snap_txg > txg)
+				txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 			err = traverse_dataset(ds, txg, flags, func, arg);
 			dsl_dataset_rele(ds, FTAG);
 			if (err != 0)

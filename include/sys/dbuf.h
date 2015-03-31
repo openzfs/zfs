@@ -228,7 +228,6 @@ typedef struct dmu_buf_impl {
 
 	/* stuff we store for the user (see dmu_buf_set_user) */
 	void *db_user_ptr;
-	void **db_user_data_ptr_ptr;
 	dmu_buf_evict_func_t *db_evict_func;
 
 	uint8_t db_immediate_evict;
