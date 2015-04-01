@@ -255,11 +255,8 @@ dbuf_evict_user(dmu_buf_impl_t *db)
 	if (db->db_level != 0 || db->db_evict_func == NULL)
 		return;
 
-	if (db->db_user_data_ptr_ptr)
-		*db->db_user_data_ptr_ptr = db->db.db_data;
 	db->db_evict_func(&db->db, db->db_user_ptr);
 	db->db_user_ptr = NULL;
-	db->db_user_data_ptr_ptr = NULL;
 	db->db_evict_func = NULL;
 }
 
@@ -474,16 +471,6 @@ dbuf_verify(dmu_buf_impl_t *db)
 #endif
 
 static void
-dbuf_update_data(dmu_buf_impl_t *db)
-{
-	ASSERT(MUTEX_HELD(&db->db_mtx));
-	if (db->db_level == 0 && db->db_user_data_ptr_ptr) {
-		ASSERT(!refcount_is_zero(&db->db_holds));
-		*db->db_user_data_ptr_ptr = db->db.db_data;
-	}
-}
-
-static void
 dbuf_set_data(dmu_buf_impl_t *db, arc_buf_t *buf)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
@@ -493,7 +480,6 @@ dbuf_set_data(dmu_buf_impl_t *db, arc_buf_t *buf)
 		db->db.db_data = buf->b_data;
 		if (!arc_released(buf))
 			arc_set_callback(buf, dbuf_do_evict, db);
-		dbuf_update_data(db);
 	} else {
 		dbuf_evict_user(db);
 		db->db.db_data = NULL;
@@ -600,7 +586,6 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 		if (bonuslen)
 			bcopy(DN_BONUS(dn->dn_phys), db->db.db_data, bonuslen);
 		DB_DNODE_EXIT(db);
-		dbuf_update_data(db);
 		db->db_state = DB_CACHED;
 		mutex_exit(&db->db_mtx);
 		return (0);
@@ -1801,7 +1786,6 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_blkptr = blkptr;
 
 	db->db_user_ptr = NULL;
-	db->db_user_data_ptr_ptr = NULL;
 	db->db_evict_func = NULL;
 	db->db_immediate_evict = 0;
 	db->db_freed_in_flight = 0;
@@ -2052,7 +2036,6 @@ top:
 	}
 
 	(void) refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
-	dbuf_update_data(dh->dh_db);
 	DBUF_VERIFY(dh->dh_db);
 	mutex_exit(&dh->dh_db->db_mtx);
 
@@ -2342,27 +2325,25 @@ dbuf_refcount(dmu_buf_impl_t *db)
 }
 
 void *
-dmu_buf_set_user(dmu_buf_t *db_fake, void *user_ptr, void *user_data_ptr_ptr,
+dmu_buf_set_user(dmu_buf_t *db_fake, void *user_ptr,
     dmu_buf_evict_func_t *evict_func)
 {
-	return (dmu_buf_update_user(db_fake, NULL, user_ptr,
-	    user_data_ptr_ptr, evict_func));
+	return (dmu_buf_update_user(db_fake, NULL, user_ptr, evict_func));
 }
 
 void *
-dmu_buf_set_user_ie(dmu_buf_t *db_fake, void *user_ptr, void *user_data_ptr_ptr,
+dmu_buf_set_user_ie(dmu_buf_t *db_fake, void *user_ptr,
     dmu_buf_evict_func_t *evict_func)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
 	db->db_immediate_evict = TRUE;
-	return (dmu_buf_update_user(db_fake, NULL, user_ptr,
-	    user_data_ptr_ptr, evict_func));
+	return (dmu_buf_update_user(db_fake, NULL, user_ptr, evict_func));
 }
 
 void *
 dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr, void *user_ptr,
-    void *user_data_ptr_ptr, dmu_buf_evict_func_t *evict_func)
+    dmu_buf_evict_func_t *evict_func)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	ASSERT(db->db_level == 0);
@@ -2373,10 +2354,7 @@ dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr, void *user_ptr,
 
 	if (db->db_user_ptr == old_user_ptr) {
 		db->db_user_ptr = user_ptr;
-		db->db_user_data_ptr_ptr = user_data_ptr_ptr;
 		db->db_evict_func = evict_func;
-
-		dbuf_update_data(db);
 	} else {
 		old_user_ptr = db->db_user_ptr;
 	}

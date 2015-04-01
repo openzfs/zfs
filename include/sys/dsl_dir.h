@@ -86,9 +86,10 @@ typedef struct dsl_dir_phys {
 struct dsl_dir {
 	/* These are immutable; no lock needed: */
 	uint64_t dd_object;
-	dsl_dir_phys_t *dd_phys;
-	dmu_buf_t *dd_dbuf;
 	dsl_pool_t *dd_pool;
+
+	/* Stable until user eviction; no lock needed: */
+	dmu_buf_t *dd_dbuf;
 
 	/* protected by lock on pool's dp_dirty_dirs list */
 	txg_node_t dd_dirty_link;
@@ -110,6 +111,12 @@ struct dsl_dir {
 	/* protected by dd_lock; keep at end of struct for better locality */
 	char dd_myname[MAXNAMELEN];
 };
+
+static inline dsl_dir_phys_t *
+dsl_dir_phys(dsl_dir_t *dd)
+{
+	return (dd->dd_dbuf->db_data);
+}
 
 void dsl_dir_rele(dsl_dir_t *dd, void *tag);
 int dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,

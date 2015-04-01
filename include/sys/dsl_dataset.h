@@ -48,7 +48,7 @@ struct dsl_pool;
 
 #define	DS_FLAG_INCONSISTENT	(1ULL<<0)
 #define	DS_IS_INCONSISTENT(ds)	\
-	((ds)->ds_phys->ds_flags & DS_FLAG_INCONSISTENT)
+	(dsl_dataset_phys(ds)->ds_flags & DS_FLAG_INCONSISTENT)
 
 /*
  * Do not allow this dataset to be promoted.
@@ -68,7 +68,7 @@ struct dsl_pool;
  */
 #define	DS_FLAG_DEFER_DESTROY	(1ULL<<3)
 #define	DS_IS_DEFER_DESTROY(ds)	\
-	((ds)->ds_phys->ds_flags & DS_FLAG_DEFER_DESTROY)
+	(dsl_dataset_phys(ds)->ds_flags & DS_FLAG_DEFER_DESTROY)
 
 /*
  * DS_FIELD_* are strings that are used in the "extensified" dataset zap object.
@@ -127,7 +127,6 @@ typedef struct dsl_dataset_phys {
 typedef struct dsl_dataset {
 	/* Immutable: */
 	struct dsl_dir *ds_dir;
-	dsl_dataset_phys_t *ds_phys;
 	dmu_buf_t *ds_dbuf;
 	uint64_t ds_object;
 	uint64_t ds_fsid_guid;
@@ -177,17 +176,26 @@ typedef struct dsl_dataset {
 	char ds_snapname[MAXNAMELEN];
 } dsl_dataset_t;
 
+static inline dsl_dataset_phys_t *
+dsl_dataset_phys(dsl_dataset_t *ds)
+{
+	return (ds->ds_dbuf->db_data);
+}
+
 /*
  * The max length of a temporary tag prefix is the number of hex digits
  * required to express UINT64_MAX plus one for the hyphen.
  */
 #define	MAX_TAG_PREFIX_LEN	17
 
-#define	dsl_dataset_is_snapshot(ds) \
-	((ds)->ds_phys->ds_num_children != 0)
+static inline boolean_t
+dsl_dataset_is_snapshot(dsl_dataset_t *ds)
+{
+	return (dsl_dataset_phys(ds)->ds_num_children != 0);
+}
 
 #define	DS_UNIQUE_IS_ACCURATE(ds)	\
-	(((ds)->ds_phys->ds_flags & DS_FLAG_UNIQUE_ACCURATE) != 0)
+	((dsl_dataset_phys(ds)->ds_flags & DS_FLAG_UNIQUE_ACCURATE) != 0)
 
 int dsl_dataset_hold(struct dsl_pool *dp, const char *name, void *tag,
     dsl_dataset_t **dsp);

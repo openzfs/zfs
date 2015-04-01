@@ -1928,8 +1928,8 @@ dump_dir(objset_t *os)
 	if (dds.dds_type == DMU_OST_META) {
 		dds.dds_creation_txg = TXG_INITIAL;
 		usedobjs = BP_GET_FILL(os->os_rootbp);
-		refdbytes = os->os_spa->spa_dsl_pool->
-		    dp_mos_dir->dd_phys->dd_used_bytes;
+		refdbytes = dsl_dir_phys(os->os_spa->spa_dsl_pool->dp_mos_dir)->
+		    dd_used_bytes;
 	} else {
 		dmu_objset_space(os, &refdbytes, &scratch, &usedobjs, &scratch);
 	}
