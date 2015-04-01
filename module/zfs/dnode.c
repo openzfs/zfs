@@ -1116,7 +1116,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag,
 			zrl_init(&dnh[i].dnh_zrlock);
 			dnh[i].dnh_dnode = NULL;
 		}
-		if ((winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
+		if ((winner = dmu_buf_set_user(&db->db, children_dnodes,
 		    dnode_buf_pageout))) {
 
 			for (i = 0; i < epb; i++) {

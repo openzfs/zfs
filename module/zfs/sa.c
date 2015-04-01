@@ -1363,7 +1363,7 @@ sa_handle_destroy(sa_handle_t *hdl)
 {
 	mutex_enter(&hdl->sa_lock);
 	(void) dmu_buf_update_user((dmu_buf_t *)hdl->sa_bonus, hdl,
-	    NULL, NULL, NULL);
+	    NULL, NULL);
 
 	if (hdl->sa_bonus_tab) {
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_bonus_tab);
@@ -1410,8 +1410,7 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
 
 		error = sa_build_index(handle, SA_BONUS);
 		newhandle = (hdl_type == SA_HDL_SHARED) ?
-		    dmu_buf_set_user_ie(db, handle,
-		    NULL, sa_evict) : NULL;
+		    dmu_buf_set_user_ie(db, handle, sa_evict) : NULL;
 
 		if (newhandle != NULL) {
 			kmem_cache_free(sa_cache, handle);
@@ -1951,7 +1950,7 @@ void
 sa_update_user(sa_handle_t *newhdl, sa_handle_t *oldhdl)
 {
 	(void) dmu_buf_update_user((dmu_buf_t *)newhdl->sa_bonus,
-	    oldhdl, newhdl, NULL, sa_evict);
+	    oldhdl, newhdl, sa_evict);
 	oldhdl->sa_bonus = NULL;
 }
 

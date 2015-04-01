@@ -164,10 +164,10 @@ dsl_deleg_set_sync(void *arg, dmu_tx_t *tx)
 
 	VERIFY0(dsl_dir_hold(dp, dda->dda_name, FTAG, &dd, NULL));
 
-	zapobj = dd->dd_phys->dd_deleg_zapobj;
+	zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 	if (zapobj == 0) {
 		dmu_buf_will_dirty(dd->dd_dbuf, tx);
-		zapobj = dd->dd_phys->dd_deleg_zapobj = zap_create(mos,
+		zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj = zap_create(mos,
 		    DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
 	}
 
@@ -208,7 +208,7 @@ dsl_deleg_unset_sync(void *arg, dmu_tx_t *tx)
 	uint64_t zapobj;
 
 	VERIFY0(dsl_dir_hold(dp, dda->dda_name, FTAG, &dd, NULL));
-	zapobj = dd->dd_phys->dd_deleg_zapobj;
+	zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 	if (zapobj == 0) {
 		dsl_dir_rele(dd, FTAG);
 		return;
@@ -337,14 +337,14 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 		nvlist_t *sp_nvp;
 		uint64_t n;
 
-		if (dd->dd_phys->dd_deleg_zapobj == 0 ||
-		    zap_count(mos, dd->dd_phys->dd_deleg_zapobj, &n) != 0 ||
-		    n == 0)
+		if (dsl_dir_phys(dd)->dd_deleg_zapobj == 0 ||
+		    zap_count(mos,
+		    dsl_dir_phys(dd)->dd_deleg_zapobj, &n) != 0 || n == 0)
 			continue;
 
 		sp_nvp = fnvlist_alloc();
 		for (zap_cursor_init(basezc, mos,
-		    dd->dd_phys->dd_deleg_zapobj);
+		    dsl_dir_phys(dd)->dd_deleg_zapobj);
 		    zap_cursor_retrieve(basezc, baseza) == 0;
 		    zap_cursor_advance(basezc)) {
 			nvlist_t *perms_nvp;
@@ -603,7 +603,7 @@ dsl_deleg_access_impl(dsl_dataset_t *ds, const char *perm, cred_t *cr)
 			if (!zoned)
 				break;
 		}
-		zapobj = dd->dd_phys->dd_deleg_zapobj;
+		zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 
 		if (zapobj == 0)
 			continue;
@@ -682,7 +682,7 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 {
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	uint64_t jumpobj, pjumpobj;
-	uint64_t zapobj = dd->dd_phys->dd_deleg_zapobj;
+	uint64_t zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 	zap_cursor_t zc;
 	zap_attribute_t za;
 	char whokey[ZFS_MAX_DELEG_NAME];
@@ -695,7 +695,7 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 
 	if (zapobj == 0) {
 		dmu_buf_will_dirty(dd->dd_dbuf, tx);
-		zapobj = dd->dd_phys->dd_deleg_zapobj = zap_create(mos,
+		zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj = zap_create(mos,
 		    DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
 	}
 
@@ -733,7 +733,7 @@ dsl_deleg_set_create_perms(dsl_dir_t *sdd, dmu_tx_t *tx, cred_t *cr)
 		return;
 
 	for (dd = sdd->dd_parent; dd != NULL; dd = dd->dd_parent) {
-		uint64_t pzapobj = dd->dd_phys->dd_deleg_zapobj;
+		uint64_t pzapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 
 		if (pzapobj == 0)
 			continue;

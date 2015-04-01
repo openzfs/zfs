@@ -310,8 +310,9 @@ dsl_deadlist_regenerate(objset_t *os, uint64_t dlobj,
 	while (mrs_obj != 0) {
 		dsl_dataset_t *ds;
 		VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, mrs_obj, FTAG, &ds));
-		dsl_deadlist_add_key(&dl, ds->ds_phys->ds_prev_snap_txg, tx);
-		mrs_obj = ds->ds_phys->ds_prev_snap_obj;
+		dsl_deadlist_add_key(&dl,
+		    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
+		mrs_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 		dsl_dataset_rele(ds, FTAG);
 	}
 	dsl_deadlist_close(&dl);
