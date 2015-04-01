@@ -1079,6 +1079,11 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag,
 		}
 		if ((winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
 		    dnode_buf_pageout))) {
+
+			for (i = 0; i < epb; i++) {
+				zrl_destroy(&dnh[i].dnh_zrlock);
+			}
+
 			kmem_free(children_dnodes, sizeof (dnode_children_t) +
 			    (epb - 1) * sizeof (dnode_handle_t));
 			children_dnodes = winner;

@@ -1423,6 +1423,12 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		if (dr->dt.dl.dr_data != db->db_buf)
 			VERIFY(arc_buf_remove_ref(dr->dt.dl.dr_data, db));
 	}
+
+	if (db->db_level != 0) {
+		mutex_destroy(&dr->dt.di.dr_mtx);
+		list_destroy(&dr->dt.di.dr_children);
+	}
+
 	kmem_free(dr, sizeof (dbuf_dirty_record_t));
 
 	ASSERT(db->db_dirtycnt > 0);
