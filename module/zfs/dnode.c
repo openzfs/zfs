@@ -70,33 +70,35 @@ dbuf_compare(const void *x1, const void *x2)
 
 	if (d1->db_level < d2->db_level) {
 		return (-1);
-	} else if (d1->db_level > d2->db_level) {
+	}
+	if (d1->db_level > d2->db_level) {
 		return (1);
 	}
 
 	if (d1->db_blkid < d2->db_blkid) {
 		return (-1);
-	} else if (d1->db_blkid > d2->db_blkid) {
+	}
+	if (d1->db_blkid > d2->db_blkid) {
 		return (1);
 	}
 
-	/*
-	 * If a dbuf is being evicted while dn_dbufs_mutex is not held, we set
-	 * the db_state to DB_EVICTING but do not remove it from dn_dbufs. If
-	 * another thread creates a dbuf of the same blkid before the dbuf is
-	 * removed from dn_dbufs, we can reach a state where there are two
-	 * dbufs of the same blkid and level in db_dbufs. To maintain the avl
-	 * invariant that there cannot be duplicate items, we distinguish
-	 * between these two dbufs based on the time they were created.
-	 */
-	if (d1->db_creation < d2->db_creation) {
+	if (d1->db_state < d2->db_state) {
 		return (-1);
-	} else if (d1->db_creation > d2->db_creation) {
-		return (1);
-	} else {
-		ASSERT3P(d1, ==, d2);
-		return (0);
 	}
+	if (d1->db_state > d2->db_state) {
+		return (1);
+	}
+
+	ASSERT3S(d1->db_state, !=, DB_SEARCH);
+	ASSERT3S(d2->db_state, !=, DB_SEARCH);
+
+	if ((uintptr_t)d1 < (uintptr_t)d2) {
+		return (-1);
+	}
+	if ((uintptr_t)d1 > (uintptr_t)d2) {
+		return (1);
+	}
+	return (0);
 }
 
 /* ARGSUSED */
