@@ -550,6 +550,7 @@ dsl_dir_init_fs_ss_count(dsl_dir_t *dd, dmu_tx_t *tx)
 		if (za->za_name[0] != '%')
 			my_ss_cnt++;
 	}
+	zap_cursor_fini(zc);
 
 	dsl_dataset_rele(ds, FTAG);
 
