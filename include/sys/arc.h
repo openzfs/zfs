@@ -42,7 +42,7 @@ typedef struct arc_buf_hdr arc_buf_hdr_t;
 typedef struct arc_buf arc_buf_t;
 typedef struct arc_prune arc_prune_t;
 typedef void arc_done_func_t(zio_t *zio, arc_buf_t *buf, void *private);
-typedef void arc_prune_func_t(int64_t bytes, void *private);
+typedef void arc_prune_func_t(int64_t bytes, void *private, int flags);
 typedef int arc_evict_func_t(void *private);
 
 /* generic arc_done_func_t's which you can use */
