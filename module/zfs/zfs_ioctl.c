@@ -25,8 +25,8 @@
  * Portions Copyright 2012 Pawel Jakub Dawidek <pawel@dawidek.net>
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 201i3 by Delphix. All rights reserved.
+ * Copyright (c) 2014, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
@@ -641,12 +641,14 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 		break;
 
 	case ZFS_PROP_QUOTA:
+	case ZFS_PROP_FILESYSTEM_LIMIT:
+	case ZFS_PROP_SNAPSHOT_LIMIT:
 		if (!INGLOBALZONE(curproc)) {
 			uint64_t zoned;
 			char setpoint[MAXNAMELEN];
 			/*
 			 * Unprivileged users are allowed to modify the
-			 * quota on things *under* (ie. contained by)
+			 * limit on things *under* (ie. contained by)
 			 * the thing they own.
 			 */
 			if (dsl_prop_get_integer(dsname, "zoned", &zoned,
@@ -2416,6 +2418,21 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		break;
 	case ZFS_PROP_REFQUOTA:
 		err = dsl_dataset_set_refquota(dsname, source, intval);
+		break;
+	case ZFS_PROP_FILESYSTEM_LIMIT:
+	case ZFS_PROP_SNAPSHOT_LIMIT:
+		if (intval == UINT64_MAX) {
+			/* clearing the limit, just do it */
+			err = 0;
+		} else {
+			err = dsl_dir_activate_fs_ss_limit(dsname);
+		}
+		/*
+		 * Set err to -1 to force the zfs_set_prop_nvlist code down the
+		 * default path to set the value in the nvlist.
+		 */
+		if (err == 0)
+			err = -1;
 		break;
 	case ZFS_PROP_RESERVATION:
 		err = dsl_dir_set_reservation(dsname, source, intval);

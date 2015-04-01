@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DIR_H
@@ -37,6 +38,14 @@ extern "C" {
 #endif
 
 struct dsl_dataset;
+
+/*
+ * DD_FIELD_* are strings that are used in the "extensified" dsl_dir zap object.
+ * They should be of the format <reverse-dns>:<field>.
+ */
+
+#define	DD_FIELD_FILESYSTEM_COUNT	"com.joyent:filesystem_count"
+#define	DD_FIELD_SNAPSHOT_COUNT		"com.joyent:snapshot_count"
 
 typedef enum dd_used {
 	DD_USED_HEAD,
@@ -129,8 +138,13 @@ int dsl_dir_set_quota(const char *ddname, zprop_source_t source,
     uint64_t quota);
 int dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
     uint64_t reservation);
+int dsl_dir_activate_fs_ss_limit(const char *);
+int dsl_fs_ss_limit_check(dsl_dir_t *, uint64_t, zfs_prop_t, dsl_dir_t *,
+    cred_t *);
+void dsl_fs_ss_count_adjust(dsl_dir_t *, int64_t, const char *, dmu_tx_t *);
 int dsl_dir_rename(const char *oldname, const char *newname);
-int dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd, uint64_t space);
+int dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd,
+    uint64_t fs_cnt, uint64_t ss_cnt, uint64_t space, cred_t *);
 boolean_t dsl_dir_is_clone(dsl_dir_t *dd);
 void dsl_dir_new_refreservation(dsl_dir_t *dd, struct dsl_dataset *ds,
     uint64_t reservation, cred_t *cr, dmu_tx_t *tx);
@@ -138,6 +152,8 @@ void dsl_dir_snap_cmtime_update(dsl_dir_t *dd);
 timestruc_t dsl_dir_snap_cmtime(dsl_dir_t *dd);
 void dsl_dir_set_reservation_sync_impl(dsl_dir_t *dd, uint64_t value,
     dmu_tx_t *tx);
+void dsl_dir_zapify(dsl_dir_t *dd, dmu_tx_t *tx);
+boolean_t dsl_dir_is_zapified(dsl_dir_t *dd);
 
 /* internal reserved dir name */
 #define	MOS_DIR_NAME "$MOS"

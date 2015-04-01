@@ -1,6 +1,7 @@
 '\" te
 .\" Copyright (c) 2013 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -196,6 +197,27 @@ empty bpobjs.
 
 This feature is \fBactive\fR while there are any filesystems, volumes,
 or snapshots which were created after enabling this feature.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBfilesystem_limits\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.joyent:filesystem_limits
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables filesystem and snapshot limits. These limits can be used
+to control how many filesystems and/or snapshots can be created at the point in
+the tree on which the limits are set.
+
+This feature is \fBactive\fR once either of the limit properties has been
+set on a dataset. Once activated the feature is never deactivated.
 .RE
 
 .sp
