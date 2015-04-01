@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -780,9 +781,11 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 		dsl_dir_rele(pdd, FTAG);
 		return (SET_ERROR(EEXIST));
 	}
+	error = dsl_fs_ss_limit_check(pdd, 1, ZFS_PROP_FILESYSTEM_LIMIT, NULL,
+	    doca->doca_cred);
 	dsl_dir_rele(pdd, FTAG);
 
-	return (0);
+	return (error);
 }
 
 static void
@@ -865,6 +868,12 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 	if (pdd->dd_pool != dp) {
 		dsl_dir_rele(pdd, FTAG);
 		return (SET_ERROR(EXDEV));
+	}
+	error = dsl_fs_ss_limit_check(pdd, 1, ZFS_PROP_FILESYSTEM_LIMIT, NULL,
+	    doca->doca_cred);
+	if (error != 0) {
+		dsl_dir_rele(pdd, FTAG);
+		return (SET_ERROR(EDQUOT));
 	}
 	dsl_dir_rele(pdd, FTAG);
 

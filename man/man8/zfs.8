@@ -23,7 +23,7 @@
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2014 by Delphix. All rights reserved.
-.\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\"
@@ -449,6 +449,18 @@ This property is \fBon\fR if the snapshot has been marked for deferred destructi
 .ne 2
 .mk
 .na
+\fB\fBfilesystem_count\fR
+.ad
+.sp .6
+.RS 4n
+The total number of filesystems and volumes that exist under this location in the
+dataset tree.  This value is only available when a \fBfilesystem_limit\fR has
+been set somewhere in the tree under which the dataset resides.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBlogicalreferenced\fR\fR
 .ad
 .sp .6
@@ -530,6 +542,18 @@ property.
 .sp
 .ne 2
 .mk
+.na
+\fB\fBsnapshot_count\fR
+.ad
+.sp .6
+.RS 4n
+The total number of snapshots that exist under this location in the dataset tree.
+This value is only available when a \fBsnapshot_limit\fR has been set somewhere
+in the tree under which the dataset resides.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fBtype\fR\fR
 .ad
@@ -892,6 +916,21 @@ Zones are a Solaris feature and are not relevant on Linux.
 .ne 2
 .mk
 .na
+\fB\fBfilesystem_limit\fR=\fIcount\fR | \fBnone\fR\fR
+.ad
+.sp .6
+.RS 4n
+Limits the number of filesystems and volumes that can exist under this point in
+the dataset tree.  The limit is not enforced if the user is allowed to change
+the limit. Setting a filesystem_limit on a descendent of a filesystem that
+already has a filesystem_limit does not override the ancestor's filesystem_limit,
+but rather imposes an additional limit. This feature must be enabled to be used
+(see \fBzpool-features\fR(5)).
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBmountpoint\fR=\fIpath\fR | \fBnone\fR | \fBlegacy\fR\fR
 .ad
 .sp .6
@@ -939,6 +978,22 @@ Quotas cannot be set on volumes, as the \fBvolsize\fR property acts as an implic
 .sp
 .ne 2
 .mk
+.na
+\fB\fBsnapshot_limit\fR=\fIcount\fR | \fBnone\fR\fR
+.ad
+.sp .6
+.RS 4n
+Limits the number of snapshots that can be created on a dataset and its
+descendents. Setting a snapshot_limit on a descendent of a dataset that already
+has a snapshot_limit does not override the ancestor's snapshot_limit, but
+rather imposes an additional limit. The limit is not enforced if the user is
+allowed to change the limit. For example, this means that recursive snapshots
+taken from the global zone are counted against each delegated dataset within
+a zone. This feature must be enabled to be used (see \fBzpool-features\fR(5)).
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fBuserquota@\fR\fIuser\fR=\fIsize\fR | \fBnone\fR\fR
 .ad
@@ -2983,6 +3038,7 @@ copies           property
 dedup            property
 devices          property       
 exec             property       
+filesystem_limit property
 logbias          property
 mlslabel         property
 mountpoint       property       
@@ -3001,6 +3057,7 @@ shareiscsi       property
 sharenfs         property       
 sharesmb         property       
 snapdir          property       
+snapshot_limit   property
 utf8only         property       
 version          property       
 volblocksize     property       

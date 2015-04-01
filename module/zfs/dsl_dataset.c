@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 RackTop Systems.
  */
 
@@ -318,7 +318,8 @@ dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name, uint64_t *value)
 }
 
 int
-dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx)
+dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
+    boolean_t adj_cnt)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	uint64_t snapobj = ds->ds_phys->ds_snapnames_zapobj;
@@ -335,6 +336,11 @@ dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx)
 	err = zap_remove_norm(mos, snapobj, name, mt, tx);
 	if (err == ENOTSUP && mt == MT_FIRST)
 		err = zap_remove(mos, snapobj, name, tx);
+
+	if (err == 0 && adj_cnt)
+		dsl_fs_ss_count_adjust(ds->ds_dir, -1,
+		    DD_FIELD_SNAPSHOT_COUNT, tx);
+
 	return (err);
 }
 
@@ -767,6 +773,21 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 
 	dsl_deleg_set_create_perms(dd, tx, cr);
 
+	/*
+	 * Since we're creating a new node we know it's a leaf, so we can
+	 * initialize the counts if the limit feature is active.
+	 */
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_FS_SS_LIMIT)) {
+		uint64_t cnt = 0;
+		objset_t *os = dd->dd_pool->dp_meta_objset;
+
+		dsl_dir_zapify(dd, tx);
+		VERIFY0(zap_add(os, dd->dd_object, DD_FIELD_FILESYSTEM_COUNT,
+		    sizeof (cnt), 1, &cnt, tx));
+		VERIFY0(zap_add(os, dd->dd_object, DD_FIELD_SNAPSHOT_COUNT,
+		    sizeof (cnt), 1, &cnt, tx));
+	}
+
 	dsl_dir_rele(dd, FTAG);
 
 	/*
@@ -935,11 +956,12 @@ typedef struct dsl_dataset_snapshot_arg {
 	nvlist_t *ddsa_snaps;
 	nvlist_t *ddsa_props;
 	nvlist_t *ddsa_errors;
+	cred_t *ddsa_cr;
 } dsl_dataset_snapshot_arg_t;
 
 int
 dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx, boolean_t recv)
+    dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr)
 {
 	int error;
 	uint64_t value;
@@ -977,6 +999,18 @@ dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
 	if (!recv && DS_IS_INCONSISTENT(ds))
 		return (SET_ERROR(EBUSY));
 
+	/*
+	 * Skip the check for temporary snapshots or if we have already checked
+	 * the counts in dsl_dataset_snapshot_check. This means we really only
+	 * check the count here when we're receiving a stream.
+	 */
+	if (cnt != 0 && cr != NULL) {
+		error = dsl_fs_ss_limit_check(ds->ds_dir, cnt,
+		    ZFS_PROP_SNAPSHOT_LIMIT, NULL, cr);
+		if (error != 0)
+			return (error);
+	}
+
 	error = dsl_dataset_snapshot_reserve_space(ds, tx);
 	if (error != 0)
 		return (error);
@@ -991,6 +1025,103 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	nvpair_t *pair;
 	int rv = 0;
+
+	/*
+	 * Pre-compute how many total new snapshots will be created for each
+	 * level in the tree and below. This is needed for validating the
+	 * snapshot limit when either taking a recursive snapshot or when
+	 * taking multiple snapshots.
+	 *
+	 * The problem is that the counts are not actually adjusted when
+	 * we are checking, only when we finally sync. For a single snapshot,
+	 * this is easy, the count will increase by 1 at each node up the tree,
+	 * but its more complicated for the recursive/multiple snapshot case.
+	 *
+	 * The dsl_fs_ss_limit_check function does recursively check the count
+	 * at each level up the tree but since it is validating each snapshot
+	 * independently we need to be sure that we are validating the complete
+	 * count for the entire set of snapshots. We do this by rolling up the
+	 * counts for each component of the name into an nvlist and then
+	 * checking each of those cases with the aggregated count.
+	 *
+	 * This approach properly handles not only the recursive snapshot
+	 * case (where we get all of those on the ddsa_snaps list) but also
+	 * the sibling case (e.g. snapshot a/b and a/c so that we will also
+	 * validate the limit on 'a' using a count of 2).
+	 *
+	 * We validate the snapshot names in the third loop and only report
+	 * name errors once.
+	 */
+	if (dmu_tx_is_syncing(tx)) {
+		char *nm;
+		nvlist_t *cnt_track = NULL;
+		cnt_track = fnvlist_alloc();
+
+		nm = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+
+		/* Rollup aggregated counts into the cnt_track list */
+		for (pair = nvlist_next_nvpair(ddsa->ddsa_snaps, NULL);
+		    pair != NULL;
+		    pair = nvlist_next_nvpair(ddsa->ddsa_snaps, pair)) {
+			char *pdelim;
+			uint64_t val;
+
+			(void) strlcpy(nm, nvpair_name(pair), MAXPATHLEN);
+			pdelim = strchr(nm, '@');
+			if (pdelim == NULL)
+				continue;
+			*pdelim = '\0';
+
+			do {
+				if (nvlist_lookup_uint64(cnt_track, nm,
+				    &val) == 0) {
+					/* update existing entry */
+					fnvlist_add_uint64(cnt_track, nm,
+					    val + 1);
+				} else {
+					/* add to list */
+					fnvlist_add_uint64(cnt_track, nm, 1);
+				}
+
+				pdelim = strrchr(nm, '/');
+				if (pdelim != NULL)
+					*pdelim = '\0';
+			} while (pdelim != NULL);
+		}
+
+		kmem_free(nm, MAXPATHLEN);
+
+		/* Check aggregated counts at each level */
+		for (pair = nvlist_next_nvpair(cnt_track, NULL);
+		    pair != NULL; pair = nvlist_next_nvpair(cnt_track, pair)) {
+			int error = 0;
+			char *name;
+			uint64_t cnt = 0;
+			dsl_dataset_t *ds;
+
+			name = nvpair_name(pair);
+			cnt = fnvpair_value_uint64(pair);
+			ASSERT(cnt > 0);
+
+			error = dsl_dataset_hold(dp, name, FTAG, &ds);
+			if (error == 0) {
+				error = dsl_fs_ss_limit_check(ds->ds_dir, cnt,
+				    ZFS_PROP_SNAPSHOT_LIMIT, NULL,
+				    ddsa->ddsa_cr);
+				dsl_dataset_rele(ds, FTAG);
+			}
+
+			if (error != 0) {
+				if (ddsa->ddsa_errors != NULL)
+					fnvlist_add_int32(ddsa->ddsa_errors,
+					    name, error);
+				rv = error;
+				/* only report one error for this check */
+				break;
+			}
+		}
+		nvlist_free(cnt_track);
+	}
 
 	for (pair = nvlist_next_nvpair(ddsa->ddsa_snaps, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(ddsa->ddsa_snaps, pair)) {
@@ -1012,8 +1143,9 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 		if (error == 0)
 			error = dsl_dataset_hold(dp, dsname, FTAG, &ds);
 		if (error == 0) {
+			/* passing 0/NULL skips dsl_fs_ss_limit_check */
 			error = dsl_dataset_snapshot_check_impl(ds,
-			    atp + 1, tx, B_FALSE);
+			    atp + 1, tx, B_FALSE, 0, NULL);
 			dsl_dataset_rele(ds, FTAG);
 		}
 
@@ -1025,6 +1157,7 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 			rv = error;
 		}
 	}
+
 	return (rv);
 }
 
@@ -1051,6 +1184,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	    bcmp(&os->os_phys->os_zil_header, &zero_zil,
 	    sizeof (zero_zil)) == 0);
 
+	dsl_fs_ss_count_adjust(ds->ds_dir, 1, DD_FIELD_SNAPSHOT_COUNT, tx);
 
 	/*
 	 * The origin's ds_creation_txg has to be < TXG_INITIAL
@@ -1227,6 +1361,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 	ddsa.ddsa_snaps = snaps;
 	ddsa.ddsa_props = props;
 	ddsa.ddsa_errors = errors;
+	ddsa.ddsa_cr = CRED();
 
 	if (error == 0) {
 		error = dsl_sync_task(firstname, dsl_dataset_snapshot_check,
@@ -1275,8 +1410,9 @@ dsl_dataset_snapshot_tmp_check(void *arg, dmu_tx_t *tx)
 	if (error != 0)
 		return (error);
 
+	/* NULL cred means no limit check for tmp snapshot */
 	error = dsl_dataset_snapshot_check_impl(ds, ddsta->ddsta_snapname,
-	    tx, B_FALSE);
+	    tx, B_FALSE, 0, NULL);
 	if (error != 0) {
 		dsl_dataset_rele(ds, FTAG);
 		return (error);
@@ -1644,7 +1780,8 @@ dsl_dataset_rename_snapshot_sync_impl(dsl_pool_t *dp,
 	spa_history_log_internal_ds(ds, "rename", tx,
 	    "-> @%s", ddrsa->ddrsa_newsnapname);
 
-	VERIFY0(dsl_dataset_snap_remove(hds, ddrsa->ddrsa_oldsnapname, tx));
+	VERIFY0(dsl_dataset_snap_remove(hds, ddrsa->ddrsa_oldsnapname, tx,
+	    B_FALSE));
 	mutex_enter(&ds->ds_lock);
 	(void) strcpy(ds->ds_snapname, ddrsa->ddrsa_newsnapname);
 	mutex_exit(&ds->ds_lock);
@@ -1896,6 +2033,7 @@ typedef struct dsl_dataset_promote_arg {
 	dsl_dataset_t *origin_origin; /* origin of the origin */
 	uint64_t used, comp, uncomp, unique, cloneusedsnap, originusedsnap;
 	char *err_ds;
+	cred_t *cr;
 } dsl_dataset_promote_arg_t;
 
 static int snaplist_space(list_t *l, uint64_t mintxg, uint64_t *spacep);
@@ -1913,6 +2051,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 	dsl_dataset_t *origin_ds;
 	int err;
 	uint64_t unused;
+	uint64_t ss_mv_cnt;
 
 	err = promote_hold(ddpa, dp, FTAG);
 	if (err != 0)
@@ -1959,6 +2098,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 	 * Note however, if we stop before we reach the ORIGIN we get:
 	 * uN + kN + kN-1 + ... + kM - uM-1
 	 */
+	ss_mv_cnt = 0;
 	ddpa->used = origin_ds->ds_phys->ds_referenced_bytes;
 	ddpa->comp = origin_ds->ds_phys->ds_compressed_bytes;
 	ddpa->uncomp = origin_ds->ds_phys->ds_uncompressed_bytes;
@@ -1966,6 +2106,8 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 	    snap = list_next(&ddpa->shared_snaps, snap)) {
 		uint64_t val, dlused, dlcomp, dluncomp;
 		dsl_dataset_t *ds = snap->ds;
+
+		ss_mv_cnt++;
 
 		/*
 		 * If there are long holds, we won't be able to evict
@@ -2009,9 +2151,9 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 		    ddpa->origin_origin->ds_phys->ds_uncompressed_bytes;
 	}
 
-	/* Check that there is enough space here */
+	/* Check that there is enough space and limit headroom here */
 	err = dsl_dir_transfer_possible(origin_ds->ds_dir, hds->ds_dir,
-	    ddpa->used);
+	    0, ss_mv_cnt, ddpa->used, ddpa->cr);
 	if (err != 0)
 		goto out;
 
@@ -2151,10 +2293,12 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 		/* move snap name entry */
 		VERIFY0(dsl_dataset_get_snapname(ds));
 		VERIFY0(dsl_dataset_snap_remove(origin_head,
-		    ds->ds_snapname, tx));
+		    ds->ds_snapname, tx, B_TRUE));
 		VERIFY0(zap_add(dp->dp_meta_objset,
 		    hds->ds_phys->ds_snapnames_zapobj, ds->ds_snapname,
 		    8, 1, &ds->ds_object, tx));
+		dsl_fs_ss_count_adjust(hds->ds_dir, 1,
+		    DD_FIELD_SNAPSHOT_COUNT, tx);
 
 		/* change containing dsl_dir */
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
@@ -2392,6 +2536,7 @@ dsl_dataset_promote(const char *name, char *conflsnap)
 
 	ddpa.ddpa_clonename = name;
 	ddpa.err_ds = conflsnap;
+	ddpa.cr = CRED();
 
 	return (dsl_sync_task(name, dsl_dataset_promote_check,
 	    dsl_dataset_promote_sync, &ddpa, 2 + numsnaps));
