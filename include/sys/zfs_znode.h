@@ -263,7 +263,6 @@ typedef struct znode {
 #define	ZFS_EXIT(zsb) \
 	{ \
 		rrw_exit(&(zsb)->z_teardown_lock, FTAG); \
-		tsd_exit(); \
 	}
 
 /* Verifies the znode is valid */

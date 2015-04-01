@@ -2156,6 +2156,8 @@ zfs_fsync(struct inode *ip, int syncflag, cred_t *cr)
 		zil_commit(zsb->z_log, zp->z_id);
 		ZFS_EXIT(zsb);
 	}
+	tsd_set(zfs_fsyncer_key, NULL);
+
 	return (0);
 }
 EXPORT_SYMBOL(zfs_fsync);
