@@ -392,6 +392,60 @@ tsd_hash_table_fini(tsd_hash_table_t *table)
 }
 
 /*
+ * tsd_remove_entry - remove a tsd entry for this thread
+ * @entry: entry to remove
+ *
+ * Remove the thread specific data @entry for this thread.
+ * If this is the last entry for this thread, also remove the PID entry.
+ */
+static void
+tsd_remove_entry(tsd_hash_entry_t *entry)
+{
+	HLIST_HEAD(work);
+	tsd_hash_table_t *table;
+	tsd_hash_entry_t *pid_entry;
+	tsd_hash_bin_t *pid_entry_bin, *entry_bin;
+	ulong_t hash;
+
+	table = tsd_hash_table;
+	ASSERT3P(table, !=, NULL);
+	ASSERT3P(entry, !=, NULL);
+
+	spin_lock(&table->ht_lock);
+
+	hash = hash_long((ulong_t)entry->he_key *
+	    (ulong_t)entry->he_pid, table->ht_bits);
+	entry_bin = &table->ht_bins[hash];
+
+	/* save the possible pid_entry */
+	pid_entry = list_entry(entry->he_pid_list.next, tsd_hash_entry_t,
+	    he_pid_list);
+
+	/* remove entry */
+	spin_lock(&entry_bin->hb_lock);
+	tsd_hash_del(table, entry);
+	hlist_add_head(&entry->he_list, &work);
+	spin_unlock(&entry_bin->hb_lock);
+
+	/* if pid_entry is indeed pid_entry, then remove it if it's empty */
+	if (pid_entry->he_key == PID_KEY &&
+	    list_empty(&pid_entry->he_pid_list)) {
+		hash = hash_long((ulong_t)pid_entry->he_key *
+		    (ulong_t)pid_entry->he_pid, table->ht_bits);
+		pid_entry_bin = &table->ht_bins[hash];
+
+		spin_lock(&pid_entry_bin->hb_lock);
+		tsd_hash_del(table, pid_entry);
+		hlist_add_head(&pid_entry->he_list, &work);
+		spin_unlock(&pid_entry_bin->hb_lock);
+	}
+
+	spin_unlock(&table->ht_lock);
+
+	tsd_hash_dtor(&work);
+}
+
+/*
  * tsd_set - set thread specific data
  * @key: lookup key
  * @value: value to set
@@ -409,6 +463,8 @@ tsd_set(uint_t key, void *value)
 	tsd_hash_entry_t *entry;
 	pid_t pid;
 	int rc;
+	/* mark remove if value is NULL */
+	boolean_t remove = (value == NULL);
 
 	table = tsd_hash_table;
 	pid = curthread->pid;
@@ -421,8 +477,15 @@ tsd_set(uint_t key, void *value)
 	entry = tsd_hash_search(table, key, pid);
 	if (entry) {
 		entry->he_value = value;
+		/* remove the entry */
+		if (remove)
+			tsd_remove_entry(entry);
 		return (0);
 	}
+
+	/* don't create entry if value is NULL */
+	if (remove)
+		return (0);
 
 	/* Add a process entry to the hash if not yet exists */
 	entry = tsd_hash_search(table, PID_KEY, pid);
