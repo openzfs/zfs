@@ -168,8 +168,8 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 	inheritable = (prop == ZPROP_INVAL || zfs_prop_inheritable(prop));
-	snapshot = (ds->ds_phys != NULL && dsl_dataset_is_snapshot(ds));
-	zapobj = (ds->ds_phys == NULL ? 0 : ds->ds_phys->ds_props_obj);
+	snapshot = dsl_dataset_is_snapshot(ds);
+	zapobj = ds->ds_phys->ds_props_obj;
 
 	if (zapobj != 0) {
 		objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
@@ -544,7 +544,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 
 	isint = (dodefault(propname, 8, 1, &intval) == 0);
 
-	if (ds->ds_phys != NULL && dsl_dataset_is_snapshot(ds)) {
+	if (dsl_dataset_is_snapshot(ds)) {
 		ASSERT(version >= SPA_VERSION_SNAP_PROPS);
 		if (ds->ds_phys->ds_props_obj == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);
@@ -641,7 +641,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	if (isint) {
 		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
 
-		if (ds->ds_phys != NULL && dsl_dataset_is_snapshot(ds)) {
+		if (dsl_dataset_is_snapshot(ds)) {
 			dsl_prop_cb_record_t *cbr;
 			/*
 			 * It's a snapshot; nothing can inherit this
