@@ -351,6 +351,13 @@ dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
 	return (err);
 }
 
+boolean_t
+dsl_dataset_try_add_ref(dsl_pool_t *dp, dsl_dataset_t *ds, void *tag)
+{
+	return (dmu_buf_try_add_ref(ds->ds_dbuf, dp->dp_meta_objset,
+	    ds->ds_object, DMU_BONUS_BLKID, tag));
+}
+
 int
 dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
     dsl_dataset_t **dsp)

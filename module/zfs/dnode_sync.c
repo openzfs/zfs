@@ -77,7 +77,8 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 	/* set dbuf's parent pointers to new indirect buf */
 	for (i = 0; i < nblkptr; i++) {
-		dmu_buf_impl_t *child = dbuf_find(dn, old_toplvl, i);
+		dmu_buf_impl_t *child =
+		    dbuf_find(dn->dn_objset, dn->dn_object, old_toplvl, i);
 
 		if (child == NULL)
 			continue;

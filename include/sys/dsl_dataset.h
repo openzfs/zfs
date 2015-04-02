@@ -197,6 +197,8 @@ dsl_dataset_phys(dsl_dataset_t *ds)
 
 int dsl_dataset_hold(struct dsl_pool *dp, const char *name, void *tag,
     dsl_dataset_t **dsp);
+boolean_t dsl_dataset_try_add_ref(struct dsl_pool *dp, dsl_dataset_t *ds,
+    void *tag);
 int dsl_dataset_hold_obj(struct dsl_pool *dp, uint64_t dsobj, void *tag,
     dsl_dataset_t **);
 void dsl_dataset_rele(dsl_dataset_t *ds, void *tag);

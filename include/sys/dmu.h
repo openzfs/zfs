@@ -454,7 +454,23 @@ int dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp);
  */
 int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     void *tag, dmu_buf_t **, int flags);
+
+/*
+ * Add a reference to a dmu buffer that has already been held via
+ * dmu_buf_hold() in the current context.
+ */
 void dmu_buf_add_ref(dmu_buf_t *db, void* tag);
+
+/*
+ * Attempt to add a reference to a dmu buffer that is in an unknown state,
+ * using a pointer that may have been invalidated by eviction processing.
+ * The request will succeed if the passed in dbuf still represents the
+ * same os/object/blkid, is ineligible for eviction, and has at least
+ * one hold by a user other than the syncer.
+ */
+boolean_t dmu_buf_try_add_ref(dmu_buf_t *, objset_t *os, uint64_t object,
+    uint64_t blkid, void *tag);
+
 void dmu_buf_rele(dmu_buf_t *db, void *tag);
 uint64_t dmu_buf_refcount(dmu_buf_t *db);
 
