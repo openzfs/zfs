@@ -354,8 +354,19 @@ dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
 boolean_t
 dsl_dataset_try_add_ref(dsl_pool_t *dp, dsl_dataset_t *ds, void *tag)
 {
-	return (dmu_buf_try_add_ref(ds->ds_dbuf, dp->dp_meta_objset,
-	    ds->ds_object, DMU_BONUS_BLKID, tag));
+	dmu_buf_t *dbuf = ds->ds_dbuf;
+	boolean_t result = B_FALSE;
+
+	if (dbuf != NULL && dmu_buf_try_add_ref(dbuf, dp->dp_meta_objset,
+	    ds->ds_object, DMU_BONUS_BLKID, tag)) {
+
+		if (ds == dmu_buf_get_user(dbuf))
+			result = B_TRUE;
+		else
+			dmu_buf_rele(dbuf, tag);
+	}
+
+	return (result);
 }
 
 int
