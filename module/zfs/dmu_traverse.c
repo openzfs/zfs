@@ -539,7 +539,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 
 	/* See comment on ZIL traversal in dsl_scan_visitds. */
-	if (ds != NULL && !dsl_dataset_is_snapshot(ds) && !BP_IS_HOLE(rootbp)) {
+	if (ds != NULL && !ds->ds_is_snapshot && !BP_IS_HOLE(rootbp)) {
 		uint32_t flags = ARC_WAIT;
 		objset_phys_t *osp;
 		arc_buf_t *buf;

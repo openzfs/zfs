@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 /*
@@ -52,7 +53,6 @@ int fzap_default_block_shift = 14; /* 16k blocksize */
 
 extern inline zap_phys_t *zap_f_phys(zap_t *zap);
 
-static void zap_leaf_pageout(dmu_buf_t *db, void *vl);
 static uint64_t zap_allocate_blocks(zap_t *zap, int nblocks);
 
 void
@@ -81,7 +81,7 @@ fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags)
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 	zap->zap_ismicro = FALSE;
 
-	(void) dmu_buf_update_user(zap->zap_dbuf, zap, zap, zap_evict);
+	zap->zap_dbu.dbu_evict_func = zap_evict;
 
 	mutex_init(&zap->zap_f.zap_num_entries_mtx, 0, 0, 0);
 	zap->zap_f.zap_block_shift = highbit64(zap->zap_dbuf->db_size) - 1;
@@ -387,11 +387,20 @@ zap_allocate_blocks(zap_t *zap, int nblocks)
 	return (newblk);
 }
 
+static void
+zap_leaf_pageout(void *dbu)
+{
+	zap_leaf_t *l = dbu;
+
+	rw_destroy(&l->l_rwlock);
+	kmem_free(l, sizeof (zap_leaf_t));
+}
+
 static zap_leaf_t *
 zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 {
 	void *winner;
-	zap_leaf_t *l = kmem_alloc(sizeof (zap_leaf_t), KM_SLEEP);
+	zap_leaf_t *l = kmem_zalloc(sizeof (zap_leaf_t), KM_SLEEP);
 
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
@@ -403,7 +412,8 @@ zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 	VERIFY(0 == dmu_buf_hold(zap->zap_objset, zap->zap_object,
 	    l->l_blkid << FZAP_BLOCK_SHIFT(zap), NULL, &l->l_dbuf,
 	    DMU_READ_NO_PREFETCH));
-	winner = dmu_buf_set_user(l->l_dbuf, l, zap_leaf_pageout);
+	dmu_buf_init_user(&l->l_dbu, zap_leaf_pageout, &l->l_dbuf);
+	winner = dmu_buf_set_user(l->l_dbuf, &l->l_dbu);
 	ASSERT(winner == NULL);
 	dmu_buf_will_dirty(l->l_dbuf, tx);
 
@@ -435,16 +445,6 @@ zap_put_leaf(zap_leaf_t *l)
 	dmu_buf_rele(l->l_dbuf, NULL);
 }
 
-_NOTE(ARGSUSED(0))
-static void
-zap_leaf_pageout(dmu_buf_t *db, void *vl)
-{
-	zap_leaf_t *l = vl;
-
-	rw_destroy(&l->l_rwlock);
-	kmem_free(l, sizeof (zap_leaf_t));
-}
-
 static zap_leaf_t *
 zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 {
@@ -452,19 +452,20 @@ zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 
 	ASSERT(blkid != 0);
 
-	l = kmem_alloc(sizeof (zap_leaf_t), KM_SLEEP);
+	l = kmem_zalloc(sizeof (zap_leaf_t), KM_SLEEP);
 	rw_init(&l->l_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&l->l_rwlock, RW_WRITER);
 	l->l_blkid = blkid;
 	l->l_bs = highbit64(db->db_size) - 1;
 	l->l_dbuf = db;
 
-	winner = dmu_buf_set_user(db, l, zap_leaf_pageout);
+	dmu_buf_init_user(&l->l_dbu, zap_leaf_pageout, &l->l_dbuf);
+	winner = dmu_buf_set_user(db, &l->l_dbu);
 
 	rw_exit(&l->l_rwlock);
 	if (winner != NULL) {
 		/* someone else set it first */
-		zap_leaf_pageout(NULL, l);
+		zap_leaf_pageout(&l->l_dbu);
 		l = winner;
 	}
 

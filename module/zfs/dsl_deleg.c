@@ -570,7 +570,7 @@ dsl_deleg_access_impl(dsl_dataset_t *ds, const char *perm, cred_t *cr)
 	    SPA_VERSION_DELEGATED_PERMS)
 		return (SET_ERROR(EPERM));
 
-	if (dsl_dataset_is_snapshot(ds)) {
+	if (ds->ds_is_snapshot) {
 		/*
 		 * Snapshots are treated as descendents only,
 		 * local permissions do not apply.

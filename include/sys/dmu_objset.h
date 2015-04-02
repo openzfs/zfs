@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -74,15 +75,17 @@ struct objset {
 	arc_buf_t *os_phys_buf;
 	objset_phys_t *os_phys;
 	/*
-	 * The following "special" dnodes have no parent and are exempt from
-	 * dnode_move(), but they root their descendents in this objset using
-	 * handles anyway, so that all access to dnodes from dbufs consistently
-	 * uses handles.
+	 * The following "special" dnodes have no parent, are exempt
+	 * from dnode_move(), and are not recorded in os_dnodes, but they
+	 * root their descendents in this objset using handles anyway, so
+	 * that all access to dnodes from dbufs consistently uses handles.
 	 */
 	dnode_handle_t os_meta_dnode;
 	dnode_handle_t os_userused_dnode;
 	dnode_handle_t os_groupused_dnode;
 	zilog_t *os_zil;
+
+	list_node_t os_evicting_node;
 
 	/* can change, under dsl_dir's locks: */
 	enum zio_checksum os_checksum;
@@ -90,6 +93,7 @@ struct objset {
 	uint8_t os_copies;
 	enum zio_checksum os_dedup_checksum;
 	boolean_t os_dedup_verify;
+	boolean_t os_evicting;
 	zfs_logbias_op_t os_logbias;
 	zfs_cache_type_t os_primary_cache;
 	zfs_cache_type_t os_secondary_cache;
@@ -167,6 +171,8 @@ boolean_t dmu_objset_userused_enabled(objset_t *os);
 int dmu_objset_userspace_upgrade(objset_t *os);
 boolean_t dmu_objset_userspace_present(objset_t *os);
 int dmu_fsname(const char *snapname, char *buf);
+
+void dmu_objset_evict_done(objset_t *os);
 
 void dmu_objset_init(void);
 void dmu_objset_fini(void);

@@ -23,6 +23,7 @@
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DATASET_H
@@ -125,11 +126,14 @@ typedef struct dsl_dataset_phys {
 } dsl_dataset_phys_t;
 
 typedef struct dsl_dataset {
+	dmu_buf_user_t ds_dbu;
+
 	/* Immutable: */
 	struct dsl_dir *ds_dir;
 	dmu_buf_t *ds_dbuf;
 	uint64_t ds_object;
 	uint64_t ds_fsid_guid;
+	boolean_t ds_is_snapshot;
 
 	/* only used in syncing context, only valid for non-snapshots: */
 	struct dsl_dataset *ds_prev;
@@ -187,12 +191,6 @@ dsl_dataset_phys(dsl_dataset_t *ds)
  * required to express UINT64_MAX plus one for the hyphen.
  */
 #define	MAX_TAG_PREFIX_LEN	17
-
-static inline boolean_t
-dsl_dataset_is_snapshot(dsl_dataset_t *ds)
-{
-	return (dsl_dataset_phys(ds)->ds_num_children != 0);
-}
 
 #define	DS_UNIQUE_IS_ACCURATE(ds)	\
 	((dsl_dataset_phys(ds)->ds_flags & DS_FLAG_UNIQUE_ACCURATE) != 0)
