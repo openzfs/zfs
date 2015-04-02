@@ -51,7 +51,7 @@ typedef struct dmu_snapshots_destroy_arg {
 int
 dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
 {
-	if (!dsl_dataset_is_snapshot(ds))
+	if (!ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
 	if (dsl_dataset_long_held(ds))
@@ -356,7 +356,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	dsl_dataset_remove_clones_key(ds,
 	    dsl_dataset_phys(ds)->ds_creation_txg, tx);
 
-	if (dsl_dataset_is_snapshot(ds_next)) {
+	if (ds_next->ds_is_snapshot) {
 		dsl_dataset_t *ds_nextnext;
 
 		/*
@@ -605,8 +605,8 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	uint64_t count;
 	objset_t *mos;
 
-	ASSERT(!dsl_dataset_is_snapshot(ds));
-	if (dsl_dataset_is_snapshot(ds))
+	ASSERT(!ds->ds_is_snapshot);
+	if (ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
 	if (refcount_count(&ds->ds_longholds) != expected_holds)

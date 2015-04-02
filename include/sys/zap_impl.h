@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_IMPL_H
@@ -140,6 +141,7 @@ typedef struct zap_phys {
 typedef struct zap_table_phys zap_table_phys_t;
 
 typedef struct zap {
+	dmu_buf_user_t zap_dbu;
 	objset_t *zap_objset;
 	uint64_t zap_object;
 	struct dmu_buf *zap_dbuf;
@@ -196,7 +198,7 @@ boolean_t zap_match(zap_name_t *zn, const char *matchname);
 int zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp);
 void zap_unlockdir(zap_t *zap);
-void zap_evict(dmu_buf_t *db, void *vmzap);
+void zap_evict(void *dbu);
 zap_name_t *zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt);
 void zap_name_free(zap_name_t *zn);
 int zap_hashbits(zap_t *zap);
