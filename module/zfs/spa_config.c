@@ -167,7 +167,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	VERIFY(nvlist_size(nvl, &buflen, NV_ENCODE_XDR) == 0);
 
-	buf = kmem_alloc(buflen, KM_SLEEP);
+	buf = vmem_alloc(buflen, KM_SLEEP);
 	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
 	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,
@@ -191,7 +191,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 
 	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);
 
-	kmem_free(buf, buflen);
+	vmem_free(buf, buflen);
 	kmem_free(temp, MAXPATHLEN);
 }
 
