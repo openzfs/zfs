@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2014 by Delphix. All rights reserved.
+ */
+
 #ifndef	_AVL_H
 #define	_AVL_H
 
@@ -258,6 +262,11 @@ extern void avl_remove(avl_tree_t *tree, void *node);
 extern boolean_t avl_update(avl_tree_t *, void *);
 extern boolean_t avl_update_lt(avl_tree_t *, void *);
 extern boolean_t avl_update_gt(avl_tree_t *, void *);
+
+/*
+ * Swaps the contents of the two trees.
+ */
+extern void avl_swap(avl_tree_t *tree1, avl_tree_t *tree2);
 
 /*
  * Return the number of nodes in the tree

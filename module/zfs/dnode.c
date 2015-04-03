@@ -62,6 +62,43 @@ int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
 static kmem_cbrc_t dnode_move(void *, void *, size_t, void *);
 #endif /* _KERNEL */
 
+static int
+dbuf_compare(const void *x1, const void *x2)
+{
+	const dmu_buf_impl_t *d1 = x1;
+	const dmu_buf_impl_t *d2 = x2;
+
+	if (d1->db_level < d2->db_level) {
+		return (-1);
+	} else if (d1->db_level > d2->db_level) {
+		return (1);
+	}
+
+	if (d1->db_blkid < d2->db_blkid) {
+		return (-1);
+	} else if (d1->db_blkid > d2->db_blkid) {
+		return (1);
+	}
+
+	/*
+	 * If a dbuf is being evicted while dn_dbufs_mutex is not held, we set
+	 * the db_state to DB_EVICTING but do not remove it from dn_dbufs. If
+	 * another thread creates a dbuf of the same blkid before the dbuf is
+	 * removed from dn_dbufs, we can reach a state where there are two
+	 * dbufs of the same blkid and level in db_dbufs. To maintain the avl
+	 * invariant that there cannot be duplicate items, we distinguish
+	 * between these two dbufs based on the time they were created.
+	 */
+	if (d1->db_creation < d2->db_creation) {
+		return (-1);
+	} else if (d1->db_creation > d2->db_creation) {
+		return (1);
+	} else {
+		ASSERT3P(d1, ==, d2);
+		return (0);
+	}
+}
+
 /* ARGSUSED */
 static int
 dnode_cons(void *arg, void *unused, int kmflag)
@@ -116,7 +153,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 
 	dn->dn_dbufs_count = 0;
 	dn->dn_unlisted_l0_blkid = 0;
-	list_create(&dn->dn_dbufs, sizeof (dmu_buf_impl_t),
+	avl_create(&dn->dn_dbufs, dbuf_compare, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
 
 	dn->dn_moved = 0;
@@ -169,7 +206,7 @@ dnode_dest(void *arg, void *unused)
 
 	ASSERT0(dn->dn_dbufs_count);
 	ASSERT0(dn->dn_unlisted_l0_blkid);
-	list_destroy(&dn->dn_dbufs);
+	avl_destroy(&dn->dn_dbufs);
 }
 
 void
@@ -503,7 +540,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ASSERT0(dn->dn_assigned_txg);
 	ASSERT(refcount_is_zero(&dn->dn_tx_holds));
 	ASSERT3U(refcount_count(&dn->dn_holds), <=, 1);
-	ASSERT3P(list_head(&dn->dn_dbufs), ==, NULL);
+	ASSERT(avl_is_empty(&dn->dn_dbufs));
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		ASSERT0(dn->dn_next_nblkptr[i]);
@@ -689,8 +726,8 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_dirtyctx_firstset = odn->dn_dirtyctx_firstset;
 	ASSERT(refcount_count(&odn->dn_tx_holds) == 0);
 	refcount_transfer(&ndn->dn_holds, &odn->dn_holds);
-	ASSERT(list_is_empty(&ndn->dn_dbufs));
-	list_move_tail(&ndn->dn_dbufs, &odn->dn_dbufs);
+	ASSERT(avl_is_empty(&ndn->dn_dbufs));
+	avl_swap(&ndn->dn_dbufs, &odn->dn_dbufs);
 	ndn->dn_dbufs_count = odn->dn_dbufs_count;
 	ndn->dn_unlisted_l0_blkid = odn->dn_unlisted_l0_blkid;
 	ndn->dn_bonus = odn->dn_bonus;
@@ -724,7 +761,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	 */
 	odn->dn_dbuf = NULL;
 	odn->dn_handle = NULL;
-	list_create(&odn->dn_dbufs, sizeof (dmu_buf_impl_t),
+	avl_create(&odn->dn_dbufs, dbuf_compare, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
 	odn->dn_dbufs_count = 0;
 	odn->dn_unlisted_l0_blkid = 0;
@@ -1238,7 +1275,8 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 		return;
 	}
 
-	ASSERT(!refcount_is_zero(&dn->dn_holds) || list_head(&dn->dn_dbufs));
+	ASSERT(!refcount_is_zero(&dn->dn_holds) ||
+	    !avl_is_empty(&dn->dn_dbufs));
 	ASSERT(dn->dn_datablksz != 0);
 	ASSERT0(dn->dn_next_bonuslen[txg&TXG_MASK]);
 	ASSERT0(dn->dn_next_blksz[txg&TXG_MASK]);
@@ -1311,7 +1349,7 @@ dnode_free(dnode_t *dn, dmu_tx_t *tx)
 int
 dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 {
-	dmu_buf_impl_t *db, *db_next;
+	dmu_buf_impl_t *db;
 	int err;
 
 	if (size == 0)
@@ -1334,9 +1372,8 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 		goto fail;
 
 	mutex_enter(&dn->dn_dbufs_mtx);
-	for (db = list_head(&dn->dn_dbufs); db; db = db_next) {
-		db_next = list_next(&dn->dn_dbufs, db);
-
+	for (db = avl_first(&dn->dn_dbufs); db != NULL;
+	    db = AVL_NEXT(&dn->dn_dbufs, db)) {
 		if (db->db_blkid != 0 && db->db_blkid != DMU_BONUS_BLKID &&
 		    db->db_blkid != DMU_SPILL_BLKID) {
 			mutex_exit(&dn->dn_dbufs_mtx);

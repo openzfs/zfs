@@ -406,16 +406,13 @@ dnode_evict_dbufs(dnode_t *dn)
 	int pass = 0;
 
 	do {
-		dmu_buf_impl_t *db, marker;
+		dmu_buf_impl_t *db, *db_next;
 		int evicting = FALSE;
 
 		progress = FALSE;
 		mutex_enter(&dn->dn_dbufs_mtx);
-		list_insert_tail(&dn->dn_dbufs, &marker);
-		db = list_head(&dn->dn_dbufs);
-		for (; db != &marker; db = list_head(&dn->dn_dbufs)) {
-			list_remove(&dn->dn_dbufs, db);
-			list_insert_tail(&dn->dn_dbufs, db);
+		for (db = avl_first(&dn->dn_dbufs); db != NULL; db = db_next) {
+			db_next = AVL_NEXT(&dn->dn_dbufs, db);
 #ifdef	DEBUG
 			DB_DNODE_ENTER(db);
 			ASSERT3P(DB_DNODE(db), ==, dn);
@@ -435,7 +432,6 @@ dnode_evict_dbufs(dnode_t *dn)
 			}
 
 		}
-		list_remove(&dn->dn_dbufs, &marker);
 		/*
 		 * NB: we need to drop dn_dbufs_mtx between passes so
 		 * that any DB_EVICTING dbufs can make progress.
@@ -516,7 +512,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 
 	dnode_undirty_dbufs(&dn->dn_dirty_records[txgoff]);
 	dnode_evict_dbufs(dn);
-	ASSERT3P(list_head(&dn->dn_dbufs), ==, NULL);
+	ASSERT(avl_is_empty(&dn->dn_dbufs));
 	ASSERT3P(dn->dn_bonus, ==, NULL);
 
 	/*
