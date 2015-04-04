@@ -12,6 +12,9 @@ if getargbool 0 zfs_force -y zfs.force -y zfsforce ; then
 	ZPOOL_FORCE="-f"
 fi
 
+# Delay until all required block devices are present.
+udevadm settle
+
 case "$root" in
 	zfs:*)
 		# We have ZFS modules loaded, so we're able to import pools now.

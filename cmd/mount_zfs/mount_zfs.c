@@ -239,7 +239,7 @@ parse_dataset(char *dataset)
 		if (fd < 0)
 			goto out;
 
-		error = zpool_read_label(fd, &config);
+		error = zpool_read_label(fd, &config, NULL);
 		(void) close(fd);
 		if (error)
 			goto out;

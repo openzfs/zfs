@@ -5733,6 +5733,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
 	nvlist_t *innvl = NULL;
+	fstrans_cookie_t cookie;
 
 	vecnum = cmd - ZFS_IOC_FIRST;
 	if (vecnum >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
@@ -5827,7 +5828,9 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		}
 
 		outnvl = fnvlist_alloc();
+		cookie = spl_fstrans_mark();
 		error = vec->zvec_func(zc->zc_name, innvl, outnvl);
+		spl_fstrans_unmark(cookie);
 
 		if (error == 0 && vec->zvec_allow_log &&
 		    spa_open(zc->zc_name, &spa, FTAG) == 0) {
@@ -5855,7 +5858,9 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 
 		nvlist_free(outnvl);
 	} else {
+		cookie = spl_fstrans_mark();
 		error = vec->zvec_legacy_func(zc);
+		spl_fstrans_unmark(cookie);
 	}
 
 out:

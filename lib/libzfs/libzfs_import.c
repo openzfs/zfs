@@ -88,6 +88,7 @@ typedef struct name_entry {
 	char			*ne_name;
 	uint64_t		ne_guid;
 	uint64_t		ne_order;
+	uint64_t		ne_num_labels;
 	struct name_entry	*ne_next;
 } name_entry_t;
 
@@ -173,8 +174,23 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 				break;
 			}
 
-			if (best == NULL || ne->ne_order < best->ne_order)
+			if (best == NULL) {
 				best = ne;
+				continue;
+			}
+
+			/* Prefer paths with move vdev labels. */
+			if (ne->ne_num_labels > best->ne_num_labels) {
+				best = ne;
+				continue;
+			}
+
+			/* Prefer paths earlier in the search order. */
+			if (best->ne_num_labels == best->ne_num_labels &&
+			    ne->ne_order < best->ne_order) {
+				best = ne;
+				continue;
+			}
 		}
 	}
 
@@ -200,7 +216,7 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
  */
 static int
 add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
-    int order, nvlist_t *config)
+    int order, int num_labels, nvlist_t *config)
 {
 	uint64_t pool_guid, vdev_guid, top_guid, txg, state;
 	pool_entry_t *pe;
@@ -226,6 +242,7 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 		}
 		ne->ne_guid = vdev_guid;
 		ne->ne_order = order;
+		ne->ne_num_labels = num_labels;
 		ne->ne_next = pl->names;
 		pl->names = ne;
 		return (0);
@@ -328,6 +345,7 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 
 	ne->ne_guid = vdev_guid;
 	ne->ne_order = order;
+	ne->ne_num_labels = num_labels;
 	ne->ne_next = pl->names;
 	pl->names = ne;
 
@@ -843,15 +861,17 @@ label_offset(uint64_t size, int l)
 
 /*
  * Given a file descriptor, read the label information and return an nvlist
- * describing the configuration, if there is one.
+ * describing the configuration, if there is one.  The number of valid
+ * labels found will be returned in num_labels when non-NULL.
  */
 int
-zpool_read_label(int fd, nvlist_t **config)
+zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 {
 	struct stat64 statbuf;
-	int l;
+	int l, count = 0;
 	vdev_label_t *label;
-	uint64_t state, txg, size;
+	nvlist_t *expected_config = NULL;
+	uint64_t expected_guid = 0, size;
 
 	*config = NULL;
 
@@ -863,6 +883,8 @@ zpool_read_label(int fd, nvlist_t **config)
 		return (-1);
 
 	for (l = 0; l < VDEV_LABELS; l++) {
+		uint64_t state, guid, txg;
+
 		if (pread64(fd, label, sizeof (vdev_label_t),
 		    label_offset(size, l)) != sizeof (vdev_label_t))
 			continue;
@@ -870,6 +892,12 @@ zpool_read_label(int fd, nvlist_t **config)
 		if (nvlist_unpack(label->vl_vdev_phys.vp_nvlist,
 		    sizeof (label->vl_vdev_phys.vp_nvlist), config, 0) != 0)
 			continue;
+
+		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_GUID,
+		    &guid) != 0 || guid == 0) {
+			nvlist_free(*config);
+			continue;
+		}
 
 		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_STATE,
 		    &state) != 0 || state > POOL_STATE_L2CACHE) {
@@ -884,12 +912,24 @@ zpool_read_label(int fd, nvlist_t **config)
 			continue;
 		}
 
-		free(label);
-		return (0);
+		if (expected_guid) {
+			if (expected_guid == guid)
+				count++;
+
+			nvlist_free(*config);
+		} else {
+			expected_config = *config;
+			expected_guid = guid;
+			count++;
+		}
 	}
 
+	if (num_labels != NULL)
+		*num_labels = count;
+
 	free(label);
-	*config = NULL;
+	*config = expected_config;
+
 	return (0);
 }
 
@@ -937,7 +977,7 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 	blkid_dev dev;
 	const char *devname;
 	nvlist_t *config;
-	int fd, err;
+	int fd, err, num_labels;
 
 	err = blkid_get_cache(&cache, NULL);
 	if (err != 0) {
@@ -972,7 +1012,7 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 		if ((fd = open64(devname, O_RDONLY)) < 0)
 			continue;
 
-		err = zpool_read_label(fd, &config);
+		err = zpool_read_label(fd, &config, &num_labels);
 		(void) close(fd);
 
 		if (err != 0) {
@@ -981,7 +1021,8 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 		}
 
 		if (config != NULL) {
-			err = add_config(hdl, pools, devname, 0, config);
+			err = add_config(hdl, pools, devname, 0,
+			    num_labels, config);
 			if (err != 0)
 				goto err_blkid3;
 		}
@@ -1017,7 +1058,7 @@ zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
 static nvlist_t *
 zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 {
-	int i, dirs = iarg->paths;
+	int i, num_labels, dirs = iarg->paths;
 	DIR *dirp = NULL;
 	struct dirent64 *dp;
 	char path[MAXPATHLEN];
@@ -1143,7 +1184,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
 				continue;
 
-			if ((zpool_read_label(fd, &config)) != 0) {
+			if ((zpool_read_label(fd, &config, &num_labels))) {
 				(void) close(fd);
 				(void) no_memory(hdl);
 				goto error;
@@ -1177,7 +1218,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 				}
 				/* use the non-raw path for the config */
 				(void) strlcpy(end, name, pathleft);
-				if (add_config(hdl, &pools, path, i+1, config))
+				if (add_config(hdl, &pools, path, i+1,
+				    num_labels, config))
 					goto error;
 			}
 		}
@@ -1461,7 +1503,7 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 
 	*inuse = B_FALSE;
 
-	if (zpool_read_label(fd, &config) != 0) {
+	if (zpool_read_label(fd, &config, NULL) != 0) {
 		(void) no_memory(hdl);
 		return (-1);
 	}

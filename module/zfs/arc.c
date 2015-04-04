@@ -978,7 +978,7 @@ retry:
 
 	for (i = 0; i < BUF_LOCKS; i++) {
 		mutex_init(&buf_hash_table.ht_locks[i].ht_lock,
-		    NULL, MUTEX_FSTRANS, NULL);
+		    NULL, MUTEX_DEFAULT, NULL);
 	}
 }
 
@@ -2876,9 +2876,11 @@ arc_adapt_thread(void)
 {
 	callb_cpr_t		cpr;
 	uint64_t		arc_evicted;
+	fstrans_cookie_t	cookie;
 
 	CALLB_CPR_INIT(&cpr, &arc_reclaim_lock, callb_generic_cpr, FTAG);
 
+	cookie = spl_fstrans_mark();
 	mutex_enter(&arc_reclaim_lock);
 	while (arc_reclaim_thread_exit == 0) {
 #ifndef _KERNEL
@@ -2954,6 +2956,7 @@ arc_adapt_thread(void)
 	arc_reclaim_thread_exit = 0;
 	cv_broadcast(&arc_reclaim_thread_cv);
 	CALLB_CPR_EXIT(&cpr);		/* drops arc_reclaim_lock */
+	spl_fstrans_unmark(cookie);
 	thread_exit();
 }
 
@@ -2961,9 +2964,11 @@ static void
 arc_user_evicts_thread(void)
 {
 	callb_cpr_t cpr;
+	fstrans_cookie_t	cookie;
 
 	CALLB_CPR_INIT(&cpr, &arc_user_evicts_lock, callb_generic_cpr, FTAG);
 
+	cookie = spl_fstrans_mark();
 	mutex_enter(&arc_user_evicts_lock);
 	while (!arc_user_evicts_thread_exit) {
 		mutex_exit(&arc_user_evicts_lock);
@@ -2999,6 +3004,7 @@ arc_user_evicts_thread(void)
 	arc_user_evicts_thread_exit = FALSE;
 	cv_broadcast(&arc_user_evicts_cv);
 	CALLB_CPR_EXIT(&cpr);		/* drops arc_user_evicts_lock */
+	spl_fstrans_unmark(cookie);
 	thread_exit();
 }
 
@@ -6023,11 +6029,13 @@ l2arc_feed_thread(void)
 	uint64_t size, wrote;
 	clock_t begin, next = ddi_get_lbolt();
 	boolean_t headroom_boost = B_FALSE;
+	fstrans_cookie_t cookie;
 
 	CALLB_CPR_INIT(&cpr, &l2arc_feed_thr_lock, callb_generic_cpr, FTAG);
 
 	mutex_enter(&l2arc_feed_thr_lock);
 
+	cookie = spl_fstrans_mark();
 	while (l2arc_thread_exit == 0) {
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_interruptible(&l2arc_feed_thr_cv,
@@ -6101,6 +6109,7 @@ l2arc_feed_thread(void)
 		next = l2arc_write_interval(begin, size, wrote);
 		spa_config_exit(spa, SCL_L2ARC, dev);
 	}
+	spl_fstrans_unmark(cookie);
 
 	l2arc_thread_exit = 0;
 	cv_broadcast(&l2arc_feed_thr_cv);
