@@ -543,6 +543,8 @@ EXPORT_SYMBOL(vn_getattr);
 int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 {
 	int datasync = 0;
+	int error;
+	int fstrans;
 
 	ASSERT(vp);
 	ASSERT(vp->v_file);
@@ -550,7 +552,19 @@ int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 	if (flags & FDSYNC)
 		datasync = 1;
 
-	return (-spl_filp_fsync(vp->v_file, datasync));
+	/*
+	 * May enter XFS which generates a warning when PF_FSTRANS is set.
+	 * To avoid this the flag is cleared over vfs_sync() and then reset.
+	 */
+	fstrans = spl_fstrans_check();
+	if (fstrans)
+		current->flags &= ~(PF_FSTRANS);
+
+	error = -spl_filp_fsync(vp->v_file, datasync);
+	if (fstrans)
+		current->flags |= PF_FSTRANS;
+
+	return (error);
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
 
