@@ -201,6 +201,9 @@ dsl_dataset_phys(dsl_dataset_t *ds)
  */
 #define	MAX_TAG_PREFIX_LEN	17
 
+#define	dsl_dataset_is_snapshot(ds) \
+	(dsl_dataset_phys(ds)->ds_num_children != 0)
+
 #define	DS_UNIQUE_IS_ACCURATE(ds)	\
 	((dsl_dataset_phys(ds)->ds_flags & DS_FLAG_UNIQUE_ACCURATE) != 0)
 
