@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  */
@@ -41,6 +41,8 @@ int dmu_send(const char *tosnap, const char *fromsnap,
     boolean_t embedok, boolean_t large_block_ok,
     int outfd, struct vnode *vp, offset_t *off);
 int dmu_send_estimate(struct dsl_dataset *ds, struct dsl_dataset *fromds,
+    uint64_t *sizep);
+int dmu_send_estimate_from_txg(struct dsl_dataset *ds, uint64_t fromtxg,
     uint64_t *sizep);
 int dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok,
