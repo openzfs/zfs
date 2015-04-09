@@ -1550,8 +1550,9 @@ dmu_dir_list_next(objset_t *os, int namelen, char *name,
  * Find objsets under and including ddobj, call func(ds) on each.
  */
 int
-dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
-    int func(dsl_pool_t *, dsl_dataset_t *, void *), void *arg, int flags)
+dmu_objset_find_dp_impl(dsl_pool_t *dp, uint64_t ddobj,
+    int func(dsl_pool_t *, dsl_dataset_t *, void *), void *arg, int flags,
+    unsigned int depth)
 {
 	dsl_dir_t *dd;
 	dsl_dataset_t *ds;
@@ -1578,7 +1579,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	/*
 	 * Iterate over all children.
 	 */
-	if (flags & DS_FIND_CHILDREN) {
+	if (depth && (flags & DS_FIND_CHILDREN)) {
 		for (zap_cursor_init(&zc, dp->dp_meta_objset,
 		    dd->dd_phys->dd_child_dir_zapobj);
 		    zap_cursor_retrieve(&zc, attr) == 0;
@@ -1587,8 +1588,9 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 			    sizeof (uint64_t));
 			ASSERT3U(attr->za_num_integers, ==, 1);
 
-			err = dmu_objset_find_dp(dp, attr->za_first_integer,
-			    func, arg, flags);
+			err = dmu_objset_find_dp_impl(dp,
+			    attr->za_first_integer, func, arg, flags, depth -
+			    1);
 			if (err != 0)
 				break;
 		}
@@ -1604,7 +1606,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	/*
 	 * Iterate over all snapshots.
 	 */
-	if (flags & DS_FIND_SNAPSHOTS) {
+	if (depth && (flags & DS_FIND_SNAPSHOTS)) {
 		dsl_dataset_t *ds;
 		err = dsl_dataset_hold_obj(dp, thisobj, FTAG, &ds);
 
@@ -1647,6 +1649,13 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	err = func(dp, ds, arg);
 	dsl_dataset_rele(ds, FTAG);
 	return (err);
+}
+
+int
+dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
+    int func(dsl_pool_t *, dsl_dataset_t *, void *), void *arg, int flags)
+{
+	return (dmu_objset_find_dp_impl(dp, ddobj, func, arg, flags, 0 - 1));
 }
 
 /*

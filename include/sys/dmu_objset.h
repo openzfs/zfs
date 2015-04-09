@@ -147,6 +147,9 @@ void dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat);
 void dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp);
 uint64_t dmu_objset_fsid_guid(objset_t *os);
+int dmu_objset_find_dp_impl(struct dsl_pool *dp, uint64_t ddobj,
+    int func(struct dsl_pool *, struct dsl_dataset *, void *),
+    void *arg, int flags, unsigned int depth);
 int dmu_objset_find_dp(struct dsl_pool *dp, uint64_t ddobj,
     int func(struct dsl_pool *, struct dsl_dataset *, void *),
     void *arg, int flags);
