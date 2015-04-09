@@ -308,6 +308,18 @@ A logical volume exported as a raw or block device. This type of dataset should 
 A read-only version of a file system or volume at a given point in time. It is specified as \fIfilesystem@name\fR or \fIvolume@name\fR.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fIbookmark\fR\fR
+.ad
+.sp .6
+.RS 4n
+Much like a \fIsnapshot\fR, but without the hold on on-disk data. It can be used as the source of a send (but not for a receive).
+It is specified as \fIfilesystem#name\fR or \fIvolume#name\fR.
+.RE
+
 .SS "ZFS File System Hierarchy"
 .LP
 A \fBZFS\fR storage pool is a logical collection of devices that provide space for datasets. A storage pool is also the root of the \fBZFS\fR file system hierarchy.
@@ -326,6 +338,12 @@ Snapshots can have arbitrary names. Snapshots of volumes can be cloned or rolled
 .sp
 .LP
 File system snapshots can be accessed under the \fB\&.zfs/snapshot\fR directory in the root of the file system. Snapshots are automatically mounted on demand and may be unmounted at regular intervals. The visibility of the \fB\&.zfs\fR directory can be controlled by the \fBsnapdir\fR property.
+.SS "Bookmarks"
+.LP
+A bookmark is like a snapshot, a read-only copy of a file system or volume. Bookmarks can be created extremely quickly, compared to snapshots, and they consume no additional space within the pool.  Bookmarks can also have arbitrary names, much like snapshots.
+.sp
+.LP
+Unlike snapshots, bookmarks can not be accessed through the filesystem in any way. From a storage standpoint a bookmark just provides a way to reference when a snapshot was created as a distinct object.  Bookmarks are initially tied to a snapshot, not the filesystem/volume, and they will survive if the snapshot itself is destroyed.  Since they are very light weight there's little incentive to destroy them.
 .SS "Clones"
 .LP
 A clone is a writable volume or file system whose initial contents are the same as another dataset. As with snapshots, creating a clone is nearly instantaneous, and initially consumes no additional space.
