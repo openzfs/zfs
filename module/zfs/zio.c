@@ -1043,8 +1043,6 @@ zio_write_bp_init(zio_t *zio)
 			zio->io_pipeline |= ZIO_STAGE_DDT_WRITE;
 			return (ZIO_PIPELINE_CONTINUE);
 		}
-		zio->io_bp_override = NULL;
-		BP_ZERO(bp);
 	}
 
 	if (!BP_IS_HOLE(bp) && bp->blk_birth == zio->io_txg) {
@@ -3331,14 +3329,6 @@ zbookmark_is_before(const dnode_phys_t *dnp, const zbookmark_phys_t *zb1,
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-/* Fault injection */
-EXPORT_SYMBOL(zio_injection_enabled);
-EXPORT_SYMBOL(zio_inject_fault);
-EXPORT_SYMBOL(zio_inject_list_next);
-EXPORT_SYMBOL(zio_clear_fault);
-EXPORT_SYMBOL(zio_handle_fault_injection);
-EXPORT_SYMBOL(zio_handle_device_injection);
-EXPORT_SYMBOL(zio_handle_label_injection);
 EXPORT_SYMBOL(zio_type_name);
 EXPORT_SYMBOL(zio_buf_alloc);
 EXPORT_SYMBOL(zio_data_buf_alloc);

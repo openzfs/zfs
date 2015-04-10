@@ -331,7 +331,7 @@ retry:
 	    0, dbuf_cons, dbuf_dest, NULL, NULL, NULL, 0);
 
 	for (i = 0; i < DBUF_MUTEXES; i++)
-		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_FSTRANS, NULL);
+		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_DEFAULT, NULL);
 
 	dbuf_stats_init(h);
 }
@@ -898,9 +898,14 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		db_next = list_next(&dn->dn_dbufs, db);
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 
+		/* Skip indirect blocks. */
 		if (db->db_level != 0)
 			continue;
-		if ((db->db_blkid < start || db->db_blkid > end) && !freespill)
+		/* Skip direct blocks outside the range. */
+		if (!freespill && (db->db_blkid < start || db->db_blkid > end))
+			continue;
+		/* Skip all direct blocks, only free spill blocks. */
+		if (freespill && (db->db_blkid != DMU_SPILL_BLKID))
 			continue;
 
 		/* found a level 0 buffer in the range */
@@ -1647,7 +1652,7 @@ dbuf_clear(dmu_buf_impl_t *db)
 	dndb = dn->dn_dbuf;
 	if (db->db_blkid != DMU_BONUS_BLKID && MUTEX_HELD(&dn->dn_dbufs_mtx)) {
 		list_remove(&dn->dn_dbufs, db);
-		(void) atomic_dec_32_nv(&dn->dn_dbufs_count);
+		atomic_dec_32(&dn->dn_dbufs_count);
 		membar_producer();
 		DB_DNODE_EXIT(db);
 		/*
@@ -1832,7 +1837,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	ASSERT(dn->dn_object == DMU_META_DNODE_OBJECT ||
 	    refcount_count(&dn->dn_holds) > 0);
 	(void) refcount_add(&dn->dn_holds, db);
-	(void) atomic_inc_32_nv(&dn->dn_dbufs_count);
+	atomic_inc_32(&dn->dn_dbufs_count);
 
 	dprintf_dbuf(db, "db=%p\n", db);
 
@@ -1878,7 +1883,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 			dn = DB_DNODE(db);
 			mutex_enter(&dn->dn_dbufs_mtx);
 			list_remove(&dn->dn_dbufs, db);
-			(void) atomic_dec_32_nv(&dn->dn_dbufs_count);
+			atomic_dec_32(&dn->dn_dbufs_count);
 			mutex_exit(&dn->dn_dbufs_mtx);
 			DB_DNODE_EXIT(db);
 			/*
@@ -2200,21 +2205,60 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 
 	if (holds == 0) {
 		if (db->db_blkid == DMU_BONUS_BLKID) {
+			dnode_t *dn;
+
+			/*
+			 * If the dnode moves here, we cannot cross this
+			 * barrier until the move completes.
+			 */
+			DB_DNODE_ENTER(db);
+
+			dn = DB_DNODE(db);
+			atomic_dec_32(&dn->dn_dbufs_count);
+
+			/*
+			 * Decrementing the dbuf count means that the bonus
+			 * buffer's dnode hold is no longer discounted in
+			 * dnode_move(). The dnode cannot move until after
+			 * the dnode_rele_and_unlock() below.
+			 */
+			DB_DNODE_EXIT(db);
+
+			/*
+			 * Do not reference db after its lock is dropped.
+			 * Another thread may evict it.
+			 */
 			mutex_exit(&db->db_mtx);
 
 			/*
-			 * If the dnode moves here, we cannot cross this barrier
-			 * until the move completes.
+			 * If the dnode has been freed, evict the bonus
+			 * buffer immediately.	The data in the bonus
+			 * buffer is no longer relevant and this prevents
+			 * a stale bonus buffer from being associated
+			 * with this dnode_t should the dnode_t be reused
+			 * prior to being destroyed.
 			 */
-			DB_DNODE_ENTER(db);
-			(void) atomic_dec_32_nv(&DB_DNODE(db)->dn_dbufs_count);
-			DB_DNODE_EXIT(db);
-			/*
-			 * The bonus buffer's dnode hold is no longer discounted
-			 * in dnode_move(). The dnode cannot move until after
-			 * the dnode_rele().
-			 */
-			dnode_rele(DB_DNODE(db), db);
+			mutex_enter(&dn->dn_mtx);
+			if (dn->dn_type == DMU_OT_NONE ||
+			    dn->dn_free_txg != 0) {
+				/*
+				 * Drop dn_mtx.  It is a leaf lock and
+				 * cannot be held when dnode_evict_bonus()
+				 * acquires other locks in order to
+				 * perform the eviction.
+				 *
+				 * Freed dnodes cannot be reused until the
+				 * last hold is released.  Since this bonus
+				 * buffer has a hold, the dnode will remain
+				 * in the free state, even without dn_mtx
+				 * held, until the dnode_rele_and_unlock()
+				 * below.
+				 */
+				mutex_exit(&dn->dn_mtx);
+				dnode_evict_bonus(dn);
+				mutex_enter(&dn->dn_mtx);
+			}
+			dnode_rele_and_unlock(dn, db);
 		} else if (db->db_buf == NULL) {
 			/*
 			 * This is a special case: we never associated this

@@ -38,13 +38,12 @@
 #include <sys/callb.h>
 #include <sys/zfeature.h>
 
-int zfs_pd_blks_max = 100;
+int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;
 	kcondvar_t pd_cv;
-	int pd_blks_max;
-	int pd_blks_fetched;
+	int32_t pd_bytes_fetched;
 	int pd_flags;
 	boolean_t pd_cancel;
 	boolean_t pd_exited;
@@ -213,6 +212,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 {
 	int err = 0;
 	arc_buf_t *buf = NULL;
+	prefetch_data_t *pd = td->td_pfd;
 
 	switch (resume_skip_check(td, dnp, zb)) {
 	case RESUME_SKIP_ALL:
@@ -249,16 +249,15 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		return (0);
 	}
 
-	if (td->td_pfd != NULL && !td->td_pfd->pd_exited &&
-	    prefetch_needed(td->td_pfd, bp)) {
-		mutex_enter(&td->td_pfd->pd_mtx);
-		ASSERT(td->td_pfd->pd_blks_fetched >= 0);
-		while (td->td_pfd->pd_blks_fetched == 0 &&
-		    !td->td_pfd->pd_exited)
-			cv_wait(&td->td_pfd->pd_cv, &td->td_pfd->pd_mtx);
-		td->td_pfd->pd_blks_fetched--;
-		cv_broadcast(&td->td_pfd->pd_cv);
-		mutex_exit(&td->td_pfd->pd_mtx);
+	if (pd != NULL && !pd->pd_exited && prefetch_needed(pd, bp)) {
+		uint64_t size = BP_GET_LSIZE(bp);
+		mutex_enter(&pd->pd_mtx);
+		ASSERT(pd->pd_bytes_fetched >= 0);
+		while (pd->pd_bytes_fetched < size && !pd->pd_exited)
+			cv_wait(&pd->pd_cv, &pd->pd_mtx);
+		pd->pd_bytes_fetched -= size;
+		cv_broadcast(&pd->pd_cv);
+		mutex_exit(&pd->pd_mtx);
 	}
 
 	if (BP_IS_HOLE(bp)) {
@@ -453,7 +452,7 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	prefetch_data_t *pfd = arg;
 	uint32_t aflags = ARC_NOWAIT | ARC_PREFETCH;
 
-	ASSERT(pfd->pd_blks_fetched >= 0);
+	ASSERT(pfd->pd_bytes_fetched >= 0);
 	if (pfd->pd_cancel)
 		return (SET_ERROR(EINTR));
 
@@ -461,9 +460,9 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		return (0);
 
 	mutex_enter(&pfd->pd_mtx);
-	while (!pfd->pd_cancel && pfd->pd_blks_fetched >= pfd->pd_blks_max)
+	while (!pfd->pd_cancel && pfd->pd_bytes_fetched >= zfs_pd_bytes_max)
 		cv_wait(&pfd->pd_cv, &pfd->pd_mtx);
-	pfd->pd_blks_fetched++;
+	pfd->pd_bytes_fetched += BP_GET_LSIZE(bp);
 	cv_broadcast(&pfd->pd_cv);
 	mutex_exit(&pfd->pd_mtx);
 
@@ -532,7 +531,6 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	td->td_flags = flags;
 	td->td_paused = B_FALSE;
 
-	pd->pd_blks_max = zfs_pd_blks_max;
 	pd->pd_flags = flags;
 	mutex_init(&pd->pd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&pd->pd_cv, NULL, CV_DEFAULT, NULL);
@@ -662,6 +660,6 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 EXPORT_SYMBOL(traverse_dataset);
 EXPORT_SYMBOL(traverse_pool);
 
-module_param(zfs_pd_blks_max, int, 0644);
-MODULE_PARM_DESC(zfs_pd_blks_max, "Max number of blocks to prefetch");
+module_param(zfs_pd_bytes_max, int, 0644);
+MODULE_PARM_DESC(zfs_pd_bytes_max, "Max number of bytes to prefetch");
 #endif

@@ -386,7 +386,11 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_arc_meta_limit\fR (ulong)
 .ad
 .RS 12n
-Meta limit for arc size
+The maximum allowed size in bytes that meta data buffers are allowed to
+consume in the ARC.  When this limit is reached meta data buffers will
+be reclaimed even if the overall arc_c_max has not been reached.  This
+value defaults to 0 which indicates that 3/4 of the ARC may be used
+for meta data.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -397,9 +401,28 @@ Default value: \fB0\fR.
 \fBzfs_arc_meta_prune\fR (int)
 .ad
 .RS 12n
-Bytes of meta data to prune
+The number of dentries and inodes to be scanned looking for entries
+which can be dropped.  This may be required when the ARC reaches the
+\fBzfs_arc_meta_limit\fR because dentries and inodes can pin buffers
+in the ARC.  Increasing this value will cause to dentry and inode caches
+to be pruned more aggressively.  Setting this value to 0 will disable
+pruning the inode and dentry caches.
 .sp
-Default value: \fB1,048,576\fR.
+Default value: \fB10,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_adjust_restarts\fR (ulong)
+.ad
+.RS 12n
+The number of restart passes to make while scanning the ARC attempting
+the free buffers in order to stay below the \fBzfs_arc_meta_limit\fR.
+This value should not need to be tuned but is available to facilitate
+performance analysis.
+.sp
+Default value: \fB4096\fR.
 .RE
 
 .sp
@@ -1035,12 +1058,12 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .sp
 .ne 2
 .na
-\fBzfs_pd_blks_max\fR (int)
+\fBzfs_pd_bytes_max\fR (int)
 .ad
 .RS 12n
-Max number of blocks to prefetch
+The number of bytes which should be prefetched.
 .sp
-Default value: \fB100\fR.
+Default value: \fB52,428,800\fR.
 .RE
 
 .sp
@@ -1388,17 +1411,6 @@ Default value: \fB1,048,576\fR.
 Max zio millisec delay before posting event
 .sp
 Default value: \fB30,000\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzio_injection_enabled\fR (int)
-.ad
-.RS 12n
-Enable fault injection
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
 
 .sp

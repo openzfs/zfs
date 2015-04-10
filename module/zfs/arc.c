@@ -158,8 +158,8 @@ static kmutex_t		arc_reclaim_thr_lock;
 static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
 static uint8_t		arc_thread_exit;
 
-/* number of bytes to prune from caches when at arc_meta_limit is reached */
-int zfs_arc_meta_prune = 1048576;
+/* number of objects to prune from caches when arc_meta_limit is reached */
+int zfs_arc_meta_prune = 10000;
 
 typedef enum arc_reclaim_strategy {
 	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
@@ -220,6 +220,11 @@ static boolean_t arc_warm;
 unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
+
+/*
+ * Limit the number of restarts in arc_adjust_meta()
+ */
+unsigned long zfs_arc_meta_adjust_restarts = 4096;
 
 /* The 6 states: */
 static arc_state_t ARC_anon;
@@ -928,7 +933,7 @@ retry:
 
 	for (i = 0; i < BUF_LOCKS; i++) {
 		mutex_init(&buf_hash_table.ht_locks[i].ht_lock,
-		    NULL, MUTEX_FSTRANS, NULL);
+		    NULL, MUTEX_DEFAULT, NULL);
 	}
 }
 
@@ -1275,8 +1280,11 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	if (type != ARC_SPACE_DATA)
+	if (type != ARC_SPACE_DATA) {
 		ARCSTAT_INCR(arcstat_meta_used, space);
+		if (arc_meta_max < arc_meta_used)
+			arc_meta_max = arc_meta_used;
+	}
 
 	atomic_add_64(&arc_size, space);
 }
@@ -1308,8 +1316,6 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 
 	if (type != ARC_SPACE_DATA) {
 		ASSERT(arc_meta_used >= space);
-		if (arc_meta_max < arc_meta_used)
-			arc_meta_max = arc_meta_used;
 		ARCSTAT_INCR(arcstat_meta_used, -space);
 	}
 
@@ -2194,15 +2200,30 @@ arc_do_user_evicts(void)
 }
 
 /*
- * Evict only meta data objects from the cache leaving the data objects.
- * This is only used to enforce the tunable arc_meta_limit, if we are
- * unable to evict enough buffers notify the user via the prune callback.
+ * The goal of this function is to evict enough meta data buffers from the
+ * ARC in order to enforce the arc_meta_limit.  Achieving this is slightly
+ * more complicated than it appears because it is common for data buffers
+ * to have holds on meta data buffers.  In addition, dnode meta data buffers
+ * will be held by the dnodes in the block preventing them from being freed.
+ * This means we can't simply traverse the ARC and expect to always find
+ * enough unheld meta data buffer to release.
+ *
+ * Therefore, this function has been updated to make alternating passes
+ * over the ARC releasing data buffers and then newly unheld meta data
+ * buffers.  This ensures forward progress is maintained and arc_meta_used
+ * will decrease.  Normally this is sufficient, but if required the ARC
+ * will call the registered prune callbacks causing dentry and inodes to
+ * be dropped from the VFS cache.  This will make dnode meta data buffers
+ * available for reclaim.
  */
 static void
 arc_adjust_meta(void)
 {
-	int64_t adjustmnt, delta;
+	int64_t adjustmnt, delta, prune = 0;
+	arc_buf_contents_t type = ARC_BUFC_DATA;
+	unsigned long restarts = zfs_arc_meta_adjust_restarts;
 
+restart:
 	/*
 	 * This slightly differs than the way we evict from the mru in
 	 * arc_adjust because we don't have a "target" value (i.e. no
@@ -2213,9 +2234,9 @@ arc_adjust_meta(void)
 	 */
 	adjustmnt = arc_meta_used - arc_meta_limit;
 
-	if (adjustmnt > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustmnt);
-		arc_evict(arc_mru, 0, delta, FALSE, ARC_BUFC_METADATA);
+	if (adjustmnt > 0 && arc_mru->arcs_lsize[type] > 0) {
+		delta = MIN(arc_mru->arcs_lsize[type], adjustmnt);
+		arc_evict(arc_mru, 0, delta, FALSE, type);
 		adjustmnt -= delta;
 	}
 
@@ -2229,31 +2250,50 @@ arc_adjust_meta(void)
 	 * simply decrement the amount of data evicted from the MRU.
 	 */
 
-	if (adjustmnt > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
-		delta = MIN(arc_mfu->arcs_lsize[ARC_BUFC_METADATA], adjustmnt);
-		arc_evict(arc_mfu, 0, delta, FALSE, ARC_BUFC_METADATA);
+	if (adjustmnt > 0 && arc_mfu->arcs_lsize[type] > 0) {
+		delta = MIN(arc_mfu->arcs_lsize[type], adjustmnt);
+		arc_evict(arc_mfu, 0, delta, FALSE, type);
 	}
 
-	adjustmnt = arc_mru->arcs_lsize[ARC_BUFC_METADATA] +
-	    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
+	adjustmnt = arc_meta_used - arc_meta_limit;
 
-	if (adjustmnt > 0 && arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+	if (adjustmnt > 0 && arc_mru_ghost->arcs_lsize[type] > 0) {
 		delta = MIN(adjustmnt,
-		    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA]);
-		arc_evict_ghost(arc_mru_ghost, 0, delta, ARC_BUFC_METADATA);
+		    arc_mru_ghost->arcs_lsize[type]);
+		arc_evict_ghost(arc_mru_ghost, 0, delta, type);
+		adjustmnt -= delta;
 	}
 
-	adjustmnt = arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] +
-	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] - arc_meta_limit;
-
-	if (adjustmnt > 0 && arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA] > 0) {
+	if (adjustmnt > 0 && arc_mfu_ghost->arcs_lsize[type] > 0) {
 		delta = MIN(adjustmnt,
-		    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA]);
-		arc_evict_ghost(arc_mfu_ghost, 0, delta, ARC_BUFC_METADATA);
+		    arc_mfu_ghost->arcs_lsize[type]);
+		arc_evict_ghost(arc_mfu_ghost, 0, delta, type);
 	}
 
-	if (arc_meta_used > arc_meta_limit)
-		arc_do_user_prune(zfs_arc_meta_prune);
+	/*
+	 * If after attempting to make the requested adjustment to the ARC
+	 * the meta limit is still being exceeded then request that the
+	 * higher layers drop some cached objects which have holds on ARC
+	 * meta buffers.  Requests to the upper layers will be made with
+	 * increasingly large scan sizes until the ARC is below the limit.
+	 */
+	if (arc_meta_used > arc_meta_limit) {
+		if (type == ARC_BUFC_DATA) {
+			type = ARC_BUFC_METADATA;
+		} else {
+			type = ARC_BUFC_DATA;
+
+			if (zfs_arc_meta_prune) {
+				prune += zfs_arc_meta_prune;
+				arc_do_user_prune(prune);
+			}
+		}
+
+		if (restarts > 0) {
+			restarts--;
+			goto restart;
+		}
+	}
 }
 
 /*
@@ -2372,9 +2412,11 @@ static void
 arc_adapt_thread(void)
 {
 	callb_cpr_t		cpr;
+	fstrans_cookie_t	cookie;
 
 	CALLB_CPR_INIT(&cpr, &arc_reclaim_thr_lock, callb_generic_cpr, FTAG);
 
+	cookie = spl_fstrans_mark();
 	mutex_enter(&arc_reclaim_thr_lock);
 	while (arc_thread_exit == 0) {
 #ifndef _KERNEL
@@ -2445,6 +2487,7 @@ arc_adapt_thread(void)
 	arc_thread_exit = 0;
 	cv_broadcast(&arc_reclaim_thr_cv);
 	CALLB_CPR_EXIT(&cpr);		/* drops arc_reclaim_thr_lock */
+	spl_fstrans_unmark(cookie);
 	thread_exit();
 }
 
@@ -5336,11 +5379,13 @@ l2arc_feed_thread(void)
 	uint64_t size, wrote;
 	clock_t begin, next = ddi_get_lbolt();
 	boolean_t headroom_boost = B_FALSE;
+	fstrans_cookie_t cookie;
 
 	CALLB_CPR_INIT(&cpr, &l2arc_feed_thr_lock, callb_generic_cpr, FTAG);
 
 	mutex_enter(&l2arc_feed_thr_lock);
 
+	cookie = spl_fstrans_mark();
 	while (l2arc_thread_exit == 0) {
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_interruptible(&l2arc_feed_thr_cv,
@@ -5414,6 +5459,7 @@ l2arc_feed_thread(void)
 		next = l2arc_write_interval(begin, size, wrote);
 		spa_config_exit(spa, SCL_L2ARC, dev);
 	}
+	spl_fstrans_unmark(cookie);
 
 	l2arc_thread_exit = 0;
 	cv_broadcast(&l2arc_feed_thr_cv);
@@ -5606,7 +5652,11 @@ module_param(zfs_arc_meta_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
 
 module_param(zfs_arc_meta_prune, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_prune, "Bytes of meta data to prune");
+MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
+
+module_param(zfs_arc_meta_adjust_restarts, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_meta_adjust_restarts,
+	"Limit number of restarts in arc_adjust_meta");
 
 module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");

@@ -1,1 +1,1 @@
-SUBDIRS = fedora generic
+SUBDIRS = generic redhat

@@ -73,6 +73,7 @@ typedef struct zfs_sb {
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
+	arc_prune_t	*z_arc_prune;	/* called by ARC to prune caches */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
 	avl_tree_t	z_ctldir_snaps;	/* .zfs/snapshot entries */
 	kmutex_t	z_ctldir_lock;	/* .zfs ctldir lock */
@@ -91,7 +92,7 @@ typedef struct zfs_sb {
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 #define	ZFS_OBJ_MTX_SZ	256
-	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
+	kmutex_t	*z_hold_mtx;	/* znode hold locks */
 } zfs_sb_t;
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1

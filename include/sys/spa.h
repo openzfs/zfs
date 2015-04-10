@@ -501,12 +501,13 @@ _NOTE(CONSTCOND) } while (0)
 	if (bp == NULL) {						\
 		len += func(buf + len, size - len, "<NULL>");		\
 	} else if (BP_IS_HOLE(bp)) {					\
-		len += func(buf + len, size - len, "<hole>");		\
-		if (bp->blk_birth > 0) {				\
-			len += func(buf + len, size - len,		\
-			    " birth=%lluL",				\
-			    (u_longlong_t)bp->blk_birth);		\
-		}							\
+		len += func(buf + len, size - len,			\
+		    "HOLE [L%llu %s] "					\
+		    "size=%llxL birth=%lluL",				\
+		    (u_longlong_t)BP_GET_LEVEL(bp),			\
+		    type,						\
+		    (u_longlong_t)BP_GET_LSIZE(bp),			\
+		    (u_longlong_t)bp->blk_birth);			\
 	} else if (BP_IS_EMBEDDED(bp)) {				\
 		len = func(buf + len, size - len,			\
 		    "EMBEDDED [L%llu %s] et=%u %s "			\
