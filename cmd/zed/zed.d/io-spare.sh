@@ -54,7 +54,7 @@ flock -x 8
 # Given a <pool> and <device> return the status, (ONLINE, FAULTED, etc...).
 vdev_status() {
 	local POOL=$1
-	local VDEV=$2
+	local VDEV=`basename $2`
 	local T='	'	# tab character since '\t' isn't portable
 
 	${ZPOOL} status ${POOL} | sed -n -e \
