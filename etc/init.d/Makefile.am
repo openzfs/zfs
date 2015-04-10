@@ -8,7 +8,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/etc/init.d/zfs.lunar.in \
 	$(top_srcdir)/etc/init.d/zfs.redhat.in
 
-$(init_SCRIPTS):
+$(init_SCRIPTS): $(init_SCRIPTS).$(DEFAULT_INIT_SCRIPT).in
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
 		-e 's,@sbindir\@,$(sbindir),g' \
 		-e 's,@udevdir\@,$(udevdir),g' \
