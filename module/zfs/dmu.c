@@ -1652,19 +1652,32 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	ASSERT(dr->dr_next == NULL || dr->dr_next->dr_txg < txg);
 
 	/*
-	 * Assume the on-disk data is X, the current syncing data is Y,
-	 * and the current in-memory data is Z (currently in dmu_sync).
-	 * X and Z are identical but Y is has been modified. Normally,
-	 * when X and Z are the same we will perform a nopwrite but if Y
-	 * is different we must disable nopwrite since the resulting write
-	 * of Y to disk can free the block containing X. If we allowed a
-	 * nopwrite to occur the block pointing to Z would reference a freed
-	 * block. Since this is a rare case we simplify this by disabling
-	 * nopwrite if the current dmu_sync-ing dbuf has been modified in
-	 * a previous transaction.
+	 * Assume the on-disk data is X, the current syncing data (in
+	 * txg - 1) is Y, and the current in-memory data is Z (currently
+	 * in dmu_sync).
+	 *
+	 * We usually want to perform a nopwrite if X and Z are the
+	 * same.  However, if Y is different (i.e. the BP is going to
+	 * change before this write takes effect), then a nopwrite will
+	 * be incorrect - we would override with X, which could have
+	 * been freed when Y was written.
+	 *
+	 * (Note that this is not a concern when we are nop-writing from
+	 * syncing context, because X and Y must be identical, because
+	 * all previous txgs have been synced.)
+	 *
+	 * Therefore, we disable nopwrite if the current BP could change
+	 * before this TXG.  There are two ways it could change: by
+	 * being dirty (dr_next is non-NULL), or by being freed
+	 * (dnode_block_freed()).  This behavior is verified by
+	 * zio_done(), which VERIFYs that the override BP is identical
+	 * to the on-disk BP.
 	 */
-	if (dr->dr_next)
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	if (dr->dr_next != NULL || dnode_block_freed(dn, db->db_blkid))
 		zp.zp_nopwrite = B_FALSE;
+	DB_DNODE_EXIT(db);
 
 	ASSERT(dr->dr_txg == txg);
 	if (dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC ||
