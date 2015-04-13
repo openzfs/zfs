@@ -746,10 +746,14 @@ zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
 		error = __zfsctl_unmount_snapshot(sep, flags);
 
 		mutex_enter(&zsb->z_ctldir_lock);
-		if (error == EBUSY)
-			avl_add(&zsb->z_ctldir_snaps, sep);
-		else
+		if (error == EBUSY) {
+			if (avl_find(&zsb->z_ctldir_snaps, &search, NULL))
+				zfsctl_sep_free(sep);
+			else
+				avl_add(&zsb->z_ctldir_snaps, sep);
+		} else {
 			zfsctl_sep_free(sep);
+		}
 	} else {
 		error = SET_ERROR(ENOENT);
 	}
@@ -768,6 +772,7 @@ zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
 int
 zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 {
+	zfs_snapentry_t search;
 	zfs_snapentry_t *sep, *next;
 	int error = 0;
 
@@ -786,8 +791,13 @@ zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 
 		mutex_enter(&zsb->z_ctldir_lock);
 		if (error == EBUSY) {
-			avl_add(&zsb->z_ctldir_snaps, sep);
-			(*count)++;
+			search.se_name = sep->se_name;
+			if (avl_find(&zsb->z_ctldir_snaps, &search, NULL)) {
+				zfsctl_sep_free(sep);
+			} else {
+				avl_add(&zsb->z_ctldir_snaps, sep);
+				(*count)++;
+			}
 		} else {
 			zfsctl_sep_free(sep);
 		}
