@@ -1724,6 +1724,10 @@ arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	kmutex_t *hash_lock = NULL;
 	boolean_t no_callback = (buf->b_efunc == NULL);
+#ifdef _KERNEL
+	int count = 1, timeout = 60 * MICROSEC;
+	struct task_struct *task;
+#endif
 
 	if (hdr->b_state == arc_anon) {
 		ASSERT(hdr->b_datacnt == 1);
@@ -1732,7 +1736,24 @@ arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 	}
 
 	hash_lock = HDR_LOCK(hdr);
+#ifdef _KERNEL
+retry:
+	if ((mutex_tryenter(hash_lock)) == 0) {
+		if (((count++) % timeout) == 0) {
+			task = mutex_owner(hash_lock);
+			cmn_err(CE_WARN,
+			    "%s (%d) holding hash lock for %ds\n",
+			    task ? task->comm : "NULL",
+			    task ? task->pid : -1,
+			    count / MICROSEC);
+		}
+
+		udelay(1);
+		goto retry;
+	}
+#else
 	mutex_enter(hash_lock);
+#endif
 	hdr = buf->b_hdr;
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
 	ASSERT(hdr->b_state != arc_anon);
