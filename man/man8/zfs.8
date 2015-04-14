@@ -308,6 +308,18 @@ A logical volume exported as a raw or block device. This type of dataset should 
 A read-only version of a file system or volume at a given point in time. It is specified as \fIfilesystem@name\fR or \fIvolume@name\fR.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fIbookmark\fR\fR
+.ad
+.sp .6
+.RS 4n
+Much like a \fIsnapshot\fR, but without the hold on on-disk data. It can be used as the source of a send (but not for a receive).
+It is specified as \fIfilesystem#name\fR or \fIvolume#name\fR.
+.RE
+
 .SS "ZFS File System Hierarchy"
 .LP
 A \fBZFS\fR storage pool is a logical collection of devices that provide space for datasets. A storage pool is also the root of the \fBZFS\fR file system hierarchy.
@@ -326,6 +338,18 @@ Snapshots can have arbitrary names. Snapshots of volumes can be cloned or rolled
 .sp
 .LP
 File system snapshots can be accessed under the \fB\&.zfs/snapshot\fR directory in the root of the file system. Snapshots are automatically mounted on demand and may be unmounted at regular intervals. The visibility of the \fB\&.zfs\fR directory can be controlled by the \fBsnapdir\fR property.
+.SS "Bookmarks"
+.LP
+A bookmark is, like a snapshot, a read-only copy of a file system or volume. Bookmarks can be created extremely quickly, and, compared to snapshots, consume no additional space within the pool.
+.sp
+.LP
+Bookmarks can also have arbitrary names, much like snapshots.
+.sp
+.LP
+\fIUnlike\fR snapshots, bookmarks can not be accessed throught the filesystem in any way. From a storage standpoint, a bookmark is little more than a recording of the 'createtxg' of a snapshot into a distinct object which survives if the snapshot itself is destroyed. That means there's little incentive to destroy them.
+.sp
+.LP
+Bookmarks are, at least initially, tied to the snapshot. Not the filesystem/volume. See example 24.
 .SS "Clones"
 .LP
 A clone is a writable volume or file system whose initial contents are the same as another dataset. As with snapshots, creating a clone is nearly instantaneous, and initially consumes no additional space.
