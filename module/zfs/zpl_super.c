@@ -136,20 +136,26 @@ zpl_inode_delete(struct inode *ip)
 static void
 zpl_put_super(struct super_block *sb)
 {
+	fstrans_cookie_t cookie;
 	int error;
 
+	cookie = spl_fstrans_mark();
 	error = -zfs_umount(sb);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 }
 
 static int
 zpl_sync_fs(struct super_block *sb, int wait)
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfs_sync(sb, wait, cr);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -159,9 +165,12 @@ zpl_sync_fs(struct super_block *sb, int wait)
 static int
 zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 {
+	fstrans_cookie_t cookie;
 	int error;
 
+	cookie = spl_fstrans_mark();
 	error = -zfs_statvfs(dentry, statp);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -170,8 +179,12 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 static int
 zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 {
+	fstrans_cookie_t cookie;
 	int error;
+
+	cookie = spl_fstrans_mark();
 	error = -zfs_remount(sb, flags, data);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -242,9 +255,12 @@ zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
 static int
 zpl_fill_super(struct super_block *sb, void *data, int silent)
 {
+	fstrans_cookie_t cookie;
 	int error;
 
+	cookie = spl_fstrans_mark();
 	error = -zfs_domount(sb, data, silent);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
