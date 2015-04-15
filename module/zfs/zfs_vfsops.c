@@ -1137,8 +1137,15 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	 * drain the iput_taskq to ensure all active references to the
 	 * zfs_sb_t have been handled only then can it be safely destroyed.
 	 */
-	if (zsb->z_os)
-		taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
+	if (zsb->z_os) {
+		mutex_enter(&zsb->z_znodes_lock);
+		while (zsb->z_nr_znodes) {
+			mutex_exit(&zsb->z_znodes_lock);
+			schedule();
+			taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
+		}
+		mutex_exit(&zsb->z_znodes_lock);
+	}
 
 	rrw_enter(&zsb->z_teardown_lock, RW_WRITER, FTAG);
 
@@ -1174,21 +1181,6 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 		rrw_exit(&zsb->z_teardown_lock, FTAG);
 		return (SET_ERROR(EIO));
 	}
-
-	/*
-	 * At this point there are no VFS ops active, and any new VFS ops
-	 * will fail with EIO since we have z_teardown_lock for writer (only
-	 * relevant for forced unmount).
-	 *
-	 * Release all holds on dbufs.
-	 */
-	mutex_enter(&zsb->z_znodes_lock);
-	for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
-	    zp = list_next(&zsb->z_all_znodes, zp)) {
-		if (zp->z_sa_hdl)
-			zfs_znode_dmu_fini(zp);
-	}
-	mutex_exit(&zsb->z_znodes_lock);
 
 	/*
 	 * If we are unmounting, set the unmounted flag and let new VFS ops
