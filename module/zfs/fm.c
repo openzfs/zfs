@@ -593,8 +593,9 @@ zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
 	if (fp == NULL)
 		return (EBADF);
 
-	*minorp = zfsdev_getminor(fp->f_file);
-	error = zfs_zevent_minor_to_state(*minorp, ze);
+	error = zfsdev_getminor(fp->f_file, minorp);
+	if (error == 0)
+		error = zfs_zevent_minor_to_state(*minorp, ze);
 
 	if (error)
 		zfs_zevent_fd_rele(fd);
