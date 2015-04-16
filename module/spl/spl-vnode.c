@@ -648,6 +648,9 @@ vn_getf(int fd)
 	vnode_t *vp;
 	int rc = 0;
 
+	if (fd < 0)
+		return (NULL);
+
 	/* Already open just take an extra reference */
 	spin_lock(&vn_file_lock);
 
@@ -732,6 +735,9 @@ void
 vn_releasef(int fd)
 {
 	file_t *fp;
+
+	if (fd < 0)
+		return;
 
 	spin_lock(&vn_file_lock);
 	fp = file_find(fd);
