@@ -5687,13 +5687,35 @@ zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
 	return (ptr);
 }
 
-minor_t
-zfsdev_getminor(struct file *filp)
+int
+zfsdev_getminor(struct file *filp, minor_t *minorp)
 {
-	ASSERT(filp != NULL);
-	ASSERT(filp->private_data != NULL);
+	zfsdev_state_t *zs, *fpd;
 
-	return (((zfsdev_state_t *)filp->private_data)->zs_minor);
+	ASSERT(filp != NULL);
+	ASSERT(!MUTEX_HELD(&zfsdev_state_lock));
+
+	fpd = filp->private_data;
+	if (fpd == NULL)
+		return (EBADF);
+
+	mutex_enter(&zfsdev_state_lock);
+
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+
+		if (zs->zs_minor == -1)
+			continue;
+
+		if (fpd == zs) {
+			*minorp = fpd->zs_minor;
+			mutex_exit(&zfsdev_state_lock);
+			return (0);
+		}
+	}
+
+	mutex_exit(&zfsdev_state_lock);
+
+	return (EBADF);
 }
 
 /*

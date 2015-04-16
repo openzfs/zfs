@@ -407,7 +407,7 @@ typedef struct zfsdev_state {
 } zfsdev_state_t;
 
 extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
-extern minor_t zfsdev_getminor(struct file *filp);
+extern int zfsdev_getminor(struct file *filp, minor_t *minorp);
 extern minor_t zfsdev_minor_alloc(void);
 
 #endif	/* _KERNEL */
