@@ -315,17 +315,25 @@ zpl_prune_sb(int64_t nr_to_scan, void *arg)
 }
 
 #ifdef HAVE_NR_CACHED_OBJECTS
-static int
-zpl_nr_cached_objects(struct super_block *sb)
+/*
+ * Return the number of cached objects which can be freed.  Since
+ * zpl_free_cached_objects below is currently a null implementation
+ * this function returns 0 to tell the VFS nothing can be freed.
+ */
+static long
+zpl_nr_cached_objects(
+#if defined(NR_CACHED_OBJECTS_HAS_NID)
+	struct super_block *sb,
+	int nid
+#elif defined(NR_CACHED_OBJECTS_HAS_SC)
+	struct super_block *sb,
+	struct shrink_control sc
+#else
+	struct super_block *sb
+#endif
+	)
 {
-	zfs_sb_t *zsb = sb->s_fs_info;
-	int nr;
-
-	mutex_enter(&zsb->z_znodes_lock);
-	nr = zsb->z_nr_znodes;
-	mutex_exit(&zsb->z_znodes_lock);
-
-	return (nr);
+	return (0);
 }
 #endif /* HAVE_NR_CACHED_OBJECTS */
 
@@ -336,10 +344,18 @@ zpl_nr_cached_objects(struct super_block *sb)
  * just a best effort eviction and the exact values aren't critical so we
  * extrapolate from an object count to a byte size using the znode_t size.
  */
-static void
-zpl_free_cached_objects(struct super_block *sb, int nr_to_scan)
+static long
+zpl_free_cached_objects(struct super_block *sb,
+#if defined(NR_CACHED_OBJECTS_HAS_NID)
+	long nr_to_scan, int nid
+#elif defined(NR_CACHED_OBJECTS_HAS_SC)
+	struct shrink_control sc
+#else
+	long nr_to_scan
+#endif
+	)
 {
-	/* noop */
+	return (0);
 }
 #endif /* HAVE_FREE_CACHED_OBJECTS */
 
