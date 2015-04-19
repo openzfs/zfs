@@ -1959,6 +1959,9 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 		if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_OBJSET_ZPLPROPS, &zc)) {
 			zcmd_free_nvlists(&zc);
+			if (prop == ZFS_PROP_VERSION &&
+			    zhp->zfs_type == ZFS_TYPE_VOLUME)
+				*val = zfs_prop_default_numeric(prop);
 			return (-1);
 		}
 		if (zcmd_read_dst_nvlist(zhp->zfs_hdl, &zc, &zplprops) != 0 ||
