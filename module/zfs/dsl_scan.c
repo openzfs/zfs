@@ -24,6 +24,7 @@
  * Copyright 2016 Gary Mills
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 Joyent, Inc.
+ * Copyright 2017 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/dsl_scan.h>
@@ -487,6 +488,9 @@ boolean_t
 dsl_scan_scrubbing(const dsl_pool_t *dp)
 {
 	dsl_scan_t *scn = dp->dp_scan;
+
+	/* Stop any ongoing TRIMs */
+	spa_man_trim_stop(dp->dp_spa);
 
 	if (scn->scn_phys.scn_state == DSS_SCANNING &&
 	    scn->scn_phys.scn_func == POOL_SCAN_SCRUB)

@@ -112,7 +112,6 @@ top:
 		txg_wait_synced(dp, dst.dst_txg + TXG_DEFER_SIZE);
 		goto top;
 	}
-
 	spa_close(spa, FTAG);
 	return (dst.dst_error);
 }

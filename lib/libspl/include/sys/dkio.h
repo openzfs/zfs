@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 1982, 2010, Oracle and/or its affiliates. All rights reserved.
  *
- * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright 2012 DEY Storage Systems, Inc.  All rights reserved.
  */
 
@@ -541,7 +541,10 @@ typedef struct dkioc_free_list_s {
 
 	/*
 	 * N.B. this is only an internal debugging API! This is only called
-	 * from debug builds of sd for pre-release checking. Remove before GA!
+	 * from debug builds of sd for integrity self-checking. The reason it
+	 * isn't #ifdef DEBUG is because that breaks ABI compatibility when
+	 * mixing DEBUG and non-DEBUG kernel modules and the cost of having
+	 * a couple unused pointers is too low to justify that risk.
 	 */
 	void			(*dfl_ck_func)(uint64_t, uint64_t, void *);
 	void			*dfl_ck_arg;

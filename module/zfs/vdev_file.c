@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -32,6 +33,9 @@
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/abd.h>
+#include <sys/fcntl.h>
+#include <sys/vnode.h>
+#include <sys/dkioc_free_util.h>
 
 /*
  * Virtual device vector for files.
@@ -223,6 +227,37 @@ vdev_file_io_start(zio_t *zio)
 			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
 			    kcred, NULL);
 			break;
+
+		case DKIOCFREE:
+		{
+			const dkioc_free_list_t *dfl = zio->io_dfl;
+
+			ASSERT(dfl != NULL);
+			if (!zfs_trim)
+				break;
+			for (int i = 0; i < dfl->dfl_num_exts; i++) {
+				struct flock flck;
+				int error;
+
+				if (dfl->dfl_exts[i].dfle_length == 0)
+					continue;
+
+				bzero(&flck, sizeof (flck));
+				flck.l_type = F_FREESP;
+				flck.l_start = dfl->dfl_exts[i].dfle_start +
+				    dfl->dfl_offset;
+				flck.l_len = dfl->dfl_exts[i].dfle_length;
+				flck.l_whence = 0;
+
+				error = VOP_SPACE(vf->vf_vnode,
+				    F_FREESP, &flck, 0, 0, kcred, NULL);
+				if (error != 0) {
+					zio->io_error = SET_ERROR(error);
+					break;
+				}
+			}
+			break;
+		}
 		default:
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
@@ -244,17 +279,18 @@ vdev_file_io_done(zio_t *zio)
 }
 
 vdev_ops_t vdev_file_ops = {
-	vdev_file_open,
-	vdev_file_close,
-	vdev_default_asize,
-	vdev_file_io_start,
-	vdev_file_io_done,
-	NULL,
-	NULL,
-	vdev_file_hold,
-	vdev_file_rele,
-	VDEV_TYPE_FILE,		/* name of this vdev type */
-	B_TRUE			/* leaf vdev */
+	.vdev_op_open =		vdev_file_open,
+	.vdev_op_close =	vdev_file_close,
+	.vdev_op_asize =	vdev_default_asize,
+	.vdev_op_io_start =	vdev_file_io_start,
+	.vdev_op_io_done =	vdev_file_io_done,
+	.vdev_op_state_change =	NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold =		vdev_file_hold,
+	.vdev_op_rele =		vdev_file_rele,
+	.vdev_op_trim =		NULL,
+	.vdev_op_type =		VDEV_TYPE_FILE,	/* name of this vdev type */
+	.vdev_op_leaf =		B_TRUE		/* leaf vdev */
 };
 
 void
@@ -278,17 +314,18 @@ vdev_file_fini(void)
 #ifndef _KERNEL
 
 vdev_ops_t vdev_disk_ops = {
-	vdev_file_open,
-	vdev_file_close,
-	vdev_default_asize,
-	vdev_file_io_start,
-	vdev_file_io_done,
-	NULL,
-	NULL,
-	vdev_file_hold,
-	vdev_file_rele,
-	VDEV_TYPE_DISK,		/* name of this vdev type */
-	B_TRUE			/* leaf vdev */
+	.vdev_op_open =		vdev_file_open,
+	.vdev_op_close =	vdev_file_close,
+	.vdev_op_asize =	vdev_default_asize,
+	.vdev_op_io_start =	vdev_file_io_start,
+	.vdev_op_io_done =	vdev_file_io_done,
+	.vdev_op_state_change =	NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold =		vdev_file_hold,
+	.vdev_op_rele =		vdev_file_rele,
+	.vdev_op_trim =		NULL,
+	.vdev_op_type =		VDEV_TYPE_DISK,	/* name of this vdev type */
+	.vdev_op_leaf =		B_TRUE		/* leaf vdev */
 };
 
 #endif
