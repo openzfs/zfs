@@ -27,6 +27,7 @@
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright 2017 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -53,6 +54,7 @@
 #include <sys/vdev_initialize.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
+#include <sys/trace_vdev.h>
 
 /* target number of metaslabs per top-level vdev */
 int vdev_max_ms_count = 200;
@@ -197,6 +199,15 @@ static vdev_ops_t *vdev_ops_table[] = {
 	&vdev_indirect_ops,
 	NULL
 };
+
+/*
+ * If we accumulate a lot of trim extents due to trim running slow, this
+ * is the memory pressure valve. We limit the amount of memory consumed
+ * by the extents in memory to physmem/zfs_trim_mem_lim_fact (by default
+ * 2%). If we exceed this limit, we start throwing out new extents
+ * without queueing them.
+ */
+int zfs_trim_mem_lim_fact = 50;
 
 /*
  * Given a vdev type, return the appropriate ops vector.
@@ -550,6 +561,9 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	vd->vdev_stat.vs_timestamp = gethrtime();
 	vdev_queue_init(vd);
 	vdev_cache_init(vd);
+
+	mutex_init(&vd->vdev_trim_zios_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&vd->vdev_trim_zios_cv, NULL, CV_DEFAULT, NULL);
 
 	return (vd);
 }
@@ -975,6 +989,9 @@ vdev_free(vdev_t *vd)
 	mutex_destroy(&vd->vdev_initialize_io_lock);
 	cv_destroy(&vd->vdev_initialize_io_cv);
 	cv_destroy(&vd->vdev_initialize_cv);
+	ASSERT0(vd->vdev_trim_zios);
+	mutex_destroy(&vd->vdev_trim_zios_lock);
+	cv_destroy(&vd->vdev_trim_zios_cv);
 
 	zfs_ratelimit_fini(&vd->vdev_delay_rl);
 	zfs_ratelimit_fini(&vd->vdev_checksum_rl);
@@ -2350,6 +2367,23 @@ vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
 		(void) txg_list_add(&vd->vdev_dtl_list, arg, txg);
 
 	(void) txg_list_add(&vd->vdev_spa->spa_vdev_txg_list, vd, txg);
+}
+
+boolean_t
+vdev_is_dirty(vdev_t *vd, int flags, void *arg)
+{
+	ASSERT(vd == vd->vdev_top);
+	ASSERT(!vd->vdev_ishole);
+	ASSERT(ISP2(flags));
+	ASSERT(spa_writeable(vd->vdev_spa));
+	ASSERT3U(flags, ==, VDD_METASLAB);
+
+	for (uint64_t txg = 0; txg < TXG_SIZE; txg++) {
+		if (txg_list_member(&vd->vdev_ms_list, arg, txg))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
 }
 
 void
@@ -4667,6 +4701,182 @@ vdev_set_deferred_resilver(spa_t *spa, vdev_t *vd)
 	spa->spa_resilver_deferred = B_TRUE;
 }
 
+/*
+ * Implements the per-vdev portion of manual TRIM. The function passes over
+ * all metaslabs on this vdev and performs a metaslab_trim_all on them. It's
+ * also responsible for rate-control if spa_man_trim_rate is non-zero.
+ */
+void
+vdev_man_trim(vdev_trim_info_t *vti)
+{
+	clock_t t = ddi_get_lbolt();
+	spa_t *spa = vti->vti_vdev->vdev_spa;
+	vdev_t *vd = vti->vti_vdev;
+	uint64_t i, cursor;
+	boolean_t was_loaded = B_FALSE;
+
+	vd->vdev_man_trimming = B_TRUE;
+	vd->vdev_trim_prog = 0;
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+	ASSERT(vd->vdev_ms[0] != NULL);
+	cursor = vd->vdev_ms[0]->ms_start;
+	i = 0;
+	while (i < vti->vti_vdev->vdev_ms_count && !spa->spa_man_trim_stop) {
+		uint64_t delta;
+		metaslab_t *msp = vd->vdev_ms[i];
+		zio_t *trim_io;
+
+		trim_io = metaslab_trim_all(msp, &cursor, &delta, &was_loaded);
+		spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+
+		if (trim_io != NULL) {
+			ASSERT3U(cursor, >=, vd->vdev_ms[0]->ms_start);
+			vd->vdev_trim_prog = cursor - vd->vdev_ms[0]->ms_start;
+			(void) zio_wait(trim_io);
+		} else {
+			/*
+			 * If there was nothing more left to trim, that means
+			 * this metaslab is either done trimming, or we
+			 * couldn't load it, move to the next one.
+			 */
+			i++;
+			if (i < vti->vti_vdev->vdev_ms_count)
+				ASSERT3U(vd->vdev_ms[i]->ms_start, ==, cursor);
+		}
+
+		/* delay loop to handle fixed-rate trimming */
+		for (;;) {
+			uint64_t rate = spa->spa_man_trim_rate;
+			uint64_t sleep_delay;
+
+			if (rate == 0) {
+				/* No delay, just update 't' and move on. */
+				t = ddi_get_lbolt();
+				break;
+			}
+
+			sleep_delay = (delta * hz) / rate;
+			mutex_enter(&spa->spa_man_trim_lock);
+			(void) cv_timedwait(&spa->spa_man_trim_update_cv,
+			    &spa->spa_man_trim_lock, t);
+			mutex_exit(&spa->spa_man_trim_lock);
+
+			/* If interrupted, don't try to relock, get out */
+			if (spa->spa_man_trim_stop)
+				goto out;
+
+			/* Timeout passed, move on to the next metaslab. */
+			if (ddi_get_lbolt() >= t + sleep_delay) {
+				t += sleep_delay;
+				break;
+			}
+		}
+		spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+	}
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+out:
+	/*
+	 * Ensure we're marked as "completed" even if we've had to stop
+	 * before processing all metaslabs.
+	 */
+	mutex_enter(&vd->vdev_stat_lock);
+	vd->vdev_trim_prog = vd->vdev_stat.vs_space;
+	mutex_exit(&vd->vdev_stat_lock);
+	vd->vdev_man_trimming = B_FALSE;
+
+	ASSERT(vti->vti_done_cb != NULL);
+	vti->vti_done_cb(vti->vti_done_arg);
+
+	kmem_free(vti, sizeof (*vti));
+}
+
+/*
+ * Runs through all metaslabs on the vdev and does their autotrim processing.
+ */
+void
+vdev_auto_trim(vdev_trim_info_t *vti)
+{
+	vdev_t *vd = vti->vti_vdev;
+	spa_t *spa = vd->vdev_spa;
+	uint64_t txg = vti->vti_txg;
+	uint64_t mlim = 0, mused = 0;
+	boolean_t limited;
+
+	ASSERT3P(vd->vdev_top, ==, vd);
+
+	if (vd->vdev_man_trimming)
+		goto out;
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+	for (uint64_t i = 0; i < vd->vdev_ms_count; i++)
+		mused += metaslab_trim_mem_used(vd->vdev_ms[i]);
+	mlim = (physmem * PAGESIZE) / (zfs_trim_mem_lim_fact *
+	    spa->spa_root_vdev->vdev_children);
+	limited = mused > mlim;
+	DTRACE_PROBE3(autotrim__mem__lim, vdev_t *, vd, uint64_t, mused,
+	    uint64_t, mlim);
+	for (uint64_t i = 0; i < vd->vdev_ms_count; i++)
+		metaslab_auto_trim(vd->vdev_ms[i], txg, !limited);
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+
+out:
+	ASSERT(vti->vti_done_cb != NULL);
+	vti->vti_done_cb(vti->vti_done_arg);
+
+	kmem_free(vti, sizeof (*vti));
+}
+
+static void
+trim_stop_set(vdev_t *vd, boolean_t flag)
+{
+	mutex_enter(&vd->vdev_trim_zios_lock);
+	vd->vdev_trim_zios_stop = flag;
+	mutex_exit(&vd->vdev_trim_zios_lock);
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++)
+		trim_stop_set(vd->vdev_child[i], flag);
+}
+
+static void
+trim_stop_wait(vdev_t *vd)
+{
+	mutex_enter(&vd->vdev_trim_zios_lock);
+	while (vd->vdev_trim_zios)
+		cv_wait(&vd->vdev_trim_zios_cv, &vd->vdev_trim_zios_lock);
+	mutex_exit(&vd->vdev_trim_zios_lock);
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++)
+		trim_stop_wait(vd->vdev_child[i]);
+}
+
+/*
+ * This function stops all asynchronous trim I/O going to a vdev and all
+ * its children. Because trim zios occur outside of the normal transactional
+ * machinery, we can't rely on the DMU hooks to stop I/O to devices being
+ * removed or reconfigured. Therefore, all pool management tasks which
+ * change the vdev configuration need to stop trim I/Os explicitly.
+ * After this function returns, it is guaranteed that no trim zios will be
+ * executing on the vdev or any of its children until either of the
+ * trim locks is released.
+ */
+void
+vdev_trim_stop_wait(vdev_t *vd)
+{
+	ASSERT(MUTEX_HELD(&vd->vdev_spa->spa_man_trim_lock));
+	ASSERT(MUTEX_HELD(&vd->vdev_spa->spa_auto_trim_lock));
+	/*
+	 * First we mark all devices as requesting a trim stop. This starts
+	 * the vdev queue drain (via zio_trim_should_bypass) quickly, then
+	 * we actually wait for all trim zios to get destroyed and then we
+	 * unmark the stop condition so trim zios can configure once the
+	 * pool management operation is done.
+	 */
+	trim_stop_set(vd, B_TRUE);
+	trim_stop_wait(vd);
+	trim_stop_set(vd, B_FALSE);
+}
+
 #if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_fault);
 EXPORT_SYMBOL(vdev_degrade);
@@ -4705,5 +4915,9 @@ MODULE_PARM_DESC(vdev_validate_skip,
 
 module_param(zfs_nocacheflush, int, 0644);
 MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
+
+module_param(zfs_trim_mem_lim_fact, int, 0644);
+MODULE_PARM_DESC(metaslabs_per_vdev, "Maximum percentage of physical memory "
+	"to be used for storing trim extents");
 /* END CSTYLED */
 #endif

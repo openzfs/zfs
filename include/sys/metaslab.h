@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright 2017 Nexenta Systems, Inc. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_H
@@ -56,6 +57,8 @@ void metaslab_sync(metaslab_t *, uint64_t);
 void metaslab_sync_done(metaslab_t *, uint64_t);
 void metaslab_sync_reassess(metaslab_group_t *);
 uint64_t metaslab_block_maxsize(metaslab_t *);
+void metaslab_auto_trim(metaslab_t *, uint64_t, boolean_t);
+uint64_t metaslab_trim_mem_used(metaslab_t *);
 
 /*
  * metaslab alloc flags
@@ -82,6 +85,7 @@ void metaslab_unalloc_dva(spa_t *, const dva_t *, uint64_t);
 int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);
 int metaslab_claim_impl(vdev_t *, uint64_t, uint64_t, uint64_t);
 void metaslab_check_free(spa_t *, const blkptr_t *);
+zio_t *metaslab_trim_all(metaslab_t *, uint64_t *, uint64_t *, boolean_t *);
 void metaslab_fastwrite_mark(spa_t *, const blkptr_t *);
 void metaslab_fastwrite_unmark(spa_t *, const blkptr_t *);
 
@@ -117,6 +121,9 @@ void metaslab_group_histogram_remove(metaslab_group_t *, metaslab_t *);
 void metaslab_group_alloc_decrement(spa_t *, uint64_t, void *, int, int,
     boolean_t);
 void metaslab_group_alloc_verify(spa_t *, const blkptr_t *, void *, int);
+
+void metaslab_trimstats_create(spa_t *spa);
+void metaslab_trimstats_destroy(spa_t *spa);
 
 #ifdef	__cplusplus
 }

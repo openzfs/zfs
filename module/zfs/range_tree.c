@@ -24,6 +24,7 @@
  */
 /*
  * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -510,6 +511,21 @@ range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
 	return (NULL);
 }
 
+/*
+ * Given an extent start offset and size, will look through the provided
+ * range tree and find a suitable start offset (starting at `start') such
+ * that the requested extent _doesn't_ overlap with any range segment in
+ * the range tree.
+ */
+uint64_t
+range_tree_find_gap(range_tree_t *rt, uint64_t start, uint64_t size)
+{
+	range_seg_t *rs;
+	while ((rs = range_tree_find_impl(rt, start, size)) != NULL)
+		start = rs->rs_end;
+	return (start);
+}
+
 void
 range_tree_verify(range_tree_t *rt, uint64_t off, uint64_t size)
 {
@@ -524,6 +540,15 @@ boolean_t
 range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size)
 {
 	return (range_tree_find(rt, start, size) != NULL);
+}
+
+/*
+ * Same as range_tree_contains, but locates even just a partial overlap.
+ */
+boolean_t
+range_tree_contains_part(range_tree_t *rt, uint64_t start, uint64_t size)
+{
+	return (range_tree_find_impl(rt, start, size) != NULL);
 }
 
 /*
