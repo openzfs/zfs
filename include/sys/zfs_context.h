@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
@@ -599,6 +599,8 @@ typedef struct vsecattr {
 
 #define	CRCREAT		0
 
+#define	F_FREESP	11
+
 extern int fop_getattr(vnode_t *vp, vattr_t *vap);
 
 #define	VOP_CLOSE(vp, f, c, o, cr, ct)	vn_close(vp)
@@ -606,6 +608,16 @@ extern int fop_getattr(vnode_t *vp, vattr_t *vap);
 #define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
 
 #define	VOP_FSYNC(vp, f, cr, ct)	fsync((vp)->v_fd)
+
+#if defined(HAVE_FILE_FALLOCATE) && \
+	defined(FALLOC_FL_PUNCH_HOLE) && \
+	defined(FALLOC_FL_KEEP_SIZE)
+#define	VOP_SPACE(vp, cmd, flck, fl, off, cr, ct) \
+	fallocate((vp)->v_fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, \
+	    (flck)->l_start, (flck)->l_len)
+#else
+#define	VOP_SPACE(vp, cmd, flck, fl, off, cr, ct) (0)
+#endif
 
 #define	VN_RELE(vp)	vn_close(vp)
 

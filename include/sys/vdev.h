@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_H
@@ -44,6 +45,13 @@ typedef enum vdev_dtl_type {
 	DTL_OUTAGE,	/* temporarily missing (used to attempt detach) */
 	DTL_TYPES
 } vdev_dtl_type_t;
+
+typedef struct vdev_trim_info {
+	vdev_t *vti_vdev;
+	uint64_t vti_txg;	/* ignored for manual trim */
+	void (*vti_done_cb)(void *);
+	void *vti_done_arg;
+} vdev_trim_info_t;
 
 extern int zfs_nocacheflush;
 
@@ -144,6 +152,9 @@ typedef enum vdev_config_flag {
 extern void vdev_top_config_generate(spa_t *spa, nvlist_t *config);
 extern nvlist_t *vdev_config_generate(spa_t *spa, vdev_t *vd,
     boolean_t getstats, vdev_config_flag_t flags);
+
+extern void vdev_man_trim(vdev_trim_info_t *vti);
+extern void vdev_auto_trim(vdev_trim_info_t *vti);
 
 /*
  * Label routines

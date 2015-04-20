@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright 2015 Nexenta Inc.  All rights reserved.
+ * Copyright 2016 Nexenta Inc.  All rights reserved.
  */
 
 #ifndef _SYS_DKIOC_FREE_UTIL_H
@@ -25,6 +25,11 @@ extern "C" {
 static inline void dfl_free(dkioc_free_list_t *dfl) {
 	vmem_free(dfl, DFL_SZ(dfl->dfl_num_exts));
 }
+
+static inline dkioc_free_list_t *dfl_alloc(uint64_t dfl_num_exts, int flags) {
+	return (vmem_zalloc(DFL_SZ(dfl_num_exts), flags));
+}
+
 
 #ifdef	__cplusplus
 }

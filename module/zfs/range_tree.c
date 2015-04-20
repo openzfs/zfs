@@ -24,6 +24,7 @@
  */
 /*
  * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -227,8 +228,9 @@ range_tree_add(void *arg, uint64_t start, uint64_t size)
 	rt->rt_space += size;
 }
 
-void
-range_tree_remove(void *arg, uint64_t start, uint64_t size)
+static void
+range_tree_remove_impl(void *arg, uint64_t start, uint64_t size,
+    boolean_t partial_overlap)
 {
 	range_tree_t *rt = arg;
 	avl_index_t where;
@@ -238,59 +240,96 @@ range_tree_remove(void *arg, uint64_t start, uint64_t size)
 
 	ASSERT(MUTEX_HELD(rt->rt_lock));
 	VERIFY3U(size, !=, 0);
-	VERIFY3U(size, <=, rt->rt_space);
+	if (!partial_overlap) {
+		VERIFY3U(size, <=, rt->rt_space);
+	}
 
 	rsearch.rs_start = start;
 	rsearch.rs_end = end;
-	rs = avl_find(&rt->rt_root, &rsearch, &where);
 
-	/* Make sure we completely overlap with someone */
-	if (rs == NULL) {
-		zfs_panic_recover("zfs: freeing free segment "
-		    "(offset=%llu size=%llu)",
-		    (longlong_t)start, (longlong_t)size);
-		return;
-	}
-	VERIFY3U(rs->rs_start, <=, start);
-	VERIFY3U(rs->rs_end, >=, end);
+	while ((rs = avl_find(&rt->rt_root, &rsearch, &where)) != NULL ||
+	    !partial_overlap) {
+		uint64_t overlap_sz;
 
-	left_over = (rs->rs_start != start);
-	right_over = (rs->rs_end != end);
+		if (partial_overlap) {
+			if (rs->rs_start <= start && rs->rs_end >= end)
+				overlap_sz = size;
+			else if (rs->rs_start > start && rs->rs_end < end)
+				overlap_sz = rs->rs_end - rs->rs_start;
+			else if (rs->rs_end < end)
+				overlap_sz = rs->rs_end - start;
+			else	/* rs->rs_start > start */
+				overlap_sz = end - rs->rs_start;
+		} else {
+			/* Make sure we completely overlapped with someone */
+			if (rs == NULL) {
+				zfs_panic_recover("zfs: freeing free segment "
+				    "(offset=%llu size=%llu)",
+				    (longlong_t)start, (longlong_t)size);
+				return;
+			}
+			VERIFY3U(rs->rs_start, <=, start);
+			VERIFY3U(rs->rs_end, >=, end);
+			overlap_sz = size;
+		}
 
-	range_tree_stat_decr(rt, rs);
+		left_over = (rs->rs_start < start);
+		right_over = (rs->rs_end > end);
 
-	if (rt->rt_ops != NULL)
-		rt->rt_ops->rtop_remove(rt, rs, rt->rt_arg);
-
-	if (left_over && right_over) {
-		newseg = kmem_cache_alloc(range_seg_cache, KM_SLEEP);
-		newseg->rs_start = end;
-		newseg->rs_end = rs->rs_end;
-		range_tree_stat_incr(rt, newseg);
-
-		rs->rs_end = start;
-
-		avl_insert_here(&rt->rt_root, newseg, rs, AVL_AFTER);
-		if (rt->rt_ops != NULL)
-			rt->rt_ops->rtop_add(rt, newseg, rt->rt_arg);
-	} else if (left_over) {
-		rs->rs_end = start;
-	} else if (right_over) {
-		rs->rs_start = end;
-	} else {
-		avl_remove(&rt->rt_root, rs);
-		kmem_cache_free(range_seg_cache, rs);
-		rs = NULL;
-	}
-
-	if (rs != NULL) {
-		range_tree_stat_incr(rt, rs);
+		range_tree_stat_decr(rt, rs);
 
 		if (rt->rt_ops != NULL)
-			rt->rt_ops->rtop_add(rt, rs, rt->rt_arg);
-	}
+			rt->rt_ops->rtop_remove(rt, rs, rt->rt_arg);
 
-	rt->rt_space -= size;
+		if (left_over && right_over) {
+			newseg = kmem_cache_alloc(range_seg_cache, KM_SLEEP);
+			newseg->rs_start = end;
+			newseg->rs_end = rs->rs_end;
+			range_tree_stat_incr(rt, newseg);
+
+			rs->rs_end = start;
+
+			avl_insert_here(&rt->rt_root, newseg, rs, AVL_AFTER);
+			if (rt->rt_ops != NULL)
+				rt->rt_ops->rtop_add(rt, newseg, rt->rt_arg);
+		} else if (left_over) {
+			rs->rs_end = start;
+		} else if (right_over) {
+			rs->rs_start = end;
+		} else {
+			avl_remove(&rt->rt_root, rs);
+			kmem_cache_free(range_seg_cache, rs);
+			rs = NULL;
+		}
+
+		if (rs != NULL) {
+			range_tree_stat_incr(rt, rs);
+
+			if (rt->rt_ops != NULL)
+				rt->rt_ops->rtop_add(rt, rs, rt->rt_arg);
+		}
+
+		rt->rt_space -= overlap_sz;
+		if (!partial_overlap) {
+			/*
+			 * There can't be any more segments overlapping with
+			 * us, so no sense in performing an extra search.
+			 */
+			break;
+		}
+	}
+}
+
+void
+range_tree_remove(void *arg, uint64_t start, uint64_t size)
+{
+	range_tree_remove_impl(arg, start, size, B_FALSE);
+}
+
+void
+range_tree_remove_overlap(void *arg, uint64_t start, uint64_t size)
+{
+	range_tree_remove_impl(arg, start, size, B_TRUE);
 }
 
 static range_seg_t *
@@ -315,6 +354,21 @@ range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
 	if (rs != NULL && rs->rs_start <= start && rs->rs_end >= start + size)
 		return (rs);
 	return (NULL);
+}
+
+/*
+ * Given an extent start offset and size, will look through the provided
+ * range tree and find a suitable start offset (starting at `start') such
+ * that the requested extent _doesn't_ overlap with any range segment in
+ * the range tree.
+ */
+uint64_t
+range_tree_find_gap(range_tree_t *rt, uint64_t start, uint64_t size)
+{
+	range_seg_t *rs;
+	while ((rs = range_tree_find_impl(rt, start, size)) != NULL)
+		start = rs->rs_end;
+	return (start);
 }
 
 void

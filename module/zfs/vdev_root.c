@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -118,6 +119,7 @@ vdev_ops_t vdev_root_ops = {
 	NULL,			/* io_start - not applicable to the root */
 	NULL,			/* io_done - not applicable to the root */
 	vdev_root_state_change,
+	NULL,
 	NULL,
 	NULL,
 	VDEV_TYPE_ROOT,		/* name of this vdev type */

@@ -112,6 +112,8 @@ extern "C" {
 #define	ESC_ZFS_VDEV_AUTOEXPAND		"vdev_autoexpand"
 #define	ESC_ZFS_BOOTFS_VDEV_ATTACH	"bootfs_vdev_attach"
 #define	ESC_ZFS_POOL_REGUID		"pool_reguid"
+#define	ESC_ZFS_TRIM_START		"trim_start"
+#define	ESC_ZFS_TRIM_FINISH		"trim_finish"
 
 /*
  * datalink subclass definitions.

@@ -26,6 +26,7 @@
 #include <sys/multilist.h>
 #include <sys/arc_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/metaslab_impl.h>
 #include <sys/zio.h>
 #include <sys/dbuf.h>
 #include <sys/dmu_objset.h>
@@ -46,6 +47,7 @@
 #include <sys/trace_dnode.h>
 #include <sys/trace_multilist.h>
 #include <sys/trace_txg.h>
+#include <sys/trace_vdev.h>
 #include <sys/trace_zil.h>
 #include <sys/trace_zio.h>
 #include <sys/trace_zrlock.h>

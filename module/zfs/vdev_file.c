@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -32,6 +33,9 @@
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/abd.h>
+#include <sys/fcntl.h>
+#include <sys/vnode.h>
+#include <sys/dkioc_free_util.h>
 
 /*
  * Virtual device vector for files.
@@ -223,6 +227,36 @@ vdev_file_io_start(zio_t *zio)
 			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
 			    kcred, NULL);
 			break;
+
+		case DKIOCFREE:
+		{
+			int i;
+			dkioc_free_list_t *dfl = zio->io_private;
+
+			ASSERT(dfl != NULL);
+			for (i = 0; i < dfl->dfl_num_exts; i++) {
+				struct flock flck;
+				int error;
+
+				if (dfl->dfl_exts[i].dfle_length == 0)
+					continue;
+
+				bzero(&flck, sizeof (flck));
+				flck.l_type = F_FREESP;
+				flck.l_start = dfl->dfl_exts[i].dfle_start +
+				    dfl->dfl_offset;
+				flck.l_len = dfl->dfl_exts[i].dfle_length;
+				flck.l_whence = 0;
+
+				error = VOP_SPACE(vf->vf_vnode,
+				    F_FREESP, &flck, 0, 0, kcred, NULL);
+				if (error != 0) {
+					zio->io_error = SET_ERROR(error);
+					break;
+				}
+			}
+			break;
+		}
 		default:
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
@@ -252,6 +286,7 @@ vdev_ops_t vdev_file_ops = {
 	NULL,
 	vdev_file_hold,
 	vdev_file_rele,
+	NULL,
 	VDEV_TYPE_FILE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
@@ -285,6 +320,7 @@ vdev_ops_t vdev_disk_ops = {
 	NULL,
 	vdev_file_hold,
 	vdev_file_rele,
+	NULL,
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };

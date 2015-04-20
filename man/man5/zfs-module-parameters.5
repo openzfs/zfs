@@ -1638,6 +1638,33 @@ Default value: \fB32\fR.
 .sp
 .ne 2
 .na
+\fBzfs_trim\fR (int)
+.ad
+.RS 12n
+Controls whether the underlying vdevs of the pool are notified when
+space is freed using the device-type-specific command set (TRIM here
+being a general placeholder term rather than referring to just the SATA
+TRIM command). This is frequently used on backing storage devices which
+support thin provisioning or pre-erasure of blocks on flash media.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_trim_min_ext_sz\fR (int)
+.ad
+.RS 12n
+Minimum size region in bytes over which a device-specific TRIM command
+will be sent to the underlying vdevs when \fBzfs_trim\fR is set.
+.sp
+Default value: \fB1048576\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_txg_history\fR (int)
 .ad
 .RS 12n
@@ -1656,6 +1683,18 @@ Default value: \fB0\fR.
 Flush dirty data to disk at least every N seconds (maximum txg duration)
 .sp
 Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_txgs_per_trim\fR (int)
+.ad
+.RS 12n
+Number of transaction groups over which device-specific TRIM commands
+are batched when \fBzfs_trim\fR is set.
+.sp
+Default value: \fB32\fR.
 .RE
 
 .sp
