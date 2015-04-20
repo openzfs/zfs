@@ -1,0 +1,35 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+function set_tunable
+{
+	typeset tunable="$1"
+	typeset value="$2"
+	typeset zfs_tunables="/sys/module/zfs/parameters"
+
+	[[ -z "$tunable" ]] && return 1
+	[[ -z "$value" ]] && return 1
+	[[ -f "$zfs_tunables/$tunable" ]] || return 1
+
+	echo -n "$value" > "$zfs_tunables/$tunable"
+	return "$?"
+}
+
+function find_scsi_debug
+{
+	grep -H scsi_debug /sys/block/*/device/model | $AWK -F/ '{print $4}' | tr '\n' ' '
+}
+
+function setupvdevs
+{
+	log_must rm -f $VDEVS
+	log_must truncate -s 192m $VDEVS
+}

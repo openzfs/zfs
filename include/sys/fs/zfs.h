@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2017 Datto Inc.
@@ -243,6 +243,8 @@ typedef enum {
 	ZPOOL_PROP_MULTIHOST,
 	ZPOOL_PROP_CHECKPOINT,
 	ZPOOL_PROP_LOAD_GUID,
+	ZPOOL_PROP_FORCETRIM,
+	ZPOOL_PROP_AUTOTRIM,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -733,6 +735,10 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_REMOVED		"removed"
 #define	ZPOOL_CONFIG_FRU		"fru"
 #define	ZPOOL_CONFIG_AUX_STATE		"aux_state"
+#define	ZPOOL_CONFIG_TRIM_PROG		"trim_prog"
+#define	ZPOOL_CONFIG_TRIM_RATE		"trim_rate"
+#define	ZPOOL_CONFIG_TRIM_START_TIME	"trim_start_time"
+#define	ZPOOL_CONFIG_TRIM_STOP_TIME	"trim_stop_time"
 
 /* Pool load policy parameters */
 #define	ZPOOL_LOAD_POLICY		"load-policy"
@@ -895,6 +901,14 @@ typedef struct pool_checkpoint_stat {
 	uint64_t pcs_start_time;	/* time checkpoint/discard started */
 	uint64_t pcs_space;		/* checkpointed space */
 } pool_checkpoint_stat_t;
+
+/*
+ * TRIM command configuration info.
+ */
+typedef struct trim_cmd_info_s {
+	uint64_t	tci_start;	/* B_TRUE = start; B_FALSE = stop */
+	uint64_t	tci_rate;	/* requested TRIM rate in bytes/sec */
+} trim_cmd_info_t;
 
 /*
  * ZIO types.  Needed to interpret vdev statistics below.
@@ -1192,6 +1206,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_EVENTS_NEXT,			/* 0x5a81 */
 	ZFS_IOC_EVENTS_CLEAR,			/* 0x5a82 */
 	ZFS_IOC_EVENTS_SEEK,			/* 0x5a83 */
+	ZFS_IOC_POOL_TRIM,			/* 0x5a84 */
 
 	/*
 	 * FreeBSD - 1/64 numbers reserved.
