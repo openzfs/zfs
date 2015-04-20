@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2017 Datto Inc.
@@ -238,6 +238,8 @@ typedef enum {
 	ZPOOL_PROP_TNAME,
 	ZPOOL_PROP_MAXDNODESIZE,
 	ZPOOL_PROP_MULTIHOST,
+	ZPOOL_PROP_FORCETRIM,
+	ZPOOL_PROP_AUTOTRIM,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -712,6 +714,10 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_REMOVED		"removed"
 #define	ZPOOL_CONFIG_FRU		"fru"
 #define	ZPOOL_CONFIG_AUX_STATE		"aux_state"
+#define	ZPOOL_CONFIG_TRIM_PROG		"trim_prog"
+#define	ZPOOL_CONFIG_TRIM_RATE		"trim_rate"
+#define	ZPOOL_CONFIG_TRIM_START_TIME	"trim_start_time"
+#define	ZPOOL_CONFIG_TRIM_STOP_TIME	"trim_stop_time"
 
 /* Rewind policy parameters */
 #define	ZPOOL_REWIND_POLICY		"rewind-policy"
@@ -844,6 +850,13 @@ typedef enum pool_scrub_cmd {
 	POOL_SCRUB_FLAGS_END
 } pool_scrub_cmd_t;
 
+/*
+ * TRIM command configuration info.
+ */
+typedef struct trim_cmd_info_s {
+	uint64_t	tci_start;	/* B_TRUE = start; B_FALSE = stop */
+	uint64_t	tci_rate;	/* requested TRIM rate in bytes/sec */
+} trim_cmd_info_t;
 
 /*
  * ZIO types.  Needed to interpret vdev statistics below.
@@ -1120,6 +1133,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_EVENTS_NEXT,
 	ZFS_IOC_EVENTS_CLEAR,
 	ZFS_IOC_EVENTS_SEEK,
+	ZFS_IOC_POOL_TRIM,
 
 	/*
 	 * FreeBSD - 1/64 numbers reserved.

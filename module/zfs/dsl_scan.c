@@ -24,6 +24,7 @@
  * Copyright 2016 Gary Mills
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 Joyent, Inc.
+ * Copyright 2017 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/dsl_scan.h>
@@ -932,6 +933,9 @@ dsl_scrub_set_pause_resume(const dsl_pool_t *dp, pool_scrub_cmd_t cmd)
 void
 dsl_resilver_restart(dsl_pool_t *dp, uint64_t txg)
 {
+	/* Stop any ongoing TRIMs */
+	spa_man_trim_stop(dp->dp_spa);
+
 	if (txg == 0) {
 		dmu_tx_t *tx;
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);

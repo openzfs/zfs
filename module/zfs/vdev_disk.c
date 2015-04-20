@@ -24,6 +24,7 @@
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -35,6 +36,7 @@
 #include <sys/zio.h>
 #include <sys/sunldi.h>
 #include <linux/mod_compat.h>
+#include <sys/dkioc_free_util.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
@@ -317,6 +319,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
+
+	/* Reset TRIM flag, as underlying device support may have changed */
+	v->vdev_notrim = B_FALSE;
 
 skip_open:
 	/*  Determine the physical block size */
@@ -711,6 +716,55 @@ vdev_disk_io_start(zio_t *zio)
 
 			break;
 
+		case DKIOCFREE:
+		{
+			dkioc_free_list_t *dfl;
+
+			if (!zfs_trim)
+				break;
+
+			/*
+			 * We perform device support checks here instead of
+			 * in zio_trim_*(), as zio_trim_*() might be invoked
+			 * on a top-level vdev, whereas vdev_disk_io_start
+			 * is guaranteed to be operating a leaf disk vdev.
+			 */
+			if (v->vdev_notrim &&
+			    spa_get_force_trim(v->vdev_spa) !=
+			    SPA_FORCE_TRIM_ON) {
+				zio->io_error = SET_ERROR(ENOTSUP);
+				break;
+			}
+
+			/*
+			 * zio->io_dfl contains a dkioc_free_list_t
+			 * specifying which offsets are to be freed
+			 */
+			dfl = zio->io_dfl;
+			ASSERT(dfl != NULL);
+
+			for (int i = 0; i < dfl->dfl_num_exts; i++) {
+				int error;
+
+				if (dfl->dfl_exts[i].dfle_length == 0)
+					continue;
+
+				error = -blkdev_issue_discard(vd->vd_bdev,
+				    (dfl->dfl_exts[i].dfle_start +
+				    dfl->dfl_offset) >> 9,
+				    dfl->dfl_exts[i].dfle_length >> 9,
+				    GFP_NOFS, 0);
+
+				if (error != 0) {
+					if (error == EOPNOTSUPP ||
+					    error == ENXIO)
+						v->vdev_notrim = B_TRUE;
+					zio->io_error = SET_ERROR(error);
+					break;
+				}
+			}
+			break;
+		}
 		default:
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
@@ -834,17 +888,18 @@ param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
 }
 
 vdev_ops_t vdev_disk_ops = {
-	vdev_disk_open,
-	vdev_disk_close,
-	vdev_default_asize,
-	vdev_disk_io_start,
-	vdev_disk_io_done,
-	NULL,
-	NULL,
-	vdev_disk_hold,
-	vdev_disk_rele,
-	VDEV_TYPE_DISK,		/* name of this vdev type */
-	B_TRUE			/* leaf vdev */
+	.vdev_op_open =		vdev_disk_open,
+	.vdev_op_close =	vdev_disk_close,
+	.vdev_op_asize =	vdev_default_asize,
+	.vdev_op_io_start =	vdev_disk_io_start,
+	.vdev_op_io_done =	vdev_disk_io_done,
+	.vdev_op_state_change =	NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold =		vdev_disk_hold,
+	.vdev_op_rele =		vdev_disk_rele,
+	.vdev_op_trim =		NULL,
+	.vdev_op_type =		VDEV_TYPE_DISK,	/* name of this vdev type */
+	.vdev_op_leaf =		B_TRUE		/* leaf vdev */
 };
 
 module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
