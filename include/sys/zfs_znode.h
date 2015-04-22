@@ -279,11 +279,15 @@ typedef struct znode {
 #define	ZFS_OBJ_HASH(obj_num)	((obj_num) & (ZFS_OBJ_MTX_SZ - 1))
 #define	ZFS_OBJ_MUTEX(zsb, obj_num)	\
 	(&(zsb)->z_hold_mtx[ZFS_OBJ_HASH(obj_num)])
+#define	ZFS_OBJ_COOKIE(zsb, obj_num)	\
+	(&(zsb)->z_hold_cookie[ZFS_OBJ_HASH(obj_num)])
 #define	ZFS_OBJ_HOLD_ENTER(zsb, obj_num) \
-	mutex_enter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
+	mutex_enter(ZFS_OBJ_MUTEX((zsb), (obj_num))) \
+	*(ZFS_OBJ_COOKIE(zsb, (obj_num))) = spl_fstrans_mark();
 #define	ZFS_OBJ_HOLD_TRYENTER(zsb, obj_num) \
 	mutex_tryenter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 #define	ZFS_OBJ_HOLD_EXIT(zsb, obj_num) \
+	spl_fstrans_unmark(*(ZFS_OBJ_COOKIE(zsb, (obj_num)))); \
 	mutex_exit(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 #define	ZFS_OBJ_HOLD_OWNED(zsb, obj_num) \
 	mutex_owned(ZFS_OBJ_MUTEX((zsb), (obj_num)))

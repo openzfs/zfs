@@ -779,6 +779,8 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 
 	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ,
 	    KM_SLEEP);
+	zsb->z_hold_cookie = vmem_zalloc(sizeof (fstrans_cookie_t) *
+	    ZFS_OBJ_MTX_SZ, KM_SLEEP);
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
 
@@ -898,6 +900,8 @@ zfs_sb_free(zfs_sb_t *zsb)
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
 	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
+	vmem_free(zsb->z_hold_cookie, sizeof (fstrans_cookie_t) *
+	    ZFS_OBJ_MTX_SZ);
 	mutex_destroy(&zsb->z_ctldir_lock);
 	avl_destroy(&zsb->z_ctldir_snaps);
 	kmem_free(zsb, sizeof (zfs_sb_t));
