@@ -3264,9 +3264,12 @@ spa_feature_stats_from_cache(spa_t *spa, nvlist_t *features)
 static void
 spa_add_feature_stats(spa_t *spa, nvlist_t *config)
 {
-	nvlist_t *features = spa->spa_feat_stats;
+	nvlist_t *features;
 
 	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
+
+	mutex_enter(&spa->spa_feat_stats_lock);
+	features = spa->spa_feat_stats;
 
 	if (features != NULL) {
 		spa_feature_stats_from_cache(spa, features);
@@ -3275,6 +3278,8 @@ spa_add_feature_stats(spa_t *spa, nvlist_t *config)
 		spa->spa_feat_stats = features;
 		spa_feature_stats_from_disk(spa, features);
 	}
+
+	mutex_exit(&spa->spa_feat_stats_lock);
 
 	VERIFY0(nvlist_add_nvlist(config, ZPOOL_CONFIG_FEATURE_STATS,
 	    features));
