@@ -185,6 +185,20 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
+* Wed Jun 24 2015 Ned Bass <bass6@llnl.gov> - 0.6.4.2-1
+- Fix panic due to corrupt nvlist when running utilities zfsonlinux/zfs#3335
+- Fix hard lockup due to infinite loop in zfs_zget() zfsonlinux/zfs#3349
+- Fix panic on unmount due to iput taskq zfsonlinux/zfs#3281
+- Improve metadata shrinker performance on pre-3.1 kernels zfsonlinux/zfs#3501
+- Linux 4.1 compat: use read_iter() / write_iter()
+- Linux 3.12 compat: NUMA-aware per-superblock shrinker
+- Fix spurious hung task watchdog stack traces zfsonlinux/zfs#3402
+- Fix module loading in zfs import systemd service zfsonlinux/zfs#3440
+- Fix intermittent libzfs_init() failure to open /dev/zfs zfsonlinux/zfs#2556
+* Thu Apr 23 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4.1-1
+- Fix direct memory reclaim deadlocks zfsonlinux/zfs#3331 zfsonlinux/zfs#3225
+- Fix hot-disk sparing for disk vdevs zfsonlinux/zfs#3310
+- Fix system spinning during ARC reclaim zfsonlinux/zfs#3283
 * Wed Apr  8 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4-1
 - Released 0.6.4-1
 * Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1
