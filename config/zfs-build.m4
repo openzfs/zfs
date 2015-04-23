@@ -139,7 +139,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1" --define "$(DEBUG_DMU_TX) 1"'
-	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)"'
+	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)" --define "require_spldir $(SPL)" --define "require_splobj $(SPL_OBJ)" --define "ksrc $(LINUX)" --define "kobj $(LINUX_OBJ)"'
 	RPM_DEFINE_DKMS=
 
@@ -311,6 +311,21 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT])
 	AC_SUBST(DEFAULT_INIT_SCRIPT)
+
+	AC_MSG_CHECKING([default init config direectory])
+	case "$VENDOR" in
+		gentoo)     DEFAULT_INITCONF_DIR=/etc/conf.d    ;;
+		toss)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		redhat)     DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		fedora)     DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		sles)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		ubuntu)     DEFAULT_INITCONF_DIR=/etc/default   ;;
+		debian)     DEFAULT_INITCONF_DIR=/etc/default   ;;
+		*)          DEFAULT_INITCONF_DIR=/etc/default   ;;
+	esac
+
+	AC_MSG_RESULT([$DEFAULT_INITCONF_DIR])
+	AC_SUBST(DEFAULT_INITCONF_DIR)
 ])
 
 dnl #
