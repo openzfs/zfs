@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2010 Lawrence Livermore National Security, LLC.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  *  Written by Brian Behlendorf <behlendorf1@llnl.gov>.
@@ -19,7 +19,8 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
+ *
  *  Solaris Porting Layer (SPL) Thread Specific Data Implementation.
  *
  *  Thread specific data has implemented using a hash table, this avoids
@@ -56,7 +57,7 @@
  *  so if your using the Solaris thread API you should not need to call
  *  tsd_exit() directly.
  *
-\*****************************************************************************/
+ */
 
 #include <sys/kmem.h>
 #include <sys/thread.h>
@@ -136,7 +137,7 @@ tsd_hash_dtor(struct hlist_head *work)
 		if (entry->he_dtor && entry->he_pid != DTOR_PID)
 			entry->he_dtor(entry->he_value);
 
-		kmem_free(entry, sizeof(tsd_hash_entry_t));
+		kmem_free(entry, sizeof (tsd_hash_entry_t));
 	}
 }
 
@@ -163,7 +164,7 @@ tsd_hash_add(tsd_hash_table_t *table, uint_t key, pid_t pid, void *value)
 	ASSERT3P(tsd_hash_search(table, key, pid), ==, NULL);
 
 	/* New entry allocate structure, set value, and add to hash */
-	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
+	entry = kmem_alloc(sizeof (tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
 		return (ENOMEM);
 
@@ -222,7 +223,7 @@ tsd_hash_add_key(tsd_hash_table_t *table, uint_t *keyp, dtor_func_t dtor)
 	ASSERT3P(table, !=, NULL);
 
 	/* Allocate entry to be used as a destructor for this key */
-	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
+	entry = kmem_alloc(sizeof (tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
 		return (ENOMEM);
 
@@ -280,7 +281,7 @@ tsd_hash_add_pid(tsd_hash_table_t *table, pid_t pid)
 	ulong_t hash;
 
 	/* Allocate entry to be used as the process reference */
-	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
+	entry = kmem_alloc(sizeof (tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
 		return (ENOMEM);
 
@@ -333,13 +334,13 @@ tsd_hash_table_init(uint_t bits)
 	tsd_hash_table_t *table;
 	int hash, size = (1 << bits);
 
-	table = kmem_zalloc(sizeof(tsd_hash_table_t), KM_SLEEP);
+	table = kmem_zalloc(sizeof (tsd_hash_table_t), KM_SLEEP);
 	if (table == NULL)
 		return (NULL);
 
-	table->ht_bins = kmem_zalloc(sizeof(tsd_hash_bin_t) * size, KM_SLEEP);
+	table->ht_bins = kmem_zalloc(sizeof (tsd_hash_bin_t) * size, KM_SLEEP);
 	if (table->ht_bins == NULL) {
-		kmem_free(table, sizeof(tsd_hash_table_t));
+		kmem_free(table, sizeof (tsd_hash_table_t));
 		return (NULL);
 	}
 
@@ -376,9 +377,9 @@ tsd_hash_table_fini(tsd_hash_table_t *table)
 	for (i = 0, size = (1 << table->ht_bits); i < size; i++) {
 		bin = &table->ht_bins[i];
 		spin_lock(&bin->hb_lock);
-	        while (!hlist_empty(&bin->hb_head)) {
+		while (!hlist_empty(&bin->hb_head)) {
 			entry = hlist_entry(bin->hb_head.first,
-					    tsd_hash_entry_t, he_list);
+			    tsd_hash_entry_t, he_list);
 			tsd_hash_del(table, entry);
 			hlist_add_head(&entry->he_list, &work);
 		}
@@ -387,8 +388,8 @@ tsd_hash_table_fini(tsd_hash_table_t *table)
 	spin_unlock(&table->ht_lock);
 
 	tsd_hash_dtor(&work);
-	kmem_free(table->ht_bins, sizeof(tsd_hash_bin_t)*(1<<table->ht_bits));
-	kmem_free(table, sizeof(tsd_hash_table_t));
+	kmem_free(table->ht_bins, sizeof (tsd_hash_bin_t)*(1<<table->ht_bits));
+	kmem_free(table, sizeof (tsd_hash_table_t));
 }
 
 /*
@@ -545,7 +546,7 @@ tsd_create(uint_t *keyp, dtor_func_t dtor)
 	if (*keyp)
 		return;
 
-	(void)tsd_hash_add_key(tsd_hash_table, keyp, dtor);
+	(void) tsd_hash_add_key(tsd_hash_table, keyp, dtor);
 }
 EXPORT_SYMBOL(tsd_create);
 
@@ -582,14 +583,14 @@ tsd_destroy(uint_t *keyp)
 	 * DTOR_PID entry.  They are removed from the hash table and
 	 * linked in to a private working list to be destroyed.
 	 */
-        while (!list_empty(&dtor_entry->he_key_list)) {
+	while (!list_empty(&dtor_entry->he_key_list)) {
 		entry = list_entry(dtor_entry->he_key_list.next,
-				   tsd_hash_entry_t, he_key_list);
+		    tsd_hash_entry_t, he_key_list);
 		ASSERT3U(dtor_entry->he_key, ==, entry->he_key);
 		ASSERT3P(dtor_entry->he_dtor, ==, entry->he_dtor);
 
 		hash = hash_long((ulong_t)entry->he_key *
-		     (ulong_t)entry->he_pid, table->ht_bits);
+		    (ulong_t)entry->he_pid, table->ht_bits);
 		entry_bin = &table->ht_bins[hash];
 
 		spin_lock(&entry_bin->hb_lock);
@@ -646,9 +647,9 @@ tsd_exit(void)
 	 * linked in to a private working list to be destroyed.
 	 */
 
-        while (!list_empty(&pid_entry->he_pid_list)) {
+	while (!list_empty(&pid_entry->he_pid_list)) {
 		entry = list_entry(pid_entry->he_pid_list.next,
-				   tsd_hash_entry_t, he_pid_list);
+		    tsd_hash_entry_t, he_pid_list);
 		ASSERT3U(pid_entry->he_pid, ==, entry->he_pid);
 
 		hash = hash_long((ulong_t)entry->he_key *
