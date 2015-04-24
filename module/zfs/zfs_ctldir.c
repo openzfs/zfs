@@ -88,6 +88,22 @@
 #include "zfs_namecheck.h"
 
 /*
+ * Two AVL trees are maintained which contain all currently automounted
+ * snapshots.  Every automounted snapshots maps to a single zfs_snapentry_t
+ * entry which MUST:
+ *
+ *   - be attached to both trees, and
+ *   - be unique, no duplicate entries are allowed.
+ *
+ * The zfs_snapshots_by_name tree is indexed by the full dataset name
+ * while the zfs_snapshots_by_objsetid tree is indexed by the unique
+ * objsetid.  This allows for fast lookups either by name or objsetid.
+ */
+static avl_tree_t zfs_snapshots_by_name;
+static avl_tree_t zfs_snapshots_by_objsetid;
+static kmutex_t zfs_snapshot_lock;
+
+/*
  * Control Directory Tunables (.zfs)
  */
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
@@ -97,45 +113,116 @@ int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
  */
 static taskq_t *zfs_expire_taskq;
 
-static zfs_snapentry_t *
-zfsctl_sep_alloc(void)
-{
-	return (kmem_zalloc(sizeof (zfs_snapentry_t), KM_SLEEP));
-}
+typedef struct {
+	char		*se_name;	/* full snapshot name */
+	char		*se_path;	/* full mount path */
+	uint64_t	se_objsetid;	/* snapshot objset id */
+	struct dentry   *se_root_dentry; /* snapshot root dentry */
+	taskqid_t	se_taskqid;	/* scheduled unmount taskqid */
+	avl_node_t	se_node_name;	/* zfs_snapshots_by_name link */
+	avl_node_t	se_node_objsetid; /* zfs_snapshots_by_objsetid link */
+	refcount_t	se_refcount;	/* reference count */
+} zfs_snapentry_t;
 
-void
-zfsctl_sep_free(zfs_snapentry_t *sep)
+static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
+
+/*
+ * Allocate a new zfs_snapentry_t being careful to make a copy of the
+ * the snapshot name and provided mount point.  No reference is taken.
+ */
+static zfs_snapentry_t *
+zfsctl_snapshot_alloc(char *full_name, char *full_path, uint64_t objsetid,
+    struct dentry *root_dentry)
 {
-	kmem_free(sep->se_name, MAXNAMELEN);
-	kmem_free(sep->se_path, PATH_MAX);
-	kmem_free(sep, sizeof (zfs_snapentry_t));
+	zfs_snapentry_t *se;
+
+	se = kmem_zalloc(sizeof (zfs_snapentry_t), KM_SLEEP);
+
+	se->se_name = strdup(full_name);
+	se->se_path = strdup(full_path);
+	se->se_objsetid = objsetid;
+	se->se_root_dentry = root_dentry;
+	se->se_taskqid = -1;
+
+	refcount_create(&se->se_refcount);
+
+	return (se);
 }
 
 /*
- * Attempt to expire an automounted snapshot, unmounts are attempted every
- * 'zfs_expire_snapshot' seconds until they succeed.  The work request is
- * responsible for rescheduling itself and freeing the zfs_expire_snapshot_t.
+ * Free a zfs_snapentry_t the called must ensure there are no active
+ * references.
  */
 static void
-zfsctl_expire_snapshot(void *data)
+zfsctl_snapshot_free(zfs_snapentry_t *se)
 {
-	zfs_snapentry_t *sep = (zfs_snapentry_t *)data;
-	zfs_sb_t *zsb = ITOZSB(sep->se_inode);
-	int error;
+	refcount_destroy(&se->se_refcount);
+	strfree(se->se_name);
+	strfree(se->se_path);
 
-	error = zfsctl_unmount_snapshot(zsb, sep->se_name, MNT_EXPIRE);
-	if (error == EBUSY)
-		sep->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
-		    zfsctl_expire_snapshot, sep, TQ_SLEEP,
-		    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
+	kmem_free(se, sizeof (zfs_snapentry_t));
 }
 
-int
-snapentry_compare(const void *a, const void *b)
+/*
+ * Hold a reference on the zfs_snapentry_t.
+ */
+static void
+zfsctl_snapshot_hold(zfs_snapentry_t *se)
 {
-	const zfs_snapentry_t *sa = a;
-	const zfs_snapentry_t *sb = b;
-	int ret = strcmp(sa->se_name, sb->se_name);
+	refcount_add(&se->se_refcount, NULL);
+}
+
+/*
+ * Release a reference on the zfs_snapentry_t.  When the number of
+ * references drops to zero the structure will be freed.
+ */
+static void
+zfsctl_snapshot_rele(zfs_snapentry_t *se)
+{
+	if (refcount_remove(&se->se_refcount, NULL) == 0)
+		zfsctl_snapshot_free(se);
+}
+
+/*
+ * Add a zfs_snapentry_t to both the zfs_snapshots_by_name and
+ * zfs_snapshots_by_objsetid trees.  While the zfs_snapentry_t is part
+ * of the trees a reference is held.
+ */
+static void
+zfsctl_snapshot_add(zfs_snapentry_t *se)
+{
+	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	refcount_add(&se->se_refcount, NULL);
+	avl_add(&zfs_snapshots_by_name, se);
+	avl_add(&zfs_snapshots_by_objsetid, se);
+}
+
+/*
+ * Remove a zfs_snapentry_t from both the zfs_snapshots_by_name and
+ * zfs_snapshots_by_objsetid trees.  Upon removal a reference is dropped,
+ * this can result in the structure being freed if that was the last
+ * remaining reference.
+ */
+static void
+zfsctl_snapshot_remove(zfs_snapentry_t *se)
+{
+	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	avl_remove(&zfs_snapshots_by_name, se);
+	avl_remove(&zfs_snapshots_by_objsetid, se);
+	zfsctl_snapshot_rele(se);
+}
+
+/*
+ * Snapshot name comparison function for the zfs_snapshots_by_name.
+ */
+static int
+snapentry_compare_by_name(const void *a, const void *b)
+{
+	const zfs_snapentry_t *se_a = a;
+	const zfs_snapentry_t *se_b = b;
+	int ret;
+
+	ret = strcmp(se_a->se_name, se_b->se_name);
 
 	if (ret < 0)
 		return (-1);
@@ -145,12 +232,199 @@ snapentry_compare(const void *a, const void *b)
 		return (0);
 }
 
+/*
+ * Snapshot name comparison function for the zfs_snapshots_by_objsetid.
+ */
+static int
+snapentry_compare_by_objsetid(const void *a, const void *b)
+{
+	const zfs_snapentry_t *se_a = a;
+	const zfs_snapentry_t *se_b = b;
+
+	if (se_a->se_objsetid < se_b->se_objsetid)
+		return (-1);
+	else if (se_a->se_objsetid > se_b->se_objsetid)
+		return (1);
+	else
+		return (0);
+}
+
+/*
+ * Find a zfs_snapentry_t in zfs_snapshots_by_name.  If the snapname
+ * is found a pointer to the zfs_snapentry_t is returned and a reference
+ * taken on the structure.  The caller is responsible for dropping the
+ * reference with zfsctl_snapshot_rele().  If the snapname is not found
+ * NULL will be returned.
+ */
+static zfs_snapentry_t *
+zfsctl_snapshot_find_by_name(char *snapname)
+{
+	zfs_snapentry_t *se, search;
+
+	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+
+	search.se_name = snapname;
+	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
+	if (se)
+		refcount_add(&se->se_refcount, NULL);
+
+	return (se);
+}
+
+/*
+ * Find a zfs_snapentry_t in zfs_snapshots_by_objsetid given the objset id
+ * rather than the snapname.  In all other respects it behaves the same
+ * as zfsctl_snapshot_find_by_name().
+ */
+static zfs_snapentry_t *
+zfsctl_snapshot_find_by_objsetid(uint64_t objsetid)
+{
+	zfs_snapentry_t *se, search;
+
+	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+
+	search.se_objsetid = objsetid;
+	se = avl_find(&zfs_snapshots_by_objsetid, &search, NULL);
+	if (se)
+		refcount_add(&se->se_refcount, NULL);
+
+	return (se);
+}
+
+/*
+ * Rename a zfs_snapentry_t in the zfs_snapshots_by_name.  The structure is
+ * removed, renamed, and added back to the new correct location in the tree.
+ */
+static int
+zfsctl_snapshot_rename(char *old_snapname, char *new_snapname)
+{
+	zfs_snapentry_t *se;
+
+	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+
+	se = zfsctl_snapshot_find_by_name(old_snapname);
+	if (se == NULL)
+		return (ENOENT);
+
+	zfsctl_snapshot_remove(se);
+	strfree(se->se_name);
+	se->se_name = strdup(new_snapname);
+	zfsctl_snapshot_add(se);
+	zfsctl_snapshot_rele(se);
+
+	return (0);
+}
+
+/*
+ * Delayed task responsible for unmounting an expired automounted snapshot.
+ */
+static void
+snapentry_expire(void *data)
+{
+	zfs_snapentry_t *se = (zfs_snapentry_t *)data;
+	uint64_t objsetid = se->se_objsetid;
+
+	se->se_taskqid = -1;
+	(void) zfsctl_snapshot_unmount(se->se_name, MNT_EXPIRE);
+	zfsctl_snapshot_rele(se);
+
+	/*
+	 * Reschedule the unmount if the zfs_snapentry_t wasn't removed.
+	 * This can occur when the snapshot is busy.
+	 */
+	mutex_enter(&zfs_snapshot_lock);
+	if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+		zfsctl_snapshot_rele(se);
+	}
+	mutex_exit(&zfs_snapshot_lock);
+}
+
+/*
+ * Cancel an automatic unmount of a snapname.  This callback is responsible
+ * for dropping the reference on the zfs_snapentry_t which was taken when
+ * during dispatch.
+ */
+static void
+zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
+{
+	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+
+	if (taskq_cancel_id(zfs_expire_taskq, se->se_taskqid) == 0) {
+		se->se_taskqid = -1;
+		zfsctl_snapshot_rele(se);
+	}
+}
+
+/*
+ * Dispatch the unmount task for delayed handling with a hold protecting it.
+ */
+static void
+zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
+{
+	ASSERT3S(se->se_taskqid, ==, -1);
+
+	se->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
+	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
+	zfsctl_snapshot_hold(se);
+}
+
+/*
+ * Schedule an automatic unmount of objset id to occur in delay seconds from
+ * now.  Any previous delayed unmount will be cancelled in favor of the
+ * updated deadline.  A reference is taken by zfsctl_snapshot_find_by_name()
+ * and held until the outstanding task is handled or cancelled.
+ */
+int
+zfsctl_snapshot_unmount_delay(uint64_t objsetid, int delay)
+{
+	zfs_snapentry_t *se;
+	int error = ENOENT;
+
+	mutex_enter(&zfs_snapshot_lock);
+	if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+		zfsctl_snapshot_unmount_cancel(se);
+		zfsctl_snapshot_unmount_delay_impl(se, delay);
+		zfsctl_snapshot_rele(se);
+		error = 0;
+	}
+	mutex_exit(&zfs_snapshot_lock);
+
+	return (error);
+}
+
+/*
+ * Check if snapname is currently mounted.  Returned non-zero when mounted
+ * and zero when unmounted.
+ */
+static boolean_t
+zfsctl_snapshot_ismounted(char *snapname)
+{
+	zfs_snapentry_t *se;
+	boolean_t ismounted = B_FALSE;
+
+	mutex_enter(&zfs_snapshot_lock);
+	if ((se = zfsctl_snapshot_find_by_name(snapname)) != NULL) {
+		zfsctl_snapshot_rele(se);
+		ismounted = B_TRUE;
+	}
+	mutex_exit(&zfs_snapshot_lock);
+
+	return (ismounted);
+}
+
+/*
+ * Check if the given inode is a part of the virtual .zfs directory.
+ */
 boolean_t
 zfsctl_is_node(struct inode *ip)
 {
 	return (ITOZ(ip)->z_is_ctldir);
 }
 
+/*
+ * Check if the given inode is a .zfs/snapshots/snapname directory.
+ */
 boolean_t
 zfsctl_is_snapdir(struct inode *ip)
 {
@@ -250,24 +524,6 @@ zfsctl_inode_lookup(zfs_sb_t *zsb, uint64_t id,
 }
 
 /*
- * Free zfsctl inode specific structures, currently there are none.
- */
-void
-zfsctl_inode_destroy(struct inode *ip)
-{
-}
-
-/*
- * An inode is being evicted from the cache.
- */
-void
-zfsctl_inode_inactive(struct inode *ip)
-{
-	if (zfsctl_is_snapdir(ip))
-		zfsctl_snapdir_inactive(ip);
-}
-
-/*
  * Create the '.zfs' directory.  This directory is cached as part of the VFS
  * structure.  This results in a hold on the zfs_sb_t.  The code in zfs_umount()
  * therefore checks against a vfs_count of 2 instead of 1.  This reference
@@ -295,13 +551,27 @@ zfsctl_create(zfs_sb_t *zsb)
 }
 
 /*
- * Destroy the '.zfs' directory.  Only called when the filesystem is unmounted.
+ * Destroy the '.zfs' directory or remove a snapshot from zfs_snapshots_by_name.
+ * Only called when the filesystem is unmounted.
  */
 void
 zfsctl_destroy(zfs_sb_t *zsb)
 {
-	iput(zsb->z_ctldir);
-	zsb->z_ctldir = NULL;
+	if (zsb->z_issnap) {
+		zfs_snapentry_t *se;
+		uint64_t objsetid = dmu_objset_id(zsb->z_os);
+
+		mutex_enter(&zfs_snapshot_lock);
+		if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+			zfsctl_snapshot_unmount_cancel(se);
+			zfsctl_snapshot_remove(se);
+			zfsctl_snapshot_rele(se);
+		}
+		mutex_exit(&zfs_snapshot_lock);
+	} else if (zsb->z_ctldir) {
+		iput(zsb->z_ctldir);
+		zsb->z_ctldir = NULL;
+	}
 }
 
 /*
@@ -316,7 +586,6 @@ zfsctl_root(znode_t *zp)
 	return (ZTOZSB(zp)->z_ctldir);
 }
 
-/*ARGSUSED*/
 int
 zfsctl_fid(struct inode *ip, fid_t *fidp)
 {
@@ -349,31 +618,33 @@ zfsctl_fid(struct inode *ip, fid_t *fidp)
 	return (0);
 }
 
+/*
+ * Construct a full dataset name in full_name: "pool/dataset@snap_name"
+ */
 static int
-zfsctl_snapshot_zname(struct inode *ip, const char *name, int len, char *zname)
+zfsctl_snapshot_name(zfs_sb_t *zsb, const char *snap_name, int len,
+    char *full_name)
 {
-	objset_t *os = ITOZSB(ip)->z_os;
+	objset_t *os = zsb->z_os;
 
-	if (zfs_component_namecheck(name, NULL, NULL) != 0)
+	if (zfs_component_namecheck(snap_name, NULL, NULL) != 0)
 		return (SET_ERROR(EILSEQ));
 
-	dmu_objset_name(os, zname);
-	if ((strlen(zname) + 1 + strlen(name)) >= len)
+	dmu_objset_name(os, full_name);
+	if ((strlen(full_name) + 1 + strlen(snap_name)) >= len)
 		return (SET_ERROR(ENAMETOOLONG));
 
-	(void) strcat(zname, "@");
-	(void) strcat(zname, name);
+	(void) strcat(full_name, "@");
+	(void) strcat(full_name, snap_name);
 
 	return (0);
 }
 
 /*
- * Gets the full dataset name that corresponds to the given snapshot name
- * Example:
- * 	zfsctl_snapshot_zname("snap1") -> "mypool/myfs@snap1"
+ * Returns full path in full_path: "/pool/dataset/.zfs/snapshot/snap_name/"
  */
 static int
-zfsctl_snapshot_zpath(struct path *path, int len, char *zpath)
+zfsctl_snapshot_path(struct path *path, int len, char *full_path)
 {
 	char *path_buffer, *path_ptr;
 	int path_len, error = 0;
@@ -392,8 +663,8 @@ zfsctl_snapshot_zpath(struct path *path, int len, char *zpath)
 		goto out;
 	}
 
-	memcpy(zpath, path_ptr, path_len);
-	zpath[path_len] = '\0';
+	memcpy(full_path, path_ptr, path_len);
+	full_path[path_len] = '\0';
 out:
 	kmem_free(path_buffer, len);
 
@@ -403,7 +674,6 @@ out:
 /*
  * Special case the handling of "..".
  */
-/* ARGSUSED */
 int
 zfsctl_root_lookup(struct inode *dip, char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
@@ -438,7 +708,6 @@ zfsctl_root_lookup(struct inode *dip, char *name, struct inode **ipp,
  * snapshot if it exist, creating the pseudo filesystem inode as necessary.
  * Perform a mount of the associated dataset on top of the inode.
  */
-/* ARGSUSED */
 int
 zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
@@ -457,34 +726,12 @@ zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
 
 	*ipp = zfsctl_inode_lookup(zsb, ZFSCTL_INO_SNAPDIRS - id,
 	    &simple_dir_operations, &simple_dir_inode_operations);
-	if (*ipp) {
-#ifdef HAVE_AUTOMOUNT
-		(*ipp)->i_flags |= S_AUTOMOUNT;
-#endif /* HAVE_AUTOMOUNT */
-	} else {
+	if (*ipp == NULL)
 		error = SET_ERROR(ENOENT);
-	}
 
 	ZFS_EXIT(zsb);
 
 	return (error);
-}
-
-static void
-zfsctl_rename_snap(zfs_sb_t *zsb, zfs_snapentry_t *sep, const char *name)
-{
-	avl_index_t where;
-
-	ASSERT(MUTEX_HELD(&zsb->z_ctldir_lock));
-	ASSERT(sep != NULL);
-
-	/*
-	 * Change the name in the AVL tree.
-	 */
-	avl_remove(&zsb->z_ctldir_snaps, sep);
-	(void) strcpy(sep->se_name, name);
-	VERIFY(avl_find(&zsb->z_ctldir_snaps, sep, &where) == NULL);
-	avl_insert(&zsb->z_ctldir_snaps, sep, where);
 }
 
 /*
@@ -492,14 +739,11 @@ zfsctl_rename_snap(zfs_sb_t *zsb, zfs_snapentry_t *sep, const char *name)
  * a rename of the snapshot to the new given name.  The rename is confined
  * to the '.zfs/snapshot' directory snapshots cannot be moved elsewhere.
  */
-/*ARGSUSED*/
 int
 zfsctl_snapdir_rename(struct inode *sdip, char *snm,
     struct inode *tdip, char *tnm, cred_t *cr, int flags)
 {
 	zfs_sb_t *zsb = ITOZSB(sdip);
-	zfs_snapentry_t search, *sep;
-	avl_index_t where;
 	char *to, *from, *real, *fsname;
 	int error;
 
@@ -522,9 +766,9 @@ zfsctl_snapdir_rename(struct inode *sdip, char *snm,
 
 	dmu_objset_name(zsb->z_os, fsname);
 
-	error = zfsctl_snapshot_zname(sdip, snm, MAXNAMELEN, from);
+	error = zfsctl_snapshot_name(ITOZSB(sdip), snm, MAXNAMELEN, from);
 	if (error == 0)
-		error = zfsctl_snapshot_zname(tdip, tnm, MAXNAMELEN, to);
+		error = zfsctl_snapshot_name(ITOZSB(tdip), tnm, MAXNAMELEN, to);
 	if (error == 0)
 		error = zfs_secpolicy_rename_perms(from, to, cr);
 	if (error != 0)
@@ -546,19 +790,13 @@ zfsctl_snapdir_rename(struct inode *sdip, char *snm,
 		goto out;
 	}
 
-	mutex_enter(&zsb->z_ctldir_lock);
+	mutex_enter(&zfs_snapshot_lock);
 
 	error = dsl_dataset_rename_snapshot(fsname, snm, tnm, B_FALSE);
-	if (error)
-		goto out_unlock;
+	if (error == 0)
+		(void) zfsctl_snapshot_rename(snm, tnm);
 
-	search.se_name = (char *)snm;
-	sep = avl_find(&zsb->z_ctldir_snaps, &search, &where);
-	if (sep)
-		zfsctl_rename_snap(zsb, sep, tnm);
-
-out_unlock:
-	mutex_exit(&zsb->z_ctldir_lock);
+	mutex_exit(&zfs_snapshot_lock);
 out:
 	kmem_free(from, MAXNAMELEN);
 	kmem_free(to, MAXNAMELEN);
@@ -574,7 +812,6 @@ out:
  * Removing a directory under '.zfs/snapshot' will automatically trigger
  * the removal of the snapshot with the given name.
  */
-/* ARGSUSED */
 int
 zfsctl_snapdir_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 {
@@ -597,13 +834,13 @@ zfsctl_snapdir_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 		}
 	}
 
-	error = zfsctl_snapshot_zname(dip, name, MAXNAMELEN, snapname);
+	error = zfsctl_snapshot_name(ITOZSB(dip), name, MAXNAMELEN, snapname);
 	if (error == 0)
 		error = zfs_secpolicy_destroy_perms(snapname, cr);
 	if (error != 0)
 		goto out;
 
-	error = zfsctl_unmount_snapshot(zsb, name, MNT_FORCE);
+	error = zfsctl_snapshot_unmount(snapname, MNT_FORCE);
 	if ((error == 0) || (error == ENOENT))
 		error = dsl_destroy_snapshot(snapname, B_FALSE);
 out:
@@ -619,7 +856,6 @@ out:
  * Creating a directory under '.zfs/snapshot' will automatically trigger
  * the creation of a new snapshot with the given name.
  */
-/* ARGSUSED */
 int
 zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
 	struct inode **ipp, cred_t *cr, int flags)
@@ -656,36 +892,6 @@ out:
 }
 
 /*
- * When a .zfs/snapshot/<snapshot> inode is evicted they must be removed
- * from the snapshot list.  This will normally happen as part of the auto
- * unmount, however in the case of a manual snapshot unmount this will be
- * the only notification we receive.
- */
-void
-zfsctl_snapdir_inactive(struct inode *ip)
-{
-	zfs_sb_t *zsb = ITOZSB(ip);
-	zfs_snapentry_t *sep, *next;
-
-	mutex_enter(&zsb->z_ctldir_lock);
-
-	sep = avl_first(&zsb->z_ctldir_snaps);
-	while (sep != NULL) {
-		next = AVL_NEXT(&zsb->z_ctldir_snaps, sep);
-
-		if (sep->se_inode == ip) {
-			avl_remove(&zsb->z_ctldir_snaps, sep);
-			taskq_cancel_id(zfs_expire_taskq, sep->se_taskqid);
-			zfsctl_sep_free(sep);
-			break;
-		}
-		sep = next;
-	}
-
-	mutex_exit(&zsb->z_ctldir_lock);
-}
-
-/*
  * Attempt to unmount a snapshot by making a call to user space.
  * There is no assurance that this can or will succeed, is just a
  * best effort.  In the case where it does fail, perhaps because
@@ -697,17 +903,28 @@ zfsctl_snapdir_inactive(struct inode *ip)
 	"     2>/dev/null; " \
 	"umount -t zfs -n %s'%s'"
 
-static int
-__zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
+int
+zfsctl_snapshot_unmount(char *snapname, int flags)
 {
 	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
 	char *envp[] = { NULL };
+	zfs_snapentry_t *se;
 	int error;
 
+	mutex_enter(&zfs_snapshot_lock);
+	if ((se = zfsctl_snapshot_find_by_name(snapname)) == NULL) {
+		mutex_exit(&zfs_snapshot_lock);
+		return (ENOENT);
+	}
+	mutex_exit(&zfs_snapshot_lock);
+
 	argv[2] = kmem_asprintf(SET_UNMOUNT_CMD,
-	    flags & MNT_FORCE ? "-f " : "", sep->se_path);
+	    flags & MNT_FORCE ? "-f " : "", se->se_path);
+	zfsctl_snapshot_rele(se);
+	dprintf("unmount; path=%s\n", se->se_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
+
 
 	/*
 	 * The umount system utility will return 256 on error.  We must
@@ -717,91 +934,10 @@ __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
 	if (error)
 		error = SET_ERROR(EBUSY);
 
-	/*
-	 * This was the result of a manual unmount, cancel the delayed work
-	 * to prevent zfsctl_expire_snapshot() from attempting a unmount.
-	 */
-	if ((error == 0) && !(flags & MNT_EXPIRE))
-		taskq_cancel_id(zfs_expire_taskq, sep->se_taskqid);
-
-
 	return (error);
-}
-
-int
-zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
-{
-	zfs_snapentry_t search;
-	zfs_snapentry_t *sep;
-	int error = 0;
-
-	mutex_enter(&zsb->z_ctldir_lock);
-
-	search.se_name = name;
-	sep = avl_find(&zsb->z_ctldir_snaps, &search, NULL);
-	if (sep) {
-		avl_remove(&zsb->z_ctldir_snaps, sep);
-		mutex_exit(&zsb->z_ctldir_lock);
-
-		error = __zfsctl_unmount_snapshot(sep, flags);
-
-		mutex_enter(&zsb->z_ctldir_lock);
-		if (error == EBUSY)
-			avl_add(&zsb->z_ctldir_snaps, sep);
-		else
-			zfsctl_sep_free(sep);
-	} else {
-		error = SET_ERROR(ENOENT);
-	}
-
-	mutex_exit(&zsb->z_ctldir_lock);
-	ASSERT3S(error, >=, 0);
-
-	return (error);
-}
-
-/*
- * Traverse all mounted snapshots and attempt to unmount them.  This
- * is best effort, on failure EEXIST is returned and count will be set
- * to the number of file snapshots which could not be unmounted.
- */
-int
-zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
-{
-	zfs_snapentry_t *sep, *next;
-	int error = 0;
-
-	*count = 0;
-
-	ASSERT(zsb->z_ctldir != NULL);
-	mutex_enter(&zsb->z_ctldir_lock);
-
-	sep = avl_first(&zsb->z_ctldir_snaps);
-	while (sep != NULL) {
-		next = AVL_NEXT(&zsb->z_ctldir_snaps, sep);
-		avl_remove(&zsb->z_ctldir_snaps, sep);
-		mutex_exit(&zsb->z_ctldir_lock);
-
-		error = __zfsctl_unmount_snapshot(sep, flags);
-
-		mutex_enter(&zsb->z_ctldir_lock);
-		if (error == EBUSY) {
-			avl_add(&zsb->z_ctldir_snaps, sep);
-			(*count)++;
-		} else {
-			zfsctl_sep_free(sep);
-		}
-
-		sep = next;
-	}
-
-	mutex_exit(&zsb->z_ctldir_lock);
-
-	return ((*count > 0) ? EEXIST : 0);
 }
 
 #define	MOUNT_BUSY 0x80		/* Mount failed due to EBUSY (from mntent.h) */
-
 #define	SET_MOUNT_CMD \
 	"exec 0</dev/null " \
 	"     1>/dev/null " \
@@ -809,30 +945,44 @@ zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 	"mount -t zfs -n '%s' '%s'"
 
 int
-zfsctl_mount_snapshot(struct path *path, int flags)
+zfsctl_snapshot_mount(struct path *path, int flags)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
-	zfs_sb_t *zsb = ITOZSB(ip);
+	zfs_sb_t *zsb;
+	zfs_sb_t *snap_zsb;
+	zfs_snapentry_t *se;
 	char *full_name, *full_path;
-	zfs_snapentry_t *sep;
-	zfs_snapentry_t search;
 	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
 
+	if (ip == NULL)
+		return (EISDIR);
+
+	zsb = ITOZSB(ip);
 	ZFS_ENTER(zsb);
 
 	full_name = kmem_zalloc(MAXNAMELEN, KM_SLEEP);
-	full_path = kmem_zalloc(PATH_MAX, KM_SLEEP);
+	full_path = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
-	error = zfsctl_snapshot_zname(ip, dname(dentry), MAXNAMELEN, full_name);
+	error = zfsctl_snapshot_name(zsb, dname(dentry),
+	    MAXNAMELEN, full_name);
 	if (error)
 		goto error;
 
-	error = zfsctl_snapshot_zpath(path, PATH_MAX, full_path);
+	error = zfsctl_snapshot_path(path, MAXPATHLEN, full_path);
 	if (error)
 		goto error;
+
+	/*
+	 * Multiple concurrent automounts of a snapshot are never allowed.
+	 * The snapshot may be manually mounted as many times as desired.
+	 */
+	if (zfsctl_snapshot_ismounted(full_name)) {
+		error = SET_ERROR(EISDIR);
+		goto error;
+	}
 
 	/*
 	 * Attempt to mount the snapshot from user space.  Normally this
@@ -846,48 +996,37 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	 * Take note that if the program was executed successfully the return
 	 * value from call_usermodehelper() will be (exitcode << 8 + signal).
 	 */
+	dprintf("mount; name=%s path=%s\n", full_name, full_path);
 	argv[2] = kmem_asprintf(SET_MOUNT_CMD, full_name, full_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
 	if (error && !(error & MOUNT_BUSY << 8)) {
-		printk("ZFS: Unable to automount %s at %s: %d\n",
-		    full_name, full_path, error);
+		cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
+		    full_path, full_name, error);
 		error = SET_ERROR(EISDIR);
 		goto error;
 	}
 
-	error = 0;
-	mutex_enter(&zsb->z_ctldir_lock);
-
 	/*
-	 * Ensure a previous entry does not exist, if it does safely remove
-	 * it any cancel the outstanding expiration.  This can occur when a
-	 * snapshot is manually unmounted and then an automount is triggered.
+	 * Follow down in to the mounted snapshot and set MNT_SHRINKABLE
+	 * to identify this as an automounted filesystem.
 	 */
-	search.se_name = full_name;
-	sep = avl_find(&zsb->z_ctldir_snaps, &search, NULL);
-	if (sep) {
-		avl_remove(&zsb->z_ctldir_snaps, sep);
-		taskq_cancel_id(zfs_expire_taskq, sep->se_taskqid);
-		zfsctl_sep_free(sep);
-	}
+	zpl_follow_down_one(path);
+	snap_zsb = ITOZSB(path->dentry->d_inode);
+	dentry = path->dentry;
+	path->mnt->mnt_flags |= MNT_SHRINKABLE;
+	zpl_follow_up(path);
+	error = 0;
 
-	sep = zfsctl_sep_alloc();
-	sep->se_name = full_name;
-	sep->se_path = full_path;
-	sep->se_inode = ip;
-	avl_add(&zsb->z_ctldir_snaps, sep);
-
-	sep->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
-	    zfsctl_expire_snapshot, sep, TQ_SLEEP,
-	    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
-
-	mutex_exit(&zsb->z_ctldir_lock);
+	mutex_enter(&zfs_snapshot_lock);
+	se = zfsctl_snapshot_alloc(full_name, full_path,
+	    dmu_objset_id(snap_zsb->z_os), dentry);
+	zfsctl_snapshot_add(se);
+	zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+	mutex_exit(&zfs_snapshot_lock);
 error:
-	if (error) {
-		kmem_free(full_name, MAXNAMELEN);
-		kmem_free(full_path, PATH_MAX);
-	}
+	kmem_free(full_name, MAXNAMELEN);
+	kmem_free(full_path, MAXPATHLEN);
 
 	ZFS_EXIT(zsb);
 
@@ -895,82 +1034,35 @@ error:
 }
 
 /*
- * Check if this super block has a matching objset id.
+ * Given the objset id of the snapshot return its zfs_sb_t as zsbp.
  */
-static int
-zfsctl_test_super(struct super_block *sb, void *objsetidp)
-{
-	zfs_sb_t *zsb = sb->s_fs_info;
-	uint64_t objsetid = *(uint64_t *)objsetidp;
-
-	return (dmu_objset_id(zsb->z_os) == objsetid);
-}
-
-/*
- * Prevent a new super block from being allocated if an existing one
- * could not be located.  We only want to preform a lookup operation.
- */
-static int
-zfsctl_set_super(struct super_block *sb, void *objsetidp)
-{
-	return (-EEXIST);
-}
-
 int
 zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 {
-	zfs_sb_t *zsb = sb->s_fs_info;
-	struct super_block *sbp;
-	zfs_snapentry_t *sep;
-	uint64_t id;
+	zfs_snapentry_t *se;
 	int error;
 
-	ASSERT(zsb->z_ctldir != NULL);
-
-	mutex_enter(&zsb->z_ctldir_lock);
-
 	/*
-	 * Verify that the snapshot is mounted.
+	 * Verify that the snapshot is mounted then lookup the mounted root
+	 * rather than the covered mount point.  This may fail if the
+	 * snapshot has just been unmounted by an unrelated user space
+	 * process.  This race cannot occur to an expired mount point
+	 * because we hold the zfs_snapshot_lock to prevent the race.
 	 */
-	sep = avl_first(&zsb->z_ctldir_snaps);
-	while (sep != NULL) {
-		error = dmu_snapshot_lookup(zsb->z_os, sep->se_name, &id);
-		if (error)
-			goto out;
-
-		if (id == objsetid)
-			break;
-
-		sep = AVL_NEXT(&zsb->z_ctldir_snaps, sep);
-	}
-
-	if (sep != NULL) {
-		/*
-		 * Lookup the mounted root rather than the covered mount
-		 * point.  This may fail if the snapshot has just been
-		 * unmounted by an unrelated user space process.  This
-		 * race cannot occur to an expired mount point because
-		 * we hold the zsb->z_ctldir_lock to prevent the race.
-		 */
-		sbp = zpl_sget(&zpl_fs_type, zfsctl_test_super,
-		    zfsctl_set_super, 0, &id);
-		if (IS_ERR(sbp)) {
-			error = -PTR_ERR(sbp);
-		} else {
-			*zsbp = sbp->s_fs_info;
-			deactivate_super(sbp);
-		}
+	mutex_enter(&zfs_snapshot_lock);
+	if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+		*zsbp = ITOZSB(se->se_root_dentry->d_inode);
+		ASSERT3U(dmu_objset_id((*zsbp)->z_os), ==, objsetid);
+		zfsctl_snapshot_rele(se);
+		error = SET_ERROR(0);
 	} else {
-		error = SET_ERROR(EINVAL);
+		error = SET_ERROR(ENOENT);
 	}
-out:
-	mutex_exit(&zsb->z_ctldir_lock);
-	ASSERT3S(error, >=, 0);
+	mutex_exit(&zfs_snapshot_lock);
 
 	return (error);
 }
 
-/* ARGSUSED */
 int
 zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
@@ -1009,6 +1101,14 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 void
 zfsctl_init(void)
 {
+	avl_create(&zfs_snapshots_by_name, snapentry_compare_by_name,
+	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t,
+	    se_node_name));
+	avl_create(&zfs_snapshots_by_objsetid, snapentry_compare_by_objsetid,
+	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t,
+	    se_node_objsetid));
+	mutex_init(&zfs_snapshot_lock, NULL, MUTEX_DEFAULT, NULL);
+
 	zfs_expire_taskq = taskq_create("z_unmount", 1, defclsyspri,
 	    1, 8, TASKQ_PREPOPULATE);
 }
@@ -1021,6 +1121,10 @@ void
 zfsctl_fini(void)
 {
 	taskq_destroy(zfs_expire_taskq);
+
+	avl_destroy(&zfs_snapshots_by_name);
+	avl_destroy(&zfs_snapshots_by_objsetid);
+	mutex_destroy(&zfs_snapshot_lock);
 }
 
 module_param(zfs_expire_snapshot, int, 0644);

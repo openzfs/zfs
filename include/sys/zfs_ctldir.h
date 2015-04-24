@@ -32,6 +32,7 @@
 #define	_ZFS_CTLDIR_H
 
 #include <sys/vnode.h>
+#include <sys/pathname.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 
@@ -46,23 +47,16 @@
 	(zfs_has_ctldir(zdp) && \
 	(ZTOZSB(zdp)->z_show_ctldir))
 
-typedef struct {
-	char			*se_name;
-	char			*se_path;
-	struct inode		*se_inode;
-	taskqid_t		se_taskqid;
-	avl_node_t		se_node;
-} zfs_snapentry_t;
+extern int zfs_expire_snapshot;
 
 /* zfsctl generic functions */
-extern int snapentry_compare(const void *a, const void *b);
-extern boolean_t zfsctl_is_node(struct inode *ip);
-extern boolean_t zfsctl_is_snapdir(struct inode *ip);
-extern void zfsctl_inode_inactive(struct inode *ip);
-extern void zfsctl_inode_destroy(struct inode *ip);
 extern int zfsctl_create(zfs_sb_t *zsb);
 extern void zfsctl_destroy(zfs_sb_t *zsb);
 extern struct inode *zfsctl_root(znode_t *zp);
+extern void zfsctl_init(void);
+extern void zfsctl_fini(void);
+extern boolean_t zfsctl_is_node(struct inode *ip);
+extern boolean_t zfsctl_is_snapdir(struct inode *ip);
 extern int zfsctl_fid(struct inode *ip, fid_t *fidp);
 
 /* zfsctl '.zfs' functions */
@@ -81,9 +75,9 @@ extern int zfsctl_snapdir_remove(struct inode *dip, char *name, cred_t *cr,
 extern int zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
     struct inode **ipp, cred_t *cr, int flags);
 extern void zfsctl_snapdir_inactive(struct inode *ip);
-extern int zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags);
-extern int zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count);
-extern int zfsctl_mount_snapshot(struct path *path, int flags);
+extern int zfsctl_snapshot_mount(struct path *path, int flags);
+extern int zfsctl_snapshot_unmount(char *snapname, int flags);
+extern int zfsctl_snapshot_unmount_delay(uint64_t objsetid, int delay);
 extern int zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid,
     zfs_sb_t **zsb);
 
@@ -91,10 +85,6 @@ extern int zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid,
 extern int zfsctl_shares_lookup(struct inode *dip, char *name,
     struct inode **ipp, int flags, cred_t *cr, int *direntflags,
     pathname_t *realpnp);
-
-/* zfsctl_init/fini functions */
-extern void zfsctl_init(void);
-extern void zfsctl_fini(void);
 
 /*
  * These inodes numbers are reserved for the .zfs control directory.
