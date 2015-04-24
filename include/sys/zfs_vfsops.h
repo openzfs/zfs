@@ -72,11 +72,10 @@ typedef struct zfs_sb {
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
+	unsigned long	z_snap_defer_time; /* last snapshot unmount deferal */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	arc_prune_t	*z_arc_prune;	/* called by ARC to prune caches */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
-	avl_tree_t	z_ctldir_snaps;	/* .zfs/snapshot entries */
-	kmutex_t	z_ctldir_lock;	/* .zfs ctldir lock */
 	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_vscan;	/* virus scan on/off */

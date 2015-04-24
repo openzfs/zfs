@@ -274,9 +274,6 @@ zfs_inode_destroy(struct inode *ip)
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ZTOZSB(zp);
 
-	if (zfsctl_is_node(ip))
-		zfsctl_inode_destroy(ip);
-
 	mutex_enter(&zsb->z_znodes_lock);
 	if (list_link_active(&zp->z_link_node)) {
 		list_remove(&zsb->z_all_znodes, zp);

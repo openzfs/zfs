@@ -780,10 +780,6 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
 
-	avl_create(&zsb->z_ctldir_snaps, snapentry_compare,
-	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t, se_node));
-	mutex_init(&zsb->z_ctldir_lock, NULL, MUTEX_DEFAULT, NULL);
-
 	*zsbp = zsb;
 	return (0);
 
@@ -896,8 +892,6 @@ zfs_sb_free(zfs_sb_t *zsb)
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
 	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
-	mutex_destroy(&zsb->z_ctldir_lock);
-	avl_destroy(&zsb->z_ctldir_snaps);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
 EXPORT_SYMBOL(zfs_sb_free);
@@ -1373,6 +1367,7 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		acltype_changed_cb(zsb, pval);
 		zsb->z_issnap = B_TRUE;
 		zsb->z_os->os_sync = ZFS_SYNC_DISABLED;
+		zsb->z_snap_defer_time = jiffies;
 
 		mutex_enter(&zsb->z_os->os_user_ptr_lock);
 		dmu_objset_set_user(zsb->z_os, zsb);
@@ -1422,8 +1417,8 @@ zfs_preumount(struct super_block *sb)
 {
 	zfs_sb_t *zsb = sb->s_fs_info;
 
-	if (zsb != NULL && zsb->z_ctldir != NULL)
-		zfsctl_destroy(zsb);
+	if (zsb)
+		zfsctl_destroy(sb->s_fs_info);
 }
 EXPORT_SYMBOL(zfs_preumount);
 

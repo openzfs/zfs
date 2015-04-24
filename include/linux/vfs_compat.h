@@ -352,4 +352,15 @@ static inline struct inode *file_inode(const struct file *f)
 }
 #endif /* HAVE_FILE_INODE */
 
+/*
+ * 2.6.38 API change
+ */
+#ifdef HAVE_FOLLOW_DOWN_ONE
+#define	zpl_follow_down_one(path)		follow_down_one(path)
+#define	zpl_follow_up(path)			follow_up(path)
+#else
+#define	zpl_follow_down_one(path)		follow_down(path)
+#define	zpl_follow_up(path)			follow_up(path)
+#endif
+
 #endif /* _ZFS_VFS_H */
