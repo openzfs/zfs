@@ -36,102 +36,6 @@
 typedef unsigned __bitwise__ fmode_t;
 #endif /* HAVE_FMODE_T */
 
-#ifndef HAVE_BLK_FETCH_REQUEST
-static inline struct request *
-blk_fetch_request(struct request_queue *q)
-{
-	struct request *req;
-
-	req = elv_next_request(q);
-	if (req)
-		blkdev_dequeue_request(req);
-
-	return (req);
-}
-#endif /* HAVE_BLK_FETCH_REQUEST */
-
-#ifndef HAVE_BLK_REQUEUE_REQUEST
-static inline void
-blk_requeue_request(request_queue_t *q, struct request *req)
-{
-	elv_requeue_request(q, req);
-}
-#endif /* HAVE_BLK_REQUEUE_REQUEST */
-
-#ifndef HAVE_BLK_END_REQUEST
-static inline bool
-__blk_end_request(struct request *req, int error, unsigned int nr_bytes)
-{
-	LIST_HEAD(list);
-
-	/*
-	 * Request has already been dequeued but 2.6.18 version of
-	 * end_request() unconditionally dequeues the request so we
-	 * add it to a local list to prevent hitting the BUG_ON.
-	 */
-	list_add(&req->queuelist, &list);
-
-	/*
-	 * The old API required the driver to end each segment and not
-	 * the entire request.  In our case we always need to end the
-	 * entire request partial requests are not supported.
-	 */
-	req->hard_cur_sectors = nr_bytes >> 9;
-	end_request(req, ((error == 0) ? 1 : error));
-
-	return (0);
-}
-
-static inline bool
-blk_end_request(struct request *req, int error, unsigned int nr_bytes)
-{
-	struct request_queue *q = req->q;
-	bool rc;
-
-	spin_lock_irq(q->queue_lock);
-	rc = __blk_end_request(req, error, nr_bytes);
-	spin_unlock_irq(q->queue_lock);
-
-	return (rc);
-}
-#else
-#ifdef HAVE_BLK_END_REQUEST_GPL_ONLY
-/*
- * Define required to avoid conflicting 2.6.29 non-static prototype for a
- * GPL-only version of the helper.  As of 2.6.31 the helper is available
- * to non-GPL modules and is not explicitly exported GPL-only.
- */
-#define	__blk_end_request __blk_end_request_x
-#define	blk_end_request blk_end_request_x
-
-static inline bool
-__blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
-{
-	/*
-	 * The old API required the driver to end each segment and not
-	 * the entire request.  In our case we always need to end the
-	 * entire request partial requests are not supported.
-	 */
-	req->hard_cur_sectors = nr_bytes >> 9;
-	end_request(req, ((error == 0) ? 1 : error));
-
-	return (0);
-}
-static inline bool
-blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
-{
-	struct request_queue *q = req->q;
-	bool rc;
-
-	spin_lock_irq(q->queue_lock);
-	rc = __blk_end_request_x(req, error, nr_bytes);
-	spin_unlock_irq(q->queue_lock);
-
-	return (rc);
-}
-#endif /* HAVE_BLK_END_REQUEST_GPL_ONLY */
-#endif /* HAVE_BLK_END_REQUEST */
-
 /*
  * 2.6.36 API change,
  * The blk_queue_flush() interface has replaced blk_queue_ordered()
@@ -148,37 +52,6 @@ __blk_queue_flush(struct request_queue *q, unsigned int flags)
 	q->flush_flags = flags & (REQ_FLUSH | REQ_FUA);
 }
 #endif /* HAVE_BLK_QUEUE_FLUSH && HAVE_BLK_QUEUE_FLUSH_GPL_ONLY */
-
-#ifndef HAVE_BLK_RQ_POS
-static inline sector_t
-blk_rq_pos(struct request *req)
-{
-	return (req->sector);
-}
-#endif /* HAVE_BLK_RQ_POS */
-
-#ifndef HAVE_BLK_RQ_SECTORS
-static inline unsigned int
-blk_rq_sectors(struct request *req)
-{
-	return (req->nr_sectors);
-}
-#endif /* HAVE_BLK_RQ_SECTORS */
-
-#if !defined(HAVE_BLK_RQ_BYTES) || defined(HAVE_BLK_RQ_BYTES_GPL_ONLY)
-/*
- * Define required to avoid conflicting 2.6.29 non-static prototype for a
- * GPL-only version of the helper.  As of 2.6.31 the helper is available
- * to non-GPL modules in the form of a static inline in the header.
- */
-#define	blk_rq_bytes __blk_rq_bytes
-static inline unsigned int
-__blk_rq_bytes(struct request *req)
-{
-	return (blk_rq_sectors(req) << 9);
-}
-#endif /* !HAVE_BLK_RQ_BYTES || HAVE_BLK_RQ_BYTES_GPL_ONLY */
-
 /*
  * Most of the blk_* macros were removed in 2.6.36.  Ostensibly this was
  * done to improve readability and allow easier grepping.  However, from
@@ -260,64 +133,20 @@ get_disk_ro(struct gendisk *disk)
 }
 #endif /* HAVE_GET_DISK_RO */
 
-#ifndef HAVE_RQ_IS_SYNC
-static inline bool
-rq_is_sync(struct request *req)
-{
-	return (req->flags & REQ_RW_SYNC);
-}
-#endif /* HAVE_RQ_IS_SYNC */
-
-#ifndef HAVE_RQ_FOR_EACH_SEGMENT
-struct req_iterator {
-	int i;
-	struct bio *bio;
-};
-
-#define	for_each_bio(_bio)              \
-	for (; _bio; _bio = _bio->bi_next)
-
-#define	__rq_for_each_bio(_bio, rq)     \
-	if ((rq->bio))                  \
-		for (_bio = (rq)->bio; _bio; _bio = _bio->bi_next)
-
-#define	rq_for_each_segment(bvl, _rq, _iter)                    \
-	__rq_for_each_bio(_iter.bio, _rq)                       \
-		bio_for_each_segment(bvl, _iter.bio, _iter.i)
-
-#define	HAVE_RQ_FOR_EACH_SEGMENT_BVP 1
-#endif /* HAVE_RQ_FOR_EACH_SEGMENT */
-
-/*
- * 3.14 API change
- * rq_for_each_segment changed from taking bio_vec * to taking bio_vec.
- * We provide rq_for_each_segment4 which takes both.
- * You should not modify the fields in @bv and @bvp.
- *
- * Note: the if-else is just to inject the assignment before the loop body.
- */
-#ifdef HAVE_RQ_FOR_EACH_SEGMENT_BVP
-#define	rq_for_each_segment4(bv, bvp, rq, iter)	\
-	rq_for_each_segment(bvp, rq, iter)	\
-		if ((bv = *bvp), 0)		\
-			;			\
-		else
-#else
-#define	rq_for_each_segment4(bv, bvp, rq, iter)	\
-	rq_for_each_segment(bv, rq, iter)	\
-		if ((bvp = &bv), 0)		\
-			;			\
-		else
-#endif
-
 #ifdef HAVE_BIO_BVEC_ITER
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#define	bio_for_each_segment4(bv, bvp, b, i)	\
+	bio_for_each_segment((bv), (b), (i))
+typedef struct bvec_iter bvec_iterator_t;
 #else
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_idx
+#define	bio_for_each_segment4(bv, bvp, b, i)	\
+	bio_for_each_segment((bvp), (b), (i))
+typedef int bvec_iterator_t;
 #endif
 
 /*
@@ -489,8 +318,16 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * 2.6.32 API change
  * Use the normal I/O patch for discards.
  */
-#ifdef REQ_DISCARD
+#ifdef QUEUE_FLAG_DISCARD
+#ifdef HAVE_BIO_RW_DISCARD
+#define	VDEV_REQ_DISCARD		BIO_RW_DISCARD
+#else
 #define	VDEV_REQ_DISCARD		REQ_DISCARD
+#endif
+#else
+#error	"Allowing the build will cause discard requests to become writes "
+	"potentially triggering the DMU_MAX_ACCESS assertion. Please file a "
+	"an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
 #endif
 
 /*
