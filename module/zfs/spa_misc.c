@@ -227,7 +227,6 @@
 static avl_tree_t spa_namespace_avl;
 kmutex_t spa_namespace_lock;
 static kcondvar_t spa_namespace_cv;
-static int spa_active_count;
 int spa_max_replication_override = SPA_DVAS_PER_BP;
 
 static kmutex_t spa_spare_lock;
@@ -560,10 +559,8 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	/*
 	 * Set the alternate root, if there is one.
 	 */
-	if (altroot) {
+	if (altroot)
 		spa->spa_root = spa_strdup(altroot);
-		spa_active_count++;
-	}
 
 	/*
 	 * Every pool starts with the default cachefile
@@ -628,10 +625,8 @@ spa_remove(spa_t *spa)
 	avl_remove(&spa_namespace_avl, spa);
 	cv_broadcast(&spa_namespace_cv);
 
-	if (spa->spa_root) {
+	if (spa->spa_root)
 		spa_strfree(spa->spa_root);
-		spa_active_count--;
-	}
 
 	while ((dp = list_head(&spa->spa_config_list)) != NULL) {
 		list_remove(&spa->spa_config_list, dp);
