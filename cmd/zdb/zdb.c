@@ -92,6 +92,8 @@ int zopt_objects = 0;
 libzfs_handle_t *g_zfs;
 uint64_t max_inflight = 1000;
 
+static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *);
+
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -411,6 +413,81 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 		umem_free(prop, attr.za_num_integers * attr.za_integer_length);
 	}
 	zap_cursor_fini(&zc);
+}
+
+static void
+dump_bpobj(objset_t *os, uint64_t object, void *data, size_t size)
+{
+	bpobj_phys_t *bpop = data;
+	uint64_t i;
+	char bytes[32], comp[32], uncomp[32];
+
+	if (bpop == NULL)
+		return;
+
+	zdb_nicenum(bpop->bpo_bytes, bytes);
+	zdb_nicenum(bpop->bpo_comp, comp);
+	zdb_nicenum(bpop->bpo_uncomp, uncomp);
+
+	(void) printf("\t\tnum_blkptrs = %llu\n",
+	    (u_longlong_t)bpop->bpo_num_blkptrs);
+	(void) printf("\t\tbytes = %s\n", bytes);
+	if (size >= BPOBJ_SIZE_V1) {
+		(void) printf("\t\tcomp = %s\n", comp);
+		(void) printf("\t\tuncomp = %s\n", uncomp);
+	}
+	if (size >= sizeof (*bpop)) {
+		(void) printf("\t\tsubobjs = %llu\n",
+		    (u_longlong_t)bpop->bpo_subobjs);
+		(void) printf("\t\tnum_subobjs = %llu\n",
+		    (u_longlong_t)bpop->bpo_num_subobjs);
+	}
+
+	if (dump_opt['d'] < 5)
+		return;
+
+	for (i = 0; i < bpop->bpo_num_blkptrs; i++) {
+		char blkbuf[BP_SPRINTF_LEN];
+		blkptr_t bp;
+
+		int err = dmu_read(os, object,
+		    i * sizeof (bp), sizeof (bp), &bp, 0);
+		if (err != 0) {
+			(void) printf("got error %u from dmu_read\n", err);
+			break;
+		}
+		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), &bp);
+		(void) printf("\t%s\n", blkbuf);
+	}
+}
+
+/* ARGSUSED */
+static void
+dump_bpobj_subobjs(objset_t *os, uint64_t object, void *data, size_t size)
+{
+	dmu_object_info_t doi;
+	uint64_t i;
+
+	VERIFY0(dmu_object_info(os, object, &doi));
+	uint64_t *subobjs = kmem_alloc(doi.doi_max_offset, KM_SLEEP);
+
+	int err = dmu_read(os, object, 0, doi.doi_max_offset, subobjs, 0);
+	if (err != 0) {
+		(void) printf("got error %u from dmu_read\n", err);
+		kmem_free(subobjs, doi.doi_max_offset);
+		return;
+	}
+
+	int64_t last_nonzero = -1;
+	for (i = 0; i < doi.doi_max_offset / 8; i++) {
+		if (subobjs[i] != 0)
+			last_nonzero = i;
+	}
+
+	for (i = 0; i <= last_nonzero; i++) {
+		(void) printf("\t%llu\n", (longlong_t)subobjs[i]);
+	}
+	kmem_free(subobjs, doi.doi_max_offset);
 }
 
 /*ARGSUSED*/
@@ -1384,7 +1461,7 @@ dump_bpobj_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 }
 
 static void
-dump_bpobj(bpobj_t *bpo, char *name, int indent)
+dump_full_bpobj(bpobj_t *bpo, char *name, int indent)
 {
 	char bytes[32];
 	char comp[32];
@@ -1399,11 +1476,12 @@ dump_bpobj(bpobj_t *bpo, char *name, int indent)
 		zdb_nicenum(bpo->bpo_phys->bpo_comp, comp);
 		zdb_nicenum(bpo->bpo_phys->bpo_uncomp, uncomp);
 		(void) printf("    %*s: object %llu, %llu local blkptrs, "
-		    "%llu subobjs, %s (%s/%s comp)\n",
+		    "%llu subobjs in object, %llu, %s (%s/%s comp)\n",
 		    indent * 8, name,
 		    (u_longlong_t)bpo->bpo_object,
 		    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
 		    (u_longlong_t)bpo->bpo_phys->bpo_num_subobjs,
+		    (u_longlong_t)bpo->bpo_phys->bpo_subobjs,
 		    bytes, comp, uncomp);
 
 		for (i = 0; i < bpo->bpo_phys->bpo_num_subobjs; i++) {
@@ -1420,7 +1498,7 @@ dump_bpobj(bpobj_t *bpo, char *name, int indent)
 				    error, (u_longlong_t)subobj);
 				continue;
 			}
-			dump_bpobj(&subbpo, "subobj", indent + 1);
+			dump_full_bpobj(&subbpo, "subobj", indent + 1);
 		}
 	} else {
 		(void) printf("    %*s: object %llu, %llu blkptrs, %s\n",
@@ -1453,7 +1531,7 @@ dump_deadlist(dsl_deadlist_t *dl)
 		return;
 
 	if (dl->dl_oldfmt) {
-		dump_bpobj(&dl->dl_bpobj, "old-format deadlist", 0);
+		dump_full_bpobj(&dl->dl_bpobj, "old-format deadlist", 0);
 		return;
 	}
 
@@ -1480,7 +1558,7 @@ dump_deadlist(dsl_deadlist_t *dl)
 			    (longlong_t)dle->dle_mintxg,
 			    (longlong_t)dle->dle_bpobj.bpo_object);
 
-			dump_bpobj(&dle->dle_bpobj, buf, 0);
+			dump_full_bpobj(&dle->dle_bpobj, buf, 0);
 		} else {
 			(void) printf("mintxg %llu -> obj %llu\n",
 			    (longlong_t)dle->dle_mintxg,
@@ -1728,8 +1806,8 @@ static object_viewer_t *object_viewer[DMU_OT_NUMTYPES + 1] = {
 	dump_uint64,		/* object array			*/
 	dump_none,		/* packed nvlist		*/
 	dump_packed_nvlist,	/* packed nvlist size		*/
-	dump_none,		/* bplist			*/
-	dump_none,		/* bplist header		*/
+	dump_none,		/* bpobj			*/
+	dump_bpobj,		/* bpobj header			*/
 	dump_none,		/* SPA space map header		*/
 	dump_none,		/* SPA space map		*/
 	dump_none,		/* ZIL intent log		*/
@@ -1776,7 +1854,7 @@ static object_viewer_t *object_viewer[DMU_OT_NUMTYPES + 1] = {
 	dump_zap,		/* deadlist			*/
 	dump_none,		/* deadlist hdr			*/
 	dump_zap,		/* dsl clones			*/
-	dump_none,		/* bpobj subobjs		*/
+	dump_bpobj_subobjs,	/* bpobj subobjs		*/
 	dump_unknown,		/* Unknown type, must be last	*/
 };
 
@@ -2981,10 +3059,11 @@ dump_zpool(spa_t *spa)
 	if (dump_opt['d'] || dump_opt['i']) {
 		dump_dir(dp->dp_meta_objset);
 		if (dump_opt['d'] >= 3) {
-			dump_bpobj(&spa->spa_deferred_bpobj,
+			dump_full_bpobj(&spa->spa_deferred_bpobj,
 			    "Deferred frees", 0);
 			if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
-				dump_bpobj(&spa->spa_dsl_pool->dp_free_bpobj,
+				dump_full_bpobj(
+				    &spa->spa_dsl_pool->dp_free_bpobj,
 				    "Pool snapshot frees", 0);
 			}
 

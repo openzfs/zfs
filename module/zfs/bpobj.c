@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/bpobj.h>
@@ -256,9 +256,8 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 		dbuf = NULL;
 	}
 	if (free) {
-		i++;
 		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os, bpo->bpo_object,
-		    i * sizeof (blkptr_t), -1ULL, tx));
+		    (i + 1) * sizeof (blkptr_t), -1ULL, tx));
 	}
 	if (err || !bpo->bpo_havesubobj || bpo->bpo_phys->bpo_subobjs == 0)
 		goto out;
