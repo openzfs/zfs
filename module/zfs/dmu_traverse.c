@@ -314,21 +314,22 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		uint32_t flags = ARC_WAIT;
 		int32_t i;
 		int32_t epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
+		dnode_phys_t *cdnp;
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err != 0)
 			goto post;
-		dnp = buf->b_data;
+		cdnp = buf->b_data;
 
 		for (i = 0; i < epb; i++) {
-			prefetch_dnode_metadata(td, &dnp[i], zb->zb_objset,
+			prefetch_dnode_metadata(td, &cdnp[i], zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			err = traverse_dnode(td, &dnp[i], zb->zb_objset,
+			err = traverse_dnode(td, &cdnp[i], zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 			if (err != 0)
 				break;
@@ -336,7 +337,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
 		uint32_t flags = ARC_WAIT;
 		objset_phys_t *osp;
-		dnode_phys_t *dnp;
+		dnode_phys_t *mdnp, *gdnp, *udnp;
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
@@ -344,26 +345,27 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			goto post;
 
 		osp = buf->b_data;
-		dnp = &osp->os_meta_dnode;
-		prefetch_dnode_metadata(td, dnp, zb->zb_objset,
+		mdnp = &osp->os_meta_dnode;
+		gdnp = &osp->os_groupused_dnode;
+		udnp = &osp->os_userused_dnode;
+
+		prefetch_dnode_metadata(td, mdnp, zb->zb_objset,
 		    DMU_META_DNODE_OBJECT);
 		if (arc_buf_size(buf) >= sizeof (objset_phys_t)) {
-			prefetch_dnode_metadata(td, &osp->os_groupused_dnode,
-			    zb->zb_objset, DMU_GROUPUSED_OBJECT);
-			prefetch_dnode_metadata(td, &osp->os_userused_dnode,
-			    zb->zb_objset, DMU_USERUSED_OBJECT);
+			prefetch_dnode_metadata(td, gdnp, zb->zb_objset,
+			    DMU_GROUPUSED_OBJECT);
+			prefetch_dnode_metadata(td, udnp, zb->zb_objset,
+			    DMU_USERUSED_OBJECT);
 		}
 
-		err = traverse_dnode(td, dnp, zb->zb_objset,
+		err = traverse_dnode(td, mdnp, zb->zb_objset,
 		    DMU_META_DNODE_OBJECT);
 		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
-			dnp = &osp->os_groupused_dnode;
-			err = traverse_dnode(td, dnp, zb->zb_objset,
+			err = traverse_dnode(td, gdnp, zb->zb_objset,
 			    DMU_GROUPUSED_OBJECT);
 		}
 		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
-			dnp = &osp->os_userused_dnode;
-			err = traverse_dnode(td, dnp, zb->zb_objset,
+			err = traverse_dnode(td, udnp, zb->zb_objset,
 			    DMU_USERUSED_OBJECT);
 		}
 	}
