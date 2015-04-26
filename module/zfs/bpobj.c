@@ -301,8 +301,10 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 		if (free) {
 			err = bpobj_space(&sublist,
 			    &used_before, &comp_before, &uncomp_before);
-			if (err)
+			if (err != 0) {
+				bpobj_close(&sublist);
 				break;
+			}
 		}
 		err = bpobj_iterate_impl(&sublist, func, arg, tx, free);
 		if (free) {
