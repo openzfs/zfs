@@ -316,7 +316,14 @@ dsl_pool_close(dsl_pool_t *dp)
 	txg_list_destroy(&dp->dp_sync_tasks);
 	txg_list_destroy(&dp->dp_dirty_dirs);
 
-	arc_flush(dp->dp_spa);
+	/*
+	 * We can't set retry to TRUE since we're explicitly specifying
+	 * a spa to flush. This is good enough; any missed buffers for
+	 * this spa won't cause trouble, and they'll eventually fall
+	 * out of the ARC just like any other unused buffer.
+	 */
+	arc_flush(dp->dp_spa, FALSE);
+
 	txg_fini(dp);
 	dsl_scan_fini(dp);
 	rrw_destroy(&dp->dp_config_rwlock);
