@@ -1699,8 +1699,10 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	if ((newroot = construct_spec(props, argc, argv)) == NULL)
 		return (NULL);
 
-	if (zhp && ((poolconfig = zpool_get_config(zhp, NULL)) == NULL))
+	if (zhp && ((poolconfig = zpool_get_config(zhp, NULL)) == NULL)) {
+		nvlist_free(newroot);
 		return (NULL);
+	}
 
 	/*
 	 * Validate each device to make sure that its not shared with another
