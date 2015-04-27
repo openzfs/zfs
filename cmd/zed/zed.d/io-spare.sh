@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Replace a device with a hot spare in response to IO or checksum errors.
+# Replace a device with a hot spare in response to IO or CHECKSUM errors.
 # The following actions will be performed automatically when the number
 # of errors exceed the limit set by ZED_SPARE_ON_IO_ERRORS or
 # ZED_SPARE_ON_CHECKSUM_ERRORS.
@@ -21,106 +21,219 @@
 # the majority of the expected hot spare functionality.
 #
 # Exit codes:
-#  0: replaced by hot spare
-#  1: no hot spare device available
-#  2: hot sparing disabled
-#  3: already faulted or degraded
-#  4: unsupported event class
-#  5: internal error
+#   0: hot spare replacement successful
+#   1: hot spare device not available
+#   2: hot sparing disabled or threshold not reached
+#   3: device already faulted or degraded
+#   9: internal error
+
+[ -f "${ZED_ZEDLET_DIR}/zed.rc" ] && . "${ZED_ZEDLET_DIR}/zed.rc"
+. "${ZED_ZEDLET_DIR}/zed-functions.sh"
+
+# Disabled by default.  Enable in the zed.rc file.
+: "${ZED_SPARE_ON_CHECKSUM_ERRORS:=0}"
+: "${ZED_SPARE_ON_IO_ERRORS:=0}"
+
+
+# query_vdev_status (pool, vdev)
 #
-test -f "${ZED_ZEDLET_DIR}/zed.rc" && . "${ZED_ZEDLET_DIR}/zed.rc"
+# Given a [pool] and [vdev], return the matching vdev path & status on stdout.
+#
+# Warning: This function does not handle the case of [pool] or [vdev]
+# containing whitespace.  Beware of ShellCheck SC2046.  Caveat emptor.
+#
+# Arguments
+#   pool: pool name
+#   vdev: virtual device name
+#
+# StdOut
+#   arg1: vdev pathname
+#   arg2: vdev status
+#
+query_vdev_status()
+{
+    local pool="$1"
+    local vdev="$2"
+    local t
 
-test -n "${ZEVENT_POOL}" || exit 5
-test -n "${ZEVENT_SUBCLASS}" || exit 5
-test -n "${ZEVENT_VDEV_PATH}" || exit 5
-test -n "${ZEVENT_VDEV_GUID}" || exit 5
+    vdev="$(basename -- "${vdev}")"
+    ([ -n "${pool}" ] && [ -n "${vdev}" ]) || return
+    t="$(printf '\t')"
 
-# Defaults to disabled, enable in the zed.rc file.
-ZED_SPARE_ON_IO_ERRORS=${ZED_SPARE_ON_IO_ERRORS:-0}
-ZED_SPARE_ON_CHECKSUM_ERRORS=${ZED_SPARE_ON_CHECKSUM_ERRORS:-0}
-
-if [ ${ZED_SPARE_ON_IO_ERRORS} -eq 0 -a \
-     ${ZED_SPARE_ON_CHECKSUM_ERRORS} -eq 0 ]; then
-	exit 2
-fi
-
-# A lock file is used to serialize execution.
-ZED_LOCKDIR=${ZED_LOCKDIR:-/var/lock}
-LOCKFILE="${ZED_LOCKDIR}/zed.spare.lock"
-
-exec 8> "${LOCKFILE}"
-flock -x 8
-
-# Given a <pool> and <device> return the status, (ONLINE, FAULTED, etc...).
-vdev_status() {
-	local POOL=$1
-	local VDEV=`basename $2`
-	local T='	'	# tab character since '\t' isn't portable
-
-	${ZPOOL} status ${POOL} | sed -n -e \
-	    "s,^[ $T]*\(.*$VDEV\(-part[0-9]\+\)\?\)[ $T]*\([A-Z]\+\).*,\1 \3,p"
-	return 0
+    "${ZPOOL}" status "${pool}" 2>/dev/null | sed -n -e \
+        "s,^[ $t]*\(.*${vdev}\(-part[0-9]\+\)\?\)[ $t]*\([A-Z]\+\).*,\1 \3,p" \
+        | tail -1
 }
 
-# Fault devices after N I/O errors.
-if [ "${ZEVENT_CLASS}" = "ereport.fs.zfs.io" ]; then
-	ERRORS=`expr ${ZEVENT_VDEV_READ_ERRORS} + ${ZEVENT_VDEV_WRITE_ERRORS}`
 
-	if [ ${ZED_SPARE_ON_IO_ERRORS} -gt 0 -a \
-	     ${ERRORS} -ge ${ZED_SPARE_ON_IO_ERRORS} ]; then
-		ACTION="fault"
-	fi
-# Degrade devices after N checksum errors.
-elif [ "${ZEVENT_CLASS}" = "ereport.fs.zfs.checksum" ]; then
-	ERRORS=${ZEVENT_VDEV_CKSUM_ERRORS}
+# notify (old_vdev, new_vdev, num_errors)
+#
+# Send a notification regarding the hot spare replacement.
+#
+# Arguments
+#   old_vdev: path of old vdev that has failed
+#   new_vdev: path of new vdev used as the hot spare replacement
+#   num_errors: number of errors that triggered this replacement
+#
+notify()
+{
+    local old_vdev="$1"
+    local new_vdev="$2"
+    local num_errors="$3"
+    local note_subject
+    local note_pathname
+    local s
+    local rv
 
-	if [ ${ZED_SPARE_ON_CHECKSUM_ERRORS} -gt 0 -a \
-	     ${ERRORS} -ge ${ZED_SPARE_ON_CHECKSUM_ERRORS} ]; then
-		ACTION="degrade"
-	fi
-else
-	ACTION=
-fi
+    umask 077
+    note_subject="ZFS hot spare replacement for ${ZEVENT_POOL} on $(hostname)"
+    note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+    {
+        [ "${num_errors}" -ne 1 ] 2>/dev/null && s="s"
 
-if [ -n "${ACTION}" ]; then
+        echo "ZFS has replaced a failing device with a hot spare after" \
+            "${num_errors} ${ZEVENT_SUBCLASS} error${s}:"
+        echo
+        echo "   eid: ${ZEVENT_EID}"
+        echo " class: ${ZEVENT_SUBCLASS}"
+        echo "  host: $(hostname)"
+        echo "  time: ${ZEVENT_TIME_STRING}"
+        echo "   old: ${old_vdev}"
+        echo "   new: ${new_vdev}"
 
-	# Device is already FAULTED or DEGRADED
-	set -- `vdev_status ${ZEVENT_POOL} ${ZEVENT_VDEV_PATH}`
-	ZEVENT_VDEV_PATH_FOUND=$1
-	STATUS=$2
-	if [ "${STATUS}" = "FAULTED" -o "${STATUS}" = "DEGRADED" ]; then
-		exit 3
-	fi
+        "${ZPOOL}" status "${ZEVENT_POOL}"
 
-	# Step 1) FAULT or DEGRADE the device
-	#
-	${ZINJECT} -d ${ZEVENT_VDEV_GUID} -A ${ACTION} ${ZEVENT_POOL}
+    } > "${note_pathname}"
 
-	# Step 2) Set the SES fault beacon.
-	#
-	# XXX: Set the 'fault' or 'ident' beacon for the device.  This can
-	# be done through the sg_ses utility, the only hard part is to map
-	# the sd device to its corresponding enclosure and slot.  We may
-	# be able to leverage the existing vdev_id scripts for this.
-	#
-	# $ sg_ses --dev-slot-num=0 --set=ident /dev/sg3
-	# $ sg_ses --dev-slot-num=0 --clear=ident /dev/sg3
+    zed_notify "${note_subject}" "${note_pathname}"; rv=$?
+    rm -f "${note_pathname}"
+    return "${rv}"
+}
 
-	# Step 3) Replace the device with a hot spare.
-	#
-	# Round robin through the spares selecting those which are available.
-	#
-	for SPARE in ${ZEVENT_VDEV_SPARE_PATHS}; do
-		set -- `vdev_status ${ZEVENT_POOL} ${SPARE}`
-		SPARE_VDEV_FOUND=$1
-		STATUS=$2
-		if [ "${STATUS}" = "AVAIL" ]; then
-			${ZPOOL} replace ${ZEVENT_POOL} \
-			    ${ZEVENT_VDEV_GUID} ${SPARE_VDEV_FOUND} && exit 0
-		fi
-	done
 
-	exit 1
-fi
+# main
+#
+# Arguments
+#   none
+#
+# Return
+#   see above
+#
+main()
+{
+    local num_errors
+    local action
+    local lockfile
+    local vdev_path
+    local vdev_status
+    local spare
+    local spare_path
+    local spare_status
+    local zpool_err
+    local zpool_rv
+    local rv
 
-exit 4
+    # Avoid hot-sparing a hot-spare.
+    #
+    # Note: ZEVENT_VDEV_PATH is not defined for ZEVENT_VDEV_TYPE=spare.
+    #
+    [ "${ZEVENT_VDEV_TYPE}" = "spare" ] && exit 2
+
+    [ -n "${ZEVENT_POOL}" ] || exit 9
+    [ -n "${ZEVENT_VDEV_GUID}" ] || exit 9
+    [ -n "${ZEVENT_VDEV_PATH}" ] || exit 9
+
+    zed_check_cmd "${ZPOOL}" "${ZINJECT}" || exit 9
+
+    # Fault the device after a given number of I/O errors.
+    #
+    if [ "${ZEVENT_SUBCLASS}" = "io" ]; then
+        if [ "${ZED_SPARE_ON_IO_ERRORS}" -gt 0 ]; then
+            num_errors=$((ZEVENT_VDEV_READ_ERRORS + ZEVENT_VDEV_WRITE_ERRORS))
+            [ "${num_errors}" -ge "${ZED_SPARE_ON_IO_ERRORS}" ] \
+                && action="fault"
+        fi 2>/dev/null
+
+    # Degrade the device after a given number of checksum errors.
+    #
+    elif [ "${ZEVENT_SUBCLASS}" = "checksum" ]; then
+        if [ "${ZED_SPARE_ON_CHECKSUM_ERRORS}" -gt 0 ]; then
+            num_errors="${ZEVENT_VDEV_CKSUM_ERRORS}"
+            [ "${num_errors}" -ge "${ZED_SPARE_ON_CHECKSUM_ERRORS}" ] \
+                && action="degrade"
+        fi 2>/dev/null
+
+    else
+        zed_log_err "unsupported event class \"${ZEVENT_SUBCLASS}\""
+        exit 9
+    fi
+
+    # Error threshold not reached.
+    #
+    if [ -z "${action}" ]; then
+        exit 2
+    fi
+
+    lockfile="zed.spare.lock"
+    zed_lock "${lockfile}"
+
+    # shellcheck disable=SC2046
+    set -- $(query_vdev_status "${ZEVENT_POOL}" "${ZEVENT_VDEV_PATH}")
+    vdev_path="$1"
+    vdev_status="$2"
+
+    # Device is already FAULTED or DEGRADED.
+    #
+    if [ "${vdev_status}" = "FAULTED" ] \
+            || [ "${vdev_status}" = "DEGRADED" ]; then
+        rv=3
+
+    else
+        rv=1
+
+        # 1) FAULT or DEGRADE the device.
+        #
+        "${ZINJECT}" -d "${ZEVENT_VDEV_GUID}" -A "${action}" "${ZEVENT_POOL}"
+
+        # 2) Set the SES fault beacon.
+        #
+        # TODO: Set the 'fault' or 'ident' beacon for the device.  This can
+        # be done through the sg_ses utility.  The only hard part is to map
+        # the sd device to its corresponding enclosure and slot.  We may
+        # be able to leverage the existing vdev_id scripts for this.
+        #
+        # $ sg_ses --dev-slot-num=0 --set=ident /dev/sg3
+        # $ sg_ses --dev-slot-num=0 --clear=ident /dev/sg3
+
+        # 3) Replace the device with a hot spare.
+        #
+        # Round-robin through the spares trying those that are available.
+        #
+        for spare in ${ZEVENT_VDEV_SPARE_PATHS}; do
+
+            # shellcheck disable=SC2046
+            set -- $(query_vdev_status "${ZEVENT_POOL}" "${spare}")
+            spare_path="$1"
+            spare_status="$2"
+
+            [ "${spare_status}" = "AVAIL" ] || continue
+
+            zpool_err="$("${ZPOOL}" replace "${ZEVENT_POOL}" \
+                "${ZEVENT_VDEV_GUID}" "${spare_path}" 2>&1)"; zpool_rv=$?
+
+            if [ "${zpool_rv}" -ne 0 ]; then
+                [ -n "${zpool_err}" ] && zed_log_err "zpool ${zpool_err}"
+            else
+                notify "${vdev_path}" "${spare_path}" "${num_errors}"
+                rv=0
+                break
+            fi
+        done
+    fi
+
+    zed_unlock "${lockfile}"
+    exit "${rv}"
+}
+
+
+main "$@"

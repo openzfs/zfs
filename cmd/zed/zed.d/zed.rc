@@ -1,34 +1,80 @@
+##
 # zed.rc
+#
+# This file should be owned by root and permissioned 0600.
+##
 
+##
 # Absolute path to the debug output file.
+#
 #ZED_DEBUG_LOG="/tmp/zed.debug.log"
 
-# Email address of the zpool administrator.
+##
+# Email address of the zpool administrator for receipt of notifications.
 #   Email will only be sent if ZED_EMAIL is defined.
+# Disabled by default; uncomment to enable.
+#
 #ZED_EMAIL="root"
 
-# Email verbosity.
-#   If set to 0, suppress email if the pool is healthy.
-#   If set to 1, send email regardless of pool health.
-#ZED_EMAIL_VERBOSE=0
-
-# Minimum number of seconds between emails sent for a similar event.
-#ZED_EMAIL_INTERVAL_SECS="3600"
-
+##
 # Default directory for zed lock files.
+#
 #ZED_LOCKDIR="/var/lock"
 
+##
+# Minimum number of seconds between notifications for a similar event.
+#
+#ZED_NOTIFY_INTERVAL_SECS=3600
+
+##
+# Notification verbosity.
+#   If set to 0, suppress notification if the pool is healthy.
+#   If set to 1, send notification regardless of pool health.
+#
+#ZED_NOTIFY_VERBOSE=0
+
+##
+# Pushbullet access token.
+# This grants full access to your account -- protect it accordingly!
+#   <https://www.pushbullet.com/get-started>
+#   <https://www.pushbullet.com/account>
+# Disabled by default; uncomment to enable.
+#
+#ZED_PUSHBULLET_ACCESS_TOKEN=""
+
+##
+# Pushbullet channel tag for push notification feeds that can be subscribed to.
+#   <https://www.pushbullet.com/my-channel>
+# If not defined, push notifications will instead be sent to all devices
+#   associated with the account specified by the access token.
+# Disabled by default; uncomment to enable.
+#
+#ZED_PUSHBULLET_CHANNEL_TAG=""
+
+##
 # Default directory for zed state files.
+#
 #ZED_RUNDIR="/var/run"
 
-# The syslog priority (eg, specified as a "facility.level" pair).
-#ZED_SYSLOG_PRIORITY="daemon.notice"
+##
+# Replace a device with a hot spare after N checksum errors are detected.
+# Disabled by default; uncomment to enable.
+#
+#ZED_SPARE_ON_CHECKSUM_ERRORS=10
 
-# The syslog tag for marking zed events.
-#ZED_SYSLOG_TAG="zed"
-
+##
 # Replace a device with a hot spare after N I/O errors are detected.
+# Disabled by default; uncomment to enable.
+#
 #ZED_SPARE_ON_IO_ERRORS=1
 
-# Replace a device with a hot spare after N checksum errors are detected.
-#ZED_SPARE_ON_CHECKSUM_ERRORS=10
+##
+# The syslog priority (e.g., specified as a "facility.level" pair).
+#
+#ZED_SYSLOG_PRIORITY="daemon.notice"
+
+##
+# The syslog tag for marking zed events.
+#
+#ZED_SYSLOG_TAG="zed"
+
