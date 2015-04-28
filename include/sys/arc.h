@@ -70,8 +70,21 @@ struct arc_buf {
 typedef enum arc_buf_contents {
 	ARC_BUFC_DATA,				/* buffer contains data */
 	ARC_BUFC_METADATA,			/* buffer contains metadata */
-	ARC_BUFC_NUMTYPES
+	ARC_BUFC_NUMTYPES,
+
+	/*
+	 * flag for scatter abd.
+	 * data implies scatter, so only used for metadata
+	 */
+	ARC_BUFC_SCATTER = 0x10,
 } arc_buf_contents_t;
+
+#define	ARC_BUFC_TYPE_MASK(type) \
+	(type & ARC_BUFC_METADATA)
+#define	ARC_BUFC_IS_META(type) \
+	(!!ARC_BUFC_TYPE_MASK(type))
+#define	ARC_BUFC_IS_SCATTER(type) \
+	(type == ARC_BUFC_DATA || (type & ARC_BUFC_SCATTER))
 /*
  * These are the flags we pass into calls to the arc
  */
