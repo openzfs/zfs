@@ -354,6 +354,14 @@ typedef struct zfs_cmd {
 	zfs_stat_t	zc_stat;
 } zfs_cmd_t;
 
+typedef struct zfs_pipe_record {
+	uint32_t	zpr_data_size;		/* Payload size */
+	uint8_t		zpr_header_size;	/* Extension space after 8 bytes */
+	uint8_t		zpr_err;		/* Return code */
+	uint8_t		zpr_endian;		/* Endian bit: 0 is BE, 1 is LE */
+	uint8_t		zpr_reserved;		/* Reserved space */
+} zfs_pipe_record_t;
+
 typedef struct zfs_useracct {
 	char zu_domain[256];
 	uid_t zu_rid;

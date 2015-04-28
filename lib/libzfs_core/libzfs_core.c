@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2015 ClusterHQ. All rights reserved.
  */
 
 /*
@@ -116,7 +117,7 @@ libzfs_core_fini(void)
 }
 
 static int
-lzc_ioctl(zfs_ioc_t ioc, const char *name,
+lzc_ioctl_impl(zfs_ioc_t ioc, const char *name,
     nvlist_t *source, nvlist_t **resultp)
 {
 	zfs_cmd_t zc = {"\0"};
@@ -126,7 +127,8 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 
 	ASSERT3S(g_refcount, >, 0);
 
-	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
+	if (name)
+		(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 
 	packed = fnvlist_pack(source, &size);
 	zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
@@ -169,6 +171,29 @@ out:
 	return (error);
 }
 
+static int
+lzc_ioctl(const char *cmd, const char *name, nvlist_t *source,
+    nvlist_t *opts, nvlist_t **resultp, uint64_t version)
+{
+	nvlist_t *args = fnvlist_alloc();
+	int error;
+
+	ASSERT(*cmd);
+
+	fnvlist_add_string(args, "cmd", cmd);
+	if (source)
+		fnvlist_add_nvlist(args, "innvl", source);
+	if (opts)
+		fnvlist_add_nvlist(args, "opts", opts);
+	fnvlist_add_uint64(args, "version", version);
+
+	error = lzc_ioctl_impl(ZFS_IOC_LIBZFS_CORE, name, args, resultp);
+
+	fnvlist_free(args);
+
+	return (error);
+}
+
 int
 lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props)
 {
@@ -177,7 +202,7 @@ lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props)
 	fnvlist_add_int32(args, "type", type);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
-	error = lzc_ioctl(ZFS_IOC_CREATE, fsname, args, NULL);
+	error = lzc_ioctl("zfs_create", fsname, args, NULL, NULL, 0);
 	nvlist_free(args);
 	return (error);
 }
@@ -191,8 +216,30 @@ lzc_clone(const char *fsname, const char *origin,
 	fnvlist_add_string(args, "origin", origin);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
-	error = lzc_ioctl(ZFS_IOC_CLONE, fsname, args, NULL);
+	error = lzc_ioctl("zfs_clone", fsname, args, NULL, NULL, 0);
 	nvlist_free(args);
+	return (error);
+}
+
+int
+lzc_promote(const char *fsname)
+{
+	int error;
+
+	error = lzc_ioctl("zfs_promote", fsname, NULL, NULL, NULL, 0);
+	return (error);
+}
+
+int
+lzc_set_props(const char *fsname, nvlist_t *props, boolean_t received)
+{
+	int error;
+	nvlist_t *opts = fnvlist_alloc();
+
+	if (received)
+		fnvlist_add_boolean(opts, "received");
+	error = lzc_ioctl("zfs_set_props", fsname, props, opts, NULL, 0);
+	nvlist_free(opts);
 	return (error);
 }
 
@@ -233,7 +280,7 @@ lzc_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t **errlist)
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
 
-	error = lzc_ioctl(ZFS_IOC_SNAPSHOT, pool, args, errlist);
+	error = lzc_ioctl("zfs_snapshot", pool, args, NULL, errlist, 0);
 	nvlist_free(args);
 
 	return (error);
@@ -283,7 +330,7 @@ lzc_destroy_snaps(nvlist_t *snaps, boolean_t defer, nvlist_t **errlist)
 	if (defer)
 		fnvlist_add_boolean(args, "defer");
 
-	error = lzc_ioctl(ZFS_IOC_DESTROY_SNAPS, pool, args, errlist);
+	error = lzc_ioctl("zfs_destroy_snaps", pool, args, NULL, errlist, 0);
 	nvlist_free(args);
 
 	return (error);
@@ -309,7 +356,7 @@ lzc_snaprange_space(const char *firstsnap, const char *lastsnap,
 	args = fnvlist_alloc();
 	fnvlist_add_string(args, "firstsnap", firstsnap);
 
-	err = lzc_ioctl(ZFS_IOC_SPACE_SNAPS, lastsnap, args, &result);
+	err = lzc_ioctl("zfs_space_snaps", lastsnap, args, NULL, &result, 0);
 	nvlist_free(args);
 	if (err == 0)
 		*usedp = fnvlist_lookup_uint64(result, "used");
@@ -378,7 +425,7 @@ lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
 	if (cleanup_fd != -1)
 		fnvlist_add_int32(args, "cleanup_fd", cleanup_fd);
 
-	error = lzc_ioctl(ZFS_IOC_HOLD, pool, args, errlist);
+	error = lzc_ioctl("zfs_hold", pool, args, NULL, errlist, 0);
 	nvlist_free(args);
 	return (error);
 }
@@ -418,7 +465,7 @@ lzc_release(nvlist_t *holds, nvlist_t **errlist)
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/@")] = '\0';
 
-	return (lzc_ioctl(ZFS_IOC_RELEASE, pool, holds, errlist));
+	return (lzc_ioctl("zfs_release", pool, holds, NULL, errlist, 0));
 }
 
 /*
@@ -433,7 +480,7 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 {
 	int error;
 	nvlist_t *innvl = fnvlist_alloc();
-	error = lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, innvl, holdsp);
+	error = lzc_ioctl("zfs_get_holds", snapname, innvl, NULL, holdsp, 0);
 	fnvlist_free(innvl);
 	return (error);
 }
@@ -473,7 +520,29 @@ lzc_send(const char *snapname, const char *from, int fd,
 		fnvlist_add_string(args, "fromsnap", from);
 	if (flags & LZC_SEND_FLAG_EMBED_DATA)
 		fnvlist_add_boolean(args, "embedok");
-	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);
+	err = lzc_ioctl("zfs_send", snapname, args, NULL, NULL, 0);
+	nvlist_free(args);
+	return (err);
+}
+
+/*
+ * Like lzc_send() but the additional flags and options are passed via an
+ * nvlist_t parameter.
+ */
+int
+lzc_send_ext(const char *snapname, const char *from, int fd, nvlist_t *params)
+{
+	nvlist_t *args;
+	int err;
+
+	args = fnvlist_alloc();
+	if (params != NULL)
+		fnvlist_merge(args, params);
+	fnvlist_add_int32(args, "fd", fd);
+	nvlist_remove_all(args, "fromsnap");
+	if (from != NULL)
+		fnvlist_add_string(args, "fromsnap", from);
+	err = lzc_ioctl("zfs_send", snapname, args, NULL, NULL, 0);
 	nvlist_free(args);
 	return (err);
 }
@@ -491,10 +560,31 @@ lzc_send_space(const char *snapname, const char *fromsnap, uint64_t *spacep)
 	args = fnvlist_alloc();
 	if (fromsnap != NULL)
 		fnvlist_add_string(args, "fromsnap", fromsnap);
-	err = lzc_ioctl(ZFS_IOC_SEND_SPACE, snapname, args, &result);
+	err = lzc_ioctl("zfs_send_space", snapname, args, NULL, &result, 0);
 	nvlist_free(args);
 	if (err == 0)
 		*spacep = fnvlist_lookup_uint64(result, "space");
+	nvlist_free(result);
+	return (err);
+}
+
+/*
+ * Query number of bytes written in a given send stream
+ * for a given snapshot thus far.
+ */
+int
+lzc_send_progress(const char *snapname, int fd, uint64_t *bytesp)
+{
+	nvlist_t *args;
+	nvlist_t *result;
+	int err;
+
+	args = fnvlist_alloc();
+	fnvlist_add_int32(args, "fd", fd);
+	err = lzc_ioctl("zfs_send_progress", snapname, args, NULL, &result, 0);
+	nvlist_free(args);
+	if (err == 0)
+		*bytesp = fnvlist_lookup_uint64(result, "offset");
 	nvlist_free(result);
 	return (err);
 }
@@ -619,7 +709,7 @@ lzc_rollback(const char *fsname, char *snapnamebuf, int snapnamelen)
 	int err;
 
 	args = fnvlist_alloc();
-	err = lzc_ioctl(ZFS_IOC_ROLLBACK, fsname, args, &result);
+	err = lzc_ioctl("zfs_rollback", fsname, args, NULL, &result, 0);
 	nvlist_free(args);
 	if (err == 0 && snapnamebuf != NULL) {
 		const char *snapname = fnvlist_lookup_string(result, "target");
@@ -655,7 +745,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/#")] = '\0';
 
-	error = lzc_ioctl(ZFS_IOC_BOOKMARK, pool, bookmarks, errlist);
+	error = lzc_ioctl("zfs_bookmark", pool, bookmarks, NULL, errlist, 0);
 
 	return (error);
 }
@@ -684,7 +774,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
 int
 lzc_get_bookmarks(const char *fsname, nvlist_t *props, nvlist_t **bmarks)
 {
-	return (lzc_ioctl(ZFS_IOC_GET_BOOKMARKS, fsname, props, bmarks));
+	return (lzc_ioctl_impl(ZFS_IOC_GET_BOOKMARKS, fsname, props, bmarks));
 }
 
 /*
@@ -717,7 +807,248 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/#")] = '\0';
 
-	error = lzc_ioctl(ZFS_IOC_DESTROY_BOOKMARKS, pool, bmarks, errlist);
+	error = lzc_ioctl("zfs_destroy_bookmarks", pool, bmarks, NULL, errlist,
+	    0);
+
+	return (error);
+}
+
+/*
+ * Resets a property on a  DSL directory (i.e. filesystems, volumes, snapshots)
+ * to its original value.
+ *
+ * The following are the valid properties in opts, all of which are booleans:
+ *
+ * "received" - resets property value to from `zfs recv` if it set a value
+ */
+int
+lzc_inherit(const char *fsname, const char *propname, nvlist_t *opts)
+{
+	nvlist_t *args;
+	int error;
+
+	if (fsname == NULL || (propname == NULL ||
+	    strlen(fsname) == 0 || strlen(propname) == 0))
+		return (EINVAL);
+
+	args = fnvlist_alloc();
+	fnvlist_add_string(args, "prop", propname);
+	error = lzc_ioctl("zfs_inherit", fsname, args, opts, NULL, 0);
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
+ * Destroys a DSL directory that is either a filesystems or a volume.
+ * Destroying snapshots and bookmarks is not currently supported. Call
+ * lzc_destroy_snaps and lzc_destroy_bookmarks for those respectively.
+ *
+ * The only currently valud property is the booleans "defer_destroy". It makes
+ * destruction asynchronous such that the only error code back is if we try to
+ * destroy something that does not exist. The caller must unmount the dataset
+ * before calling this. Otherwise, it will fail.
+ */
+
+int
+lzc_destroy_one(const char *fsname, nvlist_t *opts)
+{
+	nvlist_t *args;
+	int error;
+
+	if (fsname == NULL ||
+	    strlen(fsname) == 0)
+		return (EINVAL);
+
+	args = fnvlist_alloc();
+	error = lzc_ioctl("zfs_destroy", fsname, args, opts, NULL, 0);
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
+ * Rename DSL directory (i.e. filesystems, volumes, snapshots)
+ *
+ * The opts flag accepts a boolean named "recursive" to signal that the
+ * mountpoint property on children should be updated.
+ *
+ * The following are the valid properties in opts, all of which are booleans:
+ *
+ * "recursive" - Rename mountpoints on child DSL directories
+ *
+ * If a recursive rename is done, an error occurs and errname is initialized, a
+ * string will be allocated with strdup() and returned via it. The caller must
+ * free it with strfree().
+ */
+int
+lzc_rename(const char *oldname, const char *newname, nvlist_t *opts,
+    char **errname)
+{
+	nvlist_t *args, *errlist;
+	int error;
+
+	if (newname == NULL || (oldname == NULL ||
+	    strlen(oldname) == 0 || strlen(newname) == 0))
+		return (EINVAL);
+
+	args = fnvlist_alloc();
+	errlist = (errname != NULL) ? fnvlist_alloc() : NULL;
+	fnvlist_add_string(args, "newname", newname);
+	error = lzc_ioctl("zfs_rename", oldname, args, opts, &errlist, 0);
+
+	if (error && errname != NULL) {
+		const char *name = fnvlist_lookup_string(errlist, "name");
+		*errname = strdup(name);
+	}
+
+	fnvlist_free(args);
+	if (errlist)
+		fnvlist_free(errlist);
+
+	return (error);
+}
+
+/*
+ * List DSL directory/directories
+ *
+ * This is an asynchronous API call. The caller passes a file descriptor
+ * through which output is received. The file descriptor should typically be
+ * the send side of a pipe, but this is not required.
+ *
+ * Preliminary error checks are done prior to the start of output and if
+ * successful, a return code of zero is provided. If unsuccessful, a non-zero
+ * error code is passed.
+ *
+ * The opts field is an nvlist which supports the following properties:
+ *
+ * Name		Type		Description
+ * "recurse"	boolean/uint64	List output for children.
+ * "type"	nvlist		List only types specified.
+ *
+ * If the passed name is that of a bookmark or snapshot, the recurse field is
+ * ignored. If all children are desired, recurse should be set to be a boolean
+ * type. If a recursion limit is desired, recurses hould be a uint64_t. If no
+ * type is specified, a default behavior consistent with the zfs list command
+ * is provided. Valid children of the type nvlist are:
+ *
+ * Name		Type		Description
+ * "all"	boolean		List output for all types
+ * "bookmark"	boolean		List output for bookmarks
+ * "filesystem"	boolean		List output for filesystems
+ * "snap"	boolean		List output for snapshots
+ * "snapshot"	boolean		List output for snapshots
+ * "volume"	boolean		List output for volumes
+ *
+ * Whenever a boolean type is specified, any type may be passed and be
+ * considered boolean. However, future extensions may accept alternate types
+ * and consequently, backward compatibility is only guarenteed to callers
+ * passing a boolean type that contains no value. A boolean that contains
+ * B_TRUE or B_FALSE is considered a separate type from a boolean that contains
+ * no value. Additionally, future enhancements to zfs may create a new type and
+ * callers that only wish to handle existing types should specify them
+ * explicitly rather than relying on the default behavior.
+ *
+ * The parent-child relationship is obeyed such all children of each
+ * pool/directory are output alongside their parents. However, no guarantees
+ * are made with regard to post-order/pre-order traversal or the order of
+ * bookmarks/snapshots, such that the order is allowed to change. Userland
+ * applications that are sensitive to a particular output order are expected to
+ * sort.
+ *
+ * The output consists of a record header followed immediately by XDR-encoded
+ * nvlist. The header format is as follows:
+ *
+ * Offset	Size		Description
+ * 0 bytes	4 bytes		XDR-nvlist size (unsigned)
+ * 4 bytes	1 byte		Header extension space (unsigned)
+ * 5 bytes	1 byte		Return code (unsigned)
+ * 6 bytes	1 byte		Endian bit (0 is BE, 1 is LE)
+ * 7 bytes	1 byte		Reserved
+ *
+ * Errors obtaining information for any record will be contained in the return
+ * code. The output for any record whose header return code contains an error
+ * is a XDR encoded nvlist whose contents are undefined, unless the size
+ * provided in the header is zero, in which case the output for that record is
+ * empty. The receiver is expected to check the endian bit field before
+ * processing the XDR-nvlist size and perform a byte-swap operation on the
+ * value should the endian-ness differ.
+ *
+ * Non-zero values in the reserved field and upper bits of the endian field
+ * imply a back-incompatible change. If the header extension field is non-zero
+ * when neither the reserved field nor the upper bits of the endian field are
+ * non-zero, the header should be assumed to have been extended in a
+ * backward-compatible way and the XDR-nvlist of the specified size shall
+ * follow the extended header. The lzc_list() library call will always request
+ * API version 0 request as part of the ioctl to userland.  Consequently, the
+ * kernel will return an API version 0 compatible-stream unless a change is
+ * requested via a future extension to the opts nvlist.
+ *
+ * The nvlist will have the following members:
+ *
+ * Name			Type		Description
+ * "name"		string		SPA/DSL name
+ * "dmu_objset_stats"	nvlist		DMU Objset Stats
+ * "properties"		nvlist		DSL properties
+ *
+ * Additional members may be added in future extensions.
+ *
+ * The "dmu_objset_stats" will have the following members:
+ *
+ * Name			Type		Description
+ * "dds_num_clones"	uint64_t	Number of clones
+ * "dds_creation_txg"	uint64_t	Creation transaction group
+ * "dds_guid"		uint64_t	Globally unique identifier
+ * "dds_type"		string		Type
+ * "dds_is_snapshot"	boolean		Is a snapshot
+ * "dds_inconsistent"	boolean		Is being received or destroyed
+ * "dds_origin"		string		Name of parent
+ *
+ * Additional members may be added in future extensions.
+ *
+ * The "dds_" prefix stands for "DSL Dataset". "dds_type" is a string
+ * representation of internal object types. Valid values at this time are:
+ *
+ * Name		Public	Description
+ * "NONE"	No	Uninitialized value
+ * "META"	No	Metadata
+ * "ZPL"	Yes	Dataset
+ * "ZVOL"	Yes	Volume
+ * "OTHER"	No	Undefined
+ * "ANY"	No	Open
+ *
+ * Only the public values will be returned for any output. The return of a
+ * value not on this list implies a record for a new storage type. The output
+ * should be consistent with existing types and the receiver can elect to
+ * either handle it in a manner consistent with existing types or skip it.
+ * Under no circumstance will an unlisted type be returned when types were
+ * explicitly provided via the opts nvlist.
+ *
+ * On bookmarks, the "dmu_objset_stats" of the parent DSL Dataset shall be
+ * returned. Consequently, "dds_is_snapshot" shall be false and identification
+ * of bookmarks shall be done by checking for the '#' character in the "name"
+ * member of the top level nvlist. This is done so that the type of the
+ * bookmarked DSL dataset may be known.
+ *
+ * End of output shall be signified by NULL record header. Userland is expected
+ * to close the file descriptor. Early termination can be signaled from
+ * userland by closing the file descriptor.
+ *
+ * The design of the output is intended to enable userland to perform readahead
+ * on the file descriptor. On certain platforms, libc may provide output
+ * buffering. Userland libraries and applications electing to perform readahead
+ * should take care not to block on a partially filled buffer when an end of
+ * stream NULL record is returned.
+ */
+int
+lzc_list(const char *name, int fdin, nvlist_t *opts)
+{
+	int error;
+	nvlist_t *innvl = fnvlist_alloc();
+
+	fnvlist_add_int32(innvl, "fd", fdin);
+	error = lzc_ioctl("zfs_list", name, innvl, opts, NULL, 0);
+	fnvlist_free(innvl);
 
 	return (error);
 }

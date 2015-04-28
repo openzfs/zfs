@@ -147,6 +147,9 @@ void dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat);
 void dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp);
 uint64_t dmu_objset_fsid_guid(objset_t *os);
+int dmu_objset_find_dp_impl(struct dsl_pool *dp, uint64_t ddobj,
+    int func(struct dsl_pool *, struct dsl_dataset *, void *),
+    void *arg, int flags, unsigned int depth);
 int dmu_objset_find_dp(struct dsl_pool *dp, uint64_t ddobj,
     int func(struct dsl_pool *, struct dsl_dataset *, void *),
     void *arg, int flags);
@@ -167,6 +170,13 @@ boolean_t dmu_objset_userused_enabled(objset_t *os);
 int dmu_objset_userspace_upgrade(objset_t *os);
 boolean_t dmu_objset_userspace_present(objset_t *os);
 int dmu_fsname(const char *snapname, char *buf);
+
+/* Code for handling userspace interface */
+extern const char *dmu_objset_types[];
+
+const char *dmu_objset_type_name(dmu_objset_type_t type);
+nvlist_t *dmu_objset_stats_nvlist(dmu_objset_stats_t *stat);
+int dmu_objset_stat_nvlts (nvlist_t *nvl, dmu_objset_stats_t *stat);
 
 void dmu_objset_init(void);
 void dmu_objset_fini(void);

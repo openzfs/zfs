@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2015 by ClusterHQ, Inc. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -1550,8 +1551,9 @@ dmu_dir_list_next(objset_t *os, int namelen, char *name,
  * Find objsets under and including ddobj, call func(ds) on each.
  */
 int
-dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
-    int func(dsl_pool_t *, dsl_dataset_t *, void *), void *arg, int flags)
+dmu_objset_find_dp_impl(dsl_pool_t *dp, uint64_t ddobj,
+    int func(dsl_pool_t *, dsl_dataset_t *, void *), void *arg, int flags,
+    unsigned int depth)
 {
 	dsl_dir_t *dd;
 	dsl_dataset_t *ds;
@@ -1578,7 +1580,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	/*
 	 * Iterate over all children.
 	 */
-	if (flags & DS_FIND_CHILDREN) {
+	if (depth && (flags & DS_FIND_CHILDREN)) {
 		for (zap_cursor_init(&zc, dp->dp_meta_objset,
 		    dd->dd_phys->dd_child_dir_zapobj);
 		    zap_cursor_retrieve(&zc, attr) == 0;
@@ -1587,8 +1589,9 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 			    sizeof (uint64_t));
 			ASSERT3U(attr->za_num_integers, ==, 1);
 
-			err = dmu_objset_find_dp(dp, attr->za_first_integer,
-			    func, arg, flags);
+			err = dmu_objset_find_dp_impl(dp,
+			    attr->za_first_integer, func, arg, flags, depth -
+			    1);
 			if (err != 0)
 				break;
 		}
@@ -1604,7 +1607,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	/*
 	 * Iterate over all snapshots.
 	 */
-	if (flags & DS_FIND_SNAPSHOTS) {
+	if (depth && (flags & DS_FIND_SNAPSHOTS)) {
 		dsl_dataset_t *ds;
 		err = dsl_dataset_hold_obj(dp, thisobj, FTAG, &ds);
 
@@ -1647,6 +1650,13 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	err = func(dp, ds, arg);
 	dsl_dataset_rele(ds, FTAG);
 	return (err);
+}
+
+int
+dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
+    int func(dsl_pool_t *, dsl_dataset_t *, void *), void *arg, int flags)
+{
+	return (dmu_objset_find_dp_impl(dp, ddobj, func, arg, flags, 0 - 1));
 }
 
 /*
@@ -1763,7 +1773,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
  * See comment above dmu_objset_find_impl().
  */
 int
-dmu_objset_find(char *name, int func(const char *, void *), void *arg,
+dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
     int flags)
 {
 	spa_t *spa;
@@ -1806,6 +1816,72 @@ dmu_fsname(const char *snapname, char *buf)
 	(void) strlcpy(buf, snapname, atp - snapname + 1);
 	return (0);
 }
+
+/* Code for handling userspace interface */
+const char *dmu_objset_types[DMU_OST_NUMTYPES] = {
+	"NONE", "META", "ZPL", "ZVOL", "OTHER", "ANY" };
+
+#define	DMU_OT_COUNT	(sizeof (dmu_objset_types) /\
+	sizeof (&dmu_objset_types[0]))
+
+const char *
+dmu_objset_type_name(dmu_objset_type_t type)
+{
+	return ((type < DMU_OST_NUMTYPES) ? dmu_objset_types[type] : NULL);
+}
+
+nvlist_t *
+dmu_objset_stats_nvlist(dmu_objset_stats_t *stat)
+{
+	nvlist_t *nvl = fnvlist_alloc();
+
+	nvlist_add_uint64(nvl, "dds_num_clones", stat->dds_num_clones);
+	nvlist_add_uint64(nvl, "dds_creation_txg", stat->dds_creation_txg);
+	nvlist_add_uint64(nvl, "dds_guid", stat->dds_guid);
+
+	fnvlist_add_string(nvl, "dds_type",
+	    dmu_objset_type_name(stat->dds_type));
+
+	fnvlist_add_boolean_value(nvl, "dds_is_snapshot",
+	    stat->dds_is_snapshot);
+	fnvlist_add_boolean_value(nvl, "dds_inconsistent",
+	    stat->dds_inconsistent);
+
+	fnvlist_add_string(nvl, "dds_origin", stat->dds_origin);
+
+	return (nvl);
+}
+
+int
+dmu_objset_stat_nvlts(nvlist_t *nvl, dmu_objset_stats_t *stat)
+{
+	char *type;
+	boolean_t issnap, inconsist;
+	int i;
+
+	if (nvlist_lookup_uint64(nvl, "dds_num_clones",
+	    &stat->dds_num_clones) ||
+	    nvlist_lookup_uint64(nvl, "dds_creation_txg",
+	    &stat->dds_creation_txg) ||
+	    nvlist_lookup_uint64(nvl, "dds_guid", &stat->dds_guid) ||
+	    nvlist_lookup_string(nvl, "dds_type", &type) ||
+	    nvlist_lookup_boolean_value(nvl, "dds_is_snapshot", &issnap) ||
+	    nvlist_lookup_boolean_value(nvl, "dds_inconsistent", &inconsist))
+		return (EINVAL);
+
+	stat->dds_inconsistent = inconsist;
+	stat->dds_is_snapshot = issnap;
+
+	for (i = 0; i < DMU_OT_COUNT; i++) {
+		if (strcmp(dmu_objset_types[i], type) == 0) {
+			stat->dds_type = i;
+			return (0);
+		}
+	}
+
+	return (EINVAL);
+}
+
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_objset_zil);

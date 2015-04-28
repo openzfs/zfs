@@ -842,7 +842,8 @@ typedef enum dsl_prop_getflags {
 	DSL_PROP_GET_INHERITING = 0x1,	/* searching parent of target ds */
 	DSL_PROP_GET_SNAPSHOT = 0x2,	/* snapshot dataset */
 	DSL_PROP_GET_LOCAL = 0x4,	/* local properties */
-	DSL_PROP_GET_RECEIVED = 0x8	/* received properties */
+	DSL_PROP_GET_RECEIVED = 0x8,	/* received properties */
+	DSL_PROP_GET_INDEX_STR = 0x16	/* index properties as strings */
 } dsl_prop_getflags_t;
 
 static int
@@ -948,6 +949,16 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			VERIFY(nvlist_add_string(propval, ZPROP_VALUE,
 			    tmp) == 0);
 			kmem_free(tmp, za.za_num_integers);
+		} else if ((flags & DSL_PROP_GET_INDEX_STR) &&
+		    zfs_prop_get_type(prop) == PROP_TYPE_INDEX) {
+			/*
+			 * Index property (returned as string)
+			 */
+			const char *strval;
+			VERIFY0(zfs_prop_index_to_string(prop,
+			    za.za_first_integer, &strval));
+			VERIFY0(nvlist_add_string(propval, ZPROP_VALUE,
+			    strval));
 		} else {
 			/*
 			 * Integer property
@@ -1061,6 +1072,13 @@ int
 dsl_prop_get_all(objset_t *os, nvlist_t **nvp)
 {
 	return (dsl_prop_get_all_ds(os->os_dsl_dataset, nvp, 0));
+}
+
+int
+dsl_prop_get_all_new(objset_t *os, nvlist_t **nvp)
+{
+	return (dsl_prop_get_all_ds(os->os_dsl_dataset, nvp,
+	    DSL_PROP_GET_INDEX_STR));
 }
 
 int

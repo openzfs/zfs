@@ -38,9 +38,13 @@ extern "C" {
 int libzfs_core_init(void);
 void libzfs_core_fini(void);
 
+int lzc_list (const char *, int, nvlist_t *);
 int lzc_snapshot(nvlist_t *, nvlist_t *, nvlist_t **);
 int lzc_create(const char *, dmu_objset_type_t, nvlist_t *);
 int lzc_clone(const char *, const char *, nvlist_t *);
+int lzc_promote(const char *);
+int lzc_set_props(const char *, nvlist_t *, boolean_t);
+int lzc_destroy_one(const char *, nvlist_t *);
 int lzc_destroy_snaps(nvlist_t *, boolean_t, nvlist_t **);
 int lzc_bookmark(nvlist_t *, nvlist_t **);
 int lzc_get_bookmarks(const char *, nvlist_t *, nvlist_t **);
@@ -52,13 +56,19 @@ int lzc_hold(nvlist_t *, int, nvlist_t **);
 int lzc_release(nvlist_t *, nvlist_t **);
 int lzc_get_holds(const char *, nvlist_t **);
 
+int lzc_inherit(const char *fsname, const char *propname, nvlist_t *opts);
+int lzc_rename(const char *oldname, const char *newname, nvlist_t *opts,
+    char **errname);
+
 enum lzc_send_flags {
 	LZC_SEND_FLAG_EMBED_DATA = 1 << 0
 };
 
 int lzc_send(const char *, const char *, int, enum lzc_send_flags);
+int lzc_send_ext(const char *, const char *, int, nvlist_t *);
 int lzc_receive(const char *, nvlist_t *, const char *, boolean_t, int);
 int lzc_send_space(const char *, const char *, uint64_t *);
+int lzc_send_progress(const char *, int, uint64_t *);
 
 boolean_t lzc_exists(const char *);
 
