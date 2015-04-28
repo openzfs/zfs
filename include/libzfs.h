@@ -617,6 +617,9 @@ typedef struct sendflags {
 	/* show progress (ie. -v) */
 	boolean_t progress;
 
+	/* large blocks (>128K) are permitted */
+	boolean_t largeblock;
+
 	/* WRITE_EMBEDDED records of type DATA are permitted */
 	boolean_t embed_data;
 } sendflags_t;

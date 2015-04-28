@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2013 by Joyent, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -273,6 +274,10 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	obj = ds->ds_object;
 
+	if (ds->ds_large_blocks) {
+		ASSERT0(zap_contains(mos, obj, DS_FIELD_LARGE_BLOCKS));
+		spa_feature_decr(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS, tx);
+	}
 	if (ds->ds_phys->ds_prev_snap_obj != 0) {
 		ASSERT3P(ds->ds_prev, ==, NULL);
 		VERIFY0(dsl_dataset_hold_obj(dp,
@@ -434,7 +439,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		ASSERT3U(val, ==, obj);
 	}
 #endif
-	VERIFY0(dsl_dataset_snap_remove(ds_head, ds->ds_snapname, tx));
+	VERIFY0(dsl_dataset_snap_remove(ds_head, ds->ds_snapname, tx, B_TRUE));
 	dsl_dataset_rele(ds_head, FTAG);
 
 	if (ds_prev != NULL)
@@ -510,7 +515,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 
 	error = dsl_sync_task(nvpair_name(pair),
 	    dsl_destroy_snapshot_check, dsl_destroy_snapshot_sync,
-	    &dsda, 0);
+	    &dsda, 0, ZFS_SPACE_CHECK_NONE);
 	fnvlist_free(dsda.dsda_successful_snaps);
 
 	return (error);
@@ -663,6 +668,17 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 	ASSERT0(dd->dd_phys->dd_head_dataset_obj);
 
 	/*
+	 * Decrement the filesystem count for all parent filesystems.
+	 *
+	 * When we receive an incremental stream into a filesystem that already
+	 * exists, a temporary clone is created.  We never count this temporary
+	 * clone, whose name begins with a '%'.
+	 */
+	if (dd->dd_myname[0] != '%' && dd->dd_parent != NULL)
+		dsl_fs_ss_count_adjust(dd->dd_parent, -1,
+		    DD_FIELD_FILESYSTEM_COUNT, tx);
+
+	/*
 	 * Remove our reservation. The impl() routine avoids setting the
 	 * actual property, which would require the (already destroyed) ds.
 	 */
@@ -713,6 +729,9 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    0, tx);
 		ASSERT0(ds->ds_reserved);
 	}
+
+	if (ds->ds_large_blocks)
+		spa_feature_decr(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS, tx);
 
 	dsl_scan_ds_destroyed(ds, tx);
 
@@ -892,7 +911,8 @@ dsl_destroy_head(const char *name)
 		objset_t *os;
 
 		error = dsl_sync_task(name, dsl_destroy_head_check,
-		    dsl_destroy_head_begin_sync, &ddha, 0);
+		    dsl_destroy_head_begin_sync, &ddha,
+		    0, ZFS_SPACE_CHECK_NONE);
 		if (error != 0)
 			return (error);
 
@@ -917,7 +937,7 @@ dsl_destroy_head(const char *name)
 	}
 
 	return (dsl_sync_task(name, dsl_destroy_head_check,
-	    dsl_destroy_head_sync, &ddha, 0));
+	    dsl_destroy_head_sync, &ddha, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 /*

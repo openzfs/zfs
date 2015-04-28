@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -83,6 +83,13 @@ struct dsl_pool;
 #define	DS_FIELD_BOOKMARK_NAMES "com.delphix:bookmarks"
 
 /*
+ * This field is present (with value=0) if this dataset may contain large
+ * blocks (>128KB).  If it is present, then this dataset
+ * is counted in the refcount of the SPA_FEATURE_LARGE_BLOCKS feature.
+ */
+#define	DS_FIELD_LARGE_BLOCKS "org.open-zfs:large_blocks"
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */
@@ -135,6 +142,8 @@ typedef struct dsl_dataset {
 	/* only used in syncing context, only valid for non-snapshots: */
 	struct dsl_dataset *ds_prev;
 	uint64_t ds_bookmarks;  /* DMU_OTN_ZAP_METADATA */
+	boolean_t ds_large_blocks;
+	boolean_t ds_need_large_blocks;
 
 	/* has internal locking: */
 	dsl_deadlist_t ds_deadlist;
@@ -244,6 +253,8 @@ int dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
 int dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap, dsl_dataset_t *last,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 boolean_t dsl_dataset_is_dirty(dsl_dataset_t *ds);
+int dsl_dataset_activate_large_blocks(const char *dsname);
+void dsl_dataset_activate_large_blocks_sync_impl(uint64_t dsobj, dmu_tx_t *tx);
 
 int dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf);
 
@@ -266,7 +277,7 @@ int dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx, boolean_t recv);
+    dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr);
 void dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx);
 
@@ -276,7 +287,8 @@ void dsl_dataset_recalc_head_uniq(dsl_dataset_t *ds);
 int dsl_dataset_get_snapname(dsl_dataset_t *ds);
 int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
     uint64_t *value);
-int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx);
+int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
+    boolean_t adj_cnt);
 void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
     zprop_source_t source, uint64_t value, dmu_tx_t *tx);
 void dsl_dataset_zapify(dsl_dataset_t *ds, dmu_tx_t *tx);

@@ -41,8 +41,7 @@ extern int fzap_default_block_shift;
 
 #define	MZAP_ENT_LEN		64
 #define	MZAP_NAME_LEN		(MZAP_ENT_LEN - 8 - 4 - 2)
-#define	MZAP_MAX_BLKSHIFT	SPA_MAXBLOCKSHIFT
-#define	MZAP_MAX_BLKSZ		(1 << MZAP_MAX_BLKSHIFT)
+#define	MZAP_MAX_BLKSZ		SPA_OLD_MAXBLOCKSIZE
 
 #define	ZAP_NEED_CD		(-1U)
 
@@ -219,7 +218,6 @@ int fzap_add_cd(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
     const void *val, uint32_t cd, dmu_tx_t *tx);
 void fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags);
-int fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn);
 
 #ifdef	__cplusplus
 }

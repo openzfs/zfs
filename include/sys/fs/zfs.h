@@ -23,7 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -142,6 +142,10 @@ typedef enum {
 	ZFS_PROP_LOGICALUSED,
 	ZFS_PROP_LOGICALREFERENCED,
 	ZFS_PROP_INCONSISTENT,		/* not exposed to the user */
+	ZFS_PROP_FILESYSTEM_LIMIT,
+	ZFS_PROP_SNAPSHOT_LIMIT,
+	ZFS_PROP_FILESYSTEM_COUNT,
+	ZFS_PROP_SNAPSHOT_COUNT,
 	ZFS_PROP_SNAPDEV,
 	ZFS_PROP_ACLTYPE,
 	ZFS_PROP_SELINUX_CONTEXT,
@@ -196,6 +200,7 @@ typedef enum {
 	ZPOOL_PROP_FREEING,
 	ZPOOL_PROP_FRAGMENTATION,
 	ZPOOL_PROP_LEAKED,
+	ZPOOL_PROP_MAXBLOCKSIZE,
 	ZPOOL_PROP_TNAME,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;

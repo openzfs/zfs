@@ -65,7 +65,7 @@ bptree_alloc(objset_t *os, dmu_tx_t *tx)
 	bptree_phys_t *bt;
 
 	obj = dmu_object_alloc(os, DMU_OTN_UINT64_METADATA,
-	    SPA_MAXBLOCKSIZE, DMU_OTN_UINT64_METADATA,
+	    SPA_OLD_MAXBLOCKSIZE, DMU_OTN_UINT64_METADATA,
 	    sizeof (bptree_phys_t), tx);
 
 	/*

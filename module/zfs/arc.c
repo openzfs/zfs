@@ -1329,7 +1329,7 @@ arc_buf_alloc(spa_t *spa, uint64_t size, void *tag, arc_buf_contents_t type)
 	arc_buf_hdr_t *hdr;
 	arc_buf_t *buf;
 
-	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
+	VERIFY3U(size, <=, spa_maxblocksize(spa));
 	hdr = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
 	ASSERT(BUF_EMPTY(hdr));
 	hdr->b_size = size;
@@ -3281,7 +3281,7 @@ top:
 		 * Gracefully handle a damaged logical block size as a
 		 * checksum error by passing a dummy zio to the done callback.
 		 */
-		if (size > SPA_MAXBLOCKSIZE) {
+		if (size > spa_maxblocksize(spa)) {
 			if (done) {
 				rzio = zio_null(pio, spa, NULL,
 				    NULL, NULL, zio_flags);

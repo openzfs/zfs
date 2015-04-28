@@ -2185,6 +2185,8 @@ dump_label(const char *dev)
 	(void) close(fd);
 }
 
+static uint64_t num_large_blocks;
+
 /*ARGSUSED*/
 static int
 dump_one_dir(const char *dsname, void *arg)
@@ -2197,6 +2199,8 @@ dump_one_dir(const char *dsname, void *arg)
 		(void) printf("Could not open %s, error %d\n", dsname, error);
 		return (0);
 	}
+	if (dmu_objset_ds(os)->ds_large_blocks)
+		num_large_blocks++;
 	dump_dir(os);
 	dmu_objset_disown(os, FTAG);
 	fuid_table_destroy();
@@ -2207,12 +2211,14 @@ dump_one_dir(const char *dsname, void *arg)
 /*
  * Block statistics.
  */
-#define	PSIZE_HISTO_SIZE (SPA_MAXBLOCKSIZE / SPA_MINBLOCKSIZE + 1)
+#define	PSIZE_HISTO_SIZE (SPA_OLD_MAXBLOCKSIZE / SPA_MINBLOCKSIZE + 2)
 typedef struct zdb_blkstats {
 	uint64_t zb_asize;
 	uint64_t zb_lsize;
 	uint64_t zb_psize;
 	uint64_t zb_count;
+	uint64_t zb_gangs;
+	uint64_t zb_ditto_samevdev;
 	uint64_t zb_psize_histogram[PSIZE_HISTO_SIZE];
 } zdb_blkstats_t;
 
@@ -2264,13 +2270,43 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : ZB_TOTAL;
 		int t = (i & 1) ? type : ZDB_OT_TOTAL;
+		int equal;
 		zdb_blkstats_t *zb = &zcb->zcb_type[l][t];
 
 		zb->zb_asize += BP_GET_ASIZE(bp);
 		zb->zb_lsize += BP_GET_LSIZE(bp);
 		zb->zb_psize += BP_GET_PSIZE(bp);
 		zb->zb_count++;
-		zb->zb_psize_histogram[BP_GET_PSIZE(bp) >> SPA_MINBLOCKSHIFT]++;
+
+		/*
+		 * The histogram is only big enough to record blocks up to
+		 * SPA_OLD_MAXBLOCKSIZE; larger blocks go into the last,
+		 * "other", bucket.
+		 */
+		int idx = BP_GET_PSIZE(bp) >> SPA_MINBLOCKSHIFT;
+		idx = MIN(idx, SPA_OLD_MAXBLOCKSIZE / SPA_MINBLOCKSIZE + 1);
+		zb->zb_psize_histogram[idx]++;
+
+		zb->zb_gangs += BP_COUNT_GANG(bp);
+
+		switch (BP_GET_NDVAS(bp)) {
+		case 2:
+			if (DVA_GET_VDEV(&bp->blk_dva[0]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[1]))
+				zb->zb_ditto_samevdev++;
+			break;
+		case 3:
+			equal = (DVA_GET_VDEV(&bp->blk_dva[0]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[1])) +
+			    (DVA_GET_VDEV(&bp->blk_dva[0]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[2])) +
+			    (DVA_GET_VDEV(&bp->blk_dva[1]) ==
+			    DVA_GET_VDEV(&bp->blk_dva[2]));
+			if (equal != 0)
+				zb->zb_ditto_samevdev++;
+			break;
+		}
+
 	}
 
 	if (BP_IS_EMBEDDED(bp)) {
@@ -2685,6 +2721,8 @@ dump_block_stats(spa_t *spa)
 	(void) printf("\n");
 	(void) printf("\tbp count:      %10llu\n",
 	    (u_longlong_t)tzb->zb_count);
+	(void) printf("\tganged count:  %10llu\n",
+	    (longlong_t)tzb->zb_gangs);
 	(void) printf("\tbp logical:    %10llu      avg: %6llu\n",
 	    (u_longlong_t)tzb->zb_lsize,
 	    (u_longlong_t)(tzb->zb_lsize / tzb->zb_count));
@@ -2723,6 +2761,11 @@ dump_block_stats(spa_t *spa)
 		}
 	}
 
+	if (tzb->zb_ditto_samevdev != 0) {
+		(void) printf("\tDittoed blocks on same vdev: %llu\n",
+		    (longlong_t)tzb->zb_ditto_samevdev);
+	}
+
 	if (dump_opt['b'] >= 2) {
 		int l, t, level;
 		(void) printf("\nBlocks\tLSIZE\tPSIZE\tASIZE"
@@ -2730,7 +2773,7 @@ dump_block_stats(spa_t *spa)
 
 		for (t = 0; t <= ZDB_OT_TOTAL; t++) {
 			char csize[32], lsize[32], psize[32], asize[32];
-			char avg[32];
+			char avg[32], gang[32];
 			char *typename;
 
 			if (t < DMU_OT_NUMTYPES)
@@ -2771,6 +2814,7 @@ dump_block_stats(spa_t *spa)
 				zdb_nicenum(zb->zb_psize, psize);
 				zdb_nicenum(zb->zb_asize, asize);
 				zdb_nicenum(zb->zb_asize / zb->zb_count, avg);
+				zdb_nicenum(zb->zb_gangs, gang);
 
 				(void) printf("%6s\t%5s\t%5s\t%5s\t%5s"
 				    "\t%5.2f\t%6.2f\t",
@@ -2783,6 +2827,11 @@ dump_block_stats(spa_t *spa)
 				else
 					(void) printf("    L%d %s\n",
 					    level, typename);
+
+				if (dump_opt['b'] >= 3 && zb->zb_gangs > 0) {
+					(void) printf("\t number of ganged "
+					    "blocks: %s\n", gang);
+				}
 
 				if (dump_opt['b'] >= 4) {
 					(void) printf("psize "
@@ -2942,6 +2991,7 @@ dump_zpool(spa_t *spa)
 		dump_metaslab_groups(spa);
 
 	if (dump_opt['d'] || dump_opt['i']) {
+		uint64_t refcount;
 		dump_dir(dp->dp_meta_objset);
 		if (dump_opt['d'] >= 3) {
 			dump_bpobj(&spa->spa_deferred_bpobj,
@@ -2961,8 +3011,21 @@ dump_zpool(spa_t *spa)
 		}
 		(void) dmu_objset_find(spa_name(spa), dump_one_dir,
 		    NULL, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
+
+		(void) feature_get_refcount(spa,
+		    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS], &refcount);
+		if (num_large_blocks != refcount) {
+			(void) printf("large_blocks feature refcount mismatch: "
+			    "expected %lld != actual %lld\n",
+			    (longlong_t)num_large_blocks,
+			    (longlong_t)refcount);
+			rc = 2;
+		} else {
+			(void) printf("Verified large_blocks feature refcount "
+			    "is correct (%llu)\n", (longlong_t)refcount);
+		}
 	}
-	if (dump_opt['b'] || dump_opt['c'])
+	if (rc == 0 && (dump_opt['b'] || dump_opt['c']))
 		rc = dump_block_stats(spa);
 
 	if (rc == 0)
