@@ -231,7 +231,8 @@ abd_miter_unmap_x(struct abd_miter *aiter, int atomic)
 	ASSERT(aiter->addr);
 
 	if (aiter->is_linear) {
-		pagefault_enable();
+		if (atomic)
+			pagefault_enable();
 	} else {
 		paddr = aiter->addr - aiter->offset;
 		if (atomic) {
@@ -306,8 +307,7 @@ abd_miter_advance(struct abd_miter *aiter, int offset)
 }
 
 #define	ABD_CHECK(abd)					\
-(							\
-{							\
+do {							\
 	ASSERT((abd)->abd_magic == ARC_BUF_DATA_MAGIC);	\
 	ASSERT((abd)->abd_size > 0);			\
 	if (ABD_IS_LINEAR(abd)) {			\
@@ -317,8 +317,7 @@ abd_miter_advance(struct abd_miter *aiter, int offset)
 		ASSERT((abd)->abd_offset < PAGE_SIZE);	\
 		ASSERT((abd)->abd_nents > 0);		\
 	}						\
-}							\
-)
+} while (0)
 
 static void
 abd_iterate_func(abd_t *abd, size_t size,
@@ -961,14 +960,13 @@ abd_get_offset(abd_t *sabd, size_t off)
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
 	abd->abd_size = sabd->abd_size - off;
+	abd->abd_flags = sabd->abd_flags & ~ABD_F_OWNER;
 
 	if (ABD_IS_LINEAR(sabd)) {
-		abd->abd_flags = ABD_F_LINEAR;
 		abd->abd_offset = 0;
 		abd->abd_nents = 1;
 		abd->abd_buf = sabd->abd_buf + off;
 	} else {
-		abd->abd_flags = ABD_F_SCATTER;
 		offset = sabd->abd_offset + off;
 		abd->abd_offset = offset & (PAGE_SIZE - 1);
 		/* make sure the new abd start as sgl[0] */
