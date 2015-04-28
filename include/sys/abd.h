@@ -59,9 +59,9 @@ typedef struct arc_buf_data {
 	uint64_t __abd_sgl[0];
 } abd_t;
 
-#define	ABD_F_SCATTER	(0x0)
-#define	ABD_F_LINEAR	(0x1)
-#define	ABD_F_OWNER	(0x2)
+#define	ABD_F_SCATTER	(0)
+#define	ABD_F_LINEAR	(1)
+#define	ABD_F_OWNER	(1<<1)
 
 /*
  * Convert an linear ABD to normal buffer
@@ -71,7 +71,7 @@ typedef struct arc_buf_data {
 {							\
 	ASSERT((abd)->abd_magic == ARC_BUF_DATA_MAGIC);	\
 	ASSERT_ABD_LINEAR(abd);				\
-	abd->abd_buf;					\
+	(abd)->abd_buf;					\
 }							\
 )
 

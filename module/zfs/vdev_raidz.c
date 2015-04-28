@@ -1430,7 +1430,7 @@ vdev_raidz_reconstruct_general(raidz_map_t *rm, int *tgts, int ntgts)
 	int code = 0;
 
 	/*
-	 * matrix reconstruction can use scatter buffer yet, so we allocate
+	 * matrix reconstruction cannot use scatter buffer yet, so we allocate
 	 * temporary linear abds.
 	 */
 	if (!ABD_IS_LINEAR(rm->rm_col[rm->rm_firstdatacol].rc_data)) {
