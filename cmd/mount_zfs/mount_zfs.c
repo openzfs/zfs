@@ -371,6 +371,7 @@ main(int argc, char **argv)
 	char *dataset;
 	unsigned long mntflags = 0, zfsflags = 0, remount = 0;
 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
+	int quiet = 0;
 	int error, c;
 
 	(void) setlocale(LC_ALL, "");
@@ -379,7 +380,7 @@ main(int argc, char **argv)
 	opterr = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "sfnvo:h?")) != -1) {
+	while ((c = getopt(argc, argv, "sfnqvo:h?")) != -1) {
 		switch (c) {
 		case 's':
 			sloppy = 1;
@@ -389,6 +390,9 @@ main(int argc, char **argv)
 			break;
 		case 'n':
 			nomtab = 1;
+			break;
+		case 'q':
+			quiet = 1;
 			break;
 		case 'v':
 			verbose++;
@@ -408,6 +412,24 @@ main(int argc, char **argv)
 
 	argc -= optind;
 	argv += optind;
+
+	if (quiet) {
+		fclose(stdout);
+		stdout = fopen("/dev/null", "w");
+		if (stdout == NULL) {
+			(void) fprintf(stderr, "Cannot open /dev/null\n");
+			return (EXIT_FAILURE);
+		}
+
+		fclose(stderr);
+		stderr = fopen("/dev/null", "w");
+		if (stdout == NULL) {
+			(void) fprintf(stderr, "Cannot open /dev/null\n");
+			return (EXIT_FAILURE);
+		}
+
+	}
+
 
 	/* check that we only have two arguments */
 	if (argc != 2) {
