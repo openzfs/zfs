@@ -579,7 +579,7 @@ _NOTE(CONSTCOND) } while (0)
 	ARC_BUFC_METADATA : ARC_BUFC_DATA)
 
 #define	GET_BUFC_SCATTER(level, dtype)			\
-	(DMU_OT_IS_SCATTER(dtype) ? ARC_BUFC_SCATTER : 0)
+	((level > 0 || DMU_OT_IS_SCATTER(dtype)) ? ARC_BUFC_SCATTER : 0)
 
 #define	GET_BUFC_TYPE(level, dtype) \
 	(GET_BUFC_META(level, dtype)|GET_BUFC_SCATTER(level, dtype))

@@ -290,7 +290,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			traverse_prefetch_metadata(td,
-			    &((blkptr_t *)ABD_TO_BUF(buf->b_data))[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 		}
 
 		/* recursively visitbp() blocks below this */
@@ -299,7 +299,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			err = traverse_visitbp(td, dnp,
-			    &((blkptr_t *)ABD_TO_BUF(buf->b_data))[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 			if (err != 0)
 				break;
 		}
@@ -316,16 +316,17 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err != 0)
 			goto post;
-		cdnp = ABD_TO_BUF(buf->b_data);
 
 		for (i = 0; i < epb; i++) {
-			prefetch_dnode_metadata(td, &cdnp[i], zb->zb_objset,
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
+			prefetch_dnode_metadata(td, cdnp, zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			err = traverse_dnode(td, &cdnp[i], zb->zb_objset,
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
+			err = traverse_dnode(td, cdnp, zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 			if (err != 0)
 				break;
