@@ -356,6 +356,20 @@ dbuf_is_metadata(dmu_buf_impl_t *db)
 	}
 }
 
+arc_buf_contents_t
+dbuf_get_bufc_type(dmu_buf_impl_t *db)
+{
+	arc_buf_contents_t type;
+	if (db->db_blkid == DMU_SPILL_BLKID) {
+		return (ARC_BUFC_METADATA);
+	} else {
+		DB_DNODE_ENTER(db);
+		type = GET_BUFC_TYPE(db->db_level, DB_DNODE(db)->dn_type);
+		DB_DNODE_EXIT(db);
+		return (type);
+	}
+}
+
 void
 dbuf_evict(dmu_buf_impl_t *db)
 {

@@ -574,9 +574,18 @@ _NOTE(CONSTCOND) } while (0)
 
 #include <sys/dmu.h>
 
-#define	BP_GET_BUFC_TYPE(bp)						\
-	(((BP_GET_LEVEL(bp) > 0) || (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))) ? \
+#define	GET_BUFC_META(level, dtype)			\
+	((level > 0 || DMU_OT_IS_METADATA(dtype)) ?	\
 	ARC_BUFC_METADATA : ARC_BUFC_DATA)
+
+#define	GET_BUFC_SCATTER(level, dtype)			\
+	(DMU_OT_IS_SCATTER(dtype) ? ARC_BUFC_SCATTER : 0)
+
+#define	GET_BUFC_TYPE(level, dtype) \
+	(GET_BUFC_META(level, dtype)|GET_BUFC_SCATTER(level, dtype))
+
+#define	BP_GET_BUFC_TYPE(bp) \
+	GET_BUFC_TYPE(BP_GET_LEVEL(bp), BP_GET_TYPE(bp))
 
 typedef enum spa_import_type {
 	SPA_IMPORT_EXISTING,
