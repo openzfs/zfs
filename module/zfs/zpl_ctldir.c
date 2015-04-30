@@ -226,14 +226,17 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 #endif
 
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	struct inode *ip = NULL;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfsctl_snapdir_lookup(dip, dname(dentry), &ip,
 	    0, cr, NULL, NULL);
 	ASSERT3S(error, <=, 0);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
 	if (error && error != -ENOENT)
@@ -250,21 +253,23 @@ static int
 zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 {
 	zfs_sb_t *zsb = ITOZSB(filp->f_path.dentry->d_inode);
+	fstrans_cookie_t cookie;
 	char snapname[MAXNAMELEN];
 	boolean_t case_conflict;
-	uint64_t id, cookie;
+	uint64_t id, pos;
 	int error = 0;
 
 	ZFS_ENTER(zsb);
+	cookie = spl_fstrans_mark();
 
 	if (!dir_emit_dots(filp, ctx))
 		goto out;
 
-	cookie = ctx->pos;
+	pos = ctx->pos;
 	while (error == 0) {
 		dsl_pool_config_enter(dmu_objset_pool(zsb->z_os), FTAG);
 		error = -dmu_snapshot_list_next(zsb->z_os, MAXNAMELEN,
-		    snapname, &id, &cookie, &case_conflict);
+		    snapname, &id, &pos, &case_conflict);
 		dsl_pool_config_exit(dmu_objset_pool(zsb->z_os), FTAG);
 		if (error)
 			goto out;
@@ -273,9 +278,10 @@ zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 		    ZFSCTL_INO_SHARES - id, DT_DIR))
 			goto out;
 
-		ctx->pos = cookie;
+		ctx->pos = pos;
 	}
 out:
+	spl_fstrans_unmark(cookie);
 	ZFS_EXIT(zsb);
 
 	if (error == -ENOENT)
@@ -414,14 +420,17 @@ zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
     unsigned int flags)
 #endif
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	struct inode *ip = NULL;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfsctl_shares_lookup(dip, dname(dentry), &ip,
 	    0, cr, NULL, NULL);
 	ASSERT3S(error, <=, 0);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
 	if (error) {
@@ -437,12 +446,14 @@ zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
 static int
 zpl_shares_iterate(struct file *filp, struct dir_context *ctx)
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	zfs_sb_t *zsb = ITOZSB(filp->f_path.dentry->d_inode);
 	znode_t *dzp;
 	int error = 0;
 
 	ZFS_ENTER(zsb);
+	cookie = spl_fstrans_mark();
 
 	if (zsb->z_shares_dir == 0) {
 		dir_emit_dots(filp, ctx);
@@ -459,6 +470,7 @@ zpl_shares_iterate(struct file *filp, struct dir_context *ctx)
 
 	iput(ZTOI(dzp));
 out:
+	spl_fstrans_unmark(cookie);
 	ZFS_EXIT(zsb);
 	ASSERT3S(error, <=, 0);
 

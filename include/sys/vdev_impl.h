@@ -113,6 +113,8 @@ struct vdev_queue {
 	vdev_t		*vq_vdev;
 	vdev_queue_class_t vq_class[ZIO_PRIORITY_NUM_QUEUEABLE];
 	avl_tree_t	vq_active_tree;
+	avl_tree_t	vq_read_offset_tree;
+	avl_tree_t	vq_write_offset_tree;
 	uint64_t	vq_last_offset;
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;

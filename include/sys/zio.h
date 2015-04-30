@@ -428,6 +428,7 @@ struct zio {
 	hrtime_t	io_delta;	/* vdev queue service delta */
 	uint64_t	io_delay;	/* vdev disk service delta (ticks) */
 	avl_node_t	io_queue_node;
+	avl_node_t	io_offset_node;
 
 	/* Internal pipeline state */
 	enum zio_flag	io_flags;

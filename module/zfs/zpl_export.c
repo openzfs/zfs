@@ -39,6 +39,7 @@ zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
 {
 	struct inode *ip = dentry->d_inode;
 #endif /* HAVE_ENCODE_FH_WITH_INODE */
+	fstrans_cookie_t cookie;
 	fid_t *fid = (fid_t *)fh;
 	int len_bytes, rc;
 
@@ -48,12 +49,14 @@ zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
 		return (255);
 
 	fid->fid_len = len_bytes - offsetof(fid_t, fid_data);
+	cookie = spl_fstrans_mark();
 
 	if (zfsctl_is_node(ip))
 		rc = zfsctl_fid(ip, fid);
 	else
 		rc = zfs_fid(ip, fid);
 
+	spl_fstrans_unmark(cookie);
 	len_bytes = offsetof(fid_t, fid_data) + fid->fid_len;
 	*max_len = roundup(len_bytes, sizeof (__u32)) / sizeof (__u32);
 
@@ -84,6 +87,7 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
     int fh_len, int fh_type)
 {
 	fid_t *fid = (fid_t *)fh;
+	fstrans_cookie_t cookie;
 	struct inode *ip;
 	int len_bytes, rc;
 
@@ -94,7 +98,9 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 	    len_bytes < offsetof(fid_t, fid_data) + fid->fid_len)
 		return (ERR_PTR(-EINVAL));
 
+	cookie = spl_fstrans_mark();
 	rc = zfs_vget(sb, &ip, fid);
+	spl_fstrans_unmark(cookie);
 
 	if (rc != 0)
 		return (ERR_PTR(-rc));
@@ -108,11 +114,14 @@ static struct dentry *
 zpl_get_parent(struct dentry *child)
 {
 	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
 	struct inode *ip;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfs_lookup(child->d_inode, "..", &ip, 0, cr, NULL, NULL);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -127,10 +136,13 @@ static int
 zpl_commit_metadata(struct inode *inode)
 {
 	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfs_fsync(inode, 0, cr);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
