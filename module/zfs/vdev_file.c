@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -172,7 +172,7 @@ vdev_file_io_fsync(void *arg)
 	zio_interrupt(zio);
 }
 
-static int
+static void
 vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
@@ -182,7 +182,8 @@ vdev_file_io_start(zio_t *zio)
 		/* XXPOLICY */
 		if (!vdev_readable(vd)) {
 			zio->io_error = SET_ERROR(ENXIO);
-			return (ZIO_PIPELINE_CONTINUE);
+			zio_interrupt(zio);
+			return;
 		}
 
 		switch (zio->io_cmd) {
@@ -201,7 +202,7 @@ vdev_file_io_start(zio_t *zio)
 			if (spl_fstrans_check()) {
 				VERIFY3U(taskq_dispatch(vdev_file_taskq,
 				    vdev_file_io_fsync, zio, TQ_SLEEP), !=, 0);
-				return (ZIO_PIPELINE_STOP);
+				return;
 			}
 
 			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
@@ -211,13 +212,12 @@ vdev_file_io_start(zio_t *zio)
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
 
-		return (ZIO_PIPELINE_CONTINUE);
+		zio_execute(zio);
+		return;
 	}
 
 	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, 0);
-
-	return (ZIO_PIPELINE_STOP);
 }
 
 /* ARGSUSED */
