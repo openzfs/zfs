@@ -47,6 +47,10 @@
 #define	PAGE_SIZE 4096
 #endif
 
+#ifndef PAGE_SHIFT
+#define	PAGE_SHIFT (highbit64(PAGE_SIZE)-1)
+#endif
+
 struct page;
 
 #define	alloc_page(gfp) \
@@ -942,7 +946,7 @@ abd_alloc_struct(int nr_pages)
 	 * a single page. We might want to consider using chained sgl if
 	 * that's the case.
 	 */
-	ASSERT(nr_pages * sizeof (struct scatterlist) <= PAGE_SIZE);
+	ASSERT(nr_pages * sizeof (struct scatterlist) <= PAGE_SIZE*2);
 #ifndef DEBUG_ABD
 	abd = kmem_alloc(asize, KM_PUSHPAGE);
 #else
