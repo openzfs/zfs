@@ -194,7 +194,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 		return (SET_ERROR(EXDEV));
 	}
 
-	fromtxg = fromsnap->ds_phys->ds_creation_txg;
+	fromtxg = dsl_dataset_phys(fromsnap)->ds_creation_txg;
 	dsl_dataset_rele(fromsnap, FTAG);
 
 	dsl_dataset_long_hold(tosnap, FTAG);

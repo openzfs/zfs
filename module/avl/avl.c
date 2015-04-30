@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2014 by Delphix. All rights reserved.
+ */
+
+/*
  * AVL - generic AVL tree implementation for kernel use
  *
  * A complete description of AVL trees can be found in many CS textbooks.
@@ -85,6 +89,12 @@
  *	  is a modified "avl_node_t *".  The bottom bit (normally 0 for a
  *	  pointer) is set to indicate if that the new node has a value greater
  *	  than the value of the indicated "avl_node_t *".
+ *
+ * Note - in addition to userland (e.g. libavl and libutil) and the kernel
+ * (e.g. genunix), avl.c is compiled into ld.so and kmdb's genunix module,
+ * which each have their own compilation environments and subsequent
+ * requirements. Each of these environments must be considered when adding
+ * dependencies from avl.c.
  */
 
 #include <sys/types.h>
@@ -863,6 +873,24 @@ avl_update(avl_tree_t *t, void *obj)
 	return (B_FALSE);
 }
 
+void
+avl_swap(avl_tree_t *tree1, avl_tree_t *tree2)
+{
+	avl_node_t *temp_node;
+	ulong_t temp_numnodes;
+
+	ASSERT3P(tree1->avl_compar, ==, tree2->avl_compar);
+	ASSERT3U(tree1->avl_offset, ==, tree2->avl_offset);
+	ASSERT3U(tree1->avl_size, ==, tree2->avl_size);
+
+	temp_node = tree1->avl_root;
+	temp_numnodes = tree1->avl_numnodes;
+	tree1->avl_root = tree2->avl_root;
+	tree1->avl_numnodes = tree2->avl_numnodes;
+	tree2->avl_root = temp_node;
+	tree2->avl_numnodes = temp_numnodes;
+}
+
 /*
  * initialize a new AVL tree
  */
@@ -1058,6 +1086,8 @@ EXPORT_SYMBOL(avl_first);
 EXPORT_SYMBOL(avl_last);
 EXPORT_SYMBOL(avl_nearest);
 EXPORT_SYMBOL(avl_add);
+EXPORT_SYMBOL(avl_swap);
+EXPORT_SYMBOL(avl_is_empty);
 EXPORT_SYMBOL(avl_remove);
 EXPORT_SYMBOL(avl_numnodes);
 EXPORT_SYMBOL(avl_destroy_nodes);

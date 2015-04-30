@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #ifndef _SYS_SPA_IMPL_H
@@ -144,6 +145,9 @@ struct spa {
 	uint64_t	spa_claim_max_txg;	/* highest claimed birth txg */
 	timespec_t	spa_loaded_ts;		/* 1st successful open time */
 	objset_t	*spa_meta_objset;	/* copy of dp->dp_meta_objset */
+	kmutex_t	spa_evicting_os_lock;	/* Evicting objset list lock */
+	list_t		spa_evicting_os_list;	/* Objsets being evicted. */
+	kcondvar_t	spa_evicting_os_cv;	/* Objset Eviction Completion */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
 	uint64_t	spa_config_guid;	/* config pool guid */
