@@ -241,12 +241,13 @@ for_each_pool(int argc, char **argv, boolean_t unavail,
 	int ret = 0;
 
 	if ((list = pool_list_get(argc, argv, proplist, &ret)) == NULL)
-		return (1);
+		return (ret);
 
 	if (pool_list_iter(list, unavail, func, data) != 0)
 		ret = 1;
 
-	pool_list_free(list);
+	if (!ret)
+		pool_list_free(list);
 
 	return (ret);
 }
