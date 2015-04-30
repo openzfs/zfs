@@ -1051,7 +1051,7 @@ abd_put(abd_t *abd)
  * Highmem is mainly for userdata, while non-highmem is mainly for metadata
  * which allow scatter ABD.
  */
-abd_t *
+static abd_t *
 __abd_alloc_scatter(size_t size, int highmem)
 {
 	abd_t *abd;
@@ -1084,6 +1084,15 @@ retry:
 	}
 
 	return (abd);
+}
+
+abd_t *
+_abd_alloc_scatter(size_t size, int highmem)
+{
+	/* fallback to linear to save memory */
+	if (size < PAGE_SIZE)
+		return (abd_alloc_linear(size));
+	return (__abd_alloc_scatter(size, highmem));
 }
 
 /*
