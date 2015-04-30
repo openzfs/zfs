@@ -47,6 +47,10 @@
 #define	PAGE_SIZE 4096
 #endif
 
+#ifndef PAGE_SHIFT
+#define	PAGE_SHIFT (highbit64(PAGE_SIZE)-1)
+#endif
+
 struct page;
 
 #define	alloc_page(gfp) \
