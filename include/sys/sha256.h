@@ -2,7 +2,8 @@
 #define	_SYS_SHA256_H
 
 #include <sys/zfs_context.h>
-#include <asm/sha256.h>
+#include <asm-generic/sha256.h>
+#include <asm-x86_64/sha256.h>
 
 #ifdef	__cplusplus
 extern "C" {
