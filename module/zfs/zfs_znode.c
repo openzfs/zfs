@@ -950,6 +950,8 @@ again:
 				mutex_exit(&zp->z_lock);
 				sa_buf_rele(db, NULL);
 				ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+				/* inode might need this to finish evict */
+				cond_resched();
 				goto again;
 			}
 			*zpp = zp;
