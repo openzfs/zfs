@@ -176,7 +176,7 @@ static void
 traverse_prefetch_metadata(traverse_data_t *td,
     const blkptr_t *bp, const zbookmark_phys_t *zb)
 {
-	uint32_t flags = ARC_NOWAIT | ARC_PREFETCH;
+	arc_flags_t flags = ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
 
 	if (!(td->td_flags & TRAVERSE_PREFETCH_METADATA))
 		return;
@@ -277,7 +277,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 	}
 
 	if (BP_GET_LEVEL(bp) > 0) {
-		uint32_t flags = ARC_WAIT;
+		uint32_t flags = ARC_FLAG_WAIT;
 		int32_t i;
 		int32_t epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
 		zbookmark_phys_t *czb;
@@ -294,7 +294,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			traverse_prefetch_metadata(td,
-			    &((blkptr_t *)buf->b_data)[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 		}
 
 		/* recursively visitbp() blocks below this */
@@ -303,7 +303,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			err = traverse_visitbp(td, dnp,
-			    &((blkptr_t *)buf->b_data)[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 			if (err != 0)
 				break;
 		}
@@ -311,7 +311,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		kmem_free(czb, sizeof (zbookmark_phys_t));
 
 	} else if (BP_GET_TYPE(bp) == DMU_OT_DNODE) {
-		uint32_t flags = ARC_WAIT;
+		uint32_t flags = ARC_FLAG_WAIT;
 		int32_t i;
 		int32_t epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 		dnode_phys_t *cdnp;
@@ -320,22 +320,23 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err != 0)
 			goto post;
-		cdnp = buf->b_data;
 
 		for (i = 0; i < epb; i++) {
-			prefetch_dnode_metadata(td, &cdnp[i], zb->zb_objset,
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
+			prefetch_dnode_metadata(td, cdnp, zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			err = traverse_dnode(td, &cdnp[i], zb->zb_objset,
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
+			err = traverse_dnode(td, cdnp, zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 			if (err != 0)
 				break;
 		}
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
-		uint32_t flags = ARC_WAIT;
+		arc_flags_t flags = ARC_FLAG_WAIT;
 		objset_phys_t *osp;
 		dnode_phys_t *mdnp, *gdnp, *udnp;
 
@@ -344,7 +345,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		if (err != 0)
 			goto post;
 
-		osp = buf->b_data;
+		osp = ABD_TO_BUF(buf->b_data);
 		mdnp = &osp->os_meta_dnode;
 		gdnp = &osp->os_groupused_dnode;
 		udnp = &osp->os_userused_dnode;
@@ -452,7 +453,7 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	prefetch_data_t *pfd = arg;
-	uint32_t aflags = ARC_NOWAIT | ARC_PREFETCH;
+	arc_flags_t aflags = ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
 
 	ASSERT(pfd->pd_bytes_fetched >= 0);
 	if (pfd->pd_cancel)
@@ -542,7 +543,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 
 	/* See comment on ZIL traversal in dsl_scan_visitds. */
 	if (ds != NULL && !ds->ds_is_snapshot && !BP_IS_HOLE(rootbp)) {
-		uint32_t flags = ARC_WAIT;
+		arc_flags_t flags = ARC_FLAG_WAIT;
 		objset_phys_t *osp;
 		arc_buf_t *buf;
 
@@ -552,7 +553,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 		if (err != 0)
 			return (err);
 
-		osp = buf->b_data;
+		osp = ABD_TO_BUF(buf->b_data);
 		traverse_zil(td, &osp->os_zil_header);
 		(void) arc_buf_remove_ref(buf, &buf);
 	}

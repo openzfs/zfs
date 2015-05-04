@@ -183,7 +183,7 @@ typedef struct dsl_dataset {
 static inline dsl_dataset_phys_t *
 dsl_dataset_phys(dsl_dataset_t *ds)
 {
-	return (ds->ds_dbuf->db_data);
+	return (ABD_TO_BUF(ds->ds_dbuf->db_data));
 }
 
 /*

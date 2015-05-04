@@ -308,9 +308,10 @@ void dbuf_init(void);
 void dbuf_fini(void);
 
 boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
+arc_buf_contents_t dbuf_get_bufc_type(dmu_buf_impl_t *db);
 
 #define	DBUF_GET_BUFC_TYPE(_db)	\
-	(dbuf_is_metadata(_db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
+	(dbuf_get_bufc_type(_db))
 
 #define	DBUF_IS_CACHEABLE(_db)						\
 	((_db)->db_objset->os_primary_cache == ZFS_CACHE_ALL ||		\

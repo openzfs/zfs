@@ -129,7 +129,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	} else if (zb->zb_level == 0) {
 		dnode_phys_t *blk;
 		arc_buf_t *abuf;
-		uint32_t aflags = ARC_WAIT;
+		arc_flags_t aflags = ARC_FLAG_WAIT;
 		int blksz = BP_GET_LSIZE(bp);
 		int i;
 
@@ -138,11 +138,11 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		blk = abuf->b_data;
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
 			uint64_t dnobj = (zb->zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
-			err = report_dnode(da, dnobj, blk+i);
+			blk = abd_array(abuf->b_data, i, dnode_phys_t);
+			err = report_dnode(da, dnobj, blk);
 			if (err)
 				break;
 		}
