@@ -59,19 +59,24 @@ ZPOOL_CREATE_SH=${ZPOOL_CREATE_SH:-${pkgdatadir}/zpool-create.sh}
 ZPIOS_SH=${ZPIOS_SH:-${pkgdatadir}/zpios.sh}
 ZPIOS_SURVEY_SH=${ZPIOS_SURVEY_SH:-${pkgdatadir}/zpios-survey.sh}
 
-LDMOD=${LDMOD:-/sbin/modprobe}
-LSMOD=${LSMOD:-/sbin/lsmod}
-RMMOD=${RMMOD:-/sbin/rmmod}
-INFOMOD=${INFOMOD:-/sbin/modinfo}
-LOSETUP=${LOSETUP:-/sbin/losetup}
-MDADM=${MDADM:-/sbin/mdadm}
-PARTED=${PARTED:-/sbin/parted}
-BLOCKDEV=${BLOCKDEV:-/sbin/blockdev}
-LSSCSI=${LSSCSI:-/usr/bin/lsscsi}
-SCSIRESCAN=${SCSIRESCAN:-/usr/bin/scsi-rescan}
-SYSCTL=${SYSCTL:-/sbin/sysctl}
-UDEVADM=${UDEVADM:-/sbin/udevadm}
-AWK=${AWK:-/usr/bin/awk}
+for dir in /bin /sbin /etc /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin
+do
+    for var_cmd in LDMOD:modprobe LSMOD:lsmod RMMOD:rmmod INFOMOD:modinfo \
+	LOSETUP:losetup MDADM:mdadm PARTED:parted BLOCKDEV:blockdev \
+	LSSCSI:lsscsi SCSIRESCAN:scsi-rescan SYSCTL:sysctl UDEVADM:udevadm \
+	AWK:awk UDEV_TRIGGER:udevtrigger UDEV_SETTLE:udevsettle
+    do
+	set -- `echo ${var_cmd/:/ }`
+	var=`eval echo $1`
+
+	if [ -z "$var" ]; then
+	    if [ -x "$dir/$2" ]; then
+		echo "x: $1=$dir/$2"
+		eval $1="$dir/$2"
+	    fi
+	fi
+    done
+done
 
 ZED_PIDFILE=${ZED_PIDFILE:-${localstatedir}/run/zed.pid}
 
@@ -551,8 +556,8 @@ udev_trigger() {
 		${UDEVADM} trigger --action=change --subsystem-match=block
 		${UDEVADM} settle
 	else
-		/sbin/udevtrigger
-		/sbin/udevsettle
+		$UDEV_TRIGGER
+		$UDEV_SETTLE
 	fi
 }
 
