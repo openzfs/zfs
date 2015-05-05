@@ -1121,6 +1121,28 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 }
 EXPORT_SYMBOL(zfs_sb_prune);
 
+/***************************************************************************
+ * For spl/module/spl/spl-taskq.c
+ ***************************************************************************/
+static int
+taskq_wait_empty_check(taskq_t *tq)
+{
+	int rc;
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	rc = (tq->tq_lowest_id == tq->tq_next_id);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+
+	return (rc);
+}
+
+static void
+taskq_wait_empty(taskq_t *tq)
+{
+	wait_event(tq->tq_wait_waitq, taskq_wait_empty_check(tq));
+}
+/***************************************************************************/
+
 /*
  * Teardown the zfs_sb_t.
  *
@@ -1153,7 +1175,7 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 		 */
 		int round = 0;
 		while (zsb->z_nr_znodes > 0) {
-			taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(
+			taskq_wait_empty(dsl_pool_iput_taskq(dmu_objset_pool(
 			    zsb->z_os)));
 			if (++round > 1 && !unmounting)
 				break;
