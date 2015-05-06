@@ -29,3 +29,8 @@ Unless otherwise noted, all files in this distribution are released
 under the Common Development and Distribution License (CDDL).
 Exceptions are noted within the associated source files.  See the file
 OPENSOLARIS.LICENSE for more information.
+
+Unless otherwise noted, authoritative up-to-date copyright attribution
+can be found in the git commit log:
+
+https://github.com/zfsonlinux/zfs.git
