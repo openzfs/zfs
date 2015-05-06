@@ -1121,6 +1121,28 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 }
 EXPORT_SYMBOL(zfs_sb_prune);
 
+/***************************************************************************
+ * For spl/module/spl/spl-taskq.c
+ ***************************************************************************/
+static int
+taskq_wait_empty_check(taskq_t *tq)
+{
+	int rc;
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	rc = (tq->tq_lowest_id == tq->tq_next_id);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+
+	return (rc);
+}
+
+static void
+taskq_wait_empty(taskq_t *tq)
+{
+	wait_event(tq->tq_wait_waitq, taskq_wait_empty_check(tq));
+}
+/***************************************************************************/
+
 /*
  * Teardown the zfs_sb_t.
  *
@@ -1137,8 +1159,53 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	 * drain the iput_taskq to ensure all active references to the
 	 * zfs_sb_t have been handled only then can it be safely destroyed.
 	 */
-	if (zsb->z_os)
-		taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
+	if (zsb->z_os) {
+		/*
+		 * If we're unmounting we have to wait for the list to
+		 * drain completely.
+		 *
+		 * If we're not unmounting there's no guarantee the list
+		 * will drain completely, but iputs run from the taskq
+		 * may add the parents of dir-based xattrs to the taskq
+		 * so we want to wait for these.
+		 *
+		 * We can safely read z_nr_znodes without locking because the
+		 * VFS has already blocked operations which add to the
+		 * z_all_znodes list and thus increment z_nr_znodes.
+		 */
+		int round = 0;
+		while (zsb->z_nr_znodes > 0) {
+/***/
+ 			printk(KERN_WARNING "zfs_sb_teardown: unmounting=%d, "
+ 			    "round %d, z_nr_znodes=%llu\n", unmounting, round,
+ 			    zsb->z_nr_znodes);
+			mutex_enter(&zsb->z_znodes_lock);
+			for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
+			zp = list_next(&zsb->z_all_znodes, zp)) {
+				printk(KERN_WARNING "zfs_sb_teardown: "
+				    "z_all_znodes contains i_ino=%lu, i_mode="
+				    "0%o, i_state=0x%lx, z_xattr_parent=%d\n",
+				    zp->z_inode.i_ino, zp->z_inode.i_mode,
+				    zp->z_inode.i_state,
+				    zp->z_xattr_parent ? 1 : 0);
+			      	if (zp->z_xattr_parent) {
+					printk(KERN_WARNING "  z_xattr_parent: "
+					    "i_ino=%lu, i_mode=0%o, i_state="
+					    "0x%lx, z_xattr_parent=%d\n",
+					    zp->z_inode.i_ino,
+					    zp->z_inode.i_mode,
+					    zp->z_inode.i_state,
+					    zp->z_xattr_parent ? 1 : 0);
+				}
+			}
+			mutex_exit(&zsb->z_znodes_lock);
+/***/
+ 			if (++round > 2 && !unmounting)
+ 				break;
+			taskq_wait_empty(dsl_pool_iput_taskq(dmu_objset_pool(
+			    zsb->z_os)));
+		}
+	}
 
 	rrw_enter(&zsb->z_teardown_lock, RW_WRITER, FTAG);
 
@@ -1182,13 +1249,15 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	 *
 	 * Release all holds on dbufs.
 	 */
-	mutex_enter(&zsb->z_znodes_lock);
-	for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
-	    zp = list_next(&zsb->z_all_znodes, zp)) {
-		if (zp->z_sa_hdl)
-			zfs_znode_dmu_fini(zp);
+	if (!unmounting) {
+		mutex_enter(&zsb->z_znodes_lock);
+		for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
+		zp = list_next(&zsb->z_all_znodes, zp)) {
+			if (zp->z_sa_hdl)
+				zfs_znode_dmu_fini(zp);
+		}
+		mutex_exit(&zsb->z_znodes_lock);
 	}
-	mutex_exit(&zsb->z_znodes_lock);
 
 	/*
 	 * If we are unmounting, set the unmounted flag and let new VFS ops
