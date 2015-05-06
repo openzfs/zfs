@@ -429,11 +429,14 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx)
 	    &scn->scn_phys, tx));
 }
 
+extern int zfs_vdev_async_write_active_min_dirty_percent;
+
 static boolean_t
 dsl_scan_check_pause(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 {
 	uint64_t elapsed_nanosecs;
 	int mintime;
+	int dirty_pct;
 
 	/* we never skip user/group accounting objects */
 	if (zb && (int64_t)zb->zb_object < 0)
@@ -449,12 +452,28 @@ dsl_scan_check_pause(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 	if (zb && zb->zb_level != 0)
 		return (B_FALSE);
 
+	/*
+	 * We pause if:
+	 *  - we have scanned for the maximum time: an entire txg
+	 *    timeout (default 5 sec)
+	 *  or
+	 *  - we have scanned for at least the minimum time (default 1 sec
+	 *    for scrub, 3 sec for resilver), and either we have sufficient
+	 *    dirty data that we are starting to write more quickly
+	 *    (default 30%), or someone is explicitly waiting for this txg
+	 *    to complete.
+	 *  or
+	 *  - the spa is shutting down because this pool is being exported
+	 *    or the machine is rebooting.
+	 */
 	mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
 	    zfs_resilver_min_time_ms : zfs_scan_min_time_ms;
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
-	if (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
+	dirty_pct = scn->scn_dp->dp_dirty_total * 100 / zfs_dirty_data_max;
+	if (elapsed_nanosecs / NANOSEC >= zfs_txg_timeout ||
 	    (NSEC2MSEC(elapsed_nanosecs) > mintime &&
-	    txg_sync_waiting(scn->scn_dp)) ||
+	    (txg_sync_waiting(scn->scn_dp) ||
+	    dirty_pct >= zfs_vdev_async_write_active_min_dirty_percent)) ||
 	    spa_shutting_down(scn->scn_dp->dp_spa)) {
 		if (zb) {
 			dprintf("pausing at bookmark %llx/%llx/%llx/%llx\n",
