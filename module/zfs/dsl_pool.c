@@ -755,7 +755,7 @@ dsl_pool_upgrade_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 	ASSERT(dp->dp_origin_snap != NULL);
 
 	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj, upgrade_clones_cb,
-	    tx, DS_FIND_CHILDREN));
+	    tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
 }
 
 /* ARGSUSED */
@@ -810,7 +810,7 @@ dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 	VERIFY0(bpobj_open(&dp->dp_free_bpobj, dp->dp_meta_objset, obj));
 
 	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-	    upgrade_dir_clones_cb, tx, DS_FIND_CHILDREN));
+	    upgrade_dir_clones_cb, tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
 }
 
 void
@@ -1053,6 +1053,12 @@ boolean_t
 dsl_pool_config_held(dsl_pool_t *dp)
 {
 	return (RRW_LOCK_HELD(&dp->dp_config_rwlock));
+}
+
+boolean_t
+dsl_pool_config_held_writer(dsl_pool_t *dp)
+{
+	return (RRW_WRITE_HELD(&dp->dp_config_rwlock));
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

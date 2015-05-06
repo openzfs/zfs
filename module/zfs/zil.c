@@ -660,7 +660,7 @@ zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx)
 }
 
 int
-zil_claim(const char *osname, void *txarg)
+zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 {
 	dmu_tx_t *tx = txarg;
 	uint64_t first_txg = dmu_tx_get_txg(tx);
@@ -669,15 +669,16 @@ zil_claim(const char *osname, void *txarg)
 	objset_t *os;
 	int error;
 
-	error = dmu_objset_own(osname, DMU_OST_ANY, B_FALSE, FTAG, &os);
+	error = dmu_objset_own_obj(dp, ds->ds_object,
+	    DMU_OST_ANY, B_FALSE, FTAG, &os);
 	if (error != 0) {
 		/*
 		 * EBUSY indicates that the objset is inconsistent, in which
 		 * case it can not have a ZIL.
 		 */
 		if (error != EBUSY) {
-			cmn_err(CE_WARN, "can't open objset for %s, error %u",
-				osname, error);
+			cmn_err(CE_WARN, "can't open objset for %llu, error %u",
+			    (unsigned long long)ds->ds_object, error);
 		}
 
 		return (0);
@@ -725,8 +726,9 @@ zil_claim(const char *osname, void *txarg)
  * Checksum errors are ok as they indicate the end of the chain.
  * Any other error (no device or read failure) returns an error.
  */
+/* ARGSUSED */
 int
-zil_check_log_chain(const char *osname, void *tx)
+zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 {
 	zilog_t *zilog;
 	objset_t *os;
@@ -735,9 +737,10 @@ zil_check_log_chain(const char *osname, void *tx)
 
 	ASSERT(tx == NULL);
 
-	error = dmu_objset_hold(osname, FTAG, &os);
+	error = dmu_objset_from_ds(ds, &os);
 	if (error != 0) {
-		cmn_err(CE_WARN, "can't open objset for %s", osname);
+		cmn_err(CE_WARN, "can't open objset %llu, error %d",
+		    (unsigned long long)ds->ds_object, error);
 		return (0);
 	}
 
@@ -760,10 +763,8 @@ zil_check_log_chain(const char *osname, void *tx)
 			valid = vdev_log_state_valid(vd);
 		spa_config_exit(os->os_spa, SCL_STATE, FTAG);
 
-		if (!valid) {
-			dmu_objset_rele(os, FTAG);
+		if (!valid)
 			return (0);
-		}
 	}
 
 	/*
@@ -775,8 +776,6 @@ zil_check_log_chain(const char *osname, void *tx)
 	 */
 	error = zil_parse(zilog, zil_claim_log_block, zil_claim_log_record, tx,
 	    zilog->zl_header->zh_claim_txg ? -1ULL : spa_first_txg(os->os_spa));
-
-	dmu_objset_rele(os, FTAG);
 
 	return ((error == ECKSUM || error == ENOENT) ? 0 : error);
 }
