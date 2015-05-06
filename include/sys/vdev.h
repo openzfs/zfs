@@ -59,6 +59,7 @@ extern zio_t *vdev_probe(vdev_t *vd, zio_t *pio);
 extern boolean_t vdev_is_bootable(vdev_t *vd);
 extern vdev_t *vdev_lookup_top(spa_t *spa, uint64_t vdev);
 extern vdev_t *vdev_lookup_by_guid(vdev_t *vd, uint64_t guid);
+extern int vdev_count_leaves(spa_t *spa);
 extern void vdev_dtl_dirty(vdev_t *vd, vdev_dtl_type_t d,
     uint64_t txg, uint64_t size);
 extern boolean_t vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t d,
