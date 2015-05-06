@@ -83,15 +83,13 @@ dbuf_compare(const void *x1, const void *x2)
 		return (1);
 	}
 
-	if (d1->db_state < d2->db_state) {
+	if (d1->db_state == DB_SEARCH) {
+		ASSERT3S(d2->db_state, !=, DB_SEARCH);
 		return (-1);
-	}
-	if (d1->db_state > d2->db_state) {
+	} else if (d2->db_state == DB_SEARCH) {
+		ASSERT3S(d1->db_state, !=, DB_SEARCH);
 		return (1);
 	}
-
-	ASSERT3S(d1->db_state, !=, DB_SEARCH);
-	ASSERT3S(d2->db_state, !=, DB_SEARCH);
 
 	if ((uintptr_t)d1 < (uintptr_t)d2) {
 		return (-1);
