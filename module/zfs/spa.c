@@ -80,6 +80,7 @@
 #endif	/* _KERNEL */
 
 #include "zfs_prop.h"
+#include "zfs_namecheck.h"
 #include "zfs_comutil.h"
 
 typedef enum zti_modes {
@@ -3560,11 +3561,16 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	boolean_t has_features;
 	nvpair_t *elem;
 	int c, i;
-	char *poolname;
+	char *poolname = NULL;
 	nvlist_t *nvl;
 
-	if (nvlist_lookup_string(props, "tname", &poolname) != 0)
+	if (nvlist_lookup_string(props, "tname", &poolname) != 0) {
+		char c;
+		if (poolname != NULL &&
+		    pool_namecheck(poolname, NULL, &c) != 0)
+			return (SET_ERROR(EINVAL));
 		poolname = (char *)pool;
+	}
 
 	/*
 	 * If this pool already exists, return failure.
