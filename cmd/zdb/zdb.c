@@ -2185,6 +2185,8 @@ dump_label(const char *dev)
 	(void) close(fd);
 }
 
+static uint64_t num_large_blocks;
+
 /*ARGSUSED*/
 static int
 dump_one_dir(const char *dsname, void *arg)
@@ -2197,6 +2199,8 @@ dump_one_dir(const char *dsname, void *arg)
 		(void) printf("Could not open %s, error %d\n", dsname, error);
 		return (0);
 	}
+	if (dmu_objset_ds(os)->ds_large_blocks)
+		num_large_blocks++;
 	dump_dir(os);
 	dmu_objset_disown(os, FTAG);
 	fuid_table_destroy();
@@ -2207,7 +2211,7 @@ dump_one_dir(const char *dsname, void *arg)
 /*
  * Block statistics.
  */
-#define	PSIZE_HISTO_SIZE (SPA_MAXBLOCKSIZE / SPA_MINBLOCKSIZE + 1)
+#define	PSIZE_HISTO_SIZE (SPA_OLD_MAXBLOCKSIZE / SPA_MINBLOCKSIZE + 2)
 typedef struct zdb_blkstats {
 	uint64_t zb_asize;
 	uint64_t zb_lsize;
@@ -2273,7 +2277,15 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		zb->zb_lsize += BP_GET_LSIZE(bp);
 		zb->zb_psize += BP_GET_PSIZE(bp);
 		zb->zb_count++;
-		zb->zb_psize_histogram[BP_GET_PSIZE(bp) >> SPA_MINBLOCKSHIFT]++;
+
+		/*
+		 * The histogram is only big enough to record blocks up to
+		 * SPA_OLD_MAXBLOCKSIZE; larger blocks go into the last,
+		 * "other", bucket.
+		 */
+		int idx = BP_GET_PSIZE(bp) >> SPA_MINBLOCKSHIFT;
+		idx = MIN(idx, SPA_OLD_MAXBLOCKSIZE / SPA_MINBLOCKSIZE + 1);
+		zb->zb_psize_histogram[idx]++;
 
 		zb->zb_gangs += BP_COUNT_GANG(bp);
 
@@ -2979,6 +2991,7 @@ dump_zpool(spa_t *spa)
 		dump_metaslab_groups(spa);
 
 	if (dump_opt['d'] || dump_opt['i']) {
+		uint64_t refcount;
 		dump_dir(dp->dp_meta_objset);
 		if (dump_opt['d'] >= 3) {
 			dump_bpobj(&spa->spa_deferred_bpobj,
@@ -2998,8 +3011,21 @@ dump_zpool(spa_t *spa)
 		}
 		(void) dmu_objset_find(spa_name(spa), dump_one_dir,
 		    NULL, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
+
+		(void) feature_get_refcount(spa,
+		    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS], &refcount);
+		if (num_large_blocks != refcount) {
+			(void) printf("large_blocks feature refcount mismatch: "
+			    "expected %lld != actual %lld\n",
+			    (longlong_t)num_large_blocks,
+			    (longlong_t)refcount);
+			rc = 2;
+		} else {
+			(void) printf("Verified large_blocks feature refcount "
+			    "is correct (%llu)\n", (longlong_t)refcount);
+		}
 	}
-	if (dump_opt['b'] || dump_opt['c'])
+	if (rc == 0 && (dump_opt['b'] || dump_opt['c']))
 		rc = dump_block_stats(spa);
 
 	if (rc == 0)

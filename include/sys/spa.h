@@ -98,16 +98,25 @@ _NOTE(CONSTCOND) } while (0)
 _NOTE(CONSTCOND) } while (0)
 
 /*
- * We currently support nine block sizes, from 512 bytes to 128K.
- * We could go higher, but the benefits are near-zero and the cost
- * of COWing a giant block to modify one byte would become excessive.
+ * We currently support block sizes from 512 bytes to 16MB.
+ * The benefits of larger blocks, and thus larger IO, need to be weighed
+ * against the cost of COWing a giant block to modify one byte, and the
+ * large latency of reading or writing a large block.
+ *
+ * Note that although blocks up to 16MB are supported, the recordsize
+ * property can not be set larger than zfs_max_recordsize (default 1MB).
+ * See the comment near zfs_max_recordsize in dsl_dataset.c for details.
+ *
+ * Note that although the LSIZE field of the blkptr_t can store sizes up
+ * to 32MB, the dnode's dn_datablkszsec can only store sizes up to
+ * 32MB - 512 bytes.  Therefore, we limit SPA_MAXBLOCKSIZE to 16MB.
  */
 #define	SPA_MINBLOCKSHIFT	9
-#define	SPA_MAXBLOCKSHIFT	17
+#define	SPA_OLD_MAXBLOCKSHIFT	17
+#define	SPA_MAXBLOCKSHIFT	24
 #define	SPA_MINBLOCKSIZE	(1ULL << SPA_MINBLOCKSHIFT)
+#define	SPA_OLD_MAXBLOCKSIZE	(1ULL << SPA_OLD_MAXBLOCKSHIFT)
 #define	SPA_MAXBLOCKSIZE	(1ULL << SPA_MAXBLOCKSHIFT)
-
-#define	SPA_BLOCKSIZES		(SPA_MAXBLOCKSHIFT - SPA_MINBLOCKSHIFT + 1)
 
 /*
  * Size of block to hold the configuration data (a packed nvlist)
@@ -830,6 +839,7 @@ extern boolean_t spa_has_slogs(spa_t *spa);
 extern boolean_t spa_is_root(spa_t *spa);
 extern boolean_t spa_writeable(spa_t *spa);
 extern boolean_t spa_has_pending_synctask(spa_t *spa);
+extern int spa_maxblocksize(spa_t *spa);
 
 extern int spa_mode(spa_t *spa);
 extern uint64_t strtonum(const char *str, char **nptr);

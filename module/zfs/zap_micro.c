@@ -34,6 +34,7 @@
 #include <sys/zap_leaf.h>
 #include <sys/avl.h>
 #include <sys/arc.h>
+#include <sys/dmu_objset.h>
 
 #ifdef _KERNEL
 #include <sys/sunddi.h>
@@ -654,9 +655,9 @@ zap_create_flags(objset_t *os, int normflags, zap_flags_t flags,
 	uint64_t obj = dmu_object_alloc(os, ot, 0, bonustype, bonuslen, tx);
 
 	ASSERT(leaf_blockshift >= SPA_MINBLOCKSHIFT &&
-	    leaf_blockshift <= SPA_MAXBLOCKSHIFT &&
+	    leaf_blockshift <= SPA_OLD_MAXBLOCKSHIFT &&
 	    indirect_blockshift >= SPA_MINBLOCKSHIFT &&
-	    indirect_blockshift <= SPA_MAXBLOCKSHIFT);
+	    indirect_blockshift <= SPA_OLD_MAXBLOCKSHIFT);
 
 	VERIFY(dmu_object_set_blocksize(os, obj,
 	    1ULL << leaf_blockshift, indirect_blockshift, tx) == 0);
@@ -1347,7 +1348,6 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 	zap_t *zap;
 	int err = 0;
 
-
 	/*
 	 * Since, we don't have a name, we cannot figure out which blocks will
 	 * be affected in this operation. So, account for the worst case :
@@ -1360,7 +1360,7 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 	 * large microzap results in a promotion to fatzap.
 	 */
 	if (name == NULL) {
-		*towrite += (3 + (add ? 4 : 0)) * SPA_MAXBLOCKSIZE;
+		*towrite += (3 + (add ? 4 : 0)) * SPA_OLD_MAXBLOCKSIZE;
 		return (err);
 	}
 
@@ -1384,7 +1384,7 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 			/*
 			 * We treat this case as similar to (name == NULL)
 			 */
-			*towrite += (3 + (add ? 4 : 0)) * SPA_MAXBLOCKSIZE;
+			*towrite += (3 + (add ? 4 : 0)) * SPA_OLD_MAXBLOCKSIZE;
 		}
 	} else {
 		/*
@@ -1403,12 +1403,12 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 		 *			ptrtbl blocks
 		 */
 		if (dmu_buf_freeable(zap->zap_dbuf))
-			*tooverwrite += SPA_MAXBLOCKSIZE;
+			*tooverwrite += MZAP_MAX_BLKSZ;
 		else
-			*towrite += SPA_MAXBLOCKSIZE;
+			*towrite += MZAP_MAX_BLKSZ;
 
 		if (add) {
-			*towrite += 4 * SPA_MAXBLOCKSIZE;
+			*towrite += 4 * MZAP_MAX_BLKSZ;
 		}
 	}
 

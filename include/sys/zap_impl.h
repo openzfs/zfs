@@ -42,8 +42,7 @@ extern int fzap_default_block_shift;
 
 #define	MZAP_ENT_LEN		64
 #define	MZAP_NAME_LEN		(MZAP_ENT_LEN - 8 - 4 - 2)
-#define	MZAP_MAX_BLKSHIFT	SPA_MAXBLOCKSHIFT
-#define	MZAP_MAX_BLKSZ		(1 << MZAP_MAX_BLKSHIFT)
+#define	MZAP_MAX_BLKSZ		SPA_OLD_MAXBLOCKSIZE
 
 #define	ZAP_NEED_CD		(-1U)
 

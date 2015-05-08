@@ -174,12 +174,12 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-DnPpRve\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-DnPpRveL\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-e\fR] [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-eL\fR] [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
@@ -2706,7 +2706,7 @@ See \fBzpool-features\fR(5) for details on ZFS feature flags and the
 .sp
 .ne 2
 .na
-\fBzfs send\fR [\fB-DnPpRve\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs send\fR [\fB-DnPpRveL\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2757,6 +2757,22 @@ If the \fB-i\fR or \fB-I\fR flags are used in conjunction with the \fB-R\fR flag
 .sp .6
 .RS 4n
 Generate a deduplicated stream. Blocks which would have been sent multiple times in the send stream will only be sent once. The receiving system must also support this feature to receive a deduplicated stream.  This flag can be used regardless of the dataset's dedup  property, but performance will be much better if the filesystem uses a dedup-capable checksum (eg.  sha256).
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-L\fR\fR
+.ad
+.sp .6
+.RS 4n
+Generate a stream which may contain blocks larger than 128KB.  This flag
+has no effect if the \fBlarge_blocks\fR pool feature is disabled, or if
+the \fRrecordsize\fR property of this filesystem has never been set above
+128KB.  The receiving system must have the \fBlarge_blocks\fR pool feature
+enabled as well.  See \fBzpool-features\fR(5) for details on ZFS feature
+flags and the \fBlarge_blocks\fR feature.
 .RE
 
 .sp
@@ -2828,7 +2844,7 @@ The format of the stream is committed. You will be able to receive your streams 
 .sp
 .ne 2
 .na
-\fBzfs send\fR [\fB-e\fR] [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs send\fR [\fB-eL\fR] [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2854,6 +2870,22 @@ and following).
 If the incremental target is a clone, the incremental source can
 be the origin snapshot, or an earlier snapshot in the origin's filesystem,
 or the origin's origin, etc.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-L\fR\fR
+.ad
+.sp .6
+.RS 4n
+Generate a stream which may contain blocks larger than 128KB.  This flag
+has no effect if the \fBlarge_blocks\fR pool feature is disabled, or if
+the \fRrecordsize\fR property of this filesystem has never been set above
+128KB.  The receiving system must have the \fBlarge_blocks\fR pool feature
+enabled as well.  See \fBzpool-features\fR(5) for details on ZFS feature
+flags and the \fBlarge_blocks\fR feature.
 .RE
 
 .sp
@@ -2908,7 +2940,6 @@ The \fB-d\fR and \fB-e\fR options cause the file system name of the target snaps
 .RS 4n
 Discard the first element of the sent snapshot's file system name, using the remaining elements to determine the name of the target file system for the new snapshot as described in the paragraph above.
 .RE
-
 
 .sp
 .ne 2

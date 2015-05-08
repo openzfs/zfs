@@ -552,9 +552,9 @@ retry:
 			goto retry;
 		}
 
-		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
-		    bio_nr_pages(bio_ptr, bio_size));
 		/* bio_alloc() with __GFP_WAIT never returns NULL */
+		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
+		    MIN(bio_nr_pages(bio_ptr, bio_size), BIO_MAX_PAGES));
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
 			return (ENOMEM);
