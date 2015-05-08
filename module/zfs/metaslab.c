@@ -138,12 +138,6 @@ uint64_t metaslab_df_alloc_threshold = SPA_MAXBLOCKSIZE;
 int metaslab_df_free_pct = 4;
 
 /*
- * A metaslab is considered "free" if it contains a contiguous
- * segment which is greater than metaslab_min_alloc_size.
- */
-uint64_t metaslab_min_alloc_size = DMU_MAX_ACCESS;
-
-/*
  * Percentage of all cpus that can be used by the metaslab taskq.
  */
 int metaslab_load_pct = 50;
