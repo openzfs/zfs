@@ -59,7 +59,7 @@
  * operation, we will try to write this amount of data to a top-level vdev
  * before moving on to the next one.
  */
-uint64_t metaslab_aliquot = 512ULL << 10;
+unsigned long metaslab_aliquot = 512 << 10;
 
 uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
 
@@ -2707,6 +2707,7 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(metaslab_aliquot, ulong, 0644);
 module_param(metaslab_debug_load, int, 0644);
 module_param(metaslab_debug_unload, int, 0644);
 module_param(metaslab_preload_enabled, int, 0644);
@@ -2717,6 +2718,8 @@ module_param(metaslab_fragmentation_factor_enabled, int, 0644);
 module_param(metaslab_lba_weighting_enabled, int, 0644);
 module_param(metaslab_bias_enabled, int, 0644);
 
+MODULE_PARM_DESC(metaslab_aliquot,
+	"allocation granularity (a.k.a. stripe size)");
 MODULE_PARM_DESC(metaslab_debug_load,
 	"load all metaslabs when pool is first opened");
 MODULE_PARM_DESC(metaslab_debug_unload,
