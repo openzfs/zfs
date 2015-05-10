@@ -137,6 +137,20 @@ Default value: \fB8,388,608\fR.
 .sp
 .ne 2
 .na
+\fBmetaslab_aliquot\fR (ulong)
+.ad
+.RS 12n
+Metaslab granularity, in bytes. This is roughly similar to what would be
+referred to as the "stripe size" in traditional RAID arrays. In normal
+operation, ZFS will try to write this amount of data to a top-level vdev
+before moving on to the next one.
+.sp
+Default value: \fB524,288\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBmetaslab_bias_enabled\fR (int)
 .ad
 .RS 12n
