@@ -53,7 +53,14 @@
 #define	METASLAB_ACTIVE_MASK		\
 	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY)
 
+/*
+ * Metaslab granularity, in bytes. This is roughly similar to what would be
+ * referred to as the "stripe size" in traditional RAID arrays. In normal
+ * operation, we will try to write this amount of data to a top-level vdev
+ * before moving on to the next one.
+ */
 uint64_t metaslab_aliquot = 512ULL << 10;
+
 uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
 
 /*
