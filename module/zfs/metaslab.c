@@ -2335,28 +2335,42 @@ top:
 			 * figure out whether the corresponding vdev is
 			 * over- or under-used relative to the pool,
 			 * and set an allocation bias to even it out.
+			 *
+			 * Bias is also used to compensate for unequally
+			 * sized vdevs so that space is allocated fairly.
 			 */
 			if (mc->mc_aliquot == 0 && metaslab_bias_enabled) {
 				vdev_stat_t *vs = &vd->vdev_stat;
-				int64_t vu, cu;
-
-				vu = (vs->vs_alloc * 100) / (vs->vs_space + 1);
-				cu = (mc->mc_alloc * 100) / (mc->mc_space + 1);
+				int64_t vs_free = vs->vs_space - vs->vs_alloc;
+				int64_t mc_free = mc->mc_space - mc->mc_alloc;
+				int64_t ratio;
 
 				/*
 				 * Calculate how much more or less we should
 				 * try to allocate from this device during
 				 * this iteration around the rotor.
-				 * For example, if a device is 80% full
-				 * and the pool is 20% full then we should
-				 * reduce allocations by 60% on this device.
 				 *
-				 * mg_bias = (20 - 80) * 512K / 100 = -307K
+				 * This basically introduces a zero-centered
+				 * bias towards the devices with the most
+				 * free space, while compensating for vdev
+				 * size differences.
 				 *
-				 * This reduces allocations by 307K for this
-				 * iteration.
+				 * Examples:
+				 *  vdev V1 = 16M/128M
+				 *  vdev V2 = 16M/128M
+				 *  ratio(V1) = 100% ratio(V2) = 100%
+				 *
+				 *  vdev V1 = 16M/128M
+				 *  vdev V2 = 64M/128M
+				 *  ratio(V1) = 127% ratio(V2) =  72%
+				 *
+				 *  vdev V1 = 16M/128M
+				 *  vdev V2 = 64M/512M
+				 *  ratio(V1) =  40% ratio(V2) = 160%
 				 */
-				mg->mg_bias = ((cu - vu) *
+				ratio = (vs_free * mc->mc_alloc_groups * 100) /
+				    (mc_free + 1);
+				mg->mg_bias = ((ratio - 100) *
 				    (int64_t)mg->mg_aliquot) / 100;
 			} else if (!metaslab_bias_enabled) {
 				mg->mg_bias = 0;
