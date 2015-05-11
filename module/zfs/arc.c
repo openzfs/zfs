@@ -24,6 +24,7 @@
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2014 by Saso Kiselkov. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /*
@@ -132,12 +133,14 @@
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/arc.h>
 #include <sys/refcount.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/dsl_pool.h>
 #include <sys/multilist.h>
+#include <sys/zio_checksum.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #include <vm/anon.h>
@@ -787,9 +790,9 @@ typedef struct l2arc_read_callback {
 
 typedef struct l2arc_data_free {
 	/* protected by l2arc_free_on_write_mtx */
-	void		*l2df_data;
+	abd_t		*l2df_data;
 	size_t		l2df_size;
-	void		(*l2df_func)(void *, size_t);
+	void		(*l2df_func)(abd_t *, size_t);
 	list_node_t	l2df_list_node;
 } l2arc_data_free_t;
 
@@ -1247,7 +1250,7 @@ arc_cksum_verify(arc_buf_t *buf)
 		mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
 		return;
 	}
-	fletcher_2_native(buf->b_data, buf->b_hdr->b_size, &zc);
+	abd_fletcher_2_native(buf->b_data, buf->b_hdr->b_size, &zc);
 	if (!ZIO_CHECKSUM_EQUAL(*buf->b_hdr->b_freeze_cksum, zc))
 		panic("buffer modified while frozen!");
 	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
@@ -1260,7 +1263,7 @@ arc_cksum_equal(arc_buf_t *buf)
 	int equal;
 
 	mutex_enter(&buf->b_hdr->b_l1hdr.b_freeze_lock);
-	fletcher_2_native(buf->b_data, buf->b_hdr->b_size, &zc);
+	abd_fletcher_2_native(buf->b_data, buf->b_hdr->b_size, &zc);
 	equal = ZIO_CHECKSUM_EQUAL(*buf->b_hdr->b_freeze_cksum, zc);
 	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
 
@@ -1279,7 +1282,7 @@ arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 		return;
 	}
 	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t), KM_SLEEP);
-	fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
+	abd_fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
 	    buf->b_hdr->b_freeze_cksum);
 	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
 	arc_buf_watch(buf);
@@ -1291,6 +1294,13 @@ arc_buf_sigsegv(int sig, siginfo_t *si, void *unused)
 {
 	panic("Got SIGSEGV at address: 0x%lx\n", (long) si->si_addr);
 }
+
+static int
+arc_abd_watch(const void *buf, uint64_t len, void *private)
+{
+	ASSERT0(mprotect((void *)buf, len, *(int *)private));
+	return (0);
+}
 #endif
 
 /* ARGSUSED */
@@ -1299,8 +1309,9 @@ arc_buf_unwatch(arc_buf_t *buf)
 {
 #ifndef _KERNEL
 	if (arc_watch) {
-		ASSERT0(mprotect(buf->b_data, buf->b_hdr->b_size,
-		    PROT_READ | PROT_WRITE));
+		int prot = PROT_READ | PROT_WRITE;
+		abd_iterate_rfunc(buf->b_data, buf->b_hdr->b_size,
+		    arc_abd_watch, &prot);
 	}
 #endif
 }
@@ -1310,8 +1321,11 @@ static void
 arc_buf_watch(arc_buf_t *buf)
 {
 #ifndef _KERNEL
-	if (arc_watch)
-		ASSERT0(mprotect(buf->b_data, buf->b_hdr->b_size, PROT_READ));
+	if (arc_watch) {
+		int prot = PROT_READ;
+		abd_iterate_rfunc(buf->b_data, buf->b_hdr->b_size,
+		    arc_abd_watch, &prot);
+	}
 #endif
 }
 
@@ -1838,7 +1852,7 @@ arc_buf_clone(arc_buf_t *from)
 	buf->b_next = hdr->b_l1hdr.b_buf;
 	hdr->b_l1hdr.b_buf = buf;
 	arc_get_data_buf(buf);
-	bcopy(from->b_data, buf->b_data, size);
+	abd_copy(buf->b_data, from->b_data, size);
 
 	/*
 	 * This buffer already exists in the arc so create a duplicate
@@ -1891,8 +1905,8 @@ arc_buf_add_ref(arc_buf_t *buf, void* tag)
 }
 
 static void
-arc_buf_free_on_write(void *data, size_t size,
-    void (*free_func)(void *, size_t))
+arc_buf_free_on_write(abd_t *data, size_t size,
+    void (*free_func)(abd_t *, size_t))
 {
 	l2arc_data_free_t *df;
 
@@ -1910,7 +1924,7 @@ arc_buf_free_on_write(void *data, size_t size,
  * the buffer is placed on l2arc_free_on_write to be freed later.
  */
 static void
-arc_buf_data_free(arc_buf_t *buf, void (*free_func)(void *, size_t))
+arc_buf_data_free(arc_buf_t *buf, void (*free_func)(abd_t *, size_t))
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
@@ -1971,7 +1985,7 @@ arc_buf_l2_cdata_free(arc_buf_hdr_t *hdr)
 	ASSERT(L2ARC_IS_VALID_COMPRESS(HDR_GET_COMPRESS(hdr)));
 
 	arc_buf_free_on_write(hdr->b_l1hdr.b_tmp_cdata,
-	    hdr->b_size, zio_data_buf_free);
+	    hdr->b_size, abd_free);
 
 	ARCSTAT_BUMP(arcstat_l2_cdata_free_on_write);
 	hdr->b_l1hdr.b_tmp_cdata = NULL;
@@ -1996,11 +2010,11 @@ arc_buf_destroy(arc_buf_t *buf, boolean_t remove)
 		arc_buf_unwatch(buf);
 
 		if (type == ARC_BUFC_METADATA) {
-			arc_buf_data_free(buf, zio_buf_free);
+			arc_buf_data_free(buf, abd_free);
 			arc_space_return(size, ARC_SPACE_META);
 		} else {
 			ASSERT(type == ARC_BUFC_DATA);
-			arc_buf_data_free(buf, zio_data_buf_free);
+			arc_buf_data_free(buf, abd_free);
 			arc_space_return(size, ARC_SPACE_DATA);
 		}
 
@@ -3853,11 +3867,11 @@ arc_get_data_buf(arc_buf_t *buf)
 	}
 
 	if (type == ARC_BUFC_METADATA) {
-		buf->b_data = zio_buf_alloc(size);
+		buf->b_data = abd_alloc_linear(size);
 		arc_space_consume(size, ARC_SPACE_META);
 	} else {
 		ASSERT(type == ARC_BUFC_DATA);
-		buf->b_data = zio_data_buf_alloc(size);
+		buf->b_data = abd_alloc_scatter(size);
 		arc_space_consume(size, ARC_SPACE_DATA);
 	}
 
@@ -4047,7 +4061,7 @@ void
 arc_bcopy_func(zio_t *zio, arc_buf_t *buf, void *arg)
 {
 	if (zio == NULL || zio->io_error == 0)
-		bcopy(buf->b_data, arg, buf->b_hdr->b_size);
+		abd_copy_to_buf(arg, buf->b_data, buf->b_hdr->b_size);
 	VERIFY(arc_buf_remove_ref(buf, arg));
 }
 
@@ -4115,10 +4129,15 @@ arc_read_done(zio_t *zio)
 	if (BP_SHOULD_BYTESWAP(zio->io_bp) && zio->io_error == 0) {
 		dmu_object_byteswap_t bswap =
 		    DMU_OT_BYTESWAP(BP_GET_TYPE(zio->io_bp));
+
+		void *ziobuf = abd_borrow_buf_copy(zio->io_data, zio->io_size);
+
 		if (BP_GET_LEVEL(zio->io_bp) > 0)
-		    byteswap_uint64_array(buf->b_data, hdr->b_size);
+			byteswap_uint64_array(ziobuf, hdr->b_size);
 		else
-		    dmu_ot_byteswap[bswap].ob_func(buf->b_data, hdr->b_size);
+			dmu_ot_byteswap[bswap].ob_func(ziobuf, hdr->b_size);
+
+		abd_return_buf_copy(zio->io_data, ziobuf, zio->io_size);
 	}
 
 	arc_cksum_compute(buf, B_FALSE);
@@ -6256,7 +6275,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	arc_buf_hdr_t *hdr, *hdr_prev, *head;
 	uint64_t write_asize, write_sz, headroom, buf_compress_minsz,
 	    stats_size;
-	void *buf_data;
+	abd_t *buf_data;
 	boolean_t full;
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;
@@ -6578,7 +6597,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 static boolean_t
 l2arc_compress_buf(arc_buf_hdr_t *hdr)
 {
-	void *cdata;
+	abd_t *cdata;
+	void *ddata;
 	size_t csize, len, rounded;
 	l2arc_buf_hdr_t *l2hdr;
 
@@ -6591,20 +6611,22 @@ l2arc_compress_buf(arc_buf_hdr_t *hdr)
 	ASSERT(hdr->b_l1hdr.b_tmp_cdata != NULL);
 
 	len = l2hdr->b_asize;
-	cdata = zio_data_buf_alloc(len);
+	cdata = abd_alloc_linear(len);
 	ASSERT3P(cdata, !=, NULL);
-	csize = zio_compress_data(ZIO_COMPRESS_LZ4, hdr->b_l1hdr.b_tmp_cdata,
-	    cdata, l2hdr->b_asize);
+	ddata = abd_borrow_buf_copy(hdr->b_l1hdr.b_tmp_cdata, l2hdr->b_asize);
+	csize = zio_compress_data(ZIO_COMPRESS_LZ4, ddata,
+	    ABD_TO_BUF(cdata), l2hdr->b_asize);
+	abd_return_buf(hdr->b_l1hdr.b_tmp_cdata, ddata, l2hdr->b_asize);
 
 	rounded = P2ROUNDUP(csize, (size_t)SPA_MINBLOCKSIZE);
 	if (rounded > csize) {
-		bzero((char *)cdata + csize, rounded - csize);
+		abd_zero_off(cdata, rounded - csize, csize);
 		csize = rounded;
 	}
 
 	if (csize == 0) {
 		/* zero block, indicate that there's nothing to write */
-		zio_data_buf_free(cdata, len);
+		abd_free(cdata, len);
 		HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_EMPTY);
 		l2hdr->b_asize = 0;
 		hdr->b_l1hdr.b_tmp_cdata = NULL;
@@ -6625,7 +6647,7 @@ l2arc_compress_buf(arc_buf_hdr_t *hdr)
 		 * Compression failed, release the compressed buffer.
 		 * l2hdr will be left unmodified.
 		 */
-		zio_data_buf_free(cdata, len);
+		abd_free(cdata, len);
 		ARCSTAT_BUMP(arcstat_l2_compress_failures);
 		return (B_FALSE);
 	}
@@ -6666,9 +6688,10 @@ l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 		 * buffer's contents.
 		 */
 		ASSERT(hdr->b_l1hdr.b_buf != NULL);
-		bzero(hdr->b_l1hdr.b_buf->b_data, hdr->b_size);
+		abd_zero(hdr->b_l1hdr.b_buf->b_data, hdr->b_size);
 		zio->io_data = zio->io_orig_data = hdr->b_l1hdr.b_buf->b_data;
 	} else {
+		void *ddata;
 		ASSERT(zio->io_data != NULL);
 		/*
 		 * We copy the compressed data from the start of the arc buffer
@@ -6682,10 +6705,15 @@ l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 		 */
 		csize = zio->io_size;
 		cdata = zio_data_buf_alloc(csize);
-		bcopy(zio->io_data, cdata, csize);
-		if (zio_decompress_data(c, cdata, zio->io_data, csize,
+
+		abd_copy_to_buf(cdata, zio->io_data, csize);
+		ddata = abd_borrow_buf(zio->io_data, hdr->b_size);
+
+		if (zio_decompress_data(c, cdata, ddata, csize,
 		    hdr->b_size) != 0)
 			zio->io_error = EIO;
+
+		abd_return_buf_copy(zio->io_data, ddata, hdr->b_size);
 		zio_data_buf_free(cdata, csize);
 	}
 
@@ -6727,8 +6755,7 @@ l2arc_release_cdata_buf(arc_buf_hdr_t *hdr)
 		 * temporary buffer for it, so now we need to release it.
 		 */
 		ASSERT(hdr->b_l1hdr.b_tmp_cdata != NULL);
-		zio_data_buf_free(hdr->b_l1hdr.b_tmp_cdata,
-		    hdr->b_size);
+		abd_free(hdr->b_l1hdr.b_tmp_cdata, hdr->b_size);
 		hdr->b_l1hdr.b_tmp_cdata = NULL;
 	}
 
