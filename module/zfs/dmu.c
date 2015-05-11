@@ -26,6 +26,7 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
@@ -798,7 +799,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 			bufoff = offset - db->db_offset;
 			tocpy = MIN(db->db_size - bufoff, size);
 
-			(void) memcpy(buf, (char *)db->db_data + bufoff, tocpy);
+			abd_copy_to_buf_off(buf, db->db_data, tocpy, bufoff);
 
 			offset += tocpy;
 			size -= tocpy;
@@ -840,7 +841,7 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
+		abd_copy_from_buf_off(db->db_data, buf, tocpy, bufoff);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -965,6 +966,7 @@ dmu_xuio_fini(xuio_t *xuio)
  * Initialize iov[priv->next] and priv->bufs[priv->next] with { off, n, abuf }
  * and increase priv->next by 1.
  */
+/* TODO: abd handle xuio */
 int
 dmu_xuio_add(xuio_t *xuio, arc_buf_t *abuf, offset_t off, size_t n)
 {
@@ -1049,7 +1051,8 @@ xuio_stat_wbuf_nocopy()
  * return value is the number of bytes successfully copied to arg_buf.
  */
 static int
-dmu_bio_copy(void *arg_buf, int size, struct bio *bio, size_t bio_offset)
+dmu_bio_copy(abd_t *db_data, int db_offset, int size, struct bio *bio,
+    size_t bio_offset)
 {
 	struct bio_vec bv, *bvp = &bv;
 	bvec_iterator_t iter;
@@ -1084,9 +1087,11 @@ dmu_bio_copy(void *arg_buf, int size, struct bio *bio, size_t bio_offset)
 		ASSERT3P(bv_buf, !=, NULL);
 
 		if (bio_data_dir(bio) == WRITE)
-			memcpy(arg_buf + offset, bv_buf, tocpy);
+			abd_copy_from_buf_off(db_data, bv_buf, tocpy,
+			    db_offset + offset);
 		else
-			memcpy(bv_buf, arg_buf + offset, tocpy);
+			abd_copy_to_buf_off(bv_buf, db_data, tocpy,
+			    db_offset + offset);
 
 		offset += tocpy;
 	}
@@ -1126,7 +1131,7 @@ dmu_read_bio(objset_t *os, uint64_t object, struct bio *bio)
 		if (tocpy == 0)
 			break;
 
-		didcpy = dmu_bio_copy(db->db_data + bufoff, tocpy, bio,
+		didcpy = dmu_bio_copy(db->db_data, bufoff, tocpy, bio,
 		    bio_offset);
 
 		if (didcpy < tocpy)
@@ -1183,7 +1188,7 @@ dmu_write_bio(objset_t *os, uint64_t object, struct bio *bio, dmu_tx_t *tx)
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		didcpy = dmu_bio_copy(db->db_data + bufoff, tocpy, bio,
+		didcpy = dmu_bio_copy(db->db_data, bufoff, tocpy, bio,
 		    bio_offset);
 
 		if (tocpy == db->db_size)
@@ -1246,8 +1251,8 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 			else
 				XUIOSTAT_BUMP(xuiostat_rbuf_copied);
 		} else {
-			err = uiomove((char *)db->db_data + bufoff, tocpy,
-			    UIO_READ, uio);
+			err = abd_uiomove_off(db->db_data, tocpy, UIO_READ,
+			    uio, bufoff);
 		}
 		if (err)
 			break;
@@ -1347,8 +1352,8 @@ dmu_write_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		 * to lock the pages in memory, so that uiomove won't
 		 * block.
 		 */
-		err = uiomove((char *)db->db_data + bufoff, tocpy,
-		    UIO_WRITE, uio);
+		err = abd_uiomove_off(db->db_data, tocpy, UIO_WRITE, uio,
+		    bufoff);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -1475,6 +1480,7 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 	} else {
 		objset_t *os;
 		uint64_t object;
+		void *tmp_buf;
 
 		DB_DNODE_ENTER(dbuf);
 		dn = DB_DNODE(dbuf);
@@ -1483,7 +1489,13 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 		DB_DNODE_EXIT(dbuf);
 
 		dbuf_rele(db, FTAG);
-		dmu_write(os, object, offset, blksz, buf->b_data, tx);
+
+		tmp_buf = abd_borrow_buf_copy(buf->b_data, blksz);
+
+		dmu_write(os, object, offset, blksz, tmp_buf, tx);
+
+		abd_return_buf(buf->b_data, tmp_buf, blksz);
+
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
