@@ -24,6 +24,7 @@
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2014 by Saso Kiselkov. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /*
@@ -266,12 +267,14 @@
 #include <sys/zio_compress.h>
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/arc.h>
 #include <sys/refcount.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/dsl_pool.h>
 #include <sys/multilist.h>
+#include <sys/zio_checksum.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #include <vm/anon.h>
@@ -954,7 +957,7 @@ typedef struct l2arc_read_callback {
 
 typedef struct l2arc_data_free {
 	/* protected by l2arc_free_on_write_mtx */
-	void		*l2df_data;
+	abd_t		*l2df_data;
 	size_t		l2df_size;
 	arc_buf_contents_t l2df_type;
 	list_node_t	l2df_list_node;
@@ -964,8 +967,8 @@ static kmutex_t l2arc_feed_thr_lock;
 static kcondvar_t l2arc_feed_thr_cv;
 static uint8_t l2arc_thread_exit;
 
-static void *arc_get_data_buf(arc_buf_hdr_t *, uint64_t, void *);
-static void arc_free_data_buf(arc_buf_hdr_t *, void *, uint64_t, void *);
+static abd_t *arc_get_data_buf(arc_buf_hdr_t *, uint64_t, void *);
+static void arc_free_data_buf(arc_buf_hdr_t *, abd_t *, uint64_t, void *);
 static void arc_hdr_free_pdata(arc_buf_hdr_t *hdr);
 static void arc_hdr_alloc_pdata(arc_buf_hdr_t *);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
@@ -1382,7 +1385,7 @@ arc_cksum_verify(arc_buf_t *buf)
 		return;
 	}
 
-	fletcher_2_native(buf->b_data, arc_buf_size(buf), &zc);
+	abd_fletcher_2_native(buf->b_data, arc_buf_size(buf), &zc);
 	if (!ZIO_CHECKSUM_EQUAL(*hdr->b_l1hdr.b_freeze_cksum, zc))
 		panic("buffer modified while frozen!");
 	mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
@@ -1412,12 +1415,18 @@ arc_cksum_is_equal(arc_buf_hdr_t *hdr, zio_t *zio)
 	if (!HDR_COMPRESSION_ENABLED(hdr) && compress != ZIO_COMPRESS_OFF) {
 		uint64_t lsize;
 		uint64_t csize;
-		void *cbuf;
+		abd_t *cabd;
+		void *ddata, *cdata;
 		ASSERT3U(HDR_GET_COMPRESS(hdr), ==, ZIO_COMPRESS_OFF);
 
-		cbuf = zio_buf_alloc(HDR_GET_PSIZE(hdr));
 		lsize = HDR_GET_LSIZE(hdr);
-		csize = zio_compress_data(compress, zio->io_data, cbuf, lsize);
+
+		cabd = abd_alloc_scatter(HDR_GET_PSIZE(hdr));
+		cdata = abd_borrow_buf(cabd, HDR_GET_PSIZE(hdr));
+		ddata = abd_borrow_buf_copy(zio->io_data, lsize);
+		csize = zio_compress_data(compress, ddata, cdata, lsize);
+		abd_return_buf(zio->io_data, ddata, lsize);
+		abd_return_buf_copy(cabd, cdata, HDR_GET_PSIZE(hdr));
 		ASSERT3U(csize, <=, HDR_GET_PSIZE(hdr));
 		if (csize < HDR_GET_PSIZE(hdr)) {
 			/*
@@ -1432,10 +1441,10 @@ arc_cksum_is_equal(arc_buf_hdr_t *hdr, zio_t *zio)
 			 * and zero out any part that should not contain
 			 * data.
 			 */
-			bzero((char *)cbuf + csize, HDR_GET_PSIZE(hdr) - csize);
+			abd_zero_off(cabd, HDR_GET_PSIZE(hdr) - csize, csize);
 			csize = HDR_GET_PSIZE(hdr);
 		}
-		zio_push_transform(zio, cbuf, csize, HDR_GET_PSIZE(hdr), NULL);
+		zio_push_transform(zio, cabd, csize, HDR_GET_PSIZE(hdr), NULL);
 	}
 
 	/*
@@ -1495,7 +1504,7 @@ arc_cksum_compute(arc_buf_t *buf)
 	ASSERT(!ARC_BUF_COMPRESSED(buf));
 	hdr->b_l1hdr.b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t),
 	    KM_SLEEP);
-	fletcher_2_native(buf->b_data, arc_buf_size(buf),
+	abd_fletcher_2_native(buf->b_data, arc_buf_size(buf),
 	    hdr->b_l1hdr.b_freeze_cksum);
 	mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 	arc_buf_watch(buf);
@@ -1507,6 +1516,13 @@ arc_buf_sigsegv(int sig, siginfo_t *si, void *unused)
 {
 	panic("Got SIGSEGV at address: 0x%lx\n", (long) si->si_addr);
 }
+
+static int
+arc_abd_watch(const void *buf, uint64_t len, void *private)
+{
+	ASSERT0(mprotect((void *)buf, len, *(int *)private));
+	return (0);
+}
 #endif
 
 /* ARGSUSED */
@@ -1515,8 +1531,9 @@ arc_buf_unwatch(arc_buf_t *buf)
 {
 #ifndef _KERNEL
 	if (arc_watch) {
-		ASSERT0(mprotect(buf->b_data, HDR_GET_LSIZE(buf->b_hdr),
-		    PROT_READ | PROT_WRITE));
+		int prot = PROT_READ | PROT_WRITE;
+		abd_iterate_rfunc(buf->b_data, HDR_GET_LSIZE(buf->b_hdr),
+		    arc_abd_watch, &prot);
 	}
 #endif
 }
@@ -1526,9 +1543,11 @@ static void
 arc_buf_watch(arc_buf_t *buf)
 {
 #ifndef _KERNEL
-	if (arc_watch)
-		ASSERT0(mprotect(buf->b_data, arc_buf_size(buf),
-		    PROT_READ));
+	if (arc_watch) {
+		int prot = PROT_READ;
+		abd_iterate_rfunc(buf->b_data, arc_buf_size(buf),
+		    arc_abd_watch, &prot);
+	}
 #endif
 }
 
@@ -1692,7 +1711,7 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 		}
 
 		if (!ARC_BUF_COMPRESSED(from)) {
-			bcopy(from->b_data, buf->b_data, arc_buf_size(buf));
+			abd_copy(buf->b_data, from->b_data, arc_buf_size(buf));
 			copied = B_TRUE;
 			break;
 		}
@@ -1733,7 +1752,7 @@ arc_buf_fill(arc_buf_t *buf, boolean_t compressed)
 
 	if (hdr_compressed == compressed) {
 		if (!arc_buf_is_shared(buf)) {
-			bcopy(hdr->b_l1hdr.b_pdata, buf->b_data,
+			abd_copy(buf->b_data, hdr->b_l1hdr.b_pdata,
 			    arc_buf_size(buf));
 		}
 	} else {
@@ -1784,9 +1803,19 @@ arc_buf_fill(arc_buf_t *buf, boolean_t compressed)
 			ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, !=, NULL);
 			return (0);
 		} else {
-			int error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
-			    hdr->b_l1hdr.b_pdata, buf->b_data,
+			int error;
+			void *ddata, *cdata;
+			cdata = abd_borrow_buf_copy(hdr->b_l1hdr.b_pdata,
+			    HDR_GET_PSIZE(hdr));
+			ddata = abd_borrow_buf(buf->b_data,
+			    HDR_GET_LSIZE(hdr));
+			error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
+			    cdata, ddata,
 			    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
+			abd_return_buf_copy(buf->b_data, ddata,
+			    HDR_GET_LSIZE(hdr));
+			abd_return_buf(hdr->b_l1hdr.b_pdata, cdata,
+			    HDR_GET_PSIZE(hdr));
 
 			/*
 			 * Absent hardware errors or software bugs, this should
@@ -1804,9 +1833,12 @@ arc_buf_fill(arc_buf_t *buf, boolean_t compressed)
 
 	/* Byteswap the buf's data if necessary */
 	if (bswap != DMU_BSWAP_NUMFUNCS) {
+		void *bbuf;
 		ASSERT(!HDR_SHARED_DATA(hdr));
 		ASSERT3U(bswap, <, DMU_BSWAP_NUMFUNCS);
-		dmu_ot_byteswap[bswap].ob_func(buf->b_data, HDR_GET_LSIZE(hdr));
+		bbuf = abd_borrow_buf_copy(buf->b_data, HDR_GET_LSIZE(hdr));
+		dmu_ot_byteswap[bswap].ob_func(bbuf, HDR_GET_LSIZE(hdr));
+		abd_return_buf_copy(buf->b_data, bbuf, HDR_GET_LSIZE(hdr));
 	}
 
 	/* Compute the hdr's checksum if necessary */
@@ -2485,7 +2517,7 @@ arc_loan_inuse_buf(arc_buf_t *buf, void *tag)
 }
 
 static void
-l2arc_free_data_on_write(void *data, size_t size, arc_buf_contents_t type)
+l2arc_free_data_on_write(abd_t *data, size_t size, arc_buf_contents_t type)
 {
 	l2arc_data_free_t *df = kmem_alloc(sizeof (*df), KM_SLEEP);
 
@@ -4482,10 +4514,10 @@ arc_is_overflowing(void)
  * thread to catch up. If we're past the target size but below the hard
  * limit, we'll only signal the reclaim thread and continue on.
  */
-static void *
+static abd_t *
 arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 {
-	void *datap = NULL;
+	abd_t *datap = NULL;
 	arc_state_t		*state = hdr->b_l1hdr.b_state;
 	arc_buf_contents_t	type = arc_buf_type(hdr);
 
@@ -4529,11 +4561,11 @@ arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 
 	VERIFY3U(hdr->b_type, ==, type);
 	if (type == ARC_BUFC_METADATA) {
-		datap = zio_buf_alloc(size);
+		datap = abd_alloc_linear(size);
 		arc_space_consume(size, ARC_SPACE_META);
 	} else {
 		ASSERT(type == ARC_BUFC_DATA);
-		datap = zio_data_buf_alloc(size);
+		datap = abd_alloc_scatter(size);
 		arc_space_consume(size, ARC_SPACE_DATA);
 	}
 
@@ -4576,7 +4608,7 @@ arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
  * Free the arc data buffer.
  */
 static void
-arc_free_data_buf(arc_buf_hdr_t *hdr, void *data, uint64_t size, void *tag)
+arc_free_data_buf(arc_buf_hdr_t *hdr, abd_t *data, uint64_t size, void *tag)
 {
 	arc_state_t *state = hdr->b_l1hdr.b_state;
 	arc_buf_contents_t type = arc_buf_type(hdr);
@@ -4593,11 +4625,11 @@ arc_free_data_buf(arc_buf_hdr_t *hdr, void *data, uint64_t size, void *tag)
 
 	VERIFY3U(hdr->b_type, ==, type);
 	if (type == ARC_BUFC_METADATA) {
-		zio_buf_free(data, size);
+		abd_free(data, size);
 		arc_space_return(size, ARC_SPACE_META);
 	} else {
 		ASSERT(type == ARC_BUFC_DATA);
-		zio_data_buf_free(data, size);
+		abd_free(data, size);
 		arc_space_return(size, ARC_SPACE_DATA);
 	}
 }
@@ -4753,7 +4785,7 @@ void
 arc_bcopy_func(zio_t *zio, arc_buf_t *buf, void *arg)
 {
 	if (zio == NULL || zio->io_error == 0)
-		bcopy(buf->b_data, arg, arc_buf_size(buf));
+		abd_copy_to_buf(arg, buf->b_data, arc_buf_size(buf));
 	arc_buf_destroy(buf, arg);
 }
 
@@ -5533,7 +5565,8 @@ arc_release(arc_buf_t *buf, void *tag)
 				arc_share_buf(hdr, lastbuf);
 			} else {
 				arc_hdr_alloc_pdata(hdr);
-				bcopy(buf->b_data, hdr->b_l1hdr.b_pdata, psize);
+				abd_copy(hdr->b_l1hdr.b_pdata, buf->b_data,
+				    psize);
 			}
 			VERIFY3P(lastbuf->b_data, !=, NULL);
 		} else if (HDR_SHARED_DATA(hdr)) {
@@ -5699,7 +5732,7 @@ arc_write_ready(zio_t *zio)
 		ASSERT3U(BP_GET_COMPRESS(zio->io_bp), !=, ZIO_COMPRESS_OFF);
 		ASSERT3U(psize, >, 0);
 		arc_hdr_alloc_pdata(hdr);
-		bcopy(zio->io_data, hdr->b_l1hdr.b_pdata, psize);
+		abd_copy(hdr->b_l1hdr.b_pdata, zio->io_data, psize);
 	} else {
 		ASSERT3P(buf->b_data, ==, zio->io_orig_data);
 		ASSERT3U(zio->io_orig_size, ==, arc_buf_size(buf));
@@ -5710,7 +5743,7 @@ arc_write_ready(zio_t *zio)
 		 * the arc_buf_t data buffer with the hdr.
 		 */
 		arc_share_buf(hdr, buf);
-		ASSERT0(bcmp(zio->io_orig_data, hdr->b_l1hdr.b_pdata,
+		ASSERT0(abd_cmp(zio->io_orig_data, hdr->b_l1hdr.b_pdata,
 		    HDR_GET_LSIZE(hdr)));
 	}
 	arc_hdr_verify(hdr, zio->io_bp);
@@ -6737,10 +6770,10 @@ l2arc_do_free_on_write(void)
 		df_prev = list_prev(buflist, df);
 		ASSERT3P(df->l2df_data, !=, NULL);
 		if (df->l2df_type == ARC_BUFC_METADATA) {
-			zio_buf_free(df->l2df_data, df->l2df_size);
+			abd_free(df->l2df_data, df->l2df_size);
 		} else {
 			ASSERT(df->l2df_type == ARC_BUFC_DATA);
-			zio_data_buf_free(df->l2df_data, df->l2df_size);
+			abd_free(df->l2df_data, df->l2df_size);
 		}
 		list_remove(buflist, df);
 		kmem_free(df, sizeof (l2arc_data_free_t));
@@ -7154,7 +7187,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		for (; hdr; hdr = hdr_prev) {
 			kmutex_t *hash_lock;
 			uint64_t asize, size;
-			void *to_write;
+			abd_t *to_write;
 
 			if (arc_warm == B_FALSE)
 				hdr_prev = multilist_sublist_next(mls, hdr);
@@ -7247,13 +7280,13 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			} else {
 				arc_buf_contents_t type = arc_buf_type(hdr);
 				if (type == ARC_BUFC_METADATA) {
-					to_write = zio_buf_alloc(size);
+					to_write = abd_alloc_linear(size);
 				} else {
 					ASSERT3U(type, ==, ARC_BUFC_DATA);
-					to_write = zio_data_buf_alloc(size);
+					to_write = abd_alloc_scatter(size);
 				}
 
-				bcopy(hdr->b_l1hdr.b_pdata, to_write, size);
+				abd_copy(to_write, hdr->b_l1hdr.b_pdata, size);
 				l2arc_free_data_on_write(to_write, size, type);
 			}
 			wzio = zio_write_phys(pio, dev->l2ad_vdev,
