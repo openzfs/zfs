@@ -20,6 +20,7 @@
  */
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Use is subject to license terms.
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
@@ -206,14 +207,20 @@ static struct fletcher_4_kstat {
 /* Indicate that benchmark has been completed */
 static boolean_t fletcher_4_initialized = B_FALSE;
 
-void
-fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+int
+fletcher_2_incremental_native(const void *buf, uint64_t size, void *private)
 {
+	zio_cksum_t *zcp = private;
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += ip[0];
 		a1 += ip[1];
 		b0 += a0;
@@ -221,16 +228,30 @@ fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
+	return (0);
 }
 
 void
-fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
+	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+	fletcher_2_incremental_native(buf, size, zcp);
+}
+
+int
+fletcher_2_incremental_byteswap(const void *buf, uint64_t size, void *private)
+{
+	zio_cksum_t *zcp = private;
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += BSWAP_64(ip[0]);
 		a1 += BSWAP_64(ip[1]);
 		b0 += a0;
@@ -238,6 +259,14 @@ fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
+	return (0);
+}
+
+void
+fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+	fletcher_2_incremental_byteswap(buf, size, zcp);
 }
 
 static void
@@ -376,22 +405,24 @@ fletcher_4_impl_get(void)
 	return (ops);
 }
 
-void
-fletcher_4_incremental_native(const void *buf, uint64_t size,
-    zio_cksum_t *zcp)
+int
+fletcher_4_incremental_native(const void *buf, uint64_t size, void *private)
 {
+	zio_cksum_t *zcp = private;
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
 	fletcher_4_scalar_native(buf, size, zcp);
+	return (0);
 }
 
-void
-fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
-    zio_cksum_t *zcp)
+int
+fletcher_4_incremental_byteswap(const void *buf, uint64_t size, void *private)
 {
+	zio_cksum_t *zcp = private;
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
 	fletcher_4_scalar_byteswap(buf, size, zcp);
+	return (0);
 }
 
 static inline void
@@ -695,6 +726,8 @@ EXPORT_SYMBOL(fletcher_4_init);
 EXPORT_SYMBOL(fletcher_4_fini);
 EXPORT_SYMBOL(fletcher_2_native);
 EXPORT_SYMBOL(fletcher_2_byteswap);
+EXPORT_SYMBOL(fletcher_2_incremental_native);
+EXPORT_SYMBOL(fletcher_2_incremental_byteswap);
 EXPORT_SYMBOL(fletcher_4_native);
 EXPORT_SYMBOL(fletcher_4_native_varsize);
 EXPORT_SYMBOL(fletcher_4_byteswap);
