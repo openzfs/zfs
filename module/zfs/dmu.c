@@ -26,6 +26,7 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
@@ -798,7 +799,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 			bufoff = offset - db->db_offset;
 			tocpy = MIN(db->db_size - bufoff, size);
 
-			(void) memcpy(buf, (char *)db->db_data + bufoff, tocpy);
+			abd_copy_to_buf_off(buf, db->db_data, tocpy, bufoff);
 
 			offset += tocpy;
 			size -= tocpy;
@@ -840,7 +841,7 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
+		abd_copy_from_buf_off(db->db_data, buf, tocpy, bufoff);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -965,6 +966,7 @@ dmu_xuio_fini(xuio_t *xuio)
  * Initialize iov[priv->next] and priv->bufs[priv->next] with { off, n, abuf }
  * and increase priv->next by 1.
  */
+/* TODO: abd handle xuio */
 int
 dmu_xuio_add(xuio_t *xuio, arc_buf_t *abuf, offset_t off, size_t n)
 {
@@ -1041,6 +1043,174 @@ xuio_stat_wbuf_nocopy()
 }
 
 #ifdef _KERNEL
+
+
+/*
+ * Copy up to size bytes between arg_buf and req based on the data direction
+ * described by the req.  If an entire req's data cannot be transfered in one
+ * pass, you should pass in @req_offset to indicate where to continue. The
+ * return value is the number of bytes successfully copied to arg_buf.
+ */
+static int
+dmu_bio_copy(abd_t *db_data, int db_offset, int size, struct bio *bio,
+    size_t bio_offset)
+{
+	struct bio_vec bv, *bvp = &bv;
+	bvec_iterator_t iter;
+	char *bv_buf;
+	int tocpy, bv_len, bv_offset;
+	int offset = 0;
+
+	bio_for_each_segment4(bv, bvp, bio, iter) {
+
+		/*
+		 * Fully consumed the passed arg_buf. We use goto here because
+		 * rq_for_each_segment is a double loop
+		 */
+		ASSERT3S(offset, <=, size);
+		if (size == offset)
+			goto out;
+
+		/* Skip already copied bvp */
+		if (bio_offset >= bvp->bv_len) {
+			bio_offset -= bvp->bv_len;
+			continue;
+		}
+
+		bv_len = bvp->bv_len - bio_offset;
+		bv_offset = bvp->bv_offset + bio_offset;
+		bio_offset = 0;
+
+		tocpy = MIN(bv_len, size - offset);
+		ASSERT3S(tocpy, >=, 0);
+
+		bv_buf = page_address(bvp->bv_page) + bv_offset;
+		ASSERT3P(bv_buf, !=, NULL);
+
+		if (bio_data_dir(bio) == WRITE)
+			abd_copy_from_buf_off(db_data, bv_buf, tocpy,
+			    db_offset + offset);
+		else
+			abd_copy_to_buf_off(bv_buf, db_data, tocpy,
+			    db_offset + offset);
+
+		offset += tocpy;
+	}
+out:
+	return (offset);
+}
+
+int
+dmu_read_bio(objset_t *os, uint64_t object, struct bio *bio)
+{
+	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	uint64_t size = BIO_BI_SIZE(bio);
+	dmu_buf_t **dbp;
+	int numbufs, i, err;
+	size_t bio_offset;
+
+	/*
+	 * NB: we could do this block-at-a-time, but it's nice
+	 * to be reading in parallel.
+	 */
+	err = dmu_buf_hold_array(os, object, offset, size, TRUE, FTAG,
+	    &numbufs, &dbp);
+	if (err)
+		return (err);
+
+	bio_offset = 0;
+	for (i = 0; i < numbufs; i++) {
+		uint64_t tocpy;
+		int64_t bufoff;
+		int didcpy;
+		dmu_buf_t *db = dbp[i];
+
+		bufoff = offset - db->db_offset;
+		ASSERT3S(bufoff, >=, 0);
+
+		tocpy = MIN(db->db_size - bufoff, size);
+		if (tocpy == 0)
+			break;
+
+		didcpy = dmu_bio_copy(db->db_data, bufoff, tocpy, bio,
+		    bio_offset);
+
+		if (didcpy < tocpy)
+			err = EIO;
+
+		if (err)
+			break;
+
+		size -= tocpy;
+		offset += didcpy;
+		bio_offset += didcpy;
+		err = 0;
+	}
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+
+	return (err);
+}
+
+int
+dmu_write_bio(objset_t *os, uint64_t object, struct bio *bio, dmu_tx_t *tx)
+{
+	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	uint64_t size = BIO_BI_SIZE(bio);
+	dmu_buf_t **dbp;
+	int numbufs, i, err;
+	size_t bio_offset;
+
+	if (size == 0)
+		return (0);
+
+	err = dmu_buf_hold_array(os, object, offset, size, FALSE, FTAG,
+	    &numbufs, &dbp);
+	if (err)
+		return (err);
+
+	bio_offset = 0;
+	for (i = 0; i < numbufs; i++) {
+		uint64_t tocpy;
+		int64_t bufoff;
+		int didcpy;
+		dmu_buf_t *db = dbp[i];
+
+		bufoff = offset - db->db_offset;
+		ASSERT3S(bufoff, >=, 0);
+
+		tocpy = MIN(db->db_size - bufoff, size);
+		if (tocpy == 0)
+			break;
+
+		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
+
+		if (tocpy == db->db_size)
+			dmu_buf_will_fill(db, tx);
+		else
+			dmu_buf_will_dirty(db, tx);
+
+		didcpy = dmu_bio_copy(db->db_data, bufoff, tocpy, bio,
+		    bio_offset);
+
+		if (tocpy == db->db_size)
+			dmu_buf_fill_done(db, tx);
+
+		if (didcpy < tocpy)
+			err = EIO;
+
+		if (err)
+			break;
+
+		size -= tocpy;
+		offset += didcpy;
+		bio_offset += didcpy;
+		err = 0;
+	}
+
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	return (err);
+}
+
 static int
 dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 {
@@ -1082,8 +1252,8 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 			else
 				XUIOSTAT_BUMP(xuiostat_rbuf_copied);
 		} else {
-			err = uiomove((char *)db->db_data + bufoff, tocpy,
-			    UIO_READ, uio);
+			err = abd_uiomove_off(db->db_data, tocpy, UIO_READ,
+			    uio, bufoff);
 		}
 		if (err)
 			break;
@@ -1183,8 +1353,8 @@ dmu_write_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		 * to lock the pages in memory, so that uiomove won't
 		 * block.
 		 */
-		err = uiomove((char *)db->db_data + bufoff, tocpy,
-		    UIO_WRITE, uio);
+		err = abd_uiomove_off(db->db_data, tocpy, UIO_WRITE, uio,
+		    bufoff);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -1311,6 +1481,7 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 	} else {
 		objset_t *os;
 		uint64_t object;
+		void *tmp_buf;
 
 		DB_DNODE_ENTER(dbuf);
 		dn = DB_DNODE(dbuf);
@@ -1319,7 +1490,13 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 		DB_DNODE_EXIT(dbuf);
 
 		dbuf_rele(db, FTAG);
-		dmu_write(os, object, offset, blksz, buf->b_data, tx);
+
+		tmp_buf = abd_borrow_buf_copy(buf->b_data, blksz);
+
+		dmu_write(os, object, offset, blksz, tmp_buf, tx);
+
+		abd_return_buf(buf->b_data, tmp_buf, blksz);
+
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
