@@ -86,6 +86,36 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, zpl_umode_t mode, cred_t *cr)
 }
 
 static int
+zpl_init_xattrs(struct inode *ip, struct inode *dir, struct dentry *dentry)
+{
+	int error;
+	nvlist_t *xattrs;
+	nvpair_t *xattr;
+
+	xattrs = fnvlist_alloc();
+	error = zpl_xattr_security_init(ip, dir, &dentry->d_name, xattrs);
+	if (error == 0 && !S_ISLNK(ip->i_mode))
+		error = zpl_init_acl(ip, dir, xattrs);
+
+	for (xattr = nvlist_next_nvpair(xattrs, NULL);
+	    xattr != NULL; xattr = nvlist_next_nvpair(xattrs, xattr)) {
+                uchar_t *value;
+                uint_t cnt;
+
+                error = nvpair_value_byte_array(xattr, &value, &cnt);
+		if (error)
+			break;
+		error = zpl_xattr_set(ip, nvpair_name(xattr), value,
+		    cnt, 0);
+		if (error)
+			break;
+	}
+	
+	fnvlist_free(xattrs);
+	return (error);
+}
+
+static int
 #ifdef HAVE_CREATE_NAMEIDATA
 zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
     struct nameidata *nd)
@@ -107,8 +137,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 
@@ -145,8 +174,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 
@@ -191,8 +219,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 	cookie = spl_fstrans_mark();
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
-		VERIFY0(zpl_init_acl(ip, dir));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 
@@ -318,7 +345,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	cookie = spl_fstrans_mark();
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
 	if (error == 0) {
-		VERIFY0(zpl_xattr_security_init(ip, dir, &dentry->d_name));
+		VERIFY0(zpl_init_xattrs(ip, dir, dentry));
 		d_instantiate(dentry, ip);
 	}
 

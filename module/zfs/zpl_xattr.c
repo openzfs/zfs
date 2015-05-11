@@ -91,6 +91,58 @@ typedef struct xattr_filldir {
 	struct inode *inode;
 } xattr_filldir_t;
 
+/*
+ * xattrs to store as native SA with xattr=sa
+ */
+typedef struct zpl_xattr_sa {
+	char *name;		/* name of xattr */
+	zpl_attr_t attr;	/* native SA in which to store the xattr */
+} zpl_xattr_sa_t;
+
+static zpl_xattr_sa_t sa_xattrs[] = {
+	/* security.selinux */
+	{ XATTR_SECURITY_PREFIX XATTR_SELINUX_SUFFIX,
+	    ZPL_SECURITY_SELINUX },
+	/* security.capability */
+	{ XATTR_SECURITY_PREFIX XATTR_CAPS_SUFFIX,
+	    ZPL_SECURITY_CAPABILITY },
+#ifdef CONFIG_FS_POSIX_ACL
+	/* system.posix_acl_access */
+	{ XATTR_SYSTEM_PREFIX XATTR_POSIX_ACL_ACCESS,
+	    ZPL_SYSTEM_POSIX_ACL_ACCESS },
+	/* system.posix_acl_default */
+	{ XATTR_SYSTEM_PREFIX XATTR_POSIX_ACL_DEFAULT,
+	    ZPL_SYSTEM_POSIX_ACL_DEFAULT },
+#endif /* CONFIG_FS_POSIX_ACL */
+	{ NULL, 0 },
+};
+
+static zpl_xattr_sa_t *
+zpl_xattr_is_native_sa(const char *name) {
+	zpl_xattr_sa_t *zxs;
+
+	if (name == NULL)
+		return (NULL);
+
+	for (zxs = sa_xattrs; zxs->name; ++zxs)
+		if (strcmp(name, zxs->name) == 0)
+			return (zxs);
+
+	return (NULL);
+}
+
+const char *
+zpl_native_xattr_to_name(zpl_attr_t attr)
+{
+	zpl_xattr_sa_t *zxs;
+
+	for (zxs = sa_xattrs; zxs->name; ++zxs)
+		if (zxs->attr == attr)
+			return (zxs->name);
+
+	return (NULL);
+}
+
 static int
 zpl_xattr_filldir(xattr_filldir_t *xf, const char *name, int name_len)
 {
@@ -179,14 +231,28 @@ zpl_xattr_list_sa(xattr_filldir_t *xf)
 	znode_t *zp = ITOZ(xf->inode);
 	nvpair_t *nvp = NULL;
 	int error = 0;
+	zpl_xattr_sa_t *zxs;
+	size_t size = 0;
+
+	for (zxs = sa_xattrs; zxs->name; ++zxs) {
+		error = zfs_sa_native_get_xattr(zp, zxs->attr, NULL, &size);
+		if (error == 0) {
+			error = zpl_xattr_filldir(xf, zxs->name,
+			    strlen(zxs->name));
+			if (error)
+				return (-error);
+		} else if (error != ENOENT)
+			return (-error);
+		size = 0;
+	}
+	error = 0;
 
 	mutex_enter(&zp->z_lock);
 	if (zp->z_xattr_cached == NULL)
 		error = -zfs_sa_get_xattr(zp);
 	mutex_exit(&zp->z_lock);
-
 	if (error)
-		return (error);
+		return (-error);
 
 	ASSERT(zp->z_xattr_cached);
 
@@ -196,7 +262,7 @@ zpl_xattr_list_sa(xattr_filldir_t *xf)
 		error = zpl_xattr_filldir(xf, nvpair_name(nvp),
 		    strlen(nvpair_name(nvp)));
 		if (error)
-			return (error);
+			return (-error);
 	}
 
 	return (0);
@@ -283,9 +349,27 @@ zpl_xattr_get_sa(struct inode *ip, const char *name, void *value, size_t size)
 	uchar_t *nv_value;
 	uint_t nv_size;
 	int error = 0;
+	zpl_xattr_sa_t *zxs;
+	size_t attr_size = size;
 
 	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
 
+	/*
+	 * Try for a native SA xattr first.
+	 */
+	zxs = zpl_xattr_is_native_sa(name);
+	if (zxs != NULL) {
+		error = zfs_sa_native_get_xattr(zp, zxs->attr, value, &attr_size);
+		if (error == 0)
+			return (attr_size);
+		if (error != ENOENT)
+			return (-error);
+	}
+	error = 0;
+
+	/*
+	 * Next, try for a ZPL_DXATTR-style xattr.
+	 */
 	mutex_enter(&zp->z_lock);
 	if (zp->z_xattr_cached == NULL)
 		error = -zfs_sa_get_xattr(zp);
@@ -295,10 +379,10 @@ zpl_xattr_get_sa(struct inode *ip, const char *name, void *value, size_t size)
 		return (error);
 
 	ASSERT(zp->z_xattr_cached);
-	error = -nvlist_lookup_byte_array(zp->z_xattr_cached, name,
+	error = nvlist_lookup_byte_array(zp->z_xattr_cached, name,
 	    &nv_value, &nv_size);
 	if (error)
-		return (error);
+		return (-error);
 
 	if (!size)
 		return (nv_size);
@@ -438,50 +522,65 @@ out:
 }
 
 static int
+zpl_sa_native_set_xattr(struct znode *zp, zpl_xattr_sa_t *zxs,
+	const void *value, size_t size)
+{
+	return (-zfs_sa_native_set_xattr(zp, zxs->attr, zxs->name, value, size, NULL));
+}
+
+static int
 zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
     size_t size, int flags, cred_t *cr)
 {
 	znode_t *zp = ITOZ(ip);
 	nvlist_t *nvl;
 	size_t sa_size;
+	zpl_xattr_sa_t *zxs;
 	int error;
 
-	ASSERT(zp->z_xattr_cached);
-	nvl = zp->z_xattr_cached;
+	zxs = zpl_xattr_is_native_sa(name);
 
-	if (value == NULL) {
-		error = -nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
-		if (error == -ENOENT)
-			error = zpl_xattr_set_dir(ip, name, NULL, 0, flags, cr);
-	} else {
-		/* Limited to 32k to keep nvpair memory allocations small */
-		if (size > DXATTR_MAX_ENTRY_SIZE)
-			return (-EFBIG);
+	if (zxs != NULL)
+		return (zpl_sa_native_set_xattr(zp, zxs, value, size));
+	else {
+		ASSERT(zp->z_xattr_cached);
+		nvl = zp->z_xattr_cached;
 
-		/* Prevent the DXATTR SA from consuming the entire SA region */
-		error = -nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
-		if (error)
-			return (error);
+		if (value == NULL) {
+			error = -nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
+			if (error == -ENOENT)
+				error = zpl_xattr_set_dir(ip, name, NULL, 0,
+				    flags, cr);
+		} else {
+			/* Limited to 32k to keep nvpair allocations small */
+			if (size > DXATTR_MAX_ENTRY_SIZE)
+				return (-EFBIG);
 
-		if (sa_size > DXATTR_MAX_SA_SIZE)
-			return (-EFBIG);
+			/* Prevent DXATTR SA from consuming entire SA region */
+			error = -nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
+			if (error)
+				return (error);
 
-		error = -nvlist_add_byte_array(nvl, name,
-		    (uchar_t *)value, size);
-		if (error)
-			return (error);
+			if (sa_size > DXATTR_MAX_SA_SIZE)
+				return (-EFBIG);
+
+			error = -nvlist_add_byte_array(nvl, name,
+			    (uchar_t *)value, size);
+			if (error)
+				return (error);
+		}
+
+		/* Update the SA for additions, modifications, and removals. */
+		if (!error)
+			error = -zfs_sa_set_xattr(zp);
+
+		ASSERT3S(error, <=, 0);
 	}
-
-	/* Update the SA for additions, modifications, and removals. */
-	if (!error)
-		error = -zfs_sa_set_xattr(zp);
-
-	ASSERT3S(error, <=, 0);
 
 	return (error);
 }
 
-static int
+int
 zpl_xattr_set(struct inode *ip, const char *name, const void *value,
     size_t size, int flags)
 {
@@ -675,12 +774,18 @@ __zpl_xattr_security_init(struct inode *ip, const struct xattr *xattrs,
     void *fs_info)
 {
 	const struct xattr *xattr;
+	nvlist_t *xattr_list;
+	char *xattr_name;
 	int error = 0;
 
-	for (xattr = xattrs; xattr->name != NULL; xattr++) {
-		error = __zpl_xattr_security_set(ip,
-		    xattr->name, xattr->value, xattr->value_len, 0);
+	xattr_list = fs_info;
 
+	for (xattr = xattrs; xattr->name != NULL; xattr++) {
+		xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX,
+		    xattr->name);
+		error = -nvlist_add_byte_array(xattr_list, xattr_name,
+			(uchar_t *)xattr->value, xattr->value_len);
+		strfree(xattr_name);
 		if (error < 0)
 			break;
 	}
@@ -688,23 +793,25 @@ __zpl_xattr_security_init(struct inode *ip, const struct xattr *xattrs,
 	return (error);
 }
 
+/* XXX tsc - xattr_list arg, add xattr to this list
+ */
 int
 zpl_xattr_security_init(struct inode *ip, struct inode *dip,
-    const struct qstr *qstr)
+    const struct qstr *qstr, nvlist_t *xattr_list)
 {
 	return security_inode_init_security(ip, dip, qstr,
-	    &__zpl_xattr_security_init, NULL);
+	    &__zpl_xattr_security_init, xattr_list);
 }
 
 #else
 int
 zpl_xattr_security_init(struct inode *ip, struct inode *dip,
-    const struct qstr *qstr)
+    const struct qstr *qstr, nvlist_t *xattr_list)
 {
 	int error;
 	size_t len;
 	void *value;
-	char *name;
+	char *name, *xattr_name;
 
 	error = zpl_security_inode_init_security(ip, dip, qstr,
 	    &name, &value, &len);
@@ -715,8 +822,12 @@ zpl_xattr_security_init(struct inode *ip, struct inode *dip,
 		return (error);
 	}
 
-	error = __zpl_xattr_security_set(ip, name, value, len, 0);
+	xattr_list = *xattr_list;
+	xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX, name);
+	error = -nvlist_add_byte_array(xattr_list, xattr_name,
+		(uchar_t *)value, len);
 
+	strfree(xattr_name);
 	kfree(name);
 	kfree(value);
 
@@ -733,7 +844,7 @@ xattr_handler_t zpl_xattr_security_handler = {
 #ifdef CONFIG_FS_POSIX_ACL
 
 int
-zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
+zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl, nvlist_t *xattr_list)
 {
 	struct super_block *sb = ITOZSB(ip)->z_sb;
 	char *name, *value = NULL;
@@ -792,7 +903,10 @@ zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
 		}
 	}
 
-	error = zpl_xattr_set(ip, name, value, size, 0);
+	if (xattr_list) {
+		/* XXX tsc */
+	} else
+		error = zpl_xattr_set(ip, name, value, size, 0);
 	if (value)
 		kmem_free(value, size);
 
@@ -902,7 +1016,7 @@ zpl_permission(struct inode *ip, int mask)
 #endif /* !HAVE_GET_ACL */
 
 int
-zpl_init_acl(struct inode *ip, struct inode *dir)
+zpl_init_acl(struct inode *ip, struct inode *dir, nvlist_t *xattr_list)
 {
 	struct posix_acl *acl = NULL;
 	int error = 0;
@@ -929,7 +1043,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		umode_t mode;
 
 		if (S_ISDIR(ip->i_mode)) {
-			error = zpl_set_acl(ip, ACL_TYPE_DEFAULT, acl);
+			error = zpl_set_acl(ip, ACL_TYPE_DEFAULT, acl, xattr_list);
 			if (error)
 				goto out;
 		}
@@ -940,7 +1054,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 			ip->i_mode = mode;
 			zfs_mark_inode_dirty(ip);
 			if (error > 0)
-				error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
+				error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl, xattr_list);
 		}
 	}
 out:
@@ -967,7 +1081,7 @@ zpl_chmod_acl(struct inode *ip)
 
 	error = __posix_acl_chmod(&acl, GFP_KERNEL, ip->i_mode);
 	if (!error)
-		error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
+		error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl, NULL);
 
 	zpl_posix_acl_release(acl);
 
@@ -1131,7 +1245,7 @@ zpl_xattr_acl_set(struct inode *ip, const char *name,
 		acl = NULL;
 	}
 
-	error = zpl_set_acl(ip, type, acl);
+	error = zpl_set_acl(ip, type, acl, NULL);
 	zpl_posix_acl_release(acl);
 
 	return (error);

@@ -74,6 +74,10 @@ typedef enum zpl_attr {
 	ZPL_SCANSTAMP,
 	ZPL_DACL_ACES,
 	ZPL_DXATTR,
+	ZPL_SECURITY_SELINUX,
+	ZPL_SECURITY_CAPABILITY,
+	ZPL_SYSTEM_POSIX_ACL_ACCESS,
+	ZPL_SYSTEM_POSIX_ACL_DEFAULT,
 	ZPL_END
 } zpl_attr_t;
 
@@ -137,6 +141,9 @@ void zfs_sa_get_scanstamp(struct znode *, xvattr_t *);
 void zfs_sa_set_scanstamp(struct znode *, xvattr_t *, dmu_tx_t *);
 int zfs_sa_get_xattr(struct znode *);
 int zfs_sa_set_xattr(struct znode *);
+int zfs_sa_native_get_xattr(struct znode *, zpl_attr_t, void *, size_t *);
+int zfs_sa_native_set_xattr(struct znode *, zpl_attr_t, const char *,
+	const void *, size_t, dmu_tx_t *);
 void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);
 void zfs_sa_upgrade_txholds(dmu_tx_t *, struct znode *);
 void zfs_sa_init(void);
