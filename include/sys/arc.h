@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_ARC_H
@@ -115,7 +116,7 @@ struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
 	kmutex_t		b_evict_lock;
-	void			*b_data;
+	abd_t			*b_data;
 	arc_evict_func_t	*b_efunc;
 	void			*b_private;
 };
