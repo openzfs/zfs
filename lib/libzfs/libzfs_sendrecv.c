@@ -2179,7 +2179,8 @@ again:
 					needagain = B_TRUE;
 				else
 					progress = B_TRUE;
-				sprintf(guidname, "%lu", thisguid);
+				sprintf(guidname, "%llu",
+				    (u_longlong_t)thisguid);
 				nvlist_add_boolean(deleted, guidname);
 				continue;
 			}
@@ -2236,7 +2237,8 @@ again:
 				needagain = B_TRUE;
 			else
 				progress = B_TRUE;
-			sprintf(guidname, "%lu", parent_fromsnap_guid);
+			sprintf(guidname, "%llu",
+			    (u_longlong_t) parent_fromsnap_guid);
 			nvlist_add_boolean(deleted, guidname);
 			continue;
 		}
@@ -2269,7 +2271,8 @@ again:
 		if (stream_parent_fromsnap_guid != 0 &&
 		    parent_fromsnap_guid != 0 &&
 		    stream_parent_fromsnap_guid != parent_fromsnap_guid) {
-			sprintf(guidname, "%lu", parent_fromsnap_guid);
+			sprintf(guidname, "%llu",
+			    (u_longlong_t) parent_fromsnap_guid);
 			if (nvlist_exists(deleted, guidname)) {
 				progress = B_TRUE;
 				needagain = B_TRUE;
