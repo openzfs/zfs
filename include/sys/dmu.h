@@ -25,6 +25,7 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -46,6 +47,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/zio_priority.h>
 #include <sys/uio.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -286,7 +288,7 @@ typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
 	uint64_t db_offset;		/* byte offset in this object */
 	uint64_t db_size;		/* size of buffer in bytes */
-	void *db_data;			/* data in buffer */
+	abd_t *db_data;			/* data in buffer */
 } dmu_buf_t;
 
 /*
