@@ -43,21 +43,17 @@
 /*
  * page
  */
-#ifndef PAGE_SIZE
-#define	PAGE_SIZE 4096
-#endif
-
 #ifndef PAGE_SHIFT
-#define	PAGE_SHIFT (highbit64(PAGE_SIZE)-1)
+#define	PAGE_SHIFT (highbit64(PAGESIZE)-1)
 #endif
 
 struct page;
 
 #define	alloc_page(gfp) \
-	((struct page *)umem_alloc_aligned(PAGE_SIZE, PAGE_SIZE, UMEM_DEFAULT))
+	((struct page *)umem_alloc_aligned(PAGESIZE, PAGESIZE, UMEM_DEFAULT))
 
 #define	__free_page(page) \
-	umem_free(page, PAGE_SIZE)
+	umem_free(page, PAGESIZE)
 
 /*
  * scatterlist
@@ -319,7 +315,7 @@ do {							\
 		ASSERT((abd)->abd_offset == 0);		\
 		ASSERT((abd)->abd_nents == 1);		\
 	} else {					\
-		ASSERT((abd)->abd_offset < PAGE_SIZE);	\
+		ASSERT((abd)->abd_offset < PAGESIZE);	\
 		ASSERT((abd)->abd_nents > 0);		\
 	}						\
 } while (0)
@@ -677,7 +673,7 @@ abd_buf_segment(abd_t *abd, size_t start, size_t len)
 
 	offset = abd->abd_offset + start;
 	sg = &abd->abd_sgl[offset >> PAGE_SHIFT];
-	offset &= (PAGE_SIZE -1);
+	offset &= (PAGESIZE -1);
 
 	ASSERT(offset + len <= sg->length);
 	return (page_address(sg_page(sg)) + offset);
@@ -932,7 +928,7 @@ abd_bio_nr_pages_off(abd_t *abd, unsigned int bio_size, size_t off)
 		pos = (unsigned long)abd->abd_buf + off;
 	else
 		pos = abd->abd_offset + off;
-	return ((pos + bio_size + PAGE_SIZE-1)>>PAGE_SHIFT)-(pos>>PAGE_SHIFT);
+	return ((pos + bio_size + PAGESIZE-1)>>PAGE_SHIFT)-(pos>>PAGE_SHIFT);
 }
 #endif	/* _KERNEL */
 
@@ -946,13 +942,13 @@ abd_alloc_struct(int nr_pages)
 	 * a single page. We might want to consider using chained sgl if
 	 * that's the case.
 	 */
-	ASSERT(nr_pages * sizeof (struct scatterlist) <= PAGE_SIZE);
+	ASSERT(nr_pages * sizeof (struct scatterlist) <= PAGESIZE);
 #ifndef DEBUG_ABD
 	abd = kmem_alloc(asize, KM_PUSHPAGE);
 #else
-	abd = umem_alloc_aligned(asize, PAGE_SIZE, UMEM_DEFAULT);
+	abd = umem_alloc_aligned(asize, PAGESIZE, UMEM_DEFAULT);
 	/* deny access to padding */
-	if (mprotect(abd, PAGE_SIZE, PROT_NONE) != 0) {
+	if (mprotect(abd, PAGESIZE, PROT_NONE) != 0) {
 		perror("mprotect failed");
 		ASSERT(0);
 	}
@@ -968,7 +964,7 @@ abd_free_struct(abd_t *abd, int nr_pages)
 #ifndef DEBUG_ABD
 	kmem_free(abd, sizeof (abd_t) + nr_pages*sizeof (struct scatterlist));
 #else
-	if (mprotect(abd, PAGE_SIZE, PROT_READ|PROT_WRITE) != 0) {
+	if (mprotect(abd, PAGESIZE, PROT_READ|PROT_WRITE) != 0) {
 		perror("mprotect failed");
 		ASSERT(0);
 	}
@@ -1003,7 +999,7 @@ abd_get_offset(abd_t *sabd, size_t off)
 		abd->abd_buf = sabd->abd_buf + off;
 	} else {
 		offset = sabd->abd_offset + off;
-		abd->abd_offset = offset & (PAGE_SIZE - 1);
+		abd->abd_offset = offset & (PAGESIZE - 1);
 		/* make sure the new abd start as sgl[0] */
 		abd->abd_sgl = &sabd->abd_sgl[offset >> PAGE_SHIFT];
 		abd->abd_nents = sabd->abd_nents - (offset >> PAGE_SHIFT);
@@ -1060,7 +1056,7 @@ __abd_alloc_scatter(size_t size, int highmem)
 {
 	abd_t *abd;
 	struct page *page;
-	int i, n = DIV_ROUND_UP(size, PAGE_SIZE);
+	int i, n = DIV_ROUND_UP(size, PAGESIZE);
 	size_t last_size = size - ((n-1) << PAGE_SHIFT);
 
 	abd = abd_alloc_struct(n);
@@ -1084,7 +1080,7 @@ retry:
 			goto retry;
 		}
 		sg_set_page(&abd->abd_sgl[i], page,
-		    (i == n-1 ? last_size : PAGE_SIZE), 0);
+		    (i == n-1 ? last_size : PAGESIZE), 0);
 	}
 
 	return (abd);
@@ -1094,7 +1090,7 @@ abd_t *
 _abd_alloc_scatter(size_t size, int highmem)
 {
 	/* fallback to linear to save memory */
-	if (size < PAGE_SIZE)
+	if (size < PAGESIZE)
 		return (abd_alloc_linear(size));
 	return (__abd_alloc_scatter(size, highmem));
 }
@@ -1128,7 +1124,7 @@ abd_free_scatter(abd_t *abd, size_t size)
 
 	ASSERT(abd->abd_sgl == (struct scatterlist *)&abd->__abd_sgl[0]);
 	ASSERT(abd->abd_size == size);
-	ASSERT(abd->abd_nents == DIV_ROUND_UP(abd->abd_size, PAGE_SIZE));
+	ASSERT(abd->abd_nents == DIV_ROUND_UP(abd->abd_size, PAGESIZE));
 
 	n = abd->abd_nents;
 	abd->abd_magic = 0;
