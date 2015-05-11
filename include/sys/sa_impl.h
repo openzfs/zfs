@@ -22,6 +22,7 @@
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_SA_IMPL_H
@@ -223,8 +224,7 @@ struct sa_handle {
 	(dmu_buf_impl_t *)((type == SA_BONUS) ? hdl->sa_bonus : hdl->sa_spill)
 
 #define	SA_GET_HDR(hdl, type) \
-	((sa_hdr_phys_t *)((dmu_buf_impl_t *)(SA_GET_DB(hdl, \
-	type))->db.db_data))
+	((sa_hdr_phys_t *)ABD_TO_BUF((SA_GET_DB(hdl, type))->db.db_data))
 
 #define	SA_IDX_TAB_GET(hdl, type) \
 	(type == SA_BONUS ? hdl->sa_bonus_tab : hdl->sa_spill_tab)

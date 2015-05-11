@@ -563,26 +563,150 @@ zei_range_total_size(zfs_ecksum_info_t *eip)
 	return (result);
 }
 
+struct build_range_struct {
+	zfs_ecksum_info_t *eip;
+	ssize_t start;
+	size_t idx;
+};
+
+static int
+build_range_func(void *goodbuf, void *badbuf, uint64_t size, uint64_t s,
+    void *p)
+{
+	size_t i;
+	size_t nui64s = size / sizeof (uint64_t);
+	const uint64_t *good = goodbuf, *bad = badbuf;
+	struct build_range_struct *br = p;
+	zfs_ecksum_info_t *eip = br->eip;
+	ssize_t start = br->start;
+	size_t idx = br->idx;
+
+	ASSERT3U(size, ==, s);
+	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
+
+	/* build up the range list by comparing the two buffers. */
+	for (i = 0; i < nui64s; i++, idx++) {
+		if (good[i] == bad[i]) {
+			if (start == -1)
+				continue;
+
+			zei_add_range(eip, start, idx);
+			start = -1;
+		} else {
+			if (start != -1)
+				continue;
+
+			start = idx;
+		}
+	}
+
+	br->start = start;
+	br->idx = idx;
+	return (0);
+}
+
+static void
+build_range(zfs_ecksum_info_t *eip, abd_t *goodbuf, abd_t *badbuf, size_t size)
+{
+	struct build_range_struct br = { .eip = eip, .start = -1, .idx = 0 };
+	abd_iterate_func2(goodbuf, badbuf, size, size, build_range_func, &br);
+	if (br.start != -1)
+		zei_add_range(eip, br.start, br.idx);
+}
+
+struct build_histo_struct {
+	zfs_ecksum_info_t *eip;
+	size_t range;
+	size_t offset;
+	size_t inline_size;
+	int no_inline;
+};
+
+static int
+build_histo_func(void *goodbuf, void *badbuf, uint64_t size, uint64_t s,
+    void *p)
+{
+	size_t idx;
+	size_t nui64s = size / sizeof (uint64_t);
+	const uint64_t *good = goodbuf, *bad = badbuf;
+	struct build_histo_struct *bh = p;
+
+	ASSERT3U(size, ==, s);
+	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
+
+	for (idx = 0; idx < nui64s; idx++) {
+		uint64_t set, cleared;
+
+		// bits set in bad, but not in good
+		set = ((~good[idx]) & bad[idx]);
+		// bits set in good, but not in bad
+		cleared = (good[idx] & (~bad[idx]));
+
+		/* XXX: ABD: these two are never used in original code */
+//		allset |= set;
+//		allcleared |= cleared;
+
+		if (!bh->no_inline) {
+			ASSERT3U(bh->offset, <, bh->inline_size);
+			bh->eip->zei_bits_set[bh->offset] = set;
+			bh->eip->zei_bits_cleared[bh->offset] = cleared;
+			bh->offset++;
+		}
+
+		update_histogram(set, bh->eip->zei_histogram_set,
+		    &bh->eip->zei_range_sets[bh->range]);
+		update_histogram(cleared, bh->eip->zei_histogram_cleared,
+		    &bh->eip->zei_range_clears[bh->range]);
+	}
+
+	return (0);
+}
+
+static void
+build_histo(zfs_ecksum_info_t *eip, abd_t *goodbuf, abd_t *badbuf,
+    int no_inline, size_t inline_size)
+{
+	size_t range;
+	struct build_histo_struct bh = {
+		.eip = eip, .offset = 0, .inline_size = inline_size,
+		.no_inline = no_inline
+	};
+
+	/*
+	 * Now walk through the ranges, filling in the details of the
+	 * differences.  Also convert our uint64_t-array offsets to byte
+	 * offsets.
+	 */
+	for (range = 0; range < eip->zei_range_count; range++) {
+		size_t start = eip->zei_ranges[range].zr_start;
+		size_t end = eip->zei_ranges[range].zr_end;
+		abd_t *g, *b;
+		size_t len = (end - start) * sizeof (uint64_t);
+
+		/* abd_iterate_func2 don't takes offset, so do get_offset */
+		g = abd_get_offset(goodbuf, start * sizeof (uint64_t));
+		b = abd_get_offset(badbuf, start * sizeof (uint64_t));
+
+		bh.range = range;
+
+		abd_iterate_func2(g, b, len, len, build_histo_func, &bh);
+
+		abd_put(b);
+		abd_put(g);
+
+		/* convert to byte offsets */
+		eip->zei_ranges[range].zr_start	*= sizeof (uint64_t);
+		eip->zei_ranges[range].zr_end	*= sizeof (uint64_t);
+	}
+}
+
 static zfs_ecksum_info_t *
 annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
-    const uint8_t *goodbuf, const uint8_t *badbuf, size_t size,
+    abd_t *goodbuf, abd_t *badbuf, size_t size,
     boolean_t drop_if_identical)
 {
-	const uint64_t *good = (const uint64_t *)goodbuf;
-	const uint64_t *bad = (const uint64_t *)badbuf;
-
-	uint64_t allset = 0;
-	uint64_t allcleared = 0;
-
-	size_t nui64s = size / sizeof (uint64_t);
-
 	size_t inline_size;
 	int no_inline = 0;
-	size_t idx;
-	size_t range;
-
-	size_t offset = 0;
-	ssize_t start = -1;
 
 	zfs_ecksum_info_t *eip = kmem_zalloc(sizeof (*eip), KM_SLEEP);
 
@@ -616,27 +740,11 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	if (badbuf == NULL || goodbuf == NULL)
 		return (eip);
 
-	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
+	ASSERT0(size % sizeof (uint64_t));
 	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT3U(size, <=, UINT32_MAX);
 
-	/* build up the range list by comparing the two buffers. */
-	for (idx = 0; idx < nui64s; idx++) {
-		if (good[idx] == bad[idx]) {
-			if (start == -1)
-				continue;
-
-			zei_add_range(eip, start, idx);
-			start = -1;
-		} else {
-			if (start != -1)
-				continue;
-
-			start = idx;
-		}
-	}
-	if (start != -1)
-		zei_add_range(eip, start, idx);
+	build_range(eip, goodbuf, badbuf, size);
 
 	/* See if it will fit in our inline buffers */
 	inline_size = zei_range_total_size(eip);
@@ -652,43 +760,8 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 		return (NULL);
 	}
 
-	/*
-	 * Now walk through the ranges, filling in the details of the
-	 * differences.  Also convert our uint64_t-array offsets to byte
-	 * offsets.
-	 */
-	for (range = 0; range < eip->zei_range_count; range++) {
-		size_t start = eip->zei_ranges[range].zr_start;
-		size_t end = eip->zei_ranges[range].zr_end;
+	build_histo(eip, goodbuf, badbuf, no_inline, inline_size);
 
-		for (idx = start; idx < end; idx++) {
-			uint64_t set, cleared;
-
-			// bits set in bad, but not in good
-			set = ((~good[idx]) & bad[idx]);
-			// bits set in good, but not in bad
-			cleared = (good[idx] & (~bad[idx]));
-
-			allset |= set;
-			allcleared |= cleared;
-
-			if (!no_inline) {
-				ASSERT3U(offset, <, inline_size);
-				eip->zei_bits_set[offset] = set;
-				eip->zei_bits_cleared[offset] = cleared;
-				offset++;
-			}
-
-			update_histogram(set, eip->zei_histogram_set,
-			    &eip->zei_range_sets[range]);
-			update_histogram(cleared, eip->zei_histogram_cleared,
-			    &eip->zei_range_clears[range]);
-		}
-
-		/* convert to byte offsets */
-		eip->zei_ranges[range].zr_start	*= sizeof (uint64_t);
-		eip->zei_ranges[range].zr_end	*= sizeof (uint64_t);
-	}
 	eip->zei_allowed_mingap	*= sizeof (uint64_t);
 	inline_size		*= sizeof (uint64_t);
 
@@ -786,7 +859,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
 
 void
 zfs_ereport_finish_checksum(zio_cksum_report_t *report,
-    const void *good_data, const void *bad_data, boolean_t drop_if_identical)
+    abd_t *good_data, abd_t *bad_data, boolean_t drop_if_identical)
 {
 #ifdef _KERNEL
 	zfs_ecksum_info_t *info;
@@ -836,7 +909,7 @@ zfs_ereport_send_interim_checksum(zio_cksum_report_t *report)
 void
 zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
     struct zio *zio, uint64_t offset, uint64_t length,
-    const void *good_data, const void *bad_data, zio_bad_cksum_t *zbc)
+    abd_t *good_data, abd_t *bad_data, zio_bad_cksum_t *zbc)
 {
 #ifdef _KERNEL
 	nvlist_t *ereport = NULL;

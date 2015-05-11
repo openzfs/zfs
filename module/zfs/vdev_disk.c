@@ -24,9 +24,11 @@
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/vdev_disk.h>
 #include <sys/vdev_impl.h>
@@ -496,12 +498,15 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
     size_t kbuf_size, uint64_t kbuf_offset, int flags, int wait)
 {
 	dio_request_t *dr;
-	caddr_t bio_ptr;
+	uint64_t zio_offset;
 	uint64_t bio_offset;
 	int rw, bio_size, bio_count = 16;
 	int i = 0, error = 0;
+	abd_t *zio_data = NULL;
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
+	/* we take either zio or kbuf_ptr, not both */
+	ASSERT((!zio || !kbuf_ptr) && (zio || kbuf_ptr));
 
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
@@ -522,9 +527,16 @@ retry:
 	 * their volume block size to match the maximum request size and
 	 * the common case will be one bio per vdev IO request.
 	 */
-	bio_ptr    = kbuf_ptr;
+	if (zio_data == NULL) {
+		if (zio)
+			zio_data = zio->io_data;
+		else
+			zio_data = abd_get_from_buf(kbuf_ptr, kbuf_size);
+	}
+
+	zio_offset = 0;
 	bio_offset = kbuf_offset;
-	bio_size   = kbuf_size;
+	bio_size = kbuf_size;
 	for (i = 0; i <= dr->dr_bio_count; i++) {
 
 		/* Finished constructing bio's for given buffer */
@@ -544,8 +556,11 @@ retry:
 
 		/* bio_alloc() with __GFP_WAIT never returns NULL */
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
-		    MIN(bio_nr_pages(bio_ptr, bio_size), BIO_MAX_PAGES));
+		    MIN(abd_bio_nr_pages_off(zio_data, bio_size, zio_offset),
+		    BIO_MAX_PAGES));
 		if (unlikely(dr->dr_bio[i] == NULL)) {
+			if (kbuf_ptr)
+				abd_put(zio_data);
 			vdev_disk_dio_free(dr);
 			return (ENOMEM);
 		}
@@ -560,10 +575,11 @@ retry:
 		dr->dr_bio[i]->bi_private = dr;
 
 		/* Remaining size is returned to become the new size */
-		bio_size = bio_map(dr->dr_bio[i], bio_ptr, bio_size);
+		bio_size = abd_bio_map_off(dr->dr_bio[i], zio_data,
+		    bio_size, zio_offset);
 
 		/* Advance in buffer and construct another bio if needed */
-		bio_ptr    += BIO_BI_SIZE(dr->dr_bio[i]);
+		zio_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 		bio_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 	}
 
@@ -590,6 +606,9 @@ retry:
 		error = dr->dr_error;
 		ASSERT3S(atomic_read(&dr->dr_ref), ==, 1);
 	}
+
+	if (kbuf_ptr)
+		abd_put(zio_data);
 
 	(void) vdev_disk_dio_put(dr);
 
@@ -712,7 +731,7 @@ vdev_disk_io_start(zio_t *zio)
 		return;
 	}
 
-	error = __vdev_disk_physio(vd->vd_bdev, zio, zio->io_data,
+	error = __vdev_disk_physio(vd->vd_bdev, zio, NULL,
 	    zio->io_size, zio->io_offset, flags, 0);
 	if (error) {
 		zio->io_error = error;
