@@ -22,8 +22,10 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dbuf.h>
@@ -558,7 +560,7 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			break;
 		}
 
-		bp = dbuf->db.db_data;
+		bp = ABD_TO_BUF(dbuf->db.db_data);
 		bp += blkoff;
 
 		for (i = 0; i < tochk; i++) {

@@ -21,9 +21,11 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
@@ -303,7 +305,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			traverse_prefetch_metadata(td,
-			    &((blkptr_t *)buf->b_data)[i], czb);
+			    &((blkptr_t *)ABD_TO_BUF(buf->b_data))[i], czb);
 		}
 
 		/* recursively visitbp() blocks below this */
@@ -312,7 +314,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			err = traverse_visitbp(td, dnp,
-			    &((blkptr_t *)buf->b_data)[i], czb);
+			    &((blkptr_t *)ABD_TO_BUF(buf->b_data))[i], czb);
 			if (err != 0)
 				break;
 		}
@@ -329,7 +331,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err != 0)
 			goto post;
-		cdnp = buf->b_data;
+		cdnp = ABD_TO_BUF(buf->b_data);
 
 		for (i = 0; i < epb; i++) {
 			prefetch_dnode_metadata(td, &cdnp[i], zb->zb_objset,
@@ -353,7 +355,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		if (err != 0)
 			goto post;
 
-		osp = buf->b_data;
+		osp = ABD_TO_BUF(buf->b_data);
 		mdnp = &osp->os_meta_dnode;
 		gdnp = &osp->os_groupused_dnode;
 		udnp = &osp->os_userused_dnode;
@@ -604,7 +606,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 		if (err != 0)
 			return (err);
 
-		osp = buf->b_data;
+		osp = ABD_TO_BUF(buf->b_data);
 		traverse_zil(td, &osp->os_zil_header);
 		(void) arc_buf_remove_ref(buf, &buf);
 	}
