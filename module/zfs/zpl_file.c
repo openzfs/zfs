@@ -196,8 +196,7 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 static int
 zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 {
-	return (zpl_fsync(kiocb->ki_filp, kiocb->ki_pos,
-	    kiocb->ki_pos + kiocb->ki_nbytes, datasync));
+	return (zpl_fsync(kiocb->ki_filp, kiocb->ki_pos, -1, datasync));
 }
 #else
 #error "Unsupported fops->fsync() implementation"
@@ -261,12 +260,11 @@ zpl_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 }
 
 static ssize_t
-zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
-	unsigned long nr_segs, loff_t pos)
+zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
+    unsigned long nr_segs, size_t count)
 {
 	cred_t *cr = CRED();
 	struct file *filp = kiocb->ki_filp;
-	size_t count = kiocb->ki_nbytes;
 	ssize_t read;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
 	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
@@ -283,6 +281,22 @@ zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
 
 	return (read);
 }
+
+#if defined(HAVE_VFS_RW_ITERATE)
+static ssize_t
+zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
+{
+	return (zpl_iter_read_common(kiocb, to->iov, to->nr_segs,
+	    iov_iter_count(to)));
+}
+#else
+static ssize_t
+zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
+    unsigned long nr_segs, loff_t pos)
+{
+	return (zpl_iter_read_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes));
+}
+#endif /* HAVE_VFS_RW_ITERATE */
 
 static inline ssize_t
 zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
@@ -344,12 +358,11 @@ zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 }
 
 static ssize_t
-zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
-	unsigned long nr_segs, loff_t pos)
+zpl_iter_write_common(struct kiocb *kiocb, const struct iovec *iovp,
+    unsigned long nr_segs, size_t count)
 {
 	cred_t *cr = CRED();
 	struct file *filp = kiocb->ki_filp;
-	size_t count = kiocb->ki_nbytes;
 	ssize_t wrote;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
 	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
@@ -366,6 +379,22 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
 
 	return (wrote);
 }
+
+#if defined(HAVE_VFS_RW_ITERATE)
+static ssize_t
+zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
+{
+	return (zpl_iter_write_common(kiocb, from->iov, from->nr_segs,
+	    iov_iter_count(from)));
+}
+#else
+static ssize_t
+zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
+    unsigned long nr_segs, loff_t pos)
+{
+	return (zpl_iter_write_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes));
+}
+#endif /* HAVE_VFS_RW_ITERATE */
 
 static loff_t
 zpl_llseek(struct file *filp, loff_t offset, int whence)
@@ -778,8 +807,13 @@ const struct file_operations zpl_file_operations = {
 	.llseek		= zpl_llseek,
 	.read		= zpl_read,
 	.write		= zpl_write,
+#ifdef HAVE_VFS_RW_ITERATE
+	.read_iter	= zpl_iter_read,
+	.write_iter	= zpl_iter_write,
+#else
 	.aio_read	= zpl_aio_read,
 	.aio_write	= zpl_aio_write,
+#endif
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
 	.aio_fsync	= zpl_aio_fsync,
