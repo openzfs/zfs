@@ -24,6 +24,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>

@@ -25,6 +25,7 @@
 
 #include <sys/bpobj.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/refcount.h>
 #include <sys/dsl_pool.h>
 #include <sys/zfeature.h>

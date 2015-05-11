@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>

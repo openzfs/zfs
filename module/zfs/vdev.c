@@ -41,6 +41,7 @@
 #include <sys/zap.h>
 #include <sys/fs/zfs.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
 #include <sys/zvol.h>

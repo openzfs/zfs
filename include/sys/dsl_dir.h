@@ -28,6 +28,7 @@
 #ifndef	_SYS_DSL_DIR_H
 #define	_SYS_DSL_DIR_H
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_synctask.h>

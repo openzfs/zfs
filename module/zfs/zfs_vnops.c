@@ -51,6 +51,7 @@
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/fs/zfs.h>
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa.h>

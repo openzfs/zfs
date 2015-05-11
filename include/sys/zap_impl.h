@@ -29,6 +29,7 @@
 #include <sys/zap.h>
 #include <sys/zfs_context.h>
 #include <sys/avl.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {

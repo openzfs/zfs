@@ -27,6 +27,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/vdev_disk.h>
 #include <sys/vdev_impl.h>

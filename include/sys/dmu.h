@@ -45,7 +45,6 @@
 #include <sys/cred.h>
 #include <sys/fs/zfs.h>
 #include <sys/uio.h>
-#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -70,6 +69,7 @@ struct arc_buf;
 struct zio_prop;
 struct sa_handle;
 
+typedef struct arc_buf_data abd_t;
 typedef struct objset objset_t;
 typedef struct dmu_tx dmu_tx_t;
 typedef struct dsl_dir dsl_dir_t;

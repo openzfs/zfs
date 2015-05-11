@@ -24,6 +24,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/vnode.h>
+#include <sys/abd.h>
 #include <sys/sa.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_sa.h>

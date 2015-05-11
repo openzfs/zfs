@@ -131,6 +131,7 @@
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/arc.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>

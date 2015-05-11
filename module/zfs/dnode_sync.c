@@ -26,6 +26,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dbuf.h>
 #include <sys/dnode.h>
 #include <sys/dmu.h>

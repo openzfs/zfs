@@ -28,6 +28,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_send.h>
 #include <sys/dmu_impl.h>

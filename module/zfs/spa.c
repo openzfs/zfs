@@ -61,6 +61,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/fs/zfs.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/callb.h>
 #include <sys/systeminfo.h>
 #include <sys/spa_boot.h>

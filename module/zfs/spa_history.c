@@ -24,6 +24,7 @@
  * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/zap.h>

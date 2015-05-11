@@ -33,6 +33,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dmu_objset.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/zap.h>
 #include <sys/zio.h>
 #include <sys/zfs_context.h>

@@ -25,6 +25,7 @@
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>

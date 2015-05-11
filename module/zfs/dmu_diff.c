@@ -23,6 +23,7 @@
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>

@@ -27,6 +27,7 @@
 #define	_SYS_ZAP_LEAF_H
 
 #include <sys/zap.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {

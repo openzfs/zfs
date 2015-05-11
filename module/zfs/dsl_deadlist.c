@@ -25,6 +25,7 @@
  */
 
 #include <sys/dsl_dataset.h>
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/refcount.h>
 #include <sys/zap.h>

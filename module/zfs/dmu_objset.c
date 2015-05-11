@@ -30,6 +30,7 @@
 
 #include <sys/cred.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_dataset.h>

@@ -32,6 +32,7 @@
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/dsl_pool.h>
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>

@@ -30,6 +30,7 @@
 #include <sys/dmu.h>
 #include <sys/zap.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
 #include <sys/zil.h>

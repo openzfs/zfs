@@ -23,6 +23,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/avl.h>
 #include <sys/zap.h>

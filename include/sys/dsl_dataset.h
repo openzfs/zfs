@@ -29,6 +29,7 @@
 #ifndef	_SYS_DSL_DATASET_H
 #define	_SYS_DSL_DATASET_H
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/spa.h>
 #include <sys/txg.h>

@@ -24,6 +24,7 @@
  */
 
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/bptree.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
