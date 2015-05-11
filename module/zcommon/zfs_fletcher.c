@@ -557,6 +557,8 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 
 #define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(50))		/* 50ms */
 
+typedef void fletcher_checksum_func_t(const void *, uint64_t, zio_cksum_t *);
+
 static void
 fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 {
@@ -568,8 +570,8 @@ fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 	zio_cksum_t zc;
 	uint32_t i, l, sel_save = IMPL_READ(fletcher_4_impl_chosen);
 
-	zio_checksum_func_t *fletcher_4_test = native ? fletcher_4_native :
-	    fletcher_4_byteswap;
+	fletcher_checksum_func_t *fletcher_4_test = native ?
+	    fletcher_4_native : fletcher_4_byteswap;
 
 	for (i = 0; i < fletcher_4_supp_impls_cnt; i++) {
 		struct fletcher_4_kstat *stat = &fletcher_4_stat_data[i];
