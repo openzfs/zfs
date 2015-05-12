@@ -21,12 +21,14 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_LEAF_H
 #define	_SYS_ZAP_LEAF_H
 
 #include <sys/zap.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -163,7 +165,7 @@ typedef struct zap_leaf {
 static inline zap_leaf_phys_t *
 zap_leaf_phys(zap_leaf_t *l)
 {
-	return (l->l_dbuf->db_data);
+	return (ABD_TO_BUF(l->l_dbuf->db_data));
 }
 
 typedef struct zap_entry_handle {
