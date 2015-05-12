@@ -7,6 +7,7 @@ EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
+$(MODULE)-objs += abd.o
 $(MODULE)-objs += arc.o
 $(MODULE)-objs += blkptr.o
 $(MODULE)-objs += bplist.o
