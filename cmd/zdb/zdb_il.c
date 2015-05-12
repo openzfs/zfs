@@ -26,6 +26,7 @@
 
 /*
  * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /*
@@ -36,6 +37,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>
 #include <sys/stat.h>
@@ -125,6 +127,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 	blkptr_t *bp = &lr->lr_blkptr;
 	zbookmark_phys_t zb;
 	char *buf;
+	abd_t *abd;
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int error;
 
@@ -161,9 +164,11 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
+		abd = abd_get_from_buf(buf, BP_GET_LSIZE(bp));
 		error = zio_wait(zio_read(NULL, zilog->zl_spa,
-		    bp, buf, BP_GET_LSIZE(bp), NULL, NULL,
+		    bp, abd, BP_GET_LSIZE(bp), NULL, NULL,
 		    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_CANFAIL, &zb));
+		abd_put(abd);
 		if (error)
 			goto exit;
 		data = buf;
