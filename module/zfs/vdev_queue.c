@@ -25,9 +25,11 @@
 
 /*
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/vdev_impl.h>
 #include <sys/spa_impl.h>
 #include <sys/zio.h>
@@ -476,12 +478,12 @@ vdev_queue_agg_io_done(zio_t *aio)
 	if (aio->io_type == ZIO_TYPE_READ) {
 		zio_t *pio;
 		while ((pio = zio_walk_parents(aio)) != NULL) {
-			bcopy((char *)aio->io_data + (pio->io_offset -
-			    aio->io_offset), pio->io_data, pio->io_size);
+			abd_copy_off(pio->io_data, aio->io_data, pio->io_size,
+			    0, pio->io_offset - aio->io_offset);
 		}
 	}
 
-	zio_buf_free(aio->io_data, aio->io_size);
+	abd_free(aio->io_data, aio->io_size);
 }
 
 /*
@@ -624,12 +626,11 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 
 		if (dio->io_flags & ZIO_FLAG_NODATA) {
 			ASSERT3U(dio->io_type, ==, ZIO_TYPE_WRITE);
-			bzero((char *)aio->io_data + (dio->io_offset -
-			    aio->io_offset), dio->io_size);
+			abd_zero_off(aio->io_data, dio->io_size,
+			    dio->io_offset - aio->io_offset);
 		} else if (dio->io_type == ZIO_TYPE_WRITE) {
-			bcopy(dio->io_data, (char *)aio->io_data +
-			    (dio->io_offset - aio->io_offset),
-			    dio->io_size);
+			abd_copy_off(aio->io_data, dio->io_data, dio->io_size,
+			    dio->io_offset - aio->io_offset, 0);
 		}
 
 		zio_add_child(dio, aio);
