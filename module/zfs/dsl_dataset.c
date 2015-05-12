@@ -426,11 +426,12 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		    offsetof(dmu_sendarg_t, dsa_link));
 
 		if (doi.doi_type == DMU_OTN_ZAP_METADATA) {
-			err = zap_contains(mos, dsobj, DS_FIELD_LARGE_BLOCKS);
-			if (err == 0)
+			int zaperr = zap_contains(mos, dsobj,
+			    DS_FIELD_LARGE_BLOCKS);
+			if (zaperr != ENOENT) {
+				VERIFY0(zaperr);
 				ds->ds_large_blocks = B_TRUE;
-			else
-				ASSERT3U(err, ==, ENOENT);
+			}
 		}
 
 		if (err == 0) {
