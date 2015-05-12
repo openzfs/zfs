@@ -102,8 +102,21 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 	rc = zfs_vget(sb, &ip, fid);
 	spl_fstrans_unmark(cookie);
 
-	if (rc != 0)
+	if (rc) {
+		/*
+		 * If we see ENOENT it might mean that an NFSv4 * client
+		 * is using a cached inode value in a file handle and
+		 * that the sought after file has had its inode changed
+		 * by a third party.  So change the error to ESTALE
+		 * which will trigger a full lookup by the client and
+		 * will find the new filename/inode pair if it still
+		 * exists.
+		 */
+		if (rc == ENOENT)
+			rc = ESTALE;
+
 		return (ERR_PTR(-rc));
+	}
 
 	ASSERT((ip != NULL) && !IS_ERR(ip));
 
