@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -34,6 +35,7 @@
 #include <sys/zap_leaf.h>
 #include <sys/avl.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/dmu_objset.h>
 
 #ifdef _KERNEL
@@ -366,7 +368,7 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 	zap_t *winner;
 	zap_t *zap;
 	int i;
-	uint64_t *zap_hdr = (uint64_t *)db->db_data;
+	uint64_t *zap_hdr = (uint64_t *)ABD_TO_BUF(db->db_data);
 	uint64_t zap_block_type = zap_hdr[0];
 	uint64_t zap_magic = zap_hdr[1];
 
@@ -554,7 +556,7 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 
 	sz = zap->zap_dbuf->db_size;
 	mzp = zio_buf_alloc(sz);
-	bcopy(zap->zap_dbuf->db_data, mzp, sz);
+	bcopy(ABD_TO_BUF(zap->zap_dbuf->db_data), mzp, sz);
 	nchunks = zap->zap_m.zap_num_chunks;
 
 	if (!flags) {
@@ -610,7 +612,7 @@ mzap_create_impl(objset_t *os, uint64_t obj, int normflags, zap_flags_t flags,
 #endif
 
 	dmu_buf_will_dirty(db, tx);
-	zp = db->db_data;
+	zp = ABD_TO_BUF(db->db_data);
 	zp->mz_block_type = ZBT_MICRO;
 	zp->mz_salt = ((uintptr_t)db ^ (uintptr_t)tx ^ (obj << 1)) | 1ULL;
 	zp->mz_normflags = normflags;
