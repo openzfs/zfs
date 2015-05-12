@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_IMPL_H
@@ -30,6 +31,7 @@
 #include <sys/zap.h>
 #include <sys/zfs_context.h>
 #include <sys/avl.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -170,13 +172,13 @@ typedef struct zap {
 static inline zap_phys_t *
 zap_f_phys(zap_t *zap)
 {
-	return (zap->zap_dbuf->db_data);
+	return (ABD_TO_BUF(zap->zap_dbuf->db_data));
 }
 
 static inline mzap_phys_t *
 zap_m_phys(zap_t *zap)
 {
-	return (zap->zap_dbuf->db_data);
+	return (ABD_TO_BUF(zap->zap_dbuf->db_data));
 }
 
 typedef struct zap_name {
