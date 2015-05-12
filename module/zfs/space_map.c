@@ -24,9 +24,11 @@
  */
 /*
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>
 #include <sys/dmu_tx.h>
@@ -349,7 +351,7 @@ space_map_open_impl(space_map_t *sm)
 		return (error);
 
 	dmu_object_size_from_db(sm->sm_dbuf, &sm->sm_blksz, &blocks);
-	sm->sm_phys = sm->sm_dbuf->db_data;
+	sm->sm_phys = ABD_TO_BUF(sm->sm_dbuf->db_data);
 	return (0);
 }
 
