@@ -38,7 +38,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#if 0
+
 #define	ARC_BUF_DATA_MAGIC 0xa7cb0fda
 
 
@@ -183,87 +183,6 @@ abd_return_buf_copy(abd_t *abd, void *buf, size_t size)
 		abd_copy_from_buf_off(abd, buf, size, 0);
 	abd_return_buf(abd, buf, size);
 }
-#else	/* 0 */
-typedef void abd_t;
-#define	ABD_TO_BUF(abd)		((void *)abd)
-#define	ABD_IS_SCATTER(abd)	(0)
-#define	ABD_IS_LINEAR(abd)	(1)
-#define	ASSERT_ABD_SCATTER(abd)	((void)0)
-#define	ASSERT_ABD_LINEAR(abd)	((void)0)
-void *zio_buf_alloc(size_t);
-void zio_buf_free(void *, size_t);
-static inline abd_t *abd_alloc_linear(size_t size)
-{
-	return ((abd_t *)zio_buf_alloc(size));
-}
-static inline void abd_free(abd_t *abd, size_t size)
-{
-	zio_buf_free((void *)abd, size);
-}
-#define	abd_alloc_scatter		abd_alloc_linear
-#define	abd_get_offset(abd, off)	((void *)(abd)+(off))
-#define	abd_get_from_buf(buf, size)	(buf)
-#define	abd_put(abd)			do { } while (0)
-
-#define	abd_iterate_rfunc(a, n, f, p) \
-	(void) f(a, n, p)
-
-#define	abd_iterate_wfunc(a, n, f, p) \
-	(void) f(a, n, p)
-
-#define	abd_iterate_func2(a, b, an, bn, f, p) \
-	(void) f(a, b, an, bn, p)
-
-#define	abd_copy_off(a, b, n, aoff, boff) \
-	(void) memcpy((void *)(a)+(aoff), (void *)(b)+(boff), n)
-
-#define	abd_copy_from_buf_off(a, b, n, off) \
-	(void) memcpy((void *)(a)+(off), b, n)
-
-#define	abd_copy_to_buf_off(a, b, n, off) \
-	(void) memcpy(a, (void *)(b)+(off), n)
-
-#define	abd_cmp(a, b, n) \
-	memcmp(a, b, n)
-
-#define	abd_cmp_buf_off(a, b, n, off) \
-	memcmp((void *)(a)+(off), b, n)
-
-#define	abd_zero_off(a, n, off) \
-	(void) memset((void *)(a)+(off), 0, n)
-
-#ifdef _KERNEL
-#define	abd_copy_to_user_off(a, b, n, off) \
-	copy_to_user(a, (void *)(b)+(off), n)
-
-#define	abd_copy_from_user_off(a, b, n, off) \
-	copy_from_user((void *)(a)+(off), b, n)
-
-#define	abd_uiomove_off(p, n, rw, uio, off) \
-	uiomove((void *)(p)+(off), n, rw, uio)
-
-#define	abd_uiocopy_off(p, n, rw, uio, c, off) \
-	uiocopy((void *)(p)+(off), n, rw, uio, c)
-
-#define	abd_bio_map_off(bio, a, n, off) \
-	bio_map(bio, (void *)(a)+(off), n)
-
-#define	abd_bio_nr_pages_off(a, n, off) \
-	bio_nr_pages((void *)(a)+(off), n)
-#endif /* _KERNEL */
-
-#define	abd_borrow_buf(a, n) \
-	((void *)a)
-
-#define	abd_borrow_buf_copy(a, n) \
-	((void *)a)
-
-#define	abd_return_buf(a, b, n) \
-	do { } while (0)
-
-#define	abd_return_buf_copy(a, b, n) \
-	do { } while (0)
-#endif	/* 0 */
 
 /*
  * Wrappers for zero off functions
