@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2015, Intel Corporation.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <stdio.h>
@@ -31,6 +32,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>
@@ -1275,7 +1277,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		ASSERT(buf->b_data);
 
 		/* recursively visit blocks below this */
-		cbp = buf->b_data;
+		cbp = ABD_TO_BUF(buf->b_data);
 		for (i = 0; i < epb; i++, cbp++) {
 			zbookmark_phys_t czb;
 
@@ -1447,7 +1449,7 @@ dump_bptree(objset_t *os, uint64_t obj, char *name)
 		return;
 
 	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
-	bt = db->db_data;
+	bt = ABD_TO_BUF(db->db_data);
 	zdb_nicenum(bt->bt_bytes, bytes);
 	(void) printf("\n    %s: %llu datasets, %s\n",
 	    name, (unsigned long long)(bt->bt_end - bt->bt_begin), bytes);
@@ -1899,7 +1901,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 		if (error)
 			fatal("dmu_bonus_hold(%llu) failed, errno %u",
 			    object, error);
-		bonus = db->db_data;
+		bonus = ABD_TO_BUF(db->db_data);
 		bsize = db->db_size;
 		dn = DB_DNODE((dmu_buf_impl_t *)db);
 	}
@@ -2122,7 +2124,7 @@ dump_config(spa_t *spa)
 	    spa->spa_config_object, FTAG, &db);
 
 	if (error == 0) {
-		nvsize = *(uint64_t *)db->db_data;
+		nvsize = *(uint64_t *)ABD_TO_BUF(db->db_data);
 		dmu_buf_rele(db, FTAG);
 
 		(void) printf("\nMOS Configuration:\n");
@@ -2453,7 +2455,7 @@ zdb_blkptr_done(zio_t *zio)
 	zdb_cb_t *zcb = zio->io_private;
 	zbookmark_phys_t *zb = &zio->io_bookmark;
 
-	zio_data_buf_free(zio->io_data, zio->io_size);
+	abd_free(zio->io_data, zio->io_size);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	spa->spa_scrub_inflight--;
@@ -2519,7 +2521,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (!BP_IS_EMBEDDED(bp) &&
 	    (dump_opt['c'] > 1 || (dump_opt['c'] && is_metadata))) {
 		size_t size = BP_GET_PSIZE(bp);
-		void *data = zio_data_buf_alloc(size);
+		abd_t *data = abd_alloc_linear(size);
 		int flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCRUB | ZIO_FLAG_RAW;
 
 		/* If it's an intent log block, failure is expected. */
@@ -3342,6 +3344,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	zio_t *zio;
 	vdev_t *vd;
 	void *pbuf, *lbuf, *buf;
+	abd_t *pbuf_abd;
 	char *s, *p, *dup, *vdev, *flagstr;
 	int i, error;
 
@@ -3415,6 +3418,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	lsize = size;
 
 	pbuf = umem_alloc_aligned(SPA_MAXBLOCKSIZE, 512, UMEM_NOFAIL);
+	pbuf_abd = abd_get_from_buf(pbuf, SPA_MAXBLOCKSIZE);
 	lbuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 
 	BP_ZERO(bp);
@@ -3442,15 +3446,15 @@ zdb_read_block(char *thing, spa_t *spa)
 		/*
 		 * Treat this as a normal block read.
 		 */
-		zio_nowait(zio_read(zio, spa, bp, pbuf, psize, NULL, NULL,
+		zio_nowait(zio_read(zio, spa, bp, pbuf_abd, psize, NULL, NULL,
 		    ZIO_PRIORITY_SYNC_READ,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW, NULL));
 	} else {
 		/*
 		 * Treat this as a vdev child I/O.
 		 */
-		zio_nowait(zio_vdev_child_io(zio, bp, vd, offset, pbuf, psize,
-		    ZIO_TYPE_READ, ZIO_PRIORITY_SYNC_READ,
+		zio_nowait(zio_vdev_child_io(zio, bp, vd, offset, pbuf_abd,
+		    psize, ZIO_TYPE_READ, ZIO_PRIORITY_SYNC_READ,
 		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE |
 		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW, NULL, NULL));
@@ -3524,6 +3528,7 @@ zdb_read_block(char *thing, spa_t *spa)
 		zdb_dump_block(thing, buf, size, flags);
 
 out:
+	abd_put(pbuf_abd);
 	umem_free(pbuf, SPA_MAXBLOCKSIZE);
 	umem_free(lbuf, SPA_MAXBLOCKSIZE);
 	free(dup);
