@@ -22,9 +22,11 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dbuf.h>
 #include <sys/dnode.h>
 #include <sys/dmu.h>
@@ -273,7 +275,7 @@ dnode_verify(dnode_t *dn)
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
 	if (dn->dn_dbuf != NULL) {
 		ASSERT3P(dn->dn_phys, ==,
-		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +
+		    (dnode_phys_t *)ABD_TO_BUF(dn->dn_dbuf->db.db_data) +
 		    (dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT)));
 	}
 	if (drop_struct_lock)
@@ -1160,7 +1162,8 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag,
 	zrl_add(&dnh->dnh_zrlock);
 	dn = dnh->dnh_dnode;
 	if (dn == NULL) {
-		dnode_phys_t *phys = (dnode_phys_t *)db->db.db_data+idx;
+		dnode_phys_t *phys =
+		    (dnode_phys_t *)ABD_TO_BUF(db->db.db_data) + idx;
 
 		dn = dnode_create(os, phys, db, object, dnh);
 	}
@@ -1582,16 +1585,13 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			head = len;
 		if (dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off),
 		    TRUE, FALSE, FTAG, &db) == 0) {
-			caddr_t data;
-
 			/* don't dirty if it isn't on disk and isn't dirty */
 			if (db->db_last_dirty ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr))) {
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_buf_will_dirty(&db->db, tx);
 				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-				data = db->db.db_data;
-				bzero(data + blkoff, head);
+				abd_zero_off(db->db.db_data, head, blkoff);
 			}
 			dbuf_rele(db, FTAG);
 		}
@@ -1626,7 +1626,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_buf_will_dirty(&db->db, tx);
 				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-				bzero(db->db.db_data, tail);
+				abd_zero(db->db.db_data, tail);
 			}
 			dbuf_rele(db, FTAG);
 		}
@@ -1894,7 +1894,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			dbuf_rele(db, FTAG);
 			return (error);
 		}
-		data = db->db.db_data;
+		data = ABD_TO_BUF(db->db.db_data);
 	}
 
 
