@@ -329,7 +329,7 @@ typedef struct zio_gang_node {
 } zio_gang_node_t;
 
 typedef zio_t *zio_gang_issue_func_t(zio_t *zio, blkptr_t *bp,
-    zio_gang_node_t *gn, void *data);
+    zio_gang_node_t *gn, abd_t *data, uint64_t offset);
 
 typedef void zio_transform_func_t(zio_t *zio, abd_t *data, uint64_t size);
 
@@ -511,7 +511,7 @@ extern void *zio_data_buf_alloc(size_t size);
 extern void zio_data_buf_free(void *buf, size_t size);
 extern void *zio_buf_alloc_flags(size_t size, int flags);
 
-extern void zio_push_transform(zio_t *zio, void *data, uint64_t size,
+extern void zio_push_transform(zio_t *zio, abd_t *data, uint64_t size,
     uint64_t bufsize, zio_transform_func_t *transform);
 extern void zio_pop_transforms(zio_t *zio);
 
