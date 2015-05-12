@@ -22,8 +22,10 @@
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/zap.h>
@@ -99,7 +101,7 @@ spa_history_create_obj(spa_t *spa, dmu_tx_t *tx)
 	VERIFY(0 == dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
 	ASSERT(dbp->db_size >= sizeof (spa_history_phys_t));
 
-	shpp = dbp->db_data;
+	shpp = ABD_TO_BUF(dbp->db_data);
 	dmu_buf_will_dirty(dbp, tx);
 
 	/*
@@ -222,7 +224,7 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	 * Update the offset when the write completes.
 	 */
 	VERIFY0(dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
-	shpp = dbp->db_data;
+	shpp = ABD_TO_BUF(dbp->db_data);
 
 	dmu_buf_will_dirty(dbp, tx);
 
@@ -361,7 +363,7 @@ spa_history_get(spa_t *spa, uint64_t *offp, uint64_t *len, char *buf)
 
 	if ((err = dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp)) != 0)
 		return (err);
-	shpp = dbp->db_data;
+	shpp = ABD_TO_BUF(dbp->db_data);
 
 #ifdef ZFS_DEBUG
 	{
