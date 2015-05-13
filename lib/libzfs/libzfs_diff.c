@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
  */
 
 /*
@@ -620,9 +621,12 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 
 		zhp = zfs_open(hdl, di->ds, ZFS_TYPE_FILESYSTEM);
 		while (zhp != NULL) {
-			(void) zfs_prop_get(zhp, ZFS_PROP_ORIGIN,
-			    origin, sizeof (origin), &src, NULL, 0, B_FALSE);
-
+			if (zfs_prop_get(zhp, ZFS_PROP_ORIGIN, origin,
+			    sizeof (origin), &src, NULL, 0, B_FALSE) != 0) {
+				(void) zfs_close(zhp);
+				zhp = NULL;
+				break;
+			}
 			if (strncmp(origin, fromsnap, fsnlen) == 0)
 				break;
 
