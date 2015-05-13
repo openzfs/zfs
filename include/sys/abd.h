@@ -44,9 +44,6 @@ extern "C" {
 
 
 typedef struct arc_buf_data {
-#ifdef DEBUG_ABD
-	char		pad[PAGESIZE];	/* debug, coredumps when accessed */
-#endif
 	uint32_t	abd_magic;	/* ARC_BUF_DATA_MAGIC */
 	uint32_t	abd_flags;
 	size_t		abd_size;	/* buffer size, excluding offset */
@@ -56,7 +53,6 @@ typedef struct arc_buf_data {
 		struct scatterlist *abd_sgl;
 		void *abd_buf;
 	};
-	uint64_t __abd_sgl[0];
 } abd_t;
 
 #define	ABD_F_SCATTER	(0)
@@ -80,6 +76,9 @@ typedef struct arc_buf_data {
 #define	ABD_IS_LINEAR(abd)	(!ABD_IS_SCATTER(abd))
 #define	ASSERT_ABD_SCATTER(abd)	ASSERT(ABD_IS_SCATTER(abd))
 #define	ASSERT_ABD_LINEAR(abd)	ASSERT(ABD_IS_LINEAR(abd))
+
+void abd_init(void);
+void abd_fini(void);
 
 /*
  * Allocations and deallocations
