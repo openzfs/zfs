@@ -875,9 +875,8 @@ dmu_send_estimate(dsl_dataset_t *ds, dsl_dataset_t *fromds, uint64_t *sizep)
 {
 	int err;
 	uint64_t size;
-	ASSERTV(dsl_pool_t *dp = ds->ds_dir->dd_pool);
 
-	ASSERT(dsl_pool_config_held(dp));
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
 	/* tosnap must be a snapshot */
 	if (!ds->ds_is_snapshot)
@@ -930,11 +929,10 @@ int
 dmu_send_estimate_from_txg(dsl_dataset_t *ds, uint64_t from_txg,
     uint64_t *sizep)
 {
-	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	int err;
 	uint64_t size = 0;
 
-	ASSERT(dsl_pool_config_held(dp));
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
 	/* tosnap must be a snapshot */
 	if (!dsl_dataset_is_snapshot(ds))
