@@ -3117,6 +3117,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 	}
 
+	if (clp)
+		err |= changelist_postfix(clp);
+
 	/*
 	 * Mount the target filesystem (if created).  Also mount any
 	 * children of the target filesystem if we did a replication
@@ -3133,22 +3136,24 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			if (h->zfs_type == ZFS_TYPE_VOLUME) {
 				*cp = '@';
 			} else if (newfs || stream_avl) {
-				/*
-				 * Track the first/top of hierarchy fs,
-				 * for mounting and sharing later.
-				 */
+				/* Track the first/top of hierarchy fs */
 				if (top_zfs && *top_zfs == NULL)
 					*top_zfs = zfs_strdup(hdl, zc.zc_value);
+
+				/* mount and share received datasets */
+				clp = changelist_gather(h, ZFS_PROP_MOUNTPOINT,
+							CL_GATHER_MOUNT_ALWAYS,
+							0);
+				if (clp)
+					err |= changelist_postfix(clp);
 			}
 			zfs_close(h);
 		}
 		*cp = '@';
 	}
 
-	if (clp) {
-		err |= changelist_postfix(clp);
+	if (clp)
 		changelist_free(clp);
-	}
 
 	if (prop_errflags & ZPROP_ERR_NOCLEAR) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Warning: "
