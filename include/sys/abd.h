@@ -20,15 +20,14 @@
  */
 
 /*
- * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /*
  * ABD - ARC buffer data
  * ABD is an abstract data structure for ARC. There are two types of ABD:
  * linear for metadata and scatter for data.
- * Their type is determined by the lowest bit of abd_t pointer.
- * The public API will automatically determine the type
+ * The public API will automatically determine the type.
  */
 
 #ifndef _ABD_H
