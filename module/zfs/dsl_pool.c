@@ -372,7 +372,7 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
 		    FREE_DIR_NAME, &dp->dp_free_dir));
 
 		/* create and open the free_bplist */
-		obj = bpobj_alloc(dp->dp_meta_objset, SPA_MAXBLOCKSIZE, tx);
+		obj = bpobj_alloc(dp->dp_meta_objset, SPA_OLD_MAXBLOCKSIZE, tx);
 		VERIFY(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx) == 0);
 		VERIFY0(bpobj_open(&dp->dp_free_bpobj,
@@ -612,17 +612,12 @@ dsl_pool_adjustedsize(dsl_pool_t *dp, boolean_t netfree)
 	uint64_t space, resv;
 
 	/*
-	 * Reserve about 1.6% (1/64), or at least 32MB, for allocation
-	 * efficiency.
-	 * XXX The intent log is not accounted for, so it must fit
-	 * within this slop.
-	 *
 	 * If we're trying to assess whether it's OK to do a free,
 	 * cut the reservation in half to allow forward progress
 	 * (e.g. make it possible to rm(1) files from a full pool).
 	 */
 	space = spa_get_dspace(dp->dp_spa);
-	resv = MAX(space >> 6, SPA_MINDEVSIZE >> 1);
+	resv = spa_get_slop_space(dp->dp_spa);
 	if (netfree)
 		resv >>= 1;
 
@@ -809,7 +804,7 @@ dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * subobj support.  So call dmu_object_alloc() directly.
 	 */
 	obj = dmu_object_alloc(dp->dp_meta_objset, DMU_OT_BPOBJ,
-	    SPA_MAXBLOCKSIZE, DMU_OT_BPOBJ_HDR, sizeof (bpobj_phys_t), tx);
+	    SPA_OLD_MAXBLOCKSIZE, DMU_OT_BPOBJ_HDR, sizeof (bpobj_phys_t), tx);
 	VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx));
 	VERIFY0(bpobj_open(&dp->dp_free_bpobj, dp->dp_meta_objset, obj));

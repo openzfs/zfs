@@ -13,7 +13,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -249,7 +249,8 @@ dsl_bookmark_create(nvlist_t *bmarks, nvlist_t *errors)
 	dbca.dbca_errors = errors;
 
 	return (dsl_sync_task(nvpair_name(pair), dsl_bookmark_create_check,
-	    dsl_bookmark_create_sync, &dbca, fnvlist_num_pairs(bmarks)));
+	    dsl_bookmark_create_sync, &dbca,
+	    fnvlist_num_pairs(bmarks), ZFS_SPACE_CHECK_NORMAL));
 }
 
 int
@@ -454,7 +455,8 @@ dsl_bookmark_destroy(nvlist_t *bmarks, nvlist_t *errors)
 	dbda.dbda_success = fnvlist_alloc();
 
 	rv = dsl_sync_task(nvpair_name(pair), dsl_bookmark_destroy_check,
-	    dsl_bookmark_destroy_sync, &dbda, fnvlist_num_pairs(bmarks));
+	    dsl_bookmark_destroy_sync, &dbda, fnvlist_num_pairs(bmarks),
+	    ZFS_SPACE_CHECK_RESERVED);
 	fnvlist_free(dbda.dbda_success);
 	return (rv);
 }

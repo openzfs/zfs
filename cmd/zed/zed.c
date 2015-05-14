@@ -1,27 +1,15 @@
 /*
- * CDDL HEADER START
- *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license from the top-level
- * OPENSOLARIS.LICENSE or <http://opensource.org/licenses/CDDL-1.0>.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each file
- * and include the License file from the top-level OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
- *
- * CDDL HEADER END
- */
-
-/*
+ * This file is part of the ZFS Event Daemon (ZED)
+ * for ZFS on Linux (ZoL) <http://zfsonlinux.org/>.
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
+ * Refer to the ZoL git commit log for authoritative copyright attribution.
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License Version 1.0 (CDDL-1.0).
+ * You can obtain a copy of the license from the top-level file
+ * "OPENSOLARIS.LICENSE" or at <http://opensource.org/licenses/CDDL-1.0>.
+ * You may not use this file except in compliance with the license.
  */
 
 #include <errno.h>

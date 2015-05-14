@@ -347,26 +347,21 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* BLOCK_EXT_MAJOR */
 #endif /* CONFIG_BUG */
 
-#ifdef HAVE_BIO_RW_FAILFAST_DTD
+#if defined(HAVE_BIO_RW_FAILFAST_DTD)
 	/* BIO_RW_FAILFAST_* preferred interface from 2.6.28 - 2.6.35 */
 	*flags |= (
 	    (1 << BIO_RW_FAILFAST_DEV) |
 	    (1 << BIO_RW_FAILFAST_TRANSPORT) |
 	    (1 << BIO_RW_FAILFAST_DRIVER));
-#else
-#ifdef HAVE_BIO_RW_FAILFAST
-	/* BIO_RW_FAILFAST preferred interface from 2.6.12 - 2.6.27 */
-	*flags |= (1 << BIO_RW_FAILFAST);
-#else
-#ifdef HAVE_REQ_FAILFAST_MASK
+#elif defined(HAVE_REQ_FAILFAST_MASK)
 	/*
 	 * REQ_FAILFAST_* preferred interface from 2.6.36 - 2.6.xx,
 	 * the BIO_* and REQ_* flags were unified under REQ_* flags.
 	 */
 	*flags |= REQ_FAILFAST_MASK;
-#endif /* HAVE_REQ_FAILFAST_MASK */
-#endif /* HAVE_BIO_RW_FAILFAST */
-#endif /* HAVE_BIO_RW_FAILFAST_DTD */
+#else
+#error "Undefined block IO FAILFAST interface."
+#endif
 }
 
 /*

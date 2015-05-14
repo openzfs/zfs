@@ -277,6 +277,10 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	obj = ds->ds_object;
 
+	if (ds->ds_large_blocks) {
+		ASSERT0(zap_contains(mos, obj, DS_FIELD_LARGE_BLOCKS));
+		spa_feature_decr(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS, tx);
+	}
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		ASSERT3P(ds->ds_prev, ==, NULL);
 		VERIFY0(dsl_dataset_hold_obj(dp,
@@ -520,7 +524,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 
 	error = dsl_sync_task(nvpair_name(pair),
 	    dsl_destroy_snapshot_check, dsl_destroy_snapshot_sync,
-	    &dsda, 0);
+	    &dsda, 0, ZFS_SPACE_CHECK_NONE);
 	fnvlist_free(dsda.dsda_successful_snaps);
 
 	return (error);
@@ -738,6 +742,9 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		ASSERT0(ds->ds_reserved);
 	}
 
+	if (ds->ds_large_blocks)
+		spa_feature_decr(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS, tx);
+
 	dsl_scan_ds_destroyed(ds, tx);
 
 	obj = ds->ds_object;
@@ -918,7 +925,8 @@ dsl_destroy_head(const char *name)
 		objset_t *os;
 
 		error = dsl_sync_task(name, dsl_destroy_head_check,
-		    dsl_destroy_head_begin_sync, &ddha, 0);
+		    dsl_destroy_head_begin_sync, &ddha,
+		    0, ZFS_SPACE_CHECK_NONE);
 		if (error != 0)
 			return (error);
 
@@ -944,7 +952,7 @@ dsl_destroy_head(const char *name)
 	}
 
 	return (dsl_sync_task(name, dsl_destroy_head_check,
-	    dsl_destroy_head_sync, &ddha, 0));
+	    dsl_destroy_head_sync, &ddha, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 /*

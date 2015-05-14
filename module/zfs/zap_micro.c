@@ -35,6 +35,7 @@
 #include <sys/avl.h>
 #include <sys/arc.h>
 #include <sys/abd.h>
+#include <sys/dmu_objset.h>
 
 #ifdef _KERNEL
 #include <sys/sunddi.h>
@@ -655,9 +656,9 @@ zap_create_flags(objset_t *os, int normflags, zap_flags_t flags,
 	uint64_t obj = dmu_object_alloc(os, ot, 0, bonustype, bonuslen, tx);
 
 	ASSERT(leaf_blockshift >= SPA_MINBLOCKSHIFT &&
-	    leaf_blockshift <= SPA_MAXBLOCKSHIFT &&
+	    leaf_blockshift <= SPA_OLD_MAXBLOCKSHIFT &&
 	    indirect_blockshift >= SPA_MINBLOCKSHIFT &&
-	    indirect_blockshift <= SPA_MAXBLOCKSHIFT);
+	    indirect_blockshift <= SPA_OLD_MAXBLOCKSHIFT);
 
 	VERIFY(dmu_object_set_blocksize(os, obj,
 	    1ULL << leaf_blockshift, indirect_blockshift, tx) == 0);
@@ -1319,46 +1320,6 @@ zap_cursor_advance(zap_cursor_t *zc)
 }
 
 int
-zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt)
-{
-	int err = 0;
-	mzap_ent_t *mze;
-	zap_name_t *zn;
-
-	if (zc->zc_zap == NULL) {
-		err = zap_lockdir(zc->zc_objset, zc->zc_zapobj, NULL,
-		    RW_READER, TRUE, FALSE, &zc->zc_zap);
-		if (err)
-			return (err);
-	} else {
-		rw_enter(&zc->zc_zap->zap_rwlock, RW_READER);
-	}
-
-	zn = zap_name_alloc(zc->zc_zap, name, mt);
-	if (zn == NULL) {
-		rw_exit(&zc->zc_zap->zap_rwlock);
-		return (SET_ERROR(ENOTSUP));
-	}
-
-	if (!zc->zc_zap->zap_ismicro) {
-		err = fzap_cursor_move_to_key(zc, zn);
-	} else {
-		mze = mze_find(zn);
-		if (mze == NULL) {
-			err = SET_ERROR(ENOENT);
-			goto out;
-		}
-		zc->zc_hash = mze->mze_hash;
-		zc->zc_cd = mze->mze_cd;
-	}
-
-out:
-	zap_name_free(zn);
-	rw_exit(&zc->zc_zap->zap_rwlock);
-	return (err);
-}
-
-int
 zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 {
 	int err;
@@ -1388,7 +1349,6 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 	zap_t *zap;
 	int err = 0;
 
-
 	/*
 	 * Since, we don't have a name, we cannot figure out which blocks will
 	 * be affected in this operation. So, account for the worst case :
@@ -1401,7 +1361,7 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 	 * large microzap results in a promotion to fatzap.
 	 */
 	if (name == NULL) {
-		*towrite += (3 + (add ? 4 : 0)) * SPA_MAXBLOCKSIZE;
+		*towrite += (3 + (add ? 4 : 0)) * SPA_OLD_MAXBLOCKSIZE;
 		return (err);
 	}
 
@@ -1425,7 +1385,7 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 			/*
 			 * We treat this case as similar to (name == NULL)
 			 */
-			*towrite += (3 + (add ? 4 : 0)) * SPA_MAXBLOCKSIZE;
+			*towrite += (3 + (add ? 4 : 0)) * SPA_OLD_MAXBLOCKSIZE;
 		}
 	} else {
 		/*
@@ -1444,12 +1404,12 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 		 *			ptrtbl blocks
 		 */
 		if (dmu_buf_freeable(zap->zap_dbuf))
-			*tooverwrite += SPA_MAXBLOCKSIZE;
+			*tooverwrite += MZAP_MAX_BLKSZ;
 		else
-			*towrite += SPA_MAXBLOCKSIZE;
+			*towrite += MZAP_MAX_BLKSZ;
 
 		if (add) {
-			*towrite += 4 * SPA_MAXBLOCKSIZE;
+			*towrite += 4 * MZAP_MAX_BLKSZ;
 		}
 	}
 
@@ -1495,7 +1455,6 @@ EXPORT_SYMBOL(zap_cursor_fini);
 EXPORT_SYMBOL(zap_cursor_retrieve);
 EXPORT_SYMBOL(zap_cursor_advance);
 EXPORT_SYMBOL(zap_cursor_serialize);
-EXPORT_SYMBOL(zap_cursor_move_to_key);
 EXPORT_SYMBOL(zap_cursor_init_serialized);
 EXPORT_SYMBOL(zap_get_stats);
 #endif

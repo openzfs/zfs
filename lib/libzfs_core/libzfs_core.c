@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -455,6 +455,10 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
  *
  * "fd" is the file descriptor to write the send stream to.
  *
+ * If "flags" contains LZC_SEND_FLAG_LARGE_BLOCK, the stream is permitted
+ * to contain DRR_WRITE records with drr_length > 128K, and DRR_OBJECT
+ * records with drr_blksz > 128K.
+ *
  * If "flags" contains LZC_SEND_FLAG_EMBED_DATA, the stream is permitted
  * to contain DRR_WRITE_EMBEDDED records with drr_etype==BP_EMBEDDED_TYPE_DATA,
  * which the receiving system must support (as indicated by support
@@ -471,6 +475,8 @@ lzc_send(const char *snapname, const char *from, int fd,
 	fnvlist_add_int32(args, "fd", fd);
 	if (from != NULL)
 		fnvlist_add_string(args, "fromsnap", from);
+	if (flags & LZC_SEND_FLAG_LARGE_BLOCK)
+		fnvlist_add_boolean(args, "largeblockok");
 	if (flags & LZC_SEND_FLAG_EMBED_DATA)
 		fnvlist_add_boolean(args, "embedok");
 	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);
@@ -479,18 +485,30 @@ lzc_send(const char *snapname, const char *from, int fd,
 }
 
 /*
- * If fromsnap is NULL, a full (non-incremental) stream will be estimated.
+ * "from" can be NULL, a snapshot, or a bookmark.
+ *
+ * If from is NULL, a full (non-incremental) stream will be estimated.  This
+ * is calculated very efficiently.
+ *
+ * If from is a snapshot, lzc_send_space uses the deadlists attached to
+ * each snapshot to efficiently estimate the stream size.
+ *
+ * If from is a bookmark, the indirect blocks in the destination snapshot
+ * are traversed, looking for blocks with a birth time since the creation TXG of
+ * the snapshot this bookmark was created from.  This will result in
+ * significantly more I/O and be less efficient than a send space estimation on
+ * an equivalent snapshot.
  */
 int
-lzc_send_space(const char *snapname, const char *fromsnap, uint64_t *spacep)
+lzc_send_space(const char *snapname, const char *from, uint64_t *spacep)
 {
 	nvlist_t *args;
 	nvlist_t *result;
 	int err;
 
 	args = fnvlist_alloc();
-	if (fromsnap != NULL)
-		fnvlist_add_string(args, "fromsnap", fromsnap);
+	if (from != NULL)
+		fnvlist_add_string(args, "from", from);
 	err = lzc_ioctl(ZFS_IOC_SEND_SPACE, snapname, args, &result);
 	nvlist_free(args);
 	if (err == 0)

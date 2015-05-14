@@ -131,6 +131,8 @@ zpool_prop_init(void)
 	/* hidden properties */
 	zprop_register_hidden(ZPOOL_PROP_NAME, "name", PROP_TYPE_STRING,
 	    PROP_READONLY, ZFS_TYPE_POOL, "NAME");
+	zprop_register_hidden(ZPOOL_PROP_MAXBLOCKSIZE, "maxblocksize",
+	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_POOL, "MAXBLOCKSIZE");
 	zprop_register_hidden(ZPOOL_PROP_TNAME, "tname", PROP_TYPE_STRING,
 	    PROP_ONETIME, ZFS_TYPE_POOL, "TNAME");
 }

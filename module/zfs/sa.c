@@ -211,13 +211,6 @@ sa_cache_constructor(void *buf, void *unused, int kmflag)
 {
 	sa_handle_t *hdl = buf;
 
-	hdl->sa_dbu.dbu_evict_func = NULL;
-	hdl->sa_bonus_tab = NULL;
-	hdl->sa_spill_tab = NULL;
-	hdl->sa_os = NULL;
-	hdl->sa_userp = NULL;
-	hdl->sa_bonus = NULL;
-	hdl->sa_spill = NULL;
 	mutex_init(&hdl->sa_lock, NULL, MUTEX_DEFAULT, NULL);
 	return (0);
 }
@@ -227,7 +220,6 @@ static void
 sa_cache_destructor(void *buf, void *unused)
 {
 	sa_handle_t *hdl = buf;
-	hdl->sa_dbu.dbu_evict_func = NULL;
 	mutex_destroy(&hdl->sa_lock);
 }
 
@@ -505,7 +497,7 @@ sa_resize_spill(sa_handle_t *hdl, uint32_t size, dmu_tx_t *tx)
 
 	if (size == 0) {
 		blocksize = SPA_MINBLOCKSIZE;
-	} else if (size > SPA_MAXBLOCKSIZE) {
+	} else if (size > SPA_OLD_MAXBLOCKSIZE) {
 		ASSERT(0);
 		return (SET_ERROR(EFBIG));
 	} else {
@@ -694,7 +686,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	hdrsize = sa_find_sizes(sa, attr_desc, attr_count, hdl->sa_bonus,
 	    SA_BONUS, &spill_idx, &used, &spilling);
 
-	if (used > SPA_MAXBLOCKSIZE)
+	if (used > SPA_OLD_MAXBLOCKSIZE)
 		return (SET_ERROR(EFBIG));
 
 	VERIFY(0 == dmu_set_bonus(hdl->sa_bonus, spilling ?
@@ -718,7 +710,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		    attr_count - spill_idx, hdl->sa_spill, SA_SPILL, &i,
 		    &spill_used, &dummy);
 
-		if (spill_used > SPA_MAXBLOCKSIZE)
+		if (spill_used > SPA_OLD_MAXBLOCKSIZE)
 			return (SET_ERROR(EFBIG));
 
 		if (BUF_SPACE_NEEDED(spill_used, spillhdrsize) >
@@ -1373,14 +1365,11 @@ sa_handle_destroy(sa_handle_t *hdl)
 	mutex_enter(&hdl->sa_lock);
 	(void) dmu_buf_remove_user(db, &hdl->sa_dbu);
 
-	if (hdl->sa_bonus_tab) {
+	if (hdl->sa_bonus_tab)
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_bonus_tab);
-		hdl->sa_bonus_tab = NULL;
-	}
-	if (hdl->sa_spill_tab) {
+
+	if (hdl->sa_spill_tab)
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_spill_tab);
-		hdl->sa_spill_tab = NULL;
-	}
 
 	dmu_buf_rele(hdl->sa_bonus, NULL);
 
@@ -1414,10 +1403,13 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
 		sa_handle_t *winner = NULL;
 
 		handle = kmem_cache_alloc(sa_cache, KM_SLEEP);
+		handle->sa_dbu.dbu_evict_func = NULL;
 		handle->sa_userp = userp;
 		handle->sa_bonus = db;
 		handle->sa_os = os;
 		handle->sa_spill = NULL;
+		handle->sa_bonus_tab = NULL;
+		handle->sa_spill_tab = NULL;
 
 		error = sa_build_index(handle, SA_BONUS);
 

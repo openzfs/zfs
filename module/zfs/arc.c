@@ -1353,7 +1353,7 @@ arc_buf_alloc(spa_t *spa, uint64_t size, void *tag, arc_buf_contents_t type)
 
 	/* don't allow scatter flag when type is data */
 	ASSERT((type & ARC_BUFC_SCATTER) == 0 || ARC_BUFC_IS_META(type));
-	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
+	VERIFY3U(size, <=, spa_maxblocksize(spa));
 	hdr = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
 	ASSERT(BUF_EMPTY(hdr));
 	hdr->b_size = size;
@@ -1849,12 +1849,14 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 	kmutex_t *hash_lock;
 	boolean_t have_lock;
 	abd_t *stolen = NULL;
-	arc_buf_hdr_t marker = {{{ 0 }}};
+	arc_buf_hdr_t *marker;
 	int count = 0;
 
 	ASSERT(state == arc_mru || state == arc_mfu);
 
 	evicted_state = (state == arc_mru) ? arc_mru_ghost : arc_mfu_ghost;
+
+	marker = kmem_zalloc(sizeof (arc_buf_hdr_t), KM_SLEEP);
 
 top:
 	mutex_enter(&state->arcs_mtx);
@@ -1890,14 +1892,14 @@ top:
 		 * the hot code path, so don't sleep.
 		 */
 		if (!recycle && count++ > arc_evict_iterations) {
-			list_insert_after(list, ab, &marker);
+			list_insert_after(list, ab, marker);
 			mutex_exit(&evicted_state->arcs_mtx);
 			mutex_exit(&state->arcs_mtx);
 			kpreempt(KPREEMPT_SYNC);
 			mutex_enter(&state->arcs_mtx);
 			mutex_enter(&evicted_state->arcs_mtx);
-			ab_prev = list_prev(list, &marker);
-			list_remove(list, &marker);
+			ab_prev = list_prev(list, marker);
+			list_remove(list, marker);
 			count = 0;
 			continue;
 		}
@@ -1981,6 +1983,8 @@ top:
 		goto top;
 	}
 
+	kmem_free(marker, sizeof (arc_buf_hdr_t));
+
 	if (bytes_evicted < bytes)
 		dprintf("only evicted %lld bytes from %x\n",
 		    (longlong_t)bytes_evicted, state->arcs_state);
@@ -2010,7 +2014,7 @@ arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes,
     arc_buf_contents_t type)
 {
 	arc_buf_hdr_t *ab, *ab_prev;
-	arc_buf_hdr_t marker;
+	arc_buf_hdr_t *marker;
 	list_t *list = &state->arcs_list[ARC_BUFC_TYPE_MASK(type)];
 	kmutex_t *hash_lock;
 	uint64_t bytes_deleted = 0;
@@ -2018,7 +2022,9 @@ arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes,
 	int count = 0;
 
 	ASSERT(GHOST_STATE(state));
-	bzero(&marker, sizeof (marker));
+
+	marker = kmem_zalloc(sizeof (arc_buf_hdr_t), KM_SLEEP);
+
 top:
 	mutex_enter(&state->arcs_mtx);
 	for (ab = list_tail(list); ab; ab = ab_prev) {
@@ -2044,12 +2050,12 @@ top:
 		 * before reacquiring the lock.
 		 */
 		if (count++ > arc_evict_iterations) {
-			list_insert_after(list, ab, &marker);
+			list_insert_after(list, ab, marker);
 			mutex_exit(&state->arcs_mtx);
 			kpreempt(KPREEMPT_SYNC);
 			mutex_enter(&state->arcs_mtx);
-			ab_prev = list_prev(list, &marker);
-			list_remove(list, &marker);
+			ab_prev = list_prev(list, marker);
+			list_remove(list, marker);
 			count = 0;
 			continue;
 		}
@@ -2081,13 +2087,13 @@ top:
 			 * hash lock to become available. Once its
 			 * available, restart from where we left off.
 			 */
-			list_insert_after(list, ab, &marker);
+			list_insert_after(list, ab, marker);
 			mutex_exit(&state->arcs_mtx);
 			mutex_enter(hash_lock);
 			mutex_exit(hash_lock);
 			mutex_enter(&state->arcs_mtx);
-			ab_prev = list_prev(list, &marker);
-			list_remove(list, &marker);
+			ab_prev = list_prev(list, marker);
+			list_remove(list, marker);
 		} else {
 			bufs_skipped += 1;
 		}
@@ -2099,6 +2105,8 @@ top:
 		list = &state->arcs_list[ARC_BUFC_METADATA];
 		goto top;
 	}
+
+	kmem_free(marker, sizeof (arc_buf_hdr_t));
 
 	if (bufs_skipped) {
 		ARCSTAT_INCR(arcstat_mutex_miss, bufs_skipped);
@@ -3317,7 +3325,7 @@ top:
 		 * Gracefully handle a damaged logical block size as a
 		 * checksum error by passing a dummy zio to the done callback.
 		 */
-		if (size > SPA_MAXBLOCKSIZE) {
+		if (size > spa_maxblocksize(spa)) {
 			if (done) {
 				rzio = zio_null(pio, spa, NULL,
 				    NULL, NULL, zio_flags);

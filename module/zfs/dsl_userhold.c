@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -319,7 +319,8 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 	dduha.dduha_minor = cleanup_minor;
 
 	ret = dsl_sync_task(nvpair_name(pair), dsl_dataset_user_hold_check,
-	    dsl_dataset_user_hold_sync, &dduha, fnvlist_num_pairs(holds));
+	    dsl_dataset_user_hold_sync, &dduha,
+	    fnvlist_num_pairs(holds), ZFS_SPACE_CHECK_RESERVED);
 	fnvlist_free(dduha.dduha_chkholds);
 
 	return (ret);
@@ -609,7 +610,7 @@ dsl_dataset_user_release_impl(nvlist_t *holds, nvlist_t *errlist,
 	    KM_SLEEP));
 
 	error = dsl_sync_task(pool, dsl_dataset_user_release_check,
-	    dsl_dataset_user_release_sync, &ddura, 0);
+	    dsl_dataset_user_release_sync, &ddura, 0, ZFS_SPACE_CHECK_NONE);
 	fnvlist_free(ddura.ddura_todelete);
 	fnvlist_free(ddura.ddura_chkholds);
 

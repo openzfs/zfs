@@ -257,6 +257,14 @@ logbias_changed_cb(void *arg, uint64_t newval)
 		zil_set_logbias(os->os_zil, newval);
 }
 
+static void
+recordsize_changed_cb(void *arg, uint64_t newval)
+{
+	objset_t *os = arg;
+
+	os->os_recordsize = newval;
+}
+
 void
 dmu_objset_byteswap(void *buf, size_t size)
 {
@@ -385,6 +393,11 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    zfs_prop_to_name(
 				    ZFS_PROP_REDUNDANT_METADATA),
 				    redundant_metadata_changed_cb, os);
+			}
+			if (err == 0) {
+				err = dsl_prop_register(ds,
+				    zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
+				    recordsize_changed_cb, os);
 			}
 		}
 		if (err != 0) {
@@ -661,6 +674,9 @@ dmu_objset_evict(objset_t *os)
 			VERIFY0(dsl_prop_unregister(ds,
 			    zfs_prop_to_name(ZFS_PROP_REDUNDANT_METADATA),
 			    redundant_metadata_changed_cb, os));
+			VERIFY0(dsl_prop_unregister(ds,
+			    zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
+			    recordsize_changed_cb, os));
 		}
 		VERIFY0(dsl_prop_unregister(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
@@ -866,7 +882,8 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 	doca.doca_type = type;
 
 	return (dsl_sync_task(name,
-	    dmu_objset_create_check, dmu_objset_create_sync, &doca, 5));
+	    dmu_objset_create_check, dmu_objset_create_sync, &doca,
+	    5, ZFS_SPACE_CHECK_NORMAL));
 }
 
 typedef struct dmu_objset_clone_arg {
@@ -965,7 +982,8 @@ dmu_objset_clone(const char *clone, const char *origin)
 	doca.doca_cred = CRED();
 
 	return (dsl_sync_task(clone,
-	    dmu_objset_clone_check, dmu_objset_clone_sync, &doca, 5));
+	    dmu_objset_clone_check, dmu_objset_clone_sync, &doca,
+	    5, ZFS_SPACE_CHECK_NORMAL));
 }
 
 int
