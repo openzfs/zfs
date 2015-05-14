@@ -588,10 +588,10 @@ splat_taskq_test4(struct file *file, void *arg)
  * next pending task as soon as it completes its current task.  This
  * means that tasks do not strictly complete in order in which they
  * were dispatched (increasing task id).  This is fine but we need to
- * verify that taskq_wait_all() blocks until the passed task id and all
- * lower task ids complete.  We do this by dispatching the following
+ * verify taskq_wait_outstanding() blocks until the passed task id and
+ * all lower task ids complete.  We do this by dispatching the following
  * specific sequence of tasks each of which block for N time units.
- * We then use taskq_wait_all() to unblock at specific task id and
+ * We then use taskq_wait_outstanding() to unblock at specific task id and
  * verify the only the expected task ids have completed and in the
  * correct order.  The two cases of interest are:
  *
@@ -602,17 +602,17 @@ splat_taskq_test4(struct file *file, void *arg)
  *
  * The following table shows each task id and how they will be
  * scheduled.  Each rows represent one time unit and each column
- * one of the three worker threads.  The places taskq_wait_all()
+ * one of the three worker threads.  The places taskq_wait_outstanding()
  * must unblock for a specific id are identified as well as the
  * task ids which must have completed and their order.
  *
- *       +-----+       <--- taskq_wait_all(tq, 8) unblocks
+ *       +-----+       <--- taskq_wait_outstanding(tq, 8) unblocks
  *       |     |            Required Completion Order: 1,2,4,5,3,8,6,7
  * +-----+     |
  * |     |     |
  * |     |     +-----+
  * |     |     |  8  |
- * |     |     +-----+ <--- taskq_wait_all(tq, 3) unblocks
+ * |     |     +-----+ <--- taskq_wait_outstanding(tq, 3) unblocks
  * |     |  7  |     |      Required Completion Order: 1,2,4,5,3
  * |     +-----+     |
  * |  6  |     |     |
@@ -755,13 +755,13 @@ splat_taskq_test5_impl(struct file *file, void *arg, boolean_t prealloc)
 
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name, 3);
-	taskq_wait_all(tq, 3);
+	taskq_wait_outstanding(tq, 3);
 	if ((rc = splat_taskq_test_order(&tq_arg, order1)))
 		goto out;
 
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name, 8);
-	taskq_wait_all(tq, 8);
+	taskq_wait_outstanding(tq, 8);
 	rc = splat_taskq_test_order(&tq_arg, order2);
 
 out:
@@ -923,7 +923,7 @@ splat_taskq_test6_impl(struct file *file, void *arg, boolean_t prealloc)
 	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name,
 		     SPLAT_TASKQ_ORDER_MAX);
-	taskq_wait_all(tq, SPLAT_TASKQ_ORDER_MAX);
+	taskq_wait_outstanding(tq, SPLAT_TASKQ_ORDER_MAX);
 	rc = splat_taskq_test_order(&tq_arg, order);
 
 out:
@@ -1030,7 +1030,7 @@ splat_taskq_test7_impl(struct file *file, void *arg, boolean_t prealloc)
 	if (tq_arg->flag == 0) {
 		splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
 		             "Taskq '%s' waiting\n", tq_arg->name);
-		taskq_wait_all(tq, SPLAT_TASKQ_DEPTH_MAX);
+		taskq_wait_outstanding(tq, SPLAT_TASKQ_DEPTH_MAX);
 	}
 
 	error = (tq_arg->depth == SPLAT_TASKQ_DEPTH_MAX ? 0 : -EINVAL);

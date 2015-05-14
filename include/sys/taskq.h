@@ -119,7 +119,7 @@ extern void taskq_init_ent(taskq_ent_t *);
 extern taskq_t *taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern void taskq_destroy(taskq_t *);
 extern void taskq_wait_id(taskq_t *, taskqid_t);
-extern void taskq_wait_all(taskq_t *, taskqid_t);
+extern void taskq_wait_outstanding(taskq_t *, taskqid_t);
 extern void taskq_wait(taskq_t *);
 extern int taskq_cancel_id(taskq_t *, taskqid_t);
 extern int taskq_member(taskq_t *, void *);

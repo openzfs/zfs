@@ -327,6 +327,33 @@ taskq_find(taskq_t *tq, taskqid_t id, int *active)
 	return (NULL);
 }
 
+/*
+ * Theory for the taskq_wait_id(), taskq_wait_outstanding(), and
+ * taskq_wait() functions below.
+ *
+ * Taskq waiting is accomplished by tracking the lowest outstanding task
+ * id and the next available task id.  As tasks are dispatched they are
+ * added to the tail of the pending, priority, or delay lists.  As worker
+ * threads become available the tasks are removed from the heads of these
+ * lists and linked to the worker threads.  This ensures the lists are
+ * kept sorted by lowest to highest task id.
+ *
+ * Therefore the lowest outstanding task id can be quickly determined by
+ * checking the head item from all of these lists.  This value is stored
+ * with the taskq as the lowest id.  It only needs to be recalculated when
+ * either the task with the current lowest id completes or is canceled.
+ *
+ * By blocking until the lowest task id exceeds the passed task id the
+ * taskq_wait_outstanding() function can be easily implemented.  Similarly,
+ * by blocking until the lowest task id matches the next task id taskq_wait()
+ * can be implemented.
+ *
+ * Callers should be aware that when there are multiple worked threads it
+ * is possible for larger task ids to complete before smaller ones.  Also
+ * when the taskq contains delay tasks with small task ids callers may
+ * block for a considerable length of time waiting for them to expire and
+ * execute.
+ */
 static int
 taskq_wait_id_check(taskq_t *tq, taskqid_t id)
 {
@@ -351,34 +378,8 @@ taskq_wait_id(taskq_t *tq, taskqid_t id)
 }
 EXPORT_SYMBOL(taskq_wait_id);
 
-/*
- * The taskq_wait() function will block until all previously submitted
- * tasks have been completed.  A previously submitted task is defined as
- * a task with a lower task id than the current task queue id.  Note that
- * all task id's are assigned monotonically at dispatch time.
- *
- * Waiting for all previous tasks to complete is accomplished by tracking
- * the lowest outstanding task id.  As tasks are dispatched they are added
- * added to the tail of the pending, priority, or delay lists.  And as
- * worker threads become available the tasks are removed from the heads
- * of these lists and linked to the worker threads.  This ensures the
- * lists are kept in lowest to highest task id order.
- *
- * Therefore the lowest outstanding task id can be quickly determined by
- * checking the head item from all of these lists.  This value is stored
- * with the task queue as the lowest id.  It only needs to be recalculated
- * when either the task with the current lowest id completes or is canceled.
- *
- * By blocking until the lowest task id exceeds the current task id when
- * the function was called we ensure all previous tasks have completed.
- *
- * NOTE: When there are multiple worked threads it is possible for larger
- * task ids to complete before smaller ones.  Conversely when the task
- * queue contains delay tasks with small task ids, you may block for a
- * considerable length of time waiting for them to expire and execute.
- */
 static int
-taskq_wait_check(taskq_t *tq, taskqid_t id)
+taskq_wait_outstanding_check(taskq_t *tq, taskqid_t id)
 {
 	int rc;
 
@@ -389,26 +390,42 @@ taskq_wait_check(taskq_t *tq, taskqid_t id)
 	return (rc);
 }
 
+/*
+ * The taskq_wait_outstanding() function will block until all tasks with a
+ * lower taskqid than the passed 'id' have been completed.  Note that all
+ * task id's are assigned monotonically at dispatch time.  Zero may be
+ * passed for the id to indicate all tasks dispatch up to this point,
+ * but not after, should be waited for.
+ */
 void
-taskq_wait_all(taskq_t *tq, taskqid_t id)
+taskq_wait_outstanding(taskq_t *tq, taskqid_t id)
 {
-	wait_event(tq->tq_wait_waitq, taskq_wait_check(tq, id));
+	wait_event(tq->tq_wait_waitq,
+	    taskq_wait_outstanding_check(tq, id ? id : tq->tq_next_id - 1));
 }
-EXPORT_SYMBOL(taskq_wait_all);
+EXPORT_SYMBOL(taskq_wait_outstanding);
 
+static int
+taskq_wait_check(taskq_t *tq)
+{
+	int rc;
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	rc = (tq->tq_lowest_id == tq->tq_next_id);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+
+	return (rc);
+}
+
+/*
+ * The taskq_wait() function will block until the taskq is empty.
+ * This means that if a taskq re-dispatches work to itself taskq_wait()
+ * callers will block indefinitely.
+ */
 void
 taskq_wait(taskq_t *tq)
 {
-	taskqid_t id;
-
-	ASSERT(tq);
-
-	/* Wait for the largest outstanding taskqid */
-	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-	id = tq->tq_next_id - 1;
-	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-
-	taskq_wait_all(tq, id);
+	wait_event(tq->tq_wait_waitq, taskq_wait_check(tq));
 }
 EXPORT_SYMBOL(taskq_wait);
 
