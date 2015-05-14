@@ -7,13 +7,9 @@ AC_DEFUN([ZFS_AC_KERNEL_KMAP_ATOMIC_ARGS], [
 	AC_MSG_CHECKING([whether kmap_atomic wants 1 args])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/pagemap.h>
-
-		void test_kmap_atomic(void)
-		{
-			struct page page;
-			kmap_atomic(&page);
-		}
 	],[
+		struct page page;
+		kmap_atomic(&page);
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_1ARG_KMAP_ATOMIC, 1,
