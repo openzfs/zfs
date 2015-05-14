@@ -60,22 +60,22 @@ typedef struct arc_buf_data {
 #define	ABD_F_OWNER	(1<<1)
 #define	ABD_F_HIGHMEM	(1<<2)
 
-/*
- * Convert an linear ABD to normal buffer
- */
-#define	ABD_TO_BUF(abd)					\
-(							\
-{							\
-	ASSERT((abd)->abd_magic == ARC_BUF_DATA_MAGIC);	\
-	ASSERT_ABD_LINEAR(abd);				\
-	(abd)->abd_buf;					\
-}							\
-)
-
 #define	ABD_IS_SCATTER(abd)	(!((abd)->abd_flags & ABD_F_LINEAR))
 #define	ABD_IS_LINEAR(abd)	(!ABD_IS_SCATTER(abd))
 #define	ASSERT_ABD_SCATTER(abd)	ASSERT(ABD_IS_SCATTER(abd))
 #define	ASSERT_ABD_LINEAR(abd)	ASSERT(ABD_IS_LINEAR(abd))
+
+/*
+ * Convert an linear ABD to normal buffer
+ */
+static inline void *
+abd_to_buf(abd_t *abd)
+{
+	ASSERT(abd->abd_magic == ARC_BUF_DATA_MAGIC);
+	ASSERT_ABD_LINEAR(abd);
+	return (abd->abd_buf);
+}
+#define	ABD_TO_BUF(abd)		abd_to_buf(abd)
 
 void abd_init(void);
 void abd_fini(void);
@@ -145,57 +145,61 @@ unsigned long abd_bio_nr_pages_off(abd_t *, unsigned int, size_t);
 )
 #endif	/* _KERNEL */
 
+/* forward declaration for abd_borrow_buf, etc. */
+void *zio_buf_alloc(size_t size);
+void zio_buf_free(void *buf, size_t size);
+
 /*
  * Borrow a linear buffer for an ABD
  * Will allocate if ABD is scatter
  */
-#define	abd_borrow_buf(a, n)			\
-(						\
-{						\
-	void *___b;				\
-	if (ABD_IS_LINEAR(a)) {			\
-		___b = ABD_TO_BUF(a);		\
-	} else {				\
-		___b = zio_buf_alloc(n);	\
-	}					\
-	___b;					\
-}						\
-)
+static inline void*
+abd_borrow_buf(abd_t *abd, size_t size)
+{
+	if (!abd)
+		return (NULL);
+	if (ABD_IS_LINEAR(abd))
+		return (ABD_TO_BUF(abd));
+	return (zio_buf_alloc(size));
+}
 
 /*
  * Borrow a linear buffer for an ABD
  * Will allocate and copy if ABD is scatter
  */
-#define	abd_borrow_buf_copy(a, n)		\
-(						\
-{						\
-	void *___b = abd_borrow_buf(a, n);	\
-	if (!ABD_IS_LINEAR(a))			\
-		abd_copy_to_buf(___b, a, n);	\
-	___b;					\
-}						\
-)
+static inline void *
+abd_borrow_buf_copy(abd_t *abd, size_t size)
+{
+	void *buf = abd_borrow_buf(abd, size);
+	if (buf && !ABD_IS_LINEAR(abd))
+		abd_copy_to_buf_off(buf, abd, size, 0);
+	return (buf);
+}
 
 /*
  * Return the borrowed linear buffer
  */
-#define	abd_return_buf(a, b, n)			\
-do {						\
-	if (ABD_IS_LINEAR(a))			\
-		ASSERT((b) == ABD_TO_BUF(a));	\
-	else					\
-		zio_buf_free(b, n);		\
-} while (0)
+static inline void
+abd_return_buf(abd_t *abd, void *buf, size_t size)
+{
+	if (buf) {
+		if (ABD_IS_LINEAR(abd))
+			ASSERT(buf == ABD_TO_BUF(abd));
+		else
+			zio_buf_free(buf, size);
+	}
+}
 
 /*
  * Copy back to ABD and return the borrowed linear buffer
  */
-#define	abd_return_buf_copy(a, b, n)		\
-do {						\
-	if (!ABD_IS_LINEAR(a))			\
-		abd_copy_from_buf(a, b, n);	\
-	abd_return_buf(a, b, n);		\
-} while (0)
+static inline void
+abd_return_buf_copy(abd_t *abd, void *buf, size_t size)
+{
+	if (buf && !ABD_IS_LINEAR(abd))
+		abd_copy_from_buf_off(abd, buf, size, 0);
+	abd_return_buf(abd, buf, size);
+}
 
 /*
  * Wrappers for zero off functions
