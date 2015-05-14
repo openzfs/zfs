@@ -64,6 +64,8 @@ struct scatterlist {
 	int end;
 };
 
+#define	SG_MAX_SINGLE_ALLOC	(PAGESIZE / sizeof (struct scatterlist))
+
 static void
 sg_init_table(struct scatterlist *sg, int nr) {
 	memset(sg, 0, nr * sizeof (struct scatterlist));
@@ -667,7 +669,9 @@ abd_zero_off(abd_t *abd, size_t size, size_t off)
 void *
 abd_buf_segment(abd_t *abd, size_t start, size_t len)
 {
+	struct scatterlist *sg;
 	struct abd_miter aiter;
+	size_t offset;
 	ABD_CHECK(abd);
 	ASSERT(!(abd->abd_flags & ABD_F_HIGHMEM));
 	ASSERT(start + len <= abd->abd_size);
@@ -675,12 +679,24 @@ abd_buf_segment(abd_t *abd, size_t start, size_t len)
 	if (ABD_IS_LINEAR(abd))
 		return (abd->abd_buf + start);
 
-	abd_miter_init(&aiter, abd, ABD_MITER_R);
-	abd_miter_advance(&aiter, start);
+	/*
+	 * If the scatterlist fits in one page, we can safely treat it as an
+	 * array. Otherwise we need to walk the chained scatterlist via miter.
+	 */
+	if (abd->abd_nents <= SG_MAX_SINGLE_ALLOC) {
+		offset = abd->abd_offset + start;
+		sg = &abd->abd_sgl[offset >> PAGE_SHIFT];
+		offset &= (PAGESIZE -1);
+	} else {
+		abd_miter_init(&aiter, abd, ABD_MITER_R);
+		abd_miter_advance(&aiter, start);
+		sg = aiter.sg;
+		offset = aiter.offset;
+	}
 
-	ASSERT(len <= aiter.length);
+	ASSERT(offset + len <= sg->length);
 
-	return (page_address(sg_page(aiter.sg)) + aiter.offset);
+	return (page_address(sg_page(sg)) + offset);
 }
 
 #ifdef _KERNEL
