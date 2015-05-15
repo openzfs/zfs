@@ -129,7 +129,7 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
  *
  * Prints a file name out a character at a time.  If the character is
  * not in the range of what we consider "printable" ASCII, display it
- * as an escaped 3-digit octal value.  ASCII values less than a space
+ * as an escaped 4-digit octal value.  ASCII values less than a space
  * are all control characters and we declare the upper end as the
  * DELete character.  This also is the last 7-bit ASCII character.
  * We choose to treat all 8-bit ASCII as not printable for this
@@ -142,7 +142,7 @@ stream_bytes(FILE *fp, const char *string)
 		if (*string > ' ' && *string != '\\' && *string < '\177')
 			(void) fprintf(fp, "%c", *string++);
 		else
-			(void) fprintf(fp, "\\%03o", (unsigned char)*string++);
+			(void) fprintf(fp, "\\%04o", (unsigned char)*string++);
 	}
 }
 
