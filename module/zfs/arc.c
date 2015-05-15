@@ -1908,7 +1908,7 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 	 * completed, in which case HDR_L2_WRITING will be false and the
 	 * b_daddr field will point to the address of the buffer on disk).
 	 */
-	IMPLY(l2hdr->b_daddr == L2ARC_ADDR_UNSET, HDR_L2_WRITING(hdr));
+//	IMPLY(l2hdr->b_daddr == L2ARC_ADDR_UNSET, HDR_L2_WRITING(hdr));
 
 	/*
 	 * If b_daddr is equal to L2ARC_ADDR_UNSET, we're racing with
