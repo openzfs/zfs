@@ -558,6 +558,7 @@ dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func,
 	ASSERT(dbu->dbu_evict_func == NULL);
 	ASSERT(evict_func != NULL);
 	dbu->dbu_evict_func = evict_func;
+	taskq_init_ent(&dbu->dbu_tqent);
 #ifdef ZFS_DEBUG
 	dbu->dbu_clear_on_evict_dbufp = clear_on_evict_dbufp;
 #endif
