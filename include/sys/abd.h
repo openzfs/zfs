@@ -54,10 +54,11 @@ typedef struct arc_buf_data {
 	};
 } abd_t;
 
-#define	ABD_F_SCATTER	(0)
-#define	ABD_F_LINEAR	(1)
-#define	ABD_F_OWNER	(1<<1)
-#define	ABD_F_HIGHMEM	(1<<2)
+#define	ABD_F_SCATTER	(0)		/* abd is scatter */
+#define	ABD_F_LINEAR	(1)		/* abd is linear */
+#define	ABD_F_OWNER	(1<<1)		/* abd owns the buffer */
+#define	ABD_F_HIGHMEM	(1<<2)		/* abd uses highmem */
+#define	ABD_F_SG_CHAIN	(1<<3)		/* scatterlist is chained */
 
 #define	ABD_IS_SCATTER(abd)	(!((abd)->abd_flags & ABD_F_LINEAR))
 #define	ABD_IS_LINEAR(abd)	(!ABD_IS_SCATTER(abd))

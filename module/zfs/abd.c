@@ -64,8 +64,6 @@ struct scatterlist {
 	int end;
 };
 
-#define	SG_MAX_SINGLE_ALLOC	(PAGESIZE / sizeof (struct scatterlist))
-
 static void
 sg_init_table(struct scatterlist *sg, int nr) {
 	memset(sg, 0, nr * sizeof (struct scatterlist));
@@ -680,10 +678,10 @@ abd_buf_segment(abd_t *abd, size_t start, size_t len)
 		return (abd->abd_buf + start);
 
 	/*
-	 * If the scatterlist fits in one page, we can safely treat it as an
+	 * If the scatterlist is not chained, we can safely treat it as an
 	 * array. Otherwise we need to walk the chained scatterlist via miter.
 	 */
-	if (abd->abd_nents <= SG_MAX_SINGLE_ALLOC) {
+	if (!(abd->abd_flags & ABD_F_SG_CHAIN)) {
 		offset = abd->abd_offset + start;
 		sg = &abd->abd_sgl[offset >> PAGE_SHIFT];
 		offset &= (PAGESIZE -1);
@@ -979,7 +977,15 @@ abd_get_offset(abd_t *sabd, size_t off)
 		abd->abd_offset = 0;
 		abd->abd_nents = 1;
 		abd->abd_buf = sabd->abd_buf + off;
+	} else if (!(sabd->abd_flags & ABD_F_SG_CHAIN)) {
+		/* scatterlist is not chained, treat it as an array. */
+		offset = sabd->abd_offset + off;
+		abd->abd_offset = offset & (PAGESIZE - 1);
+		/* make sure the new abd start as sgl[0] */
+		abd->abd_sgl = &sabd->abd_sgl[offset >> PAGE_SHIFT];
+		abd->abd_nents = sabd->abd_nents - (offset >> PAGE_SHIFT);
 	} else {
+		/* Chained scatterlist, need to walk through it. */
 		abd->abd_sgl = sabd->abd_sgl;
 		abd->abd_nents = sabd->abd_nents;
 
@@ -1043,6 +1049,9 @@ abd_sg_alloc_table(abd_t *abd)
 
 	ASSERT3U(table.nents, ==, n);
 	abd->abd_sgl = table.sgl;
+	/* scatterlist is chained (see sg_alloc_table) */
+	if (n > SG_MAX_SINGLE_ALLOC)
+		abd->abd_flags |= ABD_F_SG_CHAIN;
 #else
 	/*
 	 * Unfortunately, some arch don't support chained scatterlist. For
