@@ -1277,13 +1277,13 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		ASSERT(buf->b_data);
 
 		/* recursively visit blocks below this */
-		cbp = ABD_TO_BUF(buf->b_data);
-		for (i = 0; i < epb; i++, cbp++) {
+		for (i = 0; i < epb; i++) {
 			zbookmark_phys_t czb;
 
 			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
+			cbp = abd_array(buf->b_data, i, blkptr_t);
 			err = visit_indirect(spa, dnp, cbp, &czb);
 			if (err)
 				break;
