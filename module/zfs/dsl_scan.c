@@ -670,14 +670,14 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		cbp = ABD_TO_BUF(buf->b_data);
-		for (i = 0; i < epb; i++, cbp++) {
+		for (i = 0; i < epb; i++) {
+			cbp = abd_array(buf->b_data, i, blkptr_t);
 			dsl_scan_prefetch(scn, buf, cbp, zb->zb_objset,
 			    zb->zb_object, zb->zb_blkid * epb + i);
 		}
-		cbp = ABD_TO_BUF(buf->b_data);
-		for (i = 0; i < epb; i++, cbp++) {
+		for (i = 0; i < epb; i++) {
 			zbookmark_phys_t czb;
+			cbp = abd_array(buf->b_data, i, blkptr_t);
 
 			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
 			    zb->zb_level - 1,
