@@ -63,7 +63,7 @@ struct dbuf_hold_impl_data {
 	blkptr_t *dh_bp;
 	int dh_err;
 	dbuf_dirty_record_t *dh_dr;
-	arc_buf_contents_t dh_type;
+	arc_buf_alloc_t dh_type;
 	int dh_depth;
 };
 
@@ -357,6 +357,20 @@ dbuf_is_metadata(dmu_buf_impl_t *db)
 		DB_DNODE_EXIT(db);
 
 		return (is_metadata);
+	}
+}
+
+arc_buf_alloc_t
+dbuf_get_bufa_type(dmu_buf_impl_t *db)
+{
+	arc_buf_alloc_t type;
+	if (db->db_blkid == DMU_SPILL_BLKID) {
+		return (ARC_BUFC_METADATA);
+	} else {
+		DB_DNODE_ENTER(db);
+		type = GET_BUFA_TYPE(db->db_level, DB_DNODE(db)->dn_type);
+		DB_DNODE_EXIT(db);
+		return (type);
 	}
 }
 
@@ -733,7 +747,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	if (db->db_blkptr == NULL || BP_IS_HOLE(db->db_blkptr) ||
 	    (db->db_level == 0 && (dnode_block_freed(dn, db->db_blkid) ||
 	    BP_IS_HOLE(db->db_blkptr)))) {
-		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+		arc_buf_alloc_t type = DBUF_GET_BUFA_TYPE(db);
 
 		DB_DNODE_EXIT(db);
 		dbuf_set_data(db, arc_buf_alloc(db->db_objset->os_spa,
@@ -867,7 +881,7 @@ dbuf_noread(dmu_buf_impl_t *db)
 	while (db->db_state == DB_READ || db->db_state == DB_FILL)
 		cv_wait(&db->db_changed, &db->db_mtx);
 	if (db->db_state == DB_UNCACHED) {
-		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+		arc_buf_alloc_t type = DBUF_GET_BUFA_TYPE(db);
 		spa_t *spa = db->db_objset->os_spa;
 
 		ASSERT(db->db_buf == NULL);
@@ -927,7 +941,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 		    DN_MAX_BONUSLEN);
 	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
 		int size = db->db.db_size;
-		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+		arc_buf_alloc_t type = DBUF_GET_BUFA_TYPE(db);
 		spa_t *spa = db->db_objset->os_spa;
 
 		dr->dt.dl.dr_data = arc_buf_alloc(spa, size, db, type);
@@ -1140,7 +1154,7 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 {
 	arc_buf_t *buf, *obuf;
 	int osize = db->db.db_size;
-	arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+	arc_buf_alloc_t type = DBUF_GET_BUFA_TYPE(db);
 	dnode_t *dn;
 
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
@@ -2384,7 +2398,7 @@ top:
 		dh->dh_dr = dh->dh_db->db_data_pending;
 
 		if (dh->dh_dr->dt.dl.dr_data == dh->dh_db->db_buf) {
-			dh->dh_type = DBUF_GET_BUFC_TYPE(dh->dh_db);
+			dh->dh_type = DBUF_GET_BUFA_TYPE(dh->dh_db);
 
 			dbuf_set_data(dh->dh_db,
 			    arc_buf_alloc(dh->dh_dn->dn_objset->os_spa,
@@ -2975,7 +2989,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		 * DNONE_DNODE blocks).
 		 */
 		int blksz = arc_buf_size(*datap);
-		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+		arc_buf_alloc_t type = DBUF_GET_BUFA_TYPE(db);
 		*datap = arc_buf_alloc(os->os_spa, blksz, db, type);
 		abd_copy((*datap)->b_data, db->db.db_data, blksz);
 	}

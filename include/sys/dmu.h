@@ -119,6 +119,9 @@ typedef enum dmu_object_byteswap {
 	((ot) & DMU_OT_METADATA) : \
 	dmu_ot[(int)(ot)].ot_metadata)
 
+#define	DMU_OT_IS_SCATTER(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	(0) : dmu_ot[(int)(ot)].ot_scatter)
+
 /*
  * These object types use bp_fill != 1 for their L0 bp's. Therefore they can't
  * have their data embedded (i.e. use a BP_IS_EMBEDDED() bp), because bp_fill
@@ -767,6 +770,7 @@ typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
 	boolean_t		ot_metadata;
+	boolean_t		ot_scatter;
 	char			*ot_name;
 } dmu_object_type_info_t;
 
