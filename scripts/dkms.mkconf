@@ -18,7 +18,7 @@ if [ -z "${pkgname}" -o -z "${pkgver}" -o -z "${filename}" ]; then
 	exit 1
 fi
 
-cat >${filename} <<EOF
+cat > "${filename}" <<EOF
 PACKAGE_NAME="${pkgname}"
 PACKAGE_VERSION="${pkgver}"
 PACKAGE_CONFIG="${pkgcfg}"

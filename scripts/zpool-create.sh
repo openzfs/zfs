@@ -1,6 +1,6 @@
 #!/bin/bash
 
-basedir="$(dirname $0)"
+basedir="$(dirname "$0")"
 
 SCRIPT_COMMON=common.sh
 if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
@@ -34,15 +34,14 @@ EOF
 }
 
 check_config() {
-
-	if [ ! -f ${ZPOOL_CONFIG} ]; then
-		local NAME=`basename ${ZPOOL_CONFIG} .sh`
+	if [ ! -f "${ZPOOL_CONFIG}" ]; then
+		local NAME=$(basename "${ZPOOL_CONFIG}" .sh)
 		ERROR="Unknown config '${NAME}', available configs are:\n"
 
-		for CFG in `ls ${ZPOOLDIR}/ | grep ".sh"`; do
-			local NAME=`basename ${CFG} .sh`
+		while read CFG; do
+			local NAME=$(basename "${CFG}" .sh)
 			ERROR="${ERROR}${NAME}\n"
-		done
+		done < <(find "${ZPOOLDIR}" -maxdepth 1 -type -name "*.sh")
 
 		return 1
 	fi
@@ -97,42 +96,42 @@ while getopts 'hvfxc:p:dl:s:' OPTION; do
 	esac
 done
 
-if [ $(id -u) != 0 ]; then
+if [ "$(id -u)" != 0 ]; then
         die "Must run as root"
 fi
 
 check_config || die "${ERROR}"
-. ${ZPOOL_CONFIG}
+. "${ZPOOL_CONFIG}"
 
-if [ ${ZPOOL_DESTROY} ]; then
+if [ "${ZPOOL_DESTROY}" ]; then
 	zpool_destroy
 else
 	zpool_create
 
 	if [ "${ZPOOL_OPTIONS}" ]; then
-		if [ ${VERBOSE} ]; then
+		if [ "${VERBOSE}" ]; then
 			echo
 			echo "${ZPOOL} ${ZPOOL_OPTIONS} ${ZPOOL_NAME}"
 		fi
-		${ZPOOL} ${ZPOOL_OPTIONS} ${ZPOOL_NAME} || exit 1
+		"${ZPOOL}" "${ZPOOL_OPTIONS}" "${ZPOOL_NAME}" || exit 1
 	fi
 
 	if [ "${ZFS_OPTIONS}" ]; then
-		if [ ${VERBOSE} ]; then
+		if [ "${VERBOSE}" ]; then
 			echo
 			echo "${ZFS} ${ZFS_OPTIONS} ${ZPOOL_NAME}"
 		fi
-		${ZFS} ${ZFS_OPTIONS} ${ZPOOL_NAME} || exit 1
+		"${ZFS}" "${ZFS_OPTIONS}" "${ZPOOL_NAME}" || exit 1
 	fi
 
-	if [ ${VERBOSE} ]; then
+	if [ "${VERBOSE}" ]; then
 		echo
 		echo "zpool list"
-		${ZPOOL} list || exit 1
+		"${ZPOOL}" list || exit 1
 
 		echo
 		echo "zpool status ${ZPOOL_NAME}"
-		${ZPOOL} status ${ZPOOL_NAME} || exit 1
+		"${ZPOOL}" status "${ZPOOL_NAME}" || exit 1
 	fi
 fi
 

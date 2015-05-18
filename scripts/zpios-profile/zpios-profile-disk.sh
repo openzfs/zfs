@@ -21,19 +21,21 @@ RUN_LOG_DIR=${1}
 RUN_ID=${2}
 
 create_table() {
-	local FIELD=$1
+	local FIELD="$1"
 	local ROW_M=()
 	local ROW_N=()
 	local HEADER=1
 	local STEP=1
 
-	for DISK_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/disk-[0-9]*`; do
-		ROW_M=( ${ROW_N[@]} )
-		ROW_N=( `cat ${DISK_FILE} | grep sd | cut -c11- | cut -f${FIELD} -d' ' | tr "\n" "\t"` )
+	while read DISK_FILE; do
+		ROW_M="${ROW_N[*]}"
+		ROW_N=( $(grep sd "${DISK_FILE}" | cut -c11- | \
+				 cut -f"${FIELD}" -d' ' | tr "\n" "\t") )
 
-		if [ $HEADER -eq 1 ]; then
+		if [ "$HEADER" -eq 1 ]; then
 			echo -n "step, "
-			cat ${DISK_FILE} | grep sd | cut -c11- | cut -f1 -d' ' | tr "\n" ", "
+			grep sd "${DISK_FILE}" | cut -c11- | cut -f1 -d' ' | \
+			    tr "\n" ", "
 	                echo "total"
 			HEADER=0
 		fi
@@ -50,31 +52,34 @@ create_table() {
 		TOTAL=0
 		echo -n "${STEP}, "
 		for (( i=0; i<${#ROW_N[@]}; i++ )); do
-			DELTA=`echo "${ROW_N[${i}]}-${ROW_M[${i}]}" | bc`
+			DELTA=$(echo "${ROW_N[${i}]}-${ROW_M[${i}]}" | bc)
 			let TOTAL=${TOTAL}+${DELTA}
 			echo -n "${DELTA}, "
 		done
 		echo "${TOTAL}, "
 
 		let STEP=${STEP}+1
-	done
+	done < <(find "${RUN_LOG_DIR}/${RUN_ID}" -r --sort=time --time=ctime \
+		      -name "disk-[0-9]*")
 }
 
 create_table_mbs() {
-	local FIELD=$1
-	local TIME=$2
+	local FIELD="$1"
+	local TIME="$2"
 	local ROW_M=()
 	local ROW_N=()
 	local HEADER=1
 	local STEP=1
 
-	for DISK_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/disk-[0-9]*`; do
-		ROW_M=( ${ROW_N[@]} )
-		ROW_N=( `cat ${DISK_FILE} | grep sd | cut -c11- | cut -f${FIELD} -d' ' | tr "\n" "\t"` )
+	while read DISK_FILE; do
+		ROW_M="${ROW_N[*]}"
+		ROW_N=( $(grep sd "${DISK_FILE}" | cut -c11- | \
+				 cut -f"${FIELD}" -d' ' | tr "\n" "\t") )
 
-		if [ $HEADER -eq 1 ]; then
+		if [ "$HEADER" -eq 1 ]; then
 			echo -n "step, "
-			cat ${DISK_FILE} | grep sd | cut -c11- | cut -f1 -d' ' | tr "\n" ", "
+			grep sd "${DISK_FILE}" | cut -c11- | cut -f1 -d' ' | \
+			    tr "\n" ", "
 	                echo "total"
 			HEADER=0
 		fi
@@ -91,15 +96,16 @@ create_table_mbs() {
 		TOTAL=0
 		echo -n "${STEP}, "
 		for (( i=0; i<${#ROW_N[@]}; i++ )); do
-			DELTA=`echo "${ROW_N[${i}]}-${ROW_M[${i}]}" | bc`
-			MBS=`echo "scale=2; ((${DELTA}*512)/${TIME})/(1024*1024)" | bc`
-			TOTAL=`echo "scale=2; ${TOTAL}+${MBS}" | bc`
+			DELTA=$(echo "${ROW_N[${i}]}-${ROW_M[${i}]}" | bc)
+			MBS=$(echo "scale=2; ((${DELTA}*512)/${TIME})/(1024*1024)" | bc)
+			TOTAL=$(echo "scale=2; ${TOTAL}+${MBS}" | bc)
 			echo -n "${MBS}, "
 		done
 		echo "${TOTAL}, "
 
 		let STEP=${STEP}+1
-	done
+	done < <(find "${RUN_LOG_DIR}/${RUN_ID}" -r --sort=time --time=ctime \
+		      -name "disk-[0-9]*")
 }
 
 echo
