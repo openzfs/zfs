@@ -72,7 +72,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 		ASSERT(db->db.db_data);
 		ASSERT(arc_released(db->db_buf));
 		ASSERT3U(sizeof (blkptr_t) * nblkptr, <=, db->db.db_size);
-		bcopy(dn->dn_phys->dn_blkptr, ABD_TO_BUF(db->db.db_data),
+		abd_copy_from_buf(db->db.db_data, dn->dn_phys->dn_blkptr,
 		    sizeof (blkptr_t) * nblkptr);
 		arc_buf_freeze(db->db_buf);
 	}
@@ -103,7 +103,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 		dbuf_add_ref(db, child);
 		if (db->db.db_data)
 			child->db_blkptr =
-			    (blkptr_t *)ABD_TO_BUF(db->db.db_data) + i;
+			    abd_array(db->db.db_data, i, blkptr_t);
 		else
 			child->db_blkptr = NULL;
 		dprintf_dbuf_bp(child, child->db_blkptr,
@@ -120,17 +120,25 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 }
 
 static void
-free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
+free_blocks(dnode_t *dn, blkptr_t *obp, abd_t *bpabd, uint64_t bpi, int num,
+    dmu_tx_t *tx)
 {
 	dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 	uint64_t bytesfreed = 0;
 	int i;
+	int use_abd = (bpabd != NULL);
+	blkptr_t *bp;
 
 	dprintf("ds=%p obj=%llx num=%d\n", ds, dn->dn_object, num);
 
-	for (i = 0; i < num; i++, bp++) {
+	for (i = 0; i < num; i++) {
 		uint64_t lsize, lvl;
 		dmu_object_type_t type;
+
+		if (use_abd)
+			bp = abd_array(bpabd, bpi + i, blkptr_t);
+		else
+			bp = obp++;
 
 		if (BP_IS_HOLE(bp))
 			continue;
@@ -265,7 +273,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dnode_t *dn;
 	blkptr_t *bp;
 	dmu_buf_impl_t *subdb;
-	uint64_t start, end, dbstart, dbend, i;
+	uint64_t start, end, dbstart, dbend, i, bpi;
 	int epbs, shift;
 
 	/*
@@ -278,7 +286,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
 
 	dbuf_release_bp(db);
-	bp = (blkptr_t *)ABD_TO_BUF(db->db.db_data);
+	bpi = 0;
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
@@ -287,7 +295,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dbstart = db->db_blkid << epbs;
 	start = blkid >> shift;
 	if (dbstart < start) {
-		bp += start - dbstart;
+		bpi += start - dbstart;
 	} else {
 		start = dbstart;
 	}
@@ -300,9 +308,10 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 
 	if (db->db_level == 1) {
 		FREE_VERIFY(db, start, end, tx);
-		free_blocks(dn, bp, end-start+1, tx);
+		free_blocks(dn, NULL, db->db.db_data, bpi, end-start+1, tx);
 	} else {
-		for (i = start; i <= end; i++, bp++) {
+		for (i = start; i <= end; i++, bpi++) {
+			bp = abd_array(db->db.db_data, bpi, blkptr_t);
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
@@ -317,15 +326,15 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	}
 
 	/* If this whole block is free, free ourself too. */
-	bp = ABD_TO_BUF(db->db.db_data);
-	for (i = 0; i < 1 << epbs; i++, bp++) {
+	for (i = 0; i < 1 << epbs; i++) {
+		bp = abd_array(db->db.db_data, i, blkptr_t);
 		if (!BP_IS_HOLE(bp))
 			break;
 	}
 	if (i == 1 << epbs) {
 		/* didn't find any non-holes */
-		bzero(ABD_TO_BUF(db->db.db_data), db->db.db_size);
-		free_blocks(dn, db->db_blkptr, 1, tx);
+		abd_zero(db->db.db_data, db->db.db_size);
+		free_blocks(dn, db->db_blkptr, NULL, 0, 1, tx);
 	} else {
 		/*
 		 * Partial block free; must be marked dirty so that it
@@ -366,7 +375,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 			return;
 		}
 		ASSERT3U(blkid + nblks, <=, dn->dn_phys->dn_nblkptr);
-		free_blocks(dn, bp + blkid, nblks, tx);
+		free_blocks(dn, bp + blkid, NULL, 0, nblks, tx);
 	} else {
 		int shift = (dnlevel - 1) *
 		    (dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT);
@@ -688,7 +697,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	mutex_exit(&dn->dn_mtx);
 
 	if (kill_spill) {
-		free_blocks(dn, &dn->dn_phys->dn_spill, 1, tx);
+		free_blocks(dn, &dn->dn_phys->dn_spill, NULL, 0, 1, tx);
 		mutex_enter(&dn->dn_mtx);
 		dnp->dn_flags &= ~DNODE_FLAG_SPILL_BLKPTR;
 		mutex_exit(&dn->dn_mtx);
