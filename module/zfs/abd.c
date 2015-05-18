@@ -108,6 +108,7 @@ sg_next(struct scatterlist *sg)
 #define	unlikely(x)			(x)
 #endif
 
+#define	page_address(page)		((void *)page)
 #define	kmap(page)			((void *)page)
 #define	kunmap(page)			do { } while (0)
 #define	zfs_kmap_atomic(page, type)	((void *)page)
@@ -653,6 +654,49 @@ abd_zero_off(abd_t *abd, size_t size, size_t off)
 	}
 }
 
+/*
+ * abd_buf_segment - returns a pointer to a buffer range in ABD.
+ * @start is the starting offset in the @abd
+ * @len is the length of the buffer range
+ *
+ * @abd must not be highmem scatter ABD. If @abd is linear, the range
+ * specified by @start and @len should be in the range of @abd. If @abd is
+ * scatter, the range should not cross page boundary.
+ * This function is mainly used for allowing *_phys_t to point to scatter ABD.
+ */
+void *
+abd_buf_segment(abd_t *abd, size_t start, size_t len)
+{
+	struct scatterlist *sg;
+	struct abd_miter aiter;
+	size_t offset;
+	ABD_CHECK(abd);
+	ASSERT(!(abd->abd_flags & ABD_F_HIGHMEM));
+	ASSERT(start + len <= abd->abd_size);
+
+	if (ABD_IS_LINEAR(abd))
+		return (abd->abd_buf + start);
+
+	/*
+	 * If the scatterlist is not chained, we can safely treat it as an
+	 * array. Otherwise we need to walk the chained scatterlist via miter.
+	 */
+	if (!(abd->abd_flags & ABD_F_SG_CHAIN)) {
+		offset = abd->abd_offset + start;
+		sg = &abd->abd_sgl[offset >> PAGE_SHIFT];
+		offset &= (PAGESIZE -1);
+	} else {
+		abd_miter_init(&aiter, abd, ABD_MITER_R);
+		abd_miter_advance(&aiter, start);
+		sg = aiter.sg;
+		offset = aiter.offset;
+	}
+
+	ASSERT(offset + len <= sg->length);
+
+	return (page_address(sg_page(sg)) + offset);
+}
+
 #ifdef _KERNEL
 /*
  * Copy from @abd to user buffer @buf.
@@ -1037,9 +1081,13 @@ abd_sg_free_table(abd_t *abd)
 
 /*
  * Allocate a scatter ABD
+ *
+ * @highmem indicate whether the pages should be in highmem.
+ * Highmem is mainly for userdata, while non-highmem is mainly for metadata
+ * which allow scatter ABD.
  */
 abd_t *
-abd_alloc_scatter(size_t size)
+__abd_alloc_scatter(size_t size, int highmem)
 {
 	abd_t *abd;
 	struct page *page;
@@ -1050,7 +1098,9 @@ abd_alloc_scatter(size_t size)
 	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
-	abd->abd_flags = ABD_F_SCATTER|ABD_F_OWNER|ABD_F_HIGHMEM;
+	abd->abd_flags = ABD_F_SCATTER|ABD_F_OWNER;
+	if (highmem)
+		abd->abd_flags |= ABD_F_HIGHMEM;
 	abd->abd_size = size;
 	abd->abd_offset = 0;
 	abd->abd_nents = n;
@@ -1059,7 +1109,7 @@ abd_alloc_scatter(size_t size)
 
 	for_each_sg(abd->abd_sgl, sg, n, i) {
 retry:
-		page = alloc_page(GFP_NOIO|__GFP_HIGHMEM);
+		page = alloc_page(GFP_NOIO|(highmem ? __GFP_HIGHMEM : 0));
 		if (unlikely(page == NULL)) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule_timeout(1);
