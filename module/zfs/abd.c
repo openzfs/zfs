@@ -118,6 +118,7 @@ sg_next(struct scatterlist *sg)
 #define	unlikely(x)			(x)
 #endif
 
+#define	page_address(page)		((void *)page)
 #define	kmap(page)			((void *)page)
 #define	kunmap(page)			do { } while (0)
 #define	zfs_kmap_atomic(page, type)	((void *)page)
@@ -690,6 +691,42 @@ abd_zero_off(abd_t *abd, size_t size, size_t off)
 	}
 }
 
+/*
+ * abd_buf_segment - returns a pointer to a buffer range in ABD.
+ * @start is the starting offset in the @abd
+ * @len is the length of the buffer range
+ *
+ * @abd must not be highmem scatter ABD. If @abd is linear, the range
+ * specified by @start and @len should be in the range of @abd. If @abd is
+ * scatter, the range should not cross page boundary.
+ * This function is mainly used for allowing *_phys_t to point to scatter ABD.
+ */
+void *
+abd_buf_segment(abd_t *abd, size_t start, size_t len)
+{
+	struct scatterlist *sg;
+	struct abd_miter aiter;
+	size_t offset;
+	ABD_CHECK(abd);
+	ASSERT(!(abd->abd_flags & ABD_F_HIGHMEM));
+	ASSERT(start + len <= abd->abd_size);
+
+	if (ABD_IS_LINEAR(abd))
+		return (abd->abd_buf + start);
+
+	/*
+	 * Walk the chained scatterlist via miter.
+	 */
+	abd_miter_init(&aiter, abd, ABD_MITER_R);
+	abd_miter_advance(&aiter, start);
+	sg = aiter.sg;
+	offset = aiter.offset;
+
+	ASSERT(offset + len <= sg->length);
+
+	return (page_address(sg_page(sg)) + offset);
+}
+
 #ifdef _KERNEL
 static int
 abd_miter_copy_to_user(void __user *buf, struct abd_miter *aiter, size_t size)
@@ -1128,9 +1165,13 @@ abd_sg_free_table(abd_t *abd)
 #define	MAX_ALLOC_SIZE (1024*1024)
 /*
  * Allocate a scatter ABD
+ *
+ * @highmem indicate whether the pages should be in highmem.
+ * Highmem is mainly for userdata, while non-highmem is mainly for metadata
+ * which allow scatter ABD.
  */
 abd_t *
-abd_alloc_scatter(size_t size)
+__abd_alloc_scatter(size_t size, int highmem)
 {
 	abd_t *abd;
 	unsigned long paddr = 0;
@@ -1147,8 +1188,10 @@ abd_alloc_scatter(size_t size)
 	 * the optimization below.
 	 */
 #if defined(_KERNEL) && defined(CONFIG_HIGHMEM)
-	abd->abd_flags |= ABD_F_HIGHMEM;
-	gfp_hmem = __GFP_HIGHMEM;
+	if (highmem) {
+		abd->abd_flags |= ABD_F_HIGHMEM;
+		gfp_hmem = __GFP_HIGHMEM;
+	}
 #endif
 	abd->abd_size = size;
 	abd->abd_offset = 0;
