@@ -68,7 +68,7 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{ DMU_BSWAP_UINT64,	TRUE, FALSE,	"SPA space map header"	},
 	{ DMU_BSWAP_UINT64,	TRUE, FALSE,	"SPA space map"		},
 	{ DMU_BSWAP_UINT64,	TRUE, FALSE,	"ZIL intent log"	},
-	{ DMU_BSWAP_DNODE,	TRUE, FALSE,	"DMU dnode"		},
+	{ DMU_BSWAP_DNODE,	TRUE, TRUE,	"DMU dnode"		},
 	{ DMU_BSWAP_OBJSET,	TRUE, FALSE,	"DMU objset"		},
 	{ DMU_BSWAP_UINT64,	TRUE, FALSE,	"DSL directory"		},
 	{ DMU_BSWAP_ZAP,	TRUE, FALSE,	"DSL directory child map"},
