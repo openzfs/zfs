@@ -274,9 +274,9 @@ dnode_verify(dnode_t *dn)
 		ASSERT3U(dn->dn_phys->dn_nlevels, <=, dn->dn_nlevels);
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
 	if (dn->dn_dbuf != NULL) {
-		ASSERT3P(dn->dn_phys, ==,
-		    (dnode_phys_t *)ABD_TO_BUF(dn->dn_dbuf->db.db_data) +
-		    (dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT)));
+		ASSERT3P(dn->dn_phys, ==, abd_array(dn->dn_dbuf->db.db_data,
+		    dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT),
+		    dnode_phys_t));
 	}
 	if (drop_struct_lock)
 		rw_exit(&dn->dn_struct_rwlock);
@@ -1163,7 +1163,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag,
 	dn = dnh->dnh_dnode;
 	if (dn == NULL) {
 		dnode_phys_t *phys =
-		    (dnode_phys_t *)ABD_TO_BUF(db->db.db_data) + idx;
+		    abd_array(db->db.db_data, idx, dnode_phys_t);
 
 		dn = dnode_create(os, phys, db, object, dnh);
 	}
@@ -1910,14 +1910,15 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		 */
 		error = SET_ERROR(ESRCH);
 	} else if (lvl == 0) {
-		dnode_phys_t *dnp = ABD_TO_BUF(abd);
+		dnode_phys_t *dnp;
 		span = DNODE_SHIFT;
 		ASSERT(dn->dn_type == DMU_OT_DNODE);
 		ASSERT(use_abd == 1);
 
 		for (i = (*offset >> span) & (blkfill - 1);
 		    i >= 0 && i < blkfill; i += inc) {
-			if ((dnp[i].dn_type == DMU_OT_NONE) == hole)
+			dnp = abd_array(abd, i, dnode_phys_t);
+			if ((dnp->dn_type == DMU_OT_NONE) == hole)
 				break;
 			*offset += (1ULL << span) * inc;
 		}

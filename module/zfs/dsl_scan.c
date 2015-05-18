@@ -705,16 +705,16 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		cdnp = ABD_TO_BUF(buf->b_data);
-		for (i = 0; i < epb; i++, cdnp++) {
+		for (i = 0; i < epb; i++) {
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
 			for (j = 0; j < cdnp->dn_nblkptr; j++) {
 				blkptr_t *cbp = &cdnp->dn_blkptr[j];
 				dsl_scan_prefetch(scn, buf, cbp,
 				    zb->zb_objset, zb->zb_blkid * epb + i, j);
 			}
 		}
-		cdnp = ABD_TO_BUF(buf->b_data);
-		for (i = 0; i < epb; i++, cdnp++) {
+		for (i = 0; i < epb; i++) {
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
 			dsl_scan_visitdnode(scn, ds, ostype,
 			    cdnp, zb->zb_blkid * epb + i, tx);
 		}
