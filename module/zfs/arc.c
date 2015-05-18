@@ -1083,10 +1083,8 @@ add_reference(arc_buf_hdr_t *ab, kmutex_t *hash_lock, void *tag)
 	if ((refcount_add(&ab->b_refcnt, tag) == 1) &&
 	    (ab->b_state != arc_anon)) {
 		uint64_t delta = ab->b_size * ab->b_datacnt;
-		list_t *list = &ab->b_state->
-		    arcs_list[ARC_BUFC_TYPE_MASK(ab->b_type)];
-		uint64_t *size = &ab->b_state->
-		    arcs_lsize[ARC_BUFC_TYPE_MASK(ab->b_type)];
+		list_t *list = ARCS_LIST(ab->b_state, ab->b_type);
+		uint64_t *size = &ARCS_LSIZE(ab->b_state, ab->b_type);
 
 		ASSERT(!MUTEX_HELD(&ab->b_state->arcs_mtx));
 		mutex_enter(&ab->b_state->arcs_mtx);
@@ -1118,14 +1116,12 @@ remove_reference(arc_buf_hdr_t *ab, kmutex_t *hash_lock, void *tag)
 
 	if (((cnt = refcount_remove(&ab->b_refcnt, tag)) == 0) &&
 	    (state != arc_anon)) {
-		uint64_t *size = &state->
-		    arcs_lsize[ARC_BUFC_TYPE_MASK(ab->b_type)];
+		uint64_t *size = &ARCS_LSIZE(state, ab->b_type);
 
 		ASSERT(!MUTEX_HELD(&state->arcs_mtx));
 		mutex_enter(&state->arcs_mtx);
 		ASSERT(!list_link_active(&ab->b_arc_node));
-		list_insert_head(&state->
-		    arcs_list[ARC_BUFC_TYPE_MASK(ab->b_type)], ab);
+		list_insert_head(ARCS_LIST(state, ab->b_type), ab);
 		ASSERT(ab->b_datacnt > 0);
 		atomic_add_64(size, ab->b_size * ab->b_datacnt);
 		mutex_exit(&state->arcs_mtx);
@@ -1168,8 +1164,7 @@ arc_buf_info(arc_buf_t *ab, arc_buf_info_t *abi, int state_index)
 	}
 
 	if (state && state_index && list_link_active(&hdr->b_arc_node)) {
-		list_t *list = &state->
-		    arcs_list[ARC_BUFC_TYPE_MASK(hdr->b_type)];
+		list_t *list = ARCS_LIST(state, hdr->b_type);
 		arc_buf_hdr_t *h;
 
 		mutex_enter(&state->arcs_mtx);
@@ -1208,15 +1203,13 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *ab, kmutex_t *hash_lock)
 	if (refcnt == 0) {
 		if (old_state != arc_anon) {
 			int use_mutex = !MUTEX_HELD(&old_state->arcs_mtx);
-			uint64_t *size = &old_state->
-			    arcs_lsize[ARC_BUFC_TYPE_MASK(ab->b_type)];
+			uint64_t *size = &ARCS_LSIZE(old_state, ab->b_type);
 
 			if (use_mutex)
 				mutex_enter(&old_state->arcs_mtx);
 
 			ASSERT(list_link_active(&ab->b_arc_node));
-			list_remove(&old_state->
-			    arcs_list[ARC_BUFC_TYPE_MASK(ab->b_type)], ab);
+			list_remove(ARCS_LIST(old_state, ab->b_type), ab);
 
 			/*
 			 * If prefetching out of the ghost cache,
@@ -1235,14 +1228,12 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *ab, kmutex_t *hash_lock)
 		}
 		if (new_state != arc_anon) {
 			int use_mutex = !MUTEX_HELD(&new_state->arcs_mtx);
-			uint64_t *size = &new_state->
-			    arcs_lsize[ARC_BUFC_TYPE_MASK(ab->b_type)];
+			uint64_t *size = &ARCS_LSIZE(new_state, ab->b_type);
 
 			if (use_mutex)
 				mutex_enter(&new_state->arcs_mtx);
 
-			list_insert_head(&new_state->
-			    arcs_list[ARC_BUFC_TYPE_MASK(ab->b_type)], ab);
+			list_insert_head(ARCS_LIST(new_state, ab->b_type), ab);
 
 			/* ghost elements have a ghost size */
 			if (GHOST_STATE(new_state)) {
@@ -1575,8 +1566,7 @@ arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t remove)
 			}
 		}
 		if (list_link_active(&buf->b_hdr->b_arc_node)) {
-			uint64_t *cnt = &state->
-			    arcs_lsize[ARC_BUFC_TYPE_MASK(type)];
+			uint64_t *cnt = &ARCS_LSIZE(state, type);
 
 			ASSERT(refcount_is_zero(&buf->b_hdr->b_refcnt));
 			ASSERT(state != arc_anon);
@@ -1845,7 +1835,7 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 	arc_state_t *evicted_state;
 	uint64_t bytes_evicted = 0, skipped = 0, missed = 0;
 	arc_buf_hdr_t *ab, *ab_prev = NULL;
-	list_t *list = &state->arcs_list[ARC_BUFC_TYPE_MASK(type)];
+	list_t *list = ARCS_LIST(state, type);
 	kmutex_t *hash_lock;
 	boolean_t have_lock;
 	abd_t *stolen = NULL;
@@ -1974,12 +1964,12 @@ top:
 	mutex_exit(&evicted_state->arcs_mtx);
 	mutex_exit(&state->arcs_mtx);
 
-	if (list == &state->arcs_list[ARC_BUFC_DATA] &&
+	if (list == ARCS_LIST(state, ARC_BUFC_DATA) &&
 	    (bytes < 0 || bytes_evicted < bytes)) {
 		/* Prevent second pass from recycling metadata into data */
 		recycle = FALSE;
 		type = ARC_BUFC_METADATA;
-		list = &state->arcs_list[ARC_BUFC_TYPE_MASK(type)];
+		list = ARCS_LIST(state, type);
 		goto top;
 	}
 
@@ -2015,7 +2005,7 @@ arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes,
 {
 	arc_buf_hdr_t *ab, *ab_prev;
 	arc_buf_hdr_t *marker;
-	list_t *list = &state->arcs_list[ARC_BUFC_TYPE_MASK(type)];
+	list_t *list = ARCS_LIST(state, type);
 	kmutex_t *hash_lock;
 	uint64_t bytes_deleted = 0;
 	uint64_t bufs_skipped = 0;
@@ -2100,9 +2090,9 @@ top:
 	}
 	mutex_exit(&state->arcs_mtx);
 
-	if (list == &state->arcs_list[ARC_BUFC_DATA] &&
+	if (list == ARCS_LIST(state, ARC_BUFC_DATA) &&
 	    (bytes < 0 || bytes_deleted < bytes)) {
-		list = &state->arcs_list[ARC_BUFC_METADATA];
+		list = ARCS_LIST(state, ARC_BUFC_METADATA);
 		goto top;
 	}
 
@@ -2266,8 +2256,8 @@ restart:
 	 */
 	adjustmnt = arc_meta_used - arc_meta_limit;
 
-	if (adjustmnt > 0 && arc_mru->arcs_lsize[type] > 0) {
-		delta = MIN(arc_mru->arcs_lsize[type], adjustmnt);
+	if (adjustmnt > 0 && ARCS_LSIZE(arc_mru, type) > 0) {
+		delta = MIN(ARCS_LSIZE(arc_mru, type), adjustmnt);
 		arc_evict(arc_mru, 0, delta, FALSE, type);
 		adjustmnt -= delta;
 	}
@@ -2282,23 +2272,23 @@ restart:
 	 * simply decrement the amount of data evicted from the MRU.
 	 */
 
-	if (adjustmnt > 0 && arc_mfu->arcs_lsize[type] > 0) {
-		delta = MIN(arc_mfu->arcs_lsize[type], adjustmnt);
+	if (adjustmnt > 0 && ARCS_LSIZE(arc_mfu, type) > 0) {
+		delta = MIN(ARCS_LSIZE(arc_mfu, type), adjustmnt);
 		arc_evict(arc_mfu, 0, delta, FALSE, type);
 	}
 
 	adjustmnt = arc_meta_used - arc_meta_limit;
 
-	if (adjustmnt > 0 && arc_mru_ghost->arcs_lsize[type] > 0) {
+	if (adjustmnt > 0 && ARCS_LSIZE(arc_mru_ghost, type) > 0) {
 		delta = MIN(adjustmnt,
-		    arc_mru_ghost->arcs_lsize[type]);
+		    ARCS_LSIZE(arc_mru_ghost, type));
 		arc_evict_ghost(arc_mru_ghost, 0, delta, type);
 		adjustmnt -= delta;
 	}
 
-	if (adjustmnt > 0 && arc_mfu_ghost->arcs_lsize[type] > 0) {
+	if (adjustmnt > 0 && ARCS_LSIZE(arc_mfu_ghost, type) > 0) {
 		delta = MIN(adjustmnt,
-		    arc_mfu_ghost->arcs_lsize[type]);
+		    ARCS_LSIZE(arc_mfu_ghost, type));
 		arc_evict_ghost(arc_mfu_ghost, 0, delta, type);
 	}
 
@@ -2776,7 +2766,6 @@ arc_get_data_buf(arc_buf_t *buf)
 	arc_state_t		*state = buf->b_hdr->b_state;
 	uint64_t		size = buf->b_hdr->b_size;
 	arc_buf_contents_t	type = buf->b_hdr->b_type;
-	arc_buf_contents_t	mtype = ARC_BUFC_TYPE_MASK(type);
 	arc_buf_contents_t	evict = ARC_BUFC_DATA;
 	boolean_t		recycle = TRUE;
 
@@ -2812,12 +2801,12 @@ arc_get_data_buf(arc_buf_t *buf)
 
 	if (state == arc_mru || state == arc_anon) {
 		uint64_t mru_used = arc_anon->arcs_size + arc_mru->arcs_size;
-		state = (arc_mfu->arcs_lsize[mtype] >= size &&
+		state = (ARCS_LSIZE(arc_mfu, type) >= size &&
 		    arc_p > mru_used) ? arc_mfu : arc_mru;
 	} else {
 		/* MFU cases */
 		uint64_t mfu_space = arc_c - arc_p;
-		state =  (arc_mru->arcs_lsize[mtype] >= size &&
+		state =  (ARCS_LSIZE(arc_mru, type) >= size &&
 		    mfu_space > arc_mfu->arcs_size) ? arc_mru : arc_mfu;
 	}
 
@@ -2878,7 +2867,7 @@ out:
 		atomic_add_64(&hdr->b_state->arcs_size, size);
 		if (list_link_active(&hdr->b_arc_node)) {
 			ASSERT(refcount_is_zero(&hdr->b_refcnt));
-			atomic_add_64(&hdr->b_state->arcs_lsize[mtype], size);
+			atomic_add_64(&ARCS_LSIZE(hdr->b_state, type), size);
 		}
 		/*
 		 * If we are growing the cache, and we are adding anonymous
@@ -3749,8 +3738,7 @@ arc_release(arc_buf_t *buf, void *tag)
 		ASSERT3U(hdr->b_state->arcs_size, >=, hdr->b_size);
 		atomic_add_64(&hdr->b_state->arcs_size, -hdr->b_size);
 		if (refcount_is_zero(&hdr->b_refcnt)) {
-			uint64_t *size = &hdr->b_state->
-			    arcs_lsize[ARC_BUFC_TYPE_MASK(hdr->b_type)];
+			uint64_t *size = &ARCS_LSIZE(hdr->b_state, hdr->b_type);
 			ASSERT3U(*size, >=, hdr->b_size);
 			atomic_add_64(size, -hdr->b_size);
 		}

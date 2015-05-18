@@ -74,6 +74,9 @@ typedef struct arc_state {
 	arc_state_type_t arcs_state;
 } arc_state_t;
 
+#define	ARCS_LIST(arcs, type)	(&(arcs)->arcs_list[ARC_BUFC_TYPE_MASK(type)])
+#define	ARCS_LSIZE(arcs, type)	((arcs)->arcs_lsize[ARC_BUFC_TYPE_MASK(type)])
+
 typedef struct l2arc_buf_hdr l2arc_buf_hdr_t;
 
 typedef struct arc_callback arc_callback_t;
