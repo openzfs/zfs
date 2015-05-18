@@ -560,14 +560,12 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			break;
 		}
 
-		bp = ABD_TO_BUF(dbuf->db.db_data);
-		bp += blkoff;
-
 		for (i = 0; i < tochk; i++) {
-			if (dsl_dataset_block_freeable(ds, &bp[i],
-			    bp[i].blk_birth)) {
-				dprintf_bp(&bp[i], "can free old%s", "");
-				space += bp_get_dsize(spa, &bp[i]);
+			bp = abd_array(dbuf->db.db_data, blkoff + i, blkptr_t);
+			if (dsl_dataset_block_freeable(ds, bp,
+			    bp->blk_birth)) {
+				dprintf_bp(bp, "can free old%s", "");
+				space += bp_get_dsize(spa, bp);
 			}
 			unref += BP_GET_ASIZE(bp);
 		}

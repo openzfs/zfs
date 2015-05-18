@@ -1855,6 +1855,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 {
 	dmu_buf_impl_t *db = NULL;
 	void *data = NULL;
+	int use_abd = 0;
+	abd_t *abd = NULL;
 	uint64_t epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	uint64_t epb = 1ULL << epbs;
 	uint64_t minfill, maxfill;
@@ -1894,7 +1896,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			dbuf_rele(db, FTAG);
 			return (error);
 		}
-		data = ABD_TO_BUF(db->db.db_data);
+		abd = db->db.db_data;
+		use_abd = 1;
 	}
 
 
@@ -1907,9 +1910,10 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		 */
 		error = SET_ERROR(ESRCH);
 	} else if (lvl == 0) {
-		dnode_phys_t *dnp = data;
+		dnode_phys_t *dnp = ABD_TO_BUF(abd);
 		span = DNODE_SHIFT;
 		ASSERT(dn->dn_type == DMU_OT_DNODE);
+		ASSERT(use_abd == 1);
 
 		for (i = (*offset >> span) & (blkfill - 1);
 		    i >= 0 && i < blkfill; i += inc) {
@@ -1920,7 +1924,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		if (i < 0 || i == blkfill)
 			error = SET_ERROR(ESRCH);
 	} else {
-		blkptr_t *bp = data;
+		blkptr_t *obp = data;
+		blkptr_t *bp;
 		uint64_t start = *offset;
 		span = (lvl - 1) * epbs + dn->dn_datablkshift;
 		minfill = 0;
@@ -1934,9 +1939,13 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		*offset = *offset >> span;
 		for (i = BF64_GET(*offset, 0, epbs);
 		    i >= 0 && i < epb; i += inc) {
-			if (BP_GET_FILL(&bp[i]) >= minfill &&
-			    BP_GET_FILL(&bp[i]) <= maxfill &&
-			    (hole || bp[i].blk_birth > txg))
+			if (use_abd)
+				bp = abd_array(abd, i, blkptr_t);
+			else
+				bp = &obp[i];
+			if (BP_GET_FILL(bp) >= minfill &&
+			    BP_GET_FILL(bp) <= maxfill &&
+			    (hole || bp->blk_birth > txg))
 				break;
 			if (inc > 0 || *offset > 0)
 				*offset += inc;
