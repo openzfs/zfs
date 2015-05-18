@@ -558,9 +558,8 @@ dbuf_verify(dmu_buf_impl_t *db)
 			 */
 			if (RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
 				ASSERT3P(db->db_blkptr, ==,
-				    ((blkptr_t *)
-				    ABD_TO_BUF(db->db_parent->db.db_data) +
-				    db->db_blkid % epb));
+				    abd_array(db->db_parent->db.db_data,
+				    db->db_blkid % epb, blkptr_t));
 			}
 		}
 	}
@@ -1872,8 +1871,8 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 			*parentp = NULL;
 			return (err);
 		}
-		*bpp = ((blkptr_t *)ABD_TO_BUF((*parentp)->db.db_data)) +
-		    (blkid & ((1ULL << epbs) - 1));
+		*bpp = abd_array((*parentp)->db.db_data,
+		    blkid & ((1ULL << epbs) - 1), blkptr_t);
 		return (0);
 	} else {
 		/* the block is referenced from the dnode */
@@ -2588,8 +2587,8 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 			mutex_enter(&db->db_mtx);
 			db->db_parent = parent;
 		}
-		db->db_blkptr = (blkptr_t *)ABD_TO_BUF(parent->db.db_data) +
-		    (db->db_blkid & ((1ULL << epbs) - 1));
+		db->db_blkptr = abd_array(parent->db.db_data,
+		    db->db_blkid & ((1ULL << epbs) - 1), blkptr_t);
 		DBUF_VERIFY(db);
 	}
 }
@@ -2882,9 +2881,10 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 			}
 		}
 	} else {
-		blkptr_t *ibp = ABD_TO_BUF(db->db.db_data);
+		blkptr_t *ibp;
 		ASSERT3U(db->db.db_size, ==, 1<<dn->dn_phys->dn_indblkshift);
-		for (i = db->db.db_size >> SPA_BLKPTRSHIFT; i > 0; i--, ibp++) {
+		for (i = 0; i < db->db.db_size >> SPA_BLKPTRSHIFT; i++) {
+			ibp = abd_array(db->db.db_data, i, blkptr_t);
 			if (BP_IS_HOLE(ibp))
 				continue;
 			fill += BP_GET_FILL(ibp);
