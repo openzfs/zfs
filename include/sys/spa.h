@@ -23,6 +23,7 @@
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _SYS_SPA_H
@@ -587,9 +588,21 @@ _NOTE(CONSTCOND) } while (0)
 
 #include <sys/dmu.h>
 
-#define	BP_GET_BUFC_TYPE(bp)						\
-	(((BP_GET_LEVEL(bp) > 0) || (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))) ? \
+#define	GET_BUFA_META(level, dtype)			\
+	((level > 0 || DMU_OT_IS_METADATA(dtype)) ?	\
 	ARC_BUFC_METADATA : ARC_BUFC_DATA)
+
+#define	GET_BUFA_SCATTER_FLAG(level, dtype)		\
+	(DMU_OT_IS_SCATTER(dtype) ? ARC_BUFA_META_SCATTER : 0)
+
+#define	GET_BUFA_TYPE(level, dtype) \
+	(GET_BUFA_META(level, dtype)|GET_BUFA_SCATTER_FLAG(level, dtype))
+
+#define	BP_GET_BUFC_TYPE(bp) \
+	GET_BUFA_META(BP_GET_LEVEL(bp), BP_GET_TYPE(bp))
+
+#define	BP_GET_BUFA_TYPE(bp) \
+	GET_BUFA_TYPE(BP_GET_LEVEL(bp), BP_GET_TYPE(bp))
 
 typedef enum spa_import_type {
 	SPA_IMPORT_EXISTING,
