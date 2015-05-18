@@ -2,7 +2,7 @@
 #
 # ZFS/ZPOOL configuration test script.
 
-basedir="$(dirname $0)"
+basedir="$(dirname "$0")"
 
 SCRIPT_COMMON=common.sh
 if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
@@ -58,7 +58,7 @@ while getopts 'hvxfc?' OPTION; do
 	esac
 done
 
-if [ $(id -u) != 0 ]; then
+if [ "$(id -u)" != 0 ]; then
 	die "Must run as root"
 fi
 
@@ -76,41 +76,41 @@ fi
 zpios_test() {
 	CONFIG=$1
 	TEST=$2
-	LOG=`mktemp`
+	LOG=$(mktemp)
 
-	${ZPIOS_SH} -f -c ${CONFIG} -t ${TEST} &>${LOG}
-	if [ $? -ne 0 ]; then
+	"${ZPIOS_SH}" -f -c "${CONFIG}" -t "${TEST}" &> "${LOG}"
+	if [ "$?" -ne 0 ]; then
 		FAILS=1
 
-		if [ ${VERBOSE} ]; then
-			printf "FAIL:     %-13s\n" ${CONFIG}
-			cat ${LOG}
+		if [ "${VERBOSE}" ]; then
+			printf "FAIL:     %-13s\n" "${CONFIG}"
+			cat "${LOG}"
 		else
-			if [ ! ${HEADER} ]; then
-				head -2 ${LOG}
+			if [ ! "${HEADER}" ]; then
+				head -2 "${LOG}"
 				HEADER=1
 			fi
 
-			printf "FAIL:     %-13s" ${CONFIG}
-			tail -1 ${LOG}
+			printf "FAIL:     %-13s" "${CONFIG}"
+			tail -1 "${LOG}"
 		fi
 	else
-		if [ ${VERBOSE} ]; then
-			cat ${LOG}
+		if [ "${VERBOSE}" ]; then
+			cat "${LOG}"
 		else
-			if [ ! ${HEADER} ]; then
-				head -2 ${LOG}
+			if [ ! "${HEADER}" ]; then
+				head -2 "${LOG}"
 				HEADER=1
 			fi
 
-			tail -1 ${LOG}
+			tail -1 "${LOG}"
 		fi
 	fi
 
-	rm -f ${LOG}
+	rm -f "${LOG}"
 }
 
-if [ ${DANGEROUS} ] && [ ! ${FORCE} ]; then
+if [ "${DANGEROUS}" ] && [ ! "${FORCE}" ]; then
 	cat << EOF
 The -x option was passed which will result in UNRECOVERABLE DATA LOSS
 on on the following block devices:
@@ -124,7 +124,7 @@ on on the following block devices:
 To continue please confirm by entering YES:
 EOF
 	read CONFIRM
-	if [ ${CONFIRM} != "YES" ] && [ ${CONFIRM} != "yes" ]; then
+	if [ "${CONFIRM}" != "YES" ] && [ "${CONFIRM}" != "yes" ]; then
 		exit 0;
 	fi
 fi
@@ -153,19 +153,19 @@ DANGEROUS_CONFIGS=(					\
 	dm0-raid0					\
 )
 
-TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || die "Unable to load modules"
+TMP_CACHE=$(mktemp -p /tmp zpool.cache.XXXXXXXX)
+"${ZFS_SH}" zfs="spa_config_path=${TMP_CACHE}" || die "Unable to load modules"
 
 for CONFIG in ${SAFE_CONFIGS[*]}; do
-	zpios_test $CONFIG tiny
+	zpios_test "$CONFIG" tiny
 done
 
-if [ ${DANGEROUS} ]; then
+if [ "${DANGEROUS}" ]; then
 	for CONFIG in ${DANGEROUS_CONFIGS[*]}; do
-		zpios_test $CONFIG tiny
+		zpios_test "$CONFIG" tiny
 	done
 fi
 
-${ZFS_SH} -u
+"${ZFS_SH}" -u
 
-exit $FAILS
+exit "$FAILS"

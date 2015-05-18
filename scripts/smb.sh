@@ -1,13 +1,12 @@
 #!/bin/bash
 
 BASETANK="share"
-DATE=`date "+%Y%m%d"`
+DATE=$(date "+%Y%m%d")
 
 TEST_SMBFS=0
-TEST_DESTROY=0
 
 if [ -z "$1" ]; then
-	echo "Usage: `basename $0` [unpack]<[smbfs][snapshot][all]>"
+	echo "Usage: $(basename "$0") [unpack]<[smbfs][snapshot][all]>"
 	exit 1
 fi
 
@@ -16,7 +15,7 @@ set_onoff() {
 	dataset="$2"
 	toggle="$3"
 
-	current=`zfs get -H $type -o value $dataset`
+	current=$(zfs get -H "$type" -o value "$dataset")
 	if [ "$current" != "$toggle" ]; then
 		run "zfs set $type=$toggle $dataset"
 	fi
@@ -75,7 +74,7 @@ if echo "$*" | grep -qi "unpack"; then
 #	done
 
 	set -e
-	rmmod `lsmod | grep ^z | grep -v zlib_deflate | sed 's@ .*@@'` spl zlib_deflate
+	rmmod $(lsmod | grep ^z | grep -v zlib_deflate | sed 's@ .*@@') spl zlib_deflate
 
 	pushd / > /dev/null
 	[ -f "tmp/zfs.tgz" ] && tar xzf tmp/zfs.tgz && rm tmp/zfs.tgz

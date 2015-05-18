@@ -2,7 +2,7 @@
 #
 # A simple script to simply the loading/unloading the ZFS module stack.
 
-basedir="$(dirname $0)"
+basedir="$(dirname "$0")"
 
 SCRIPT_COMMON=common.sh
 if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
@@ -59,7 +59,7 @@ while getopts 'hvud' OPTION; do
 	esac
 done
 
-if [ $(id -u) != 0 ]; then
+if [ "$(id -u)" != 0 ]; then
 	die "Must run as root"
 fi
 

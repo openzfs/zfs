@@ -58,10 +58,10 @@ raid10_setup() {
 	local IDX=0
 
 	RAID10S=()
-	for (( i=0, l=0 ; i<${RANKS}; i++ )); do
+	for (( i=0, l=0 ; i<RANKS; i++ )); do
 		RANK=${RANK_LIST[$i]}
 
-		for (( j=0, k=1; j<${CHANNELS}; j+=2,k+=2,l++ )); do
+		for (( j=0, k=1; j<CHANNELS; j+=2,k+=2,l++ )); do
 			DISK1="${CHANNEL_LIST[$j]}${RANK}"
 			DISK2="${CHANNEL_LIST[$k]}${RANK}"
 			RAID10S[$l]="mirror ${DISK1} ${DISK2}"
@@ -72,14 +72,14 @@ raid10_setup() {
 }
 
 zpool_create() {
-	raid10_setup ${RANKS} ${CHANNELS}
+	raid10_setup "${RANKS}" "${CHANNELS}"
 
 	ZPOOL_DEVICES="${RAID10S[*]} ${ZIL} ${L2ARC}"
-	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES}
-	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES} || exit 1
+	msg "${ZPOOL}" create "${ZPOOL_FLAGS}" "${ZPOOL_NAME}" "${ZPOOL_DEVICES}"
+	"${ZPOOL}" create "${ZPOOL_FLAGS}" "${ZPOOL_NAME}" "${ZPOOL_DEVICES}" || exit 1
 }
 
 zpool_destroy() {
-	msg ${ZPOOL} destroy ${ZPOOL_NAME}
-	${ZPOOL} destroy ${ZPOOL_NAME}
+	msg "${ZPOOL}" destroy "${ZPOOL_NAME}"
+	"${ZPOOL}" destroy "${ZPOOL_NAME}"
 }

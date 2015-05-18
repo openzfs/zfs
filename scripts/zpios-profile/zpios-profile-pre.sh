@@ -22,7 +22,7 @@ RUN_FLAGS=${13}
 RUN_RESULT=${14}
 
 zpios_profile_pre_run_cfg() {
-cat > ${RUN_DIR}/${RUN_ID}/zpios-config-run.sh << EOF
+cat > "${RUN_DIR}/${RUN_ID}/zpios-config-run.sh" << EOF
 #
 # Zpios Profiling Configuration for Run ${RUN_ID}
 #
@@ -67,7 +67,7 @@ EOF
 }
 
 zpios_profile_pre_run_args() {
-cat > ${RUN_DIR}/${RUN_ID}/zpios-args.txt << EOF
+cat > "${RUN_DIR}/${RUN_ID}/zpios-args.txt" << EOF
 #
 # Zpios Arguments for Run ${RUN_ID}
 #
@@ -90,77 +90,76 @@ EOF
 
 # Spawn a user defined profiling script to gather additional data
 zpios_profile_pre_start() {
-	local PROFILE_PID=$1
+	local PROFILE_PID="$1"
 
-	${PROFILE_USER} ${RUN_PHASE} ${RUN_DIR} ${RUN_ID} &
-	echo "$!" >${PROFILE_PID}
+	"${PROFILE_USER}" "${RUN_PHASE}" "${RUN_DIR}" "${RUN_ID}" &
+	echo "$!" > "${PROFILE_PID}"
 
 	# Sleep waiting for profile script to be ready, it will
 	# signal us via SIGHUP when it is ready to start profiling.
-	while [ ${PROFILE_RDY} -eq 0 ]; do
+	while [ "${PROFILE_RDY}" -eq 0 ]; do
 		sleep 0.01
 	done
 }
 
 zpios_profile_post_proc_start() { 
+	if [ -f "${PROFILE_ARC_PROC}" ]; then
+		echo 0 > "${PROFILE_ARC_PROC}"
+	fi
 
-        if [ -f ${PROFILE_ARC_PROC} ]; then
-                echo 0 >${PROFILE_ARC_PROC}
-        fi
-
-        if [ -f ${PROFILE_VDEV_CACHE_PROC} ]; then
-                echo 0 >${PROFILE_VDEV_CACHE_PROC}
-        fi
+	if [ -f "${PROFILE_VDEV_CACHE_PROC}" ]; then
+		echo 0 > "${PROFILE_VDEV_CACHE_PROC}"
+	fi
 }
 
 zpios_profile_pre_oprofile_start() {
-	local OPROFILE_LOG=$1
+	local OPROFILE_LOG="$1"
 
-	/usr/bin/opcontrol --reset >>${OPROFILE_LOG} 2>&1
-	/usr/bin/opcontrol --start >>${OPROFILE_LOG} 2>&1
+	/usr/bin/opcontrol --reset >> "${OPROFILE_LOG}" 2>&1
+	/usr/bin/opcontrol --start >> "${OPROFILE_LOG}" 2>&1
 }
 
 zpios_profile_pre_create() {
-	mkdir ${PROFILE_RUN_CR_DIR}
-	zpios_profile_pre_start ${PROFILE_RUN_CR_PID}
+	mkdir "${PROFILE_RUN_CR_DIR}"
+	zpios_profile_pre_start "${PROFILE_RUN_CR_PID}"
 	zpios_profile_post_proc_start
-	zpios_profile_pre_oprofile_start ${PROFILE_RUN_CR_OPROFILE_LOG}
+	zpios_profile_pre_oprofile_start "${PROFILE_RUN_CR_OPROFILE_LOG}"
 }
 
 zpios_profile_pre_write() {
-	mkdir ${PROFILE_RUN_WR_DIR}
-	zpios_profile_pre_start ${PROFILE_RUN_WR_PID}
+	mkdir "${PROFILE_RUN_WR_DIR}"
+	zpios_profile_pre_start "${PROFILE_RUN_WR_PID}"
 	zpios_profile_post_proc_start
-	zpios_profile_pre_oprofile_start ${PROFILE_RUN_WR_OPROFILE_LOG}
+	zpios_profile_pre_oprofile_start "${PROFILE_RUN_WR_OPROFILE_LOG}"
 }
 
 zpios_profile_pre_read() {
-	mkdir ${PROFILE_RUN_RD_DIR}
-	zpios_profile_pre_start ${PROFILE_RUN_RD_PID}
+	mkdir "${PROFILE_RUN_RD_DIR}"
+	zpios_profile_pre_start "${PROFILE_RUN_RD_PID}"
 	zpios_profile_post_proc_start
-	zpios_profile_pre_oprofile_start ${PROFILE_RUN_CR_RD_LOG}
+	zpios_profile_pre_oprofile_start "${PROFILE_RUN_CR_RD_LOG}"
 }
 
 zpios_profile_pre_remove() {
-	mkdir ${PROFILE_RUN_RM_DIR}
-	zpios_profile_pre_start ${PROFILE_RUN_RM_PID}
+	mkdir "${PROFILE_RUN_RM_DIR}"
+	zpios_profile_pre_start "${PROFILE_RUN_RM_PID}"
 	zpios_profile_post_proc_start
-	zpios_profile_pre_oprofile_start ${PROFILE_RUN_RM_OPROFILE_LOG}
+	zpios_profile_pre_oprofile_start "${PROFILE_RUN_RM_OPROFILE_LOG}"
 }
 
 # Source global zpios test configuration
-if [ -f ${RUN_DIR}/zpios-config.sh ]; then
-	. ${RUN_DIR}/zpios-config.sh
+if [ -f "${RUN_DIR}/zpios-config.sh" ]; then
+	. "${RUN_DIR}/zpios-config.sh"
 fi
 
 # Source global per-run test configuration
-if [ -f ${RUN_DIR}/${RUN_ID}/zpios-config-run.sh ]; then
-	. ${RUN_DIR}/${RUN_ID}/zpios-config-run.sh
+if [ -f "${RUN_DIR}/${RUN_ID}/zpios-config-run.sh" ]; then
+	. "${RUN_DIR}/${RUN_ID}/zpios-config-run.sh"
 fi
 
 case "${RUN_PHASE}" in
 	pre-run)
-		mkdir -p ${RUN_DIR}/${RUN_ID}/
+		mkdir -p "${RUN_DIR}/${RUN_ID}/"
 		zpios_profile_pre_run_cfg
 		zpios_profile_pre_run_args
 		;;
