@@ -337,7 +337,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		    arc_buf_size(os->os_phys_buf) < sizeof (objset_phys_t)) {
 			arc_buf_t *buf = arc_buf_alloc(spa,
 			    sizeof (objset_phys_t), &os->os_phys_buf,
-			    ARC_BUFC_METADATA);
+			    BP_GET_BUFA_TYPE(os->os_rootbp));
 			abd_zero(buf->b_data, sizeof (objset_phys_t));
 			abd_copy(buf->b_data, os->os_phys_buf->b_data,
 			    arc_buf_size(os->os_phys_buf));
@@ -352,7 +352,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		int size = spa_version(spa) >= SPA_VERSION_USERSPACE ?
 		    sizeof (objset_phys_t) : OBJSET_OLD_PHYS_SIZE;
 		os->os_phys_buf = arc_buf_alloc(spa, size,
-		    &os->os_phys_buf, ARC_BUFC_METADATA);
+		    &os->os_phys_buf, BP_GET_BUFA_TYPE(os->os_rootbp));
 		os->os_phys = ABD_TO_BUF(os->os_phys_buf->b_data);
 		bzero(os->os_phys, size);
 	}
