@@ -611,10 +611,10 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		blk = ABD_TO_BUF(abuf->b_data);
 		dnobj = zb->zb_blkid * (blksz >> DNODE_SHIFT);
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
-			err = dump_dnode(dsa, dnobj + i, blk + i);
+			blk = abd_array(abuf->b_data, i, dnode_phys_t);
+			err = dump_dnode(dsa, dnobj + i, blk);
 			if (err != 0)
 				break;
 		}

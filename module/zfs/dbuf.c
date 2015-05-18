@@ -3093,9 +3093,10 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		mutex_exit(&dn->dn_mtx);
 
 		if (dn->dn_type == DMU_OT_DNODE) {
-			dnode_phys_t *dnp = ABD_TO_BUF(db->db.db_data);
-			for (i = db->db.db_size >> DNODE_SHIFT; i > 0;
-			    i--, dnp++) {
+			dnode_phys_t *dnp;
+			for (i = 0; i < db->db.db_size >> DNODE_SHIFT; i++) {
+				dnp = abd_array(db->db.db_data, i,
+				    dnode_phys_t);
 				if (dnp->dn_type != DMU_OT_NONE)
 					fill++;
 			}
