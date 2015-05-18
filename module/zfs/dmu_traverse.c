@@ -292,7 +292,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			traverse_prefetch_metadata(td,
-			    &((blkptr_t *)ABD_TO_BUF(buf->b_data))[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 		}
 
 		/* recursively visitbp() blocks below this */
@@ -301,7 +301,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			err = traverse_visitbp(td, dnp,
-			    &((blkptr_t *)ABD_TO_BUF(buf->b_data))[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 			if (err != 0)
 				break;
 		}
