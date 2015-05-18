@@ -84,7 +84,9 @@ void abd_fini(void);
 /*
  * Allocations and deallocations
  */
-abd_t *abd_alloc_scatter(size_t);
+abd_t *__abd_alloc_scatter(size_t, int);
+#define	abd_alloc_scatter(s)		__abd_alloc_scatter(s, 1)
+#define	abd_alloc_meta_scatter(s)	__abd_alloc_scatter(s, 0)
 abd_t *abd_alloc_linear(size_t);
 void abd_free(abd_t *, size_t);
 abd_t *abd_get_offset(abd_t *, size_t);
@@ -106,6 +108,21 @@ void abd_copy_to_buf_off(void *, abd_t *, size_t, size_t);
 int abd_cmp(abd_t *, abd_t *, size_t);
 int abd_cmp_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_zero_off(abd_t *, size_t, size_t);
+void *abd_buf_segment(abd_t *, size_t, size_t);
+/*
+ * abd_array_off - returns an object in an array contained in @abd
+ *
+ * What this function does is essentially:
+ * &((type *)(abd + off))[index]
+ * except that @abd is an ABD buffer, not a normal buffer.
+ * This function is implement using abd_buf_segment, so all the restriction
+ * also applies.
+ * Use abd_array is off is 0.
+ */
+#define	abd_array_off(abd, index, type, off) \
+	((type *)abd_buf_segment(abd, (off) + (index)*sizeof (type), \
+	sizeof (type)))
+
 #ifdef _KERNEL
 int abd_copy_to_user_off(void __user *, abd_t *, size_t, size_t);
 int abd_copy_from_user_off(abd_t *, const void __user *, size_t, size_t);
@@ -202,6 +219,9 @@ abd_return_buf_copy(abd_t *abd, void *buf, size_t size)
 
 #define	abd_zero(abd, size) \
 	abd_zero_off(abd, size, 0)
+
+#define	abd_array(abd, index, type) \
+	abd_array_off(abd, index, type, 0)
 
 #ifdef _KERNEL
 #define	abd_copy_to_user(buf, abd, size) \
