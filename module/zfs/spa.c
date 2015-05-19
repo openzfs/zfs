@@ -1943,7 +1943,10 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	rio = arg;
 	size = BP_GET_PSIZE(bp);
-	data = abd_alloc_linear(size);
+	if (ARC_BUFA_IS_SCATTER(BP_GET_BUFA_TYPE(bp)))
+		data = abd_alloc_scatter(size);
+	else
+		data = abd_alloc_linear(size);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	while (spa->spa_scrub_inflight >= spa_load_verify_maxinflight)
