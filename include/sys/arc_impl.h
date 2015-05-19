@@ -102,7 +102,6 @@ struct arc_buf_hdr {
 	uint64_t		b_birth;
 	uint64_t		b_cksum0;
 
-	kmutex_t		b_freeze_lock;
 	zio_cksum_t		*b_freeze_cksum;
 
 	arc_buf_hdr_t		*b_hash_next;
@@ -111,7 +110,6 @@ struct arc_buf_hdr {
 	uint32_t		b_datacnt;
 
 	arc_callback_t		*b_acb;
-	kcondvar_t		b_cv;
 
 	/* immutable */
 	arc_buf_contents_t	b_type;

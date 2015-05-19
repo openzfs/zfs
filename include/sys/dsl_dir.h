@@ -118,7 +118,7 @@ struct dsl_dir {
 static inline dsl_dir_phys_t *
 dsl_dir_phys(dsl_dir_t *dd)
 {
-	return (dd->dd_dbuf->db_data);
+	return (ABD_TO_BUF(dd->dd_dbuf->db_data));
 }
 
 void dsl_dir_rele(dsl_dir_t *dd, void *tag);
