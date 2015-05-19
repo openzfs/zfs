@@ -2274,13 +2274,17 @@ zio_ddt_read_start(zio_t *zio)
 			return (ZIO_PIPELINE_CONTINUE);
 
 		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+			abd_t *tmp;
 			if (ddp->ddp_phys_birth == 0 || ddp == ddp_self)
 				continue;
 			ddt_bp_create(ddt->ddt_checksum, &dde->dde_key, ddp,
 			    &blk);
+			if (ABD_IS_LINEAR(zio->io_data))
+				tmp = abd_alloc_linear(zio->io_size);
+			else
+				tmp = abd_alloc_scatter(zio->io_size);
 			zio_nowait(zio_read(zio, zio->io_spa, &blk,
-			    abd_alloc_linear(zio->io_size),
-			    zio->io_size, zio_ddt_child_read_done, dde,
+			    tmp, zio->io_size, zio_ddt_child_read_done, dde,
 			    zio->io_priority, ZIO_DDT_CHILD_FLAGS(zio) |
 			    ZIO_FLAG_DONT_PROPAGATE, &zio->io_bookmark));
 		}
