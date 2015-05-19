@@ -1902,7 +1902,12 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	if (needs_io && !zfs_no_scrub_io) {
 		vdev_t *rvd = spa->spa_root_vdev;
 		uint64_t maxinflight = rvd->vdev_children * zfs_top_maxinflight;
-		abd_t *data = abd_alloc_linear(size);
+		abd_t *data;
+
+		if (ARC_BUFA_IS_SCATTER(BP_GET_BUFA_TYPE(bp)))
+			data = abd_alloc_scatter(size);
+		else
+			data = abd_alloc_linear(size);
 
 		mutex_enter(&spa->spa_scrub_lock);
 		while (spa->spa_scrub_inflight >= maxinflight)
