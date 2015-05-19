@@ -676,6 +676,7 @@ libzfs_handle_t *
 libzfs_init(void)
 {
 	libzfs_handle_t *hdl;
+	hrtime_t begin, delta;
 
 	if (libzfs_load_module("zfs") != 0) {
 		(void) fprintf(stderr, gettext("Failed to load ZFS module "
@@ -688,7 +689,42 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
+	/*
+	 * Linux module loading is asynchronous. It is therefore possible for
+	 * us to try to open ZFS_DEV before the module has reached the point in
+	 * its initialization where it has created it. We workaround this by
+	 * yielding the CPU in the hope that the module initialization process
+	 * finishes before we regain it. The expectation in these situations is
+	 * that the module initialization process will almost always finish
+	 * before the second try. However, we retry for up to a second before
+	 * giving up. Doing this allows us to implement a busy-wait with
+	 * minimal loss of CPU time.
+	 *
+	 * If a VM that loses this race is paused between the first failure and
+	 * time calculation for more than a second, this will still fail.  That
+	 * is an incredibly rare situation that will almost never happen in the
+	 * field. The solution is to hook into udev's kernel events to try to
+	 * find out when module load has finished, but we would still need the
+	 * busy-wait fallback for systems that either lack udev or have not had
+	 * the udev daemon started. The busy-wait is more than sufficient for
+	 * >99.999% reliability, so the implementation of udev integration has
+	 * been left as a future improvement.
+	 *
+	 * XXX: Hook into udev event notification where udev is available.
+	 */
+	begin = gethrtime();
+	do {
+
+		if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) != -1 ||
+		    errno == ENOENT)
+			break;
+
+		sched_yield();
+
+		delta = gethrtime() - begin;
+	} while (delta < NANOSEC);
+
+	if ((hdl->libzfs_fd == -1)) {
 		(void) fprintf(stderr, gettext("Unable to open %s: %s.\n"),
 		    ZFS_DEV, strerror(errno));
 		if (errno == ENOENT)
