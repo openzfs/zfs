@@ -302,8 +302,6 @@ zio_push_transform(zio_t *zio, abd_t *data, uint64_t size, uint64_t bufsize,
 
 	if (ABD_IS_LINEAR(zio->io_data))
 		ASSERT_ABD_LINEAR(data);
-	else
-		ASSERT_ABD_SCATTER(data);
 
 	zt->zt_orig_data = zio->io_data;
 	zt->zt_orig_size = zio->io_size;
