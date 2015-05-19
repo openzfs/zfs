@@ -84,9 +84,9 @@ void abd_fini(void);
 /*
  * Allocations and deallocations
  */
-abd_t *__abd_alloc_scatter(size_t, int);
-#define	abd_alloc_scatter(s)		__abd_alloc_scatter(s, 1)
-#define	abd_alloc_meta_scatter(s)	__abd_alloc_scatter(s, 0)
+abd_t *_abd_alloc_scatter(size_t, int);
+#define	abd_alloc_scatter(s)		_abd_alloc_scatter(s, 1)
+#define	abd_alloc_meta_scatter(s)	_abd_alloc_scatter(s, 0)
 abd_t *abd_alloc_linear(size_t);
 void abd_free(abd_t *, size_t);
 abd_t *abd_get_offset(abd_t *, size_t);
