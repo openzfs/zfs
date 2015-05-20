@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -206,8 +206,9 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	size_t oldsize, newsize;
 	uint64_t id = cvd->vdev_id;
 	vdev_t **newchild;
+	spa_t *spa = cvd->vdev_spa;
 
-	ASSERT(spa_config_held(cvd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 	ASSERT(cvd->vdev_parent == NULL);
 
 	cvd->vdev_parent = pvd;
@@ -1334,6 +1335,17 @@ vdev_open(vdev_t *vd)
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    VDEV_AUX_ERR_EXCEEDED);
 		return (error);
+	}
+
+	/*
+	 * Track the min and max ashift values for normal data devices.
+	 */
+	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
+	    !vd->vdev_islog && vd->vdev_aux == NULL) {
+		if (vd->vdev_ashift > spa->spa_max_ashift)
+			spa->spa_max_ashift = vd->vdev_ashift;
+		if (vd->vdev_ashift < spa->spa_min_ashift)
+			spa->spa_min_ashift = vd->vdev_ashift;
 	}
 
 	/*

@@ -2245,6 +2245,8 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		return (error);
 
 	ASSERT(spa->spa_root_vdev == rvd);
+	ASSERT3U(spa->spa_min_ashift, >=, SPA_MINBLOCKSHIFT);
+	ASSERT3U(spa->spa_max_ashift, <=, SPA_MAXBLOCKSHIFT);
 
 	if (type != SPA_IMPORT_ASSEMBLE) {
 		ASSERT(spa_guid(spa) == pool_guid);

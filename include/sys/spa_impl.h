@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -150,6 +150,8 @@ struct spa {
 	kcondvar_t	spa_evicting_os_cv;	/* Objset Eviction Completion */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
+	int		spa_min_ashift;		/* of vdevs in normal class */
+	int		spa_max_ashift;		/* of vdevs in normal class */
 	uint64_t	spa_config_guid;	/* config pool guid */
 	uint64_t	spa_load_guid;		/* spa_load initialized guid */
 	uint64_t	spa_last_synced_guid;	/* last synced guid */
