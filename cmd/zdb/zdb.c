@@ -3699,8 +3699,10 @@ main(int argc, char **argv)
 	zfs_vdev_async_read_max_active = 10;
 
 	kernel_init(FREAD);
-	if ((g_zfs = libzfs_init()) == NULL)
+	if ((g_zfs = libzfs_init()) == NULL) {
+		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
 		return (1);
+	}
 
 	if (dump_all)
 		verbose = MAX(verbose, 1);
