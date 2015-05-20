@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
@@ -1022,21 +1022,6 @@ ztest_random_spa_version(uint64_t initial_version)
 	return (version);
 }
 
-/*
- * Find the largest ashift used
- */
-static uint64_t
-ztest_spa_get_ashift(void) {
-	uint64_t i;
-	uint64_t ashift = SPA_MINBLOCKSHIFT;
-	vdev_t *rvd = ztest_spa->spa_root_vdev;
-
-	for (i = 0; i < rvd->vdev_children; i++) {
-		ashift = MAX(ashift, rvd->vdev_child[i]->vdev_ashift);
-	}
-	return (ashift);
-}
-
 static int
 ztest_random_blocksize(void)
 {
@@ -1047,7 +1032,8 @@ ztest_random_blocksize(void)
 	int maxbs = SPA_OLD_MAXBLOCKSHIFT;
 	if (spa_maxblocksize(ztest_spa) == SPA_MAXBLOCKSIZE)
 		maxbs = 20;
-	uint64_t block_shift = ztest_random(maxbs - ztest_spa_get_ashift() + 1);
+	uint64_t block_shift =
+	    ztest_random(maxbs - ztest_spa->spa_max_ashift + 1);
 	return (1 << (SPA_MINBLOCKSHIFT + block_shift));
 }
 
