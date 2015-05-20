@@ -9,4 +9,4 @@ ConditionPathExists=@sysconfdir@/zfs/zpool.cache
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache -aN
+ExecStart=/sbin/modprobe zfs && @sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache -aN
