@@ -52,14 +52,14 @@ ZPIOS_CMD="${ZPIOS}                                              \
 	${ZPIOS_OPTIONS}"
 
 zpios_start() {
-	if [ ${VERBOSE} ]; then
+	if [ "${VERBOSE}" ]; then
 		ZPIOS_CMD="${ZPIOS_CMD} --verbose"
-		echo ${ZPIOS_CMD}
+		echo "${ZPIOS_CMD}"
 	fi
 
-	${ZPIOS_CMD} || exit 1
+	"${ZPIOS_CMD}" || exit 1
 }
 
 zpios_stop() {
-	[ ${VERBOSE} ] && echo
+	[ "${VERBOSE}" ] && echo
 }

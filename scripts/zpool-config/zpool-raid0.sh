@@ -55,10 +55,10 @@ raid0_setup() {
         local CHANNELS=$2
 
         RAID0S=()
-	for (( i=0, k=0; i<${RANKS}; i++ )); do
+	for (( i=0, k=0; i<RANKS; i++ )); do
 		RANK=${RANK_LIST[$i]}
 
-		for (( j=0; j<${CHANNELS}; j++, k++ )); do
+		for (( j=0; j<CHANNELS; j++, k++ )); do
                         RAID0S[${k}]="${CHANNEL_LIST[$j]}${RANK}"
                 done
         done
@@ -67,14 +67,14 @@ raid0_setup() {
 }
 
 zpool_create() {
-        raid0_setup ${RANKS} ${CHANNELS}
+        raid0_setup "${RANKS}" "${CHANNELS}"
 
 	ZPOOL_DEVICES="${RAID0S[*]} ${ZIL} ${L2ARC}"
-        msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES}
-        ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES} || exit 1
+        msg "${ZPOOL}" create "${ZPOOL_FLAGS}" "${ZPOOL_NAME}" "${ZPOOL_DEVICES}"
+        "${ZPOOL}" create "${ZPOOL_FLAGS}" "${ZPOOL_NAME}" "${ZPOOL_DEVICES}" || exit 1
 }
 
 zpool_destroy() {
-        msg ${ZPOOL} destroy ${ZPOOL_NAME}
-        ${ZPOOL} destroy ${ZPOOL_NAME}
+        msg "${ZPOOL}" destroy "${ZPOOL_NAME}"
+        "${ZPOOL}" destroy "${ZPOOL_NAME}"
 }

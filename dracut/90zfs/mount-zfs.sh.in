@@ -24,13 +24,13 @@ case "$root" in
 
 			# Might be imported by the kernel module, so try searching before
 			# we import anything.
-			zfsbootfs=`zpool list -H -o bootfs | sed -n '/^-$/ !p' | sed 'q'`
+			zfsbootfs=$(zpool list -H -o bootfs | sed -n '/^-$/ !p' | sed 'q')
 			if [ $? -ne 0 ] || [ -z "$zfsbootfs" ] || \
 				[ "$zfsbootfs" = "no pools available" ] ; then
 				# Not there, so we need to import everything.
 				info "ZFS: Attempting to import additional pools."
 				zpool import -N -a ${ZPOOL_FORCE}
-				zfsbootfs=`zpool list -H -o bootfs | sed -n '/^-$/ !p' | sed 'q'`
+				zfsbootfs=$(zpool list -H -o bootfs | sed -n '/^-$/ !p' | sed 'q')
 				if [ $? -ne 0 ] || [ -z "$zfsbootfs" ] || \
 					[ "$zfsbootfs" = "no pools available" ] ; then
 					rootok=0
@@ -42,7 +42,7 @@ case "$root" in
 					# responsibility for them.
 					# Change IFS to allow for blanks in pool names.
 					IFS="$NEWLINE"
-					for fs in `zpool list -H -o name` ; do
+					for fs in $(zpool list -H -o name); do
 						zpool export "$fs"
 					done
 					IFS="$OLDIFS"
@@ -70,7 +70,7 @@ case "$root" in
 
 		# Above should have left our rpool imported and pool/dataset in $root.
 		# We need zfsutil for non-legacy mounts and not for legacy mounts.
-		mountpoint=`zfs get -H -o value mountpoint "$zfsbootfs"`
+		mountpoint=$(zfs get -H -o value mountpoint "$zfsbootfs")
 		if [ "$mountpoint" = "legacy" ] ; then
 			mount -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
 		else
