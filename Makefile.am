@@ -48,12 +48,16 @@ cstyle:
 
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
-		(find ${top_srcdir} -type f -name '*.sh.in' -o -type f \
-		 -name '*.sh'; find etc/init.d/zfs*.in -type f) | \
-		 grep -v 'zfs-script-config' | \
-		 while read file; do \
+		(find ${top_srcdir} \
+		  \( -type f -name '*.sh.in' -o -type f  -name '*.sh' \) \
+		  ! -path "${top_srcdir}/scripts/common.sh" \
+		  ! -path "${top_srcdir}/config/ltmain.sh" \
+		  ! -path "${top_srcdir}/zfs-script-config.sh"; \
+		 find ${top_srcdir}/etc/init.d/zfs*.in \
+		   ${top_srcdir}/scripts/dkms.* -type f) | \
+		while read file; do \
 			shellcheck --format gcc "$$file"; \
-		 done; \
+		done; \
 	 fi
 
 ctags:
