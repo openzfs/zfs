@@ -46,6 +46,7 @@ extern void zvol_rename_minors(const char *oldname, const char *newname);
 extern int zvol_set_volsize(const char *, uint64_t);
 extern int zvol_set_volblocksize(const char *, uint64_t);
 extern int zvol_set_snapdev(const char *, uint64_t);
+extern int zvol_set_volmode(const char *, uint64_t);
 
 extern int zvol_init(void);
 extern void zvol_fini(void);

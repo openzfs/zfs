@@ -1356,6 +1356,17 @@ Though not recommended, a "sparse volume" (also known as "thin provisioning") ca
 .ne 2
 .mk
 .na
+\fB\fBvolmode\fR=\fBdefault\fR | \fBgeom\fR |  | \fBdev\fR | \fBnone\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls how volumes are exposed to the OS. Setting the volume to \fBnone\fB will prevent the volume from being exposed outside of ZFS.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fBvscan\fR=\fBon\fR | \fBoff\fR\fR
 .ad
 .sp .6

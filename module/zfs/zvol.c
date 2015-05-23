@@ -1505,7 +1505,15 @@ __zvol_rename_minor(zvol_state_t *zv, const char *newname)
 static int
 zvol_create_minors_cb(const char *dsname, void *arg)
 {
-	(void) zvol_create_minor(dsname);
+	uint64_t volmode;
+
+	int error = dsl_prop_get_integer(dsname,
+	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL);
+	if (error != 0)
+		volmode = ZFS_VOLMODE_DEFAULT;
+
+	if (volmode != ZFS_VOLMODE_NONE)
+		(void) zvol_create_minor(dsname);
 
 	return (0);
 }
@@ -1618,6 +1626,16 @@ zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
 	(void) dmu_objset_find((char *) dsname, snapdev_snapshot_changed_cb,
 		&snapdev, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
 	/* caller should continue to modify snapdev property */
+	return (-1);
+}
+
+int
+zvol_set_volmode(const char *dsname, uint64_t volmode) {
+	if (volmode == ZFS_VOLMODE_NONE)
+		(void) zvol_remove_minor(dsname);
+	else
+		(void) zvol_create_minor(dsname);
+	/* caller should continue to modify inhibitdev property */
 	return (-1);
 }
 
