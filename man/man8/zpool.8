@@ -94,7 +94,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool iostat\fR [\fB-T\fR d | u ] [\fB-v\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]
+\fBzpool iostat\fR [\fB-T\fR d | u ] [\fB-v\fR] [\fB-y\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]
 .fi
 
 .LP
@@ -1608,7 +1608,7 @@ Allows a pool to import when there is a missing log device.
 .ne 2
 .mk
 .na
-\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-v\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-v\fR] [\fB-y\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
 .ad
 .sp .6
 .RS 4n
@@ -1635,6 +1635,17 @@ Specify \fBu\fR for a printed representation of the internal representation of t
 .RS 12n
 .rt  
 Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within the pool, in addition to the pool-wide statistics.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-y\fR\fR
+.ad
+.RS 12n
+.rt
+Omit statistics since boot.  Normally the first line of output reports the statistics since boot.  This option suppresses that first line of output.
 .RE
 
 .RE
