@@ -68,6 +68,7 @@ AC_CONFIG_FILES([
 	etc/systemd/Makefile
 	etc/systemd/system/Makefile
 	etc/modules-load.d/Makefile
+	etc/sudoers.d/Makefile
 	man/Makefile
 	man/man1/Makefile
 	man/man5/Makefile
@@ -111,6 +112,7 @@ AC_CONFIG_FILES([
 	cmd/vdev_id/Makefile
 	cmd/arcstat/Makefile
 	cmd/dbufstat/Makefile
+	cmd/dfree_zfs/Makefile
 	cmd/arc_summary/Makefile
 	cmd/zed/Makefile
 	contrib/Makefile

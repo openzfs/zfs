@@ -1,0 +1,84 @@
+#!/bin/sh
+# File: /usr/bin/dfree-zfs
+#
+# This is "dfree_zfs", which can be used as Samba's "dfree command" to
+# get a consistent display of space usage when using shares residing on
+# ZFS pools.
+#
+# To make use of this script add this line to your smb.conf, either in
+# its [general] section or for specific shares:
+#
+# dfree command = /usr/bin/dfree_zfs
+#
+# Without "dfree_zfs" Samba will display free space according to "df",
+# which is not always correct about space consumed by datasets and their
+# children, see below. "dfree_zfs" fixes this, by getting the space used
+# by the dataset including its children.
+#
+# By default "dfree_zfs" will calculate the pool's total used space,
+# this behavior can be changed in "/etc/zfs/dfree_zfs.conf".
+#
+# The output is what Samba expects: "$TOTAL $AVAILABLE" in 1K-blocks.
+#
+# "df" vs "zfs get used":
+#
+# Three datasets on a pool, each dataset contains a single file.
+# - tank/a:   10 GB
+# - tank/a/c:  5 GB
+# - tank/b:   25 GB
+#
+# "df" ignores datasets' children:
+#
+# root@interzone:~# df /tank/*/*
+# Filesystem     1K-blocks     Used Available Use% Mounted on
+# tank/a          54713472 10491008  44222464  20% /tank/a
+# tank/a/c        49468032  5245568  44222464  11% /tank/a/c
+# tank/b          70449920 26227456  44222464  38% /tank/b
+#
+# "dfree_zfs" showing the pool's total size:
+# root@interzone:~# echo $(cd /tank/a; dfree_zfs)
+# 86188032 44222464
+# root@interzone:~# echo $(cd /tank/a/c; dfree_zfs)
+# 86188032 44222464
+# root@interzone:~# echo $(cd /tank/b; dfree_zfs)
+# 86188032 44222464
+#
+# After changing "use_pool_used" in "/etc/zfs/dfree_zfs.conf",
+# "dfree_zfs" shows the dataset's total size, including children:
+#
+# root@interzone:~# sed -i 's,yes,no,' /etc/zfs/dfree_zfs.conf
+#
+# root@interzone:~# echo $(cd /tank/a; dfree_zfs)
+# 59959112 44222464
+# root@interzone:~# echo $(cd /tank/a/c; dfree_zfs)
+# 49468048 44222464
+# root@interzone:~# echo $(cd /tank/b; dfree_zfs)
+# 70449968 44222464
+
+CONFIG=/etc/zfs/dfree_zfs.conf
+
+
+CUR_PATH=$(pwd)
+FILESYSTEM=$(df -PT "$CUR_PATH" | tail -1 | awk '{print $2}')
+USE_POOL_USED=yes
+
+if [ -r $CONFIG ] ; then
+	USE_POOL_USED=$(awk "\$1 == \"use_pool_used\" {print \$2; exit}" $CONFIG)
+fi
+
+if [ "$FILESYSTEM" = 'zfs' ] ; then
+	# get the pool's USED instead of this dataset's USED
+	if [ "$USE_POOL_USED" = "yes" ] ; then
+		POOL_NAME=$(echo "$CUR_PATH" | cut -d '/' -f -2)
+		USED_PATH="$POOL_NAME"
+	else
+		USED_PATH="$CUR_PATH"
+	fi
+	USED=$(($(sudo zfs get -o value -Hp used "$USED_PATH") / 1024)) > /dev/null
+	AVAIL=$(($(sudo zfs get -o value -Hp available "$CUR_PATH") / 1024)) > /dev/null
+	TOTAL=$((USED+AVAIL)) > /dev/null
+
+	echo "$TOTAL" "$AVAIL"
+else
+	df -PT "$CUR_PATH" | tail -1 | awk '{print $3" "$5}'
+fi
