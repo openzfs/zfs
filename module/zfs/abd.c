@@ -1158,7 +1158,6 @@ abd_free_scatter(abd_t *abd, size_t size)
 	struct scatterlist *sg;
 	struct page *page;
 
-	ASSERT(abd->abd_size == size);
 	ASSERT(abd->abd_nents == DIV_ROUND_UP(abd->abd_size, PAGESIZE));
 
 	n = abd->abd_nents;
@@ -1190,6 +1189,7 @@ abd_free(abd_t *abd, size_t size)
 {
 	ABD_CHECK(abd);
 	ASSERT(abd->abd_flags & ABD_F_OWNER);
+	ASSERT(abd->abd_size == size);
 	if (ABD_IS_LINEAR(abd))
 		abd_free_linear(abd, size);
 	else

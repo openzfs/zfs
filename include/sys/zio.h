@@ -24,6 +24,7 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _ZIO_H
@@ -35,6 +36,7 @@
 #include <sys/avl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio_impl.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -346,8 +348,6 @@ typedef struct zio_gang_node {
 	zio_gbh_phys_t		*gn_gbh;
 	struct zio_gang_node	*gn_child[SPA_GBH_NBLKPTRS];
 } zio_gang_node_t;
-
-typedef struct arc_buf_data abd_t;
 
 typedef zio_t *zio_gang_issue_func_t(zio_t *zio, blkptr_t *bp,
     zio_gang_node_t *gn, abd_t *data, uint64_t offset);

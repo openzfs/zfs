@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _ZFS_KMAP_H

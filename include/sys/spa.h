@@ -23,6 +23,7 @@
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _SYS_SPA_H
@@ -578,11 +579,11 @@ _NOTE(CONSTCOND) } while (0)
 	((level > 0 || DMU_OT_IS_METADATA(dtype)) ?	\
 	ARC_BUFC_METADATA : ARC_BUFC_DATA)
 
-#define	GET_BUFC_SCATTER(level, dtype)			\
+#define	GET_BUFC_SCATTER_FLAG(level, dtype)		\
 	((level > 0 || DMU_OT_IS_SCATTER(dtype)) ? ARC_BUFC_SCATTER : 0)
 
 #define	GET_BUFC_TYPE(level, dtype) \
-	(GET_BUFC_META(level, dtype)|GET_BUFC_SCATTER(level, dtype))
+	(GET_BUFC_META(level, dtype)|GET_BUFC_SCATTER_FLAG(level, dtype))
 
 #define	BP_GET_BUFC_TYPE(bp) \
 	GET_BUFC_TYPE(BP_GET_LEVEL(bp), BP_GET_TYPE(bp))
