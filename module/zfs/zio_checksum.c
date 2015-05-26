@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -28,6 +29,7 @@
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
 #include <sys/zil.h>
+#include <sys/abd.h>
 #include <zfs_fletcher.h>
 
 /*
@@ -62,22 +64,58 @@
 
 /*ARGSUSED*/
 static void
-zio_checksum_off(const void *buf, uint64_t size, zio_cksum_t *zcp)
+abd_checksum_off(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
 {
 	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 }
 
+void
+abd_checksum_SHA256(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
+{
+	void *buf = abd_borrow_buf_copy(abd, size);
+	zio_checksum_SHA256(buf, size, zcp);
+	abd_return_buf(abd, buf, size);
+}
+
+void
+abd_fletcher_2_native(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
+{
+	fletcher_2_native_init(zcp);
+	abd_iterate_rfunc(abd, size, fletcher_2_incremental_native, zcp);
+}
+
+void
+abd_fletcher_2_byteswap(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
+{
+	fletcher_2_byteswap_init(zcp);
+	abd_iterate_rfunc(abd, size, fletcher_2_incremental_byteswap, zcp);
+}
+
+void
+abd_fletcher_4_native(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
+{
+	fletcher_4_native_init(zcp);
+	abd_iterate_rfunc(abd, size, fletcher_4_incremental_native, zcp);
+}
+
+void
+abd_fletcher_4_byteswap(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
+{
+	fletcher_4_byteswap_init(zcp);
+	abd_iterate_rfunc(abd, size, fletcher_4_incremental_byteswap, zcp);
+}
+
 zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
-	{{NULL,			NULL},			0, 0, 0, "inherit"},
-	{{NULL,			NULL},			0, 0, 0, "on"},
-	{{zio_checksum_off,	zio_checksum_off},	0, 0, 0, "off"},
-	{{zio_checksum_SHA256,	zio_checksum_SHA256},	1, 1, 0, "label"},
-	{{zio_checksum_SHA256,	zio_checksum_SHA256},	1, 1, 0, "gang_header"},
-	{{fletcher_2_native,	fletcher_2_byteswap},	0, 1, 0, "zilog"},
-	{{fletcher_2_native,	fletcher_2_byteswap},	0, 0, 0, "fletcher2"},
-	{{fletcher_4_native,	fletcher_4_byteswap},	1, 0, 0, "fletcher4"},
-	{{zio_checksum_SHA256,	zio_checksum_SHA256},	1, 0, 1, "sha256"},
-	{{fletcher_4_native,	fletcher_4_byteswap},	0, 1, 0, "zilog2"},
+{{NULL,			 NULL},			   0, 0, 0, "inherit"},
+{{NULL,			 NULL},			   0, 0, 0, "on"},
+{{abd_checksum_off,	 abd_checksum_off},	   0, 0, 0, "off"},
+{{abd_checksum_SHA256,	 abd_checksum_SHA256},	   1, 1, 0, "label"},
+{{abd_checksum_SHA256,	 abd_checksum_SHA256},	   1, 1, 0, "gang_header"},
+{{abd_fletcher_2_native, abd_fletcher_2_byteswap}, 0, 1, 0, "zilog"},
+{{abd_fletcher_2_native, abd_fletcher_2_byteswap}, 0, 0, 0, "fletcher2"},
+{{abd_fletcher_4_native, abd_fletcher_4_byteswap}, 1, 0, 0, "fletcher4"},
+{{abd_checksum_SHA256,	 abd_checksum_SHA256},	   1, 0, 1, "sha256"},
+{{abd_fletcher_4_native, abd_fletcher_4_byteswap}, 0, 1, 0, "zilog2"},
 };
 
 enum zio_checksum
@@ -150,7 +188,7 @@ zio_checksum_label_verifier(zio_cksum_t *zcp, uint64_t offset)
  */
 void
 zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
-	void *data, uint64_t size)
+	abd_t *data, uint64_t size)
 {
 	blkptr_t *bp = zio->io_bp;
 	uint64_t offset = zio->io_offset;
@@ -162,15 +200,16 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 
 	if (ci->ci_eck) {
 		zio_eck_t *eck;
+		void *buf = ABD_TO_BUF(data);
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
-			zil_chain_t *zilc = data;
+			zil_chain_t *zilc = buf;
 
 			size = P2ROUNDUP_TYPED(zilc->zc_nused, ZIL_MIN_BLKSZ,
 			    uint64_t);
 			eck = &zilc->zc_eck;
 		} else {
-			eck = (zio_eck_t *)((char *)data + size) - 1;
+			eck = (zio_eck_t *)((char *)buf + size) - 1;
 		}
 		if (checksum == ZIO_CHECKSUM_GANG_HEADER)
 			zio_checksum_gang_verifier(&eck->zec_cksum, bp);
@@ -197,7 +236,7 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 	uint64_t size = (bp == NULL ? zio->io_size :
 	    (BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp)));
 	uint64_t offset = zio->io_offset;
-	void *data = zio->io_data;
+	abd_t *data = zio->io_data;
 	zio_checksum_info_t *ci = &zio_checksum_table[checksum];
 	zio_cksum_t actual_cksum, expected_cksum, verifier;
 
@@ -206,9 +245,10 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 
 	if (ci->ci_eck) {
 		zio_eck_t *eck;
+		void *buf = ABD_TO_BUF(data);
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
-			zil_chain_t *zilc = data;
+			zil_chain_t *zilc = buf;
 			uint64_t nused;
 
 			eck = &zilc->zc_eck;
@@ -224,7 +264,7 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 
 			size = P2ROUNDUP_TYPED(nused, ZIL_MIN_BLKSZ, uint64_t);
 		} else {
-			eck = (zio_eck_t *)((char *)data + size) - 1;
+			eck = (zio_eck_t *)((char *)buf + size) - 1;
 		}
 
 		if (checksum == ZIO_CHECKSUM_GANG_HEADER)

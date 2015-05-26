@@ -23,6 +23,7 @@
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright 2013 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _SYS_ARC_IMPL_H
@@ -73,6 +74,9 @@ typedef struct arc_state {
 	kmutex_t arcs_mtx;
 	arc_state_type_t arcs_state;
 } arc_state_t;
+
+#define	ARCS_LIST(arcs, type)	(&(arcs)->arcs_list[ARC_BUFC_TYPE_MASK(type)])
+#define	ARCS_LSIZE(arcs, type)	((arcs)->arcs_lsize[ARC_BUFC_TYPE_MASK(type)])
 
 typedef struct l2arc_buf_hdr l2arc_buf_hdr_t;
 

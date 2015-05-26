@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_ARC_H
@@ -61,7 +62,7 @@ struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
 	kmutex_t		b_evict_lock;
-	void			*b_data;
+	abd_t			*b_data;
 	arc_evict_func_t	*b_efunc;
 	void			*b_private;
 };
@@ -69,8 +70,21 @@ struct arc_buf {
 typedef enum arc_buf_contents {
 	ARC_BUFC_DATA,				/* buffer contains data */
 	ARC_BUFC_METADATA,			/* buffer contains metadata */
-	ARC_BUFC_NUMTYPES
+	ARC_BUFC_NUMTYPES,
+
+	/*
+	 * flag for scatter abd.
+	 * data implies scatter, so only used for metadata
+	 */
+	ARC_BUFC_SCATTER = 0x10,
 } arc_buf_contents_t;
+
+#define	ARC_BUFC_TYPE_MASK(type) \
+	(type & ARC_BUFC_METADATA)
+#define	ARC_BUFC_IS_META(type) \
+	(!!ARC_BUFC_TYPE_MASK(type))
+#define	ARC_BUFC_IS_SCATTER(type) \
+	(type == ARC_BUFC_DATA || (type & ARC_BUFC_SCATTER))
 /*
  * These are the flags we pass into calls to the arc
  */

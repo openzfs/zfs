@@ -25,6 +25,7 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -45,6 +46,7 @@
 #include <sys/cred.h>
 #include <sys/fs/zfs.h>
 #include <sys/uio.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -115,6 +117,9 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_METADATA) : \
 	dmu_ot[(int)(ot)].ot_metadata)
+
+#define	DMU_OT_IS_SCATTER(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	(0) : dmu_ot[(int)(ot)].ot_scatter)
 
 /*
  * These object types use bp_fill != 1 for their L0 bp's. Therefore they can't
@@ -284,7 +289,7 @@ typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
 	uint64_t db_offset;		/* byte offset in this object */
 	uint64_t db_size;		/* size of buffer in bytes */
-	void *db_data;			/* data in buffer */
+	abd_t *db_data;			/* data in buffer */
 } dmu_buf_t;
 
 /*
@@ -763,6 +768,7 @@ typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
 	boolean_t		ot_metadata;
+	boolean_t		ot_scatter;
 	char			*ot_name;
 } dmu_object_type_info_t;
 
