@@ -1202,8 +1202,11 @@ zio_write_bp_init(zio_t *zio)
 			 * in that we charge for the padding used to fill out
 			 * the last sector.
 			 */
+			size_t rounded;
+
 			ASSERT3U(spa->spa_min_ashift, >=, SPA_MINBLOCKSHIFT);
-			size_t rounded = (size_t)P2ROUNDUP(psize,
+
+			rounded = (size_t)P2ROUNDUP(psize,
 			    1ULL << spa->spa_min_ashift);
 			if (rounded >= lsize) {
 				compress = ZIO_COMPRESS_OFF;
