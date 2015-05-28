@@ -2251,7 +2251,7 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
 	dmu_buf_impl_t *found_db;
 	boolean_t result = B_FALSE;
 
-	if (db->db_blkid == DMU_BONUS_BLKID)
+	if (blkid == DMU_BONUS_BLKID)
 		found_db = dbuf_find_bonus(os, obj);
 	else
 		found_db = dbuf_find(os, obj, 0, blkid);
@@ -2261,7 +2261,7 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
 			(void) refcount_add(&db->db_holds, tag);
 			result = B_TRUE;
 		}
-		mutex_exit(&db->db_mtx);
+		mutex_exit(&found_db->db_mtx);
 	}
 	return (result);
 }
