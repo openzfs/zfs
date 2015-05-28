@@ -5693,6 +5693,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 		for (; hdr; hdr = hdr_prev) {
 			kmutex_t *hash_lock;
 			uint64_t buf_sz;
+			uint64_t buf_a_sz;
 
 			if (arc_warm == B_FALSE)
 				hdr_prev = multilist_sublist_next(mls, hdr);
@@ -5721,7 +5722,15 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 				continue;
 			}
 
-			if ((write_sz + hdr->b_size) > target_sz) {
+			/*
+			 * Assume that the buffer is not going to be compressed
+			 * and could take more space on disk because of a larger
+			 * disk block size.
+			 */
+			buf_sz = hdr->b_size;
+			buf_a_sz = vdev_psize_to_asize(dev->l2ad_vdev, buf_sz);
+
+			if ((write_asize + buf_a_sz) > target_sz) {
 				full = B_TRUE;
 				mutex_exit(hash_lock);
 				break;
@@ -5787,7 +5796,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			 */
 			hdr->b_l2hdr.b_daddr = L2ARC_ADDR_UNSET;
 
-			buf_sz = hdr->b_size;
 			hdr->b_flags |= ARC_FLAG_HAS_L2HDR;
 
 			mutex_enter(&dev->l2ad_mtx);
@@ -5804,6 +5812,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			mutex_exit(hash_lock);
 
 			write_sz += buf_sz;
+			write_asize += buf_a_sz;
 		}
 
 		multilist_sublist_unlock(mls);
@@ -5827,6 +5836,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	 * and work backwards, retracing the course of the buffer selector
 	 * loop above.
 	 */
+	write_asize = 0;
 	for (hdr = list_prev(&dev->l2ad_buflist, head); hdr;
 	    hdr = list_prev(&dev->l2ad_buflist, hdr)) {
 		uint64_t buf_sz;
@@ -5875,7 +5885,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 
 		/* Compression may have squashed the buffer to zero length. */
 		if (buf_sz != 0) {
-			uint64_t buf_p_sz;
+			uint64_t buf_a_sz;
 
 			wzio = zio_write_phys(pio, dev->l2ad_vdev,
 			    dev->l2ad_hand, buf_sz, buf_data, ZIO_CHECKSUM_OFF,
@@ -5886,14 +5896,13 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			    zio_t *, wzio);
 			(void) zio_nowait(wzio);
 
-			write_asize += buf_sz;
-
+			write_psize += buf_sz;
 			/*
 			 * Keep the clock hand suitably device-aligned.
 			 */
-			buf_p_sz = vdev_psize_to_asize(dev->l2ad_vdev, buf_sz);
-			write_psize += buf_p_sz;
-			dev->l2ad_hand += buf_p_sz;
+			buf_a_sz = vdev_psize_to_asize(dev->l2ad_vdev, buf_sz);
+			write_asize += buf_a_sz;
+			dev->l2ad_hand += buf_a_sz;
 		}
 	}
 
@@ -5903,8 +5912,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 	ARCSTAT_BUMP(arcstat_l2_writes_sent);
 	ARCSTAT_INCR(arcstat_l2_write_bytes, write_asize);
 	ARCSTAT_INCR(arcstat_l2_size, write_sz);
-	ARCSTAT_INCR(arcstat_l2_asize, write_asize);
-	vdev_space_update(dev->l2ad_vdev, write_asize, 0, 0);
+	ARCSTAT_INCR(arcstat_l2_asize, write_psize);
+	vdev_space_update(dev->l2ad_vdev, write_psize, 0, 0);
 
 	/*
 	 * Bump device hand to the device start if it is approaching the end.
