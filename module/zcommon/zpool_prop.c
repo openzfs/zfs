@@ -122,6 +122,9 @@ zpool_prop_init(void)
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "on | off", "EXPAND", boolean_table);
 	zprop_register_index(ZPOOL_PROP_READONLY, "readonly", 0,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "on | off", "RDONLY", boolean_table);
+	zprop_register_index(ZPOOL_PROP_WHOLE_DISK, "whole_disk", 1,
+	    PROP_DEFAULT, ZFS_TYPE_POOL, "on | off", "WHOLEDISK",
+	    boolean_table);
 
 	/* default index properties */
 	zprop_register_index(ZPOOL_PROP_FAILUREMODE, "failmode",

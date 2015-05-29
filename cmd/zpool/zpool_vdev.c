@@ -717,6 +717,40 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		return (NULL);
 	}
 
+	if (wholedisk && props != NULL) {
+		char *value = NULL;
+
+		if (nvlist_lookup_string(props, ZPOOL_CONFIG_WHOLE_DISK,
+		    &value) == 0) {
+			/*
+			 * There's two meanings of 'whole_disk'.
+			 * 1. ZFS/ZoL 'owns' the whole disk (it's not used
+			 *    by anyone else), so we is allowed to change the
+			 *    elevator, I/O scheduler etc.
+			 *    This is what we would get if whole_disk != on.
+			 *
+			 * 2. The litteral one, we want the whole disk, no
+			 *    partitions etc.
+			 */
+			if (strcmp(value, "on") == 0) {
+				/*
+				 * This is somewhat counter-intuitive.
+				 * We've asked for whole disk, but we're
+				 * setting it to false. That's because when
+				 * it's false, later checks won't partition
+				 * the device, which is what we ACTUALLY
+				 * wanted.
+				 *
+				 * In this case, we meant point two, hence
+				 * changing the previously discovered true
+				 * value to false instead to avoid the
+				 * automatic partitioning.
+				 */
+				wholedisk = B_FALSE;
+			}
+		}
+	}
+
 	/*
 	 * Finally, we have the complete device or file, and we know that it is
 	 * acceptable to use.  Construct the nvlist to describe this vdev.  All

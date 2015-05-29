@@ -601,6 +601,19 @@ Amount of storage space used within the pool.
 .RE
 
 .sp
+.ne 2
+.mk
+.na
+\fB\fBwhole_disk\fR\fR
+.ad
+.RS 20n
+.rt
+Do not partition the device(s) used to create the pool with. Normally, \fBzpool create\fR uses a GPT partition table on the device(s) and creates two partitions. One for the data and one small, about 9MB, which is used as a 'buffer' in case the device needs to be replaced and it's replaced with a smaller one.
+.sp
+Can only be set at pool creation time.
+.RE
+
+.sp
 .LP
 The space usage properties report actual physical space available to the storage pool. The physical space can be different from the total amount of space that any contained datasets can actually use. The amount of space used in a \fBraidz\fR configuration depends on the characteristics of the data being written. In addition, \fBZFS\fR reserves some space for internal accounting that the \fBzfs\fR(8) command takes into account, but the \fBzpool\fR command does not. For non-full pools of a reasonable size, these effects should be invisible. For small pools, or pools that are close to being completely full, these discrepancies may become more noticeable.
 
