@@ -576,6 +576,51 @@ finish_progress(char *done)
 	pt_header = NULL;
 }
 
+static int
+zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
+{
+	zfs_handle_t *zhp = NULL;
+	int ret = 0;
+
+	zhp = zfs_open(hdl, dataset, type);
+	if (zhp == NULL)
+		return (1);
+
+	/*
+	 * Volumes may neither be mounted or shared.  Potentially in the
+	 * future filesystems detected on these volumes could be mounted.
+	 */
+	if (zfs_get_type(zhp) == ZFS_TYPE_VOLUME) {
+		zfs_close(zhp);
+		return (0);
+	}
+
+	/*
+	 * Mount and/or share the new filesystem as appropriate.  We provide a
+	 * verbose error message to let the user know that their filesystem was
+	 * in fact created, even if we failed to mount or share it.
+	 *
+	 * If the user doesn't want the dataset automatically mounted, then
+	 * skip the mount/share step
+	 */
+	if (zfs_prop_valid_for_type(ZFS_PROP_CANMOUNT, type, B_FALSE) &&
+	    zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON) {
+		if (zfs_mount(zhp, NULL, 0) != 0) {
+			(void) fprintf(stderr, gettext("filesystem "
+			    "successfully created, but not mounted\n"));
+			ret = 1;
+		} else if (zfs_share(zhp) != 0) {
+			(void) fprintf(stderr, gettext("filesystem "
+			    "successfully created, but not shared\n"));
+			ret = 1;
+		}
+	}
+
+	zfs_close(zhp);
+
+	return (ret);
+}
+
 /*
  * zfs clone [-p] [-o prop=value] ... <snap> <fs | vol>
  *
@@ -657,31 +702,12 @@ zfs_do_clone(int argc, char **argv)
 
 	/* create the mountpoint if necessary */
 	if (ret == 0) {
-		zfs_handle_t *clone;
-		int canmount = ZFS_CANMOUNT_OFF;
-
 		if (log_history) {
 			(void) zpool_log_history(g_zfs, history_str);
 			log_history = B_FALSE;
 		}
 
-		clone = zfs_open(g_zfs, argv[1], ZFS_TYPE_DATASET);
-		if (clone != NULL) {
-			/*
-			 * if the user doesn't want the dataset automatically
-			 * mounted, then skip the mount/share step.
-			 */
-			if (zfs_prop_valid_for_type(ZFS_PROP_CANMOUNT,
-			    zfs_get_type(clone), B_FALSE))
-				canmount = zfs_prop_get_int(clone,
-				    ZFS_PROP_CANMOUNT);
-
-			if (zfs_get_type(clone) != ZFS_TYPE_VOLUME &&
-			    canmount == ZFS_CANMOUNT_ON)
-				if ((ret = zfs_mount(clone, NULL, 0)) == 0)
-					ret = zfs_share(clone);
-			zfs_close(clone);
-		}
+		ret = zfs_mount_and_share(g_zfs, argv[1], ZFS_TYPE_DATASET);
 	}
 
 	zfs_close(zhp);
@@ -716,7 +742,6 @@ static int
 zfs_do_create(int argc, char **argv)
 {
 	zfs_type_t type = ZFS_TYPE_FILESYSTEM;
-	zfs_handle_t *zhp = NULL;
 	uint64_t volsize = 0;
 	int c;
 	boolean_t noreserve = B_FALSE;
@@ -725,7 +750,6 @@ zfs_do_create(int argc, char **argv)
 	int ret = 1;
 	nvlist_t *props;
 	uint64_t intval;
-	int canmount = ZFS_CANMOUNT_OFF;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
@@ -859,37 +883,8 @@ zfs_do_create(int argc, char **argv)
 		log_history = B_FALSE;
 	}
 
-	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET)) == NULL)
-		goto error;
-
-	ret = 0;
-	/*
-	 * if the user doesn't want the dataset automatically mounted,
-	 * then skip the mount/share step
-	 */
-	if (zfs_prop_valid_for_type(ZFS_PROP_CANMOUNT, type, B_FALSE))
-		canmount = zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT);
-
-	/*
-	 * Mount and/or share the new filesystem as appropriate.  We provide a
-	 * verbose error message to let the user know that their filesystem was
-	 * in fact created, even if we failed to mount or share it.
-	 */
-	if (canmount == ZFS_CANMOUNT_ON) {
-		if (zfs_mount(zhp, NULL, 0) != 0) {
-			(void) fprintf(stderr, gettext("filesystem "
-			    "successfully created, but not mounted\n"));
-			ret = 1;
-		} else if (zfs_share(zhp) != 0) {
-			(void) fprintf(stderr, gettext("filesystem "
-			    "successfully created, but not shared\n"));
-			ret = 1;
-		}
-	}
-
+	ret = zfs_mount_and_share(g_zfs, argv[0], ZFS_TYPE_DATASET);
 error:
-	if (zhp)
-		zfs_close(zhp);
 	nvlist_free(props);
 	return (ret);
 badusage:
