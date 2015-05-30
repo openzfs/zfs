@@ -59,9 +59,15 @@ arc_done_func_t arc_getbuf_func;
 struct arc_prune {
 	arc_prune_func_t	*p_pfunc;
 	void			*p_private;
+	uint64_t		p_adjust;
 	list_node_t		p_node;
 	refcount_t		p_refcnt;
 };
+
+typedef enum arc_strategy {
+	ARC_STRATEGY_META_ONLY		= 0, /* Evict only meta data buffers */
+	ARC_STRATEGY_META_BALANCED	= 1, /* Evict data buffers if needed */
+} arc_strategy_t;
 
 typedef enum arc_flags
 {

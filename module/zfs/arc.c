@@ -167,6 +167,9 @@ static boolean_t	arc_user_evicts_thread_exit;
 /* number of objects to prune from caches when arc_meta_limit is reached */
 int zfs_arc_meta_prune = 10000;
 
+/* The preferred strategy to employ when arc_meta_limit is reached */
+int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
+
 typedef enum arc_reclaim_strategy {
 	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
 	ARC_RECLAIM_CONS		/* Conservative reclaim strategy */
@@ -531,6 +534,7 @@ static arc_state_t	*arc_l2c_only;
 
 static list_t arc_prune_list;
 static kmutex_t arc_prune_mtx;
+static taskq_t *arc_prune_taskq;
 static arc_buf_t *arc_eviction_list;
 static arc_buf_hdr_t arc_eviction_hdr;
 
@@ -2430,45 +2434,62 @@ arc_flush_state(arc_state_t *state, uint64_t spa, arc_buf_contents_t type,
 }
 
 /*
- * Request that arc user drop references so that N bytes can be released
- * from the cache.  This provides a mechanism to ensure the arc can honor
- * the arc_meta_limit and reclaim buffers which are pinned in the cache
- * by higher layers.  (i.e. the zpl)
+ * Helper function for arc_prune() it is responsible for safely handling
+ * the execution of a registered arc_prune_func_t.
  */
 static void
-arc_do_user_prune(int64_t adjustment)
+arc_prune_task(void *ptr)
 {
-	arc_prune_func_t *func;
-	void *private;
-	arc_prune_t *cp, *np;
+	arc_prune_t *ap = (arc_prune_t *)ptr;
+	arc_prune_func_t *func = ap->p_pfunc;
+
+	if (func != NULL)
+		func(ap->p_adjust, ap->p_private);
+
+	/* Callback unregistered concurrently with execution */
+	if (refcount_remove(&ap->p_refcnt, func) == 0) {
+		ASSERT(!list_link_active(&ap->p_node));
+		refcount_destroy(&ap->p_refcnt);
+		kmem_free(ap, sizeof (*ap));
+	}
+}
+
+/*
+ * Notify registered consumers they must drop holds on a portion of the ARC
+ * buffered they reference.  This provides a mechanism to ensure the ARC can
+ * honor the arc_meta_limit and reclaim otherwise pinned ARC buffers.  This
+ * is analogous to dnlc_reduce_cache() but more generic.
+ *
+ * This operation is performed asyncronously so it may be safely called
+ * in the context of the arc_adapt_thread().  A reference is taken here
+ * for each registered arc_prune_t and the arc_prune_task() is responsible
+ * for releasing it once the registered arc_prune_func_t has completed.
+ */
+static void
+arc_prune_async(int64_t adjust)
+{
+	arc_prune_t *ap;
 
 	mutex_enter(&arc_prune_mtx);
+	for (ap = list_head(&arc_prune_list); ap != NULL;
+	    ap = list_next(&arc_prune_list, ap)) {
 
-	cp = list_head(&arc_prune_list);
-	while (cp != NULL) {
-		func = cp->p_pfunc;
-		private = cp->p_private;
-		np = list_next(&arc_prune_list, cp);
-		refcount_add(&cp->p_refcnt, func);
-		mutex_exit(&arc_prune_mtx);
+		if (refcount_count(&ap->p_refcnt) >= 2)
+			continue;
 
-		if (func != NULL)
-			func(adjustment, private);
-
-		mutex_enter(&arc_prune_mtx);
-
-		/* User removed prune callback concurrently with execution */
-		if (refcount_remove(&cp->p_refcnt, func) == 0) {
-			ASSERT(!list_link_active(&cp->p_node));
-			refcount_destroy(&cp->p_refcnt);
-			kmem_free(cp, sizeof (*cp));
-		}
-
-		cp = np;
+		refcount_add(&ap->p_refcnt, ap->p_pfunc);
+		ap->p_adjust = adjust;
+		taskq_dispatch(arc_prune_taskq, arc_prune_task, ap, TQ_SLEEP);
+		ARCSTAT_BUMP(arcstat_prune);
 	}
-
-	ARCSTAT_BUMP(arcstat_prune);
 	mutex_exit(&arc_prune_mtx);
+}
+
+static void
+arc_prune(int64_t adjust)
+{
+	arc_prune_async(adjust);
+	taskq_wait_outstanding(arc_prune_taskq, 0);
 }
 
 /*
@@ -2511,7 +2532,7 @@ arc_adjust_impl(arc_state_t *state, uint64_t spa, int64_t bytes,
  * available for reclaim.
  */
 static uint64_t
-arc_adjust_meta(void)
+arc_adjust_meta_balanced(void)
 {
 	int64_t adjustmnt, delta, prune = 0;
 	uint64_t total_evicted = 0;
@@ -2580,7 +2601,7 @@ restart:
 
 			if (zfs_arc_meta_prune) {
 				prune += zfs_arc_meta_prune;
-				arc_do_user_prune(prune);
+				arc_prune_async(prune);
 			}
 		}
 
@@ -2590,6 +2611,50 @@ restart:
 		}
 	}
 	return (total_evicted);
+}
+
+/*
+ * Evict metadata buffers from the cache, such that arc_meta_used is
+ * capped by the arc_meta_limit tunable.
+ */
+static uint64_t
+arc_adjust_meta_only(void)
+{
+	uint64_t total_evicted = 0;
+	int64_t target;
+
+	/*
+	 * If we're over the meta limit, we want to evict enough
+	 * metadata to get back under the meta limit. We don't want to
+	 * evict so much that we drop the MRU below arc_p, though. If
+	 * we're over the meta limit more than we're over arc_p, we
+	 * evict some from the MRU here, and some from the MFU below.
+	 */
+	target = MIN((int64_t)(arc_meta_used - arc_meta_limit),
+	    (int64_t)(arc_anon->arcs_size + arc_mru->arcs_size - arc_p));
+
+	total_evicted += arc_adjust_impl(arc_mru, 0, target, ARC_BUFC_METADATA);
+
+	/*
+	 * Similar to the above, we want to evict enough bytes to get us
+	 * below the meta limit, but not so much as to drop us below the
+	 * space alloted to the MFU (which is defined as arc_c - arc_p).
+	 */
+	target = MIN((int64_t)(arc_meta_used - arc_meta_limit),
+	    (int64_t)(arc_mfu->arcs_size - (arc_c - arc_p)));
+
+	total_evicted += arc_adjust_impl(arc_mfu, 0, target, ARC_BUFC_METADATA);
+
+	return (total_evicted);
+}
+
+static uint64_t
+arc_adjust_meta(void)
+{
+	if (zfs_arc_meta_strategy == ARC_STRATEGY_META_ONLY)
+		return (arc_adjust_meta_only());
+	else
+		return (arc_adjust_meta_balanced());
 }
 
 /*
@@ -2905,6 +2970,14 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat, uint64_t bytes)
 	extern kmem_cache_t	*zio_buf_cache[];
 	extern kmem_cache_t	*zio_data_buf_cache[];
 
+	if ((arc_meta_used >= arc_meta_limit) && zfs_arc_meta_prune) {
+		/*
+		 * We are exceeding our meta-data cache limit.
+		 * Prune some entries to release holds on meta-data.
+		 */
+		arc_prune(zfs_arc_meta_prune);
+	}
+
 	/*
 	 * An aggressive reclamation will shrink the cache size as well as
 	 * reap free buffers from the arc kmem caches.
@@ -2929,15 +3002,6 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat, uint64_t bytes)
 }
 
 /*
- * Unlike other ZFS implementations this thread is only responsible for
- * adapting the target ARC size on Linux.  The responsibility for memory
- * reclamation has been entirely delegated to the arc_shrinker_func()
- * which is registered with the VM.  To reflect this change in behavior
- * the arc_reclaim thread has been renamed to arc_adapt.
- *
- * The following comment from arc_reclaim_thread() in illumos is still
- * applicable:
- *
  * Threads can block in arc_get_data_buf() waiting for this thread to evict
  * enough data and signal them to proceed. When this happens, the threads in
  * arc_get_data_buf() are sleeping while holding the hash lock for their
@@ -4862,6 +4926,9 @@ arc_init(void)
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 	bzero(&arc_eviction_hdr, sizeof (arc_buf_hdr_t));
 
+	arc_prune_taskq = taskq_create("arc_prune", max_ncpus, minclsyspri,
+	    max_ncpus, INT_MAX, TASKQ_PREPOPULATE);
+
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 
@@ -4942,6 +5009,9 @@ arc_fini(void)
 		kstat_delete(arc_ksp);
 		arc_ksp = NULL;
 	}
+
+	taskq_wait(arc_prune_taskq);
+	taskq_destroy(arc_prune_taskq);
 
 	mutex_enter(&arc_prune_mtx);
 	while ((p = list_head(&arc_prune_list)) != NULL) {
@@ -6373,6 +6443,9 @@ MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
 module_param(zfs_arc_meta_adjust_restarts, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_adjust_restarts,
 	"Limit number of restarts in arc_adjust_meta");
+
+module_param(zfs_arc_meta_strategy, int, 0644);
+MODULE_PARM_DESC(zfs_arc_meta_strategy, "Meta reclaim strategy");
 
 module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
