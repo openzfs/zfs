@@ -578,6 +578,64 @@ add_prop_list_default(const char *propname, char *propval, nvlist_t **props,
 	return (add_prop_list(propname, propval, props, B_TRUE));
 }
 
+static boolean_t
+setup_prop_list(const char *propname, char *propval, nvlist_t **props,
+    int call)
+{
+	spa_feature_t i;
+	char *prop;
+
+	if ((strcmp(propval, "disable") == 0 ||
+	    strcmp(propval, "disabled") == 0)) {
+		/*
+		 * Because we've choosen to disable (a) feature(s) we first
+		 * need to make sure we enable ALL features...
+		 * I.e. default=enabled
+		 */
+		if (call == 0) {
+			for (i = 0; i < SPA_FEATURES; i++) {
+				/* String WITH the 'feature@' part */
+				prop = safe_malloc(
+				    strlen(spa_feature_table[i].fi_uname)
+				    + 9);
+
+				strcpy(prop, "feature@");
+				strcat(prop, spa_feature_table[i].fi_uname);
+				prop[strlen(prop)] = '\0';
+
+				if (!nvlist_exists(*props,
+				    spa_feature_table[i].fi_uname) ||
+				    !nvlist_exists(*props, prop)) {
+					if (add_prop_list(prop,
+					    ZFS_FEATURE_ENABLED, props,
+					    B_TRUE))
+						return (B_TRUE);
+				}
+			}
+		}
+
+
+		/*
+		 * ... then we disable all BUT the one(s) we choosed to
+		 * disable.
+		 */
+		for (i = 0; i < SPA_FEATURES; i++) {
+			/* String WITH the 'feature@' part */
+			prop = safe_malloc(
+			    strlen(spa_feature_table[i].fi_uname) + 9);
+
+			strcpy(prop, "feature@");
+			strcat(prop, spa_feature_table[i].fi_uname);
+			prop[strlen(prop)] = '\0';
+
+			if (strcmp(prop, propname) == 0)
+				(void) nvlist_remove_all(*props, prop);
+		}
+	}
+
+	return (B_FALSE);
+}
+
 /*
  * zpool add [-fgLnP] [-o property=value] <pool> <vdev> ...
  *
@@ -920,6 +978,7 @@ errout:
  *      -m	Set default mountpoint for the root dataset.  By default it's
  *		'/<pool>'
  *	-o	Set property=value.
+ *	-o	Set feature@feature=value.
  *	-d	Don't automatically enable all supported pool features
  *		(individual features can be enabled with -o).
  *	-O	Set fsproperty=value in the pool's root file system
@@ -939,7 +998,7 @@ zpool_do_create(int argc, char **argv)
 	nvlist_t *nvroot = NULL;
 	char *poolname;
 	char *tname = NULL;
-	int ret = 1;
+	int ret = 1, call = 0;
 	char *altroot = NULL;
 	char *mountpoint = NULL;
 	nvlist_t *fsprops = NULL;
@@ -980,7 +1039,15 @@ zpool_do_create(int argc, char **argv)
 			*propval = '\0';
 			propval++;
 
-			if (add_prop_list(optarg, propval, &props, B_TRUE))
+			if (zpool_prop_feature(optarg)) {
+				if (setup_prop_list(optarg, propval, &props,
+				    call))
+					goto errout;
+				else
+					enable_all_pool_feat = B_FALSE;
+				call++;
+			} else if (add_prop_list(optarg, propval, &props,
+			    B_TRUE))
 				goto errout;
 
 			/*
