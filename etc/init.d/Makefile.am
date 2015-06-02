@@ -15,7 +15,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/etc/init.d/zfs-zed.in \
 	$(top_srcdir)/etc/init.d/zfs.in
 
-$(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):
+$(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS): $(EXTRA_DIST)
 	-(if [ -e /etc/debian_version ]; then \
 		NFS_SRV=nfs-kernel-server; \
 	  else \

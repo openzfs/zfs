@@ -88,13 +88,13 @@ do_import()
 			# make sure we're able to actually import it/them later.
 			USE_DISK_BY_ID='yes'
 
-			# Filter out duplicates (pools found with the simpl
-			# "zpool import" but which is also found with the
-			# "zpool import -d ...").
-			npools=$(echo "$npools" | sed "s,$available_pools,,")
-
 			if [ -n "$available_pools" ]
 			then
+				# Filter out duplicates (pools found with the simpl
+				# "zpool import" but which is also found with the
+				# "zpool import -d ...").
+				npools=$(echo "$npools" | sed "s,$available_pools,,")
+
 				# Add the list to the existing list of
 				# available pools
 				available_pools="$available_pools;$npools"
@@ -141,14 +141,22 @@ do_import()
 	if [ -n "$USE_DISK_BY_ID" -a -z "$ZPOOL_IMPORT_PATH" ]
 	then
 		local dirs
-		dirs="$(find /dev/disk/by-* -maxdepth 0 -type d | \
-			grep -v by-vdev)"
-		dirs="$(echo "$dirs" | sed 's, ,:,g')"
+		dirs="$(for dir in $(echo /dev/disk/by-*)
+		do
+			# Ignore by-vdev here - we wan't it first!
+			echo "$dir" | grep -q /by-vdev && continue
+			[ ! -d "$dir" ] && continue
+
+			echo -n "$dir:"
+		done | sed 's,:$,,g')"
+
 		if [ -d "/dev/disk/by-vdev" ]
 		then
 			# Add by-vdev at the beginning.
 			ZPOOL_IMPORT_PATH="/dev/disk/by-vdev:"
 		fi
+
+		# ... and /dev at the very end, just for good measure.
 		ZPOOL_IMPORT_PATH="$ZPOOL_IMPORT_PATH$dirs:/dev"
 	fi
 
