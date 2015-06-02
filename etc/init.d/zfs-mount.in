@@ -33,6 +33,17 @@
 
 # ----------------------------------------------------
 
+chkroot() {
+	while read line; do
+		set -- $line
+		if [ "$2" = "/" ]; then
+			return 0
+		fi
+	done < /etc/mtab
+
+	return 1
+}
+
 do_depend()
 {
 	after procfs zfs-import sysfs procps
@@ -166,9 +177,7 @@ do_start()
 
 	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
 	# This should be handled by rc.sysinit but lets be paranoid.
-	awk '$2 = "/" { exit 1 }' /etc/mtab
-	RETVAL=$?
-	if [ "$RETVAL" -eq 0 ]
+	if ! chkroot
 	then
 		mount -f /
 	fi
