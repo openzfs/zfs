@@ -37,30 +37,6 @@
 #define spl_rwsem_trylock_irqsave(lk, fl)    spin_trylock_irqsave(lk, fl)
 #endif /* RWSEM_SPINLOCK_IS_RAW */
 
-/*
- * Prior to Linux 2.6.33 there existed a race condition in rwsem_is_locked().
- * The semaphore's activity was checked outside of the wait_lock which
- * could result in some readers getting the incorrect activity value.
- *
- * When a kernel without this fix is detected the SPL takes responsibility
- * for acquiring the wait_lock to avoid this race.
- */
-#if defined(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK)
 #define spl_rwsem_is_locked(rwsem)           rwsem_is_locked(rwsem)
-#else
-static inline int
-spl_rwsem_is_locked(struct rw_semaphore *rwsem)
-{
-	unsigned long flags;
-	int rc = 1;
-
-	if (spl_rwsem_trylock_irqsave(&rwsem->wait_lock, flags)) {
-		rc = rwsem_is_locked(rwsem);
-		spl_rwsem_unlock_irqrestore(&rwsem->wait_lock, flags);
-	}
-
-	return (rc);
-}
-#endif /* RWSEM_IS_LOCKED_TAKES_WAIT_LOCK */
 
 #endif /* _SPL_RWSEM_COMPAT_H */

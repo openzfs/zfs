@@ -83,15 +83,13 @@ rw_owner(krwlock_t *rwp)
 static inline int
 RW_READ_HELD(krwlock_t *rwp)
 {
-	return (spl_rwsem_is_locked(SEM(rwp)) &&
-		rw_owner(rwp) == NULL);
+	return (spl_rwsem_is_locked(SEM(rwp)) && rw_owner(rwp) == NULL);
 }
 
 static inline int
 RW_WRITE_HELD(krwlock_t *rwp)
 {
-	return (spl_rwsem_is_locked(SEM(rwp)) &&
-		rw_owner(rwp) == current);
+	return (spl_rwsem_is_locked(SEM(rwp)) && rw_owner(rwp) == current);
 }
 
 static inline int
