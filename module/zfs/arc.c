@@ -5002,7 +5002,7 @@ arc_init(void)
 	bzero(&arc_eviction_hdr, sizeof (arc_buf_hdr_t));
 
 	arc_prune_taskq = taskq_create("arc_prune", max_ncpus, minclsyspri,
-	    max_ncpus, INT_MAX, TASKQ_PREPOPULATE);
+	    max_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
