@@ -49,7 +49,8 @@ typedef struct zfs_sort_column {
 #define	ZFS_ITER_SIMPLE		   (1 << 6)
 
 int zfs_for_each(int, char **, int options, zfs_type_t,
-    zfs_sort_column_t *, zprop_list_t **, int, zfs_iter_f, void *);
+    zfs_sort_column_t *, zprop_list_t **,
+    int, zfs_iter_foreach_f, void *, zfs_json_t *json);
 int zfs_add_sort_column(zfs_sort_column_t **, const char *, boolean_t);
 void zfs_free_sort_columns(zfs_sort_column_t *);
 int zfs_sort_only_by_name(const zfs_sort_column_t *);

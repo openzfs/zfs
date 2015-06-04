@@ -12,9 +12,11 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libnvpair.la
 
+<<<<<<< HEAD
 USER_C = \
 	libnvpair.c \
-	nvpair_alloc_system.c
+	nvpair_alloc_system.c\
+	libnvpair_json.c
 
 KERNEL_C = \
 	nvpair_alloc_fixed.c \
