@@ -4720,7 +4720,6 @@ zfs_do_set(int argc, char **argv)
 	zfs_json_t json;
 	json.json = json.ld_json = B_FALSE;
 	int c;
-
 	while ((c = getopt(argc, argv, "Jj")) != -1) {
 		switch (c) {
 		case 'J':

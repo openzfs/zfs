@@ -776,7 +776,6 @@ zfs_json_open(zfs_json_t *json,
 	/*
 	 * Validate the name before we even try to open it.
 	 */
-
 	if (!zfs_json_validate_name(json, hdl,
 	    path, ZFS_TYPE_DATASET, B_FALSE)) {
 		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
