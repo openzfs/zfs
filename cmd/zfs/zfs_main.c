@@ -1882,6 +1882,7 @@ zfs_do_get(int argc, char **argv)
 	zfs_json_t json;
 	json.json = json.ld_json = B_FALSE;
 	char errbuf[1024];
+
 	/*
 	 * Set up default columns and sources.
 	 */
