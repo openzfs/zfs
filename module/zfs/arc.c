@@ -3088,8 +3088,8 @@ arc_adapt_thread(void)
 		    zfs_arc_max != arc_c_max)
 			arc_c_max = zfs_arc_max;
 
-		if (zfs_arc_min > 0 &&
-		    zfs_arc_min < arc_c_max &&
+		if (zfs_arc_min >= 2ULL << SPA_MAXBLOCKSHIFT &&
+		    zfs_arc_min <= arc_c_max &&
 		    zfs_arc_min != arc_c_min)
 			arc_c_min = zfs_arc_min;
 
@@ -3355,7 +3355,8 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * If we're within (2 * maxblocksize) bytes of the target
 	 * cache size, increment the target cache size
 	 */
-	if (arc_size > arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
+	VERIFY3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
+	if (arc_size >= arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
 		atomic_add_64(&arc_c, (int64_t)bytes);
 		if (arc_c > arc_c_max)
 			arc_c = arc_c_max;
@@ -4826,8 +4827,8 @@ arc_init(void)
 	spl_register_shrinker(&arc_shrinker);
 #endif
 
-	/* set min cache to zero */
-	arc_c_min = 4<<20;
+	/* set min cache to allow safe operation of arc_adapt() */
+	arc_c_min = 2ULL << SPA_MAXBLOCKSHIFT;
 	/* set max to 1/2 of all memory */
 	arc_c_max = arc_c * 4;
 
@@ -4837,7 +4838,8 @@ arc_init(void)
 	 */
 	if (zfs_arc_max > 64<<20 && zfs_arc_max < physmem * PAGESIZE)
 		arc_c_max = zfs_arc_max;
-	if (zfs_arc_min > 0 && zfs_arc_min <= arc_c_max)
+	if (zfs_arc_min >= 2ULL << SPA_MAXBLOCKSHIFT &&
+	    zfs_arc_min <= arc_c_max)
 		arc_c_min = zfs_arc_min;
 
 	arc_c = arc_c_max;
