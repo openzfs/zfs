@@ -468,6 +468,7 @@ extern void	taskq_init_ent(taskq_ent_t *);
 extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
 extern void	taskq_wait_id(taskq_t *, taskqid_t);
+extern void	taskq_wait_outstanding(taskq_t *, taskqid_t);
 extern int	taskq_member(taskq_t *, kthread_t *);
 extern int	taskq_cancel_id(taskq_t *, taskqid_t);
 extern void	system_taskq_init(void);
