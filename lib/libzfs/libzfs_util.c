@@ -511,6 +511,197 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 }
 
 /*
+ * JSON
+ */
+
+void
+zfs_json_error_aux(zfs_json_t *json,
+    libzfs_handle_t *hdl, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	(void) vsnprintf(hdl->libzfs_desc, sizeof (hdl->libzfs_desc),
+	    fmt, ap);
+	hdl->libzfs_desc_active = 1;
+
+	va_end(ap);
+}
+
+static void
+zfs_json_verror(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
+{
+	char errors[1024];
+
+	(void) vsnprintf(hdl->libzfs_action, sizeof (hdl->libzfs_action),
+	    fmt, ap);
+	hdl->libzfs_error = error;
+
+	if (hdl->libzfs_desc_active)
+		hdl->libzfs_desc_active = 0;
+	else
+		hdl->libzfs_desc[0] = '\0';
+
+	if (hdl->libzfs_printerr) {
+		if (error == EZFS_UNKNOWN) {
+			(void) sprintf(errors, dgettext(TEXT_DOMAIN, "internal "
+			    "error: %s"), libzfs_error_description(hdl));
+			abort();
+		}
+		(void) sprintf(errors, "%s: %s", hdl->libzfs_action,
+		    libzfs_error_description(hdl));
+		fnvlist_add_string(json->nv_dict_error, "error", errors);
+		if (error == EZFS_NOMEM)
+			exit(1);
+	}
+}
+
+
+/*PRINTFLIKE3*/
+
+int
+zfs_json_error_fmt(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	zfs_json_verror(json, hdl, error, fmt, ap);
+
+	va_end(ap);
+
+	return (-1);
+}
+
+int
+zfs_json_error(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *msg)
+{
+	return (zfs_json_error_fmt(json, hdl, error, "%s", msg));
+}
+
+
+static int
+zfs_json_common_error(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
+{
+	switch (error) {
+	case EPERM:
+	case EACCES:
+		zfs_json_verror(json, hdl, EZFS_PERM, fmt, ap);
+		return (-1);
+
+	case ECANCELED:
+		zfs_json_verror(json,
+		    hdl, EZFS_NODELEGATION, fmt, ap);
+		return (-1);
+
+	case EIO:
+		zfs_json_verror(json, hdl, EZFS_IO, fmt, ap);
+		return (-1);
+
+	case EFAULT:
+		zfs_json_verror(json, hdl, EZFS_FAULT, fmt, ap);
+		return (-1);
+
+	case EINTR:
+		zfs_json_verror(json, hdl, EZFS_INTR, fmt, ap);
+		return (-1);
+	}
+
+	return (0);
+}
+
+
+
+/*PRINTFLIKE3*/
+int
+zfs_json_standard_error_fmt(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	if (zfs_json_common_error(json,
+	    hdl, error, fmt, ap) != 0) {
+		va_end(ap);
+		return (-1);
+	}
+
+	switch (error) {
+	case ENXIO:
+	case ENODEV:
+	case EPIPE:
+		zfs_json_verror(json, hdl, EZFS_IO, fmt, ap);
+		break;
+
+	case ENOENT:
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+		    "dataset does not exist"));
+		zfs_json_verror(json, hdl, EZFS_NOENT, fmt, ap);
+		break;
+
+	case ENOSPC:
+	case EDQUOT:
+		zfs_json_verror(json, hdl, EZFS_NOSPC, fmt, ap);
+		return (-1);
+
+	case EEXIST:
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+		    "dataset already exists"));
+		zfs_json_verror(json, hdl, EZFS_EXISTS, fmt, ap);
+		break;
+
+	case EBUSY:
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+		    "dataset is busy"));
+		zfs_json_verror(json, hdl, EZFS_BUSY, fmt, ap);
+		break;
+	case EROFS:
+		zfs_json_verror(json,
+		    hdl, EZFS_POOLREADONLY, fmt, ap);
+		break;
+	case ENAMETOOLONG:
+		zfs_json_verror(json,
+		    hdl, EZFS_NAMETOOLONG, fmt, ap);
+		break;
+	case ENOTSUP:
+		zfs_json_verror(json,
+		    hdl, EZFS_BADVERSION, fmt, ap);
+		break;
+	case EAGAIN:
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+		    "pool I/O is currently suspended"));
+		zfs_json_verror(json, hdl, EZFS_POOLUNAVAIL, fmt, ap);
+		break;
+	default:
+		zfs_json_error_aux(json, hdl, strerror(error));
+		zfs_json_verror(json, hdl, EZFS_UNKNOWN, fmt, ap);
+		break;
+	}
+
+	va_end(ap);
+	return (-1);
+}
+
+int
+zfs_json_standard_error(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *msg)
+{
+	return (zfs_json_standard_error_fmt(json,
+	    hdl, error, "%s", msg));
+}
+
+/*
+ * !json
+ */
+
+
+/*
  * Display an out of memory error message and abort the current program.
  */
 int
@@ -851,7 +1042,8 @@ zfs_get_pool_handle(const zfs_handle_t *zhp)
  * fs/vol/snap name.
  */
 zfs_handle_t *
-zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
+zfs_path_to_zhandle(zfs_json_t *json,
+    libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 {
 	struct stat64 statbuf;
 	struct extmnttab entry;
@@ -861,7 +1053,10 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 		/*
 		 * It's not a valid path, assume it's a name of type 'argtype'.
 		 */
-		return (zfs_open(hdl, path, argtype));
+		if (!json->json && !json->ld_json)
+			return (zfs_open(hdl, path, argtype));
+		else
+			return (zfs_json_open(json, hdl, path, argtype));
 	}
 
 	if (stat64(path, &statbuf) != 0) {
@@ -884,12 +1079,17 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 	}
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
-		(void) fprintf(stderr, gettext("'%s': not a ZFS filesystem\n"),
-		    path);
+		if (!json->json && !json->ld_json)
+			(void) fprintf(stderr,
+			    gettext("'%s': not a ZFS filesystem\n"),
+			    path);
 		return (NULL);
 	}
-
-	return (zfs_open(hdl, entry.mnt_special, ZFS_TYPE_FILESYSTEM));
+	if (!json->json && !json->ld_json)
+		return (zfs_open(hdl, entry.mnt_special, ZFS_TYPE_FILESYSTEM));
+	else
+		return (zfs_json_open(json,
+		    hdl, entry.mnt_special, ZFS_TYPE_FILESYSTEM));
 }
 
 /*
