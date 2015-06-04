@@ -220,6 +220,12 @@ taskq_wait_id(taskq_t *tq, taskqid_t id)
 	taskq_wait(tq);
 }
 
+void
+taskq_wait_outstanding(taskq_t *tq, taskqid_t id)
+{
+	taskq_wait(tq);
+}
+
 static void
 taskq_thread(void *arg)
 {
