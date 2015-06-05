@@ -556,7 +556,7 @@ metaslab_group_passivate(metaslab_group_t *mg)
 		return;
 	}
 
-	taskq_wait(mg->mg_taskq);
+	taskq_wait_outstanding(mg->mg_taskq, 0);
 	metaslab_group_alloc_update(mg);
 
 	mgprev = mg->mg_prev;
@@ -1596,7 +1596,7 @@ metaslab_group_preload(metaslab_group_t *mg)
 	int m = 0;
 
 	if (spa_shutting_down(spa) || !metaslab_preload_enabled) {
-		taskq_wait(mg->mg_taskq);
+		taskq_wait_outstanding(mg->mg_taskq, 0);
 		return;
 	}
 

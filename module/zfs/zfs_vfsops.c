@@ -1152,8 +1152,8 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 		 */
 		int round = 0;
 		while (zsb->z_nr_znodes > 0) {
-			taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(
-			    zsb->z_os)));
+			taskq_wait_outstanding(dsl_pool_iput_taskq(
+			    dmu_objset_pool(zsb->z_os)), 0);
 			if (++round > 1 && !unmounting)
 				break;
 		}
@@ -1740,7 +1740,7 @@ zfs_init(void)
 void
 zfs_fini(void)
 {
-	taskq_wait(system_taskq);
+	taskq_wait_outstanding(system_taskq, 0);
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
 	zfsctl_fini();

@@ -471,7 +471,7 @@ txg_wait_callbacks(dsl_pool_t *dp)
 	tx_state_t *tx = &dp->dp_tx;
 
 	if (tx->tx_commit_cb_taskq != NULL)
-		taskq_wait(tx->tx_commit_cb_taskq);
+		taskq_wait_outstanding(tx->tx_commit_cb_taskq, 0);
 }
 
 static void
