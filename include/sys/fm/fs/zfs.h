@@ -96,7 +96,6 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_PIPELINE	"zio_pipeline"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_DELAY	"zio_delay"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_TIMESTAMP	"zio_timestamp"
-#define	FM_EREPORT_PAYLOAD_ZFS_ZIO_DEADLINE	"zio_deadline"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_DELTA	"zio_delta"
 #define	FM_EREPORT_PAYLOAD_ZFS_PREV_STATE	"prev_state"
 #define	FM_EREPORT_PAYLOAD_ZFS_CKSUM_EXPECTED	"cksum_expected"

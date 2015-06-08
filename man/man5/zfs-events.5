@@ -12,7 +12,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-EVENTS 5 "Feb 6, 2014"
+.TH ZFS-EVENTS 5 "Jun 6, 2015"
 .SH NAME
 zfs\-events \- Events created by the ZFS filesystem.
 .SH DESCRIPTION
@@ -55,6 +55,7 @@ part here.
 \fBchecksum\fR
 .ad
 .RS 12n
+Issued when a checksum error have been detected.
 .RE
 
 .sp
@@ -81,6 +82,8 @@ Issued when there have been data errors in the pool.
 \fBdelay\fR
 .ad
 .RS 12n
+Issued when an I/O was slow to complete as defined by the zio_delay_max module
+option.
 .RE
 
 .sp
@@ -98,6 +101,7 @@ Issued every time a vdev change have been done to the pool.
 \fBzpool\fR
 .ad
 .RS 12n
+Issued when a pool cannot be imported.
 .RE
 
 .sp
@@ -133,6 +137,7 @@ Issued when a pool is imported.
 \fBzpool.reguid\fR
 .ad
 .RS 12n
+Issued when a REGUID (new unique identifier for the pool have been regenerated) have been detected.
 .RE
 
 .sp
@@ -152,6 +157,7 @@ and is no longer available.
 \fBvdev.open_failed\fR
 .ad
 .RS 12n
+Issued when a vdev could not be opened (because it didn't exist for example).
 .RE
 
 .sp
@@ -160,6 +166,7 @@ and is no longer available.
 \fBvdev.corrupt_data\fR
 .ad
 .RS 12n
+Issued when corrupt data have been detected on a vdev.
 .RE
 
 .sp
@@ -178,6 +185,7 @@ This would lead to the pool being \fIDEGRADED\fR.
 \fBvdev.bad_guid_sum\fR
 .ad
 .RS 12n
+Issued when a missing device in the pool have been detected.
 .RE
 
 .sp
@@ -197,6 +205,7 @@ followed by a \fBprobe_failure\fR event.
 \fBvdev.bad_label\fR
 .ad
 .RS 12n
+Issued when the label is OK but invalid.
 .RE
 
 .sp
@@ -205,6 +214,7 @@ followed by a \fBprobe_failure\fR event.
 \fBvdev.bad_ashift\fR
 .ad
 .RS 12n
+Issued when the ashift alignment requirement has increased.
 .RE
 
 .sp
@@ -234,6 +244,7 @@ on a device in the pool.
 \fBvdev.check\fR
 .ad
 .RS 12n
+Issued when a check to see if a given vdev could be opened is started.
 .RE
 
 .sp
@@ -251,6 +262,7 @@ Issued when a spare have kicked in to replace a failed device.
 \fBvdev.autoexpand\fR
 .ad
 .RS 12n
+Issued when a vdev can be automatically expanded.
 .RE
 
 .sp
@@ -279,6 +291,8 @@ have removed the device).
 \fBlog_replay\fR
 .ad
 .RS 12n
+Issued when the intent log cannot be replayed.  The can occur in the case
+of a missing or damaged log device.
 .RE
 
 .sp
@@ -325,7 +339,7 @@ Issued when a pool have finished scrubbing.
 .RS 12n
 .RE
 
-.SS "PAYLOAD"
+.SS "PAYLOADS"
 .sp
 .LP
 This is the payload (data, information) that accompanies an
@@ -371,6 +385,8 @@ The GUID of the pool.
 \fBpool_context\fR
 .ad
 .RS 12n
+The load state for the pool (0=none, 1=open, 2=import, 3=tryimport, 4=recover
+5=error).
 .RE
 
 .sp
@@ -409,6 +425,7 @@ Full path of the vdev, including any \fI-partX\fR.
 \fBvdev_devid\fR
 .ad
 .RS 12n
+ID of vdev (if any).
 .RE
 
 .sp
@@ -417,6 +434,7 @@ Full path of the vdev, including any \fI-partX\fR.
 \fBvdev_fru\fR
 .ad
 .RS 12n
+Physical FRU location.
 .RE
 
 .sp
@@ -425,6 +443,7 @@ Full path of the vdev, including any \fI-partX\fR.
 \fBvdev_state\fR
 .ad
 .RS 12n
+State of vdev (0=uninitialized, 1=closed, 2=offline, 3=removed, 4=failed to open, 5=faulted, 6=degraded, 7=healty).
 .RE
 
 .sp
@@ -442,6 +461,7 @@ The ashift value of the vdev.
 \fBvdev_complete_ts\fR
 .ad
 .RS 12n
+The time the last I/O completed for the specified vdev.
 .RE
 
 .sp
@@ -450,6 +470,7 @@ The ashift value of the vdev.
 \fBvdev_delta_ts\fR
 .ad
 .RS 12n
+The time since the last I/O completed for the specified vdev.
 .RE
 
 .sp
@@ -521,6 +542,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBparent_path\fR
 .ad
 .RS 12n
+Path of the vdev parent (if any).
 .RE
 
 .sp
@@ -529,6 +551,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBparent_devid\fR
 .ad
 .RS 12n
+ID of the vdev parent (if any).
 .RE
 
 .sp
@@ -537,6 +560,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_objset\fR
 .ad
 .RS 12n
+The object set number for a given I/O.
 .RE
 
 .sp
@@ -545,6 +569,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_object\fR
 .ad
 .RS 12n
+The object number for a given I/O.
 .RE
 
 .sp
@@ -553,6 +578,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_level\fR
 .ad
 .RS 12n
+The block level for a given I/O.
 .RE
 
 .sp
@@ -561,6 +587,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_blkid\fR
 .ad
 .RS 12n
+The block ID for a given I/O.
 .RE
 
 .sp
@@ -569,6 +596,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_err\fR
 .ad
 .RS 12n
+The errno for a failure when handling a given I/O.
 .RE
 
 .sp
@@ -577,6 +605,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_offset\fR
 .ad
 .RS 12n
+The offset in bytes of where to write the I/O for the specified vdev.
 .RE
 
 .sp
@@ -585,6 +614,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_size\fR
 .ad
 .RS 12n
+The size in bytes of the I/O.
 .RE
 
 .sp
@@ -593,6 +623,8 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_flags\fR
 .ad
 .RS 12n
+The current flags describing how the I/O should be handled.  See the
+\fBI/O FLAGS\fR section for the full list of I/O flags.
 .RE
 
 .sp
@@ -601,6 +633,8 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_stage\fR
 .ad
 .RS 12n
+The current stage of the I/O in the pipeline.  See the \fBI/O STAGES\fR
+section for a full list of all the I/O stages.
 .RE
 
 .sp
@@ -609,6 +643,8 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_pipeline\fR
 .ad
 .RS 12n
+The valid pipeline stages for the I/O.  See the \fBI/O STAGES\fR section for a
+full list of all the I/O stages.
 .RE
 
 .sp
@@ -617,6 +653,10 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_delay\fR
 .ad
 .RS 12n
+The time in ticks (HZ) required for the block layer to service the I/O.  Unlike
+\fBzio_delta\fR this does not include any vdev queuing time and is therefore
+solely a measure of the block layer performance.  On most modern Linux systems
+HZ is defined as 1000 making a tick equivalent to 1 millisecond.
 .RE
 
 .sp
@@ -625,14 +665,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_timestamp\fR
 .ad
 .RS 12n
-.RE
-
-.sp
-.ne 2
-.na
-\fBzio_deadline\fR
-.ad
-.RS 12n
+The time when a given I/O was submitted.
 .RE
 
 .sp
@@ -641,6 +674,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBzio_delta\fR
 .ad
 .RS 12n
+The time required to service a given I/O.
 .RE
 
 .sp
@@ -649,6 +683,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBprev_state\fR
 .ad
 .RS 12n
+The previous state of the vdev.
 .RE
 
 .sp
@@ -657,6 +692,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBcksum_expected\fR
 .ad
 .RS 12n
+The expected checksum value.
 .RE
 
 .sp
@@ -665,6 +701,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBcksum_actual\fR
 .ad
 .RS 12n
+The actual/current checksum value.
 .RE
 
 .sp
@@ -673,6 +710,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBcksum_algorithm\fR
 .ad
 .RS 12n
+Checksum algorithm used. See \fBzfs\fR(8) for more information on checksum algorithms availible.
 .RE
 
 .sp
@@ -681,6 +719,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBcksum_byteswap\fR
 .ad
 .RS 12n
+Checksum value is byte swapped.
 .RE
 
 .sp
@@ -689,6 +728,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_ranges\fR
 .ad
 .RS 12n
+Checksum bad offset ranges.
 .RE
 
 .sp
@@ -697,6 +737,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_ranges_min_gap\fR
 .ad
 .RS 12n
+Checksum allowed minimum gap.
 .RE
 
 .sp
@@ -705,6 +746,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_range_sets\fR
 .ad
 .RS 12n
+Checksum for each range the number of bits set.
 .RE
 
 .sp
@@ -713,6 +755,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_range_clears\fR
 .ad
 .RS 12n
+Checksum for each range the number of bits cleared.
 .RE
 
 .sp
@@ -721,6 +764,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_set_bits\fR
 .ad
 .RS 12n
+Checksum array of bits set.
 .RE
 
 .sp
@@ -729,6 +773,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_cleared_bits\fR
 .ad
 .RS 12n
+Checksum array of bits cleared.
 .RE
 
 .sp
@@ -737,6 +782,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_set_histogram\fR
 .ad
 .RS 12n
+Checksum histogram of set bits by bit number in a 64-bit word.
 .RE
 
 .sp
@@ -745,5 +791,99 @@ Type of parent. See \fBvdev_type\fR.
 \fBbad_cleared_histogram\fR
 .ad
 .RS 12n
+Checksum histogram of cleared bits by bit number in a 64-bit word.
 .RE
 
+.SS "I/O STAGES"
+.sp
+.LP
+The ZFS I/O pipeline is comprised of various stages which are defined
+below.  The individual stages are used to construct these basic I/O
+operations: Read, Write, Free, Claim, and Ioctl.  These stages may be
+set on an event to describe the life cycle of a given I/O.
+
+.TS
+tab(:);
+l l l .
+Stage:Bit Mask:Operations
+_:_:_
+ZIO_STAGE_OPEN:0x00000001:RWFCI
+
+ZIO_STAGE_READ_BP_INIT:0x00000002:R----
+ZIO_STAGE_FREE_BP_INIT:0x00000004:--F--
+ZIO_STAGE_ISSUE_ASYNC:0x00000008:RWF--
+ZIO_STAGE_WRITE_BP_INIT:0x00000010:-W---
+
+ZIO_STAGE_CHECKSUM_GENERATE:0x00000020:-W---
+
+ZIO_STAGE_NOP_WRITE:0x00000040:-W---
+
+ZIO_STAGE_DDT_READ_START:0x00000080:R----
+ZIO_STAGE_DDT_READ_DONE:0x00000100:R----
+ZIO_STAGE_DDT_WRITE:0x00000200:-W---
+ZIO_STAGE_DDT_FREE:0x00000400:--F--
+
+ZIO_STAGE_GANG_ASSEMBLE:0x00000800:RWFC-
+ZIO_STAGE_GANG_ISSUE:0x00001000:RWFC-
+
+ZIO_STAGE_DVA_ALLOCATE:0x00002000:-W---
+ZIO_STAGE_DVA_FREE:0x00004000:--F--
+ZIO_STAGE_DVA_CLAIM:0x00008000:---C-
+
+ZIO_STAGE_READY:0x00010000:RWFCI
+
+ZIO_STAGE_VDEV_IO_START:0x00020000:RW--I
+ZIO_STAGE_VDEV_IO_DONE:0x00040000:RW--I
+ZIO_STAGE_VDEV_IO_ASSESS:0x00080000:RW--I
+
+ZIO_STAGE_CHECKSUM_VERIFY0:0x00100000:R----
+
+ZIO_STAGE_DONE:0x00200000:RWFCI
+.TE
+
+.SS "I/O FLAGS"
+.sp
+.LP
+Every I/O in the pipeline contains a set of flags which describe its
+function and are used to govern its behavior.  These flags will be set
+in an event as an \fBzio_flags\fR payload entry.
+
+.TS
+tab(:);
+l l .
+Flag:Bit Mask
+_:_
+ZIO_FLAG_DONT_AGGREGATE:0x00000001
+ZIO_FLAG_IO_REPAIR:0x00000002
+ZIO_FLAG_SELF_HEAL:0x00000004
+ZIO_FLAG_RESILVER:0x00000008
+ZIO_FLAG_SCRUB:0x00000010
+ZIO_FLAG_SCAN_THREAD:0x00000020
+ZIO_FLAG_PHYSICAL:0x00000040
+
+ZIO_FLAG_CANFAIL:0x00000080
+ZIO_FLAG_SPECULATIVE:0x00000100
+ZIO_FLAG_CONFIG_WRITER:0x00000200
+ZIO_FLAG_DONT_RETRY:0x00000400
+ZIO_FLAG_DONT_CACHE:0x00000800
+ZIO_FLAG_NODATA:0x00001000
+ZIO_FLAG_INDUCE_DAMAGE:0x00002000
+
+ZIO_FLAG_IO_RETRY:0x00004000
+ZIO_FLAG_PROBE:0x00008000
+ZIO_FLAG_TRYHARD:0x00010000
+ZIO_FLAG_OPTIONAL:0x00020000
+
+ZIO_FLAG_DONT_QUEUE:0x00040000
+ZIO_FLAG_DONT_PROPAGATE:0x00080000
+ZIO_FLAG_IO_BYPASS:0x00100000
+ZIO_FLAG_IO_REWRITE:0x00200000
+ZIO_FLAG_RAW:0x00400000
+ZIO_FLAG_GANG_CHILD:0x00800000
+ZIO_FLAG_DDT_CHILD:0x01000000
+ZIO_FLAG_GODFATHER:0x02000000
+ZIO_FLAG_NOPWRITE:0x04000000
+ZIO_FLAG_REEXECUTED:0x08000000
+ZIO_FLAG_DELEGATED:0x10000000
+ZIO_FLAG_FASTWRITE:0x20000000
+.TE
