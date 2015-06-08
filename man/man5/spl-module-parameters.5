@@ -249,3 +249,37 @@ where a thread should run.
 .sp
 Default value: \fB0\fR
 .RE
+
+.sp
+.ne 2
+.na
+\fBspl_taskq_thread_dynamic\fR (int)
+.ad
+.RS 12n
+Allow dynamic taskqs.  When enabled taskqs which set the TASKQ_DYNAMIC flag
+will by default create only a single thread.  New threads will be created on
+demand up to a maximum allowed number to facilitate the completion of
+outstanding tasks.  Threads which are no longer needed will be promptly
+destroyed.  By default this behavior is enabled but it can be disabled to
+aid performance analysis or troubleshooting.
+.sp
+Default value: \fB1\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_taskq_thread_sequential\fR (int)
+.ad
+.RS 12n
+The number of items a taskq worker thread must handle without interruption
+before requesting a new worker thread be spawned.  This is used to control
+how quickly taskqs ramp up the number of threads processing the queue.
+Because Linux thread creation and destruction are relatively inexpensive a
+small default value has been selected.  This means that normally threads will
+be created aggressively which is desirable.  Increasing this value will
+result in a slower thread creation rate which may be preferable for some
+configurations.
+.sp
+Default value: \fB4\fR
+.RE

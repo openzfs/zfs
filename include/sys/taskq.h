@@ -40,6 +40,7 @@
 #define TASKQ_DYNAMIC		0x00000004
 #define TASKQ_THREADS_CPU_PCT	0x00000008
 #define TASKQ_DC_BATCH		0x00000010
+#define TASKQ_ACTIVE		0x80000000
 
 /*
  * Flags for taskq_dispatch. TQ_SLEEP/TQ_NOSLEEP should be same as
@@ -53,7 +54,6 @@
 #define TQ_NOALLOC		0x02000000
 #define TQ_NEW			0x04000000
 #define TQ_FRONT		0x08000000
-#define TQ_ACTIVE		0x80000000
 
 typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);
@@ -61,11 +61,13 @@ typedef void (task_func_t)(void *);
 typedef struct taskq {
 	spinlock_t		tq_lock;       /* protects taskq_t */
 	unsigned long		tq_lock_flags; /* interrupt state */
-	const char		*tq_name;      /* taskq name */
+	char			*tq_name;      /* taskq name */
 	struct list_head	tq_thread_list;/* list of all threads */
 	struct list_head	tq_active_list;/* list of active threads */
 	int			tq_nactive;    /* # of active threads */
-	int			tq_nthreads;   /* # of total threads */
+	int			tq_nthreads;   /* # of existing threads */
+	int			tq_nspawn;     /* # of threads being spawned */
+	int			tq_maxthreads; /* # of threads maximum */
 	int			tq_pri;        /* priority */
 	int			tq_minalloc;   /* min task_t pool size */
 	int			tq_maxalloc;   /* max task_t pool size */
