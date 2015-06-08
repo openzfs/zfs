@@ -55,6 +55,7 @@ part here.
 \fBchecksum\fR
 .ad
 .RS 12n
+Issued when a checksum error have been detected.
 .RE
 
 .sp
@@ -133,6 +134,7 @@ Issued when a pool is imported.
 \fBzpool.reguid\fR
 .ad
 .RS 12n
+Issued when a REGUID (new unique identifier for the pool have been regenerated) have been detected.
 .RE
 
 .sp
@@ -152,6 +154,7 @@ and is no longer available.
 \fBvdev.open_failed\fR
 .ad
 .RS 12n
+Issued when a vdev could not be opened (because it didn't exist for example).
 .RE
 
 .sp
@@ -160,6 +163,7 @@ and is no longer available.
 \fBvdev.corrupt_data\fR
 .ad
 .RS 12n
+Issued when corrupt data have been detected on a vdev.
 .RE
 
 .sp
@@ -178,6 +182,7 @@ This would lead to the pool being \fIDEGRADED\fR.
 \fBvdev.bad_guid_sum\fR
 .ad
 .RS 12n
+Issued when a missing device in the pool have been detected.
 .RE
 
 .sp
@@ -197,6 +202,7 @@ followed by a \fBprobe_failure\fR event.
 \fBvdev.bad_label\fR
 .ad
 .RS 12n
+Issued when the label is OK but invalid.
 .RE
 
 .sp
@@ -205,6 +211,7 @@ followed by a \fBprobe_failure\fR event.
 \fBvdev.bad_ashift\fR
 .ad
 .RS 12n
+Issued when the ashift alignment requirement has increased.
 .RE
 
 .sp
@@ -234,6 +241,7 @@ on a device in the pool.
 \fBvdev.check\fR
 .ad
 .RS 12n
+Issued when a check to see if a given vdev could be opened is started.
 .RE
 
 .sp
@@ -409,6 +417,7 @@ Full path of the vdev, including any \fI-partX\fR.
 \fBvdev_devid\fR
 .ad
 .RS 12n
+ID of vdev (if any).
 .RE
 
 .sp
@@ -417,6 +426,7 @@ Full path of the vdev, including any \fI-partX\fR.
 \fBvdev_fru\fR
 .ad
 .RS 12n
+Physical FRU location.
 .RE
 
 .sp
@@ -425,6 +435,7 @@ Full path of the vdev, including any \fI-partX\fR.
 \fBvdev_state\fR
 .ad
 .RS 12n
+State of vdev (0=Uninitialized, 1=closed, 2=offline, 3=removed, 4=failed to open, 5=faulted, 6=degraded, 7=healty).
 .RE
 
 .sp
@@ -442,6 +453,7 @@ The ashift value of the vdev.
 \fBvdev_complete_ts\fR
 .ad
 .RS 12n
+Time since last I/O completed.
 .RE
 
 .sp
@@ -521,6 +533,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBparent_path\fR
 .ad
 .RS 12n
+Path of the vdev parent (if any).
 .RE
 
 .sp
@@ -529,6 +542,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBparent_devid\fR
 .ad
 .RS 12n
+ID of the vdev parent (if any).
 .RE
 
 .sp
@@ -649,6 +663,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBprev_state\fR
 .ad
 .RS 12n
+The previous state of the vdev.
 .RE
 
 .sp
@@ -657,6 +672,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBcksum_expected\fR
 .ad
 .RS 12n
+The expected checksum value.
 .RE
 
 .sp
@@ -665,6 +681,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBcksum_actual\fR
 .ad
 .RS 12n
+The actual/current checksum value.
 .RE
 
 .sp
@@ -673,6 +690,7 @@ Type of parent. See \fBvdev_type\fR.
 \fBcksum_algorithm\fR
 .ad
 .RS 12n
+Checksum algorithm used. See \fBzfs\fR(8) for more information on checksum algorithms availible.
 .RE
 
 .sp
