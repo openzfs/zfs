@@ -250,7 +250,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		mutex_enter(&pd->pd_mtx);
 		ASSERT(pd->pd_bytes_fetched >= 0);
 		while (pd->pd_bytes_fetched < size && !pd->pd_exited)
-			cv_wait(&pd->pd_cv, &pd->pd_mtx);
+			cv_wait_sig(&pd->pd_cv, &pd->pd_mtx);
 		pd->pd_bytes_fetched -= size;
 		cv_broadcast(&pd->pd_cv);
 		mutex_exit(&pd->pd_mtx);
@@ -459,7 +459,7 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	mutex_enter(&pfd->pd_mtx);
 	while (!pfd->pd_cancel && pfd->pd_bytes_fetched >= zfs_pd_bytes_max)
-		cv_wait(&pfd->pd_cv, &pfd->pd_mtx);
+		cv_wait_sig(&pfd->pd_cv, &pfd->pd_mtx);
 	pfd->pd_bytes_fetched += BP_GET_LSIZE(bp);
 	cv_broadcast(&pfd->pd_cv);
 	mutex_exit(&pfd->pd_mtx);
@@ -571,7 +571,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	pd->pd_cancel = B_TRUE;
 	cv_broadcast(&pd->pd_cv);
 	while (!pd->pd_exited)
-		cv_wait(&pd->pd_cv, &pd->pd_mtx);
+		cv_wait_sig(&pd->pd_cv, &pd->pd_mtx);
 	mutex_exit(&pd->pd_mtx);
 
 	mutex_destroy(&pd->pd_mtx);
