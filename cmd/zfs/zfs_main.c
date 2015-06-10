@@ -3036,17 +3036,14 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb, zfs_json_t *json)
 			    zfs_prop_to_name(pl->pl_prop),
 			    propstr);
 	}
-
-//	(void) printf("\n");
 }
 	if (json->ld_json) {
 		nvlist_print_json(stdout, nv_dict_props);
 		fprintf(stdout, "\n");
 		fflush(stdout);
 		fnvlist_free(nv_dict_props);
-	}
-	// if (json->json || json->ld_json)
-		// fnvlist_free(nv_dict_props);
+	} else if (!json->json)
+		printf("\n");
 }
 
 /*
