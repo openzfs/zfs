@@ -240,7 +240,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tupgrade [-v]\n"
 		    "\tupgrade [-r] [-V version] <-a | filesystem ...>\n"));
 	case HELP_LIST:
-		return (gettext("\tlist [-Hp] [-r|-d max] [-o property[,...]] "
+		return (gettext("\tlist [-JjHp] [-r|-d max] [-o property[,...]] "
 		    "[-s property]...\n\t    [-S property]... [-t type[,...]] "
 		    "[filesystem|volume|snapshot] ...\n"));
 	case HELP_MOUNT:
