@@ -653,6 +653,45 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 	return (zhp);
 }
 
+zfs_handle_t *
+zfs_json_open(zfs_json_t *json,
+    libzfs_handle_t *hdl, const char *path, int types)
+{
+	zfs_handle_t *zhp;
+	char errbuf[1024];
+
+	(void) snprintf(errbuf, sizeof (errbuf),
+	    dgettext(TEXT_DOMAIN, "cannot open '%s'"), path);
+
+	/*
+	 * Validate the name before we even try to open it.
+	 */
+	if (!zfs_validate_name(hdl, path, ZFS_TYPE_DATASET, B_FALSE)) {
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+		    "invalid dataset name"));
+		(void) zfs_json_error(json, hdl, EZFS_INVALIDNAME, errbuf);
+		return (NULL);
+	}
+
+	/*
+	 * Try to get stats for the dataset, which will tell us if it exists.
+	 */
+	errno = 0;
+	if ((zhp = make_dataset_handle(hdl, path)) == NULL) {
+		(void) zfs_json_standard_error(json, hdl, errno, errbuf);
+		return (NULL);
+	}
+
+	if (!(types & zhp->zfs_type)) {
+		(void) zfs_json_error(json, hdl,
+		    EZFS_BADTYPE, errbuf);
+		zfs_close(zhp);
+		return (NULL);
+	}
+
+	return (zhp);
+}
+
 /*
  * Release a ZFS handle.  Nothing to do but free the associated memory.
  */

@@ -181,6 +181,16 @@ typedef struct zfs_allow {
 	avl_tree_t z_everyone;
 } zfs_allow_t;
 
+typedef struct zfs_json {
+	boolean_t 	json;
+	boolean_t	ld_json;
+	int 		nb_elem;
+	nvlist_t	*nv_dict_props;
+	nvlist_t 	*nv_dict_error;
+	void		*json_data;
+} zfs_json_t;
+
+
 /*
  * Basic handle types
  */
@@ -207,6 +217,8 @@ extern const char *libzfs_error_init(int);
 extern const char *libzfs_error_action(libzfs_handle_t *);
 extern const char *libzfs_error_description(libzfs_handle_t *);
 extern int zfs_standard_error(libzfs_handle_t *, int, const char *);
+extern int zfs_json_standard_error(zfs_json_t *,
+    libzfs_handle_t *, int, const char *);
 extern void libzfs_mnttab_init(libzfs_handle_t *);
 extern void libzfs_mnttab_fini(libzfs_handle_t *);
 extern void libzfs_mnttab_cache(libzfs_handle_t *, boolean_t);
@@ -428,6 +440,8 @@ extern void zpool_explain_recover(libzfs_handle_t *, const char *, int,
  * underlying datasets, only the references to them.
  */
 extern zfs_handle_t *zfs_open(libzfs_handle_t *, const char *, int);
+extern zfs_handle_t *zfs_json_open(zfs_json_t *,
+    libzfs_handle_t *, const char *, int);
 extern zfs_handle_t *zfs_handle_dup(zfs_handle_t *);
 extern void zfs_close(zfs_handle_t *);
 extern zfs_type_t zfs_get_type(const zfs_handle_t *);
@@ -554,6 +568,7 @@ void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
  * Iterator functions.
  */
 typedef int (*zfs_iter_f)(zfs_handle_t *, void *);
+typedef int (*zfs_iter_foreach_f)(zfs_handle_t *, void *, zfs_json_t *);
 extern int zfs_iter_root(libzfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_children(zfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_dependents(zfs_handle_t *, boolean_t, zfs_iter_f, void *);
@@ -695,7 +710,8 @@ extern int zfs_show_diffs(zfs_handle_t *, int, const char *, const char *,
 extern const char *zfs_type_to_name(zfs_type_t);
 extern void zfs_refresh_properties(zfs_handle_t *);
 extern int zfs_name_valid(const char *, zfs_type_t);
-extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, char *, zfs_type_t);
+extern zfs_handle_t *zfs_path_to_zhandle(zfs_json_t *json,
+    libzfs_handle_t *, char *, zfs_type_t);
 extern boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
     zfs_type_t);
 extern int zfs_spa_version(zfs_handle_t *, int *);

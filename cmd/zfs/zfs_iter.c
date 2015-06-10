@@ -372,7 +372,7 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 int
 zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
     zfs_sort_column_t *sortcol, zprop_list_t **proplist, int limit,
-    zfs_iter_f callback, void *data)
+    zfs_iter_foreach_f callback, void *data, zfs_json_t *json)
 {
 	callback_data_t cb = {0};
 	int ret = 0;
@@ -456,11 +456,13 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 
 		for (i = 0; i < argc; i++) {
 			if (flags & ZFS_ITER_ARGS_CAN_BE_PATHS) {
-				zhp = zfs_path_to_zhandle(g_zfs, argv[i],
+				zhp = zfs_path_to_zhandle(json, g_zfs, argv[i],
 				    argtype);
-			} else {
+			} else if (!json->json && !json->ld_json) {
 				zhp = zfs_open(g_zfs, argv[i], argtype);
-			}
+			} else
+				zhp = zfs_json_open(json,
+				    g_zfs, argv[i], argtype);
 			if (zhp != NULL)
 				ret |= zfs_callback(zhp, &cb);
 			else
@@ -474,8 +476,7 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	 */
 	for (node = uu_avl_first(cb.cb_avl); node != NULL;
 	    node = uu_avl_next(cb.cb_avl, node))
-		ret |= callback(node->zn_handle, data);
-
+		ret |= callback(node->zn_handle, data, json);
 	/*
 	 * Finally, clean up the AVL tree.
 	 */

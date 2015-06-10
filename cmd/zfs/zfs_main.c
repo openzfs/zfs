@@ -76,6 +76,7 @@ static FILE *mnttab_file;
 static char history_str[HIS_MAX_RECORD_LEN];
 static boolean_t log_history = B_TRUE;
 
+int nvlist_print_json(FILE *fp, nvlist_t *nvl);
 static int zfs_do_clone(int argc, char **argv);
 static int zfs_do_create(int argc, char **argv);
 static int zfs_do_destroy(int argc, char **argv);
@@ -156,6 +157,7 @@ typedef struct zfs_command {
 	int		(*func)(int argc, char **argv);
 	zfs_help_t	usage;
 } zfs_command_t;
+
 
 /*
  * Master command table.  Each ZFS command has a name, associated function, and
@@ -258,9 +260,9 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return (gettext("\trollback [-rRf] <snapshot>\n"));
 	case HELP_SEND:
-		return (gettext("\tsend [-DnPpRvLe] [-[iI] snapshot] "
+		return (gettext("\tsend [-DnPpRrve] [-[iI] snapshot] "
 		    "<snapshot>\n"
-		    "\tsend [-Le] [-i snapshot|bookmark] "
+		    "\tsend [-e] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"));
 	case HELP_SET:
 		return (gettext("\tset <property=value> "
@@ -477,6 +479,9 @@ usage(boolean_t requested)
 
 	exit(requested ? 0 : 2);
 }
+
+
+
 
 static int
 parseprop(nvlist_t *props)
@@ -1460,7 +1465,7 @@ is_recvd_column(zprop_get_cbdata_t *cbp)
  * Invoked to display the properties for a single dataset.
  */
 static int
-get_callback(zfs_handle_t *zhp, void *data)
+get_callback(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	char buf[ZFS_MAXPROPLEN];
 	char rbuf[ZFS_MAXPROPLEN];
@@ -1582,6 +1587,8 @@ zfs_do_get(int argc, char **argv)
 	int ret = 0;
 	int limit = 0;
 	zprop_list_t fake_name = { 0 };
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/*
 	 * Set up default columns and sources.
@@ -1792,7 +1799,7 @@ zfs_do_get(int argc, char **argv)
 
 	/* run for each object */
 	ret = zfs_for_each(argc, argv, flags, types, NULL,
-	    &cb.cb_proplist, limit, get_callback, &cb);
+	    &cb.cb_proplist, limit, *get_callback, &cb, &json);
 
 	if (cb.cb_proplist == &fake_name)
 		zprop_free_list(fake_name.pl_next);
@@ -1821,7 +1828,7 @@ typedef struct inherit_cbdata {
 } inherit_cbdata_t;
 
 static int
-inherit_recurse_cb(zfs_handle_t *zhp, void *data)
+inherit_recurse_cb(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	inherit_cbdata_t *cb = data;
 	zfs_prop_t prop = zfs_name_to_prop(cb->cb_propname);
@@ -1838,7 +1845,7 @@ inherit_recurse_cb(zfs_handle_t *zhp, void *data)
 }
 
 static int
-inherit_cb(zfs_handle_t *zhp, void *data)
+inherit_cb(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	inherit_cbdata_t *cb = data;
 
@@ -1855,6 +1862,8 @@ zfs_do_inherit(int argc, char **argv)
 	int ret = 0;
 	int flags = 0;
 	boolean_t received = B_FALSE;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "rS")) != -1) {
@@ -1929,10 +1938,10 @@ zfs_do_inherit(int argc, char **argv)
 
 	if (flags & ZFS_ITER_RECURSE) {
 		ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_DATASET,
-		    NULL, NULL, 0, inherit_recurse_cb, &cb);
+		    NULL, NULL, 0, inherit_recurse_cb, &cb, &json);
 	} else {
-		ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_DATASET,
-		    NULL, NULL, 0, inherit_cb, &cb);
+			ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_DATASET,
+			    NULL, NULL, 0, inherit_cb, &cb, &json);
 	}
 
 	return (ret);
@@ -1961,7 +1970,7 @@ same_pool(zfs_handle_t *zhp, const char *name)
 }
 
 static int
-upgrade_list_callback(zfs_handle_t *zhp, void *data)
+upgrade_list_callback(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	upgrade_cbdata_t *cb = data;
 	int version = zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
@@ -1997,7 +2006,7 @@ upgrade_list_callback(zfs_handle_t *zhp, void *data)
 }
 
 static int
-upgrade_set_callback(zfs_handle_t *zhp, void *data)
+upgrade_set_callback(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	upgrade_cbdata_t *cb = data;
 	int version = zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
@@ -2068,6 +2077,8 @@ zfs_do_upgrade(int argc, char **argv)
 	upgrade_cbdata_t cb = { 0 };
 	signed char c;
 	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "rvV:a")) != -1) {
@@ -2133,7 +2144,7 @@ zfs_do_upgrade(int argc, char **argv)
 		if (cb.cb_version == 0)
 			cb.cb_version = ZPL_VERSION;
 		ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_FILESYSTEM,
-		    NULL, NULL, 0, upgrade_set_callback, &cb);
+		    NULL, NULL, 0, upgrade_set_callback, &cb, &json);
 		(void) printf(gettext("%llu filesystems upgraded\n"),
 		    (u_longlong_t)cb.cb_numupgraded);
 		if (cb.cb_numsamegraded) {
@@ -2151,14 +2162,14 @@ zfs_do_upgrade(int argc, char **argv)
 
 		flags |= ZFS_ITER_RECURSE;
 		ret = zfs_for_each(0, NULL, flags, ZFS_TYPE_FILESYSTEM,
-		    NULL, NULL, 0, upgrade_list_callback, &cb);
+		    NULL, NULL, 0, upgrade_list_callback, &cb, &json);
 
 		found = cb.cb_foundone;
 		cb.cb_foundone = B_FALSE;
 		cb.cb_newer = B_TRUE;
 
 		ret = zfs_for_each(0, NULL, flags, ZFS_TYPE_FILESYSTEM,
-		    NULL, NULL, 0, upgrade_list_callback, &cb);
+		    NULL, NULL, 0, upgrade_list_callback, &cb, &json);
 
 		if (!cb.cb_foundone && !found) {
 			(void) printf(gettext("All filesystems are "
@@ -2885,11 +2896,11 @@ zfs_do_userspace(int argc, char **argv)
  * Otherwise, list the specified datasets, optionally recursing down them if
  * '-r' is specified.
  */
-typedef struct list_cbdata {
-	boolean_t	cb_first;
-	boolean_t	cb_literal;
-	boolean_t	cb_scripted;
-	zprop_list_t	*cb_proplist;
+typedef struct	list_cbdata {
+	boolean_t		cb_first;
+	boolean_t		cb_literal;
+	boolean_t		cb_scripted;
+	zprop_list_t		*cb_proplist;
 } list_cbdata_t;
 
 /*
@@ -2930,7 +2941,6 @@ print_header(list_cbdata_t *cb)
 		else
 			(void) printf("%-*s", (int)pl->pl_width, header);
 	}
-
 	(void) printf("\n");
 }
 
@@ -2939,7 +2949,7 @@ print_header(list_cbdata_t *cb)
  * to the described layout.
  */
 static void
-print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
+print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb, zfs_json_t *json)
 {
 	zprop_list_t *pl = cb->cb_proplist;
 	boolean_t first = B_TRUE;
@@ -2948,9 +2958,20 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 	nvlist_t *propval;
 	char *propstr;
 	boolean_t right_justify;
+	nvlist_t *nv_dict_props = NULL;
+
+	if (json->json) {
+		json->nb_elem++;
+		json->json_data = realloc(json->json_data,
+		    sizeof (nvlist_t *) * json->nb_elem);
+		nv_dict_props = fnvlist_alloc();
+		((nvlist_t **)json->json_data)[json->nb_elem - 1] =
+		    nv_dict_props;
+	} else if (json->ld_json)
+		nv_dict_props = fnvlist_alloc();
 
 	for (; pl != NULL; pl = pl->pl_next) {
-		if (!first) {
+		if (!first && !json->json && ! json->ld_json) {
 			if (cb->cb_scripted)
 				(void) printf("\t");
 			else
@@ -3001,32 +3022,51 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 		 * last column and it is left-justified, don't include a width
 		 * format specifier.
 		 */
-		if (cb->cb_scripted || (pl->pl_next == NULL && !right_justify))
-			(void) printf("%s", propstr);
-		else if (right_justify)
-			(void) printf("%*s", (int)pl->pl_width, propstr);
-		else
-			(void) printf("%-*s", (int)pl->pl_width, propstr);
-	}
+		if (!json->json && !json->ld_json) {
+			if (cb->cb_scripted ||
+			    (pl->pl_next == NULL && !right_justify))
+				(void) printf("%s", propstr);
+			else if (right_justify)
+				(void) printf("%*s",
+				    (int)pl->pl_width, propstr);
+			else
+				(void) printf("%-*s",
+				    (int)pl->pl_width, propstr);
+		} else if (json->ld_json) {
 
-	(void) printf("\n");
+		fnvlist_add_string(nv_dict_props, zfs_prop_to_name(pl->pl_prop),
+		    propstr);
+		} else if (json->json) {
+			fnvlist_add_string(nv_dict_props,
+			    zfs_prop_to_name(pl->pl_prop),
+			    propstr);
+	}
+}
+	if (json->ld_json) {
+		nvlist_print_json(stdout, nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		fnvlist_free(nv_dict_props);
+	} else if (!json->json)
+		printf("\n");
 }
 
 /*
  * Generic callback function to list a dataset or snapshot.
  */
+
 static int
-list_callback(zfs_handle_t *zhp, void *data)
+list_callback(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	list_cbdata_t *cbp = data;
 
 	if (cbp->cb_first) {
-		if (!cbp->cb_scripted)
+		if (!cbp->cb_scripted && !json->json && !json->ld_json)
 			print_header(cbp);
 		cbp->cb_first = B_FALSE;
 	}
 
-	print_dataset(zhp, cbp);
+	print_dataset(zhp, cbp, json);
 
 	return (0);
 }
@@ -3044,12 +3084,33 @@ zfs_do_list(int argc, char **argv)
 	char *value;
 	int limit = 0;
 	int ret = 0;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 	zfs_sort_column_t *sortcol = NULL;
 	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "HS:d:o:prs:t:")) != -1) {
+	while ((c = getopt(argc, argv, "jJHS:d:o:prs:t:")) != -1) {
 		switch (c) {
+		case 'J':
+			json.json = B_TRUE;
+			json.nv_dict_props = fnvlist_alloc();
+			json.nv_dict_error = fnvlist_alloc();
+			json.nb_elem = 0;
+			cb.cb_literal = B_TRUE;
+			json.json_data = NULL;
+			fnvlist_add_string(json.nv_dict_props,
+			    "cmd", "zfs list");
+			fnvlist_add_string(json.nv_dict_error, "error", "");
+			break;
+		case 'j':
+			json.nv_dict_props = fnvlist_alloc();
+			json.nv_dict_error = fnvlist_alloc();
+			fnvlist_add_string(json.nv_dict_error, "error", "");
+			json.ld_json = B_TRUE;
+			cb.cb_literal = B_TRUE;
+			flags |= ZFS_ITER_LITERAL_PROPS;
+			break;
 		case 'o':
 			fields = optarg;
 			break;
@@ -3069,17 +3130,31 @@ zfs_do_list(int argc, char **argv)
 		case 's':
 			if (zfs_add_sort_column(&sortcol, optarg,
 			    B_FALSE) != 0) {
-				(void) fprintf(stderr,
-				    gettext("invalid property '%s'\n"), optarg);
-				usage(B_FALSE);
+				if (json.json || json.ld_json) {
+					fnvlist_add_string(json.nv_dict_error,
+					    "stderr", "invalid property");
+					goto json_out;
+				} else {
+					(void) fprintf(stderr,
+					    gettext("invalid property '%s'\n"),
+					    optarg);
+					usage(B_FALSE);
+				}
 			}
 			break;
 		case 'S':
 			if (zfs_add_sort_column(&sortcol, optarg,
 			    B_TRUE) != 0) {
-				(void) fprintf(stderr,
-				    gettext("invalid property '%s'\n"), optarg);
-				usage(B_FALSE);
+				if (json.json || json.ld_json) {
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", "invalid property");
+					goto json_out;
+				} else {
+					(void) fprintf(stderr,
+					    gettext("invalid property '%s'\n"),
+					    optarg);
+					usage(B_FALSE);
+				}
 			}
 			break;
 		case 't':
@@ -3111,22 +3186,42 @@ zfs_do_list(int argc, char **argv)
 					    ZFS_TYPE_BOOKMARK;
 					break;
 				default:
+				if (json.json || json.ld_json) {
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", "invalid type");
+					goto json_out;
+				} else {
 					(void) fprintf(stderr,
 					    gettext("invalid type '%s'\n"),
 					    value);
 					usage(B_FALSE);
 				}
+				}
 			}
 			break;
 		case ':':
-			(void) fprintf(stderr, gettext("missing argument for "
-			    "'%c' option\n"), optopt);
-			usage(B_FALSE);
+			if (json.json || json.ld_json) {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", "missing argument");
+				goto json_out;
+			} else  {
+				(void) fprintf(stderr,
+				    gettext("missing argument for "
+				    "'%c' option\n"), optopt);
+				usage(B_FALSE);
+			}
 			break;
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
-			    optopt);
-			usage(B_FALSE);
+			if (json.json || json.ld_json) {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", "invalid option");
+				goto json_out;
+			} else {
+				(void) fprintf(stderr,
+				    gettext("invalid option '%c'\n"),
+				    optopt);
+				usage(B_FALSE);
+			}
 		}
 	}
 
@@ -3160,18 +3255,52 @@ zfs_do_list(int argc, char **argv)
 
 	cb.cb_first = B_TRUE;
 
-	ret = zfs_for_each(argc, argv, flags, types, sortcol, &cb.cb_proplist,
-	    limit, list_callback, &cb);
+	ret = zfs_for_each(argc, argv, flags, types,
+	    sortcol, &cb.cb_proplist, limit, list_callback, &cb, &json);
+	if (json.ld_json) {
+		json.nv_dict_props = fnvlist_alloc();
+		if (cb.cb_first && ret == 0) {
+			fnvlist_add_string(json.nv_dict_error, "error",
+			    "no datasets available");
+			goto json_out;
+		}
+
+	} else if (json.json) {
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+			    (nvlist_t **)json.json_data, json.nb_elem);
+		if (ret == 0 && cb.cb_first) {
+			fnvlist_add_string(json.nv_dict_error, "error",
+			    "no datasets available");
+			goto json_out;
+		}
+	}
 
 	zprop_free_list(cb.cb_proplist);
 	zfs_free_sort_columns(sortcol);
 
-	if (ret == 0 && cb.cb_first && !cb.cb_scripted)
+	if (ret == 0 && cb.cb_first && !cb.cb_scripted &&
+	    (!json.json && !json.ld_json))
 		(void) fprintf(stderr, gettext("no datasets available\n"));
-
+	json_out:
+		if (json.json) {
+			fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+			    (nvlist_t **)json.json_data, json.nb_elem);
+			fnvlist_add_nvlist(json.nv_dict_props,
+			    "stderr", json.nv_dict_error);
+			nvlist_print_json(stdout, json.nv_dict_props);
+			fprintf(stdout, "\n");
+			fflush(stdout);
+			while (((json.nb_elem)--) > 0)
+				fnvlist_free(
+				    ((nvlist_t **)
+				    (json.json_data))[json.nb_elem]);
+			free(json.json_data);
+			fnvlist_free(json.nv_dict_error);
+			fnvlist_free(json.nv_dict_props);
+		}
 	return (ret);
-}
 
+}
 /*
  * zfs rename [-f] <fs | snap | vol> <fs | snap | vol>
  * zfs rename [-f] -p <fs | vol> <fs | vol>
@@ -3351,7 +3480,7 @@ rollback_check_dependent(zfs_handle_t *zhp, void *data)
  * without checking the transaction group.
  */
 static int
-rollback_check(zfs_handle_t *zhp, void *data)
+rollback_check(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	rollback_cbdata_t *cbp = data;
 
@@ -3398,6 +3527,8 @@ zfs_do_rollback(int argc, char **argv)
 	zfs_handle_t *zhp, *snap;
 	char parentname[ZFS_MAXNAMELEN];
 	char *delim;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "rRf")) != -1) {
@@ -3453,9 +3584,11 @@ zfs_do_rollback(int argc, char **argv)
 	cb.cb_create = zfs_prop_get_int(snap, ZFS_PROP_CREATETXG);
 	cb.cb_first = B_TRUE;
 	cb.cb_error = 0;
-	if ((ret = zfs_iter_snapshots(zhp, B_FALSE, rollback_check, &cb)) != 0)
+	if ((ret = zfs_iter_snapshots(zhp,
+	    B_FALSE, (zfs_iter_f)rollback_check, &cb)) != 0)
 		goto out;
-	if ((ret = zfs_iter_bookmarks(zhp, rollback_check, &cb)) != 0)
+	if ((ret = zfs_iter_bookmarks(zhp,
+	    (zfs_iter_f) rollback_check, &cb)) != 0)
 		goto out;
 
 	if ((ret = cb.cb_error) != 0)
@@ -3487,7 +3620,7 @@ typedef struct set_cbdata {
 } set_cbdata_t;
 
 static int
-set_callback(zfs_handle_t *zhp, void *data)
+set_callback(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	set_cbdata_t *cbp = data;
 
@@ -3512,6 +3645,8 @@ zfs_do_set(int argc, char **argv)
 {
 	set_cbdata_t cb;
 	int ret = 0;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check for options */
 	if (argc > 1 && argv[1][0] == '-') {
@@ -3550,7 +3685,7 @@ zfs_do_set(int argc, char **argv)
 	}
 
 	ret = zfs_for_each(argc - 2, argv + 2, 0,
-	    ZFS_TYPE_DATASET, NULL, NULL, 0, set_callback, &cb);
+	    ZFS_TYPE_DATASET, NULL, NULL, 0, set_callback, &cb, &json);
 
 	return (ret);
 }
@@ -5436,7 +5571,7 @@ print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl)
  * Generic callback function to list a dataset or snapshot.
  */
 static int
-holds_callback(zfs_handle_t *zhp, void *data)
+holds_callback(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	holds_cbdata_t *cbp = data;
 	nvlist_t *top_nvl = *cbp->cb_nvlp;
@@ -5487,6 +5622,8 @@ zfs_do_holds(int argc, char **argv)
 	boolean_t recursive = B_FALSE;
 	const char *opts = "rH";
 	nvlist_t *nvl;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	int types = ZFS_TYPE_SNAPSHOT;
 	holds_cbdata_t cb = { 0 };
@@ -5550,7 +5687,7 @@ zfs_do_holds(int argc, char **argv)
 		 *  1. collect holds data, set format options
 		 */
 		ret = zfs_for_each(argc, argv, flags, types, NULL, NULL, limit,
-		    holds_callback, &cb);
+		    holds_callback, &cb, &json);
 		if (ret != 0)
 			++errors;
 	}

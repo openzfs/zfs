@@ -139,6 +139,9 @@ typedef enum {
 int zfs_error(libzfs_handle_t *, int, const char *);
 int zfs_error_fmt(libzfs_handle_t *, int, const char *, ...);
 void zfs_error_aux(libzfs_handle_t *, const char *, ...);
+int zfs_json_error(zfs_json_t *, libzfs_handle_t *, int, const char *);
+int zfs_json_error_fmt(zfs_json_t *, libzfs_handle_t *, int, const char *, ...);
+void zfs_json_error_aux(zfs_json_t *, libzfs_handle_t *, const char *, ...);
 void *zfs_alloc(libzfs_handle_t *, size_t);
 void *zfs_realloc(libzfs_handle_t *, void *, size_t, size_t);
 char *zfs_asprintf(libzfs_handle_t *, const char *, ...);
