@@ -609,6 +609,7 @@ extern void delay(clock_t ticks);
 	} while (0);
 
 #define	max_ncpus	64
+#define	num_online_cpus() (sysconf(_SC_NPROCESSORS_ONLN))
 
 #define	minclsyspri	60
 #define	maxclsyspri	99

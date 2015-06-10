@@ -45,7 +45,6 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	TP_STRUCT__entry(
 	    __array(uint64_t,		hdr_dva_word, 2)
 	    __field(uint64_t,		hdr_birth)
-	    __field(uint64_t,		hdr_cksum0)
 	    __field(uint32_t,		hdr_flags)
 	    __field(uint32_t,		hdr_datacnt)
 	    __field(arc_buf_contents_t,	hdr_type)
@@ -64,27 +63,25 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	    __entry->hdr_dva_word[0]	= ab->b_dva.dva_word[0];
 	    __entry->hdr_dva_word[1]	= ab->b_dva.dva_word[1];
 	    __entry->hdr_birth		= ab->b_birth;
-	    __entry->hdr_cksum0		= ab->b_cksum0;
 	    __entry->hdr_flags		= ab->b_flags;
-	    __entry->hdr_datacnt	= ab->b_datacnt;
-	    __entry->hdr_type		= ab->b_type;
+	    __entry->hdr_datacnt	= ab->b_l1hdr.b_datacnt;
 	    __entry->hdr_size		= ab->b_size;
 	    __entry->hdr_spa		= ab->b_spa;
-	    __entry->hdr_state_type	= ab->b_state->arcs_state;
-	    __entry->hdr_access		= ab->b_arc_access;
-	    __entry->hdr_mru_hits	= ab->b_mru_hits;
-	    __entry->hdr_mru_ghost_hits	= ab->b_mru_ghost_hits;
-	    __entry->hdr_mfu_hits	= ab->b_mfu_hits;
-	    __entry->hdr_mfu_ghost_hits	= ab->b_mfu_ghost_hits;
-	    __entry->hdr_l2_hits	= ab->b_l2_hits;
-	    __entry->hdr_refcount	= ab->b_refcnt.rc_count;
+	    __entry->hdr_state_type	= ab->b_l1hdr.b_state->arcs_state;
+	    __entry->hdr_access		= ab->b_l1hdr.b_arc_access;
+	    __entry->hdr_mru_hits	= ab->b_l1hdr.b_mru_hits;
+	    __entry->hdr_mru_ghost_hits	= ab->b_l1hdr.b_mru_ghost_hits;
+	    __entry->hdr_mfu_hits	= ab->b_l1hdr.b_mfu_hits;
+	    __entry->hdr_mfu_ghost_hits	= ab->b_l1hdr.b_mfu_ghost_hits;
+	    __entry->hdr_l2_hits	= ab->b_l1hdr.b_l2_hits;
+	    __entry->hdr_refcount	= ab->b_l1hdr.b_refcnt.rc_count;
 	),
-	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu cksum0 0x%llx "
+	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu "
 	    "flags 0x%x datacnt %u type %u size %llu spa %llu "
 	    "state_type %u access %lu mru_hits %u mru_ghost_hits %u "
 	    "mfu_hits %u mfu_ghost_hits %u l2_hits %u refcount %lli }",
 	    __entry->hdr_dva_word[0], __entry->hdr_dva_word[1],
-	    __entry->hdr_birth, __entry->hdr_cksum0, __entry->hdr_flags,
+	    __entry->hdr_birth, __entry->hdr_flags,
 	    __entry->hdr_datacnt, __entry->hdr_type, __entry->hdr_size,
 	    __entry->hdr_spa, __entry->hdr_state_type,
 	    __entry->hdr_access, __entry->hdr_mru_hits,
@@ -261,7 +258,6 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	TP_STRUCT__entry(
 	    __array(uint64_t,		hdr_dva_word, 2)
 	    __field(uint64_t,		hdr_birth)
-	    __field(uint64_t,		hdr_cksum0)
 	    __field(uint32_t,		hdr_flags)
 	    __field(uint32_t,		hdr_datacnt)
 	    __field(arc_buf_contents_t,	hdr_type)
@@ -292,20 +288,18 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    __entry->hdr_dva_word[0]	= hdr->b_dva.dva_word[0];
 	    __entry->hdr_dva_word[1]	= hdr->b_dva.dva_word[1];
 	    __entry->hdr_birth		= hdr->b_birth;
-	    __entry->hdr_cksum0		= hdr->b_cksum0;
 	    __entry->hdr_flags		= hdr->b_flags;
-	    __entry->hdr_datacnt	= hdr->b_datacnt;
-	    __entry->hdr_type		= hdr->b_type;
+	    __entry->hdr_datacnt	= hdr->b_l1hdr.b_datacnt;
 	    __entry->hdr_size		= hdr->b_size;
 	    __entry->hdr_spa		= hdr->b_spa;
-	    __entry->hdr_state_type	= hdr->b_state->arcs_state;
-	    __entry->hdr_access		= hdr->b_arc_access;
-	    __entry->hdr_mru_hits	= hdr->b_mru_hits;
-	    __entry->hdr_mru_ghost_hits	= hdr->b_mru_ghost_hits;
-	    __entry->hdr_mfu_hits	= hdr->b_mfu_hits;
-	    __entry->hdr_mfu_ghost_hits	= hdr->b_mfu_ghost_hits;
-	    __entry->hdr_l2_hits	= hdr->b_l2_hits;
-	    __entry->hdr_refcount	= hdr->b_refcnt.rc_count;
+	    __entry->hdr_state_type	= hdr->b_l1hdr.b_state->arcs_state;
+	    __entry->hdr_access		= hdr->b_l1hdr.b_arc_access;
+	    __entry->hdr_mru_hits	= hdr->b_l1hdr.b_mru_hits;
+	    __entry->hdr_mru_ghost_hits	= hdr->b_l1hdr.b_mru_ghost_hits;
+	    __entry->hdr_mfu_hits	= hdr->b_l1hdr.b_mfu_hits;
+	    __entry->hdr_mfu_ghost_hits	= hdr->b_l1hdr.b_mfu_ghost_hits;
+	    __entry->hdr_l2_hits	= hdr->b_l1hdr.b_l2_hits;
+	    __entry->hdr_refcount	= hdr->b_l1hdr.b_refcnt.rc_count;
 
 	    __entry->bp_dva0[0]		= bp->blk_dva[0].dva_word[0];
 	    __entry->bp_dva0[1]		= bp->blk_dva[0].dva_word[1];
@@ -325,8 +319,8 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    __entry->zb_level		= zb->zb_level;
 	    __entry->zb_blkid		= zb->zb_blkid;
 	),
-	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu cksum0 0x%llx "
-	    "flags 0x%x datacnt %u type %u size %llu spa %llu state_type %u "
+	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu "
+	    "flags 0x%x datacnt %u size %llu spa %llu state_type %u "
 	    "access %lu mru_hits %u mru_ghost_hits %u mfu_hits %u "
 	    "mfu_ghost_hits %u l2_hits %u refcount %lli } "
 	    "bp { dva0 0x%llx:0x%llx dva1 0x%llx:0x%llx dva2 "
@@ -334,8 +328,8 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    "lsize %llu } zb { objset %llu object %llu level %lli "
 	    "blkid %llu }",
 	    __entry->hdr_dva_word[0], __entry->hdr_dva_word[1],
-	    __entry->hdr_birth, __entry->hdr_cksum0, __entry->hdr_flags,
-	    __entry->hdr_datacnt, __entry->hdr_type, __entry->hdr_size,
+	    __entry->hdr_birth, __entry->hdr_flags,
+	    __entry->hdr_datacnt, __entry->hdr_size,
 	    __entry->hdr_spa, __entry->hdr_state_type, __entry->hdr_access,
 	    __entry->hdr_mru_hits, __entry->hdr_mru_ghost_hits,
 	    __entry->hdr_mfu_hits, __entry->hdr_mfu_ghost_hits,
