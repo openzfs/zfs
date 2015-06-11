@@ -48,12 +48,12 @@ dbuf_stats_hash_table_headers(char *buf, size_t size)
 	(void) snprintf(buf, size,
 	    "%-88s | %-124s | %s\n"
 	    "%-16s %-8s %-8s %-8s %-8s %-8s %-8s %-5s %-5s %5s | "
-	    "%-5s %-5s %-6s %-8s %-6s %-8s %-12s "
+	    "%-5s %-5s %-8s %-6s %-8s %-12s "
 	    "%-6s %-6s %-6s %-6s %-6s %-8s %-8s %-8s %-5s | "
 	    "%-6s %-6s %-8s %-8s %-6s %-6s %-5s %-8s %-8s\n",
 	    "dbuf", "arcbuf", "dnode", "pool", "objset", "object", "level",
 	    "blkid", "offset", "dbsize", "meta", "state", "dbholds", "list",
-	    "atype", "index", "flags", "count", "asize", "access",
+	    "atype", "flags", "count", "asize", "access",
 	    "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
 	    "l2_comp", "aholds", "dtype", "btype", "data_bs", "meta_bs",
 	    "bsize", "lvls", "dholds", "blocks", "dsize");
@@ -77,7 +77,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 
 	nwritten = snprintf(buf, size,
 	    "%-16s %-8llu %-8lld %-8lld %-8lld %-8llu %-8llu %-5d %-5d %-5lu | "
-	    "%-5d %-5d %-6lld 0x%-6x %-6lu %-8llu %-12llu "
+	    "%-5d %-5d 0x%-6x %-6lu %-8llu %-12llu "
 	    "%-6lu %-6lu %-6lu %-6lu %-6lu %-8llu %-8llu %-8d %-5lu | "
 	    "%-6d %-6d %-8lu %-8lu %-6llu %-6lu %-5lu %-8llu %-8llu\n",
 	    /* dmu_buf_impl_t */
@@ -94,7 +94,6 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    /* arc_buf_info_t */
 	    abi.abi_state_type,
 	    abi.abi_state_contents,
-	    (longlong_t)abi.abi_state_index,
 	    abi.abi_flags,
 	    (ulong_t)abi.abi_datacnt,
 	    (u_longlong_t)abi.abi_size,
