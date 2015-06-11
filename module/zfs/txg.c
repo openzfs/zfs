@@ -242,10 +242,10 @@ txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, clock_t time)
 	CALLB_CPR_SAFE_BEGIN(cpr);
 
 	if (time)
-		(void) cv_timedwait_interruptible(cv, &tx->tx_sync_lock,
+		(void) cv_timedwait_sig(cv, &tx->tx_sync_lock,
 		    ddi_get_lbolt() + time);
 	else
-		cv_wait_interruptible(cv, &tx->tx_sync_lock);
+		cv_wait_sig(cv, &tx->tx_sync_lock);
 
 	CALLB_CPR_SAFE_END(cpr, &tx->tx_sync_lock);
 }

@@ -676,7 +676,7 @@ zfs_zevent_wait(zfs_zevent_t *ze)
 	}
 
 	zevent_waiters++;
-	cv_wait_interruptible(&zevent_cv, &zevent_lock);
+	cv_wait_sig(&zevent_cv, &zevent_lock);
 	if (issig(JUSTLOOKING))
 		error = EINTR;
 
