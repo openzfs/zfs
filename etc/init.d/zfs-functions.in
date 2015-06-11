@@ -371,13 +371,16 @@ read_mtab()
 	# Unset all MTAB_* variables
 	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
 
-	while read -r fs mntpnt fstype opts rest; do
-		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
-			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,_,g' \
-			    -e 's,-,_,g' -e 's,\.,_,g')
-			eval export MTAB_$mntpnt="$fs"
-		fi
-	done < /proc/mounts
+	mount | \
+	    grep -E "$match" | \
+	    sed "s,\(.*\) on \(.*\) type .*,\1;\2," | \
+	    while read line; do
+		mntpnt=$(echo "$line" | sed -e 's,;.*,,' -e 's,/,_,g' \
+		    -e 's,-,_,g' -e 's,\.,_,g' -e 's, ,_,g')
+		fs=$(echo "$line" | sed 's,.*;,,')
+
+		eval export MTAB_$mntpnt="'$fs'"
+	done
 }
 
 in_mtab()
