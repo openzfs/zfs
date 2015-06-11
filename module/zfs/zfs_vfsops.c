@@ -1079,7 +1079,8 @@ EXPORT_SYMBOL(zfs_root);
  * blocks but can't because they are all pinned by entries in these caches.
  */
 int
-zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
+zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects,
+    int flags)
 {
 	zfs_sb_t *zsb = sb->s_fs_info;
 	int error = 0;
@@ -1091,7 +1092,8 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	};
 #endif
 
-	ZFS_ENTER(zsb);
+	if (flags)
+		ZFS_ENTER(zsb);
 
 #if defined(HAVE_SPLIT_SHRINKER_CALLBACK)
 	*objects = (*shrinker->scan_objects)(shrinker, &sc);
@@ -1110,7 +1112,8 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	*objects = 0;
 	shrink_dcache_parent(sb->s_root);
 #endif
-	ZFS_EXIT(zsb);
+	if (flags)
+		ZFS_EXIT(zsb);
 
 	dprintf_ds(zsb->z_os->os_dsl_dataset,
 	    "pruning, nr_to_scan=%lu objects=%d error=%d\n",

@@ -6045,6 +6045,11 @@ zfs_allow_log_destroy(void *arg)
 #define	ZFS_DEBUG_STR	""
 #endif
 
+#ifdef KMEM_DEBUG_DIRECT_RECLAIM
+void zfs_debug_direct_reclaim_init(void);
+void zfs_debug_direct_reclaim_fini(void);
+#endif
+
 static int __init
 _init(void)
 {
@@ -6080,6 +6085,9 @@ _init(void)
 	printk(KERN_NOTICE "ZFS: Posix ACLs disabled by kernel\n");
 #endif /* CONFIG_FS_POSIX_ACL */
 
+#ifdef KMEM_DEBUG_DIRECT_RECLAIM
+	zfs_debug_direct_reclaim_init();
+#endif
 	return (0);
 
 out2:
@@ -6097,6 +6105,9 @@ out1:
 static void __exit
 _fini(void)
 {
+#ifdef KMEM_DEBUG_DIRECT_RECLAIM
+	zfs_debug_direct_reclaim_fini();
+#endif
 	zfs_detach();
 	zvol_fini();
 	zfs_fini();

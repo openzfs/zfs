@@ -306,12 +306,12 @@ zpl_kill_sb(struct super_block *sb)
 }
 
 void
-zpl_prune_sb(int64_t nr_to_scan, void *arg)
+zpl_prune_sb(int64_t nr_to_scan, void *arg, int flags)
 {
 	struct super_block *sb = (struct super_block *)arg;
 	int objects = 0;
 
-	(void) -zfs_sb_prune(sb, nr_to_scan, &objects);
+	(void) -zfs_sb_prune(sb, nr_to_scan, &objects, flags);
 }
 
 #ifdef HAVE_NR_CACHED_OBJECTS

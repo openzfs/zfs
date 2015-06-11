@@ -2149,7 +2149,7 @@ arc_adjust(void)
  * by higher layers.  (i.e. the zpl)
  */
 static void
-arc_do_user_prune(int64_t adjustment)
+arc_do_user_prune(int64_t adjustment, int flags)
 {
 	arc_prune_func_t *func;
 	void *private;
@@ -2166,7 +2166,7 @@ arc_do_user_prune(int64_t adjustment)
 		mutex_exit(&arc_prune_mtx);
 
 		if (func != NULL)
-			func(adjustment, private);
+			func(adjustment, private, flags);
 
 		mutex_enter(&arc_prune_mtx);
 
@@ -2293,7 +2293,7 @@ restart:
 
 			if (zfs_arc_meta_prune) {
 				prune += zfs_arc_meta_prune;
-				arc_do_user_prune(prune);
+				arc_do_user_prune(prune, 1);
 			}
 		}
 
@@ -2639,6 +2639,42 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
 SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
+
+#ifdef KMEM_DEBUG_DIRECT_RECLAIM
+static void
+zfs_debug_direct_reclaim_func(int flags, unsigned long *last, const char *c)
+{
+	int rand = 0;
+	unsigned long l = *last;
+
+	/* frequent hitter, throttle it by random number */
+	if (jiffies - l < (HZ/2)) {
+		get_random_bytes(&rand, 2);
+		if ((rand & 0x3ff) != 0)
+			return;
+	}
+	*last = jiffies;
+
+	printk_ratelimited("%s\n", c);
+	/* prevent recursive direct reclaim */
+	current->flags |= PF_MEMALLOC;
+	arc_do_user_prune(16, 0);
+	current->flags &= ~PF_MEMALLOC;
+
+}
+
+void
+zfs_debug_direct_reclaim_init(void)
+{
+	spl_kmem_debug_direct_reclaim_register(zfs_debug_direct_reclaim_func);
+}
+
+void
+zfs_debug_direct_reclaim_fini(void)
+{
+	spl_kmem_debug_direct_reclaim_unregister();
+}
+#endif
 #endif /* _KERNEL */
 
 /*
