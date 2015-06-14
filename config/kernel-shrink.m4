@@ -109,3 +109,25 @@ AC_DEFUN([ZFS_AC_KERNEL_FREE_CACHED_OBJECTS], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 3.12 API change
+dnl # The nid member was added to struct shrink_control to support
+dnl # NUMA-aware shrinkers.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID], [
+	AC_MSG_CHECKING([whether shrink_control has nid])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		struct shrink_control sc __attribute__ ((unused));
+		unsigned long scnidsize __attribute__ ((unused)) =
+		    sizeof(sc.nid);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(SHRINK_CONTROL_HAS_NID, 1,
+		    [struct shrink_control has nid])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
