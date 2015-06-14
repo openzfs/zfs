@@ -68,7 +68,6 @@
 #include <sys/zpl.h>
 #include "zfs_comutil.h"
 
-
 /*ARGSUSED*/
 int
 zfs_sync(struct super_block *sb, int wait, cred_t *cr)
@@ -1093,7 +1092,17 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 
 	ZFS_ENTER(zsb);
 
-#if defined(HAVE_SPLIT_SHRINKER_CALLBACK)
+#if defined(HAVE_SPLIT_SHRINKER_CALLBACK) && \
+	defined(SHRINK_CONTROL_HAS_NID) && \
+	defined(SHRINKER_NUMA_AWARE)
+	if (sb->s_shrink.flags & SHRINKER_NUMA_AWARE) {
+		*objects = 0;
+		for_each_online_node(sc.nid)
+			*objects += (*shrinker->scan_objects)(shrinker, &sc);
+	} else {
+			*objects = (*shrinker->scan_objects)(shrinker, &sc);
+	}
+#elif defined(HAVE_SPLIT_SHRINKER_CALLBACK)
 	*objects = (*shrinker->scan_objects)(shrinker, &sc);
 #elif defined(HAVE_SHRINK)
 	*objects = (*shrinker->shrink)(shrinker, &sc);
