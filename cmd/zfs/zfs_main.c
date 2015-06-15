@@ -4098,7 +4098,14 @@ zfs_do_list(int argc, char **argv)
 			free(json.json_data);
 			fnvlist_free(json.nv_dict_error);
 			fnvlist_free(json.nv_dict_props);
+		} else if (json.ld_json) {
+			nvlist_print_json(stdout, json.nv_dict_error);
+			fnvlist_free(json.nv_dict_error);
+			fnvlist_free(json.nv_dict_props);
+			fprintf(stdout, "\n");
+			fflush(stdout);
 		}
+
 	return (ret);
 
 }
