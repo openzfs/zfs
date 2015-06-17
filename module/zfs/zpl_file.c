@@ -193,11 +193,38 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	return (error);
 }
 
+#ifdef HAVE_ITER_FOPS
+struct aio_kiocb {
+	struct kiocb		common;
+
+	struct kioctx		*ki_ctx;
+	kiocb_cancel_fn		*ki_cancel;
+
+	struct iocb __user	*ki_user_iocb;	/* user's aiocb */
+	__u64			ki_user_data;	/* user's data for completion */
+
+	struct list_head	ki_list;	/* the aio core uses this */
+						/* for cancellation */
+
+	/*
+	 * If the aio_resfd field of the userspace iocb is not zero,
+	 * this is the underlying eventfd context to deliver events to.
+	 */
+	struct eventfd_ctx	*ki_eventfd;
+};
+#endif
+
 static int
 zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 {
+#ifdef HAVE_ITER_FOPS
+	struct aio_kiocb *iocb = container_of(kiocb, struct aio_kiocb, common);
+	unsigned long ki_nbytes = iocb->ki_user_iocb->aio_nbytes;
+#else
+	unsigned long ki_nbytes = kiocb->ki_nbytes;
+#endif
 	return (zpl_fsync(kiocb->ki_filp, kiocb->ki_pos,
-	    kiocb->ki_pos + kiocb->ki_nbytes, datasync));
+	    kiocb->ki_pos + ki_nbytes, datasync));
 }
 #else
 #error "Unsupported fops->fsync() implementation"
@@ -261,12 +288,20 @@ zpl_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 }
 
 static ssize_t
+#ifdef HAVE_ITER_FOPS
+zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
+{
+	unsigned long nr_segs = to->nr_segs;
+	const struct iovec *iovp = to->iov;
+	size_t count = iov_iter_count(to);
+#else
 zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
 	unsigned long nr_segs, loff_t pos)
 {
+	size_t count = kiocb->ki_nbytes;
+#endif
 	cred_t *cr = CRED();
 	struct file *filp = kiocb->ki_filp;
-	size_t count = kiocb->ki_nbytes;
 	ssize_t read;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
 	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
@@ -344,12 +379,20 @@ zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 }
 
 static ssize_t
+#ifdef HAVE_ITER_FOPS
+zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
+{
+	unsigned long nr_segs = from->nr_segs;
+	const struct iovec *iovp = from->iov;
+	size_t count = iov_iter_count(from);
+#else
 zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
 	unsigned long nr_segs, loff_t pos)
 {
+	size_t count = kiocb->ki_nbytes;
+#endif
 	cred_t *cr = CRED();
 	struct file *filp = kiocb->ki_filp;
-	size_t count = kiocb->ki_nbytes;
 	ssize_t wrote;
 	size_t alloc_size = sizeof (struct iovec) * nr_segs;
 	struct iovec *iov_tmp = kmem_alloc(alloc_size, KM_SLEEP);
@@ -778,8 +821,13 @@ const struct file_operations zpl_file_operations = {
 	.llseek		= zpl_llseek,
 	.read		= zpl_read,
 	.write		= zpl_write,
+#ifdef HAVE_ITER_FOPS
+	.read_iter	= zpl_iter_read,
+	.write_iter	= zpl_iter_write,
+#else
 	.aio_read	= zpl_aio_read,
 	.aio_write	= zpl_aio_write,
+#endif
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
 	.aio_fsync	= zpl_aio_fsync,
