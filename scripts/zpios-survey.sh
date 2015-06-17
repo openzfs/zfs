@@ -3,7 +3,7 @@
 # Wrapper script for easily running a survey of zpios based tests
 #
 
-basedir="$(dirname $0)"
+basedir="$(dirname "$0")"
 
 SCRIPT_COMMON=common.sh
 if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
@@ -34,7 +34,7 @@ EOF
 }
 
 print_header() {
-tee -a ${ZPIOS_SURVEY_LOG} << EOF
+tee -a "${ZPIOS_SURVEY_LOG}" << EOF
 
 ================================================================
 Test: $1
@@ -46,14 +46,15 @@ EOF
 # for this to perform reasonably well.
 zpios_survey_base() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+baseline"
-	print_header ${TEST_NAME}
+	print_header "${TEST_NAME}"
 
-	${ZFS_SH} ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZFS_SH} -u ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
+	"${ZFS_SH}" "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZPIOS_SH}" "${VERBOSE_FLAG}" -c "${ZPOOL_CONFIG}" \
+		-t "${ZPIOS_TEST}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZFS_SH}" -u "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
 }
 
 # Disable ZFS's prefetching.  For some reason still not clear to me
@@ -62,45 +63,45 @@ zpios_survey_base() {
 # anything may be the way to address this issue.
 zpios_survey_prefetch() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+prefetch"
-	print_header ${TEST_NAME}
+	print_header "${TEST_NAME}"
 
-	${ZFS_SH} ${VERBOSE_FLAG}               \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
-		-o "--noprefetch" |                                    \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZFS_SH} -u ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
+	"${ZFS_SH}" "${VERBOSE_FLAG}" \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZPIOS_SH}" "${VERBOSE_FLAG}" -c "${ZPOOL_CONFIG}" \
+		-t "${ZPIOS_TEST}" -o "--noprefetch" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZFS_SH}" -u "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
 }
 
 # Simulating a zerocopy IO path should improve performance by freeing up
 # lots of CPU which is wasted move data between buffers.
 zpios_survey_zerocopy() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+zerocopy"
-	print_header ${TEST_NAME}
+	print_header "${TEST_NAME}"
 
-	${ZFS_SH} ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
-		-o "--zerocopy" |                                      \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZFS_SH} -u ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
+	"${ZFS_SH}" "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZPIOS_SH}" "${VERBOSE_FLAG}" -c "${ZPOOL_CONFIG}" \
+		 -t "${ZPIOS_TEST}" -o "--zerocopy" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZFS_SH}" -u "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
 }
 
 # Disabling checksumming should show some (if small) improvement
 # simply due to freeing up a modest amount of CPU.
 zpios_survey_checksum() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+checksum"
-	print_header ${TEST_NAME}
+	print_header "${TEST_NAME}"
 
-	${ZFS_SH} ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
-		-s "set checksum=off" |                                \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZFS_SH} -u ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
+	"${ZFS_SH}" "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZPIOS_SH}" "${VERBOSE_FLAG}" -c "${ZPOOL_CONFIG}" \
+		-t "${ZPIOS_TEST}" -s "set checksum=off" |   \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZFS_SH}" -u "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
 }
 
 # Increasing the pending IO depth also seems to improve things likely
@@ -109,31 +110,33 @@ zpios_survey_checksum() {
 # may be some low hanging fruit to be found here.
 zpios_survey_pending() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+pending"
-	print_header ${TEST_NAME}
+	print_header "${TEST_NAME}"
 
-	${ZFS_SH} ${VERBOSE_FLAG}                  \
+	"${ZFS_SH}" "${VERBOSE_FLAG}"             \
 		zfs="zfs_vdev_max_pending=1024" | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZFS_SH} -u ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZPIOS_SH}" "${VERBOSE_FLAG}" -c "${ZPOOL_CONFIG}" \
+		-t "${ZPIOS_TEST}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZFS_SH}" -u "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
 }
 
 # Apply all possible turning concurrently to get a best case number
+# shellcheck disable=SC2036
 zpios_survey_all() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+all"
-	print_header ${TEST_NAME}
+	print_header "${TEST_NAME}"
 
-	${ZFS_SH} ${VERBOSE_FLAG}                \  
+	"${ZFS_SH}" "${VERBOSE_FLAG}"             \  
 		zfs="zfs_vdev_max_pending=1024" | \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
-		-o "--noprefetch --zerocopy"                           \
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZPIOS_SH}" "${VERBOSE_FLAG}" -c "${ZPOOL_CONFIG}"           \
+		-t "${ZPIOS_TEST}" -o "--noprefetch --zerocopy"        \
 		-s "set checksum=off" |                                \
-		tee -a ${ZPIOS_SURVEY_LOG}
-	${ZFS_SH} -u ${VERBOSE_FLAG} | \
-		tee -a ${ZPIOS_SURVEY_LOG}
+		tee -a "${ZPIOS_SURVEY_LOG}"
+	"${ZFS_SH}" -u "${VERBOSE_FLAG}" | \
+		tee -a "${ZPIOS_SURVEY_LOG}"
 }
 
 
@@ -158,13 +161,13 @@ while getopts 'hvpc:t:l:' OPTION; do
 		PROFILE_FLAG="-p"
 		;;
 	c)
-		ZPOOL_CONFIG=${OPTARG}
+		ZPOOL_CONFIG="${OPTARG}"
 		;;
 	t)
-		ZPIOS_TEST=${OPTARG}
+		ZPIOS_TEST="${OPTARG}"
 		;;
 	l)
-		ZPIOS_SURVEY_LOG=${OPTARG}
+		ZPIOS_SURVEY_LOG="${OPTARG}"
 		;;
 	?)
 		usage
@@ -173,7 +176,7 @@ while getopts 'hvpc:t:l:' OPTION; do
 	esac
 done
 
-if [ $(id -u) != 0 ]; then
+if [ "$(id -u)" != 0 ]; then
 	die "Must run as root"
 fi
 

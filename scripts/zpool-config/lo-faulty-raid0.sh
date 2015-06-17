@@ -21,57 +21,57 @@ zpool_create() {
 	check_md_partitionable || die "Error non-partitionable md devices"
 
 	for FILE in ${FILES}; do
-		LODEVICE=`unused_loop_device`
-		MDDEVICE=`unused_md_device`
+		LODEVICE=$(unused_loop_device)
+		MDDEVICE=$(unused_md_device)
 
-		rm -f ${FILE} || exit 1
-		dd if=/dev/zero of=${FILE} bs=1M count=0 seek=256 \
+		rm -f "${FILE}" || exit 1
+		dd if=/dev/zero of="${FILE}" bs=1M count=0 seek=256 \
 			&>/dev/null || die "Error $? creating ${FILE}"
 
 		# Setup the loopback device on the file.
 		msg "Creating ${LODEVICE} using ${FILE}"
-		${LOSETUP} ${LODEVICE} ${FILE} || \
+		"${LOSETUP}" "${LODEVICE}" "${FILE}" || \
 			die "Error $? creating ${LODEVICE} using ${FILE}"
 
 		LODEVICES="${LODEVICES} ${LODEVICE}"
 
 		# Setup the md device on the loopback device.
 		msg "Creating ${MDDEVICE} using ${LODEVICE}"
-		${MDADM} --build ${MDDEVICE} --level=faulty                  \
-			--raid-devices=1 ${LODEVICE} &>/dev/null ||          \
+		"${MDADM}" --build "${MDDEVICE}" --level=faulty              \
+			--raid-devices=1 "${LODEVICE}" &>/dev/null ||        \
 			(destroy_md_devices "${MDDEVICES}" &&                \
 			destroy_loop_devices "${LODEVICES}" &&               \
 			die "Error $? creating ${MDDEVICE} using ${LODEVICE}")
-		wait_udev ${MDDEVICE} 30 ||                                  \
+		wait_udev "${MDDEVICE}" 30 ||                                \
 			(destroy_md_devices "${MDDEVICES}" &&                \
 			destroy_loop_devices "${LODEVICES}" &&               \
 			die "Error udev never created ${MDDEVICE}")
 
 		# Check if the md device support partitions
-		${BLOCKDEV} --rereadpt ${MDDEVICE} 2>/dev/null ||            \
+		"${BLOCKDEV}" --rereadpt "${MDDEVICE}" 2>/dev/null ||        \
 			(destroy_md_devices "${MDDEVICES}" &&                \
 			destroy_loop_devices "${LODEVICES}" &&               \
 			die "Error ${MDDEVICE} does not support partitions")
 
 		# Create a GPT/EFI partition table for ZFS to use.
-		${PARTED} --script ${MDDEVICE} mklabel gpt
+		"${PARTED}" --script "${MDDEVICE}" mklabel gpt
 		MDDEVICES="${MDDEVICES} ${MDDEVICE}"
 	done
 
-	msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${MDDEVICES}
-	${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${MDDEVICES} ||          \
+	msg "${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${MDDEVICES}"
+	"${ZPOOL}" create "${ZPOOL_FLAGS}" "${ZPOOL_NAME}" "${MDDEVICES}" || \
 		(destroy_md_devices "${MDDEVICES}" &&                        \
 		destroy_loop_devices "${LODEVICES}" && exit 1)
 
-	echo "$LODEVICES" >/tmp/zpool-lo.txt
-	echo "$MDDEVICES" >/tmp/zpool-md.txt
+	echo "$LODEVICES" > /tmp/zpool-lo.txt
+	echo "$MDDEVICES" > /tmp/zpool-md.txt
 }
 
 zpool_destroy() {
-	msg ${ZPOOL} destroy ${ZPOOL_NAME}
-	${ZPOOL} destroy ${ZPOOL_NAME}
-	destroy_md_devices "`cat /tmp/zpool-md.txt`"
-	destroy_loop_devices "`cat /tmp/zpool-lo.txt`"
+	msg "${ZPOOL} destroy ${ZPOOL_NAME}"
+	"${ZPOOL}" destroy "${ZPOOL_NAME}"
+	destroy_md_devices "$(cat /tmp/zpool-md.txt)"
+	destroy_loop_devices "$(cat /tmp/zpool-lo.txt)"
 
 	rm -f /tmp/zpool-md.txt /tmp/zpool-lo.txt
 }

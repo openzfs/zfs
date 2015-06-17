@@ -14,16 +14,16 @@ ROW_N_WAIT=()
 HEADER=1
 STEP=1
 
-for PID_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/pids-[0-9]*`; do
-	ROW_M=( ${ROW_N[@]} )
+while read PID_FILE; do
+	ROW_M="${ROW_N[*]}"
 	ROW_N=( 0 0 0 0  0 0 0 0  0 0 0 0  0 0 0 0  0 0 0 )
-	ROW_N_SCHED=( `cat ${PID_FILE} | cut -f15 -d' ' | tr "\n" "\t"` )
-	ROW_N_WAIT=(  `cat ${PID_FILE} | cut -f17 -d' ' | tr "\n" "\t"` )
-	ROW_N_NAMES=( `cat ${PID_FILE} | cut -f2  -d' ' | cut -f2 -d'(' | 
-                       cut -f1 -d')'   | cut -f1  -d'/' | tr "\n" "\t"` )
+	ROW_N_SCHED=( $(cut -f15 -d' ' < "${PID_FILE}" | tr "\n" "\t") )
+	ROW_N_WAIT=(  $(cut -f17 -d' ' < "${PID_FILE}" | tr "\n" "\t") )
+	ROW_N_NAMES=( $(cut -f2  -d' ' < "${PID_FILE}" | cut -f2 -d'(' | 
+                       cut -f1 -d')'   | cut -f1  -d'/' | tr "\n" "\t") )
 
 	for (( i=0; i<${#ROW_N_SCHED[@]}; i++ )); do
-		SUM=`echo "${ROW_N_WAIT[${i}]}+${ROW_N_SCHED[${i}]}" | bc`
+		SUM=$(echo "${ROW_N_WAIT[${i}]}+${ROW_N_SCHED[${i}]}" | bc)
 
 		case ${ROW_N_NAMES[${i}]} in
 			zio_taskq)	IDX=0;;
@@ -51,7 +51,7 @@ for PID_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/pids-[0
 		let ROW_N[${IDX}]=${ROW_N[${IDX}]}+${SUM}
 	done
 
-	if [ $HEADER -eq 1 ]; then
+	if [ "$HEADER" -eq 1 ]; then
 		echo "step, zio_taskq, zio_req_nul, zio_irq_nul, "        \
                      "zio_req_rd, zio_irq_rd, zio_req_wr, zio_irq_wr, "   \
                      "zio_req_fr, zio_irq_fr, zio_req_cm, zio_irq_cm, "   \
@@ -75,33 +75,34 @@ for PID_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/pids-[0
 	IDLE=1000
         echo -n "${STEP}, "
 	for (( i=0; i<${#ROW_N[@]}; i++ )); do
-		DELTA=`echo "${ROW_N[${i}]}-${ROW_M[${i}]}" | bc`
-		DELTA_PERCENT=`echo "scale=1; ${DELTA}/10" | bc`
+		DELTA=$(echo "${ROW_N[${i}]}-${ROW_M[${i}]}" | bc)
+		DELTA_PERCENT=$(echo "scale=1; ${DELTA}/10" | bc)
 		let IDLE=${IDLE}-${DELTA}
 		echo -n "${DELTA_PERCENT}, "
 	done
-	ILDE_PERCENT=`echo "scale=1; ${IDLE}/10" | bc`
+	ILDE_PERCENT=$(echo "scale=1; ${IDLE}/10" | bc)
 	echo "${ILDE_PERCENT}"
 
 	let STEP=${STEP}+1
-done
+done < <(find "${RUN_LOG_DIR}/${RUN_ID}" -r --sort=time --time=ctime \
+	      -name "disk-[0-9]*")
 
 exit
 
 echo
 echo "Percent of total system time per pid"
-for PID_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/pids-[0-9]*`; do
-	ROW_M=( ${ROW_N[@]} )
-	ROW_N_SCHED=( `cat ${PID_FILE} | cut -f15 -d' ' | tr "\n" "\t"` )
-	ROW_N_WAIT=( `cat ${PID_FILE} | cut -f17 -d' ' | tr "\n" "\t"` )
+while read PID_FILE; do
+	ROW_M="${ROW_N[*]}"
+	ROW_N_SCHED=( $(cut -f15 -d' ' < "${PID_FILE}" | tr "\n" "\t") )
+	ROW_N_WAIT=( $(cut -f17 -d' ' < "${PID_FILE}" | tr "\n" "\t") )
 
 	for (( i=0; i<${#ROW_N_SCHED[@]}; i++ )); do
-		ROW_N[${i}]=`echo "${ROW_N_WAIT[${i}]}+${ROW_N_SCHED[${i}]}" | bc`
+		ROW_N[${i}]=$(echo "${ROW_N_WAIT[${i}]}+${ROW_N_SCHED[${i}]}" | bc)
 	done
 
-	if [ $HEADER -eq 1 ]; then
+	if [ "$HEADER" -eq 1 ]; then
 		echo -n "step, "
-		cat ${PID_FILE} | cut -f2 -d' ' | tr "\n" ", "
+		cut -f2 -d' ' < "${PID_FILE}" | tr "\n" ", "
 		echo
 		HEADER=0
 	fi
@@ -119,13 +120,14 @@ for PID_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/pids-[0
 	# on most 2.6 systems thus we divide by 10 to get a percentage.
         echo -n "${STEP}, "
 	for (( i=0; i<${#ROW_N[@]}; i++ )); do
-		DELTA=`echo "scale=1; (${ROW_N[${i}]}-${ROW_M[${i}]})/10" | bc`
+		DELTA=$(echo "scale=1; (${ROW_N[${i}]}-${ROW_M[${i}]})/10" | bc)
 		echo -n "${DELTA}, "
 	done
 
 	echo
 	let STEP=${STEP}+1
-done
+done < <(find "${RUN_LOG_DIR}/${RUN_ID}" -r --sort=time --time=ctime \
+	      -name "disk-[0-9]*")
 
 
 exit 0

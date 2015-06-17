@@ -15,7 +15,7 @@ _do_zpool_export() {
 	info "Exporting ZFS storage pools"
 	# Change IFS to allow for blanks in pool names.
 	IFS="$NEWLINE"
-	for fs in `zpool list -H -o name` ; do
+	for fs in $(zpool list -H -o name); do
 		zpool export $force "$fs" || ret=$?
 	done
 	IFS="$OLDIFS"
@@ -29,7 +29,7 @@ _do_zpool_export() {
 }
 
 if command -v zpool >/dev/null; then
-	_do_zpool_export $1
+	_do_zpool_export "$1"
 else
 	:
 fi

@@ -3,7 +3,7 @@
 # Wrapper script for easily running zpios based tests
 #
 
-basedir="$(dirname $0)"
+basedir="$(dirname "$0")"
 
 SCRIPT_COMMON=common.sh
 if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
@@ -13,7 +13,7 @@ echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
 fi
 
 PROG=zpios.sh
-DATE=`date +%Y%m%d-%H%M%S`
+DATE=$(date +%Y%m%d-%H%M%S)
 if [ "${ZPIOS_MODULES}" ]; then
 	MODULES=(${ZPIOS_MODULES[*]})
 else
@@ -62,12 +62,12 @@ print_header() {
 
 print_spl_info() {
 	echo --------------------- SPL Tunings ------------------------------
-	${SYSCTL} -A | grep spl
+	"${SYSCTL}" -A | grep spl
 
 	if [ -d /sys/module/spl/parameters ]; then
-		grep [0-9] /sys/module/spl/parameters/*
+		grep "[0-9]" /sys/module/spl/parameters/*
 	else
-		grep [0-9] /sys/module/spl/*
+		grep "[0-9]" /sys/module/spl/*
 	fi
 
 	echo
@@ -75,12 +75,12 @@ print_spl_info() {
 
 print_zfs_info() {
 	echo --------------------- ZFS Tunings ------------------------------
-	${SYSCTL} -A | grep zfs
+	"${SYSCTL}" -A | grep zfs
 
 	if [ -d /sys/module/zfs/parameters ]; then
-		grep [0-9] /sys/module/zfs/parameters/*
+		grep "[0-9]" /sys/module/zfs/parameters/*
 	else
-		grep [0-9] /sys/module/zfs/*
+		grep "[0-9]" /sys/module/zfs/*
 	fi
 
 	echo
@@ -115,14 +115,14 @@ print_stats() {
 
 check_test() {
 
-	if [ ! -f ${ZPIOS_TEST} ]; then
-		local NAME=`basename ${ZPIOS_TEST} .sh`
+	if [ ! -f "${ZPIOS_TEST}" ]; then
+		local NAME=$(basename "${ZPIOS_TEST}" .sh)
 		ERROR="Unknown test '${NAME}', available tests are:\n"
 
-		for TST in `ls ${ZPIOSDIR}/ | grep ".sh"`; do
-			local NAME=`basename ${TST} .sh`
+		while read TST; do
+			local NAME=$(basename "${TST}" .sh)
 			ERROR="${ERROR}${NAME}\n"
-		done
+		done < <(find "${ZPIOSDIR}" -maxdepth 1 -type f -name "*.sh")
 
 		return 1
 	fi
@@ -131,7 +131,7 @@ check_test() {
 }
 
 zpios_profile_config() {
-cat > ${PROFILE_DIR}/zpios-config.sh << EOF
+cat > "${PROFILE_DIR}/zpios-config.sh" << EOF
 #
 # Zpios Profiling Configuration
 #
@@ -145,8 +145,8 @@ PROFILE_DISK=${ZPIOSPROFILEDIR}/zpios-profile-disk.sh
 PROFILE_ARC_PROC=/proc/spl/kstat/zfs/arcstats
 PROFILE_VDEV_CACHE_PROC=/proc/spl/kstat/zfs/vdev_cache_stats
 
-OPROFILE_KERNEL="/boot/vmlinux-`uname -r`"
-OPROFILE_KERNEL_DIR="/lib/modules/`uname -r`/kernel/"
+OPROFILE_KERNEL="/boot/vmlinux-$(uname -r)"
+OPROFILE_KERNEL_DIR="/lib/modules/$(uname -r)/kernel/"
 OPROFILE_SPL_DIR=${SPLBUILD}/module/
 OPROFILE_ZFS_DIR=${MODDIR}
 
@@ -156,16 +156,16 @@ EOF
 zpios_profile_start() {
 	PROFILE_DIR=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
 
-	mkdir -p ${PROFILE_DIR}
+	mkdir -p "${PROFILE_DIR}"
 	zpios_profile_config
-	. ${PROFILE_DIR}/zpios-config.sh
+	. "${PROFILE_DIR}/zpios-config.sh"
 
 	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --log=${PROFILE_DIR}"
 	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --prerun=${PROFILE_PRE}"
 	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --postrun=${PROFILE_POST}"
 
 	/usr/bin/opcontrol --init
-	/usr/bin/opcontrol --setup --vmlinux=${OPROFILE_KERNEL}
+	/usr/bin/opcontrol --setup --vmlinux="${OPROFILE_KERNEL}"
 }
 
 zpios_profile_stop() {
@@ -221,13 +221,13 @@ while getopts 'hvfpc:t:o:l:s:' OPTION; do
 	esac
 done
 
-if [ $(id -u) != 0 ]; then
+if [ "$(id -u)" != 0 ]; then
         die "Must run as root"
 fi
 
 # Validate and source your test config
 check_test || die "${ERROR}"
-. ${ZPIOS_TEST}
+. "${ZPIOS_TEST}"
 
 # Pull in the zpios test module if not loaded.  If this fails, it is
 # likely because the full module stack was not yet loaded with zfs.sh
@@ -249,11 +249,11 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Create the zpool configuration
-${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} ${FORCE_FLAG} \
-	-p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
+"${ZPOOL_CREATE_SH}" "${VERBOSE_FLAG}" "${FORCE_FLAG}" \
+	-p "${ZPOOL_NAME}" -c "${ZPOOL_CONFIG}" \
 	-l "${ZPOOL_OPTIONS}" -s "${ZFS_OPTIONS}" || unload_die
 
-if [ ${PROFILE} ]; then
+if [ "${PROFILE}" ]; then
 	zpios_profile_start
 fi
 
@@ -269,8 +269,8 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Destroy the zpool configuration
-${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} ${FORCE_FLAG} \
-	-p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} -d || unload_die
+"${ZPOOL_CREATE_SH}" "${VERBOSE_FLAG}" "${FORCE_FLAG}" \
+	-p "${ZPOOL_NAME}" -c "${ZPOOL_CONFIG}" -d || unload_die
 
 # Unload the test module stack and wait for device removal
 unload_modules

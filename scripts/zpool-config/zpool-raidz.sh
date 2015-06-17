@@ -59,11 +59,11 @@ raidz_setup() {
         local CHANNELS=$2
 
         RAIDZS=()
-        for (( i=0; i<${RANKS}; i++ )); do
+        for (( i=0; i<RANKS; i++ )); do
                 RANK=${RANK_LIST[$i]}
                 RAIDZ=("raidz${LEVEL}")
 
-                for (( j=0, k=1; j<${CHANNELS}; j++, k++ )); do
+                for (( j=0, k=1; j<CHANNELS; j++, k++ )); do
                         RAIDZ[$k]="${CHANNEL_LIST[$j]}${RANK}"
                 done
 
@@ -74,14 +74,15 @@ raidz_setup() {
 }
 
 zpool_create() {
-        raidz_setup ${RANKS} ${CHANNELS}
+	raidz_setup "${RANKS}" "${CHANNELS}"
 
 	ZPOOL_DEVICES="${RAIDZS[*]} ${ZIL} ${L2ARC}"
-        msg ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES}
-        ${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES} || exit 1
+	msg "${ZPOOL} create ${ZPOOL_FLAGS} ${ZPOOL_NAME} ${ZPOOL_DEVICES}"
+	"${ZPOOL}" create "${ZPOOL_FLAGS}" "${ZPOOL_NAME}" "${ZPOOL_DEVICES}" \
+		|| exit 1
 }
 
 zpool_destroy() {
-        msg ${ZPOOL} destroy ${ZPOOL_NAME}
-        ${ZPOOL} destroy ${ZPOOL_NAME}
+	msg "${ZPOOL} destroy ${ZPOOL_NAME}"
+	"${ZPOOL}" destroy "${ZPOOL_NAME}"
 }

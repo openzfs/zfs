@@ -5,7 +5,7 @@
 # utilities will be used.  If no script-config can be found then the
 # installed kernel modules and utilities will be used.
 
-basedir="$(dirname $0)"
+basedir="$(dirname "$0")"
 
 SCRIPT_CONFIG=zfs-script-config.sh
 if [ -f "${basedir}/../${SCRIPT_CONFIG}" ]; then
@@ -99,7 +99,7 @@ die() {
 }
 
 msg() {
-	if [ ${VERBOSE} ]; then
+	if [ "${VERBOSE}" ]; then
 		echo "$@"
 	fi
 }
@@ -110,11 +110,18 @@ pass() {
 
 fail() {
 	echo -e "${COLOR_RED}Fail${COLOR_RESET} ($1)"
-	exit $1
+	exit "$1"
 }
 
 skip() {
 	echo -e "${COLOR_BROWN}Skip${COLOR_RESET}"
+}
+
+# Function to silence shellcheck note
+# note: Expressions don't expand in single quotes, use double quotes for that.
+# See: https://github.com/koalaman/shellcheck/issues/382
+do_awk() {
+	"${AWK}" "$@"
 }
 
 populate() {
@@ -122,16 +129,17 @@ populate() {
 	local MAX_DIR_SIZE=$2
 	local MAX_FILE_SIZE=$3
 
-	mkdir -p $ROOT/{a,b,c,d,e,f,g}/{h,i}
-	DIRS=`find $ROOT`
+	mkdir -p "$ROOT"/{a,b,c,d,e,f,g}/{h,i}
+	DIRS=$(find "$ROOT")
 
 	for DIR in $DIRS; do
-		COUNT=$(($RANDOM % $MAX_DIR_SIZE))
+		COUNT=$((RANDOM % MAX_DIR_SIZE))
 
-		for i in `seq $COUNT`; do
-			FILE=`mktemp -p ${DIR}`
-			SIZE=$(($RANDOM % $MAX_FILE_SIZE))
-			dd if=/dev/urandom of=$FILE bs=1k count=$SIZE &>/dev/null
+		for i in $(seq "$COUNT"); do
+			FILE=$(mktemp -p "${DIR}")
+			SIZE=$((RANDOM % MAX_FILE_SIZE))
+			dd if=/dev/urandom of="${FILE}" bs=1k count="$SIZE" \
+			    &> /dev/null
 		done
 	done
 
@@ -145,25 +153,25 @@ init() {
 	# over when and how the modules are loaded/unloaded.  A trap is
 	# set to ensure the udev rule is correctly replaced on exit.
 	local RULE=${udevruledir}/90-zfs.rules
-	if test -e  ${RULE}; then
-		trap "mv ${RULE}.disabled ${RULE}" INT TERM EXIT
-		mv ${RULE} ${RULE}.disabled
+	if test -e "${RULE}"; then
+		trap 'mv "${RULE}.disabled" "${RULE}"' INT TERM EXIT
+		mv "${RULE}" "${RULE}.disabled"
 	fi
 
 	# Create a random directory tree of files and sub-directories to
 	# to act as a copy source for the various regression tests.
-	SRC_DIR=`mktemp -d -p /var/tmp/ zfs.src.XXXXXXXX`
-	trap "rm -Rf $SRC_DIR" INT TERM EXIT
-	populate $SRC_DIR 10 100
+	SRC_DIR=$(mktemp -d -p /var/tmp/ zfs.src.XXXXXXXX)
+	trap 'rm -Rf "$SRC_DIR"' INT TERM EXIT
+	populate "$SRC_DIR" 10 100
 }
 
 spl_dump_log() {
-	${SYSCTL} -w kernel.spl.debug.dump=1 &>/dev/null
-	local NAME=`dmesg | tail -n 1 | cut -f5 -d' '`
-	${SPLBUILD}/cmd/spl ${NAME} >${NAME}.log
+	"${SYSCTL}" -w kernel.spl.debug.dump=1 &>/dev/null
+	local NAME=$(dmesg | tail -n 1 | cut -f5 -d' ')
+	"${SPLBUILD}/cmd/spl" "${NAME}" > "${NAME}.log"
 	echo
 	echo "Dumped debug log: ${NAME}.log"
-	tail -n1 ${NAME}.log
+	tail -n1 "${NAME}.log"
 	echo
 	return 0
 }
@@ -173,13 +181,13 @@ check_modules() {
 	local MISSING_MODULES=()
 
 	for MOD in ${MODULES[*]}; do
-		local NAME=`basename $MOD .ko`
+		local NAME=$(basename "$MOD .ko")
 
-		if ${LSMOD} | egrep -q "^${NAME}"; then
+		if "${LSMOD}" | egrep -q "^${NAME}"; then
 			LOADED_MODULES=(${NAME} ${LOADED_MODULES[*]})
 		fi
 
-		if [ ${INFOMOD} ${MOD} 2>/dev/null ]; then
+		if "${INFOMOD}" "${MOD}" 2>/dev/null; then
 			MISSING_MODULES=("\t${MOD}\n" ${MISSING_MODULES[*]})
 		fi
 	done
@@ -201,15 +209,15 @@ check_modules() {
 }
 
 load_module() {
-	local NAME=`basename $1 .ko`
+	local NAME=$(basename "$1 .ko")
 
-	if [ ${VERBOSE} ]; then
-		echo "Loading ${NAME} ($@)"
+	if [ "${VERBOSE}" ]; then
+		echo "Loading ${NAME} ($*)"
 	fi
 
-	${LDMOD} $* &>/dev/null
-	if [ $? -ne 0 ]; then
-		echo "Failed to load ${NAME} ($@)"
+	"${LDMOD}" "$@" &> /dev/null
+	if [ "$?" -ne 0 ]; then
+		echo "Failed to load ${NAME} ($*)"
 		return 1
 	fi
 
@@ -220,25 +228,25 @@ load_modules() {
 	mkdir -p /etc/zfs
 
 	for MOD in ${KERNEL_MODULES[*]}; do
-		load_module ${MOD} >/dev/null
+		load_module "${MOD}" > /dev/null
 	done
 
 	for MOD in ${MODULES[*]}; do
-		local NAME=`basename ${MOD} .ko`
+		local NAME=$(basename "${MOD} .ko")
 		local VALUE=
 
 		for OPT in "$@"; do
-			OPT_NAME=`echo ${OPT} | cut -f1 -d'='`
+			OPT_NAME=$(echo "${OPT}" | cut -f1 -d'=')
 
-			if [ ${NAME} = "${OPT_NAME}" ]; then
-				VALUE=`echo ${OPT} | cut -f2- -d'='`
+			if [ "${NAME}" = "${OPT_NAME}" ]; then
+				VALUE=$(echo "${OPT}" | cut -f2- -d'=')
 			fi
 		done
 
-		load_module ${MOD} ${VALUE} || return 1
+		load_module "${MOD}" "${VALUE}" || return 1
 	done
 
-	if [ ${VERBOSE} ]; then
+	if [ "${VERBOSE}" ]; then
 		echo "Successfully loaded ZFS module stack"
 	fi
 
@@ -246,37 +254,37 @@ load_modules() {
 }
 
 unload_module() {
-	local NAME=`basename $1 .ko`
+	local NAME=$(basename "$1 .ko")
 
-	if [ ${VERBOSE} ]; then
-		echo "Unloading ${NAME} ($@)"
+	if [ "${VERBOSE}" ]; then
+		echo "Unloading ${NAME} ($*)"
 	fi
 
-	${RMMOD} ${NAME} || ERROR="Failed to unload ${NAME}" return 1
+	"${RMMOD}" "${NAME}" || ERROR="Failed to unload ${NAME}" return 1
 
 	return 0
 }
 
 unload_modules() {
-	local MODULES_REVERSE=( $(echo ${MODULES[@]} |
-		${AWK} '{for (i=NF;i>=1;i--) printf $i" "} END{print ""}') )
+	local MODULES_REVERSE=( $(echo "${MODULES[@]}" |
+		do_awk '{for (i=NF;i>=1;i--) printf $i" "} END{print ""}') )
 
 	for MOD in ${MODULES_REVERSE[*]}; do
-		local NAME=`basename ${MOD} .ko`
-		local USE_COUNT=`${LSMOD} |
-				egrep "^${NAME} "| ${AWK} '{print $3}'`
+		local NAME=$(basename "${MOD} .ko")
+		local USE_COUNT=$("${LSMOD}" |
+				egrep "^${NAME} "| do_awk '{print $3}')
 
 		if [ "${USE_COUNT}" = 0 ] ; then
 
-			if [ "${DUMP_LOG}" -a ${NAME} = "spl" ]; then
+			if [ "${DUMP_LOG}" -a "${NAME}" = "spl" ]; then
 				spl_dump_log
 			fi
 
-			unload_module ${MOD} || return 1
+			unload_module "${MOD}" || return 1
 		fi
 	done
 
-	if [ ${VERBOSE} ]; then
+	if [ "${VERBOSE}" ]; then
 		echo "Successfully unloaded ZFS module stack"
 	fi
 
@@ -287,7 +295,7 @@ unload_modules() {
 # Check that the mdadm utilities are installed.
 #
 check_loop_utils() {
-        test -f ${LOSETUP} || die "${LOSETUP} utility must be installed"
+        test -f "${LOSETUP}" || die "${LOSETUP} utility must be installed"
 }
 
 
@@ -297,7 +305,7 @@ check_loop_utils() {
 # the minor as long as it's less than /sys/module/loop/parameters/max_loop.
 #
 unused_loop_device() {
-	local DEVICE=`${LOSETUP} -f`
+	local DEVICE=$("${LOSETUP}" -f)
 	local MAX_LOOP_PATH="/sys/module/loop/parameters/max_loop"
 	local MAX_LOOP;
 
@@ -309,18 +317,18 @@ unused_loop_device() {
 
 	# Create a new /dev/loopN provided we are not at MAX_LOOP.
 	if [ -f "${MAX_LOOP_PATH}" ]; then
-		MAX_LOOP=`cat /sys/module/loop/parameters/max_loop`
-		if [ ${MAX_LOOP} -eq 0 ]; then
+		MAX_LOOP=$(cat /sys/module/loop/parameters/max_loop)
+		if [ "${MAX_LOOP}" -eq 0 ]; then
 			MAX_LOOP=255
 		fi
 
-		for (( i=0; i<=${MAX_LOOP}; i++ )); do
+		for (( i=0; i<=MAX_LOOP; i++ )); do
 			DEVICE="/dev/loop$i"
 
 			if [ -b "${DEVICE}" ]; then
 				continue
 			else
-				mknod -m660 "${DEVICE}" b 7 $i
+				mknod -m660 "${DEVICE}" b 7 "$i"
 				chown root.disk "${DEVICE}"
 				chmod 666 "${DEVICE}"
 
@@ -341,14 +349,14 @@ unused_loop_device() {
 # damage we might do should be limited to other zfs related testing.
 #
 cleanup_loop_devices() {
-	local TMP_FILE=`mktemp`
+	local TMP_FILE=$(mktemp)
 
-	${LOSETUP} -a | tr -d '()' >${TMP_FILE}
-	${AWK} -F":" -v losetup="$LOSETUP" \
-	    '/zpool/ || /deleted/ { system("losetup -d "$1) }' ${TMP_FILE}
-	${AWK} -F" " '/zpool/ || /deleted/ { system("rm -f "$3) }' ${TMP_FILE}
+	"${LOSETUP}" -a | tr -d '()' > "${TMP_FILE}"
+	do_awk -F":" -v losetup="$LOSETUP" \
+	    '/zpool/ || /deleted/ { system("losetup -d "$1) }' "${TMP_FILE}"
+	do_awk -F" " '/zpool/ || /deleted/ { system("rm -f "$3) }' "${TMP_FILE}"
 
-	rm -f ${TMP_FILE}
+	rm -f "${TMP_FILE}"
 }
 
 #
@@ -359,10 +367,10 @@ destroy_loop_devices() {
 	local LODEVICES="$1"
 
 	msg "Destroying ${LODEVICES}"
-	 ${LOSETUP} -d ${LODEVICES} || \
+	"${LOSETUP}" -d "${LODEVICES}" || \
 		die "Error $? destroying ${FILE} -> ${DEVICE} loopback"
 
-	rm -f ${FILES}
+	rm -f "${FILES}"
 	return 0
 }
 
@@ -370,11 +378,11 @@ destroy_loop_devices() {
 # Create a device label taking care to briefly wait if udev needs to settle.
 #
 label() {
-	local DEVICE=$1
-	local LABEL=$2
+	local DEVICE="$1"
+	local LABEL="$2"
 
-	wait_udev ${DEVICE} 30 || return 1
-	${PARTED} ${DEVICE} --script -- mklabel ${LABEL} || return 2
+	wait_udev "${DEVICE}" 30 || return 1
+	"${PARTED}" "${DEVICE}" --script -- mklabel "${LABEL}" || return 2
 
 	return 0
 }
@@ -383,13 +391,13 @@ label() {
 # Create a primary partition on a block device.
 #
 partition() {
-	local DEVICE=$1
-	local TYPE=$2
-	local START=$3
-	local END=$4
+	local DEVICE="$1"
+	local TYPE="$2"
+	local START="$3"
+	local END="$4"
 
-	${PARTED} --align optimal ${DEVICE} --script -- \
-	    mkpart ${TYPE} ${START} ${END} || return 1
+	"${PARTED}" --align optimal "${DEVICE}" --script -- \
+	    mkpart "${TYPE} ${START} ${END}" || return 1
 	udev_trigger
 
 	return 0
@@ -399,12 +407,13 @@ partition() {
 # Create a filesystem on the block device
 #
 format() {
-	local DEVICE=$1
-	local FSTYPE=$2
+	local DEVICE="$1"
+	local FSTYPE="$2"
 
 	# Force 4K blocksize, else mkfs.ext2 tries to use 8K, which
 	# won't mount
-	/sbin/mkfs.${FSTYPE} -b 4096 -F -q ${DEVICE} >/dev/null || return 1
+	"/sbin/mkfs.${FSTYPE}" -b 4096 -F -q "${DEVICE}" > /dev/null \
+		|| return 1
 
 	return 0
 }
@@ -413,47 +422,47 @@ format() {
 # Check that the mdadm utilities are installed.
 #
 check_md_utils() {
-        test -f ${MDADM} || die "${MDADM} utility must be installed"
-	test -f ${PARTED} || die "${PARTED} utility must be installed"
+        test -f "${MDADM}" || die "${MDADM} utility must be installed"
+	test -f "${PARTED}" || die "${PARTED} utility must be installed"
 }
 
 check_md_partitionable() {
-	local LOFILE=`mktemp -p /tmp zpool-lo.XXXXXXXX`
-	local LODEVICE=`unused_loop_device`
-	local MDDEVICE=`unused_md_device`
+	local LOFILE=$(mktemp -p /tmp zpool-lo.XXXXXXXX)
+	local LODEVICE=$(unused_loop_device)
+	local MDDEVICE=$(unused_md_device)
 	local RESULT=1
 
 	check_md_utils
 
-	rm -f ${LOFILE}
-	dd if=/dev/zero of=${LOFILE} bs=1M count=0 seek=16 \
-		&>/dev/null || return ${RESULT}
+	rm -f "${LOFILE}"
+	dd if=/dev/zero of="${LOFILE}" bs=1M count=0 seek=16 \
+		&>/dev/null || return "${RESULT}"
 
 	msg "Creating ${LODEVICE} using ${LOFILE}"
-	${LOSETUP} ${LODEVICE} ${LOFILE}
-	if [ $? -ne 0 ]; then
-		rm -f ${LOFILE}
-		return ${RESULT}
+	"${LOSETUP}" "${LODEVICE}" "${LOFILE}"
+	if [ "$?" -ne 0 ]; then
+		rm -f "${LOFILE}"
+		return "${RESULT}"
 	fi
 
 	msg "Creating ${MDDEVICE} using ${LODEVICE}"
-	${MDADM} --build ${MDDEVICE} --level=faulty \
-		--raid-devices=1 ${LODEVICE} &>/dev/null
-	if [ $? -ne 0 ]; then
-		destroy_loop_devices ${LODEVICE}
-		rm -f ${LOFILE}
-		return ${RESULT}
+	"${MDADM}" --build "${MDDEVICE}" --level=faulty \
+		--raid-devices=1 "${LODEVICE}" &> /dev/null
+	if [ "$?" -ne 0 ]; then
+		destroy_loop_devices "${LODEVICE}"
+		rm -f "${LOFILE}"
+		return "${RESULT}"
 	fi
-	wait_udev ${MDDEVICE} 30
+	wait_udev "${MDDEVICE}" 30
 
-	${BLOCKDEV} --rereadpt ${MDDEVICE} 2>/dev/null
-	RESULT=$?
+	"${BLOCKDEV}" --rereadpt "${MDDEVICE}" 2> /dev/null
+	RESULT="$?"
 
-	destroy_md_devices ${MDDEVICE}
-	destroy_loop_devices ${LODEVICE}
-	rm -f ${LOFILE}
+	destroy_md_devices "${MDDEVICE}"
+	destroy_loop_devices "${LODEVICE}"
+	rm -f "${LOFILE}"
 
-	return ${RESULT}
+	return "${RESULT}"
 }
 
 #
@@ -461,22 +470,22 @@ check_md_partitionable() {
 #
 unused_md_device() {
 	for (( i=0; i<32; i++ )); do
-		MDDEVICE=md${i}
+		MDDEVICE="md${i}"
 
 		# Skip active devicesudo in /proc/mdstat.
 		grep -q "${MDDEVICE} " /proc/mdstat && continue
 
 		# Device doesn't exist, use it.
-		if [ ! -e $/dev/{MDDEVICE} ]; then
-			echo /dev/${MDDEVICE}
+		if [ ! -e "/dev/${MDDEVICE}" ]; then
+			echo "/dev/${MDDEVICE}"
 			return
 		fi
 
 		# Device exists but may not be in use.
-		if [ -b /dev/${MDDEVICE} ]; then
-			${MDADM} --detail /dev/${MDDEVICE} &>/dev/null
-			if [ $? -eq 1 ]; then
-				echo /dev/${MDDEVICE}
+		if [ -b "/dev/${MDDEVICE}" ]; then
+			"${MDADM}" --detail "/dev/${MDDEVICE}" &> /dev/null
+			if [ "$?" -eq 1 ]; then
+				echo "/dev/${MDDEVICE}"
 				return
 			fi
 		fi
@@ -493,7 +502,7 @@ unused_md_device() {
 # so you should be able to reconstruct them.
 #
 cleanup_md_devices() {
-	destroy_md_devices "`ls /dev/md* 2>/dev/null | grep -v p`"
+	destroy_md_devices "$(find /dev/md* 2>/dev/null | grep -v p)"
 	udev_trigger
 }
 
@@ -506,9 +515,9 @@ destroy_md_devices() {
 
 	msg "Destroying ${MDDEVICES}"
 	for MDDEVICE in ${MDDEVICES}; do
-		${MDADM} --stop ${MDDEVICE} &>/dev/null
-		${MDADM} --remove ${MDDEVICE} &>/dev/null
-		${MDADM} --detail ${MDDEVICE} &>/dev/null
+		"${MDADM}" --stop   "${MDDEVICE}" &> /dev/null
+		"${MDADM}" --remove "${MDDEVICE}" &> /dev/null
+		"${MDADM}" --detail "${MDDEVICE}" &> /dev/null
 	done
 
 	return 0
@@ -518,8 +527,8 @@ destroy_md_devices() {
 # Check that the scsi utilities are installed.
 #
 check_sd_utils() {
-	${INFOMOD} scsi_debug &>/dev/null || die "scsi_debug module required"
-	test -f ${LSSCSI} || die "${LSSCSI} utility must be installed"
+	"${INFOMOD}" scsi_debug &> /dev/null || die "scsi_debug module required"
+	test -f "${LSSCSI}" || die "${LSSCSI} utility must be installed"
 }
 
 #
@@ -531,14 +540,14 @@ check_sd_utils() {
 scsi_rescan() {
 	local AWK_SCRIPT="/scsi_debug/ { print \$1; exit }"
 
-	if [ -f ${SCSIRESCAN} ]; then
-		${SCSIRESCAN} --forcerescan --remove &>/dev/null
+	if [ -f "${SCSIRESCAN}" ]; then
+		"${SCSIRESCAN}" --forcerescan --remove &> /dev/null
 	else
-		local SCSIID=`${LSSCSI} | ${AWK} "${AWK_SCRIPT}" | tr -d '[]'`
-		local SCSIHOST=`echo ${SCSIID} | cut -f1 -d':'`
-		echo 1 >"/sys/class/scsi_device/${SCSIID}/device/delete"
+		local SCSIID=$("${LSSCSI}" | do_awk "${AWK_SCRIPT}" | tr -d '[]')
+		local SCSIHOST=$(echo "${SCSIID}" | cut -f1 -d':')
+		echo 1 > "/sys/class/scsi_device/${SCSIID}/device/delete"
 		udev_trigger
-		echo "- - -" >/sys/class/scsi_host/host${SCSIHOST}/scan
+		echo "- - -" > "/sys/class/scsi_host/host${SCSIHOST}/scan"
 		udev_trigger
 	fi
 }
@@ -547,9 +556,9 @@ scsi_rescan() {
 # Trigger udev and wait for it to settle.
 #
 udev_trigger() {
-	if [ -f ${UDEVADM} ]; then
-		${UDEVADM} trigger --action=change --subsystem-match=block
-		${UDEVADM} settle
+	if [ -f "${UDEVADM}" ]; then
+		"${UDEVADM}" trigger --action=change --subsystem-match=block
+		"${UDEVADM}" settle
 	else
 		/sbin/udevtrigger
 		/sbin/udevsettle
@@ -567,32 +576,32 @@ udev_trigger() {
 # given a known hardware configuration.
 #
 udev_setup() {
-	local SRC_PATH=$1
+	local SRC_PATH="$1"
 
 	# When running in tree manually contruct symlinks in tree to
 	# the proper devices.  Symlinks are installed for all entires
 	# in the config file regardless of if that device actually
 	# exists.  When installed as a package udev can be relied on for
 	# this and it will only create links for devices which exist.
-	if [ ${INTREE} ]; then
-		PWD=`pwd`
-		mkdir -p ${DEVDIR}/
-		cd ${DEVDIR}/
-		${AWK} '!/^#/ && /./ { system( \
-			"ln -f -s /dev/disk/by-path/"$2" "$1";" \
-			"ln -f -s /dev/disk/by-path/"$2"-part1 "$1"p1;" \
-			"ln -f -s /dev/disk/by-path/"$2"-part9 "$1"p9;" \
-			) }' $SRC_PATH
-		cd ${PWD}
+	if [ "${INTREE}" ]; then
+		PWD=$(pwd)
+		mkdir -p "${DEVDIR}"
+		cd "${DEVDIR}"
+		do_awk '!/^#/ && /./ { system( 
+			"ln -f -s /dev/disk/by-path/"$2" "$1";" 
+			"ln -f -s /dev/disk/by-path/"$2"-part1 "$1"p1;" 
+			"ln -f -s /dev/disk/by-path/"$2"-part9 "$1"p9;" 
+			) }' "$SRC_PATH"
+		cd "${PWD}"
 	else
-		DST_FILE=`basename ${SRC_PATH} | cut -f1-2 -d'.'`
-		DST_PATH=/etc/zfs/${DST_FILE}
+		DST_FILE=$(basename "${SRC_PATH}" | cut -f1-2 -d'.')
+		DST_PATH="/etc/zfs/${DST_FILE}"
 
-		if [ -e ${DST_PATH} ]; then
+		if [ -e "${DST_PATH}" ]; then
 			die "Error: Config ${DST_PATH} already exists"
 		fi
 
-		cp ${SRC_PATH} ${DST_PATH}
+		cp "${SRC_PATH}" "${DST_PATH}"
 		udev_trigger
 	fi
 
@@ -600,35 +609,35 @@ udev_setup() {
 }
 
 udev_cleanup() {
-	local SRC_PATH=$1
+	local SRC_PATH="$1"
 
-	if [ ${INTREE} ]; then
-		PWD=`pwd`
-		cd ${DEVDIR}/
-		${AWK} '!/^#/ && /./ { system( \
-			"rm -f "$1" "$1"p1 "$1"p9") }' $SRC_PATH
-		cd ${PWD}
+	if [ "${INTREE}" ]; then
+		PWD=$(pwd)
+		cd "${DEVDIR}"
+		do_awk '!/^#/ && /./ { system( 
+			"rm -f "$1" "$1"p1 "$1"p9") }' "$SRC_PATH"
+		cd "${PWD}"
 	fi
 
 	return 0
 }
 
 udev_cr2d() {
-	local CHANNEL=`echo "obase=16; $1+96" | bc`
-	local RANK=$2
+	local CHANNEL=$(echo "obase=16; $1+96" | bc)
+	local RANK="$2"
 
-	printf "\x${CHANNEL}${RANK}"
+	printf "\x%s" "${CHANNEL}${RANK}"
 }
 
 udev_raid0_setup() {
-	local RANKS=$1
-	local CHANNELS=$2
+	local RANKS="$1"
+	local CHANNELS="$2"
 	local IDX=0
 
 	RAID0S=()
-	for RANK in `seq 1 ${RANKS}`; do
-		for CHANNEL in `seq 1 ${CHANNELS}`; do
-			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
+	for RANK in $(seq 1 "${RANKS}"); do
+		for CHANNEL in $(seq 1 "${CHANNELS}"); do
+			DISK=$(udev_cr2d "${CHANNEL}" "${RANK}")
 			RAID0S[${IDX}]="${DEVDIR}/${DISK}"
 			let IDX=IDX+1
 		done
@@ -638,16 +647,16 @@ udev_raid0_setup() {
 }
 
 udev_raid10_setup() {
-	local RANKS=$1
-	local CHANNELS=$2
+	local RANKS="$1"
+	local CHANNELS="$2"
 	local IDX=0
 
 	RAID10S=()
-	for RANK in `seq 1 ${RANKS}`; do
-		for CHANNEL1 in `seq 1 2 ${CHANNELS}`; do
+	for RANK in $(seq 1 "${RANKS}"); do
+		for CHANNEL1 in $(seq 1 2 "${CHANNELS}"); do
 			let CHANNEL2=CHANNEL1+1
-			DISK1=`udev_cr2d ${CHANNEL1} ${RANK}`
-			DISK2=`udev_cr2d ${CHANNEL2} ${RANK}`
+			DISK1=$(udev_cr2d "${CHANNEL1}" "${RANK}")
+			DISK2=$(udev_cr2d "${CHANNEL2}" "${RANK}")
 			GROUP="${DEVDIR}/${DISK1} ${DEVDIR}/${DISK2}"
 			RAID10S[${IDX}]="mirror ${GROUP}"
 			let IDX=IDX+1
@@ -658,15 +667,15 @@ udev_raid10_setup() {
 }
 
 udev_raidz_setup() {
-	local RANKS=$1
-	local CHANNELS=$2
+	local RANKS="$1"
+	local CHANNELS="$2"
 
 	RAIDZS=()
-	for RANK in `seq 1 ${RANKS}`; do
+	for RANK in $(seq 1 "${RANKS}"); do
 		RAIDZ=("raidz")
 
-		for CHANNEL in `seq 1 ${CHANNELS}`; do
-			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
+		for CHANNEL in $(seq 1 "${CHANNELS}"); do
+			DISK=$(udev_cr2d "${CHANNEL}" "${RANK}")
 			RAIDZ[${CHANNEL}]="${DEVDIR}/${DISK}"
 		done
 
@@ -677,15 +686,15 @@ udev_raidz_setup() {
 }
 
 udev_raidz2_setup() {
-	local RANKS=$1
-	local CHANNELS=$2
+	local RANKS="$1"
+	local CHANNELS="$2"
 
 	RAIDZ2S=()
-	for RANK in `seq 1 ${RANKS}`; do
+	for RANK in $(seq 1 "${RANKS}"); do
 		RAIDZ2=("raidz2")
 
-		for CHANNEL in `seq 1 ${CHANNELS}`; do
-			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
+		for CHANNEL in $(seq 1 "${CHANNELS}"); do
+			DISK=$(udev_cr2d "${CHANNEL}" "${RANK}")
 			RAIDZ2[${CHANNEL}]="${DEVDIR}/${DISK}"
 		done
 
@@ -696,54 +705,54 @@ udev_raidz2_setup() {
 }
 
 run_one_test() {
-	local TEST_NUM=$1
-	local TEST_NAME=$2
+	local TEST_NUM="$1"
+	local TEST_NAME="$2"
 
-	printf "%-4d %-34s " ${TEST_NUM} "${TEST_NAME}"
-	test_${TEST_NUM}
+	printf "%-4d %-34s " "${TEST_NUM}" "${TEST_NAME}"
+	"test_${TEST_NUM}"
 }
 
 skip_one_test() {
-	local TEST_NUM=$1
-	local TEST_NAME=$2
+	local TEST_NUM="$1"
+	local TEST_NAME="$2"
 
-	printf "%-4d %-34s " ${TEST_NUM} "${TEST_NAME}"
+	printf "%-4d %-34s " "${TEST_NUM}" "${TEST_NAME}"
 	skip
 }
 
 run_test() {
-	local TEST_NUM=$1
-	local TEST_NAME=$2
+	local TEST_NUM="$1"
+	local TEST_NAME="$2"
 
-	for i in ${TESTS_SKIP[@]}; do
-		if [[ $i == ${TEST_NUM} ]] ; then
-			skip_one_test ${TEST_NUM} "${TEST_NAME}"
+	for i in ${TESTS_SKIP[*]}; do
+		if [[ "$i" == "${TEST_NUM}" ]] ; then
+			skip_one_test "${TEST_NUM}" "${TEST_NAME}"
 			return 0
 		fi
 	done
 
 	if [ "${TESTS_RUN[0]}" = "*" ]; then
-		run_one_test ${TEST_NUM} "${TEST_NAME}"
+		run_one_test "${TEST_NUM}" "${TEST_NAME}"
 	else
-		for i in ${TESTS_RUN[@]}; do
-			if [[ $i == ${TEST_NUM} ]] ; then
-				run_one_test ${TEST_NUM} "${TEST_NAME}"
+		for i in ${TESTS_RUN[*]}; do
+			if [[ "$i" == "${TEST_NUM}" ]] ; then
+				run_one_test "${TEST_NUM}" "${TEST_NAME}"
 				return 0
 			fi
 		done
 
-		skip_one_test ${TEST_NUM} "${TEST_NAME}"
+		skip_one_test "${TEST_NUM}" "${TEST_NAME}"
 	fi
 }
 
 wait_udev() {
-	local DEVICE=$1
-	local DELAY=$2
+	local DEVICE="$1"
+	local DELAY="$2"
 	local COUNT=0
 
 	udev_trigger
-	while [ ! -e ${DEVICE} ]; do
-		if [ ${COUNT} -gt ${DELAY} ]; then
+	while [ ! -e "${DEVICE}" ]; do
+		if [ "${COUNT}" -gt "${DELAY}" ]; then
 			return 1
 		fi
 
@@ -758,9 +767,9 @@ stack_clear() {
 	local STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
 	local STACK_TRACER_ENABLED=/proc/sys/kernel/stack_tracer_enabled
 
-	if [ -e $STACK_MAX_SIZE ]; then
-		echo 1 >$STACK_TRACER_ENABLED
-		echo 0 >$STACK_MAX_SIZE
+	if [ -e "$STACK_MAX_SIZE" ]; then
+		echo 1 > "$STACK_TRACER_ENABLED"
+		echo 0 > "$STACK_MAX_SIZE"
 	fi
 }
 
@@ -769,19 +778,20 @@ stack_check() {
 	local STACK_TRACE=/sys/kernel/debug/tracing/stack_trace
 	local STACK_LIMIT=7000
 
-	if [ -e $STACK_MAX_SIZE ]; then
-		STACK_SIZE=`cat $STACK_MAX_SIZE`
+	if [ -e "$STACK_MAX_SIZE" ]; then
+		STACK_SIZE=$(cat "$STACK_MAX_SIZE")
 
-		if [ $STACK_SIZE -ge $STACK_LIMIT ]; then
+		if [ "$STACK_SIZE" -ge "$STACK_LIMIT" ]; then
 			echo
 			echo "Warning: max stack size $STACK_SIZE bytes"
-			cat $STACK_TRACE
+			cat "$STACK_TRACE"
 		fi
 	fi
 }
 
 kill_zed() {
-        if [ -f $ZED_PIDFILE ]; then
-		kill $(cat $ZED_PIDFILE)
+	if [ -f "$ZED_PIDFILE" ]; then
+		# shellcheck disable=SC2046
+		kill $(cat "$ZED_PIDFILE")
         fi
 }
