@@ -165,15 +165,11 @@ do_start()
 {
 	check_module_loaded || exit 0
 
-	# fix mtab to include already-mounted fs filesystems, in case there are any
-	# we ONLY do this if mtab does not point to /proc/mounts
-	# which is the case in some systems (systemd may bring that soon)
-	if ! readlink /etc/mtab | grep -q /proc ; then
-		if grep -qE "(^/dev/zd|^/dev/zvol| zfs )" /proc/mounts ; then
-			zfs_action "Registering already-mounted ZFS filesystems and volumes" \
-			    reregister_mounts
-		fi
-	fi
+	case "$ZFS_MOUNT" in
+		[Oo][Ff][Ff]|[Nn][Oo]|''|0)
+			exit 3
+			;;
+	esac
 
 	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
 	# This should be handled by rc.sysinit but lets be paranoid.
@@ -181,12 +177,6 @@ do_start()
 	then
 		mount -f /
 	fi
-
-	case "$ZFS_MOUNT" in
-		[Oo][Ff][Ff]|[Nn][Oo]|''|0)
-			exit 3
-			;;
-	esac
 
 	do_mount
 }
