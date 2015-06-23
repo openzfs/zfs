@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <libzfs.h>
 #include <locale.h>
+#include <fcntl.h>
 
 libzfs_handle_t *g_zfs;
 

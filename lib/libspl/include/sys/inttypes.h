@@ -31,4 +31,8 @@
 
 #define	_INT64_TYPE
 
+#ifndef RLIM64_INFINITY
+#define RLIM64_INFINITY		(~0ULL)
+#endif
+
 #endif
