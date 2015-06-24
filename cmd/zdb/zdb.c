@@ -1070,7 +1070,7 @@ static void
 dump_history(spa_t *spa)
 {
 	nvlist_t **events = NULL;
-	char buf[SPA_MAXBLOCKSIZE];
+	char *buf;
 	uint64_t resid, len, off = 0;
 	uint_t num = 0;
 	int error;
@@ -1080,12 +1080,19 @@ dump_history(spa_t *spa)
 	char internalstr[MAXPATHLEN];
 	int i;
 
+	if ((buf = malloc(SPA_OLD_MAXBLOCKSIZE)) == NULL) {
+		(void) fprintf(stderr, "%s: unable to allocate I/O buffer\n",
+		    __func__);
+		return;
+	}
+
 	do {
-		len = sizeof (buf);
+		len = SPA_OLD_MAXBLOCKSIZE;
 
 		if ((error = spa_history_get(spa, &off, &len, buf)) != 0) {
 			(void) fprintf(stderr, "Unable to read history: "
 			    "error %d\n", error);
+			free(buf);
 			return;
 		}
 
@@ -1136,6 +1143,7 @@ next:
 			dump_nvlist(events[i], 2);
 		}
 	}
+	free(buf);
 }
 
 /*ARGSUSED*/
