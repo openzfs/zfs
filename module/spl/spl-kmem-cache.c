@@ -1725,7 +1725,9 @@ spl_kmem_cache_init(void)
 	init_rwsem(&spl_kmem_cache_sem);
 	INIT_LIST_HEAD(&spl_kmem_cache_list);
 	spl_kmem_cache_taskq = taskq_create("spl_kmem_cache",
-	    spl_kmem_cache_kmem_threads, maxclsyspri, 1, 32, TASKQ_PREPOPULATE);
+	    spl_kmem_cache_kmem_threads, maxclsyspri,
+	    spl_kmem_cache_kmem_threads * 8, INT_MAX,
+	    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 	spl_register_shrinker(&spl_kmem_cache_shrinker);
 
 	return (0);

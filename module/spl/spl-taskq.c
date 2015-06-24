@@ -1069,10 +1069,8 @@ EXPORT_SYMBOL(taskq_destroy);
 int
 spl_taskq_init(void)
 {
-	/* Solaris creates a dynamic taskq of up to 64 threads, however in
-	 * a Linux environment 1 thread per-core is usually about right */
-	system_taskq = taskq_create("spl_system_taskq", num_online_cpus(),
-				    minclsyspri, 4, 512, TASKQ_PREPOPULATE);
+	system_taskq = taskq_create("spl_system_taskq", MAX(boot_ncpus, 64),
+	    minclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
 	if (system_taskq == NULL)
 		return (1);
 
