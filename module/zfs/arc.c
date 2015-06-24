@@ -4159,15 +4159,11 @@ arc_read_done(zio_t *zio)
 	if (BP_SHOULD_BYTESWAP(zio->io_bp) && zio->io_error == 0) {
 		dmu_object_byteswap_t bswap =
 		    DMU_OT_BYTESWAP(BP_GET_TYPE(zio->io_bp));
-
-		void *ziobuf = abd_borrow_buf_copy(zio->io_data, zio->io_size);
-
 		if (BP_GET_LEVEL(zio->io_bp) > 0)
-			byteswap_uint64_array(ziobuf, hdr->b_size);
+			abd_byteswap_uint64_array(zio->io_data, hdr->b_size);
 		else
-			dmu_ot_byteswap[bswap].ob_func(ziobuf, hdr->b_size);
-
-		abd_return_buf_copy(zio->io_data, ziobuf, zio->io_size);
+			dmu_ot_byteswap[bswap].ob_abd_func(zio->io_data,
+			    hdr->b_size);
 	}
 
 	arc_cksum_compute(buf, B_FALSE);
