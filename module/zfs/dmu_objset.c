@@ -296,6 +296,12 @@ dmu_objset_byteswap(void *buf, size_t size)
 	}
 }
 
+void
+abd_dmu_objset_byteswap(abd_t *abd, size_t size)
+{
+	dmu_objset_byteswap(ABD_TO_BUF(abd), size);
+}
+
 int
 dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
     objset_t **osp)

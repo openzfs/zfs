@@ -1824,13 +1824,10 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		return (err);
 	}
 	if (rwa->byteswap) {
-		void *buf;
 		dmu_object_byteswap_t byteswap =
 		    DMU_OT_BYTESWAP(drrw->drr_type);
-		buf = abd_borrow_buf_copy(abuf->b_data, drrw->drr_length);
-		dmu_ot_byteswap[byteswap].ob_func(buf,
+		dmu_ot_byteswap[byteswap].ob_abd_func(abuf->b_data,
 		    drrw->drr_length);
-		abd_return_buf_copy(abuf->b_data, buf, drrw->drr_length);
 	}
 
 	if (dmu_bonus_hold(rwa->os, drrw->drr_object, FTAG, &bonus) != 0)
