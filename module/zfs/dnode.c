@@ -325,8 +325,8 @@ dnode_byteswap(dnode_phys_t *dnp)
 		byteswap_uint64_array(DN_SPILL_BLKPTR(dnp), sizeof (blkptr_t));
 }
 
-void
-dnode_buf_byteswap(void *vbuf, size_t size)
+static int
+dnode_buf_byteswap_func(void *vbuf, uint64_t size, void *private)
 {
 	int i = 0;
 
@@ -341,6 +341,19 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 		if (dnp->dn_type != DMU_OT_NONE)
 			i += dnp->dn_extra_slots * DNODE_MIN_SIZE;
 	}
+	return (0);
+}
+
+void
+dnode_buf_byteswap(void *vbuf, size_t size)
+{
+	dnode_buf_byteswap_func(vbuf, size, NULL);
+}
+
+void
+abd_dnode_buf_byteswap(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, dnode_buf_byteswap_func, NULL);
 }
 
 void

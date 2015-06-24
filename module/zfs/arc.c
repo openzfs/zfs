@@ -1833,12 +1833,10 @@ arc_buf_fill(arc_buf_t *buf, boolean_t compressed)
 
 	/* Byteswap the buf's data if necessary */
 	if (bswap != DMU_BSWAP_NUMFUNCS) {
-		void *bbuf;
 		ASSERT(!HDR_SHARED_DATA(hdr));
 		ASSERT3U(bswap, <, DMU_BSWAP_NUMFUNCS);
-		bbuf = abd_borrow_buf_copy(buf->b_data, HDR_GET_LSIZE(hdr));
-		dmu_ot_byteswap[bswap].ob_func(bbuf, HDR_GET_LSIZE(hdr));
-		abd_return_buf_copy(buf->b_data, bbuf, HDR_GET_LSIZE(hdr));
+		dmu_ot_byteswap[bswap].ob_abd_func(buf->b_data,
+		    HDR_GET_LSIZE(hdr));
 	}
 
 	/* Compute the hdr's checksum if necessary */
