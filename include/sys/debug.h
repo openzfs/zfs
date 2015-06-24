@@ -92,6 +92,8 @@ void spl_dumpstack(void);
 #define	ASSERT3U(x,y,z)		((void)0)
 #define	ASSERT3P(x,y,z)		((void)0)
 #define	ASSERT0(x)		((void)0)
+#define	IMPLY(A, B)		((void)0)
+#define	EQUIV(A, B)		((void)0)
 
 /*
  * Debugging enabled (--enable-debug)
@@ -105,6 +107,14 @@ void spl_dumpstack(void);
 #define	ASSERT3U(x,y,z)		VERIFY3U(x, y, z)
 #define	ASSERT3P(x,y,z)		VERIFY3P(x, y, z)
 #define	ASSERT0(x)		VERIFY0(x)
+#define	IMPLY(A, B) \
+	((void)(((!(A)) || (B)) || \
+	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \
+	    "(" #A ") implies (" #B ")")))
+#define	EQUIV(A, B) \
+	((void)((!!(A) == !!(B)) || \
+	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \
+	    "(" #A ") is equivalent to (" #B ")")))
 
 #endif /* NDEBUG */
 
