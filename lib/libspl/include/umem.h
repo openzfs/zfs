@@ -191,6 +191,11 @@ umem_cache_free(umem_cache_t *cp, void *ptr)
 	umem_free(ptr, cp->cache_bufsize);
 }
 
+static inline void
+umem_cache_reap_now(umem_cache_t *cp)
+{
+}
+
 #ifdef  __cplusplus
 }
 #endif
