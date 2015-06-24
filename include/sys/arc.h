@@ -110,6 +110,8 @@ typedef enum arc_flags
 	ARC_FLAG_HAS_L1HDR		= 1 << 19,
 	ARC_FLAG_HAS_L2HDR		= 1 << 20,
 
+	/* indicates that the buffer is scatter metadata */
+	ARC_FLAG_META_SCATTER		= 1 << 21,
 } arc_flags_t;
 
 struct arc_buf {
@@ -126,6 +128,23 @@ typedef enum arc_buf_contents {
 	ARC_BUFC_METADATA,			/* buffer contains metadata */
 	ARC_BUFC_NUMTYPES
 } arc_buf_contents_t;
+
+/*
+ * buffer alloc type: data/meta X linear/scatter.
+ * basically arc_buf_contents_t with a scatter flag.
+ */
+typedef int arc_buf_alloc_t;
+/* data is always scatter, so we only use this for metadata */
+#define	ARC_BUFA_META_SCATTER (0x10)
+
+#define	ARC_BUFA_TO_BUFC(type) \
+	(type & ARC_BUFC_METADATA)
+#define	ARC_BUFA_IS_DATA(type) \
+	(!(type & ARC_BUFC_METADATA))
+#define	ARC_BUFA_IS_METADATA(type) \
+	(!ARC_BUFA_IS_DATA(type))
+#define	ARC_BUFA_IS_SCATTER(type) \
+	(ARC_BUFA_IS_DATA(type) || (type & ARC_BUFA_META_SCATTER))
 
 /*
  * The following breakdows of arc_size exist for kstat only.
@@ -171,7 +190,7 @@ typedef struct arc_buf_info {
 void arc_space_consume(uint64_t space, arc_space_type_t type);
 void arc_space_return(uint64_t space, arc_space_type_t type);
 arc_buf_t *arc_buf_alloc(spa_t *spa, uint64_t size, void *tag,
-    arc_buf_contents_t type);
+    arc_buf_alloc_t atype);
 arc_buf_t *arc_loan_buf(spa_t *spa, uint64_t size);
 void arc_return_buf(arc_buf_t *buf, void *tag);
 void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);

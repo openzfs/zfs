@@ -1340,6 +1340,17 @@ arc_buf_type(arc_buf_hdr_t *hdr)
 	}
 }
 
+static arc_buf_alloc_t
+arc_bufa_type(arc_buf_hdr_t *hdr)
+{
+	arc_buf_alloc_t atype = arc_buf_type(hdr);
+	if (hdr->b_flags & ARC_FLAG_META_SCATTER) {
+		ASSERT(atype == ARC_BUFC_METADATA);
+		atype |= ARC_BUFA_META_SCATTER;
+	}
+	return (atype);
+}
+
 static uint32_t
 arc_bufc_to_flags(arc_buf_contents_t type)
 {
@@ -1354,6 +1365,23 @@ arc_bufc_to_flags(arc_buf_contents_t type)
 	}
 	panic("undefined ARC buffer type!");
 	return ((uint32_t)-1);
+}
+
+static uint32_t
+arc_bufa_to_flags(arc_buf_alloc_t atype)
+{
+	uint32_t flags;
+	arc_buf_contents_t ctype = ARC_BUFA_TO_BUFC(atype);
+
+	if ((atype & ~(ARC_BUFC_METADATA|ARC_BUFA_META_SCATTER)) != 0)
+		panic("undefined ARC buffer type!");
+
+	flags = arc_bufc_to_flags(ctype);
+	if (atype & ARC_BUFA_META_SCATTER) {
+		ASSERT(ctype == ARC_BUFC_METADATA);
+		flags |= ARC_FLAG_META_SCATTER;
+	}
+	return (flags);
 }
 
 void
@@ -1744,7 +1772,7 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 }
 
 arc_buf_t *
-arc_buf_alloc(spa_t *spa, uint64_t size, void *tag, arc_buf_contents_t type)
+arc_buf_alloc(spa_t *spa, uint64_t size, void *tag, arc_buf_alloc_t atype)
 {
 	arc_buf_hdr_t *hdr;
 	arc_buf_t *buf;
@@ -1768,7 +1796,7 @@ arc_buf_alloc(spa_t *spa, uint64_t size, void *tag, arc_buf_contents_t type)
 	buf->b_private = NULL;
 	buf->b_next = NULL;
 
-	hdr->b_flags = arc_bufc_to_flags(type);
+	hdr->b_flags = arc_bufa_to_flags(atype);
 	hdr->b_flags |= ARC_FLAG_HAS_L1HDR;
 
 	hdr->b_l1hdr.b_buf = buf;
@@ -3825,6 +3853,7 @@ arc_get_data_buf(arc_buf_t *buf)
 	arc_state_t		*state = buf->b_hdr->b_l1hdr.b_state;
 	uint64_t		size = buf->b_hdr->b_size;
 	arc_buf_contents_t	type = arc_buf_type(buf->b_hdr);
+	arc_buf_alloc_t		atype = arc_bufa_type(buf->b_hdr);
 
 	arc_adapt(size, state);
 
@@ -3864,11 +3893,14 @@ arc_get_data_buf(arc_buf_t *buf)
 		mutex_exit(&arc_reclaim_lock);
 	}
 
-	if (type == ARC_BUFC_METADATA) {
-		buf->b_data = abd_alloc_linear(size);
+	if (ARC_BUFA_IS_METADATA(atype)) {
+		if (ARC_BUFA_IS_SCATTER(atype))
+			buf->b_data = abd_alloc_meta_scatter(size);
+		else
+			buf->b_data = abd_alloc_linear(size);
 		arc_space_consume(size, ARC_SPACE_META);
 	} else {
-		ASSERT(type == ARC_BUFC_DATA);
+		ASSERT(ARC_BUFA_IS_DATA(atype));
 		buf->b_data = abd_alloc_scatter(size);
 		arc_space_consume(size, ARC_SPACE_DATA);
 	}
@@ -4403,8 +4435,8 @@ top:
 		if (hdr == NULL) {
 			/* this block is not in the cache */
 			arc_buf_hdr_t *exists = NULL;
-			arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
-			buf = arc_buf_alloc(spa, size, private, type);
+			arc_buf_alloc_t atype = BP_GET_BUFC_TYPE(bp);
+			buf = arc_buf_alloc(spa, size, private, atype);
 			hdr = buf->b_hdr;
 			if (!BP_IS_EMBEDDED(bp)) {
 				hdr->b_dva = *BP_IDENTITY(bp);
@@ -4855,6 +4887,7 @@ arc_release(arc_buf_t *buf, void *tag)
 		uint64_t blksz = hdr->b_size;
 		uint64_t spa = hdr->b_spa;
 		arc_buf_contents_t type = arc_buf_type(hdr);
+		arc_buf_alloc_t atype = arc_bufa_type(hdr);
 		uint32_t flags = hdr->b_flags;
 
 		ASSERT(hdr->b_l1hdr.b_buf != buf || buf->b_next != NULL);
@@ -4908,7 +4941,7 @@ arc_release(arc_buf_t *buf, void *tag)
 		nhdr->b_l1hdr.b_mfu_ghost_hits = 0;
 		nhdr->b_l1hdr.b_l2_hits = 0;
 		nhdr->b_flags = flags & ARC_FLAG_L2_WRITING;
-		nhdr->b_flags |= arc_bufc_to_flags(type);
+		nhdr->b_flags |= arc_bufa_to_flags(atype);
 		nhdr->b_flags |= ARC_FLAG_HAS_L1HDR;
 
 		nhdr->b_l1hdr.b_buf = buf;
