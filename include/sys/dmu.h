@@ -243,6 +243,14 @@ void zap_byteswap(void *buf, size_t size);
 void zfs_oldacl_byteswap(void *buf, size_t size);
 void zfs_acl_byteswap(void *buf, size_t size);
 void zfs_znode_byteswap(void *buf, size_t size);
+void abd_byteswap_uint64_array(abd_t *abd, size_t size);
+void abd_byteswap_uint32_array(abd_t *abd, size_t size);
+void abd_byteswap_uint16_array(abd_t *abd, size_t size);
+void abd_byteswap_uint8_array(abd_t *abd, size_t size);
+void abd_zap_byteswap(abd_t *abd, size_t size);
+void abd_zfs_oldacl_byteswap(abd_t *abd, size_t size);
+void abd_zfs_acl_byteswap(abd_t *abd, size_t size);
+void abd_zfs_znode_byteswap(abd_t *abd, size_t size);
 
 #define	DS_FIND_SNAPSHOTS	(1<<0)
 #define	DS_FIND_CHILDREN	(1<<1)
@@ -284,6 +292,7 @@ int dmu_objset_snapshot_tmp(const char *, const char *, int);
 int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
     int flags);
 void dmu_objset_byteswap(void *buf, size_t size);
+void abd_dmu_objset_byteswap(abd_t *abd, size_t size);
 int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
 
@@ -767,6 +776,7 @@ typedef struct dmu_object_info {
 } dmu_object_info_t;
 
 typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
+typedef void (*const abd_byteswap_func_t)(abd_t *abd, size_t size);
 
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
@@ -776,7 +786,8 @@ typedef struct dmu_object_type_info {
 } dmu_object_type_info_t;
 
 typedef const struct dmu_object_byteswap_info {
-	arc_byteswap_func_t	 ob_func;
+	arc_byteswap_func_t	ob_func;
+	abd_byteswap_func_t	ob_abd_func;
 	char			*ob_name;
 } dmu_object_byteswap_info_t;
 

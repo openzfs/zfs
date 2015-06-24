@@ -252,6 +252,12 @@ zap_byteswap(void *buf, size_t size)
 	}
 }
 
+void
+abd_zap_byteswap(abd_t *abd, size_t size)
+{
+	zap_byteswap(ABD_TO_BUF(abd), size);
+}
+
 static int
 mze_compare(const void *arg1, const void *arg2)
 {

@@ -114,17 +114,19 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{ DMU_BSWAP_UINT64,	TRUE, FALSE,	"bpobj subobj"		}
 };
 
+#define	OB_FUNC(func)	func, abd_##func
+
 const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
-	{	byteswap_uint8_array,	"uint8"		},
-	{	byteswap_uint16_array,	"uint16"	},
-	{	byteswap_uint32_array,	"uint32"	},
-	{	byteswap_uint64_array,	"uint64"	},
-	{	zap_byteswap,		"zap"		},
-	{	dnode_buf_byteswap,	"dnode"		},
-	{	dmu_objset_byteswap,	"objset"	},
-	{	zfs_znode_byteswap,	"znode"		},
-	{	zfs_oldacl_byteswap,	"oldacl"	},
-	{	zfs_acl_byteswap,	"acl"		}
+	{ OB_FUNC(byteswap_uint8_array),	"uint8"		},
+	{ OB_FUNC(byteswap_uint16_array),	"uint16"	},
+	{ OB_FUNC(byteswap_uint32_array),	"uint32"	},
+	{ OB_FUNC(byteswap_uint64_array),	"uint64"	},
+	{ OB_FUNC(zap_byteswap),		"zap"		},
+	{ OB_FUNC(dnode_buf_byteswap),		"dnode"		},
+	{ OB_FUNC(dmu_objset_byteswap),		"objset"	},
+	{ OB_FUNC(zfs_znode_byteswap),		"znode"		},
+	{ OB_FUNC(zfs_oldacl_byteswap),		"oldacl"	},
+	{ OB_FUNC(zfs_acl_byteswap),		"acl"		}
 };
 
 int
@@ -1937,8 +1939,8 @@ dmu_object_size_from_db(dmu_buf_t *db_fake, uint32_t *blksize,
 	DB_DNODE_EXIT(db);
 }
 
-void
-byteswap_uint64_array(void *vbuf, size_t size)
+static int
+byteswap_uint64_array_func(void *vbuf, uint64_t size, void *private)
 {
 	uint64_t *buf = vbuf;
 	size_t count = size >> 3;
@@ -1948,10 +1950,23 @@ byteswap_uint64_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_64(buf[i]);
+	return (0);
 }
 
 void
-byteswap_uint32_array(void *vbuf, size_t size)
+abd_byteswap_uint64_array(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, byteswap_uint64_array_func, NULL);
+}
+
+void
+byteswap_uint64_array(void *vbuf, size_t size)
+{
+	byteswap_uint64_array_func(vbuf, size, NULL);
+}
+
+static int
+byteswap_uint32_array_func(void *vbuf, uint64_t size, void *private)
 {
 	uint32_t *buf = vbuf;
 	size_t count = size >> 2;
@@ -1961,10 +1976,23 @@ byteswap_uint32_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_32(buf[i]);
+	return (0);
 }
 
 void
-byteswap_uint16_array(void *vbuf, size_t size)
+abd_byteswap_uint32_array(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, byteswap_uint32_array_func, NULL);
+}
+
+void
+byteswap_uint32_array(void *vbuf, size_t size)
+{
+	byteswap_uint32_array_func(vbuf, size, NULL);
+}
+
+static int
+byteswap_uint16_array_func(void *vbuf, uint64_t size, void *private)
 {
 	uint16_t *buf = vbuf;
 	size_t count = size >> 1;
@@ -1974,6 +2002,25 @@ byteswap_uint16_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_16(buf[i]);
+	return (0);
+}
+
+void
+abd_byteswap_uint16_array(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, byteswap_uint16_array_func, NULL);
+}
+
+void
+byteswap_uint16_array(void *vbuf, size_t size)
+{
+	byteswap_uint16_array_func(vbuf, size, NULL);
+}
+
+/* ARGSUSED */
+void
+abd_byteswap_uint8_array(abd_t *abd, size_t size)
+{
 }
 
 /* ARGSUSED */
