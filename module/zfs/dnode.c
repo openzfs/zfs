@@ -335,8 +335,8 @@ dnode_byteswap(dnode_phys_t *dnp)
 
 }
 
-void
-dnode_buf_byteswap(void *vbuf, size_t size)
+static int
+dnode_buf_byteswap_func(void *vbuf, uint64_t size, void *private)
 {
 	dnode_phys_t *buf = vbuf;
 	int i;
@@ -349,6 +349,19 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 		dnode_byteswap(buf);
 		buf++;
 	}
+	return (0);
+}
+
+void
+dnode_buf_byteswap(void *vbuf, size_t size)
+{
+	dnode_buf_byteswap_func(vbuf, size, NULL);
+}
+
+void
+abd_dnode_buf_byteswap(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, dnode_buf_byteswap_func, NULL);
 }
 
 void
