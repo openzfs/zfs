@@ -4928,6 +4928,12 @@ arc_init(void)
 	if (zfs_arc_meta_limit > 0 && zfs_arc_meta_limit <= arc_c_max)
 		arc_meta_limit = zfs_arc_meta_limit;
 
+	if (zfs_arc_meta_min > 0) {
+		arc_meta_min = zfs_arc_meta_min;
+	} else {
+		arc_meta_min = arc_c_min / 2;
+	}
+
 	if (zfs_arc_num_sublists_per_state < 1)
 		zfs_arc_num_sublists_per_state = num_online_cpus();
 
