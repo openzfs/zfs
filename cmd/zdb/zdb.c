@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015, Intel Corporation.
  */
 
 #include <stdio.h>
@@ -3086,6 +3087,7 @@ dump_zpool(spa_t *spa)
 
 	if (dump_opt['d'] || dump_opt['i']) {
 		uint64_t refcount;
+
 		dump_dir(dp->dp_meta_objset);
 		if (dump_opt['d'] >= 3) {
 			dump_full_bpobj(&spa->spa_deferred_bpobj,
@@ -3107,8 +3109,11 @@ dump_zpool(spa_t *spa)
 		(void) dmu_objset_find(spa_name(spa), dump_one_dir,
 		    NULL, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
 
-		(void) feature_get_refcount(spa,
-		    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS], &refcount);
+		if (feature_get_refcount(spa,
+		    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS],
+		    &refcount) == ENOTSUP) {
+			refcount = 0;
+		}
 		if (num_large_blocks != refcount) {
 			(void) printf("large_blocks feature refcount mismatch: "
 			    "expected %lld != actual %lld\n",
