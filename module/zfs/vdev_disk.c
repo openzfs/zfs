@@ -701,11 +701,17 @@ vdev_disk_io_start(zio_t *zio)
 		zio_execute(zio);
 		return;
 	case ZIO_TYPE_WRITE:
-		flags = WRITE;
+		if (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE)
+			flags = WRITE_SYNC;
+		else
+			flags = WRITE;
 		break;
 
 	case ZIO_TYPE_READ:
-		flags = READ;
+		if (zio->io_priority == ZIO_PRIORITY_SYNC_READ)
+			flags = READ_SYNC;
+		else
+			flags = READ;
 		break;
 
 	default:
