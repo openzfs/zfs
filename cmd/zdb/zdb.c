@@ -1079,8 +1079,11 @@ dump_history(spa_t *spa)
 	char internalstr[MAXPATHLEN];
 	int i;
 
-	if ((buf = malloc(SPA_OLD_MAXBLOCKSIZE)) == NULL)
+	if ((buf = malloc(SPA_OLD_MAXBLOCKSIZE)) == NULL) {
+		(void) fprintf(stderr, "%s: unable to allocate I/O buffer\n",
+		    __func__);
 		return;
+	}
 
 	do {
 		len = SPA_OLD_MAXBLOCKSIZE;
