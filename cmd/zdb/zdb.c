@@ -3111,18 +3111,18 @@ dump_zpool(spa_t *spa)
 
 		if (feature_get_refcount(spa,
 		    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS],
-		    &refcount) == ENOTSUP) {
-			refcount = 0;
-		}
-		if (num_large_blocks != refcount) {
-			(void) printf("large_blocks feature refcount mismatch: "
-			    "expected %lld != actual %lld\n",
-			    (longlong_t)num_large_blocks,
-			    (longlong_t)refcount);
-			rc = 2;
-		} else {
-			(void) printf("Verified large_blocks feature refcount "
-			    "is correct (%llu)\n", (longlong_t)refcount);
+		    &refcount) != ENOTSUP) {
+			if (num_large_blocks != refcount) {
+				(void) printf("large_blocks feature refcount "
+				    "mismatch: expected %lld != actual %lld\n",
+				    (longlong_t)num_large_blocks,
+				    (longlong_t)refcount);
+				rc = 2;
+			} else {
+				(void) printf("Verified large_blocks feature "
+				    "refcount is correct (%llu)\n",
+				    (longlong_t)refcount);
+			}
 		}
 	}
 	if (rc == 0 && (dump_opt['b'] || dump_opt['c']))
