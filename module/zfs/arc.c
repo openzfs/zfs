@@ -188,6 +188,9 @@ static int		arc_grow_retry = 5;
 /* shift of arc_c for calculating overflow limit in arc_get_data_buf */
 int		zfs_arc_overflow_shift = 8;
 
+/* shift of arc_c for calculating both min and max arc_p */
+static int		arc_p_min_shift = 4;
+
 /* log2(fraction of arc to reclaim) */
 static int		arc_shrink_shift = 7;
 
@@ -230,6 +233,7 @@ unsigned long zfs_arc_meta_limit = 0;
 unsigned long zfs_arc_meta_min = 0;
 int zfs_arc_grow_retry = 0;
 int zfs_arc_shrink_shift = 0;
+int zfs_arc_p_min_shift = 0;
 int zfs_disable_dup_eviction = 0;
 int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
 
@@ -3718,6 +3722,7 @@ static void
 arc_adapt(int bytes, arc_state_t *state)
 {
 	int mult;
+	uint64_t arc_p_min = (arc_c >> arc_p_min_shift);
 	int64_t mrug_size = refcount_count(&arc_mru_ghost->arcs_size);
 	int64_t mfug_size = refcount_count(&arc_mfu_ghost->arcs_size);
 
@@ -3738,7 +3743,7 @@ arc_adapt(int bytes, arc_state_t *state)
 		if (!zfs_arc_p_dampener_disable)
 			mult = MIN(mult, 10); /* avoid wild arc_p adjustment */
 
-		arc_p = MIN(arc_c, arc_p + bytes * mult);
+		arc_p = MIN(arc_c - arc_p_min, arc_p + bytes * mult);
 	} else if (state == arc_mfu_ghost) {
 		uint64_t delta;
 
@@ -3747,7 +3752,7 @@ arc_adapt(int bytes, arc_state_t *state)
 			mult = MIN(mult, 10);
 
 		delta = MIN(bytes * mult, arc_p);
-		arc_p = MAX(0, arc_p - delta);
+		arc_p = MAX(arc_p_min, arc_p - delta);
 	}
 	ASSERT((int64_t)arc_p >= 0);
 
@@ -5264,6 +5269,10 @@ arc_tuning_update(void)
 		arc_shrink_shift = zfs_arc_shrink_shift;
 		arc_no_grow_shift = MIN(arc_no_grow_shift, arc_shrink_shift -1);
 	}
+
+	/* Valid range: 1 - N */
+	if (zfs_arc_p_min_shift)
+		arc_p_min_shift = zfs_arc_p_min_shift;
 
 	/* Valid range: 1 - N ticks */
 	if (zfs_arc_min_prefetch_lifespan)
@@ -6995,6 +7004,9 @@ MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
 
 module_param(zfs_arc_shrink_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
+
+module_param(zfs_arc_p_min_shift, int, 0644);
+MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
 
 module_param(zfs_disable_dup_eviction, int, 0644);
 MODULE_PARM_DESC(zfs_disable_dup_eviction, "disable duplicate buffer eviction");
