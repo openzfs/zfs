@@ -164,17 +164,6 @@ static kmutex_t		arc_user_evicts_lock;
 static kcondvar_t	arc_user_evicts_cv;
 static boolean_t	arc_user_evicts_thread_exit;
 
-/* number of objects to prune from caches when arc_meta_limit is reached */
-int zfs_arc_meta_prune = 10000;
-
-/* The preferred strategy to employ when arc_meta_limit is reached */
-int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
-
-typedef enum arc_reclaim_strategy {
-	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
-	ARC_RECLAIM_CONS		/* Conservative reclaim strategy */
-} arc_reclaim_strategy_t;
-
 /*
  * The number of headers to evict in arc_evict_state_impl() before
  * dropping the sublist lock and evicting from another sublist. A lower
@@ -192,40 +181,31 @@ int zfs_arc_evict_batch_limit = 10;
 int zfs_arc_num_sublists_per_state = 0;
 
 /* number of seconds before growing cache again */
-int zfs_arc_grow_retry = 5;
+static int		arc_grow_retry = 5;
 
 /* shift of arc_c for calculating overflow limit in arc_get_data_buf */
-int zfs_arc_overflow_shift = 8;
-
-/* disable anon data aggressively growing arc_p */
-int zfs_arc_p_aggressive_disable = 1;
-
-/* disable arc_p adapt dampener in arc_adapt */
-int zfs_arc_p_dampener_disable = 1;
+int		zfs_arc_overflow_shift = 8;
 
 /* log2(fraction of arc to reclaim) */
-int zfs_arc_shrink_shift = 5;
+static int		arc_shrink_shift = 7;
+
+/*
+ * log2(fraction of ARC which must be free to allow growing).
+ * I.e. If there is less than arc_c >> arc_no_grow_shift free memory,
+ * when reading a new block into the ARC, we will evict an equal-sized block
+ * from the ARC.
+ *
+ * This must be less than arc_shrink_shift, so that when we shrink the ARC,
+ * we will still not allow it to grow.
+ */
+int			arc_no_grow_shift = 5;
+
 
 /*
  * minimum lifespan of a prefetch block in clock ticks
  * (initialized in arc_init())
  */
-int zfs_arc_min_prefetch_lifespan = HZ;
-
-/* disable arc proactive arc throttle due to low memory */
-int zfs_arc_memory_throttle_disable = 1;
-
-/* disable duplicate buffer eviction */
-int zfs_disable_dup_eviction = 0;
-
-/* average block used to size buf_hash_table */
-int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
-
-/*
- * minimum lifespan of a prefetch block in clock ticks
- * (initialized in arc_init())
- */
-static int arc_min_prefetch_lifespan;
+static int		arc_min_prefetch_lifespan;
 
 /*
  * If this percent of memory is free, don't throttle.
@@ -233,9 +213,6 @@ static int arc_min_prefetch_lifespan;
 int arc_lotsfree_percent = 10;
 
 static int arc_dead;
-
-/* expiration time for arc_no_grow */
-static clock_t arc_grow_time = 0;
 
 /*
  * The arc has filled available memory and has now warmed up.
@@ -249,11 +226,21 @@ unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
 unsigned long zfs_arc_meta_min = 0;
+int zfs_arc_grow_retry = 0;
+int zfs_arc_shrink_shift = 0;
+int zfs_disable_dup_eviction = 0;
+int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
 
 /*
- * Limit the number of restarts in arc_adjust_meta()
+ * These tunables are Linux specific
  */
-unsigned long zfs_arc_meta_adjust_restarts = 4096;
+int zfs_arc_memory_throttle_disable = 1;
+int zfs_arc_min_prefetch_lifespan = 0;
+int zfs_arc_p_aggressive_disable = 1;
+int zfs_arc_p_dampener_disable = 1;
+int zfs_arc_meta_prune = 10000;
+int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
+int zfs_arc_meta_adjust_restarts = 4096;
 
 /* The 6 states: */
 static arc_state_t ARC_anon;
@@ -689,6 +676,7 @@ static void arc_get_data_buf(arc_buf_t *);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
 static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
+static void arc_tuning_update(void);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
 static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
@@ -2535,7 +2523,7 @@ arc_prune_task(void *ptr)
  * is analogous to dnlc_reduce_cache() but more generic.
  *
  * This operation is performed asyncronously so it may be safely called
- * in the context of the arc_adapt_thread().  A reference is taken here
+ * in the context of the arc_reclaim_thread().  A reference is taken here
  * for each registered arc_prune_t and the arc_prune_task() is responsible
  * for releasing it once the registered arc_prune_func_t has completed.
  */
@@ -2611,7 +2599,7 @@ arc_adjust_meta_balanced(void)
 	int64_t adjustmnt, delta, prune = 0;
 	uint64_t total_evicted = 0;
 	arc_buf_contents_t type = ARC_BUFC_DATA;
-	unsigned long restarts = zfs_arc_meta_adjust_restarts;
+	int restarts = MAX(zfs_arc_meta_adjust_restarts, 0);
 
 restart:
 	/*
@@ -3004,25 +2992,16 @@ arc_flush(spa_t *spa, boolean_t retry)
 }
 
 void
-arc_shrink(uint64_t bytes)
+arc_shrink(int64_t to_free)
 {
 	if (arc_c > arc_c_min) {
-		uint64_t to_free;
-
-		to_free = bytes ? bytes : arc_c >> zfs_arc_shrink_shift;
 
 		if (arc_c > arc_c_min + to_free)
 			atomic_add_64(&arc_c, -to_free);
 		else
 			arc_c = arc_c_min;
 
-		to_free = bytes ? bytes : arc_p >> zfs_arc_shrink_shift;
-
-		if (arc_p > to_free)
-			atomic_add_64(&arc_p, -to_free);
-		else
-			arc_p = 0;
-
+		atomic_add_64(&arc_p, -(arc_p >> arc_shrink_shift));
 		if (arc_c > arc_size)
 			arc_c = MAX(arc_size, arc_c_min);
 		if (arc_p > arc_c)
@@ -3035,8 +3014,181 @@ arc_shrink(uint64_t bytes)
 		(void) arc_adjust();
 }
 
+typedef enum free_memory_reason_t {
+	FMR_UNKNOWN,
+	FMR_NEEDFREE,
+	FMR_LOTSFREE,
+	FMR_SWAPFS_MINFREE,
+	FMR_PAGES_PP_MAXIMUM,
+	FMR_HEAP_ARENA,
+	FMR_ZIO_ARENA,
+} free_memory_reason_t;
+
+int64_t last_free_memory;
+free_memory_reason_t last_free_reason;
+
+#ifdef _KERNEL
+#ifdef __linux__
+/*
+ * expiration time for arc_no_grow set by direct memory reclaim.
+ */
+static clock_t arc_grow_time = 0;
+#else
+/*
+ * Additional reserve of pages for pp_reserve.
+ */
+int64_t arc_pages_pp_reserve = 64;
+
+/*
+ * Additional reserve of pages for swapfs.
+ */
+int64_t arc_swapfs_reserve = 64;
+#endif
+#endif /* _KERNEL */
+
+/*
+ * Return the amount of memory that can be consumed before reclaim will be
+ * needed.  Positive if there is sufficient free memory, negative indicates
+ * the amount of memory that needs to be freed up.
+ */
+static int64_t
+arc_available_memory(void)
+{
+	int64_t lowest = INT64_MAX;
+	free_memory_reason_t r = FMR_UNKNOWN;
+
+#ifdef _KERNEL
+#ifdef __linux__
+	/*
+	 * Under Linux we are not allowed to directly interrogate the global
+	 * memory state.  Instead rely on observing that direct reclaim has
+	 * recently occurred therefore the system must be low on memory.  The
+	 * exact values returned are not critical but should be small.
+	 */
+	if (ddi_time_after_eq(ddi_get_lbolt(), arc_grow_time))
+		lowest = PAGE_SIZE;
+	else
+		lowest = -PAGE_SIZE;
+#else
+	int64_t n;
+
+	/*
+	 * Platforms like illumos have greater visibility in to the memory
+	 * subsystem and can return a more detailed analysis of memory.
+	 */
+	if (needfree > 0) {
+		n = PAGESIZE * (-needfree);
+		if (n < lowest) {
+			lowest = n;
+			r = FMR_NEEDFREE;
+		}
+	}
+
+	/*
+	 * check that we're out of range of the pageout scanner.  It starts to
+	 * schedule paging if freemem is less than lotsfree and needfree.
+	 * lotsfree is the high-water mark for pageout, and needfree is the
+	 * number of needed free pages.  We add extra pages here to make sure
+	 * the scanner doesn't start up while we're freeing memory.
+	 */
+	n = PAGESIZE * (freemem - lotsfree - needfree - desfree);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_LOTSFREE;
+	}
+
+	/*
+	 * check to make sure that swapfs has enough space so that anon
+	 * reservations can still succeed. anon_resvmem() checks that the
+	 * availrmem is greater than swapfs_minfree, and the number of reserved
+	 * swap pages.  We also add a bit of extra here just to prevent
+	 * circumstances from getting really dire.
+	 */
+	n = PAGESIZE * (availrmem - swapfs_minfree - swapfs_reserve -
+	    desfree - arc_swapfs_reserve);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_SWAPFS_MINFREE;
+	}
+
+
+	/*
+	 * Check that we have enough availrmem that memory locking (e.g., via
+	 * mlock(3C) or memcntl(2)) can still succeed.  (pages_pp_maximum
+	 * stores the number of pages that cannot be locked; when availrmem
+	 * drops below pages_pp_maximum, page locking mechanisms such as
+	 * page_pp_lock() will fail.)
+	 */
+	n = PAGESIZE * (availrmem - pages_pp_maximum -
+	    arc_pages_pp_reserve);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_PAGES_PP_MAXIMUM;
+	}
+
+#if defined(__i386)
+	/*
+	 * If we're on an i386 platform, it's possible that we'll exhaust the
+	 * kernel heap space before we ever run out of available physical
+	 * memory.  Most checks of the size of the heap_area compare against
+	 * tune.t_minarmem, which is the minimum available real memory that we
+	 * can have in the system.  However, this is generally fixed at 25 pages
+	 * which is so low that it's useless.  In this comparison, we seek to
+	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
+	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
+	 * free)
+	 */
+	n = vmem_size(heap_arena, VMEM_FREE) -
+	    (vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC) >> 2);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_HEAP_ARENA;
+	}
+#endif
+
+	/*
+	 * If zio data pages are being allocated out of a separate heap segment,
+	 * then enforce that the size of available vmem for this arena remains
+	 * above about 1/16th free.
+	 *
+	 * Note: The 1/16th arena free requirement was put in place
+	 * to aggressively evict memory from the arc in order to avoid
+	 * memory fragmentation issues.
+	 */
+	if (zio_arena != NULL) {
+		n = vmem_size(zio_arena, VMEM_FREE) -
+		    (vmem_size(zio_arena, VMEM_ALLOC) >> 4);
+		if (n < lowest) {
+			lowest = n;
+			r = FMR_ZIO_ARENA;
+		}
+	}
+#endif /* __linux__ */
+#else
+	/* Every 100 calls, free a small amount */
+	if (spa_get_random(100) == 0)
+		lowest = -1024;
+#endif
+
+	last_free_memory = lowest;
+	last_free_reason = r;
+
+	return (lowest);
+}
+
+/*
+ * Determine if the system is under memory pressure and is asking
+ * to reclaim memory. A return value of TRUE indicates that the system
+ * is under memory pressure and that the arc should adjust accordingly.
+ */
+static boolean_t
+arc_reclaim_needed(void)
+{
+	return (arc_available_memory() < 0);
+}
+
 static void
-arc_kmem_reap_now(arc_reclaim_strategy_t strat, uint64_t bytes)
+arc_kmem_reap_now(void)
 {
 	size_t			i;
 	kmem_cache_t		*prev_cache = NULL;
@@ -3053,13 +3205,6 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat, uint64_t bytes)
 		arc_prune(zfs_arc_meta_prune);
 	}
 
-	/*
-	 * An aggressive reclamation will shrink the cache size as well as
-	 * reap free buffers from the arc kmem caches.
-	 */
-	if (strat == ARC_RECLAIM_AGGR)
-		arc_shrink(bytes);
-
 	for (i = 0; i < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; i++) {
 		if (zio_buf_cache[i] != prev_cache) {
 			prev_cache = zio_buf_cache[i];
@@ -3070,11 +3215,18 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat, uint64_t bytes)
 			kmem_cache_reap_now(zio_data_buf_cache[i]);
 		}
 	}
-
 	kmem_cache_reap_now(buf_cache);
 	kmem_cache_reap_now(hdr_full_cache);
 	kmem_cache_reap_now(hdr_l2only_cache);
 	kmem_cache_reap_now(range_seg_cache);
+
+	if (zio_arena != NULL) {
+		/*
+		 * Ask the vmem arena to reclaim unused memory from its
+		 * quantum caches.
+		 */
+		vmem_qcache_reap(zio_arena);
+	}
 }
 
 /*
@@ -3094,88 +3246,90 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat, uint64_t bytes)
  * using mutex_tryenter() from arc_reclaim_thread().
  */
 static void
-arc_adapt_thread(void)
+arc_reclaim_thread(void)
 {
+	fstrans_cookie_t	cookie = spl_fstrans_mark();
+	clock_t			growtime = 0;
 	callb_cpr_t		cpr;
-	fstrans_cookie_t	cookie;
-	uint64_t		arc_evicted;
 
 	CALLB_CPR_INIT(&cpr, &arc_reclaim_lock, callb_generic_cpr, FTAG);
 
-	cookie = spl_fstrans_mark();
 	mutex_enter(&arc_reclaim_lock);
-	while (arc_reclaim_thread_exit == 0) {
-#ifndef _KERNEL
-		arc_reclaim_strategy_t	last_reclaim = ARC_RECLAIM_CONS;
+	while (!arc_reclaim_thread_exit) {
+		int64_t to_free;
+		int64_t free_memory = arc_available_memory();
+		uint64_t evicted = 0;
+
+		arc_tuning_update();
 
 		mutex_exit(&arc_reclaim_lock);
-		if (spa_get_random(100) == 0) {
 
-			if (arc_no_grow) {
-				if (last_reclaim == ARC_RECLAIM_CONS) {
-					last_reclaim = ARC_RECLAIM_AGGR;
-				} else {
-					last_reclaim = ARC_RECLAIM_CONS;
-				}
-			} else {
-				arc_no_grow = TRUE;
-				last_reclaim = ARC_RECLAIM_AGGR;
-				membar_producer();
-			}
+		if (free_memory < 0) {
 
-			/* reset the growth delay for every reclaim */
-			arc_grow_time = ddi_get_lbolt() +
-			    (zfs_arc_grow_retry * hz);
-
-			arc_kmem_reap_now(last_reclaim, 0);
+			arc_no_grow = B_TRUE;
 			arc_warm = B_TRUE;
+
+			/*
+			 * Wait at least zfs_grow_retry (default 5) seconds
+			 * before considering growing.
+			 */
+			growtime = ddi_get_lbolt() + (arc_grow_retry * hz);
+
+			arc_kmem_reap_now();
+
+			/*
+			 * If we are still low on memory, shrink the ARC
+			 * so that we have arc_shrink_min free space.
+			 */
+			free_memory = arc_available_memory();
+
+			to_free = (arc_c >> arc_shrink_shift) - free_memory;
+			if (to_free > 0) {
+#ifdef _KERNEL
+				to_free = MAX(to_free, ptob(needfree));
+#endif
+				arc_shrink(to_free);
+			}
+		} else if (free_memory < arc_c >> arc_no_grow_shift) {
+			arc_no_grow = B_TRUE;
+		} else if (ddi_get_lbolt() >= growtime) {
+			arc_no_grow = B_FALSE;
 		}
-#else /* _KERNEL */
-		mutex_exit(&arc_reclaim_lock);
-#endif /* !_KERNEL */
 
-		/* No recent memory pressure allow the ARC to grow. */
-		if (arc_no_grow &&
-		    ddi_time_after_eq(ddi_get_lbolt(), arc_grow_time))
-			arc_no_grow = FALSE;
-
-		arc_evicted = arc_adjust();
-
-		/*
-		 * We're either no longer overflowing, or we
-		 * can't evict anything more, so we should wake
-		 * up any threads before we go to sleep.
-		 */
-		if (arc_size <= arc_c || arc_evicted == 0)
-			cv_broadcast(&arc_reclaim_waiters_cv);
+		evicted = arc_adjust();
 
 		mutex_enter(&arc_reclaim_lock);
 
-		/* block until needed, or one second, whichever is shorter */
-		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait_sig(&arc_reclaim_thread_cv,
-		    &arc_reclaim_lock, (ddi_get_lbolt() + hz));
-		CALLB_CPR_SAFE_END(&cpr, &arc_reclaim_lock);
+		/*
+		 * If evicted is zero, we couldn't evict anything via
+		 * arc_adjust(). This could be due to hash lock
+		 * collisions, but more likely due to the majority of
+		 * arc buffers being unevictable. Therefore, even if
+		 * arc_size is above arc_c, another pass is unlikely to
+		 * be helpful and could potentially cause us to enter an
+		 * infinite loop.
+		 */
+		if (arc_size <= arc_c || evicted == 0) {
+			/*
+			 * We're either no longer overflowing, or we
+			 * can't evict anything more, so we should wake
+			 * up any threads before we go to sleep.
+			 */
+			cv_broadcast(&arc_reclaim_waiters_cv);
 
-
-		/* Allow the module options to be changed */
-		if (zfs_arc_max > 64 << 20 &&
-		    zfs_arc_max < physmem * PAGESIZE &&
-		    zfs_arc_max != arc_c_max)
-			arc_c_max = zfs_arc_max;
-
-		if (zfs_arc_min >= 2ULL << SPA_MAXBLOCKSHIFT &&
-		    zfs_arc_min <= arc_c_max &&
-		    zfs_arc_min != arc_c_min)
-			arc_c_min = zfs_arc_min;
-
-		if (zfs_arc_meta_limit > 0 &&
-		    zfs_arc_meta_limit <= arc_c_max &&
-		    zfs_arc_meta_limit != arc_meta_limit)
-			arc_meta_limit = zfs_arc_meta_limit;
+			/*
+			 * Block until signaled, or after one second (we
+			 * might need to perform arc_kmem_reap_now()
+			 * even if we aren't being signalled)
+			 */
+			CALLB_CPR_SAFE_BEGIN(&cpr);
+			(void) cv_timedwait_sig(&arc_reclaim_thread_cv,
+			    &arc_reclaim_lock, ddi_get_lbolt() + hz);
+			CALLB_CPR_SAFE_END(&cpr, &arc_reclaim_lock);
+		}
 	}
 
-	arc_reclaim_thread_exit = 0;
+	arc_reclaim_thread_exit = FALSE;
 	cv_broadcast(&arc_reclaim_thread_cv);
 	CALLB_CPR_EXIT(&cpr);		/* drops arc_reclaim_lock */
 	spl_fstrans_unmark(cookie);
@@ -3185,12 +3339,11 @@ arc_adapt_thread(void)
 static void
 arc_user_evicts_thread(void)
 {
+	fstrans_cookie_t	cookie = spl_fstrans_mark();
 	callb_cpr_t cpr;
-	fstrans_cookie_t	cookie;
 
 	CALLB_CPR_INIT(&cpr, &arc_user_evicts_lock, callb_generic_cpr, FTAG);
 
-	cookie = spl_fstrans_mark();
 	mutex_enter(&arc_user_evicts_lock);
 	while (!arc_user_evicts_thread_exit) {
 		mutex_exit(&arc_user_evicts_lock);
@@ -3338,15 +3491,15 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 * reap whatever we can from the various arc slabs.
 	 */
 	if (pages > 0) {
-		arc_kmem_reap_now(ARC_RECLAIM_AGGR, ptob(sc->nr_to_scan));
-
+		arc_shrink(ptob(sc->nr_to_scan));
+		arc_kmem_reap_now();
 #ifdef HAVE_SPLIT_SHRINKER_CALLBACK
 		pages = MAX(pages - btop(arc_evictable_memory()), 0);
 #else
 		pages = btop(arc_evictable_memory());
 #endif
 	} else {
-		arc_kmem_reap_now(ARC_RECLAIM_CONS, ptob(sc->nr_to_scan));
+		arc_kmem_reap_now();
 		pages = SHRINK_STOP;
 	}
 
@@ -3420,6 +3573,11 @@ arc_adapt(int bytes, arc_state_t *state)
 		arc_p = MAX(0, arc_p - delta);
 	}
 	ASSERT((int64_t)arc_p >= 0);
+
+	if (arc_reclaim_needed()) {
+		cv_signal(&arc_reclaim_thread_cv);
+		return;
+	}
 
 	if (arc_no_grow)
 		return;
@@ -4721,7 +4879,11 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	if (zfs_arc_memory_throttle_disable)
 		return (0);
 
-	if (freemem <= physmem * arc_lotsfree_percent / 100) {
+	if (freemem > physmem * arc_lotsfree_percent / 100)
+		return (0);
+
+	if (arc_reclaim_needed()) {
+		/* memory is low, delay before restarting */
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
 		DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 		return (SET_ERROR(EAGAIN));
@@ -4871,9 +5033,73 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 	    multilist_get_num_sublists(ml));
 }
 
+/*
+ * Called during module initialization and periodically thereafter to
+ * apply reasonable changes to the exposed performance tunings.  Non-zero
+ * zfs_* values which differ from the currently set values will be applied.
+ */
+static void
+arc_tuning_update(void)
+{
+	/* Valid range: 64M - <all physical memory> */
+	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
+	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < ptob(physmem)) &&
+	    (zfs_arc_max > arc_c_min)) {
+		arc_c_max = zfs_arc_max;
+		arc_c = arc_c_max;
+		arc_p = (arc_c >> 1);
+		arc_meta_limit = MIN(arc_meta_limit, arc_c_max);
+	}
+
+	/* Valid range: 32M - <arc_c_max> */
+	if ((zfs_arc_min) && (zfs_arc_min != arc_c_min) &&
+	    (zfs_arc_min >= 2ULL << SPA_MAXBLOCKSHIFT) &&
+	    (zfs_arc_min <= arc_c_max)) {
+		arc_c_min = zfs_arc_min;
+		arc_c = MAX(arc_c, arc_c_min);
+	}
+
+	/* Valid range: 16M - <arc_c_max> */
+	if ((zfs_arc_meta_min) && (zfs_arc_meta_min != arc_meta_min) &&
+	    (zfs_arc_meta_min >= 1ULL << SPA_MAXBLOCKSHIFT) &&
+	    (zfs_arc_meta_min <= arc_c_max)) {
+		arc_meta_min = zfs_arc_meta_min;
+		arc_meta_limit = MAX(arc_meta_limit, arc_meta_min);
+	}
+
+	/* Valid range: <arc_meta_min> - <arc_c_max> */
+	if ((zfs_arc_meta_limit) && (zfs_arc_meta_limit != arc_meta_limit) &&
+	    (zfs_arc_meta_limit >= zfs_arc_meta_min) &&
+	    (zfs_arc_meta_limit <= arc_c_max))
+		arc_meta_limit = zfs_arc_meta_limit;
+
+	/* Valid range: 1 - N */
+	if (zfs_arc_grow_retry)
+		arc_grow_retry = zfs_arc_grow_retry;
+
+	/* Valid range: 1 - N */
+	if (zfs_arc_shrink_shift) {
+		arc_shrink_shift = zfs_arc_shrink_shift;
+		arc_no_grow_shift = MIN(arc_no_grow_shift, arc_shrink_shift -1);
+	}
+
+	/* Valid range: 1 - N ticks */
+	if (zfs_arc_min_prefetch_lifespan)
+		arc_min_prefetch_lifespan = zfs_arc_min_prefetch_lifespan;
+}
+
 void
 arc_init(void)
 {
+	/*
+	 * allmem is "all memory that we could possibly use".
+	 */
+#ifdef _KERNEL
+	uint64_t allmem = ptob(physmem);
+#else
+	uint64_t allmem = (physmem * PAGESIZE) / 2;
+#endif
+
 	mutex_init(&arc_reclaim_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&arc_reclaim_thread_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&arc_reclaim_waiters_cv, NULL, CV_DEFAULT, NULL);
@@ -4882,10 +5108,10 @@ arc_init(void)
 	cv_init(&arc_user_evicts_cv, NULL, CV_DEFAULT, NULL);
 
 	/* Convert seconds to clock ticks */
-	zfs_arc_min_prefetch_lifespan = 1 * hz;
+	arc_min_prefetch_lifespan = 1 * hz;
 
 	/* Start out with 1/8 of all memory */
-	arc_c = physmem * PAGESIZE / 8;
+	arc_c = allmem / 8;
 
 #ifdef _KERNEL
 	/*
@@ -4894,6 +5120,7 @@ arc_init(void)
 	 * need to limit the cache to 1/8 of VM size.
 	 */
 	arc_c = MIN(arc_c, vmem_size(heap_arena, VMEM_ALLOC | VMEM_FREE) / 8);
+
 	/*
 	 * Register a shrinker to support synchronous (direct) memory
 	 * reclaim from the arc.  This is done to prevent kswapd from
@@ -4902,40 +5129,26 @@ arc_init(void)
 	spl_register_shrinker(&arc_shrinker);
 #endif
 
-	/* set min cache to allow safe operation of arc_adapt() */
+	/* Set min cache to allow safe operation of arc_adapt() */
 	arc_c_min = 2ULL << SPA_MAXBLOCKSHIFT;
-	/* set max to 1/2 of all memory */
-	arc_c_max = arc_c * 4;
-
-	/*
-	 * Allow the tunables to override our calculations if they are
-	 * reasonable (ie. over 64MB)
-	 */
-	if (zfs_arc_max > 64<<20 && zfs_arc_max < physmem * PAGESIZE)
-		arc_c_max = zfs_arc_max;
-	if (zfs_arc_min >= 2ULL << SPA_MAXBLOCKSHIFT &&
-	    zfs_arc_min <= arc_c_max)
-		arc_c_min = zfs_arc_min;
+	/* Set max to 1/2 of all memory */
+	arc_c_max = allmem / 2;
 
 	arc_c = arc_c_max;
 	arc_p = (arc_c >> 1);
 
-	/* limit meta-data to 3/4 of the arc capacity */
-	arc_meta_limit = (3 * arc_c_max) / 4;
+	/* Set min to 1/2 of arc_c_min */
+	arc_meta_min = 1ULL << SPA_MAXBLOCKSHIFT;
+	/* Initialize maximum observed usage to zero */
 	arc_meta_max = 0;
+	/* Set limit to 3/4 of arc_c_max with a floor of arc_meta_min */
+	arc_meta_limit = MAX((3 * arc_c_max) / 4, arc_meta_min);
 
-	/* Allow the tunable to override if it is reasonable */
-	if (zfs_arc_meta_limit > 0 && zfs_arc_meta_limit <= arc_c_max)
-		arc_meta_limit = zfs_arc_meta_limit;
-
-	if (zfs_arc_meta_min > 0) {
-		arc_meta_min = zfs_arc_meta_min;
-	} else {
-		arc_meta_min = arc_c_min / 2;
-	}
+	/* Apply user specified tunings */
+	arc_tuning_update();
 
 	if (zfs_arc_num_sublists_per_state < 1)
-		zfs_arc_num_sublists_per_state = num_online_cpus();
+		zfs_arc_num_sublists_per_state = MAX(boot_ncpus, 1);
 
 	/* if kmem_flags are set, lets try to use less memory */
 	if (kmem_debugging())
@@ -5021,7 +5234,7 @@ arc_init(void)
 		kstat_install(arc_ksp);
 	}
 
-	(void) thread_create(NULL, 0, arc_adapt_thread, NULL, 0, &p0,
+	(void) thread_create(NULL, 0, arc_reclaim_thread, NULL, 0, &p0,
 	    TS_RUN, minclsyspri);
 
 	(void) thread_create(NULL, 0, arc_user_evicts_thread, NULL, 0, &p0,
@@ -6345,7 +6558,7 @@ l2arc_feed_thread(void)
 		/*
 		 * Avoid contributing to memory pressure.
 		 */
-		if (arc_no_grow) {
+		if (arc_reclaim_needed()) {
 			ARCSTAT_BUMP(arcstat_l2_abort_lowmem);
 			spa_config_exit(spa, SCL_L2ARC, dev);
 			continue;
@@ -6568,7 +6781,7 @@ MODULE_PARM_DESC(zfs_arc_meta_min, "Min arc metadata");
 module_param(zfs_arc_meta_prune, int, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
 
-module_param(zfs_arc_meta_adjust_restarts, ulong, 0644);
+module_param(zfs_arc_meta_adjust_restarts, int, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_adjust_restarts,
 	"Limit number of restarts in arc_adjust_meta");
 
