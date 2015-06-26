@@ -79,7 +79,7 @@ typedef struct arc_state {
 	 * total amount of data in this state; this includes: evictable,
 	 * non-evictable, ARC_BUFC_DATA, and ARC_BUFC_METADATA.
 	 */
-	uint64_t arcs_size;
+	refcount_t arcs_size;
 	/*
 	 * supports the "dbufs" kstat
 	 */
