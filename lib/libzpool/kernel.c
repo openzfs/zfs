@@ -48,6 +48,7 @@ uint64_t physmem;
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 char hw_serial[HW_HOSTID_LEN];
 struct utsname hw_utsname;
+vmem_t *zio_arena = NULL;
 
 /* this only exists to have its address taken */
 struct proc p0;
