@@ -298,25 +298,137 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_c_min;
 	kstat_named_t arcstat_c_max;
 	kstat_named_t arcstat_size;
+	/*
+	 * Number of bytes consumed by internal ARC structures necessary
+	 * for tracking purposes; these structures are not actually
+	 * backed by ARC buffers. This includes arc_buf_hdr_t structures
+	 * (allocated via arc_buf_hdr_t_full and arc_buf_hdr_t_l2only
+	 * caches), and arc_buf_t structures (allocated via arc_buf_t
+	 * cache).
+	 */
 	kstat_named_t arcstat_hdr_size;
+	/*
+	 * Number of bytes consumed by ARC buffers of type equal to
+	 * ARC_BUFC_DATA. This is generally consumed by buffers backing
+	 * on disk user data (e.g. plain file contents).
+	 */
 	kstat_named_t arcstat_data_size;
-	kstat_named_t arcstat_meta_size;
+	/*
+	 * Number of bytes consumed by ARC buffers of type equal to
+	 * ARC_BUFC_METADATA. This is generally consumed by buffers
+	 * backing on disk data that is used for internal ZFS
+	 * structures (e.g. ZAP, dnode, indirect blocks, etc).
+	 */
+	kstat_named_t arcstat_metadata_size;
+	/*
+	 * Number of bytes consumed by various buffers and structures
+	 * not actually backed with ARC buffers. This includes bonus
+	 * buffers (allocated directly via zio_buf_* functions),
+	 * dmu_buf_impl_t structures (allocated via dmu_buf_impl_t
+	 * cache), and dnode_t structures (allocated via dnode_t cache).
+	 */
 	kstat_named_t arcstat_other_size;
+	/*
+	 * Total number of bytes consumed by ARC buffers residing in the
+	 * arc_anon state. This includes *all* buffers in the arc_anon
+	 * state; e.g. data, metadata, evictable, and unevictable buffers
+	 * are all included in this value.
+	 */
 	kstat_named_t arcstat_anon_size;
-	kstat_named_t arcstat_anon_evict_data;
-	kstat_named_t arcstat_anon_evict_metadata;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_DATA,
+	 * residing in the arc_anon state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 */
+	kstat_named_t arcstat_anon_evictable_data;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_METADATA,
+	 * residing in the arc_anon state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 */
+	kstat_named_t arcstat_anon_evictable_metadata;
+	/*
+	 * Total number of bytes consumed by ARC buffers residing in the
+	 * arc_mru state. This includes *all* buffers in the arc_mru
+	 * state; e.g. data, metadata, evictable, and unevictable buffers
+	 * are all included in this value.
+	 */
 	kstat_named_t arcstat_mru_size;
-	kstat_named_t arcstat_mru_evict_data;
-	kstat_named_t arcstat_mru_evict_metadata;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_DATA,
+	 * residing in the arc_mru state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 */
+	kstat_named_t arcstat_mru_evictable_data;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_METADATA,
+	 * residing in the arc_mru state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 */
+	kstat_named_t arcstat_mru_evictable_metadata;
+	/*
+	 * Total number of bytes that *would have been* consumed by ARC
+	 * buffers in the arc_mru_ghost state. The key thing to note
+	 * here, is the fact that this size doesn't actually indicate
+	 * RAM consumption. The ghost lists only consist of headers and
+	 * don't actually have ARC buffers linked off of these headers.
+	 * Thus, *if* the headers had associated ARC buffers, these
+	 * buffers *would have* consumed this number of bytes.
+	 */
 	kstat_named_t arcstat_mru_ghost_size;
-	kstat_named_t arcstat_mru_ghost_evict_data;
-	kstat_named_t arcstat_mru_ghost_evict_metadata;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_DATA, and linked off the arc_mru_ghost state.
+	 */
+	kstat_named_t arcstat_mru_ghost_evictable_data;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_METADATA, and linked off the arc_mru_ghost state.
+	 */
+	kstat_named_t arcstat_mru_ghost_evictable_metadata;
+	/*
+	 * Total number of bytes consumed by ARC buffers residing in the
+	 * arc_mfu state. This includes *all* buffers in the arc_mfu
+	 * state; e.g. data, metadata, evictable, and unevictable buffers
+	 * are all included in this value.
+	 */
 	kstat_named_t arcstat_mfu_size;
-	kstat_named_t arcstat_mfu_evict_data;
-	kstat_named_t arcstat_mfu_evict_metadata;
+	/*
+	 * Number of bytes consumed by ARC buffers that are eligible for
+	 * eviction, of type ARC_BUFC_DATA, and reside in the arc_mfu
+	 * state.
+	 */
+	kstat_named_t arcstat_mfu_evictable_data;
+	/*
+	 * Number of bytes consumed by ARC buffers that are eligible for
+	 * eviction, of type ARC_BUFC_METADATA, and reside in the
+	 * arc_mfu state.
+	 */
+	kstat_named_t arcstat_mfu_evictable_metadata;
+	/*
+	 * Total number of bytes that *would have been* consumed by ARC
+	 * buffers in the arc_mfu_ghost state. See the comment above
+	 * arcstat_mru_ghost_size for more details.
+	 */
 	kstat_named_t arcstat_mfu_ghost_size;
-	kstat_named_t arcstat_mfu_ghost_evict_data;
-	kstat_named_t arcstat_mfu_ghost_evict_metadata;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_DATA, and linked off the arc_mfu_ghost state.
+	 */
+	kstat_named_t arcstat_mfu_ghost_evictable_data;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_METADATA, and linked off the arc_mru_ghost state.
+	 */
+	kstat_named_t arcstat_mfu_ghost_evictable_metadata;
 	kstat_named_t arcstat_l2_hits;
 	kstat_named_t arcstat_l2_misses;
 	kstat_named_t arcstat_l2_feeds;
@@ -392,23 +504,23 @@ static arc_stats_t arc_stats = {
 	{ "size",			KSTAT_DATA_UINT64 },
 	{ "hdr_size",			KSTAT_DATA_UINT64 },
 	{ "data_size",			KSTAT_DATA_UINT64 },
-	{ "meta_size",			KSTAT_DATA_UINT64 },
+	{ "metadata_size",		KSTAT_DATA_UINT64 },
 	{ "other_size",			KSTAT_DATA_UINT64 },
 	{ "anon_size",			KSTAT_DATA_UINT64 },
-	{ "anon_evict_data",		KSTAT_DATA_UINT64 },
-	{ "anon_evict_metadata",	KSTAT_DATA_UINT64 },
+	{ "anon_evictable_data",	KSTAT_DATA_UINT64 },
+	{ "anon_evictable_metadata",	KSTAT_DATA_UINT64 },
 	{ "mru_size",			KSTAT_DATA_UINT64 },
-	{ "mru_evict_data",		KSTAT_DATA_UINT64 },
-	{ "mru_evict_metadata",		KSTAT_DATA_UINT64 },
+	{ "mru_evictable_data",		KSTAT_DATA_UINT64 },
+	{ "mru_evictable_metadata",	KSTAT_DATA_UINT64 },
 	{ "mru_ghost_size",		KSTAT_DATA_UINT64 },
-	{ "mru_ghost_evict_data",	KSTAT_DATA_UINT64 },
-	{ "mru_ghost_evict_metadata",	KSTAT_DATA_UINT64 },
+	{ "mru_ghost_evictable_data",	KSTAT_DATA_UINT64 },
+	{ "mru_ghost_evictable_metadata", KSTAT_DATA_UINT64 },
 	{ "mfu_size",			KSTAT_DATA_UINT64 },
-	{ "mfu_evict_data",		KSTAT_DATA_UINT64 },
-	{ "mfu_evict_metadata",		KSTAT_DATA_UINT64 },
+	{ "mfu_evictable_data",		KSTAT_DATA_UINT64 },
+	{ "mfu_evictable_metadata",	KSTAT_DATA_UINT64 },
 	{ "mfu_ghost_size",		KSTAT_DATA_UINT64 },
-	{ "mfu_ghost_evict_data",	KSTAT_DATA_UINT64 },
-	{ "mfu_ghost_evict_metadata",	KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_evictable_data",	KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_evictable_metadata", KSTAT_DATA_UINT64 },
 	{ "l2_hits",			KSTAT_DATA_UINT64 },
 	{ "l2_misses",			KSTAT_DATA_UINT64 },
 	{ "l2_feeds",			KSTAT_DATA_UINT64 },
@@ -446,7 +558,7 @@ static arc_stats_t arc_stats = {
 	{ "arc_meta_used",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_limit",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_max",		KSTAT_DATA_UINT64 },
-	{ "arc_meta_min",		KSTAT_DATA_UINT64 },
+	{ "arc_meta_min",		KSTAT_DATA_UINT64 }
 };
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
@@ -1470,7 +1582,7 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		ARCSTAT_INCR(arcstat_data_size, space);
 		break;
 	case ARC_SPACE_META:
-		ARCSTAT_INCR(arcstat_meta_size, space);
+		ARCSTAT_INCR(arcstat_metadata_size, space);
 		break;
 	case ARC_SPACE_OTHER:
 		ARCSTAT_INCR(arcstat_other_size, space);
@@ -1483,11 +1595,8 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	if (type != ARC_SPACE_DATA) {
+	if (type != ARC_SPACE_DATA)
 		ARCSTAT_INCR(arcstat_meta_used, space);
-		if (arc_meta_max < arc_meta_used)
-			arc_meta_max = arc_meta_used;
-	}
 
 	atomic_add_64(&arc_size, space);
 }
@@ -1504,7 +1613,7 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 		ARCSTAT_INCR(arcstat_data_size, -space);
 		break;
 	case ARC_SPACE_META:
-		ARCSTAT_INCR(arcstat_meta_size, -space);
+		ARCSTAT_INCR(arcstat_metadata_size, -space);
 		break;
 	case ARC_SPACE_OTHER:
 		ARCSTAT_INCR(arcstat_other_size, -space);
@@ -1519,6 +1628,8 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 
 	if (type != ARC_SPACE_DATA) {
 		ASSERT(arc_meta_used >= space);
+		if (arc_meta_max < arc_meta_used)
+			arc_meta_max = arc_meta_used;
 		ARCSTAT_INCR(arcstat_meta_used, -space);
 	}
 
@@ -4971,28 +5082,28 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	arc_stats_t *as = ksp->ks_data;
 
 	if (rw == KSTAT_WRITE) {
-		return (SET_ERROR(EACCES));
+		return (EACCES);
 	} else {
 		arc_kstat_update_state(arc_anon,
 		    &as->arcstat_anon_size,
-		    &as->arcstat_anon_evict_data,
-		    &as->arcstat_anon_evict_metadata);
+		    &as->arcstat_anon_evictable_data,
+		    &as->arcstat_anon_evictable_metadata);
 		arc_kstat_update_state(arc_mru,
 		    &as->arcstat_mru_size,
-		    &as->arcstat_mru_evict_data,
-		    &as->arcstat_mru_evict_metadata);
+		    &as->arcstat_mru_evictable_data,
+		    &as->arcstat_mru_evictable_metadata);
 		arc_kstat_update_state(arc_mru_ghost,
 		    &as->arcstat_mru_ghost_size,
-		    &as->arcstat_mru_ghost_evict_data,
-		    &as->arcstat_mru_ghost_evict_metadata);
+		    &as->arcstat_mru_ghost_evictable_data,
+		    &as->arcstat_mru_ghost_evictable_metadata);
 		arc_kstat_update_state(arc_mfu,
 		    &as->arcstat_mfu_size,
-		    &as->arcstat_mfu_evict_data,
-		    &as->arcstat_mfu_evict_metadata);
+		    &as->arcstat_mfu_evictable_data,
+		    &as->arcstat_mfu_evictable_metadata);
 		arc_kstat_update_state(arc_mfu_ghost,
 		    &as->arcstat_mfu_ghost_size,
-		    &as->arcstat_mfu_ghost_evict_data,
-		    &as->arcstat_mfu_ghost_evict_metadata);
+		    &as->arcstat_mfu_ghost_evictable_data,
+		    &as->arcstat_mfu_ghost_evictable_metadata);
 	}
 
 	return (0);
