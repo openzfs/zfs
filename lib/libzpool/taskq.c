@@ -178,7 +178,6 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
     taskq_ent_t *t)
 {
 	ASSERT(func != NULL);
-	ASSERT(!(tq->tq_flags & TASKQ_DYNAMIC));
 
 	/*
 	 * Mark it as a prealloc'd task.  This is important

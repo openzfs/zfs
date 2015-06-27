@@ -38,8 +38,6 @@
  * Virtual device vector for files.
  */
 
-static taskq_t *vdev_file_taskq;
-
 static void
 vdev_file_hold(vdev_t *vd)
 {
@@ -213,7 +211,7 @@ vdev_file_io_start(zio_t *zio)
 			 * the sync must be dispatched to a different context.
 			 */
 			if (spl_fstrans_check()) {
-				VERIFY3U(taskq_dispatch(vdev_file_taskq,
+				VERIFY3U(taskq_dispatch(system_taskq,
 				    vdev_file_io_fsync, zio, TQ_SLEEP), !=, 0);
 				return;
 			}
@@ -229,7 +227,7 @@ vdev_file_io_start(zio_t *zio)
 		return;
 	}
 
-	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
+	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, 0);
 }
 
@@ -251,21 +249,6 @@ vdev_ops_t vdev_file_ops = {
 	VDEV_TYPE_FILE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
-
-void
-vdev_file_init(void)
-{
-	vdev_file_taskq = taskq_create("vdev_file_taskq", 100, minclsyspri,
-	    max_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_THREADS_CPU_PCT);
-
-	VERIFY(vdev_file_taskq);
-}
-
-void
-vdev_file_fini(void)
-{
-	taskq_destroy(vdev_file_taskq);
-}
 
 /*
  * From userland we access disks just like files.

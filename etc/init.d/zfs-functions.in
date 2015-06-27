@@ -68,7 +68,7 @@ elif type einfo > /dev/null 2>&1 ; then
 	# Gentoo functions
 	zfs_log_begin_msg() { ebegin "$1"; }
 	zfs_log_end_msg() { eend "$1"; }
-	zfs_log_failure_msg() { eerror "$1"; }
+	zfs_log_failure_msg() { eend "$1"; }
 #	zfs_log_progress_msg() { echo -n "$1"; }
 	zfs_log_progress_msg() { echo -n; }
 else
@@ -304,42 +304,6 @@ checksystem()
 	return 0
 }
 
-reregister_mounts()
-{
-	local fs mntpnt fstype opts rest tmpdir
-	tmpdir=removethismountpointhoweverpossible
-
-	while read -r fs mntpnt fstype opts rest ; do
-		fs=$(printf '%b\n' "$fs")
-		mntpnt=$(printf '%b\n' "$mntpnt")
-		if [ "$fstype" = "zfs" ] ; then
-			if [ "$mntpnt" = "/" ] ; then
-				mount -f -o zfsutil -t zfs --move / /$tmpdir
-				umount --fake /$tmpdir
-			else
-				umount --fake "$mntpnt"
-			fi
-		elif echo "$fs" | grep -qE "^/dev/(zd|zvol)" ; then
-			if [ "$mntpnt" = "/" ] ; then
-				mount -f -t "$fstype" --move / /$tmpdir
-				umount --fake /$tmpdir
-			else
-				umount --fake "$mntpnt"
-			fi
-		fi
-	done < /proc/mounts
-
-	while read -r fs mntpnt fstype opts rest ; do
-		fs=$(printf '%b\n' "$fs")
-		mntpnt=$(printf '%b\n' "$mntpnt")
-		if [ "$fstype" = "zfs" ] ; then
-			mount -f -t zfs -o zfsutil "$fs" "$mntpnt"
-		elif echo "$fs" | grep -q "^/dev/zd" ; then
-			mount -f -t "$fstype" -o "$opts" "$fs" "$mntpnt"
-		fi
-	done < /proc/mounts
-}
-
 get_root_pool()
 {
 	set -- $(mount | grep ' on / ')
@@ -371,16 +335,27 @@ read_mtab()
 	# Unset all MTAB_* variables
 	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
 
-	mount | \
-	    grep -E "$match" | \
-	    sed "s,\(.*\) on \(.*\) type .*,\1;\2," | \
-	    while read line; do
-		mntpnt=$(echo "$line" | sed -e 's,;.*,,' -e 's,/,_,g' \
-		    -e 's,-,_,g' -e 's,\.,_,g' -e 's, ,_,g')
-		fs=$(echo "$line" | sed 's,.*;,,')
+	while read -r fs mntpnt fstype opts rest; do
+		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
+			# * Fix problems (!?) in the mounts file. It will record
+			#   'rpool 1' as 'rpool\0401' instead of 'rpool\00401'
+			#   which seems to be the correct (at least as far as
+			#   'printf' is concerned).
+			# * We need to use the external echo, because the
+			#   internal one would interpret the backslash code
+			#   (incorrectly), giving us a  instead.
+			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,")
+			fs=$(/bin/echo "$fs" | sed "s,\\\0,\\\00,")
 
-		eval export MTAB_$mntpnt="'$fs'"
-	done
+			# Replace 'unwanted' characters with underscore.
+			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,_,g' \
+			    -e 's,-,_,g' -e 's,\.,_,g' -e 's, ,_,g')
+			fs=$(printf '%b\n' "$fs")
+
+			# Set the variable.
+			eval export MTAB_$mntpnt=\"$fs\"
+		fi
+	done < /proc/mounts
 }
 
 in_mtab()

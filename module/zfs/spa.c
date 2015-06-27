@@ -129,9 +129,9 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
 const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
-	{ ZTI_N(8),	ZTI_NULL,	ZTI_BATCH,	ZTI_NULL }, /* READ */
-	{ ZTI_BATCH,	ZTI_N(5),	ZTI_N(16),	ZTI_N(5) }, /* WRITE */
-	{ ZTI_P(4, 8),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
+	{ ZTI_N(8),	ZTI_NULL,	ZTI_P(12, 8),	ZTI_NULL }, /* READ */
+	{ ZTI_BATCH,	ZTI_N(5),	ZTI_P(12, 8),	ZTI_N(5) }, /* WRITE */
+	{ ZTI_P(12, 8),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* CLAIM */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* IOCTL */
 };
@@ -846,7 +846,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 	char name[32];
-	uint_t i, flags = 0;
+	uint_t i, flags = TASKQ_DYNAMIC;
 	boolean_t batch = B_FALSE;
 
 	if (mode == ZTI_MODE_NULL) {

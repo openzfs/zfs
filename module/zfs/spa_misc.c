@@ -1831,7 +1831,6 @@ spa_init(int mode)
 	dmu_init();
 	zil_init();
 	vdev_cache_stat_init();
-	vdev_file_init();
 	zfs_prop_init();
 	zpool_prop_init();
 	zpool_feature_init();
@@ -1846,7 +1845,6 @@ spa_fini(void)
 
 	spa_evict_all();
 
-	vdev_file_fini();
 	vdev_cache_stat_fini();
 	zil_fini();
 	dmu_fini();
