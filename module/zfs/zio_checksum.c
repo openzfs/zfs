@@ -30,6 +30,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zil.h>
 #include <sys/abd.h>
+#include <sys/sha256.h>
 #include <zfs_fletcher.h>
 
 /*
@@ -312,4 +313,10 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 	}
 
 	return (0);
+}
+
+void
+zio_checksum_init(void)
+{
+	zio_checksum_SHA256_init();
 }

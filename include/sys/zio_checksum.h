@@ -75,6 +75,8 @@ extern void zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 extern int zio_checksum_error(zio_t *zio, zio_bad_cksum_t *out);
 extern enum zio_checksum spa_dedup_checksum(spa_t *spa);
 
+extern void zio_checksum_init(void);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -1830,6 +1830,7 @@ spa_init(int mode)
 	zio_init();
 	dmu_init();
 	zil_init();
+	zio_checksum_init();
 	vdev_cache_stat_init();
 	zfs_prop_init();
 	zpool_prop_init();
