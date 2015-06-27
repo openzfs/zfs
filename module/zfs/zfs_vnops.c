@@ -3876,6 +3876,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	uint64_t	mtime[2], ctime[2];
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
+	struct address_space *mapping;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -3922,10 +3923,56 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	 * 2) Before setting or clearing write back on a page the range lock
 	 *    must be held in order to prevent a lock inversion with the
 	 *    zfs_free_range() function.
+	 *
+	 * 3) However, if we set the write back bit after unlock the page,
+	 *    someone might come in the middle and invalidate the page unaware
+	 *    that we are doing writeback.
+	 *
+	 * To solve this seemingly paradox, we lock the page again after
+	 * aquiring the range lock and check the validity of the page. If all
+	 * is well, we set the write back bit and continue on.
 	 */
+
+	/* before we unlock_page, save the mapping, we'll check it later */
+	mapping = pp->mapping;
+	/*
+	 * write_cache_pages cleared the dirty bit, set it back before
+	 * unlock_page. Otherwise, it might get evicted without being written
+	 * to disk.
+	 * Note this is equivalent to redirty_page_for_writepage(), except we
+	 * don't increase wbc->pages_skipped.
+	 */
+	account_page_redirty(pp);
+	__set_page_dirty_nobuffers(pp);
 	unlock_page(pp);
+
 	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
+
+	/*
+	 * lock_page again to check validity and set_page_writeback.
+	 */
+	lock_page(pp);
+	/* page became invalid or was written, bail out */
+	if (mapping != pp->mapping || !PageDirty(pp)) {
+skip:
+		unlock_page(pp);
+		zfs_range_unlock(rl);
+		ZFS_EXIT(zsb);
+		return (0);
+	}
+	/* Someone start writing back before us */
+	if (PageWriteback(pp)) {
+		if (wbc->sync_mode == WB_SYNC_NONE)
+			goto skip;
+
+		wait_on_page_writeback(pp);
+	}
+	/* clear dirty bit if set */
+	if (!clear_page_dirty_for_io(pp))
+		goto skip;
+
 	set_page_writeback(pp);
+	unlock_page(pp);
 
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
