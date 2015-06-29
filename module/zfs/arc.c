@@ -2056,8 +2056,6 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 
 	list_remove(&dev->l2ad_buflist, hdr);
 
-	arc_space_return(HDR_L2ONLY_SIZE, ARC_SPACE_L2HDRS);
-
 	/*
 	 * We don't want to leak the b_tmp_cdata buffer that was
 	 * allocated in l2arc_write_buffers()
@@ -6349,7 +6347,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			 * Create and add a new L2ARC header.
 			 */
 			hdr->b_l2hdr.b_dev = dev;
-			arc_space_consume(HDR_L2ONLY_SIZE, ARC_SPACE_L2HDRS);
 			hdr->b_flags |= ARC_FLAG_L2_WRITING;
 			/*
 			 * Temporarily stash the data buffer in b_tmp_cdata.
