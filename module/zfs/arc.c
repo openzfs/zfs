@@ -1054,6 +1054,22 @@ buf_dest(void *vbuf, void *unused)
 	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 }
 
+/*
+ * Reclaim callback -- invoked when memory is low.
+ */
+/* ARGSUSED */
+static void
+hdr_recl(void *unused)
+{
+	dprintf("hdr_recl called\n");
+	/*
+	 * umem calls the reclaim func when we destroy the buf cache,
+	 * which is after we do arc_fini().
+	 */
+	if (!arc_dead)
+		cv_signal(&arc_reclaim_thread_cv);
+}
+
 static void
 buf_init(void)
 {
@@ -1089,9 +1105,9 @@ retry:
 	}
 
 	hdr_full_cache = kmem_cache_create("arc_buf_hdr_t_full", HDR_FULL_SIZE,
-	    0, hdr_full_cons, hdr_full_dest, NULL, NULL, NULL, 0);
+	    0, hdr_full_cons, hdr_full_dest, hdr_recl, NULL, NULL, 0);
 	hdr_l2only_cache = kmem_cache_create("arc_buf_hdr_t_l2only",
-	    HDR_L2ONLY_SIZE, 0, hdr_l2only_cons, hdr_l2only_dest, NULL,
+	    HDR_L2ONLY_SIZE, 0, hdr_l2only_cons, hdr_l2only_dest, hdr_recl,
 	    NULL, NULL, 0);
 	buf_cache = kmem_cache_create("arc_buf_t", sizeof (arc_buf_t),
 	    0, buf_cons, buf_dest, NULL, NULL, NULL, 0);
