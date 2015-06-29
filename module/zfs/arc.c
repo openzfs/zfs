@@ -1271,8 +1271,7 @@ arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 		mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
 		return;
 	}
-	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t),
-	    KM_SLEEP);
+	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t), KM_SLEEP);
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
 	    buf->b_hdr->b_freeze_cksum);
 	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
@@ -1757,7 +1756,6 @@ arc_buf_alloc(spa_t *spa, uint64_t size, void *tag, arc_buf_contents_t type)
 	hdr->b_l1hdr.b_tmp_cdata = NULL;
 
 	arc_get_data_buf(buf);
-
 	ASSERT(refcount_is_zero(&hdr->b_l1hdr.b_refcnt));
 	(void) refcount_add(&hdr->b_l1hdr.b_refcnt, tag);
 
@@ -2222,7 +2220,7 @@ boolean_t
 arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
-	kmutex_t *hash_lock = NULL;
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	boolean_t no_callback = (buf->b_efunc == NULL);
 
 	if (hdr->b_l1hdr.b_state == arc_anon) {
@@ -2231,7 +2229,6 @@ arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 		return (no_callback);
 	}
 
-	hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
 	hdr = buf->b_hdr;
 	ASSERT(hdr->b_l1hdr.b_datacnt > 0);
@@ -2433,7 +2430,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	int evict_count = 0;
 
 	ASSERT3P(marker, !=, NULL);
-	ASSERTV(if (bytes < 0) ASSERT(bytes == ARC_EVICT_ALL));
+	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
 	mls = multilist_sublist_lock(ml, idx);
 
@@ -2556,7 +2553,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	arc_buf_hdr_t **markers;
 	int i;
 
-	ASSERTV(if (bytes < 0) ASSERT(bytes == ARC_EVICT_ALL));
+	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
 	num_sublists = multilist_get_num_sublists(ml);
 
@@ -6335,8 +6332,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 				list_insert_head(&dev->l2ad_buflist, head);
 				mutex_exit(&dev->l2ad_mtx);
 
-				cb = kmem_alloc(sizeof (l2arc_write_callback_t),
-				    KM_SLEEP);
+				cb = kmem_alloc(
+				    sizeof (l2arc_write_callback_t), KM_SLEEP);
 				cb->l2wcb_dev = dev;
 				cb->l2wcb_head = head;
 				pio = zio_root(spa, l2arc_write_done, cb,
@@ -6660,7 +6657,7 @@ l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 		bcopy(zio->io_data, cdata, csize);
 		if (zio_decompress_data(c, cdata, zio->io_data, csize,
 		    hdr->b_size) != 0)
-			zio->io_error = SET_ERROR(EIO);
+			zio->io_error = EIO;
 		zio_data_buf_free(cdata, csize);
 	}
 
