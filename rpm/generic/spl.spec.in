@@ -33,6 +33,7 @@ make install DESTDIR=%{?buildroot}
 
 %files
 %doc AUTHORS COPYING DISCLAIMER
+%{_bindir}/*
 %{_sbindir}/*
 %{_mandir}/man1/*
 %{_mandir}/man5/*
