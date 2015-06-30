@@ -378,7 +378,6 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 	struct address_space *mp = ip->i_mapping;
 	struct page *pp;
 	znode_t *zp = ITOZ(ip);
-	objset_t *os = ITOZSB(ip)->z_os;
 	int64_t	start, off;
 	uint64_t bytes;
 	int len = nbytes;
@@ -405,7 +404,8 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 			unlock_page(pp);
 			page_cache_release(pp);
 		} else {
-			error = dmu_read_uio(os, zp->z_id, uio, bytes);
+			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
+			    uio, bytes);
 		}
 
 		len -= bytes;
@@ -442,7 +442,6 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 {
 	znode_t		*zp = ITOZ(ip);
 	zfs_sb_t	*zsb = ITOZSB(ip);
-	objset_t	*os;
 	ssize_t		n, nbytes;
 	int		error = 0;
 	rl_t		*rl;
@@ -452,7 +451,6 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
-	os = zsb->z_os;
 
 	if (zp->z_pflags & ZFS_AV_QUARANTINED) {
 		ZFS_EXIT(zsb);
@@ -533,10 +531,12 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		nbytes = MIN(n, zfs_read_chunk_size -
 		    P2PHASE(uio->uio_loffset, zfs_read_chunk_size));
 
-		if (zp->z_is_mapped && !(ioflag & O_DIRECT))
+		if (zp->z_is_mapped && !(ioflag & O_DIRECT)) {
 			error = mappedread(ip, nbytes, uio);
-		else
-			error = dmu_read_uio(os, zp->z_id, uio, nbytes);
+		} else {
+			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
+			    uio, nbytes);
+		}
 
 		if (error) {
 			/* convert checksum errors into IO errors */
