@@ -1,0 +1,365 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/redundancy/redundancy.cfg
+
+function cleanup
+{
+	if poolexists $TESTPOOL; then
+		destroy_pool $TESTPOOL
+	fi
+	typeset dir
+	for dir in $TESTDIR $BASEDIR; do
+		if [[ -d $dir ]]; then
+			log_must $RM -rf $dir
+		fi
+	done
+}
+
+#
+# Get random number between min and max number.
+#
+# $1 Minimal value
+# $2 Maximal value
+#
+function random
+{
+	typeset -i min=$1
+	typeset -i max=$2
+	typeset -i value
+
+	while true; do
+		((value = RANDOM % (max + 1)))
+		if ((value >= min)); then
+			break
+		fi
+	done
+
+	$ECHO $value
+}
+
+#
+# Record the directories construction and checksum all the files which reside
+# within the specified pool
+#
+# $1 The specified pool
+# $2 The file which save the record.
+#
+function record_data
+{
+	typeset pool=$1
+	typeset recordfile=$2
+
+	[[ -z $pool ]] && log_fail "No specified pool."
+	[[ -f $recordfile ]] && log_must $RM -f $recordfile
+
+	typeset mntpnt
+	mntpnt=$(get_prop mountpoint $pool)
+	log_must eval "$DU -a $mntpnt > $recordfile 2>&1"
+	#
+	# When the data was damaged, checksum is failing and return 1
+	# So, will not use log_must
+	#
+	$FIND $mntpnt -type f -exec $CKSUM {} + >> $recordfile 2>&1
+}
+
+#
+# Create test pool and fill with files and directories.
+#
+# $1 pool name
+# $2 pool type
+# $3 virtual devices number
+#
+function setup_test_env
+{
+	typeset pool=$1
+	typeset keyword=$2
+	typeset -i vdev_cnt=$3
+	typeset vdevs
+
+	typeset -i i=0
+	while (( i < vdev_cnt )); do
+		vdevs="$vdevs $BASEDIR/vdev$i"
+		((i += 1))
+	done
+
+	if [[ ! -d $BASEDIR ]]; then
+		log_must $MKDIR $BASEDIR
+	fi
+
+	if poolexists $pool ; then
+		destroy_pool $pool
+	fi
+
+	log_must $MKFILE $DEV_SIZE $vdevs
+
+	log_must $ZPOOL create -m $TESTDIR $pool $keyword $vdevs
+
+	log_note "Filling up the filesystem ..."
+	typeset -i ret=0
+	typeset -i i=0
+	typeset file=$TESTDIR/file
+	while $TRUE ; do
+		$FILE_WRITE -o create -f $file.$i \
+			-b $BLOCKSZ -c $NUM_WRITES
+		ret=$?
+		(( $ret != 0 )) && break
+		(( i = i + 1 ))
+	done
+	(($ret != 28 )) && log_note "$FILE_WRITE return value($ret) is unexpected."
+
+	record_data $TESTPOOL $PRE_RECORD_FILE
+}
+
+#
+# Check pool status is healthy
+#
+# $1 pool
+#
+function is_healthy
+{
+	typeset pool=$1
+
+	typeset healthy_output="pool '$pool' is healthy"
+	typeset real_output=$($ZPOOL status -x $pool)
+
+	if [[ "$real_output" == "$healthy_output" ]]; then
+		return 0
+	else
+		typeset -i ret
+		$ZPOOL status -x $pool | $GREP "state:" | \
+			$GREP "FAULTED" >/dev/null 2>&1
+		ret=$?
+		(( $ret == 0 )) && return 1
+		typeset l_scan
+		typeset errnum
+		l_scan=$($ZPOOL status -x $pool | $GREP "scan:")
+		l_scan=${l_scan##*"with"}
+		errnum=$($ECHO $l_scan | $AWK '{print $1}')
+
+		return $errnum
+	fi
+}
+
+#
+# Check pool data is valid
+#
+# $1 pool
+#
+function is_data_valid
+{
+	typeset pool=$1
+
+	record_data $pool $PST_RECORD_FILE
+	if ! $DIFF $PRE_RECORD_FILE $PST_RECORD_FILE > /dev/null 2>&1; then
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Get the specified count devices name
+#
+# $1 pool name
+# $2 devices count
+#
+function get_vdevs #pool cnt
+{
+	typeset pool=$1
+	typeset -i cnt=$2
+
+	typeset all_devs=$($ZPOOL iostat -v $pool | $AWK '{print $1}'| \
+		$EGREP -v "^pool$|^capacity$|^mirror$|^raidz1$|^raidz2$|---" | \
+		$EGREP -v "/old$|^$pool$")
+	typeset -i i=0
+	typeset vdevs
+	while ((i < cnt)); do
+		typeset dev=$($ECHO $all_devs | $AWK '{print $1}')
+		eval all_devs=\${all_devs##*$dev}
+
+		vdevs="$dev $vdevs"
+		((i += 1))
+	done
+
+	$ECHO "$vdevs"
+}
+
+#
+# Synchronize all the data in pool
+#
+# $1 pool name
+#
+function sync_pool #pool
+{
+	typeset pool=$1
+
+	log_must $SYNC
+	log_must $SLEEP 2
+	# Flush all the pool data.
+	typeset -i ret
+	$ZPOOL scrub $pool >/dev/null 2>&1
+	ret=$?
+	(( $ret != 0 )) && \
+		log_fail "$ZPOOL scrub $pool failed."
+
+	while ! is_pool_scrubbed $pool; do
+		if is_pool_resilvered $pool ; then
+			log_fail "$pool should not be resilver completed."
+		fi
+		log_must $SLEEP 2
+	done
+}
+
+#
+# Create and replace the same name virtual device files
+#
+# $1 pool name
+# $2-n virtual device files
+#
+function replace_missing_devs
+{
+	typeset pool=$1
+	shift
+
+	typeset vdev
+	for vdev in $@; do
+		log_must $MKFILE $DEV_SIZE $vdev
+		log_must $ZPOOL replace -f $pool $vdev $vdev
+		while true; do
+			if ! is_pool_resilvered $pool ; then
+				log_must $SLEEP 2
+			else
+				break
+			fi
+		done
+	done
+}
+
+#
+# Damage the pool's virtual device files.
+#
+# $1 pool name
+# $2 Failing devices count
+# $3 damage vdevs method, if not null, we keep
+#    the label for the vdevs
+#
+function damage_devs
+{
+	typeset pool=$1
+	typeset -i cnt=$2
+	typeset label="$3"
+	typeset vdevs
+	typeset -i bs_count
+
+	vdevs=$(get_vdevs $pool $cnt)
+	if [[ -n $label ]]; then
+		typeset dev
+		for dev in $vdevs; do
+			bs_count=$($LS -l $dev | $AWK '{print $5}')
+			(( bs_count = bs_count/1024 - 512 ))
+			$DD if=/dev/zero of=$dev seek=512 bs=1024 \
+				count=$bs_count conv=notrunc >/dev/null 2>&1
+		done
+	else
+		log_must $MKFILE $DEV_SIZE $vdevs
+	fi
+
+	sync_pool $pool
+}
+
+#
+# Clear errors in the pool caused by data corruptions
+#
+# $1 pool name
+#
+function clear_errors
+{
+	typeset pool=$1
+
+	log_must $ZPOOL clear $pool
+
+	if ! is_healthy $pool ; then
+		log_note "$pool should be healthy."
+		return 1
+	fi
+	if ! is_data_valid $pool ; then
+		log_note "Data should be valid in $pool."
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Remove the specified pool's virtual device files
+#
+# $1 Pool name
+# $2 Missing devices count
+#
+function remove_devs
+{
+	typeset pool=$1
+	typeset -i cnt=$2
+	typeset vdevs
+
+	vdevs=$(get_vdevs $pool $cnt)
+	log_must $RM -f $vdevs
+
+	sync_pool $pool
+}
+
+#
+# Recover the bad or missing device files in the pool
+#
+# $1 Pool name
+# $2 Missing devices count
+#
+function recover_bad_missing_devs
+{
+	typeset pool=$1
+	typeset -i cnt=$2
+	typeset vdevs
+
+	vdevs=$(get_vdevs $pool $cnt)
+	replace_missing_devs $pool $vdevs
+
+	if ! is_healthy $pool ; then
+		log_note "$pool should be healthy."
+		return 1
+	fi
+	if ! is_data_valid $pool ; then
+		log_note "Data should be valid in $pool."
+		return 1
+	fi
+
+	return 0
+}
