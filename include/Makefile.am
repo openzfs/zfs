@@ -1,4 +1,4 @@
-SUBDIRS = linux sys
+SUBDIRS = linux sys asm-generic asm-x86_64
 
 COMMON_H = \
 	$(top_srcdir)/include/zfeature_common.h \

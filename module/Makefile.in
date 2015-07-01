@@ -7,6 +7,9 @@ subdir-m += zpios
 
 INSTALL_MOD_DIR ?= extra
 
+TARGET_ASM_DIR = @TARGET_ASM_DIR@
+export TARGET_ASM_DIR
+
 ZFS_MODULE_CFLAGS += -include @SPL_OBJ@/spl_config.h
 ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@

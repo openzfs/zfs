@@ -3,6 +3,7 @@ SUBDIRS = fm fs
 COMMON_H = \
 	$(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/arc_impl.h \
+	$(top_srcdir)/include/sys/abd.h \
 	$(top_srcdir)/include/sys/avl.h \
 	$(top_srcdir)/include/sys/avl_impl.h \
 	$(top_srcdir)/include/sys/blkptr.h \
@@ -42,6 +43,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/sa.h \
 	$(top_srcdir)/include/sys/sa_impl.h \
 	$(top_srcdir)/include/sys/sdt.h \
+	$(top_srcdir)/include/sys/sha256.h \
 	$(top_srcdir)/include/sys/spa_boot.h \
 	$(top_srcdir)/include/sys/space_map.h \
 	$(top_srcdir)/include/sys/space_reftree.h \
