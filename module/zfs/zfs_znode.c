@@ -113,14 +113,11 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zp->z_xattr_lock, NULL, RW_DEFAULT, NULL);
 
-	mutex_init(&zp->z_range_lock, NULL, MUTEX_DEFAULT, NULL);
-	avl_create(&zp->z_range_avl, zfs_range_compare,
-	    sizeof (rl_t), offsetof(rl_t, r_node));
+	zfs_rlock_init(&zp->z_range_lock);
 
 	zp->z_dirlocks = NULL;
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
-	zp->z_xattr_parent = NULL;
 	zp->z_moved = 0;
 	return (0);
 }
@@ -137,13 +134,11 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	rw_destroy(&zp->z_name_lock);
 	mutex_destroy(&zp->z_acl_lock);
 	rw_destroy(&zp->z_xattr_lock);
-	avl_destroy(&zp->z_range_avl);
-	mutex_destroy(&zp->z_range_lock);
+	zfs_rlock_destroy(&zp->z_range_lock);
 
 	ASSERT(zp->z_dirlocks == NULL);
 	ASSERT(zp->z_acl_cached == NULL);
 	ASSERT(zp->z_xattr_cached == NULL);
-	ASSERT(zp->z_xattr_parent == NULL);
 }
 
 static int
@@ -435,11 +430,6 @@ zfs_inode_destroy(struct inode *ip)
 		zp->z_xattr_cached = NULL;
 	}
 
-	if (zp->z_xattr_parent) {
-		zfs_iput_async(ZTOI(zp->z_xattr_parent));
-		zp->z_xattr_parent = NULL;
-	}
-
 	kmem_cache_free(znode_cache, zp);
 }
 
@@ -501,8 +491,7 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
  */
 static znode_t *
 zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
-    dmu_object_type_t obj_type, uint64_t obj, sa_handle_t *hdl,
-    struct inode *dip)
+    dmu_object_type_t obj_type, uint64_t obj, sa_handle_t *hdl)
 {
 	znode_t	*zp;
 	struct inode *ip;
@@ -521,7 +510,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	ASSERT(zp->z_dirlocks == NULL);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
-	ASSERT3P(zp->z_xattr_parent, ==, NULL);
 	zp->z_moved = 0;
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
@@ -531,10 +519,12 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
-	zp->z_is_zvol = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
 	zp->z_is_stale = B_FALSE;
+	zp->z_range_lock.zr_size = &zp->z_size;
+	zp->z_range_lock.zr_blksz = &zp->z_blksz;
+	zp->z_range_lock.zr_max_blksz = &ZTOZSB(zp)->z_max_blksz;
 
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
@@ -559,14 +549,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	}
 
 	zp->z_mode = mode;
-
-	/*
-	 * xattr znodes hold a reference on their unique parent
-	 */
-	if (dip && zp->z_pflags & ZFS_XATTR) {
-		igrab(dip);
-		zp->z_xattr_parent = ITOZ(dip);
-	}
 
 	ip->i_ino = obj;
 	zfs_inode_update(zp);
@@ -913,8 +895,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	VERIFY(sa_replace_all_by_template(sa_hdl, sa_attrs, cnt, tx) == 0);
 
 	if (!(flag & IS_ROOT_NODE)) {
-		*zpp = zfs_znode_alloc(zsb, db, 0, obj_type, obj, sa_hdl,
-		    ZTOI(dzp));
+		*zpp = zfs_znode_alloc(zsb, db, 0, obj_type, obj, sa_hdl);
 		VERIFY(*zpp != NULL);
 		VERIFY(dzp != NULL);
 	} else {
@@ -1124,7 +1105,7 @@ again:
 	 * bonus buffer.
 	 */
 	zp = zfs_znode_alloc(zsb, db, doi.doi_data_block_size,
-	    doi.doi_bonus_type, obj_num, NULL, NULL);
+	    doi.doi_bonus_type, obj_num, NULL);
 	if (zp == NULL) {
 		err = SET_ERROR(ENOENT);
 	} else {
@@ -1148,6 +1129,16 @@ zfs_rezget(znode_t *zp)
 	uint64_t gen;
 	znode_hold_t *zh;
 
+	/*
+	 * skip ctldir, otherwise they will always get invalidated. This will
+	 * cause funny behaviour for the mounted snapdirs. Especially for
+	 * Linux >= 3.18, d_invalidate will detach the mountpoint and prevent
+	 * anyone automount it again as long as someone is still using the
+	 * detached mount.
+	 */
+	if (zp->z_is_ctldir)
+		return (0);
+
 	zh = zfs_znode_hold_enter(zsb, obj_num);
 
 	mutex_enter(&zp->z_acl_lock);
@@ -1161,11 +1152,6 @@ zfs_rezget(znode_t *zp)
 	if (zp->z_xattr_cached) {
 		nvlist_free(zp->z_xattr_cached);
 		zp->z_xattr_cached = NULL;
-	}
-
-	if (zp->z_xattr_parent) {
-		zfs_iput_async(ZTOI(zp->z_xattr_parent));
-		zp->z_xattr_parent = NULL;
 	}
 	rw_exit(&zp->z_xattr_lock);
 
@@ -1437,7 +1423,7 @@ zfs_extend(znode_t *zp, uint64_t end)
 	/*
 	 * We will change zp_size, lock the whole file.
 	 */
-	rl = zfs_range_lock(zp, 0, UINT64_MAX, RL_WRITER);
+	rl = zfs_range_lock(&zp->z_range_lock, 0, UINT64_MAX, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
@@ -1554,7 +1540,7 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 	/*
 	 * Lock the range being freed.
 	 */
-	rl = zfs_range_lock(zp, off, len, RL_WRITER);
+	rl = zfs_range_lock(&zp->z_range_lock, off, len, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
@@ -1636,7 +1622,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	/*
 	 * We will change zp_size, lock the whole file.
 	 */
-	rl = zfs_range_lock(zp, 0, UINT64_MAX, RL_WRITER);
+	rl = zfs_range_lock(&zp->z_range_lock, 0, UINT64_MAX, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.

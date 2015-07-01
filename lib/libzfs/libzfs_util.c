@@ -903,7 +903,8 @@ zfs_append_partition(char *path, size_t max_len)
 {
 	int len = strlen(path);
 
-	if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) {
+	if ((strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) ||
+	    (strncmp(path, ZVOL_ROOT, strlen(ZVOL_ROOT)) == 0)) {
 		if (len + 6 >= max_len)
 			return (-1);
 
@@ -1352,7 +1353,8 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 			continue;
 		}
 
-		if (cbp->cb_columns[i + 1] == GET_COL_NONE)
+		if (i == (ZFS_GET_NCOLS - 1) ||
+		    cbp->cb_columns[i + 1] == GET_COL_NONE)
 			(void) printf("%s", str);
 		else if (cbp->cb_scripted)
 			(void) printf("%s\t", str);

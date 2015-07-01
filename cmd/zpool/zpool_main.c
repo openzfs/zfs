@@ -2323,7 +2323,15 @@ zpool_do_import(int argc, char **argv)
 	idata.guid = searchguid;
 	idata.cachefile = cachefile;
 
+	/*
+	 * Under Linux the zpool_find_import_impl() function leverages the
+	 * taskq implementation to parallelize device scanning.  It is
+	 * therefore necessary to initialize this functionality for the
+	 * duration of the zpool_search_import() function.
+	 */
+	thread_init();
 	pools = zpool_search_import(g_zfs, &idata);
+	thread_fini();
 
 	if (pools != NULL && idata.exists &&
 	    (argc == 1 || strcmp(argv[0], argv[1]) == 0)) {

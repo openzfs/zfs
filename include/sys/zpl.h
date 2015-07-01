@@ -123,7 +123,7 @@ extern const struct inode_operations zpl_ops_snapdirs;
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;
 
-#ifdef HAVE_VFS_ITERATE
+#if defined(HAVE_VFS_ITERATE) || defined(HAVE_VFS_ITERATE_SHARED)
 
 #define	DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
 	.actor = _actor,				\

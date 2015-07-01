@@ -76,27 +76,6 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CHMOD], [
 ])
 
 dnl #
-dnl # 2.6.30 API change,
-dnl # caching of ACL into the inode was added in this version.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CACHING], [
-	AC_MSG_CHECKING([whether inode has i_acl and i_default_acl])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		struct inode ino;
-		ino.i_acl = NULL;
-		ino.i_default_acl = NULL;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_POSIX_ACL_CACHING, 1,
-		    [inode contains i_acl and i_default_acl])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.1 API change,
 dnl # posix_acl_equiv_mode now wants an umode_t* instead of a mode_t*
 dnl #
@@ -112,6 +91,30 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T, 1,
 		    [ posix_acl_equiv_mode wants umode_t*])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 4.8 API change,
+dnl # The function posix_acl_valid now must be passed a namespace.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS], [
+	AC_MSG_CHECKING([whether posix_acl_valid() wants user namespace])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+		#include <linux/posix_acl.h>
+	],[
+		struct user_namespace *user_ns = NULL;
+		const struct posix_acl *acl = NULL;
+		int error;
+
+		error = posix_acl_valid(user_ns, acl);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_POSIX_ACL_VALID_WITH_NS, 1,
+		    [posix_acl_valid() wants user namespace])
 	],[
 		AC_MSG_RESULT(no)
 	])
@@ -247,18 +250,20 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
 ])
 
 dnl #
-dnl # 2.6.30 API change,
-dnl # current_umask exists only since this version.
+dnl # 4.7 API change,
+dnl # The kernel get_acl will now check cache before calling i_op->get_acl and
+dnl # do set_cached_acl after that, so i_op->get_acl don't need to do that
+dnl # anymore.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CURRENT_UMASK], [
-	AC_MSG_CHECKING([whether current_umask exists])
+AC_DEFUN([ZFS_AC_KERNE_GET_ACL_HANDLE_CACHE], [
+	AC_MSG_CHECKING([whether uncached_acl_sentinel() exists])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
 	],[
-		current_umask();
+		void *sentinel __attribute__ ((unused)) = uncached_acl_sentinel(NULL);
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CURRENT_UMASK, 1, [current_umask() exists])
+		AC_DEFINE(HAVE_KERNEL_GET_ACL_HANDLE_CACHE, 1, [uncached_acl_sentinel() exists])
 	],[
 		AC_MSG_RESULT(no)
 	])

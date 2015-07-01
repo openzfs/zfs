@@ -1451,15 +1451,19 @@ arc_buf_info(arc_buf_t *ab, arc_buf_info_t *abi, int state_index)
 	l2arc_buf_hdr_t *l2hdr = NULL;
 	arc_state_t *state = NULL;
 
+	memset(abi, 0, sizeof (arc_buf_info_t));
+
+	if (hdr == NULL)
+		return;
+
+	abi->abi_flags = hdr->b_flags;
+
 	if (HDR_HAS_L1HDR(hdr)) {
 		l1hdr = &hdr->b_l1hdr;
 		state = l1hdr->b_state;
 	}
 	if (HDR_HAS_L2HDR(hdr))
 		l2hdr = &hdr->b_l2hdr;
-
-	memset(abi, 0, sizeof (arc_buf_info_t));
-	abi->abi_flags = hdr->b_flags;
 
 	if (l1hdr) {
 		abi->abi_datacnt = l1hdr->b_datacnt;
@@ -2697,12 +2701,7 @@ arc_prune_task(void *ptr)
 	if (func != NULL)
 		func(ap->p_adjust, ap->p_private);
 
-	/* Callback unregistered concurrently with execution */
-	if (refcount_remove(&ap->p_refcnt, func) == 0) {
-		ASSERT(!list_link_active(&ap->p_node));
-		refcount_destroy(&ap->p_refcnt);
-		kmem_free(ap, sizeof (*ap));
-	}
+	refcount_remove(&ap->p_refcnt, func);
 }
 
 /*
@@ -4320,17 +4319,11 @@ top:
 
 		/*
 		 * Gracefully handle a damaged logical block size as a
-		 * checksum error by passing a dummy zio to the done callback.
+		 * checksum error.
 		 */
 		if (size > spa_maxblocksize(spa)) {
-			if (done) {
-				rzio = zio_null(pio, spa, NULL,
-				    NULL, NULL, zio_flags);
-				rzio->io_error = ECKSUM;
-				done(rzio, buf, private);
-				zio_nowait(rzio);
-			}
-			rc = ECKSUM;
+			ASSERT3P(buf, ==, NULL);
+			rc = SET_ERROR(ECKSUM);
 			goto out;
 		}
 
@@ -4568,13 +4561,19 @@ arc_add_prune_callback(arc_prune_func_t *func, void *private)
 void
 arc_remove_prune_callback(arc_prune_t *p)
 {
+	boolean_t wait = B_FALSE;
 	mutex_enter(&arc_prune_mtx);
 	list_remove(&arc_prune_list, p);
-	if (refcount_remove(&p->p_refcnt, &arc_prune_list) == 0) {
-		refcount_destroy(&p->p_refcnt);
-		kmem_free(p, sizeof (*p));
-	}
+	if (refcount_remove(&p->p_refcnt, &arc_prune_list) > 0)
+		wait = B_TRUE;
 	mutex_exit(&arc_prune_mtx);
+
+	/* wait for arc_prune_task to finish */
+	if (wait)
+		taskq_wait_outstanding(arc_prune_taskq, 0);
+	ASSERT0(refcount_count(&p->p_refcnt));
+	refcount_destroy(&p->p_refcnt);
+	kmem_free(p, sizeof (*p));
 }
 
 void
@@ -5250,7 +5249,7 @@ arc_tuning_update(void)
 		arc_c_max = zfs_arc_max;
 		arc_c = arc_c_max;
 		arc_p = (arc_c >> 1);
-		arc_meta_limit = MIN(arc_meta_limit, arc_c_max);
+		arc_meta_limit = MIN(arc_meta_limit, (3 * arc_c_max) / 4);
 	}
 
 	/* Valid range: 32M - <arc_c_max> */

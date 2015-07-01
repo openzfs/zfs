@@ -4,6 +4,7 @@ DefaultDependencies=no
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=cryptsetup.target
+After=systemd-remount-fs.service
 ConditionPathExists=@sysconfdir@/zfs/zpool.cache
 
 [Service]
@@ -11,3 +12,7 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/sbin/modprobe zfs
 ExecStart=@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache -aN
+
+[Install]
+WantedBy=zfs-mount.service
+WantedBy=zfs.target

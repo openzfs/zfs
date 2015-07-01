@@ -6,7 +6,7 @@ include config/tgz.am
 
 SUBDIRS = include rpm
 if CONFIG_USER
-SUBDIRS += udev etc man scripts lib cmd contrib
+SUBDIRS += udev etc man scripts tests lib cmd contrib
 endif
 if CONFIG_KERNEL
 SUBDIRS += module
@@ -54,6 +54,13 @@ shellcheck:
 			shellcheck --format gcc "$$file"; \
 		 done; \
 	 fi
+
+lint: cppcheck
+
+cppcheck:
+	@if type cppcheck > /dev/null 2>&1; then \
+		cppcheck --quiet --force ${top_srcdir}; \
+	fi
 
 ctags:
 	$(RM) tags

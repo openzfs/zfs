@@ -481,7 +481,8 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * Lock the range against changes.
 	 */
-	rl = zfs_range_lock(zp, uio->uio_loffset, uio->uio_resid, RL_READER);
+	rl = zfs_range_lock(&zp->z_range_lock, uio->uio_loffset, uio->uio_resid,
+	    RL_READER);
 
 	/*
 	 * If we are reading past end-of-file we can skip
@@ -663,7 +664,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * Obtain an appending range lock to guarantee file append
 		 * semantics.  We reset the write offset once we have the lock.
 		 */
-		rl = zfs_range_lock(zp, 0, n, RL_APPEND);
+		rl = zfs_range_lock(&zp->z_range_lock, 0, n, RL_APPEND);
 		woff = rl->r_off;
 		if (rl->r_len == UINT64_MAX) {
 			/*
@@ -680,7 +681,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * this write, then this range lock will lock the entire file
 		 * so that we can re-write the block safely.
 		 */
-		rl = zfs_range_lock(zp, woff, n, RL_WRITER);
+		rl = zfs_range_lock(&zp->z_range_lock, woff, n, RL_WRITER);
 	}
 
 	if (woff >= limit) {
@@ -1007,7 +1008,8 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		zgd->zgd_rl = zfs_range_lock(zp, offset, size, RL_READER);
+		zgd->zgd_rl = zfs_range_lock(&zp->z_range_lock, offset, size,
+		    RL_READER);
 		/* test for truncation needs to be done while range locked */
 		if (offset >= zp->z_size) {
 			error = SET_ERROR(ENOENT);
@@ -1028,8 +1030,8 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 			size = zp->z_blksz;
 			blkoff = ISP2(size) ? P2PHASE(offset, size) : offset;
 			offset -= blkoff;
-			zgd->zgd_rl = zfs_range_lock(zp, offset, size,
-			    RL_READER);
+			zgd->zgd_rl = zfs_range_lock(&zp->z_range_lock, offset,
+			    size, RL_READER);
 			if (zp->z_blksz == size)
 				break;
 			offset += blkoff;
@@ -3947,7 +3949,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	redirty_page_for_writepage(wbc, pp);
 	unlock_page(pp);
 
-	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
+	rl = zfs_range_lock(&zp->z_range_lock, pgoff, pglen, RL_WRITER);
 	lock_page(pp);
 
 	/* Page mapping changed or it was no longer dirty, we're done */
@@ -4192,10 +4194,10 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	 * Iterate over list of pages and read each page individually.
 	 */
 	page_idx = 0;
-	cur_pp   = pl[0];
 	for (total = io_off + io_len; io_off < total; io_off += PAGESIZE) {
 		caddr_t va;
 
+		cur_pp = pl[page_idx++];
 		va = kmap(cur_pp);
 		err = dmu_read(os, zp->z_id, io_off, PAGESIZE, va,
 		    DMU_READ_PREFETCH);
@@ -4206,7 +4208,6 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 				err = SET_ERROR(EIO);
 			return (err);
 		}
-		cur_pp = pl[++page_idx];
 	}
 
 	return (0);

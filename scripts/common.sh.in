@@ -45,10 +45,13 @@ DEVDIR=${DEVDIR:-/dev/disk/by-vdev}
 ZPOOLDIR=${ZPOOLDIR:-${pkgdatadir}/zpool-config}
 ZPIOSDIR=${ZPIOSDIR:-${pkgdatadir}/zpios-test}
 ZPIOSPROFILEDIR=${ZPIOSPROFILEDIR:-${pkgdatadir}/zpios-profile}
+TESTSDIR=${TESTSDIR:-${pkgdatadir}/zfs-tests}
+RUNFILEDIR=${RUNFILEDIR:-${pkgdatadir}/runfiles}
 
 ZDB=${ZDB:-${sbindir}/zdb}
 ZFS=${ZFS:-${sbindir}/zfs}
 ZINJECT=${ZINJECT:-${sbindir}/zinject}
+ZHACK=${ZHACK:-${sbindir}/zhack}
 ZPOOL=${ZPOOL:-${sbindir}/zpool}
 ZTEST=${ZTEST:-${sbindir}/ztest}
 ZPIOS=${ZPIOS:-${sbindir}/zpios}
@@ -58,6 +61,9 @@ ZFS_SH=${ZFS_SH:-${pkgdatadir}/zfs.sh}
 ZPOOL_CREATE_SH=${ZPOOL_CREATE_SH:-${pkgdatadir}/zpool-create.sh}
 ZPIOS_SH=${ZPIOS_SH:-${pkgdatadir}/zpios.sh}
 ZPIOS_SURVEY_SH=${ZPIOS_SURVEY_SH:-${pkgdatadir}/zpios-survey.sh}
+TEST_RUNNER=${TEST_RUNNER:-${pkgdatadir}/test-runner/bin/test-runner.py}
+STF_TOOLS=${STF_TOOLS:-${pkgdatadir}/test-runner}
+STF_SUITE=${STF_SUITE:-${pkgdatadir}/zfs-tests}
 
 LDMOD=${LDMOD:-/sbin/modprobe}
 LSMOD=${LSMOD:-/sbin/lsmod}
@@ -65,6 +71,7 @@ RMMOD=${RMMOD:-/sbin/rmmod}
 INFOMOD=${INFOMOD:-/sbin/modinfo}
 LOSETUP=${LOSETUP:-/sbin/losetup}
 MDADM=${MDADM:-/sbin/mdadm}
+DMSETUP=${DMSETUP:-/sbin/dmsetup}
 PARTED=${PARTED:-/sbin/parted}
 BLOCKDEV=${BLOCKDEV:-/sbin/blockdev}
 LSSCSI=${LSSCSI:-/usr/bin/lsscsi}
@@ -72,6 +79,7 @@ SCSIRESCAN=${SCSIRESCAN:-/usr/bin/scsi-rescan}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
 UDEVADM=${UDEVADM:-/sbin/udevadm}
 AWK=${AWK:-/usr/bin/awk}
+GDB=${GDB:-/usr/bin/gdb}
 
 ZED_PIDFILE=${ZED_PIDFILE:-${localstatedir}/run/zed.pid}
 
@@ -297,7 +305,7 @@ check_loop_utils() {
 # the minor as long as it's less than /sys/module/loop/parameters/max_loop.
 #
 unused_loop_device() {
-	local DEVICE=`${LOSETUP} -f`
+	local DEVICE=$(${LOSETUP} -f)
 	local MAX_LOOP_PATH="/sys/module/loop/parameters/max_loop"
 	local MAX_LOOP;
 
@@ -359,7 +367,7 @@ destroy_loop_devices() {
 	local LODEVICES="$1"
 
 	msg "Destroying ${LODEVICES}"
-	 ${LOSETUP} -d ${LODEVICES} || \
+	${LOSETUP} -d ${LODEVICES} || \
 		die "Error $? destroying ${FILE} -> ${DEVICE} loopback"
 
 	rm -f ${FILES}

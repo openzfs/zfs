@@ -65,7 +65,7 @@ pthread_mutex_t kthread_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_key_t kthread_key;
 int kthread_nr = 0;
 
-static void
+void
 thread_init(void)
 {
 	kthread_t *kt;
@@ -84,7 +84,7 @@ thread_init(void)
 	kthread_nr = 1;
 }
 
-static void
+void
 thread_fini(void)
 {
 	kthread_t *kt = curthread;

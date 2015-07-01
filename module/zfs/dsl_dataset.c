@@ -665,6 +665,17 @@ dsl_dataset_name(dsl_dataset_t *ds, char *name)
 	}
 }
 
+int
+dsl_dataset_namelen(dsl_dataset_t *ds)
+{
+	int len;
+	VERIFY0(dsl_dataset_get_snapname(ds));
+	mutex_enter(&ds->ds_lock);
+	len = dsl_dir_namelen(ds->ds_dir) + 1 + strlen(ds->ds_snapname);
+	mutex_exit(&ds->ds_lock);
+	return (len);
+}
+
 void
 dsl_dataset_rele(dsl_dataset_t *ds, void *tag)
 {

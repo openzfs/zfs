@@ -81,7 +81,7 @@ out:
 	return (error);
 }
 
-#if !defined(HAVE_VFS_ITERATE)
+#if !defined(HAVE_VFS_ITERATE) && !defined(HAVE_VFS_ITERATE_SHARED)
 static int
 zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
@@ -144,7 +144,9 @@ const struct file_operations zpl_fops_root = {
 	.open		= zpl_common_open,
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
-#ifdef HAVE_VFS_ITERATE
+#ifdef HAVE_VFS_ITERATE_SHARED
+	.iterate_shared	= zpl_root_iterate,
+#elif defined(HAVE_VFS_ITERATE)
 	.iterate	= zpl_root_iterate,
 #else
 	.readdir	= zpl_root_readdir,
@@ -285,7 +287,7 @@ out:
 	return (error);
 }
 
-#if !defined(HAVE_VFS_ITERATE)
+#if !defined(HAVE_VFS_ITERATE) && !defined(HAVE_VFS_ITERATE_SHARED)
 static int
 zpl_snapdir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
@@ -385,7 +387,9 @@ const struct file_operations zpl_fops_snapdir = {
 	.open		= zpl_common_open,
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
-#ifdef HAVE_VFS_ITERATE
+#ifdef HAVE_VFS_ITERATE_SHARED
+	.iterate_shared	= zpl_snapdir_iterate,
+#elif defined(HAVE_VFS_ITERATE)
 	.iterate	= zpl_snapdir_iterate,
 #else
 	.readdir	= zpl_snapdir_readdir,
@@ -472,7 +476,7 @@ out:
 	return (error);
 }
 
-#if !defined(HAVE_VFS_ITERATE)
+#if !defined(HAVE_VFS_ITERATE) && !defined(HAVE_VFS_ITERATE_SHARED)
 static int
 zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
@@ -525,7 +529,9 @@ const struct file_operations zpl_fops_shares = {
 	.open		= zpl_common_open,
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
-#ifdef HAVE_VFS_ITERATE
+#ifdef HAVE_VFS_ITERATE_SHARED
+	.iterate_shared	= zpl_shares_iterate,
+#elif defined(HAVE_VFS_ITERATE)
 	.iterate	= zpl_shares_iterate,
 #else
 	.readdir	= zpl_shares_readdir,
