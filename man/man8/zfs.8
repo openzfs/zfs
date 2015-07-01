@@ -793,7 +793,7 @@ Currently only \fBposixacls\fR are supported on Linux.
 To obtain the best performance when setting \fBposixacl\fR users are strongly
 encouraged to set the \fBxattr=sa\fR property.  This will result in the
 Posix ACL being stored more efficiently on disk.  But as a consequence of this
-all new xattrs will only be accessable from ZFS implementations which support
+all new xattrs will only be accessible from ZFS implementations which support
 the \fBxattr=sa\fR property.  See the \fBxattr\fR property for more details.
 .RE
 
@@ -1221,7 +1221,7 @@ You might want to set \fBshareiscsi=on\fR for a file system so that all \fBZFS\f
 .RS 4n
 Controls whether the file system is shared by using \fBSamba USERSHARES\fR, and what options are to be used. Otherwise, the file system is automatically shared and unshared with the \fBzfs share\fR and \fBzfs unshare\fR commands. If the property is set to \fBon\fR, the \fBnet\fR(8) command is invoked to create a \fBUSERSHARE\fR.
 .sp
-Because \fBSMB\fR shares requires a resource name, a unique resource name is constructed from the dataset name. The constructed name is a copy of the dataset name except that the characters in the dataset name, which would be illegal in the resource name, are replaced with underscore (\fB_\fR) characters. The ZFS On Linux driver does not (yet) support additional options which might be availible in the Solaris version.
+Because \fBSMB\fR shares requires a resource name, a unique resource name is constructed from the dataset name. The constructed name is a copy of the dataset name except that the characters in the dataset name, which would be illegal in the resource name, are replaced with underscore (\fB_\fR) characters. The ZFS On Linux driver does not (yet) support additional options which might be available in the Solaris version.
 .sp
 If the \fBsharesmb\fR property is set to \fBoff\fR, the file systems are unshared.
 .sp
@@ -1388,7 +1388,7 @@ xattrs as system attributes significantly decreases the amount of disk IO
 required.  Up to 64K of xattr data may be stored per file in the space reserved
 for system attributes.  If there is not enough space available for an xattr then
 it will be automatically written as a directory based xattr.  System attribute
-based xattrs are not accessable on platforms which do not support the
+based xattrs are not accessible on platforms which do not support the
 \fBxattr=sa\fR feature.
 .sp
 The use of system attribute based xattrs is strongly encouraged for users of
