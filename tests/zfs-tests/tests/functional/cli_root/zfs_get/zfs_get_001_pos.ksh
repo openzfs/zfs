@@ -1,0 +1,137 @@
+#!/bin/ksh -p
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+. $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_common.kshlib
+. $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_list_d.kshlib
+
+#
+# DESCRIPTION:
+# Setting the valid option and properties, 'zfs get' should return the
+# correct property value.
+#
+# STRATEGY:
+# 1. Create pool, filesystem, volume and snapshot.
+# 2. Setting valid parameter, 'zfs get' should succeed.
+# 3. Compare the output property name with the original input property.
+#
+
+verify_runnable "both"
+
+typeset options=("" "-p" "-r" "-H")
+
+typeset -i i=${#options[*]}
+typeset -i j=0
+while ((j<${#depth_options[*]}));
+do
+	options[$i]=-"${depth_options[$j]}"
+	((j+=1))
+	((i+=1))
+done
+
+typeset zfs_props=("type" used available creation volsize referenced \
+    compressratio mounted origin recordsize quota reservation mountpoint \
+    sharenfs checksum compression atime devices exec readonly setuid zoned \
+    snapdir aclmode aclinherit canmount primarycache secondarycache \
+    usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
+    version)
+
+typeset userquota_props=(userquota@root groupquota@root userused@root \
+    groupused@root)
+typeset all_props=("${zfs_props[@]}" "${userquota_props[@]}")
+typeset dataset=($TESTPOOL/$TESTCTR $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
+	$TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTVOL@$TESTSNAP)
+
+#
+# According to dataset and option, checking if 'zfs get' return correct
+# property information.
+#
+# $1 dataset
+# $2 properties which are expected to output into $TESTDIR/$TESTFILE0
+# $3 option
+#
+function check_return_value
+{
+	typeset dst=$1
+	typeset props=$2
+	typeset opt=$3
+	typeset -i found=0
+	typeset p
+
+	for p in $props; do
+		found=0
+
+		while read line; do
+			typeset item
+			item=$($ECHO $line | $AWK '{print $2}' 2>&1)
+
+			if [[ $item == $p ]]; then
+				((found += 1))
+				break
+			fi
+		done < $TESTDIR/$TESTFILE0
+
+		if ((found == 0)); then
+			log_fail "'zfs get $opt $props $dst' return " \
+			    "error message.'$p' haven't been found."
+		fi
+	done
+
+	log_note "SUCCESS: '$ZFS get $opt $prop $dst'."
+}
+
+log_assert "Setting the valid options and properties 'zfs get' should return " \
+    "the correct property value."
+log_onexit cleanup
+
+# Create filesystem and volume's snapshot
+create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
+create_snapshot $TESTPOOL/$TESTVOL $TESTSNAP
+
+typeset -i i=0
+typeset -i j=0
+while ((i < ${#dataset[@]})); do
+	for opt in "${options[@]}"; do
+		while (( $j < ${#all_props[*]} )); do
+			if [[ -n "$LINUX" && ${all_props[$j]} == "aclmode" ]]; then
+				((j += 1))
+				continue
+			fi
+			eval "$ZFS get $opt ${all_props[$j]} ${dataset[i]} > \
+			    $TESTDIR/$TESTFILE0"
+			ret=$?
+			if [[ $ret != 0 ]]; then
+				log_fail "$ZFS get returned: $ret"
+			fi
+			check_return_value ${dataset[i]} "${all_props[$j]}" "$opt"
+			((j += 1))
+		done
+	done
+	((i += 1))
+done
+
+log_pass "Setting the valid options to dataset, it should succeed and return " \
+    "valid value. 'zfs get' pass."

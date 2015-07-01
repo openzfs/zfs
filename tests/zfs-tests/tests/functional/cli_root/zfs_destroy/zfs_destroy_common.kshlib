@@ -1,0 +1,144 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2012 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zfs_destroy/zfs_destroy.cfg
+
+#
+# Create or recover a set of test environment which include ctr, vol, fs,
+# snap & clone. It looks like the following.
+#
+# pool
+#    |ctr
+#    |  |fs
+#    |  | |fssnap
+#    |  |vol
+#    |     |volsnap
+#    |fsclone
+#    |volclone
+#
+# $1 indicate which dependent dataset need be created. Such as 'snap', 'clone'.
+#
+function setup_testenv #[dtst]
+{
+	typeset dtst=$1
+
+	if ! datasetexists $CTR; then
+		log_must $ZFS create $CTR
+	fi
+	if ! datasetexists $FS; then
+		log_must $ZFS create $FS
+	fi
+	# Volume test is only availible on globle zone
+	if ! datasetexists $VOL && is_global_zone; then
+		log_must $ZFS create -V $VOLSIZE $VOL
+		[[ -n "$LINUX" ]] && sleep 1
+		$ECHO "y" | $NEWFS $ZVOL_DEVDIR/$VOL > /dev/null 2>&1
+		if (( $? == 0 )); then
+			log_note "SUCCESS: $NEWFS $ZVOL_DEVDIR/$VOL>/dev/null"
+		else
+			log_fail "$NEWFS $ZVOL_DEVDIR/$VOL > /dev/null"
+		fi
+
+		if [[ ! -d $TESTDIR1 ]]; then
+			log_must $MKDIR $TESTDIR1
+		fi
+		log_must $MOUNT $ZVOL_DEVDIR/$VOL $TESTDIR1
+	fi
+
+	if [[ $dtst == snap || $dtst == clone ]]; then
+		if ! datasetexists $FSSNAP; then
+			log_must $ZFS snapshot $FSSNAP
+		fi
+		if ! datasetexists $VOLSNAP && is_global_zone; then
+			log_must $ZFS snapshot $VOLSNAP
+		fi
+	fi
+
+	if [[ $dtst == clone ]]; then
+		if ! datasetexists $FSCLONE; then
+			log_must $ZFS clone $FSSNAP $FSCLONE
+		fi
+		if ! datasetexists $VOLCLONE && is_global_zone; then
+			log_must $ZFS clone $VOLSNAP $VOLCLONE
+		fi
+	fi
+}
+
+# Clean up the testing environment
+#
+function cleanup_testenv
+{
+	if is_global_zone && ismounted "$TESTDIR1" "$NEWFS_DEFAULT_FS" ; then
+		log_must $UMOUNT -f $TESTDIR1
+	fi
+	if [[ -d $TESTDIR1 ]]; then
+		log_must $RM -rf $TESTDIR1
+	fi
+
+	$PKILL -f $MKBUSY
+
+	destroy_dataset -Rf $CTR
+}
+
+#
+# Delete volume and related datasets from list, if the test cases was
+# runing in local zone. Then check them are existed or non-exists.
+#
+# $1   function name
+# $2-n datasets name
+#
+function check_dataset
+{
+	typeset funname=$1
+	typeset newlist=""
+	typeset dtst
+	shift
+
+	for dtst in "$@"; do
+		# Volume and related stuff are unvailable in local zone
+		if ! is_global_zone; then
+			if [[ $dtst == $VOL || $dtst == $VOLSNAP || \
+				$dtst == $VOLCLONE ]]
+			then
+				continue
+			fi
+		fi
+		newlist="$newlist $dtst"
+	done
+
+	if (( ${#newlist} != 0 )); then
+		# Run each item in $newlist individually so on failure, the
+		# probelmatic dataset is listed in the logs.
+		for i in $newlist; do
+			log_must $funname $i
+		done
+	fi
+}
