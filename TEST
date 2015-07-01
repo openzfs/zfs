@@ -37,6 +37,12 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 #TEST_XFSTESTS_VDEV="/var/tmp/vdev"
 #TEST_XFSTESTS_OPTIONS=""
 
+### zfs-tests.sh
+TEST_ZFSTESTS_SKIP="no"
+#TEST_ZFSTESTS_DISKS="vdb vdc vdd"
+#TEST_ZFSTESTS_DISKSIZE="8G"
+#TEST_ZFSTESTS_RUNFILE="linux-fast.run"
+
 ### filebench
 #TEST_FILEBENCH_SKIP="yes"
 #TEST_FILEBENCH_URL="http://build.zfsonlinux.org/"
