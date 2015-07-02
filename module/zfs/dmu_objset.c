@@ -1784,7 +1784,15 @@ dmu_objset_find_dp_cb(void *arg)
 	dmu_objset_find_ctx_t *dcp = arg;
 	dsl_pool_t *dp = dcp->dc_dp;
 
-	dsl_pool_config_enter(dp, FTAG);
+	/*
+	 * We need to get a pool_config_lock here, as there are several
+	 * asssert(pool_config_held) down the stack. Getting a lock via
+	 * dsl_pool_config_enter is risky, as it might be stalled by a
+	 * pending writer. This would deadlock, as the write lock can
+	 * only be granted when our parent thread gives up the lock.
+	 * The _prio interface gives us priority over a pending writer.
+	 */
+	dsl_pool_config_enter_prio(dp, FTAG);
 
 	dmu_objset_find_dp_impl(dcp);
 

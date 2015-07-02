@@ -72,6 +72,7 @@ void rrw_init(rrwlock_t *rrl, boolean_t track_all);
 void rrw_destroy(rrwlock_t *rrl);
 void rrw_enter(rrwlock_t *rrl, krw_t rw, void *tag);
 void rrw_enter_read(rrwlock_t *rrl, void *tag);
+void rrw_enter_read_prio(rrwlock_t *rrl, void *tag);
 void rrw_enter_write(rrwlock_t *rrl);
 void rrw_exit(rrwlock_t *rrl, void *tag);
 boolean_t rrw_held(rrwlock_t *rrl, krw_t rw);
