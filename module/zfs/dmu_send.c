@@ -2040,7 +2040,7 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 				error = dsl_dataset_hold_obj(dp, obj, FTAG,
 				    &snap);
 				if (error != 0)
-					return (error);
+					break;
 				if (snap->ds_dir != origin_head->ds_dir)
 					error = SET_ERROR(EINVAL);
 				if (error == 0)  {
@@ -2050,7 +2050,11 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 				obj = dsl_dataset_phys(snap)->ds_prev_snap_obj;
 				dsl_dataset_rele(snap, FTAG);
 				if (error != 0)
-					return (error);
+					break;
+			}
+			if (error != 0) {
+				dsl_dataset_rele(origin_head, FTAG);
+				return (error);
 			}
 		}
 		error = dsl_dataset_clone_swap_check_impl(drc->drc_ds,
