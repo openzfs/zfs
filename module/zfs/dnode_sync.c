@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -718,7 +718,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		mutex_exit(&dn->dn_mtx);
 	}
 
-	dbuf_sync_list(list, tx);
+	dbuf_sync_list(list, dn->dn_phys->dn_nlevels - 1, tx);
 
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
 		ASSERT3P(list_head(list), ==, NULL);

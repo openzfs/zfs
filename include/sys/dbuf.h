@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -287,7 +287,7 @@ void dbuf_clear(dmu_buf_impl_t *db);
 void dbuf_evict(dmu_buf_impl_t *db);
 
 void dbuf_unoverride(dbuf_dirty_record_t *dr);
-void dbuf_sync_list(list_t *list, dmu_tx_t *tx);
+void dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
 void dbuf_release_bp(dmu_buf_impl_t *db);
 
 void dbuf_free_range(struct dnode *dn, uint64_t start, uint64_t end,
