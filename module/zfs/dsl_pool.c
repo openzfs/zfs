@@ -1051,6 +1051,13 @@ dsl_pool_config_enter(dsl_pool_t *dp, void *tag)
 }
 
 void
+dsl_pool_config_enter_prio(dsl_pool_t *dp, void *tag)
+{
+	ASSERT(!rrw_held(&dp->dp_config_rwlock, RW_READER));
+	rrw_enter_read_prio(&dp->dp_config_rwlock, tag);
+}
+
+void
 dsl_pool_config_exit(dsl_pool_t *dp, void *tag)
 {
 	rrw_exit(&dp->dp_config_rwlock, tag);

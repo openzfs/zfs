@@ -159,8 +159,8 @@ rrw_destroy(rrwlock_t *rrl)
 	refcount_destroy(&rrl->rr_linked_rcount);
 }
 
-void
-rrw_enter_read(rrwlock_t *rrl, void *tag)
+static void
+rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, void *tag)
 {
 	mutex_enter(&rrl->rr_lock);
 #if !defined(DEBUG) && defined(_KERNEL)
@@ -176,7 +176,7 @@ rrw_enter_read(rrwlock_t *rrl, void *tag)
 	ASSERT(refcount_count(&rrl->rr_anon_rcount) >= 0);
 
 	while (rrl->rr_writer != NULL || (rrl->rr_writer_wanted &&
-	    refcount_is_zero(&rrl->rr_anon_rcount) &&
+	    refcount_is_zero(&rrl->rr_anon_rcount) && !prio &&
 	    rrn_find(rrl) == NULL))
 		cv_wait(&rrl->rr_cv, &rrl->rr_lock);
 
@@ -190,6 +190,25 @@ rrw_enter_read(rrwlock_t *rrl, void *tag)
 	ASSERT(rrl->rr_writer == NULL);
 	mutex_exit(&rrl->rr_lock);
 }
+
+void
+rrw_enter_read(rrwlock_t *rrl, void *tag)
+{
+	rrw_enter_read_impl(rrl, B_FALSE, tag);
+}
+
+/*
+ * take a read lock even if there are pending write lock requests. if we want
+ * to take a lock reentrantly, but from different threads (that have a
+ * relationship to each other), the normal detection mechanism to overrule
+ * the pending writer does not work, so we have to give an explicit hint here.
+ */
+void
+rrw_enter_read_prio(rrwlock_t *rrl, void *tag)
+{
+	rrw_enter_read_impl(rrl, B_TRUE, tag);
+}
+
 
 void
 rrw_enter_write(rrwlock_t *rrl)
