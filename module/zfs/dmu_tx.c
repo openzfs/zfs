@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -679,7 +679,7 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 			uint64_t ibyte = i << shift;
 			err = dnode_next_offset(dn, 0, &ibyte, 2, 1, 0);
 			i = ibyte >> shift;
-			if (err == ESRCH)
+			if (err == ESRCH || i > end)
 				break;
 			if (err) {
 				tx->tx_err = err;
