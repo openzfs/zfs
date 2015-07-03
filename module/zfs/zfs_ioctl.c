@@ -1334,7 +1334,7 @@ get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp)
 	if ((error = ddi_copyin((void *)(uintptr_t)nvl, packed, size,
 	    iflag)) != 0) {
 		vmem_free(packed, size);
-		return (error);
+		return (SET_ERROR(EFAULT));
 	}
 
 	if ((error = nvlist_unpack(packed, size, &list, 0)) != 0) {
