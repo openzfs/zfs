@@ -1579,6 +1579,7 @@ metaslab_preload(void *arg)
 {
 	metaslab_t *msp = arg;
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 
 	ASSERT(!MUTEX_HELD(&msp->ms_group->mg_lock));
 
@@ -1592,6 +1593,7 @@ metaslab_preload(void *arg)
 	 */
 	msp->ms_access_txg = spa_syncing_txg(spa) + metaslab_unload_delay + 1;
 	mutex_exit(&msp->ms_lock);
+	spl_fstrans_unmark(cookie);
 }
 
 static void
