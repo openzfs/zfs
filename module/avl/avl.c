@@ -41,7 +41,7 @@
  * insertion and deletion relatively efficiently. Searching the tree is
  * still a fast operation, roughly O(log(N)).
  *
- * The key to insertion and deletion is a set of tree maniuplations called
+ * The key to insertion and deletion is a set of tree manipulations called
  * rotations, which bring unbalanced subtrees back into the semi-balanced state.
  *
  * This implementation of AVL trees has the following peculiarities:
@@ -49,7 +49,7 @@
  *	- The AVL specific data structures are physically embedded as fields
  *	  in the "using" data structures.  To maintain generality the code
  *	  must constantly translate between "avl_node_t *" and containing
- *	  data structure "void *"s by adding/subracting the avl_offset.
+ *	  data structure "void *"s by adding/subtracting the avl_offset.
  *
  *	- Since the AVL data is always embedded in other structures, there is
  *	  no locking or memory allocation in the AVL routines. This must be
@@ -104,7 +104,7 @@
 #include <sys/cmn_err.h>
 
 /*
- * Small arrays to translate between balance (or diff) values and child indeces.
+ * Small arrays to translate between balance (or diff) values and child indices.
  *
  * Code that deals with binary tree data structures will randomly use
  * left and right children when examining a tree.  C "if()" statements
@@ -124,7 +124,8 @@ static const int  avl_balance2child[]	= {0, 0, 1};
  *
  * - If there is a left child, go to it, then to it's rightmost descendant.
  *
- * - otherwise we return thru parent nodes until we've come from a right child.
+ * - otherwise we return through parent nodes until we've come from a right
+ *   child.
  *
  * Return Value:
  * NULL - if at the end of the nodes
@@ -947,7 +948,7 @@ avl_is_empty(avl_tree_t *tree)
 
 /*
  * Post-order tree walk used to visit all tree nodes and destroy the tree
- * in post order. This is used for destroying a tree w/o paying any cost
+ * in post order. This is used for destroying a tree without paying any cost
  * for rebalancing it.
  *
  * example:
