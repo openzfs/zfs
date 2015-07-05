@@ -2,42 +2,42 @@
 
 . /lib/dracut-zfs-lib.sh
 
-ZFS_DATASET=""
-ZFS_POOL=""
-
 case "${root}" in
 	zfs:*) ;;
 	*) return ;;
 esac
 
+# 'rootmnt' is used in mount_fs() to figure out where to
+# mount the filesystem.
+[ -n "$NEWROOT" ] && rootmnt=${NEWROOT}
+
 # Delay until all required block devices are present.
-udevadm settle
+udev_trigger
 
 if [ "${root}" = "zfs:AUTO" ] ; then
-	ZFS_DATASET="$(find_bootfs)"
-	if [ $? -ne 0 ] ; then
-		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
-		ZFS_DATASET="$(find_bootfs)"
-		if [ $? -ne 0 ] ; then
-			warn "ZFS: No bootfs attribute found in importable pools."
-			export_all || export_all "-f"
+	ZFS_BOOTFS=""
+	POOLS=$(get_pools)
+	IFS=";"
+	for pool in $POOLS
+	do
+		[ -z "$pool" ] && continue
 
-			rootok=0
-			return 1
+		# No 'else' or return below - if there's more pools, we try
+		# them. If not, we'll drop through and go to the end
+		# where we need a reboot because we couldn't find a root fs.
+		if import_pool "$pool"; then
+			if find_rootfs "$pool"; then
+				if mount_fs "${ZFS_BOOTFS}"; then
+					info "ZFS: Using ${ZFS_BOOTFS} as root."
+
+					rootok=1
+					IFS="$OLD_IFS"
+
+					return 0
+				fi
+			fi
 		fi
-	fi
-	info "ZFS: Using ${ZFS_DATASET} as root."
-fi
-
-ZFS_DATASET="${ZFS_DATASET:-${root#zfs:}}"
-ZFS_POOL="${ZFS_DATASET%%/*}"
-
-if import_pool "${ZFS_POOL}" ; then
-	info "ZFS: Mounting dataset ${ZFS_DATASET}..."
-	if mount_dataset "${ZFS_DATASET}" ; then
-		ROOTFS_MOUNTED=yes
-		return 0
-	fi
+	done
 fi
 
 rootok=0

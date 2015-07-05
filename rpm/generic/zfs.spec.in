@@ -188,6 +188,7 @@ validating the file system.
 Summary:        Dracut module
 Group:          System Environment/Kernel
 Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       %{name} = %{version}-%{release}
 Requires:       dracut
 
 %description dracut

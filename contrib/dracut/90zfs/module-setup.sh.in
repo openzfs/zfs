@@ -1,12 +1,14 @@
 #!/bin/sh
 
+# Source the common init script
+. @sysconfdir@/zfs/zfs-functions
+
 check() {
 	# We depend on udev-rules being loaded
 	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
-	which zpool >/dev/null 2>&1 || return 1
-	which zfs >/dev/null 2>&1 || return 1
+	zfs_installed || return 1
 
 	return 0
 }
@@ -39,11 +41,15 @@ install() {
 	dracut_install hostid
 	dracut_install awk
 	dracut_install head
+	dracut_install sort
+	dracut_install grep
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
 	inst_hook mount 98 "${moddir}/mount-zfs.sh"
 	inst_hook shutdown 30 "${moddir}/export-zfs.sh"
 
-	inst_simple "${moddir}/zfs-lib.sh" "/lib/dracut-zfs-lib.sh"
+	inst_simple "@sysconfdir@/zfs/zfs-functions" "/lib/dracut-zfs-lib.sh"
+	inst "@initconfdir@/zfs"
+
 	if [ -e @sysconfdir@/zfs/zpool.cache ]; then
 		inst @sysconfdir@/zfs/zpool.cache
 	fi
@@ -51,6 +57,10 @@ install() {
 	if [ -e @sysconfdir@/zfs/vdev_id.conf ]; then
 		inst @sysconfdir@/zfs/vdev_id.conf
 	fi
+
+	for file in /etc/modprobe.d/{zfs,spl}.conf; do
+		[ -e "$file" ] && inst "$file"
+	done
 
 	# Synchronize initramfs and system hostid
 	AA=`hostid | cut -b 1,2`
