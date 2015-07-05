@@ -77,8 +77,6 @@ cache.  This file is not included in the initramfs.
 
 * `90-zfs.rules`: udev rules which trigger loading of the ZFS modules at boot.
 
-* `zfs-lib.sh`: Utility functions used by the other files.
-
 * `parse-zfs.sh`: Run early in the initramfs boot process to parse kernel
 command line and determine if ZFS is the active root filesystem.
 
@@ -88,7 +86,11 @@ to mount the root dataset.
 * `export-zfs.sh`: Run on shutdown after dracut has restored the initramfs
 and pivoted to it, allowing for a clean unmount and export of the ZFS root.
 
-`zfs-lib.sh`
+* Many of the scripts uses the file /etc/zfs/zfs-functions (in the source
+  directory, `contrib/shell-common/zfs-functions`) as the utility functions
+  script.
+
+`contrib/shell-common/zfs-functions`
 ------------
 
 This file provides a few handy functions for working with ZFS. Those

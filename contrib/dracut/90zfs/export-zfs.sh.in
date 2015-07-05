@@ -12,7 +12,7 @@ _do_zpool_export() {
 	fi
 
 	info "Exporting ZFS storage pools."
-	export_all ${opts} || ret=$?
+	export_pools ${opts} || ret=$?
 
 	if [ "x${final}" != "x" ]; then
 		info "zpool list"
