@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2014 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2014 by Delphix. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -106,7 +106,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBset\fR \fIproperty\fR=\fIvalue\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...
++\fBzfs\fR \fBset\fR \fIproperty\fR=\fIvalue\fR... \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR...
 .fi
 
 .LP
@@ -2161,11 +2161,19 @@ A comma-separated list of types to display, where \fItype\fR is one of \fBfilesy
 .ne 2
 .mk
 .na
-\fB\fBzfs set\fR \fIproperty\fR=\fIvalue\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
+\fB\fBzfs set\fR \fIproperty\fR=\fIvalue\fR[ \fIproperty\fR=\fIvalue\fR]...
+\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
 .RS 4n
-Sets the property to the given value for each dataset. Only some properties can be edited. See the "Properties" section for more information on what properties can be set and acceptable values. Numeric values can be specified as exact values, or in a human-readable form with a suffix of \fBB\fR, \fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, \fBZ\fR (for bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes, exabytes, or zettabytes, respectively). User properties can be set on snapshots. For more information, see the "User Properties" section.
+Sets the property or list of properties to the given value(s) for each dataset.
+Only some properties can be edited. See the "Properties" section for more
+information on what properties can be set and acceptable values. Numeric values
+can be specified as exact values, or in a human-readable form with a suffix of
+\fBB\fR, \fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, \fBZ\fR (for
+bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes, exabytes, or
+zettabytes, respectively). User properties can be set on snapshots. For more
+information, see the "User Properties" section.
 .RE
 
 .sp
