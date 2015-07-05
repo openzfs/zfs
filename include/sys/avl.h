@@ -43,7 +43,7 @@ extern "C" {
 #include <sys/avl_impl.h>
 
 /*
- * This is a generic implemenatation of AVL trees for use in the Solaris kernel.
+ * This is a generic implementation of AVL trees for use in the Solaris kernel.
  * The interfaces provide an efficient way of implementing an ordered set of
  * data structures.
  *
@@ -179,7 +179,7 @@ extern void avl_insert(avl_tree_t *tree, void *node, avl_index_t where);
  * Insert "new_data" in "tree" in the given "direction" either after
  * or before the data "here".
  *
- * This might be usefull for avl clients caching recently accessed
+ * This might be useful for avl clients caching recently accessed
  * data to avoid doing avl_find() again for insertion.
  *
  * new_data	- new data to insert
