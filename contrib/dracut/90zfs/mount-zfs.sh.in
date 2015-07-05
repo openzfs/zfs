@@ -15,29 +15,58 @@ esac
 udev_trigger
 
 if [ "${root}" = "zfs:AUTO" ] ; then
-	ZFS_BOOTFS=""
 	POOLS=$(get_pools)
 	IFS=";"
+
 	for pool in $POOLS
 	do
 		[ -z "$pool" ] && continue
+		ZFS_BOOTFS=""
 
 		# No 'else' or return below - if there's more pools, we try
 		# them. If not, we'll drop through and go to the end
 		# where we need a reboot because we couldn't find a root fs.
-		if import_pool "$pool"; then
-			if find_rootfs "$pool"; then
-				if mount_fs "${ZFS_BOOTFS}"; then
-					info "ZFS: Using ${ZFS_BOOTFS} as root."
-
-					rootok=1
+		if zfs_action "Importing pool ${pool}" import_pool "${pool}"
+		then
+			if find_rootfs "${pool}"; then
+				if recursive_mount_filesystems \
+				    "Using '${ZFS_BOOTFS}' as root." \
+				    "${ZFS_BOOTFS}"
+				then
 					IFS="$OLD_IFS"
-
+					rootok=1
 					return 0
 				fi
 			fi
 		fi
 	done
+else
+	# Because of the case at the top, it's either 'zfs:AUTO' or
+	# 'zfs:<rootfs>'. Import the pool from rootfs and mount it.
+	root="${root#zfs:}"	# Remove leading 'zfs:'
+	pool="${root%%/*}"	# Remove everything after first slash.
+	ZFS_BOOTFS="${root}"	# For zfs-functions.
+	if zfs_action "Importing pool ${pool}" import_pool "${pool}"; then
+		info "ZFS: Using ${pool} as root pool."
+
+		# Will be overwritten in clone_snap() if we're booting from
+		# a snapshot.
+		ZFS_BOOTFS_ORIG="$ZFS_BOOTFS"
+
+		# Booting from a snapshot? Updates ZFS_BOOTFS_ORIG and ZFS_BOOTFS...
+		echo "${root}" | grep -q '@' && setup_snapshot_booting
+		root="$ZFS_BOOTFS"
+
+		if recursive_mount_filesystems "Using '${root}' as root." \
+		    "${root}"
+		then
+			rootok=1
+			return 0
+		fi
+	else
+		warn "ZFS: Can't import '${pool}'."
+		# Fallthrough
+	fi
 fi
 
 rootok=0

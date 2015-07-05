@@ -42,6 +42,31 @@ parameters passed in from the boot loader:
 * `root=...`: If not set, importable pools are searched for a bootfs
 attribute.  If an explicitly set root is desired, you may use
 `root=ZFS:pool/dataset`
+  * It is also possible to boot from a snapshot (technically, a clone of
+    the snapshot) using `root=ZFS:pool/dataset@snapshot`.
+  * If the actual snapshot isn't specified, only the at (@) character,
+    the user will be asked for a snapshot to boot from.
+  * With the extra parameter `rollback=(on,yes,1)`, instead of doing a
+    clone and boot from that, the code will rollback the filesystem up
+    to the snapshot specified.
+  * Even though there is no freely availible native encryption for any
+    opensource ZFS implementation, the hope is that one day have one.
+    This code supports the native encryption that Solaris have, using
+    the `zfs key` option.
+  * Supports both 'native' and 'legacy' filesystems.
+  * Supports 'recursive filesystems'. That is, if the root file system
+    is something like `rpool/ROOT/fedora17`, it is possible to have
+    `rpool/ROOT/fedora17/var`, `rpool/ROOT/fedora17/usr` etc.
+    It is not important that the 'mountpoint' property is set or correct,
+    the 'base filesystem' will be removed from the full path of the filesystem.
+    This means, that with the root fs as `rpool/ROOT/fedora17` and the sub-
+    filesystem as `rpool/ROOT/fedora17/var`, the result would be `/var`,
+    where it will be mounted.
+  * In addition to 'recursive filesystems', it is possible to have other
+    filesystems mounted by setting the ZFS_INITRD_ADDITIONAL_DATASETS variable
+    in /etc/sysconfig/zfs. Here, it is imparative that the 'mountpoint'
+    property is correct for each of these filesystems, since each filesystem
+    will use this to correctly mount it.
 
 * `zfs_force=0`: If set to 1, the initramfs will run `zpool import -f` when
 attempting to import pools if the required pool isn't automatically imported
