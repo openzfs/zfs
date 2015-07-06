@@ -3378,7 +3378,7 @@ set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
  * forms: "-partX", "pX", or "X", where X is a string of digits.  The second
  * case only occurs when the suffix is preceded by a digit, i.e. "md0p0" The
  * third case only occurs when preceded by a string matching the regular
- * expression "^[hs]d[a-z]+", i.e. a scsi or ide disk.
+ * expression "^([hsv]|xv)d[a-z]+", i.e. a scsi, ide, virtio or xen disk.
  */
 static char *
 strip_partition(libzfs_handle_t *hdl, char *path)
@@ -3391,8 +3391,11 @@ strip_partition(libzfs_handle_t *hdl, char *path)
 	} else if ((part = strrchr(tmp, 'p')) &&
 	    part > tmp + 1 && isdigit(*(part-1))) {
 		d = part + 1;
-	} else if ((tmp[0] == 'h' || tmp[0] == 's') && tmp[1] == 'd') {
+	} else if ((tmp[0] == 'h' || tmp[0] == 's' || tmp[0] == 'v') &&
+	    tmp[1] == 'd') {
 		for (d = &tmp[2]; isalpha(*d); part = ++d);
+	} else if (strncmp("xvd", tmp, 3) == 0) {
+		for (d = &tmp[3]; isalpha(*d); part = ++d);
 	}
 	if (part && d && *d != '\0') {
 		for (; isdigit(*d); d++);
