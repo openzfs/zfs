@@ -34,6 +34,7 @@
 #include <sys/zfs_context.h>
 #include <sys/compress.h>
 #include <sys/spa.h>
+#include <sys/zfeature.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
 
@@ -61,19 +62,27 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 };
 
 enum zio_compress
-zio_compress_select(enum zio_compress child, enum zio_compress parent)
+zio_compress_select(spa_t *spa, enum zio_compress child,
+    enum zio_compress parent)
 {
+	enum zio_compress result;
+
 	ASSERT(child < ZIO_COMPRESS_FUNCTIONS);
 	ASSERT(parent < ZIO_COMPRESS_FUNCTIONS);
-	ASSERT(parent != ZIO_COMPRESS_INHERIT && parent != ZIO_COMPRESS_ON);
+	ASSERT(parent != ZIO_COMPRESS_INHERIT);
 
-	if (child == ZIO_COMPRESS_INHERIT)
-		return (parent);
+	result = child;
+	if (result == ZIO_COMPRESS_INHERIT)
+		result = parent;
 
-	if (child == ZIO_COMPRESS_ON)
-		return (ZIO_COMPRESS_ON_VALUE);
+	if (result == ZIO_COMPRESS_ON) {
+		if (spa_feature_is_active(spa, SPA_FEATURE_LZ4_COMPRESS))
+			result = ZIO_COMPRESS_LZ4_ON_VALUE;
+		else
+			result = ZIO_COMPRESS_LEGACY_ON_VALUE;
+	}
 
-	return (child);
+	return (result);
 }
 
 size_t

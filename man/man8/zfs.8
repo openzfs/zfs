@@ -840,15 +840,25 @@ Changing this property affects only newly-written data.
 .ne 2
 .mk
 .na
-\fBcompression\fR=\fBon\fR | \fBoff\fR | \fBlzjb\fR | \fBgzip\fR | \fBgzip-\fR\fIN\fR | \fBzle\fR | \fBlz4\fR
+\fB\fBcompression\fR=\fBon\fR | \fBoff\fR | \fBlzjb\fR | \fBlz4\fR |
+\fBgzip\fR | \fBgzip-\fR\fIN\fR | \fBzle\fR\fR
 .ad
 .sp .6
 .RS 4n
-Controls the compression algorithm used for this dataset. The \fBlzjb\fR compression algorithm is optimized for performance while providing decent data compression. Setting compression to \fBon\fR uses the \fBlzjb\fR compression algorithm.
+Controls the compression algorithm used for this dataset.
 .sp
-The \fBgzip\fR compression algorithm uses the same compression as the \fBgzip\fR(1) command. You can specify the \fBgzip\fR level by using the value \fBgzip-\fR\fIN\fR where \fIN\fR is an integer from 1 (fastest) to 9 (best compression ratio). Currently, \fBgzip\fR is equivalent to \fBgzip-6\fR (which is also the default for \fBgzip\fR(1)).
+Setting compression to \fBon\fR indicates that the current default
+compression algorithm should be used.  The default balances compression
+and decompression speed, with compression ratio and is expected to
+work well on a wide variety of workloads.  Unlike all other settings for
+this property, \fBon\fR does not select a fixed compression type.  As
+new compression algorithms are added to ZFS and enabled on a pool, the
+default compression algorithm may change.  The current default compression
+algorthm is either \fBlzjb\fR or, if the \fBlz4_compress\fR feature is
+enabled, \fBlz4\fR.
 .sp
-The \fBzle\fR (zero-length encoding) compression algorithm is a fast and simple algorithm to eliminate runs of zeroes.
+The \fBlzjb\fR compression algorithm is optimized for performance while
+providing decent data compression.
 .sp
 The \fBlz4\fR compression algorithm is a high-performance replacement
 for the \fBlzjb\fR algorithm. It features significantly faster
@@ -858,7 +868,15 @@ the \fBlz4_compress\fR feature set to \fIenabled\fR. See
 \fBzpool-features\fR(5) for details on ZFS feature flags and the
 \fBlz4_compress\fR feature.
 .sp
-This property can also be referred to by its shortened column name \fBcompress\fR. Changing this property affects only newly-written data.
+The \fBgzip\fR compression algorithm uses the same compression as
+the \fBgzip\fR(1) command. You can specify the \fBgzip\fR level by using the
+value \fBgzip-\fR\fIN\fR where \fIN\fR is an integer from 1 (fastest) to 9
+(best compression ratio). Currently, \fBgzip\fR is equivalent to \fBgzip-6\fR
+(which is also the default for \fBgzip\fR(1)). The \fBzle\fR compression
+algorithm compresses runs of zeros.
+.sp
+This property can also be referred to by its shortened column name
+\fBcompress\fR. Changing this property affects only newly-written data.
 .RE
 
 .sp
