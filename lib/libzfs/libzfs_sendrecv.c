@@ -187,10 +187,28 @@ ddt_update(libzfs_handle_t *hdl, dedup_table_t *ddt, zio_cksum_t *cs,
 }
 
 static int
-cksum_and_write(const void *buf, uint64_t len, zio_cksum_t *zc, int outfd)
+dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
+    zio_cksum_t *zc, int outfd)
 {
-	fletcher_4_incremental_native(buf, len, zc);
-	return (write(outfd, buf, len));
+	ASSERT3U(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum),
+	    ==, sizeof (dmu_replay_record_t) - sizeof (zio_cksum_t));
+	fletcher_4_incremental_native(drr,
+	    offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum), zc);
+	if (drr->drr_type != DRR_BEGIN) {
+		ASSERT(ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.
+		    drr_checksum.drr_checksum));
+		drr->drr_u.drr_checksum.drr_checksum = *zc;
+	}
+	fletcher_4_incremental_native(&drr->drr_u.drr_checksum.drr_checksum,
+	    sizeof (zio_cksum_t), zc);
+	if (write(outfd, drr, sizeof (*drr)) == -1)
+		return (errno);
+	if (payload_len != 0) {
+		fletcher_4_incremental_native(payload, payload_len, zc);
+		if (write(outfd, payload, payload_len) == -1)
+			return (errno);
+	}
+	return (0);
 }
 
 /*
@@ -217,26 +235,18 @@ cksummer(void *arg)
 	char *buf = zfs_alloc(dda->dedup_hdl, SPA_MAXBLOCKSIZE);
 	dmu_replay_record_t thedrr;
 	dmu_replay_record_t *drr = &thedrr;
-	struct drr_begin *drrb = &thedrr.drr_u.drr_begin;
-	struct drr_end *drre = &thedrr.drr_u.drr_end;
-	struct drr_object *drro = &thedrr.drr_u.drr_object;
-	struct drr_write *drrw = &thedrr.drr_u.drr_write;
-	struct drr_spill *drrs = &thedrr.drr_u.drr_spill;
-	struct drr_write_embedded *drrwe = &thedrr.drr_u.drr_write_embedded;
 	FILE *ofp;
 	int outfd;
-	dmu_replay_record_t wbr_drr = {0};
-	struct drr_write_byref *wbr_drrr = &wbr_drr.drr_u.drr_write_byref;
 	dedup_table_t ddt;
 	zio_cksum_t stream_cksum;
 	uint64_t physmem = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	uint64_t numbuckets;
 
 	ddt.max_ddt_size =
-	    MAX((physmem * MAX_DDT_PHYSMEM_PERCENT)/100,
-	    SMALLEST_POSSIBLE_MAX_DDT_MB<<20);
+	    MAX((physmem * MAX_DDT_PHYSMEM_PERCENT) / 100,
+	    SMALLEST_POSSIBLE_MAX_DDT_MB << 20);
 
-	numbuckets = ddt.max_ddt_size/(sizeof (dedup_entry_t));
+	numbuckets = ddt.max_ddt_size / (sizeof (dedup_entry_t));
 
 	/*
 	 * numbuckets must be a power of 2.  Increase number to
@@ -252,19 +262,19 @@ cksummer(void *arg)
 	ddt.numhashbits = high_order_bit(numbuckets) - 1;
 	ddt.ddt_full = B_FALSE;
 
-	/* Initialize the write-by-reference block. */
-	wbr_drr.drr_type = DRR_WRITE_BYREF;
-	wbr_drr.drr_payloadlen = 0;
-
 	outfd = dda->outputfd;
 	ofp = fdopen(dda->inputfd, "r");
-	while (ssread(drr, sizeof (dmu_replay_record_t), ofp) != 0) {
+	while (ssread(drr, sizeof (*drr), ofp) != 0) {
 
 		switch (drr->drr_type) {
 		case DRR_BEGIN:
 		{
-			int	fflags;
+			struct drr_begin *drrb = &drr->drr_u.drr_begin;
+			int fflags;
+			int sz = 0;
 			ZIO_SET_CHECKSUM(&stream_cksum, 0, 0, 0, 0);
+
+			ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
 
 			/* set the DEDUP feature flag for this stream */
 			fflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
@@ -272,12 +282,9 @@ cksummer(void *arg)
 			    DMU_BACKUP_FEATURE_DEDUPPROPS);
 			DMU_SET_FEATUREFLAGS(drrb->drr_versioninfo, fflags);
 
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
 			if (DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 			    DMU_COMPOUNDSTREAM && drr->drr_payloadlen != 0) {
-				int sz = drr->drr_payloadlen;
+				sz = drr->drr_payloadlen;
 
 				if (sz > SPA_MAXBLOCKSIZE) {
 					buf = zfs_realloc(dda->dedup_hdl, buf,
@@ -286,64 +293,60 @@ cksummer(void *arg)
 				(void) ssread(buf, sz, ofp);
 				if (ferror(stdin))
 					perror("fread");
-				if (cksum_and_write(buf, sz, &stream_cksum,
-				    outfd) == -1)
-					goto out;
 			}
+			if (dump_record(drr, buf, sz, &stream_cksum,
+			    outfd) != 0)
+				goto out;
 			break;
 		}
 
 		case DRR_END:
 		{
+			struct drr_end *drre = &drr->drr_u.drr_end;
 			/* use the recalculated checksum */
-			ZIO_SET_CHECKSUM(&drre->drr_checksum,
-			    stream_cksum.zc_word[0], stream_cksum.zc_word[1],
-			    stream_cksum.zc_word[2], stream_cksum.zc_word[3]);
-			if ((write(outfd, drr,
-			    sizeof (dmu_replay_record_t))) == -1)
+			drre->drr_checksum = stream_cksum;
+			if (dump_record(drr, NULL, 0, &stream_cksum,
+			    outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_OBJECT:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
+			struct drr_object *drro = &drr->drr_u.drr_object;
 			if (drro->drr_bonuslen > 0) {
 				(void) ssread(buf,
 				    P2ROUNDUP((uint64_t)drro->drr_bonuslen, 8),
 				    ofp);
-				if (cksum_and_write(buf,
-				    P2ROUNDUP((uint64_t)drro->drr_bonuslen, 8),
-				    &stream_cksum, outfd) == -1)
-					goto out;
 			}
+			if (dump_record(drr, buf,
+			    P2ROUNDUP((uint64_t)drro->drr_bonuslen, 8),
+			    &stream_cksum, outfd) != 0)
+				goto out;
 			break;
 		}
 
 		case DRR_SPILL:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
+			struct drr_spill *drrs = &drr->drr_u.drr_spill;
 			(void) ssread(buf, drrs->drr_length, ofp);
-			if (cksum_and_write(buf, drrs->drr_length,
-			    &stream_cksum, outfd) == -1)
+			if (dump_record(drr, buf, drrs->drr_length,
+			    &stream_cksum, outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_FREEOBJECTS:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
+			if (dump_record(drr, NULL, 0, &stream_cksum,
+			    outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_WRITE:
 		{
+			struct drr_write *drrw = &drr->drr_u.drr_write;
 			dataref_t	dataref;
 
 			(void) ssread(buf, drrw->drr_length, ofp);
@@ -380,7 +383,13 @@ cksummer(void *arg)
 			if (ddt_update(dda->dedup_hdl, &ddt,
 			    &drrw->drr_key.ddk_cksum, drrw->drr_key.ddk_prop,
 			    &dataref)) {
+				dmu_replay_record_t wbr_drr = {0};
+				struct drr_write_byref *wbr_drrr =
+				    &wbr_drr.drr_u.drr_write_byref;
+
 				/* block already present in stream */
+				wbr_drr.drr_type = DRR_WRITE_BYREF;
+
 				wbr_drrr->drr_object = drrw->drr_object;
 				wbr_drrr->drr_offset = drrw->drr_offset;
 				wbr_drrr->drr_length = drrw->drr_length;
@@ -400,19 +409,13 @@ cksummer(void *arg)
 				wbr_drrr->drr_key.ddk_prop =
 				    drrw->drr_key.ddk_prop;
 
-				if (cksum_and_write(&wbr_drr,
-				    sizeof (dmu_replay_record_t), &stream_cksum,
-				    outfd) == -1)
+				if (dump_record(&wbr_drr, NULL, 0,
+				    &stream_cksum, outfd) != 0)
 					goto out;
 			} else {
 				/* block not previously seen */
-				if (cksum_and_write(drr,
-				    sizeof (dmu_replay_record_t), &stream_cksum,
-				    outfd) == -1)
-					goto out;
-				if (cksum_and_write(buf,
-				    drrw->drr_length,
-				    &stream_cksum, outfd) == -1)
+				if (dump_record(drr, buf, drrw->drr_length,
+				    &stream_cksum, outfd) != 0)
 					goto out;
 			}
 			break;
@@ -420,28 +423,27 @@ cksummer(void *arg)
 
 		case DRR_WRITE_EMBEDDED:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
+			struct drr_write_embedded *drrwe =
+			    &drr->drr_u.drr_write_embedded;
 			(void) ssread(buf,
 			    P2ROUNDUP((uint64_t)drrwe->drr_psize, 8), ofp);
-			if (cksum_and_write(buf,
+			if (dump_record(drr, buf,
 			    P2ROUNDUP((uint64_t)drrwe->drr_psize, 8),
-			    &stream_cksum, outfd) == -1)
+			    &stream_cksum, outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_FREE:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
+			if (dump_record(drr, NULL, 0, &stream_cksum,
+			    outfd) != 0)
 				goto out;
 			break;
 		}
 
 		default:
-			(void) printf("INVALID record type 0x%x\n",
+			(void) fprintf(stderr, "INVALID record type 0x%x\n",
 			    drr->drr_type);
 			/* should never happen, so assert */
 			assert(B_FALSE);
@@ -1488,18 +1490,11 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			    sizeof (drr.drr_u.drr_begin.drr_toname),
 			    "%s@%s", zhp->zfs_name, tosnap);
 			drr.drr_payloadlen = buflen;
-			err = cksum_and_write(&drr, sizeof (drr), &zc, outfd);
 
-			/* write header nvlist */
-			if (err != -1 && packbuf != NULL) {
-				err = cksum_and_write(packbuf, buflen, &zc,
-				    outfd);
-			}
+			err = dump_record(&drr, packbuf, buflen, &zc, outfd);
 			free(packbuf);
-			if (err == -1) {
-				err = errno;
+			if (err != 0)
 				goto stderr_out;
-			}
 
 			/* write end record */
 			bzero(&drr, sizeof (drr));
@@ -1729,6 +1724,8 @@ recv_read(libzfs_handle_t *hdl, int fd, void *buf, int ilen,
 	char *cp = buf;
 	int rv;
 	int len = ilen;
+
+	assert(ilen <= SPA_MAXBLOCKSIZE);
 
 	do {
 		rv = read(fd, cp, len);
