@@ -570,9 +570,8 @@ recv_impl(const char *snapname, nvlist_t *props, const char *origin,
 	/* Set 'fsname' to the name of containing filesystem */
 	(void) strlcpy(fsname, snapname, sizeof (fsname));
 	atp = strchr(fsname, '@');
-	if (atp == NULL)
-		return (EINVAL);
-	*atp = '\0';
+	if (atp != NULL)
+		*atp = '\0';
 
 	/* If the fs does not exist, try its parent. */
 	if (!lzc_exists(fsname)) {
@@ -593,6 +592,18 @@ recv_impl(const char *snapname, nvlist_t *props, const char *origin,
 			return (error);
 	} else {
 		drr = *begin_record;
+	}
+
+	/* if snapshot name is not provided try to take it from the stream */
+	if (atp == NULL) {
+		atp = strchr(drr.drr_u.drr_begin.drr_toname, '@');
+		if (atp == NULL)
+			return (EINVAL);
+
+		if (strlen(fsname) + strlen(atp) >= sizeof (fsname))
+			return (ENAMETOOLONG);
+
+		strcat(fsname, atp);
 	}
 
 	if (resumable) {
