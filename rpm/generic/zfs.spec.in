@@ -19,13 +19,19 @@
 %endif
 %endif
 
+%if 0%{?_dracut}
 # Set the default dracut directory based on distribution.
 %if %{undefined _dracutdir}
 %if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
-%global _dracutdir  %{_prefix}/lib/dracut
+%global _dracutopt  --with-dracutdir=%{_prefix}/lib/dracut
 %else
-%global _dracutdir  %{_prefix}/share/dracut
+%global _dracutopt  --with-dracutdir=%{_prefix}/share/dracut
 %endif
+%else
+%global _dracutopt  --with-dracutdir=%{_dracutdir}
+%endif
+%else
+%global _dracutopt ''
 %endif
 
 # Set the default _initconfdir when undefined.
@@ -184,6 +190,7 @@ Requires:       bc
 This package contains test infrastructure and support scripts for
 validating the file system.
 
+%if 0%{?_dracut}
 %package dracut
 Summary:        Dracut module
 Group:          System Environment/Kernel
@@ -194,6 +201,7 @@ Requires:       dracut
 %description dracut
 This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
+%endif
 
 %if 0%{?_initramfs}
 %package initramfs
@@ -232,8 +240,8 @@ image which is ZFS aware.
     --with-config=user \
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
-    --with-dracutdir=%{_dracutdir} \
     --disable-static \
+    %{_dracutopt} \
     %{debug} \
     %{blkid} \
     %{systemd}
@@ -318,9 +326,13 @@ exit 0
 %files test
 %{_datadir}/%{name}
 
+%if 0%{?_dracut}
 %files dracut
 %doc contrib/dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
+%else
+%exclude %{_dracutdir}
+%endif
 
 %if 0%{?_initramfs}
 %files initramfs
