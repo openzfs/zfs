@@ -1,8 +1,8 @@
 include $(top_srcdir)/config/Rules.am
 
 libzfs_pcdir = $(datarootdir)/pkgconfig
-libzfs_pc_DATA = $(top_srcdir)/lib/libzfs/libzfs.pc $(top_srcdir)/lib/libzfs/libzfs_core.pc
-EXTRA_DIST = $(top_srcdir)/lib/libzfs/libzfs.pc $(top_srcdir)/lib/libzfs/libzfs_core.pc
+libzfs_pc_DATA = libzfs.pc libzfs_core.pc
+EXTRA_DIST = libzfs.pc libzfs_core.pc
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
