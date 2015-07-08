@@ -311,7 +311,7 @@ lzc_snaprange_space(const char *firstsnap, const char *lastsnap,
 
 	err = lzc_ioctl(ZFS_IOC_SPACE_SNAPS, lastsnap, args, &result);
 	nvlist_free(args);
-	if (err == 0)
+	if (err == 0 && usedp != NULL)
 		*usedp = fnvlist_lookup_uint64(result, "used");
 	fnvlist_free(result);
 

@@ -5363,14 +5363,32 @@ zfs_ioc_space_written(zfs_cmd_t *zc)
 static int
 zfs_ioc_space_snaps(const char *lastsnap, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	int error;
+	int error, len;
 	dsl_pool_t *dp;
 	dsl_dataset_t *new, *old;
-	char *firstsnap;
+	char *firstsnap, *sp;
 	uint64_t used, comp, uncomp;
 
 	if (nvlist_lookup_string(innvl, "firstsnap", &firstsnap) != 0)
 		return (SET_ERROR(EINVAL));
+
+	sp = strpbrk(firstsnap, "@#");
+	if (sp == NULL)
+		return (SET_ERROR(EINVAL));
+	if (*sp == '#')
+		return (SET_ERROR(EINVAL));
+	len = sp - firstsnap;
+
+	sp = strpbrk(lastsnap, "@#");
+	if (sp == NULL)
+		return (SET_ERROR(EINVAL));
+	if (*sp == '#')
+		return (SET_ERROR(EINVAL));
+
+	if (len != sp - lastsnap)
+		return (SET_ERROR(EXDEV));
+	if (strncmp(lastsnap, firstsnap, len) != 0)
+		return (SET_ERROR(EXDEV));
 
 	error = dsl_pool_hold(lastsnap, FTAG, &dp);
 	if (error != 0)
