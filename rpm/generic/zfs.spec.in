@@ -313,7 +313,7 @@ exit 0
 %{_datadir}/%{name}
 
 %files dracut
-%doc dracut/README.dracut.markdown
+%doc contrib/dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
 
 %if 0%{?_initramfs}
