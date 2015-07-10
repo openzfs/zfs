@@ -2830,7 +2830,9 @@ Include the dataset's properties in the stream.  This flag is implicit when -R i
 .RS 4n
 Do a dry-run ("No-op") send.  Do not generate any actual send data.  This is
 useful in conjunction with the \fB-v\fR or \fB-P\fR flags to determine what
-data will be sent.
+data will be sent.  In this case, the verbose output will be written to
+standard output (contrast with a non-dry-run, where the stream is written
+to standard output and the verbose output goes to standard error).
 .RE
 
 .sp

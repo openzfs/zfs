@@ -834,7 +834,8 @@ typedef struct send_dump_data {
 	char prevsnap[ZFS_MAXNAMELEN];
 	uint64_t prevsnap_obj;
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
-	boolean_t verbose, dryrun, parsable, progress, embed_data, large_block;
+	boolean_t verbose, dryrun, parsable, progress, embed_data, std_out;
+	boolean_t large_block;
 	int outfd;
 	boolean_t err;
 	nvlist_t *fss;
@@ -1062,6 +1063,7 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	int err;
 	boolean_t isfromsnap, istosnap, fromorigin;
 	boolean_t exclude = B_FALSE;
+	FILE *fout = sdd->std_out ? stdout : stderr;
 
 	err = 0;
 	thissnap = strchr(zhp->zfs_name, '@') + 1;
@@ -1136,30 +1138,30 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 
 		if (sdd->parsable) {
 			if (sdd->prevsnap[0] != '\0') {
-				(void) fprintf(stderr, "incremental\t%s\t%s",
+				(void) fprintf(fout, "incremental\t%s\t%s",
 				    sdd->prevsnap, zhp->zfs_name);
 			} else {
-				(void) fprintf(stderr, "full\t%s",
+				(void) fprintf(fout, "full\t%s",
 				    zhp->zfs_name);
 			}
 		} else {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 			    "send from @%s to %s"),
 			    sdd->prevsnap, zhp->zfs_name);
 		}
 		if (err == 0) {
 			if (sdd->parsable) {
-				(void) fprintf(stderr, "\t%llu\n",
+				(void) fprintf(fout, "\t%llu\n",
 				    (longlong_t)size);
 			} else {
 				char buf[16];
 				zfs_nicenum(size, buf, sizeof (buf));
-				(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+				(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 				    " estimated size is %s\n"), buf);
 			}
 			sdd->size += size;
 		} else {
-			(void) fprintf(stderr, "\n");
+			(void) fprintf(fout, "\n");
 		}
 	}
 
@@ -1403,6 +1405,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	int pipefd[2];
 	dedup_arg_t dda = { 0 };
 	int featureflags = 0;
+	FILE *fout;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot send '%s'"), zhp->zfs_name);
@@ -1537,6 +1540,9 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	sdd.filter_cb_arg = cb_arg;
 	if (debugnvp)
 		sdd.debugnv = *debugnvp;
+	if (sdd.verbose && sdd.dryrun)
+		sdd.std_out = B_TRUE;
+	fout = sdd.std_out ? stdout : stderr;
 
 	/*
 	 * Some flags require that we place user holds on the datasets that are
@@ -1576,12 +1582,12 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 
 		if (flags->verbose) {
 			if (flags->parsable) {
-				(void) fprintf(stderr, "size\t%llu\n",
+				(void) fprintf(fout, "size\t%llu\n",
 				    (longlong_t)sdd.size);
 			} else {
 				char buf[16];
 				zfs_nicenum(sdd.size, buf, sizeof (buf));
-				(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+				(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 				    "total estimated size is %s\n"), buf);
 			}
 		}
