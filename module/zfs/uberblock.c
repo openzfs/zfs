@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -40,10 +40,10 @@ uberblock_verify(uberblock_t *ub)
 }
 
 /*
- * Update the uberblock and return a boolean value indicating whether
- * anything changed in this transaction group.
+ * Update the uberblock and return TRUE if anything changed in this
+ * transaction group.
  */
-int
+boolean_t
 uberblock_update(uberblock_t *ub, vdev_t *rvd, uint64_t txg)
 {
 	ASSERT(ub->ub_txg < txg);
