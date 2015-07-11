@@ -99,6 +99,7 @@ AC_CONFIG_FILES([
 	cmd/Makefile
 	cmd/zdb/Makefile
 	cmd/zhack/Makefile
+	cmd/zfsmount_check/Makefile
 	cmd/zfs/Makefile
 	cmd/zinject/Makefile
 	cmd/zpool/Makefile
