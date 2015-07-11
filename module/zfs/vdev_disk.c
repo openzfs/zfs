@@ -712,7 +712,7 @@ vdev_disk_io_start(zio_t *zio)
 		if (zio->io_priority == ZIO_PRIORITY_SYNC_READ)
 			flags = READ_SYNC;
 		else
-			flags = READ;			
+			flags = READ;
 		break;
 
 	default:
