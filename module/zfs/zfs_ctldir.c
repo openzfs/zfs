@@ -754,8 +754,9 @@ __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
 
 		if (!stat2) {
 			ismounted = 0;
-			printk("ZFS: snapshot %s was unmounted
-				from mounted state.\n", sep->se_path);
+			printk(
+		"ZFS: snapshot %s was unmounted from mounted state.\n",
+			sep->se_path);
 			error = 0; /* signifies no error */
 			} else {
 			ismounted = 1;
