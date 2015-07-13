@@ -764,7 +764,7 @@ zvol_request(struct request_queue *q)
 			continue;
 		}
 
-		switch (rq_data_dir(req)) {
+		switch ((int)rq_data_dir(req)) {
 		case READ:
 			zvol_dispatch(zvol_read, req);
 			break;
