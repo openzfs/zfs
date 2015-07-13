@@ -1,0 +1,158 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2012 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.cfg
+
+#
+# Given a pool vdevs list, create the pool,verify the created pool,
+# and destroy the pool
+# $1, pool name
+# $2, pool type, mirror, raidz, or none
+# $3, vdevs list
+#
+function create_pool_test
+{
+	typeset pool=$1
+	typeset keywd=$2
+	typeset vdevs
+	eval "typeset -a diskarray=($3)"
+
+	for vdevs in "${diskarray[@]}";do
+		create_pool $pool $keywd $vdevs
+		log_must poolexists $pool
+		destroy_pool -f $pool
+	done
+}
+
+#
+# Create a ufs|ext2 file system and make a file within the file
+# system for storage pool vdev
+# $1, file size
+# $2, file name
+# $3, disk name to create ufs|ext2 file system
+#
+function create_blockfile
+{
+	typeset size=$1
+	typeset file=$2
+	typeset disk=$3
+	typeset dir=`$DIRNAME $file`
+
+	if [[ -d $dir ]]; then
+		ismounted $dir $NEWFS_DEFAULT_FS
+		(( $? == 0 )) && \
+			log_must $UMOUNT -f $dir
+	else
+		log_must $MKDIR -p $dir
+	fi
+
+	if [[ $disk == "/"* ]]; then
+		$ECHO "y" | $NEWFS $disk >/dev/null 2>&1
+	else
+		$ECHO "y" | $NEWFS $DEV_RDSKDIR/$disk >/dev/null 2>&1
+	fi
+	(( $? != 0 )) &&
+		log_fail "Create $NEWFS_DEFAULT_FS file system fail."
+
+	if [[ $disk == "/"* ]]; then
+	        log_must $MOUNT $disk $dir
+	else
+	        log_must $MOUNT $DEV_RDSKDIR/$disk $dir
+	fi
+        log_must $MKFILE -s $size $file
+}
+
+#
+# Umount the ufs|ext2 filesystem and remove the mountpoint
+# $1, the mount point
+#
+function clean_blockfile
+{
+	typeset dirs=$1
+
+	for dir in $dirs; do
+		if [[ -d $dir ]]; then
+			if ismounted $dir $NEWFS_DEFAULT_FS; then
+				if [[ -n "$LINUX" ]]; then
+					typeset dev=$($DF -lhTt $NEWFS_DEFAULT_FS 2> /dev/null | \
+						$GREP -v '^Filesystem' | \
+						$GREP "$dir" | \
+						$AWK '{print $1}')
+				else
+					typeset dev=$($DF -lhF $NEWFS_DEFAULT_FS | \
+						$GREP "$dir" | \
+						$AWK '{print $1}')
+				fi
+				log_must $UMOUNT -f $dir
+				create_pool ${TESTPOOL}.tmp $dev
+				destroy_pool -f ${TESTPOOL}.tmp
+			fi
+			log_must $RM -rf $dir
+		fi
+	done
+}
+
+#
+# Find the storage device in /etc/vfstab
+#
+function find_vfstab_dev
+{
+	typeset vfstab="/etc/vfstab"
+	typeset tmpfile="/tmp/vfstab.tmp"
+	typeset vfstabdev
+	typeset vfstabdevs=""
+	typeset line
+
+	$CAT $vfstab | $GREP "^/dev/dsk" >$tmpfile
+	while read -r line
+	do
+		vfstabdev=`$ECHO "$line" | $AWK '{print $1}'`
+		vfstabdev=${vfstabdev%%:}
+		vfstabdevs="$vfstabdev $vfstabdevs"
+	done <$tmpfile
+
+	$RM -f $tmpfile
+	$ECHO $vfstabdevs
+}
+
+#
+# Save the systme current dump device configuration
+#
+function save_dump_dev
+{
+
+	typeset dumpdev
+	typeset fnd="Dump device"
+
+	dumpdev=`$DUMPADM | $GREP "$fnd" | $CUT -f2 -d : | \
+		$AWK '{print $1}'`
+	$ECHO $dumpdev
+}

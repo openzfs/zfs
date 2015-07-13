@@ -13,7 +13,23 @@ AC_DEFUN([ZFS_AC_CONFIG_USER], [
 	ZFS_AC_CONFIG_USER_LIBBLKID
 	ZFS_AC_CONFIG_USER_FRAME_LARGER_THAN
 	ZFS_AC_CONFIG_USER_RUNSTATEDIR
-dnl #
-dnl #	Checks for library functions
+
+	ZFS_AC_CONFIG_USER_COMMANDS_COMMON
+	ZFS_AC_CONFIG_USER_COMMANDS_LINUX
+	ZFS_AC_CONFIG_USER_COMMANDS_BSD
+	ZFS_AC_TEST_FRAMEWORK
+
 	AC_CHECK_FUNCS([mlockall])
+])
+
+dnl #
+dnl # Setup the environment for the ZFS Test Suite.  Currently only
+dnl # Linux sytle systems are supported but this infrastructure can
+dnl # be extended to support other platforms if needed.
+dnl #
+AC_DEFUN([ZFS_AC_TEST_FRAMEWORK], [
+	ZONENAME="echo global"
+	AC_SUBST(ZONENAME)
+
+	AC_SUBST(RM)
 ])

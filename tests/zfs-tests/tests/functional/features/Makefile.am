@@ -1,0 +1,1 @@
+SUBDIRS = async_destroy
