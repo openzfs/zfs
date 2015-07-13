@@ -116,8 +116,8 @@ test $# -eq 0 || bail "usage: $CMD"
 # Create a destination for runtime copy of FS
 # Freeze transaction syncing in the pool
 # ====================================================================
-fallocate -l "$DEVSIZE" $POOLFILE || bail "can't make $POOLFILE"
-fallocate -l "$DEVSIZE" $SLOGFILE || bail "can't make $SLOGFILE"
+truncate -s "$DEVSIZE" $POOLFILE || bail "can't make $POOLFILE"
+truncate -s "$DEVSIZE" $SLOGFILE || bail "can't make $SLOGFILE"
 zpool create $POOL $POOLFILE log $SLOGFILE || bail "can't create pool
 $POOL"
 zpool list $POOL
