@@ -329,8 +329,8 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 	 */
 	case S_IFCHR:
 	case S_IFBLK:
-		VERIFY(sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zsb),
-		    &rdev, sizeof (rdev)) == 0);
+		sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zsb), &rdev,
+		    sizeof (rdev));
 		/*FALLTHROUGH*/
 	case S_IFIFO:
 	case S_IFSOCK:
@@ -339,8 +339,15 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 		break;
 
 	default:
-		printk("ZFS: Invalid mode: 0x%x\n", ip->i_mode);
-		VERIFY(0);
+		zfs_panic_recover("inode %llu has invalid mode: 0x%x\n",
+		    (u_longlong_t)ip->i_ino, ip->i_mode);
+
+		/* Assume the inode is a file and attempt to continue */
+		ip->i_mode = S_IFREG | 0644;
+		ip->i_op = &zpl_inode_operations;
+		ip->i_fop = &zpl_file_operations;
+		ip->i_mapping->a_ops = &zpl_address_space_operations;
+		break;
 	}
 }
 
