@@ -28,6 +28,7 @@
 #define	_ZFS_VFS_H
 
 #include <sys/taskq.h>
+#include <linux/backing-dev.h>
 
 /*
  * 2.6.28 API change,
