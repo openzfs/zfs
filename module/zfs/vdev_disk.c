@@ -426,15 +426,6 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
 	dio_request_t *dr = bio->bi_private;
 	int rc;
 
-	/* Fatal error but print some useful debugging before asserting */
-	if (dr == NULL)
-		PANIC("dr == NULL, bio->bi_private == NULL\n"
-		    "bi_next: %p, bi_flags: %lx, bi_rw: %lu, bi_vcnt: %d\n"
-		    "bi_idx: %d, bi_size: %d, bi_end_io: %p, bi_cnt: %d\n",
-		    bio->bi_next, bio->bi_flags, bio->bi_rw, bio->bi_vcnt,
-		    BIO_BI_IDX(bio), BIO_BI_SIZE(bio), bio->bi_end_io,
-		    atomic_read(&bio->bi_cnt));
-
 #ifndef HAVE_2ARGS_BIO_END_IO_T
 	if (BIO_BI_SIZE(bio))
 		return (1);
