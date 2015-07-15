@@ -348,8 +348,13 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	return (error);
 }
 
+#ifdef HAVE_FOLLOW_LINK_NAMEIDATA
 static void *
 zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
+#else
+const char *
+zpl_follow_link(struct dentry *dentry, void **symlink_cookie)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip = dentry->d_inode;
@@ -372,17 +377,28 @@ zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
 	cookie = spl_fstrans_mark();
 	error = -zfs_readlink(ip, &uio, cr);
 	spl_fstrans_unmark(cookie);
-	if (error) {
+
+	if (error)
 		kmem_free(link, MAXPATHLEN);
-		nd_set_link(nd, ERR_PTR(error));
-	} else {
-		nd_set_link(nd, link);
-	}
 
 	crfree(cr);
+
+#ifdef HAVE_FOLLOW_LINK_NAMEIDATA
+	if (error)
+		nd_set_link(nd, ERR_PTR(error));
+	else
+		nd_set_link(nd, link);
+
 	return (NULL);
+#else
+	if (error)
+		return (ERR_PTR(error));
+	else
+		return (*symlink_cookie = link);
+#endif
 }
 
+#ifdef HAVE_PUT_LINK_NAMEIDATA
 static void
 zpl_put_link(struct dentry *dentry, struct nameidata *nd, void *ptr)
 {
@@ -391,6 +407,13 @@ zpl_put_link(struct dentry *dentry, struct nameidata *nd, void *ptr)
 	if (!IS_ERR(link))
 		kmem_free(link, MAXPATHLEN);
 }
+#else
+static void
+zpl_put_link(struct inode *unused, void *symlink_cookie)
+{
+	kmem_free(symlink_cookie, MAXPATHLEN);
+}
+#endif
 
 static int
 zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
