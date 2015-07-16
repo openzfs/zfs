@@ -897,6 +897,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			uio_prefaultpages(MIN(n, max_blksz), uio);
 	}
 
+	zfs_inode_update(zp);
 	zfs_range_unlock(rl);
 
 	/*
@@ -912,7 +913,6 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	    zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, zp->z_id);
 
-	zfs_inode_update(zp);
 	ZFS_EXIT(zsb);
 	return (0);
 }
