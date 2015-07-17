@@ -754,7 +754,7 @@ __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
 
 		if (!stat2) {
 			ismounted = 0;
-			printk(
+			dprintf(
 		"ZFS: snapshot %s was unmounted from mounted state.\n",
 			sep->se_path);
 			error = 0; /* signifies no error */
@@ -769,7 +769,7 @@ __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
 		 * Unmounted cannot change
 		 * state
 		 */
-		printk("ZFS: snapshot %s not mounted.  Ignoring\n",
+		dprintf("ZFS: snapshot %s not mounted.  Ignoring\n",
 			sep->se_path);
 			error = SET_ERROR(ENOENT);
 	}
@@ -813,10 +813,10 @@ zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
 
 		mutex_enter(&zsb->z_ctldir_lock);
 		if (error == EBUSY) {
-		    printk("ZFS: Could not unmount Busy snapshot %s\n",
+		    dprintf("ZFS: Could not unmount Busy snapshot %s\n",
 			sep->se_path);
 		} else if (error == ENOENT) {
-			printk("ZFS: Ignore unmounted snapshot %s\n",
+			dprintf("ZFS: Ignore unmounted snapshot %s\n",
 			sep->se_path);
 			error = 0; /* do nothing */
 		} else {
@@ -824,7 +824,7 @@ zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
 		 * We only remove when the unmount is successful
 		 *  not if never mounted.
 		 */
-		printk("ZFS: success unmounting snapshot %s\n",
+		dprintf("ZFS: success unmounting snapshot %s\n",
 			sep->se_path);
 			avl_remove(&zsb->z_ctldir_snaps, sep);
 			zfsctl_sep_free(sep);
