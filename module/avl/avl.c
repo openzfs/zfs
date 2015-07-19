@@ -644,7 +644,7 @@ avl_add(avl_tree_t *tree, void *new_node)
 #else
 		ASSERT(0);
 #endif
-	avl_insert(tree, new_node, where);
+	avl_insert(tree, new_node, &where);
 }
 
 /*
