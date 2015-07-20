@@ -28,6 +28,11 @@
 %endif
 %endif
 
+# Set the default _initconfdir when undefined.
+%if %{undefined _initconfdir}
+%global _initconfdir /etc/sysconfig
+%endif
+
 %bcond_with    debug
 %bcond_with    blkid
 %bcond_with    systemd
