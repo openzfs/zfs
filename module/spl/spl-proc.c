@@ -42,17 +42,13 @@ typedef struct ctl_table __no_const spl_ctl_table;
 typedef struct ctl_table spl_ctl_table;
 #endif
 
-#ifdef DEBUG_KMEM
 static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
-#endif
 
 static struct ctl_table_header *spl_header = NULL;
 static struct proc_dir_entry *proc_spl = NULL;
-#ifdef DEBUG_KMEM
 static struct proc_dir_entry *proc_spl_kmem = NULL;
 static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
-#endif /* DEBUG_KMEM */
 struct proc_dir_entry *proc_spl_kstat = NULL;
 
 static int
@@ -135,6 +131,7 @@ proc_domemused(struct ctl_table *table, int write,
 
         return (rc);
 }
+#endif /* DEBUG_KMEM */
 
 static int
 proc_doslab(struct ctl_table *table, int write,
@@ -182,7 +179,6 @@ proc_doslab(struct ctl_table *table, int write,
 
         return (rc);
 }
-#endif /* DEBUG_KMEM */
 
 static int
 proc_dohostid(struct ctl_table *table, int write,
@@ -219,7 +215,6 @@ proc_dohostid(struct ctl_table *table, int write,
         return (rc);
 }
 
-#ifdef DEBUG_KMEM
 static void
 slab_seq_show_headers(struct seq_file *f)
 {
@@ -329,10 +324,9 @@ static struct file_operations proc_slab_operations = {
         .llseek         = seq_lseek,
         .release        = seq_release,
 };
-#endif /* DEBUG_KMEM */
 
-#ifdef DEBUG_KMEM
 static struct ctl_table spl_kmem_table[] = {
+#ifdef DEBUG_KMEM
         {
                 .procname = "kmem_used",
                 .data     = &kmem_alloc_used,
@@ -353,6 +347,7 @@ static struct ctl_table spl_kmem_table[] = {
                 .mode     = 0444,
                 .proc_handler = &proc_doulongvec_minmax,
         },
+#endif /* DEBUG_KMEM */
         {
                 .procname = "slab_kmem_total",
 		.data     = (void *)(KMC_KMEM | KMC_TOTAL),
@@ -409,7 +404,6 @@ static struct ctl_table spl_kmem_table[] = {
         },
 	{0},
 };
-#endif /* DEBUG_KMEM */
 
 static struct ctl_table spl_kstat_table[] = {
 	{0},
@@ -433,13 +427,11 @@ static struct ctl_table spl_table[] = {
                 .mode     = 0644,
                 .proc_handler = &proc_dohostid,
         },
-#ifdef DEBUG_KMEM
 	{
 		.procname = "kmem",
 		.mode     = 0555,
 		.child    = spl_kmem_table,
 	},
-#endif
 	{
 		.procname = "kstat",
 		.mode     = 0555,
@@ -484,7 +476,6 @@ spl_proc_init(void)
 		goto out;
 	}
 
-#ifdef DEBUG_KMEM
         proc_spl_kmem = proc_mkdir("kmem", proc_spl);
         if (proc_spl_kmem == NULL) {
                 rc = -EUNATCH;
@@ -498,8 +489,6 @@ spl_proc_init(void)
 		goto out;
 	}
 
-#endif /* DEBUG_KMEM */
-
         proc_spl_kstat = proc_mkdir("kstat", proc_spl);
         if (proc_spl_kstat == NULL) {
                 rc = -EUNATCH;
@@ -508,10 +497,8 @@ spl_proc_init(void)
 out:
 	if (rc) {
 		remove_proc_entry("kstat", proc_spl);
-#ifdef DEBUG_KMEM
 	        remove_proc_entry("slab", proc_spl_kmem);
 		remove_proc_entry("kmem", proc_spl);
-#endif
 		remove_proc_entry("spl", NULL);
 	        unregister_sysctl_table(spl_header);
 	}
@@ -523,10 +510,8 @@ void
 spl_proc_fini(void)
 {
 	remove_proc_entry("kstat", proc_spl);
-#ifdef DEBUG_KMEM
         remove_proc_entry("slab", proc_spl_kmem);
 	remove_proc_entry("kmem", proc_spl);
-#endif
 	remove_proc_entry("spl", NULL);
 
         ASSERT(spl_header != NULL);

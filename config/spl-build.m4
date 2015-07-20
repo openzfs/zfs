@@ -452,15 +452,14 @@ dnl #
 dnl # Enabled by default it provides a minimal level of memory tracking.
 dnl # A total count of bytes allocated is kept for each alloc and free.
 dnl # Then at module unload time a report to the console will be printed
-dnl # if memory was leaked.  Additionally, /proc/spl/kmem/slab will exist
-dnl # and provide an easy way to inspect the kmem based slab.
+dnl # if memory was leaked.
 dnl #
 AC_DEFUN([SPL_AC_DEBUG_KMEM], [
 	AC_ARG_ENABLE([debug-kmem],
 		[AS_HELP_STRING([--enable-debug-kmem],
-		[Enable basic kmem accounting @<:@default=yes@:>@])],
+		[Enable basic kmem accounting @<:@default=no@:>@])],
 		[],
-		[enable_debug_kmem=yes])
+		[enable_debug_kmem=no])
 
 	AS_IF([test "x$enable_debug_kmem" = xyes],
 	[
