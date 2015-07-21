@@ -283,8 +283,6 @@ int dmu_objset_snapshot_tmp(const char *, const char *, int);
 int dmu_objset_find(const char *name, int func(const char *, void *),
     void *arg, int flags);
 void dmu_objset_byteswap(void *buf, size_t size);
-int dsl_dataset_rename_snapshot(const char *fsname,
-    const char *oldsnapname, const char *newsnapname, boolean_t recursive);
 
 typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
