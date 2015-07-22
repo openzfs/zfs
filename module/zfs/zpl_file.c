@@ -396,6 +396,33 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
 }
 #endif /* HAVE_VFS_RW_ITERATE */
 
+static ssize_t
+#ifdef HAVE_VFS_DIRECT_IO_IOVEC
+zpl_direct_IO(int rw, struct kiocb *kiocb, const struct iovec *iovp,
+    loff_t pos, unsigned long nr_segs)
+{
+#elif defined(HAVE_VFS_DIRECT_IO_ITER_RW)
+zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *from,
+    loff_t pos)
+{
+	const struct iovec *iovp = from->iov;
+	loff_t nr_segs = from->nr_segs;
+#elif (defined HAVE_VFS_DIRECT_IO_ITER)
+zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *from,
+    loff_t pos)
+{
+	const struct iovec *iovp = from->iov;
+	loff_t nr_segs = from->nr_segs;
+	int rw = iov_iter_rw(iter);
+#else
+#error "No function prototype found for DirectIO"
+#endif
+	if (rw == WRITE)
+		return (zpl_iter_write_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes));
+	else
+		return (zpl_iter_read_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes));
+}
+
 static loff_t
 zpl_llseek(struct file *filp, loff_t offset, int whence)
 {
@@ -799,6 +826,7 @@ const struct address_space_operations zpl_address_space_operations = {
 	.readpage	= zpl_readpage,
 	.writepage	= zpl_writepage,
 	.writepages	= zpl_writepages,
+	.direct_IO	= zpl_direct_IO,
 };
 
 const struct file_operations zpl_file_operations = {
