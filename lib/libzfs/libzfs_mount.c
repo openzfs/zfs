@@ -511,6 +511,190 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	return (0);
 }
 
+int
+zfs_json_mount(zfs_json_t *json,
+    zfs_handle_t *zhp, const char *options, int flags)
+{
+	struct stat buf;
+	char mountpoint[ZFS_MAXPROPLEN];
+	char mntopts[MNT_LINE_MAX];
+	char overlay[ZFS_MAXPROPLEN];
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	int remount = 0, rc;
+
+	if (options == NULL) {
+		(void) strlcpy(mntopts, MNTOPT_DEFAULTS, sizeof (mntopts));
+	} else {
+		(void) strlcpy(mntopts, options, sizeof (mntopts));
+	}
+
+	if (strstr(mntopts, MNTOPT_REMOUNT) != NULL)
+		remount = 1;
+
+	/*
+	 * If the pool is imported read-only then all mounts must be read-only
+	 */
+	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
+		(void) strlcat(mntopts, "," MNTOPT_RO, sizeof (mntopts));
+
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
+		return (0);
+
+	/*
+	 * Append default mount options which apply to the mount point.
+	 * This is done because under Linux (unlike Solaris) multiple mount
+	 * points may reference a single super block.  This means that just
+	 * given a super block there is no back reference to update the per
+	 * mount point options.
+	 */
+	rc = zfs_add_options(zhp, mntopts, sizeof (mntopts));
+	if (rc) {
+		if (!json->json) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "default options unavailable"));
+			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+			    mountpoint));
+		} else {
+			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+			    "default options unavailable"));
+			return (zfs_json_error_fmt(json, hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+			    mountpoint));
+		}
+	}
+
+	/*
+	 * Append zfsutil option so the mount helper allow the mount
+	 */
+	strlcat(mntopts, "," MNTOPT_ZFSUTIL, sizeof (mntopts));
+
+	/* Create the directory if it doesn't already exist */
+	if (lstat(mountpoint, &buf) != 0) {
+		if (mkdirp(mountpoint, 0755) != 0) {
+			if (!json->json) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "failed to create mountpoint"));
+				return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+				    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+				    mountpoint));
+			} else {
+				zfs_json_error_aux(json,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "failed to create mountpoint"));
+				return (zfs_json_error_fmt(json,
+				    hdl, EZFS_MOUNTFAILED,
+				    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+				    mountpoint));
+			}
+		}
+	}
+
+	/*
+	 * Overlay mounts are disabled by default but may be enabled
+	 * via the 'overlay' property or the 'zfs mount -O' option.
+	 */
+	if (!(flags & MS_OVERLAY)) {
+		if (zfs_prop_get(zhp, ZFS_PROP_OVERLAY, overlay,
+			    sizeof (overlay), NULL, NULL, 0, B_FALSE) == 0) {
+			if (strcmp(overlay, "on") == 0) {
+				flags |= MS_OVERLAY;
+			}
+		}
+	}
+
+	/*
+	 * Determine if the mountpoint is empty.  If so, refuse to perform the
+	 * mount.  We don't perform this check if 'remount' is
+	 * specified or if overlay option(-O) is given
+	 */
+	if ((flags & MS_OVERLAY) == 0 && !remount &&
+	    !dir_is_empty(mountpoint)) {
+		if (!json->json) {
+			zfs_error_aux(hdl,
+			    dgettext(TEXT_DOMAIN,
+			    "directory is not empty"));
+			return (zfs_error_fmt(hdl,
+			    EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot mount '%s'"), mountpoint));
+		} else {
+			zfs_json_error_aux(json,
+			    hdl, dgettext(TEXT_DOMAIN,
+			    "directory is not empty"));
+			return (zfs_json_error_fmt(json,
+			    hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot mount '%s'"), mountpoint));
+		}
+	}
+
+	/* perform the mount */
+	rc = do_mount(zfs_get_name(zhp), mountpoint, mntopts);
+	if (rc) {
+		/*
+		 * Generic errors are nasty, but there are just way too many
+		 * from mount(), and they're well-understood.  We pick a few
+		 * common ones to improve upon.
+		 */
+		if (rc == EBUSY) {
+			if (!json->json)
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "mountpoint or dataset is busy"));
+				else
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "mountpoint or"
+					    " dataset"" is busy"));
+		} else if (rc == EPERM) {
+			if (!json->json)
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "Insufficient privileges"));
+			else
+				zfs_json_error_aux(json, hdl,
+				    dgettext(TEXT_DOMAIN,
+				    "Insufficient privileges"));
+		} else if (rc == ENOTSUP) {
+			char buf[256];
+			int spa_version;
+
+			VERIFY(zfs_spa_version(zhp, &spa_version) == 0);
+			(void) snprintf(buf, sizeof (buf),
+			    dgettext(TEXT_DOMAIN, "Can't mount a version %lld "
+			    "file system on a version %d pool. Pool must be"
+			    " upgraded to mount this file system."),
+			    (u_longlong_t)zfs_prop_get_int(zhp,
+			    ZFS_PROP_VERSION), spa_version);
+			if (!json->json)
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
+			else
+				zfs_json_error_aux(json,
+				    hdl, dgettext(TEXT_DOMAIN, buf));
+		} else {
+			if (!json->json)
+				zfs_error_aux(hdl, strerror(rc));
+			else
+				zfs_json_error_aux(json, hdl, strerror(rc));
+		}
+		if (!json->json)
+			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+			    zhp->zfs_name));
+		else
+			return (zfs_json_error_fmt(json, hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+			    zhp->zfs_name));
+	}
+
+	/* remove the mounted entry before re-adding on remount */
+	if (remount)
+		libzfs_mnttab_remove(hdl, zhp->zfs_name);
+
+	/* add the mounted entry into our cache */
+	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint, mntopts);
+	return (0);
+}
+
 /*
  * Unmount a single filesystem.
  */
