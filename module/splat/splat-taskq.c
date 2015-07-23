@@ -134,7 +134,7 @@ splat_taskq_test1_impl(struct file *file, void *arg, boolean_t prealloc)
 		     "Taskq '%s' creating (%s dispatch)\n",
 	             SPLAT_TASKQ_TEST1_NAME,
 		     prealloc ? "prealloc" : "dynamic");
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST1_NAME, 1, maxclsyspri,
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST1_NAME, 1, defclsyspri,
 			       50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST1_NAME,
 		           "Taskq '%s' create failed\n",
@@ -269,7 +269,7 @@ splat_taskq_test2_impl(struct file *file, void *arg, boolean_t prealloc) {
 			     prealloc ? "prealloc" : "dynamic");
 		if ((tq[i] = taskq_create(SPLAT_TASKQ_TEST2_NAME,
 			                  TEST2_THREADS_PER_TASKQ,
-					  maxclsyspri, 50, INT_MAX,
+					  defclsyspri, 50, INT_MAX,
 					  TASKQ_PREPOPULATE)) == NULL) {
 			splat_vprint(file, SPLAT_TASKQ_TEST2_NAME,
 			           "Taskq '%s/%d' create failed\n",
@@ -494,7 +494,7 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 		     SPLAT_TASKQ_TEST4_NAME,
 		     prealloc ? "prealloc" : "dynamic",
 		     minalloc, maxalloc, nr_tasks);
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST4_NAME, 1, maxclsyspri,
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST4_NAME, 1, defclsyspri,
 		               minalloc, maxalloc, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
 		             "Taskq '%s' create failed\n",
@@ -712,7 +712,7 @@ splat_taskq_test5_impl(struct file *file, void *arg, boolean_t prealloc)
 		     "Taskq '%s' creating (%s dispatch)\n",
 		     SPLAT_TASKQ_TEST5_NAME,
 		     prealloc ? "prealloc" : "dynamic");
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST5_NAME, 3, maxclsyspri,
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST5_NAME, 3, defclsyspri,
 		               50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST5_NAME,
 		             "Taskq '%s' create failed\n",
@@ -873,7 +873,7 @@ splat_taskq_test6_impl(struct file *file, void *arg, boolean_t prealloc)
 		     "Taskq '%s' creating (%s dispatch)\n",
 		     SPLAT_TASKQ_TEST6_NAME,
 		     prealloc ? "prealloc" : "dynamic");
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST6_NAME, 3, maxclsyspri,
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST6_NAME, 3, defclsyspri,
 		               50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
 		             "Taskq '%s' create failed\n",
@@ -1005,7 +1005,7 @@ splat_taskq_test7_impl(struct file *file, void *arg, boolean_t prealloc)
 	             "Taskq '%s' creating (%s dispatch)\n",
 	             SPLAT_TASKQ_TEST7_NAME,
 	             prealloc ? "prealloc" :  "dynamic");
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST7_NAME, 1, maxclsyspri,
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST7_NAME, 1, defclsyspri,
 	                       50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
 		             "Taskq '%s' create failed\n",
@@ -1094,7 +1094,7 @@ splat_taskq_throughput(struct file *file, void *arg, const char *name,
 
 	splat_vprint(file, name, "Taskq '%s' creating (%d/%d/%d/%d)\n",
 	    name, nthreads, minalloc, maxalloc, tasks);
-	if ((tq = taskq_create(name, nthreads, maxclsyspri,
+	if ((tq = taskq_create(name, nthreads, defclsyspri,
 	    minalloc, maxalloc, flags)) == NULL) {
 		splat_vprint(file, name, "Taskq '%s' create failed\n", name);
 		rc = -EINVAL;
@@ -1203,7 +1203,7 @@ splat_taskq_test9(struct file *file, void *arg)
 	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
 	    "Taskq '%s' creating (%s dispatch) (%d/%d/%d)\n",
 	    SPLAT_TASKQ_TEST9_NAME, "delay", minalloc, maxalloc, nr_tasks);
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST9_NAME, 3, maxclsyspri,
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST9_NAME, 3, defclsyspri,
 	    minalloc, maxalloc, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
 		    "Taskq '%s' create failed\n", SPLAT_TASKQ_TEST9_NAME);
@@ -1303,7 +1303,7 @@ splat_taskq_test10(struct file *file, void *arg)
 	splat_vprint(file, SPLAT_TASKQ_TEST10_NAME,
 	    "Taskq '%s' creating (%s dispatch) (%d/%d/%d)\n",
 	    SPLAT_TASKQ_TEST10_NAME, "delay", minalloc, maxalloc, nr_tasks);
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST10_NAME, 3, maxclsyspri,
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST10_NAME, 3, defclsyspri,
 	    minalloc, maxalloc, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST10_NAME,
 		    "Taskq '%s' create failed\n", SPLAT_TASKQ_TEST10_NAME);

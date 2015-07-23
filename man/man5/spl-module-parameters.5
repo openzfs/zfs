@@ -269,6 +269,21 @@ Default value: \fB1\fR
 .sp
 .ne 2
 .na
+\fBspl_taskq_thread_priority\fR (int)
+.ad
+.RS 12n
+Allow newly created taskq threads to set a non-default scheduler priority.
+When enabled the priority specified when a taskq is created will be applied
+to all threads created by that taskq.  When disabled all threads will use
+the default Linux kernel thread priority.  By default, this behavior is
+enabled.
+.sp
+Default value: \fB1\fR
+.RE
+
+.sp
+.ne 2
+.na
 \fBspl_taskq_thread_sequential\fR (int)
 .ad
 .RS 12n

@@ -95,6 +95,7 @@
  */
 #define minclsyspri			(MAX_RT_PRIO)
 #define maxclsyspri			(MAX_PRIO-1)
+#define defclsyspri			(DEFAULT_PRIO)
 
 #ifndef NICE_TO_PRIO
 #define NICE_TO_PRIO(nice)		(MAX_RT_PRIO + (nice) + 20)

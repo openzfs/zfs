@@ -327,7 +327,7 @@ splat_rwlock_test2(struct file *file, void *arg)
 
 	/* Create several threads allowing tasks to race with each other */
 	tq = taskq_create(SPLAT_RWLOCK_TEST_TASKQ, num_online_cpus(),
-			  maxclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
+			  defclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
 	if (tq == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -500,7 +500,7 @@ splat_rwlock_test4(struct file *file, void *arg)
 	if (rwp == NULL)
 		return -ENOMEM;
 
-	tq = taskq_create(SPLAT_RWLOCK_TEST_TASKQ, 1, maxclsyspri,
+	tq = taskq_create(SPLAT_RWLOCK_TEST_TASKQ, 1, defclsyspri,
 			  50, INT_MAX, TASKQ_PREPOPULATE);
 	if (tq == NULL) {
 		rc = -ENOMEM;

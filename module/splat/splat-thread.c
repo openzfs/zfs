@@ -112,7 +112,7 @@ splat_thread_test1(struct file *file, void *arg)
 	tp.tp_rc = 0;
 
 	thr = (kthread_t *)thread_create(NULL, 0, splat_thread_work1, &tp, 0,
-			                 &p0, TS_RUN, minclsyspri);
+			                 &p0, TS_RUN, defclsyspri);
 	/* Must never fail under Solaris, but we check anyway since this
 	 * can happen in the linux SPL, we may want to change this behavior */
 	if (thr == NULL)
@@ -161,7 +161,7 @@ splat_thread_test2(struct file *file, void *arg)
 	tp.tp_rc = 0;
 
 	thr = (kthread_t *)thread_create(NULL, 0, splat_thread_work2, &tp, 0,
-			                 &p0, TS_RUN, minclsyspri);
+			                 &p0, TS_RUN, defclsyspri);
 	/* Must never fail under Solaris, but we check anyway since this
 	 * can happen in the linux SPL, we may want to change this behavior */
 	if (thr == NULL)
@@ -278,7 +278,7 @@ splat_thread_test3(struct file *file, void *arg)
 	/* Start tsd wait threads */
 	for (i = 0; i < SPLAT_THREAD_TEST_THREADS; i++) {
 		if (thread_create(NULL, 0, splat_thread_work3_wait,
-				  &tp, 0, &p0, TS_RUN, minclsyspri))
+				  &tp, 0, &p0, TS_RUN, defclsyspri))
 			wait_count++;
 	}
 
@@ -295,7 +295,7 @@ splat_thread_test3(struct file *file, void *arg)
 	/* Start tsd exit threads */
 	for (i = 0; i < SPLAT_THREAD_TEST_THREADS; i++) {
 		if (thread_create(NULL, 0, splat_thread_work3_exit,
-				  &tp, 0, &p0, TS_RUN, minclsyspri))
+				  &tp, 0, &p0, TS_RUN, defclsyspri))
 			exit_count++;
 	}
 

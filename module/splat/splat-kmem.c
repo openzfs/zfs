@@ -739,7 +739,7 @@ splat_kmem_cache_thread_test(struct file *file, void *arg, char *name,
 	for (i = 0; i < SPLAT_KMEM_THREADS; i++) {
 		thr = thread_create(NULL, 0,
 				    splat_kmem_cache_test_thread,
-				    kcp, 0, &p0, TS_RUN, minclsyspri);
+				    kcp, 0, &p0, TS_RUN, defclsyspri);
 		if (thr == NULL) {
 			rc = -ESRCH;
 			goto out_cache;

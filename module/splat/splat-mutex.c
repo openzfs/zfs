@@ -87,7 +87,7 @@ splat_mutex_test1(struct file *file, void *arg)
         if (mp == NULL)
                 return -ENOMEM;
 
-        tq = taskq_create(SPLAT_MUTEX_TEST_TASKQ, 1, maxclsyspri,
+        tq = taskq_create(SPLAT_MUTEX_TEST_TASKQ, 1, defclsyspri,
                           50, INT_MAX, TASKQ_PREPOPULATE);
         if (tq == NULL) {
                 rc = -ENOMEM;
@@ -196,7 +196,7 @@ splat_mutex_test2(struct file *file, void *arg)
 
         /* Create several threads allowing tasks to race with each other */
         tq = taskq_create(SPLAT_MUTEX_TEST_TASKQ, num_online_cpus(),
-                          maxclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
+                          defclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
         if (tq == NULL) {
                 rc = -ENOMEM;
                 goto out;
@@ -266,7 +266,7 @@ splat_mutex_test3(struct file *file, void *arg)
         mp.mp_file = file;
         mutex_init(&mp.mp_mtx, SPLAT_MUTEX_TEST_NAME, MUTEX_DEFAULT, NULL);
 
-        if ((tq = taskq_create(SPLAT_MUTEX_TEST_NAME, 1, maxclsyspri,
+        if ((tq = taskq_create(SPLAT_MUTEX_TEST_NAME, 1, defclsyspri,
                                50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
                 splat_vprint(file, SPLAT_MUTEX_TEST3_NAME, "Taskq '%s' "
                              "create failed\n", SPLAT_MUTEX_TEST3_NAME);

@@ -36,6 +36,11 @@ int spl_taskq_thread_dynamic = 1;
 module_param(spl_taskq_thread_dynamic, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_dynamic, "Allow dynamic taskq threads");
 
+int spl_taskq_thread_priority = 1;
+module_param(spl_taskq_thread_priority, int, 0644);
+MODULE_PARM_DESC(spl_taskq_thread_priority,
+    "Allow non-default priority for taskq threads");
+
 int spl_taskq_thread_sequential = 4;
 module_param(spl_taskq_thread_sequential, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_sequential,
@@ -913,7 +918,9 @@ taskq_thread_create(taskq_t *tq)
 		kthread_bind(tqt->tqt_thread, last_used_cpu);
 	}
 
-	set_user_nice(tqt->tqt_thread, PRIO_TO_NICE(tq->tq_pri));
+	if (spl_taskq_thread_priority)
+		set_user_nice(tqt->tqt_thread, PRIO_TO_NICE(tq->tq_pri));
+
 	wake_up_process(tqt->tqt_thread);
 
 	return (tqt);
@@ -1070,12 +1077,12 @@ int
 spl_taskq_init(void)
 {
 	system_taskq = taskq_create("spl_system_taskq", MAX(boot_ncpus, 64),
-	    minclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
+	    defclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
 	if (system_taskq == NULL)
 		return (1);
 
 	dynamic_taskq = taskq_create("spl_dynamic_taskq", 1,
-	    minclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE);
+	    defclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE);
 	if (dynamic_taskq == NULL) {
 		taskq_destroy(system_taskq);
 		return (1);

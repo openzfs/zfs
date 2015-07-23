@@ -156,7 +156,7 @@ splat_atomic_test1(struct file *file, void *arg)
 
 		thr = (kthread_t *)thread_create(NULL, 0, splat_atomic_work,
 						 &ap, 0, &p0, TS_RUN,
-						 minclsyspri);
+						 defclsyspri);
 		if (thr == NULL) {
 			rc = -ESRCH;
 			mutex_exit(&ap.ap_lock);
