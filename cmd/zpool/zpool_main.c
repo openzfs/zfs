@@ -3252,6 +3252,8 @@ zpool_do_list(int argc, char **argv)
 	unsigned long interval = 0, count = 0;
 	zpool_list_t *list;
 	boolean_t first = B_TRUE;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, ":Ho:T:v")) != -1) {
@@ -3285,7 +3287,8 @@ zpool_do_list(int argc, char **argv)
 
 	get_interval_count(&argc, argv, &interval, &count);
 
-	if (zprop_get_list(g_zfs, props, &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
+	if (zprop_get_list(&json, g_zfs, props,
+	    &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
 		usage(B_FALSE);
 
 	for (;;) {
@@ -5724,6 +5727,8 @@ get_callback(zpool_handle_t *zhp, void *data)
 	char value[MAXNAMELEN];
 	zprop_source_t srctype;
 	zprop_list_t *pl;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	for (pl = cbp->cb_proplist; pl != NULL; pl = pl->pl_next) {
 
@@ -5742,7 +5747,8 @@ get_callback(zpool_handle_t *zhp, void *data)
 
 			if (zpool_prop_get_feature(zhp, pl->pl_user_prop,
 			    value, sizeof (value)) == 0) {
-				zprop_print_one_property(zpool_get_name(zhp),
+				zprop_print_one_property(&json,
+				    zpool_get_name(zhp),
 				    cbp, pl->pl_user_prop, value, srctype,
 				    NULL, NULL);
 			}
@@ -5751,7 +5757,8 @@ get_callback(zpool_handle_t *zhp, void *data)
 			    sizeof (value), &srctype, cbp->cb_literal) != 0)
 				continue;
 
-			zprop_print_one_property(zpool_get_name(zhp), cbp,
+			zprop_print_one_property(&json,
+			    zpool_get_name(zhp), cbp,
 			    zpool_prop_to_name(pl->pl_prop), value, srctype,
 			    NULL, NULL);
 		}
@@ -5765,6 +5772,8 @@ zpool_do_get(int argc, char **argv)
 	zprop_get_cbdata_t cb = { 0 };
 	zprop_list_t fake_name = { 0 };
 	int c, ret;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "pH")) != -1) {
@@ -5801,7 +5810,8 @@ zpool_do_get(int argc, char **argv)
 	cb.cb_columns[3] = GET_COL_SOURCE;
 	cb.cb_type = ZFS_TYPE_POOL;
 
-	if (zprop_get_list(g_zfs, argv[0], &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
+	if (zprop_get_list(&json, g_zfs, argv[0],
+	    &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
 		usage(B_FALSE);
 
 	argc--;

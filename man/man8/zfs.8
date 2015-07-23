@@ -100,7 +100,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-JjHp\fR][\fB-o\fR \fIproperty\fR[,\fIproperty\fR]...] [\fB-t\fR \fItype\fR[,\fItype\fR]..]
+\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-Hp\fR][\fB-o\fR \fIproperty\fR[,\fIproperty\fR]...] [\fB-t\fR \fItype\fR[,\fItype\fR]..]
      [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...
 .fi
 
@@ -2031,33 +2031,11 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ne 2
 .mk
 .na
-\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-JjHp\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
+\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-Hp\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
 .ad
 .sp .6
 .RS 4n
 Lists the property information for the given datasets in tabular form. If specified, you can list property information by the absolute pathname or the relative pathname. By default, all file systems and volumes are displayed. Snapshots are displayed if the \fBlistsnaps\fR property is \fBon\fR (the default is \fBoff\fR). When listing hundreds or thousands of snapshots performance can be improved by restricting the output to only the name.  In that case, it is recommended to use \fB-o name -s name\fR. The following fields are displayed by default, \fBname,used,available,referenced,mountpoint\fR.
-.sp
-.ne 2
-.mk
-.na
-\fB\fB-j\fR\fR
-.ad
-.sp .6
-.RS 4n
-Used for ld json mode. Print the output in line delimited json.
-.RE
-
-.sp
-.ne 2
-.mk
-.na
-\fB\fB-J\fR\fR
-.ad
-.sp .6
-.RS 4n
-Used for json mode. Print the output in json format.
-.RE
-
 .sp
 .ne 2
 .mk

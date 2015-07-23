@@ -458,8 +458,6 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 			if (flags & ZFS_ITER_ARGS_CAN_BE_PATHS) {
 				zhp = zfs_path_to_zhandle(json, g_zfs, argv[i],
 				    argtype);
-			} else if (!json->json && !json->ld_json) {
-				zhp = zfs_open(g_zfs, argv[i], argtype);
 			} else
 				zhp = zfs_json_open(json,
 				    g_zfs, argv[i], argtype);
