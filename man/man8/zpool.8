@@ -174,6 +174,13 @@
 .Op Fl s | Fl p
 .Ar pool Ns ...
 .Nm
+.Cm trim
+.Op Fl dp
+.Op Fl r Ar rate
+.Op Fl c | Fl s
+.Ar pool
+.Op Ar device Ns ...
+.Nm
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
@@ -187,7 +194,7 @@
 .Nm
 .Cm status
 .Oo Fl c Ar SCRIPT Oc
-.Op Fl DigLpPsvx
+.Op Fl DigLpPstvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -806,6 +813,28 @@ Any write requests that have yet to be committed to disk would be blocked.
 .It Sy panic
 Prints out a message to the console and generates a system crash dump.
 .El
+.It Sy autotrim Ns = Ns Sy on Ns | Ns Sy off
+When set to
+.Sy on
+space which has been recently freed, and is no longer allocated by the pool,
+will be periodically trimmed.  This allows block device vdevs which support
+BLKDISCARD, such as SSDs, or file vdevs on which the underlying file system
+supports hole-punching, to reclaim unused blocks.  The default setting for
+this property is
+.Sy off .
+.Pp
+Automatic TRIM does not immediately reclaim blocks after a free. Instead,
+it will optimistically delay allowing smaller ranges to be aggregated in to
+a few larger ones.  These can then be issued more efficiently to the storage.
+.Pp
+Be aware that automatic trimming of recently freed data blocks can put
+significant stress on the underlying storage devices.  This will vary
+depending of how well the specific device handles these commands.  For
+lower end devices it is often possible to achieve most of the benefits
+of automatic trimming by running an on-demand (manual) TRIM periodically
+using the
+.Nm zpool Cm trim
+command.
 .It Sy feature@ Ns Ar feature_name Ns = Ns Sy enabled
 The value of this property is the current state of
 .Ar feature_name .
@@ -1782,15 +1811,10 @@ the path. This can be used in conjunction with the
 .Fl L
 flag.
 .It Fl r
-Print request size histograms for the leaf ZIOs. This includes
-histograms of individual ZIOs (
-.Ar ind )
-and aggregate ZIOs (
-.Ar agg ).
-These stats can be useful for seeing how well the ZFS IO aggregator is
-working. Do not confuse these request size stats with the block layer
-requests; it's possible ZIOs can be broken up before being sent to the
-block device.
+Print request size histograms for the leaf vdev's IO. This includes
+histograms of individual IOs (ind) and aggregate IOs (agg). These stats
+can be useful for observing how well IO aggregation is working.  Note
+that TRIM IOs may exceed 16M, but will be counted as 16M.
 .It Fl v
 Verbose statistics Reports usage statistics for individual vdevs within the
 pool, in addition to the pool-wide statistics.
@@ -1829,6 +1853,8 @@ Average amount of time IO spent in asynchronous priority queues.
 Does not include disk time.
 .Ar scrub :
 Average queuing time in scrub queue. Does not include disk time.
+.Ar trim :
+Average queuing time in trim queue. Does not include disk time.
 .It Fl q
 Include active queue statistics. Each priority queue has both
 pending (
@@ -1846,6 +1872,8 @@ queues.
 Current number of entries in asynchronous priority queues.
 .Ar scrubq_read :
 Current number of entries in scrub queue.
+.Ar trimq_write :
+Current number of entries in trim queue.
 .Pp
 All queue statistics are instantaneous measurements of the number of
 entries in the queues. If you specify an interval, the measurements
@@ -2151,6 +2179,55 @@ restarted from the beginning. Any drives that were scheduled for a deferred
 resilver will be added to the new one.
 .It Xo
 .Nm
+.Cm trim
+.Op Fl dp
+.Op Fl c | Fl s
+.Ar pool
+.Op Ar device Ns ...
+.Xc
+Initiates an immediate on-demand TRIM operation for all of the free space in
+a pool.  This operation informs the underlying storage devices of all blocks
+in the pool which are no longer allocated and allows thinly provisioned
+devices to reclaim the space.
+.Pp
+A manual on-demand TRIM operation can be initiated irrespective of the
+.Sy autotrim
+pool property setting.  See the documentation for the
+.Sy autotrim
+property above for the types of vdev devices which can be trimmed.
+.Bl -tag -width Ds
+.It Fl d -secure
+Causes a secure TRIM to be initiated.  When performing a secure TRIM the
+device guarantees that data stored on the trimmed blocks has been erased.
+This requires support from the device and is not supported by all SSDs.
+.It Fl p -partial
+Causes a partial TRIM to be initiated.  When performing a partial TRIM only
+space which has been previously allocated, and then freed, will be trimmed.
+This option is useful for pools constructed from large thinly-provisioned
+devices where TRIM operations are slow.  As the pool ages a partial TRIM
+will become less efficient as a decreasing fraction of the pool will have
+never been allocated.
+.It Fl r -rate Ar rate
+Controls the rate at which the TRIM operation progresses.  Without this
+option TRIM is executed as quickly as possible. The rate, expressed in bytes
+per second, is applied on a per-vdev basis and may be set differently for
+each leaf vdev.
+.It Fl c, -cancel
+Cancel trimming on the specified devices, or all eligible devices if none
+are specified.
+If one or more target devices are invalid or are not currently being
+trimmed, the command will fail and no cancellation will occur on any device.
+.It Fl s -suspend
+Suspend trimming on the specified devices, or all eligible devices if none
+are specified.
+If one or more target devices are invalid or are not currently being
+trimmed, the command will fail and no suspension will occur on any device.
+Trimming can then be resumed by running
+.Nm zpool Cm trim
+with no flags on the relevant target devices.
+.El
+.It Xo
+.Nm
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
@@ -2238,7 +2315,7 @@ and automatically import it.
 .Nm
 .Cm status
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
-.Op Fl DigLpPsvx
+.Op Fl DigLpPstvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -2295,6 +2372,8 @@ didn't complete in \fBzio_slow_io_ms\fR milliseconds (default 30 seconds).
 This does not necessarily mean the IOs failed to complete, just took an
 unreasonably long amount of time.  This may indicate a problem with the
 underlying storage.
+.It Fl t
+Display vdev TRIM status.
 .It Fl T Sy u Ns | Ns Sy d
 Display a time stamp.
 Specify

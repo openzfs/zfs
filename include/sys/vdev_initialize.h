@@ -39,8 +39,6 @@ extern void vdev_initialize_stop_all(vdev_t *vd,
     vdev_initializing_state_t tgt_state);
 extern void vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list);
 extern void vdev_initialize_restart(vdev_t *vd);
-extern void vdev_xlate(vdev_t *vd, const range_seg_t *logical_rs,
-    range_seg_t *physical_rs);
 
 #ifdef	__cplusplus
 }

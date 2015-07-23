@@ -93,7 +93,8 @@ extern void txg_wait_synced(struct dsl_pool *dp, uint64_t txg);
  * as possible (eg. kick off any necessary syncs immediately).
  * If txg == 0, wait for the next open txg.
  */
-extern void txg_wait_open(struct dsl_pool *dp, uint64_t txg);
+extern void txg_wait_open(struct dsl_pool *dp, uint64_t txg,
+    boolean_t should_quiesce);
 
 /*
  * Returns TRUE if we are "backed up" waiting for the syncing
