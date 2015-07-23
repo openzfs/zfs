@@ -546,13 +546,24 @@ zfs_json_verror(zfs_json_t *json,
 
 	if (hdl->libzfs_printerr) {
 		if (error == EZFS_UNKNOWN) {
+			if (json->json || json->ld_json) {
 			(void) sprintf(errors, dgettext(TEXT_DOMAIN, "internal "
 			    "error: %s"), libzfs_error_description(hdl));
+			} else {
+			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "internal "
+			    "error: %s\n"), libzfs_error_description(hdl));
+			}
 			abort();
 		}
-		(void) sprintf(errors, "%s: %s", hdl->libzfs_action,
-		    libzfs_error_description(hdl));
-		fnvlist_add_string(json->nv_dict_error, "error", errors);
+
+		if (json->json || json->ld_json) {
+			(void) sprintf(errors, "%s: %s", hdl->libzfs_action,
+			    libzfs_error_description(hdl));
+			fnvlist_add_string(json->nv_dict_error,
+			    "error", errors);
+		} else
+			(void) fprintf(stderr, "%s: %s\n", hdl->libzfs_action,
+			    libzfs_error_description(hdl));
 		if (error == EZFS_NOMEM)
 			exit(1);
 	}
@@ -1482,7 +1493,8 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
  * structure.
  */
 void
-zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
+zprop_print_one_property(zfs_json_t *json,
+    const char *name, zprop_get_cbdata_t *cbp,
     const char *propname, const char *value, zprop_source_t sourcetype,
     const char *source, const char *recvd_value)
 {
@@ -1490,14 +1502,17 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 	const char *str = NULL;
 	char buf[128];
 
+	if (json->json || json->ld_json)
+		json->nv_dict_buff = fnvlist_alloc();
 	/*
 	 * Ignore those source types that the user has chosen to ignore.
 	 */
-	if ((sourcetype & cbp->cb_sources) == 0)
-		return;
+	if (!json->json && !json->ld_json) {
+		if ((sourcetype & cbp->cb_sources) == 0)
+			return;
 
-	if (cbp->cb_first)
-		zprop_print_headers(cbp, cbp->cb_type);
+		if (cbp->cb_first)
+			zprop_print_headers(cbp, cbp->cb_type);
 
 	for (i = 0; i < ZFS_GET_NCOLS; i++) {
 		switch (cbp->cb_columns[i]) {
@@ -1561,6 +1576,85 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 	}
 
 	(void) printf("\n");
+	} else {
+
+		if ((sourcetype & cbp->cb_sources) == 0)
+			return;
+		for (i = 0; i < ZFS_GET_NCOLS; i++) {
+			switch (cbp->cb_columns[i]) {
+				case GET_COL_NAME:
+					if (json->ld_json)
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "name", name);
+				break;
+				case GET_COL_PROPERTY:
+				fnvlist_add_string(
+				    json->nv_dict_buff, "property", propname);
+				break;
+
+				case GET_COL_VALUE:
+					fnvlist_add_string(
+					    json->nv_dict_buff, "value", value);
+				break;
+
+			case GET_COL_SOURCE:
+				switch (sourcetype) {
+					case ZPROP_SRC_NONE:
+					fnvlist_add_string(json->nv_dict_buff,
+					    "source", "-");
+					break;
+
+					case ZPROP_SRC_DEFAULT:
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", "default");
+						break;
+
+					case ZPROP_SRC_LOCAL:
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", "local");
+						break;
+
+					case ZPROP_SRC_TEMPORARY:
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", "temporary");
+						break;
+
+					case ZPROP_SRC_INHERITED:
+						(void) snprintf(buf,
+						    sizeof (buf),
+						    "inherited from %s",
+						    source);
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", buf);
+						break;
+					case ZPROP_SRC_RECEIVED:
+						fnvlist_add_string(
+							json->nv_dict_buff,
+						    "source", "received");
+						break;
+				}
+			break;
+
+			case GET_COL_RECVD:
+				fnvlist_add_string(json->nv_dict_buff, "source",
+				    (recvd_value == NULL ? "-" : recvd_value));
+				break;
+
+			default:
+				continue;
+			}
+		}
+		if (json->ld_json) {
+			nvlist_print_json(stdout, json->nv_dict_buff);
+			printf("\n");
+		}
+
+	}
 }
 
 /*
@@ -1668,6 +1762,100 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 			if (hdl)
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "numeric value is too large"));
+			return (-1);
+		}
+
+		*num <<= shift;
+	}
+
+	return (0);
+}
+
+int
+zfs_json_nicestrtonum(zfs_json_t *json,
+    libzfs_handle_t *hdl, const char *value, uint64_t *num)
+{
+	char *end;
+	int shift;
+
+	*num = 0;
+
+	/* Check to see if this looks like a number.  */
+	if ((value[0] < '0' || value[0] > '9') && value[0] != '.') {
+		if (hdl) {
+			if (!json->json)
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "bad numeric value '%s'"), value);
+			else
+				zfs_json_error_aux(json,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "bad numeric value '%s'"), value);
+		}
+		return (-1);
+	}
+
+	/* Rely on strtoull() to process the numeric portion.  */
+	errno = 0;
+	*num = strtoull(value, &end, 10);
+
+	/*
+	 * Check for ERANGE, which indicates that the value is too large to fit
+	 * in a 64-bit value.
+	 */
+	if (errno == ERANGE) {
+		if (hdl) {
+			if (!json->json)
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "numeric value is too large"));
+			else
+				zfs_json_error_aux(json,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "numeric value is too large"));
+		}
+		return (-1);
+	}
+
+	/*
+	 * If we have a decimal value, then do the computation with floating
+	 * point arithmetic.  Otherwise, use standard arithmetic.
+	 */
+	if (*end == '.') {
+		double fval = strtod(value, &end);
+
+		if ((shift = str2shift(hdl, end)) == -1)
+			return (-1);
+
+		fval *= pow(2, shift);
+
+		if (fval > UINT64_MAX) {
+			if (hdl) {
+				if (!json->json)
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "numeric value is too large"));
+				else
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "numeric value is too large"));
+			}
+			return (-1);
+		}
+
+		*num = (uint64_t)fval;
+	} else {
+		if ((shift = str2shift(hdl, end)) == -1)
+			return (-1);
+
+		/* Check for overflow */
+		if (shift >= 64 || (*num << shift) >> shift != *num) {
+			if (hdl) {
+				if (!json->json)
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "numeric value is too large"));
+				else
+					zfs_json_error_aux(json, hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "numeric value is too large"));
+			}
 			return (-1);
 		}
 
@@ -1809,8 +1997,8 @@ error:
 }
 
 static int
-addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
-    zfs_type_t type)
+addlist(zfs_json_t *json, libzfs_handle_t *hdl,
+    char *propname, zprop_list_t **listp, zfs_type_t type)
 {
 	int prop;
 	zprop_list_t *entry;
@@ -1830,9 +2018,9 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 	    !zpool_prop_unsupported(propname)) ||
 	    (type == ZFS_TYPE_DATASET && !zfs_prop_user(propname) &&
 	    !zfs_prop_userquota(propname) && !zfs_prop_written(propname)))) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "invalid property '%s'"), propname);
-		return (zfs_error(hdl, EZFS_BADPROP,
+		return (zfs_json_error(json, hdl, EZFS_BADPROP,
 		    dgettext(TEXT_DOMAIN, "bad property list")));
 	}
 
@@ -1864,8 +2052,8 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
  * by zprop_expand_list().
  */
 int
-zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
-    zfs_type_t type)
+zprop_get_list(zfs_json_t *json, libzfs_handle_t *hdl,
+    char *props, zprop_list_t **listp, zfs_type_t type)
 {
 	*listp = NULL;
 
@@ -1879,9 +2067,10 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 	 * If no props were specified, return an error.
 	 */
 	if (props[0] == '\0') {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "no properties specified"));
-		return (zfs_error(hdl, EZFS_BADPROP, dgettext(TEXT_DOMAIN,
+		return (zfs_json_error(json, hdl,
+		    EZFS_BADPROP, dgettext(TEXT_DOMAIN,
 		    "bad property list")));
 	}
 
@@ -1905,9 +2094,9 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 		 * Check for empty options.
 		 */
 		if (len == 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 			    "empty property name"));
-			return (zfs_error(hdl, EZFS_BADPROP,
+			return (zfs_json_error(json, hdl, EZFS_BADPROP,
 			    dgettext(TEXT_DOMAIN, "bad property list")));
 		}
 
@@ -1926,12 +2115,13 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 			int i;
 
 			for (i = 0; spaceprops[i]; i++) {
-				if (addlist(hdl, spaceprops[i], listp, type))
+				if (addlist(json, hdl, spaceprops[i],
+				    listp, type))
 					return (-1);
 				listp = &(*listp)->pl_next;
 			}
 		} else {
-			if (addlist(hdl, props, listp, type))
+			if (addlist(json, hdl, props, listp, type))
 				return (-1);
 			listp = &(*listp)->pl_next;
 		}

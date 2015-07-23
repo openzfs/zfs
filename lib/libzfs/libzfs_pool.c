@@ -1045,6 +1045,150 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	return (B_TRUE);
 }
 
+boolean_t
+zpool_json_name_valid(zfs_json_t *json,
+    libzfs_handle_t *hdl, boolean_t isopen,
+    const char *pool)
+{
+	namecheck_err_t why;
+	char what;
+	int ret;
+
+	ret = pool_namecheck(pool, &why, &what);
+
+	/*
+	 * The rules for reserved pool names were extended at a later point.
+	 * But we need to support users with existing pools that may now be
+	 * invalid.  So we only check for this expanded set of names during a
+	 * create (or import), and only in userland.
+	 */
+	if (ret == 0 && !isopen &&
+	    (strncmp(pool, "mirror", 6) == 0 ||
+	    strncmp(pool, "raidz", 5) == 0 ||
+	    strncmp(pool, "spare", 5) == 0 ||
+	    strcmp(pool, "log") == 0)) {
+		if (hdl != NULL) {
+			if (!json->json)
+			zfs_error_aux(hdl,
+			    dgettext(TEXT_DOMAIN,
+			    "name is reserved"));
+			else
+				zfs_json_error_aux(json, hdl,
+			    dgettext(TEXT_DOMAIN, "name is reserved"));
+		}
+		return (B_FALSE);
+	}
+
+
+	if (ret != 0) {
+		if (hdl != NULL) {
+			switch (why) {
+			case NAME_ERR_TOOLONG:
+				if (json->json)
+				zfs_json_error_aux(json, hdl,
+				    dgettext(TEXT_DOMAIN, "name is too long"));
+				else
+				zfs_error_aux(hdl,
+				    dgettext(TEXT_DOMAIN,
+				    "name is too long"));
+				break;
+
+			case NAME_ERR_INVALCHAR:
+				if (json->json)
+					zfs_json_error_aux(json, hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "invalid character "
+					    "'%c' in pool name"), what);
+				else
+					zfs_json_error_aux(json, hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "invalid character "
+					    "'%c' in pool name"), what);
+				break;
+			case NAME_ERR_NOLETTER:
+				if (json->json)
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "name must begin with a letter"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "name must begin with a letter"));
+				break;
+
+			case NAME_ERR_RESERVED:
+				if (json->json)
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "name is reserved"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "name is reserved"));
+				break;
+
+			case NAME_ERR_DISKLIKE:
+				if (json->json)
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "pool name is reserved"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "pool name is reserved"));
+				break;
+
+			case NAME_ERR_LEADING_SLASH:
+				if (json->json)
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "leading slash in name"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "leading slash in name"));
+				break;
+			case NAME_ERR_EMPTY_COMPONENT:
+				if (json->json)
+					zfs_json_error_aux(json, hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "empty component in name"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "empty component in name"));
+				break;
+			case NAME_ERR_TRAILING_SLASH:
+				if (json->json)
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "trailing slash in name"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "trailing slash in name"));
+				break;
+
+			case NAME_ERR_MULTIPLE_AT:
+				if (json->json)
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "multiple '@' delimiters in name"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "multiple '@' delimiters in name"));
+				break;
+			case NAME_ERR_NO_AT:
+				if (json->json)
+					zfs_json_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "permission set is missing '@'"));
+				else
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "permission set is missing '@'"));
+				break;
+			}
+		}
+		return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
 /*
  * Open a handle to the given pool, even if the pool is currently in the FAULTED
  * state.
@@ -1081,6 +1225,60 @@ zpool_open_canfail(libzfs_handle_t *hdl, const char *pool)
 		(void) zfs_error_fmt(hdl, EZFS_NOENT,
 		    dgettext(TEXT_DOMAIN, "cannot open '%s'"), pool);
 		zpool_close(zhp);
+		return (NULL);
+	}
+
+	return (zhp);
+}
+
+zpool_handle_t *
+zpool_json_open_canfail(zfs_json_t *json,
+    libzfs_handle_t *hdl, const char *pool)
+{
+	zpool_handle_t *zhp;
+	boolean_t missing;
+
+	/*
+	 * Make sure the pool name is valid.
+	 */
+	if (!zpool_name_valid(hdl, B_TRUE, pool)) {
+		if (!json->json)
+		(void) zfs_error_fmt(hdl, EZFS_INVALIDNAME,
+		    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
+		    pool);
+		else
+		(void) zfs_json_error_fmt(json, hdl, EZFS_INVALIDNAME,
+		    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
+		    pool);
+		return (NULL);
+	}
+
+	if ((zhp = zfs_alloc(hdl, sizeof (zpool_handle_t))) == NULL)
+		return (NULL);
+
+	zhp->zpool_hdl = hdl;
+	(void) strlcpy(zhp->zpool_name, pool, sizeof (zhp->zpool_name));
+
+	if (zpool_refresh_stats(zhp, &missing) != 0) {
+		zpool_close(zhp);
+		return (NULL);
+	}
+
+	if (missing) {
+		if (!json->json) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "no such pool"));
+			(void) zfs_error_fmt(hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "cannot open '%s'"), pool);
+			zpool_close(zhp);
+		} else {
+			zfs_json_error_aux(json, hdl,
+			    dgettext(TEXT_DOMAIN, "no such pool"));
+			(void) zfs_json_error_fmt(json,
+			    hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "cannot open '%s'"), pool);
+			zpool_close(zhp);
+		}
 		return (NULL);
 	}
 
@@ -1133,6 +1331,31 @@ zpool_open(libzfs_handle_t *hdl, const char *pool)
 	if (zhp->zpool_state == POOL_STATE_UNAVAIL) {
 		(void) zfs_error_fmt(hdl, EZFS_POOLUNAVAIL,
 		    dgettext(TEXT_DOMAIN, "cannot open '%s'"), zhp->zpool_name);
+		zpool_close(zhp);
+		return (NULL);
+	}
+
+	return (zhp);
+}
+
+
+zpool_handle_t *
+zpool_json_open(zfs_json_t *json, libzfs_handle_t *hdl, const char *pool)
+{
+	zpool_handle_t *zhp;
+
+	if ((zhp = zpool_json_open_canfail(json, hdl, pool)) == NULL)
+		return (NULL);
+
+	if (zhp->zpool_state == POOL_STATE_UNAVAIL) {
+		if (!json->json)
+			(void) zfs_error_fmt(hdl, EZFS_POOLUNAVAIL,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot open '%s'"), zhp->zpool_name);
+		else
+			(void) zfs_json_error_fmt(json, hdl, EZFS_POOLUNAVAIL,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot open '%s'"), zhp->zpool_name);
 		zpool_close(zhp);
 		return (NULL);
 	}
