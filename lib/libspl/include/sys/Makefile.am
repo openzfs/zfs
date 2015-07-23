@@ -12,6 +12,7 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/cred.h \
 	$(top_srcdir)/lib/libspl/include/sys/debug.h \
 	$(top_srcdir)/lib/libspl/include/sys/dkio.h \
+	$(top_srcdir)/lib/libspl/include/sys/dkioc_free_util.h \
 	$(top_srcdir)/lib/libspl/include/sys/dklabel.h \
 	$(top_srcdir)/lib/libspl/include/sys/errno.h \
 	$(top_srcdir)/lib/libspl/include/sys/feature_tests.h \
