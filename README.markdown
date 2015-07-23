@@ -10,6 +10,9 @@ Full documentation for installing ZoL on your favorite Linux distribution can
 be found at: <http://zfsonlinux.org>
 
 
-#### Full status (json schemas description, community validation and code implemented) is availlable here :
+#### Full status (community validation and code implemented) is availlable here :
 
 [STATUS](https://github.com/Alyseo/zfs/blob/json-0.6.4/json/STATUS.md)
+
+### json schemas description :
+https://github.com/Alyseo/zfs/blob/json-0.6.4/json/README.md
