@@ -240,8 +240,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tupgrade [-v]\n"
 		    "\tupgrade [-r] [-V version] <-a | filesystem ...>\n"));
 	case HELP_LIST:
-		return (gettext("\tlist [-JjHp]"
-		    " [-r|-d max] [-o property[,...]] "
+		return (gettext("\tlist [-Hp] [-r|-d max] [-o property[,...]] "
 		    "[-s property]...\n\t    [-S property]... [-t type[,...]] "
 		    "[filesystem|volume|snapshot] ...\n"));
 	case HELP_MOUNT:
@@ -748,7 +747,6 @@ zfs_do_clone(int argc, char **argv)
 			goto json_out;
 		}
 	}
-
 	if (parents && zfs_json_name_valid(&json,
 	    argv[1], ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_VOLUME)) {
@@ -806,8 +804,24 @@ if (json.json) {
 	fnvlist_free(json.nv_dict_error);
 	fnvlist_free(json.nv_dict_props);
 	}
-	if (zhp)
-		zfs_close(zhp);
+if (json.json) {
+	fnvlist_add_string(json.nv_dict_props,
+	    "schema_version", "1.0");
+	fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+	    (nvlist_t **)json.json_data, json.nb_elem);
+	fnvlist_add_nvlist(json.nv_dict_props,
+	    "stderr", json.nv_dict_error);
+	nvlist_print_json(stdout, json.nv_dict_props);
+	fprintf(stdout, "\n");
+	fflush(stdout);
+	while (((json.nb_elem)--) > 0)
+		fnvlist_free(
+		    ((nvlist_t **)
+		    (json.json_data))[json.nb_elem]);
+	free(json.json_data);
+	fnvlist_free(json.nv_dict_error);
+	fnvlist_free(json.nv_dict_props);
+		}
 	nvlist_free(props);
 	return (ret);
 
@@ -1921,7 +1935,6 @@ zfs_do_get(int argc, char **argv)
 	zfs_json_t json;
 	json.json = json.ld_json = B_FALSE;
 	char errbuf[1024];
-
 	/*
 	 * Set up default columns and sources.
 	 */
@@ -4136,14 +4149,7 @@ zfs_do_list(int argc, char **argv)
 			free(json.json_data);
 			fnvlist_free(json.nv_dict_error);
 			fnvlist_free(json.nv_dict_props);
-		} else if (json.ld_json) {
-			nvlist_print_json(stdout, json.nv_dict_error);
-			fnvlist_free(json.nv_dict_error);
-			fnvlist_free(json.nv_dict_props);
-			fprintf(stdout, "\n");
-			fflush(stdout);
 		}
-
 	return (ret);
 
 }
