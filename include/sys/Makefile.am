@@ -31,9 +31,11 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dsl_synctask.h \
 	$(top_srcdir)/include/sys/dsl_userhold.h \
 	$(top_srcdir)/include/sys/efi_partition.h \
+        $(top_srcdir)/include/sys/file.h \
 	$(top_srcdir)/include/sys/metaslab.h \
 	$(top_srcdir)/include/sys/metaslab_impl.h \
 	$(top_srcdir)/include/sys/mntent.h \
+	$(top_srcdir)/include/sys/mode.h \
 	$(top_srcdir)/include/sys/multilist.h \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
@@ -72,6 +74,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/vdev_file.h \
 	$(top_srcdir)/include/sys/vdev.h \
 	$(top_srcdir)/include/sys/vdev_impl.h \
+	$(top_srcdir)/include/sys/vnode.h \
 	$(top_srcdir)/include/sys/xvattr.h \
 	$(top_srcdir)/include/sys/zap.h \
 	$(top_srcdir)/include/sys/zap_impl.h \

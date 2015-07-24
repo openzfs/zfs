@@ -74,6 +74,7 @@
 #include <sys/console.h>
 #include <sys/time.h>
 #include <sys/zfs_ioctl.h>
+#include <linux/file.h>
 
 int zfs_zevent_len_max = 0;
 int zfs_zevent_cols = 80;
@@ -583,29 +584,29 @@ zfs_zevent_minor_to_state(minor_t minor, zfs_zevent_t **ze)
 }
 
 int
-zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
+zfs_zevent_fd_hold(int fd, struct file **fp, zfs_zevent_t **ze)
 {
-	file_t *fp;
+	minor_t minor;
 	int error;
 
-	fp = getf(fd);
-	if (fp == NULL)
+	*fp = fget(fd);
+	if (*fp == NULL)
 		return (EBADF);
 
-	error = zfsdev_getminor(fp->f_file, minorp);
+	error = zfsdev_getminor(*fp, &minor);
 	if (error == 0)
-		error = zfs_zevent_minor_to_state(*minorp, ze);
+		error = zfs_zevent_minor_to_state(minor, ze);
 
 	if (error)
-		zfs_zevent_fd_rele(fd);
+		fput(*fp);
 
 	return (error);
 }
 
 void
-zfs_zevent_fd_rele(int fd)
+zfs_zevent_fd_rele(struct file *fp)
 {
-	releasef(fd);
+	fput(fp);
 }
 
 /*

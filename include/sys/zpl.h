@@ -33,6 +33,7 @@
 #include <linux/falloc.h>
 #include <linux/file_compat.h>
 #include <linux/parser.h>
+#include <linux/namei.h>
 #include <linux/task_io_accounting_ops.h>
 #include <linux/vfs_compat.h>
 #include <linux/writeback.h>

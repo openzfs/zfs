@@ -4968,11 +4968,11 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 {
 	zfs_zevent_t *ze;
 	nvlist_t *event = NULL;
-	minor_t minor;
+	struct file *fp;
 	uint64_t dropped = 0;
 	int error;
 
-	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &fp, &ze);
 	if (error != 0)
 		return (error);
 
@@ -4996,7 +4996,7 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 			break;
 	} while (1);
 
-	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+	zfs_zevent_fd_rele(fp);
 
 	return (error);
 }
@@ -5025,15 +5025,15 @@ static int
 zfs_ioc_events_seek(zfs_cmd_t *zc)
 {
 	zfs_zevent_t *ze;
-	minor_t minor;
+	struct file *fp;
 	int error;
 
-	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &fp, &ze);
 	if (error != 0)
 		return (error);
 
 	error = zfs_zevent_seek(ze, zc->zc_guid);
-	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+	zfs_zevent_fd_rele(fp);
 
 	return (error);
 }
@@ -6010,13 +6010,6 @@ static int __init
 _init(void)
 {
 	int error;
-
-	error = -vn_set_pwd("/");
-	if (error) {
-		printk(KERN_NOTICE
-		    "ZFS: Warning unable to set pwd to '/': %d\n", error);
-		return (error);
-	}
 
 	spa_init(FREAD | FWRITE);
 	zfs_init();

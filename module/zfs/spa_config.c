@@ -181,9 +181,9 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 		error = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0,
 		    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, NULL);
 		if (error == 0)
-			error = VOP_FSYNC(vp, FSYNC, kcred, NULL);
+			error = vn_fsync(vp, FSYNC, kcred, NULL);
 
-		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
+		(void) vn_close(vp, oflags, 1, 0, kcred, NULL);
 
 		if (error)
 			(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
@@ -199,10 +199,10 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	if (vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0) == 0) {
 		if (vn_rdwr(UIO_WRITE, vp, buf, buflen, 0, UIO_SYSSPACE,
 		    0, RLIM64_INFINITY, kcred, NULL) == 0 &&
-		    VOP_FSYNC(vp, FSYNC, kcred, NULL) == 0) {
+		    vn_fsync(vp, FSYNC, kcred, NULL) == 0) {
 			(void) vn_rename(temp, dp->scd_path, UIO_SYSSPACE);
 		}
-		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
+		(void) vn_close(vp, oflags, 1, 0, kcred, NULL);
 	}
 
 	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);
@@ -230,7 +230,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
-	if (rootdir == NULL || !(spa_mode_global & FWRITE))
+	if (!(spa_mode_global & FWRITE))
 		return;
 
 	/*

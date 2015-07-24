@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
+#include <sys/vnode.h>
 #include <sys/signal.h>
 #include <sys/spa.h>
 #include <sys/stat.h>
@@ -585,7 +586,8 @@ cv_broadcast(kcondvar_t *cv)
 
 /*ARGSUSED*/
 int
-vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
+vn_open(const char *path, uio_seg_t unused1, int flags, int mode, vnode_t **vpp,
+    int unused2, void *unused3)
 {
 	int fd;
 	vnode_t *vp;
@@ -682,8 +684,8 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 
 /*ARGSUSED*/
 int
-vn_openat(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2,
-    int x3, vnode_t *startvp, int fd)
+vn_openat(const char *path, uio_seg_t x1, int flags, int mode, vnode_t **vpp,
+    int x2, void *x3, vnode_t *startvp, int fd)
 {
 	char *realpath = umem_alloc(strlen(path) + 2, UMEM_NOFAIL);
 	int ret;
@@ -701,8 +703,8 @@ vn_openat(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2,
 
 /*ARGSUSED*/
 int
-vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
-	int x1, int x2, rlim64_t x3, void *x4, ssize_t *residp)
+vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
+	uio_seg_t x1, int x2, rlim64_t x3, void *x4, ssize_t *residp)
 {
 	ssize_t rc, done = 0, split;
 
@@ -746,12 +748,20 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 	return (0);
 }
 
-void
-vn_close(vnode_t *vp)
+int
+vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x)
 {
 	close(vp->v_fd);
 	spa_strfree(vp->v_path);
 	umem_free(vp, sizeof (vnode_t));
+
+	return (0);
+}
+
+int
+vn_remove(const char *path, uio_seg_t seg, int flags)
+{
+	return (remove(path));
 }
 
 /*
@@ -759,7 +769,7 @@ vn_close(vnode_t *vp)
  * will no longer call vn_openat().
  */
 int
-fop_getattr(vnode_t *vp, vattr_t *vap)
+vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 {
 	struct stat64 st;
 	int err;
@@ -772,6 +782,12 @@ fop_getattr(vnode_t *vp, vattr_t *vap)
 
 	vap->va_size = st.st_size;
 	return (0);
+}
+
+int
+vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
+{
+	return (fsync((vp)->v_fd));
 }
 
 /*
@@ -975,7 +991,7 @@ kobj_read_file(struct _buf *file, char *buf, unsigned size, unsigned off)
 void
 kobj_close_file(struct _buf *file)
 {
-	vn_close((vnode_t *)file->_fd);
+	vn_close((vnode_t *)file->_fd, 0, 0, 0, 0, NULL);
 	umem_free(file, sizeof (struct _buf));
 }
 
@@ -986,7 +1002,7 @@ kobj_get_filesize(struct _buf *file, uint64_t *size)
 	vnode_t *vp = (vnode_t *)file->_fd;
 
 	if (fstat64(vp->v_fd, &st) == -1) {
-		vn_close(vp);
+		vn_close(vp, 0, 0, 0, 0, NULL);
 		return (errno);
 	}
 	*size = st.st_size;
