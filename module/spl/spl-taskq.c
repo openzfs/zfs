@@ -935,7 +935,6 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	int count = 0, rc = 0, i;
 
 	ASSERT(name != NULL);
-	ASSERT(pri <= maxclsyspri);
 	ASSERT(minalloc >= 0);
 	ASSERT(maxalloc <= INT_MAX);
 	ASSERT(!(flags & (TASKQ_CPR_SAFE))); /* Unsupported */
@@ -1077,12 +1076,12 @@ int
 spl_taskq_init(void)
 {
 	system_taskq = taskq_create("spl_system_taskq", MAX(boot_ncpus, 64),
-	    defclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
+	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
 	if (system_taskq == NULL)
 		return (1);
 
 	dynamic_taskq = taskq_create("spl_dynamic_taskq", 1,
-	    defclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE);
+	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE);
 	if (dynamic_taskq == NULL) {
 		taskq_destroy(system_taskq);
 		return (1);
