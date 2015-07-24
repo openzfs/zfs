@@ -60,7 +60,7 @@ do_depend()
 
 do_start()
 {
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	ZED_ARGS="$ZED_ARGS -p $ZED_PIDFILE"
 
@@ -72,7 +72,7 @@ do_start()
 do_stop()
 {
 	local pools RET
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	zfs_action "Stopping ZFS Event Daemon" zfs_daemon_stop \
 	   "$ZED_PIDFILE" "$ZED" "$ZED_NAME"
@@ -95,7 +95,7 @@ do_stop()
 
 do_status()
 {
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	zfs_daemon_status "$ZED_PIDFILE" "$ZED" "$ZED_NAME"
 	return "$?"
@@ -103,7 +103,7 @@ do_status()
 
 do_reload()
 {
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	zfs_action "Reloading ZFS Event Daemon" zfs_daemon_reload \
 	    "$ZED_PIDFILE" "$ZED_NAME"

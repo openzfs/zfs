@@ -9,7 +9,7 @@ PREREQ="zdev"
 # These prerequisites are provided by the zfsutils package. The zdb utility is
 # not strictly required, but it can be useful at the initramfs recovery prompt.
 COPY_EXEC_LIST="/sbin/zdb /sbin/zpool /sbin/zfs /sbin/mount.zfs"
-COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname"
+COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /lib/udev/vdev_id"
 COPY_FILE_LIST="/etc/hostid /etc/zfs/zpool.cache /etc/default/zfs"
 COPY_FILE_LIST="$COPY_FILE_LIST /etc/zfs/zfs-functions /etc/zfs/vdev_id.conf"
 COPY_FILE_LIST="$COPY_FILE_LIST /lib/udev/rules.d/69-vdev.rules"
@@ -65,7 +65,7 @@ done
 for ii in $COPY_FILE_LIST
 do
 	dir=$(dirname "$ii")
-	[ -d "$dir" ] || mkdir -p "$dir"
+	[ -d "$dir" ] && mkdir -p "$DESTDIR/$dir"
 	[ -f "$ii" ] && cp -p "$ii" "$DESTDIR/$ii"
 done
 

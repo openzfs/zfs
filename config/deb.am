@@ -37,9 +37,12 @@ if CONFIG_USER
 	pkg6=libzfs2-devel-$${version}.$${arch}.rpm; \
 	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
 	pkg8=$${name}-dracut-$${version}.$${arch}.rpm; \
+	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --bump=0 --scripts --to-deb \
-	    $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 $$pkg8; \
-	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 $$pkg8;
+	    $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
+	    $$pkg8 $$pkg9;
+	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
+	    $$pkg8 $$pkg9;
 endif
 
 deb: deb-kmod deb-utils
