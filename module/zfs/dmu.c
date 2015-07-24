@@ -644,9 +644,13 @@ static int
 dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
     uint64_t length)
 {
-	uint64_t object_size = (dn->dn_maxblkid + 1) * dn->dn_datablksz;
+	uint64_t object_size;
 	int err;
 
+	if (dn == NULL)
+		return (SET_ERROR(EINVAL));
+
+	object_size = (dn->dn_maxblkid + 1) * dn->dn_datablksz;
 	if (offset >= object_size)
 		return (0);
 
