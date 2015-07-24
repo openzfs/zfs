@@ -1839,7 +1839,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	ntasks = dmu_find_threads;
 	if (ntasks == 0)
 		ntasks = vdev_count_leaves(dp->dp_spa) * 4;
-	tq = taskq_create("dmu_objset_find", ntasks, minclsyspri, ntasks,
+	tq = taskq_create("dmu_objset_find", ntasks, maxclsyspri, ntasks,
 	    INT_MAX, 0);
 	if (tq == NULL) {
 		kmem_free(dcp, sizeof (*dcp));

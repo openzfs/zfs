@@ -308,7 +308,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 
 	for (t = 0; t < nthreads; t++)
 		VERIFY((tq->tq_threadlist[t] = thread_create(NULL, 0,
-		    taskq_thread, tq, TS_RUN, NULL, 0, 0)) != NULL);
+		    taskq_thread, tq, TS_RUN, NULL, 0, pri)) != NULL);
 
 	return (tq);
 }
@@ -371,7 +371,7 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 void
 system_taskq_init(void)
 {
-	system_taskq = taskq_create("system_taskq", 64, minclsyspri, 4, 512,
+	system_taskq = taskq_create("system_taskq", 64, maxclsyspri, 4, 512,
 	    TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
 }
 

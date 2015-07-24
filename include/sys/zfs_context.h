@@ -233,6 +233,7 @@ typedef struct kthread {
 	kt_did_t	t_tid;
 	thread_func_t	t_func;
 	void *		t_arg;
+	pri_t		t_pri;
 } kthread_t;
 
 #define	curthread			zk_thread_current()
@@ -615,8 +616,12 @@ extern void delay(clock_t ticks);
 #define	max_ncpus	64
 #define	boot_ncpus	(sysconf(_SC_NPROCESSORS_ONLN))
 
-#define	minclsyspri	60
-#define	maxclsyspri	99
+/*
+ * Process priorities as defined by setpriority(2) and getpriority(2).
+ */
+#define	minclsyspri	19
+#define	maxclsyspri	-20
+#define	defclsyspri	0
 
 #define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
 

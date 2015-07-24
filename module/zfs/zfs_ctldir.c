@@ -1009,7 +1009,7 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 void
 zfsctl_init(void)
 {
-	zfs_expire_taskq = taskq_create("z_unmount", 1, maxclsyspri,
+	zfs_expire_taskq = taskq_create("z_unmount", 1, defclsyspri,
 	    1, 8, TASKQ_PREPOPULATE);
 }
 
