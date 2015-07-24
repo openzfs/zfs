@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2013 by Joyent, Inc. All rights reserved.
  */
@@ -246,6 +246,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 #ifdef ZFS_DEBUG
 	int err;
 #endif
+	spa_feature_t f;
 	int after_branch_point = FALSE;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
@@ -277,9 +278,11 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	obj = ds->ds_object;
 
-	if (ds->ds_large_blocks) {
-		ASSERT0(zap_contains(mos, obj, DS_FIELD_LARGE_BLOCKS));
-		spa_feature_decr(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS, tx);
+	for (f = 0; f < SPA_FEATURES; f++) {
+		if (ds->ds_feature_inuse[f]) {
+			dsl_dataset_deactivate_feature(obj, f, tx);
+			ds->ds_feature_inuse[f] = B_FALSE;
+		}
 	}
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		ASSERT3P(ds->ds_prev, ==, NULL);
@@ -715,6 +718,7 @@ void
 dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_feature_t f;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t obj, ddobj, prevobj = 0;
 	boolean_t rmorigin;
@@ -742,12 +746,16 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		ASSERT0(ds->ds_reserved);
 	}
 
-	if (ds->ds_large_blocks)
-		spa_feature_decr(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS, tx);
+	obj = ds->ds_object;
+
+	for (f = 0; f < SPA_FEATURES; f++) {
+		if (ds->ds_feature_inuse[f]) {
+			dsl_dataset_deactivate_feature(obj, f, tx);
+			ds->ds_feature_inuse[f] = B_FALSE;
+		}
+	}
 
 	dsl_scan_ds_destroyed(ds, tx);
-
-	obj = ds->ds_object;
 
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		/* This is a clone */
