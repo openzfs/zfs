@@ -1888,7 +1888,7 @@ zil_open(objset_t *os, zil_get_data_t *get_data)
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 
 	zilog->zl_get_data = get_data;
-	zilog->zl_clean_taskq = taskq_create("zil_clean", 1, minclsyspri,
+	zilog->zl_clean_taskq = taskq_create("zil_clean", 1, defclsyspri,
 	    2, 2, TASKQ_PREPOPULATE);
 
 	return (zilog);

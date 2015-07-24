@@ -898,11 +898,13 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 			pri_t pri = maxclsyspri;
 			/*
 			 * The write issue taskq can be extremely CPU
-			 * intensive.  Run it at slightly lower priority
-			 * than the other taskqs.
+			 * intensive.  Run it at slightly less important
+			 * priority than the other taskqs.  Under Linux this
+			 * means incrementing the priority value on platforms
+			 * like illumos it should be decremented.
 			 */
 			if (t == ZIO_TYPE_WRITE && q == ZIO_TASKQ_ISSUE)
-				pri--;
+				pri++;
 
 			tq = taskq_create_proc(name, value, pri, 50,
 			    INT_MAX, spa->spa_proc, flags);

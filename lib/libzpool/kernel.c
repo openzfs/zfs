@@ -128,6 +128,7 @@ zk_thread_helper(void *arg)
 	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
 	kthread_nr++;
 	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+	(void) setpriority(PRIO_PROCESS, 0, kt->t_pri);
 
 	kt->t_tid = pthread_self();
 	((thread_func_arg_t) kt->t_func)(kt->t_arg);
@@ -151,6 +152,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	kt = umem_zalloc(sizeof (kthread_t), UMEM_NOFAIL);
 	kt->t_func = func;
 	kt->t_arg = arg;
+	kt->t_pri = pri;
 
 	VERIFY0(pthread_attr_init(&attr));
 	VERIFY0(pthread_attr_setdetachstate(&attr, detachstate));

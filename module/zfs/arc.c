@@ -5431,7 +5431,7 @@ arc_init(void)
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 	bzero(&arc_eviction_hdr, sizeof (arc_buf_hdr_t));
 
-	arc_prune_taskq = taskq_create("arc_prune", max_ncpus, minclsyspri,
+	arc_prune_taskq = taskq_create("arc_prune", max_ncpus, defclsyspri,
 	    max_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
@@ -5444,10 +5444,10 @@ arc_init(void)
 	}
 
 	(void) thread_create(NULL, 0, arc_reclaim_thread, NULL, 0, &p0,
-	    TS_RUN, minclsyspri);
+	    TS_RUN, defclsyspri);
 
 	(void) thread_create(NULL, 0, arc_user_evicts_thread, NULL, 0, &p0,
-	    TS_RUN, minclsyspri);
+	    TS_RUN, defclsyspri);
 
 	arc_dead = FALSE;
 	arc_warm = B_FALSE;
@@ -6954,7 +6954,7 @@ l2arc_start(void)
 		return;
 
 	(void) thread_create(NULL, 0, l2arc_feed_thread, NULL, 0, &p0,
-	    TS_RUN, minclsyspri);
+	    TS_RUN, defclsyspri);
 }
 
 void
