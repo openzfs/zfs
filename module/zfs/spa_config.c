@@ -36,7 +36,6 @@
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
 #ifdef _KERNEL
-#include <sys/kobj.h>
 #include <sys/zone.h>
 #endif
 
@@ -64,7 +63,6 @@ static uint64_t spa_config_generation = 1;
  * userland pools when doing testing.
  */
 char *spa_config_path = ZPOOL_CACHE;
-int zfs_autoimport_disable = 1;
 
 /*
  * Called when the module is first loaded, this routine loads the configuration
@@ -74,17 +72,13 @@ int zfs_autoimport_disable = 1;
 void
 spa_config_load(void)
 {
+#ifndef _KERNEL
 	void *buf = NULL;
 	nvlist_t *nvlist, *child;
 	nvpair_t *nvpair;
 	char *pathname;
 	struct _buf *file;
 	uint64_t fsize;
-
-#ifdef _KERNEL
-	if (zfs_autoimport_disable)
-		return;
-#endif
 
 	/*
 	 * Open the configuration file.
@@ -143,6 +137,7 @@ out:
 		kmem_free(buf, fsize);
 
 	kobj_close_file(file);
+#endif
 }
 
 static void
@@ -575,8 +570,4 @@ EXPORT_SYMBOL(spa_config_update);
 
 module_param(spa_config_path, charp, 0444);
 MODULE_PARM_DESC(spa_config_path, "SPA config file (/etc/zfs/zpool.cache)");
-
-module_param(zfs_autoimport_disable, int, 0644);
-MODULE_PARM_DESC(zfs_autoimport_disable, "Disable pool import at module load");
-
 #endif

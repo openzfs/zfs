@@ -72,7 +72,6 @@
 #include <sys/dumphdr.h>
 #include <sys/cpuvar.h>
 #include <sys/console.h>
-#include <sys/kobj.h>
 #include <sys/time.h>
 #include <sys/zfs_ioctl.h>
 
