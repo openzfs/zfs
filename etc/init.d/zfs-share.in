@@ -46,7 +46,7 @@ do_start()
 			;;
 	esac
 
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	zfs_action "Sharing ZFS filesystems" "$ZFS" share -a
 }
@@ -59,7 +59,7 @@ do_stop()
 			;;
 	esac
 
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	zfs_action "Unsharing ZFS filesystems" "$ZFS" unshare -a
 }

@@ -312,14 +312,18 @@ get_root_pool()
 
 check_module_loaded()
 {
-	[ -r /sys/module/zfs/version ] && return 0 || return 1
+	module="$1"
+
+	[ -r "/sys/module/${module}/version" ] && return 0 || return 1
 }
 
 load_module()
 {
+	module="$1"
+
 	# Load the zfs module stack
-	if ! check_module_loaded; then
-		if ! modprobe zfs; then
+	if ! check_module_loaded "$module"; then
+		if ! /sbin/modprobe "$module"; then
 			return 5
 		fi
 	fi

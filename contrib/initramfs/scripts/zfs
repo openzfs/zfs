@@ -282,7 +282,7 @@ load_module_initrd()
 	[ ! -f /etc/mtab ] && cat /proc/mounts > /etc/mtab
 
 	# Load the module
-	load_module || return 1
+	load_module "zfs" || return 1
 
 	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" > 0 ]
 	then
@@ -388,7 +388,7 @@ decrypt_fs()
 	do
 		[ "$quiet" != "y" ] && zfs_log_progress_msg "${mod} "
 
-		ZFS_CMD="/sbin/modprobe $mod"
+		ZFS_CMD="load_module $mod"
 		ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
 		ZFS_ERROR="$?"
 

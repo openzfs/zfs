@@ -163,7 +163,7 @@ do_unmount()
 
 do_start()
 {
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	case "$ZFS_MOUNT" in
 		[Oo][Ff][Ff]|[Nn][Oo]|''|0)
@@ -189,7 +189,7 @@ do_stop()
 			;;
 	esac
 
-	check_module_loaded || exit 0
+	check_module_loaded "zfs" || exit 0
 
 	do_unmount
 }
