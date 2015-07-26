@@ -10,6 +10,22 @@
 #ZED_DEBUG_LOG="/tmp/zed.debug.log"
 
 ##
+# Email smart/relay host
+#   Make sure that your 'mail'/'mailx' commands accepts the '-S' option to
+#   set 'sendmail options'.
+#
+#   Allows for "host:port".
+#
+#   If you want/need extra options (such as authentication and what not),
+#   add this after the "host[:port]" part.
+#   See heirloom-mailx(1) for more information.
+#
+#   By default, mail/mailx is using 'localhost' as a smart/relay host.
+#
+#ZED_EMAIL_RELAY="localhost"
+#ZED_EMAIL_RELAY="localhost -S smtp-use-starttls -S smtp-auth=login [... etc]"
+
+##
 # Email address of the zpool administrator for receipt of notifications.
 #   Email will only be sent if ZED_EMAIL is defined.
 # Disabled by default; uncomment to enable.
