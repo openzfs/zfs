@@ -1624,6 +1624,7 @@ zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
 int
 zvol_init(void)
 {
+	int threads = MIN(MAX(zvol_threads, 1), 1024);
 	int error;
 
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
@@ -1631,8 +1632,8 @@ zvol_init(void)
 
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_threads, maxclsyspri,
-	    zvol_threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	zvol_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
+	    threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 	if (zvol_taskq == NULL) {
 		printk(KERN_INFO "ZFS: taskq_create() failed\n");
 		error = -ENOMEM;
@@ -1677,7 +1678,7 @@ module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
 module_param(zvol_threads, uint, 0444);
-MODULE_PARM_DESC(zvol_threads, "Number of threads for zvol device");
+MODULE_PARM_DESC(zvol_threads, "Max number of threads to handle I/O requests");
 
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
