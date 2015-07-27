@@ -747,7 +747,6 @@ zfs_do_clone(int argc, char **argv)
 			goto json_out;
 		}
 	}
-
 	if (parents && zfs_json_name_valid(&json,
 	    argv[1], ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_VOLUME)) {
@@ -807,7 +806,6 @@ if (json.json) {
 	fnvlist_free(json.nv_dict_error);
 	fnvlist_free(json.nv_dict_props);
 	}
-	
 	if (zhp)
 		zfs_close(zhp);
 	nvlist_free(props);
@@ -1073,9 +1071,9 @@ if (json.json) {
 	fnvlist_free(json.nv_dict_error);
 	fnvlist_free(json.nv_dict_props);
 	}
+nvlist_free(props);
+return (ret);
 
-	nvlist_free(props);
-	return (ret);
 badusage:
 	if (json.json) {
 		fnvlist_add_string(json.nv_dict_props,

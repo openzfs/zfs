@@ -1590,7 +1590,6 @@ zfs_send(zfs_json_t *json,
 				    (longlong_t)sdd.size);
 			} else {
 				char buf[16];
-
 				zfs_nicenum(sdd.size, buf, sizeof (buf));
 				(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 				    "total estimated size is %s\n"), buf);

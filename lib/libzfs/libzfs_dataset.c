@@ -1672,41 +1672,34 @@ zfs_json_valid_proplist(zfs_json_t *json,
 			}
 			continue;
 		} else if (prop == ZPROP_INVAL && zfs_prop_written(propname)) {
-			zfs_json_error_aux(json,
-			    hdl, dgettext(TEXT_DOMAIN,
+			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' is readonly"),
 			    propname);
-			(void) zfs_json_error(json,
-			    hdl, EZFS_PROPREADONLY, errbuf);
+			(void) zfs_json_error(json, hdl, EZFS_PROPREADONLY, errbuf);
 			goto error;
 		}
 
 		if (prop == ZPROP_INVAL) {
-				zfs_json_error_aux(json,
-				    hdl, dgettext(TEXT_DOMAIN,
-				    "invalid property '%s'"), propname);
-				(void) zfs_json_error(json,
-				    hdl, EZFS_BADPROP, errbuf);
+			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+			    "invalid property '%s'"), propname);
+			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 			goto error;
 		}
 
 		if (!zfs_prop_valid_for_type(prop, type, B_FALSE)) {
-				zfs_json_error_aux(json, hdl,
-				    dgettext(TEXT_DOMAIN, "'%s' does not "
-				    "apply to datasets "
-				    "of this type"), propname);
-				(void) zfs_json_error(json,
-				    hdl, EZFS_PROPTYPE, errbuf);
+			zfs_json_error_aux(json, hdl,
+			    dgettext(TEXT_DOMAIN, "'%s' does not "
+			    "apply to datasets of this type"), propname);
+			(void) zfs_json_error(json, hdl, EZFS_PROPTYPE, errbuf);
 			goto error;
 		}
 
 		if (zfs_prop_readonly(prop) &&
 		    (!zfs_prop_setonce(prop) || zhp != NULL)) {
-				zfs_json_error_aux(json, hdl,
-				    dgettext(TEXT_DOMAIN, "'%s' is readonly"),
-				    propname);
-				(void) zfs_json_error(json,
-				    hdl, EZFS_PROPREADONLY, errbuf);
+			zfs_json_error_aux(json, hdl,
+			    dgettext(TEXT_DOMAIN, "'%s' is readonly"),
+			    propname);
+			(void) zfs_json_error(json, hdl, EZFS_PROPREADONLY, errbuf);
 			goto error;
 		}
 
@@ -1726,13 +1719,10 @@ zfs_json_valid_proplist(zfs_json_t *json,
 				break;
 			version = zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
 			if (intval < version) {
-					zfs_json_error_aux(json, hdl,
-					    dgettext(TEXT_DOMAIN,
-					    "Can not downgrade;"
-					    " already at version %u"),
-					    version);
-					(void) zfs_json_error(json,
-					    hdl, EZFS_BADPROP, errbuf);
+				zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+				    "Can not downgrade; already at version %u"),
+				    version);
+				(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
 			break;
@@ -1752,12 +1742,10 @@ zfs_json_valid_proplist(zfs_json_t *json,
 			 */
 			if (intval < SPA_MINBLOCKSIZE ||
 			    intval > maxbs || !ISP2(intval)) {
-					zfs_json_error_aux(json,
-					    hdl, dgettext(TEXT_DOMAIN,
-					    "'%s' must be power of 2 from 512B "
-					    "to %uKB"), propname, maxbs >> 10);
-					(void) zfs_json_error(json,
-					    hdl, EZFS_BADPROP, errbuf);
+				zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+				    "'%s' must be power of 2 from 512B "
+				    "to %uKB"), propname, maxbs >> 10);
+				(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
 			break;
@@ -1809,17 +1797,16 @@ zfs_json_valid_proplist(zfs_json_t *json,
 			break;
 
 badlabel:
-		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
-		    "invalid mlslabel '%s'"), strval);
-		(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
+			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+			    "invalid mlslabel '%s'"), strval);
+			(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
 			m_label_free(new_sl);	/* OK if null */
 			goto error;
 #else
-	zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
-	    "mlslabels are unsupported"));
-	(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
-	goto error;
-
+			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+			    "mlslabels are unsupported"));
+			(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
+			goto error;
 #endif /* HAVE_MLSLABEL */
 		}
 
@@ -1834,25 +1821,21 @@ badlabel:
 			if (mountpoint_namecheck(strval, &why)) {
 				switch (why) {
 				case NAME_ERR_LEADING_SLASH:
-						zfs_json_error_aux(json, hdl,
-						    dgettext(TEXT_DOMAIN,
-						    "'%s' must be an"
-						    " absolute path, "
-						    "'none', or "
-						    "'legacy'"), propname);
+					zfs_json_error_aux(json, hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "'%s' must be an absolute path, "
+					    "'none', or 'legacy'"), propname);
 					break;
 				case NAME_ERR_TOOLONG:
-						zfs_json_error_aux(json, hdl,
-						    dgettext(TEXT_DOMAIN,
-						    "component of '%s'"
-						    " is too long"),
-						    propname);
+					zfs_json_error_aux(json, hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "component of '%s' is too long"),
+					    propname);
 					break;
 				default:
 					break;
 				}
-					(void) zfs_json_error(json,
-					    hdl, EZFS_BADPROP, errbuf);
+				(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
 		}
@@ -1879,25 +1862,19 @@ badlabel:
 			 */
 			if (zoned) {
 				if (getzoneid() == GLOBAL_ZONEID) {
-					zfs_json_error_aux(json, hdl,
-					    dgettext(TEXT_DOMAIN,
+					zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 					    "'%s' cannot be set on "
-					    "dataset in a "
-					    "non-global zone"),
+					    "dataset in a non-global zone"),
 					    propname);
-					(void) zfs_json_error(json,
-					    hdl, EZFS_ZONED,
+					(void) zfs_json_error(json, hdl, EZFS_ZONED,
 					    errbuf);
 					goto error;
 				} else if (prop == ZFS_PROP_SHARENFS ||
 				    prop == ZFS_PROP_SHARESMB) {
-					zfs_json_error_aux(json,
-					    hdl, dgettext(TEXT_DOMAIN,
+					zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 					    "'%s' cannot be set in "
-					    "a non-global zone"),
-					    propname);
-					(void) zfs_json_error(json,
-					    hdl, EZFS_ZONED,
+					    "a non-global zone"), propname);
+					(void) zfs_json_error(json, hdl, EZFS_ZONED,
 					    errbuf);
 					goto error;
 				}
@@ -1906,13 +1883,10 @@ badlabel:
 				 * If zoned property is 'off', this must be in
 				 * a global zone. If not, something is wrong.
 				 */
-				zfs_json_error_aux(json,
-				    hdl, dgettext(TEXT_DOMAIN,
+				zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 				    "'%s' cannot be set while dataset "
-				    "'zoned' property is set"),
-				    propname);
-				(void) zfs_json_error(json,
-				    hdl, EZFS_ZONED, errbuf);
+				    "'zoned' property is set"), propname);
+				(void) zfs_json_error(json, hdl, EZFS_ZONED, errbuf);
 				goto error;
 			}
 
@@ -1949,15 +1923,12 @@ badlabel:
 					 * An error occurred so we can't do
 					 * anything
 					 */
-					zfs_json_error_aux(json,
-					    hdl, dgettext(TEXT_DOMAIN,
-					    "'%s' cannot be "
-					    "set: problem "
+					zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+					    "'%s' cannot be set: problem "
 					    "in share initialization"),
 					    propname);
-						(void) zfs_json_error(json,
-						    hdl, EZFS_BADPROP,
-						    errbuf);
+					(void) zfs_json_error(json, hdl, EZFS_BADPROP,
+					    errbuf);
 					goto error;
 				}
 
@@ -1969,15 +1940,11 @@ badlabel:
 					 * uninitializing the the libshare
 					 * interface.
 					 */
-
-						zfs_json_error_aux(json,
-						    hdl, dgettext(TEXT_DOMAIN,
-						    "'%s' cannot be set"
-						    " to invalid"
-						    " options"), propname);
-						(void) zfs_json_error(json,
-						    hdl, EZFS_BADPROP,
-						    errbuf);
+					zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+					    "'%s' cannot be set to invalid "
+					    "options"), propname);
+					(void) zfs_json_error(json, hdl, EZFS_BADPROP,
+					    errbuf);
 					zfs_uninit_libshare(hdl);
 					goto error;
 				}
@@ -2010,13 +1977,10 @@ badlabel:
 			case ZFS_PROP_RESERVATION:
 			case ZFS_PROP_REFRESERVATION:
 				if (intval > volsize) {
-					zfs_json_error_aux(json,
-					    hdl, dgettext(TEXT_DOMAIN,
-					    "'%s' is greater"
-					    " than current"
-					    " volume size"), propname);
-					(void) zfs_json_error(json,
-					    hdl, EZFS_BADPROP,
+					zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+					    "'%s' is greater than current "
+					    "volume size"), propname);
+					(void) zfs_json_error(json, hdl, EZFS_BADPROP,
 					    errbuf);
 					goto error;
 				}
@@ -2026,23 +1990,20 @@ badlabel:
 				if (intval % blocksize != 0) {
 					zfs_nicenum(blocksize, buf,
 					    sizeof (buf));
-						zfs_json_error_aux(json,
-						    hdl, dgettext(TEXT_DOMAIN,
-						    "'%s' must be a multiple of"
-						    " volume block size (%s)"),
-						    propname, buf);
-						(void) zfs_json_error(json,
-						    hdl, EZFS_BADPROP,
-						    errbuf);
-					}
+					zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+					    "'%s' must be a multiple of "
+					    "volume block size (%s)"),
+					    propname, buf);
+					(void) zfs_json_error(json, hdl, EZFS_BADPROP,
+					    errbuf);
 					goto error;
+				}
+
 				if (intval == 0) {
-					zfs_json_error_aux(json,
-					    hdl, dgettext(TEXT_DOMAIN,
-					    "'%s' cannot be zero"),
+					zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+					    "'%s',  cannot be zero"),
 					    propname);
-					(void) zfs_json_error(json,
-					    hdl, EZFS_BADPROP,
+					(void) zfs_json_error(json, hdl, EZFS_BADPROP,
 					    errbuf);
 					goto error;
 				}
@@ -2067,10 +2028,10 @@ badlabel:
 			goto error;
 		}
 	} else if (chosen_normal > 0 && chosen_utf == 0) {
-			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' must be set 'on' if normalization chosen"),
-			    zfs_prop_to_name(ZFS_PROP_UTF8ONLY));
-			(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+		    "'%s' must be set 'on' if normalization chosen"),
+		    zfs_prop_to_name(ZFS_PROP_UTF8ONLY));
+		(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
 		goto error;
 	}
 	return (ret);
@@ -2079,6 +2040,7 @@ error:
 	nvlist_free(ret);
 	return (NULL);
 }
+
 
 
 int
@@ -2162,10 +2124,11 @@ zfs_setprop_error(zfs_json_t *json, libzfs_handle_t *hdl,
 		break;
 
 	case E2BIG:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "property value too long"));
-		(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+		(void) zfs_json_error(json, hdl, EZFS_BADPROP, errbuf);
 		break;
+
 
 	case ENOTSUP:
 		zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
