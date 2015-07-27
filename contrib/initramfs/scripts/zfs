@@ -64,13 +64,13 @@ find_rootfs()
 {
 	local pool="$1"
 
+	# If 'POOL_IMPORTED' isn't set, no pool imported and therefor
+	# we won't be able to find a root fs.
+	[ -z "${POOL_IMPORTED}" ] && return 1
+
 	# If it's already specified, just keep it mounted and exit
 	# User (kernel command line) must be correct.
-	if [ -n "${ZFS_BOOTFS}" ]
-	then
-		POOL_IMPORTED=1
-		return 0
-	fi
+	[ -n "${ZFS_BOOTFS}" ] && return 0
 
 	# Not set, try to find it in the 'bootfs' property of the pool.
 	# NOTE: zpool does not support 'get -H -ovalue bootfs'...
@@ -87,6 +87,7 @@ find_rootfs()
 
 	# Not boot fs here, export it and later try again..
 	"${ZPOOL}" export "$pool"
+	POOL_IMPORTED=""
 
 	return 1
 }
@@ -229,12 +230,16 @@ import_pool()
 	then
 		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
-		[ "$quiet" != "y" ] && zfs_log_begin_msg \
-			"Importing pool '${pool}' using cachefile."
+		if [ -f "${ZPOOL_CACHE}" ]
+		then
+			[ "$quiet" != "y" ] && zfs_log_begin_msg \
+				"Importing pool '${pool}' using cachefile."
 
-		ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE}"
-		ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
-		ZFS_ERROR="$?"
+			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE}"
+			ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
+			ZFS_ERROR="$?"
+		fi
+
 		if [ "${ZFS_ERROR}" != 0 ]
 		then
 			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
@@ -252,6 +257,8 @@ import_pool()
 	fi
 
 	[ "$quiet" != "y" ] && zfs_log_end_msg
+
+	POOL_IMPORTED=1
 	return 0
 }
 
