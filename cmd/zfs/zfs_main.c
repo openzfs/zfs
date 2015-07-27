@@ -803,7 +803,7 @@ if (json.json) {
 	free(json.json_data);
 	fnvlist_free(json.nv_dict_error);
 	fnvlist_free(json.nv_dict_props);
-		}
+	}
 	nvlist_free(props);
 	return (ret);
 
