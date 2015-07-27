@@ -569,6 +569,19 @@ Default value: \fB5\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_sys_free\fR (ulong)
+.ad
+.RS 12n
+The target number of bytes the ARC should leave as free memory on the system.
+Defaults to the larger of 1/64 of physical memory or 512K.  Setting this
+option to a non-zero value will override the default.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_autoimport_disable\fR (int)
 .ad
 .RS 12n
