@@ -12,7 +12,6 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libnvpair.la
 
-<<<<<<< HEAD
 USER_C = \
 	libnvpair.c \
 	nvpair_alloc_system.c\

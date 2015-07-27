@@ -582,7 +582,8 @@ finish_progress(char *done)
 }
 
 static int
-zfs_mount_and_share(zfs_json_t *json ,libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
+zfs_mount_and_share(zfs_json_t *json, libzfs_handle_t *hdl,
+    const char *dataset, zfs_type_t type)
 {
 	zfs_handle_t *zhp = NULL;
 	int ret = 0;
@@ -675,8 +676,15 @@ zfs_do_clone(int argc, char **argv)
 			fnvlist_add_string(json.nv_dict_error, "error", "");
 			break;
 		case 'o':
-			if (parseprop(props))
-				return (1);
+			if (parseprop(props)) {
+				if (!json.json)
+					return (1);
+				else {
+					ret = 1;
+					goto json_out;
+				}
+			}
+
 			break;
 		case 'p':
 			parents = B_TRUE;
@@ -730,9 +738,15 @@ zfs_do_clone(int argc, char **argv)
 	}
 
 	/* open the source dataset */
-		if ((zhp = zfs_json_open(&json,
-		    g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL)
+	if ((zhp = zfs_json_open(&json,
+	    g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL) {
+	    if (!json.json)
 			return (1);
+		else {
+			ret = 1;
+			goto json_out;
+		}
+	}
 
 	if (parents && zfs_json_name_valid(&json,
 	    argv[1], ZFS_TYPE_FILESYSTEM |
@@ -744,10 +758,20 @@ zfs_do_clone(int argc, char **argv)
 		 */
 		if (zfs_json_dataset_exists(&json,
 		    g_zfs, argv[1], ZFS_TYPE_FILESYSTEM |
-		    ZFS_TYPE_VOLUME))
-			return (0);
-		if (zfs_json_create_ancestors(&json, g_zfs, argv[1]) != 0)
-			return (1);
+		    ZFS_TYPE_VOLUME)) {
+		    if (!json.json)
+				return (0);
+			else
+				goto json_out;
+		}
+		if (zfs_json_create_ancestors(&json, g_zfs, argv[1]) != 0) {
+			if (!json.json)
+				return (1);
+			else {
+				ret = 1;
+				goto json_out;
+			}
+		}
 	}
 
 	/* pass to libzfs */
@@ -760,8 +784,10 @@ zfs_do_clone(int argc, char **argv)
 			log_history = B_FALSE;
 		}
 
-		ret = zfs_mount_and_share(&json, g_zfs, argv[1], ZFS_TYPE_DATASET);
+		ret = zfs_mount_and_share(&json, g_zfs, argv[1],
+		    ZFS_TYPE_DATASET);
 	}
+json_out:
 if (json.json) {
 	fnvlist_add_string(json.nv_dict_props,
 	    "schema_version", "1.0");
@@ -779,8 +805,9 @@ if (json.json) {
 	free(json.json_data);
 	fnvlist_free(json.nv_dict_error);
 	fnvlist_free(json.nv_dict_props);
-		}
-	zfs_close(zhp);
+	}
+	if (zhp)
+		zfs_close(zhp);
 	nvlist_free(props);
 	return (ret);
 
@@ -1023,7 +1050,7 @@ zfs_do_create(int argc, char **argv)
 		(void) zpool_log_history(g_zfs, history_str);
 		log_history = B_FALSE;
 	}
-	ret = zfs_mount_and_share(json, g_zfs, argv[0], ZFS_TYPE_DATASET);
+	ret = zfs_mount_and_share(&json, g_zfs, argv[0], ZFS_TYPE_DATASET);
 error:
 if (json.json) {
 	fnvlist_add_string(json.nv_dict_props,
@@ -1043,8 +1070,7 @@ if (json.json) {
 	fnvlist_free(json.nv_dict_error);
 	fnvlist_free(json.nv_dict_props);
 	}
-	if (zhp)
-	zfs_close(zhp);
+
 	nvlist_free(props);
 	return (ret);
 badusage:
@@ -1069,7 +1095,7 @@ badusage:
 	nvlist_free(props);
 	if (!json.json)
 		usage(B_FALSE);
-	return (2);
+	exit(2);
 }
 
 /*
@@ -8445,7 +8471,8 @@ unshare_unmount(int op, int argc, char **argv)
 				    "mounted\n"),
 				    zfs_get_name(zhp));
 				if (!json.json)
-					(void) fprintf(stderr, errbuf);
+					(void) fprintf(stderr,
+					    "%s\n",  errbuf);
 				else
 					fnvlist_add_string(json.nv_dict_error,
 					    "error", errbuf);
