@@ -36,9 +36,6 @@
 #define	membar_producer()		smp_wmb()
 #define	physmem				totalram_pages
 #define	freemem				nr_free_pages()
-#define	needfree			0
-#define	desfree				0
-#define	lotsfree			0
 
 #define	xcopyin(from, to, size)		copy_from_user(to, from, size)
 #define	xcopyout(from, to, size)	copy_to_user(to, from, size)
