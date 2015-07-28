@@ -26,6 +26,9 @@
 #undef TRACE_SYSTEM
 #define	TRACE_SYSTEM zfs
 
+#undef TRACE_SYSTEM_VAR
+#define	TRACE_SYSTEM_VAR zfs_arc
+
 #if !defined(_TRACE_ARC_H) || defined(TRACE_HEADER_MULTI_READ)
 #define	_TRACE_ARC_H
 
