@@ -101,7 +101,12 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	/*
 	 * Make sure it's a regular file.
 	 */
-	if (vp->v_type != VREG) {
+	vattr.va_mask = AT_TYPE;
+	error = vn_getattr(vf->vf_vnode, &vattr, 0, kcred, NULL);
+	if (error) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		return (error);
+	} else if (vattr.va_type != VREG) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (SET_ERROR(ENODEV));
 	}
