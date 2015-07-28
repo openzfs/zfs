@@ -388,23 +388,24 @@ Default value: \fB5\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_lotsfree_percent\fR (int)
+.ad
+.RS 12n
+Throttle I/O when free system memory drops below this percentage of total
+system memory.  Setting this value to 0 will disable the throttle.
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_max\fR (ulong)
 .ad
 .RS 12n
 Max arc size
 .sp
 Default value: \fB0\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_arc_memory_throttle_disable\fR (int)
-.ad
-.RS 12n
-Disable memory throttle
-.sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .RE
 
 .sp
