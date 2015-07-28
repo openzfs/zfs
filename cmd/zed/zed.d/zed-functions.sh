@@ -207,16 +207,25 @@ zed_notify()
 
 # zed_notify_email (subject, pathname)
 #
-# Send a notification via email to the address specified by ZED_EMAIL.
+# Send a notification via email to the address specified by ZED_EMAIL_ADDR.
 #
-# Requires the mail executable to be installed in the standard PATH.
+# Requires the mail executable to be installed in the standard PATH, or
+# ZED_EMAIL_PROG to be defined with the pathname of an executable capable of
+# reading a message body from stdin.
+#
+# Command-line options to the mail executable can be specified in
+# ZED_EMAIL_OPTS.  This undergoes the following keyword substitutions:
+# - @ADDRESS@ is replaced with the space-delimited recipient email address(es)
+# - @SUBJECT@ is replaced with the notification subject
 #
 # Arguments
 #   subject: notification subject
 #   pathname: pathname containing the notification message (OPTIONAL)
 #
 # Globals
-#   ZED_EMAIL
+#   ZED_EMAIL_PROG
+#   ZED_EMAIL_OPTS
+#   ZED_EMAIL_ADDR
 #
 # Return
 #   0: notification sent
@@ -228,19 +237,33 @@ zed_notify_email()
     local subject="$1"
     local pathname="${2:-"/dev/null"}"
 
-    [ -n "${ZED_EMAIL}" ] || return 2
+    : "${ZED_EMAIL_PROG:="mail"}"
+    : "${ZED_EMAIL_OPTS:="-s '@SUBJECT@' @ADDRESS@"}"
+
+    # For backward compatibility with ZED_EMAIL.
+    if [ -n "${ZED_EMAIL}" ] && [ -z "${ZED_EMAIL_ADDR}" ]; then
+        ZED_EMAIL_ADDR="${ZED_EMAIL}"
+    fi
+    [ -n "${ZED_EMAIL_ADDR}" ] || return 2
+
+    zed_check_cmd "${ZED_EMAIL_PROG}" || return 1
 
     [ -n "${subject}" ] || return 1
     if [ ! -r "${pathname}" ]; then
-        zed_log_err "mail cannot read \"${pathname}\""
+        zed_log_err \
+                "$(basename "${ZED_EMAIL_PROG}") cannot read \"${pathname}\""
         return 1
     fi
 
-    zed_check_cmd "mail" || return 1
+    ZED_EMAIL_OPTS="$(echo "${ZED_EMAIL_OPTS}" \
+        | sed   -e "s/@ADDRESS@/${ZED_EMAIL_ADDR}/g" \
+                -e "s/@SUBJECT@/${subject}/g")"
 
-    mail -s "${subject}" "${ZED_EMAIL}" < "${pathname}" >/dev/null 2>&1; rv=$?
+    # shellcheck disable=SC2086
+    eval "${ZED_EMAIL_PROG}" ${ZED_EMAIL_OPTS} < "${pathname}" >/dev/null 2>&1
+    rv=$?
     if [ "${rv}" -ne 0 ]; then
-        zed_log_err "mail exit=${rv}"
+        zed_log_err "$(basename "${ZED_EMAIL_PROG}") exit=${rv}"
         return 1
     fi
     return 0
