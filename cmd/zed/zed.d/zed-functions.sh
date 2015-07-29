@@ -217,6 +217,7 @@ zed_notify()
 #
 # Globals
 #   ZED_EMAIL
+#   ZED_EMAIL_SMARTHOST
 #
 # Return
 #   0: notification sent
@@ -227,6 +228,7 @@ zed_notify_email()
 {
     local subject="$1"
     local pathname="${2:-"/dev/null"}"
+    local RELAY=""
 
     [ -n "${ZED_EMAIL}" ] || return 2
 
@@ -238,7 +240,11 @@ zed_notify_email()
 
     zed_check_cmd "mail" || return 1
 
-    mail -s "${subject}" "${ZED_EMAIL}" < "${pathname}" >/dev/null 2>&1; rv=$?
+    # User is responsible to verify that the installed mailx understands
+    # the -S option!
+    [ -n "${ZED_EMAIL_RELAY}" ] && RELAY="-S ${ZED_EMAIL_RELAY}"
+
+    mail -s "${subject}" ${RELAY} "${ZED_EMAIL}" < "${pathname}" >/dev/null 2>&1; rv=$?
     if [ "${rv}" -ne 0 ]; then
         zed_log_err "mail exit=${rv}"
         return 1
