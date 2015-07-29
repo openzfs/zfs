@@ -1855,6 +1855,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	dmu_replay_record_t *drr;
 	objset_t *os;
 	zio_cksum_t pcksum;
+	struct file *cleanup_fp;
 	int featureflags;
 
 	ra.byteswap = drc->drc_byteswap;
@@ -1886,7 +1887,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 			ra.err = SET_ERROR(EBADF);
 			goto out;
 		}
-		ra.err = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		ra.err = zfs_onexit_fd_hold(cleanup_fd, &minor, &cleanup_fp);
 		if (ra.err != 0) {
 			cleanup_fd = -1;
 			goto out;
@@ -2000,7 +2001,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 
 out:
 	if ((featureflags & DMU_BACKUP_FEATURE_DEDUP) && (cleanup_fd != -1))
-		zfs_onexit_fd_rele(cleanup_fd);
+		zfs_onexit_fd_rele(cleanup_fp);
 
 	if (ra.err != 0) {
 		/*

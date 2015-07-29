@@ -185,6 +185,7 @@
 #include <sys/dsl_userhold.h>
 #include <sys/zfeature.h>
 
+#include <linux/file_compat.h>
 #include <linux/miscdevice.h>
 
 #include "zfs_namecheck.h"
@@ -3986,7 +3987,7 @@ static boolean_t zfs_ioc_recv_inject_err;
 static int
 zfs_ioc_recv(zfs_cmd_t *zc)
 {
-	file_t *fp;
+	struct file *fp;
 	dmu_recv_cookie_t drc;
 	boolean_t force = (boolean_t)zc->zc_guid;
 	int fd;
@@ -4016,7 +4017,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		return (error);
 
 	fd = zc->zc_cookie;
-	fp = getf(fd);
+	fp = fget(fd);
 	if (fp == NULL) {
 		nvlist_free(props);
 		return (SET_ERROR(EBADF));
@@ -4091,8 +4092,8 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		props_error = SET_ERROR(EINVAL);
 	}
 
-	off = fp->f_offset;
-	error = dmu_recv_stream(&drc, fp->f_vnode, &off, zc->zc_cleanup_fd,
+	off = spl_file_pos(fp);
+	error = dmu_recv_stream(&drc, vn_from_file(fp), &off, zc->zc_cleanup_fd,
 	    &zc->zc_action_handle);
 
 	if (error == 0) {
@@ -4117,9 +4118,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		}
 	}
 
-	zc->zc_cookie = off - fp->f_offset;
-	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-		fp->f_offset = off;
+	zc->zc_cookie = off - spl_file_pos(fp);
+	if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
+		spl_file_pos(fp) = off;
 
 #ifdef	DEBUG
 	if (zfs_ioc_recv_inject_err) {
@@ -4174,7 +4175,7 @@ out:
 	nvlist_free(props);
 	nvlist_free(origprops);
 	nvlist_free(errors);
-	releasef(fd);
+	fput(fp);
 
 	if (error == 0)
 		error = props_error;
@@ -4259,18 +4260,18 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 	} else {
-		file_t *fp = getf(zc->zc_cookie);
+		struct file *fp = fget(zc->zc_cookie);
 		if (fp == NULL)
 			return (SET_ERROR(EBADF));
 
-		off = fp->f_offset;
+		off = spl_file_pos(fp);
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
 		    zc->zc_fromobj, embedok, large_block_ok,
-		    zc->zc_cookie, fp->f_vnode, &off);
+		    zc->zc_cookie, vn_from_file(fp), &off);
 
-		if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-			fp->f_offset = off;
-		releasef(zc->zc_cookie);
+		if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
+			spl_file_pos(fp) = off;
+		fput(fp);
 	}
 	return (error);
 }
@@ -4680,9 +4681,10 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 	char *snap_name;
 	char *hold_name;
 	int error;
+	struct file *fp;
 	minor_t minor;
 
-	error = zfs_onexit_fd_hold(zc->zc_cleanup_fd, &minor);
+	error = zfs_onexit_fd_hold(zc->zc_cleanup_fd, &minor, &fp);
 	if (error != 0)
 		return (error);
 
@@ -4696,7 +4698,7 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 		(void) strcpy(zc->zc_value, snap_name);
 	strfree(snap_name);
 	strfree(hold_name);
-	zfs_onexit_fd_rele(zc->zc_cleanup_fd);
+	zfs_onexit_fd_rele(fp);
 	return (error);
 }
 
@@ -4712,21 +4714,21 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 static int
 zfs_ioc_diff(zfs_cmd_t *zc)
 {
-	file_t *fp;
+	struct file *fp;
 	offset_t off;
 	int error;
 
-	fp = getf(zc->zc_cookie);
+	fp = fget(zc->zc_cookie);
 	if (fp == NULL)
 		return (SET_ERROR(EBADF));
 
-	off = fp->f_offset;
+	off = spl_file_pos(fp);
 
-	error = dmu_diff(zc->zc_name, zc->zc_value, fp->f_vnode, &off);
+	error = dmu_diff(zc->zc_name, zc->zc_value, vn_from_file(fp), &off);
 
-	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-		fp->f_offset = off;
-	releasef(zc->zc_cookie);
+	if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
+		spl_file_pos(fp) = off;
+	fput(fp);
 
 	return (error);
 }
@@ -4903,6 +4905,7 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	nvlist_t *holds;
 	int cleanup_fd = -1;
 	int error;
+	struct file *fp = NULL;
 	minor_t minor = 0;
 
 	error = nvlist_lookup_nvlist(args, "holds", &holds);
@@ -4910,14 +4913,15 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 		return (SET_ERROR(EINVAL));
 
 	if (nvlist_lookup_int32(args, "cleanup_fd", &cleanup_fd) == 0) {
-		error = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		error = zfs_onexit_fd_hold(cleanup_fd, &minor, &fp);
 		if (error != 0)
 			return (error);
 	}
 
 	error = dsl_dataset_user_hold(holds, minor, errlist);
-	if (minor != 0)
-		zfs_onexit_fd_rele(cleanup_fd);
+	if (fp)
+		zfs_onexit_fd_rele(fp);
+
 	return (error);
 }
 
@@ -5155,7 +5159,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	offset_t off;
 	char *fromname = NULL;
 	int fd;
-	file_t *fp;
+	struct file *fp;
 	boolean_t largeblockok;
 	boolean_t embedok;
 
@@ -5168,17 +5172,17 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	largeblockok = nvlist_exists(innvl, "largeblockok");
 	embedok = nvlist_exists(innvl, "embedok");
 
-	if ((fp = getf(fd)) == NULL)
+	if ((fp = fget(fd)) == NULL)
 		return (SET_ERROR(EBADF));
 
-	off = fp->f_offset;
+	off = spl_file_pos(fp);
 	error = dmu_send(snapname, fromname, embedok, largeblockok,
-	    fd, fp->f_vnode, &off);
+	    fd, vn_from_file(fp), &off);
 
-	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-		fp->f_offset = off;
+	if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
+		spl_file_pos(fp) = off;
 
-	releasef(fd);
+	fput(fp);
 	return (error);
 }
 

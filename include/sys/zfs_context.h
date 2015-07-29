@@ -70,6 +70,7 @@
 #include <sys/trace.h>
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
+#include <linux/file_compat.h>
 
 #else /* _KERNEL */
 
