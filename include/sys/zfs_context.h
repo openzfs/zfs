@@ -569,7 +569,6 @@ extern char *kmem_asprintf(const char *fmt, ...);
 /*
  * Hostname information
  */
-extern char hw_serial[];	/* for userland-emulated hostid access */
 extern int ddi_strtoul(const char *str, char **nptr, int base,
     unsigned long *result);
 

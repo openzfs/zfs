@@ -38,6 +38,7 @@
 #include <sys/varargs.h>
 #include <sys/fs/zfs.h>
 #include <sys/avl.h>
+#include <sys/systeminfo.h>
 #include <ucred.h>
 #include <libzfs_core.h>
 
@@ -351,7 +352,6 @@ typedef enum {
 	ZPOOL_STATUS_OK
 } zpool_status_t;
 
-extern unsigned long get_system_hostid(void);
 extern zpool_status_t zpool_get_status(zpool_handle_t *, char **,
     zpool_errata_t *);
 extern zpool_status_t zpool_import_status(nvlist_t *, char **,

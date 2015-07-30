@@ -47,7 +47,6 @@
 int aok;
 uint64_t physmem;
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
-char hw_serial[HW_HOSTID_LEN];
 struct utsname hw_utsname;
 vmem_t *zio_arena = NULL;
 
@@ -1087,11 +1086,11 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 }
 
 int
-ddi_strtoul(const char *hw_serial, char **nptr, int base, unsigned long *result)
+ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result)
 {
 	char *end;
 
-	*result = strtoul(hw_serial, &end, base);
+	*result = strtoul(str, &end, base);
 	if (*result == 0)
 		return (errno);
 	return (0);
@@ -1130,26 +1129,31 @@ umem_out_of_memory(void)
 }
 
 static unsigned long
-get_spl_hostid(void)
+get_zfs_hostid(void)
 {
 	FILE *f;
 	unsigned long hostid;
 
-	f = fopen("/sys/module/spl/parameters/spl_hostid", "r");
+	f = fopen("/sys/module/zfs/parameters/zfs_hostid", "r");
 	if (!f)
 		return (0);
+
 	if (fscanf(f, "%lu", &hostid) != 1)
 		hostid = 0;
+
 	fclose(f);
-	return (hostid & 0xffffffff);
+
+	return (hostid & HW_HOSTID_MASK);
 }
 
 unsigned long
-get_system_hostid(void)
+zone_get_hostid(void *zone)
 {
-	unsigned long system_hostid = get_spl_hostid();
+	unsigned long system_hostid = get_zfs_hostid();
+
 	if (system_hostid == 0)
-		system_hostid = gethostid() & 0xffffffff;
+		system_hostid = gethostid() & HW_HOSTID_MASK;
+
 	return (system_hostid);
 }
 
@@ -1164,9 +1168,6 @@ kernel_init(int mode)
 
 	dprintf("physmem = %llu pages (%.2f GB)\n", physmem,
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));
-
-	(void) snprintf(hw_serial, sizeof (hw_serial), "%ld",
-	    (mode & FWRITE) ? get_system_hostid() : 0);
 
 	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
 	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);

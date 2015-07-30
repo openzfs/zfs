@@ -1082,6 +1082,32 @@ Default value: \fB1,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_hostid\fR (ulong)
+.ad
+.RS 12n
+The system hostid, when set this can be used to uniquely identify a system.
+By default this value is set to zero which indicates the hostid is disabled.
+It can be explicitly enabled by placing a unique non-zero value in
+\fB/etc/hostid/\fR.
+.sp
+Default value: \fB0\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_hostid_path\fR (charp)
+.ad
+.RS 12n
+The expected path to locate the system hostid when specified.  This value
+may be overridden for non-standard configurations.
+.sp
+Default value: \fB/etc/hostid\fR
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_immediate_write_sz\fR (long)
 .ad
 .RS 12n

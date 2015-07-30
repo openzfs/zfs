@@ -170,6 +170,7 @@
 #include <sys/pathname.h>
 #include <sys/mount.h>
 #include <sys/sdt.h>
+#include <sys/systeminfo.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>
@@ -195,6 +196,8 @@
 
 kmutex_t zfsdev_state_lock;
 zfsdev_state_t *zfsdev_state_list;
+unsigned long zfs_hostid = 0;
+char *zfs_hostid_path = HW_HOSTID_PATH;
 
 extern void zfs_init(void);
 extern void zfs_fini(void);
@@ -5813,6 +5816,56 @@ zfs_allow_log_destroy(void *arg)
 	strfree(poolname);
 }
 
+unsigned long
+zone_get_hostid(void *zone)
+{
+	struct file *fp;
+	struct kstat stat;
+	uint32_t hostid = 0;
+	ssize_t bytes;
+	loff_t pos = 0;
+	int error;
+
+	ASSERT3P(zone, ==, NULL);
+
+	if (zfs_hostid)
+		return (zfs_hostid);
+
+	fp = file_open(zfs_hostid_path, O_RDONLY, 0644);
+	if (IS_ERR(fp)) {
+		error = PTR_ERR(fp);
+		goto out;
+	}
+
+	error = file_stat(fp, &stat);
+	if (error)
+		goto out_close;
+
+	if (stat.size < sizeof (HW_HOSTID_MASK)) {
+		error = -EIO;
+		goto out_close;
+	}
+
+	bytes = file_read(fp, (char *)&hostid, sizeof (hostid), &pos);
+	if (bytes != sizeof (hostid)) {
+		error = -EIO;
+		goto out_close;
+	}
+
+	zfs_hostid = hostid & HW_HOSTID_MASK;
+out_close:
+	file_close(fp);
+out:
+	if (error)
+		printk(KERN_WARNING "ZFS: Error reading %s: %d\n",
+		    zfs_hostid_path, error);
+	else
+		printk(KERN_NOTICE "ZFS: using hostid 0x%08x\n",
+			(unsigned int)zfs_hostid);
+
+	return (zfs_hostid);
+}
+
 #ifdef DEBUG
 #define	ZFS_DEBUG_STR	" (DEBUG mode)"
 #else
@@ -5880,6 +5933,12 @@ _fini(void)
 #ifdef HAVE_SPL
 module_init(_init);
 module_exit(_fini);
+
+module_param(zfs_hostid, ulong, 0644);
+MODULE_PARM_DESC(zfs_hostid, "System hostid");
+
+module_param(zfs_hostid_path, charp, 0444);
+MODULE_PARM_DESC(zfs_hostid_path, "System hostid file (" HW_HOSTID_PATH ")");
 
 MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
