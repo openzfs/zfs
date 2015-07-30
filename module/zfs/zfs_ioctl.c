@@ -4043,7 +4043,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		props_error = SET_ERROR(EINVAL);
 	}
 
-	off = spl_file_pos(fp);
+	off = file_pos(fp);
 	error = dmu_recv_stream(&drc, vn_from_file(fp), &off, zc->zc_cleanup_fd,
 	    &zc->zc_action_handle);
 
@@ -4069,9 +4069,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		}
 	}
 
-	zc->zc_cookie = off - spl_file_pos(fp);
-	if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
-		spl_file_pos(fp) = off;
+	zc->zc_cookie = off - file_pos(fp);
+	if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+		file_pos(fp) = off;
 
 #ifdef	DEBUG
 	if (zfs_ioc_recv_inject_err) {
@@ -4215,13 +4215,13 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		if (fp == NULL)
 			return (SET_ERROR(EBADF));
 
-		off = spl_file_pos(fp);
+		off = file_pos(fp);
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
 		    zc->zc_fromobj, embedok, large_block_ok,
 		    zc->zc_cookie, vn_from_file(fp), &off);
 
-		if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
-			spl_file_pos(fp) = off;
+		if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+			file_pos(fp) = off;
 		fput(fp);
 	}
 	return (error);
@@ -4673,12 +4673,12 @@ zfs_ioc_diff(zfs_cmd_t *zc)
 	if (fp == NULL)
 		return (SET_ERROR(EBADF));
 
-	off = spl_file_pos(fp);
+	off = file_pos(fp);
 
 	error = dmu_diff(zc->zc_name, zc->zc_value, vn_from_file(fp), &off);
 
-	if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
-		spl_file_pos(fp) = off;
+	if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+		file_pos(fp) = off;
 	fput(fp);
 
 	return (error);
@@ -4984,12 +4984,12 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	if ((fp = fget(fd)) == NULL)
 		return (SET_ERROR(EBADF));
 
-	off = spl_file_pos(fp);
+	off = file_pos(fp);
 	error = dmu_send(snapname, fromname, embedok, largeblockok,
 	    fd, vn_from_file(fp), &off);
 
-	if (vn_seek(vn_from_file(fp), spl_file_pos(fp), &off, NULL) == 0)
-		spl_file_pos(fp) = off;
+	if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+		file_pos(fp) = off;
 
 	fput(fp);
 	return (error);

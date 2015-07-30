@@ -25,6 +25,7 @@
 #include <sys/cred.h>
 #include <linux/file_compat.h>
 #include <linux/dcache_compat.h>
+#include <linux/vfs_compat.h>
 
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 
@@ -104,7 +105,7 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	if (!(flags & FCREAT) && (flags & FWRITE))
 		file_flags |= O_EXCL;
 
-	fp = spl_file_open(path, file_flags, mode);
+	fp = file_open(path, file_flags, mode);
 	if (IS_ERR(fp))
 		return (-PTR_ERR(fp));
 
@@ -141,15 +142,15 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
 	ssize_t size;
 
 	if (flags & FAPPEND)
-		offset = spl_file_pos(fp);
+		offset = file_pos(fp);
 
 	if (uio & UIO_WRITE)
-		size = spl_file_write(fp, addr, len, &offset);
+		size = file_write(fp, addr, len, &offset);
 	else
-		size = spl_file_read(fp, addr, len, &offset);
+		size = file_read(fp, addr, len, &offset);
 
 
-	spl_file_pos(fp) = offset;
+	file_pos(fp) = offset;
 
 	if (size < 0)
 		return (-size);
@@ -166,7 +167,7 @@ int
 vn_close(vnode_t *vp, int unused1, int unused2, int unused3,
     void *unused4, void *unused5)
 {
-	return (-spl_file_close((struct file *)vp));
+	return (-file_close((struct file *)vp));
 }
 
 int
@@ -183,20 +184,20 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
 	struct dentry *dir_dentry;
 	int error;
 
-	fp = spl_file_open(path, O_RDWR, 0644);
+	fp = file_open(path, O_RDWR, 0644);
 	if (IS_ERR(fp))
 		return (-PTR_ERR(fp));
 
-	file_dentry = spl_file_dentry(fp);
+	file_dentry = file_dentry(fp);
 	dir_dentry = dget_parent(file_dentry);
-	spl_inode_lock(dir_dentry->d_inode);
+	zpl_inode_lock(dir_dentry->d_inode);
 
-	error = spl_file_unlink(dir_dentry->d_inode, file_dentry);
+	error = file_unlink(dir_dentry->d_inode, file_dentry);
 
-	spl_inode_unlock(dir_dentry->d_inode);
+	zpl_inode_unlock(dir_dentry->d_inode);
 	dput(dir_dentry);
 
-	spl_file_close(fp);
+	file_close(fp);
 
 	return (error);
 }
@@ -207,7 +208,7 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *unused1, void *unused2)
 	struct kstat stat;
 	int error;
 
-	error = -spl_file_stat((struct file *)vp, &stat);
+	error = -file_stat((struct file *)vp, &stat);
 	if (error)
 		return (error);
 
@@ -243,7 +244,7 @@ vn_fsync(vnode_t *vp, int flags, void *unused1, void *unused2)
 	if (cookie)
 		current->flags &= ~(PF_FSTRANS);
 
-	error = -spl_file_fsync((struct file *)vp, !!(flags & FDSYNC));
+	error = -file_fsync((struct file *)vp, !!(flags & FDSYNC));
 
 	if (cookie)
 		current->flags |= (PF_FSTRANS);

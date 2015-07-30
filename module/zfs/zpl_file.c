@@ -416,13 +416,13 @@ zpl_llseek(struct file *filp, loff_t offset, int whence)
 		loff_t maxbytes = ip->i_sb->s_maxbytes;
 		loff_t error;
 
-		spl_inode_lock(ip);
+		zpl_inode_lock(ip);
 		cookie = spl_fstrans_mark();
 		error = -zfs_holey(ip, whence, &offset);
 		spl_fstrans_unmark(cookie);
 		if (error == 0)
 			error = lseek_execute(filp, ip, offset, maxbytes);
-		spl_inode_unlock(ip);
+		zpl_inode_unlock(ip);
 
 		return (error);
 	}
@@ -651,11 +651,11 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	if (offset < 0 || len <= 0)
 		return (-EINVAL);
 
-	spl_inode_lock(ip);
+	zpl_inode_lock(ip);
 	olen = i_size_read(ip);
 
 	if (offset > olen) {
-		spl_inode_unlock(ip);
+		zpl_inode_unlock(ip);
 		return (0);
 	}
 	if (offset + len > olen)
@@ -669,7 +669,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	cookie = spl_fstrans_mark();
 	error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
 	spl_fstrans_unmark(cookie);
-	spl_inode_unlock(ip);
+	zpl_inode_unlock(ip);
 
 	crfree(cr);
 #endif /* defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE) */

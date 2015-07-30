@@ -113,6 +113,12 @@ zpl_bdi_setup_and_register(struct backing_dev_info *bdi, char *name)
 #endif
 
 /*
+ * Wrappers for taking and releasing the inode lock.
+ */
+#define	zpl_inode_lock(ip)		mutex_lock(&(ip)->i_mutex)
+#define	zpl_inode_unlock(ip)		mutex_unlock(&(ip)->i_mutex)
+
+/*
  * 2.6.38 API change,
  * LOOKUP_RCU flag introduced to distinguish rcu-walk from ref-walk cases.
  */
