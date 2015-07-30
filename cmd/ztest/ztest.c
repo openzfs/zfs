@@ -1097,9 +1097,16 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 	VERIFY0(dsl_prop_get_integer(osname, propname, &curval, setpoint));
 
 	if (ztest_opts.zo_verbose >= 6) {
-		VERIFY(zfs_prop_index_to_string(prop, curval, &valname) == 0);
-		(void) printf("%s %s = %s at '%s'\n",
-		    osname, propname, valname, setpoint);
+		int err;
+
+		err = zfs_prop_index_to_string(prop, curval, &valname);
+		if (err)
+			(void) printf("%s %s = %llu at '%s'\n",
+			    osname, propname, (unsigned long long)curval,
+				setpoint);
+		else
+			(void) printf("%s %s = %s at '%s'\n",
+			    osname, propname, valname, setpoint);
 	}
 	umem_free(setpoint, MAXPATHLEN);
 
