@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 
@@ -371,6 +372,7 @@ zpl_follow_link(struct dentry *dentry, void **symlink_cookie)
 
 	uio.uio_iov = &iov;
 	uio.uio_iovcnt = 1;
+	uio.uio_skip = 0;
 	uio.uio_resid = (MAXPATHLEN - 1);
 	uio.uio_segflg = UIO_SYSSPACE;
 
