@@ -1,6 +1,7 @@
 /*****************************************************************************\
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
+ *  Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  *  Written by Brian Behlendorf <behlendorf1@llnl.gov>.
  *  UCRL-CODE-235197
@@ -26,6 +27,7 @@
 #define _SPL_UIO_H
 
 #include <linux/uio.h>
+#include <linux/blkdev.h>
 #include <asm/uaccess.h>
 #include <sys/types.h>
 
@@ -40,10 +42,14 @@ typedef enum uio_seg {
 	UIO_USERSPACE =	0,
 	UIO_SYSSPACE =	1,
 	UIO_USERISPACE=	2,
+	UIO_BVEC =	3,
 } uio_seg_t;
 
 typedef struct uio {
-	struct iovec	*uio_iov;
+	union {
+		const struct iovec	*uio_iov;
+		const struct bio_vec	*uio_bvec;
+	};
 	int		uio_iovcnt;
 	offset_t	uio_loffset;
 	uio_seg_t	uio_segflg;
@@ -51,6 +57,7 @@ typedef struct uio {
 	uint16_t	uio_extflg;
 	offset_t	uio_limit;
 	ssize_t		uio_resid;
+	size_t		uio_skip;
 } uio_t;
 
 typedef struct aio_req {
