@@ -81,9 +81,9 @@
 #include <sys/systeminfo.h>
 #define	MAXISALEN	257	/* based on sysinfo(2) man page */
 
-static int zfs_share_proto(zfs_handle_t *, zfs_share_proto_t *);
+static int zfs_share_proto(zfs_handle_t *, zfs_share_proto_t *, zfs_json_t *);
 zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
-    zfs_share_proto_t);
+    zfs_share_proto_t, zfs_json_t *);
 
 /*
  * The share protocols table must be in the same order as the zfs_share_prot_t
@@ -121,7 +121,8 @@ zfs_share_proto_t share_all_proto[] = {
  * a zfs_share_type_t value.
  */
 static zfs_share_type_t
-is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
+is_shared(libzfs_handle_t *hdl, const char *mountpoint,
+    zfs_share_proto_t proto, zfs_json_t *json)
 {
 	char buf[MAXPATHLEN], *tab;
 	char *ptr;
@@ -201,7 +202,8 @@ dir_is_empty(const char *dirname)
  * 0.
  */
 boolean_t
-is_mounted(libzfs_handle_t *zfs_hdl, const char *special, char **where)
+is_mounted(libzfs_handle_t *zfs_hdl,
+    const char *special, char **where, zfs_json_t *json)
 {
 	struct mnttab entry;
 
@@ -215,9 +217,9 @@ is_mounted(libzfs_handle_t *zfs_hdl, const char *special, char **where)
 }
 
 boolean_t
-zfs_is_mounted(zfs_handle_t *zhp, char **where)
+zfs_is_mounted(zfs_handle_t *zhp, char **where, zfs_json_t *json)
 {
-	return (is_mounted(zhp->zfs_hdl, zfs_get_name(zhp), where));
+	return (is_mounted(zhp->zfs_hdl, zfs_get_name(zhp), where, json));
 }
 
 /*
@@ -235,17 +237,17 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 	    B_FALSE))
 		return (B_FALSE);
 
-	verify(zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, buf, buflen,
+	verify(zfs_prop_get(NULL, zhp, ZFS_PROP_MOUNTPOINT, buf, buflen,
 	    &sourcetype, sourceloc, sizeof (sourceloc), B_FALSE) == 0);
 
 	if (strcmp(buf, ZFS_MOUNTPOINT_NONE) == 0 ||
 	    strcmp(buf, ZFS_MOUNTPOINT_LEGACY) == 0)
 		return (B_FALSE);
 
-	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_OFF)
+	if (zfs_prop_get_int(NULL, zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_OFF)
 		return (B_FALSE);
 
-	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
+	if (zfs_prop_get_int(NULL, zhp, ZFS_PROP_ZONED) &&
 	    getzoneid() == GLOBAL_ZONEID)
 		return (B_FALSE);
 
@@ -383,7 +385,7 @@ zfs_add_options(zfs_handle_t *zhp, char *options, int len)
  * Mount the given filesystem.
  */
 int
-zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
+zfs_mount(zfs_json_t *json, zfs_handle_t *zhp, const char *options, int flags)
 {
 	struct stat buf;
 	char mountpoint[ZFS_MAXPROPLEN];
@@ -419,9 +421,9 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 */
 	rc = zfs_add_options(zhp, mntopts, sizeof (mntopts));
 	if (rc) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "default options unavailable"));
-		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+		return (zfs_error_fmt(json, hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 		    mountpoint));
 	}
@@ -434,9 +436,9 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	/* Create the directory if it doesn't already exist */
 	if (lstat(mountpoint, &buf) != 0) {
 		if (mkdirp(mountpoint, 0755) != 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 			    "failed to create mountpoint"));
-			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+			return (zfs_error_fmt(json, hdl, EZFS_MOUNTFAILED,
 			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 			    mountpoint));
 		}
@@ -447,7 +449,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 * via the 'overlay' property or the 'zfs mount -O' option.
 	 */
 	if (!(flags & MS_OVERLAY)) {
-		if (zfs_prop_get(zhp, ZFS_PROP_OVERLAY, overlay,
+		if (zfs_prop_get(NULL, zhp, ZFS_PROP_OVERLAY, overlay,
 			    sizeof (overlay), NULL, NULL, 0, B_FALSE) == 0) {
 			if (strcmp(overlay, "on") == 0) {
 				flags |= MS_OVERLAY;
@@ -462,9 +464,9 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 */
 	if ((flags & MS_OVERLAY) == 0 && !remount &&
 	    !dir_is_empty(mountpoint)) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "directory is not empty"));
-		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+		return (zfs_error_fmt(json, hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"), mountpoint));
 	}
 
@@ -477,10 +479,10 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 		 * common ones to improve upon.
 		 */
 		if (rc == EBUSY) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 			    "mountpoint or dataset is busy"));
 		} else if (rc == EPERM) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 			    "Insufficient privileges"));
 		} else if (rc == ENOTSUP) {
 			char buf[256];
@@ -491,199 +493,15 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 			    dgettext(TEXT_DOMAIN, "Can't mount a version %lld "
 			    "file system on a version %d pool. Pool must be"
 			    " upgraded to mount this file system."),
-			    (u_longlong_t)zfs_prop_get_int(zhp,
+			    (u_longlong_t)zfs_prop_get_int(json, zhp,
 			    ZFS_PROP_VERSION), spa_version);
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
+			zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN, buf));
 		} else {
-			zfs_error_aux(hdl, strerror(rc));
+			zfs_error_aux(json, hdl, strerror(rc));
 		}
-		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+		return (zfs_error_fmt(json, hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 		    zhp->zfs_name));
-	}
-
-	/* remove the mounted entry before re-adding on remount */
-	if (remount)
-		libzfs_mnttab_remove(hdl, zhp->zfs_name);
-
-	/* add the mounted entry into our cache */
-	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint, mntopts);
-	return (0);
-}
-
-int
-zfs_json_mount(zfs_json_t *json,
-    zfs_handle_t *zhp, const char *options, int flags)
-{
-	struct stat buf;
-	char mountpoint[ZFS_MAXPROPLEN];
-	char mntopts[MNT_LINE_MAX];
-	char overlay[ZFS_MAXPROPLEN];
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	int remount = 0, rc;
-
-	if (options == NULL) {
-		(void) strlcpy(mntopts, MNTOPT_DEFAULTS, sizeof (mntopts));
-	} else {
-		(void) strlcpy(mntopts, options, sizeof (mntopts));
-	}
-
-	if (strstr(mntopts, MNTOPT_REMOUNT) != NULL)
-		remount = 1;
-
-	/*
-	 * If the pool is imported read-only then all mounts must be read-only
-	 */
-	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
-		(void) strlcat(mntopts, "," MNTOPT_RO, sizeof (mntopts));
-
-	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
-		return (0);
-
-	/*
-	 * Append default mount options which apply to the mount point.
-	 * This is done because under Linux (unlike Solaris) multiple mount
-	 * points may reference a single super block.  This means that just
-	 * given a super block there is no back reference to update the per
-	 * mount point options.
-	 */
-	rc = zfs_add_options(zhp, mntopts, sizeof (mntopts));
-	if (rc) {
-		if (!json->json) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "default options unavailable"));
-			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
-			    mountpoint));
-		} else {
-			zfs_json_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
-			    "default options unavailable"));
-			return (zfs_json_error_fmt(json, hdl, EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
-			    mountpoint));
-		}
-	}
-
-	/*
-	 * Append zfsutil option so the mount helper allow the mount
-	 */
-	strlcat(mntopts, "," MNTOPT_ZFSUTIL, sizeof (mntopts));
-
-	/* Create the directory if it doesn't already exist */
-	if (lstat(mountpoint, &buf) != 0) {
-		if (mkdirp(mountpoint, 0755) != 0) {
-			if (!json->json) {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "failed to create mountpoint"));
-				return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
-				    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
-				    mountpoint));
-			} else {
-				zfs_json_error_aux(json,
-				    hdl, dgettext(TEXT_DOMAIN,
-				    "failed to create mountpoint"));
-				return (zfs_json_error_fmt(json,
-				    hdl, EZFS_MOUNTFAILED,
-				    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
-				    mountpoint));
-			}
-		}
-	}
-
-	/*
-	 * Overlay mounts are disabled by default but may be enabled
-	 * via the 'overlay' property or the 'zfs mount -O' option.
-	 */
-	if (!(flags & MS_OVERLAY)) {
-		if (zfs_prop_get(zhp, ZFS_PROP_OVERLAY, overlay,
-			    sizeof (overlay), NULL, NULL, 0, B_FALSE) == 0) {
-			if (strcmp(overlay, "on") == 0) {
-				flags |= MS_OVERLAY;
-			}
-		}
-	}
-
-	/*
-	 * Determine if the mountpoint is empty.  If so, refuse to perform the
-	 * mount.  We don't perform this check if 'remount' is
-	 * specified or if overlay option(-O) is given
-	 */
-	if ((flags & MS_OVERLAY) == 0 && !remount &&
-	    !dir_is_empty(mountpoint)) {
-		if (!json->json) {
-			zfs_error_aux(hdl,
-			    dgettext(TEXT_DOMAIN,
-			    "directory is not empty"));
-			return (zfs_error_fmt(hdl,
-			    EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN,
-			    "cannot mount '%s'"), mountpoint));
-		} else {
-			zfs_json_error_aux(json,
-			    hdl, dgettext(TEXT_DOMAIN,
-			    "directory is not empty"));
-			return (zfs_json_error_fmt(json,
-			    hdl, EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN,
-			    "cannot mount '%s'"), mountpoint));
-		}
-	}
-
-	/* perform the mount */
-	rc = do_mount(zfs_get_name(zhp), mountpoint, mntopts);
-	if (rc) {
-		/*
-		 * Generic errors are nasty, but there are just way too many
-		 * from mount(), and they're well-understood.  We pick a few
-		 * common ones to improve upon.
-		 */
-		if (rc == EBUSY) {
-			if (!json->json)
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "mountpoint or dataset is busy"));
-				else
-					zfs_json_error_aux(json,
-					    hdl, dgettext(TEXT_DOMAIN,
-					    "mountpoint or"
-					    " dataset"" is busy"));
-		} else if (rc == EPERM) {
-			if (!json->json)
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "Insufficient privileges"));
-			else
-				zfs_json_error_aux(json, hdl,
-				    dgettext(TEXT_DOMAIN,
-				    "Insufficient privileges"));
-		} else if (rc == ENOTSUP) {
-			char buf[256];
-			int spa_version;
-
-			VERIFY(zfs_spa_version(zhp, &spa_version) == 0);
-			(void) snprintf(buf, sizeof (buf),
-			    dgettext(TEXT_DOMAIN, "Can't mount a version %lld "
-			    "file system on a version %d pool. Pool must be"
-			    " upgraded to mount this file system."),
-			    (u_longlong_t)zfs_prop_get_int(zhp,
-			    ZFS_PROP_VERSION), spa_version);
-			if (!json->json)
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
-			else
-				zfs_json_error_aux(json,
-				    hdl, dgettext(TEXT_DOMAIN, buf));
-		} else {
-			if (!json->json)
-				zfs_error_aux(hdl, strerror(rc));
-			else
-				zfs_json_error_aux(json, hdl, strerror(rc));
-		}
-		if (!json->json)
-			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
-			    zhp->zfs_name));
-		else
-			return (zfs_json_error_fmt(json, hdl, EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
-			    zhp->zfs_name));
 	}
 
 	/* remove the mounted entry before re-adding on remount */
@@ -705,7 +523,7 @@ unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
 
 	error = do_unmount(mountpoint, flags);
 	if (error != 0) {
-		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
+		return (zfs_error_fmt(NULL, hdl, EZFS_UMOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
 		    mountpoint));
 	}
@@ -717,7 +535,8 @@ unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
  * Unmount the given filesystem.
  */
 int
-zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
+zfs_unmount(zfs_handle_t *zhp, const char *mountpoint,
+    int flags, zfs_json_t *json)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	struct mnttab entry;
@@ -740,12 +559,12 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		/*
 		 * Unshare and unmount the filesystem
 		 */
-		if (zfs_unshare_proto(zhp, mntpt, share_all_proto) != 0)
+		if (zfs_unshare_proto(zhp, mntpt, share_all_proto, json) != 0)
 			return (-1);
 
 		if (unmount_one(hdl, mntpt, flags) != 0) {
 			free(mntpt);
-			(void) zfs_shareall(zhp);
+			(void) zfs_shareall(zhp, json);
 			return (-1);
 		}
 		libzfs_mnttab_remove(hdl, zhp->zfs_name);
@@ -761,23 +580,23 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
  * remount the filesystems afterwards.
  */
 int
-zfs_unmountall(zfs_handle_t *zhp, int flags)
+zfs_unmountall(zfs_handle_t *zhp, int flags, zfs_json_t *json)
 {
 	prop_changelist_t *clp;
 	int ret;
 
-	clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT, 0, flags);
+	clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT, 0, flags, json);
 	if (clp == NULL)
 		return (-1);
 
-	ret = changelist_prefix(clp);
+	ret = changelist_prefix(clp, json);
 	changelist_free(clp);
 
 	return (ret);
 }
 
 boolean_t
-zfs_is_shared(zfs_handle_t *zhp)
+zfs_is_shared(zfs_handle_t *zhp, zfs_json_t *json)
 {
 	zfs_share_type_t rc = 0;
 	zfs_share_proto_t *curr_proto;
@@ -787,38 +606,39 @@ zfs_is_shared(zfs_handle_t *zhp)
 
 	for (curr_proto = share_all_proto; *curr_proto != PROTO_END;
 	    curr_proto++)
-		rc |= zfs_is_shared_proto(zhp, NULL, *curr_proto);
+		rc |= zfs_is_shared_proto(zhp, NULL, *curr_proto, json);
 
 	return (rc ? B_TRUE : B_FALSE);
 }
 
 int
-zfs_share(zfs_handle_t *zhp)
+zfs_share(zfs_handle_t *zhp, zfs_json_t *json)
 {
 	assert(!ZFS_IS_VOLUME(zhp));
-	return (zfs_share_proto(zhp, share_all_proto));
+	return (zfs_share_proto(zhp, share_all_proto, json));
 }
 
 int
-zfs_unshare(zfs_handle_t *zhp)
+zfs_unshare(zfs_handle_t *zhp, zfs_json_t *json)
 {
 	assert(!ZFS_IS_VOLUME(zhp));
-	return (zfs_unshareall(zhp));
+	return (zfs_unshareall(zhp, json));
 }
 
 /*
  * Check to see if the filesystem is currently shared.
  */
 zfs_share_type_t
-zfs_is_shared_proto(zfs_handle_t *zhp, char **where, zfs_share_proto_t proto)
+zfs_is_shared_proto(zfs_handle_t *zhp, char **where,
+    zfs_share_proto_t proto, zfs_json_t *json)
 {
 	char *mountpoint;
 	zfs_share_type_t rc;
 
-	if (!zfs_is_mounted(zhp, &mountpoint))
+	if (!zfs_is_mounted(zhp, &mountpoint, json))
 		return (SHARED_NOT_SHARED);
 
-	if ((rc = is_shared(zhp->zfs_hdl, mountpoint, proto))) {
+	if ((rc = is_shared(zhp->zfs_hdl, mountpoint, proto, json))) {
 		if (where != NULL)
 			*where = mountpoint;
 		else
@@ -831,17 +651,17 @@ zfs_is_shared_proto(zfs_handle_t *zhp, char **where, zfs_share_proto_t proto)
 }
 
 boolean_t
-zfs_is_shared_nfs(zfs_handle_t *zhp, char **where)
+zfs_is_shared_nfs(zfs_handle_t *zhp, char **where, zfs_json_t *json)
 {
 	return (zfs_is_shared_proto(zhp, where,
-	    PROTO_NFS) != SHARED_NOT_SHARED);
+	    PROTO_NFS, json) != SHARED_NOT_SHARED);
 }
 
 boolean_t
-zfs_is_shared_smb(zfs_handle_t *zhp, char **where)
+zfs_is_shared_smb(zfs_handle_t *zhp, char **where, zfs_json_t *json)
 {
 	return (zfs_is_shared_proto(zhp, where,
-	    PROTO_SMB) != SHARED_NOT_SHARED);
+	    PROTO_SMB, json) != SHARED_NOT_SHARED);
 }
 
 /*
@@ -853,7 +673,7 @@ zfs_is_shared_smb(zfs_handle_t *zhp, char **where)
  * direct map to the libshare sa_init(service) interface.
  */
 int
-zfs_init_libshare(libzfs_handle_t *zhandle, int service)
+zfs_init_libshare(libzfs_handle_t *zhandle, int service, zfs_json_t *json)
 {
 	int ret = SA_OK;
 
@@ -869,12 +689,12 @@ zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 		zhandle->libzfs_shareflags &= ~ZFSSHARE_MISS;
 		if (sa_needs_refresh(zhandle->libzfs_sharehdl)) {
 			zfs_uninit_libshare(zhandle);
-			zhandle->libzfs_sharehdl = sa_init(service);
+			zhandle->libzfs_sharehdl = sa_init(service, json);
 		}
 	}
 
 	if (ret == SA_OK && zhandle && zhandle->libzfs_sharehdl == NULL)
-		zhandle->libzfs_sharehdl = sa_init(service);
+		zhandle->libzfs_sharehdl = sa_init(service, json);
 
 	if (ret == SA_OK && zhandle->libzfs_sharehdl == NULL)
 		ret = SA_NO_MEMORY;
@@ -916,7 +736,7 @@ zfs_parse_options(char *options, zfs_share_proto_t proto)
  * on "libshare" to do the dirty work for us.
  */
 static int
-zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
+zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto, zfs_json_t *json)
 {
 	char mountpoint[ZFS_MAXPROPLEN];
 	char shareopts[ZFS_MAXPROPLEN];
@@ -930,8 +750,8 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
 
-	if ((ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API)) != SA_OK) {
-		(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
+	if ((ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API, json)) != SA_OK) {
+		(void) zfs_error_fmt(json, hdl, EZFS_SHARENFSFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot share '%s': %s"),
 		    zfs_get_name(zhp), sa_errorstr(ret));
 		return (-1);
@@ -941,7 +761,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		/*
 		 * Return success if there are no share options.
 		 */
-		if (zfs_prop_get(zhp, proto_table[*curr_proto].p_prop,
+		if (zfs_prop_get(NULL, zhp, proto_table[*curr_proto].p_prop,
 		    shareopts, sizeof (shareopts), &sourcetype, sourcestr,
 		    ZFS_MAXPROPLEN, B_FALSE) != 0 ||
 		    strcmp(shareopts, "off") == 0)
@@ -953,7 +773,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		 * But local zones cannot be NFS servers, so we ignore it for
 		 * local zones as well.
 		 */
-		if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED))
+		if (zfs_prop_get_int(json, zhp, ZFS_PROP_ZONED))
 			continue;
 
 		share = sa_find_share(hdl->libzfs_sharehdl, mountpoint);
@@ -971,7 +791,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 			    NULL, NULL, mountpoint,
 			    proto_table[*curr_proto].p_name, sourcetype,
 			    shareopts, sourcestr, zhp->zfs_name) != SA_OK) {
-				(void) zfs_error_fmt(hdl,
+				(void) zfs_error_fmt(json, hdl,
 				    proto_table[*curr_proto].p_share_err,
 				    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
 				    zfs_get_name(zhp));
@@ -984,16 +804,16 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		if (share != NULL) {
 			int err;
 			err = sa_enable_share(share,
-			    proto_table[*curr_proto].p_name);
+			    proto_table[*curr_proto].p_name, json);
 			if (err != SA_OK) {
-				(void) zfs_error_fmt(hdl,
+				(void) zfs_error_fmt(json, hdl,
 				    proto_table[*curr_proto].p_share_err,
 				    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
 				    zfs_get_name(zhp));
 				return (-1);
 			}
 		} else {
-			(void) zfs_error_fmt(hdl,
+			(void) zfs_error_fmt(json, hdl,
 			    proto_table[*curr_proto].p_share_err,
 			    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
 			    zfs_get_name(zhp));
@@ -1006,21 +826,21 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 
 
 int
-zfs_share_nfs(zfs_handle_t *zhp)
+zfs_share_nfs(zfs_handle_t *zhp, zfs_json_t *json)
 {
-	return (zfs_share_proto(zhp, nfs_only));
+	return (zfs_share_proto(zhp, nfs_only, json));
 }
 
 int
-zfs_share_smb(zfs_handle_t *zhp)
+zfs_share_smb(zfs_handle_t *zhp, zfs_json_t *json)
 {
-	return (zfs_share_proto(zhp, smb_only));
+	return (zfs_share_proto(zhp, smb_only, json));
 }
 
 int
-zfs_shareall(zfs_handle_t *zhp)
+zfs_shareall(zfs_handle_t *zhp, zfs_json_t *json)
 {
-	return (zfs_share_proto(zhp, share_all_proto));
+	return (zfs_share_proto(zhp, share_all_proto, json));
 }
 
 /*
@@ -1028,7 +848,7 @@ zfs_shareall(zfs_handle_t *zhp)
  */
 static int
 unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
-    zfs_share_proto_t proto)
+    zfs_share_proto_t proto, zfs_json_t *json)
 {
 	sa_share_t share;
 	int err;
@@ -1041,9 +861,9 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
 	mntpt = zfs_strdup(hdl, mountpoint);
 
 	/* make sure libshare initialized */
-	if ((err = zfs_init_libshare(hdl, SA_INIT_SHARE_API)) != SA_OK) {
+	if ((err = zfs_init_libshare(hdl, SA_INIT_SHARE_API, json)) != SA_OK) {
 		free(mntpt);	/* don't need the copy anymore */
-		return (zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
+		return (zfs_error_fmt(NULL, hdl, EZFS_SHARENFSFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': %s"),
 		    name, sa_errorstr(err)));
 	}
@@ -1054,12 +874,12 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
 	if (share != NULL) {
 		err = sa_disable_share(share, proto_table[proto].p_name);
 		if (err != SA_OK) {
-			return (zfs_error_fmt(hdl, EZFS_UNSHARENFSFAILED,
+			return (zfs_error_fmt(NULL, hdl, EZFS_UNSHARENFSFAILED,
 			    dgettext(TEXT_DOMAIN, "cannot unshare '%s': %s"),
 			    name, sa_errorstr(err)));
 		}
 	} else {
-		return (zfs_error_fmt(hdl, EZFS_UNSHARENFSFAILED,
+		return (zfs_error_fmt(NULL, hdl, EZFS_UNSHARENFSFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': not found"),
 		    name));
 	}
@@ -1071,7 +891,7 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
  */
 int
 zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
-    zfs_share_proto_t *proto)
+    zfs_share_proto_t *proto, zfs_json_t *json)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	struct mnttab entry;
@@ -1091,9 +911,9 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 		for (curr_proto = proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
 
-			if (is_shared(hdl, mntpt, *curr_proto) &&
+			if (is_shared(hdl, mntpt, *curr_proto, json) &&
 			    unshare_one(hdl, zhp->zfs_name,
-					mntpt, *curr_proto) != 0) {
+					mntpt, *curr_proto, json) != 0) {
 				if (mntpt != NULL)
 					free(mntpt);
 				return (-1);
@@ -1107,58 +927,60 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 }
 
 int
-zfs_unshare_nfs(zfs_handle_t *zhp, const char *mountpoint)
+zfs_unshare_nfs(zfs_handle_t *zhp, const char *mountpoint, zfs_json_t *json)
 {
-	return (zfs_unshare_proto(zhp, mountpoint, nfs_only));
+	return (zfs_unshare_proto(zhp, mountpoint, nfs_only, json));
 }
 
 int
-zfs_unshare_smb(zfs_handle_t *zhp, const char *mountpoint)
+zfs_unshare_smb(zfs_handle_t *zhp, const char *mountpoint, zfs_json_t *json)
 {
-	return (zfs_unshare_proto(zhp, mountpoint, smb_only));
+	return (zfs_unshare_proto(zhp, mountpoint, smb_only, json));
 }
 
 /*
  * Same as zfs_unmountall(), but for NFS and SMB unshares.
  */
 int
-zfs_unshareall_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
+zfs_unshareall_proto(zfs_handle_t *zhp,
+    zfs_share_proto_t *proto, zfs_json_t *json)
 {
 	prop_changelist_t *clp;
 	int ret;
 
-	clp = changelist_gather(zhp, ZFS_PROP_SHARENFS, 0, 0);
+	clp = changelist_gather(zhp, ZFS_PROP_SHARENFS, 0, 0, json);
 	if (clp == NULL)
 		return (-1);
 
-	ret = changelist_unshare(clp, proto);
+	ret = changelist_unshare(clp, proto, json);
 	changelist_free(clp);
 
 	return (ret);
 }
 
 int
-zfs_unshareall_nfs(zfs_handle_t *zhp)
+zfs_unshareall_nfs(zfs_handle_t *zhp, zfs_json_t *json)
 {
-	return (zfs_unshareall_proto(zhp, nfs_only));
+	return (zfs_unshareall_proto(zhp, nfs_only, json));
 }
 
 int
-zfs_unshareall_smb(zfs_handle_t *zhp)
+zfs_unshareall_smb(zfs_handle_t *zhp, zfs_json_t *json)
 {
-	return (zfs_unshareall_proto(zhp, smb_only));
+	return (zfs_unshareall_proto(zhp, smb_only, json));
 }
 
 int
-zfs_unshareall(zfs_handle_t *zhp)
+zfs_unshareall(zfs_handle_t *zhp, zfs_json_t *json)
 {
-	return (zfs_unshareall_proto(zhp, share_all_proto));
+	return (zfs_unshareall_proto(zhp, share_all_proto, json));
 }
 
 int
-zfs_unshareall_bypath(zfs_handle_t *zhp, const char *mountpoint)
+zfs_unshareall_bypath(zfs_handle_t *zhp,
+    const char *mountpoint, zfs_json_t *json)
 {
-	return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
+	return (zfs_unshare_proto(zhp, mountpoint, share_all_proto, json));
 }
 
 /*
@@ -1212,7 +1034,7 @@ libzfs_add_handle(get_all_cb_t *cbp, zfs_handle_t *zhp)
 }
 
 static int
-mount_cb(zfs_handle_t *zhp, void *data)
+mount_cb(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	get_all_cb_t *cbp = data;
 
@@ -1221,13 +1043,14 @@ mount_cb(zfs_handle_t *zhp, void *data)
 		return (0);
 	}
 
-	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_NOAUTO) {
+	if (zfs_prop_get_int(NULL, zhp,
+	    ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_NOAUTO) {
 		zfs_close(zhp);
 		return (0);
 	}
 
 	libzfs_add_handle(cbp, zhp);
-	if (zfs_iter_filesystems(zhp, mount_cb, cbp) != 0) {
+	if (zfs_iter_filesystems(zhp, mount_cb, cbp, json) != 0) {
 		zfs_close(zhp);
 		return (-1);
 	}
@@ -1244,10 +1067,10 @@ libzfs_dataset_cmp(const void *a, const void *b)
 	boolean_t gota, gotb;
 
 	if ((gota = (zfs_get_type(*za) == ZFS_TYPE_FILESYSTEM)) != 0)
-		verify(zfs_prop_get(*za, ZFS_PROP_MOUNTPOINT, mounta,
+		verify(zfs_prop_get(NULL, *za, ZFS_PROP_MOUNTPOINT, mounta,
 		    sizeof (mounta), NULL, NULL, 0, B_FALSE) == 0);
 	if ((gotb = (zfs_get_type(*zb) == ZFS_TYPE_FILESYSTEM)) != 0)
-		verify(zfs_prop_get(*zb, ZFS_PROP_MOUNTPOINT, mountb,
+		verify(zfs_prop_get(NULL, *zb, ZFS_PROP_MOUNTPOINT, mountb,
 		    sizeof (mountb), NULL, NULL, 0, B_FALSE) == 0);
 
 	if (gota && gotb)
@@ -1271,7 +1094,8 @@ libzfs_dataset_cmp(const void *a, const void *b)
  */
 #pragma weak zpool_mount_datasets = zpool_enable_datasets
 int
-zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
+zpool_enable_datasets(zpool_handle_t *zhp,
+    const char *mntopts, int flags, zfs_json_t *json)
 {
 	get_all_cb_t cb = { 0 };
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
@@ -1282,11 +1106,12 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	/*
 	 * Gather all non-snap datasets within the pool.
 	 */
-	if ((zfsp = zfs_open(hdl, zhp->zpool_name, ZFS_TYPE_DATASET)) == NULL)
+	if ((zfsp = zfs_open(json, hdl, zhp->zpool_name,
+	    ZFS_TYPE_DATASET)) == NULL)
 		goto out;
 
 	libzfs_add_handle(&cb, zfsp);
-	if (zfs_iter_filesystems(zfsp, mount_cb, &cb) != 0)
+	if (zfs_iter_filesystems(zfsp, mount_cb, &cb, json) != 0)
 		goto out;
 	/*
 	 * Sort the datasets by mountpoint.
@@ -1304,7 +1129,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 
 	ret = 0;
 	for (i = 0; i < cb.cb_used; i++) {
-		if (zfs_mount(cb.cb_handles[i], mntopts, flags) != 0)
+		if (zfs_mount(json, cb.cb_handles[i], mntopts, flags) != 0)
 			ret = -1;
 		else
 			good[i] = 1;
@@ -1317,7 +1142,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	 * zfs_alloc is supposed to exit if memory isn't available.
 	 */
 	for (i = 0; i < cb.cb_used; i++) {
-		if (good[i] && zfs_share(cb.cb_handles[i]) != 0)
+		if (good[i] && zfs_share(cb.cb_handles[i], json) != 0)
 			ret = -1;
 	}
 
@@ -1350,7 +1175,7 @@ mountpoint_compare(const void *a, const void *b)
  * gather all the filesystems that are currently mounted.
  */
 int
-zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
+zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force, zfs_json_t *json)
 {
 	int used, alloc;
 	struct mnttab entry;
@@ -1447,9 +1272,9 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 		zfs_share_proto_t *curr_proto;
 		for (curr_proto = share_all_proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
-			if (is_shared(hdl, mountpoints[i], *curr_proto) &&
+			if (is_shared(hdl, mountpoints[i], *curr_proto, json) &&
 			    unshare_one(hdl, mountpoints[i],
-			    mountpoints[i], *curr_proto) != 0)
+			    mountpoints[i], *curr_proto, json) != 0)
 				goto out;
 		}
 	}
