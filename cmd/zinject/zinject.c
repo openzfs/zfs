@@ -964,9 +964,10 @@ main(int argc, char **argv)
 	 * time we access the pool.
 	 */
 	if (dataset[0] != '\0' && domount) {
-		if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_DATASET)) == NULL)
+		if ((zhp = zfs_open(NULL, g_zfs,
+		    dataset, ZFS_TYPE_DATASET)) == NULL)
 			return (1);
-		if (zfs_unmount(zhp, NULL, 0) != 0)
+		if (zfs_unmount(zhp, NULL, 0, NULL) != 0)
 			return (1);
 	}
 
@@ -975,7 +976,7 @@ main(int argc, char **argv)
 	ret = register_handler(pool, flags, &record, quiet);
 
 	if (dataset[0] != '\0' && domount)
-		ret = (zfs_mount(zhp, NULL, 0) != 0);
+		ret = (zfs_mount(NULL, zhp, NULL, 0) != 0);
 
 	libzfs_fini(g_zfs);
 

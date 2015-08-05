@@ -91,7 +91,7 @@ struct prop_changelist {
  * since there may be old resource names that need to be removed.
  */
 int
-changelist_prefix(prop_changelist_t *clp)
+changelist_prefix(prop_changelist_t *clp, zfs_json_t *json)
 {
 	prop_changenode_t *cn;
 	int ret = 0;
@@ -123,13 +123,14 @@ changelist_prefix(prop_changelist_t *clp)
 			switch (clp->cl_prop) {
 			case ZFS_PROP_MOUNTPOINT:
 				if (zfs_unmount(cn->cn_handle, NULL,
-				    clp->cl_mflags) != 0) {
+				    clp->cl_mflags, json) != 0) {
 					ret = -1;
 					cn->cn_needpost = B_FALSE;
 				}
 				break;
 			case ZFS_PROP_SHARESMB:
-				(void) zfs_unshare_smb(cn->cn_handle, NULL);
+				(void) zfs_unshare_smb(cn->cn_handle,
+				    NULL, json);
 				break;
 			default:
 				break;
@@ -138,7 +139,7 @@ changelist_prefix(prop_changelist_t *clp)
 	}
 
 	if (ret == -1)
-		(void) changelist_postfix(clp);
+		(void) changelist_postfix(clp, json);
 
 	return (ret);
 }
@@ -153,7 +154,7 @@ changelist_prefix(prop_changelist_t *clp)
  * filesystem.
  */
 int
-changelist_postfix(prop_changelist_t *clp)
+changelist_postfix(prop_changelist_t *clp, zfs_json_t *json)
 {
 	prop_changenode_t *cn;
 	char shareopts[ZFS_MAXPROPLEN];
@@ -218,22 +219,24 @@ changelist_postfix(prop_changelist_t *clp)
 		 * Remount if previously mounted or mountpoint was legacy,
 		 * or sharenfs or sharesmb  property is set.
 		 */
-		sharenfs = ((zfs_prop_get(cn->cn_handle, ZFS_PROP_SHARENFS,
+		sharenfs = ((zfs_prop_get(json,
+		    cn->cn_handle, ZFS_PROP_SHARENFS,
 		    shareopts, sizeof (shareopts), NULL, NULL, 0,
 		    B_FALSE) == 0) && (strcmp(shareopts, "off") != 0));
 
-		sharesmb = ((zfs_prop_get(cn->cn_handle, ZFS_PROP_SHARESMB,
+		sharesmb = ((zfs_prop_get(json,
+		    cn->cn_handle, ZFS_PROP_SHARESMB,
 		    shareopts, sizeof (shareopts), NULL, NULL, 0,
 		    B_FALSE) == 0) && (strcmp(shareopts, "off") != 0));
 
-		mounted = zfs_is_mounted(cn->cn_handle, NULL);
+		mounted = zfs_is_mounted(cn->cn_handle, NULL, json);
 
 		if (!mounted && (cn->cn_mounted ||
 		    ((sharenfs || sharesmb || clp->cl_waslegacy) &&
-		    (zfs_prop_get_int(cn->cn_handle,
+		    (zfs_prop_get_int(json, cn->cn_handle,
 		    ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON)))) {
 
-			if (zfs_mount(cn->cn_handle, NULL, 0) != 0)
+			if (zfs_mount(json, cn->cn_handle, NULL, 0) != 0)
 				errors++;
 			else
 				mounted = TRUE;
@@ -245,13 +248,13 @@ changelist_postfix(prop_changelist_t *clp)
 		 * adopt any new options.
 		 */
 		if (sharenfs && mounted)
-			errors += zfs_share_nfs(cn->cn_handle);
+			errors += zfs_share_nfs(cn->cn_handle, json);
 		else if (cn->cn_shared || clp->cl_waslegacy)
-			errors += zfs_unshare_nfs(cn->cn_handle, NULL);
+			errors += zfs_unshare_nfs(cn->cn_handle, NULL, json);
 		if (sharesmb && mounted)
-			errors += zfs_share_smb(cn->cn_handle);
+			errors += zfs_share_smb(cn->cn_handle, json);
 		else if (cn->cn_shared || clp->cl_waslegacy)
-			errors += zfs_unshare_smb(cn->cn_handle, NULL);
+			errors += zfs_unshare_smb(cn->cn_handle, NULL, json);
 	}
 
 	return (errors ? -1 : 0);
@@ -284,7 +287,8 @@ isa_child_of(const char *dataset, const char *parent)
  * this is a lot less work.
  */
 void
-changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
+changelist_rename(prop_changelist_t *clp,
+    const char *src, const char *dst)
 {
 	prop_changenode_t *cn;
 	char newname[ZFS_MAXNAMELEN];
@@ -315,7 +319,8 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
  * unshare all the datasets in the list.
  */
 int
-changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
+changelist_unshare(prop_changelist_t *clp,
+    zfs_share_proto_t *proto, zfs_json_t *json)
 {
 	prop_changenode_t *cn;
 	int ret = 0;
@@ -326,7 +331,7 @@ changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
 
 	for (cn = uu_list_first(clp->cl_list); cn != NULL;
 	    cn = uu_list_next(clp->cl_list, cn)) {
-		if (zfs_unshare_proto(cn->cn_handle, NULL, proto) != 0)
+		if (zfs_unshare_proto(cn->cn_handle, NULL, proto, json) != 0)
 			ret = -1;
 	}
 
@@ -389,7 +394,7 @@ changelist_free(prop_changelist_t *clp)
 }
 
 static int
-change_one(zfs_handle_t *zhp, void *data)
+change_one(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	prop_changelist_t *clp = data;
 	char property[ZFS_MAXPROPLEN];
@@ -409,7 +414,7 @@ change_one(zfs_handle_t *zhp, void *data)
 	 */
 
 	if (!(ZFS_IS_VOLUME(zhp) && clp->cl_realprop == ZFS_PROP_NAME) &&
-	    zfs_prop_get(zhp, clp->cl_prop, property,
+	    zfs_prop_get(NULL, zhp, clp->cl_prop, property,
 	    sizeof (property), &sourcetype, where, sizeof (where),
 	    B_FALSE) != 0) {
 		zfs_close(zhp);
@@ -422,7 +427,7 @@ change_one(zfs_handle_t *zhp, void *data)
 	 * in cl_shareprop
 	 */
 	if (clp->cl_shareprop != ZPROP_INVAL &&
-	    zfs_prop_get(zhp, clp->cl_shareprop, property,
+	    zfs_prop_get(NULL, zhp, clp->cl_shareprop, property,
 	    sizeof (property), &share_sourcetype, where, sizeof (where),
 	    B_FALSE) != 0) {
 		zfs_close(zhp);
@@ -443,9 +448,9 @@ change_one(zfs_handle_t *zhp, void *data)
 
 		cn->cn_handle = zhp;
 		cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
-		    zfs_is_mounted(zhp, NULL);
-		cn->cn_shared = zfs_is_shared(zhp);
-		cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
+		    zfs_is_mounted(zhp, NULL, json);
+		cn->cn_shared = zfs_is_shared(zhp, json);
+		cn->cn_zoned = zfs_prop_get_int(NULL, zhp, ZFS_PROP_ZONED);
 		cn->cn_needpost = B_TRUE;
 
 		/* Indicate if any child is exported to a local zone. */
@@ -475,7 +480,7 @@ change_one(zfs_handle_t *zhp, void *data)
 		}
 
 		if (!clp->cl_alldependents)
-			return (zfs_iter_children(zhp, change_one, data));
+			return (zfs_iter_children(zhp, change_one, data, json));
 	} else {
 		zfs_close(zhp);
 	}
@@ -503,9 +508,11 @@ compare_mountpoints(const void *a, const void *b, void *unused)
 	 * mountpoint (because it is a volume or a snapshot), we place it at the
 	 * end of the list, because it doesn't affect our change at all.
 	 */
-	hasmounta = (zfs_prop_get(ca->cn_handle, ZFS_PROP_MOUNTPOINT, mounta,
+	hasmounta = (zfs_prop_get(NULL, ca->cn_handle,
+	    ZFS_PROP_MOUNTPOINT, mounta,
 	    sizeof (mounta), NULL, NULL, 0, B_FALSE) == 0);
-	hasmountb = (zfs_prop_get(cb->cn_handle, ZFS_PROP_MOUNTPOINT, mountb,
+	hasmountb = (zfs_prop_get(NULL, cb->cn_handle,
+	    ZFS_PROP_MOUNTPOINT, mountb,
 	    sizeof (mountb), NULL, NULL, 0, B_FALSE) == 0);
 
 	if (!hasmounta && hasmountb)
@@ -528,7 +535,7 @@ compare_mountpoints(const void *a, const void *b, void *unused)
  */
 prop_changelist_t *
 changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
-    int mnt_flags)
+    int mnt_flags, zfs_json_t *json)
 {
 	prop_changelist_t *clp;
 	prop_changenode_t *cn;
@@ -549,7 +556,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	    prop == ZFS_PROP_MOUNTPOINT || prop == ZFS_PROP_SHARENFS ||
 	    prop == ZFS_PROP_SHARESMB) {
 
-		if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT,
+		if (zfs_prop_get(NULL, zhp, ZFS_PROP_MOUNTPOINT,
 		    property, sizeof (property),
 		    NULL, NULL, 0, B_FALSE) == 0 &&
 		    (strcmp(property, "legacy") == 0 ||
@@ -569,7 +576,8 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	    compare, 0);
 	if (clp->cl_pool == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
-		(void) zfs_error(zhp->zfs_hdl, EZFS_NOMEM, "internal error");
+		(void) zfs_error(NULL, zhp->zfs_hdl,
+		    EZFS_NOMEM, "internal error");
 		changelist_free(clp);
 		return (NULL);
 	}
@@ -581,7 +589,8 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 
 	if (clp->cl_list == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
-		(void) zfs_error(zhp->zfs_hdl, EZFS_NOMEM, "internal error");
+		(void) zfs_error(NULL, zhp->zfs_hdl,
+		    EZFS_NOMEM, "internal error");
 		changelist_free(clp);
 		return (NULL);
 	}
@@ -624,11 +633,12 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 		clp->cl_shareprop = ZFS_PROP_SHARENFS;
 
 	if (clp->cl_alldependents) {
-		if (zfs_iter_dependents(zhp, B_TRUE, change_one, clp) != 0) {
+		if (zfs_iter_dependents(zhp, B_TRUE,
+		    change_one, clp, json) != 0) {
 			changelist_free(clp);
 			return (NULL);
 		}
-	} else if (zfs_iter_children(zhp, change_one, clp) != 0) {
+	} else if (zfs_iter_children(zhp, change_one, clp, json) != 0) {
 		changelist_free(clp);
 		return (NULL);
 	}
@@ -637,7 +647,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	 * We have to re-open ourselves because we auto-close all the handles
 	 * and can't tell the difference.
 	 */
-	if ((temp = zfs_open(zhp->zfs_hdl, zfs_get_name(zhp),
+	if ((temp = zfs_open(NULL, zhp->zfs_hdl, zfs_get_name(zhp),
 	    ZFS_TYPE_DATASET)) == NULL) {
 		changelist_free(clp);
 		return (NULL);
@@ -656,9 +666,9 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 
 	cn->cn_handle = temp;
 	cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
-	    zfs_is_mounted(temp, NULL);
-	cn->cn_shared = zfs_is_shared(temp);
-	cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
+	    zfs_is_mounted(temp, NULL, json);
+	cn->cn_shared = zfs_is_shared(temp, json);
+	cn->cn_zoned = zfs_prop_get_int(NULL, zhp, ZFS_PROP_ZONED);
 	cn->cn_needpost = B_TRUE;
 
 	uu_list_node_init(cn, &cn->cn_listnode, clp->cl_pool);
@@ -686,7 +696,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 		 * do not automatically mount ex-legacy datasets if
 		 * we specifically set canmount to noauto
 		 */
-		if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) !=
+		if (zfs_prop_get_int(NULL, zhp, ZFS_PROP_CANMOUNT) !=
 		    ZFS_CANMOUNT_NOAUTO)
 			clp->cl_waslegacy = B_TRUE;
 	}

@@ -45,24 +45,25 @@ uint_t num_logs(nvlist_t *nv);
 
 nvlist_t *make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force,
     int check_rep, boolean_t replacing, boolean_t dryrun, int argc,
-    char **argv);
+    char **argv, zfs_json_t *);
 nvlist_t *split_mirror_vdev(zpool_handle_t *zhp, char *newname,
-    nvlist_t *props, splitflags_t flags, int argc, char **argv);
+    nvlist_t *props, splitflags_t flags, int argc, char **argv, zfs_json_t *);
 
 /*
  * Pool list functions
  */
 int for_each_pool(int, char **, boolean_t unavail, zprop_list_t **,
-    zpool_iter_f, void *);
+    zpool_iter_f, void *, zfs_json_t *);
 
 typedef struct zpool_list zpool_list_t;
 
-zpool_list_t *pool_list_get(int, char **, zprop_list_t **, int *);
-void pool_list_update(zpool_list_t *);
-int pool_list_iter(zpool_list_t *, int unavail, zpool_iter_f, void *);
-void pool_list_free(zpool_list_t *);
-int pool_list_count(zpool_list_t *);
-void pool_list_remove(zpool_list_t *, zpool_handle_t *);
+zpool_list_t *pool_list_get(int, char **, zprop_list_t **, int *, zfs_json_t *);
+void pool_list_update(zpool_list_t *, zfs_json_t *);
+int pool_list_iter(zpool_list_t *, int unavail,
+    zpool_iter_f, void *, zfs_json_t *);
+void pool_list_free(zpool_list_t *, zfs_json_t *);
+int pool_list_count(zpool_list_t *, zfs_json_t *);
+void pool_list_remove(zpool_list_t *, zpool_handle_t *, zfs_json_t *);
 
 libzfs_handle_t *g_zfs;
 

@@ -74,13 +74,13 @@ typedef void *sa_share_t;
 #define	SA_SHARE_EXISTS		33	/* path or file is already shared */
 
 /* initialization */
-extern sa_handle_t sa_init(int);
+extern sa_handle_t sa_init(int, zfs_json_t *);
 extern void sa_fini(sa_handle_t);
 extern char *sa_errorstr(int);
 
 /* share control */
 extern sa_share_t sa_find_share(sa_handle_t, char *);
-extern int sa_enable_share(sa_group_t, char *);
+extern int sa_enable_share(sa_group_t, char *, zfs_json_t *);
 extern int sa_disable_share(sa_share_t, char *);
 
 /* protocol specific interfaces */

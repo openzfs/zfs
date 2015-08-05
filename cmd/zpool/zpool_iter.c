@@ -72,7 +72,7 @@ zpool_compare(const void *larg, const void *rarg, void *unused)
  * of known pools.
  */
 static int
-add_pool(zpool_handle_t *zhp, void *data)
+add_pool(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	zpool_list_t *zlp = data;
 	zpool_node_t *node = safe_malloc(sizeof (zpool_node_t));
@@ -104,7 +104,8 @@ add_pool(zpool_handle_t *zhp, void *data)
  * line.
  */
 zpool_list_t *
-pool_list_get(int argc, char **argv, zprop_list_t **proplist, int *err)
+pool_list_get(int argc, char **argv,
+    zprop_list_t **proplist, int *err, zfs_json_t *json)
 {
 	zpool_list_t *zlp;
 
@@ -123,7 +124,7 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, int *err)
 	zlp->zl_proplist = proplist;
 
 	if (argc == 0) {
-		(void) zpool_iter(g_zfs, add_pool, zlp);
+		(void) zpool_iter(g_zfs, add_pool, zlp, json);
 		zlp->zl_findall = B_TRUE;
 	} else {
 		int i;
@@ -131,8 +132,8 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, int *err)
 		for (i = 0; i < argc; i++) {
 			zpool_handle_t *zhp;
 
-			if ((zhp = zpool_open_canfail(g_zfs, argv[i]))) {
-				if (add_pool(zhp, zlp) != 0)
+			if ((zhp = zpool_open_canfail(NULL, g_zfs, argv[i]))) {
+				if (add_pool(zhp, zlp, json) != 0)
 					*err = B_TRUE;
 			} else {
 				*err = B_TRUE;
@@ -149,10 +150,10 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, int *err)
  * those that were explicitly specified.
  */
 void
-pool_list_update(zpool_list_t *zlp)
+pool_list_update(zpool_list_t *zlp, zfs_json_t *json)
 {
 	if (zlp->zl_findall)
-		(void) zpool_iter(g_zfs, add_pool, zlp);
+		(void) zpool_iter(g_zfs, add_pool, zlp, json);
 }
 
 /*
@@ -160,7 +161,7 @@ pool_list_update(zpool_list_t *zlp)
  */
 int
 pool_list_iter(zpool_list_t *zlp, int unavail, zpool_iter_f func,
-    void *data)
+    void *data, zfs_json_t *json)
 {
 	zpool_node_t *node, *next_node;
 	int ret = 0;
@@ -169,7 +170,7 @@ pool_list_iter(zpool_list_t *zlp, int unavail, zpool_iter_f func,
 		next_node = uu_avl_next(zlp->zl_avl, node);
 		if (zpool_get_state(node->zn_handle) != POOL_STATE_UNAVAIL ||
 		    unavail)
-			ret |= func(node->zn_handle, data);
+			ret |= func(node->zn_handle, data, json);
 	}
 
 	return (ret);
@@ -180,7 +181,7 @@ pool_list_iter(zpool_list_t *zlp, int unavail, zpool_iter_f func,
  * those pools that no longer exist.
  */
 void
-pool_list_remove(zpool_list_t *zlp, zpool_handle_t *zhp)
+pool_list_remove(zpool_list_t *zlp, zpool_handle_t *zhp, zfs_json_t *json)
 {
 	zpool_node_t search, *node;
 
@@ -196,7 +197,7 @@ pool_list_remove(zpool_list_t *zlp, zpool_handle_t *zhp)
  * Free all the handles associated with this list.
  */
 void
-pool_list_free(zpool_list_t *zlp)
+pool_list_free(zpool_list_t *zlp, zfs_json_t *json)
 {
 	uu_avl_walk_t *walk;
 	zpool_node_t *node;
@@ -224,7 +225,7 @@ pool_list_free(zpool_list_t *zlp)
  * Returns the number of elements in the pool list.
  */
 int
-pool_list_count(zpool_list_t *zlp)
+pool_list_count(zpool_list_t *zlp, zfs_json_t *json)
 {
 	return (uu_avl_numnodes(zlp->zl_avl));
 }
@@ -235,18 +236,18 @@ pool_list_count(zpool_list_t *zlp)
  */
 int
 for_each_pool(int argc, char **argv, boolean_t unavail,
-    zprop_list_t **proplist, zpool_iter_f func, void *data)
+    zprop_list_t **proplist, zpool_iter_f func, void *data, zfs_json_t *json)
 {
 	zpool_list_t *list;
 	int ret = 0;
 
-	if ((list = pool_list_get(argc, argv, proplist, &ret)) == NULL)
+	if ((list = pool_list_get(argc, argv, proplist, &ret, json)) == NULL)
 		return (1);
 
-	if (pool_list_iter(list, unavail, func, data) != 0)
+	if (pool_list_iter(list, unavail, func, data, json) != 0)
 		ret = 1;
 
-	pool_list_free(list);
+	pool_list_free(list, json);
 
 	return (ret);
 }

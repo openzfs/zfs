@@ -486,7 +486,7 @@ differ(void *arg)
 }
 
 static int
-find_shares_object(differ_info_t *di)
+find_shares_object(differ_info_t *di, zfs_json_t *json)
 {
 	char fullpath[MAXPATHLEN];
 	struct stat64 sb = { 0 };
@@ -497,7 +497,8 @@ find_shares_object(differ_info_t *di)
 	if (stat64(fullpath, &sb) != 0) {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN, "Cannot stat %s"), fullpath);
-		return (zfs_error(di->zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
+		return (zfs_error(NULL,
+		    di->zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
 	}
 
 	di->shares = (uint64_t)sb.st_ino;
@@ -522,12 +523,12 @@ make_temp_snapshot(differ_info_t *di)
 			    dgettext(TEXT_DOMAIN, "The diff delegated "
 			    "permission is needed in order\nto create a "
 			    "just-in-time snapshot for diffing\n"));
-			return (zfs_error(hdl, EZFS_DIFF, di->errbuf));
+			return (zfs_error(NULL, hdl, EZFS_DIFF, di->errbuf));
 		} else {
 			(void) snprintf(di->errbuf, sizeof (di->errbuf),
 			    dgettext(TEXT_DOMAIN, "Cannot create just-in-time "
 			    "snapshot of '%s'"), zc.zc_name);
-			return (zfs_standard_error(hdl, err, di->errbuf));
+			return (zfs_standard_error(NULL, hdl, err, di->errbuf));
 		}
 	}
 
@@ -551,7 +552,7 @@ teardown_differ_info(differ_info_t *di)
 
 static int
 get_snapshot_names(differ_info_t *di, const char *fromsnap,
-    const char *tosnap)
+    const char *tosnap, zfs_json_t *json)
 {
 	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
 	char *atptrf = NULL;
@@ -573,9 +574,9 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 		    dgettext(TEXT_DOMAIN,
 		    "Badly formed snapshot name %s"), fromsnap);
 
-		if (!zfs_validate_name(hdl, fromsnap, ZFS_TYPE_SNAPSHOT,
+		if (!zfs_validate_name(json, hdl, fromsnap, ZFS_TYPE_SNAPSHOT,
 		    B_FALSE)) {
-			return (zfs_error(hdl, EZFS_INVALIDNAME,
+			return (zfs_error(json, hdl, EZFS_INVALIDNAME,
 			    di->errbuf));
 		}
 
@@ -604,7 +605,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 
 	if (fsnlen <= 1 || tsnlen == 1 || (fdslen == 0 && tdslen == 0) ||
 	    (fsnlen == 0 && tsnlen == 0)) {
-		return (zfs_error(hdl, EZFS_INVALIDNAME, di->errbuf));
+		return (zfs_error(json, hdl, EZFS_INVALIDNAME, di->errbuf));
 	} else if ((fdslen > 0 && tdslen > 0) &&
 	    ((tdslen != fdslen || strncmp(fromsnap, tosnap, fdslen) != 0))) {
 		/*
@@ -619,9 +620,9 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 		(void) strncpy(di->ds, tosnap, tdslen);
 		di->ds[tdslen] = '\0';
 
-		zhp = zfs_open(hdl, di->ds, ZFS_TYPE_FILESYSTEM);
+		zhp = zfs_open(json, hdl, di->ds, ZFS_TYPE_FILESYSTEM);
 		while (zhp != NULL) {
-			if (zfs_prop_get(zhp, ZFS_PROP_ORIGIN, origin,
+			if (zfs_prop_get(json, zhp, ZFS_PROP_ORIGIN, origin,
 			    sizeof (origin), &src, NULL, 0, B_FALSE) != 0) {
 				(void) zfs_close(zhp);
 				zhp = NULL;
@@ -631,14 +632,15 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 				break;
 
 			(void) zfs_close(zhp);
-			zhp = zfs_open(hdl, origin, ZFS_TYPE_FILESYSTEM);
+			zhp = zfs_open(json, hdl, origin, ZFS_TYPE_FILESYSTEM);
 		}
 
 		if (zhp == NULL) {
 			(void) snprintf(di->errbuf, sizeof (di->errbuf),
 			    dgettext(TEXT_DOMAIN,
 			    "Not an earlier snapshot from the same fs"));
-			return (zfs_error(hdl, EZFS_INVALIDNAME, di->errbuf));
+			return (zfs_error(json, hdl,
+			    EZFS_INVALIDNAME, di->errbuf));
 		} else {
 			(void) zfs_close(zhp);
 		}
@@ -668,16 +670,17 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 }
 
 static int
-get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
+get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt, zfs_json_t *json)
 {
 	boolean_t mounted;
 
-	mounted = is_mounted(di->zhp->zfs_hdl, dsnm, mntpt);
+	mounted = is_mounted(di->zhp->zfs_hdl, dsnm, mntpt, json);
 	if (mounted == B_FALSE) {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,
 		    "Cannot diff an unmounted snapshot"));
-		return (zfs_error(di->zhp->zfs_hdl, EZFS_BADTYPE, di->errbuf));
+		return (zfs_error(json,
+		    di->zhp->zfs_hdl, EZFS_BADTYPE, di->errbuf));
 	}
 
 	/* Avoid a double slash at the beginning of root-mounted datasets */
@@ -687,7 +690,7 @@ get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
 }
 
 static int
-get_mountpoints(differ_info_t *di)
+get_mountpoints(differ_info_t *di, zfs_json_t *json)
 {
 	char *strptr;
 	char *frommntpt;
@@ -695,7 +698,7 @@ get_mountpoints(differ_info_t *di)
 	/*
 	 * first get the mountpoint for the parent dataset
 	 */
-	if (get_mountpoint(di, di->ds, &di->dsmnt) != 0)
+	if (get_mountpoint(di, di->ds, &di->dsmnt, json) != 0)
 		return (-1);
 
 	strptr = strchr(di->tosnap, '@');
@@ -712,7 +715,7 @@ get_mountpoints(differ_info_t *di)
 		int err;
 
 		*strptr = '\0';
-		err = get_mountpoint(di, di->fromsnap, &mntpt);
+		err = get_mountpoint(di, di->fromsnap, &mntpt, json);
 		*strptr = '@';
 		if (err != 0)
 			return (-1);
@@ -730,20 +733,20 @@ get_mountpoints(differ_info_t *di)
 
 static int
 setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
-    const char *tosnap, differ_info_t *di)
+    const char *tosnap, differ_info_t *di, zfs_json_t *json)
 {
 	di->zhp = zhp;
 
 	di->cleanupfd = open(ZFS_DEV, O_RDWR);
 	VERIFY(di->cleanupfd >= 0);
 
-	if (get_snapshot_names(di, fromsnap, tosnap) != 0)
+	if (get_snapshot_names(di, fromsnap, tosnap, json) != 0)
 		return (-1);
 
-	if (get_mountpoints(di) != 0)
+	if (get_mountpoints(di, json) != 0)
 		return (-1);
 
-	if (find_shares_object(di) != 0)
+	if (find_shares_object(di, json) != 0)
 		return (-1);
 
 	return (0);
@@ -751,7 +754,7 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 
 int
 zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
-    const char *tosnap, int flags)
+    const char *tosnap, int flags, zfs_json_t *json)
 {
 	zfs_cmd_t zc = {"\0"};
 	char errbuf[1024];
@@ -763,15 +766,15 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "zfs diff failed"));
 
-	if (setup_differ_info(zhp, fromsnap, tosnap, &di)) {
+	if (setup_differ_info(zhp, fromsnap, tosnap, &di, json)) {
 		teardown_differ_info(&di);
 		return (-1);
 	}
 
 	if (pipe(pipefd)) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+		zfs_error_aux(NULL, zhp->zfs_hdl, strerror(errno));
 		teardown_differ_info(&di);
-		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));
+		return (zfs_error(NULL, zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));
 	}
 
 	di.scripted = (flags & ZFS_DIFF_PARSEABLE);
@@ -782,11 +785,11 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	di.datafd = pipefd[0];
 
 	if (pthread_create(&tid, NULL, differ, &di)) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+		zfs_error_aux(NULL, zhp->zfs_hdl, strerror(errno));
 		(void) close(pipefd[0]);
 		(void) close(pipefd[1]);
 		teardown_differ_info(&di);
-		return (zfs_error(zhp->zfs_hdl,
+		return (zfs_error(NULL, zhp->zfs_hdl,
 		    EZFS_THREADCREATEFAILED, errbuf));
 	}
 
@@ -800,25 +803,27 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "Unable to obtain diffs"));
 		if (errno == EPERM) {
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "\n   The sys_mount privilege or diff delegated "
 			    "permission is needed\n   to execute the "
 			    "diff ioctl"));
 		} else if (errno == EXDEV) {
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "\n   Not an earlier snapshot from the same fs"));
 		} else if (errno != EPIPE || di.zerr == 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+			zfs_error_aux(NULL, zhp->zfs_hdl, strerror(errno));
 		}
 		(void) close(pipefd[1]);
 		(void) pthread_cancel(tid);
 		(void) pthread_join(tid, NULL);
 		teardown_differ_info(&di);
 		if (di.zerr != 0 && di.zerr != EPIPE) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
-			return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
+			zfs_error_aux(NULL, zhp->zfs_hdl, strerror(di.zerr));
+			return (zfs_error(NULL,
+			    zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
 		} else {
-			return (zfs_error(zhp->zfs_hdl, EZFS_DIFFDATA, errbuf));
+			return (zfs_error(NULL,
+			    zhp->zfs_hdl, EZFS_DIFFDATA, errbuf));
 		}
 	}
 
@@ -826,8 +831,8 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) pthread_join(tid, NULL);
 
 	if (di.zerr != 0) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
-		return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
+		zfs_error_aux(NULL, zhp->zfs_hdl, strerror(di.zerr));
+		return (zfs_error(NULL, zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
 	}
 	teardown_differ_info(&di);
 	return (0);
