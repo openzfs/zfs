@@ -2441,7 +2441,7 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
  */
 int
 zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
-    vdev_state_t *newstate)
+    vdev_state_t *newstate, zfs_json_t *json)
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
@@ -2461,7 +2461,7 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
 	    &islog)) == NULL)
-		return (zfs_error(NULL, hdl, EZFS_NODEVICE, msg));
+		return (zfs_error(json, hdl, EZFS_NODEVICE, msg));
 
 	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
 
@@ -2479,9 +2479,9 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 		 * XXX - L2ARC 1.0 devices can't support expansion.
 		 */
 		if (l2cache) {
-			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 			    "cannot expand cache devices"));
-			return (zfs_error(NULL, hdl, EZFS_VDEVNOTSUP, msg));
+			return (zfs_error(json, hdl, EZFS_VDEVNOTSUP, msg));
 		}
 
 		if (wholedisk) {
@@ -2492,7 +2492,7 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 				error = zfs_resolve_shortname(path, buf,
 				    sizeof (buf));
 				if (error != 0)
-					return (zfs_error(NULL,
+					return (zfs_error(json,
 					    hdl, EZFS_NODEVICE, msg));
 
 				fullpath = buf;
@@ -2509,15 +2509,15 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 
 	if (zfs_ioctl(hdl, ZFS_IOC_VDEV_SET_STATE, &zc) != 0) {
 		if (errno == EINVAL) {
-			zfs_error_aux(NULL, hdl,
+			zfs_error_aux(json, hdl,
 			    dgettext(TEXT_DOMAIN, "was split "
 			    "from this pool into"
 			    " a new one.  Use '%s' "
 			    "instead"), "zpool detach");
-			return (zfs_error(NULL,
+			return (zfs_error(json,
 			    hdl, EZFS_POSTSPLIT_ONLINE, msg));
 		}
-		return (zpool_standard_error(NULL, hdl, errno, msg));
+		return (zpool_standard_error(json, hdl, errno, msg));
 	}
 
 	*newstate = zc.zc_cookie;
@@ -2528,7 +2528,8 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
  * Take the specified vdev offline
  */
 int
-zpool_vdev_offline(zpool_handle_t *zhp, const char *path, boolean_t istmp)
+zpool_vdev_offline(zpool_handle_t *zhp, const char *path,
+    boolean_t istmp, zfs_json_t *json)
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
@@ -2542,12 +2543,12 @@ zpool_vdev_offline(zpool_handle_t *zhp, const char *path, boolean_t istmp)
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
 	    NULL)) == NULL)
-		return (zfs_error(NULL, hdl, EZFS_NODEVICE, msg));
+		return (zfs_error(json, hdl, EZFS_NODEVICE, msg));
 
 	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
 
 	if (avail_spare)
-		return (zfs_error(NULL, hdl, EZFS_ISSPARE, msg));
+		return (zfs_error(json, hdl, EZFS_ISSPARE, msg));
 
 	zc.zc_cookie = VDEV_STATE_OFFLINE;
 	zc.zc_obj = istmp ? ZFS_OFFLINE_TEMPORARY : 0;
@@ -2561,16 +2562,16 @@ zpool_vdev_offline(zpool_handle_t *zhp, const char *path, boolean_t istmp)
 		/*
 		 * There are no other replicas of this device.
 		 */
-		return (zfs_error(NULL, hdl, EZFS_NOREPLICAS, msg));
+		return (zfs_error(json, hdl, EZFS_NOREPLICAS, msg));
 
 	case EEXIST:
 		/*
 		 * The log device has unplayed logs
 		 */
-		return (zfs_error(NULL, hdl, EZFS_UNPLAYED_LOGS, msg));
+		return (zfs_error(json, hdl, EZFS_UNPLAYED_LOGS, msg));
 
 	default:
-		return (zpool_standard_error(NULL, hdl, errno, msg));
+		return (zpool_standard_error(json, hdl, errno, msg));
 	}
 }
 

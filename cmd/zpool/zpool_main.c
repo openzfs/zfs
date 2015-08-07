@@ -3673,18 +3673,39 @@ zpool_do_online(int argc, char **argv)
 	int ret = 0;
 	vdev_state_t newstate;
 	int flags = 0;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
+	char errbuf[1024];
 
 	/* check options */
-	while ((c = getopt(argc, argv, "et")) != -1) {
+	while ((c = getopt(argc, argv, "etjJ")) != -1) {
 		switch (c) {
+		case 'j':
+		case 'J':
+			json.json = B_TRUE;
+			json.nv_dict_props = fnvlist_alloc();
+			json.nv_dict_error = fnvlist_alloc();
+			json.nb_elem = 0;
+			json.json_data = NULL;
+			fnvlist_add_string(json.nv_dict_props,
+			    "cmd", "zpool online");
+			fnvlist_add_string(json.nv_dict_error, "error", "");
+			break;
 		case 'e':
 			flags |= ZFS_ONLINE_EXPAND;
 			break;
 		case 't':
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			(void) sprintf(errbuf, gettext("invalid option '%c'"),
 			    optopt);
-			usage(B_FALSE);
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 		}
 	}
 
@@ -3693,24 +3714,40 @@ zpool_do_online(int argc, char **argv)
 
 	/* get pool name and check number of arguments */
 	if (argc < 1) {
-		(void) fprintf(stderr, gettext("missing pool name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing pool name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 	if (argc < 2) {
-		(void) fprintf(stderr, gettext("missing device name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing device name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 
 	poolname = argv[0];
 
-	if ((zhp = zpool_open(NULL, g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(&json, g_zfs, poolname)) == NULL)
 		return (1);
 
 	for (i = 1; i < argc; i++) {
-		if (zpool_vdev_online(zhp, argv[i], flags, &newstate) == 0) {
+		if (zpool_vdev_online(zhp, argv[i], flags,
+		    &newstate, &json) == 0) {
 			if (newstate != VDEV_STATE_HEALTHY) {
+				if (!json.json) {
 				(void) printf(gettext("warning: device '%s' "
-				    "onlined, but remains in faulted state\n"),
+				    "onlined, but remains in faulted state"),
 				    argv[i]);
 				if (newstate == VDEV_STATE_FAULTED)
 					(void) printf(gettext("use 'zpool "
@@ -3720,15 +3757,72 @@ zpool_do_online(int argc, char **argv)
 					(void) printf(gettext("use 'zpool "
 					    "replace' to replace devices "
 					    "that are no longer present\n"));
+			} else {
+				if (newstate == VDEV_STATE_FAULTED) {
+					(void) sprintf(errbuf,
+					    gettext("warning: device '%s' "
+					    "onlined, but remains in"
+					    " faulted state, use 'zpool "
+					    "clear' to restore a faulted "
+					    "device"), argv[i]);
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", errbuf);
+				} else {
+					(void) printf(gettext("warning:"
+						" device '%s' "
+					    "onlined, but remains"
+					    " in faulted state,use 'zpool "
+					    "replace' to replace devices "
+					    "that are no longer present"),
+					    argv[i]);
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", errbuf);
+				}
 			}
+		}
 		} else {
 			ret = 1;
 		}
 	}
-
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
 	zpool_close(zhp);
 
 	return (ret);
+	json_usage:
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
+	exit(2);
 }
 
 /*
@@ -3750,18 +3844,39 @@ zpool_do_offline(int argc, char **argv)
 	zpool_handle_t *zhp;
 	int ret = 0;
 	boolean_t istmp = B_FALSE;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
+	char errbuf[1024];
 
 	/* check options */
-	while ((c = getopt(argc, argv, "ft")) != -1) {
+	while ((c = getopt(argc, argv, "Jjft")) != -1) {
 		switch (c) {
+		case 'j':
+		case 'J':
+			json.json = B_TRUE;
+			json.nv_dict_props = fnvlist_alloc();
+			json.nv_dict_error = fnvlist_alloc();
+			json.nb_elem = 0;
+			json.json_data = NULL;
+			fnvlist_add_string(json.nv_dict_props,
+			    "cmd", "zpool offline");
+			fnvlist_add_string(json.nv_dict_error, "error", "");
+		break;
 		case 't':
 			istmp = B_TRUE;
 			break;
 		case 'f':
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			(void) sprintf(errbuf, gettext("invalid option '%c'"),
 			    optopt);
-			usage(B_FALSE);
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 		}
 	}
 
@@ -3770,27 +3885,87 @@ zpool_do_offline(int argc, char **argv)
 
 	/* get pool name and check number of arguments */
 	if (argc < 1) {
-		(void) fprintf(stderr, gettext("missing pool name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing pool name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 	if (argc < 2) {
-		(void) fprintf(stderr, gettext("missing device name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing device name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 
 	poolname = argv[0];
 
-	if ((zhp = zpool_open(NULL, g_zfs, poolname)) == NULL)
-		return (1);
+	if ((zhp = zpool_open(&json, g_zfs, poolname)) == NULL) {
+		if (!json.json)
+			return (1);
+		else {
+			ret = 1;
+			goto json_out;
+		}
+	}
+
 
 	for (i = 1; i < argc; i++) {
-		if (zpool_vdev_offline(zhp, argv[i], istmp) != 0)
+		if (zpool_vdev_offline(zhp, argv[i], istmp, &json) != 0)
 			ret = 1;
 	}
 
 	zpool_close(zhp);
 
+json_out:
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
+
 	return (ret);
+
+json_usage:
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
+	exit(2);
 }
 
 /*
