@@ -277,8 +277,9 @@ extern int zpool_reguid(zpool_handle_t *);
 extern int zpool_reopen(zpool_handle_t *);
 
 extern int zpool_vdev_online(zpool_handle_t *, const char *, int,
-    vdev_state_t *);
-extern int zpool_vdev_offline(zpool_handle_t *, const char *, boolean_t);
+    vdev_state_t *, zfs_json_t *);
+extern int zpool_vdev_offline(zpool_handle_t *, const char *,
+    boolean_t, zfs_json_t *);
 extern int zpool_vdev_attach(zpool_handle_t *, const char *,
     const char *, nvlist_t *, int);
 extern int zpool_vdev_detach(zpool_handle_t *, const char *);
