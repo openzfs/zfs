@@ -7,8 +7,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BDI_SETUP_AND_REGISTER], [
 	AC_MSG_CHECKING([whether bdi_setup_and_register() wants 2 args])
 	ZFS_LINUX_TRY_COMPILE_SYMBOL([
 		#include <linux/backing-dev.h>
-	], [
 		struct backing_dev_info bdi;
+	], [
 		char *name = "bdi";
 		int error __attribute__((unused)) =
 		    bdi_setup_and_register(&bdi, name);
@@ -21,8 +21,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BDI_SETUP_AND_REGISTER], [
 		AC_MSG_CHECKING([whether bdi_setup_and_register() wants 3 args])
 		ZFS_LINUX_TRY_COMPILE_SYMBOL([
 			#include <linux/backing-dev.h>
-		], [
 			struct backing_dev_info bdi;
+		], [
 			char *name = "bdi";
 			unsigned int cap = BDI_CAP_MAP_COPY;
 			int error __attribute__((unused)) =
