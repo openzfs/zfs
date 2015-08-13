@@ -53,6 +53,26 @@ zvol_create_minors_cb(const char *dsname, void *arg);
 static int
 zvol_create_snap_minor_cb(const char *dsname, void *arg);
 
+/*
+ * Perform device minor related actions in taskqs, one taskq
+ * (one worker thread) per pool
+ */
+#include <sys/rwlock.h>
+static list_t zvol_async_taskq_list;
+static krwlock_t zvol_async_taskq_lock;
+
+typedef struct zvol_taskq {
+	const char zt_pool[MAXNAMELEN];
+	taskq_t *zt_tq;
+	list_node_t zt_next;
+} zvol_taskq_t;
+
+/* zvol_create_minors_cb argument */
+typedef struct {
+	const char *name;
+	uint64_t snapdev;
+} zvcb_arg_t;
+
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
@@ -934,6 +954,7 @@ zvol_first_open(zvol_state_t *zv)
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
 	if (error) {
 		dmu_objset_disown(os, zvol_tag);
+		zv->zv_objset = NULL;
 		goto out_mutex;
 	}
 
@@ -941,6 +962,7 @@ zvol_first_open(zvol_state_t *zv)
 	error = dmu_bonus_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dbuf);
 	if (error) {
 		dmu_objset_disown(os, zvol_tag);
+		zv->zv_objset = NULL;
 		goto out_mutex;
 	}
 
@@ -1314,7 +1336,7 @@ __zvol_create_minor(const char *name)
 		goto out;
 	}
 
-	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_PUSHPAGE);
+	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
 	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
 	if (error)
@@ -1420,7 +1442,7 @@ __zvol_remove_minor(const char *name)
 /*
  * Remove a block device minor node for the specified volume.
  */
-int
+static int
 zvol_remove_minor(const char *name)
 {
 	int error;
@@ -1455,6 +1477,7 @@ __zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	set_disk_ro(zv->zv_disk, !readonly);
 	set_disk_ro(zv->zv_disk, readonly);
 }
+
 
 /*
  * Mask errors to continue dmu_objset_find() traversal
@@ -1544,7 +1567,7 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
  * 'visible' (which also verifies that the parent is a zvol), and if so,
  * a minor node for that snapshot is created.
  */
-int
+static int
 zvol_create_minors(const char *name)
 {
 	int error = 0;
@@ -1552,7 +1575,7 @@ zvol_create_minors(const char *name)
 	if (!zvol_inhibit_dev) {
 		char *atp, *parent;
 
-		parent = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+		parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 		(void) strlcpy(parent, name, MAXPATHLEN);
 
 		if ((atp = strrchr(parent, '@')) != NULL) {
@@ -1581,7 +1604,7 @@ zvol_create_minors(const char *name)
 /*
  * Remove minors for specified dataset including children and snapshots.
  */
-void
+static void
 zvol_remove_minors(const char *name)
 {
 	zvol_state_t *zv, *zv_next;
@@ -1609,7 +1632,7 @@ zvol_remove_minors(const char *name)
 /*
  * Rename minors for specified dataset including children and snapshots.
  */
-void
+static void
 zvol_rename_minors(const char *oldname, const char *newname)
 {
 	zvol_state_t *zv, *zv_next;
@@ -1666,12 +1689,10 @@ snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
 	return (0);
 }
 
-int
+static void
 zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
 	(void) dmu_objset_find((char *) dsname, snapdev_snapshot_changed_cb,
 		&snapdev, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
-	/* caller should continue to modify snapdev property */
-	return (-1);
 }
 
 int
@@ -1683,6 +1704,11 @@ zvol_init(void)
 	    offsetof(zvol_state_t, zv_next));
 
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
+
+	list_create(&zvol_async_taskq_list, sizeof (zvol_taskq_t),
+	    offsetof(zvol_taskq_t, zt_next));
+
+	rw_init(&zvol_async_taskq_lock, NULL, RW_DEFAULT, NULL);
 
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
@@ -1696,6 +1722,9 @@ zvol_init(void)
 	return (0);
 
 out:
+	rw_destroy(&zvol_async_taskq_lock);
+	list_destroy(&zvol_async_taskq_list);
+
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 
@@ -1705,12 +1734,266 @@ out:
 void
 zvol_fini(void)
 {
+	zvol_taskq_t *zt = NULL;
+
+	/*
+	 * cleanup async taskqs
+	 * this step performs all the tasks on the queues first
+	 */
+	rw_enter(&zvol_async_taskq_lock, RW_WRITER);
+	while ((zt = list_remove_head(&zvol_async_taskq_list))) {
+		taskq_destroy(zt->zt_tq);
+		kmem_free(zt, sizeof (zvol_taskq_t));
+	}
+	rw_exit(&zvol_async_taskq_lock);
+
+	/* cleanup the list and the lock */
+	list_destroy(&zvol_async_taskq_list);
+	rw_destroy(&zvol_async_taskq_lock);
+
+	/* remove minors synchronously */
 	zvol_remove_minors(NULL);
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 }
+
+
+/*
+ * Add/remove taskq per pool, create/remove/rename minor(s)
+ */
+
+/* Create task for the pool, performed at pool create and import */
+static int
+zvol_create_taskq(const char *pool)
+{
+	zvol_taskq_t *zt, *ezt;
+	char *tqname;
+
+	zt = kmem_zalloc(sizeof (zvol_taskq_t), KM_SLEEP);
+
+	tqname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
+	snprintf(tqname, MAXNAMELEN, "zvol_tq/%s", pool);
+	/* Use one thread to assure ordered completion of requests */
+	zt->zt_tq = taskq_create(tqname, 1, maxclsyspri, 1, INT_MAX,
+	    TASKQ_PREPOPULATE);
+	kmem_free(tqname, MAXNAMELEN);
+	if (zt->zt_tq == NULL) {
+		kmem_free(zt, sizeof (zvol_taskq_t));
+		printk(KERN_INFO
+		    "ZFS: failed to create async work taskq for pool %s\n",
+		    pool);
+		return (-ENOMEM);
+	}
+
+	strlcpy((char *)zt->zt_pool, (char *)pool, MAXNAMELEN);
+
+	rw_enter(&zvol_async_taskq_lock, RW_WRITER);
+	/* check if the queue already exists */
+	for (ezt = list_head(&zvol_async_taskq_list); ezt != NULL;
+	    ezt = list_next(&zvol_async_taskq_list, ezt)) {
+		if (strncmp(ezt->zt_pool, pool, MAXNAMELEN) == 0) {
+			break;
+		}
+	}
+	if (ezt == NULL)
+		list_insert_head(&zvol_async_taskq_list, zt);
+	rw_exit(&zvol_async_taskq_lock);
+
+	if (ezt) {
+		printk(KERN_INFO
+		    "ZFS: async work taskq for pool %s already exists\n", pool);
+		taskq_destroy(zt->zt_tq);
+		kmem_free(zt, sizeof (zvol_taskq_t));
+	}
+
+	return (0);
+}
+
+/* Remove task for the pool, performed at pool export and destroy */
+static int
+zvol_remove_taskq(const char *pool)
+{
+	zvol_taskq_t *zt;
+
+	rw_enter(&zvol_async_taskq_lock, RW_WRITER);
+	for (zt = list_head(&zvol_async_taskq_list); zt != NULL;
+	    zt = list_next(&zvol_async_taskq_list, zt)) {
+		if (strncmp(zt->zt_pool, pool, MAXNAMELEN) == 0) {
+			list_remove(&zvol_async_taskq_list, zt);
+			break;
+		}
+	}
+	rw_exit(&zvol_async_taskq_lock);
+
+	/* This may have to wait for completion of the jobs on the queue */
+	if (zt) {
+		taskq_destroy(zt->zt_tq);
+		kmem_free(zt, sizeof (zvol_taskq_t));
+		return (0);
+	}
+
+	printk(KERN_INFO "ZFS: async work taskq for pool %s not found\n", pool);
+	return (-ENOENT);
+}
+
+/* The worker thread function performed asynchronously */
+static void
+_zvol_async_task(void *param)
+{
+	zvol_async_arg_t *arg = (zvol_async_arg_t *)param;
+
+	switch (arg->op) {
+	case ZVOL_ASYNC_CREATE_MINORS:
+		(void) zvol_create_minors(arg->name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_MINORS:
+		zvol_remove_minors(arg->name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_MINOR:
+		(void) zvol_remove_minor(arg->name1);
+		break;
+	case ZVOL_ASYNC_RENAME_MINORS:
+		zvol_rename_minors(arg->name1, arg->name2);
+		break;
+	case ZVOL_ASYNC_SET_SNAPDEV:
+		zvol_set_snapdev(arg->name1, arg->value);
+		break;
+	default:
+		/* should not get here */
+		printk(KERN_INFO "ZFS: invalid async work operation %d\n",
+		    arg->op);
+		break;
+	}
+
+	/* the task is performed, free the argument */
+	kmem_free(arg, sizeof (zvol_async_arg_t));
+}
+
+/* Lookup the taskq for the pool and dispatch the task */
+static int
+zvol_dispatch_taskq(zvol_async_arg_t *arg)
+{
+	int error = 0;
+	zvol_taskq_t *zt;
+
+	rw_enter(&zvol_async_taskq_lock, RW_READER);
+	for (zt = list_head(&zvol_async_taskq_list); zt != NULL;
+	    zt = list_next(&zvol_async_taskq_list, zt)) {
+		if (strncmp(zt->zt_pool, arg->pool, MAXNAMELEN) == 0)
+			break;
+	}
+	if (zt) {
+		error = taskq_dispatch(zt->zt_tq, _zvol_async_task,
+		    arg, TQ_SLEEP);
+	} else {
+		printk(KERN_INFO "ZFS: async work taskq for pool %s not found;"
+		    " failed to dispatch work op %d\n", arg->pool, arg->op);
+		error = -ENOENT;
+	}
+	rw_exit(&zvol_async_taskq_lock);
+
+	return (error);
+}
+
+static int
+zvol_async_dispatch(zvol_async_op_t op, const char *name1, const char *name2,
+	uint64_t val)
+{
+	int error;
+	char *delim;
+	size_t len;
+	zvol_async_arg_t *arg;
+
+	switch (op) {
+	case ZVOL_ASYNC_CREATE_TASKQ:
+		error = zvol_create_taskq(name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_TASKQ:
+		error = zvol_remove_taskq(name1);
+		break;
+	case ZVOL_ASYNC_CREATE_MINORS:
+	case ZVOL_ASYNC_REMOVE_MINORS:
+	case ZVOL_ASYNC_REMOVE_MINOR:
+	case ZVOL_ASYNC_RENAME_MINORS:
+	case ZVOL_ASYNC_SET_SNAPDEV:
+		/*
+		 * these requests are dispatched to a taskq and
+		 * the argument is freed in the worker function
+		 */
+		arg = kmem_zalloc(sizeof (zvol_async_arg_t), KM_SLEEP);
+
+		arg->op = op;
+		/* extract the pool name from the dataset name */
+		delim = strchr(name1, '/');
+		/* + 1 for strlcpy() to accommodate the \0 */
+		len = (delim) ? (delim - name1 + 1) : MAXNAMELEN;
+		strlcpy(arg->pool, name1, len);
+		strlcpy(arg->name1, name1, MAXNAMELEN);
+		if (name2)
+			strlcpy(arg->name2, name2, MAXNAMELEN);
+		arg->value = val;
+
+		error = zvol_dispatch_taskq(arg);
+		break;
+	default:
+		printk(KERN_INFO "ZFS: invalid async op %d for %s\n",
+		    op, name1);
+		error = -EINVAL;
+		break;
+	}
+
+	return (error);
+}
+
+/*
+ * The external interfaces wrapping zvol_async_dispatch()
+ */
+void
+zvol_async_create_taskq(const char *pool)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_CREATE_TASKQ, pool, NULL, 0);
+}
+
+void
+zvol_async_remove_taskq(const char *pool)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_REMOVE_TASKQ, pool, NULL, 0);
+}
+
+void
+zvol_async_create_minors(const char *name)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_CREATE_MINORS, name, NULL, 0);
+}
+
+void
+zvol_async_remove_minors(const char *name)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_REMOVE_MINORS, name, NULL, 0);
+}
+
+void
+zvol_async_remove_minor(const char *name)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_REMOVE_MINOR, name, NULL, 0);
+}
+
+void
+zvol_async_rename_minors(const char *name1, const char *name2)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_RENAME_MINORS, name1, name2, 0);
+}
+
+int
+zvol_async_set_snapdev(const char *dsname, uint64_t snapdev) {
+	zvol_async_dispatch(ZVOL_ASYNC_SET_SNAPDEV, dsname, NULL, snapdev);
+	/* caller should continue to modify snapdev property */
+	return (-1);
+}
+
+/* Parameter definitions */
 
 module_param(zvol_inhibit_dev, uint, 0644);
 MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");

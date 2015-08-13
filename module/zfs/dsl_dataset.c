@@ -1497,7 +1497,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 		for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 		    pair = nvlist_next_nvpair(snaps, pair)) {
 			char *snapname = nvpair_name(pair);
-			zvol_create_minors(snapname);
+			zvol_async_create_minors(snapname);
 		}
 	}
 #endif
@@ -1968,7 +1968,7 @@ dsl_dataset_rename_snapshot(const char *fsname,
 #ifdef _KERNEL
 	oldname = kmem_asprintf("%s@%s", fsname, oldsnapname);
 	newname = kmem_asprintf("%s@%s", fsname, newsnapname);
-	zvol_rename_minors(oldname, newname);
+	zvol_async_rename_minors(oldname, newname);
 	strfree(newname);
 	strfree(oldname);
 #endif

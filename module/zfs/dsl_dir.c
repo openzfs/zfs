@@ -1914,7 +1914,7 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 	    dd->dd_myname, 8, 1, &dd->dd_object, tx));
 
 #ifdef _KERNEL
-	zvol_rename_minors(ddra->ddra_oldname, ddra->ddra_newname);
+	zvol_async_rename_minors(ddra->ddra_oldname, ddra->ddra_newname);
 #endif
 
 	dsl_prop_notify_all(dd);

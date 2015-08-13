@@ -3084,8 +3084,11 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 	}
 
 #ifdef _KERNEL
-	if (firstopen)
-		zvol_create_minors(spa->spa_name);
+	if (firstopen) {
+		char *name = spa_name(spa);
+		zvol_async_create_taskq(name);
+		zvol_async_create_minors(name);
+	}
 #endif
 
 	*spapp = spa;
@@ -4208,7 +4211,8 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	spa_history_log_version(spa, "import");
 
 #ifdef _KERNEL
-	zvol_create_minors(pool);
+	zvol_async_create_taskq(pool);
+	zvol_async_create_minors(pool);
 #endif
 
 	return (0);
