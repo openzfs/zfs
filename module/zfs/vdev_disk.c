@@ -535,10 +535,12 @@ retry:
 	 * their volume block size to match the maximum request size and
 	 * the common case will be one bio per vdev IO request.
 	 */
-	if (zio)
-		zio_data = zio->io_data;
-	else
-		zio_data = abd_get_from_buf(kbuf_ptr, kbuf_size);
+	if (zio_data == NULL) {
+		if (zio)
+			zio_data = zio->io_data;
+		else
+			zio_data = abd_get_from_buf(kbuf_ptr, kbuf_size);
+	}
 
 	zio_offset = 0;
 	bio_offset = kbuf_offset;

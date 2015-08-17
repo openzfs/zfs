@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/abd.h>
@@ -43,17 +43,17 @@
 /*
  * page
  */
-#ifndef PAGE_SIZE
-#define	PAGE_SIZE 4096
+#ifndef PAGE_SHIFT
+#define	PAGE_SHIFT (highbit64(PAGESIZE)-1)
 #endif
 
 struct page;
 
 #define	alloc_page(gfp) \
-	((struct page *)umem_alloc_aligned(PAGE_SIZE, PAGE_SIZE, UMEM_DEFAULT))
+	((struct page *)umem_alloc_aligned(PAGESIZE, PAGESIZE, UMEM_DEFAULT))
 
 #define	__free_page(page) \
-	umem_free(page, PAGE_SIZE)
+	umem_free(page, PAGESIZE)
 
 /*
  * scatterlist
@@ -70,9 +70,13 @@ sg_init_table(struct scatterlist *sg, int nr) {
 	sg[nr - 1].end = 1;
 }
 
+#define	for_each_sg(sgl, sg, nr, i)	\
+	for ((i) = 0, (sg) = (sgl); (i) < (nr); (i)++, (sg) = sg_next(sg))
+
 static inline void
 sg_set_page(struct scatterlist *sg, struct page *page, unsigned int len,
-    unsigned int offset) {
+    unsigned int offset)
+{
 	/* currently we don't use offset */
 	ASSERT(offset == 0);
 	sg->page = page;
@@ -80,7 +84,8 @@ sg_set_page(struct scatterlist *sg, struct page *page, unsigned int len,
 }
 
 static inline struct page *
-sg_page(struct scatterlist *sg) {
+sg_page(struct scatterlist *sg)
+{
 	return (sg->page);
 }
 
@@ -103,6 +108,7 @@ sg_next(struct scatterlist *sg)
 #define	unlikely(x)			(x)
 #endif
 
+#define	page_address(page)		((void *)page)
 #define	kmap(page)			((void *)page)
 #define	kunmap(page)			do { } while (0)
 #define	zfs_kmap_atomic(page, type)	((void *)page)
@@ -231,7 +237,8 @@ abd_miter_unmap_x(struct abd_miter *aiter, int atomic)
 	ASSERT(aiter->addr);
 
 	if (aiter->is_linear) {
-		pagefault_enable();
+		if (atomic)
+			pagefault_enable();
 	} else {
 		paddr = aiter->addr - aiter->offset;
 		if (atomic) {
@@ -306,19 +313,17 @@ abd_miter_advance(struct abd_miter *aiter, int offset)
 }
 
 #define	ABD_CHECK(abd)					\
-(							\
-{							\
+do {							\
 	ASSERT((abd)->abd_magic == ARC_BUF_DATA_MAGIC);	\
 	ASSERT((abd)->abd_size > 0);			\
 	if (ABD_IS_LINEAR(abd)) {			\
 		ASSERT((abd)->abd_offset == 0);		\
 		ASSERT((abd)->abd_nents == 1);		\
 	} else {					\
-		ASSERT((abd)->abd_offset < PAGE_SIZE);	\
+		ASSERT((abd)->abd_offset < PAGESIZE);	\
 		ASSERT((abd)->abd_nents > 0);		\
 	}						\
-}							\
-)
+} while (0)
 
 static void
 abd_iterate_func(abd_t *abd, size_t size,
@@ -649,6 +654,49 @@ abd_zero_off(abd_t *abd, size_t size, size_t off)
 	}
 }
 
+/*
+ * abd_buf_segment - returns a pointer to a buffer range in ABD.
+ * @start is the starting offset in the @abd
+ * @len is the length of the buffer range
+ *
+ * @abd must not be highmem scatter ABD. If @abd is linear, the range
+ * specified by @start and @len should be in the range of @abd. If @abd is
+ * scatter, the range should not cross page boundary.
+ * This function is mainly used for allowing *_phys_t to point to scatter ABD.
+ */
+void *
+abd_buf_segment(abd_t *abd, size_t start, size_t len)
+{
+	struct scatterlist *sg;
+	struct abd_miter aiter;
+	size_t offset;
+	ABD_CHECK(abd);
+	ASSERT(!(abd->abd_flags & ABD_F_HIGHMEM));
+	ASSERT(start + len <= abd->abd_size);
+
+	if (ABD_IS_LINEAR(abd))
+		return (abd->abd_buf + start);
+
+	/*
+	 * If the scatterlist is not chained, we can safely treat it as an
+	 * array. Otherwise we need to walk the chained scatterlist via miter.
+	 */
+	if (!(abd->abd_flags & ABD_F_SG_CHAIN)) {
+		offset = abd->abd_offset + start;
+		sg = &abd->abd_sgl[offset >> PAGE_SHIFT];
+		offset &= (PAGESIZE -1);
+	} else {
+		abd_miter_init(&aiter, abd, ABD_MITER_R);
+		abd_miter_advance(&aiter, start);
+		sg = aiter.sg;
+		offset = aiter.offset;
+	}
+
+	ASSERT(offset + len <= sg->length);
+
+	return (page_address(sg_page(sg)) + offset);
+}
+
 #ifdef _KERNEL
 /*
  * Copy from @abd to user buffer @buf.
@@ -898,49 +946,11 @@ abd_bio_nr_pages_off(abd_t *abd, unsigned int bio_size, size_t off)
 		pos = (unsigned long)abd->abd_buf + off;
 	else
 		pos = abd->abd_offset + off;
-	return ((pos + bio_size + PAGE_SIZE-1)>>PAGE_SHIFT)-(pos>>PAGE_SHIFT);
+	return ((pos + bio_size + PAGESIZE-1)>>PAGE_SHIFT)-(pos>>PAGE_SHIFT);
 }
 #endif	/* _KERNEL */
 
-static inline abd_t *
-abd_alloc_struct(int nr_pages)
-{
-	abd_t *abd;
-	size_t asize = sizeof (abd_t) + nr_pages*sizeof (struct scatterlist);
-	/*
-	 * If the maximum block size increases, inline sgl might not fit into
-	 * a single page. We might want to consider using chained sgl if
-	 * that's the case.
-	 */
-	ASSERT(nr_pages * sizeof (struct scatterlist) <= PAGE_SIZE);
-#ifndef DEBUG_ABD
-	abd = kmem_alloc(asize, KM_PUSHPAGE);
-#else
-	abd = umem_alloc_aligned(asize, PAGE_SIZE, UMEM_DEFAULT);
-	/* deny access to padding */
-	if (mprotect(abd, PAGE_SIZE, PROT_NONE) != 0) {
-		perror("mprotect failed");
-		ASSERT(0);
-	}
-#endif
-	ASSERT(abd);
-
-	return (abd);
-}
-
-static inline void
-abd_free_struct(abd_t *abd, int nr_pages)
-{
-#ifndef DEBUG_ABD
-	kmem_free(abd, sizeof (abd_t) + nr_pages*sizeof (struct scatterlist));
-#else
-	if (mprotect(abd, PAGE_SIZE, PROT_READ|PROT_WRITE) != 0) {
-		perror("mprotect failed");
-		ASSERT(0);
-	}
-	umem_free(abd, sizeof (abd_t) + nr_pages*sizeof (struct scatterlist));
-#endif
-}
+static kmem_cache_t *abd_struct_cache = NULL;
 
 /*
  * Allocate a new ABD to point to offset @off of the original ABD.
@@ -957,23 +967,35 @@ abd_get_offset(abd_t *sabd, size_t off)
 	ABD_CHECK(sabd);
 	ASSERT(off <= sabd->abd_size);
 
-	abd = abd_alloc_struct(0);
+	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
 	abd->abd_size = sabd->abd_size - off;
+	abd->abd_flags = sabd->abd_flags & ~ABD_F_OWNER;
 
 	if (ABD_IS_LINEAR(sabd)) {
-		abd->abd_flags = ABD_F_LINEAR;
 		abd->abd_offset = 0;
 		abd->abd_nents = 1;
 		abd->abd_buf = sabd->abd_buf + off;
-	} else {
-		abd->abd_flags = ABD_F_SCATTER;
+	} else if (!(sabd->abd_flags & ABD_F_SG_CHAIN)) {
+		/* scatterlist is not chained, treat it as an array. */
 		offset = sabd->abd_offset + off;
-		abd->abd_offset = offset & (PAGE_SIZE - 1);
+		abd->abd_offset = offset & (PAGESIZE - 1);
 		/* make sure the new abd start as sgl[0] */
 		abd->abd_sgl = &sabd->abd_sgl[offset >> PAGE_SHIFT];
 		abd->abd_nents = sabd->abd_nents - (offset >> PAGE_SHIFT);
+	} else {
+		/* Chained scatterlist, need to walk through it. */
+		abd->abd_sgl = sabd->abd_sgl;
+		abd->abd_nents = sabd->abd_nents;
+
+		offset = sabd->abd_offset + off;
+		while (offset >= PAGESIZE) {
+			abd->abd_sgl = sg_next(abd->abd_sgl);
+			abd->abd_nents--;
+			offset -= PAGESIZE;
+		}
+		abd->abd_offset = offset;
 	}
 
 	return (abd);
@@ -988,7 +1010,7 @@ abd_get_from_buf(void *buf, size_t size)
 {
 	abd_t *abd;
 
-	abd = abd_alloc_struct(0);
+	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
 	abd->abd_flags = ABD_F_LINEAR;
@@ -1012,43 +1034,100 @@ abd_put(abd_t *abd)
 	ASSERT(!(abd->abd_flags & ABD_F_OWNER));
 
 	abd->abd_magic = 0;
-	abd_free_struct(abd, 0);
+	kmem_cache_free(abd_struct_cache, abd);
+}
+
+static void
+abd_sg_alloc_table(abd_t *abd)
+{
+	int n = abd->abd_nents;
+#if defined(_KERNEL) && \
+	(defined(CONFIG_ARCH_HAS_SG_CHAIN) || defined(ARCH_HAS_SG_CHAIN))
+	struct sg_table table;
+	while (sg_alloc_table(&table, n, GFP_NOIO))
+		schedule_timeout(1);
+
+	ASSERT3U(table.nents, ==, n);
+	abd->abd_sgl = table.sgl;
+	/* scatterlist is chained (see sg_alloc_table) */
+	if (n > SG_MAX_SINGLE_ALLOC)
+		abd->abd_flags |= ABD_F_SG_CHAIN;
+#else
+	/*
+	 * Unfortunately, some arch don't support chained scatterlist. For
+	 * them and user space, we use contiguous scatterlist. For a 16MB
+	 * buffer size with 4KB page, this would mean around 128KB of
+	 * scatterlist.
+	 */
+	abd->abd_sgl = vmem_alloc(n * sizeof (struct scatterlist), KM_PUSHPAGE);
+	ASSERT(abd->abd_sgl);
+	sg_init_table(abd->abd_sgl, n);
+#endif
+}
+
+static void
+abd_sg_free_table(abd_t *abd)
+{
+#if defined(_KERNEL) && \
+	(defined(CONFIG_ARCH_HAS_SG_CHAIN) || defined(ARCH_HAS_SG_CHAIN))
+	struct sg_table table;
+	table.sgl = abd->abd_sgl;
+	table.nents = table.orig_nents = abd->abd_nents;
+	sg_free_table(&table);
+#else
+	vmem_free(abd->abd_sgl, abd->abd_nents * sizeof (struct scatterlist));
+#endif
 }
 
 /*
  * Allocate a scatter ABD
+ *
+ * @highmem indicate whether the pages should be in highmem.
+ * Highmem is mainly for userdata, while non-highmem is mainly for metadata
+ * which allow scatter ABD.
  */
-abd_t *
-abd_alloc_scatter(size_t size)
+static abd_t *
+__abd_alloc_scatter(size_t size, int highmem)
 {
 	abd_t *abd;
 	struct page *page;
-	int i, n = DIV_ROUND_UP(size, PAGE_SIZE);
+	struct scatterlist *sg;
+	int i, n = DIV_ROUND_UP(size, PAGESIZE);
 	size_t last_size = size - ((n-1) << PAGE_SHIFT);
 
-	abd = abd_alloc_struct(n);
+	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
 	abd->abd_flags = ABD_F_SCATTER|ABD_F_OWNER;
+	if (highmem)
+		abd->abd_flags |= ABD_F_HIGHMEM;
 	abd->abd_size = size;
 	abd->abd_offset = 0;
 	abd->abd_nents = n;
-	abd->abd_sgl = (struct scatterlist *)&abd->__abd_sgl[0];
-	sg_init_table(abd->abd_sgl, n);
 
-	for (i = 0; i < n; i++) {
+	abd_sg_alloc_table(abd);
+
+	for_each_sg(abd->abd_sgl, sg, n, i) {
 retry:
-		page = alloc_page(GFP_NOIO|__GFP_HIGHMEM);
+		page = alloc_page(GFP_NOIO|(highmem ? __GFP_HIGHMEM : 0));
 		if (unlikely(page == NULL)) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule_timeout(1);
 			goto retry;
 		}
-		sg_set_page(&abd->abd_sgl[i], page,
-		    (i == n-1 ? last_size : PAGE_SIZE), 0);
+		sg_set_page(sg, page, (i == n-1 ? last_size : PAGESIZE), 0);
 	}
 
 	return (abd);
+}
+
+abd_t *
+_abd_alloc_scatter(size_t size, int highmem)
+{
+	/* fallback to linear to save memory */
+	if (size < PAGESIZE)
+		return (abd_alloc_linear(size));
+	return (__abd_alloc_scatter(size, highmem));
 }
 
 /*
@@ -1059,7 +1138,7 @@ abd_alloc_linear(size_t size)
 {
 	abd_t *abd;
 
-	abd = abd_alloc_struct(0);
+	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
 	abd->abd_magic = ARC_BUF_DATA_MAGIC;
 	abd->abd_flags = ABD_F_LINEAR|ABD_F_OWNER;
@@ -1076,20 +1155,21 @@ static void
 abd_free_scatter(abd_t *abd, size_t size)
 {
 	int i, n;
+	struct scatterlist *sg;
 	struct page *page;
 
-	ASSERT(abd->abd_sgl == (struct scatterlist *)&abd->__abd_sgl[0]);
-	ASSERT(abd->abd_size == size);
-	ASSERT(abd->abd_nents == DIV_ROUND_UP(abd->abd_size, PAGE_SIZE));
+	ASSERT(abd->abd_nents == DIV_ROUND_UP(abd->abd_size, PAGESIZE));
 
 	n = abd->abd_nents;
 	abd->abd_magic = 0;
-	for (i = 0; i < n; i++) {
-		page = sg_page(&abd->abd_sgl[i]);
+	for_each_sg(abd->abd_sgl, sg, n, i) {
+		page = sg_page(sg);
 		if (page)
 			__free_page(page);
 	}
-	abd_free_struct(abd, n);
+
+	abd_sg_free_table(abd);
+	kmem_cache_free(abd_struct_cache, abd);
 }
 
 static void
@@ -1097,7 +1177,7 @@ abd_free_linear(abd_t *abd, size_t size)
 {
 	abd->abd_magic = 0;
 	zio_buf_free(abd->abd_buf, size);
-	abd_free_struct(abd, 0);
+	kmem_cache_free(abd_struct_cache, abd);
 }
 
 /*
@@ -1109,8 +1189,22 @@ abd_free(abd_t *abd, size_t size)
 {
 	ABD_CHECK(abd);
 	ASSERT(abd->abd_flags & ABD_F_OWNER);
+	ASSERT(abd->abd_size == size);
 	if (ABD_IS_LINEAR(abd))
 		abd_free_linear(abd, size);
 	else
 		abd_free_scatter(abd, size);
+}
+
+void
+abd_init(void)
+{
+	abd_struct_cache = kmem_cache_create("abd_struct", sizeof (abd_t), 0,
+	    NULL, NULL, NULL, NULL, NULL, 0);
+}
+
+void
+abd_fini(void)
+{
+	kmem_cache_destroy(abd_struct_cache);
 }

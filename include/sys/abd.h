@@ -20,15 +20,14 @@
  */
 
 /*
- * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /*
  * ABD - ARC buffer data
  * ABD is an abstract data structure for ARC. There are two types of ABD:
  * linear for metadata and scatter for data.
- * Their type is determined by the lowest bit of abd_t pointer.
- * The public API will automatically determine the type
+ * The public API will automatically determine the type.
  */
 
 #ifndef _ABD_H
@@ -42,14 +41,8 @@ extern "C" {
 
 #define	ARC_BUF_DATA_MAGIC 0xa7cb0fda
 
-#if defined(ZFS_DEBUG) && !defined(_KERNEL)
-#define	DEBUG_ABD
-#endif
 
 typedef struct arc_buf_data {
-#ifdef DEBUG_ABD
-	char		pad[PAGE_SIZE];	/* debug, coredumps when accessed */
-#endif
 	uint32_t	abd_magic;	/* ARC_BUF_DATA_MAGIC */
 	uint32_t	abd_flags;
 	size_t		abd_size;	/* buffer size, excluding offset */
@@ -59,24 +52,13 @@ typedef struct arc_buf_data {
 		struct scatterlist *abd_sgl;
 		void *abd_buf;
 	};
-	uint64_t __abd_sgl[0];
 } abd_t;
 
-#define	ABD_F_SCATTER	(0x0)
-#define	ABD_F_LINEAR	(0x1)
-#define	ABD_F_OWNER	(0x2)
-
-/*
- * Convert an linear ABD to normal buffer
- */
-#define	ABD_TO_BUF(abd)					\
-(							\
-{							\
-	ASSERT((abd)->abd_magic == ARC_BUF_DATA_MAGIC);	\
-	ASSERT_ABD_LINEAR(abd);				\
-	abd->abd_buf;					\
-}							\
-)
+#define	ABD_F_SCATTER	(0)		/* abd is scatter */
+#define	ABD_F_LINEAR	(1)		/* abd is linear */
+#define	ABD_F_OWNER	(1<<1)		/* abd owns the buffer */
+#define	ABD_F_HIGHMEM	(1<<2)		/* abd uses highmem */
+#define	ABD_F_SG_CHAIN	(1<<3)		/* scatterlist is chained */
 
 #define	ABD_IS_SCATTER(abd)	(!((abd)->abd_flags & ABD_F_LINEAR))
 #define	ABD_IS_LINEAR(abd)	(!ABD_IS_SCATTER(abd))
@@ -84,9 +66,26 @@ typedef struct arc_buf_data {
 #define	ASSERT_ABD_LINEAR(abd)	ASSERT(ABD_IS_LINEAR(abd))
 
 /*
+ * Convert an linear ABD to normal buffer
+ */
+static inline void *
+abd_to_buf(abd_t *abd)
+{
+	ASSERT(abd->abd_magic == ARC_BUF_DATA_MAGIC);
+	ASSERT_ABD_LINEAR(abd);
+	return (abd->abd_buf);
+}
+#define	ABD_TO_BUF(abd)		abd_to_buf(abd)
+
+void abd_init(void);
+void abd_fini(void);
+
+/*
  * Allocations and deallocations
  */
-abd_t *abd_alloc_scatter(size_t);
+abd_t *_abd_alloc_scatter(size_t, int);
+#define	abd_alloc_scatter(s)		_abd_alloc_scatter(s, 1)
+#define	abd_alloc_meta_scatter(s)	_abd_alloc_scatter(s, 0)
 abd_t *abd_alloc_linear(size_t);
 void abd_free(abd_t *, size_t);
 abd_t *abd_get_offset(abd_t *, size_t);
@@ -108,6 +107,21 @@ void abd_copy_to_buf_off(void *, abd_t *, size_t, size_t);
 int abd_cmp(abd_t *, abd_t *, size_t);
 int abd_cmp_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_zero_off(abd_t *, size_t, size_t);
+void *abd_buf_segment(abd_t *, size_t, size_t);
+/*
+ * abd_array_off - returns an object in an array contained in @abd
+ *
+ * What this function does is essentially:
+ * &((type *)(abd + off))[index]
+ * except that @abd is an ABD buffer, not a normal buffer.
+ * This function is implement using abd_buf_segment, so all the restriction
+ * also applies.
+ * Use abd_array is off is 0.
+ */
+#define	abd_array_off(abd, index, type, off) \
+	((type *)abd_buf_segment(abd, (off) + (index)*sizeof (type), \
+	sizeof (type)))
+
 #ifdef _KERNEL
 int abd_copy_to_user_off(void __user *, abd_t *, size_t, size_t);
 int abd_copy_from_user_off(abd_t *, const void __user *, size_t, size_t);
@@ -131,57 +145,61 @@ unsigned long abd_bio_nr_pages_off(abd_t *, unsigned int, size_t);
 )
 #endif	/* _KERNEL */
 
+/* forward declaration for abd_borrow_buf, etc. */
+void *zio_buf_alloc(size_t size);
+void zio_buf_free(void *buf, size_t size);
+
 /*
  * Borrow a linear buffer for an ABD
  * Will allocate if ABD is scatter
  */
-#define	abd_borrow_buf(a, n)			\
-(						\
-{						\
-	void *___b;				\
-	if (ABD_IS_LINEAR(a)) {			\
-		___b = ABD_TO_BUF(a);		\
-	} else {				\
-		___b = zio_buf_alloc(n);	\
-	}					\
-	___b;					\
-}						\
-)
+static inline void*
+abd_borrow_buf(abd_t *abd, size_t size)
+{
+	if (!abd)
+		return (NULL);
+	if (ABD_IS_LINEAR(abd))
+		return (ABD_TO_BUF(abd));
+	return (zio_buf_alloc(size));
+}
 
 /*
  * Borrow a linear buffer for an ABD
  * Will allocate and copy if ABD is scatter
  */
-#define	abd_borrow_buf_copy(a, n)		\
-(						\
-{						\
-	void *___b = abd_borrow_buf(a, n);	\
-	if (!ABD_IS_LINEAR(a))			\
-		abd_copy_to_buf(___b, a, n);	\
-	___b;					\
-}						\
-)
+static inline void *
+abd_borrow_buf_copy(abd_t *abd, size_t size)
+{
+	void *buf = abd_borrow_buf(abd, size);
+	if (buf && !ABD_IS_LINEAR(abd))
+		abd_copy_to_buf_off(buf, abd, size, 0);
+	return (buf);
+}
 
 /*
  * Return the borrowed linear buffer
  */
-#define	abd_return_buf(a, b, n)			\
-do {						\
-	if (ABD_IS_LINEAR(a))			\
-		ASSERT((b) == ABD_TO_BUF(a));	\
-	else					\
-		zio_buf_free(b, n);		\
-} while (0)
+static inline void
+abd_return_buf(abd_t *abd, void *buf, size_t size)
+{
+	if (buf) {
+		if (ABD_IS_LINEAR(abd))
+			ASSERT(buf == ABD_TO_BUF(abd));
+		else
+			zio_buf_free(buf, size);
+	}
+}
 
 /*
  * Copy back to ABD and return the borrowed linear buffer
  */
-#define	abd_return_buf_copy(a, b, n)		\
-do {						\
-	if (!ABD_IS_LINEAR(a))			\
-		abd_copy_from_buf(a, b, n);	\
-	abd_return_buf(a, b, n);		\
-} while (0)
+static inline void
+abd_return_buf_copy(abd_t *abd, void *buf, size_t size)
+{
+	if (buf && !ABD_IS_LINEAR(abd))
+		abd_copy_from_buf_off(abd, buf, size, 0);
+	abd_return_buf(abd, buf, size);
+}
 
 /*
  * Wrappers for zero off functions
@@ -200,6 +218,9 @@ do {						\
 
 #define	abd_zero(abd, size) \
 	abd_zero_off(abd, size, 0)
+
+#define	abd_array(abd, index, type) \
+	abd_array_off(abd, index, type, 0)
 
 #ifdef _KERNEL
 #define	abd_copy_to_user(buf, abd, size) \
