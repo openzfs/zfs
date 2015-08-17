@@ -484,7 +484,7 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 		/* it was upgraded, now we only need reader */
 		ASSERT(lt == RW_WRITER);
 		ASSERT(RW_READER ==
-		    (!zap->zap_ismicro && fatreader) ? RW_READER : lti);
+		    ((!zap->zap_ismicro && fatreader) ? RW_READER : lti));
 		rw_downgrade(&zap->zap_rwlock);
 		lt = RW_READER;
 	}
