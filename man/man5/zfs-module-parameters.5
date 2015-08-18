@@ -1631,6 +1631,21 @@ Max number of blocks to discard at once
 Default value: \fB16,384\fR.
 .RE
 
+.sp
+.ne 2
+.na
+\fBzvol_prefetch_bytes\fR (uint)
+.ad
+.RS 12n
+When adding a zvol to the system prefetch \fBzvol_prefetch_bytes\fR
+from the start and end of the volume.  Prefetching these regions
+of the volume is desirable because they are likely to be accessed
+immediately by \fBblkid(8)\fR or by the kernel scanning for a partition
+table.
+.sp
+Default value: \fB131,072\fR.
+.RE
+
 .SH ZFS I/O SCHEDULER
 ZFS issues I/O operations to leaf vdevs to satisfy and complete I/Os.
 The I/O scheduler determines when and in what order those operations are
