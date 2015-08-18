@@ -115,13 +115,14 @@ ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 
 	error = zap_lookup(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT, name,
 	    sizeof (uint64_t), 1, &ddt->ddt_object[type][class]);
-
 	if (error != 0)
 		return (error);
 
-	VERIFY0(zap_lookup(ddt->ddt_os, ddt->ddt_spa->spa_ddt_stat_object, name,
+	error = zap_lookup(ddt->ddt_os, ddt->ddt_spa->spa_ddt_stat_object, name,
 	    sizeof (uint64_t), sizeof (ddt_histogram_t) / sizeof (uint64_t),
-	    &ddt->ddt_histogram[type][class]));
+	    &ddt->ddt_histogram[type][class]);
+	if (error != 0)
+		return (error);
 
 	/*
 	 * Seed the cached statistics.
