@@ -32,6 +32,7 @@
 # multipath     no
 # topology      sas_direct
 # phys_per_port 4
+# slot          bay
 #
 # #       PCI_ID  HBA PORT  CHANNEL NAME
 # channel 85:00.0 1         A
@@ -93,6 +94,7 @@ PHYS_PER_PORT=
 DEV=
 MULTIPATH=
 TOPOLOGY=
+BAY=
 
 usage() {
 	cat << EOF
@@ -252,7 +254,25 @@ sas_handler() {
 		i=$(($i + 1))
 	done
 
-	SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
+	SLOT=
+	case $BAY in
+	"bay")
+		SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
+		;;
+	"phy")
+		SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
+		;;
+	"id")
+		i=$(($i + 1))
+		d=$(eval echo \${$i})
+		SLOT=`echo $d | sed -e 's/^.*://'`
+		;;
+	"lun")
+		i=$(($i + 2))
+		d=$(eval echo \${$i})
+		SLOT=`echo $d | sed -e 's/^.*://'`
+		;;
+	esac
 	if [ -z "$SLOT" ] ; then
 		return
 	fi
@@ -356,10 +376,15 @@ if [ -z "$TOPOLOGY" ] ; then
 	TOPOLOGY=`awk "\\$1 == \"topology\" {print \\$2; exit}" $CONFIG`
 fi
 
+if [ -z "$BAY" ] ; then
+	BAY=`awk "\\$1 == \"slot\" {print \\$2; exit}" $CONFIG`
+fi
+
 # First check if an alias was defined for this device.
 ID_VDEV=`alias_handler`
 
 if [ -z "$ID_VDEV" ] ; then
+	BAY=${BAY:-bay}
 	TOPOLOGY=${TOPOLOGY:-sas_direct}
 	case $TOPOLOGY in
 		sas_direct|sas_switch)
