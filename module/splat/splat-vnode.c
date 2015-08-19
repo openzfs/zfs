@@ -223,6 +223,7 @@ out:
         return -rc;
 } /* splat_vnode_test3() */
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,1,0)
 static int
 splat_vnode_test4(struct file *file, void *arg)
 {
@@ -303,6 +304,7 @@ out:
 
         return -rc;
 } /* splat_vnode_test4() */
+#endif
 
 static int
 splat_vnode_test5(struct file *file, void *arg)
@@ -413,8 +415,10 @@ splat_vnode_init(void)
 	                SPLAT_VNODE_TEST2_ID, splat_vnode_test2);
         SPLAT_TEST_INIT(sub, SPLAT_VNODE_TEST3_NAME, SPLAT_VNODE_TEST3_DESC,
 	                SPLAT_VNODE_TEST3_ID, splat_vnode_test3);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,1,0)
         SPLAT_TEST_INIT(sub, SPLAT_VNODE_TEST4_NAME, SPLAT_VNODE_TEST4_DESC,
 	                SPLAT_VNODE_TEST4_ID, splat_vnode_test4);
+#endif
         SPLAT_TEST_INIT(sub, SPLAT_VNODE_TEST5_NAME, SPLAT_VNODE_TEST5_DESC,
 	                SPLAT_VNODE_TEST5_ID, splat_vnode_test5);
         SPLAT_TEST_INIT(sub, SPLAT_VNODE_TEST6_NAME, SPLAT_VNODE_TEST6_DESC,
@@ -430,7 +434,9 @@ splat_vnode_fini(splat_subsystem_t *sub)
 
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST6_ID);
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST5_ID);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,1,0)
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST4_ID);
+#endif
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST3_ID);
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST2_ID);
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST1_ID);
