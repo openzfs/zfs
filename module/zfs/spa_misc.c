@@ -375,29 +375,32 @@ spa_config_lock_destroy(spa_t *spa)
 int
 spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
-	int i;
+	int i, locks_obtained = 0;
 
 	for (i = 0; i < SCL_LOCKS; i++) {
-		spa_config_lock_t *scl = &spa->spa_config_lock[i];
+		spa_config_lock_t *scl;
+
 		if (!(locks & (1 << i)))
 			continue;
+		scl = &spa->spa_config_lock[i];
 		mutex_enter(&scl->scl_lock);
 		if (rw == RW_READER) {
 			if (scl->scl_writer || scl->scl_write_wanted) {
 				mutex_exit(&scl->scl_lock);
-				spa_config_exit(spa, locks ^ (1 << i), tag);
+				spa_config_exit(spa, locks_obtained, tag);
 				return (0);
 			}
 		} else {
 			ASSERT(scl->scl_writer != curthread);
 			if (!refcount_is_zero(&scl->scl_count)) {
 				mutex_exit(&scl->scl_lock);
-				spa_config_exit(spa, locks ^ (1 << i), tag);
+				spa_config_exit(spa, locks_obtained, tag);
 				return (0);
 			}
 			scl->scl_writer = curthread;
 		}
 		(void) refcount_add(&scl->scl_count, tag);
+		locks_obtained |= 1 << i;
 		mutex_exit(&scl->scl_lock);
 	}
 	return (1);
