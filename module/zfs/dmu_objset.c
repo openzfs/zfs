@@ -312,22 +312,22 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 			arc_buf_t *buf = arc_buf_alloc(spa,
 			    sizeof (objset_phys_t), &os->os_phys_buf,
 			    ARC_BUFC_METADATA);
-			bzero(buf->b_data, sizeof (objset_phys_t));
-			bcopy(os->os_phys_buf->b_data, buf->b_data,
+			abd_zero(buf->b_data, sizeof (objset_phys_t));
+			abd_copy(buf->b_data, os->os_phys_buf->b_data,
 			    arc_buf_size(os->os_phys_buf));
 			(void) arc_buf_remove_ref(os->os_phys_buf,
 			    &os->os_phys_buf);
 			os->os_phys_buf = buf;
 		}
 
-		os->os_phys = os->os_phys_buf->b_data;
+		os->os_phys = ABD_TO_BUF(os->os_phys_buf->b_data);
 		os->os_flags = os->os_phys->os_flags;
 	} else {
 		int size = spa_version(spa) >= SPA_VERSION_USERSPACE ?
 		    sizeof (objset_phys_t) : OBJSET_OLD_PHYS_SIZE;
 		os->os_phys_buf = arc_buf_alloc(spa, size,
 		    &os->os_phys_buf, ARC_BUFC_METADATA);
-		os->os_phys = os->os_phys_buf->b_data;
+		os->os_phys = ABD_TO_BUF(os->os_phys_buf->b_data);
 		bzero(os->os_phys, size);
 	}
 
@@ -1219,7 +1219,7 @@ dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	void *data;
 
 	if (db->db_dirtycnt == 0)
-		return (db->db.db_data);  /* Nothing is changing */
+		return (ABD_TO_BUF(db->db.db_data));  /* Nothing is changing */
 
 	for (drp = &db->db_last_dirty; (dr = *drp) != NULL; drp = &dr->dr_next)
 		if (dr->dr_txg == tx->tx_txg)
@@ -1235,7 +1235,7 @@ dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 		if (dn->dn_bonuslen == 0 &&
 		    dr->dr_dbuf->db_blkid == DMU_SPILL_BLKID)
-			data = dr->dt.dl.dr_data->b_data;
+			data = ABD_TO_BUF(dr->dt.dl.dr_data->b_data);
 		else
 			data = dr->dt.dl.dr_data;
 
@@ -1284,7 +1284,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 			    FTAG, (dmu_buf_t **)&db);
 			ASSERT(error == 0);
 			mutex_enter(&db->db_mtx);
-			data = (before) ? db->db.db_data :
+			data = (before) ? ABD_TO_BUF(db->db.db_data) :
 			    dmu_objset_userquota_find_data(db, tx);
 			have_spill = B_TRUE;
 	} else {

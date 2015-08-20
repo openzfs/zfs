@@ -28,6 +28,7 @@
 #define	_SYS_ARC_H
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -61,7 +62,7 @@ struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
 	kmutex_t		b_evict_lock;
-	void			*b_data;
+	abd_t			*b_data;
 	arc_evict_func_t	*b_efunc;
 	void			*b_private;
 };

@@ -1736,6 +1736,7 @@ spa_init(int mode)
 	}
 #endif
 
+	abd_init();
 	fm_init();
 	refcount_init();
 	unique_init();
@@ -1770,6 +1771,7 @@ spa_fini(void)
 	unique_fini();
 	refcount_fini();
 	fm_fini();
+	abd_fini();
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);
