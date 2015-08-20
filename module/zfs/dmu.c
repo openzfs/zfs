@@ -1204,7 +1204,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 }
 
 static int
-dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
+dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, int flags)
 {
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
@@ -1215,7 +1215,7 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 	 * to be reading in parallel.
 	 */
 	err = dmu_buf_hold_array_by_dnode(dn, uio->uio_loffset, size,
-	    TRUE, FTAG, &numbufs, &dbp, 0);
+	    TRUE, FTAG, &numbufs, &dbp, flags);
 	if (err)
 		return (err);
 
@@ -1267,7 +1267,7 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
  * because we don't have to find the dnode_t for the object.
  */
 int
-dmu_read_uio_dbuf(dmu_buf_t *zdb, uio_t *uio, uint64_t size)
+dmu_read_uio_dbuf(dmu_buf_t *zdb, uio_t *uio, uint64_t size, int flags)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zdb;
 	dnode_t *dn;
@@ -1278,7 +1278,7 @@ dmu_read_uio_dbuf(dmu_buf_t *zdb, uio_t *uio, uint64_t size)
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	err = dmu_read_uio_dnode(dn, uio, size);
+	err = dmu_read_uio_dnode(dn, uio, size, flags);
 	DB_DNODE_EXIT(db);
 
 	return (err);
@@ -1302,7 +1302,7 @@ dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 	if (err)
 		return (err);
 
-	err = dmu_read_uio_dnode(dn, uio, size);
+	err = dmu_read_uio_dnode(dn, uio, size, DMU_READ_PREFETCH);
 
 	dnode_rele(dn, FTAG);
 

@@ -403,7 +403,7 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 			page_cache_release(pp);
 		} else {
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
-			    uio, bytes);
+			    uio, bytes, DMU_READ_PREFETCH);
 		}
 
 		len -= bytes;
@@ -526,6 +526,8 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 #endif /* HAVE_UIO_ZEROCOPY */
 
 	while (n > 0) {
+		int dmu_flags = (ioflag & O_DIRECT) ?
+		    DMU_READ_NO_PREFETCH : DMU_READ_PREFETCH;
 		nbytes = MIN(n, zfs_read_chunk_size -
 		    P2PHASE(uio->uio_loffset, zfs_read_chunk_size));
 
@@ -533,7 +535,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			error = mappedread(ip, nbytes, uio);
 		} else {
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
-			    uio, nbytes);
+			    uio, nbytes, dmu_flags);
 		}
 
 		if (error) {
