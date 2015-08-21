@@ -718,6 +718,21 @@ Default value: \fB500,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_delete_blocks\fR (ulong)
+.ad
+.RS 12n
+This is the used to define a large file for the purposes of delete.  Files
+containing more than \fBzfs_delete_blocks\fR will be deleted asynchronously
+while smaller files are deleted synchronously.  Decreasing this value will
+reduce the time spent in an unlink(2) system call at the expense of a longer
+delay before the freed space is available.
+.sp
+Default value: \fB20,480\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_dirty_data_max\fR (int)
 .ad
 .RS 12n
