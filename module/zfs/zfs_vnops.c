@@ -1513,8 +1513,8 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr)
 	uint64_t	obj = 0;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
-	boolean_t	may_delete_now;
-	boolean_t	unlinked;
+	boolean_t	may_delete_now, delete_now = FALSE;
+	boolean_t	unlinked, toobig = FALSE;
 	uint64_t	txtype;
 	pathname_t	*realnmp = NULL;
 #ifdef HAVE_PN_UTILS
@@ -1588,6 +1588,13 @@ top:
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
+	if (may_delete_now) {
+		toobig =
+		    zp->z_size > zp->z_blksz * DMU_MAX_DELETEBLKCNT;
+		/* if the file is too big, only hold_free a token amount */
+		dmu_tx_hold_free(tx, zp->z_id, 0,
+		    (toobig ? DMU_MAX_ACCESS : DMU_OBJECT_END));
+	}
 
 	/* are there any extended attributes? */
 	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zsb),
@@ -1599,6 +1606,11 @@ top:
 		dmu_tx_hold_sa(tx, xzp->z_sa_hdl, B_FALSE);
 	}
 
+	mutex_enter(&zp->z_lock);
+	if ((acl_obj = zfs_external_acl(zp)) != 0 && may_delete_now)
+		dmu_tx_hold_free(tx, acl_obj, 0, DMU_OBJECT_END);
+	mutex_exit(&zp->z_lock);
+	
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zsb->z_unlinkedobj, FALSE, NULL);
 
@@ -1650,10 +1662,46 @@ top:
 		mutex_enter(&zp->z_lock);
 		(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zsb),
 		    &xattr_obj_unlinked, sizeof (xattr_obj_unlinked));
+		delete_now = may_delete_now && !toobig &&
+		    zp->v_count == 1 && !vn_has_cached_data(vp) &&
+		    xattr_obj == xattr_obj_unlinked && zfs_external_acl(zp) ==
+		    acl_obj;
 		mutex_exit(&zp->z_lock);
 		zfs_unlinked_add(zp, tx);
 	}
 
+	if (delete_now) {
+		if (xattr_obj_unlinked) {
+			ASSERT3U(xzp->z_links, ==, 2);
+			mutex_enter(&xzp->z_lock);
+			xzp->z_unlinked = 1;
+			xzp->z_links = 0;
+			error = sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zsb),
+			    &xzp->z_links, sizeof (xzp->z_links), tx);
+			ASSERT3U(error,  ==,  0);
+			mutex_exit(&xzp->z_lock);
+			zfs_unlinked_add(xzp, tx);
+
+			if (zp->z_is_sa)
+				error = sa_remove(zp->z_sa_hdl,
+				    SA_ZPL_XATTR(zsb), tx);
+			else
+				error = sa_update(zp->z_sa_hdl,
+				    SA_ZPL_XATTR(zsb), &null_xattr,
+				    sizeof (uint64_t), tx);
+			ASSERT0(error);
+		}
+		mutex_enter(&vp->v_lock);
+		vp->v_count--;
+		ASSERT0(vp->v_count);
+		mutex_exit(&vp->v_lock);
+		mutex_exit(&zp->z_lock);
+		zfs_znode_delete(zp, tx);
+	} else if (unlinked) {
+		mutex_exit(&zp->z_lock);
+		zfs_unlinked_add(zp, tx);
+	}
+	
 	txtype = TX_REMOVE;
 #ifdef HAVE_PN_UTILS
 	if (flags & FIGNORECASE)
@@ -1669,6 +1717,10 @@ out:
 #endif /* HAVE_PN_UTILS */
 
 	zfs_dirent_unlock(dl);
+	
+	if (!delete_now)
+		iput(ip);
+
 	zfs_inode_update(dzp);
 	zfs_inode_update(zp);
 	if (xzp)
