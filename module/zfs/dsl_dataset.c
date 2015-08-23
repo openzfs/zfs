@@ -311,6 +311,12 @@ dsl_dataset_get_snapname(dsl_dataset_t *ds)
 	headphys = headdbuf->db_data;
 	err = zap_value_search(dp->dp_meta_objset,
 	    headphys->ds_snapnames_zapobj, ds->ds_object, 0, ds->ds_snapname);
+	if (err != 0 && zfs_recover == B_TRUE) {
+		err = 0;
+		(void) snprintf(ds->ds_snapname, sizeof (ds->ds_snapname),
+		    "SNAPOBJ=%llu-ERR=%d",
+		    (unsigned long long)ds->ds_object, err);
+	}
 	dmu_buf_rele(headdbuf, FTAG);
 	return (err);
 }
