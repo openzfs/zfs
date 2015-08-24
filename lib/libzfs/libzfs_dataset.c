@@ -1059,6 +1059,8 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 		case ZFS_PROP_RECORDSIZE:
 		{
 			int maxbs = SPA_MAXBLOCKSIZE;
+			char buf[64];
+
 			if (zhp != NULL) {
 				maxbs = zpool_get_prop_int(zhp->zpool_hdl,
 				    ZPOOL_PROP_MAXBLOCKSIZE, NULL);
@@ -1069,9 +1071,10 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			 */
 			if (intval < SPA_MINBLOCKSIZE ||
 			    intval > maxbs || !ISP2(intval)) {
+				zfs_nicenum(maxbs, buf, sizeof (buf));
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "'%s' must be power of 2 from 512B "
-				    "to %uKB"), propname, maxbs >> 10);
+				    "to %s"), propname, buf);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -3210,6 +3213,8 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	/* check for failure */
 	if (ret != 0) {
 		char parent[ZFS_MAXNAMELEN];
+		char buf[64];
+
 		(void) parent_name(path, parent, sizeof (parent));
 
 		switch (errno) {
@@ -3224,9 +3229,10 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 
 		case EDOM:
+			zfs_nicenum(SPA_MAXBLOCKSIZE, buf, sizeof (buf));
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "volume block size must be power of 2 from "
-			    "512B to %uKB"), zfs_max_recordsize >> 10);
+			    "512B to %s"), buf);
 
 			return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 
