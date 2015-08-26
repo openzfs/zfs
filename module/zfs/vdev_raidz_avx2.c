@@ -61,8 +61,7 @@
                  "vmovdqa %%ymm2, 64(%[p])\n" \
                  "vmovdqa %%ymm3, 96(%[p])\n" \
             : \
-            : [src] "r" (src), [p] "r" (p) \
-            : "memory");
+            : [src] "r" (src), [p] "r" (p)); 
 
 #define	COPY16PQ_AVX2						\
     asm volatile("vmovdqa (%[src]), %%ymm0\n" \
@@ -78,8 +77,7 @@
                  "vmovdqa %%ymm2, 64(%[q])\n" \
                  "vmovdqa %%ymm3, 96(%[q])\n" \
             : \
-            : [src] "r" (src), [p] "r" (p), [q] "r" (q) \
-            : "memory");
+            : [src] "r" (src), [p] "r" (p), [q] "r" (q)); 
 
 #define	COPY16PQR_AVX2						\
     asm volatile("vmovdqa (%[src]), %%ymm0\n" \
@@ -99,8 +97,7 @@
                  "vmovdqa %%ymm2, 64(%[r])\n" \
                  "vmovdqa %%ymm3, 96(%[r])\n" \
             : \
-            : [src] "r" (src), [p] "r" (p), [q] "r" (q), [r] "r" (r) \
-            : "memory");
+            : [src] "r" (src), [p] "r" (p), [q] "r" (q), [r] "r" (r)); 
 
 #define	LOAD16_SRC_AVX2						\
     asm volatile("vmovdqa (%[src]), %%ymm0\n" \
@@ -108,8 +105,7 @@
                  "vmovdqa 64(%[src]), %%ymm8\n" \
                  "vmovdqa 96(%[src]), %%ymm12\n" \
             : \
-            : [src] "r" (src) \
-            : "memory");
+            : [src] "r" (src)); 
 
 #define	COMPUTE16_P_AVX2					\
     asm volatile("vmovdqa (%[p]), %%ymm1\n" \
@@ -125,8 +121,7 @@
                  "vmovdqa %%ymm9, 64(%[p])\n" \
                  "vmovdqa %%ymm13, 96(%[p])\n" \
             : \
-            : [p] "r" (p) \
-            : "memory");
+            : [p] "r" (p)); 
 
 #define	COMPUTE16_Q_AVX2						\
     asm volatile("vmovdqa (%[q]), %%ymm1\n" \
@@ -159,8 +154,7 @@
                  "vmovdqa %%ymm9, 64(%[q])\n" \
                  "vmovdqa %%ymm13, 96(%[q])\n" \
             : \
-            : [q] "r" (q) \
-            : "memory");
+            : [q] "r" (q)); 
 
 #define	COMPUTE16_R_AVX2						\
     asm volatile("vmovdqa (%[r]), %%ymm1\n" \
@@ -210,8 +204,7 @@
                  "vmovdqa %%ymm9, 64(%[r])\n" \
                  "vmovdqa %%ymm13, 96(%[r])\n" \
             : \
-            : [r] "r" (r) \
-            : "memory");
+            : [r] "r" (r)); 
 
 void
 vdev_raidz_generate_parity_p_avx2(raidz_map_t *rm)

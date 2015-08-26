@@ -61,8 +61,7 @@
                  "movdqa %%xmm2, 32(%[p])\n" \
                  "movdqa %%xmm3, 48(%[p])\n" \
             : \
-            : [src] "r" (src), [p] "r" (p) \
-            : "memory");
+            : [src] "r" (src), [p] "r" (p)); 
 
 #define	COPY8PQ_SSE						\
     asm volatile("movdqa (%[src]), %%xmm0\n" \
@@ -78,8 +77,7 @@
                  "movdqa %%xmm2, 32(%[q])\n" \
                  "movdqa %%xmm3, 48(%[q])\n" \
             : \
-            : [src] "r" (src), [p] "r" (p), [q] "r" (q) \
-            : "memory");
+            : [src] "r" (src), [p] "r" (p), [q] "r" (q)); 
 
 #define	COPY8PQR_SSE						\
     asm volatile("movdqa (%[src]), %%xmm0\n" \
@@ -99,8 +97,7 @@
                  "movdqa %%xmm2, 32(%[r])\n" \
                  "movdqa %%xmm3, 48(%[r])\n" \
             : \
-            : [src] "r" (src), [p] "r" (p), [q] "r" (q), [r] "r" (r) \
-            : "memory");
+            : [src] "r" (src), [p] "r" (p), [q] "r" (q), [r] "r" (r)); 
 
 #define	LOAD8_SRC_SSE						\
     asm volatile("movdqa (%[src]), %%xmm0\n" \
@@ -108,8 +105,7 @@
                  "movdqa 32(%[src]), %%xmm8\n" \
                  "movdqa 48(%[src]), %%xmm12\n" \
             : \
-            : [src] "r" (src) \
-            : "memory");
+            : [src] "r" (src)); 
 
 #define	COMPUTE8_P_SSE						\
     asm volatile("movdqa (%[p]), %%xmm1\n" \
@@ -125,8 +121,7 @@
                  "movdqa %%xmm9, 32(%[p])\n" \
                  "movdqa %%xmm13, 48(%[p])\n" \
             : \
-            : [p] "r" (p) \
-            : "memory");
+            : [p] "r" (p)); 
 
 #define	COMPUTE8_Q_SSE							\
     asm volatile("movdqa (%[q]), %%xmm1\n" \
@@ -162,8 +157,7 @@
                  "movdqa %%xmm9, 32(%[q])\n" \
                  "movdqa %%xmm13, 48(%[q])\n" \
             : \
-            : [q] "r" (q) \
-            : "memory");
+            : [q] "r" (q)); 
 
 #define	COMPUTE8_R_SSE							\
     asm volatile("movdqa (%[r]), %%xmm1\n" \
@@ -219,8 +213,7 @@
                  "movdqa %%xmm9, 32(%[r])\n" \
                  "movdqa %%xmm13, 48(%[r])\n" \
             : \
-            : [r] "r" (r) \
-            : "memory");
+            : [r] "r" (r)); 
 
 void
 vdev_raidz_generate_parity_p_sse(raidz_map_t *rm)
