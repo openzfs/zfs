@@ -256,18 +256,18 @@ sas_handler() {
 
 	SLOT=
 	case $BAY in
-	    "bay") 
+	"bay") 
 		SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
 		;;
-	    "phy") 
+	"phy") 
 		SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
 		;;
-	    "id")
+	"id")
 		i=$(($i + 1))
 		d=$(eval echo \${$i})
 		SLOT=`echo $d | sed -e 's/^.*://'`
 		;;
-	    "lun")
+	"lun")
 		i=$(($i + 2))
 		d=$(eval echo \${$i})
 		SLOT=`echo $d | sed -e 's/^.*://'`
