@@ -482,6 +482,30 @@ abd_copy_off(abd_t *dabd, abd_t *sabd, size_t size, size_t doff,
 }
 
 /*
+ * Copy from @buf to the ABD indicated by @aiter
+ * @aiter will advance @size byte when done
+ */
+static void
+abd_miter_copy_from_buf(struct abd_miter *aiter, const void *buf, size_t size)
+{
+	size_t len;
+	while (size > 0) {
+		len = MIN(aiter->length, size);
+		ASSERT(len > 0);
+
+		abd_miter_map_atomic(aiter);
+
+		memcpy(aiter->addr, buf, len);
+
+		abd_miter_unmap_atomic(aiter);
+
+		size -= len;
+		buf += len;
+		abd_miter_advance(aiter, len);
+	}
+}
+
+/*
  * Copy from @buf to @abd
  * @off is the offset in @abd
  */
@@ -489,7 +513,6 @@ void
 abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t size,
     size_t off)
 {
-	size_t len;
 	struct abd_miter aiter;
 
 	ABD_CHECK(abd);
@@ -498,19 +521,30 @@ abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t size,
 	abd_miter_init(&aiter, abd, ABD_MITER_W);
 	abd_miter_advance(&aiter, off);
 
+	abd_miter_copy_from_buf(&aiter, buf, size);
+}
+
+/*
+ * Copy from the ABD indicated by @aiter to @buf
+ * @aiter will advance @size byte when done
+ */
+static void
+abd_miter_copy_to_buf(void *buf, struct abd_miter *aiter, size_t size)
+{
+	size_t len;
 	while (size > 0) {
-		len = MIN(aiter.length, size);
+		len = MIN(aiter->length, size);
 		ASSERT(len > 0);
 
-		abd_miter_map_atomic(&aiter);
+		abd_miter_map_atomic(aiter);
 
-		memcpy(aiter.addr, buf, len);
+		memcpy(buf, aiter->addr, len);
 
-		abd_miter_unmap_atomic(&aiter);
+		abd_miter_unmap_atomic(aiter);
 
 		size -= len;
 		buf += len;
-		abd_miter_advance(&aiter, len);
+		abd_miter_advance(aiter, len);
 	}
 }
 
@@ -521,7 +555,6 @@ abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t size,
 void
 abd_copy_to_buf_off(void *buf, abd_t *abd, size_t size, size_t off)
 {
-	size_t len;
 	struct abd_miter aiter;
 
 	ABD_CHECK(abd);
@@ -530,20 +563,7 @@ abd_copy_to_buf_off(void *buf, abd_t *abd, size_t size, size_t off)
 	abd_miter_init(&aiter, abd, ABD_MITER_R);
 	abd_miter_advance(&aiter, off);
 
-	while (size > 0) {
-		len = MIN(aiter.length, size);
-		ASSERT(len > 0);
-
-		abd_miter_map_atomic(&aiter);
-
-		memcpy(buf, aiter.addr, len);
-
-		abd_miter_unmap_atomic(&aiter);
-
-		size -= len;
-		buf += len;
-		abd_miter_advance(&aiter, len);
-	}
+	abd_miter_copy_to_buf(buf, &aiter, size);
 }
 
 /*
@@ -654,6 +674,34 @@ abd_zero_off(abd_t *abd, size_t size, size_t off)
 }
 
 #ifdef _KERNEL
+static int
+abd_miter_copy_to_user(void __user *buf, struct abd_miter *aiter, size_t size)
+{
+	int ret = 0;
+	size_t len;
+	while (size > 0) {
+		len = MIN(aiter->length, size);
+		ASSERT(len > 0);
+
+		abd_miter_map_atomic(aiter);
+
+		ret = __copy_to_user_inatomic(buf, aiter->addr, len);
+
+		abd_miter_unmap_atomic(aiter);
+		if (ret) {
+			abd_miter_map(aiter);
+			ret = copy_to_user(buf, aiter->addr, len);
+			abd_miter_unmap(aiter);
+			if (ret)
+				break;
+		}
+
+		size -= len;
+		buf += len;
+		abd_miter_advance(aiter, len);
+	}
+	return (ret ? EFAULT : 0);
+}
 /*
  * Copy from @abd to user buffer @buf.
  * @off is the offset in @abd
@@ -662,8 +710,6 @@ int
 abd_copy_to_user_off(void __user *buf, abd_t *abd, size_t size,
     size_t off)
 {
-	int ret = 0;
-	size_t len;
 	struct abd_miter aiter;
 
 	ABD_CHECK(abd);
@@ -672,26 +718,35 @@ abd_copy_to_user_off(void __user *buf, abd_t *abd, size_t size,
 	abd_miter_init(&aiter, abd, ABD_MITER_R);
 	abd_miter_advance(&aiter, off);
 
+	return (abd_miter_copy_to_user(buf, &aiter, size));
+}
+
+static int
+abd_miter_copy_from_user(struct abd_miter *aiter, const void __user *buf,
+    size_t size)
+{
+	int ret = 0;
+	size_t len;
 	while (size > 0) {
-		len = MIN(aiter.length, size);
+		len = MIN(aiter->length, size);
 		ASSERT(len > 0);
 
-		abd_miter_map_atomic(&aiter);
+		abd_miter_map_atomic(aiter);
 
-		ret = __copy_to_user_inatomic(buf, aiter.addr, len);
+		ret = __copy_from_user_inatomic(aiter->addr, buf, len);
 
-		abd_miter_unmap_atomic(&aiter);
+		abd_miter_unmap_atomic(aiter);
 		if (ret) {
-			abd_miter_map(&aiter);
-			ret = copy_to_user(buf, aiter.addr, len);
-			abd_miter_unmap(&aiter);
+			abd_miter_map(aiter);
+			ret = copy_from_user(aiter->addr, buf, len);
+			abd_miter_unmap(aiter);
 			if (ret)
 				break;
 		}
 
 		size -= len;
 		buf += len;
-		abd_miter_advance(&aiter, len);
+		abd_miter_advance(aiter, len);
 	}
 	return (ret ? EFAULT : 0);
 }
@@ -704,8 +759,6 @@ int
 abd_copy_from_user_off(abd_t *abd, const void __user *buf, size_t size,
     size_t off)
 {
-	int ret = 0;
-	size_t len;
 	struct abd_miter aiter;
 
 	ABD_CHECK(abd);
@@ -714,28 +767,7 @@ abd_copy_from_user_off(abd_t *abd, const void __user *buf, size_t size,
 	abd_miter_init(&aiter, abd, ABD_MITER_W);
 	abd_miter_advance(&aiter, off);
 
-	while (size > 0) {
-		len = MIN(aiter.length, size);
-		ASSERT(len > 0);
-
-		abd_miter_map_atomic(&aiter);
-
-		ret = __copy_from_user_inatomic(aiter.addr, buf, len);
-
-		abd_miter_unmap_atomic(&aiter);
-		if (ret) {
-			abd_miter_map(&aiter);
-			ret = copy_from_user(aiter.addr, buf, len);
-			abd_miter_unmap(&aiter);
-			if (ret)
-				break;
-		}
-
-		size -= len;
-		buf += len;
-		abd_miter_advance(&aiter, len);
-	}
-	return (ret ? EFAULT : 0);
+	return (abd_miter_copy_from_user(&aiter, buf, size));
 }
 
 static int
@@ -745,33 +777,34 @@ abd_uiomove_iov_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
 	const struct iovec *iov = uio->uio_iov;
 	size_t skip = uio->uio_skip;
 	ulong_t cnt;
+	struct abd_miter aiter;
+
+	ABD_CHECK(abd);
+	ASSERT(n <= abd->abd_size - off);
+
+	abd_miter_init(&aiter, abd, rw == UIO_READ ? ABD_MITER_R : ABD_MITER_W);
+	abd_miter_advance(&aiter, off);
 
 	while (n && uio->uio_resid) {
+		void *caddr = iov->iov_base + skip;
 		cnt = MIN(iov->iov_len - skip, n);
 		switch (uio->uio_segflg) {
 		case UIO_USERSPACE:
 		case UIO_USERISPACE:
-			/*
-			 * p = kernel data pointer
-			 * iov->iov_base = user data pointer
-			 */
 			if (rw == UIO_READ) {
-				if (abd_copy_to_user_off(iov->iov_base+skip,
-				    abd, cnt, off))
+				if (abd_miter_copy_to_user(caddr, &aiter, cnt))
 					return (EFAULT);
 			} else {
-				if (abd_copy_from_user_off(abd,
-				    iov->iov_base+skip, cnt, off))
+				if (abd_miter_copy_from_user(&aiter, caddr,
+				    cnt))
 					return (EFAULT);
 			}
 			break;
 		case UIO_SYSSPACE:
 			if (rw == UIO_READ)
-				abd_copy_to_buf_off(iov->iov_base + skip, abd,
-				    cnt, off);
+				abd_miter_copy_to_buf(caddr, &aiter, cnt);
 			else
-				abd_copy_from_buf_off(abd, iov->iov_base + skip,
-				    cnt, off);
+				abd_miter_copy_from_buf(&aiter, caddr, cnt);
 			break;
 		default:
 			ASSERT(0);
@@ -785,7 +818,6 @@ abd_uiomove_iov_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
 		uio->uio_skip = skip;
 		uio->uio_resid -= cnt;
 		uio->uio_loffset += cnt;
-		off += cnt;
 		n -= cnt;
 	}
 	return (0);
@@ -798,19 +830,25 @@ abd_uiomove_bvec_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
 	const struct bio_vec *bv = uio->uio_bvec;
 	size_t skip = uio->uio_skip;
 	ulong_t cnt;
+	struct abd_miter aiter;
+
+	ABD_CHECK(abd);
+	ASSERT(n <= abd->abd_size - off);
+
+	abd_miter_init(&aiter, abd, rw == UIO_READ ? ABD_MITER_R : ABD_MITER_W);
+	abd_miter_advance(&aiter, off);
 
 	while (n && uio->uio_resid) {
-		void *paddr;
+		void *paddr, *caddr;
 		cnt = MIN(bv->bv_len - skip, n);
 
 		/* miter will use KM_USER0, so here we use KM_USER1 */
 		paddr = zfs_kmap_atomic(bv->bv_page, KM_USER1);
+		caddr = paddr + bv->bv_offset + skip;
 		if (rw == UIO_READ)
-			abd_copy_to_buf_off(paddr + bv->bv_offset + skip, abd,
-			    cnt, off);
+			abd_miter_copy_to_buf(caddr, &aiter, cnt);
 		else
-			abd_copy_from_buf_off(abd, paddr + bv->bv_offset + skip,
-			    cnt, off);
+			abd_miter_copy_from_buf(&aiter, caddr, cnt);
 		zfs_kunmap_atomic(paddr, KM_USER1);
 
 		skip += cnt;
@@ -822,7 +860,6 @@ abd_uiomove_bvec_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
 		uio->uio_skip = skip;
 		uio->uio_resid -= cnt;
 		uio->uio_loffset += cnt;
-		off += cnt;
 		n -= cnt;
 	}
 	return (0);
