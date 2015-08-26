@@ -45,6 +45,12 @@
 #include <sys/vdev_raidz.h>
 
 #if defined(__x86_64__)
+#define	MAKE_CST32_SSE			\
+	asm volatile("movd %[cast], %%xmm7\n" \
+                 "pshufd $0, %%xmm7, %%xmm7\n" \
+                : \
+                : [cast] "r" (0x1d1d1d1d));
+
 #define	COPY8P_SSE						\
     asm volatile("movdqa (%[src]), %%xmm0\n" \
                  "movdqa 16(%[src]), %%xmm1\n" \
@@ -127,8 +133,6 @@
                  "movdqa 16(%[q]), %%xmm5\n" \
                  "movdqa 32(%[q]), %%xmm9\n" \
                  "movdqa 48(%[q]), %%xmm13\n" \
-                 "movd %[cast], %%xmm3\n" \
-                 "pshufd $0, %%xmm3, %%xmm3\n" \
                  "pxor %%xmm2, %%xmm2\n" \
                  "pxor %%xmm6, %%xmm6\n" \
                  "pxor %%xmm10, %%xmm10\n" \
@@ -141,10 +145,10 @@
                  "paddb %%xmm5,%%xmm5\n" \
                  "paddb %%xmm9,%%xmm9\n" \
                  "paddb %%xmm13,%%xmm13\n" \
-                 "pand %%xmm3,%%xmm2\n" \
-                 "pand %%xmm3,%%xmm6\n" \
-                 "pand %%xmm3,%%xmm10\n" \
-                 "pand %%xmm3,%%xmm14\n" \
+                 "pand %%xmm7,%%xmm2\n" \
+                 "pand %%xmm7,%%xmm6\n" \
+                 "pand %%xmm7,%%xmm10\n" \
+                 "pand %%xmm7,%%xmm14\n" \
                  "pxor %%xmm2, %%xmm1\n" \
                  "pxor %%xmm6, %%xmm5\n" \
                  "pxor %%xmm10, %%xmm9\n" \
@@ -158,7 +162,7 @@
                  "movdqa %%xmm9, 32(%[q])\n" \
                  "movdqa %%xmm13, 48(%[q])\n" \
             : \
-            : [q] "r" (q), [cast] "r" (0x1d1d1d1d) \
+            : [q] "r" (q) \
             : "memory");
 
 #define	COMPUTE8_R_SSE							\
@@ -166,8 +170,6 @@
                  "movdqa 16(%[r]), %%xmm5\n" \
                  "movdqa 32(%[r]), %%xmm9\n" \
                  "movdqa 48(%[r]), %%xmm13\n" \
-                 "movd %[cast], %%xmm3\n" \
-                 "pshufd $0, %%xmm3, %%xmm3\n" \
                  "pxor %%xmm2, %%xmm2\n" \
                  "pxor %%xmm6, %%xmm6\n" \
                  "pxor %%xmm10, %%xmm10\n" \
@@ -180,10 +182,10 @@
                  "paddb %%xmm5,%%xmm5\n" \
                  "paddb %%xmm9,%%xmm9\n" \
                  "paddb %%xmm13,%%xmm13\n" \
-                 "pand %%xmm3,%%xmm2\n" \
-                 "pand %%xmm3,%%xmm6\n" \
-                 "pand %%xmm3,%%xmm10\n" \
-                 "pand %%xmm3,%%xmm14\n" \
+                 "pand %%xmm7,%%xmm2\n" \
+                 "pand %%xmm7,%%xmm6\n" \
+                 "pand %%xmm7,%%xmm10\n" \
+                 "pand %%xmm7,%%xmm14\n" \
                  "pxor %%xmm2, %%xmm1\n" \
                  "pxor %%xmm6, %%xmm5\n" \
                  "pxor %%xmm10, %%xmm9\n" \
@@ -200,10 +202,10 @@
                  "paddb %%xmm5,%%xmm5\n" \
                  "paddb %%xmm9,%%xmm9\n" \
                  "paddb %%xmm13,%%xmm13\n" \
-                 "pand %%xmm3,%%xmm2\n" \
-                 "pand %%xmm3,%%xmm6\n" \
-                 "pand %%xmm3,%%xmm10\n" \
-                 "pand %%xmm3,%%xmm14\n" \
+                 "pand %%xmm7,%%xmm2\n" \
+                 "pand %%xmm7,%%xmm6\n" \
+                 "pand %%xmm7,%%xmm10\n" \
+                 "pand %%xmm7,%%xmm14\n" \
                  "pxor %%xmm2, %%xmm1\n" \
                  "pxor %%xmm6, %%xmm5\n" \
                  "pxor %%xmm10, %%xmm9\n" \
@@ -217,7 +219,7 @@
                  "movdqa %%xmm9, 32(%[r])\n" \
                  "movdqa %%xmm13, 48(%[r])\n" \
             : \
-            : [r] "r" (r), [cast] "r" (0x1d1d1d1d) \
+            : [r] "r" (r) \
             : "memory");
 
 void
@@ -269,6 +271,7 @@ vdev_raidz_generate_parity_pq_sse(raidz_map_t *rm)
 	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
 	    rm->rm_col[VDEV_RAIDZ_Q].rc_size);
 	kfpu_begin();
+    MAKE_CST32_SSE;
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		src = rm->rm_col[c].rc_data;
 		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
@@ -336,6 +339,7 @@ vdev_raidz_generate_parity_pqr_sse(raidz_map_t *rm)
 	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
 	    rm->rm_col[VDEV_RAIDZ_R].rc_size);
 	kfpu_begin();
+    MAKE_CST32_SSE;
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		src = rm->rm_col[c].rc_data;
 		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;

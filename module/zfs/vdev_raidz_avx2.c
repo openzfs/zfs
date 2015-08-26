@@ -45,9 +45,11 @@
 #include <sys/vdev_raidz.h>
 
 #if defined(__x86_64__) && defined(_KERNEL) && defined(CONFIG_AS_AVX2)
-#define	MAKE_CST32_AVX2(regx, regy, val)		\
-	asm volatile("vmovd %0,%%"#regx : : "r"(val));	\
-	asm volatile("vpbroadcastd %"#regx",%"#regy)
+#define	MAKE_CST32_AVX2		\
+	asm volatile("vmovd %[cast], %%xmm7\n" \
+                 "vpbroadcastd %%xmm7, %%ymm7\n" \
+                : \
+                : [cast] "r" (0x1d1d1d1d));
 
 #define	COPY16P_AVX2						\
     asm volatile("vmovdqa (%[src]), %%ymm0\n" \
@@ -131,8 +133,6 @@
                  "vmovdqa 32(%[q]), %%ymm5\n" \
                  "vmovdqa 64(%[q]), %%ymm9\n" \
                  "vmovdqa 96(%[q]), %%ymm13\n" \
-                 "vmovd %[cast], %%xmm3\n" \
-                 "vpbroadcastd %%xmm3, %%ymm3\n" \
                  "vpxor %%ymm14, %%ymm14, %%ymm14\n" \
                  "vpcmpgtb %%ymm1, %%ymm14, %%ymm2\n" \
                  "vpcmpgtb %%ymm5, %%ymm14, %%ymm6\n" \
@@ -142,10 +142,10 @@
                  "vpaddb %%ymm5, %%ymm5, %%ymm5\n" \
                  "vpaddb %%ymm9, %%ymm9, %%ymm9\n" \
                  "vpaddb %%ymm13, %%ymm13, %%ymm13\n" \
-                 "vpand %%ymm3, %%ymm2, %%ymm2\n" \
-                 "vpand %%ymm3, %%ymm6, %%ymm6\n" \
-                 "vpand %%ymm3, %%ymm10, %%ymm10\n" \
-                 "vpand %%ymm3, %%ymm14, %%ymm14\n" \
+                 "vpand %%ymm7, %%ymm2, %%ymm2\n" \
+                 "vpand %%ymm7, %%ymm6, %%ymm6\n" \
+                 "vpand %%ymm7, %%ymm10, %%ymm10\n" \
+                 "vpand %%ymm7, %%ymm14, %%ymm14\n" \
                  "vpxor %%ymm2, %%ymm1, %%ymm1\n" \
                  "vpxor %%ymm6, %%ymm5, %%ymm5\n" \
                  "vpxor %%ymm10, %%ymm9, %%ymm9\n" \
@@ -159,7 +159,7 @@
                  "vmovdqa %%ymm9, 64(%[q])\n" \
                  "vmovdqa %%ymm13, 96(%[q])\n" \
             : \
-            : [q] "r" (q), [cast] "r" (0x1d1d1d1d) \
+            : [q] "r" (q) \
             : "memory");
 
 #define	COMPUTE16_R_AVX2						\
@@ -167,8 +167,6 @@
                  "vmovdqa 32(%[r]), %%ymm5\n" \
                  "vmovdqa 64(%[r]), %%ymm9\n" \
                  "vmovdqa 96(%[r]), %%ymm13\n" \
-                 "vmovd %[cast], %%xmm3\n" \
-                 "vpbroadcastd %%xmm3, %%ymm3\n" \
                  "vpxor %%ymm14, %%ymm14, %%ymm14\n" \
                  "vpcmpgtb %%ymm1, %%ymm14, %%ymm2\n" \
                  "vpcmpgtb %%ymm5, %%ymm14, %%ymm6\n" \
@@ -178,10 +176,10 @@
                  "vpaddb %%ymm5, %%ymm5, %%ymm5\n" \
                  "vpaddb %%ymm9, %%ymm9, %%ymm9\n" \
                  "vpaddb %%ymm13, %%ymm13, %%ymm13\n" \
-                 "vpand %%ymm3, %%ymm2, %%ymm2\n" \
-                 "vpand %%ymm3, %%ymm6, %%ymm6\n" \
-                 "vpand %%ymm3, %%ymm10, %%ymm10\n" \
-                 "vpand %%ymm3, %%ymm14, %%ymm14\n" \
+                 "vpand %%ymm7, %%ymm2, %%ymm2\n" \
+                 "vpand %%ymm7, %%ymm6, %%ymm6\n" \
+                 "vpand %%ymm7, %%ymm10, %%ymm10\n" \
+                 "vpand %%ymm7, %%ymm14, %%ymm14\n" \
                  "vpxor %%ymm2, %%ymm1, %%ymm1\n" \
                  "vpxor %%ymm6, %%ymm5, %%ymm5\n" \
                  "vpxor %%ymm10, %%ymm9, %%ymm9\n" \
@@ -195,10 +193,10 @@
                  "vpaddb %%ymm5, %%ymm5, %%ymm5\n" \
                  "vpaddb %%ymm9, %%ymm9, %%ymm9\n" \
                  "vpaddb %%ymm13, %%ymm13, %%ymm13\n" \
-                 "vpand %%ymm3, %%ymm2, %%ymm2\n" \
-                 "vpand %%ymm3, %%ymm6, %%ymm6\n" \
-                 "vpand %%ymm3, %%ymm10, %%ymm10\n" \
-                 "vpand %%ymm3, %%ymm14, %%ymm14\n" \
+                 "vpand %%ymm7, %%ymm2, %%ymm2\n" \
+                 "vpand %%ymm7, %%ymm6, %%ymm6\n" \
+                 "vpand %%ymm7, %%ymm10, %%ymm10\n" \
+                 "vpand %%ymm7, %%ymm14, %%ymm14\n" \
                  "vpxor %%ymm2, %%ymm1, %%ymm1\n" \
                  "vpxor %%ymm6, %%ymm5, %%ymm5\n" \
                  "vpxor %%ymm10, %%ymm9, %%ymm9\n" \
@@ -212,7 +210,7 @@
                  "vmovdqa %%ymm9, 64(%[r])\n" \
                  "vmovdqa %%ymm13, 96(%[r])\n" \
             : \
-            : [r] "r" (r), [cast] "r" (0x1d1d1d1d) \
+            : [r] "r" (r) \
             : "memory");
 
 void
@@ -264,6 +262,7 @@ vdev_raidz_generate_parity_pq_avx2(raidz_map_t *rm)
 	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
 	    rm->rm_col[VDEV_RAIDZ_Q].rc_size);
 	kfpu_begin();
+    MAKE_CST32_AVX2;
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		src = rm->rm_col[c].rc_data;
 		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
@@ -333,6 +332,7 @@ vdev_raidz_generate_parity_pqr_avx2(raidz_map_t *rm)
 	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
 	    rm->rm_col[VDEV_RAIDZ_R].rc_size);
 	kfpu_begin();
+    MAKE_CST32_AVX2;
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		src = rm->rm_col[c].rc_data;
 		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
