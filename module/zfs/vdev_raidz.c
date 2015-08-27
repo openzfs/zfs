@@ -707,18 +707,6 @@ static void vdev_raidz_pick_parity_functions(void) {
 		    "ZFS: using vdev_raidz_generate_parity_*_avx2\n");
 	} else
 #endif
-#if defined(_KERNEL) && defined(CONFIG_AS_AVX)
-		if (boot_cpu_has(X86_FEATURE_AVX)) {
-			vdev_raidz_generate_parity_p =
-				&vdev_raidz_generate_parity_p_avx128;
-			vdev_raidz_generate_parity_pq =
-				&vdev_raidz_generate_parity_pq_avx128;
-			vdev_raidz_generate_parity_pqr =
-				&vdev_raidz_generate_parity_pqr_avx128;
-			printk(KERN_INFO \
-			    "ZFS: using vdev_raidz_generate_parity_*_avx128\n");
-		} else
-#endif
 		{
 			/* x86-64 always has SSE2 */
 			vdev_raidz_generate_parity_p =
