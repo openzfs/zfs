@@ -448,8 +448,8 @@ taskq_wait(taskq_t *tq)
 }
 EXPORT_SYMBOL(taskq_wait);
 
-int
-taskq_member(taskq_t *tq, void *t)
+static int
+taskq_member_impl(taskq_t *tq, void *t)
 {
 	struct list_head *l;
 	taskq_thread_t *tqt;
@@ -457,8 +457,8 @@ taskq_member(taskq_t *tq, void *t)
 
 	ASSERT(tq);
 	ASSERT(t);
+	ASSERT(spin_is_locked(&tq->tq_lock));
 
-	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 	list_for_each(l, &tq->tq_thread_list) {
 		tqt = list_entry(l, taskq_thread_t, tqt_thread_list);
 		if (tqt->tqt_thread == (struct task_struct *)t) {
@@ -466,6 +466,16 @@ taskq_member(taskq_t *tq, void *t)
 			break;
 		}
 	}
+	return (found);
+}
+
+int
+taskq_member(taskq_t *tq, void *t)
+{
+	int found;
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	found = taskq_member_impl(tq, t);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 	return (found);
@@ -528,6 +538,8 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 }
 EXPORT_SYMBOL(taskq_cancel_id);
 
+static int taskq_thread_spawn(taskq_t *tq, int seq_tasks);
+
 taskqid_t
 taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
@@ -574,6 +586,11 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 	wake_up(&tq->tq_work_waitq);
 out:
+	/* Spawn additional taskq threads if required. */
+	if (tq->tq_nactive == tq->tq_nthreads &&
+	    taskq_member_impl(tq, current))
+		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
+
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 	return (rc);
 }
@@ -617,6 +634,10 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 
 	spin_unlock(&t->tqent_lock);
 out:
+	/* Spawn additional taskq threads if required. */
+	if (tq->tq_nactive == tq->tq_nthreads &&
+	    taskq_member_impl(tq, current))
+		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 	return (rc);
 }
@@ -661,6 +682,10 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 
 	wake_up(&tq->tq_work_waitq);
 out:
+	/* Spawn additional taskq threads if required. */
+	if (tq->tq_nactive == tq->tq_nthreads &&
+	    taskq_member_impl(tq, current))
+		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 }
 EXPORT_SYMBOL(taskq_dispatch_ent);
