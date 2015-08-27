@@ -32,7 +32,7 @@
 # multipath     no
 # topology      sas_direct
 # phys_per_port 4
-# slot		bay
+# slot          bay
 #
 # #       PCI_ID  HBA PORT  CHANNEL NAME
 # channel 85:00.0 1         A
