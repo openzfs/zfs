@@ -958,6 +958,21 @@ Default value: \fB300\fR.
 .sp
 .ne 2
 .na
+\fBzfs_admin_snapshot\fR (int)
+.ad
+.RS 12n
+Allow the creation, removal, or renaming of entries in the .zfs/snapshot
+directory to cause the creation, destruction, or renaming of snapshots.
+When enabled this functionality works both locally and over NFS exports
+which have the 'no_root_squash' option set. This functionality is disabled
+by default.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_flags\fR (int)
 .ad
 .RS 12n
