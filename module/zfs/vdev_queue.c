@@ -831,5 +831,5 @@ MODULE_PARM_DESC(zfs_vdev_sync_write_max_active,
 
 module_param(zfs_vdev_sync_write_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_write_min_active,
-	"Min active sync write I/Osper vdev");
+	"Min active sync write I/Os per vdev");
 #endif
