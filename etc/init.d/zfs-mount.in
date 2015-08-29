@@ -46,6 +46,17 @@ chkroot() {
 
 do_depend()
 {
+	# Try to allow people to mix and match fstab with ZFS in a way that makes sense.
+	if [ "$(mountinfo -s /)" = 'zfs' ]
+	then
+		before localmount
+	else
+		after localmount
+	fi
+
+	# bootmisc will log to /var which may be a different zfs than root.
+	before bootmisc logger
+
 	after procfs zfs-import sysfs procps
 	use mtab
 	keyword -lxc -openvz -prefix -vserver
