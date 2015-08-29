@@ -1427,6 +1427,9 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 #ifdef HAVE_BLK_QUEUE_NONROT
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zv->zv_queue);
 #endif
+#ifdef QUEUE_FLAG_ADD_RANDOM
+	queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, zv->zv_queue);
+#endif
 
 	if (spa_writeable(dmu_objset_spa(os))) {
 		if (zil_replay_disable)
