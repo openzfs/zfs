@@ -9,12 +9,12 @@
 #
 ### BEGIN INIT INFO
 # Provides:          zfs-share
-# Required-Start:    $local_fs $network $remote_fs zfs-mount
-# Required-Stop:     $local_fs $network $remote_fs zfs-mount
+# Required-Start:    $local_fs $network $remote_fs zfs-mount zfs-zed
+# Required-Stop:     $local_fs $network $remote_fs zfs-mount zfs-zed
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Should-Start:      iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount
-# Should-Stop:       iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount
+# Should-Start:      iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount zfs-zed
+# Should-Stop:       iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount zfs-zed
 # Short-Description: Network share ZFS datasets and volumes.
 # Description:       Run the `zfs share -a` or `zfs unshare -a` commands
 #                    for controlling iSCSI, NFS, or CIFS network shares.
@@ -34,7 +34,7 @@
 
 do_depend()
 {
-	after sysfs zfs-mount
+	after sysfs zfs-mount zfs-zed
 	keyword -lxc -openvz -prefix -vserver
 }
 

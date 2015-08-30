@@ -42,36 +42,31 @@ INSTALLING INIT SCRIPT LINKS
   To setup the init script links in /etc/rc?.d manually on a Debian GNU/Linux
   (or derived) system, run the following commands (the order is important!):
 
-    update-rc.d zfs-zed    start 07 S .       stop 08 0 1 6 .
-    update-rc.d zfs-import start 07 S .       stop 07 0 1 6 .
-    update-rc.d zfs-mount  start 02 2 3 4 5 . stop 06 0 1 6 .
+    update-rc.d zfs-import start 07 S .       stop 08 0 1 6 .
+    update-rc.d zfs-mount  start 02 2 3 4 5 . stop 07 0 1 6 .
+    update-rc.d zfs-zed    start 26 2 3 4 5 . stop 06 0 1 6 .
     update-rc.d zfs-share  start 27 2 3 4 5 . stop 05 0 1 6 .
 
   To do the same on RedHat, Fedora and/or CentOS:
 
-    chkconfig zfs-zed
     chkconfig zfs-import
     chkconfig zfs-mount
+    chkconfig zfs-zed
     chkconfig zfs-share
 
   On Gentoo:
 
-    rc-update add zfs-zed boot
     rc-update add zfs-import boot
     rc-update add zfs-mount boot
+    rc-update add zfs-zed default
     rc-update add zfs-share default
 
+  The idea here is to make sure all of the ZFS filesystems, including possibly
+  separate datasets like /var, are mounted before anything else is started.
 
-  The idea here is to make sure ZED is started before the imports (so that
-  we can start consuming pool events before pools are imported).
+  Then, ZED, which depends on /var, can be started.  It will consume and act
+  on events that occurred before it started.  ZED may also play a role in
+  sharing filesystems in the future, so it is important to start before the
+  'share' service.
 
-  Then import any/all pools (except the root pool which is mounted in the
-  initrd before the system even boots - basically before the S (single-user)
-  mode).
-
-  Then we mount all filesystems before we start any network service (such as
-  NFSd, AFSd, Samba, iSCSI targets and what not). Even if the share* in ZFS
-  isn't used, the filesystem must be mounted for the service to start properly.
-
-  Then, at almost the very end, we share filesystems configured with the
-  share* property in ZFS.
+  Finally, we share filesystems configured with the share\* property.
