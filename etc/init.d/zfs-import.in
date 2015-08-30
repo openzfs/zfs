@@ -10,8 +10,8 @@
 #
 ### BEGIN INIT INFO
 # Provides:          zfs-import
-# Required-Start:    zfs-zed
-# Required-Stop:     zfs-zed
+# Required-Start:    mtab
+# Required-Stop:     $local_fs mtab
 # Default-Start:     S
 # Default-Stop:      0 1 6
 # X-Start-Before:    checkfs
@@ -19,6 +19,11 @@
 # Short-Description: Import ZFS pools
 # Description: Run the `zpool import` or `zpool export` commands.
 ### END INIT INFO
+#
+# NOTE: Not having '$local_fs' on Required-Start but only on Required-Stop
+#       is on purpose. If we have '$local_fs' in both (and X-Start-Before=checkfs)
+#       we get conflicts - import needs to be started extremely early,
+#       but not stopped too late.
 #
 # Released under the 2-clause BSD license.
 #
@@ -34,7 +39,7 @@
 
 do_depend()
 {
-	after sysfs udev zfs-zed
+	after sysfs udev
 	keyword -lxc -openvz -prefix -vserver
 }
 
@@ -246,15 +251,18 @@ do_import()
 # Export all pools
 do_export()
 {
-	local pool root_pool RET r
+	local already_imported pool root_pool RET r
 	RET=0
 
 	root_pool=$(get_root_pool)
 
 	[ -n "$init" ] && zfs_log_begin_msg "Exporting ZFS pool(s)"
-	TMPFILE=$(mktemp --tmpdir=/var/tmp zpool.XXXXX)
-	"$ZPOOL" list -H -oname > "$TMPFILE"
-	while read pool; do
+
+	# Find list of already imported pools.
+	already_imported=$(find_pools "$ZPOOL" list -H -oname)
+
+	OLD_IFS="$IFS" ; IFS=";"
+	for pool in $already_imported; do
 		[ "$pool" = "$root_pool" ] && continue
 
 		if [ -z "$init" ]
@@ -269,9 +277,12 @@ do_export()
 		"$ZPOOL" export "$pool"
 		r="$?" ; RET=$((RET + r))
 		[ -z "$init" ] && zfs_log_end_msg "$r"
-	done < "$TMPFILE"
-	rm -f "$TMPFILE"
+	done
+	IFS="$OLD_IFS"
+
 	[ -n "$init" ] && zfs_log_end_msg "$RET"
+
+	return "$RET"
 }
 
 # Output the status and list of pools
