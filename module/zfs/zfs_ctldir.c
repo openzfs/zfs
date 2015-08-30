@@ -457,13 +457,8 @@ zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
 
 	*ipp = zfsctl_inode_lookup(zsb, ZFSCTL_INO_SNAPDIRS - id,
 	    &simple_dir_operations, &simple_dir_inode_operations);
-	if (*ipp) {
-#ifdef HAVE_AUTOMOUNT
-		(*ipp)->i_flags |= S_AUTOMOUNT;
-#endif /* HAVE_AUTOMOUNT */
-	} else {
+	if (*ipp == NULL)
 		error = SET_ERROR(ENOENT);
-	}
 
 	ZFS_EXIT(zsb);
 
@@ -814,7 +809,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
 	zfs_sb_t *zsb = ITOZSB(ip);
-	char *full_name, *full_path;
+	char *mnt_name, *full_name, *full_path;
 	zfs_snapentry_t *sep;
 	zfs_snapentry_t search;
 	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
@@ -823,6 +818,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 
 	ZFS_ENTER(zsb);
 
+	mnt_name  = kmem_zalloc(MAXNAMELEN, KM_SLEEP);
 	full_name = kmem_zalloc(MAXNAMELEN, KM_SLEEP);
 	full_path = kmem_zalloc(PATH_MAX, KM_SLEEP);
 
@@ -850,14 +846,25 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
 	if (error && !(error & MOUNT_BUSY << 8)) {
-		printk("ZFS: Unable to automount %s at %s: %d\n",
-		    full_name, full_path, error);
+		printk("ZFS: Unable to mount %s/%s: %d\n",
+		    full_path, full_name, error);
 		error = SET_ERROR(EISDIR);
 		goto error;
 	}
 
-	error = 0;
+	follow_down_one(path);
+	dmu_objset_name(ITOZSB(path->dentry->d_inode)->z_os, mnt_name);
+
+	if (strncmp(full_name, mnt_name, strlen(full_name))) {
+		printk("ZFS: Incorrect snapshot: %s != %s\n",
+		    full_name, mnt_name);
+		error = SET_ERROR(EINVAL);
+		goto error;
+	}
+
 	mutex_enter(&zsb->z_ctldir_lock);
+	path->mnt->mnt_flags |= MNT_SHRINKABLE;
+	error = 0;
 
 	/*
 	 * Ensure a previous entry does not exist, if it does safely remove
@@ -882,8 +889,11 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	    zfsctl_expire_snapshot, sep, TQ_SLEEP,
 	    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
 
+	ASSERT0(error);
 	mutex_exit(&zsb->z_ctldir_lock);
 error:
+	kmem_free(mnt_name, MAXNAMELEN);
+
 	if (error) {
 		kmem_free(full_name, MAXNAMELEN);
 		kmem_free(full_path, PATH_MAX);
