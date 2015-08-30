@@ -695,33 +695,101 @@ zfsctl_snapdir_inactive(struct inode *ip)
 	"exec 0</dev/null " \
 	"     1>/dev/null " \
 	"     2>/dev/null; " \
-	"umount -t zfs -n %s'%s'"
+	"umount -t zfs -n -l %s'%s'"
+
+#define	STAT_CMD \
+	"exec 0</dev/null "\
+	"     1>/dev/null " \
+	"     2>/dev/null; "\
+	"zfsmount_check '%s'"
 
 static int
 __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
 {
 	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
 	char *envp[] = { NULL };
-	int error;
-
-	argv[2] = kmem_asprintf(SET_UNMOUNT_CMD,
-	    flags & MNT_FORCE ? "-f " : "", sep->se_path);
-	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	strfree(argv[2]);
+	int error = 0, stat1 = 0, stat2 = 0;
+	int ismounted = 0;
 
 	/*
-	 * The umount system utility will return 256 on error.  We must
-	 * assume this error is because the file system is busy so it is
-	 * converted to the more sensible EBUSY.
+	 * Since we don't get back status information as we are not waiting for
+	 * umount , we use a stat to see if the mount still exists. if it *does*
+	 * this would be the error condition in the original scheme, since the
+	 * mount might be in use. Note, we assume /proc/mounts in sync...
 	 */
-	if (error)
-		error = SET_ERROR(EBUSY);
+
+	argv[2] = kmem_asprintf(STAT_CMD, sep->se_path); /* note, only 1 arg */
+	stat1 = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	strfree(argv[2]);
+	if (!stat1) {
+		ismounted = 1; /* before we try and unmount, is it mounted? */
+	} else {
+		ismounted = 0;
+	}
+
+	/*
+	 * The "stat"(zfsmount_check, our side-effect free program)  call will
+	 * return 1 on error, in otherwords the mount does not exist.
+	 * This is the opposite behaviour of before.
+	 * Hence, if  no error, mount is present, EBUSY is probably true.
+	 *
+	 */
+
+	if (ismounted) {
+		argv[2] = kmem_asprintf(SET_UNMOUNT_CMD,
+			flags & MNT_FORCE ? "-f " : "", sep->se_path);
+		error = call_usermodehelper(argv[0], argv, envp, UMH_NO_WAIT);
+		strfree(argv[2]);
+
+		/* OK we tried to unmount. Change in state? */
+		argv[2] = kmem_asprintf(STAT_CMD, sep->se_path);
+		stat2 = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+		strfree(argv[2]);
+
+		/*
+		 * Since we only try to unmount if mounted. if still mounted
+		 * then EBUSY is correct.  If stat2=0 then success unmounting,
+		 * so change state.
+		 */
+
+		if (!stat2) {
+			ismounted = 0;
+			dprintf(
+		"ZFS: snapshot %s was unmounted from mounted state.\n",
+			sep->se_path);
+			error = 0; /* signifies no error */
+			} else {
+			ismounted = 1;
+			error = SET_ERROR(EBUSY);
+		}
+
+	} else {
+		/*
+		 * if not mounted initially, we notice this.
+		 * Unmounted cannot change
+		 * state
+		 */
+		dprintf("ZFS: snapshot %s not mounted.  Ignoring\n",
+			sep->se_path);
+			error = SET_ERROR(ENOENT);
+	}
+
+
+
+
+
+	/*
+	 * Make sure we return EBUSY if still mounted.
+	 * Make sure we return ENOENT if was never  mounted.
+	 */
+
 
 	/*
 	 * This was the result of a manual unmount, cancel the delayed work
 	 * to prevent zfsctl_expire_snapshot() from attempting a unmount.
 	 */
-	if ((error == 0) && !(flags & MNT_EXPIRE))
+
+	if ((ismounted == 0) && !(flags & MNT_EXPIRE))
 		taskq_cancel_id(zfs_expire_taskq, sep->se_taskqid);
 
 
@@ -734,29 +802,39 @@ zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
 	zfs_snapentry_t search;
 	zfs_snapentry_t *sep;
 	int error = 0;
-
 	mutex_enter(&zsb->z_ctldir_lock);
 
 	search.se_name = name;
 	sep = avl_find(&zsb->z_ctldir_snaps, &search, NULL);
 	if (sep) {
-		avl_remove(&zsb->z_ctldir_snaps, sep);
 		mutex_exit(&zsb->z_ctldir_lock);
 
 		error = __zfsctl_unmount_snapshot(sep, flags);
 
 		mutex_enter(&zsb->z_ctldir_lock);
-		if (error == EBUSY)
-			avl_add(&zsb->z_ctldir_snaps, sep);
-		else
+		if (error == EBUSY) {
+		    dprintf("ZFS: Could not unmount Busy snapshot %s\n",
+			sep->se_path);
+		} else if (error == ENOENT) {
+			dprintf("ZFS: Ignore unmounted snapshot %s\n",
+			sep->se_path);
+			error = 0; /* do nothing */
+		} else {
+		/*
+		 * We only remove when the unmount is successful
+		 *  not if never mounted.
+		 */
+		dprintf("ZFS: success unmounting snapshot %s\n",
+			sep->se_path);
+			avl_remove(&zsb->z_ctldir_snaps, sep);
 			zfsctl_sep_free(sep);
-	} else {
+		}
+	} else { /* This indicates the snapshot was not found internally */
 		error = SET_ERROR(ENOENT);
 	}
 
 	mutex_exit(&zsb->z_ctldir_lock);
 	ASSERT3S(error, >=, 0);
-
 	return (error);
 }
 
@@ -773,22 +851,29 @@ zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 
 	*count = 0;
 
+ZFS_ENTER(zsb);
 	ASSERT(zsb->z_ctldir != NULL);
 	mutex_enter(&zsb->z_ctldir_lock);
 
 	sep = avl_first(&zsb->z_ctldir_snaps);
 	while (sep != NULL) {
 		next = AVL_NEXT(&zsb->z_ctldir_snaps, sep);
-		avl_remove(&zsb->z_ctldir_snaps, sep);
 		mutex_exit(&zsb->z_ctldir_lock);
 
 		error = __zfsctl_unmount_snapshot(sep, flags);
 
 		mutex_enter(&zsb->z_ctldir_lock);
 		if (error == EBUSY) {
-			avl_add(&zsb->z_ctldir_snaps, sep);
+		/* don't need this now 	avl_add(&zsb->z_ctldir_snaps, sep); */
 			(*count)++;
+		} if (error == ENOENT) { /* was never mounted. Ignore */
+
 		} else {
+			/*
+			 * If we get here, it was mounted, and unmounted
+			 * successfully.
+			 */
+			avl_remove(&zsb->z_ctldir_snaps, sep);
 			zfsctl_sep_free(sep);
 		}
 
@@ -796,7 +881,7 @@ zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 	}
 
 	mutex_exit(&zsb->z_ctldir_lock);
-
+ZFS_EXIT(zsb);
 	return ((*count > 0) ? EEXIST : 0);
 }
 
