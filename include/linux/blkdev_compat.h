@@ -458,7 +458,7 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #else
 #define	VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
 #define	VDEV_REQ_FLUSH			REQ_HARDBARRIER
-#define	VDEV_REQ_FUA			REQ_HARDBARRIER
+#define	VDEV_REQ_FUA			REQ_FUA
 #endif
 
 /*
