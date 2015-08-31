@@ -25,12 +25,14 @@
 #ifndef	_SYS_ZPL_H
 #define	_SYS_ZPL_H
 
+#include <sys/mntent.h>
 #include <sys/vfs.h>
 #include <linux/aio.h>
 #include <linux/dcache_compat.h>
 #include <linux/exportfs.h>
 #include <linux/falloc.h>
 #include <linux/file_compat.h>
+#include <linux/parser.h>
 #include <linux/task_io_accounting_ops.h>
 #include <linux/vfs_compat.h>
 #include <linux/writeback.h>
@@ -64,11 +66,6 @@ extern const struct file_operations zpl_dir_file_operations;
 
 /* zpl_super.c */
 extern void zpl_prune_sb(int64_t nr_to_scan, void *arg);
-
-typedef struct zpl_mount_data {
-	const char *z_osname;	/* Dataset name */
-	void *z_data;		/* Mount options string */
-} zpl_mount_data_t;
 
 extern const struct super_operations zpl_super_operations;
 extern const struct export_operations zpl_export_operations;
