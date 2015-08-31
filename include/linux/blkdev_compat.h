@@ -230,16 +230,6 @@ __blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
 
 /*
  * 2.6.30 API change,
- * The blk_queue_physical_block_size() function was introduced to
- * indicate the smallest I/O the device can write without incurring
- * a read-modify-write penalty.  For older kernels this is a no-op.
- */
-#ifndef HAVE_BLK_QUEUE_PHYSICAL_BLOCK_SIZE
-#define	blk_queue_physical_block_size(q, x)	((void)(0))
-#endif
-
-/*
- * 2.6.30 API change,
  * The blk_queue_io_opt() function was added to indicate the optimal
  * I/O size for the device.  For older kernels this is a no-op.
  */
