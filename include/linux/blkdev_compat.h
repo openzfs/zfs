@@ -228,15 +228,6 @@ __blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
 }
 #endif
 
-/*
- * 2.6.30 API change,
- * The blk_queue_io_opt() function was added to indicate the optimal
- * I/O size for the device.  For older kernels this is a no-op.
- */
-#ifndef HAVE_BLK_QUEUE_IO_OPT
-#define	blk_queue_io_opt(q, x)			((void)(0))
-#endif
-
 #ifndef HAVE_GET_DISK_RO
 static inline int
 get_disk_ro(struct gendisk *disk)
