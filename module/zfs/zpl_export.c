@@ -152,6 +152,9 @@ zpl_commit_metadata(struct inode *inode)
 	fstrans_cookie_t cookie;
 	int error;
 
+	if (zfsctl_is_node(inode))
+		return (0);
+
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_fsync(inode, 0, cr);

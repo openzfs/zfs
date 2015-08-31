@@ -4097,11 +4097,6 @@ zfs_inactive(struct inode *ip)
 	zfs_sb_t *zsb = ITOZSB(ip);
 	int error;
 
-	if (zfsctl_is_node(ip)) {
-		zfsctl_inode_inactive(ip);
-		return;
-	}
-
 	rw_enter(&zsb->z_teardown_inactive_lock, RW_READER);
 	if (zp->z_sa_hdl == NULL) {
 		rw_exit(&zsb->z_teardown_inactive_lock);

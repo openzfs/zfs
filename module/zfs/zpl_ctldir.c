@@ -160,19 +160,9 @@ const struct inode_operations zpl_ops_root = {
 static struct vfsmount *
 zpl_snapdir_automount(struct path *path)
 {
-	struct dentry *dentry = path->dentry;
 	int error;
 
-	/*
-	 * We must briefly disable automounts for this dentry because the
-	 * user space mount utility will trigger another lookup on this
-	 * directory.  That will result in zpl_snapdir_automount() being
-	 * called repeatedly.  The DCACHE_NEED_AUTOMOUNT flag can be
-	 * safely reset once the mount completes.
-	 */
-	dentry->d_flags &= ~DCACHE_NEED_AUTOMOUNT;
-	error = -zfsctl_mount_snapshot(path, 0);
-	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
+	error = -zfsctl_snapshot_mount(path, 0);
 	if (error)
 		return (ERR_PTR(error));
 
@@ -188,8 +178,10 @@ zpl_snapdir_automount(struct path *path)
 #endif /* HAVE_AUTOMOUNT */
 
 /*
- * Revalidate any dentry in the snapshot directory on lookup, since a snapshot
- * having the same name have been created or destroyed since it was cached.
+ * Negative dentries must always be revalidated so newly created snapshots
+ * can be detected and automounted.  Normal dentries should be kept because
+ * as of the 3.18 kernel revaliding the mountpoint dentry will result in
+ * the snapshot being immediately unmounted.
  */
 static int
 #ifdef HAVE_D_REVALIDATE_NAMEIDATA
@@ -198,7 +190,7 @@ zpl_snapdir_revalidate(struct dentry *dentry, struct nameidata *i)
 zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
 #endif
 {
-	return (0);
+	return (!!dentry->d_inode);
 }
 
 dentry_operations_t zpl_dops_snapdirs = {
@@ -245,6 +237,9 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 	ASSERT(error == 0 || ip == NULL);
 	d_clear_d_op(dentry);
 	d_set_d_op(dentry, &zpl_dops_snapdirs);
+#ifdef HAVE_AUTOMOUNT
+	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
+#endif
 
 	return (d_splice_alias(ip, dentry));
 }
@@ -373,7 +368,7 @@ zpl_snapdir_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	ZFS_ENTER(zsb);
 	error = simple_getattr(mnt, dentry, stat);
-	stat->nlink = stat->size = avl_numnodes(&zsb->z_ctldir_snaps) + 2;
+	stat->nlink = stat->size = 2;
 	stat->ctime = stat->mtime = dmu_objset_snap_cmtime(zsb->z_os);
 	stat->atime = CURRENT_TIME;
 	ZFS_EXIT(zsb);

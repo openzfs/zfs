@@ -198,20 +198,6 @@ zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 	return (error);
 }
 
-static void
-zpl_umount_begin(struct super_block *sb)
-{
-	zfs_sb_t *zsb = sb->s_fs_info;
-	int count;
-
-	/*
-	 * Best effort to unmount snapshots in .zfs/snapshot/.  Normally this
-	 * isn't required because snapshots have the MNT_SHRINKABLE flag set.
-	 */
-	if (zsb->z_ctldir)
-		(void) zfsctl_unmount_snapshots(zsb, MNT_FORCE, &count);
-}
-
 /*
  * ZFS specific features must be explicitly handled here, the VFS will
  * automatically handled the following generic functionality.
@@ -359,7 +345,6 @@ const struct super_operations zpl_super_operations = {
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.remount_fs		= zpl_remount_fs,
-	.umount_begin		= zpl_umount_begin,
 	.show_options		= zpl_show_options,
 	.show_stats		= NULL,
 #ifdef HAVE_NR_CACHED_OBJECTS
