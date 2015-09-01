@@ -53,7 +53,6 @@ EXPORT_SYMBOL(system_taskq);
 /* Private dedicated taskq for creating new taskq threads on demand. */
 static taskq_t *dynamic_taskq;
 static taskq_thread_t *taskq_thread_create(taskq_t *);
-static int taskq_thread_spawn(taskq_t *tq, int seq_tasks);
 
 static int
 task_km_flags(uint_t flags)
@@ -534,7 +533,6 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
 	taskq_ent_t *t;
 	taskqid_t rc = 0;
-	boolean_t threadlimit = B_FALSE;
 
 	ASSERT(tq);
 	ASSERT(func);
@@ -576,13 +574,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 	wake_up(&tq->tq_work_waitq);
 out:
-	threadlimit = (tq->tq_nactive == tq->tq_nthreads);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-
-	/* Spawn additional taskq threads if required. */
-	if (threadlimit && taskq_member(tq, current))
-		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
-
 	return (rc);
 }
 EXPORT_SYMBOL(taskq_dispatch);
@@ -593,7 +585,6 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 {
 	taskqid_t rc = 0;
 	taskq_ent_t *t;
-	boolean_t threadlimit = B_FALSE;
 
 	ASSERT(tq);
 	ASSERT(func);
@@ -626,13 +617,7 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 
 	spin_unlock(&t->tqent_lock);
 out:
-	threadlimit = (tq->tq_nactive == tq->tq_nthreads);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-
-	/* Spawn additional taskq threads if required. */
-	if (threadlimit && taskq_member(tq, current))
-		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
-
 	return (rc);
 }
 EXPORT_SYMBOL(taskq_dispatch_delay);
@@ -641,8 +626,6 @@ void
 taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
    taskq_ent_t *t)
 {
-	boolean_t threadlimit = B_FALSE;
-
 	ASSERT(tq);
 	ASSERT(func);
 
@@ -678,12 +661,7 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 
 	wake_up(&tq->tq_work_waitq);
 out:
-	threadlimit = (tq->tq_nactive == tq->tq_nthreads);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-
-	/* Spawn additional taskq threads if required. */
-	if (threadlimit && taskq_member(tq, current))
-		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
 }
 EXPORT_SYMBOL(taskq_dispatch_ent);
 
