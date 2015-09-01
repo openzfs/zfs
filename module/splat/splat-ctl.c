@@ -638,11 +638,7 @@ splat_init(void)
 static void __exit
 splat_fini(void)
 {
-	int error;
-
-	error = misc_deregister(&splat_misc);
-	if (error)
-		printk(KERN_INFO "SPLAT: misc_deregister() failed %d\n", error);
+	misc_deregister(&splat_misc);
 
 	SPLAT_SUBSYSTEM_FINI(linux);
 	SPLAT_SUBSYSTEM_FINI(zlib);
