@@ -304,6 +304,22 @@ Default value: 10000
 .sp
 .ne 2
 .na
+\fBspa_slop_shift\fR (int)
+.ad
+.RS 12n
+Normally, we don't allow the last 3.2% (1/(2^spa_slop_shift)) of space
+in the pool to be consumed.  This ensures that we don't run the pool
+completely out of space, due to unaccounted changes (e.g. to the MOS).
+It also limits the worst-case time to allocate space.  If we have
+less than this amount of free space, most ZPL operations (e.g. write,
+create) will return ENOSPC.
+.sp
+Default value: 5
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfetch_array_rd_sz\fR (ulong)
 .ad
 .RS 12n
