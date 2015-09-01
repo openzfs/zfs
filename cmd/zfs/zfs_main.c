@@ -2119,6 +2119,7 @@ zfs_do_upgrade(int argc, char **argv)
 		(void) printf(gettext(" 4   userquota, groupquota "
 		    "properties\n"));
 		(void) printf(gettext(" 5   System attributes\n"));
+		(void) printf(gettext(" 6   user/group dnode quota\n"));
 		(void) printf(gettext("\nFor more information on a particular "
 		    "version, including supported releases,\n"));
 		(void) printf("see the ZFS Administration Guide.\n\n");
@@ -2801,11 +2802,14 @@ zfs_do_userspace(int argc, char **argv)
 		cb.cb_width[i] = strlen(gettext(us_field_hdr[i]));
 
 	for (p = 0; p < ZFS_NUM_USERQUOTA_PROPS; p++) {
-		if (((p == ZFS_PROP_USERUSED || p == ZFS_PROP_USERQUOTA) &&
+		if (((p == ZFS_PROP_USERUSED || p == ZFS_PROP_USERQUOTA ||
+		    p == ZFS_PROP_USERDNUSED || p == ZFS_PROP_USERDNQUOTA) &&
 		    !(types & (USTYPE_PSX_USR | USTYPE_SMB_USR))) ||
-		    ((p == ZFS_PROP_GROUPUSED || p == ZFS_PROP_GROUPQUOTA) &&
+		    ((p == ZFS_PROP_GROUPUSED || p == ZFS_PROP_GROUPQUOTA ||
+		    p == ZFS_PROP_GROUPDNUSED || p == ZFS_PROP_GROUPDNQUOTA) &&
 		    !(types & (USTYPE_PSX_GRP | USTYPE_SMB_GRP))))
 			continue;
+
 		cb.cb_prop = p;
 		if ((ret = zfs_userspace(zhp, p, userspace_cb, &cb)) != 0)
 			return (ret);
@@ -3948,6 +3952,11 @@ zfs_do_receive(int argc, char **argv)
 #define	ZFS_DELEG_PERM_GROUPQUOTA	"groupquota"
 #define	ZFS_DELEG_PERM_USERUSED		"userused"
 #define	ZFS_DELEG_PERM_GROUPUSED	"groupused"
+#define	ZFS_DELEG_PERM_USERDNQUOTA	"userdnquota"
+#define	ZFS_DELEG_PERM_GROUPDNQUOTA	"groupdnquota"
+#define	ZFS_DELEG_PERM_USERDNUSED	"userdnused"
+#define	ZFS_DELEG_PERM_GROUPDNUSED	"groupdnused"
+
 #define	ZFS_DELEG_PERM_HOLD		"hold"
 #define	ZFS_DELEG_PERM_RELEASE		"release"
 #define	ZFS_DELEG_PERM_DIFF		"diff"
@@ -3978,6 +3987,10 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_USERPROP, ZFS_DELEG_NOTE_USERPROP },
 	{ ZFS_DELEG_PERM_USERQUOTA, ZFS_DELEG_NOTE_USERQUOTA },
 	{ ZFS_DELEG_PERM_USERUSED, ZFS_DELEG_NOTE_USERUSED },
+	{ ZFS_DELEG_PERM_USERDNQUOTA, ZFS_DELEG_NOTE_USERDNQUOTA },
+	{ ZFS_DELEG_PERM_USERDNUSED, ZFS_DELEG_NOTE_USERDNUSED },
+	{ ZFS_DELEG_PERM_GROUPDNQUOTA, ZFS_DELEG_NOTE_GROUPDNQUOTA },
+	{ ZFS_DELEG_PERM_GROUPDNUSED, ZFS_DELEG_NOTE_GROUPDNUSED },
 	{ NULL, ZFS_DELEG_NOTE_NONE }
 };
 
@@ -4055,6 +4068,10 @@ deleg_perm_type(zfs_deleg_note_t note)
 	case ZFS_DELEG_NOTE_USERPROP:
 	case ZFS_DELEG_NOTE_USERQUOTA:
 	case ZFS_DELEG_NOTE_USERUSED:
+	case ZFS_DELEG_NOTE_USERDNQUOTA:
+	case ZFS_DELEG_NOTE_USERDNUSED:
+	case ZFS_DELEG_NOTE_GROUPDNQUOTA:
+	case ZFS_DELEG_NOTE_GROUPDNUSED:
 		/* other */
 		return (gettext("other"));
 	default:
@@ -4557,6 +4574,18 @@ deleg_perm_comment(zfs_deleg_note_t note)
 		break;
 	case ZFS_DELEG_NOTE_USERUSED:
 		str = gettext("Allows reading any userused@... property");
+		break;
+	case ZFS_DELEG_NOTE_USERDNQUOTA:
+		str = gettext("Allows accessing any userdnquota@... property");
+		break;
+	case ZFS_DELEG_NOTE_GROUPDNQUOTA:
+		str = gettext("Allows accessing any groupdnquota@... property");
+		break;
+	case ZFS_DELEG_NOTE_GROUPDNUSED:
+		str = gettext("Allows reading any groupdnused@... property");
+		break;
+	case ZFS_DELEG_NOTE_USERDNUSED:
+		str = gettext("Allows reading any userdnused@... property");
 		break;
 		/* other */
 	default:

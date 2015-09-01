@@ -120,6 +120,9 @@ enum dnode_dirtycontext {
 /* Does dnode have a SA spill blkptr in bonus? */
 #define	DNODE_FLAG_SPILL_BLKPTR	(1<<2)
 
+/* User/Group dnode accounting */
+#define	DNODE_FLAG_USERDNUSED_ACCOUNTED	(1<<3)
+
 typedef struct dnode_phys {
 	uint8_t dn_type;		/* dmu_object_type_t */
 	uint8_t dn_indblkshift;		/* ln2(indirect block size) */

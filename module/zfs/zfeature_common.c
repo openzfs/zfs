@@ -242,4 +242,7 @@ zpool_feature_init(void)
 	    "Support for blocks larger than 128KB.", B_FALSE, B_FALSE, B_FALSE,
 	    large_blocks_deps);
 	}
+	zfeature_register(SPA_FEATURE_USERDN_ACCOUNTING,
+	    "org.zfsonlinux:user_dnode_accounting", "userdn_accounting",
+	    "User/Group dnode accounting.", B_TRUE, B_FALSE, B_FALSE, NULL);
 }

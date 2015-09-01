@@ -51,7 +51,11 @@ const char *zfs_userquota_prop_prefixes[] = {
 	"userused@",
 	"userquota@",
 	"groupused@",
-	"groupquota@"
+	"groupquota@",
+	"userdnused@",
+	"userdnquota@",
+	"groupdnused@",
+	"groupdnquota@"
 };
 
 zprop_desc_t *
@@ -165,6 +169,7 @@ zfs_prop_init(void)
 		{ "3",		3 },
 		{ "4",		4 },
 		{ "5",		5 },
+		{ "6",		6 },
 		{ "current",	ZPL_VERSION },
 		{ NULL }
 	};
@@ -301,7 +306,7 @@ zfs_prop_init(void)
 	/* default index properties */
 	zprop_register_index(ZFS_PROP_VERSION, "version", 0, PROP_DEFAULT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "1 | 2 | 3 | 4 | 5 | current", "VERSION", version_table);
+	    "1 | 2 | 3 | 4 | 5 | 6 | current", "VERSION", version_table);
 	zprop_register_index(ZFS_PROP_CANMOUNT, "canmount", ZFS_CANMOUNT_ON,
 	    PROP_DEFAULT, ZFS_TYPE_FILESYSTEM, "on | off | noauto",
 	    "CANMOUNT", canmount_table);

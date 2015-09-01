@@ -235,9 +235,14 @@ static const char *userquota_perms[] = {
 	ZFS_DELEG_PERM_USERQUOTA,
 	ZFS_DELEG_PERM_GROUPUSED,
 	ZFS_DELEG_PERM_GROUPQUOTA,
+	ZFS_DELEG_PERM_USERDNUSED,
+	ZFS_DELEG_PERM_USERDNQUOTA,
+	ZFS_DELEG_PERM_GROUPDNUSED,
+	ZFS_DELEG_PERM_GROUPDNQUOTA,
 };
 
 static int zfs_ioc_userspace_upgrade(zfs_cmd_t *zc);
+static int zfs_ioc_userdnspace_upgrade(zfs_cmd_t *zc);
 static int zfs_check_settable(const char *name, nvpair_t *property,
     cred_t *cr);
 static int zfs_check_clearable(char *dataset, nvlist_t *props,
@@ -1204,7 +1209,9 @@ zfs_secpolicy_userspace_one(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 		 * themself, allow it.
 		 */
 		if (zc->zc_objset_type == ZFS_PROP_USERUSED ||
-		    zc->zc_objset_type == ZFS_PROP_USERQUOTA) {
+		    zc->zc_objset_type == ZFS_PROP_USERQUOTA ||
+		    zc->zc_objset_type == ZFS_PROP_USERDNUSED ||
+		    zc->zc_objset_type == ZFS_PROP_USERDNQUOTA) {
 			if (zc->zc_guid == crgetuid(cr))
 				return (0);
 		} else {
@@ -2450,20 +2457,25 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	{
 		zfs_sb_t *zsb;
 
+		if (intval >= ZPL_VERSION_USERSPACE) {
+			zfs_cmd_t *zc;
+
+			err = 0;
+			zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+			(void) strcpy(zc->zc_name, dsname);
+			(void) zfs_ioc_userspace_upgrade(zc);
+			if (intval >= ZPL_VERSION_USERDNSPACE)
+				err = zfs_ioc_userdnspace_upgrade(zc);
+			kmem_free(zc, sizeof (zfs_cmd_t));
+			if (err)
+				break;
+		}
+
 		if ((err = zfs_sb_hold(dsname, FTAG, &zsb, B_TRUE)) != 0)
 			break;
 
 		err = zfs_set_version(zsb, intval);
 		zfs_sb_rele(zsb, FTAG);
-
-		if (err == 0 && intval >= ZPL_VERSION_USERSPACE) {
-			zfs_cmd_t *zc;
-
-			zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
-			(void) strcpy(zc->zc_name, dsname);
-			(void) zfs_ioc_userspace_upgrade(zc);
-			kmem_free(zc, sizeof (zfs_cmd_t));
-		}
 		break;
 	}
 	default:
@@ -3729,13 +3741,23 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    zfs_userquota_prop_prefixes[ZFS_PROP_USERQUOTA];
 			const char *gq_prefix =
 			    zfs_userquota_prop_prefixes[ZFS_PROP_GROUPQUOTA];
+			const char *uiq_prefix =
+			    zfs_userquota_prop_prefixes[ZFS_PROP_USERDNQUOTA];
+			const char *giq_prefix =
+			    zfs_userquota_prop_prefixes[ZFS_PROP_GROUPDNQUOTA];
 
 			if (strncmp(propname, uq_prefix,
 			    strlen(uq_prefix)) == 0) {
 				perm = ZFS_DELEG_PERM_USERQUOTA;
+			} else if (strncmp(propname, uiq_prefix,
+			    strlen(uiq_prefix)) == 0) {
+				perm = ZFS_DELEG_PERM_USERDNQUOTA;
 			} else if (strncmp(propname, gq_prefix,
 			    strlen(gq_prefix)) == 0) {
 				perm = ZFS_DELEG_PERM_GROUPQUOTA;
+			} else if (strncmp(propname, giq_prefix,
+			    strlen(giq_prefix)) == 0) {
+				perm = ZFS_DELEG_PERM_GROUPDNQUOTA;
 			} else {
 				/* USERUSED and GROUPUSED are read-only */
 				return (SET_ERROR(EINVAL));
@@ -4680,6 +4702,29 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * inputs:
+ * zc_name		name of filesystem
+ *
+ * outputs:
+ * none
+ */
+static int
+zfs_ioc_userdnspace_upgrade(zfs_cmd_t *zc)
+{
+	int err;
+	zfs_sb_t *zsb;
+
+	err = zfs_sb_hold(zc->zc_name, FTAG, &zsb, B_FALSE);
+	if (err != 0)
+		return (err);
+
+	err = dmu_objset_userdnspace_upgrade(zsb->z_os);
+	zfs_sb_rele(zsb, FTAG);
+
+	return (err);
+}
+
 static int
 zfs_ioc_share(zfs_cmd_t *zc)
 {
@@ -5608,6 +5653,9 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_smb_acl, POOL_CHECK_NONE);
 	zfs_ioctl_register_dataset_nolog(ZFS_IOC_USERSPACE_UPGRADE,
 	    zfs_ioc_userspace_upgrade, zfs_secpolicy_userspace_upgrade,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);
+	zfs_ioctl_register_dataset_nolog(ZFS_IOC_USERDNSPACE_UPGRADE,
+	    zfs_ioc_userdnspace_upgrade, zfs_secpolicy_userspace_upgrade,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);
 	zfs_ioctl_register_dataset_nolog(ZFS_IOC_TMP_SNAPSHOT,
 	    zfs_ioc_tmp_snapshot, zfs_secpolicy_tmp_snapshot,
