@@ -2094,4 +2094,7 @@ MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
 module_param(spa_asize_inflation, int, 0644);
 MODULE_PARM_DESC(spa_asize_inflation,
 	"SPA size estimate multiplication factor");
+
+module_param(spa_slop_shift, int, 0644);
+MODULE_PARM_DESC(spa_slop_shift, "Reserved free space in pool");
 #endif
