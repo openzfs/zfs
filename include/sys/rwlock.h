@@ -40,29 +40,47 @@ typedef enum {
         RW_READER = 2
 } krw_t;
 
+/*
+ * If CONFIG_RWSEM_SPIN_ON_OWNER is defined, rw_semaphore will have an owner
+ * field, so we don't need our own.
+ */
 typedef struct {
         struct rw_semaphore rw_rwlock;
+#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
         kthread_t *rw_owner;
+#endif
 } krwlock_t;
 
-#define SEM(rwp)                        ((struct rw_semaphore *)(rwp))
+#define SEM(rwp)	(&(rwp)->rw_rwlock)
 
 static inline void
 spl_rw_set_owner(krwlock_t *rwp)
 {
+/*
+ * If CONFIG_RWSEM_SPIN_ON_OWNER is defined, down_write, up_write,
+ * downgrade_write and __init_rwsem will set/clear owner for us.
+ */
+#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
 	rwp->rw_owner = current;
+#endif
 }
 
 static inline void
 spl_rw_clear_owner(krwlock_t *rwp)
 {
+#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
 	rwp->rw_owner = NULL;
+#endif
 }
 
 static inline kthread_t *
 rw_owner(krwlock_t *rwp)
 {
+#ifdef CONFIG_RWSEM_SPIN_ON_OWNER
+	return SEM(rwp)->owner;
+#else
 	return rwp->rw_owner;
+#endif
 }
 
 static inline int
@@ -153,6 +171,9 @@ RW_LOCK_HELD(krwlock_t *rwp)
 })
 
 #if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
+#ifdef CONFIG_RWSEM_SPIN_ON_OWNER
+#error spinlock rwsem should not have spin on owner
+#endif
 /*
  * For the generic implementations of rw-semaphores the following is
  * true.  If your semaphore implementation internally represents the
