@@ -6028,13 +6028,9 @@ zfs_attach(void)
 static void
 zfs_detach(void)
 {
-	int error;
 	zfsdev_state_t *zs, *zsprev = NULL;
 
-	error = misc_deregister(&zfs_misc);
-	if (error != 0)
-		printk(KERN_INFO "ZFS: misc_deregister() failed %d\n", error);
-
+	misc_deregister(&zfs_misc);
 	mutex_destroy(&zfsdev_state_lock);
 
 	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {

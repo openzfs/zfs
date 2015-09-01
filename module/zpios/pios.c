@@ -1310,11 +1310,7 @@ zpios_init(void)
 static void __exit
 zpios_fini(void)
 {
-	int error;
-
-	error = misc_deregister(&zpios_misc);
-	if (error)
-		printk(KERN_INFO "ZPIOS: misc_deregister() failed %d\n", error);
+	misc_deregister(&zpios_misc);
 
 	printk(KERN_INFO "ZPIOS: Unloaded module v%s-%s%s\n",
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
