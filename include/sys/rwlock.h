@@ -50,34 +50,19 @@ typedef struct {
 static inline void
 spl_rw_set_owner(krwlock_t *rwp)
 {
-        unsigned long flags;
-
-        spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rwp->rw_owner = current;
-        spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+	rwp->rw_owner = current;
 }
 
 static inline void
 spl_rw_clear_owner(krwlock_t *rwp)
 {
-        unsigned long flags;
-
-        spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rwp->rw_owner = NULL;
-        spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+	rwp->rw_owner = NULL;
 }
 
 static inline kthread_t *
 rw_owner(krwlock_t *rwp)
 {
-        unsigned long flags;
-        kthread_t *owner;
-
-        spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        owner = rwp->rw_owner;
-        spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
-
-        return owner;
+	return rwp->rw_owner;
 }
 
 static inline int
@@ -89,7 +74,7 @@ RW_READ_HELD(krwlock_t *rwp)
 static inline int
 RW_WRITE_HELD(krwlock_t *rwp)
 {
-	return (spl_rwsem_is_locked(SEM(rwp)) && rw_owner(rwp) == current);
+	return (rw_owner(rwp) == current);
 }
 
 static inline int
