@@ -610,6 +610,31 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBzfs_dbgmsg_enable\fR (int)
+.ad
+.RS 12n
+Internally ZFS keeps a small log to facilitate debugging.  By default the log
+is disabled, to enable it set this option to 1.  The contents of the log can
+be accessed by reading the /proc/spl/kstat/zfs/dbgmsg file.  Writing 0 to
+this proc file clears the log.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dbgmsg_maxsize\fR (int)
+.ad
+.RS 12n
+The maximum size in bytes of the internal ZFS debug log.
+.sp
+Default value: \fB4M\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_dbuf_state_index\fR (int)
 .ad
 .RS 12n

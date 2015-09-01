@@ -51,28 +51,24 @@ extern int zfs_free_leak_on_eio;
 #define	ZFS_DEBUG_ZIO_FREE		(1<<6)
 #define	ZFS_DEBUG_HISTOGRAM_VERIFY	(1<<7)
 
-#if defined(HAVE_DECLARE_EVENT_CLASS) || !defined(_KERNEL)
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
 #define	dprintf(...) \
-	if (zfs_flags & ZFS_DEBUG_DPRINTF) \
-		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
-#else
-#define	dprintf(...) ((void)0)
-#endif /* HAVE_DECLARE_EVENT_CLASS || !_KERNEL */
+	__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+#define	zfs_dbgmsg(...) \
+	__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
 
 extern void zfs_panic_recover(const char *fmt, ...);
 
 typedef struct zfs_dbgmsg {
 	list_node_t zdm_node;
 	time_t zdm_timestamp;
+	int zdm_size;
 	char zdm_msg[1]; /* variable length allocation */
 } zfs_dbgmsg_t;
 
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);
-extern void zfs_dbgmsg(const char *fmt, ...);
-extern void zfs_dbgmsg_print(const char *tag);
 
 #ifndef _KERNEL
 extern int dprintf_find_string(const char *string);

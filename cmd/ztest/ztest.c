@@ -827,9 +827,6 @@ ztest_kill(ztest_shared_t *zs)
 	spa_config_sync(ztest_spa, B_FALSE, B_FALSE);
 	mutex_exit(&spa_namespace_lock);
 
-	if (ztest_opts.zo_verbose >= 3)
-		zfs_dbgmsg_print(FTAG);
-
 	(void) kill(getpid(), SIGKILL);
 }
 
@@ -5893,9 +5890,6 @@ ztest_run(ztest_shared_t *zs)
 
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(spa));
-
-	if (ztest_opts.zo_verbose >= 3)
-		zfs_dbgmsg_print(FTAG);
 
 	umem_free(tid, ztest_opts.zo_threads * sizeof (kt_did_t));
 

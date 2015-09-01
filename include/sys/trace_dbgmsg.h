@@ -37,32 +37,6 @@
  */
 
 /*
- * Generic support for one argument tracepoints of the form:
- *
- * DTRACE_PROBE1(...,
- *     const char *, ...);
- */
-
-DECLARE_EVENT_CLASS(zfs_dbgmsg_class,
-	TP_PROTO(const char *msg),
-	TP_ARGS(msg),
-	TP_STRUCT__entry(
-	    __string(msg, msg)
-	),
-	TP_fast_assign(
-	    __assign_str(msg, msg);
-	),
-	TP_printk("%s", __get_str(msg))
-);
-
-#define	DEFINE_DBGMSG_EVENT(name) \
-DEFINE_EVENT(zfs_dbgmsg_class, name, \
-	TP_PROTO(const char *msg), \
-	TP_ARGS(msg))
-DEFINE_DBGMSG_EVENT(zfs_zfs__dbgmsg);
-
-
-/*
  * Generic support for four argument tracepoints of the form:
  *
  * DTRACE_PROBE4(...,
