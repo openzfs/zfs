@@ -95,8 +95,6 @@
 #define	MNTOPT_ACL	"acl"		/* passed by util-linux-2.24 mount */
 #define	MNTOPT_NOACL	"noacl"		/* likewise */
 #define	MNTOPT_POSIXACL	"posixacl"	/* likewise */
-
-#define	ZS_COMMENT	0x00000000	/* comment */
-#define	ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */
+#define	MNTOPT_MNTPOINT	"mntpoint"	/* mount point hint */
 
 #endif	/* _SYS_MNTENT_H */

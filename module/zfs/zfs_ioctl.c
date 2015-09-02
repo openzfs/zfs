@@ -1449,7 +1449,7 @@ zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
 	int error = 0;
 
 	if (get_zfs_sb(name, zsbp) != 0)
-		error = zfs_sb_create(name, zsbp);
+		error = zfs_sb_create(name, NULL, zsbp);
 	if (error == 0) {
 		rrm_enter(&(*zsbp)->z_teardown_lock, (writer) ? RW_WRITER :
 		    RW_READER, tag);

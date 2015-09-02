@@ -262,11 +262,22 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 {
 	struct dsl_dataset *ds = NULL;
 	objset_t *os = zsb->z_os;
-	boolean_t do_readonly = B_FALSE;
+	zfs_mntopts_t *zmo = zsb->z_mntopts;
 	int error = 0;
 
-	if (zfs_is_readonly(zsb) || !spa_writeable(dmu_objset_spa(os)))
-		do_readonly = B_TRUE;
+	ASSERT(zsb);
+	ASSERT(zmo);
+
+	/*
+	 * The act of registering our callbacks will destroy any mount
+	 * options we may have.  In order to enable temporary overrides
+	 * of mount options, we stash away the current values and
+	 * restore them after we register the callbacks.
+	 */
+	if (zfs_is_readonly(zsb) || !spa_writeable(dmu_objset_spa(os))) {
+		zmo->z_do_readonly = B_TRUE;
+		zmo->z_readonly = B_TRUE;
+	}
 
 	/*
 	 * Register property callbacks.
@@ -307,8 +318,25 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	if (error)
 		goto unregister;
 
-	if (do_readonly)
-		readonly_changed_cb(zsb, B_TRUE);
+	/*
+	 * Invoke our callbacks to restore temporary mount options.
+	 */
+	if (zmo->z_do_readonly)
+		readonly_changed_cb(zsb, zmo->z_readonly);
+	if (zmo->z_do_setuid)
+		setuid_changed_cb(zsb, zmo->z_setuid);
+	if (zmo->z_do_exec)
+		exec_changed_cb(zsb, zmo->z_exec);
+	if (zmo->z_do_devices)
+		devices_changed_cb(zsb, zmo->z_devices);
+	if (zmo->z_do_xattr)
+		xattr_changed_cb(zsb, zmo->z_xattr);
+	if (zmo->z_do_atime)
+		atime_changed_cb(zsb, zmo->z_atime);
+	if (zmo->z_do_relatime)
+		relatime_changed_cb(zsb, zmo->z_relatime);
+	if (zmo->z_do_nbmand)
+		nbmand_changed_cb(zsb, zmo->z_nbmand);
 
 	return (0);
 
@@ -642,8 +670,26 @@ zfs_owner_overquota(zfs_sb_t *zsb, znode_t *zp, boolean_t isgroup)
 }
 EXPORT_SYMBOL(zfs_owner_overquota);
 
+zfs_mntopts_t *
+zfs_mntopts_alloc(void)
+{
+	return (kmem_zalloc(sizeof (zfs_mntopts_t), KM_SLEEP));
+}
+
+void
+zfs_mntopts_free(zfs_mntopts_t *zmo)
+{
+	if (zmo->z_osname)
+		strfree(zmo->z_osname);
+
+	if (zmo->z_mntpoint)
+		strfree(zmo->z_mntpoint);
+
+	kmem_free(zmo, sizeof (zfs_mntopts_t));
+}
+
 int
-zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
+zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 {
 	objset_t *os;
 	zfs_sb_t *zsb;
@@ -662,6 +708,11 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 		kmem_free(zsb, sizeof (zfs_sb_t));
 		return (error);
 	}
+
+	/*
+	 * Optional temporary mount options, free'd in zfs_sb_free().
+	 */
+	zsb->z_mntopts = (zmo ? zmo : zfs_mntopts_alloc());
 
 	/*
 	 * Initialize the zfs-specific filesystem structure.
@@ -892,6 +943,7 @@ zfs_sb_free(zfs_sb_t *zsb)
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
 	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
+	zfs_mntopts_free(zsb->z_mntopts);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
 EXPORT_SYMBOL(zfs_sb_free);
@@ -1310,16 +1362,15 @@ atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 #endif
 
 int
-zfs_domount(struct super_block *sb, void *data, int silent)
+zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 {
-	zpl_mount_data_t *zmd = data;
-	const char *osname = zmd->z_osname;
+	const char *osname = zmo->z_osname;
 	zfs_sb_t *zsb;
 	struct inode *root_inode;
 	uint64_t recordsize;
 	int error;
 
-	error = zfs_sb_create(osname, &zsb);
+	error = zfs_sb_create(osname, zmo, &zsb);
 	if (error)
 		return (error);
 
@@ -1462,13 +1513,15 @@ zfs_umount(struct super_block *sb)
 EXPORT_SYMBOL(zfs_umount);
 
 int
-zfs_remount(struct super_block *sb, int *flags, char *data)
+zfs_remount(struct super_block *sb, int *flags, zfs_mntopts_t *zmo)
 {
-	/*
-	 * All namespace flags (MNT_*) and super block flags (MS_*) will
-	 * be handled by the Linux VFS.  Only handle custom options here.
-	 */
-	return (0);
+	zfs_sb_t *zsb = sb->s_fs_info;
+	int error;
+
+	zfs_unregister_callbacks(zsb);
+	error = zfs_register_callbacks(zsb);
+
+	return (error);
 }
 EXPORT_SYMBOL(zfs_remount);
 
