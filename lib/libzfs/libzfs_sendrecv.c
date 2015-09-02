@@ -1598,6 +1598,7 @@ zfs_send(zfs_json_t *json,
 				zfs_nicenum(sdd.size, buf, sizeof (buf));
 				(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 				    "total estimated size is %s\n"), buf);
+			}
 		}
 
 		/* Ensure no snaps found is treated as an error. */

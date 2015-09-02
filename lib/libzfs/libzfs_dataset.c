@@ -1114,7 +1114,7 @@ zfs_valid_proplist(zfs_json_t *json,
 			    intval > maxbs || !ISP2(intval)) {
 				zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 				    "'%s' must be power of 2 from 512B "
-				    "to %uKB"), propname, maxbs >> 10);
+				    "to %%s"), propname, buf);
 				(void) zfs_error(json, hdl,
 				    EZFS_BADPROP, errbuf);
 				goto error;
@@ -1177,6 +1177,9 @@ badlabel:
 		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "mlslabels are unsupported"));
 		(void) zfs_error(json, hdl, EZFS_BADPROP, errbuf);
+			zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
+			    "mlslabels are unsupported"));
+			(void) zfs_error(json, hdl, EZFS_BADPROP, errbuf);
 			goto error;
 #endif /* HAVE_MLSLABEL */
 		}
@@ -1505,6 +1508,7 @@ zfs_setprop_error(zfs_json_t *json, libzfs_handle_t *hdl,
 		    "property value too long"));
 		(void) zfs_error(json, hdl, EZFS_BADPROP, errbuf);
 		break;
+
 
 	case ENOTSUP:
 		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
@@ -3313,6 +3317,8 @@ zfs_create(zfs_json_t *json,
 	/* check for failure */
 	if (ret != 0) {
 		char parent[ZFS_MAXNAMELEN];
+		char buf[64];
+
 		(void) parent_name(path, parent, sizeof (parent));
 
 		switch (errno) {
@@ -3329,11 +3335,12 @@ zfs_create(zfs_json_t *json,
 			return (zfs_error(json,
 				    hdl, EZFS_BADTYPE, errbuf));
 		case EDOM:
+			zfs_nicenum(SPA_MAXBLOCKSIZE,
+			    buf, sizeof (buf));
 			zfs_error_aux(json,
 			    hdl, dgettext(TEXT_DOMAIN,
 			    "volume block size must be power of 2 from "
-			    "512B to %uKB"),
-			    zfs_max_recordsize >> 10);
+			    "512B to %s"), buf);
 			return (zfs_error(json,
 			    hdl, EZFS_BADPROP, errbuf));
 		case ENOTSUP:
