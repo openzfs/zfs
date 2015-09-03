@@ -25,22 +25,27 @@
 
 #include <sys/zfs_context.h>
 
+#ifndef _KERNEL
 list_t zfs_dbgmsgs;
 int zfs_dbgmsg_size;
 kmutex_t zfs_dbgmsgs_lock;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
+#endif /* _KERNEL */
 
 void
 zfs_dbgmsg_init(void)
 {
+#ifndef _KERNEL
 	list_create(&zfs_dbgmsgs, sizeof (zfs_dbgmsg_t),
 	    offsetof(zfs_dbgmsg_t, zdm_node));
 	mutex_init(&zfs_dbgmsgs_lock, NULL, MUTEX_DEFAULT, NULL);
+#endif /* _KERNEL */
 }
 
 void
 zfs_dbgmsg_fini(void)
 {
+#ifndef _KERNEL
 	zfs_dbgmsg_t *zdm;
 
 	while ((zdm = list_remove_head(&zfs_dbgmsgs)) != NULL) {
@@ -50,6 +55,7 @@ zfs_dbgmsg_fini(void)
 	}
 	mutex_destroy(&zfs_dbgmsgs_lock);
 	ASSERT0(zfs_dbgmsg_size);
+#endif /* _KERNEL */
 }
 
 /*
@@ -94,6 +100,7 @@ zfs_dbgmsg(const char *fmt, ...)
 
 	DTRACE_PROBE1(zfs__dbgmsg, char *, zdm->zdm_msg);
 
+#ifndef _KERNEL
 	mutex_enter(&zfs_dbgmsgs_lock);
 	list_insert_tail(&zfs_dbgmsgs, zdm);
 	zfs_dbgmsg_size += sizeof (zfs_dbgmsg_t) + size;
@@ -104,6 +111,7 @@ zfs_dbgmsg(const char *fmt, ...)
 		zfs_dbgmsg_size -= size;
 	}
 	mutex_exit(&zfs_dbgmsgs_lock);
+#endif /* _KERNEL */
 }
 
 void
