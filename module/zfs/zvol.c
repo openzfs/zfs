@@ -50,10 +50,8 @@
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
-unsigned int zvol_threads = 32;
 unsigned long zvol_max_discard_blocks = 16384;
 
-static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
 static list_t zvol_state_list;
 static char *zvol_tag = "zvol_tag";
@@ -590,34 +588,24 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	}
 }
 
-/*
- * Common write path running under the zvol taskq context.  This function
- * is responsible for copying the request structure data in to the DMU and
- * signaling the request queue with the result of the copy.
- */
-static void
-zvol_write(void *arg)
+static int
+zvol_write(struct bio *bio)
 {
-	struct request *req = (struct request *)arg;
-	struct request_queue *q = req->q;
-	zvol_state_t *zv = q->queuedata;
-	fstrans_cookie_t cookie = spl_fstrans_mark();
-	uint64_t offset = blk_rq_pos(req) << 9;
-	uint64_t size = blk_rq_bytes(req);
+	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
+	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	uint64_t size = BIO_BI_SIZE(bio);
 	int error = 0;
 	dmu_tx_t *tx;
 	rl_t *rl;
 
-	if (req->cmd_flags & VDEV_REQ_FLUSH)
+	if (bio->bi_rw & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	/*
 	 * Some requests are just for flush and nothing else.
 	 */
-	if (size == 0) {
-		error = 0;
+	if (size == 0)
 		goto out;
-	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
 
@@ -632,96 +620,82 @@ zvol_write(void *arg)
 		goto out;
 	}
 
-	error = dmu_write_req(zv->zv_objset, ZVOL_OBJ, req, tx);
+	error = dmu_write_bio(zv->zv_objset, ZVOL_OBJ, bio, tx);
 	if (error == 0)
 		zvol_log_write(zv, tx, offset, size,
-		    req->cmd_flags & VDEV_REQ_FUA);
+		    !!(bio->bi_rw & VDEV_REQ_FUA));
 
 	dmu_tx_commit(tx);
 	zfs_range_unlock(rl);
 
-	if ((req->cmd_flags & VDEV_REQ_FUA) ||
+	if ((bio->bi_rw & VDEV_REQ_FUA) ||
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 out:
-	blk_end_request(req, -error, size);
-	spl_fstrans_unmark(cookie);
+	return (error);
 }
 
-#ifdef HAVE_BLK_QUEUE_DISCARD
-static void
-zvol_discard(void *arg)
+static int
+zvol_discard(struct bio *bio)
 {
-	struct request *req = (struct request *)arg;
-	struct request_queue *q = req->q;
-	zvol_state_t *zv = q->queuedata;
-	fstrans_cookie_t cookie = spl_fstrans_mark();
-	uint64_t start = blk_rq_pos(req) << 9;
-	uint64_t end = start + blk_rq_bytes(req);
+	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
+	uint64_t start = BIO_BI_SECTOR(bio) << 9;
+	uint64_t size = BIO_BI_SIZE(bio);
+	uint64_t end = start + size;
 	int error;
 	rl_t *rl;
 
-	if (end > zv->zv_volsize) {
-		error = EIO;
-		goto out;
-	}
+	if (end > zv->zv_volsize)
+		return (SET_ERROR(EIO));
 
 	/*
-	 * Align the request to volume block boundaries. If we don't,
-	 * then this will force dnode_free_range() to zero out the
-	 * unaligned parts, which is slow (read-modify-write) and
-	 * useless since we are not freeing any space by doing so.
+	 * Align the request to volume block boundaries when REQ_SECURE is
+	 * available, but not requested. If we don't, then this will force
+	 * dnode_free_range() to zero out the unaligned parts, which is slow
+	 * (read-modify-write) and useless since we are not freeing any space
+	 * by doing so. Kernels that do not support REQ_SECURE (2.6.32 through
+	 * 2.6.35) will not receive this optimization.
 	 */
-	start = P2ROUNDUP(start, zv->zv_volblocksize);
-	end = P2ALIGN(end, zv->zv_volblocksize);
-
-	if (start >= end) {
-		error = 0;
-		goto out;
+#ifdef REQ_SECURE
+	if (!(bio->bi_rw & REQ_SECURE)) {
+		start = P2ROUNDUP(start, zv->zv_volblocksize);
+		end = P2ALIGN(end, zv->zv_volblocksize);
 	}
+#endif
 
-	rl = zfs_range_lock(&zv->zv_znode, start, end - start, RL_WRITER);
+	if (start >= end)
+		return (0);
 
-	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, end-start);
+	rl = zfs_range_lock(&zv->zv_znode, start, size, RL_WRITER);
+
+	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, size);
 
 	/*
 	 * TODO: maybe we should add the operation to the log.
 	 */
 
 	zfs_range_unlock(rl);
-out:
-	blk_end_request(req, -error, blk_rq_bytes(req));
-	spl_fstrans_unmark(cookie);
-}
-#endif /* HAVE_BLK_QUEUE_DISCARD */
 
-/*
- * Common read path running under the zvol taskq context.  This function
- * is responsible for copying the requested data out of the DMU and in to
- * a linux request structure.  It then must signal the request queue with
- * an error code describing the result of the copy.
- */
-static void
-zvol_read(void *arg)
+	return (error);
+}
+
+static int
+zvol_read(struct bio *bio)
 {
-	struct request *req = (struct request *)arg;
-	struct request_queue *q = req->q;
-	zvol_state_t *zv = q->queuedata;
-	fstrans_cookie_t cookie = spl_fstrans_mark();
-	uint64_t offset = blk_rq_pos(req) << 9;
-	uint64_t size = blk_rq_bytes(req);
+	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
+	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	uint64_t len = BIO_BI_SIZE(bio);
 	int error;
 	rl_t *rl;
 
-	if (size == 0) {
-		error = 0;
-		goto out;
-	}
+	if (len == 0)
+		return (0);
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 
-	error = dmu_read_req(zv->zv_objset, ZVOL_OBJ, req);
+	rl = zfs_range_lock(&zv->zv_znode, offset, len, RL_READER);
+
+	error = dmu_read_bio(zv->zv_objset, ZVOL_OBJ, bio);
 
 	zfs_range_unlock(rl);
 
@@ -729,91 +703,50 @@ zvol_read(void *arg)
 	if (error == ECKSUM)
 		error = SET_ERROR(EIO);
 
-out:
-	blk_end_request(req, -error, size);
-	spl_fstrans_unmark(cookie);
+	return (error);
 }
 
-/*
- * Request will be added back to the request queue and retried if
- * it cannot be immediately dispatched to the taskq for handling
- */
-static inline void
-zvol_dispatch(task_func_t func, struct request *req)
-{
-	if (!taskq_dispatch(zvol_taskq, func, (void *)req, TQ_NOSLEEP))
-		blk_requeue_request(req->q, req);
-}
-
-/*
- * Common request path.  Rather than registering a custom make_request()
- * function we use the generic Linux version.  This is done because it allows
- * us to easily merge read requests which would otherwise we performed
- * synchronously by the DMU.  This is less critical in write case where the
- * DMU will perform the correct merging within a transaction group.  Using
- * the generic make_request() also let's use leverage the fact that the
- * elevator with ensure correct ordering in regards to barrior IOs.  On
- * the downside it means that in the write case we end up doing request
- * merging twice once in the elevator and once in the DMU.
- *
- * The request handler is called under a spin lock so all the real work
- * is handed off to be done in the context of the zvol taskq.  This function
- * simply performs basic request sanity checking and hands off the request.
- */
-static void
-zvol_request(struct request_queue *q)
+static MAKE_REQUEST_FN_RET
+zvol_request(struct request_queue *q, struct bio *bio)
 {
 	zvol_state_t *zv = q->queuedata;
-	struct request *req;
-	unsigned int size;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
+	uint64_t offset = BIO_BI_SECTOR(bio);
+	unsigned int sectors = bio_sectors(bio);
+	int error = 0;
 
-	while ((req = blk_fetch_request(q)) != NULL) {
-		size = blk_rq_bytes(req);
-
-		if (size != 0 && blk_rq_pos(req) + blk_rq_sectors(req) >
-		    get_capacity(zv->zv_disk)) {
-			printk(KERN_INFO
-			    "%s: bad access: block=%llu, count=%lu\n",
-			    req->rq_disk->disk_name,
-			    (long long unsigned)blk_rq_pos(req),
-			    (long unsigned)blk_rq_sectors(req));
-			__blk_end_request(req, -EIO, size);
-			continue;
-		}
-
-		if (!blk_fs_request(req)) {
-			printk(KERN_INFO "%s: non-fs cmd\n",
-			    req->rq_disk->disk_name);
-			__blk_end_request(req, -EIO, size);
-			continue;
-		}
-
-		switch ((int)rq_data_dir(req)) {
-		case READ:
-			zvol_dispatch(zvol_read, req);
-			break;
-		case WRITE:
-			if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
-				__blk_end_request(req, -EROFS, size);
-				break;
-			}
-
-#ifdef HAVE_BLK_QUEUE_DISCARD
-			if (req->cmd_flags & VDEV_REQ_DISCARD) {
-				zvol_dispatch(zvol_discard, req);
-				break;
-			}
-#endif /* HAVE_BLK_QUEUE_DISCARD */
-
-			zvol_dispatch(zvol_write, req);
-			break;
-		default:
-			printk(KERN_INFO "%s: unknown cmd: %d\n",
-			    req->rq_disk->disk_name, (int)rq_data_dir(req));
-			__blk_end_request(req, -EIO, size);
-			break;
-		}
+	if (bio_has_data(bio) && offset + sectors >
+	    get_capacity(zv->zv_disk)) {
+		printk(KERN_INFO
+		    "%s: bad access: block=%llu, count=%lu\n",
+		    zv->zv_disk->disk_name,
+		    (long long unsigned)offset,
+		    (long unsigned)sectors);
+		error = SET_ERROR(EIO);
+		goto out;
 	}
+
+	if (bio_data_dir(bio) == WRITE) {
+		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
+			error = SET_ERROR(EROFS);
+			goto out;
+		}
+
+		if (bio->bi_rw & VDEV_REQ_DISCARD) {
+			error = zvol_discard(bio);
+			goto out;
+		}
+
+		error = zvol_write(bio);
+	} else
+		error = zvol_read(bio);
+
+out:
+	bio_endio(bio, -error);
+	spl_fstrans_unmark(cookie);
+#ifdef HAVE_MAKE_REQUEST_FN_RET_INT
+	return (0);
+#endif
 }
 
 static void
@@ -1259,25 +1192,17 @@ static zvol_state_t *
 zvol_alloc(dev_t dev, const char *name)
 {
 	zvol_state_t *zv;
-	int error = 0;
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 
 	spin_lock_init(&zv->zv_lock);
 	list_link_init(&zv->zv_next);
 
-	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
+	zv->zv_queue = blk_alloc_queue(GFP_ATOMIC);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
 
-#ifdef HAVE_ELEVATOR_CHANGE
-	error = elevator_change(zv->zv_queue, "noop");
-#endif /* HAVE_ELEVATOR_CHANGE */
-	if (error) {
-		printk("ZFS: Unable to set \"%s\" scheduler for zvol %s: %d\n",
-		    "noop", name, error);
-		goto out_queue;
-	}
+	blk_queue_make_request(zv->zv_queue, zvol_request);
 
 #ifdef HAVE_BLK_QUEUE_FLUSH
 	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
@@ -1418,13 +1343,11 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 	blk_queue_max_segment_size(zv->zv_queue, UINT_MAX);
 	blk_queue_physical_block_size(zv->zv_queue, zv->zv_volblocksize);
 	blk_queue_io_opt(zv->zv_queue, zv->zv_volblocksize);
-#ifdef HAVE_BLK_QUEUE_DISCARD
 	blk_queue_max_discard_sectors(zv->zv_queue,
 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
 	blk_queue_discard_granularity(zv->zv_queue, zv->zv_volblocksize);
 	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, zv->zv_queue);
-#endif
-#ifdef HAVE_BLK_QUEUE_NONROT
+#ifdef QUEUE_FLAG_NONROT
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zv->zv_queue);
 #endif
 #ifdef QUEUE_FLAG_ADD_RANDOM
@@ -1651,7 +1574,6 @@ zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
 int
 zvol_init(void)
 {
-	int threads = MIN(MAX(zvol_threads, 1), 1024);
 	int error;
 
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
@@ -1659,18 +1581,10 @@ zvol_init(void)
 
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	zvol_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
-	    threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
-	if (zvol_taskq == NULL) {
-		printk(KERN_INFO "ZFS: taskq_create() failed\n");
-		error = -ENOMEM;
-		goto out1;
-	}
-
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
-		goto out2;
+		goto out;
 	}
 
 	blk_register_region(MKDEV(zvol_major, 0), 1UL << MINORBITS,
@@ -1678,9 +1592,7 @@ zvol_init(void)
 
 	return (0);
 
-out2:
-	taskq_destroy(zvol_taskq);
-out1:
+out:
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 
@@ -1693,7 +1605,6 @@ zvol_fini(void)
 	zvol_remove_minors(NULL);
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
-	taskq_destroy(zvol_taskq);
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 }
@@ -1703,9 +1614,6 @@ MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
 
 module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
-
-module_param(zvol_threads, uint, 0444);
-MODULE_PARM_DESC(zvol_threads, "Max number of threads to handle I/O requests");
 
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
