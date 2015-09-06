@@ -24,8 +24,10 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
@@ -451,6 +453,16 @@ backup_do_embed(dmu_sendarg_t *dsp, const blkptr_t *bp)
 	(((uint64_t)dnp->dn_datablkszsec) << (SPA_MINBLOCKSHIFT + \
 	(level) * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT)))
 
+static int
+fillbadblock(void *p, uint64_t size, void *private)
+{
+	int i;
+	uint64_t *x = p;
+	for (i = 0; i < size >> 3; i++)
+		x[i] = 0x2f5baddb10cULL;
+	return (0);
+}
+
 /* ARGSUSED */
 static int
 backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
@@ -494,11 +506,11 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		blk = abuf->b_data;
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
 			uint64_t dnobj = (zb->zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
-			err = dump_dnode(dsp, dnobj, blk+i);
+			blk = abd_array(abuf->b_data, i, dnode_phys_t);
+			err = dump_dnode(dsp, dnobj, blk);
 			if (err != 0)
 				break;
 		}
@@ -513,7 +525,8 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		err = dump_spill(dsp, zb->zb_object, blksz, abuf->b_data);
+		err = dump_spill(dsp, zb->zb_object, blksz,
+		    ABD_TO_BUF(abuf->b_data));
 		(void) arc_buf_remove_ref(abuf, &abuf);
 	} else if (backup_do_embed(dsp, bp)) {
 		/* it's an embedded level-0 block of a regular object */
@@ -525,6 +538,7 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		arc_flags_t aflags = ARC_FLAG_WAIT;
 		arc_buf_t *abuf;
 		int blksz = BP_GET_LSIZE(bp);
+		void *buf;
 
 		ASSERT3U(blksz, ==, dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 		ASSERT0(zb->zb_level);
@@ -532,14 +546,12 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
 		    &aflags, zb) != 0) {
 			if (zfs_send_corrupt_data) {
-				uint64_t *ptr;
 				/* Send a block filled with 0x"zfs badd bloc" */
 				abuf = arc_buf_alloc(spa, blksz, &abuf,
 				    ARC_BUFC_DATA);
-				for (ptr = abuf->b_data;
-				    (char *)ptr < (char *)abuf->b_data + blksz;
-				    ptr++)
-					*ptr = 0x2f5baddb10cULL;
+
+				abd_iterate_wfunc(abuf->b_data, blksz,
+				    fillbadblock, NULL);
 			} else {
 				return (SET_ERROR(EIO));
 			}
@@ -547,10 +559,10 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 		offset = zb->zb_blkid * blksz;
 
+		buf = abd_borrow_buf_copy(abuf->b_data, blksz);
 		if (!(dsp->dsa_featureflags &
 		    DMU_BACKUP_FEATURE_LARGE_BLOCKS) &&
 		    blksz > SPA_OLD_MAXBLOCKSIZE) {
-			char *buf = abuf->b_data;
 			while (blksz > 0 && err == 0) {
 				int n = MIN(blksz, SPA_OLD_MAXBLOCKSIZE);
 				err = dump_write(dsp, type, zb->zb_object,
@@ -561,8 +573,9 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 			}
 		} else {
 			err = dump_write(dsp, type, zb->zb_object,
-			    offset, blksz, bp, abuf->b_data);
+			    offset, blksz, bp, buf);
 		}
+		abd_return_buf(abuf->b_data, buf, blksz);
 		(void) arc_buf_remove_ref(abuf, &abuf);
 	}
 
@@ -1575,12 +1588,12 @@ restore_object(struct restorearg *ra, objset_t *os, struct drr_object *drro)
 		dmu_buf_will_dirty(db, tx);
 
 		ASSERT3U(db->db_size, >=, drro->drr_bonuslen);
-		bcopy(data, db->db_data, drro->drr_bonuslen);
+		bcopy(data, ABD_TO_BUF(db->db_data), drro->drr_bonuslen);
 		if (ra->byteswap) {
 			dmu_object_byteswap_t byteswap =
 			    DMU_OT_BYTESWAP(drro->drr_bonustype);
-			dmu_ot_byteswap[byteswap].ob_func(db->db_data,
-			    drro->drr_bonuslen);
+			dmu_ot_byteswap[byteswap].ob_func(
+			    ABD_TO_BUF(db->db_data), drro->drr_bonuslen);
 		}
 		dmu_buf_rele(db, FTAG);
 	}
@@ -1620,7 +1633,7 @@ restore_write(struct restorearg *ra, objset_t *os,
 	dmu_tx_t *tx;
 	dmu_buf_t *bonus;
 	arc_buf_t *abuf;
-	void *data;
+	void *data, *lbuf;
 	int err;
 
 	if (drrw->drr_offset + drrw->drr_length < drrw->drr_offset ||
@@ -1634,9 +1647,11 @@ restore_write(struct restorearg *ra, objset_t *os,
 		return (SET_ERROR(EINVAL));
 
 	abuf = dmu_request_arcbuf(bonus, drrw->drr_length);
+	lbuf = abd_borrow_buf(abuf->b_data, drrw->drr_length);
 
-	data = restore_read(ra, drrw->drr_length, abuf->b_data);
+	data = restore_read(ra, drrw->drr_length, lbuf);
 	if (data == NULL) {
+		abd_return_buf(abuf->b_data, lbuf, drrw->drr_length);
 		dmu_return_arcbuf(abuf);
 		dmu_buf_rele(bonus, FTAG);
 		return (ra->err);
@@ -1648,6 +1663,7 @@ restore_write(struct restorearg *ra, objset_t *os,
 	    drrw->drr_offset, drrw->drr_length);
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err != 0) {
+		abd_return_buf(abuf->b_data, lbuf, drrw->drr_length);
 		dmu_return_arcbuf(abuf);
 		dmu_buf_rele(bonus, FTAG);
 		dmu_tx_abort(tx);
@@ -1658,6 +1674,7 @@ restore_write(struct restorearg *ra, objset_t *os,
 		    DMU_OT_BYTESWAP(drrw->drr_type);
 		dmu_ot_byteswap[byteswap].ob_func(data, drrw->drr_length);
 	}
+	abd_return_buf_copy(abuf->b_data, lbuf, drrw->drr_length);
 	dmu_assign_arcbuf(bonus, drrw->drr_offset, abuf, tx);
 	dmu_tx_commit(tx);
 	dmu_buf_rele(bonus, FTAG);
@@ -1682,6 +1699,7 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 	avl_index_t where;
 	objset_t *ref_os = NULL;
 	dmu_buf_t *dbp;
+	void *buf;
 
 	if (drrwbr->drr_offset + drrwbr->drr_length < drrwbr->drr_offset)
 		return (SET_ERROR(EINVAL));
@@ -1716,8 +1734,10 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 		dmu_tx_abort(tx);
 		return (err);
 	}
+	buf = abd_borrow_buf_copy(dbp->db_data, drrwbr->drr_length);
 	dmu_write(os, drrwbr->drr_object,
-	    drrwbr->drr_offset, drrwbr->drr_length, dbp->db_data, tx);
+	    drrwbr->drr_offset, drrwbr->drr_length, buf, tx);
+	abd_return_buf(dbp->db_data, buf, drrwbr->drr_length);
 	dmu_buf_rele(dbp, FTAG);
 	dmu_tx_commit(tx);
 	return (0);
@@ -1806,7 +1826,7 @@ restore_spill(struct restorearg *ra, objset_t *os, struct drr_spill *drrs)
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
 		    drrs->drr_length, tx));
-	bcopy(data, db_spill->db_data, drrs->drr_length);
+	abd_copy_from_buf(db_spill->db_data, data, drrs->drr_length);
 
 	dmu_buf_rele(db, FTAG);
 	dmu_buf_rele(db_spill, FTAG);
