@@ -713,6 +713,10 @@ zvol_request(struct request_queue *q, struct bio *bio)
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = BIO_BI_SECTOR(bio);
 	unsigned int sectors = bio_sectors(bio);
+	int rw = bio_data_dir(bio);
+#ifdef HAVE_GENERIC_IO_ACCT
+	unsigned long start = jiffies;
+#endif
 	int error = 0;
 
 	if (bio_has_data(bio) && offset + sectors >
@@ -723,25 +727,29 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		    (long long unsigned)offset,
 		    (long unsigned)sectors);
 		error = SET_ERROR(EIO);
-		goto out;
+		goto out1;
 	}
 
-	if (bio_data_dir(bio) == WRITE) {
+	generic_start_io_acct(rw, sectors, &zv->zv_disk->part0);
+
+	if (rw == WRITE) {
 		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
 			error = SET_ERROR(EROFS);
-			goto out;
+			goto out2;
 		}
 
 		if (bio->bi_rw & VDEV_REQ_DISCARD) {
 			error = zvol_discard(bio);
-			goto out;
+			goto out2;
 		}
 
 		error = zvol_write(bio);
 	} else
 		error = zvol_read(bio);
 
-out:
+out2:
+	generic_end_io_acct(rw, &zv->zv_disk->part0, start);
+out1:
 	bio_endio(bio, -error);
 	spl_fstrans_unmark(cookie);
 #ifdef HAVE_MAKE_REQUEST_FN_RET_INT
