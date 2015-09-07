@@ -817,6 +817,10 @@ taskq_thread(void *args)
 	tq = tqt->tqt_tq;
 	current->flags |= PF_NOFREEZE;
 
+	#if defined(PF_MEMALLOC_NOIO)
+	(void) memalloc_noio_save();
+	#endif
+
 	sigfillset(&blocked);
 	sigprocmask(SIG_BLOCK, &blocked, NULL);
 	flush_signals(current);
