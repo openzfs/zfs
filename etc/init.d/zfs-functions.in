@@ -150,7 +150,7 @@ zfs_daemon_start()
 		# so add the zed pid to list of pids to ignore.
 		if [ -f "$PIDFILE" -a -d /run/sendsigs.omit.d ]
 		then
-			ln -s "$PIDFILE" /run/sendsigs.omit.d/zed
+			ln -sf "$PIDFILE" /run/sendsigs.omit.d/zed
 		fi
 	elif type daemon > /dev/null 2>&1 ; then
 	        # Fedora/RedHat functions
