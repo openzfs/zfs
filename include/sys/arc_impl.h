@@ -163,7 +163,7 @@ typedef struct l1arc_buf_hdr {
 
 	arc_callback_t		*b_acb;
 	/* temporary buffer holder for in-flight compressed data */
-	void			*b_tmp_cdata;
+	abd_t			*b_tmp_cdata;
 } l1arc_buf_hdr_t;
 
 typedef struct l2arc_dev {
