@@ -650,7 +650,7 @@ dbuf_read_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 }
 
 static int
-dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
+dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 {
 	dnode_t *dn;
 	zbookmark_phys_t zb;
@@ -697,7 +697,6 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 		    db->db.db_size, db, type));
 		bzero(db->db.db_data, db->db.db_size);
 		db->db_state = DB_CACHED;
-		*flags |= DB_RF_CACHED;
 		mutex_exit(&db->db_mtx);
 		return (0);
 	}
@@ -720,10 +719,8 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t *flags)
 
 	err = arc_read(zio, db->db_objset->os_spa, db->db_blkptr,
 	    dbuf_read_done, db, ZIO_PRIORITY_SYNC_READ,
-	    (*flags & DB_RF_CANFAIL) ? ZIO_FLAG_CANFAIL : ZIO_FLAG_MUSTSUCCEED,
+	    (flags & DB_RF_CANFAIL) ? ZIO_FLAG_CANFAIL : ZIO_FLAG_MUSTSUCCEED,
 	    &aflags, &zb);
-	if (aflags & ARC_FLAG_CACHED)
-		*flags |= DB_RF_CACHED;
 
 	return (SET_ERROR(err));
 }
@@ -758,8 +755,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	if (db->db_state == DB_CACHED) {
 		mutex_exit(&db->db_mtx);
 		if (prefetch)
-			dmu_zfetch(&dn->dn_zfetch, db->db.db_offset,
-			    db->db.db_size, TRUE);
+			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1);
 		if ((flags & DB_RF_HAVESTRUCT) == 0)
 			rw_exit(&dn->dn_struct_rwlock);
 		DB_DNODE_EXIT(db);
@@ -769,13 +765,12 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		if (zio == NULL)
 			zio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 
-		err = dbuf_read_impl(db, zio, &flags);
+		err = dbuf_read_impl(db, zio, flags);
 
 		/* dbuf_read_impl has dropped db_mtx for us */
 
 		if (!err && prefetch)
-			dmu_zfetch(&dn->dn_zfetch, db->db.db_offset,
-			    db->db.db_size, flags & DB_RF_CACHED);
+			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1);
 
 		if ((flags & DB_RF_HAVESTRUCT) == 0)
 			rw_exit(&dn->dn_struct_rwlock);
@@ -794,8 +789,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		 */
 		mutex_exit(&db->db_mtx);
 		if (prefetch)
-			dmu_zfetch(&dn->dn_zfetch, db->db.db_offset,
-			    db->db.db_size, TRUE);
+			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1);
 		if ((flags & DB_RF_HAVESTRUCT) == 0)
 			rw_exit(&dn->dn_struct_rwlock);
 		DB_DNODE_EXIT(db);
@@ -2019,6 +2013,9 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid, zio_priority_t prio)
 
 	ASSERT(blkid != DMU_BONUS_BLKID);
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
+
+	if (blkid > dn->dn_maxblkid)
+		return;
 
 	if (dnode_block_freed(dn, blkid))
 		return;
