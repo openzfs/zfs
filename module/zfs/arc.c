@@ -677,15 +677,6 @@ static arc_buf_hdr_t arc_eviction_hdr;
 #define	HDR_HAS_L1HDR(hdr)	((hdr)->b_flags & ARC_FLAG_HAS_L1HDR)
 #define	HDR_HAS_L2HDR(hdr)	((hdr)->b_flags & ARC_FLAG_HAS_L2HDR)
 
-/* For storing compression mode in b_flags */
-#define	HDR_COMPRESS_OFFSET	24
-#define	HDR_COMPRESS_NBITS	7
-
-#define	HDR_GET_COMPRESS(hdr)	((enum zio_compress)BF32_GET(hdr->b_flags, \
-	    HDR_COMPRESS_OFFSET, HDR_COMPRESS_NBITS))
-#define	HDR_SET_COMPRESS(hdr, cmp) BF32_SET(hdr->b_flags, \
-	    HDR_COMPRESS_OFFSET, HDR_COMPRESS_NBITS, (cmp))
-
 /*
  * Other sizes
  */
@@ -1483,7 +1474,7 @@ arc_buf_info(arc_buf_t *ab, arc_buf_info_t *abi, int state_index)
 	if (l2hdr) {
 		abi->abi_l2arc_dattr = l2hdr->b_daddr;
 		abi->abi_l2arc_asize = l2hdr->b_asize;
-		abi->abi_l2arc_compress = HDR_GET_COMPRESS(hdr);
+		abi->abi_l2arc_compress = l2hdr->b_compress;
 		abi->abi_l2arc_hits = l2hdr->b_hits;
 	}
 
@@ -1954,7 +1945,7 @@ arc_buf_l2_cdata_free(arc_buf_hdr_t *hdr)
 	 * separately compressed buffer, so there's nothing to free (it
 	 * points to the same buffer as the arc_buf_t's b_data field).
 	 */
-	if (HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF) {
+	if (hdr->b_l2hdr.b_compress == ZIO_COMPRESS_OFF) {
 		hdr->b_l1hdr.b_tmp_cdata = NULL;
 		return;
 	}
@@ -1963,12 +1954,12 @@ arc_buf_l2_cdata_free(arc_buf_hdr_t *hdr)
 	 * There's nothing to free since the buffer was all zero's and
 	 * compressed to a zero length buffer.
 	 */
-	if (HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_EMPTY) {
+	if (hdr->b_l2hdr.b_compress == ZIO_COMPRESS_EMPTY) {
 		ASSERT3P(hdr->b_l1hdr.b_tmp_cdata, ==, NULL);
 		return;
 	}
 
-	ASSERT(L2ARC_IS_VALID_COMPRESS(HDR_GET_COMPRESS(hdr)));
+	ASSERT(L2ARC_IS_VALID_COMPRESS(hdr->b_l2hdr.b_compress));
 
 	arc_buf_free_on_write(hdr->b_l1hdr.b_tmp_cdata,
 	    hdr->b_size, zio_data_buf_free);
@@ -4429,7 +4420,7 @@ top:
 		    (vd = hdr->b_l2hdr.b_dev->l2ad_vdev) != NULL) {
 			devw = hdr->b_l2hdr.b_dev->l2ad_writing;
 			addr = hdr->b_l2hdr.b_daddr;
-			b_compress = HDR_GET_COMPRESS(hdr);
+			b_compress = hdr->b_l2hdr.b_compress;
 			b_asize = hdr->b_l2hdr.b_asize;
 			/*
 			 * Lock out device removal.
@@ -6037,6 +6028,8 @@ l2arc_read_done(zio_t *zio)
 	if (cb->l2rcb_compress != ZIO_COMPRESS_OFF)
 		l2arc_decompress_zio(zio, hdr, cb->l2rcb_compress);
 	ASSERT(zio->io_data != NULL);
+	ASSERT3U(zio->io_size, ==, hdr->b_size);
+	ASSERT3U(BP_GET_LSIZE(&cb->l2rcb_bp), ==, hdr->b_size);
 
 	/*
 	 * Check this survived the L2ARC journey.
@@ -6073,7 +6066,7 @@ l2arc_read_done(zio_t *zio)
 			ASSERT(!pio || pio->io_child_type == ZIO_CHILD_LOGICAL);
 
 			zio_nowait(zio_read(pio, cb->l2rcb_spa, &cb->l2rcb_bp,
-			    buf->b_data, zio->io_size, arc_read_done, buf,
+			    buf->b_data, hdr->b_size, arc_read_done, buf,
 			    zio->io_priority, cb->l2rcb_flags, &cb->l2rcb_zb));
 		}
 	}
@@ -6381,7 +6374,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
 			 * can't access without holding the ARC list locks
 			 * (which we want to avoid during compression/writing)
 			 */
-			HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_OFF);
+			hdr->b_l2hdr.b_compress = ZIO_COMPRESS_OFF;
 			hdr->b_l2hdr.b_asize = hdr->b_size;
 			hdr->b_l2hdr.b_hits = 0;
 			hdr->b_l1hdr.b_tmp_cdata = hdr->b_l1hdr.b_buf->b_data;
@@ -6587,7 +6580,7 @@ l2arc_compress_buf(arc_buf_hdr_t *hdr)
 	l2hdr = &hdr->b_l2hdr;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
-	ASSERT(HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF);
+	ASSERT3U(l2hdr->b_compress, ==, ZIO_COMPRESS_OFF);
 	ASSERT(hdr->b_l1hdr.b_tmp_cdata != NULL);
 
 	len = l2hdr->b_asize;
@@ -6605,7 +6598,7 @@ l2arc_compress_buf(arc_buf_hdr_t *hdr)
 	if (csize == 0) {
 		/* zero block, indicate that there's nothing to write */
 		zio_data_buf_free(cdata, len);
-		HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_EMPTY);
+		l2hdr->b_compress = ZIO_COMPRESS_EMPTY;
 		l2hdr->b_asize = 0;
 		hdr->b_l1hdr.b_tmp_cdata = NULL;
 		ARCSTAT_BUMP(arcstat_l2_compress_zeros);
@@ -6615,7 +6608,7 @@ l2arc_compress_buf(arc_buf_hdr_t *hdr)
 		 * Compression succeeded, we'll keep the cdata around for
 		 * writing and release it afterwards.
 		 */
-		HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_LZ4);
+		l2hdr->b_compress = ZIO_COMPRESS_LZ4;
 		l2hdr->b_asize = csize;
 		hdr->b_l1hdr.b_tmp_cdata = cdata;
 		ARCSTAT_BUMP(arcstat_l2_compress_successes);
@@ -6702,9 +6695,11 @@ l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 static void
 l2arc_release_cdata_buf(arc_buf_hdr_t *hdr)
 {
-	enum zio_compress comp = HDR_GET_COMPRESS(hdr);
+	enum zio_compress comp;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
+	ASSERT(HDR_HAS_L2HDR(hdr));
+	comp = hdr->b_l2hdr.b_compress;
 	ASSERT(comp == ZIO_COMPRESS_OFF || L2ARC_IS_VALID_COMPRESS(comp));
 
 	if (comp == ZIO_COMPRESS_OFF) {
