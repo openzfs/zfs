@@ -4131,7 +4131,7 @@ print_scan_status(pool_scan_stat_t *ps)
 	/*
 	 * do not print estimated time if hours_left is more than 30 days
 	 */
-	(void) printf(gettext("    %s scanned out of %s at %s/s"),
+	(void) printf(gettext("\t%s scanned out of %s at %s/s"),
 	    examined_buf, total_buf, rate_buf);
 	if (hours_left < (30 * 24)) {
 		(void) printf(gettext(", %lluh%um to go\n"),
@@ -4142,10 +4142,10 @@ print_scan_status(pool_scan_stat_t *ps)
 	}
 
 	if (ps->pss_func == POOL_SCAN_RESILVER) {
-		(void) printf(gettext("    %s resilvered, %.2f%% done\n"),
+		(void) printf(gettext("\t%s resilvered, %.2f%% done\n"),
 		    processed_buf, 100 * fraction_done);
 	} else if (ps->pss_func == POOL_SCAN_SCRUB) {
-		(void) printf(gettext("    %s repaired, %.2f%% done\n"),
+		(void) printf(gettext("\t%s repaired, %.2f%% done\n"),
 		    processed_buf, 100 * fraction_done);
 	}
 }
