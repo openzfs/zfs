@@ -32,6 +32,8 @@
 ZED_NAME="zed"
 ZED_PIDFILE="@runstatedir@/$ZED_NAME.pid"
 
+extra_started_commands="reload"
+
 # Exit if the package is not installed
 [ -x "$ZED" ] || exit 0
 
