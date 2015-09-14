@@ -227,7 +227,7 @@ zfs_daemon_reload()
 
 	if type start-stop-daemon > /dev/null 2>&1 ; then
 		# LSB functions
-		start-stop-daemon --stop -signal 1 --quiet \
+		start-stop-daemon --stop --signal 1 --quiet \
 		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
 		return $?
 	elif type killproc > /dev/null 2>&1 ; then
