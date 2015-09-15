@@ -1,0 +1,201 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2016 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_pool_import 3 "2016 MAY 24" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_pool_import\fR(\fBconst char *\fR\fIpool\fR, \fBnvlist_t *\fR\fIconfig\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fInewconfig\fR);
+
+.SH NAME
+lzc_pool_import \- Import a pool that was exported.
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_pool_import\fR() function will import a pool that is exported.
+
+Userspace consumers are strongly advised to never attempt to pass a pool
+configuration other than that which has been provided by the kernel in the
+zpool.cache file or another lzc_pool_* command.
+
+.I pool
+shall become the name of the pool in the SPA namespace.
+
+.I config
+shall contain an nvlist named "config" that is the pool configuration that is
+stored in the pool's disk labels. That nvlist is equivalent to the
+configuration cached in the zpool.cache file under the name of the pool. It may
+also contain an nvlist named "props" that contains pool properties to override
+in the configuration. The more useful ones are:
+.sp
+.in +2
+.nf
+NAME                    TYPE                    DESCRIPTION
+"altroot"               string                  Path prefix for zfs mount
+"cachefile"             string                  Alternative path to file to cache config
+"comment"               string                  Pool comment
+"readonly"              string                  Do not allow modification.
+.fi
+.in -2
+.sp
+
+.I opts
+shall used to manipulate output. It takes these values:
+.sp
+.in +2
+.nf
+NAME                    TYPE                    DESCRIPTION
+"any_host"              boolean                 Allow import when the hostid has changed.
+"log_history"           string                  Records passed shell command to history
+"missing_log"           boolean                 Allow import with a missing SLOG device.
+"only"                  boolean                 Userland did not mount filesystems.
+"temp_name"             boolean                 Do not sync SPA pool name to disk.
+"verbatim"              boolean                 Load configuration without changes.
+.fi
+.in -2
+.sp
+
+Note that the "only" option is purely advisory. While it flips a bit inside the
+kernel's representation of options, it does not actually do anything and exists
+purely for legacy purposes.
+
+.I newconfig
+shall be a pointer to a nvlist_t *pointer. It can be NULL. If it is non-NULL,
+the caller is responsible for calling nvlist_free on success. This will pass
+the pool configuration plus any modified values or additions made by the
+kernel.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_pool_import()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fREBADF\fR\fR
+.ad
+.RS 13n
+A vdev's on-disk label failed validation.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fECKSUM\fR\fR
+.ad
+.RS 13n
+A raidz vdev has faulted and lacks sufficient data to permit reconstruction.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+A pool with name \fIname\fR already exists in the SPA namespace.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The nvlist \fIconfig\fR lacks a nvlist named "config" for the pool
+configuration.
+.sp
+The passed pool configuration is invalid.
+.sp
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEIO\fR\fR
+.ad
+.RS 13n
+On-disk data required for import is invalid. The driver cannot find a valid copy.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOSPC\fR\fR
+.ad
+.RS 13n
+The pool contains a file vdev backed by a sparse file and a write as part of a
+non-readonly import failed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEOVERFLOW\fR\fR
+.ad
+.RS 13n
+The pool contains a vdev smaller than the minimum size permitted by ZFS (64MB).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSUP\fR\fR
+.ad
+.RS 13n
+The pool version is unsupported.
+.sp
+A feature enabled on the pool is unsupported.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENXIO\fR\fR
+.ad
+.RS 13n
+Could not open enough devices to import pool.
+.sp
+Could not find a valid uberblock.
+.sp
+Could not find "features_for_read" in disk label on version 5000 or greater pool.
+.sp
+The vdev guid sum does not match the uberblock value.
+.sp
+A log device is missing.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_pool_export\fR(3), \fBzpool\fR(8)

@@ -2098,8 +2098,11 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		}
 	}
 
-	if (zpool_import_props(g_zfs, config, newname, props, flags) != 0)
+	if (zpool_import_props(g_zfs, config, newname, props, flags,
+	    (log_history) ? history_str : NULL) != 0) {
+		log_history = B_FALSE;
 		return (1);
+	}
 
 	if (newname != NULL)
 		name = (char *)newname;

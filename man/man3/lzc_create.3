@@ -1,0 +1,171 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_create 3 "2015 JUL 7" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_create\fR(\fBconst char *\fR\fIfsname\fR, \fBdmu_objset_type_t\fR \fItype\fR, \fBnvlist_t *\fR\fIprops\fR);
+.sp
+\fBint\fR \fBlzc_create_ext\fR(\fBconst char *\fR\fIfsname\fR, \fBdmu_objset_type_t\fR \fItype\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+
+.SH NAME
+lzc_create, lzc_create_ext \- Create a ZFS dataset or volume
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_create\fR() function creates a dataset or zvol according to
+\fItype\fR. Optional properties are passed through \fIprops\fR. These are set
+non-atomically. Application of properties to the new dataset at this time is
+non-atomic and failure of any property changes does not cause failure of the
+create. The \fBlzc_create_ext\fR() function behaves identically unless
+additional options are non-NULL. The \fIopts\fR nvlist permits changes to the
+command behavior. At present, it permits the command invocation to be passed by
+a string named "log_history". The \fIerrlist\fR will return individual error
+codes for properties that failed to be set.
+
+.I fsname
+shall be the SPA namespace name for the new dataset.
+
+.I props
+shall either be NULL or contain a nvlist with properties to set on the snapshot
+at creation time. It shall be of the format:
+.sp
+{ user:prop_name -> string value }
+
+.I opts
+shall be either NULL or a pointer to a nvlist containing options that alter
+behavior. At present, it only permits the command invocation to be passed by a
+string named "log_history" so that the command line invocation can be stored in
+the zpool history log.
+
+.I errlist
+shall be either NULL or contain a handle that shall be used to store a pointer
+to a library allocated nvlist when non-NULL and the operation for at least one
+hold fails.  The names of the holds shall be the keys while the values shall
+contain the error codes and be of type int32. Holds that failed to release
+because they did not exist shall also have an entry added. It shall not be
+touched otherwise.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_inherit()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The dataset name \fIfsname\fR is invalid.
+.sp
+The dataset type \fItype\fR is invalid.
+.sp
+The nvlist \fIprops\fR is invalid.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The dataset name \fIfsname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+The dataset \fIfsname\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIprops\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSUP\fR\fR
+.ad
+.RS 13n
+The requested ZPL version is not supported.
+.sp
+A feature has been requested (e.g. normalization) that hte requested ZPL version doe sont support.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEOVERFLOW\fR\fR
+.ad
+.RS 13n
+Specified volume size exceeds system supported device size.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBzfs\fR(8)

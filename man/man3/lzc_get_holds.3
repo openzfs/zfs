@@ -1,0 +1,129 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_get_holds 3 "2015 JUL 7" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_get_holds\fR(\fBconst char *\fR\fIsnapname\fR, \fBnvlist_t **\fR\fIholdsp\fR);
+
+.SH NAME
+lzc_get_holds \- Retrieve list of user holds on the specified snapshot.
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_get_holds\fR() function returns a nvlist of holds on the snapshot.
+The nvlist keys will be the short names of the holds while the nvlist values
+will be uint64 numbers.  The numbers are internal identifiers that have no
+application to userland in the current iteration of the libzfs_core API.
+
+.SH RETURN VALUE
+On success, the \fBlzc_get_holds\fR() function returns 0 and fills in
+\fI*holdsp\fR when \fIholdsp\R is non-NULL. On failure, the function returns an
+error code.
+
+.SH ERRORS
+.BR lzc_get_holds ()
+can fail with the following errors:
+
+.TP
+.B ENOENT
+Pool does not exist, or if unintialized, the cachefile is out of
+sync because loading the pool failed due to an exported or
+destroyed pool.  If pool exists, snapshot does not exist.
+.TP
+.B EEXIST
+The pool was uninitialized and a pool with the same GUID already
+existed.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_inherit()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The snapshot name \fIsnapname\fR is not syntactically correct.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The string \fIsnapname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or
+destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was
+read from the cachefile.
+.sp
+The snapshot \fIsnapname\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_hold\fR(3), \fBlzc_release\fR(3), \fBzfs\fR(8)

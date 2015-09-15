@@ -1,0 +1,174 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_promote 3 "2015 JUL 7" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_promote\fR(\fBconst char *\fR\fIfsname\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIoutnvl\fR);
+
+.SH NAME
+lzc_promote \- Reverse clone parent-child relationship
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_promote\fR() function promotes a clone file system \fIfsname\fR to
+no longer be dependent on its "origin" snapshot. This makes it possible to
+destroy the file system from which the clone was created. The clone
+parent-child dependency relationship is reversed, so that the origin file
+system becomes a clone of the specified file system.
+
+The snapshot that was cloned, and any snapshots previous to this snapshot, are
+now owned by the promoted clone. The space they use moves from the origin file
+system to the promoted clone, so enough space must be available to accom‐
+modate these snapshots. No new space is consumed by this operation, but the
+space accounting is adjusted. The promoted clone must not have any conflicting
+snapshot names of its own. The rename subcommand can be used to rename  any
+conflicting snapshots.
+
+The nvlist \fIopts\fR is reserved for future extensions that provide options
+that alter the behavior of the lzc_promote() function. At the time of writing,
+all data passed to it is ignored and callers should pass NULL to ensure that
+behavior remains the same with future extensions.
+
+The nvlist handle \fIoutnvl\fR is updated with a nvlist containing information
+from the kernel when non-NULL. At present, a \fIconflsnap\fR string is provided
+when a conflicting snapshot triggers EEXIST while a \fIparent\fR string is
+provided on either success or a conflicting snapshot.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_promote()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEBUSY\fR\fR
+.ad
+.RS 13n
+There is a long hold on the dataset.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.sp
+There is a conflicting snapshot name. If \fIoutnvl\fR is non-NULL, it will be
+updated with an nvlist containing the string \fIconflsnap\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The dataset name \fIfsname\fR is invalid.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The string \fIfsname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIopts\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+The clone \fIfsname\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOSPC\fR\fR
+.ad
+.RS 13n
+Not enough space to update property.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTDIR\fR\fR
+.ad
+.RS 13n
+\fIfsname\fR is a snapshot.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSOCK\fR\fR
+.ad
+.RS 13n
+\fIfsname\fR is not a clone.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBzfs\fR(8)

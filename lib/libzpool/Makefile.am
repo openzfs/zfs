@@ -27,6 +27,7 @@ KERNEL_C = \
 	zfs_fletcher_avx512.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
+	zfs_type.c \
 	zfs_uio.c \
 	zpool_prop.c \
 	zprop_common.c \

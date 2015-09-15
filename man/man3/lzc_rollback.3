@@ -1,0 +1,153 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_rollback 3 "2015 JUL 8" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_rollback\fR(\fBconst char *\fR\fIfsname\fR, \fBchar *\fR\fIsnapnamebuf\fR, \fBint\fR \fIsnapnamelen\fR);
+.sp
+\fBint\fR \fBlzc_rollback_ext\fR(\fBconst char *\fR\fIfsname\fR, \fBchar *\fR\fIsnapnamebuf\fR, \fBint\fR \fIsnapnamelen\fR, \fBnvlist_t *\fR\fIopts\fR);
+
+.SH NAME
+lzc_rollback, lzc_rollback_ext \- Rollback this filesystem or volume to its most recent snapshot. 
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_rollback\fR() function rolls back a live dataset or volume to its
+most recent snapshot. The \fBlzc_rollback\fR() function behaves identically
+when \fIopts\fR is NULL.
+
+.I fsname
+shall be the name of the most recent snapshot to rollback.
+
+.I snapnamebuf
+shall be a pointer to a string to fill with the name of the most recent
+snapshot. If NULL, it wll be ignored.
+
+.I snapnamelen
+shall be the length of \fIsnapnamebuf\fR.
+
+.I opts
+shall be either NULL or a pointer to a nvlist containing options that alter
+behavior. At present, it only permits the command invocation to be passed by a
+string named "log_history" so that the command line invocation can be stored in
+the zpool history log.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned and \fIsnapnamebuf\fR is filled if
+non-NULL. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_rollback()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEBUSY\fR\fR
+.ad
+.RS 13n
+The dataset has a hold.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEDQUOT\fR\fR
+.ad
+.RS 13n
+The snapshot uses more data than th file system quota.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+\fIfsname\fR must be the most recent snapshot.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The string \fIfsname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+A dataset or volume specified in \fIsnaps\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOSPC\fR\fR
+.ad
+.RS 13n
+Not enough space to rollback snapshot.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+.
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_snapshot\fR(3), \fBzfs\fR(8)

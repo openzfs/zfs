@@ -7,6 +7,7 @@ COMMON_H = \
 	$(top_srcdir)/include/zfs_fletcher.h \
 	$(top_srcdir)/include/zfs_namecheck.h \
 	$(top_srcdir)/include/zfs_prop.h \
+	$(top_srcdir)/include/zfs_type.h \
 	$(top_srcdir)/include/zpios-ctl.h
 
 KERNEL_H = \

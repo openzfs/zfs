@@ -1,0 +1,109 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2016 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_pool_stats 3 "2016 MAY 24" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_pool_stats\fR(\fBconst char *\fR\fIpool\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIstats\fR);
+
+.SH NAME
+lzc_pool_stats \- Get pool configuration and statistics
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_pool_stats\fR() function will obtain the pool configuration
+augmented with statistics.
+
+Userspace consumers are strongly advised to never attempt to pass a pool
+configuration other than that which has been provided by the kernel in the
+zpool.cache file or another lzc_pool_* command.
+
+.I pool
+shall be the name of a pool in the SPA namespace.
+
+.I opts
+is for future extensions. It is presently unused and should be passed as NULL.
+
+.I stats
+shall be a pointer to a nvlist_t *pointer. On success, it will be updated with
+a pointer to an allocated nvlist containing the pool configuration and
+statistics, the caller is responsible for calling nvlist_free.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_pool_stats()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+\fIpool\fR was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+\fIpool\fR is not the name of an imported pool.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENXIO\fR\fR
+.ad
+.RS 13n
+\fIpool\fR was loaded through a cachefile, but cannot be initialized because
+the disks look corrupt.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSUP\fR\fR
+.ad
+.RS 13n
+\fIpool\fR was loaded through a cachefile, but cannot be initialized because it
+has unsupported features.
+.RE
+
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_pool_import\fR(3), \fBzpool\fR(8)

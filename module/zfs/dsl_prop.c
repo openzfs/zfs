@@ -847,6 +847,108 @@ typedef struct dsl_props_set_arg {
 } dsl_props_set_arg_t;
 
 static int
+dsl_props_set_special_check(dsl_dataset_t *ds, zprop_source_t source,
+    nvpair_t *pair, dmu_tx_t *tx)
+{
+	const char *propname = nvpair_name(pair);
+	zfs_prop_t prop = zfs_name_to_prop(propname);
+	uint64_t intval;
+	char *strval;
+	int err = 0;
+
+	switch (nvpair_type(pair)) {
+	case DATA_TYPE_STRING:
+		if (nvpair_value_string(pair, &strval) != 0)
+			return (SET_ERROR(EINVAL));
+		if (!zfs_prop_user(propname) &&
+		    zfs_prop_get_type(prop) == PROP_TYPE_INDEX &&
+		    zfs_prop_string_to_index(prop, strval, &intval) != 0)
+			return (SET_ERROR(EINVAL));
+		break;
+	case DATA_TYPE_UINT64:
+		VERIFY(0 == nvpair_value_uint64(pair, &intval));
+	default:
+		break;
+	}
+
+	switch (prop) {
+	case ZFS_PROP_QUOTA:
+		err = dsl_dir_set_quota_check_impl(ds, source, intval, tx);
+		break;
+	case ZFS_PROP_REFQUOTA:
+		err = dsl_dataset_set_refquota_check_impl(ds, source, intval,
+		    tx);
+		break;
+	case ZFS_PROP_RESERVATION:
+		err = dsl_dir_set_reservation_check_impl(ds, source, intval,
+		    tx);
+		break;
+	case ZFS_PROP_REFRESERVATION:
+		err = dsl_dataset_set_refreservation_check_impl(ds, source,
+		    intval, tx);
+		break;
+	case ZFS_PROP_VOLSIZE:
+	case ZFS_PROP_SNAPDEV:
+	case ZFS_PROP_VERSION:
+	default:
+		break;
+	}
+
+	return (err);
+
+}
+
+static boolean_t
+dsl_props_set_special_sync(dsl_dataset_t *ds, zprop_source_t source,
+    nvpair_t *pair, dmu_tx_t *tx)
+{
+	const char *propname = nvpair_name(pair);
+	zfs_prop_t prop = zfs_name_to_prop(propname);
+	uint64_t intval;
+	char *strval;
+
+	switch (nvpair_type(pair)) {
+	case DATA_TYPE_STRING:
+		if (nvpair_value_string(pair, &strval) != 0)
+			return (SET_ERROR(EINVAL));
+		if (!zfs_prop_user(propname) &&
+		    zfs_prop_get_type(prop) == PROP_TYPE_INDEX &&
+		    zfs_prop_string_to_index(prop, strval, &intval) != 0)
+			return (SET_ERROR(EINVAL));
+		break;
+	case DATA_TYPE_UINT64:
+		VERIFY0(nvpair_value_uint64(pair, &intval));
+		break;
+	default:
+		return (B_FALSE);
+	}
+
+	switch (prop) {
+	case ZFS_PROP_QUOTA:
+		dsl_dir_set_quota_sync_impl(ds, source, intval, tx);
+		break;
+	case ZFS_PROP_REFQUOTA:
+		dsl_dataset_set_refquota_sync_impl(ds, source, intval, tx);
+		break;
+	case ZFS_PROP_RESERVATION:
+		dsl_dir_set_reservation_sync_impl(ds, source, intval, tx);
+		break;
+	case ZFS_PROP_REFRESERVATION:
+		dsl_dataset_set_refreservation_sync_impl(ds, source, intval,
+		    tx);
+		break;
+	case ZFS_PROP_VOLSIZE:
+	case ZFS_PROP_SNAPDEV:
+	case ZFS_PROP_VERSION:
+	default:
+		return (B_FALSE);
+	}
+
+	return (B_TRUE);
+
+}
+
+static int
 dsl_props_set_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_props_set_arg_t *dpsa = arg;
@@ -875,6 +977,12 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 				return (E2BIG);
 			}
 		}
+
+		if ((err = dsl_props_set_special_check(ds, dpsa->dpsa_source,
+		    elem, tx))) {
+			dsl_dataset_rele(ds, FTAG);
+			return (err);
+		}
 	}
 
 	if (ds->ds_is_snapshot && version < SPA_VERSION_SNAP_PROPS) {
@@ -902,6 +1010,9 @@ dsl_props_set_sync_impl(dsl_dataset_t *ds, zprop_source_t source,
 			nvlist_t *attrs = fnvpair_value_nvlist(pair);
 			pair = fnvlist_lookup_nvpair(attrs, ZPROP_VALUE);
 		}
+
+		if (dsl_props_set_special_sync(ds, source, pair, tx))
+			continue;
 
 		if (nvpair_type(pair) == DATA_TYPE_STRING) {
 			const char *value = fnvpair_value_string(pair);
@@ -960,7 +1071,8 @@ typedef enum dsl_prop_getflags {
 	DSL_PROP_GET_INHERITING = 0x1,	/* searching parent of target ds */
 	DSL_PROP_GET_SNAPSHOT = 0x2,	/* snapshot dataset */
 	DSL_PROP_GET_LOCAL = 0x4,	/* local properties */
-	DSL_PROP_GET_RECEIVED = 0x8	/* received properties */
+	DSL_PROP_GET_RECEIVED = 0x8,	/* received properties */
+	DSL_PROP_GET_INDEX_STR = 0x10	/* index properties as strings */
 } dsl_prop_getflags_t;
 
 static int
@@ -1066,6 +1178,16 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			VERIFY(nvlist_add_string(propval, ZPROP_VALUE,
 			    tmp) == 0);
 			kmem_free(tmp, za.za_num_integers);
+		} else if ((flags & DSL_PROP_GET_INDEX_STR) &&
+		    zfs_prop_get_type(prop) == PROP_TYPE_INDEX) {
+			/*
+			 * Index property (returned as string)
+			 */
+			const char *strval;
+			VERIFY0(zfs_prop_index_to_string(prop,
+			    za.za_first_integer, &strval));
+			VERIFY0(nvlist_add_string(propval, ZPROP_VALUE,
+			    strval));
 		} else {
 			/*
 			 * Integer property
@@ -1179,6 +1301,13 @@ int
 dsl_prop_get_all(objset_t *os, nvlist_t **nvp)
 {
 	return (dsl_prop_get_all_ds(os->os_dsl_dataset, nvp, 0));
+}
+
+int
+dsl_prop_get_all_new(objset_t *os, nvlist_t **nvp)
+{
+	return (dsl_prop_get_all_ds(os->os_dsl_dataset, nvp,
+	    DSL_PROP_GET_INDEX_STR));
 }
 
 int

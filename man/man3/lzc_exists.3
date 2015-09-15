@@ -1,0 +1,68 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_exists 3 "2015 JUL 7" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBboolean_t\fR \fBlzc_exists\fR(\fBconst char *\fR\fIdataset\fR);
+
+.SH NAME
+lzc_exists \- Test for dataset existence.
+
+.SH DESCRIPTION
+.LP
+The
+\fBlzc_exists\fR()
+function tests whether
+.I dataset
+exists. It is more efficient than calling
+\fBlzc_list\fR(),
+but it does not apply to bookmarks.
+
+.SH RETURN VALUES
+.sp
+.LP
+On success, the
+\fBlzc_exists\fR()
+function returns a 0 (B_TRUE) when
+.I dataset
+exists and 1 (B_FALSE) when
+.I dataset
+does not exist. Failures are considered to be non-existence. However, errno
+will be used to store the internal error code.
+
+.SH ERRORS
+.sp
+.LP
+None
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_list\fR(3), \fBzfs\fR(8)
