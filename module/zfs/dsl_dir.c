@@ -1691,7 +1691,7 @@ typedef struct dsl_dir_rename_arg {
 
 /* ARGSUSED */
 static int
-dsl_valid_rename(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+dsl_valid_rename(dsl_dataset_t *ds, const char *unused, void *arg)
 {
 	int *deltap = arg;
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
@@ -1743,7 +1743,8 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 	/* if the name length is growing, validate child name lengths */
 	if (delta > 0) {
 		error = dmu_objset_find_dp(dp, dd->dd_object, dsl_valid_rename,
-		    &delta, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+		    &delta, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS,
+		    0, DS_FIND_MAX_DEPTH);
 		if (error != 0) {
 			dsl_dir_rele(newparent, FTAG);
 			dsl_dir_rele(dd, FTAG);

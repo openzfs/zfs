@@ -502,8 +502,9 @@ dsl_prop_hascb(dsl_dataset_t *ds)
 
 /* ARGSUSED */
 static int
-dsl_prop_notify_all_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+dsl_prop_notify_all_cb(dsl_dataset_t *ds, const char *unused, void *arg)
 {
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	dsl_dir_t *dd = ds->ds_dir;
 	dsl_prop_record_t *pr;
 	dsl_prop_cb_record_t *cbr;
@@ -565,7 +566,7 @@ dsl_prop_notify_all(dsl_dir_t *dd)
 	dsl_pool_t *dp = dd->dd_pool;
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 	(void) dmu_objset_find_dp(dp, dd->dd_object, dsl_prop_notify_all_cb,
-	    NULL, DS_FIND_CHILDREN);
+	    NULL, DS_FIND_CHILDREN, 0, DS_FIND_MAX_DEPTH);
 }
 
 static void

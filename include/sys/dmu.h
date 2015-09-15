@@ -241,8 +241,11 @@ void zfs_acl_byteswap(void *buf, size_t size);
 void zfs_znode_byteswap(void *buf, size_t size);
 
 #define	DS_FIND_SNAPSHOTS	(1<<0)
-#define	DS_FIND_CHILDREN	(1<<1)
-#define	DS_FIND_SERIALIZE	(1<<2)
+#define	DS_FIND_BOOKMARKS	(1<<1)
+#define	DS_FIND_CHILDREN	(1<<2)
+#define	DS_FIND_SERIALIZE	(1<<3)
+
+#define	DS_FIND_MAX_DEPTH	(-1)
 
 /*
  * The maximum number of bytes that can be accessed as part of one

@@ -1043,8 +1043,9 @@ struct enqueue_clones_arg {
 
 /* ARGSUSED */
 static int
-enqueue_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
+enqueue_clones_cb(dsl_dataset_t *hds, const char *unused, void *arg)
 {
+	dsl_pool_t *dp = hds->ds_dir->dd_pool;
 	struct enqueue_clones_arg *eca = arg;
 	dsl_dataset_t *ds;
 	int err;
@@ -1210,7 +1211,8 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 			eca.originobj = ds->ds_object;
 
 			VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-			    enqueue_clones_cb, &eca, DS_FIND_CHILDREN));
+			    enqueue_clones_cb, &eca, DS_FIND_CHILDREN,
+			    0, DS_FIND_MAX_DEPTH));
 		}
 	}
 
@@ -1220,8 +1222,9 @@ out:
 
 /* ARGSUSED */
 static int
-enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
+enqueue_cb(dsl_dataset_t *hds, const char *unused, void *arg)
 {
+	dsl_pool_t *dp = hds->ds_dir->dd_pool;
 	dmu_tx_t *tx = arg;
 	dsl_dataset_t *ds;
 	int err;
@@ -1386,7 +1389,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 
 		if (spa_version(dp->dp_spa) < SPA_VERSION_DSL_SCRUB) {
 			VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-			    enqueue_cb, tx, DS_FIND_CHILDREN));
+			    enqueue_cb, tx, DS_FIND_CHILDREN,
+			    0, DS_FIND_MAX_DEPTH));
 		} else {
 			dsl_scan_visitds(scn,
 			    dp->dp_origin_snap->ds_object, tx);

@@ -1847,7 +1847,8 @@ spa_check_logs(spa_t *spa)
 		/* need to recheck in case slog has been restored */
 	case SPA_LOG_UNKNOWN:
 		rv = (dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-		    zil_check_log_chain, NULL, DS_FIND_CHILDREN) != 0);
+		    zil_check_log_chain, NULL, DS_FIND_CHILDREN,
+		    0, DS_FIND_MAX_DEPTH) != 0);
 		if (rv)
 			spa_set_log_state(spa, SPA_LOG_MISSING);
 		break;
@@ -2015,7 +2016,7 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 /* ARGSUSED */
 int
-verify_dataset_name_len(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+verify_dataset_name_len(dsl_dataset_t *ds, const char *unused, void *arg)
 {
 	if (dsl_dataset_namelen(ds) >= ZFS_MAX_DATASET_NAME_LEN)
 		return (SET_ERROR(ENAMETOOLONG));
@@ -2040,7 +2041,7 @@ spa_load_verify(spa_t *spa)
 	dsl_pool_config_enter(spa->spa_dsl_pool, FTAG);
 	error = dmu_objset_find_dp(spa->spa_dsl_pool,
 	    spa->spa_dsl_pool->dp_root_dir_obj, verify_dataset_name_len, NULL,
-	    DS_FIND_CHILDREN);
+	    DS_FIND_CHILDREN, 0, DS_FIND_MAX_DEPTH);
 	dsl_pool_config_exit(spa->spa_dsl_pool, FTAG);
 	if (error != 0)
 		return (error);
@@ -2930,7 +2931,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 
 		tx = dmu_tx_create_assigned(dp, spa_first_txg(spa));
 		(void) dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-		    zil_claim, tx, DS_FIND_CHILDREN);
+		    zil_claim, tx, DS_FIND_CHILDREN, 0, DS_FIND_MAX_DEPTH);
 		dmu_tx_commit(tx);
 
 		spa->spa_claiming = B_FALSE;

@@ -157,8 +157,8 @@ void dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp);
 uint64_t dmu_objset_fsid_guid(objset_t *os);
 int dmu_objset_find_dp(struct dsl_pool *dp, uint64_t ddobj,
-    int func(struct dsl_pool *, struct dsl_dataset *, void *),
-    void *arg, int flags);
+    int func(struct dsl_dataset *, const char *, void *),
+    void *arg, int flags, int mindepth, int maxdepth);
 void dmu_objset_evict_dbufs(objset_t *os);
 timestruc_t dmu_objset_snap_cmtime(objset_t *os);
 
