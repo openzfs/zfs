@@ -373,7 +373,7 @@ extern int zpool_export_force(zpool_handle_t *, const char *);
 extern int zpool_import(libzfs_handle_t *, nvlist_t *, const char *,
     char *altroot);
 extern int zpool_import_props(libzfs_handle_t *, nvlist_t *, const char *,
-    nvlist_t *, int);
+    nvlist_t *, int, const char *);
 extern void zpool_print_unsup_feat(nvlist_t *config);
 
 /*
@@ -458,8 +458,9 @@ extern nvlist_t *zfs_valid_proplist(libzfs_handle_t *, zfs_type_t,
     nvlist_t *, uint64_t, zfs_handle_t *, zpool_handle_t *, const char *);
 
 extern const char *zfs_prop_to_name(zfs_prop_t);
-extern int zfs_prop_set(zfs_handle_t *, const char *, const char *);
-extern int zfs_prop_set_list(zfs_handle_t *, nvlist_t *);
+extern int zfs_prop_set(zfs_handle_t *, const char *, const char *,
+    const char *);
+extern int zfs_prop_set_list(zfs_handle_t *, nvlist_t *, const char *);
 extern int zfs_prop_get(zfs_handle_t *, zfs_prop_t, char *, size_t,
     zprop_source_t *, char *, size_t, boolean_t);
 extern int zfs_prop_get_recvd(zfs_handle_t *, const char *, char *, size_t,
@@ -478,7 +479,8 @@ extern int zfs_prop_get_feature(zfs_handle_t *zhp, const char *propname,
     char *buf, size_t len);
 extern uint64_t getprop_uint64(zfs_handle_t *, zfs_prop_t, char **);
 extern uint64_t zfs_prop_get_int(zfs_handle_t *, zfs_prop_t);
-extern int zfs_prop_inherit(zfs_handle_t *, const char *, boolean_t);
+extern int zfs_prop_inherit(zfs_handle_t *, const char *, boolean_t,
+    const char *);
 extern const char *zfs_prop_values(zfs_prop_t);
 extern int zfs_prop_is_string(zfs_prop_t prop);
 extern nvlist_t *zfs_get_user_props(zfs_handle_t *);
@@ -562,6 +564,8 @@ void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
  * Iterator functions.
  */
 typedef int (*zfs_iter_f)(zfs_handle_t *, void *);
+extern int zfs_iter_generic(libzfs_handle_t *, const char *, zfs_type_t,
+    int64_t, int64_t, boolean_t, zfs_iter_f, void *);
 extern int zfs_iter_root(libzfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_children(zfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_dependents(zfs_handle_t *, boolean_t, zfs_iter_f, void *);
@@ -586,17 +590,20 @@ int libzfs_dataset_cmp(const void *, const void *);
  * Functions to create and destroy datasets.
  */
 extern int zfs_create(libzfs_handle_t *, const char *, zfs_type_t,
-    nvlist_t *);
+    nvlist_t *, const char *);
 extern int zfs_create_ancestors(libzfs_handle_t *, const char *);
-extern int zfs_destroy(zfs_handle_t *, boolean_t);
+extern int zfs_destroy(zfs_handle_t *, boolean_t, const char *);
 extern int zfs_destroy_snaps(zfs_handle_t *, char *, boolean_t);
-extern int zfs_destroy_snaps_nvl(libzfs_handle_t *, nvlist_t *, boolean_t);
-extern int zfs_clone(zfs_handle_t *, const char *, nvlist_t *);
+extern int zfs_destroy_snaps_nvl(libzfs_handle_t *, nvlist_t *, boolean_t,
+    const char *);
+extern int zfs_clone(zfs_handle_t *, const char *, nvlist_t *, const char *);
 extern int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t, nvlist_t *);
 extern int zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps,
-    nvlist_t *props);
-extern int zfs_rollback(zfs_handle_t *, zfs_handle_t *, boolean_t);
-extern int zfs_rename(zfs_handle_t *, const char *, boolean_t, boolean_t);
+    nvlist_t *props, const char *);
+extern int zfs_rollback(zfs_handle_t *, zfs_handle_t *, boolean_t,
+    const char *);
+extern int zfs_rename(zfs_handle_t *, const char *, boolean_t, boolean_t,
+    const char *);
 
 typedef struct sendflags {
 	/* print informational messages (ie, -v was specified) */
@@ -643,11 +650,12 @@ extern int zfs_send_resume(libzfs_handle_t *, sendflags_t *, int outfd,
 extern nvlist_t *zfs_send_resume_token_to_nvlist(libzfs_handle_t *hdl,
     const char *token);
 
-extern int zfs_promote(zfs_handle_t *);
+extern int zfs_promote(zfs_handle_t *, const char *);
 extern int zfs_hold(zfs_handle_t *, const char *, const char *,
-    boolean_t, int);
-extern int zfs_hold_nvl(zfs_handle_t *, int, nvlist_t *);
-extern int zfs_release(zfs_handle_t *, const char *, const char *, boolean_t);
+    boolean_t, int, const char *);
+extern int zfs_hold_nvl(zfs_handle_t *, int, nvlist_t *, const char *);
+extern int zfs_release(zfs_handle_t *, const char *, const char *, boolean_t,
+    const char *);
 extern int zfs_get_holds(zfs_handle_t *, nvlist_t **);
 extern uint64_t zvol_volsize_to_reservation(uint64_t, nvlist_t *);
 

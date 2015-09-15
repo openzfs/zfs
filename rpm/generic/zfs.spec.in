@@ -301,8 +301,9 @@ exit 0
 %files -n libzfs2-devel
 %{_datadir}/pkgconfig/libzfs.pc
 %{_datadir}/pkgconfig/libzfs_core.pc
-%{_libdir}/*.so
 %{_includedir}/*
+%{_libdir}/*.so
+%{_mandir}/man3/*
 %doc AUTHORS COPYRIGHT DISCLAIMER
 %doc OPENSOLARIS.LICENSE README.markdown
 

@@ -1,0 +1,315 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_list 3 "2015 JUL 8" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_list\fR(\fBconst char *\fR\fIname\fR, \fBnvlist_t
+*\fR\fIopts\fR)
+
+.SH NAME
+lzc_list \- List filesystems, volumes, snapshots and bookmarks
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_list\fR() function writes a series of records to the output method
+specified in the nvlist \fIopts\fR. It is designed to provide a large subset of
+the functionality of the \fBzfs list\fR subcommand and operates similarly to
+it. At present, the only supported output method is an asynchronous file
+descriptor.
+
+.I name
+The name of the pool, dataset, snapshot or volume to list by writing to fd. If
+NULL, a description of all pools is written to fd.
+
+.I opts
+A nvlist used to manipulate output. It takes these values:
+.sp
+.in +2
+.nf
+NAME                    TYPE                    DESCRIPTION
+"fd"                    int32                   UNIX file descriptor for output.
+"recurse"               boolean/uint64          List output for children.
+"type"                  nvlist                  List only types specified.
+.fi
+.in -2
+.sp
+At present, the fd field is the only supported output method and therefore, it
+is mandatory. If the name field is a bookmark or snapshot, the recurse field
+is ignored.  If the passed name is that of a bookmark or snapshot, the recurse
+field is ignored. If all children are desired, recurse should be set to be a
+boolean type. If a recursion limit is desired, recurses hould be a uint64_t. If
+no type is specified, a default behavior consistent with the zfs list command
+is provided. Valid children of the type nvlist are:
+.sp
+.in +2
+.nf
+NAME                    TYPE                    DESCRIPTION
+"all"                   boolean                 List output for all types
+"bookmark"              boolean                 List output for bookmarks
+"filesystem"            boolean                 List output for filesystems
+"snap"                  boolean                 List output for snapshots
+"snapshot"              boolean                 List output for snapshots
+"volume"                boolean                 List output for volumes
+.fi
+.in -2
+.sp
+Whenever a boolean type is specified, any type may be passed and be
+considered boolean. However, future extensions may accept alternate types
+and consequently, backward compatibility is only guarenteed to callers
+passing a boolean type that contains no value. A boolean that contains
+B_TRUE or B_FALSE is considered a separate type from a boolean that contains
+no value. Additionally, future enhancements to zfs may create a new type and
+callers that only wish to handle existing types should specify them
+explicitly rather than relying on the default behavior.
+.sp
+The parent-child relationship is obeyed such all children of each
+pool/directory are output alongside their parents. However, no guarantees
+are made with regard to post-order/pre-order traversal or the order of
+bookmarks/snapshots, such that the order is allowed to change. Userland
+applications that are sensitive to a particular output order are expected to
+sort.
+.sp
+The output consists of a record header followed immediately by XDR-encoded
+nvlist. The header format is as follows:
+.sp
+.in +2
+.nf
+OFFSET                  SIZE                    DESCRIPTION
+0 bytes                 4 bytes                 XDR-nvlist size (unsigned)
+4 bytes                 1 byte                  Header extension space (unsigned)
+5 bytes                 1 byte                  Return code (unsigned)
+6 bytes                 1 byte                  Endian bit (0 is BE, 1 is LE)
+7 bytes                 1 byte                  Reserved
+.fi
+.in -2
+.sp
+Errors obtaining information for any record will be contained in the return
+code. The output for any record whose header return code contains an error
+is a XDR encoded nvlist whose contents are undefined, unless the size
+provided in the header is zero, in which case the output for that record is
+empty. The receiver is expected to check the endian bit field before
+processing the XDR-nvlist size and perform a byte-swap operation on the
+value should the endian-ness differ.
+.sp
+Non-zero values in the reserved field and upper bits of the endian field
+imply a back-incompatible change. If the header extension field is non-zero
+when neither the reserved field nor the upper bits of the endian field are
+non-zero, the header should be assumed to have been extended in a
+backward-compatible way and the XDR-nvlist of the specified size shall
+follow the extended header. The lzc_list() library call will always request
+API version 0 request as part of the ioctl to userland.  Consequently, the
+kernel will return an API version 0 compatible-stream unless a change is
+requested via a future extension to the opts nvlist.
+.sp
+The nvlist will have the following members:
+.sp
+.in +2
+.nf
+NAME                    TYPE                    DESCRIPTION
+"name"                  string                  SPA/DSL name
+"dmu_objset_stats"      nvlist                  DMU Objset Stats
+"properties"            nvlist                  DSL properties
+.fi
+.in -2
+.sp
+Additional members may be added in future extensions.
+.sp
+The "dmu_objset_stats" nvlist will have the following members:
+.sp
+.in +2
+.nf
+NAME                    TYPE            DESCRIPTION
+"dds_num_clones"        uint64_t        Number of clones
+"dds_creation_txg"      uint64_t        Creation transaction group
+"dds_guid"              uint64_t        Globally unique identifier
+"dds_type"              string          Type
+"dds_is_snapshot"       boolean         Is a snapshot
+"dds_inconsistent"      boolean         Is being received or destroyed
+"dds_origin"            string          Name of parent
+.fi
+.in -2
+.sp
+Additional members may be added in future extensions.
+.sp
+The "dds_" prefix stands for "DSL Dataset". "dds_type" is a string
+representation of internal object types. Valid values at this time are:
+.sp
+.in +2
+.nf
+NAME                    PUBLIC          DESCRIPTION
+"NONE"                  No              Uninitialized value
+"META"                  No              Metadata
+"ZPL"                   Yes             Dataset
+"ZVOL"                  Yes             Volume
+"OTHER"                 No              Undefined
+"ANY"                   No              Open
+.fi
+.in -2
+.sp
+Only the public values will be returned for any output. The return of a
+value not on this list implies a record for a new storage type. The output
+should be consistent with existing types and the receiver can elect to
+either handle it in a manner consistent with existing types or skip it.
+Under no circumstance will an unlisted type be returned when types were
+explicitly provided via the opts nvlist.
+.sp
+On bookmarks, the "dmu_objset_stats" of the parent DSL Dataset shall be
+returned. Consequently, "dds_is_snapshot" shall be false and identification
+of bookmarks shall be done by checking for the '#' character in the "name"
+member of the top level nvlist. This is done so that the type of the
+bookmarked DSL dataset may be known.
+.sp
+End of output shall be signified by NULL record header. Userland is expected
+to close the file descriptor. Early termination can be signaled from
+userland by closing the file descriptor.
+.sp
+The design of the output is intended to enable userland to perform readahead
+on the file descriptor. On certain platforms, libc may provide output
+buffering. Userland libraries and applications electing to perform readahead
+should take care not to block on a partially filled buffer when an end of
+stream NULL record is returned.
+.sp
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned.
+.sp
+On error, an error is returned from one of the holds where an error occurred
+and \fI*errlist\fR is initialized with a pointer to a nvlist with more specific
+information when \fIerrlist\fR is non-NULL. The caller must call
+\fBnvlist_free\fR(\fI*errlist\fR) when this occurs.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_list()\fR function shall fail if:
+.sp
+.ne 2
+.na
+\fB\fBEAGAIN\fR\fR
+.ad
+.RS 13n
+The user process limit was exceeded when allocating a worker thread on behalf
+of the user. On Linux, see RLIMIT_NPROC.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEBADF\fR\fR
+.ad
+.RS 13n
+The file descriptor "\fIfd\fR" in the \fIopts\fR nvlist is invalid.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEFAULT\fR\fR
+.ad
+.RS 13n
+Internal issue occurred when copying command data from userland to kernel. See
+Illumos ddi_copyin(9F).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The string \fIname\fR is not a valid pool, dataset, volume, snapshot or bookmark name.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The string \fIname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+Nothing named \fIname\fR exists.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIopts\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.SH ERRATA
+Unlike other \fBlzc_*\fR() functions, the output of this function is non-atomic.
+Consequently, rename, creation, destruction and property creation operations
+can race with it. Avoiding this requires allowing userland to block the kernel
+when it holds key locks required for the aforementioned operations, which is a
+denial of service vulnerability. Userland consumers must handle edge cases
+where concurrent operations cause the output to be inconsistent. One example is
+that renames can cause datasets to appear twice (or not at all) depending on
+what has been output and where the rename moves a dataset, volume, snapshot or
+bookmark.
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBzfs\fR(8)

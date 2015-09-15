@@ -270,7 +270,7 @@ uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
     uint64_t flags, dmu_tx_t *tx);
 int dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors);
 int dsl_dataset_promote(const char *name, char *conflsnap);
-int dsl_dataset_rename_snapshot(const char *fsname,
+int dsl_dataset_rename_snapshot(char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
 int dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
     minor_t cleanup_minor, const char *htag);
@@ -313,10 +313,14 @@ int dsl_dsobj_to_dsname(const char *pname, uint64_t obj, char *buf);
 int dsl_dataset_check_quota(dsl_dataset_t *ds, boolean_t check_quota,
     uint64_t asize, uint64_t inflight, uint64_t *used,
     uint64_t *ref_rsrv);
-int dsl_dataset_set_refquota(const char *dsname, zprop_source_t source,
-    uint64_t quota);
-int dsl_dataset_set_refreservation(const char *dsname, zprop_source_t source,
-    uint64_t reservation);
+int dsl_dataset_set_refquota_check_impl(dsl_dataset_t *ds,
+    zprop_source_t source, uint64_t refquota, dmu_tx_t *tx);
+void dsl_dataset_set_refquota_sync_impl(dsl_dataset_t *ds,
+    zprop_source_t source, uint64_t refquota, dmu_tx_t *tx);
+int dsl_dataset_set_refreservation_check_impl(dsl_dataset_t *ds,
+    zprop_source_t source, uint64_t refreservation, dmu_tx_t *tx);
+void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
+    zprop_source_t source, uint64_t refreservation, dmu_tx_t *tx);
 
 boolean_t dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier,
     uint64_t earlier_txg);
@@ -341,8 +345,6 @@ int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
     uint64_t *value);
 int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
     boolean_t adj_cnt);
-void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
-    zprop_source_t source, uint64_t value, dmu_tx_t *tx);
 void dsl_dataset_zapify(dsl_dataset_t *ds, dmu_tx_t *tx);
 boolean_t dsl_dataset_is_zapified(dsl_dataset_t *ds);
 boolean_t dsl_dataset_has_resume_receive_state(dsl_dataset_t *ds);

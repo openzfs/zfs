@@ -145,10 +145,14 @@ void dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
     int64_t used, int64_t compressed, int64_t uncompressed, dmu_tx_t *tx);
 void dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
     dd_used_t oldtype, dd_used_t newtype, dmu_tx_t *tx);
-int dsl_dir_set_quota(const char *ddname, zprop_source_t source,
-    uint64_t quota);
-int dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
-    uint64_t reservation);
+int dsl_dir_set_quota_check_impl(struct dsl_dataset *ds, zprop_source_t source,
+    uint64_t quota, dmu_tx_t *tx);
+void dsl_dir_set_quota_sync_impl(struct dsl_dataset *ds, zprop_source_t source,
+    uint64_t quota, dmu_tx_t *tx);
+int dsl_dir_set_reservation_check_impl(struct dsl_dataset *ds,
+    zprop_source_t source, uint64_t reservation, dmu_tx_t *tx);
+void dsl_dir_set_reservation_sync_impl(struct dsl_dataset *ds,
+    zprop_source_t source, uint64_t reservation, dmu_tx_t *tx);
 int dsl_dir_activate_fs_ss_limit(const char *);
 int dsl_fs_ss_limit_check(dsl_dir_t *, uint64_t, zfs_prop_t, dsl_dir_t *,
     cred_t *);
@@ -161,7 +165,7 @@ void dsl_dir_new_refreservation(dsl_dir_t *dd, struct dsl_dataset *ds,
     uint64_t reservation, cred_t *cr, dmu_tx_t *tx);
 void dsl_dir_snap_cmtime_update(dsl_dir_t *dd);
 timestruc_t dsl_dir_snap_cmtime(dsl_dir_t *dd);
-void dsl_dir_set_reservation_sync_impl(dsl_dir_t *dd, uint64_t value,
+void dsl_dir_set_reservation_sync_impl_impl(dsl_dir_t *dd, uint64_t value,
     dmu_tx_t *tx);
 void dsl_dir_zapify(dsl_dir_t *dd, dmu_tx_t *tx);
 boolean_t dsl_dir_is_zapified(dsl_dir_t *dd);

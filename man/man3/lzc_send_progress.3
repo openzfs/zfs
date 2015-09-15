@@ -1,0 +1,111 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_send_progress 3 "2015 JUL 8" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_send_progress\fR(\fBconst char *\fR\fIsnapname\fR, \fBint\fR \fIfd\fR, \fBuint64_t *\fR\fIbytesp\fR);
+
+.SH NAME
+lzc_send_progress \- Query bytes written to fd by active send stream
+
+.SH DESCRIPTION
+.LP
+The
+\fBlzc_send_progress\fR()
+function returns how many bytes have been written by send stream to \fIfd\fR.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned and \fI*bytesp\fR is updated.
+Otherwise, an error is returned.
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_send_progress()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The snapshot name \fIsnapname\fR is not syntactically correct.
+.RE
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The string \fIsnapname\fR exceeds 256 characters.
+.RE
+
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loadng unitialized pool from cachefile failed because the pool was exported or
+destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was
+read from the cachefile.
+.sp
+The snapshot \fIsnapname\fR does not exist.
+.sp
+No active send stream was found that maches \fIfd\fR and \fIsnapname\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_send\fR(3), \fBzfs\fR(8)

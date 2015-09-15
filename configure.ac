@@ -55,6 +55,7 @@ ZFS_AC_PACKAGE
 ZFS_AC_CONFIG
 ZFS_AC_DEBUG
 ZFS_AC_DEBUG_DMU_TX
+ZFS_AC_LIBZFS_CORE
 
 AC_CONFIG_FILES([
 	Makefile
@@ -68,6 +69,7 @@ AC_CONFIG_FILES([
 	etc/modules-load.d/Makefile
 	man/Makefile
 	man/man1/Makefile
+	man/man3/Makefile
 	man/man5/Makefile
 	man/man8/Makefile
 	lib/Makefile
@@ -93,6 +95,8 @@ AC_CONFIG_FILES([
 	lib/libzfs/libzfs_core.pc
 	lib/libzfs/Makefile
 	lib/libzfs_core/Makefile
+	lib/libzfs_core-legacy/Makefile
+	lib/libzfs_core-stable/Makefile
 	lib/libshare/Makefile
 	cmd/Makefile
 	cmd/zdb/Makefile

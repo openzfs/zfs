@@ -67,6 +67,40 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_ARCH
 ])
 
+AC_DEFUN([ZFS_AC_LIBZFS_CORE], [
+	LIBZFS_CORE=default
+	AC_ARG_WITH([libzfs_core],
+		AS_HELP_STRING([--with-libzfs_core=OPTION],
+		[Option 'default|all|stable|legacy']),
+		[LIBZFS_CORE="$withval"])
+
+	AC_MSG_CHECKING([libzfs_core option])
+	AC_MSG_RESULT([$LIBZFS_CORE]);
+
+	case "$LIBZFS_CORE" in
+		all)
+			LIBZFS_CORE_VARIANT=stable
+			LIBZFS_CORE_DIRS="libzfs_core-stable libzfs_core-legacy libzfs_core"
+			;;
+		stable)
+			LIBZFS_CORE_VARIANT=stable
+			LIBZFS_CORE_DIRS="libzfs_core-stable libzfs_core"
+			;;
+		legacy)
+			LIBZFS_CORE_VARIANT=legacy
+			LIBZFS_CORE_DIRS="libzfs_core-legacy libzfs_core"
+			;;
+		*)
+			LIBZFS_CORE_VARIANT=legacy
+			LIBZFS_CORE_DIRS="libzfs_core-stable libzfs_core-legacy libzfs_core"
+			;;
+	esac
+
+	AC_SUBST(LIBZFS_CORE_DIRS)
+	AC_SUBST(LIBZFS_CORE_VARIANT)
+])
+
+
 AC_DEFUN([ZFS_AC_CONFIG], [
 	ZFS_CONFIG=all
 	AC_ARG_WITH([config],

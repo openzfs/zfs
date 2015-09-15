@@ -795,37 +795,13 @@ static nvlist_t *
 refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 {
 	nvlist_t *nvl;
-	zfs_cmd_t zc = {"\0"};
 	int err;
 
-	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0)
+	err = lzc_pool_tryimport(config, NULL, &nvl);
+
+	if (err)
 		return (NULL);
 
-	if (zcmd_alloc_dst_nvlist(hdl, &zc,
-	    zc.zc_nvlist_conf_size * 2) != 0) {
-		zcmd_free_nvlists(&zc);
-		return (NULL);
-	}
-
-	while ((err = ioctl(hdl->libzfs_fd, ZFS_IOC_POOL_TRYIMPORT,
-	    &zc)) != 0 && errno == ENOMEM) {
-		if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
-			zcmd_free_nvlists(&zc);
-			return (NULL);
-		}
-	}
-
-	if (err) {
-		zcmd_free_nvlists(&zc);
-		return (NULL);
-	}
-
-	if (zcmd_read_dst_nvlist(hdl, &zc, &nvl) != 0) {
-		zcmd_free_nvlists(&zc);
-		return (NULL);
-	}
-
-	zcmd_free_nvlists(&zc);
 	return (nvl);
 }
 

@@ -1,0 +1,186 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_snapshot 3 "2015 JUL 8" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_snapshot\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBnvlist_t
+*\fR\fIprops\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.sp
+\fBint\fR \fBlzc_snapshot_ext\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+
+.SH NAME
+lzc_snapshot, lzc_snapshot_ext \- Creates a snapshot of a dataset or volume
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_snapshot\fR() function creates atomic snapshots of all ZFS datasets
+and/or volumes named in the \fIsnaps\fR nvlist. Application of properties to
+the snapshot at this time is atomic. The \fIerrlist\fR will return individual
+error codes for properties that failed to be set. The \fBlzc_snapshot_ext\fR()
+function adds an \fIopts\fR nvlist to permit changes to the command behavior.
+
+.I snaps
+shall be a nvlist containing strings that specify the snapshots to create. All snapshot smust be inside the same pool.
+
+.I props
+shall either be NULL or contain a nvlist with properties to set on the snapshot
+at creation time. Currently only user properties are supported. It shall be of
+the format:
+.sp
+{ user:prop_name -> string value }
+
+.I opts
+shall be either NULL or a pointer to a nvlist containing options that alter
+behavior. At present, it only permits the command invocation to be passed by a
+string named "log_history" so that the command line invocation can be stored in
+the zpool history log.
+
+.I errlist
+shall be either NULL or contain a handle that shall be used to store a pointer
+to a library allocated nvlist when non-NULL and the operation for at least one
+hold fails.  The names of the holds shall be the keys while the values shall
+contain the error codes and be of type int32. Holds that failed to release
+because they did not exist shall also have an entry added. It shall not be
+touched otherwise.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+.sp
+On error, an error is returned from one of the holds where an error occurred
+and \fI*errlist\fR is initialized with a pointer to a nvlist with more specific
+information when \fIerrlist\fR is non-NULL. The caller must call
+\fBnvlist_free\fR(\fI*errlist\fR) when this occurs.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_snapshot()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBE2BIG\fR\fR
+.ad
+.RS 13n
+The length of a property value is larger than 8191 characters excluding the
+NULL termination character.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.sp
+A snapshot with a name specified in \fIsnaps\fR already exists.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+A property name in the \fIprops\fR nvlist is invalid.
+.sp
+\fIsnaps\fR is not a valid nvlist.
+.sp
+\fIprops\fR is not a valid nvlist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+A snapshot name in the \fIsnaps\fR nvlist exceeds 256 characters.
+.sp
+A property name in \fIprops\fR nvlist exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+A dataset or volume specified in \fIsnaps\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIsnaps\fR or \fIprops\fR to the
+kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSUP\fR\fR
+.ad
+.RS 13n
+User properties were specified on a pool that is newer than version 12.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+\fB\fBEXDEV\fR\fR
+.ad
+.RS 13n
+Multiple pools specified
+.sp
+Multiple snapshots per filesystem specified.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBzfs\fR(8)

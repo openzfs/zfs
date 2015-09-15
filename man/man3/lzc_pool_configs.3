@@ -1,0 +1,80 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2016 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_pool_configs 3 "2016 MAY 24" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_pool_configs\fR(\fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIconfigs\fR);
+
+.SH NAME
+lzc_pool_configs \- Get in-core pool configurations.
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_pool_configs\fR() function will provide information about in-core pools.
+
+.I opts
+is presently unused. It is meant for future use.
+
+.I configs
+shall be a pointer to a nvlist_t pointer, On success, it will be updated to
+point to an nvlist containing all pool configurations on the system. The format
+will be that of the zpool.cache file.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_pool_configs\fR() function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+No pool configurations exist in-core.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+\fIconfigs\fR is a NULL pointer.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_pool_import\fR(3), \fBzdb\fR(8)

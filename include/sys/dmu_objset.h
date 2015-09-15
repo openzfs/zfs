@@ -179,6 +179,15 @@ int dmu_fsname(const char *snapname, char *buf);
 
 void dmu_objset_evict_done(objset_t *os);
 
+/* Code for handling userspace interface */
+extern const char *dmu_objset_types[];
+
+const char *dmu_objset_type_name(dmu_objset_type_t type);
+nvlist_t *dmu_objset_stats_nvlist(const dmu_objset_stats_t *stat);
+int dmu_objset_get_type(const char *stype, dmu_objset_type_t *type);
+int dmu_nvl_get_type(nvlist_t *nvl, const char *key, dmu_objset_type_t *type);
+int dmu_objset_stat_nvlts(nvlist_t *nvl, dmu_objset_stats_t *stat);
+
 void dmu_objset_init(void);
 void dmu_objset_fini(void);
 

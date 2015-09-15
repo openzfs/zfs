@@ -1,0 +1,170 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_hold 7 "2015 JUL 8" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_release\fR(\fBnvlist_t *\fR\fIholds\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.sp
+\fBint\fR \fBlzc_release_ext\fR(\fBnvlist_t *\fR\fIholds\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+
+.SH NAME
+lzc_release, lzc_release_ext \- Releases user holds on snapshots
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_release\fR() function shall explicitly release a hold. If the
+snapshot has been marked for deferred destroy by calling
+\fBlzc_destroy_snaps\fR() with defer=B_TRUE, it does not have any clones, and
+all the user holds are removed by this operation, then the snapshot shall be
+destroyed. The \fBlzc_release_ext\fR() function extends the \fBlzc_release\fR()
+function with the \fIopts\fR parameter.
+
+.I holds
+shall be a nvlist of nvlists of strings. Each nvlist shall have a key that is
+the name of the snapshot. The keys within the snapshot's nvlist shall be the
+names of the holds.
+
+.I opts
+shall be either NULL or a pointer to a nvlist containing options that alter
+behavior. At present, it only permits the command invocation to be passed by a
+string named "log_history" so that the command line invocation can be stored in
+the zpool history log.
+
+.I errlist
+shall contain a handle that shall be used to store a pointer to a library
+allocated nvlist when non-NULL and the operation for at least one hold fails.
+This will also be a nvlist of nvlists with the same structure as the holds
+nvlist. It will only contain entries for holds on which releases failed. The
+value of each hold key shall be an error code of type int32.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned.
+.sp
+On error, an error is returned from one of the holds where an error occurred
+and \fI*errlist\fR is initialized with a pointer to a nvlist with more specific
+information when \fIerrlist\fR is non-NULL. The caller must call
+\fBnvlist_free\fR(\fI*errlist\fR) when this occurs.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_release()\fR function shall fail if:
+.sp
+.ne 2
+.na
+\fB\fBEBUSY\fR\fR
+.ad
+.RS 13n
+A destroy was deferred and an internal long hold has been placed on this
+snapshot for the duration of another operation such as a send or recv.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The nvlist \fIholds\fR is invalid.
+.sp
+The children of the nvlist \fIholds\fR are not nvlists.
+.sp
+The nvlist \fIopts\fR is invalid.
+.sp
+A provided snapshot name is not a snapshot.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The filesystem component of the snapshot name specified in the \fIholds\fR
+nvlist exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+A snapshot specified in \fIsnaps\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIsnaps\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSUP\fR\fR
+.ad
+.RS 13n
+Called on a pool that is earlier than version 18.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_get_holds\fR(3), \fBlzc_hold\fR(3), \fBzfs\fR(8)
