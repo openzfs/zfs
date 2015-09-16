@@ -88,6 +88,8 @@
 #define	MNTOPT_LOUD	"loud"		/* verbose mount */
 #define	MNTOPT_BIND	"bind"		/* remount part of a tree */
 #define	MNTOPT_RBIND	"rbind"		/* include subtrees */
+#define	MNTOPT_DIRXATTR	"dirxattr"	/* enable directory xattrs */
+#define	MNTOPT_SAXATTR	"saxattr"	/* enable system-attribute xattrs */
 #define	MNTOPT_XATTR	"xattr"		/* enable extended attributes */
 #define	MNTOPT_NOXATTR	"noxattr"	/* disable extended attributes */
 #define	MNTOPT_COMMENT	"comment"	/* comment */

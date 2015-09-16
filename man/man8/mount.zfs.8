@@ -83,7 +83,7 @@ under that mountpoint.
 This flag sets the SELinux context for the filesytem being mounted.
 .TP
 .BI "\-o defcontext"
-This flag sets the SELinux context for unlabled files.
+This flag sets the SELinux context for unlabeled files.
 .TP
 .BI "\-o rootcontext"
 This flag sets the SELinux context for the root inode of the filesystem.
@@ -97,8 +97,16 @@ has an entry in the /etc/fstab file.
 This private flag disables extended attributes.
 .TP
 .BI "\-o xattr
-This private flag enables extended attributes and, if appropriate,
-adds a ZFS context to the selinux system policy.
+This private flag enables directory-based extended attributes and, if
+appropriate, adds a ZFS context to the selinux system policy.
+.TP
+.BI "\-o saxattr
+This private flag enables system attributed-based extended attributes and, if
+appropriate, adds a ZFS context to the selinux system policy.
+.TP
+.BI "\-o dirxattr
+Equivalent to
+.BR xattr .
 .TP
 .BI "\-o zfsutil"
 This private flag indicates that
