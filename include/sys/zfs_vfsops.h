@@ -44,6 +44,7 @@ struct znode;
 typedef struct zfs_mntopts {
 	char		*z_osname;	/* Objset name */
 	char		*z_mntpoint;	/* Primary mount point */
+	uint64_t	z_xattr;
 	boolean_t	z_readonly;
 	boolean_t	z_do_readonly;
 	boolean_t	z_setuid;
@@ -52,7 +53,6 @@ typedef struct zfs_mntopts {
 	boolean_t	z_do_exec;
 	boolean_t	z_devices;
 	boolean_t	z_do_devices;
-	boolean_t	z_xattr;
 	boolean_t	z_do_xattr;
 	boolean_t	z_atime;
 	boolean_t	z_do_atime;
