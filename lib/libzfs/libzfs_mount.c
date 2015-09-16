@@ -372,8 +372,6 @@ zfs_add_options(zfs_handle_t *zhp, char *options, int len)
 	error = error ? error : zfs_add_option(zhp, options, len,
 	    ZFS_PROP_SETUID, MNTOPT_SETUID, MNTOPT_NOSETUID);
 	error = error ? error : zfs_add_option(zhp, options, len,
-	    ZFS_PROP_XATTR, MNTOPT_XATTR, MNTOPT_NOXATTR);
-	error = error ? error : zfs_add_option(zhp, options, len,
 	    ZFS_PROP_NBMAND, MNTOPT_NBMAND, MNTOPT_NONBMAND);
 
 	return (error);
