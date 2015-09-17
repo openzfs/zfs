@@ -29,6 +29,8 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with ZPIOS.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *  Copyright (c) 2015, Intel Corporation.
  */
 
 #ifndef _ZPIOS_CTL_H
@@ -116,6 +118,7 @@ typedef struct zpios_cmd {
 	uint32_t cmd_chunk_noise;	/* Chunk noise */
 	uint32_t cmd_thread_delay;	/* Thread delay */
 	uint32_t cmd_flags;		/* Test flags */
+	uint32_t cmd_block_size;	/* ZFS block size */
 	char cmd_pre[ZPIOS_PATH_SIZE];	/* Pre-exec hook */
 	char cmd_post[ZPIOS_PATH_SIZE];	/* Post-exec hook */
 	char cmd_log[ZPIOS_PATH_SIZE];  /* Requested log dir */

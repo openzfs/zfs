@@ -29,6 +29,8 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with ZPIOS.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *  Copyright (c) 2015, Intel Corporation.
  */
 
 #include <stdlib.h>
@@ -44,7 +46,7 @@
 
 static const char short_opt[] =
 	"t:l:h:e:n:i:j:k:o:m:q:r:c:a:b:g:s:A:B:C:"
-	"L:p:M:xP:R:G:I:N:T:VzOfHv?";
+	"S:L:p:M:xP:R:G:I:N:T:VzOfHv?";
 static const struct option long_opt[] = {
 	{"threadcount",		required_argument,	0,	't' },
 	{"threadcount_low",	required_argument,	0,	'l' },
@@ -66,6 +68,7 @@ static const struct option long_opt[] = {
 	{"regionsize_low",	required_argument,	0,	'A' },
 	{"regionsize_high",	required_argument,	0,	'B' },
 	{"regionsize_incr",	required_argument,	0,	'C' },
+	{"blocksize",		required_argument,	0,	'S' },
 	{"load",		required_argument,	0,	'L' },
 	{"pool",		required_argument,	0,	'p' },
 	{"name",		required_argument,	0,	'M' },
@@ -116,6 +119,7 @@ usage(void)
 		"	--regionsize_low    -A    =value\n"
 		"	--regionsize_high   -B    =value\n"
 		"	--regionsize_incr   -C    =value\n"
+		"	--blocksize         -S    =values\n"
 		"	--load              -L    =dmuio|ssf|fpp\n"
 		"	--pool              -p    =pool name\n"
 		"	--name              -M    =test name\n"
@@ -143,6 +147,11 @@ static void args_fini(cmd_args_t *args)
 	free(args);
 }
 
+/* block size is 128K to 16M, power of 2 */
+#define	MIN_BLKSIZE	(128ULL << 10)
+#define	MAX_BLKSIZE	(16ULL << 20)
+#define	POW_OF_TWO(x)	(((x) & ((x) - 1)) == 0)
+
 static cmd_args_t *
 args_init(int argc, char **argv)
 {
@@ -152,7 +161,8 @@ args_init(int argc, char **argv)
 	uint32_t fl_of = 0;
 	uint32_t fl_rs = 0;
 	uint32_t fl_cs = 0;
-	int c, rc;
+	uint32_t fl_bs = 0;
+	int c, rc, i;
 
 	if (argc == 1) {
 		usage();
@@ -165,6 +175,11 @@ args_init(int argc, char **argv)
 		return (NULL);
 
 	memset(args, 0, sizeof (*args));
+
+	/* provide a default block size of 128K */
+	args->B.next_val = 0;
+	args->B.val[0] = MIN_BLKSIZE;
+	args->B.val_count = 1;
 
 	while ((c = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
 		rc = 0;
@@ -249,6 +264,10 @@ args_init(int argc, char **argv)
 		case 'C': /* --regionsize_inc */
 			rc = set_lhi(REGEX_NUMBERS, &args->S, optarg,
 			    FLAG_INCR, &fl_rs, "regionsize_incr");
+			break;
+		case 'S': /* --blocksize */
+			rc = set_count(REGEX_SIZE, REGEX_SIZE_COMMA,
+			    &args->B, optarg, &fl_bs, "blocksize");
 			break;
 		case 'L': /* --load */
 			rc = set_load_params(args, optarg);
@@ -337,6 +356,17 @@ args_init(int argc, char **argv)
 		usage();
 		args_fini(args);
 		return (NULL);
+	}
+
+	/* validate block size(s) */
+	for (i = 0; i < args->B.val_count; i++) {
+		int bs = args->B.val[i];
+
+		if (bs < MIN_BLKSIZE || bs > MAX_BLKSIZE || !POW_OF_TWO(bs)) {
+			fprintf(stderr, "Error: invalid block size %d\n", bs);
+			args_fini(args);
+			return (NULL);
+		}
 	}
 
 	return (args);
@@ -480,7 +510,7 @@ get_next(uint64_t *val, range_repeat_t *range)
 
 static int
 run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
-    uint64_t C, uint64_t S, uint64_t O)
+    uint64_t C, uint64_t S, uint64_t O, uint64_t B)
 {
 	zpios_cmd_t *cmd;
 	int rc, rc2, cmd_size;
@@ -506,6 +536,7 @@ run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
 	cmd->cmd_region_count = N;
 	cmd->cmd_region_size = S;
 	cmd->cmd_offset = O;
+	cmd->cmd_block_size = B;
 	cmd->cmd_region_noise = args->regionnoise;
 	cmd->cmd_chunk_noise = args->chunknoise;
 	cmd->cmd_thread_delay = args->thread_delay;
@@ -541,7 +572,7 @@ run_offsets(cmd_args_t *args)
 	while (rc == 0 && get_next(&args->current_O, &args->O)) {
 		rc = run_one(args, args->current_id,
 		    args->current_T, args->current_N, args->current_C,
-		    args->current_S, args->current_O);
+		    args->current_S, args->current_O, args->current_B);
 		args->current_id++;
 	}
 
@@ -594,12 +625,26 @@ run_chunk_sizes(cmd_args_t *args)
 }
 
 static int
+run_block_sizes(cmd_args_t *args)
+{
+	int rc = 0;
+
+	while (rc == 0 && get_next(&args->current_B, &args->B)) {
+		rc = run_chunk_sizes(args);
+	}
+
+	args->B.next_val = 0;
+	return (rc);
+}
+
+
+static int
 run_thread_counts(cmd_args_t *args)
 {
 	int rc = 0;
 
 	while (rc == 0 && get_next((uint64_t *)&args->current_T, &args->T))
-		rc = run_chunk_sizes(args);
+		rc = run_block_sizes(args);
 
 	return (rc);
 }

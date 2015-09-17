@@ -22,6 +22,8 @@
 .\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
 .\"
+.\" Copyright (c) 2015, Intel Corporation.
+.\"
 .TH zpios 1 "2013 FEB 28" "ZFS on Linux" "User Commands"
 
 .SH NAME
@@ -36,10 +38,10 @@ not depend on the ZFS Posix Layer ("ZPL").
 
 .SH OPTIONS
 .HP
-.BI "\-s" " regex" ", \-\-threadcount" " regex"
+.BI "\-t" " regex" ", \-\-threadcount" " regex"
 .IP
 Start this many threads for each test series, specified as a comma
-delimited regular expression. (eg: "-s 1,2,3")
+delimited regular expression. (eg: "-t 1,2,3")
 .IP
 This option is mutually exclusive with the \fBthreadcount_*\fR
 options.
@@ -119,6 +121,35 @@ chunk size for the last test.
 .IP
 These three options must be specified together and are mutually
 exclusive with the \fBchunksize\fR option.
+.HP
+.BI "\-s" " size" ", \-\-regionsize" " size"
+.IP
+Use \fIsize\fR regions for each test, specified as a comma delimited
+regular expression with an optional unit suffix. (eg: "-s 1M" means
+one megabyte.)
+.IP
+This option is mutually exclusive with the \fBregionsize_*\fB options.
+.HP
+.BI "\-A" " size_low" ", \-\-regionsize_low" " size_low"
+.HP
+.BI "\-B" " size_high" ", \-\-regionsize_high" " size_high"
+.HP
+.BI "\-C" " size_incr" ", \-\-regionsize_incr" " size_incr"
+.IP
+Use a \fIsize_low\fR region size for the first test, add \fIsize_incr\fR
+to the region size for each subsequent test, and use a \fIsize_high\fR
+region size for the last test.
+.IP
+These three options must be specified together and are mutually
+exclusive with the \fBregionsize\fR option.
+.HP
+.BI "\-S" " size | sizes" ", \-\-blocksize" " size | sizes"
+.IP
+Use \fIsize\fR ZFS blocks for each test, specified as a comma delimited
+regular expression with an optional unit suffix. (eg: "-S 1M" means
+one megabyte.) The supported range is powers of two from 128K through 16M.
+A range of blocks can be tested as follows: "-S 128K,256K,512K,1M".
+.IP
 .HP
 .BI "\-L" " dmu_flags" ", \-\-load" " dmu_flags"
 .IP
