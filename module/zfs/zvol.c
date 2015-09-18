@@ -662,6 +662,7 @@ zvol_discard(struct bio *bio)
 	if (!(bio->bi_rw & REQ_SECURE)) {
 		start = P2ROUNDUP(start, zv->zv_volblocksize);
 		end = P2ALIGN(end, zv->zv_volblocksize);
+		size = end - start;
 	}
 #endif
 
