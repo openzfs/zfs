@@ -668,9 +668,9 @@ zvol_discard(struct bio *bio)
 	if (start >= end)
 		return (0);
 
-	rl = zfs_range_lock(&zv->zv_znode, start, size, RL_WRITER);
+	rl = zfs_range_lock(&zv->zv_znode, start, end - start, RL_WRITER);
 
-	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, size);
+	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, end - start);
 
 	/*
 	 * TODO: maybe we should add the operation to the log.
