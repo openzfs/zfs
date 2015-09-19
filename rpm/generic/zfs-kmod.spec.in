@@ -185,6 +185,10 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
+* Sat Sep 19 2015 Ned Bass <bass6@llnl.gov> - 0.6.5.1-1
+- Fix zvol corruption with TRIM/discard zfsonlinux/zfs#3798
+- Fix NULL as mount(2) syscall data parameter zfsonlinux/zfs#3804
+- Fix xattr=sa dataset property not honored zfsonlinux/zfs#3787
 * Fri Sep 11 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.5-1
 - Released 0.6.5-1, detailed release notes are available at:
 - https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.6.5
