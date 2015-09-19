@@ -332,6 +332,19 @@ exit 0
 %endif
 
 %changelog
+* Wed Sep 30 2015 Ned Bass <bass6@llnl.gov> - 0.6.5.2-1
+- Init script fixes zfsonlinux/zfs#3816
+- Fix uioskip crash when skip to end zfsonlinux/zfs#3806 zfsonlinux/zfs#3850
+- Userspace can trigger an assertion zfsonlinux/zfs#3792
+- Fix quota userused underflow bug zfsonlinux/zfs#3789
+- Fix performance regression from unwanted synchronous I/O zfsonlinux/zfs#3780
+- Fix deadlock during ARC reclaim zfsonlinux/zfs#3808 zfsonlinux/zfs#3834
+- Fix deadlock with zfs receive and clamscan zfsonlinux/zfs#3719
+- Allow NFS activity to defer snapshot unmounts zfsonlinux/zfs#3794
+- Linux 4.3 compatibility zfsonlinux/zfs#3799
+- Zed reload fixes zfsonlinux/zfs#3773
+- Fix PAX Patch/Grsec SLAB_USERCOPY panic zfsonlinux/zfs#3796
+- Always remove during dkms uninstall/update zfsonlinux/spl#476
 * Sat Sep 19 2015 Ned Bass <bass6@llnl.gov> - 0.6.5.1-1
 - Fix zvol corruption with TRIM/discard zfsonlinux/zfs#3798
 - Fix NULL as mount(2) syscall data parameter zfsonlinux/zfs#3804
