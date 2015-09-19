@@ -227,8 +227,7 @@ static const match_table_t zpl_tokens = {
 };
 
 static int
-zpl_parse_option(char *option, int token, substring_t *args,
-    zfs_mntopts_t *zmo, boolean_t isremount)
+zpl_parse_option(char *option, int token, substring_t *args, zfs_mntopts_t *zmo)
 {
 	switch (token) {
 	case TOKEN_RO:
@@ -318,32 +317,34 @@ zpl_parse_options(char *osname, char *mntopts, zfs_mntopts_t *zmo,
     boolean_t isremount)
 {
 	zfs_mntopts_t *tmp_zmo;
-	substring_t args[MAX_OPT_ARGS];
-	char *tmp_mntopts, *p;
-	int error, token;
-
-	if (mntopts == NULL)
-		return (-EINVAL);
+	int error;
 
 	tmp_zmo = zfs_mntopts_alloc();
 	tmp_zmo->z_osname = strdup(osname);
-	tmp_mntopts = strdup(mntopts);
 
-	while ((p = strsep(&tmp_mntopts, ",")) != NULL) {
-		if (!*p)
-			continue;
+	if (mntopts) {
+		substring_t args[MAX_OPT_ARGS];
+		char *tmp_mntopts, *p;
+		int token;
 
-		args[0].to = args[0].from = NULL;
-		token = match_token(p, zpl_tokens, args);
-		error = zpl_parse_option(p, token, args, tmp_zmo, isremount);
-		if (error) {
-			zfs_mntopts_free(tmp_zmo);
-			strfree(tmp_mntopts);
-			return (error);
+		tmp_mntopts = strdup(mntopts);
+
+		while ((p = strsep(&tmp_mntopts, ",")) != NULL) {
+			if (!*p)
+				continue;
+
+			args[0].to = args[0].from = NULL;
+			token = match_token(p, zpl_tokens, args);
+			error = zpl_parse_option(p, token, args, tmp_zmo);
+			if (error) {
+				zfs_mntopts_free(tmp_zmo);
+				strfree(tmp_mntopts);
+				return (error);
+			}
 		}
-	}
 
-	strfree(tmp_mntopts);
+		strfree(tmp_mntopts);
+	}
 
 	if (isremount == B_TRUE) {
 		if (zmo->z_osname)
