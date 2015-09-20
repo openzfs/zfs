@@ -1,11 +1,10 @@
 #!@SHELL@
 #
-# zfs-import    This script will import/export zfs pools.
+# zfs-import    This script will import ZFS pools
 #
 # chkconfig:    2345 01 99
-# description:  This script will import/export zfs pools during system
-#               boot/shutdown.
-#               It is also responsible for all userspace zfs services.
+# description:  This script will perform a verbatim import of ZFS pools
+#               during system boot.
 # probe: true
 #
 ### BEGIN INIT INFO
@@ -17,7 +16,7 @@
 # X-Start-Before:    checkfs
 # X-Stop-After:      zfs-mount
 # Short-Description: Import ZFS pools
-# Description: Run the `zpool import` or `zpool export` commands.
+# Description: Run the `zpool import` command.
 ### END INIT INFO
 #
 # NOTE: Not having '$local_fs' on Required-Start but only on Required-Stop
@@ -43,6 +42,16 @@ do_depend()
 	keyword -lxc -openvz -prefix -vserver
 }
 
+# Use the zpool cache file to import pools
+do_verbatim_import()
+{
+	if [ -f "$ZPOOL_CACHE" ]
+	then
+		zfs_action "Importing ZFS pool(s)" \
+			"$ZPOOL" import -c "$ZPOOL_CACHE" -N -a
+	fi
+}
+
 # Support function to get a list of all pools, separated with ';'
 find_pools()
 {
@@ -60,8 +69,8 @@ find_pools()
 	echo "${pools%%;}" # Return without the last ';'.
 }
 
-# Import all pools
-do_import()
+# Find and import all visible pools, even exported ones
+do_import_all_visible()
 {
 	local already_imported available_pools pool npools
 	local exception dir ZPOOL_IMPORT_PATH RET=0 r=1
@@ -109,7 +118,7 @@ do_import()
 		fi
 	fi
 
-        # Filter out any exceptions...
+	# Filter out any exceptions...
 	if [ -n "$ZFS_POOL_EXCEPTIONS" ]
 	then
 		local found=""
@@ -249,41 +258,15 @@ do_import()
 	return "$RET"
 }
 
-# Export all pools
-do_export()
+do_import()
 {
-	local already_imported pool root_pool RET r
-	RET=0
-
-	root_pool=$(get_root_pool)
-
-	[ -n "$init" ] && zfs_log_begin_msg "Exporting ZFS pool(s)"
-
-	# Find list of already imported pools.
-	already_imported=$(find_pools "$ZPOOL" list -H -oname)
-
-	OLD_IFS="$IFS" ; IFS=";"
-	for pool in $already_imported; do
-		[ "$pool" = "$root_pool" ] && continue
-
-		if [ -z "$init" ]
-		then
-			# Interactive - one 'Importing ...' line per pool
-			zfs_log_begin_msg "Exporting ZFS pool $pool"
-		else
-			# Not interactive - a dot for each pool.
-			zfs_log_progress_msg "."
-		fi
-
-		"$ZPOOL" export "$pool"
-		r="$?" ; RET=$((RET + r))
-		[ -z "$init" ] && zfs_log_end_msg "$r"
-	done
-	IFS="$OLD_IFS"
-
-	[ -n "$init" ] && zfs_log_end_msg "$RET"
-
-	return "$RET"
+	if check_boolean "$ZPOOL_IMPORT_ALL_VISIBLE"
+	then
+		do_import_all_visible
+	else
+		# This is the default option
+		do_verbatim_import
+	fi
 }
 
 # Output the status and list of pools
@@ -323,14 +306,6 @@ do_start()
 	fi
 }
 
-do_stop()
-{
-	# Check to see if the module is even loaded.
-	check_module_loaded "zfs" || exit 0
-
-	do_export
-}
-
 # ----------------------------------------------------
 
 if [ ! -e /etc/gentoo-release ]
@@ -340,7 +315,7 @@ then
 			do_start
 			;;
 		stop)
-			do_stop
+			# no-op
 			;;
 		status)
 			do_status
@@ -350,7 +325,7 @@ then
 			;;
 		*)
 			[ -n "$1" ] && echo "Error: Unknown command $1."
-			echo "Usage: $0 {start|stop|status}"
+			echo "Usage: $0 {start|status}"
 			exit 3
 			;;
 	esac
@@ -360,6 +335,5 @@ else
 	# Create wrapper functions since Gentoo don't use the case part.
 	depend() { do_depend; }
 	start() { do_start; }
-	stop() { do_stop; }
 	status() { do_status; }
 fi
