@@ -64,8 +64,6 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 	size_t skip = uio->uio_skip;
 	ulong_t cnt;
 
-	ASSERT3U(skip, <, iov->iov_len);
-
 	while (n && uio->uio_resid) {
 		cnt = MIN(iov->iov_len - skip, n);
 		switch (uio->uio_segflg) {
@@ -113,8 +111,6 @@ uiomove_bvec(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 	const struct bio_vec *bv = uio->uio_bvec;
 	size_t skip = uio->uio_skip;
 	ulong_t cnt;
-
-	ASSERT3U(skip, <, bv->bv_len);
 
 	while (n && uio->uio_resid) {
 		void *paddr;
@@ -184,7 +180,6 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 
 	iov = uio->uio_iov;
 	iovcnt = uio->uio_iovcnt;
-	ASSERT3U(skip, <, iov->iov_len);
 
 	while ((n > 0) && (iovcnt > 0)) {
 		cnt = MIN(iov->iov_len - skip, n);
