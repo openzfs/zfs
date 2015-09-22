@@ -224,30 +224,22 @@ import_pool()
 	[ -n "$ZPOOL_IMPORT_PATH" ] && export ZPOOL_IMPORT_PATH
 
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg \
-		"Importing pool '${pool}' using defaults"
-
 	ZFS_CMD="${ZPOOL} import -N ${ZPOOL_FORCE}"
-	ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
+	ZFS_STDERR="$(zfs_action "Importing pool '${pool}' using defaults" \
+		$ZFS_CMD "$pool")"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		if [ -f "${ZPOOL_CACHE}" ]
 		then
-			[ "$quiet" != "y" ] && zfs_log_begin_msg \
-				"Importing pool '${pool}' using cachefile."
-
 			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE}"
-			ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
+			ZFS_STDERR="$(zfs_action "Importing pool '${pool}' using cachefile." \
+				$ZFS_CMD "$pool")"
 			ZFS_ERROR="$?"
 		fi
 
 		if [ "${ZFS_ERROR}" != 0 ]
 		then
-			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 			disable_plymouth
 			echo ""
 			echo "Command: ${ZFS_CMD} '$pool'"
@@ -259,8 +251,6 @@ import_pool()
 			/bin/sh
 		fi
 	fi
-
-	[ "$quiet" != "y" ] && zfs_log_end_msg
 
 	POOL_IMPORTED=1
 	return 0
@@ -353,19 +343,16 @@ mount_fs()
 	fi
 
 	# Possibly decrypt a filesystem using native encryption.
-	decrypt_fs "$fs"
+	zfs_action "Decrypting ${fs}" decrypt_fs "${fs}"
 
-	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Mounting '${fs}' on '${rootmnt}/${mountpoint}'"
 	[ -n "${ZFS_DEBUG}" ] && \
-	    zfs_log_begin_msg "CMD: '$ZFS_CMD ${fs} ${rootmnt}/${mountpoint}'"
+	    zfs_log_begin_msg "CMD: '${cmd} ${fs} ${rootmnt}/${mountpoint}'"
 
-	ZFS_STDERR=$(${ZFS_CMD} "${fs}" "${rootmnt}/${mountpoint}" 2>&1)
+	ZFS_STDERR="$(zfs_action "Mounting '${fs}' on '${rootmnt}/${mountpoint}'" \
+		"${ZFS_CMD}" "${fs}" "${rootmnt}/${mountpoint}")"
 	ZFS_ERROR=$?
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		echo ""
 		echo "Command: ${ZFS_CMD} ${fs} ${rootmnt}/${mountpoint}"
@@ -376,7 +363,7 @@ mount_fs()
 		echo "Manually mount the filesystem and exit."
 		/bin/sh
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -393,23 +380,16 @@ decrypt_fs()
 	# Check if filesystem is encrypted. If not, exit right here.
 	[ "$(get_fs_value "$fs" encryption)" != "off" ] || return 0
 
-	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Loading crypto wrapper key for $fs"
-
 	# Just make sure that ALL crypto modules module is loaded.
 	# Simplest just to load all...
 	for mod in sun-ccm sun-gcm sun-ctr
 	do
-		[ "$quiet" != "y" ] && zfs_log_progress_msg "${mod} "
-
 		ZFS_CMD="load_module $mod"
-		ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
+		ZFS_STDERR="$(zfs_action "Loading module $mod" ${ZFS_CMD})"
 		ZFS_ERROR="$?"
 
 		if [ "${ZFS_ERROR}" != 0 ]
 		then
-			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 			disable_plymouth
 			echo ""
 			echo "Command: $ZFS_CMD"
@@ -422,19 +402,17 @@ decrypt_fs()
 			echo "and rerun:  $ZFS_CMD"
 			/bin/sh
 		else
-			[ "$quiet" != "y" ] && zfs_log_end_msg
+			return 1
 		fi
 	done
 
 	# If the key isn't availible, then this will fail!
 	ZFS_CMD="${ZFS} key -l -r $fs"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
+	ZFS_STDERR="$(zfs_action "Loading crypto wrapper key for ${fs}" ${ZFS_CMD})"
 	ZFS_ERROR="$?"
 
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		echo ""
 		echo "Command: $ZFS_CMD"
@@ -446,7 +424,7 @@ decrypt_fs()
 		echo "and rerun:  $ZFS_CMD"
 		/bin/sh
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -457,16 +435,11 @@ destroy_fs()
 {
 	local fs="$1"
 
-	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Destroying '$fs'"
-
 	ZFS_CMD="${ZFS} destroy $fs"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
+	ZFS_STDERR="$(zfs_action "Destroying '${fs}'" ${ZFS_CMD})"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		echo ""
 		echo "Command: $ZFS_CMD"
@@ -478,7 +451,7 @@ destroy_fs()
 		echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
 		/bin/sh
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -494,8 +467,6 @@ clone_snap()
 	local destfs="$2"
 	local mountpoint="$3"
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg "Cloning '$snap' to '$destfs'"
-
 	# Clone the snapshot into a dataset we can boot from
 	# + We don't want this filesystem to be automatically mounted, we
 	#   want controll over this here and nowhere else.
@@ -504,12 +475,10 @@ clone_snap()
 	ZFS_CMD="${ZFS} clone -o canmount=noauto -o mountpoint=none"
 	ZFS_CMD="${ZFS_CMD} -o org.zol:mountpoint=${mountpoint}"
 	ZFS_CMD="${ZFS_CMD} $snap $destfs"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
+	ZFS_STDERR="$(zfs_action "Cloning '${snap}' to '${destfs}'" ${ZFS_CMD})"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		echo ""
 		echo "Command: $ZFS_CMD"
@@ -521,7 +490,7 @@ clone_snap()
 		echo "that the dataset '$destfs' exists and is bootable."
 		/bin/sh
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -532,15 +501,11 @@ rollback_snap()
 {
 	local snap="$1"
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg "Rollback $snap"
-
 	ZFS_CMD="${ZFS} rollback -Rf $snap"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
+	ZFS_STDERR="$(zfs_action "Rollback snapshot '${snap}'" ${ZFS_CMD})"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		echo ""
 		echo "Command: $ZFS_CMD"
@@ -550,7 +515,7 @@ rollback_snap()
 		echo "Failed to rollback snapshot."
 		/bin/sh
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
