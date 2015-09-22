@@ -113,6 +113,11 @@ get_pools()
 {
 	local available_pools npools
 
+	if [ -n "${ZFS_POOL_IMPORT}" ]; then
+		echo "$ZFS_POOL_IMPORT"
+		return 0
+	fi
+
 	# Get the base list of availible pools.
 	available_pools=$(find_pools "$ZPOOL" import)
 

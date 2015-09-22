@@ -80,6 +80,13 @@ ZFS_INITRD_POST_MODPROBE_SLEEP='0'
 # This is a space separated list.
 #ZFS_POOL_EXCEPTIONS="test2"
 
+# List of pools to import?
+# If this variable is set, there will be NO auto-import of ANY other
+# pool. In essence, there will be no auto detection of availible pools.
+# This is a semi-colon separated list.
+# Makes the variable ZFS_POOL_EXCEPTIONS above redundant (won't be checked).
+#ZFS_POOL_IMPORT="pool1;pool2"
+
 # Optional arguments for the ZFS Event Daemon (ZED).
 # See zed(8) for more information on available options.
 #ZED_ARGS="-M"
