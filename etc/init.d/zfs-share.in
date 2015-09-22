@@ -40,11 +40,7 @@ do_depend()
 
 do_start()
 {
-	case "$ZFS_SHARE" in
-		[Oo][Ff][Ff]|[Nn][Oo]|''|0)
-			exit 0
-			;;
-	esac
+	check_boolean "$ZFS_SHARE" || exit 0
 
 	check_module_loaded "zfs" || exit 0
 
@@ -53,11 +49,7 @@ do_start()
 
 do_stop()
 {
-	case "$ZFS_UNSHARE" in
-		[Oo][Ff][Ff]|[Nn][Oo]|''|0)
-			exit 0
-			;;
-	esac
+	check_boolean "$ZFS_UNSHARE" || exit 0
 
 	check_module_loaded "zfs" || exit 0
 

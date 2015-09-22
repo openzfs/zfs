@@ -67,8 +67,8 @@ do_mount()
 {
 	local verbose overlay i mntpt val
 
-	[ "$VERBOSE_MOUNT" = 'yes' ] && verbose=v
-	[ "$OVERLAY_MOUNTS" = 'yes' ] && overlay=O
+	check_boolean "$VERBOSE_MOUNT" && verbose=v
+	check_boolean "$DO_OVERLAY_MOUNTS" && overlay=O
 
 	zfs_action "Mounting ZFS filesystem(s)" \
 	    "$ZFS" mount -a$verbose$overlay "$MOUNT_EXTRA_OPTIONS"
@@ -78,7 +78,7 @@ do_mount()
 	# can get zfs-import to run sufficiently early on in the boot
 	# process - before local mounts. This is just here in case/if
 	# this isn't possible.
-	[ "$VERBOSE_MOUNT" = 'yes' ] && \
+	check_boolean "$VERBOSE_MOUNT" && \
 	    zfs_log_begin_msg "Mounting volumes and filesystems registered in fstab"
 
 	read_mtab  "^/dev/(zd|zvol)"
@@ -90,7 +90,7 @@ do_mount()
 		dev=$(eval echo "$"FSTAB_dev_$i)
 		if ! in_mtab "$mntpt" && ! is_mounted "$mntpt" && [ -e "$dev" ]
 		then
-			[ "$VERBOSE_MOUNT" = 'yes' ] && \
+			check_boolean "$VERBOSE_MOUNT" && \
 				zfs_log_progress_msg "$mntpt "
 			fsck "$dev" && mount "$mntpt"
 		fi
@@ -107,7 +107,7 @@ do_mount()
 		mntpt=$(eval echo "$""$var")
 		if ! in_mtab "$mntpt" && ! is_mounted "$mntpt"
 		then
-			[ "$VERBOSE_MOUNT" = 'yes' ] && \
+			check_boolean "$VERBOSE_MOUNT" && \
 				zfs_log_progress_msg "$mntpt "
 			mount "$mntpt"
 		fi
@@ -115,7 +115,7 @@ do_mount()
 		i=$((i + 1))
 		var=$(eval echo FSTAB_$i)
 	done
-	[ "$VERBOSE_MOUNT" = 'yes' ] && zfs_log_end_msg 0
+	check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
 
 	return 0
 }
@@ -131,7 +131,7 @@ do_unmount()
 	# this isn't possible.
 	zfs_action "Unmounting ZFS filesystems" "$ZFS" unmount -a
 
-	[ "$VERBOSE_MOUNT" = 'yes' ] && \
+	check_boolean "$VERBOSE_MOUNT" && \
 	    zfs_log_begin_msg "Unmounting volumes and filesystems registered in fstab"
 
 	read_mtab  "^/dev/(zd|zvol)"
@@ -143,7 +143,7 @@ do_unmount()
 		dev=$(eval echo "$"FSTAB_dev_$i)
 		if in_mtab "$mntpt"
 		then
-			[ "$VERBOSE_MOUNT" = 'yes' ] && \
+			check_boolean "$VERBOSE_MOUNT" && \
 				zfs_log_progress_msg "$mntpt "
 			umount "$mntpt"
 		fi
@@ -159,7 +159,7 @@ do_unmount()
 	do
 		mntpt=$(eval echo "$""$var")
 		if in_mtab "$mntpt"; then
-			[ "$VERBOSE_MOUNT" = 'yes' ] && \
+			check_boolean "$VERBOSE_MOUNT" && \
 			    zfs_log_progress_msg "$mntpt "
 			umount "$mntpt"
 		fi
@@ -167,20 +167,16 @@ do_unmount()
 		i=$((i + 1))
 		var=$(eval echo FSTAB_$i)
 	done
-	[ "$VERBOSE_MOUNT" = 'yes' ] && zfs_log_end_msg 0
+	check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
 
 	return 0
 }
 
 do_start()
 {
-	check_module_loaded "zfs" || exit 0
+	check_boolean "$ZFS_MOUNT" || exit 0
 
-	case "$ZFS_MOUNT" in
-		[Oo][Ff][Ff]|[Nn][Oo]|''|0)
-			exit 3
-			;;
-	esac
+	check_module_loaded "zfs" || exit 0
 
 	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
 	# This should be handled by rc.sysinit but lets be paranoid.
@@ -194,11 +190,7 @@ do_start()
 
 do_stop()
 {
-	case "$ZFS_UNMOUNT" in
-		[Oo][Ff][Ff]|[Nn][Oo]|''|0)
-			exit 0
-			;;
-	esac
+	check_boolean "$ZFS_UNMOUNT" || exit 0
 
 	check_module_loaded "zfs" || exit 0
 
