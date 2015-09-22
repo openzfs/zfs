@@ -224,7 +224,7 @@ import_pool()
 	[ -n "$ZPOOL_IMPORT_PATH" ] && export ZPOOL_IMPORT_PATH
 
 
-	ZFS_CMD="${ZPOOL} import -N ${ZPOOL_FORCE}"
+	ZFS_CMD="${ZPOOL} import -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
 	ZFS_STDERR="$(zfs_action "Importing pool '${pool}' using defaults" \
 		$ZFS_CMD "$pool")"
 	ZFS_ERROR="$?"
@@ -232,7 +232,7 @@ import_pool()
 	then
 		if [ -f "${ZPOOL_CACHE}" ]
 		then
-			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE}"
+			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
 			ZFS_STDERR="$(zfs_action "Importing pool '${pool}' using cachefile." \
 				$ZFS_CMD "$pool")"
 			ZFS_ERROR="$?"

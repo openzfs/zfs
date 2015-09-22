@@ -209,7 +209,7 @@ do_import()
 		# Import by using ZPOOL_IMPORT_PATH (either set above or in
 		# the config file) _or_ with the 'built in' default search
 		# paths. This is the prefered way.
-		"$ZPOOL" import -N "$pool" 2> /dev/null
+		"$ZPOOL" import -N ${ZPOOL_IMPORT_OPTS} "$pool" 2> /dev/null
 		r="$?" ; RET=$((RET + r))
 		if [ "$r" -eq 0 ]
 		then
@@ -230,7 +230,8 @@ do_import()
 				zfs_log_progress_msg " using cache file"
 			fi
 
-			"$ZPOOL" import -c "$ZPOOL_CACHE" -N "$pool" 2> /dev/null
+			"$ZPOOL" import -c "$ZPOOL_CACHE" -N ${ZPOOL_IMPORT_OPTS} \
+				"$pool" 2> /dev/null
 			r="$?" ; RET=$((RET + r))
 			if [ "$r" -eq 0 ]
 			then

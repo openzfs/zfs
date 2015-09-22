@@ -32,6 +32,27 @@ VERBOSE_MOUNT='no'
 # is not allowed).
 DO_OVERLAY_MOUNTS='no'
 
+# Any additional option to the 'zfs import' commandline?
+# Include '-o' for each option wanted.
+# You don't need to put '-f' in here, unless you want it ALL the time.
+# Using the option 'zfsforce=1' on the grub/kernel command line will
+# do the same, but on a case-to-case basis.
+ZPOOL_IMPORT_OPTS=""
+
+# Full path to the ZFS cache file?
+# See "cachefile" in zpool(8).
+# The default is "@sysconfdir@/zfs/zpool.cache".
+#ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+#
+# Setting ZPOOL_CACHE to an empty string ('') AND setting ZPOOL_IMPORT_OPTS to
+# "-c @sysconfdir@/zfs/zpool.cache" will _enforce_ the use of a cache file.
+# This is needed in some cases (extreme amounts of VDEVs, multipath etc).
+# Generally, the use of a cache file is usually not recommended on Linux
+# because it sometimes is more trouble than it's worth (laptops with external
+# devices or when/if device nodes changes names).
+#ZPOOL_IMPORT_OPTS="-c @sysconfdir@/zfs/zpool.cache"
+#ZPOOL_CACHE=""
+
 # Any additional option to the 'zfs mount' command line?
 # Include '-o' for each option wanted.
 MOUNT_EXTRA_OPTIONS=""
