@@ -367,12 +367,12 @@ read_mtab()
 			# * We need to use the external echo, because the
 			#   internal one would interpret the backslash code
 			#   (incorrectly), giving us a  instead.
-			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,")
+			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,g")
 			fs=$(/bin/echo "$fs" | sed "s,\\\0,\\\00,")
 
-			# Replace 'unwanted' characters with underscore.
-			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,_,g' \
-			    -e 's,-,_,g' -e 's,\.,_,g' -e 's, ,_,g')
+			# Remove 'unwanted' characters.
+			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
+			    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
 			fs=$(printf '%b\n' "$fs")
 
 			# Set the variable.
