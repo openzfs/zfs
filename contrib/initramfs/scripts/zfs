@@ -96,7 +96,7 @@ find_rootfs()
 find_pools()
 {
 	local CMD="$*"
-	local pools
+	local pools pool
 
 	pools=$($CMD 2> /dev/null | \
 		grep -E "pool:|^[a-zA-Z0-9]" | \
@@ -189,7 +189,7 @@ get_pools()
 import_pool()
 {
 	local pool="$1"
-	local dirs dir ZFS_CMD ZFS_STDERR ZFS_ERROR
+	local dirs dir
 
 	# Verify that the pool isn't already imported
 	# Make as sure as we can to not require '-f' to import.
@@ -312,7 +312,7 @@ load_module_initrd()
 mount_fs()
 {
 	local fs="$1"
-	local mountpoint ZFS_CMD ZFS_STDERR ZFS_ERROR
+	local mountpoint
 
 	# Need the _original_ datasets mountpoint!
 	mountpoint=$(get_fs_value "$fs" mountpoint)
@@ -382,7 +382,6 @@ mount_fs()
 decrypt_fs()
 {
 	local fs="$1"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	# If the 'zfs key' command isn't availible, exit right here.
 	"${ZFS}" 2>&1 | grep -q 'key -l ' || return 0
@@ -453,7 +452,6 @@ decrypt_fs()
 destroy_fs()
 {
 	local fs="$1"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	[ "$quiet" != "y" ] && \
 	    zfs_log_begin_msg "Destroying '$fs'"
@@ -491,7 +489,6 @@ clone_snap()
 	local snap="$1"
 	local destfs="$2"
 	local mountpoint="$3"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	[ "$quiet" != "y" ] && zfs_log_begin_msg "Cloning '$snap' to '$destfs'"
 
@@ -530,7 +527,6 @@ clone_snap()
 rollback_snap()
 {
 	local snap="$1"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	[ "$quiet" != "y" ] && zfs_log_begin_msg "Rollback $snap"
 
@@ -679,9 +675,7 @@ setup_snapshot_booting()
 # This is the main function.
 mountroot()
 {
-	local snaporig
-	local snapsub
-	local destfs
+	local snaporig snapsub destfs pool POOLS
 
 	# ----------------------------------------------------------------
 	# I N I T I A L   S E T U P
