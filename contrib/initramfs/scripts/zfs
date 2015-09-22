@@ -101,7 +101,6 @@ find_pools()
 	pools=$($CMD 2> /dev/null | \
 		grep -E "pool:|^[a-zA-Z0-9]" | \
 		sed 's@.*: @@' | \
-		sort | \
 		while read pool; do \
 		    echo -n "$pool;"
 		done)
@@ -616,7 +615,7 @@ setup_snapshot_booting()
 		# already exists, destroy it. Recursivly
 		if [ $(get_fs_value "${rootfs}_${snapname}" type) ]; then
 			filesystems=$("${ZFS}" list -oname -tfilesystem -H \
-			    -r "${ZFS_BOOTFS}" | sort -r)
+			    -r -Sname "${ZFS_BOOTFS}")
 			for fs in $filesystems; do
 				destroy_fs "${fs}"
 			done
