@@ -314,6 +314,10 @@ mount_fs()
 	local fs="$1"
 	local mountpoint
 
+	# Check that the filesystem exists
+	"${ZFS}" list -oname -tfilesystem -H "${fs}" > /dev/null 2>&1
+	[ "$?" -ne 0 ] && return 1
+
 	# Need the _original_ datasets mountpoint!
 	mountpoint=$(get_fs_value "$fs" mountpoint)
 	if [ "$mountpoint" = "legacy" -o "$mountpoint" = "none" ]; then
