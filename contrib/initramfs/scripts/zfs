@@ -692,7 +692,7 @@ mountroot()
 
 	# ------------
 	# Support debug option
-	if grep -qiE '(^|[^\\](\\\\)* )(zfs_debug|zfs\.debug|zfsdebug)=(on|yes|1)( |$)' /proc/cmdline
+	if check_zfs_debug
 	then
 		ZFS_DEBUG=1
 		mkdir /var/log
