@@ -310,6 +310,15 @@ get_root_pool()
 	[ "$5" = "zfs" ] && echo "${1%%/*}"
 }
 
+# Check if a variable is 'yes' (any case) or '1'
+# Returns TRUE if set.
+check_boolean()
+{
+	local var="$1"
+
+	echo "$var" | grep -Eiq "^yes$|^1$" && return 0 || return 1
+}
+
 # Check to see if we're running in debug mode
 # Returns
 #   0 if debugging enabled

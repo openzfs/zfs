@@ -1,5 +1,8 @@
 # ZoL userland configuration.
 
+# To enable a boolean setting, set it to yes, Yes, YES (or any case combination
+# thereof) or to 1. Anything else will be interpreted as unset.
+
 # Run `zfs mount -a` during system start?
 ZFS_MOUNT='yes'
 
