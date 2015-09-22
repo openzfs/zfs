@@ -96,12 +96,11 @@ find_rootfs()
 find_pools()
 {
 	local CMD="$*"
-	local pools
+	local pools pool
 
 	pools=$($CMD 2> /dev/null | \
 		grep -E "pool:|^[a-zA-Z0-9]" | \
 		sed 's@.*: @@' | \
-		sort | \
 		while read pool; do \
 		    echo -n "$pool;"
 		done)
@@ -113,6 +112,11 @@ find_pools()
 get_pools()
 {
 	local available_pools npools
+
+	if [ -n "${ZFS_POOL_IMPORT}" ]; then
+		echo "$ZFS_POOL_IMPORT"
+		return 0
+	fi
 
 	# Get the base list of availible pools.
 	available_pools=$(find_pools "$ZPOOL" import)
@@ -185,7 +189,7 @@ get_pools()
 import_pool()
 {
 	local pool="$1"
-	local dirs dir ZFS_CMD ZFS_STDERR ZFS_ERROR
+	local dirs dir
 
 	# Verify that the pool isn't already imported
 	# Make as sure as we can to not require '-f' to import.
@@ -223,7 +227,7 @@ import_pool()
 	[ "$quiet" != "y" ] && zfs_log_begin_msg \
 		"Importing pool '${pool}' using defaults"
 
-	ZFS_CMD="${ZPOOL} import -N ${ZPOOL_FORCE}"
+	ZFS_CMD="${ZPOOL} import -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
 	ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
@@ -235,7 +239,7 @@ import_pool()
 			[ "$quiet" != "y" ] && zfs_log_begin_msg \
 				"Importing pool '${pool}' using cachefile."
 
-			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE}"
+			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
 			ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
 			ZFS_ERROR="$?"
 		fi
@@ -308,7 +312,11 @@ load_module_initrd()
 mount_fs()
 {
 	local fs="$1"
-	local mountpoint ZFS_CMD ZFS_STDERR ZFS_ERROR
+	local mountpoint
+
+	# Check that the filesystem exists
+	"${ZFS}" list -oname -tfilesystem -H "${fs}" > /dev/null 2>&1
+	[ "$?" -ne 0 ] && return 1
 
 	# Need the _original_ datasets mountpoint!
 	mountpoint=$(get_fs_value "$fs" mountpoint)
@@ -378,7 +386,6 @@ mount_fs()
 decrypt_fs()
 {
 	local fs="$1"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	# If the 'zfs key' command isn't availible, exit right here.
 	"${ZFS}" 2>&1 | grep -q 'key -l ' || return 0
@@ -449,7 +456,6 @@ decrypt_fs()
 destroy_fs()
 {
 	local fs="$1"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	[ "$quiet" != "y" ] && \
 	    zfs_log_begin_msg "Destroying '$fs'"
@@ -487,7 +493,6 @@ clone_snap()
 	local snap="$1"
 	local destfs="$2"
 	local mountpoint="$3"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	[ "$quiet" != "y" ] && zfs_log_begin_msg "Cloning '$snap' to '$destfs'"
 
@@ -526,7 +531,6 @@ clone_snap()
 rollback_snap()
 {
 	local snap="$1"
-	local ZFS_CMD ZFS_STDERR ZFS_ERROR
 
 	[ "$quiet" != "y" ] && zfs_log_begin_msg "Rollback $snap"
 
@@ -616,7 +620,7 @@ setup_snapshot_booting()
 		# already exists, destroy it. Recursivly
 		if [ $(get_fs_value "${rootfs}_${snapname}" type) ]; then
 			filesystems=$("${ZFS}" list -oname -tfilesystem -H \
-			    -r "${ZFS_BOOTFS}" | sort -r)
+			    -r -Sname "${ZFS_BOOTFS}")
 			for fs in $filesystems; do
 				destroy_fs "${fs}"
 			done
@@ -675,9 +679,7 @@ setup_snapshot_booting()
 # This is the main function.
 mountroot()
 {
-	local snaporig
-	local snapsub
-	local destfs
+	local snaporig snapsub destfs pool POOLS
 
 	# ----------------------------------------------------------------
 	# I N I T I A L   S E T U P
