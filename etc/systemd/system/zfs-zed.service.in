@@ -7,3 +7,6 @@ After=zfs-import-scan.service
 [Service]
 ExecStart=@sbindir@/zed -F
 Restart=on-abort
+
+[Install]
+Alias=zed.service
