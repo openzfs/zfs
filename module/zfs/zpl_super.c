@@ -501,24 +501,11 @@ zpl_prune_sb(int64_t nr_to_scan, void *arg)
 static int
 zpl_nr_cached_objects(struct super_block *sb)
 {
-	zfs_sb_t *zsb = sb->s_fs_info;
-	int nr;
-
-	mutex_enter(&zsb->z_znodes_lock);
-	nr = zsb->z_nr_znodes;
-	mutex_exit(&zsb->z_znodes_lock);
-
-	return (nr);
+	return (0);
 }
 #endif /* HAVE_NR_CACHED_OBJECTS */
 
 #ifdef HAVE_FREE_CACHED_OBJECTS
-/*
- * Attempt to evict some meta data from the cache.  The ARC operates in
- * terms of bytes while the Linux VFS uses objects.  Now because this is
- * just a best effort eviction and the exact values aren't critical so we
- * extrapolate from an object count to a byte size using the znode_t size.
- */
 static void
 zpl_free_cached_objects(struct super_block *sb, int nr_to_scan)
 {
