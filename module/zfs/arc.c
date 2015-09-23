@@ -2685,8 +2685,8 @@ arc_flush_state(arc_state_t *state, uint64_t spa, arc_buf_contents_t type,
 }
 
 /*
- * Helper function for arc_prune() it is responsible for safely handling
- * the execution of a registered arc_prune_func_t.
+ * Helper function for arc_prune_async() it is responsible for safely
+ * handling the execution of a registered arc_prune_func_t.
  */
 static void
 arc_prune_task(void *ptr)
@@ -2711,7 +2711,7 @@ arc_prune_task(void *ptr)
  * honor the arc_meta_limit and reclaim otherwise pinned ARC buffers.  This
  * is analogous to dnlc_reduce_cache() but more generic.
  *
- * This operation is performed asyncronously so it may be safely called
+ * This operation is performed asynchronously so it may be safely called
  * in the context of the arc_reclaim_thread().  A reference is taken here
  * for each registered arc_prune_t and the arc_prune_task() is responsible
  * for releasing it once the registered arc_prune_func_t has completed.
@@ -2734,13 +2734,6 @@ arc_prune_async(int64_t adjust)
 		ARCSTAT_BUMP(arcstat_prune);
 	}
 	mutex_exit(&arc_prune_mtx);
-}
-
-static void
-arc_prune(int64_t adjust)
-{
-	arc_prune_async(adjust);
-	taskq_wait_outstanding(arc_prune_taskq, 0);
 }
 
 /*
@@ -3376,7 +3369,7 @@ arc_kmem_reap_now(void)
 		 * We are exceeding our meta-data cache limit.
 		 * Prune some entries to release holds on meta-data.
 		 */
-		arc_prune(zfs_arc_meta_prune);
+		arc_prune_async(zfs_arc_meta_prune);
 	}
 
 	for (i = 0; i < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; i++) {
