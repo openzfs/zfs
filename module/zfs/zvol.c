@@ -752,7 +752,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 out2:
 	generic_end_io_acct(rw, &zv->zv_disk->part0, start);
 out1:
-	bio_endio(bio, -error);
+	BIO_END_IO(bio, -error);
 	spl_fstrans_unmark(cookie);
 #ifdef HAVE_MAKE_REQUEST_FN_RET_INT
 	return (0);

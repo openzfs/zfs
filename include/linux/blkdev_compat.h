@@ -182,20 +182,17 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* DISK_NAME_LEN */
 
 /*
- * 2.6.24 API change,
- * The bio_end_io() prototype changed slightly.  These are helper
- * macro's to ensure the prototype and return value are handled.
+ * 4.3 API change
+ * The bio_endio() prototype changed slightly.  These are helper
+ * macro's to ensure the prototype and invocation are handled.
  */
-#ifdef HAVE_2ARGS_BIO_END_IO_T
-#define	BIO_END_IO_PROTO(fn, x, y, z)	static void fn(struct bio *x, int z)
-#define	BIO_END_IO_RETURN(rc)		return
+#ifdef HAVE_1ARG_BIO_END_IO_T
+#define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
+#define	BIO_END_IO(bio, error)		bio->bi_error = error; bio_endio(bio);
 #else
-#define	BIO_END_IO_PROTO(fn, x, y, z)	static int fn( \
-					    struct bio *x, \
-					    unsigned int y, \
-					    int z)
-#define	BIO_END_IO_RETURN(rc)		return rc
-#endif /* HAVE_2ARGS_BIO_END_IO_T */
+#define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x, int z)
+#define	BIO_END_IO(bio, error)		bio_endio(bio, error);
+#endif /* HAVE_1ARG_BIO_END_IO_T */
 
 /*
  * 2.6.38 - 2.6.x API,

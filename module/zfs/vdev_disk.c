@@ -424,21 +424,21 @@ vdev_disk_dio_put(dio_request_t *dr)
 	return (rc);
 }
 
-BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
+BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 {
 	dio_request_t *dr = bio->bi_private;
 	int rc;
 
-#ifndef HAVE_2ARGS_BIO_END_IO_T
-	if (BIO_BI_SIZE(bio))
-		return (1);
-#endif /* HAVE_2ARGS_BIO_END_IO_T */
-
-	if (error == 0 && !test_bit(BIO_UPTODATE, &bio->bi_flags))
-		error = (-EIO);
-
-	if (dr->dr_error == 0)
-		dr->dr_error = -error;
+	if (dr->dr_error == 0) {
+#ifdef HAVE_1ARG_BIO_END_IO_T
+		dr->dr_error = -(bio->bi_error);
+#else
+		if (error)
+			dr->dr_error = -(error);
+		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+			dr->dr_error = EIO;
+#endif
+	}
 
 	/* Drop reference aquired by __vdev_disk_physio */
 	rc = vdev_disk_dio_put(dr);
@@ -446,8 +446,6 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
 	/* Wake up synchronous waiter this is the last outstanding bio */
 	if ((rc == 1) && vdev_disk_dio_is_sync(dr))
 		complete(&dr->dr_comp);
-
-	BIO_END_IO_RETURN(0);
 }
 
 static inline unsigned long
@@ -624,9 +622,12 @@ vdev_disk_physio(struct block_device *bdev, caddr_t kbuf,
 	return (__vdev_disk_physio(bdev, NULL, kbuf, size, offset, flags));
 }
 
-BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, size, rc)
+BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, rc)
 {
 	zio_t *zio = bio->bi_private;
+#ifdef HAVE_1ARG_BIO_END_IO_T
+	int rc = bio->bi_error;
+#endif
 
 	zio->io_delay = jiffies_64 - zio->io_delay;
 	zio->io_error = -rc;
@@ -638,8 +639,6 @@ BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, size, rc)
 	if (zio->io_error)
 		vdev_disk_error(zio);
 	zio_interrupt(zio);
-
-	BIO_END_IO_RETURN(0);
 }
 
 static int
