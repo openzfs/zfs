@@ -1147,8 +1147,19 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 	 */
 	mutex_enter(&zfs_snapshot_lock);
 	if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
-		*zsbp = ITOZSB(se->se_root_dentry->d_inode);
-		ASSERT3U(dmu_objset_id((*zsbp)->z_os), ==, objsetid);
+		zfs_sb_t *zsb;
+
+		zsb = ITOZSB(se->se_root_dentry->d_inode);
+		ASSERT3U(dmu_objset_id(zsb->z_os), ==, objsetid);
+
+		if (time_after(jiffies, zsb->z_snap_defer_time +
+		    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
+			zsb->z_snap_defer_time = jiffies;
+			zfsctl_snapshot_unmount_delay(objsetid,
+			    zfs_expire_snapshot);
+		}
+
+		*zsbp = zsb;
 		zfsctl_snapshot_rele(se);
 		error = SET_ERROR(0);
 	} else {
