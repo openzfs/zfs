@@ -5,6 +5,7 @@ Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=cryptsetup.target
 ConditionPathExists=@sysconfdir@/zfs/zpool.cache
+Conflicts=zfs-import.service
 
 [Service]
 Type=oneshot
