@@ -395,26 +395,6 @@ zfsctl_snapshot_unmount_delay(uint64_t objsetid, int delay)
 }
 
 /*
- * Check if snapname is currently mounted.  Returned non-zero when mounted
- * and zero when unmounted.
- */
-static boolean_t
-zfsctl_snapshot_ismounted(char *snapname)
-{
-	zfs_snapentry_t *se;
-	boolean_t ismounted = B_FALSE;
-
-	mutex_enter(&zfs_snapshot_lock);
-	if ((se = zfsctl_snapshot_find_by_name(snapname)) != NULL) {
-		zfsctl_snapshot_rele(se);
-		ismounted = B_TRUE;
-	}
-	mutex_exit(&zfs_snapshot_lock);
-
-	return (ismounted);
-}
-
-/*
  * Check if the given inode is a part of the virtual .zfs directory.
  */
 boolean_t
@@ -1072,11 +1052,15 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 
 	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.
+	 * In order to prevent this the zfs_snapshot_lock is held over the
+	 * automount which means zpl_mount() MUST never take this lock.
 	 * The snapshot may be manually mounted as many times as desired.
 	 */
-	if (zfsctl_snapshot_ismounted(full_name)) {
+	mutex_enter(&zfs_snapshot_lock);
+	if ((se = zfsctl_snapshot_find_by_name(full_name)) != NULL) {
+		zfsctl_snapshot_rele(se);
 		error = SET_ERROR(EISDIR);
-		goto error;
+		goto error_mutex;
 	}
 
 	/*
@@ -1099,7 +1083,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
 		    full_path, full_name, error);
 		error = SET_ERROR(EISDIR);
-		goto error;
+		goto error_mutex;
 	}
 
 	/*
@@ -1114,11 +1098,11 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	zpl_follow_up(path);
 	error = 0;
 
-	mutex_enter(&zfs_snapshot_lock);
 	se = zfsctl_snapshot_alloc(full_name, full_path,
 	    dmu_objset_id(snap_zsb->z_os), dentry);
 	zfsctl_snapshot_add(se);
 	zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+error_mutex:
 	mutex_exit(&zfs_snapshot_lock);
 error:
 	kmem_free(full_name, MAXNAMELEN);
