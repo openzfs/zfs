@@ -236,10 +236,10 @@ zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
 #ifdef HAVE_POSIX_ACL_CACHING
 	struct posix_acl *older = NULL;
 
-	spin_lock(&ip->i_lock);
-
 	if ((newer != ACL_NOT_CACHED) && (newer != NULL))
 		posix_acl_dup(newer);
+
+	spin_lock(&ip->i_lock);
 
 	switch (type) {
 	case ACL_TYPE_ACCESS:
