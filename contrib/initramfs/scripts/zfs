@@ -16,6 +16,10 @@ ZPOOL="/sbin/zpool"
 ZPOOL_CACHE="/etc/zfs/zpool.cache"
 export ZFS ZPOOL ZPOOL_CACHE
 
+# Needs to be set for rest of the code to work.
+[ -z "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}" ] && ZFS_INITRD_PRE_MOUNTROOT_SLEEP=0
+[ -z "${ZFS_INITRD_POST_MODPROBE_SLEEP}" ] && ZFS_INITRD_POST_MODPROBE_SLEEP=0
+
 # This runs any scripts that should run before we start importing
 # pools and mounting any filesystems.
 pre_mountroot()
@@ -44,7 +48,7 @@ pre_mountroot()
 # with more logging etc.
 load_module_initrd()
 {
-	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" > 0 ]
+	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]
 	then
 		check_boolean "$quiet" || \
 			zfs_log_begin_msg "Sleeping for" \
@@ -67,7 +71,7 @@ load_module_initrd()
 	# Load the module
 	load_module "zfs" || return 1
 
-	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" > 0 ]
+	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" -gt 0 ]
 	then
 		check_boolean "$quiet" || \
 			zfs_log_begin_msg "Sleeping for" \
