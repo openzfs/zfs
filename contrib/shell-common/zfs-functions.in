@@ -110,6 +110,26 @@ fi
 
 # ----------------------------------------------------
 
+# Run a command, capture STDOUT, STDERR and exit code.
+# Sets the global variables ZFS_STDERR and ZFS_ERROR
+# with this information.
+#
+# For some reason, some functions in the library have a problem
+# with a changed IFS, so make sure we reset this while running
+# the command.
+#
+zfs_run_cmd()
+{
+	ZFS_CMD="$*"
+
+	zfs_set_ifs "${OLD_IFS}"
+	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
+	ZFS_ERROR="$?"
+	zfs_set_ifs "${TMP_IFS}"
+
+	return "${ZFS_ERROR}"
+}
+
 # Run a command, output a message if quiet != 'y' OR if running
 # with debugging enabled.
 #
@@ -118,20 +138,26 @@ fi
 # Uses 'lowlevel' zfs_run_cmd() above to capture return code and stderr+stdout.
 zfs_action()
 {
+	zfs_set_ifs " "
+
 	local MSG="$1";	shift
 	local CMD="$*"
-	local ret
 
-	zfs_log_begin_msg "$MSG "
-	$CMD
-	ret=$?
-	if [ "$ret" -eq 0 ]; then
-		zfs_log_end_msg $ret
+	check_boolean "${quiet}" && \
+		zfs_log_begin_msg "$MSG "
+	check_zfs_debug && \
+		zfs_log_begin_msg "CMD: '${cmd}'"
+
+	zfs_run_cmd $CMD
+	if [ "${ZFS_ERROR}" -eq 0 ]; then
+		(check_boolean "${quiet}" || check_zfs_debug) && \
+		    zfs_log_end_msg "${ZFS_ERROR}"
 	else
-		zfs_log_failure_msg $ret
+		(check_boolean "${quiet}" || check_zfs_debug) && \
+		    zfs_log_failure_msg "${ZFS_ERROR}"
 	fi
 
-	return $ret
+	return "${ZFS_ERROR}"
 }
 
 # Returns
@@ -291,7 +317,7 @@ udev_trigger()
 # Do a lot of checks to make sure it's 'safe' to continue with the import.
 checksystem()
 {
-	if grep -qiE '(^|[^\\](\\\\)* )zfs=(off|no|0)( |$)' /proc/cmdline;
+	if grep -qiE '(^|[^\\](\\\\)* )zfs=(off|no|false|0)( |$)' /proc/cmdline;
 	then
 		# Called with zfs=(off|no|0) - bail because we don't
 		# want anything import, mounted or shared.
@@ -334,6 +360,16 @@ check_boolean()
 	echo "$var" | grep -Eiq "^yes$|^on$|^true$|^1$" && return 0 || return 1
 }
 
+# Check to see if we're running in debug mode
+# Returns
+#   0 if debugging enabled
+#   1 if debugging disabled
+check_zfs_debug()
+{
+	grep -qiE '(^|[^\\](\\\\)* )(zfs_debug|zfs\.debug|zfsdebug)=(on|yes|true|[0-9])( |$)' \
+	   /proc/cmdline
+}
+
 # Check if the specified module is loaded.
 check_module_loaded()
 {
@@ -353,6 +389,34 @@ load_module()
 			return 5
 		fi
 	fi
+	return 0
+}
+
+# Recursivly mount all filesystems, including any additional filesystems,
+# below the specified filesystem.
+recursive_mount_filesystems()
+{
+	local msg="$1"
+	local fs="$2"
+	local filesystems f
+
+	# Fail here if the first fs (the root fs) fails to mount.
+	zfs_action "${msg}" mount_fs "${fs}" || return 1
+
+	# Go through the complete list (recursivly) of all filesystems
+	# below the first (root) dataset.
+	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${fs}")"
+	for f in ${filesystems} ${ZFS_INITRD_ADDITIONAL_DATASETS}
+	do
+		# Ignore the first (root) fs. Should already be
+		# mounted, but is still included in the 'zfs list'
+		# above.
+		[ "${f}" = "${fs}" ] && continue
+
+		zfs_action "Mounting filesystem ${f}" mount_fs "${f}" || \
+                    return 1
+	done
+
 	return 0
 }
 
@@ -521,34 +585,47 @@ get_pools()
 	fi
 
 	# Get the base list of availible pools.
-	available_pools=$(find_pools "$ZPOOL" import)
+	if [ -f "${ZPOOL_CACHE}" ]; then
+		# A cache file exists. This takes precedent.
+		available_pools="$(find_pools "${ZPOOL}" import -c "${ZPOOL_CACHE}")"
 
-	# Just in case - seen it happen (that a pool isn't visable/found
-	# with a simple "zpool import" but only when using the "-d"
-	# option or setting ZPOOL_IMPORT_PATH).
-	if [ -d "/dev/disk/by-id" ]
+		# NOTE: We do NOT try to get additional pools here. If there
+		#       is a cache file, we're ONLY interested in those defined
+		#       there in.
+	else
+		available_pools="$(find_pools "${ZPOOL}" import)"
+
+		# Just in case - seen it happen (that a pool isn't visable/found
+		# with a simple "zpool import" but only when using the "-d"
+		# option or setting ZPOOL_IMPORT_PATH).
+		if [ -n "${ZPOOL_IMPORT_PATH}" ]; then
+			# A import path variable is set. Use this
+			npools="$(find_pools "${ZPOOL}" import -d "${ZPOOL_IMPORT_PATH}")"
+		elif [ -d "/dev/disk/by-id" ]; then
+			# Just as a fallback.
+			npools="$(find_pools "${ZPOOL}" import -d /dev/disk/by-id)"
+		fi
+	fi
+
+	if [ -n "${npools}" ]
 	then
-		npools=$(find_pools "$ZPOOL" import -d /dev/disk/by-id)
-		if [ -n "$npools" ]
+		# Because we have found extra pool(s) here, which wasn't
+		# found 'normaly', we need to force USE_DISK_BY_ID to
+		# make sure we're able to actually import it/them later.
+		USE_DISK_BY_ID='yes'
+
+		if [ -n "${available_pools}" ]
 		then
-			# Because we have found extra pool(s) here, which wasn't
-			# found 'normaly', we need to force USE_DISK_BY_ID to
-			# make sure we're able to actually import it/them later.
-			USE_DISK_BY_ID='yes'
+			# Filter out duplicates (pools found with the simple
+			# "zpool import" but which is also found with the
+			# "zpool import -d ...").
+			npools="$(echo "${npools}" | sed "s,${available_pools},,")"
 
-			if [ -n "$available_pools" ]
-			then
-				# Filter out duplicates (pools found with the simple
-				# "zpool import" but which is also found with the
-				# "zpool import -d ...").
-				npools=$(echo "$npools" | sed "s,$available_pools,,")
-
-				# Add the list to the existing list of
-				# available pools
-				available_pools="$available_pools;$npools"
-			else
-				available_pools="$npools"
-			fi
+			# Add the list to the existing list of
+			# available pools
+			available_pools="${available_pools};${npools}"
+		else
+			available_pools="${npools}"
 		fi
 	fi
 
@@ -626,34 +703,23 @@ import_pool()
 	[ -n "$ZPOOL_IMPORT_PATH" ] && export ZPOOL_IMPORT_PATH
 
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg \
-		"Importing pool '${pool}' using defaults"
-
-	ZFS_CMD="${ZPOOL} import -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
-	ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
-	ZFS_ERROR="$?"
+	zfs_action "Importing pool '${pool}' using defaults" \
+            "${ZPOOL}" import -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS} "${pool}"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		if [ -f "${ZPOOL_CACHE}" ]
 		then
-			[ "$quiet" != "y" ] && zfs_log_begin_msg \
-				"Importing pool '${pool}' using cachefile."
-
-			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
-			ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
-			ZFS_ERROR="$?"
+			zfs_action "Importing pool '${pool}' using cachefile." \
+                            "${ZPOOL}" import -c "${ZPOOL_CACHE}" \
+                            -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS} "${pool}"
 		fi
 
 		if [ "${ZFS_ERROR}" != 0 ]
 		then
-			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 			disable_plymouth
 			if [ "$?" -ne "123" ]; then
 				echo ""
-				echo "Command: ${ZFS_CMD} '$pool'"
+				echo "Command: $ZFS_CMD"
 				echo "Message: $ZFS_STDERR"
 				echo "Error: $ZFS_ERROR"
 				echo ""
@@ -668,8 +734,6 @@ import_pool()
 		fi
 	fi
 
-	[ "$quiet" != "y" ] && zfs_log_end_msg
-
 	POOL_IMPORTED=1
 	return 0
 }
@@ -680,7 +744,7 @@ mount_fs()
 	local fs="$1"
 	local mntpnt="$2"
 	local mntopt="$3"
-	local mountpoint
+	local mountpoint cmd
 
 	# Check that the filesystem exists
 	"${ZFS}" list -oname -tfilesystem -H "${fs}" > /dev/null 2>&1
@@ -717,37 +781,30 @@ mount_fs()
 		fi
 
 		if [ "$mountpoint" = "legacy" ]; then
-			ZFS_CMD="mount -t zfs"
+			cmd="mount -t zfs"
 		else
 			# If it's not a legacy filesystem, it can only be a
 			# native one...
-			ZFS_CMD="mount -o zfsutil${mntopt} -t zfs"
+			cmd="mount -o zfsutil${mntopt} -t zfs"
 		fi
 	else
-		ZFS_CMD="mount -o zfsutil${mntopt} -t zfs"
+		cmd="mount -o zfsutil${mntopt} -t zfs"
 	fi
 
 	# If we're called with a mountpoint, use that instead.
 	[ -n "${mntpnt}" ] && mountpoint="${mntpnt}"
 
 	# Possibly decrypt a filesystem using native encryption.
-	decrypt_fs "$fs"
+	zfs_action "Decrypting ${fs}" decrypt_fs "$fs"
 
-	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Mounting '${fs}' on '${rootmnt}/${mountpoint}'"
-	[ -n "${ZFS_DEBUG}" ] && \
-	    zfs_log_begin_msg "CMD: '$ZFS_CMD ${fs} ${rootmnt}/${mountpoint}'"
-
-	ZFS_STDERR=$(${ZFS_CMD} "${fs}" "${rootmnt}/${mountpoint}" 2>&1)
-	ZFS_ERROR=$?
+	zfs_action "Mounting '${fs}' on '${rootmnt}/${mountpoint}'" \
+            "${cmd}" "${fs}" "${rootmnt}/${mountpoint}"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		if [ "$?" -ne "123" ]; then
 			echo ""
-			echo "Command: ${ZFS_CMD} ${fs} ${rootmnt}/${mountpoint}"
+			echo "Command: ${ZFS_CMD}"
 			echo "Message: $ZFS_STDERR"
 			echo "Error: $ZFS_ERROR"
 			echo ""
@@ -758,7 +815,7 @@ mount_fs()
 			return 1
 		fi
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -775,23 +832,16 @@ decrypt_fs()
 	# Check if filesystem is encrypted. If not, exit right here.
 	[ "$(get_fs_value "$fs" encryption)" != "off" ] || return 0
 
-	[ "$quiet" != "y" ] && \
+	check_boolean "$quiet" || \
 	    zfs_log_begin_msg "Loading crypto wrapper key for $fs"
 
 	# Just make sure that ALL crypto modules module is loaded.
 	# Simplest just to load all...
 	for mod in sun-ccm sun-gcm sun-ctr
 	do
-		[ "$quiet" != "y" ] && zfs_log_progress_msg "${mod} "
-
-		ZFS_CMD="load_module $mod"
-		ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
-		ZFS_ERROR="$?"
-
+		zfs_action "Loading module ${mod}" load_module "${mod}"
 		if [ "${ZFS_ERROR}" != 0 ]
 		then
-			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 			disable_plymouth
 			if [ "$?" -ne "123" ]; then
 				echo ""
@@ -808,19 +858,15 @@ decrypt_fs()
 				return 1
 			fi
 		else
-			[ "$quiet" != "y" ] && zfs_log_end_msg
+			return 1
 		fi
 	done
 
 	# If the key isn't availible, then this will fail!
-	ZFS_CMD="${ZFS} key -l -r $fs"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
-	ZFS_ERROR="$?"
-
+	zfs_action "Loading crypto wrapper key for ${fs}" \
+            "${ZFS}" key -l -r "${fs}"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		if [ "$?" -ne "123" ]; then
 			echo ""
@@ -836,7 +882,7 @@ decrypt_fs()
 			return 1
 		fi
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -847,16 +893,9 @@ destroy_fs()
 {
 	local fs="$1"
 
-	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Destroying '$fs'"
-
-	ZFS_CMD="${ZFS} destroy $fs"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
-	ZFS_ERROR="$?"
+	zfs_action "Destroying '${fs}'" "${ZFS}" destroy "${fs}"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		if [ "$?" -ne "123" ]; then
 			echo ""
@@ -872,7 +911,7 @@ destroy_fs()
 			return 1
 		fi
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -888,22 +927,17 @@ clone_snap()
 	local destfs="$2"
 	local mountpoint="$3"
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg "Cloning '$snap' to '$destfs'"
-
 	# Clone the snapshot into a dataset we can boot from
 	# + We don't want this filesystem to be automatically mounted, we
 	#   want controll over this here and nowhere else.
 	# + We don't need any mountpoint set for the same reason.
 	# We use the 'org.zol:mountpoint' property to remember the mountpoint.
-	ZFS_CMD="${ZFS} clone -o canmount=noauto -o mountpoint=none"
-	ZFS_CMD="${ZFS_CMD} -o org.zol:mountpoint=${mountpoint}"
-	ZFS_CMD="${ZFS_CMD} $snap $destfs"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
-	ZFS_ERROR="$?"
+	zfs_action "Cloning '${snap}' to '${destfs}'" \
+            "${ZFS}" clone -o canmount=noauto -o mountpoint=none \
+            -o org.zol:mountpoint="${mountpoint}" \
+            "${snap}" "${destfs}"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		if [ "$?" -ne "123" ]; then
 			echo ""
@@ -919,7 +953,7 @@ clone_snap()
 			return 1
 		fi
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -930,15 +964,9 @@ rollback_snap()
 {
 	local snap="$1"
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg "Rollback $snap"
-
-	ZFS_CMD="${ZFS} rollback -Rf $snap"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
-	ZFS_ERROR="$?"
+	zfs_action "Rollback snapshot '${snap}'" "${ZFS}" rollback -Rf "${snap}"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
 		disable_plymouth
 		if [ "$?" -ne "123" ]; then
 			echo ""
@@ -952,7 +980,7 @@ rollback_snap()
 			return 1
 		fi
 	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		return 1
 	fi
 
 	return 0
@@ -1022,7 +1050,7 @@ setup_snapshot_booting()
 	snapname="${snap##*@}"
 	ZFS_BOOTFS="${rootfs}_${snapname}"
 
-	if ! grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|1)( |$)' /proc/cmdline
+	if ! grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|true|1)( |$)' /proc/cmdline
 	then
 		# If the destination dataset for the clone
 		# already exists, destroy it. Recursivly
@@ -1040,7 +1068,7 @@ setup_snapshot_booting()
 	for s in $("${ZFS}" list -H -oname -tsnapshot -r "${rootfs}" | \
 	    grep "${snapname}")
 	do
-		if grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|1)( |$)' /proc/cmdline
+		if grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|true|1)( |$)' /proc/cmdline
 		then
 			# Rollback snapshot
 			rollback_snap "$s" || retval=$((retval + 1))

@@ -23,19 +23,19 @@ pre_mountroot()
 	if type run_scripts > /dev/null 2>&1 && \
 	    [ -f "/scripts/local-top" -o -d "/scripts/local-top" ]
 	then
-		[ "$quiet" != "y" ] && \
+		check_boolean "$quiet" || \
 		    zfs_log_begin_msg "Running /scripts/local-top"
 		run_scripts /scripts/local-top
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		check_boolean "$quiet" || zfs_log_end_msg
 	fi
 
 	if type run_scripts > /dev/null 2>&1 && \
 	    [ -f "/scripts/local-premount" -o -d "/scripts/local-premount" ]
 	then
-		[ "$quiet" != "y" ] && \
+		check_boolean "$quiet" || \
 		    zfs_log_begin_msg "Running /scripts/local-premount"
 		run_scripts /scripts/local-premount
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		check_boolean "$quiet" || zfs_log_end_msg
 	fi
 }
 
@@ -46,12 +46,11 @@ load_module_initrd()
 {
 	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" > 0 ]
 	then
-		if [ "$quiet" != "y" ]; then
+		check_boolean "$quiet" || \
 			zfs_log_begin_msg "Sleeping for" \
 				"$ZFS_INITRD_PRE_MOUNTROOT_SLEEP seconds..."
-		fi
 		sleep "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP"
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		check_boolean "$quiet" || zfs_log_end_msg
 	fi
 
 	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
@@ -70,12 +69,11 @@ load_module_initrd()
 
 	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" > 0 ]
 	then
-		if [ "$quiet" != "y" ]; then
+		check_boolean "$quiet" || \
 			zfs_log_begin_msg "Sleeping for" \
 				"$ZFS_INITRD_POST_MODPROBE_SLEEP seconds..."
-		fi
 		sleep "$ZFS_INITRD_POST_MODPROBE_SLEEP"
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		check_boolean "$quiet" || zfs_log_end_msg
 	fi
 
 	return 0
@@ -101,11 +99,15 @@ mountroot()
 
 	# ------------
 	# Support debug option
-	if grep -qiE '(^|[^\\](\\\\)* )(zfs_debug|zfs\.debug|zfsdebug)=(on|yes|1)( |$)' /proc/cmdline
+	if check_zfs_debug
 	then
 		ZFS_DEBUG=1
 		mkdir /var/log
-		#exec 2> /var/log/boot.debug
+
+		# Close and reopen STDERR and redirect it.
+		exec 2<&-
+		exec 2> /var/log/zfs-boot.debug
+
 		set -x
 	fi
 
@@ -150,8 +152,9 @@ mountroot()
 	# No longer set in the defaults file, but it could have been set in
 	# get_pools() in some circumstances. If it's something, but not 'yes',
 	# it's no good to us.
-	[ -n "$USE_DISK_BY_ID" -a "$USE_DISK_BY_ID" != 'yes' ] && \
-	    unset USE_DISK_BY_ID
+	if [ -n "$USE_DISK_BY_ID" ] && ! check_boolean "$USE_DISK_BY_ID"; then
+		unset USE_DISK_BY_ID
+	fi
 
 	# ----------------------------------------------------------------
 	# P A R S E   C O M M A N D   L I N E   O P T I O N S
@@ -231,7 +234,7 @@ mountroot()
 	then
 		# Try to detect both pool and root fs.
 
-		[ "$quiet" != "y" ] && \
+		check_boolean "$quiet" || \
 		    zfs_log_begin_msg "Attempting to import additional pools."
 
 		# Get a list of pools available for import
@@ -253,7 +256,7 @@ mountroot()
 		done
 		IFS="$OLD_IFS"
 
-		[ "$quiet" != "y" ] && zfs_log_end_msg $ZFS_ERROR
+		check_boolean "$quiet" || zfs_log_end_msg $ZFS_ERROR
 	else
 		# No auto - use value from the command line option.
 
@@ -327,14 +330,21 @@ mountroot()
 	#   Such as /usr, /var, /usr/local etc.
 	#   NOTE: Mounted in the order specified in the
 	#         ZFS_INITRD_ADDITIONAL_DATASETS variable so take care!
-
-	# Go through the complete list (recursivly) of all filesystems below
-	# the real root dataset
-	filesystems=$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")
-	for fs in $filesystems $ZFS_INITRD_ADDITIONAL_DATASETS
-	do
-		mount_fs "$fs"
-	done
+	recursive_mount_filesystems "Using ${ZFS_BOOTFS} as root." "${ZFS_BOOTFS}"
+	if [ "${ZFS_ERROR}" != 0 ]
+	then
+		disable_plymouth
+		echo ""
+		echo "Command: ${ZFS_CMD}"
+		echo "Message: ${ZFS_STDERR}"
+		echo "Error: ${ZFS_ERROR}"
+		echo ""
+		echo "Error: Failed to mount root filesystem '${ZFS_BOOTFS}'."
+		echo ""
+		echo "Manually mount the filesystem and exit."
+		echo "Hint: Try:  mount -o zfsutil -t zfs ${ZFS_BOOTFS} ${rootmnt}"
+		emergency_shell
+	fi
 
 	# ------------
 	# Debugging information
@@ -365,9 +375,9 @@ mountroot()
 	if type run_scripts > /dev/null 2>&1 && \
 	    [ -f "/scripts/local-bottom" -o -d "/scripts/local-bottom" ]
 	then
-		[ "$quiet" != "y" ] && \
+		check_boolean "$quiet" || \
 		    zfs_log_begin_msg "Running /scripts/local-bottom"
 		run_scripts /scripts/local-bottom
-		[ "$quiet" != "y" ] && zfs_log_end_msg
+		check_boolean "$quiet" || zfs_log_end_msg
 	fi
 }

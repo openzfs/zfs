@@ -79,7 +79,7 @@ do_import_all_visible()
 	[ -n "$init" ] && rm -f /etc/dfs/sharetab
 
 	# Just simplify code later on.
-	if [ -n "$USE_DISK_BY_ID" -a "$USE_DISK_BY_ID" != 'yes' ]
+	if [ -n "$USE_DISK_BY_ID" ] && ! check_boolean "$USE_DISK_BY_ID"
 	then
 		# It's something, but not 'yes' so it's no good to us.
 		unset USE_DISK_BY_ID
