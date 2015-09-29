@@ -74,7 +74,6 @@ typedef struct zvol_state {
 	dev_t			zv_dev;		/* device id */
 	struct gendisk		*zv_disk;	/* generic disk */
 	struct request_queue	*zv_queue;	/* request queue */
-	spinlock_t		zv_lock;	/* request queue lock */
 	list_node_t		zv_next;	/* next zvol_state_t linkage */
 } zvol_state_t;
 
@@ -1205,7 +1204,6 @@ zvol_alloc(dev_t dev, const char *name)
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 
-	spin_lock_init(&zv->zv_lock);
 	list_link_init(&zv->zv_next);
 
 	zv->zv_queue = blk_alloc_queue(GFP_ATOMIC);
