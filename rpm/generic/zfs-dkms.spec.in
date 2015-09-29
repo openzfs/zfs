@@ -62,14 +62,8 @@ echo -e "support or upgrade DKMS to a more current version."
 exit 1
 
 %preun
-# Only remove the modules if they are for this %{version}-%{release}.  A
-# package upgrade can replace them if only the %{release} is changed.
-RELEASE="/var/lib/dkms/%{module}/%{version}/build/%{module}.release"
-if [ -f $RELEASE ] && [ `cat $RELEASE`%{?dist} = "%{version}-%{release}" ]; then
-    echo -e
-    echo -e "Uninstall of %{module} module (version %{version}) beginning:"
-    dkms remove -m %{module} -v %{version} --all --rpm_safe_upgrade
-fi
+echo -e "Uninstall of %{module} module (version %{version}) beginning:"
+dkms remove -m %{module} -v %{version} --all --rpm_safe_upgrade
 exit 0
 
 %changelog
