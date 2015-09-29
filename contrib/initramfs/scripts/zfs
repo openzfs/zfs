@@ -125,7 +125,7 @@ mountroot()
 		echo ""
 		echo "Failed to load ZFS modules."
 		echo "Manually load the modules and exit."
-		/bin/sh
+		emergency_shell
 	fi
 
 	# ------------
@@ -292,7 +292,7 @@ mountroot()
 		echo "No pool imported. Manually import the root pool"
 		echo "at the command prompt and then exit."
 		echo "Hint: Try:  zpool import -R ${rootmnt} -N ${ZFS_RPOOL}"
-		/bin/sh
+		emergency_shell
 	fi
 
 	# ----------------------------------------------------------------
@@ -317,7 +317,7 @@ mountroot()
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."
 		echo "Hint: Try:  mount -o zfsutil -t zfs ${ZFS_RPOOL-rpool}/ROOT/system $rootmnt"
-		/bin/sh
+		emergency_shell
 	fi
 
 	# ----------------------------------------------------------------
@@ -363,7 +363,7 @@ mountroot()
 		echo -n "   'c' for shell, 'r' for reboot, 'ENTER' to continue. "
 		read b
 
-		[ "$b" = "c" ] && /bin/sh
+		[ "$b" = "c" ] && emergency_shell
 		[ "$b" = "r" ] && reboot -f
 
 		set +x

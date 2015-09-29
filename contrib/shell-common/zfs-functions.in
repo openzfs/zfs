@@ -87,6 +87,18 @@ else
 	zfs_log_progress_msg() { echo -n "$1"; }
 fi
 
+# This is defined in dracut, but nowhere
+# else. So create a wrapper incase it doesn't exist.
+if ! type emergency_shell > /dev/null 2>&1 ; then
+	emergency_shell() {
+		/bin/sh -i -l
+
+		# Reset error and stderr - user should have fixed the problem.
+		ZFS_ERROR=""
+		ZFS_STDERR=""
+	}
+fi
+
 # Paths to what we need
 ZFS="@sbindir@/zfs"
 ZED="@sbindir@/zed"
@@ -636,7 +648,7 @@ import_pool()
 			echo ""
 			echo "Failed to import pool '$pool'."
 			echo "Manually import the pool and exit."
-			/bin/sh
+			emergency_shell
 		fi
 	fi
 
@@ -712,7 +724,7 @@ mount_fs()
 		echo ""
 		echo "Failed to mount ${fs} on ${rootmnt}/${mountpoint}."
 		echo "Manually mount the filesystem and exit."
-		/bin/sh
+		emergency_shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -758,7 +770,7 @@ decrypt_fs()
 			echo "Please verify that it is availible on the initrd image"
 			echo "(without it it won't be possible to unlock the filesystem)"
 			echo "and rerun:  $ZFS_CMD"
-			/bin/sh
+			emergency_shell
 		else
 			[ "$quiet" != "y" ] && zfs_log_end_msg
 		fi
@@ -782,7 +794,7 @@ decrypt_fs()
 		echo "Failed to load zfs encryption wrapper key (s)."
 		echo "Please verify dataset property 'keysource' for datasets"
 		echo "and rerun:  $ZFS_CMD"
-		/bin/sh
+		emergency_shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -814,7 +826,7 @@ destroy_fs()
 		echo "Failed to destroy '$fs'. Please make sure that '$fs' is not availible."
 		echo "Hint: Try:  zfs destroy -Rfn $fs"
 		echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
-		/bin/sh
+		emergency_shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -857,7 +869,7 @@ clone_snap()
 		echo "Failed to clone snapshot."
 		echo "Make sure that the any problems are corrected and then make sure"
 		echo "that the dataset '$destfs' exists and is bootable."
-		/bin/sh
+		emergency_shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -886,7 +898,7 @@ rollback_snap()
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Failed to rollback snapshot."
-		/bin/sh
+		emergency_shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
