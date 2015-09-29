@@ -236,13 +236,15 @@ uioskip(uio_t *uiop, size_t n)
 
 	uiop->uio_skip += n;
 	if (uiop->uio_segflg != UIO_BVEC) {
-		while (uiop->uio_skip >= uiop->uio_iov->iov_len) {
+		while (uiop->uio_iovcnt &&
+		    uiop->uio_skip >= uiop->uio_iov->iov_len) {
 			uiop->uio_skip -= uiop->uio_iov->iov_len;
 			uiop->uio_iov++;
 			uiop->uio_iovcnt--;
 		}
 	} else {
-		while (uiop->uio_skip >= uiop->uio_bvec->bv_len) {
+		while (uiop->uio_iovcnt &&
+		    uiop->uio_skip >= uiop->uio_bvec->bv_len) {
 			uiop->uio_skip -= uiop->uio_bvec->bv_len;
 			uiop->uio_bvec++;
 			uiop->uio_iovcnt--;
