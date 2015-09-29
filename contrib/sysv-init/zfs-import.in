@@ -86,105 +86,7 @@ do_import_all_visible()
 	fi
 
 	# Find list of already imported pools.
-	already_imported=$(find_pools "$ZPOOL" list -H -oname)
-	available_pools=$(find_pools "$ZPOOL" import)
-
-	# Just in case - seen it happen (that a pool isn't visable/found
-	# with a simple "zpool import" but only when using the "-d"
-	# option or setting ZPOOL_IMPORT_PATH).
-	if [ -d "/dev/disk/by-id" ]
-	then
-		npools=$(find_pools "$ZPOOL" import -d /dev/disk/by-id)
-		if [ -n "$npools" ]
-		then
-			# Because we have found extra pool(s) here, which wasn't
-			# found 'normaly', we need to force USE_DISK_BY_ID to
-			# make sure we're able to actually import it/them later.
-			USE_DISK_BY_ID='yes'
-
-			if [ -n "$available_pools" ]
-			then
-				# Filter out duplicates (pools found with the simpl
-				# "zpool import" but which is also found with the
-				# "zpool import -d ...").
-				npools=$(echo "$npools" | sed "s,$available_pools,,")
-
-				# Add the list to the existing list of
-				# available pools
-				available_pools="$available_pools;$npools"
-			else
-				available_pools="$npools"
-			fi
-		fi
-	fi
-
-	# Filter out any exceptions...
-	if [ -n "$ZFS_POOL_EXCEPTIONS" ]
-	then
-		local found=""
-		local apools=""
-		OLD_IFS="$IFS" ; IFS=";"
-
-		for pool in $available_pools
-		do
-			for exception in $ZFS_POOL_EXCEPTIONS
-			do
-				[ "$pool" = "$exception" ] && continue 2
-				found="$pool"
-			done
-
-			if [ -n "$found" ]
-			then
-				if [ -n "$apools" ]
-				then
-					apools="$apools;$pool"
-				else
-					apools="$pool"
-				fi
-			fi
-		done
-
-		IFS="$OLD_IFS"
-		available_pools="$apools"
-	fi
-
-	# For backwards compability, make sure that ZPOOL_IMPORT_PATH is set
-	# to something we can use later with the real import(s). We want to
-	# make sure we find all by* dirs, BUT by-vdev should be first (if it
-	# exists).
-	if [ -n "$USE_DISK_BY_ID" -a -z "$ZPOOL_IMPORT_PATH" ]
-	then
-		local dirs
-		dirs="$(for dir in $(echo /dev/disk/by-*)
-		do
-			# Ignore by-vdev here - we wan't it first!
-			echo "$dir" | grep -q /by-vdev && continue
-			[ ! -d "$dir" ] && continue
-
-			echo -n "$dir:"
-		done | sed 's,:$,,g')"
-
-		if [ -d "/dev/disk/by-vdev" ]
-		then
-			# Add by-vdev at the beginning.
-			ZPOOL_IMPORT_PATH="/dev/disk/by-vdev:"
-		fi
-
-		# Help with getting LUKS partitions etc imported.
-		if [ -d "/dev/mapper" ]; then
-			if [ -n "$ZPOOL_IMPORT_PATH" ]; then
-				ZPOOL_IMPORT_PATH="$ZPOOL_IMPORT_PATH:/dev/mapper:"
-			else
-				ZPOOL_IMPORT_PATH="/dev/mapper:"
-			fi
-		fi
-
-		# ... and /dev at the very end, just for good measure.
-		ZPOOL_IMPORT_PATH="$ZPOOL_IMPORT_PATH$dirs:/dev"
-	fi
-
-	# Needs to be exported for "zpool" to catch it.
-	[ -n "$ZPOOL_IMPORT_PATH" ] && export ZPOOL_IMPORT_PATH
+	POOLS="$(get_pools)"
 
 	# Mount all availible pools (except those set in ZFS_POOL_EXCEPTIONS.
 	#
@@ -200,7 +102,7 @@ do_import_all_visible()
 	#          [etc]
 	[ -n "$init" ] && zfs_log_begin_msg "Importing ZFS pool(s)"
 	OLD_IFS="$IFS" ; IFS=";"
-	for pool in $available_pools
+	for pool in $POOLS
 	do
 		[ -z "$pool" ] && continue
 
@@ -215,10 +117,8 @@ do_import_all_visible()
 			zfs_log_begin_msg "Importing ZFS pool $pool"
 		fi
 
-		# Import by using ZPOOL_IMPORT_PATH (either set above or in
-		# the config file) _or_ with the 'built in' default search
-		# paths. This is the prefered way.
-		"$ZPOOL" import -N ${ZPOOL_IMPORT_OPTS} "$pool" 2> /dev/null
+		# Import the pool.
+		import_pool "${pool}"
 		r="$?" ; RET=$((RET + r))
 		if [ "$r" -eq 0 ]
 		then
@@ -226,34 +126,11 @@ do_import_all_visible()
 			[ -z "$init" ] && zfs_log_end_msg 0
 			continue
 		fi
-		# We don't want a fail msg here, we're going to try import
-		# using the cache file soon and that might succeed.
-		[ ! -f "$ZPOOL_CACHE" ] && zfs_log_end_msg "$RET"
-
-		if [ "$r" -gt 0 -a -f "$ZPOOL_CACHE" ]
-		then
-			# Failed to import without a cache file. Try WITH...
-			if [ -z "$init" ] && check_boolean "$VERBOSE_MOUNT"
-			then
-				# Interactive + Verbose = more information
-				zfs_log_progress_msg " using cache file"
-			fi
-
-			"$ZPOOL" import -c "$ZPOOL_CACHE" -N ${ZPOOL_IMPORT_OPTS} \
-				"$pool" 2> /dev/null
-			r="$?" ; RET=$((RET + r))
-			if [ "$r" -eq 0 ]
-			then
-				[ -z "$init" ] && zfs_log_end_msg 0
-				continue 3 # Next pool
-			fi
-			zfs_log_end_msg "$RET"
-		fi
+		zfs_log_end_msg "$RET"
 	done
 	[ -n "$init" ] && zfs_log_end_msg "$RET"
 
 	IFS="$OLD_IFS"
-	[ -n "$already_imported" -a -z "$available_pools" ] && return 0
 
 	return "$RET"
 }

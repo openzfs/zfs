@@ -33,17 +33,6 @@
 
 # ----------------------------------------------------
 
-chkroot() {
-	while read line; do
-		set -- $line
-		if [ "$2" = "/" ]; then
-			return 0
-		fi
-	done < /etc/mtab
-
-	return 1
-}
-
 do_depend()
 {
 	# Try to allow people to mix and match fstab with ZFS in a way that makes sense.
