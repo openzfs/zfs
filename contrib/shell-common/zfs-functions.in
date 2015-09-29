@@ -11,6 +11,9 @@
 #   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
 
 PATH=/sbin:/bin:/usr/bin:/usr/sbin
+OLD_IFS="${IFS}"
+NEWLINE="
+"
 
 # Source function library
 if [ -f /etc/rc.d/init.d/functions ]; then
@@ -35,17 +38,6 @@ if type log_failure_msg > /dev/null 2>&1 ; then
 	zfs_log_progress_msg() { log_progress_msg "$1"; }
 elif type success > /dev/null 2>&1 ; then
 	# Fedora/RedHat functions
-	zfs_set_ifs() {
-		# For some reason, the init function library have a problem
-		# with a changed IFS, so this function goes around that.
-		local tIFS="$1"
-		if [ -n "$tIFS" ]
-		then
-			TMP_IFS="$IFS"
-			IFS="$tIFS"
-		fi
-	}
-
 	zfs_log_begin_msg() { echo -n "$1 "; }
 	zfs_log_end_msg() {
 		zfs_set_ifs "$OLD_IFS"
@@ -1033,4 +1025,15 @@ chkroot() {
 	done < /etc/mtab
 
 	return 1
+}
+
+zfs_set_ifs() {
+	# For some reason, the init function library have a problem
+	# with a changed IFS, so this function goes around that.
+	local tIFS="$1"
+	if [ -n "$tIFS" ]
+	then
+		TMP_IFS="$IFS"
+		IFS="$tIFS"
+	fi
 }
