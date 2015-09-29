@@ -40,20 +40,20 @@ do_depend()
 
 do_start()
 {
-	check_boolean "$ZFS_SHARE" || exit 0
+	check_boolean "${ZFS_SHARE}" || exit 0
 
 	check_module_loaded "zfs" || exit 0
 
-	zfs_action "Sharing ZFS filesystems" "$ZFS" share -a
+	zfs_action "Sharing ZFS filesystems" "${ZFS}" share -a
 }
 
 do_stop()
 {
-	check_boolean "$ZFS_UNSHARE" || exit 0
+	check_boolean "${ZFS_UNSHARE}" || exit 0
 
 	check_module_loaded "zfs" || exit 0
 
-	zfs_action "Unsharing ZFS filesystems" "$ZFS" unshare -a
+	zfs_action "Unsharing ZFS filesystems" "${ZFS}" unshare -a
 }
 
 # ----------------------------------------------------
@@ -76,7 +76,7 @@ if [ ! -e /etc/gentoo-release ]; then
 			;;
 	esac
 
-	exit $?
+	exit "$?"
 else
 	# Create wrapper functions since Gentoo don't use the case part.
 	depend() { do_depend; }

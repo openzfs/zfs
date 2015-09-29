@@ -27,19 +27,19 @@ pre_mountroot()
 	if type run_scripts > /dev/null 2>&1 && \
 	    [ -f "/scripts/local-top" -o -d "/scripts/local-top" ]
 	then
-		check_boolean "$quiet" || \
+		check_boolean "${quiet}" || \
 		    zfs_log_begin_msg "Running /scripts/local-top"
 		run_scripts /scripts/local-top
-		check_boolean "$quiet" || zfs_log_end_msg
+		check_boolean "${quiet}" || zfs_log_end_msg
 	fi
 
 	if type run_scripts > /dev/null 2>&1 && \
 	    [ -f "/scripts/local-premount" -o -d "/scripts/local-premount" ]
 	then
-		check_boolean "$quiet" || \
+		check_boolean "${quiet}" || \
 		    zfs_log_begin_msg "Running /scripts/local-premount"
 		run_scripts /scripts/local-premount
-		check_boolean "$quiet" || zfs_log_end_msg
+		check_boolean "${quiet}" || zfs_log_end_msg
 	fi
 }
 
@@ -48,13 +48,13 @@ pre_mountroot()
 # with more logging etc.
 load_module_initrd()
 {
-	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]
+	if [ "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}" -gt 0 ]
 	then
-		check_boolean "$quiet" || \
+		check_boolean "${quiet}" || \
 			zfs_log_begin_msg "Sleeping for" \
-				"$ZFS_INITRD_PRE_MOUNTROOT_SLEEP seconds..."
-		sleep "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP"
-		check_boolean "$quiet" || zfs_log_end_msg
+				"${ZFS_INITRD_PRE_MOUNTROOT_SLEEP} seconds..."
+		sleep "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}"
+		check_boolean "${quiet}" || zfs_log_end_msg
 	fi
 
 	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
@@ -71,13 +71,13 @@ load_module_initrd()
 	# Load the module
 	load_module "zfs" || return 1
 
-	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" -gt 0 ]
+	if [ "${ZFS_INITRD_POST_MODPROBE_SLEEP}" -gt 0 ]
 	then
-		check_boolean "$quiet" || \
+		check_boolean "${quiet}" || \
 			zfs_log_begin_msg "Sleeping for" \
-				"$ZFS_INITRD_POST_MODPROBE_SLEEP seconds..."
-		sleep "$ZFS_INITRD_POST_MODPROBE_SLEEP"
-		check_boolean "$quiet" || zfs_log_end_msg
+				"${ZFS_INITRD_POST_MODPROBE_SLEEP} seconds..."
+		sleep "${ZFS_INITRD_POST_MODPROBE_SLEEP}"
+		check_boolean "${quiet}" || zfs_log_end_msg
 	fi
 
 	return 0
@@ -127,17 +127,17 @@ mountroot()
 
 	# ------------
 	# Look for the cache file (if any).
-	[ ! -f ${ZPOOL_CACHE} ] && unset ZPOOL_CACHE
+	[ ! -f "${ZPOOL_CACHE}" ] && unset ZPOOL_CACHE
 
 	# ------------
 	# Compatibility: 'ROOT' is for Debian GNU/Linux (etc),
 	#		 'root' is for Redhat/Fedora (etc),
 	#		 'REAL_ROOT' is for Gentoo
-	if [ -z "$ROOT" ]
+	if [ -z "${ROOT}" ]
 	then
-		[ -n "$root" ] && ROOT=${root}
+		[ -n "${root}" ] && ROOT="${root}"
 
-		[ -n "$REAL_ROOT" ] && ROOT=${REAL_ROOT}
+		[ -n "${REAL_ROOT}" ] && ROOT="${REAL_ROOT}"
 	fi
 
 	# ------------
@@ -145,18 +145,18 @@ mountroot()
 	# Compatibility: 'rootmnt' is for Debian GNU/Linux (etc),
 	#		 'NEWROOT' is for RedHat/Fedora (etc),
 	#		 'NEW_ROOT' is for Gentoo
-	if [ -z "$rootmnt" ]
+	if [ -z "${rootmnt}" ]
 	then
-		[ -n "$NEWROOT" ] && rootmnt=${NEWROOT}
+		[ -n "${NEWROOT}" ] && rootmnt="${NEWROOT}"
 
-		[ -n "$NEW_ROOT" ] && rootmnt=${NEW_ROOT}
+		[ -n "${NEW_ROOT}" ] && rootmnt="${NEW_ROOT}"
 	fi
 
 	# ------------
 	# No longer set in the defaults file, but it could have been set in
 	# get_pools() in some circumstances. If it's something, but not 'yes',
 	# it's no good to us.
-	if [ -n "$USE_DISK_BY_ID" ] && ! check_boolean "$USE_DISK_BY_ID"; then
+	if [ -n "${USE_DISK_BY_ID}" ] && ! check_boolean "${USE_DISK_BY_ID}"; then
 		unset USE_DISK_BY_ID
 	fi
 
@@ -196,19 +196,19 @@ mountroot()
 
 	# ------------
 	# Look for 'rpool' and 'bootfs' parameter
-	[ -n "$rpool" ] && ZFS_RPOOL="${rpool#rpool=}"
-	[ -n "$bootfs" ] && ZFS_BOOTFS="${bootfs#bootfs=}"
+	[ -n "${rpool}" ] && ZFS_RPOOL="${rpool#rpool=}"
+	[ -n "${bootfs}" ] && ZFS_BOOTFS="${bootfs#bootfs=}"
 
 	# ------------
 	# If we have 'ROOT' (see above), but not 'ZFS_BOOTFS', then use
 	# 'ROOT'
-	[ -n "$ROOT" -a -z "${ZFS_BOOTFS}" ] && ZFS_BOOTFS="$ROOT"
+	[ -n "${ROOT}" -a -z "${ZFS_BOOTFS}" ] && ZFS_BOOTFS="${ROOT}"
 
 	# ------------
 	# Check for the `-B zfs-bootfs=%s/%u,...` kind of parameter.
 	# NOTE: Only use the pool name and dataset. The rest is not
 	#       supported by ZoL (whatever it's for).
-	if [ -z "$ZFS_RPOOL" ]
+	if [ -z "${ZFS_RPOOL}" ]
 	then
 		# The ${zfs-bootfs} variable is set at the kernel commmand
 		# line, usually by GRUB, but it cannot be referenced here
@@ -218,12 +218,12 @@ mountroot()
 		# Reassign the variable by dumping the environment and
 		# stripping the zfs-bootfs= prefix.  Let the shell handle
 		# quoting through the eval command.
-		eval ZFS_RPOOL=$(set | sed -n -e 's,^zfs-bootfs=,,p')
+		eval ZFS_RPOOL="$(set | sed -n -e 's,^zfs-bootfs=,,p')"
 	fi
 
 	# ------------
 	# No root fs or pool specified - do auto detect.
-	if [ -z "$ZFS_RPOOL" -a -z "${ZFS_BOOTFS}" ]
+	if [ -z "${ZFS_RPOOL}" -a -z "${ZFS_BOOTFS}" ]
 	then
 		# Do auto detect. Do this by 'cheating' - set 'root=zfs:AUTO'
 		# which will be caught later
@@ -234,33 +234,33 @@ mountroot()
 	# F I N D   A N D   I M P O R T   C O R R E C T   P O O L
 
 	# ------------
-	if [ "$ROOT" = "zfs:AUTO" ]
+	if [ "${ROOT}" = "zfs:AUTO" ]
 	then
 		# Try to detect both pool and root fs.
 
-		check_boolean "$quiet" || \
+		check_boolean "${quiet}" || \
 		    zfs_log_begin_msg "Attempting to import additional pools."
 
 		# Get a list of pools available for import
-		if [ -n "$ZFS_RPOOL" ]
+		if [ -n "${ZFS_RPOOL}" ]
 		then
 			# We've specified a pool - check only that
-			POOLS=$ZFS_RPOOL
+			POOLS="${ZFS_RPOOL}"
 		else
-			POOLS=$(get_pools)
+			POOLS="$(get_pools)"
 		fi
 
-		OLD_IFS="$IFS" ; IFS=";"
-		for pool in $POOLS
+		OLD_IFS="${IFS}" ; IFS=";"
+		for pool in ${POOLS}
 		do
-			[ -z "$pool" ] && continue
+			[ -z "${pool}" ] && continue
 
-			import_pool "$pool"
-			ZFS_BOOTFS="$(find_rootfs "$pool")"
+			import_pool "${pool}"
+			ZFS_BOOTFS="$(find_rootfs "${pool}")"
 		done
-		IFS="$OLD_IFS"
+		IFS="${OLD_IFS}"
 
-		check_boolean "$quiet" || zfs_log_end_msg $ZFS_ERROR
+		check_boolean "${quiet}" || zfs_log_end_msg "${ZFS_ERROR}"
 	else
 		# No auto - use value from the command line option.
 
@@ -272,7 +272,7 @@ mountroot()
 	fi
 
 	# Import the pool (if not already done so in the AUTO check above).
-	if [ -n "$ZFS_RPOOL" -a -z "${POOL_IMPORTED}" ]
+	if [ -n "${ZFS_RPOOL}" -a -z "${POOL_IMPORTED}" ]
 	then
 		import_pool "${ZFS_RPOOL}"
 		ZFS_BOOTFS="$(find_rootfs "${pool}")"
@@ -283,9 +283,9 @@ mountroot()
 		# No pool imported, this is serious!
 		disable_plymouth
 		echo ""
-		echo "Command: $ZFS_CMD"
-		echo "Message: $ZFS_STDERR"
-		echo "Error: $ZFS_ERROR"
+		echo "Command: ${ZFS_CMD}"
+		echo "Message: ${ZFS_STDERR}"
+		echo "Error: ${ZFS_ERROR}"
 		echo ""
 		echo "No pool imported. Manually import the root pool"
 		echo "at the command prompt and then exit."
@@ -313,8 +313,8 @@ mountroot()
 		echo "Error: Unknown root filesystem - no 'bootfs' pool property and"
 		echo "       not specified on the kernel command line."
 		echo ""
-		echo "Manually mount the root filesystem on $rootmnt and then exit."
-		echo "Hint: Try:  mount -o zfsutil -t zfs ${ZFS_RPOOL-rpool}/ROOT/system $rootmnt"
+		echo "Manually mount the root filesystem on ${rootmnt} and then exit."
+		echo "Hint: Try:  mount -o zfsutil -t zfs ${ZFS_RPOOL-rpool}/ROOT/system ${rootmnt}"
 		emergency_shell
 	fi
 
@@ -323,7 +323,7 @@ mountroot()
 
 	# * Ideally, the root filesystem would be mounted like this:
 	#
-	#     zpool import -R "$rootmnt" -N "$ZFS_RPOOL"
+	#     zpool import -R "${rootmnt}" -N "${ZFS_RPOOL}"
 	#     zfs mount -o mountpoint=/ "${ZFS_BOOTFS}"
 	#
 	#   but the MOUNTPOINT prefix is preserved on descendent filesystem
@@ -368,8 +368,8 @@ mountroot()
 		echo -n "   'c' for shell, 'r' for reboot, 'ENTER' to continue. "
 		read b
 
-		[ "$b" = "c" ] && emergency_shell
-		[ "$b" = "r" ] && reboot -f
+		[ "${b}" = "c" ] && emergency_shell
+		[ "${b}" = "r" ] && reboot -f
 
 		set +x
 	fi
@@ -379,9 +379,9 @@ mountroot()
 	if type run_scripts > /dev/null 2>&1 && \
 	    [ -f "/scripts/local-bottom" -o -d "/scripts/local-bottom" ]
 	then
-		check_boolean "$quiet" || \
+		check_boolean "${quiet}" || \
 		    zfs_log_begin_msg "Running /scripts/local-bottom"
 		run_scripts /scripts/local-bottom
-		check_boolean "$quiet" || zfs_log_end_msg
+		check_boolean "${quiet}" || zfs_log_end_msg
 	fi
 }

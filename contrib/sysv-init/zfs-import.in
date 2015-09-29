@@ -76,10 +76,10 @@ do_import_all_visible()
 	local exception dir ZPOOL_IMPORT_PATH RET=0 r=1
 
 	# In case not shutdown cleanly.
-	[ -n "$init" ] && rm -f /etc/dfs/sharetab
+	[ -n "${init}" ] && rm -f /etc/dfs/sharetab
 
 	# Just simplify code later on.
-	if [ -n "$USE_DISK_BY_ID" ] && ! check_boolean "$USE_DISK_BY_ID"
+	if [ -n "${USE_DISK_BY_ID}" ] && ! check_boolean "${USE_DISK_BY_ID}"
 	then
 		# It's something, but not 'yes' so it's no good to us.
 		unset USE_DISK_BY_ID
@@ -100,39 +100,39 @@ do_import_all_visible()
 	# Example: Importing ZFS pool pool1                             [OK]
 	#          Importing ZFS pool pool2                             [OK]
 	#          [etc]
-	[ -n "$init" ] && zfs_log_begin_msg "Importing ZFS pool(s)"
-	OLD_IFS="$IFS" ; IFS=";"
-	for pool in $POOLS
+	[ -n "${init}" ] && zfs_log_begin_msg "Importing ZFS pool(s)"
+	OLD_IFS="${IFS}" ; IFS=";"
+	for pool in ${POOLS}
 	do
-		[ -z "$pool" ] && continue
+		[ -z "${pool}" ] && continue
 
 		# We have pools that haven't been imported - import them
-		if [ -n "$init" ]
+		if [ -n "${init}" ]
 		then
 			# Not interactive - a dot for each pool.
 			# Except on Gentoo where this doesn't work.
 			zfs_log_progress_msg "."
 		else
 			# Interactive - one 'Importing ...' line per pool
-			zfs_log_begin_msg "Importing ZFS pool $pool"
+			zfs_log_begin_msg "Importing ZFS pool ${pool}"
 		fi
 
 		# Import the pool.
 		import_pool "${pool}"
 		r="$?" ; RET=$((RET + r))
-		if [ "$r" -eq 0 ]
+		if [ "${r}" -eq 0 ]
 		then
 			# Output success and process the next pool
-			[ -z "$init" ] && zfs_log_end_msg 0
+			[ -z "${init}" ] && zfs_log_end_msg 0
 			continue
 		fi
-		zfs_log_end_msg "$RET"
+		zfs_log_end_msg "${RET}"
 	done
-	[ -n "$init" ] && zfs_log_end_msg "$RET"
+	[ -n "${init}" ] && zfs_log_end_msg "${RET}"
 
-	IFS="$OLD_IFS"
+	IFS="${OLD_IFS}"
 
-	return "$RET"
+	return "${RET}"
 }
 
 do_import()
@@ -151,29 +151,29 @@ do_status()
 {
 	check_module_loaded "zfs" || exit 0
 
-	"$ZPOOL" status && echo "" && "$ZPOOL" list
+	"${ZPOOL}" status && echo "" && "${ZPOOL}" list
 }
 
 do_start()
 {
-	if check_boolean "$VERBOSE_MOUNT"
+	if check_boolean "${VERBOSE_MOUNT}"
 	then
 	    zfs_log_begin_msg "Checking if ZFS userspace tools present"
 	fi
 
 	if checksystem
 	then
-		check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
+		check_boolean "${VERBOSE_MOUNT}" && zfs_log_end_msg 0
 
-		check_boolean "$VERBOSE_MOUNT" && \
+		check_boolean "${VERBOSE_MOUNT}" && \
 			zfs_log_begin_msg "Loading kernel ZFS infrastructure"
 
 		if ! load_module "zfs"
 		then
-			check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 1
+			check_boolean "${VERBOSE_MOUNT}" && zfs_log_end_msg 1
 			return 5
 		fi
-		check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
+		check_boolean "${VERBOSE_MOUNT}" && zfs_log_end_msg 0
 
 		do_import && udev_trigger # just to make sure we get zvols.
 
