@@ -42,9 +42,9 @@ INSTALLING INIT SCRIPT LINKS
   To setup the init script links in /etc/rc?.d manually on a Debian GNU/Linux
   (or derived) system, run the following commands (the order is important!):
 
-    update-rc.d zfs-import start 07 S .       stop 08 0 1 6 .
-    update-rc.d zfs-mount  start 02 2 3 4 5 . stop 07 0 1 6 .
-    update-rc.d zfs-zed    start 26 2 3 4 5 . stop 06 0 1 6 .
+    update-rc.d zfs-import start 07 S .       stop 07 0 1 6 .
+    update-rc.d zfs-mount  start 02 2 3 4 5 . stop 06 0 1 6 .
+    update-rc.d zfs-zed    start 07 2 3 4 5 . stop 08 0 1 6 .
     update-rc.d zfs-share  start 27 2 3 4 5 . stop 05 0 1 6 .
 
   To do the same on RedHat, Fedora and/or CentOS:

@@ -112,13 +112,13 @@ zfs_action()
 	local CMD="$*"
 	local ret
 
-	zfs_log_begin_msg "$MSG "
+	([ "${quiet}" != "y" ] || check_zfs_debug) && zfs_log_begin_msg "$MSG "
 	$CMD
 	ret=$?
 	if [ "$ret" -eq 0 ]; then
-		zfs_log_end_msg $ret
+		([ "${quiet}" != "y" ] || check_zfs_debug) && zfs_log_end_msg $ret
 	else
-		zfs_log_failure_msg $ret
+		([ "${quiet}" != "y" ] || check_zfs_debug) && zfs_log_failure_msg $ret
 	fi
 
 	return $ret
@@ -310,6 +310,25 @@ get_root_pool()
 	[ "$5" = "zfs" ] && echo "${1%%/*}"
 }
 
+# Check if a variable is 'yes' (any case) or '1'
+# Returns TRUE if set.
+check_boolean()
+{
+	local var="$1"
+
+	echo "$var" | grep -Eiq "^yes$|^1$" && return 0 || return 1
+}
+
+# Check to see if we're running in debug mode
+# Returns
+#   0 if debugging enabled
+#   1 if debugging disabled
+check_zfs_debug()
+{
+	grep -qiE '(^|[^\\](\\\\)* )(zfs_debug|zfs\.debug|zfsdebug)=(on|yes|[0-9])( |$)' \
+		/proc/cmdline
+}
+
 check_module_loaded()
 {
 	module="$1"
@@ -348,12 +367,12 @@ read_mtab()
 			# * We need to use the external echo, because the
 			#   internal one would interpret the backslash code
 			#   (incorrectly), giving us a  instead.
-			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,")
+			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,g")
 			fs=$(/bin/echo "$fs" | sed "s,\\\0,\\\00,")
 
-			# Replace 'unwanted' characters with underscore.
-			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,_,g' \
-			    -e 's,-,_,g' -e 's,\.,_,g' -e 's, ,_,g')
+			# Remove 'unwanted' characters.
+			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
+			    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
 			fs=$(printf '%b\n' "$fs")
 
 			# Set the variable.

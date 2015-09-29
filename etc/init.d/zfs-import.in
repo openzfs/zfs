@@ -209,7 +209,7 @@ do_import()
 		# Import by using ZPOOL_IMPORT_PATH (either set above or in
 		# the config file) _or_ with the 'built in' default search
 		# paths. This is the prefered way.
-		"$ZPOOL" import -N "$pool" 2> /dev/null
+		"$ZPOOL" import -N ${ZPOOL_IMPORT_OPTS} "$pool" 2> /dev/null
 		r="$?" ; RET=$((RET + r))
 		if [ "$r" -eq 0 ]
 		then
@@ -224,13 +224,14 @@ do_import()
 		if [ "$r" -gt 0 -a -f "$ZPOOL_CACHE" ]
 		then
 			# Failed to import without a cache file. Try WITH...
-			if [ -z "$init" -a "$VERBOSE_MOUNT" = 'yes' ]
+			if [ -z "$init" ] && check_boolean "$VERBOSE_MOUNT"
 			then
 				# Interactive + Verbose = more information
 				zfs_log_progress_msg " using cache file"
 			fi
 
-			"$ZPOOL" import -c "$ZPOOL_CACHE" -N "$pool" 2> /dev/null
+			"$ZPOOL" import -c "$ZPOOL_CACHE" -N ${ZPOOL_IMPORT_OPTS} \
+				"$pool" 2> /dev/null
 			r="$?" ; RET=$((RET + r))
 			if [ "$r" -eq 0 ]
 			then
@@ -295,26 +296,24 @@ do_status()
 
 do_start()
 {
-	if [ "$VERBOSE_MOUNT" = 'yes' ]
+	if check_boolean "$VERBOSE_MOUNT"
 	then
 	    zfs_log_begin_msg "Checking if ZFS userspace tools present"
 	fi
 
 	if checksystem
 	then
-		[ "$VERBOSE_MOUNT" = 'yes' ] && zfs_log_end_msg 0
+		check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
 
-		if [ "$VERBOSE_MOUNT" = 'yes' ]
-		then
-		    zfs_log_begin_msg "Loading kernel ZFS infrastructure"
-		fi
+		check_boolean "$VERBOSE_MOUNT" && \
+			zfs_log_begin_msg "Loading kernel ZFS infrastructure"
 
 		if ! load_module "zfs"
 		then
-			[ "$VERBOSE_MOUNT" = 'yes' ] && zfs_log_end_msg 1
+			check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 1
 			return 5
 		fi
-		[ "$VERBOSE_MOUNT" = 'yes' ] && zfs_log_end_msg 0
+		check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
 
 		do_import && udev_trigger # just to make sure we get zvols.
 
