@@ -110,6 +110,12 @@ fi
 
 # ----------------------------------------------------
 
+# Run a command, output a message if quiet != 'y' OR if running
+# with debugging enabled.
+#
+# Returns whatever the command returns.
+#
+# Uses 'lowlevel' zfs_run_cmd() above to capture return code and stderr+stdout.
 zfs_action()
 {
 	local MSG="$1";	shift
@@ -224,6 +230,7 @@ zfs_daemon_status()
 	return 0
 }
 
+# Stop a daemon.
 zfs_daemon_reload()
 {
 	local PIDFILE="$1"
@@ -246,6 +253,8 @@ zfs_daemon_reload()
 	return 0
 }
 
+# Check if ZFS is installed and working properly.
+# Will catch a problem with libraries as well.
 zfs_installed()
 {
 	if [ ! -x "$ZPOOL" ]; then
@@ -308,6 +317,8 @@ checksystem()
 	return 0
 }
 
+# Check if the mounted root filesystem is a ZFS filesystem. If so, return
+# the dataset name.
 get_root_pool()
 {
 	set -- $(mount | grep ' on / ')
@@ -323,6 +334,7 @@ check_boolean()
 	echo "$var" | grep -Eiq "^yes$|^on$|^true$|^1$" && return 0 || return 1
 }
 
+# Check if the specified module is loaded.
 check_module_loaded()
 {
 	module="$1"
@@ -330,6 +342,7 @@ check_module_loaded()
 	[ -r "/sys/module/${module}/version" ] && return 0 || return 1
 }
 
+# Load specified module.
 load_module()
 {
 	module="$1"
@@ -343,7 +356,9 @@ load_module()
 	return 0
 }
 
-# first parameter is a regular expression that filters mtab
+# Load the list of all mounted filsystems, recording filesystem, mountpint
+# etc for later use in in_mtab().
+# First parameter is a regular expression that filters mtab
 read_mtab()
 {
 	local match="$1"
@@ -375,6 +390,7 @@ read_mtab()
 	done < /proc/mounts
 }
 
+# Check if specified filesystem is mounted.
 in_mtab()
 {
 	local fs="$(echo "$1" | sed 's,/,_,g')"
@@ -385,7 +401,10 @@ in_mtab()
 	return "$?"
 }
 
-# first parameter is a regular expression that filters fstab
+# Load the list of all enabled ('not commented out') filesystems from
+# /etc/fstab, recording filesystem, mountpint etc for later use in
+# in_fstab().
+# First parameter is a regular expression that filters fstab
 read_fstab()
 {
 	local match="$1"
@@ -408,6 +427,7 @@ read_fstab()
 	done < /etc/fstab
 }
 
+# Check to see if specified filesystem is in fstab
 in_fstab()
 {
 	local var
@@ -417,6 +437,7 @@ in_fstab()
 	return $?
 }
 
+# Check if specified mountpoint is mounted.
 is_mounted()
 {
 	local mntpt="$1"
@@ -937,6 +958,12 @@ EOT
 	echo "$(eval echo "$"SNAP_$snapnr)"
 }
 
+# If we want to boot from a snapshot, we need to first:
+#   * rollback the snapshot (and desendants) into a bootable filesystem
+# OR
+#   * Clone snapshot (and desendants) into a new filesystem and use that
+#     as the root filesystem.
+#     Make sure to keep track of the mountpoint propery.
 setup_snapshot_booting()
 {
 	local snap="$1"
@@ -1016,6 +1043,7 @@ setup_snapshot_booting()
 	return "${retval}"
 }
 
+# Check if the/a root fs is mounted.
 chkroot() {
 	while read line; do
 		set -- $line
@@ -1027,9 +1055,10 @@ chkroot() {
 	return 1
 }
 
+# For some reason, the init function library have a problem
+# with a changed IFS, so this function goes around that by
+# using a temporary global variable (TMP_IFS).
 zfs_set_ifs() {
-	# For some reason, the init function library have a problem
-	# with a changed IFS, so this function goes around that.
 	local tIFS="$1"
 	if [ -n "$tIFS" ]
 	then

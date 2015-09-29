@@ -70,6 +70,8 @@ do_mount()
 	check_boolean "$VERBOSE_MOUNT" && \
 	    zfs_log_begin_msg "Mounting volumes and filesystems registered in fstab"
 
+	# Make sure to fsck (and mount) any zvols we want to mount later
+	# that isn't already mounted.
 	read_mtab  "^/dev/(zd|zvol)"
 	read_fstab "^/dev/(zd|zvol)"
 	i=0; var=$(eval echo FSTAB_$i)
@@ -88,6 +90,7 @@ do_mount()
 		var=$(eval echo FSTAB_$i)
 	done
 
+	# Mount any zfs and/or zvols in fstab not already mounted.
 	read_mtab  "[[:space:]]zfs[[:space:]]"
 	read_fstab "[[:space:]]zfs[[:space:]]"
 	i=0; var=$(eval echo FSTAB_$i)
