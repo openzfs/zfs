@@ -485,6 +485,7 @@ zfs_inode_update(znode_t *zp)
 	zfs_sb_t	*zsb;
 	struct inode	*ip;
 	uint32_t	blksize;
+	u_longlong_t	i_blocks;
 	uint64_t	atime[2], mtime[2], ctime[2];
 
 	ASSERT(zp != NULL);
@@ -499,6 +500,8 @@ zfs_inode_update(znode_t *zp)
 	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zsb), &mtime, 16);
 	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zsb), &ctime, 16);
 
+	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
+
 	spin_lock(&ip->i_lock);
 	ip->i_generation = zp->z_gen;
 	ip->i_uid = SUID_TO_KUID(zp->z_uid);
@@ -507,8 +510,7 @@ zfs_inode_update(znode_t *zp)
 	ip->i_mode = zp->z_mode;
 	zfs_set_inode_flags(zp, ip);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
-	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize,
-	    (u_longlong_t *)&ip->i_blocks);
+	ip->i_blocks = i_blocks;
 
 	ZFS_TIME_DECODE(&ip->i_atime, atime);
 	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
