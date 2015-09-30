@@ -654,14 +654,20 @@ import_pool()
 			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
 			disable_plymouth
-			echo ""
-			echo "Command: ${ZFS_CMD} '$pool'"
-			echo "Message: $ZFS_STDERR"
-			echo "Error: $ZFS_ERROR"
-			echo ""
-			echo "Failed to import pool '$pool'."
-			echo "Manually import the pool and exit."
-			emergency_shell
+			if [ "$?" -ne "123" ]; then
+				echo ""
+				echo "Command: ${ZFS_CMD} '$pool'"
+				echo "Message: $ZFS_STDERR"
+				echo "Error: $ZFS_ERROR"
+				echo ""
+				echo "Failed to import pool '$pool'."
+				echo "Manually import the pool and exit."
+				emergency_shell
+			else
+				return 1
+			fi
+		else
+			return 1
 		fi
 	fi
 
@@ -730,14 +736,18 @@ mount_fs()
 		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
 		disable_plymouth
-		echo ""
-		echo "Command: ${ZFS_CMD} ${fs} ${rootmnt}/${mountpoint}"
-		echo "Message: $ZFS_STDERR"
-		echo "Error: $ZFS_ERROR"
-		echo ""
-		echo "Failed to mount ${fs} on ${rootmnt}/${mountpoint}."
-		echo "Manually mount the filesystem and exit."
-		emergency_shell
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: ${ZFS_CMD} ${fs} ${rootmnt}/${mountpoint}"
+			echo "Message: $ZFS_STDERR"
+			echo "Error: $ZFS_ERROR"
+			echo ""
+			echo "Failed to mount ${fs} on ${rootmnt}/${mountpoint}."
+			echo "Manually mount the filesystem and exit."
+			emergency_shell
+		else
+			return 1
+		fi
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -774,16 +784,20 @@ decrypt_fs()
 			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
 			disable_plymouth
-			echo ""
-			echo "Command: $ZFS_CMD"
-			echo "Message: $ZFS_STDERR"
-			echo "Error: $ZFS_ERROR"
-			echo ""
-			echo "Failed to load $mod module."
-			echo "Please verify that it is availible on the initrd image"
-			echo "(without it it won't be possible to unlock the filesystem)"
-			echo "and rerun:  $ZFS_CMD"
-			emergency_shell
+			if [ "$?" -ne "123" ]; then
+				echo ""
+				echo "Command: $ZFS_CMD"
+				echo "Message: $ZFS_STDERR"
+				echo "Error: $ZFS_ERROR"
+				echo ""
+				echo "Failed to load $mod module."
+				echo "Please verify that it is availible on the initrd image"
+				echo "(without it it won't be possible to unlock the filesystem)"
+				echo "and rerun:  $ZFS_CMD"
+				emergency_shell
+			else
+				return 1
+			fi
 		else
 			[ "$quiet" != "y" ] && zfs_log_end_msg
 		fi
@@ -799,15 +813,19 @@ decrypt_fs()
 		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
 		disable_plymouth
-		echo ""
-		echo "Command: $ZFS_CMD"
-		echo "Message: $ZFS_STDERR"
-		echo "Error: $ZFS_ERROR"
-		echo ""
-		echo "Failed to load zfs encryption wrapper key (s)."
-		echo "Please verify dataset property 'keysource' for datasets"
-		echo "and rerun:  $ZFS_CMD"
-		emergency_shell
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: $ZFS_CMD"
+			echo "Message: $ZFS_STDERR"
+			echo "Error: $ZFS_ERROR"
+			echo ""
+			echo "Failed to load zfs encryption wrapper key (s)."
+			echo "Please verify dataset property 'keysource' for datasets"
+			echo "and rerun:  $ZFS_CMD"
+			emergency_shell
+		else
+			return 1
+		fi
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -831,15 +849,19 @@ destroy_fs()
 		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
 		disable_plymouth
-		echo ""
-		echo "Command: $ZFS_CMD"
-		echo "Message: $ZFS_STDERR"
-		echo "Error: $ZFS_ERROR"
-		echo ""
-		echo "Failed to destroy '$fs'. Please make sure that '$fs' is not availible."
-		echo "Hint: Try:  zfs destroy -Rfn $fs"
-		echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
-		emergency_shell
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: $ZFS_CMD"
+			echo "Message: $ZFS_STDERR"
+			echo "Error: $ZFS_ERROR"
+			echo ""
+			echo "Failed to destroy '$fs'. Please make sure that '$fs' is not availible."
+			echo "Hint: Try:  zfs destroy -Rfn $fs"
+			echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
+			emergency_shell
+		else
+			return 1
+		fi
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -874,15 +896,19 @@ clone_snap()
 		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
 		disable_plymouth
-		echo ""
-		echo "Command: $ZFS_CMD"
-		echo "Message: $ZFS_STDERR"
-		echo "Error: $ZFS_ERROR"
-		echo ""
-		echo "Failed to clone snapshot."
-		echo "Make sure that the any problems are corrected and then make sure"
-		echo "that the dataset '$destfs' exists and is bootable."
-		emergency_shell
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: $ZFS_CMD"
+			echo "Message: $ZFS_STDERR"
+			echo "Error: $ZFS_ERROR"
+			echo ""
+			echo "Failed to clone snapshot."
+			echo "Make sure that the any problems are corrected and then make sure"
+			echo "that the dataset '$destfs' exists and is bootable."
+			emergency_shell
+		else
+			return 1
+		fi
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -905,13 +931,17 @@ rollback_snap()
 		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
 
 		disable_plymouth
-		echo ""
-		echo "Command: $ZFS_CMD"
-		echo "Message: $ZFS_STDERR"
-		echo "Error: $ZFS_ERROR"
-		echo ""
-		echo "Failed to rollback snapshot."
-		emergency_shell
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: $ZFS_CMD"
+			echo "Message: $ZFS_STDERR"
+			echo "Error: $ZFS_ERROR"
+			echo ""
+			echo "Failed to rollback snapshot."
+			emergency_shell
+		else
+			return 1
+		fi
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -1053,6 +1083,18 @@ chkroot() {
 	done < /etc/mtab
 
 	return 1
+}
+
+# If plymouth is availible, hide the splash image.
+disable_plymouth()
+{
+	if [ -x /bin/plymouth ] && /bin/plymouth --ping
+	then
+		/bin/plymouth hide-splash >/dev/null 2>&1
+	else
+		# Return a value we know isn't something plymouth would return
+		return 123
+	fi
 }
 
 # For some reason, the init function library have a problem

@@ -39,15 +39,6 @@ pre_mountroot()
 	fi
 }
 
-# If plymouth is availible, hide the splash image.
-disable_plymouth()
-{
-	if [ -x /bin/plymouth ] && /bin/plymouth --ping
-	then
-		/bin/plymouth hide-splash >/dev/null 2>&1
-	fi
-}
-
 # Load ZFS modules
 # Loading a module in a initrd require a slightly different approach,
 # with more logging etc.
