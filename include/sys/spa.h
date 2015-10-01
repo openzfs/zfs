@@ -690,7 +690,6 @@ extern spa_t *spa_next(spa_t *prev);
 /* Refcount functions */
 extern void spa_open_ref(spa_t *spa, void *tag);
 extern void spa_close(spa_t *spa, void *tag);
-extern void spa_async_close(spa_t *spa, void *tag);
 extern boolean_t spa_refcount_zero(spa_t *spa);
 
 #define	SCL_NONE	0x00
@@ -801,9 +800,6 @@ extern uint64_t spa_version(spa_t *spa);
 extern boolean_t spa_deflate(spa_t *spa);
 extern metaslab_class_t *spa_normal_class(spa_t *spa);
 extern metaslab_class_t *spa_log_class(spa_t *spa);
-extern void spa_evicting_os_register(spa_t *, objset_t *os);
-extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
-extern void spa_evicting_os_wait(spa_t *spa);
 extern int spa_max_replication(spa_t *spa);
 extern int spa_prev_software_version(spa_t *spa);
 extern uint8_t spa_get_failmode(spa_t *spa);

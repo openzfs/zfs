@@ -278,7 +278,6 @@ typedef struct dnode_handle {
 } dnode_handle_t;
 
 typedef struct dnode_children {
-	dmu_buf_user_t dnc_dbu;		/* User evict data */
 	size_t dnc_count;		/* number of children */
 	dnode_handle_t dnc_children[];	/* sized dynamically */
 } dnode_children_t;
@@ -289,7 +288,7 @@ typedef struct free_range {
 	uint64_t fr_nblks;
 } free_range_t;
 
-void dnode_special_open(struct objset *dd, dnode_phys_t *dnp,
+dnode_t *dnode_special_open(struct objset *dd, dnode_phys_t *dnp,
     uint64_t object, dnode_handle_t *dnh);
 void dnode_special_close(dnode_handle_t *dnh);
 

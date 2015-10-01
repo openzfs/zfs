@@ -355,7 +355,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 	objset_t *mos;
 	int numholds;
 
-	if (!ds->ds_is_snapshot)
+	if (!dsl_dataset_is_snapshot(ds))
 		return (SET_ERROR(EINVAL));
 
 	if (nvlist_empty(holds))

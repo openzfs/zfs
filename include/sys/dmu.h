@@ -40,9 +40,11 @@
  * dmu_spa.h.
  */
 
-#include <sys/zfs_context.h>
 #include <sys/inttypes.h>
+#include <sys/types.h>
+#include <sys/param.h>
 #include <sys/cred.h>
+#include <sys/time.h>
 #include <sys/fs/zfs.h>
 #include <sys/uio.h>
 
@@ -288,6 +290,8 @@ typedef struct dmu_buf {
 	void *db_data;			/* data in buffer */
 } dmu_buf_t;
 
+typedef void dmu_buf_evict_func_t(struct dmu_buf *db, void *user_ptr);
+
 /*
  * The names of zap entries in the DIRECTORY_OBJECT of the MOS.
  */
@@ -489,126 +493,35 @@ int dmu_buf_hold_array_by_bonus(dmu_buf_t *db, uint64_t offset,
     uint64_t length, int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp);
 void dmu_buf_rele_array(dmu_buf_t **, int numbufs, void *tag);
 
-typedef void dmu_buf_evict_func_t(void *user_ptr);
-
 /*
- * A DMU buffer user object may be associated with a dbuf for the
- * duration of its lifetime.  This allows the user of a dbuf (client)
- * to attach private data to a dbuf (e.g. in-core only data such as a
- * dnode_children_t, zap_t, or zap_leaf_t) and be optionally notified
- * when that dbuf has been evicted.  Clients typically respond to the
- * eviction notification by freeing their private data, thus ensuring
- * the same lifetime for both dbuf and private data.
+ * Returns NULL on success, or the existing user ptr if it's already
+ * been set.
  *
- * The mapping from a dmu_buf_user_t to any client private data is the
- * client's responsibility.  All current consumers of the API with private
- * data embed a dmu_buf_user_t as the first member of the structure for
- * their private data.  This allows conversions between the two types
- * with a simple cast.  Since the DMU buf user API never needs access
- * to the private data, other strategies can be employed if necessary
- * or convenient for the client (e.g. using container_of() to do the
- * conversion for private data that cannot have the dmu_buf_user_t as
- * its first member).
+ * user_ptr is for use by the user and can be obtained via dmu_buf_get_user().
  *
- * Eviction callbacks are executed without the dbuf mutex held or any
- * other type of mechanism to guarantee that the dbuf is still available.
- * For this reason, users must assume the dbuf has already been freed
- * and not reference the dbuf from the callback context.
+ * If non-NULL, pageout func will be called when this buffer is being
+ * excised from the cache, so that you can clean up the data structure
+ * pointed to by user_ptr.
  *
- * Users requesting "immediate eviction" are notified as soon as the dbuf
- * is only referenced by dirty records (dirties == holds).  Otherwise the
- * notification occurs after eviction processing for the dbuf begins.
+ * dmu_evict_user() will call the pageout func for all buffers in a
+ * objset with a given pageout func.
  */
-typedef struct dmu_buf_user {
-	/*
-	 * Asynchronous user eviction callback state.
-	 */
-	taskq_ent_t	dbu_tqent;
-
-	/* This instance's eviction function pointer. */
-	dmu_buf_evict_func_t *dbu_evict_func;
-#ifdef ZFS_DEBUG
-	/*
-	 * Pointer to user's dbuf pointer.  NULL for clients that do
-	 * not associate a dbuf with their user data.
-	 *
-	 * The dbuf pointer is cleared upon eviction so as to catch
-	 * use-after-evict bugs in clients.
-	 */
-	dmu_buf_t **dbu_clear_on_evict_dbufp;
-#endif
-} dmu_buf_user_t;
-
+void *dmu_buf_set_user(dmu_buf_t *db, void *user_ptr,
+    dmu_buf_evict_func_t *pageout_func);
 /*
- * Initialize the given dmu_buf_user_t instance with the eviction function
- * evict_func, to be called when the user is evicted.
- *
- * NOTE: This function should only be called once on a given dmu_buf_user_t.
- *       To allow enforcement of this, dbu must already be zeroed on entry.
+ * set_user_ie is the same as set_user, but request immediate eviction
+ * when hold count goes to zero.
  */
-#ifdef __lint
-/* Very ugly, but it beats issuing suppression directives in many Makefiles. */
-extern void
-dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func,
-    dmu_buf_t **clear_on_evict_dbufp);
-#else /* __lint */
-static inline void
-dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func,
-    dmu_buf_t **clear_on_evict_dbufp)
-{
-	ASSERT(dbu->dbu_evict_func == NULL);
-	ASSERT(evict_func != NULL);
-	dbu->dbu_evict_func = evict_func;
-	taskq_init_ent(&dbu->dbu_tqent);
-#ifdef ZFS_DEBUG
-	dbu->dbu_clear_on_evict_dbufp = clear_on_evict_dbufp;
-#endif
-}
-#endif /* __lint */
+void *dmu_buf_set_user_ie(dmu_buf_t *db, void *user_ptr,
+    dmu_buf_evict_func_t *pageout_func);
+void *dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr,
+    void *user_ptr, dmu_buf_evict_func_t *pageout_func);
+void dmu_evict_user(objset_t *os, dmu_buf_evict_func_t *func);
 
 /*
- * Attach user data to a dbuf and mark it for normal (when the dbuf's
- * data is cleared or its reference count goes to zero) eviction processing.
- *
- * Returns NULL on success, or the existing user if another user currently
- * owns the buffer.
- */
-void *dmu_buf_set_user(dmu_buf_t *db, dmu_buf_user_t *user);
-
-/*
- * Attach user data to a dbuf and mark it for immediate (its dirty and
- * reference counts are equal) eviction processing.
- *
- * Returns NULL on success, or the existing user if another user currently
- * owns the buffer.
- */
-void *dmu_buf_set_user_ie(dmu_buf_t *db, dmu_buf_user_t *user);
-
-/*
- * Replace the current user of a dbuf.
- *
- * If given the current user of a dbuf, replaces the dbuf's user with
- * "new_user" and returns the user data pointer that was replaced.
- * Otherwise returns the current, and unmodified, dbuf user pointer.
- */
-void *dmu_buf_replace_user(dmu_buf_t *db,
-    dmu_buf_user_t *old_user, dmu_buf_user_t *new_user);
-
-/*
- * Remove the specified user data for a DMU buffer.
- *
- * Returns the user that was removed on success, or the current user if
- * another user currently owns the buffer.
- */
-void *dmu_buf_remove_user(dmu_buf_t *db, dmu_buf_user_t *user);
-
-/*
- * Returns the user data (dmu_buf_user_t *) associated with this dbuf.
+ * Returns the user_ptr set with dmu_buf_set_user(), or NULL if not set.
  */
 void *dmu_buf_get_user(dmu_buf_t *db);
-
-/* Block until any in-progress dmu buf user evictions complete. */
-void dmu_buf_user_evict_wait(void);
 
 /*
  * Returns the blkptr associated with this dbuf, or NULL if not set.

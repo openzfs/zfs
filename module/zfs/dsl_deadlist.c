@@ -122,8 +122,6 @@ dsl_deadlist_close(dsl_deadlist_t *dl)
 	void *cookie = NULL;
 	dsl_deadlist_entry_t *dle;
 
-	dl->dl_os = NULL;
-
 	if (dl->dl_oldfmt) {
 		dl->dl_oldfmt = B_FALSE;
 		bpobj_close(&dl->dl_bpobj);

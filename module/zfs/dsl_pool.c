@@ -327,8 +327,6 @@ dsl_pool_close(dsl_pool_t *dp)
 
 	txg_fini(dp);
 	dsl_scan_fini(dp);
-	dmu_buf_user_evict_wait();
-
 	rrw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);
 	taskq_destroy(dp->dp_iput_taskq);
