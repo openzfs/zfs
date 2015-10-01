@@ -357,8 +357,10 @@ zhack_do_feature_enable(int argc, char **argv)
 	zhack_spa_open(target, B_FALSE, FTAG, &spa);
 	mos = spa->spa_meta_objset;
 
-	if (zfeature_is_supported(feature.fi_guid))
-		fatal(spa, FTAG, "'%s' is a real feature, will not enable");
+	if (zfeature_is_supported(feature.fi_guid) && (g_force == B_FALSE))
+		fatal(spa, FTAG,
+		    "'%s' is a real feature, will not enable\n"
+		    "provide the -f option to force override", feature.fi_guid);
 	if (0 == zap_contains(mos, spa->spa_feat_desc_obj, feature.fi_guid))
 		fatal(spa, FTAG, "feature already enabled: %s",
 		    feature.fi_guid);
