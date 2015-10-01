@@ -58,12 +58,13 @@ libzfs_handle_t *g_zfs;
 static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
+static boolean_t g_force = B_FALSE;
 
 static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: %s [-c cachefile] [-d dir] <subcommand> <args> ...\n"
+	    "Usage: %s [-c cachefile] [-d dir] [-f] <subcommand> <args> ...\n"
 	    "where <subcommand> <args> is one of the following:\n"
 	    "\n", cmdname);
 
@@ -73,6 +74,9 @@ usage(void)
 	    "    feature enable [-d desc] <pool> <feature>\n"
 	    "        add a new enabled feature to the pool\n"
 	    "        -d <desc> sets the feature's description\n"
+	    "    feature disable <pool> <feature>\n"
+	    "        remove an enabled, but not active, feature\n"
+	    "        from the pool.\n"
 	    "    feature ref [-md] <pool> <feature>\n"
 	    "        change the refcount on the given feature\n"
 	    "        -d decrease instead of increase the refcount\n"
@@ -368,6 +372,94 @@ zhack_do_feature_enable(int argc, char **argv)
 }
 
 static void
+zhack_feature_disable_sync(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	zfeature_info_t *feature = arg;
+
+	feature_disable_sync(spa, feature, tx);
+
+	spa_history_log_internal(spa, "zhack disable feature", tx,
+	    "name=%s can_readonly=%u",
+	    feature->fi_guid, feature->fi_can_readonly);
+}
+
+static void
+zhack_do_feature_disable(int argc, char **argv)
+{
+	char c;
+	char *target;
+	uint64_t count;
+	spa_t *spa;
+	objset_t *mos;
+	zfeature_info_t feature;
+	spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
+
+	/*
+	 * fi_desc does not matter here because it was written to disk
+	 * when the feature was enabled, but we need to properly set the
+	 * feature for read or write based on the information we read off
+	 * disk later.
+	 */
+	feature.fi_uname = "zhack";
+	feature.fi_mos = B_TRUE;
+	feature.fi_desc = NULL;
+	feature.fi_depends = nodeps;
+	feature.fi_feature = SPA_FEATURE_NONE;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "")) != -1) {
+		switch (c) {
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 2) {
+		(void) fprintf(stderr, "error: missing feature or pool name\n");
+		usage();
+	}
+	target = argv[0];
+	feature.fi_guid = argv[1];
+
+	if (!zfeature_is_valid_guid(feature.fi_guid))
+		fatal(NULL, FTAG, "invalid feature guid: %s", feature.fi_guid);
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+	mos = spa->spa_meta_objset;
+
+	if (zfeature_is_supported(feature.fi_guid) && (g_force == B_FALSE)) {
+		fatal(spa, FTAG,
+		    "'%s' is a real feature, will not disable\n"
+		    "provide the -f option to force override", feature.fi_guid);
+	}
+
+	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,
+	    feature.fi_guid)) {
+		feature.fi_can_readonly = B_FALSE;
+	} else if (0 == zap_contains(mos, spa->spa_feat_for_write_obj,
+	    feature.fi_guid)) {
+		feature.fi_can_readonly = B_TRUE;
+	} else {
+		fatal(spa, FTAG, "feature is not enabled: %s", feature.fi_guid);
+	}
+
+	if (feature_get_refcount_from_disk(spa, &feature, &count) == 0 &&
+	    count > 0) {
+		fatal(spa, FTAG, "feature '%s' is active, can not disable",
+		    feature.fi_guid);
+	}
+
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+	    zhack_feature_disable_sync, &feature, 5, ZFS_SPACE_CHECK_NORMAL));
+
+	spa_close(spa, FTAG);
+}
+
+static void
 feature_incr_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
@@ -495,6 +587,8 @@ zhack_do_feature(int argc, char **argv)
 		zhack_do_feature_stat(argc, argv);
 	} else if (strcmp(subcommand, "enable") == 0) {
 		zhack_do_feature_enable(argc, argv);
+	} else if (strcmp(subcommand, "disable") == 0) {
+		zhack_do_feature_disable(argc, argv);
 	} else if (strcmp(subcommand, "ref") == 0) {
 		zhack_do_feature_ref(argc, argv);
 	} else {
@@ -523,7 +617,7 @@ main(int argc, char **argv)
 	dprintf_setup(&argc, argv);
 	zfs_prop_init();
 
-	while ((c = getopt(argc, argv, "c:d:")) != -1) {
+	while ((c = getopt(argc, argv, "c:d:f")) != -1) {
 		switch (c) {
 		case 'c':
 			g_importargs.cachefile = optarg;
@@ -531,6 +625,9 @@ main(int argc, char **argv)
 		case 'd':
 			assert(g_importargs.paths < MAX_NUM_PATHS);
 			g_importargs.path[g_importargs.paths++] = optarg;
+			break;
+		case 'f':
+			g_force = B_TRUE;
 			break;
 		default:
 			usage();
