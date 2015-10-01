@@ -249,7 +249,7 @@ mountroot()
 			[ -z "$pool" ] && continue
 
 			import_pool "$pool"
-			find_rootfs "$pool"
+			ZFS_BOOTFS="$(find_rootfs "$pool")"
 		done
 		IFS="$OLD_IFS"
 
@@ -268,7 +268,7 @@ mountroot()
 	if [ -n "$ZFS_RPOOL" -a -z "${POOL_IMPORTED}" ]
 	then
 		import_pool "${ZFS_RPOOL}"
-		find_rootfs "${ZFS_RPOOL}"
+		ZFS_BOOTFS="$(find_rootfs "${pool}")"
 	fi
 
 	if [ -z "${POOL_IMPORTED}" ]

@@ -462,37 +462,34 @@ get_fs_value()
 	"${ZFS}" get -H -ovalue $value "$fs" 2> /dev/null
 }
 
+# Get a ZFS pool property value.
+get_pool_property()
+{
+	local pool="$1"
+	local property="$2"
+
+	# NOTE: zpool does not support 'get -H -ovalue <property>'...
+	"${ZPOOL}" list -H -o"${property}" "${pool}"
+}
+
 # Find the 'bootfs' property on pool $1.
 # If the property does not contain '/', then ignore this
 # pool by exporting it again.
 find_rootfs()
 {
 	local pool="$1"
+	local fs
 
-	# If 'POOL_IMPORTED' isn't set, no pool imported and therefor
-	# we won't be able to find a root fs.
-	[ -z "${POOL_IMPORTED}" ] && return 1
-
-	# If it's already specified, just keep it mounted and exit
-	# User (kernel command line) must be correct.
-	[ -n "${ZFS_BOOTFS}" ] && return 0
-
-	# Not set, try to find it in the 'bootfs' property of the pool.
-	# NOTE: zpool does not support 'get -H -ovalue bootfs'...
-	ZFS_BOOTFS=$("${ZPOOL}" list -H -obootfs "$pool")
+	# Look for a set 'bootfs' property of the pool.
+	fs="$(get_pool_property "${pool}" bootfs)"
 
 	# Make sure it's not '-' and that it starts with /.
-	if [ "${ZFS_BOOTFS}" != "-" ] && \
-		$(get_fs_value "${ZFS_BOOTFS}" mountpoint | grep -q '^/$')
+	if [ "${fs}" != "-" ] && \
+		$(get_fs_value "${fs}" mountpoint | grep -q '^/$')
 	then
-		# Keep it mounted
-		POOL_IMPORTED=1
+		echo "${fs}"
 		return 0
 	fi
-
-	# Not boot fs here, export it and later try again..
-	"${ZPOOL}" export "$pool"
-	POOL_IMPORTED=""
 
 	return 1
 }
@@ -681,13 +678,22 @@ import_pool()
 mount_fs()
 {
 	local fs="$1"
+	local mntpnt="$2"
+	local mntopt="$3"
 	local mountpoint
 
 	# Check that the filesystem exists
 	"${ZFS}" list -oname -tfilesystem -H "${fs}" > /dev/null 2>&1
 	[ "$?" -ne 0 ] && return 1
 
+	# If we're called with opts, prefix it with a comma
+	[ -n "${mntopt}" ] && mntopt=",${mntopt}"
+
 	# Need the _original_ datasets mountpoint!
+	# We do this even if we're called with a mountpoint so that we
+	# can figure out what 'mount' command to use (legacy or native fs).
+	# We overwrite the 'mountpoint' variable later if we are called
+	# with a mountpoint.
 	mountpoint=$(get_fs_value "$fs" mountpoint)
 	if [ "$mountpoint" = "legacy" -o "$mountpoint" = "none" ]; then
 		# Can't use the mountpoint property. Might be one of our
@@ -715,11 +721,14 @@ mount_fs()
 		else
 			# If it's not a legacy filesystem, it can only be a
 			# native one...
-			ZFS_CMD="mount -o zfsutil -t zfs"
+			ZFS_CMD="mount -o zfsutil${mntopt} -t zfs"
 		fi
 	else
-		ZFS_CMD="mount -o zfsutil -t zfs"
+		ZFS_CMD="mount -o zfsutil${mntopt} -t zfs"
 	fi
+
+	# If we're called with a mountpoint, use that instead.
+	[ -n "${mntpnt}" ] && mountpoint="${mntpnt}"
 
 	# Possibly decrypt a filesystem using native encryption.
 	decrypt_fs "$fs"
