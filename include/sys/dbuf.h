@@ -195,6 +195,14 @@ typedef struct dmu_buf_impl {
 	 */
 	uint8_t db_level;
 
+	/*
+	 * db_user_mtx protects the two members below it.
+	 * stuff we store for the user (see dmu_buf_set_user)
+	 */
+	kmutex_t db_user_mtx;
+	void *db_user_ptr;
+	dmu_buf_evict_func_t *db_evict_func;
+
 	/* db_mtx protects the members below */
 	kmutex_t db_mtx;
 
@@ -226,10 +234,6 @@ typedef struct dmu_buf_impl {
 	avl_node_t db_link;
 
 	/* Data which is unique to data (leaf) blocks: */
-
-	/* stuff we store for the user (see dmu_buf_set_user) */
-	void *db_user_ptr;
-	dmu_buf_evict_func_t *db_evict_func;
 
 	uint8_t db_immediate_evict;
 	uint8_t db_freed_in_flight;

@@ -91,6 +91,7 @@ dbuf_cons(void *vdb, void *unused, int kmflag)
 	dmu_buf_impl_t *db = vdb;
 	bzero(db, sizeof (dmu_buf_impl_t));
 
+	mutex_init(&db->db_user_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&db->db_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&db->db_changed, NULL, CV_DEFAULT, NULL);
 	refcount_create(&db->db_holds);
@@ -103,6 +104,7 @@ static void
 dbuf_dest(void *vdb, void *unused)
 {
 	dmu_buf_impl_t *db = vdb;
+	mutex_destroy(&db->db_user_mtx);
 	mutex_destroy(&db->db_mtx);
 	cv_destroy(&db->db_changed);
 	refcount_destroy(&db->db_holds);
@@ -268,12 +270,24 @@ dbuf_evict_user(dmu_buf_impl_t *db)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
-	if (db->db_level != 0 || db->db_evict_func == NULL)
+	if (db->db_level != 0)
 		return;
+
+	mutex_enter(&db->db_user_mtx);
+	mutex_exit(&db->db_mtx);
+
+	if (db->db_evict_func == NULL) {
+		mutex_exit(&db->db_user_mtx);
+		mutex_enter(&db->db_mtx);
+		return;
+	}
 
 	db->db_evict_func(&db->db, db->db_user_ptr);
 	db->db_user_ptr = NULL;
 	db->db_evict_func = NULL;
+
+	mutex_exit(&db->db_user_mtx);
+	mutex_enter(&db->db_mtx);
 }
 
 boolean_t
@@ -2393,7 +2407,7 @@ dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr, void *user_ptr,
 
 	ASSERT((user_ptr == NULL) == (evict_func == NULL));
 
-	mutex_enter(&db->db_mtx);
+	mutex_enter(&db->db_user_mtx);
 
 	if (db->db_user_ptr == old_user_ptr) {
 		db->db_user_ptr = user_ptr;
@@ -2402,7 +2416,7 @@ dmu_buf_update_user(dmu_buf_t *db_fake, void *old_user_ptr, void *user_ptr,
 		old_user_ptr = db->db_user_ptr;
 	}
 
-	mutex_exit(&db->db_mtx);
+	mutex_exit(&db->db_user_mtx);
 	return (old_user_ptr);
 }
 
