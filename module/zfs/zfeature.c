@@ -379,6 +379,43 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	}
 }
 
+/*
+ * This function is non-static for zhack; it should otherwise not be used
+ * outside this file.
+ */
+void
+feature_disable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
+{
+	uint64_t descobj = spa->spa_feat_desc_obj;
+	uint64_t zapobj = feature->fi_can_readonly ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
+
+	ASSERT(0 != zapobj);
+	ASSERT(zfeature_is_valid_guid(feature->fi_guid));
+	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
+
+	if (zap_contains(spa->spa_meta_objset, descobj, feature->fi_guid) == 0)
+		VERIFY0(zap_remove(spa->spa_meta_objset, descobj,
+		    feature->fi_guid, tx));
+
+	if (zap_contains(spa->spa_meta_objset, zapobj, feature->fi_guid) == 0)
+		VERIFY0(zap_remove(spa->spa_meta_objset, zapobj,
+		    feature->fi_guid, tx));
+
+	spa_deactivate_mos_feature(spa, feature->fi_guid);
+
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_ENABLED_TXG)) {
+		uint64_t txgobj = spa->spa_feat_enabled_txg_obj;
+
+		if (txgobj && (zap_contains(spa->spa_meta_objset,
+		    txgobj, feature->fi_guid) == 0)) {
+			spa_feature_decr(spa, SPA_FEATURE_ENABLED_TXG, tx);
+			VERIFY0(zap_remove(spa->spa_meta_objset, txgobj,
+			    feature->fi_guid, tx));
+		}
+	}
+}
+
 static void
 feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
     dmu_tx_t *tx)
