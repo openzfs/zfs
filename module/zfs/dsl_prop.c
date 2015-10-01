@@ -163,17 +163,19 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 {
 	zfs_prop_t prop = zfs_name_to_prop(propname);
 	boolean_t inheritable;
+	boolean_t snapshot;
 	uint64_t zapobj;
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 	inheritable = (prop == ZPROP_INVAL || zfs_prop_inheritable(prop));
+	snapshot = dsl_dataset_is_snapshot(ds);
 	zapobj = dsl_dataset_phys(ds)->ds_props_obj;
 
 	if (zapobj != 0) {
 		objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 		int err;
 
-		ASSERT(ds->ds_is_snapshot);
+		ASSERT(snapshot);
 
 		/* Check for a local value. */
 		err = zap_lookup(mos, zapobj, propname, intsz, numints, buf);
@@ -213,7 +215,7 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 	}
 
 	return (dsl_prop_get_dd(ds->ds_dir, propname,
-	    intsz, numints, buf, setpoint, ds->ds_is_snapshot));
+	    intsz, numints, buf, setpoint, snapshot));
 }
 
 /*
@@ -574,7 +576,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 
 	isint = (dodefault(propname, 8, 1, &intval) == 0);
 
-	if (ds->ds_is_snapshot) {
+	if (dsl_dataset_is_snapshot(ds)) {
 		ASSERT(version >= SPA_VERSION_SNAP_PROPS);
 		if (dsl_dataset_phys(ds)->ds_props_obj == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);
@@ -671,7 +673,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	if (isint) {
 		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
 
-		if (ds->ds_is_snapshot) {
+		if (dsl_dataset_is_snapshot(ds)) {
 			dsl_prop_cb_record_t *cbr;
 			/*
 			 * It's a snapshot; nothing can inherit this
@@ -789,7 +791,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 		}
 	}
 
-	if (ds->ds_is_snapshot && version < SPA_VERSION_SNAP_PROPS) {
+	if (dsl_dataset_is_snapshot(ds) && version < SPA_VERSION_SNAP_PROPS) {
 		dsl_dataset_rele(ds, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
@@ -1012,7 +1014,7 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
-	if (ds->ds_is_snapshot)
+	if (dsl_dataset_is_snapshot(ds))
 		flags |= DSL_PROP_GET_SNAPSHOT;
 
 	ASSERT(dsl_pool_config_held(dp));

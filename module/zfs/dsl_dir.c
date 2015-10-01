@@ -127,14 +127,13 @@ extern inline dsl_dir_phys_t *dsl_dir_phys(dsl_dir_t *dd);
 
 static uint64_t dsl_dir_space_towrite(dsl_dir_t *dd);
 
+/* ARGSUSED */
 static void
-dsl_dir_evict(void *dbu)
+dsl_dir_evict(dmu_buf_t *db, void *arg)
 {
-	dsl_dir_t *dd = dbu;
+	dsl_dir_t *dd = arg;
 	int t;
 	ASSERTV(dsl_pool_t *dp = dd->dd_pool);
-
-	dd->dd_dbuf = NULL;
 
 	for (t = 0; t < TXG_SIZE; t++) {
 		ASSERT(!txg_list_member(&dp->dp_dirty_dirs, dd, t));
@@ -143,9 +142,9 @@ dsl_dir_evict(void *dbu)
 	}
 
 	if (dd->dd_parent)
-		dsl_dir_async_rele(dd->dd_parent, dd);
+		dsl_dir_rele(dd->dd_parent, dd);
 
-	spa_async_close(dd->dd_pool->dp_spa, dd);
+	spa_close(dd->dd_pool->dp_spa, dd);
 
 	/*
 	 * The props callback list should have been cleaned up by
@@ -241,9 +240,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			dmu_buf_rele(origin_bonus, FTAG);
 		}
 
-		dmu_buf_init_user(&dd->dd_dbu, dsl_dir_evict, &dd->dd_dbuf);
-		winner = dmu_buf_set_user_ie(dbuf, &dd->dd_dbu);
-		if (winner != NULL) {
+		winner = dmu_buf_set_user_ie(dbuf, dd, dsl_dir_evict);
+		if (winner) {
 			if (dd->dd_parent)
 				dsl_dir_rele(dd->dd_parent, dd);
 			mutex_destroy(&dd->dd_lock);
@@ -284,21 +282,6 @@ dsl_dir_rele(dsl_dir_t *dd, void *tag)
 {
 	dprintf_dd(dd, "%s\n", "");
 	spa_close(dd->dd_pool->dp_spa, tag);
-	dmu_buf_rele(dd->dd_dbuf, tag);
-}
-
-/*
- * Remove a reference to the given dsl dir that is being asynchronously
- * released.  Async releases occur from a taskq performing eviction of
- * dsl datasets and dirs.  This process is identical to a normal release
- * with the exception of using the async API for releasing the reference on
- * the spa.
- */
-void
-dsl_dir_async_rele(dsl_dir_t *dd, void *tag)
-{
-	dprintf_dd(dd, "%s\n", "");
-	spa_async_close(dd->dd_pool->dp_spa, tag);
 	dmu_buf_rele(dd->dd_dbuf, tag);
 }
 
@@ -435,7 +418,7 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 	}
 
 	while (next != NULL) {
-		dsl_dir_t *child_dd;
+		dsl_dir_t *child_ds;
 		err = getcomponent(next, buf, &nextnext);
 		if (err != 0)
 			break;
@@ -454,11 +437,11 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 			break;
 		}
 
-		err = dsl_dir_hold_obj(dp, ddobj, buf, tag, &child_dd);
+		err = dsl_dir_hold_obj(dp, ddobj, buf, tag, &child_ds);
 		if (err != 0)
 			break;
 		dsl_dir_rele(dd, tag);
-		dd = child_dd;
+		dd = child_ds;
 		next = nextnext;
 	}
 

@@ -209,12 +209,11 @@ typedef enum sa_data_op {
  */
 
 struct sa_handle {
-	dmu_buf_user_t	sa_dbu;
 	kmutex_t	sa_lock;
 	dmu_buf_t	*sa_bonus;
 	dmu_buf_t	*sa_spill;
 	objset_t	*sa_os;
-	void		*sa_userp;
+	void 		*sa_userp;
 	sa_idx_tab_t	*sa_bonus_tab;	 /* idx of bonus */
 	sa_idx_tab_t	*sa_spill_tab; /* only present if spill activated */
 };
