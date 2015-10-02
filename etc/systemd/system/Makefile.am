@@ -2,7 +2,7 @@ systemdpreset_DATA = \
 	50-zfs.preset
 
 systemdunit_DATA = \
-	zed.service \
+	zfs-zed.service \
 	zfs-import-cache.service \
 	zfs-import-scan.service \
 	zfs-mount.service \
@@ -10,7 +10,7 @@ systemdunit_DATA = \
 	zfs.target
 
 EXTRA_DIST = \
-	$(top_srcdir)/etc/systemd/system/zed.service.in \
+	$(top_srcdir)/etc/systemd/system/zfs-zed.service.in \
 	$(top_srcdir)/etc/systemd/system/zfs-import-cache.service.in \
 	$(top_srcdir)/etc/systemd/system/zfs-import-scan.service.in \
 	$(top_srcdir)/etc/systemd/system/zfs-mount.service.in \
