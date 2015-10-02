@@ -93,7 +93,6 @@ struct objset {
 	uint8_t os_copies;
 	enum zio_checksum os_dedup_checksum;
 	boolean_t os_dedup_verify;
-	boolean_t os_evicting;
 	zfs_logbias_op_t os_logbias;
 	zfs_cache_type_t os_primary_cache;
 	zfs_cache_type_t os_secondary_cache;
