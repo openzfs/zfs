@@ -70,6 +70,7 @@ KERNEL_C = \
 	gzip.c \
 	lzjb.c \
 	lz4.c \
+	lz4hc.c \
 	metaslab.c \
 	multilist.c \
 	pathname.c \

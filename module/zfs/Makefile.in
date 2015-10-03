@@ -42,6 +42,7 @@ $(MODULE)-objs += fm.o
 $(MODULE)-objs += gzip.o
 $(MODULE)-objs += lzjb.o
 $(MODULE)-objs += lz4.o
+$(MODULE)-objs += lz4hc.o
 $(MODULE)-objs += metaslab.o
 $(MODULE)-objs += multilist.o
 $(MODULE)-objs += pathname.o

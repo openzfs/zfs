@@ -31,6 +31,10 @@
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
+/*
+ * Copyright (c) 2015 by Witaut Bajaryn. All rights reserved.
+ */
+
 #include <sys/zfs_context.h>
 #include <sys/compress.h>
 #include <sys/spa.h>
@@ -42,22 +46,38 @@
  * Compression vectors.
  */
 zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
-	{"inherit",		0,	NULL,		BP_COMPRESS_INHERIT},
-	{"on",			0,	NULL,		BP_COMPRESS_ON},
-	{"uncompressed",	0,	NULL,		BP_COMPRESS_OFF},
-	{"lzjb",		0,	lzjb_compress,	BP_COMPRESS_LZJB},
-	{"empty",		0,	NULL,		BP_COMPRESS_EMPTY},
-	{"gzip-1",		1,	gzip_compress,	BP_COMPRESS_GZIP_1},
-	{"gzip-2",		2,	gzip_compress,	BP_COMPRESS_GZIP_2},
-	{"gzip-3",		3,	gzip_compress,	BP_COMPRESS_GZIP_3},
-	{"gzip-4",		4,	gzip_compress,	BP_COMPRESS_GZIP_4},
-	{"gzip-5",		5,	gzip_compress,	BP_COMPRESS_GZIP_5},
-	{"gzip-6",		6,	gzip_compress,	BP_COMPRESS_GZIP_6},
-	{"gzip-7",		7,	gzip_compress,	BP_COMPRESS_GZIP_7},
-	{"gzip-8",		8,	gzip_compress,	BP_COMPRESS_GZIP_8},
-	{"gzip-9",		9,	gzip_compress,	BP_COMPRESS_GZIP_9},
-	{"zle",			64,	zle_compress,	BP_COMPRESS_ZLE},
-	{"lz4",			0,	lz4_compress_zfs, BP_COMPRESS_LZ4},
+	{"inherit",	0,	NULL,			BP_COMPRESS_INHERIT},
+	{"on",		0,	NULL,			BP_COMPRESS_ON},
+	{"uncompressed", 0,	NULL,			BP_COMPRESS_OFF},
+	{"lzjb",	0,	lzjb_compress,		BP_COMPRESS_LZJB},
+	{"empty",	0,	NULL,			BP_COMPRESS_EMPTY},
+	{"gzip-1",	1,	gzip_compress,		BP_COMPRESS_GZIP_1},
+	{"gzip-2",	2,	gzip_compress,		BP_COMPRESS_GZIP_2},
+	{"gzip-3",	3,	gzip_compress,		BP_COMPRESS_GZIP_3},
+	{"gzip-4",	4,	gzip_compress,		BP_COMPRESS_GZIP_4},
+	{"gzip-5",	5,	gzip_compress,		BP_COMPRESS_GZIP_5},
+	{"gzip-6",	6,	gzip_compress,		BP_COMPRESS_GZIP_6},
+	{"gzip-7",	7,	gzip_compress,		BP_COMPRESS_GZIP_7},
+	{"gzip-8",	8,	gzip_compress,		BP_COMPRESS_GZIP_8},
+	{"gzip-9",	9,	gzip_compress,		BP_COMPRESS_GZIP_9},
+	{"zle",		64,	zle_compress,		BP_COMPRESS_ZLE},
+	{"lz4",		0,	lz4_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-1",	1,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-2",	2,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-3",	3,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-4",	4,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-5",	5,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-6",	6,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-7",	7,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-8",	8,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-9",	9,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-10",	10,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-11",	11,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-12",	12,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-13",	13,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-14",	14,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-15",	15,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
+	{"lz4hc-16",	16,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4},
 };
 
 zio_decompress_info_t zio_decompress_table[BP_COMPRESS_VALUES] = {
