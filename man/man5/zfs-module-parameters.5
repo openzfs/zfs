@@ -1480,6 +1480,28 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_disk_timeout_ms\fR (uint)
+.ad
+.RS 12n
+ZFS will configure the block layer to time out after this many milliseconds at vdev open time.
+.sp
+Default value: \fB1000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_disk_timeout_ticks\fR (uint)
+.ad
+.RS 12n
+Number of consecutive IO timeouts that are tolerated before the block layer will mark the device as bad.
+.sp
+Default value: \fB30\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_mirror_switch_us\fR (int)
 .ad
 .RS 12n

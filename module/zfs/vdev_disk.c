@@ -36,6 +36,8 @@
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
+static unsigned int vdev_disk_timeout_ms = 1000;
+static unsigned int vdev_disk_timeout_ticks = 30;
 
 /*
  * Virtual device vector for disks.
@@ -104,6 +106,24 @@ vdev_disk_error(zio_t *zio)
 	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
 	    zio->io_flags, (u_longlong_t)zio->io_delay);
 #endif
+}
+
+static enum blk_eh_timer_return
+vdev_disk_time_out_handler(struct request *req)
+{
+	dio_request_t *dr = req->bio->bi_private;
+	vdev_disk_t *vd = dr->dr_zio->io_vd->vdev_tsd;
+
+	dr->dr_error = ETIME;
+
+	if (atomic_inc_return(&vd->vd_rq_timeout_ticks)
+		> vdev_disk_timeout_ticks)
+		return (BLK_EH_HANDLED);
+
+	if (vd->vd_rq_timed_out_fn)
+		return (vd->vd_rq_timed_out_fn(req));
+
+	return BLK_EH_NOT_HANDLED;
 }
 
 /*
@@ -294,6 +314,14 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
 
+	/* Set IO timeout */
+	vd->vd_rq_timeout = bdev->bd_queue->rq_timeout;
+	bdev->bd_queue->rq_timeout = vdev_disk_timeout_ms * HZ / 1000;
+
+	vd->vd_rq_timed_out_fn = bdev->bd_queue->rq_timed_out_fn;
+	bdev->bd_queue->rq_timed_out_fn = &vdev_disk_time_out_handler;
+
+	atomic_set(&vd->vd_rq_timeout_ticks, 0);
 skip_open:
 	/*  Determine the physical block size */
 	block_size = vdev_bdev_block_size(vd->vd_bdev);
@@ -323,13 +351,19 @@ static void
 vdev_disk_close(vdev_t *v)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
+	struct block_device *bdev;
 
 	if (v->vdev_reopening || vd == NULL)
 		return;
 
-	if (vd->vd_bdev != NULL)
-		vdev_bdev_close(vd->vd_bdev,
+	bdev = vd->vd_bdev;
+	if (vd->vd_bdev != NULL) {
+		bdev->bd_queue->rq_timeout = vd->vd_rq_timeout;
+		bdev->bd_queue->rq_timed_out_fn = vd->vd_rq_timed_out_fn;
+
+		vdev_bdev_close(bdev,
 		    vdev_bdev_mode(spa_mode(v->vdev_spa)));
+	}
 
 	kmem_free(vd, sizeof (vdev_disk_t));
 	v->vdev_tsd = NULL;
@@ -417,6 +451,12 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
 			dr->dr_error = EIO;
 #endif
+	}
+
+	/* Reset timeout tick count */
+	if (dr->dr_error == 0) {
+		vdev_disk_t *vd = dr->dr_zio->io_vd->vdev_tsd;
+		atomic_set(&vd->vd_rq_timeout_ticks, 0);
 	}
 
 	/* Drop reference aquired by __vdev_disk_physio */
@@ -842,6 +882,14 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 
 	return (0);
 }
+
+module_param_named(zfs_vdev_disk_timeout_ms, vdev_disk_timeout_ms, uint, 0644);
+MODULE_PARM_DESC(zfs_vdev_disk_timeout_ms, "Disk IO timeout");
+
+module_param_named(zfs_vdev_disk_timeout_ticks, vdev_disk_timeout_ticks, uint,
+	0644);
+MODULE_PARM_DESC(zfs_vdev_disk_timeout_ticks, "Consecutive timeout limit");
+
 
 module_param(zfs_vdev_scheduler, charp, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");

@@ -31,10 +31,19 @@
 #ifdef _KERNEL
 #include <sys/vdev.h>
 
+#ifdef __linux__
+#include <linux/blkdev.h>
+#endif
+
 typedef struct vdev_disk {
 	ddi_devid_t		vd_devid;
 	char			*vd_minor;
+#ifdef __linux__
 	struct block_device	*vd_bdev;
+	rq_timed_out_fn		*vd_rq_timed_out_fn;
+	unsigned int		vd_rq_timeout;
+	atomic_t		vd_rq_timeout_ticks;
+#endif
 } vdev_disk_t;
 
 extern int vdev_disk_physio(struct block_device *, caddr_t,
