@@ -13,31 +13,69 @@ esac
 # Delay until all required block devices are present.
 udevadm settle
 
-if [ "${root}" = "zfs:AUTO" ] ; then
-	ZFS_DATASET="$(find_bootfs)"
-	if [ $? -ne 0 ] ; then
-		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
-		ZFS_DATASET="$(find_bootfs)"
-		if [ $? -ne 0 ] ; then
-			warn "ZFS: No bootfs attribute found in importable pools."
-			export_all || export_all "-f"
-
-			rootok=0
-			return 1
-		fi
-	fi
-	info "ZFS: Using ${ZFS_DATASET} as root."
-fi
-
 ZFS_DATASET="${ZFS_DATASET:-${root#zfs:}}"
 ZFS_POOL="${ZFS_DATASET%%/*}"
 
-if import_pool "${ZFS_POOL}" ; then
+# If the initramfs has a cachefile, assume it is alright to use.
+if [ -f /etc/zfs/zpool.cache ]
+then
+	/sbin/zpool import -c /etc/zfs/zpool.cache -aN
+elif /sbin/zpool import -f -N -o readonly=on "${ZFS_POOL}" 2>&1 >/dev/null
+then
+	if ! mount_dataset "${ZFS_DATASET}" ; then
+		/sbin/zpool export -F "${ZFS_POOL}"
+		warn "Failed to mount \"${ZFS_DATASET}\"."
+		rootok=0
+		return 1
+	fi
+
+	# Copy important files to /etc/zfs
+	for i in zpool.cache vdev.conf
+	do
+		if [ -f "${NEWROOT}/etc/zfs/${i}" ]
+		then
+			info "Reading ${i} from \"${ZFS_DATASET}\"."
+			cp "${NEWROOT}/etc/zfs/${i}" "/etc/zfs/${i}"
+		fi
+	done
+
+	umount "${NEWROOT}"
+	/sbin/zpool export -F "${ZFS_POOL}"
+
+	if [ -f /etc/zfs/zpool.cache ]
+	then
+		/sbin/zpool import -c /etc/zfs/zpool.cache -aN
+	else
+		warn "No /etc/zfs/zpool.cache in \"${ZFS_DATASET}\"."
+	fi
+else
+	warn "Failed to import \"${ZFS_POOL}\"."
+fi
+
+if [ "$(zpool list -H -o name ${ZFS_POOL})" = "${ZFS_POOL}" ]
+then
 	info "ZFS: Mounting dataset ${ZFS_DATASET}..."
 	if mount_dataset "${ZFS_DATASET}" ; then
 		ROOTFS_MOUNTED=yes
 		return 0
+	else
+		warn "Failed to mount \"${ZFS_DATASET}\"."
 	fi
+else
+	if [ ! -e /etc/zfs/zpool.cache ]
+	then
+		warn "\"${ZFS_POOL}\" not imported due to missing zpool.cache file."
+	else
+		warn "\"${ZFS_POOL}\" absent from zpool.cache file."
+	fi
+	warn "Dracut will drop to a debug shell."
+	warn
+	warn "Provided that \"${ZFS_POOL}\" exists, you can correct this by:"
+	warn
+	warn "1. Running \`zpool import -d /dev/disk/by-id -N ${ZFS_POOL}\`"
+	warn "2. Pressing Cntl+D to exit."
+	warn "3. Running \`zpool set cachefile= ${ZFS_POOL}\` (space after equal sign)"
+	warn "	as root after system has booted."
 fi
 
 rootok=0
