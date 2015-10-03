@@ -68,20 +68,3 @@ mount_dataset() {
 
 	return $?
 }
-
-# export_all OPTS
-#   exports all imported zfs pools.
-export_all() {
-	local opts="${1}"
-	local ret=0
-
-	IFS="${NEWLINE}"
-	for pool in `zpool list -H -o name` ; do
-		if zpool list -H "${pool}" 2>&1 > /dev/null ; then
-			zpool export "${pool}" ${opts} || ret=$?
-		fi
-	done
-	IFS="${OLDIFS}"
-
-	return ${ret}
-}

@@ -41,4 +41,3 @@ if import_pool "${ZFS_POOL}" ; then
 fi
 
 rootok=0
-need_shutdown
