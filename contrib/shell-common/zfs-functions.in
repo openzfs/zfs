@@ -405,7 +405,9 @@ recursive_mount_filesystems()
 
 	# Go through the complete list (recursivly) of all filesystems
 	# below the first (root) dataset.
+	zfs_set_ifs " "
 	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${fs}")"
+	zfs_set_ifs "${OLD_IFS}"
 	for f in ${filesystems} ${ZFS_INITRD_ADDITIONAL_DATASETS}
 	do
 		# Ignore the first (root) fs. Should already be
@@ -428,6 +430,8 @@ read_mtab()
 	local match="$1"
 	local fs mntpnt fstype opts rest TMPFILE
 
+	zfs_set_ifs "${OLD_IFS}"
+
 	# Unset all MTAB_* variables
 	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
 
@@ -449,9 +453,11 @@ read_mtab()
 			fs=$(printf '%b\n' "$fs")
 
 			# Set the variable.
-			eval export MTAB_$mntpnt=\"$fs\"
+			eval export MTAB_$mntpnt="\"$fs\""
 		fi
 	done < /proc/mounts
+
+	zfs_set_ifs "${TMP_IFS}"
 }
 
 # Check if specified filesystem is mounted.
@@ -472,7 +478,9 @@ in_mtab()
 read_fstab()
 {
 	local match="$1"
-	local i var TMPFILE
+	local i var TMPFILE fs mntpnt fstype opts
+
+	zfs_set_ifs "${OLD_IFS}"
 
 	# Unset all FSTAB_* variables
 	unset $(env | grep ^FSTAB_ | sed 's,=.*,,')
@@ -482,13 +490,15 @@ read_fstab()
 		echo "$fs" | egrep -qE '^#|^$' && continue
 
 		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
-			eval export FSTAB_dev_$i="$fs"
+			eval export FSTAB_dev_$i="\"$fs\""
 			fs=$(printf '%b\n' "$fs" | sed 's,/,_,g')
-			eval export FSTAB_$i="$mntpnt"
+			eval export FSTAB_$i="\"$mntpnt\""
 
 			i=$((i + 1))
 		fi
 	done < /etc/fstab
+
+	zfs_set_ifs "${TMP_IFS}"
 }
 
 # Check to see if specified filesystem is in fstab
