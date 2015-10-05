@@ -1220,19 +1220,6 @@ Controls whether the set-\fBUID\fR bit is respected for the file system. The def
 .ne 2
 .mk
 .na
-\fB\fBshareiscsi\fR=\fBon\fR | \fBoff\fR\fR
-.ad
-.sp .6
-.RS 4n
-Like the \fBsharenfs\fR property, \fBshareiscsi\fR indicates whether a \fBZFS\fR volume is exported as an \fBiSCSI\fR target. The acceptable values for this property are \fBon\fR, \fBoff\fR, and \fBtype=disk\fR. The default value is \fBoff\fR. In the future, other target types might be supported. For example, \fBtape\fR.
-.sp
-You might want to set \fBshareiscsi=on\fR for a file system so that all \fBZFS\fR volumes within the file system are shared by default. However, setting this property on a file system has no direct effect.
-.RE
-
-.sp
-.ne 2
-.mk
-.na
 \fB\fBsharesmb\fR=\fBon\fR | \fBoff\fR
 .ad
 .sp .6
@@ -3137,7 +3124,6 @@ refreservation   property
 reservation      property       
 secondarycache   property       
 setuid           property       
-shareiscsi       property       
 sharenfs         property       
 sharesmb         property       
 snapdir          property       
@@ -3488,7 +3474,6 @@ pool/home/bob  snapdir               hidden                 default
 pool/home/bob  acltype               off                    default
 pool/home/bob  aclinherit            restricted             default
 pool/home/bob  canmount              on                     default
-pool/home/bob  shareiscsi            off                    default
 pool/home/bob  xattr                 on                     default
 pool/home/bob  copies                1                      default
 pool/home/bob  version               4                      -
@@ -3665,30 +3650,7 @@ The following example sets the user-defined \fBcom.example:department\fR propert
 .sp
 
 .LP
-\fBExample 15 \fRCreating a ZFS Volume as an iSCSI Target Device
-.sp
-.LP
-The following example shows how to create a \fBZFS\fR volume as an \fBiSCSI\fR target. 
-
-.sp
-.in +2
-.nf
-# \fBzfs create -V 2g pool/volumes/vol1\fR
-# \fBzfs set shareiscsi=on pool/volumes/vol1\fR
-# \fBiscsitadm list target\fR
-Target: pool/volumes/vol1
- iSCSI Name: 
- iqn.1986-03.com.sun:02:7b4b02a6-3277-eb1b-e686-a24762c52a8c
- Connections: 0
-.fi
-.in -2
-.sp
-
-.sp
-.LP
-After the \fBiSCSI\fR target is created, set up the \fBiSCSI\fR initiator. For more information about the Solaris \fBiSCSI\fR initiator, see \fBiscsitadm\fR(1M).
-.LP
-\fBExample 16 \fRPerforming a Rolling Snapshot
+\fBExample 15 \fRPerforming a Rolling Snapshot
 .sp
 .LP
 The following example shows how to maintain a history of snapshots with a consistent naming scheme. To keep a week's worth of snapshots, the user destroys the oldest snapshot, renames the remaining snapshots, and then creates a new snapshot, as follows:
@@ -3710,7 +3672,7 @@ The following example shows how to maintain a history of snapshots with a consis
 .sp
 
 .LP
-\fBExample 17 \fRSetting \fBsharenfs\fR Property Options on a ZFS File System
+\fBExample 16 \fRSetting \fBsharenfs\fR Property Options on a ZFS File System
 .sp
 .LP
 The following commands show how to set \fBsharenfs\fR property options to enable \fBrw\fR access for a set of \fBIP\fR addresses and to enable root access for system \fBneo\fR on the \fBtank/home\fR file system.
@@ -3728,7 +3690,7 @@ The following commands show how to set \fBsharenfs\fR property options to enable
 If you are using \fBDNS\fR for host name resolution, specify the fully qualified hostname.
 
 .LP
-\fBExample 18 \fRDelegating ZFS Administration Permissions on a ZFS Dataset
+\fBExample 17 \fRDelegating ZFS Administration Permissions on a ZFS Dataset
 .sp
 .LP
 The following example shows how to set permissions so that user \fBcindys\fR can create, destroy, mount, and take snapshots on \fBtank/cindys\fR. The permissions on \fBtank/cindys\fR are also displayed.
@@ -3758,7 +3720,7 @@ Because the \fBtank/cindys\fR mount point permission is set to 755 by default, u
 .sp
 
 .LP
-\fBExample 19 \fRDelegating Create Time Permissions on a ZFS Dataset
+\fBExample 18 \fRDelegating Create Time Permissions on a ZFS Dataset
 .sp
 .LP
 The following example shows how to grant anyone in the group \fBstaff\fR to create file systems in \fBtank/users\fR. This syntax also allows staff members to destroy their own file systems, but not destroy anyone else's file system. The permissions on \fBtank/users\fR are also displayed.
@@ -3780,7 +3742,7 @@ Local+Descendent permissions on (tank/users)
 .sp
 
 .LP
-\fBExample 20 \fRDefining and Granting a Permission Set on a ZFS Dataset
+\fBExample 19 \fRDefining and Granting a Permission Set on a ZFS Dataset
 .sp
 .LP
 The following example shows how to define and grant a permission set on the \fBtank/users\fR file system. The permissions on \fBtank/users\fR are also displayed.
@@ -3804,7 +3766,7 @@ Local+Descendent permissions on (tank/users)
 .sp
 
 .LP
-\fBExample 21 \fRDelegating Property Permissions on a ZFS Dataset
+\fBExample 20 \fRDelegating Property Permissions on a ZFS Dataset
 .sp
 .LP
 The following example shows to grant the ability to set quotas and reservations on the \fBusers/home\fR file system. The permissions on \fBusers/home\fR are also displayed.
@@ -3827,7 +3789,7 @@ users/home/marks  quota     10G               local
 .sp
 
 .LP
-\fBExample 22 \fRRemoving ZFS Delegated Permissions on a ZFS Dataset
+\fBExample 21 \fRRemoving ZFS Delegated Permissions on a ZFS Dataset
 .sp
 .LP
 The following example shows how to remove the snapshot permission from the \fBstaff\fR group on the \fBtank/users\fR file system. The permissions on \fBtank/users\fR are also displayed.
@@ -3850,7 +3812,7 @@ Local+Descendent permissions on (tank/users)
 .sp
 
 .LP
-\fBExample 23\fR Showing the differences between a snapshot and a ZFS Dataset
+\fBExample 22\fR Showing the differences between a snapshot and a ZFS Dataset
 .sp
 .LP
 The following example shows how to see what has changed between a prior
@@ -3872,7 +3834,7 @@ M       F       /tank/test/modified
 .sp
 
 .LP
-\fBExample 24\fR Creating a bookmark
+\fBExample 23\fR Creating a bookmark
 .sp
 .LP
 The following example create a bookmark to a snapshot. This bookmark can then
