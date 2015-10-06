@@ -31,7 +31,8 @@
 
 typedef enum {
 	RW_DRIVER	= 2,
-	RW_DEFAULT	= 4
+	RW_DEFAULT	= 4,
+	RW_NOLOCKDEP	= 5
 } krw_type_t;
 
 typedef enum {
@@ -49,6 +50,9 @@ typedef struct {
 #ifndef CONFIG_RWSEM_SPIN_ON_OWNER
 	kthread_t *rw_owner;
 #endif
+#ifdef CONFIG_LOCKDEP
+	krw_type_t	rw_type;
+#endif /* CONFIG_LOCKDEP */
 } krwlock_t;
 
 #define SEM(rwp)	(&(rwp)->rw_rwlock)
@@ -83,6 +87,30 @@ rw_owner(krwlock_t *rwp)
 #endif
 }
 
+#ifdef CONFIG_LOCKDEP
+static inline void
+spl_rw_set_type(krwlock_t *rwp, krw_type_t type)
+{
+	rwp->rw_type = type;
+}
+static inline void
+spl_rw_lockdep_off_maybe(krwlock_t *rwp)		\
+{							\
+	if (rwp && rwp->rw_type == RW_NOLOCKDEP)	\
+		lockdep_off();				\
+}
+static inline void
+spl_rw_lockdep_on_maybe(krwlock_t *rwp)			\
+{							\
+	if (rwp && rwp->rw_type == RW_NOLOCKDEP)	\
+		lockdep_on();				\
+}
+#else  /* CONFIG_LOCKDEP */
+#define spl_rw_set_type(rwp, type)
+#define spl_rw_lockdep_off_maybe(rwp)
+#define spl_rw_lockdep_on_maybe(rwp)
+#endif /* CONFIG_LOCKDEP */
+
 static inline int
 RW_READ_HELD(krwlock_t *rwp)
 {
@@ -110,9 +138,11 @@ RW_LOCK_HELD(krwlock_t *rwp)
 #define rw_init(rwp, name, type, arg)					\
 ({									\
 	static struct lock_class_key __key;				\
+	ASSERT(type == RW_DEFAULT || type == RW_NOLOCKDEP);		\
 									\
 	__init_rwsem(SEM(rwp), #rwp, &__key);				\
 	spl_rw_clear_owner(rwp);					\
+	spl_rw_set_type(rwp, type);					\
 })
 
 #define rw_destroy(rwp)							\
@@ -124,6 +154,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 ({									\
 	int _rc_ = 0;							\
 									\
+	spl_rw_lockdep_off_maybe(rwp);					\
 	switch (rw) {							\
 	case RW_READER:							\
 		_rc_ = down_read_trylock(SEM(rwp));			\
@@ -135,11 +166,13 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	default:							\
 		VERIFY(0);						\
 	}								\
+	spl_rw_lockdep_on_maybe(rwp);					\
 	_rc_;								\
 })
 
 #define rw_enter(rwp, rw)						\
 ({									\
+	spl_rw_lockdep_off_maybe(rwp);					\
 	switch (rw) {							\
 	case RW_READER:							\
 		down_read(SEM(rwp));					\
@@ -151,10 +184,12 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	default:							\
 		VERIFY(0);						\
 	}								\
+	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
 #define rw_exit(rwp)							\
 ({									\
+	spl_rw_lockdep_off_maybe(rwp);					\
 	if (RW_WRITE_HELD(rwp)) {					\
 		spl_rw_clear_owner(rwp);				\
 		up_write(SEM(rwp));					\
@@ -162,12 +197,15 @@ RW_LOCK_HELD(krwlock_t *rwp)
 		ASSERT(RW_READ_HELD(rwp));				\
 		up_read(SEM(rwp));					\
 	}								\
+	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
 #define rw_downgrade(rwp)						\
 ({									\
+	spl_rw_lockdep_off_maybe(rwp);					\
 	spl_rw_clear_owner(rwp);					\
 	downgrade_write(SEM(rwp));					\
+	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
 #if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
@@ -191,6 +229,7 @@ extern int __down_write_trylock_locked(struct rw_semaphore *);
 	unsigned long _flags_;						\
 	int _rc_ = 0;							\
 									\
+	spl_rw_lockdep_off_maybe(rwp);					\
 	spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, _flags_);		\
 	if ((list_empty(&SEM(rwp)->wait_list)) &&			\
 	    (SEM(rwp)->activity == 1)) {				\
@@ -199,6 +238,7 @@ extern int __down_write_trylock_locked(struct rw_semaphore *);
 		(rwp)->rw_owner = current;				\
 	}								\
 	spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, _flags_);	\
+	spl_rw_lockdep_on_maybe(rwp);					\
 	_rc_;								\
 })
 #else
