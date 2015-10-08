@@ -370,8 +370,10 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	ASSERT(zsb != NULL);
 
 	ip = new_inode(zsb->z_sb);
-	if (ip == NULL)
+	if (ip == NULL) {
+		ZFS_OBJ_HOLD_EXIT(zsb, obj);
 		return (NULL);
+	}
 
 	zp = ITOZ(ip);
 	ASSERT(zp->z_dirlocks == NULL);
@@ -411,7 +413,9 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 		if (hdl == NULL)
 			sa_handle_destroy(zp->z_sa_hdl);
 
-		goto error;
+		ZFS_OBJ_HOLD_EXIT(zsb, obj);
+		iput(ip);
+		return (NULL);
 	}
 
 	zp->z_mode = mode;
@@ -446,11 +450,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 	unlock_new_inode(ip);
 	return (zp);
-
-error:
-	unlock_new_inode(ip);
-	iput(ip);
-	return (NULL);
 }
 
 void
@@ -976,7 +975,7 @@ again:
 	 * progress.  This is checked for in zfs_znode_alloc()
 	 *
 	 * if zfs_znode_alloc() fails it will drop the hold on the
-	 * bonus buffer.
+	 * bonus buffer. Also, zfs_znode_alloc() will drop the hold for iput.
 	 */
 	zp = zfs_znode_alloc(zsb, db, doi.doi_data_block_size,
 	    doi.doi_bonus_type, obj_num, NULL, NULL);
@@ -984,8 +983,8 @@ again:
 		err = SET_ERROR(ENOENT);
 	} else {
 		*zpp = zp;
+		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
 	}
-	ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
 	return (err);
 }
 
