@@ -410,7 +410,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 || zp->z_gen == 0) {
 		if (hdl == NULL)
 			sa_handle_destroy(zp->z_sa_hdl);
-
+		zp->z_sa_hdl = NULL;
 		goto error;
 	}
 
@@ -448,7 +448,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	return (zp);
 
 error:
-	unlock_new_inode(ip);
 	iput(ip);
 	return (NULL);
 }
