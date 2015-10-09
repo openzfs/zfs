@@ -30,14 +30,20 @@ then
 	fi
 
 	# Copy important files to /etc/zfs
-	for i in zpool.cache vdev.conf
-	do
-		if [ -f "${NEWROOT}/etc/zfs/${i}" ]
-		then
-			info "Reading ${i} from \"${ZFS_DATASET}\"."
-			cp "${NEWROOT}/etc/zfs/${i}" "/etc/zfs/${i}"
-		fi
-	done
+	if [ -f "${NEWROOT}/etc/zfs/zpool.cache" ]
+	then
+		info "Reading zpool.cache from \"${ZFS_DATASET}\"."
+		cp "${NEWROOT}/etc/zfs/zpool.cache" "/etc/zfs/zpool.cache"
+	fi
+
+	if [ -f "${NEWROOT}/etc/zfs/vdev.conf" ]
+	then
+		info "Reading vdev.conf from \"${ZFS_DATASET}\"."
+		cp "${NEWROOT}/etc/zfs/vdev.conf" "/etc/zfs/vdev.conf"
+		info "Kicking udev to make vdev devices."
+		udevadm trigger --subsystem-match=block
+		udevadm settle
+	fi
 
 	umount "${NEWROOT}"
 	/sbin/zpool export -F "${ZFS_POOL}"
