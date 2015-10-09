@@ -29,13 +29,14 @@ then
 		return 1
 	fi
 
-	# Copy important files to /etc/zfs
+	# Copy zpool.cache to /etc/zfs
 	if [ -f "${NEWROOT}/etc/zfs/zpool.cache" ]
 	then
 		info "Reading zpool.cache from \"${ZFS_DATASET}\"."
 		cp "${NEWROOT}/etc/zfs/zpool.cache" "/etc/zfs/zpool.cache"
 	fi
 
+	# Copy vdev.conf to /etc/zfs
 	if [ -f "${NEWROOT}/etc/zfs/vdev.conf" ]
 	then
 		info "Reading vdev.conf from \"${ZFS_DATASET}\"."
