@@ -500,6 +500,11 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case EROFS:
 		zfs_verror(hdl, EZFS_POOLREADONLY, fmt, ap);
 		break;
+	case EDOM:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "block size out of range or does not match"));
+		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
+		break;
 
 	default:
 		zfs_error_aux(hdl, strerror(error));
