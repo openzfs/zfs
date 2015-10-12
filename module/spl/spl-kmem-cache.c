@@ -805,15 +805,18 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return (0);
 
+	skc->skc_mag = kzalloc(sizeof (spl_kmem_magazine_t *) *
+	    num_possible_cpus(), kmem_flags_convert(KM_SLEEP));
 	skc->skc_mag_size = spl_magazine_size(skc);
 	skc->skc_mag_refill = (skc->skc_mag_size + 1) / 2;
 
-	for_each_online_cpu(i) {
+	for_each_possible_cpu(i) {
 		skc->skc_mag[i] = spl_magazine_alloc(skc, i);
 		if (!skc->skc_mag[i]) {
 			for (i--; i >= 0; i--)
 				spl_magazine_free(skc->skc_mag[i]);
 
+			kfree(skc->skc_mag);
 			return (-ENOMEM);
 		}
 	}
@@ -833,11 +836,13 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return;
 
-	for_each_online_cpu(i) {
+	for_each_possible_cpu(i) {
 		skm = skc->skc_mag[i];
 		spl_cache_flush(skc, skm, skm->skm_avail);
 		spl_magazine_free(skm);
 	}
+
+	kfree(skc->skc_mag);
 }
 
 /*
@@ -880,12 +885,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 
 	might_sleep();
 
-	/*
-	 * Allocate memory for a new cache and initialize it.  Unfortunately,
-	 * this usually ends up being a large allocation of ~32k because
-	 * we need to allocate enough memory for the worst case number of
-	 * cpus in the magazine, skc_mag[NR_CPUS].
-	 */
 	skc = kzalloc(sizeof (*skc), lflags);
 	if (skc == NULL)
 		return (NULL);

@@ -170,7 +170,7 @@ typedef struct spl_kmem_cache {
 	uint32_t		skc_magic;	/* Sanity magic */
 	uint32_t		skc_name_size;	/* Name length */
 	char			*skc_name;	/* Name string */
-	spl_kmem_magazine_t	*skc_mag[NR_CPUS]; /* Per-CPU warm cache */
+	spl_kmem_magazine_t	**skc_mag;	/* Per-CPU warm cache */
 	uint32_t		skc_mag_size;	/* Magazine size */
 	uint32_t		skc_mag_refill;	/* Magazine refill count */
 	spl_kmem_ctor_t		skc_ctor;	/* Constructor */
