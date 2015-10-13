@@ -332,6 +332,10 @@ exit 0
 %endif
 
 %changelog
+* Tue Oct 13 2015 Ned Bass <bass6@llnl.gov> - 0.6.5.3-1
+- Don't import all visible pools in zfs-import init script zfsonlinux/zfs#3777
+- Fix use-after-free in vdev_disk_physio_completion zfsonlinux/zfs#3920
+- Fix avl_is_empty(&dn->dn_dbufs) assertion zfsonlinux/zfs#3865
 * Wed Sep 30 2015 Ned Bass <bass6@llnl.gov> - 0.6.5.2-1
 - Init script fixes zfsonlinux/zfs#3816
 - Fix uioskip crash when skip to end zfsonlinux/zfs#3806 zfsonlinux/zfs#3850
