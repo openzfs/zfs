@@ -332,6 +332,15 @@ exit 0
 %endif
 
 %changelog
+* Wed Mar 9 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.5-1
+- Linux 4.5 compatibility zfsonlinux/zfs#4228
+- Create working debuginfo packages on Red Hat zfsonlinux/zfs#4224
+- Make arc_summary.py and dbufstat.py compatible with python3
+- musl libc compatibility for option parsing zfsonlinux/zfs#4222
+- Prevent arc_c collapse and possible panic zfsonlinux/zfs#3904
+- Prevent duplicated xattr between SA and dir zfsonlinux/zfs#4153
+- Fix zsb->z_hold_mtx deadlock zfsonlinux/zfs#4106
+- Prevent SA header corruption zfsonlinux/zfs#4150
 * Fri Jan  8 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.4-1
 - Linux 4.4 compat
 - Assorted stability fixes
