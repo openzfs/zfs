@@ -69,7 +69,7 @@ zpool_prop_init(void)
 	    ZFS_TYPE_POOL, "<path>", "ALTROOT");
 	zprop_register_string(ZPOOL_PROP_BOOTFS, "bootfs", NULL, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "<filesystem>", "BOOTFS");
-	zprop_register_string(ZPOOL_PROP_CACHEFILE, "cachefile", NULL,
+	zprop_register_string(ZPOOL_PROP_CACHEFILE, "cachefile", "none",
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<file> | none", "CACHEFILE");
 	zprop_register_string(ZPOOL_PROP_COMMENT, "comment", NULL,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<comment-string>", "COMMENT");

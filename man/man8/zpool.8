@@ -698,9 +698,11 @@ Identifies the default bootable dataset for the root pool. This property is expe
 .ad
 .sp .6
 .RS 4n
-Controls the location of where the pool configuration is cached. Discovering all pools on system startup requires a cached copy of the configuration data that is stored on the root file system. All pools in this cache are automatically imported when the system boots. Some environments, such as install and clustering, need to cache this information in a different location so that pools are not automatically imported. Setting this property caches the pool configuration in a different location that can later be imported with "\fBzpool import -c\fR". Setting it to the special value "\fBnone\fR" creates a temporary pool that is never cached, and the special value \fB\&''\fR (empty string) uses the default location. 
+Controls the location of where the pool configuration is cached. Discovering all pools on system startup requires a cached copy of the configuration data that is stored on the root file system. All pools in this cache are automatically imported when the system boots. Some environments, such as install and clustering, need to cache this information in a different location so that pools are not automatically imported. Setting this property caches the pool configuration in a different location that can later be imported with "\fBzpool import -c\fR". Setting it to the special value "\fBnone\fR" creates a temporary pool that is never cached, and the special value \fB\&''\fR (empty string) uses the default location (\fI/etc/zfs/zpool.cache\fR). 
 .sp
 Multiple pools can share the same cache file. Because the kernel destroys and recreates this file when pools are added and removed, care should be taken when attempting to access this file. When the last pool using a \fBcachefile\fR is exported or destroyed, the file is removed.
+.sp
+On Linux, a cache file is almost never needed. So the default for Linux is set to \fBnone\fR.
 .RE
 
 .sp

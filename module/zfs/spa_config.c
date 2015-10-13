@@ -63,7 +63,7 @@ static uint64_t spa_config_generation = 1;
  * This can be overridden in userland to preserve an alternate namespace for
  * userland pools when doing testing.
  */
-char *spa_config_path = ZPOOL_CACHE;
+char *spa_config_path = "none";
 int zfs_autoimport_disable = 1;
 
 /*
@@ -574,7 +574,7 @@ EXPORT_SYMBOL(spa_config_generate);
 EXPORT_SYMBOL(spa_config_update);
 
 module_param(spa_config_path, charp, 0444);
-MODULE_PARM_DESC(spa_config_path, "SPA config file (/etc/zfs/zpool.cache)");
+MODULE_PARM_DESC(spa_config_path, "SPA config file (none)");
 
 module_param(zfs_autoimport_disable, int, 0644);
 MODULE_PARM_DESC(zfs_autoimport_disable, "Disable pool import at module load");
