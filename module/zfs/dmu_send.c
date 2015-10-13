@@ -563,13 +563,15 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		if (!(dsp->dsa_featureflags &
 		    DMU_BACKUP_FEATURE_LARGE_BLOCKS) &&
 		    blksz > SPA_OLD_MAXBLOCKSIZE) {
-			while (blksz > 0 && err == 0) {
-				int n = MIN(blksz, SPA_OLD_MAXBLOCKSIZE);
+			int bs = blksz;
+			void *bf = buf;
+			while (bs > 0 && err == 0) {
+				int n = MIN(bs, SPA_OLD_MAXBLOCKSIZE);
 				err = dump_write(dsp, type, zb->zb_object,
-				    offset, n, NULL, buf);
+				    offset, n, NULL, bf);
 				offset += n;
-				buf += n;
-				blksz -= n;
+				bf += n;
+				bs -= n;
 			}
 		} else {
 			err = dump_write(dsp, type, zb->zb_object,
