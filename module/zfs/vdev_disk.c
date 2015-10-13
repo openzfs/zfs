@@ -42,9 +42,9 @@ static void *zfs_vdev_holder = VDEV_HOLDER;
  */
 typedef struct dio_request {
 	struct completion	dr_comp;	/* Completion for sync IO */
-	atomic_t		dr_ref;		/* References */
 	zio_t			*dr_zio;	/* Parent ZIO */
-	int			dr_rw;		/* Read/Write */
+	atomic_t		dr_ref;		/* References */
+	int			dr_wait;	/* Wait for IO */
 	int			dr_error;	/* Bio error */
 	int			dr_bio_count;	/* Count of bio's */
 	struct bio		*dr_bio[0];	/* Attached bio's */
@@ -407,6 +407,7 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 {
 	dio_request_t *dr = bio->bi_private;
 	int rc;
+	int wait;
 
 	if (dr->dr_error == 0) {
 #ifdef HAVE_1ARG_BIO_END_IO_T
@@ -419,11 +420,12 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 #endif
 	}
 
+	wait = dr->dr_wait;
 	/* Drop reference aquired by __vdev_disk_physio */
 	rc = vdev_disk_dio_put(dr);
 
 	/* Wake up synchronous waiter this is the last outstanding bio */
-	if (rc == 1)
+	if (wait && rc == 1)
 		complete(&dr->dr_comp);
 }
 
@@ -496,7 +498,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	dio_request_t *dr;
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
-	int bio_size, bio_count = 16;
+	int rw, bio_size, bio_count = 16;
 	int i = 0, error = 0;
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
@@ -509,8 +511,9 @@ retry:
 	if (zio && !(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)))
 		bio_set_flags_failfast(bdev, &flags);
 
+	rw = flags;
 	dr->dr_zio = zio;
-	dr->dr_rw = flags;
+	dr->dr_wait = wait;
 
 	/*
 	 * When the IO size exceeds the maximum bio size for the request
@@ -552,7 +555,7 @@ retry:
 
 		dr->dr_bio[i]->bi_bdev = bdev;
 		BIO_BI_SECTOR(dr->dr_bio[i]) = bio_offset >> 9;
-		dr->dr_bio[i]->bi_rw = dr->dr_rw;
+		dr->dr_bio[i]->bi_rw = rw;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
 
@@ -572,7 +575,7 @@ retry:
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
-			vdev_submit_bio(dr->dr_rw, dr->dr_bio[i]);
+			vdev_submit_bio(rw, dr->dr_bio[i]);
 
 	/*
 	 * On synchronous blocking requests we wait for all bio the completion
