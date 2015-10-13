@@ -230,8 +230,24 @@ typedef struct dmu_buf_impl {
 	/* User callback information. */
 	dmu_buf_user_t *db_user;
 
-	uint8_t db_immediate_evict;
+	/*
+	 * Evict user data as soon as the dirty and reference
+	 * counts are equal.
+	 */
+	uint8_t db_user_immediate_evict;
+
+	/*
+	 * This block was freed while a read or write was
+	 * active.
+	 */
 	uint8_t db_freed_in_flight;
+
+	/*
+	 * dnode_evict_dbufs() or dnode_evict_bonus() tried to
+	 * evict this dbuf, but couldn't due to outstanding
+	 * references.  Evict once the refcount drops to 0.
+	 */
+	uint8_t db_pending_evict;
 
 	uint8_t db_dirtycnt;
 } dmu_buf_impl_t;
