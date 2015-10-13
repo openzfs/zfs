@@ -726,7 +726,6 @@ dmu_objset_evict(objset_t *os)
 	if (os->os_sa)
 		sa_tear_down(os);
 
-	os->os_evicting = B_TRUE;
 	dmu_objset_evict_dbufs(os);
 
 	mutex_enter(&os->os_lock);
