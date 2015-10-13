@@ -185,6 +185,15 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
+* Fri Jan  8 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.4-1
+- Linux 4.4 compat
+- Assorted stability fixes
+- Fixes for NFS-exported snapshots
+- Fix kernel warning in unlock_new_inode() and deadlock
+- Fix overflow in P2ROUNDUP_TYPED macro
+- Fix write performance issue due to bad zfs_dirty_data_max calculation
+- Fix builtin kernel builds
+- Fix deadlock during direct memory reclaim
 * Tue Oct 13 2015 Ned Bass <bass6@llnl.gov> - 0.6.5.3-1
 - Don't import all visible pools in zfs-import init script zfsonlinux/zfs#3777
 - Fix use-after-free in vdev_disk_physio_completion zfsonlinux/zfs#3920
