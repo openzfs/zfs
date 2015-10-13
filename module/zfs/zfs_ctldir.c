@@ -1115,10 +1115,13 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	error = 0;
 
 	mutex_enter(&zfs_snapshot_lock);
-	se = zfsctl_snapshot_alloc(full_name, full_path,
-	    dmu_objset_id(snap_zsb->z_os), dentry);
-	zfsctl_snapshot_add(se);
-	zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+	se = zfsctl_snapshot_find_by_name(full_name);
+	if (se == NULL) {
+		se = zfsctl_snapshot_alloc(full_name, full_path,
+		    dmu_objset_id(snap_zsb->z_os), dentry);
+		zfsctl_snapshot_add(se);
+		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+	}
 	mutex_exit(&zfs_snapshot_lock);
 error:
 	kmem_free(full_name, MAXNAMELEN);
