@@ -3757,7 +3757,8 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * If we're within (2 * maxblocksize) bytes of the target
 	 * cache size, increment the target cache size
 	 */
-	VERIFY3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
+	ASSERT3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
+	arc_c = MAX(arc_c, 2ULL << SPA_MAXBLOCKSHIFT);
 	if (arc_size >= arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
 		atomic_add_64(&arc_c, (int64_t)bytes);
 		if (arc_c > arc_c_max)
