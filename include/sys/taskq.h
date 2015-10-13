@@ -55,6 +55,14 @@
 #define TQ_NEW			0x04000000
 #define TQ_FRONT		0x08000000
 
+/* spin_lock(lock) and spin_lock_nested(lock,0) are equivalent,
+ * so TQ_LOCK_DYNAMIC must not evaluate to 0
+ */
+typedef enum tq_lock_role {
+	TQ_LOCK_GENERAL =	0,
+	TQ_LOCK_DYNAMIC =	1,
+} tq_lock_role_t;
+
 typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);
 
@@ -81,6 +89,7 @@ typedef struct taskq {
 	struct list_head	tq_delay_list; /* delayed task_t's */
 	wait_queue_head_t	tq_work_waitq; /* new work waitq */
 	wait_queue_head_t	tq_wait_waitq; /* wait waitq */
+	tq_lock_role_t		tq_lock_class; /* class used when taking tq_lock */
 } taskq_t;
 
 typedef struct taskq_ent {
