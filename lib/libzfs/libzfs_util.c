@@ -264,8 +264,12 @@ libzfs_error_description(libzfs_handle_t *hdl)
 }
 
 /*PRINTFLIKE2*/
+
+
+
 void
-zfs_error_aux(libzfs_handle_t *hdl, const char *fmt, ...)
+zfs_error_aux(zfs_json_t *json,
+    libzfs_handle_t *hdl, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -279,8 +283,11 @@ zfs_error_aux(libzfs_handle_t *hdl, const char *fmt, ...)
 }
 
 static void
-zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
+zfs_verror(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 {
+	char errors[1024];
+
 	(void) vsnprintf(hdl->libzfs_action, sizeof (hdl->libzfs_action),
 	    fmt, ap);
 	hdl->libzfs_error = error;
@@ -292,84 +299,107 @@ zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 
 	if (hdl->libzfs_printerr) {
 		if (error == EZFS_UNKNOWN) {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "internal "
-			    "error: %s\n"), libzfs_error_description(hdl));
-			abort();
+			if (json != NULL) {
+				if (json->json || json->ld_json)
+				(void) sprintf(errors,
+				    dgettext(TEXT_DOMAIN, "internal "
+				    "error: %s"),
+				    libzfs_error_description(hdl));
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errors);
+			} else {
+				(void) fprintf(stderr,
+				    dgettext(TEXT_DOMAIN, "internal "
+				    "error: %s\n"),
+				    libzfs_error_description(hdl));
+					abort();
+			}
 		}
-
-		(void) fprintf(stderr, "%s: %s\n", hdl->libzfs_action,
-		    libzfs_error_description(hdl));
+		if (json) {
+			if (json->json || json->ld_json) {
+				(void) sprintf(errors, "%s: %s",
+				    hdl->libzfs_action,
+				    libzfs_error_description(hdl));
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errors);
+			}
+		} else
+			(void) fprintf(stderr, "%s: %s\n", hdl->libzfs_action,
+			    libzfs_error_description(hdl));
 		if (error == EZFS_NOMEM)
 			exit(1);
 	}
 }
 
-int
-zfs_error(libzfs_handle_t *hdl, int error, const char *msg)
-{
-	return (zfs_error_fmt(hdl, error, "%s", msg));
-}
-
 /*PRINTFLIKE3*/
+
 int
-zfs_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
+zfs_error_fmt(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmt);
 
-	zfs_verror(hdl, error, fmt, ap);
+	zfs_verror(json, hdl, error, fmt, ap);
 
 	va_end(ap);
 
 	return (-1);
 }
 
+int
+zfs_error(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *msg)
+{
+	return (zfs_error_fmt(json, hdl, error, "%s", msg));
+}
+
+
 static int
-zfs_common_error(libzfs_handle_t *hdl, int error, const char *fmt,
-    va_list ap)
+zfs_common_error(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 {
 	switch (error) {
 	case EPERM:
 	case EACCES:
-		zfs_verror(hdl, EZFS_PERM, fmt, ap);
+		zfs_verror(json, hdl, EZFS_PERM, fmt, ap);
 		return (-1);
 
 	case ECANCELED:
-		zfs_verror(hdl, EZFS_NODELEGATION, fmt, ap);
+		zfs_verror(json,
+		    hdl, EZFS_NODELEGATION, fmt, ap);
 		return (-1);
 
 	case EIO:
-		zfs_verror(hdl, EZFS_IO, fmt, ap);
+		zfs_verror(json, hdl, EZFS_IO, fmt, ap);
 		return (-1);
 
 	case EFAULT:
-		zfs_verror(hdl, EZFS_FAULT, fmt, ap);
+		zfs_verror(json, hdl, EZFS_FAULT, fmt, ap);
 		return (-1);
 
 	case EINTR:
-		zfs_verror(hdl, EZFS_INTR, fmt, ap);
+		zfs_verror(json, hdl, EZFS_INTR, fmt, ap);
 		return (-1);
 	}
 
 	return (0);
 }
 
-int
-zfs_standard_error(libzfs_handle_t *hdl, int error, const char *msg)
-{
-	return (zfs_standard_error_fmt(hdl, error, "%s", msg));
-}
+
 
 /*PRINTFLIKE3*/
 int
-zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
+zfs_standard_error_fmt(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *fmt, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmt);
 
-	if (zfs_common_error(hdl, error, fmt, ap) != 0) {
+	if (zfs_common_error(json,
+	    hdl, error, fmt, ap) != 0) {
 		va_end(ap);
 		return (-1);
 	}
@@ -378,48 +408,51 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ENXIO:
 	case ENODEV:
 	case EPIPE:
-		zfs_verror(hdl, EZFS_IO, fmt, ap);
+		zfs_verror(json, hdl, EZFS_IO, fmt, ap);
 		break;
 
 	case ENOENT:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "dataset does not exist"));
-		zfs_verror(hdl, EZFS_NOENT, fmt, ap);
+		zfs_verror(json, hdl, EZFS_NOENT, fmt, ap);
 		break;
 
 	case ENOSPC:
 	case EDQUOT:
-		zfs_verror(hdl, EZFS_NOSPC, fmt, ap);
+		zfs_verror(json, hdl, EZFS_NOSPC, fmt, ap);
 		return (-1);
 
 	case EEXIST:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "dataset already exists"));
-		zfs_verror(hdl, EZFS_EXISTS, fmt, ap);
+		zfs_verror(json, hdl, EZFS_EXISTS, fmt, ap);
 		break;
 
 	case EBUSY:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "dataset is busy"));
-		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
+		zfs_verror(json, hdl, EZFS_BUSY, fmt, ap);
 		break;
 	case EROFS:
-		zfs_verror(hdl, EZFS_POOLREADONLY, fmt, ap);
+		zfs_verror(json,
+		    hdl, EZFS_POOLREADONLY, fmt, ap);
 		break;
 	case ENAMETOOLONG:
-		zfs_verror(hdl, EZFS_NAMETOOLONG, fmt, ap);
+		zfs_verror(json,
+		    hdl, EZFS_NAMETOOLONG, fmt, ap);
 		break;
 	case ENOTSUP:
-		zfs_verror(hdl, EZFS_BADVERSION, fmt, ap);
+		zfs_verror(json,
+		    hdl, EZFS_BADVERSION, fmt, ap);
 		break;
 	case EAGAIN:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "pool I/O is currently suspended"));
-		zfs_verror(hdl, EZFS_POOLUNAVAIL, fmt, ap);
+		zfs_verror(json, hdl, EZFS_POOLUNAVAIL, fmt, ap);
 		break;
 	default:
-		zfs_error_aux(hdl, strerror(error));
-		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
+		zfs_error_aux(json, hdl, strerror(error));
+		zfs_verror(json, hdl, EZFS_UNKNOWN, fmt, ap);
 		break;
 	}
 
@@ -428,77 +461,80 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 }
 
 int
-zpool_standard_error(libzfs_handle_t *hdl, int error, const char *msg)
+zfs_standard_error(zfs_json_t *json,
+    libzfs_handle_t *hdl, int error, const char *msg)
 {
-	return (zpool_standard_error_fmt(hdl, error, "%s", msg));
+	return (zfs_standard_error_fmt(json,
+	    hdl, error, "%s", msg));
 }
 
-/*PRINTFLIKE3*/
+
 int
-zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
+zpool_standard_error_fmt(zfs_json_t *json, libzfs_handle_t *hdl,
+    int error, const char *fmt, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmt);
 
-	if (zfs_common_error(hdl, error, fmt, ap) != 0) {
+	if (zfs_common_error(json, hdl, error, fmt, ap) != 0) {
 		va_end(ap);
 		return (-1);
 	}
 
 	switch (error) {
 	case ENODEV:
-		zfs_verror(hdl, EZFS_NODEVICE, fmt, ap);
+		zfs_verror(json, hdl, EZFS_NODEVICE, fmt, ap);
 		break;
 
 	case ENOENT:
-		zfs_error_aux(hdl,
+		zfs_error_aux(json, hdl,
 		    dgettext(TEXT_DOMAIN, "no such pool or dataset"));
-		zfs_verror(hdl, EZFS_NOENT, fmt, ap);
+		zfs_verror(json, hdl, EZFS_NOENT, fmt, ap);
 		break;
 
 	case EEXIST:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "pool already exists"));
-		zfs_verror(hdl, EZFS_EXISTS, fmt, ap);
+		zfs_verror(json, hdl, EZFS_EXISTS, fmt, ap);
 		break;
 
 	case EBUSY:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "pool is busy"));
-		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN, "pool is busy"));
+		zfs_verror(json, hdl, EZFS_BUSY, fmt, ap);
 		break;
 
 	case ENXIO:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "one or more devices is currently unavailable"));
-		zfs_verror(hdl, EZFS_BADDEV, fmt, ap);
+		zfs_verror(json, hdl, EZFS_BADDEV, fmt, ap);
 		break;
 
 	case ENAMETOOLONG:
-		zfs_verror(hdl, EZFS_DEVOVERFLOW, fmt, ap);
+		zfs_verror(json, hdl, EZFS_DEVOVERFLOW, fmt, ap);
 		break;
 
 	case ENOTSUP:
-		zfs_verror(hdl, EZFS_POOL_NOTSUP, fmt, ap);
+		zfs_verror(json, hdl, EZFS_POOL_NOTSUP, fmt, ap);
 		break;
 
 	case EINVAL:
-		zfs_verror(hdl, EZFS_POOL_INVALARG, fmt, ap);
+		zfs_verror(json, hdl, EZFS_POOL_INVALARG, fmt, ap);
 		break;
 
 	case ENOSPC:
 	case EDQUOT:
-		zfs_verror(hdl, EZFS_NOSPC, fmt, ap);
+		zfs_verror(json, hdl, EZFS_NOSPC, fmt, ap);
 		return (-1);
 
 	case EAGAIN:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "pool I/O is currently suspended"));
-		zfs_verror(hdl, EZFS_POOLUNAVAIL, fmt, ap);
+		zfs_verror(json, hdl, EZFS_POOLUNAVAIL, fmt, ap);
 		break;
 
 	case EROFS:
-		zfs_verror(hdl, EZFS_POOLREADONLY, fmt, ap);
+		zfs_verror(json, hdl, EZFS_POOLREADONLY, fmt, ap);
 		break;
 	case EDOM:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -507,13 +543,28 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 
 	default:
-		zfs_error_aux(hdl, strerror(error));
-		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
+		zfs_error_aux(json, hdl, strerror(error));
+		zfs_verror(json, hdl, EZFS_UNKNOWN, fmt, ap);
 	}
 
 	va_end(ap);
 	return (-1);
 }
+
+int
+zpool_standard_error(zfs_json_t *json, libzfs_handle_t *hdl,
+    int error, const char *msg)
+{
+	return (zpool_standard_error_fmt(json, hdl, error, "%s", msg));
+}
+
+
+
+
+/*
+ * !json
+ */
+
 
 /*
  * Display an out of memory error message and abort the current program.
@@ -521,7 +572,7 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 int
 no_memory(libzfs_handle_t *hdl)
 {
-	return (zfs_error(hdl, EZFS_NOMEM, "internal error"));
+	return (zfs_error(NULL, hdl, EZFS_NOMEM, "internal error"));
 }
 
 /*
@@ -773,9 +824,8 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-	if ((hdl = calloc(1, sizeof (libzfs_handle_t))) == NULL) {
+	if ((hdl = calloc(1, sizeof (libzfs_handle_t))) == NULL)
 		return (NULL);
-	}
 
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
 		free(hdl);
@@ -856,18 +906,18 @@ zfs_get_pool_handle(const zfs_handle_t *zhp)
  * fs/vol/snap name.
  */
 zfs_handle_t *
-zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
+zfs_path_to_zhandle(zfs_json_t *json,
+    libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 {
 	struct stat64 statbuf;
 	struct extmnttab entry;
 	int ret;
 
-	if (path[0] != '/' && strncmp(path, "./", strlen("./")) != 0) {
+	if (path[0] != '/' && strncmp(path, "./", strlen("./")) != 0)
 		/*
 		 * It's not a valid path, assume it's a name of type 'argtype'.
 		 */
-		return (zfs_open(hdl, path, argtype));
-	}
+		return (zfs_open(json, hdl, path, argtype));
 
 	if (stat64(path, &statbuf) != 0) {
 		(void) fprintf(stderr, "%s: %s\n", path, strerror(errno));
@@ -889,12 +939,15 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 	}
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
-		(void) fprintf(stderr, gettext("'%s': not a ZFS filesystem\n"),
-		    path);
+		if (!json->json && !json->ld_json)
+			(void) fprintf(stderr,
+			    gettext("'%s': not a ZFS filesystem\n"),
+			    path);
 		return (NULL);
 	}
 
-	return (zfs_open(hdl, entry.mnt_special, ZFS_TYPE_FILESYSTEM));
+		return (zfs_open(json,
+		    hdl, entry.mnt_special, ZFS_TYPE_FILESYSTEM));
 }
 
 /*
@@ -1287,7 +1340,8 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
  * structure.
  */
 void
-zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
+zprop_print_one_property(zfs_json_t *json,
+    const char *name, zprop_get_cbdata_t *cbp,
     const char *propname, const char *value, zprop_source_t sourcetype,
     const char *source, const char *recvd_value)
 {
@@ -1295,14 +1349,17 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 	const char *str = NULL;
 	char buf[128];
 
+	if (json->json || json->ld_json)
+		json->nv_dict_buff = fnvlist_alloc();
 	/*
 	 * Ignore those source types that the user has chosen to ignore.
 	 */
-	if ((sourcetype & cbp->cb_sources) == 0)
-		return;
+	if (!json->json && !json->ld_json) {
+		if ((sourcetype & cbp->cb_sources) == 0)
+			return;
 
-	if (cbp->cb_first)
-		zprop_print_headers(cbp, cbp->cb_type);
+		if (cbp->cb_first)
+			zprop_print_headers(cbp, cbp->cb_type);
 
 	for (i = 0; i < ZFS_GET_NCOLS; i++) {
 		switch (cbp->cb_columns[i]) {
@@ -1366,6 +1423,85 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 	}
 
 	(void) printf("\n");
+	} else {
+
+		if ((sourcetype & cbp->cb_sources) == 0)
+			return;
+		for (i = 0; i < ZFS_GET_NCOLS; i++) {
+			switch (cbp->cb_columns[i]) {
+				case GET_COL_NAME:
+					if (json->ld_json)
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "name", name);
+				break;
+				case GET_COL_PROPERTY:
+				fnvlist_add_string(
+				    json->nv_dict_buff, "property", propname);
+				break;
+
+				case GET_COL_VALUE:
+					fnvlist_add_string(
+					    json->nv_dict_buff, "value", value);
+				break;
+
+			case GET_COL_SOURCE:
+				switch (sourcetype) {
+					case ZPROP_SRC_NONE:
+					fnvlist_add_string(json->nv_dict_buff,
+					    "source", "-");
+					break;
+
+					case ZPROP_SRC_DEFAULT:
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", "default");
+						break;
+
+					case ZPROP_SRC_LOCAL:
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", "local");
+						break;
+
+					case ZPROP_SRC_TEMPORARY:
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", "temporary");
+						break;
+
+					case ZPROP_SRC_INHERITED:
+						(void) snprintf(buf,
+						    sizeof (buf),
+						    "inherited from %s",
+						    source);
+						fnvlist_add_string(
+						    json->nv_dict_buff,
+						    "source", buf);
+						break;
+					case ZPROP_SRC_RECEIVED:
+						fnvlist_add_string(
+							json->nv_dict_buff,
+						    "source", "received");
+						break;
+				}
+			break;
+
+			case GET_COL_RECVD:
+				fnvlist_add_string(json->nv_dict_buff, "source",
+				    (recvd_value == NULL ? "-" : recvd_value));
+				break;
+
+			default:
+				continue;
+			}
+		}
+		if (json->ld_json) {
+			nvlist_print_json(stdout, json->nv_dict_buff);
+			printf("\n");
+		}
+
+	}
 }
 
 /*
@@ -1386,7 +1522,7 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 	}
 	if (i == strlen(ends)) {
 		if (hdl)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 			    "invalid numeric suffix '%s'"), buf);
 		return (-1);
 	}
@@ -1403,7 +1539,7 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 		return (10 * i);
 
 	if (hdl)
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 		    "invalid numeric suffix '%s'"), buf);
 	return (-1);
 }
@@ -1413,8 +1549,10 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
  * properties or creating a volume.  'buf' is used to place an extended error
  * message for the caller to use.
  */
+
 int
-zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
+zfs_nicestrtonum(zfs_json_t *json,
+    libzfs_handle_t *hdl, const char *value, uint64_t *num)
 {
 	char *end;
 	int shift;
@@ -1423,9 +1561,11 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 
 	/* Check to see if this looks like a number.  */
 	if ((value[0] < '0' || value[0] > '9') && value[0] != '.') {
-		if (hdl)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		if (hdl) {
+			zfs_error_aux(json,
+			    hdl, dgettext(TEXT_DOMAIN,
 			    "bad numeric value '%s'"), value);
+		}
 		return (-1);
 	}
 
@@ -1439,8 +1579,9 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 	 */
 	if (errno == ERANGE) {
 		if (hdl)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "numeric value is too large"));
+				zfs_error_aux(json,
+				    hdl, dgettext(TEXT_DOMAIN,
+				    "numeric value is too large"));
 		return (-1);
 	}
 
@@ -1458,8 +1599,9 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 
 		if (fval > UINT64_MAX) {
 			if (hdl)
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "numeric value is too large"));
+					zfs_error_aux(json,
+					    hdl, dgettext(TEXT_DOMAIN,
+					    "numeric value is too large"));
 			return (-1);
 		}
 
@@ -1471,8 +1613,9 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 		/* Check for overflow */
 		if (shift >= 64 || (*num << shift) >> shift != *num) {
 			if (hdl)
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "numeric value is too large"));
+					zfs_error_aux(json, hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "numeric value is too large"));
 			return (-1);
 		}
 
@@ -1521,13 +1664,13 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 	switch (proptype) {
 	case PROP_TYPE_STRING:
 		if (datatype != DATA_TYPE_STRING) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' must be a string"), nvpair_name(elem));
 			goto error;
 		}
 		(void) nvpair_value_string(elem, svalp);
 		if (strlen(*svalp) >= ZFS_MAXPROPLEN) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' is too long"), nvpair_name(elem));
 			goto error;
 		}
@@ -1538,14 +1681,14 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 			(void) nvpair_value_string(elem, &value);
 			if (strcmp(value, "none") == 0) {
 				isnone = B_TRUE;
-			} else if (zfs_nicestrtonum(hdl, value, ivalp)
+			} else if (zfs_nicestrtonum(NULL, hdl, value, ivalp)
 			    != 0) {
 				goto error;
 			}
 		} else if (datatype == DATA_TYPE_UINT64) {
 			(void) nvpair_value_uint64(elem, ivalp);
 		} else {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' must be a number"), nvpair_name(elem));
 			goto error;
 		}
@@ -1555,7 +1698,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		 */
 		if ((type & ZFS_TYPE_DATASET) && *ivalp == 0 && !isnone &&
 		    (prop == ZFS_PROP_QUOTA || prop == ZFS_PROP_REFQUOTA)) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 			    "use 'none' to disable quota/refquota"));
 			goto error;
 		}
@@ -1573,7 +1716,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 
 	case PROP_TYPE_INDEX:
 		if (datatype != DATA_TYPE_STRING) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' must be a string"), nvpair_name(elem));
 			goto error;
 		}
@@ -1581,7 +1724,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		(void) nvpair_value_string(elem, &value);
 
 		if (zprop_string_to_index(prop, value, ivalp, type) != 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' must be one of '%s'"), propname,
 			    zprop_values(prop, type));
 			goto error;
@@ -1609,13 +1752,13 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 
 	return (0);
 error:
-	(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+	(void) zfs_error(NULL, hdl, EZFS_BADPROP, errbuf);
 	return (-1);
 }
 
 static int
-addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
-    zfs_type_t type)
+addlist(zfs_json_t *json, libzfs_handle_t *hdl,
+    char *propname, zprop_list_t **listp, zfs_type_t type)
 {
 	int prop;
 	zprop_list_t *entry;
@@ -1635,9 +1778,9 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 	    !zpool_prop_unsupported(propname)) ||
 	    (type == ZFS_TYPE_DATASET && !zfs_prop_user(propname) &&
 	    !zfs_prop_userquota(propname) && !zfs_prop_written(propname)))) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "invalid property '%s'"), propname);
-		return (zfs_error(hdl, EZFS_BADPROP,
+		return (zfs_error(json, hdl, EZFS_BADPROP,
 		    dgettext(TEXT_DOMAIN, "bad property list")));
 	}
 
@@ -1669,8 +1812,8 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
  * by zprop_expand_list().
  */
 int
-zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
-    zfs_type_t type)
+zprop_get_list(zfs_json_t *json, libzfs_handle_t *hdl,
+    char *props, zprop_list_t **listp, zfs_type_t type)
 {
 	*listp = NULL;
 
@@ -1684,9 +1827,10 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 	 * If no props were specified, return an error.
 	 */
 	if (props[0] == '\0') {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 		    "no properties specified"));
-		return (zfs_error(hdl, EZFS_BADPROP, dgettext(TEXT_DOMAIN,
+		return (zfs_error(json, hdl,
+		    EZFS_BADPROP, dgettext(TEXT_DOMAIN,
 		    "bad property list")));
 	}
 
@@ -1710,9 +1854,9 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 		 * Check for empty options.
 		 */
 		if (len == 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(json, hdl, dgettext(TEXT_DOMAIN,
 			    "empty property name"));
-			return (zfs_error(hdl, EZFS_BADPROP,
+			return (zfs_error(json, hdl, EZFS_BADPROP,
 			    dgettext(TEXT_DOMAIN, "bad property list")));
 		}
 
@@ -1731,12 +1875,13 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 			int i;
 
 			for (i = 0; spaceprops[i]; i++) {
-				if (addlist(hdl, spaceprops[i], listp, type))
+				if (addlist(json, hdl, spaceprops[i],
+				    listp, type))
 					return (-1);
 				listp = &(*listp)->pl_next;
 			}
 		} else {
-			if (addlist(hdl, props, listp, type))
+			if (addlist(json, hdl, props, listp, type))
 				return (-1);
 			listp = &(*listp)->pl_next;
 		}

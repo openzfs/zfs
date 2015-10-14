@@ -574,7 +574,7 @@ zpool_do_add(int argc, char **argv)
 	argc--;
 	argv++;
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(NULL, g_zfs, poolname)) == NULL)
 		return (1);
 
 	if ((config = zpool_get_config(zhp, NULL)) == NULL) {
@@ -586,7 +586,7 @@ zpool_do_add(int argc, char **argv)
 
 	/* pass off to get_vdev_spec for processing */
 	nvroot = make_root_vdev(zhp, props, force, !force, B_FALSE, dryrun,
-	    argc, argv);
+	    argc, argv, NULL);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		return (1);
@@ -681,7 +681,7 @@ zpool_do_remove(int argc, char **argv)
 
 	poolname = argv[0];
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(NULL, g_zfs, poolname)) == NULL)
 		return (1);
 
 	for (i = 1; i < argc; i++) {
@@ -736,7 +736,7 @@ zpool_do_labelclear(int argc, char **argv)
 	}
 
 	name = NULL;
-	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) != 0) {
+	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse, NULL) != 0) {
 		if (force)
 			goto wipe_label;
 
@@ -986,7 +986,7 @@ zpool_do_create(int argc, char **argv)
 
 	/* pass off to get_vdev_spec for bulk processing */
 	nvroot = make_root_vdev(NULL, props, force, !force, B_FALSE, dryrun,
-	    argc - 1, argv + 1);
+	    argc - 1, argv + 1, NULL);
 	if (nvroot == NULL)
 		goto errout;
 
@@ -1117,11 +1117,11 @@ zpool_do_create(int argc, char **argv)
 		ret = 1;
 		if (zpool_create(g_zfs, poolname,
 		    nvroot, props, fsprops) == 0) {
-			zfs_handle_t *pool = zfs_open(g_zfs,
+			zfs_handle_t *pool = zfs_open(NULL, g_zfs,
 			    tname ? tname : poolname, ZFS_TYPE_FILESYSTEM);
 			if (pool != NULL) {
-				if (zfs_mount(pool, NULL, 0) == 0)
-					ret = zfs_shareall(pool);
+				if (zfs_mount(NULL, pool, NULL, 0) == 0)
+					ret = zfs_shareall(pool, NULL);
 				zfs_close(pool);
 			}
 		} else if (libzfs_errno(g_zfs) == EZFS_INVALIDNAME) {
@@ -1186,7 +1186,7 @@ zpool_do_destroy(int argc, char **argv)
 
 	pool = argv[0];
 
-	if ((zhp = zpool_open_canfail(g_zfs, pool)) == NULL) {
+	if ((zhp = zpool_open_canfail(NULL, g_zfs, pool)) == NULL) {
 		/*
 		 * As a special case, check for use of '/' in the name, and
 		 * direct the user to use 'zfs destroy' instead.
@@ -1197,7 +1197,7 @@ zpool_do_destroy(int argc, char **argv)
 		return (1);
 	}
 
-	if (zpool_disable_datasets(zhp, force) != 0) {
+	if (zpool_disable_datasets(zhp, force, NULL) != 0) {
 		(void) fprintf(stderr, gettext("could not destroy '%s': "
 		    "could not unmount datasets\n"), zpool_get_name(zhp));
 		return (1);
@@ -1222,11 +1222,11 @@ typedef struct export_cbdata {
  * Export one pool
  */
 int
-zpool_export_one(zpool_handle_t *zhp, void *data)
+zpool_export_one(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	export_cbdata_t *cb = data;
 
-	if (zpool_disable_datasets(zhp, cb->force) != 0)
+	if (zpool_disable_datasets(zhp, cb->force, json) != 0)
 		return (1);
 
 	/* The history must be logged as part of the export */
@@ -1292,7 +1292,7 @@ zpool_do_export(int argc, char **argv)
 		}
 
 		return (for_each_pool(argc, argv, B_TRUE, NULL,
-		    zpool_export_one, &cb));
+		    zpool_export_one, &cb, NULL));
 	}
 
 	/* check arguments */
@@ -1301,7 +1301,8 @@ zpool_do_export(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = for_each_pool(argc, argv, B_TRUE, NULL, zpool_export_one, &cb);
+	ret = for_each_pool(argc, argv,
+	    B_TRUE, NULL, zpool_export_one, &cb, NULL);
 
 	return (ret);
 }
@@ -1378,7 +1379,7 @@ find_vdev(nvlist_t *nv, uint64_t search)
 }
 
 static int
-find_spare(zpool_handle_t *zhp, void *data)
+find_spare(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	spare_cbdata_t *cbp = data;
 	nvlist_t *config, *nvroot;
@@ -1474,7 +1475,7 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		case VDEV_AUX_SPARED:
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
 			    &cb.cb_guid) == 0);
-			if (zpool_iter(g_zfs, find_spare, &cb) == 1) {
+			if (zpool_iter(g_zfs, find_spare, &cb, NULL) == 1) {
 				if (strcmp(zpool_get_name(cb.cb_zhp),
 				    zpool_get_name(zhp)) == 0)
 					(void) printf(gettext("currently in "
@@ -1999,12 +2000,12 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	if (newname != NULL)
 		name = (char *)newname;
 
-	if ((zhp = zpool_open_canfail(g_zfs, name)) == NULL)
+	if ((zhp = zpool_open_canfail(NULL, g_zfs, name)) == NULL)
 		return (1);
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    !(flags & ZFS_IMPORT_ONLY) &&
-	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
+	    zpool_enable_datasets(zhp, mntopts, 0, NULL) != 0) {
 		zpool_close(zhp);
 		return (1);
 	}
@@ -2297,7 +2298,7 @@ zpool_do_import(int argc, char **argv)
 	idata.guid = searchguid;
 	idata.cachefile = cachefile;
 
-	pools = zpool_search_import(g_zfs, &idata);
+	pools = zpool_search_import(g_zfs, &idata, NULL);
 
 	if (pools != NULL && idata.exists &&
 	    (argc == 1 || strcmp(argv[0], argv[1]) == 0)) {
@@ -2616,7 +2617,7 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 }
 
 static int
-refresh_iostat(zpool_handle_t *zhp, void *data)
+refresh_iostat(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	iostat_cbdata_t *cb = data;
 	boolean_t missing;
@@ -2628,7 +2629,7 @@ refresh_iostat(zpool_handle_t *zhp, void *data)
 		return (-1);
 
 	if (missing)
-		pool_list_remove(cb->cb_list, zhp);
+		pool_list_remove(cb->cb_list, zhp, json);
 
 	return (0);
 }
@@ -2637,7 +2638,7 @@ refresh_iostat(zpool_handle_t *zhp, void *data)
  * Callback to print out the iostats for the given pool.
  */
 int
-print_iostat(zpool_handle_t *zhp, void *data)
+print_iostat(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	iostat_cbdata_t *cb = data;
 	nvlist_t *oldconfig, *newconfig;
@@ -2687,7 +2688,7 @@ get_columns(void)
 }
 
 int
-get_namewidth(zpool_handle_t *zhp, void *data)
+get_namewidth(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	iostat_cbdata_t *cb = data;
 	nvlist_t *config, *nvroot;
@@ -2851,16 +2852,16 @@ zpool_do_iostat(int argc, char **argv)
 	 * Construct the list of all interesting pools.
 	 */
 	ret = 0;
-	if ((list = pool_list_get(argc, argv, NULL, &ret)) == NULL)
+	if ((list = pool_list_get(argc, argv, NULL, &ret, NULL)) == NULL)
 		return (1);
 
-	if (pool_list_count(list) == 0 && argc != 0) {
-		pool_list_free(list);
+	if (pool_list_count(list, NULL) == 0 && argc != 0) {
+		pool_list_free(list, NULL);
 		return (1);
 	}
 
-	if (pool_list_count(list) == 0 && interval == 0) {
-		pool_list_free(list);
+	if (pool_list_count(list, NULL) == 0 && interval == 0) {
+		pool_list_free(list, NULL);
 		(void) fprintf(stderr, gettext("no pools available\n"));
 		return (1);
 	}
@@ -2874,7 +2875,7 @@ zpool_do_iostat(int argc, char **argv)
 	cb.cb_namewidth = 0;
 
 	for (;;) {
-		if ((npools = pool_list_count(list)) == 0)
+		if ((npools = pool_list_count(list, NULL)) == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));
 		else {
 			/*
@@ -2891,7 +2892,7 @@ zpool_do_iostat(int argc, char **argv)
 			 * properly accounted for.
 			 */
 			(void) pool_list_iter(list, B_FALSE, refresh_iostat,
-				&cb);
+				&cb, NULL);
 
 			/*
 			 * Iterate over all pools to determine the maximum width
@@ -2899,7 +2900,7 @@ zpool_do_iostat(int argc, char **argv)
 			 */
 			cb.cb_namewidth = 0;
 			(void) pool_list_iter(list, B_FALSE, get_namewidth,
-				&cb);
+				&cb, NULL);
 
 			if (timestamp_fmt != NODATE)
 				print_timestamp(timestamp_fmt);
@@ -2917,7 +2918,8 @@ zpool_do_iostat(int argc, char **argv)
 				continue;
 			}
 
-			(void) pool_list_iter(list, B_FALSE, print_iostat, &cb);
+			(void) pool_list_iter(list,
+			    B_FALSE, print_iostat, &cb, NULL);
 
 			/*
 			 * If there's more than one pool, and we're not in
@@ -2946,7 +2948,7 @@ zpool_do_iostat(int argc, char **argv)
 		(void) sleep(interval);
 	}
 
-	pool_list_free(list);
+	pool_list_free(list, NULL);
 
 	return (ret);
 }
@@ -3207,7 +3209,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
  * Generic callback function to list a pool.
  */
 int
-list_callback(zpool_handle_t *zhp, void *data)
+list_callback(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	list_cbdata_t *cbp = data;
 	nvlist_t *config;
@@ -3252,6 +3254,8 @@ zpool_do_list(int argc, char **argv)
 	unsigned long interval = 0, count = 0;
 	zpool_list_t *list;
 	boolean_t first = B_TRUE;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, ":Ho:T:v")) != -1) {
@@ -3285,15 +3289,16 @@ zpool_do_list(int argc, char **argv)
 
 	get_interval_count(&argc, argv, &interval, &count);
 
-	if (zprop_get_list(g_zfs, props, &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
+	if (zprop_get_list(&json, g_zfs, props,
+	    &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
 		usage(B_FALSE);
 
 	for (;;) {
 		if ((list = pool_list_get(argc, argv, &cb.cb_proplist,
-		    &ret)) == NULL)
+		    &ret, &json)) == NULL)
 			return (1);
 
-		if (pool_list_count(list) == 0)
+		if (pool_list_count(list, &json) == 0)
 			break;
 
 		if (timestamp_fmt != NODATE)
@@ -3303,7 +3308,7 @@ zpool_do_list(int argc, char **argv)
 			print_header(&cb);
 			first = B_FALSE;
 		}
-		ret = pool_list_iter(list, B_TRUE, list_callback, &cb);
+		ret = pool_list_iter(list, B_TRUE, list_callback, &cb, &json);
 
 		if (interval == 0)
 			break;
@@ -3311,16 +3316,16 @@ zpool_do_list(int argc, char **argv)
 		if (count != 0 && --count == 0)
 			break;
 
-		pool_list_free(list);
+		pool_list_free(list, &json);
 		(void) sleep(interval);
 	}
 
-	if (argc == 0 && !cb.cb_scripted && pool_list_count(list) == 0) {
+	if (argc == 0 && !cb.cb_scripted && pool_list_count(list, &json) == 0) {
 		(void) printf(gettext("no pools available\n"));
 		ret = 0;
 	}
 
-	pool_list_free(list);
+	pool_list_free(list, &json);
 	zprop_free_list(cb.cb_proplist);
 	return (ret);
 }
@@ -3402,7 +3407,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		usage(B_FALSE);
 	}
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(NULL, g_zfs, poolname)) == NULL)
 		return (1);
 
 	if (zpool_get_config(zhp, NULL) == NULL) {
@@ -3413,7 +3418,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	}
 
 	nvroot = make_root_vdev(zhp, props, force, B_FALSE, replacing, B_FALSE,
-	    argc, argv);
+	    argc, argv, NULL);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		return (1);
@@ -3506,7 +3511,7 @@ zpool_do_detach(int argc, char **argv)
 	poolname = argv[0];
 	path = argv[1];
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(NULL, g_zfs, poolname)) == NULL)
 		return (1);
 
 	ret = zpool_vdev_detach(zhp, path);
@@ -3615,10 +3620,10 @@ zpool_do_split(int argc, char **argv)
 	argc -= 2;
 	argv += 2;
 
-	if ((zhp = zpool_open(g_zfs, srcpool)) == NULL)
+	if ((zhp = zpool_open(NULL, g_zfs, srcpool)) == NULL)
 		return (1);
-
-	config = split_mirror_vdev(zhp, newpool, props, flags, argc, argv);
+	config = split_mirror_vdev(zhp, newpool,
+	    props, flags, argc, argv, NULL);
 	if (config == NULL) {
 		ret = 1;
 	} else {
@@ -3639,10 +3644,10 @@ zpool_do_split(int argc, char **argv)
 	 * The split was successful. Now we need to open the new
 	 * pool and import it.
 	 */
-	if ((zhp = zpool_open_canfail(g_zfs, newpool)) == NULL)
+	if ((zhp = zpool_open_canfail(NULL, g_zfs, newpool)) == NULL)
 		return (1);
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
-	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
+	    zpool_enable_datasets(zhp, mntopts, 0, NULL) != 0) {
 		ret = 1;
 		(void) fprintf(stderr, gettext("Split was successful, but "
 		    "the datasets could not all be mounted\n"));
@@ -3668,18 +3673,39 @@ zpool_do_online(int argc, char **argv)
 	int ret = 0;
 	vdev_state_t newstate;
 	int flags = 0;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
+	char errbuf[1024];
 
 	/* check options */
-	while ((c = getopt(argc, argv, "et")) != -1) {
+	while ((c = getopt(argc, argv, "etjJ")) != -1) {
 		switch (c) {
+		case 'j':
+		case 'J':
+			json.json = B_TRUE;
+			json.nv_dict_props = fnvlist_alloc();
+			json.nv_dict_error = fnvlist_alloc();
+			json.nb_elem = 0;
+			json.json_data = NULL;
+			fnvlist_add_string(json.nv_dict_props,
+			    "cmd", "zpool online");
+			fnvlist_add_string(json.nv_dict_error, "error", "");
+			break;
 		case 'e':
 			flags |= ZFS_ONLINE_EXPAND;
 			break;
 		case 't':
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			(void) sprintf(errbuf, gettext("invalid option '%c'"),
 			    optopt);
-			usage(B_FALSE);
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 		}
 	}
 
@@ -3688,24 +3714,40 @@ zpool_do_online(int argc, char **argv)
 
 	/* get pool name and check number of arguments */
 	if (argc < 1) {
-		(void) fprintf(stderr, gettext("missing pool name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing pool name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 	if (argc < 2) {
-		(void) fprintf(stderr, gettext("missing device name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing device name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 
 	poolname = argv[0];
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(&json, g_zfs, poolname)) == NULL)
 		return (1);
 
 	for (i = 1; i < argc; i++) {
-		if (zpool_vdev_online(zhp, argv[i], flags, &newstate) == 0) {
+		if (zpool_vdev_online(zhp, argv[i], flags,
+		    &newstate, &json) == 0) {
 			if (newstate != VDEV_STATE_HEALTHY) {
+				if (!json.json) {
 				(void) printf(gettext("warning: device '%s' "
-				    "onlined, but remains in faulted state\n"),
+				    "onlined, but remains in faulted state"),
 				    argv[i]);
 				if (newstate == VDEV_STATE_FAULTED)
 					(void) printf(gettext("use 'zpool "
@@ -3715,15 +3757,72 @@ zpool_do_online(int argc, char **argv)
 					(void) printf(gettext("use 'zpool "
 					    "replace' to replace devices "
 					    "that are no longer present\n"));
+			} else {
+				if (newstate == VDEV_STATE_FAULTED) {
+					(void) sprintf(errbuf,
+					    gettext("warning: device '%s' "
+					    "onlined, but remains in"
+					    " faulted state, use 'zpool "
+					    "clear' to restore a faulted "
+					    "device"), argv[i]);
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", errbuf);
+				} else {
+					(void) printf(gettext("warning:"
+						" device '%s' "
+					    "onlined, but remains"
+					    " in faulted state,use 'zpool "
+					    "replace' to replace devices "
+					    "that are no longer present"),
+					    argv[i]);
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", errbuf);
+				}
 			}
+		}
 		} else {
 			ret = 1;
 		}
 	}
-
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
 	zpool_close(zhp);
 
 	return (ret);
+	json_usage:
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
+	exit(2);
 }
 
 /*
@@ -3745,18 +3844,39 @@ zpool_do_offline(int argc, char **argv)
 	zpool_handle_t *zhp;
 	int ret = 0;
 	boolean_t istmp = B_FALSE;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
+	char errbuf[1024];
 
 	/* check options */
-	while ((c = getopt(argc, argv, "ft")) != -1) {
+	while ((c = getopt(argc, argv, "Jjft")) != -1) {
 		switch (c) {
+		case 'j':
+		case 'J':
+			json.json = B_TRUE;
+			json.nv_dict_props = fnvlist_alloc();
+			json.nv_dict_error = fnvlist_alloc();
+			json.nb_elem = 0;
+			json.json_data = NULL;
+			fnvlist_add_string(json.nv_dict_props,
+			    "cmd", "zpool offline");
+			fnvlist_add_string(json.nv_dict_error, "error", "");
+		break;
 		case 't':
 			istmp = B_TRUE;
 			break;
 		case 'f':
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			(void) sprintf(errbuf, gettext("invalid option '%c'"),
 			    optopt);
-			usage(B_FALSE);
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 		}
 	}
 
@@ -3765,27 +3885,87 @@ zpool_do_offline(int argc, char **argv)
 
 	/* get pool name and check number of arguments */
 	if (argc < 1) {
-		(void) fprintf(stderr, gettext("missing pool name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing pool name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 	if (argc < 2) {
-		(void) fprintf(stderr, gettext("missing device name\n"));
-		usage(B_FALSE);
+		(void) sprintf(errbuf, gettext("missing device name"));
+			if (!json.json) {
+				fprintf(stderr, "%s\n", errbuf);
+				usage(B_FALSE);
+			} else {
+				fnvlist_add_string(json.nv_dict_error,
+				    "error", errbuf);
+				goto json_usage;
+			}
 	}
 
 	poolname = argv[0];
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
-		return (1);
+	if ((zhp = zpool_open(&json, g_zfs, poolname)) == NULL) {
+		if (!json.json)
+			return (1);
+		else {
+			ret = 1;
+			goto json_out;
+		}
+	}
+
 
 	for (i = 1; i < argc; i++) {
-		if (zpool_vdev_offline(zhp, argv[i], istmp) != 0)
+		if (zpool_vdev_offline(zhp, argv[i], istmp, &json) != 0)
 			ret = 1;
 	}
 
 	zpool_close(zhp);
 
+json_out:
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
+
 	return (ret);
+
+json_usage:
+	if (json.json) {
+		fnvlist_add_string(json.nv_dict_props, "schema_version", "1.0");
+		fnvlist_add_nvlist_array(json.nv_dict_props, "stdout",
+		    (nvlist_t **)json.json_data, json.nb_elem);
+		fnvlist_add_nvlist(json.nv_dict_props,
+		    "stderr", json.nv_dict_error);
+		nvlist_print_json(stdout, json.nv_dict_props);
+		fprintf(stdout, "\n");
+		fflush(stdout);
+		while (((json.nb_elem)--) > 0)
+			fnvlist_free(
+			    ((nvlist_t **)
+			    (json.json_data))[json.nb_elem]);
+		free(json.json_data);
+		fnvlist_free(json.nv_dict_error);
+		fnvlist_free(json.nv_dict_props);
+	}
+	exit(2);
 }
 
 /*
@@ -3858,7 +4038,7 @@ zpool_do_clear(int argc, char **argv)
 	pool = argv[0];
 	device = argc == 2 ? argv[1] : NULL;
 
-	if ((zhp = zpool_open_canfail(g_zfs, pool)) == NULL) {
+	if ((zhp = zpool_open_canfail(NULL, g_zfs, pool)) == NULL) {
 		nvlist_free(policy);
 		return (1);
 	}
@@ -3909,7 +4089,7 @@ zpool_do_reguid(int argc, char **argv)
 	}
 
 	poolname = argv[0];
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(NULL, g_zfs, poolname)) == NULL)
 		return (1);
 
 	ret = zpool_reguid(zhp);
@@ -3956,7 +4136,7 @@ zpool_do_reopen(int argc, char **argv)
 	}
 
 	pool = argv[0];
-	if ((zhp = zpool_open_canfail(g_zfs, pool)) == NULL)
+	if ((zhp = zpool_open_canfail(NULL, g_zfs, pool)) == NULL)
 		return (1);
 
 	ret = zpool_reopen(zhp);
@@ -3971,7 +4151,7 @@ typedef struct scrub_cbdata {
 } scrub_cbdata_t;
 
 int
-scrub_callback(zpool_handle_t *zhp, void *data)
+scrub_callback(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	scrub_cbdata_t *cb = data;
 	int err;
@@ -4025,8 +4205,8 @@ zpool_do_scrub(int argc, char **argv)
 		(void) fprintf(stderr, gettext("missing pool name argument\n"));
 		usage(B_FALSE);
 	}
-
-	return (for_each_pool(argc, argv, B_TRUE, NULL, scrub_callback, &cb));
+	return (for_each_pool(argc, argv,
+	    B_TRUE, NULL, scrub_callback, &cb, NULL));
 }
 
 typedef struct status_cbdata {
@@ -4151,7 +4331,7 @@ print_scan_status(pool_scan_stat_t *ps)
 }
 
 static void
-print_error_log(zpool_handle_t *zhp)
+print_error_log(zpool_handle_t *zhp, zfs_json_t *json)
 {
 	nvlist_t *nverrlist = NULL;
 	nvpair_t *elem;
@@ -4178,7 +4358,7 @@ print_error_log(zpool_handle_t *zhp)
 		    &dsobj) == 0);
 		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT,
 		    &obj) == 0);
-		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
+		zpool_obj_to_path(zhp, dsobj, obj, pathname, len, json);
 		(void) printf("%7s %s\n", "", pathname);
 	}
 	free(pathname);
@@ -4277,7 +4457,7 @@ print_dedup_stats(nvlist_t *config)
  * option is specified, then we print out error rate information as well.
  */
 int
-status_callback(zpool_handle_t *zhp, void *data)
+status_callback(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	status_cbdata_t *cbp = data;
 	nvlist_t *config, *nvroot;
@@ -4614,7 +4794,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 				    "errors, use '-v' for a list\n"),
 				    (u_longlong_t)nerr);
 			else
-				print_error_log(zhp);
+				print_error_log(zhp, NULL);
 		}
 
 		if (cbp->cb_dedup_stats)
@@ -4682,7 +4862,7 @@ zpool_do_status(int argc, char **argv)
 			print_timestamp(timestamp_fmt);
 
 		ret = for_each_pool(argc, argv, B_TRUE, NULL,
-		    status_callback, &cb);
+		    status_callback, &cb, NULL);
 
 		if (argc == 0 && cb.cb_count == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));
@@ -4712,9 +4892,9 @@ typedef struct upgrade_cbdata {
 } upgrade_cbdata_t;
 
 static int
-check_unsupp_fs(zfs_handle_t *zhp, void *unsupp_fs)
+check_unsupp_fs(zfs_handle_t *zhp, void *unsupp_fs, zfs_json_t *json)
 {
-	int zfs_version = (int) zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
+	int zfs_version = (int) zfs_prop_get_int(json, zhp, ZFS_PROP_VERSION);
 	int *count = (int *)unsupp_fs;
 
 	if (zfs_version > ZPL_VERSION) {
@@ -4724,7 +4904,7 @@ check_unsupp_fs(zfs_handle_t *zhp, void *unsupp_fs)
 		(*count)++;
 	}
 
-	zfs_iter_filesystems(zhp, check_unsupp_fs, unsupp_fs);
+	zfs_iter_filesystems(zhp, check_unsupp_fs, unsupp_fs, json);
 
 	zfs_close(zhp);
 
@@ -4732,7 +4912,7 @@ check_unsupp_fs(zfs_handle_t *zhp, void *unsupp_fs)
 }
 
 static int
-upgrade_version(zpool_handle_t *zhp, uint64_t version)
+upgrade_version(zpool_handle_t *zhp, uint64_t version, zfs_json_t *json)
 {
 	int ret;
 	nvlist_t *config;
@@ -4745,8 +4925,8 @@ upgrade_version(zpool_handle_t *zhp, uint64_t version)
 
 	assert(SPA_VERSION_IS_SUPPORTED(oldversion));
 	assert(oldversion < version);
-
-	ret = zfs_iter_root(zpool_get_handle(zhp), check_unsupp_fs, &unsupp_fs);
+	ret = zfs_iter_root(zpool_get_handle(zhp),
+	    check_unsupp_fs, &unsupp_fs, json);
 	if (ret != 0)
 		return (ret);
 
@@ -4814,7 +4994,7 @@ upgrade_enable_all(zpool_handle_t *zhp, int *countp)
 }
 
 static int
-upgrade_cb(zpool_handle_t *zhp, void *arg)
+upgrade_cb(zpool_handle_t *zhp, void *arg, zfs_json_t *json)
 {
 	upgrade_cbdata_t *cbp = arg;
 	nvlist_t *config;
@@ -4830,7 +5010,7 @@ upgrade_cb(zpool_handle_t *zhp, void *arg)
 
 	if (version < cbp->cb_version) {
 		cbp->cb_first = B_FALSE;
-		ret = upgrade_version(zhp, cbp->cb_version);
+		ret = upgrade_version(zhp, cbp->cb_version, json);
 		if (ret != 0)
 			return (ret);
 		printnl = B_TRUE;
@@ -4865,7 +5045,7 @@ upgrade_cb(zpool_handle_t *zhp, void *arg)
 }
 
 static int
-upgrade_list_older_cb(zpool_handle_t *zhp, void *arg)
+upgrade_list_older_cb(zpool_handle_t *zhp, void *arg, zfs_json_t *json)
 {
 	upgrade_cbdata_t *cbp = arg;
 	nvlist_t *config;
@@ -4898,7 +5078,7 @@ upgrade_list_older_cb(zpool_handle_t *zhp, void *arg)
 }
 
 static int
-upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
+upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg, zfs_json_t *json)
 {
 	upgrade_cbdata_t *cbp = arg;
 	nvlist_t *config;
@@ -4958,7 +5138,7 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 
 /* ARGSUSED */
 static int
-upgrade_one(zpool_handle_t *zhp, void *data)
+upgrade_one(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	boolean_t printnl = B_FALSE;
 	upgrade_cbdata_t *cbp = data;
@@ -4989,7 +5169,7 @@ upgrade_one(zpool_handle_t *zhp, void *data)
 
 	if (cur_version != cbp->cb_version) {
 		printnl = B_TRUE;
-		ret = upgrade_version(zhp, cbp->cb_version);
+		ret = upgrade_version(zhp, cbp->cb_version, json);
 		if (ret != 0)
 			return (ret);
 	}
@@ -5158,7 +5338,7 @@ zpool_do_upgrade(int argc, char **argv)
 		(void) printf(gettext("see the ZFS Administration Guide.\n\n"));
 	} else if (argc == 0 && upgradeall) {
 		cb.cb_first = B_TRUE;
-		ret = zpool_iter(g_zfs, upgrade_cb, &cb);
+		ret = zpool_iter(g_zfs, upgrade_cb, &cb, NULL);
 		if (ret == 0 && cb.cb_first) {
 			if (cb.cb_version == SPA_VERSION) {
 				(void) printf(gettext("All pools are already "
@@ -5174,7 +5354,7 @@ zpool_do_upgrade(int argc, char **argv)
 		}
 	} else if (argc == 0) {
 		cb.cb_first = B_TRUE;
-		ret = zpool_iter(g_zfs, upgrade_list_older_cb, &cb);
+		ret = zpool_iter(g_zfs, upgrade_list_older_cb, &cb, NULL);
 		assert(ret == 0);
 
 		if (cb.cb_first) {
@@ -5186,7 +5366,7 @@ zpool_do_upgrade(int argc, char **argv)
 		}
 
 		cb.cb_first = B_TRUE;
-		ret = zpool_iter(g_zfs, upgrade_list_disabled_cb, &cb);
+		ret = zpool_iter(g_zfs, upgrade_list_disabled_cb, &cb, NULL);
 		assert(ret == 0);
 
 		if (cb.cb_first) {
@@ -5197,7 +5377,7 @@ zpool_do_upgrade(int argc, char **argv)
 		}
 	} else {
 		ret = for_each_pool(argc, argv, B_FALSE, NULL,
-		    upgrade_one, &cb);
+		    upgrade_one, &cb, NULL);
 	}
 
 	return (ret);
@@ -5213,7 +5393,7 @@ typedef struct hist_cbdata {
  * Print out the command history for a specific pool.
  */
 static int
-get_history_one(zpool_handle_t *zhp, void *data)
+get_history_one(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	nvlist_t *nvhis;
 	nvlist_t **records;
@@ -5363,7 +5543,7 @@ zpool_do_history(int argc, char **argv)
 	argv += optind;
 
 	ret = for_each_pool(argc, argv, B_FALSE,  NULL, get_history_one,
-	    &cbdata);
+	    &cbdata, NULL);
 
 	if (argc == 0 && cbdata.first == B_TRUE) {
 		(void) fprintf(stderr, gettext("no pools available\n"));
@@ -5718,7 +5898,7 @@ zpool_do_events(int argc, char **argv)
 }
 
 static int
-get_callback(zpool_handle_t *zhp, void *data)
+get_callback(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	zprop_get_cbdata_t *cbp = (zprop_get_cbdata_t *)data;
 	char value[MAXNAMELEN];
@@ -5742,7 +5922,8 @@ get_callback(zpool_handle_t *zhp, void *data)
 
 			if (zpool_prop_get_feature(zhp, pl->pl_user_prop,
 			    value, sizeof (value)) == 0) {
-				zprop_print_one_property(zpool_get_name(zhp),
+				zprop_print_one_property(json,
+				    zpool_get_name(zhp),
 				    cbp, pl->pl_user_prop, value, srctype,
 				    NULL, NULL);
 			}
@@ -5750,8 +5931,8 @@ get_callback(zpool_handle_t *zhp, void *data)
 			if (zpool_get_prop_literal(zhp, pl->pl_prop, value,
 			    sizeof (value), &srctype, cbp->cb_literal) != 0)
 				continue;
-
-			zprop_print_one_property(zpool_get_name(zhp), cbp,
+			zprop_print_one_property(json,
+			    zpool_get_name(zhp), cbp,
 			    zpool_prop_to_name(pl->pl_prop), value, srctype,
 			    NULL, NULL);
 		}
@@ -5765,6 +5946,8 @@ zpool_do_get(int argc, char **argv)
 	zprop_get_cbdata_t cb = { 0 };
 	zprop_list_t fake_name = { 0 };
 	int c, ret;
+	zfs_json_t json;
+	json.json = json.ld_json = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "pH")) != -1) {
@@ -5801,7 +5984,8 @@ zpool_do_get(int argc, char **argv)
 	cb.cb_columns[3] = GET_COL_SOURCE;
 	cb.cb_type = ZFS_TYPE_POOL;
 
-	if (zprop_get_list(g_zfs, argv[0], &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
+	if (zprop_get_list(&json, g_zfs, argv[0],
+	    &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
 		usage(B_FALSE);
 
 	argc--;
@@ -5815,7 +5999,7 @@ zpool_do_get(int argc, char **argv)
 	}
 
 	ret = for_each_pool(argc, argv, B_TRUE, &cb.cb_proplist,
-	    get_callback, &cb);
+	    get_callback, &cb, NULL);
 
 	if (cb.cb_proplist == &fake_name)
 		zprop_free_list(fake_name.pl_next);
@@ -5832,7 +6016,7 @@ typedef struct set_cbdata {
 } set_cbdata_t;
 
 int
-set_callback(zpool_handle_t *zhp, void *data)
+set_callback(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	int error;
 	set_cbdata_t *cb = (set_cbdata_t *)data;
@@ -5885,7 +6069,7 @@ zpool_do_set(int argc, char **argv)
 	cb.cb_value++;
 
 	error = for_each_pool(argc - 2, argv + 2, B_TRUE, NULL,
-	    set_callback, &cb);
+	    set_callback, &cb, NULL);
 
 	return (error);
 }

@@ -3535,7 +3535,7 @@ find_zpool(char **target, nvlist_t **configp, int dirc, char **dirv)
 		*sepp = '\0';
 	}
 
-	pools = zpool_search_import(g_zfs, &args);
+	pools = zpool_search_import(g_zfs, &args, NULL);
 
 	if (pools != NULL) {
 		nvpair_t *elem = NULL;

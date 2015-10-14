@@ -303,7 +303,8 @@ vdev_error(const char *fmt, ...)
  * not in use by another pool, and not in use by swap.
  */
 static int
-check_file(const char *file, boolean_t force, boolean_t isspare)
+check_file(const char *file, boolean_t force,
+    boolean_t isspare, zfs_json_t *json)
 {
 	char  *name;
 	int fd;
@@ -314,7 +315,8 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	if ((fd = open(file, O_RDONLY)) < 0)
 		return (0);
 
-	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) == 0 && inuse) {
+	if (zpool_in_use(g_zfs, fd, &state, &name,
+	    &inuse, json) == 0 && inuse) {
 		const char *desc;
 
 		switch (state) {
@@ -371,7 +373,8 @@ check_error(int err)
 }
 
 static int
-check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
+check_slice(const char *path, blkid_cache cache,
+    int force, boolean_t isspare, zfs_json_t *json)
 {
 	int err;
 #ifdef HAVE_LIBBLKID
@@ -401,7 +404,7 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 
 	free(value);
 #else
-	err = check_file(path, force, isspare);
+	err = check_file(path, force, isspare, json);
 #endif /* HAVE_LIBBLKID */
 
 	return (err);
@@ -413,7 +416,7 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
  */
 static int
 check_disk(const char *path, blkid_cache cache, int force,
-    boolean_t isspare, boolean_t iswholedisk)
+    boolean_t isspare, boolean_t iswholedisk, zfs_json_t *json)
 {
 	struct dk_gpt *vtoc;
 	char slice_path[MAXPATHLEN];
@@ -422,7 +425,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 
 	/* This is not a wholedisk we only check the given partition */
 	if (!iswholedisk)
-		return (check_slice(path, cache, force, isspare));
+		return (check_slice(path, cache, force, isspare, json));
 
 	/*
 	 * When the device is a whole disk try to read the efi partition
@@ -483,7 +486,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 			    "%s%s%d", path, isdigit(path[strlen(path)-1]) ?
 			    "p" : "", i+1);
 
-		err = check_slice(slice_path, cache, force, isspare);
+		err = check_slice(slice_path, cache, force, isspare, json);
 		if (err)
 			break;
 	}
@@ -496,7 +499,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 
 static int
 check_device(const char *path, boolean_t force,
-    boolean_t isspare, boolean_t iswholedisk)
+    boolean_t isspare, boolean_t iswholedisk, zfs_json_t *json)
 {
 	static blkid_cache cache = NULL;
 
@@ -521,7 +524,7 @@ check_device(const char *path, boolean_t force,
 	}
 #endif /* HAVE_LIBBLKID */
 
-	return (check_disk(path, cache, force, isspare, iswholedisk));
+	return (check_disk(path, cache, force, isspare, iswholedisk, json));
 }
 
 /*
@@ -580,7 +583,7 @@ is_shorthand_path(const char *arg, char *path,
  * If no configuration is given we rely solely on the label.
  */
 static boolean_t
-is_spare(nvlist_t *config, const char *path)
+is_spare(nvlist_t *config, const char *path, zfs_json_t *json)
 {
 	int fd;
 	pool_state_t state;
@@ -595,7 +598,7 @@ is_spare(nvlist_t *config, const char *path)
 	if ((fd = open(path, O_RDONLY)) < 0)
 		return (B_FALSE);
 
-	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) != 0 ||
+	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse, json) != 0 ||
 	    !inuse ||
 	    state != POOL_STATE_SPARE ||
 	    zpool_read_label(fd, &label, NULL) != 0) {
@@ -738,7 +741,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 
 		if (nvlist_lookup_string(props,
 		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0)
-			zfs_nicestrtonum(NULL, value, &ashift);
+			zfs_nicestrtonum(NULL, NULL, value, &ashift);
 	}
 
 	/*
@@ -1160,7 +1163,7 @@ zero_label(char *path)
  * need to get the devid after we label the disk.
  */
 static int
-make_disks(zpool_handle_t *zhp, nvlist_t *nv)
+make_disks(zpool_handle_t *zhp, nvlist_t *nv, zfs_json_t *json)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1234,7 +1237,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * symbolic link will be removed, partition table created,
 		 * and then block until udev creates the new link.
 		 */
-		if (!is_exclusive || !is_spare(NULL, udevpath)) {
+		if (!is_exclusive || !is_spare(NULL, udevpath, json)) {
 			ret = strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT));
 			if (ret == 0) {
 				ret = lstat64(udevpath, &statbuf);
@@ -1268,19 +1271,19 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	}
 
 	for (c = 0; c < children; c++)
-		if ((ret = make_disks(zhp, child[c])) != 0)
+		if ((ret = make_disks(zhp, child[c], json)) != 0)
 			return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, child[c], json)) != 0)
 				return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, child[c], json)) != 0)
 				return (ret);
 
 	return (0);
@@ -1292,7 +1295,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
  */
 static boolean_t
 is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
-    boolean_t replacing, boolean_t isspare)
+    boolean_t replacing, boolean_t isspare, zfs_json_t *json)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1325,36 +1328,37 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 					return (-1);
 			}
 
-			if (is_spare(config, buf))
+			if (is_spare(config, buf, json))
 				return (B_FALSE);
 		}
 
 		if (strcmp(type, VDEV_TYPE_DISK) == 0)
-			ret = check_device(path, force, isspare, wholedisk);
+			ret = check_device(path, force,
+			isspare, wholedisk, json);
 
 		else if (strcmp(type, VDEV_TYPE_FILE) == 0)
-			ret = check_file(path, force, isspare);
+			ret = check_file(path, force, isspare, json);
 
 		return (ret != 0);
 	}
 
 	for (c = 0; c < children; c++)
 		if (is_device_in_use(config, child[c], force, replacing,
-		    B_FALSE))
+		    B_FALSE, json))
 			anyinuse = B_TRUE;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
 			if (is_device_in_use(config, child[c], force, replacing,
-			    B_TRUE))
+			    B_TRUE, json))
 				anyinuse = B_TRUE;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
 			if (is_device_in_use(config, child[c], force, replacing,
-			    B_FALSE))
+			    B_FALSE, json))
 				anyinuse = B_TRUE;
 
 	return (anyinuse);
@@ -1630,7 +1634,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 nvlist_t *
 split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
-    splitflags_t flags, int argc, char **argv)
+    splitflags_t flags, int argc, char **argv, zfs_json_t *json)
 {
 	nvlist_t *newroot = NULL, **child;
 	uint_t c, children;
@@ -1642,7 +1646,7 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 			return (NULL);
 		}
 
-		if (!flags.dryrun && make_disks(zhp, newroot) != 0) {
+		if (!flags.dryrun && make_disks(zhp, newroot, json) != 0) {
 			nvlist_free(newroot);
 			return (NULL);
 		}
@@ -1686,8 +1690,10 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
  * added, even if they appear in use.
  */
 nvlist_t *
-make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
-    boolean_t replacing, boolean_t dryrun, int argc, char **argv)
+make_root_vdev(zpool_handle_t *zhp, nvlist_t *props,
+    int force, int check_rep,
+    boolean_t replacing, boolean_t dryrun,
+    int argc, char **argv, zfs_json_t *json)
 {
 	nvlist_t *newroot;
 	nvlist_t *poolconfig = NULL;
@@ -1712,7 +1718,8 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * uses (such as a dedicated dump device) that even '-f' cannot
 	 * override.
 	 */
-	if (is_device_in_use(poolconfig, newroot, force, replacing, B_FALSE)) {
+	if (is_device_in_use(poolconfig, newroot,
+	    force, replacing, B_FALSE, json)) {
 		nvlist_free(newroot);
 		return (NULL);
 	}
@@ -1730,7 +1737,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	/*
 	 * Run through the vdev specification and label any whole disks found.
 	 */
-	if (!dryrun && make_disks(zhp, newroot) != 0) {
+	if (!dryrun && make_disks(zhp, newroot, json) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

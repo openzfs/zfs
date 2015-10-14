@@ -156,12 +156,13 @@ import_pool(const char *target, boolean_t readonly)
 	if ((sepp = strpbrk(g_pool, "/@")) != NULL)
 		*sepp = '\0';
 	g_importargs.poolname = g_pool;
-	pools = zpool_search_import(g_zfs, &g_importargs);
+	pools = zpool_search_import(g_zfs, &g_importargs, NULL);
 
 	if (nvlist_empty(pools)) {
 		if (!g_importargs.can_be_active) {
 			g_importargs.can_be_active = B_TRUE;
-			if (zpool_search_import(g_zfs, &g_importargs) != NULL ||
+			if (zpool_search_import(g_zfs,
+			    &g_importargs, NULL) != NULL ||
 			    spa_open(target, &spa, FTAG) == 0) {
 				fatal(spa, FTAG, "cannot import '%s': pool is "
 				    "active; run " "\"zpool export %s\" "
