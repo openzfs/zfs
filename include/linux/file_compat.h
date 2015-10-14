@@ -76,7 +76,7 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 #define	spl_filp_fsync(fp, sync)	vfs_fsync(fp, (fp)->f_dentry, sync)
 #endif /* HAVE_2ARGS_VFS_FSYNC */
 
-#define	spl_inode_lock(ip)		mutex_lock(&(ip)->i_mutex)
+#define	spl_inode_lock(ip)		mutex_lock_nested(&(ip)->i_mutex, I_MUTEX_PARENT)
 #define	spl_inode_unlock(ip)		mutex_unlock(&(ip)->i_mutex)
 
 #endif /* SPL_FILE_COMPAT_H */
