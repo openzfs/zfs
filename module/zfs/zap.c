@@ -404,7 +404,7 @@ zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
-	rw_init(&l->l_rwlock, NULL, RW_DEFAULT, NULL);
+	rw_init(&l->l_rwlock, NULL, RW_NOLOCKDEP, NULL);
 	rw_enter(&l->l_rwlock, RW_WRITER);
 	l->l_blkid = zap_allocate_blocks(zap, 1);
 	l->l_dbuf = NULL;

@@ -107,7 +107,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 
 	mutex_init(&zp->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zp->z_parent_lock, NULL, RW_DEFAULT, NULL);
-	rw_init(&zp->z_name_lock, NULL, RW_DEFAULT, NULL);
+	rw_init(&zp->z_name_lock, NULL, RW_NOLOCKDEP, NULL);
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zp->z_xattr_lock, NULL, RW_DEFAULT, NULL);
 

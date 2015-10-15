@@ -1320,7 +1320,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		}
 		dr->dt.dl.dr_data = data_old;
 	} else {
-		mutex_init(&dr->dt.di.dr_mtx, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&dr->dt.di.dr_mtx, NULL, MUTEX_NOLOCKDEP, NULL);
 		list_create(&dr->dt.di.dr_children,
 		    sizeof (dbuf_dirty_record_t),
 		    offsetof(dbuf_dirty_record_t, dr_dirty_node));
