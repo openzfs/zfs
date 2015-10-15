@@ -85,7 +85,7 @@ multilist_create(multilist_t *ml, size_t size, size_t offset, unsigned int num,
 
 	for (i = 0; i < ml->ml_num_sublists; i++) {
 		multilist_sublist_t *mls = &ml->ml_sublists[i];
-		mutex_init(&mls->mls_lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&mls->mls_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 		list_create(&mls->mls_list, size, offset);
 	}
 }

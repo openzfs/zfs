@@ -107,7 +107,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	dnode_t *dn = arg;
 	int i;
 
-	rw_init(&dn->dn_struct_rwlock, NULL, RW_DEFAULT, NULL);
+	rw_init(&dn->dn_struct_rwlock, NULL, RW_NOLOCKDEP, NULL);
 	mutex_init(&dn->dn_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&dn->dn_dbufs_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dn->dn_notxholds, NULL, CV_DEFAULT, NULL);
