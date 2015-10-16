@@ -97,8 +97,8 @@ cols = {
 v = {}
 hdr = ["time", "read", "miss", "miss%", "dmis", "dm%", "pmis", "pm%", "mmis",
        "mm%", "arcsz", "c"]
-xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "rmis",
-        "dread", "pread", "read"]
+xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "dread",
+        "pread", "read"]
 sint = 1               # Default interval is 1 second
 count = 1              # Default count is 1
 hdr_intr = 20          # Print header every 20 lines of output
