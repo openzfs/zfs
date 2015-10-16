@@ -43,11 +43,13 @@ extern "C" {
 
 
 typedef struct arc_buf_data {
+#ifdef ZFS_DEBUG
 	uint32_t	abd_magic;	/* ARC_BUF_DATA_MAGIC */
+#endif
 	uint32_t	abd_flags;
+	int		abd_nents;	/* num of sgl entries */
 	size_t		abd_size;	/* buffer size, excluding offset */
 	size_t		abd_offset;	/* offset in the first segment */
-	int		abd_nents;	/* num of sgl entries */
 	union {
 		struct scatterlist *abd_sgl;
 		void *abd_buf;
