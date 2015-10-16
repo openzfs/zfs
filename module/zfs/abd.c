@@ -324,6 +324,20 @@ do {							\
 	}						\
 } while (0)
 
+static inline void abd_set_magic(abd_t *abd)
+{
+#ifdef ZFS_DEBUG
+	abd->abd_magic = ARC_BUF_DATA_MAGIC;
+#endif
+}
+
+static inline void abd_clear_magic(abd_t *abd)
+{
+#ifdef ZFS_DEBUG
+	abd->abd_magic = 0;
+#endif
+}
+
 static void
 abd_iterate_func(abd_t *abd, size_t size,
     int (*func)(void *, uint64_t, void *), void *private, int rw)
@@ -978,7 +992,7 @@ abd_get_offset(abd_t *sabd, size_t off)
 
 	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
-	abd->abd_magic = ARC_BUF_DATA_MAGIC;
+	abd_set_magic(abd);
 	abd->abd_size = sabd->abd_size - off;
 	abd->abd_flags = sabd->abd_flags & ~ABD_F_OWNER;
 
@@ -1021,7 +1035,7 @@ abd_get_from_buf(void *buf, size_t size)
 
 	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
-	abd->abd_magic = ARC_BUF_DATA_MAGIC;
+	abd_set_magic(abd);
 	abd->abd_flags = ABD_F_LINEAR;
 	abd->abd_size = size;
 	abd->abd_offset = 0;
@@ -1042,7 +1056,7 @@ abd_put(abd_t *abd)
 	ABD_CHECK(abd);
 	ASSERT(!(abd->abd_flags & ABD_F_OWNER));
 
-	abd->abd_magic = 0;
+	abd_clear_magic(abd);
 	kmem_cache_free(abd_struct_cache, abd);
 }
 
@@ -1102,7 +1116,7 @@ abd_alloc_scatter(size_t size)
 
 	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
-	abd->abd_magic = ARC_BUF_DATA_MAGIC;
+	abd_set_magic(abd);
 	abd->abd_flags = ABD_F_SCATTER|ABD_F_OWNER|ABD_F_HIGHMEM;
 	abd->abd_size = size;
 	abd->abd_offset = 0;
@@ -1134,7 +1148,7 @@ abd_alloc_linear(size_t size)
 
 	abd = kmem_cache_alloc(abd_struct_cache, KM_PUSHPAGE);
 
-	abd->abd_magic = ARC_BUF_DATA_MAGIC;
+	abd_set_magic(abd);
 	abd->abd_flags = ABD_F_LINEAR|ABD_F_OWNER;
 	abd->abd_size = size;
 	abd->abd_offset = 0;
@@ -1155,7 +1169,7 @@ abd_free_scatter(abd_t *abd, size_t size)
 	ASSERT(abd->abd_nents == DIV_ROUND_UP(abd->abd_size, PAGESIZE));
 
 	n = abd->abd_nents;
-	abd->abd_magic = 0;
+	abd_clear_magic(abd);
 	for_each_sg(abd->abd_sgl, sg, n, i) {
 		page = sg_page(sg);
 		if (page)
@@ -1169,7 +1183,7 @@ abd_free_scatter(abd_t *abd, size_t size)
 static void
 abd_free_linear(abd_t *abd, size_t size)
 {
-	abd->abd_magic = 0;
+	abd_clear_magic(abd);
 	zio_buf_free(abd->abd_buf, size);
 	kmem_cache_free(abd_struct_cache, abd);
 }
