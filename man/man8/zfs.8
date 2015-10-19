@@ -38,22 +38,22 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBcreate\fR [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem\fR
+\fBzfs\fR \fBcreate\fR [\fB-pJj\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBcreate\fR [\fB-ps\fR] [\fB-b\fR \fIblocksize\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fB-V\fR \fIsize\fR \fIvolume\fR
+\fBzfs\fR \fBcreate\fR [\fB-psJj\fR] [\fB-b\fR \fIblocksize\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fB-V\fR \fIsize\fR \fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBdestroy\fR [\fB-fnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBdestroy\fR [\fB-fnpRrvJj\fR] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBdestroy\fR [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
+\fBzfs\fR \fBdestroy\fR [\fB-dnpRrvJj\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
 .fi
 
 .LP
@@ -63,82 +63,82 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsnapshot | snap\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ...
+\fBzfs\fR \fBsnapshot | snap\fR [\fB-rjJ\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ...
       \fIfilesystem@snapname\fR|\fIvolume@snapname\fR ...
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBrollback\fR [\fB-rRf\fR] \fIsnapshot\fR
+\fBzfs\fR \fBrollback\fR [\fB-rRfJj\fR] \fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBclone\fR [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIsnapshot\fR \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBclone\fR [\fB-pjJ\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIsnapshot\fR \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBpromote\fR \fIclone-filesystem\fR
+\fBzfs\fR \fBpromote\fR [-Jj] \fIclone-filesystem\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBrename\fR [\fB-f\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBrename\fR [\fB-fJj\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
      \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBrename\fR [\fB-fp\fR] \fIfilesystem\fR|\fIvolume\fR \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBrename\fR [\fB-fpJj\fR] \fIfilesystem\fR|\fIvolume\fR \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBrename\fR \fB-r\fR \fIsnapshot\fR \fIsnapshot\fR
+\fBzfs\fR \fBrename\fR \fB-r [\fB-Jj\fR]\fR \fIsnapshot\fR \fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-Hp\fR][\fB-o\fR \fIproperty\fR[,\fIproperty\fR]...] [\fB-t\fR \fItype\fR[,\fItype\fR]..]
+\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-HpJj\fR][\fB-o\fR \fIproperty\fR[,\fIproperty\fR]...] [\fB-t\fR \fItype\fR[,\fItype\fR]..]
      [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...
 .fi
 
 .LP
 .nf
-+\fBzfs\fR \fBset\fR \fIproperty\fR=\fIvalue\fR... \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR...
++\fBzfs\fR \fBset\fR [\fB-Jj\fR] \fIproperty\fR=\fIvalue\fR... \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR...
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBget\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-Hp\fR][\fB-o\fR \fIfield\fR[,...]] [\fB-t\fR \fItype\fR[,...]]
+\fBzfs\fR \fBget\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-HpJj\fR][\fB-o\fR \fIfield\fR[,...]] [\fB-t\fR \fItype\fR[,...]]
     [\fB-s\fR \fIsource\fR[,...]] "\fIall\fR" | \fIproperty\fR[,...] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBinherit\fR [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume|snapshot\fR ...
+\fBzfs\fR \fBinherit\fR [\fB-Jj\fR] [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume|snapshot\fR ...
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBupgrade\fR [\fB-v\fR]
+\fBzfs\fR \fBupgrade\fR [\fB-Jjv\fR]
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBupgrade\fR [\fB-r\fR] [\fB-V\fR \fIversion\fR] \fB-a\fR | \fIfilesystem\fR
+\fBzfs\fR \fBupgrade\fR [\fB-Jj\fR] [\fB-r\fR] [\fB-V\fR \fIversion\fR] \fB-a\fR | \fIfilesystem\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBuserspace\fR [\fB-Hinp\fR] [\fB-o\fR \fIfield\fR[,...]] [\fB-s\fR \fIfield\fR] ...
+\fBzfs\fR \fBuserspace\fR [\fB-HinpJj\fR] [\fB-o\fR \fIfield\fR[,...]] [\fB-s\fR \fIfield\fR] ...
     [\fB-S\fR \fIfield\fR] ... [\fB-t\fR \fItype\fR[,...]] \fIfilesystem\fR|\fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBgroupspace\fR [\fB-Hinp\fR] [\fB-o\fR \fIfield\fR[,...]] [\fB-s\fR \fIfield\fR] ...
+\fBzfs\fR \fBgroupspace\fR [\fB-HinpJj\fR] [\fB-o\fR \fIfield\fR[,...]] [\fB-s\fR \fIfield\fR] ...
     [\fB-S\fR \fIfield\fR] ... [\fB-t\fR \fItype\fR[,...]] \fIfilesystem\fR|\fIsnapshot\fR
 .fi
 
@@ -149,22 +149,22 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBmount\fR [\fB-vO\fR] [\fB-o \fIoptions\fR\fR] \fB-a\fR | \fIfilesystem\fR
+\fBzfs\fR \fBmount\fR [\fB-vOJj\fR] [\fB-o \fIoptions\fR\fR] \fB-a\fR | \fIfilesystem\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBunmount | umount\fR [\fB-f\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR
+\fBzfs\fR \fBunmount | umount\fR [\fB-Jj\fR] [\fB-f\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBshare\fR \fB-a\fR | \fIfilesystem\fR
+\fBzfs\fR \fBshare\fR [\fB-Jj\fR] \fB-a\fR | \fIfilesystem\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBunshare\fR \fB-a\fR \fIfilesystem\fR|\fImountpoint\fR
+\fBzfs\fR \fBunshare\fR [\fB-Jj\fR] \fB-a\fR \fIfilesystem\fR|\fImountpoint\fR
 .fi
 
 .LP
@@ -189,74 +189,74 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR
+\fBzfs\fR \fBreceive\fR [\fB-Jj\fR] [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBallow\fR \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBallow\fR [\fB-Jj\fR] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBallow\fR [\fB-ldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] \fIperm\fR|\fI@setname\fR[,...]
+\fBzfs\fR \fBallow\fR [\fB-Jj\fR] [\fB-ldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] \fIperm\fR|\fI@setname\fR[,...]
      \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBallow\fR [\fB-ld\fR] \fB-e\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBallow\fR [\fB-Jj\fR] [\fB-ld\fR] \fB-e\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBallow\fR \fB-c\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBallow\fR [\fB-Jj\fR] \fB-c\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBallow\fR \fB-s\fR @\fIsetname\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBallow\fR [\fB-Jj\fR] \fB-s\fR @\fIsetname\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBunallow\fR [\fB-rldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] [\fIperm\fR|@\fIsetname\fR[,... ]]
+\fBzfs\fR \fBunallow\fR [\fB-Jj\fR] [\fB-rldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] [\fIperm\fR|@\fIsetname\fR[,... ]]
      \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBunallow\fR [\fB-rld\fR] \fB-e\fR [\fIperm\fR|@\fIsetname\fR[,... ]] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBunallow\fR [\fB-Jj\fR] [\fB-rld\fR] \fB-e\fR [\fIperm\fR|@\fIsetname\fR[,... ]] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBunallow\fR [\fB-r\fR] \fB-c\fR [\fIperm\fR|@\fIsetname\fR[ ... ]] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBunallow\fR [\fB-Jj\fR] [\fB-r\fR] \fB-c\fR [\fIperm\fR|@\fIsetname\fR[ ... ]] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBunallow\fR [\fB-r\fR] \fB-s\fR @\fIsetname\fR [\fIperm\fR|@\fIsetname\fR[,... ]] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBunallow\fR [\fB-Jj\fR] [\fB-r\fR] \fB-s\fR @\fIsetname\fR [\fIperm\fR|@\fIsetname\fR[,... ]] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBhold\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...
+\fBzfs\fR \fBhold\fR [\fB-Jj\fR] [\fB-r\fR] \fItag\fR \fIsnapshot\fR...
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBholds\fR [\fB-r\fR] \fIsnapshot\fR...
+\fBzfs\fR \fBholds\fR [\fB-Jj\fR] [\fB-r\fR] \fIsnapshot\fR...
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBrelease\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...
+\fBzfs\fR \fBrelease\fR [\fB-Jj\fR] [\fB-r\fR] \fItag\fR \fIsnapshot\fR...
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBdiff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+\fBzfs\fR \fBdiff\fR [\fB-FHtJj\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
 
 .SH DESCRIPTION
 .LP
@@ -1568,7 +1568,7 @@ Displays a help message.
 .ne 2
 .mk
 .na
-\fB\fBzfs create\fR [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem\fR\fR
+\fB\fBzfs create\fR [\fB-Jj\fR] [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1588,6 +1588,28 @@ Creates all the non-existing parent datasets. Datasets created in this manner ar
 .ne 2
 .mk
 .na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-o\fR \fIproperty\fR=\fIvalue\fR\fR
 .ad
 .sp .6
@@ -1601,7 +1623,7 @@ Sets the specified property as if the command \fBzfs set\fR \fIproperty\fR=\fIva
 .ne 2
 .mk
 .na
-\fB\fBzfs create\fR [\fB-ps\fR] [\fB-b\fR \fIblocksize\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fB-V\fR \fIsize\fR \fIvolume\fR\fR
+\fB\fBzfs create\fR [\fB-Jj\fR] [\fB-ps\fR] [\fB-b\fR \fIblocksize\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fB-V\fR \fIsize\fR \fIvolume\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1658,7 +1680,7 @@ Equivalent to \fB-o\fR \fBvolblocksize\fR=\fIblocksize\fR. If this option is spe
 .ne 2
 .mk
 .na
-\fBzfs destroy\fR [\fB-fnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs destroy\fR [\fB-Jj\fR] [\fB-fnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR
 .ad
 .sp .6
 .RS 4n
@@ -1672,6 +1694,28 @@ Destroys the given dataset. By default, the command unshares any file systems th
 .sp .6
 .RS 4n
 Recursively destroy all children.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -1736,7 +1780,7 @@ Extreme care should be taken when applying either the \fB-r\fR or the \fB-R\fR o
 .ne 2
 .mk
 .na
-\fBzfs destroy\fR [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
+\fBzfs destroy\fR [\fB-Jj\fR] [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
 .ad
 .sp .6
 .RS 4n
@@ -1764,6 +1808,28 @@ comma-separated list to identify multiple snapshots.
 .sp .6
 .RS 4n
 Defer snapshot deletion.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -1845,7 +1911,7 @@ The given bookmark is destroyed.
 .sp
 .ne 2
 .na
-\fB\fBzfs snapshot\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem@snapname\fR|\fIvolume@snapname\fR\fR ...
+\fB\fBzfs snapshot\fR [\fB-Jj\fR] [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem@snapname\fR|\fIvolume@snapname\fR\fR ...
 .ad
 .sp .6
 .RS 4n
@@ -1865,6 +1931,28 @@ Recursively create snapshots of all descendent datasets.
 .ne 2
 .mk
 .na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-o\fR \fIproperty\fR=\fIvalue\fR\fR
 .ad
 .sp .6
@@ -1878,7 +1966,7 @@ Sets the specified property; see \fBzfs create\fR for details.
 .ne 2
 .mk
 .na
-\fB\fBzfs rollback\fR [\fB-rRf\fR] \fIsnapshot\fR\fR
+\fB\fBzfs rollback\fR [\fB-Jj\fR] [\fB-rRf\fR] \fIsnapshot\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1894,6 +1982,28 @@ The \fB-rR\fR options do not recursively destroy the child snapshots of a recurs
 .sp .6
 .RS 4n
 Destroy any snapshots and bookmarks more recent than the one specified.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -1924,7 +2034,7 @@ Used with the \fB-R\fR option to force an unmount of any clone file systems that
 .ne 2
 .mk
 .na
-\fB\fBzfs clone\fR [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIsnapshot\fR \fIfilesystem\fR|\fIvolume\fR\fR
+\fB\fBzfs clone\fR [\fB-Jj\fR] [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIsnapshot\fR \fIfilesystem\fR|\fIvolume\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1938,6 +2048,28 @@ Creates a clone of the given snapshot. See the "Clones" section for details. The
 .sp .6
 .RS 4n
 Creates all the non-existing parent datasets. Datasets created in this manner are automatically mounted according to the \fBmountpoint\fR property inherited from their parent. If the target filesystem or volume already exists, the operation completes successfully.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -1965,12 +2097,33 @@ Promotes a clone file system to no longer be dependent on its "origin" snapshot.
 .sp
 The snapshot that was cloned, and any snapshots previous to this snapshot, are now owned by the promoted clone. The space they use moves from the origin file system to the promoted clone, so enough space must be available to accommodate these snapshots. No new space is consumed by this operation, but the space accounting is adjusted. The promoted clone must not have any conflicting snapshot names of its own. The \fBrename\fR subcommand can be used to rename any conflicting snapshots.
 .RE
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzfs rename\fR [\fB-f\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs rename\fR  [\fB-f\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
 .ad
 .br
 .na
@@ -1978,7 +2131,7 @@ The snapshot that was cloned, and any snapshots previous to this snapshot, are n
 .ad
 .br
 .na
-\fB\fBzfs rename\fR [\fB-fp\fR] \fIfilesystem\fR|\fIvolume\fR \fIfilesystem\fR|\fIvolume\fR\fR
+\fB\fBzfs rename\fR [\fB-Jjfp\fR] \fIfilesystem\fR|\fIvolume\fR \fIfilesystem\fR|\fIvolume\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1992,6 +2145,28 @@ Renames the given dataset. The new target can be located anywhere in the \fBZFS\
 .sp .6
 .RS 4n
 Creates all the nonexistent parent datasets. Datasets created in this manner are automatically mounted according to the \fBmountpoint\fR property inherited from their parent.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -2021,7 +2196,7 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ne 2
 .mk
 .na
-\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-Hp\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
+\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-HpJj\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -2035,6 +2210,28 @@ Lists the property information for the given datasets in tabular form. If specif
 .sp .6
 .RS 4n
 Used for scripting mode. Do not print headers and separate fields by a single tab instead of arbitrary white space.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -2169,7 +2366,7 @@ A comma-separated list of types to display, where \fItype\fR is one of \fBfilesy
 .ne 2
 .mk
 .na
-\fB\fBzfs set\fR \fIproperty\fR=\fIvalue\fR[ \fIproperty\fR=\fIvalue\fR]...
+\fB\fBzfs set\fR [\fB-Jj\fR] \fIproperty\fR=\fIvalue\fR[ \fIproperty\fR=\fIvalue\fR]...
 \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
@@ -2186,8 +2383,30 @@ information, see the "User Properties" section.
 
 .sp
 .ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
 .mk .na
-\fB\fBzfs get\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-Hp\fR] [\fB-o\fR \fIfield\fR[,...] [\fB-t\fR \fItype\fR[,...]] [\fB-s\fR \fIsource\fR[,...] "\fIall\fR" | \fIproperty\fR[,...] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
+\fB\fBzfs get\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-JjHp\fR] [\fB-o\fR \fIfield\fR[,...] [\fB-t\fR \fItype\fR[,...]] [\fB-s\fR \fIsource\fR[,...] "\fIall\fR" | \fIproperty\fR[,...] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -2216,6 +2435,28 @@ The special value \fBall\fR can be used to display all properties that apply to 
 .sp .6
 .RS 4n
 Recursively display properties for any children.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -2279,7 +2520,7 @@ Display numbers in parsable (exact) values.
 .ne 2
 .mk
 .na
-\fB\fBzfs inherit\fR [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
+\fB\fBzfs inherit\fR [\fB-JjrS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -2305,13 +2546,35 @@ Revert the property to the received value if one exists; otherwise operate as
 if the \fB-S\fR option was not specified.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzfs upgrade\fR [\fB-v\fR]\fR
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs upgrade\fR [\fB-vJj\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -2322,7 +2585,7 @@ Displays a list of file systems that are not the most recent version.
 .ne 2
 .mk
 .na
-\fB\fBzfs upgrade\fR [\fB-r\fR] [\fB-V\fR \fIversion\fR] [\fB-a\fR | \fIfilesystem\fR]\fR
+\fB\fBzfs upgrade\fR [\fB-Jj\fR] [\fB-r\fR] [\fB-V\fR \fIversion\fR] [\fB-a\fR | \fIfilesystem\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -2340,6 +2603,28 @@ In some cases, the file system version and the pool version are interrelated and
 .sp .6
 .RS 4n
 Upgrade all file systems on all imported pools.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -2381,7 +2666,7 @@ Upgrade to the specified \fIversion\fR. If the \fB-V\fR flag is not specified, t
 .ne 2
 .mk
 .na
-\fBzfs\fR \fBuserspace\fR [\fB-Hinp\fR] [\fB-o\fR \fIfield\fR[,...]]
+\fBzfs\fR \fBuserspace\fR [\fB-HinpJj\fR] [\fB-o\fR \fIfield\fR[,...]]
 [\fB-s\fR \fIfield\fR] ...
 [\fB-S\fR \fIfield\fR] ...
 [\fB-t\fR \fItype\fR[,...]] \fIfilesystem\fR|\fIsnapshot\fR
@@ -2400,6 +2685,28 @@ filesystem or snapshot. This corresponds to the \fBuserused@\fR\fIuser\fR and
 .sp .6
 .RS 4n
 Print numeric ID instead of user/group name.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -2498,7 +2805,7 @@ will report that the POSIX entity has the total usage and quota for both.
 .ne 2
 .mk
 .na
-\fBzfs\fR \fBgroupspace\fR [\fB-Hinp\fR] [\fB-o\fR \fIfield\fR[,...]]
+\fBzfs\fR \fBgroupspace\fR [\fB-HinpJj\fR] [\fB-o\fR \fIfield\fR[,...]]
 [\fB-s\fR \fIfield\fR] ...
 [\fB-S\fR \fIfield\fR] ...
 [\fB-t\fR \fItype\fR[,...]] \fIfilesystem\fR|\fIsnapshot\fR
@@ -2525,7 +2832,29 @@ Displays all \fBZFS\fR file systems currently mounted.
 .ne 2
 .mk
 .na
-\fB\fBzfs mount\fR [\fB-vO\fR] [\fB-o\fR \fIoptions\fR] \fB-a\fR | \fIfilesystem\fR\fR
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs mount\fR [\fB-Jj\fR] [\fB-vO\fR] [\fB-o\fR \fIoptions\fR] \fB-a\fR | \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2541,6 +2870,28 @@ Mounts \fBZFS\fR file systems. Invoked automatically as part of the boot process
 An optional, comma-separated list of mount options to use temporarily for the
 duration of the mount. See the "Temporary Mount Point Properties" section for
 details.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -2594,7 +2945,7 @@ Mount the specified filesystem.
 .ne 2
 .mk
 .na
-\fB\fBzfs unmount\fR [\fB-f\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
+\fB\fBzfs unmount\fR [\fB-Jj\fR] [\fB-f\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2625,6 +2976,28 @@ Unmount all available \fBZFS\fR file systems. Invoked automatically as part of t
 .ne 2
 .mk
 .na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fIfilesystem\fR|\fImountpoint\fR\fR
 .ad
 .sp .6
@@ -2638,7 +3011,7 @@ Unmount the specified filesystem. The command can also be given a path to a \fBZ
 .ne 2
 .mk
 .na
-\fB\fBzfs share\fR \fB-a\fR | \fIfilesystem\fR\fR
+\fB\fBzfs share\fR [\fB-Jj\fR] \fB-a\fR | \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2658,6 +3031,28 @@ Share all available \fBZFS\fR file systems. Invoked automatically as part of the
 .ne 2
 .mk
 .na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fIfilesystem\fR\fR
 .ad
 .sp .6
@@ -2671,7 +3066,7 @@ Share the specified filesystem according to the \fBsharenfs\fR and \fBsharesmb\f
 .ne 2
 .mk
 .na
-\fB\fBzfs unshare\fR \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
+\fB\fBzfs unshare\fR [\fB-Jj\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2685,6 +3080,28 @@ Unshares currently shared \fBZFS\fR file systems. This is invoked automatically 
 .sp .6
 .RS 4n
 Unshare all available \fBZFS\fR file systems. Invoked automatically as part of the boot process.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -2933,7 +3350,7 @@ then the receiving system must have that feature enabled as well. See
 .ad
 .br
 .na
-\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR\fR
+\fB\fBzfs receive\fR [\fB-Jj\fR] [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2994,6 +3411,28 @@ Print verbose information about the stream and the time required to perform the 
 .ne 2
 .mk
 .na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-n\fR\fR
 .ad
 .sp .6
@@ -3040,11 +3479,11 @@ Displays permissions that have been delegated on the specified filesystem or vol
 .ne 2
 .mk
 .na
-\fB\fBzfs allow\fR [\fB-ldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR| \fIvolume\fR\fR
+\fB\fBzfs allow\fR [\fB-Jj\fR] [\fB-ldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR| \fIvolume\fR\fR
 .ad
 .br
 .na
-\fB\fBzfs allow\fR [\fB-ld\fR] \fB-e\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR | \fIvolume\fR\fR
+\fB\fBzfs allow\fR [\fB-Jj\fR] [\fB-ld\fR] \fB-e\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR | \fIvolume\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -3058,6 +3497,28 @@ Delegates \fBZFS\fR administration permission for the file systems to non-privil
 .sp .6
 .RS 4n
 Specifies to whom the permissions are delegated. Multiple entities can be specified as a comma-separated list. If neither of the \fB-ug\fR options are specified, then the argument is interpreted preferentially as the keyword "everyone", then as a user name, and lastly as a group name. To specify a user or group named "everyone", use the \fB-u\fR or \fB-g\fR options. To specify a group with the same name as a user, use the \fB-g\fR options.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
 .RE
 
 .sp
@@ -3218,7 +3679,7 @@ Recursively remove the permissions from this file system and all descendents.
 .ne 2
 .mk
 .na
-\fB\fBzfs unallow\fR [\fB-r\fR] \fB-s\fR @\fIsetname\fR [\fIperm\fR|@\fIsetname\fR[,...]]\fR
+\fB\fBzfs unallow\fR [\fB-Jj\fR] [\fB-r\fR] \fB-s\fR @\fIsetname\fR [\fIperm\fR|@\fIsetname\fR[,...]]\fR
 .ad
 .br
 .na
@@ -3233,7 +3694,29 @@ Removes permissions from a permission set. If no permissions are specified, then
 .ne 2
 .mk
 .na
-\fB\fBzfs hold\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...\fR
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs hold\fR [\fB-Jj\fR] [\fB-r\fR] \fItag\fR \fIsnapshot\fR...\fR
 .ad
 .sp .6
 .RS 4n
@@ -3251,13 +3734,36 @@ If a hold exists on a snapshot, attempts to destroy that snapshot by using the \
 Specifies that a hold with the given tag is applied recursively to the snapshots of all descendent file systems.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzfs holds\fR [\fB-r\fR] \fIsnapshot\fR...\fR
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs holds\fR [\fB-Jj\fR] [\fB-r\fR] \fIsnapshot\fR...\fR
 .ad
 .sp .6
 .RS 4n
@@ -3273,13 +3779,35 @@ Lists all existing user references for the given snapshot or snapshots.
 Lists the holds that are set on the named descendent snapshots, in addition to listing the holds on the named snapshot.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzfs release\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...\fR
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs release\fR [\fB-Jj\fR] [\fB-r\fR] \fItag\fR \fIsnapshot\fR...\fR
 .ad
 .sp .6
 .RS 4n
@@ -3297,13 +3825,36 @@ If a hold exists on a snapshot, attempts to destroy that snapshot by using the \
 Recursively releases a hold with the given tag on the snapshots of all descendent file systems.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzfs diff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs diff\fR [\fB-FHtJj\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
 .ad
 .sp .6
 .RS 4n
@@ -3363,6 +3914,29 @@ Give more parsable tab-separated output, without header lines and without arrows
 .RS 4n
 Display the path's inode change time as the first column of output.
 .RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.sp .6
+.RS 4n
+Display the output in ldjson format.
+.RE
+
 
 .SH EXAMPLES
 .LP

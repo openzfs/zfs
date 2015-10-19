@@ -50,8 +50,10 @@ static int process_share(sa_handle_impl_t impl_handle,
     char *dataset, boolean_t from_sharetab);
 static void update_sharetab(sa_handle_impl_t impl_handle);
 
-static int update_zfs_share(sa_share_impl_t impl_handle, const char *proto);
-static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
+static int update_zfs_share(sa_share_impl_t impl_handle,
+    const char *proto, zfs_json_t *json);
+static int update_zfs_shares(sa_handle_impl_t impl_handle,
+    const char *proto, zfs_json_t *json);
 
 static int fstypes_count;
 static sa_fstype_t *fstypes;
@@ -79,7 +81,7 @@ register_fstype(const char *name, const sa_share_ops_t *ops)
 }
 
 sa_handle_t
-sa_init(int init_service)
+sa_init(int init_service, zfs_json_t *json)
 {
 	sa_handle_impl_t impl_handle;
 
@@ -95,7 +97,7 @@ sa_init(int init_service)
 	}
 
 	parse_sharetab(impl_handle);
-	update_zfs_shares(impl_handle, NULL);
+	update_zfs_shares(impl_handle, NULL, json);
 
 	return ((sa_handle_t)impl_handle);
 }
@@ -224,7 +226,7 @@ typedef struct update_cookie_s {
 } update_cookie_t;
 
 static int
-update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
+update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie, zfs_json_t *json)
 {
 	update_cookie_t *udata = (update_cookie_t *)pcookie;
 	char mountpoint[ZFS_MAXPROPLEN];
@@ -233,7 +235,8 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 	zfs_type_t type = zfs_get_type(zhp);
 
 	if (type == ZFS_TYPE_FILESYSTEM &&
-	    zfs_iter_filesystems(zhp, update_zfs_shares_cb, pcookie) != 0) {
+	    zfs_iter_filesystems(zhp, update_zfs_shares_cb,
+	    pcookie, json) != 0) {
 		zfs_close(zhp);
 		return (1);
 	}
@@ -243,7 +246,7 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 		return (0);
 	}
 
-	if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
+	if (zfs_prop_get(json, zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
 	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
 		zfs_close(zhp);
 		return (0);
@@ -256,13 +259,13 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 		return (0);
 	}
 
-	if (!zfs_is_mounted(zhp, NULL)) {
+	if (!zfs_is_mounted(zhp, NULL, json)) {
 		zfs_close(zhp);
 		return (0);
 	}
 
 	if ((udata->proto == NULL || strcmp(udata->proto, "nfs") == 0) &&
-	    zfs_prop_get(zhp, ZFS_PROP_SHARENFS, shareopts,
+	    zfs_prop_get(json, zhp, ZFS_PROP_SHARENFS, shareopts,
 	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
 	    strcmp(shareopts, "off") != 0) {
 		(void) process_share(udata->handle, NULL, mountpoint, NULL,
@@ -270,7 +273,7 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 	}
 
 	if ((udata->proto == NULL || strcmp(udata->proto, "smb") == 0) &&
-	    zfs_prop_get(zhp, ZFS_PROP_SHARESMB, shareopts,
+	    zfs_prop_get(json, zhp, ZFS_PROP_SHARESMB, shareopts,
 	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
 	    strcmp(shareopts, "off") != 0) {
 		(void) process_share(udata->handle, NULL, mountpoint, NULL,
@@ -283,7 +286,8 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 }
 
 static int
-update_zfs_share(sa_share_impl_t impl_share, const char *proto)
+update_zfs_share(sa_share_impl_t impl_share,
+    const char *proto, zfs_json_t *json)
 {
 	sa_handle_impl_t impl_handle = impl_share->handle;
 	zfs_handle_t *zhp;
@@ -294,7 +298,8 @@ update_zfs_share(sa_share_impl_t impl_share, const char *proto)
 
 	assert(impl_share->dataset != NULL);
 
-	zhp = zfs_open(impl_share->handle->zfs_libhandle, impl_share->dataset,
+	zhp = zfs_open(json, impl_share->handle->zfs_libhandle,
+	    impl_share->dataset,
 	    ZFS_TYPE_FILESYSTEM);
 
 	if (zhp == NULL)
@@ -302,13 +307,14 @@ update_zfs_share(sa_share_impl_t impl_share, const char *proto)
 
 	udata.handle = impl_handle;
 	udata.proto = proto;
-	(void) update_zfs_shares_cb(zhp, &udata);
+	(void) update_zfs_shares_cb(zhp, &udata, json);
 
 	return (SA_OK);
 }
 
 static int
-update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto)
+update_zfs_shares(sa_handle_impl_t impl_handle,
+    const char *proto, zfs_json_t *json)
 {
 	update_cookie_t udata;
 
@@ -318,7 +324,7 @@ update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto)
 	udata.handle = impl_handle;
 	udata.proto = proto;
 	(void) zfs_iter_root(impl_handle->zfs_libhandle, update_zfs_shares_cb,
-	    &udata);
+	    &udata, json);
 
 	return (SA_OK);
 }
@@ -489,7 +495,7 @@ sa_find_share(sa_handle_t handle, char *sharepath)
 }
 
 int
-sa_enable_share(sa_share_t share, char *protocol)
+sa_enable_share(sa_share_t share, char *protocol, zfs_json_t *json)
 {
 	sa_share_impl_t impl_share = (sa_share_impl_t)share;
 	int rc, ret;
@@ -509,7 +515,7 @@ sa_enable_share(sa_share_t share, char *protocol)
 	fstype = fstypes;
 	while (fstype != NULL) {
 		if (protocol == NULL || strcmp(fstype->name, protocol) == 0) {
-			update_zfs_share(impl_share, fstype->name);
+			update_zfs_share(impl_share, fstype->name, json);
 
 			rc = fstype->ops->enable_share(impl_share);
 

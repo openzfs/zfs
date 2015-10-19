@@ -89,7 +89,7 @@ zfs_include_snapshots(zfs_handle_t *zhp, callback_data_t *cb)
  * add it to the avl tree and recurse over any children as necessary.
  */
 static int
-zfs_callback(zfs_handle_t *zhp, void *data)
+zfs_callback(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	callback_data_t *cb = data;
 	boolean_t dontclose = B_FALSE;
@@ -134,15 +134,17 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 	    cb->cb_depth < cb->cb_depth_limit)) {
 		cb->cb_depth++;
 		if (zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM)
-			(void) zfs_iter_filesystems(zhp, zfs_callback, data);
+			(void) zfs_iter_filesystems(zhp,
+			    zfs_callback, data, json);
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_snaps)
 			(void) zfs_iter_snapshots(zhp,
 			    (cb->cb_flags & ZFS_ITER_SIMPLE) != 0, zfs_callback,
-			    data);
+			    data, json);
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_bmarks)
-			(void) zfs_iter_bookmarks(zhp, zfs_callback, data);
+			(void) zfs_iter_bookmarks(zhp,
+			    zfs_callback, data, json);
 		cb->cb_depth--;
 	}
 
@@ -154,7 +156,7 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 
 int
 zfs_add_sort_column(zfs_sort_column_t **sc, const char *name,
-    boolean_t reverse)
+    boolean_t reverse, zfs_json_t *json)
 {
 	zfs_sort_column_t *col;
 	zfs_prop_t prop;
@@ -184,7 +186,7 @@ zfs_add_sort_column(zfs_sort_column_t **sc, const char *name,
 }
 
 void
-zfs_free_sort_columns(zfs_sort_column_t *sc)
+zfs_free_sort_columns(zfs_sort_column_t *sc, zfs_json_t *json)
 {
 	zfs_sort_column_t *col;
 
@@ -197,7 +199,7 @@ zfs_free_sort_columns(zfs_sort_column_t *sc)
 }
 
 int
-zfs_sort_only_by_name(const zfs_sort_column_t *sc)
+zfs_sort_only_by_name(const zfs_sort_column_t *sc, zfs_json_t *json)
 {
 	return (sc != NULL && sc->sc_next == NULL &&
 	    sc->sc_prop == ZFS_PROP_NAME);
@@ -240,8 +242,8 @@ zfs_compare(const void *larg, const void *rarg, void *unused)
 			 * use the hidden CREATETXG property to get an absolute
 			 * ordering of snapshots.
 			 */
-			lcreate = zfs_prop_get_int(l, ZFS_PROP_CREATETXG);
-			rcreate = zfs_prop_get_int(r, ZFS_PROP_CREATETXG);
+			lcreate = zfs_prop_get_int(NULL, l, ZFS_PROP_CREATETXG);
+			rcreate = zfs_prop_get_int(NULL, r, ZFS_PROP_CREATETXG);
 
 			/*
 			 * Both lcreate and rcreate being 0 means we don't have
@@ -324,9 +326,9 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 			lstr = lbuf;
 			rstr = rbuf;
 		} else if (zfs_prop_is_string(psc->sc_prop)) {
-			lvalid = (zfs_prop_get(l, psc->sc_prop, lbuf,
+			lvalid = (zfs_prop_get(NULL, l, psc->sc_prop, lbuf,
 			    sizeof (lbuf), NULL, NULL, 0, B_TRUE) == 0);
-			rvalid = (zfs_prop_get(r, psc->sc_prop, rbuf,
+			rvalid = (zfs_prop_get(NULL, r, psc->sc_prop, rbuf,
 			    sizeof (rbuf), NULL, NULL, 0, B_TRUE) == 0);
 
 			lstr = lbuf;
@@ -338,10 +340,12 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 			    zfs_get_type(r), B_FALSE);
 
 			if (lvalid)
-				(void) zfs_prop_get_numeric(l, psc->sc_prop,
+				(void) zfs_prop_get_numeric(NULL, l,
+				    psc->sc_prop,
 				    &lnum, NULL, NULL, 0);
 			if (rvalid)
-				(void) zfs_prop_get_numeric(r, psc->sc_prop,
+				(void) zfs_prop_get_numeric(NULL, r,
+				    psc->sc_prop,
 				    &rnum, NULL, NULL, 0);
 		}
 
@@ -372,7 +376,7 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 int
 zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
     zfs_sort_column_t *sortcol, zprop_list_t **proplist, int limit,
-    zfs_iter_f callback, void *data)
+    zfs_iter_f callback, void *data, zfs_json_t *json)
 {
 	callback_data_t cb = {0};
 	int ret = 0;
@@ -436,7 +440,7 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 		 * If given no arguments, iterate over all datasets.
 		 */
 		cb.cb_flags |= ZFS_ITER_RECURSE;
-		ret = zfs_iter_root(g_zfs, zfs_callback, &cb);
+		ret = zfs_iter_root(g_zfs, zfs_callback, &cb, json);
 	} else {
 		int i;
 		zfs_handle_t *zhp;
@@ -456,13 +460,13 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 
 		for (i = 0; i < argc; i++) {
 			if (flags & ZFS_ITER_ARGS_CAN_BE_PATHS) {
-				zhp = zfs_path_to_zhandle(g_zfs, argv[i],
+				zhp = zfs_path_to_zhandle(json, g_zfs, argv[i],
 				    argtype);
-			} else {
-				zhp = zfs_open(g_zfs, argv[i], argtype);
-			}
+			} else
+				zhp = zfs_open(json,
+				    g_zfs, argv[i], argtype);
 			if (zhp != NULL)
-				ret |= zfs_callback(zhp, &cb);
+				ret |= zfs_callback(zhp, &cb, json);
 			else
 				ret = 1;
 		}
@@ -474,8 +478,7 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	 */
 	for (node = uu_avl_first(cb.cb_avl); node != NULL;
 	    node = uu_avl_next(cb.cb_avl, node))
-		ret |= callback(node->zn_handle, data);
-
+		ret |= callback(node->zn_handle, data, json);
 	/*
 	 * Finally, clean up the AVL tree.
 	 */

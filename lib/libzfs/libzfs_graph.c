@@ -562,10 +562,10 @@ topo_sort(libzfs_handle_t *hdl, boolean_t allowrecursion, char **result,
 		 * search, then we have a cyclic dependency, and we must return
 		 * an error.
 		 */
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(NULL, hdl, dgettext(TEXT_DOMAIN,
 		    "recursive dependency at '%s'"),
 		    zgv->zv_dataset);
-		return (zfs_error(hdl, EZFS_RECURSIVE,
+		return (zfs_error(NULL, hdl, EZFS_RECURSIVE,
 		    dgettext(TEXT_DOMAIN,
 		    "cannot determine dependent datasets")));
 	} else if (zgv->zv_visited >= VISIT_SORT_PRE) {

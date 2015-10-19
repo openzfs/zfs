@@ -40,6 +40,9 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
 #include <sys/byteorder.h>
+
+#include <libzfs.h>
+
 #if defined(__linux__)
 #include <linux/fs.h>
 #endif
@@ -177,7 +180,7 @@ int efi_debug = 1;
 int efi_debug = 0;
 #endif
 
-static int efi_read(int, struct dk_gpt *);
+static int efi_read(int, struct dk_gpt *, zfs_json_t *);
 
 /*
  * Return a 32-bit CRC of the contents of the buffer.  Pre-and-post
@@ -272,6 +275,12 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 		    &dki_info->dki_partition);
 	} else if ((strncmp(dev_path, "/dev/xvd", 8) == 0)) {
 		strcpy(dki_info->dki_cname, "xvd");
+		dki_info->dki_ctype = DKC_MD;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
+		    dki_info->dki_dname,
+		    &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/zd", 7) == 0)) {
+		strcpy(dki_info->dki_cname, "zd");
 		dki_info->dki_ctype = DKC_MD;
 		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
 		    dki_info->dki_dname,
@@ -419,11 +428,12 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
  * Read EFI - return partition number upon success.
  */
 int
-efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
+efi_alloc_and_read(int fd, struct dk_gpt **vtoc, zfs_json_t *json)
 {
 	int			rval;
-	uint32_t		nparts;
+	uint32_t	nparts;
 	int			length;
+	char 		errbuf[512];
 
 	/* figure out the number of entries that would fit into 16K */
 	nparts = EFI_MIN_ARRAY_SIZE / sizeof (efi_gpe_t);
@@ -433,7 +443,7 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 		return (VT_ERROR);
 
 	(*vtoc)->efi_nparts = nparts;
-	rval = efi_read(fd, *vtoc);
+	rval = efi_read(fd, *vtoc, json);
 
 	if ((rval == VT_EINVAL) && (*vtoc)->efi_nparts > nparts) {
 		void *tmp;
@@ -447,14 +457,19 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 			return (VT_ERROR);
 		} else {
 			*vtoc = tmp;
-			rval = efi_read(fd, *vtoc);
+			rval = efi_read(fd, *vtoc, json);
 		}
 	}
 
 	if (rval < 0) {
 		if (efi_debug) {
-			(void) fprintf(stderr,
-			    "read of EFI table failed, rval=%d\n", rval);
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    "read of EFI table failed, rval=%d", rval);
+			if (!json->json && !json->ld_json)
+				fprintf(stderr, "%s\n", errbuf);
+			else
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errbuf);
 		}
 		free (*vtoc);
 		*vtoc = NULL;
@@ -654,7 +669,7 @@ check_label(int fd, dk_efi_t *dk_ioc)
 }
 
 static int
-efi_read(int fd, struct dk_gpt *vtoc)
+efi_read(int fd, struct dk_gpt *vtoc, zfs_json_t *json)
 {
 	int			i, j;
 	int			label_len;
@@ -670,6 +685,7 @@ efi_read(int fd, struct dk_gpt *vtoc)
 	struct dk_cinfo		dki_info;
 	uint32_t		user_length;
 	boolean_t		legacy_label = B_FALSE;
+	char			errbuf[512];
 
 	/*
 	 * get the partition number for this file descriptor.
@@ -692,9 +708,14 @@ efi_read(int fd, struct dk_gpt *vtoc)
 	/* get the LBA size */
 	if (read_disk_info(fd, &capacity, &lbsize) == -1) {
 		if (efi_debug) {
-			(void) fprintf(stderr,
+			(void) snprintf(errbuf, sizeof (errbuf),
 			    "unable to read disk info: %d",
 			    errno);
+			if (!json->json && !json->ld_json)
+				fprintf(stderr, "%s\n", errbuf);
+			else
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errbuf);
 		}
 		return (VT_EINVAL);
 	}
@@ -704,8 +725,13 @@ efi_read(int fd, struct dk_gpt *vtoc)
 
 	if (disk_info.dki_lbsize == 0) {
 		if (efi_debug) {
-			(void) fprintf(stderr,
-			    "efi_read: assuming LBA 512 bytes\n");
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    "efi_read: assuming LBA 512 bytes");
+			if (!json->json && !json->ld_json)
+				fprintf(stderr, "%s\n", errbuf);
+			else
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errbuf);
 		}
 		disk_info.dki_lbsize = DEV_BSIZE;
 	}
@@ -773,17 +799,31 @@ efi_read(int fd, struct dk_gpt *vtoc)
 			rval = check_label(fd, &dk_ioc);
 			if (rval == 0) {
 				legacy_label = B_TRUE;
-				if (efi_debug)
-					(void) fprintf(stderr,
+				if (efi_debug) {
+					(void) snprintf(errbuf, sizeof (errbuf),
 					    "efi_read: primary label corrupt; "
 					    "using EFI backup label located on"
 					    " the last block\n");
+					if (!json->json && !json->ld_json)
+						fprintf(stderr, "%s\n", errbuf);
+					else
+						fnvlist_add_string(
+						    json->nv_dict_error,
+						    "error", errbuf);
+				}
 			}
 		} else {
 			if ((efi_debug) && (rval == 0))
-				(void) fprintf(stderr, "efi_read: primary label"
+				(void) snprintf(errbuf, sizeof (errbuf),
+				    "efi_read: primary label"
 				    " corrupt; using legacy EFI backup label "
 				    " located on the next to last block\n");
+				if (!json->json && !json->ld_json)
+						fprintf(stderr, "%s\n", errbuf);
+					else
+						fnvlist_add_string(
+						    json->nv_dict_error,
+						    "error", errbuf);
 		}
 
 		if (rval == 0) {
@@ -905,12 +945,10 @@ efi_read(int fd, struct dk_gpt *vtoc)
 			    (uchar_t)LE_16(
 			    efi_parts[i].efi_gpe_PartitionName[j]);
 		}
-
 		UUID_LE_CONVERT(vtoc->efi_parts[i].p_uguid,
 		    efi_parts[i].efi_gpe_UniquePartitionGUID);
 	}
 	free(efi);
-
 	return (dki_info.dki_partition);
 }
 
@@ -1116,7 +1154,7 @@ efi_use_whole_disk(int fd)
 	diskaddr_t		resv_start = 0, data_start = 0;
 	diskaddr_t		difference;
 
-	rval = efi_alloc_and_read(fd, &efi_label);
+	rval = efi_alloc_and_read(fd, &efi_label, NULL);
 	if (rval < 0) {
 		return (rval);
 	}

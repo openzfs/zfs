@@ -464,7 +464,7 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 	 * Given a device name or GUID, create an appropriate injection record
 	 * with zi_guid set.
 	 */
-	if ((zhp = zpool_open(g_zfs, pool)) == NULL)
+	if ((zhp = zpool_open(NULL, g_zfs, pool)) == NULL)
 		return (-1);
 
 	record->zi_guid = strtoull(device, &end, 0);

@@ -274,23 +274,58 @@ check_sector_size_database(char *path, int *sector_size)
 
 /*PRINTFLIKE1*/
 static void
-vdev_error(const char *fmt, ...)
+vdev_error(zfs_json_t *json, const char *fmt, ...)
 {
 	va_list ap;
+	char errbuf[1024];
+	char buff[1024];
+	if (json) {
+		if (json->json || json->ld_json) {
+			if (!is_force)
+				(void) sprintf(errbuf,
+				    gettext("invalid vdev"
+				    " specification, use '-f' to override "
+				    "the following errors: "));
+			else
+				(void) sprintf(errbuf,
+				    gettext("invalid vdev specification"
+				    ", the following errors "
+				    "must be manually repaired:"));
+			error_seen = B_TRUE;
+		}
+	}
 
 	if (!error_seen) {
-		(void) fprintf(stderr, gettext("invalid vdev specification\n"));
-		if (!is_force)
-			(void) fprintf(stderr, gettext("use '-f' to override "
-			    "the following errors:\n"));
-		else
-			(void) fprintf(stderr, gettext("the following errors "
-			    "must be manually repaired:\n"));
-		error_seen = B_TRUE;
+			(void) fprintf(stderr,
+			    gettext("invalid vdev specification\n"));
+			if (!is_force)
+				(void) fprintf(stderr,
+				    gettext("use '-f' to override "
+				    "the following errors:\n"));
+			else
+				(void) fprintf(stderr,
+				    gettext("the following errors "
+				    "must be manually repaired:\n"));
+			error_seen = B_TRUE;
 	}
 
 	va_start(ap, fmt);
-	(void) vfprintf(stderr, fmt, ap);
+	if (json) {
+		if (json->json || json->ld_json) {
+			vsprintf(buff, fmt, ap);
+			sprintf(errbuf,
+			    "%s%s", errbuf, buff);
+			fnvlist_add_string(
+			    json->nv_dict_error,
+			    "error", errbuf);
+		} else {
+			(void) vfprintf(stderr, fmt, ap);
+			printf("\n");
+		}
+	} else {
+		(void) vfprintf(stderr, fmt, ap);
+		printf("\n");
+	}
 	va_end(ap);
 }
 
@@ -299,7 +334,8 @@ vdev_error(const char *fmt, ...)
  * not in use by another pool, and not in use by swap.
  */
 static int
-check_file(const char *file, boolean_t force, boolean_t isspare)
+check_file(const char *file, boolean_t force,
+    boolean_t isspare, zfs_json_t *json)
 {
 	char  *name;
 	int fd;
@@ -310,7 +346,8 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	if ((fd = open(file, O_RDONLY)) < 0)
 		return (0);
 
-	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) == 0 && inuse) {
+	if (zpool_in_use(g_zfs, fd, &state, &name,
+	    &inuse, json) == 0 && inuse) {
 		const char *desc;
 
 		switch (state) {
@@ -341,12 +378,17 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 		    state == POOL_STATE_SPARE || !force) {
 			switch (state) {
 			case POOL_STATE_SPARE:
-				vdev_error(gettext("%s is reserved as a hot "
-				    "spare for pool %s\n"), file, name);
+				vdev_error(json,
+				    gettext("%s is"
+				    " reserved as a hot "
+				    "spare for pool %s"),
+				    file, name);
 				break;
 			default:
-				vdev_error(gettext("%s is part of %s pool "
-				    "'%s'\n"), file, desc, name);
+				vdev_error(json, gettext("%s is "
+				    "part of %s pool "
+				    "'%s'"), file, desc, name);
+
 				break;
 			}
 			ret = -1;
@@ -367,7 +409,8 @@ check_error(int err)
 }
 
 static int
-check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
+check_slice(const char *path, blkid_cache cache,
+    int force, boolean_t isspare, zfs_json_t *json)
 {
 	int err;
 	char *value;
@@ -383,14 +426,14 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 	 * case is a spare device shared between multiple pools.
 	 */
 	if (strcmp(value, "zfs_member") == 0) {
-		err = check_file(path, force, isspare);
+		err = check_file(path, force, isspare, json);
 	} else {
 		if (force) {
 			err = 0;
 		} else {
 			err = -1;
-			vdev_error(gettext("%s contains a filesystem of "
-			    "type '%s'\n"), path, value);
+			vdev_error(json, gettext("%s contains a filesystem of "
+			    "type '%s'"), path, value);
 		}
 	}
 
@@ -413,7 +456,7 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
  */
 static int
 check_disk(const char *path, blkid_cache cache, int force,
-    boolean_t isspare, boolean_t iswholedisk)
+    boolean_t isspare, boolean_t iswholedisk, zfs_json_t *json)
 {
 	struct dk_gpt *vtoc;
 	char slice_path[MAXPATHLEN];
@@ -421,7 +464,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	int fd, i;
 
 	if (!iswholedisk)
-		return (check_slice(path, cache, force, isspare));
+		return (check_slice(path, cache, force, isspare, json));
 
 	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0) {
 		check_error(errno);
@@ -432,10 +475,10 @@ check_disk(const char *path, blkid_cache cache, int force,
 	 * Expected to fail for non-EFI labled disks.  Just check the device
 	 * as given and do not attempt to detect and scan partitions.
 	 */
-	err = efi_alloc_and_read(fd, &vtoc);
+	err = efi_alloc_and_read(fd, &vtoc, json);
 	if (err) {
 		(void) close(fd);
-		return (check_slice(path, cache, force, isspare));
+		return (check_slice(path, cache, force, isspare, json));
 	}
 
 	/*
@@ -451,8 +494,10 @@ check_disk(const char *path, blkid_cache cache, int force,
 			/* Partitions will now be created using the backup */
 			return (0);
 		} else {
-			vdev_error(gettext("%s contains a corrupt primary "
-			    "EFI label.\n"), path);
+			vdev_error(json,
+			    gettext("%s contains a"
+			    " corrupt primary "
+			    "EFI label."), path);
 			return (-1);
 		}
 	}
@@ -471,7 +516,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 			    "%s%s%d", path, isdigit(path[strlen(path)-1]) ?
 			    "p" : "", i+1);
 
-		err = check_slice(slice_path, cache, force, isspare);
+		err = check_slice(slice_path, cache, force, isspare, json);
 		if (err)
 			break;
 	}
@@ -484,7 +529,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 
 static int
 check_device(const char *path, boolean_t force,
-    boolean_t isspare, boolean_t iswholedisk)
+    boolean_t isspare, boolean_t iswholedisk, zfs_json_t *json)
 {
 	static blkid_cache cache = NULL;
 
@@ -507,7 +552,7 @@ check_device(const char *path, boolean_t force,
 		}
 	}
 
-	return (check_disk(path, cache, force, isspare, iswholedisk));
+	return (check_disk(path, cache, force, isspare, iswholedisk, json));
 }
 
 /*
@@ -566,7 +611,7 @@ is_shorthand_path(const char *arg, char *path,
  * If no configuration is given we rely solely on the label.
  */
 static boolean_t
-is_spare(nvlist_t *config, const char *path)
+is_spare(nvlist_t *config, const char *path, zfs_json_t *json)
 {
 	int fd;
 	pool_state_t state;
@@ -581,7 +626,7 @@ is_spare(nvlist_t *config, const char *path)
 	if ((fd = open(path, O_RDONLY)) < 0)
 		return (B_FALSE);
 
-	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) != 0 ||
+	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse, json) != 0 ||
 	    !inuse ||
 	    state != POOL_STATE_SPARE ||
 	    zpool_read_label(fd, &label, NULL) != 0) {
@@ -623,7 +668,8 @@ is_spare(nvlist_t *config, const char *path)
  *	xxx		Shorthand for <zfs_vdev_paths>/xxx
  */
 static nvlist_t *
-make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
+make_leaf_vdev(zfs_json_t *json,
+    nvlist_t *props, const char *arg, uint64_t is_log)
 {
 	char path[MAXPATHLEN];
 	struct stat64 statbuf;
@@ -632,6 +678,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 	boolean_t wholedisk = B_FALSE;
 	uint64_t ashift = 0;
 	int err;
+	char errbuf[1024];
 
 	/*
 	 * Determine what type of vdev this is, and put the full path into
@@ -648,15 +695,41 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		 * can leverage udev's persistent device labels.
 		 */
 		if (realpath(arg, path) == NULL) {
-			(void) fprintf(stderr,
+			if (json) {
+				if (json->json || json->ld_json) {
+					sprintf(errbuf,
+					    gettext("cannot"
+					    " resolve path '%s'"), arg);
+					fnvlist_add_string(
+					    json->nv_dict_error,
+					    "error", errbuf);
+				} else
+				(void) fprintf(stderr,
 			    gettext("cannot resolve path '%s'\n"), arg);
+			} else
+				(void) fprintf(stderr,
+				    gettext("cannot resolve path '%s'\n"), arg);
 			return (NULL);
 		}
 
 		wholedisk = is_whole_disk(path);
 		if (!wholedisk && (stat64(path, &statbuf) != 0)) {
+			if (json) {
+				if (json->json || json->ld_json) {
+					sprintf(errbuf,
+					    gettext("cannot open"
+					    " '%s': %s"),
+					    arg, strerror(errno));
+					fnvlist_add_string(
+					    json->nv_dict_error,
+					    "error", errbuf);
+				} else
+					(void) fprintf(stderr,
+					    gettext("cannot open '%s': %s\n"),
+					    arg, strerror(errno));
+			} else
 			(void) fprintf(stderr,
-			    gettext("cannot open '%s': %s\n"),
+			    gettext("cannot open '%s' : '%s '\n"),
 			    path, strerror(errno));
 			return (NULL);
 		}
@@ -674,17 +747,59 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 			 * can do.
 			 */
 			if (err == ENOENT) {
-				(void) fprintf(stderr,
-				    gettext("cannot open '%s': no such "
-				    "device in %s\n"), arg, DISK_ROOT);
-				(void) fprintf(stderr,
-				    gettext("must be a full path or "
-				    "shorthand device name\n"));
+				if (json) {
+					if (json->json || json->ld_json) {
+						sprintf(errbuf,
+						    gettext("cannot"
+						    " open '%s': no such "
+						    "device in %s,must "
+						    "be a full path or "
+						    "shorthand device name "),
+						    arg, DISK_ROOT);
+						fnvlist_add_string(
+						    json->nv_dict_error,
+						    "error", errbuf);
+					} else {
+						(void) fprintf(stderr,
+						    gettext("cannot open "
+						    "'%s': no such "
+						    "device in %s\n"),
+						    arg, DISK_ROOT);
+						(void) fprintf(stderr,
+						    gettext("must be"
+						    " a full path or "
+						    "shorthand device name\n"));
+					}
+				} else {
+					(void) fprintf(stderr,
+					    gettext("cannot open '%s': no such "
+					    "device in %s\n"), arg, DISK_ROOT);
+					(void) fprintf(stderr,
+					    gettext("must be a full path or "
+					    "shorthand device name\n"));
+				}
 				return (NULL);
 			} else {
-				(void) fprintf(stderr,
-				    gettext("cannot open '%s': %s\n"),
-				    path, strerror(errno));
+				if (json) {
+					if (json->json || json->ld_json) {
+						sprintf(errbuf,
+						    gettext("cannot open"
+						    " '%s': %s"),
+						    path, strerror(errno));
+						fnvlist_add_string(
+						    json->nv_dict_error,
+						    "error", errbuf);
+					} else {
+						(void) fprintf(stderr,
+						    gettext("cannot open"
+						    " '%s': %s\n"),
+						    path, strerror(errno));
+					}
+				} else {
+					(void) fprintf(stderr,
+					    gettext("cannot open '%s': %s\n"),
+					    path, strerror(errno));
+				}
 				return (NULL);
 			}
 		}
@@ -698,8 +813,25 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 	} else if (S_ISREG(statbuf.st_mode)) {
 		type = VDEV_TYPE_FILE;
 	} else {
-		(void) fprintf(stderr, gettext("cannot use '%s': must be a "
-		    "block device or regular file\n"), path);
+		if (json) {
+			if (json->json || json->ld_json) {
+				sprintf(errbuf,
+				    gettext("cannot"
+				    " use '%s': must be a "
+				    "block device"
+				    " or regular file\n"), path);
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errbuf);
+			} else {
+				(void) fprintf(stderr,
+				    gettext("cannot use '%s': must be a "
+				    "block device or regular file\n"), path);
+			}
+		} else {
+			(void) fprintf(stderr,
+			    gettext("cannot use '%s': must be a "
+			    "block device or regular file\n"), path);
+		}
 		return (NULL);
 	}
 
@@ -724,7 +856,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 
 		if (nvlist_lookup_string(props,
 		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0)
-			zfs_nicestrtonum(NULL, value, &ashift);
+			zfs_nicestrtonum(NULL, NULL, value, &ashift);
 	}
 
 	/*
@@ -890,10 +1022,10 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 						free(ret);
 					ret = NULL;
 					if (fatal)
-						vdev_error(gettext(
+						vdev_error(NULL, gettext(
 						    "mismatched replication "
 						    "level: %s contains both "
-						    "files and devices\n"),
+						    "files and devices"),
 						    rep.zprl_type);
 					else
 						return (NULL);
@@ -943,9 +1075,9 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 						free(ret);
 					ret = NULL;
 					if (fatal)
-						vdev_error(gettext(
+						vdev_error(NULL, gettext(
 						    "%s contains devices of "
-						    "different sizes\n"),
+						    "different sizes"),
 						    rep.zprl_type);
 					else
 						return (NULL);
@@ -968,10 +1100,10 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 					free(ret);
 				ret = NULL;
 				if (fatal)
-					vdev_error(gettext(
+					vdev_error(NULL, gettext(
 					    "mismatched replication level: "
 					    "both %s and %s vdevs are "
-					    "present\n"),
+					    "present"),
 					    lastrep.zprl_type, rep.zprl_type);
 				else
 					return (NULL);
@@ -980,10 +1112,10 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 					free(ret);
 				ret = NULL;
 				if (fatal)
-					vdev_error(gettext(
+					vdev_error(NULL, gettext(
 					    "mismatched replication level: "
 					    "both %llu and %llu device parity "
-					    "%s vdevs are present\n"),
+					    "%s vdevs are present"),
 					    lastrep.zprl_parity,
 					    rep.zprl_parity,
 					    rep.zprl_type);
@@ -994,10 +1126,10 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 					free(ret);
 				ret = NULL;
 				if (fatal)
-					vdev_error(gettext(
+					vdev_error(NULL, gettext(
 					    "mismatched replication level: "
 					    "both %llu-way and %llu-way %s "
-					    "vdevs are present\n"),
+					    "vdevs are present"),
 					    lastrep.zprl_children,
 					    rep.zprl_children,
 					    rep.zprl_type);
@@ -1074,21 +1206,21 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 	ret = 0;
 	if (current != NULL) {
 		if (strcmp(current->zprl_type, new->zprl_type) != 0) {
-			vdev_error(gettext(
+			vdev_error(NULL, gettext(
 			    "mismatched replication level: pool uses %s "
-			    "and new vdev is %s\n"),
+			    "and new vdev is %s "),
 			    current->zprl_type, new->zprl_type);
 			ret = -1;
 		} else if (current->zprl_parity != new->zprl_parity) {
-			vdev_error(gettext(
+			vdev_error(NULL, gettext(
 			    "mismatched replication level: pool uses %llu "
-			    "device parity and new vdev uses %llu\n"),
+			    "device parity and new vdev uses %llu "),
 			    current->zprl_parity, new->zprl_parity);
 			ret = -1;
 		} else if (current->zprl_children != new->zprl_children) {
-			vdev_error(gettext(
+			vdev_error(NULL, gettext(
 			    "mismatched replication level: pool uses %llu-way "
-			    "%s and new vdev uses %llu-way %s\n"),
+			    "%s and new vdev uses %llu-way %s "),
 			    current->zprl_children, current->zprl_type,
 			    new->zprl_children, new->zprl_type);
 			ret = -1;
@@ -1146,7 +1278,7 @@ zero_label(char *path)
  * need to get the devid after we label the disk.
  */
 static int
-make_disks(zpool_handle_t *zhp, nvlist_t *nv)
+make_disks(zpool_handle_t *zhp, nvlist_t *nv, zfs_json_t *json)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1158,6 +1290,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	int is_exclusive = 0;
 	int fd;
 	int ret;
+	char errbuf[1024];
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 
@@ -1191,8 +1324,21 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 
 		if (realpath(path, devpath) == NULL) {
 			ret = errno;
-			(void) fprintf(stderr,
-			    gettext("cannot resolve path '%s'\n"), path);
+			if (json) {
+				if (json->json|| json->ld_json) {
+					sprintf(errbuf,
+					    gettext("cannot"
+					    " resolve path '%s'"), path);
+					fnvlist_add_string(json->nv_dict_error,
+					    "error", errbuf);
+				} else
+					(void) fprintf(stderr,
+					    gettext("cannot"
+					    " resolve path '%s'\n"), path);
+			} else
+				(void) fprintf(stderr,
+				    gettext("cannot"
+				    " resolve path '%s'\n"), path);
 			return (ret);
 		}
 
@@ -1226,7 +1372,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * symbolic link will be removed, partition table created,
 		 * and then block until udev creates the new link.
 		 */
-		if (!is_exclusive || !is_spare(NULL, udevpath)) {
+		if (!is_exclusive || !is_spare(NULL, udevpath, json)) {
 			ret = strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT));
 			if (ret == 0) {
 				ret = lstat64(udevpath, &statbuf);
@@ -1240,8 +1386,24 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 
 			ret = zpool_label_disk_wait(udevpath, DISK_LABEL_WAIT);
 			if (ret) {
-				(void) fprintf(stderr, gettext("cannot "
-				    "resolve path '%s': %d\n"), udevpath, ret);
+				if (json) {
+					if (json->json || json->ld_json) {
+						sprintf(errbuf,
+						gettext("cannot "
+					    "resolve path '%s': %d"),
+					    udevpath, ret);
+						fnvlist_add_string(
+						    json->nv_dict_error,
+						    "error", errbuf);
+					} else
+						(void) fprintf(stderr,
+						gettext("cannot "
+					    "resolve path '%s': %d\n"),
+					    udevpath, ret);
+				} else
+					(void) fprintf(stderr, gettext("cannot "
+					    "resolve path '%s': %d\n"),
+					    udevpath, ret);
 				return (-1);
 			}
 
@@ -1266,19 +1428,19 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	}
 
 	for (c = 0; c < children; c++)
-		if ((ret = make_disks(zhp, child[c])) != 0)
+		if ((ret = make_disks(zhp, child[c], json)) != 0)
 			return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, child[c], json)) != 0)
 				return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, child[c], json)) != 0)
 				return (ret);
 
 	return (0);
@@ -1290,7 +1452,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
  */
 static boolean_t
 is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
-    boolean_t replacing, boolean_t isspare)
+    boolean_t replacing, boolean_t isspare, zfs_json_t *json)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1323,36 +1485,37 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 					return (-1);
 			}
 
-			if (is_spare(config, buf))
+			if (is_spare(config, buf, json))
 				return (B_FALSE);
 		}
 
 		if (strcmp(type, VDEV_TYPE_DISK) == 0)
-			ret = check_device(path, force, isspare, wholedisk);
+			ret = check_device(path, force,
+			isspare, wholedisk, json);
 
 		else if (strcmp(type, VDEV_TYPE_FILE) == 0)
-			ret = check_file(path, force, isspare);
+			ret = check_file(path, force, isspare, json);
 
 		return (ret != 0);
 	}
 
 	for (c = 0; c < children; c++)
 		if (is_device_in_use(config, child[c], force, replacing,
-		    B_FALSE))
+		    B_FALSE, json))
 			anyinuse = B_TRUE;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
 			if (is_device_in_use(config, child[c], force, replacing,
-			    B_TRUE))
+			    B_TRUE, json))
 				anyinuse = B_TRUE;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
 			if (is_device_in_use(config, child[c], force, replacing,
-			    B_FALSE))
+			    B_FALSE, json))
 				anyinuse = B_TRUE;
 
 	return (anyinuse);
@@ -1422,13 +1585,14 @@ is_grouping(const char *type, int *mindev, int *maxdev)
  * because the program is just going to exit anyway.
  */
 nvlist_t *
-construct_spec(nvlist_t *props, int argc, char **argv)
+construct_spec(zfs_json_t *json, nvlist_t *props, int argc, char **argv)
 {
 	nvlist_t *nvroot, *nv, **top, **spares, **l2cache;
 	int t, toplevels, mindev, maxdev, nspares, nlogs, nl2cache;
 	const char *type;
 	uint64_t is_log;
 	boolean_t seen_logs;
+	char errbuf[1024];
 
 	top = NULL;
 	toplevels = 0;
@@ -1453,10 +1617,20 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 			if (strcmp(type, VDEV_TYPE_SPARE) == 0) {
 				if (spares != NULL) {
-					(void) fprintf(stderr,
+					(void) sprintf(errbuf,
 					    gettext("invalid vdev "
 					    "specification: 'spare' can be "
-					    "specified only once\n"));
+					    "specified only once"));
+					if (json) {
+						if (json->json|| json->ld_json)
+							fnvlist_add_string(
+							    json->nv_dict_error,
+							    "error", errbuf);
+						else
+							fprintf(stderr,
+							    "%s\n", errbuf);
+					} else
+						fprintf(stderr, "%s\n", errbuf);
 					return (NULL);
 				}
 				is_log = B_FALSE;
@@ -1464,10 +1638,21 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 			if (strcmp(type, VDEV_TYPE_LOG) == 0) {
 				if (seen_logs) {
-					(void) fprintf(stderr,
+					(void) sprintf(errbuf,
 					    gettext("invalid vdev "
 					    "specification: 'log' can be "
-					    "specified only once\n"));
+					    "specified only once"));
+					if (json) {
+						if (json->json|| json->ld_json)
+							fnvlist_add_string(\
+							    json->nv_dict_error,
+							    "error", errbuf);
+						else
+							fprintf(stderr, "%s\n",
+							    errbuf);
+					} else
+						fprintf(stderr,
+						    "%s\n", errbuf);
 					return (NULL);
 				}
 				seen_logs = B_TRUE;
@@ -1483,10 +1668,20 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 			if (strcmp(type, VDEV_TYPE_L2CACHE) == 0) {
 				if (l2cache != NULL) {
-					(void) fprintf(stderr,
+					(void) sprintf(errbuf,
 					    gettext("invalid vdev "
 					    "specification: 'cache' can be "
-					    "specified only once\n"));
+					    "specified only once"));
+					if (json) {
+						if (json->json|| json->ld_json)
+							fnvlist_add_string(
+							    json->nv_dict_error,
+							    "error", errbuf);
+						else
+							fprintf(stderr,
+							    "%s\n", errbuf);
+					} else
+						fprintf(stderr, "%s\n", errbuf);
 					return (NULL);
 				}
 				is_log = B_FALSE;
@@ -1494,10 +1689,21 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 			if (is_log) {
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
-					(void) fprintf(stderr,
+					(void) sprintf(errbuf,
 					    gettext("invalid vdev "
 					    "specification: unsupported 'log' "
-					    "device: %s\n"), type);
+					    "device: %s"), type);
+					if (json) {
+						if (json->json|| json->ld_json)
+							fnvlist_add_string(
+							    json->nv_dict_error,
+							    "error", errbuf);
+						else
+							fprintf(stderr,
+							    "%s\n", errbuf);
+					} else
+						fprintf(stderr,
+						    "%s\n", errbuf);
 					return (NULL);
 				}
 				nlogs++;
@@ -1511,23 +1717,43 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				    children * sizeof (nvlist_t *));
 				if (child == NULL)
 					zpool_no_memory();
-				if ((nv = make_leaf_vdev(props, argv[c],
+				if ((nv = make_leaf_vdev(json, props, argv[c],
 				    B_FALSE)) == NULL)
 					return (NULL);
 				child[children - 1] = nv;
 			}
 
 			if (children < mindev) {
-				(void) fprintf(stderr, gettext("invalid vdev "
+				(void) sprintf(errbuf, gettext("invalid vdev "
 				    "specification: %s requires at least %d "
-				    "devices\n"), argv[0], mindev);
+				    "devices"), argv[0], mindev);
+					if (json) {
+						if (json->json|| json->ld_json)
+							fnvlist_add_string(
+							    json->nv_dict_error,
+							    "error", errbuf);
+						else
+							fprintf(stderr,
+							    "%s\n", errbuf);
+					} else
+						fprintf(stderr, "%s\n", errbuf);
 				return (NULL);
 			}
 
 			if (children > maxdev) {
-				(void) fprintf(stderr, gettext("invalid vdev "
+				(void) sprintf(errbuf, gettext("invalid vdev "
 				    "specification: %s supports no more than "
-				    "%d devices\n"), argv[0], maxdev);
+				    "%d devices"), argv[0], maxdev);
+				if (json) {
+						if (json->json|| json->ld_json)
+							fnvlist_add_string(
+							    json->nv_dict_error,
+							    "error", errbuf);
+						else
+							fprintf(stderr, "%s\n",
+							    errbuf);
+					} else
+						fprintf(stderr, "%s\n", errbuf);
 				return (NULL);
 			}
 
@@ -1567,7 +1793,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			 * We have a device.  Pass off to make_leaf_vdev() to
 			 * construct the appropriate nvlist describing the vdev.
 			 */
-			if ((nv = make_leaf_vdev(props, argv[0],
+			if ((nv = make_leaf_vdev(json, props, argv[0],
 			    is_log)) == NULL)
 				return (NULL);
 			if (is_log)
@@ -1584,15 +1810,31 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	}
 
 	if (toplevels == 0 && nspares == 0 && nl2cache == 0) {
-		(void) fprintf(stderr, gettext("invalid vdev "
+		(void) sprintf(errbuf, gettext("invalid vdev "
 		    "specification: at least one toplevel vdev must be "
-		    "specified\n"));
+		    "specified"));
+		if (json) {
+			if (json->json|| json->ld_json)
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errbuf);
+			else
+				fprintf(stderr, "%s\n", errbuf);
+		} else
+			fprintf(stderr, "%s\n", errbuf);
 		return (NULL);
 	}
 
 	if (seen_logs && nlogs == 0) {
-		(void) fprintf(stderr, gettext("invalid vdev specification: "
-		    "log requires at least 1 device\n"));
+		(void) sprintf(errbuf, gettext("invalid vdev specification: "
+		    "log requires at least 1 device"));
+		if (json) {
+			if (json->json|| json->ld_json)
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errbuf);
+			else
+				fprintf(stderr, "%s\n", errbuf);
+		} else
+			fprintf(stderr, "%s\n", errbuf);
 		return (NULL);
 	}
 
@@ -1628,21 +1870,28 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 nvlist_t *
 split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
-    splitflags_t flags, int argc, char **argv)
+    splitflags_t flags, int argc, char **argv, zfs_json_t *json)
 {
 	nvlist_t *newroot = NULL, **child;
 	uint_t c, children;
+	char errbuff[1024];
 
 	if (argc > 0) {
-		if ((newroot = construct_spec(props, argc, argv)) == NULL) {
-			(void) fprintf(stderr, gettext("Unable to build a "
-			    "pool from the specified devices\n"));
+		if ((newroot = construct_spec(json, props,
+		    argc, argv)) == NULL) {
+			(void) sprintf(errbuff, gettext("Unable to build a "
+			    "pool from the specified devices"));
+			if (!json->json)
+				(void) fprintf(stderr, "%s\n", errbuff);
+			else
+				fnvlist_add_string(json->nv_dict_error,
+				    "error", errbuff);
 			return (NULL);
 		}
 
-		if (!flags.dryrun && make_disks(zhp, newroot) != 0) {
+		if (!flags.dryrun && make_disks(zhp, newroot, json) != 0) {
 			nvlist_free(newroot);
-			return (NULL);
+		return (NULL);
 		}
 
 		/* avoid any tricks in the spec */
@@ -1656,15 +1905,20 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 			verify(nvlist_lookup_string(child[c],
 			    ZPOOL_CONFIG_PATH, &path) == 0);
 			if ((type = is_grouping(path, &min, &max)) != NULL) {
-				(void) fprintf(stderr, gettext("Cannot use "
-				    "'%s' as a device for splitting\n"), type);
+				(void) sprintf(errbuff, gettext("Cannot use "
+				    "'%s' as a device for splitting"), type);
+				if (!json->json)
+					fprintf(stderr, "%s\n", errbuff);
+				else
+					fnvlist_add_string(json->nv_dict_error,
+					    "error", errbuff);
 				nvlist_free(newroot);
 				return (NULL);
 			}
 		}
 	}
 
-	if (zpool_vdev_split(zhp, newname, &newroot, props, flags) != 0) {
+	if (zpool_vdev_split(zhp, newname, &newroot, props, flags, json) != 0) {
 		if (newroot != NULL)
 			nvlist_free(newroot);
 		return (NULL);
@@ -1684,8 +1938,10 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
  * added, even if they appear in use.
  */
 nvlist_t *
-make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
-    boolean_t replacing, boolean_t dryrun, int argc, char **argv)
+make_root_vdev(zpool_handle_t *zhp, nvlist_t *props,
+    int force, int check_rep,
+    boolean_t replacing, boolean_t dryrun,
+    int argc, char **argv, zfs_json_t *json)
 {
 	nvlist_t *newroot;
 	nvlist_t *poolconfig = NULL;
@@ -1696,7 +1952,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * that we have a valid specification, and that all devices can be
 	 * opened.
 	 */
-	if ((newroot = construct_spec(props, argc, argv)) == NULL)
+	if ((newroot = construct_spec(json, props, argc, argv)) == NULL)
 		return (NULL);
 
 	if (zhp && ((poolconfig = zpool_get_config(zhp, NULL)) == NULL)) {
@@ -1710,7 +1966,8 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * uses (such as a dedicated dump device) that even '-f' cannot
 	 * override.
 	 */
-	if (is_device_in_use(poolconfig, newroot, force, replacing, B_FALSE)) {
+	if (is_device_in_use(poolconfig, newroot,
+	    force, replacing, B_FALSE, json)) {
 		nvlist_free(newroot);
 		return (NULL);
 	}
@@ -1728,7 +1985,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	/*
 	 * Run through the vdev specification and label any whole disks found.
 	 */
-	if (!dryrun && make_disks(zhp, newroot) != 0) {
+	if (!dryrun && make_disks(zhp, newroot, json) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

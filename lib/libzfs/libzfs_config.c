@@ -102,7 +102,7 @@ namespace_clear(libzfs_handle_t *hdl)
  * Loads the pool namespace, or re-loads it if the cache has changed.
  */
 static int
-namespace_reload(libzfs_handle_t *hdl)
+namespace_reload(libzfs_handle_t *hdl, zfs_json_t *json)
 {
 	nvlist_t *config;
 	config_node_t *cn;
@@ -150,7 +150,7 @@ namespace_reload(libzfs_handle_t *hdl)
 
 			default:
 				zcmd_free_nvlists(&zc);
-				return (zfs_standard_error(hdl, errno,
+				return (zfs_standard_error(json, hdl, errno,
 				    dgettext(TEXT_DOMAIN, "failed to read "
 				    "pool configuration")));
 			}
@@ -372,7 +372,8 @@ check_restricted(const char *poolname)
  * Iterate over all pools in the system.
  */
 int
-zpool_iter(libzfs_handle_t *hdl, zpool_iter_f func, void *data)
+zpool_iter(libzfs_handle_t *hdl, zpool_iter_f func,
+    void *data, zfs_json_t *json)
 {
 	config_node_t *cn;
 	zpool_handle_t *zhp;
@@ -384,7 +385,7 @@ zpool_iter(libzfs_handle_t *hdl, zpool_iter_f func, void *data)
 	 * context.  We allow recursive calls, but simply re-use the same
 	 * namespace AVL tree.
 	 */
-	if (!hdl->libzfs_pool_iter && namespace_reload(hdl) != 0)
+	if (!hdl->libzfs_pool_iter && namespace_reload(hdl, json) != 0)
 		return (-1);
 
 	hdl->libzfs_pool_iter++;
@@ -402,7 +403,7 @@ zpool_iter(libzfs_handle_t *hdl, zpool_iter_f func, void *data)
 		if (zhp == NULL)
 			continue;
 
-		if ((ret = func(zhp, data)) != 0) {
+		if ((ret = func(zhp, data, json)) != 0) {
 			hdl->libzfs_pool_iter--;
 			return (ret);
 		}
@@ -417,13 +418,14 @@ zpool_iter(libzfs_handle_t *hdl, zpool_iter_f func, void *data)
  * handle passed each time must be explicitly closed by the callback.
  */
 int
-zfs_iter_root(libzfs_handle_t *hdl, zfs_iter_f func, void *data)
+zfs_iter_root(libzfs_handle_t *hdl, zfs_iter_f func,
+    void *data, zfs_json_t *json)
 {
 	config_node_t *cn;
 	zfs_handle_t *zhp;
 	int ret;
 
-	if (namespace_reload(hdl) != 0)
+	if (namespace_reload(hdl, json) != 0)
 		return (-1);
 
 	for (cn = uu_avl_first(hdl->libzfs_ns_avl); cn != NULL;
@@ -435,7 +437,7 @@ zfs_iter_root(libzfs_handle_t *hdl, zfs_iter_f func, void *data)
 		if ((zhp = make_dataset_handle(hdl, cn->cn_name)) == NULL)
 			continue;
 
-		if ((ret = func(zhp, data)) != 0)
+		if ((ret = func(zhp, data, json)) != 0)
 			return (ret);
 	}
 

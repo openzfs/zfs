@@ -131,19 +131,21 @@ typedef enum {
 	SHARED_SMB = 0x4
 } zfs_share_type_t;
 
-int zfs_error(libzfs_handle_t *, int, const char *);
-int zfs_error_fmt(libzfs_handle_t *, int, const char *, ...);
-void zfs_error_aux(libzfs_handle_t *, const char *, ...);
+int zfs_error(zfs_json_t *, libzfs_handle_t *, int, const char *);
+int zfs_error_fmt(zfs_json_t *, libzfs_handle_t *, int, const char *, ...);
+void zfs_error_aux(zfs_json_t *, libzfs_handle_t *, const char *, ...);
 void *zfs_alloc(libzfs_handle_t *, size_t);
 void *zfs_realloc(libzfs_handle_t *, void *, size_t, size_t);
 char *zfs_asprintf(libzfs_handle_t *, const char *, ...);
 char *zfs_strdup(libzfs_handle_t *, const char *);
 int no_memory(libzfs_handle_t *);
 
-int zfs_standard_error(libzfs_handle_t *, int, const char *);
-int zfs_standard_error_fmt(libzfs_handle_t *, int, const char *, ...);
-int zpool_standard_error(libzfs_handle_t *, int, const char *);
-int zpool_standard_error_fmt(libzfs_handle_t *, int, const char *, ...);
+int zfs_standard_error(zfs_json_t *, libzfs_handle_t *, int, const char *);
+int zfs_standard_error_fmt(zfs_json_t *, libzfs_handle_t *,
+    int, const char *, ...);
+int zpool_standard_error(zfs_json_t *, libzfs_handle_t *, int, const char *);
+int zpool_standard_error_fmt(zfs_json_t *, libzfs_handle_t *,
+    int, const char *, ...);
 
 int get_dependents(libzfs_handle_t *, boolean_t, const char *, char ***,
     size_t *);
@@ -151,7 +153,7 @@ zfs_handle_t *make_dataset_handle_zc(libzfs_handle_t *, zfs_cmd_t *);
 zfs_handle_t *make_dataset_simple_handle_zc(zfs_handle_t *, zfs_cmd_t *);
 
 int zprop_parse_value(libzfs_handle_t *, nvpair_t *, int, zfs_type_t,
-    nvlist_t *, char **, uint64_t *, const char *);
+    nvlist_t *, char **, uint64_t *, const char *, zfs_json_t *);
 int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
     zfs_type_t type);
 
@@ -171,17 +173,18 @@ int zcmd_expand_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *);
 int zcmd_read_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t **);
 void zcmd_free_nvlists(zfs_cmd_t *);
 
-int changelist_prefix(prop_changelist_t *);
-int changelist_postfix(prop_changelist_t *);
+int changelist_prefix(prop_changelist_t *, zfs_json_t *);
+int changelist_postfix(prop_changelist_t *, zfs_json_t *);
 void changelist_rename(prop_changelist_t *, const char *, const char *);
 void changelist_remove(prop_changelist_t *, const char *);
 void changelist_free(prop_changelist_t *);
-prop_changelist_t *changelist_gather(zfs_handle_t *, zfs_prop_t, int, int);
-int changelist_unshare(prop_changelist_t *, zfs_share_proto_t *);
+prop_changelist_t *changelist_gather(zfs_handle_t *, zfs_prop_t,
+    int, int, zfs_json_t *);
+int changelist_unshare(prop_changelist_t *, zfs_share_proto_t *, zfs_json_t *);
 int changelist_haszonedchild(prop_changelist_t *);
 
 void remove_mountpoint(zfs_handle_t *);
-int create_parents(libzfs_handle_t *, char *, int);
+int create_parents(zfs_json_t *, libzfs_handle_t *, char *, int);
 boolean_t isa_child_of(const char *dataset, const char *parent);
 
 zfs_handle_t *make_dataset_handle(libzfs_handle_t *, const char *);
@@ -190,10 +193,11 @@ zfs_handle_t *make_bookmark_handle(zfs_handle_t *, const char *,
 
 int zpool_open_silent(libzfs_handle_t *, const char *, zpool_handle_t **);
 
-boolean_t zpool_name_valid(libzfs_handle_t *, boolean_t, const char *);
+boolean_t zpool_name_valid(zfs_json_t *, libzfs_handle_t *,
+    boolean_t, const char *);
 
-int zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
-    boolean_t modifying);
+int zfs_validate_name(zfs_json_t *, libzfs_handle_t *hdl,
+    const char *path, int type, boolean_t modifying);
 
 void namespace_clear(libzfs_handle_t *);
 
@@ -201,12 +205,12 @@ void namespace_clear(libzfs_handle_t *);
  * libshare (sharemgr) interfaces used internally.
  */
 
-extern int zfs_init_libshare(libzfs_handle_t *, int);
+extern int zfs_init_libshare(libzfs_handle_t *, int, zfs_json_t *);
 extern void zfs_uninit_libshare(libzfs_handle_t *);
 extern int zfs_parse_options(char *, zfs_share_proto_t);
 
 extern int zfs_unshare_proto(zfs_handle_t *,
-    const char *, zfs_share_proto_t *);
+    const char *, zfs_share_proto_t *, zfs_json_t *);
 
 extern void libzfs_fru_clear(libzfs_handle_t *, boolean_t);
 

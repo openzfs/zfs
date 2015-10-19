@@ -26,12 +26,12 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool add\fR [\fB-fgLnP\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIvdev\fR ...
+\fBzpool add\fR [\fB-fgLnPJj\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIvdev\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool attach\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR
+\fBzpool attach\fR [\fB-fjJ\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR
 .fi
 
 .LP
@@ -41,18 +41,18 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR]
+\fBzpool create\fR [\fB-fndjJ\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR]
      ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool destroy\fR [\fB-f\fR] \fIpool\fR
+\fBzpool destroy\fR [\fB-fjJ\fR] \fIpool\fR
 .fi
 
 .LP
 .nf
-\fBzpool detach\fR \fIpool\fR \fIdevice\fR
+\fBzpool detach\fR [\fB-jJ\fR] \fIpool\fR \fIdevice\fR
 .fi
 
 .LP
@@ -62,40 +62,40 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] \fIpool\fR ...
+\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] [\fB-jJ\fR] \fIpool\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool get\fR [\fB-pH\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
+\fBzpool get\fR [\fB-pHjJ\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool history\fR [\fB-il\fR] [\fIpool\fR] ...
+\fBzpool history\fR [\fB-iljJ\fR] [\fIpool\fR] ...
 .fi
 
 .LP
 .nf
-\fBzpool import\fR [\fB-d\fR \fIdir\fR] [\fB-D\fR]
+\fBzpool import\fR [\fB-d\fR \fIdir\fR] [\fB-D\fR] [\fB-jJ\fR]
 .fi
 
 .LP
 .nf
-\fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
+\fBzpool import\fR [\fB-jJ\fR] [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
      [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR\] [\fB-T\fR\]] [\fB-s\fR] \fB-a\fR
 .fi
 
 .LP
 .nf
-\fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
+\fBzpool import\fR [\fB-jJ\fR] [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
      [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR] [\fB-T\fR\]] [\fB-t\fR]] [\fB-s\fR]
      \fIpool\fR | \fIid\fR [\fInewpool\fR]
 .fi
 
 .LP
 .nf
-\fBzpool iostat\fR [\fB-T\fR d | u ] [\fB-gLPvy\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]
+\fBzpool iostat\fR [\fB-jJ\fR] [\fB-T\fR d | u ] [\fB-gLPvy\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]
 .fi
 
 .LP
@@ -105,18 +105,18 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool list\fR [\fB-T\fR d | u ] [\fB-HgLPv\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
+\fBzpool list\fR [\fB-T\fR d | u ] [\fB-HgLPvJj\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
      [\fIinterval\fR[\fIcount\fR]]
 .fi
 
 .LP
 .nf
-\fBzpool offline\fR [\fB-t\fR] \fIpool\fR \fIdevice\fR ...
+\fBzpool offline\fR [\fB-tjJ\fR] \fIpool\fR \fIdevice\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool online\fR \fIpool\fR \fIdevice\fR ...
+\fBzpool online\fR [\fB-ejJ\fR] \fIpool\fR \fIdevice\fR ...
 .fi
 
 .LP
@@ -126,42 +126,42 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool reopen\fR \fIpool\fR
+\fBzpool reopen\fR [\fB-jJ\fR] \fIpool\fR
 .fi
 
 .LP
 .nf
-\fBzpool remove\fR \fIpool\fR \fIdevice\fR ...
+\fBzpool remove\fR [\fB-jJ\fR] \fIpool\fR \fIdevice\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool replace\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR]  \fIpool\fR \fIdevice\fR [\fInew_device\fR]
+\fBzpool replace\fR [\fB-fjJ\fR] [\fB-o\fR \fIproperty=value\fR]  \fIpool\fR \fIdevice\fR [\fInew_device\fR]
 .fi
 
 .LP
 .nf
-\fBzpool scrub\fR [\fB-s\fR] \fIpool\fR ...
+\fBzpool scrub\fR [\fB-sjJ\fR] \fIpool\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool set\fR \fIproperty\fR=\fIvalue\fR \fIpool\fR
+\fBzpool set\fR [\fB-jJ\fR] \fIproperty\fR=\fIvalue\fR \fIpool\fR
 .fi
 
 .LP
 .nf
-\fBzpool split\fR [\fB-gLnP\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
+\fBzpool split\fR [\fB-gLnPJj\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
 .fi
 
 .LP
 .nf
-\fBzpool status\fR [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-JjgLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .fi
 
 .LP
 .nf
-\fBzpool upgrade\fR
+\fBzpool upgrade\fR [\fB-jJ\fR]
 .fi
 
 .LP
@@ -171,7 +171,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool upgrade\fR [\fB-V\fR \fIversion\fR] \fB-a\fR | \fIpool\fR ...
+\fBzpool upgrade\fR [\fB-jJ\fR] [\fB-V\fR \fIversion\fR] \fB-a\fR | \fIpool\fR ...
 .fi
 
 .SH DESCRIPTION
@@ -837,7 +837,7 @@ Displays a help message.
 .ne 2
 .mk
 .na
-\fB\fBzpool add\fR [\fB-fgLnP\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIvdev\fR ...\fR
+\fB\fBzpool add\fR [\fB-fgLnPJj\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIvdev\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -901,6 +901,28 @@ Display full paths for vdevs instead of only the last component of the path.  Th
 .ne 2
 .mk
 .na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-o\fR \fIproperty=value\fR
 .ad
 .sp .6
@@ -915,7 +937,7 @@ Do not add a disk that is currently configured as a quorum device to a zpool. Af
 .ne 2
 .mk
 .na
-\fB\fBzpool attach\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR\fR
+\fB\fBzpool attach\fR [\fB-fjJ\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -929,6 +951,28 @@ Attaches \fInew_device\fR to an existing \fBzpool\fR device. The existing device
 .RS 6n
 .rt
 Forces use of \fInew_device\fR, even if its appears to be in use. Not all devices can be overridden in this manner.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
@@ -959,7 +1003,7 @@ Clears device errors in a pool. If no arguments are specified, all device errors
 .ne 2
 .mk
 .na
-\fB\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...\fR
+\fB\fBzpool create\fR [\fB-fndjJ\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1003,6 +1047,28 @@ Displays the configuration that would be used without actually creating the pool
 .sp .6
 .RS 4n
 Do not enable any features on the new pool. Individual features can be enabled by setting their corresponding properties to \fBenabled\fR with the \fB-o\fR option. See \fBzpool-features\fR(5) for details about feature properties.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
@@ -1069,7 +1135,7 @@ Sets the in-core pool name to "\fBtname\fR" while the on-disk name will be the n
 .ne 2
 .mk
 .na
-\fB\fBzpool destroy\fR [\fB-f\fR] \fIpool\fR\fR
+\fB\fBzpool destroy\fR [\fB-fjJ\fR] \fIpool\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1085,17 +1151,59 @@ Destroys the given pool, freeing up any devices for other use. This command trie
 Forces any active datasets contained within the pool to be unmounted.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool detach\fR \fIpool\fR \fIdevice\fR\fR
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool detach\fR [\fB-jJ\fR] \fIpool\fR \fIdevice\fR\fR
 .ad
 .sp .6
 .RS 4n
 Detaches \fIdevice\fR from a mirror. The operation is refused if there are no other valid replicas of the data.  If \fIdevice\fR may be re-added to the pool later on then consider the "\fBzpool offline\fR" command instead.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .RE
@@ -1160,7 +1268,7 @@ Clear all previous events.
 .ne 2
 .mk
 .na
-\fB\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] \fIpool\fR ...\fR
+\fB\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] [\fB-jJ\fR] \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1193,13 +1301,35 @@ Forcefully unmount all datasets, using the "\fBunmount -f\fR" command.
 This command will forcefully export the pool even if it has a shared spare that is currently being used. This may lead to potential data corruption.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool get\fR [\fB-p\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...\fR
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool get\fR [\fB-pHjJ\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1238,13 +1368,35 @@ Display numbers in parseable (exact) values.
 Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool history\fR [\fB-il\fR] [\fIpool\fR] ...\fR
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool history\fR [\fB-iljJ\fR] [\fIpool\fR] ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1271,17 +1423,61 @@ Displays internally logged \fBZFS\fR events in addition to user initiated events
 Displays log records in long format, which in addition to standard format includes, the user name, the hostname, and the zone in which the operation was performed.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool import\fR [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR]\fR
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool import\fR [\fB-jJ\fR] [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR]\fR
 .ad
 .sp .6
 .RS 4n
 Lists pools available to import. If the \fB-d\fR option is not specified, this command searches for devices in "/dev". The \fB-d\fR option can be specified multiple times, and all directories are searched. If the device appears to be part of an exported pool, this command displays a summary of the pool with the name of the pool, a numeric identifier, as well as the \fIvdev\fR layout and current health of the device for each device or file. Destroyed pools, pools that were previously destroyed with the "\fBzpool destroy\fR" command, are not listed unless the \fB-D\fR option is specified.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
 .sp
 The numeric identifier is unique, and can be used instead of the pool name when multiple exported pools of the same name are available.
 .sp
@@ -1323,11 +1519,33 @@ Lists destroyed pools only.
 .ne 2
 .mk
 .na
-\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-s\fR] \fB-a\fR\fR
+\fB\fBzpool import\fR [\fB-jJ\fR] [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-s\fR] \fB-a\fR\fR
 .ad
 .sp .6
 .RS 4n
 Imports all pools found in the search directories. Identical to the previous command, except that all pools with a sufficient number of devices available are imported. Destroyed pools, pools that were previously destroyed with the "\fBzpool destroy\fR" command, will not be imported unless the \fB-D\fR option is specified.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
 .sp
 .ne 2
 .mk
@@ -1495,13 +1713,35 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .ne 2
 .mk
 .na
-\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] [\fB-s\fR] \fIpool\fR | \fIid\fR [\fInewpool\fR]\fR
+\fB\fBzpool import\fR [\fB-jJ\fR] [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] [\fB-s\fR] \fIpool\fR | \fIid\fR [\fInewpool\fR]\fR
 .ad
 .sp .6
 .RS 4n
 Imports a specific pool. A pool can be identified by its name or the numeric identifier. If \fInewpool\fR is specified, the pool is imported using the name \fInewpool\fR. Otherwise, it is imported with the same name as its exported name.
 .sp
 If a device is removed from a system without running "\fBzpool export\fR" first, the device appears as potentially active. It cannot be determined if this was a failed export, or whether the device is really in use from another host. To import a pool in this state, the \fB-f\fR option is required.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
 .sp
 .ne 2
 .mk
@@ -1664,11 +1904,33 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .ne 2
 .mk
 .na
-\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-gLPvy\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool iostat\fR [\fB-jJ\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-gLPvy\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
 .ad
 .sp .6
 .RS 4n
 Displays \fBI/O\fR statistics for the given pools. When given an interval, the statistics are printed every \fIinterval\fR seconds until \fBCtrl-C\fR is pressed. If no \fIpools\fR are specified, statistics for every pool in the system is shown. If \fIcount\fR is specified, the command exits after \fIcount\fR reports are printed.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
 .sp
 .ne 2
 .mk
@@ -1765,11 +2027,33 @@ Treat exported or foreign devices as inactive.
 .ne 2
 .mk
 .na
-\fB\fBzpool list\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-HgLPv\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool list\fR [\fB-TJj\fR \fBd\fR | \fBu\fR] [\fB-HgLPv\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
 .ad
 .sp .6
 .RS 4n
 Lists the given pools along with a health status and space usage. If no \fIpools\fR are specified, all pools in the system are listed. When given an \fIinterval\fR, the information is printed every \fIinterval\fR seconds until \fBCtrl-C\fR is pressed. If \fIcount\fR is specified, the command exits after \fIcount\fR reports are printed.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
 .sp
 .ne 2
 .mk
@@ -1854,7 +2138,7 @@ Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within t
 .ne 2
 .mk
 .na
-\fB\fBzpool offline\fR [\fB-t\fR] \fIpool\fR \fIdevice\fR ...\fR
+\fB\fBzpool offline\fR [\fB-tjJ\fR] \fIpool\fR \fIdevice\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1872,13 +2156,35 @@ This command is not applicable to spares or cache devices.
 Temporary. Upon reboot, the specified physical device reverts to its previous state.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool online\fR [\fB-e\fR] \fIpool\fR \fIdevice\fR...\fR
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool online\fR [\fB-ejJ\fR] \fIpool\fR \fIdevice\fR...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1894,6 +2200,28 @@ This command is not applicable to spares or cache devices.
 .RS 6n
 .rt
 Expand the device to use all available space. If the device is part of a mirror or \fBraidz\fR then all devices must be expanded before the new space will become available to the pool.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .RE
@@ -1913,28 +2241,72 @@ devices in this pool are online and healthy before performing this action.
 .sp
 .ne 2
 .na
-\fB\fBzpool reopen\fR \fIpool\fR
+\fB\fBzpool reopen\fR [\fB-jJ\fR] \fIpool\fR
 .ad
 .sp .6
 .RS 4n
 Reopen all the vdevs associated with the pool.
-.RE
-
 .sp
 .ne 2
+.mk
 .na
-\fB\fBzpool remove\fR \fIpool\fR \fIdevice\fR ...\fR
+\fB\fB-j\fR\fR
 .ad
-.sp .6
-.RS 4n
-Removes the specified device from the pool. This command currently only supports removing hot spares, cache, and log devices. A mirrored log device can be removed by specifying the top-level mirror for the log. Non-log devices that are part of a mirrored configuration can be removed using the \fBzpool detach\fR command. Non-redundant and \fBraidz\fR devices cannot be removed from a pool.
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool replace\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIold_device\fR [\fInew_device\fR]\fR
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBzpool remove\fR [\fB-jJ\fR] \fIpool\fR \fIdevice\fR ...\fR
+.ad
+.sp .6
+.RS 4n
+Removes the specified device from the pool. This command currently only supports removing hot spares, cache, and log devices. A mirrored log device can be removed by specifying the top-level mirror for the log. Non-log devices that are part of a mirrored configuration can be removed using the \fBzpool detach\fR command. Non-redundant and \fBraidz\fR devices cannot be removed from a pool.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool replace\fR [\fB-fjJ\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIold_device\fR [\fInew_device\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -1958,6 +2330,28 @@ Forces use of \fInew_device\fR, even if its appears to be in use. Not all device
 .ne 2
 .mk
 .na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-o\fR \fIproperty=value\fR
 .ad
 .sp .6n
@@ -1971,7 +2365,7 @@ Sets the given pool properties. See the "Properties" section for a list of valid
 .ne 2
 .mk
 .na
-\fB\fBzpool scrub\fR [\fB-s\fR] \fIpool\fR ...\fR
+\fB\fBzpool scrub\fR [\fB-sjJ\fR] \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1991,24 +2385,68 @@ Because scrubbing and resilvering are \fBI/O\fR-intensive operations, \fBZFS\fR 
 Stop scrubbing.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool set\fR \fIproperty\fR=\fIvalue\fR \fIpool\fR\fR
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool set\fR [\fB-jJ\fR] \fIproperty\fR=\fIvalue\fR \fIpool\fR\fR
 .ad
 .sp .6
 .RS 4n
 Sets the given property on the specified pool. See the "Properties" section for more information on what properties can be set and acceptable values.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fBzpool split\fR [\fB-gLnP\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fBzpool split\fR [\fB-gLnPJj\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR [\fIdevice\fR ...]
 .ad
 .sp .6
 .RS 4n
@@ -2031,11 +2469,33 @@ Display vdev GUIDs instead of the normal device names. These GUIDs can be used i
 .ne 2
 .mk
 .na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-L\fR\fR
 .ad
 .RS 6n
 .rt
 Display real paths for vdevs resolving all symbolic links. This can be used to look up the current block device name regardless of the /dev/disk/ path used to open it.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
 .RE
 
 .sp
@@ -2088,8 +2548,7 @@ Sets the specified property for \fInewpool\fR. See the “Properties” section 
 .ne 2
 .mk
 .na
-\fBzpool status\fR [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
-.ad
+\fBzpool status\fR [\fB-gLPvxDJj\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .sp .6
 .RS 4n
 Displays the detailed health status for the given pools. If no \fIpool\fR is specified, then the status of each pool in the system is displayed. For more information on pool and device health, see the "Device Failure and Recovery" section.
@@ -2167,6 +2626,28 @@ referenced (logically referenced in the pool) block counts and sizes by referenc
 .ne 2
 .mk
 .na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in ldjson format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-T\fR \fBd\fR | \fBu\fR\fR
 .ad
 .RS 12n
@@ -2182,11 +2663,33 @@ Specify \fBu\fR for a printed representation of the internal representation of t
 .ne 2
 .mk
 .na
-\fB\fBzpool upgrade\fR\fR
+\fB\fBzpool upgrade\fR [\fB-jJ\fR] \fR
 .ad
 .sp .6
 .RS 4n
 Displays pools which do not have all supported features enabled and pools formatted using a legacy ZFS version number. These pools can continue to be used, but some features may not be available. Use "\fBzpool upgrade -a\fR" to enable all features on all pools.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
 .RE
 
 .sp
@@ -2204,11 +2707,33 @@ Displays legacy \fBZFS\fR versions supported by the current software. See \fBzfs
 .ne 2
 .mk
 .na
-\fB\fBzpool upgrade\fR [\fB-V\fR \fIversion\fR] \fB-a\fR | \fIpool\fR ...\fR
+\fB\fBzpool upgrade\fR [\fB-jJ\fR] [\fB-V\fR \fIversion\fR] \fB-a\fR | \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
 Enables all supported features on the given pool. Once this is done, the pool will no longer be accessible on systems that do not support feature flags. See \fBzfs-features\fR(5) for details on compatibility with systems that support feature flags, but do not support all features enabled on the pool.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-j\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-J\fR\fR
+.ad
+.RS 6n
+.rt
+Display the outpout in json format.
+.RE
+
 .sp
 .ne 2
 .mk

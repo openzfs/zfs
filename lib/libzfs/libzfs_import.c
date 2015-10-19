@@ -903,6 +903,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				child = newchild;
 				children = id + 1;
 			}
+			fnvlist_free(child[id]);
 			if (nvlist_dup(nvtop, &child[id], 0) != 0)
 				goto nomem;
 
@@ -1489,7 +1490,8 @@ zpool_clear_label(int fd)
  * Use libblkid to quickly search for zfs devices
  */
 static int
-zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
+zpool_find_import_blkid(libzfs_handle_t *hdl,
+    pool_list_t *pools, zfs_json_t *json)
 {
 	blkid_cache cache;
 	blkid_dev_iterate iter;
@@ -1500,28 +1502,28 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 
 	err = blkid_get_cache(&cache, NULL);
 	if (err != 0) {
-		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		(void) zfs_error_fmt(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "blkid_get_cache() %d"), err);
 		goto err_blkid1;
 	}
 
 	err = blkid_probe_all(cache);
 	if (err != 0) {
-		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		(void) zfs_error_fmt(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "blkid_probe_all() %d"), err);
 		goto err_blkid2;
 	}
 
 	iter = blkid_dev_iterate_begin(cache);
 	if (iter == NULL) {
-		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		(void) zfs_error_fmt(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "blkid_dev_iterate_begin()"));
 		goto err_blkid2;
 	}
 
 	err = blkid_dev_set_search(iter, "TYPE", "zfs_member");
 	if (err != 0) {
-		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		(void) zfs_error_fmt(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "blkid_dev_set_search() %d"), err);
 		goto err_blkid3;
 	}
@@ -1576,7 +1578,8 @@ zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
  * to import a specific pool.
  */
 static nvlist_t *
-zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
+zpool_find_import_impl(libzfs_handle_t *hdl,
+    importargs_t *iarg, zfs_json_t *json)
 {
 	int i, dirs = iarg->paths;
 	struct dirent64 *dp;
@@ -1601,7 +1604,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	 * if an error is encountered when consulted the libblkid cache.
 	 */
 	if (dirs == 0) {
-		if (!iarg->scan && (zpool_find_import_blkid(hdl, &pools) == 0))
+		if (!iarg->scan && (zpool_find_import_blkid(hdl,
+		    &pools, json) == 0))
 			goto skip_scanning;
 
 		dir = zpool_default_import_path;
@@ -1627,8 +1631,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			if (errno == ENOENT)
 				continue;
 
-			zfs_error_aux(hdl, strerror(errno));
-			(void) zfs_error_fmt(hdl, EZFS_BADPATH,
+			zfs_error_aux(json, hdl, strerror(errno));
+			(void) zfs_error_fmt(json, hdl, EZFS_BADPATH,
 			    dgettext(TEXT_DOMAIN, "cannot open '%s'"), dir[i]);
 			goto error;
 		}
@@ -1651,8 +1655,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		    (dirp = fdopendir(dfd)) == NULL) {
 			if (dfd >= 0)
 				(void) close(dfd);
-			zfs_error_aux(hdl, strerror(errno));
-			(void) zfs_error_fmt(hdl, EZFS_BADPATH,
+			zfs_error_aux(json, hdl, strerror(errno));
+			(void) zfs_error_fmt(json, hdl, EZFS_BADPATH,
 			    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
 			    rdsk);
 			goto error;
@@ -1780,7 +1784,7 @@ zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv)
 	iarg.paths = argc;
 	iarg.path = argv;
 
-	return (zpool_find_import_impl(hdl, &iarg));
+	return (zpool_find_import_impl(hdl, &iarg, NULL));
 }
 
 /*
@@ -1790,7 +1794,7 @@ zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv)
  */
 nvlist_t *
 zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
-    char *poolname, uint64_t guid)
+    char *poolname, uint64_t guid, zfs_json_t *json)
 {
 	char *buf;
 	int fd;
@@ -1805,16 +1809,16 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 	verify(poolname == NULL || guid == 0);
 
 	if ((fd = open(cachefile, O_RDONLY)) < 0) {
-		zfs_error_aux(hdl, "%s", strerror(errno));
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		zfs_error_aux(json, hdl, "%s", strerror(errno));
+		(void) zfs_error(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "failed to open cache file"));
 		return (NULL);
 	}
 
 	if (fstat64(fd, &statbuf) != 0) {
-		zfs_error_aux(hdl, "%s", strerror(errno));
+		zfs_error_aux(json, hdl, "%s", strerror(errno));
 		(void) close(fd);
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		(void) zfs_error(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "failed to get size of cache file"));
 		return (NULL);
 	}
@@ -1827,7 +1831,7 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 	if (read(fd, buf, statbuf.st_size) != statbuf.st_size) {
 		(void) close(fd);
 		free(buf);
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		(void) zfs_error(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN,
 		    "failed to read cache file contents"));
 		return (NULL);
@@ -1837,7 +1841,7 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 
 	if (nvlist_unpack(buf, statbuf.st_size, &raw, 0) != 0) {
 		free(buf);
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		(void) zfs_error(json, hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN,
 		    "invalid or corrupt cache file contents"));
 		return (NULL);
@@ -1897,7 +1901,7 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 }
 
 static int
-name_or_guid_exists(zpool_handle_t *zhp, void *data)
+name_or_guid_exists(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	importargs_t *import = data;
 	int found = 0;
@@ -1923,18 +1927,20 @@ name_or_guid_exists(zpool_handle_t *zhp, void *data)
 }
 
 nvlist_t *
-zpool_search_import(libzfs_handle_t *hdl, importargs_t *import)
+zpool_search_import(libzfs_handle_t *hdl,
+    importargs_t *import, zfs_json_t *json)
 {
 	verify(import->poolname == NULL || import->guid == 0);
 
 	if (import->unique)
-		import->exists = zpool_iter(hdl, name_or_guid_exists, import);
+		import->exists = zpool_iter(hdl,
+		    name_or_guid_exists, import, json);
 
 	if (import->cachefile != NULL)
 		return (zpool_find_import_cached(hdl, import->cachefile,
-		    import->poolname, import->guid));
+		    import->poolname, import->guid, json));
 
-	return (zpool_find_import_impl(hdl, import));
+	return (zpool_find_import_impl(hdl, import, json));
 }
 
 boolean_t
@@ -1965,7 +1971,7 @@ typedef struct aux_cbdata {
 } aux_cbdata_t;
 
 static int
-find_aux(zpool_handle_t *zhp, void *data)
+find_aux(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	aux_cbdata_t *cbp = data;
 	nvlist_t **list;
@@ -1999,7 +2005,7 @@ find_aux(zpool_handle_t *zhp, void *data)
  */
 int
 zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
-    boolean_t *inuse)
+    boolean_t *inuse, zfs_json_t *json)
 {
 	nvlist_t *config;
 	char *name;
@@ -2042,7 +2048,7 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 		 * its state to active.
 		 */
 		if (pool_active(hdl, name, guid, &isactive) == 0 && isactive &&
-		    (zhp = zpool_open_canfail(hdl, name)) != NULL) {
+		    (zhp = zpool_open_canfail(json, hdl, name)) != NULL) {
 			if (zpool_get_prop_int(zhp, ZPOOL_PROP_READONLY, NULL))
 				stateval = POOL_STATE_ACTIVE;
 
@@ -2076,7 +2082,8 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 			 * still present in the config.  Otherwise, pretend like
 			 * it's not in use.
 			 */
-			if ((zhp = zpool_open_canfail(hdl, name)) != NULL &&
+			if ((zhp = zpool_open_canfail(json,
+			    hdl, name)) != NULL &&
 			    (pool_config = zpool_get_config(zhp, NULL))
 			    != NULL) {
 				nvlist_t *nvroot;
@@ -2124,7 +2131,7 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 		cb.cb_zhp = NULL;
 		cb.cb_guid = vdev_guid;
 		cb.cb_type = ZPOOL_CONFIG_SPARES;
-		if (zpool_iter(hdl, find_aux, &cb) == 1) {
+		if (zpool_iter(hdl, find_aux, &cb, json) == 1) {
 			name = (char *)zpool_get_name(cb.cb_zhp);
 			ret = B_TRUE;
 		} else {
@@ -2140,7 +2147,7 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 		cb.cb_zhp = NULL;
 		cb.cb_guid = vdev_guid;
 		cb.cb_type = ZPOOL_CONFIG_L2CACHE;
-		if (zpool_iter(hdl, find_aux, &cb) == 1) {
+		if (zpool_iter(hdl, find_aux, &cb, json) == 1) {
 			name = (char *)zpool_get_name(cb.cb_zhp);
 			ret = B_TRUE;
 		} else {
