@@ -32,6 +32,7 @@
 #include <linux/kthread.h>
 #include <sys/types.h>
 #include <sys/thread.h>
+#include <sys/rwlock.h>
 
 #define	TASKQ_NAMELEN		31
 
@@ -70,6 +71,7 @@ typedef void (task_func_t)(void *);
 typedef struct taskq {
 	spinlock_t		tq_lock;	/* protects taskq_t */
 	char			*tq_name;	/* taskq name */
+	int			tq_instance;	/* instance of tq_name */
 	struct list_head	tq_thread_list;	/* list of all threads */
 	struct list_head	tq_active_list;	/* list of active threads */
 	int			tq_nactive;	/* # of active threads */
@@ -77,16 +79,17 @@ typedef struct taskq {
 	int			tq_nspawn;	/* # of threads being spawned */
 	int			tq_maxthreads;	/* # of threads maximum */
 	int			tq_pri;		/* priority */
-	int			tq_minalloc;	/* min task_t pool size */
-	int			tq_maxalloc;	/* max task_t pool size */
-	int			tq_nalloc;	/* cur task_t pool size */
+	int			tq_minalloc;	/* min taskq_ent_t pool size */
+	int			tq_maxalloc;	/* max taskq_ent_t pool size */
+	int			tq_nalloc;	/* cur taskq_ent_t pool size */
 	uint_t			tq_flags;	/* flags */
 	taskqid_t		tq_next_id;	/* next pend/work id */
 	taskqid_t		tq_lowest_id;	/* lowest pend/work id */
-	struct list_head	tq_free_list;	/* free task_t's */
-	struct list_head	tq_pend_list;	/* pending task_t's */
-	struct list_head	tq_prio_list;	/* priority pending task_t's */
-	struct list_head	tq_delay_list;	/* delayed task_t's */
+	struct list_head	tq_free_list;	/* free taskq_ent_t's */
+	struct list_head	tq_pend_list;	/* pending taskq_ent_t's */
+	struct list_head	tq_prio_list;	/* priority pending taskq_ent_t's */
+	struct list_head	tq_delay_list;	/* delayed taskq_ent_t's */
+	struct list_head	tq_taskqs;	/* all taskq_t's */
 	wait_queue_head_t	tq_work_waitq;	/* new work waitq */
 	wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
 	tq_lock_role_t		tq_lock_class;	/* class when taking tq_lock */
@@ -119,6 +122,10 @@ typedef struct taskq_thread {
 
 /* Global system-wide dynamic task queue available for all consumers */
 extern taskq_t *system_taskq;
+
+/* List of all taskqs */
+extern struct list_head tq_list;
+extern struct rw_semaphore tq_list_sem;
 
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern taskqid_t taskq_dispatch_delay(taskq_t *, task_func_t, void *,
