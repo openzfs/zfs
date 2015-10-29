@@ -43,6 +43,8 @@ int dsl_get_bookmarks_impl(dsl_dataset_t *, nvlist_t *, nvlist_t *);
 int dsl_bookmark_destroy(nvlist_t *, nvlist_t *);
 int dsl_bookmark_lookup(struct dsl_pool *, const char *,
     struct dsl_dataset *, zfs_bookmark_phys_t *);
+int dsl_bookmark_lookup_ds(dsl_dataset_t *, const char *,
+    zfs_bookmark_phys_t *);
 
 #ifdef	__cplusplus
 }
