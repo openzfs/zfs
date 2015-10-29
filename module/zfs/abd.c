@@ -793,7 +793,6 @@ abd_uiomove_iov_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
 	ulong_t cnt;
 	struct abd_miter aiter;
 
-	ASSERT3U(skip, <, iov->iov_len);
 	ABD_CHECK(abd);
 	ASSERT(n <= abd->abd_size - off);
 
@@ -847,7 +846,6 @@ abd_uiomove_bvec_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
 	ulong_t cnt;
 	struct abd_miter aiter;
 
-	ASSERT3U(skip, <, bv->bv_len);
 	ABD_CHECK(abd);
 	ASSERT(n <= abd->abd_size - off);
 
