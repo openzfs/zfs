@@ -5478,11 +5478,11 @@ arc_init(void)
 	 * zfs_dirty_data_max_max (default 25% of physical memory).
 	 */
 	if (zfs_dirty_data_max_max == 0)
-		zfs_dirty_data_max_max = physmem * PAGESIZE *
+		zfs_dirty_data_max_max = (uint64_t)physmem * PAGESIZE *
 		    zfs_dirty_data_max_max_percent / 100;
 
 	if (zfs_dirty_data_max == 0) {
-		zfs_dirty_data_max = physmem * PAGESIZE *
+		zfs_dirty_data_max = (uint64_t)physmem * PAGESIZE *
 		    zfs_dirty_data_max_percent / 100;
 		zfs_dirty_data_max = MIN(zfs_dirty_data_max,
 		    zfs_dirty_data_max_max);
