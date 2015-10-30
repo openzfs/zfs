@@ -3373,6 +3373,11 @@ arc_kmem_reap_now(void)
 	}
 
 	for (i = 0; i < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; i++) {
+#ifdef _ILP32
+		/* reach upper limit of cache size on 32-bit */
+		if (zio_buf_cache[i] == NULL)
+			break;
+#endif
 		if (zio_buf_cache[i] != prev_cache) {
 			prev_cache = zio_buf_cache[i];
 			kmem_cache_reap_now(zio_buf_cache[i]);
