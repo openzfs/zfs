@@ -45,7 +45,7 @@
 
 void
 encode_embedded_bp_compressed(blkptr_t *bp, void *data,
-    enum zio_compress comp, int uncompressed_size, int compressed_size)
+    enum bp_compress comp, int uncompressed_size, int compressed_size)
 {
 	uint64_t *bp64 = (uint64_t *)bp;
 	uint64_t w = 0;
@@ -54,9 +54,9 @@ encode_embedded_bp_compressed(blkptr_t *bp, void *data,
 
 	ASSERT3U(compressed_size, <=, BPE_PAYLOAD_SIZE);
 	ASSERT(uncompressed_size == compressed_size ||
-	    comp != ZIO_COMPRESS_OFF);
-	ASSERT3U(comp, >=, ZIO_COMPRESS_OFF);
-	ASSERT3U(comp, <, ZIO_COMPRESS_FUNCTIONS);
+	    comp != BP_COMPRESS_OFF);
+	ASSERT3U(comp, >=, BP_COMPRESS_OFF);
+	ASSERT3U(comp, <, BP_COMPRESS_VALUES);
 
 	bzero(bp, sizeof (*bp));
 	BP_SET_EMBEDDED(bp, B_TRUE);

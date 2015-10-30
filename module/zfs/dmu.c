@@ -1063,7 +1063,7 @@ dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
 	    FTAG, &db));
 
 	dmu_buf_write_embedded(db,
-	    data, (bp_embedded_type_t)etype, (enum zio_compress)comp,
+	    data, (bp_embedded_type_t)etype, (enum bp_compress)comp,
 	    uncompressed_size, compressed_size, byteorder, tx);
 
 	dmu_buf_rele(db, FTAG);

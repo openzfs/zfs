@@ -1778,7 +1778,8 @@ arc_buf_fill(arc_buf_t *buf, boolean_t compressed)
 			ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, !=, NULL);
 			return (0);
 		} else {
-			int error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
+			int error = zio_decompress_data(
+			    BP_COMPRESS_VALUE(HDR_GET_COMPRESS(hdr)),
 			    hdr->b_l1hdr.b_pabd, buf->b_data,
 			    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
 

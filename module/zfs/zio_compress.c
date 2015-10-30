@@ -42,22 +42,41 @@
  * Compression vectors.
  */
 zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
-	{"inherit",		0,	NULL,		NULL},
-	{"on",			0,	NULL,		NULL},
-	{"uncompressed",	0,	NULL,		NULL},
-	{"lzjb",		0,	lzjb_compress,	lzjb_decompress},
-	{"empty",		0,	NULL,		NULL},
-	{"gzip-1",		1,	gzip_compress,	gzip_decompress},
-	{"gzip-2",		2,	gzip_compress,	gzip_decompress},
-	{"gzip-3",		3,	gzip_compress,	gzip_decompress},
-	{"gzip-4",		4,	gzip_compress,	gzip_decompress},
-	{"gzip-5",		5,	gzip_compress,	gzip_decompress},
-	{"gzip-6",		6,	gzip_compress,	gzip_decompress},
-	{"gzip-7",		7,	gzip_compress,	gzip_decompress},
-	{"gzip-8",		8,	gzip_compress,	gzip_decompress},
-	{"gzip-9",		9,	gzip_compress,	gzip_decompress},
-	{"zle",			64,	zle_compress,	zle_decompress},
-	{"lz4",			0,	lz4_compress_zfs, lz4_decompress_zfs}
+	{"inherit",		0,	NULL,		BP_COMPRESS_INHERIT},
+	{"on",			0,	NULL,		BP_COMPRESS_ON},
+	{"uncompressed",	0,	NULL,		BP_COMPRESS_OFF},
+	{"lzjb",		0,	lzjb_compress,	BP_COMPRESS_LZJB},
+	{"empty",		0,	NULL,		BP_COMPRESS_EMPTY},
+	{"gzip-1",		1,	gzip_compress,	BP_COMPRESS_GZIP_1},
+	{"gzip-2",		2,	gzip_compress,	BP_COMPRESS_GZIP_2},
+	{"gzip-3",		3,	gzip_compress,	BP_COMPRESS_GZIP_3},
+	{"gzip-4",		4,	gzip_compress,	BP_COMPRESS_GZIP_4},
+	{"gzip-5",		5,	gzip_compress,	BP_COMPRESS_GZIP_5},
+	{"gzip-6",		6,	gzip_compress,	BP_COMPRESS_GZIP_6},
+	{"gzip-7",		7,	gzip_compress,	BP_COMPRESS_GZIP_7},
+	{"gzip-8",		8,	gzip_compress,	BP_COMPRESS_GZIP_8},
+	{"gzip-9",		9,	gzip_compress,	BP_COMPRESS_GZIP_9},
+	{"zle",			64,	zle_compress,	BP_COMPRESS_ZLE},
+	{"lz4",			0,	lz4_compress_zfs, BP_COMPRESS_LZ4},
+};
+
+zio_decompress_info_t zio_decompress_table[BP_COMPRESS_VALUES] = {
+	{"inherit",		0,	NULL},
+	{"on",			0,	NULL},
+	{"uncompressed",	0,	NULL},
+	{"lzjb",		0,	lzjb_decompress},
+	{"empty",		0,	NULL},
+	{"gzip-1",		1,	gzip_decompress},
+	{"gzip-2",		2,	gzip_decompress},
+	{"gzip-3",		3,	gzip_decompress},
+	{"gzip-4",		4,	gzip_decompress},
+	{"gzip-5",		5,	gzip_decompress},
+	{"gzip-6",		6,	gzip_decompress},
+	{"gzip-7",		7,	gzip_decompress},
+	{"gzip-8",		8,	gzip_decompress},
+	{"gzip-9",		9,	gzip_decompress},
+	{"zle",			64,	zle_decompress},
+	{"lz4",			0,	lz4_decompress_zfs},
 };
 
 enum zio_compress
@@ -134,18 +153,18 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 }
 
 int
-zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
+zio_decompress_data_buf(enum bp_compress c, void *src, void *dst,
     size_t s_len, size_t d_len)
 {
-	zio_compress_info_t *ci = &zio_compress_table[c];
-	if ((uint_t)c >= ZIO_COMPRESS_FUNCTIONS || ci->ci_decompress == NULL)
+	zio_decompress_info_t *di = &zio_decompress_table[c];
+	if ((uint_t)c >= BP_COMPRESS_VALUES || di->di_decompress == NULL)
 		return (SET_ERROR(EINVAL));
 
-	return (ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level));
+	return (di->di_decompress(src, dst, s_len, d_len, di->di_level));
 }
 
 int
-zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
+zio_decompress_data(enum bp_compress c, abd_t *src, void *dst,
     size_t s_len, size_t d_len)
 {
 	void *tmp = abd_borrow_buf_copy(src, s_len);
