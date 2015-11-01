@@ -55,6 +55,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_SKEIN,
 	SPA_FEATURE_EDONR,
 	SPA_FEATURE_USEROBJ_ACCOUNTING,
+	SPA_FEATURE_LZ4HC_COMPRESS,
 	SPA_FEATURES
 } spa_feature_t;
 
@@ -67,7 +68,10 @@ typedef enum zfeature_flags {
 	ZFEATURE_FLAG_MOS =			(1 << 1),
 	/* Activate this feature at the same time it is enabled. */
 	ZFEATURE_FLAG_ACTIVATE_ON_ENABLE =	(1 << 2),
-	/* Each dataset has a field set if it has ever used this feature. */
+	/*
+	 * Each dataset has a field set if it has ever used this feature.
+	 * The feature must depend on SPA_FEATURE_EXTENSIBLE_DATASET.
+	 */
 	ZFEATURE_FLAG_PER_DATASET =		(1 << 3)
 } zfeature_flags_t;
 

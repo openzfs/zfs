@@ -312,4 +312,17 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
 	    userobj_accounting_deps);
 	}
+
+	{
+	static const spa_feature_t lz4hc_compress_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_LZ4_COMPRESS,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LZ4HC_COMPRESS,
+	    "org.zfsonlinux:lz4hc_compress", "lz4hc_compress",
+	    "LZ4HC compression algorithm support.",
+	    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+	    lz4hc_compress_deps);
+	}
 }

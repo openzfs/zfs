@@ -3825,11 +3825,22 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 					return (err);
 
-				if (!spa_feature_is_enabled(spa,
+				/* TODO create zio_compress_to_feature */
+				if (intval == ZIO_COMPRESS_LZ4 &&
+				    !spa_feature_is_enabled(spa,
 				    SPA_FEATURE_LZ4_COMPRESS)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}
+
+				if (intval >= ZIO_COMPRESS_LZ4HC_1 &&
+				    intval <= ZIO_COMPRESS_LZ4HC_16 &&
+				    !spa_feature_is_enabled(spa,
+				    SPA_FEATURE_LZ4HC_COMPRESS)) {
+					spa_close(spa, FTAG);
+					return (SET_ERROR(ENOTSUP));
+				}
+
 				spa_close(spa, FTAG);
 			}
 

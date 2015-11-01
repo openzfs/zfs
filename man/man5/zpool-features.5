@@ -589,5 +589,30 @@ files.
 
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBlz4hc_compress\fR\fR
+GUID	org.zfsonlinux:lz4hc_compress
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	lz4_compress
+.TE
+
+\fBlz4hc\fR is the high-compression variant of \fBlz4\fR. It has
+slower compression, but uses \fBlz4\fR for decompression, so
+decompression is as fast as \fBlz4\fR's.
+
+When the \fBlz4hc_compress\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBlz4hc\fR compression on any dataset on
+the pool using the \fBzfs\fR(8) command. Doing so will immediately
+activate the \fBlz4hc_compress\fR feature on the underlying
+pool. Booting off of \fBlz4hc\fR-compressed root pools is supported.
+
+This feature becomes \fBactive\fR once a \fBcompression\fR property
+has been set to \fBlz4hc\fR and will return to being \fBenabled\fB
+once all filesystems that have ever had their compression set to
+\fBlz4hc\fR are destroyed.
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)
