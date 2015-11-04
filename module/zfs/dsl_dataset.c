@@ -284,6 +284,7 @@ dsl_dataset_evict(void *dbu)
 
 	ASSERT(!list_link_active(&ds->ds_synced_link));
 
+	list_destroy(&ds->ds_prop_cbs);
 	mutex_destroy(&ds->ds_lock);
 	mutex_destroy(&ds->ds_opening_lock);
 	mutex_destroy(&ds->ds_sendstream_lock);
@@ -432,6 +433,9 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 
 		list_create(&ds->ds_sendstreams, sizeof (dmu_sendarg_t),
 		    offsetof(dmu_sendarg_t, dsa_link));
+
+		list_create(&ds->ds_prop_cbs, sizeof (dsl_prop_cb_record_t),
+		    offsetof(dsl_prop_cb_record_t, cbr_ds_node));
 
 		if (doi.doi_type == DMU_OTN_ZAP_METADATA) {
 			spa_feature_t f;
