@@ -71,8 +71,6 @@ case "$BB_NAME" in
 Amazon*)
     ;;
 CentOS*)
-    # Sporadic segmentation faults
-    TEST_ZTEST_SKIP="yes"
     # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
     TEST_ZILTEST_SKIP="yes"
     ;;
