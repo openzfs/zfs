@@ -1182,6 +1182,32 @@ dbuf_release_bp(dmu_buf_impl_t *db)
 	(void) arc_release(db->db_buf, db);
 }
 
+/*
+ * We already have a dirty record for this TXG, and we are being
+ * dirtied again.
+ */
+static void
+dbuf_redirty(dbuf_dirty_record_t *dr)
+{
+	dmu_buf_impl_t *db = dr->dr_dbuf;
+
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+
+	if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID) {
+		/*
+		 * If this buffer has already been written out,
+		 * we now need to reset its state.
+		 */
+		dbuf_unoverride(dr);
+		if (db->db.db_object != DMU_META_DNODE_OBJECT &&
+		    db->db_state != DB_NOFILL) {
+			/* Already released on initial dirty, so just thaw. */
+			ASSERT(arc_released(db->db_buf));
+			arc_buf_thaw(db->db_buf);
+		}
+	}
+}
+
 dbuf_dirty_record_t *
 dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 {
@@ -1254,16 +1280,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (dr && dr->dr_txg == tx->tx_txg) {
 		DB_DNODE_EXIT(db);
 
-		if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID) {
-			/*
-			 * If this buffer has already been written out,
-			 * we now need to reset its state.
-			 */
-			dbuf_unoverride(dr);
-			if (db->db.db_object != DMU_META_DNODE_OBJECT &&
-			    db->db_state != DB_NOFILL)
-				arc_buf_thaw(db->db_buf);
-		}
+		dbuf_redirty(dr);
 		mutex_exit(&db->db_mtx);
 		return (dr);
 	}
@@ -1564,9 +1581,34 @@ dmu_buf_will_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	int rf = DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH;
+	dbuf_dirty_record_t *dr;
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!refcount_is_zero(&db->db_holds));
+
+	/*
+	 * Quick check for dirtyness.  For already dirty blocks, this
+	 * reduces runtime of this function by >90%, and overall performance
+	 * by 50% for some workloads (e.g. file deletion with indirect blocks
+	 * cached).
+	 */
+	mutex_enter(&db->db_mtx);
+
+	for (dr = db->db_last_dirty;
+	    dr != NULL && dr->dr_txg >= tx->tx_txg; dr = dr->dr_next) {
+		/*
+		 * It's possible that it is already dirty but not cached,
+		 * because there are some calls to dbuf_dirty() that don't
+		 * go through dmu_buf_will_dirty().
+		 */
+		if (dr->dr_txg == tx->tx_txg && db->db_state == DB_CACHED) {
+			/* This dbuf is already dirty and cached. */
+			dbuf_redirty(dr);
+			mutex_exit(&db->db_mtx);
+			return;
+		}
+	}
+	mutex_exit(&db->db_mtx);
 
 	DB_DNODE_ENTER(db);
 	if (RW_WRITE_HELD(&DB_DNODE(db)->dn_struct_rwlock))
