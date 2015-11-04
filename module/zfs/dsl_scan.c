@@ -1471,10 +1471,23 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	}
 
 	/*
+	 * Only process scans in sync pass 1.
+	 */
+	if (spa_sync_pass(dp->dp_spa) > 1)
+		return;
+
+	/*
+	 * If the spa is shutting down, then stop scanning. This will
+	 * ensure that the scan does not dirty any new data during the
+	 * shutdown phase.
+	 */
+	if (spa_shutting_down(spa))
+		return;
+
+	/*
 	 * If the scan is inactive due to a stalled async destroy, try again.
 	 */
-	if ((!scn->scn_async_stalled && !dsl_scan_active(scn)) ||
-	    spa_sync_pass(dp->dp_spa) > 1)
+	if (!scn->scn_async_stalled && !dsl_scan_active(scn))
 		return;
 
 	scn->scn_visited_this_txg = 0;
