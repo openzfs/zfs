@@ -656,6 +656,19 @@ vn_getf(int fd)
 
 	fp = file_find(fd, current);
 	if (fp) {
+		lfp = fget(fd);
+		fput(fp->f_file);
+		/*
+		 * areleasef() can cause us to see a stale reference when
+		 * userspace has reused a file descriptor before areleasef()
+		 * has run. fput() the stale reference and replace it. We
+		 * retain the original reference count such that the concurrent
+		 * areleasef() will decrement its reference and terminate.
+		 */
+		if (lfp != fp->f_file) {
+			fp->f_file = lfp;
+			fp->f_vnode->v_file = lfp;
+		}
 		atomic_inc(&fp->f_ref);
 		spin_unlock(&vn_file_lock);
 		return (fp);
