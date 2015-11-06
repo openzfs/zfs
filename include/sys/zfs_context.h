@@ -274,6 +274,7 @@ typedef struct kmutex {
 } kmutex_t;
 
 #define	MUTEX_DEFAULT	0
+#define	MUTEX_NOLOCKDEP	MUTEX_DEFAULT
 #define	MUTEX_HELD(m)	((m)->m_owner == curthread)
 #define	MUTEX_NOT_HELD(m) (!MUTEX_HELD(m))
 
@@ -305,6 +306,7 @@ typedef int krw_t;
 #define	RW_READER	0
 #define	RW_WRITER	1
 #define	RW_DEFAULT	RW_READER
+#define	RW_NOLOCKDEP	RW_READER
 
 #define	RW_READ_HELD(x)		((x)->rw_readers > 0)
 #define	RW_WRITE_HELD(x)	((x)->rw_wr_owner == curthread)
