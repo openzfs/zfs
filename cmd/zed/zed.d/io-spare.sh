@@ -209,9 +209,10 @@ main()
         #
         # Round-robin through the spares trying those that are available.
         #
-        for spare in ${ZEVENT_VDEV_SPARE_PATHS}; do
+        for sparelong in ${ZEVENT_VDEV_SPARE_PATHS}; do
 
             # shellcheck disable=SC2046
+            spare=${sparelong/-part[0-9]/}
             set -- $(query_vdev_status "${ZEVENT_POOL}" "${spare}")
             spare_path="$1"
             spare_status="$2"
