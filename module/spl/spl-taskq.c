@@ -538,7 +538,7 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 }
 EXPORT_SYMBOL(taskq_cancel_id);
 
-static int taskq_thread_spawn(taskq_t *tq, int seq_tasks);
+static int taskq_thread_spawn(taskq_t *tq);
 
 taskqid_t
 taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
@@ -587,9 +587,8 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	wake_up(&tq->tq_work_waitq);
 out:
 	/* Spawn additional taskq threads if required. */
-	if (tq->tq_nactive == tq->tq_nthreads &&
-	    taskq_member_impl(tq, current))
-		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
+	if (tq->tq_nactive == tq->tq_nthreads)
+		(void) taskq_thread_spawn(tq);
 
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 	return (rc);
@@ -635,9 +634,8 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 	spin_unlock(&t->tqent_lock);
 out:
 	/* Spawn additional taskq threads if required. */
-	if (tq->tq_nactive == tq->tq_nthreads &&
-	    taskq_member_impl(tq, current))
-		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
+	if (tq->tq_nactive == tq->tq_nthreads)
+		(void) taskq_thread_spawn(tq);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 	return (rc);
 }
@@ -683,9 +681,8 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	wake_up(&tq->tq_work_waitq);
 out:
 	/* Spawn additional taskq threads if required. */
-	if (tq->tq_nactive == tq->tq_nthreads &&
-	    taskq_member_impl(tq, current))
-		(void) taskq_thread_spawn(tq, spl_taskq_thread_sequential + 1);
+	if (tq->tq_nactive == tq->tq_nthreads)
+		(void) taskq_thread_spawn(tq);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 }
 EXPORT_SYMBOL(taskq_dispatch_ent);
@@ -756,15 +753,14 @@ taskq_thread_spawn_task(void *arg)
  * which is also a dynamic taskq cannot be safely used for this.
  */
 static int
-taskq_thread_spawn(taskq_t *tq, int seq_tasks)
+taskq_thread_spawn(taskq_t *tq)
 {
 	int spawning = 0;
 
 	if (!(tq->tq_flags & TASKQ_DYNAMIC))
 		return (0);
 
-	if ((seq_tasks > spl_taskq_thread_sequential) &&
-	    (tq->tq_nthreads + tq->tq_nspawn < tq->tq_maxthreads) &&
+	if ((tq->tq_nthreads + tq->tq_nspawn < tq->tq_maxthreads) &&
 	    (tq->tq_flags & TASKQ_ACTIVE)) {
 		spawning = (++tq->tq_nspawn);
 		taskq_dispatch(dynamic_taskq, taskq_thread_spawn_task,
@@ -898,7 +894,8 @@ taskq_thread(void *args)
 			}
 
 			/* Spawn additional taskq threads if required. */
-			if (taskq_thread_spawn(tq, ++seq_tasks))
+			if ((++seq_tasks) > spl_taskq_thread_sequential &&
+			    taskq_thread_spawn(tq))
 				seq_tasks = 0;
 
 			tqt->tqt_id = 0;
