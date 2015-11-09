@@ -2003,7 +2003,7 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
     uint64_t guid1, uint64_t guid2)
 {
 	nvlist_t *nvfs;
-	char *fsname, *snapname;
+	char *fsname = NULL, *snapname = NULL;
 	char buf[ZFS_MAXNAMELEN];
 	int rv;
 	zfs_handle_t *guid1hdl, *guid2hdl;
