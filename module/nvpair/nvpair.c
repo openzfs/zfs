@@ -1642,6 +1642,8 @@ nvlist_lookup_nvpair_ei_sep(nvlist_t *nvl, const char *name, const char sep,
 	if ((nvl == NULL) || (name == NULL))
 		return (EINVAL);
 
+	sepp = NULL;
+	idx = 0;
 	/* step through components of name */
 	for (np = name; np && *np; np = sepp) {
 		/* ensure unique names */
