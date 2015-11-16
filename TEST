@@ -71,14 +71,10 @@ case "$BB_NAME" in
 Amazon*)
     ;;
 CentOS*)
-    # Fails vnode:vn_rdwr, CentOS 6.
-    TEST_SPLAT_SKIP="yes"
     # Sporadic segmentation faults
     TEST_ZTEST_SKIP="yes"
     # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
     TEST_ZILTEST_SKIP="yes"
-    # Hangs loading modules
-    TEST_ZCONFIG_SKIP="yes"
     ;;
 Debian*)
     ;;
