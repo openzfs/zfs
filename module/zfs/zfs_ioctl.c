@@ -6011,7 +6011,7 @@ _init(void)
 {
 	int error;
 
-	error = vn_set_pwd("/");
+	error = -vn_set_pwd("/");
 	if (error) {
 		printk(KERN_NOTICE
 		    "ZFS: Warning unable to set pwd to '/': %d\n", error);
@@ -6021,7 +6021,7 @@ _init(void)
 	spa_init(FREAD | FWRITE);
 	zfs_init();
 
-	if ((error = zvol_init()) != 0)
+	if ((error = -zvol_init()) != 0)
 		goto out1;
 
 	zfs_ioctl_init();
