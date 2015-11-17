@@ -518,6 +518,8 @@ nagios_callback(zpool_handle_t *zhp, void *data)
 	vdev_stat_t *vs;
 	zpool_errata_t errata;
 
+	memset(&alerts, 0, sizeof(alerts));
+
 	config = zpool_get_config(zhp, NULL);
 	reason = zpool_get_status(zhp, &msgid, &errata);
 
@@ -735,8 +737,6 @@ zpool_do_nagios(int argc, char **argv)
 
 
 	cb.cb_first = B_TRUE;
-
-	memset(&alerts, 0, sizeof(alerts));
 
 	ret = for_each_pool(argc, argv, B_TRUE, NULL,
 	    nagios_callback, &cb);
