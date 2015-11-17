@@ -1051,6 +1051,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
+	struct path spath;
 
 	if (ip == NULL)
 		return (EISDIR);
@@ -1095,10 +1096,22 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	argv[2] = kmem_asprintf(SET_MOUNT_CMD, full_name, full_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
-	if (error && !(error & MOUNT_BUSY << 8)) {
-		cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
-		    full_path, full_name, error);
-		error = SET_ERROR(EISDIR);
+	if (error) {
+		if (!(error & MOUNT_BUSY << 8)) {
+			cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
+			    full_path, full_name, error);
+			error = SET_ERROR(EISDIR);
+		} else {
+			/*
+			 * EBUSY, this could mean a concurrent mount, or the
+			 * snapshot has already been mounted at completely
+			 * different place. We return 0 so VFS will retry. For
+			 * the latter case the VFS will retry several times
+			 * and return ELOOP, which is probably not a very good
+			 * behavior.
+			 */
+			error = 0;
+		}
 		goto error;
 	}
 
@@ -1106,20 +1119,22 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * Follow down in to the mounted snapshot and set MNT_SHRINKABLE
 	 * to identify this as an automounted filesystem.
 	 */
-	zpl_follow_down_one(path);
-	snap_zsb = ITOZSB(path->dentry->d_inode);
-	snap_zsb->z_parent = zsb;
-	dentry = path->dentry;
-	path->mnt->mnt_flags |= MNT_SHRINKABLE;
-	zpl_follow_up(path);
-	error = 0;
+	spath = *path;
+	path_get(&spath);
+	if (zpl_follow_down_one(&spath)) {
+		snap_zsb = ITOZSB(spath.dentry->d_inode);
+		snap_zsb->z_parent = zsb;
+		dentry = spath.dentry;
+		spath.mnt->mnt_flags |= MNT_SHRINKABLE;
 
-	mutex_enter(&zfs_snapshot_lock);
-	se = zfsctl_snapshot_alloc(full_name, full_path,
-	    dmu_objset_id(snap_zsb->z_os), dentry);
-	zfsctl_snapshot_add(se);
-	zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
-	mutex_exit(&zfs_snapshot_lock);
+		mutex_enter(&zfs_snapshot_lock);
+		se = zfsctl_snapshot_alloc(full_name, full_path,
+		    dmu_objset_id(snap_zsb->z_os), dentry);
+		zfsctl_snapshot_add(se);
+		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+		mutex_exit(&zfs_snapshot_lock);
+	}
+	path_put(&spath);
 error:
 	kmem_free(full_name, MAXNAMELEN);
 	kmem_free(full_path, MAXPATHLEN);
