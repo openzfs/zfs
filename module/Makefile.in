@@ -26,7 +26,7 @@ modules_install:
 		KERNELRELEASE=@LINUX_VERSION@
 	@# Remove extraneous build products when packaging
 	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
-	if [ -n $$kmoddir ]; then \
+	if [ -n "$(DESTDIR)" ]; then \
 		find $$kmoddir -name 'modules.*' | xargs $(RM); \
 	fi
 	sysmap=$(DESTDIR)$(INSTALL_MOD_PATH)/boot/System.map-@LINUX_VERSION@; \
