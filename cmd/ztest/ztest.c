@@ -5371,6 +5371,41 @@ ztest_spa_rename(ztest_ds_t *zd, uint64_t id)
 	(void) rw_unlock(&ztest_name_lock);
 }
 
+static int
+ztest_check_path(char *path)
+{
+	struct stat s;
+	/* return true on success */
+	return (!stat(path, &s));
+}
+
+static void
+ztest_get_zdb_bin(char *bin, int len)
+{
+	char *zdb_path;
+	/*
+	 * Try to use ZDB_PATH and in-tree zdb path. If not successful, just
+	 * let popen to search through PATH.
+	 */
+	if ((zdb_path = getenv("ZDB_PATH"))) {
+		strlcpy(bin, zdb_path, len); /* In env */
+		if (!ztest_check_path(bin)) {
+			ztest_dump_core = 0;
+			fatal(1, "invalid ZDB_PATH '%s'", bin);
+		}
+		return;
+	}
+
+	VERIFY(realpath(getexecname(), bin) != NULL);
+	if (strstr(bin, "/ztest/")) {
+		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
+		strcat(bin, "/zdb/zdb");
+		if (ztest_check_path(bin))
+			return;
+	}
+	strcpy(bin, "zdb");
+}
+
 /*
  * Verify pool integrity by running zdb.
  */
@@ -5381,21 +5416,14 @@ ztest_run_zdb(char *pool)
 	char *bin;
 	char *zdb;
 	char *zbuf;
+	const int len = MAXPATHLEN + MAXNAMELEN + 20;
 	FILE *fp;
 
-	bin = umem_alloc(MAXPATHLEN + MAXNAMELEN + 20, UMEM_NOFAIL);
-	zdb = umem_alloc(MAXPATHLEN + MAXNAMELEN + 20, UMEM_NOFAIL);
+	bin = umem_alloc(len, UMEM_NOFAIL);
+	zdb = umem_alloc(len, UMEM_NOFAIL);
 	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
-	VERIFY(realpath(getexecname(), bin) != NULL);
-	if (strncmp(bin, "/usr/sbin/ztest", 15) == 0) {
-		strcpy(bin, "/usr/sbin/zdb"); /* Installed */
-	} else if (strncmp(bin, "/sbin/ztest", 11) == 0) {
-		strcpy(bin, "/sbin/zdb"); /* Installed */
-	} else {
-		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
-		strcat(bin, "/zdb/zdb");
-	}
+	ztest_get_zdb_bin(bin, len);
 
 	(void) sprintf(zdb,
 	    "%s -bcc%s%s -d -U %s %s",
@@ -5425,8 +5453,8 @@ ztest_run_zdb(char *pool)
 	else
 		fatal(0, "'%s' died with signal %d", zdb, WTERMSIG(status));
 out:
-	umem_free(bin, MAXPATHLEN + MAXNAMELEN + 20);
-	umem_free(zdb, MAXPATHLEN + MAXNAMELEN + 20);
+	umem_free(bin, len);
+	umem_free(zdb, len);
 	umem_free(zbuf, 1024);
 }
 
