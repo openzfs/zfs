@@ -3212,6 +3212,10 @@ zdb_dump_block(char *label, void *buf, uint64_t size, int flags)
 
 	(void) printf("\n%s\n%6s   %s  0123456789abcdef\n", label, "", hdr);
 
+#ifdef _LITTLE_ENDIAN
+	/* correct the endianess */
+	do_bswap = !do_bswap;
+#endif
 	for (i = 0; i < nwords; i += 2) {
 		(void) printf("%06llx:  %016llx  %016llx  ",
 		    (u_longlong_t)(i * sizeof (uint64_t)),
