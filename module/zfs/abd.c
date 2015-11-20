@@ -679,6 +679,10 @@ abd_miter_copy_to_user(void __user *buf, struct abd_miter *aiter, size_t size)
 {
 	int ret = 0;
 	size_t len;
+
+	if (!access_ok(VERIFY_WRITE, buf, size))
+		return (EFAULT);
+
 	while (size > 0) {
 		len = MIN(aiter->length, size);
 		ASSERT(len > 0);
@@ -690,7 +694,7 @@ abd_miter_copy_to_user(void __user *buf, struct abd_miter *aiter, size_t size)
 		abd_miter_unmap_atomic(aiter);
 		if (ret) {
 			abd_miter_map(aiter);
-			ret = copy_to_user(buf, aiter->addr, len);
+			ret = __copy_to_user(buf, aiter->addr, len);
 			abd_miter_unmap(aiter);
 			if (ret)
 				break;
@@ -727,6 +731,10 @@ abd_miter_copy_from_user(struct abd_miter *aiter, const void __user *buf,
 {
 	int ret = 0;
 	size_t len;
+
+	if (!access_ok(VERIFY_READ, buf, size))
+		return (EFAULT);
+
 	while (size > 0) {
 		len = MIN(aiter->length, size);
 		ASSERT(len > 0);
@@ -738,7 +746,7 @@ abd_miter_copy_from_user(struct abd_miter *aiter, const void __user *buf,
 		abd_miter_unmap_atomic(aiter);
 		if (ret) {
 			abd_miter_map(aiter);
-			ret = copy_from_user(aiter->addr, buf, len);
+			ret = __copy_from_user(aiter->addr, buf, len);
 			abd_miter_unmap(aiter);
 			if (ret)
 				break;
