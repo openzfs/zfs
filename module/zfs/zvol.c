@@ -756,6 +756,8 @@ out1:
 	spl_fstrans_unmark(cookie);
 #ifdef HAVE_MAKE_REQUEST_FN_RET_INT
 	return (0);
+#elif defined(HAVE_MAKE_REQUEST_FN_RET_QC)
+	return (BLK_QC_T_NONE);
 #endif
 }
 
