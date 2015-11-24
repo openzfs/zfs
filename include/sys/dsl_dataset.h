@@ -308,7 +308,7 @@ int dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap, dsl_dataset_t *last,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 boolean_t dsl_dataset_is_dirty(dsl_dataset_t *ds);
 
-int dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf);
+int dsl_dsobj_to_dsname(const char *pname, uint64_t obj, char *buf);
 
 int dsl_dataset_check_quota(dsl_dataset_t *ds, boolean_t check_quota,
     uint64_t asize, uint64_t inflight, uint64_t *used,

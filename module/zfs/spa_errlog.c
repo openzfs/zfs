@@ -71,7 +71,7 @@ bookmark_to_name(zbookmark_phys_t *zb, char *buf, size_t len)
  */
 #ifdef _KERNEL
 static void
-name_to_bookmark(char *buf, zbookmark_phys_t *zb)
+name_to_bookmark(const char *buf, zbookmark_phys_t *zb)
 {
 	zb->zb_objset = strtonum(buf, &buf);
 	ASSERT(*buf == ':');

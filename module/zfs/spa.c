@@ -173,7 +173,7 @@ boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
  * Add a (source=src, propname=propval) list to an nvlist.
  */
 static void
-spa_prop_add_list(nvlist_t *nvl, zpool_prop_t prop, char *strval,
+spa_prop_add_list(nvlist_t *nvl, zpool_prop_t prop, const char *strval,
     uint64_t intval, zprop_source_t src)
 {
 	const char *propname = zpool_prop_to_name(prop);
@@ -3257,7 +3257,7 @@ spa_open(const char *name, spa_t **spapp, void *tag)
  * preventing it from being exported or destroyed.
  */
 spa_t *
-spa_inject_addref(char *name)
+spa_inject_addref(const char *name)
 {
 	spa_t *spa;
 
@@ -3975,7 +3975,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
  * Import a non-root pool into the system.
  */
 int
-spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
+spa_import(const char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 {
 	spa_t *spa;
 	char *altroot = NULL;
@@ -4266,7 +4266,7 @@ spa_tryimport(nvlist_t *tryconfig)
  * we don't sync the labels or remove the configuration cache.
  */
 static int
-spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
+spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
     boolean_t force, boolean_t hardforce)
 {
 	spa_t *spa;
@@ -4376,7 +4376,7 @@ export_spa:
  * Destroy a storage pool.
  */
 int
-spa_destroy(char *pool)
+spa_destroy(const char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL,
 	    B_FALSE, B_FALSE));
@@ -4386,7 +4386,7 @@ spa_destroy(char *pool)
  * Export a storage pool.
  */
 int
-spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
+spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce)
 {
 	return (spa_export_common(pool, POOL_STATE_EXPORTED, oldconfig,
@@ -4398,7 +4398,7 @@ spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
  * from the namespace in any way.
  */
 int
-spa_reset(char *pool)
+spa_reset(const char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_UNINITIALIZED, NULL,
 	    B_FALSE, B_FALSE));
@@ -4969,7 +4969,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
  * Split a set of devices from their mirrors, and create a new pool from them.
  */
 int
-spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
+spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
     nvlist_t *props, boolean_t exp)
 {
 	int error = 0;

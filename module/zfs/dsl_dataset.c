@@ -3082,7 +3082,7 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
  * return the name of that dataset.
  */
 int
-dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf)
+dsl_dsobj_to_dsname(const char *pname, uint64_t obj, char *buf)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
