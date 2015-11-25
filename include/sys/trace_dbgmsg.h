@@ -103,9 +103,18 @@ DECLARE_EVENT_CLASS(zfs_set_error_class,
 	    __entry->function, __entry->error)
 );
 
+#ifdef TP_CONDITION
+#define	DEFINE_SET_ERROR_EVENT(name) \
+DEFINE_EVENT_CONDITION(zfs_set_error_class, name, \
+	TP_PROTO(const char *file, const char *function, int line, \
+	    uintptr_t error), \
+	TP_ARGS(file, function, line, error), \
+	TP_CONDITION(error))
+#else
 #define	DEFINE_SET_ERROR_EVENT(name) \
 DEFINE_EVENT(zfs_set_error_class, name, \
 	TP_PROTO(const char *file, const char *function, int line, \
 	    uintptr_t error), \
 	TP_ARGS(file, function, line, error))
+#endif
 DEFINE_SET_ERROR_EVENT(zfs_set__error);
