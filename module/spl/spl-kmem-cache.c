@@ -31,6 +31,7 @@
 #include <linux/swap.h>
 #include <linux/mm_compat.h>
 #include <linux/wait_compat.h>
+#include <linux/prefetch.h>
 
 /*
  * Within the scope of spl-kmem.c file the kmem_cache_* definitions
