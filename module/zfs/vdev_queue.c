@@ -505,7 +505,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	boolean_t stretch = B_FALSE;
 	avl_tree_t *t = vdev_queue_type_tree(vq, zio->io_type);
 	enum zio_flag flags = zio->io_flags & ZIO_FLAG_AGG_INHERIT;
-	void *buf;
+	abd_t *abd;
 
 	limit = MAX(MIN(zfs_vdev_aggregation_limit,
 	    spa_maxblocksize(vq->vq_vdev->vdev_spa)), 0);
@@ -608,12 +608,13 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	size = IO_SPAN(first, last);
 	ASSERT3U(size, <=, limit);
 
-	buf = zio_buf_alloc_flags(size, KM_NOSLEEP);
-	if (buf == NULL)
+	/* XXX: 6fe5378 make zio_buf_alloc here failable */
+	abd = abd_alloc_scatter(size);
+	if (abd == NULL)
 		return (NULL);
 
 	aio = zio_vdev_delegated_io(first->io_vd, first->io_offset,
-	    buf, size, first->io_type, zio->io_priority,
+	    abd, size, first->io_type, zio->io_priority,
 	    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 	    vdev_queue_agg_io_done, NULL);
 	aio->io_timestamp = first->io_timestamp;

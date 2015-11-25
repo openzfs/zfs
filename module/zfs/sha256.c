@@ -96,19 +96,54 @@ SHA256Transform(uint32_t *H, const uint8_t *cp)
 	H[4] += e; H[5] += f; H[6] += g; H[7] += h;
 }
 
-void
-zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
+struct zio_SHA256_ctx {
+	uint8_t	residual[64];
+	int	fill;
+	uint32_t H[8];
+};
+
+#define	DECLARE_SHA256_CTX(name) struct zio_SHA256_ctx name = {		\
+		.fill = 0,						\
+		.H = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,	\
+			0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }\
+	}
+
+static int
+SHA256_incremental(const void *buf, uint64_t size, void *arg)
 {
-	uint32_t H[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-	    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+	struct zio_SHA256_ctx *ctx = arg;
+	size_t len;
+	int i;
+	/* left over from last iteration */
+	if (ctx->fill) {
+		len = MIN(64 - ctx->fill, size);
+		memcpy(ctx->residual + ctx->fill, buf, len);
+		/* not enough for one block, save for next iteration */
+		if (ctx->fill + len < 64) {
+			ctx->fill += len;
+			return (0);
+		}
+		SHA256Transform(ctx->H, ctx->residual);
+		buf += len;
+		size -= len;
+	}
+	for (i = 0; i < (size & ~63ULL); i += 64)
+		SHA256Transform(ctx->H, buf + i);
+	/* save the left over for next iteration */
+	if (i < size)
+		memcpy(ctx->residual, buf + i, size - i);
+	ctx->fill = size - i;
+	return (0);
+}
+
+static void
+SHA256_end(struct zio_SHA256_ctx *ctx, uint64_t size, zio_cksum_t *zcp)
+{
 	uint8_t pad[128];
 	int i, padsize;
 
-	for (i = 0; i < (size & ~63ULL); i += 64)
-		SHA256Transform(H, (uint8_t *)buf + i);
-
-	for (padsize = 0; i < size; i++)
-		pad[padsize++] = *((uint8_t *)buf + i);
+	for (padsize = 0, i = 0; i < ctx->fill; i++)
+		pad[padsize++] = ctx->residual[i];
 
 	for (pad[padsize++] = 0x80; (padsize & 63) != 56; padsize++)
 		pad[padsize] = 0;
@@ -117,11 +152,27 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 		pad[padsize++] = (size << 3) >> i;
 
 	for (i = 0; i < padsize; i += 64)
-		SHA256Transform(H, pad + i);
+		SHA256Transform(ctx->H, pad + i);
 
 	ZIO_SET_CHECKSUM(zcp,
-	    (uint64_t)H[0] << 32 | H[1],
-	    (uint64_t)H[2] << 32 | H[3],
-	    (uint64_t)H[4] << 32 | H[5],
-	    (uint64_t)H[6] << 32 | H[7]);
+	    (uint64_t)ctx->H[0] << 32 | ctx->H[1],
+	    (uint64_t)ctx->H[2] << 32 | ctx->H[3],
+	    (uint64_t)ctx->H[4] << 32 | ctx->H[5],
+	    (uint64_t)ctx->H[6] << 32 | ctx->H[7]);
+}
+
+void
+abd_checksum_SHA256(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
+{
+	DECLARE_SHA256_CTX(ctx);
+	abd_iterate_rfunc(abd, size, SHA256_incremental, &ctx);
+	SHA256_end(&ctx, size, zcp);
+}
+
+void
+zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	DECLARE_SHA256_CTX(ctx);
+	SHA256_incremental(buf, size, &ctx);
+	SHA256_end(&ctx, size, zcp);
 }
