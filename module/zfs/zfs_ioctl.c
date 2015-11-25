@@ -1601,8 +1601,7 @@ zfs_ioc_pool_stats(zfs_cmd_t *zc)
 	int error;
 	int ret = 0;
 
-	error = spa_get_stats(zc->zc_name, &config, zc->zc_value,
-	    sizeof (zc->zc_value));
+	error = spa_get_stats(zc->zc_name, &config, NULL, 0);
 
 	if (config != NULL) {
 		ret = put_nvlist(zc, config);
