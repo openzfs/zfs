@@ -70,14 +70,6 @@ abd_checksum_off(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
 }
 
 void
-abd_checksum_SHA256(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
-{
-	void *buf = abd_borrow_buf_copy(abd, size);
-	zio_checksum_SHA256(buf, size, zcp);
-	abd_return_buf(abd, buf, size);
-}
-
-void
 abd_fletcher_2_native(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
 {
 	fletcher_2_native_init(zcp);
