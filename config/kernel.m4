@@ -473,7 +473,33 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
 		])
 	])
 
+	ZFS_AC_KERNEL_CONFIG_THREAD_SIZE
 	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
+])
+
+dnl #
+dnl # Check configured THREAD_SIZE
+dnl #
+dnl # The stack size will vary by architecture, but as of Linux 3.15 on x86_64
+dnl # the default thread stack size was increased to 16K from 8K.  Therefore,
+dnl # on newer kernels and some architectures stack usage optimizations can be
+dnl # conditionally applied to improve performance without negatively impacting
+dnl # stability.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG_THREAD_SIZE], [
+	AC_MSG_CHECKING([whether kernel was built with 16K or larger stacks])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/module.h>
+	],[
+		#if (THREAD_SIZE < 16384)
+		#error "THREAD_SIZE is less than 16K"
+		#endif
+	],[
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(HAVE_LARGE_STACKS, 1, [kernel has large stacks])
+	],[
+		AC_MSG_RESULT([no])
+	])
 ])
 
 dnl #
@@ -585,7 +611,7 @@ dnl #
 dnl # ZFS_LINUX_CONFIG
 dnl #
 AC_DEFUN([ZFS_LINUX_CONFIG],
-	[AC_MSG_CHECKING([whether Linux was built with CONFIG_$1])
+	[AC_MSG_CHECKING([whether kernel was built with CONFIG_$1])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/module.h>
 	],[
