@@ -56,6 +56,8 @@ adjust_obj_paths()
 for MODULE in "${MODULES[@]}"
 do
 	adjust_obj_paths "$KERNEL_DIR/spl/$MODULE/Makefile"
+	sed -i.bak '/obj =/d' "$KERNEL_DIR/spl/$MODULE/Makefile"
+	sed -i.bak '/src =/d' "$KERNEL_DIR/spl/$MODULE/Makefile"
 done
 
 cat > "$KERNEL_DIR/spl/Kconfig" <<"EOF"
@@ -112,8 +114,9 @@ add_after()
 }
 
 add_after "$KERNEL_DIR/Kconfig" 'source "arch/$SRCARCH/Kconfig"' 'source "spl/Kconfig"'
-# We must take care to build SPL before ZFS, else module initialization order will be wrong
-sed -i 's#kernel/ mm/ fs/#kernel/ mm/ spl/ fs/#' "$KERNEL_DIR/Makefile"
+# We must take care to build SPL before ZFS, otherwise the symbols required
+# to link ZFS will not be available.
+sed -i 's#+= kernel/#+= kernel/ spl/#' "$KERNEL_DIR/Makefile"
 
 echo >&2
 echo "    $0: done." >&2
