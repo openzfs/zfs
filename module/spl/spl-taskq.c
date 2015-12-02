@@ -26,6 +26,7 @@
 
 #include <sys/taskq.h>
 #include <sys/kmem.h>
+#include <sys/tsd.h>
 
 int spl_taskq_thread_bind = 0;
 module_param(spl_taskq_thread_bind, int, 0644);
@@ -57,6 +58,7 @@ static taskq_thread_t *taskq_thread_create(taskq_t *);
 /* List of all taskqs */
 LIST_HEAD(tq_list);
 DECLARE_RWSEM(tq_list_sem);
+static uint_t taskq_tsd;
 
 static int
 task_km_flags(uint_t flags)
@@ -474,38 +476,10 @@ taskq_wait(taskq_t *tq)
 }
 EXPORT_SYMBOL(taskq_wait);
 
-static int
-taskq_member_impl(taskq_t *tq, void *t)
-{
-	struct list_head *l;
-	taskq_thread_t *tqt;
-	int found = 0;
-
-	ASSERT(tq);
-	ASSERT(t);
-	ASSERT(spin_is_locked(&tq->tq_lock));
-
-	list_for_each(l, &tq->tq_thread_list) {
-		tqt = list_entry(l, taskq_thread_t, tqt_thread_list);
-		if (tqt->tqt_thread == (struct task_struct *)t) {
-			found = 1;
-			break;
-		}
-	}
-	return (found);
-}
-
 int
-taskq_member(taskq_t *tq, void *t)
+taskq_member(taskq_t *tq, kthread_t *t)
 {
-	int found;
-	unsigned long flags;
-
-	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
-	found = taskq_member_impl(tq, t);
-	spin_unlock_irqrestore(&tq->tq_lock, flags);
-
-	return (found);
+	return (tq == (taskq_t *)tsd_get_by_thread(taskq_tsd, t));
 }
 EXPORT_SYMBOL(taskq_member);
 
@@ -855,6 +829,7 @@ taskq_thread(void *args)
 	sigprocmask(SIG_BLOCK, &blocked, NULL);
 	flush_signals(current);
 
+	tsd_set(taskq_tsd, tq);
 	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
 
 	/* Immediately exit if more threads than allowed were created. */
@@ -958,6 +933,8 @@ taskq_thread(void *args)
 error:
 	kmem_free(tqt, sizeof (taskq_thread_t));
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
+
+	tsd_set(taskq_tsd, NULL);
 
 	return (0);
 }
@@ -1160,6 +1137,8 @@ EXPORT_SYMBOL(taskq_destroy);
 int
 spl_taskq_init(void)
 {
+	tsd_create(&taskq_tsd, NULL);
+
 	system_taskq = taskq_create("spl_system_taskq", MAX(boot_ncpus, 64),
 	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
 	if (system_taskq == NULL)
@@ -1190,4 +1169,6 @@ spl_taskq_fini(void)
 
 	taskq_destroy(system_taskq);
 	system_taskq = NULL;
+
+	tsd_destroy(&taskq_tsd);
 }

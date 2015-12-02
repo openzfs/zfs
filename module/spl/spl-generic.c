@@ -491,29 +491,20 @@ spl_kvmem_init(void)
 
 	rc = spl_kmem_init();
 	if (rc)
-		goto out1;
+		return (rc);
 
 	rc = spl_vmem_init();
-	if (rc)
-		goto out2;
+	if (rc) {
+		spl_kmem_fini();
+		return (rc);
+	}
 
-	rc = spl_kmem_cache_init();
-	if (rc)
-		goto out3;
-
-	return (rc);
-out3:
-	spl_vmem_fini();
-out2:
-	spl_kmem_fini();
-out1:
 	return (rc);
 }
 
 static void
 spl_kvmem_fini(void)
 {
-	spl_kmem_cache_fini();
 	spl_vmem_fini();
 	spl_kmem_fini();
 }
@@ -532,38 +523,43 @@ spl_init(void)
 	if ((rc = spl_rw_init()))
 		goto out3;
 
-	if ((rc = spl_taskq_init()))
+	if ((rc = spl_tsd_init()))
 		goto out4;
 
-	if ((rc = spl_vn_init()))
+	if ((rc = spl_taskq_init()))
 		goto out5;
 
-	if ((rc = spl_proc_init()))
+	if ((rc = spl_kmem_cache_init()))
 		goto out6;
 
-	if ((rc = spl_kstat_init()))
+	if ((rc = spl_vn_init()))
 		goto out7;
 
-	if ((rc = spl_tsd_init()))
+	if ((rc = spl_proc_init()))
 		goto out8;
 
-	if ((rc = spl_zlib_init()))
+	if ((rc = spl_kstat_init()))
 		goto out9;
+
+	if ((rc = spl_zlib_init()))
+		goto out10;
 
 	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
 	       SPL_META_RELEASE, SPL_DEBUG_STR);
 	return (rc);
 
-out9:
-	spl_tsd_fini();
-out8:
+out10:
 	spl_kstat_fini();
-out7:
+out9:
 	spl_proc_fini();
-out6:
+out8:
 	spl_vn_fini();
-out5:
+out7:
+	spl_kmem_cache_fini();
+out6:
 	spl_taskq_fini();
+out5:
+	spl_tsd_fini();
 out4:
 	spl_rw_fini();
 out3:
@@ -584,11 +580,12 @@ spl_fini(void)
 	printk(KERN_NOTICE "SPL: Unloaded module v%s-%s%s\n",
 	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
 	spl_zlib_fini();
-	spl_tsd_fini();
 	spl_kstat_fini();
 	spl_proc_fini();
 	spl_vn_fini();
+	spl_kmem_cache_fini();
 	spl_taskq_fini();
+	spl_tsd_fini();
 	spl_rw_fini();
 	spl_mutex_fini();
 	spl_kvmem_fini();
