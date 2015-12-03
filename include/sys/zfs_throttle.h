@@ -10,7 +10,6 @@
 #define SEC_NANO 1000000
 
 struct zfs_sb;					/* defined in vfsops.h */
-struct semaphore;				/* defined in linux/semaphore.h */
 
 typedef struct zfs_throttle {
 	struct zfs_sb           *zsb;
