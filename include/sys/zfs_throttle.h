@@ -3,6 +3,7 @@
 
 #include <linux/delay.h>
 #include <linux/semaphore.h>
+#include <linux/list.h>
 
 #include <sys/zfs_znode.h>
 

@@ -113,7 +113,7 @@ typedef struct zfs_sb {
 	uint64_t	z_groupquota_obj;
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
-	zfs_throttle_t	*zt		/* IO throttling*/
+	zfs_throttle_t	*zt;		/* IO throttling*/
 #define	ZFS_OBJ_MTX_SZ	256
 	kmutex_t	*z_hold_mtx;	/* znode hold locks */
 } zfs_sb_t;
