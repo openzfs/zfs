@@ -23,6 +23,9 @@ typedef struct zfs_throttle {
 	struct list_head        list;
 } zfs_throttle_t;
 
+void zfs_throttle_set_zt(zfs_sb *zsb, const char *fsname);
+void zfs_throttle_unset_zt(zfs_sb *zsb);
+
 void zfs_do_throttle(struct semaphore *z_sem, uint64_t rate);
 
 #endif
