@@ -13,8 +13,8 @@ typedef struct zfs_throttle {
 	struct zfs_sb           *zsb;
 	struct semaphore        z_sem_read;
 	struct semaphore        z_sem_write;
-	struct semaphore	*z_sem_real_read;
-	struct semaphore	*z_sem_real_write;
+	struct semaphore	*z_sem_readp;
+	struct semaphore	*z_sem_writep;
 	uint64_t                z_prop_read;
 	uint64_t                z_prop_write;;
 	uint64_t		z_real_read;
