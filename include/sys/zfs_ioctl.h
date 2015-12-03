@@ -32,6 +32,7 @@
 #include <sys/dsl_deleg.h>
 #include <sys/spa.h>
 #include <sys/zfs_stat.h>
+#include <sys/zfs_throttle.h>
 
 #ifdef _KERNEL
 #include <sys/nvpair.h>
