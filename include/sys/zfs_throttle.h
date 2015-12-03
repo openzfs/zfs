@@ -5,8 +5,6 @@
 #include <linux/semaphore.h>
 #include <linux/list.h>
 
-#include <sys/zfs_znode.h>
-
 #define SEC_NANO 1000000
 
 struct zfs_sb;					/* defined in vfsops.h */
@@ -21,7 +19,7 @@ typedef struct zfs_throttle {
 	uint64_t                z_prop_write;;
 	uint64_t		z_real_read;
 	uint64_t		z_real_write;
-	char                    fsname[ZFS_MAXNAMELEN];
+	char                    fsname[255]; //TODO:
 	struct list_head        list;
 } zfs_throttle_t;
 
