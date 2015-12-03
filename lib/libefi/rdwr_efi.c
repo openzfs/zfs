@@ -636,8 +636,8 @@ check_label(int fd, dk_efi_t *dk_ioc)
 	if (headerSize < EFI_MIN_LABEL_SIZE || headerSize > EFI_LABEL_SIZE) {
 		if (efi_debug)
 			(void) fprintf(stderr,
-				"Invalid EFI HeaderSize %llu.  Assuming %d.\n",
-				headerSize, EFI_MIN_LABEL_SIZE);
+			    "Invalid EFI HeaderSize %llu.  Assuming %d.\n",
+			    headerSize, EFI_MIN_LABEL_SIZE);
 	}
 
 	if ((headerSize > dk_ioc->dki_length) ||
