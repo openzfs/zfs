@@ -11,7 +11,7 @@
 struct zfs_sb;					/* defined in vfsops.h */
 struct semaphore;				/* defined in linux/semaphore.h */
 
-typedef struct z_throttle {
+typedef struct zfs_throttle {
 	struct zfs_sb           *zsb;
 	struct semaphore        z_sem_read;
 	struct semaphore        z_sem_write;
@@ -23,9 +23,9 @@ typedef struct z_throttle {
 	uint64_t		z_real_write;
 	char                    fsname[ZFS_MAXNAMELEN];
 	struct list_head        list;
-} z_throttle_t;
+} zfs_throttle_t;
 
-void z_do_throttle(struct semaphore *z_sem, uint64_t limit_rate);
+void zfs_do_throttle(struct semaphore *z_sem, uint64_t rate);
 
 #endif
 
