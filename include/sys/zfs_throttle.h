@@ -29,4 +29,3 @@ typedef struct zfs_throttle {
 void zfs_do_throttle(struct semaphore *z_sem, uint64_t rate);
 
 #endif
-
