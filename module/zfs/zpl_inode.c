@@ -28,6 +28,7 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
+#include <sys/dmu_objset.h>
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 
@@ -500,7 +501,7 @@ zpl_revalidate(struct dentry *dentry, unsigned int flags)
 		if (time_after(jiffies, zsb->z_snap_defer_time +
 		    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
 			zsb->z_snap_defer_time = jiffies;
-			zfsctl_snapshot_unmount_delay(
+			zfsctl_snapshot_unmount_delay(zsb->z_os->os_spa,
 			    dmu_objset_id(zsb->z_os), zfs_expire_snapshot);
 		}
 	}

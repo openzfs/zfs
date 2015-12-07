@@ -81,6 +81,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/stat.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_deleg.h>
 #include <sys/mount.h>
@@ -117,6 +118,7 @@ static taskq_t *zfs_expire_taskq;
 typedef struct {
 	char		*se_name;	/* full snapshot name */
 	char		*se_path;	/* full mount path */
+	spa_t		*se_spa;	/* pool spa */
 	uint64_t	se_objsetid;	/* snapshot objset id */
 	struct dentry   *se_root_dentry; /* snapshot root dentry */
 	taskqid_t	se_taskqid;	/* scheduled unmount taskqid */
@@ -132,8 +134,8 @@ static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
  * the snapshot name and provided mount point.  No reference is taken.
  */
 static zfs_snapentry_t *
-zfsctl_snapshot_alloc(char *full_name, char *full_path, uint64_t objsetid,
-    struct dentry *root_dentry)
+zfsctl_snapshot_alloc(char *full_name, char *full_path, spa_t *spa,
+    uint64_t objsetid, struct dentry *root_dentry)
 {
 	zfs_snapentry_t *se;
 
@@ -141,6 +143,7 @@ zfsctl_snapshot_alloc(char *full_name, char *full_path, uint64_t objsetid,
 
 	se->se_name = strdup(full_name);
 	se->se_path = strdup(full_path);
+	se->se_spa = spa;
 	se->se_objsetid = objsetid;
 	se->se_root_dentry = root_dentry;
 	se->se_taskqid = -1;
@@ -242,6 +245,9 @@ snapentry_compare_by_objsetid(const void *a, const void *b)
 	const zfs_snapentry_t *se_a = a;
 	const zfs_snapentry_t *se_b = b;
 
+	if (se_a->se_spa != se_b->se_spa)
+		return ((ulong_t)se_a->se_spa < (ulong_t)se_b->se_spa ? -1 : 1);
+
 	if (se_a->se_objsetid < se_b->se_objsetid)
 		return (-1);
 	else if (se_a->se_objsetid > se_b->se_objsetid)
@@ -278,12 +284,13 @@ zfsctl_snapshot_find_by_name(char *snapname)
  * as zfsctl_snapshot_find_by_name().
  */
 static zfs_snapentry_t *
-zfsctl_snapshot_find_by_objsetid(uint64_t objsetid)
+zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
 {
 	zfs_snapentry_t *se, search;
 
 	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
 
+	search.se_spa = spa;
 	search.se_objsetid = objsetid;
 	se = avl_find(&zfs_snapshots_by_objsetid, &search, NULL);
 	if (se)
@@ -323,6 +330,7 @@ static void
 snapentry_expire(void *data)
 {
 	zfs_snapentry_t *se = (zfs_snapentry_t *)data;
+	spa_t *spa = se->se_spa;
 	uint64_t objsetid = se->se_objsetid;
 
 	if (zfs_expire_snapshot <= 0) {
@@ -339,7 +347,7 @@ snapentry_expire(void *data)
 	 * This can occur when the snapshot is busy.
 	 */
 	mutex_enter(&zfs_snapshot_lock);
-	if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
 		zfsctl_snapshot_rele(se);
 	}
@@ -385,13 +393,13 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
  * and held until the outstanding task is handled or cancelled.
  */
 int
-zfsctl_snapshot_unmount_delay(uint64_t objsetid, int delay)
+zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid, int delay)
 {
 	zfs_snapentry_t *se;
 	int error = ENOENT;
 
 	mutex_enter(&zfs_snapshot_lock);
-	if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfsctl_snapshot_unmount_cancel(se);
 		zfsctl_snapshot_unmount_delay_impl(se, delay);
 		zfsctl_snapshot_rele(se);
@@ -568,10 +576,12 @@ zfsctl_destroy(zfs_sb_t *zsb)
 {
 	if (zsb->z_issnap) {
 		zfs_snapentry_t *se;
+		spa_t *spa = zsb->z_os->os_spa;
 		uint64_t objsetid = dmu_objset_id(zsb->z_os);
 
 		mutex_enter(&zfs_snapshot_lock);
-		if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+		if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid))
+		    != NULL) {
 			zfsctl_snapshot_unmount_cancel(se);
 			zfsctl_snapshot_remove(se);
 			zfsctl_snapshot_rele(se);
@@ -1137,7 +1147,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 
 		mutex_enter(&zfs_snapshot_lock);
 		se = zfsctl_snapshot_alloc(full_name, full_path,
-		    dmu_objset_id(snap_zsb->z_os), dentry);
+		    snap_zsb->z_os->os_spa, dmu_objset_id(snap_zsb->z_os),
+		    dentry);
 		zfsctl_snapshot_add(se);
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
 		mutex_exit(&zfs_snapshot_lock);
@@ -1160,6 +1171,7 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 {
 	zfs_snapentry_t *se;
 	int error;
+	spa_t *spa = ((zfs_sb_t *)(sb->s_fs_info))->z_os->os_spa;
 
 	/*
 	 * Verify that the snapshot is mounted then lookup the mounted root
@@ -1169,7 +1181,7 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 	 * because we hold the zfs_snapshot_lock to prevent the race.
 	 */
 	mutex_enter(&zfs_snapshot_lock);
-	if ((se = zfsctl_snapshot_find_by_objsetid(objsetid)) != NULL) {
+	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfs_sb_t *zsb;
 
 		zsb = ITOZSB(se->se_root_dentry->d_inode);
@@ -1178,7 +1190,7 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 		if (time_after(jiffies, zsb->z_snap_defer_time +
 		    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
 			zsb->z_snap_defer_time = jiffies;
-			zfsctl_snapshot_unmount_delay(objsetid,
+			zfsctl_snapshot_unmount_delay(spa, objsetid,
 			    zfs_expire_snapshot);
 		}
 
