@@ -118,6 +118,7 @@ get_disk_ro(struct gendisk *disk)
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#define	BIO_BI_SKIP(bio)	(bio)->bi_iter.bi_bvec_done
 #define	bio_for_each_segment4(bv, bvp, b, i)	\
 	bio_for_each_segment((bv), (b), (i))
 typedef struct bvec_iter bvec_iterator_t;
@@ -125,6 +126,7 @@ typedef struct bvec_iter bvec_iterator_t;
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_idx
+#define	BIO_BI_SKIP(bio)	(0)
 #define	bio_for_each_segment4(bv, bvp, b, i)	\
 	bio_for_each_segment((bvp), (b), (i))
 typedef int bvec_iterator_t;

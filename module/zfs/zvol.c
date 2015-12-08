@@ -597,6 +597,7 @@ zvol_write(struct bio *bio)
 	int error = 0;
 	dmu_tx_t *tx;
 	rl_t *rl;
+	uio_t uio;
 
 	if (bio->bi_rw & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -606,6 +607,14 @@ zvol_write(struct bio *bio)
 	 */
 	if (size == 0)
 		goto out;
+
+	uio.uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
+	uio.uio_skip = BIO_BI_SKIP(bio);
+	uio.uio_resid = size;
+	uio.uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
+	uio.uio_loffset = offset;
+	uio.uio_limit = MAXOFFSET_T;
+	uio.uio_segflg = UIO_BVEC;
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
 
@@ -620,7 +629,7 @@ zvol_write(struct bio *bio)
 		goto out;
 	}
 
-	error = dmu_write_bio(zv->zv_objset, ZVOL_OBJ, bio, tx);
+	error = dmu_write_uio(zv->zv_objset, ZVOL_OBJ, &uio, size, tx);
 	if (error == 0)
 		zvol_log_write(zv, tx, offset, size,
 		    !!(bio->bi_rw & VDEV_REQ_FUA));
@@ -686,17 +695,25 @@ zvol_read(struct bio *bio)
 {
 	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
 	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
-	uint64_t len = BIO_BI_SIZE(bio);
+	uint64_t size = BIO_BI_SIZE(bio);
 	int error;
 	rl_t *rl;
+	uio_t uio;
 
-	if (len == 0)
+	if (size == 0)
 		return (0);
 
+	uio.uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
+	uio.uio_skip = BIO_BI_SKIP(bio);
+	uio.uio_resid = size;
+	uio.uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
+	uio.uio_loffset = offset;
+	uio.uio_limit = MAXOFFSET_T;
+	uio.uio_segflg = UIO_BVEC;
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, len, RL_READER);
+	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 
-	error = dmu_read_bio(zv->zv_objset, ZVOL_OBJ, bio);
+	error = dmu_read_uio(zv->zv_objset, ZVOL_OBJ, &uio, size);
 
 	zfs_range_unlock(rl);
 
