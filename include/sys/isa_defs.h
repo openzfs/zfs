@@ -60,7 +60,7 @@
 #endif
 
 /* powerpc (ppc64) arch specific defines */
-#elif defined(__powerpc) || defined(__powerpc__)
+#elif defined(__powerpc) || defined(__powerpc__) || defined(__powerpc64__)
 
 #if !defined(__powerpc)
 #define __powerpc
@@ -70,8 +70,14 @@
 #define __powerpc__
 #endif
 
+#if defined(__powerpc64__)
 #if !defined(_LP64)
 #define _LP64
+#endif
+#else
+#if !defined(_ILP32)
+#define _ILP32
+#endif
 #endif
 
 /* arm arch specific defines */
@@ -83,6 +89,16 @@
 
 #if !defined(__arm__)
 #define __arm__
+#endif
+
+#if defined(__aarch64__)
+#if !defined(_LP64)
+#define _LP64
+#endif
+#else
+#if !defined(_ILP32)
+#define _ILP32
+#endif
 #endif
 
 #if defined(__ARMEL__) || defined(__AARCH64EL__)
@@ -102,18 +118,18 @@
 #define __sparc__
 #endif
 
-#define _BIG_ENDIAN
-#define _SUNOS_VTOC_16
-
-/* sparc64 arch specific defines */
-#elif defined(__sparc64) || defined(__sparc64__)
-
-#if !defined(__sparc64)
-#define __sparc64
+#if !defined(_ILP32)
+#define _ILP32
 #endif
 
-#if !defined(__sparc64__)
-#define __sparc64__
+#if defined(__arch64__)
+#if !defined(_LP64)
+#define _LP64
+#endif
+#else
+#if !defined(_ILP32)
+#define _ILP32
+#endif
 #endif
 
 #define _BIG_ENDIAN
@@ -125,6 +141,10 @@
 
 #if defined(_ILP32) && defined(_LP64)
 #error "Both _ILP32 and _LP64 are defined"
+#endif
+
+#if !defined(_ILP32) && !defined(_LP64)
+#error "Neither _ILP32 or _LP64 are defined"
 #endif
 
 #include <sys/byteorder.h>
