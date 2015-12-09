@@ -833,6 +833,23 @@ Default value: \fB67,108,864\fR.
 .sp
 .ne 2
 .na
+\fBzfs_fletcher_4_impl\fR (string)
+.ad
+.RS 12n
+Select a fletcher 4 implementation.
+.sp
+Supported selectors are: \fBfastest\fR, \fBscalar\fR, and \fBavx2\fR when
+AVX2 is supported by the processor.  If multiple implementations of fletcher 4
+are available the \fBfastest\fR will be chosen using a micro benchmark.
+Selecting \fBscalar\fR results in the original CPU based calculation being
+used, \fBavx2\fR uses the AVX2 vector instructions to compute a fletcher 4.
+.sp
+Default value: \fBfastest\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_free_bpobj_enabled\fR (int)
 .ad
 .RS 12n
