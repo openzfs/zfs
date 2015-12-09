@@ -37,6 +37,15 @@ extern "C" {
  * fletcher checksum functions
  */
 
+struct fletcher_4_calls {
+	void (*init)(zio_cksum_t *);
+	void (*fini)(zio_cksum_t *);
+	void (*compute)(const void *, uint64_t, zio_cksum_t *);
+	void (*compute_byteswap)(const void *, uint64_t, zio_cksum_t *);
+	boolean_t (*valid)(void);
+	const char *name;
+};
+
 void fletcher_2_native(const void *, uint64_t, zio_cksum_t *);
 void fletcher_2_byteswap(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_native(const void *, uint64_t, zio_cksum_t *);
@@ -45,6 +54,7 @@ void fletcher_4_incremental_native(const void *, uint64_t,
     zio_cksum_t *);
 void fletcher_4_incremental_byteswap(const void *, uint64_t,
     zio_cksum_t *);
+void fletcher_4_init(void);
 
 #ifdef	__cplusplus
 }

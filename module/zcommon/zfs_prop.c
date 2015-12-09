@@ -35,6 +35,7 @@
 
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
+#include "zfs_fletcher.h"
 
 #if defined(_KERNEL)
 #include <sys/systm.h>
@@ -695,6 +696,7 @@ zfs_prop_align_right(zfs_prop_t prop)
 static int __init
 zcommon_init(void)
 {
+	fletcher_4_init();
 	return (0);
 }
 
