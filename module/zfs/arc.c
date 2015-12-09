@@ -4319,17 +4319,11 @@ top:
 
 		/*
 		 * Gracefully handle a damaged logical block size as a
-		 * checksum error by passing a dummy zio to the done callback.
+		 * checksum error.
 		 */
 		if (size > spa_maxblocksize(spa)) {
-			if (done) {
-				rzio = zio_null(pio, spa, NULL,
-				    NULL, NULL, zio_flags);
-				rzio->io_error = ECKSUM;
-				done(rzio, buf, private);
-				zio_nowait(rzio);
-			}
-			rc = ECKSUM;
+			ASSERT3P(buf, ==, NULL);
+			rc = SET_ERROR(ECKSUM);
 			goto out;
 		}
 
