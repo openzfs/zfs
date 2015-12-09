@@ -448,6 +448,40 @@ taskq_wait(taskq_t *tq)
 }
 EXPORT_SYMBOL(taskq_wait);
 
+static int
+taskq_member_impl(taskq_t *tq, void *t)
+{
+	struct list_head *l;
+	taskq_thread_t *tqt;
+	int found = 0;
+
+	ASSERT(tq);
+	ASSERT(t);
+	ASSERT(spin_is_locked(&tq->tq_lock));
+
+	list_for_each(l, &tq->tq_thread_list) {
+		tqt = list_entry(l, taskq_thread_t, tqt_thread_list);
+		if (tqt->tqt_thread == (struct task_struct *)t) {
+			found = 1;
+			break;
+		}
+	}
+	return (found);
+}
+
+int
+taskq_member(taskq_t *tq, void *t)
+{
+	int found;
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	found = taskq_member_impl(tq, t);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+
+	return (found);
+}
+EXPORT_SYMBOL(taskq_member);
+
 /*
  * Cancel an already dispatched task given the task id.  Still pending tasks
  * will be immediately canceled, and if the task is active the function will
@@ -778,7 +812,6 @@ taskq_thread(void *args)
 	ASSERT(tqt);
 	tq = tqt->tqt_tq;
 	current->flags |= PF_NOFREEZE;
-	current->journal_info = tq;
 
 	#if defined(PF_MEMALLOC_NOIO)
 	(void) memalloc_noio_save();
@@ -843,8 +876,6 @@ taskq_thread(void *args)
 
 			/* Perform the requested task */
 			t->tqent_func(t->tqent_arg);
-
-			ASSERT3P(tq, ==, current->journal_info);
 
 			spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 			tq->tq_nactive--;
