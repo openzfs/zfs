@@ -1190,7 +1190,8 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 		if (time_after(jiffies, zsb->z_snap_defer_time +
 		    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
 			zsb->z_snap_defer_time = jiffies;
-			zfsctl_snapshot_unmount_delay(spa, objsetid,
+			zfsctl_snapshot_unmount_cancel(se);
+			zfsctl_snapshot_unmount_delay_impl(se,
 			    zfs_expire_snapshot);
 		}
 
