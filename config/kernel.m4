@@ -448,16 +448,20 @@ dnl # detected at configure time and cause a build failure.  Otherwise
 dnl # modules may be successfully built that behave incorrectly.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
-	AC_RUN_IFELSE([
-		AC_LANG_PROGRAM([
-			#include "$LINUX/include/linux/license.h"
-		], [
-			return !license_is_gpl_compatible("$ZFS_META_LICENSE");
-		])
+	AC_MSG_CHECKING([whether zfs license is GPL compatible])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/kernel.h>
+		#include <linux/string.h>
+		#include <linux/license.h>
+		#include <linux/bug.h>
+	], [
+		BUILD_BUG_ON(!license_is_gpl_compatible("$ZFS_META_LICENSE"));
 	], [
 		AC_DEFINE([ZFS_IS_GPL_COMPATIBLE], [1],
 		    [Define to 1 if GPL-only symbols can be used])
+		AC_MSG_RESULT(yes)
 	], [
+		AC_MSG_RESULT(no)
 	])
 
 	ZFS_AC_KERNEL_CONFIG_THREAD_SIZE
