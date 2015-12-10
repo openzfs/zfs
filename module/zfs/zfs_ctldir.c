@@ -333,6 +333,11 @@ snapentry_expire(void *data)
 	spa_t *spa = se->se_spa;
 	uint64_t objsetid = se->se_objsetid;
 
+	if (zfs_expire_snapshot <= 0) {
+		zfsctl_snapshot_rele(se);
+		return;
+	}
+
 	se->se_taskqid = -1;
 	(void) zfsctl_snapshot_unmount(se->se_name, MNT_EXPIRE);
 	zfsctl_snapshot_rele(se);
@@ -372,6 +377,9 @@ static void
 zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 {
 	ASSERT3S(se->se_taskqid, ==, -1);
+
+	if (delay <= 0)
+		return;
 
 	se->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
 	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
