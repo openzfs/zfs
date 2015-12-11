@@ -508,7 +508,7 @@ dnode_destroy(dnode_t *dn)
 		dn->dn_dirtyctx_firstset = NULL;
 	}
 	if (dn->dn_bonus != NULL) {
-		mutex_enter(&dn->dn_bonus->db_mtx);
+		take_dbuf_lock(dn->dn_bonus);
 		dbuf_evict(dn->dn_bonus);
 		dn->dn_bonus = NULL;
 	}

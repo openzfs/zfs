@@ -162,7 +162,7 @@ dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
 	mutex_enter(DBUF_HASH_MUTEX(h, idx));
 	for (db = h->hash_table[idx]; db != NULL; db = db->db_hash_next) {
 		if (DBUF_EQUAL(db, os, obj, level, blkid)) {
-			mutex_enter(&db->db_mtx);
+			take_dbuf_lock(db);
 			if (db->db_state != DB_EVICTING) {
 				mutex_exit(DBUF_HASH_MUTEX(h, idx));
 				return (db);
@@ -184,7 +184,7 @@ dbuf_find_bonus(objset_t *os, uint64_t object)
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		if (dn->dn_bonus != NULL) {
 			db = dn->dn_bonus;
-			mutex_enter(&db->db_mtx);
+			take_dbuf_lock(db);
 		}
 		rw_exit(&dn->dn_struct_rwlock);
 		dnode_rele(dn, FTAG);
@@ -215,7 +215,7 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	mutex_enter(DBUF_HASH_MUTEX(h, idx));
 	for (dbf = h->hash_table[idx]; dbf != NULL; dbf = dbf->db_hash_next) {
 		if (DBUF_EQUAL(dbf, os, obj, level, blkid)) {
-			mutex_enter(&dbf->db_mtx);
+			take_dbuf_lock(dbf);
 			if (dbf->db_state != DB_EVICTING) {
 				mutex_exit(DBUF_HASH_MUTEX(h, idx));
 				return (dbf);
@@ -224,7 +224,7 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 		}
 	}
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	db->db_hash_next = h->hash_table[idx];
 	h->hash_table[idx] = db;
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
@@ -587,7 +587,7 @@ dbuf_loan_arcbuf(dmu_buf_impl_t *db)
 {
 	arc_buf_t *abuf;
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	if (arc_released(db->db_buf) || refcount_count(&db->db_holds) > 1) {
 		int blksz = db->db.db_size;
 		spa_t *spa = db->db_objset->os_spa;
@@ -620,7 +620,7 @@ dbuf_read_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
 	dmu_buf_impl_t *db = vdb;
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	ASSERT3U(db->db_state, ==, DB_READ);
 	/*
 	 * All reads are synchronous, so we must have a hold on the dbuf
@@ -754,7 +754,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	    (flags & DB_RF_NOPREFETCH) == 0 && dn != NULL &&
 	    DBUF_IS_CACHEABLE(db);
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	if (db->db_state == DB_CACHED) {
 		mutex_exit(&db->db_mtx);
 		if (prefetch)
@@ -801,7 +801,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		DB_DNODE_EXIT(db);
 
 		/* Skip the wait per the caller's request. */
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 		if ((flags & DB_RF_NEVERWAIT) == 0) {
 			while (db->db_state == DB_READ ||
 			    db->db_state == DB_FILL) {
@@ -826,7 +826,7 @@ dbuf_noread(dmu_buf_impl_t *db)
 {
 	ASSERT(!refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	while (db->db_state == DB_READ || db->db_state == DB_FILL)
 		cv_wait(&db->db_changed, &db->db_mtx);
 	if (db->db_state == DB_UNCACHED) {
@@ -996,7 +996,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 		ASSERT3U(db->db_blkid, >=, start_blkid);
 
 		/* found a level 0 buffer in the range */
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 		if (dbuf_undirty(db, tx)) {
 			/* mutex has been dropped and dbuf destroyed */
 			continue;
@@ -1134,7 +1134,7 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 	if (size > osize)
 		bzero((uint8_t *)buf->b_data + osize, size - osize);
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	dbuf_set_data(db, buf);
 	VERIFY(arc_buf_remove_ref(obuf, db));
 	db->db.db_size = size;
@@ -1196,7 +1196,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	    dn->dn_dirtyctx == DN_UNDIRTIED || dn->dn_dirtyctx ==
 	    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN));
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	/*
 	 * XXX make this true for indirects too?  The problem is that
 	 * transactions created with dmu_tx_create_assigned() from
@@ -1412,7 +1412,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		if (parent_held)
 			dbuf_rele(parent, FTAG);
 
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 		/*
 		 * Since we've dropped the mutex, it's possible that
 		 * dbuf_undirty() might have changed this out from under us.
@@ -1588,7 +1588,7 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 void
 dbuf_fill_done(dmu_buf_impl_t *db, dmu_tx_t *tx)
 {
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	DBUF_VERIFY(db);
 
 	if (db->db_state == DB_FILL) {
@@ -1660,7 +1660,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 	arc_return_buf(buf, db);
 	ASSERT(arc_released(buf));
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 
 	while (db->db_state == DB_READ || db->db_state == DB_FILL)
 		cv_wait(&db->db_changed, &db->db_mtx);
@@ -1880,6 +1880,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_blkid = blkid;
 	db->db_last_dirty = NULL;
 	db->db_dirtycnt = 0;
+	db->db_mtx_contended = 0;
 	db->db_dnode_handle = dn->dn_handle;
 	db->db_parent = parent;
 	db->db_blkptr = blkptr;
@@ -1952,7 +1953,7 @@ dbuf_do_evict(void *private)
 	dmu_buf_impl_t *db = private;
 
 	if (!MUTEX_HELD(&db->db_mtx))
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 
 	ASSERT(refcount_is_zero(&db->db_holds));
 
@@ -2286,7 +2287,7 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
 void
 dbuf_rele(dmu_buf_impl_t *db, void *tag)
 {
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	dbuf_rele_and_unlock(db, tag);
 }
 
@@ -2430,7 +2431,7 @@ dmu_buf_replace_user(dmu_buf_t *db_fake, dmu_buf_user_t *old_user,
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	dbuf_verify_user(db, DBVU_NOT_EVICTING);
 	if (db->db_user == old_user)
 		db->db_user = new_user;
@@ -2534,7 +2535,7 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 			(void) dbuf_hold_impl(dn, db->db_level+1,
 			    db->db_blkid >> epbs, FALSE, db, &parent);
 			rw_exit(&dn->dn_struct_rwlock);
-			mutex_enter(&db->db_mtx);
+			take_dbuf_lock(db);
 			db->db_parent = parent;
 		}
 		db->db_blkptr = (blkptr_t *)parent->db.db_data +
@@ -2559,7 +2560,7 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	dprintf_dbuf_bp(db, db->db_blkptr, "blkptr=%p", db->db_blkptr);
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 
 	ASSERT(db->db_level > 0);
 	DBUF_VERIFY(db);
@@ -2568,7 +2569,7 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	if (db->db_buf == NULL) {
 		mutex_exit(&db->db_mtx);
 		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 	}
 	ASSERT3U(db->db_state, ==, DB_CACHED);
 	ASSERT(db->db_buf != NULL);
@@ -2612,7 +2613,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	dprintf_dbuf_bp(db, db->db_blkptr, "blkptr=%p", db->db_blkptr);
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	/*
 	 * To be synced, we must be dirtied.  But we
 	 * might have been freed after the dirty.
@@ -2798,7 +2799,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		ASSERT(BP_GET_LEVEL(bp) == db->db_level);
 	}
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 
 #ifdef ZFS_DEBUG
 	if (db->db_blkid == DMU_SPILL_BLKID) {
@@ -2904,7 +2905,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		dsl_dataset_block_born(ds, bp, tx);
 	}
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 
 	DBUF_VERIFY(db);
 
@@ -2997,7 +2998,7 @@ dbuf_write_override_done(zio_t *zio)
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 	blkptr_t *obp = &dr->dt.dl.dr_overridden_by;
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	if (!BP_EQUAL(zio->io_bp, obp)) {
 		if (!BP_IS_HOLE(obp))
 			dsl_free(spa_get_dsl(zio->io_spa), zio->io_txg, obp);
@@ -3092,7 +3093,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		    db->db_blkptr, contents, db->db.db_size, &zp,
 		    dbuf_write_override_ready, NULL, dbuf_write_override_done,
 		    dr, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 		dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 		zio_write_override(dr->dr_zio, &dr->dt.dl.dr_overridden_by,
 		    dr->dt.dl.dr_copies, dr->dt.dl.dr_nopwrite);

@@ -449,7 +449,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	if (read) {
 		for (i = 0; i < nblks; i++) {
 			dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
-			mutex_enter(&db->db_mtx);
+			take_dbuf_lock(db);
 			while (db->db_state == DB_READ ||
 			    db->db_state == DB_FILL)
 				cv_wait(&db->db_changed, &db->db_mtx);
@@ -1368,7 +1368,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 	dbuf_dirty_record_t *dr = dsa->dsa_dr;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 	ASSERT(dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC);
 	if (zio->io_error == 0) {
 		dr->dt.dl.dr_nopwrite = !!(zio->io_flags & ZIO_FLAG_NOPWRITE);
@@ -1529,7 +1529,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	 * but it begins to sync a moment later, that's OK because the
 	 * sync thread will block in dbuf_sync_leaf() until we drop db_mtx.
 	 */
-	mutex_enter(&db->db_mtx);
+	take_dbuf_lock(db);
 
 	if (txg <= spa_last_synced_txg(os->os_spa)) {
 		/*

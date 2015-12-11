@@ -250,7 +250,22 @@ typedef struct dmu_buf_impl {
 	uint8_t db_pending_evict;
 
 	uint8_t db_dirtycnt;
+
+	uint32_t db_mtx_contended;
 } dmu_buf_impl_t;
+
+/*
+ * Below must be a macro so that linux' lockdep/lock_stats reports
+ * where the lock is taken.
+ * Returns with lock held.
+ */
+
+#define	take_dbuf_lock(db_ptr)			\
+if (!mutex_tryenter(&db_ptr->db_mtx)) {		\
+		mutex_enter(&db_ptr->db_mtx);	\
+	db_ptr->db_mtx_contended++;		\
+}
+
 
 /* Note: the dbuf hash table is exposed only for the mdb module */
 #define	DBUF_MUTEXES 8192
