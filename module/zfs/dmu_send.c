@@ -69,7 +69,7 @@ typedef struct dump_bytes_io {
 } dump_bytes_io_t;
 
 static void
-dump_bytes_strategy(void *arg)
+dump_bytes_cb(void *arg)
 {
 	dump_bytes_io_t *dbi = (dump_bytes_io_t *)arg;
 	dmu_sendarg_t *dsp = dbi->dbi_dsp;
@@ -96,6 +96,9 @@ dump_bytes(dmu_sendarg_t *dsp, void *buf, int len)
 	dbi.dbi_buf = buf;
 	dbi.dbi_len = len;
 
+#if defined(HAVE_LARGE_STACKS)
+	dump_bytes_cb(&dbi);
+#else
 	/*
 	 * The vn_rdwr() call is performed in a taskq to ensure that there is
 	 * always enough stack space to write safely to the target filesystem.
@@ -103,7 +106,8 @@ dump_bytes(dmu_sendarg_t *dsp, void *buf, int len)
 	 * them and they are used in vdev_file.c for a similar purpose.
 	 */
 	spa_taskq_dispatch_sync(dmu_objset_spa(dsp->dsa_os), ZIO_TYPE_FREE,
-	    ZIO_TASKQ_ISSUE, dump_bytes_strategy, &dbi, TQ_SLEEP);
+	    ZIO_TASKQ_ISSUE, dump_bytes_cb, &dbi, TQ_SLEEP);
+#endif /* HAVE_LARGE_STACKS */
 
 	return (dsp->dsa_err);
 }
