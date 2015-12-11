@@ -239,6 +239,14 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, dmu_tx_t *tx)
 		dle = avl_nearest(&dl->dl_tree, where, AVL_BEFORE);
 	else
 		dle = AVL_PREV(&dl->dl_tree, dle);
+
+	if (dle == NULL) {
+		zfs_panic_recover("blkptr at %p has invalid BLK_BIRTH %llu",
+		    bp, (longlong_t)bp->blk_birth);
+		dle = avl_first(&dl->dl_tree);
+	}
+
+	ASSERT3P(dle, !=, NULL);
 	dle_enqueue(dl, dle, bp, tx);
 }
 
