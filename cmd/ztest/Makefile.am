@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
 AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CPPFLAGS += -DDEBUG
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
