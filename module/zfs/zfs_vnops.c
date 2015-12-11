@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
@@ -52,6 +52,7 @@
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/fs/zfs.h>
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa.h>
@@ -712,7 +713,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			error = SET_ERROR(EDQUOT);
 			break;
 		}
-
+		/* TODO: abd can't handle xuio */
 		if (xuio && abuf == NULL) {
 			ASSERT(i_iov < iovcnt);
 			ASSERT3U(uio->uio_segflg, !=, UIO_BVEC);
@@ -740,7 +741,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			    max_blksz);
 			ASSERT(abuf != NULL);
 			ASSERT(arc_buf_size(abuf) == max_blksz);
-			if ((error = uiocopy(abuf->b_data, max_blksz,
+			if ((error = abd_uiocopy(abuf->b_data, max_blksz,
 			    UIO_WRITE, uio, &cbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;
@@ -808,6 +809,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			 * block-aligned, use assign_arcbuf().  Otherwise,
 			 * write via dmu_write().
 			 */
+			/* TODO: abd can't handle xuio */
 			if (tx_bytes < max_blksz && (!write_eof ||
 			    aiov->iov_base != abuf->b_data)) {
 				ASSERT(xuio);
@@ -1515,6 +1517,7 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr)
 	uint64_t	obj = 0;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
+	boolean_t	may_delete_now;
 	boolean_t	unlinked;
 	uint64_t	txtype;
 	pathname_t	*realnmp = NULL;
@@ -1574,6 +1577,10 @@ top:
 		dnlc_remove(dvp, name);
 #endif /* HAVE_DNLC */
 
+	mutex_enter(&zp->z_lock);
+	may_delete_now = atomic_read(&ip->i_count) == 1 && !(zp->z_is_mapped);
+	mutex_exit(&zp->z_lock);
+
 	/*
 	 * We never delete the znode and always place it in the unlinked
 	 * set.  The dentry cache will always hold the last reference and
@@ -1598,6 +1605,14 @@ top:
 
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zsb->z_unlinkedobj, FALSE, NULL);
+
+	/*
+	 * Mark this transaction as typically resulting in a net free of
+	 * space, unless object removal will be delayed indefinitely
+	 * (due to active holds on the vnode due to the file being open).
+	 */
+	if (may_delete_now)
+		dmu_tx_mark_netfree(tx);
 
 	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
 	if (error) {

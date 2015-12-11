@@ -22,9 +22,11 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dbuf.h>
 #include <sys/dnode.h>
 #include <sys/dmu.h>
@@ -272,9 +274,9 @@ dnode_verify(dnode_t *dn)
 		ASSERT3U(dn->dn_phys->dn_nlevels, <=, dn->dn_nlevels);
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
 	if (dn->dn_dbuf != NULL) {
-		ASSERT3P(dn->dn_phys, ==,
-		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +
-		    (dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT)));
+		ASSERT3P(dn->dn_phys, ==, abd_array(dn->dn_dbuf->db.db_data,
+		    dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT),
+		    dnode_phys_t));
 	}
 	if (drop_struct_lock)
 		rw_exit(&dn->dn_struct_rwlock);
@@ -333,8 +335,8 @@ dnode_byteswap(dnode_phys_t *dnp)
 
 }
 
-void
-dnode_buf_byteswap(void *vbuf, size_t size)
+static int
+dnode_buf_byteswap_func(void *vbuf, uint64_t size, void *private)
 {
 	dnode_phys_t *buf = vbuf;
 	int i;
@@ -347,6 +349,19 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 		dnode_byteswap(buf);
 		buf++;
 	}
+	return (0);
+}
+
+void
+dnode_buf_byteswap(void *vbuf, size_t size)
+{
+	dnode_buf_byteswap_func(vbuf, size, NULL);
+}
+
+void
+abd_dnode_buf_byteswap(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, dnode_buf_byteswap_func, NULL);
 }
 
 void
@@ -1162,7 +1177,8 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag,
 	zrl_add(&dnh->dnh_zrlock);
 	dn = dnh->dnh_dnode;
 	if (dn == NULL) {
-		dnode_phys_t *phys = (dnode_phys_t *)db->db.db_data+idx;
+		dnode_phys_t *phys =
+		    abd_array(db->db.db_data, idx, dnode_phys_t);
 
 		dn = dnode_create(os, phys, db, object, dnh);
 	}
@@ -1584,16 +1600,13 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			head = len;
 		if (dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, off), TRUE,
 		    FTAG, &db) == 0) {
-			caddr_t data;
-
 			/* don't dirty if it isn't on disk and isn't dirty */
 			if (db->db_last_dirty ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr))) {
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_buf_will_dirty(&db->db, tx);
 				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-				data = db->db.db_data;
-				bzero(data + blkoff, head);
+				abd_zero_off(db->db.db_data, head, blkoff);
 			}
 			dbuf_rele(db, FTAG);
 		}
@@ -1628,7 +1641,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_buf_will_dirty(&db->db, tx);
 				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-				bzero(db->db.db_data, tail);
+				abd_zero(db->db.db_data, tail);
 			}
 			dbuf_rele(db, FTAG);
 		}
@@ -1857,6 +1870,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 {
 	dmu_buf_impl_t *db = NULL;
 	void *data = NULL;
+	int use_abd = 0;
+	abd_t *abd = NULL;
 	uint64_t epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	uint64_t epb = 1ULL << epbs;
 	uint64_t minfill, maxfill;
@@ -1896,7 +1911,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			dbuf_rele(db, FTAG);
 			return (error);
 		}
-		data = db->db.db_data;
+		abd = db->db.db_data;
+		use_abd = 1;
 	}
 
 
@@ -1909,20 +1925,23 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		 */
 		error = SET_ERROR(ESRCH);
 	} else if (lvl == 0) {
-		dnode_phys_t *dnp = data;
+		dnode_phys_t *dnp;
 		span = DNODE_SHIFT;
 		ASSERT(dn->dn_type == DMU_OT_DNODE);
+		ASSERT(use_abd == 1);
 
 		for (i = (*offset >> span) & (blkfill - 1);
 		    i >= 0 && i < blkfill; i += inc) {
-			if ((dnp[i].dn_type == DMU_OT_NONE) == hole)
+			dnp = abd_array(abd, i, dnode_phys_t);
+			if ((dnp->dn_type == DMU_OT_NONE) == hole)
 				break;
 			*offset += (1ULL << span) * inc;
 		}
 		if (i < 0 || i == blkfill)
 			error = SET_ERROR(ESRCH);
 	} else {
-		blkptr_t *bp = data;
+		blkptr_t *obp = data;
+		blkptr_t *bp;
 		uint64_t start = *offset;
 		span = (lvl - 1) * epbs + dn->dn_datablkshift;
 		minfill = 0;
@@ -1936,9 +1955,13 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		*offset = *offset >> span;
 		for (i = BF64_GET(*offset, 0, epbs);
 		    i >= 0 && i < epb; i += inc) {
-			if (BP_GET_FILL(&bp[i]) >= minfill &&
-			    BP_GET_FILL(&bp[i]) <= maxfill &&
-			    (hole || bp[i].blk_birth > txg))
+			if (use_abd)
+				bp = abd_array(abd, i, blkptr_t);
+			else
+				bp = &obp[i];
+			if (BP_GET_FILL(bp) >= minfill &&
+			    BP_GET_FILL(bp) <= maxfill &&
+			    (hole || bp->blk_birth > txg))
 				break;
 			if (inc > 0 || *offset > 0)
 				*offset += inc;
