@@ -1094,7 +1094,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * The snapshot may be manually mounted as many times as desired.
 	 */
 	if (zfsctl_snapshot_ismounted(full_name)) {
-		error = SET_ERROR(EISDIR);
+		error = 0;
 		goto error;
 	}
 
