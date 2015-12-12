@@ -24,8 +24,10 @@
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2014 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
@@ -147,11 +149,7 @@ dsl_dir_evict(void *dbu)
 
 	spa_async_close(dd->dd_pool->dp_spa, dd);
 
-	/*
-	 * The props callback list should have been cleaned up by
-	 * objset_evict().
-	 */
-	list_destroy(&dd->dd_prop_cbs);
+	dsl_prop_fini(dd);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
 }
@@ -186,9 +184,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 		dd->dd_dbuf = dbuf;
 		dd->dd_pool = dp;
 		mutex_init(&dd->dd_lock, NULL, MUTEX_DEFAULT, NULL);
-
-		list_create(&dd->dd_prop_cbs, sizeof (dsl_prop_cb_record_t),
-		    offsetof(dsl_prop_cb_record_t, cbr_node));
+		dsl_prop_init(dd);
 
 		dsl_dir_snap_cmtime_update(dd);
 
@@ -235,7 +231,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			    &origin_bonus);
 			if (err != 0)
 				goto errout;
-			origin_phys = origin_bonus->db_data;
+			origin_phys = ABD_TO_BUF(origin_bonus->db_data);
 			dd->dd_origin_txg =
 			    origin_phys->ds_creation_txg;
 			dmu_buf_rele(origin_bonus, FTAG);
@@ -246,6 +242,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 		if (winner != NULL) {
 			if (dd->dd_parent)
 				dsl_dir_rele(dd->dd_parent, dd);
+			dsl_prop_fini(dd);
 			mutex_destroy(&dd->dd_lock);
 			kmem_free(dd, sizeof (dsl_dir_t));
 			dd = winner;
@@ -273,6 +270,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 errout:
 	if (dd->dd_parent)
 		dsl_dir_rele(dd->dd_parent, dd);
+	dsl_prop_fini(dd);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
 	dmu_buf_rele(dbuf, tag);
@@ -901,7 +899,7 @@ dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds, const char *name,
 	}
 	VERIFY(0 == dmu_bonus_hold(mos, ddobj, FTAG, &dbuf));
 	dmu_buf_will_dirty(dbuf, tx);
-	ddphys = dbuf->db_data;
+	ddphys = ABD_TO_BUF(dbuf->db_data);
 
 	ddphys->dd_creation_time = gethrestime_sec();
 	if (pds) {

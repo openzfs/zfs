@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_ARC_H
@@ -105,13 +106,16 @@ typedef enum arc_flags
 	/* Flags specifying whether optional hdr struct fields are defined */
 	ARC_FLAG_HAS_L1HDR		= 1 << 17,
 	ARC_FLAG_HAS_L2HDR		= 1 << 18,
+
+	/* indicates that the buffer is scatter metadata */
+	ARC_FLAG_META_SCATTER		= 1 << 19,
 } arc_flags_t;
 
 struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
 	kmutex_t		b_evict_lock;
-	void			*b_data;
+	abd_t			*b_data;
 	arc_evict_func_t	*b_efunc;
 	void			*b_private;
 };
@@ -121,6 +125,23 @@ typedef enum arc_buf_contents {
 	ARC_BUFC_METADATA,			/* buffer contains metadata */
 	ARC_BUFC_NUMTYPES
 } arc_buf_contents_t;
+
+/*
+ * buffer alloc type: data/meta X linear/scatter.
+ * basically arc_buf_contents_t with a scatter flag.
+ */
+typedef int arc_buf_alloc_t;
+/* data is always scatter, so we only use this for metadata */
+#define	ARC_BUFA_META_SCATTER (0x10)
+
+#define	ARC_BUFA_TO_BUFC(type) \
+	(type & ARC_BUFC_METADATA)
+#define	ARC_BUFA_IS_DATA(type) \
+	(!(type & ARC_BUFC_METADATA))
+#define	ARC_BUFA_IS_METADATA(type) \
+	(!ARC_BUFA_IS_DATA(type))
+#define	ARC_BUFA_IS_SCATTER(type) \
+	(ARC_BUFA_IS_DATA(type) || (type & ARC_BUFA_META_SCATTER))
 
 /*
  * The following breakdows of arc_size exist for kstat only.
@@ -166,7 +187,7 @@ typedef struct arc_buf_info {
 void arc_space_consume(uint64_t space, arc_space_type_t type);
 void arc_space_return(uint64_t space, arc_space_type_t type);
 arc_buf_t *arc_buf_alloc(spa_t *spa, uint64_t size, void *tag,
-    arc_buf_contents_t type);
+    arc_buf_alloc_t atype);
 arc_buf_t *arc_loan_buf(spa_t *spa, uint64_t size);
 void arc_return_buf(arc_buf_t *buf, void *tag);
 void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);

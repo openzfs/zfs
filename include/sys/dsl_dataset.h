@@ -24,11 +24,13 @@
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DATASET_H
 #define	_SYS_DSL_DATASET_H
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
@@ -184,6 +186,9 @@ typedef struct dsl_dataset {
 	kmutex_t ds_sendstream_lock;
 	list_t ds_sendstreams;
 
+	/* Protected by our dsl_dir's dd_lock */
+	list_t ds_prop_cbs;
+
 	/*
 	 * For ZFEATURE_FLAG_PER_DATASET features, set if this dataset
 	 * uses this feature.
@@ -203,7 +208,7 @@ typedef struct dsl_dataset {
 static inline dsl_dataset_phys_t *
 dsl_dataset_phys(dsl_dataset_t *ds)
 {
-	return (ds->ds_dbuf->db_data);
+	return (ABD_TO_BUF(ds->ds_dbuf->db_data));
 }
 
 /*

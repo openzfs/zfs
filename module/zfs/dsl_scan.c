@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/dsl_scan.h>
@@ -33,6 +34,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dmu_objset.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/zap.h>
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
@@ -667,12 +669,14 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		for (i = 0, cbp = buf->b_data; i < epb; i++, cbp++) {
+		for (i = 0; i < epb; i++) {
+			cbp = abd_array(buf->b_data, i, blkptr_t);
 			dsl_scan_prefetch(scn, buf, cbp, zb->zb_objset,
 			    zb->zb_object, zb->zb_blkid * epb + i);
 		}
-		for (i = 0, cbp = buf->b_data; i < epb; i++, cbp++) {
+		for (i = 0; i < epb; i++) {
 			zbookmark_phys_t czb;
+			cbp = abd_array(buf->b_data, i, blkptr_t);
 
 			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
 			    zb->zb_level - 1,
@@ -694,14 +698,16 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		for (i = 0, cdnp = buf->b_data; i < epb; i++, cdnp++) {
+		for (i = 0; i < epb; i++) {
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
 			for (j = 0; j < cdnp->dn_nblkptr; j++) {
 				blkptr_t *cbp = &cdnp->dn_blkptr[j];
 				dsl_scan_prefetch(scn, buf, cbp,
 				    zb->zb_objset, zb->zb_blkid * epb + i, j);
 			}
 		}
-		for (i = 0, cdnp = buf->b_data; i < epb; i++, cdnp++) {
+		for (i = 0; i < epb; i++) {
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
 			dsl_scan_visitdnode(scn, ds, ostype,
 			    cdnp, zb->zb_blkid * epb + i, tx);
 		}
@@ -719,7 +725,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			return (err);
 		}
 
-		osp = buf->b_data;
+		osp = ABD_TO_BUF(buf->b_data);
 
 		dsl_scan_visitdnode(scn, ds, osp->os_type,
 		    &osp->os_meta_dnode, DMU_META_DNODE_OBJECT, tx);
@@ -1470,10 +1476,23 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	}
 
 	/*
+	 * Only process scans in sync pass 1.
+	 */
+	if (spa_sync_pass(dp->dp_spa) > 1)
+		return;
+
+	/*
+	 * If the spa is shutting down, then stop scanning. This will
+	 * ensure that the scan does not dirty any new data during the
+	 * shutdown phase.
+	 */
+	if (spa_shutting_down(spa))
+		return;
+
+	/*
 	 * If the scan is inactive due to a stalled async destroy, try again.
 	 */
-	if ((!scn->scn_async_stalled && !dsl_scan_active(scn)) ||
-	    spa_sync_pass(dp->dp_spa) > 1)
+	if (!scn->scn_async_stalled && !dsl_scan_active(scn))
 		return;
 
 	scn->scn_visited_this_txg = 0;
@@ -1744,7 +1763,7 @@ dsl_scan_scrub_done(zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
 
-	zio_data_buf_free(zio->io_data, zio->io_size);
+	abd_free(zio->io_data, zio->io_size);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	spa->spa_scrub_inflight--;
@@ -1828,7 +1847,12 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	if (needs_io && !zfs_no_scrub_io) {
 		vdev_t *rvd = spa->spa_root_vdev;
 		uint64_t maxinflight = rvd->vdev_children * zfs_top_maxinflight;
-		void *data = zio_data_buf_alloc(size);
+		abd_t *data;
+
+		if (ARC_BUFA_IS_SCATTER(BP_GET_BUFA_TYPE(bp)))
+			data = abd_alloc_scatter(size);
+		else
+			data = abd_alloc_linear(size);
 
 		mutex_enter(&spa->spa_scrub_lock);
 		while (spa->spa_scrub_inflight >= maxinflight)

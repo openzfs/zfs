@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2013 Nexenta Systems, Inc. All rights reserved.
@@ -452,6 +452,7 @@ extern nvlist_t *zfs_valid_proplist(libzfs_handle_t *, zfs_type_t,
 
 extern const char *zfs_prop_to_name(zfs_prop_t);
 extern int zfs_prop_set(zfs_handle_t *, const char *, const char *);
+extern int zfs_prop_set_list(zfs_handle_t *, nvlist_t *);
 extern int zfs_prop_get(zfs_handle_t *, zfs_prop_t, char *, size_t,
     zprop_source_t *, char *, size_t, boolean_t);
 extern int zfs_prop_get_recvd(zfs_handle_t *, const char *, char *, size_t,
