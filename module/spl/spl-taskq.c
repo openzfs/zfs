@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,9 +20,9 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Task Queue Implementation.
-\*****************************************************************************/
+ */
 
 #include <sys/taskq.h>
 #include <sys/kmem.h>
@@ -39,12 +39,12 @@ MODULE_PARM_DESC(spl_taskq_thread_dynamic, "Allow dynamic taskq threads");
 int spl_taskq_thread_priority = 1;
 module_param(spl_taskq_thread_priority, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_priority,
-    "Allow non-default priority for taskq threads");
+	"Allow non-default priority for taskq threads");
 
 int spl_taskq_thread_sequential = 4;
 module_param(spl_taskq_thread_sequential, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_sequential,
-    "Create new taskq threads after N sequential tasks");
+	"Create new taskq threads after N sequential tasks");
 
 /* Global system-wide dynamic task queue available for all consumers */
 taskq_t *system_taskq;
@@ -58,12 +58,12 @@ static int
 task_km_flags(uint_t flags)
 {
 	if (flags & TQ_NOSLEEP)
-		return KM_NOSLEEP;
+		return (KM_NOSLEEP);
 
 	if (flags & TQ_PUSHPAGE)
-		return KM_PUSHPAGE;
+		return (KM_PUSHPAGE);
 
-	return KM_SLEEP;
+	return (KM_SLEEP);
 }
 
 /*
@@ -122,7 +122,7 @@ retry:
 	}
 
 	spin_unlock_irqrestore(&tq->tq_lock, *irqflags);
-	t = kmem_alloc(sizeof(taskq_ent_t), task_km_flags(flags));
+	t = kmem_alloc(sizeof (taskq_ent_t), task_km_flags(flags));
 	spin_lock_irqsave_nested(&tq->tq_lock, *irqflags, tq->tq_lock_class);
 
 	if (t) {
@@ -146,7 +146,7 @@ task_free(taskq_t *tq, taskq_ent_t *t)
 	ASSERT(list_empty(&t->tqent_list));
 	ASSERT(!timer_pending(&t->tqent_timer));
 
-	kmem_free(t, sizeof(taskq_ent_t));
+	kmem_free(t, sizeof (taskq_ent_t));
 	tq->tq_nalloc--;
 }
 
@@ -653,7 +653,7 @@ EXPORT_SYMBOL(taskq_dispatch_delay);
 
 void
 taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
-   taskq_ent_t *t)
+    taskq_ent_t *t)
 {
 	unsigned long irqflags;
 	ASSERT(tq);
@@ -702,7 +702,7 @@ EXPORT_SYMBOL(taskq_dispatch_ent);
 int
 taskq_empty_ent(taskq_ent_t *t)
 {
-	return list_empty(&t->tqent_list);
+	return (list_empty(&t->tqent_list));
 }
 EXPORT_SYMBOL(taskq_empty_ent);
 
@@ -809,7 +809,7 @@ taskq_thread_should_stop(taskq_t *tq, taskq_thread_t *tqt)
 	    (tq->tq_nactive == 0) &&	/* No threads are handling tasks */
 	    (tq->tq_nthreads > 1) &&	/* More than 1 thread is running */
 	    (!taskq_next_ent(tq)) &&	/* There are no pending tasks */
-	    (spl_taskq_thread_dynamic));/* Dynamic taskqs are allowed */
+	    (spl_taskq_thread_dynamic)); /* Dynamic taskqs are allowed */
 }
 
 static int
@@ -828,9 +828,9 @@ taskq_thread(void *args)
 	tq = tqt->tqt_tq;
 	current->flags |= PF_NOFREEZE;
 
-	#if defined(PF_MEMALLOC_NOIO)
+#if defined(PF_MEMALLOC_NOIO)
 	(void) memalloc_noio_save();
-	#endif
+#endif
 
 	sigfillset(&blocked);
 	sigprocmask(SIG_BLOCK, &blocked, NULL);
@@ -873,17 +873,21 @@ taskq_thread(void *args)
 		if ((t = taskq_next_ent(tq)) != NULL) {
 			list_del_init(&t->tqent_list);
 
-			/* In order to support recursively dispatching a
+			/*
+			 * In order to support recursively dispatching a
 			 * preallocated taskq_ent_t, tqent_id must be
-			 * stored prior to executing tqent_func. */
+			 * stored prior to executing tqent_func.
+			 */
 			tqt->tqt_id = t->tqent_id;
 			tqt->tqt_task = t;
 
-			/* We must store a copy of the flags prior to
+			/*
+			 * We must store a copy of the flags prior to
 			 * servicing the task (servicing a prealloc'd task
 			 * returns the ownership of the tqent back to
 			 * the caller of taskq_dispatch). Thus,
-			 * tqent_flags _may_ change within the call. */
+			 * tqent_flags _may_ change within the call.
+			 */
 			tqt->tqt_flags = t->tqent_flags;
 
 			taskq_insert_in_order(tq, tqt);
@@ -903,8 +907,10 @@ taskq_thread(void *args)
 			if (!(tqt->tqt_flags & TQENT_FLAG_PREALLOC))
 				task_done(tq, t);
 
-			/* When the current lowest outstanding taskqid is
-			 * done calculate the new lowest outstanding id */
+			/*
+			 * When the current lowest outstanding taskqid is
+			 * done calculate the new lowest outstanding id
+			 */
 			if (tq->tq_lowest_id == tqt->tqt_id) {
 				tq->tq_lowest_id = taskq_lowest_id(tq);
 				ASSERT3S(tq->tq_lowest_id, >, tqt->tqt_id);
@@ -999,18 +1005,18 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	spin_lock_init(&tq->tq_lock);
 	INIT_LIST_HEAD(&tq->tq_thread_list);
 	INIT_LIST_HEAD(&tq->tq_active_list);
-	tq->tq_name       = strdup(name);
-	tq->tq_nactive    = 0;
-	tq->tq_nthreads   = 0;
-	tq->tq_nspawn     = 0;
+	tq->tq_name = strdup(name);
+	tq->tq_nactive = 0;
+	tq->tq_nthreads = 0;
+	tq->tq_nspawn = 0;
 	tq->tq_maxthreads = nthreads;
-	tq->tq_pri        = pri;
-	tq->tq_minalloc   = minalloc;
-	tq->tq_maxalloc   = maxalloc;
-	tq->tq_nalloc     = 0;
-	tq->tq_flags      = (flags | TASKQ_ACTIVE);
-	tq->tq_next_id    = 1;
-	tq->tq_lowest_id  = 1;
+	tq->tq_pri = pri;
+	tq->tq_minalloc = minalloc;
+	tq->tq_maxalloc = maxalloc;
+	tq->tq_nalloc = 0;
+	tq->tq_flags = (flags | TASKQ_ACTIVE);
+	tq->tq_next_id = 1;
+	tq->tq_lowest_id = 1;
 	INIT_LIST_HEAD(&tq->tq_free_list);
 	INIT_LIST_HEAD(&tq->tq_pend_list);
 	INIT_LIST_HEAD(&tq->tq_prio_list);
@@ -1136,8 +1142,9 @@ spl_taskq_init(void)
 		return (1);
 	}
 
-	/* This is used to annotate tq_lock, so
-	 * 	taskq_dispatch -> taskq_thread_spawn -> taskq_dispatch
+	/*
+	 * This is used to annotate tq_lock, so
+	 *   taskq_dispatch -> taskq_thread_spawn -> taskq_dispatch
 	 * does not trigger a lockdep warning re: possible recursive locking
 	 */
 	dynamic_taskq->tq_lock_class = TQ_LOCK_DYNAMIC;

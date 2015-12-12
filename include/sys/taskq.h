@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,10 +20,10 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #ifndef _SPL_TASKQ_H
-#define _SPL_TASKQ_H
+#define	_SPL_TASKQ_H
 
 #include <linux/module.h>
 #include <linux/gfp.h>
@@ -33,29 +33,30 @@
 #include <sys/types.h>
 #include <sys/thread.h>
 
-#define TASKQ_NAMELEN		31
+#define	TASKQ_NAMELEN		31
 
-#define TASKQ_PREPOPULATE	0x00000001
-#define TASKQ_CPR_SAFE		0x00000002
-#define TASKQ_DYNAMIC		0x00000004
-#define TASKQ_THREADS_CPU_PCT	0x00000008
-#define TASKQ_DC_BATCH		0x00000010
-#define TASKQ_ACTIVE		0x80000000
+#define	TASKQ_PREPOPULATE	0x00000001
+#define	TASKQ_CPR_SAFE		0x00000002
+#define	TASKQ_DYNAMIC		0x00000004
+#define	TASKQ_THREADS_CPU_PCT	0x00000008
+#define	TASKQ_DC_BATCH		0x00000010
+#define	TASKQ_ACTIVE		0x80000000
 
 /*
  * Flags for taskq_dispatch. TQ_SLEEP/TQ_NOSLEEP should be same as
  * KM_SLEEP/KM_NOSLEEP.  TQ_NOQUEUE/TQ_NOALLOC are set particularly
  * large so as not to conflict with already used GFP_* defines.
  */
-#define TQ_SLEEP		0x00000000
-#define TQ_NOSLEEP		0x00000001
-#define TQ_PUSHPAGE		0x00000002
-#define TQ_NOQUEUE		0x01000000
-#define TQ_NOALLOC		0x02000000
-#define TQ_NEW			0x04000000
-#define TQ_FRONT		0x08000000
+#define	TQ_SLEEP		0x00000000
+#define	TQ_NOSLEEP		0x00000001
+#define	TQ_PUSHPAGE		0x00000002
+#define	TQ_NOQUEUE		0x01000000
+#define	TQ_NOALLOC		0x02000000
+#define	TQ_NEW			0x04000000
+#define	TQ_FRONT		0x08000000
 
-/* spin_lock(lock) and spin_lock_nested(lock,0) are equivalent,
+/*
+ * spin_lock(lock) and spin_lock_nested(lock,0) are equivalent,
  * so TQ_LOCK_DYNAMIC must not evaluate to 0
  */
 typedef enum tq_lock_role {
@@ -67,28 +68,28 @@ typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);
 
 typedef struct taskq {
-	spinlock_t		tq_lock;       /* protects taskq_t */
-	char			*tq_name;      /* taskq name */
-	struct list_head	tq_thread_list;/* list of all threads */
-	struct list_head	tq_active_list;/* list of active threads */
-	int			tq_nactive;    /* # of active threads */
-	int			tq_nthreads;   /* # of existing threads */
-	int			tq_nspawn;     /* # of threads being spawned */
-	int			tq_maxthreads; /* # of threads maximum */
-	int			tq_pri;        /* priority */
-	int			tq_minalloc;   /* min task_t pool size */
-	int			tq_maxalloc;   /* max task_t pool size */
-	int			tq_nalloc;     /* cur task_t pool size */
-	uint_t			tq_flags;      /* flags */
-	taskqid_t		tq_next_id;    /* next pend/work id */
-	taskqid_t		tq_lowest_id;  /* lowest pend/work id */
-	struct list_head	tq_free_list;  /* free task_t's */
-	struct list_head	tq_pend_list;  /* pending task_t's */
-	struct list_head	tq_prio_list;  /* priority pending task_t's */
-	struct list_head	tq_delay_list; /* delayed task_t's */
-	wait_queue_head_t	tq_work_waitq; /* new work waitq */
-	wait_queue_head_t	tq_wait_waitq; /* wait waitq */
-	tq_lock_role_t		tq_lock_class; /* class used when taking tq_lock */
+	spinlock_t		tq_lock;	/* protects taskq_t */
+	char			*tq_name;	/* taskq name */
+	struct list_head	tq_thread_list;	/* list of all threads */
+	struct list_head	tq_active_list;	/* list of active threads */
+	int			tq_nactive;	/* # of active threads */
+	int			tq_nthreads;	/* # of existing threads */
+	int			tq_nspawn;	/* # of threads being spawned */
+	int			tq_maxthreads;	/* # of threads maximum */
+	int			tq_pri;		/* priority */
+	int			tq_minalloc;	/* min task_t pool size */
+	int			tq_maxalloc;	/* max task_t pool size */
+	int			tq_nalloc;	/* cur task_t pool size */
+	uint_t			tq_flags;	/* flags */
+	taskqid_t		tq_next_id;	/* next pend/work id */
+	taskqid_t		tq_lowest_id;	/* lowest pend/work id */
+	struct list_head	tq_free_list;	/* free task_t's */
+	struct list_head	tq_pend_list;	/* pending task_t's */
+	struct list_head	tq_prio_list;	/* priority pending task_t's */
+	struct list_head	tq_delay_list;	/* delayed task_t's */
+	wait_queue_head_t	tq_work_waitq;	/* new work waitq */
+	wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
+	tq_lock_role_t		tq_lock_class;	/* class when taking tq_lock */
 } taskq_t;
 
 typedef struct taskq_ent {
@@ -103,8 +104,8 @@ typedef struct taskq_ent {
 	uintptr_t		tqent_flags;
 } taskq_ent_t;
 
-#define TQENT_FLAG_PREALLOC     0x1
-#define TQENT_FLAG_CANCEL       0x2
+#define	TQENT_FLAG_PREALLOC	0x1
+#define	TQENT_FLAG_CANCEL	0x2
 
 typedef struct taskq_thread {
 	struct list_head	tqt_thread_list;
@@ -134,9 +135,9 @@ extern void taskq_wait(taskq_t *);
 extern int taskq_cancel_id(taskq_t *, taskqid_t);
 extern int taskq_member(taskq_t *, void *);
 
-#define taskq_create_proc(name, nthreads, pri, min, max, proc, flags) \
+#define	taskq_create_proc(name, nthreads, pri, min, max, proc, flags) \
     taskq_create(name, nthreads, pri, min, max, flags)
-#define taskq_create_sysdc(name, nthreads, min, max, proc, dc, flags) \
+#define	taskq_create_sysdc(name, nthreads, min, max, proc, dc, flags) \
     taskq_create(name, nthreads, maxclsyspri, min, max, flags)
 
 int spl_taskq_init(void);
