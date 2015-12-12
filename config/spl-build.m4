@@ -683,7 +683,6 @@ AC_DEFUN([SPL_AC_TEST_MODULE],
 		AC_DEFINE([SPL_IS_GPL_COMPATIBLE], [1],
 		    [Define to 1 if GPL-only symbols can be used])
 	], [
-	], [
 	])
 ])
 
