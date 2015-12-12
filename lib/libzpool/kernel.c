@@ -966,8 +966,9 @@ kobj_read_file(struct _buf *file, char *buf, unsigned size, unsigned off)
 {
 	ssize_t resid;
 
-	vn_rdwr(UIO_READ, (vnode_t *)file->_fd, buf, size, (offset_t)off,
-	    UIO_SYSSPACE, 0, 0, 0, &resid);
+	if (vn_rdwr(UIO_READ, (vnode_t *)file->_fd, buf, size, (offset_t)off,
+	    UIO_SYSSPACE, 0, 0, 0, &resid) != 0)
+		return (-1);
 
 	return (size - resid);
 }
