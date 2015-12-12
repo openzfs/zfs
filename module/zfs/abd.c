@@ -315,17 +315,17 @@ abd_miter_advance(struct abd_miter *aiter, int offset)
 	return (1);
 }
 
-#define	ABD_CHECK(abd)					\
-do {							\
-	ASSERT((abd)->abd_magic == ARC_BUF_DATA_MAGIC);	\
-	ASSERT((abd)->abd_size > 0);			\
-	if (ABD_IS_LINEAR(abd)) {			\
-		ASSERT((abd)->abd_offset == 0);		\
-		ASSERT((abd)->abd_nents == 1);		\
-	} else {					\
-		ASSERT((abd)->abd_offset < PAGESIZE);	\
-		ASSERT((abd)->abd_nents > 0);		\
-	}						\
+#define	ABD_CHECK(abd)							\
+do {									\
+	ASSERT((abd)->abd_magic == ARC_BUF_DATA_MAGIC);			\
+	ASSERT((abd)->abd_size > 0);					\
+	if (ABD_IS_LINEAR(abd)) {					\
+		ASSERT((abd)->abd_offset == 0);				\
+		ASSERT((abd)->abd_nents == 1);				\
+	} else {							\
+		ASSERT((abd)->abd_offset < (abd)->abd_sgl[0].length);	\
+		ASSERT((abd)->abd_nents > 0);				\
+	}								\
 } while (0)
 
 static inline void abd_set_magic(abd_t *abd)
