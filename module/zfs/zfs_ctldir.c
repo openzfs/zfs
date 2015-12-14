@@ -381,9 +381,9 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 	if (delay <= 0)
 		return;
 
+	zfsctl_snapshot_hold(se);
 	se->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
 	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
-	zfsctl_snapshot_hold(se);
 }
 
 /*
