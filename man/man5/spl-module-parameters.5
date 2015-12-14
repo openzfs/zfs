@@ -44,6 +44,20 @@ Default value: \fB0x02\fR
 .sp
 .ne 2
 .na
+\fBspl_kmem_cache_kmem_threads\fR (uint)
+.ad
+.RS 12n
+The number of threads created for the spl_kmem_cache task queue.  This task
+queue is responsible for allocating new slabs for use by the kmem caches.
+For the majority of systems and workloads only a small number of threads are
+required.
+.sp
+Default value: \fB4\fR
+.RE
+
+.sp
+.ne 2
+.na
 \fBspl_kmem_cache_reclaim\fR (uint)
 .ad
 .RS 12n
