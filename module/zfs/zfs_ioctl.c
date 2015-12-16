@@ -195,6 +195,9 @@
 kmutex_t zfsdev_state_lock;
 zfsdev_state_t *zfsdev_state_list;
 
+/* The bits are stored in decimal format, not octal */
+int zfsdev_umask = 77;
+
 extern void zfs_init(void);
 extern void zfs_fini(void);
 
@@ -5776,6 +5779,29 @@ zfsdev_release(struct inode *ino, struct file *filp)
 	return (-error);
 }
 
+boolean_t
+zfsdev_fail_cred_check(struct file *filp)
+{
+	umode_t umode = filp->f_inode->i_mode;
+
+	if (!(filp->f_mode & (FMODE_WRITE|FMODE_READ)))
+		return (B_TRUE);
+
+	/* Check other credential */
+	if (((~zfsdev_umask & umode) & 8) >= 6)
+		return (B_FALSE);
+
+	/* Check group credential */
+	if (((~(zfsdev_umask / 10) & (umode >> 4)) & 8) >= 6)
+		return (B_FALSE);
+
+	/* Check user credential */
+	if (((~(zfsdev_umask / 100) & (umode >> 8)) & 8) >= 6)
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
 static long
 zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 {
@@ -5786,6 +5812,9 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	char *saved_poolname = NULL;
 	nvlist_t *innvl = NULL;
 	fstrans_cookie_t cookie;
+
+	if (zfsdev_fail_cred_check(filp))
+		return (-SET_ERROR(EPERM));
 
 	vecnum = cmd - ZFS_IOC_FIRST;
 	if (vecnum >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
@@ -6074,6 +6103,9 @@ _fini(void)
 #ifdef HAVE_SPL
 module_init(_init);
 module_exit(_fini);
+
+module_param(zfsdev_umask, int, 0644);
+MODULE_PARM_DESC(zfsdev_umask, "/dev/zfs umask");
 
 MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
