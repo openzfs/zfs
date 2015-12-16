@@ -72,7 +72,7 @@ Amazon*)
     ;;
 CentOS*)
     # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
-    TEST_ZILTEST_SKIP="yes"
+    #TEST_ZILTEST_SKIP="yes"
     ;;
 Debian*)
     ;;
