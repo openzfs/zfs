@@ -525,6 +525,7 @@ extern void *zio_buf_alloc(size_t size);
 extern void zio_buf_free(void *buf, size_t size);
 extern void *zio_data_buf_alloc(size_t size);
 extern void zio_data_buf_free(void *buf, size_t size);
+extern void *zio_buf_alloc_flags(size_t size, int flags);
 
 extern void zio_resubmit_stage_async(void *);
 

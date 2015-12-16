@@ -248,6 +248,20 @@ zio_data_buf_alloc(size_t size)
 	return (kmem_cache_alloc(zio_data_buf_cache[c], KM_PUSHPAGE));
 }
 
+/*
+ * Use zio_buf_alloc_flags when specific allocation flags are needed.  e.g.
+ * passing KM_NOSLEEP when it is acceptable for an allocation to fail.
+ */
+void *
+zio_buf_alloc_flags(size_t size, int flags)
+{
+	size_t c = (size - 1) >> SPA_MINBLOCKSHIFT;
+
+	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
+
+	return (kmem_cache_alloc(zio_buf_cache[c], flags));
+}
+
 void
 zio_buf_free(void *buf, size_t size)
 {
@@ -3458,6 +3472,7 @@ zbookmark_is_before(const dnode_phys_t *dnp, const zbookmark_phys_t *zb1,
 EXPORT_SYMBOL(zio_type_name);
 EXPORT_SYMBOL(zio_buf_alloc);
 EXPORT_SYMBOL(zio_data_buf_alloc);
+EXPORT_SYMBOL(zio_buf_alloc_flags);
 EXPORT_SYMBOL(zio_buf_free);
 EXPORT_SYMBOL(zio_data_buf_free);
 
