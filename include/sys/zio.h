@@ -24,6 +24,7 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _ZIO_H
@@ -35,6 +36,7 @@
 #include <sys/avl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio_impl.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -353,12 +355,12 @@ typedef struct zio_gang_node {
 } zio_gang_node_t;
 
 typedef zio_t *zio_gang_issue_func_t(zio_t *zio, blkptr_t *bp,
-    zio_gang_node_t *gn, void *data);
+    zio_gang_node_t *gn, abd_t *data, uint64_t offset);
 
-typedef void zio_transform_func_t(zio_t *zio, void *data, uint64_t size);
+typedef void zio_transform_func_t(zio_t *zio, abd_t *data, uint64_t size);
 
 typedef struct zio_transform {
-	void			*zt_orig_data;
+	abd_t			*zt_orig_data;
 	uint64_t		zt_orig_size;
 	uint64_t		zt_bufsize;
 	zio_transform_func_t	*zt_transform;
@@ -414,8 +416,8 @@ struct zio {
 	blkptr_t	io_bp_orig;
 
 	/* Data represented by this I/O */
-	void		*io_data;
-	void		*io_orig_data;
+	abd_t		*io_data;
+	abd_t		*io_orig_data;
 	uint64_t	io_size;
 	uint64_t	io_orig_size;
 
@@ -466,18 +468,18 @@ extern zio_t *zio_null(zio_t *pio, spa_t *spa, vdev_t *vd,
 extern zio_t *zio_root(spa_t *spa,
     zio_done_func_t *done, void *private, enum zio_flag flags);
 
-extern zio_t *zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, void *data,
+extern zio_t *zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, abd_t *data,
     uint64_t size, zio_done_func_t *done, void *private,
     zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb);
 
 extern zio_t *zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
-    void *data, uint64_t size, const zio_prop_t *zp,
+    abd_t *data, uint64_t size, const zio_prop_t *zp,
     zio_done_func_t *ready, zio_done_func_t *physdone, zio_done_func_t *done,
     void *private,
     zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb);
 
 extern zio_t *zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
-    void *data, uint64_t size, zio_done_func_t *done, void *private,
+    abd_t *data, uint64_t size, zio_done_func_t *done, void *private,
     zio_priority_t priority, enum zio_flag flags, zbookmark_phys_t *zb);
 
 extern void zio_write_override(zio_t *zio, blkptr_t *bp, int copies,
@@ -493,12 +495,12 @@ extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
     zio_done_func_t *done, void *private, enum zio_flag flags);
 
 extern zio_t *zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
-    uint64_t size, void *data, int checksum,
+    uint64_t size, abd_t *data, int checksum,
     zio_done_func_t *done, void *private, zio_priority_t priority,
     enum zio_flag flags, boolean_t labels);
 
 extern zio_t *zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
-    uint64_t size, void *data, int checksum,
+    uint64_t size, abd_t *data, int checksum,
     zio_done_func_t *done, void *private, zio_priority_t priority,
     enum zio_flag flags, boolean_t labels);
 
@@ -529,12 +531,12 @@ extern void zio_data_buf_free(void *buf, size_t size);
 extern void zio_resubmit_stage_async(void *);
 
 extern zio_t *zio_vdev_child_io(zio_t *zio, blkptr_t *bp, vdev_t *vd,
-    uint64_t offset, void *data, uint64_t size, int type,
+    uint64_t offset, abd_t *data, uint64_t size, int type,
     zio_priority_t priority, enum zio_flag flags,
     zio_done_func_t *done, void *private);
 
 extern zio_t *zio_vdev_delegated_io(vdev_t *vd, uint64_t offset,
-    void *data, uint64_t size, int type, zio_priority_t priority,
+    abd_t *data, uint64_t size, int type, zio_priority_t priority,
     enum zio_flag flags, zio_done_func_t *done, void *private);
 
 extern void zio_vdev_io_bypass(zio_t *zio);
