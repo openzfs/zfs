@@ -504,15 +504,12 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	enum zio_flag flags = zio->io_flags & ZIO_FLAG_AGG_INHERIT;
 	void *buf;
 
-	if (zio->io_flags & ZIO_FLAG_DONT_AGGREGATE)
-		return (NULL);
+	zfs_vdev_aggregation_limit = MAX(MIN(zfs_vdev_aggregation_limit,
+	    spa_maxblocksize(vq->vq_vdev->vdev_spa)), 0);
 
-	/*
-	 * Prevent users from setting the zfs_vdev_aggregation_limit
-	 * tuning larger than SPA_MAXBLOCKSIZE.
-	 */
-	zfs_vdev_aggregation_limit =
-	    MIN(zfs_vdev_aggregation_limit, SPA_MAXBLOCKSIZE);
+	if (zio->io_flags & ZIO_FLAG_DONT_AGGREGATE ||
+	    zfs_vdev_aggregation_limit == 0)
+		return (NULL);
 
 	first = last = zio;
 
