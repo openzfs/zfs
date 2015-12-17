@@ -402,7 +402,7 @@ or smaller can take advantage of this feature.
 
 When this feature is enabled, the contents of highly-compressible blocks are
 stored in the block "pointer" itself (a misnomer in this case, as it contains
-the compresseed data, rather than a pointer to its location on disk).  Thus
+the compressed data, rather than a pointer to its location on disk).  Thus
 the space of the block (one sector, typically 512 bytes or 4KB) is saved,
 and no additional i/o is needed to read and write the data block.
 
