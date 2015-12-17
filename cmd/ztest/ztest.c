@@ -329,6 +329,7 @@ ztest_func_t ztest_split_pool;
 ztest_func_t ztest_reguid;
 ztest_func_t ztest_spa_upgrade;
 ztest_func_t ztest_fletcher;
+ztest_func_t ztest_dmu_free_long_range;
 
 uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -375,6 +376,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_vdev_add_remove, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
+	ZTI_INIT(ztest_dmu_free_long_range, 1, &zopt_always),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -4307,6 +4309,182 @@ ztest_dmu_write_parallel(ztest_ds_t *zd, uint64_t id)
 	while (ztest_random(10) != 0)
 		ztest_io(zd, od->od_object, offset);
 
+	umem_free(od, sizeof (ztest_od_t));
+}
+
+static void
+ztest_write_free(ztest_ds_t *zd, ztest_od_t *od, dmu_object_info_t *doi)
+{
+	objset_t *os = zd->zd_os;
+	uint64_t object = od->od_object;
+	uint64_t size = 1ULL << 40;
+	uint64_t blocksize = doi->doi_data_block_size;
+	uint64_t mblocksize = doi->doi_metadata_block_size;
+	uint64_t l1_range = (mblocksize / sizeof (blkptr_t)) *
+		blocksize;
+	void *data = umem_alloc(blocksize, UMEM_NOFAIL);
+
+	(void) memset(data, 'a' + (object + l1_range) % 5, blocksize);
+
+	while (ztest_random(10)) {
+		int i, nranges = 0, minoffset = 0, maxoffset = 0;
+		ztest_zrl_t *zrl;
+		struct ztest_range {
+			uint64_t offset;
+			uint64_t size;
+		} range[10];
+		/*
+		 * Touch a few L1 ranges
+		 */
+		bzero((void *)range, sizeof (struct ztest_range)*10);
+		nranges = ztest_random(10);
+		if (nranges == 0)
+			nranges = 3;
+
+		for (i = 0; i < nranges; i++) {
+			range[i].offset = ztest_random(size/l1_range)*l1_range;
+			range[i].size = ztest_random(10)*l1_range;
+		}
+
+		(void) rw_rdlock(&zd->zd_zilog_lock);
+		for (i = 0; i < nranges; i++) {
+			if ((ztest_write(zd, object, range[i].offset, blocksize,
+			    data)) ||
+			    (ztest_write(zd, object, range[i].offset +
+			    range[i].size - blocksize, blocksize, data))) {
+				fatal(0, "dmu_free_long_range() failed\n");
+			}
+		}
+		(void) rw_unlock(&zd->zd_zilog_lock);
+
+		/*
+		 * Free all ranges in a variable number of steps
+		 */
+		for (i = 0; i < nranges; i ++) {
+			minoffset = MIN(minoffset, range[i].offset);
+			maxoffset = MAX(maxoffset, range[i].offset +
+			    range[i].size);
+		}
+
+		ztest_object_lock(zd, object, RL_READER);
+		zrl = ztest_range_lock(zd, object, minoffset,
+		    maxoffset-minoffset, RL_WRITER);
+
+		switch (ztest_random(4)) {
+		case 0:
+			/* Free each range separately */
+			for (i = 0; i < nranges; i++) {
+				if ((dmu_free_long_range(os, object,
+				    range[i].offset, range[i].size))) {
+					fatal(0, "dmu_free_long_range() "
+					    "failed\n");
+				}
+			}
+			break;
+		case 1:
+			/* Free two ranges at a time */
+			for (i = 0; i < ((nranges % 2) ? nranges - 1 : nranges);
+				i += 2) {
+				uint64_t start =
+				    MIN(range[i].offset, range[i+1].offset);
+				uint64_t end =
+				    MAX(range[i].offset + range[i].size,
+					range[i+1].offset + range[i+1].size);
+				if ((dmu_free_long_range(os, object, start,
+				    end-start))) {
+					fatal(0, "dmu_free_long_range() "
+					    "failed\n");
+				}
+			}
+			/* Free the last range for odd nranges */
+			if ((nranges % 2) &&
+				(dmu_free_long_range(os, object,
+				    range[nranges-1].offset,
+				    range[nranges-1].size))) {
+				fatal(0, "dmu_free_long_range() failed\n");
+			}
+			break;
+		case 2:
+		{
+			/*
+			 * Merge the ranges in two super-ranges and
+			 * free in two steps
+			 */
+			uint64_t start = 0, end = 0;
+			int inranges = ztest_random(nranges);
+
+			for (i = 0; i < inranges; i++) {
+				start = MIN(start, range[i].offset);
+				end = MAX(end, range[i].offset + range[i].size);
+			}
+			if ((inranges != 0) &&
+				(dmu_free_long_range(os, object, start,
+				    end-start))) {
+				fatal(0, "dmu_free_long_range() failed\n");
+			}
+
+			for (i = inranges; i < nranges; i++) {
+				start = MIN(start, range[i].offset);
+				end = MAX(end, range[i].offset + range[i].size);
+			}
+			if ((inranges != nranges) &&
+				(dmu_free_long_range(os, object, start,
+				    end-start))) {
+				fatal(0, "dmu_free_long_range() failed\n");
+			}
+		}
+		break;
+		case 3:
+		{
+			/* Merge in one range and free in one step */
+			uint64_t start = minoffset, end = maxoffset;
+
+			if ((dmu_free_long_range(os, object, start,
+			    end-start))) {
+				fatal(0, "dmu_free_long_range() failed\n");
+			}
+		}
+		break;
+		case 4:
+		default:
+			/* Free the whole logical range of the object */
+			if ((dmu_free_long_range(os, object, 0, size))) {
+				fatal(0, "dmu_free_long_range() failed\n");
+			}
+			break;
+		}
+
+		ztest_range_unlock(zd, zrl);
+		ztest_object_unlock(zd, object);
+	}
+
+	umem_free(data, blocksize);
+}
+
+/*
+ * Test punching holes in an object to verify consistency of
+ * the dmu structures for various corner cases
+ *
+ * Force reallocation of dnode between iterations
+ */
+void
+ztest_dmu_free_long_range(ztest_ds_t *zd, uint64_t id)
+{
+	ztest_od_t *od = NULL;
+	uint64_t blocksize = ztest_random_blocksize();
+	dmu_object_info_t doi = {0};
+
+	od = umem_alloc(sizeof (ztest_od_t), UMEM_NOFAIL);
+
+	ztest_od_init(od, ID_PARALLEL, FTAG, 0, DMU_OT_UINT64_OTHER,
+		blocksize, 0);
+	if (ztest_object_init(zd, od, sizeof (ztest_od_t), B_FALSE) != 0)
+		goto out;
+
+	VERIFY3U(0, ==, dmu_object_info(zd->zd_os, od->od_object, &doi));
+	ztest_write_free(zd, od, &doi);
+
+out:
 	umem_free(od, sizeof (ztest_od_t));
 }
 
