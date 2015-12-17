@@ -62,7 +62,8 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 	/* check for existing blkptrs in the dnode */
 	for (i = 0; i < nblkptr; i++)
-		if (!BP_IS_HOLE(&dn->dn_phys->dn_blkptr[i]))
+		if (!BP_IS_HOLE(&dn->dn_phys->dn_blkptr[i]) ||
+			dn->dn_phys->dn_blkptr[i].blk_birth != 0)
 			break;
 	if (i != nblkptr) {
 		/* transfer dnode's block pointers to new indirect block */
@@ -710,10 +711,9 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			int i;
 			ASSERT(dn->dn_next_nblkptr[txgoff] < dnp->dn_nblkptr);
 			/* the blkptrs we are losing better be unallocated */
-			for (i = 0; i < dnp->dn_nblkptr; i++) {
-				if (i >= dn->dn_next_nblkptr[txgoff])
-					ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[i]));
-			}
+			for (i = dn->dn_next_nblkptr[txgoff];
+				i < dnp->dn_nblkptr; i++)
+				ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[i]));
 #endif
 		}
 		mutex_enter(&dn->dn_mtx);

@@ -543,13 +543,35 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * If the blkptr isn't set but they have nonzero data,
 		 * it had better be dirty, otherwise we'll lose that
 		 * data when we evict this buffer.
+		 *
+		 * One exception is Ln indirect block representing
+		 * a hole with non-zero birth epoch; such blocks can also
+		 * be filled with Ln-1 hole block pointers
 		 */
 		if (db->db_dirtycnt == 0) {
-			ASSERTV(uint64_t *buf = db->db.db_data);
-			int i;
+			if (db->db_level == 0) {
+				uint64_t *buf = db->db.db_data;
+				int i;
 
-			for (i = 0; i < db->db.db_size >> 3; i++) {
-				ASSERT(buf[i] == 0);
+				for (i = 0; i < db->db.db_size >> 3; i++) {
+					ASSERT(buf[i] == 0);
+				}
+			} else {
+				blkptr_t zero_bp, *bp;
+
+				ASSERT3U(1ULL << DB_DNODE(db)->dn_indblkshift,
+				    ==, db->db.db_size);
+				BP_ZERO(&zero_bp);
+				for (bp = (blkptr_t *)db->db.db_data;
+				    bp < (blkptr_t *)((char *)db->db.db_data +
+					db->db.db_size);
+				    bp++) {
+					ASSERT(BP_EQUAL(bp, &zero_bp) ||
+					(BP_IS_HOLE(bp) &&
+					(BP_GET_TYPE(bp) == dn->dn_type) &&
+					(BP_GET_LEVEL(bp) ==
+					(db->db_level - 1))));
+				}
 			}
 		}
 	}
@@ -717,11 +739,44 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	    (db->db_level == 0 && (dnode_block_freed(dn, db->db_blkid) ||
 	    BP_IS_HOLE(db->db_blkptr)))) {
 		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+		dmu_object_type_t dtype = dn->dn_type;
+		uint32_t bshift = (db->db_level > 1) ?
+			dn->dn_indblkshift : dn->dn_datablkshift;
 
 		DB_DNODE_EXIT(db);
 		dbuf_set_data(db, arc_buf_alloc(db->db_objset->os_spa,
 		    db->db.db_size, db, type));
 		bzero(db->db.db_data, db->db.db_size);
+
+		if (db->db_level > 0 && db->db_blkptr &&
+		    BP_IS_HOLE(db->db_blkptr) && db->db_blkptr->blk_birth > 0) {
+			blkptr_t *bp;
+			/*
+			 * If we are reading an Ln hole using a block pointer
+			 * with the birth epoch that is not zero, this means
+			 * that the hole_birth was active when the block pointer
+			 * was written, and we cannot simply zero the buffer
+			 * out: if the block is subsequently partially
+			 * overwritten, then the remaining Ln-1 holes will have
+			 * their birth epochs equal to zero, which can lead to
+			 * incorrectly formed incremental send stream.
+			 * Instead, we pre-fill the initial contents of the Ln
+			 * block with block pointers indicating Ln-1 holes with
+			 * the same type and birth epoch as the Ln hole; the
+			 * logical size is set based on the hole level and the
+			 * dnode data or indirect block shift
+			 */
+			for (bp = (blkptr_t *)db->db.db_data;
+			    bp < (blkptr_t *)((char *)db->db.db_data +
+				db->db.db_size);
+			    bp++) {
+				BP_SET_TYPE(bp, dtype);
+				BP_SET_LEVEL(bp, db->db_level-1);
+				BP_SET_LSIZE(bp, 1ULL << bshift);
+				BP_SET_BIRTH(bp, db->db_blkptr->blk_birth, 0);
+			}
+		}
+
 		db->db_state = DB_CACHED;
 		mutex_exit(&db->db_mtx);
 		return (0);
@@ -1311,7 +1366,8 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	    os->os_dsl_dataset == NULL || BP_IS_HOLE(os->os_rootbp));
 	ASSERT(db->db.db_size != 0);
 
-	dprintf_dbuf(db, "size=%llx\n", (u_longlong_t)db->db.db_size);
+	dprintf_dbuf(db, "thread %p size=%llx txg=%llx db=%p\n",
+	    curthread, (u_longlong_t)db->db.db_size, tx->tx_txg, db);
 
 	if (db->db_blkid != DMU_BONUS_BLKID) {
 		/*
@@ -1521,7 +1577,8 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 
-	dprintf_dbuf(db, "size=%llx\n", (u_longlong_t)db->db.db_size);
+	dprintf_dbuf(db, "thread %p size=%llx txg=%llx db=%p\n",
+	    curthread, (u_longlong_t)db->db.db_size, tx->tx_txg, db);
 
 	ASSERT(db->db.db_size != 0);
 
