@@ -160,7 +160,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool upgrade\fR 
+\fBzpool upgrade\fR
 .fi
 
 .LP
@@ -191,7 +191,7 @@ A "virtual device" describes a single device or a collection of devices organize
 \fB\fBdisk\fR\fR
 .ad
 .RS 10n
-.rt  
+.rt
 A block device, typically located under \fB/dev\fR. \fBZFS\fR can use individual partitions, though the recommended mode of operation is to use whole disks. A disk can be specified by a full path, or it can be a shorthand name (the relative portion of the path under "/dev"). For example, "sda" is equivalent to "/dev/sda". A whole disk can be specified by omitting the partition designation. When given a whole disk, \fBZFS\fR automatically labels the disk, if necessary.
 .RE
 
@@ -202,7 +202,7 @@ A block device, typically located under \fB/dev\fR. \fBZFS\fR can use individual
 \fB\fBfile\fR\fR
 .ad
 .RS 10n
-.rt  
+.rt
 A regular file. The use of files as a backing store is strongly discouraged. It is designed primarily for experimental purposes, as the fault tolerance of a file is only as good as the file system of which it is a part. A file must be specified by a full path.
 .RE
 
@@ -213,7 +213,7 @@ A regular file. The use of files as a backing store is strongly discouraged. It 
 \fB\fBmirror\fR\fR
 .ad
 .RS 10n
-.rt  
+.rt
 A mirror of two or more devices. Data is replicated in an identical fashion across all components of a mirror. A mirror with \fIN\fR disks of size \fIX\fR can hold \fIX\fR bytes and can withstand (\fIN-1\fR) devices failing before data integrity is compromised.
 .RE
 
@@ -236,7 +236,7 @@ A mirror of two or more devices. Data is replicated in an identical fashion acro
 \fB\fBraidz3\fR\fR
 .ad
 .RS 10n
-.rt  
+.rt
 A variation on \fBRAID-5\fR that allows for better distribution of parity and eliminates the "\fBRAID-5\fR write hole" (in which data and parity become inconsistent after a power loss). Data and parity is striped across all disks within a \fBraidz\fR group.
 .sp
 A \fBraidz\fR group can have single-, double- , or triple parity, meaning that the \fBraidz\fR group can sustain one, two, or three failures, respectively, without losing any data. The \fBraidz1\fR \fBvdev\fR type specifies a single-parity \fBraidz\fR group; the \fBraidz2\fR \fBvdev\fR type specifies a double-parity \fBraidz\fR group; and the \fBraidz3\fR \fBvdev\fR type specifies a triple-parity \fBraidz\fR group. The \fBraidz\fR \fBvdev\fR type is an alias for \fBraidz1\fR.
@@ -251,7 +251,7 @@ A \fBraidz\fR group with \fIN\fR disks of size \fIX\fR with \fIP\fR parity disks
 \fB\fBspare\fR\fR
 .ad
 .RS 10n
-.rt  
+.rt
 A special pseudo-\fBvdev\fR which keeps track of available hot spares for a pool. For more information, see the "Hot Spares" section.
 .RE
 
@@ -262,7 +262,7 @@ A special pseudo-\fBvdev\fR which keeps track of available hot spares for a pool
 \fB\fBlog\fR\fR
 .ad
 .RS 10n
-.rt  
+.rt
 A separate-intent log device. If more than one log device is specified, then writes are load-balanced between devices. Log devices can be mirrored. However, \fBraidz\fR \fBvdev\fR types are not supported for the intent log. For more information, see the "Intent Log" section.
 .RE
 
@@ -273,7 +273,7 @@ A separate-intent log device. If more than one log device is specified, then wri
 \fB\fBcache\fR\fR
 .ad
 .RS 10n
-.rt  
+.rt
 A device used to cache storage pool data. A cache device cannot be configured as a mirror or \fBraidz\fR group. For more information, see the "Cache Devices" section.
 .RE
 
@@ -303,7 +303,7 @@ Virtual devices are specified one at a time on the command line, separated by wh
 In order to take advantage of these features, a pool must make use of some form of redundancy, using either mirrored or \fBraidz\fR groups. While \fBZFS\fR supports running in a non-redundant configuration, where each root vdev is simply a disk or file, this is strongly discouraged. A single case of bit corruption can render some or all of your data unavailable.
 .sp
 .LP
-A pool's health status is described by one of three states: online, degraded, or faulted. An online pool has all devices operating normally. A degraded pool is one in which one or more devices have failed, but the data is still available due to a redundant configuration. A faulted pool has corrupted metadata, or one or more faulted devices, and insufficient replicas to continue functioning. 
+A pool's health status is described by one of three states: online, degraded, or faulted. An online pool has all devices operating normally. A degraded pool is one in which one or more devices have failed, but the data is still available due to a redundant configuration. A faulted pool has corrupted metadata, or one or more faulted devices, and insufficient replicas to continue functioning.
 .sp
 .LP
 The health of the top-level vdev, such as mirror or \fBraidz\fR device, is potentially impacted by the state of its associated vdevs, or component devices. A top-level vdev or component device is in one of the following states:
@@ -314,7 +314,7 @@ The health of the top-level vdev, such as mirror or \fBraidz\fR device, is poten
 \fB\fBDEGRADED\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 One or more top-level vdevs is in the degraded state because one or more component devices are offline. Sufficient replicas exist to continue functioning.
 .sp
 One or more component devices is in the degraded or faulted state, but sufficient replicas exist to continue functioning. The underlying conditions are as follows:
@@ -339,15 +339,15 @@ The number of I/O errors exceeds acceptable levels. The device could not be mark
 \fB\fBFAULTED\fR\fR
 .ad
 .RS 12n
-.rt  
-One or more top-level vdevs is in the faulted state because one or more component devices are offline. Insufficient replicas exist to continue functioning. 
+.rt
+One or more top-level vdevs is in the faulted state because one or more component devices are offline. Insufficient replicas exist to continue functioning.
 .sp
 One or more component devices is in the faulted state, and insufficient replicas exist to continue functioning. The underlying conditions are as follows:
 .RS +4
 .TP
 .ie t \(bu
 .el o
-The device could be opened, but the contents did not match expected values. 
+The device could be opened, but the contents did not match expected values.
 .RE
 .RS +4
 .TP
@@ -364,7 +364,7 @@ The number of I/O errors exceeds acceptable levels and the device is faulted to 
 \fB\fBOFFLINE\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 The device was explicitly taken offline by the "\fBzpool offline\fR" command.
 .RE
 
@@ -375,7 +375,7 @@ The device was explicitly taken offline by the "\fBzpool offline\fR" command.
 \fB\fBONLINE\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 The device is online and functioning.
 .RE
 
@@ -386,7 +386,7 @@ The device is online and functioning.
 \fB\fBREMOVED\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 The device was physically removed while the system was running. Device removal detection is hardware-dependent and may not be supported on all platforms.
 .RE
 
@@ -397,7 +397,7 @@ The device was physically removed while the system was running. Device removal d
 \fB\fBUNAVAIL\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 The device could not be opened. If a pool is imported when a device was unavailable, then the device will be identified by a unique identifier instead of its path since the path was never correct in the first place.
 .RE
 
@@ -407,7 +407,7 @@ If a device is removed and later re-attached to the system, \fBZFS\fR attempts t
 .SS "Hot Spares"
 .sp
 .LP
-\fBZFS\fR allows devices to be associated with pools as "hot spares". These devices are not actively used in the pool, but when an active device fails, it is automatically replaced by a hot spare. To create a pool with hot spares, specify a "spare" \fBvdev\fR with any number of devices. For example, 
+\fBZFS\fR allows devices to be associated with pools as "hot spares". These devices are not actively used in the pool, but when an active device fails, it is automatically replaced by a hot spare. To create a pool with hot spares, specify a "spare" \fBvdev\fR with any number of devices. For example,
 .sp
 .in +2
 .nf
@@ -478,7 +478,7 @@ Each pool has several properties associated with it. Some properties are read-on
 \fB\fBavailable\fR\fR
 .ad
 .RS 20n
-.rt  
+.rt
 Amount of storage available within the pool. This property can also be referred to by its shortened column name, "avail".
 .RE
 
@@ -489,7 +489,7 @@ Amount of storage available within the pool. This property can also be referred 
 \fB\fBcapacity\fR\fR
 .ad
 .RS 20n
-.rt  
+.rt
 Percentage of pool space used. This property can also be referred to by its shortened column name, "cap".
 .RE
 
@@ -550,7 +550,7 @@ while \fB\fBfree\fR\fR increases.
 \fB\fBhealth\fR\fR
 .ad
 .RS 20n
-.rt  
+.rt
 The current health of the pool. Health can be "\fBONLINE\fR", "\fBDEGRADED\fR", "\fBFAULTED\fR", " \fBOFFLINE\fR", "\fBREMOVED\fR", or "\fBUNAVAIL\fR".
 .RE
 
@@ -561,7 +561,7 @@ The current health of the pool. Health can be "\fBONLINE\fR", "\fBDEGRADED\fR", 
 \fB\fBguid\fR\fR
 .ad
 .RS 20n
-.rt  
+.rt
 A unique identifier for the pool.
 .RE
 
@@ -572,7 +572,7 @@ A unique identifier for the pool.
 \fB\fBsize\fR\fR
 .ad
 .RS 20n
-.rt  
+.rt
 Total size of the storage pool.
 .RE
 
@@ -596,7 +596,7 @@ Information about unsupported features that are enabled on the pool. See
 \fB\fBused\fR\fR
 .ad
 .RS 20n
-.rt  
+.rt
 Amount of storage space used within the pool.
 .RE
 
@@ -698,7 +698,7 @@ Identifies the default bootable dataset for the root pool. This property is expe
 .ad
 .sp .6
 .RS 4n
-Controls the location of where the pool configuration is cached. Discovering all pools on system startup requires a cached copy of the configuration data that is stored on the root file system. All pools in this cache are automatically imported when the system boots. Some environments, such as install and clustering, need to cache this information in a different location so that pools are not automatically imported. Setting this property caches the pool configuration in a different location that can later be imported with "\fBzpool import -c\fR". Setting it to the special value "\fBnone\fR" creates a temporary pool that is never cached, and the special value \fB\&''\fR (empty string) uses the default location. 
+Controls the location of where the pool configuration is cached. Discovering all pools on system startup requires a cached copy of the configuration data that is stored on the root file system. All pools in this cache are automatically imported when the system boots. Some environments, such as install and clustering, need to cache this information in a different location so that pools are not automatically imported. Setting this property caches the pool configuration in a different location that can later be imported with "\fBzpool import -c\fR". Setting it to the special value "\fBnone\fR" creates a temporary pool that is never cached, and the special value \fB\&''\fR (empty string) uses the default location.
 .sp
 Multiple pools can share the same cache file. Because the kernel destroys and recreates this file when pools are added and removed, care should be taken when attempting to access this file. When the last pool using a \fBcachefile\fR is exported or destroyed, the file is removed.
 .RE
@@ -722,7 +722,7 @@ A text string consisting of printable ASCII characters that will be stored such 
 .ad
 .sp .6
 .RS 4n
-Threshold for the number of block ditto copies. If the reference count for a deduplicated block increases above this number, a new ditto copy of this block is automatically stored. The default setting is 0 which causes no ditto copies to be created for deduplicated blocks.  The miniumum legal nonzero setting is 100.
+Threshold for the number of block ditto copies. If the reference count for a deduplicated block increases above this number, a new ditto copy of this block is automatically stored. The default setting is 0 which causes no ditto copies to be created for deduplicated blocks.  The minimum legal nonzero setting is 100.
 .RE
 
 .sp
@@ -752,7 +752,7 @@ Controls the system behavior in the event of catastrophic pool failure. This con
 \fB\fBwait\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Blocks all \fBI/O\fR access until the device connectivity is recovered and the errors are cleared. This is the default behavior.
 .RE
 
@@ -763,7 +763,7 @@ Blocks all \fBI/O\fR access until the device connectivity is recovered and the e
 \fB\fBcontinue\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Returns \fBEIO\fR to any new write \fBI/O\fR requests but allows reads to any of the remaining healthy devices. Any write requests that have yet to be committed to disk would be blocked.
 .RE
 
@@ -774,7 +774,7 @@ Returns \fBEIO\fR to any new write \fBI/O\fR requests but allows reads to any of
 \fB\fBpanic\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Prints out a message to the console and generates a system crash dump.
 .RE
 
@@ -848,7 +848,7 @@ Adds the specified virtual devices to the given pool. The \fIvdev\fR specificati
 \fB\fB-f\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Forces use of \fBvdev\fRs, even if they appear in use or specify a conflicting replication level. Not all devices can be overridden in this manner.
 .RE
 
@@ -859,7 +859,7 @@ Forces use of \fBvdev\fRs, even if they appear in use or specify a conflicting r
 \fB\fB-n\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Displays the configuration that would be used without actually adding the \fBvdev\fRs. The actual pool creation can still fail due to insufficient privileges or device sharing.
 .RE
 
@@ -893,7 +893,7 @@ Attaches \fInew_device\fR to an existing \fBzpool\fR device. The existing device
 \fB\fB-f\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Forces use of \fInew_device\fR, even if its appears to be in use. Not all devices can be overridden in this manner.
 .RE
 
@@ -1047,7 +1047,7 @@ Destroys the given pool, freeing up any devices for other use. This command trie
 \fB\fB-f\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Forces any active datasets contained within the pool to be unmounted.
 .RE
 
@@ -1222,7 +1222,7 @@ Displays the command history of the specified pools or all pools if no pool is s
 \fB\fB-i\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Displays internally logged \fBZFS\fR events in addition to user initiated events.
 .RE
 
@@ -1233,7 +1233,7 @@ Displays internally logged \fBZFS\fR events in addition to user initiated events
 \fB\fB-l\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Displays log records in long format, which in addition to standard format includes, the user name, the hostname, and the zone in which the operation was performed.
 .RE
 
@@ -1247,7 +1247,7 @@ Displays log records in long format, which in addition to standard format includ
 .ad
 .sp .6
 .RS 4n
-Lists pools available to import. If the \fB-d\fR option is not specified, this command searches for devices in "/dev". The \fB-d\fR option can be specified multiple times, and all directories are searched. If the device appears to be part of an exported pool, this command displays a summary of the pool with the name of the pool, a numeric identifier, as well as the \fIvdev\fR layout and current health of the device for each device or file. Destroyed pools, pools that were previously destroyed with the "\fBzpool destroy\fR" command, are not listed unless the \fB-D\fR option is specified. 
+Lists pools available to import. If the \fB-d\fR option is not specified, this command searches for devices in "/dev". The \fB-d\fR option can be specified multiple times, and all directories are searched. If the device appears to be part of an exported pool, this command displays a summary of the pool with the name of the pool, a numeric identifier, as well as the \fIvdev\fR layout and current health of the device for each device or file. Destroyed pools, pools that were previously destroyed with the "\fBzpool destroy\fR" command, are not listed unless the \fB-D\fR option is specified.
 .sp
 The numeric identifier is unique, and can be used instead of the pool name when multiple exported pools of the same name are available.
 .sp
@@ -1257,7 +1257,7 @@ The numeric identifier is unique, and can be used instead of the pool name when 
 \fB\fB-c\fR \fIcachefile\fR\fR
 .ad
 .RS 16n
-.rt  
+.rt
 Reads configuration from the given \fBcachefile\fR that was created with the "\fBcachefile\fR" pool property. This \fBcachefile\fR is used instead of searching for devices.
 .RE
 
@@ -1268,8 +1268,8 @@ Reads configuration from the given \fBcachefile\fR that was created with the "\f
 \fB\fB-d\fR \fIdir\fR\fR
 .ad
 .RS 16n
-.rt  
-Searches for devices or files in \fIdir\fR. The \fB-d\fR option can be specified multiple times. 
+.rt
+Searches for devices or files in \fIdir\fR. The \fB-d\fR option can be specified multiple times.
 .RE
 
 .sp
@@ -1279,7 +1279,7 @@ Searches for devices or files in \fIdir\fR. The \fB-d\fR option can be specified
 \fB\fB-D\fR\fR
 .ad
 .RS 16n
-.rt  
+.rt
 Lists destroyed pools only.
 .RE
 
@@ -1301,7 +1301,7 @@ Imports all pools found in the search directories. Identical to the previous com
 \fB\fB-o\fR \fImntopts\fR\fR
 .ad
 .RS 21n
-.rt  
+.rt
 Comma-separated list of mount options to use when mounting datasets within the pool. See \fBzfs\fR(8) for a description of dataset properties and mount options.
 .RE
 
@@ -1312,7 +1312,7 @@ Comma-separated list of mount options to use when mounting datasets within the p
 \fB\fB-o\fR \fIproperty=value\fR\fR
 .ad
 .RS 21n
-.rt  
+.rt
 Sets the specified property on the imported pool. See the "Properties" section for more information on the available pool properties.
 .RE
 
@@ -1323,7 +1323,7 @@ Sets the specified property on the imported pool. See the "Properties" section f
 \fB\fB-c\fR \fIcachefile\fR\fR
 .ad
 .RS 21n
-.rt  
+.rt
 Reads configuration from the given \fBcachefile\fR that was created with the "\fBcachefile\fR" pool property. This \fBcachefile\fR is used instead of searching for devices.
 .RE
 
@@ -1334,7 +1334,7 @@ Reads configuration from the given \fBcachefile\fR that was created with the "\f
 \fB\fB-d\fR \fIdir\fR\fR
 .ad
 .RS 21n
-.rt  
+.rt
 Searches for devices or files in \fIdir\fR. The \fB-d\fR option can be specified multiple times. This option is incompatible with the \fB-c\fR option.
 .RE
 
@@ -1345,7 +1345,7 @@ Searches for devices or files in \fIdir\fR. The \fB-d\fR option can be specified
 \fB\fB-D\fR\fR
 .ad
 .RS 21n
-.rt  
+.rt
 Imports destroyed pools only. The \fB-f\fR option is also required.
 .RE
 
@@ -1356,7 +1356,7 @@ Imports destroyed pools only. The \fB-f\fR option is also required.
 \fB\fB-f\fR\fR
 .ad
 .RS 21n
-.rt  
+.rt
 Forces import, even if the pool appears to be potentially active.
 .RE
 
@@ -1377,8 +1377,8 @@ Recovery mode for a non-importable pool. Attempt to return the pool to an import
 \fB\fB-a\fR\fR
 .ad
 .RS 21n
-.rt  
-Searches for and imports all pools found. 
+.rt
+Searches for and imports all pools found.
 .RE
 
 .sp
@@ -1398,7 +1398,7 @@ Allows a pool to import when there is a missing log device.
 \fB\fB-R\fR \fIroot\fR\fR
 .ad
 .RS 21n
-.rt  
+.rt
 Sets the "\fBcachefile\fR" property to "\fBnone\fR" and the "\fIaltroot\fR" property to "\fIroot\fR".
 .RE
 
@@ -1620,7 +1620,7 @@ Displays \fBI/O\fR statistics for the given pools. When given an interval, the s
 \fB\fB-T\fR \fBu\fR | \fBd\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Display a time stamp.
 .sp
 Specify \fBu\fR for a printed representation of the internal representation of time. See \fBtime\fR(2). Specify \fBd\fR for standard date format. See \fBdate\fR(1).
@@ -1633,7 +1633,7 @@ Specify \fBu\fR for a printed representation of the internal representation of t
 \fB\fB-v\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within the pool, in addition to the pool-wide statistics.
 .RE
 
@@ -1688,7 +1688,7 @@ Lists the given pools along with a health status and space usage. If no \fIpools
 \fB\fB-H\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
 .RE
 
@@ -1698,7 +1698,7 @@ Scripted mode. Do not display headers, and separate fields by a single tab inste
 \fB\fB-T\fR \fBd\fR | \fBu\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Display a time stamp.
 .sp
 Specify \fBu\fR for a printed representation of the internal representation of time. See \fBtime\fR(2). Specify \fBd\fR for standard date format. See \fBdate\fR(1).
@@ -1711,7 +1711,7 @@ Specify \fBu\fR for a printed representation of the internal representation of t
 \fB\fB-o\fR \fIprops\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Comma-separated list of properties to display. See the "Properties" section for a list of valid properties. The default list is "name, size, used, available, fragmentation, expandsize, capacity, dedupratio, health, altroot"
 .RE
 
@@ -1746,7 +1746,7 @@ This command is not applicable to spares or cache devices.
 \fB\fB-t\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Temporary. Upon reboot, the specified physical device reverts to its previous state.
 .RE
 
@@ -1770,7 +1770,7 @@ This command is not applicable to spares or cache devices.
 \fB\fB-e\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Expand the device to use all available space. If the device is part of a mirror or \fBraidz\fR then all devices must be expanded before the new space will become available to the pool.
 .RE
 
@@ -1828,7 +1828,7 @@ The size of \fInew_device\fR must be greater than or equal to the minimum size o
 \fB\fB-f\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Forces use of \fInew_device\fR, even if its appears to be in use. Not all devices can be overridden in this manner.
 .RE
 
@@ -1865,7 +1865,7 @@ Because scrubbing and resilvering are \fBI/O\fR-intensive operations, \fBZFS\fR 
 \fB\fB-s\fR\fR
 .ad
 .RS 6n
-.rt  
+.rt
 Stop scrubbing.
 .RE
 
@@ -1913,7 +1913,7 @@ Do dry run, do not actually perform the split. Print out the expected configurat
 .ad
 .sp .6
 .RS 4n
-Set \fIaltroot\fR for \fInewpool\fR and automaticaly import it.  This can be useful to avoid mountpoint collisions if \fInewpool\fR is imported on the same filesystem as \fIpool\fR.
+Set \fIaltroot\fR for \fInewpool\fR and automatically import it.  This can be useful to avoid mountpoint collisions if \fInewpool\fR is imported on the same filesystem as \fIpool\fR.
 .RE
 
 .sp
@@ -1947,7 +1947,7 @@ If a scrub or resilver is in progress, this command reports the percentage done 
 \fB\fB-x\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Only display status for pools that are exhibiting errors or are otherwise unavailable. Warnings about pools not using the latest on-disk format will not be included.
 .RE
 
@@ -1958,7 +1958,7 @@ Only display status for pools that are exhibiting errors or are otherwise unavai
 \fB\fB-v\fR\fR
 .ad
 .RS 12n
-.rt  
+.rt
 Displays verbose data error information, printing out a complete list of all data errors since the last complete pool scrub.
 .RE
 
@@ -2277,7 +2277,7 @@ The following command adds two disks for use as cache devices to a ZFS storage p
 
 .sp
 .LP
-Once added, the cache devices gradually fill with content from main memory. Depending on the size of your cache devices, it could take over an hour for them to fill. Capacity and reads can be monitored using the \fBiostat\fR option as follows: 
+Once added, the cache devices gradually fill with content from main memory. Depending on the size of your cache devices, it could take over an hour for them to fill. Capacity and reads can be monitored using the \fBiostat\fR option as follows:
 
 .sp
 .in +2
@@ -2339,7 +2339,7 @@ The command to remove the mirrored log \fBmirror-2\fR is:
 .LP
 The following command displays the detailed information for the \fIdata\fR
 pool. This pool is comprised of a single \fIraidz\fR vdev where one of its
-devices increased its capacity by 10GB. In this example, the pool will not 
+devices increased its capacity by 10GB. In this example, the pool will not
 be able to utilized this extra capacity until all the devices under the
 \fIraidz\fR vdev have been expanded.
 
@@ -2367,8 +2367,8 @@ The following exit values are returned:
 \fB\fB0\fR\fR
 .ad
 .RS 5n
-.rt  
-Successful completion. 
+.rt
+Successful completion.
 .RE
 
 .sp
@@ -2378,7 +2378,7 @@ Successful completion.
 \fB\fB1\fR\fR
 .ad
 .RS 5n
-.rt  
+.rt
 An error occurred.
 .RE
 
@@ -2389,7 +2389,7 @@ An error occurred.
 \fB\fB2\fR\fR
 .ad
 .RS 5n
-.rt  
+.rt
 Invalid command line options were specified.
 .RE
 
