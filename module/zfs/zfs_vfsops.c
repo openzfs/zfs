@@ -826,9 +826,11 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 	rw_init(&zsb->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zsb->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
-	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ,
+	zsb->z_hold_mtx_size = MIN(1 << (highbit64(zfs_object_mutex_size) - 1),
+	    ZFS_OBJ_MTX_MAX);
+	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * zsb->z_hold_mtx_size,
 	    KM_SLEEP);
-	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
+	for (i = 0; i != zsb->z_hold_mtx_size; i++)
 		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
 
 	*zsbp = zsb;
@@ -838,7 +840,7 @@ out:
 	dmu_objset_disown(os, zsb);
 	*zsbp = NULL;
 
-	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
+	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * zsb->z_hold_mtx_size);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 	return (error);
 }
@@ -940,9 +942,9 @@ zfs_sb_free(zfs_sb_t *zsb)
 	rrm_destroy(&zsb->z_teardown_lock);
 	rw_destroy(&zsb->z_teardown_inactive_lock);
 	rw_destroy(&zsb->z_fuid_lock);
-	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
+	for (i = 0; i != zsb->z_hold_mtx_size; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
-	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
+	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * zsb->z_hold_mtx_size);
 	zfs_mntopts_free(zsb->z_mntopts);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
