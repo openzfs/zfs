@@ -36,7 +36,6 @@ extern vmem_t *zio_alloc_arena;
 extern vmem_t *zio_arena;
 
 extern size_t vmem_size(vmem_t *vmp, int typemask);
-extern void *spl_vmalloc(unsigned long size, gfp_t lflags, pgprot_t prot);
 
 /*
  * Memory allocation interfaces

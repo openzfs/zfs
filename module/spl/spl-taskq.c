@@ -849,9 +849,7 @@ taskq_thread(void *args)
 	tq = tqt->tqt_tq;
 	current->flags |= PF_NOFREEZE;
 
-#if defined(PF_MEMALLOC_NOIO)
-	(void) memalloc_noio_save();
-#endif
+	(void) spl_fstrans_mark();
 
 	sigfillset(&blocked);
 	sigprocmask(SIG_BLOCK, &blocked, NULL);

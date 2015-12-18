@@ -201,7 +201,7 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 		ASSERT(ISP2(size));
 		ptr = (void *)__get_free_pages(lflags, get_order(size));
 	} else {
-		ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
+		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
 	}
 
 	/* Resulting allocated memory will be page aligned */
@@ -1156,15 +1156,10 @@ spl_cache_grow_work(void *data)
 	spl_kmem_cache_t *skc = ska->ska_cache;
 	spl_kmem_slab_t *sks;
 
-#if defined(PF_MEMALLOC_NOIO)
-	unsigned noio_flag = memalloc_noio_save();
-	sks = spl_slab_alloc(skc, ska->ska_flags);
-	memalloc_noio_restore(noio_flag);
-#else
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 	sks = spl_slab_alloc(skc, ska->ska_flags);
 	spl_fstrans_unmark(cookie);
-#endif
+
 	spin_lock(&skc->skc_lock);
 	if (sks) {
 		skc->skc_slab_total++;

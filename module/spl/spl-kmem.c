@@ -185,7 +185,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 */
 		if ((size > spl_kmem_alloc_max) || use_vmem) {
 			if (flags & KM_VMEM) {
-				ptr = spl_vmalloc(size, lflags, PAGE_KERNEL);
+				ptr = __vmalloc(size, lflags, PAGE_KERNEL);
 			} else {
 				return (NULL);
 			}
@@ -198,7 +198,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 
 		/*
 		 * For vmem_alloc() and vmem_zalloc() callers retry immediately
-		 * using spl_vmalloc() which is unlikely to fail.
+		 * using __vmalloc() which is unlikely to fail.
 		 */
 		if ((flags & KM_VMEM) && (use_vmem == 0))  {
 			use_vmem = 1;

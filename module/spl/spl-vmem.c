@@ -97,31 +97,6 @@ spl_vmem_free(const void *buf, size_t size)
 }
 EXPORT_SYMBOL(spl_vmem_free);
 
-/*
- * Public vmalloc() interface designed to be safe to be called during I/O.
- */
-void *
-spl_vmalloc(unsigned long size, gfp_t lflags, pgprot_t prot)
-{
-#if defined(PF_MEMALLOC_NOIO)
-	void *ptr;
-	unsigned noio_flag = 0;
-
-	if (spl_fstrans_check())
-		noio_flag = memalloc_noio_save();
-
-	ptr =  __vmalloc(size, lflags, prot);
-
-	if (spl_fstrans_check())
-		memalloc_noio_restore(noio_flag);
-
-	return (ptr);
-#else
-	return (__vmalloc(size, lflags, prot));
-#endif
-}
-EXPORT_SYMBOL(spl_vmalloc);
-
 int
 spl_vmem_init(void)
 {
