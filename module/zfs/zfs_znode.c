@@ -95,6 +95,7 @@
 #ifdef _KERNEL
 
 static kmem_cache_t *znode_cache = NULL;
+unsigned int zfs_object_mutex_size = ZFS_OBJ_MTX_SZ;
 
 /*ARGSUSED*/
 static int
@@ -1744,9 +1745,11 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	list_create(&zsb->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
 
-	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ,
+	zsb->z_hold_mtx_size = MIN(1 << (highbit64(zfs_object_mutex_size) - 1),
+	    ZFS_OBJ_MTX_MAX);
+	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * zsb->z_hold_mtx_size,
 	    KM_SLEEP);
-	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
+	for (i = 0; i != zsb->z_hold_mtx_size; i++)
 		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
 
 	VERIFY(0 == zfs_acl_ids_create(rootzp, IS_ROOT_NODE, &vattr,
@@ -1767,10 +1770,10 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	error = zfs_create_share_dir(zsb, tx);
 	ASSERT(error == 0);
 
-	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
+	for (i = 0; i != zsb->z_hold_mtx_size; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
 
-	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * ZFS_OBJ_MTX_SZ);
+	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * zsb->z_hold_mtx_size);
 	kmem_free(sb, sizeof (struct super_block));
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
@@ -2007,4 +2010,7 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(zfs_create_fs);
 EXPORT_SYMBOL(zfs_obj_to_path);
+
+module_param(zfs_object_mutex_size, uint, 0644);
+MODULE_PARM_DESC(zfs_object_mutex_size, "Size of znode hold array");
 #endif
