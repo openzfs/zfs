@@ -174,7 +174,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,
 	    KM_SLEEP) == 0);
 
-#ifdef __linux__
+#if defined(__linux__) && defined(_KERNEL)
 	/*
 	 * Write the configuration to disk.  Due to the complexity involved
 	 * in performing a rename from within the kernel the file is truncated
@@ -201,7 +201,8 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	(void) snprintf(temp, MAXPATHLEN, "%s.tmp", dp->scd_path);
 
-	if (vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0) == 0) {
+	error = vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0);
+	if (error == 0) {
 		if (vn_rdwr(UIO_WRITE, vp, buf, buflen, 0, UIO_SYSSPACE,
 		    0, RLIM64_INFINITY, kcred, NULL) == 0 &&
 		    VOP_FSYNC(vp, FSYNC, kcred, NULL) == 0) {
