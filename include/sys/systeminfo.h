@@ -19,12 +19,17 @@
  *
  * CDDL HEADER END
  */
-/*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
- */
 
-#ifndef _LIBSPL_SYS_VNODE_H
-#define	_LIBSPL_SYS_VNODE_H
+#ifndef _SYS_SYSTEMINFO_H
+#define	_SYS_SYSTEMINFO_H
 
-#endif /* _LIBSPL_SYS_VNODE_H */
+#define	HW_INVALID_HOSTID	0xFFFFFFFF	/* an invalid hostid */
+#define	HW_HOSTID_LEN		11		/* minimum buffer size needed */
+						/* to hold a decimal or hex */
+						/* hostid string */
+#define	HW_HOSTID_PATH		"/etc/hostid"	/* binary configuration file */
+#define	HW_HOSTID_MASK		0xFFFFFFFF	/* significant hostid bits */
+
+unsigned long zone_get_hostid(void *zone);
+
+#endif /* _SYS_SYSTEMINFO_H */

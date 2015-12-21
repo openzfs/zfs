@@ -101,7 +101,12 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	/*
 	 * Make sure it's a regular file.
 	 */
-	if (vp->v_type != VREG) {
+	vattr.va_mask = AT_TYPE;
+	error = vn_getattr(vf->vf_vnode, &vattr, 0, kcred, NULL);
+	if (error) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		return (error);
+	} else if (vattr.va_type != VREG) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (SET_ERROR(ENODEV));
 	}
@@ -112,7 +117,7 @@ skip_open:
 	 * Determine the physical size of the file.
 	 */
 	vattr.va_mask = AT_SIZE;
-	error = VOP_GETATTR(vf->vf_vnode, &vattr, 0, kcred, NULL);
+	error = vn_getattr(vf->vf_vnode, &vattr, 0, kcred, NULL);
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (error);
@@ -133,8 +138,7 @@ vdev_file_close(vdev_t *vd)
 		return;
 
 	if (vf->vf_vnode != NULL) {
-		(void) VOP_PUTPAGE(vf->vf_vnode, 0, 0, B_INVAL, kcred, NULL);
-		(void) VOP_CLOSE(vf->vf_vnode, spa_mode(vd->vdev_spa), 1, 0,
+		(void) vn_close(vf->vf_vnode, spa_mode(vd->vdev_spa), 1, 0,
 		    kcred, NULL);
 	}
 
@@ -168,7 +172,7 @@ vdev_file_io_fsync(void *arg)
 	zio_t *zio = (zio_t *)arg;
 	vdev_file_t *vf = zio->io_vd->vdev_tsd;
 
-	zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC, kcred, NULL);
+	zio->io_error = vn_fsync(vf->vf_vnode, FSYNC | FDSYNC, kcred, NULL);
 
 	zio_interrupt(zio);
 }
@@ -206,7 +210,7 @@ vdev_file_io_start(zio_t *zio)
 				return;
 			}
 
-			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
+			zio->io_error = vn_fsync(vf->vf_vnode, FSYNC | FDSYNC,
 			    kcred, NULL);
 			break;
 		default:

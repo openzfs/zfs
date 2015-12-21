@@ -41,7 +41,7 @@
 #include <sys/zfs_znode.h>
 
 struct diffarg {
-	struct vnode *da_vp;		/* file to which we are reporting */
+	vnode_t *da_vp;			/* file to which we are reporting */
 	offset_t *da_offp;
 	int da_err;			/* error that stopped diff search */
 	dmu_diff_record_t da_ddr;
@@ -157,7 +157,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 int
 dmu_diff(const char *tosnap_name, const char *fromsnap_name,
-    struct vnode *vp, offset_t *offp)
+    vnode_t *vp, offset_t *offp)
 {
 	struct diffarg da;
 	dsl_dataset_t *fromsnap;

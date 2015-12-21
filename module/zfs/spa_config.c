@@ -36,7 +36,6 @@
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
 #ifdef _KERNEL
-#include <sys/kobj.h>
 #include <sys/zone.h>
 #endif
 
@@ -64,7 +63,6 @@ static uint64_t spa_config_generation = 1;
  * userland pools when doing testing.
  */
 char *spa_config_path = ZPOOL_CACHE;
-int zfs_autoimport_disable = 1;
 
 /*
  * Called when the module is first loaded, this routine loads the configuration
@@ -74,17 +72,13 @@ int zfs_autoimport_disable = 1;
 void
 spa_config_load(void)
 {
+#ifndef _KERNEL
 	void *buf = NULL;
 	nvlist_t *nvlist, *child;
 	nvpair_t *nvpair;
 	char *pathname;
 	struct _buf *file;
 	uint64_t fsize;
-
-#ifdef _KERNEL
-	if (zfs_autoimport_disable)
-		return;
-#endif
 
 	/*
 	 * Open the configuration file.
@@ -143,6 +137,7 @@ out:
 		kmem_free(buf, fsize);
 
 	kobj_close_file(file);
+#endif
 }
 
 static void
@@ -186,9 +181,9 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 		error = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0,
 		    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, NULL);
 		if (error == 0)
-			error = VOP_FSYNC(vp, FSYNC, kcred, NULL);
+			error = vn_fsync(vp, FSYNC, kcred, NULL);
 
-		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
+		(void) vn_close(vp, oflags, 1, 0, kcred, NULL);
 
 		if (error)
 			(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
@@ -204,10 +199,10 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	if (vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0) == 0) {
 		if (vn_rdwr(UIO_WRITE, vp, buf, buflen, 0, UIO_SYSSPACE,
 		    0, RLIM64_INFINITY, kcred, NULL) == 0 &&
-		    VOP_FSYNC(vp, FSYNC, kcred, NULL) == 0) {
+		    vn_fsync(vp, FSYNC, kcred, NULL) == 0) {
 			(void) vn_rename(temp, dp->scd_path, UIO_SYSSPACE);
 		}
-		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
+		(void) vn_close(vp, oflags, 1, 0, kcred, NULL);
 	}
 
 	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);
@@ -235,7 +230,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
-	if (rootdir == NULL || !(spa_mode_global & FWRITE))
+	if (!(spa_mode_global & FWRITE))
 		return;
 
 	/*
@@ -417,16 +412,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	VERIFY(spa->spa_comment == NULL || nvlist_add_string(config,
 	    ZPOOL_CONFIG_COMMENT, spa->spa_comment) == 0);
 
-
-#ifdef	_KERNEL
 	hostid = zone_get_hostid(NULL);
-#else	/* _KERNEL */
-	/*
-	 * We're emulating the system's hostid in userland, so we can't use
-	 * zone_get_hostid().
-	 */
-	(void) ddi_strtoul(hw_serial, NULL, 10, &hostid);
-#endif	/* _KERNEL */
 	if (hostid != 0) {
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID,
 		    hostid) == 0);
@@ -575,8 +561,4 @@ EXPORT_SYMBOL(spa_config_update);
 
 module_param(spa_config_path, charp, 0444);
 MODULE_PARM_DESC(spa_config_path, "SPA config file (/etc/zfs/zpool.cache)");
-
-module_param(zfs_autoimport_disable, int, 0644);
-MODULE_PARM_DESC(zfs_autoimport_disable, "Disable pool import at module load");
-
 #endif

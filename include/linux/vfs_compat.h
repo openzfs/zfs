@@ -28,6 +28,7 @@
 #define	_ZFS_VFS_H
 
 #include <sys/taskq.h>
+#include <sys/timer.h>
 #include <linux/backing-dev.h>
 
 /*
@@ -110,6 +111,12 @@ zpl_bdi_setup_and_register(struct backing_dev_info *bdi, char *name)
 	return (error);
 }
 #endif
+
+/*
+ * Wrappers for taking and releasing the inode lock.
+ */
+#define	zpl_inode_lock(ip)		mutex_lock(&(ip)->i_mutex)
+#define	zpl_inode_unlock(ip)		mutex_unlock(&(ip)->i_mutex)
 
 /*
  * 2.6.38 API change,

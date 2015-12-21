@@ -28,23 +28,6 @@
 #define	_LIBSPL_SYS_FILE_H
 
 #include_next <sys/file.h>
-
-#include <sys/user.h>
-
-#define	FREAD	1
-#define	FWRITE	2
-// #define FAPPEND  8
-
-#define	FCREAT	O_CREAT
-#define	FTRUNC	O_TRUNC
-#define	FOFFMAX	O_LARGEFILE
-#define	FSYNC	O_SYNC
-#define	FDSYNC	O_DSYNC
-#define	FRSYNC	O_RSYNC
-#define	FEXCL	O_EXCL
-
-#define	FNODSYNC	0x10000	/* fsync pseudo flag */
-#define	FNOFOLLOW	0x20000	/* don't follow symlinks */
-#define	FIGNORECASE	0x80000	/* request case-insensitive lookups */
+#include <sys/vnode.h>
 
 #endif

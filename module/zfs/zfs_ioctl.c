@@ -170,6 +170,7 @@
 #include <sys/pathname.h>
 #include <sys/mount.h>
 #include <sys/sdt.h>
+#include <sys/systeminfo.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>
@@ -185,6 +186,7 @@
 #include <sys/dsl_userhold.h>
 #include <sys/zfeature.h>
 
+#include <linux/file_compat.h>
 #include <linux/miscdevice.h>
 
 #include "zfs_namecheck.h"
@@ -194,6 +196,8 @@
 
 kmutex_t zfsdev_state_lock;
 zfsdev_state_t *zfsdev_state_list;
+unsigned long zfs_hostid = 0;
+char *zfs_hostid_path = HW_HOSTID_PATH;
 
 extern void zfs_init(void);
 extern void zfs_fini(void);
@@ -696,65 +700,16 @@ zfs_secpolicy_send_new(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	    ZFS_DELEG_PERM_SEND, cr));
 }
 
-#ifdef HAVE_SMB_SHARE
-/* ARGSUSED */
-static int
-zfs_secpolicy_deleg_share(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
-{
-	vnode_t *vp;
-	int error;
-
-	if ((error = lookupname(zc->zc_value, UIO_SYSSPACE,
-	    NO_FOLLOW, NULL, &vp)) != 0)
-		return (error);
-
-	/* Now make sure mntpnt and dataset are ZFS */
-
-	if (vp->v_vfsp->vfs_fstype != zfsfstype ||
-	    (strcmp((char *)refstr_value(vp->v_vfsp->vfs_resource),
-	    zc->zc_name) != 0)) {
-		VN_RELE(vp);
-		return (SET_ERROR(EPERM));
-	}
-
-	VN_RELE(vp);
-	return (dsl_deleg_access(zc->zc_name,
-	    ZFS_DELEG_PERM_SHARE, cr));
-}
-#endif /* HAVE_SMB_SHARE */
-
 int
 zfs_secpolicy_share(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-#ifdef HAVE_SMB_SHARE
-	if (!INGLOBALZONE(curproc))
-		return (SET_ERROR(EPERM));
-
-	if (secpolicy_nfs(cr) == 0) {
-		return (0);
-	} else {
-		return (zfs_secpolicy_deleg_share(zc, innvl, cr));
-	}
-#else
 	return (SET_ERROR(ENOTSUP));
-#endif /* HAVE_SMB_SHARE */
 }
 
 int
 zfs_secpolicy_smb_acl(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-#ifdef HAVE_SMB_SHARE
-	if (!INGLOBALZONE(curproc))
-		return (SET_ERROR(EPERM));
-
-	if (secpolicy_smb(cr) == 0) {
-		return (0);
-	} else {
-		return (zfs_secpolicy_deleg_share(zc, innvl, cr));
-	}
-#else
 	return (SET_ERROR(ENOTSUP));
-#endif /* HAVE_SMB_SHARE */
 }
 
 static int
@@ -3986,7 +3941,7 @@ static boolean_t zfs_ioc_recv_inject_err;
 static int
 zfs_ioc_recv(zfs_cmd_t *zc)
 {
-	file_t *fp;
+	struct file *fp;
 	dmu_recv_cookie_t drc;
 	boolean_t force = (boolean_t)zc->zc_guid;
 	int fd;
@@ -4016,7 +3971,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		return (error);
 
 	fd = zc->zc_cookie;
-	fp = getf(fd);
+	fp = fget(fd);
 	if (fp == NULL) {
 		nvlist_free(props);
 		return (SET_ERROR(EBADF));
@@ -4091,8 +4046,8 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		props_error = SET_ERROR(EINVAL);
 	}
 
-	off = fp->f_offset;
-	error = dmu_recv_stream(&drc, fp->f_vnode, &off, zc->zc_cleanup_fd,
+	off = file_pos(fp);
+	error = dmu_recv_stream(&drc, vn_from_file(fp), &off, zc->zc_cleanup_fd,
 	    &zc->zc_action_handle);
 
 	if (error == 0) {
@@ -4117,9 +4072,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		}
 	}
 
-	zc->zc_cookie = off - fp->f_offset;
-	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-		fp->f_offset = off;
+	zc->zc_cookie = off - file_pos(fp);
+	if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+		file_pos(fp) = off;
 
 #ifdef	DEBUG
 	if (zfs_ioc_recv_inject_err) {
@@ -4174,7 +4129,7 @@ out:
 	nvlist_free(props);
 	nvlist_free(origprops);
 	nvlist_free(errors);
-	releasef(fd);
+	fput(fp);
 
 	if (error == 0)
 		error = props_error;
@@ -4259,18 +4214,18 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 	} else {
-		file_t *fp = getf(zc->zc_cookie);
+		struct file *fp = fget(zc->zc_cookie);
 		if (fp == NULL)
 			return (SET_ERROR(EBADF));
 
-		off = fp->f_offset;
+		off = file_pos(fp);
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
 		    zc->zc_fromobj, embedok, large_block_ok,
-		    zc->zc_cookie, fp->f_vnode, &off);
+		    zc->zc_cookie, vn_from_file(fp), &off);
 
-		if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-			fp->f_offset = off;
-		releasef(zc->zc_cookie);
+		if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+			file_pos(fp) = off;
+		fput(fp);
 	}
 	return (error);
 }
@@ -4680,9 +4635,10 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 	char *snap_name;
 	char *hold_name;
 	int error;
+	struct file *fp;
 	minor_t minor;
 
-	error = zfs_onexit_fd_hold(zc->zc_cleanup_fd, &minor);
+	error = zfs_onexit_fd_hold(zc->zc_cleanup_fd, &minor, &fp);
 	if (error != 0)
 		return (error);
 
@@ -4696,7 +4652,7 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 		(void) strcpy(zc->zc_value, snap_name);
 	strfree(snap_name);
 	strfree(hold_name);
-	zfs_onexit_fd_rele(zc->zc_cleanup_fd);
+	zfs_onexit_fd_rele(fp);
 	return (error);
 }
 
@@ -4712,177 +4668,35 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 static int
 zfs_ioc_diff(zfs_cmd_t *zc)
 {
-	file_t *fp;
+	struct file *fp;
 	offset_t off;
 	int error;
 
-	fp = getf(zc->zc_cookie);
+	fp = fget(zc->zc_cookie);
 	if (fp == NULL)
 		return (SET_ERROR(EBADF));
 
-	off = fp->f_offset;
+	off = file_pos(fp);
 
-	error = dmu_diff(zc->zc_name, zc->zc_value, fp->f_vnode, &off);
+	error = dmu_diff(zc->zc_name, zc->zc_value, vn_from_file(fp), &off);
 
-	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-		fp->f_offset = off;
-	releasef(zc->zc_cookie);
+	if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+		file_pos(fp) = off;
+	fput(fp);
 
 	return (error);
 }
 
 /*
- * Remove all ACL files in shares dir
+ * The SMB ACL shares directory is not supported under Linux due to fundamental
+ * differences in the implementation of both ACL and Samba support.  The kernel
+ * ioctl interface however is preserved for compatibility but all callers have
+ * been removed.
  */
-#ifdef HAVE_SMB_SHARE
-static int
-zfs_smb_acl_purge(znode_t *dzp)
-{
-	zap_cursor_t	zc;
-	zap_attribute_t	zap;
-	zfs_sb_t *zsb = ZTOZSB(dzp);
-	int error;
-
-	for (zap_cursor_init(&zc, zsb->z_os, dzp->z_id);
-	    (error = zap_cursor_retrieve(&zc, &zap)) == 0;
-	    zap_cursor_advance(&zc)) {
-		if ((error = VOP_REMOVE(ZTOV(dzp), zap.za_name, kcred,
-		    NULL, 0)) != 0)
-			break;
-	}
-	zap_cursor_fini(&zc);
-	return (error);
-}
-#endif /* HAVE_SMB_SHARE */
-
 static int
 zfs_ioc_smb_acl(zfs_cmd_t *zc)
 {
-#ifdef HAVE_SMB_SHARE
-	vnode_t *vp;
-	znode_t *dzp;
-	vnode_t *resourcevp = NULL;
-	znode_t *sharedir;
-	zfs_sb_t *zsb;
-	nvlist_t *nvlist;
-	char *src, *target;
-	vattr_t vattr;
-	vsecattr_t vsec;
-	int error = 0;
-
-	if ((error = lookupname(zc->zc_value, UIO_SYSSPACE,
-	    NO_FOLLOW, NULL, &vp)) != 0)
-		return (error);
-
-	/* Now make sure mntpnt and dataset are ZFS */
-
-	if (vp->v_vfsp->vfs_fstype != zfsfstype ||
-	    (strcmp((char *)refstr_value(vp->v_vfsp->vfs_resource),
-	    zc->zc_name) != 0)) {
-		VN_RELE(vp);
-		return (SET_ERROR(EINVAL));
-	}
-
-	dzp = VTOZ(vp);
-	zsb = ZTOZSB(dzp);
-	ZFS_ENTER(zsb);
-
-	/*
-	 * Create share dir if its missing.
-	 */
-	mutex_enter(&zsb->z_lock);
-	if (zsb->z_shares_dir == 0) {
-		dmu_tx_t *tx;
-
-		tx = dmu_tx_create(zsb->z_os);
-		dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, TRUE,
-		    ZFS_SHARES_DIR);
-		dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, FALSE, NULL);
-		error = dmu_tx_assign(tx, TXG_WAIT);
-		if (error != 0) {
-			dmu_tx_abort(tx);
-		} else {
-			error = zfs_create_share_dir(zsb, tx);
-			dmu_tx_commit(tx);
-		}
-		if (error != 0) {
-			mutex_exit(&zsb->z_lock);
-			VN_RELE(vp);
-			ZFS_EXIT(zsb);
-			return (error);
-		}
-	}
-	mutex_exit(&zsb->z_lock);
-
-	ASSERT(zsb->z_shares_dir);
-	if ((error = zfs_zget(zsb, zsb->z_shares_dir, &sharedir)) != 0) {
-		VN_RELE(vp);
-		ZFS_EXIT(zsb);
-		return (error);
-	}
-
-	switch (zc->zc_cookie) {
-	case ZFS_SMB_ACL_ADD:
-		vattr.va_mask = AT_MODE|AT_UID|AT_GID|AT_TYPE;
-		vattr.va_mode = S_IFREG|0777;
-		vattr.va_uid = 0;
-		vattr.va_gid = 0;
-
-		vsec.vsa_mask = VSA_ACE;
-		vsec.vsa_aclentp = &full_access;
-		vsec.vsa_aclentsz = sizeof (full_access);
-		vsec.vsa_aclcnt = 1;
-
-		error = VOP_CREATE(ZTOV(sharedir), zc->zc_string,
-		    &vattr, EXCL, 0, &resourcevp, kcred, 0, NULL, &vsec);
-		if (resourcevp)
-			VN_RELE(resourcevp);
-		break;
-
-	case ZFS_SMB_ACL_REMOVE:
-		error = VOP_REMOVE(ZTOV(sharedir), zc->zc_string, kcred,
-		    NULL, 0);
-		break;
-
-	case ZFS_SMB_ACL_RENAME:
-		if ((error = get_nvlist(zc->zc_nvlist_src,
-		    zc->zc_nvlist_src_size, zc->zc_iflags, &nvlist)) != 0) {
-			VN_RELE(vp);
-			ZFS_EXIT(zsb);
-			return (error);
-		}
-		if (nvlist_lookup_string(nvlist, ZFS_SMB_ACL_SRC, &src) ||
-		    nvlist_lookup_string(nvlist, ZFS_SMB_ACL_TARGET,
-		    &target)) {
-			VN_RELE(vp);
-			VN_RELE(ZTOV(sharedir));
-			ZFS_EXIT(zsb);
-			nvlist_free(nvlist);
-			return (error);
-		}
-		error = VOP_RENAME(ZTOV(sharedir), src, ZTOV(sharedir), target,
-		    kcred, NULL, 0);
-		nvlist_free(nvlist);
-		break;
-
-	case ZFS_SMB_ACL_PURGE:
-		error = zfs_smb_acl_purge(sharedir);
-		break;
-
-	default:
-		error = SET_ERROR(EINVAL);
-		break;
-	}
-
-	VN_RELE(vp);
-	VN_RELE(ZTOV(sharedir));
-
-	ZFS_EXIT(zsb);
-
-	return (error);
-#else
 	return (SET_ERROR(ENOTSUP));
-#endif /* HAVE_SMB_SHARE */
 }
 
 /*
@@ -4903,6 +4717,7 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	nvlist_t *holds;
 	int cleanup_fd = -1;
 	int error;
+	struct file *fp = NULL;
 	minor_t minor = 0;
 
 	error = nvlist_lookup_nvlist(args, "holds", &holds);
@@ -4910,14 +4725,15 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 		return (SET_ERROR(EINVAL));
 
 	if (nvlist_lookup_int32(args, "cleanup_fd", &cleanup_fd) == 0) {
-		error = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		error = zfs_onexit_fd_hold(cleanup_fd, &minor, &fp);
 		if (error != 0)
 			return (error);
 	}
 
 	error = dsl_dataset_user_hold(holds, minor, errlist);
-	if (minor != 0)
-		zfs_onexit_fd_rele(cleanup_fd);
+	if (fp)
+		zfs_onexit_fd_rele(fp);
+
 	return (error);
 }
 
@@ -4968,11 +4784,11 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 {
 	zfs_zevent_t *ze;
 	nvlist_t *event = NULL;
-	minor_t minor;
+	struct file *fp;
 	uint64_t dropped = 0;
 	int error;
 
-	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &fp, &ze);
 	if (error != 0)
 		return (error);
 
@@ -4996,7 +4812,7 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 			break;
 	} while (1);
 
-	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+	zfs_zevent_fd_rele(fp);
 
 	return (error);
 }
@@ -5025,15 +4841,15 @@ static int
 zfs_ioc_events_seek(zfs_cmd_t *zc)
 {
 	zfs_zevent_t *ze;
-	minor_t minor;
+	struct file *fp;
 	int error;
 
-	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &fp, &ze);
 	if (error != 0)
 		return (error);
 
 	error = zfs_zevent_seek(ze, zc->zc_guid);
-	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+	zfs_zevent_fd_rele(fp);
 
 	return (error);
 }
@@ -5155,7 +4971,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	offset_t off;
 	char *fromname = NULL;
 	int fd;
-	file_t *fp;
+	struct file *fp;
 	boolean_t largeblockok;
 	boolean_t embedok;
 
@@ -5168,17 +4984,17 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	largeblockok = nvlist_exists(innvl, "largeblockok");
 	embedok = nvlist_exists(innvl, "embedok");
 
-	if ((fp = getf(fd)) == NULL)
+	if ((fp = fget(fd)) == NULL)
 		return (SET_ERROR(EBADF));
 
-	off = fp->f_offset;
+	off = file_pos(fp);
 	error = dmu_send(snapname, fromname, embedok, largeblockok,
-	    fd, fp->f_vnode, &off);
+	    fd, vn_from_file(fp), &off);
 
-	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
-		fp->f_offset = off;
+	if (vn_seek(vn_from_file(fp), file_pos(fp), &off, NULL) == 0)
+		file_pos(fp) = off;
 
-	releasef(fd);
+	fput(fp);
 	return (error);
 }
 
@@ -6000,6 +5816,56 @@ zfs_allow_log_destroy(void *arg)
 	strfree(poolname);
 }
 
+unsigned long
+zone_get_hostid(void *zone)
+{
+	struct file *fp;
+	struct kstat stat;
+	uint32_t hostid = 0;
+	ssize_t bytes;
+	loff_t pos = 0;
+	int error;
+
+	ASSERT3P(zone, ==, NULL);
+
+	if (zfs_hostid)
+		return (zfs_hostid);
+
+	fp = file_open(zfs_hostid_path, O_RDONLY, 0644);
+	if (IS_ERR(fp)) {
+		error = PTR_ERR(fp);
+		goto out;
+	}
+
+	error = file_stat(fp, &stat);
+	if (error)
+		goto out_close;
+
+	if (stat.size < sizeof (HW_HOSTID_MASK)) {
+		error = -EIO;
+		goto out_close;
+	}
+
+	bytes = file_read(fp, (char *)&hostid, sizeof (hostid), &pos);
+	if (bytes != sizeof (hostid)) {
+		error = -EIO;
+		goto out_close;
+	}
+
+	zfs_hostid = hostid & HW_HOSTID_MASK;
+out_close:
+	file_close(fp);
+out:
+	if (error)
+		printk(KERN_WARNING "ZFS: Error reading %s: %d\n",
+		    zfs_hostid_path, error);
+	else
+		printk(KERN_NOTICE "ZFS: using hostid 0x%08x\n",
+			(unsigned int)zfs_hostid);
+
+	return (zfs_hostid);
+}
+
 #ifdef DEBUG
 #define	ZFS_DEBUG_STR	" (DEBUG mode)"
 #else
@@ -6010,13 +5876,6 @@ static int __init
 _init(void)
 {
 	int error;
-
-	error = -vn_set_pwd("/");
-	if (error) {
-		printk(KERN_NOTICE
-		    "ZFS: Warning unable to set pwd to '/': %d\n", error);
-		return (error);
-	}
 
 	spa_init(FREAD | FWRITE);
 	zfs_init();
@@ -6074,6 +5933,12 @@ _fini(void)
 #ifdef HAVE_SPL
 module_init(_init);
 module_exit(_fini);
+
+module_param(zfs_hostid, ulong, 0644);
+MODULE_PARM_DESC(zfs_hostid, "System hostid");
+
+module_param(zfs_hostid_path, charp, 0444);
+MODULE_PARM_DESC(zfs_hostid_path, "System hostid file (" HW_HOSTID_PATH ")");
 
 MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);

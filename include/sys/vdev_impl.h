@@ -32,6 +32,7 @@
 #include <sys/nvpair.h>
 #include <sys/space_map.h>
 #include <sys/vdev.h>
+#include <sys/vnode.h>
 #include <sys/dkio.h>
 #include <sys/uberblock_impl.h>
 

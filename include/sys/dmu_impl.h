@@ -33,6 +33,7 @@
 #include <sys/txg_impl.h>
 #include <sys/zio.h>
 #include <sys/dnode.h>
+#include <sys/vnode.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_ioctl.h>
 

@@ -599,17 +599,6 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_autoimport_disable\fR (int)
-.ad
-.RS 12n
-Disable pool import at module load by ignoring the cache file (typically \fB/etc/zfs/zpool.cache\fR).
-.sp
-Use \fB1\fR for yes (default) and \fB0\fR for no.
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_dbgmsg_enable\fR (int)
 .ad
 .RS 12n
@@ -1088,6 +1077,32 @@ Default value: \fB0\fR.
 Min millisecs to free per txg
 .sp
 Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_hostid\fR (ulong)
+.ad
+.RS 12n
+The system hostid, when set this can be used to uniquely identify a system.
+By default this value is set to zero which indicates the hostid is disabled.
+It can be explicitly enabled by placing a unique non-zero value in
+\fB/etc/hostid/\fR.
+.sp
+Default value: \fB0\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_hostid_path\fR (charp)
+.ad
+.RS 12n
+The expected path to locate the system hostid when specified.  This value
+may be overridden for non-standard configurations.
+.sp
+Default value: \fB/etc/hostid\fR
 .RE
 
 .sp

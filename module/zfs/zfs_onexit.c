@@ -122,30 +122,34 @@ zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
  * using the minor number.
  */
 int
-zfs_onexit_fd_hold(int fd, minor_t *minorp)
+zfs_onexit_fd_hold(int fd, minor_t *minorp, struct file **fpp)
 {
-	file_t *fp;
+	struct file *fp;
 	zfs_onexit_t *zo;
 	int error;
 
-	fp = getf(fd);
+	fp = fget(fd);
 	if (fp == NULL)
 		return (SET_ERROR(EBADF));
 
-	error = zfsdev_getminor(fp->f_file, minorp);
+	error = zfsdev_getminor(fp, minorp);
 	if (error == 0)
 		error = zfs_onexit_minor_to_state(*minorp, &zo);
 
-	if (error)
-		zfs_onexit_fd_rele(fd);
+	if (error) {
+		zfs_onexit_fd_rele(fp);
+		*fpp = NULL;
+	} else {
+		*fpp = fp;
+	}
 
 	return (error);
 }
 
 void
-zfs_onexit_fd_rele(int fd)
+zfs_onexit_fd_rele(struct file *fp)
 {
-	releasef(fd);
+	fput(fp);
 }
 
 /*
