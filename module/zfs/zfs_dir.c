@@ -632,15 +632,22 @@ zfs_rmnode(znode_t *zp)
 	}
 
 	/*
-	 * Free up all the data in the file.
+	 * Free up all the data in the file.  We don't do this for directories
+	 * because we need truncate and remove to be in the same tx, like in
+	 * zfs_znode_delete(). Otherwise, if we crash here we'll end up with
+	 * an inconsistent truncated zap object in the delete queue.  Note a
+	 * truncated file is harmless since it only contains user data.
 	 */
-	error = dmu_free_long_range(os, zp->z_id, 0, DMU_OBJECT_END);
-	if (error) {
-		/*
-		 * Not enough space.  Leave the file in the unlinked set.
-		 */
-		zfs_znode_dmu_fini(zp);
-		return;
+	if (S_ISREG(ZTOI(zp)->i_mode)) {
+		error = dmu_free_long_range(os, zp->z_id, 0, DMU_OBJECT_END);
+		if (error) {
+			/*
+			 * Not enough space.  Leave the file in the unlinked
+			 * set.
+			 */
+			zfs_znode_dmu_fini(zp);
+			return;
+		}
 	}
 
 	/*
