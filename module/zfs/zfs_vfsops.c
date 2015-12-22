@@ -663,7 +663,7 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 	objset_t *os;
 	zfs_sb_t *zsb;
 	uint64_t zval;
-	int i, error;
+	int i, size, error;
 	uint64_t sa_obj;
 
 	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP);
@@ -685,8 +685,7 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 
 	/*
 	 * Initialize the zfs-specific filesystem structure.
-	 * Should probably make this a kmem cache, shuffle fields,
-	 * and just bzero up to z_hold_mtx[].
+	 * Should probably make this a kmem cache, shuffle fields.
 	 */
 	zsb->z_sb = NULL;
 	zsb->z_parent = zsb;
@@ -795,12 +794,15 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 	rw_init(&zsb->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zsb->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
-	zsb->z_hold_mtx_size = MIN(1 << (highbit64(zfs_object_mutex_size) - 1),
-	    ZFS_OBJ_MTX_MAX);
-	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * zsb->z_hold_mtx_size,
-	    KM_SLEEP);
-	for (i = 0; i != zsb->z_hold_mtx_size; i++)
-		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
+	size = MIN(1 << (highbit64(zfs_object_mutex_size)-1), ZFS_OBJ_MTX_MAX);
+	zsb->z_hold_size = size;
+	zsb->z_hold_trees = vmem_zalloc(sizeof (avl_tree_t) * size, KM_SLEEP);
+	zsb->z_hold_locks = vmem_zalloc(sizeof (kmutex_t) * size, KM_SLEEP);
+	for (i = 0; i != size; i++) {
+		avl_create(&zsb->z_hold_trees[i], zfs_znode_hold_compare,
+		    sizeof (znode_hold_t), offsetof(znode_hold_t, zh_node));
+		mutex_init(&zsb->z_hold_locks[i], NULL, MUTEX_DEFAULT, NULL);
+	}
 
 	*zsbp = zsb;
 	return (0);
@@ -809,7 +811,6 @@ out:
 	dmu_objset_disown(os, zsb);
 	*zsbp = NULL;
 
-	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * zsb->z_hold_mtx_size);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 	return (error);
 }
@@ -901,7 +902,7 @@ EXPORT_SYMBOL(zfs_sb_setup);
 void
 zfs_sb_free(zfs_sb_t *zsb)
 {
-	int i;
+	int i, size = zsb->z_hold_size;
 
 	zfs_fuid_destroy(zsb);
 
@@ -911,9 +912,12 @@ zfs_sb_free(zfs_sb_t *zsb)
 	rrm_destroy(&zsb->z_teardown_lock);
 	rw_destroy(&zsb->z_teardown_inactive_lock);
 	rw_destroy(&zsb->z_fuid_lock);
-	for (i = 0; i != zsb->z_hold_mtx_size; i++)
-		mutex_destroy(&zsb->z_hold_mtx[i]);
-	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * zsb->z_hold_mtx_size);
+	for (i = 0; i != size; i++) {
+		avl_destroy(&zsb->z_hold_trees[i]);
+		mutex_destroy(&zsb->z_hold_locks[i]);
+	}
+	vmem_free(zsb->z_hold_trees, sizeof (avl_tree_t) * size);
+	vmem_free(zsb->z_hold_locks, sizeof (kmutex_t) * size);
 	zfs_mntopts_free(zsb->z_mntopts);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
