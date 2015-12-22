@@ -29,6 +29,7 @@
 #ifndef _ZIO_H
 #define	_ZIO_H
 
+#include <sys/zio_priority.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
@@ -147,17 +148,6 @@ enum zio_compress {
 #define	ZIO_FAILURE_MODE_CONTINUE	1
 #define	ZIO_FAILURE_MODE_PANIC		2
 
-typedef enum zio_priority {
-	ZIO_PRIORITY_SYNC_READ,
-	ZIO_PRIORITY_SYNC_WRITE,	/* ZIL */
-	ZIO_PRIORITY_ASYNC_READ,	/* prefetch */
-	ZIO_PRIORITY_ASYNC_WRITE,	/* spa_sync() */
-	ZIO_PRIORITY_SCRUB,		/* asynchronous scrub/resilver reads */
-	ZIO_PRIORITY_NUM_QUEUEABLE,
-
-	ZIO_PRIORITY_NOW		/* non-queued i/os (e.g. free) */
-} zio_priority_t;
-
 enum zio_flag {
 	/*
 	 * Flags inherited by gang, ddt, and vdev children,
@@ -262,6 +252,7 @@ extern const char *zio_type_name[ZIO_TYPES];
  * Root blocks (objset_phys_t) are object 0, level -1:  <objset, 0, -1, 0>.
  * ZIL blocks are bookmarked <objset, 0, -2, blkid == ZIL sequence number>.
  * dmu_sync()ed ZIL data blocks are bookmarked <objset, object, -2, blkid>.
+ * dnode visit bookmarks are <objset, object id of dnode, -3, 0>.
  *
  * Note: this structure is called a bookmark because its original purpose
  * was to remember where to resume a pool-wide traverse.
@@ -293,6 +284,9 @@ struct zbookmark_phys {
 
 #define	ZB_ZIL_OBJECT		(0ULL)
 #define	ZB_ZIL_LEVEL		(-2LL)
+
+#define	ZB_DNODE_LEVEL		(-3LL)
+#define	ZB_DNODE_BLKID		(0ULL)
 
 #define	ZB_IS_ZERO(zb)						\
 	((zb)->zb_objset == 0 && (zb)->zb_object == 0 &&	\
@@ -598,8 +592,10 @@ extern void zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 extern void spa_handle_ignored_writes(spa_t *spa);
 
 /* zbookmark_phys functions */
-boolean_t zbookmark_is_before(const struct dnode_phys *dnp,
-    const zbookmark_phys_t *zb1, const zbookmark_phys_t *zb2);
+boolean_t zbookmark_subtree_completed(const struct dnode_phys *dnp,
+    const zbookmark_phys_t *subtree_root, const zbookmark_phys_t *last_block);
+int zbookmark_compare(uint16_t dbss1, uint8_t ibs1, uint16_t dbss2,
+    uint8_t ibs2, const zbookmark_phys_t *zb1, const zbookmark_phys_t *zb2);
 
 #ifdef	__cplusplus
 }

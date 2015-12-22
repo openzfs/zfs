@@ -162,8 +162,9 @@ zap_table_grow(zap_t *zap, zap_table_phys_t *tbl,
 		newblk = zap_allocate_blocks(zap, tbl->zt_numblks * 2);
 		tbl->zt_nextblk = newblk;
 		ASSERT0(tbl->zt_blks_copied);
-		dmu_prefetch(zap->zap_objset, zap->zap_object,
-		    tbl->zt_blk << bs, tbl->zt_numblks << bs);
+		dmu_prefetch(zap->zap_objset, zap->zap_object, 0,
+		    tbl->zt_blk << bs, tbl->zt_numblks << bs,
+		    ZIO_PRIORITY_SYNC_READ);
 	}
 
 	/*
@@ -939,7 +940,8 @@ fzap_prefetch(zap_name_t *zn)
 	if (zap_idx_to_blk(zap, idx, &blk) != 0)
 		return;
 	bs = FZAP_BLOCK_SHIFT(zap);
-	dmu_prefetch(zap->zap_objset, zap->zap_object, blk << bs, 1 << bs);
+	dmu_prefetch(zap->zap_objset, zap->zap_object, 0, blk << bs, 1 << bs,
+	    ZIO_PRIORITY_SYNC_READ);
 }
 
 /*
@@ -1285,9 +1287,10 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 	} else {
 		int b;
 
-		dmu_prefetch(zap->zap_objset, zap->zap_object,
+		dmu_prefetch(zap->zap_objset, zap->zap_object, 0,
 		    zap_f_phys(zap)->zap_ptrtbl.zt_blk << bs,
-		    zap_f_phys(zap)->zap_ptrtbl.zt_numblks << bs);
+		    zap_f_phys(zap)->zap_ptrtbl.zt_numblks << bs,
+		    ZIO_PRIORITY_SYNC_READ);
 
 		for (b = 0; b < zap_f_phys(zap)->zap_ptrtbl.zt_numblks;
 		    b++) {

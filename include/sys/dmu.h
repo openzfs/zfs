@@ -40,6 +40,7 @@
  * dmu_spa.h.
  */
 
+#include <sys/zio_priority.h>
 #include <sys/zfs_context.h>
 #include <sys/inttypes.h>
 #include <sys/cred.h>
@@ -740,8 +741,8 @@ extern int zfs_max_recordsize;
 /*
  * Asynchronously try to read in the data.
  */
-void dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset,
-    uint64_t len);
+void dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
+	uint64_t len, enum zio_priority pri);
 
 typedef struct dmu_object_info {
 	/* All sizes are in bytes unless otherwise indicated. */
