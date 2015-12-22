@@ -383,8 +383,8 @@ splat_condvar_test5(struct file *file, void *arg)
         kcondvar_t condvar;
         kmutex_t mtx;
 	clock_t time_left, time_before, time_after, time_delta;
-	int64_t whole_delta;
-	int32_t remain_delta;
+	uint64_t whole_delta;
+	uint32_t remain_delta;
 	int rc = 0;
 
 	mutex_init(&mtx, SPLAT_CONDVAR_TEST_NAME, MUTEX_DEFAULT, NULL);
@@ -408,19 +408,20 @@ splat_condvar_test5(struct file *file, void *arg)
 			splat_vprint(file, SPLAT_CONDVAR_TEST5_NAME,
 			           "Thread correctly timed out and was asleep "
 			           "for %d.%d seconds (%d second min)\n",
-			           (int)whole_delta, remain_delta, 1);
+			           (int)whole_delta, (int)remain_delta, 1);
 		} else {
 			splat_vprint(file, SPLAT_CONDVAR_TEST5_NAME,
 			           "Thread correctly timed out but was only "
 			           "asleep for %d.%d seconds (%d second "
-			           "min)\n", (int)whole_delta, remain_delta, 1);
+			           "min)\n", (int)whole_delta,
+				   (int)remain_delta, 1);
 			rc = -ETIMEDOUT;
 		}
 	} else {
 		splat_vprint(file, SPLAT_CONDVAR_TEST5_NAME,
 		           "Thread exited after only %d.%d seconds, it "
 		           "did not hit the %d second timeout\n",
-		           (int)whole_delta, remain_delta, 1);
+		           (int)whole_delta, (int)remain_delta, 1);
 		rc = -ETIMEDOUT;
 	}
 
