@@ -273,7 +273,7 @@ typedef struct znode {
 /*
  * Macros for dealing with dmu_buf_hold
  */
-#define	ZFS_OBJ_MTX_SZ	256
+#define	ZFS_OBJ_MTX_SZ	1024
 #define	ZFS_OBJ_MTX_MAX	(1024 * 1024)
 
 extern unsigned int zfs_object_mutex_size;
