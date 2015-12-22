@@ -112,8 +112,9 @@ typedef struct zfs_sb {
 	uint64_t	z_groupquota_obj;
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
-	uint64_t	z_hold_mtx_size; /* znode hold locks size */
-	kmutex_t	*z_hold_mtx;	/* znode hold locks */
+	uint64_t	z_hold_size;	/* znode hold array size */
+	avl_tree_t	*z_hold_trees;	/* znode hold trees */
+	kmutex_t	*z_hold_locks;	/* znode hold locks */
 } zfs_sb_t;
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
