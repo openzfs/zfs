@@ -220,6 +220,12 @@ typedef struct znode {
 	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 
+typedef struct znode_hold {
+	uint64_t	zh_obj;		/* object id */
+	kmutex_t	zh_lock;	/* lock serializing object access */
+	avl_node_t	zh_node;	/* avl tree linkage */
+	refcount_t	zh_refcount;	/* active consumer reference count */
+} znode_hold_t;
 
 /*
  * Range locking rules
@@ -273,23 +279,11 @@ typedef struct znode {
 /*
  * Macros for dealing with dmu_buf_hold
  */
-#define	ZFS_OBJ_MTX_SZ	64
-#define	ZFS_OBJ_MTX_MAX	(1024 * 1024)
+#define	ZFS_OBJ_MTX_SZ		64
+#define	ZFS_OBJ_MTX_MAX		(1024 * 1024)
+#define	ZFS_OBJ_HASH(zsb, obj)	((obj) & ((zsb->z_hold_size) - 1))
 
 extern unsigned int zfs_object_mutex_size;
-
-#define	ZFS_OBJ_HASH(zsb, obj_num)	\
-	((obj_num) & ((zsb->z_hold_mtx_size) - 1))
-#define	ZFS_OBJ_MUTEX(zsb, obj_num)	\
-	(&(zsb)->z_hold_mtx[ZFS_OBJ_HASH(zsb, obj_num)])
-#define	ZFS_OBJ_HOLD_ENTER(zsb, obj_num) \
-	mutex_enter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
-#define	ZFS_OBJ_HOLD_TRYENTER(zsb, obj_num) \
-	mutex_tryenter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
-#define	ZFS_OBJ_HOLD_EXIT(zsb, obj_num) \
-	mutex_exit(ZFS_OBJ_MUTEX((zsb), (obj_num)))
-#define	ZFS_OBJ_HOLD_OWNED(zsb, obj_num) \
-	mutex_owned(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 
 /* Encode ZFS stored time values from a struct timespec */
 #define	ZFS_TIME_ENCODE(tp, stmp)		\
@@ -326,6 +320,7 @@ extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
 extern void	zfs_znode_fini(void);
+extern int	zfs_znode_hold_compare(const void *, const void *);
 extern int	zfs_zget(zfs_sb_t *, uint64_t, znode_t **);
 extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);

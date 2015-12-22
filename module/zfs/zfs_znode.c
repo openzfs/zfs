@@ -95,6 +95,7 @@
 #ifdef _KERNEL
 
 static kmem_cache_t *znode_cache = NULL;
+static kmem_cache_t *znode_hold_cache = NULL;
 unsigned int zfs_object_mutex_size = ZFS_OBJ_MTX_SZ;
 
 /*ARGSUSED*/
@@ -145,6 +146,27 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	ASSERT(zp->z_xattr_parent == NULL);
 }
 
+static int
+zfs_znode_hold_cache_constructor(void *buf, void *arg, int kmflags)
+{
+	znode_hold_t *zh = buf;
+
+	mutex_init(&zh->zh_lock, NULL, MUTEX_DEFAULT, NULL);
+	refcount_create(&zh->zh_refcount);
+	zh->zh_obj = ZFS_NO_OBJECT;
+
+	return (0);
+}
+
+static void
+zfs_znode_hold_cache_destructor(void *buf, void *arg)
+{
+	znode_hold_t *zh = buf;
+
+	mutex_destroy(&zh->zh_lock);
+	refcount_destroy(&zh->zh_refcount);
+}
+
 void
 zfs_znode_init(void)
 {
@@ -157,6 +179,11 @@ zfs_znode_init(void)
 	znode_cache = kmem_cache_create("zfs_znode_cache",
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
 	    zfs_znode_cache_destructor, NULL, NULL, NULL, KMC_SLAB);
+
+	ASSERT(znode_hold_cache == NULL);
+	znode_hold_cache = kmem_cache_create("zfs_znode_hold_cache",
+	    sizeof (znode_hold_t), 0, zfs_znode_hold_cache_constructor,
+	    zfs_znode_hold_cache_destructor, NULL, NULL, NULL, 0);
 }
 
 void
@@ -168,6 +195,124 @@ zfs_znode_fini(void)
 	if (znode_cache)
 		kmem_cache_destroy(znode_cache);
 	znode_cache = NULL;
+
+	if (znode_hold_cache)
+		kmem_cache_destroy(znode_hold_cache);
+	znode_hold_cache = NULL;
+}
+
+/*
+ * The zfs_znode_hold_enter() / zfs_znode_hold_exit() functions are used to
+ * serialize access to a znode and its SA buffer while the object is being
+ * created or destroyed.  This kind of locking would normally reside in the
+ * znode itself but in this case that's impossible because the znode and SA
+ * buffer may not yet exist.  Therefore the locking is handled externally
+ * with an array of mutexs and AVLs trees which contain per-object locks.
+ *
+ * In zfs_znode_hold_enter() a per-object lock is created as needed, inserted
+ * in to the correct AVL tree and finally the per-object lock is held.  In
+ * zfs_znode_hold_exit() the process is reversed.  The per-object lock is
+ * released, removed from the AVL tree and destroyed if there are no waiters.
+ *
+ * This scheme has two important properties:
+ *
+ * 1) No memory allocations are performed while holding one of the z_hold_locks.
+ *    This ensures evict(), which can be called from direct memory reclaim, will
+ *    never block waiting on a z_hold_locks which just happens to have hashed
+ *    to the same index.
+ *
+ * 2) All locks used to serialize access to an object are per-object and never
+ *    shared.  This minimizes lock contention without creating a large number
+ *    of dedicated locks.
+ *
+ * On the downside it does require znode_lock_t structures to be frequently
+ * allocated and freed.  However, because these are backed by a kmem cache
+ * and very short lived this cost is minimal.
+ */
+int
+zfs_znode_hold_compare(const void *a, const void *b)
+{
+	const znode_hold_t *zh_a = a;
+	const znode_hold_t *zh_b = b;
+
+	if (zh_a->zh_obj < zh_b->zh_obj)
+		return (-1);
+	else if (zh_a->zh_obj > zh_b->zh_obj)
+		return (1);
+	else
+		return (0);
+}
+
+boolean_t
+zfs_znode_held(zfs_sb_t *zsb, uint64_t obj)
+{
+	znode_hold_t *zh, search;
+	int i = ZFS_OBJ_HASH(zsb, obj);
+
+	search.zh_obj = obj;
+
+	mutex_enter(&zsb->z_hold_locks[i]);
+	zh = avl_find(&zsb->z_hold_trees[i], &search, NULL);
+	mutex_exit(&zsb->z_hold_locks[i]);
+
+	if (zh && MUTEX_HELD(&zh->zh_lock))
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
+static znode_hold_t *
+zfs_znode_hold_enter(zfs_sb_t *zsb, uint64_t obj)
+{
+	znode_hold_t *zh, *zh_new, search;
+	int i = ZFS_OBJ_HASH(zsb, obj);
+	boolean_t found = B_FALSE;
+
+	zh_new = kmem_cache_alloc(znode_hold_cache, KM_SLEEP);
+	zh_new->zh_obj = obj;
+	search.zh_obj = obj;
+
+	mutex_enter(&zsb->z_hold_locks[i]);
+	zh = avl_find(&zsb->z_hold_trees[i], &search, NULL);
+	if (likely(zh == NULL)) {
+		zh = zh_new;
+		avl_add(&zsb->z_hold_trees[i], zh);
+	} else {
+		ASSERT3U(zh->zh_obj, ==, obj);
+		found = B_TRUE;
+	}
+	refcount_add(&zh->zh_refcount, NULL);
+	mutex_exit(&zsb->z_hold_locks[i]);
+
+	if (found == B_TRUE)
+		kmem_cache_free(znode_hold_cache, zh_new);
+
+	ASSERT(MUTEX_NOT_HELD(&zh->zh_lock));
+	ASSERT3S(refcount_count(&zh->zh_refcount), >, 0);
+	mutex_enter(&zh->zh_lock);
+
+	return (zh);
+}
+
+static void
+zfs_znode_hold_exit(zfs_sb_t *zsb, znode_hold_t *zh)
+{
+	int i = ZFS_OBJ_HASH(zsb, zh->zh_obj);
+	boolean_t remove = B_FALSE;
+
+	ASSERT(zfs_znode_held(zsb, zh->zh_obj));
+	ASSERT3S(refcount_count(&zh->zh_refcount), >, 0);
+	mutex_exit(&zh->zh_lock);
+
+	mutex_enter(&zsb->z_hold_locks[i]);
+	if (refcount_remove(&zh->zh_refcount, NULL) == 0) {
+		avl_remove(&zsb->z_hold_trees[i], zh);
+		remove = B_TRUE;
+	}
+	mutex_exit(&zsb->z_hold_locks[i]);
+
+	if (remove == B_TRUE)
+		kmem_cache_free(znode_hold_cache, zh);
 }
 
 int
@@ -222,7 +367,7 @@ static void
 zfs_znode_sa_init(zfs_sb_t *zsb, znode_t *zp,
     dmu_buf_t *db, dmu_object_type_t obj_type, sa_handle_t *sa_hdl)
 {
-	ASSERT(MUTEX_HELD(ZFS_OBJ_MUTEX(zsb, zp->z_id)));
+	ASSERT(zfs_znode_held(zsb, zp->z_id));
 
 	mutex_enter(&zp->z_lock);
 
@@ -244,8 +389,7 @@ zfs_znode_sa_init(zfs_sb_t *zsb, znode_t *zp,
 void
 zfs_znode_dmu_fini(znode_t *zp)
 {
-	ASSERT(MUTEX_HELD(ZFS_OBJ_MUTEX(ZTOZSB(zp), zp->z_id)) ||
-	    zp->z_unlinked ||
+	ASSERT(zfs_znode_held(ZTOZSB(zp), zp->z_id) || zp->z_unlinked ||
 	    RW_WRITE_HELD(&ZTOZSB(zp)->z_teardown_inactive_lock));
 
 	sa_handle_destroy(zp->z_sa_hdl);
@@ -571,6 +715,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	sa_bulk_attr_t	*sa_attrs;
 	int		cnt = 0;
 	zfs_acl_locator_cb_t locate = { 0 };
+	znode_hold_t	*zh;
 
 	if (zsb->z_replay) {
 		obj = vap->va_nodeid;
@@ -617,7 +762,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		}
 	}
 
-	ZFS_OBJ_HOLD_ENTER(zsb, obj);
+	zh = zfs_znode_hold_enter(zsb, obj);
 	VERIFY(0 == sa_buf_hold(zsb->z_os, obj, NULL, &db));
 
 	/*
@@ -791,7 +936,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		VERIFY0(zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx));
 	}
 	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
-	ZFS_OBJ_HOLD_EXIT(zsb, obj);
+	zfs_znode_hold_exit(zsb, zh);
 }
 
 /*
@@ -895,17 +1040,18 @@ zfs_zget(zfs_sb_t *zsb, uint64_t obj_num, znode_t **zpp)
 	dmu_object_info_t doi;
 	dmu_buf_t	*db;
 	znode_t		*zp;
+	znode_hold_t	*zh;
 	int err;
 	sa_handle_t	*hdl;
 
 	*zpp = NULL;
 
 again:
-	ZFS_OBJ_HOLD_ENTER(zsb, obj_num);
+	zh = zfs_znode_hold_enter(zsb, obj_num);
 
 	err = sa_buf_hold(zsb->z_os, obj_num, NULL, &db);
 	if (err) {
-		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		zfs_znode_hold_exit(zsb, zh);
 		return (err);
 	}
 
@@ -915,7 +1061,7 @@ again:
 	    (doi.doi_bonus_type == DMU_OT_ZNODE &&
 	    doi.doi_bonus_size < sizeof (znode_phys_t)))) {
 		sa_buf_rele(db, NULL);
-		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		zfs_znode_hold_exit(zsb, zh);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -954,7 +1100,7 @@ again:
 			if (igrab(ZTOI(zp)) == NULL) {
 				mutex_exit(&zp->z_lock);
 				sa_buf_rele(db, NULL);
-				ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+				zfs_znode_hold_exit(zsb, zh);
 				/* inode might need this to finish evict */
 				cond_resched();
 				goto again;
@@ -964,7 +1110,7 @@ again:
 		}
 		mutex_exit(&zp->z_lock);
 		sa_buf_rele(db, NULL);
-		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		zfs_znode_hold_exit(zsb, zh);
 		return (err);
 	}
 
@@ -985,7 +1131,7 @@ again:
 	} else {
 		*zpp = zp;
 	}
-	ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+	zfs_znode_hold_exit(zsb, zh);
 	return (err);
 }
 
@@ -1001,8 +1147,9 @@ zfs_rezget(znode_t *zp)
 	int err;
 	int count = 0;
 	uint64_t gen;
+	znode_hold_t *zh;
 
-	ZFS_OBJ_HOLD_ENTER(zsb, obj_num);
+	zh = zfs_znode_hold_enter(zsb, obj_num);
 
 	mutex_enter(&zp->z_acl_lock);
 	if (zp->z_acl_cached) {
@@ -1026,7 +1173,7 @@ zfs_rezget(znode_t *zp)
 	ASSERT(zp->z_sa_hdl == NULL);
 	err = sa_buf_hold(zsb->z_os, obj_num, NULL, &db);
 	if (err) {
-		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		zfs_znode_hold_exit(zsb, zh);
 		return (err);
 	}
 
@@ -1036,7 +1183,7 @@ zfs_rezget(znode_t *zp)
 	    (doi.doi_bonus_type == DMU_OT_ZNODE &&
 	    doi.doi_bonus_size < sizeof (znode_phys_t)))) {
 		sa_buf_rele(db, NULL);
-		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		zfs_znode_hold_exit(zsb, zh);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1062,7 +1209,7 @@ zfs_rezget(znode_t *zp)
 
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count)) {
 		zfs_znode_dmu_fini(zp);
-		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		zfs_znode_hold_exit(zsb, zh);
 		return (SET_ERROR(EIO));
 	}
 
@@ -1070,7 +1217,7 @@ zfs_rezget(znode_t *zp)
 
 	if (gen != zp->z_gen) {
 		zfs_znode_dmu_fini(zp);
-		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		zfs_znode_hold_exit(zsb, zh);
 		return (SET_ERROR(EIO));
 	}
 
@@ -1078,7 +1225,7 @@ zfs_rezget(znode_t *zp)
 	zp->z_blksz = doi.doi_data_block_size;
 	zfs_inode_update(zp);
 
-	ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+	zfs_znode_hold_exit(zsb, zh);
 
 	return (0);
 }
@@ -1090,15 +1237,16 @@ zfs_znode_delete(znode_t *zp, dmu_tx_t *tx)
 	objset_t *os = zsb->z_os;
 	uint64_t obj = zp->z_id;
 	uint64_t acl_obj = zfs_external_acl(zp);
+	znode_hold_t *zh;
 
-	ZFS_OBJ_HOLD_ENTER(zsb, obj);
+	zh = zfs_znode_hold_enter(zsb, obj);
 	if (acl_obj) {
 		VERIFY(!zp->z_is_sa);
 		VERIFY(0 == dmu_object_free(os, acl_obj, tx));
 	}
 	VERIFY(0 == dmu_object_free(os, obj, tx));
 	zfs_znode_dmu_fini(zp);
-	ZFS_OBJ_HOLD_EXIT(zsb, obj);
+	zfs_znode_hold_exit(zsb, zh);
 }
 
 void
@@ -1106,13 +1254,14 @@ zfs_zinactive(znode_t *zp)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	uint64_t z_id = zp->z_id;
+	znode_hold_t *zh;
 
 	ASSERT(zp->z_sa_hdl);
 
 	/*
 	 * Don't allow a zfs_zget() while were trying to release this znode.
 	 */
-	ZFS_OBJ_HOLD_ENTER(zsb, z_id);
+	zh = zfs_znode_hold_enter(zsb, z_id);
 
 	mutex_enter(&zp->z_lock);
 
@@ -1122,9 +1271,7 @@ zfs_zinactive(znode_t *zp)
 	 */
 	if (zp->z_unlinked) {
 		mutex_exit(&zp->z_lock);
-
-		ZFS_OBJ_HOLD_EXIT(zsb, z_id);
-
+		zfs_znode_hold_exit(zsb, zh);
 		zfs_rmnode(zp);
 		return;
 	}
@@ -1132,7 +1279,7 @@ zfs_zinactive(znode_t *zp)
 	mutex_exit(&zp->z_lock);
 	zfs_znode_dmu_fini(zp);
 
-	ZFS_OBJ_HOLD_EXIT(zsb, z_id);
+	zfs_znode_hold_exit(zsb, zh);
 }
 
 static inline int
@@ -1622,6 +1769,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	uint64_t	sense = ZFS_CASE_SENSITIVE;
 	uint64_t	norm = 0;
 	nvpair_t	*elem;
+	int		size;
 	int		error;
 	int		i;
 	znode_t		*rootzp = NULL;
@@ -1733,12 +1881,15 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	list_create(&zsb->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
 
-	zsb->z_hold_mtx_size = MIN(1 << (highbit64(zfs_object_mutex_size) - 1),
-	    ZFS_OBJ_MTX_MAX);
-	zsb->z_hold_mtx = vmem_zalloc(sizeof (kmutex_t) * zsb->z_hold_mtx_size,
-	    KM_SLEEP);
-	for (i = 0; i != zsb->z_hold_mtx_size; i++)
-		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
+	size = MIN(1 << (highbit64(zfs_object_mutex_size)-1), ZFS_OBJ_MTX_MAX);
+	zsb->z_hold_size = size;
+	zsb->z_hold_trees = vmem_zalloc(sizeof (avl_tree_t) * size, KM_SLEEP);
+	zsb->z_hold_locks = vmem_zalloc(sizeof (kmutex_t) * size, KM_SLEEP);
+	for (i = 0; i != size; i++) {
+		avl_create(&zsb->z_hold_trees[i], zfs_znode_hold_compare,
+		    sizeof (znode_hold_t), offsetof(znode_hold_t, zh_node));
+		mutex_init(&zsb->z_hold_locks[i], NULL, MUTEX_DEFAULT, NULL);
+	}
 
 	VERIFY(0 == zfs_acl_ids_create(rootzp, IS_ROOT_NODE, &vattr,
 	    cr, NULL, &acl_ids));
@@ -1758,10 +1909,13 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	error = zfs_create_share_dir(zsb, tx);
 	ASSERT(error == 0);
 
-	for (i = 0; i != zsb->z_hold_mtx_size; i++)
-		mutex_destroy(&zsb->z_hold_mtx[i]);
+	for (i = 0; i != size; i++) {
+		avl_destroy(&zsb->z_hold_trees[i]);
+		mutex_destroy(&zsb->z_hold_locks[i]);
+	}
 
-	vmem_free(zsb->z_hold_mtx, sizeof (kmutex_t) * zsb->z_hold_mtx_size);
+	vmem_free(zsb->z_hold_trees, sizeof (avl_tree_t) * size);
+	vmem_free(zsb->z_hold_locks, sizeof (kmutex_t) * size);
 	kmem_free(sb, sizeof (struct super_block));
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
