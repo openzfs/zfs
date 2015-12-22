@@ -560,7 +560,7 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	struct killarg *ka = arg;
 	dmu_tx_t *tx = ka->tx;
 
-	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
+	if (bp == NULL || BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
 		return (0);
 
 	if (zb->zb_level == ZB_ZIL_LEVEL) {

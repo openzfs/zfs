@@ -157,7 +157,7 @@ resume_skip_check(traverse_data_t *td, const dnode_phys_t *dnp,
 		 * If we already visited this bp & everything below,
 		 * don't bother doing it again.
 		 */
-		if (zbookmark_is_before(dnp, zb, td->td_resume))
+		if (zbookmark_subtree_completed(dnp, zb, td->td_resume))
 			return (RESUME_SKIP_ALL);
 
 		/*
@@ -428,6 +428,17 @@ traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
 	int j, err = 0;
 	zbookmark_phys_t czb;
 
+	if (td->td_flags & TRAVERSE_PRE) {
+		SET_BOOKMARK(&czb, objset, object, ZB_DNODE_LEVEL,
+		    ZB_DNODE_BLKID);
+		err = td->td_func(td->td_spa, NULL, NULL, &czb, dnp,
+		    td->td_arg);
+		if (err == TRAVERSE_VISIT_NO_CHILDREN)
+			return (0);
+		if (err != 0)
+			return (err);
+	}
+
 	for (j = 0; j < dnp->dn_nblkptr; j++) {
 		SET_BOOKMARK(&czb, objset, object, dnp->dn_nlevels - 1, j);
 		err = traverse_visitbp(td, dnp, &dnp->dn_blkptr[j], &czb);
@@ -435,9 +446,20 @@ traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
 			break;
 	}
 
-	if (err == 0 && dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
+	if (err == 0 && (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
 		SET_BOOKMARK(&czb, objset, object, 0, DMU_SPILL_BLKID);
 		err = traverse_visitbp(td, dnp, &dnp->dn_spill, &czb);
+	}
+
+	if (err == 0 && (td->td_flags & TRAVERSE_POST)) {
+		SET_BOOKMARK(&czb, objset, object, ZB_DNODE_LEVEL,
+		    ZB_DNODE_BLKID);
+		err = td->td_func(td->td_spa, NULL, NULL, &czb, dnp,
+		    td->td_arg);
+		if (err == TRAVERSE_VISIT_NO_CHILDREN)
+			return (0);
+		if (err != 0)
+			return (err);
 	}
 	return (err);
 }
@@ -451,6 +473,8 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	arc_flags_t aflags = ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
 
 	ASSERT(pfd->pd_bytes_fetched >= 0);
+	if (bp == NULL)
+		return (0);
 	if (pfd->pd_cancel)
 		return (SET_ERROR(EINTR));
 
