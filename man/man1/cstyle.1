@@ -48,7 +48,7 @@ Check continuation line indentation inside of functions.  Sun's C style
 states that all statements must be indented to an appropriate tab stop,
 and any continuation lines after them must be indented \fIexactly\fP four
 spaces from the start line.  This option enables a series of checks
-designed to find contination line problems within functions only.  The
+designed to find continuation line problems within functions only.  The
 checks have some limitations;  see CONTINUATION CHECKING, below.
 .LP
 .TP 4
@@ -80,7 +80,7 @@ types.  Used as part of the putback checks.
 .LP
 .TP 4
 .B \-o \fIconstructs\fP
-Allow a comma-seperated list of additional constructs.  Available
+Allow a comma-separated list of additional constructs.  Available
 constructs include:
 .LP
 .TP 10
@@ -111,8 +111,8 @@ must also give no errors.  This way, files can only become more clean.
 .LP
 .SH CONTINUATION CHECKING
 .LP
-The continuation checker is a resonably simple state machine that knows
-something about how C is layed out, and can match parenthesis, etc. over
+The continuation checker is a reasonably simple state machine that knows
+something about how C is laid out, and can match parenthesis, etc. over
 multiple lines.  It does have some limitations:
 .LP
 .TP 4
@@ -135,7 +135,7 @@ Some continuation error messages deserve some additional explanation
 .B
 multiple statements continued over multiple lines
 A multi-line statement which is not broken at statement
-boundries.  For example:
+boundaries.  For example:
 .RS 4
 .HP 4
 if (this_is_a_long_variable == another_variable) a =

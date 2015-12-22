@@ -102,7 +102,7 @@
  */
 static avl_tree_t zfs_snapshots_by_name;
 static avl_tree_t zfs_snapshots_by_objsetid;
-static kmutex_t zfs_snapshot_lock;
+static krwlock_t zfs_snapshot_lock;
 
 /*
  * Control Directory Tunables (.zfs)
@@ -195,7 +195,7 @@ zfsctl_snapshot_rele(zfs_snapentry_t *se)
 static void
 zfsctl_snapshot_add(zfs_snapentry_t *se)
 {
-	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 	refcount_add(&se->se_refcount, NULL);
 	avl_add(&zfs_snapshots_by_name, se);
 	avl_add(&zfs_snapshots_by_objsetid, se);
@@ -210,7 +210,7 @@ zfsctl_snapshot_add(zfs_snapentry_t *se)
 static void
 zfsctl_snapshot_remove(zfs_snapentry_t *se)
 {
-	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 	avl_remove(&zfs_snapshots_by_name, se);
 	avl_remove(&zfs_snapshots_by_objsetid, se);
 	zfsctl_snapshot_rele(se);
@@ -268,7 +268,7 @@ zfsctl_snapshot_find_by_name(char *snapname)
 {
 	zfs_snapentry_t *se, search;
 
-	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
 
 	search.se_name = snapname;
 	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
@@ -288,7 +288,7 @@ zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
 {
 	zfs_snapentry_t *se, search;
 
-	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
 
 	search.se_spa = spa;
 	search.se_objsetid = objsetid;
@@ -308,7 +308,7 @@ zfsctl_snapshot_rename(char *old_snapname, char *new_snapname)
 {
 	zfs_snapentry_t *se;
 
-	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 
 	se = zfsctl_snapshot_find_by_name(old_snapname);
 	if (se == NULL)
@@ -333,6 +333,11 @@ snapentry_expire(void *data)
 	spa_t *spa = se->se_spa;
 	uint64_t objsetid = se->se_objsetid;
 
+	if (zfs_expire_snapshot <= 0) {
+		zfsctl_snapshot_rele(se);
+		return;
+	}
+
 	se->se_taskqid = -1;
 	(void) zfsctl_snapshot_unmount(se->se_name, MNT_EXPIRE);
 	zfsctl_snapshot_rele(se);
@@ -341,12 +346,12 @@ snapentry_expire(void *data)
 	 * Reschedule the unmount if the zfs_snapentry_t wasn't removed.
 	 * This can occur when the snapshot is busy.
 	 */
-	mutex_enter(&zfs_snapshot_lock);
+	rw_enter(&zfs_snapshot_lock, RW_READER);
 	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
 		zfsctl_snapshot_rele(se);
 	}
-	mutex_exit(&zfs_snapshot_lock);
+	rw_exit(&zfs_snapshot_lock);
 }
 
 /*
@@ -357,7 +362,7 @@ snapentry_expire(void *data)
 static void
 zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
 {
-	ASSERT(MUTEX_HELD(&zfs_snapshot_lock));
+	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
 
 	if (taskq_cancel_id(zfs_expire_taskq, se->se_taskqid) == 0) {
 		se->se_taskqid = -1;
@@ -373,9 +378,12 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 {
 	ASSERT3S(se->se_taskqid, ==, -1);
 
+	if (delay <= 0)
+		return;
+
+	zfsctl_snapshot_hold(se);
 	se->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
 	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
-	zfsctl_snapshot_hold(se);
 }
 
 /*
@@ -390,14 +398,14 @@ zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid, int delay)
 	zfs_snapentry_t *se;
 	int error = ENOENT;
 
-	mutex_enter(&zfs_snapshot_lock);
+	rw_enter(&zfs_snapshot_lock, RW_READER);
 	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfsctl_snapshot_unmount_cancel(se);
 		zfsctl_snapshot_unmount_delay_impl(se, delay);
 		zfsctl_snapshot_rele(se);
 		error = 0;
 	}
-	mutex_exit(&zfs_snapshot_lock);
+	rw_exit(&zfs_snapshot_lock);
 
 	return (error);
 }
@@ -412,12 +420,12 @@ zfsctl_snapshot_ismounted(char *snapname)
 	zfs_snapentry_t *se;
 	boolean_t ismounted = B_FALSE;
 
-	mutex_enter(&zfs_snapshot_lock);
+	rw_enter(&zfs_snapshot_lock, RW_READER);
 	if ((se = zfsctl_snapshot_find_by_name(snapname)) != NULL) {
 		zfsctl_snapshot_rele(se);
 		ismounted = B_TRUE;
 	}
-	mutex_exit(&zfs_snapshot_lock);
+	rw_exit(&zfs_snapshot_lock);
 
 	return (ismounted);
 }
@@ -571,14 +579,14 @@ zfsctl_destroy(zfs_sb_t *zsb)
 		spa_t *spa = zsb->z_os->os_spa;
 		uint64_t objsetid = dmu_objset_id(zsb->z_os);
 
-		mutex_enter(&zfs_snapshot_lock);
+		rw_enter(&zfs_snapshot_lock, RW_WRITER);
 		if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid))
 		    != NULL) {
 			zfsctl_snapshot_unmount_cancel(se);
 			zfsctl_snapshot_remove(se);
 			zfsctl_snapshot_rele(se);
 		}
-		mutex_exit(&zfs_snapshot_lock);
+		rw_exit(&zfs_snapshot_lock);
 	} else if (zsb->z_ctldir) {
 		iput(zsb->z_ctldir);
 		zsb->z_ctldir = NULL;
@@ -889,13 +897,13 @@ zfsctl_snapdir_rename(struct inode *sdip, char *snm,
 		goto out;
 	}
 
-	mutex_enter(&zfs_snapshot_lock);
+	rw_enter(&zfs_snapshot_lock, RW_WRITER);
 
 	error = dsl_dataset_rename_snapshot(fsname, snm, tnm, B_FALSE);
 	if (error == 0)
 		(void) zfsctl_snapshot_rename(snm, tnm);
 
-	mutex_exit(&zfs_snapshot_lock);
+	rw_exit(&zfs_snapshot_lock);
 out:
 	kmem_free(from, MAXNAMELEN);
 	kmem_free(to, MAXNAMELEN);
@@ -1016,12 +1024,12 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 	zfs_snapentry_t *se;
 	int error;
 
-	mutex_enter(&zfs_snapshot_lock);
+	rw_enter(&zfs_snapshot_lock, RW_READER);
 	if ((se = zfsctl_snapshot_find_by_name(snapname)) == NULL) {
-		mutex_exit(&zfs_snapshot_lock);
+		rw_exit(&zfs_snapshot_lock);
 		return (ENOENT);
 	}
-	mutex_exit(&zfs_snapshot_lock);
+	rw_exit(&zfs_snapshot_lock);
 
 	argv[2] = kmem_asprintf(SET_UNMOUNT_CMD,
 	    flags & MNT_FORCE ? "-f " : "", se->se_path);
@@ -1086,7 +1094,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * The snapshot may be manually mounted as many times as desired.
 	 */
 	if (zfsctl_snapshot_ismounted(full_name)) {
-		error = SET_ERROR(EISDIR);
+		error = 0;
 		goto error;
 	}
 
@@ -1137,13 +1145,13 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		dentry = spath.dentry;
 		spath.mnt->mnt_flags |= MNT_SHRINKABLE;
 
-		mutex_enter(&zfs_snapshot_lock);
+		rw_enter(&zfs_snapshot_lock, RW_WRITER);
 		se = zfsctl_snapshot_alloc(full_name, full_path,
 		    snap_zsb->z_os->os_spa, dmu_objset_id(snap_zsb->z_os),
 		    dentry);
 		zfsctl_snapshot_add(se);
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
-		mutex_exit(&zfs_snapshot_lock);
+		rw_exit(&zfs_snapshot_lock);
 	}
 	path_put(&spath);
 error:
@@ -1172,7 +1180,7 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 	 * process.  This race cannot occur to an expired mount point
 	 * because we hold the zfs_snapshot_lock to prevent the race.
 	 */
-	mutex_enter(&zfs_snapshot_lock);
+	rw_enter(&zfs_snapshot_lock, RW_READER);
 	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfs_sb_t *zsb;
 
@@ -1182,7 +1190,8 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 		if (time_after(jiffies, zsb->z_snap_defer_time +
 		    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
 			zsb->z_snap_defer_time = jiffies;
-			zfsctl_snapshot_unmount_delay(spa, objsetid,
+			zfsctl_snapshot_unmount_cancel(se);
+			zfsctl_snapshot_unmount_delay_impl(se,
 			    zfs_expire_snapshot);
 		}
 
@@ -1192,7 +1201,7 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 	} else {
 		error = SET_ERROR(ENOENT);
 	}
-	mutex_exit(&zfs_snapshot_lock);
+	rw_exit(&zfs_snapshot_lock);
 
 	/*
 	 * Automount the snapshot given the objset id by constructing the
@@ -1266,7 +1275,7 @@ zfsctl_init(void)
 	avl_create(&zfs_snapshots_by_objsetid, snapentry_compare_by_objsetid,
 	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t,
 	    se_node_objsetid));
-	mutex_init(&zfs_snapshot_lock, NULL, MUTEX_DEFAULT, NULL);
+	rw_init(&zfs_snapshot_lock, NULL, RW_DEFAULT, NULL);
 
 	zfs_expire_taskq = taskq_create("z_unmount", 1, defclsyspri,
 	    1, 8, TASKQ_PREPOPULATE);
@@ -1283,7 +1292,7 @@ zfsctl_fini(void)
 
 	avl_destroy(&zfs_snapshots_by_name);
 	avl_destroy(&zfs_snapshots_by_objsetid);
-	mutex_destroy(&zfs_snapshot_lock);
+	rw_destroy(&zfs_snapshot_lock);
 }
 
 module_param(zfs_admin_snapshot, int, 0644);

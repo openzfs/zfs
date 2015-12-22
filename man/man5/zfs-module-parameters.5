@@ -1169,7 +1169,7 @@ Defines a threshold at which metaslab groups should be eligible for
 allocations.  The value is expressed as a percentage of free space
 beyond which a metaslab group is always eligible for allocations.
 If a metaslab group's free space is less than or equal to the
-the threshold, the allocator will avoid allocating to that group
+threshold, the allocator will avoid allocating to that group
 unless all groups in the pool have reached the threshold.  Once all
 groups have reached the threshold, all groups are allowed to accept
 allocations.  The default value of 0 disables the feature and causes
@@ -1582,7 +1582,7 @@ Default value: \fB1,048,576\fR.
 \fBzio_delay_max\fR (int)
 .ad
 .RS 12n
-Max zio millisec delay before posting event
+Max zio millisecond delay before posting event
 .sp
 Default value: \fB30,000\fR.
 .RE
@@ -1596,6 +1596,23 @@ Default value: \fB30,000\fR.
 Prioritize requeued I/O
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_taskq_batch_pct\fR (uint)
+.ad
+.RS 12n
+Percentage of online CPUs (or CPU cores, etc) which will run a worker thread
+for IO. These workers are responsible for IO work such as compression and
+checksum calculations. Fractional number of CPUs will be rounded down.
+.sp
+The default value of 75 was chosen to avoid using all CPUs which can result in
+latency issues and inconsistent application performance, especially when high
+compression is enabled.
+.sp
+Default value: \fB75\fR.
 .RE
 
 .sp
