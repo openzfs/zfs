@@ -293,7 +293,8 @@ dmu_zfetch_fetch(dnode_t *dn, uint64_t blkid, uint64_t nblks)
 	fetchsz = dmu_zfetch_fetchsz(dn, blkid, nblks);
 
 	for (i = 0; i < fetchsz; i++) {
-		dbuf_prefetch(dn, blkid + i, ZIO_PRIORITY_ASYNC_READ);
+		dbuf_prefetch(dn, 0, blkid + i, ZIO_PRIORITY_ASYNC_READ,
+		    ARC_FLAG_PREFETCH);
 	}
 
 	return (fetchsz);
