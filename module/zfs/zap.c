@@ -504,6 +504,16 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 
+	/*
+	 * If system crashed just after dmu_free_long_range in zfs_rmnode, we
+	 * would be left with an empty xattr dir in delete queue. blkid=0
+	 * would be passed in when doing zfs_purgedir. If that's the case we
+	 * should just return immediately. The underlying objects should
+	 * already be freed, so this should be perfectly fine.
+	 */
+	if (blkid == 0)
+		return (ENOENT);
+
 	err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
 	    blkid << bs, NULL, &db, DMU_READ_NO_PREFETCH);
 	if (err)
