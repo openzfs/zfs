@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -1742,10 +1742,11 @@ metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 	ASSERT(msp->ms_loaded);
 
 
-	spa_dbgmsg(spa, "condensing: txg %llu, msp[%llu] %p, "
-	    "smp size %llu, segments %lu, forcing condense=%s", txg,
-	    msp->ms_id, msp, space_map_length(msp->ms_sm),
-	    avl_numnodes(&msp->ms_tree->rt_root),
+	spa_dbgmsg(spa, "condensing: txg %llu, msp[%llu] %p, vdev id %llu, "
+	    "spa %s, smp size %llu, segments %lu, forcing condense=%s", txg,
+	    msp->ms_id, msp, msp->ms_group->mg_vd->vdev_id,
+	    msp->ms_group->mg_vd->vdev_spa->spa_name,
+	    space_map_length(msp->ms_sm), avl_numnodes(&msp->ms_tree->rt_root),
 	    msp->ms_condense_wanted ? "TRUE" : "FALSE");
 
 	msp->ms_condense_wanted = B_FALSE;
