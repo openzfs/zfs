@@ -331,12 +331,12 @@ Default value: \fB1,048,576\fR.
 .sp
 .ne 2
 .na
-\fBzfetch_block_cap\fR (uint)
+\fBzfetch_max_distance\fR (uint)
 .ad
 .RS 12n
-Max number of blocks to prefetch at a time
+Max bytes to prefetch per stream (default 8MB).
 .sp
-Default value: \fB256\fR.
+Default value: \fB8,388,608\fR.
 .RE
 
 .sp
@@ -1246,7 +1246,10 @@ Default value: \fB52,428,800\fR.
 \fBzfs_prefetch_disable\fR (int)
 .ad
 .RS 12n
-Disable all ZFS prefetching
+This tunable disables predictive prefetch.  Note that it leaves "prescient"
+prefetch (e.g. prefetch for zfs send) intact.  Unlike predictive prefetch,
+prescient prefetch never issues i/os that end up not being needed, so it
+can't hurt performance.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
