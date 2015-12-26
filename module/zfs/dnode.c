@@ -524,7 +524,7 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_id_flags = 0;
 	dn->dn_unlisted_l0_blkid = 0;
 
-	dmu_zfetch_rele(&dn->dn_zfetch);
+	dmu_zfetch_fini(&dn->dn_zfetch);
 	kmem_cache_free(dnode_cache, dn);
 	arc_space_return(sizeof (dnode_t), ARC_SPACE_OTHER);
 
@@ -773,8 +773,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	dmu_zfetch_init(&ndn->dn_zfetch, NULL);
 	list_move_tail(&ndn->dn_zfetch.zf_stream, &odn->dn_zfetch.zf_stream);
 	ndn->dn_zfetch.zf_dnode = odn->dn_zfetch.zf_dnode;
-	ndn->dn_zfetch.zf_stream_cnt = odn->dn_zfetch.zf_stream_cnt;
-	ndn->dn_zfetch.zf_alloc_fail = odn->dn_zfetch.zf_alloc_fail;
 
 	/*
 	 * Update back pointers. Updating the handle fixes the back pointer of
