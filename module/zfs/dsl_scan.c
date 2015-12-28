@@ -619,7 +619,8 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
 		 * If we already visited this bp & everything below (in
 		 * a prior txg sync), don't bother doing it again.
 		 */
-		if (zbookmark_is_before(dnp, zb, &scn->scn_phys.scn_bookmark))
+		if (zbookmark_subtree_completed(dnp, zb,
+		    &scn->scn_phys.scn_bookmark))
 			return (B_TRUE);
 
 		/*

@@ -547,6 +547,7 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 	const char *snapname;
 	uint64_t obj;
 	int err = 0;
+	dsl_dataset_t *ds;
 
 	err = dsl_dir_hold(dp, name, FTAG, &dd, &snapname);
 	if (err != 0)
@@ -555,36 +556,37 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 	ASSERT(dsl_pool_config_held(dp));
 	obj = dsl_dir_phys(dd)->dd_head_dataset_obj;
 	if (obj != 0)
-		err = dsl_dataset_hold_obj(dp, obj, tag, dsp);
+		err = dsl_dataset_hold_obj(dp, obj, tag, &ds);
 	else
 		err = SET_ERROR(ENOENT);
 
 	/* we may be looking for a snapshot */
 	if (err == 0 && snapname != NULL) {
-		dsl_dataset_t *ds;
+		dsl_dataset_t *snap_ds;
 
 		if (*snapname++ != '@') {
-			dsl_dataset_rele(*dsp, tag);
+			dsl_dataset_rele(ds, tag);
 			dsl_dir_rele(dd, FTAG);
 			return (SET_ERROR(ENOENT));
 		}
 
 		dprintf("looking for snapshot '%s'\n", snapname);
-		err = dsl_dataset_snap_lookup(*dsp, snapname, &obj);
+		err = dsl_dataset_snap_lookup(ds, snapname, &obj);
 		if (err == 0)
-			err = dsl_dataset_hold_obj(dp, obj, tag, &ds);
-		dsl_dataset_rele(*dsp, tag);
+			err = dsl_dataset_hold_obj(dp, obj, tag, &snap_ds);
+		dsl_dataset_rele(ds, tag);
 
 		if (err == 0) {
-			mutex_enter(&ds->ds_lock);
-			if (ds->ds_snapname[0] == 0)
-				(void) strlcpy(ds->ds_snapname, snapname,
-				    sizeof (ds->ds_snapname));
-			mutex_exit(&ds->ds_lock);
-			*dsp = ds;
+			mutex_enter(&snap_ds->ds_lock);
+			if (snap_ds->ds_snapname[0] == 0)
+				(void) strlcpy(snap_ds->ds_snapname, snapname,
+				    sizeof (snap_ds->ds_snapname));
+			mutex_exit(&snap_ds->ds_lock);
+			ds = snap_ds;
 		}
 	}
-
+	if (err == 0)
+		*dsp = ds;
 	dsl_dir_rele(dd, FTAG);
 	return (err);
 }
