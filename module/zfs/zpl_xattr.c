@@ -337,6 +337,45 @@ out:
 	return (error);
 }
 
+#define	XATTR_NOENT	0x0
+#define	XATTR_IN_SA	0x1
+#define	XATTR_IN_DIR	0x2
+/* check where the xattr resides */
+static int
+__zpl_xattr_where(struct inode *ip, const char *name, int *where, cred_t *cr)
+{
+	znode_t *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	int error;
+
+	ASSERT(where);
+	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
+
+	*where = XATTR_NOENT;
+	if (zsb->z_use_sa && zp->z_is_sa) {
+		error = zpl_xattr_get_sa(ip, name, NULL, 0);
+		if (error >= 0)
+			*where |= XATTR_IN_SA;
+		else if (error != -ENOENT)
+			return (error);
+	}
+
+	error = zpl_xattr_get_dir(ip, name, NULL, 0, cr);
+	if (error >= 0)
+		*where |= XATTR_IN_DIR;
+	else if (error != -ENOENT)
+		return (error);
+
+	if (*where == (XATTR_IN_SA|XATTR_IN_DIR))
+		cmn_err(CE_WARN, "ZFS: inode %p has xattr \"%s\""
+		    " in both SA and dir", ip, name);
+	if (*where == XATTR_NOENT)
+		error = -ENODATA;
+	else
+		error = 0;
+	return (error);
+}
+
 static int
 zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size)
 {
@@ -449,7 +488,15 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 	znode_t *zp = ITOZ(ip);
 	nvlist_t *nvl;
 	size_t sa_size;
-	int error;
+	int error = 0;
+
+	mutex_enter(&zp->z_lock);
+	if (zp->z_xattr_cached == NULL)
+		error = -zfs_sa_get_xattr(zp);
+	mutex_exit(&zp->z_lock);
+
+	if (error)
+		return (error);
 
 	ASSERT(zp->z_xattr_cached);
 	nvl = zp->z_xattr_cached;
@@ -501,6 +548,7 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	cred_t *cr = CRED();
 	fstrans_cookie_t cookie;
+	int where;
 	int error;
 
 	crhold(cr);
@@ -514,12 +562,14 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	 *
 	 *   XATTR_CREATE: fail if xattr already exists
 	 *   XATTR_REPLACE: fail if xattr does not exist
+	 *
+	 * We also want to know if it resides in sa or dir, so we can make
+	 * sure we don't end up with duplicate in both places.
 	 */
-	error = __zpl_xattr_get(ip, name, NULL, 0, cr);
+	error = __zpl_xattr_where(ip, name, &where, cr);
 	if (error < 0) {
 		if (error != -ENODATA)
 			goto out;
-
 		if (flags & XATTR_REPLACE)
 			goto out;
 
@@ -534,13 +584,26 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	}
 
 	/* Preferentially store the xattr as a SA for better performance */
-	if (zsb->z_use_sa && zsb->z_xattr_sa && zp->z_is_sa) {
+	if (zsb->z_use_sa && zp->z_is_sa &&
+	    (zsb->z_xattr_sa || (value == NULL && where & XATTR_IN_SA))) {
 		error = zpl_xattr_set_sa(ip, name, value, size, flags, cr);
-		if (error == 0)
+		if (error == 0) {
+			/*
+			 * Successfully put into SA, we need to clear the one
+			 * in dir.
+			 */
+			if (where & XATTR_IN_DIR)
+				zpl_xattr_set_dir(ip, name, NULL, 0, 0, cr);
 			goto out;
+		}
 	}
 
 	error = zpl_xattr_set_dir(ip, name, value, size, flags, cr);
+	/*
+	 * Successfully put into dir, we need to clear the one in SA.
+	 */
+	if (error == 0 && (where & XATTR_IN_SA))
+		zpl_xattr_set_sa(ip, name, NULL, 0, 0, cr);
 out:
 	rw_exit(&ITOZ(ip)->z_xattr_lock);
 	rrm_exit(&(zsb)->z_teardown_lock, FTAG);
