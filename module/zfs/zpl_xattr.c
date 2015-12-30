@@ -473,13 +473,20 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 
 		error = -nvlist_add_byte_array(nvl, name,
 		    (uchar_t *)value, size);
-		if (error)
-			return (error);
 	}
 
-	/* Update the SA for additions, modifications, and removals. */
-	if (!error)
+	/*
+	 * Update the SA for additions, modifications, and removals. On
+	 * error drop the inconsistent cached version of the nvlist, it
+	 * will be reconstructed from the ARC when next accessed.
+	 */
+	if (error == 0)
 		error = -zfs_sa_set_xattr(zp);
+
+	if (error) {
+		nvlist_free(nvl);
+		zp->z_xattr_cached = NULL;
+	}
 
 	ASSERT3S(error, <=, 0);
 

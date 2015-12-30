@@ -1464,6 +1464,8 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 	int error;
 	sa_bulk_attr_t bulk;
 
+	VERIFY3U(buflen, <=, SA_ATTR_MAX_LEN);
+
 	bulk.sa_attr = attr;
 	bulk.sa_data = buf;
 	bulk.sa_length = buflen;
@@ -1836,6 +1838,8 @@ sa_update(sa_handle_t *hdl, sa_attr_type_t type,
 	int error;
 	sa_bulk_attr_t bulk;
 
+	VERIFY3U(buflen, <=, SA_ATTR_MAX_LEN);
+
 	bulk.sa_attr = type;
 	bulk.sa_data_func = NULL;
 	bulk.sa_length = buflen;
@@ -1853,6 +1857,8 @@ sa_update_from_cb(sa_handle_t *hdl, sa_attr_type_t attr,
 {
 	int error;
 	sa_bulk_attr_t bulk;
+
+	VERIFY3U(buflen, <=, SA_ATTR_MAX_LEN);
 
 	bulk.sa_attr = attr;
 	bulk.sa_data = userdata;
