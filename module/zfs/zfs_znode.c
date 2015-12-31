@@ -1829,13 +1829,16 @@ zfs_release_sa_handle(sa_handle_t *hdl, dmu_buf_t *db, void *tag)
  * or not the object is an extended attribute directory.
  */
 static int
-zfs_obj_to_pobj(sa_handle_t *hdl, sa_attr_type_t *sa_table, uint64_t *pobjp,
-    int *is_xattrdir)
+zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl, sa_attr_type_t *sa_table,
+    uint64_t *pobjp, int *is_xattrdir)
 {
 	uint64_t parent;
 	uint64_t pflags;
 	uint64_t mode;
+	uint64_t parent_mode;
 	sa_bulk_attr_t bulk[3];
+	sa_handle_t *sa_hdl;
+	dmu_buf_t *sa_db;
 	int count = 0;
 	int error;
 
@@ -1849,8 +1852,31 @@ zfs_obj_to_pobj(sa_handle_t *hdl, sa_attr_type_t *sa_table, uint64_t *pobjp,
 	if ((error = sa_bulk_lookup(hdl, bulk, count)) != 0)
 		return (error);
 
-	*pobjp = parent;
+	/*
+	 * When a link is removed its parent pointer is not changed and will
+	 * be invalid.  There are two cases where a link is removed but the
+	 * file stays around, when it goes to the delete queue and when there
+	 * are additional links.
+	 */
+	error = zfs_grab_sa_handle(osp, parent, &sa_hdl, &sa_db, FTAG);
+	if (error != 0)
+		return (error);
+
+	error = sa_lookup(sa_hdl, ZPL_MODE, &parent_mode, sizeof (parent_mode));
+	zfs_release_sa_handle(sa_hdl, sa_db, FTAG);
+	if (error != 0)
+		return (error);
+
 	*is_xattrdir = ((pflags & ZFS_XATTR) != 0) && S_ISDIR(mode);
+
+	/*
+	 * Extended attributes can be applied to files, directories, etc.
+	 * Otherwise the parent must be a directory.
+	 */
+	if (!*is_xattrdir && !S_ISDIR(parent_mode))
+		return (EINVAL);
+
+	*pobjp = parent;
 
 	return (0);
 }
@@ -1900,7 +1926,7 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 		if (prevdb)
 			zfs_release_sa_handle(prevhdl, prevdb, FTAG);
 
-		if ((error = zfs_obj_to_pobj(sa_hdl, sa_table, &pobj,
+		if ((error = zfs_obj_to_pobj(osp, sa_hdl, sa_table, &pobj,
 		    &is_xattrdir)) != 0)
 			break;
 
