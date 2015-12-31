@@ -1510,6 +1510,7 @@ dump_full_bpobj(bpobj_t *bpo, char *name, int indent)
 				continue;
 			}
 			dump_full_bpobj(&subbpo, "subobj", indent + 1);
+			bpobj_close(&subbpo);
 		}
 	} else {
 		(void) printf("    %*s: object %llu, %llu blkptrs, %s\n",
