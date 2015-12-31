@@ -61,6 +61,7 @@ extern "C" {
 #define	FM_EREPORT_ZFS_SCRUB_START		"scrub.start"
 #define	FM_EREPORT_ZFS_SCRUB_FINISH		"scrub.finish"
 #define	FM_EREPORT_ZFS_BOOTFS_VDEV_ATTACH	"bootfs.vdev.attach"
+#define	FM_EREPORT_ZFS_CONFIG_CACHE_WRITE	"config_cache_write"
 
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL		"pool"
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE	"pool_failmode"
