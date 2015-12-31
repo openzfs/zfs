@@ -26,6 +26,7 @@
  */
 
 #include <sys/spa.h>
+#include <sys/fm/fs/zfs.h>
 #include <sys/spa_impl.h>
 #include <sys/nvpair.h>
 #include <sys/uio.h>
@@ -145,22 +146,22 @@ out:
 	kobj_close_file(file);
 }
 
-static void
+static int
 spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 {
 	size_t buflen;
 	char *buf;
 	vnode_t *vp;
 	int oflags = FWRITE | FTRUNC | FCREAT | FOFFMAX;
-	int error;
 	char *temp;
+	int err;
 
 	/*
 	 * If the nvlist is empty (NULL), then remove the old cachefile.
 	 */
 	if (nvl == NULL) {
-		(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
-		return;
+		err = vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
+		return (err);
 	}
 
 	/*
@@ -181,16 +182,16 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 * and overwritten in place.  In the event of an error the file is
 	 * unlinked to make sure we always have a consistent view of the data.
 	 */
-	error = vn_open(dp->scd_path, UIO_SYSSPACE, oflags, 0644, &vp, 0, 0);
-	if (error == 0) {
-		error = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0,
+	err = vn_open(dp->scd_path, UIO_SYSSPACE, oflags, 0644, &vp, 0, 0);
+	if (err == 0) {
+		err = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0,
 		    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, NULL);
-		if (error == 0)
-			error = VOP_FSYNC(vp, FSYNC, kcred, NULL);
+		if (err == 0)
+			err = VOP_FSYNC(vp, FSYNC, kcred, NULL);
 
 		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
 
-		if (error)
+		if (err)
 			(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
 	}
 #else
@@ -201,13 +202,14 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	(void) snprintf(temp, MAXPATHLEN, "%s.tmp", dp->scd_path);
 
-	error = vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0);
-	if (error == 0) {
-		if (vn_rdwr(UIO_WRITE, vp, buf, buflen, 0, UIO_SYSSPACE,
-		    0, RLIM64_INFINITY, kcred, NULL) == 0 &&
-		    VOP_FSYNC(vp, FSYNC, kcred, NULL) == 0) {
-			(void) vn_rename(temp, dp->scd_path, UIO_SYSSPACE);
-		}
+	err = vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0);
+	if (err == 0) {
+		err = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0, UIO_SYSSPACE,
+		    0, RLIM64_INFINITY, kcred, NULL);
+		if (err == 0)
+			err = VOP_FSYNC(vp, FSYNC, kcred, NULL);
+		if (err == 0)
+			err = vn_rename(temp, dp->scd_path, UIO_SYSSPACE);
 		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
 	}
 
@@ -216,6 +218,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 
 	vmem_free(buf, buflen);
 	kmem_free(temp, MAXPATHLEN);
+	return (err);
 }
 
 /*
@@ -233,6 +236,8 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 	spa_config_dirent_t *dp, *tdp;
 	nvlist_t *nvl;
 	char *pool_name;
+	boolean_t ccw_failure;
+	int error = 0;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -244,6 +249,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 	 * cachefile is changed, the new one is pushed onto this list, allowing
 	 * us to update previous cachefiles that no longer contain this pool.
 	 */
+	ccw_failure = B_FALSE;
 	for (dp = list_head(&target->spa_config_list); dp != NULL;
 	    dp = list_next(&target->spa_config_list, dp)) {
 		spa_t *spa = NULL;
@@ -290,8 +296,30 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 			mutex_exit(&spa->spa_props_lock);
 		}
 
-		spa_config_write(dp, nvl);
+		error = spa_config_write(dp, nvl);
+		if (error != 0)
+			ccw_failure = B_TRUE;
 		nvlist_free(nvl);
+	}
+
+	if (ccw_failure) {
+		/*
+		 * Keep trying so that configuration data is
+		 * written if/when any temporary filesystem
+		 * resource issues are resolved.
+		 */
+		if (target->spa_ccw_fail_time == 0) {
+			zfs_ereport_post(FM_EREPORT_ZFS_CONFIG_CACHE_WRITE,
+			    target, NULL, NULL, 0, 0);
+		}
+		target->spa_ccw_fail_time = gethrtime();
+		spa_async_request(target, SPA_ASYNC_CONFIG_UPDATE);
+	} else {
+		/*
+		 * Do not rate limit future attempts to update
+		 * the config cache.
+		 */
+		target->spa_ccw_fail_time = 0;
 	}
 
 	/*
