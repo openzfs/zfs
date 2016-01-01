@@ -94,7 +94,7 @@ def get_Kstat():
 
 def div1():
     sys.stdout.write("\n")
-    for i in xrange(18):
+    for i in range(18):
         sys.stdout.write("%s" % "----")
     sys.stdout.write("\n")
 
@@ -1060,7 +1060,7 @@ def _tunable_summary(Kstat):
         if alternate_tunable_layout:
             format = "\t%s=%s\n"
 
-        if show_tunable_descriptions and descriptions.has_key(name):
+        if show_tunable_descriptions and name in descriptions:
             sys.stdout.write("\t# %s\n" % descriptions[name])
 
         sys.stdout.write(format % (name, values[name]))
@@ -1132,7 +1132,7 @@ def main():
     if 'p' in args:
         try:
             pages.append(unSub[int(args['p']) - 1])
-        except IndexError , e:
+        except IndexError as e:
             sys.stderr.write('the argument to -p must be between 1 and ' +
                     str(len(unSub)) + '\n')
             sys.exit()
