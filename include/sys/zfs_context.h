@@ -500,8 +500,10 @@ typedef struct vnode {
 	uint64_t	v_size;
 	int		v_fd;
 	char		*v_path;
+	int		v_dump_fd;
 } vnode_t;
 
+extern char *vn_dumpdir;
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
 typedef struct xoptattr {
