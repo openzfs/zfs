@@ -248,9 +248,9 @@ get_usage(zfs_help_t idx)
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
-		return (gettext("\treceive [-vnFu] <filesystem|volume|"
+		return (gettext("\treceive [-vnFus] <filesystem|volume|"
 		"snapshot>\n"
-		"\treceive [-vnFu] [-d | -e] <filesystem>\n"));
+		"\treceive [-vnFus] [-d | -e] <filesystem>\n"));
 	case HELP_RENAME:
 		return (gettext("\trename [-f] <filesystem|volume|snapshot> "
 		    "<filesystem|volume|snapshot>\n"
@@ -3872,7 +3872,7 @@ zfs_do_send(int argc, char **argv)
 }
 
 /*
- * zfs receive [-vnFu] [-d | -e] <fs@snap>
+ * zfs receive [-vnFus] [-d | -e] <fs@snap>
  *
  * Restore a backup stream from stdin.
  */
@@ -3883,8 +3883,11 @@ zfs_do_receive(int argc, char **argv)
 	recvflags_t flags = { 0 };
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":denuvF")) != -1) {
+	while ((c = getopt(argc, argv, ":denuvFs")) != -1) {
 		switch (c) {
+		case 's':
+			flags.skip = B_TRUE;
+			break;
 		case 'd':
 			flags.isprefix = B_TRUE;
 			break;

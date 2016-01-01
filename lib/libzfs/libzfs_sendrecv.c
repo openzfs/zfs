@@ -2871,13 +2871,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		zfs_handle_t *zhp;
 
 		/*
-		 * Destination fs exists.  Therefore this should either
+		 * Destination fs exists (and we have not been asked to
+		 * skip existing snapshots). Therefore this should either
 		 * be an incremental, or the stream specifies a new fs
 		 * (full stream or clone) and they want us to blow it
 		 * away (and have therefore specified -F and removed any
 		 * snapshots).
 		 */
-		if (stream_wantsnewfs) {
+		if (stream_wantsnewfs && !flags->skip) {
 			if (!flags->force) {
 				zcmd_free_nvlists(&zc);
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -2965,6 +2966,17 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	zc.zc_begin_record = drr_noswap->drr_u.drr_begin;
 	zc.zc_cookie = infd;
 	zc.zc_guid = flags->force;
+
+	if (zfs_dataset_exists(hdl, zc.zc_value, ZFS_TYPE_SNAPSHOT) &&
+	    flags->skip) {
+		(void) printf("skipping snapshot %s - %s already exists\n",
+				drrb->drr_toname, zc.zc_value);
+		(void) fflush(stdout);
+
+		zcmd_free_nvlists(&zc);
+		return (recv_skip(hdl, infd, flags->byteswap));
+	}
+
 	if (flags->verbose) {
 		(void) printf("%s %s stream of %s into %s\n",
 		    flags->dryrun ? "would receive" : "receiving",
