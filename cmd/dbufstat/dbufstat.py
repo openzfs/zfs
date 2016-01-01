@@ -386,9 +386,9 @@ def update_dict(d, k, line, labels):
 
 def print_dict(d):
     print_header()
-    for pool in d.keys():
-        for objset in d[pool].keys():
-            for v in d[pool][objset].values():
+    for pool in list(d.keys()):
+        for objset in list(d[pool].keys()):
+            for v in list(d[pool][objset].values()):
                 print_values(v)
 
 
