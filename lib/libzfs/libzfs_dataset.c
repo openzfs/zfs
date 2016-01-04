@@ -2072,6 +2072,8 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		if (zcmd_read_dst_nvlist(zhp->zfs_hdl, &zc, &zplprops) != 0 ||
 		    nvlist_lookup_uint64(zplprops, zfs_prop_to_name(prop),
 		    val) != 0) {
+			if (zplprops)
+				nvlist_free(zplprops);
 			zcmd_free_nvlists(&zc);
 			return (-1);
 		}
