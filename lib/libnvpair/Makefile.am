@@ -1,5 +1,9 @@
 include $(top_srcdir)/config/Rules.am
 
+VPATH = \
+	$(top_srcdir)/module/nvpair \
+	$(top_srcdir)/lib/libnvpair
+
 AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
 
 DEFAULT_INCLUDES += \
@@ -8,17 +12,22 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libnvpair.la
 
-libnvpair_la_SOURCES = \
-	$(top_srcdir)/lib/libnvpair/libnvpair.c \
-	$(top_srcdir)/lib/libnvpair/nvpair_alloc_system.c \
-	$(top_srcdir)/module/nvpair/nvpair_alloc_fixed.c \
-	$(top_srcdir)/module/nvpair/nvpair.c \
-	$(top_srcdir)/module/nvpair/fnvpair.c
+USER_C = \
+	libnvpair.c \
+	nvpair_alloc_system.c
+
+KERNEL_C = \
+	nvpair_alloc_fixed.c \
+	nvpair.c \
+	fnvpair.c
+
+nodist_libnvpair_la_SOURCES = \
+	$(USER_C) \
+	$(KERNEL_C)
 
 libnvpair_la_LIBADD = \
         $(top_builddir)/lib/libuutil/libuutil.la
 
 libnvpair_la_LDFLAGS = -version-info 1:1:0
 
-EXTRA_DIST = \
-	$(top_srcdir)/module/nvpair/nvpair_alloc_spl.c
+EXTRA_DIST = $(USER_C)

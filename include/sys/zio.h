@@ -123,14 +123,19 @@ enum zio_compress {
  */
 #define	ZIO_COMPRESS_LEGACY_FUNCTIONS ZIO_COMPRESS_LZ4
 
-#define	ZIO_COMPRESS_ON_VALUE	ZIO_COMPRESS_LZJB
-#define	ZIO_COMPRESS_DEFAULT	ZIO_COMPRESS_OFF
+/*
+ * The meaning of "compress = on" selected by the compression features enabled
+ * on a given pool.
+ */
+#define	ZIO_COMPRESS_LEGACY_ON_VALUE	ZIO_COMPRESS_LZJB
+#define	ZIO_COMPRESS_LZ4_ON_VALUE	ZIO_COMPRESS_LZ4
+
+#define	ZIO_COMPRESS_DEFAULT		ZIO_COMPRESS_OFF
 
 #define	BOOTFS_COMPRESS_VALID(compress)			\
 	((compress) == ZIO_COMPRESS_LZJB ||		\
 	(compress) == ZIO_COMPRESS_LZ4 ||		\
-	((compress) == ZIO_COMPRESS_ON &&		\
-	ZIO_COMPRESS_ON_VALUE == ZIO_COMPRESS_LZJB) ||	\
+	(compress) == ZIO_COMPRESS_ON ||		\
 	(compress) == ZIO_COMPRESS_OFF)
 
 /*
@@ -152,9 +157,6 @@ typedef enum zio_priority {
 
 	ZIO_PRIORITY_NOW		/* non-queued i/os (e.g. free) */
 } zio_priority_t;
-
-#define	ZIO_PIPELINE_CONTINUE		0x100
-#define	ZIO_PIPELINE_STOP		0x101
 
 enum zio_flag {
 	/*
@@ -427,6 +429,7 @@ struct zio {
 	hrtime_t	io_delta;	/* vdev queue service delta */
 	uint64_t	io_delay;	/* vdev disk service delta (ticks) */
 	avl_node_t	io_queue_node;
+	avl_node_t	io_offset_node;
 
 	/* Internal pipeline state */
 	enum zio_flag	io_flags;
@@ -522,6 +525,7 @@ extern void *zio_buf_alloc(size_t size);
 extern void zio_buf_free(void *buf, size_t size);
 extern void *zio_data_buf_alloc(size_t size);
 extern void zio_data_buf_free(void *buf, size_t size);
+extern void *zio_buf_alloc_flags(size_t size, int flags);
 
 extern void zio_resubmit_stage_async(void *);
 
@@ -545,8 +549,8 @@ extern enum zio_checksum zio_checksum_select(enum zio_checksum child,
     enum zio_checksum parent);
 extern enum zio_checksum zio_checksum_dedup_select(spa_t *spa,
     enum zio_checksum child, enum zio_checksum parent);
-extern enum zio_compress zio_compress_select(enum zio_compress child,
-    enum zio_compress parent);
+extern enum zio_compress zio_compress_select(spa_t *spa,
+    enum zio_compress child, enum zio_compress parent);
 
 extern void zio_suspend(spa_t *spa, zio_t *zio);
 extern int zio_resume(spa_t *spa);

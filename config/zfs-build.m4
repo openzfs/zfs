@@ -62,6 +62,7 @@ AC_DEFUN([ZFS_AC_DEBUG_DMU_TX], [
 
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_NO_UNUSED_BUT_SET_VARIABLE
+	ZFS_AC_CONFIG_ALWAYS_NO_BOOL_COMPARE
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
@@ -139,7 +140,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1" --define "$(DEBUG_DMU_TX) 1"'
-	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)"'
+	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)" $(DEFINE_INITRAMFS)'
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)" --define "require_spldir $(SPL)" --define "require_splobj $(SPL_OBJ)" --define "ksrc $(LINUX)" --define "kobj $(LINUX_OBJ)"'
 	RPM_DEFINE_DKMS=
 
@@ -285,7 +286,6 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		debian)     DEFAULT_PACKAGE=deb  ;;
 		*)          DEFAULT_PACKAGE=rpm  ;;
 	esac
-
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
 	AC_SUBST(DEFAULT_PACKAGE)
 
@@ -308,9 +308,32 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		debian)     DEFAULT_INIT_SCRIPT=lsb    ;;
 		*)          DEFAULT_INIT_SCRIPT=lsb    ;;
 	esac
-
 	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT])
 	AC_SUBST(DEFAULT_INIT_SCRIPT)
+
+	AC_MSG_CHECKING([default init config direectory])
+	case "$VENDOR" in
+		gentoo)     DEFAULT_INITCONF_DIR=/etc/conf.d    ;;
+		toss)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		redhat)     DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		fedora)     DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		sles)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
+		ubuntu)     DEFAULT_INITCONF_DIR=/etc/default   ;;
+		debian)     DEFAULT_INITCONF_DIR=/etc/default   ;;
+		*)          DEFAULT_INITCONF_DIR=/etc/default   ;;
+	esac
+	AC_MSG_RESULT([$DEFAULT_INITCONF_DIR])
+	AC_SUBST(DEFAULT_INITCONF_DIR)
+
+	AC_MSG_CHECKING([whether initramfs-tools is available])
+	if test -d /usr/share/initramfs-tools ; then
+		DEFINE_INITRAMFS='--define "_initramfs 1"'
+		AC_MSG_RESULT([yes])
+	else
+		DEFINE_INITRAMFS=''
+		AC_MSG_RESULT([no])
+	fi
+	AC_SUBST(DEFINE_INITRAMFS)
 ])
 
 dnl #

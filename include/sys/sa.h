@@ -82,6 +82,10 @@ typedef struct sa_bulk_attr {
 	uint16_t		sa_size;
 } sa_bulk_attr_t;
 
+/*
+ * The on-disk format of sa_hdr_phys_t limits SA lengths to 16-bit values.
+ */
+#define	SA_ATTR_MAX_LEN UINT16_MAX
 
 /*
  * special macro for adding entries for bulk attr support
@@ -95,6 +99,7 @@ typedef struct sa_bulk_attr {
 
 #define	SA_ADD_BULK_ATTR(b, idx, attr, func, data, len) \
 { \
+	ASSERT3U(len, <=, SA_ATTR_MAX_LEN); \
 	b[idx].sa_attr = attr;\
 	b[idx].sa_data_func = func; \
 	b[idx].sa_data = data; \
@@ -133,7 +138,6 @@ int sa_update_from_cb(sa_handle_t *, sa_attr_type_t,
     uint32_t buflen, sa_data_locator_t *, void *userdata, dmu_tx_t *);
 void sa_object_info(sa_handle_t *, dmu_object_info_t *);
 void sa_object_size(sa_handle_t *, uint32_t *, u_longlong_t *);
-void sa_update_user(sa_handle_t *, sa_handle_t *);
 void *sa_get_userdata(sa_handle_t *);
 void sa_set_userp(sa_handle_t *, void *);
 dmu_buf_t *sa_get_db(sa_handle_t *);

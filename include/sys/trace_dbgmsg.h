@@ -37,32 +37,6 @@
  */
 
 /*
- * Generic support for one argument tracepoints of the form:
- *
- * DTRACE_PROBE1(...,
- *     const char *, ...);
- */
-
-DECLARE_EVENT_CLASS(zfs_dbgmsg_class,
-	TP_PROTO(const char *msg),
-	TP_ARGS(msg),
-	TP_STRUCT__entry(
-	    __string(msg, msg)
-	),
-	TP_fast_assign(
-	    __assign_str(msg, msg);
-	),
-	TP_printk("%s", __get_str(msg))
-);
-
-#define	DEFINE_DBGMSG_EVENT(name) \
-DEFINE_EVENT(zfs_dbgmsg_class, name, \
-	TP_PROTO(const char *msg), \
-	TP_ARGS(msg))
-DEFINE_DBGMSG_EVENT(zfs_zfs__dbgmsg);
-
-
-/*
  * Generic support for four argument tracepoints of the form:
  *
  * DTRACE_PROBE4(...,
@@ -129,9 +103,18 @@ DECLARE_EVENT_CLASS(zfs_set_error_class,
 	    __entry->function, __entry->error)
 );
 
+#ifdef TP_CONDITION
+#define	DEFINE_SET_ERROR_EVENT(name) \
+DEFINE_EVENT_CONDITION(zfs_set_error_class, name, \
+	TP_PROTO(const char *file, const char *function, int line, \
+	    uintptr_t error), \
+	TP_ARGS(file, function, line, error), \
+	TP_CONDITION(error))
+#else
 #define	DEFINE_SET_ERROR_EVENT(name) \
 DEFINE_EVENT(zfs_set_error_class, name, \
 	TP_PROTO(const char *file, const char *function, int line, \
 	    uintptr_t error), \
 	TP_ARGS(file, function, line, error))
+#endif
 DEFINE_SET_ERROR_EVENT(zfs_set__error);

@@ -51,7 +51,7 @@ rpm-local:
 	mkdir -p $(rpmbuild)/SPECS && \
 	cp ${RPM_SPEC_DIR}/$(rpmspec) $(rpmbuild)/SPECS && \
 	mkdir -p $(rpmbuild)/SOURCES && \
-	cp scripts/kmodtool $(rpmbuild)/SOURCES && \
+	cp $(top_srcdir)/scripts/kmodtool $(rpmbuild)/SOURCES && \
 	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
 
 srpm-common: dist

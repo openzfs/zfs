@@ -128,7 +128,7 @@ txg_init(dsl_pool_t *dp, uint64_t txg)
 		int i;
 
 		mutex_init(&tx->tx_cpu[c].tc_lock, NULL, MUTEX_DEFAULT, NULL);
-		mutex_init(&tx->tx_cpu[c].tc_open_lock, NULL, MUTEX_DEFAULT,
+		mutex_init(&tx->tx_cpu[c].tc_open_lock, NULL, MUTEX_NOLOCKDEP,
 		    NULL);
 		for (i = 0; i < TXG_SIZE; i++) {
 			cv_init(&tx->tx_cpu[c].tc_cv[i], NULL, CV_DEFAULT,
@@ -205,7 +205,7 @@ txg_sync_start(dsl_pool_t *dp)
 	tx->tx_threads = 2;
 
 	tx->tx_quiesce_thread = thread_create(NULL, 0, txg_quiesce_thread,
-	    dp, 0, &p0, TS_RUN, minclsyspri);
+	    dp, 0, &p0, TS_RUN, defclsyspri);
 
 	/*
 	 * The sync thread can need a larger-than-default stack size on
@@ -213,7 +213,7 @@ txg_sync_start(dsl_pool_t *dp)
 	 * scrub_visitbp() recursion.
 	 */
 	tx->tx_sync_thread = thread_create(NULL, 32<<10, txg_sync_thread,
-	    dp, 0, &p0, TS_RUN, minclsyspri);
+	    dp, 0, &p0, TS_RUN, defclsyspri);
 
 	mutex_exit(&tx->tx_sync_lock);
 }
@@ -242,10 +242,10 @@ txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, clock_t time)
 	CALLB_CPR_SAFE_BEGIN(cpr);
 
 	if (time)
-		(void) cv_timedwait_interruptible(cv, &tx->tx_sync_lock,
+		(void) cv_timedwait_sig(cv, &tx->tx_sync_lock,
 		    ddi_get_lbolt() + time);
 	else
-		cv_wait_interruptible(cv, &tx->tx_sync_lock);
+		cv_wait_sig(cv, &tx->tx_sync_lock);
 
 	CALLB_CPR_SAFE_END(cpr, &tx->tx_sync_lock);
 }
@@ -445,8 +445,8 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			 * Commit callback taskq hasn't been created yet.
 			 */
 			tx->tx_commit_cb_taskq = taskq_create("tx_commit_cb",
-			    100, minclsyspri, max_ncpus, INT_MAX,
-			    TASKQ_THREADS_CPU_PCT | TASKQ_PREPOPULATE);
+			    max_ncpus, defclsyspri, max_ncpus, max_ncpus * 2,
+			    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 		}
 
 		cb_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
@@ -471,7 +471,7 @@ txg_wait_callbacks(dsl_pool_t *dp)
 	tx_state_t *tx = &dp->dp_tx;
 
 	if (tx->tx_commit_cb_taskq != NULL)
-		taskq_wait(tx->tx_commit_cb_taskq);
+		taskq_wait_outstanding(tx->tx_commit_cb_taskq, 0);
 }
 
 static void

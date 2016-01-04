@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2014 by Delphix. All rights reserved.
+ */
+
 #ifndef	_AVL_H
 #define	_AVL_H
 
@@ -39,7 +43,7 @@ extern "C" {
 #include <sys/avl_impl.h>
 
 /*
- * This is a generic implemenatation of AVL trees for use in the Solaris kernel.
+ * This is a generic implementation of AVL trees for use in the Solaris kernel.
  * The interfaces provide an efficient way of implementing an ordered set of
  * data structures.
  *
@@ -175,7 +179,7 @@ extern void avl_insert(avl_tree_t *tree, void *node, avl_index_t where);
  * Insert "new_data" in "tree" in the given "direction" either after
  * or before the data "here".
  *
- * This might be usefull for avl clients caching recently accessed
+ * This might be useful for avl clients caching recently accessed
  * data to avoid doing avl_find() again for insertion.
  *
  * new_data	- new data to insert
@@ -258,6 +262,11 @@ extern void avl_remove(avl_tree_t *tree, void *node);
 extern boolean_t avl_update(avl_tree_t *, void *);
 extern boolean_t avl_update_lt(avl_tree_t *, void *);
 extern boolean_t avl_update_gt(avl_tree_t *, void *);
+
+/*
+ * Swaps the contents of the two trees.
+ */
+extern void avl_swap(avl_tree_t *tree1, avl_tree_t *tree2);
 
 /*
  * Return the number of nodes in the tree

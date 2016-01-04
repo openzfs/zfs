@@ -26,30 +26,59 @@
  * Portions Copyright 2012 Martin Matuska <martin@matuska.org>
  */
 
+/*
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ */
+
+#include <ctype.h>
 #include <libnvpair.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
+#include <stddef.h>
 
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
 #include <zfs_fletcher.h>
+
+/*
+ * If dump mode is enabled, the number of bytes to print per line
+ */
+#define	BYTES_PER_LINE	16
+/*
+ * If dump mode is enabled, the number of bytes to group together, separated
+ * by newlines or spaces
+ */
+#define	DUMP_GROUPING	4
 
 uint64_t total_write_size = 0;
 uint64_t total_stream_len = 0;
 FILE *send_stream = 0;
 boolean_t do_byteswap = B_FALSE;
 boolean_t do_cksum = B_TRUE;
-#define	INITIAL_BUFLEN (1<<20)
 
 static void
 usage(void)
 {
-	(void) fprintf(stderr, "usage: zstreamdump [-v] [-C] < file\n");
+	(void) fprintf(stderr, "usage: zstreamdump [-v] [-C] [-d] < file\n");
 	(void) fprintf(stderr, "\t -v -- verbose\n");
 	(void) fprintf(stderr, "\t -C -- suppress checksum verification\n");
+	(void) fprintf(stderr, "\t -d -- dump contents of blocks modified, "
+	    "implies verbose\n");
 	exit(1);
+}
+
+static void *
+safe_malloc(size_t size)
+{
+	void *rv = malloc(size);
+	if (rv == NULL) {
+		(void) fprintf(stderr, "ERROR; failed to allocate %zu bytes\n",
+		    size);
+		abort();
+	}
+	return (rv);
 }
 
 /*
@@ -57,7 +86,6 @@ usage(void)
  *
  * Read while computing incremental checksum
  */
-
 static size_t
 ssread(void *buf, size_t len, zio_cksum_t *cksum)
 {
@@ -66,7 +94,7 @@ ssread(void *buf, size_t len, zio_cksum_t *cksum)
 	if ((outlen = fread(buf, len, 1, send_stream)) == 0)
 		return (0);
 
-	if (do_cksum && cksum) {
+	if (do_cksum) {
 		if (do_byteswap)
 			fletcher_4_incremental_byteswap(buf, len, cksum);
 		else
@@ -76,10 +104,102 @@ ssread(void *buf, size_t len, zio_cksum_t *cksum)
 	return (outlen);
 }
 
+static size_t
+read_hdr(dmu_replay_record_t *drr, zio_cksum_t *cksum)
+{
+	ASSERT3U(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum),
+	    ==, sizeof (dmu_replay_record_t) - sizeof (zio_cksum_t));
+	size_t r = ssread(drr, sizeof (*drr) - sizeof (zio_cksum_t), cksum);
+	if (r == 0)
+		return (0);
+	zio_cksum_t saved_cksum = *cksum;
+	r = ssread(&drr->drr_u.drr_checksum.drr_checksum,
+	    sizeof (zio_cksum_t), cksum);
+	if (r == 0)
+		return (0);
+	if (!ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.drr_checksum.drr_checksum) &&
+	    !ZIO_CHECKSUM_EQUAL(saved_cksum,
+	    drr->drr_u.drr_checksum.drr_checksum)) {
+		fprintf(stderr, "invalid checksum\n");
+		(void) printf("Incorrect checksum in record header.\n");
+		(void) printf("Expected checksum = %llx/%llx/%llx/%llx\n",
+		    (longlong_t)saved_cksum.zc_word[0],
+		    (longlong_t)saved_cksum.zc_word[1],
+		    (longlong_t)saved_cksum.zc_word[2],
+		    (longlong_t)saved_cksum.zc_word[3]);
+		exit(1);
+	}
+	return (sizeof (*drr));
+}
+
+/*
+ * Print part of a block in ASCII characters
+ */
+static void
+print_ascii_block(char *subbuf, int length)
+{
+	int i;
+
+	for (i = 0; i < length; i++) {
+		char char_print = isprint(subbuf[i]) ? subbuf[i] : '.';
+		if (i != 0 && i % DUMP_GROUPING == 0) {
+			(void) printf(" ");
+		}
+		(void) printf("%c", char_print);
+	}
+	(void) printf("\n");
+}
+
+/*
+ * print_block - Dump the contents of a modified block to STDOUT
+ *
+ * Assume that buf has capacity evenly divisible by BYTES_PER_LINE
+ */
+static void
+print_block(char *buf, int length)
+{
+	int i;
+	/*
+	 * Start printing ASCII characters at a constant offset, after
+	 * the hex prints. Leave 3 characters per byte on a line (2 digit
+	 * hex number plus 1 space) plus spaces between characters and
+	 * groupings.
+	 */
+	int ascii_start = BYTES_PER_LINE * 3 +
+	    BYTES_PER_LINE / DUMP_GROUPING + 2;
+
+	for (i = 0; i < length; i += BYTES_PER_LINE) {
+		int j;
+		int this_line_length = MIN(BYTES_PER_LINE, length - i);
+		int print_offset = 0;
+
+		for (j = 0; j < this_line_length; j++) {
+			int buf_offset = i + j;
+
+			/*
+			 * Separate every DUMP_GROUPING bytes by a space.
+			 */
+			if (buf_offset % DUMP_GROUPING == 0) {
+				print_offset += printf(" ");
+			}
+
+			/*
+			 * Print the two-digit hex value for this byte.
+			 */
+			unsigned char hex_print = buf[buf_offset];
+			print_offset += printf("%02x ", hex_print);
+		}
+
+		(void) printf("%*s", ascii_start - print_offset, " ");
+
+		print_ascii_block(buf + i, this_line_length);
+	}
+}
+
 int
 main(int argc, char *argv[])
 {
-	char *buf = malloc(INITIAL_BUFLEN);
+	char *buf = safe_malloc(SPA_MAXBLOCKSIZE);
 	uint64_t drr_record_count[DRR_NUMTYPES] = { 0 };
 	uint64_t total_records = 0;
 	dmu_replay_record_t thedrr;
@@ -93,20 +213,35 @@ main(int argc, char *argv[])
 	struct drr_free *drrf = &thedrr.drr_u.drr_free;
 	struct drr_spill *drrs = &thedrr.drr_u.drr_spill;
 	struct drr_write_embedded *drrwe = &thedrr.drr_u.drr_write_embedded;
+	struct drr_checksum *drrc = &thedrr.drr_u.drr_checksum;
 	char c;
 	boolean_t verbose = B_FALSE;
+	boolean_t very_verbose = B_FALSE;
 	boolean_t first = B_TRUE;
+	/*
+	 * dump flag controls whether the contents of any modified data blocks
+	 * are printed to the console during processing of the stream. Warning:
+	 * for large streams, this can obviously lead to massive prints.
+	 */
+	boolean_t dump = B_FALSE;
 	int err;
 	zio_cksum_t zc = { { 0 } };
 	zio_cksum_t pcksum = { { 0 } };
 
-	while ((c = getopt(argc, argv, ":vC")) != -1) {
+	while ((c = getopt(argc, argv, ":vCd")) != -1) {
 		switch (c) {
 		case 'C':
 			do_cksum = B_FALSE;
 			break;
 		case 'v':
+			if (verbose)
+				very_verbose = B_TRUE;
 			verbose = B_TRUE;
+			break;
+		case 'd':
+			dump = B_TRUE;
+			verbose = B_TRUE;
+			very_verbose = B_TRUE;
 			break;
 		case ':':
 			(void) fprintf(stderr,
@@ -129,8 +264,12 @@ main(int argc, char *argv[])
 	}
 
 	send_stream = stdin;
-	while (ssread(drr, sizeof (dmu_replay_record_t), &zc)) {
+	while (read_hdr(drr, &zc)) {
 
+		/*
+		 * If this is the first DMU record being processed, check for
+		 * the magic bytes and figure out the endian-ness based on them.
+		 */
 		if (first) {
 			if (drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC)) {
 				do_byteswap = B_TRUE;
@@ -213,9 +352,9 @@ main(int argc, char *argv[])
 				nvlist_t *nv;
 				int sz = drr->drr_payloadlen;
 
-				if (sz > 1<<20) {
+				if (sz > SPA_MAXBLOCKSIZE) {
 					free(buf);
-					buf = malloc(sz);
+					buf = safe_malloc(sz);
 				}
 				(void) ssread(buf, sz, &zc);
 				if (ferror(send_stream))
@@ -289,8 +428,12 @@ main(int argc, char *argv[])
 				    drro->drr_bonuslen);
 			}
 			if (drro->drr_bonuslen > 0) {
-				(void) ssread(buf,
-				    P2ROUNDUP(drro->drr_bonuslen, 8), &zc);
+				(void) ssread(buf, P2ROUNDUP(drro->drr_bonuslen,
+				    8), &zc);
+				if (dump) {
+					print_block(buf,
+					    P2ROUNDUP(drro->drr_bonuslen, 8));
+				}
 			}
 			break;
 
@@ -320,10 +463,14 @@ main(int argc, char *argv[])
 				drrw->drr_key.ddk_prop =
 				    BSWAP_64(drrw->drr_key.ddk_prop);
 			}
+			/*
+			 * If this is verbose and/or dump output,
+			 * print info on the modified block
+			 */
 			if (verbose) {
 				(void) printf("WRITE object = %llu type = %u "
 				    "checksum type = %u\n"
-				    "offset = %llu length = %llu "
+				    "    offset = %llu length = %llu "
 				    "props = %llx\n",
 				    (u_longlong_t)drrw->drr_object,
 				    drrw->drr_type,
@@ -332,7 +479,16 @@ main(int argc, char *argv[])
 				    (u_longlong_t)drrw->drr_length,
 				    (u_longlong_t)drrw->drr_key.ddk_prop);
 			}
+			/*
+			 * Read the contents of the block in from STDIN to buf
+			 */
 			(void) ssread(buf, drrw->drr_length, &zc);
+			/*
+			 * If in dump mode
+			 */
+			if (dump) {
+				print_block(buf, drrw->drr_length);
+			}
 			total_write_size += drrw->drr_length;
 			break;
 
@@ -358,9 +514,9 @@ main(int argc, char *argv[])
 			if (verbose) {
 				(void) printf("WRITE_BYREF object = %llu "
 				    "checksum type = %u props = %llx\n"
-				    "offset = %llu length = %llu\n"
+				    "    offset = %llu length = %llu\n"
 				    "toguid = %llx refguid = %llx\n"
-				    "refobject = %llu refoffset = %llu\n",
+				    "    refobject = %llu refoffset = %llu\n",
 				    (u_longlong_t)drrwbr->drr_object,
 				    drrwbr->drr_checksumtype,
 				    (u_longlong_t)drrwbr->drr_key.ddk_prop,
@@ -399,6 +555,9 @@ main(int argc, char *argv[])
 				    (long long unsigned int)drrs->drr_length);
 			}
 			(void) ssread(buf, drrs->drr_length, &zc);
+			if (dump) {
+				print_block(buf, drrs->drr_length);
+			}
 			break;
 		case DRR_WRITE_EMBEDDED:
 			if (do_byteswap) {
@@ -418,7 +577,7 @@ main(int argc, char *argv[])
 			if (verbose) {
 				(void) printf("WRITE_EMBEDDED object = %llu "
 				    "offset = %llu length = %llu\n"
-				    "toguid = %llx comp = %u etype = %u "
+				    "    toguid = %llx comp = %u etype = %u "
 				    "lsize = %u psize = %u\n",
 				    (u_longlong_t)drrwe->drr_object,
 				    (u_longlong_t)drrwe->drr_offset,
@@ -435,6 +594,13 @@ main(int argc, char *argv[])
 		case DRR_NUMTYPES:
 			/* should never be reached */
 			exit(1);
+		}
+		if (drr->drr_type != DRR_BEGIN && very_verbose) {
+			(void) printf("    checksum = %llx/%llx/%llx/%llx\n",
+			    (longlong_t)drrc->drr_checksum.zc_word[0],
+			    (longlong_t)drrc->drr_checksum.zc_word[1],
+			    (longlong_t)drrc->drr_checksum.zc_word[2],
+			    (longlong_t)drrc->drr_checksum.zc_word[3]);
 		}
 		pcksum = zc;
 	}

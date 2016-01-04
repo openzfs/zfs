@@ -82,7 +82,6 @@ cols = {
     "mrug":       [4, 1000, "MRU Ghost List hits per second"],
     "eskip":      [5, 1000, "evict_skip per second"],
     "mtxmis":     [6, 1000, "mutex_miss per second"],
-    "rmis":       [4, 1000, "recycle_miss per second"],
     "dread":      [5, 1000, "Demand accesses per second"],
     "pread":      [5, 1000, "Prefetch accesses per second"],
     "l2hits":     [6, 1000, "L2ARC hits per second"],
@@ -98,8 +97,8 @@ cols = {
 v = {}
 hdr = ["time", "read", "miss", "miss%", "dmis", "dm%", "pmis", "pm%", "mmis",
        "mm%", "arcsz", "c"]
-xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "rmis",
-        "dread", "pread", "read"]
+xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "dread",
+        "pread", "read"]
 sint = 1               # Default interval is 1 second
 count = 1              # Default count is 1
 hdr_intr = 20          # Print header every 20 lines of output
@@ -406,7 +405,6 @@ def calculate():
     v["mrug"] = d["mru_ghost_hits"] / sint
     v["mfug"] = d["mfu_ghost_hits"] / sint
     v["eskip"] = d["evict_skip"] / sint
-    v["rmis"] = d["recycle_miss"] / sint
     v["mtxmis"] = d["mutex_miss"] / sint
 
     if l2exist:

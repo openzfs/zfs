@@ -33,6 +33,8 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/efi_partition.h \
 	$(top_srcdir)/include/sys/metaslab.h \
 	$(top_srcdir)/include/sys/metaslab_impl.h \
+	$(top_srcdir)/include/sys/mntent.h \
+	$(top_srcdir)/include/sys/multilist.h \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
 	$(top_srcdir)/include/sys/range_tree.h \
@@ -53,6 +55,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/trace_dbuf.h \
 	$(top_srcdir)/include/sys/trace_dmu.h \
 	$(top_srcdir)/include/sys/trace_dnode.h \
+	$(top_srcdir)/include/sys/trace_multilist.h \
 	$(top_srcdir)/include/sys/trace_txg.h \
 	$(top_srcdir)/include/sys/trace_zil.h \
 	$(top_srcdir)/include/sys/trace_zrlock.h \

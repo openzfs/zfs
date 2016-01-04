@@ -156,8 +156,10 @@ void dsl_pool_mos_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp);
 boolean_t dsl_pool_need_dirty_delay(dsl_pool_t *dp);
 void dsl_pool_config_enter(dsl_pool_t *dp, void *tag);
+void dsl_pool_config_enter_prio(dsl_pool_t *dp, void *tag);
 void dsl_pool_config_exit(dsl_pool_t *dp, void *tag);
 boolean_t dsl_pool_config_held(dsl_pool_t *dp);
+boolean_t dsl_pool_config_held_writer(dsl_pool_t *dp);
 
 taskq_t *dsl_pool_iput_taskq(dsl_pool_t *dp);
 

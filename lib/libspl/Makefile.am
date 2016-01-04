@@ -1,5 +1,9 @@
 include $(top_srcdir)/config/Rules.am
 
+VPATH = \
+	$(top_srcdir)/lib/libspl \
+	$(top_srcdir)/lib/libspl/$(TARGET_ASM_DIR)
+
 AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
 
 SUBDIRS = include $(TARGET_ASM_DIR)
@@ -13,21 +17,31 @@ AM_CCASFLAGS = \
 
 noinst_LTLIBRARIES = libspl.la
 
-libspl_la_SOURCES = \
-	$(top_srcdir)/lib/libspl/getexecname.c \
-	$(top_srcdir)/lib/libspl/gethrtime.c \
-	$(top_srcdir)/lib/libspl/gethrestime.c \
-	$(top_srcdir)/lib/libspl/getmntany.c \
-	$(top_srcdir)/lib/libspl/list.c \
-	$(top_srcdir)/lib/libspl/mkdirp.c \
-	$(top_srcdir)/lib/libspl/strlcat.c \
-	$(top_srcdir)/lib/libspl/strlcpy.c \
-	$(top_srcdir)/lib/libspl/strnlen.c \
-	$(top_srcdir)/lib/libspl/timestamp.c \
-	$(top_srcdir)/lib/libspl/zone.c \
-	$(top_srcdir)/lib/libspl/xdr.c \
-	$(top_srcdir)/lib/libspl/$(TARGET_ASM_DIR)/atomic.S \
-	$(top_srcdir)/lib/libspl/include/sys/list.h \
-	$(top_srcdir)/lib/libspl/include/sys/list_impl.h
+USER_C = \
+	getexecname.c \
+	gethrtime.c \
+	gethrestime.c \
+	getmntany.c \
+	list.c \
+	mkdirp.c \
+	strlcat.c \
+	strlcpy.c \
+	strnlen.c \
+	timestamp.c \
+	zone.c \
+	xdr.c \
+	include/sys/list.h \
+	include/sys/list_impl.h
+
+USER_ASM = atomic.S
+
+KERNEL_C =
+
+nodist_libspl_la_SOURCES = \
+	$(USER_C) \
+	$(USER_ASM) \
+	$(KERNEL_C)
 
 libspl_la_LIBADD = -lrt
+
+EXTRA_DIST = $(USER_C)

@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -294,8 +294,8 @@ zhack_feature_enable_sync(void *arg, dmu_tx_t *tx)
 	feature_enable_sync(spa, feature, tx);
 
 	spa_history_log_internal(spa, "zhack enable feature", tx,
-	    "name=%s can_readonly=%u",
-	    feature->fi_guid, feature->fi_can_readonly);
+	    "name=%s flags=%u",
+	    feature->fi_guid, feature->fi_flags);
 }
 
 static void
@@ -314,9 +314,7 @@ zhack_do_feature_enable(int argc, char **argv)
 	 */
 	desc = NULL;
 	feature.fi_uname = "zhack";
-	feature.fi_mos = B_FALSE;
-	feature.fi_can_readonly = B_FALSE;
-	feature.fi_activate_on_enable = B_FALSE;
+	feature.fi_flags = 0;
 	feature.fi_depends = nodeps;
 	feature.fi_feature = SPA_FEATURE_NONE;
 
@@ -324,7 +322,7 @@ zhack_do_feature_enable(int argc, char **argv)
 	while ((c = getopt(argc, argv, "rmd:")) != -1) {
 		switch (c) {
 		case 'r':
-			feature.fi_can_readonly = B_TRUE;
+			feature.fi_flags |= ZFEATURE_FLAG_READONLY_COMPAT;
 			break;
 		case 'd':
 			desc = strdup(optarg);
@@ -362,7 +360,7 @@ zhack_do_feature_enable(int argc, char **argv)
 		    feature.fi_guid);
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    zhack_feature_enable_sync, &feature, 5));
+	    zhack_feature_enable_sync, &feature, 5, ZFS_SPACE_CHECK_NORMAL));
 
 	spa_close(spa, FTAG);
 
@@ -413,7 +411,7 @@ zhack_do_feature_ref(int argc, char **argv)
 	 * disk later.
 	 */
 	feature.fi_uname = "zhack";
-	feature.fi_mos = B_FALSE;
+	feature.fi_flags = 0;
 	feature.fi_desc = NULL;
 	feature.fi_depends = nodeps;
 	feature.fi_feature = SPA_FEATURE_NONE;
@@ -422,7 +420,7 @@ zhack_do_feature_ref(int argc, char **argv)
 	while ((c = getopt(argc, argv, "md")) != -1) {
 		switch (c) {
 		case 'm':
-			feature.fi_mos = B_TRUE;
+			feature.fi_flags |= ZFEATURE_FLAG_MOS;
 			break;
 		case 'd':
 			decr = B_TRUE;
@@ -455,10 +453,10 @@ zhack_do_feature_ref(int argc, char **argv)
 
 	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,
 	    feature.fi_guid)) {
-		feature.fi_can_readonly = B_FALSE;
+		feature.fi_flags &= ~ZFEATURE_FLAG_READONLY_COMPAT;
 	} else if (0 == zap_contains(mos, spa->spa_feat_for_write_obj,
 	    feature.fi_guid)) {
-		feature.fi_can_readonly = B_TRUE;
+		feature.fi_flags |= ZFEATURE_FLAG_READONLY_COMPAT;
 	} else {
 		fatal(spa, FTAG, "feature is not enabled: %s", feature.fi_guid);
 	}
@@ -473,7 +471,8 @@ zhack_do_feature_ref(int argc, char **argv)
 	}
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    decr ? feature_decr_sync : feature_incr_sync, &feature, 5));
+	    decr ? feature_decr_sync : feature_incr_sync, &feature,
+	    5, ZFS_SPACE_CHECK_NORMAL));
 
 	spa_close(spa, FTAG);
 }

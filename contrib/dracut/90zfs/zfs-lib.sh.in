@@ -1,0 +1,87 @@
+#!/bin/sh
+
+command -v getarg >/dev/null || . /lib/dracut-lib.sh
+
+OLDIFS="${IFS}"
+NEWLINE="
+"
+
+ZPOOL_IMPORT_OPTS=""
+if getargbool 0 zfs_force -y zfs.force -y zfsforce ; then
+	warn "ZFS: Will force-import pools if necessary."
+	ZPOOL_IMPORT_OPTS="${ZPOOL_IMPORT_OPTS} -f"
+fi
+
+# find_bootfs
+#   returns the first dataset with the bootfs attribute.
+find_bootfs() {
+	IFS="${NEWLINE}"
+	for dataset in $(zpool list -H -o bootfs); do
+		case "${dataset}" in
+			"" | "-")
+				continue
+				;;
+			"no pools available")
+				IFS="${OLDIFS}"
+				return 1
+				;;
+			*)
+				IFS="${OLDIFS}"
+				echo "${dataset}"
+				return 0
+				;;
+		esac
+	done
+
+	IFS="${OLDIFS}"
+	return 1
+}
+
+# import_pool POOL
+#   imports the given zfs pool if it isn't imported already.
+import_pool() {
+	local pool="${1}"
+
+	if ! zpool list -H "${pool}" 2>&1 > /dev/null ; then
+		info "ZFS: Importing pool ${pool}..."
+		if ! zpool import -N ${ZPOOL_IMPORT_OPTS} "${pool}" ; then
+			warn "ZFS: Unable to import pool ${pool}"
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+# mount_dataset DATASET
+#   mounts the given zfs dataset.
+mount_dataset() {
+	local dataset="${1}"
+	local mountpoint="$(zfs get -H -o value mountpoint "${dataset}")"
+
+	# We need zfsutil for non-legacy mounts and not for legacy mounts.
+	if [ "${mountpoint}" = "legacy" ] ; then
+		mount -t zfs "${dataset}" "${NEWROOT}"
+	else
+		mount -o zfsutil -t zfs "${dataset}" "${NEWROOT}"
+	fi
+
+	return $?
+}
+
+# export_all OPTS
+#   exports all imported zfs pools.
+export_all() {
+	local opts="${1}"
+	local ret=0
+
+	IFS="${NEWLINE}"
+	for pool in `zpool list -H -o name` ; do
+		if zpool list -H "${pool}" 2>&1 > /dev/null ; then
+			zpool export "${pool}" ${opts} || ret=$?
+		fi
+	done
+	IFS="${OLDIFS}"
+
+	return ${ret}
+}

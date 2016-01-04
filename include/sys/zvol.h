@@ -34,7 +34,7 @@
 #ifdef _KERNEL
 
 extern int zvol_check_volsize(uint64_t volsize, uint64_t blocksize);
-extern int zvol_check_volblocksize(uint64_t volblocksize);
+extern int zvol_check_volblocksize(const char *name, uint64_t volblocksize);
 extern int zvol_get_stats(objset_t *os, nvlist_t *nv);
 extern boolean_t zvol_is_zvol(const char *);
 extern void zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx);

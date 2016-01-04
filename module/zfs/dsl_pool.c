@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -137,7 +138,7 @@ dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
 	int err;
 
 	err = zap_lookup(dp->dp_meta_objset,
-	    dp->dp_root_dir->dd_phys->dd_child_dir_zapobj,
+	    dsl_dir_phys(dp->dp_root_dir)->dd_child_dir_zapobj,
 	    name, sizeof (obj), 1, &obj);
 	if (err)
 		return (err);
@@ -169,8 +170,8 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
 
-	dp->dp_iput_taskq = taskq_create("zfs_iput_taskq", 1, minclsyspri,
-	    1, 4, 0);
+	dp->dp_iput_taskq = taskq_create("z_iput", max_ncpus, defclsyspri,
+	    max_ncpus * 8, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
 	return (dp);
 }
@@ -219,11 +220,11 @@ dsl_pool_open(dsl_pool_t *dp)
 		err = dsl_pool_open_special_dir(dp, ORIGIN_DIR_NAME, &dd);
 		if (err)
 			goto out;
-		err = dsl_dataset_hold_obj(dp, dd->dd_phys->dd_head_dataset_obj,
-		    FTAG, &ds);
+		err = dsl_dataset_hold_obj(dp,
+		    dsl_dir_phys(dd)->dd_head_dataset_obj, FTAG, &ds);
 		if (err == 0) {
 			err = dsl_dataset_hold_obj(dp,
-			    ds->ds_phys->ds_prev_snap_obj, dp,
+			    dsl_dataset_phys(ds)->ds_prev_snap_obj, dp,
 			    &dp->dp_origin_snap);
 			dsl_dataset_rele(ds, FTAG);
 		}
@@ -316,9 +317,18 @@ dsl_pool_close(dsl_pool_t *dp)
 	txg_list_destroy(&dp->dp_sync_tasks);
 	txg_list_destroy(&dp->dp_dirty_dirs);
 
-	arc_flush(dp->dp_spa);
+	/*
+	 * We can't set retry to TRUE since we're explicitly specifying
+	 * a spa to flush. This is good enough; any missed buffers for
+	 * this spa won't cause trouble, and they'll eventually fall
+	 * out of the ARC just like any other unused buffer.
+	 */
+	arc_flush(dp->dp_spa, FALSE);
+
 	txg_fini(dp);
 	dsl_scan_fini(dp);
+	dmu_buf_user_evict_wait();
+
 	rrw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);
 	taskq_destroy(dp->dp_iput_taskq);
@@ -369,7 +379,7 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
 		    FREE_DIR_NAME, &dp->dp_free_dir));
 
 		/* create and open the free_bplist */
-		obj = bpobj_alloc(dp->dp_meta_objset, SPA_MAXBLOCKSIZE, tx);
+		obj = bpobj_alloc(dp->dp_meta_objset, SPA_OLD_MAXBLOCKSIZE, tx);
 		VERIFY(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx) == 0);
 		VERIFY0(bpobj_open(&dp->dp_free_bpobj,
@@ -609,17 +619,12 @@ dsl_pool_adjustedsize(dsl_pool_t *dp, boolean_t netfree)
 	uint64_t space, resv;
 
 	/*
-	 * Reserve about 1.6% (1/64), or at least 32MB, for allocation
-	 * efficiency.
-	 * XXX The intent log is not accounted for, so it must fit
-	 * within this slop.
-	 *
 	 * If we're trying to assess whether it's OK to do a free,
 	 * cut the reservation in half to allow forward progress
 	 * (e.g. make it possible to rm(1) files from a full pool).
 	 */
 	space = spa_get_dspace(dp->dp_spa);
-	resv = MAX(space >> 6, SPA_MINDEVSIZE >> 1);
+	resv = spa_get_slop_space(dp->dp_spa);
 	if (netfree)
 		resv >>= 1;
 
@@ -683,15 +688,15 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 	if (err)
 		return (err);
 
-	while (ds->ds_phys->ds_prev_snap_obj != 0) {
-		err = dsl_dataset_hold_obj(dp, ds->ds_phys->ds_prev_snap_obj,
-		    FTAG, &prev);
+	while (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
+		err = dsl_dataset_hold_obj(dp,
+		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &prev);
 		if (err) {
 			dsl_dataset_rele(ds, FTAG);
 			return (err);
 		}
 
-		if (prev->ds_phys->ds_next_snap_obj != ds->ds_object)
+		if (dsl_dataset_phys(prev)->ds_next_snap_obj != ds->ds_object)
 			break;
 		dsl_dataset_rele(ds, FTAG);
 		ds = prev;
@@ -705,7 +710,7 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		 * The $ORIGIN can't have any data, or the accounting
 		 * will be wrong.
 		 */
-		ASSERT0(prev->ds_phys->ds_bp.blk_birth);
+		ASSERT0(dsl_dataset_phys(prev)->ds_bp.blk_birth);
 
 		/* The origin doesn't get attached to itself */
 		if (ds->ds_object == prev->ds_object) {
@@ -714,33 +719,35 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		}
 
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
-		ds->ds_phys->ds_prev_snap_obj = prev->ds_object;
-		ds->ds_phys->ds_prev_snap_txg = prev->ds_phys->ds_creation_txg;
+		dsl_dataset_phys(ds)->ds_prev_snap_obj = prev->ds_object;
+		dsl_dataset_phys(ds)->ds_prev_snap_txg =
+		    dsl_dataset_phys(prev)->ds_creation_txg;
 
 		dmu_buf_will_dirty(ds->ds_dir->dd_dbuf, tx);
-		ds->ds_dir->dd_phys->dd_origin_obj = prev->ds_object;
+		dsl_dir_phys(ds->ds_dir)->dd_origin_obj = prev->ds_object;
 
 		dmu_buf_will_dirty(prev->ds_dbuf, tx);
-		prev->ds_phys->ds_num_children++;
+		dsl_dataset_phys(prev)->ds_num_children++;
 
-		if (ds->ds_phys->ds_next_snap_obj == 0) {
+		if (dsl_dataset_phys(ds)->ds_next_snap_obj == 0) {
 			ASSERT(ds->ds_prev == NULL);
 			VERIFY0(dsl_dataset_hold_obj(dp,
-			    ds->ds_phys->ds_prev_snap_obj, ds, &ds->ds_prev));
+			    dsl_dataset_phys(ds)->ds_prev_snap_obj,
+			    ds, &ds->ds_prev));
 		}
 	}
 
-	ASSERT3U(ds->ds_dir->dd_phys->dd_origin_obj, ==, prev->ds_object);
-	ASSERT3U(ds->ds_phys->ds_prev_snap_obj, ==, prev->ds_object);
+	ASSERT3U(dsl_dir_phys(ds->ds_dir)->dd_origin_obj, ==, prev->ds_object);
+	ASSERT3U(dsl_dataset_phys(ds)->ds_prev_snap_obj, ==, prev->ds_object);
 
-	if (prev->ds_phys->ds_next_clones_obj == 0) {
+	if (dsl_dataset_phys(prev)->ds_next_clones_obj == 0) {
 		dmu_buf_will_dirty(prev->ds_dbuf, tx);
-		prev->ds_phys->ds_next_clones_obj =
+		dsl_dataset_phys(prev)->ds_next_clones_obj =
 		    zap_create(dp->dp_meta_objset,
 		    DMU_OT_NEXT_CLONES, DMU_OT_NONE, 0, tx);
 	}
 	VERIFY0(zap_add_int(dp->dp_meta_objset,
-	    prev->ds_phys->ds_next_clones_obj, ds->ds_object, tx));
+	    dsl_dataset_phys(prev)->ds_next_clones_obj, ds->ds_object, tx));
 
 	dsl_dataset_rele(ds, FTAG);
 	if (prev != dp->dp_origin_snap)
@@ -755,7 +762,7 @@ dsl_pool_upgrade_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 	ASSERT(dp->dp_origin_snap != NULL);
 
 	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj, upgrade_clones_cb,
-	    tx, DS_FIND_CHILDREN));
+	    tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
 }
 
 /* ARGSUSED */
@@ -765,20 +772,22 @@ upgrade_dir_clones_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 	dmu_tx_t *tx = arg;
 	objset_t *mos = dp->dp_meta_objset;
 
-	if (ds->ds_dir->dd_phys->dd_origin_obj != 0) {
+	if (dsl_dir_phys(ds->ds_dir)->dd_origin_obj != 0) {
 		dsl_dataset_t *origin;
 
 		VERIFY0(dsl_dataset_hold_obj(dp,
-		    ds->ds_dir->dd_phys->dd_origin_obj, FTAG, &origin));
+		    dsl_dir_phys(ds->ds_dir)->dd_origin_obj, FTAG, &origin));
 
-		if (origin->ds_dir->dd_phys->dd_clones == 0) {
+		if (dsl_dir_phys(origin->ds_dir)->dd_clones == 0) {
 			dmu_buf_will_dirty(origin->ds_dir->dd_dbuf, tx);
-			origin->ds_dir->dd_phys->dd_clones = zap_create(mos,
-			    DMU_OT_DSL_CLONES, DMU_OT_NONE, 0, tx);
+			dsl_dir_phys(origin->ds_dir)->dd_clones =
+			    zap_create(mos, DMU_OT_DSL_CLONES, DMU_OT_NONE,
+			    0, tx);
 		}
 
 		VERIFY0(zap_add_int(dp->dp_meta_objset,
-		    origin->ds_dir->dd_phys->dd_clones, ds->ds_object, tx));
+		    dsl_dir_phys(origin->ds_dir)->dd_clones,
+		    ds->ds_object, tx));
 
 		dsl_dataset_rele(origin, FTAG);
 	}
@@ -802,13 +811,13 @@ dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * subobj support.  So call dmu_object_alloc() directly.
 	 */
 	obj = dmu_object_alloc(dp->dp_meta_objset, DMU_OT_BPOBJ,
-	    SPA_MAXBLOCKSIZE, DMU_OT_BPOBJ_HDR, sizeof (bpobj_phys_t), tx);
+	    SPA_OLD_MAXBLOCKSIZE, DMU_OT_BPOBJ_HDR, sizeof (bpobj_phys_t), tx);
 	VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx));
 	VERIFY0(bpobj_open(&dp->dp_free_bpobj, dp->dp_meta_objset, obj));
 
 	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-	    upgrade_dir_clones_cb, tx, DS_FIND_CHILDREN));
+	    upgrade_dir_clones_cb, tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
 }
 
 void
@@ -826,7 +835,7 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 	    NULL, 0, kcred, tx);
 	VERIFY0(dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
 	dsl_dataset_snapshot_sync_impl(ds, ORIGIN_DIR_NAME, tx);
-	VERIFY0(dsl_dataset_hold_obj(dp, ds->ds_phys->ds_prev_snap_obj,
+	VERIFY0(dsl_dataset_hold_obj(dp, dsl_dataset_phys(ds)->ds_prev_snap_obj,
 	    dp, &dp->dp_origin_snap));
 	dsl_dataset_rele(ds, FTAG);
 }
@@ -1042,6 +1051,13 @@ dsl_pool_config_enter(dsl_pool_t *dp, void *tag)
 }
 
 void
+dsl_pool_config_enter_prio(dsl_pool_t *dp, void *tag)
+{
+	ASSERT(!rrw_held(&dp->dp_config_rwlock, RW_READER));
+	rrw_enter_read_prio(&dp->dp_config_rwlock, tag);
+}
+
+void
 dsl_pool_config_exit(dsl_pool_t *dp, void *tag)
 {
 	rrw_exit(&dp->dp_config_rwlock, tag);
@@ -1051,6 +1067,12 @@ boolean_t
 dsl_pool_config_held(dsl_pool_t *dp)
 {
 	return (RRW_LOCK_HELD(&dp->dp_config_rwlock));
+}
+
+boolean_t
+dsl_pool_config_held_writer(dsl_pool_t *dp)
+{
+	return (RRW_WRITE_HELD(&dp->dp_config_rwlock));
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

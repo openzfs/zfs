@@ -41,11 +41,33 @@ extern "C" {
 struct zfs_sb;
 struct znode;
 
+typedef struct zfs_mntopts {
+	char		*z_osname;	/* Objset name */
+	char		*z_mntpoint;	/* Primary mount point */
+	uint64_t	z_xattr;
+	boolean_t	z_readonly;
+	boolean_t	z_do_readonly;
+	boolean_t	z_setuid;
+	boolean_t	z_do_setuid;
+	boolean_t	z_exec;
+	boolean_t	z_do_exec;
+	boolean_t	z_devices;
+	boolean_t	z_do_devices;
+	boolean_t	z_do_xattr;
+	boolean_t	z_atime;
+	boolean_t	z_do_atime;
+	boolean_t	z_relatime;
+	boolean_t	z_do_relatime;
+	boolean_t	z_nbmand;
+	boolean_t	z_do_nbmand;
+} zfs_mntopts_t;
+
 typedef struct zfs_sb {
 	struct super_block *z_sb;	/* generic super_block */
 	struct backing_dev_info z_bdi;	/* generic backing dev info */
 	struct zfs_sb	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
+	zfs_mntopts_t	*z_mntopts;	/* passed mount options */
 	uint64_t	z_flags;	/* super_block flags */
 	uint64_t	z_root;		/* id of root znode */
 	uint64_t	z_unlinkedobj;	/* id of unlinked zapobj */
@@ -67,16 +89,15 @@ typedef struct zfs_sb {
 	boolean_t	z_atime;	/* enable atimes mount option */
 	boolean_t	z_relatime;	/* enable relatime mount option */
 	boolean_t	z_unmounted;	/* unmounted */
-	rrwlock_t	z_teardown_lock;
+	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
+	unsigned long	z_snap_defer_time; /* last snapshot unmount deferal */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	arc_prune_t	*z_arc_prune;	/* called by ARC to prune caches */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
-	avl_tree_t	z_ctldir_snaps;	/* .zfs/snapshot entries */
-	kmutex_t	z_ctldir_lock;	/* .zfs ctldir lock */
 	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_vscan;	/* virus scan on/off */
@@ -171,7 +192,10 @@ extern boolean_t zfs_fuid_overquota(zfs_sb_t *zsb, boolean_t isgroup,
 extern int zfs_set_version(zfs_sb_t *zsb, uint64_t newvers);
 extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop,
     uint64_t *value);
-extern int zfs_sb_create(const char *name, zfs_sb_t **zsbp);
+extern zfs_mntopts_t *zfs_mntopts_alloc(void);
+extern void zfs_mntopts_free(zfs_mntopts_t *zmo);
+extern int zfs_sb_create(const char *name, zfs_mntopts_t *zmo,
+    zfs_sb_t **zsbp);
 extern int zfs_sb_setup(zfs_sb_t *zsb, boolean_t mounting);
 extern void zfs_sb_free(zfs_sb_t *zsb);
 extern int zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan,
@@ -182,10 +206,10 @@ extern boolean_t zfs_is_readonly(zfs_sb_t *zsb);
 
 extern int zfs_register_callbacks(zfs_sb_t *zsb);
 extern void zfs_unregister_callbacks(zfs_sb_t *zsb);
-extern int zfs_domount(struct super_block *sb, void *data, int silent);
+extern int zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent);
 extern void zfs_preumount(struct super_block *sb);
 extern int zfs_umount(struct super_block *sb);
-extern int zfs_remount(struct super_block *sb, int *flags, char *data);
+extern int zfs_remount(struct super_block *sb, int *flags, zfs_mntopts_t *zmo);
 extern int zfs_root(zfs_sb_t *zsb, struct inode **ipp);
 extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
 extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);

@@ -48,6 +48,7 @@ uint64_t physmem;
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 char hw_serial[HW_HOSTID_LEN];
 struct utsname hw_utsname;
+vmem_t *zio_arena = NULL;
 
 /* this only exists to have its address taken */
 struct proc p0;
@@ -127,6 +128,7 @@ zk_thread_helper(void *arg)
 	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
 	kthread_nr++;
 	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+	(void) setpriority(PRIO_PROCESS, 0, kt->t_pri);
 
 	kt->t_tid = pthread_self();
 	((thread_func_arg_t) kt->t_func)(kt->t_arg);
@@ -150,6 +152,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	kt = umem_zalloc(sizeof (kthread_t), UMEM_NOFAIL);
 	kt->t_func = func;
 	kt->t_arg = arg;
+	kt->t_pri = pri;
 
 	VERIFY0(pthread_attr_init(&attr));
 	VERIFY0(pthread_attr_setdetachstate(&attr, detachstate));
@@ -837,6 +840,9 @@ dprintf_setup(int *argc, char **argv)
 	 */
 	if (dprintf_find_string("on"))
 		dprintf_print_all = 1;
+
+	if (dprintf_string != NULL)
+		zfs_flags |= ZFS_DEBUG_DPRINTF;
 }
 
 /*

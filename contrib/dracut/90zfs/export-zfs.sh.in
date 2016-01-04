@@ -1,0 +1,29 @@
+#!/bin/sh
+
+. /lib/dracut-zfs-lib.sh
+
+_do_zpool_export() {
+	local ret=0
+	local final="${1}"
+	local opts=""
+
+	if [ "x${final}" != "x" ]; then
+		opts="-f"
+	fi
+
+	info "Exporting ZFS storage pools."
+	export_all ${opts} || ret=$?
+
+	if [ "x${final}" != "x" ]; then
+		info "zpool list"
+		zpool list 2>&1 | vinfo
+	fi
+
+	return ${ret}
+}
+
+if command -v zpool >/dev/null; then
+	_do_zpool_export "${1}"
+else
+	:
+fi

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -35,8 +35,6 @@
 /*
  * Virtual device vector for files.
  */
-
-static taskq_t *vdev_file_taskq;
 
 static void
 vdev_file_hold(vdev_t *vd)
@@ -58,6 +56,9 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	vnode_t *vp;
 	vattr_t vattr;
 	int error;
+
+	/* Rotational optimizations only make sense on block devices */
+	vd->vdev_nonrot = B_TRUE;
 
 	/*
 	 * We must have a pathname, and it must be absolute.
@@ -172,7 +173,7 @@ vdev_file_io_fsync(void *arg)
 	zio_interrupt(zio);
 }
 
-static int
+static void
 vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
@@ -182,7 +183,8 @@ vdev_file_io_start(zio_t *zio)
 		/* XXPOLICY */
 		if (!vdev_readable(vd)) {
 			zio->io_error = SET_ERROR(ENXIO);
-			return (ZIO_PIPELINE_CONTINUE);
+			zio_interrupt(zio);
+			return;
 		}
 
 		switch (zio->io_cmd) {
@@ -199,9 +201,9 @@ vdev_file_io_start(zio_t *zio)
 			 * the sync must be dispatched to a different context.
 			 */
 			if (spl_fstrans_check()) {
-				VERIFY3U(taskq_dispatch(vdev_file_taskq,
+				VERIFY3U(taskq_dispatch(system_taskq,
 				    vdev_file_io_fsync, zio, TQ_SLEEP), !=, 0);
-				return (ZIO_PIPELINE_STOP);
+				return;
 			}
 
 			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
@@ -211,13 +213,12 @@ vdev_file_io_start(zio_t *zio)
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
 
-		return (ZIO_PIPELINE_CONTINUE);
+		zio_execute(zio);
+		return;
 	}
 
-	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
+	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, 0);
-
-	return (ZIO_PIPELINE_STOP);
 }
 
 /* ARGSUSED */
@@ -238,21 +239,6 @@ vdev_ops_t vdev_file_ops = {
 	VDEV_TYPE_FILE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
-
-void
-vdev_file_init(void)
-{
-	vdev_file_taskq = taskq_create("vdev_file_taskq", 100, minclsyspri,
-	    max_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_THREADS_CPU_PCT);
-
-	VERIFY(vdev_file_taskq);
-}
-
-void
-vdev_file_fini(void)
-{
-	taskq_destroy(vdev_file_taskq);
-}
 
 /*
  * From userland we access disks just like files.

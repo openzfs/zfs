@@ -63,6 +63,13 @@ __assert_c99(const char *expr, const char *file, int line, const char *func)
 
 extern void __assert(const char *, const char *, int);
 
+static inline int
+assfail(const char *buf, const char *file, int line)
+{
+	__assert(buf, file, line);
+	return (0);
+}
+
 /* BEGIN CSTYLED */
 #define	VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE) do { \
 	const TYPE __left = (TYPE)(LEFT); \
@@ -72,7 +79,7 @@ extern void __assert(const char *, const char *, int);
 		(void) snprintf(__buf, 256, "%s %s %s (0x%llx %s 0x%llx)", \
 			#LEFT, #OP, #RIGHT, \
 			(u_longlong_t)__left, #OP, (u_longlong_t)__right); \
-		__assert(__buf, __FILE__, __LINE__); \
+		assfail(__buf, __FILE__, __LINE__); \
 	} \
 } while (0)
 /* END CSTYLED */
@@ -88,12 +95,21 @@ extern void __assert(const char *, const char *, int);
 #define	ASSERT3P(x, y, z)	((void)0)
 #define	ASSERT0(x)		((void)0)
 #define	ASSERTV(x)
+#define	IMPLY(A, B)		((void)0)
+#define	EQUIV(A, B)		((void)0)
 #else
 #define	ASSERT3S(x, y, z)	VERIFY3S(x, y, z)
 #define	ASSERT3U(x, y, z)	VERIFY3U(x, y, z)
 #define	ASSERT3P(x, y, z)	VERIFY3P(x, y, z)
 #define	ASSERT0(x)		VERIFY0(x)
 #define	ASSERTV(x)		x
+#define	IMPLY(A, B) \
+	((void)(((!(A)) || (B)) || \
+	    assfail("(" #A ") implies (" #B ")", __FILE__, __LINE__)))
+#define	EQUIV(A, B) \
+	((void)((!!(A) == !!(B)) || \
+	    assfail("(" #A ") is equivalent to (" #B ")", __FILE__, __LINE__)))
+
 #endif  /* NDEBUG */
 
 #endif  /* _LIBSPL_ASSERT_H */

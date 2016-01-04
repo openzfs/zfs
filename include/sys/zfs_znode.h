@@ -137,8 +137,6 @@ extern "C" {
 #define	ZFS_SHARES_DIR		"SHARES"
 #define	ZFS_SA_ATTRS		"SA_ATTRS"
 
-#define	ZFS_MAX_BLOCKSIZE	(SPA_MAXBLOCKSIZE)
-
 /*
  * Path component length
  *
@@ -252,7 +250,7 @@ typedef struct znode {
 /* Called on entry to each ZFS vnode and vfs operation  */
 #define	ZFS_ENTER(zsb) \
 	{ \
-		rrw_enter_read(&(zsb)->z_teardown_lock, FTAG); \
+		rrm_enter_read(&(zsb)->z_teardown_lock, FTAG); \
 		if ((zsb)->z_unmounted) { \
 			ZFS_EXIT(zsb); \
 			return (EIO); \
@@ -262,8 +260,7 @@ typedef struct znode {
 /* Must be called before exiting the vop */
 #define	ZFS_EXIT(zsb) \
 	{ \
-		rrw_exit(&(zsb)->z_teardown_lock, FTAG); \
-		tsd_exit(); \
+		rrm_exit(&(zsb)->z_teardown_lock, FTAG); \
 	}
 
 /* Verifies the znode is valid */

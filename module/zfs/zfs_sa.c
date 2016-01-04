@@ -22,8 +22,7 @@
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#include <sys/types.h>
-#include <sys/param.h>
+#include <sys/zfs_context.h>
 #include <sys/vnode.h>
 #include <sys/sa.h>
 #include <sys/zfs_acl.h>
@@ -230,6 +229,8 @@ zfs_sa_set_xattr(znode_t *zp)
 	ASSERT(zp->z_is_sa);
 
 	error = nvlist_size(zp->z_xattr_cached, &size, NV_ENCODE_XDR);
+	if ((error == 0) && (size > SA_ATTR_MAX_LEN))
+		error = EFBIG;
 	if (error)
 		goto out;
 
@@ -248,12 +249,9 @@ zfs_sa_set_xattr(znode_t *zp)
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {
-		error = sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
-		    obj, size, tx);
-		if (error)
-			dmu_tx_abort(tx);
-		else
-			dmu_tx_commit(tx);
+		VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
+		    obj, size, tx));
+		dmu_tx_commit(tx);
 	}
 out_free:
 	zio_buf_free(obj, size);

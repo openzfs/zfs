@@ -1,0 +1,91 @@
+#!/bin/sh
+
+### prepare
+#TEST_PREPARE_WATCHDOG="no"
+
+### SPLAT
+#TEST_SPLAT_SKIP="yes"
+#TEST_SPLAT_OPTIONS="-acvx"
+
+### ztest
+#TEST_ZTEST_SKIP="yes"
+#TEST_ZTEST_TIMEOUT=1800
+#TEST_ZTEST_DIR="/var/tmp/"
+#TEST_ZTEST_OPTIONS="-V"
+
+### ziltest
+#TEST_ZILTEST_SKIP="yes"
+#TEST_ZILTEST_OPTIONS=""
+
+### zconfig
+#TEST_ZCONFIG_SKIP="yes"
+TEST_ZCONFIG_OPTIONS="-c -s10"
+
+### zimport
+#TEST_ZIMPORT_SKIP="yes"
+#TEST_ZIMPORT_DIR="/var/tmp/zimport"
+#TEST_ZIMPORT_VERSIONS="master installed"
+#TEST_ZIMPORT_POOLS="zol-0.6.1 zol-0.6.2 master installed"
+#TEST_ZIMPORT_OPTIONS="-c"
+
+### xfstests
+#TEST_XFSTESTS_SKIP="yes"
+#TEST_XFSTESTS_URL="https://github.com/behlendorf/xfstests/archive/"
+#TEST_XFSTESTS_VER="zfs.tar.gz"
+#TEST_XFSTESTS_POOL="tank"
+#TEST_XFSTESTS_FS="xfstests"
+#TEST_XFSTESTS_VDEV="/var/tmp/vdev"
+#TEST_XFSTESTS_OPTIONS=""
+
+### filebench
+#TEST_FILEBENCH_SKIP="yes"
+#TEST_FILEBENCH_URL="http://build.zfsonlinux.org/"
+#TEST_FILEBENCH_VER="filebench-1.4.9.1.tar.gz"
+#TEST_FILEBENCH_RUNTIME=10
+#TEST_FILEBENCH_POOL="tank"
+#TEST_FILEBENCH_FS="filebench"
+#TEST_FILEBENCH_VDEV="/var/tmp/vdev"
+#TEST_FILEBENCH_DIR="/$TEST_FILEBENCH_POOL/$TEST_FILEBENCH_FS"
+#TEST_FILEBENCH_OPTIONS=""
+
+### zfsstress
+#TEST_ZFSSTRESS_SKIP="yes"
+#TEST_ZFSSTRESS_URL="https://github.com/nedbass/zfsstress/archive/"
+#TEST_ZFSSTRESS_VER="master.tar.gz"
+#TEST_ZFSSTRESS_RUNTIME=300
+#TEST_ZFSSTRESS_POOL="tank"
+#TEST_ZFSSTRESS_FS="fish"
+#TEST_ZFSSTRESS_VDEV="/var/tmp/vdev"
+#TEST_ZFSSTRESS_DIR="/$TEST_ZFSSTRESS_POOL/$TEST_ZFSSTRESS_FS"
+#TEST_ZFSSTRESS_OPTIONS=""
+
+### per-builder customization
+#
+# BB_NAME=builder-name <distribution-version-architecture-type>
+# - distribution=Amazon,Debian,Fedora,RHEL,SUSE,Ubuntu
+# - version=x.y
+# - architecture=x86_64,i686,arm,aarch64
+# - type=build,test
+#
+case "$BB_NAME" in
+Amazon*)
+    ;;
+CentOS*)
+    # Sporadic segmentation faults
+    TEST_ZTEST_SKIP="yes"
+    # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
+    TEST_ZILTEST_SKIP="yes"
+    ;;
+Debian*)
+    ;;
+Fedora*)
+    ;;
+RHEL*)
+    ;;
+SUSE*)
+    ;;
+Ubuntu*)
+    ;;
+*)
+    ;;
+esac

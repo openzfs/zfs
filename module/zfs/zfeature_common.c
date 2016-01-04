@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  */
@@ -56,7 +56,8 @@ valid_char(char c, boolean_t after_colon)
 {
 	return ((c >= 'a' && c <= 'z') ||
 	    (c >= '0' && c <= '9') ||
-	    c == (after_colon ? '_' : '.'));
+	    (after_colon && c == '_') ||
+	    (!after_colon && (c == '.' || c == '-')));
 }
 
 /*
@@ -134,15 +135,15 @@ zfeature_depends_on(spa_feature_t fid, spa_feature_t check) {
 
 static void
 zfeature_register(spa_feature_t fid, const char *guid, const char *name,
-    const char *desc, boolean_t readonly, boolean_t mos,
-    boolean_t activate_on_enable, const spa_feature_t *deps)
+    const char *desc, zfeature_flags_t flags, const spa_feature_t *deps)
 {
 	zfeature_info_t *feature = &spa_feature_table[fid];
 	static spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
 	ASSERT(name != NULL);
 	ASSERT(desc != NULL);
-	ASSERT(!readonly || !mos);
+	ASSERT((flags & ZFEATURE_FLAG_READONLY_COMPAT) == 0 ||
+	    (flags & ZFEATURE_FLAG_MOS) == 0);
 	ASSERT3U(fid, <, SPA_FEATURES);
 	ASSERT(zfeature_is_valid_guid(guid));
 
@@ -153,9 +154,7 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 	feature->fi_guid = guid;
 	feature->fi_uname = name;
 	feature->fi_desc = desc;
-	feature->fi_can_readonly = readonly;
-	feature->fi_mos = mos;
-	feature->fi_activate_on_enable = activate_on_enable;
+	feature->fi_flags = flags;
 	feature->fi_depends = deps;
 }
 
@@ -164,28 +163,28 @@ zpool_feature_init(void)
 {
 	zfeature_register(SPA_FEATURE_ASYNC_DESTROY,
 	    "com.delphix:async_destroy", "async_destroy",
-	    "Destroy filesystems asynchronously.", B_TRUE, B_FALSE,
-	    B_FALSE, NULL);
+	    "Destroy filesystems asynchronously.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
 
 	zfeature_register(SPA_FEATURE_EMPTY_BPOBJ,
 	    "com.delphix:empty_bpobj", "empty_bpobj",
-	    "Snapshots use less space.", B_TRUE, B_FALSE,
-	    B_FALSE, NULL);
+	    "Snapshots use less space.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
 
 	zfeature_register(SPA_FEATURE_LZ4_COMPRESS,
 	    "org.illumos:lz4_compress", "lz4_compress",
-	    "LZ4 compression algorithm support.", B_FALSE, B_FALSE,
-	    B_TRUE, NULL);
+	    "LZ4 compression algorithm support.",
+	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, NULL);
 
 	zfeature_register(SPA_FEATURE_SPACEMAP_HISTOGRAM,
 	    "com.delphix:spacemap_histogram", "spacemap_histogram",
-	    "Spacemaps maintain space histograms.", B_TRUE, B_FALSE,
-	    B_FALSE, NULL);
+	    "Spacemaps maintain space histograms.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
 
 	zfeature_register(SPA_FEATURE_ENABLED_TXG,
 	    "com.delphix:enabled_txg", "enabled_txg",
-	    "Record txg at which a feature is enabled", B_TRUE, B_FALSE,
-	    B_FALSE, NULL);
+	    "Record txg at which a feature is enabled",
+	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
 
 	{
 	static const spa_feature_t hole_birth_deps[] = {
@@ -195,13 +194,14 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_HOLE_BIRTH,
 	    "com.delphix:hole_birth", "hole_birth",
 	    "Retain hole birth txg for more precise zfs send",
-	    B_FALSE, B_TRUE, B_TRUE, hole_birth_deps);
+	    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_ACTIVATE_ON_ENABLE,
+	    hole_birth_deps);
 	}
 
 	zfeature_register(SPA_FEATURE_EXTENSIBLE_DATASET,
 	    "com.delphix:extensible_dataset", "extensible_dataset",
 	    "Enhanced dataset functionality, used by other features.",
-	    B_FALSE, B_FALSE, B_FALSE, NULL);
+	    0, NULL);
 
 	{
 	static const spa_feature_t bookmarks_deps[] = {
@@ -212,11 +212,34 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_BOOKMARKS,
 	    "com.delphix:bookmarks", "bookmarks",
 	    "\"zfs bookmark\" command",
-	    B_TRUE, B_FALSE, B_FALSE, bookmarks_deps);
+	    ZFEATURE_FLAG_READONLY_COMPAT, bookmarks_deps);
+	}
+
+	{
+	static const spa_feature_t filesystem_limits_deps[] = {
+	    SPA_FEATURE_EXTENSIBLE_DATASET,
+	    SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_FS_SS_LIMIT,
+	    "com.joyent:filesystem_limits", "filesystem_limits",
+	    "Filesystem and snapshot limits.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, filesystem_limits_deps);
 	}
 
 	zfeature_register(SPA_FEATURE_EMBEDDED_DATA,
 	    "com.delphix:embedded_data", "embedded_data",
 	    "Blocks which compress very well use even less space.",
-	    B_FALSE, B_TRUE, B_TRUE, NULL);
+	    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_ACTIVATE_ON_ENABLE,
+	    NULL);
+
+	{
+	static const spa_feature_t large_blocks_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LARGE_BLOCKS,
+	    "org.open-zfs:large_blocks", "large_blocks",
+	    "Support for blocks larger than 128KB.",
+	    ZFEATURE_FLAG_PER_DATASET, large_blocks_deps);
+	}
 }

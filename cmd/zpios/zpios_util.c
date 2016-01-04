@@ -29,6 +29,8 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with ZPIOS.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *  Copyright (c) 2015, Intel Corporation.
  */
 
 #include <stdlib.h>
@@ -185,6 +187,8 @@ int
 set_count(char *pattern1, char *pattern2, range_repeat_t *range,
     char *optarg, uint32_t *flags, char *arg)
 {
+	uint64_t count = range->val_count;
+
 	if (flags)
 		*flags |= FLAG_SET;
 
@@ -197,6 +201,9 @@ set_count(char *pattern1, char *pattern2, range_repeat_t *range,
 		fprintf(stderr, "Error: Incorrect pattern for %s, '%s'\n",
 		    arg, optarg);
 		return (EINVAL);
+	} else if (count == range->val_count) {
+		fprintf(stderr, "Error: input ignored for %s, '%s'\n",
+		    arg, optarg);
 	}
 
 	return (0);
@@ -314,14 +321,14 @@ print_stats_header(cmd_args_t *args)
 	if (args->verbose) {
 		printf(
 		    "status    name        id\tth-cnt\trg-cnt\trg-sz\t"
-		    "ch-sz\toffset\trg-no\tch-no\tth-dly\tflags\ttime\t"
+		    "ch-sz\toffset\trg-no\tch-no\tth-dly\tflags\tblksz\ttime\t"
 		    "cr-time\trm-time\twr-time\trd-time\twr-data\twr-ch\t"
 		    "wr-bw\trd-data\trd-ch\trd-bw\n");
 		printf(
-		    "------------------------------------------------"
-		    "------------------------------------------------"
-		    "------------------------------------------------"
-		    "----------------------------------------------\n");
+		    "-------------------------------------------------"
+		    "-------------------------------------------------"
+		    "-------------------------------------------------"
+		    "--------------------------------------------------\n");
 	} else {
 		printf(
 		    "status    name        id\t"
@@ -358,6 +365,7 @@ print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_noise));
 		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_thread_delay));
 		printf("%s\t", print_flags(str, cmd->cmd_flags));
+		printf("%s\t", uint64_to_kmgt(str, cmd->cmd_block_size));
 	}
 
 	if (args->rc) {
@@ -414,6 +422,7 @@ print_stats_table(cmd_args_t *args, zpios_cmd_t *cmd)
 		printf("%u\t", cmd->cmd_chunk_noise);
 		printf("%u\t", cmd->cmd_thread_delay);
 		printf("0x%x\t", cmd->cmd_flags);
+		printf("%u\t", cmd->cmd_block_size);
 	}
 
 	if (args->rc) {

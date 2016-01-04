@@ -13,7 +13,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -65,7 +65,7 @@ dsl_dataset_bmark_lookup(dsl_dataset_t *ds, const char *shortname,
 	if (bmark_zapobj == 0)
 		return (SET_ERROR(ESRCH));
 
-	if (ds->ds_phys->ds_flags & DS_FLAG_CI_DATASET)
+	if (dsl_dataset_phys(ds)->ds_flags & DS_FLAG_CI_DATASET)
 		mt = MT_FIRST;
 	else
 		mt = MT_EXACT;
@@ -120,7 +120,7 @@ dsl_bookmark_create_check_impl(dsl_dataset_t *snapds, const char *bookmark_name,
 	int error;
 	zfs_bookmark_phys_t bmark_phys;
 
-	if (!dsl_dataset_is_snapshot(snapds))
+	if (!snapds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
 	error = dsl_bookmark_hold_ds(dp, bookmark_name,
@@ -210,10 +210,11 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 			    &bmark_fs->ds_bookmarks, tx));
 		}
 
-		bmark_phys.zbm_guid = snapds->ds_phys->ds_guid;
-		bmark_phys.zbm_creation_txg = snapds->ds_phys->ds_creation_txg;
+		bmark_phys.zbm_guid = dsl_dataset_phys(snapds)->ds_guid;
+		bmark_phys.zbm_creation_txg =
+		    dsl_dataset_phys(snapds)->ds_creation_txg;
 		bmark_phys.zbm_creation_time =
-		    snapds->ds_phys->ds_creation_time;
+		    dsl_dataset_phys(snapds)->ds_creation_time;
 
 		VERIFY0(zap_add(mos, bmark_fs->ds_bookmarks,
 		    shortname, sizeof (uint64_t),
@@ -248,7 +249,8 @@ dsl_bookmark_create(nvlist_t *bmarks, nvlist_t *errors)
 	dbca.dbca_errors = errors;
 
 	return (dsl_sync_task(nvpair_name(pair), dsl_bookmark_create_check,
-	    dsl_bookmark_create_sync, &dbca, fnvlist_num_pairs(bmarks)));
+	    dsl_bookmark_create_sync, &dbca,
+	    fnvlist_num_pairs(bmarks), ZFS_SPACE_CHECK_NORMAL));
 }
 
 int
@@ -342,7 +344,7 @@ dsl_dataset_bookmark_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx)
 	uint64_t bmark_zapobj = ds->ds_bookmarks;
 	matchtype_t mt;
 
-	if (ds->ds_phys->ds_flags & DS_FLAG_CI_DATASET)
+	if (dsl_dataset_phys(ds)->ds_flags & DS_FLAG_CI_DATASET)
 		mt = MT_FIRST;
 	else
 		mt = MT_EXACT;
@@ -453,7 +455,8 @@ dsl_bookmark_destroy(nvlist_t *bmarks, nvlist_t *errors)
 	dbda.dbda_success = fnvlist_alloc();
 
 	rv = dsl_sync_task(nvpair_name(pair), dsl_bookmark_destroy_check,
-	    dsl_bookmark_destroy_sync, &dbda, fnvlist_num_pairs(bmarks));
+	    dsl_bookmark_destroy_sync, &dbda, fnvlist_num_pairs(bmarks),
+	    ZFS_SPACE_CHECK_RESERVED);
 	fnvlist_free(dbda.dbda_success);
 	return (rv);
 }

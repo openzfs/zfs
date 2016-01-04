@@ -160,19 +160,9 @@ const struct inode_operations zpl_ops_root = {
 static struct vfsmount *
 zpl_snapdir_automount(struct path *path)
 {
-	struct dentry *dentry = path->dentry;
 	int error;
 
-	/*
-	 * We must briefly disable automounts for this dentry because the
-	 * user space mount utility will trigger another lookup on this
-	 * directory.  That will result in zpl_snapdir_automount() being
-	 * called repeatedly.  The DCACHE_NEED_AUTOMOUNT flag can be
-	 * safely reset once the mount completes.
-	 */
-	dentry->d_flags &= ~DCACHE_NEED_AUTOMOUNT;
-	error = -zfsctl_mount_snapshot(path, 0);
-	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
+	error = -zfsctl_snapshot_mount(path, 0);
 	if (error)
 		return (ERR_PTR(error));
 
@@ -188,8 +178,10 @@ zpl_snapdir_automount(struct path *path)
 #endif /* HAVE_AUTOMOUNT */
 
 /*
- * Revalidate any dentry in the snapshot directory on lookup, since a snapshot
- * having the same name have been created or destroyed since it was cached.
+ * Negative dentries must always be revalidated so newly created snapshots
+ * can be detected and automounted.  Normal dentries should be kept because
+ * as of the 3.18 kernel revaliding the mountpoint dentry will result in
+ * the snapshot being immediately unmounted.
  */
 static int
 #ifdef HAVE_D_REVALIDATE_NAMEIDATA
@@ -198,7 +190,7 @@ zpl_snapdir_revalidate(struct dentry *dentry, struct nameidata *i)
 zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
 #endif
 {
-	return (0);
+	return (!!dentry->d_inode);
 }
 
 dentry_operations_t zpl_dops_snapdirs = {
@@ -226,14 +218,17 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 #endif
 
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	struct inode *ip = NULL;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfsctl_snapdir_lookup(dip, dname(dentry), &ip,
 	    0, cr, NULL, NULL);
 	ASSERT3S(error, <=, 0);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
 	if (error && error != -ENOENT)
@@ -242,6 +237,9 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 	ASSERT(error == 0 || ip == NULL);
 	d_clear_d_op(dentry);
 	d_set_d_op(dentry, &zpl_dops_snapdirs);
+#ifdef HAVE_AUTOMOUNT
+	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
+#endif
 
 	return (d_splice_alias(ip, dentry));
 }
@@ -250,21 +248,23 @@ static int
 zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 {
 	zfs_sb_t *zsb = ITOZSB(filp->f_path.dentry->d_inode);
+	fstrans_cookie_t cookie;
 	char snapname[MAXNAMELEN];
 	boolean_t case_conflict;
-	uint64_t id, cookie;
+	uint64_t id, pos;
 	int error = 0;
 
 	ZFS_ENTER(zsb);
+	cookie = spl_fstrans_mark();
 
 	if (!dir_emit_dots(filp, ctx))
 		goto out;
 
-	cookie = ctx->pos;
+	pos = ctx->pos;
 	while (error == 0) {
 		dsl_pool_config_enter(dmu_objset_pool(zsb->z_os), FTAG);
 		error = -dmu_snapshot_list_next(zsb->z_os, MAXNAMELEN,
-		    snapname, &id, &cookie, &case_conflict);
+		    snapname, &id, &pos, &case_conflict);
 		dsl_pool_config_exit(dmu_objset_pool(zsb->z_os), FTAG);
 		if (error)
 			goto out;
@@ -273,9 +273,10 @@ zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 		    ZFSCTL_INO_SHARES - id, DT_DIR))
 			goto out;
 
-		ctx->pos = cookie;
+		ctx->pos = pos;
 	}
 out:
+	spl_fstrans_unmark(cookie);
 	ZFS_EXIT(zsb);
 
 	if (error == -ENOENT)
@@ -367,7 +368,7 @@ zpl_snapdir_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	ZFS_ENTER(zsb);
 	error = simple_getattr(mnt, dentry, stat);
-	stat->nlink = stat->size = avl_numnodes(&zsb->z_ctldir_snaps) + 2;
+	stat->nlink = stat->size = 2;
 	stat->ctime = stat->mtime = dmu_objset_snap_cmtime(zsb->z_os);
 	stat->atime = CURRENT_TIME;
 	ZFS_EXIT(zsb);
@@ -414,14 +415,17 @@ zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
     unsigned int flags)
 #endif
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	struct inode *ip = NULL;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfsctl_shares_lookup(dip, dname(dentry), &ip,
 	    0, cr, NULL, NULL);
 	ASSERT3S(error, <=, 0);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
 	if (error) {
@@ -437,12 +441,14 @@ zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
 static int
 zpl_shares_iterate(struct file *filp, struct dir_context *ctx)
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	zfs_sb_t *zsb = ITOZSB(filp->f_path.dentry->d_inode);
 	znode_t *dzp;
 	int error = 0;
 
 	ZFS_ENTER(zsb);
+	cookie = spl_fstrans_mark();
 
 	if (zsb->z_shares_dir == 0) {
 		dir_emit_dots(filp, ctx);
@@ -459,6 +465,7 @@ zpl_shares_iterate(struct file *filp, struct dir_context *ctx)
 
 	iput(ZTOI(dzp));
 out:
+	spl_fstrans_unmark(cookie);
 	ZFS_EXIT(zsb);
 	ASSERT3S(error, <=, 0);
 

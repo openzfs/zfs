@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_H
@@ -213,6 +213,7 @@ int zap_lookup_norm(objset_t *ds, uint64_t zapobj, const char *name,
 int zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
 int zap_contains(objset_t *ds, uint64_t zapobj, const char *name);
+int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
 int zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints);
 
@@ -379,11 +380,6 @@ void zap_cursor_advance(zap_cursor_t *zc);
  * fewer than 2^22 (4.2 million) entries in the zap object.
  */
 uint64_t zap_cursor_serialize(zap_cursor_t *zc);
-
-/*
- * Advance the cursor to the attribute having the given key.
- */
-int zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt);
 
 /*
  * Initialize a zap cursor pointing to the position recorded by

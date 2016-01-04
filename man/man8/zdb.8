@@ -56,6 +56,11 @@ pool, and is inherently unstable. The precise output of most invocations is
 not documented, a knowledge of ZFS internals is assumed.
 
 .P
+If the \fIdataset\fR argument does not contain any \fB/\fR or \fB@\fR
+characters, it is interpreted as a pool name.  The root dataset can be
+specified as \fIpool\fB/\fR (pool name followed by a slash).
+
+.P
 When operating on an imported and active pool it is possible, though unlikely,
 that zdb may interpret inconsistent pool data and behave erratically.
 
@@ -514,7 +519,7 @@ Dataset rpool/export/home [ZPL], ID 137, cr_txg 1546, 32K, 8 objects
 # zdb -S rpool
 Simulated DDT histogram:
 
-bucket              allocated                       referenced          
+bucket              allocated                       referenced
 ______   ______________________________   ______________________________
 refcnt   blocks   LSIZE   PSIZE   DSIZE   blocks   LSIZE   PSIZE   DSIZE
 ------   ------   -----   -----   -----   ------   -----   -----   -----

@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -48,20 +48,30 @@ typedef enum spa_feature {
 	SPA_FEATURE_EXTENSIBLE_DATASET,
 	SPA_FEATURE_EMBEDDED_DATA,
 	SPA_FEATURE_BOOKMARKS,
+	SPA_FEATURE_FS_SS_LIMIT,
+	SPA_FEATURE_LARGE_BLOCKS,
 	SPA_FEATURES
 } spa_feature_t;
 
 #define	SPA_FEATURE_DISABLED	(-1ULL)
+
+typedef enum zfeature_flags {
+	/* Can open pool readonly even if this feature is not supported. */
+	ZFEATURE_FLAG_READONLY_COMPAT =		(1 << 0),
+	/* Is this feature necessary to read the MOS? */
+	ZFEATURE_FLAG_MOS =			(1 << 1),
+	/* Activate this feature at the same time it is enabled. */
+	ZFEATURE_FLAG_ACTIVATE_ON_ENABLE =	(1 << 2),
+	/* Each dataset has a field set if it has ever used this feature. */
+	ZFEATURE_FLAG_PER_DATASET =		(1 << 3)
+} zfeature_flags_t;
 
 typedef struct zfeature_info {
 	spa_feature_t fi_feature;
 	const char *fi_uname;	/* User-facing feature name */
 	const char *fi_guid;	/* On-disk feature identifier */
 	const char *fi_desc;	/* Feature description */
-	boolean_t fi_can_readonly; /* Can open pool readonly w/o support? */
-	boolean_t fi_mos;	/* Is the feature necessary to read the MOS? */
-	/* Activate this feature at the same time it is enabled */
-	boolean_t fi_activate_on_enable;
+	zfeature_flags_t fi_flags;
 	/* array of dependencies, terminated by SPA_FEATURE_NONE */
 	const spa_feature_t *fi_depends;
 } zfeature_info_t;

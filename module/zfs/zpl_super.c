@@ -57,13 +57,21 @@ zpl_inode_destroy(struct inode *ip)
 static void
 zpl_dirty_inode(struct inode *ip, int flags)
 {
+	fstrans_cookie_t cookie;
+
+	cookie = spl_fstrans_mark();
 	zfs_dirty_inode(ip, flags);
+	spl_fstrans_unmark(cookie);
 }
 #else
 static void
 zpl_dirty_inode(struct inode *ip)
 {
+	fstrans_cookie_t cookie;
+
+	cookie = spl_fstrans_mark();
 	zfs_dirty_inode(ip, 0);
+	spl_fstrans_unmark(cookie);
 }
 #endif /* HAVE_DIRTY_INODE_WITH_FLAGS */
 
@@ -136,20 +144,26 @@ zpl_inode_delete(struct inode *ip)
 static void
 zpl_put_super(struct super_block *sb)
 {
+	fstrans_cookie_t cookie;
 	int error;
 
+	cookie = spl_fstrans_mark();
 	error = -zfs_umount(sb);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 }
 
 static int
 zpl_sync_fs(struct super_block *sb, int wait)
 {
+	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
 	error = -zfs_sync(sb, wait, cr);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -159,53 +173,228 @@ zpl_sync_fs(struct super_block *sb, int wait)
 static int
 zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 {
+	fstrans_cookie_t cookie;
 	int error;
 
+	cookie = spl_fstrans_mark();
 	error = -zfs_statvfs(dentry, statp);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
+}
+
+enum {
+	TOKEN_RO,
+	TOKEN_RW,
+	TOKEN_SETUID,
+	TOKEN_NOSETUID,
+	TOKEN_EXEC,
+	TOKEN_NOEXEC,
+	TOKEN_DEVICES,
+	TOKEN_NODEVICES,
+	TOKEN_DIRXATTR,
+	TOKEN_SAXATTR,
+	TOKEN_XATTR,
+	TOKEN_NOXATTR,
+	TOKEN_ATIME,
+	TOKEN_NOATIME,
+	TOKEN_RELATIME,
+	TOKEN_NORELATIME,
+	TOKEN_NBMAND,
+	TOKEN_NONBMAND,
+	TOKEN_MNTPOINT,
+	TOKEN_LAST,
+};
+
+static const match_table_t zpl_tokens = {
+	{ TOKEN_RO,		MNTOPT_RO },
+	{ TOKEN_RW,		MNTOPT_RW },
+	{ TOKEN_SETUID,		MNTOPT_SETUID },
+	{ TOKEN_NOSETUID,	MNTOPT_NOSETUID },
+	{ TOKEN_EXEC,		MNTOPT_EXEC },
+	{ TOKEN_NOEXEC,		MNTOPT_NOEXEC },
+	{ TOKEN_DEVICES,	MNTOPT_DEVICES },
+	{ TOKEN_NODEVICES,	MNTOPT_NODEVICES },
+	{ TOKEN_DIRXATTR,	MNTOPT_DIRXATTR },
+	{ TOKEN_SAXATTR,	MNTOPT_SAXATTR },
+	{ TOKEN_XATTR,		MNTOPT_XATTR },
+	{ TOKEN_NOXATTR,	MNTOPT_NOXATTR },
+	{ TOKEN_ATIME,		MNTOPT_ATIME },
+	{ TOKEN_NOATIME,	MNTOPT_NOATIME },
+	{ TOKEN_RELATIME,	MNTOPT_RELATIME },
+	{ TOKEN_NORELATIME,	MNTOPT_NORELATIME },
+	{ TOKEN_NBMAND,		MNTOPT_NBMAND },
+	{ TOKEN_NONBMAND,	MNTOPT_NONBMAND },
+	{ TOKEN_MNTPOINT,	MNTOPT_MNTPOINT "=%s" },
+	{ TOKEN_LAST,		NULL },
+};
+
+static int
+zpl_parse_option(char *option, int token, substring_t *args, zfs_mntopts_t *zmo)
+{
+	switch (token) {
+	case TOKEN_RO:
+		zmo->z_readonly = B_TRUE;
+		zmo->z_do_readonly = B_TRUE;
+		break;
+	case TOKEN_RW:
+		zmo->z_readonly = B_FALSE;
+		zmo->z_do_readonly = B_TRUE;
+		break;
+	case TOKEN_SETUID:
+		zmo->z_setuid = B_TRUE;
+		zmo->z_do_setuid = B_TRUE;
+		break;
+	case TOKEN_NOSETUID:
+		zmo->z_setuid = B_FALSE;
+		zmo->z_do_setuid = B_TRUE;
+		break;
+	case TOKEN_EXEC:
+		zmo->z_exec = B_TRUE;
+		zmo->z_do_exec = B_TRUE;
+		break;
+	case TOKEN_NOEXEC:
+		zmo->z_exec = B_FALSE;
+		zmo->z_do_exec = B_TRUE;
+		break;
+	case TOKEN_DEVICES:
+		zmo->z_devices = B_TRUE;
+		zmo->z_do_devices = B_TRUE;
+		break;
+	case TOKEN_NODEVICES:
+		zmo->z_devices = B_FALSE;
+		zmo->z_do_devices = B_TRUE;
+		break;
+	case TOKEN_DIRXATTR:
+		zmo->z_xattr = ZFS_XATTR_DIR;
+		zmo->z_do_xattr = B_TRUE;
+		break;
+	case TOKEN_SAXATTR:
+		zmo->z_xattr = ZFS_XATTR_SA;
+		zmo->z_do_xattr = B_TRUE;
+		break;
+	case TOKEN_XATTR:
+		zmo->z_xattr = ZFS_XATTR_DIR;
+		zmo->z_do_xattr = B_TRUE;
+		break;
+	case TOKEN_NOXATTR:
+		zmo->z_xattr = ZFS_XATTR_OFF;
+		zmo->z_do_xattr = B_TRUE;
+		break;
+	case TOKEN_ATIME:
+		zmo->z_atime = B_TRUE;
+		zmo->z_do_atime = B_TRUE;
+		break;
+	case TOKEN_NOATIME:
+		zmo->z_atime = B_FALSE;
+		zmo->z_do_atime = B_TRUE;
+		break;
+	case TOKEN_RELATIME:
+		zmo->z_relatime = B_TRUE;
+		zmo->z_do_relatime = B_TRUE;
+		break;
+	case TOKEN_NORELATIME:
+		zmo->z_relatime = B_FALSE;
+		zmo->z_do_relatime = B_TRUE;
+		break;
+	case TOKEN_NBMAND:
+		zmo->z_nbmand = B_TRUE;
+		zmo->z_do_nbmand = B_TRUE;
+		break;
+	case TOKEN_NONBMAND:
+		zmo->z_nbmand = B_FALSE;
+		zmo->z_do_nbmand = B_TRUE;
+		break;
+	case TOKEN_MNTPOINT:
+		zmo->z_mntpoint = match_strdup(&args[0]);
+		if (zmo->z_mntpoint == NULL)
+			return (-ENOMEM);
+
+		break;
+	default:
+		break;
+	}
+
+	return (0);
+}
+
+/*
+ * Parse the mntopts string storing the results in provided zmo argument.
+ * If an error occurs the zmo argument will not be modified.  The caller
+ * needs to set isremount when recycling an existing zfs_mntopts_t.
+ */
+static int
+zpl_parse_options(char *osname, char *mntopts, zfs_mntopts_t *zmo,
+    boolean_t isremount)
+{
+	zfs_mntopts_t *tmp_zmo;
+	int error;
+
+	tmp_zmo = zfs_mntopts_alloc();
+	tmp_zmo->z_osname = strdup(osname);
+
+	if (mntopts) {
+		substring_t args[MAX_OPT_ARGS];
+		char *tmp_mntopts, *p;
+		int token;
+
+		tmp_mntopts = strdup(mntopts);
+
+		while ((p = strsep(&tmp_mntopts, ",")) != NULL) {
+			if (!*p)
+				continue;
+
+			args[0].to = args[0].from = NULL;
+			token = match_token(p, zpl_tokens, args);
+			error = zpl_parse_option(p, token, args, tmp_zmo);
+			if (error) {
+				zfs_mntopts_free(tmp_zmo);
+				strfree(tmp_mntopts);
+				return (error);
+			}
+		}
+
+		strfree(tmp_mntopts);
+	}
+
+	if (isremount == B_TRUE) {
+		if (zmo->z_osname)
+			strfree(zmo->z_osname);
+
+		if (zmo->z_mntpoint)
+			strfree(zmo->z_mntpoint);
+	} else {
+		ASSERT3P(zmo->z_osname, ==, NULL);
+		ASSERT3P(zmo->z_mntpoint, ==, NULL);
+	}
+
+	memcpy(zmo, tmp_zmo, sizeof (zfs_mntopts_t));
+	kmem_free(tmp_zmo, sizeof (zfs_mntopts_t));
+
+	return (0);
 }
 
 static int
 zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 {
+	zfs_sb_t *zsb = sb->s_fs_info;
+	fstrans_cookie_t cookie;
 	int error;
-	error = -zfs_remount(sb, flags, data);
+
+	error = zpl_parse_options(zsb->z_mntopts->z_osname, data,
+	    zsb->z_mntopts, B_TRUE);
+	if (error)
+		return (error);
+
+	cookie = spl_fstrans_mark();
+	error = -zfs_remount(sb, flags, zsb->z_mntopts);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
 }
 
-static void
-zpl_umount_begin(struct super_block *sb)
-{
-	zfs_sb_t *zsb = sb->s_fs_info;
-	int count;
-
-	/*
-	 * Best effort to unmount snapshots in .zfs/snapshot/.  Normally this
-	 * isn't required because snapshots have the MNT_SHRINKABLE flag set.
-	 */
-	if (zsb->z_ctldir)
-		(void) zfsctl_unmount_snapshots(zsb, MNT_FORCE, &count);
-}
-
-/*
- * ZFS specific features must be explicitly handled here, the VFS will
- * automatically handled the following generic functionality.
- *
- *   MNT_NOSUID,
- *   MNT_NODEV,
- *   MNT_NOEXEC,
- *   MNT_NOATIME,
- *   MNT_NODIRATIME,
- *   MNT_READONLY,
- *   MNT_STRICTATIME,
- *   MS_SYNCHRONOUS,
- *   MS_DIRSYNC,
- *   MS_MANDLOCK.
- */
 static int
 __zpl_show_options(struct seq_file *seq, zfs_sb_t *zsb)
 {
@@ -242,9 +431,13 @@ zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
 static int
 zpl_fill_super(struct super_block *sb, void *data, int silent)
 {
+	zfs_mntopts_t *zmo = (zfs_mntopts_t *)data;
+	fstrans_cookie_t cookie;
 	int error;
 
-	error = -zfs_domount(sb, data, silent);
+	cookie = spl_fstrans_mark();
+	error = -zfs_domount(sb, zmo, silent);
+	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -255,18 +448,32 @@ static struct dentry *
 zpl_mount(struct file_system_type *fs_type, int flags,
     const char *osname, void *data)
 {
-	zpl_mount_data_t zmd = { osname, data };
+	zfs_mntopts_t *zmo = zfs_mntopts_alloc();
+	int error;
 
-	return (mount_nodev(fs_type, flags, &zmd, zpl_fill_super));
+	error = zpl_parse_options((char *)osname, (char *)data, zmo, B_FALSE);
+	if (error) {
+		zfs_mntopts_free(zmo);
+		return (ERR_PTR(error));
+	}
+
+	return (mount_nodev(fs_type, flags, zmo, zpl_fill_super));
 }
 #else
 static int
 zpl_get_sb(struct file_system_type *fs_type, int flags,
     const char *osname, void *data, struct vfsmount *mnt)
 {
-	zpl_mount_data_t zmd = { osname, data };
+	zfs_mntopts_t *zmo = zfs_mntopts_alloc();
+	int error;
 
-	return (get_sb_nodev(fs_type, flags, &zmd, zpl_fill_super, mnt));
+	error = zpl_parse_options((char *)osname, (char *)data, zmo, B_FALSE);
+	if (error) {
+		zfs_mntopts_free(zmo);
+		return (error);
+	}
+
+	return (get_sb_nodev(fs_type, flags, zmo, zpl_fill_super, mnt));
 }
 #endif /* HAVE_MOUNT_NODEV */
 
@@ -294,24 +501,11 @@ zpl_prune_sb(int64_t nr_to_scan, void *arg)
 static int
 zpl_nr_cached_objects(struct super_block *sb)
 {
-	zfs_sb_t *zsb = sb->s_fs_info;
-	int nr;
-
-	mutex_enter(&zsb->z_znodes_lock);
-	nr = zsb->z_nr_znodes;
-	mutex_exit(&zsb->z_znodes_lock);
-
-	return (nr);
+	return (0);
 }
 #endif /* HAVE_NR_CACHED_OBJECTS */
 
 #ifdef HAVE_FREE_CACHED_OBJECTS
-/*
- * Attempt to evict some meta data from the cache.  The ARC operates in
- * terms of bytes while the Linux VFS uses objects.  Now because this is
- * just a best effort eviction and the exact values aren't critical so we
- * extrapolate from an object count to a byte size using the znode_t size.
- */
 static void
 zpl_free_cached_objects(struct super_block *sb, int nr_to_scan)
 {
@@ -335,7 +529,6 @@ const struct super_operations zpl_super_operations = {
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.remount_fs		= zpl_remount_fs,
-	.umount_begin		= zpl_umount_begin,
 	.show_options		= zpl_show_options,
 	.show_stats		= NULL,
 #ifdef HAVE_NR_CACHED_OBJECTS

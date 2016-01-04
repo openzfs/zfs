@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -209,12 +210,6 @@ sa_cache_constructor(void *buf, void *unused, int kmflag)
 {
 	sa_handle_t *hdl = buf;
 
-	hdl->sa_bonus_tab = NULL;
-	hdl->sa_spill_tab = NULL;
-	hdl->sa_os = NULL;
-	hdl->sa_userp = NULL;
-	hdl->sa_bonus = NULL;
-	hdl->sa_spill = NULL;
 	mutex_init(&hdl->sa_lock, NULL, MUTEX_DEFAULT, NULL);
 	return (0);
 }
@@ -501,7 +496,7 @@ sa_resize_spill(sa_handle_t *hdl, uint32_t size, dmu_tx_t *tx)
 
 	if (size == 0) {
 		blocksize = SPA_MINBLOCKSIZE;
-	} else if (size > SPA_MAXBLOCKSIZE) {
+	} else if (size > SPA_OLD_MAXBLOCKSIZE) {
 		ASSERT(0);
 		return (SET_ERROR(EFBIG));
 	} else {
@@ -690,7 +685,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	hdrsize = sa_find_sizes(sa, attr_desc, attr_count, hdl->sa_bonus,
 	    SA_BONUS, &spill_idx, &used, &spilling);
 
-	if (used > SPA_MAXBLOCKSIZE)
+	if (used > SPA_OLD_MAXBLOCKSIZE)
 		return (SET_ERROR(EFBIG));
 
 	VERIFY(0 == dmu_set_bonus(hdl->sa_bonus, spilling ?
@@ -714,7 +709,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		    attr_count - spill_idx, hdl->sa_spill, SA_SPILL, &i,
 		    &spill_used, &dummy);
 
-		if (spill_used > SPA_MAXBLOCKSIZE)
+		if (spill_used > SPA_OLD_MAXBLOCKSIZE)
 			return (SET_ERROR(EFBIG));
 
 		if (BUF_SPACE_NEEDED(spill_used, spillhdrsize) >
@@ -1112,6 +1107,9 @@ fail:
 	if (sa->sa_user_table)
 		kmem_free(sa->sa_user_table, sa->sa_user_table_sz);
 	mutex_exit(&sa->sa_lock);
+	avl_destroy(&sa->sa_layout_hash_tree);
+	avl_destroy(&sa->sa_layout_num_tree);
+	mutex_destroy(&sa->sa_lock);
 	kmem_free(sa, sizeof (sa_os_t));
 	return ((error == ECKSUM) ? EIO : error);
 }
@@ -1148,6 +1146,7 @@ sa_tear_down(objset_t *os)
 
 	avl_destroy(&sa->sa_layout_hash_tree);
 	avl_destroy(&sa->sa_layout_num_tree);
+	mutex_destroy(&sa->sa_lock);
 
 	kmem_free(sa, sizeof (sa_os_t));
 	os->os_sa = NULL;
@@ -1302,10 +1301,10 @@ sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype)
 }
 
 /*ARGSUSED*/
-void
-sa_evict(dmu_buf_t *db, void *sap)
+static void
+sa_evict(void *dbu)
 {
-	panic("evicting sa dbuf %p\n", (void *)db);
+	panic("evicting sa dbuf\n");
 }
 
 static void
@@ -1357,18 +1356,16 @@ sa_spill_rele(sa_handle_t *hdl)
 void
 sa_handle_destroy(sa_handle_t *hdl)
 {
-	mutex_enter(&hdl->sa_lock);
-	(void) dmu_buf_update_user((dmu_buf_t *)hdl->sa_bonus, hdl,
-	    NULL, NULL, NULL);
+	dmu_buf_t *db = hdl->sa_bonus;
 
-	if (hdl->sa_bonus_tab) {
+	mutex_enter(&hdl->sa_lock);
+	(void) dmu_buf_remove_user(db, &hdl->sa_dbu);
+
+	if (hdl->sa_bonus_tab)
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_bonus_tab);
-		hdl->sa_bonus_tab = NULL;
-	}
-	if (hdl->sa_spill_tab) {
+
+	if (hdl->sa_spill_tab)
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_spill_tab);
-		hdl->sa_spill_tab = NULL;
-	}
 
 	dmu_buf_rele(hdl->sa_bonus, NULL);
 
@@ -1384,7 +1381,7 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
     sa_handle_type_t hdl_type, sa_handle_t **handlepp)
 {
 	int error = 0;
-	sa_handle_t *handle;
+	sa_handle_t *handle = NULL;
 #ifdef ZFS_DEBUG
 	dmu_object_info_t doi;
 
@@ -1395,23 +1392,31 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
 	/* find handle, if it exists */
 	/* if one doesn't exist then create a new one, and initialize it */
 
-	handle = (hdl_type == SA_HDL_SHARED) ? dmu_buf_get_user(db) : NULL;
+	if (hdl_type == SA_HDL_SHARED)
+		handle = dmu_buf_get_user(db);
+
 	if (handle == NULL) {
-		sa_handle_t *newhandle;
+		sa_handle_t *winner = NULL;
+
 		handle = kmem_cache_alloc(sa_cache, KM_SLEEP);
+		handle->sa_dbu.dbu_evict_func = NULL;
 		handle->sa_userp = userp;
 		handle->sa_bonus = db;
 		handle->sa_os = os;
 		handle->sa_spill = NULL;
+		handle->sa_bonus_tab = NULL;
+		handle->sa_spill_tab = NULL;
 
 		error = sa_build_index(handle, SA_BONUS);
-		newhandle = (hdl_type == SA_HDL_SHARED) ?
-		    dmu_buf_set_user_ie(db, handle,
-		    NULL, sa_evict) : NULL;
 
-		if (newhandle != NULL) {
+		if (hdl_type == SA_HDL_SHARED) {
+			dmu_buf_init_user(&handle->sa_dbu, sa_evict, NULL);
+			winner = dmu_buf_set_user_ie(db, &handle->sa_dbu);
+		}
+
+		if (winner != NULL) {
 			kmem_cache_free(sa_cache, handle);
-			handle = newhandle;
+			handle = winner;
 		}
 	}
 	*handlepp = handle;
@@ -1458,6 +1463,8 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 {
 	int error;
 	sa_bulk_attr_t bulk;
+
+	VERIFY3U(buflen, <=, SA_ATTR_MAX_LEN);
 
 	bulk.sa_attr = attr;
 	bulk.sa_data = buf;
@@ -1831,6 +1838,8 @@ sa_update(sa_handle_t *hdl, sa_attr_type_t type,
 	int error;
 	sa_bulk_attr_t bulk;
 
+	VERIFY3U(buflen, <=, SA_ATTR_MAX_LEN);
+
 	bulk.sa_attr = type;
 	bulk.sa_data_func = NULL;
 	bulk.sa_length = buflen;
@@ -1848,6 +1857,8 @@ sa_update_from_cb(sa_handle_t *hdl, sa_attr_type_t attr,
 {
 	int error;
 	sa_bulk_attr_t bulk;
+
+	VERIFY3U(buflen, <=, SA_ATTR_MAX_LEN);
 
 	bulk.sa_attr = attr;
 	bulk.sa_data = userdata;
@@ -1941,14 +1952,6 @@ sa_object_size(sa_handle_t *hdl, uint32_t *blksize, u_longlong_t *nblocks)
 {
 	dmu_object_size_from_db((dmu_buf_t *)hdl->sa_bonus,
 	    blksize, nblocks);
-}
-
-void
-sa_update_user(sa_handle_t *newhdl, sa_handle_t *oldhdl)
-{
-	(void) dmu_buf_update_user((dmu_buf_t *)newhdl->sa_bonus,
-	    oldhdl, newhdl, NULL, sa_evict);
-	oldhdl->sa_bonus = NULL;
 }
 
 void
@@ -2049,7 +2052,6 @@ EXPORT_SYMBOL(sa_size);
 EXPORT_SYMBOL(sa_update_from_cb);
 EXPORT_SYMBOL(sa_object_info);
 EXPORT_SYMBOL(sa_object_size);
-EXPORT_SYMBOL(sa_update_user);
 EXPORT_SYMBOL(sa_get_userdata);
 EXPORT_SYMBOL(sa_set_userp);
 EXPORT_SYMBOL(sa_get_db);

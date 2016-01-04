@@ -1,13 +1,12 @@
-
 ACLOCAL_AMFLAGS = -I config
 
-include $(top_srcdir)/config/rpm.am
-include $(top_srcdir)/config/deb.am
-include $(top_srcdir)/config/tgz.am
+include config/rpm.am
+include config/deb.am
+include config/tgz.am
 
 SUBDIRS = include rpm
 if CONFIG_USER
-SUBDIRS += dracut udev etc man scripts lib cmd contrib
+SUBDIRS += udev etc man scripts lib cmd contrib
 endif
 if CONFIG_KERNEL
 SUBDIRS += module
@@ -40,16 +39,28 @@ dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-checkstyle:
+checkstyle: cstyle shellcheck
+
+cstyle:
 	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
 		! -name '*.mod.c' -type f -exec scripts/cstyle.pl {} \+
 
+shellcheck:
+	@if type shellcheck > /dev/null 2>&1; then \
+		(find ${top_srcdir} -type f -name '*.sh.in' -o -type f \
+		 -name '*.sh'; find etc/init.d/zfs*.in -type f) | \
+		 grep -v 'zfs-script-config' | \
+		 while read file; do \
+			shellcheck --format gcc "$$file"; \
+		 done; \
+	 fi
+
 ctags:
-	$(RM) $(top_srcdir)/tags
+	$(RM) tags
 	find $(top_srcdir) -name .git -prune -o -name '*.[hc]' | xargs ctags
 
 etags:
-	$(RM) $(top_srcdir)/TAGS
+	$(RM) TAGS
 	find $(top_srcdir) -name .pc -prune -o -name '*.[hc]' | xargs etags -a
 
 tags: ctags etags

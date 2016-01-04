@@ -200,7 +200,7 @@ spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb, uint32_t aflags)
 	if (zfs_read_history == 0 && ssh->size == 0)
 		return;
 
-	if (zfs_read_history_hits == 0 && (aflags & ARC_CACHED))
+	if (zfs_read_history_hits == 0 && (aflags & ARC_FLAG_CACHED))
 		return;
 
 	srh = kmem_zalloc(sizeof (spa_read_history_t), KM_SLEEP);

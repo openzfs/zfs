@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -74,15 +75,17 @@ struct objset {
 	arc_buf_t *os_phys_buf;
 	objset_phys_t *os_phys;
 	/*
-	 * The following "special" dnodes have no parent and are exempt from
-	 * dnode_move(), but they root their descendents in this objset using
-	 * handles anyway, so that all access to dnodes from dbufs consistently
-	 * uses handles.
+	 * The following "special" dnodes have no parent, are exempt
+	 * from dnode_move(), and are not recorded in os_dnodes, but they
+	 * root their descendents in this objset using handles anyway, so
+	 * that all access to dnodes from dbufs consistently uses handles.
 	 */
 	dnode_handle_t os_meta_dnode;
 	dnode_handle_t os_userused_dnode;
 	dnode_handle_t os_groupused_dnode;
 	zilog_t *os_zil;
+
+	list_node_t os_evicting_node;
 
 	/* can change, under dsl_dir's locks: */
 	enum zio_checksum os_checksum;
@@ -95,6 +98,7 @@ struct objset {
 	zfs_cache_type_t os_secondary_cache;
 	zfs_sync_type_t os_sync;
 	zfs_redundant_metadata_type_t os_redundant_metadata;
+	int os_recordsize;
 
 	/* no lock needed: */
 	struct dmu_tx *os_synctx; /* XXX sketchy */
@@ -137,6 +141,8 @@ struct objset {
 int dmu_objset_hold(const char *name, void *tag, objset_t **osp);
 int dmu_objset_own(const char *name, dmu_objset_type_t type,
     boolean_t readonly, void *tag, objset_t **osp);
+int dmu_objset_own_obj(struct dsl_pool *dp, uint64_t obj,
+    dmu_objset_type_t type, boolean_t readonly, void *tag, objset_t **osp);
 void dmu_objset_refresh_ownership(objset_t *os, void *tag);
 void dmu_objset_rele(objset_t *os, void *tag);
 void dmu_objset_disown(objset_t *os, void *tag);
@@ -167,6 +173,8 @@ boolean_t dmu_objset_userused_enabled(objset_t *os);
 int dmu_objset_userspace_upgrade(objset_t *os);
 boolean_t dmu_objset_userspace_present(objset_t *os);
 int dmu_fsname(const char *snapname, char *buf);
+
+void dmu_objset_evict_done(objset_t *os);
 
 void dmu_objset_init(void);
 void dmu_objset_fini(void);

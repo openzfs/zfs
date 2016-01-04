@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/bpobj.h>
@@ -43,7 +43,7 @@ bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 		if (!spa_feature_is_active(spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 			ASSERT0(dp->dp_empty_bpobj);
 			dp->dp_empty_bpobj =
-			    bpobj_alloc(os, SPA_MAXBLOCKSIZE, tx);
+			    bpobj_alloc(os, SPA_OLD_MAXBLOCKSIZE, tx);
 			VERIFY(zap_add(os,
 			    DMU_POOL_DIRECTORY_OBJECT,
 			    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
@@ -256,9 +256,8 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 		dbuf = NULL;
 	}
 	if (free) {
-		i++;
 		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os, bpo->bpo_object,
-		    i * sizeof (blkptr_t), -1ULL, tx));
+		    (i + 1) * sizeof (blkptr_t), -1ULL, tx));
 	}
 	if (err || !bpo->bpo_havesubobj || bpo->bpo_phys->bpo_subobjs == 0)
 		goto out;
@@ -301,8 +300,10 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 		if (free) {
 			err = bpobj_space(&sublist,
 			    &used_before, &comp_before, &uncomp_before);
-			if (err)
+			if (err != 0) {
+				bpobj_close(&sublist);
 				break;
+			}
 		}
 		err = bpobj_iterate_impl(&sublist, func, arg, tx, free);
 		if (free) {
@@ -397,7 +398,8 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
 	if (bpo->bpo_phys->bpo_subobjs == 0) {
 		bpo->bpo_phys->bpo_subobjs = dmu_object_alloc(bpo->bpo_os,
-		    DMU_OT_BPOBJ_SUBOBJ, SPA_MAXBLOCKSIZE, DMU_OT_NONE, 0, tx);
+		    DMU_OT_BPOBJ_SUBOBJ, SPA_OLD_MAXBLOCKSIZE,
+		    DMU_OT_NONE, 0, tx);
 	}
 
 	ASSERT0(dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, &doi));

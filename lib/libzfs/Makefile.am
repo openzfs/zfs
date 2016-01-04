@@ -1,8 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
 libzfs_pcdir = $(datarootdir)/pkgconfig
-libzfs_pc_DATA = $(top_srcdir)/lib/libzfs/libzfs.pc $(top_srcdir)/lib/libzfs/libzfs_core.pc
-EXTRA_DIST = $(top_srcdir)/lib/libzfs/libzfs.pc $(top_srcdir)/lib/libzfs/libzfs_core.pc
+libzfs_pc_DATA = libzfs.pc libzfs_core.pc
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
@@ -10,20 +9,26 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libzfs.la
 
-libzfs_la_SOURCES = \
-	$(top_srcdir)/lib/libzfs/libzfs_changelist.c \
-	$(top_srcdir)/lib/libzfs/libzfs_config.c \
-	$(top_srcdir)/lib/libzfs/libzfs_dataset.c \
-	$(top_srcdir)/lib/libzfs/libzfs_diff.c \
-	$(top_srcdir)/lib/libzfs/libzfs_fru.c \
-	$(top_srcdir)/lib/libzfs/libzfs_graph.c \
-	$(top_srcdir)/lib/libzfs/libzfs_import.c \
-	$(top_srcdir)/lib/libzfs/libzfs_iter.c \
-	$(top_srcdir)/lib/libzfs/libzfs_mount.c \
-	$(top_srcdir)/lib/libzfs/libzfs_pool.c \
-	$(top_srcdir)/lib/libzfs/libzfs_sendrecv.c \
-	$(top_srcdir)/lib/libzfs/libzfs_status.c \
-	$(top_srcdir)/lib/libzfs/libzfs_util.c
+USER_C = \
+	libzfs_changelist.c \
+	libzfs_config.c \
+	libzfs_dataset.c \
+	libzfs_diff.c \
+	libzfs_fru.c \
+	libzfs_graph.c \
+	libzfs_import.c \
+	libzfs_iter.c \
+	libzfs_mount.c \
+	libzfs_pool.c \
+	libzfs_sendrecv.c \
+	libzfs_status.c \
+	libzfs_util.c
+
+KERNEL_C =
+
+nodist_libzfs_la_SOURCES = \
+	$(USER_C) \
+	$(KERNEL_C)
 
 libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
@@ -33,3 +38,5 @@ libzfs_la_LIBADD = \
 
 libzfs_la_LIBADD += -lm -ldl $(LIBBLKID)
 libzfs_la_LDFLAGS = -version-info 2:0:0
+
+EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)

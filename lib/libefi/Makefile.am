@@ -8,7 +8,15 @@ DEFAULT_INCLUDES += \
 
 noinst_LTLIBRARIES = libefi.la
 
-libefi_la_SOURCES = \
-	$(top_srcdir)/lib/libefi/rdwr_efi.c
+USER_C = \
+	rdwr_efi.c
+
+KERNEL_C =
+
+nodist_libefi_la_SOURCES = \
+	$(USER_C) \
+	$(KERNEL_C)
 
 libefi_la_LIBADD = $(LIBUUID) $(ZLIB)
+
+EXTRA_DIST = $(USER_C)

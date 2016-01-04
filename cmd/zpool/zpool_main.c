@@ -22,9 +22,10 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
  * Copyright (c) 2012 by Cyril Plisko. All rights reserved.
+ * Copyright (c) 2013 by Prasad Joshi (sTec). All rights reserved.
  */
 
 #include <assert.h>
@@ -222,7 +223,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_DETACH:
 		return (gettext("\tdetach <pool> <device>\n"));
 	case HELP_EXPORT:
-		return (gettext("\texport [-f] <pool> ...\n"));
+		return (gettext("\texport [-af] <pool> ...\n"));
 	case HELP_HISTORY:
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
@@ -236,8 +237,8 @@ get_usage(zpool_help_t idx) {
 		    "[-R root] [-F [-n]]\n"
 		    "\t    <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
-		return (gettext("\tiostat [-v] [-T d|u] [pool] ... [interval "
-		    "[count]]\n"));
+		return (gettext("\tiostat [-v] [-T d|u] [-y] [pool] ... "
+		    "[interval [count]]\n"));
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
@@ -1212,9 +1213,39 @@ zpool_do_destroy(int argc, char **argv)
 	return (ret);
 }
 
+typedef struct export_cbdata {
+	boolean_t force;
+	boolean_t hardforce;
+} export_cbdata_t;
+
+/*
+ * Export one pool
+ */
+int
+zpool_export_one(zpool_handle_t *zhp, void *data)
+{
+	export_cbdata_t *cb = data;
+
+	if (zpool_disable_datasets(zhp, cb->force) != 0)
+		return (1);
+
+	/* The history must be logged as part of the export */
+	log_history = B_FALSE;
+
+	if (cb->hardforce) {
+		if (zpool_export_force(zhp, history_str) != 0)
+			return (1);
+	} else if (zpool_export(zhp, cb->force, history_str) != 0) {
+		return (1);
+	}
+
+	return (0);
+}
+
 /*
  * zpool export [-f] <pool> ...
  *
+ *	-a	Export all pools
  *	-f	Forcefully unmount datasets
  *
  * Export the given pools.  By default, the command will attempt to cleanly
@@ -1224,16 +1255,18 @@ zpool_do_destroy(int argc, char **argv)
 int
 zpool_do_export(int argc, char **argv)
 {
+	export_cbdata_t cb;
+	boolean_t do_all = B_FALSE;
 	boolean_t force = B_FALSE;
 	boolean_t hardforce = B_FALSE;
-	int c;
-	zpool_handle_t *zhp;
-	int ret;
-	int i;
+	int c, ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fF")) != -1) {
+	while ((c = getopt(argc, argv, "afF")) != -1) {
 		switch (c) {
+		case 'a':
+			do_all = B_TRUE;
+			break;
 		case 'f':
 			force = B_TRUE;
 			break;
@@ -1247,8 +1280,20 @@ zpool_do_export(int argc, char **argv)
 		}
 	}
 
+	cb.force = force;
+	cb.hardforce = hardforce;
 	argc -= optind;
 	argv += optind;
+
+	if (do_all) {
+		if (argc != 0) {
+			(void) fprintf(stderr, gettext("too many arguments\n"));
+			usage(B_FALSE);
+		}
+
+		return (for_each_pool(argc, argv, B_TRUE, NULL,
+		    zpool_export_one, &cb));
+	}
 
 	/* check arguments */
 	if (argc < 1) {
@@ -1256,31 +1301,7 @@ zpool_do_export(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = 0;
-	for (i = 0; i < argc; i++) {
-		if ((zhp = zpool_open_canfail(g_zfs, argv[i])) == NULL) {
-			ret = 1;
-			continue;
-		}
-
-		if (zpool_disable_datasets(zhp, force) != 0) {
-			ret = 1;
-			zpool_close(zhp);
-			continue;
-		}
-
-		/* The history must be logged as part of the export */
-		log_history = B_FALSE;
-
-		if (hardforce) {
-			if (zpool_export_force(zhp, history_str) != 0)
-				ret = 1;
-		} else if (zpool_export(zhp, force, history_str) != 0) {
-			ret = 1;
-		}
-
-		zpool_close(zhp);
-	}
+	ret = for_each_pool(argc, argv, B_TRUE, NULL, zpool_export_one, &cb);
 
 	return (ret);
 }
@@ -2233,8 +2254,10 @@ zpool_do_import(int argc, char **argv)
 
 		errno = 0;
 		searchguid = strtoull(argv[0], &endptr, 10);
-		if (errno != 0 || *endptr != '\0')
+		if (errno != 0 || *endptr != '\0') {
 			searchname = argv[0];
+			searchguid = 0;
+		}
 		found_config = NULL;
 
 		/*
@@ -2797,16 +2820,20 @@ zpool_do_iostat(int argc, char **argv)
 	unsigned long interval = 0, count = 0;
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
+	boolean_t omit_since_boot = B_FALSE;
 	iostat_cbdata_t cb;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "T:v")) != -1) {
+	while ((c = getopt(argc, argv, "T:vy")) != -1) {
 		switch (c) {
 		case 'T':
 			get_timestamp_arg(*optarg);
 			break;
 		case 'v':
 			verbose = B_TRUE;
+			break;
+		case 'y':
+			omit_since_boot = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -2847,11 +2874,16 @@ zpool_do_iostat(int argc, char **argv)
 	cb.cb_namewidth = 0;
 
 	for (;;) {
-		pool_list_update(list);
-
 		if ((npools = pool_list_count(list)) == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));
 		else {
+			/*
+			 * If this is the first iteration and -y was supplied
+			 * we skip any printing.
+			 */
+			boolean_t skip = (omit_since_boot &&
+				cb.cb_iteration == 0);
+
 			/*
 			 * Refresh all statistics.  This is done as an
 			 * explicit step before calculating the maximum name
@@ -2873,11 +2905,17 @@ zpool_do_iostat(int argc, char **argv)
 				print_timestamp(timestamp_fmt);
 
 			/*
-			 * If it's the first time, or verbose mode, print the
-			 * header.
+			 * If it's the first time and we're not skipping it,
+			 * or either skip or verbose mode, print the header.
 			 */
-			if (++cb.cb_iteration == 1 || verbose)
+			if ((++cb.cb_iteration == 1 && !skip) ||
+				(skip != verbose))
 				print_iostat_header(&cb);
+
+			if (skip) {
+				(void) sleep(interval);
+				continue;
+			}
 
 			(void) pool_list_iter(list, B_FALSE, print_iostat, &cb);
 
@@ -3250,17 +3288,10 @@ zpool_do_list(int argc, char **argv)
 	if (zprop_get_list(g_zfs, props, &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
 		usage(B_FALSE);
 
-	if ((list = pool_list_get(argc, argv, &cb.cb_proplist, &ret)) == NULL)
-		return (1);
-
-	if (argc == 0 && !cb.cb_scripted && pool_list_count(list) == 0) {
-		(void) printf(gettext("no pools available\n"));
-		zprop_free_list(cb.cb_proplist);
-		return (0);
-	}
-
 	for (;;) {
-		pool_list_update(list);
+		if ((list = pool_list_get(argc, argv, &cb.cb_proplist,
+		    &ret)) == NULL)
+			return (1);
 
 		if (pool_list_count(list) == 0)
 			break;
@@ -3280,9 +3311,16 @@ zpool_do_list(int argc, char **argv)
 		if (count != 0 && --count == 0)
 			break;
 
+		pool_list_free(list);
 		(void) sleep(interval);
 	}
 
+	if (argc == 0 && !cb.cb_scripted && pool_list_count(list) == 0) {
+		(void) printf(gettext("no pools available\n"));
+		ret = 0;
+	}
+
+	pool_list_free(list);
 	zprop_free_list(cb.cb_proplist);
 	return (ret);
 }
@@ -4093,7 +4131,7 @@ print_scan_status(pool_scan_stat_t *ps)
 	/*
 	 * do not print estimated time if hours_left is more than 30 days
 	 */
-	(void) printf(gettext("    %s scanned out of %s at %s/s"),
+	(void) printf(gettext("\t%s scanned out of %s at %s/s"),
 	    examined_buf, total_buf, rate_buf);
 	if (hours_left < (30 * 24)) {
 		(void) printf(gettext(", %lluh%um to go\n"),
@@ -4104,10 +4142,10 @@ print_scan_status(pool_scan_stat_t *ps)
 	}
 
 	if (ps->pss_func == POOL_SCAN_RESILVER) {
-		(void) printf(gettext("    %s resilvered, %.2f%% done\n"),
+		(void) printf(gettext("\t%s resilvered, %.2f%% done\n"),
 		    processed_buf, 100 * fraction_done);
 	} else if (ps->pss_func == POOL_SCAN_SCRUB) {
-		(void) printf(gettext("    %s repaired, %.2f%% done\n"),
+		(void) printf(gettext("\t%s repaired, %.2f%% done\n"),
 		    processed_buf, 100 * fraction_done);
 	}
 }
@@ -5067,7 +5105,8 @@ zpool_do_upgrade(int argc, char **argv)
 		    "---------------\n");
 		for (i = 0; i < SPA_FEATURES; i++) {
 			zfeature_info_t *fi = &spa_feature_table[i];
-			const char *ro = fi->fi_can_readonly ?
+			const char *ro =
+			    (fi->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 			    " (read-only compatible)" : "";
 
 			(void) printf("%-37s%s\n", fi->fi_uname, ro);
@@ -5879,6 +5918,8 @@ main(int argc, char **argv)
 	(void) setlocale(LC_ALL, "");
 	(void) textdomain(TEXT_DOMAIN);
 
+	dprintf_setup(&argc, argv);
+
 	opterr = 0;
 
 	/*
@@ -5897,8 +5938,10 @@ main(int argc, char **argv)
 	if ((strcmp(cmdname, "-?") == 0) || strcmp(cmdname, "--help") == 0)
 		usage(B_TRUE);
 
-	if ((g_zfs = libzfs_init()) == NULL)
+	if ((g_zfs = libzfs_init()) == NULL) {
+		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
 		return (1);
+	}
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 

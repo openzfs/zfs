@@ -152,6 +152,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	char *buf;
 	vnode_t *vp;
 	int oflags = FWRITE | FTRUNC | FCREAT | FOFFMAX;
+	int error;
 	char *temp;
 
 	/*
@@ -167,12 +168,32 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	VERIFY(nvlist_size(nvl, &buflen, NV_ENCODE_XDR) == 0);
 
-	buf = kmem_alloc(buflen, KM_SLEEP);
+	buf = vmem_alloc(buflen, KM_SLEEP);
 	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
 	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,
 	    KM_SLEEP) == 0);
 
+#if defined(__linux__) && defined(_KERNEL)
+	/*
+	 * Write the configuration to disk.  Due to the complexity involved
+	 * in performing a rename from within the kernel the file is truncated
+	 * and overwritten in place.  In the event of an error the file is
+	 * unlinked to make sure we always have a consistent view of the data.
+	 */
+	error = vn_open(dp->scd_path, UIO_SYSSPACE, oflags, 0644, &vp, 0, 0);
+	if (error == 0) {
+		error = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0,
+		    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, NULL);
+		if (error == 0)
+			error = VOP_FSYNC(vp, FSYNC, kcred, NULL);
+
+		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
+
+		if (error)
+			(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
+	}
+#else
 	/*
 	 * Write the configuration to disk.  We need to do the traditional
 	 * 'write to temporary file, sync, move over original' to make sure we
@@ -180,7 +201,8 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	(void) snprintf(temp, MAXPATHLEN, "%s.tmp", dp->scd_path);
 
-	if (vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0) == 0) {
+	error = vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0);
+	if (error == 0) {
 		if (vn_rdwr(UIO_WRITE, vp, buf, buflen, 0, UIO_SYSSPACE,
 		    0, RLIM64_INFINITY, kcred, NULL) == 0 &&
 		    VOP_FSYNC(vp, FSYNC, kcred, NULL) == 0) {
@@ -190,8 +212,9 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	}
 
 	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);
+#endif
 
-	kmem_free(buf, buflen);
+	vmem_free(buf, buflen);
 	kmem_free(temp, MAXPATHLEN);
 }
 

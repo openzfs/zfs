@@ -1,0 +1,44 @@
+#!/bin/sh
+
+. /lib/dracut-zfs-lib.sh
+
+ZFS_DATASET=""
+ZFS_POOL=""
+
+case "${root}" in
+	zfs:*) ;;
+	*) return ;;
+esac
+
+# Delay until all required block devices are present.
+udevadm settle
+
+if [ "${root}" = "zfs:AUTO" ] ; then
+	ZFS_DATASET="$(find_bootfs)"
+	if [ $? -ne 0 ] ; then
+		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
+		ZFS_DATASET="$(find_bootfs)"
+		if [ $? -ne 0 ] ; then
+			warn "ZFS: No bootfs attribute found in importable pools."
+			export_all || export_all "-f"
+
+			rootok=0
+			return 1
+		fi
+	fi
+	info "ZFS: Using ${ZFS_DATASET} as root."
+fi
+
+ZFS_DATASET="${ZFS_DATASET:-${root#zfs:}}"
+ZFS_POOL="${ZFS_DATASET%%/*}"
+
+if import_pool "${ZFS_POOL}" ; then
+	info "ZFS: Mounting dataset ${ZFS_DATASET}..."
+	if mount_dataset "${ZFS_DATASET}" ; then
+		ROOTFS_MOUNTED=yes
+		return 0
+	fi
+fi
+
+rootok=0
+need_shutdown

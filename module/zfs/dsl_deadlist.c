@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/dsl_dataset.h>
@@ -121,6 +122,8 @@ dsl_deadlist_close(dsl_deadlist_t *dl)
 	void *cookie = NULL;
 	dsl_deadlist_entry_t *dle;
 
+	dl->dl_os = NULL;
+
 	if (dl->dl_oldfmt) {
 		dl->dl_oldfmt = B_FALSE;
 		bpobj_close(&dl->dl_bpobj);
@@ -145,7 +148,7 @@ uint64_t
 dsl_deadlist_alloc(objset_t *os, dmu_tx_t *tx)
 {
 	if (spa_version(dmu_objset_spa(os)) < SPA_VERSION_DEADLISTS)
-		return (bpobj_alloc(os, SPA_MAXBLOCKSIZE, tx));
+		return (bpobj_alloc(os, SPA_OLD_MAXBLOCKSIZE, tx));
 	return (zap_create(os, DMU_OT_DEADLIST, DMU_OT_DEADLIST_HDR,
 	    sizeof (dsl_deadlist_phys_t), tx));
 }
@@ -182,7 +185,7 @@ dle_enqueue(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
 {
 	if (dle->dle_bpobj.bpo_object ==
 	    dmu_objset_pool(dl->dl_os)->dp_empty_bpobj) {
-		uint64_t obj = bpobj_alloc(dl->dl_os, SPA_MAXBLOCKSIZE, tx);
+		uint64_t obj = bpobj_alloc(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
 		bpobj_close(&dle->dle_bpobj);
 		bpobj_decr_empty(dl->dl_os, tx);
 		VERIFY3U(0, ==, bpobj_open(&dle->dle_bpobj, dl->dl_os, obj));
@@ -236,6 +239,14 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, dmu_tx_t *tx)
 		dle = avl_nearest(&dl->dl_tree, where, AVL_BEFORE);
 	else
 		dle = AVL_PREV(&dl->dl_tree, dle);
+
+	if (dle == NULL) {
+		zfs_panic_recover("blkptr at %p has invalid BLK_BIRTH %llu",
+		    bp, (longlong_t)bp->blk_birth);
+		dle = avl_first(&dl->dl_tree);
+	}
+
+	ASSERT3P(dle, !=, NULL);
 	dle_enqueue(dl, dle, bp, tx);
 }
 
@@ -256,7 +267,7 @@ dsl_deadlist_add_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 
 	dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
 	dle->dle_mintxg = mintxg;
-	obj = bpobj_alloc_empty(dl->dl_os, SPA_MAXBLOCKSIZE, tx);
+	obj = bpobj_alloc_empty(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
 	VERIFY3U(0, ==, bpobj_open(&dle->dle_bpobj, dl->dl_os, obj));
 	avl_add(&dl->dl_tree, dle);
 
@@ -310,8 +321,9 @@ dsl_deadlist_regenerate(objset_t *os, uint64_t dlobj,
 	while (mrs_obj != 0) {
 		dsl_dataset_t *ds;
 		VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, mrs_obj, FTAG, &ds));
-		dsl_deadlist_add_key(&dl, ds->ds_phys->ds_prev_snap_txg, tx);
-		mrs_obj = ds->ds_phys->ds_prev_snap_obj;
+		dsl_deadlist_add_key(&dl,
+		    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
+		mrs_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 		dsl_dataset_rele(ds, FTAG);
 	}
 	dsl_deadlist_close(&dl);
@@ -340,7 +352,7 @@ dsl_deadlist_clone(dsl_deadlist_t *dl, uint64_t maxtxg,
 		if (dle->dle_mintxg >= maxtxg)
 			break;
 
-		obj = bpobj_alloc_empty(dl->dl_os, SPA_MAXBLOCKSIZE, tx);
+		obj = bpobj_alloc_empty(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
 		VERIFY3U(0, ==, zap_add_int_key(dl->dl_os, newobj,
 		    dle->dle_mintxg, obj, tx));
 	}

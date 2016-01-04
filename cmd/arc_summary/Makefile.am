@@ -1,2 +1,1 @@
-bin_SCRIPTS = arc_summary.py
-EXTRA_DIST = $(bin_SCRIPTS)
+dist_bin_SCRIPTS = arc_summary.py

@@ -53,7 +53,8 @@ int lzc_release(nvlist_t *, nvlist_t **);
 int lzc_get_holds(const char *, nvlist_t **);
 
 enum lzc_send_flags {
-	LZC_SEND_FLAG_EMBED_DATA = 1 << 0
+	LZC_SEND_FLAG_EMBED_DATA = 1 << 0,
+	LZC_SEND_FLAG_LARGE_BLOCK = 1 << 1
 };
 
 int lzc_send(const char *, const char *, int, enum lzc_send_flags);

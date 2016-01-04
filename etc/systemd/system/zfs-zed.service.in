@@ -1,0 +1,12 @@
+[Unit]
+Description=ZFS Event Daemon (zed)
+Documentation=man:zed(8)
+After=zfs-import-cache.service
+After=zfs-import-scan.service
+
+[Service]
+ExecStart=@sbindir@/zed -F
+Restart=on-abort
+
+[Install]
+Alias=zed.service

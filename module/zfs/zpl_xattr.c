@@ -209,9 +209,12 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	xattr_filldir_t xf = { buffer_size, 0, buffer, dentry->d_inode };
 	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
 	int error = 0;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
+	rrm_enter_read(&(zsb)->z_teardown_lock, FTAG);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
 	if (zsb->z_use_sa && zp->z_is_sa) {
@@ -228,6 +231,8 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 out:
 
 	rw_exit(&zp->z_xattr_lock);
+	rrm_exit(&(zsb)->z_teardown_lock, FTAG);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
 	return (error);
@@ -336,13 +341,19 @@ static int
 zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size)
 {
 	znode_t *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ZTOZSB(zp);
 	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
+	rrm_enter_read(&(zsb)->z_teardown_lock, FTAG);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 	error = __zpl_xattr_get(ip, name, value, size, cr);
 	rw_exit(&zp->z_xattr_lock);
+	rrm_exit(&(zsb)->z_teardown_lock, FTAG);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
 	return (error);
@@ -462,13 +473,20 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 
 		error = -nvlist_add_byte_array(nvl, name,
 		    (uchar_t *)value, size);
-		if (error)
-			return (error);
 	}
 
-	/* Update the SA for additions, modifications, and removals. */
-	if (!error)
+	/*
+	 * Update the SA for additions, modifications, and removals. On
+	 * error drop the inconsistent cached version of the nvlist, it
+	 * will be reconstructed from the ARC when next accessed.
+	 */
+	if (error == 0)
 		error = -zfs_sa_set_xattr(zp);
+
+	if (error) {
+		nvlist_free(nvl);
+		zp->z_xattr_cached = NULL;
+	}
 
 	ASSERT3S(error, <=, 0);
 
@@ -482,9 +500,12 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
 	int error;
 
 	crhold(cr);
+	cookie = spl_fstrans_mark();
+	rrm_enter_read(&(zsb)->z_teardown_lock, FTAG);
 	rw_enter(&ITOZ(ip)->z_xattr_lock, RW_WRITER);
 
 	/*
@@ -522,6 +543,8 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	error = zpl_xattr_set_dir(ip, name, value, size, flags, cr);
 out:
 	rw_exit(&ITOZ(ip)->z_xattr_lock);
+	rrm_exit(&(zsb)->z_teardown_lock, FTAG);
+	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -1013,6 +1036,29 @@ zpl_xattr_acl_list_default(struct dentry *dentry, char *list,
 	    list, list_size, name, name_len, type);
 }
 
+#elif defined(HAVE_HANDLER_XATTR_LIST)
+static size_t
+zpl_xattr_acl_list_access(const struct xattr_handler *handler,
+    struct dentry *dentry, char *list, size_t list_size, const char *name,
+    size_t name_len)
+{
+	int type = handler->flags;
+	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
+	return zpl_xattr_acl_list(dentry->d_inode,
+	    list, list_size, name, name_len, type);
+}
+
+static size_t
+zpl_xattr_acl_list_default(const struct xattr_handler *handler,
+    struct dentry *dentry, char *list, size_t list_size, const char *name,
+    size_t name_len)
+{
+	int type = handler->flags;
+	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
+	return zpl_xattr_acl_list(dentry->d_inode,
+	    list, list_size, name, name_len, type);
+}
+
 #else
 
 static size_t
@@ -1070,6 +1116,25 @@ static int
 zpl_xattr_acl_get_default(struct dentry *dentry, const char *name,
     void *buffer, size_t size, int type)
 {
+	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
+	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
+}
+
+#elif defined(HAVE_HANDLER_XATTR_GET)
+static int
+zpl_xattr_acl_get_access(const struct xattr_handler *handler,
+    struct dentry *dentry, const char *name, void *buffer, size_t size)
+{
+	int type = handler->flags;
+	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
+	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
+}
+
+static int
+zpl_xattr_acl_get_default(const struct xattr_handler *handler,
+    struct dentry *dentry, const char *name, void *buffer, size_t size)
+{
+	int type = handler->flags;
 	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
 	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
 }
@@ -1147,6 +1212,29 @@ zpl_xattr_acl_set_default(struct dentry *dentry, const char *name,
 	    name, value, size, flags, type);
 }
 
+#elif defined(HAVE_HANDLER_XATTR_SET)
+static int
+zpl_xattr_acl_set_access(const struct xattr_handler *handler,
+    struct dentry *dentry, const char *name, const void *value, size_t size,
+    int flags)
+{
+	int type = handler->flags;
+	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
+	return (zpl_xattr_acl_set(dentry->d_inode,
+	    name, value, size, flags, type));
+}
+
+static int
+zpl_xattr_acl_set_default(const struct xattr_handler *handler,
+    struct dentry *dentry, const char *name, const void *value, size_t size,
+    int flags)
+{
+	int type = handler->flags;
+	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
+	return zpl_xattr_acl_set(dentry->d_inode,
+	    name, value, size, flags, type);
+}
+
 #else
 
 static int
@@ -1172,7 +1260,7 @@ struct xattr_handler zpl_xattr_acl_access_handler =
 	.list	= zpl_xattr_acl_list_access,
 	.get	= zpl_xattr_acl_get_access,
 	.set	= zpl_xattr_acl_set_access,
-#ifdef HAVE_DENTRY_XATTR_LIST
+#if defined(HAVE_DENTRY_XATTR_LIST) || defined(HAVE_HANDLER_XATTR_LIST)
 	.flags	= ACL_TYPE_ACCESS,
 #endif /* HAVE_DENTRY_XATTR_LIST */
 };
@@ -1183,7 +1271,7 @@ struct xattr_handler zpl_xattr_acl_default_handler =
 	.list	= zpl_xattr_acl_list_default,
 	.get	= zpl_xattr_acl_get_default,
 	.set	= zpl_xattr_acl_set_default,
-#ifdef HAVE_DENTRY_XATTR_LIST
+#if defined(HAVE_DENTRY_XATTR_LIST) || defined(HAVE_HANDLER_XATTR_LIST)
 	.flags	= ACL_TYPE_DEFAULT,
 #endif /* HAVE_DENTRY_XATTR_LIST */
 };

@@ -61,6 +61,7 @@
 #endif /* _KERNEL */
 
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/refcount.h>
 #include <sys/stat.h>
 #include <sys/zap.h>
@@ -106,7 +107,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 
 	mutex_init(&zp->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zp->z_parent_lock, NULL, RW_DEFAULT, NULL);
-	rw_init(&zp->z_name_lock, NULL, RW_DEFAULT, NULL);
+	rw_init(&zp->z_name_lock, NULL, RW_NOLOCKDEP, NULL);
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zp->z_xattr_lock, NULL, RW_DEFAULT, NULL);
 
@@ -147,12 +148,14 @@ void
 zfs_znode_init(void)
 {
 	/*
-	 * Initialize zcache
+	 * Initialize zcache.  The KMC_SLAB hint is used in order that it be
+	 * backed by kmalloc() when on the Linux slab in order that any
+	 * wait_on_bit() operations on the related inode operate properly.
 	 */
 	ASSERT(znode_cache == NULL);
 	znode_cache = kmem_cache_create("zfs_znode_cache",
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
-	    zfs_znode_cache_destructor, NULL, NULL, NULL, KMC_KMEM);
+	    zfs_znode_cache_destructor, NULL, NULL, NULL, KMC_SLAB);
 }
 
 void
@@ -271,9 +274,6 @@ zfs_inode_destroy(struct inode *ip)
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ZTOZSB(zp);
 
-	if (zfsctl_is_node(ip))
-		zfsctl_inode_destroy(ip);
-
 	mutex_enter(&zsb->z_znodes_lock);
 	if (list_link_active(&zp->z_link_node)) {
 		list_remove(&zsb->z_all_znodes, zp);
@@ -326,8 +326,8 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 	 */
 	case S_IFCHR:
 	case S_IFBLK:
-		VERIFY(sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zsb),
-		    &rdev, sizeof (rdev)) == 0);
+		sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zsb), &rdev,
+		    sizeof (rdev));
 		/*FALLTHROUGH*/
 	case S_IFIFO:
 	case S_IFSOCK:
@@ -336,8 +336,15 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 		break;
 
 	default:
-		printk("ZFS: Invalid mode: 0x%x\n", ip->i_mode);
-		VERIFY(0);
+		zfs_panic_recover("inode %llu has invalid mode: 0x%x\n",
+		    (u_longlong_t)ip->i_ino, ip->i_mode);
+
+		/* Assume the inode is a file and attempt to continue */
+		ip->i_mode = S_IFREG | 0644;
+		ip->i_op = &zpl_inode_operations;
+		ip->i_fop = &zpl_file_operations;
+		ip->i_mapping->a_ops = &zpl_address_space_operations;
+		break;
 	}
 }
 
@@ -403,7 +410,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 || zp->z_gen == 0) {
 		if (hdl == NULL)
 			sa_handle_destroy(zp->z_sa_hdl);
-
+		zp->z_sa_hdl = NULL;
 		goto error;
 	}
 
@@ -441,7 +448,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	return (zp);
 
 error:
-	unlock_new_inode(ip);
 	iput(ip);
 	return (NULL);
 }
@@ -478,6 +484,7 @@ zfs_inode_update(znode_t *zp)
 	zfs_sb_t	*zsb;
 	struct inode	*ip;
 	uint32_t	blksize;
+	u_longlong_t	i_blocks;
 	uint64_t	atime[2], mtime[2], ctime[2];
 
 	ASSERT(zp != NULL);
@@ -492,6 +499,8 @@ zfs_inode_update(znode_t *zp)
 	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zsb), &mtime, 16);
 	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zsb), &ctime, 16);
 
+	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
+
 	spin_lock(&ip->i_lock);
 	ip->i_generation = zp->z_gen;
 	ip->i_uid = SUID_TO_KUID(zp->z_uid);
@@ -500,8 +509,7 @@ zfs_inode_update(znode_t *zp)
 	ip->i_mode = zp->z_mode;
 	zfs_set_inode_flags(zp, ip);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
-	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize,
-	    (u_longlong_t *)&ip->i_blocks);
+	ip->i_blocks = i_blocks;
 
 	ZFS_TIME_DECODE(&ip->i_atime, atime);
 	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
@@ -948,6 +956,8 @@ again:
 				mutex_exit(&zp->z_lock);
 				sa_buf_rele(db, NULL);
 				ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+				/* inode might need this to finish evict */
+				cond_resched();
 				goto again;
 			}
 			*zpp = zp;
@@ -1097,23 +1107,13 @@ zfs_zinactive(znode_t *zp)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	uint64_t z_id = zp->z_id;
-	boolean_t drop_mutex = 0;
 
 	ASSERT(zp->z_sa_hdl);
 
 	/*
 	 * Don't allow a zfs_zget() while were trying to release this znode.
-	 *
-	 * Linux allows direct memory reclaim which means that any KM_SLEEP
-	 * allocation may trigger inode eviction.  This can lead to a deadlock
-	 * through the ->shrink_icache_memory()->evict()->zfs_inactive()->
-	 * zfs_zinactive() call path.  To avoid this deadlock the process
-	 * must not reacquire the mutex when it is already holding it.
 	 */
-	if (!ZFS_OBJ_HOLD_OWNED(zsb, z_id)) {
-		ZFS_OBJ_HOLD_ENTER(zsb, z_id);
-		drop_mutex = 1;
-	}
+	ZFS_OBJ_HOLD_ENTER(zsb, z_id);
 
 	mutex_enter(&zp->z_lock);
 
@@ -1124,8 +1124,7 @@ zfs_zinactive(znode_t *zp)
 	if (zp->z_unlinked) {
 		mutex_exit(&zp->z_lock);
 
-		if (drop_mutex)
-			ZFS_OBJ_HOLD_EXIT(zsb, z_id);
+		ZFS_OBJ_HOLD_EXIT(zsb, z_id);
 
 		zfs_rmnode(zp);
 		return;
@@ -1134,8 +1133,7 @@ zfs_zinactive(znode_t *zp)
 	mutex_exit(&zp->z_lock);
 	zfs_znode_dmu_fini(zp);
 
-	if (drop_mutex)
-		ZFS_OBJ_HOLD_EXIT(zsb, z_id);
+	ZFS_OBJ_HOLD_EXIT(zsb, z_id);
 }
 
 static inline int
@@ -1312,8 +1310,13 @@ zfs_extend(znode_t *zp, uint64_t end)
 		 * We are growing the file past the current block size.
 		 */
 		if (zp->z_blksz > ZTOZSB(zp)->z_max_blksz) {
+			/*
+			 * File's blocksize is already larger than the
+			 * "recordsize" property.  Only let it grow to
+			 * the next power of 2.
+			 */
 			ASSERT(!ISP2(zp->z_blksz));
-			newblksz = MIN(end, SPA_MAXBLOCKSIZE);
+			newblksz = MIN(end, 1 << highbit64(zp->z_blksz));
 		} else {
 			newblksz = MIN(end, ZTOZSB(zp)->z_max_blksz);
 		}

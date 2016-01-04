@@ -49,9 +49,7 @@
  */
 #define	P2ALIGN(x, align)	((x) & -(align))
 #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
-#define	P2ROUNDUP(x, align)	(-(-(x) & -(align)))
-#define	P2ROUNDUP_TYPED(x, align, type) \
-				(-(-(type)(x) & -(type)(align)))
+#define	P2ROUNDUP(x, align)	((((x) - 1) | ((align) - 1)) + 1)
 #define	P2BOUNDARY(off, len, align) \
 				(((off) ^ ((off) + (len) - 1)) > (align) - 1)
 #define	P2PHASE(x, align)	((x) & ((align) - 1))
@@ -79,7 +77,7 @@
 #define	P2NPHASE_TYPED(x, align, type)		\
 	(-(type)(x) & ((type)(align) - 1))
 #define	P2ROUNDUP_TYPED(x, align, type)		\
-	(-(-(type)(x) & -(type)(align)))
+	((((type)(x) - 1) | ((type)(align) - 1)) + 1)
 #define	P2END_TYPED(x, align, type)		\
 	(-(~(type)(x) & -(type)(align)))
 #define	P2PHASEUP_TYPED(x, align, phase, type)	\
