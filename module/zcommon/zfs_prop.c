@@ -297,6 +297,8 @@ zfs_prop_init(void)
 	    boolean_table);
 	zprop_register_index(ZFS_PROP_OVERLAY, "overlay", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "OVERLAY", boolean_table);
+	zprop_register_index(ZFS_PROP_COMPQUOTA, "compquota", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "COMPQUOTA", boolean_table);
 
 	/* default index properties */
 	zprop_register_index(ZFS_PROP_VERSION, "version", 0, PROP_DEFAULT,

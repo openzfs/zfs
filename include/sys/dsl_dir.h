@@ -76,6 +76,8 @@ typedef struct dsl_dir_phys {
 	uint64_t dd_quota;
 	/* Administrative reservation setting */
 	uint64_t dd_reserved;
+	/* Administrative quotacheck setting */
+	uint64_t dd_compquota;
 	uint64_t dd_props_zapobj;
 	uint64_t dd_deleg_zapobj; /* dataset delegation permissions */
 	uint64_t dd_flags;
@@ -147,6 +149,8 @@ void dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
     dd_used_t oldtype, dd_used_t newtype, dmu_tx_t *tx);
 int dsl_dir_set_quota(const char *ddname, zprop_source_t source,
     uint64_t quota);
+int dsl_dir_set_compquota(const char *ddname, zprop_source_t source,
+    uint64_t compquota);
 int dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
     uint64_t reservation);
 int dsl_dir_activate_fs_ss_limit(const char *);

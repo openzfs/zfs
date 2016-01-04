@@ -2367,6 +2367,9 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	case ZFS_PROP_QUOTA:
 		err = dsl_dir_set_quota(dsname, source, intval);
 		break;
+	case ZFS_PROP_COMPQUOTA:
+		err = dsl_dir_set_compquota(dsname, source, intval);
+		break;
 	case ZFS_PROP_REFQUOTA:
 		err = dsl_dataset_set_refquota(dsname, source, intval);
 		break;
