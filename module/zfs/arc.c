@@ -656,6 +656,7 @@ static kmutex_t arc_prune_mtx;
 static taskq_t *arc_prune_taskq;
 static arc_buf_t *arc_eviction_list;
 static arc_buf_hdr_t arc_eviction_hdr;
+static kmutex_t arc_c_mtx;
 
 #define	GHOST_STATE(state)	\
 	((state) == arc_mru_ghost || (state) == arc_mfu_ghost ||	\
@@ -3225,6 +3226,7 @@ arc_flush(spa_t *spa, boolean_t retry)
 void
 arc_shrink(int64_t to_free)
 {
+	mutex_enter(&arc_c_mtx);
 	if (arc_c > arc_c_min) {
 
 		if (arc_c > arc_c_min + to_free)
@@ -3240,6 +3242,7 @@ arc_shrink(int64_t to_free)
 		ASSERT(arc_c >= arc_c_min);
 		ASSERT((int64_t)arc_p >= 0);
 	}
+	mutex_exit(&arc_c_mtx);
 
 	if (arc_size > arc_c)
 		(void) arc_adjust();
@@ -3808,8 +3811,8 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * If we're within (2 * maxblocksize) bytes of the target
 	 * cache size, increment the target cache size
 	 */
-	ASSERT3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
-	arc_c = MAX(arc_c, 2ULL << SPA_MAXBLOCKSHIFT);
+	VERIFY3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
+	mutex_enter(&arc_c_mtx);
 	if (arc_size >= arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
 		atomic_add_64(&arc_c, (int64_t)bytes);
 		if (arc_c > arc_c_max)
@@ -3819,6 +3822,7 @@ arc_adapt(int bytes, arc_state_t *state)
 		if (arc_p > arc_c)
 			arc_p = arc_c;
 	}
+	mutex_exit(&arc_c_mtx);
 	ASSERT((int64_t)arc_p >= 0);
 }
 
@@ -5208,8 +5212,10 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	int error;
 	uint64_t anon_size;
 
+	mutex_enter(&arc_c_mtx);
 	if (reserve > arc_c/4 && !arc_no_grow)
 		arc_c = MIN(arc_c_max, reserve * 4);
+	mutex_exit(&arc_c_mtx);
 
 	/*
 	 * Throttle when the calculated memory footprint for the TXG
@@ -5560,6 +5566,7 @@ arc_init(void)
 	arc_eviction_list = NULL;
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 	bzero(&arc_eviction_hdr, sizeof (arc_buf_hdr_t));
+	mutex_init(&arc_c_mtx, NULL, MUTEX_DEFAULT, NULL);
 
 	arc_prune_taskq = taskq_create("arc_prune", max_ncpus, defclsyspri,
 	    max_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
@@ -5660,6 +5667,7 @@ arc_fini(void)
 	list_destroy(&arc_prune_list);
 	mutex_destroy(&arc_prune_mtx);
 	mutex_destroy(&arc_reclaim_lock);
+	mutex_destroy(&arc_c_mtx);
 	cv_destroy(&arc_reclaim_thread_cv);
 	cv_destroy(&arc_reclaim_waiters_cv);
 
