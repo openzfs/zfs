@@ -224,11 +224,13 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		    rvd->vdev_state, src);
 
 		version = spa_version(spa);
-		if (version == zpool_prop_default_numeric(ZPOOL_PROP_VERSION))
-			src = ZPROP_SRC_DEFAULT;
-		else
-			src = ZPROP_SRC_LOCAL;
-		spa_prop_add_list(*nvp, ZPOOL_PROP_VERSION, NULL, version, src);
+		if (version == zpool_prop_default_numeric(ZPOOL_PROP_VERSION)) {
+			spa_prop_add_list(*nvp, ZPOOL_PROP_VERSION, NULL,
+			    version, ZPROP_SRC_DEFAULT);
+		} else {
+			spa_prop_add_list(*nvp, ZPOOL_PROP_VERSION, NULL,
+			    version, ZPROP_SRC_LOCAL);
+		}
 	}
 
 	if (pool != NULL) {
