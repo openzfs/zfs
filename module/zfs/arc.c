@@ -3179,23 +3179,38 @@ arc_flush(spa_t *spa, boolean_t retry)
 void
 arc_shrink(int64_t to_free)
 {
-	if (arc_c > arc_c_min) {
+	uint64_t old_arc_c = arc_c, new_arc_c;
 
-		if (arc_c > arc_c_min + to_free)
-			atomic_add_64(&arc_c, -to_free);
-		else
-			arc_c = arc_c_min;
+	if (old_arc_c > arc_c_min) {
+
+		while (old_arc_c > arc_c_min + to_free) {
+			new_arc_c = old_arc_c - to_free;
+			old_arc_c = atomic_cas_64(&arc_c, old_arc_c, new_arc_c);
+			if (old_arc_c != new_arc_c)
+				continue;
+		}
+
+		while (old_arc_c <= arc_c_min + to_free) {
+			new_arc_c = arc_c_min;
+			old_arc_c = atomic_cas_64(&arc_c, old_arc_c, new_arc_c);
+			if (old_arc_c != new_arc_c)
+				continue;
+		}
 
 		atomic_add_64(&arc_p, -(arc_p >> arc_shrink_shift));
-		if (arc_c > arc_size)
-			arc_c = MAX(arc_size, arc_c_min);
-		if (arc_p > arc_c)
-			arc_p = (arc_c >> 1);
-		ASSERT(arc_c >= arc_c_min);
+		while (old_arc_c > arc_size) {
+			new_arc_c = MAX(arc_size, arc_c_min);
+			old_arc_c = atomic_cas_64(&arc_c, old_arc_c, new_arc_c);
+			if (old_arc_c != new_arc_c)
+				continue;
+		}
+		if (arc_p > old_arc_c)
+			arc_p = (old_arc_c >> 1);
+		ASSERT(new_arc_c >= arc_c_min);
 		ASSERT((int64_t)arc_p >= 0);
 	}
 
-	if (arc_size > arc_c)
+	if (arc_size > old_arc_c)
 		(void) arc_adjust();
 }
 
@@ -3716,6 +3731,7 @@ arc_adapt(int bytes, arc_state_t *state)
 	uint64_t arc_p_min = (arc_c >> arc_p_min_shift);
 	int64_t mrug_size = refcount_count(&arc_mru_ghost->arcs_size);
 	int64_t mfug_size = refcount_count(&arc_mfu_ghost->arcs_size);
+	uint64_t old_arc_c, new_arc_c;
 
 	if (state == arc_l2c_only)
 		return;
@@ -3762,16 +3778,26 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * If we're within (2 * maxblocksize) bytes of the target
 	 * cache size, increment the target cache size
 	 */
-	ASSERT3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
-	arc_c = MAX(arc_c, 2ULL << SPA_MAXBLOCKSHIFT);
-	if (arc_size >= arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
-		atomic_add_64(&arc_c, (int64_t)bytes);
-		if (arc_c > arc_c_max)
-			arc_c = arc_c_max;
-		else if (state == arc_anon)
+	old_arc_c = arc_c;
+	VERIFY3U(old_arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
+	while (arc_size >= old_arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
+		if (bytes >= 0)
+			new_arc_c = old_arc_c + bytes;
+		else
+			new_arc_c = old_arc_c - bytes;
+		old_arc_c = atomic_cas_64(&arc_c, old_arc_c, new_arc_c);
+		if (old_arc_c != new_arc_c)
+			continue;
+		while (old_arc_c > arc_c_max) {
+			new_arc_c = arc_c_max;
+			old_arc_c = atomic_cas_64(&arc_c, old_arc_c, new_arc_c);
+			if (old_arc_c != new_arc_c)
+				continue;
+		}
+		if (old_arc_c <= arc_c_max && state == arc_anon)
 			atomic_add_64(&arc_p, (int64_t)bytes);
-		if (arc_p > arc_c)
-			arc_p = arc_c;
+		if (arc_p > old_arc_c)
+			arc_p = old_arc_c;
 	}
 	ASSERT((int64_t)arc_p >= 0);
 }
