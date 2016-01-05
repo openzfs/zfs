@@ -653,6 +653,7 @@ static kmutex_t arc_prune_mtx;
 static taskq_t *arc_prune_taskq;
 static arc_buf_t *arc_eviction_list;
 static arc_buf_hdr_t arc_eviction_hdr;
+static kmutex_t arc_c_mtx;
 
 #define	GHOST_STATE(state)	\
 	((state) == arc_mru_ghost || (state) == arc_mfu_ghost ||	\
@@ -3183,6 +3184,7 @@ arc_flush(spa_t *spa, boolean_t retry)
 void
 arc_shrink(int64_t to_free)
 {
+	mutex_enter(&arc_c_mtx);
 	if (arc_c > arc_c_min) {
 
 		if (arc_c > arc_c_min + to_free)
@@ -3199,8 +3201,11 @@ arc_shrink(int64_t to_free)
 		ASSERT((int64_t)arc_p >= 0);
 	}
 
-	if (arc_size > arc_c)
+	if (arc_size > arc_c) {
+		mutex_exit(&arc_c_mtx);
 		(void) arc_adjust();
+	} else
+		mutex_exit(&arc_c_mtx);
 }
 
 typedef enum free_memory_reason_t {
@@ -3766,8 +3771,8 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * If we're within (2 * maxblocksize) bytes of the target
 	 * cache size, increment the target cache size
 	 */
-	ASSERT3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
-	arc_c = MAX(arc_c, 2ULL << SPA_MAXBLOCKSHIFT);
+	VERIFY3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
+	mutex_enter(&arc_c_mtx);
 	if (arc_size >= arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
 		atomic_add_64(&arc_c, (int64_t)bytes);
 		if (arc_c > arc_c_max)
@@ -3777,6 +3782,7 @@ arc_adapt(int bytes, arc_state_t *state)
 		if (arc_p > arc_c)
 			arc_p = arc_c;
 	}
+	mutex_exit(&arc_c_mtx);
 	ASSERT((int64_t)arc_p >= 0);
 }
 
@@ -5160,8 +5166,10 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	int error;
 	uint64_t anon_size;
 
+	mutex_enter(&arc_c_mtx);
 	if (reserve > arc_c/4 && !arc_no_grow)
 		arc_c = MIN(arc_c_max, reserve * 4);
+	mutex_exit(&arc_c_mtx);
 
 	/*
 	 * Throttle when the calculated memory footprint for the TXG
@@ -5298,6 +5306,7 @@ static void
 arc_tuning_update(void)
 {
 	/* Valid range: 64M - <all physical memory> */
+	mutex_enter(&arc_c_mtx);
 	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
 	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < ptob(physmem)) &&
 	    (zfs_arc_max > arc_c_min)) {
@@ -5314,6 +5323,7 @@ arc_tuning_update(void)
 		arc_c_min = zfs_arc_min;
 		arc_c = MAX(arc_c, arc_c_min);
 	}
+	mutex_exit(&arc_c_mtx);
 
 	/* Valid range: 16M - <arc_c_max> */
 	if ((zfs_arc_meta_min) && (zfs_arc_meta_min != arc_meta_min) &&
@@ -5414,6 +5424,9 @@ arc_init(void)
 #else
 	arc_c_min = 2ULL << SPA_MAXBLOCKSHIFT;
 #endif
+
+	/* Init the arc_c mutex before tuning, where it's first used  */
+	mutex_init(&arc_c_mtx, NULL, MUTEX_DEFAULT, NULL);
 
 	/* Set max to 1/2 of all memory */
 	arc_c_max = allmem / 2;
@@ -5612,6 +5625,7 @@ arc_fini(void)
 	list_destroy(&arc_prune_list);
 	mutex_destroy(&arc_prune_mtx);
 	mutex_destroy(&arc_reclaim_lock);
+	mutex_destroy(&arc_c_mtx);
 	cv_destroy(&arc_reclaim_thread_cv);
 	cv_destroy(&arc_reclaim_waiters_cv);
 
