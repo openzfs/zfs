@@ -30,11 +30,14 @@
 extern "C" {
 #endif
 
-#ifdef _KERNEL
-
 #include <sys/list.h>
 #include <sys/avl.h>
+
+#ifdef _KERNEL
 #include <sys/condvar.h>
+#else
+#include <sys/zfs_context.h>
+#endif
 
 typedef enum {
 	RL_READER,
@@ -74,10 +77,15 @@ struct znode;
  */
 rl_t *zfs_range_lock_impl(zfs_rlock_t *zrl, uint64_t off, uint64_t len,
     rl_type_t type, struct znode *zp);
+#ifdef _KERNEL
 #define	zfs_range_lock(zp, off, len, type) \
 	zfs_range_lock_impl(&(zp)->z_range_lock, off, len, type, zp)
 #define	zvol_range_lock(zrl, off, len, type) \
 	zfs_range_lock_impl(zrl, off, len, type, NULL)
+#else
+#define	zfs_range_lock(zrl, off, len, type) \
+	zfs_range_lock_impl(zrl, off, len, type, NULL)
+#endif
 
 /* Unlock range and destroy range lock structure. */
 void zfs_range_unlock(rl_t *rl);
@@ -107,7 +115,6 @@ static inline void zfs_rlock_destroy(zfs_rlock_t *zrl)
 	avl_destroy(&zrl->zr_avl);
 	mutex_destroy(&zrl->zr_mutex);
 }
-#endif /* _KERNEL */
 
 #ifdef	__cplusplus
 }

@@ -27,6 +27,7 @@
 #define	_SYS_FS_ZFS_ZNODE_H
 
 #ifdef _KERNEL
+
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
 #include <sys/attr.h>
@@ -38,7 +39,24 @@
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
 #include <sys/zfs_rlock.h>
+
+#else
+
+#include <sys/zfs_rlock.h>
+#include <sys/zfs_context.h>
+#include <sys/refcount.h>
+
+/* User mode znode emulation for ztest */
+#define	ZTOZSB(zp) (zp)			/* unused */
+typedef struct znode {
+	uint64_t z_size;		/* unused, zeroed out */
+	uint64_t z_blksz;		/* unused, zeroed out */
+	uint64_t z_max_blksz;		/* unused, zeroed out */
+	zfs_rlock_t z_range_lock;
+} znode_t;
+
 #endif
+
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
 
