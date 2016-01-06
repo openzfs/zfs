@@ -32,6 +32,8 @@
 #define	ZVOL_OBJ		1ULL
 #define	ZVOL_ZAP_OBJ		2ULL
 
+extern void *zvol_tag;
+
 extern void zvol_create_minors(spa_t *spa, const char *name, boolean_t async);
 extern void zvol_remove_minors(spa_t *spa, const char *name, boolean_t async);
 extern void zvol_rename_minors(spa_t *spa, const char *oldname,

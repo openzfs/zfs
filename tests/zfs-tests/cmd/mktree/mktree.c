@@ -172,7 +172,7 @@ crtfile(char *pname)
 		exit(errno);
 	}
 
-	if (fsetxattr(fd, "xattr", pbuf, 1024, 0) < 0) {
+	if (fsetxattr(fd, "user.xattr", pbuf, 1024, 0) < 0) {
 		(void) fprintf(stderr, "fsetxattr(fd, \"xattr\", pbuf, "
 		    "1024, 0) failed.\n[%d]: %s.\n", errno, strerror(errno));
 		exit(errno);

@@ -146,14 +146,13 @@ tests = ['zfs_promote_001_pos', 'zfs_promote_002_pos', 'zfs_promote_003_pos',
 tests = []
 
 # DISABLED:
-# zfs_receive_003_pos - needs investigation
-# zfs_receive_010_pos - needs investigation
-# zfs_receive_011_pos - needs investigation
-# zfs_receive_012_pos - needs investigation
+# zfs_receive_004_neg - Fails for OpenZFS on illumos
+# zfs_receive_011_pos - Requires port of OpenZFS 6562
+# zfs_receive_012_pos - Requires port of OpenZFS 6562
 [tests/functional/cli_root/zfs_receive]
-tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_005_neg',
-    'zfs_receive_006_pos', 'zfs_receive_007_neg', 'zfs_receive_008_pos',
-    'zfs_receive_009_neg']
+tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
+    'zfs_receive_005_neg', 'zfs_receive_006_pos',
+    'zfs_receive_007_neg', 'zfs_receive_008_pos', 'zfs_receive_009_neg']
 
 # DISABLED:
 # zfs_rename_002_pos - needs investigation
@@ -175,11 +174,10 @@ tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 [tests/functional/cli_root/zfs_rollback]
 tests = ['zfs_rollback_003_neg', 'zfs_rollback_004_neg']
 
-# DISABLED:
-# zfs_send_007_pos - needs investigation
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
-    'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos']
+    'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
+    'zfs_send_007_pos']
 
 # DISABLED:
 # mountpoint_003_pos - needs investigation
@@ -207,10 +205,11 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
 
 # DISABLED:
 # zfs_snapshot_008_neg - nested pools
+# zfs_snapshot_009_pos - Fails for OpenZFS on illumos
 [tests/functional/cli_root/zfs_snapshot]
 tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
     'zfs_snapshot_003_neg', 'zfs_snapshot_004_neg', 'zfs_snapshot_005_neg',
-    'zfs_snapshot_006_pos', 'zfs_snapshot_007_neg', 'zfs_snapshot_009_pos']
+    'zfs_snapshot_006_pos', 'zfs_snapshot_007_neg']
 
 # DISABLED:
 # zfs_unmount_005_pos - needs investigation
@@ -565,12 +564,17 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
 #[tests/functional/rootpool]
 #tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_neg']
 
-# DISABLED: Hangs on I/O for unclear reason.
-#[tests/functional/rsend]
-#tests = ['rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
-#    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos', 'rsend_008_pos',
-#    'rsend_009_pos', 'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
-#    'rsend_013_pos']
+# DISABLED:
+# rsend_008_pos - Fails for OpenZFS on illumos
+# rsend_009_pos - Fails for OpenZFS on illumos
+# rsend_020_pos - ASSERTs in dump_record()
+[tests/functional/rsend]
+tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
+    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos',
+    'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
+    'rsend_013_pos', 'rsend_014_pos',
+    'rsend_019_pos',
+    'rsend_021_pos', 'rsend_022_pos', 'rsend_024_pos']
 
 [tests/functional/scrub_mirror]
 tests = ['scrub_mirror_001_pos', 'scrub_mirror_002_pos',
@@ -586,17 +590,17 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg']
 
 # DISABLED:
+# clone_001_pos - nested pools
 # rollback_003_pos - Hangs in unmount and spins.
-# snapshot_013_pos - Hangs on I/O for unclear reason.
-# snapshot_016_pos - .zfs mv/rmdir/mkdir disabled by default.
-#[tests/functional/snapshot]
-#tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
-#    'snapshot_001_pos', 'snapshot_002_pos',
-#    'snapshot_003_pos', 'snapshot_004_pos', 'snapshot_005_pos',
-#    'snapshot_006_pos', 'snapshot_007_pos', 'snapshot_008_pos',
-#    'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
-#    'snapshot_012_pos', 'snapshot_014_pos',
-#    'snapshot_015_pos', 'snapshot_017_pos']
+# snapshot_016_pos - Problem with automount
+[tests/functional/snapshot]
+tests = ['rollback_001_pos', 'rollback_002_pos',
+    'snapshot_001_pos', 'snapshot_002_pos',
+    'snapshot_003_pos', 'snapshot_004_pos', 'snapshot_005_pos',
+    'snapshot_006_pos', 'snapshot_007_pos', 'snapshot_008_pos',
+    'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
+    'snapshot_012_pos', 'snapshot_013_pos', 'snapshot_014_pos',
+    'snapshot_015_pos', 'snapshot_017_pos']
 [tests/functional/snapused]
 tests = ['snapused_001_pos', 'snapused_002_pos', 'snapused_003_pos',
     'snapused_004_pos', 'snapused_005_pos']

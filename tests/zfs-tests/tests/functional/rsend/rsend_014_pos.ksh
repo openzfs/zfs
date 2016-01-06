@@ -46,6 +46,7 @@ log_must cleanup_pool $POOL2
 
 log_must eval "$ZFS send -R $POOL/$FS@final > $BACKDIR/fs-final-R"
 log_must eval "$ZFS receive -d $POOL2 < $BACKDIR/fs-final-R"
+block_device_wait
 log_must eval "$ZPOOL export $POOL"
 log_must eval "$ZPOOL import $POOL"
 
