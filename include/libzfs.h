@@ -631,6 +631,10 @@ typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);
 extern int zfs_send(zfs_handle_t *, const char *, const char *,
     sendflags_t *, int, snapfilter_cb_t, void *, nvlist_t **);
 extern int zfs_send_one(zfs_handle_t *, const char *, int, enum lzc_send_flags);
+extern int zfs_send_resume(libzfs_handle_t *, sendflags_t *, int outfd,
+    const char *);
+extern nvlist_t *zfs_send_resume_token_to_nvlist(libzfs_handle_t *hdl,
+    const char *token);
 
 extern int zfs_promote(zfs_handle_t *);
 extern int zfs_hold(zfs_handle_t *, const char *, const char *,
@@ -670,6 +674,12 @@ typedef struct recvflags {
 
 	/* set "canmount=off" on all modified filesystems */
 	boolean_t canmountoff;
+
+	/*
+	 * Mark the file systems as "resumable" and do not destroy them if the
+	 * receive is interrupted
+	 */
+	boolean_t resumable;
 
 	/* byteswap flag is used internally; callers need not specify */
 	boolean_t byteswap;

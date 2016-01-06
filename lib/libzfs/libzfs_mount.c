@@ -1041,6 +1041,17 @@ mount_cb(zfs_handle_t *zhp, void *data)
 		return (0);
 	}
 
+	/*
+	 * If this filesystem is inconsistent and has a receive resume
+	 * token, we can not mount it.
+	 */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) &&
+	    zfs_prop_get(zhp, ZFS_PROP_RECEIVE_RESUME_TOKEN,
+	    NULL, 0, NULL, NULL, 0, B_TRUE) == 0) {
+		zfs_close(zhp);
+		return (0);
+	}
+
 	libzfs_add_handle(cbp, zhp);
 	if (zfs_iter_filesystems(zhp, mount_cb, cbp) != 0) {
 		zfs_close(zhp);
