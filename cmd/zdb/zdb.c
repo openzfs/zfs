@@ -3623,7 +3623,7 @@ main(int argc, char **argv)
 	int flags = ZFS_IMPORT_MISSING_LOG;
 	int rewind = ZPOOL_NEVER_REWIND;
 	char *spa_config_path_env;
-	const char *opts = "bcdhilmMI:suCDRSAFLXevp:t:U:P";
+	const char *opts = "bcdhilmMI:suCDRSAFLXevp:t:U:PV";
 	boolean_t target_is_spa = B_TRUE;
 
 	(void) setrlimit(RLIMIT_NOFILE, &rl);
@@ -3668,7 +3668,7 @@ main(int argc, char **argv)
 			dump_opt[c]++;
 			break;
 		case 'V':
-			flags = ZFS_IMPORT_VERBATIM;
+			flags |= ZFS_IMPORT_VERBATIM;
 			break;
 		case 'I':
 			max_inflight = strtoull(optarg, NULL, 0);
