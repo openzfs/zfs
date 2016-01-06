@@ -362,6 +362,17 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	 * checksum/compression/copies.
 	 */
 	if (ds != NULL) {
+		boolean_t needlock = B_FALSE;
+
+		/*
+		 * Note: it's valid to open the objset if the dataset is
+		 * long-held, in which case the pool_config lock will not
+		 * be held.
+		 */
+		if (!dsl_pool_config_held(dmu_objset_pool(os))) {
+			needlock = B_TRUE;
+			dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
+		}
 		err = dsl_prop_register(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
 		    primary_cache_changed_cb, os);
@@ -413,6 +424,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    recordsize_changed_cb, os);
 			}
 		}
+		if (needlock)
+			dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 		if (err != 0) {
 			VERIFY(arc_buf_remove_ref(os->os_phys_buf,
 			    &os->os_phys_buf));
@@ -470,6 +483,13 @@ int
 dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
 {
 	int err = 0;
+
+	/*
+	 * We shouldn't be doing anything with dsl_dataset_t's unless the
+	 * pool_config lock is held, or the dataset is long-held.
+	 */
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool) ||
+	    dsl_dataset_long_held(ds));
 
 	mutex_enter(&ds->ds_opening_lock);
 	if (ds->ds_objset == NULL) {
