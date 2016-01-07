@@ -192,7 +192,7 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 	vdev_t *rvd = spa->spa_root_vdev;
 	dsl_pool_t *pool = spa->spa_dsl_pool;
 	uint64_t size, alloc, cap, version;
-	zprop_source_t src = ZPROP_SRC_NONE;
+	const zprop_source_t src = ZPROP_SRC_NONE;
 	spa_config_dirent_t *dp;
 	metaslab_class_t *mc = spa_normal_class(spa);
 
