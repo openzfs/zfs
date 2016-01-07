@@ -1357,6 +1357,11 @@ zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 		mutex_exit(&zsb->z_os->os_user_ptr_lock);
 	} else {
 		error = zfs_sb_setup(zsb, B_TRUE);
+		if (zfs_throttle_find_zt(osname, &(zsb->z_throttle))) {
+			error = zfs_throttle_create_zt(osname, NULL);
+			if (error)
+				goto out;
+		}
 	}
 
 	/* Allocate a root inode for the filesystem. */

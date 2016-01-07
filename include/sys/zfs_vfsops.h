@@ -33,6 +33,7 @@
 #include <sys/sa.h>
 #include <sys/rrwlock.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_throttle.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -115,6 +116,7 @@ typedef struct zfs_sb {
 	uint64_t	z_hold_size;	/* znode hold array size */
 	avl_tree_t	*z_hold_trees;	/* znode hold trees */
 	kmutex_t	*z_hold_locks;	/* znode hold locks */
+	zfs_throttle_t	*z_throttle;	/* zfs throttle struct */
 } zfs_sb_t;
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1

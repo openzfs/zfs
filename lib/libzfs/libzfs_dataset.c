@@ -57,6 +57,7 @@
 #include <sys/dnode.h>
 #include <sys/spa.h>
 #include <sys/zap.h>
+#include <sys/zfs_throttle.h>
 #include <libzfs.h>
 
 #include "zfs_namecheck.h"
@@ -1032,7 +1033,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 		}
 
 		if (zprop_parse_value(hdl, elem, prop, type, ret,
-		    &strval, &intval, errbuf) != 0)
+		    &strval, &intval, errbuf, zhp->zfs_name) != 0)
 			goto error;
 
 		/*
@@ -2451,6 +2452,32 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		}
 		break;
 
+	case ZFS_PROP_MAX_READ_OPS:
+	case ZFS_PROP_MAX_WRITE_OPS:
+
+		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
+			return (-1);
+
+		switch (val) {
+			case ZFS_THROTTLE_NONE:
+				(void) strlcpy(propbuf, "none", proplen);
+				break;
+			case ZFS_THROTTLE_SHARED:
+				(void) strlcpy(propbuf, "shared", proplen);
+				break;
+			case ZFS_THROTTLE_NOLIMIT:
+				(void) strlcpy(propbuf, "nolimit", proplen);
+				break;
+			default:
+				if (literal)
+					(void) snprintf(propbuf, proplen,
+					    "%llu", (u_longlong_t)val);
+				else
+					zfs_nicenum(val, propbuf, proplen);
+				break;
+		}
+		break;
+
 	case ZFS_PROP_FILESYSTEM_LIMIT:
 	case ZFS_PROP_SNAPSHOT_LIMIT:
 	case ZFS_PROP_FILESYSTEM_COUNT:
@@ -2978,8 +3005,8 @@ is_descendant(const char *ds1, const char *ds2)
  * Will return -1 if there is no parent (path is just the name of the
  * pool).
  */
-static int
-parent_name(const char *path, char *buf, size_t buflen)
+int
+zfs_parent_name(const char *path, char *buf, size_t buflen)
 {
 	char *slashp;
 
@@ -3015,7 +3042,7 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 	    dgettext(TEXT_DOMAIN, "cannot create '%s'"), path);
 
 	/* get parent, and check to see if this is just a pool */
-	if (parent_name(path, parent, sizeof (parent)) != 0) {
+	if (zfs_parent_name(path, parent, sizeof (parent)) != 0) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "missing dataset name"));
 		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
@@ -3039,7 +3066,8 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 			/*
 			 * Go deeper to find an ancestor, give up on top level.
 			 */
-			if (parent_name(parent, parent, sizeof (parent)) != 0) {
+			if (zfs_parent_name(parent, parent,
+			    sizeof (parent)) != 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "no such pool '%s'"), zc.zc_name);
 				return (zfs_error(hdl, EZFS_NOENT, errbuf));
@@ -3314,7 +3342,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	/* check for failure */
 	if (ret != 0) {
 		char parent[ZFS_MAXNAMELEN];
-		(void) parent_name(path, parent, sizeof (parent));
+		(void) zfs_parent_name(path, parent, sizeof (parent));
 
 		switch (errno) {
 		case ENOENT:
@@ -3510,7 +3538,7 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 	if (check_parents(hdl, target, &zoned, B_FALSE, NULL) != 0)
 		return (-1);
 
-	(void) parent_name(target, parent, sizeof (parent));
+	(void) zfs_parent_name(target, parent, sizeof (parent));
 
 	/* do the clone */
 
