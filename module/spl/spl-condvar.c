@@ -80,6 +80,7 @@ static void
 cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 {
 	DEFINE_WAIT(wait);
+	kmutex_t *m;
 
 	ASSERT(cvp);
 	ASSERT(mp);
@@ -87,11 +88,11 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 	ASSERT(mutex_owned(mp));
 	atomic_inc(&cvp->cv_refs);
 
-	if (cvp->cv_mutex == NULL)
-		cvp->cv_mutex = mp;
-
+	m = ACCESS_ONCE(cvp->cv_mutex);
+	if (!m)
+		m = xchg(&cvp->cv_mutex, mp);
 	/* Ensure the same mutex is used by all callers */
-	ASSERT(cvp->cv_mutex == mp);
+	ASSERT(m == NULL || m == mp);
 
 	prepare_to_wait_exclusive(&cvp->cv_event, &wait, state);
 	atomic_inc(&cvp->cv_waiters);
@@ -106,16 +107,25 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 		io_schedule();
 	else
 		schedule();
-	mutex_enter(mp);
 
 	/* No more waiters a different mutex could be used */
 	if (atomic_dec_and_test(&cvp->cv_waiters)) {
+		/*
+		 * This is set without any lock, so it's racy. But this is
+		 * just for debug anyway, so make it best-effort
+		 */
 		cvp->cv_mutex = NULL;
 		wake_up(&cvp->cv_destroy);
 	}
 
 	finish_wait(&cvp->cv_event, &wait);
 	atomic_dec(&cvp->cv_refs);
+
+	/*
+	 * Hold mutex after we release the cvp, otherwise we could dead lock
+	 * with a thread holding the mutex and call cv_destroy.
+	 */
+	mutex_enter(mp);
 }
 
 void
@@ -148,6 +158,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
     int state)
 {
 	DEFINE_WAIT(wait);
+	kmutex_t *m;
 	clock_t time_left;
 
 	ASSERT(cvp);
@@ -156,15 +167,16 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 	ASSERT(mutex_owned(mp));
 	atomic_inc(&cvp->cv_refs);
 
-	if (cvp->cv_mutex == NULL)
-		cvp->cv_mutex = mp;
-
+	m = ACCESS_ONCE(cvp->cv_mutex);
+	if (!m)
+		m = xchg(&cvp->cv_mutex, mp);
 	/* Ensure the same mutex is used by all callers */
-	ASSERT(cvp->cv_mutex == mp);
+	ASSERT(m == NULL || m == mp);
 
 	/* XXX - Does not handle jiffie wrap properly */
 	time_left = expire_time - jiffies;
 	if (time_left <= 0) {
+		/* XXX - doesn't reset cv_mutex */
 		atomic_dec(&cvp->cv_refs);
 		return (-1);
 	}
@@ -179,10 +191,13 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 	 */
 	mutex_exit(mp);
 	time_left = schedule_timeout(time_left);
-	mutex_enter(mp);
 
 	/* No more waiters a different mutex could be used */
 	if (atomic_dec_and_test(&cvp->cv_waiters)) {
+		/*
+		 * This is set without any lock, so it's racy. But this is
+		 * just for debug anyway, so make it best-effort
+		 */
 		cvp->cv_mutex = NULL;
 		wake_up(&cvp->cv_destroy);
 	}
@@ -190,6 +205,11 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 	finish_wait(&cvp->cv_event, &wait);
 	atomic_dec(&cvp->cv_refs);
 
+	/*
+	 * Hold mutex after we release the cvp, otherwise we could dead lock
+	 * with a thread holding the mutex and call cv_destroy.
+	 */
+	mutex_enter(mp);
 	return (time_left > 0 ? time_left : -1);
 }
 
@@ -216,6 +236,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
     int state)
 {
 	DEFINE_WAIT(wait);
+	kmutex_t *m;
 	hrtime_t time_left, now;
 	unsigned long time_left_us;
 
@@ -225,11 +246,11 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 	ASSERT(mutex_owned(mp));
 	atomic_inc(&cvp->cv_refs);
 
-	if (cvp->cv_mutex == NULL)
-		cvp->cv_mutex = mp;
-
+	m = ACCESS_ONCE(cvp->cv_mutex);
+	if (!m)
+		m = xchg(&cvp->cv_mutex, mp);
 	/* Ensure the same mutex is used by all callers */
-	ASSERT(cvp->cv_mutex == mp);
+	ASSERT(m == NULL || m == mp);
 
 	now = gethrtime();
 	time_left = expire_time - now;
@@ -253,10 +274,13 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 	 * interrupts
 	 */
 	usleep_range(time_left_us, time_left_us + 100);
-	mutex_enter(mp);
 
 	/* No more waiters a different mutex could be used */
 	if (atomic_dec_and_test(&cvp->cv_waiters)) {
+		/*
+		 * This is set without any lock, so it's racy. But this is
+		 * just for debug anyway, so make it best-effort
+		 */
 		cvp->cv_mutex = NULL;
 		wake_up(&cvp->cv_destroy);
 	}
@@ -264,6 +288,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 	finish_wait(&cvp->cv_event, &wait);
 	atomic_dec(&cvp->cv_refs);
 
+	mutex_enter(mp);
 	time_left = expire_time - gethrtime();
 	return (time_left > 0 ? time_left : -1);
 }

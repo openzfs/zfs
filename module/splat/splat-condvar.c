@@ -88,6 +88,9 @@ splat_condvar_test12_thread(void *arg)
 	    ct->ct_thread->comm, atomic_read(&cv->cv_condvar.cv_waiters));
 	mutex_exit(&cv->cv_mtx);
 
+	/* wait for main thread reap us */
+	while (!kthread_should_stop())
+		schedule();
 	return 0;
 }
 
@@ -151,6 +154,12 @@ splat_condvar_test1(struct file *file, void *arg)
 	/* Wake everything for the failure case */
 	cv_broadcast(&cv.cv_condvar);
 	cv_destroy(&cv.cv_condvar);
+
+	/* wait for threads to exit */
+	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
+		if (!IS_ERR(ct[i].ct_thread))
+			kthread_stop(ct[i].ct_thread);
+	}
 	mutex_destroy(&cv.cv_mtx);
 
 	return rc;
@@ -199,6 +208,12 @@ splat_condvar_test2(struct file *file, void *arg)
 
 	/* Wake everything for the failure case */
 	cv_destroy(&cv.cv_condvar);
+
+	/* wait for threads to exit */
+	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
+		if (!IS_ERR(ct[i].ct_thread))
+			kthread_stop(ct[i].ct_thread);
+	}
 	mutex_destroy(&cv.cv_mtx);
 
 	return rc;
@@ -234,6 +249,9 @@ splat_condvar_test34_thread(void *arg)
 
 	mutex_exit(&cv->cv_mtx);
 
+	/* wait for main thread reap us */
+	while (!kthread_should_stop())
+		schedule();
 	return 0;
 }
 
@@ -302,6 +320,12 @@ splat_condvar_test3(struct file *file, void *arg)
 	/* Wake everything for the failure case */
 	cv_broadcast(&cv.cv_condvar);
 	cv_destroy(&cv.cv_condvar);
+
+	/* wait for threads to exit */
+	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
+		if (!IS_ERR(ct[i].ct_thread))
+			kthread_stop(ct[i].ct_thread);
+	}
 	mutex_destroy(&cv.cv_mtx);
 
 	return rc;
@@ -372,6 +396,12 @@ splat_condvar_test4(struct file *file, void *arg)
 	/* Wake everything for the failure case */
 	cv_broadcast(&cv.cv_condvar);
 	cv_destroy(&cv.cv_condvar);
+
+	/* wait for threads to exit */
+	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
+		if (!IS_ERR(ct[i].ct_thread))
+			kthread_stop(ct[i].ct_thread);
+	}
 	mutex_destroy(&cv.cv_mtx);
 
 	return rc;
