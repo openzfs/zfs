@@ -11,7 +11,7 @@
 .\"
 .\"
 .\" Copyright 2012, Richard Lowe.
-.\" Copyright (c) 2012 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2014 by Delphix. All rights reserved.
 .\"
 .TH "ZDB" "8" "February 15, 2012" "" ""
 
@@ -20,7 +20,7 @@
 
 .SH "SYNOPSIS"
 \fBzdb\fR [-CumdibcsDvhLMXFPA] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
-    [-U \fIcache\fR] [-I \fIinflight I/Os\fR]
+    [-U \fIcache\fR] [-I \fIinflight I/Os\fR] [-x \fIdumpdir\fR]
     [\fIpoolname\fR [\fIobject\fR ...]]
 
 .P
@@ -370,6 +370,20 @@ Do not abort if asserts fail and also enable panic recovery.
 .RS 4n
 Operate on an exported pool, not present in \fB/etc/zfs/zpool.cache\fR. The
 \fB-p\fR flag specifies the path under which devices are to be searched.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-x\fR \fIdumpdir\fR
+.ad
+.sp .6
+.RS 4n
+All blocks accessed will be copied to files in the specified directory.
+The blocks will be placed in sparse files whose name is the same as
+that of the file or device read.  zdb can be then run on the generated files.
+Note that the \fB-bbc\fR flags are sufficient to access (and thus copy)
+all metadata on the pool.
 .RE
 
 .sp
