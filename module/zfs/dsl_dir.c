@@ -1583,7 +1583,7 @@ dsl_dir_set_compquota_check(void *arg, dmu_tx_t *tx)
 		error = SET_ERROR(ENOSPC);
 	mutex_exit(&ds->ds_dir->dd_lock);
 	dsl_dataset_rele(ds, FTAG);
-	return (error)
+	return (error);
 }
 
 static void
