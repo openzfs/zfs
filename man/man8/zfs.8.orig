@@ -63,7 +63,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsnapshot | snap\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ...
+\fBzfs\fR \fBsnapshot | snap\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... 
       \fIfilesystem@snapname\fR|\fIvolume@snapname\fR ...
 .fi
 
@@ -111,7 +111,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBget\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-Hp\fR][\fB-o\fR \fIfield\fR[,...]] [\fB-t\fR \fItype\fR[,...]]
+\fBzfs\fR \fBget\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-Hp\fR][\fB-o\fR \fIfield\fR[,...]] [\fB-t\fR \fItype\fR[,...]] 
     [\fB-s\fR \fIsource\fR[,...]] "\fIall\fR" | \fIproperty\fR[,...] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...
 .fi
 
@@ -144,7 +144,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBmount\fR
+\fBzfs\fR \fBmount\fR 
 .fi
 
 .LP
@@ -199,7 +199,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBallow\fR [\fB-ldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] \fIperm\fR|\fI@setname\fR[,...]
+\fBzfs\fR \fBallow\fR [\fB-ldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] \fIperm\fR|\fI@setname\fR[,...] 
      \fIfilesystem\fR|\fIvolume\fR
 .fi
 
@@ -220,7 +220,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBunallow\fR [\fB-rldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] [\fIperm\fR|@\fIsetname\fR[,... ]]
+\fBzfs\fR \fBunallow\fR [\fB-rldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] [\fIperm\fR|@\fIsetname\fR[,... ]] 
      \fIfilesystem\fR|\fIvolume\fR
 .fi
 
@@ -374,7 +374,7 @@ Deduplication is the process for removing redundant data at the block-level, red
 .sp
 \fBWARNING: DO NOT ENABLE DEDUPLICATION UNLESS YOU NEED IT AND KNOW EXACTLY WHAT YOU ARE DOING!\fR
 .sp
-Deduplicating data is a very resource-intensive operation. It is generally recommended that you have \fIat least\fR 1.25 GB of RAM per 1 TB of storage when you enable deduplication. But calculating the exact requirements is a somewhat complicated affair. Please see the \fBOracle Dedup Guide\fR for more information..
+Deduplicating data is a very resource-intensive operation. It is generally recommended that you have \fIat least\fR 1.25 GB of RAM per 1 TB of storage when you enable deduplication. But calculating the exact requirenments is a somewhat complicated affair. Please see the \fBOracle Dedup Guide\fR for more information..
 .sp
 Enabling deduplication on an improperly-designed system will result in extreme performance issues (extremely slow filesystem and snapshot deletions etc.) and can potentially lead to data loss (i.e. unimportable pool due to memory exhaustion) if your system is not built for this purpose. Deduplication affects the processing power (CPU), disks (and the controller) as well as primary (real) memory.
 .sp
@@ -389,7 +389,7 @@ Properties are divided into two types, native properties and user-defined (or "u
 Every dataset has a set of properties that export statistics about the dataset as well as control various behaviors. Properties are inherited from the parent unless overridden by the child. Some properties apply only to certain types of datasets (file systems, volumes, or snapshots).
 .sp
 .LP
-The values of numeric properties can be specified using human-readable suffixes (for example, \fBk\fR, \fBKB\fR, \fBM\fR, \fBGb\fR, and so forth, up to \fBZ\fR for zettabyte). The following are all valid (and equal) specifications:
+The values of numeric properties can be specified using human-readable suffixes (for example, \fBk\fR, \fBKB\fR, \fBM\fR, \fBGb\fR, and so forth, up to \fBZ\fR for zettabyte). The following are all valid (and equal) specifications: 
 .sp
 .in +2
 .nf
@@ -854,7 +854,7 @@ work well on a wide variety of workloads.  Unlike all other settings for
 this property, \fBon\fR does not select a fixed compression type.  As
 new compression algorithms are added to ZFS and enabled on a pool, the
 default compression algorithm may change.  The current default compression
-algorithm is either \fBlzjb\fR or, if the \fBlz4_compress\fR feature is
+algorthm is either \fBlzjb\fR or, if the \fBlz4_compress\fR feature is
 enabled, \fBlz4\fR.
 .sp
 The \fBlzjb\fR compression algorithm is optimized for performance while
@@ -971,7 +971,7 @@ but rather imposes an additional limit. This feature must be enabled to be used
 .ad
 .sp .6
 .RS 4n
-Controls the mount point used for this file system. See the "Mount Points" section for more information on how this property is used.
+Controls the mount point used for this file system. See the "Mount Points" section for more information on how this property is used. 
 .sp
 When the \fBmountpoint\fR property is changed for a file system, the file system and any children that inherit the mount point are unmounted. If the new value is \fBlegacy\fR, then they remain unmounted. Otherwise, they are automatically remounted in the new location if the property was previously \fBlegacy\fR or \fBnone\fR, or if they were mounted before the property was changed. In addition, any shared file systems are unshared and shared in the new location.
 .RE
@@ -1102,7 +1102,7 @@ This property can also be referred to by its shortened column name, \fBrdonly\fR
 .ad
 .sp .6
 .RS 4n
-Specifies a suggested block size for files in the file system. This property is designed solely for use with database workloads that access files in fixed-size records. \fBZFS\fR automatically tunes block sizes according to internal algorithms optimized for typical access patterns.
+Specifies a suggested block size for files in the file system. This property is designed solely for use with database workloads that access files in fixed-size records. \fBZFS\fR automatically tunes block sizes according to internal algorithms optimized for typical access patterns. 
 .sp
 For databases that create very large files but access them in small random chunks, these algorithms may be suboptimal. Specifying a \fBrecordsize\fR greater than or equal to the record size of the database can result in significant performance gains. Use of this property for general purpose file systems is strongly discouraged, and may adversely affect performance.
 .sp
@@ -1230,7 +1230,7 @@ Because \fBSMB\fR shares requires a resource name, a unique resource name is con
 .sp
 If the \fBsharesmb\fR property is set to \fBoff\fR, the file systems are unshared.
 .sp
-In Linux, the share is created with the ACL (Access Control List) "Everyone:F" ("F" stands for "full permissions", ie. read and write permissions) and no guest access (which means samba must be able to authenticate a real user, system passwd/shadow, ldap or smbpasswd based) by default. This means that any additional access control (disallow specific user specific access etc) must be done on the underlaying filesystem.
+In Linux, the share is created with the ACL (Access Control List) "Everyone:F" ("F" stands for "full permissions", ie. read and write permissions) and no guest access (which means samba must be able to authenticate a real user, system passwd/shadow, ldap or smbpasswd based) by default. This means that any additional access control (dissalow specific user specific access etc) must be done on the underlaying filesystem.
 .sp
 .in +2
 Example to mount a SMB filesystem shared through ZFS (share/tmp):
@@ -1961,7 +1961,7 @@ Sets the specified property; see \fBzfs create\fR for details.
 .ad
 .sp .6
 .RS 4n
-Promotes a clone file system to no longer be dependent on its "origin" snapshot. This makes it possible to destroy the file system that the clone was created from. The clone parent-child dependency relationship is reversed, so that the origin file system becomes a clone of the specified file system.
+Promotes a clone file system to no longer be dependent on its "origin" snapshot. This makes it possible to destroy the file system that the clone was created from. The clone parent-child dependency relationship is reversed, so that the origin file system becomes a clone of the specified file system. 
 .sp
 The snapshot that was cloned, and any snapshots previous to this snapshot, are now owned by the promoted clone. The space they use moves from the origin file system to the promoted clone, so enough space must be available to accommodate these snapshots. No new space is consumed by this operation, but the space accounting is adjusted. The promoted clone must not have any conflicting snapshot names of its own. The \fBrename\fR subcommand can be used to rename any conflicting snapshots.
 .RE
@@ -2055,7 +2055,7 @@ Display numbers in parsable (exact) values.
 .ad
 .sp .6
 .RS 4n
-Recursively display any children of the dataset on the command line.
+Recursively display any children of the dataset on the command line. 
 .RE
 
 .sp
@@ -2149,7 +2149,7 @@ If no sorting options are specified the existing behavior of \fBzfs list\fR is p
 .ad
 .sp .6
 .RS 4n
-Same as the \fB-s\fR option, but sorts by property in descending order.
+Same as the \fB-s\fR option, but sorts by property in descending order. 
 .RE
 
 .sp
@@ -2248,7 +2248,7 @@ Display output in a form more easily parsed by scripts. Any headers are omitted,
 .ad
 .sp .6
 .RS 4n
-A comma-separated list of columns to display. \fBname,property,value,source\fR is the default value.
+A comma-separated list of columns to display. \fBname,property,value,source\fR is the default value. 
 .RE
 
 .sp
@@ -2328,7 +2328,7 @@ Displays a list of file systems that are not the most recent version.
 .RS 4n
 Upgrades file systems to a new on-disk version. Once this is done, the file systems will no longer be accessible on systems running older versions of the software. \fBzfs send\fR streams generated from new snapshots of these file systems cannot be accessed on systems running older versions of the software.
 .sp
-In general, the file system version is independent of the pool version. See \fBzpool\fR(8) for information on the \fBzpool upgrade\fR command.
+In general, the file system version is independent of the pool version. See \fBzpool\fR(8) for information on the \fBzpool upgrade\fR command. 
 .sp
 In some cases, the file system version and the pool version are interrelated and the pool version must be upgraded before the file system version can be upgraded.
 .sp
@@ -2350,7 +2350,7 @@ Upgrade all file systems on all imported pools.
 .ad
 .sp .6
 .RS 4n
-Upgrade the specified file system.
+Upgrade the specified file system. 
 .RE
 
 .sp
@@ -2361,7 +2361,7 @@ Upgrade the specified file system.
 .ad
 .sp .6
 .RS 4n
-Upgrade the specified file system and all descendent file systems
+Upgrade the specified file system and all descendent file systems 
 .RE
 
 .sp
@@ -2642,7 +2642,7 @@ Unmount the specified filesystem. The command can also be given a path to a \fBZ
 .ad
 .sp .6
 .RS 4n
-Shares available \fBZFS\fR file systems.
+Shares available \fBZFS\fR file systems. 
 .sp
 .ne 2
 .mk
@@ -2651,7 +2651,7 @@ Shares available \fBZFS\fR file systems.
 .ad
 .sp .6
 .RS 4n
-Share all available \fBZFS\fR file systems. Invoked automatically as part of the boot process.
+Share all available \fBZFS\fR file systems. Invoked automatically as part of the boot process. 
 .RE
 
 .sp
@@ -2684,7 +2684,7 @@ Unshares currently shared \fBZFS\fR file systems. This is invoked automatically 
 .ad
 .sp .6
 .RS 4n
-Unshare all available \fBZFS\fR file systems. Invoked automatically as part of the boot process.
+Unshare all available \fBZFS\fR file systems. Invoked automatically as part of the boot process. 
 .RE
 
 .sp
@@ -2761,7 +2761,7 @@ Generate a stream package that sends all intermediary snapshots from the first s
 .RS 4n
 Generate a replication stream package, which will replicate the specified filesystem, and all descendent file systems, up to the named snapshot. When received, all properties, snapshots, descendent file systems, and clones are preserved.
 .sp
-If the \fB-i\fR or \fB-I\fR flags are used in conjunction with the \fB-R\fR flag, an incremental replication stream is generated. The current values of properties, and current snapshot and file system names are set when the stream is received. If the \fB-F\fR flag is specified when this stream is received, snapshots and file systems that do not exist on the sending side are destroyed.
+If the \fB-i\fR or \fB-I\fR flags are used in conjunction with the \fB-R\fR flag, an incremental replication stream is generated. The current values of properties, and current snapshot and file system names are set when the stream is received. If the \fB-F\fR flag is specified when this stream is received, snapshots and file systems that do not exist on the sending side are destroyed. 
 .RE
 
 .sp
@@ -3005,17 +3005,6 @@ Do not actually receive the stream. This can be useful in conjunction with the \
 .ne 2
 .mk
 .na
-\fB\fBo\fR=\fBorigin\fR
-.ad
-.sp .6
-.RS 4n
-Forces the stream to be received as a clone of the given snapshot. This is only valid if the stream is an incremental stream whose source is the same as the provided origin.
-.RE
-
-.sp
-.ne 2
-.mk
-.na
 \fB\fB-F\fR\fR
 .ad
 .sp .6
@@ -3107,7 +3096,7 @@ receive          subcommand     Must also have the 'mount' and 'create' ability
 rename           subcommand     Must also have the 'mount' and 'create'
                                 ability in the new parent
 rollback         subcommand     Must also have the 'mount' ability
-send             subcommand
+send             subcommand     
 share            subcommand     Allows sharing file systems over NFS or SMB
                                 protocols
 snapshot         subcommand     Must also have the 'mount' ability
@@ -3118,42 +3107,42 @@ userquota        other          Allows accessing any userquota@... property
 userused         other          Allows reading any userused@... property
 
 acltype          property
-aclinherit       property
-atime            property
-canmount         property
-casesensitivity  property
-checksum         property
-compression      property
-copies           property
+aclinherit       property       
+atime            property       
+canmount         property       
+casesensitivity  property       
+checksum         property       
+compression      property       
+copies           property       
 dedup            property
-devices          property
-exec             property
+devices          property       
+exec             property       
 filesystem_limit property
 logbias          property
 mlslabel         property
-mountpoint       property
-nbmand           property
-normalization    property
-primarycache     property
-quota            property
-readonly         property
-recordsize       property
-refquota         property
-refreservation   property
-reservation      property
-secondarycache   property
-setuid           property
-sharenfs         property
-sharesmb         property
-snapdir          property
+mountpoint       property       
+nbmand           property       
+normalization    property       
+primarycache     property       
+quota            property       
+readonly         property       
+recordsize       property       
+refquota         property       
+refreservation   property       
+reservation      property       
+secondarycache   property       
+setuid           property       
+sharenfs         property       
+sharesmb         property       
+snapdir          property       
 snapshot_limit   property
-utf8only         property
-version          property
-volblocksize     property
-volsize          property
-vscan            property
-xattr            property
-zoned            property
+utf8only         property       
+version          property       
+volblocksize     property       
+volsize          property       
+vscan            property       
+xattr            property       
+zoned            property       
 .fi
 .in -2
 .sp
@@ -3755,7 +3744,7 @@ Create time permissions on (tank/users)
           create,destroy
 Local+Descendent permissions on (tank/users)
           group staff create,mount
--------------------------------------------------------------
+------------------------------------------------------------- 
 .fi
 .in -2
 .sp
@@ -3802,7 +3791,7 @@ Local+Descendent permissions on (users/home)
 cindys% \fBzfs set quota=10G users/home/marks\fR
 cindys% \fBzfs get quota users/home/marks\fR
 NAME              PROPERTY  VALUE             SOURCE
-users/home/marks  quota     10G               local
+users/home/marks  quota     10G               local 
 .fi
 .in -2
 .sp
@@ -3825,7 +3814,7 @@ Create time permissions on (tank/users)
         create,destroy
 Local+Descendent permissions on (tank/users)
         group staff @pset,create,mount
--------------------------------------------------------------
+------------------------------------------------------------- 
 .fi
 .in -2
 .sp
@@ -3883,7 +3872,7 @@ The following exit values are returned:
 .ad
 .sp .6
 .RS 4n
-Successful completion.
+Successful completion. 
 .RE
 
 .sp

@@ -1,0 +1,42 @@
+--- man/man8/zfs.8 
++++ man/man8/zfs.8 
+@@ -175,11 +175,13 @@
+ .Nm
+ .Cm receive
+ .Op Fl Fnuv
++.Op Fl o Sy origin Ns = Ns Ar snapshot
+ .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
+ .Nm
+ .Cm receive
+ .Op Fl Fnuv
+ .Op Fl d Ns | Ns Fl e
++.Op Fl o Sy origin Ns = Ns Ar snapshot
+ .Ar filesystem
+ .Nm
+ .Cm allow
+@@ -2635,12 +2637,14 @@ origin, etc.
+ .Nm
+ .Cm receive
+ .Op Fl Fnuv
++.Op Fl o Sy origin Ns = Ns Ar snapshot
+ .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
+ .br
+ .Nm
+ .Cm receive
+ .Op Fl Fnuv
+ .Op Fl d Ns | Ns Fl e
++.Op Fl o Sy origin Ns = Ns Ar snapshot
+ .Ar filesystem
+ .Xc
+ Creates a snapshot whose contents are as specified in the stream provided on
+@@ -2730,6 +2734,10 @@ snapshot as described in the paragraph above.
+ Do not actually receive the stream. This can be useful in conjunction with the
+ .Fl v
+ option to verify the name the receive operation would use.
++.It Fl o Sy origin Ns = Ns Ar snapshot
++Forces the stream to be received as a clone of the given snapshot.
++This is only valid if the stream is an incremental stream whose source
++is the same as the provided origin.
+ .It Fl u
+ File system that is associated with the received stream is not mounted.
+ .It Fl v

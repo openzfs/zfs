@@ -678,8 +678,8 @@ typedef struct recvflags {
 	boolean_t nomount;
 } recvflags_t;
 
-extern int zfs_receive(libzfs_handle_t *, const char *, recvflags_t *,
-    int, avl_tree_t *);
+extern int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,
+    recvflags_t *, int, avl_tree_t *);
 
 typedef enum diff_flags {
 	ZFS_DIFF_PARSEABLE = 0x1,
