@@ -2118,7 +2118,8 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 
 		/* Prefetch znode */
 		if (prefetch) {
-			dmu_prefetch(os, objnum, 0, 0);
+			dmu_prefetch(os, objnum, 0, 0, 0,
+			    ZIO_PRIORITY_SYNC_READ);
 		}
 
 		/*

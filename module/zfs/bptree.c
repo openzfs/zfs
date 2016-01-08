@@ -156,7 +156,7 @@ bptree_visit_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	int err;
 	struct bptree_args *ba = arg;
 
-	if (BP_IS_HOLE(bp))
+	if (bp == NULL || BP_IS_HOLE(bp))
 		return (0);
 
 	err = ba->ba_func(ba->ba_arg, bp, ba->ba_tx);

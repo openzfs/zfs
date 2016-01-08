@@ -148,6 +148,11 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 	return (0);
 }
 
+/*
+ * Return (in *objectp) the next object which is allocated (or a hole)
+ * after *object, taking into account only objects that may have been modified
+ * after the specified txg.
+ */
 int
 dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 {

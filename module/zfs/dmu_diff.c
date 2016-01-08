@@ -115,7 +115,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (issig(JUSTLOOKING) && issig(FORREAL))
 		return (SET_ERROR(EINTR));
 
-	if (zb->zb_object != DMU_META_DNODE_OBJECT)
+	if (bp == NULL || zb->zb_object != DMU_META_DNODE_OBJECT)
 		return (0);
 
 	if (BP_IS_HOLE(bp)) {
