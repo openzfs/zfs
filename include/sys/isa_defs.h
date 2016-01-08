@@ -118,10 +118,6 @@
 #define __sparc__
 #endif
 
-#if !defined(_ILP32)
-#define _ILP32
-#endif
-
 #if defined(__arch64__)
 #if !defined(_LP64)
 #define _LP64
