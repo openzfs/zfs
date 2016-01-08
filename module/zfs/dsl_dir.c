@@ -1068,7 +1068,7 @@ dsl_dir_space_available(dsl_dir_t *dd,
 	mutex_enter(&dd->dd_lock);
 	if (dsl_dir_phys(dd)->dd_quota != 0)
 		quota = dsl_dir_phys(dd)->dd_quota;
-	if ( dsl_dir_phys(dd)->dd_compquota != 0 )
+	if (dsl_dir_phys(dd)->dd_compquota != 0)
 		used = dsl_dir_phys(dd)->dd_uncompressed_bytes;
 	else
 		used = dsl_dir_phys(dd)->dd_used_bytes;
@@ -1145,10 +1145,10 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	est_inflight = dsl_dir_space_towrite(dd);
 	for (i = 0; i < TXG_SIZE; i++)
 		est_inflight += dd->dd_tempreserved[i];
-        if ( dsl_dir_phys(dd)->dd_compquota != 0 )
-                used_on_disk = dsl_dir_phys(dd)->dd_uncompressed_bytes;
-        else
-                used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
+	if (dsl_dir_phys(dd)->dd_compquota != 0)
+		used_on_disk = dsl_dir_phys(dd)->dd_uncompressed_bytes;
+	else
+		used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
 
 	/*
 	 * On the first iteration, fetch the dataset's used-on-disk and
@@ -1556,17 +1556,16 @@ dsl_dir_set_compquota_check(void *arg, dmu_tx_t *tx)
 	dsl_dataset_t *ds;
 	int error;
 	uint64_t towrite, checkval;
-	
 
 	error = dsl_dataset_hold(dp, ddscqa->ddscqa_name, FTAG, &ds);
 	if (error != 0)
 		return (error);
-	if ( ddscqa->ddscqa_value )
+	if (ddscqa->ddscqa_value)
 		checkval = dsl_dir_phys(ds->ds_dir)->dd_uncompressed_bytes;
 	else
 		checkval = dsl_dir_phys(ds->ds_dir)->dd_used_bytes;
-	if ( checkval > dsl_dir_phys(ds->ds_dir)->dd_quota ) 
-		error = SET_ERROR(ENOSPC);		
+	if (checkval > dsl_dir_phys(ds->ds_dir)->dd_quota)
+		error = SET_ERROR(ENOSPC);
 	if (error != 0) {
 		dsl_dataset_rele(ds, FTAG);
 		return (error);
@@ -1580,11 +1579,11 @@ dsl_dir_set_compquota_check(void *arg, dmu_tx_t *tx)
 	 */
 	mutex_enter(&ds->ds_dir->dd_lock);
 	towrite = dsl_dir_space_towrite(ds->ds_dir);
-	if ( checkval + towrite > dsl_dir_phys(ds->ds_dir)->dd_quota ) 
-		error = SET_ERROR(ENOSPC);		
+	if (checkval + towrite > dsl_dir_phys(ds->ds_dir)->dd_quota)
+		error = SET_ERROR(ENOSPC);
 	mutex_exit(&ds->ds_dir->dd_lock);
 	dsl_dataset_rele(ds, FTAG);
-	return (error);
+	return (error)
 }
 
 static void
