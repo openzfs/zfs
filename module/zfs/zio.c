@@ -679,18 +679,20 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 			zfs_panic_recover("blkptr at %p DVA %u has invalid "
 			    "VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
+			continue;
 		}
 		vd = spa->spa_root_vdev->vdev_child[vdevid];
 		if (vd == NULL) {
 			zfs_panic_recover("blkptr at %p DVA %u has invalid "
 			    "VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
+			continue;
 		}
 		if (vd->vdev_ops == &vdev_hole_ops) {
 			zfs_panic_recover("blkptr at %p DVA %u has hole "
 			    "VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
-
+			continue;
 		}
 		if (vd->vdev_ops == &vdev_missing_ops) {
 			/*
