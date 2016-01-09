@@ -442,7 +442,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	}
 
 	if ((flags & DMU_READ_NO_PREFETCH) == 0 && read &&
-	    length < zfetch_array_rd_sz) {
+	    length <= zfetch_array_rd_sz) {
 		dmu_zfetch(&dn->dn_zfetch, blkid, nblks);
 	}
 	rw_exit(&dn->dn_struct_rwlock);
