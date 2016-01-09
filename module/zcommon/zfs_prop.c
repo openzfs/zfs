@@ -202,6 +202,14 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static zprop_index_t volmode_table[] = {
+		{ "default",	ZFS_VOLMODE_DEFAULT },
+		{ "geom",		ZFS_VOLMODE_GEOM },
+		{ "dev",		ZFS_VOLMODE_DEV },
+		{ "none",		ZFS_VOLMODE_NONE },
+		{ NULL }
+	};
+
 	static zprop_index_t xattr_table[] = {
 		{ "off",	ZFS_XATTR_OFF },
 		{ "on",		ZFS_XATTR_DIR },
@@ -226,6 +234,10 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "standard | always | disabled", "SYNC",
 	    sync_table);
+	zprop_register_index(ZFS_PROP_VOLMODE, "volmode",
+	    ZFS_VOLMODE_DEFAULT, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "default | geom | dev | none", "VOLMODE", volmode_table);
 	zprop_register_index(ZFS_PROP_CHECKSUM, "checksum",
 	    ZIO_CHECKSUM_DEFAULT, PROP_INHERIT, ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_VOLUME,
