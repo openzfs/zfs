@@ -26,6 +26,7 @@
 
 /*
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Syneto S.R.L. All rights reserved.
  */
 
 /*
@@ -246,8 +247,9 @@ zpool_get_features(zpool_handle_t *zhp)
 		config = zpool_get_config(zhp, NULL);
 	}
 
-	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_FEATURE_STATS,
-	    &features) == 0);
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_FEATURE_STATS,
+	    &features) != 0)
+		return (NULL);
 
 	return (features);
 }
