@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -50,7 +50,7 @@ unsigned int	zfetch_max_streams = 8;
 unsigned int	zfetch_min_sec_reap = 2;
 /* max bytes to prefetch per stream (default 8MB) */
 uint32_t	zfetch_max_distance = 8 * 1024 * 1024;
-/* number of bytes in a array_read at which we stop prefetching (1MB) */
+/* max number of bytes in an array_read in which we allow prefetching (1MB) */
 unsigned long	zfetch_array_rd_sz = 1024 * 1024;
 
 typedef struct zfetch_stats {
