@@ -69,7 +69,7 @@ void
 bqueue_enqueue(bqueue_t *q, void *data, uint64_t item_size)
 {
 	ASSERT3U(item_size, >, 0);
-	ASSERT3U(item_size, <, q->bq_maxsize);
+	ASSERT3U(item_size, <=, q->bq_maxsize);
 	mutex_enter(&q->bq_lock);
 	obj2node(q, data)->bqn_size = item_size;
 	while (q->bq_size + item_size > q->bq_maxsize) {
