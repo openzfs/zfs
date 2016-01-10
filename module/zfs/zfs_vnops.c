@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
@@ -620,6 +621,15 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb), NULL, &zp->z_size, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
 	    &zp->z_pflags, 8);
+
+	/*
+	 * Callers might not be able to detect properly that we are read-only,
+	 * so check it explicitly here.
+	 */
+	if (zfs_is_readonly(zsb)) {
+		ZFS_EXIT(zsb);
+		return (SET_ERROR(EROFS));
+	}
 
 	/*
 	 * If immutable or not appending then return EPERM
@@ -4376,6 +4386,15 @@ zfs_space(struct inode *ip, int cmd, flock64_t *bfp, int flag,
 	if (cmd != F_FREESP) {
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EINVAL));
+	}
+
+	/*
+	 * Callers might not be able to detect properly that we are read-only,
+	 * so check it explicitly here.
+	 */
+	if (zfs_is_readonly(zsb)) {
+		ZFS_EXIT(zsb);
+		return (SET_ERROR(EROFS));
 	}
 
 	if ((error = convoff(ip, bfp, 0, offset))) {
