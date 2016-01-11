@@ -487,7 +487,8 @@ uint64_t dmu_buf_refcount(dmu_buf_t *db);
  * individually with dmu_buf_rele.
  */
 int dmu_buf_hold_array_by_bonus(dmu_buf_t *db, uint64_t offset,
-    uint64_t length, int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp);
+    uint64_t length, boolean_t read, void *tag,
+    int *numbufsp, dmu_buf_t ***dbpp);
 void dmu_buf_rele_array(dmu_buf_t **, int numbufs, void *tag);
 
 typedef void dmu_buf_evict_func_t(void *user_ptr);
@@ -732,7 +733,7 @@ void dmu_xuio_clear(struct xuio *uio, int i);
 void xuio_stat_wbuf_copied(void);
 void xuio_stat_wbuf_nocopy(void);
 
-extern int zfs_prefetch_disable;
+extern bool zfs_prefetch_disable;
 extern int zfs_max_recordsize;
 
 /*

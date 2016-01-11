@@ -102,6 +102,8 @@ DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__evict);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__delete);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_new_state__mru);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_new_state__mfu);
+DEFINE_ARC_BUF_HDR_EVENT(arc__sync__wait__for__async);
+DEFINE_ARC_BUF_HDR_EVENT(arc__demand__hit__predictive__prefetch);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__hit);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__miss);
 
