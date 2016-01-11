@@ -733,8 +733,8 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 	if (uio == UIO_READ) {
 		rc = pread64(vp->v_fd, addr, len, offset);
 		if (vp->v_dump_fd != -1) {
-			int status =
-			    pwrite64(vp->v_dump_fd, addr, rc, offset);
+			int status;
+			status = pwrite64(vp->v_dump_fd, addr, rc, offset);
 			ASSERT(status != -1);
 		}
 	} else {
