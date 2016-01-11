@@ -1784,7 +1784,11 @@ dsl_dataset_space(dsl_dataset_t *ds,
     uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp)
 {
-	*refdbytesp = dsl_dataset_phys(ds)->ds_referenced_bytes;
+	if (dsl_dir_phys(ds->ds_dir)->dd_compquota != 0)
+		*refdbytesp = dsl_dataset_phys(ds)->ds_uncompressed_bytes;
+	else
+		*refdbytesp = dsl_dataset_phys(ds)->ds_referenced_bytes;
+
 	*availbytesp = dsl_dir_space_available(ds->ds_dir, NULL, 0, TRUE);
 	if (ds->ds_reserved > dsl_dataset_phys(ds)->ds_unique_bytes)
 		*availbytesp +=

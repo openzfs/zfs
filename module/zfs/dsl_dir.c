@@ -938,6 +938,8 @@ dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv)
 	    dsl_dir_phys(dd)->dd_used_bytes);
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_QUOTA,
 	    dsl_dir_phys(dd)->dd_quota);
+	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_COMPQUOTA,
+	    dsl_dir_phys(dd)->dd_compquota);
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_RESERVATION,
 	    dsl_dir_phys(dd)->dd_reserved);
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_COMPRESSRATIO,
@@ -1066,7 +1068,11 @@ dsl_dir_space_available(dsl_dir_t *dd,
 	mutex_enter(&dd->dd_lock);
 	if (dsl_dir_phys(dd)->dd_quota != 0)
 		quota = dsl_dir_phys(dd)->dd_quota;
-	used = dsl_dir_phys(dd)->dd_used_bytes;
+	if (dsl_dir_phys(dd)->dd_compquota != 0)
+		used = dsl_dir_phys(dd)->dd_uncompressed_bytes;
+	else
+		used = dsl_dir_phys(dd)->dd_used_bytes;
+
 	if (!ondiskonly)
 		used += dsl_dir_space_towrite(dd);
 
@@ -1139,7 +1145,10 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	est_inflight = dsl_dir_space_towrite(dd);
 	for (i = 0; i < TXG_SIZE; i++)
 		est_inflight += dd->dd_tempreserved[i];
-	used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
+	if (dsl_dir_phys(dd)->dd_compquota != 0)
+		used_on_disk = dsl_dir_phys(dd)->dd_uncompressed_bytes;
+	else
+		used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
 
 	/*
 	 * On the first iteration, fetch the dataset's used-on-disk and
@@ -1533,6 +1542,81 @@ dsl_dir_set_quota(const char *ddname, zprop_source_t source, uint64_t quota)
 	    dsl_dir_set_quota_sync, &ddsqra, 0, ZFS_SPACE_CHECK_NONE));
 }
 
+typedef struct dsl_dir_set_cq_arg {
+	const char *ddscqa_name;
+	zprop_source_t ddscqa_source;
+	uint64_t ddscqa_value;
+} dsl_dir_set_cq_arg_t;
+
+static int
+dsl_dir_set_compquota_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_dir_set_cq_arg_t *ddscqa = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	int error;
+	uint64_t towrite, checkval;
+
+	error = dsl_dataset_hold(dp, ddscqa->ddscqa_name, FTAG, &ds);
+	if (error != 0)
+		return (error);
+	if (ddscqa->ddscqa_value)
+		checkval = dsl_dir_phys(ds->ds_dir)->dd_uncompressed_bytes;
+	else
+		checkval = dsl_dir_phys(ds->ds_dir)->dd_used_bytes;
+	if (checkval > dsl_dir_phys(ds->ds_dir)->dd_quota)
+		error = SET_ERROR(ENOSPC);
+	if (error != 0) {
+		dsl_dataset_rele(ds, FTAG);
+		return (error);
+	}
+
+	/*
+	 * If we are doing the preliminary check in open context, and
+	 * there are pending changes, then don't fail it, since the
+	 * pending changes could under-estimate the amount of space to be
+	 * freed up.
+	 */
+	mutex_enter(&ds->ds_dir->dd_lock);
+	towrite = dsl_dir_space_towrite(ds->ds_dir);
+	if (checkval + towrite > dsl_dir_phys(ds->ds_dir)->dd_quota)
+		error = SET_ERROR(ENOSPC);
+	mutex_exit(&ds->ds_dir->dd_lock);
+	dsl_dataset_rele(ds, FTAG);
+	return (error);
+}
+
+static void
+dsl_dir_set_compquota_sync(void *arg, dmu_tx_t *tx)
+{
+	dsl_dir_set_cq_arg_t *ddscqa = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	uint64_t newval;
+	newval = ddscqa->ddscqa_value;
+
+	VERIFY0(dsl_dataset_hold(dp, ddscqa->ddscqa_name, FTAG, &ds));
+	spa_history_log_internal_ds(ds, "set", tx, "%s=%lld",
+	    zfs_prop_to_name(ZFS_PROP_COMPQUOTA), (longlong_t)newval);
+	dmu_buf_will_dirty(ds->ds_dir->dd_dbuf, tx);
+	mutex_enter(&ds->ds_dir->dd_lock);
+	dsl_dir_phys(ds->ds_dir)->dd_compquota = newval;
+	mutex_exit(&ds->ds_dir->dd_lock);
+	dsl_dataset_rele(ds, FTAG);
+}
+
+int
+dsl_dir_set_compquota(const char *ddname, zprop_source_t source, uint64_t quota)
+{
+	dsl_dir_set_cq_arg_t ddscqa;
+
+	ddscqa.ddscqa_name = ddname;
+	ddscqa.ddscqa_source = source;
+	ddscqa.ddscqa_value = quota;
+
+	return (dsl_sync_task(ddname, dsl_dir_set_compquota_check,
+	    dsl_dir_set_compquota_sync, &ddscqa, 0, ZFS_SPACE_CHECK_NONE));
+}
 int
 dsl_dir_set_reservation_check(void *arg, dmu_tx_t *tx)
 {
