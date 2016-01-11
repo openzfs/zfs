@@ -56,6 +56,7 @@ extern "C" {
 #define	FM_EREPORT_ZFS_IO_FAILURE		"io_failure"
 #define	FM_EREPORT_ZFS_PROBE_FAILURE		"probe_failure"
 #define	FM_EREPORT_ZFS_LOG_REPLAY		"log_replay"
+#define	FM_EREPORT_ZFS_CONFIG_CACHE_WRITE	"config_cache_write"
 #define	FM_EREPORT_ZFS_RESILVER_START		"resilver.start"
 #define	FM_EREPORT_ZFS_RESILVER_FINISH		"resilver.finish"
 #define	FM_EREPORT_ZFS_SCRUB_START		"scrub.start"
