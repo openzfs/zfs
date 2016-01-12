@@ -783,16 +783,16 @@ libzfs_init(void)
 	}
 
 #ifdef HAVE_SETMNTENT
-	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "r")) == NULL) {
+	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "rF")) == NULL) {
 #else
-	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "r")) == NULL) {
+	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "rF")) == NULL) {
 #endif
 		(void) close(hdl->libzfs_fd);
 		free(hdl);
 		return (NULL);
 	}
 
-	hdl->libzfs_sharetab = fopen("/etc/dfs/sharetab", "r");
+	hdl->libzfs_sharetab = fopen("/etc/dfs/sharetab", "rF");
 
 	if (libzfs_core_init() != 0) {
 		(void) close(hdl->libzfs_fd);
@@ -875,7 +875,7 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 	}
 
 	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+	if (freopen(MNTTAB, "rF", hdl->libzfs_mnttab) == NULL)
 		return (NULL);
 
 	while ((ret = getextmntent(hdl->libzfs_mnttab, &entry, 0)) == 0) {
