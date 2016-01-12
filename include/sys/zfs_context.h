@@ -250,7 +250,7 @@ typedef struct kthread {
 #define	getcomm()			"unknown"
 #define	thread_exit			zk_thread_exit
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
+	zk_thread_create(stk, stksize, (thread_func_t)func, #func, arg,	\
 	    len, NULL, state, pri, PTHREAD_CREATE_DETACHED)
 #define	thread_join(t)			zk_thread_join(t)
 #define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
@@ -258,7 +258,7 @@ typedef struct kthread {
 extern kthread_t *zk_thread_current(void);
 extern void zk_thread_exit(void);
 extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
-	thread_func_t func, void *arg, size_t len,
+	thread_func_t func, const char *name, void *arg, size_t len,
 	proc_t *pp, int state, pri_t pri, int detachstate);
 extern void zk_thread_join(kt_did_t tid);
 
