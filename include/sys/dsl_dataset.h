@@ -184,6 +184,9 @@ typedef struct dsl_dataset {
 	kmutex_t ds_sendstream_lock;
 	list_t ds_sendstreams;
 
+	/* Protected by our dsl_dir's dd_lock */
+	list_t ds_prop_cbs;
+
 	/*
 	 * For ZFEATURE_FLAG_PER_DATASET features, set if this dataset
 	 * uses this feature.

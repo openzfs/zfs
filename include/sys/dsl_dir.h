@@ -102,7 +102,7 @@ struct dsl_dir {
 
 	/* Protected by dd_lock */
 	kmutex_t dd_lock;
-	list_t dd_prop_cbs; /* list of dsl_prop_cb_record_t's */
+	list_t dd_props; /* list of dsl_prop_record_t's */
 	timestruc_t dd_snap_cmtime; /* last time snapshot namespace changed */
 	uint64_t dd_origin_txg;
 
