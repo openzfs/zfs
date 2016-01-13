@@ -53,8 +53,8 @@ typedef struct refcount {
 	boolean_t rc_tracked;
 	list_t rc_list;
 	list_t rc_removed;
-	int64_t rc_count;
-	int64_t rc_removed_count;
+	uint64_t rc_count;
+	uint64_t rc_removed_count;
 } refcount_t;
 
 /* Note: refcount_t must be initialized with refcount_create[_untracked]() */
