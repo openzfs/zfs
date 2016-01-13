@@ -222,7 +222,7 @@ extern int aok;
  */
 #define	TS_MAGIC		0x72f158ab4261e538ull
 #define	TS_RUN			0x00000002
-#define	TS_STACK_MIN		PTHREAD_STACK_MIN
+#define	TS_STACK_MIN		MAX(PTHREAD_STACK_MIN, 32768)
 #define	TS_STACK_MAX		(256 * 1024)
 
 /* in libzpool, p0 exists only to have its address taken */
