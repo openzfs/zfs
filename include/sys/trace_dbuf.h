@@ -42,7 +42,8 @@
  */
 
 #define	DBUF_TP_STRUCT_ENTRY					\
-	__field(const char *,	os_spa)				\
+	__string(os_spa,					\
+	    spa_name(DB_DNODE(db)->dn_objset->os_spa))		\
 	__field(uint64_t,	ds_object)			\
 	__field(uint64_t,	db_object)			\
 	__field(uint64_t,	db_level)			\
@@ -53,8 +54,8 @@
 	__field(int64_t,	db_holds)			\
 
 #define	DBUF_TP_FAST_ASSIGN					\
-	__entry->os_spa =					\
-	    spa_name(DB_DNODE(db)->dn_objset->os_spa);		\
+	__assign_str(os_spa,					\
+	    spa_name(DB_DNODE(db)->dn_objset->os_spa));		\
 								\
 	__entry->ds_object = db->db_objset->os_dsl_dataset ?	\
 	    db->db_objset->os_dsl_dataset->ds_object : 0;	\
@@ -72,7 +73,7 @@
 	"blkid %llu offset %llu size %llu state %llu holds %lld }"
 
 #define	DBUF_TP_PRINTK_ARGS					\
-	__entry->os_spa, __entry->ds_object,			\
+	__get_str(os_spa), __entry->ds_object,			\
 	__entry->db_object, __entry->db_level,			\
 	__entry->db_blkid, __entry->db_offset,			\
 	__entry->db_size, __entry->db_state, __entry->db_holds
