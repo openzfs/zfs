@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
@@ -865,7 +865,8 @@ zfs_which_resv_prop(zfs_handle_t *zhp, zfs_prop_t *resv_prop)
  */
 nvlist_t *
 zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
-    uint64_t zoned, zfs_handle_t *zhp, const char *errbuf)
+    uint64_t zoned, zfs_handle_t *zhp, zpool_handle_t *zpool_hdl,
+    const char *errbuf)
 {
 	nvpair_t *elem;
 	uint64_t intval;
@@ -1061,8 +1062,8 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			int maxbs = SPA_MAXBLOCKSIZE;
 			char buf[64];
 
-			if (zhp != NULL) {
-				maxbs = zpool_get_prop_int(zhp->zpool_hdl,
+			if (zpool_hdl != NULL) {
+				maxbs = zpool_get_prop_int(zpool_hdl,
 				    ZPOOL_PROP_MAXBLOCKSIZE, NULL);
 			}
 			/*
@@ -1581,7 +1582,8 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 	    zhp->zfs_name);
 
 	if ((nvl = zfs_valid_proplist(hdl, zhp->zfs_type, props,
-	    zfs_prop_get_int(zhp, ZFS_PROP_ZONED), zhp, errbuf)) == NULL)
+	    zfs_prop_get_int(zhp, ZFS_PROP_ZONED), zhp, zhp->zpool_hdl,
+	    errbuf)) == NULL)
 		goto error;
 
 	/*
@@ -3241,9 +3243,23 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	else
 		ost = DMU_OST_ZFS;
 
+	/* open zpool handle for prop validation */
+	char pool_path[MAXNAMELEN];
+	(void) strlcpy(pool_path, path, sizeof (pool_path));
+
+	/* truncate pool_path at first slash */
+	char *p = strchr(pool_path, '/');
+	if (p != NULL)
+		*p = '\0';
+
+	zpool_handle_t *zpool_handle = zpool_open(hdl, pool_path);
+
 	if (props && (props = zfs_valid_proplist(hdl, type, props,
-	    zoned, NULL, errbuf)) == 0)
+	    zoned, NULL, zpool_handle, errbuf)) == 0) {
+		zpool_close(zpool_handle);
 		return (-1);
+	}
+	zpool_close(zpool_handle);
 
 	if (type == ZFS_TYPE_VOLUME) {
 		/*
@@ -3298,8 +3314,6 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	/* check for failure */
 	if (ret != 0) {
 		char parent[ZFS_MAXNAMELEN];
-		char buf[64];
-
 		(void) parent_name(path, parent, sizeof (parent));
 
 		switch (errno) {
@@ -3312,14 +3326,6 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "parent '%s' is not a filesystem"), parent);
 			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
-
-		case EDOM:
-			zfs_nicenum(SPA_MAXBLOCKSIZE, buf, sizeof (buf));
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "volume block size must be power of 2 from "
-			    "512B to %s"), buf);
-
-			return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -3516,7 +3522,7 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 			type = ZFS_TYPE_FILESYSTEM;
 		}
 		if ((props = zfs_valid_proplist(hdl, type, props, zoned,
-		    zhp, errbuf)) == NULL)
+		    zhp, zhp->zpool_hdl, errbuf)) == NULL)
 			return (-1);
 	}
 
@@ -3660,11 +3666,23 @@ zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, nvlist_t *props)
 		}
 	}
 
+	/*
+	 * get pool handle for prop validation. assumes all snaps are in the
+	 * same pool, as does lzc_snapshot (below).
+	 */
+	char pool[MAXNAMELEN];
+	elem = nvlist_next_nvpair(snaps, NULL);
+	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
+	pool[strcspn(pool, "/@")] = '\0';
+	zpool_handle_t *zpool_hdl = zpool_open(hdl, pool);
+
 	if (props != NULL &&
 	    (props = zfs_valid_proplist(hdl, ZFS_TYPE_SNAPSHOT,
-	    props, B_FALSE, NULL, errbuf)) == NULL) {
+	    props, B_FALSE, NULL, zpool_hdl, errbuf)) == NULL) {
+		zpool_close(zpool_hdl);
 		return (-1);
 	}
+	zpool_close(zpool_hdl);
 
 	ret = lzc_snapshot(snaps, props, &errors);
 
