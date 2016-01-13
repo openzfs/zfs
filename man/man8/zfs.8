@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2015 by Delphix. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -3067,7 +3067,7 @@ Discard all but the last element of the sent snapshot's file system name, using 
 .ad
 .sp .6
 .RS 4n
-Forces the stream to be received as a clone of the given snapshot. This is only valid if the stream is an incremental stream whose source is the same as the provided origin.
+Forces the stream to be received as a clone of the given snapshot. If the stream is a full send stream, this will create the filesystem described by the stream as a clone of the specified snapshot. Which snapshot was specified will not affect the success or failure of the receive, as long as the snapshot does exist.  If the stream is an incremental send stream, all the normal verification will be performed.
 .RE
 
 .RE

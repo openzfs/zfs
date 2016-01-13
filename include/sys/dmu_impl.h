@@ -24,7 +24,7 @@
  */
 /*
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_DMU_IMPL_H
@@ -268,7 +268,6 @@ typedef struct dmu_sendarg {
 	uint64_t dsa_toguid;
 	int dsa_err;
 	dmu_pendop_t dsa_pending_op;
-	boolean_t dsa_incremental;
 	uint64_t dsa_featureflags;
 	uint64_t dsa_last_data_object;
 	uint64_t dsa_last_data_offset;
