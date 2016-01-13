@@ -238,19 +238,9 @@ zvol_size_changed(zvol_state_t *zv, uint64_t volsize)
 	bdev = bdget_disk(zv->zv_disk, 0);
 	if (bdev == NULL)
 		return;
-/*
- * 2.6.28 API change
- * Added check_disk_size_change() helper function.
- */
-#ifdef HAVE_CHECK_DISK_SIZE_CHANGE
 	set_capacity(zv->zv_disk, volsize >> 9);
 	zv->zv_volsize = volsize;
 	check_disk_size_change(zv->zv_disk, bdev);
-#else
-	zv->zv_volsize = volsize;
-	zv->zv_changed = 1;
-	(void) check_disk_change(bdev);
-#endif /* HAVE_CHECK_DISK_SIZE_CHANGE */
 
 	bdput(bdev);
 }
