@@ -149,11 +149,10 @@ ztest -f / -V -T 120
 .TP
 .B "ZFS_STACK_SIZE=stacksize"
 Limit the default stack size to \fBstacksize\fR bytes for the purpose of
-detecting and debugging kernel stack overflows.  For x86_64 platforms this
-value should be set as follows to simulate these platforms: \fB8192\fR
-(Linux), \fB20480\fR (Illumos), \fB16384\fR (FreeBSD).
+detecting and debugging kernel stack overflows.  This value defaults to
+\fB32K\fR which is double the default \fB16K\fR Linux kernel stack size.
 
-In practice you may need to set these value slightly higher because
+In practice, setting the stack size slightly higher is needed because
 differences in stack usage between kernel and user space can lead to spurious
 stack overflows (especially when debugging is enabled).  The specified value
 will be rounded up to a floor of PTHREAD_STACK_MIN which is the minimum stack
