@@ -3207,13 +3207,18 @@ zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
 	ZFS_VERIFY_ZP(sdzp);
 	zilog = zsb->z_log;
 
+	tdzp = ITOZ(tdip);
+	ZFS_VERIFY_ZP(tdzp);
+
+	/*
+	 * We check i_sb because snapshots and the ctldir must have different
+	 * super blocks.
+	 */
 	if (tdip->i_sb != sdip->i_sb || zfsctl_is_node(tdip)) {
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EXDEV));
 	}
 
-	tdzp = ITOZ(tdip);
-	ZFS_VERIFY_ZP(tdzp);
 	if (zsb->z_utf8 && u8_validate(tnm,
 	    strlen(tnm), NULL, U8_VALIDATE_ENTIRE, &error) < 0) {
 		ZFS_EXIT(zsb);
@@ -3751,13 +3756,17 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr)
 		return (SET_ERROR(EPERM));
 	}
 
+	szp = ITOZ(sip);
+	ZFS_VERIFY_ZP(szp);
+
+	/*
+	 * We check i_sb because snapshots and the ctldir must have different
+	 * super blocks.
+	 */
 	if (sip->i_sb != tdip->i_sb || zfsctl_is_node(sip)) {
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EXDEV));
 	}
-
-	szp = ITOZ(sip);
-	ZFS_VERIFY_ZP(szp);
 
 	/* Prevent links to .zfs/shares files */
 
