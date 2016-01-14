@@ -86,8 +86,8 @@ typedef struct refcount {
 #define	refcount_destroy_many(rc, number) ((rc)->rc_count = 0)
 #define	refcount_is_zero(rc) ((rc)->rc_count == 0)
 #define	refcount_count(rc) ((rc)->rc_count)
-#define	refcount_add(rc, holder) atomic_add_64_nv(&(rc)->rc_count, 1)
-#define	refcount_remove(rc, holder) atomic_add_64_nv(&(rc)->rc_count, -1)
+#define	refcount_add(rc, holder) atomic_inc_64_nv(&(rc)->rc_count)
+#define	refcount_remove(rc, holder) atomic_dec_64_nv(&(rc)->rc_count)
 #define	refcount_add_many(rc, number, holder) \
 	atomic_add_64_nv(&(rc)->rc_count, number)
 #define	refcount_remove_many(rc, number, holder) \
