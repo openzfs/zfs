@@ -88,19 +88,50 @@ typedef struct xattr_filldir {
 	size_t size;
 	size_t offset;
 	char *buf;
-	struct inode *inode;
+	struct dentry *dentry;
 } xattr_filldir_t;
 
+static const struct xattr_handler *zpl_xattr_handler(const char *);
+
+static int
+zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
+{
+	static const struct xattr_handler *handler;
+	struct dentry *d = xf->dentry;
+
+	handler = zpl_xattr_handler(name);
+	if (!handler)
+		return (0);
+
+	if (handler->list) {
+#if defined(HAVE_XATTR_LIST_SIMPLE)
+		if (!handler->list(d))
+			return (0);
+#elif defined(HAVE_XATTR_LIST_DENTRY)
+		if (!handler->list(d, NULL, 0, name, name_len, 0))
+			return (0);
+#elif defined(HAVE_XATTR_LIST_HANDLER)
+		if (!handler->list(handler, d, NULL, 0, name, name_len))
+			return (0);
+#elif defined(HAVE_XATTR_LIST_INODE)
+		if (!handler->list(d->d_inode, NULL, 0, name, name_len))
+			return (0);
+#endif
+	}
+
+	return (1);
+}
+
+/*
+ * Determine is a given xattr name should be visible and if so copy it
+ * in to the provided buffer (xf->buf).
+ */
 static int
 zpl_xattr_filldir(xattr_filldir_t *xf, const char *name, int name_len)
 {
-	if (strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN) == 0)
-		if (!(ITOZSB(xf->inode)->z_flags & ZSB_XATTR))
-			return (0);
-
-	if (strncmp(name, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN) == 0)
-		if (!capable(CAP_SYS_ADMIN))
-			return (0);
+	/* Check permissions using the per-namespace list xattr handler. */
+	if (!zpl_xattr_permission(xf, name, name_len))
+		return (0);
 
 	/* When xf->buf is NULL only calculate the required size. */
 	if (xf->buf) {
@@ -154,7 +185,7 @@ zpl_xattr_readdir(struct inode *dxip, xattr_filldir_t *xf)
 static ssize_t
 zpl_xattr_list_dir(xattr_filldir_t *xf, cred_t *cr)
 {
-	struct inode *ip = xf->inode;
+	struct inode *ip = xf->dentry->d_inode;
 	struct inode *dxip = NULL;
 	int error;
 
@@ -176,7 +207,7 @@ zpl_xattr_list_dir(xattr_filldir_t *xf, cred_t *cr)
 static ssize_t
 zpl_xattr_list_sa(xattr_filldir_t *xf)
 {
-	znode_t *zp = ITOZ(xf->inode);
+	znode_t *zp = ITOZ(xf->dentry->d_inode);
 	nvpair_t *nvp = NULL;
 	int error = 0;
 
@@ -207,7 +238,7 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 {
 	znode_t *zp = ITOZ(dentry->d_inode);
 	zfs_sb_t *zsb = ZTOZSB(zp);
-	xattr_filldir_t xf = { buffer_size, 0, buffer, dentry->d_inode };
+	xattr_filldir_t xf = { buffer_size, 0, buffer, dentry };
 	cred_t *cr = CRED();
 	fstrans_cookie_t cookie;
 	int error = 0;
@@ -614,6 +645,43 @@ out:
 	return (error);
 }
 
+/*
+ * Extended user attributes
+ *
+ * "Extended user attributes may be assigned to files and directories for
+ * storing arbitrary additional information such as the mime type,
+ * character set or encoding of a file.  The access permissions for user
+ * attributes are defined by the file permission bits: read permission
+ * is required to retrieve the attribute value, and writer permission is
+ * required to change it.
+ *
+ * The file permission bits of regular files and directories are
+ * interpreted differently from the file permission bits of special
+ * files and symbolic links.  For regular files and directories the file
+ * permission bits define access to the file's contents, while for
+ * device special files they define access to the device described by
+ * the special file.  The file permissions of symbolic links are not
+ * used in access checks.  These differences would allow users to
+ * consume filesystem resources in a way not controllable by disk quotas
+ * for group or world writable special files and directories.
+ *
+ * For this reason, extended user attributes are allowed only for
+ * regular files and directories, and access to extended user attributes
+ * is restricted to the owner and to users with appropriate capabilities
+ * for directories with the sticky bit set (see the chmod(1) manual page
+ * for an explanation of the sticky bit)." - xattr(7)
+ *
+ * ZFS allows extended user attributes to be disabled administratively
+ * by setting the 'xattr=off' property on the dataset.
+ */
+static int
+__zpl_xattr_user_list(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
+{
+	return (ITOZSB(ip)->z_flags & ZSB_XATTR);
+}
+ZPL_XATTR_LIST_WRAPPER(zpl_xattr_user_list);
+
 static int
 __zpl_xattr_user_get(struct inode *ip, const char *name,
     void *value, size_t size)
@@ -656,11 +724,30 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_user_set);
 
-xattr_handler_t zpl_xattr_user_handler = {
+xattr_handler_t zpl_xattr_user_handler =
+{
 	.prefix	= XATTR_USER_PREFIX,
+	.list	= zpl_xattr_user_list,
 	.get	= zpl_xattr_user_get,
 	.set	= zpl_xattr_user_set,
 };
+
+/*
+ * Trusted extended attributes
+ *
+ * "Trusted extended attributes are visible and accessible only to
+ * processes that have the CAP_SYS_ADMIN capability.  Attributes in this
+ * class are used to implement mechanisms in user space (i.e., outside
+ * the kernel) which keep information in extended attributes to which
+ * ordinary processes should not have access." - xattr(7)
+ */
+static int
+__zpl_xattr_trusted_list(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
+{
+	return (capable(CAP_SYS_ADMIN));
+}
+ZPL_XATTR_LIST_WRAPPER(zpl_xattr_trusted_list);
 
 static int
 __zpl_xattr_trusted_get(struct inode *ip, const char *name,
@@ -704,11 +791,33 @@ __zpl_xattr_trusted_set(struct inode *ip, const char *name,
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_trusted_set);
 
-xattr_handler_t zpl_xattr_trusted_handler = {
+xattr_handler_t zpl_xattr_trusted_handler =
+{
 	.prefix	= XATTR_TRUSTED_PREFIX,
+	.list	= zpl_xattr_trusted_list,
 	.get	= zpl_xattr_trusted_get,
 	.set	= zpl_xattr_trusted_set,
 };
+
+/*
+ * Extended security attributes
+ *
+ * "The security attribute namespace is used by kernel security modules,
+ * such as Security Enhanced Linux, and also to implement file
+ * capabilities (see capabilities(7)).  Read and write access
+ * permissions to security attributes depend on the policy implemented
+ * for each security attribute by the security module.  When no security
+ * module is loaded, all processes have read access to extended security
+ * attributes, and write access is limited to processes that have the
+ * CAP_SYS_ADMIN capability." - xattr(7)
+ */
+static int
+__zpl_xattr_security_list(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
+{
+	return (0);
+}
+ZPL_XATTR_LIST_WRAPPER(zpl_xattr_security_list);
 
 static int
 __zpl_xattr_security_get(struct inode *ip, const char *name,
@@ -801,14 +910,25 @@ zpl_xattr_security_init(struct inode *ip, struct inode *dip,
 }
 #endif /* HAVE_CALLBACK_SECURITY_INODE_INIT_SECURITY */
 
+/*
+ * Security xattr namespace handlers.
+ */
 xattr_handler_t zpl_xattr_security_handler = {
 	.prefix	= XATTR_SECURITY_PREFIX,
+	.list	= zpl_xattr_security_list,
 	.get	= zpl_xattr_security_get,
 	.set	= zpl_xattr_security_set,
 };
 
+/*
+ * Extended system attributes
+ *
+ * "Extended system attributes are used by the kernel to store system
+ * objects such as Access Control Lists.  Read and write access permissions
+ * to system attributes depend on the policy implemented for each system
+ * attribute implemented by filesystems in the kernel." - xattr(7)
+ */
 #ifdef CONFIG_FS_POSIX_ACL
-
 int
 zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
 {
@@ -822,7 +942,7 @@ zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
 
 	switch (type) {
 	case ACL_TYPE_ACCESS:
-		name = POSIX_ACL_XATTR_ACCESS;
+		name = XATTR_NAME_POSIX_ACL_ACCESS;
 		if (acl) {
 			zpl_equivmode_t mode = ip->i_mode;
 			error = posix_acl_equiv_mode(acl, &mode);
@@ -849,7 +969,7 @@ zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
 		break;
 
 	case ACL_TYPE_DEFAULT:
-		name = POSIX_ACL_XATTR_DEFAULT;
+		name = XATTR_NAME_POSIX_ACL_ACCESS;
 		if (!S_ISDIR(ip->i_mode))
 			return (acl ? -EACCES : 0);
 		break;
@@ -899,10 +1019,10 @@ zpl_get_acl(struct inode *ip, int type)
 
 	switch (type) {
 	case ACL_TYPE_ACCESS:
-		name = POSIX_ACL_XATTR_ACCESS;
+		name = XATTR_NAME_POSIX_ACL_ACCESS;
 		break;
 	case ACL_TYPE_DEFAULT:
-		name = POSIX_ACL_XATTR_DEFAULT;
+		name = XATTR_NAME_POSIX_ACL_DEFAULT;
 		break;
 	default:
 		return (ERR_PTR(-EINVAL));
@@ -1051,101 +1171,46 @@ zpl_chmod_acl(struct inode *ip)
 	return (error);
 }
 
-static size_t
-zpl_xattr_acl_list(struct inode *ip, char *list, size_t list_size,
-    const char *name, size_t name_len, int type)
+static int
+__zpl_xattr_acl_list_access(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
 {
-	char *xattr_name;
-	size_t xattr_size;
+	char *xattr_name = XATTR_NAME_POSIX_ACL_ACCESS;
+	size_t xattr_size = sizeof (XATTR_NAME_POSIX_ACL_ACCESS);
 
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
 		return (0);
-
-	switch (type) {
-	case ACL_TYPE_ACCESS:
-		xattr_name = POSIX_ACL_XATTR_ACCESS;
-		xattr_size = sizeof (xattr_name);
-		break;
-	case ACL_TYPE_DEFAULT:
-		xattr_name = POSIX_ACL_XATTR_DEFAULT;
-		xattr_size = sizeof (xattr_name);
-		break;
-	default:
-		return (0);
-	}
 
 	if (list && xattr_size <= list_size)
 		memcpy(list, xattr_name, xattr_size);
 
 	return (xattr_size);
 }
-
-#ifdef HAVE_DENTRY_XATTR_LIST
-static size_t
-zpl_xattr_acl_list_access(struct dentry *dentry, char *list,
-    size_t list_size, const char *name, size_t name_len, int type)
-{
-	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	return zpl_xattr_acl_list(dentry->d_inode,
-	    list, list_size, name, name_len, type);
-}
-
-static size_t
-zpl_xattr_acl_list_default(struct dentry *dentry, char *list,
-    size_t list_size, const char *name, size_t name_len, int type)
-{
-	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	return zpl_xattr_acl_list(dentry->d_inode,
-	    list, list_size, name, name_len, type);
-}
-
-#elif defined(HAVE_HANDLER_XATTR_LIST)
-static size_t
-zpl_xattr_acl_list_access(const struct xattr_handler *handler,
-    struct dentry *dentry, char *list, size_t list_size, const char *name,
-    size_t name_len)
-{
-	int type = handler->flags;
-	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	return zpl_xattr_acl_list(dentry->d_inode,
-	    list, list_size, name, name_len, type);
-}
-
-static size_t
-zpl_xattr_acl_list_default(const struct xattr_handler *handler,
-    struct dentry *dentry, char *list, size_t list_size, const char *name,
-    size_t name_len)
-{
-	int type = handler->flags;
-	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	return zpl_xattr_acl_list(dentry->d_inode,
-	    list, list_size, name, name_len, type);
-}
-
-#else
-
-static size_t
-zpl_xattr_acl_list_access(struct inode *ip, char *list, size_t list_size,
-    const char *name, size_t name_len)
-{
-	return zpl_xattr_acl_list(ip,
-	    list, list_size, name, name_len, ACL_TYPE_ACCESS);
-}
-
-static size_t
-zpl_xattr_acl_list_default(struct inode *ip, char *list, size_t list_size,
-    const char *name, size_t name_len)
-{
-	return zpl_xattr_acl_list(ip,
-	    list, list_size, name, name_len, ACL_TYPE_DEFAULT);
-}
-#endif /* HAVE_DENTRY_XATTR_LIST */
+ZPL_XATTR_LIST_WRAPPER(zpl_xattr_acl_list_access);
 
 static int
-zpl_xattr_acl_get(struct inode *ip, const char *name,
-    void *buffer, size_t size, int type)
+__zpl_xattr_acl_list_default(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
+{
+	char *xattr_name = XATTR_NAME_POSIX_ACL_DEFAULT;
+	size_t xattr_size = sizeof (XATTR_NAME_POSIX_ACL_DEFAULT);
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (0);
+
+	if (list && xattr_size <= list_size)
+		memcpy(list, xattr_name, xattr_size);
+
+	return (xattr_size);
+}
+ZPL_XATTR_LIST_WRAPPER(zpl_xattr_acl_list_default);
+
+static int
+__zpl_xattr_acl_get_access(struct inode *ip, const char *name,
+    void *buffer, size_t size)
 {
 	struct posix_acl *acl;
+	int type = ACL_TYPE_ACCESS;
 	int error;
 
 	if (strcmp(name, "") != 0)
@@ -1165,65 +1230,41 @@ zpl_xattr_acl_get(struct inode *ip, const char *name,
 
 	return (error);
 }
-
-#ifdef HAVE_DENTRY_XATTR_GET
-static int
-zpl_xattr_acl_get_access(struct dentry *dentry, const char *name,
-    void *buffer, size_t size, int type)
-{
-	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
-}
+ZPL_XATTR_GET_WRAPPER(zpl_xattr_acl_get_access);
 
 static int
-zpl_xattr_acl_get_default(struct dentry *dentry, const char *name,
-    void *buffer, size_t size, int type)
-{
-	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
-}
-
-#elif defined(HAVE_HANDLER_XATTR_GET)
-static int
-zpl_xattr_acl_get_access(const struct xattr_handler *handler,
-    struct dentry *dentry, const char *name, void *buffer, size_t size)
-{
-	int type = handler->flags;
-	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
-}
-
-static int
-zpl_xattr_acl_get_default(const struct xattr_handler *handler,
-    struct dentry *dentry, const char *name, void *buffer, size_t size)
-{
-	int type = handler->flags;
-	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	return (zpl_xattr_acl_get(dentry->d_inode, name, buffer, size, type));
-}
-
-#else
-
-static int
-zpl_xattr_acl_get_access(struct inode *ip, const char *name,
+__zpl_xattr_acl_get_default(struct inode *ip, const char *name,
     void *buffer, size_t size)
-{
-	return (zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_ACCESS));
-}
-
-static int
-zpl_xattr_acl_get_default(struct inode *ip, const char *name,
-    void *buffer, size_t size)
-{
-	return (zpl_xattr_acl_get(ip, name, buffer, size, ACL_TYPE_DEFAULT));
-}
-#endif /* HAVE_DENTRY_XATTR_GET */
-
-static int
-zpl_xattr_acl_set(struct inode *ip, const char *name,
-    const void *value, size_t size, int flags, int type)
 {
 	struct posix_acl *acl;
+	int type = ACL_TYPE_DEFAULT;
+	int error;
+
+	if (strcmp(name, "") != 0)
+		return (-EINVAL);
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (-EOPNOTSUPP);
+
+	acl = zpl_get_acl(ip, type);
+	if (IS_ERR(acl))
+		return (PTR_ERR(acl));
+	if (acl == NULL)
+		return (-ENODATA);
+
+	error = zpl_acl_to_xattr(acl, buffer, size);
+	zpl_posix_acl_release(acl);
+
+	return (error);
+}
+ZPL_XATTR_GET_WRAPPER(zpl_xattr_acl_get_default);
+
+static int
+__zpl_xattr_acl_set_access(struct inode *ip, const char *name,
+    const void *value, size_t size, int flags)
+{
+	struct posix_acl *acl;
+	int type = ACL_TYPE_ACCESS;
 	int error = 0;
 
 	if (strcmp(name, "") != 0)
@@ -1255,88 +1296,77 @@ zpl_xattr_acl_set(struct inode *ip, const char *name,
 
 	return (error);
 }
-
-#ifdef HAVE_DENTRY_XATTR_SET
-static int
-zpl_xattr_acl_set_access(struct dentry *dentry, const char *name,
-    const void *value, size_t size, int flags, int type)
-{
-	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	return (zpl_xattr_acl_set(dentry->d_inode,
-	    name, value, size, flags, type));
-}
+ZPL_XATTR_SET_WRAPPER(zpl_xattr_acl_set_access);
 
 static int
-zpl_xattr_acl_set_default(struct dentry *dentry, const char *name,
-    const void *value, size_t size, int flags, int type)
-{
-	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	return zpl_xattr_acl_set(dentry->d_inode,
-	    name, value, size, flags, type);
-}
-
-#elif defined(HAVE_HANDLER_XATTR_SET)
-static int
-zpl_xattr_acl_set_access(const struct xattr_handler *handler,
-    struct dentry *dentry, const char *name, const void *value, size_t size,
-    int flags)
-{
-	int type = handler->flags;
-	ASSERT3S(type, ==, ACL_TYPE_ACCESS);
-	return (zpl_xattr_acl_set(dentry->d_inode,
-	    name, value, size, flags, type));
-}
-
-static int
-zpl_xattr_acl_set_default(const struct xattr_handler *handler,
-    struct dentry *dentry, const char *name, const void *value, size_t size,
-    int flags)
-{
-	int type = handler->flags;
-	ASSERT3S(type, ==, ACL_TYPE_DEFAULT);
-	return zpl_xattr_acl_set(dentry->d_inode,
-	    name, value, size, flags, type);
-}
-
-#else
-
-static int
-zpl_xattr_acl_set_access(struct inode *ip, const char *name,
+__zpl_xattr_acl_set_default(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
-	return zpl_xattr_acl_set(ip,
-	    name, value, size, flags, ACL_TYPE_ACCESS);
-}
+	struct posix_acl *acl;
+	int type = ACL_TYPE_DEFAULT;
+	int error = 0;
 
-static int
-zpl_xattr_acl_set_default(struct inode *ip, const char *name,
-    const void *value, size_t size, int flags)
-{
-	return zpl_xattr_acl_set(ip,
-	    name, value, size, flags, ACL_TYPE_DEFAULT);
-}
-#endif /* HAVE_DENTRY_XATTR_SET */
+	if (strcmp(name, "") != 0)
+		return (-EINVAL);
 
-struct xattr_handler zpl_xattr_acl_access_handler =
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+		return (-EOPNOTSUPP);
+
+	if (!zpl_inode_owner_or_capable(ip))
+		return (-EPERM);
+
+	if (value) {
+		acl = zpl_acl_from_xattr(value, size);
+		if (IS_ERR(acl))
+			return (PTR_ERR(acl));
+		else if (acl) {
+			error = posix_acl_valid(acl);
+			if (error) {
+				zpl_posix_acl_release(acl);
+				return (error);
+			}
+		}
+	} else {
+		acl = NULL;
+	}
+
+	error = zpl_set_acl(ip, type, acl);
+	zpl_posix_acl_release(acl);
+
+	return (error);
+}
+ZPL_XATTR_SET_WRAPPER(zpl_xattr_acl_set_default);
+
+/*
+ * ACL access xattr namespace handlers.
+ */
+xattr_handler_t zpl_xattr_acl_access_handler =
 {
-	.prefix	= POSIX_ACL_XATTR_ACCESS,
+	.prefix	= XATTR_NAME_POSIX_ACL_ACCESS,
 	.list	= zpl_xattr_acl_list_access,
 	.get	= zpl_xattr_acl_get_access,
 	.set	= zpl_xattr_acl_set_access,
-#if defined(HAVE_DENTRY_XATTR_LIST) || defined(HAVE_HANDLER_XATTR_LIST)
+#if defined(HAVE_XATTR_LIST_SIMPLE) || \
+    defined(HAVE_XATTR_LIST_DENTRY) || \
+    defined(HAVE_XATTR_LIST_HANDLER)
 	.flags	= ACL_TYPE_ACCESS,
-#endif /* HAVE_DENTRY_XATTR_LIST */
+#endif
 };
 
-struct xattr_handler zpl_xattr_acl_default_handler =
+/*
+ * ACL default xattr namespace handlers.
+ */
+xattr_handler_t zpl_xattr_acl_default_handler =
 {
-	.prefix	= POSIX_ACL_XATTR_DEFAULT,
+	.prefix	= XATTR_NAME_POSIX_ACL_DEFAULT,
 	.list	= zpl_xattr_acl_list_default,
 	.get	= zpl_xattr_acl_get_default,
 	.set	= zpl_xattr_acl_set_default,
-#if defined(HAVE_DENTRY_XATTR_LIST) || defined(HAVE_HANDLER_XATTR_LIST)
+#if defined(HAVE_XATTR_LIST_SIMPLE) || \
+    defined(HAVE_XATTR_LIST_DENTRY) || \
+    defined(HAVE_XATTR_LIST_HANDLER)
 	.flags	= ACL_TYPE_DEFAULT,
-#endif /* HAVE_DENTRY_XATTR_LIST */
+#endif
 };
 
 #endif /* CONFIG_FS_POSIX_ACL */
@@ -1351,3 +1381,31 @@ xattr_handler_t *zpl_xattr_handlers[] = {
 #endif /* CONFIG_FS_POSIX_ACL */
 	NULL
 };
+
+static const struct xattr_handler *
+zpl_xattr_handler(const char *name)
+{
+	if (strncmp(name, XATTR_USER_PREFIX,
+	    XATTR_USER_PREFIX_LEN) == 0)
+		return (&zpl_xattr_user_handler);
+
+	if (strncmp(name, XATTR_TRUSTED_PREFIX,
+	    XATTR_TRUSTED_PREFIX_LEN) == 0)
+		return (&zpl_xattr_trusted_handler);
+
+	if (strncmp(name, XATTR_SECURITY_PREFIX,
+	    XATTR_SECURITY_PREFIX_LEN) == 0)
+		return (&zpl_xattr_security_handler);
+
+#ifdef CONFIG_FS_POSIX_ACL
+	if (strncmp(name, XATTR_NAME_POSIX_ACL_ACCESS,
+	    sizeof (XATTR_NAME_POSIX_ACL_ACCESS)) == 0)
+		return (&zpl_xattr_acl_access_handler);
+
+	if (strncmp(name, XATTR_NAME_POSIX_ACL_DEFAULT,
+	    sizeof (XATTR_NAME_POSIX_ACL_DEFAULT)) == 0)
+		return (&zpl_xattr_acl_default_handler);
+#endif /* CONFIG_FS_POSIX_ACL */
+
+	return (NULL);
+}

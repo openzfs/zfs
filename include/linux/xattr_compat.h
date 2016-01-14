@@ -42,11 +42,85 @@ typedef struct xattr_handler		xattr_handler_t;
 #endif
 
 /*
+ * 3.7 API change,
+ * Preferred XATTR_NAME_* definitions introduced, these are mapped to
+ * the previous definitions for older kernels.
+ */
+#ifndef XATTR_NAME_POSIX_ACL_DEFAULT
+#define	XATTR_NAME_POSIX_ACL_DEFAULT	POSIX_ACL_XATTR_DEFAULT
+#endif
+
+#ifndef XATTR_NAME_POSIX_ACL_ACCESS
+#define	XATTR_NAME_POSIX_ACL_ACCESS	POSIX_ACL_XATTR_ACCESS
+#endif
+
+/*
+ * 4.5 API change,
+ */
+#if defined(HAVE_XATTR_LIST_SIMPLE)
+#define	ZPL_XATTR_LIST_WRAPPER(fn)					\
+static bool								\
+fn(struct dentry *dentry)						\
+{									\
+	return (!!__ ## fn(dentry->d_inode, NULL, 0, NULL, 0));		\
+}
+/*
+ * 4.4 API change,
+ */
+#elif defined(HAVE_XATTR_LIST_DENTRY)
+#define	ZPL_XATTR_LIST_WRAPPER(fn)					\
+static size_t								\
+fn(struct dentry *dentry, char *list, size_t list_size,			\
+    const char *name, size_t name_len, int type)			\
+{									\
+	return (__ ## fn(dentry->d_inode,				\
+	    list, list_size, name, name_len));				\
+}
+/*
+ * 2.6.33 API change,
+ */
+#elif defined(HAVE_XATTR_LIST_HANDLER)
+#define	ZPL_XATTR_LIST_WRAPPER(fn)					\
+static size_t								\
+fn(const struct xattr_handler *handler, struct dentry *dentry,		\
+    char *list, size_t list_size, const char *name, size_t name_len)	\
+{									\
+	return (__ ## fn(dentry->d_inode,				\
+	    list_list_size, name, name_len));				\
+}
+/*
+ * 2.6.32 API
+ */
+#elif defined(HAVE_XATTR_LIST_INODE)
+#define	ZPL_XATTR_LIST_WRAPPER(fn)					\
+static size_t								\
+fn(struct inode *ip, char *list, size_t list_size,			\
+    const char *name, size_t name_len)					\
+{									\
+	return (__ ## fn(ip, list, list_size, name, name_len));		\
+}
+#endif
+
+/*
+ * 4.4 API change,
+ * The xattr_hander->get() callback was changed to take a xattr_handler,
+ * and handler_flags argument was removed and should be accessed by
+ * handler->flags.
+ */
+#if defined(HAVE_XATTR_GET_HANDLER)
+#define	ZPL_XATTR_GET_WRAPPER(fn)					\
+static int								\
+fn(const struct xattr_handler *handler, struct dentry *dentry,		\
+    const char *name, void *buffer, size_t size)			\
+{									\
+	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
+}
+/*
  * 2.6.33 API change,
  * The xattr_hander->get() callback was changed to take a dentry
  * instead of an inode, and a handler_flags argument was added.
  */
-#ifdef HAVE_DENTRY_XATTR_GET
+#elif defined(HAVE_XATTR_GET_DENTRY)
 #define	ZPL_XATTR_GET_WRAPPER(fn)					\
 static int								\
 fn(struct dentry *dentry, const char *name, void *buffer, size_t size,	\
@@ -55,34 +129,37 @@ fn(struct dentry *dentry, const char *name, void *buffer, size_t size,	\
 	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
 }
 /*
- * 4.4 API change,
- * The xattr_hander->get() callback was changed to take a xattr_handler,
- * and handler_flags argument was removed and should be accessed by
- * handler->flags.
+ * 2.6.32 API
  */
-#elif defined(HAVE_HANDLER_XATTR_GET)
-#define	ZPL_XATTR_GET_WRAPPER(fn)					\
-static int								\
-fn(const struct xattr_handler *handler, struct dentry *dentry,		\
-    const char *name, void *buffer, size_t size)			\
-{									\
-	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
-}
-#else
+#elif defined(HAVE_XATTR_GET_INODE)
 #define	ZPL_XATTR_GET_WRAPPER(fn)					\
 static int								\
 fn(struct inode *ip, const char *name, void *buffer, size_t size)	\
 {									\
 	return (__ ## fn(ip, name, buffer, size));			\
 }
-#endif /* HAVE_DENTRY_XATTR_GET */
+#endif
 
+/*
+ * 4.4 API change,
+ * The xattr_hander->set() callback was changed to take a xattr_handler,
+ * and handler_flags argument was removed and should be accessed by
+ * handler->flags.
+ */
+#if defined(HAVE_XATTR_SET_HANDLER)
+#define	ZPL_XATTR_SET_WRAPPER(fn)					\
+static int								\
+fn(const struct xattr_handler *handler, struct dentry *dentry,		\
+    const char *name, const void *buffer, size_t size, int flags)	\
+{									\
+	return (__ ## fn(dentry->d_inode, name, buffer, size, flags));	\
+}
 /*
  * 2.6.33 API change,
  * The xattr_hander->set() callback was changed to take a dentry
  * instead of an inode, and a handler_flags argument was added.
  */
-#ifdef HAVE_DENTRY_XATTR_SET
+#elif defined(HAVE_XATTR_SET_DENTRY)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(struct dentry *dentry, const char *name, const void *buffer,		\
@@ -91,20 +168,9 @@ fn(struct dentry *dentry, const char *name, const void *buffer,		\
 	return (__ ## fn(dentry->d_inode, name, buffer, size, flags));	\
 }
 /*
- * 4.4 API change,
- * The xattr_hander->set() callback was changed to take a xattr_handler,
- * and handler_flags argument was removed and should be accessed by
- * handler->flags.
+ * 2.6.32 API
  */
-#elif defined(HAVE_HANDLER_XATTR_SET)
-#define	ZPL_XATTR_SET_WRAPPER(fn)					\
-static int								\
-fn(const struct xattr_handler *handler, struct dentry *dentry,		\
-    const char *name, const void *buffer, size_t size, int flags)	\
-{									\
-	return (__ ## fn(dentry->d_inode, name, buffer, size, flags));	\
-}
-#else
+#elif defined(HAVE_XATTR_SET_INODE)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(struct inode *ip, const char *name, const void *buffer,		\
@@ -112,7 +178,7 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 {									\
 	return (__ ## fn(ip, name, buffer, size, flags));		\
 }
-#endif /* HAVE_DENTRY_XATTR_SET */
+#endif
 
 #ifdef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
 #define	zpl_security_inode_init_security(ip, dip, qstr, nm, val, len)	\
