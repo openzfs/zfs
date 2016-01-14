@@ -1449,6 +1449,7 @@ static int
 zfs_ioc_pool_create(zfs_cmd_t *zc)
 {
 	int error;
+	char *poolname = zc->zc_name;
 	nvlist_t *config, *props = NULL;
 	nvlist_t *rootprops = NULL;
 	nvlist_t *zplprops = NULL;
@@ -1493,10 +1494,12 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 
 	error = spa_create(zc->zc_name, config, props, zplprops);
 
+	(void) nvlist_lookup_string(props, "tname", &poolname);
+
 	/*
 	 * Set the remaining root properties
 	 */
-	if (!error && (error = zfs_set_prop_nvlist(zc->zc_name,
+	if (!error && (error = zfs_set_prop_nvlist(poolname,
 	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0)
 		(void) spa_destroy(zc->zc_name);
 
