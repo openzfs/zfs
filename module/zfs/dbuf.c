@@ -230,7 +230,7 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	db->db_hash_next = h->hash_table[idx];
 	h->hash_table[idx] = db;
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
-	atomic_add_64(&dbuf_hash_count, 1);
+	atomic_inc_64(&dbuf_hash_count);
 
 	return (NULL);
 }
@@ -266,7 +266,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	*dbp = db->db_hash_next;
 	db->db_hash_next = NULL;
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
-	atomic_add_64(&dbuf_hash_count, -1);
+	atomic_dec_64(&dbuf_hash_count);
 }
 
 static arc_evict_func_t dbuf_do_evict;
