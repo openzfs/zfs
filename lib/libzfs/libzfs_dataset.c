@@ -3992,7 +3992,6 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 	}
 
 	if (recursive) {
-
 		parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
 		if (parentname == NULL) {
 			ret = -1;
@@ -4005,8 +4004,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			ret = -1;
 			goto error;
 		}
-
-	} else {
+	} else if (zhp->zfs_type != ZFS_TYPE_SNAPSHOT) {
 		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0,
 		    force_unmount ? MS_FORCE : 0)) == NULL)
 			return (-1);
@@ -4055,23 +4053,23 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		 * On failure, we still want to remount any filesystems that
 		 * were previously mounted, so we don't alter the system state.
 		 */
-		if (!recursive)
+		if (cl != NULL)
 			(void) changelist_postfix(cl);
 	} else {
-		if (!recursive) {
+		if (cl != NULL) {
 			changelist_rename(cl, zfs_get_name(zhp), target);
 			ret = changelist_postfix(cl);
 		}
 	}
 
 error:
-	if (parentname) {
+	if (parentname != NULL) {
 		free(parentname);
 	}
-	if (zhrp) {
+	if (zhrp != NULL) {
 		zfs_close(zhrp);
 	}
-	if (cl) {
+	if (cl != NULL) {
 		changelist_free(cl);
 	}
 	return (ret);
