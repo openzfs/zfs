@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014 by Delphix. All rights reserved.
  */
 
 /*
@@ -744,13 +745,6 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
 
-	if ((ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API)) != SA_OK) {
-		(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
-		    dgettext(TEXT_DOMAIN, "cannot share '%s': %s"),
-		    zfs_get_name(zhp), sa_errorstr(ret));
-		return (-1);
-	}
-
 	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
 		/*
 		 * Return success if there are no share options.
@@ -760,6 +754,14 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		    ZFS_MAXPROPLEN, B_FALSE) != 0 ||
 		    strcmp(shareopts, "off") == 0)
 			continue;
+
+		ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API);
+		if (ret != SA_OK) {
+			(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot share '%s': %s"),
+			    zfs_get_name(zhp), sa_errorstr(ret));
+			return (-1);
+		}
 
 		/*
 		 * If the 'zoned' property is set, then zfs_is_mountable()
