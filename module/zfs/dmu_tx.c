@@ -22,8 +22,10 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dbuf.h>
@@ -558,14 +560,12 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			break;
 		}
 
-		bp = dbuf->db.db_data;
-		bp += blkoff;
-
 		for (i = 0; i < tochk; i++) {
-			if (dsl_dataset_block_freeable(ds, &bp[i],
-			    bp[i].blk_birth)) {
-				dprintf_bp(&bp[i], "can free old%s", "");
-				space += bp_get_dsize(spa, &bp[i]);
+			bp = abd_array(dbuf->db.db_data, blkoff + i, blkptr_t);
+			if (dsl_dataset_block_freeable(ds, bp,
+			    bp->blk_birth)) {
+				dprintf_bp(bp, "can free old%s", "");
+				space += bp_get_dsize(spa, bp);
 			}
 			unref += BP_GET_ASIZE(bp);
 		}
@@ -608,6 +608,32 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	}
 	txh->txh_space_tofree += space;
 	txh->txh_space_tounref += unref;
+}
+
+/*
+ * This function marks the transaction as being a "net free".  The end
+ * result is that refquotas will be disabled for this transaction, and
+ * this transaction will be able to use half of the pool space overhead
+ * (see dsl_pool_adjustedsize()).  Therefore this function should only
+ * be called for transactions that we expect will not cause a net increase
+ * in the amount of space used (but it's OK if that is occasionally not true).
+ */
+void
+dmu_tx_mark_netfree(dmu_tx_t *tx)
+{
+	dmu_tx_hold_t *txh;
+
+	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
+	    DMU_NEW_OBJECT, THT_FREE, 0, 0);
+
+	/*
+	 * Pretend that this operation will free 1GB of space.  This
+	 * should be large enough to cancel out the largest write.
+	 * We don't want to use something like UINT64_MAX, because that would
+	 * cause overflows when doing math with these values (e.g. in
+	 * dmu_tx_try_assign()).
+	 */
+	txh->txh_space_tofree = txh->txh_space_tounref = 1024 * 1024 * 1024;
 }
 
 void
