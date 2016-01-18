@@ -78,14 +78,20 @@ typedef struct {
 	unsigned int saved_flags;
 } fstrans_cookie_t;
 
+#ifdef PF_MEMALLOC_NOIO
+#define	SPL_FSTRANS (PF_FSTRANS|PF_MEMALLOC_NOIO)
+#else
+#define	SPL_FSTRANS (PF_FSTRANS)
+#endif
+
 static inline fstrans_cookie_t
 spl_fstrans_mark(void)
 {
 	fstrans_cookie_t cookie;
 
 	cookie.fstrans_thread = current;
-	cookie.saved_flags = current->flags & PF_FSTRANS;
-	current->flags |= PF_FSTRANS;
+	cookie.saved_flags = current->flags & SPL_FSTRANS;
+	current->flags |= SPL_FSTRANS;
 
 	return (cookie);
 }
@@ -94,9 +100,9 @@ static inline void
 spl_fstrans_unmark(fstrans_cookie_t cookie)
 {
 	ASSERT3P(cookie.fstrans_thread, ==, current);
-	ASSERT(current->flags & PF_FSTRANS);
+	ASSERT((current->flags & SPL_FSTRANS) == SPL_FSTRANS);
 
-	current->flags &= ~(PF_FSTRANS);
+	current->flags &= ~SPL_FSTRANS;
 	current->flags |= cookie.saved_flags;
 }
 
