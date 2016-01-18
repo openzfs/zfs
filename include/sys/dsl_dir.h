@@ -47,6 +47,7 @@ struct dsl_dataset;
 
 #define	DD_FIELD_FILESYSTEM_COUNT	"com.joyent:filesystem_count"
 #define	DD_FIELD_SNAPSHOT_COUNT		"com.joyent:snapshot_count"
+#define	DD_FIELD_COMPRESS_QUOTA		"org.open-zfs:compress_quota"
 
 typedef enum dd_used {
 	DD_USED_HEAD,
