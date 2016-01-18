@@ -1431,6 +1431,7 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 		 */
 		switch (prop) {
 		case ZFS_PROP_QUOTA:
+		case ZFS_PROP_COMPRESS_QUOTA:
 		case ZFS_PROP_REFQUOTA:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "size is less than current used or "

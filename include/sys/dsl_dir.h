@@ -150,6 +150,7 @@ int dsl_dir_set_quota(const char *ddname, zprop_source_t source,
     uint64_t quota);
 int dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
     uint64_t reservation);
+int dsl_dir_enable_compress_quota(const char *ddname);
 int dsl_dir_activate_fs_ss_limit(const char *);
 int dsl_fs_ss_limit_check(dsl_dir_t *, uint64_t, zfs_prop_t, dsl_dir_t *,
     cred_t *);

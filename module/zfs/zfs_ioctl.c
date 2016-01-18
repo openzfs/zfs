@@ -2396,6 +2396,14 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	case ZFS_PROP_SNAPDEV:
 		err = zvol_set_snapdev(dsname, intval);
 		break;
+	case ZFS_PROP_COMPRESS_QUOTA:
+		if (intval == 0 || intval == UINT64_MAX)
+			err = 0;
+		else
+			err = dsl_dir_enable_compress_quota(dsname);
+		if (err == 0)
+			err = -1;
+		break;
 	case ZFS_PROP_VERSION:
 	{
 		zfs_sb_t *zsb;

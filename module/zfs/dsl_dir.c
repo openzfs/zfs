@@ -670,6 +670,61 @@ dsl_dir_activate_fs_ss_limit(const char *ddname)
 	return (error);
 }
 
+static int
+dsl_dir_enable_compress_quota_check(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	int error;
+	uint64_t checkval, delta_used, quota;
+
+	error = dsl_dataset_hold(dp, ddname, FTAG, &ds);
+	if (error != 0)
+		return (error);
+
+	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_COMPRESS_QUOTA)) {
+		dsl_dataset_rele(ds, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	if (dsl_dir_phys(ds->ds_dir)->dd_quota != 0)
+	{
+		checkval = dsl_dir_phys(ds->ds_dir)->dd_used_bytes -
+			dsl_dir_phys(ds->ds_dir)->dd_compressed_bytes;
+		checkval += dsl_dir_phys(ds->ds_dir)->dd_uncompressed_bytes;
+
+		if (checkval > dsl_dir_phys(ds->ds_dir)->dd_quota)
+			error = SET_ERROR(ENOSPC);
+	}
+
+	dsl_dataset_rele(ds, FTAG);
+	return (error);
+}
+
+static void
+dsl_dir_enable_compress_quota_sync(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+
+	VERIFY0(dsl_dataset_hold(dp, ddname, FTAG, &ds));
+	dsl_dir_zapify(ds->ds_dir, tx);
+	spa_history_log_internal_ds(ds, "enable", tx, "%s= 1",
+		zfs_prop_to_name(ZFS_PROP_COMPRESS_QUOTA));
+
+	dsl_dataset_rele(ds, FTAG);
+}
+
+int
+dsl_dir_enable_compress_quota(const char *ddname)
+{
+	return (dsl_sync_task(ddname, dsl_dir_enable_compress_quota_check,
+		dsl_dir_enable_compress_quota_sync, (void *)ddname, 0,
+		ZFS_SPACE_CHECK_NONE));
+}
+
 /*
  * Used to determine if the filesystem_limit or snapshot_limit should be
  * enforced. We allow the limit to be exceeded if the user has permission to
@@ -1069,7 +1124,7 @@ dsl_dir_space_available(dsl_dir_t *dd,
 	if (dsl_dir_phys(dd)->dd_quota != 0)
 		quota = dsl_dir_phys(dd)->dd_quota;
 
-	if (spa_feature_is_enabled(dp->dp_spa,
+	if (dsl_dir_is_zapified(dd) && spa_feature_is_enabled(dp->dp_spa,
 		    SPA_FEATURE_COMPRESS_QUOTA)) {
 		uint64_t compress_quota;
 		char buf[ZFS_MAXNAMELEN];
@@ -1165,7 +1220,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	 * Check  against the compressquota prop
 	 *
 	 */
-	if (spa_feature_is_enabled(dp->dp_spa,
+	if (dsl_dir_is_zapified(dd) && spa_feature_is_enabled(dp->dp_spa,
 		    SPA_FEATURE_COMPRESS_QUOTA)) {
 		uint64_t compress_quota;
 		char buf[ZFS_MAXNAMELEN];
@@ -1173,7 +1228,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 		dsl_prop_get_integer(buf,
 				zfs_prop_to_name(ZFS_PROP_COMPRESS_QUOTA),
 				&compress_quota, NULL);
-		if (compress_quota)
+		if (compress_quota != 0)
 			used_on_disk = dsl_dir_phys(dd)->dd_uncompressed_bytes +
 				dsl_dir_phys(dd)->dd_used_bytes -
 				dsl_dir_phys(dd)->dd_compressed_bytes;
