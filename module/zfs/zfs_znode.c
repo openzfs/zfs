@@ -248,17 +248,16 @@ zfs_znode_held(zfs_sb_t *zsb, uint64_t obj)
 {
 	znode_hold_t *zh, search;
 	int i = ZFS_OBJ_HASH(zsb, obj);
+	boolean_t held;
 
 	search.zh_obj = obj;
 
 	mutex_enter(&zsb->z_hold_locks[i]);
 	zh = avl_find(&zsb->z_hold_trees[i], &search, NULL);
+	held = (zh && MUTEX_HELD(&zh->zh_lock)) ? B_TRUE : B_FALSE;
 	mutex_exit(&zsb->z_hold_locks[i]);
 
-	if (zh && MUTEX_HELD(&zh->zh_lock))
-		return (B_TRUE);
-
-	return (B_FALSE);
+	return (held);
 }
 
 static znode_hold_t *
