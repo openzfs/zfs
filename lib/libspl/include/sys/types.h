@@ -53,7 +53,6 @@ typedef u_longlong_t	u_offset_t;
 typedef u_longlong_t	len_t;
 typedef longlong_t	diskaddr_t;
 
-typedef ulong_t		pfn_t;		/* page frame number */
 typedef ulong_t		pgcnt_t;	/* number of pages */
 typedef long		spgcnt_t;	/* signed number of pages */
 
