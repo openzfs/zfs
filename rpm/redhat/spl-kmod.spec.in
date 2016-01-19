@@ -27,7 +27,6 @@ This package contains the kernel modules required to emulate
 several interfaces provided by the Solaris kernel.
 
 %define kmod_name spl
-%define debug_package %{nil}
 
 %kernel_module_package -n %{kmod_name} -p %{_sourcedir}/kmod-preamble
 
@@ -96,6 +95,8 @@ make install \
         DESTDIR=${RPM_BUILD_ROOT} \
         INSTALL_MOD_DIR=extra/%{kmod_name}
 %{__rm} -f %{buildroot}/lib/modules/%{kverrel}/modules.*
+# find-debuginfo.sh only considers executables
+%{__chmod} u+x  %{buildroot}/lib/modules/%{kverrel}/extra/*/*/*
 
 %clean
 rm -rf $RPM_BUILD_ROOT
