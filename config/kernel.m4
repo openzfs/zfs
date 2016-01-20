@@ -252,7 +252,9 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_ARG_WITH([spl],
 		AS_HELP_STRING([--with-spl=PATH],
 		[Path to spl source]),
-		[splsrc="$withval"])
+		AS_IF([test "$withval" = "yes"],
+			AC_MSG_ERROR([--with-spl=PATH requires a PATH]),
+			[splsrc="$withval"]))
 
 	AC_ARG_WITH([spl-obj],
 		AS_HELP_STRING([--with-spl-obj=PATH],
@@ -278,6 +280,14 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 	AC_MSG_CHECKING([spl source directory])
 	AS_IF([test -z "${splsrc}"], [
+		[all_spl_sources="
+		${splsrc0}
+		${splsrc1}
+		${splsrc2}
+		${splsrc3}
+		${splsrc4}
+		${splsrc5}
+		${splsrc6}"],
 		AS_IF([ test -e "${splsrc0}/spl.release.in"], [
 			splsrc=${splsrc0}
 		], [ test -e "${splsrc1}/spl.release.in"], [
@@ -296,6 +306,7 @@ AC_DEFUN([ZFS_AC_SPL], [
 			splsrc="[Not found]"
 		])
 	], [
+		[all_spl_sources="$withval"],
 		AS_IF([test "$splsrc" = "NONE"], [
 			splbuild=NONE
 			splsrcver=NONE
@@ -307,7 +318,10 @@ AC_DEFUN([ZFS_AC_SPL], [
 		AC_MSG_ERROR([
 	*** Please make sure the kmod spl devel package for your distribution
 	*** is installed then try again.  If that fails you can specify the
-	*** location of the spl source with the '--with-spl=PATH' option.])
+	*** location of the spl source with the '--with-spl=PATH' option.
+	*** The spl version must match the version of ZFS you are building,
+	*** ${VERSION}.  Failed to find spl.release.in in the following:
+	$all_spl_sources])
 	])
 
 	dnl #
@@ -323,6 +337,10 @@ AC_DEFUN([ZFS_AC_SPL], [
 	dnl # SPL package.
 	dnl #
 	AC_MSG_CHECKING([spl build directory])
+
+	all_spl_config_locs="${splsrc}/${LINUX_VERSION}
+	${splsrc}"
+
 	while true; do
 		AS_IF([test -z "$splbuild"], [
 			AS_IF([ test -e "${splsrc}/${LINUX_VERSION}/spl_config.h" ], [
@@ -349,7 +367,9 @@ AC_DEFUN([ZFS_AC_SPL], [
 	*** Please make sure the kmod spl devel <kernel> package for your
 	*** distribution is installed then try again.  If that fails you
 	*** can specify the location of the spl objects with the
-	*** '--with-spl-obj=PATH' option.])
+	*** '--with-spl-obj=PATH' option.  Failed to find spl_config.h in
+	*** any of the following:
+	$all_spl_config_locs])
 	])
 
 	AC_MSG_CHECKING([spl source version])
