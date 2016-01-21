@@ -22,6 +22,7 @@
  * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright 2015 RackTop Systems.
  */
 
 /*
@@ -1168,9 +1169,6 @@ zpool_open_func(void *arg)
 
 	rn->rn_config = config;
 	rn->rn_num_labels = num_labels;
-	if (config != NULL) {
-		assert(rn->rn_nozpool == B_FALSE);
-	}
 }
 
 /*
