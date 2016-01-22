@@ -3225,12 +3225,16 @@ arc_flush(spa_t *spa, boolean_t retry)
 void
 arc_shrink(int64_t to_free)
 {
+	uint64_t c;
+
 	if (arc_c > arc_c_min) {
 
-		if (arc_c > arc_c_min + to_free)
-			atomic_add_64(&arc_c, -to_free);
-		else
+		if (arc_c > arc_c_min + to_free &&
+		    (c = arc_c - to_free) > 2ULL << SPA_MAXBLOCKSHIFT) {
+			arc_c = c;
+		} else {
 			arc_c = arc_c_min;
+		}
 
 		atomic_add_64(&arc_p, -(arc_p >> arc_shrink_shift));
 		if (arc_c > arc_size)
@@ -3809,7 +3813,6 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * cache size, increment the target cache size
 	 */
 	ASSERT3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
-	arc_c = MAX(arc_c, 2ULL << SPA_MAXBLOCKSHIFT);
 	if (arc_size >= arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
 		atomic_add_64(&arc_c, (int64_t)bytes);
 		if (arc_c > arc_c_max)
@@ -5208,7 +5211,9 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	int error;
 	uint64_t anon_size;
 
-	if (reserve > arc_c/4 && !arc_no_grow)
+	if (!arc_no_grow &&
+	    reserve > arc_c/4 &&
+	    reserve * 4 > (2ULL << SPA_MAXBLOCKSHIFT))
 		arc_c = MIN(arc_c_max, reserve * 4);
 
 	/*
