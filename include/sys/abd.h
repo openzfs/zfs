@@ -102,6 +102,8 @@ void abd_iterate_wfunc(abd_t *, size_t,
     int (*)(void *, uint64_t, void *), void *);
 void abd_iterate_func2(abd_t *, abd_t *, size_t, size_t,
     int (*)(void *, void *, uint64_t, uint64_t, void *), void *);
+void abd_iterate_func3(abd_t *, abd_t *, abd_t *, size_t,
+    int (*)(void *, void *, void *, uint64_t, void *), void *);
 void abd_copy_off(abd_t *, abd_t *, size_t, size_t, size_t);
 void abd_copy_from_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_copy_to_buf_off(void *, abd_t *, size_t, size_t);

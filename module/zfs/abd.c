@@ -123,6 +123,8 @@ sg_next(struct scatterlist *sg)
 #define	kunmap(page)			do { } while (0)
 #define	zfs_kmap_atomic(page, type)	((void *)page)
 #define	zfs_kunmap_atomic(addr, type)	do { } while (0)
+#define	local_irq_save(f)		do { f = 0; } while (0)
+#define	local_irq_restore(f)		do { f = 0; } while (0)
 #define	pagefault_disable()		do { } while (0)
 #define	pagefault_enable()		do { } while (0)
 #define	flush_kernel_dcache_page(page)	do { } while (0)
@@ -192,6 +194,12 @@ do {							\
 	abd_miter_init_km(a, aabd, arw, 0);		\
 	abd_miter_init_km(b, babd, brw, 1);		\
 } while (0);
+#define	abd_miter_init3(a, aabd, arw, b, babd, brw, c, cabd, crw)	\
+do {									\
+	abd_miter_init_km(a, aabd, arw, 0);				\
+	abd_miter_init_km(b, babd, brw, 1);				\
+	abd_miter_init_km(c, cabd, crw, 2);				\
+} while (0);
 
 /*
  * Map the current page in abd_miter.
@@ -217,7 +225,8 @@ abd_miter_map_x(struct abd_miter *aiter, int atomic)
 
 		if (atomic)
 			paddr = zfs_kmap_atomic(sg_page(aiter->sg),
-			    (aiter->km_type ? KM_USER1 : KM_USER0));
+			    (aiter->km_type == 0 ? KM_USER0 :
+			    (aiter->km_type == 1 ? KM_USER1 : KM_BIO_SRC_IRQ)));
 		else
 			paddr = kmap(sg_page(aiter->sg));
 	}
@@ -248,7 +257,8 @@ abd_miter_unmap_x(struct abd_miter *aiter, int atomic)
 			if (aiter->rw == ABD_MITER_W)
 				flush_kernel_dcache_page(sg_page(aiter->sg));
 			zfs_kunmap_atomic(paddr,
-			    (aiter->km_type ? KM_USER1 : KM_USER0));
+			    (aiter->km_type == 0 ? KM_USER0 :
+			    (aiter->km_type == 1 ? KM_USER1 : KM_BIO_SRC_IRQ)));
 		} else {
 			kunmap(sg_page(aiter->sg));
 		}
@@ -273,6 +283,20 @@ do {					\
 
 #define	abd_miter_unmap_atomic2(a, b)	\
 do {					\
+	abd_miter_unmap_atomic(b);	\
+	abd_miter_unmap_atomic(a);	\
+} while (0)
+
+#define	abd_miter_map_atomic3(a, b, c)	\
+do {					\
+	abd_miter_map_atomic(a);	\
+	abd_miter_map_atomic(b);	\
+	abd_miter_map_atomic(c);	\
+} while (0)
+
+#define	abd_miter_unmap_atomic3(a, b, c)\
+do {					\
+	abd_miter_unmap_atomic(c);	\
 	abd_miter_unmap_atomic(b);	\
 	abd_miter_unmap_atomic(a);	\
 } while (0)
@@ -457,6 +481,65 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t dsize, size_t ssize,
 		abd_miter_advance(&daiter, dlen);
 		abd_miter_advance(&saiter, slen);
 	}
+}
+
+/*
+ * Iterate over three ABD and call @func3.
+ * @func3 should be implemented so that its behaviour is the same when taking
+ * linear and when taking scatter
+ * Note this function only takes one size for three ABDs
+ */
+void
+abd_iterate_func3(abd_t *abd0, abd_t *abd1, abd_t *abd2, size_t size,
+    int (*func3)(void *, void *, void *, uint64_t, void *), void *private)
+{
+	size_t len;
+	int stop;
+	struct abd_miter aiter0, aiter1, aiter2;
+	unsigned long flags;
+
+	ABD_CHECK(abd0);
+	ABD_CHECK(abd1);
+	ABD_CHECK(abd2);
+
+	ASSERT(size <= abd0->abd_size);
+	ASSERT(size <= abd1->abd_size);
+	ASSERT(size <= abd2->abd_size);
+
+	abd_miter_init3(&aiter0, abd0, ABD_MITER_W,
+			&aiter1, abd1, ABD_MITER_W,
+			&aiter2, abd2, ABD_MITER_W);
+
+	/* We are using KM_BIO_SRC_IRQ so we need to disable irq */
+	local_irq_save(flags);
+	while (size > 0) {
+		len = MIN(aiter0.length, size);
+		len = MIN(aiter1.length, len);
+		len = MIN(aiter2.length, len);
+
+		ASSERT(len > 0);
+		/*
+		 * The iterated function likely will not do well if each
+		 * segment except the last one is not multiple of 16.
+		 */
+		ASSERT(size == len || (len & 15) == 0);
+
+		abd_miter_map_atomic3(&aiter0, &aiter1, &aiter2);
+
+		stop = func3(aiter0.addr, aiter1.addr, aiter2.addr, len,
+		    private);
+
+		abd_miter_unmap_atomic3(&aiter0, &aiter1, &aiter2);
+
+		if (stop)
+			break;
+
+		size -= len;
+		abd_miter_advance(&aiter0, len);
+		abd_miter_advance(&aiter1, len);
+		abd_miter_advance(&aiter2, len);
+	}
+	local_irq_restore(flags);
 }
 
 /*
