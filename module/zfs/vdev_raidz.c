@@ -555,9 +555,10 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	ASSERT3U(rm->rm_asize - asize, ==, rm->rm_nskip << unit_shift);
 	ASSERT3U(rm->rm_nskip, <=, nparity);
 
-	for (c = 0; c < rm->rm_firstdatacol; c++)
+	for (c = 0; c < rm->rm_firstdatacol; c++) {
 		rm->rm_col[c].rc_data =
-		    abd_alloc_linear(rm->rm_col[c].rc_size);
+		    abd_alloc_scatter(rm->rm_col[c].rc_size);
+	}
 
 	rm->rm_col[c].rc_data = abd_get_offset(zio->io_data, 0);
 	off = rm->rm_col[c].rc_size;
@@ -614,53 +615,69 @@ struct pqr_struct {
 };
 
 static int
-vdev_raidz_p_func(const void *buf, uint64_t size, void *private)
+vdev_raidz_p_func(void *pbuf, void *sbuf, uint64_t psize, uint64_t csize,
+    void *private)
 {
-	struct pqr_struct *pqr = private;
-	const uint64_t *src = buf;
-	int i, cnt = size / sizeof (src[0]);
+	uint64_t *p = pbuf;
+	const uint64_t *src = sbuf;
+	int i, ccnt;
 
-	ASSERT(pqr->p && !pqr->q && !pqr->r);
+	ASSERT(psize >= csize);
+	ccnt = csize / sizeof (src[0]);
 
-	for (i = 0; i < cnt; i++, src++, pqr->p++)
-		*pqr->p ^= *src;
+	for (i = 0; i < ccnt; i++, src++, p++)
+		*p ^= *src;
 	return (0);
 }
 
 static int
-vdev_raidz_pq_func(const void *buf, uint64_t size, void *private)
+vdev_raidz_q_func(void *qbuf, void *sbuf, uint64_t qsize, uint64_t csize,
+    void *private)
 {
-	struct pqr_struct *pqr = private;
-	const uint64_t *src = buf;
+	uint64_t *q = qbuf;
+	const uint64_t *src = sbuf;
 	uint64_t mask;
-	int i, cnt = size / sizeof (src[0]);
+	int i, ccnt, qcnt;
 
-	ASSERT(pqr->p && pqr->q && !pqr->r);
+	ASSERT(qsize >= csize);
+	ccnt = csize / sizeof (src[0]);
+	qcnt = qsize / sizeof (src[0]);
 
-	for (i = 0; i < cnt; i++, src++, pqr->p++, pqr->q++) {
-		*pqr->p ^= *src;
-		VDEV_RAIDZ_64MUL_2(*pqr->q, mask);
-		*pqr->q ^= *src;
+	for (i = 0; i < ccnt; i++, src++, q++) {
+		VDEV_RAIDZ_64MUL_2(*q, mask);
+		*q ^= *src;
+	}
+	/*
+	 * treat short columns as though they are full of 0s.
+	 */
+	for (; i < qcnt; i++, q++) {
+		VDEV_RAIDZ_64MUL_2(*q, mask);
 	}
 	return (0);
 }
 
 static int
-vdev_raidz_pqr_func(const void *buf, uint64_t size, void *private)
+vdev_raidz_r_func(void *rbuf, void *sbuf, uint64_t rsize, uint64_t csize,
+    void *private)
 {
-	struct pqr_struct *pqr = private;
-	const uint64_t *src = buf;
+	uint64_t *r = rbuf;
+	const uint64_t *src = sbuf;
 	uint64_t mask;
-	int i, cnt = size / sizeof (src[0]);
+	int i, ccnt, rcnt;
 
-	ASSERT(pqr->p && pqr->q && pqr->r);
+	ASSERT(rsize >= csize);
+	ccnt = csize / sizeof (src[0]);
+	rcnt = rsize / sizeof (src[0]);
 
-	for (i = 0; i < cnt; i++, src++, pqr->p++, pqr->q++, pqr->r++) {
-		*pqr->p ^= *src;
-		VDEV_RAIDZ_64MUL_2(*pqr->q, mask);
-		*pqr->q ^= *src;
-		VDEV_RAIDZ_64MUL_4(*pqr->r, mask);
-		*pqr->r ^= *src;
+	for (i = 0; i < ccnt; i++, src++, r++) {
+		VDEV_RAIDZ_64MUL_4(*r, mask);
+		*r ^= *src;
+	}
+	/*
+	 * treat short columns as though they are full of 0s.
+	 */
+	for (; i < rcnt; i++, r++) {
+		VDEV_RAIDZ_64MUL_4(*r, mask);
 	}
 	return (0);
 }
@@ -668,20 +685,25 @@ vdev_raidz_pqr_func(const void *buf, uint64_t size, void *private)
 static void
 vdev_raidz_generate_parity_p(raidz_map_t *rm)
 {
-	uint64_t *p;
+	uint64_t psize, csize;
+	abd_t *p, *src;
 	int c;
-	abd_t *src;
+
+	psize = rm->rm_col[VDEV_RAIDZ_P].rc_size;
 
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		src = rm->rm_col[c].rc_data;
-		p = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_P].rc_data);
+		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
+		csize = rm->rm_col[c].rc_size;
 
 		if (c == rm->rm_firstdatacol) {
-			abd_copy_to_buf(p, src, rm->rm_col[c].rc_size);
+			ASSERT(csize == psize);
+			abd_copy(p, src, csize);
 		} else {
-			struct pqr_struct pqr = { p, NULL, NULL };
-			abd_iterate_rfunc(src, rm->rm_col[c].rc_size,
-			    vdev_raidz_p_func, &pqr);
+			ASSERT(csize <= psize);
+			/* No point passing psize */
+			abd_iterate_func2(p, src, csize, csize,
+			    vdev_raidz_p_func, NULL);
 		}
 	}
 }
@@ -689,44 +711,32 @@ vdev_raidz_generate_parity_p(raidz_map_t *rm)
 static void
 vdev_raidz_generate_parity_pq(raidz_map_t *rm)
 {
-	uint64_t *p, *q, pcnt, ccnt, mask, i;
+	uint64_t psize, csize;
+	abd_t *p, *q, *src;
 	int c;
-	abd_t *src;
 
-	pcnt = rm->rm_col[VDEV_RAIDZ_P].rc_size / sizeof (p[0]);
+	psize = rm->rm_col[VDEV_RAIDZ_P].rc_size;
 	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
 	    rm->rm_col[VDEV_RAIDZ_Q].rc_size);
 
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		src = rm->rm_col[c].rc_data;
-		p = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_P].rc_data);
-		q = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_Q].rc_data);
+		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
+		q = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
 
-		ccnt = rm->rm_col[c].rc_size / sizeof (p[0]);
-
-
-		if (c == rm->rm_firstdatacol) {
-			abd_copy_to_buf(p, src, rm->rm_col[c].rc_size);
-			memcpy(q, p, rm->rm_col[c].rc_size);
-		} else {
-			struct pqr_struct pqr = { p, q, NULL };
-			abd_iterate_rfunc(src, rm->rm_col[c].rc_size,
-			    vdev_raidz_pq_func, &pqr);
-		}
+		csize = rm->rm_col[c].rc_size;
 
 		if (c == rm->rm_firstdatacol) {
-			for (i = ccnt; i < pcnt; i++) {
-				p[i] = 0;
-				q[i] = 0;
-			}
+			ASSERT(csize == psize || csize == 0);
+			abd_copy(p, src, csize);
+			abd_zero_off(p, psize - csize, csize);
+			abd_copy(q, p, psize);
 		} else {
-			/*
-			 * Treat short columns as though they are full of 0s.
-			 * Note that there's therefore nothing needed for P.
-			 */
-			for (i = ccnt; i < pcnt; i++) {
-				VDEV_RAIDZ_64MUL_2(q[i], mask);
-			}
+			ASSERT(csize <= psize);
+			abd_iterate_func2(p, src, csize, csize,
+			    vdev_raidz_p_func, NULL);
+			abd_iterate_func2(q, src, psize, csize,
+			    vdev_raidz_q_func, NULL);
 		}
 	}
 }
@@ -734,11 +744,11 @@ vdev_raidz_generate_parity_pq(raidz_map_t *rm)
 static void
 vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
 {
-	uint64_t *p, *q, *r, pcnt, ccnt, mask, i;
+	uint64_t psize, csize;
+	abd_t *p, *q, *r, *src;
 	int c;
-	abd_t *src;
 
-	pcnt = rm->rm_col[VDEV_RAIDZ_P].rc_size / sizeof (p[0]);
+	psize = rm->rm_col[VDEV_RAIDZ_P].rc_size;
 	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
 	    rm->rm_col[VDEV_RAIDZ_Q].rc_size);
 	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
@@ -746,37 +756,26 @@ vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
 
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		src = rm->rm_col[c].rc_data;
-		p = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_P].rc_data);
-		q = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_Q].rc_data);
-		r = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_R].rc_data);
+		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
+		q = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
+		r = rm->rm_col[VDEV_RAIDZ_R].rc_data;
 
-		ccnt = rm->rm_col[c].rc_size / sizeof (p[0]);
-
-		if (c == rm->rm_firstdatacol) {
-			abd_copy_to_buf(p, src, rm->rm_col[c].rc_size);
-			memcpy(q, p, rm->rm_col[c].rc_size);
-			memcpy(r, p, rm->rm_col[c].rc_size);
-		} else {
-			struct pqr_struct pqr = { p, q, r };
-			abd_iterate_rfunc(src, rm->rm_col[c].rc_size,
-			    vdev_raidz_pqr_func, &pqr);
-		}
+		csize = rm->rm_col[c].rc_size;
 
 		if (c == rm->rm_firstdatacol) {
-			for (i = ccnt; i < pcnt; i++) {
-				p[i] = 0;
-				q[i] = 0;
-				r[i] = 0;
-			}
+			ASSERT(csize == psize || csize == 0);
+			abd_copy(p, src, csize);
+			abd_zero_off(p, psize - csize, csize);
+			abd_copy(q, p, psize);
+			abd_copy(r, p, psize);
 		} else {
-			/*
-			 * Treat short columns as though they are full of 0s.
-			 * Note that there's therefore nothing needed for P.
-			 */
-			for (i = ccnt; i < pcnt; i++) {
-				VDEV_RAIDZ_64MUL_2(q[i], mask);
-				VDEV_RAIDZ_64MUL_4(r[i], mask);
-			}
+			ASSERT(csize <= psize);
+			abd_iterate_func2(p, src, csize, csize,
+			    vdev_raidz_p_func, NULL);
+			abd_iterate_func2(q, src, psize, csize,
+			    vdev_raidz_q_func, NULL);
+			abd_iterate_func2(r, src, psize, csize,
+			    vdev_raidz_r_func, NULL);
 		}
 	}
 }
@@ -804,90 +803,57 @@ vdev_raidz_generate_parity(raidz_map_t *rm)
 }
 
 static int
-vdev_raidz_reconst_p_func(void *dbuf, void *sbuf, uint64_t dsize,
-    uint64_t ssize, void *private)
+vdev_raidz_reconst_q_post_func(void *dbuf, void *qbuf, uint64_t xsize,
+    uint64_t qsize, void *private)
 {
-	uint64_t *dst = dbuf, *src = sbuf;
-	int i, cnt = dsize / sizeof (src[0]);
-
-	ASSERT(dsize == ssize);
-
-	for (i = 0; i < cnt; i++) {
-		dst[i] ^= src[i];
-	}
-
-	return (0);
-}
-
-static int
-vdev_raidz_reconst_q_pre_func(void *dbuf, void *sbuf, uint64_t dsize,
-    uint64_t ssize, void *private)
-{
-	uint64_t *dst = dbuf, *src = sbuf;
-	uint64_t mask;
-	int i, dcnt = dsize / sizeof (src[0]), scnt = ssize / sizeof (src[0]);
-
-	ASSERT(dsize >= ssize);
-
-	for (i = 0; i < scnt; i++, dst++, src++) {
-		VDEV_RAIDZ_64MUL_2(*dst, mask);
-		*dst ^= *src;
-	}
-
-	for (; i < dcnt; i++, dst++) {
-		VDEV_RAIDZ_64MUL_2(*dst, mask);
-	}
-	return (0);
-}
-
-struct reconst_q_struct {
-	uint64_t *q;
-	int exp;
-};
-
-static int
-vdev_raidz_reconst_q_post_func(void *buf, uint64_t size, void *private)
-{
-	struct reconst_q_struct *rq = private;
-	uint64_t *dst = buf;
+	uint64_t *dst = dbuf;
+	const uint64_t *q = qbuf;
+	int exp = *(int *)private;
 	uint8_t *b;
-	int i, j, cnt = size / sizeof (dst[0]);
+	int i, j, xcnt = xsize / sizeof (dst[0]);
 
-	for (i = 0; i < cnt; i++, dst++, rq->q++) {
-		*dst ^= *rq->q;
-		for (j = 0, b = (uint8_t *)dst; j < 8; j++, b++) {
-			*b = vdev_raidz_exp2(*b, rq->exp);
+	for (i = 0; i < xcnt; i++, dst++, q++) {
+		*dst ^= *q;
+		for (j = 0, b = (uint8_t *)dst; j < sizeof (dst[0]); j++, b++) {
+			*b = vdev_raidz_exp2(*b, exp);
 		}
 	}
 	return (0);
 }
 
-struct reconst_pq_struct {
-	uint8_t *p;
-	uint8_t *q;
-	uint8_t *pxy;
-	uint8_t *qxy;
-	int aexp;
-	int bexp;
+struct reconst_x_struct {
+	uint8_t aexp;
+	uint8_t bexp;
 };
 
 static int
-vdev_raidz_reconst_pq_func(void *xbuf, void *ybuf, uint64_t xsize,
-    uint64_t ysize, void *private)
+vdev_raidz_reconst_x_func(void *xbuf, void *pbuf, void *qbuf, uint64_t size,
+    void *private)
 {
-	struct reconst_pq_struct *rpq = private;
-	uint8_t *xd = xbuf, *yd = ybuf;
+	struct reconst_x_struct *rx = private;
+	uint8_t *xd = xbuf;
+	const uint8_t *pxy = pbuf, *qxy = qbuf;
 	int i;
 
-	ASSERT(xsize >= ysize);
+	for (i = 0; i < size; i++, xd++, pxy++, qxy++) {
+		*xd = vdev_raidz_exp2(*pxy, rx->aexp) ^
+		    vdev_raidz_exp2(*qxy, rx->bexp);
+	}
+	return (0);
+}
 
-	for (i = 0; i < xsize; i++, rpq->p++, rpq->q++, rpq->pxy++, rpq->qxy++,
-	    xd++, yd++) {
-		*xd = vdev_raidz_exp2(*rpq->p ^ *rpq->pxy, rpq->aexp) ^
-		    vdev_raidz_exp2(*rpq->q ^ *rpq->qxy, rpq->bexp);
+static int
+vdev_raidz_reconst_y_func(void *ybuf, void *pbuf, void *xbuf, uint64_t size,
+    void *private)
+{
+	uint64_t *yd = ybuf;
+	const uint64_t *pxy = pbuf, *xd = xbuf;
+	int i, cnt;
 
-		if (i < ysize)
-			*yd = *rpq->p ^ *rpq->pxy ^ *xd;
+	cnt = size / sizeof (yd[0]);
+
+	for (i = 0; i < cnt; i++, yd++, pxy++, xd++) {
+		*yd = *pxy ^ *xd;
 	}
 	return (0);
 }
@@ -895,6 +861,7 @@ vdev_raidz_reconst_pq_func(void *xbuf, void *ybuf, uint64_t xsize,
 static int
 vdev_raidz_reconstruct_p(raidz_map_t *rm, int *tgts, int ntgts)
 {
+	uint64_t xsize, csize, size;
 	int x = tgts[0];
 	int c;
 	abd_t *dst, *src;
@@ -903,26 +870,27 @@ vdev_raidz_reconstruct_p(raidz_map_t *rm, int *tgts, int ntgts)
 	ASSERT(x >= rm->rm_firstdatacol);
 	ASSERT(x < rm->rm_cols);
 
-	ASSERT(rm->rm_col[x].rc_size <= rm->rm_col[VDEV_RAIDZ_P].rc_size);
-	ASSERT(rm->rm_col[x].rc_size > 0);
+	xsize = rm->rm_col[x].rc_size;
+	ASSERT(xsize <= rm->rm_col[VDEV_RAIDZ_P].rc_size);
+	ASSERT(xsize > 0);
 
 	src = rm->rm_col[VDEV_RAIDZ_P].rc_data;
 	dst = rm->rm_col[x].rc_data;
 
-	abd_copy_from_buf(dst, ABD_TO_BUF(src), rm->rm_col[x].rc_size);
+	abd_copy(dst, src, xsize);
 
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		uint64_t size = MIN(rm->rm_col[x].rc_size,
-		    rm->rm_col[c].rc_size);
-
 		src = rm->rm_col[c].rc_data;
 		dst = rm->rm_col[x].rc_data;
 
 		if (c == x)
 			continue;
 
+		csize = rm->rm_col[c].rc_size;
+		size = MIN(csize, xsize);
+
 		abd_iterate_func2(dst, src, size, size,
-		    vdev_raidz_reconst_p_func, NULL);
+		    vdev_raidz_p_func, NULL);
 	}
 
 	return (1 << VDEV_RAIDZ_P);
@@ -931,30 +899,34 @@ vdev_raidz_reconstruct_p(raidz_map_t *rm, int *tgts, int ntgts)
 static int
 vdev_raidz_reconstruct_q(raidz_map_t *rm, int *tgts, int ntgts)
 {
+	uint64_t xsize, csize, size;
 	int x = tgts[0];
 	int c, exp;
 	abd_t *dst, *src;
-	struct reconst_q_struct rq;
 
 	ASSERT(ntgts == 1);
 
+	xsize = rm->rm_col[x].rc_size;
 	ASSERT(rm->rm_col[x].rc_size <= rm->rm_col[VDEV_RAIDZ_Q].rc_size);
 
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		uint64_t size = (c == x) ? 0 : MIN(rm->rm_col[x].rc_size,
-		    rm->rm_col[c].rc_size);
-
 		src = rm->rm_col[c].rc_data;
 		dst = rm->rm_col[x].rc_data;
 
+		if (c == x)
+			csize = 0;
+		else
+			csize = rm->rm_col[c].rc_size;
+
+		size = MIN(csize, xsize);
+
 		if (c == rm->rm_firstdatacol) {
 			abd_copy(dst, src, size);
-			if (rm->rm_col[x].rc_size > size)
-				abd_zero_off(dst, rm->rm_col[x].rc_size - size,
-				    size);
+			if (xsize > size)
+				abd_zero_off(dst, xsize - size, size);
 		} else {
-			abd_iterate_func2(dst, src, rm->rm_col[x].rc_size,
-			    size, vdev_raidz_reconst_q_pre_func, NULL);
+			abd_iterate_func2(dst, src, xsize, size,
+			    vdev_raidz_q_func, NULL);
 		}
 	}
 
@@ -962,9 +934,8 @@ vdev_raidz_reconstruct_q(raidz_map_t *rm, int *tgts, int ntgts)
 	dst = rm->rm_col[x].rc_data;
 	exp = 255 - (rm->rm_cols - 1 - x);
 
-	rq = (struct reconst_q_struct) { ABD_TO_BUF(src), exp };
-	abd_iterate_wfunc(dst, rm->rm_col[x].rc_size,
-	    vdev_raidz_reconst_q_post_func, &rq);
+	abd_iterate_func2(dst, src, xsize, xsize,
+	    vdev_raidz_reconst_q_post_func, &exp);
 
 	return (1 << VDEV_RAIDZ_Q);
 }
@@ -972,13 +943,12 @@ vdev_raidz_reconstruct_q(raidz_map_t *rm, int *tgts, int ntgts)
 static int
 vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
 {
-	uint8_t *p, *q, *pxy, *qxy, tmp, a, b, aexp, bexp;
-	abd_t *pdata, *qdata;
+	uint8_t tmp, a, b, aexp, bexp;
+	abd_t *p, *q, *pxy, *qxy, *xd, *yd, *pdata, *qdata;
 	uint64_t xsize, ysize;
 	int x = tgts[0];
 	int y = tgts[1];
-	abd_t *xd, *yd;
-	struct reconst_pq_struct rpq;
+	struct reconst_x_struct rx;
 
 	ASSERT(ntgts == 2);
 	ASSERT(x < y);
@@ -1000,9 +970,9 @@ vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
 	ysize = rm->rm_col[y].rc_size;
 
 	rm->rm_col[VDEV_RAIDZ_P].rc_data =
-	    abd_alloc_linear(rm->rm_col[VDEV_RAIDZ_P].rc_size);
+	    abd_alloc_scatter(rm->rm_col[VDEV_RAIDZ_P].rc_size);
 	rm->rm_col[VDEV_RAIDZ_Q].rc_data =
-	    abd_alloc_linear(rm->rm_col[VDEV_RAIDZ_Q].rc_size);
+	    abd_alloc_scatter(rm->rm_col[VDEV_RAIDZ_Q].rc_size);
 	rm->rm_col[x].rc_size = 0;
 	rm->rm_col[y].rc_size = 0;
 
@@ -1011,10 +981,10 @@ vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
 	rm->rm_col[x].rc_size = xsize;
 	rm->rm_col[y].rc_size = ysize;
 
-	p = ABD_TO_BUF(pdata);
-	q = ABD_TO_BUF(qdata);
-	pxy = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_P].rc_data);
-	qxy = ABD_TO_BUF(rm->rm_col[VDEV_RAIDZ_Q].rc_data);
+	p = pdata;
+	q = qdata;
+	pxy = rm->rm_col[VDEV_RAIDZ_P].rc_data;
+	qxy = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
 	xd = rm->rm_col[x].rc_data;
 	yd = rm->rm_col[y].rc_data;
 
@@ -1040,9 +1010,15 @@ vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
 	aexp = vdev_raidz_log2[vdev_raidz_exp2(a, tmp)];
 	bexp = vdev_raidz_log2[vdev_raidz_exp2(b, tmp)];
 
-	rpq = (struct reconst_pq_struct) { p, q, pxy, qxy, aexp, bexp };
-	abd_iterate_func2(xd, yd, xsize, ysize,
-	    vdev_raidz_reconst_pq_func, &rpq);
+	/* make Pxy' = P + Pxy, Qxy' = Q + Qxy */
+	abd_iterate_func2(pxy, p, xsize, xsize, vdev_raidz_p_func, NULL);
+	abd_iterate_func2(qxy, q, xsize, xsize, vdev_raidz_p_func, NULL);
+
+	/* reconstruct D_x */
+	rx = (struct reconst_x_struct) { aexp, bexp };
+	abd_iterate_func3(xd, pxy, qxy, xsize, vdev_raidz_reconst_x_func, &rx);
+	/* reconstruct D_y */
+	abd_iterate_func3(yd, pxy, xd, ysize, vdev_raidz_reconst_y_func, NULL);
 
 	abd_free(rm->rm_col[VDEV_RAIDZ_P].rc_data,
 	    rm->rm_col[VDEV_RAIDZ_P].rc_size);
@@ -1435,12 +1411,11 @@ vdev_raidz_reconstruct_general(raidz_map_t *rm, int *tgts, int ntgts)
 	 * matrix reconstruction cannot use scatter buffer yet, so we allocate
 	 * temporary linear abds.
 	 */
-	if (!ABD_IS_LINEAR(rm->rm_col[rm->rm_firstdatacol].rc_data)) {
-		bufs = kmem_alloc(rm->rm_cols * sizeof (abd_t *), KM_PUSHPAGE);
+	bufs = kmem_zalloc(rm->rm_cols * sizeof (abd_t *), KM_PUSHPAGE);
+	for (c = 0; c < rm->rm_cols; c++) {
+		raidz_col_t *col = &rm->rm_col[c];
 
-		for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-			raidz_col_t *col = &rm->rm_col[c];
-
+		if (!ABD_IS_LINEAR(col->rc_data)) {
 			bufs[c] = col->rc_data;
 			col->rc_data = abd_alloc_linear(col->rc_size);
 			abd_copy(col->rc_data, bufs[c], col->rc_size);
@@ -1536,12 +1511,14 @@ vdev_raidz_reconstruct_general(raidz_map_t *rm, int *tgts, int ntgts)
 	 * copy back from temporary linear abds and free them
 	 */
 	if (bufs) {
-		for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
+		for (c = 0; c < rm->rm_cols; c++) {
 			raidz_col_t *col = &rm->rm_col[c];
 
-			abd_copy(bufs[c], col->rc_data, col->rc_size);
-			abd_free(col->rc_data, col->rc_size);
-			col->rc_data = bufs[c];
+			if (bufs[c]) {
+				abd_copy(bufs[c], col->rc_data, col->rc_size);
+				abd_free(col->rc_data, col->rc_size);
+				col->rc_data = bufs[c];
+			}
 		}
 		kmem_free(bufs, rm->rm_cols * sizeof (abd_t *));
 	}
@@ -1888,7 +1865,7 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 		rc = &rm->rm_col[c];
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
-		if (bcmp(orig[c], ABD_TO_BUF(rc->rc_data), rc->rc_size) != 0) {
+		if (abd_cmp_buf(rc->rc_data, orig[c], rc->rc_size) != 0) {
 			raidz_checksum_error(zio, rc, orig[c]);
 			rc->rc_error = SET_ERROR(ECKSUM);
 			ret++;
