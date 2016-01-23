@@ -106,7 +106,7 @@ typedef struct raidz_col {
 	size_t rc_offset;		/* device offset */
 	size_t rc_size;			/* I/O size */
 	abd_t *rc_data;			/* I/O data */
-	void *rc_gdata;			/* used to store the "good" version */
+	abd_t *rc_gdata;		/* used to store the "good" version */
 	int rc_error;			/* I/O error for this device */
 	unsigned int rc_tried;		/* Did we attempt this I/O column? */
 	unsigned int rc_skipped;	/* Did we skip this I/O column? */

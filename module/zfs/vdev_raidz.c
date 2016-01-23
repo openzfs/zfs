@@ -141,8 +141,7 @@ vdev_raidz_map_free(raidz_map_t *rm)
 		abd_free(rm->rm_col[c].rc_data, rm->rm_col[c].rc_size);
 
 		if (rm->rm_col[c].rc_gdata != NULL)
-			zio_buf_free(rm->rm_col[c].rc_gdata,
-			    rm->rm_col[c].rc_size);
+			abd_free(rm->rm_col[c].rc_gdata, rm->rm_col[c].rc_size);
 	}
 
 	size = 0;
@@ -182,14 +181,16 @@ vdev_raidz_cksum_free(void *arg, size_t ignored)
 }
 
 static void
-vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
+vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, abd_t *good_data)
 {
 	raidz_map_t *rm = zcr->zcr_cbdata;
 	size_t c = zcr->zcr_cbinfo;
 	size_t x;
+	int offset;
+	int need_put = 0;
 
-	const char *good = NULL;
-	char *bad;
+	abd_t *good = NULL;
+	abd_t *bad = rm->rm_col[c].rc_data;
 
 	if (good_data == NULL) {
 		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
@@ -204,8 +205,6 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
 		 */
 		if (rm->rm_col[0].rc_gdata == NULL) {
 			abd_t *bad_parity[VDEV_RAIDZ_MAXPARITY];
-			char *buf;
-			int offset;
 
 			/*
 			 * Set up the rm_col[]s to generate the parity for
@@ -214,20 +213,17 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
 			 */
 			for (x = 0; x < rm->rm_firstdatacol; x++) {
 				bad_parity[x] = rm->rm_col[x].rc_data;
-				rm->rm_col[x].rc_gdata =
-				    zio_buf_alloc(rm->rm_col[x].rc_size);
-				rm->rm_col[x].rc_data =
-				    abd_get_from_buf(rm->rm_col[x].rc_gdata,
-				    rm->rm_col[x].rc_size);
+				rm->rm_col[x].rc_data = rm->rm_col[x].rc_gdata =
+				    abd_alloc_scatter(rm->rm_col[x].rc_size);
 			}
 
 			/* fill in the data columns from good_data */
-			buf = (char *)good_data;
+			offset = 0;
 			for (; x < rm->rm_cols; x++) {
 				abd_put(rm->rm_col[x].rc_data);
-				rm->rm_col[x].rc_data = abd_get_from_buf(buf,
-				    rm->rm_col[x].rc_size);
-				buf += rm->rm_col[x].rc_size;
+				rm->rm_col[x].rc_data =
+				    abd_get_offset(good_data, offset);
+				offset += rm->rm_col[x].rc_size;
 			}
 
 			/*
@@ -236,10 +232,8 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
 			vdev_raidz_generate_parity(rm);
 
 			/* restore everything back to its original state */
-			for (x = 0; x < rm->rm_firstdatacol; x++) {
-				abd_put(rm->rm_col[x].rc_data);
+			for (x = 0; x < rm->rm_firstdatacol; x++)
 				rm->rm_col[x].rc_data = bad_parity[x];
-			}
 
 			offset = 0;
 			for (x = rm->rm_firstdatacol; x < rm->rm_cols; x++) {
@@ -254,16 +248,17 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
 		good = rm->rm_col[c].rc_gdata;
 	} else {
 		/* adjust good_data to point at the start of our column */
-		good = good_data;
-
+		offset = 0;
 		for (x = rm->rm_firstdatacol; x < c; x++)
-			good += rm->rm_col[x].rc_size;
+			offset += rm->rm_col[x].rc_size;
+		good = abd_get_offset(good_data, offset);
+		need_put = 1;
 	}
 
-	bad = abd_borrow_buf_copy(rm->rm_col[c].rc_data, rm->rm_col[c].rc_size);
 	/* we drop the ereport if it ends up that the data was good */
 	zfs_ereport_finish_checksum(zcr, good, bad, B_TRUE);
-	abd_return_buf(rm->rm_col[c].rc_data, bad, rm->rm_col[c].rc_size);
+	if (need_put)
+		abd_put(good);
 }
 
 /*
@@ -1685,9 +1680,8 @@ vdev_raidz_io_start(zio_t *zio)
  * Report a checksum error for a child of a RAID-Z device.
  */
 static void
-raidz_checksum_error(zio_t *zio, raidz_col_t *rc, void *bad_data)
+raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 {
-	void *buf;
 	vdev_t *vd = zio->io_vd->vdev_child[rc->rc_devidx];
 
 	if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
@@ -1701,11 +1695,9 @@ raidz_checksum_error(zio_t *zio, raidz_col_t *rc, void *bad_data)
 		zbc.zbc_has_cksum = 0;
 		zbc.zbc_injected = rm->rm_ecksuminjected;
 
-		buf = abd_borrow_buf_copy(rc->rc_data, rc->rc_size);
 		zfs_ereport_post_checksum(zio->io_spa, vd, zio,
-		    rc->rc_offset, rc->rc_size, buf, bad_data,
+		    rc->rc_offset, rc->rc_size, rc->rc_data, bad_data,
 		    &zbc);
-		abd_return_buf(rc->rc_data, buf, rc->rc_size);
 	}
 }
 
@@ -1738,7 +1730,7 @@ raidz_checksum_verify(zio_t *zio)
 static int
 raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 {
-	void *orig[VDEV_RAIDZ_MAXPARITY];
+	abd_t *orig[VDEV_RAIDZ_MAXPARITY];
 	int c, ret = 0;
 	raidz_col_t *rc;
 
@@ -1746,8 +1738,8 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 		rc = &rm->rm_col[c];
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
-		orig[c] = zio_buf_alloc(rc->rc_size);
-		abd_copy_to_buf(orig[c], rc->rc_data, rc->rc_size);
+		orig[c] = abd_alloc_scatter(rc->rc_size);
+		abd_copy(orig[c], rc->rc_data, rc->rc_size);
 	}
 
 	vdev_raidz_generate_parity(rm);
@@ -1756,12 +1748,12 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 		rc = &rm->rm_col[c];
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
-		if (abd_cmp_buf(rc->rc_data, orig[c], rc->rc_size) != 0) {
+		if (abd_cmp(orig[c], rc->rc_data, rc->rc_size) != 0) {
 			raidz_checksum_error(zio, rc, orig[c]);
 			rc->rc_error = SET_ERROR(ECKSUM);
 			ret++;
 		}
-		zio_buf_free(orig[c], rc->rc_size);
+		abd_free(orig[c], rc->rc_size);
 	}
 
 	return (ret);
@@ -1791,7 +1783,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 {
 	raidz_map_t *rm = zio->io_vsd;
 	raidz_col_t *rc;
-	void *orig[VDEV_RAIDZ_MAXPARITY];
+	abd_t *orig[VDEV_RAIDZ_MAXPARITY];
 	int tstore[VDEV_RAIDZ_MAXPARITY + 2];
 	int *tgts = &tstore[1];
 	int curr, next, i, c, n;
@@ -1840,7 +1832,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 			ASSERT(orig[i] != NULL);
 		}
 
-		orig[n - 1] = zio_buf_alloc(rm->rm_col[0].rc_size);
+		orig[n - 1] = abd_alloc_scatter(rm->rm_col[0].rc_size);
 
 		curr = 0;
 		next = tgts[curr];
@@ -1859,8 +1851,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 				ASSERT3S(c, >=, 0);
 				ASSERT3S(c, <, rm->rm_cols);
 				rc = &rm->rm_col[c];
-				abd_copy_to_buf(orig[i], rc->rc_data,
-				    rc->rc_size);
+				abd_copy(orig[i], rc->rc_data, rc->rc_size);
 			}
 
 			/*
@@ -1890,8 +1881,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 			for (i = 0; i < n; i++) {
 				c = tgts[i];
 				rc = &rm->rm_col[c];
-				abd_copy_from_buf(rc->rc_data, orig[i],
-				    rc->rc_size);
+				abd_copy(rc->rc_data, orig[i], rc->rc_size);
 			}
 
 			do {
@@ -1929,7 +1919,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 	n--;
 done:
 	for (i = 0; i < n; i++) {
-		zio_buf_free(orig[i], rm->rm_col[0].rc_size);
+		abd_free(orig[i], rm->rm_col[0].rc_size);
 	}
 
 	return (ret);
