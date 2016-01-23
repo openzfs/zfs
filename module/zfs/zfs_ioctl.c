@@ -1484,6 +1484,12 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0)
 		(void) spa_destroy(zc->zc_name);
 
+	/*
+	 * Create a taskq for asynchronous zvol-related work in this pool
+	 */
+	if (!error)
+		zvol_async_create_taskq(zc->zc_name);
+
 pool_props_bad:
 	nvlist_free(rootprops);
 	nvlist_free(zplprops);
@@ -1499,8 +1505,10 @@ zfs_ioc_pool_destroy(zfs_cmd_t *zc)
 	int error;
 	zfs_log_history(zc);
 	error = spa_destroy(zc->zc_name);
-	if (error == 0)
-		zvol_remove_minors(zc->zc_name);
+	if (error == 0) {
+		zvol_async_remove_minors(zc->zc_name);
+		zvol_async_remove_taskq(zc->zc_name);
+	}
 	return (error);
 }
 
@@ -1552,8 +1560,10 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 
 	zfs_log_history(zc);
 	error = spa_export(zc->zc_name, NULL, force, hardforce);
-	if (error == 0)
-		zvol_remove_minors(zc->zc_name);
+	if (error == 0) {
+		zvol_async_remove_minors(zc->zc_name);
+		zvol_async_remove_taskq(zc->zc_name);
+	}
 	return (error);
 }
 
@@ -2394,7 +2404,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		err = zvol_set_volsize(dsname, intval);
 		break;
 	case ZFS_PROP_SNAPDEV:
-		err = zvol_set_snapdev(dsname, intval);
+		err = zvol_async_set_snapdev(dsname, intval);
 		break;
 	case ZFS_PROP_VERSION:
 	{
@@ -3191,7 +3201,7 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 #ifdef _KERNEL
 	if (error == 0 && type == DMU_OST_ZVOL)
-		zvol_create_minors(fsname);
+		zvol_async_create_minors(fsname);
 #endif
 
 	return (error);
@@ -3239,7 +3249,7 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 #ifdef _KERNEL
 	if (error == 0)
-		zvol_create_minors(fsname);
+		zvol_async_create_minors(fsname);
 #endif
 
 	return (error);
@@ -3303,11 +3313,6 @@ zfs_ioc_snapshot(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 
 	error = dsl_dataset_snapshot(snaps, props, outnvl);
-
-#ifdef _KERNEL
-	if (error == 0)
-		zvol_create_minors(poolname);
-#endif
 
 	return (error);
 }
@@ -3434,7 +3439,7 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(snaps, pair)) {
 		(void) zfs_unmount_snap(nvpair_name(pair));
-		(void) zvol_remove_minor(nvpair_name(pair));
+		(void) zvol_async_remove_minor(nvpair_name(pair));
 	}
 
 	return (dsl_destroy_snapshots_nvl(snaps, defer, outnvl));
@@ -3561,7 +3566,8 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	else
 		err = dsl_destroy_head(zc->zc_name);
 	if (zc->zc_objset_type == DMU_OST_ZVOL && err == 0)
-		(void) zvol_remove_minor(zc->zc_name);
+		(void) zvol_async_remove_minor(zc->zc_name);
+
 	return (err);
 }
 
@@ -4129,7 +4135,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 #ifdef _KERNEL
 	if (error == 0)
-		zvol_create_minors(tofs);
+		(void) zvol_async_create_minors(tofs);
 #endif
 
 	/*

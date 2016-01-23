@@ -48,6 +48,31 @@
 #include <sys/zvol.h>
 #include <linux/blkdev_compat.h>
 
+static int
+zvol_create_minors_cb(const char *dsname, void *arg);
+static int
+zvol_create_snap_minor_cb(const char *dsname, void *arg);
+
+/*
+ * Perform device minor related actions in taskqs, one taskq
+ * (one worker thread) per pool
+ */
+#include <sys/rwlock.h>
+static list_t zvol_async_taskq_list;
+static krwlock_t zvol_async_taskq_lock;
+
+typedef struct zvol_taskq {
+	const char zt_pool[MAXNAMELEN];
+	taskq_t *zt_tq;
+	list_node_t zt_next;
+} zvol_taskq_t;
+
+/* zvol_create_minors_cb argument */
+typedef struct {
+	const char *name;
+	uint64_t snapdev;
+} zvcb_arg_t;
+
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
@@ -881,54 +906,28 @@ zvol_first_open(zvol_state_t *zv)
 {
 	objset_t *os;
 	uint64_t volsize;
-	int locked = 0;
 	int error;
+	int owned = 0;
 	uint64_t ro;
-
-	/*
-	 * In all other cases the spa_namespace_lock is taken before the
-	 * bdev->bd_mutex lock.  But in this case the Linux __blkdev_get()
-	 * function calls fops->open() with the bdev->bd_mutex lock held.
-	 *
-	 * To avoid a potential lock inversion deadlock we preemptively
-	 * try to take the spa_namespace_lock().  Normally it will not
-	 * be contended and this is safe because spa_open_common() handles
-	 * the case where the caller already holds the spa_namespace_lock.
-	 *
-	 * When it is contended we risk a lock inversion if we were to
-	 * block waiting for the lock.  Luckily, the __blkdev_get()
-	 * function allows us to return -ERESTARTSYS which will result in
-	 * bdev->bd_mutex being dropped, reacquired, and fops->open() being
-	 * called again.  This process can be repeated safely until both
-	 * locks are acquired.
-	 */
-	if (!mutex_owned(&spa_namespace_lock)) {
-		locked = mutex_tryenter(&spa_namespace_lock);
-		if (!locked)
-			return (-SET_ERROR(ERESTARTSYS));
-	}
-
-	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
-	if (error)
-		goto out_mutex;
 
 	/* lie and say we're read-only */
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
 	if (error)
-		goto out_mutex;
+		goto out_owned;
+	zv->zv_objset = os;
+	owned = 1;
+
+	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
+	if (error)
+		goto out_owned;
 
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
-	if (error) {
-		dmu_objset_disown(os, zvol_tag);
-		goto out_mutex;
-	}
+	if (error)
+		goto out_owned;
 
-	zv->zv_objset = os;
 	error = dmu_bonus_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dbuf);
-	if (error) {
-		dmu_objset_disown(os, zvol_tag);
-		goto out_mutex;
-	}
+	if (error)
+		goto out_owned;
 
 	set_capacity(zv->zv_disk, volsize >> 9);
 	zv->zv_volsize = volsize;
@@ -943,9 +942,11 @@ zvol_first_open(zvol_state_t *zv)
 		zv->zv_flags &= ~ZVOL_RDONLY;
 	}
 
-out_mutex:
-	if (locked)
-		mutex_exit(&spa_namespace_lock);
+out_owned:
+	if (error && owned) {
+		dmu_objset_disown(os, zvol_tag);
+		zv->zv_objset = NULL;
+	}
 
 	return (SET_ERROR(-error));
 }
@@ -979,7 +980,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 
 	/*
 	 * If the caller is already holding the mutex do not take it
-	 * again, this will happen as part of zvol_create_minor().
+	 * again, this will happen as part of __zvol_create_minor().
 	 * Once add_disk() is called the device is live and the kernel
 	 * will attempt to open it to read the partition information.
 	 */
@@ -1276,31 +1277,13 @@ zvol_free(zvol_state_t *zv)
 	kmem_free(zv, sizeof (zvol_state_t));
 }
 
+/*
+ * Create a block device minor node and setup the linkage between it
+ * and the specified volume.  Once this function returns the block
+ * device is live and ready for use.
+ */
 static int
-__zvol_snapdev_hidden(const char *name)
-{
-	uint64_t snapdev;
-	char *parent;
-	char *atp;
-	int error = 0;
-
-	parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
-	(void) strlcpy(parent, name, MAXPATHLEN);
-
-	if ((atp = strrchr(parent, '@')) != NULL) {
-		*atp = '\0';
-		error = dsl_prop_get_integer(parent, "snapdev", &snapdev, NULL);
-		if ((error == 0) && (snapdev == ZFS_SNAPDEV_HIDDEN))
-			error = SET_ERROR(ENODEV);
-	}
-
-	kmem_free(parent, MAXPATHLEN);
-
-	return (SET_ERROR(error));
-}
-
-static int
-__zvol_create_minor(const char *name, boolean_t ignore_snapdev)
+__zvol_create_minor(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -1316,12 +1299,6 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 	if (zv) {
 		error = SET_ERROR(EEXIST);
 		goto out;
-	}
-
-	if (ignore_snapdev == B_FALSE) {
-		error = __zvol_snapdev_hidden(name);
-		if (error)
-			goto out;
 	}
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
@@ -1408,23 +1385,6 @@ out:
 	return (SET_ERROR(error));
 }
 
-/*
- * Create a block device minor node and setup the linkage between it
- * and the specified volume.  Once this function returns the block
- * device is live and ready for use.
- */
-int
-zvol_create_minor(const char *name)
-{
-	int error;
-
-	mutex_enter(&zvol_state_lock);
-	error = __zvol_create_minor(name, B_FALSE);
-	mutex_exit(&zvol_state_lock);
-
-	return (SET_ERROR(error));
-}
-
 static int
 __zvol_remove_minor(const char *name)
 {
@@ -1448,7 +1408,7 @@ __zvol_remove_minor(const char *name)
 /*
  * Remove a block device minor node for the specified volume.
  */
-int
+static int
 zvol_remove_minor(const char *name)
 {
 	int error;
@@ -1484,25 +1444,125 @@ __zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	set_disk_ro(zv->zv_disk, readonly);
 }
 
+
+/*
+ * Mask errors to continue dmu_objset_find() traversal
+ */
 static int
 zvol_create_minors_cb(const char *dsname, void *arg)
 {
-	(void) zvol_create_minor(dsname);
+	uint64_t snapdev;
+	int error;
+
+	error = dsl_prop_get_integer(dsname, "snapdev", &snapdev, NULL);
+	if (error)
+		return (0);
+
+	/*
+	 * Given the name and the 'snapdev' property, create device minor nodes
+	 * with the linkages to zvols/snapshots as needed.
+	 * The name represents a zvol, so create a minor node for the zvol, then
+	 * check if its snapshots are 'visible', and if so, iterate over the
+	 * snapshots and create device minor nodes for those. Note, that we
+	 * know that this is a zvol, having just obtained the 'snapdev'
+	 * zvol property without errors.
+	 */
+	if (strchr(dsname, '@') == 0) {
+		/* create minor for the 'dsname' explicitly */
+		mutex_enter(&zvol_state_lock);
+		error = __zvol_create_minor(dsname);
+		mutex_exit(&zvol_state_lock);
+		if (error == 0 && snapdev == ZFS_SNAPDEV_VISIBLE) {
+			/*
+			 * traverse snapshots only, do not traverse children,
+			 * and skip the 'dsname'
+			 */
+			error = dmu_objset_find((char *)dsname,
+			    zvol_create_snap_minor_cb, (void *)dsname,
+			    DS_FIND_SNAPSHOTS);
+		}
+	} else {
+		printk(KERN_INFO
+			"zvol_create_minors_cb(): %s is not a zvol name\n",
+			dsname);
+	}
 
 	return (0);
 }
 
 /*
- * Create minors for specified dataset including children and snapshots.
+ * Mask errors to continue dmu_objset_find() traversal
  */
-int
+static int
+zvol_create_snap_minor_cb(const char *dsname, void *arg)
+{
+	const char *name = (const char *)arg;
+
+	/* skip the designated dataset */
+	if (name && strcmp(dsname, name) == 0)
+		return (0);
+
+	/* at this point, the dsname should name a snapshot */
+	if (strchr(dsname, '@') == 0) {
+		printk(KERN_INFO "zvol_create_snap_minor_cb(): "
+			"%s is not a shapshot name\n", dsname);
+	} else {
+		/* create minor for the snapshot */
+		mutex_enter(&zvol_state_lock);
+		(void) __zvol_create_minor(name);
+		mutex_exit(&zvol_state_lock);
+	}
+
+	return (0);
+}
+
+/*
+ * Create minors for the specified dataset, including children and snapshots.
+ * Pay attention to the 'snapdev' property and iterate over the snapshots
+ * only if they are 'visible'. This approach allows one to assure that the
+ * snapshot metadata is read from disk only if it is needed.
+ *
+ * The name can represent a dataset to be recursively scanned for zvols and
+ * their snapshots, or a single zvol snapshot. If the name represents a
+ * dataset, the scan is performed in two nested stages:
+ * - scan the dataset for zvols, and
+ * - for each zvol, create a minor node, then check if the zvol's snapshots
+ *   are 'visible', and only then iterate over the snapshots if needed
+ *
+ * If the name represents a snapshot, a check is perfromed if the snapshot is
+ * 'visible' (which also verifies that the parent is a zvol), and if so,
+ * a minor node for that snapshot is created.
+ */
+static int
 zvol_create_minors(const char *name)
 {
 	int error = 0;
 
-	if (!zvol_inhibit_dev)
-		error = dmu_objset_find((char *)name, zvol_create_minors_cb,
-		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	if (!zvol_inhibit_dev) {
+		char *atp, *parent;
+
+		parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+		(void) strlcpy(parent, name, MAXPATHLEN);
+
+		if ((atp = strrchr(parent, '@')) != NULL) {
+			uint64_t snapdev;
+
+			*atp = '\0';
+			error = dsl_prop_get_integer(parent, "snapdev",
+			    &snapdev, NULL);
+
+			if (error == 0 && snapdev == ZFS_SNAPDEV_VISIBLE) {
+				mutex_enter(&zvol_state_lock);
+				error = __zvol_create_minor(name);
+				mutex_exit(&zvol_state_lock);
+			}
+		} else {
+			error = dmu_objset_find(parent, zvol_create_minors_cb,
+			    NULL, DS_FIND_CHILDREN);
+		}
+
+		kmem_free(parent, MAXPATHLEN);
+	}
 
 	return (SET_ERROR(error));
 }
@@ -1510,7 +1570,7 @@ zvol_create_minors(const char *name)
 /*
  * Remove minors for specified dataset including children and snapshots.
  */
-void
+static void
 zvol_remove_minors(const char *name)
 {
 	zvol_state_t *zv, *zv_next;
@@ -1538,7 +1598,7 @@ zvol_remove_minors(const char *name)
 /*
  * Rename minors for specified dataset including children and snapshots.
  */
-void
+static void
 zvol_rename_minors(const char *oldname, const char *newname)
 {
 	zvol_state_t *zv, *zv_next;
@@ -1584,7 +1644,7 @@ snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
 	switch (snapdev) {
 		case ZFS_SNAPDEV_VISIBLE:
 			mutex_enter(&zvol_state_lock);
-			(void) __zvol_create_minor(dsname, B_TRUE);
+			(void) __zvol_create_minor(dsname);
 			mutex_exit(&zvol_state_lock);
 			break;
 		case ZFS_SNAPDEV_HIDDEN:
@@ -1595,12 +1655,10 @@ snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
 	return (0);
 }
 
-int
+static void
 zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
 	(void) dmu_objset_find((char *) dsname, snapdev_snapshot_changed_cb,
 		&snapdev, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
-	/* caller should continue to modify snapdev property */
-	return (-1);
 }
 
 int
@@ -1612,6 +1670,11 @@ zvol_init(void)
 	    offsetof(zvol_state_t, zv_next));
 
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
+
+	list_create(&zvol_async_taskq_list, sizeof (zvol_taskq_t),
+	    offsetof(zvol_taskq_t, zt_next));
+
+	rw_init(&zvol_async_taskq_lock, NULL, RW_DEFAULT, NULL);
 
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
@@ -1625,6 +1688,9 @@ zvol_init(void)
 	return (0);
 
 out:
+	rw_destroy(&zvol_async_taskq_lock);
+	list_destroy(&zvol_async_taskq_list);
+
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 
@@ -1634,12 +1700,266 @@ out:
 void
 zvol_fini(void)
 {
+	zvol_taskq_t *zt = NULL;
+
+	/*
+	 * cleanup async taskqs
+	 * this step performs all the tasks on the queues first
+	 */
+	rw_enter(&zvol_async_taskq_lock, RW_WRITER);
+	while ((zt = list_remove_head(&zvol_async_taskq_list))) {
+		taskq_destroy(zt->zt_tq);
+		kmem_free(zt, sizeof (zvol_taskq_t));
+	}
+	rw_exit(&zvol_async_taskq_lock);
+
+	/* cleanup the list and the lock */
+	list_destroy(&zvol_async_taskq_list);
+	rw_destroy(&zvol_async_taskq_lock);
+
+	/* remove minors synchronously */
 	zvol_remove_minors(NULL);
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 }
+
+
+/*
+ * Add/remove taskq per pool, create/remove/rename minor(s)
+ */
+
+/* Create task for the pool, performed at pool create and import */
+static int
+zvol_create_taskq(const char *pool)
+{
+	zvol_taskq_t *zt, *ezt;
+	char *tqname;
+
+	zt = kmem_zalloc(sizeof (zvol_taskq_t), KM_SLEEP);
+
+	tqname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
+	snprintf(tqname, MAXNAMELEN, "zvol_tq/%s", pool);
+	/* Use one thread to assure ordered completion of requests */
+	zt->zt_tq = taskq_create(tqname, 1, maxclsyspri, 1, INT_MAX,
+	    TASKQ_PREPOPULATE);
+	kmem_free(tqname, MAXNAMELEN);
+	if (zt->zt_tq == NULL) {
+		kmem_free(zt, sizeof (zvol_taskq_t));
+		printk(KERN_INFO
+		    "ZFS: failed to create async work taskq for pool %s\n",
+		    pool);
+		return (-ENOMEM);
+	}
+
+	strlcpy((char *)zt->zt_pool, (char *)pool, MAXNAMELEN);
+
+	rw_enter(&zvol_async_taskq_lock, RW_WRITER);
+	/* check if the queue already exists */
+	for (ezt = list_head(&zvol_async_taskq_list); ezt != NULL;
+	    ezt = list_next(&zvol_async_taskq_list, ezt)) {
+		if (strncmp(ezt->zt_pool, pool, MAXNAMELEN) == 0) {
+			break;
+		}
+	}
+	if (ezt == NULL)
+		list_insert_head(&zvol_async_taskq_list, zt);
+	rw_exit(&zvol_async_taskq_lock);
+
+	if (ezt) {
+		printk(KERN_INFO
+		    "ZFS: async work taskq for pool %s already exists\n", pool);
+		taskq_destroy(zt->zt_tq);
+		kmem_free(zt, sizeof (zvol_taskq_t));
+	}
+
+	return (0);
+}
+
+/* Remove task for the pool, performed at pool export and destroy */
+static int
+zvol_remove_taskq(const char *pool)
+{
+	zvol_taskq_t *zt;
+
+	rw_enter(&zvol_async_taskq_lock, RW_WRITER);
+	for (zt = list_head(&zvol_async_taskq_list); zt != NULL;
+	    zt = list_next(&zvol_async_taskq_list, zt)) {
+		if (strncmp(zt->zt_pool, pool, MAXNAMELEN) == 0) {
+			list_remove(&zvol_async_taskq_list, zt);
+			break;
+		}
+	}
+	rw_exit(&zvol_async_taskq_lock);
+
+	/* This may have to wait for completion of the jobs on the queue */
+	if (zt) {
+		taskq_destroy(zt->zt_tq);
+		kmem_free(zt, sizeof (zvol_taskq_t));
+		return (0);
+	}
+
+	printk(KERN_INFO "ZFS: async work taskq for pool %s not found\n", pool);
+	return (-ENOENT);
+}
+
+/* The worker thread function performed asynchronously */
+static void
+_zvol_async_task(void *param)
+{
+	zvol_async_arg_t *arg = (zvol_async_arg_t *)param;
+
+	switch (arg->op) {
+	case ZVOL_ASYNC_CREATE_MINORS:
+		(void) zvol_create_minors(arg->name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_MINORS:
+		zvol_remove_minors(arg->name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_MINOR:
+		(void) zvol_remove_minor(arg->name1);
+		break;
+	case ZVOL_ASYNC_RENAME_MINORS:
+		zvol_rename_minors(arg->name1, arg->name2);
+		break;
+	case ZVOL_ASYNC_SET_SNAPDEV:
+		zvol_set_snapdev(arg->name1, arg->value);
+		break;
+	default:
+		/* should not get here */
+		printk(KERN_INFO "ZFS: invalid async work operation %d\n",
+		    arg->op);
+		break;
+	}
+
+	/* the task is performed, free the argument */
+	kmem_free(arg, sizeof (zvol_async_arg_t));
+}
+
+/* Lookup the taskq for the pool and dispatch the task */
+static int
+zvol_dispatch_taskq(zvol_async_arg_t *arg)
+{
+	int error = 0;
+	zvol_taskq_t *zt;
+
+	rw_enter(&zvol_async_taskq_lock, RW_READER);
+	for (zt = list_head(&zvol_async_taskq_list); zt != NULL;
+	    zt = list_next(&zvol_async_taskq_list, zt)) {
+		if (strncmp(zt->zt_pool, arg->pool, MAXNAMELEN) == 0)
+			break;
+	}
+	if (zt) {
+		error = taskq_dispatch(zt->zt_tq, _zvol_async_task,
+		    arg, TQ_SLEEP);
+	} else {
+		printk(KERN_INFO "ZFS: async work taskq for pool %s not found;"
+		    " failed to dispatch work op %d\n", arg->pool, arg->op);
+		error = -ENOENT;
+	}
+	rw_exit(&zvol_async_taskq_lock);
+
+	return (error);
+}
+
+static int
+zvol_async_dispatch(zvol_async_op_t op, const char *name1, const char *name2,
+	uint64_t val)
+{
+	int error;
+	char *delim;
+	size_t len;
+	zvol_async_arg_t *arg;
+
+	switch (op) {
+	case ZVOL_ASYNC_CREATE_TASKQ:
+		error = zvol_create_taskq(name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_TASKQ:
+		error = zvol_remove_taskq(name1);
+		break;
+	case ZVOL_ASYNC_CREATE_MINORS:
+	case ZVOL_ASYNC_REMOVE_MINORS:
+	case ZVOL_ASYNC_REMOVE_MINOR:
+	case ZVOL_ASYNC_RENAME_MINORS:
+	case ZVOL_ASYNC_SET_SNAPDEV:
+		/*
+		 * these requests are dispatched to a taskq and
+		 * the argument is freed in the worker function
+		 */
+		arg = kmem_zalloc(sizeof (zvol_async_arg_t), KM_SLEEP);
+
+		arg->op = op;
+		/* extract the pool name from the dataset name */
+		delim = strchr(name1, '/');
+		/* + 1 for strlcpy() to accommodate the \0 */
+		len = (delim) ? (delim - name1 + 1) : MAXNAMELEN;
+		strlcpy(arg->pool, name1, len);
+		strlcpy(arg->name1, name1, MAXNAMELEN);
+		if (name2)
+			strlcpy(arg->name2, name2, MAXNAMELEN);
+		arg->value = val;
+
+		error = zvol_dispatch_taskq(arg);
+		break;
+	default:
+		printk(KERN_INFO "ZFS: invalid async op %d for %s\n",
+		    op, name1);
+		error = -EINVAL;
+		break;
+	}
+
+	return (error);
+}
+
+/*
+ * The external interfaces wrapping zvol_async_dispatch()
+ */
+void
+zvol_async_create_taskq(const char *pool)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_CREATE_TASKQ, pool, NULL, 0);
+}
+
+void
+zvol_async_remove_taskq(const char *pool)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_REMOVE_TASKQ, pool, NULL, 0);
+}
+
+void
+zvol_async_create_minors(const char *name)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_CREATE_MINORS, name, NULL, 0);
+}
+
+void
+zvol_async_remove_minors(const char *name)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_REMOVE_MINORS, name, NULL, 0);
+}
+
+void
+zvol_async_remove_minor(const char *name)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_REMOVE_MINOR, name, NULL, 0);
+}
+
+void
+zvol_async_rename_minors(const char *name1, const char *name2)
+{
+	zvol_async_dispatch(ZVOL_ASYNC_RENAME_MINORS, name1, name2, 0);
+}
+
+int
+zvol_async_set_snapdev(const char *dsname, uint64_t snapdev) {
+	zvol_async_dispatch(ZVOL_ASYNC_SET_SNAPDEV, dsname, NULL, snapdev);
+	/* caller should continue to modify snapdev property */
+	return (-1);
+}
+
+/* Parameter definitions */
 
 module_param(zvol_inhibit_dev, uint, 0644);
 MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
