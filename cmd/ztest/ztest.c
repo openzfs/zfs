@@ -4972,7 +4972,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	char *path0;
 	char *pathrand;
 	size_t fsize;
-	int bshift = SPA_OLD_MAXBLOCKSHIFT + 2;	/* don't scrog all labels */
+	int bshift = SPA_MAXBLOCKSHIFT + 2;	/* don't scrog all labels */
 	int iters = 1000;
 	int maxfaults;
 	int mirror_save;
@@ -5136,6 +5136,31 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	fsize = lseek(fd, 0, SEEK_END);
 
 	while (--iters != 0) {
+		/*
+		 * The offset must be chosen carefully to ensure that
+		 * we do not inject a given logical block with errors
+		 * on two different leaf devices, because ZFS can not
+		 * tolerate that (if maxfaults==1).
+		 *
+		 * We divide each leaf into chunks of size
+		 * (# leaves * SPA_MAXBLOCKSIZE * 4).  Within each chunk
+		 * there is a series of ranges to which we can inject errors.
+		 * Each range can accept errors on only a single leaf vdev.
+		 * The error injection ranges are separated by ranges
+		 * which we will not inject errors on any device (DMZs).
+		 * Each DMZ must be large enough such that a single block
+		 * can not straddle it, so that a single block can not be
+		 * a target in two different injection ranges (on different
+		 * leaf vdevs).
+		 *
+		 * For example, with 3 leaves, each chunk looks like:
+		 *    0 to  32M: injection range for leaf 0
+		 *  32M to  64M: DMZ - no injection allowed
+		 *  64M to  96M: injection range for leaf 1
+		 *  96M to 128M: DMZ - no injection allowed
+		 * 128M to 160M: injection range for leaf 2
+		 * 160M to 192M: DMZ - no injection allowed
+		 */
 		offset = ztest_random(fsize / (leaves << bshift)) *
 		    (leaves << bshift) + (leaf << bshift) +
 		    (ztest_random(1ULL << (bshift - 1)) & -8ULL);
