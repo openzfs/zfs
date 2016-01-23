@@ -1499,8 +1499,14 @@ int
 zvol_create_minors(const char *name)
 {
 	int error = 0;
+	objset_t *os;
+	boolean_t iszvol;
 
-	if (!zvol_inhibit_dev)
+	dmu_objset_hold(name, FTAG, &os);
+	iszvol = (dmu_objset_type(os) == DMU_OST_ZVOL);
+	dmu_objset_rele(os, FTAG);
+
+	if (iszvol && !zvol_inhibit_dev)
 		error = dmu_objset_find((char *)name, zvol_create_minors_cb,
 		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
 
