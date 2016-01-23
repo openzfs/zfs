@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <libzfs.h>
 #include <locale.h>
+#include <getopt.h>
 
 #define	ZS_COMMENT	0x00000000	/* comment */
 #define	ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */
@@ -387,7 +388,7 @@ main(int argc, char **argv)
 	opterr = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "sfnvo:h?")) != -1) {
+	while ((c = getopt_long(argc, argv, "sfnvo:h?", 0, 0)) != -1) {
 		switch (c) {
 		case 's':
 			sloppy = 1;
