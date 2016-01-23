@@ -222,7 +222,6 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 	ASSERT(vp->v_file);
 	ASSERT(seg == UIO_SYSSPACE);
 	ASSERT((ioflag & ~FAPPEND) == 0);
-	ASSERT(x2 == RLIM64_INFINITY);
 
 	fp = vp->v_file;
 
