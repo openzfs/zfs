@@ -3225,17 +3225,10 @@ arc_flush(spa_t *spa, boolean_t retry)
 void
 arc_shrink(int64_t to_free)
 {
-	uint64_t c;
+	uint64_t c = arc_c;
 
-	if (arc_c > arc_c_min) {
-
-		if (arc_c > arc_c_min + to_free &&
-		    (c = arc_c - to_free) > 2ULL << SPA_MAXBLOCKSHIFT) {
-			arc_c = c;
-		} else {
-			arc_c = arc_c_min;
-		}
-
+	if (c > to_free && c - to_free > arc_c_min) {
+		arc_c = c - to_free;
 		atomic_add_64(&arc_p, -(arc_p >> arc_shrink_shift));
 		if (arc_c > arc_size)
 			arc_c = MAX(arc_size, arc_c_min);
@@ -3243,6 +3236,8 @@ arc_shrink(int64_t to_free)
 			arc_p = (arc_c >> 1);
 		ASSERT(arc_c >= arc_c_min);
 		ASSERT((int64_t)arc_p >= 0);
+	} else {
+		arc_c = arc_c_min;
 	}
 
 	if (arc_size > arc_c)
