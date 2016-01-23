@@ -24,11 +24,13 @@
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DATASET_H
 #define	_SYS_DSL_DATASET_H
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
@@ -206,7 +208,7 @@ typedef struct dsl_dataset {
 static inline dsl_dataset_phys_t *
 dsl_dataset_phys(dsl_dataset_t *ds)
 {
-	return (ds->ds_dbuf->db_data);
+	return (ABD_TO_BUF(ds->ds_dbuf->db_data));
 }
 
 /*
