@@ -20,6 +20,7 @@
  */
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -130,15 +131,22 @@
 #include <sys/byteorder.h>
 #include <sys/zio.h>
 #include <sys/spa.h>
+#include <zfs_fletcher.h>
 
-void
-fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+int
+fletcher_2_incremental_native(const void *buf, uint64_t size, void *private)
 {
+	zio_cksum_t *zcp = private;
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += ip[0];
 		a1 += ip[1];
 		b0 += a0;
@@ -146,16 +154,30 @@ fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
+	return (0);
 }
 
 void
-fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
+	fletcher_2_native_init(zcp);
+	fletcher_2_incremental_native(buf, size, zcp);
+}
+
+int
+fletcher_2_incremental_byteswap(const void *buf, uint64_t size, void *private)
+{
+	zio_cksum_t *zcp = private;
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += BSWAP_64(ip[0]);
 		a1 += BSWAP_64(ip[1]);
 		b0 += a0;
@@ -163,91 +185,83 @@ fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
+	return (0);
+}
+
+void
+fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	fletcher_2_byteswap_init(zcp);
+	fletcher_2_incremental_byteswap(buf, size, zcp);
+}
+
+int
+fletcher_4_incremental_native(const void *buf, uint64_t size, void *private)
+{
+	zio_cksum_t *zcp = private;
+	const uint32_t *ip = buf;
+	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
+	uint64_t a, b, c, d;
+
+	a = zcp->zc_word[0];
+	b = zcp->zc_word[1];
+	c = zcp->zc_word[2];
+	d = zcp->zc_word[3];
+
+	for (; ip < ipend; ip++) {
+		a += ip[0];
+		b += a;
+		c += b;
+		d += c;
+	}
+
+	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+	return (0);
 }
 
 void
 fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
+	fletcher_4_native_init(zcp);
+	fletcher_4_incremental_native(buf, size, zcp);
+}
+
+int
+fletcher_4_incremental_byteswap(const void *buf, uint64_t size, void *private)
+{
+	zio_cksum_t *zcp = private;
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
 	uint64_t a, b, c, d;
 
-	for (a = b = c = d = 0; ip < ipend; ip++) {
-		a += ip[0];
+	a = zcp->zc_word[0];
+	b = zcp->zc_word[1];
+	c = zcp->zc_word[2];
+	d = zcp->zc_word[3];
+
+	for (; ip < ipend; ip++) {
+		a += BSWAP_32(ip[0]);
 		b += a;
 		c += b;
 		d += c;
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+	return (0);
 }
 
 void
 fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
-	const uint32_t *ip = buf;
-	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
-	uint64_t a, b, c, d;
-
-	for (a = b = c = d = 0; ip < ipend; ip++) {
-		a += BSWAP_32(ip[0]);
-		b += a;
-		c += b;
-		d += c;
-	}
-
-	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
-}
-
-void
-fletcher_4_incremental_native(const void *buf, uint64_t size,
-    zio_cksum_t *zcp)
-{
-	const uint32_t *ip = buf;
-	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
-	uint64_t a, b, c, d;
-
-	a = zcp->zc_word[0];
-	b = zcp->zc_word[1];
-	c = zcp->zc_word[2];
-	d = zcp->zc_word[3];
-
-	for (; ip < ipend; ip++) {
-		a += ip[0];
-		b += a;
-		c += b;
-		d += c;
-	}
-
-	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
-}
-
-void
-fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
-    zio_cksum_t *zcp)
-{
-	const uint32_t *ip = buf;
-	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
-	uint64_t a, b, c, d;
-
-	a = zcp->zc_word[0];
-	b = zcp->zc_word[1];
-	c = zcp->zc_word[2];
-	d = zcp->zc_word[3];
-
-	for (; ip < ipend; ip++) {
-		a += BSWAP_32(ip[0]);
-		b += a;
-		c += b;
-		d += c;
-	}
-
-	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+	fletcher_4_byteswap_init(zcp);
+	fletcher_4_incremental_byteswap(buf, size, zcp);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(fletcher_2_native);
 EXPORT_SYMBOL(fletcher_2_byteswap);
+EXPORT_SYMBOL(fletcher_2_incremental_native);
+EXPORT_SYMBOL(fletcher_2_incremental_byteswap);
 EXPORT_SYMBOL(fletcher_4_native);
 EXPORT_SYMBOL(fletcher_4_byteswap);
 EXPORT_SYMBOL(fletcher_4_incremental_native);
