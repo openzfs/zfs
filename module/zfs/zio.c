@@ -3017,25 +3017,30 @@ zio_vdev_io_done(zio_t *zio)
  * disk, and use that to finish the checksum ereport later.
  */
 static void
-zio_vsd_default_cksum_finish(zio_cksum_report_t *zcr,
-    const void *good_buf)
+zio_vsd_default_cksum_finish(zio_cksum_report_t *zcr, abd_t *good_buf)
 {
 	/* no processing needed */
 	zfs_ereport_finish_checksum(zcr, good_buf, zcr->zcr_cbdata, B_FALSE);
+}
+
+static void
+zio_vsd_default_cksum_free(void *cbdata, size_t size)
+{
+	abd_free(cbdata, size);
 }
 
 /*ARGSUSED*/
 void
 zio_vsd_default_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *ignored)
 {
-	void *buf = zio_buf_alloc(zio->io_size);
+	abd_t *buf = abd_alloc_scatter(zio->io_size);
 
-	abd_copy_to_buf(buf, zio->io_data, zio->io_size);
+	abd_copy(buf, zio->io_data, zio->io_size);
 
 	zcr->zcr_cbinfo = zio->io_size;
 	zcr->zcr_cbdata = buf;
 	zcr->zcr_finish = zio_vsd_default_cksum_finish;
-	zcr->zcr_free = zio_buf_free;
+	zcr->zcr_free = zio_vsd_default_cksum_free;
 }
 
 static int
@@ -3356,24 +3361,19 @@ zio_done(zio_t *zio)
 			zio_cksum_report_t *zcr = zio->io_cksum_report;
 			uint64_t align = zcr->zcr_align;
 			uint64_t asize = P2ROUNDUP(zio->io_size, align);
-			char *abuf;
 			abd_t *adata = zio->io_data;
 
 			if (asize != zio->io_size) {
-				adata = abd_alloc_linear(asize);
+				adata = abd_alloc_scatter(asize);
 				abd_copy(adata, zio->io_data, zio->io_size);
 				abd_zero_off(adata, asize-zio->io_size,
 				    zio->io_size);
 			}
 
-			abuf = abd_borrow_buf_copy(adata, asize);
-
 			zio->io_cksum_report = zcr->zcr_next;
 			zcr->zcr_next = NULL;
-			zcr->zcr_finish(zcr, abuf);
+			zcr->zcr_finish(zcr, adata);
 			zfs_ereport_free_checksum(zcr);
-
-			abd_return_buf(adata, abuf, asize);
 
 			if (asize != zio->io_size)
 				abd_free(adata, asize);
