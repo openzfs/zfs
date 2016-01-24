@@ -5403,6 +5403,9 @@ arc_init(void)
 	arc_need_free = 0;
 #endif
 
+	/* Set max to 1/2 of all memory */
+	arc_c_max = allmem / 2;
+
 	/*
 	 * In userland, there's only the memory pressure that we artificially
 	 * create (see arc_available_memory()).  Don't let arc_c get too
@@ -5410,13 +5413,10 @@ arc_init(void)
 	 * arc_c, causing arc_tempreserve_space() to fail.
 	 */
 #ifndef	_KERNEL
-	arc_c_min = arc_c_max / 2;
+	arc_c_min = MAX(arc_c_max / 2, 2ULL << SPA_MAXBLOCKSHIFT);
 #else
 	arc_c_min = 2ULL << SPA_MAXBLOCKSHIFT;
 #endif
-
-	/* Set max to 1/2 of all memory */
-	arc_c_max = allmem / 2;
 
 	arc_c = arc_c_max;
 	arc_p = (arc_c >> 1);
