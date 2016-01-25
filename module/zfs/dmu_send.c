@@ -2188,6 +2188,12 @@ receive_read_record(struct receive_arg *ra)
 		err = receive_read_payload_and_next_header(ra,
 		    drrw->drr_length, buf);
 		abd_return_buf_copy(abuf->b_data, buf, drrw->drr_length);
+		/*
+		 * payload is set to buf in the above function, but we've
+		 * return buf back to ABD, so we set it to NULL to make sure
+		 * we don't accidentally use it.
+		 */
+		ra->rrd->payload = NULL;
 		if (err != 0) {
 			dmu_return_arcbuf(abuf);
 			return (err);
