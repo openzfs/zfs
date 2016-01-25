@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -32,6 +33,7 @@
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/dsl_pool.h>
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
@@ -706,8 +708,7 @@ ddt_free(ddt_entry_t *dde)
 		ASSERT(dde->dde_lead_zio[p] == NULL);
 
 	if (dde->dde_repair_data != NULL)
-		zio_buf_free(dde->dde_repair_data,
-		    DDK_GET_PSIZE(&dde->dde_key));
+		abd_free(dde->dde_repair_data, DDK_GET_PSIZE(&dde->dde_key));
 
 	cv_destroy(&dde->dde_cv);
 	kmem_cache_free(ddt_entry_cache, dde);

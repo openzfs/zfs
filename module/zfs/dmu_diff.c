@@ -21,8 +21,10 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
@@ -138,11 +140,11 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		blk = abuf->b_data;
 		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
 			uint64_t dnobj = (zb->zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
-			err = report_dnode(da, dnobj, blk+i);
+			blk = abd_array(abuf->b_data, i, dnode_phys_t);
+			err = report_dnode(da, dnobj, blk);
 			if (err)
 				break;
 		}

@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _SYS_ZIO_CHECKSUM_H
@@ -35,7 +36,7 @@ extern "C" {
 /*
  * Signature for checksum functions.
  */
-typedef void zio_checksum_func_t(const void *, uint64_t, zio_cksum_t *);
+typedef void zio_checksum_func_t(abd_t *, uint64_t, zio_cksum_t *);
 
 /*
  * Information about each checksum function.
@@ -62,10 +63,16 @@ extern zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
 /*
  * Checksum routines.
  */
-extern zio_checksum_func_t zio_checksum_SHA256;
+extern void abd_checksum_SHA256(abd_t *, uint64_t, zio_cksum_t *);
+extern void abd_fletcher_2_native(abd_t *, uint64_t, zio_cksum_t *);
+extern void abd_fletcher_2_byteswap(abd_t *, uint64_t, zio_cksum_t *);
+extern void abd_fletcher_4_native(abd_t *, uint64_t, zio_cksum_t *);
+extern void abd_fletcher_4_byteswap(abd_t *, uint64_t, zio_cksum_t *);
+
+extern void zio_checksum_SHA256(const void *, uint64_t, zio_cksum_t *);
 
 extern void zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
-    void *data, uint64_t size);
+    abd_t *data, uint64_t size);
 extern int zio_checksum_error(zio_t *zio, zio_bad_cksum_t *out);
 extern enum zio_checksum spa_dedup_checksum(spa_t *spa);
 
