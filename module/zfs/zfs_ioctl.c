@@ -3906,7 +3906,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			return (SET_ERROR(EINVAL));
 
 		/* check prop value is enabled in features */
-		feature = zio_checksum_to_feature(intval);
+		feature = zio_checksum_to_feature(intval & ZIO_CHECKSUM_MASK);
 		if (feature == SPA_FEATURE_NONE)
 			break;
 

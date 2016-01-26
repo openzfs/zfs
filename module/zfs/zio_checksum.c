@@ -135,9 +135,15 @@ zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 	    ZCHECKSUM_FLAG_NOPWRITE, "edonr"},
 };
 
+/*
+ * The flag corresponding to the "verify" in dedup=[checksum,]verify
+ * must be cleared first, so callers should use ZIO_CHECKSUM_MASK.
+ */
 spa_feature_t
 zio_checksum_to_feature(enum zio_checksum cksum)
 {
+	VERIFY((cksum & ~ZIO_CHECKSUM_MASK) == 0);
+
 	switch (cksum) {
 	case ZIO_CHECKSUM_SHA512:
 		return (SPA_FEATURE_SHA512);
