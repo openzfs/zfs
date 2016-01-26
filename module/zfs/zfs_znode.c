@@ -764,7 +764,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		links = 2;
 	} else {
 		size = 0;
-		links = 1;
+		links = (flag & IS_TMPFILE) ? 0 : 1;
 	}
 
 	if (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))

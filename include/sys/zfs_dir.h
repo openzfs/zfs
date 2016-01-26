@@ -47,6 +47,7 @@ extern "C" {
 /* mknode flags */
 #define	IS_ROOT_NODE	0x01		/* create a root node */
 #define	IS_XATTR	0x02		/* create an extended attribute node */
+#define	IS_TMPFILE	0x04		/* create a tmpfile */
 
 extern int zfs_dirent_lock(zfs_dirlock_t **, znode_t *, char *, znode_t **,
     int, int *, pathname_t *);

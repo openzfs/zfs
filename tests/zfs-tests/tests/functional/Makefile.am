@@ -50,6 +50,7 @@ SUBDIRS = \
 	snapused \
 	sparse \
 	threadsappend \
+	tmpfile \
 	truncate \
 	upgrade \
 	userquota \
