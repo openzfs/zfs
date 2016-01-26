@@ -1520,13 +1520,13 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr)
 	struct inode	*ip;
 	zfs_sb_t	*zsb = ITOZSB(dip);
 	zilog_t		*zilog;
-	uint64_t	xattr_obj;
+	uint64_t	acl_obj, xattr_obj;
 	uint64_t	xattr_obj_unlinked = 0;
 	uint64_t	obj = 0;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
-	boolean_t	may_delete_now;
-	boolean_t	unlinked;
+	boolean_t	may_delete_now, delete_now = FALSE;
+	boolean_t	unlinked, toobig = FALSE;
 	uint64_t	txtype;
 	pathname_t	*realnmp = NULL;
 #ifdef HAVE_PN_UTILS
@@ -1590,9 +1590,10 @@ top:
 	mutex_exit(&zp->z_lock);
 
 	/*
-	 * We never delete the znode and always place it in the unlinked
-	 * set.  The dentry cache will always hold the last reference and
-	 * is responsible for safely freeing the znode.
+	 * We may delete the znode now, or we may put it in the unlinked set;
+	 * it depends on whether we're the last link, and on whether there are
+	 * other holds on the inode.  So we dmu_tx_hold() the right things to
+	 * allow for either case.
 	 */
 	obj = zp->z_id;
 	tx = dmu_tx_create(zsb->z_os);
@@ -1600,6 +1601,13 @@ top:
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
+	if (may_delete_now) {
+		toobig =
+		    zp->z_size > zp->z_blksz * DMU_MAX_DELETEBLKCNT;
+		/* if the file is too big, only hold_free a token amount */
+		dmu_tx_hold_free(tx, zp->z_id, 0,
+		    (toobig ? DMU_MAX_ACCESS : DMU_OBJECT_END));
+	}
 
 	/* are there any extended attributes? */
 	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zsb),
@@ -1611,16 +1619,18 @@ top:
 		dmu_tx_hold_sa(tx, xzp->z_sa_hdl, B_FALSE);
 	}
 
+	mutex_enter(&zp->z_lock);
+	if ((acl_obj = zfs_external_acl(zp)) != 0 && may_delete_now)
+		dmu_tx_hold_free(tx, acl_obj, 0, DMU_OBJECT_END);
+	mutex_exit(&zp->z_lock);
+
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zsb->z_unlinkedobj, FALSE, NULL);
 
 	/*
-	 * Mark this transaction as typically resulting in a net free of
-	 * space, unless object removal will be delayed indefinitely
-	 * (due to active holds on the vnode due to the file being open).
+	 * Mark this transaction as typically resulting in a net free of space
 	 */
-	if (may_delete_now)
-		dmu_tx_mark_netfree(tx);
+	dmu_tx_mark_netfree(tx);
 
 	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
 	if (error) {
@@ -1662,6 +1672,42 @@ top:
 		mutex_enter(&zp->z_lock);
 		(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zsb),
 		    &xattr_obj_unlinked, sizeof (xattr_obj_unlinked));
+		delete_now = may_delete_now && !toobig &&
+		    atomic_read(&ip->i_count) == 1 && !(zp->z_is_mapped) &&
+		    xattr_obj == xattr_obj_unlinked && zfs_external_acl(zp) ==
+		    acl_obj;
+	}
+
+	if (delete_now) {
+		if (xattr_obj_unlinked) {
+			ASSERT3U(xzp->z_links, ==, 2);
+			mutex_enter(&xzp->z_lock);
+			xzp->z_unlinked = 1;
+			xzp->z_links = 0;
+			error = sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zsb),
+			    &xzp->z_links, sizeof (xzp->z_links), tx);
+			ASSERT3U(error,  ==,  0);
+			mutex_exit(&xzp->z_lock);
+			zfs_unlinked_add(xzp, tx);
+
+			if (zp->z_is_sa)
+				error = sa_remove(zp->z_sa_hdl,
+				    SA_ZPL_XATTR(zsb), tx);
+			else
+				error = sa_update(zp->z_sa_hdl,
+				    SA_ZPL_XATTR(zsb), &null_xattr,
+				    sizeof (uint64_t), tx);
+			ASSERT0(error);
+		}
+		/*
+		 * Add to the unlinked set because a new reference could be
+		 * taken concurrently resulting in a deferred destruction.
+		 */
+		zfs_unlinked_add(zp, tx);
+		mutex_exit(&zp->z_lock);
+		zfs_inode_update(zp);
+		iput(ip);
+	} else if (unlinked) {
 		mutex_exit(&zp->z_lock);
 		zfs_unlinked_add(zp, tx);
 	}
@@ -1682,13 +1728,16 @@ out:
 
 	zfs_dirent_unlock(dl);
 	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
-	if (xzp)
-		zfs_inode_update(xzp);
 
-	iput(ip);
-	if (xzp)
-		iput(ZTOI(xzp));
+	if (!delete_now) {
+		zfs_inode_update(zp);
+		zfs_iput_async(ip);
+	}
+
+	if (xzp) {
+		zfs_inode_update(xzp);
+		zfs_iput_async(ZTOI(xzp));
+	}
 
 	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
