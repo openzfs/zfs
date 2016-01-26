@@ -116,7 +116,7 @@ add_after()
 add_after "$KERNEL_DIR/Kconfig" 'source "arch/$SRCARCH/Kconfig"' 'source "spl/Kconfig"'
 # We must take care to build SPL before ZFS, otherwise the symbols required
 # to link ZFS will not be available.
-sed -i 's#+= kernel/#+= kernel/ spl/#' "$KERNEL_DIR/Makefile"
+sed -i 's~mm/ fs/~mm/ spl/ fs/~' "$KERNEL_DIR/Makefile"
 
 echo >&2
 echo "    $0: done." >&2
