@@ -1509,6 +1509,123 @@ out:
 }
 EXPORT_SYMBOL(zfs_create);
 
+/* ARGSUSED */
+int
+zfs_tmpfile(struct inode *dip, vattr_t *vap, int excl,
+    int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp)
+{
+	znode_t		*zp = NULL, *dzp = ITOZ(dip);
+	zfs_sb_t	*zsb = ITOZSB(dip);
+	objset_t	*os;
+	dmu_tx_t	*tx;
+	int		error;
+	uid_t		uid;
+	gid_t		gid;
+	zfs_acl_ids_t   acl_ids;
+	boolean_t	fuid_dirtied;
+	boolean_t	have_acl = B_FALSE;
+	boolean_t	waited = B_FALSE;
+
+	/*
+	 * If we have an ephemeral id, ACL, or XVATTR then
+	 * make sure file system is at proper version
+	 */
+
+	gid = crgetgid(cr);
+	uid = crgetuid(cr);
+
+	if (zsb->z_use_fuids == B_FALSE &&
+	    (vsecp || IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))
+		return (SET_ERROR(EINVAL));
+
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(dzp);
+	os = zsb->z_os;
+
+	if (vap->va_mask & ATTR_XVATTR) {
+		if ((error = secpolicy_xvattr((xvattr_t *)vap,
+		    crgetuid(cr), cr, vap->va_mode)) != 0) {
+			ZFS_EXIT(zsb);
+			return (error);
+		}
+	}
+
+top:
+	*ipp = NULL;
+
+	/*
+	 * Create a new file object and update the directory
+	 * to reference it.
+	 */
+	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
+		if (have_acl)
+			zfs_acl_ids_free(&acl_ids);
+		goto out;
+	}
+
+	if (!have_acl && (error = zfs_acl_ids_create(dzp, 0, vap,
+	    cr, vsecp, &acl_ids)) != 0)
+		goto out;
+	have_acl = B_TRUE;
+
+	if (zfs_acl_ids_overquota(zsb, &acl_ids)) {
+		zfs_acl_ids_free(&acl_ids);
+		error = SET_ERROR(EDQUOT);
+		goto out;
+	}
+
+	tx = dmu_tx_create(os);
+
+	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
+	    ZFS_SA_BASE_ATTR_SIZE);
+	dmu_tx_hold_zap(tx, zsb->z_unlinkedobj, FALSE, NULL);
+
+	fuid_dirtied = zsb->z_fuid_dirty;
+	if (fuid_dirtied)
+		zfs_fuid_txhold(zsb, tx);
+	if (!zsb->z_use_sa &&
+	    acl_ids.z_aclp->z_acl_bytes > ZFS_ACE_SPACE) {
+		dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
+		    0, acl_ids.z_aclp->z_acl_bytes);
+	}
+	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	if (error) {
+		if (error == ERESTART) {
+			waited = B_TRUE;
+			dmu_tx_wait(tx);
+			dmu_tx_abort(tx);
+			goto top;
+		}
+		zfs_acl_ids_free(&acl_ids);
+		dmu_tx_abort(tx);
+		ZFS_EXIT(zsb);
+		return (error);
+	}
+	zfs_mknode(dzp, vap, tx, cr, IS_TMPFILE, &zp, &acl_ids);
+
+	if (fuid_dirtied)
+		zfs_fuid_sync(zsb, tx);
+
+	/* Add to unlinked set */
+	zp->z_unlinked = 1;
+	zfs_unlinked_add(zp, tx);
+	zfs_acl_ids_free(&acl_ids);
+	dmu_tx_commit(tx);
+out:
+
+	if (error) {
+		if (zp)
+			iput(ZTOI(zp));
+	} else {
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
+		*ipp = ZTOI(zp);
+	}
+
+	ZFS_EXIT(zsb);
+	return (error);
+}
+
 /*
  * Remove an entry from a directory.
  *
@@ -3802,7 +3919,11 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 	uint64_t	parent;
 	uid_t		owner;
 	boolean_t	waited = B_FALSE;
-
+	boolean_t	is_tmpfile = 0;
+	uint64_t	txg;
+#ifdef HAVE_TMPFILE
+	is_tmpfile = (sip->i_nlink == 0 && (sip->i_state & I_LINKABLE));
+#endif
 	ASSERT(S_ISDIR(tdip->i_mode));
 
 	ZFS_ENTER(zsb);
@@ -3885,6 +4006,9 @@ top:
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
 	dmu_tx_hold_zap(tx, dzp->z_id, TRUE, name);
+	if (is_tmpfile)
+		dmu_tx_hold_zap(tx, zsb->z_unlinkedobj, FALSE, NULL);
+
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, dzp);
 	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
@@ -3900,22 +4024,42 @@ top:
 		ZFS_EXIT(zsb);
 		return (error);
 	}
-
+	/* unmark z_unlinked so zfs_link_create will not reject */
+	if (is_tmpfile)
+		szp->z_unlinked = 0;
 	error = zfs_link_create(dl, szp, tx, 0);
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
-		if (flags & FIGNORECASE)
-			txtype |= TX_CI;
-		zfs_log_link(zilog, tx, txtype, dzp, szp, name);
+		/*
+		 * tmpfile is created to be in z_unlinkedobj, so remove it.
+		 * Also, we don't log in ZIL, be cause all previous file
+		 * operation on the tmpfile are ignored by ZIL. Instead we
+		 * always wait for txg to sync to make sure all previous
+		 * operation are sync safe.
+		 */
+		if (is_tmpfile) {
+			VERIFY(zap_remove_int(zsb->z_os, zsb->z_unlinkedobj,
+			    szp->z_id, tx) == 0);
+		} else {
+			if (flags & FIGNORECASE)
+				txtype |= TX_CI;
+			zfs_log_link(zilog, tx, txtype, dzp, szp, name);
+		}
+	} else if (is_tmpfile) {
+		/* restore z_unlinked since when linking failed */
+		szp->z_unlinked = 1;
 	}
-
+	txg = dmu_tx_get_txg(tx);
 	dmu_tx_commit(tx);
 
 	zfs_dirent_unlock(dl);
 
-	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
+	if (!is_tmpfile && zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
+
+	if (is_tmpfile)
+		txg_wait_synced(dmu_objset_pool(zsb->z_os), txg);
 
 	zfs_inode_update(dzp);
 	zfs_inode_update(szp);
