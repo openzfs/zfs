@@ -121,8 +121,7 @@ extern void vdev_queue_io_done(zio_t *zio);
 
 extern void vdev_config_dirty(vdev_t *vd);
 extern void vdev_config_clean(vdev_t *vd);
-extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg,
-    boolean_t);
+extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg);
 
 extern void vdev_state_dirty(vdev_t *vd);
 extern void vdev_state_clean(vdev_t *vd);
