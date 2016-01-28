@@ -221,6 +221,7 @@ task_expire(unsigned long data)
 		return;
 	}
 
+	t->tqent_birth = jiffies;
 	/*
 	 * The priority list must be maintained in strict task id order
 	 * from lowest to highest for lowest_id to be easily calculable.
@@ -583,6 +584,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	t->tqent_timer.data = 0;
 	t->tqent_timer.function = NULL;
 	t->tqent_timer.expires = 0;
+	t->tqent_birth = jiffies;
 
 	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
 
@@ -682,6 +684,7 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	t->tqent_func = func;
 	t->tqent_arg = arg;
 	t->tqent_taskq = tq;
+	t->tqent_birth = jiffies;
 
 	spin_unlock(&t->tqent_lock);
 
@@ -1133,6 +1136,63 @@ taskq_destroy(taskq_t *tq)
 	kmem_free(tq, sizeof (taskq_t));
 }
 EXPORT_SYMBOL(taskq_destroy);
+
+
+static unsigned int spl_taskq_kick = 0;
+
+/*
+ * 2.6.36 API Change
+ * module_param_cb is introduced to take kernel_param_ops and
+ * module_param_call is marked as obsolete. Also set and get operations
+ * were changed to take a 'const struct kernel_param *'.
+ */
+static int
+#ifdef module_param_cb
+param_set_taskq_kick(const char *val, const struct kernel_param *kp)
+#else
+param_set_taskq_kick(const char *val, struct kernel_param *kp)
+#endif
+{
+	int ret;
+	taskq_t *tq;
+	taskq_ent_t *t;
+	unsigned long flags;
+
+	ret = param_set_uint(val, kp);
+	if (ret < 0 || !spl_taskq_kick)
+		return (ret);
+	/* reset value */
+	spl_taskq_kick = 0;
+
+	down_read(&tq_list_sem);
+	list_for_each_entry(tq, &tq_list, tq_taskqs) {
+		spin_lock_irqsave_nested(&tq->tq_lock, flags,
+		    tq->tq_lock_class);
+		/* Check if the first pending is older than 5 seconds */
+		t = taskq_next_ent(tq);
+		if (t && time_after(jiffies, t->tqent_birth + 5*HZ)) {
+			(void) taskq_thread_spawn(tq);
+			printk(KERN_INFO "spl: Kicked taskq %s/%d\n",
+			    tq->tq_name, tq->tq_instance);
+		}
+		spin_unlock_irqrestore(&tq->tq_lock, flags);
+	}
+	up_read(&tq_list_sem);
+	return (ret);
+}
+
+#ifdef module_param_cb
+static const struct kernel_param_ops param_ops_taskq_kick = {
+        .set = param_set_taskq_kick,
+        .get = param_get_uint,
+};
+module_param_cb(spl_taskq_kick, &param_ops_taskq_kick, &spl_taskq_kick, 0644);
+#else
+module_param_call(spl_taskq_kick, param_set_taskq_kick, param_get_uint,
+    &spl_taskq_kick, 0644);
+#endif
+MODULE_PARM_DESC(spl_taskq_kick,
+    "Write nonzero to kick stuck taskqs to spawn more threads");
 
 int
 spl_taskq_init(void)

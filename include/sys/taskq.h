@@ -105,6 +105,7 @@ typedef struct taskq_ent {
 	void			*tqent_arg;
 	taskq_t			*tqent_taskq;
 	uintptr_t		tqent_flags;
+	unsigned long		tqent_birth;
 } taskq_ent_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1
