@@ -233,8 +233,8 @@ zpool_feature_init(void)
 
 	{
 	static const spa_feature_t filesystem_limits_deps[] = {
-	    SPA_FEATURE_EXTENSIBLE_DATASET,
-	    SPA_FEATURE_NONE
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
 	};
 	zfeature_register(SPA_FEATURE_FS_SS_LIMIT,
 	    "com.joyent:filesystem_limits", "filesystem_limits",
