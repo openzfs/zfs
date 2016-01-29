@@ -353,18 +353,10 @@ zio_subblock(zio_t *zio, abd_t *data, uint64_t size)
 static void
 zio_decompress(zio_t *zio, abd_t *data, uint64_t size)
 {
-	char *buf1, *buf2;
-	if (zio->io_error == 0) {
-		buf1 = abd_borrow_buf_copy(zio->io_data, zio->io_size);
-		buf2 = abd_borrow_buf(data, size);
-
-		if (zio_decompress_data(BP_GET_COMPRESS(zio->io_bp),
-		    buf1, buf2, zio->io_size, size) != 0)
-			zio->io_error = SET_ERROR(EIO);
-
-		abd_return_buf_copy(data, buf2, size);
-		abd_return_buf(zio->io_data, buf1, zio->io_size);
-	}
+	if (zio->io_error == 0 &&
+	    zio_decompress_abd(BP_GET_COMPRESS(zio->io_bp),
+	    zio->io_data, data, zio->io_size, size) != 0)
+		zio->io_error = SET_ERROR(EIO);
 }
 
 /*
@@ -1225,7 +1217,6 @@ zio_write_bp_init(zio_t *zio)
 	}
 
 	if (compress != ZIO_COMPRESS_OFF) {
-		char *cbuf, *dbuf;
 		abd_t *cdata;
 
 		if (ABD_IS_LINEAR(zio->io_data))
@@ -1233,25 +1224,21 @@ zio_write_bp_init(zio_t *zio)
 		else
 			cdata = abd_alloc_scatter(lsize);
 
-		cbuf = abd_borrow_buf(cdata, lsize);
-
-		dbuf = abd_borrow_buf_copy(zio->io_data, lsize);
-		psize = zio_compress_data(compress, dbuf, cbuf, lsize);
-		abd_return_buf(zio->io_data, dbuf, lsize);
+		psize = zio_compress_abd(compress, zio->io_data, cdata, lsize);
 
 		if (psize == 0 || psize == lsize) {
 			compress = ZIO_COMPRESS_OFF;
-			abd_return_buf(cdata, cbuf, lsize);
 			abd_free(cdata, lsize);
 		} else if (!zp->zp_dedup && psize <= BPE_PAYLOAD_SIZE &&
 		    zp->zp_level == 0 && !DMU_OT_HAS_FILL(zp->zp_type) &&
 		    spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA)) {
+			void *cbuf = abd_borrow_buf_copy(cdata, psize);
 			encode_embedded_bp_compressed(bp,
 			    cbuf, compress, lsize, psize);
+			abd_return_buf(cdata, cbuf, psize);
 			BPE_SET_ETYPE(bp, BP_EMBEDDED_TYPE_DATA);
 			BP_SET_TYPE(bp, zio->io_prop.zp_type);
 			BP_SET_LEVEL(bp, zio->io_prop.zp_level);
-			abd_return_buf(cdata, cbuf, lsize);
 			abd_free(cdata, lsize);
 			bp->blk_birth = zio->io_txg;
 			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
@@ -1275,12 +1262,10 @@ zio_write_bp_init(zio_t *zio)
 			    1ULL << spa->spa_min_ashift);
 			if (rounded >= lsize) {
 				compress = ZIO_COMPRESS_OFF;
-				abd_return_buf(cdata, cbuf, lsize);
 				abd_free(cdata, lsize);
 				psize = lsize;
 			} else {
-				bzero((char *)cbuf + psize, rounded - psize);
-				abd_return_buf_copy(cdata, cbuf, lsize);
+				abd_zero_off(cdata, rounded - psize, psize);
 				psize = rounded;
 				zio_push_transform(zio, cdata,
 				    psize, lsize, NULL);
