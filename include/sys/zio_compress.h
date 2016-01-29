@@ -28,6 +28,8 @@
 #ifndef _SYS_ZIO_COMPRESS_H
 #define	_SYS_ZIO_COMPRESS_H
 
+#include <sys/abd.h>
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -103,6 +105,10 @@ extern int lz4_decompress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
 extern size_t zio_compress_data(enum zio_compress c, void *src, void *dst,
     size_t s_len);
 extern int zio_decompress_data(enum zio_compress c, void *src, void *dst,
+    size_t s_len, size_t d_len);
+extern size_t zio_compress_abd(enum zio_compress c, abd_t *sabd, abd_t *dabd,
+    size_t s_len);
+extern int zio_decompress_abd(enum zio_compress c, abd_t *sabd, abd_t *dabd,
     size_t s_len, size_t d_len);
 
 #ifdef	__cplusplus

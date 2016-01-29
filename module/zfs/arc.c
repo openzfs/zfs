@@ -1416,17 +1416,11 @@ arc_cksum_is_equal(arc_buf_hdr_t *hdr, zio_t *zio)
 		uint64_t lsize;
 		uint64_t csize;
 		abd_t *cabd;
-		void *ddata, *cdata;
 		ASSERT3U(HDR_GET_COMPRESS(hdr), ==, ZIO_COMPRESS_OFF);
 
-		lsize = HDR_GET_LSIZE(hdr);
-
 		cabd = abd_alloc_scatter(HDR_GET_PSIZE(hdr));
-		cdata = abd_borrow_buf(cabd, HDR_GET_PSIZE(hdr));
-		ddata = abd_borrow_buf_copy(zio->io_data, lsize);
-		csize = zio_compress_data(compress, ddata, cdata, lsize);
-		abd_return_buf(zio->io_data, ddata, lsize);
-		abd_return_buf_copy(cabd, cdata, HDR_GET_PSIZE(hdr));
+		lsize = HDR_GET_LSIZE(hdr);
+		csize = zio_compress_abd(compress, zio->io_data, cabd, lsize);
 		ASSERT3U(csize, <=, HDR_GET_PSIZE(hdr));
 		if (csize < HDR_GET_PSIZE(hdr)) {
 			/*
@@ -1803,19 +1797,9 @@ arc_buf_fill(arc_buf_t *buf, boolean_t compressed)
 			ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, !=, NULL);
 			return (0);
 		} else {
-			int error;
-			void *ddata, *cdata;
-			cdata = abd_borrow_buf_copy(hdr->b_l1hdr.b_pdata,
-			    HDR_GET_PSIZE(hdr));
-			ddata = abd_borrow_buf(buf->b_data,
-			    HDR_GET_LSIZE(hdr));
-			error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
-			    cdata, ddata,
+			int error = zio_decompress_abd(HDR_GET_COMPRESS(hdr),
+			    hdr->b_l1hdr.b_pdata, buf->b_data,
 			    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
-			abd_return_buf_copy(buf->b_data, ddata,
-			    HDR_GET_LSIZE(hdr));
-			abd_return_buf(hdr->b_l1hdr.b_pdata, cdata,
-			    HDR_GET_PSIZE(hdr));
 
 			/*
 			 * Absent hardware errors or software bugs, this should
