@@ -6712,7 +6712,6 @@ static boolean_t
 l2arc_compress_buf(arc_buf_hdr_t *hdr)
 {
 	abd_t *cdata;
-	void *ddata;
 	size_t csize, len, rounded;
 	l2arc_buf_hdr_t *l2hdr;
 
@@ -6727,10 +6726,8 @@ l2arc_compress_buf(arc_buf_hdr_t *hdr)
 	len = l2hdr->b_asize;
 	cdata = abd_alloc_linear(len);
 	ASSERT3P(cdata, !=, NULL);
-	ddata = abd_borrow_buf_copy(hdr->b_l1hdr.b_tmp_cdata, l2hdr->b_asize);
-	csize = zio_compress_data(ZIO_COMPRESS_LZ4, ddata,
-	    ABD_TO_BUF(cdata), l2hdr->b_asize);
-	abd_return_buf(hdr->b_l1hdr.b_tmp_cdata, ddata, l2hdr->b_asize);
+	csize = zio_compress_abd(ZIO_COMPRESS_LZ4, hdr->b_l1hdr.b_tmp_cdata,
+	    cdata, l2hdr->b_asize);
 
 	rounded = P2ROUNDUP(csize, (size_t)SPA_MINBLOCKSIZE);
 	if (rounded > csize) {
@@ -6782,7 +6779,7 @@ static void
 l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 {
 	uint64_t csize;
-	void *cdata;
+	abd_t *cdata;
 
 	ASSERT(L2ARC_IS_VALID_COMPRESS(c));
 
@@ -6805,7 +6802,6 @@ l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 		abd_zero(hdr->b_l1hdr.b_buf->b_data, hdr->b_size);
 		zio->io_data = zio->io_orig_data = hdr->b_l1hdr.b_buf->b_data;
 	} else {
-		void *ddata;
 		ASSERT(zio->io_data != NULL);
 		/*
 		 * We copy the compressed data from the start of the arc buffer
@@ -6818,17 +6814,12 @@ l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 		 * which is likely to be much larger).
 		 */
 		csize = zio->io_size;
-		cdata = zio_data_buf_alloc(csize);
-
-		abd_copy_to_buf(cdata, zio->io_data, csize);
-		ddata = abd_borrow_buf(zio->io_data, hdr->b_size);
-
-		if (zio_decompress_data(c, cdata, ddata, csize,
+		cdata = abd_alloc_linear(csize);
+		abd_copy(cdata, zio->io_data, csize);
+		if (zio_decompress_abd(c, cdata, zio->io_data, csize,
 		    hdr->b_size) != 0)
 			zio->io_error = EIO;
-
-		abd_return_buf_copy(zio->io_data, ddata, hdr->b_size);
-		zio_data_buf_free(cdata, csize);
+		abd_free(cdata, csize);
 	}
 
 	/* Restore the expected uncompressed IO size. */
