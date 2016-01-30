@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
- * Copyright 2015 Joyent, Inc.
+ * Copyright 2016 Joyent, Inc.
  */
 
 /*
@@ -130,11 +130,14 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 static void
 stream_bytes(FILE *fp, const char *string)
 {
-	while (*string) {
-		if (*string > ' ' && *string != '\\' && *string < '\177')
-			(void) fprintf(fp, "%c", *string++);
-		else
-			(void) fprintf(fp, "\\%04o", (unsigned char)*string++);
+	char c;
+
+	while ((c = *string++) != '\0') {
+		if (c > ' ' && c != '\\' && c < '\177') {
+			(void) fprintf(fp, "%c", c);
+		} else {
+			(void) fprintf(fp, "\\%04o", (uint8_t)c);
+		}
 	}
 }
 
