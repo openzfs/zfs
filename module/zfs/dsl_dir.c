@@ -24,8 +24,10 @@
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2014 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
@@ -229,7 +231,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			    &origin_bonus);
 			if (err != 0)
 				goto errout;
-			origin_phys = origin_bonus->db_data;
+			origin_phys = ABD_TO_BUF(origin_bonus->db_data);
 			dd->dd_origin_txg =
 			    origin_phys->ds_creation_txg;
 			dmu_buf_rele(origin_bonus, FTAG);
@@ -897,7 +899,7 @@ dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds, const char *name,
 	}
 	VERIFY(0 == dmu_bonus_hold(mos, ddobj, FTAG, &dbuf));
 	dmu_buf_will_dirty(dbuf, tx);
-	ddphys = dbuf->db_data;
+	ddphys = ABD_TO_BUF(dbuf->db_data);
 
 	ddphys->dd_creation_time = gethrestime_sec();
 	if (pds) {
