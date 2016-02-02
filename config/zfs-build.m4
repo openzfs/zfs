@@ -140,7 +140,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1" --define "$(DEBUG_DMU_TX) 1"'
-	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)" $(DEFINE_INITRAMFS)'
+	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)" $(DEFINE_INITRAMFS) $(DEFINE_DRACUT)'
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)" --define "require_spldir $(SPL)" --define "require_splobj $(SPL_OBJ)" --define "ksrc $(LINUX)" --define "kobj $(LINUX_OBJ)"'
 	RPM_DEFINE_DKMS=
 
@@ -334,6 +334,16 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		AC_MSG_RESULT([no])
 	fi
 	AC_SUBST(DEFINE_INITRAMFS)
+
+	AC_MSG_CHECKING([whether dracut is available])
+	if test -d /usr/lib/dracut ; then
+		DEFINE_DRACUT='--define "_dracut 1"'
+		AC_MSG_RESULT([yes])
+	else
+		DEFINE_DRACUT=''
+		AC_MSG_RESULT([no])
+	fi
+	AC_SUBST(DEFINE_DRACUT)
 ])
 
 dnl #
