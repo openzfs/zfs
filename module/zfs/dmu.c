@@ -876,6 +876,49 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 }
 
 void
+dmu_write_abd(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    abd_t *sabd, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs, i;
+	uint64_t soff = 0;
+
+	if (size == 0)
+		return;
+
+	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp));
+
+	for (i = 0; i < numbufs; i++) {
+		uint64_t tocpy;
+		int64_t dboff;
+		dmu_buf_t *db = dbp[i];
+
+		ASSERT(size > 0);
+
+		dboff = offset - db->db_offset;
+		tocpy = MIN(db->db_size - dboff, size);
+
+		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
+
+		if (tocpy == db->db_size)
+			dmu_buf_will_fill(db, tx);
+		else
+			dmu_buf_will_dirty(db, tx);
+
+		abd_copy_off(db->db_data, sabd, tocpy, dboff, soff);
+
+		if (tocpy == db->db_size)
+			dmu_buf_fill_done(db, tx);
+
+		offset += tocpy;
+		size -= tocpy;
+		soff += tocpy;
+	}
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+}
+
+void
 dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     dmu_tx_t *tx)
 {
@@ -1335,7 +1378,6 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 	} else {
 		objset_t *os;
 		uint64_t object;
-		void *tmp_buf;
 
 		DB_DNODE_ENTER(dbuf);
 		dn = DB_DNODE(dbuf);
@@ -1344,13 +1386,7 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 		DB_DNODE_EXIT(dbuf);
 
 		dbuf_rele(db, FTAG);
-
-		tmp_buf = abd_borrow_buf_copy(buf->b_data, blksz);
-
-		dmu_write(os, object, offset, blksz, tmp_buf, tx);
-
-		abd_return_buf(buf->b_data, tmp_buf, blksz);
-
+		dmu_write_abd(os, object, offset, blksz, buf->b_data, tx);
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
