@@ -3357,8 +3357,10 @@ zdb_read_block(char *thing, spa_t *spa)
 				continue;
 
 			p = &flagstr[i + 1];
-			if (bit == ZDB_FLAG_PRINT_BLKPTR)
+			if (bit == ZDB_FLAG_PRINT_BLKPTR) {
 				blkptr_offset = strtoull(p, &p, 16);
+				i = p - &flagstr[i + 1];
+			}
 			if (*p != ':' && *p != '\0') {
 				(void) printf("***Invalid flag arg: '%s'\n", s);
 				free(dup);
