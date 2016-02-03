@@ -40,6 +40,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/dsl_deleg.h>
 #include <sys/dmu_impl.h>
+#include <sys/zvol.h>
 
 typedef struct dmu_snapshots_destroy_arg {
 	nvlist_t *dsda_snaps;
@@ -243,9 +244,6 @@ dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 void
 dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 {
-#ifdef ZFS_DEBUG
-	int err;
-#endif
 	spa_feature_t f;
 	int after_branch_point = FALSE;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
@@ -441,6 +439,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 #ifdef ZFS_DEBUG
 	{
 		uint64_t val;
+		int err;
 
 		err = dsl_dataset_snap_lookup(ds_head,
 		    ds->ds_snapname, &val);
@@ -490,6 +489,7 @@ dsl_destroy_snapshot_sync(void *arg, dmu_tx_t *tx)
 		VERIFY0(dsl_dataset_hold(dp, nvpair_name(pair), FTAG, &ds));
 
 		dsl_destroy_snapshot_sync_impl(ds, dsda->dsda_defer, tx);
+		zvol_remove_minors(dp->dp_spa, nvpair_name(pair), B_TRUE);
 		dsl_dataset_rele(ds, FTAG);
 	}
 }
@@ -889,6 +889,7 @@ dsl_destroy_head_sync(void *arg, dmu_tx_t *tx)
 
 	VERIFY0(dsl_dataset_hold(dp, ddha->ddha_name, FTAG, &ds));
 	dsl_destroy_head_sync_impl(ds, tx);
+	zvol_remove_minors(dp->dp_spa, ddha->ddha_name, B_TRUE);
 	dsl_dataset_rele(ds, FTAG);
 }
 
