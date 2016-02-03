@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /*
@@ -111,7 +112,7 @@ zap_leaf_byteswap(zap_leaf_phys_t *buf, int size)
 	zap_leaf_t l;
 	dmu_buf_t l_dbuf;
 
-	l_dbuf.db_data = buf;
+	l_dbuf.db_data = abd_get_from_buf(buf, size);
 	l.l_bs = highbit64(size) - 1;
 	l.l_dbuf = &l_dbuf;
 
@@ -158,6 +159,7 @@ zap_leaf_byteswap(zap_leaf_phys_t *buf, int size)
 			    lc->l_free.lf_type);
 		}
 	}
+	abd_put(l_dbuf.db_data);
 }
 
 void

@@ -24,6 +24,7 @@
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013, 2014, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /*
@@ -61,6 +62,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/fs/zfs.h>
 #include <sys/arc.h>
+#include <sys/abd.h>
 #include <sys/callb.h>
 #include <sys/systeminfo.h>
 #include <sys/spa_boot.h>
@@ -1136,6 +1138,9 @@ spa_activate(spa_t *spa, int mode)
 	avl_create(&spa->spa_errlist_last,
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
 	    offsetof(spa_error_entry_t, se_avl));
+
+	spa->spa_zvol_taskq = taskq_create("z_zvol", 1, defclsyspri,
+	    1, INT_MAX, 0);
 }
 
 /*
@@ -1153,6 +1158,10 @@ spa_deactivate(spa_t *spa)
 	ASSERT(spa->spa_state != POOL_STATE_UNINITIALIZED);
 
 	spa_evicting_os_wait(spa);
+
+	zvol_remove_minors(spa, spa_name(spa), B_FALSE);
+	taskq_wait(spa->spa_zvol_taskq);
+	taskq_destroy(spa->spa_zvol_taskq);
 
 	txg_list_destroy(&spa->spa_vdev_txg_list);
 
@@ -1617,7 +1626,7 @@ load_nvlist(spa_t *spa, uint64_t obj, nvlist_t **value)
 	if (error)
 		return (error);
 
-	nvsize = *(uint64_t *)db->db_data;
+	nvsize = *(uint64_t *)ABD_TO_BUF(db->db_data);
 	dmu_buf_rele(db, FTAG);
 
 	packed = vmem_alloc(nvsize, KM_SLEEP);
@@ -1901,7 +1910,7 @@ spa_load_verify_done(zio_t *zio)
 		else
 			atomic_inc_64(&sle->sle_data_count);
 	}
-	zio_data_buf_free(zio->io_data, zio->io_size);
+	abd_free(zio->io_data, zio->io_size);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	spa->spa_scrub_inflight--;
@@ -1924,7 +1933,7 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 {
 	zio_t *rio;
 	size_t size;
-	void *data;
+	abd_t *data;
 
 	if (bp == NULL || BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
 		return (0);
@@ -1940,7 +1949,10 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	rio = arg;
 	size = BP_GET_PSIZE(bp);
-	data = zio_data_buf_alloc(size);
+	if (ARC_BUFA_IS_SCATTER(BP_GET_BUFA_TYPE(bp)))
+		data = abd_alloc_scatter(size);
+	else
+		data = abd_alloc_linear(size);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	while (spa->spa_scrub_inflight >= spa_load_verify_maxinflight)
@@ -3088,10 +3100,8 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 		mutex_exit(&spa_namespace_lock);
 	}
 
-#ifdef _KERNEL
 	if (firstopen)
-		zvol_create_minors(spa->spa_name);
-#endif
+		zvol_create_minors(spa, spa_name(spa), B_TRUE);
 
 	*spapp = spa;
 
@@ -4211,10 +4221,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	mutex_exit(&spa_namespace_lock);
 	spa_history_log_version(spa, "import");
-
-#ifdef _KERNEL
-	zvol_create_minors(pool);
-#endif
+	zvol_create_minors(spa, pool, B_TRUE);
 
 	return (0);
 }
@@ -6036,7 +6043,7 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 
 	VERIFY(0 == dmu_bonus_hold(spa->spa_meta_objset, obj, FTAG, &db));
 	dmu_buf_will_dirty(db, tx);
-	*(uint64_t *)db->db_data = nvsize;
+	*(uint64_t *)ABD_TO_BUF(db->db_data) = nvsize;
 	dmu_buf_rele(db, FTAG);
 }
 

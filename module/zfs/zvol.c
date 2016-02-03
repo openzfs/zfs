@@ -41,6 +41,7 @@
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_prop.h>
+#include <sys/dsl_dir.h>
 #include <sys/zap.h>
 #include <sys/zfeature.h>
 #include <sys/zil_impl.h>
@@ -48,6 +49,7 @@
 #include <sys/zio.h>
 #include <sys/zfs_rlock.h>
 #include <sys/zfs_znode.h>
+#include <sys/spa_impl.h>
 #include <sys/zvol.h>
 #include <linux/blkdev_compat.h>
 
@@ -79,6 +81,20 @@ typedef struct zvol_state {
 	struct request_queue	*zv_queue;	/* request queue */
 	list_node_t		zv_next;	/* next zvol_state_t linkage */
 } zvol_state_t;
+
+typedef enum {
+	ZVOL_ASYNC_CREATE_MINORS,
+	ZVOL_ASYNC_REMOVE_MINORS,
+	ZVOL_ASYNC_RENAME_MINORS,
+	ZVOL_ASYNC_MAX
+} zvol_async_op_t;
+
+typedef struct {
+	zvol_async_op_t op;
+	char pool[MAXNAMELEN];
+	char name1[MAXNAMELEN];
+	char name2[MAXNAMELEN];
+} zvol_task_t;
 
 #define	ZVOL_RDONLY	0x1
 
@@ -971,6 +987,7 @@ zvol_first_open(zvol_state_t *zv)
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
 	if (error) {
 		dmu_objset_disown(os, zvol_tag);
+		zv->zv_objset = NULL;
 		goto out_mutex;
 	}
 
@@ -978,6 +995,7 @@ zvol_first_open(zvol_state_t *zv)
 	error = dmu_bonus_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dbuf);
 	if (error) {
 		dmu_objset_disown(os, zvol_tag);
+		zv->zv_objset = NULL;
 		goto out_mutex;
 	}
 
@@ -1030,7 +1048,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 
 	/*
 	 * If the caller is already holding the mutex do not take it
-	 * again, this will happen as part of zvol_create_minor().
+	 * again, this will happen as part of zvol_create_minor_impl().
 	 * Once add_disk() is called the device is live and the kernel
 	 * will attempt to open it to read the partition information.
 	 */
@@ -1283,6 +1301,11 @@ zvol_alloc(dev_t dev, const char *name)
 	if (zv->zv_disk == NULL)
 		goto out_queue;
 
+	/*
+	 * NOTE: Linux read-ahead is disabled in favor of zfs read-ahead.
+	 */
+	zv->zv_queue->backing_dev_info.ra_pages = 0;
+
 	zv->zv_queue->queuedata = zv;
 	zv->zv_dev = dev;
 	zv->zv_open_count = 0;
@@ -1327,31 +1350,13 @@ zvol_free(zvol_state_t *zv)
 	kmem_free(zv, sizeof (zvol_state_t));
 }
 
+/*
+ * Create a block device minor node and setup the linkage between it
+ * and the specified volume.  Once this function returns the block
+ * device is live and ready for use.
+ */
 static int
-__zvol_snapdev_hidden(const char *name)
-{
-	uint64_t snapdev;
-	char *parent;
-	char *atp;
-	int error = 0;
-
-	parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
-	(void) strlcpy(parent, name, MAXPATHLEN);
-
-	if ((atp = strrchr(parent, '@')) != NULL) {
-		*atp = '\0';
-		error = dsl_prop_get_integer(parent, "snapdev", &snapdev, NULL);
-		if ((error == 0) && (snapdev == ZFS_SNAPDEV_HIDDEN))
-			error = SET_ERROR(ENODEV);
-	}
-
-	kmem_free(parent, MAXPATHLEN);
-
-	return (SET_ERROR(error));
-}
-
-static int
-__zvol_create_minor(const char *name, boolean_t ignore_snapdev)
+zvol_create_minor_impl(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -1361,18 +1366,12 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 	unsigned minor = 0;
 	int error = 0;
 
-	ASSERT(MUTEX_HELD(&zvol_state_lock));
+	mutex_enter(&zvol_state_lock);
 
 	zv = zvol_find_by_name(name);
 	if (zv) {
 		error = SET_ERROR(EEXIST);
 		goto out;
-	}
-
-	if (ignore_snapdev == B_FALSE) {
-		error = __zvol_snapdev_hidden(name);
-		if (error)
-			goto out;
 	}
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
@@ -1456,56 +1455,6 @@ out:
 		add_disk(zv->zv_disk);
 	}
 
-	return (SET_ERROR(error));
-}
-
-/*
- * Create a block device minor node and setup the linkage between it
- * and the specified volume.  Once this function returns the block
- * device is live and ready for use.
- */
-int
-zvol_create_minor(const char *name)
-{
-	int error;
-
-	mutex_enter(&zvol_state_lock);
-	error = __zvol_create_minor(name, B_FALSE);
-	mutex_exit(&zvol_state_lock);
-
-	return (SET_ERROR(error));
-}
-
-static int
-__zvol_remove_minor(const char *name)
-{
-	zvol_state_t *zv;
-
-	ASSERT(MUTEX_HELD(&zvol_state_lock));
-
-	zv = zvol_find_by_name(name);
-	if (zv == NULL)
-		return (SET_ERROR(ENXIO));
-
-	if (zv->zv_open_count > 0)
-		return (SET_ERROR(EBUSY));
-
-	zvol_remove(zv);
-	zvol_free(zv);
-
-	return (0);
-}
-
-/*
- * Remove a block device minor node for the specified volume.
- */
-int
-zvol_remove_minor(const char *name)
-{
-	int error;
-
-	mutex_enter(&zvol_state_lock);
-	error = __zvol_remove_minor(name);
 	mutex_exit(&zvol_state_lock);
 
 	return (SET_ERROR(error));
@@ -1515,7 +1464,7 @@ zvol_remove_minor(const char *name)
  * Rename a block device minor mode for the specified volume.
  */
 static void
-__zvol_rename_minor(zvol_state_t *zv, const char *newname)
+zvol_rename_minor(zvol_state_t *zv, const char *newname)
 {
 	int readonly = get_disk_ro(zv->zv_disk);
 
@@ -1535,25 +1484,116 @@ __zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	set_disk_ro(zv->zv_disk, readonly);
 }
 
+
+/*
+ * Mask errors to continue dmu_objset_find() traversal
+ */
 static int
-zvol_create_minors_cb(const char *dsname, void *arg)
+zvol_create_snap_minor_cb(const char *dsname, void *arg)
 {
-	(void) zvol_create_minor(dsname);
+	const char *name = (const char *)arg;
+
+	/* skip the designated dataset */
+	if (name && strcmp(dsname, name) == 0)
+		return (0);
+
+	/* at this point, the dsname should name a snapshot */
+	if (strchr(dsname, '@') == 0) {
+		dprintf("zvol_create_snap_minor_cb(): "
+			"%s is not a shapshot name\n", dsname);
+	} else {
+		(void) zvol_create_minor_impl(dsname);
+	}
 
 	return (0);
 }
 
 /*
- * Create minors for specified dataset including children and snapshots.
+ * Mask errors to continue dmu_objset_find() traversal
  */
-int
-zvol_create_minors(const char *name)
+static int
+zvol_create_minors_cb(const char *dsname, void *arg)
+{
+	uint64_t snapdev;
+	int error;
+
+	error = dsl_prop_get_integer(dsname, "snapdev", &snapdev, NULL);
+	if (error)
+		return (0);
+
+	/*
+	 * Given the name and the 'snapdev' property, create device minor nodes
+	 * with the linkages to zvols/snapshots as needed.
+	 * The name represents a zvol, so create a minor node for the zvol, then
+	 * check if its snapshots are 'visible', and if so, iterate over the
+	 * snapshots and create device minor nodes for those. Note, that we
+	 * know that this is a zvol, having just obtained the 'snapdev'
+	 * zvol property without errors.
+	 */
+	if (strchr(dsname, '@') == 0) {
+		/* create minor for the 'dsname' explicitly */
+		error = zvol_create_minor_impl(dsname);
+		if (error == 0 && snapdev == ZFS_SNAPDEV_VISIBLE) {
+			/*
+			 * traverse snapshots only, do not traverse children,
+			 * and skip the 'dsname'
+			 */
+			error = dmu_objset_find((char *)dsname,
+			    zvol_create_snap_minor_cb, (void *)dsname,
+			    DS_FIND_SNAPSHOTS);
+		}
+	} else {
+		dprintf("zvol_create_minors_cb(): %s is not a zvol name\n",
+			dsname);
+	}
+
+	return (0);
+}
+
+/*
+ * Create minors for the specified dataset, including children and snapshots.
+ * Pay attention to the 'snapdev' property and iterate over the snapshots
+ * only if they are 'visible'. This approach allows one to assure that the
+ * snapshot metadata is read from disk only if it is needed.
+ *
+ * The name can represent a dataset to be recursively scanned for zvols and
+ * their snapshots, or a single zvol snapshot. If the name represents a
+ * dataset, the scan is performed in two nested stages:
+ * - scan the dataset for zvols, and
+ * - for each zvol, create a minor node, then check if the zvol's snapshots
+ *   are 'visible', and only then iterate over the snapshots if needed
+ *
+ * If the name represents a snapshot, a check is perfromed if the snapshot is
+ * 'visible' (which also verifies that the parent is a zvol), and if so,
+ * a minor node for that snapshot is created.
+ */
+static int
+zvol_create_minors_impl(const char *name)
 {
 	int error = 0;
+	char *atp, *parent;
 
-	if (!zvol_inhibit_dev)
-		error = dmu_objset_find((char *)name, zvol_create_minors_cb,
-		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	if (zvol_inhibit_dev)
+		return (0);
+
+	parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+	(void) strlcpy(parent, name, MAXPATHLEN);
+
+	if ((atp = strrchr(parent, '@')) != NULL) {
+		uint64_t snapdev;
+
+		*atp = '\0';
+		error = dsl_prop_get_integer(parent, "snapdev",
+		    &snapdev, NULL);
+
+		if (error == 0 && snapdev == ZFS_SNAPDEV_VISIBLE)
+			error = zvol_create_minor_impl(name);
+	} else {
+		error = dmu_objset_find(parent, zvol_create_minors_cb,
+		    NULL, DS_FIND_CHILDREN);
+	}
+
+	kmem_free(parent, MAXPATHLEN);
 
 	return (SET_ERROR(error));
 }
@@ -1561,8 +1601,8 @@ zvol_create_minors(const char *name)
 /*
  * Remove minors for specified dataset including children and snapshots.
  */
-void
-zvol_remove_minors(const char *name)
+static void
+zvol_remove_minors_impl(const char *name)
 {
 	zvol_state_t *zv, *zv_next;
 	int namelen = ((name) ? strlen(name) : 0);
@@ -1577,7 +1617,12 @@ zvol_remove_minors(const char *name)
 
 		if (name == NULL || strcmp(zv->zv_name, name) == 0 ||
 		    (strncmp(zv->zv_name, name, namelen) == 0 &&
-		    zv->zv_name[namelen] == '/')) {
+		    (zv->zv_name[namelen] == '/' ||
+		    zv->zv_name[namelen] == '@'))) {
+
+			if (zv->zv_open_count > 0)
+				continue;
+
 			zvol_remove(zv);
 			zvol_free(zv);
 		}
@@ -1589,8 +1634,8 @@ zvol_remove_minors(const char *name)
 /*
  * Rename minors for specified dataset including children and snapshots.
  */
-void
-zvol_rename_minors(const char *oldname, const char *newname)
+static void
+zvol_rename_minors_impl(const char *oldname, const char *newname)
 {
 	zvol_state_t *zv, *zv_next;
 	int oldnamelen, newnamelen;
@@ -1609,14 +1654,14 @@ zvol_rename_minors(const char *oldname, const char *newname)
 		zv_next = list_next(&zvol_state_list, zv);
 
 		if (strcmp(zv->zv_name, oldname) == 0) {
-			__zvol_rename_minor(zv, newname);
+			zvol_rename_minor(zv, newname);
 		} else if (strncmp(zv->zv_name, oldname, oldnamelen) == 0 &&
 		    (zv->zv_name[oldnamelen] == '/' ||
 		    zv->zv_name[oldnamelen] == '@')) {
 			snprintf(name, MAXNAMELEN, "%s%c%s", newname,
 			    zv->zv_name[oldnamelen],
 			    zv->zv_name + oldnamelen + 1);
-			__zvol_rename_minor(zv, name);
+			zvol_rename_minor(zv, name);
 		}
 	}
 
@@ -1625,33 +1670,189 @@ zvol_rename_minors(const char *oldname, const char *newname)
 	kmem_free(name, MAXNAMELEN);
 }
 
+typedef struct zvol_set_snapdev_arg {
+	const char *zsda_name;
+	uint64_t zsda_value;
+	zprop_source_t zsda_source;
+	dmu_tx_t *zsda_tx;
+} zvol_set_snapdev_arg_t;
+
+/*
+ * Sanity check the dataset for safe use by the sync task.  No additional
+ * conditions are imposed.
+ */
 static int
-snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
-	uint64_t snapdev = *(uint64_t *) arg;
+zvol_set_snapdev_check(void *arg, dmu_tx_t *tx)
+{
+	zvol_set_snapdev_arg_t *zsda = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dir_t *dd;
+	int error;
 
-	if (strchr(dsname, '@') == NULL)
-		return (0);
+	error = dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL);
+	if (error != 0)
+		return (error);
 
-	switch (snapdev) {
-		case ZFS_SNAPDEV_VISIBLE:
-			mutex_enter(&zvol_state_lock);
-			(void) __zvol_create_minor(dsname, B_TRUE);
-			mutex_exit(&zvol_state_lock);
-			break;
-		case ZFS_SNAPDEV_HIDDEN:
-			(void) zvol_remove_minor(dsname);
-			break;
+	dsl_dir_rele(dd, FTAG);
+
+	return (error);
+}
+
+static int
+zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	zvol_set_snapdev_arg_t *zsda = arg;
+	char dsname[MAXNAMELEN];
+
+	dsl_dataset_name(ds, dsname);
+	dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_SNAPDEV),
+	    zsda->zsda_source, sizeof (zsda->zsda_value), 1,
+	    &zsda->zsda_value, zsda->zsda_tx);
+
+	switch (zsda->zsda_value) {
+	case ZFS_SNAPDEV_VISIBLE:
+		zvol_create_minors(dp->dp_spa, dsname, B_TRUE);
+		break;
+	case ZFS_SNAPDEV_HIDDEN:
+		zvol_remove_minors(dp->dp_spa, dsname, B_TRUE);
+		break;
+	default:
+		break;
 	}
 
 	return (0);
 }
 
+/*
+ * Traverse all child snapshot datasets and apply snapdev appropriately.
+ */
+static void
+zvol_set_snapdev_sync(void *arg, dmu_tx_t *tx)
+{
+	zvol_set_snapdev_arg_t *zsda = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dir_t *dd;
+
+	VERIFY0(dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL));
+	zsda->zsda_tx = tx;
+
+	dmu_objset_find_dp(dp, dd->dd_object, zvol_set_snapdev_sync_cb,
+	    zsda, DS_FIND_CHILDREN);
+
+	dsl_dir_rele(dd, FTAG);
+}
+
 int
-zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
-	(void) dmu_objset_find((char *) dsname, snapdev_snapshot_changed_cb,
-		&snapdev, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
-	/* caller should continue to modify snapdev property */
-	return (-1);
+zvol_set_snapdev(const char *ddname, zprop_source_t source, uint64_t snapdev)
+{
+	zvol_set_snapdev_arg_t zsda;
+
+	zsda.zsda_name = ddname;
+	zsda.zsda_source = source;
+	zsda.zsda_value = snapdev;
+
+	return (dsl_sync_task(ddname, zvol_set_snapdev_check,
+	    zvol_set_snapdev_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE));
+}
+
+static zvol_task_t *
+zvol_task_alloc(zvol_async_op_t op, const char *name1, const char *name2)
+{
+	zvol_task_t *task;
+	char *delim;
+
+	/* Never allow tasks on hidden names. */
+	if (name1[0] == '$')
+		return (NULL);
+
+	task = kmem_zalloc(sizeof (zvol_task_t), KM_SLEEP);
+	task->op = op;
+	delim = strchr(name1, '/');
+	strlcpy(task->pool, name1, delim ? (delim - name1 + 1) : MAXNAMELEN);
+
+	strlcpy(task->name1, name1, MAXNAMELEN);
+	if (name2 != NULL)
+		strlcpy(task->name2, name2, MAXNAMELEN);
+
+	return (task);
+}
+
+static void
+zvol_task_free(zvol_task_t *task)
+{
+	kmem_free(task, sizeof (zvol_task_t));
+}
+
+/*
+ * The worker thread function performed asynchronously.
+ */
+static void
+zvol_task_cb(void *param)
+{
+	zvol_task_t *task = (zvol_task_t *)param;
+
+	switch (task->op) {
+	case ZVOL_ASYNC_CREATE_MINORS:
+		(void) zvol_create_minors_impl(task->name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_MINORS:
+		zvol_remove_minors_impl(task->name1);
+		break;
+	case ZVOL_ASYNC_RENAME_MINORS:
+		zvol_rename_minors_impl(task->name1, task->name2);
+		break;
+	default:
+		VERIFY(0);
+		break;
+	}
+
+	zvol_task_free(task);
+}
+
+void
+zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
+{
+	zvol_task_t *task;
+	taskqid_t id;
+
+	task = zvol_task_alloc(ZVOL_ASYNC_CREATE_MINORS, name, NULL);
+	if (task == NULL)
+		return;
+
+	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
+	if ((async == B_FALSE) && (id != 0))
+		taskq_wait_id(spa->spa_zvol_taskq, id);
+}
+
+void
+zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
+{
+	zvol_task_t *task;
+	taskqid_t id;
+
+	task = zvol_task_alloc(ZVOL_ASYNC_REMOVE_MINORS, name, NULL);
+	if (task == NULL)
+		return;
+
+	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
+	if ((async == B_FALSE) && (id != 0))
+		taskq_wait_id(spa->spa_zvol_taskq, id);
+}
+
+void
+zvol_rename_minors(spa_t *spa, const char *name1, const char *name2,
+    boolean_t async)
+{
+	zvol_task_t *task;
+	taskqid_t id;
+
+	task = zvol_task_alloc(ZVOL_ASYNC_RENAME_MINORS, name1, name2);
+	if (task == NULL)
+		return;
+
+	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
+	if ((async == B_FALSE) && (id != 0))
+		taskq_wait_id(spa->spa_zvol_taskq, id);
 }
 
 int
@@ -1661,7 +1862,6 @@ zvol_init(void)
 
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
 	    offsetof(zvol_state_t, zv_next));
-
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
@@ -1685,11 +1885,13 @@ out:
 void
 zvol_fini(void)
 {
-	zvol_remove_minors(NULL);
+	zvol_remove_minors_impl(NULL);
+
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
-	mutex_destroy(&zvol_state_lock);
+
 	list_destroy(&zvol_state_list);
+	mutex_destroy(&zvol_state_lock);
 }
 
 module_param(zvol_inhibit_dev, uint, 0644);
