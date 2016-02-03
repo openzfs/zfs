@@ -670,6 +670,61 @@ dsl_dir_activate_fs_ss_limit(const char *ddname)
 	return (error);
 }
 
+static int
+dsl_dir_enable_compress_quota_check(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	int error;
+	uint64_t checkval, delta_used, quota;
+
+	error = dsl_dataset_hold(dp, ddname, FTAG, &ds);
+	if (error != 0)
+		return (error);
+
+	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_COMPRESS_QUOTA)) {
+		dsl_dataset_rele(ds, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	if (dsl_dir_phys(ds->ds_dir)->dd_quota != 0)
+	{
+		checkval = dsl_dir_phys(ds->ds_dir)->dd_used_bytes -
+			dsl_dir_phys(ds->ds_dir)->dd_compressed_bytes;
+		checkval += dsl_dir_phys(ds->ds_dir)->dd_uncompressed_bytes;
+
+		if (checkval > dsl_dir_phys(ds->ds_dir)->dd_quota)
+			error = SET_ERROR(ENOSPC);
+	}
+
+	dsl_dataset_rele(ds, FTAG);
+	return (error);
+}
+
+static void
+dsl_dir_enable_compress_quota_sync(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+
+	VERIFY0(dsl_dataset_hold(dp, ddname, FTAG, &ds));
+	dsl_dir_zapify(ds->ds_dir, tx);
+	spa_history_log_internal_ds(ds, "enable", tx, "%s= 1",
+		zfs_prop_to_name(ZFS_PROP_COMPRESS_QUOTA));
+
+	dsl_dataset_rele(ds, FTAG);
+}
+
+int
+dsl_dir_enable_compress_quota(const char *ddname)
+{
+	return (dsl_sync_task(ddname, dsl_dir_enable_compress_quota_check,
+		dsl_dir_enable_compress_quota_sync, (void *)ddname, 0,
+		ZFS_SPACE_CHECK_NONE));
+}
+
 /*
  * Used to determine if the filesystem_limit or snapshot_limit should be
  * enforced. We allow the limit to be exceeded if the user has permission to
@@ -969,6 +1024,11 @@ dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv)
 			dsl_prop_nvlist_add_uint64(nv,
 			    ZFS_PROP_SNAPSHOT_COUNT, count);
 		}
+		if (zap_lookup(os, dd->dd_object, DD_FIELD_COMPRESS_QUOTA,
+		    sizeof (count), 1, &count) == 0) {
+			dsl_prop_nvlist_add_uint64(nv,
+			    ZFS_PROP_COMPRESS_QUOTA, count);
+		}
 	}
 
 	if (dsl_dir_is_clone(dd)) {
@@ -1047,6 +1107,7 @@ dsl_dir_space_available(dsl_dir_t *dd,
 {
 	uint64_t parentspace, myspace, quota, used;
 
+	dsl_pool_t *dp = dd->dd_pool;
 	/*
 	 * If there are no restrictions otherwise, assume we have
 	 * unlimited space available.
@@ -1062,7 +1123,25 @@ dsl_dir_space_available(dsl_dir_t *dd,
 	mutex_enter(&dd->dd_lock);
 	if (dsl_dir_phys(dd)->dd_quota != 0)
 		quota = dsl_dir_phys(dd)->dd_quota;
-	used = dsl_dir_phys(dd)->dd_used_bytes;
+
+	if (dsl_dir_is_zapified(dd) && spa_feature_is_enabled(dp->dp_spa,
+		    SPA_FEATURE_COMPRESS_QUOTA)) {
+		uint64_t compress_quota;
+		char buf[ZFS_MAXNAMELEN];
+		dsl_dir_name(dd, buf);
+		dsl_prop_get_integer(buf,
+				zfs_prop_to_name(ZFS_PROP_COMPRESS_QUOTA),
+				&compress_quota, NULL);
+		if (compress_quota)
+			used = dsl_dir_phys(dd)->dd_uncompressed_bytes +
+				dsl_dir_phys(dd)->dd_used_bytes -
+				dsl_dir_phys(dd)->dd_compressed_bytes;
+		else
+			used = dsl_dir_phys(dd)->dd_used_bytes;
+	}
+	else
+		used = dsl_dir_phys(dd)->dd_used_bytes;
+
 	if (!ondiskonly)
 		used += dsl_dir_space_towrite(dd);
 
@@ -1122,6 +1201,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	int txgidx = txg & TXG_MASK;
 	int i;
 	uint64_t ref_rsrv = 0;
+	dsl_pool_t *dp = dd->dd_pool;
 
 	ASSERT3U(txg, !=, 0);
 	ASSERT3S(asize, >, 0);
@@ -1135,7 +1215,28 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	est_inflight = dsl_dir_space_towrite(dd);
 	for (i = 0; i < TXG_SIZE; i++)
 		est_inflight += dd->dd_tempreserved[i];
-	used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
+
+	/*
+	 * Check  against the compressquota prop
+	 *
+	 */
+	if (dsl_dir_is_zapified(dd) && spa_feature_is_enabled(dp->dp_spa,
+		    SPA_FEATURE_COMPRESS_QUOTA)) {
+		uint64_t compress_quota;
+		char buf[ZFS_MAXNAMELEN];
+		dsl_dir_name(dd, buf);
+		dsl_prop_get_integer(buf,
+				zfs_prop_to_name(ZFS_PROP_COMPRESS_QUOTA),
+				&compress_quota, NULL);
+		if (compress_quota != 0)
+			used_on_disk = dsl_dir_phys(dd)->dd_uncompressed_bytes +
+				dsl_dir_phys(dd)->dd_used_bytes -
+				dsl_dir_phys(dd)->dd_compressed_bytes;
+		else
+			used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
+	}
+	else
+		used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
 
 	/*
 	 * On the first iteration, fetch the dataset's used-on-disk and

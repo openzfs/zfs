@@ -242,4 +242,10 @@ zpool_feature_init(void)
 	    "Support for blocks larger than 128KB.",
 	    ZFEATURE_FLAG_PER_DATASET, large_blocks_deps);
 	}
+
+	zfeature_register(SPA_FEATURE_COMPRESS_QUOTA,
+	    "org.open-zfs:compress_quota", "compress_quota",
+	    "Quota on uncompressed bytes.",
+	    ZFEATURE_FLAG_PER_DATASET, NULL);
+
 }

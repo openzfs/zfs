@@ -1794,7 +1794,25 @@ dsl_dataset_space(dsl_dataset_t *ds,
     uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp)
 {
-	*refdbytesp = dsl_dataset_phys(ds)->ds_referenced_bytes;
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	if (spa_feature_is_enabled(dp->dp_spa,
+		    SPA_FEATURE_COMPRESS_QUOTA)) {
+		uint64_t compress_quota;
+		char buf[ZFS_MAXNAMELEN];
+		dsl_dataset_name(ds, buf);
+		dsl_prop_get_integer(buf,
+		    zfs_prop_to_name(ZFS_PROP_COMPRESS_QUOTA), &compress_quota,
+		    NULL);
+		if (compress_quota)
+			*refdbytesp = dsl_dataset_phys(ds)->ds_referenced_bytes
+				+ dsl_dataset_phys(ds)->ds_uncompressed_bytes
+				- dsl_dataset_phys(ds)->ds_compressed_bytes;
+		else
+			*refdbytesp = dsl_dataset_phys(ds)->ds_referenced_bytes;
+	}
+	else
+		*refdbytesp = dsl_dataset_phys(ds)->ds_referenced_bytes;
+
 	*availbytesp = dsl_dir_space_available(ds->ds_dir, NULL, 0, TRUE);
 	if (ds->ds_reserved > dsl_dataset_phys(ds)->ds_unique_bytes)
 		*availbytesp +=
