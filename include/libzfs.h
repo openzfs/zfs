@@ -64,7 +64,7 @@ extern "C" {
  */
 #define	DISK_LABEL_WAIT		(30 * 1000)  /* 30 seconds */
 
-#define	DEFAULT_IMPORT_PATH_SIZE	7
+#define	DEFAULT_IMPORT_PATH_SIZE	9
 extern char *zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE];
 
 /*

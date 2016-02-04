@@ -1273,10 +1273,12 @@ char *
 zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
 	"/dev/disk/by-vdev",	/* Custom rules, use first if they exist */
 	"/dev/mapper",		/* Use multipath devices before components */
+	"/dev/disk/by-partlabel", /* Single unique entry set by user */
+	"/dev/disk/by-partuuid", /* Generated partition uuid */
+	"/dev/disk/by-label",	/* Custom persistent labels */
 	"/dev/disk/by-uuid",	/* Single unique entry and persistent */
 	"/dev/disk/by-id",	/* May be multiple entries and persistent */
 	"/dev/disk/by-path",	/* Encodes physical location and persistent */
-	"/dev/disk/by-label",	/* Custom persistent labels */
 	"/dev"			/* UNSAFE device names will change */
 };
 
