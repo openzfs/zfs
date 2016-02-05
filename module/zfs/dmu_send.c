@@ -1350,7 +1350,8 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		}
 		dsobj = dsl_dataset_create_sync(ds->ds_dir, recv_clone_name,
 		    snap, crflags, drba->drba_cred, tx);
-		dsl_dataset_rele(snap, FTAG);
+		if (drba->drba_snapobj != 0)
+			dsl_dataset_rele(snap, FTAG);
 		dsl_dataset_rele(ds, FTAG);
 	} else {
 		dsl_dir_t *dd;
