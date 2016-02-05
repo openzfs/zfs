@@ -3128,6 +3128,9 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	uint_t c, children;
 	char *vname;
 	boolean_t scripted = cb->cb_scripted;
+	uint64_t islog = B_FALSE;
+	boolean_t haslog = B_FALSE;
+	char *dashes = "%-*s      -      -      -         -      -      -\n";
 
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
@@ -3178,24 +3181,47 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		    ZPOOL_CONFIG_IS_HOLE, &ishole) == 0 && ishole)
 			continue;
 
+		if (nvlist_lookup_uint64(child[c],
+		    ZPOOL_CONFIG_IS_LOG, &islog) == 0 && islog) {
+			haslog = B_TRUE;
+			continue;
+		}
+
 		vname = zpool_vdev_name(g_zfs, zhp, child[c], B_FALSE);
 		print_list_stats(zhp, vname, child[c], cb, depth + 2);
 		free(vname);
 	}
 
-	/*
-	 * Include level 2 ARC devices in iostat output
-	 */
-	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
-	    &child, &children) != 0)
-		return;
-
-	if (children > 0) {
-		(void) printf("%-*s      -      -      -      -      -      "
-		    "-\n", cb->cb_namewidth, "cache");
+	if (haslog == B_TRUE) {
+		/* LINTED E_SEC_PRINTF_VAR_FMT */
+		(void) printf(dashes, cb->cb_namewidth, "log");
 		for (c = 0; c < children; c++) {
-			vname = zpool_vdev_name(g_zfs, zhp, child[c],
-			    B_FALSE);
+			if (nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
+			    &islog) != 0 || !islog)
+				continue;
+			vname = zpool_vdev_name(g_zfs, zhp, child[c], B_FALSE);
+			print_list_stats(zhp, vname, child[c], cb, depth + 2);
+			free(vname);
+		}
+	}
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
+	    &child, &children) == 0 && children > 0) {
+		/* LINTED E_SEC_PRINTF_VAR_FMT */
+		(void) printf(dashes, cb->cb_namewidth, "cache");
+		for (c = 0; c < children; c++) {
+			vname = zpool_vdev_name(g_zfs, zhp, child[c], B_FALSE);
+			print_list_stats(zhp, vname, child[c], cb, depth + 2);
+			free(vname);
+		}
+	}
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES, &child,
+	    &children) == 0 && children > 0) {
+		/* LINTED E_SEC_PRINTF_VAR_FMT */
+		(void) printf(dashes, cb->cb_namewidth, "spare");
+		for (c = 0; c < children; c++) {
+			vname = zpool_vdev_name(g_zfs, zhp, child[c], B_FALSE);
 			print_list_stats(zhp, vname, child[c], cb, depth + 2);
 			free(vname);
 		}
