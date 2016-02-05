@@ -1024,16 +1024,18 @@ zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
 	int path_len, cmp_len;
 	char path_name[MAXPATHLEN];
 	char cmp_name[MAXPATHLEN];
-	char *dir;
+	char *dir, *dup;
 
 	/* Strip redundant slashes if one exists due to ZPOOL_IMPORT_PATH */
 	memset(cmp_name, 0, MAXPATHLEN);
-	dir = strtok(cmp, "/");
+	dup = strdup(cmp);
+	dir = strtok(dup, "/");
 	while (dir) {
 		strcat(cmp_name, "/");
 		strcat(cmp_name, dir);
 		dir = strtok(NULL, "/");
 	}
+	free(dup);
 
 	if (name[0] != '/')
 		return (zfs_strcmp_shortname(name, cmp_name, wholedisk));
