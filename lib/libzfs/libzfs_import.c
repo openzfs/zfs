@@ -1279,8 +1279,8 @@ char *
 zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
 	"/dev/disk/by-vdev",	/* Custom rules, use first if they exist */
 	"/dev/mapper",		/* Use multipath devices before components */
-	"/dev/disk/by-partlabel", /* Single unique entry set by user, always better than generated */
-	"/dev/disk/by-partuuid", /* Single unique entry, persistant, and better than device id's */
+	"/dev/disk/by-partlabel", /* Single unique entry set by user */
+	"/dev/disk/by-partuuid", /* Generated partition UUid */
 	"/dev/disk/by-label",	/* Custom persistent labels */
 	"/dev/disk/by-uuid",	/* Single unique entry and persistent */
 	"/dev/disk/by-id",	/* May be multiple entries and persistent */
