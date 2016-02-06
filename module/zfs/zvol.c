@@ -731,7 +731,7 @@ zvol_read(zvol_state_t *zv, uio_t *uio)
 		if (bytes > volsize - uio->uio_loffset)
 			bytes = volsize - uio->uio_loffset;
 
-		error =  dmu_read_uio(zv->zv_objset, ZVOL_OBJ, uio, bytes);
+		error = dmu_read_uio_dbuf(zv->zv_dbuf, uio, bytes);
 		if (error) {
 			/* convert checksum errors into IO errors */
 			if (error == ECKSUM)
