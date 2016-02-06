@@ -601,59 +601,42 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 }
 
 static int
-zvol_write(struct bio *bio)
+zvol_write(zvol_state_t *zv, uio_t *uio, boolean_t sync)
 {
-	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
-	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
-	uint64_t size = BIO_BI_SIZE(bio);
-	int error = 0;
-	dmu_tx_t *tx;
+	uint64_t volsize = zv->zv_volsize;
 	rl_t *rl;
-	uio_t uio;
+	int error = 0;
 
-	if (bio->bi_rw & VDEV_REQ_FLUSH)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	rl = zfs_range_lock(&zv->zv_znode, uio->uio_loffset, uio->uio_resid,
+	    RL_WRITER);
 
-	/*
-	 * Some requests are just for flush and nothing else.
-	 */
-	if (size == 0)
-		goto out;
+	while (uio->uio_resid > 0 && uio->uio_loffset < volsize) {
+		uint64_t bytes = MIN(uio->uio_resid, DMU_MAX_ACCESS >> 1);
+		uint64_t off = uio->uio_loffset;
+		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
-	uio.uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
-	uio.uio_skip = BIO_BI_SKIP(bio);
-	uio.uio_resid = size;
-	uio.uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
-	uio.uio_loffset = offset;
-	uio.uio_limit = MAXOFFSET_T;
-	uio.uio_segflg = UIO_BVEC;
+		if (bytes > volsize - off)	/* don't write past the end */
+			bytes = volsize - off;
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+		dmu_tx_hold_write(tx, ZVOL_OBJ, off, bytes);
 
-	tx = dmu_tx_create(zv->zv_objset);
-	dmu_tx_hold_write(tx, ZVOL_OBJ, offset, size);
+		/* This will only fail for ENOSPC */
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error) {
+			dmu_tx_abort(tx);
+			break;
+		}
+		error = dmu_write_uio_dbuf(zv->zv_dbuf, uio, bytes, tx);
+		if (error == 0)
+			zvol_log_write(zv, tx, off, bytes, sync);
+		dmu_tx_commit(tx);
 
-	/* This will only fail for ENOSPC */
-	error = dmu_tx_assign(tx, TXG_WAIT);
-	if (error) {
-		dmu_tx_abort(tx);
-		zfs_range_unlock(rl);
-		goto out;
+		if (error)
+			break;
 	}
-
-	error = dmu_write_uio(zv->zv_objset, ZVOL_OBJ, &uio, size, tx);
-	if (error == 0)
-		zvol_log_write(zv, tx, offset, size,
-		    !!(bio->bi_rw & VDEV_REQ_FUA));
-
-	dmu_tx_commit(tx);
 	zfs_range_unlock(rl);
-
-	if ((bio->bi_rw & VDEV_REQ_FUA) ||
-	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
+	if (sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
-
-out:
 	return (error);
 }
 
@@ -733,64 +716,65 @@ zvol_discard(struct bio *bio)
 }
 
 static int
-zvol_read(struct bio *bio)
+zvol_read(zvol_state_t *zv, uio_t *uio)
 {
-	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
-	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
-	uint64_t size = BIO_BI_SIZE(bio);
-	int error;
+	uint64_t volsize = zv->zv_volsize;
 	rl_t *rl;
-	uio_t uio;
+	int error = 0;
 
-	if (size == 0)
-		return (0);
+	rl = zfs_range_lock(&zv->zv_znode, uio->uio_loffset, uio->uio_resid,
+	    RL_READER);
+	while (uio->uio_resid > 0 && uio->uio_loffset < volsize) {
+		uint64_t bytes = MIN(uio->uio_resid, DMU_MAX_ACCESS >> 1);
 
-	uio.uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
-	uio.uio_skip = BIO_BI_SKIP(bio);
-	uio.uio_resid = size;
-	uio.uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
-	uio.uio_loffset = offset;
-	uio.uio_limit = MAXOFFSET_T;
-	uio.uio_segflg = UIO_BVEC;
+		/* don't read past the end */
+		if (bytes > volsize - uio->uio_loffset)
+			bytes = volsize - uio->uio_loffset;
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
-
-	error = dmu_read_uio(zv->zv_objset, ZVOL_OBJ, &uio, size);
-
+		error =  dmu_read_uio(zv->zv_objset, ZVOL_OBJ, uio, bytes);
+		if (error) {
+			/* convert checksum errors into IO errors */
+			if (error == ECKSUM)
+				error = SET_ERROR(EIO);
+			break;
+		}
+	}
 	zfs_range_unlock(rl);
-
-	/* convert checksum errors into IO errors */
-	if (error == ECKSUM)
-		error = SET_ERROR(EIO);
-
 	return (error);
 }
 
 static MAKE_REQUEST_FN_RET
 zvol_request(struct request_queue *q, struct bio *bio)
 {
+	uio_t uio;
 	zvol_state_t *zv = q->queuedata;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
-	uint64_t offset = BIO_BI_SECTOR(bio);
-	unsigned int sectors = bio_sectors(bio);
 	int rw = bio_data_dir(bio);
 #ifdef HAVE_GENERIC_IO_ACCT
 	unsigned long start = jiffies;
 #endif
 	int error = 0;
 
-	if (bio_has_data(bio) && offset + sectors >
-	    get_capacity(zv->zv_disk)) {
+	uio.uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
+	uio.uio_skip = BIO_BI_SKIP(bio);
+	uio.uio_resid = BIO_BI_SIZE(bio);
+	uio.uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
+	uio.uio_loffset = BIO_BI_SECTOR(bio) << 9;
+	uio.uio_limit = MAXOFFSET_T;
+	uio.uio_segflg = UIO_BVEC;
+
+	if (bio_has_data(bio) && uio.uio_loffset + uio.uio_resid >
+	    zv->zv_volsize) {
 		printk(KERN_INFO
-		    "%s: bad access: block=%llu, count=%lu\n",
+		    "%s: bad access: offset=%llu, size=%lu\n",
 		    zv->zv_disk->disk_name,
-		    (long long unsigned)offset,
-		    (long unsigned)sectors);
+		    (long long unsigned)uio.uio_loffset,
+		    (long unsigned)uio.uio_resid);
 		error = SET_ERROR(EIO);
 		goto out1;
 	}
 
-	generic_start_io_acct(rw, sectors, &zv->zv_disk->part0);
+	generic_start_io_acct(rw, bio_sectors(bio), &zv->zv_disk->part0);
 
 	if (rw == WRITE) {
 		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
@@ -803,9 +787,20 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			goto out2;
 		}
 
-		error = zvol_write(bio);
+		/*
+		 * Some requests are just for flush and nothing else.
+		 */
+		if (uio.uio_resid == 0) {
+			if (bio->bi_rw & VDEV_REQ_FLUSH)
+				zil_commit(zv->zv_zilog, ZVOL_OBJ);
+			goto out2;
+		}
+
+		error = zvol_write(zv, &uio,
+		    ((bio->bi_rw & (VDEV_REQ_FUA|VDEV_REQ_FLUSH)) ||
+		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS));
 	} else
-		error = zvol_read(bio);
+		error = zvol_read(zv, &uio);
 
 out2:
 	generic_end_io_acct(rw, &zv->zv_disk->part0, start);
