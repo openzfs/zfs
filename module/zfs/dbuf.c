@@ -161,18 +161,18 @@ dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
 	hv = DBUF_HASH(os, obj, level, blkid);
 	idx = hv & h->hash_table_mask;
 
-	mutex_enter(DBUF_HASH_MUTEX(h, idx));
+	rw_enter(DBUF_HASH_RWLOCK(h, idx), RW_READER);
 	for (db = h->hash_table[idx]; db != NULL; db = db->db_hash_next) {
 		if (DBUF_EQUAL(db, os, obj, level, blkid)) {
 			mutex_enter(&db->db_mtx);
 			if (db->db_state != DB_EVICTING) {
-				mutex_exit(DBUF_HASH_MUTEX(h, idx));
+				rw_exit(DBUF_HASH_RWLOCK(h, idx));
 				return (db);
 			}
 			mutex_exit(&db->db_mtx);
 		}
 	}
-	mutex_exit(DBUF_HASH_MUTEX(h, idx));
+	rw_exit(DBUF_HASH_RWLOCK(h, idx));
 	return (NULL);
 }
 
@@ -214,12 +214,12 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	hv = DBUF_HASH(os, obj, level, blkid);
 	idx = hv & h->hash_table_mask;
 
-	mutex_enter(DBUF_HASH_MUTEX(h, idx));
+	rw_enter(DBUF_HASH_RWLOCK(h, idx), RW_WRITER);
 	for (dbf = h->hash_table[idx]; dbf != NULL; dbf = dbf->db_hash_next) {
 		if (DBUF_EQUAL(dbf, os, obj, level, blkid)) {
 			mutex_enter(&dbf->db_mtx);
 			if (dbf->db_state != DB_EVICTING) {
-				mutex_exit(DBUF_HASH_MUTEX(h, idx));
+				rw_exit(DBUF_HASH_RWLOCK(h, idx));
 				return (dbf);
 			}
 			mutex_exit(&dbf->db_mtx);
@@ -229,7 +229,7 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	mutex_enter(&db->db_mtx);
 	db->db_hash_next = h->hash_table[idx];
 	h->hash_table[idx] = db;
-	mutex_exit(DBUF_HASH_MUTEX(h, idx));
+	rw_exit(DBUF_HASH_RWLOCK(h, idx));
 	atomic_inc_64(&dbuf_hash_count);
 
 	return (NULL);
@@ -251,13 +251,13 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 
 	/*
 	 * We musn't hold db_mtx to maintain lock ordering:
-	 * DBUF_HASH_MUTEX > db_mtx.
+	 * DBUF_HASH_RWLOCK > db_mtx.
 	 */
 	ASSERT(refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_state == DB_EVICTING);
 	ASSERT(!MUTEX_HELD(&db->db_mtx));
 
-	mutex_enter(DBUF_HASH_MUTEX(h, idx));
+	rw_enter(DBUF_HASH_RWLOCK(h, idx), RW_WRITER);
 	dbp = &h->hash_table[idx];
 	while ((dbf = *dbp) != db) {
 		dbp = &dbf->db_hash_next;
@@ -265,7 +265,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	}
 	*dbp = db->db_hash_next;
 	db->db_hash_next = NULL;
-	mutex_exit(DBUF_HASH_MUTEX(h, idx));
+	rw_exit(DBUF_HASH_RWLOCK(h, idx));
 	atomic_dec_64(&dbuf_hash_count);
 }
 
@@ -407,8 +407,8 @@ retry:
 	    sizeof (dmu_buf_impl_t),
 	    0, dbuf_cons, dbuf_dest, NULL, NULL, NULL, 0);
 
-	for (i = 0; i < DBUF_MUTEXES; i++)
-		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_DEFAULT, NULL);
+	for (i = 0; i < DBUF_RWLOCKS; i++)
+		rw_init(&h->hash_rwlocks[i], NULL, RW_DEFAULT, NULL);
 
 	dbuf_stats_init(h);
 
@@ -427,8 +427,8 @@ dbuf_fini(void)
 
 	dbuf_stats_destroy();
 
-	for (i = 0; i < DBUF_MUTEXES; i++)
-		mutex_destroy(&h->hash_mutexes[i]);
+	for (i = 0; i < DBUF_RWLOCKS; i++)
+		rw_destroy(&h->hash_rwlocks[i]);
 #if defined(_KERNEL) && defined(HAVE_SPL)
 	/*
 	 * Large allocations which do not require contiguous pages
