@@ -562,16 +562,22 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 	/* Do not queue the task unless there is idle thread for it */
 	ASSERT(tq->tq_nactive <= tq->tq_nthreads);
-	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads))
-		goto out;
+	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads)) {
+		/* Dynamic taskq may be able to spawn another thread */
+		if (!(tq->tq_flags & TASKQ_DYNAMIC) || taskq_thread_spawn(tq) == 0)
+			goto out;
+	}
 
 	if ((t = task_alloc(tq, flags, &irqflags)) == NULL)
 		goto out;
 
 	spin_lock(&t->tqent_lock);
 
+	/* Queue to the front of the list to enforce TQ_NOQUEUE semantics */
+	if (flags & TQ_NOQUEUE)
+		list_add(&t->tqent_list, &tq->tq_prio_list);
 	/* Queue to the priority list instead of the pending list */
-	if (flags & TQ_FRONT)
+	else if (flags & TQ_FRONT)
 		list_add_tail(&t->tqent_list, &tq->tq_prio_list);
 	else
 		list_add_tail(&t->tqent_list, &tq->tq_pend_list);
@@ -593,7 +599,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	wake_up(&tq->tq_work_waitq);
 out:
 	/* Spawn additional taskq threads if required. */
-	if (tq->tq_nactive == tq->tq_nthreads)
+	if (!(flags & TQ_NOQUEUE) && tq->tq_nactive == tq->tq_nthreads)
 		(void) taskq_thread_spawn(tq);
 
 	spin_unlock_irqrestore(&tq->tq_lock, irqflags);
@@ -665,6 +671,13 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 		goto out;
 	}
 
+	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads)) {
+		/* Dynamic taskq may be able to spawn another thread */
+		if (!(tq->tq_flags & TASKQ_DYNAMIC) || taskq_thread_spawn(tq) == 0)
+			goto out2;
+		flags |= TQ_FRONT;
+	}
+
 	spin_lock(&t->tqent_lock);
 
 	/*
@@ -693,6 +706,7 @@ out:
 	/* Spawn additional taskq threads if required. */
 	if (tq->tq_nactive == tq->tq_nthreads)
 		(void) taskq_thread_spawn(tq);
+out2:
 	spin_unlock_irqrestore(&tq->tq_lock, irqflags);
 }
 EXPORT_SYMBOL(taskq_dispatch_ent);
