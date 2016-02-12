@@ -4948,9 +4948,9 @@ zfs_do_set(int argc, char **argv)
 				usage(B_FALSE);
 			}
 		}
+		--argc;
+		++argv;
 	}
-	argc -= optind;
-	argv += optind;
 
 	/* check number of arguments */
 	if (argc < 2) {
