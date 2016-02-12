@@ -310,7 +310,17 @@ txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 	mutex_enter(&tc->tc_open_lock);
 	txg = tx->tx_open_txg;
 
+	/*
+	 * We decrement ->tc_count inside of the critical section so that the
+	 * zero check in txg_quiesce() does not race with the increment. We use
+	 * an atomic here so that we can minimize potential contention on
+	 * &tc->tc_open_lock in txg_rele_to_sync(). This uses one less atomic
+	 * instruction on both increment and decrement than using &tc->tc_lock.
+	 * Additionally, avoiding a second lock reduces the potential for
+	 * contention to cause us to block while holding the open lock.
+	 */
 	atomic_inc_64(&tc->tc_count[txg & TXG_MASK]);
+	mutex_exit(&tc->tc_open_lock);
 
 	th->th_cpu = tc;
 	th->th_txg = txg;
@@ -318,13 +328,13 @@ txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 	return (txg);
 }
 
+/*
+ * This is obsolete, but we keep it around to make porting patches easier and
+ * also so that it can be used as a tracepoint.
+ */
 void
 txg_rele_to_quiesce(txg_handle_t *th)
 {
-	tx_cpu_t *tc = th->th_cpu;
-
-	ASSERT(!MUTEX_HELD(&tc->tc_lock));
-	mutex_exit(&tc->tc_open_lock);
 }
 
 void
