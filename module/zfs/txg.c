@@ -310,9 +310,7 @@ txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 	mutex_enter(&tc->tc_open_lock);
 	txg = tx->tx_open_txg;
 
-	mutex_enter(&tc->tc_lock);
-	tc->tc_count[txg & TXG_MASK]++;
-	mutex_exit(&tc->tc_lock);
+	atomic_inc_64(&tc->tc_count[txg & TXG_MASK]);
 
 	th->th_cpu = tc;
 	th->th_txg = txg;
@@ -346,11 +344,9 @@ txg_rele_to_sync(txg_handle_t *th)
 	tx_cpu_t *tc = th->th_cpu;
 	int g = th->th_txg & TXG_MASK;
 
-	mutex_enter(&tc->tc_lock);
 	ASSERT(tc->tc_count[g] != 0);
-	if (--tc->tc_count[g] == 0)
+	if (atomic_dec_64_nv(&tc->tc_count[g]) == 0)
 		cv_broadcast(&tc->tc_cv[g]);
-	mutex_exit(&tc->tc_lock);
 
 	th->th_cpu = NULL;	/* defensive */
 }
