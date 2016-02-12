@@ -25,6 +25,7 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -46,6 +47,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/zio_priority.h>
 #include <sys/uio.h>
+#include <sys/abd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -116,6 +118,9 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_METADATA) : \
 	dmu_ot[(int)(ot)].ot_metadata)
+
+#define	DMU_OT_IS_SCATTER(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	(0) : dmu_ot[(int)(ot)].ot_scatter)
 
 /*
  * These object types use bp_fill != 1 for their L0 bp's. Therefore they can't
@@ -238,6 +243,14 @@ void zap_byteswap(void *buf, size_t size);
 void zfs_oldacl_byteswap(void *buf, size_t size);
 void zfs_acl_byteswap(void *buf, size_t size);
 void zfs_znode_byteswap(void *buf, size_t size);
+void abd_byteswap_uint64_array(abd_t *abd, size_t size);
+void abd_byteswap_uint32_array(abd_t *abd, size_t size);
+void abd_byteswap_uint16_array(abd_t *abd, size_t size);
+void abd_byteswap_uint8_array(abd_t *abd, size_t size);
+void abd_zap_byteswap(abd_t *abd, size_t size);
+void abd_zfs_oldacl_byteswap(abd_t *abd, size_t size);
+void abd_zfs_acl_byteswap(abd_t *abd, size_t size);
+void abd_zfs_znode_byteswap(abd_t *abd, size_t size);
 
 #define	DS_FIND_SNAPSHOTS	(1<<0)
 #define	DS_FIND_CHILDREN	(1<<1)
@@ -279,6 +292,7 @@ int dmu_objset_snapshot_tmp(const char *, const char *, int);
 int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
     int flags);
 void dmu_objset_byteswap(void *buf, size_t size);
+void abd_dmu_objset_byteswap(abd_t *abd, size_t size);
 int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
 
@@ -286,7 +300,7 @@ typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
 	uint64_t db_offset;		/* byte offset in this object */
 	uint64_t db_size;		/* size of buffer in bytes */
-	void *db_data;			/* data in buffer */
+	abd_t *db_data;			/* data in buffer */
 } dmu_buf_t;
 
 /*
@@ -709,6 +723,8 @@ int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	void *buf, uint32_t flags);
 void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	const void *buf, dmu_tx_t *tx);
+void dmu_write_abd(objset_t *os, uint64_t object, uint64_t offset,
+	uint64_t size, abd_t *buf, dmu_tx_t *tx);
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_tx_t *tx);
 #ifdef _KERNEL
@@ -761,15 +777,18 @@ typedef struct dmu_object_info {
 } dmu_object_info_t;
 
 typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
+typedef void (*const abd_byteswap_func_t)(abd_t *abd, size_t size);
 
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
 	boolean_t		ot_metadata;
+	boolean_t		ot_scatter;
 	char			*ot_name;
 } dmu_object_type_info_t;
 
 typedef const struct dmu_object_byteswap_info {
-	arc_byteswap_func_t	 ob_func;
+	arc_byteswap_func_t	ob_func;
+	abd_byteswap_func_t	ob_abd_func;
 	char			*ob_name;
 } dmu_object_byteswap_info_t;
 
