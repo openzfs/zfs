@@ -1509,12 +1509,71 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_vdev_mirror_switch_us\fR (int)
+\fBzfs_vdev_mirror_rotating_inc\fR (int)
 .ad
 .RS 12n
-Switch mirrors every N usecs
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member when an I/O immediately
+follows its predecessor on rotational vdevs for the purpose of making decisions
+based on load.
 .sp
-Default value: \fB10,000\fR.
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_rotating_seek_inc\fR (int)
+.ad
+.RS 12n
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member when an I/O lacks
+locality as defined by the zfs_vdev_mirror_rotating_seek_offset.  I/Os within
+this that are not immediately following the previous I/O are incremented by
+half.
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_rotating_seek_offset\fR (int)
+.ad
+.RS 12n
+The maximum distance for the last queued I/O in which the balancing algorithm
+considers an I/O to have locality.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1048576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_non_rotating_inc\fR (int)
+.ad
+.RS 12n
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member on non-rotational vdevs
+when I/Os do not immediately follow one another.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_non_rotating_seek_inc\fR (int)
+.ad
+.RS 12n
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member when an I/O lacks
+locality as defined by the zfs_vdev_mirror_rotating_seek_offset. I/Os within
+this that are not immediately following the previous I/O are incremented by
+half.
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
