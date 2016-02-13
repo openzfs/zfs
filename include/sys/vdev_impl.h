@@ -120,6 +120,7 @@ struct vdev_queue {
 	hrtime_t	vq_io_delta_ts;
 	zio_t		vq_io_search; /* used as local for stack reduction */
 	kmutex_t	vq_lock;
+	uint64_t	vq_lastoffset;
 };
 
 /*
