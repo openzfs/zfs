@@ -2716,6 +2716,16 @@ vdev_get_stats(vdev_t *vd, vdev_stat_t *vs)
 	if (vd->vdev_aux == NULL && vd == vd->vdev_top && !vd->vdev_ishole) {
 		vs->vs_fragmentation = vd->vdev_mg->mg_fragmentation;
 	}
+	/*
+	 * This is static information, so could be set in vd->vdev_stat
+	 * elsewhere...?
+	 */
+	if (vd->vdev_nonrot_mix)
+		vs->vs_rotary = VDEV_ROTARY_MIXED;
+	else if (vd->vdev_nonrot)
+		vs->vs_rotary = VDEV_ROTARY_NO;
+	else
+		vs->vs_rotary = VDEV_ROTARY_IS;
 
 	/*
 	 * If we're getting stats on the root vdev, aggregate the I/O counts
