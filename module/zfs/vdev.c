@@ -1109,6 +1109,9 @@ vdev_open_child(void *arg)
 	vd->vdev_open_error = vdev_open(vd);
 	vd->vdev_open_thread = NULL;
 	vd->vdev_parent->vdev_nonrot &= vd->vdev_nonrot;
+	vd->vdev_parent->vdev_nonrot_some |= vd->vdev_nonrot;
+	vd->vdev_parent->vdev_nonrot_mix =
+	    vd->vdev_parent->vdev_nonrot ^ vd->vdev_parent->vdev_nonrot_some;
 }
 
 static boolean_t
@@ -1147,7 +1150,9 @@ vdev_open_children(vdev_t *vd)
 			vd->vdev_child[c]->vdev_open_error =
 			    vdev_open(vd->vdev_child[c]);
 			vd->vdev_nonrot &= vd->vdev_child[c]->vdev_nonrot;
+			vd->vdev_nonrot_some |= vd->vdev_child[c]->vdev_nonrot;
 		}
+		vd->vdev_nonrot_mix = vd->vdev_nonrot ^ vd->vdev_nonrot_some;
 		return;
 	}
 	tq = taskq_create("vdev_open", children, minclsyspri,
@@ -1159,8 +1164,11 @@ vdev_open_children(vdev_t *vd)
 
 	taskq_destroy(tq);
 
-	for (c = 0; c < children; c++)
+	for (c = 0; c < children; c++) {
 		vd->vdev_nonrot &= vd->vdev_child[c]->vdev_nonrot;
+		vd->vdev_nonrot_some |= vd->vdev_child[c]->vdev_nonrot;
+	}
+	vd->vdev_nonrot_mix = vd->vdev_nonrot ^ vd->vdev_nonrot_some;
 }
 
 /*
