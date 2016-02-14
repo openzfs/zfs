@@ -2450,15 +2450,15 @@ print_iostat_separator(iostat_cbdata_t *cb)
 
 	for (i = 0; i < cb->cb_namewidth; i++)
 		(void) printf("-");
-	(void) printf("  -----  -----  -----  -----  -----  -----\n");
+	(void) printf("  -  -----  -----  -----  -----  -----  -----\n");
 }
 
 static void
 print_iostat_header(iostat_cbdata_t *cb)
 {
-	(void) printf("%*s     capacity     operations    bandwidth\n",
+	(void) printf("%*s ssd    capacity     operations    bandwidth\n",
 	    cb->cb_namewidth, "");
-	(void) printf("%-*s  alloc   free   read  write   read  write\n",
+	(void) printf("%-*s  |  alloc   free   read  write   read  write\n",
 	    cb->cb_namewidth, "pool");
 	print_iostat_separator(cb);
 }
@@ -2514,6 +2514,21 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 		scale = 1.0;
 	else
 		scale = (double)NANOSEC / tdelta;
+
+	switch (newvs->vs_rotary) {
+	case VDEV_ROTARY_IS:
+		(void) printf("  -");
+		break;
+	case VDEV_ROTARY_NO:
+		(void) printf("  s");
+		break;
+	case VDEV_ROTARY_MIXED:
+		(void) printf("  m");
+		break;
+	default:
+		(void) printf("  ?");
+		break;
+	}
 
 	/* only toplevel vdevs have capacity stats */
 	if (newvs->vs_space == 0) {
