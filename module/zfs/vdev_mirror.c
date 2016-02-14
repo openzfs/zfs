@@ -73,6 +73,17 @@ typedef struct mirror_map {
  */
 int zfs_vdev_mirror_switch_us = 10000;
 
+/*
+ * For mirrors that contain both rotary and non-rotary devices, do
+ * the read from a non-rotary device whenever possible.
+ *
+ * The main purpose is to not introduce the long latency of the rotary
+ * devices into any read request.  The downside is not using the
+ * bandwidth of the rotary device.  But usually the non-rotary devices
+ * have much larger bandwidth anyhow.
+ */
+int zfs_vdev_mirror_prefer_read_nonrotary = 0;
+
 static void
 vdev_mirror_map_free(zio_t *zio)
 {
@@ -561,4 +572,8 @@ vdev_ops_t vdev_spare_ops = {
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_vdev_mirror_switch_us, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_mirror_switch_us, "Switch mirrors every N usecs");
+
+module_param(zfs_vdev_mirror_prefer_read_nonrotary, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_mirror_prefer_read_nonrotary,
+	"Prefer to read from nonrotary (SSD) devices");
 #endif
