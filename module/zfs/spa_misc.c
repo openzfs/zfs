@@ -37,6 +37,7 @@
 #include <sys/zil.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
+#include <sys/vdev_raidz.h>
 #include <sys/metaslab.h>
 #include <sys/uberblock_impl.h>
 #include <sys/txg.h>
@@ -1833,6 +1834,7 @@ spa_init(int mode)
 	dmu_init();
 	zil_init();
 	vdev_cache_stat_init();
+	vdev_raidz_math_init();
 	zfs_prop_init();
 	zpool_prop_init();
 	zpool_feature_init();
@@ -1848,6 +1850,7 @@ spa_fini(void)
 	spa_evict_all();
 
 	vdev_cache_stat_fini();
+	vdev_raidz_math_fini();
 	zil_fini();
 	dmu_fini();
 	zio_fini();

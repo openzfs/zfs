@@ -626,11 +626,15 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 
 		if (dabd && (dsize > 0)) {
 			abd_miter_map_atomic(&daiter);
+
+			ASSERT3U((uintptr_t)daiter.addr & 31, ==, 0);
 		}
 
 		for (i = 0; i < parity; i++) {
 			abd_miter_map_atomic(&caiters[i]);
 			caddrs[i] = caiters[i].addr;
+
+			ASSERT3U((uintptr_t)caddrs[i] & 31, ==, 0);
 		}
 
 		func_raidz_gen(caddrs, daiter.addr, len, dlen);
@@ -709,6 +713,9 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 			abd_miter_map_atomic(&xiters[i]);
 			caddrs[i] = citers[i].addr;
 			xaddrs[i] = xiters[i].addr;
+
+			ASSERT3U((uintptr_t)caddrs[i] & 31, ==, 0);
+			ASSERT3U((uintptr_t)xaddrs[i] & 31, ==, 0);
 		}
 
 		func_raidz_rec(xaddrs, len, caddrs, mul);
