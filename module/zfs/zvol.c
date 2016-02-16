@@ -33,6 +33,8 @@
  *
  * Volumes are persistent through reboot and module load.  No user command
  * needs to be run before opening and using a device.
+ *
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
 #include <sys/dbuf.h>
@@ -599,6 +601,8 @@ zvol_write(struct bio *bio)
 	dmu_tx_t *tx;
 	rl_t *rl;
 
+	ASSERT(zv && zv->zv_open_count > 0);
+
 	if (bio->bi_rw & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
@@ -647,6 +651,8 @@ zvol_discard(struct bio *bio)
 	int error;
 	rl_t *rl;
 
+	ASSERT(zv && zv->zv_open_count > 0);
+
 	if (end > zv->zv_volsize)
 		return (SET_ERROR(EIO));
 
@@ -691,9 +697,10 @@ zvol_read(struct bio *bio)
 	int error;
 	rl_t *rl;
 
+	ASSERT(zv && zv->zv_open_count > 0);
+
 	if (len == 0)
 		return (0);
-
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, len, RL_READER);
 
@@ -967,7 +974,7 @@ zvol_last_close(zvol_state_t *zv)
 static int
 zvol_open(struct block_device *bdev, fmode_t flag)
 {
-	zvol_state_t *zv = bdev->bd_disk->private_data;
+	zvol_state_t *zv;
 	int error = 0, drop_mutex = 0;
 
 	/*
@@ -981,7 +988,17 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 		drop_mutex = 1;
 	}
 
-	ASSERT3P(zv, !=, NULL);
+	/*
+	 * Obtain a copy of private_data under the lock to make sure
+	 * that either the result of zvol_freeg() setting
+	 * bdev->bd_disk->private_data to NULL is observed, or zvol_free()
+	 * is not called on this zv because of the positive zv_open_count.
+	 */
+	zv = bdev->bd_disk->private_data;
+	if (zv == NULL) {
+		error = -ENXIO;
+		goto out_mutex;
+	}
 
 	if (zv->zv_open_count == 0) {
 		error = zvol_first_open(zv);
@@ -996,6 +1013,8 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 
 	zv->zv_open_count++;
 
+	check_disk_change(bdev);
+
 out_open_count:
 	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
@@ -1003,8 +1022,6 @@ out_open_count:
 out_mutex:
 	if (drop_mutex)
 		mutex_exit(&zvol_state_lock);
-
-	check_disk_change(bdev);
 
 	return (SET_ERROR(error));
 }
@@ -1019,16 +1036,16 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 	zvol_state_t *zv = disk->private_data;
 	int drop_mutex = 0;
 
+	ASSERT(zv && zv->zv_open_count > 0);
+
 	if (!mutex_owned(&zvol_state_lock)) {
 		mutex_enter(&zvol_state_lock);
 		drop_mutex = 1;
 	}
 
-	if (zv->zv_open_count > 0) {
-		zv->zv_open_count--;
-		if (zv->zv_open_count == 0)
-			zvol_last_close(zv);
-	}
+	zv->zv_open_count--;
+	if (zv->zv_open_count == 0)
+		zvol_last_close(zv);
 
 	if (drop_mutex)
 		mutex_exit(&zvol_state_lock);
@@ -1045,8 +1062,7 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 	zvol_state_t *zv = bdev->bd_disk->private_data;
 	int error = 0;
 
-	if (zv == NULL)
-		return (SET_ERROR(-ENXIO));
+	ASSERT(zv && zv->zv_open_count > 0);
 
 	switch (cmd) {
 	case BLKFLSBUF:
@@ -1080,12 +1096,16 @@ static int zvol_media_changed(struct gendisk *disk)
 {
 	zvol_state_t *zv = disk->private_data;
 
+	ASSERT(zv && zv->zv_open_count > 0);
+
 	return (zv->zv_changed);
 }
 
 static int zvol_revalidate_disk(struct gendisk *disk)
 {
 	zvol_state_t *zv = disk->private_data;
+
+	ASSERT(zv && zv->zv_open_count > 0);
 
 	zv->zv_changed = 0;
 	set_capacity(zv->zv_disk, zv->zv_volsize >> 9);
@@ -1103,7 +1123,11 @@ static int
 zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 {
 	zvol_state_t *zv = bdev->bd_disk->private_data;
-	sector_t sectors = get_capacity(zv->zv_disk);
+	sector_t sectors;
+
+	ASSERT(zv && zv->zv_open_count > 0);
+
+	sectors = get_capacity(zv->zv_disk);
 
 	if (sectors > 2048) {
 		geo->heads = 16;
@@ -1260,8 +1284,13 @@ out_kmem:
 static void
 zvol_free(zvol_state_t *zv)
 {
+	ASSERT(MUTEX_HELD(&zvol_state_lock));
+	ASSERT(zv->zv_open_count == 0);
+
 	avl_destroy(&zv->zv_znode.z_range_avl);
 	mutex_destroy(&zv->zv_znode.z_range_lock);
+
+	zv->zv_disk->private_data = NULL;
 
 	del_gendisk(zv->zv_disk);
 	blk_cleanup_queue(zv->zv_queue);
@@ -1395,7 +1424,15 @@ out:
 
 	if (error == 0) {
 		zvol_insert(zv);
+		/*
+		 * Drop the lock to prevent deadlock with sys_open() ->
+		 * zvol_open(), which first takes bd_disk->bd_mutex and then
+		 * takes zvol_state_lock, whereas this code path first takes
+		 * zvol_state_lock, and then takes bd_disk->bd_mutex.
+		 */
+		mutex_exit(&zvol_state_lock);
 		add_disk(zv->zv_disk);
+		mutex_enter(&zvol_state_lock);
 	}
 
 	return (SET_ERROR(error));
@@ -1492,10 +1529,15 @@ int
 zvol_create_minors(const char *name)
 {
 	int error = 0;
+	fstrans_cookie_t cookie;
 
-	if (!zvol_inhibit_dev)
-		error = dmu_objset_find((char *)name, zvol_create_minors_cb,
-		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	if (zvol_inhibit_dev)
+		return (0);
+
+	cookie = spl_fstrans_mark();
+	error = dmu_objset_find((char *)name, zvol_create_minors_cb,
+	    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	spl_fstrans_unmark(cookie);
 
 	return (SET_ERROR(error));
 }
@@ -1519,7 +1561,13 @@ zvol_remove_minors(const char *name)
 
 		if (name == NULL || strcmp(zv->zv_name, name) == 0 ||
 		    (strncmp(zv->zv_name, name, namelen) == 0 &&
-		    zv->zv_name[namelen] == '/')) {
+		    (zv->zv_name[namelen] == '/' ||
+		    zv->zv_name[namelen] == '@'))) {
+
+			/* If in use, leave alone */
+			if (zv->zv_open_count > 0)
+				continue;
+
 			zvol_remove(zv);
 			zvol_free(zv);
 		}
@@ -1549,6 +1597,10 @@ zvol_rename_minors(const char *oldname, const char *newname)
 
 	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
 		zv_next = list_next(&zvol_state_list, zv);
+
+		/* If in use, leave alone */
+		if (zv->zv_open_count > 0)
+			continue;
 
 		if (strcmp(zv->zv_name, oldname) == 0) {
 			__zvol_rename_minor(zv, newname);
@@ -1590,8 +1642,17 @@ snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
 
 int
 zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
+	fstrans_cookie_t cookie;
+
+	if (zvol_inhibit_dev)
+		/* caller should continue to modify snapdev property */
+		return (-1);
+
+	cookie = spl_fstrans_mark();
 	(void) dmu_objset_find((char *) dsname, snapdev_snapshot_changed_cb,
 		&snapdev, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
+	spl_fstrans_unmark(cookie);
+
 	/* caller should continue to modify snapdev property */
 	return (-1);
 }
