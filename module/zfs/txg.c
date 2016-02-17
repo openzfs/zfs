@@ -373,6 +373,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	tx_state_t *tx = &dp->dp_tx;
 	int g = txg & TXG_MASK;
 	int c;
+	uint64_t tx_open_time;
 
 	/*
 	 * Grab all tc_open_locks so nobody else can get into this txg.
@@ -382,10 +383,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 
 	ASSERT(txg == tx->tx_open_txg);
 	tx->tx_open_txg++;
-	tx->tx_open_time = gethrtime();
-
-	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_OPEN, tx->tx_open_time);
-	spa_txg_history_add(dp->dp_spa, tx->tx_open_txg, tx->tx_open_time);
+	tx->tx_open_time = tx_open_time = gethrtime();
 
 	DTRACE_PROBE2(txg__quiescing, dsl_pool_t *, dp, uint64_t, txg);
 	DTRACE_PROBE2(txg__opened, dsl_pool_t *, dp, uint64_t, tx->tx_open_txg);
@@ -396,6 +394,9 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	 */
 	for (c = 0; c < max_ncpus; c++)
 		mutex_exit(&tx->tx_cpu[c].tc_open_lock);
+
+	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_OPEN, tx_open_time);
+	spa_txg_history_add(dp->dp_spa, txg + 1, tx_open_time);
 
 	/*
 	 * Quiesce the transaction group by waiting for everyone to txg_exit().
