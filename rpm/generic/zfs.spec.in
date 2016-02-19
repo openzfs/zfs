@@ -34,7 +34,6 @@
 %endif
 
 %bcond_with    debug
-%bcond_with    blkid
 %bcond_with    systemd
 
 # Generic enable switch for systemd
@@ -89,9 +88,7 @@ Conflicts:      zfs-fuse
 %if 0%{?rhel}%{?fedora}%{?suse_version}
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
-%if %{with blkid}
 BuildRequires:  libblkid-devel
-%endif
 %endif
 %if 0%{?_systemd}
 Requires(post): systemd
@@ -213,11 +210,6 @@ image which is ZFS aware.
 %else
     %define debug --disable-debug
 %endif
-%if %{with blkid}
-    %define blkid --with-blkid
-%else
-    %define blkid --without-blkid
-%endif
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
 %else
@@ -234,7 +226,6 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
-    %{blkid} \
     %{systemd}
 make %{?_smp_mflags}
 

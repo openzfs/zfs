@@ -2080,6 +2080,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *
  *       -o	Set property=value and/or temporary mount options (without '=').
  *
+ *	 -s	Scan using the default search path, the libblkid cache will
+ *	        not be consulted.
+ *
  * The import command scans for pools to import, and import pools based on pool
  * name and GUID.  The pool can also be renamed as part of the import process.
  */
@@ -2109,13 +2112,14 @@ zpool_do_import(int argc, char **argv)
 	boolean_t dryrun = B_FALSE;
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
+	boolean_t do_scan = B_FALSE;
 	uint64_t pool_state, txg = -1ULL;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
 	char *endptr;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:R:tT:VX")) != -1) {
+	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:R:stT:VX")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
@@ -2172,6 +2176,9 @@ zpool_do_import(int argc, char **argv)
 			if (add_prop_list_default(zpool_prop_to_name(
 			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
 				goto error;
+			break;
+		case 's':
+			do_scan = B_TRUE;
 			break;
 		case 't':
 			flags |= ZFS_IMPORT_TEMP_NAME;
@@ -2322,6 +2329,7 @@ zpool_do_import(int argc, char **argv)
 	idata.poolname = searchname;
 	idata.guid = searchguid;
 	idata.cachefile = cachefile;
+	idata.scan = do_scan;
 
 	pools = zpool_search_import(g_zfs, &idata);
 

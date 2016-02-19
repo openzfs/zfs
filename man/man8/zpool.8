@@ -83,13 +83,14 @@ zpool \- configures ZFS storage pools
 .LP
 .nf
 \fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
-     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR\] [\fB-T\fR\]] \fB-a\fR
+     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR\] [\fB-T\fR\]] [\fB-s\fR] \fB-a\fR
 .fi
 
 .LP
 .nf
 \fBzpool import\fR [\fB-o \fImntopts\fR\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR]
-     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR] [\fB-T\fR\]] [\fB-t\fR]] \fIpool\fR |\fIid\fR [\fInewpool\fR]
+     [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR] [\fB-X\fR] [\fB-T\fR\]] [\fB-t\fR]] [\fB-s\fR]
+     \fIpool\fR | \fIid\fR [\fInewpool\fR]
 .fi
 
 .LP
@@ -1322,7 +1323,7 @@ Lists destroyed pools only.
 .ne 2
 .mk
 .na
-\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] \fB-a\fR\fR
+\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-s\fR] \fB-a\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1477,13 +1478,24 @@ Specify the txg to use for rollback.  Implies \fB-FX\fR. For more details about 
 \fBWARNING\fR: This option can be extremely hazardous to the health of your pool and should only be used as a last resort.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-s\fR
+.ad
+.RS 21n
+.rt
+Scan using the default search path, the libblkid cache will not be consulted.  A custom search path may be specified by setting the \fBZPOOL_IMPORT_PATH\fR environment variable.
+.RE
+
 .RE
 
 .sp
 .ne 2
 .mk
 .na
-\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] \fIpool\fR | \fIid\fR [\fInewpool\fR]\fR
+\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] [\fB-s\fR] \fIpool\fR | \fIid\fR [\fInewpool\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -1633,6 +1645,17 @@ Used with "\fBnewpool\fR". Specifies that "\fBnewpool\fR" is temporary. Temporar
 .sp .6
 .RS 4n
 Allows a pool to import when there is a missing log device.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-s\fR
+.ad
+.sp .6
+.RS 4n
+Scan using the default search path, the libblkid cache will not be consulted.  A custom search path may be specified by setting the \fBZPOOL_IMPORT_PATH\fR environment variable.
 .RE
 
 .RE

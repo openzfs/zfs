@@ -78,12 +78,7 @@
 #include <sys/vtoc.h>
 #include <sys/mntent.h>
 #include <uuid/uuid.h>
-#ifdef HAVE_LIBBLKID
 #include <blkid/blkid.h>
-#else
-#define	blkid_cache void *
-#endif /* HAVE_LIBBLKID */
-
 #include "zpool_util.h"
 #include <sys/zfs_context.h>
 
@@ -374,7 +369,6 @@ static int
 check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 {
 	int err;
-#ifdef HAVE_LIBBLKID
 	char *value;
 
 	/* No valid type detected device is safe to use */
@@ -400,9 +394,6 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 	}
 
 	free(value);
-#else
-	err = check_file(path, force, isspare);
-#endif /* HAVE_LIBBLKID */
 
 	return (err);
 }
@@ -500,7 +491,6 @@ check_device(const char *path, boolean_t force,
 {
 	static blkid_cache cache = NULL;
 
-#ifdef HAVE_LIBBLKID
 	/*
 	 * There is no easy way to add a correct blkid_put_cache() call,
 	 * memory will be reclaimed when the command exits.
@@ -519,7 +509,6 @@ check_device(const char *path, boolean_t force,
 			return (-1);
 		}
 	}
-#endif /* HAVE_LIBBLKID */
 
 	return (check_disk(path, cache, force, isspare, iswholedisk));
 }
