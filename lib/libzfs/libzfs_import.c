@@ -55,12 +55,8 @@
 #include <sys/vtoc.h>
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
-
 #include <sys/vdev_impl.h>
-#ifdef HAVE_LIBBLKID
 #include <blkid/blkid.h>
-#endif
-
 #include "libzfs.h"
 #include "libzfs_impl.h"
 
@@ -1203,7 +1199,6 @@ zpool_clear_label(int fd)
 	return (0);
 }
 
-#ifdef HAVE_LIBBLKID
 /*
  * Use libblkid to quickly search for zfs devices
  */
@@ -1273,7 +1268,6 @@ err_blkid2:
 err_blkid1:
 	return (err);
 }
-#endif /* HAVE_LIBBLKID */
 
 char *
 zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
@@ -1313,16 +1307,14 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 
 	verify(iarg->poolname == NULL || iarg->guid == 0);
 
+	/*
+	 * Prefer to locate pool member vdevs using libblkid.  Only fall
+	 * back to legacy directory scanning when explicitly requested or
+	 * if an error is encountered when consulted the libblkid cache.
+	 */
 	if (dirs == 0) {
-#ifdef HAVE_LIBBLKID
-		/* Use libblkid to scan all device for their type */
-		if (zpool_find_import_blkid(hdl, &pools) == 0)
+		if (!iarg->scan && (zpool_find_import_blkid(hdl, &pools) == 0))
 			goto skip_scanning;
-
-		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
-		    dgettext(TEXT_DOMAIN, "blkid failure falling back "
-		    "to manual probing"));
-#endif /* HAVE_LIBBLKID */
 
 		dir = zpool_default_import_path;
 		dirs = DEFAULT_IMPORT_PATH_SIZE;
@@ -1465,9 +1457,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			goto error;
 	}
 
-#ifdef HAVE_LIBBLKID
 skip_scanning:
-#endif
 	ret = get_configs(hdl, &pools, iarg->can_be_active);
 
 error:
