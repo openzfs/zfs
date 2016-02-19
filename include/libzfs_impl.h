@@ -88,8 +88,8 @@ struct libzfs_handle {
 #define	ZFSSHARE_MISS	0x01	/* Didn't find entry in cache */
 
 struct zfs_handle {
-	libzfs_handle_t *zfs_hdl;
-	zpool_handle_t *zpool_hdl;
+	libzfs_handle_t *zfs_libzfs_hdl;
+	zpool_handle_t *zfs_zpool_hdl;
 	char zfs_name[ZFS_MAXNAMELEN];
 	zfs_type_t zfs_type; /* type including snapshot */
 	zfs_type_t zfs_head_type; /* type excluding snapshot */
@@ -109,7 +109,7 @@ struct zfs_handle {
 #define	ZFS_IS_VOLUME(zhp) ((zhp)->zfs_head_type == ZFS_TYPE_VOLUME)
 
 struct zpool_handle {
-	libzfs_handle_t *zpool_hdl;
+	libzfs_handle_t *zpool_libzfs_hdl;
 	zpool_handle_t *zpool_next;
 	char zpool_name[ZPOOL_MAXNAMELEN];
 	int zpool_state;

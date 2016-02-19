@@ -180,7 +180,7 @@ changelist_postfix(prop_changelist_t *clp)
 	 * is uninitialized here so that it will reinitialize later.
 	 */
 	if (cn->cn_handle != NULL) {
-		hdl = cn->cn_handle->zfs_hdl;
+		hdl = cn->cn_handle->zfs_libzfs_hdl;
 		assert(hdl != NULL);
 		zfs_uninit_libshare(hdl);
 	}
@@ -537,7 +537,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	uu_compare_fn_t *compare = NULL;
 	boolean_t legacy = B_FALSE;
 
-	if ((clp = zfs_alloc(zhp->zfs_hdl, sizeof (prop_changelist_t))) == NULL)
+	if ((clp = zfs_alloc(zhp->zfs_libzfs_hdl, sizeof (prop_changelist_t))) == NULL)
 		return (NULL);
 
 	/*
@@ -569,7 +569,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	    compare, 0);
 	if (clp->cl_pool == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
-		(void) zfs_error(zhp->zfs_hdl, EZFS_NOMEM, "internal error");
+		(void) zfs_error(zhp->zfs_libzfs_hdl, EZFS_NOMEM, "internal error");
 		changelist_free(clp);
 		return (NULL);
 	}
@@ -581,7 +581,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 
 	if (clp->cl_list == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
-		(void) zfs_error(zhp->zfs_hdl, EZFS_NOMEM, "internal error");
+		(void) zfs_error(zhp->zfs_libzfs_hdl, EZFS_NOMEM, "internal error");
 		changelist_free(clp);
 		return (NULL);
 	}
@@ -637,7 +637,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	 * We have to re-open ourselves because we auto-close all the handles
 	 * and can't tell the difference.
 	 */
-	if ((temp = zfs_open(zhp->zfs_hdl, zfs_get_name(zhp),
+	if ((temp = zfs_open(zhp->zfs_libzfs_hdl, zfs_get_name(zhp),
 	    ZFS_TYPE_DATASET)) == NULL) {
 		changelist_free(clp);
 		return (NULL);
@@ -647,7 +647,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	 * Always add ourself to the list.  We add ourselves to the end so that
 	 * we're the last to be unmounted.
 	 */
-	if ((cn = zfs_alloc(zhp->zfs_hdl,
+	if ((cn = zfs_alloc(zhp->zfs_libzfs_hdl,
 	    sizeof (prop_changenode_t))) == NULL) {
 		zfs_close(temp);
 		changelist_free(clp);

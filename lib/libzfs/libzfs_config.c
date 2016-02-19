@@ -266,7 +266,7 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 	zfs_cmd_t zc = {"\0"};
 	int error;
 	nvlist_t *config;
-	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	libzfs_handle_t *hdl = zhp->zpool_libzfs_hdl;
 
 	*missing = B_FALSE;
 	(void) strcpy(zc.zc_name, zhp->zpool_name);
@@ -278,7 +278,7 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 		return (-1);
 
 	for (;;) {
-		if (ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_POOL_STATS,
+		if (ioctl(zhp->zpool_libzfs_hdl->libzfs_fd, ZFS_IOC_POOL_STATS,
 		    &zc) == 0) {
 			/*
 			 * The real error is returned in the zc_cookie field.
