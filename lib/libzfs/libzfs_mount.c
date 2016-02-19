@@ -903,7 +903,8 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 		zfs_share_proto_t *curr_proto;
 
 		if (mountpoint == NULL)
-			mntpt = zfs_strdup(zhp->zfs_libzfs_hdl, entry.mnt_mountp);
+			mntpt = zfs_strdup(zhp->zfs_libzfs_hdl,
+				entry.mnt_mountp);
 
 		for (curr_proto = proto; *curr_proto != PROTO_END;
 		    curr_proto++) {

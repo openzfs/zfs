@@ -1761,7 +1761,8 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 		(void) strlcpy(zc.zc_value, propname, sizeof (zc.zc_value));
 
-		if (zfs_ioctl(zhp->zfs_libzfs_hdl, ZFS_IOC_INHERIT_PROP, &zc) != 0)
+		if (zfs_ioctl(zhp->zfs_libzfs_hdl,
+			ZFS_IOC_INHERIT_PROP, &zc) != 0)
 			return (zfs_standard_error(hdl, errno, errbuf));
 
 		return (0);
@@ -1813,7 +1814,8 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 	if ((ret = changelist_prefix(cl)) != 0)
 		goto error;
 
-	if ((ret = zfs_ioctl(zhp->zfs_libzfs_hdl, ZFS_IOC_INHERIT_PROP, &zc)) != 0) {
+	if ((ret = zfs_ioctl(zhp->zfs_libzfs_hdl,
+		ZFS_IOC_INHERIT_PROP, &zc)) != 0) {
 		return (zfs_standard_error(hdl, errno, errbuf));
 	} else {
 
@@ -2066,14 +2068,16 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		if (zcmd_alloc_dst_nvlist(zhp->zfs_libzfs_hdl, &zc, 0) != 0)
 			return (-1);
 		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-		if (zfs_ioctl(zhp->zfs_libzfs_hdl, ZFS_IOC_OBJSET_ZPLPROPS, &zc)) {
+		if (zfs_ioctl(zhp->zfs_libzfs_hdl,
+			ZFS_IOC_OBJSET_ZPLPROPS, &zc)) {
 			zcmd_free_nvlists(&zc);
 			if (prop == ZFS_PROP_VERSION &&
 			    zhp->zfs_type == ZFS_TYPE_VOLUME)
 				*val = zfs_prop_default_numeric(prop);
 			return (-1);
 		}
-		if (zcmd_read_dst_nvlist(zhp->zfs_libzfs_hdl, &zc, &zplprops) != 0 ||
+		if (zcmd_read_dst_nvlist(zhp->zfs_libzfs_hdl, &zc,
+			&zplprops) != 0 ||
 		    nvlist_lookup_uint64(zplprops, zfs_prop_to_name(prop),
 		    val) != 0) {
 			zcmd_free_nvlists(&zc);
@@ -3366,9 +3370,10 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 		int error = lzc_destroy_bookmarks(nv, NULL);
 		fnvlist_free(nv);
 		if (error != 0) {
-			return (zfs_standard_error_fmt(zhp->zfs_libzfs_hdl, errno,
-			    dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
-			    zhp->zfs_name));
+			return (zfs_standard_error_fmt(zhp->zfs_libzfs_hdl,
+				errno,
+				dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
+				zhp->zfs_name));
 		}
 		return (0);
 	}
@@ -3544,7 +3549,8 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 			 */
 			zfs_error_aux(zhp->zfs_libzfs_hdl, dgettext(TEXT_DOMAIN,
 			    "no such parent '%s'"), parent);
-			return (zfs_error(zhp->zfs_libzfs_hdl, EZFS_NOENT, errbuf));
+			return (zfs_error(zhp->zfs_libzfs_hdl,
+				EZFS_NOENT, errbuf));
 
 		case EXDEV:
 			zfs_error_aux(zhp->zfs_libzfs_hdl, dgettext(TEXT_DOMAIN,
@@ -3999,7 +4005,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		}
 		delim = strchr(parentname, '@');
 		*delim = '\0';
-		zhrp = zfs_open(zhp->zfs_libzfs_hdl, parentname, ZFS_TYPE_DATASET);
+		zhrp = zfs_open(zhp->zfs_libzfs_hdl, parentname,
+			ZFS_TYPE_DATASET);
 		if (zhrp == NULL) {
 			ret = -1;
 			goto error;
@@ -4046,7 +4053,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			    "with the new name"));
 			(void) zfs_error(hdl, EZFS_EXISTS, errbuf);
 		} else {
-			(void) zfs_standard_error(zhp->zfs_libzfs_hdl, errno, errbuf);
+			(void) zfs_standard_error(zhp->zfs_libzfs_hdl,
+				errno, errbuf);
 		}
 
 		/*

@@ -90,7 +90,8 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 	zc.zc_obj = obj;
 
 	errno = 0;
-	error = ioctl(di->zhp->zfs_libzfs_hdl->libzfs_fd, ZFS_IOC_OBJ_TO_STATS, &zc);
+	error = ioctl(di->zhp->zfs_libzfs_hdl->libzfs_fd,
+		ZFS_IOC_OBJ_TO_STATS, &zc);
 	di->zerr = errno;
 
 	/* we can get stats even if we failed to get a path */
@@ -490,7 +491,8 @@ find_shares_object(differ_info_t *di)
 	if (stat64(fullpath, &sb) != 0) {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN, "Cannot stat %s"), fullpath);
-		return (zfs_error(di->zhp->zfs_libzfs_hdl, EZFS_DIFF, di->errbuf));
+		return (zfs_error(di->zhp->zfs_libzfs_hdl,
+			EZFS_DIFF, di->errbuf));
 	}
 
 	di->shares = (uint64_t)sb.st_ino;
@@ -670,7 +672,8 @@ get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,
 		    "Cannot diff an unmounted snapshot"));
-		return (zfs_error(di->zhp->zfs_libzfs_hdl, EZFS_BADTYPE, di->errbuf));
+		return (zfs_error(di->zhp->zfs_libzfs_hdl,
+			EZFS_BADTYPE, di->errbuf));
 	}
 
 	/* Avoid a double slash at the beginning of root-mounted datasets */
@@ -764,7 +767,8 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	if (pipe(pipefd)) {
 		zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(errno));
 		teardown_differ_info(&di);
-		return (zfs_error(zhp->zfs_libzfs_hdl, EZFS_PIPEFAILED, errbuf));
+		return (zfs_error(zhp->zfs_libzfs_hdl,
+			EZFS_PIPEFAILED, errbuf));
 	}
 
 	di.scripted = (flags & ZFS_DIFF_PARSEABLE);
@@ -809,9 +813,11 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 		teardown_differ_info(&di);
 		if (di.zerr != 0 && di.zerr != EPIPE) {
 			zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(di.zerr));
-			return (zfs_error(zhp->zfs_libzfs_hdl, EZFS_DIFF, di.errbuf));
+			return (zfs_error(zhp->zfs_libzfs_hdl,
+				EZFS_DIFF, di.errbuf));
 		} else {
-			return (zfs_error(zhp->zfs_libzfs_hdl, EZFS_DIFFDATA, errbuf));
+			return (zfs_error(zhp->zfs_libzfs_hdl,
+				EZFS_DIFFDATA, errbuf));
 		}
 	}
 

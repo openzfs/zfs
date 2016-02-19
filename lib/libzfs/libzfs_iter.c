@@ -46,8 +46,9 @@ zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 
 	for (pair = nvlist_next_nvpair(nvl, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(nvl, pair)) {
-		zfs_handle_t *clone = zfs_open(zhp->zfs_libzfs_hdl, nvpair_name(pair),
-		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+		zfs_handle_t *clone = zfs_open(zhp->zfs_libzfs_hdl,
+			nvpair_name(pair),
+			ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
 		if (clone != NULL) {
 			int err = func(clone, data);
 			if (err != 0)
@@ -72,7 +73,8 @@ top:
 		switch (errno) {
 		case ENOMEM:
 			/* expand nvlist memory and try again */
-			if (zcmd_expand_dst_nvlist(zhp->zfs_libzfs_hdl, zc) != 0) {
+			if (zcmd_expand_dst_nvlist(zhp->zfs_libzfs_hdl,
+				zc) != 0) {
 				zcmd_free_nvlists(zc);
 				return (-1);
 			}

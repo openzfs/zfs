@@ -780,7 +780,8 @@ zpool_set_prop(zpool_handle_t *zhp, const char *propname, const char *propval)
 	nvlist_free(nvl);
 
 	if (ret)
-		(void) zpool_standard_error(zhp->zpool_libzfs_hdl, errno, errbuf);
+		(void) zpool_standard_error(zhp->zpool_libzfs_hdl,
+			errno, errbuf);
 	else
 		(void) zpool_props_refresh(zhp);
 
@@ -1495,16 +1496,17 @@ zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
 	if (zfs_ioctl(zhp->zpool_libzfs_hdl, ZFS_IOC_POOL_EXPORT, &zc) != 0) {
 		switch (errno) {
 		case EXDEV:
-			zfs_error_aux(zhp->zpool_libzfs_hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(zhp->zpool_libzfs_hdl,
+				dgettext(TEXT_DOMAIN,
 			    "use '-f' to override the following errors:\n"
 			    "'%s' has an active shared spare which could be"
 			    " used by other pools once '%s' is exported."),
 			    zhp->zpool_name, zhp->zpool_name);
-			return (zfs_error(zhp->zpool_libzfs_hdl, EZFS_ACTIVE_SPARE,
-			    msg));
+			return (zfs_error(zhp->zpool_libzfs_hdl,
+				EZFS_ACTIVE_SPARE, msg));
 		default:
-			return (zpool_standard_error_fmt(zhp->zpool_libzfs_hdl, errno,
-			    msg));
+			return (zpool_standard_error_fmt(zhp->zpool_libzfs_hdl,
+				errno, msg));
 		}
 	}
 
@@ -2898,8 +2900,8 @@ find_vdev_entry(zpool_handle_t *zhp, nvlist_t **mchild, uint_t mchildren,
 		    mchild[mc], B_FALSE);
 
 		for (sc = 0; sc < schildren; sc++) {
-			char *spath = zpool_vdev_name(zhp->zpool_libzfs_hdl, zhp,
-			    schild[sc], B_FALSE);
+			char *spath = zpool_vdev_name(zhp->zpool_libzfs_hdl,
+				zhp, schild[sc], B_FALSE);
 			boolean_t result = (strcmp(mpath, spath) == 0);
 
 			free(spath);
@@ -3388,7 +3390,8 @@ set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
 	verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
 	    &zc.zc_guid) == 0);
 
-	(void) ioctl(zhp->zpool_libzfs_hdl->libzfs_fd, ZFS_IOC_VDEV_SETPATH, &zc);
+	(void) ioctl(zhp->zpool_libzfs_hdl->libzfs_fd,
+		ZFS_IOC_VDEV_SETPATH, &zc);
 }
 
 /*

@@ -537,7 +537,8 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	uu_compare_fn_t *compare = NULL;
 	boolean_t legacy = B_FALSE;
 
-	if ((clp = zfs_alloc(zhp->zfs_libzfs_hdl, sizeof (prop_changelist_t))) == NULL)
+	if ((clp = zfs_alloc(zhp->zfs_libzfs_hdl,
+		sizeof (prop_changelist_t))) == NULL)
 		return (NULL);
 
 	/*
@@ -569,7 +570,8 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	    compare, 0);
 	if (clp->cl_pool == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
-		(void) zfs_error(zhp->zfs_libzfs_hdl, EZFS_NOMEM, "internal error");
+		(void) zfs_error(zhp->zfs_libzfs_hdl,
+			EZFS_NOMEM, "internal error");
 		changelist_free(clp);
 		return (NULL);
 	}
@@ -581,7 +583,8 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 
 	if (clp->cl_list == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
-		(void) zfs_error(zhp->zfs_libzfs_hdl, EZFS_NOMEM, "internal error");
+		(void) zfs_error(zhp->zfs_libzfs_hdl,
+			EZFS_NOMEM, "internal error");
 		changelist_free(clp);
 		return (NULL);
 	}

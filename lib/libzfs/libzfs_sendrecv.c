@@ -1216,7 +1216,8 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 
 	(void) snprintf(zc.zc_name, sizeof (zc.zc_name), "%s@%s",
 	    zhp->zfs_name, sdd->tosnap);
-	if (ioctl(zhp->zfs_libzfs_hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, &zc) != 0) {
+	if (ioctl(zhp->zfs_libzfs_hdl->libzfs_fd,
+		ZFS_IOC_OBJSET_STATS, &zc) != 0) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
 		    "WARNING: could not send %s@%s: does not exist\n"),
 		    zhp->zfs_name, sdd->tosnap);
