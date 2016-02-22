@@ -331,7 +331,7 @@ function scan_state { #state-file
 				if [[ $op == "-" ]]; then
 					log_note "No operation specified"
 				else
-					export __ZFS_POOL_RESTRICT="$TESTPOOL"
+					export __ZFS_POOL_RESTRICT="TESTPOOL"
 					log_must $ZFS unmount -a
 					unset __ZFS_POOL_RESTRICT
 
