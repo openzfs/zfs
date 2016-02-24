@@ -52,6 +52,7 @@ typedef struct mirror_map {
 	int		mm_replacing;
 	int		mm_preferred;
 	int		mm_root;
+	boolean_t	mm_prefer_read_nonrot;
 	mirror_child_t	mm_child[1];
 } mirror_map_t;
 
@@ -72,6 +73,17 @@ typedef struct mirror_map {
  * use that to dynamically adjust the zfs_vdev_mirror_switch_us time.
  */
 int zfs_vdev_mirror_switch_us = 10000;
+
+/*
+ * For mirrors that contain both rotary and non-rotary devices, do
+ * the read from a non-rotary device whenever possible.
+ *
+ * The main purpose is to not introduce the long latency of the rotary
+ * devices into any read request.  The downside is not using the
+ * bandwidth of the rotary device.  But usually the non-rotary devices
+ * have much larger bandwidth anyhow.
+ */
+int zfs_vdev_mirror_prefer_read_nonrotary = 0;
 
 static void
 vdev_mirror_map_free(zio_t *zio)
@@ -115,6 +127,7 @@ vdev_mirror_map_alloc(zio_t *zio)
 		mm->mm_children = c;
 		mm->mm_replacing = B_FALSE;
 		mm->mm_preferred = spa_get_random(c);
+		mm->mm_prefer_read_nonrot = B_FALSE;
 		mm->mm_root = B_TRUE;
 
 		/*
@@ -147,6 +160,9 @@ vdev_mirror_map_alloc(zio_t *zio)
 		mm->mm_replacing = (vd->vdev_ops == &vdev_replacing_ops ||
 		    vd->vdev_ops == &vdev_spare_ops);
 		mm->mm_preferred = 0;
+		mm->mm_prefer_read_nonrot =
+		    zfs_vdev_mirror_prefer_read_nonrotary &&
+		    vd->vdev_nonrot_mix;
 		mm->mm_root = B_FALSE;
 
 		for (c = 0; c < mm->mm_children; c++) {
@@ -166,6 +182,9 @@ vdev_mirror_map_alloc(zio_t *zio)
 			}
 
 			mc->mc_pending = vdev_mirror_pending(mc->mc_vd);
+			if (mm->mm_prefer_read_nonrot &&
+			    !mc->mc_vd->vdev_nonrot)
+				mc->mc_pending += INT_MAX / 2;
 			if (mc->mc_pending < lowest_pending) {
 				lowest_pending = mc->mc_pending;
 				lowest_nr = 1;
@@ -293,8 +312,9 @@ vdev_mirror_child_select(zio_t *zio)
 	 * Try to find a child whose DTL doesn't contain the block to read.
 	 * If a child is known to be completely inaccessible (indicated by
 	 * vdev_readable() returning B_FALSE), don't even try.
+	 * On the first round, only try nonrot devices if we prefer such.
 	 */
-	for (i = 0, c = mm->mm_preferred; i < mm->mm_children; i++, c++) {
+	for (i = 0, c = mm->mm_preferred; i < 2 * mm->mm_children; i++, c++) {
 		if (c >= mm->mm_children)
 			c = 0;
 		mc = &mm->mm_child[c];
@@ -306,6 +326,10 @@ vdev_mirror_child_select(zio_t *zio)
 			mc->mc_skipped = 1;
 			continue;
 		}
+		if (mm->mm_prefer_read_nonrot &&
+		    i < mm->mm_children &&
+		    !mc->mc_vd->vdev_nonrot)
+			continue;
 		if (!vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1))
 			return (c);
 		mc->mc_error = SET_ERROR(ESTALE);
@@ -561,4 +585,8 @@ vdev_ops_t vdev_spare_ops = {
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_vdev_mirror_switch_us, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_mirror_switch_us, "Switch mirrors every N usecs");
+
+module_param(zfs_vdev_mirror_prefer_read_nonrotary, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_mirror_prefer_read_nonrotary,
+	"Prefer to read from nonrotary (SSD) devices");
 #endif

@@ -660,6 +660,12 @@ typedef enum vdev_aux {
 	VDEV_AUX_SPLIT_POOL	/* vdev was split off into another pool	*/
 } vdev_aux_t;
 
+typedef enum vdev_rotary_state {
+	VDEV_ROTARY_IS,		/* device is rotary (HDD)		*/
+	VDEV_ROTARY_NO,		/* device is not rotary	(SSD)		*/
+	VDEV_ROTARY_MIXED	/* subdevices are both kinds		*/
+} vdev_rotary_state_t;
+
 /*
  * pool state.  The following states are written to disk as part of the normal
  * SPA lifecycle: ACTIVE, EXPORTED, DESTROYED, SPARE, L2CACHE.  The remaining
@@ -749,6 +755,7 @@ typedef struct vdev_stat {
 	hrtime_t	vs_timestamp;		/* time since vdev load	*/
 	uint64_t	vs_state;		/* vdev state		*/
 	uint64_t	vs_aux;			/* see vdev_aux_t	*/
+	uint64_t	vs_rotary;		/* rotary		*/
 	uint64_t	vs_alloc;		/* space allocated	*/
 	uint64_t	vs_space;		/* total capacity	*/
 	uint64_t	vs_dspace;		/* deflated capacity	*/
