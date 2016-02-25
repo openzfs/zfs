@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 import ConfigParser
@@ -272,8 +272,10 @@ class Cmd(object):
         else:
             logger.debug('%s%s%s' % (msga, pad, msgb))
 
-        lines = self.result.stdout + self.result.stderr
-        for dt, line in sorted(lines):
+        lines = sorted(self.result.stdout + self.result.stderr,
+                       cmp=lambda x, y: cmp(x[0], y[0]))
+
+        for dt, line in lines:
             logger.debug('%s %s' % (dt.strftime("%H:%M:%S.%f ")[:11], line))
 
         if len(self.result.stdout):
@@ -286,7 +288,7 @@ class Cmd(object):
                     os.write(err.fileno(), '%s\n' % line)
         if len(self.result.stdout) and len(self.result.stderr):
             with open(os.path.join(self.outputdir, 'merged'), 'w') as merged:
-                for _, line in sorted(lines):
+                for _, line in lines:
                     os.write(merged.fileno(), '%s\n' % line)
 
 
