@@ -752,7 +752,7 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	    sd->parent_fromsnap_guid));
 
 	if (zhp->zfs_dmustats.dds_origin[0]) {
-		zfs_handle_t *origin = zfs_open(zhp->zfs_hdl,
+		zfs_handle_t *origin = zfs_open(zhp->zfs_libzfs_hdl,
 		    zhp->zfs_dmustats.dds_origin, ZFS_TYPE_SNAPSHOT);
 		if (origin == NULL)
 			return (-1);
@@ -857,7 +857,7 @@ estimate_ioctl(zfs_handle_t *zhp, uint64_t fromsnap_obj,
     boolean_t fromorigin, uint64_t *sizep)
 {
 	zfs_cmd_t zc = {"\0"};
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	libzfs_handle_t *hdl = zhp->zfs_libzfs_hdl;
 
 	assert(zhp->zfs_type == ZFS_TYPE_SNAPSHOT);
 	assert(fromsnap_obj == 0 || !fromorigin);
@@ -868,7 +868,7 @@ estimate_ioctl(zfs_handle_t *zhp, uint64_t fromsnap_obj,
 	zc.zc_fromobj = fromsnap_obj;
 	zc.zc_guid = 1;  /* estimate flag */
 
-	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
+	if (zfs_ioctl(zhp->zfs_libzfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
 		char errbuf[1024];
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "warning: cannot estimate space for '%s'"), zhp->zfs_name);
@@ -922,7 +922,7 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
     nvlist_t *debugnv)
 {
 	zfs_cmd_t zc = {"\0"};
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	libzfs_handle_t *hdl = zhp->zfs_libzfs_hdl;
 	nvlist_t *thisdbg;
 
 	assert(zhp->zfs_type == ZFS_TYPE_SNAPSHOT);
@@ -941,7 +941,7 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 		    "fromsnap", fromsnap));
 	}
 
-	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
+	if (zfs_ioctl(zhp->zfs_libzfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
 		char errbuf[1024];
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "warning: cannot send '%s'"), zhp->zfs_name);
@@ -1016,7 +1016,7 @@ send_progress_thread(void *arg)
 
 	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *zhp = pa->pa_zhp;
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	libzfs_handle_t *hdl = zhp->zfs_libzfs_hdl;
 	unsigned long long bytes;
 	char buf[16];
 
@@ -1216,7 +1216,8 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 
 	(void) snprintf(zc.zc_name, sizeof (zc.zc_name), "%s@%s",
 	    zhp->zfs_name, sdd->tosnap);
-	if (ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, &zc) != 0) {
+	if (ioctl(zhp->zfs_libzfs_hdl->libzfs_fd,
+		ZFS_IOC_OBJSET_STATS, &zc) != 0) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
 		    "WARNING: could not send %s@%s: does not exist\n"),
 		    zhp->zfs_name, sdd->tosnap);
@@ -1234,7 +1235,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 		 */
 		(void) snprintf(zc.zc_name, sizeof (zc.zc_name), "%s@%s",
 		    zhp->zfs_name, sdd->fromsnap);
-		if (ioctl(zhp->zfs_hdl->libzfs_fd,
+		if (ioctl(zhp->zfs_libzfs_hdl->libzfs_fd,
 		    ZFS_IOC_OBJSET_STATS, &zc) != 0) {
 			missingfrom = B_TRUE;
 		}
@@ -1349,7 +1350,7 @@ again:
 			}
 		}
 
-		zhp = zfs_open(rzhp->zfs_hdl, fsname, ZFS_TYPE_DATASET);
+		zhp = zfs_open(rzhp->zfs_libzfs_hdl, fsname, ZFS_TYPE_DATASET);
 		if (zhp == NULL)
 			return (-1);
 		err = dump_filesystem(zhp, sdd);
@@ -1414,9 +1415,9 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	    "cannot send '%s'"), zhp->zfs_name);
 
 	if (fromsnap && fromsnap[0] == '\0') {
-		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(zhp->zfs_libzfs_hdl, dgettext(TEXT_DOMAIN,
 		    "zero-length incremental source"));
-		return (zfs_error(zhp->zfs_hdl, EZFS_NOENT, errbuf));
+		return (zfs_error(zhp->zfs_libzfs_hdl, EZFS_NOENT, errbuf));
 	}
 
 	if (zhp->zfs_type == ZFS_TYPE_FILESYSTEM) {
@@ -1431,18 +1432,18 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		featureflags |= (DMU_BACKUP_FEATURE_DEDUP |
 		    DMU_BACKUP_FEATURE_DEDUPPROPS);
 		if ((err = socketpair(AF_UNIX, SOCK_STREAM, 0, pipefd))) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
-			return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED,
+			zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(errno));
+			return (zfs_error(zhp->zfs_libzfs_hdl, EZFS_PIPEFAILED,
 			    errbuf));
 		}
 		dda.outputfd = outfd;
 		dda.inputfd = pipefd[1];
-		dda.dedup_hdl = zhp->zfs_hdl;
+		dda.dedup_hdl = zhp->zfs_libzfs_hdl;
 		if ((err = pthread_create(&tid, NULL, cksummer, &dda))) {
 			(void) close(pipefd[0]);
 			(void) close(pipefd[1]);
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
-			return (zfs_error(zhp->zfs_hdl,
+			zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(errno));
+			return (zfs_error(zhp->zfs_libzfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
 	}
@@ -1467,7 +1468,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 				    "not_recursive"));
 			}
 
-			err = gather_nvlist(zhp->zfs_hdl, zhp->zfs_name,
+			err = gather_nvlist(zhp->zfs_libzfs_hdl, zhp->zfs_name,
 			    fromsnap, tosnap, flags->replicate, &fss, &fsavl);
 			if (err)
 				goto err_out;
@@ -1641,7 +1642,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		dmu_replay_record_t drr = { 0 };
 		drr.drr_type = DRR_END;
 		if (write(outfd, &drr, sizeof (drr)) == -1) {
-			return (zfs_standard_error(zhp->zfs_hdl,
+			return (zfs_standard_error(zhp->zfs_libzfs_hdl,
 			    errno, errbuf));
 		}
 	}
@@ -1649,7 +1650,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	return (err || sdd.err);
 
 stderr_out:
-	err = zfs_standard_error(zhp->zfs_hdl, err, errbuf);
+	err = zfs_standard_error(zhp->zfs_libzfs_hdl, err, errbuf);
 err_out:
 	fsavl_destroy(fsavl);
 	nvlist_free(fss);
@@ -1670,7 +1671,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd,
     enum lzc_send_flags flags)
 {
 	int err;
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	libzfs_handle_t *hdl = zhp->zfs_libzfs_hdl;
 
 	char errbuf[1024];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,

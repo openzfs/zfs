@@ -90,7 +90,8 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 	zc.zc_obj = obj;
 
 	errno = 0;
-	error = ioctl(di->zhp->zfs_hdl->libzfs_fd, ZFS_IOC_OBJ_TO_STATS, &zc);
+	error = ioctl(di->zhp->zfs_libzfs_hdl->libzfs_fd,
+		ZFS_IOC_OBJ_TO_STATS, &zc);
 	di->zerr = errno;
 
 	/* we can get stats even if we failed to get a path */
@@ -374,7 +375,7 @@ static int
 write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 {
 	zfs_cmd_t zc = {"\0"};
-	libzfs_handle_t *lhdl = di->zhp->zfs_hdl;
+	libzfs_handle_t *lhdl = di->zhp->zfs_libzfs_hdl;
 	char fobjname[MAXPATHLEN];
 
 	(void) strlcpy(zc.zc_name, di->fromsnap, sizeof (zc.zc_name));
@@ -490,7 +491,8 @@ find_shares_object(differ_info_t *di)
 	if (stat64(fullpath, &sb) != 0) {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN, "Cannot stat %s"), fullpath);
-		return (zfs_error(di->zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
+		return (zfs_error(di->zhp->zfs_libzfs_hdl,
+			EZFS_DIFF, di->errbuf));
 	}
 
 	di->shares = (uint64_t)sb.st_ino;
@@ -500,7 +502,7 @@ find_shares_object(differ_info_t *di)
 static int
 make_temp_snapshot(differ_info_t *di)
 {
-	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
+	libzfs_handle_t *hdl = di->zhp->zfs_libzfs_hdl;
 	zfs_cmd_t zc = {"\0"};
 
 	(void) snprintf(zc.zc_value, sizeof (zc.zc_value),
@@ -546,7 +548,7 @@ static int
 get_snapshot_names(differ_info_t *di, const char *fromsnap,
     const char *tosnap)
 {
-	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
+	libzfs_handle_t *hdl = di->zhp->zfs_libzfs_hdl;
 	char *atptrf = NULL;
 	char *atptrt = NULL;
 	int fdslen, fsnlen;
@@ -608,7 +610,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 		zprop_source_t src;
 		zfs_handle_t *zhp;
 
-		di->ds = zfs_alloc(di->zhp->zfs_hdl, tdslen + 1);
+		di->ds = zfs_alloc(di->zhp->zfs_libzfs_hdl, tdslen + 1);
 		(void) strncpy(di->ds, tosnap, tdslen);
 		di->ds[tdslen] = '\0';
 
@@ -665,12 +667,13 @@ get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
 {
 	boolean_t mounted;
 
-	mounted = is_mounted(di->zhp->zfs_hdl, dsnm, mntpt);
+	mounted = is_mounted(di->zhp->zfs_libzfs_hdl, dsnm, mntpt);
 	if (mounted == B_FALSE) {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,
 		    "Cannot diff an unmounted snapshot"));
-		return (zfs_error(di->zhp->zfs_hdl, EZFS_BADTYPE, di->errbuf));
+		return (zfs_error(di->zhp->zfs_libzfs_hdl,
+			EZFS_BADTYPE, di->errbuf));
 	}
 
 	/* Avoid a double slash at the beginning of root-mounted datasets */
@@ -693,7 +696,7 @@ get_mountpoints(differ_info_t *di)
 
 	strptr = strchr(di->tosnap, '@');
 	ASSERT3P(strptr, !=, NULL);
-	di->tomnt = zfs_asprintf(di->zhp->zfs_hdl, "%s%s%s", di->dsmnt,
+	di->tomnt = zfs_asprintf(di->zhp->zfs_libzfs_hdl, "%s%s%s", di->dsmnt,
 	    ZDIFF_SNAPDIR, ++strptr);
 
 	strptr = strchr(di->fromsnap, '@');
@@ -712,7 +715,7 @@ get_mountpoints(differ_info_t *di)
 		frommntpt = mntpt;
 	}
 
-	di->frommnt = zfs_asprintf(di->zhp->zfs_hdl, "%s%s%s", frommntpt,
+	di->frommnt = zfs_asprintf(di->zhp->zfs_libzfs_hdl, "%s%s%s", frommntpt,
 	    ZDIFF_SNAPDIR, ++strptr);
 
 	if (di->isclone)
@@ -762,9 +765,10 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	}
 
 	if (pipe(pipefd)) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+		zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(errno));
 		teardown_differ_info(&di);
-		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));
+		return (zfs_error(zhp->zfs_libzfs_hdl,
+			EZFS_PIPEFAILED, errbuf));
 	}
 
 	di.scripted = (flags & ZFS_DIFF_PARSEABLE);
@@ -775,11 +779,11 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	di.datafd = pipefd[0];
 
 	if (pthread_create(&tid, NULL, differ, &di)) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+		zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(errno));
 		(void) close(pipefd[0]);
 		(void) close(pipefd[1]);
 		teardown_differ_info(&di);
-		return (zfs_error(zhp->zfs_hdl,
+		return (zfs_error(zhp->zfs_libzfs_hdl,
 		    EZFS_THREADCREATEFAILED, errbuf));
 	}
 
@@ -788,30 +792,32 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) strlcpy(zc.zc_name, di.tosnap, strlen(di.tosnap) + 1);
 	zc.zc_cookie = pipefd[1];
 
-	iocerr = ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_DIFF, &zc);
+	iocerr = ioctl(zhp->zfs_libzfs_hdl->libzfs_fd, ZFS_IOC_DIFF, &zc);
 	if (iocerr != 0) {
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "Unable to obtain diffs"));
 		if (errno == EPERM) {
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(zhp->zfs_libzfs_hdl, dgettext(TEXT_DOMAIN,
 			    "\n   The sys_mount privilege or diff delegated "
 			    "permission is needed\n   to execute the "
 			    "diff ioctl"));
 		} else if (errno == EXDEV) {
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(zhp->zfs_libzfs_hdl, dgettext(TEXT_DOMAIN,
 			    "\n   Not an earlier snapshot from the same fs"));
 		} else if (errno != EPIPE || di.zerr == 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+			zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(errno));
 		}
 		(void) close(pipefd[1]);
 		(void) pthread_cancel(tid);
 		(void) pthread_join(tid, NULL);
 		teardown_differ_info(&di);
 		if (di.zerr != 0 && di.zerr != EPIPE) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
-			return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
+			zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(di.zerr));
+			return (zfs_error(zhp->zfs_libzfs_hdl,
+				EZFS_DIFF, di.errbuf));
 		} else {
-			return (zfs_error(zhp->zfs_hdl, EZFS_DIFFDATA, errbuf));
+			return (zfs_error(zhp->zfs_libzfs_hdl,
+				EZFS_DIFFDATA, errbuf));
 		}
 	}
 
@@ -819,8 +825,8 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) pthread_join(tid, NULL);
 
 	if (di.zerr != 0) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
-		return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
+		zfs_error_aux(zhp->zfs_libzfs_hdl, strerror(di.zerr));
+		return (zfs_error(zhp->zfs_libzfs_hdl, EZFS_DIFF, di.errbuf));
 	}
 	teardown_differ_info(&di);
 	return (0);

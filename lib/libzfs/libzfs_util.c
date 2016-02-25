@@ -834,19 +834,19 @@ libzfs_fini(libzfs_handle_t *hdl)
 libzfs_handle_t *
 zpool_get_handle(zpool_handle_t *zhp)
 {
-	return (zhp->zpool_hdl);
+	return (zhp->zpool_libzfs_hdl);
 }
 
 libzfs_handle_t *
 zfs_get_handle(zfs_handle_t *zhp)
 {
-	return (zhp->zfs_hdl);
+	return (zhp->zfs_libzfs_hdl);
 }
 
 zpool_handle_t *
 zfs_get_pool_handle(const zfs_handle_t *zhp)
 {
-	return (zhp->zpool_hdl);
+	return (zhp->zfs_zpool_hdl);
 }
 
 /*

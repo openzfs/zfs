@@ -46,8 +46,9 @@ zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 
 	for (pair = nvlist_next_nvpair(nvl, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(nvl, pair)) {
-		zfs_handle_t *clone = zfs_open(zhp->zfs_hdl, nvpair_name(pair),
-		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+		zfs_handle_t *clone = zfs_open(zhp->zfs_libzfs_hdl,
+			nvpair_name(pair),
+			ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
 		if (clone != NULL) {
 			int err = func(clone, data);
 			if (err != 0)
@@ -66,13 +67,14 @@ zfs_do_list_ioctl(zfs_handle_t *zhp, int arg, zfs_cmd_t *zc)
 	orig_cookie = zc->zc_cookie;
 top:
 	(void) strlcpy(zc->zc_name, zhp->zfs_name, sizeof (zc->zc_name));
-	rc = ioctl(zhp->zfs_hdl->libzfs_fd, arg, zc);
+	rc = ioctl(zhp->zfs_libzfs_hdl->libzfs_fd, arg, zc);
 
 	if (rc == -1) {
 		switch (errno) {
 		case ENOMEM:
 			/* expand nvlist memory and try again */
-			if (zcmd_expand_dst_nvlist(zhp->zfs_hdl, zc) != 0) {
+			if (zcmd_expand_dst_nvlist(zhp->zfs_libzfs_hdl,
+				zc) != 0) {
 				zcmd_free_nvlists(zc);
 				return (-1);
 			}
@@ -88,7 +90,7 @@ top:
 			rc = 1;
 			break;
 		default:
-			rc = zfs_standard_error(zhp->zfs_hdl, errno,
+			rc = zfs_standard_error(zhp->zfs_libzfs_hdl, errno,
 			    dgettext(TEXT_DOMAIN,
 			    "cannot iterate filesystems"));
 			break;
@@ -110,7 +112,7 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	if (zhp->zfs_type != ZFS_TYPE_FILESYSTEM)
 		return (0);
 
-	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
+	if (zcmd_alloc_dst_nvlist(zhp->zfs_libzfs_hdl, &zc, 0) != 0)
 		return (-1);
 
 	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_DATASET_LIST_NEXT,
@@ -119,7 +121,7 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 		 * Silently ignore errors, as the only plausible explanation is
 		 * that the pool has since been removed.
 		 */
-		if ((nzhp = make_dataset_handle_zc(zhp->zfs_hdl,
+		if ((nzhp = make_dataset_handle_zc(zhp->zfs_libzfs_hdl,
 		    &zc)) == NULL) {
 			continue;
 		}
@@ -150,7 +152,7 @@ zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
 
 	zc.zc_simple = simple;
 
-	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
+	if (zcmd_alloc_dst_nvlist(zhp->zfs_libzfs_hdl, &zc, 0) != 0)
 		return (-1);
 	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_SNAPSHOT_LIST_NEXT,
 	    &zc)) == 0) {
@@ -158,7 +160,7 @@ zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
 		if (simple)
 			nzhp = make_dataset_simple_handle_zc(zhp, &zc);
 		else
-			nzhp = make_dataset_handle_zc(zhp->zfs_hdl, &zc);
+			nzhp = make_dataset_handle_zc(zhp->zfs_libzfs_hdl, &zc);
 		if (nzhp == NULL)
 			continue;
 
@@ -251,7 +253,7 @@ zfs_sort_snaps(zfs_handle_t *zhp, void *data)
 		free(node);
 	}
 
-	node = zfs_alloc(zhp->zfs_hdl, sizeof (zfs_node_t));
+	node = zfs_alloc(zhp->zfs_libzfs_hdl, sizeof (zfs_node_t));
 	node->zn_handle = zhp;
 	avl_add(avl, node);
 
@@ -321,7 +323,7 @@ snapspec_cb(zfs_handle_t *zhp, void *arg) {
 
 	if (ssa->ssa_seenlast)
 		return (0);
-	shortsnapname = zfs_strdup(zhp->zfs_hdl,
+	shortsnapname = zfs_strdup(zhp->zfs_libzfs_hdl,
 	    strchr(zfs_get_name(zhp), '@') + 1);
 
 	if (!ssa->ssa_seenfirst && strcmp(shortsnapname, ssa->ssa_first) == 0)
@@ -362,7 +364,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 	int err = 0;
 	int ret = 0;
 
-	buf = zfs_strdup(fs_zhp->zfs_hdl, spec_orig);
+	buf = zfs_strdup(fs_zhp->zfs_libzfs_hdl, spec_orig);
 	cp = buf;
 
 	while ((comma_separated = strsep(&cp, ",")) != NULL) {
@@ -388,7 +390,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 				(void) snprintf(snapname, sizeof (snapname),
 				    "%s@%s", zfs_get_name(fs_zhp),
 				    ssa.ssa_last);
-				if (!zfs_dataset_exists(fs_zhp->zfs_hdl,
+				if (!zfs_dataset_exists(fs_zhp->zfs_libzfs_hdl,
 				    snapname, ZFS_TYPE_SNAPSHOT)) {
 					ret = ENOENT;
 					continue;
@@ -408,7 +410,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 			zfs_handle_t *snap_zhp;
 			(void) snprintf(snapname, sizeof (snapname), "%s@%s",
 			    zfs_get_name(fs_zhp), comma_separated);
-			snap_zhp = make_dataset_handle(fs_zhp->zfs_hdl,
+			snap_zhp = make_dataset_handle(fs_zhp->zfs_libzfs_hdl,
 			    snapname);
 			if (snap_zhp == NULL) {
 				ret = ENOENT;
@@ -477,11 +479,11 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 					zfs_close(zhp);
 					return (0);
 				} else {
-					zfs_error_aux(zhp->zfs_hdl,
+					zfs_error_aux(zhp->zfs_libzfs_hdl,
 					    dgettext(TEXT_DOMAIN,
 					    "recursive dependency at '%s'"),
 					    zfs_get_name(zhp));
-					err = zfs_error(zhp->zfs_hdl,
+					err = zfs_error(zhp->zfs_libzfs_hdl,
 					    EZFS_RECURSIVE,
 					    dgettext(TEXT_DOMAIN,
 					    "cannot determine dependent "
