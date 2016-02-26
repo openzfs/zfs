@@ -207,7 +207,7 @@ static const char *
 get_usage(zpool_help_t idx) {
 	switch (idx) {
 	case HELP_ADD:
-		return (gettext("\tadd [-fgLnp] [-o property=value] "
+		return (gettext("\tadd [-fgLnP] [-o property=value] "
 		    "<pool> <vdev> ...\n"));
 	case HELP_ATTACH:
 		return (gettext("\tattach [-f] [-o property=value] "
@@ -237,12 +237,12 @@ get_usage(zpool_help_t idx) {
 		    "[-R root] [-F [-n]]\n"
 		    "\t    <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
-		return (gettext("\tiostat [-gLpvy] [-T d|u] [pool] ... "
+		return (gettext("\tiostat [-gLPvy] [-T d|u] [pool] ... "
 		    "[interval [count]]\n"));
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
-		return (gettext("\tlist [-gHLpv] [-o property[,...]] "
+		return (gettext("\tlist [-gHLPv] [-o property[,...]] "
 		    "[-T d|u] [pool] ... [interval [count]]\n"));
 	case HELP_OFFLINE:
 		return (gettext("\toffline [-t] <pool> <device> ...\n"));
@@ -258,7 +258,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s] <pool> ...\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-gLpvxD] [-T d|u] [pool] ... "
+		return (gettext("\tstatus [-gLPvxD] [-T d|u] [pool] ... "
 		    "[interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
@@ -272,7 +272,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_SET:
 		return (gettext("\tset <property=value> <pool> \n"));
 	case HELP_SPLIT:
-		return (gettext("\tsplit [-gLnp] [-R altroot] [-o mntopts]\n"
+		return (gettext("\tsplit [-gLnP] [-R altroot] [-o mntopts]\n"
 		    "\t    [-o property=value] <pool> <newpool> "
 		    "[<device> ...]\n"));
 	case HELP_REGUID:
@@ -502,7 +502,7 @@ add_prop_list_default(const char *propname, char *propval, nvlist_t **props,
 }
 
 /*
- * zpool add [-fgLnp] [-o property=value] <pool> <vdev> ...
+ * zpool add [-fgLnP] [-o property=value] <pool> <vdev> ...
  *
  *	-f	Force addition of devices, even if they appear in use
  *	-g	Display guid for individual vdev name.
@@ -510,7 +510,7 @@ add_prop_list_default(const char *propname, char *propval, nvlist_t **props,
  *	-n	Do not add the devices, but display the resulting layout if
  *		they were to be added.
  *	-o	Set property=value.
- *	-p	Display full path for vdev name.
+ *	-P	Display full path for vdev name.
  *
  * Adds the given vdevs to 'pool'.  As with create, the bulk of this work is
  * handled by get_vdev_spec(), which constructs the nvlist needed to pass to
@@ -532,7 +532,7 @@ zpool_do_add(int argc, char **argv)
 	char *propval;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fgLno:p")) != -1) {
+	while ((c = getopt(argc, argv, "fgLno:P")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -559,7 +559,7 @@ zpool_do_add(int argc, char **argv)
 			    (add_prop_list(optarg, propval, &props, B_TRUE)))
 				usage(B_FALSE);
 			break;
-		case 'p':
+		case 'P':
 			name_flags |= VDEV_NAME_PATH;
 			break;
 		case '?':
@@ -2828,11 +2828,11 @@ get_timestamp_arg(char c)
 }
 
 /*
- * zpool iostat [-gLpv] [-T d|u] [pool] ... [interval [count]]
+ * zpool iostat [-gLPv] [-T d|u] [pool] ... [interval [count]]
  *
  *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
- *	-p	Display full path for vdev name.
+ *	-P	Display full path for vdev name.
  *	-v	Display statistics for individual vdevs
  *	-T	Display a timestamp in date(1) or Unix format
  *
@@ -2858,7 +2858,7 @@ zpool_do_iostat(int argc, char **argv)
 	iostat_cbdata_t cb = { 0 };
 
 	/* check options */
-	while ((c = getopt(argc, argv, "gLpT:vy")) != -1) {
+	while ((c = getopt(argc, argv, "gLPT:vy")) != -1) {
 		switch (c) {
 		case 'g':
 			guid = B_TRUE;
@@ -2866,7 +2866,7 @@ zpool_do_iostat(int argc, char **argv)
 		case 'L':
 			follow_links = B_TRUE;
 			break;
-		case 'p':
+		case 'P':
 			full_name = B_TRUE;
 			break;
 		case 'T':
@@ -3307,7 +3307,7 @@ list_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool list [-gHLp] [-o prop[,prop]*] [-T d|u] [pool] ... [interval [count]]
+ * zpool list [-gHLP] [-o prop[,prop]*] [-T d|u] [pool] ... [interval [count]]
  *
  *	-g	Display guid for individual vdev name.
  *	-H	Scripted mode.  Don't display headers, and separate properties
@@ -3316,7 +3316,7 @@ list_callback(zpool_handle_t *zhp, void *data)
  *	-o	List of properties to display.  Defaults to
  *		"name,size,allocated,free,expandsize,fragmentation,capacity,"
  *		"dedupratio,health,altroot"
- *	-p	Display full path for vdev name.
+ *	-P	Display full path for vdev name.
  *	-T	Display a timestamp in date(1) or Unix format
  *
  * List all pools in the system, whether or not they're healthy.  Output space
@@ -3337,7 +3337,7 @@ zpool_do_list(int argc, char **argv)
 	boolean_t first = B_TRUE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":gHLo:pT:v")) != -1) {
+	while ((c = getopt(argc, argv, ":gHLo:PT:v")) != -1) {
 		switch (c) {
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
@@ -3351,7 +3351,7 @@ zpool_do_list(int argc, char **argv)
 		case 'o':
 			props = optarg;
 			break;
-		case 'p':
+		case 'P':
 			cb.cb_name_flags |= VDEV_NAME_PATH;
 			break;
 		case 'T':
@@ -3609,7 +3609,7 @@ zpool_do_detach(int argc, char **argv)
 }
 
 /*
- * zpool split [-gLnp] [-o prop=val] ...
+ * zpool split [-gLnP] [-o prop=val] ...
  *		[-o mntopt] ...
  *		[-R altroot] <pool> <newpool> [<device> ...]
  *
@@ -3618,7 +3618,7 @@ zpool_do_detach(int argc, char **argv)
  *	-n	Do not split the pool, but display the resulting layout if
  *		it were to be split.
  *	-o	Set property=value, or set mount options.
- *	-p	Display full path for vdev name.
+ *	-P	Display full path for vdev name.
  *	-R	Mount the split-off pool under an alternate root.
  *
  * Splits the named pool and gives it the new pool name.  Devices to be split
@@ -3645,7 +3645,7 @@ zpool_do_split(int argc, char **argv)
 	flags.name_flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":gLR:no:p")) != -1) {
+	while ((c = getopt(argc, argv, ":gLR:no:P")) != -1) {
 		switch (c) {
 		case 'g':
 			flags.name_flags |= VDEV_NAME_GUID;
@@ -3680,7 +3680,7 @@ zpool_do_split(int argc, char **argv)
 				mntopts = optarg;
 			}
 			break;
-		case 'p':
+		case 'P':
 			flags.name_flags |= VDEV_NAME_PATH;
 			break;
 		case ':':
@@ -4738,11 +4738,11 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-gLpvx] [-T d|u] [pool] ... [interval [count]]
+ * zpool status [-gLPvx] [-T d|u] [pool] ... [interval [count]]
  *
  *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
- *	-p	Display full path for vdev name.
+ *	-P	Display full path for vdev name.
  *	-v	Display complete error logs
  *	-x	Display only pools with potential problems
  *	-D	Display dedup status (undocumented)
@@ -4759,7 +4759,7 @@ zpool_do_status(int argc, char **argv)
 	status_cbdata_t cb = { 0 };
 
 	/* check options */
-	while ((c = getopt(argc, argv, "gLpvxDT:")) != -1) {
+	while ((c = getopt(argc, argv, "gLPvxDT:")) != -1) {
 		switch (c) {
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
@@ -4767,7 +4767,7 @@ zpool_do_status(int argc, char **argv)
 		case 'L':
 			cb.cb_name_flags |= VDEV_NAME_FOLLOW_LINKS;
 			break;
-		case 'p':
+		case 'P':
 			cb.cb_name_flags |= VDEV_NAME_PATH;
 			break;
 		case 'v':
