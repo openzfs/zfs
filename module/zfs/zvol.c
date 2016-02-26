@@ -276,6 +276,7 @@ zvol_update_volsize(uint64_t volsize, objset_t *os)
 {
 	dmu_tx_t *tx;
 	int error;
+	uint64_t txg;
 
 	ASSERT(MUTEX_HELD(&zvol_state_lock));
 
@@ -287,10 +288,13 @@ zvol_update_volsize(uint64_t volsize, objset_t *os)
 		dmu_tx_abort(tx);
 		return (SET_ERROR(error));
 	}
+	txg = dmu_tx_get_txg(tx);
 
 	error = zap_update(os, ZVOL_ZAP_OBJ, "size", 8, 1,
 	    &volsize, tx);
 	dmu_tx_commit(tx);
+
+	txg_wait_synced(dmu_objset_pool(os), txg);
 
 	if (error == 0)
 		error = dmu_free_long_range(os,
