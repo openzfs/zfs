@@ -2,41 +2,70 @@
 
 . /lib/dracut-zfs-lib.sh
 
-ZFS_DATASET=""
-ZFS_POOL=""
-
 case "${root}" in
 	zfs:*) ;;
 	*) return ;;
 esac
 
+# 'rootmnt' is used in mount_fs() to figure out where to
+# mount the filesystem.
+[ -n "$NEWROOT" ] && rootmnt=${NEWROOT}
+
 # Delay until all required block devices are present.
-udevadm settle
+udev_trigger
 
 if [ "${root}" = "zfs:AUTO" ] ; then
-	ZFS_DATASET="$(find_bootfs)"
-	if [ $? -ne 0 ] ; then
-		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
-		ZFS_DATASET="$(find_bootfs)"
-		if [ $? -ne 0 ] ; then
-			warn "ZFS: No bootfs attribute found in importable pools."
-			export_all || export_all "-f"
+	POOLS=$(get_pools)
+	IFS=";"
 
-			rootok=0
-			return 1
+	for pool in $POOLS
+	do
+		[ -z "$pool" ] && continue
+		ZFS_BOOTFS=""
+
+		# No 'else' or return below - if there's more pools, we try
+		# them. If not, we'll drop through and go to the end
+		# where we need a reboot because we couldn't find a root fs.
+		if zfs_action "Importing pool ${pool}" import_pool "${pool}"
+		then
+			if find_rootfs "${pool}"; then
+				if recursive_mount_filesystems \
+				    "Using '${ZFS_BOOTFS}' as root." \
+				    "${ZFS_BOOTFS}"
+				then
+					IFS="$OLD_IFS"
+					rootok=1
+					return 0
+				fi
+			fi
 		fi
-	fi
-	info "ZFS: Using ${ZFS_DATASET} as root."
-fi
+	done
+else
+	# Because of the case at the top, it's either 'zfs:AUTO' or
+	# 'zfs:<rootfs>'. Import the pool from rootfs and mount it.
+	root="${root#zfs:}"	# Remove leading 'zfs:'
+	pool="${root%%/*}"	# Remove everything after first slash.
+	ZFS_BOOTFS="${root}"	# For zfs-functions.
+	if zfs_action "Importing pool ${pool}" import_pool "${pool}"; then
+		info "ZFS: Using ${pool} as root pool."
 
-ZFS_DATASET="${ZFS_DATASET:-${root#zfs:}}"
-ZFS_POOL="${ZFS_DATASET%%/*}"
+		# Will be overwritten in clone_snap() if we're booting from
+		# a snapshot.
+		ZFS_BOOTFS_ORIG="$ZFS_BOOTFS"
 
-if import_pool "${ZFS_POOL}" ; then
-	info "ZFS: Mounting dataset ${ZFS_DATASET}..."
-	if mount_dataset "${ZFS_DATASET}" ; then
-		ROOTFS_MOUNTED=yes
-		return 0
+		# Booting from a snapshot? Updates ZFS_BOOTFS_ORIG and ZFS_BOOTFS...
+		echo "${root}" | grep -q '@' && setup_snapshot_booting
+		root="$ZFS_BOOTFS"
+
+		if recursive_mount_filesystems "Using '${root}' as root." \
+		    "${root}"
+		then
+			rootok=1
+			return 0
+		fi
+	else
+		warn "ZFS: Can't import '${pool}'."
+		# Fallthrough
 	fi
 fi
 

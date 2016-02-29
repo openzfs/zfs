@@ -1,0 +1,1177 @@
+# This is a script with common functions etc used by zfs-import, zfs-mount,
+# zfs-share and zfs-zed.
+#
+# It is _NOT_ to be called independently
+#
+# Released under the 2-clause BSD license.
+#
+# The original script that acted as a template for this script came from
+# the Debian GNU/Linux kFreeBSD ZFS packages (which did not include a
+# licensing stansa) in the commit dated Mar 24, 2011:
+#   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
+
+PATH=/sbin:/bin:/usr/bin:/usr/sbin
+OLD_IFS="${IFS}"
+NEWLINE="
+"
+
+# Source function library
+if [ -f /etc/rc.d/init.d/functions ]; then
+	# RedHat and derivates
+	. /etc/rc.d/init.d/functions
+elif [ -L /etc/init.d/functions.sh ]; then
+	# Gentoo
+	. /etc/init.d/functions.sh
+elif [ -f /lib/lsb/init-functions ]; then
+	# LSB, Debian GNU/Linux and derivates
+	. /lib/lsb/init-functions
+elif [ -f /lib/dracut-lib.sh ]; then
+	# Dracut initrd
+	. /lib/dracut-lib.sh
+fi
+
+# Of course the functions we need are called differently
+# on different distributions - it would be way too easy
+# otherwise!!
+if type log_failure_msg > /dev/null 2>&1 ; then
+	# LSB functions - fall through
+	zfs_log_begin_msg() { log_begin_msg "$1"; }
+	zfs_log_end_msg() { log_end_msg "$1"; }
+	zfs_log_failure_msg() { log_failure_msg "$1"; }
+	zfs_log_progress_msg() { log_progress_msg "$1"; }
+elif type success > /dev/null 2>&1 ; then
+	# Fedora/RedHat functions
+	zfs_log_begin_msg() { echo -n "$1 "; }
+	zfs_log_end_msg() {
+		zfs_set_ifs "${OLD_IFS}"
+		if [ "$1" -eq 0 ]; then
+			success
+		else
+			failure
+		fi
+		echo
+		zfs_set_ifs "${TMP_IFS}"
+	}
+	zfs_log_failure_msg() {
+		zfs_set_ifs "${OLD_IFS}"
+		failure
+		echo
+		zfs_set_ifs "${TMP_IFS}"
+	}
+	zfs_log_progress_msg() { echo -n $"$1"; }
+elif type einfo > /dev/null 2>&1 ; then
+	# Gentoo functions
+	zfs_log_begin_msg() { ebegin "$1"; }
+	zfs_log_end_msg() { eend "$1"; }
+	zfs_log_failure_msg() { eend "$1"; }
+#	zfs_log_progress_msg() { echo -n "$1"; }
+	zfs_log_progress_msg() { echo -n; }
+elif type info > /dev/null 2>&1 ; then
+	# Dracut functions
+	zfs_log_begin_msg() { info "ZFS: $1"; }
+	zfs_log_end_msg() { echo -n; }
+	zfs_log_failure_msg() { warn "ZFS: $1"; }
+	zfs_log_progress_msg() { echo -n; }
+else
+	# Unknown - simple substitues.
+	zfs_log_begin_msg() { echo -n "$1"; }
+	zfs_log_end_msg() {
+		ret="$1"
+		if [ "${ret}" -ge 1 ]; then
+			echo " failed!"
+		else
+			echo " success"
+		fi
+		return "${ret}"
+	}
+	zfs_log_failure_msg() { echo "$1"; }
+	zfs_log_progress_msg() { echo -n "$1"; }
+fi
+
+# This is defined in dracut, but nowhere
+# else. So create a wrapper incase it doesn't exist.
+if ! type emergency_shell > /dev/null 2>&1 ; then
+	emergency_shell() {
+		/bin/sh -i -l
+
+		# Reset error and stderr - user should have fixed the problem.
+		ZFS_ERROR=""
+		ZFS_STDERR=""
+	}
+fi
+
+# Paths to what we need
+ZFS="@sbindir@/zfs"
+ZED="@sbindir@/zed"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+
+# Sensible defaults
+ZFS_MOUNT='yes'
+ZFS_UNMOUNT='yes'
+
+export ZFS ZED ZPOOL ZPOOL_CACHE ZFS_MOUNT ZFS_UNMOUNT
+
+# Source zfs configuration, overriding the defaults
+if [ -f @initconfdir@/zfs ]; then
+	. @initconfdir@/zfs
+fi
+
+if [ -f /lib/dracut-lib.sh ]; then
+	if getargbool 0 zfs_force -y zfs.force -y zfsforce ; then
+		warn "ZFS: Will force-import pools if necessary."
+		ZPOOL_IMPORT_OPTS="${ZPOOL_IMPORT_OPTS} -f"
+	fi
+fi
+
+# ----------------------------------------------------
+
+# Run a command, capture STDOUT, STDERR and exit code.
+# Sets the global variables ZFS_STDERR and ZFS_ERROR
+# with this information.
+#
+# For some reason, some functions in the library have a problem
+# with a changed IFS, so make sure we reset this while running
+# the command.
+#
+zfs_run_cmd()
+{
+	ZFS_CMD="$*"
+
+	zfs_set_ifs "${OLD_IFS}"
+	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
+	ZFS_ERROR="$?"
+	zfs_set_ifs "${TMP_IFS}"
+
+	return "${ZFS_ERROR}"
+}
+
+# Run a command, output a message if quiet != 'y' OR if running
+# with debugging enabled.
+#
+# Returns whatever the command returns.
+#
+# Uses 'lowlevel' zfs_run_cmd() above to capture return code and stderr+stdout.
+zfs_action()
+{
+	zfs_set_ifs " "
+
+	local MSG="$1";	shift
+	local CMD="$*"
+
+	check_boolean "${quiet}" && \
+		zfs_log_begin_msg "${MSG} "
+	check_zfs_debug && \
+		zfs_log_begin_msg "CMD: '${cmd}'"
+
+	zfs_run_cmd "${CMD}"
+
+	if [ "${ZFS_ERROR}" -eq 0 ]; then
+		(check_boolean "${quiet}" || check_zfs_debug) && \
+		    zfs_log_end_msg "${ZFS_ERROR}"
+	else
+		(check_boolean "${quiet}" || check_zfs_debug) && \
+		    zfs_log_failure_msg "${ZFS_ERROR}"
+	fi
+
+	return "${ZFS_ERROR}"
+}
+
+# Returns
+#   0 if daemon has been started
+#   1 if daemon was already running
+#   2 if daemon could not be started
+#   3 if unsupported
+#
+zfs_daemon_start()
+{
+	local PIDFILE="$1";	shift
+	local DAEMON_BIN="$1";	shift
+	local DAEMON_ARGS="$*"
+
+	if type start-stop-daemon > /dev/null 2>&1 ; then
+		# LSB functions
+		start-stop-daemon --start --quiet --pidfile "${PIDFILE}" \
+		    --exec "${DAEMON_BIN}" --test > /dev/null || return 1
+
+	        start-stop-daemon --start --quiet --exec "${DAEMON_BIN}" -- \
+		    ${DAEMON_ARGS} || return 2
+
+		# On Debian GNU/Linux, there's a 'sendsigs' script that will
+		# kill basically everything quite early and zed is stopped
+		# much later than that. We don't want zed to be among them,
+		# so add the zed pid to list of pids to ignore.
+		if [ -f "${PIDFILE}" -a -d /run/sendsigs.omit.d ]
+		then
+			ln -sf "${PIDFILE}" /run/sendsigs.omit.d/zed
+		fi
+	elif type daemon > /dev/null 2>&1 ; then
+	        # Fedora/RedHat functions
+		daemon --pidfile "${PIDFILE}" "${DAEMON_BIN}" ${DAEMON_ARGS}
+		return "$?"
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+# Returns
+#   0 if daemon has been stopped
+#   1 if daemon was already stopped
+#   2 if daemon could not be stopped
+#   3 if unsupported
+#
+zfs_daemon_stop()
+{
+	local PIDFILE="$1"
+	local DAEMON_BIN="$2"
+	local DAEMON_NAME="$3"
+
+	if type start-stop-daemon > /dev/null 2>&1 ; then
+		# LSB functions
+		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
+		    --pidfile "${PIDFILE}" --name "${DAEMON_NAME}"
+		[ "$?" = 0 ] && rm -f "${PIDFILE}"
+
+		return "$?"
+	elif type killproc > /dev/null 2>&1 ; then
+		# Fedora/RedHat functions
+		killproc -p "${PIDFILE}" "${DAEMON_NAME}"
+		[ "$?" = 0 ] && rm -f "${PIDFILE}"
+
+		return "$?"
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+# Returns status
+zfs_daemon_status()
+{
+	local PIDFILE="$1"
+	local DAEMON_BIN="$2"
+	local DAEMON_NAME="$3"
+
+	if type status_of_proc > /dev/null 2>&1 ; then
+		# LSB functions
+		status_of_proc "${DAEMON_NAME}" "${DAEMON_BIN}"
+		return "$?"
+	elif type status > /dev/null 2>&1 ; then
+		# Fedora/RedHat functions
+		status -p "${PIDFILE}" "${DAEMON_NAME}"
+		return "$?"
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+# Stop a daemon.
+zfs_daemon_reload()
+{
+	local PIDFILE="$1"
+	local DAEMON_NAME="$2"
+
+	if type start-stop-daemon > /dev/null 2>&1 ; then
+		# LSB functions
+		start-stop-daemon --stop --signal 1 --quiet \
+		    --pidfile "${PIDFILE}" --name "${DAEMON_NAME}"
+		return "$?"
+	elif type killproc > /dev/null 2>&1 ; then
+		# Fedora/RedHat functions
+		killproc -p "${PIDFILE}" "${DAEMON_NAME}" -HUP
+		return "$?"
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+# Check if ZFS is installed and working properly.
+# Will catch a problem with libraries as well.
+zfs_installed()
+{
+	if [ ! -x "${ZPOOL}" ]; then
+		return 1
+	else
+		# Test if it works (will catch missing/broken libs etc)
+		"${ZPOOL}" -? > /dev/null 2>&1
+		return "$?"
+	fi
+
+	if [ ! -x "${ZFS}" ]; then
+		return 2
+	else
+		# Test if it works (will catch missing/broken libs etc)
+		"${ZFS}" -? > /dev/null 2>&1
+		return "$?"
+	fi
+
+	return 0
+}
+
+# Trigger udev and wait for it to settle.
+udev_trigger()
+{
+	if [ -x /sbin/udevadm ]; then
+		/sbin/udevadm trigger --action=change --subsystem-match=block
+		/sbin/udevadm settle
+	elif [ -x /sbin/udevsettle ]; then
+		/sbin/udevtrigger
+		/sbin/udevsettle
+	fi
+}
+
+# Do a lot of checks to make sure it's 'safe' to continue with the import.
+checksystem()
+{
+	if grep -qiE '(^|[^\\](\\\\)* )zfs=(off|no|false|0)( |$)' /proc/cmdline;
+	then
+		# Called with zfs=(off|no|0) - bail because we don't
+		# want anything import, mounted or shared.
+		# HOWEVER, only do this if we're called at the boot up
+		# (from init), not if we're running interactivly (as in
+		# from the shell - we know what we're doing).
+		[ -n "${init}" ] && exit 3
+	fi
+
+	# Check if ZFS is installed.
+	zfs_installed || return 5
+
+	# Just make sure that /dev/zfs is created.
+	udev_trigger
+
+	if ! [ "$(uname -m)" = "x86_64" ]; then
+		echo "Warning: You're not running 64bit. Currently native zfs in";
+		echo "         Linux is only supported and tested on 64bit.";
+		# should we break here? People doing this should know what they
+		# do, thus i'm not breaking here.
+	fi
+
+	return 0
+}
+
+# Check if the mounted root filesystem is a ZFS filesystem. If so, return
+# the dataset name.
+get_root_pool()
+{
+	set -- $(mount | grep ' on / ')
+	[ "$5" = "zfs" ] && echo "${1%%/*}"
+}
+
+# Check if a variable is 'yes' (any case) or '1'
+# Returns TRUE if set.
+check_boolean()
+{
+	local var="$1"
+
+	echo "${var}" | grep -Eiq "^yes$|^on$|^true$|^1$" && return 0 || return 1
+}
+
+# Check to see if we're running in debug mode
+# Returns
+#   0 if debugging enabled
+#   1 if debugging disabled
+check_zfs_debug()
+{
+	grep -qiE '(^|[^\\](\\\\)* )(zfs_debug|zfs\.debug|zfsdebug)=(on|yes|true|[0-9])( |$)' \
+	   /proc/cmdline
+}
+
+# Check if the specified module is loaded.
+check_module_loaded()
+{
+	module="$1"
+
+	[ -r "/sys/module/${module}/version" ] && return 0 || return 1
+}
+
+# Load specified module.
+load_module()
+{
+	module="$1"
+
+	# Load the zfs module stack
+	if ! check_module_loaded "${module}"; then
+		if ! /sbin/modprobe "${module}"; then
+			return 5
+		fi
+	fi
+	return 0
+}
+
+# Recursivly mount all filesystems, including any additional filesystems,
+# below the specified filesystem.
+recursive_mount_filesystems()
+{
+	local msg="$1"
+	local fs="$2"
+	local filesystems f
+
+	# Fail here if the first fs (the root fs) fails to mount.
+	zfs_action "${msg}" mount_fs "${fs}" || return 1
+
+	# Go through the complete list (recursivly) of all filesystems
+	# below the first (root) dataset.
+	zfs_set_ifs " "
+	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${fs}")"
+	zfs_set_ifs "${OLD_IFS}"
+	for f in ${filesystems} ${ZFS_INITRD_ADDITIONAL_DATASETS}
+	do
+		# Ignore the first (root) fs. Should already be
+		# mounted, but is still included in the 'zfs list'
+		# above.
+		[ "${f}" = "${fs}" ] && continue
+
+		zfs_action "Mounting filesystem ${f}" mount_fs "${f}" || \
+                    return 1
+	done
+
+	return 0
+}
+
+# Load the list of all mounted filsystems, recording filesystem, mountpint
+# etc for later use in in_mtab().
+# First parameter is a regular expression that filters mtab
+read_mtab()
+{
+	local match="$1"
+	local fs mntpnt fstype opts rest TMPFILE
+
+	zfs_set_ifs "${OLD_IFS}"
+
+	# Unset all MTAB_* variables
+	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
+
+	while read -r fs mntpnt fstype opts rest; do
+		if echo "${fs} ${mntpnt} ${fstype} ${opts}" | grep -qE "${match}"; then
+			# * Fix problems (!?) in the mounts file. It will record
+			#   'rpool 1' as 'rpool\0401' instead of 'rpool\00401'
+			#   which seems to be the correct (at least as far as
+			#   'printf' is concerned).
+			# * We need to use the external echo, because the
+			#   internal one would interpret the backslash code
+			#   (incorrectly), giving us a  instead.
+			mntpnt="$(/bin/echo "${mntpnt}" | sed "s,\\\0,\\\00,g")"
+			fs="$(/bin/echo "${fs}" | sed "s,\\\0,\\\00,")"
+
+			# Remove 'unwanted' characters.
+			mntpnt="$(printf '%b\n' "${mntpnt}" | sed -e 's,/,,g' \
+			    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')"
+			fs="$(printf '%b\n' "${fs}")"
+
+			# Set the variable.
+			eval export MTAB_$mntpnt="\"$fs\""
+		fi
+	done < /proc/mounts
+
+	zfs_set_ifs "${TMP_IFS}"
+}
+
+# Check if specified filesystem is mounted.
+in_mtab()
+{
+	local fs="$(echo "$1" | sed 's,/,_,g')"
+	local var
+
+	var="$(eval echo MTAB_${fs})"
+	[ "$(eval echo "$""${var}")" != "" ]
+	return "$?"
+}
+
+# Load the list of all enabled ('not commented out') filesystems from
+# /etc/fstab, recording filesystem, mountpint etc for later use in
+# in_fstab().
+# First parameter is a regular expression that filters fstab
+read_fstab()
+{
+	local match="$1"
+	local i var TMPFILE fs mntpnt fstype opts
+
+	zfs_set_ifs "${OLD_IFS}"
+
+	# Unset all FSTAB_* variables
+	unset $(env | grep ^FSTAB_ | sed 's,=.*,,')
+
+	i=0
+	while read -r fs mntpnt fstype opts; do
+		echo "${fs}" | egrep -qE '^#|^$' && continue
+
+		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
+			eval export FSTAB_dev_${i}="\"${fs}\""
+			fs=$(printf '%b\n' "${fs}" | sed 's,/,_,g')
+			eval export FSTAB_${i}="\"${mntpnt}\""
+
+			i="$((i + 1))"
+		fi
+	done < /etc/fstab
+
+	zfs_set_ifs "${TMP_IFS}"
+}
+
+# Check to see if specified filesystem is in fstab
+in_fstab()
+{
+	local var
+
+	var="$(eval echo FSTAB_$1)"
+	[ "${var}" != "" ]
+	return "$?"
+}
+
+# Check if specified mountpoint is mounted.
+is_mounted()
+{
+	local mntpt="$1"
+	local line
+
+	mount | \
+	    while read line; do
+		if echo "${line}" | grep -q " on ${mntpt} "; then
+		    return 0
+		fi
+	    done
+
+	return 1
+}
+
+# Get a ZFS filesystem property value.
+get_fs_value()
+{
+	local fs="$1"
+	local value="$2"
+
+	"${ZFS}" get -H -ovalue "${value}" "${fs}" 2> /dev/null
+}
+
+# Get a ZFS pool property value.
+get_pool_property()
+{
+	local pool="$1"
+	local property="$2"
+
+	# NOTE: zpool does not support 'get -H -ovalue <property>'...
+	"${ZPOOL}" list -H -o"${property}" "${pool}"
+}
+
+# Find the 'bootfs' property on pool $1.
+# If the property does not contain '/', then ignore this
+# pool by exporting it again.
+find_rootfs()
+{
+	local pool="$1"
+	local fs
+
+	# Look for a set 'bootfs' property of the pool.
+	fs="$(get_pool_property "${pool}" bootfs)"
+
+	# Make sure it's not '-' and that it starts with /.
+	if [ "${fs}" != "-" ] && \
+		$(get_fs_value "${fs}" mountpoint | grep -q '^/$')
+	then
+		echo "${fs}"
+		return 0
+	fi
+
+	return 1
+}
+
+# Support function to get a list of all pools, separated with ';'
+find_pools()
+{
+	local CMD="$*"
+	local pools pool
+
+	pools="$(${CMD} 2> /dev/null | \
+		grep -E "pool:|^[a-zA-Z0-9]" | \
+		sed 's@.*: @@' | \
+		while read pool; do \
+		    echo -n "${pool};"
+		done)"
+
+	echo "${pools%%;}" # Return without the last ';'.
+}
+
+# Get a list of all availible pools
+get_pools()
+{
+	local available_pools npools
+
+	if [ -n "${ZFS_POOL_IMPORT}" ]; then
+		echo "${ZFS_POOL_IMPORT}"
+		return 0
+	fi
+
+	# Get the base list of availible pools.
+	if [ -f "${ZPOOL_CACHE}" ]; then
+		# A cache file exists. This takes precedent.
+		available_pools="$(find_pools "${ZPOOL}" import -c "${ZPOOL_CACHE}")"
+
+		# NOTE: We do NOT try to get additional pools here. If there
+		#       is a cache file, we're ONLY interested in those defined
+		#       there in.
+	else
+		available_pools="$(find_pools "${ZPOOL}" import)"
+
+		# Just in case - seen it happen (that a pool isn't visable/found
+		# with a simple "zpool import" but only when using the "-d"
+		# option or setting ZPOOL_IMPORT_PATH).
+		if [ -n "${ZPOOL_IMPORT_PATH}" ]; then
+			# A import path variable is set. Use this
+			npools="$(find_pools "${ZPOOL}" import -d "${ZPOOL_IMPORT_PATH}")"
+		elif [ -d "/dev/disk/by-id" ]; then
+			# Just as a fallback.
+			npools="$(find_pools "${ZPOOL}" import -d /dev/disk/by-id)"
+		fi
+	fi
+
+	if [ -n "${npools}" ]
+	then
+		# Because we have found extra pool(s) here, which wasn't
+		# found 'normaly', we need to force USE_DISK_BY_ID to
+		# make sure we're able to actually import it/them later.
+		USE_DISK_BY_ID='yes'
+
+		if [ -n "${available_pools}" ]
+		then
+			# Filter out duplicates (pools found with the simple
+			# "zpool import" but which is also found with the
+			# "zpool import -d ...").
+			npools="$(echo "${npools}" | sed "s,${available_pools},,")"
+
+			# Add the list to the existing list of
+			# available pools
+			available_pools="${available_pools};${npools}"
+		else
+			available_pools="${npools}"
+		fi
+	fi
+
+        # Filter out any exceptions...
+	if [ -n "${ZFS_POOL_EXCEPTIONS}" ]
+	then
+		local found=""
+		local apools=""
+		local pool exception
+		OLD_IFS="${IFS}" ; IFS=";"
+
+		for pool in ${available_pools}
+		do
+			for exception in ${ZFS_POOL_EXCEPTIONS}
+			do
+				[ "${pool}" = "${exception}" ] && continue 2
+				found="${pool}"
+			done
+
+			if [ -n "${found}" ]
+			then
+				if [ -n "${apools}" ]
+				then
+					apools="${apools};${pool}"
+				else
+					apools="${pool}"
+				fi
+			fi
+		done
+
+		IFS="${OLD_IFS}"
+		available_pools="${apools}"
+	fi
+
+	# Return list of availible pools.
+	echo "${available_pools}"
+}
+
+# Import given pool $1
+import_pool()
+{
+	local pool="$1"
+	local dirs dir
+
+	# Verify that the pool isn't already imported
+	# Make as sure as we can to not require '-f' to import.
+	"${ZPOOL}" status "${pool}" > /dev/null 2>&1 && return 0
+
+	# For backwards compability, make sure that ZPOOL_IMPORT_PATH is set
+	# to something we can use later with the real import(s). We want to
+	# make sure we find all by* dirs, BUT by-vdev should be first (if it
+	# exists).
+	if [ -n "${USE_DISK_BY_ID}" -a -z "${ZPOOL_IMPORT_PATH}" ]
+	then
+		dirs="$(for dir in $(echo /dev/disk/by-*)
+		do
+			# Ignore by-vdev here - we want it first!
+			echo "${dir}" | grep -q /by-vdev && continue
+			[ ! -d "${dir}" ] && continue
+
+			echo -n "${dir}:"
+		done | sed 's,:$,,g')"
+
+		if [ -d "/dev/disk/by-vdev" ]
+		then
+			# Add by-vdev at the beginning.
+			ZPOOL_IMPORT_PATH="/dev/disk/by-vdev:"
+		fi
+
+		# ... and /dev at the very end, just for good measure.
+		ZPOOL_IMPORT_PATH="${ZPOOL_IMPORT_PATH}${dirs}:/dev"
+	fi
+
+	# Needs to be exported for "zpool" to catch it.
+	[ -n "${ZPOOL_IMPORT_PATH}" ] && export ZPOOL_IMPORT_PATH
+
+
+	zfs_action "Importing pool '${pool}' using defaults" \
+            "${ZPOOL}" import -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS} "${pool}"
+	if [ "${ZFS_ERROR}" != 0 ]
+	then
+		if [ -f "${ZPOOL_CACHE}" ]
+		then
+			zfs_action "Importing pool '${pool}' using cachefile." \
+                            "${ZPOOL}" import -c "${ZPOOL_CACHE}" \
+                            -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS} "${pool}"
+		fi
+
+		if [ "${ZFS_ERROR}" != 0 ]
+		then
+			disable_plymouth
+			if [ "$?" -ne "123" ]; then
+				echo ""
+				echo "Command: ${ZFS_CMD}"
+				echo "Message: ${ZFS_STDERR}"
+				echo "Error: ${ZFS_ERROR}"
+				echo ""
+				echo "Failed to import pool '${pool}'."
+				echo "Manually import the pool and exit."
+				emergency_shell
+			else
+				return 1
+			fi
+		fi
+	fi
+
+	POOL_IMPORTED=1
+	return 0
+}
+
+# Mount a given filesystem
+mount_fs()
+{
+	local fs="$1"
+	local mntpnt="$2"
+	local mntopt="$3"
+	local mountpoint cmd
+
+	# Check that the filesystem exists
+	"${ZFS}" list -oname -tfilesystem -H "${fs}" > /dev/null 2>&1
+	[ "$?" -ne 0 ] && return 1
+
+	# If we're called with opts, prefix it with a comma
+	[ -n "${mntopt}" ] && mntopt=",${mntopt}"
+
+	# Need the _original_ datasets mountpoint!
+	# We do this even if we're called with a mountpoint so that we
+	# can figure out what 'mount' command to use (legacy or native fs).
+	# We overwrite the 'mountpoint' variable later if we are called
+	# with a mountpoint.
+	mountpoint="$(get_fs_value "${fs}" mountpoint)"
+	if [ "${mountpoint}" = "legacy" -o "${mountpoint}" = "none" ]; then
+		# Can't use the mountpoint property. Might be one of our
+		# clones. Check the 'org.zol:mountpoint' property set in
+		# clone_snap() if that's usable.
+		mountpoint="$(get_fs_value "${fs}" org.zol:mountpoint)"
+		if [ "${mountpoint}" = "legacy" -o \
+		    "${mountpoint}" = "none" -o \
+		    "${mountpoint}" = "-" ]
+		then
+			if [ "${fs}" != "${ZFS_BOOTFS}" ]; then
+				# We don't have a proper mountpoint, this
+				# isn't the root fs. So extract the root fs
+				# value from the filesystem, and we should
+				# (hopefully!) have a mountpoint we can use.
+				mountpoint="${fs##${ZFS_BOOTFS}}"
+			else
+				# Last hail-mary: Hope 'rootmnt' is set!
+				mountpoint=""
+			fi
+		fi
+
+		if [ "${mountpoint}" = "legacy" ]; then
+			cmd="mount -t zfs"
+		else
+			# If it's not a legacy filesystem, it can only be a
+			# native one...
+			cmd="mount -o zfsutil${mntopt} -t zfs"
+		fi
+	else
+		cmd="mount -o zfsutil${mntopt} -t zfs"
+	fi
+
+	# If we're called with a mountpoint, use that instead.
+	[ -n "${mntpnt}" ] && mountpoint="${mntpnt}"
+
+	# Possibly decrypt a filesystem using native encryption.
+	zfs_action "Decrypting ${fs}" decrypt_fs "${fs}"
+
+	zfs_action "Mounting '${fs}' on '${rootmnt}/${mountpoint}'" \
+            "${cmd}" "${fs}" "${rootmnt}/${mountpoint}"
+	if [ "${ZFS_ERROR}" != 0 ]
+	then
+		disable_plymouth
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: ${ZFS_CMD}"
+			echo "Message: ${ZFS_STDERR}"
+			echo "Error: ${ZFS_ERROR}"
+			echo ""
+			echo "Failed to mount ${fs} on ${rootmnt}/${mountpoint}."
+			echo "Manually mount the filesystem and exit."
+			emergency_shell
+		else
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+# Unlock a ZFS native crypted filesystem.
+decrypt_fs()
+{
+	local fs="$1"
+
+	# If the 'zfs key' command isn't availible, exit right here.
+	"${ZFS}" 2>&1 | grep -q 'key -l ' || return 0
+
+	# Check if filesystem is encrypted. If not, exit right here.
+	[ "$(get_fs_value "${fs}" encryption)" != "off" ] || return 0
+
+	check_boolean "${quiet}" || \
+	    zfs_log_begin_msg "Loading crypto wrapper key for ${fs}"
+
+	# Just make sure that ALL crypto modules module is loaded.
+	# Simplest just to load all...
+	for mod in sun-ccm sun-gcm sun-ctr
+	do
+		zfs_action "Loading module ${mod}" load_module "${mod}"
+		if [ "${ZFS_ERROR}" != 0 ]
+		then
+			disable_plymouth
+			if [ "$?" -ne "123" ]; then
+				echo ""
+				echo "Command: ${ZFS_CMD}"
+				echo "Message: ${ZFS_STDERR}"
+				echo "Error: ${ZFS_ERROR}"
+				echo ""
+				echo "Failed to load ${mod} module."
+				echo "Please verify that it is availible on the initrd image"
+				echo "(without it it won't be possible to unlock the filesystem)"
+				echo "and rerun:  ${ZFS_CMD}"
+				emergency_shell
+			else
+				return 1
+			fi
+		fi
+	done
+
+	# If the key isn't availible, then this will fail!
+	zfs_action "Loading crypto wrapper key for ${fs}" \
+            "${ZFS}" key -l -r "${fs}"
+	if [ "${ZFS_ERROR}" != 0 ]
+	then
+		disable_plymouth
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: ${ZFS_CMD}"
+			echo "Message: ${ZFS_STDERR}"
+			echo "Error: ${ZFS_ERROR}"
+			echo ""
+			echo "Failed to load zfs encryption wrapper key (s)."
+			echo "Please verify dataset property 'keysource' for datasets"
+			echo "and rerun:  ${ZFS_CMD}"
+			emergency_shell
+		else
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+# Destroy a given filesystem.
+destroy_fs()
+{
+	local fs="$1"
+
+	zfs_action "Destroying '${fs}'" "${ZFS}" destroy "${fs}"
+	if [ "${ZFS_ERROR}" != 0 ]
+	then
+		disable_plymouth
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: ${ZFS_CMD}"
+			echo "Message: ${ZFS_STDERR}"
+			echo "Error: ${ZFS_ERROR}"
+			echo ""
+			echo "Failed to destroy '${fs}'. Please make sure that '${fs}' is not availible."
+			echo "Hint: Try:  zfs destroy -Rfn ${fs}"
+			echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
+			emergency_shell
+		else
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+# Clone snapshot $1 to destination filesystem $2
+# Set 'canmount=noauto' and 'mountpoint=none' so that we get to keep
+# manual controll over it's mounting (i.e., make sure it's not automatically
+# mounted with a 'zfs mount -a' in the init/systemd scripts).
+clone_snap()
+{
+	local snap="$1"
+	local destfs="$2"
+	local mountpoint="$3"
+
+	# Clone the snapshot into a dataset we can boot from
+	# + We don't want this filesystem to be automatically mounted, we
+	#   want controll over this here and nowhere else.
+	# + We don't need any mountpoint set for the same reason.
+	# We use the 'org.zol:mountpoint' property to remember the mountpoint.
+	zfs_action "Cloning '${snap}' to '${destfs}'" \
+            "${ZFS}" clone -o canmount=noauto -o mountpoint=none \
+            -o org.zol:mountpoint="${mountpoint}" \
+            "${snap}" "${destfs}"
+	if [ "${ZFS_ERROR}" != 0 ]
+	then
+		disable_plymouth
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: ${ZFS_CMD}"
+			echo "Message: ${ZFS_STDERR}"
+			echo "Error: ${ZFS_ERROR}"
+			echo ""
+			echo "Failed to clone snapshot."
+			echo "Make sure that the any problems are corrected and then make sure"
+			echo "that the dataset '${destfs}' exists and is bootable."
+			emergency_shell
+		else
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+# Rollback a given snapshot.
+rollback_snap()
+{
+	local snap="$1"
+
+	zfs_action "Rollback snapshot '${snap}'" "${ZFS}" rollback -Rf "${snap}"
+	if [ "${ZFS_ERROR}" != 0 ]
+	then
+		disable_plymouth
+		if [ "$?" -ne "123" ]; then
+			echo ""
+			echo "Command: ${ZFS_CMD}"
+			echo "Message: ${ZFS_STDERR}"
+			echo "Error: ${ZFS_ERROR}"
+			echo ""
+			echo "Failed to rollback snapshot."
+			emergency_shell
+		else
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+# Get a list of snapshots, give them as a numbered list
+# to the user to choose from.
+ask_user_snap()
+{
+	local fs="$1"
+	local i=1
+	local SNAP snapnr snap debug
+
+	# We need to temporarily disable debugging. Set 'debug' so we
+	# remember to enabled it again.
+	if [ -n "${ZFS_DEBUG}" ]; then
+		unset ZFS_DEBUG
+		set +x
+		debug=1
+	fi
+
+	# Because we need the resulting snapshot, which is sent on
+	# stdout to the caller, we use stderr for our questions.
+	echo "What snapshot do you want to boot from?" > /dev/stderr
+	while read snap; do
+	    echo "  ${i}: ${snap}" > /dev/stderr
+	    eval `echo SNAP_${i}="${snap}"`
+	    i="$((i + 1))"
+	done <<EOT
+$("${ZFS}" list -H -oname -tsnapshot "${fs}")
+EOT
+
+	echo -n "  Snap nr [0-$((i-1))]? " > /dev/stderr
+	read snapnr
+
+	# Reenable debugging.
+	if [ -n "${debug}" ]; then
+		ZFS_DEBUG=1
+		set -x
+	fi
+
+	echo "$(eval echo "$"SNAP_${snapnr})"
+}
+
+# If we want to boot from a snapshot, we need to first:
+#   * rollback the snapshot (and desendants) into a bootable filesystem
+# OR
+#   * Clone snapshot (and desendants) into a new filesystem and use that
+#     as the root filesystem.
+#     Make sure to keep track of the mountpoint propery.
+setup_snapshot_booting()
+{
+	local snap="$1"
+	local s destfs subfs mountpoint retval=0 filesystems fs
+
+	# Make sure that the snapshot specified actually exist.
+	if [ ! $(get_fs_value "${snap}" type) ]
+	then
+		# Snapshot does not exist (...@<null> ?)
+		# ask the user for a snapshot to use.
+		snap="$(ask_user_snap "${snap%%@*}")"
+	fi
+
+	# Separate the full snapshot ('${snap}') into it's filesystem and
+	# snapshot names. Would have been nice with a split() function..
+	rootfs="${snap%%@*}"
+	snapname="${snap##*@}"
+	ZFS_BOOTFS="${rootfs}_${snapname}"
+
+	if ! grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|true|1)( |$)' /proc/cmdline
+	then
+		# If the destination dataset for the clone
+		# already exists, destroy it. Recursivly
+		if [ $(get_fs_value "${rootfs}_${snapname}" type) ]; then
+			filesystems="$("${ZFS}" list -oname -tfilesystem -H \
+			    -r -Sname "${ZFS_BOOTFS}")"
+			for fs in ${filesystems}; do
+				destroy_fs "${fs}"
+			done
+		fi
+	fi
+
+	# Get all snapshots, recursivly (might need to clone /usr, /var etc
+	# as well).
+	for s in $("${ZFS}" list -H -oname -tsnapshot -r "${rootfs}" | \
+	    grep "${snapname}")
+	do
+		if grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|true|1)( |$)' /proc/cmdline
+		then
+			# Rollback snapshot
+			rollback_snap "${s}" || retval="$((retval + 1))"
+		else
+			# Setup a destination filesystem name.
+			# Ex: Called with 'rpool/ROOT/debian@snap2'
+			#       rpool/ROOT/debian@snap2		=> rpool/ROOT/debian_snap2
+			#       rpool/ROOT/debian/boot@snap2	=> rpool/ROOT/debian_snap2/boot
+			#       rpool/ROOT/debian/usr@snap2	=> rpool/ROOT/debian_snap2/usr
+			#       rpool/ROOT/debian/var@snap2	=> rpool/ROOT/debian_snap2/var
+			subfs="${s##${rootfs}}"
+			subfs="${subfs%%@${snapname}}"
+
+			destfs="${rootfs}_${snapname}" # base fs.
+			[ -n "${subfs}" ] && destfs="${destfs}${subfs}" # + sub fs.
+
+			# Get the mountpoint of the filesystem, to be used
+			# with clone_snap(). If legacy or none, then use
+			# the sub fs value.
+			mountpoint="$(get_fs_value "${s%%@*}" mountpoint)"
+			if [ "${mountpoint}" = "legacy" -o \
+			    "${mountpoint}" = "none" ]
+			then
+				if [ -n "${subfs}" ]; then
+					mountpoint="${subfs}"
+				else
+					mountpoint="/"
+				fi
+			fi
+
+			# Clone the snapshot into its own
+			# filesystem
+			clone_snap "${s}" "${destfs}" "${mountpoint}" || \
+			    retval="$((retval + 1))"
+		fi
+	done
+
+	# If we haven't return yet, we have a problem...
+	return "${retval}"
+}
+
+# Check if the/a root fs is mounted.
+chkroot() {
+	while read line; do
+		set -- ${line}
+		if [ "$2" = "/" ]; then
+			return 0
+		fi
+	done < /etc/mtab
+
+	return 1
+}
+
+# export_pools [OPTS]
+#   exports all imported zfs pools.
+export_pools() {
+	local opts="${1}"
+	local ret=0
+
+	IFS="${NEWLINE}"
+	for pool in `zpool list -H -o name` ; do
+		if zpool list -H "${pool}" 2>&1 > /dev/null ; then
+			zpool export "${pool}" ${opts} || ret=$?
+		fi
+	done
+	IFS="${OLD_IFS}"
+
+	return ${ret}
+}
+
+# If plymouth is availible, hide the splash image.
+disable_plymouth()
+{
+	if [ -x /bin/plymouth ] && /bin/plymouth --ping
+	then
+		/bin/plymouth hide-splash >/dev/null 2>&1
+	else
+		# Return a value we know isn't something plymouth would return
+		return 123
+	fi
+}
+
+# For some reason, the init function library have a problem
+# with a changed IFS, so this function goes around that by
+# using a temporary global variable (TMP_IFS).
+zfs_set_ifs() {
+	local tIFS="$1"
+	if [ -n "${tIFS}" ]
+	then
+		TMP_IFS="${IFS}"
+		IFS="${tIFS}"
+	fi
+}
