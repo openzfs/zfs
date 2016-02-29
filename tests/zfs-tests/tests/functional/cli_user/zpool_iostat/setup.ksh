@@ -33,4 +33,4 @@
 
 DISK=${DISKS%% *}
 
-default_setup $DISK
+default_raidz_setup $DISKS

@@ -370,7 +370,7 @@ tests = ['zfs_list_001_pos', 'zfs_list_002_pos', 'zfs_list_003_pos',
 
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
-    'zpool_iostat_003_neg']
+    'zpool_iostat_003_neg', 'zpool_iostat_004_pos']
 
 [tests/functional/cli_user/zpool_list]
 tests = ['zpool_list_001_pos', 'zpool_list_002_neg']

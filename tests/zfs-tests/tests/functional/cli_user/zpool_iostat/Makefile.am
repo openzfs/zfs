@@ -4,4 +4,5 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	zpool_iostat_001_neg.ksh \
 	zpool_iostat_002_pos.ksh \
-	zpool_iostat_003_neg.ksh
+	zpool_iostat_003_neg.ksh \
+	zpool_iostat_004_pos.ksh

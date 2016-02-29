@@ -647,6 +647,7 @@ extern void delay(clock_t ticks);
 extern uint64_t physmem;
 
 extern int highbit64(uint64_t i);
+extern int lowbit64(uint64_t i);
 extern int random_get_bytes(uint8_t *ptr, size_t len);
 extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
 
