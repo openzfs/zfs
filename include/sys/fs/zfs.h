@@ -32,6 +32,7 @@
 #define	_SYS_FS_ZFS_H
 
 #include <sys/time.h>
+#include <sys/zio_priority.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -528,6 +529,37 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_DTL		"DTL"
 #define	ZPOOL_CONFIG_SCAN_STATS		"scan_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
+
+/* container nvlist of extended stats */
+#define	ZPOOL_CONFIG_VDEV_STATS_EX	"vdev_stats_ex"
+
+/* Active queue read/write stats */
+#define	ZPOOL_CONFIG_VDEV_SYNC_R_ACTIVE_QUEUE	"vdev_sync_r_active_queue"
+#define	ZPOOL_CONFIG_VDEV_SYNC_W_ACTIVE_QUEUE	"vdev_sync_w_active_queue"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_R_ACTIVE_QUEUE	"vdev_async_r_active_queue"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_W_ACTIVE_QUEUE	"vdev_async_w_active_queue"
+#define	ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE	"vdev_async_scrub_active_queue"
+
+/* Queue sizes */
+#define	ZPOOL_CONFIG_VDEV_SYNC_R_PEND_QUEUE	"vdev_sync_r_pend_queue"
+#define	ZPOOL_CONFIG_VDEV_SYNC_W_PEND_QUEUE	"vdev_sync_w_pend_queue"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_R_PEND_QUEUE	"vdev_async_r_pend_queue"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_W_PEND_QUEUE	"vdev_async_w_pend_queue"
+#define	ZPOOL_CONFIG_VDEV_SCRUB_PEND_QUEUE	"vdev_async_scrub_pend_queue"
+
+/* Latency read/write histogram stats */
+#define	ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO	"vdev_tot_r_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_TOT_W_LAT_HISTO	"vdev_tot_w_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_DISK_R_LAT_HISTO	"vdev_disk_r_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_DISK_W_LAT_HISTO	"vdev_disk_w_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_R_LAT_HISTO	"vdev_sync_r_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_W_LAT_HISTO	"vdev_sync_w_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_R_LAT_HISTO	"vdev_async_r_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_W_LAT_HISTO	"vdev_async_w_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_SCRUB_LAT_HISTO	"vdev_scrub_histo"
+
+
+
 #define	ZPOOL_CONFIG_WHOLE_DISK		"whole_disk"
 #define	ZPOOL_CONFIG_ERRCOUNT		"error_count"
 #define	ZPOOL_CONFIG_NOT_PRESENT	"not_present"
@@ -766,7 +798,48 @@ typedef struct vdev_stat {
 	uint64_t	vs_scan_removing;	/* removing?	*/
 	uint64_t	vs_scan_processed;	/* scan processed bytes	*/
 	uint64_t	vs_fragmentation;	/* device fragmentation */
+
 } vdev_stat_t;
+
+/*
+ * Extended stats
+ *
+ * These are stats which aren't included in the original iostat output.  For
+ * convenience, they are grouped together in vdev_stat_ex, although each stat
+ * is individually exported as a nvlist.
+ */
+typedef struct vdev_stat_ex {
+	/* Number of ZIOs issued to disk and waiting to finish */
+	uint64_t vsx_active_queue[ZIO_PRIORITY_NUM_QUEUEABLE];
+
+	/* Number of ZIOs pending to be issued to disk */
+	uint64_t vsx_pend_queue[ZIO_PRIORITY_NUM_QUEUEABLE];
+
+	/*
+	 * Below are the histograms for various latencies. Buckets are in
+	 * units of nanoseconds.
+	 */
+
+	/*
+	 * 2^37 nanoseconds = 134s. Timeouts will probably start kicking in
+	 * before this.
+	 */
+#define	VDEV_HISTO_BUCKETS 37
+
+	/* Amount of time in ZIO queue (ns) */
+	uint64_t vsx_queue_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
+	    [VDEV_HISTO_BUCKETS];
+
+	/* Total ZIO latency (ns).  Includes queuing and disk access time */
+	uint64_t vsx_total_histo[ZIO_TYPES][VDEV_HISTO_BUCKETS];
+
+	/* Amount of time to read/write the disk (ns) */
+	uint64_t vsx_disk_histo[ZIO_TYPES][VDEV_HISTO_BUCKETS];
+
+	/* "lookup the bucket for a value" macro */
+#define	HISTO(a) (a != 0 ? MIN(highbit64(a) - 1, VDEV_HISTO_BUCKETS - 1) : 0)
+
+} vdev_stat_ex_t;
 
 /*
  * DDT statistics.  Note: all fields should be 64-bit because this

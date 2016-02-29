@@ -1071,6 +1071,50 @@ highbit64(uint64_t i)
 	return (h);
 }
 
+/*
+ * Find lowest one bit set.
+ * Returns bit number + 1 of lowest bit that is set, otherwise returns 0.
+ * This is basically a reimplementation of ffsll(), which is GNU specific.
+ */
+int
+lowbit64(uint64_t i)
+{
+	register int h = 64;
+	if (i == 0)
+		return (0);
+
+	if (i & 0x00000000ffffffffULL)
+		h -= 32;
+	else
+		i >>= 32;
+
+	if (i & 0x0000ffff)
+		h -= 16;
+	else
+		i >>= 16;
+
+	if (i & 0x00ff)
+		h -= 8;
+	else
+		i >>= 8;
+
+	if (i & 0x0f)
+		h -= 4;
+	else
+		i >>= 4;
+
+	if (i & 0x3)
+		h -= 2;
+	else
+		i >>= 2;
+
+	if (i & 0x1)
+		h -= 1;
+
+	return (h);
+}
+
+
 static int random_fd = -1, urandom_fd = -1;
 
 static int
