@@ -637,7 +637,7 @@ extern void delay(clock_t ticks);
 #define	maxclsyspri	-20
 #define	defclsyspri	0
 
-#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
