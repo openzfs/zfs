@@ -199,7 +199,7 @@ _finish_daemonize(void)
 		zed_log_die("Failed to dup /dev/null onto stderr: %s",
 		    strerror(errno));
 
-	if (close(devnull) < 0)
+	if ((devnull > STDERR_FILENO) && (close(devnull) < 0))
 		zed_log_die("Failed to close /dev/null: %s", strerror(errno));
 
 	/* Notify parent that daemonization is complete. */
