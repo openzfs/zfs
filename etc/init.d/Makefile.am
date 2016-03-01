@@ -21,7 +21,7 @@ $(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS): $(EXTRA_DIST)
 	  else \
 		NFS_SRV=nfs; \
 	  fi; \
-	  if [ -e /etc/gentoo-release ]; then \
+	  if [ -e /sbin/openrc-run ]; then \
 		SHELL=/sbin/runscript; \
 	  else \
 		SHELL=/bin/sh; \
