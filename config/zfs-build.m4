@@ -266,6 +266,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		VENDOR=ubuntu ;
 	elif test -f /etc/debian_version ; then
 		VENDOR=debian ;
+	elif test -f /etc/alpine-release ; then
+		VENDOR=alpine ;
 	else
 		VENDOR= ;
 	fi
@@ -278,6 +280,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		redhat)     DEFAULT_PACKAGE=rpm  ;;
 		fedora)     DEFAULT_PACKAGE=rpm  ;;
 		gentoo)     DEFAULT_PACKAGE=tgz  ;;
+		alpine)     DEFAULT_PACKAGE=tgz  ;;
 		arch)       DEFAULT_PACKAGE=tgz  ;;
 		sles)       DEFAULT_PACKAGE=rpm  ;;
 		slackware)  DEFAULT_PACKAGE=tgz  ;;
@@ -299,7 +302,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		toss)       DEFAULT_INIT_SCRIPT=redhat ;;
 		redhat)     DEFAULT_INIT_SCRIPT=redhat ;;
 		fedora)     DEFAULT_INIT_SCRIPT=fedora ;;
-		gentoo)     DEFAULT_INIT_SCRIPT=gentoo ;;
+		gentoo)     DEFAULT_INIT_SCRIPT=openrc ;;
+		alpine)     DEFAULT_INIT_SCRIPT=openrc ;;
 		arch)       DEFAULT_INIT_SCRIPT=lsb    ;;
 		sles)       DEFAULT_INIT_SCRIPT=lsb    ;;
 		slackware)  DEFAULT_INIT_SCRIPT=lsb    ;;
@@ -313,6 +317,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default init config direectory])
 	case "$VENDOR" in
+		alpine)     DEFAULT_INITCONF_DIR=/etc/conf.d    ;;
 		gentoo)     DEFAULT_INITCONF_DIR=/etc/conf.d    ;;
 		toss)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
 		redhat)     DEFAULT_INITCONF_DIR=/etc/sysconfig ;;

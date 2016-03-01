@@ -58,7 +58,7 @@ do_stop()
 
 # ----------------------------------------------------
 
-if [ ! -e /etc/gentoo-release ]; then
+if [ ! -e /sbin/openrc-run ]; then
 	case "$1" in
 		start)
 			do_start
