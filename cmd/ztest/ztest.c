@@ -123,7 +123,7 @@
 #include <math.h>
 #include <sys/fs/zfs.h>
 #include <libnvpair.h>
-#ifdef __GNUC__
+#ifdef __GLIBC__
 #include <execinfo.h> /* for backtrace() */
 #endif
 
@@ -490,7 +490,7 @@ _umem_logging_init(void)
 static void sig_handler(int signo)
 {
 	struct sigaction action;
-#ifdef __GNUC__ /* backtrace() is a GNU extension */
+#ifdef __GLIBC__ /* backtrace() is a GNU extension */
 	int nptrs;
 	void *buffer[BACKTRACE_SZ];
 
