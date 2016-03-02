@@ -876,7 +876,7 @@ zfs_do_create(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":V:b:so:p:Jj")) != -1) {
+	while ((c = getopt(argc, argv, ":V:b:so:pJj")) != -1) {
 		switch (c) {
 		case 'j':
 		case 'J':
@@ -895,9 +895,20 @@ zfs_do_create(int argc, char **argv)
 			type = ZFS_TYPE_VOLUME;
 			if (zfs_nicestrtonum(&json,
 			    g_zfs, optarg, &intval) != 0) {
-				(void) fprintf(stderr, gettext("bad volume "
-				    "size '%s': %s\n"), optarg,
-				    libzfs_error_description(g_zfs));
+				if (!json.json && !json.ld_json) {
+					(void) fprintf(stderr,
+					    gettext("bad volume "
+					    "size '%s': %s\n"), optarg,
+					    libzfs_error_description(g_zfs));
+				} else {
+					(void) snprintf(errbuf,
+					    sizeof (errbuf),
+					    gettext("bad volume "
+					    "size '%s': %s\n"), optarg,
+					    libzfs_error_description(g_zfs));
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", errbuf);
+				}
 				goto error;
 			}
 
@@ -913,9 +924,20 @@ zfs_do_create(int argc, char **argv)
 			bflag = B_TRUE;
 			if (zfs_nicestrtonum(&json,
 			    g_zfs, optarg, &intval) != 0) {
-				(void) fprintf(stderr, gettext("bad volume "
-				    "block size '%s': %s\n"), optarg,
-				    libzfs_error_description(g_zfs));
+				if (!json.json && !json.ld_json) {
+					(void) fprintf(stderr,
+					    gettext("bad volume "
+					    "block size '%s': %s\n"), optarg,
+					    libzfs_error_description(g_zfs));
+				} else {
+					(void) snprintf(errbuf,
+					    sizeof (errbuf),
+					    gettext("bad volume "
+					    "block size '%s': %s\n"), optarg,
+					    libzfs_error_description(g_zfs));
+					fnvlist_add_string(json.nv_dict_error,
+					    "error", errbuf);
+				}
 				goto error;
 			}
 

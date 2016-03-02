@@ -1997,7 +1997,7 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (!json || (!json->json && !json->ld_json)) {
 			(void) printf(" %5s %5s %5s", rbuf, wbuf, cbuf);
 		} else {
-			fnvlist_add_string(buffer_t,
+		    fnvlist_add_string(buffer_t,
 			    "NAME", name);
 			fnvlist_add_string(buffer_t,
 			    "STATE", state);
@@ -2015,6 +2015,8 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
 		if (!json || (!json->json && !json->ld_json))
 			(void) printf("  was %s", path);
+		else
+			fnvlist_add_string(buffer_t, "was", path);
 	} else if (vs->vs_aux != 0) {
 		if (!json || (!json->json && !json->ld_json))
 			(void) printf("  ");
@@ -2023,27 +2025,42 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		case VDEV_AUX_OPEN_FAILED:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("cannot open"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "cannot open");
 			break;
 
 		case VDEV_AUX_BAD_GUID_SUM:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("missing device"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "missing device");
 			break;
 
 		case VDEV_AUX_NO_REPLICAS:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("insufficient replicas"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "insufficient replicas");
 			break;
 
 		case VDEV_AUX_VERSION_NEWER:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("newer version"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "newer version");
 			break;
 
 		case VDEV_AUX_UNSUP_FEAT:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext(
 				    "unsupported feature(s)"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "unsupported feature(s)");
 			break;
 
 		case VDEV_AUX_SPARED:
@@ -2069,32 +2086,50 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		case VDEV_AUX_ERR_EXCEEDED:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("too many errors"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "too many errors");
 			break;
 
 		case VDEV_AUX_IO_FAILURE:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("experienced I/O "
 				    "failures"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "experienced I/O failures");
 			break;
 
 		case VDEV_AUX_BAD_LOG:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("bad intent log"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "bad intent log");
 			break;
 
 		case VDEV_AUX_EXTERNAL:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("external device fault"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "external device fault");
 			break;
 
 		case VDEV_AUX_SPLIT_POOL:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("split into new pool"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "split into new pool");
 			break;
 
 		default:
 			if (!json || (!json->json && !json->ld_json))
 				(void) printf(gettext("corrupted data"));
+			else
+				fnvlist_add_string(buffer_t,
+				    "reason", "corrupted data");
 			break;
 		}
 	}
@@ -2322,6 +2357,7 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
 		}
 	}
 }
+
 
 /*
  * Print log vdevs.
@@ -5184,6 +5220,7 @@ zpool_do_list(int argc, char **argv)
 		switch (c) {
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
+			break;
 		case 'j':
 			if (json.json || json.ld_json)
 				break;
@@ -7264,7 +7301,7 @@ status_callback(zpool_handle_t *zhp, void *data, zfs_json_t *json)
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_LABEL_R:
-		if (!json->json && json->ld_json) {
+		if (!json->json && !json->ld_json) {
 			(void) printf(gettext("status:"
 				" One or more devices could not "
 			    "be used because the label is"
@@ -7978,6 +8015,7 @@ zpool_do_status(int argc, char **argv)
 			    "error", "");
 			fnvlist_add_string(json.nv_dict_props,
 			    "schema_version", "1.0");
+			break;
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
 			break;
