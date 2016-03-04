@@ -61,7 +61,6 @@ AC_CONFIG_FILES([
 	udev/Makefile
 	udev/rules.d/Makefile
 	etc/Makefile
-	etc/init.d/Makefile
 	etc/zfs/Makefile
 	etc/systemd/Makefile
 	etc/systemd/system/Makefile
@@ -116,6 +115,8 @@ AC_CONFIG_FILES([
 	contrib/dracut/Makefile
 	contrib/dracut/90zfs/Makefile
 	contrib/initramfs/Makefile
+	contrib/sysv-init/Makefile
+	contrib/shell-common/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile

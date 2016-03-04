@@ -30,12 +30,12 @@
 . @sysconfdir@/zfs/zfs-functions
 
 ZED_NAME="zed"
-ZED_PIDFILE="@runstatedir@/$ZED_NAME.pid"
+ZED_PIDFILE="@runstatedir@/${ZED_NAME}.pid"
 
 extra_started_commands="reload"
 
 # Exit if the package is not installed
-[ -x "$ZED" ] || exit 0
+[ -x "${ZED}" ] || exit 0
 
 # ----------------------------------------------------
 
@@ -48,10 +48,10 @@ do_start()
 {
 	check_module_loaded "zfs" || exit 0
 
-	ZED_ARGS="$ZED_ARGS -p $ZED_PIDFILE"
+	ZED_ARGS="${ZED_ARGS} -p ${ZED_PIDFILE}"
 
 	zfs_action "Starting ZFS Event Daemon" zfs_daemon_start \
-	    "$ZED_PIDFILE" "$ZED" "$ZED_ARGS"
+	    "${ZED_PIDFILE}" "${ZED}" "${ZED_ARGS}"
 	return "$?"
 }
 
@@ -61,12 +61,12 @@ do_stop()
 	check_module_loaded "zfs" || exit 0
 
 	zfs_action "Stopping ZFS Event Daemon" zfs_daemon_stop \
-	   "$ZED_PIDFILE" "$ZED" "$ZED_NAME"
+	   "${ZED_PIDFILE}" "${ZED}" "${ZED_NAME}"
 	if [ "$?" -eq "0" ]
 	then
 		# Let's see if we have any pools imported
-		pools=$("$ZPOOL" list -H -oname)
-		if [ -z "$pools" ]
+		pools=$("${ZPOOL}" list -H -oname)
+		if [ -z "${pools}" ]
 		then
 			# No pools imported, it is/should be safe/possible to
 			# unload modules.
@@ -83,7 +83,7 @@ do_status()
 {
 	check_module_loaded "zfs" || exit 0
 
-	zfs_daemon_status "$ZED_PIDFILE" "$ZED" "$ZED_NAME"
+	zfs_daemon_status "${ZED_PIDFILE}" "${ZED}" "${ZED_NAME}"
 	return "$?"
 }
 
@@ -92,7 +92,7 @@ do_reload()
 	check_module_loaded "zfs" || exit 0
 
 	zfs_action "Reloading ZFS Event Daemon" zfs_daemon_reload \
-	    "$ZED_PIDFILE" "$ZED_NAME"
+	    "${ZED_PIDFILE}" "${ZED_NAME}"
 	return "$?"
 }
 
@@ -123,7 +123,7 @@ if [ ! -e /etc/gentoo-release ]; then
 			;;
 	esac
 
-	exit $?
+	exit "$?"
 else
 	# Create wrapper functions since Gentoo don't use the case part.
 	depend() { do_depend; }

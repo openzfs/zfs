@@ -1,0 +1,216 @@
+#!@SHELL@
+#
+# zfs-import    This script will import ZFS pools
+#
+# chkconfig:    2345 01 99
+# description:  This script will perform a verbatim import of ZFS pools
+#               during system boot.
+# probe: true
+#
+### BEGIN INIT INFO
+# Provides:          zfs-import
+# Required-Start:    mtab
+# Required-Stop:     $local_fs mtab
+# Default-Start:     S
+# Default-Stop:      0 1 6
+# X-Start-Before:    checkfs
+# X-Stop-After:      zfs-mount
+# Short-Description: Import ZFS pools
+# Description: Run the `zpool import` command.
+### END INIT INFO
+#
+# NOTE: Not having '$local_fs' on Required-Start but only on Required-Stop
+#       is on purpose. If we have '$local_fs' in both (and X-Start-Before=checkfs)
+#       we get conflicts - import needs to be started extremely early,
+#       but not stopped too late.
+#
+# Released under the 2-clause BSD license.
+#
+# The original script that acted as a template for this script came from
+# the Debian GNU/Linux kFreeBSD ZFS packages (which did not include a
+# licensing stansa) in the commit dated Mar 24, 2011:
+#   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
+
+# Source the common init script
+. @sysconfdir@/zfs/zfs-functions
+
+# ----------------------------------------------------
+
+do_depend()
+{
+	after sysfs udev
+	keyword -lxc -openvz -prefix -vserver
+}
+
+# Use the zpool cache file to import pools
+do_verbatim_import()
+{
+	if [ -f "$ZPOOL_CACHE" ]
+	then
+		zfs_action "Importing ZFS pool(s)" \
+			"$ZPOOL" import -c "$ZPOOL_CACHE" -N -a
+	fi
+}
+
+# Support function to get a list of all pools, separated with ';'
+find_pools()
+{
+	local CMD="$*"
+	local pools
+
+	pools=$($CMD 2> /dev/null | \
+		grep -E "pool:|^[a-zA-Z0-9]" | \
+		sed 's@.*: @@' | \
+		sort | \
+		while read pool; do \
+		    echo -n "$pool;"
+		done)
+
+	echo "${pools%%;}" # Return without the last ';'.
+}
+
+# Find and import all visible pools, even exported ones
+do_import_all_visible()
+{
+	local already_imported available_pools pool npools
+	local exception dir ZPOOL_IMPORT_PATH RET=0 r=1
+
+	# In case not shutdown cleanly.
+	[ -n "${init}" ] && rm -f /etc/dfs/sharetab
+
+	# Just simplify code later on.
+	if [ -n "${USE_DISK_BY_ID}" ] && ! check_boolean "${USE_DISK_BY_ID}"
+	then
+		# It's something, but not 'yes' so it's no good to us.
+		unset USE_DISK_BY_ID
+	fi
+
+	# Find list of already imported pools.
+	POOLS="$(get_pools)"
+
+	# Mount all availible pools (except those set in ZFS_POOL_EXCEPTIONS.
+	#
+	# If not interactive (run from init - variable init='/sbin/init')
+	# we get ONE line for all pools being imported, with just a dot
+	# as status for each pool.
+	# Example: Importing ZFS pool(s)...                             [OK]
+	#
+	# If it IS interactive (started from the shell manually), then we
+	# get one line per pool importing.
+	# Example: Importing ZFS pool pool1                             [OK]
+	#          Importing ZFS pool pool2                             [OK]
+	#          [etc]
+	[ -n "${init}" ] && zfs_log_begin_msg "Importing ZFS pool(s)"
+	OLD_IFS="${IFS}" ; IFS=";"
+	for pool in ${POOLS}
+	do
+		[ -z "${pool}" ] && continue
+
+		# We have pools that haven't been imported - import them
+		if [ -n "${init}" ]
+		then
+			# Not interactive - a dot for each pool.
+			# Except on Gentoo where this doesn't work.
+			zfs_log_progress_msg "."
+		else
+			# Interactive - one 'Importing ...' line per pool
+			zfs_log_begin_msg "Importing ZFS pool ${pool}"
+		fi
+
+		# Import the pool.
+		import_pool "${pool}"
+		r="$?" ; RET=$((RET + r))
+		if [ "${r}" -eq 0 ]
+		then
+			# Output success and process the next pool
+			[ -z "${init}" ] && zfs_log_end_msg 0
+			continue
+		fi
+		zfs_log_end_msg "${RET}"
+	done
+	[ -n "${init}" ] && zfs_log_end_msg "${RET}"
+
+	IFS="${OLD_IFS}"
+
+	return "${RET}"
+}
+
+do_import()
+{
+	if check_boolean "$ZPOOL_IMPORT_ALL_VISIBLE"
+	then
+		do_import_all_visible
+	else
+		# This is the default option
+		do_verbatim_import
+	fi
+}
+
+# Output the status and list of pools
+do_status()
+{
+	check_module_loaded "zfs" || exit 0
+
+	"${ZPOOL}" status && echo "" && "${ZPOOL}" list
+}
+
+do_start()
+{
+	if check_boolean "${VERBOSE_MOUNT}"
+	then
+	    zfs_log_begin_msg "Checking if ZFS userspace tools present"
+	fi
+
+	if checksystem
+	then
+		check_boolean "${VERBOSE_MOUNT}" && zfs_log_end_msg 0
+
+		check_boolean "${VERBOSE_MOUNT}" && \
+			zfs_log_begin_msg "Loading kernel ZFS infrastructure"
+
+		if ! load_module "zfs"
+		then
+			check_boolean "${VERBOSE_MOUNT}" && zfs_log_end_msg 1
+			return 5
+		fi
+		check_boolean "${VERBOSE_MOUNT}" && zfs_log_end_msg 0
+
+		do_import && udev_trigger # just to make sure we get zvols.
+
+		return 0
+	else
+		return 1
+	fi
+}
+
+# ----------------------------------------------------
+
+if [ ! -e /etc/gentoo-release ]
+then
+	case "$1" in
+		start)
+			do_start
+			;;
+		stop)
+			# no-op
+			;;
+		status)
+			do_status
+			;;
+		force-reload|condrestart|reload|restart)
+			# no-op
+			;;
+		*)
+			[ -n "$1" ] && echo "Error: Unknown command $1."
+			echo "Usage: $0 {start|status}"
+			exit 3
+			;;
+	esac
+
+	exit $?
+else
+	# Create wrapper functions since Gentoo don't use the case part.
+	depend() { do_depend; }
+	start() { do_start; }
+	status() { do_status; }
+fi
