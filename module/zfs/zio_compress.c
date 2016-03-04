@@ -132,3 +132,32 @@ zio_decompress_data(enum zio_compress c, void *src, void *dst,
 
 	return (ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level));
 }
+
+size_t
+zio_compress_abd(enum zio_compress c, abd_t *sabd, abd_t *dabd, size_t s_len)
+{
+	int ret;
+	void *src, *dst;
+
+	src = abd_borrow_buf_copy(sabd, s_len);
+	dst = abd_borrow_buf(dabd, s_len);
+	ret = zio_compress_data(c, src, dst, s_len);
+	abd_return_buf_copy(dabd, dst, s_len);
+	abd_return_buf(sabd, src, s_len);
+	return (ret);
+}
+
+int
+zio_decompress_abd(enum zio_compress c, abd_t *sabd, abd_t *dabd, size_t s_len,
+    size_t d_len)
+{
+	int ret;
+	void *src, *dst;
+
+	src = abd_borrow_buf_copy(sabd, s_len);
+	dst = abd_borrow_buf(dabd, d_len);
+	ret = zio_decompress_data(c, src, dst, s_len, d_len);
+	abd_return_buf_copy(dabd, dst, d_len);
+	abd_return_buf(sabd, src, s_len);
+	return (ret);
+}
