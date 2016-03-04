@@ -241,8 +241,13 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks)
 		 * a new stream for it.
 		 */
 		ZFETCHSTAT_BUMP(zfetchstat_misses);
-		if (rw_tryupgrade(&zf->zf_rwlock))
+		if (rw_tryupgrade(&zf->zf_rwlock)) {
 			dmu_zfetch_stream_create(zf, blkid + nblks);
+		} else {
+			rw_exit(&zf->zf_rwlock);
+			rw_enter(&zf->zf_rwlock, RW_WRITER);
+			dmu_zfetch_stream_create(zf, blkid + nblks);
+		}
 		rw_exit(&zf->zf_rwlock);
 		return;
 	}
