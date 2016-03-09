@@ -26,6 +26,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
+#include <sys/sha256.h>
 
 /*
  * SHA-256 checksum, as specified in FIPS 180-3, available at:
@@ -71,7 +72,7 @@ static const uint32_t SHA256_K[64] = {
 };
 
 static void
-SHA256Transform(uint32_t *H, const uint8_t *cp)
+sha256_transform_block(uint32_t *H, const uint8_t *cp)
 {
 	uint32_t a, b, c, d, e, f, g, h, t, T1, T2, W[64];
 
@@ -97,6 +98,16 @@ SHA256Transform(uint32_t *H, const uint8_t *cp)
 }
 
 void
+sha256_transform_generic(const void *buf, uint32_t *H, uint64_t blks)
+{
+	int i;
+	for (i = 0; i < blks; i++)
+		sha256_transform_block(H, buf + (i << SHA256_SHIFT));
+}
+
+static int sha256_selected;
+
+void
 zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	uint32_t H[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
@@ -104,10 +115,9 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	uint8_t pad[128];
 	int i, padsize;
 
-	for (i = 0; i < (size & ~63ULL); i += 64)
-		SHA256Transform(H, (uint8_t *)buf + i);
+	sha256_algos[sha256_selected].func(buf, H, size >> SHA256_SHIFT);
 
-	for (padsize = 0; i < size; i++)
+	for (padsize = 0, i = size & ~63ULL; i < size; i++)
 		pad[padsize++] = *((uint8_t *)buf + i);
 
 	for (pad[padsize++] = 0x80; (padsize & 63) != 56; padsize++)
@@ -116,8 +126,7 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	for (i = 56; i >= 0; i -= 8)
 		pad[padsize++] = (size << 3) >> i;
 
-	for (i = 0; i < padsize; i += 64)
-		SHA256Transform(H, pad + i);
+	sha256_algos[sha256_selected].func(pad, H, padsize >> SHA256_SHIFT);
 
 	ZIO_SET_CHECKSUM(zcp,
 	    (uint64_t)H[0] << 32 | H[1],
@@ -125,3 +134,94 @@ zio_checksum_SHA256(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	    (uint64_t)H[4] << 32 | H[5],
 	    (uint64_t)H[6] << 32 | H[7]);
 }
+
+#ifndef ARCH_HAS_SHA256_ALGOS
+struct sha256_algo sha256_algos[] = {
+	{ "generic", NULL, sha256_transform_generic },
+	{ NULL, NULL, NULL },
+};
+#endif
+
+void
+zio_checksum_SHA256_init(void)
+{
+	const uint64_t const bench_ns = (50 * MICROSEC); /* 50ms */
+	unsigned long best_run_count = 0;
+	int best_run_index = -1;
+	const unsigned data_size = 4096;
+	char *databuf;
+	int i;
+
+	databuf = kmem_alloc(data_size, KM_SLEEP);
+	for (i = 0; sha256_algos[i].name; i++) {
+		const struct sha256_algo *ops = &sha256_algos[i];
+		unsigned long run_count = 0;
+		hrtime_t start;
+		zio_cksum_t zc;
+
+		if (ops->test && !ops->test())
+			continue;
+
+		sha256_selected = i;
+		kpreempt_disable();
+		start = gethrtime();
+		do {
+			zio_checksum_SHA256(databuf, data_size, &zc);
+			run_count++;
+		} while (gethrtime() < start + bench_ns);
+		kpreempt_enable();
+
+		if (run_count > best_run_count) {
+			best_run_count = run_count;
+			best_run_index = i;
+		}
+	}
+	kmem_free(databuf, data_size);
+
+	sha256_selected = best_run_index;
+	VERIFY3S(sha256_selected, !=, -1);
+}
+
+#ifdef _KERNEL
+static int
+zfs_sha256_algo_get(char *buf, struct kernel_param *kp)
+{
+	int i, cnt = 0;
+	for (i = 0; sha256_algos[i].name; i++) {
+		if (sha256_algos[i].test && !sha256_algos[i].test())
+			continue;
+
+		cnt += sprintf(buf + cnt,
+		    (i == sha256_selected ? "[%s] " : "%s "),
+		    sha256_algos[i].name);
+	}
+	return (cnt);
+}
+
+static int
+zfs_sha256_algo_set(const char *val, struct kernel_param *kp)
+{
+	int i, len;
+
+	/* remove trailing newline and space */
+	len = strlen(val);
+	while (len && isspace(val[len-1]))
+		len--;
+
+	for (i = 0; sha256_algos[i].name; i++) {
+		/* check if algo is available */
+		if (sha256_algos[i].test && !sha256_algos[i].test())
+			continue;
+		if (strlen(sha256_algos[i].name) == len &&
+		    strncmp(val, sha256_algos[i].name, len) == 0) {
+			sha256_selected = i;
+			return (0);
+		}
+	}
+	return (-EINVAL);
+}
+
+module_param_call(zfs_sha256_algo, zfs_sha256_algo_set, zfs_sha256_algo_get,
+    NULL, 0644);
+MODULE_PARM_DESC(zfs_sha256_algo, "Select sha256 algorithm");
+#endif

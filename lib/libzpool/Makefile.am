@@ -125,4 +125,8 @@ libzpool_la_LIBADD = \
 libzpool_la_LIBADD += $(ZLIB)
 libzpool_la_LDFLAGS = -version-info 2:0:0
 
-EXTRA_DIST = $(USER_C)
+EXTRA_DIST = $(USER_C) \
+	$(top_srcdir)/module/zfs/sha256-ssse3-asm.S \
+	$(top_srcdir)/module/zfs/sha256-avx-asm.S \
+	$(top_srcdir)/module/zfs/sha256-avx2-asm.S \
+	$(top_srcdir)/module/zfs/sha256_x86_64.c
