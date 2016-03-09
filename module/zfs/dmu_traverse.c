@@ -20,10 +20,12 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
@@ -61,6 +63,7 @@ typedef struct traverse_data {
 	uint64_t td_hole_birth_enabled_txg;
 	blkptr_cb_t *td_func;
 	void *td_arg;
+	boolean_t td_realloc_possible;
 } traverse_data_t;
 
 static int traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
@@ -228,18 +231,30 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 	if (bp->blk_birth == 0) {
 		/*
-		 * Since this block has a birth time of 0 it must be a
-		 * hole created before the SPA_FEATURE_HOLE_BIRTH
-		 * feature was enabled.  If SPA_FEATURE_HOLE_BIRTH
-		 * was enabled before the min_txg for this traveral we
-		 * know the hole must have been created before the
-		 * min_txg for this traveral, so we can skip it. If
-		 * SPA_FEATURE_HOLE_BIRTH was enabled after the min_txg
-		 * for this traveral we cannot tell if the hole was
-		 * created before or after the min_txg for this
-		 * traversal, so we cannot skip it.
+		 * Since this block has a birth time of 0 it must be one of two
+		 * things: a hole created before the SPA_FEATURE_HOLE_BIRTH
+		 * feature was enabled, or a hole which has always been a hole
+		 * in an object.  This occurs when an object is created and then
+		 * a write is performed that leaves part of the file as zeroes.
+		 * Normally we don't care about this case, but if this object
+		 * has the same object number as an object that has been
+		 * destroyed, callers of dmu_traverse may not be able to tell
+		 * that the object has been recreated.  Thus, we must give them
+		 * all of the holes with birth == 0 in any objects that may have
+		 * been recreated. Thus, we cannot skip the block if it is
+		 * possible the object has been recreated. If it isn't, then if
+		 * SPA_FEATURE_HOLE_BIRTH was enabled before the min_txg for
+		 * this traversal we know the hole must have been created before
+		 * the min_txg for this traversal, so we can skip it. If
+		 * SPA_FEATURE_HOLE_BIRTH was enabled after the min_txg for this
+		 * traversal we cannot tell if the hole was created before or
+		 * after the min_txg for this traversal, so we cannot skip it.
+		 * Note that the meta-dnode cannot be reallocated, so we needn't
+		 * worry about that case.
 		 */
-		if (td->td_hole_birth_enabled_txg < td->td_min_txg)
+		if ((!td->td_realloc_possible ||
+			zb->zb_object == DMU_META_DNODE_OBJECT) &&
+			td->td_hole_birth_enabled_txg <= td->td_min_txg)
 			return (0);
 	} else if (bp->blk_birth <= td->td_min_txg) {
 		return (0);
@@ -290,7 +305,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			traverse_prefetch_metadata(td,
-			    &((blkptr_t *)buf->b_data)[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 		}
 
 		/* recursively visitbp() blocks below this */
@@ -299,7 +314,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			err = traverse_visitbp(td, dnp,
-			    &((blkptr_t *)buf->b_data)[i], czb);
+			    abd_array(buf->b_data, i, blkptr_t), czb);
 			if (err != 0)
 				break;
 		}
@@ -316,16 +331,17 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err != 0)
 			goto post;
-		cdnp = buf->b_data;
 
 		for (i = 0; i < epb; i++) {
-			prefetch_dnode_metadata(td, &cdnp[i], zb->zb_objset,
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
+			prefetch_dnode_metadata(td, cdnp, zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 		}
 
 		/* recursively visitbp() blocks below this */
 		for (i = 0; i < epb; i++) {
-			err = traverse_dnode(td, &cdnp[i], zb->zb_objset,
+			cdnp = abd_array(buf->b_data, i, dnode_phys_t);
+			err = traverse_dnode(td, cdnp, zb->zb_objset,
 			    zb->zb_blkid * epb + i);
 			if (err != 0)
 				break;
@@ -340,13 +356,22 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		if (err != 0)
 			goto post;
 
-		osp = buf->b_data;
+		osp = ABD_TO_BUF(buf->b_data);
 		mdnp = &osp->os_meta_dnode;
 		gdnp = &osp->os_groupused_dnode;
 		udnp = &osp->os_userused_dnode;
 
 		prefetch_dnode_metadata(td, mdnp, zb->zb_objset,
 		    DMU_META_DNODE_OBJECT);
+		/*
+		 * See the block comment above for the goal of this variable.
+		 * If the maxblkid of the meta-dnode is 0, then we know that
+		 * we've never had more than DNODES_PER_BLOCK objects in the
+		 * dataset, which means we can't have reused any object ids.
+		 */
+		if (osp->os_meta_dnode.dn_maxblkid == 0)
+			td->td_realloc_possible = B_FALSE;
+
 		if (arc_buf_size(buf) >= sizeof (objset_phys_t)) {
 			prefetch_dnode_metadata(td, gdnp, zb->zb_objset,
 			    DMU_GROUPUSED_OBJECT);
@@ -554,12 +579,13 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	td->td_pfd = pd;
 	td->td_flags = flags;
 	td->td_paused = B_FALSE;
+	td->td_realloc_possible = (txg_start == 0 ? B_FALSE : B_TRUE);
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_HOLE_BIRTH)) {
 		VERIFY(spa_feature_enabled_txg(spa,
 		    SPA_FEATURE_HOLE_BIRTH, &td->td_hole_birth_enabled_txg));
 	} else {
-		td->td_hole_birth_enabled_txg = 0;
+		td->td_hole_birth_enabled_txg = UINT64_MAX;
 	}
 
 	pd->pd_flags = flags;
@@ -581,7 +607,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 		if (err != 0)
 			return (err);
 
-		osp = buf->b_data;
+		osp = ABD_TO_BUF(buf->b_data);
 		traverse_zil(td, &osp->os_zil_header);
 		(void) arc_buf_remove_ref(buf, &buf);
 	}
