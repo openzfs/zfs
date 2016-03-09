@@ -208,49 +208,31 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
-#if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
-#ifdef CONFIG_RWSEM_SPIN_ON_OWNER
-#error spinlock rwsem should not have spin on owner
-#endif
 /*
- * For the generic implementations of rw-semaphores the following is
- * true.  If your semaphore implementation internally represents the
- * semaphore state differently then special case handling is required.
- * - if activity/count is 0 then there are no active readers or writers
- * - if activity/count is +ve then that is the number of active readers
- * - if activity/count is -1 then there is one active writer
+ * This implementation of rw_tryupgrade() behaves slightly differently
+ * from its counterparts on other platforms.  It drops the RW_READER lock
+ * and then acquires the RW_WRITER lock leaving a small window where no
+ * lock is held.  On other platforms the lock is never released during
+ * the upgrade process.  This is necessary under Linux because the kernel
+ * does not provide an upgrade function.
  */
-
-extern void __up_read_locked(struct rw_semaphore *);
-extern int __down_write_trylock_locked(struct rw_semaphore *);
-
 #define rw_tryupgrade(rwp)						\
 ({									\
-	unsigned long _flags_;						\
 	int _rc_ = 0;							\
 									\
-	spl_rw_lockdep_off_maybe(rwp);					\
-	spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, _flags_);		\
-	if ((list_empty(&SEM(rwp)->wait_list)) &&			\
-	    (SEM(rwp)->activity == 1)) {				\
-		__up_read_locked(SEM(rwp));				\
-		VERIFY(_rc_ = __down_write_trylock_locked(SEM(rwp)));	\
-		(rwp)->rw_owner = current;				\
+	if (RW_WRITE_HELD(rwp)) {					\
+		_rc_ = 1;						\
+	} else {							\
+		rw_exit(rwp);						\
+		if (rw_tryenter(rwp, RW_WRITER)) {			\
+			_rc_ = 1;					\
+		} else {						\
+			rw_enter(rwp, RW_READER);			\
+			_rc_ = 0;					\
+		}							\
 	}								\
-	spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, _flags_);	\
-	spl_rw_lockdep_on_maybe(rwp);					\
 	_rc_;								\
 })
-#else
-/*
- * rw_tryupgrade() can be implemented correctly but for each supported
- * arch we will need a custom implementation.  For the x86 implementation
- * it looks like a custom cmpxchg() to atomically check and promote the
- * rwsem would be safe.  For now that's not worth the trouble so in this
- * case rw_tryupgrade() has just been disabled.
- */
-#define rw_tryupgrade(rwp)	({ 0; })
-#endif
 
 int spl_rw_init(void);
 void spl_rw_fini(void);

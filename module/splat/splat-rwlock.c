@@ -588,7 +588,6 @@ splat_rwlock_test6(struct file *file, void *arg)
 		goto out;
 	}
 
-#if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
 	/* With one reader upgrade should never fail. */
 	rc = rw_tryupgrade(&rwp->rw_rwlock);
 	if (!rc) {
@@ -610,11 +609,6 @@ splat_rwlock_test6(struct file *file, void *arg)
 	rc = 0;
 	splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "%s",
 		     "rwlock properly upgraded\n");
-#else
-	rc = 0;
-	splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "%s",
-		     "rw_tryupgrade() is disabled for this arch\n");
-#endif
 out:
 	rw_exit(&rwp->rw_rwlock);
 	rw_destroy(&rwp->rw_rwlock);
