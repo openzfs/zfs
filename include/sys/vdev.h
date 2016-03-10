@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_H
@@ -47,6 +47,7 @@ typedef enum vdev_dtl_type {
 
 extern int zfs_nocacheflush;
 
+extern void vdev_dbgmsg(vdev_t *vd, const char *fmt, ...);
 extern int vdev_open(vdev_t *);
 extern void vdev_open_children(vdev_t *);
 extern int vdev_validate(vdev_t *, boolean_t);
