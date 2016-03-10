@@ -373,6 +373,34 @@ int spa_asize_inflation = 24;
 int spa_slop_shift = 5;
 uint64_t spa_min_slop = 128 * 1024 * 1024;
 
+/*PRINTFLIKE2*/
+void
+spa_load_failed(spa_t *spa, const char *fmt, ...)
+{
+	va_list adx;
+	char buf[256];
+
+	va_start(adx, fmt);
+	(void) vsnprintf(buf, sizeof (buf), fmt, adx);
+	va_end(adx);
+
+	zfs_dbgmsg("spa_load(%s): FAILED: %s", spa->spa_name, buf);
+}
+
+/*PRINTFLIKE2*/
+void
+spa_load_note(spa_t *spa, const char *fmt, ...)
+{
+	va_list adx;
+	char buf[256];
+
+	va_start(adx, fmt);
+	(void) vsnprintf(buf, sizeof (buf), fmt, adx);
+	va_end(adx);
+
+	zfs_dbgmsg("spa_load(%s): %s", spa->spa_name, buf);
+}
+
 /*
  * ==========================================================================
  * SPA config locking
