@@ -107,3 +107,12 @@ $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
+
+#
+# Include arch specific Makefile if applicable
+#
+ifneq (,$(TARGET_ASM_DIR))
+ifneq (,$(wildcard $(src)/$(TARGET_ASM_DIR)/Makefile))
+include $(src)/$(TARGET_ASM_DIR)/Makefile
+endif
+endif
