@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
+ * Copyright 2015, Joyent, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -42,16 +43,14 @@
 #define	ZPROP_RECVD_SUFFIX "$recvd"
 
 static int
-dodefault(const char *propname, int intsz, int numints, void *buf)
+dodefault(zfs_prop_t prop, int intsz, int numints, void *buf)
 {
-	zfs_prop_t prop;
-
 	/*
 	 * The setonce properties are read-only, BUT they still
 	 * have a default value that can be used as the initial
 	 * value.
 	 */
-	if ((prop = zfs_name_to_prop(propname)) == ZPROP_INVAL ||
+	if (prop == ZPROP_INVAL ||
 	    (zfs_prop_readonly(prop) && !zfs_prop_setonce(prop)))
 		return (SET_ERROR(ENOENT));
 
@@ -149,7 +148,7 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 	}
 
 	if (err == ENOENT)
-		err = dodefault(propname, intsz, numints, buf);
+		err = dodefault(prop, intsz, numints, buf);
 
 	strfree(inheritstr);
 	strfree(recvdstr);
@@ -660,7 +659,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	int err;
 	uint64_t version = spa_version(ds->ds_dir->dd_pool->dp_spa);
 
-	isint = (dodefault(propname, 8, 1, &intval) == 0);
+	isint = (dodefault(zfs_name_to_prop(propname), 8, 1, &intval) == 0);
 
 	if (ds->ds_is_snapshot) {
 		ASSERT(version >= SPA_VERSION_SNAP_PROPS);
@@ -1218,7 +1217,7 @@ dsl_prop_nvlist_add_uint64(nvlist_t *nv, zfs_prop_t prop, uint64_t value)
 	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 	VERIFY(nvlist_add_uint64(propval, ZPROP_VALUE, value) == 0);
 	/* Indicate the default source if we can. */
-	if (dodefault(propname, 8, 1, &default_value) == 0 &&
+	if (dodefault(prop, 8, 1, &default_value) == 0 &&
 	    value == default_value) {
 		VERIFY(nvlist_add_string(propval, ZPROP_SOURCE, "") == 0);
 	}
