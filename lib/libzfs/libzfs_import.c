@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright 2015 RackTop Systems.
+ * Copyright (c) 2016, Intel Corporation.
  */
 
 /*
@@ -46,6 +47,10 @@
 #include <dirent.h>
 #include <errno.h>
 #include <libintl.h>
+#ifdef HAVE_LIBUDEV
+#include <libudev.h>
+#include <sched.h>
+#endif
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,29 +99,327 @@ typedef struct pool_list {
 	name_entry_t		*names;
 } pool_list_t;
 
-static char *
-get_devid(const char *path)
+/*
+ * Linux persistent device strings for vdev labels
+ *
+ * based on libudev for consistency with libudev disk add/remove events
+ */
+#ifdef HAVE_LIBUDEV
+
+#define	DEV_BYID_PATH	"/dev/disk/by-id/"
+
+typedef struct vdev_dev_strs {
+	char	vds_devid[128];
+	char	vds_devphys[128];
+} vdev_dev_strs_t;
+
+/*
+ * Obtain the persistent device id string (describes what)
+ *
+ * used by ZED auto-{online,expand,replace}
+ */
+static int
+udev_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 {
-	int fd;
-	ddi_devid_t devid;
-	char *minor, *ret;
+	struct udev_list_entry *entry;
+	const char *bus;
+	char devbyid[MAXPATHLEN];
 
-	if ((fd = open(path, O_RDONLY)) < 0)
-		return (NULL);
+	/* The bus based by-id path is preferred */
+	bus = udev_device_get_property_value(dev, "ID_BUS");
 
-	minor = NULL;
-	ret = NULL;
-	if (devid_get(fd, &devid) == 0) {
-		if (devid_get_minor_name(fd, &minor) == 0)
-			ret = devid_str_encode(devid, minor);
-		if (minor != NULL)
-			devid_str_free(minor);
-		devid_free(devid);
+	if (bus == NULL) {
+		const char *dm_uuid;
+
+		/*
+		 * For multipath nodes use the persistent uuid based identifier
+		 *
+		 * Example: /dev/disk/by-id/dm-uuid-mpath-35000c5006304de3f
+		 */
+		dm_uuid = udev_device_get_property_value(dev, "DM_UUID");
+		if (dm_uuid != NULL) {
+			(void) snprintf(bufptr, buflen, "dm-uuid-%s", dm_uuid);
+			return (0);
+		}
+		return (ENODATA);
 	}
-	(void) close(fd);
+
+	/*
+	 * locate the bus specific by-id link
+	 */
+	(void) snprintf(devbyid, sizeof (devbyid), "%s%s-", DEV_BYID_PATH, bus);
+	entry = udev_device_get_devlinks_list_entry(dev);
+	while (entry != NULL) {
+		const char *name;
+
+		name = udev_list_entry_get_name(entry);
+		if (strncmp(name, devbyid, strlen(devbyid)) == 0) {
+			name += strlen(DEV_BYID_PATH);
+			(void) strlcpy(bufptr, name, buflen);
+			return (0);
+		}
+		entry = udev_list_entry_get_next(entry);
+	}
+
+	return (ENODATA);
+}
+
+/*
+ * Obtain the persistent physical location string (describes where)
+ *
+ * used by ZED auto-{online,expand,replace}
+ */
+static int
+udev_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
+{
+	const char *physpath, *value;
+
+	/*
+	 * Skip indirect multipath device nodes
+	 */
+	value = udev_device_get_property_value(dev, "DM_MULTIPATH_DEVICE_PATH");
+	if (value != NULL && strcmp(value, "1") == 0)
+		return (ENODATA);  /* skip physical for multipath nodes */
+
+	physpath = udev_device_get_property_value(dev, "ID_PATH");
+	if (physpath != NULL && physpath[0] != '\0') {
+		(void) strlcpy(bufptr, physpath, buflen);
+		return (0);
+	}
+
+	return (ENODATA);
+}
+
+/*
+ * A disk is considered a multipath whole disk when:
+ *	DEVNAME key value has "dm-"
+ *	DM_NAME key value has "mpath" prefix
+ *	DM_UUID key exists
+ *	ID_PART_TABLE_TYPE key does not exist or is not gpt
+ */
+static boolean_t
+udev_mpath_whole_disk(struct udev_device *dev)
+{
+	const char *devname, *mapname, *type, *uuid;
+
+	devname = udev_device_get_property_value(dev, "DEVNAME");
+	mapname = udev_device_get_property_value(dev, "DM_NAME");
+	type = udev_device_get_property_value(dev, "ID_PART_TABLE_TYPE");
+	uuid = udev_device_get_property_value(dev, "DM_UUID");
+
+	if ((devname != NULL && strncmp(devname, "/dev/dm-", 8) == 0) &&
+	    (mapname != NULL && strncmp(mapname, "mpath", 5) == 0) &&
+	    ((type == NULL) || (strcmp(type, "gpt") != 0)) &&
+	    (uuid != NULL)) {
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * Check if a disk is effectively a multipath whole disk
+ */
+boolean_t
+is_mpath_whole_disk(const char *path)
+{
+	struct udev *udev;
+	struct udev_device *dev = NULL;
+	char nodepath[MAXPATHLEN];
+	char *sysname;
+	boolean_t wholedisk = B_FALSE;
+
+	if (realpath(path, nodepath) == NULL)
+		return (B_FALSE);
+	sysname = strrchr(nodepath, '/') + 1;
+	if (strncmp(sysname, "dm-", 3) != 0)
+		return (B_FALSE);
+	if ((udev = udev_new()) == NULL)
+		return (B_FALSE);
+	if ((dev = udev_device_new_from_subsystem_sysname(udev, "block",
+	    sysname)) == NULL) {
+		udev_device_unref(dev);
+		return (B_FALSE);
+	}
+
+	wholedisk = udev_mpath_whole_disk(dev);
+
+	udev_device_unref(dev);
+	return (wholedisk);
+}
+
+static int
+udev_device_is_ready(struct udev_device *dev)
+{
+#ifdef HAVE_LIBUDEV_UDEV_DEVICE_GET_IS_INITIALIZED
+	return (udev_device_get_is_initialized(dev));
+#else
+	/* wait for DEVLINKS property to be initialized */
+	return (udev_device_get_property_value(dev, "DEVLINKS") != NULL);
+#endif
+}
+
+/*
+ * Encode the persistent devices strings
+ * used for the vdev disk label
+ */
+static int
+encode_device_strings(const char *path, vdev_dev_strs_t *ds,
+    boolean_t wholedisk)
+{
+	struct udev *udev;
+	struct udev_device *dev = NULL;
+	char nodepath[MAXPATHLEN];
+	char *sysname;
+	int ret = ENODEV;
+	hrtime_t start;
+
+	if ((udev = udev_new()) == NULL)
+		return (ENXIO);
+
+	/* resolve path to a runtime device node instance */
+	if (realpath(path, nodepath) == NULL)
+		goto no_dev;
+
+	sysname = strrchr(nodepath, '/') + 1;
+
+	/*
+	 * Wait up to 3 seconds for udev to set up the device node context
+	 */
+	start = gethrtime();
+	do {
+		dev = udev_device_new_from_subsystem_sysname(udev, "block",
+		    sysname);
+		if (dev == NULL)
+			goto no_dev;
+		if (udev_device_is_ready(dev))
+			break;  /* udev ready */
+
+		udev_device_unref(dev);
+		dev = NULL;
+
+		if (NSEC2MSEC(gethrtime() - start) < 10)
+			(void) sched_yield();	/* yield/busy wait up to 10ms */
+		else
+			(void) usleep(10 * MILLISEC);
+
+	} while (NSEC2MSEC(gethrtime() - start) < (3 * MILLISEC));
+
+	if (dev == NULL)
+		goto no_dev;
+
+	/*
+	 * Only whole disks require extra device strings
+	 */
+	if (!wholedisk && !udev_mpath_whole_disk(dev))
+		goto no_dev;
+
+	ret = udev_device_get_devid(dev, ds->vds_devid, sizeof (ds->vds_devid));
+	if (ret != 0)
+		goto no_dev_ref;
+
+	/* physical location string (optional) */
+	if (udev_device_get_physical(dev, ds->vds_devphys,
+	    sizeof (ds->vds_devphys)) != 0) {
+		ds->vds_devphys[0] = '\0'; /* empty string --> not available */
+	}
+
+no_dev_ref:
+	udev_device_unref(dev);
+no_dev:
+	udev_unref(udev);
 
 	return (ret);
 }
+
+/*
+ * Update a leaf vdev's persistent device strings (Linux only)
+ *
+ * - only applies for a dedicated leaf vdev (aka whole disk)
+ * - updated during pool create|add|attach|import
+ * - used for matching device matching during auto-{online,expand,replace}
+ * - stored in a leaf disk config label (i.e. alongside 'path' NVP)
+ * - these strings are currently not used in kernel (i.e. for vdev_disk_open)
+ *
+ * single device node example:
+ * 	devid:		'scsi-MG03SCA300_350000494a8cb3d67-part1'
+ * 	phys_path:	'pci-0000:04:00.0-sas-0x50000394a8cb3d67-lun-0'
+ *
+ * multipath device node example:
+ * 	devid:		'dm-uuid-mpath-35000c5006304de3f'
+ */
+void
+update_vdev_config_dev_strs(nvlist_t *nv)
+{
+	vdev_dev_strs_t vds;
+	char *env, *type, *path;
+	uint64_t wholedisk = 0;
+
+	/*
+	 * For the benefit of legacy ZFS implementations, allow
+	 * for opting out of devid strings in the vdev label.
+	 *
+	 * example use:
+	 *	env ZFS_VDEV_DEVID_OPT_OUT=YES zpool import dozer
+	 *
+	 * explanation:
+	 * Older ZFS on Linux implementations had issues when attempting to
+	 * display pool config VDEV names if a "devid" NVP value is present
+	 * in the pool's config.
+	 *
+	 * For example, a pool that originated on illumos platform would
+	 * have a devid value in the config and "zpool status" would fail
+	 * when listing the config.
+	 *
+	 * A pool can be stripped of any "devid" values on import or
+	 * prevented from adding them on zpool create|add by setting
+	 * ZFS_VDEV_DEVID_OPT_OUT.
+	 */
+	env = getenv("ZFS_VDEV_DEVID_OPT_OUT");
+	if (env && (strtoul(env, NULL, 0) > 0 ||
+	    !strncasecmp(env, "YES", 3) || !strncasecmp(env, "ON", 2))) {
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
+		return;
+	}
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) != 0 ||
+	    strcmp(type, VDEV_TYPE_DISK) != 0) {
+		return;
+	}
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
+		return;
+	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &wholedisk);
+
+	/*
+	 * Update device string values in config nvlist
+	 */
+	if (encode_device_strings(path, &vds, (boolean_t)wholedisk) == 0) {
+		(void) nvlist_add_string(nv, ZPOOL_CONFIG_DEVID, vds.vds_devid);
+		if (vds.vds_devphys[0] != '\0') {
+			(void) nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
+			    vds.vds_devphys);
+		}
+	} else {
+		/* clear out any stale entries */
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
+	}
+}
+#else
+
+boolean_t
+is_mpath_whole_disk(const char *path)
+{
+	return (B_FALSE);
+}
+
+void
+update_vdev_config_dev_strs(nvlist_t *nv)
+{
+}
+
+#endif /* HAVE_LIBUDEV */
 
 
 /*
@@ -130,7 +433,7 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 	uint_t c, children;
 	uint64_t guid;
 	name_entry_t *ne, *best;
-	char *path, *devid;
+	char *path;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
@@ -197,15 +500,8 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 	if (nvlist_add_string(nv, ZPOOL_CONFIG_PATH, best->ne_name) != 0)
 		return (-1);
 
-	if ((devid = get_devid(best->ne_name)) == NULL) {
-		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
-	} else {
-		if (nvlist_add_string(nv, ZPOOL_CONFIG_DEVID, devid) != 0) {
-			devid_str_free(devid);
-			return (-1);
-		}
-		devid_str_free(devid);
-	}
+	/* Linux only - update ZPOOL_CONFIG_DEVID and ZPOOL_CONFIG_PHYS_PATH */
+	update_vdev_config_dev_strs(nv);
 
 	return (0);
 }
