@@ -34,6 +34,11 @@
 
 #include_next <rpc/xdr.h>
 
+/* Use our own xdr_control because libtirpc's version is a no-op in 0.2.5. */
+#if defined(WITH_LIBTIRPC) && defined(xdr_control)
+#undef   xdr_control
+#endif
+
 /*
  * These are XDR control operators
  */

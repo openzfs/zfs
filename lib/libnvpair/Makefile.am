@@ -4,7 +4,7 @@ VPATH = \
 	$(top_srcdir)/module/nvpair \
 	$(top_srcdir)/lib/libnvpair
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(TIRPC_CFLAGS)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
@@ -26,7 +26,8 @@ nodist_libnvpair_la_SOURCES = \
 	$(KERNEL_C)
 
 libnvpair_la_LIBADD = \
-        $(top_builddir)/lib/libuutil/libuutil.la
+        $(top_builddir)/lib/libuutil/libuutil.la \
+	$(TIRPC_LIBS)
 
 libnvpair_la_LDFLAGS = -version-info 1:1:0
 
