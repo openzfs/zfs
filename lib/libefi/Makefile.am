@@ -17,6 +17,6 @@ nodist_libefi_la_SOURCES = \
 	$(USER_C) \
 	$(KERNEL_C)
 
-libefi_la_LIBADD = $(LIBUUID) $(ZLIB)
+libefi_la_LIBADD = $(LIBUUID)
 
 EXTRA_DIST = $(USER_C)

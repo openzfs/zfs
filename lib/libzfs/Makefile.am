@@ -36,7 +36,7 @@ libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libzpool/libzpool.la
 
-libzfs_la_LIBADD += -lm -ldl $(LIBBLKID)
+libzfs_la_LIBADD += -lm $(LIBBLKID)
 libzfs_la_LDFLAGS = -version-info 2:0:0
 
 EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)

@@ -19,5 +19,4 @@ zfs_LDADD = \
 	$(top_builddir)/lib/libzfs/libzfs.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 
-zfs_LDADD += $(ZLIB)
 zfs_LDFLAGS = -pthread
