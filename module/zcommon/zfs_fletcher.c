@@ -128,7 +128,6 @@
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/byteorder.h>
-#include <sys/zio.h>
 #include <sys/spa.h>
 #include <zfs_fletcher.h>
 
@@ -256,29 +255,33 @@ fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
 	fletcher_4_generic_byteswap(buf, size, zcp);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
-#include <sys/platform_cpu_compat.h>
 
-#ifdef HAVE_KERNEL_CPU_AVX2
-#include "zfs_fletcher_intel.c"
-#endif
+#if defined(_KERNEL) && defined(HAVE_SPL)
+
+extern struct fletcher_4_calls fletcher_4_avx2_calls;
 
 static const struct fletcher_4_calls *fletcher_4_algos[] = {
 	&fletcher_4_generic_calls,
-#if defined(HAVE_KERNEL_CPU_AVX2)
+#if defined(HAVE_AVX) && defined(HAVE_AVX2)
 	&fletcher_4_avx2_calls,
 #endif
 };
+
+#define	BENCH_SIZE 4096
+#define	ZFS_ARRAY_SIZE(a) (sizeof (a) / sizeof (*a))
+#define	kernel_cpu_relax() do {} while (0)
+
+/* cant use allocation methods from zfs module! */
+static char databuf[BENCH_SIZE];
 
 void
 fletcher_4_init(void)
 {
 	unsigned long bestperf = 0;
-	const void *databuf = current_text_addr();
 	const unsigned int bits = 4;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(fletcher_4_algos); i++) {
+	for (i = 0; i < ZFS_ARRAY_SIZE(fletcher_4_algos); i++) {
 		const struct fletcher_4_calls *algo = fletcher_4_algos[i];
 		unsigned long perf = 0;
 		clock_t j0, j1;
@@ -288,12 +291,13 @@ fletcher_4_init(void)
 			continue;
 
 		kpreempt_disable();
-		j0 = lbolt;
-		while ((j1 = lbolt) == j0)
+		j0 = ddi_get_lbolt();
+		while ((j1 = ddi_get_lbolt()) == j0) {
 			kernel_cpu_relax();
+		}
 
 		algo->init(&zc);
-		while (ddi_time_before(lbolt, j1 + (1 << bits))) {
+		while (ddi_time_before(ddi_get_lbolt(), j1 + (1 << bits))) {
 			algo->compute(databuf, PAGE_SIZE, &zc);
 			perf++;
 		}

@@ -23,44 +23,50 @@
  * Use is subject to license terms.
  */
 
-#ifndef	_ZFS_FLETCHER_H
-#define	_ZFS_FLETCHER_H
+#ifndef	_SPA_CHECKSUM_H
+#define	_SPA_CHECKSUM_H
 
 #include <sys/types.h>
-#include <sys/spa_checksum.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
 /*
- * fletcher checksum functions
+ * Each block has a 256-bit checksum -- strong enough for cryptographic hashes.
  */
+typedef struct zio_cksum {
+	uint64_t	zc_word[4];
+} zio_cksum_t;
 
-void fletcher_2_native(const void *, uint64_t, zio_cksum_t *);
-void fletcher_2_byteswap(const void *, uint64_t, zio_cksum_t *);
-void fletcher_4_native(const void *, uint64_t, zio_cksum_t *);
-void fletcher_4_byteswap(const void *, uint64_t, zio_cksum_t *);
-void fletcher_4_incremental_native(const void *, uint64_t,
-    zio_cksum_t *);
-void fletcher_4_incremental_byteswap(const void *, uint64_t,
-    zio_cksum_t *);
-void fletcher_4_init(void);
+#define	ZIO_SET_CHECKSUM(zcp, w0, w1, w2, w3)	\
+{						\
+	(zcp)->zc_word[0] = w0;			\
+	(zcp)->zc_word[1] = w1;			\
+	(zcp)->zc_word[2] = w2;			\
+	(zcp)->zc_word[3] = w3;			\
+}
 
-/*
- * fletcher checksum struct
- */
-struct fletcher_4_calls {
-	void (*init)(zio_cksum_t *);
-	void (*fini)(zio_cksum_t *);
-	void (*compute)(const void *, uint64_t, zio_cksum_t *);
-	void (*compute_byteswap)(const void *, uint64_t, zio_cksum_t *);
-	boolean_t (*valid)(void);
-	const char *name;
-};
+#define	ZIO_CHECKSUM_EQUAL(zc1, zc2) \
+	(0 == (((zc1).zc_word[0] - (zc2).zc_word[0]) | \
+	((zc1).zc_word[1] - (zc2).zc_word[1]) | \
+	((zc1).zc_word[2] - (zc2).zc_word[2]) | \
+	((zc1).zc_word[3] - (zc2).zc_word[3])))
+
+#define	ZIO_CHECKSUM_IS_ZERO(zc) \
+	(0 == ((zc)->zc_word[0] | (zc)->zc_word[1] | \
+	(zc)->zc_word[2] | (zc)->zc_word[3]))
+
+#define	ZIO_CHECKSUM_BSWAP(zcp)					\
+{								\
+	(zcp)->zc_word[0] = BSWAP_64((zcp)->zc_word[0]);	\
+	(zcp)->zc_word[1] = BSWAP_64((zcp)->zc_word[1]);	\
+	(zcp)->zc_word[2] = BSWAP_64((zcp)->zc_word[2]);	\
+	(zcp)->zc_word[3] = BSWAP_64((zcp)->zc_word[3]);	\
+}
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif	/* _ZFS_FLETCHER_H */
+#endif

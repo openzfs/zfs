@@ -40,6 +40,12 @@
  * SOFTWARE.
  */
 
+#if defined(HAVE_AVX) && defined(HAVE_AVX2)
+
+#include <linux/simd_x86.h>
+#include <sys/spa_checksum.h>
+#include <zfs_fletcher.h>
+
 #ifdef UNITTEST
 
 #if defined(_KERNEL)
@@ -54,10 +60,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define	kernel_fpu_save()	do {} while (0)
-#define	kernel_fpu_restore()	do {} while (0)
-#define	cpu_has_avx2 __builtin_cpu_supports("avx2")
-
 typedef unsigned long long rlim64_t;
 
 #include <sys/types.h>
@@ -65,17 +67,18 @@ typedef unsigned long long rlim64_t;
 #include <sys/byteorder.h>
 #include <sys/zio.h>
 #include <sys/spa.h>
-#include <zfs_fletcher.h>
 
 #include "zfs_fletcher.c"
 #endif /* #ifdef UNITTEST */
+
+
 
 static void
 fletcher_4_avx2_init(zio_cksum_t *zcp)
 {
 	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 
-	kernel_fpu_save();
+	kfpu_begin();
 
 	/* clear avx2 registers */
 	asm volatile("vpxor %ymm0, %ymm0, %ymm0");
@@ -98,7 +101,7 @@ fletcher_4_avx2_fini(zio_cksum_t *zcp)
 	asm volatile("vmovdqa %%ymm2, %0":"=m" (c));
 	asm volatile("vmovdqa %%ymm3, %0":"=m" (d));
 
-	kernel_fpu_restore();
+	kfpu_end();
 
 	A = a[0] + a[1] + a[2] + a[3];
 	B = 0 - a[1] - 2*a[2] - 3*a[3]
@@ -140,7 +143,7 @@ fletcher_4_avx2_byteswap(const void *buf, uint64_t size, zio_cksum_t *unused)
 		0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B,
 		0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B };
 
-	asm volatile("vmovdqa %0, %%ymm5"::"m"(mask));
+	asm volatile("vmovdqa %0, %%ymm5"::"m"(*mask));
 
 	for (; ip < ipend; ip += 2) {
 		asm volatile("vpmovzxdq %0, %%ymm4"::"m" (*ip));
@@ -155,10 +158,10 @@ fletcher_4_avx2_byteswap(const void *buf, uint64_t size, zio_cksum_t *unused)
 
 static boolean_t fletcher_4_avx2_valid(void)
 {
-	return (cpu_has_avx2);
+	return (zfs_avx_available() && zfs_avx2_available());
 }
 
-static const struct fletcher_4_calls fletcher_4_avx2_calls = {
+const struct fletcher_4_calls fletcher_4_avx2_calls = {
 	.init = fletcher_4_avx2_init,
 	.fini = fletcher_4_avx2_fini,
 	.compute = fletcher_4_avx2,
@@ -249,3 +252,5 @@ main(int argc, char **argv)
 	return (0);
 }
 #endif /* #ifdef UNITTEST */
+
+#endif /* defined(HAVE_AVX) && defined(HAVE_AVX2) */

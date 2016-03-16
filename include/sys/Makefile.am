@@ -49,6 +49,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/space_reftree.h \
 	$(top_srcdir)/include/sys/spa.h \
 	$(top_srcdir)/include/sys/spa_impl.h \
+	$(top_srcdir)/include/sys/spa_checksum.h \
 	$(top_srcdir)/include/sys/trace.h \
 	$(top_srcdir)/include/sys/trace_acl.h \
 	$(top_srcdir)/include/sys/trace_arc.h \
@@ -104,8 +105,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
 	${top_srcdir}/include/sys/zpl.h \
-	$(top_srcdir)/include/sys/zvol.h \
-	$(top_srcdir)/include/sys/platform_cpu_compat.h
+	$(top_srcdir)/include/sys/zvol.h
 
 USER_H =
 
