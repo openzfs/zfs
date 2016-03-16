@@ -1,0 +1,119 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/casenorm/casenorm.cfg
+
+function create_testfs
+{
+	typeset opts=$1
+
+	$RM -rf $TESTDIR || log_unresolved Could not remove $TESTDIR
+	$MKDIR -p $TESTDIR || log_unresolved Could not create $TESTDIR
+
+	log_must $ZFS create $opts $TESTPOOL/$TESTFS
+	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+}
+
+function destroy_testfs
+{
+	if datasetexists $TESTPOOL/$TESTFS ; then
+		log_must $ZFS destroy -f $TESTPOOL/$TESTFS
+		$RM -rf $TESTDIR || log_unresolved Could not remove $TESTDIR
+	fi
+}
+
+function create_file
+{
+	typeset name=$TESTDIR/$1
+
+	$ECHO $name > $name
+}
+
+function delete_file
+{
+	typeset name=$TESTDIR/$1
+
+	$RM $name >/dev/null 2>&1
+
+	if [[ $? -ne 0 ]] ; then
+		return 1
+	fi
+
+	if [[ -f $name ]] ; then
+		return 2
+	fi
+}
+
+function lookup_file
+{
+	typeset name=$1
+
+	$ZLOOK -l $TESTDIR $name >/dev/null 2>&1
+}
+
+function lookup_file_ci
+{
+	typeset name=$1
+
+	$ZLOOK -il $TESTDIR $name >/dev/null 2>&1
+}
+
+function lookup_any
+{
+	for name in $NAMES_ALL ; do
+		lookup_file $name
+		if [[ $? -eq 0 ]] ; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+function switch_norm
+{
+	typeset norm=$(get_norm $1)
+
+	if [[ $norm == "C" ]] ; then
+		print "D"
+	else
+		print "C"
+	fi
+}
+
+function get_norm
+{
+	if [[ "${NAMES_C#*$1}" != "${NAMES_C}" ]] ; then
+		print "C"
+	elif [[ "${NAMES_D#*$1}" != "${NAMES_D}" ]] ; then
+		print "D"
+	else
+		return 1
+	fi
+}
+
+function get_case
+{
+	if [[ ${NAMES_UPPER#*$1} != ${NAMES_UPPER} ]] ; then
+		print "UPPER"
+	elif [[ ${NAMES_LOWER#*$1} != ${NAMES_LOWER} ]] ; then
+		print "LOWER"
+	elif [[ ${NAMES_ORIG#*$1} != ${NAMES_ORIG} ]] ; then
+		print "ORIG"
+	else
+		return 1
+	fi
+}
