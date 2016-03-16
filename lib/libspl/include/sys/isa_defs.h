@@ -170,6 +170,7 @@ extern "C" {
 #endif
 
 #define	_BIG_ENDIAN
+#define	_SUNOS_VTOC_16
 
 #else /* Currently x86_64, i386, arm, powerpc, s390, and sparc are supported */
 #error "Unsupported ISA type"
