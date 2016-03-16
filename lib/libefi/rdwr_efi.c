@@ -40,6 +40,7 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
 #include <sys/byteorder.h>
+#include <sched.h>
 #if defined(__linux__)
 #include <linux/fs.h>
 #endif
@@ -584,18 +585,31 @@ int
 efi_rescan(int fd)
 {
 #if defined(__linux__)
-	int retry = 10;
+	long timeout = 500; /* milliseconds */
+	long busy_timeout = 10; /* milliseconds */
+	long sleep_period = 50; /* milliseconds */
+	hrtime_t start = gethrtime(), now;
 	int error;
 
 	/* Notify the kernel a devices partition table has been updated */
-	while ((error = ioctl(fd, BLKRRPART)) != 0) {
-		if ((--retry == 0) || (errno != EBUSY)) {
-			(void) fprintf(stderr, "the kernel failed to rescan "
-			    "the partition table: %d\n", errno);
-			return (-1);
+	do {
+		if ((error = ioctl(fd, BLKRRPART)) == 0) {
+			return (0);
+		} else if (NSEC2MSEC((now = gethrtime()) - start) <
+		    busy_timeout) {
+			sched_yield();
+		} else if (NSEC2MSEC(now - start) +
+		    (sleep_period * MILLISEC) >= (timeout * MILLISEC)) {
+			break;
+		} else {
+			usleep(50 * MILLISEC);
 		}
-		usleep(50000);
-	}
+	} while (NSEC2MSEC(gethrtime() - start) < (timeout * MILLISEC));
+
+	(void) fprintf(stderr, "the kernel failed to rescan "
+	    "the partition table: %d\n", errno);
+
+	return (-1);
 #endif
 
 	return (0);

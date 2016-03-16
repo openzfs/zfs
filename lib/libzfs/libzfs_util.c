@@ -707,8 +707,9 @@ libzfs_load_module(const char *module)
 	char *load_str, *timeout_str;
 	long timeout = 10; /* seconds */
 	long busy_timeout = 10; /* milliseconds */
+	long sleep_period = 10; /* milliseconds */
 	int load = 0, fd;
-	hrtime_t start;
+	hrtime_t start, now;
 
 	/* Optionally request module loading */
 	if (!libzfs_module_loaded(module)) {
@@ -751,10 +752,14 @@ libzfs_load_module(const char *module)
 			return (0);
 		} else if (errno != ENOENT) {
 			return (errno);
-		} else if (NSEC2MSEC(gethrtime() - start) < busy_timeout) {
+		} else if (NSEC2MSEC((now = gethrtime()) - start) <
+		    busy_timeout) {
 			sched_yield();
+		} else if (NSEC2MSEC(now - start) +
+		    (sleep_period * MILLISEC) >= (timeout * MILLISEC)) {
+			break;
 		} else {
-			usleep(10 * MILLISEC);
+			usleep(sleep_period * MILLISEC);
 		}
 	} while (NSEC2MSEC(gethrtime() - start) < (timeout * MILLISEC));
 
