@@ -910,6 +910,35 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBdev\fR and \fBnodev\f
 .sp
 .ne 2
 .na
+\fB\fBdnodesize\fR=\fBlegacy\fR | \fBauto\fR | \fB1k\fR | \fB2k\fR | \fB4k\fR | \fB8k\fR | \fB16k\fR\fR
+.ad
+.sp .6
+.RS 4n
+Specifies a compatibility mode or literal value for the size of dnodes
+in the file system. The default value is \fBlegacy\fR. Setting this
+property to a value other than \fBlegacy\fR requires the
+\fBlarge_dnode\fR pool feature to be enabled.
+.sp
+Consider setting \fBdnodesize\fR to \fBauto\fR if the dataset uses the
+\fBxattr=sa\fR property setting and the workload makes heavy use of
+extended attributes. This may be applicable to SELinux-enabled systems,
+Lustre servers, and Samba servers, for example. Literal values are
+supported for cases where the optimal size is known in advance and for
+performance testing.
+.sp
+Leave \fBdnodesize\fR set to \fBlegacy\fR if you need to receive
+a \fBzfs send\fR stream of this dataset on a pool that doesn't enable
+the \fBlarge_dnode\fR feature, or if you need to import this pool on a
+system that doesn't support the \fBlarge_dnode\fR feature.
+.sp
+This property can also be referred to by its shortened column name,
+\fBdnsize\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fBexec\fR=\fBon\fR | \fBoff\fR\fR
 .ad
 .sp .6

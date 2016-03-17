@@ -98,6 +98,7 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_EMBED_DATA_LZ4	(1<<17)
 /* flag #18 is reserved for a Delphix feature */
 #define	DMU_BACKUP_FEATURE_LARGE_BLOCKS		(1<<19)
+#define	DMU_BACKUP_FEATURE_LARGE_DNODE		(1<<20)
 
 /*
  * Mask of all supported backup features
@@ -105,7 +106,7 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_DEDUP | \
     DMU_BACKUP_FEATURE_DEDUPPROPS | DMU_BACKUP_FEATURE_SA_SPILL | \
     DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_EMBED_DATA_LZ4 | \
-    DMU_BACKUP_FEATURE_LARGE_BLOCKS)
+    DMU_BACKUP_FEATURE_LARGE_BLOCKS | DMU_BACKUP_FEATURE_LARGE_DNODE)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
@@ -173,7 +174,8 @@ typedef struct dmu_replay_record {
 			uint32_t drr_bonuslen;
 			uint8_t drr_checksumtype;
 			uint8_t drr_compress;
-			uint8_t drr_pad[6];
+			uint8_t drr_dn_slots;
+			uint8_t drr_pad[5];
 			uint64_t drr_toguid;
 			/* bonus content follows */
 		} drr_object;

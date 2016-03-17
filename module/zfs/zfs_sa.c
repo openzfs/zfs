@@ -97,8 +97,7 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 	dmu_buf_t *db = sa_get_db(zp->z_sa_hdl);
 
 	if (ZFS_OLD_ZNODE_PHYS_SIZE + len <= dmu_bonus_max()) {
-		VERIFY(dmu_set_bonus(db,
-		    len + ZFS_OLD_ZNODE_PHYS_SIZE, tx) == 0);
+		VERIFY0(dmu_set_bonus(db, len + ZFS_OLD_ZNODE_PHYS_SIZE, tx));
 		if (len) {
 			bcopy(link, (caddr_t)db->db_data +
 			    ZFS_OLD_ZNODE_PHYS_SIZE, len);
@@ -107,8 +106,8 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 		dmu_buf_t *dbp;
 
 		zfs_grow_blocksize(zp, len, tx);
-		VERIFY(0 == dmu_buf_hold(ZTOZSB(zp)->z_os,
-		    zp->z_id, 0, FTAG, &dbp, DMU_READ_NO_PREFETCH));
+		VERIFY0(dmu_buf_hold(ZTOZSB(zp)->z_os, zp->z_id, 0, FTAG, &dbp,
+		    DMU_READ_NO_PREFETCH));
 
 		dmu_buf_will_dirty(dbp, tx);
 

@@ -2000,6 +2000,15 @@ spa_maxblocksize(spa_t *spa)
 		return (SPA_OLD_MAXBLOCKSIZE);
 }
 
+int
+spa_maxdnodesize(spa_t *spa)
+{
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_DNODE))
+		return (DNODE_MAX_SIZE);
+	else
+		return (DNODE_MIN_SIZE);
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* Namespace manipulation */
 EXPORT_SYMBOL(spa_lookup);
@@ -2056,6 +2065,7 @@ EXPORT_SYMBOL(spa_bootfs);
 EXPORT_SYMBOL(spa_delegation);
 EXPORT_SYMBOL(spa_meta_objset);
 EXPORT_SYMBOL(spa_maxblocksize);
+EXPORT_SYMBOL(spa_maxdnodesize);
 
 /* Miscellaneous support routines */
 EXPORT_SYMBOL(spa_rename);
