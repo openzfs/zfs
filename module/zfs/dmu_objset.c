@@ -138,6 +138,12 @@ dmu_objset_id(objset_t *os)
 	return (ds ? ds->ds_object : 0);
 }
 
+uint64_t
+dmu_objset_dnodesize(objset_t *os)
+{
+	return (os->os_dnodesize);
+}
+
 zfs_sync_type_t
 dmu_objset_syncprop(objset_t *os)
 {
@@ -265,6 +271,34 @@ redundant_metadata_changed_cb(void *arg, uint64_t newval)
 	    newval == ZFS_REDUNDANT_METADATA_MOST);
 
 	os->os_redundant_metadata = newval;
+}
+
+static void
+dnodesize_changed_cb(void *arg, uint64_t newval)
+{
+	objset_t *os = arg;
+
+	switch (newval) {
+	case ZFS_DNSIZE_LEGACY:
+		os->os_dnodesize = DNODE_MIN_SIZE;
+		break;
+	case ZFS_DNSIZE_AUTO:
+		/*
+		 * Choose a dnode size that will work well for most
+		 * workloads if the user specified "auto". Future code
+		 * improvements could dynamically select a dnode size
+		 * based on observed workload patterns.
+		 */
+		os->os_dnodesize = DNODE_MIN_SIZE * 2;
+		break;
+	case ZFS_DNSIZE_1K:
+	case ZFS_DNSIZE_2K:
+	case ZFS_DNSIZE_4K:
+	case ZFS_DNSIZE_8K:
+	case ZFS_DNSIZE_16K:
+		os->os_dnodesize = newval;
+		break;
+	}
 }
 
 static void
@@ -421,6 +455,11 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
 				    recordsize_changed_cb, os);
 			}
+			if (err == 0) {
+				err = dsl_prop_register(ds,
+				    zfs_prop_to_name(ZFS_PROP_DNODESIZE),
+				    dnodesize_changed_cb, os);
+			}
 		}
 		if (err != 0) {
 			VERIFY(arc_buf_remove_ref(os->os_phys_buf,
@@ -439,6 +478,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_sync = ZFS_SYNC_STANDARD;
 		os->os_primary_cache = ZFS_CACHE_ALL;
 		os->os_secondary_cache = ZFS_CACHE_ALL;
+		os->os_dnodesize = DNODE_MIN_SIZE;
 	}
 
 	if (ds == NULL || !ds->ds_is_snapshot)
@@ -768,8 +808,8 @@ dmu_objset_create_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	mdn = DMU_META_DNODE(os);
 
-	dnode_allocate(mdn, DMU_OT_DNODE, 1 << DNODE_BLOCK_SHIFT,
-	    DN_MAX_INDBLKSHIFT, DMU_OT_NONE, 0, tx);
+	dnode_allocate(mdn, DMU_OT_DNODE, DNODE_BLOCK_SIZE, DN_MAX_INDBLKSHIFT,
+	    DMU_OT_NONE, 0, DNODE_MIN_SLOTS, tx);
 
 	/*
 	 * We don't want to have to increase the meta-dnode's nlevels
@@ -1202,7 +1242,7 @@ do_userquota_update(objset_t *os, uint64_t used, uint64_t flags,
     uint64_t user, uint64_t group, boolean_t subtract, dmu_tx_t *tx)
 {
 	if ((flags & DNODE_FLAG_USERUSED_ACCOUNTED)) {
-		int64_t delta = DNODE_SIZE + used;
+		int64_t delta = DNODE_MIN_SIZE + used;
 		if (subtract)
 			delta = -delta;
 		VERIFY3U(0, ==, zap_increment_int(os, DMU_USERUSED_OBJECT,
@@ -2023,6 +2063,7 @@ EXPORT_SYMBOL(dmu_objset_find);
 EXPORT_SYMBOL(dmu_objset_byteswap);
 EXPORT_SYMBOL(dmu_objset_evict_dbufs);
 EXPORT_SYMBOL(dmu_objset_snap_cmtime);
+EXPORT_SYMBOL(dmu_objset_dnodesize);
 
 EXPORT_SYMBOL(dmu_objset_sync);
 EXPORT_SYMBOL(dmu_objset_is_dirty);

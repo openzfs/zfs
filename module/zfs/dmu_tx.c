@@ -1586,7 +1586,7 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 	} else {
 		blkptr_t *bp;
 
-		bp = &dn->dn_phys->dn_spill;
+		bp = DN_SPILL_BLKPTR(dn->dn_phys);
 		if (dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
 		    bp, bp->blk_birth))
 			txh->txh_space_tooverwrite += SPA_OLD_MAXBLOCKSIZE;
@@ -1618,7 +1618,7 @@ dmu_tx_hold_sa_create(dmu_tx_t *tx, int attrsize)
 
 	dmu_tx_sa_registration_hold(sa, tx);
 
-	if (attrsize <= DN_MAX_BONUSLEN && !sa->sa_force_spill)
+	if (attrsize <= DN_OLD_MAX_BONUSLEN && !sa->sa_force_spill)
 		return;
 
 	(void) dmu_tx_hold_object_impl(tx, tx->tx_objset, DMU_NEW_OBJECT,

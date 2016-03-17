@@ -142,6 +142,7 @@ for fs in "$POOL" "$POOL/pclone" "$POOL/$FS" "$POOL/$FS/fs1" \
 	rand_set_prop $fs exec "on" "off"
 	rand_set_prop $fs quota "512M" "1024M"
 	rand_set_prop $fs recordsize "512" "2K" "8K" "32K" "128K"
+	rand_set_prop $fs dnodesize "legacy" "auto" "1k" "2k" "4k" "8k" "16k"
 	rand_set_prop $fs setuid "on" "off"
 	rand_set_prop $fs snapdir "hidden" "visible"
 	rand_set_prop $fs xattr "on" "off"

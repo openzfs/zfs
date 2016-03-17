@@ -88,6 +88,7 @@ struct objset {
 	list_node_t os_evicting_node;
 
 	/* can change, under dsl_dir's locks: */
+	uint64_t os_dnodesize; /* default dnode size for new objects */
 	enum zio_checksum os_checksum;
 	enum zio_compress os_compress;
 	uint8_t os_copies;

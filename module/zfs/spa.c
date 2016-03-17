@@ -281,6 +281,14 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		    SPA_OLD_MAXBLOCKSIZE, ZPROP_SRC_NONE);
 	}
 
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_DNODE)) {
+		spa_prop_add_list(*nvp, ZPOOL_PROP_MAXDNODESIZE, NULL,
+		    DNODE_MAX_SIZE, ZPROP_SRC_NONE);
+	} else {
+		spa_prop_add_list(*nvp, ZPOOL_PROP_MAXDNODESIZE, NULL,
+		    DNODE_MIN_SIZE, ZPROP_SRC_NONE);
+	}
+
 	if ((dp = list_head(&spa->spa_config_list)) != NULL) {
 		if (dp->scd_path == NULL) {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_CACHEFILE,
@@ -512,7 +520,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 				/*
 				 * Must be ZPL, and its property settings
 				 * must be supported by GRUB (compression
-				 * is not gzip, and large blocks are not used).
+				 * is not gzip, and large blocks or large
+				 * dnodes are not used).
 				 */
 
 				if (dmu_objset_type(os) != DMU_OST_ZFS) {
@@ -528,6 +537,12 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 				    zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
 				    &propval)) == 0 &&
 				    propval > SPA_OLD_MAXBLOCKSIZE) {
+					error = SET_ERROR(ENOTSUP);
+				} else if ((error =
+				    dsl_prop_get_int_ds(dmu_objset_ds(os),
+				    zfs_prop_to_name(ZFS_PROP_DNODESIZE),
+				    &propval)) == 0 &&
+				    propval != ZFS_DNSIZE_LEGACY) {
 					error = SET_ERROR(ENOTSUP);
 				} else {
 					objnum = dmu_objset_id(os);
