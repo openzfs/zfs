@@ -301,19 +301,17 @@ tests = ['zpool_history_001_neg', 'zpool_history_002_pos']
 # DISABLED:
 # zpool_import_012_pos - sharenfs issue
 # zpool_import_all_001_pos - partition issue
-# zpool_import_features_001_pos - zhack issue
-# zpool_import_features_002_neg - zhack issue
-# zpool_import_features_003_pos - zhack issue
-# zpool_import_missing_001_pos - zhack_issue
-# zpool_import_missing_002_pos - zhack_issue
-# zpool_import_missing_003_pos - zhack_issue
-# zpool_import_rename_001_pos - hack issue
+# zpool_import_features_003_pos - zhack: invalid option -- 'r'
 [tests/functional/cli_root/zpool_import]
 tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_003_pos', 'zpool_import_004_pos', 'zpool_import_005_pos',
     'zpool_import_006_pos', 'zpool_import_007_pos', 'zpool_import_008_pos',
     'zpool_import_009_neg', 'zpool_import_010_pos', 'zpool_import_011_neg',
-    'zpool_import_013_neg']
+    'zpool_import_013_neg',
+    'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
+    'zpool_import_missing_001_pos',
+    'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
+    'zpool_import_rename_001_pos']
 
 [tests/functional/cli_root/zpool_offline]
 tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg']
@@ -486,11 +484,12 @@ tests = ['nestedfs_001_pos']
 [tests/functional/no_space]
 tests = ['enospc_001_pos']
 
-# DISABLED: needs investigation (CentOS 7 only)
-#[tests/functional/nopwrite]
-#tests = ['nopwrite_copies', 'nopwrite_mtime', 'nopwrite_negative',
-#    'nopwrite_promoted_clone', 'nopwrite_recsize', 'nopwrite_sync',
-#    'nopwrite_volume', 'nopwrite_varying_compression']
+# DISABLED:
+# nopwrite_varying_compression - needs investigation
+[tests/functional/nopwrite]
+tests = ['nopwrite_copies', 'nopwrite_mtime', 'nopwrite_negative',
+    'nopwrite_promoted_clone', 'nopwrite_recsize', 'nopwrite_sync',
+    'nopwrite_volume']
 
 # DISABLED: needs investigation
 #[tests/functional/online_offline]
@@ -536,9 +535,8 @@ tests = ['refreserv_001_pos', 'refreserv_002_pos', 'refreserv_003_pos',
 #[tests/functional/rename_dirs]
 #tests = ['rename_dirs_001_pos']
 
-# DISABLED: nested pool
-#[tests/functional/replacement]
-#tests = ['replacement_001_pos', 'replacement_002_pos']
+[tests/functional/replacement]
+tests = ['replacement_001_pos', 'replacement_002_pos', 'replacement_003_pos']
 
 # DISABLED:
 # reservation_012_pos - needs investigation

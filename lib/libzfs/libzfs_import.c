@@ -1392,6 +1392,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			slice->rn_nozpool = B_FALSE;
 			avl_add(&slice_cache, slice);
 		}
+
 		/*
 		 * create a thread pool to do all of this in parallel;
 		 * rn_nozpool is not protected, so this is racy in that
@@ -1401,7 +1402,6 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		 * locks in the kernel, so going beyond this doesn't
 		 * buy us much.
 		 */
-		thread_init();
 		t = taskq_create("z_import", 2 * boot_ncpus, defclsyspri,
 		    2 * boot_ncpus, INT_MAX, TASKQ_PREPOPULATE);
 		for (slice = avl_first(&slice_cache); slice;
@@ -1411,7 +1411,6 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			    TQ_SLEEP);
 		taskq_wait(t);
 		taskq_destroy(t);
-		thread_fini();
 
 		cookie = NULL;
 		while ((slice = avl_destroy_nodes(&slice_cache,
