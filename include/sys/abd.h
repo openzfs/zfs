@@ -56,13 +56,13 @@ typedef struct arc_buf_data {
 	};
 } abd_t;
 
-#define	ABD_F_SCATTER	(0)		/* abd is scatter */
-#define	ABD_F_LINEAR	(1)		/* abd is linear */
-#define	ABD_F_OWNER	(1<<1)		/* abd owns the buffer */
-#define	ABD_F_HIGHMEM	(1<<2)		/* abd uses highmem */
+#define	ABD_F_SCATTER	(1U << 0)	/* abd is scatter */
+#define	ABD_F_LINEAR	(1U << 1)	/* abd is linear */
+#define	ABD_F_OWNER	(1U << 2)	/* abd owns the buffer */
+#define	ABD_F_HIGHMEM	(1U << 3)	/* abd uses highmem */
 
-#define	ABD_IS_SCATTER(abd)	(!((abd)->abd_flags & ABD_F_LINEAR))
-#define	ABD_IS_LINEAR(abd)	(!ABD_IS_SCATTER(abd))
+#define	ABD_IS_SCATTER(abd)	(!!((abd)->abd_flags & ABD_F_SCATTER))
+#define	ABD_IS_LINEAR(abd)	(!!((abd)->abd_flags & ABD_F_LINEAR))
 #define	ASSERT_ABD_SCATTER(abd)	ASSERT(ABD_IS_SCATTER(abd))
 #define	ASSERT_ABD_LINEAR(abd)	ASSERT(ABD_IS_LINEAR(abd))
 
@@ -89,7 +89,7 @@ abd_t *_abd_alloc_scatter(size_t, int);
 #define	abd_alloc_meta_scatter(s)	_abd_alloc_scatter(s, 0)
 abd_t *abd_alloc_linear(size_t);
 void abd_free(abd_t *, size_t);
-abd_t *abd_get_offset(abd_t *, size_t);
+abd_t *abd_get_offset(abd_t *, size_t, size_t);
 abd_t *abd_get_from_buf(void *, size_t);
 void abd_put(abd_t *);
 
@@ -111,6 +111,16 @@ int abd_cmp(abd_t *, abd_t *, size_t);
 int abd_cmp_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_zero_off(abd_t *, size_t, size_t);
 void *abd_buf_segment(abd_t *, size_t, size_t);
+
+/*
+ * ABD operations for RAIDZ vdev
+ */
+void abd_raidz_gen_iterate(abd_t **, abd_t *, ssize_t, ssize_t, const unsigned,
+    void (*)(void **, const void *, size_t, size_t));
+void abd_raidz_rec_iterate(abd_t **, abd_t **, ssize_t, const unsigned,
+    void (*)(void **, const size_t, void **, const unsigned *),
+    const unsigned *);
+
 /*
  * abd_array_off - returns an object in an array contained in @abd
  *

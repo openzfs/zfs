@@ -344,7 +344,8 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, abd_t *good_data)
 			for (; x < rm->rm_cols; x++) {
 				abd_put(rm->rm_col[x].rc_data);
 				rm->rm_col[x].rc_data =
-				    abd_get_offset(good_data, offset);
+				    abd_get_offset(good_data,
+				    rm->rm_col[x].rc_size, offset);
 				offset += rm->rm_col[x].rc_size;
 			}
 
@@ -361,7 +362,8 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, abd_t *good_data)
 			for (x = rm->rm_firstdatacol; x < rm->rm_cols; x++) {
 				abd_put(rm->rm_col[x].rc_data);
 				rm->rm_col[x].rc_data = abd_get_offset(
-				    rm->rm_datacopy, offset);
+				    rm->rm_datacopy, rm->rm_col[x].rc_size,
+				    offset);
 				offset += rm->rm_col[x].rc_size;
 			}
 		}
@@ -373,7 +375,8 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, abd_t *good_data)
 		offset = 0;
 		for (x = rm->rm_firstdatacol; x < c; x++)
 			offset += rm->rm_col[x].rc_size;
-		good = abd_get_offset(good_data, offset);
+		good = abd_get_offset(good_data, rm->rm_col[x].rc_size,
+		    offset);
 		need_put = 1;
 	}
 
@@ -430,7 +433,8 @@ vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
 
 	for (offset = 0, c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		raidz_col_t *col = &rm->rm_col[c];
-		abd_t *tmp = abd_get_offset(rm->rm_datacopy, offset);
+		abd_t *tmp = abd_get_offset(rm->rm_datacopy, col->rc_size,
+		    offset);
 
 		abd_copy(tmp, col->rc_data, col->rc_size);
 		abd_put(col->rc_data);
@@ -555,11 +559,13 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 		    abd_alloc_scatter(rm->rm_col[c].rc_size);
 	}
 
-	rm->rm_col[c].rc_data = abd_get_offset(zio->io_data, 0);
+	rm->rm_col[c].rc_data = abd_get_offset(zio->io_data,
+	    rm->rm_col[c].rc_size, 0);
 	off = rm->rm_col[c].rc_size;
 
 	for (c = c + 1; c < acols; c++) {
-		rm->rm_col[c].rc_data = abd_get_offset(zio->io_data, off);
+		rm->rm_col[c].rc_data = abd_get_offset(zio->io_data,
+		    rm->rm_col[c].rc_size, off);
 		off += rm->rm_col[c].rc_size;
 	}
 

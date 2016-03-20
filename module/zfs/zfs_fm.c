@@ -684,8 +684,8 @@ build_histo(zfs_ecksum_info_t *eip, abd_t *goodbuf, abd_t *badbuf,
 		size_t len = (end - start) * sizeof (uint64_t);
 
 		/* abd_iterate_func2 don't takes offset, so do get_offset */
-		g = abd_get_offset(goodbuf, start * sizeof (uint64_t));
-		b = abd_get_offset(badbuf, start * sizeof (uint64_t));
+		g = abd_get_offset(goodbuf, len, start * sizeof (uint64_t));
+		b = abd_get_offset(badbuf, len, start * sizeof (uint64_t));
 
 		bh.range = range;
 
