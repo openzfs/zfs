@@ -327,6 +327,18 @@ exit 0
 %endif
 
 %changelog
+* Tue Mar 22 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.6-1
+- Remove artificial architecture restrictions in packaging
+- Add support for s390[x] zfsonlinux/zfs#4425
+- Handle negative dentries in case insensitive filesystem zfsonlinux/zfs#4243
+- Fix casesensitivity=insensitive deadlock zfsonlinux/zfs#4136
+- Correctly parse zdb -R flag arguments zfsonlinux/zfs#4304
+- Fix lock order inversion with zvol_open() zfsonlinux/zfs#3681
+- Add support for asynchronous zvol minor operations zfsonlinux/zfs#2217
+- Make zvol minor functionality more robust zfsonlinux/zfs#4344
+- Prevent zpool_find_vdev() from truncating vdev path zfsonlinux/zfs#4312
+- Add -gLP to zpool subcommands for alt vdev names zfsonlinux/zfs#4341
+- Fix zpool list -v output for spares and log devices zfsonlinux/zfs#4313
 * Wed Mar 9 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.5-1
 - Linux 4.5 compatibility zfsonlinux/zfs#4228
 - Create working debuginfo packages on Red Hat zfsonlinux/zfs#4224
