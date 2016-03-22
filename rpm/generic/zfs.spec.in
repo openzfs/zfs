@@ -327,6 +327,16 @@ exit 0
 %endif
 
 %changelog
+* Thu May 12 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.7-1
+- Fix user namespaces uid/gid mapping zfsonlinux/zfs#4177
+- Fix ZPL miswrite of default POSIX ACL zfsonlinux/zfs#4520
+- Linux 4.5 and 4.6 compatibility zfsonlinux/zfs#4537 zfsonlinux/zfs#4489
+- Ensure /dev/disk/by-partlabel gets correctly populated zfsonlinux/zfs#4517
+- Utilities now work reliably with newly created partitions zfsonlinux/zfs#3708
+- Import now reliably uses device names stored in label zfsonlinux/zfs#3043
+- Fix possible deadlock in zfs_secpolicy_write_perms ioctl zfsonlinux/zfs#4554
+- Fix inverted logic on none elevator comparison zfsonlinux/zfs#4507
+- Add 32 bit FS_IOC32_{GET|SET}FLAGS compat ioctls for PPC zfsonlinux/zfs#4477
 * Tue Mar 22 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.6-1
 - Remove artificial architecture restrictions in packaging
 - Add support for s390[x] zfsonlinux/zfs#4425
