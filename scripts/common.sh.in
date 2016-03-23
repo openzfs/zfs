@@ -79,6 +79,7 @@ SCSIRESCAN=${SCSIRESCAN:-/usr/bin/scsi-rescan}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
 UDEVADM=${UDEVADM:-/sbin/udevadm}
 AWK=${AWK:-/usr/bin/awk}
+GDB=${GDB:-/usr/bin/gdb}
 
 ZED_PIDFILE=${ZED_PIDFILE:-${localstatedir}/run/zed.pid}
 
