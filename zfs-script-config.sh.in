@@ -60,6 +60,7 @@ export XATTRTEST=${TESTDIR}/zfs-tests/cmd/xattrtest
 
 export INTREE=1
 export LDMOD=/sbin/insmod
+export GDB="/usr/bin/libtool --mode=execute gdb"
 
 export ZED_PIDFILE=@runstatedir@/zed.pid
 
