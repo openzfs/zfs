@@ -128,8 +128,8 @@
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/byteorder.h>
-#include <sys/zio.h>
 #include <sys/spa.h>
+#include <zfs_fletcher.h>
 
 void
 fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
@@ -165,14 +165,24 @@ fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
 }
 
-void
-fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+static void fletcher_4_generic_init(zio_cksum_t *zcp)
+{
+	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+}
+
+static void
+fletcher_4_generic(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
 	uint64_t a, b, c, d;
 
-	for (a = b = c = d = 0; ip < ipend; ip++) {
+	a = zcp->zc_word[0];
+	b = zcp->zc_word[1];
+	c = zcp->zc_word[2];
+	d = zcp->zc_word[3];
+
+	for (; ip < ipend; ip++) {
 		a += ip[0];
 		b += a;
 		c += b;
@@ -182,14 +192,19 @@ fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
 }
 
-void
-fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+static void
+fletcher_4_generic_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
 	uint64_t a, b, c, d;
 
-	for (a = b = c = d = 0; ip < ipend; ip++) {
+	a = zcp->zc_word[0];
+	b = zcp->zc_word[1];
+	c = zcp->zc_word[2];
+	d = zcp->zc_word[3];
+
+	for (; ip < ipend; ip++) {
 		a += BSWAP_32(ip[0]);
 		b += a;
 		c += b;
@@ -197,55 +212,109 @@ fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+}
+
+static const struct fletcher_4_calls fletcher_4_generic_calls = {
+	.init = fletcher_4_generic_init,
+	.compute = fletcher_4_generic,
+	.compute_byteswap = fletcher_4_generic_byteswap,
+	.name = "generic"
+};
+
+static const struct fletcher_4_calls *chosen = &fletcher_4_generic_calls;
+
+void
+fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	chosen->init(zcp);
+	chosen->compute(buf, size, zcp);
+	if (chosen->fini != NULL)
+		chosen->fini(zcp);
+}
+
+void
+fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	chosen->init(zcp);
+	chosen->compute_byteswap(buf, size, zcp);
+	if (chosen->fini != NULL)
+		chosen->fini(zcp);
 }
 
 void
 fletcher_4_incremental_native(const void *buf, uint64_t size,
     zio_cksum_t *zcp)
 {
-	const uint32_t *ip = buf;
-	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
-	uint64_t a, b, c, d;
-
-	a = zcp->zc_word[0];
-	b = zcp->zc_word[1];
-	c = zcp->zc_word[2];
-	d = zcp->zc_word[3];
-
-	for (; ip < ipend; ip++) {
-		a += ip[0];
-		b += a;
-		c += b;
-		d += c;
-	}
-
-	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+	fletcher_4_generic(buf, size, zcp);
 }
 
 void
 fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
     zio_cksum_t *zcp)
 {
-	const uint32_t *ip = buf;
-	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
-	uint64_t a, b, c, d;
-
-	a = zcp->zc_word[0];
-	b = zcp->zc_word[1];
-	c = zcp->zc_word[2];
-	d = zcp->zc_word[3];
-
-	for (; ip < ipend; ip++) {
-		a += BSWAP_32(ip[0]);
-		b += a;
-		c += b;
-		d += c;
-	}
-
-	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+	fletcher_4_generic_byteswap(buf, size, zcp);
 }
 
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
+
+extern struct fletcher_4_calls fletcher_4_avx2_calls;
+
+static const struct fletcher_4_calls *fletcher_4_algos[] = {
+	&fletcher_4_generic_calls,
+#if defined(HAVE_AVX) && defined(HAVE_AVX2)
+	&fletcher_4_avx2_calls,
+#endif
+};
+
+#define	BENCH_SIZE 4096
+#define	ZFS_ARRAY_SIZE(a) (sizeof (a) / sizeof (*a))
+#define	kernel_cpu_relax() do {} while (0)
+
+/* cant use allocation methods from zfs module! */
+static char databuf[BENCH_SIZE];
+
+void
+fletcher_4_init(void)
+{
+	unsigned long bestperf = 0;
+	const unsigned int bits = 4;
+	int i;
+
+	for (i = 0; i < ZFS_ARRAY_SIZE(fletcher_4_algos); i++) {
+		const struct fletcher_4_calls *algo = fletcher_4_algos[i];
+		unsigned long perf = 0;
+		clock_t j0, j1;
+		zio_cksum_t zc;
+
+		if (algo->valid != NULL && !algo->valid())
+			continue;
+
+		kpreempt_disable();
+		j0 = ddi_get_lbolt();
+		while ((j1 = ddi_get_lbolt()) == j0) {
+			kernel_cpu_relax();
+		}
+
+		algo->init(&zc);
+		while (ddi_time_before(ddi_get_lbolt(), j1 + (1 << bits))) {
+			algo->compute(databuf, PAGE_SIZE, &zc);
+			perf++;
+		}
+		if (algo->fini != NULL)
+			algo->fini(&zc);
+		kpreempt_enable();
+
+		if (perf > bestperf) {
+			bestperf = perf;
+			chosen = algo;
+		}
+		cmn_err(CE_NOTE, "fletcher-4: %-8s %5ld MB/s",
+		    algo->name, SEC_TO_TICK(perf) >> (20 - 16 + bits));
+	}
+}
+
+EXPORT_SYMBOL(fletcher_4_init);
 EXPORT_SYMBOL(fletcher_2_native);
 EXPORT_SYMBOL(fletcher_2_byteswap);
 EXPORT_SYMBOL(fletcher_4_native);
