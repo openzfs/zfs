@@ -37,7 +37,7 @@ export SIZE="1gb"
 
 if is_linux; then
 	export SLICE_PREFIX="p"
-	export SLICE=1
+	export SLICE=0
 else
 	export SLICE_PREFIX="s"
 	export SLICE=0
@@ -51,4 +51,7 @@ DISK=${DISKS%% *}
 
 log_must set_partition $SLICE "" $SIZE $DISK
 
+if is_linux; then
+	export SLICE=1
+fi
 default_setup "${DISK}${SLICE_PREFIX}${SLICE}"
