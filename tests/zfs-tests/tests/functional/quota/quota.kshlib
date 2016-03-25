@@ -57,7 +57,7 @@ function fill_quota
 	$FILE_WRITE -o create -f $MNTPT/$TESTFILE1 -b $BLOCK_SIZE \
 		 -c $write_size -d 0
 	zret=$?
-        [[ $zret -ne EDQUOT ]] && \
+        [[ $zret -ne $EDQUOT ]] && \
             log_fail "Returned error code: $zret. Expected: $EDQUOT."
 
 	typeset -i file_size=`$LS -ls $MNTPT/$TESTFILE1 | $AWK '{ print $1 }'`
@@ -89,7 +89,7 @@ function exceed_quota
 	$FILE_WRITE -o create -f $MNTPT/$TESTFILE2 \
 		-b $BLOCK_SIZE -c $write_size -d 0
 	zret=$?
-	[[ $zret -ne EDQUOT ]] && \
-	    log_fail "Returned error code: $zret. Expected: EDQUOT."
+	[[ $zret -ne $EDQUOT ]] && \
+	    log_fail "Returned error code: $zret. Expected: $EDQUOT."
 	return 0
 }
