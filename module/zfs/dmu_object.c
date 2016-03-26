@@ -31,6 +31,8 @@
 #include <sys/zap.h>
 #include <sys/zfeature.h>
 
+int zfs_metadnode_backfill = 0;
+
 uint64_t
 dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
@@ -58,7 +60,9 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * described in traverse_visitbp.
 		 */
 		if (P2PHASE(object, L2_dnode_count) == 0) {
-			uint64_t offset = restarted ? object << DNODE_SHIFT : 0;
+			uint64_t offset =
+			    (restarted || !zfs_metadnode_backfill) ?
+			    object << DNODE_SHIFT : 0;
 			int error = dnode_next_offset(DMU_META_DNODE(os),
 			    DNODE_FIND_HOLE,
 			    &offset, 2, DNODES_PER_BLOCK >> 2, 0);
@@ -225,6 +229,10 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_metadnode_backfill, int, 0644);
+MODULE_PARM_DESC(zfs_metadnode_backfill,
+	"Enable backfilling of the metadnode array");
+
 EXPORT_SYMBOL(dmu_object_alloc);
 EXPORT_SYMBOL(dmu_object_claim);
 EXPORT_SYMBOL(dmu_object_reclaim);
