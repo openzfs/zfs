@@ -136,7 +136,7 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 	ASSERT3S(dsh->idx, <=, h->hash_table_mask);
 	memset(buf, 0, size);
 
-	mutex_enter(DBUF_HASH_MUTEX(h, dsh->idx));
+	rw_enter(DBUF_HASH_RWLOCK(h, dsh->idx), RW_READER);
 	for (db = h->hash_table[dsh->idx]; db != NULL; db = db->db_hash_next) {
 		/*
 		 * Returning ENOMEM will cause the data and header functions
@@ -148,7 +148,7 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 		}
 
 		mutex_enter(&db->db_mtx);
-		mutex_exit(DBUF_HASH_MUTEX(h, dsh->idx));
+		rw_exit(DBUF_HASH_RWLOCK(h, dsh->idx));
 
 		if (db->db_state != DB_EVICTING) {
 			length = __dbuf_stats_hash_table_data(buf, size, db);
@@ -157,9 +157,9 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 		}
 
 		mutex_exit(&db->db_mtx);
-		mutex_enter(DBUF_HASH_MUTEX(h, dsh->idx));
+		rw_enter(DBUF_HASH_RWLOCK(h, dsh->idx), RW_READER);
 	}
-	mutex_exit(DBUF_HASH_MUTEX(h, dsh->idx));
+	rw_exit(DBUF_HASH_RWLOCK(h, dsh->idx));
 
 	return (error);
 }

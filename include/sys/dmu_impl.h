@@ -54,7 +54,7 @@ extern "C" {
  * XXX try to improve evicting path?
  *
  * dp_config_rwlock > os_obj_lock > dn_struct_rwlock >
- * 	dn_dbufs_mtx > hash_mutexes > db_mtx > dd_lock > leafs
+ * 	dn_dbufs_mtx > hash_rwlocks > db_mtx > dd_lock > leafs
  *
  * dp_config_rwlock
  *    must be held before: everything
@@ -72,7 +72,7 @@ extern "C" {
  *   	everything except dp_config_rwlock
  *   protects os_obj_next
  *   held from:
- *   	dmu_object_alloc: dn_dbufs_mtx, db_mtx, hash_mutexes, dn_struct_rwlock
+ *   	dmu_object_alloc: dn_dbufs_mtx, db_mtx, hash_rwlocks, dn_struct_rwlock
  *
  * dn_struct_rwlock
  *   must be held before:
@@ -92,9 +92,9 @@ extern "C" {
  *   	dbuf_new_size: db_mtx
  *   	dbuf_dirty: db_mtx
  *	dbuf_findbp: (callers, phys? - the real need)
- *	dbuf_create: dn_dbufs_mtx, hash_mutexes, db_mtx (phys?)
- *	dbuf_prefetch: dn_dirty_mtx, hash_mutexes, db_mtx, dn_dbufs_mtx
- *	dbuf_hold_impl: hash_mutexes, db_mtx, dn_dbufs_mtx, dbuf_findbp()
+ *	dbuf_create: dn_dbufs_mtx, hash_rwlocks, db_mtx (phys?)
+ *	dbuf_prefetch: dn_dirty_mtx, hash_rwlocks, db_mtx, dn_dbufs_mtx
+ *	dbuf_hold_impl: hash_rwlocks, db_mtx, dn_dbufs_mtx, dbuf_findbp()
  *	dnode_sync/w (increase_indirection): db_mtx (phys)
  *	dnode_set_blksz/w: dn_dbufs_mtx (dn_*blksz*)
  *	dnode_new_blkid/w: (dn_maxblkid)
@@ -103,7 +103,7 @@ extern "C" {
  *
  * dn_dbufs_mtx
  *    must be held before:
- *    	db_mtx, hash_mutexes
+ *    	db_mtx, hash_rwlocks
  *    protects:
  *    	dn_dbufs
  *    	dn_evicted
@@ -111,11 +111,11 @@ extern "C" {
  *    	dmu_evict_user: db_mtx (dn_dbufs)
  *    	dbuf_free_range: db_mtx (dn_dbufs)
  *    	dbuf_remove_ref: db_mtx, callees:
- *    		dbuf_hash_remove: hash_mutexes, db_mtx
- *    	dbuf_create: hash_mutexes, db_mtx (dn_dbufs)
+ *    		dbuf_hash_remove: hash_rwlocks, db_mtx
+ *    	dbuf_create: hash_rwlocks, db_mtx (dn_dbufs)
  *    	dnode_set_blksz: (dn_dbufs)
  *
- * hash_mutexes (global)
+ * hash_rwlocks (global)
  *   must be held before:
  *   	db_mtx
  *   protects dbuf_hash_table (global) and db_hash_next
