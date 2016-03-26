@@ -26,6 +26,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_scrub/zpool_scrub.cfg
 
 #
 # DESCRIPTION:
@@ -37,6 +38,11 @@
 #	2. Kick off a scrub
 #	3. Check the completed percent and invoke another scrub
 #	4. Check the percent again, verify a new scrub started.
+#
+# NOTES:
+#	A 1 second delay is added to 10% of zio's in order to ensure that
+#	the scrub does not complete before it has a chance to be restarted.
+#	This can occur when testing with small pools or very fast hardware.
 #
 
 verify_runnable "global"
@@ -55,6 +61,7 @@ function get_scrub_percent
 log_assert "scrub command terminates the existing scrub process and starts" \
 	"a new scrub."
 
+log_must $ZINJECT -d $DISK1 -f10 -D1 $TESTPOOL
 log_must $ZPOOL scrub $TESTPOOL
 typeset -i PERCENT=30 percent=0
 while ((percent < PERCENT)) ; do
@@ -67,5 +74,6 @@ if ((percent > PERCENT)); then
 	log_fail "zpool scrub don't stop existing scrubbing process."
 fi
 
+log_must $ZINJECT -c all
 log_pass "scrub command terminates the existing scrub process and starts" \
 	"a new scrub."

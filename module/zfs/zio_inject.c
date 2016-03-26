@@ -379,6 +379,10 @@ zio_handle_io_delay(zio_t *zio)
 		if (handler->zi_record.zi_cmd != ZINJECT_DELAY_IO)
 			continue;
 
+		if (handler->zi_record.zi_freq != 0 &&
+		    spa_get_random(100) >= handler->zi_record.zi_freq);
+			continue;
+
 		if (vd->vdev_guid == handler->zi_record.zi_guid) {
 			seconds = handler->zi_record.zi_timer;
 			break;

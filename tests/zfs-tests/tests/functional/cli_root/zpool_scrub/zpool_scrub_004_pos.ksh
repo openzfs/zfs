@@ -41,11 +41,16 @@
 #	2. Detach one of devices
 #	3. Verify scrub failed until the resilver completed
 #
+# NOTES:
+#	A 1 second delay is added to 10% of zio's in order to ensure that
+#	the resilver does not complete before the scrub can be issue.  This
+#	can occur when testing with small pools or very fast hardware.
 
 verify_runnable "global"
 
 log_assert "Resilver prevent scrub from starting until the resilver completes"
 
+log_must $ZINJECT -d $DISK1 -f10 -D1 $TESTPOOL
 log_must $ZPOOL detach $TESTPOOL $DISK2
 log_must $ZPOOL attach $TESTPOOL $DISK1 $DISK2
 log_must is_pool_resilvering $TESTPOOL
@@ -56,4 +61,5 @@ while ! is_pool_resilvered $TESTPOOL; do
 	$SLEEP 1
 done
 
+log_must $ZINJECT -c all
 log_pass "Resilver prevent scrub from starting until the resilver completes"

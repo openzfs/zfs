@@ -26,6 +26,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_scrub/zpool_scrub.cfg
 
 #
 # DESCRIPTION:
@@ -36,13 +37,20 @@
 #	2. zpool scrub the pool
 #	3. Verify zpool scrub -s succeed when the system is scrubbing.
 #
+# NOTES:
+#	A 1 second delay is added to 10% of zio's in order to ensure that
+#	the scrub does not complete before it has a chance to be cancelled.
+#	This can occur when testing with small pools or very fast hardware.
+#
 
 verify_runnable "global"
 
 log_assert "Verify scrub -s works correctly."
 
+log_must $ZINJECT -d $DISK1 -f10 -D1 $TESTPOOL
 log_must $ZPOOL scrub $TESTPOOL
 log_must $ZPOOL scrub -s $TESTPOOL
 log_must is_pool_scrub_stopped $TESTPOOL
 
+log_must $ZINJECT -c all
 log_pass "Verify scrub -s works correctly."
