@@ -165,7 +165,7 @@ OPTIONS:
 	-k          Disable cleanup after test failure
 	-f          Use files only, disables block device tests
 	-d DIR      Use DIR for files and loopback devices
-	-s SIZE     Use vdevs of SIZE (default: 4G)
+	-s SIZE     Use vdevs of SIZE (default: 2G)
 	-r RUNFILE  Run tests in RUNFILE (default: linux.run)
 
 EXAMPLES:
