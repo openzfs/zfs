@@ -2300,6 +2300,7 @@ us_compare(const void *larg, const void *rarg, void *unused)
 		case ZFS_PROP_NAME:
 			propname = "name";
 			if (numname) {
+compare_nums:
 				(void) nvlist_lookup_uint64(lnvl, propname,
 				    &lv64);
 				(void) nvlist_lookup_uint64(rnvl, propname,
@@ -2307,10 +2308,12 @@ us_compare(const void *larg, const void *rarg, void *unused)
 				if (rv64 != lv64)
 					rc = (rv64 < lv64) ? 1 : -1;
 			} else {
-				(void) nvlist_lookup_string(lnvl, propname,
-				    &lvstr);
-				(void) nvlist_lookup_string(rnvl, propname,
-				    &rvstr);
+				if ((nvlist_lookup_string(lnvl, propname,
+						&lvstr) == ENOENT) ||
+				    (nvlist_lookup_string(rnvl, propname,
+						&rvstr) == ENOENT)) {
+					goto compare_nums;
+				}
 				rc = strcmp(lvstr, rvstr);
 			}
 			break;
