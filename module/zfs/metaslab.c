@@ -2390,7 +2390,8 @@ top:
 
 			DVA_SET_VDEV(&dva[d], vd->vdev_id);
 			DVA_SET_OFFSET(&dva[d], offset);
-			DVA_SET_GANG(&dva[d], !!(flags & METASLAB_GANG_HEADER));
+			DVA_SET_GANG(&dva[d],
+			    ((flags & METASLAB_GANG_HEADER) ? 1 : 0));
 			DVA_SET_ASIZE(&dva[d], asize);
 
 			if (flags & METASLAB_FASTWRITE) {
