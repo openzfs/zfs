@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2016 Intel Corporation.
  */
 
 /*
@@ -447,7 +448,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 		(void) close(fd);
 
 		if (force) {
-			/* Partitions will no be created using the backup */
+			/* Partitions will now be created using the backup */
 			return (0);
 		} else {
 			vdev_error(gettext("%s contains a corrupt primary "
@@ -1178,6 +1179,12 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		    &wholedisk));
 
 		if (!wholedisk) {
+			/*
+			 * Update device id string for mpath nodes (Linux only)
+			 */
+			if (is_mpath_whole_disk(path))
+				update_vdev_config_dev_strs(nv);
+
 			(void) zero_label(path);
 			return (0);
 		}
@@ -1248,6 +1255,12 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * future output.
 		 */
 		verify(nvlist_add_string(nv, ZPOOL_CONFIG_PATH, udevpath) == 0);
+
+		/*
+		 * Update device id strings for whole disks (Linux only)
+		 */
+		if (wholedisk)
+			update_vdev_config_dev_strs(nv);
 
 		return (0);
 	}

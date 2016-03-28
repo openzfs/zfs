@@ -2603,6 +2603,17 @@ Cause \fBzpool\fR subcommands to follow links for vdev names by default.  This b
 .B "ZPOOL_VDEV_NAME_PATH"
 Cause \fBzpool\fR subcommands to output full vdev path names by default.  This
 behavior is identical to the \fBzpool status -p\fR command line option.
+.TP
+.B "ZFS_VDEV_DEVID_OPT_OUT"
+Older ZFS on Linux implementations had issues when attempting to display pool
+config VDEV names if a "devid" NVP value is present in the pool's config.
+
+For example, a pool that originated on illumos platform would have a devid
+value in the config and \fBzpool status\fR would fail when listing the config.
+This would also be true for future Linux based pools.
+
+A pool can be stripped of any "devid" values on import or prevented from adding
+them on \fBzpool create\fR or \fBzpool add\fR by setting ZFS_VDEV_DEVID_OPT_OUT.
 
 .SH SEE ALSO
 .sp

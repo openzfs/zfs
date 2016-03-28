@@ -25,6 +25,7 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2013 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2016, Intel Corporation.
  */
 
 #ifndef	_LIBZFS_H
@@ -800,6 +801,12 @@ extern boolean_t libzfs_fru_compare(libzfs_handle_t *, const char *,
     const char *);
 extern boolean_t libzfs_fru_notself(libzfs_handle_t *, const char *);
 extern int zpool_fru_set(zpool_handle_t *, uint64_t, const char *);
+
+/*
+ * Support for Linux libudev derived persistent device strings
+ */
+extern boolean_t is_mpath_whole_disk(const char *);
+extern void update_vdev_config_dev_strs(nvlist_t *);
 
 #ifdef	__cplusplus
 }

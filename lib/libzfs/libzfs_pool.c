@@ -3312,6 +3312,7 @@ zpool_reopen(zpool_handle_t *zhp)
 	return (zpool_standard_error(hdl, errno, msg));
 }
 
+#if defined(__sun__) || defined(__sun)
 /*
  * Convert from a devid string to a path.
  */
@@ -3389,6 +3390,7 @@ set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
 
 	(void) ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_VDEV_SETPATH, &zc);
 }
+#endif /* sun */
 
 /*
  * Remove partition suffix from a vdev path.  Partition suffixes may take three
@@ -3443,12 +3445,10 @@ char *
 zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
     int name_flags)
 {
-	char *path, *devid, *type, *env;
+	char *path, *type, *env;
 	uint64_t value;
 	char buf[PATH_BUF_LEN];
 	char tmpbuf[PATH_BUF_LEN];
-	vdev_stat_t *vs;
-	uint_t vsc;
 
 	env = getenv("ZPOOL_VDEV_NAME_PATH");
 	if (env && (strtoul(env, NULL, 0) > 0 ||
@@ -3471,6 +3471,15 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		(void) snprintf(buf, sizeof (buf), "%llu", (u_longlong_t)value);
 		path = buf;
 	} else if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
+#if defined(__sun__) || defined(__sun)
+		/*
+		 * Live VDEV path updates to a kernel VDEV during a
+		 * zpool_vdev_name lookup are not supported on Linux.
+		 */
+		char *devid;
+		vdev_stat_t *vs;
+		uint_t vsc;
+
 		/*
 		 * If the device is dead (faulted, offline, etc) then don't
 		 * bother opening it.  Otherwise we may be forcing the user to
@@ -3508,6 +3517,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			if (newdevid)
 				devid_str_free(newdevid);
 		}
+#endif /* sun */
 
 		if (name_flags & VDEV_NAME_FOLLOW_LINKS) {
 			char *rp = realpath(path, NULL);
