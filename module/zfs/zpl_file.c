@@ -24,6 +24,9 @@
  */
 
 
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
 #include <sys/dmu_objset.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
@@ -798,7 +801,17 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 static long
 zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	return (zpl_ioctl(filp, cmd, arg));
+	switch (cmd) {
+	case FS_IOC32_GETFLAGS:
+		cmd = FS_IOC_GETFLAGS;
+		break;
+	case FS_IOC32_SETFLAGS:
+		cmd = FS_IOC_SETFLAGS;
+		break;
+	default:
+		return (-ENOTTY);
+	}
+	return (zpl_ioctl(filp, cmd, (unsigned long)compat_ptr(arg)));
 }
 #endif /* CONFIG_COMPAT */
 
