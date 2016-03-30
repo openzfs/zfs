@@ -1457,7 +1457,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	if (ace_trivial_common(aclp, 0, zfs_ace_walk) == 0)
 		zp->z_pflags |= ZFS_ACL_TRIVIAL;
 
-	zfs_tstamp_update_setup(zp, STATE_CHANGED, NULL, ctime, B_TRUE);
+	zfs_tstamp_update_setup(zp, STATE_CHANGED, NULL, ctime);
 	return (sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
 }
 

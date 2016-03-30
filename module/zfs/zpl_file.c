@@ -272,6 +272,7 @@ zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
 	    nr_segs, &kiocb->ki_pos, seg, filp->f_flags, cr, skip);
 	crfree(cr);
 
+	file_accessed(filp);
 	return (read);
 }
 

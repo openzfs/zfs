@@ -550,7 +550,6 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 out:
 	zfs_range_unlock(rl);
 
-	ZFS_ACCESSTIME_STAMP(zsb, zp);
 	ZFS_EXIT(zsb);
 	return (error);
 }
@@ -865,8 +864,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		}
 		mutex_exit(&zp->z_acl_lock);
 
-		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime,
-		    B_TRUE);
+		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime);
 
 		/*
 		 * Update the file size (zp_size) if it has changed;
@@ -2140,9 +2138,6 @@ update:
 	zap_cursor_fini(&zc);
 	if (error == ENOENT)
 		error = 0;
-
-	ZFS_ACCESSTIME_STAMP(zsb, zp);
-
 out:
 	ZFS_EXIT(zsb);
 
@@ -2195,11 +2190,11 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	zfs_sb_t *zsb = ITOZSB(ip);
 	int	error = 0;
 	uint64_t links;
-	uint64_t mtime[2], ctime[2];
+	uint64_t atime[2], mtime[2], ctime[2];
 	xvattr_t *xvap = (xvattr_t *)vap;	/* vap may be an xvattr_t * */
 	xoptattr_t *xoap = NULL;
 	boolean_t skipaclchk = (flags & ATTR_NOACLCHECK) ? B_TRUE : B_FALSE;
-	sa_bulk_attr_t bulk[2];
+	sa_bulk_attr_t bulk[3];
 	int count = 0;
 
 	ZFS_ENTER(zsb);
@@ -2207,6 +2202,7 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 
 	zfs_fuid_map_ids(zp, cr, &vap->va_uid, &vap->va_gid);
 
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zsb), NULL, &atime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
 
@@ -2355,7 +2351,7 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 		}
 	}
 
-	ZFS_TIME_DECODE(&vap->va_atime, zp->z_atime);
+	ZFS_TIME_DECODE(&vap->va_atime, atime);
 	ZFS_TIME_DECODE(&vap->va_mtime, mtime);
 	ZFS_TIME_DECODE(&vap->va_ctime, ctime);
 
@@ -2402,7 +2398,6 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	mutex_enter(&zp->z_lock);
 
 	generic_fillattr(ip, sp);
-	ZFS_TIME_DECODE(&sp->atime, zp->z_atime);
 
 	sa_object_size(zp->z_sa_hdl, &blksize, &nblocks);
 	sp->blksize = blksize;
@@ -2466,7 +2461,7 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	uint64_t	new_mode;
 	uint64_t	new_uid, new_gid;
 	uint64_t	xattr_obj;
-	uint64_t	mtime[2], ctime[2];
+	uint64_t	mtime[2], ctime[2], atime[2];
 	znode_t		*attrzp;
 	int		need_policy = FALSE;
 	int		err, err2;
@@ -2940,9 +2935,9 @@ top:
 
 
 	if (mask & ATTR_ATIME) {
-		ZFS_TIME_ENCODE(&vap->va_atime, zp->z_atime);
+		ZFS_TIME_ENCODE(&vap->va_atime, atime);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zsb), NULL,
-		    &zp->z_atime, sizeof (zp->z_atime));
+		    &atime, sizeof (atime));
 	}
 
 	if (mask & ATTR_MTIME) {
@@ -2957,19 +2952,17 @@ top:
 		    NULL, mtime, sizeof (mtime));
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL,
 		    &ctime, sizeof (ctime));
-		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime,
-		    B_TRUE);
+		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime);
 	} else if (mask != 0) {
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL,
 		    &ctime, sizeof (ctime));
-		zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime, ctime,
-		    B_TRUE);
+		zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime, ctime);
 		if (attrzp) {
 			SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 			    SA_ZPL_CTIME(zsb), NULL,
 			    &ctime, sizeof (ctime));
 			zfs_tstamp_update_setup(attrzp, STATE_CHANGED,
-			    mtime, ctime, B_TRUE);
+			    mtime, ctime);
 		}
 	}
 	/*
@@ -3690,7 +3683,6 @@ zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
 		error = zfs_sa_readlink(zp, uio);
 	mutex_exit(&zp->z_lock);
 
-	ZFS_ACCESSTIME_STAMP(zsb, zp);
 	ZFS_EXIT(zsb);
 	return (error);
 }
@@ -4089,7 +4081,6 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	mode = ip->i_mode;
 
 	zp->z_mode = mode;
-	zp->z_atime_dirty = 0;
 
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 	mutex_exit(&zp->z_lock);
@@ -4107,6 +4098,7 @@ zfs_inactive(struct inode *ip)
 {
 	znode_t	*zp = ITOZ(ip);
 	zfs_sb_t *zsb = ITOZSB(ip);
+	uint64_t atime[2];
 	int error;
 	int need_unlock = 0;
 
@@ -4130,9 +4122,10 @@ zfs_inactive(struct inode *ip)
 		if (error) {
 			dmu_tx_abort(tx);
 		} else {
+			ZFS_TIME_ENCODE(&ip->i_atime, atime);
 			mutex_enter(&zp->z_lock);
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_ATIME(zsb),
-			    (void *)&zp->z_atime, sizeof (zp->z_atime), tx);
+			    (void *)&atime, sizeof (atime), tx);
 			zp->z_atime_dirty = 0;
 			mutex_exit(&zp->z_lock);
 			dmu_tx_commit(tx);
@@ -4240,9 +4233,6 @@ zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages)
 	ZFS_VERIFY_ZP(zp);
 
 	err = zfs_fillpage(ip, pl, nr_pages);
-
-	if (!err)
-		ZFS_ACCESSTIME_STAMP(zsb, zp);
 
 	ZFS_EXIT(zsb);
 	return (err);
