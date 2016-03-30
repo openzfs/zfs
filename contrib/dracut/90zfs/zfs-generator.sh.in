@@ -1,0 +1,39 @@
+#!/bin/bash
+
+GENERATOR_DIR="$1"
+[ -z "$GENERATOR_DIR" ] && exit 1
+
+[ -f /lib/dracut-lib.sh ] && dracutlib=/lib/dracut-lib.sh
+[ -f /usr/lib/dracut/modules.d/99base/dracut-lib.sh ] && dracutlib=/usr/lib/dracut/modules.d/99base/dracut-lib.sh
+
+type getarg >/dev/null 2>&1 || . "$dracutlib"
+
+[ -z "$root" ]       && root=$(getarg root=)
+[ -z "$rootfstype" ] && rootfstype=$(getarg rootfstype=)
+[ -z "$rootflags" ]  && rootflags=$(getarg rootflags=)
+
+[ "${root##zfs:}" = "${root}" -a "${root##ZFS=}" = "${root}" -a "$rootfstype" != "zfs" ] && exit 0
+
+rootfstype=zfs
+if echo "${rootflags}" | grep -q zfsutil ; then
+    true
+else
+    rootflags=zfsutil
+fi
+
+root="${root##zfs:}"
+root="${root##ZFS=}"
+
+[ -d "$GENERATOR_DIR" ] || mkdir "$GENERATOR_DIR"
+[ -d "$GENERATOR_DIR/sysroot.mount.d" ] || mkdir "$GENERATOR_DIR/sysroot.mount.d"
+
+{
+    echo "[Unit]"
+    echo "After=zfs-import-scan.service"
+    echo "After=zfs-import-cache.service"
+    echo ""
+    echo "[Mount]"
+    echo "What=${root}"
+    echo "Type=${rootfstype}"
+    echo "Options=${rootflags}"
+} > "$GENERATOR_DIR/sysroot.mount.d/zfs-enhancement.conf"

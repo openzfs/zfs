@@ -114,6 +114,7 @@ AC_CONFIG_FILES([
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
 	contrib/dracut/Makefile
+	contrib/dracut/02zfsexpandknowledge/Makefile
 	contrib/dracut/90zfs/Makefile
 	contrib/initramfs/Makefile
 	module/Makefile
