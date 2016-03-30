@@ -261,6 +261,7 @@ zpl_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 	    UIO_USERSPACE, filp->f_flags, cr);
 	crfree(cr);
 
+	file_accessed(filp);
 	return (read);
 }
 
@@ -277,6 +278,7 @@ zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
 	    nr_segs, &kiocb->ki_pos, seg, filp->f_flags, cr, skip);
 	crfree(cr);
 
+	file_accessed(filp);
 	return (read);
 }
 
