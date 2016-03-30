@@ -536,10 +536,13 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 	timestruc_t ts;
 	hrtime_t delta;
 
-	ASSERT(flag == 0);
+	ASSERT(flag == 0 || flag == CALLOUT_FLAG_ABSOLUTE);
 
 top:
-	delta = tim - gethrtime();
+	delta = tim;
+	if (flag & CALLOUT_FLAG_ABSOLUTE)
+		delta -= gethrtime();
+
 	if (delta <= 0)
 		return (-1);
 
