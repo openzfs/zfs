@@ -2934,8 +2934,9 @@ top:
 	}
 
 
-	if (mask & ATTR_ATIME) {
-		ZFS_TIME_ENCODE(&vap->va_atime, atime);
+	if ((mask & ATTR_ATIME) || zp->z_atime_dirty) {
+		zp->z_atime_dirty = 0;
+		ZFS_TIME_ENCODE(&ip->i_atime, atime);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zsb), NULL,
 		    &atime, sizeof (atime));
 	}
@@ -4048,7 +4049,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	dmu_tx_t	*tx;
 	uint64_t	mode, atime[2], mtime[2], ctime[2];
 	sa_bulk_attr_t	bulk[4];
-	int		error;
+	int		error = 0;
 	int		cnt = 0;
 
 	if (zfs_is_readonly(zsb) || dmu_objset_is_snapshot(zsb->z_os))
@@ -4056,6 +4057,20 @@ zfs_dirty_inode(struct inode *ip, int flags)
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
+
+#ifdef I_DIRTY_TIME
+	/*
+	 * This is the lazytime semantic indroduced in Linux 4.0
+	 * This flag will only be called from update_time when lazytime is set.
+	 * (Note, I_DIRTY_SYNC will also set if not lazytime)
+	 * Fortunately mtime and ctime are managed within ZFS itself, so we
+	 * only need to dirty atime.
+	 */
+	if (flags == I_DIRTY_TIME) {
+		zp->z_atime_dirty = 1;
+		goto out;
+	}
+#endif
 
 	tx = dmu_tx_create(zsb->z_os);
 
@@ -4069,6 +4084,8 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	}
 
 	mutex_enter(&zp->z_lock);
+	zp->z_atime_dirty = 0;
+
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MODE(zsb), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_ATIME(zsb), NULL, &atime, 16);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);

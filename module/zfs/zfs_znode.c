@@ -482,6 +482,90 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 	}
 }
 
+void
+zfs_set_inode_flags(znode_t *zp, struct inode *ip)
+{
+	/*
+	 * Linux and Solaris have different sets of file attributes, so we
+	 * restrict this conversion to the intersection of the two.
+	 */
+
+	if (zp->z_pflags & ZFS_IMMUTABLE)
+		ip->i_flags |= S_IMMUTABLE;
+	else
+		ip->i_flags &= ~S_IMMUTABLE;
+
+	if (zp->z_pflags & ZFS_APPENDONLY)
+		ip->i_flags |= S_APPEND;
+	else
+		ip->i_flags &= ~S_APPEND;
+}
+
+/*
+ * Update the embedded inode given the znode.  We should work toward
+ * eliminating this function as soon as possible by removing values
+ * which are duplicated between the znode and inode.  If the generic
+ * inode has the correct field it should be used, and the ZFS code
+ * updated to access the inode.  This can be done incrementally.
+ */
+static void
+zfs_inode_update_impl(znode_t *zp, boolean_t new)
+{
+	zfs_sb_t	*zsb;
+	struct inode	*ip;
+	uint32_t	blksize;
+	u_longlong_t	i_blocks;
+	uint64_t	atime[2], mtime[2], ctime[2];
+
+	ASSERT(zp != NULL);
+	zsb = ZTOZSB(zp);
+	ip = ZTOI(zp);
+
+	/* Skip .zfs control nodes which do not exist on disk. */
+	if (zfsctl_is_node(ip))
+		return;
+
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_ATIME(zsb), &atime, 16);
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zsb), &mtime, 16);
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zsb), &ctime, 16);
+
+	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
+
+	spin_lock(&ip->i_lock);
+	ip->i_generation = zp->z_gen;
+	ip->i_uid = SUID_TO_KUID(zp->z_uid);
+	ip->i_gid = SGID_TO_KGID(zp->z_gid);
+	set_nlink(ip, zp->z_links);
+	ip->i_mode = zp->z_mode;
+	zfs_set_inode_flags(zp, ip);
+	ip->i_blkbits = SPA_MINBLOCKSHIFT;
+	ip->i_blocks = i_blocks;
+
+	/*
+	 * Only read atime from SA if we are newly created inode (or rezget),
+	 * otherwise i_atime might be dirty.
+	 */
+	if (new)
+		ZFS_TIME_DECODE(&ip->i_atime, atime);
+	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
+	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
+
+	i_size_write(ip, zp->z_size);
+	spin_unlock(&ip->i_lock);
+}
+
+static void
+zfs_inode_update_new(znode_t *zp)
+{
+	zfs_inode_update_impl(zp, B_TRUE);
+}
+
+void
+zfs_inode_update(znode_t *zp)
+{
+	zfs_inode_update_impl(zp, B_FALSE);
+}
+
 /*
  * Construct a znode+inode and initialize.
  *
@@ -549,7 +633,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_mode = mode;
 
 	ip->i_ino = obj;
-	zfs_inode_update(zp);
+	zfs_inode_update_new(zp);
 	zfs_inode_set_ops(zsb, ip);
 
 	/*
@@ -574,73 +658,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 error:
 	iput(ip);
 	return (NULL);
-}
-
-void
-zfs_set_inode_flags(znode_t *zp, struct inode *ip)
-{
-	/*
-	 * Linux and Solaris have different sets of file attributes, so we
-	 * restrict this conversion to the intersection of the two.
-	 */
-
-	if (zp->z_pflags & ZFS_IMMUTABLE)
-		ip->i_flags |= S_IMMUTABLE;
-	else
-		ip->i_flags &= ~S_IMMUTABLE;
-
-	if (zp->z_pflags & ZFS_APPENDONLY)
-		ip->i_flags |= S_APPEND;
-	else
-		ip->i_flags &= ~S_APPEND;
-}
-
-/*
- * Update the embedded inode given the znode.  We should work toward
- * eliminating this function as soon as possible by removing values
- * which are duplicated between the znode and inode.  If the generic
- * inode has the correct field it should be used, and the ZFS code
- * updated to access the inode.  This can be done incrementally.
- */
-void
-zfs_inode_update(znode_t *zp)
-{
-	zfs_sb_t	*zsb;
-	struct inode	*ip;
-	uint32_t	blksize;
-	u_longlong_t	i_blocks;
-	uint64_t	atime[2], mtime[2], ctime[2];
-
-	ASSERT(zp != NULL);
-	zsb = ZTOZSB(zp);
-	ip = ZTOI(zp);
-
-	/* Skip .zfs control nodes which do not exist on disk. */
-	if (zfsctl_is_node(ip))
-		return;
-
-	sa_lookup(zp->z_sa_hdl, SA_ZPL_ATIME(zsb), &atime, 16);
-	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zsb), &mtime, 16);
-	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zsb), &ctime, 16);
-
-	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
-
-	spin_lock(&ip->i_lock);
-	ip->i_generation = zp->z_gen;
-	ip->i_uid = SUID_TO_KUID(zp->z_uid);
-	ip->i_gid = SGID_TO_KGID(zp->z_gid);
-	set_nlink(ip, zp->z_links);
-	ip->i_mode = zp->z_mode;
-	zfs_set_inode_flags(zp, ip);
-	ip->i_blkbits = SPA_MINBLOCKSHIFT;
-	ip->i_blocks = i_blocks;
-
-	ZFS_TIME_DECODE(&ip->i_atime, atime);
-	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
-	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
-
-	i_size_write(ip, zp->z_size);
-	spin_unlock(&ip->i_lock);
 }
 
 /*
@@ -1206,7 +1223,8 @@ zfs_rezget(znode_t *zp)
 
 	zp->z_unlinked = (zp->z_links == 0);
 	zp->z_blksz = doi.doi_data_block_size;
-	zfs_inode_update(zp);
+	zp->z_atime_dirty = 0;
+	zfs_inode_update_new(zp);
 
 	zfs_znode_hold_exit(zsb, zh);
 
