@@ -100,10 +100,12 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	esac
 
 	AM_CONDITIONAL([CONFIG_USER],
-		       [test "$ZFS_CONFIG" = user -o "$ZFS_CONFIG" = all])
+	    [test "$ZFS_CONFIG" = user -o "$ZFS_CONFIG" = all])
 	AM_CONDITIONAL([CONFIG_KERNEL],
-		       [test "$ZFS_CONFIG" = kernel -o "$ZFS_CONFIG" = all] &&
-		       [test "x$enable_linux_builtin" != xyes ])
+	    [test "$ZFS_CONFIG" = kernel -o "$ZFS_CONFIG" = all] &&
+	    [test "x$enable_linux_builtin" != xyes ])
+	AM_CONDITIONAL([WANT_DEVNAME2DEVID],
+	    [test "x$user_libudev" = xyes ])
 ])
 
 dnl #
