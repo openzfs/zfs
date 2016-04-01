@@ -311,8 +311,7 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 	zhp->zpool_config_size = zc.zc_nvlist_dst_size;
 
 	if (zhp->zpool_config != NULL) {
-		if (zhp->zpool_old_config != NULL)
-			nvlist_free(zhp->zpool_old_config);
+		nvlist_free(zhp->zpool_old_config);
 
 		zhp->zpool_old_config = zhp->zpool_config;
 	}
