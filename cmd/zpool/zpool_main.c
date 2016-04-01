@@ -6061,6 +6061,10 @@ main(int argc, char **argv)
 	opterr = 0;
 
 	/*
+	 * Spurious comment to provide commit for testing of zfsstress changes.
+	 */
+
+	/*
 	 * Make sure the user has specified some command.
 	 */
 	if (argc < 2) {
