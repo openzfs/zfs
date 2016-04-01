@@ -68,8 +68,9 @@
 #define	MNTOPT_NOFAIL	"nofail"	/* no failure */
 #define	MNTOPT_RELATIME	"relatime"	/* allow relative time updates */
 #define	MNTOPT_NORELATIME "norelatime"	/* do not allow relative time updates */
-#define	MNTOPT_DFRATIME	"strictatime"	/* Deferred access time updates */
-#define	MNTOPT_NODFRATIME "nostrictatime" /* No Deferred access time updates */
+#define	MNTOPT_STRICTATIME "strictatime" /* strict access time updates */
+#define	MNTOPT_NOSTRICTATIME "nostrictatime" /* No strict access time updates */
+#define	MNTOPT_LAZYTIME "lazytime"	/* Defer access time writing */
 #define	MNTOPT_SETUID	"suid"		/* Both setuid and devices allowed */
 #define	MNTOPT_NOSETUID	"nosuid"	/* Neither setuid nor devices allowed */
 #define	MNTOPT_OWNER	"owner"		/* allow owner mount */
