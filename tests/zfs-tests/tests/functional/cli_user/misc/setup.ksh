@@ -29,8 +29,8 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 # This setup script is moderately complex, as it creates scenarios for all
 # of the tests included in this directory. Usually we'd want each test case
@@ -95,7 +95,7 @@ done
 log_must $ZFS create $TESTPOOL/$TESTFS/renameme
 
 
-if is_global_zone
+if is_global_zone && !is_linux
 then
 	# create a filesystem we can share
 	log_must $ZFS create $TESTPOOL/$TESTFS/unshared
@@ -153,7 +153,7 @@ then
 	done
 
 	# copy a v1 pool from cli_root
-	$CP $STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/zfs-pool-v1.dat.bz2 \
+	$CP $STF_SUITE/tests/functional/cli_root/zpool_upgrade/zfs-pool-v1.dat.bz2 \
 	    /$TESTDIR
 	log_must $BUNZIP2 /$TESTDIR/zfs-pool-v1.dat.bz2
 	log_must $ZPOOL import -d /$TESTDIR v1-pool

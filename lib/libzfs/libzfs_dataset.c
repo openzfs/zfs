@@ -43,7 +43,6 @@
 #include <fcntl.h>
 #include <sys/mntent.h>
 #include <sys/mount.h>
-#include <priv.h>
 #include <pwd.h>
 #include <grp.h>
 #include <stddef.h>

@@ -42,7 +42,6 @@
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
-#include <priv.h>
 #include <pwd.h>
 #include <zone.h>
 #include <zfs_prop.h>
@@ -2331,21 +2330,20 @@ zpool_do_import(int argc, char **argv)
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 			usage(B_FALSE);
 		}
+	}
 
-		/*
-		 * Check for the SYS_CONFIG privilege.  We do this explicitly
-		 * here because otherwise any attempt to discover pools will
-		 * silently fail.
-		 */
-		if (argc == 0 && !priv_ineffect(PRIV_SYS_CONFIG)) {
-			(void) fprintf(stderr, gettext("cannot "
-			    "discover pools: permission denied\n"));
-			if (searchdirs != NULL)
-				free(searchdirs);
+	/*
+	 * Check for the effective uid.  We do this explicitly here because
+	 * otherwise any attempt to discover pools will silently fail.
+	 */
+	if (argc == 0 && geteuid() != 0) {
+		(void) fprintf(stderr, gettext("cannot "
+		    "discover pools: permission denied\n"));
+		if (searchdirs != NULL)
+			free(searchdirs);
 
-			nvlist_free(policy);
-			return (1);
-		}
+		nvlist_free(policy);
+		return (1);
 	}
 
 	/*
