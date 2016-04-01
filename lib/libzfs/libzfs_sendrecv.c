@@ -2545,8 +2545,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 
 out:
 	fsavl_destroy(stream_avl);
-	if (stream_nv)
-		nvlist_free(stream_nv);
+	nvlist_free(stream_nv);
 	if (softerr)
 		error = -2;
 	if (anyerr)
