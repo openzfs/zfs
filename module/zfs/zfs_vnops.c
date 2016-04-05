@@ -332,11 +332,11 @@ update_pages(struct inode *ip, int64_t start, int len,
 	int64_t	off;
 	void *pb;
 
-	off = start & (PAGE_CACHE_SIZE-1);
-	for (start &= PAGE_CACHE_MASK; len > 0; start += PAGE_CACHE_SIZE) {
-		nbytes = MIN(PAGE_CACHE_SIZE - off, len);
+	off = start & (PAGE_SIZE-1);
+	for (start &= PAGE_MASK; len > 0; start += PAGE_SIZE) {
+		nbytes = MIN(PAGE_SIZE - off, len);
 
-		pp = find_lock_page(mp, start >> PAGE_CACHE_SHIFT);
+		pp = find_lock_page(mp, start >> PAGE_SHIFT);
 		if (pp) {
 			if (mapping_writably_mapped(mp))
 				flush_dcache_page(pp);
@@ -353,7 +353,7 @@ update_pages(struct inode *ip, int64_t start, int len,
 			SetPageUptodate(pp);
 			ClearPageError(pp);
 			unlock_page(pp);
-			page_cache_release(pp);
+			put_page(pp);
 		}
 
 		len -= nbytes;
@@ -384,11 +384,11 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 	void *pb;
 
 	start = uio->uio_loffset;
-	off = start & (PAGE_CACHE_SIZE-1);
-	for (start &= PAGE_CACHE_MASK; len > 0; start += PAGE_CACHE_SIZE) {
-		bytes = MIN(PAGE_CACHE_SIZE - off, len);
+	off = start & (PAGE_SIZE-1);
+	for (start &= PAGE_MASK; len > 0; start += PAGE_SIZE) {
+		bytes = MIN(PAGE_SIZE - off, len);
 
-		pp = find_lock_page(mp, start >> PAGE_CACHE_SHIFT);
+		pp = find_lock_page(mp, start >> PAGE_SHIFT);
 		if (pp) {
 			ASSERT(PageUptodate(pp));
 
@@ -401,7 +401,7 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 
 			mark_page_accessed(pp);
 			unlock_page(pp);
-			page_cache_release(pp);
+			put_page(pp);
 		} else {
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
 			    uio, bytes);
@@ -3894,8 +3894,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	pgoff = page_offset(pp);	/* Page byte-offset in file */
 	offset = i_size_read(ip);	/* File length in bytes */
-	pglen = MIN(PAGE_CACHE_SIZE,	/* Page length in bytes */
-	    P2ROUNDUP(offset, PAGE_CACHE_SIZE)-pgoff);
+	pglen = MIN(PAGE_SIZE,		/* Page length in bytes */
+	    P2ROUNDUP(offset, PAGE_SIZE)-pgoff);
 
 	/* Page is beyond end of file */
 	if (pgoff >= offset) {
@@ -4006,7 +4006,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	}
 
 	va = kmap(pp);
-	ASSERT3U(pglen, <=, PAGE_CACHE_SIZE);
+	ASSERT3U(pglen, <=, PAGE_SIZE);
 	dmu_write(zsb->z_os, zp->z_id, pgoff, pglen, va, tx);
 	kunmap(pp);
 
@@ -4181,7 +4181,7 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	int err;
 
 	os = zsb->z_os;
-	io_len = nr_pages << PAGE_CACHE_SHIFT;
+	io_len = nr_pages << PAGE_SHIFT;
 	i_size = i_size_read(ip);
 	io_off = page_offset(pl[0]);
 

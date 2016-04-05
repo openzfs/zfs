@@ -1510,13 +1510,12 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 	int64_t	off;
 	void *pb;
 
-	ASSERT((start & PAGE_CACHE_MASK) ==
-	    ((start + len - 1) & PAGE_CACHE_MASK));
+	ASSERT((start & PAGE_MASK) == ((start + len - 1) & PAGE_MASK));
 
-	off = start & (PAGE_CACHE_SIZE - 1);
-	start &= PAGE_CACHE_MASK;
+	off = start & (PAGE_SIZE - 1);
+	start &= PAGE_MASK;
 
-	pp = find_lock_page(mp, start >> PAGE_CACHE_SHIFT);
+	pp = find_lock_page(mp, start >> PAGE_SHIFT);
 	if (pp) {
 		if (mapping_writably_mapped(mp))
 			flush_dcache_page(pp);
@@ -1532,7 +1531,7 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 		SetPageUptodate(pp);
 		ClearPageError(pp);
 		unlock_page(pp);
-		page_cache_release(pp);
+		put_page(pp);
 	}
 }
 
@@ -1579,14 +1578,14 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 		loff_t first_page_offset, last_page_offset;
 
 		/* first possible full page in hole */
-		first_page = (off + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+		first_page = (off + PAGE_SIZE - 1) >> PAGE_SHIFT;
 		/* last page of hole */
-		last_page = (off + len) >> PAGE_CACHE_SHIFT;
+		last_page = (off + len) >> PAGE_SHIFT;
 
 		/* offset of first_page */
-		first_page_offset = first_page << PAGE_CACHE_SHIFT;
+		first_page_offset = first_page << PAGE_SHIFT;
 		/* offset of last_page */
-		last_page_offset = last_page << PAGE_CACHE_SHIFT;
+		last_page_offset = last_page << PAGE_SHIFT;
 
 		/* truncate whole pages */
 		if (last_page_offset > first_page_offset) {
