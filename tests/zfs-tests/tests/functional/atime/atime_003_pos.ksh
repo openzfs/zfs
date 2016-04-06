@@ -29,20 +29,22 @@
 
 #
 # DESCRIPTION:
-# When atime=on, verify the access time for files is updated when read. It
-# is available to fs and clone. To snapshot, it is unavailable.
+# When relatime=on, verify the access time for files is updated when first
+# read but not on second.
+# It is available to fs and clone. To snapshot, it is unavailable.
 #
 # STRATEGY:
 # 1. Create pool and fs.
 # 2. Create '$TESTFILE' for fs.
 # 3. Create snapshot and clone.
-# 4. Setting atime=on on datasets except snapshot, and read '$TESTFILE'.
-# 5. Expect the access time is updated on datasets except snapshot.
+# 4. Setting atime=on and relatime=on on datasets.
+# 5. Expect the access time is updated for first read but not on second.
 #
 
 verify_runnable "both"
 
-log_assert "Setting atime=on, the access time for files is updated when read."
+log_assert "Setting relatime=on, the access time for files is updated when \
+	when read the first time, but not second time."
 log_onexit cleanup
 
 #
@@ -59,10 +61,10 @@ do
 		log_mustnot check_atime_updated $mtpt/$TESTFILE
 	else
 		log_must $ZFS set atime=on $dst
-		log_must $ZFS set relatime=off $dst
+		log_must $ZFS set relatime=on $dst
 		log_must check_atime_updated $mtpt/$TESTFILE
-		log_must check_atime_updated $mtpt/$TESTFILE
+		log_mustnot check_atime_updated $mtpt/$TESTFILE
 	fi
 done
 
-log_pass "Verify the property atime=on passed."
+log_pass "Verify the property relatime=on passed."

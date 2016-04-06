@@ -25,7 +25,7 @@ outputdir = /var/tmp/test_results
 tests = ['posix_002_pos']
 
 [tests/functional/atime]
-tests = ['atime_001_pos', 'atime_002_neg']
+tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos']
 
 # DISABLED:
 # bootfs_006_pos - needs investigation
