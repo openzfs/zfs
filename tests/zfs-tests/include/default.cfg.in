@@ -29,6 +29,20 @@
 #
 
 . $STF_SUITE/include/commands.cfg
+
+# Common paths
+bindir=@bindir@
+sbindir=@sbindir@
+
+# ZFS Commands
+export ZDB=${ZDB:-${sbindir}/zdb}
+export ZFS=${ZFS:-${sbindir}/zfs}
+export ZHACK=${ZHACK:-${sbindir}/zhack}
+export ZINJECT=${ZINJECT:-${sbindir}/zinject}
+export ZPOOL=${ZPOOL:-${sbindir}/zpool}
+export ZTEST=${ZTEST:-${sbindir}/ztest}
+export ZPIOS=${ZPIOS:-${sbindir}/zpios}
+
 . $STF_SUITE/include/libtest.shlib
 
 # Optionally override the installed ZFS commands to run in-tree
@@ -45,21 +59,8 @@ export RT_SHORT="1"
 export ZONE_POOL="zonepool"
 export ZONE_CTR="zonectr"
 
-# Common paths
-bindir=@bindir@
-sbindir=@sbindir@
-helperdir=@datarootdir@/@PACKAGE@/zfs-tests/bin
-
-# ZFS Commands
-ZDB=${ZDB:-${sbindir}/zdb}
-ZFS=${ZFS:-${sbindir}/zfs}
-ZHACK=${ZHACK:-${sbindir}/zhack}
-ZINJECT=${ZINJECT:-${sbindir}/zinject}
-ZPOOL=${ZPOOL:-${sbindir}/zpool}
-ZTEST=${ZTEST:-${sbindir}/ztest}
-ZPIOS=${ZPIOS:-${sbindir}/zpios}
-
 # Test Suite Specific Commands
+helperdir=@datarootdir@/@PACKAGE@/zfs-tests/bin
 export CHG_USR_EXEC=${CHG_USR_EXEC:-${helperdir}/chg_usr_exec}
 export DEVNAME2DEVID=${DEVNAME2DEVID:-${helperdir}/devname2devid}
 export DIR_RD_UPDATE=${DIR_RD_UPDATE:-${helperdir}/dir_rd_update}

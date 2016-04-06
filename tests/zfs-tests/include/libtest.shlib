@@ -31,13 +31,6 @@
 
 . ${STF_TOOLS}/include/logapi.shlib
 
-ZDB=${ZDB:-/sbin/zdb}
-ZFS=${ZFS:-/sbin/zfs}
-ZINJECT=${ZINJECT:-/sbin/zinject}
-ZHACK=${ZHACK:-/sbin/zhack}
-ZPOOL=${ZPOOL:-/sbin/zpool}
-ZTEST=${ZTEST:-/sbin/ztest}
-
 # Determine if this is a Linux test system
 #
 # Return 0 if platform Linux, 1 if otherwise
