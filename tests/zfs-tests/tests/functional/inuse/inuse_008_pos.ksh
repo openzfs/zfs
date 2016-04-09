@@ -83,15 +83,7 @@ for num in 0 1 2 3 ; do
 	eval typeset slice=\${FS_SIDE$num}
 	disk=${slice%${SLICE_PREFIX}*}
 	slice=${slice##*${SLICE_PREFIX}}
-	if [[ $WRAPPER == *"smi"* && \
-		$disk == ${saved_disk} ]]; then
-		cyl=$(get_endslice $disk ${saved_slice})
-		log_must set_partition $slice "$cyl" $FS_SIZE $disk
-	else
-		log_must set_partition $slice "" $FS_SIZE $disk
-	fi
-	saved_disk=$disk
-	saved_slice=$slice
+	log_must set_partition $slice "" $FS_SIZE $disk
 done
 
 while (( i < ${#vdevs[*]} )); do
