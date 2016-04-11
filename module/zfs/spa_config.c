@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -129,7 +129,7 @@ spa_config_load(void)
 		if (nvpair_type(nvpair) != DATA_TYPE_NVLIST)
 			continue;
 
-		VERIFY(nvpair_value_nvlist(nvpair, &child) == 0);
+		child = fnvpair_value_nvlist(nvpair);
 
 		if (spa_lookup(nvpair_name(nvpair)) != NULL)
 			continue;
@@ -167,13 +167,8 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	/*
 	 * Pack the configuration into a buffer.
 	 */
-	VERIFY(nvlist_size(nvl, &buflen, NV_ENCODE_XDR) == 0);
-
-	buf = vmem_alloc(buflen, KM_SLEEP);
+	buf = fnvlist_pack(nvl, &buflen);
 	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
-
-	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,
-	    KM_SLEEP) == 0);
 
 #if defined(__linux__) && defined(_KERNEL)
 	/*
@@ -216,7 +211,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);
 #endif
 
-	vmem_free(buf, buflen);
+	fnvlist_pack_free(buf, buflen);
 	kmem_free(temp, MAXPATHLEN);
 	return (err);
 }
@@ -282,17 +277,15 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 			}
 
 			if (nvl == NULL)
-				VERIFY(nvlist_alloc(&nvl, NV_UNIQUE_NAME,
-				    KM_SLEEP) == 0);
+				nvl = fnvlist_alloc();
 
-			if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME) {
-				VERIFY0(nvlist_lookup_string(spa->spa_config,
-					ZPOOL_CONFIG_POOL_NAME, &pool_name));
-			} else
+			if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME)
+				pool_name = fnvlist_lookup_string(
+				    spa->spa_config, ZPOOL_CONFIG_POOL_NAME);
+			else
 				pool_name = spa_name(spa);
 
-			VERIFY(nvlist_add_nvlist(nvl, pool_name,
-			    spa->spa_config) == 0);
+			fnvlist_add_nvlist(nvl, pool_name, spa->spa_config);
 			mutex_exit(&spa->spa_props_lock);
 		}
 
@@ -354,15 +347,15 @@ spa_all_configs(uint64_t *generation)
 	if (*generation == spa_config_generation)
 		return (NULL);
 
-	VERIFY(nvlist_alloc(&pools, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	pools = fnvlist_alloc();
 
 	mutex_enter(&spa_namespace_lock);
 	while ((spa = spa_next(spa)) != NULL) {
 		if (INGLOBALZONE(curproc) ||
 		    zone_dataset_visible(spa_name(spa), NULL)) {
 			mutex_enter(&spa->spa_props_lock);
-			VERIFY(nvlist_add_nvlist(pools, spa_name(spa),
-			    spa->spa_config) == 0);
+			fnvlist_add_nvlist(pools, spa_name(spa),
+			    spa->spa_config);
 			mutex_exit(&spa->spa_props_lock);
 		}
 	}
@@ -396,6 +389,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	boolean_t locked = B_FALSE;
 	uint64_t split_guid;
 	char *pool_name;
+	int config_gen_flags = 0;
 
 	if (vd == NULL) {
 		vd = rvd;
@@ -428,23 +422,17 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	} else
 		pool_name = spa_name(spa);
 
-	VERIFY(nvlist_alloc(&config, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	config = fnvlist_alloc();
 
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_VERSION,
-	    spa_version(spa)) == 0);
-	VERIFY(nvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME,
-	    pool_name) == 0);
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE,
-	    spa_state(spa)) == 0);
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_TXG,
-	    txg) == 0);
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_GUID,
-	    spa_guid(spa)) == 0);
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_ERRATA,
-	    spa->spa_errata) == 0);
-	VERIFY(spa->spa_comment == NULL || nvlist_add_string(config,
-	    ZPOOL_CONFIG_COMMENT, spa->spa_comment) == 0);
-
+	fnvlist_add_uint64(config, ZPOOL_CONFIG_VERSION, spa_version(spa));
+	fnvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME, spa_name(spa));
+	fnvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE, spa_state(spa));
+	fnvlist_add_uint64(config, ZPOOL_CONFIG_POOL_TXG, txg);
+	fnvlist_add_uint64(config, ZPOOL_CONFIG_POOL_GUID, spa_guid(spa));
+	fnvlist_add_uint64(config, ZPOOL_CONFIG_ERRATA, spa->spa_errata);
+	if (spa->spa_comment != NULL)
+		fnvlist_add_string(config, ZPOOL_CONFIG_COMMENT,
+		    spa->spa_comment);
 
 #ifdef	_KERNEL
 	hostid = zone_get_hostid(NULL);
@@ -455,24 +443,21 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	 */
 	(void) ddi_strtoul(hw_serial, NULL, 10, &hostid);
 #endif	/* _KERNEL */
-	if (hostid != 0) {
-		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID,
-		    hostid) == 0);
-	}
-	VERIFY0(nvlist_add_string(config, ZPOOL_CONFIG_HOSTNAME,
-	    utsname()->nodename));
+	if (hostid != 0)
+		fnvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID, hostid);
+	fnvlist_add_string(config, ZPOOL_CONFIG_HOSTNAME, utsname()->nodename);
 
 	if (vd != rvd) {
-		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_TOP_GUID,
-		    vd->vdev_top->vdev_guid) == 0);
-		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_GUID,
-		    vd->vdev_guid) == 0);
+		fnvlist_add_uint64(config, ZPOOL_CONFIG_TOP_GUID,
+		    vd->vdev_top->vdev_guid);
+		fnvlist_add_uint64(config, ZPOOL_CONFIG_GUID,
+		    vd->vdev_guid);
 		if (vd->vdev_isspare)
-			VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_IS_SPARE,
-			    1ULL) == 0);
+			fnvlist_add_uint64(config,
+			    ZPOOL_CONFIG_IS_SPARE, 1ULL);
 		if (vd->vdev_islog)
-			VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_IS_LOG,
-			    1ULL) == 0);
+			fnvlist_add_uint64(config,
+			    ZPOOL_CONFIG_IS_LOG, 1ULL);
 		vd = vd->vdev_top;		/* label contains top config */
 	} else {
 		/*
@@ -480,8 +465,12 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		 * in the mos config, and not in the vdev labels
 		 */
 		if (spa->spa_config_splitting != NULL)
-			VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_SPLIT,
-			    spa->spa_config_splitting) == 0);
+			fnvlist_add_nvlist(config, ZPOOL_CONFIG_SPLIT,
+			    spa->spa_config_splitting);
+
+		fnvlist_add_boolean(config, ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS);
+
+		config_gen_flags |= VDEV_CONFIG_MOS;
 	}
 
 	/*
@@ -496,19 +485,18 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (spa->spa_config_splitting != NULL &&
 	    nvlist_lookup_uint64(spa->spa_config_splitting,
 	    ZPOOL_CONFIG_SPLIT_GUID, &split_guid) == 0) {
-		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_SPLIT_GUID,
-		    split_guid) == 0);
+		fnvlist_add_uint64(config, ZPOOL_CONFIG_SPLIT_GUID, split_guid);
 	}
 
-	nvroot = vdev_config_generate(spa, vd, getstats, 0);
-	VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot) == 0);
+	nvroot = vdev_config_generate(spa, vd, getstats, config_gen_flags);
+	fnvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot);
 	nvlist_free(nvroot);
 
 	/*
 	 * Store what's necessary for reading the MOS in the label.
 	 */
-	VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_FEATURES_FOR_READ,
-	    spa->spa_label_features) == 0);
+	fnvlist_add_nvlist(config, ZPOOL_CONFIG_FEATURES_FOR_READ,
+	    spa->spa_label_features);
 
 	if (getstats && spa_load_state(spa) == SPA_LOAD_NONE) {
 		ddt_histogram_t *ddh;
@@ -517,23 +505,23 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 
 		ddh = kmem_zalloc(sizeof (ddt_histogram_t), KM_SLEEP);
 		ddt_get_dedup_histogram(spa, ddh);
-		VERIFY(nvlist_add_uint64_array(config,
+		fnvlist_add_uint64_array(config,
 		    ZPOOL_CONFIG_DDT_HISTOGRAM,
-		    (uint64_t *)ddh, sizeof (*ddh) / sizeof (uint64_t)) == 0);
+		    (uint64_t *)ddh, sizeof (*ddh) / sizeof (uint64_t));
 		kmem_free(ddh, sizeof (ddt_histogram_t));
 
 		ddo = kmem_zalloc(sizeof (ddt_object_t), KM_SLEEP);
 		ddt_get_dedup_object_stats(spa, ddo);
-		VERIFY(nvlist_add_uint64_array(config,
+		fnvlist_add_uint64_array(config,
 		    ZPOOL_CONFIG_DDT_OBJ_STATS,
-		    (uint64_t *)ddo, sizeof (*ddo) / sizeof (uint64_t)) == 0);
+		    (uint64_t *)ddo, sizeof (*ddo) / sizeof (uint64_t));
 		kmem_free(ddo, sizeof (ddt_object_t));
 
 		dds = kmem_zalloc(sizeof (ddt_stat_t), KM_SLEEP);
 		ddt_get_dedup_stats(spa, dds);
-		VERIFY(nvlist_add_uint64_array(config,
+		fnvlist_add_uint64_array(config,
 		    ZPOOL_CONFIG_DDT_STATS,
-		    (uint64_t *)dds, sizeof (*dds) / sizeof (uint64_t)) == 0);
+		    (uint64_t *)dds, sizeof (*dds) / sizeof (uint64_t));
 		kmem_free(dds, sizeof (ddt_stat_t));
 	}
 
