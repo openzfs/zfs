@@ -32,7 +32,9 @@ extern "C" {
 
 #ifdef _KERNEL
 
-#include <sys/zfs_znode.h>
+#include <sys/list.h>
+#include <sys/avl.h>
+#include <sys/condvar.h>
 
 typedef enum {
 	RL_READER,
@@ -40,8 +42,13 @@ typedef enum {
 	RL_APPEND
 } rl_type_t;
 
+typedef struct zfs_rlock {
+	kmutex_t zr_mutex;	/* protects changes to zr_avl */
+	avl_tree_t zr_avl;	/* avl tree of range locks */
+} zfs_rlock_t;
+
 typedef struct rl {
-	znode_t *r_zp;		/* znode this lock applies to */
+	zfs_rlock_t *r_zrl;
 	avl_node_t r_node;	/* avl node link */
 	uint64_t r_off;		/* file range offset */
 	uint64_t r_len;		/* file range length */
@@ -55,16 +62,26 @@ typedef struct rl {
 	list_node_t rl_node;	/* used for deferred release */
 } rl_t;
 
+struct znode;
 /*
  * Lock a range (offset, length) as either shared (RL_READER)
  * or exclusive (RL_WRITER or RL_APPEND).  RL_APPEND is a special type that
  * is converted to RL_WRITER that specified to lock from the start of the
  * end of file.  Returns the range lock structure.
+ *
+ * Filesystem should call zfs_range_lock.
+ * Zvol should call zvol_range_lock.
  */
-rl_t *zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type);
+rl_t *zfs_range_lock_impl(zfs_rlock_t *zrl, uint64_t off, uint64_t len,
+    rl_type_t type, struct znode *zp);
+#define	zfs_range_lock(zp, off, len, type) \
+	zfs_range_lock_impl(&(zp)->z_range_lock, off, len, type, zp)
+#define	zvol_range_lock(zrl, off, len, type) \
+	zfs_range_lock_impl(zrl, off, len, type, NULL)
 
 /* Unlock range and destroy range lock structure. */
 void zfs_range_unlock(rl_t *rl);
+#define	zvol_range_unlock(rl) zfs_range_unlock(rl)
 
 /*
  * Reduce range locked as RW_WRITER from whole file to specified range.
@@ -78,6 +95,18 @@ void zfs_range_reduce(rl_t *rl, uint64_t off, uint64_t len);
  */
 int zfs_range_compare(const void *arg1, const void *arg2);
 
+static inline void zfs_rlock_init(zfs_rlock_t *zrl)
+{
+	mutex_init(&zrl->zr_mutex, NULL, MUTEX_DEFAULT, NULL);
+	avl_create(&zrl->zr_avl, zfs_range_compare,
+	    sizeof (rl_t), offsetof(rl_t, r_node));
+}
+
+static inline void zfs_rlock_destroy(zfs_rlock_t *zrl)
+{
+	avl_destroy(&zrl->zr_avl);
+	mutex_destroy(&zrl->zr_mutex);
+}
 #endif /* _KERNEL */
 
 #ifdef	__cplusplus
