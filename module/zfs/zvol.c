@@ -75,7 +75,7 @@ typedef struct zvol_state {
 	uint32_t		zv_open_count;	/* open counts */
 	uint32_t		zv_changed;	/* disk changed */
 	zilog_t			*zv_zilog;	/* ZIL handle */
-	znode_t			zv_znode;	/* for range locking */
+	zfs_rlock_t		zv_range_lock;	/* range lock */
 	dmu_buf_t		*zv_dbuf;	/* bonus handle */
 	dev_t			zv_dev;		/* device id */
 	struct gendisk		*zv_disk;	/* generic disk */
@@ -633,8 +633,8 @@ zvol_write(zvol_state_t *zv, uio_t *uio, boolean_t sync)
 
 	ASSERT(zv && zv->zv_open_count > 0);
 
-	rl = zfs_range_lock(&zv->zv_znode, uio->uio_loffset, uio->uio_resid,
-	    RL_WRITER);
+	rl = zfs_range_lock(&zv->zv_range_lock, uio->uio_loffset,
+	    uio->uio_resid, RL_WRITER);
 
 	while (uio->uio_resid > 0 && uio->uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio->uio_resid, DMU_MAX_ACCESS >> 1);
@@ -725,7 +725,7 @@ zvol_discard(struct bio *bio)
 	if (start >= end)
 		return (0);
 
-	rl = zfs_range_lock(&zv->zv_znode, start, size, RL_WRITER);
+	rl = zfs_range_lock(&zv->zv_range_lock, start, size, RL_WRITER);
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, TXG_WAIT);
@@ -752,8 +752,8 @@ zvol_read(zvol_state_t *zv, uio_t *uio)
 
 	ASSERT(zv && zv->zv_open_count > 0);
 
-	rl = zfs_range_lock(&zv->zv_znode, uio->uio_loffset, uio->uio_resid,
-	    RL_READER);
+	rl = zfs_range_lock(&zv->zv_range_lock, uio->uio_loffset,
+	    uio->uio_resid, RL_READER);
 	while (uio->uio_resid > 0 && uio->uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio->uio_resid, DMU_MAX_ACCESS >> 1);
 
@@ -879,7 +879,8 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 
 	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_zilog = zv->zv_zilog;
-	zgd->zgd_rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
+	zgd->zgd_rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
+	    RL_READER);
 
 	/*
 	 * Write records come in two flavors: immediate and indirect.
@@ -1305,10 +1306,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_open_count = 0;
 	strlcpy(zv->zv_name, name, MAXNAMELEN);
 
-	mutex_init(&zv->zv_znode.z_range_lock, NULL, MUTEX_DEFAULT, NULL);
-	avl_create(&zv->zv_znode.z_range_avl, zfs_range_compare,
-	    sizeof (rl_t), offsetof(rl_t, r_node));
-	zv->zv_znode.z_is_zvol = TRUE;
+	zfs_rlock_init(&zv->zv_range_lock);
 
 	zv->zv_disk->major = zvol_major;
 	zv->zv_disk->first_minor = (dev & MINORMASK);
@@ -1337,8 +1335,7 @@ zvol_free(zvol_state_t *zv)
 	ASSERT(MUTEX_HELD(&zvol_state_lock));
 	ASSERT(zv->zv_open_count == 0);
 
-	avl_destroy(&zv->zv_znode.z_range_avl);
-	mutex_destroy(&zv->zv_znode.z_range_lock);
+	zfs_rlock_destroy(&zv->zv_range_lock);
 
 	zv->zv_disk->private_data = NULL;
 
