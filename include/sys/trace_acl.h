@@ -63,7 +63,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __field(uint32_t,		z_sync_cnt)
 	    __field(mode_t,		z_mode)
 	    __field(boolean_t,		z_is_sa)
-	    __field(boolean_t,		z_is_zvol)
 	    __field(boolean_t,		z_is_mapped)
 	    __field(boolean_t,		z_is_ctldir)
 	    __field(boolean_t,		z_is_stale)
@@ -101,7 +100,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_sync_cnt		= zn->z_sync_cnt;
 	    __entry->z_mode		= zn->z_mode;
 	    __entry->z_is_sa		= zn->z_is_sa;
-	    __entry->z_is_zvol		= zn->z_is_zvol;
 	    __entry->z_is_mapped	= zn->z_is_mapped;
 	    __entry->z_is_ctldir	= zn->z_is_ctldir;
 	    __entry->z_is_stale		= zn->z_is_stale;
@@ -125,7 +123,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    "zn_prefetch %u moved %u blksz %u seq %u "
 	    "mapcnt %llu gen %llu size %llu "
 	    "links %llu pflags %llu uid %llu gid %llu "
-	    "sync_cnt %u mode 0x%x is_sa %d is_zvol %d "
+	    "sync_cnt %u mode 0x%x is_sa %d "
 	    "is_mapped %d is_ctldir %d is_stale %d inode { "
 	    "ino %lu nlink %u version %llu size %lli blkbits %u "
 	    "bytes %u mode 0x%x generation %x } } ace { type %u "
@@ -136,7 +134,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_size,
 	    __entry->z_links, __entry->z_pflags, __entry->z_uid,
 	    __entry->z_gid, __entry->z_sync_cnt, __entry->z_mode,
-	    __entry->z_is_sa, __entry->z_is_zvol, __entry->z_is_mapped,
+	    __entry->z_is_sa, __entry->z_is_mapped,
 	    __entry->z_is_ctldir, __entry->z_is_stale, __entry->i_ino,
 	    __entry->i_nlink, __entry->i_version, __entry->i_size,
 	    __entry->i_blkbits, __entry->i_bytes, __entry->i_mode,
