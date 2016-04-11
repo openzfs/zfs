@@ -113,9 +113,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zp->z_xattr_lock, NULL, RW_DEFAULT, NULL);
 
-	mutex_init(&zp->z_range_lock, NULL, MUTEX_DEFAULT, NULL);
-	avl_create(&zp->z_range_avl, zfs_range_compare,
-	    sizeof (rl_t), offsetof(rl_t, r_node));
+	zfs_rlock_init(&zp->z_range_lock);
 
 	zp->z_dirlocks = NULL;
 	zp->z_acl_cached = NULL;
@@ -137,8 +135,7 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	rw_destroy(&zp->z_name_lock);
 	mutex_destroy(&zp->z_acl_lock);
 	rw_destroy(&zp->z_xattr_lock);
-	avl_destroy(&zp->z_range_avl);
-	mutex_destroy(&zp->z_range_lock);
+	zfs_rlock_destroy(&zp->z_range_lock);
 
 	ASSERT(zp->z_dirlocks == NULL);
 	ASSERT(zp->z_acl_cached == NULL);
@@ -531,10 +528,12 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
-	zp->z_is_zvol = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
 	zp->z_is_stale = B_FALSE;
+	zp->z_range_lock.zr_size = &zp->z_size;
+	zp->z_range_lock.zr_blksz = &zp->z_blksz;
+	zp->z_range_lock.zr_max_blksz = &ZTOZSB(zp)->z_max_blksz;
 
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
@@ -1437,7 +1436,7 @@ zfs_extend(znode_t *zp, uint64_t end)
 	/*
 	 * We will change zp_size, lock the whole file.
 	 */
-	rl = zfs_range_lock(zp, 0, UINT64_MAX, RL_WRITER);
+	rl = zfs_range_lock(&zp->z_range_lock, 0, UINT64_MAX, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
@@ -1554,7 +1553,7 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 	/*
 	 * Lock the range being freed.
 	 */
-	rl = zfs_range_lock(zp, off, len, RL_WRITER);
+	rl = zfs_range_lock(&zp->z_range_lock, off, len, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
@@ -1636,7 +1635,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	/*
 	 * We will change zp_size, lock the whole file.
 	 */
-	rl = zfs_range_lock(zp, 0, UINT64_MAX, RL_WRITER);
+	rl = zfs_range_lock(&zp->z_range_lock, 0, UINT64_MAX, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
