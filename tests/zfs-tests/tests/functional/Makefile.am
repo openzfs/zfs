@@ -50,6 +50,7 @@ SUBDIRS = \
 	threadsappend \
 	truncate \
 	userquota \
+	vdev_zaps \
 	write_dirs \
 	xattr \
 	zvol

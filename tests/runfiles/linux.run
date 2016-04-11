@@ -615,6 +615,13 @@ tests = [
     'userquota_011_pos', 'userquota_012_neg']
 
 # DISABLED:
+# vdev_zaps_007_pos -- fails due to a pre-existing issue with zpool split
+#
+[tests/functional/vdev_zaps]
+tests = ['vdev_zaps_001_pos', 'vdev_zaps_002_pos', 'vdev_zaps_003_pos',
+    'vdev_zaps_004_pos', 'vdev_zaps_005_pos', 'vdev_zaps_006_pos']
+
+# DISABLED:
 # write_dirs_002_pos - needs investigation
 [tests/functional/write_dirs]
 tests = ['write_dirs_001_pos']

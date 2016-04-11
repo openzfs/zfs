@@ -291,6 +291,20 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 	if (vd->vdev_crtxg)
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_CREATE_TXG, vd->vdev_crtxg);
 
+	if (flags & VDEV_CONFIG_MOS) {
+		if (vd->vdev_leaf_zap != 0) {
+			ASSERT(vd->vdev_ops->vdev_op_leaf);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_LEAF_ZAP,
+			    vd->vdev_leaf_zap);
+		}
+
+		if (vd->vdev_top_zap != 0) {
+			ASSERT(vd == vd->vdev_top);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_TOP_ZAP,
+			    vd->vdev_top_zap);
+		}
+	}
+
 	if (getstats) {
 		vdev_stat_t vs;
 		pool_scan_stat_t ps;

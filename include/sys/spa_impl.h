@@ -116,6 +116,12 @@ typedef struct spa_taskqs {
 	taskq_t **stqs_taskq;
 } spa_taskqs_t;
 
+typedef enum spa_all_vdev_zap_action {
+	AVZ_ACTION_NONE = 0,
+	AVZ_ACTION_DESTROY,	/* Destroy all per-vdev ZAPs and the AVZ. */
+	AVZ_ACTION_REBUILD	/* Populate the new AVZ, see spa_avz_rebuild */
+} spa_avz_action_t;
+
 struct spa {
 	/*
 	 * Fields protected by spa_namespace_lock.
@@ -251,6 +257,8 @@ struct spa {
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	hrtime_t	spa_sync_starttime;	/* starting time of spa_sync */
 	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
+	uint64_t	spa_all_vdev_zaps;	/* ZAP of per-vd ZAP obj #s */
+	spa_avz_action_t	spa_avz_action;	/* destroy/rebuild AVZ? */
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
 	hrtime_t	spa_ccw_fail_time;	/* Conf cache write fail time */
