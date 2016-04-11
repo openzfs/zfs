@@ -869,14 +869,15 @@ zero_label(char *path)
  * Go through and find any whole disks in the vdev specification, labelling them
  * as appropriate.  When constructing the vdev spec, we were unable to open this
  * device in order to provide a devid.  Now that we have labelled the disk and
- * know that slice 0 is valid, we can construct the devid now.
+ * know the pool slice is valid, we can construct the devid now.
  *
  * If the disk was already labeled with an EFI label, we will have gotten the
  * devid already (because we were able to open the whole disk).  Otherwise, we
  * need to get the devid after we label the disk.
  */
 static int
-make_disks(zpool_handle_t *zhp, nvlist_t *nv)
+make_disks(zpool_handle_t *zhp, nvlist_t *nv, zpool_boot_label_t boot_type,
+    uint64_t boot_size)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -888,6 +889,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	int is_exclusive = 0;
 	int fd;
 	int ret;
+	int slice;
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 
@@ -904,11 +906,22 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * libblkid will not misidentify the partition due to a
 		 * magic value left by the previous filesystem.
 		 */
-		verify(!nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path));
-		verify(!nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
-		    &wholedisk));
+		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
 
-		if (!wholedisk) {
+		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
+		    &wholedisk) != 0 || !wholedisk) {
+			/*
+			 * This is not whole disk, return error if
+			 * boot partition creation was requested
+			 */
+			if (boot_type == ZPOOL_CREATE_BOOT_LABEL) {
+				(void) fprintf(stderr,
+				    gettext("creating boot partition is only "
+				    "supported on whole disk vdevs: %s\n"),
+				    path);
+				return (-1);
+			}
+
 			/*
 			 * Update device id string for mpath nodes (Linux only)
 			 */
@@ -917,6 +930,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 
 			if (!is_spare(NULL, path))
 				(void) zero_label(path);
+
 			return (0);
 		}
 
@@ -973,7 +987,8 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			 * When labeling a pool the raw device node name
 			 * is provided as it appears under /dev/.
 			 */
-			if (zpool_label_disk(g_zfs, zhp, devnode) == -1)
+			if (zpool_label_disk(g_zfs, zhp, devnode, boot_type,
+			    boot_size, &slice) == -1)
 				return (-1);
 
 			/*
@@ -995,7 +1010,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		}
 
 		/*
-		 * Update the path to refer to the partition.  The presence of
+		 * Update the path to refer to the pool slice.  The presence of
 		 * the 'whole_disk' field indicates to the CLI that we should
 		 * chop off the partition number when displaying the device in
 		 * future output.
@@ -1010,21 +1025,27 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		return (0);
 	}
 
-	for (c = 0; c < children; c++)
-		if ((ret = make_disks(zhp, child[c])) != 0)
+	for (c = 0; c < children; c++) {
+		ret = make_disks(zhp, child[c], boot_type, boot_size);
+		if (ret != 0)
 			return (ret);
+	}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
-		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+		for (c = 0; c < children; c++) {
+			ret = make_disks(zhp, child[c], boot_type, boot_size);
+			if (ret != 0)
 				return (ret);
+		}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
-		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+		for (c = 0; c < children; c++) {
+			ret = make_disks(zhp, child[c], boot_type, boot_size);
+			if (ret != 0)
 				return (ret);
+		}
 
 	return (0);
 }
@@ -1443,6 +1464,7 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 {
 	nvlist_t *newroot = NULL, **child;
 	uint_t c, children;
+	zpool_boot_label_t boot_type;
 
 	if (argc > 0) {
 		if ((newroot = construct_spec(props, argc, argv)) == NULL) {
@@ -1451,7 +1473,13 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 			return (NULL);
 		}
 
-		if (!flags.dryrun && make_disks(zhp, newroot) != 0) {
+		if (zpool_is_bootable(zhp))
+			boot_type = ZPOOL_COPY_BOOT_LABEL;
+		else
+			boot_type = ZPOOL_NO_BOOT_LABEL;
+
+		if (!flags.dryrun &&
+		    make_disks(zhp, newroot, boot_type, 0) != 0) {
 			nvlist_free(newroot);
 			return (NULL);
 		}
@@ -1519,7 +1547,8 @@ num_normal_vdevs(nvlist_t *nvroot)
  */
 nvlist_t *
 make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
-    boolean_t replacing, boolean_t dryrun, int argc, char **argv)
+    boolean_t replacing, boolean_t dryrun, zpool_boot_label_t boot_type,
+    uint64_t boot_size, int argc, char **argv)
 {
 	nvlist_t *newroot;
 	nvlist_t *poolconfig = NULL;
@@ -1572,7 +1601,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	/*
 	 * Run through the vdev specification and label any whole disks found.
 	 */
-	if (!dryrun && make_disks(zhp, newroot) != 0) {
+	if (!dryrun && make_disks(zhp, newroot, boot_type, boot_size) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

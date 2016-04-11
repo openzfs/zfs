@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd October 7, 2020
 .Dt ZPOOL-CREATE 8
 .Os
 .Sh NAME
@@ -37,6 +37,7 @@
 .Nm
 .Cm create
 .Op Fl dfn
+.Op Fl B
 .Op Fl m Ar mountpoint
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Oo Fl o Ar feature@feature Ns = Ns Ar value Oc
@@ -49,6 +50,7 @@
 .Nm
 .Cm create
 .Op Fl dfn
+.Op Fl B
 .Op Fl m Ar mountpoint
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Oo Fl o Ar feature@feature Ns = Ns Ar value Oc Ns ...
@@ -137,6 +139,16 @@ By default all supported features are enabled on the new pool unless the
 .Fl d
 option is specified.
 .Bl -tag -width Ds
+.It Fl B
+Create whole disk pool with EFI System partition to support booting system
+with UEFI firmware. Default size is 256MB. To create boot partition with
+custom size, set the
+.Sy bootsize
+property with the
+.Fl o
+option. See
+.Xr zpoolprops 8
+for details.
 .It Fl d
 Do not enable any features on the new pool.
 Individual features can be enabled by setting their corresponding properties to

@@ -595,6 +595,7 @@ metaslab_class_expandable_space(metaslab_class_t *mc)
 
 	spa_config_enter(mc->mc_spa, SCL_VDEV, FTAG, RW_READER);
 	for (int c = 0; c < rvd->vdev_children; c++) {
+		uint64_t tspace;
 		vdev_t *tvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = tvd->vdev_mg;
 
@@ -607,9 +608,13 @@ metaslab_class_expandable_space(metaslab_class_t *mc)
 		 * Calculate if we have enough space to add additional
 		 * metaslabs. We report the expandable space in terms
 		 * of the metaslab size since that's the unit of expansion.
+		 * Adjust by efi system partition size.
 		 */
-		space += P2ALIGN(tvd->vdev_max_asize - tvd->vdev_asize,
-		    1ULL << tvd->vdev_ms_shift);
+		tspace = tvd->vdev_max_asize - tvd->vdev_asize;
+		if (tspace > mc->mc_spa->spa_bootsize) {
+			tspace -= mc->mc_spa->spa_bootsize;
+		}
+		space += P2ALIGN(tspace, 1ULL << tvd->vdev_ms_shift);
 	}
 	spa_config_exit(mc->mc_spa, SCL_VDEV, FTAG);
 	return (space);

@@ -101,6 +101,10 @@ zpool_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if deduped>",
 	    "DEDUP");
 
+	/* system partition size */
+	zprop_register_number(ZPOOL_PROP_BOOTSIZE, "bootsize", 0, PROP_ONETIME,
+	    ZFS_TYPE_POOL, "<size>", "BOOTSIZE");
+
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<version>", "VERSION");

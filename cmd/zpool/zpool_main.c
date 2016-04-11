@@ -342,7 +342,8 @@ get_usage(zpool_help_t idx)
 	case HELP_CLEAR:
 		return (gettext("\tclear [-nF] <pool> [device]\n"));
 	case HELP_CREATE:
-		return (gettext("\tcreate [-fnd] [-o property=value] ... \n"
+		return (gettext("\tcreate [-fnd] [-B] "
+		    "[-o property=value] ... \n"
 		    "\t    [-O file-system-property=value] ... \n"
 		    "\t    [-m mountpoint] [-R root] <pool> <vdev> ...\n"));
 	case HELP_CHECKPOINT:
@@ -825,6 +826,8 @@ zpool_do_add(int argc, char **argv)
 	int c;
 	nvlist_t *nvroot;
 	char *poolname;
+	zpool_boot_label_t boot_type;
+	uint64_t boot_size;
 	int ret;
 	zpool_handle_t *zhp;
 	nvlist_t *config;
@@ -911,9 +914,16 @@ zpool_do_add(int argc, char **argv)
 		}
 	}
 
+	if (zpool_is_bootable(zhp))
+		boot_type = ZPOOL_COPY_BOOT_LABEL;
+	else
+		boot_type = ZPOOL_NO_BOOT_LABEL;
+
+	boot_size = zpool_get_prop_int(zhp, ZPOOL_PROP_BOOTSIZE, NULL);
+
 	/* pass off to make_root_vdev for processing */
 	nvroot = make_root_vdev(zhp, props, force, !force, B_FALSE, dryrun,
-	    argc, argv);
+	    boot_type, boot_size, argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		return (1);
@@ -1270,10 +1280,11 @@ errout:
 }
 
 /*
- * zpool create [-fnd] [-o property=value] ...
+ * zpool create [-fnd] [-B] [-o property=value] ...
  *		[-O file-system-property=value] ...
  *		[-R root] [-m mountpoint] <pool> <dev> ...
  *
+ *	-B	Create boot partition.
  *	-f	Force creation, even if devices appear in use
  *	-n	Do not create the pool, but display the resulting layout if it
  *		were to be created.
@@ -1291,12 +1302,16 @@ errout:
  * Once we get the nvlist back from make_root_vdev(), we either print out the
  * contents (if '-n' was specified), or pass it to libzfs to do the creation.
  */
+
+#define	SYSTEM256	(256 * 1024 * 1024)
 int
 zpool_do_create(int argc, char **argv)
 {
 	boolean_t force = B_FALSE;
 	boolean_t dryrun = B_FALSE;
 	boolean_t enable_all_pool_feat = B_TRUE;
+	zpool_boot_label_t boot_type = ZPOOL_NO_BOOT_LABEL;
+	uint64_t boot_size = 0;
 	int c;
 	nvlist_t *nvroot = NULL;
 	char *poolname;
@@ -1309,7 +1324,7 @@ zpool_do_create(int argc, char **argv)
 	char *propval;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":fndR:m:o:O:t:")) != -1) {
+	while ((c = getopt(argc, argv, ":fndBR:m:o:O:t:")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -1319,6 +1334,15 @@ zpool_do_create(int argc, char **argv)
 			break;
 		case 'd':
 			enable_all_pool_feat = B_FALSE;
+			break;
+		case 'B':
+			/*
+			 * We should create the system partition.
+			 * Also make sure the size is set.
+			 */
+			boot_type = ZPOOL_CREATE_BOOT_LABEL;
+			if (boot_size == 0)
+				boot_size = SYSTEM256;
 			break;
 		case 'R':
 			altroot = optarg;
@@ -1344,6 +1368,20 @@ zpool_do_create(int argc, char **argv)
 
 			if (add_prop_list(optarg, propval, &props, B_TRUE))
 				goto errout;
+
+			/*
+			 * Get bootsize value for make_root_vdev().
+			 */
+			if (zpool_name_to_prop(optarg) == ZPOOL_PROP_BOOTSIZE) {
+				if (zfs_nicestrtonum(g_zfs, propval,
+				    &boot_size) < 0 || boot_size == 0) {
+					(void) fprintf(stderr,
+					    gettext("bad boot partition size "
+					    "'%s': %s\n"),  propval,
+					    libzfs_error_description(g_zfs));
+					goto errout;
+				}
+			}
 
 			/*
 			 * If the user is creating a pool that doesn't support
@@ -1443,9 +1481,43 @@ zpool_do_create(int argc, char **argv)
 		goto errout;
 	}
 
+	/*
+	 * Make sure the bootsize is set when ZPOOL_CREATE_BOOT_LABEL is used,
+	 * and not set otherwise.
+	 */
+	if (boot_type == ZPOOL_CREATE_BOOT_LABEL) {
+		const char *propname;
+		char *strptr, *buf = NULL;
+		int rv;
+
+		propname = zpool_prop_to_name(ZPOOL_PROP_BOOTSIZE);
+		if (nvlist_lookup_string(props, propname, &strptr) != 0) {
+			rv = asprintf(&buf, "%" PRIu64, boot_size);
+			if (rv == -1 || buf == NULL) {
+				(void) fprintf(stderr,
+				    gettext("internal error: out of memory\n"));
+				goto errout;
+			}
+			rv = add_prop_list(propname, buf, &props, B_TRUE);
+			free(buf);
+			if (rv != 0)
+				goto errout;
+		}
+	} else {
+		const char *propname;
+		char *strptr;
+
+		propname = zpool_prop_to_name(ZPOOL_PROP_BOOTSIZE);
+		if (nvlist_lookup_string(props, propname, &strptr) == 0) {
+			(void) fprintf(stderr, gettext("error: setting boot "
+			    "partition size requires option '-B'\n"));
+			goto errout;
+		}
+	}
+
 	/* pass off to make_root_vdev for bulk processing */
 	nvroot = make_root_vdev(NULL, props, force, !force, B_FALSE, dryrun,
-	    argc - 1, argv + 1);
+	    boot_type, boot_size, argc - 1, argv + 1);
 	if (nvroot == NULL)
 		goto errout;
 
@@ -6155,6 +6227,8 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	zpool_handle_t *zhp;
 	nvlist_t *props = NULL;
 	char *propval;
+	zpool_boot_label_t boot_type;
+	uint64_t boot_size;
 	int ret;
 
 	/* check options */
@@ -6255,8 +6329,14 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		}
 	}
 
+	if (zpool_is_bootable(zhp))
+		boot_type = ZPOOL_COPY_BOOT_LABEL;
+	else
+		boot_type = ZPOOL_NO_BOOT_LABEL;
+
+	boot_size = zpool_get_prop_int(zhp, ZPOOL_PROP_BOOTSIZE, NULL);
 	nvroot = make_root_vdev(zhp, props, force, B_FALSE, replacing, B_FALSE,
-	    argc, argv);
+	    boot_type, boot_size, argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		nvlist_free(props);

@@ -47,6 +47,12 @@ See
 and
 .Sy free
 for more information.
+.It Sy bootsize
+The size of the system boot partition. This property can only be set at pool
+creation time and is read-only once pool is created. Setting this property
+implies using the
+.Fl B
+option.
 .It Sy capacity
 Percentage of pool space used.
 This property can also be referred to by its shortened column name,

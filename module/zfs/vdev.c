@@ -4100,6 +4100,8 @@ void
 vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 {
 	vdev_t *tvd = vd->vdev_top;
+	spa_t *spa = vd->vdev_spa;
+
 	mutex_enter(&vd->vdev_stat_lock);
 	if (vs) {
 		bcopy(&vd->vdev_stat, vs, sizeof (*vs));
@@ -4146,8 +4148,8 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 		 */
 		if (vd->vdev_aux == NULL && tvd != NULL) {
 			vs->vs_esize = P2ALIGN(
-			    vd->vdev_max_asize - vd->vdev_asize,
-			    1ULL << tvd->vdev_ms_shift);
+			    vd->vdev_max_asize - vd->vdev_asize -
+			    spa->spa_bootsize, 1ULL << tvd->vdev_ms_shift);
 		}
 
 		vs->vs_configured_ashift = vd->vdev_top != NULL
@@ -4166,6 +4168,7 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 		}
 	}
 
+	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
 	vdev_get_stats_ex_impl(vd, vs, vsx);
 	mutex_exit(&vd->vdev_stat_lock);
 }

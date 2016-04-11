@@ -346,7 +346,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			else
 				(void) zfs_nicenum(intval, buf, len);
 			break;
-
+		case ZPOOL_PROP_BOOTSIZE:
 		case ZPOOL_PROP_EXPANDSZ:
 		case ZPOOL_PROP_CHECKPOINT:
 			if (intval == 0) {
@@ -444,6 +444,17 @@ bootfs_name_valid(const char *pool, const char *bootfs)
 
 	return (B_FALSE);
 }
+
+boolean_t
+zpool_is_bootable(zpool_handle_t *zhp)
+{
+	char bootfs[ZFS_MAX_DATASET_NAME_LEN];
+
+	return (zpool_get_prop(zhp, ZPOOL_PROP_BOOTFS, bootfs,
+	    sizeof (bootfs), NULL, B_FALSE) == 0 && strncmp(bootfs, "-",
+	    sizeof (bootfs)) != 0);
+}
+
 
 /*
  * Given an nvlist of zpool properties to be set, validate that they are
@@ -571,6 +582,14 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				    "values between %" PRId32 " and "
 				    "%" PRId32 " are allowed."),
 				    propname, intval, ASHIFT_MIN, ASHIFT_MAX);
+			}
+			break;
+
+		case ZPOOL_PROP_BOOTSIZE:
+			if (!flags.create) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property '%s' can only be set during pool "
+				    "creation"), propname);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -2500,9 +2519,10 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 		/*
 		 * Search for the requested value. Special cases:
 		 *
-		 * - ZPOOL_CONFIG_PATH for whole disk entries.  These end in
-		 *   "-part1", or "p1".  The suffix is hidden from the user,
-		 *   but included in the string, so this matches around it.
+		 * - ZPOOL_CONFIG_PATH for whole disk entries.  To support
+		 *   UEFI boot, these end in "-part1", or "p1".  The suffix
+		 *   is hidden from the user, but included in the string,
+		 *   so this matches around it.
 		 * - ZPOOL_CONFIG_PATH for short names zfs_strcmp_shortname()
 		 *   is used to check all possible expanded paths.
 		 * - looking for a top-level vdev name (i.e. ZPOOL_CONFIG_TYPE).
