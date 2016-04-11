@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd April 27, 2018
+.Dd June 26, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -57,6 +57,7 @@
 .Nm
 .Cm create
 .Op Fl dfn
+.Op Fl B
 .Op Fl m Ar mountpoint
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Oo Fl o Ar feature@feature Ns = Ns Ar value Oc
@@ -529,6 +530,12 @@ The following are read-only properties:
 .Bl -tag -width Ds
 .It Cm allocated
 Amount of storage used within the pool.
+.It Sy bootsize
+The size of the system boot partition. This property can only be set at pool
+creation time and is read-only once pool is created. Setting this property
+implies using the
+.Fl B
+option.
 .It Sy capacity
 Percentage of pool space used.
 This property can also be referred to by its shortened column name,
@@ -951,6 +958,7 @@ specified device or devices are cleared.
 .Nm
 .Cm create
 .Op Fl dfn
+.Op Fl B
 .Op Fl m Ar mountpoint
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Oo Fl o Ar feature@feature Ns = Ns Ar value Oc Ns ...
@@ -1024,6 +1032,16 @@ By default all supported features are enabled on the new pool unless the
 .Fl d
 option is specified.
 .Bl -tag -width Ds
+.It Fl B
+Create whole disk pool with EFI System partition to support booting system
+with UEFI firmware. Default size is 256MB. To create boot partition with
+custom size, set the
+.Sy bootsize
+property with the
+.Fl o
+option. See the
+.Sx Properties
+section for details.
 .It Fl d
 Do not enable any features on the new pool.
 Individual features can be enabled by setting their corresponding properties to

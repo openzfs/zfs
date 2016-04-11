@@ -53,7 +53,7 @@
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
 
-static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
+static int read_efi_label(nvlist_t *, diskaddr_t *, boolean_t *);
 static boolean_t zpool_vdev_is_interior(const char *name);
 
 typedef struct prop_flags {
@@ -348,7 +348,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			else
 				(void) zfs_nicenum(intval, buf, len);
 			break;
-
+		case ZPOOL_PROP_BOOTSIZE:
 		case ZPOOL_PROP_EXPANDSZ:
 		case ZPOOL_PROP_CHECKPOINT:
 			if (intval == 0) {
@@ -584,6 +584,14 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				    "between %" PRId32 " and %" PRId32 " "
 				    "are allowed.\n"),
 				    propname, intval, ASHIFT_MIN, ASHIFT_MAX);
+			}
+			break;
+
+		case ZPOOL_PROP_BOOTSIZE:
+			if (!flags.create) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property '%s' can only be set during pool "
+				    "creation"), propname);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -2160,9 +2168,10 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 		/*
 		 * Search for the requested value. Special cases:
 		 *
-		 * - ZPOOL_CONFIG_PATH for whole disk entries.  These end in
-		 *   "-part1", or "p1".  The suffix is hidden from the user,
-		 *   but included in the string, so this matches around it.
+		 * - ZPOOL_CONFIG_PATH for whole disk entries.  To support
+		 *   UEFI boot, these end in "-part1", or "p1".  The suffix
+		 *   is hidden from the user, but included in the string,
+		 *   so this matches around it.
 		 * - ZPOOL_CONFIG_PATH for short names zfs_strcmp_shortname()
 		 *   is used to check all possible expanded paths.
 		 * - looking for a top-level vdev name (i.e. ZPOOL_CONFIG_TYPE).
@@ -2174,6 +2183,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 			    &wholedisk);
+
 			if (zfs_strcmp_pathname(srchval, val, wholedisk) == 0)
 				return (nv);
 
@@ -3781,54 +3791,6 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		(void) snprintf(buf, sizeof (buf), "%llu", (u_longlong_t)value);
 		path = buf;
 	} else if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
-#if defined(__sun__) || defined(__sun)
-		/*
-		 * Live VDEV path updates to a kernel VDEV during a
-		 * zpool_vdev_name lookup are not supported on Linux.
-		 */
-		char *devid;
-		vdev_stat_t *vs;
-		uint_t vsc;
-
-		/*
-		 * If the device is dead (faulted, offline, etc) then don't
-		 * bother opening it.  Otherwise we may be forcing the user to
-		 * open a misbehaving device, which can have undesirable
-		 * effects.
-		 */
-		if ((nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
-		    (uint64_t **)&vs, &vsc) != 0 ||
-		    vs->vs_state >= VDEV_STATE_DEGRADED) &&
-		    zhp != NULL &&
-		    nvlist_lookup_string(nv, ZPOOL_CONFIG_DEVID, &devid) == 0) {
-			/*
-			 * Determine if the current path is correct.
-			 */
-			char *newdevid = path_to_devid(path);
-
-			if (newdevid == NULL ||
-			    strcmp(devid, newdevid) != 0) {
-				char *newpath;
-
-				if ((newpath = devid_to_path(devid)) != NULL) {
-					/*
-					 * Update the path appropriately.
-					 */
-					set_path(zhp, nv, newpath);
-					if (nvlist_add_string(nv,
-					    ZPOOL_CONFIG_PATH, newpath) == 0)
-						verify(nvlist_lookup_string(nv,
-						    ZPOOL_CONFIG_PATH,
-						    &path) == 0);
-					free(newpath);
-				}
-			}
-
-			if (newdevid)
-				devid_str_free(newdevid);
-		}
-#endif /* sun */
-
 		if (name_flags & VDEV_NAME_FOLLOW_LINKS) {
 			char *rp = realpath(path, NULL);
 			if (rp) {
@@ -4375,15 +4337,18 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
  * Read the EFI label from the config, if a label does not exist then
  * pass back the error to the caller. If the caller has passed a non-NULL
  * diskaddr argument then we set it to the starting address of the EFI
- * partition.
+ * partition. If the caller has passed a non-NULL boolean argument, then
+ * we set it to indicate if the disk does have efi system partition.
  */
 static int
-read_efi_label(nvlist_t *config, diskaddr_t *sb)
+read_efi_label(nvlist_t *config, diskaddr_t *sb, boolean_t *system)
 {
 	char *path;
 	int fd;
 	char diskname[MAXPATHLEN];
+	boolean_t boot = B_FALSE;
 	int err = -1;
+	int slice;
 
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_PATH, &path) != 0)
 		return (err);
@@ -4394,8 +4359,16 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 		struct dk_gpt *vtoc;
 
 		if ((err = efi_alloc_and_read(fd, &vtoc)) >= 0) {
-			if (sb != NULL)
-				*sb = vtoc->efi_parts[0].p_start;
+			for (slice = 0; slice < vtoc->efi_nparts; slice++) {
+				if (vtoc->efi_parts[slice].p_tag == V_SYSTEM)
+					boot = B_TRUE;
+				if (vtoc->efi_parts[slice].p_tag == V_USR)
+					break;
+			}
+			if (sb != NULL && vtoc->efi_parts[slice].p_tag == V_USR)
+				*sb = vtoc->efi_parts[slice].p_start;
+			if (system != NULL)
+				*system = boot;
 			efi_free(vtoc);
 		}
 		(void) close(fd);
@@ -4422,7 +4395,7 @@ find_start_block(nvlist_t *config)
 		    &wholedisk) != 0 || !wholedisk) {
 			return (MAXOFFSET_T);
 		}
-		if (read_efi_label(config, &sb) < 0)
+		if (read_efi_label(config, &sb, NULL) < 0)
 			sb = MAXOFFSET_T;
 		return (sb);
 	}
@@ -4468,7 +4441,7 @@ zpool_label_disk_check(char *path)
  * of the form <pool>-<unique-id>.
  */
 static void
-zpool_label_name(char *label_name, int label_size)
+zpool_label_name(char *label_name, int label_size, const char *str)
 {
 	uint64_t id = 0;
 	int fd;
@@ -4484,7 +4457,7 @@ zpool_label_name(char *label_name, int label_size)
 	if (id == 0)
 		id = (((uint64_t)rand()) << 32) | (uint64_t)rand();
 
-	snprintf(label_name, label_size, "zfs-%016llx", (u_longlong_t)id);
+	snprintf(label_name, label_size, "%s-%016llx", str, (u_longlong_t)id);
 }
 
 /*
@@ -4492,7 +4465,8 @@ zpool_label_name(char *label_name, int label_size)
  * stripped of any leading /dev path.
  */
 int
-zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
+zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name,
+    zpool_boot_label_t boot_type, uint64_t boot_size, int *slice)
 {
 	char path[MAXPATHLEN];
 	struct dk_gpt *vtoc;
@@ -4549,16 +4523,6 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 
-	slice_size = vtoc->efi_last_u_lba + 1;
-	slice_size -= EFI_MIN_RESV_SIZE;
-	if (start_block == MAXOFFSET_T)
-		start_block = NEW_START_BLOCK;
-	slice_size -= start_block;
-	slice_size = P2ALIGN(slice_size, PARTITION_END_ALIGNMENT);
-
-	vtoc->efi_parts[0].p_start = start_block;
-	vtoc->efi_parts[0].p_size = slice_size;
-
 	/*
 	 * Why we use V_USR: V_BACKUP confuses users, and is considered
 	 * disposable by some EFI utilities (since EFI doesn't have a backup
@@ -4567,12 +4531,108 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	 * etc. were all pretty specific.  V_USR is as close to reality as we
 	 * can get, in the absence of V_OTHER.
 	 */
-	vtoc->efi_parts[0].p_tag = V_USR;
-	zpool_label_name(vtoc->efi_parts[0].p_name, EFI_PART_NAME_LEN);
+	/* first fix the partition start block */
+	if (start_block == MAXOFFSET_T)
+		start_block = NEW_START_BLOCK;
 
-	vtoc->efi_parts[8].p_start = slice_size + start_block;
-	vtoc->efi_parts[8].p_size = resv;
-	vtoc->efi_parts[8].p_tag = V_RESERVED;
+	/*
+	 * EFI System partition is using slice 0.
+	 * ZFS is on slice 1 and slice 8 is reserved.
+	 * We assume the GPT partition table without system
+	 * partition has zfs p_start == NEW_START_BLOCK.
+	 * If start_block != NEW_START_BLOCK, it means we have
+	 * system partition. Correct solution would be to query/cache vtoc
+	 * from existing vdev member.
+	 */
+	if (boot_type == ZPOOL_CREATE_BOOT_LABEL) {
+		if (boot_size % vtoc->efi_lbasize != 0) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "boot partition size must be a multiple of %d"),
+			    vtoc->efi_lbasize);
+			(void) close(fd);
+			efi_free(vtoc);
+			return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
+		}
+		/*
+		 * System partition size checks.
+		 * Note the 1MB is quite arbitrary value, since we
+		 * are creating dedicated pool, it should be enough
+		 * to hold fat + efi bootloader. May need to be
+		 * adjusted if the bootloader size will grow.
+		 */
+		if (boot_size < 1024 * 1024) {
+			char buf[64];
+			zfs_nicenum(boot_size, buf, sizeof (buf));
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Specified size %s for EFI System partition is too "
+			    "small, the minimum size is 1MB."), buf);
+			(void) close(fd);
+			efi_free(vtoc);
+			return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
+		}
+		/* 33MB is tested with mkfs -F pcfs */
+		if (hdl->libzfs_printerr &&
+		    ((vtoc->efi_lbasize == 512 &&
+		    boot_size < 33 * 1024 * 1024) ||
+		    (vtoc->efi_lbasize == 4096 &&
+		    boot_size < 256 * 1024 * 1024)))  {
+			char buf[64];
+			zfs_nicenum(boot_size, buf, sizeof (buf));
+			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			    "Warning: EFI System partition size %s is "
+			    "not allowing to create FAT32 file\nsystem, which "
+			    "may result in unbootable system.\n"), buf);
+		}
+		/* Adjust zfs partition start by size of system partition. */
+		start_block += boot_size / vtoc->efi_lbasize;
+	}
+
+	if (start_block == NEW_START_BLOCK) {
+		/*
+		 * Use default layout.
+		 * ZFS is on slice 0 and slice 8 is reserved.
+		 */
+		slice_size = vtoc->efi_last_u_lba + 1;
+		slice_size -= EFI_MIN_RESV_SIZE;
+		slice_size -= start_block;
+		slice_size = P2ALIGN(slice_size, PARTITION_END_ALIGNMENT);
+		if (slice != NULL)
+			*slice = 0;
+
+		vtoc->efi_parts[0].p_start = start_block;
+		vtoc->efi_parts[0].p_size = slice_size;
+
+		vtoc->efi_parts[0].p_tag = V_USR;
+		zpool_label_name(vtoc->efi_parts[0].p_name,
+		    EFI_PART_NAME_LEN, "zfs");
+
+		vtoc->efi_parts[8].p_start = slice_size + start_block;
+		vtoc->efi_parts[8].p_size = resv;
+		vtoc->efi_parts[8].p_tag = V_RESERVED;
+	} else {
+		slice_size = start_block - NEW_START_BLOCK;
+		vtoc->efi_parts[0].p_start = NEW_START_BLOCK;
+		vtoc->efi_parts[0].p_size = slice_size;
+		vtoc->efi_parts[0].p_tag = V_SYSTEM;
+		zpool_label_name(vtoc->efi_parts[0].p_name,
+		    EFI_PART_NAME_LEN, "loader");
+		if (slice != NULL)
+			*slice = 1;
+		/* prepare slice 1 */
+		slice_size = vtoc->efi_last_u_lba + 1 - slice_size;
+		slice_size -= resv;
+		slice_size -= NEW_START_BLOCK;
+		slice_size = P2ALIGN(slice_size, PARTITION_END_ALIGNMENT);
+		vtoc->efi_parts[1].p_start = start_block;
+		vtoc->efi_parts[1].p_size = slice_size;
+		vtoc->efi_parts[1].p_tag = V_USR;
+		zpool_label_name(vtoc->efi_parts[1].p_name,
+		    EFI_PART_NAME_LEN, "zfs");
+
+		vtoc->efi_parts[8].p_start = slice_size + start_block;
+		vtoc->efi_parts[8].p_size = resv;
+		vtoc->efi_parts[8].p_tag = V_RESERVED;
+	}
 
 	rval = efi_write(fd, vtoc);
 

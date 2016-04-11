@@ -184,6 +184,8 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	vdev_state_t newstate;
 	nvlist_t *nvroot, *newvd;
 	pendingdev_t *device;
+	zpool_boot_label_t boot_type;
+	uint64_t boot_size;
 	uint64_t wholedisk = 0ULL;
 	uint64_t offline = 0ULL;
 	uint64_t guid = 0ULL;
@@ -334,7 +336,15 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 * If this is a request to label a whole disk, then attempt to
 		 * write out the label.
 		 */
-		if (zpool_label_disk(g_zfshdl, zhp, leafname) != 0) {
+		if (zpool_is_bootable(zhp))
+			boot_type = ZPOOL_COPY_BOOT_LABEL;
+		else
+			boot_type = ZPOOL_NO_BOOT_LABEL;
+
+		boot_size = zpool_get_prop_int(zhp, ZPOOL_PROP_BOOTSIZE, NULL);
+
+		if (zpool_label_disk(g_zfshdl, zhp, leafname, boot_type,
+		    boot_size, NULL) != 0) {
 			zed_log_msg(LOG_INFO, "  zpool_label_disk: could not "
 			    "label '%s' (%s)", leafname,
 			    libzfs_error_description(g_zfshdl));
