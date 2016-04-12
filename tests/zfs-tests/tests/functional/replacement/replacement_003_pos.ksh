@@ -97,9 +97,6 @@ function detach_test
 		typeset pid=$!
 
 		$SLEEP 1
-		if ! $PS -p $pid > /dev/null 2>&1; then
-			log_fail "$FILE_TRUNC $options $TESTDIR/$TESTFILE.$i"
-		fi
 
 		child_pids="$child_pids $pid"
 		((i = i + 1))
