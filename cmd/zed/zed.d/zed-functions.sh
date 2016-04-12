@@ -413,3 +413,143 @@ zed_rate_limit()
     zed_unlock "${lockfile}" "${lockfile_fd}"
     return "${rv}"
 }
+
+
+# query_vdev_status (pool, vdev)
+#
+# Given a [pool] and [vdev], return the matching vdev path & status on stdout.
+#
+# Warning: This function does not handle the case of [pool] or [vdev]
+# containing whitespace.  Beware of ShellCheck SC2046.  Caveat emptor.
+#
+# Arguments
+#   pool: pool name
+#   vdev: virtual device name
+#
+# StdOut
+#   arg1: vdev pathname
+#   arg2: vdev status
+#
+query_vdev_status()
+{
+    local pool="$1"
+    local vdev="$2"
+    local t
+
+    vdev="$(basename -- "${vdev}")"
+    ([ -n "${pool}" ] && [ -n "${vdev}" ]) || return
+    t="$(printf '\t')"
+
+    "${ZPOOL}" status "${pool}" 2>/dev/null | sed -n -e \
+        "s,^[ $t]*\(.*${vdev}\(-part[0-9]\+\)\?\)[ $t]*\([A-Z]\+\).*,\1 \3,p" \
+        | tail -1
+}
+
+
+# get_dev_path (device)
+#
+# Find the exact path of a block device (or link)
+#
+# Arguments
+#   dev: Device name, such as 'sda'
+#
+# Return:
+#   Full path to the device node or link
+get_dev_path()
+{
+    find /dev -type b -name "${1}" -o -type l -name "${1}" | \
+	tr -d "\n"
+}
+
+
+# get_dev_size (device)
+#
+# Get the exact size of a block device (in blocks)
+#
+# Arguments:
+#   dev: Device name with path, such as '/dev/sda'
+#
+# Return:
+#   Size (in logical blocks) of the block device
+get_dev_size()
+{
+    # shellcheck disable=SC2046
+    set -- $(fdisk -l "${1}" 2> /dev/null | \
+	grep ^Disk | \
+	head -n1)
+    echo "${7}"
+}
+
+
+# get_krn_size (device)
+#
+# Get the exact size of a block device (in blocks)
+#
+# Arguments:
+#   dev: Device name with path, such as '/dev/sda'
+#
+# Return:
+#   Size (in logical blocks) of the block device
+get_krn_size() {
+    # shellcheck disable=SC2046
+    set -- $(grep "\[$(basename "${1}")\].* logical blocks:" /var/log/dmesg)
+    echo "${6}"
+}
+
+
+# get_pool_spares (pool)
+#
+# Get the list of spare(s) in a pool
+#
+# Arguments:
+#   pool: Pool name to get spares in
+#
+# Return:
+#   Space separated list of spares, with full path.
+get_pool_spares()
+{
+    local line
+    local nospares
+    local spare
+    local dev_path
+
+    "${ZPOOL}" status "${1}" 2> /dev/null | \
+    while read line; do
+	# Ignore empty lines
+	#
+	[ -z "${line}" ] && continue
+
+	# Once we've reached the 'errors:' line, we're done!
+	#
+	echo "${line}" | grep -q "^errors" && break
+
+	# Ignore anything leading up to (and including) the 'spares:' line
+	# NOTE: Can we be sure the spares is always at the bottom?!
+	#
+	if [ -z "${nospares}" ]; then
+	    echo "${line}" | grep -q spares && nospares=1;
+	    continue
+	fi
+
+	# This is it - a spare!
+	#
+	spare="$(echo -n "${line}" | sed 's,[ 	].*,,')" # Only want the dev.
+
+	# Get the status of the VDEV - Ignore spares that isn't AVAILable
+	#
+	# shellcheck disable=SC2046
+	set -- $(query_vdev_status "${ZEVENT_POOL}" "${spare}")
+	[ "${2}" = "AVAIL" ] || continue
+
+	# Get the full path of the device
+	#
+	dev_path="$(get_dev_path "${spare}")"
+
+	# Double check that it actually exists, then return the full path
+	# to the device node/link.
+	#
+	if [ -e "${dev_path}" ]; then
+	    echo -n "${dev_path} "
+	fi
+    done | sed 's,\ $,,'
+}

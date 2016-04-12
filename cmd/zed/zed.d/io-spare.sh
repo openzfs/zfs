@@ -35,37 +35,6 @@
 : "${ZED_SPARE_ON_IO_ERRORS:=0}"
 
 
-# query_vdev_status (pool, vdev)
-#
-# Given a [pool] and [vdev], return the matching vdev path & status on stdout.
-#
-# Warning: This function does not handle the case of [pool] or [vdev]
-# containing whitespace.  Beware of ShellCheck SC2046.  Caveat emptor.
-#
-# Arguments
-#   pool: pool name
-#   vdev: virtual device name
-#
-# StdOut
-#   arg1: vdev pathname
-#   arg2: vdev status
-#
-query_vdev_status()
-{
-    local pool="$1"
-    local vdev="$2"
-    local t
-
-    vdev="$(basename -- "${vdev}")"
-    ([ -n "${pool}" ] && [ -n "${vdev}" ]) || return
-    t="$(printf '\t')"
-
-    "${ZPOOL}" status "${pool}" 2>/dev/null | sed -n -e \
-        "s,^[ $t]*\(.*${vdev}\(-part[0-9]\+\)\?\)[ $t]*\([A-Z]\+\).*,\1 \3,p" \
-        | tail -1
-}
-
-
 # notify (old_vdev, new_vdev, num_errors)
 #
 # Send a notification regarding the hot spare replacement.
@@ -187,7 +156,6 @@ main()
     if [ "${vdev_status}" = "FAULTED" ] \
             || [ "${vdev_status}" = "DEGRADED" ]; then
         rv=3
-
     else
         rv=1
 
@@ -209,22 +177,21 @@ main()
         #
         # Round-robin through the spares trying those that are available.
         #
-        for spare in ${ZEVENT_VDEV_SPARE_PATHS}; do
+        for spare in $(get_pool_spares "${ZEVENT_POOL}"); do
+	    # Get the size of the spare and the failed VDEV.
+	    spare_size="$(get_dev_size "${spare}")"
+	    faild_size="$(get_krn_size "${ZEVENT_VDEV_PATH}")"
 
-            # shellcheck disable=SC2046
-            set -- $(query_vdev_status "${ZEVENT_POOL}" "${spare}")
-            spare_path="$1"
-            spare_status="$2"
+	    # If the spare is to small, try another.
+	    [ "${spare_size}" < "${faild_size}" ] && continue
 
-            [ "${spare_status}" = "AVAIL" ] || continue
-
-            zpool_err="$("${ZPOOL}" replace "${ZEVENT_POOL}" \
-                "${ZEVENT_VDEV_GUID}" "${spare_path}" 2>&1)"; zpool_rv=$?
+	    zpool_err="$("${ZPOOL}" replace "${ZEVENT_POOL}" \
+                "${ZEVENT_VDEV_GUID}" "${spare}" 2>&1)"; zpool_rv=$?
 
             if [ "${zpool_rv}" -ne 0 ]; then
                 [ -n "${zpool_err}" ] && zed_log_err "zpool ${zpool_err}"
             else
-                notify "${vdev_path}" "${spare_path}" "${num_errors}"
+                notify "${vdev_path}" "${spare}" "${num_errors}"
                 rv=0
                 break
             fi
