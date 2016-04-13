@@ -6038,6 +6038,7 @@ main(int argc, char **argv)
 
 	(void) setlocale(LC_ALL, "");
 	(void) textdomain(TEXT_DOMAIN);
+	srand(time(NULL));
 
 	dprintf_setup(&argc, argv);
 

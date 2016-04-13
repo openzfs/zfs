@@ -4143,6 +4143,32 @@ zpool_label_disk_check(char *path)
 }
 
 /*
+ * Generate a unique partition name for the ZFS member.  Partitions must
+ * have unique names to ensure udev will be able to create symlinks under
+ * /dev/disk/by-partlabel/ for all pool members.  The partition names are
+ * of the form <pool>-<unique-id>.
+ */
+static void
+zpool_label_name(char *label_name, int label_size)
+{
+	uint64_t id = 0;
+	int fd;
+
+	fd = open("/dev/urandom", O_RDONLY);
+	if (fd > 0) {
+		if (read(fd, &id, sizeof (id)) != sizeof (id))
+			id = 0;
+
+		close(fd);
+	}
+
+	if (id == 0)
+		id = (((uint64_t)rand()) << 32) | (uint64_t)rand();
+
+	snprintf(label_name, label_size, "zfs-%016llx", (u_longlong_t) id);
+}
+
+/*
  * Label an individual disk.  The name provided is the short name,
  * stripped of any leading /dev path.
  */
@@ -4232,7 +4258,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	 * can get, in the absence of V_OTHER.
 	 */
 	vtoc->efi_parts[0].p_tag = V_USR;
-	(void) strcpy(vtoc->efi_parts[0].p_name, "zfs");
+	zpool_label_name(vtoc->efi_parts[0].p_name, EFI_PART_NAME_LEN);
 
 	vtoc->efi_parts[8].p_start = slice_size + start_block;
 	vtoc->efi_parts[8].p_size = resv;
