@@ -1512,7 +1512,7 @@ uint64_t null_xattr = 0;
 
 /*ARGSUSED*/
 int
-zfs_remove(struct inode *dip, char *name, cred_t *cr)
+zfs_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 {
 	znode_t		*zp, *dzp = ITOZ(dip);
 	znode_t		*xzp;
@@ -1528,9 +1528,7 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr)
 	boolean_t	unlinked, toobig = FALSE;
 	uint64_t	txtype;
 	pathname_t	*realnmp = NULL;
-#ifdef HAVE_PN_UTILS
 	pathname_t	realnm;
-#endif /* HAVE_PN_UTILS */
 	int		error;
 	int		zflg = ZEXISTS;
 	boolean_t	waited = B_FALSE;
@@ -1539,13 +1537,11 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr)
 	ZFS_VERIFY_ZP(dzp);
 	zilog = zsb->z_log;
 
-#ifdef HAVE_PN_UTILS
 	if (flags & FIGNORECASE) {
 		zflg |= ZCILOOK;
 		pn_alloc(&realnm);
 		realnmp = &realnm;
 	}
-#endif /* HAVE_PN_UTILS */
 
 top:
 	xattr_obj = 0;
@@ -1555,10 +1551,8 @@ top:
 	 */
 	if ((error = zfs_dirent_lock(&dl, dzp, name, &zp, zflg,
 	    NULL, realnmp))) {
-#ifdef HAVE_PN_UTILS
 		if (realnmp)
 			pn_free(realnmp);
-#endif /* HAVE_PN_UTILS */
 		ZFS_EXIT(zsb);
 		return (error);
 	}
@@ -1642,10 +1636,8 @@ top:
 			dmu_tx_abort(tx);
 			goto top;
 		}
-#ifdef HAVE_PN_UTILS
 		if (realnmp)
 			pn_free(realnmp);
-#endif /* HAVE_PN_UTILS */
 		dmu_tx_abort(tx);
 		ZFS_EXIT(zsb);
 		return (error);
@@ -1711,18 +1703,14 @@ top:
 	}
 
 	txtype = TX_REMOVE;
-#ifdef HAVE_PN_UTILS
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
-#endif /* HAVE_PN_UTILS */
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj);
 
 	dmu_tx_commit(tx);
 out:
-#ifdef HAVE_PN_UTILS
 	if (realnmp)
 		pn_free(realnmp);
-#endif /* HAVE_PN_UTILS */
 
 	zfs_dirent_unlock(dl);
 	zfs_inode_update(dzp);
@@ -3782,7 +3770,8 @@ EXPORT_SYMBOL(zfs_readlink);
  */
 /* ARGSUSED */
 int
-zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr)
+zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
+    int flags)
 {
 	znode_t		*dzp = ITOZ(tdip);
 	znode_t		*tzp, *szp;
@@ -3840,10 +3829,8 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr)
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EILSEQ));
 	}
-#ifdef HAVE_PN_UTILS
 	if (flags & FIGNORECASE)
 		zf |= ZCILOOK;
-#endif /* HAVE_PN_UTILS */
 
 	/*
 	 * We do not support links between attributes and non-attributes
@@ -3900,10 +3887,8 @@ top:
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
-#ifdef HAVE_PN_UTILS
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
-#endif /* HAVE_PN_UTILS */
 		zfs_log_link(zilog, tx, txtype, dzp, szp, name);
 	}
 

@@ -548,7 +548,7 @@ zfs_replay_remove(zfs_sb_t *zsb, lr_remove_t *lr, boolean_t byteswap)
 
 	switch ((int)lr->lr_common.lrc_txtype) {
 	case TX_REMOVE:
-		error = zfs_remove(ZTOI(dzp), name, kcred);
+		error = zfs_remove(ZTOI(dzp), name, kcred, vflg);
 		break;
 	case TX_RMDIR:
 		error = zfs_rmdir(ZTOI(dzp), name, NULL, kcred, vflg);
@@ -584,7 +584,7 @@ zfs_replay_link(zfs_sb_t *zsb, lr_link_t *lr, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-	error = zfs_link(ZTOI(dzp), ZTOI(zp), name, kcred);
+	error = zfs_link(ZTOI(dzp), ZTOI(zp), name, kcred, vflg);
 
 	iput(ZTOI(zp));
 	iput(ZTOI(dzp));

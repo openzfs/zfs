@@ -64,6 +64,7 @@ KERNEL_C = \
 	lz4.c \
 	metaslab.c \
 	multilist.c \
+	pathname.c \
 	range_tree.c \
 	refcount.c \
 	rrwlock.c \

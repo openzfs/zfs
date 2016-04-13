@@ -465,7 +465,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	/* Remove a specific name xattr when value is set to NULL. */
 	if (value == NULL) {
 		if (xip)
-			error = -zfs_remove(dxip, (char *)name, cr);
+			error = -zfs_remove(dxip, (char *)name, cr, 0);
 
 		goto out;
 	}

@@ -59,8 +59,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	/* If we are a case insensitive fs, we need the real name */
 	if (zsb->z_case == ZFS_CASE_INSENSITIVE) {
 		zfs_flags = FIGNORECASE;
-		pn.pn_bufsize = ZFS_MAXNAMELEN;
-		pn.pn_buf = kmem_zalloc(ZFS_MAXNAMELEN, KM_SLEEP);
+		pn_alloc(&pn);
 		ppn = &pn;
 	}
 
@@ -83,7 +82,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 		 * Fall through if the error is not ENOENT. Also free memory.
 		 */
 		if (ppn) {
-			kmem_free(pn.pn_buf, ZFS_MAXNAMELEN);
+			pn_free(ppn);
 			if (error == -ENOENT)
 				return (NULL);
 		}
@@ -105,7 +104,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 		ci_name.name = pn.pn_buf;
 		ci_name.len = strlen(pn.pn_buf);
 		new_dentry = d_add_ci(dentry, ip, &ci_name);
-		kmem_free(pn.pn_buf, ZFS_MAXNAMELEN);
+		pn_free(ppn);
 		return (new_dentry);
 	} else {
 		return (d_splice_alias(ip, dentry));
@@ -157,7 +156,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 			error = zpl_init_acl(ip, dir);
 
 		if (error)
-			(void) zfs_remove(dir, dname(dentry), cr);
+			(void) zfs_remove(dir, dname(dentry), cr, 0);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -200,7 +199,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 			error = zpl_init_acl(ip, dir);
 
 		if (error)
-			(void) zfs_remove(dir, dname(dentry), cr);
+			(void) zfs_remove(dir, dname(dentry), cr, 0);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -221,7 +220,7 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_remove(dir, dname(dentry), cr);
+	error = -zfs_remove(dir, dname(dentry), cr, 0);
 
 	/*
 	 * For a CI FS we must invalidate the dentry to prevent the
@@ -389,7 +388,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 
 		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
 		if (error)
-			(void) zfs_remove(dir, dname(dentry), cr);
+			(void) zfs_remove(dir, dname(dentry), cr, 0);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -537,7 +536,7 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	igrab(ip); /* Use ihold() if available */
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_link(dir, ip, dname(dentry), cr);
+	error = -zfs_link(dir, ip, dname(dentry), cr, 0);
 	if (error) {
 		iput(ip);
 		goto out;
