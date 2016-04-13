@@ -38,6 +38,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/multilist.h \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
+	$(top_srcdir)/include/sys/pathname.h \
 	$(top_srcdir)/include/sys/range_tree.h \
 	$(top_srcdir)/include/sys/refcount.h \
 	$(top_srcdir)/include/sys/rrwlock.h \
