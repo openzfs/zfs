@@ -1353,6 +1353,20 @@ check_slices(avl_tree_t *r, int fd, const char *sname)
 #endif
 }
 
+static boolean_t
+is_watchdog_dev(char *dev)
+{
+	/* For 'watchdog' dev */
+	if (strcmp(dev, "watchdog") == 0)
+		return (B_TRUE);
+
+	/* For 'watchdog<digit><whatever> */
+	if (strstr(dev, "watchdog") == dev && isdigit(dev[8]))
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 static void
 zpool_open_func(void *arg)
 {
@@ -1369,35 +1383,11 @@ zpool_open_func(void *arg)
 	 * Skip devices with well known prefixes there can be side effects
 	 * when opening devices which need to be avoided.
 	 *
-	 * core     - Symlink to /proc/kcore
-	 * fd*      - Floppy interface.
-	 * fuse     - Fuse control device.
 	 * hpet     - High Precision Event Timer
-	 * lp*      - Printer interface.
-	 * parport* - Parallel port interface.
-	 * ppp      - Generic PPP driver.
-	 * random   - Random device
-	 * rtc      - Real Time Clock
-	 * tty*     - Generic serial interface.
-	 * urandom  - Random device.
-	 * usbmon*  - USB IO monitor.
-	 * vcs*     - Virtual console memory.
 	 * watchdog - Watchdog must be closed in a special way.
 	 */
-	if ((strncmp(rn->rn_name, "core", 4) == 0) ||
-	    (strncmp(rn->rn_name, "fd", 2) == 0) ||
-	    (strncmp(rn->rn_name, "fuse", 4) == 0) ||
-	    (strncmp(rn->rn_name, "hpet", 4) == 0) ||
-	    (strncmp(rn->rn_name, "lp", 2) == 0) ||
-	    (strncmp(rn->rn_name, "parport", 7) == 0) ||
-	    (strncmp(rn->rn_name, "ppp", 3) == 0) ||
-	    (strncmp(rn->rn_name, "random", 6) == 0) ||
-	    (strncmp(rn->rn_name, "rtc", 3) == 0) ||
-	    (strncmp(rn->rn_name, "tty", 3) == 0) ||
-	    (strncmp(rn->rn_name, "urandom", 7) == 0) ||
-	    (strncmp(rn->rn_name, "usbmon", 6) == 0) ||
-	    (strncmp(rn->rn_name, "vcs", 3) == 0) ||
-	    (strncmp(rn->rn_name, "watchdog", 8) == 0))
+	if ((strcmp(rn->rn_name, "hpet") == 0) ||
+	    is_watchdog_dev(rn->rn_name))
 		return;
 
 	/*
