@@ -139,7 +139,7 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 		return (0);
 
 	/* Leave existing scheduler when set to "none" */
-	if (strncmp(elevator, "none", 4) && (strlen(elevator) == 4) == 0)
+	if ((strncmp(elevator, "none", 4) == 0) && (strlen(elevator) == 4))
 		return (0);
 
 #ifdef HAVE_ELEVATOR_CHANGE
