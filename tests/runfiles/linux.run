@@ -22,7 +22,7 @@ outputdir = /var/tmp/test_results
 # DISABLED:
 # posix_001_pos - needs investigation
 [tests/functional/acl/posix]
-tests = ['posix_002_pos']
+tests = ['posix_002_pos', 'posix_003_pos']
 
 [tests/functional/atime]
 tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos']

@@ -969,7 +969,7 @@ zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
 		break;
 
 	case ACL_TYPE_DEFAULT:
-		name = XATTR_NAME_POSIX_ACL_ACCESS;
+		name = XATTR_NAME_POSIX_ACL_DEFAULT;
 		if (!S_ISDIR(ip->i_mode))
 			return (acl ? -EACCES : 0);
 		break;
