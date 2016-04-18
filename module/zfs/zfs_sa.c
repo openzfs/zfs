@@ -337,7 +337,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_SIZE(zsb), NULL,
 	    &zp->z_size, 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_GEN(zsb),
-	    NULL, &zp->z_gen, 8);
+	    NULL, &(ZTOI(zp)->i_generation), 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_UID(zsb), NULL, &uid, 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_GID(zsb), NULL, &gid, 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_PARENT(zsb),
