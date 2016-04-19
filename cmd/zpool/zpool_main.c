@@ -2499,7 +2499,7 @@ print_iostat_separator(iostat_cbdata_t *cb)
 static void
 print_iostat_header(iostat_cbdata_t *cb)
 {
-	(void) printf("%*s     capacity     operations    bandwidth\n",
+	(void) printf("%*s    capacity      operations    bandwidth\n",
 	    cb->cb_namewidth, "");
 	(void) printf("%-*s  alloc   free   read  write   read  write\n",
 	    cb->cb_namewidth, "pool");
