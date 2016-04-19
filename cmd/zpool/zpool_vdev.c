@@ -1198,12 +1198,10 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 
 		/*
 		 * Remove any previously existing symlink from a udev path to
-		 * the device before labeling the disk.  This makes
-		 * zpool_label_disk_wait() truly wait for the new link to show
-		 * up instead of returning if it finds an old link still in
-		 * place.  Otherwise there is a window between when udev
-		 * deletes and recreates the link during which access attempts
-		 * will fail with ENOENT.
+		 * the device before labeling the disk.  This ensures that
+		 * only newly created links are used.  Otherwise there is a
+		 * window between when udev deletes and recreates the link
+		 * during which access attempts will fail with ENOENT.
 		 */
 		strncpy(udevpath, path, MAXPATHLEN);
 		(void) zfs_append_partition(udevpath, MAXPATHLEN);
@@ -1227,6 +1225,8 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * and then block until udev creates the new link.
 		 */
 		if (!is_exclusive || !is_spare(NULL, udevpath)) {
+			char *devnode = strrchr(devpath, '/') + 1;
+
 			ret = strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT));
 			if (ret == 0) {
 				ret = lstat64(udevpath, &statbuf);
@@ -1234,18 +1234,29 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 					(void) unlink(udevpath);
 			}
 
-			if (zpool_label_disk(g_zfs, zhp,
-			    strrchr(devpath, '/') + 1) == -1)
+			/*
+			 * When labeling a pool the raw device node name
+			 * is provided as it appears under /dev/.
+			 */
+			if (zpool_label_disk(g_zfs, zhp, devnode) == -1)
 				return (-1);
 
+			/*
+			 * Wait for udev to signal the device is available
+			 * by the provided path.
+			 */
 			ret = zpool_label_disk_wait(udevpath, DISK_LABEL_WAIT);
 			if (ret) {
-				(void) fprintf(stderr, gettext("cannot "
-				    "resolve path '%s': %d\n"), udevpath, ret);
-				return (-1);
+				(void) fprintf(stderr,
+				    gettext("missing link: %s was "
+				    "partitioned but %s is missing\n"),
+				    devnode, udevpath);
+				return (ret);
 			}
 
-			(void) zero_label(udevpath);
+			ret = zero_label(udevpath);
+			if (ret)
+				return (ret);
 		}
 
 		/*
@@ -1259,8 +1270,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		/*
 		 * Update device id strings for whole disks (Linux only)
 		 */
-		if (wholedisk)
-			update_vdev_config_dev_strs(nv);
+		update_vdev_config_dev_strs(nv);
 
 		return (0);
 	}

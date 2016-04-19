@@ -260,6 +260,86 @@ udev_device_is_ready(struct udev_device *dev)
 }
 
 /*
+ * Wait up to timeout_ms for udev to set up the device node.  The device is
+ * considered ready when libudev determines it has been initialized, all of
+ * the device links have been verified to exist, and it has been allowed to
+ * settle.  At this point the device the device can be accessed reliably.
+ * Depending on the complexity of the udev rules this process could take
+ * several seconds.
+ */
+int
+zpool_label_disk_wait(char *path, int timeout_ms)
+{
+	struct udev *udev;
+	struct udev_device *dev = NULL;
+	char nodepath[MAXPATHLEN];
+	char *sysname = NULL;
+	int ret = ENODEV;
+	int settle_ms = 50;
+	long sleep_ms = 10;
+	hrtime_t start, settle;
+
+	if ((udev = udev_new()) == NULL)
+		return (ENXIO);
+
+	start = gethrtime();
+	settle = 0;
+
+	do {
+		if (sysname == NULL) {
+			if (realpath(path, nodepath) != NULL) {
+				sysname = strrchr(nodepath, '/') + 1;
+			} else {
+				(void) usleep(sleep_ms * MILLISEC);
+				continue;
+			}
+		}
+
+		dev = udev_device_new_from_subsystem_sysname(udev,
+		    "block", sysname);
+		if ((dev != NULL) && udev_device_is_ready(dev)) {
+			struct udev_list_entry *links, *link;
+
+			ret = 0;
+			links = udev_device_get_devlinks_list_entry(dev);
+
+			udev_list_entry_foreach(link, links) {
+				struct stat64 statbuf;
+				const char *name;
+
+				name = udev_list_entry_get_name(link);
+				errno = 0;
+				if (stat64(name, &statbuf) == 0 && errno == 0)
+					continue;
+
+				settle = 0;
+				ret = ENODEV;
+				break;
+			}
+
+			if (ret == 0) {
+				if (settle == 0) {
+					settle = gethrtime();
+				} else if (NSEC2MSEC(gethrtime() - settle) >=
+				    settle_ms) {
+					udev_device_unref(dev);
+					break;
+				}
+			}
+		}
+
+		udev_device_unref(dev);
+		(void) usleep(sleep_ms * MILLISEC);
+
+	} while (NSEC2MSEC(gethrtime() - start) < timeout_ms);
+
+	udev_unref(udev);
+
+	return (ret);
+}
+
+
+/*
  * Encode the persistent devices strings
  * used for the vdev disk label
  */
@@ -412,6 +492,41 @@ boolean_t
 is_mpath_whole_disk(const char *path)
 {
 	return (B_FALSE);
+}
+
+/*
+ * Wait up to timeout_ms for udev to set up the device node.  The device is
+ * considered ready when the provided path have been verified to exist and
+ * it has been allowed to settle.  At this point the device the device can
+ * be accessed reliably.  Depending on the complexity of the udev rules thisi
+ * process could take several seconds.
+ */
+int
+zpool_label_disk_wait(char *path, int timeout_ms)
+{
+	int settle_ms = 50;
+	long sleep_ms = 10;
+	hrtime_t start, settle;
+	struct stat64 statbuf;
+
+	start = gethrtime();
+	settle = 0;
+
+	do {
+		errno = 0;
+		if ((stat64(path, &statbuf) == 0) && (errno == 0)) {
+			if (settle == 0)
+				settle = gethrtime();
+			else if (NSEC2MSEC(gethrtime() - settle) >= settle_ms)
+				return (0);
+		} else if (errno != ENOENT) {
+			return (errno);
+		}
+
+		usleep(sleep_ms * MILLISEC);
+	} while (NSEC2MSEC(gethrtime() - start) < timeout_ms);
+
+	return (ENODEV);
 }
 
 void
