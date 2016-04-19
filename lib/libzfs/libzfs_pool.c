@@ -41,6 +41,7 @@
 #include <sys/vtoc.h>
 #include <sys/zfs_ioctl.h>
 #include <dlfcn.h>
+#include <sched.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
@@ -4126,7 +4127,11 @@ int
 zpool_label_disk_wait(char *path, int timeout)
 {
 	struct stat64 statbuf;
-	int i;
+	hrtime_t start = gethrtime(), now;
+	long busy_timeout = 10; /* milliseconds */
+	long sleep_period = 1; /* milliseconds */
+
+	errno = 0;
 
 	/*
 	 * Wait timeout miliseconds for a newly created device to be available
@@ -4134,13 +4139,21 @@ zpool_label_disk_wait(char *path, int timeout)
 	 * will exist and the udev link will not, so we must wait for the
 	 * symlink.  Depending on the udev rules this may take a few seconds.
 	 */
-	for (i = 0; i < timeout; i++) {
-		usleep(1000);
-
-		errno = 0;
-		if ((stat64(path, &statbuf) == 0) && (errno == 0))
+	do {
+		if ((stat64(path, &statbuf) == 0) && (errno == 0)) {
 			return (0);
-	}
+		} else if (errno != ENOENT) {
+			return (errno);
+		} else if (NSEC2MSEC((now = gethrtime()) - start) <
+		    busy_timeout) {
+			sched_yield();
+		} else if (NSEC2MSEC(now - start) +
+		    (sleep_period * MILLISEC) >= (timeout * MILLISEC)) {
+			break;
+		} else {
+			usleep(sleep_period * MILLISEC);
+		}
+	} while (NSEC2MSEC(gethrtime() - start) < (timeout * MILLISEC));
 
 	return (ENOENT);
 }
