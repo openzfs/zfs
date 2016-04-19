@@ -422,6 +422,7 @@ typedef struct zfsdev_state {
 	void			*zs_zevent;	/* zevent data */
 } zfsdev_state_t;
 
+extern boolean_t zfs_nl_ioacct_enabled(void);
 extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
 extern int zfsdev_getminor(struct file *filp, minor_t *minorp);
 extern minor_t zfsdev_minor_alloc(void);

@@ -178,6 +178,7 @@
 #include <sys/dsl_scan.h>
 #include <sharefs/share.h>
 #include <sys/fm/util.h>
+#include <sys/zfs_nl_ioacct.h>
 
 #include <sys/dmu_send.h>
 #include <sys/dsl_destroy.h>
@@ -201,6 +202,9 @@ extern void zfs_fini(void);
 uint_t zfs_fsyncer_key;
 extern uint_t rrw_tsd_key;
 static uint_t zfs_allow_log_key;
+
+/* io accounting management: 0 - disable, 1 - enable */
+unsigned int zfs_nl_ioacct = 1;
 
 typedef int zfs_ioc_legacy_func_t(zfs_cmd_t *);
 typedef int zfs_ioc_func_t(const char *, nvlist_t *, nvlist_t *);
@@ -5674,6 +5678,14 @@ zfsdev_minor_alloc(void)
 	return (0);
 }
 
+boolean_t
+zfs_nl_ioacct_enabled(void)
+{
+	if (zfs_nl_ioacct)
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
 static int
 zfsdev_state_init(struct file *filp)
 {
@@ -6013,6 +6025,9 @@ _init(void)
 	spa_init(FREAD | FWRITE);
 	zfs_init();
 
+	if ((error = zfs_nl_ioacct_init()) != 0)
+		goto out;
+
 	zfs_ioctl_init();
 
 	if ((error = zfs_attach()) != 0)
@@ -6046,6 +6061,7 @@ out:
 static void __exit
 _fini(void)
 {
+	zfs_nl_ioacct_fini();
 	zfs_detach();
 	zfs_fini();
 	spa_fini();
@@ -6062,6 +6078,9 @@ _fini(void)
 #ifdef HAVE_SPL
 module_init(_init);
 module_exit(_fini);
+
+module_param(zfs_nl_ioacct, uint, 0644);
+MODULE_PARM_DESC(zfs_nl_ioacct, "ZFS netlink io accounting management");
 
 MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);

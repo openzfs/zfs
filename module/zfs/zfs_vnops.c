@@ -77,6 +77,7 @@
 #include <sys/cred.h>
 #include <sys/attr.h>
 #include <sys/zpl.h>
+#include <sys/zfs_nl_ioacct.h>
 
 /*
  * Programming rules.
@@ -446,6 +447,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	ssize_t		n, nbytes;
 	int		error = 0;
 	rl_t		*rl;
+	zfs_io_info_t	zii;
 #ifdef HAVE_UIO_ZEROCOPY
 	xuio_t		*xuio = NULL;
 #endif /* HAVE_UIO_ZEROCOPY */
@@ -546,6 +548,14 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			break;
 		}
 
+		if (zfs_nl_ioacct_enabled()) {
+			zii.pid = current->pid;
+			zii.nbytes = nbytes;
+			zii.op = ZFS_NL_READ;
+			strcpy(zii.fsname, zsb->z_mntopts->z_osname);
+			zfs_nl_ioacct_send(&zii);
+		}
+
 		n -= nbytes;
 	}
 out:
@@ -601,6 +611,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	int		count = 0;
 	sa_bulk_attr_t	bulk[4];
 	uint64_t	mtime[2], ctime[2];
+	zfs_io_info_t	zii;
 	ASSERTV(int	iovcnt = uio->uio_iovcnt);
 
 	/*
@@ -906,6 +917,14 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 		if (!xuio && n > 0)
 			uio_prefaultpages(MIN(n, max_blksz), uio);
+
+		if (zfs_nl_ioacct_enabled()) {
+			zii.pid = current->pid;
+			zii.nbytes = nbytes;
+			zii.op = ZFS_NL_WRITE;
+			strcpy(zii.fsname, zsb->z_mntopts->z_osname);
+			zfs_nl_ioacct_send(&zii);
+		}
 	}
 
 	zfs_inode_update(zp);
@@ -3961,6 +3980,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
 	struct address_space *mapping;
+	zfs_io_info_t	zii;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -4031,6 +4051,14 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		zfs_range_unlock(rl);
 		ZFS_EXIT(zsb);
 		return (0);
+	}
+
+	if (zfs_nl_ioacct_enabled()) {
+		zii.pid = current->pid;
+		zii.nbytes = PAGESIZE;
+		zii.op = ZFS_NL_WRITEPAGE;
+		strcpy(zii.fsname, zsb->z_mntopts->z_osname);
+		zfs_nl_ioacct_send(&zii);
 	}
 
 	/* Another process started write block if required */
@@ -4271,6 +4299,7 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	loff_t i_size;
 	unsigned page_idx;
 	int err;
+	zfs_io_info_t zii;
 
 	os = zsb->z_os;
 	io_len = nr_pages << PAGE_SHIFT;
@@ -4287,6 +4316,14 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	cur_pp   = pl[0];
 	for (total = io_off + io_len; io_off < total; io_off += PAGESIZE) {
 		caddr_t va;
+
+		if (zfs_nl_ioacct_enabled()) {
+			zii.pid = current->pid;
+			zii.nbytes = PAGESIZE;
+			zii.op = ZFS_NL_READPAGE;
+			strcpy(zii.fsname, zsb->z_mntopts->z_osname);
+			zfs_nl_ioacct_send(&zii);
+		}
 
 		va = kmap(cur_pp);
 		err = dmu_read(os, zp->z_id, io_off, PAGESIZE, va,
