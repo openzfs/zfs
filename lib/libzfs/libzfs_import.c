@@ -123,6 +123,40 @@ get_devid(const char *path)
 	return (ret);
 }
 
+/*
+ * Wait up to timeout_ms for udev to set up the device node.  The device is
+ * considered ready when the provided path have been verified to exist and
+ * it has been allowed to settle.  At this point the device the device can
+ * be accessed reliably.  Depending on the complexity of the udev rules thisi
+ * process could take several seconds.
+ */
+int
+zpool_label_disk_wait(char *path, int timeout_ms)
+{
+	int settle_ms = 50;
+	long sleep_ms = 10;
+	hrtime_t start, settle;
+	struct stat64 statbuf;
+
+	start = gethrtime();
+	settle = 0;
+
+	do {
+		errno = 0;
+		if ((stat64(path, &statbuf) == 0) && (errno == 0)) {
+			if (settle == 0)
+				settle = gethrtime();
+			else if (NSEC2MSEC(gethrtime() - settle) >= settle_ms)
+				return (0);
+		} else if (errno != ENOENT) {
+			return (errno);
+		}
+
+		usleep(sleep_ms * MILLISEC);
+	} while (NSEC2MSEC(gethrtime() - start) < timeout_ms);
+
+	return (ENODEV);
+}
 
 /*
  * Go through and fix up any path and/or devid information for the given vdev

@@ -4095,29 +4095,6 @@ find_start_block(nvlist_t *config)
 }
 
 int
-zpool_label_disk_wait(char *path, int timeout)
-{
-	struct stat64 statbuf;
-	int i;
-
-	/*
-	 * Wait timeout miliseconds for a newly created device to be available
-	 * from the given path.  There is a small window when a /dev/ device
-	 * will exist and the udev link will not, so we must wait for the
-	 * symlink.  Depending on the udev rules this may take a few seconds.
-	 */
-	for (i = 0; i < timeout; i++) {
-		usleep(1000);
-
-		errno = 0;
-		if ((stat64(path, &statbuf) == 0) && (errno == 0))
-			return (0);
-	}
-
-	return (ENOENT);
-}
-
-int
 zpool_label_disk_check(char *path)
 {
 	struct dk_gpt *vtoc;
@@ -4282,12 +4259,11 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	(void) close(fd);
 	efi_free(vtoc);
 
-	/* Wait for the first expected partition to appear. */
-
 	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
 	(void) zfs_append_partition(path, MAXPATHLEN);
 
-	rval = zpool_label_disk_wait(path, 3000);
+	/* Wait to udev to signal use the device has settled. */
+	rval = zpool_label_disk_wait(path, DISK_LABEL_WAIT);
 	if (rval) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "failed to "
 		    "detect device partitions on '%s': %d"), path, rval);
