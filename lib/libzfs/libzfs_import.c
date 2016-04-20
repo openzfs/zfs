@@ -99,14 +99,14 @@ typedef struct pool_list {
 	name_entry_t		*names;
 } pool_list_t;
 
+#define	DEV_BYID_PATH	"/dev/disk/by-id/"
+
 /*
  * Linux persistent device strings for vdev labels
  *
  * based on libudev for consistency with libudev disk add/remove events
  */
 #ifdef HAVE_LIBUDEV
-
-#define	DEV_BYID_PATH	"/dev/disk/by-id/"
 
 typedef struct vdev_dev_strs {
 	char	vds_devid[128];
@@ -536,7 +536,6 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 
 #endif /* HAVE_LIBUDEV */
 
-
 /*
  * Go through and fix up any path and/or devid information for the given vdev
  * configuration.
@@ -577,7 +576,6 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 	best = NULL;
 	for (ne = names; ne != NULL; ne = ne->ne_next) {
 		if (ne->ne_guid == guid) {
-
 			if (path == NULL) {
 				best = ne;
 				break;
@@ -760,6 +758,116 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 	pl->names = ne;
 
 	return (0);
+}
+
+static int
+add_path(libzfs_handle_t *hdl, pool_list_t *pools, uint64_t pool_guid,
+    uint64_t vdev_guid, const char *path, int order)
+{
+	nvlist_t *label;
+	uint64_t guid;
+	int error, fd, num_labels;
+
+	fd = open64(path, O_RDONLY);
+	if (fd < 0)
+		return (errno);
+
+	error = zpool_read_label(fd, &label, &num_labels);
+	close(fd);
+
+	if (error || label == NULL)
+		return (ENOENT);
+
+	error = nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID, &guid);
+	if (error || guid != pool_guid) {
+		nvlist_free(label);
+		return (EINVAL);
+	}
+
+	error = nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid);
+	if (error || guid != vdev_guid) {
+		nvlist_free(label);
+		return (EINVAL);
+	}
+
+	error = add_config(hdl, pools, path, order, num_labels, label);
+
+	return (error);
+}
+
+static int
+add_configs_from_label_impl(libzfs_handle_t *hdl, pool_list_t *pools,
+    nvlist_t *nvroot, uint64_t pool_guid, uint64_t vdev_guid)
+{
+	char udevpath[MAXPATHLEN];
+	char *path;
+	nvlist_t **child;
+	uint_t c, children;
+	uint64_t guid;
+	int error;
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++) {
+			error  = add_configs_from_label_impl(hdl, pools,
+			    child[c], pool_guid, vdev_guid);
+			if (error)
+				return (error);
+		}
+		return (0);
+	}
+
+	if (nvroot == NULL)
+		return (0);
+
+	error = nvlist_lookup_uint64(nvroot, ZPOOL_CONFIG_GUID, &guid);
+	if ((error != 0) || (guid != vdev_guid))
+		return (0);
+
+	error = nvlist_lookup_string(nvroot, ZPOOL_CONFIG_PATH, &path);
+	if (error == 0)
+		(void) add_path(hdl, pools, pool_guid, vdev_guid, path, 0);
+
+	error = nvlist_lookup_string(nvroot, ZPOOL_CONFIG_DEVID, &path);
+	if (error == 0) {
+		sprintf(udevpath, "%s%s", DEV_BYID_PATH, path);
+		(void) add_path(hdl, pools, pool_guid, vdev_guid, udevpath, 1);
+	}
+
+	return (0);
+}
+
+/*
+ * Given a disk label call add_config() for all known paths to the device
+ * as described by the label itself.  The paths are added in the following
+ * priority order: 'path', 'devid', 'devnode'.  As these alternate paths are
+ * added the labels are verified to make sure they refer to the same device.
+ */
+static int
+add_configs_from_label(libzfs_handle_t *hdl, pool_list_t *pools,
+    char *devname, int num_labels, nvlist_t *label)
+{
+	nvlist_t *nvroot;
+	uint64_t pool_guid;
+	uint64_t vdev_guid;
+	int error;
+
+	if (nvlist_lookup_nvlist(label, ZPOOL_CONFIG_VDEV_TREE, &nvroot) ||
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID, &pool_guid) ||
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &vdev_guid))
+		return (ENOENT);
+
+	/* Allow devlinks to stabilize so all paths are available. */
+	zpool_label_disk_wait(devname, DISK_LABEL_WAIT);
+
+	/* Add alternate paths as described by the label vdev_tree. */
+	(void) add_configs_from_label_impl(hdl, pools, nvroot,
+	    pool_guid, vdev_guid);
+
+	/* Add the device node /dev/sdX path as a last resort. */
+	error = add_config(hdl, pools, devname, 100, num_labels, label);
+
+	return (error);
 }
 
 /*
@@ -1609,9 +1717,7 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 	blkid_cache cache;
 	blkid_dev_iterate iter;
 	blkid_dev dev;
-	const char *devname;
-	nvlist_t *config;
-	int fd, err, num_labels;
+	int err;
 
 	err = blkid_get_cache(&cache, NULL);
 	if (err != 0) {
@@ -1642,25 +1748,23 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 	}
 
 	while (blkid_dev_next(iter, &dev) == 0) {
-		devname = blkid_dev_devname(dev);
+		nvlist_t *label;
+		char *devname;
+		int fd, num_labels;
+
+		devname = (char *) blkid_dev_devname(dev);
 		if ((fd = open64(devname, O_RDONLY)) < 0)
 			continue;
 
-		err = zpool_read_label(fd, &config, &num_labels);
+		err = zpool_read_label(fd, &label, &num_labels);
 		(void) close(fd);
 
-		if (err != 0) {
-			(void) no_memory(hdl);
-			goto err_blkid3;
-		}
+		if (err || label == NULL)
+			continue;
 
-		if (config != NULL) {
-			err = add_config(hdl, pools, devname, 0,
-			    num_labels, config);
-			if (err != 0)
-				goto err_blkid3;
-		}
+		add_configs_from_label(hdl, pools, devname, num_labels, label);
 	}
+	err = 0;
 
 err_blkid3:
 	blkid_dev_iterate_end(iter);
