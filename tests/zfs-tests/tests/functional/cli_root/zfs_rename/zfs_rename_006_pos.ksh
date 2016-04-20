@@ -24,6 +24,10 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2015 by Delphix. All rights reserved.
+#
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.kshlib
 
@@ -35,6 +39,7 @@
 #       1. Create a snapshot of volume.
 #       2. Rename volume snapshot to a new one.
 #	3. Rename volume to a new one.
+#       4. Create a clone of the snapshot.
 #       5. Verify that the rename operations are successful and zfs list can
 #	   list them.
 #
@@ -62,14 +67,18 @@ rename_dataset $vol ${vol}-new
 rename_dataset ${vol}-new@${snap}-new ${vol}-new@$snap
 rename_dataset ${vol}-new $vol
 
+clone=$TESTPOOL/${snap}_clone
+create_clone $vol@$snap $clone
+
 #verify data integrity
-for input in $VOL_R_PATH ${VOL_R_PATH}@$snap; do
+for input in $VOL_R_PATH $ZVOL_RDEVDIR/$clone; do
 	log_must eval "$DD if=$input of=$VOLDATA bs=$BS count=$CNT >/dev/null 2>&1"
 	if ! cmp_data $VOLDATA $DATA ; then
 		log_fail "$input gets corrupted after rename operation."
 	fi
 done
 
+destroy_clone $clone
 log_must $ZFS destroy $vol@$snap
 
 log_pass "'zfs rename' can rename volume snapshot as expected."

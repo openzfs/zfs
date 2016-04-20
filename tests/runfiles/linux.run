@@ -146,11 +146,9 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_010_pos', 'zfs_receive_011_pos', 'zfs_receive_012_pos',
     'zfs_receive_013_pos']
 
-# DISABLED:
-# zfs_rename_006_pos - needs investigation
 [tests/functional/cli_root/zfs_rename]
 tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos', 'zfs_rename_003_pos',
-    'zfs_rename_004_neg', 'zfs_rename_005_neg',
+    'zfs_rename_004_neg', 'zfs_rename_005_neg', 'zfs_rename_006_pos',
     'zfs_rename_007_pos', 'zfs_rename_008_pos', 'zfs_rename_009_neg',
     'zfs_rename_010_neg', 'zfs_rename_011_pos', 'zfs_rename_012_neg',
     'zfs_rename_013_pos']
