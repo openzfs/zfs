@@ -171,11 +171,7 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 #endif			/* defined(_SUNOS_VTOC_16) */
 };
 
-#ifdef DEBUG
-int efi_debug = 1;
-#else
 int efi_debug = 0;
-#endif
 
 static int efi_read(int, struct dk_gpt *);
 
