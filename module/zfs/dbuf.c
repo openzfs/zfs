@@ -3024,7 +3024,8 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	uint64_t fill = 0;
 	int i;
 
-	ASSERT3P(db->db_blkptr, ==, bp);
+	ASSERT3P(db->db_blkptr, !=, NULL);
+	ASSERT3P(&db->db_data_pending->dr_bp_copy, ==, bp);
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
@@ -3046,7 +3047,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 #ifdef ZFS_DEBUG
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		ASSERT(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR);
-		ASSERT(!(BP_IS_HOLE(db->db_blkptr)) &&
+		ASSERT(!(BP_IS_HOLE(bp)) &&
 		    db->db_blkptr == &dn->dn_phys->dn_spill);
 	}
 #endif
@@ -3087,6 +3088,10 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		bp->blk_fill = fill;
 
 	mutex_exit(&db->db_mtx);
+
+	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+	*db->db_blkptr = *bp;
+	rw_exit(&dn->dn_struct_rwlock);
 }
 
 /*
@@ -3265,6 +3270,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	zio_t *zio;
 	int wp_flag = 0;
 
+	ASSERT(dmu_tx_is_syncing(tx));
+
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	os = dn->dn_objset;
@@ -3323,6 +3330,14 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	dmu_write_policy(os, dn, db->db_level, wp_flag, &zp);
 	DB_DNODE_EXIT(db);
 
+	/*
+	 * We copy the blkptr now (rather than when we instantiate the dirty
+	 * record), because its value can change between open context and
+	 * syncing context. We do not need to hold dn_struct_rwlock to read
+	 * db_blkptr because we are in syncing context.
+	 */
+	dr->dr_bp_copy = *db->db_blkptr;
+
 	if (db->db_level == 0 &&
 	    dr->dt.dl.dr_override_state == DR_OVERRIDDEN) {
 		/*
@@ -3332,7 +3347,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		void *contents = (data != NULL) ? data->b_data : NULL;
 
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
-		    db->db_blkptr, contents, db->db.db_size, &zp,
+		    &dr->dr_bp_copy, contents, db->db.db_size, &zp,
 		    dbuf_write_override_ready, NULL, dbuf_write_override_done,
 		    dr, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 		mutex_enter(&db->db_mtx);
@@ -3343,14 +3358,14 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	} else if (db->db_state == DB_NOFILL) {
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF);
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
-		    db->db_blkptr, NULL, db->db.db_size, &zp,
+		    &dr->dr_bp_copy, NULL, db->db.db_size, &zp,
 		    dbuf_write_nofill_ready, NULL, dbuf_write_nofill_done, db,
 		    ZIO_PRIORITY_ASYNC_WRITE,
 		    ZIO_FLAG_MUSTSUCCEED | ZIO_FLAG_NODATA, &zb);
 	} else {
 		ASSERT(arc_released(data));
 		dr->dr_zio = arc_write(zio, os->os_spa, txg,
-		    db->db_blkptr, data, DBUF_IS_L2CACHEABLE(db),
+		    &dr->dr_bp_copy, data, DBUF_IS_L2CACHEABLE(db),
 		    DBUF_IS_L2COMPRESSIBLE(db), &zp, dbuf_write_ready,
 		    dbuf_write_physdone, dbuf_write_done, db,
 		    ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
