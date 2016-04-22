@@ -33,6 +33,31 @@ AC_DEFUN([ZFS_AC_KERNEL_CONST_XATTR_HANDLER], [
 ])
 
 dnl #
+dnl # 4.5 API change,
+dnl # struct xattr_handler added new member "name".
+dnl # xattr_handler which matches to whole name rather than prefix should use
+dnl # "name" instead of "prefix", e.g. "system.posix_acl_access"
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_NAME], [
+	AC_MSG_CHECKING([whether xattr_handler has name])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/xattr.h>
+
+		static const struct xattr_handler
+		    xops __attribute__ ((unused)) = {
+			.name = XATTR_NAME_POSIX_ACL_ACCESS,
+		};
+	],[
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_XATTR_HANDLER_NAME, 1,
+		    [xattr_handler has name])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # Supported xattr handler get() interfaces checked newest to oldest.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
