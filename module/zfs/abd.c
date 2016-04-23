@@ -140,35 +140,13 @@ schedule_timeout_interruptible(long timeout)
 
 #endif	/* _KERNEL */
 
-
-struct abd_miter {
-	void *addr;		/* mapped addr, adjusted by offset */
-	int length;		/* current segment length, adjusted by offset */
-	int offset;		/* offset in current segment */
-	int is_linear;		/* the type of the abd */
-	union {
-		struct scatterlist *sg;
-		void *buf;
-	};
-	int nents;		/* num of sg entries */
-	int rw;			/* r/w access, whether to flush cache */
-	int size_left;	/* size left to be accessed */
-#ifndef HAVE_1ARG_KMAP_ATOMIC
-	int km_type;		/* KM_USER0 or KM_USER1 */
-	unsigned long irq_flags; /* save irq if km_type > KM_USER1 */
-#endif
-};
-
-#define	ABD_MITER_W	(1)
-#define	ABD_MITER_R	(0)
-
 /*
  * Initialize the abd_miter.
  * Pass ABD_MITER_W to rw if you will write to the abd buffer.
  * Please use abd_miter_init or abd_miter_init2 for one or two iterators
  * respectively, they will setup KM_USERx accordingly.
  */
-static void
+void
 abd_miter_init_km(struct abd_miter *aiter, abd_t *abd, int rw, int km)
 {
 	ASSERT(abd->abd_nents != 0);
@@ -188,12 +166,15 @@ abd_miter_init_km(struct abd_miter *aiter, abd_t *abd, int rw, int km)
 	aiter->nents = abd->abd_nents;
 	aiter->rw = rw;
 	aiter->size_left = abd->abd_size;
+#if defined(CONFIG_HIGHMEM)
+	/* Prevent unbounded kmap_atomic() nested calls. */
+	ASSERT3S(km, <, 8);
+#endif
 #ifndef HAVE_1ARG_KMAP_ATOMIC
 	aiter->km_type = km;
 #endif
 }
 
-#define	abd_miter_init(a, abd, rw)	abd_miter_init_km(a, abd, rw, 0)
 #define	abd_miter_init2(a, aabd, arw, b, babd, brw)	\
 do {							\
 	abd_miter_init_km(a, aabd, arw, 0);		\
@@ -213,16 +194,14 @@ do {									\
  * case this does nothing.
  * The mapped address and length will be aiter->addr and aiter->length.
  */
-static void
+void
 abd_miter_map_x(struct abd_miter *aiter, int atomic)
 {
 	void *paddr;
 
 	ASSERT(!aiter->addr);
 
-	if (!aiter->nents)
-		return;
-	if (!aiter->length)
+	if (!aiter->nents || !aiter->length)
 		return;
 
 	if (aiter->is_linear) {
@@ -252,11 +231,11 @@ abd_miter_map_x(struct abd_miter *aiter, int atomic)
 
 /*
  * Unmap the current page in abd_miter.
- * Pass 1 to atmoic if you want to use kmap_atomic.
+ * Pass 1 to atomic if you want to use kmap_atomic.
  * This can be safely called when the aiter has already exhausted, in which
  * case this does nothing.
  */
-static void
+void
 abd_miter_unmap_x(struct abd_miter *aiter, int atomic)
 {
 	void *paddr;
@@ -289,11 +268,6 @@ abd_miter_unmap_x(struct abd_miter *aiter, int atomic)
 	}
 	aiter->addr = NULL;
 }
-
-#define	abd_miter_map_atomic(a)		abd_miter_map_x(a, 1)
-#define	abd_miter_map(a)		abd_miter_map_x(a, 0)
-#define	abd_miter_unmap_atomic(a)	abd_miter_unmap_x(a, 1)
-#define	abd_miter_unmap(a)		abd_miter_unmap_x(a, 0)
 
 /*
  * Use abd_miter_{,un}map_atomic2 if you want to map 2 abd_miters.
@@ -332,7 +306,7 @@ do {					\
  * This can be safely called when the aiter has already exhausted, in which
  * case this does nothing.
  */
-static int
+int
 abd_miter_advance(struct abd_miter *aiter, int offset)
 {
 	ASSERT(!aiter->addr);

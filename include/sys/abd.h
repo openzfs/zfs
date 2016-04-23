@@ -56,6 +56,28 @@ typedef struct arc_buf_data {
 	};
 } abd_t;
 
+
+#define	ABD_MITER_W	(1)
+#define	ABD_MITER_R	(0)
+
+typedef struct abd_miter {
+	void *addr;		/* mapped addr, adjusted by offset */
+	int length;		/* current segment length, adjusted by offset */
+	int offset;		/* offset in current segment */
+	int is_linear;		/* the type of the abd */
+	union {
+		struct scatterlist *sg;
+		void *buf;
+	};
+	int nents;		/* num of sg entries */
+	int rw;			/* r/w access, whether to flush cache */
+	int size_left;	/* size left to be accessed */
+#ifndef HAVE_1ARG_KMAP_ATOMIC
+	int km_type;		/* KM_USER0 or KM_USER1 */
+	unsigned long irq_flags; /* save irq if km_type > KM_USER1 */
+#endif
+} abd_miter_t;
+
 #define	ABD_F_SCATTER	(1U << 0)	/* abd is scatter */
 #define	ABD_F_LINEAR	(1U << 1)	/* abd is linear */
 #define	ABD_F_OWNER	(1U << 2)	/* abd owns the buffer */
@@ -92,6 +114,21 @@ void abd_free(abd_t *, size_t);
 abd_t *abd_get_offset(abd_t *, size_t, size_t);
 abd_t *abd_get_from_buf(void *, size_t);
 void abd_put(abd_t *);
+
+/*
+ * Iterator operations
+ */
+#define	abd_miter_init(a, abd, rw)	abd_miter_init_km(a, abd, rw, 0)
+#define	abd_miter_init_n(a, abd, rw, n)	abd_miter_init_km(a, abd, rw, n)
+#define	abd_miter_map_atomic(a)		abd_miter_map_x(a, 1)
+#define	abd_miter_map(a)		abd_miter_map_x(a, 0)
+#define	abd_miter_unmap_atomic(a)	abd_miter_unmap_x(a, 1)
+#define	abd_miter_unmap(a)		abd_miter_unmap_x(a, 0)
+void abd_miter_init_km(struct abd_miter *aiter, abd_t *abd, int rw, int km);
+int  abd_miter_advance(struct abd_miter *aiter, int offset);
+void abd_miter_map_x(struct abd_miter *aiter, int atomic);
+void abd_miter_unmap_x(struct abd_miter *aiter, int atomic);
+
 
 /*
  * ABD operations
