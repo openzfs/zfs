@@ -97,6 +97,7 @@ typedef struct raidz_col {
 	size_t rc_offset;		/* device offset */
 	size_t rc_size;			/* I/O size */
 	abd_t *rc_data;			/* I/O data */
+	abd_miter_t rc_iter;		/* Use to access the data */
 	void *rc_gdata;			/* used to store the "good" version */
 	int rc_error;			/* I/O error for this device */
 	unsigned int rc_tried;		/* Did we attempt this I/O column? */
@@ -129,6 +130,7 @@ typedef struct raidz_map {
  */
 #define	raidz_parity(rm)	((rm)->rm_firstdatacol)
 #define	raidz_ncols(rm)		((rm)->rm_cols)
+#define	raidz_nbigcols(rm)	((rm)->rm_bigcols)
 
 
 /*
@@ -233,7 +235,9 @@ typedef enum raidz_mul_info {
 	MUL_PQR_XR	= 2,
 	MUL_PQR_YU	= 3,
 	MUL_PQR_YP	= 4,
-	MUL_PQR_YQ	= 5
+	MUL_PQR_YQ	= 5,
+
+	MUL_CNT		= 6
 } raidz_mul_info_t;
 
 

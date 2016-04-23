@@ -291,9 +291,9 @@ init_raidz_kstat(raidz_math_ops_kstat_t *rs, const char *name)
 /* Number of pages for benchmark: 2^BENCH_SIZE_ORD */
 #define	BENCH_D_COLS	(8)
 #define	BENCH_COLS	(3 + BENCH_D_COLS)
-#define	BENCH_COL_SIZE	(8192)
+#define	BENCH_COL_SIZE	(512)
 #define	BENCH_ZIO_SIZE	(BENCH_COL_SIZE * BENCH_D_COLS)
-#define	BENCH_NS	(50ULL*1000ULL*1000ULL) /* 50ms */
+#define	BENCH_NS	(1ULL*1000ULL*1000ULL) /* 50ms */
 
 #define	BENCH_RES_FMT	"RAIDZ_math: [%-7s] %-8s %5ld.%.3ld MB/s\n"
 #define	BENCH_SKIP_FMT	"RAIDZ_math: [%-7s] is not supported.\n"

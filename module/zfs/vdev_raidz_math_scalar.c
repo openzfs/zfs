@@ -109,8 +109,8 @@ raidz_init_scalar_mul_lt()
  */
 #define	XOR_ACC(src, v...) 						\
 {									\
-	VAR0(v).e ^= src[0].e;						\
-	VAR1(v).e ^= src[1].e;						\
+	VAR0(v).e ^= ((v_t *)src)[0].e;					\
+	VAR1(v).e ^= ((v_t *)src)[1].e;					\
 }
 
 #define	XOR(v...)							\
@@ -127,14 +127,14 @@ raidz_init_scalar_mul_lt()
 
 #define	LOAD(src, v...) 						\
 {									\
-	VAR0(v) = src[0];						\
-	VAR1(v) = src[1];						\
+	VAR0(v) = ((v_t *)src)[0];					\
+	VAR1(v) = ((v_t *)src)[1];					\
 }
 
 #define	STORE(dst, v...)						\
 {									\
-	dst[0] = VAR0(v);						\
-	dst[1] = VAR1(v);						\
+	((v_t *)dst)[0] = VAR0(v);					\
+	((v_t *)dst)[1] = VAR1(v);					\
 }
 
 /*
@@ -218,6 +218,67 @@ static const struct {
 #define	raidz_math_begin()	{}
 #define	raidz_math_end()	{}
 
+
+#if !defined(CONFIG_HIGHMEM)
+
+#define	GEN_P_DEFINE() v_t p0, p1
+#define	GEN_P_STRIDE	2
+#define	GEN_P_P		p0, p1
+
+#define	GEN_PQ_DEFINE() v_t d0, d1, p0, p1, q0, q1
+#define	GEN_PQ_STRIDE	2
+#define	GEN_PQ_D	d0, d1
+#define	GEN_PQ_P	p0, p1
+#define	GEN_PQ_Q	q0, q1
+
+#define	GEN_PQR_DEFINE() v_t d0, d1, p0, p1, q0, q1, r0, r1
+#define	GEN_PQR_STRIDE	2
+#define	GEN_PQR_D	d0, d1
+#define	GEN_PQR_P	p0, p1
+#define	GEN_PQR_Q	q0, q1
+#define	GEN_PQR_R	r0, r1
+
+#define	REC_P_DEFINE() 	v_t x0, x1
+#define	REC_P_STRIDE	2
+#define	REC_P_X		x0, x1
+
+#define	REC_Q_DEFINE() 	v_t x0, x1
+#define	REC_Q_STRIDE	2
+#define	REC_Q_X		x0, x1
+
+#define	REC_R_DEFINE() 	v_t x0, x1
+#define	REC_R_STRIDE	2
+#define	REC_R_X		x0, x1
+
+#define	REC_PQ_DEFINE() v_t x0, x1, y0, y1, d0, d1
+#define	REC_PQ_STRIDE	2
+#define	REC_PQ_X	x0, x1
+#define	REC_PQ_Y	y0, y1
+#define	REC_PQ_D	d0, d1
+
+#define	REC_PR_DEFINE() v_t x0, x1, y0, y1, d0, d1
+#define	REC_PR_STRIDE	2
+#define	REC_PR_X	x0, x1
+#define	REC_PR_Y	y0, y1
+#define	REC_PR_D	d0, d1
+
+#define	REC_QR_DEFINE() v_t x0, x1, y0, y1, d0, d1
+#define	REC_QR_STRIDE	2
+#define	REC_QR_X	x0, x1
+#define	REC_QR_Y	y0, y1
+#define	REC_QR_D	d0, d1
+
+#define	REC_PQR_DEFINE() v_t x0, x1, y0, y1, z0, z1, d0, d1, t0, t1
+#define	REC_PQR_STRIDE	2
+#define	REC_PQR_X	x0, x1
+#define	REC_PQR_Y	y0, y1
+#define	REC_PQR_Z	z0, z1
+#define	REC_PQR_D	d0, d1
+#define	REC_PQR_XS	d0, d1
+#define	REC_PQR_YS	t0, t1
+
+#else
+
 #define	GEN_STRIDE	2
 #define	SYN_STRIDE	2
 #define	REC_STRIDE	2
@@ -230,6 +291,8 @@ static const struct {
 #define	MUL_STRIDE	2
 #define	MUL_D		d0, d1
 
+#define	GEN_P_DEFINE() v_t p0, p1
+#define	GEN_P_P		p0, p1
 
 #define	GEN_PQ_DEFINE() v_t d0, d1, c0, c1
 #define	GEN_PQ_D	d0, d1
@@ -293,6 +356,7 @@ static const struct {
 #define	REC_PQR_XS	xs0, xs1
 #define	REC_PQR_YS	ys0, ys1
 
+#endif
 
 #include "vdev_raidz_math_impl.h"
 

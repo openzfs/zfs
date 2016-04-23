@@ -320,6 +320,66 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 	kfpu_end();							\
 }
 
+#if !defined(CONFIG_HIGHMEM)
+
+#define	GEN_P_DEFINE()		{}
+#define	GEN_P_STRIDE		4
+#define	GEN_P_P			0, 1, 2, 3
+
+#define	GEN_PQ_DEFINE() 	{}
+#define	GEN_PQ_STRIDE		4
+#define	GEN_PQ_D		0, 1, 2, 3
+#define	GEN_PQ_P		4, 5, 6, 7
+#define	GEN_PQ_Q		8, 9, 10, 11
+
+#define	GEN_PQR_DEFINE() 	{}
+#define	GEN_PQR_STRIDE		2
+#define	GEN_PQR_D		0, 1
+#define	GEN_PQR_P		2, 3
+#define	GEN_PQR_Q		4, 5
+#define	GEN_PQR_R		6, 7
+
+#define	REC_P_DEFINE() 		{}
+#define	REC_P_STRIDE		4
+#define	REC_P_X			0, 1, 2, 3
+
+#define	REC_Q_DEFINE() 		{}
+#define	REC_Q_STRIDE		4
+#define	REC_Q_X			0, 1, 2, 3
+
+#define	REC_R_DEFINE() 		{}
+#define	REC_R_STRIDE		4
+#define	REC_R_X			0, 1, 2, 3
+
+#define	REC_PQ_DEFINE() 	{}
+#define	REC_PQ_STRIDE		2
+#define	REC_PQ_X		0, 1
+#define	REC_PQ_Y		2, 3
+#define	REC_PQ_D		4, 5
+
+#define	REC_PR_DEFINE() 	{}
+#define	REC_PR_STRIDE		2
+#define	REC_PR_X		0, 1
+#define	REC_PR_Y		2, 3
+#define	REC_PR_D		4, 5
+
+#define	REC_QR_DEFINE() 	{}
+#define	REC_QR_STRIDE		2
+#define	REC_QR_X		0, 1
+#define	REC_QR_Y		2, 3
+#define	REC_QR_D		4, 5
+
+#define	REC_PQR_DEFINE() 	{}
+#define	REC_PQR_STRIDE		2
+#define	REC_PQR_X		0, 1
+#define	REC_PQR_Y		2, 3
+#define	REC_PQR_Z		4, 5
+#define	REC_PQR_D		6, 7
+#define	REC_PQR_XS		6, 7
+#define	REC_PQR_YS		8, 9
+
+#else
+
 #define	GEN_STRIDE		4
 #define	SYN_STRIDE		4
 #define	REC_STRIDE		2
@@ -332,11 +392,16 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 #define	MUL_D			0, 1, 2, 3
 #define	MUL_STRIDE		4
 
+#define	GEN_P_DEFINE()		{}
+#define	GEN_P_P			0, 1, 2, 3
 
 #define	GEN_PQ_DEFINE() 	{}
 #define	GEN_PQ_D		0, 1, 2, 3
 #define	GEN_PQ_C		4, 5, 6, 7
 
+#define	GEN_PQ_D		0, 1, 2, 3
+#define	GEN_PQ_P		4, 5, 6, 7
+#define	GEN_PQ_Q		8, 9, 10, 11
 
 #define	GEN_PQR_DEFINE() 	{}
 #define	GEN_PQR_D		0, 1, 2, 3
@@ -394,6 +459,7 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 #define	REC_PQR_XS		6, 7
 #define	REC_PQR_YS		8, 9
 
+#endif
 
 #include <sys/vdev_raidz_impl.h>
 #include "vdev_raidz_math_impl.h"
