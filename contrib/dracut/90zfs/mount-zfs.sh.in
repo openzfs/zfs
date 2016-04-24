@@ -10,6 +10,15 @@ case "${root}" in
 	*) return ;;
 esac
 
+# If sysroot.mount exists, the initial RAM disk configured
+# it to mount ZFS on root.  In that case, we bail early.
+if systemctl --system show sysroot.mount | grep -q ^LoadState=not-found$ ; then
+	info "ZFS: sysroot.mount absent, mounting root with mount-zfs.sh"
+else
+	info "ZFS: sysroot.mount present, delegating root mount to it"
+	return
+fi
+
 # Delay until all required block devices are present.
 udevadm settle
 

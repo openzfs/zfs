@@ -42,9 +42,8 @@ install() {
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
 	if [ -n "$systemdutildir" ] ; then
 		inst_script "${moddir}/zfs-generator.sh" "$systemdutildir"/system-generators/dracut-zfs-generator
-	else
-		inst_hook mount 98 "${moddir}/mount-zfs.sh"
 	fi
+	inst_hook mount 98 "${moddir}/mount-zfs.sh"
 	inst_hook shutdown 30 "${moddir}/export-zfs.sh"
 
 	inst_simple "${moddir}/zfs-lib.sh" "/lib/dracut-zfs-lib.sh"
