@@ -15,21 +15,24 @@ get_pool_devices() {
   local poolconfigoutput
   local pooldev
   local prefix
+  local resolved
   poolconfigtemp=`mktemp`
-  @sbindir@/zpool list -v -H "$1" > "$poolconfigtemp" 2>&1
+  @sbindir@/zpool list -v -H -P "$1" > "$poolconfigtemp" 2>&1
   if [ "$?" != "0" ] ; then
     poolconfigoutput=$(cat "$poolconfigtemp")
     dinfo "zfsexpandknowledge: pool $1 cannot be listed: $poolconfigoutput"
   else
     while read pooldev ; do
-      for prefix in /dev/disk/* /dev/mapper ; do
-        if [ -e "$prefix"/"$pooldev" ] ; then
-          dinfo "zfsexpandknowledge: pool $1 has device $prefix/$pooldev"
-          echo `readlink -f "$prefix"/"$pooldev"`
-          break
+        if [ -n "$pooldev" -a -e "$pooldev" ] ; then
+          if [ -h "$pooldev" ] ; then
+              resolved=`readlink -f "$pooldev"`
+          else
+              resolved="$pooldev"
+          fi
+          dinfo "zfsexpandknowledge: pool $1 has device $pooldev (which resolves to $resolved)"
+          echo "$resolved"
         fi
-      done
-    done < <(cat "$poolconfigtemp" | awk -F '\t' 'NR>1 { print $2 }')
+    done < <(cat "$poolconfigtemp" |  awk -F '\t' '/\t\/dev/ { print $2 }')
   fi
   rm -f "$poolconfigtemp"
 }
