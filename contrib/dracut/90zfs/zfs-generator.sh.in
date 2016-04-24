@@ -17,6 +17,8 @@ type getarg >/dev/null 2>&1 || . "$dracutlib"
 rootfstype=zfs
 if echo "${rootflags}" | grep -q zfsutil ; then
     true
+elif test -n "${rootflags}" ; then
+    rootflags="zfsutil,${rootflags}"
 else
     rootflags=zfsutil
 fi
