@@ -48,7 +48,11 @@ typedef struct dkioc_free_list_s {
 } dkioc_free_list_t;
 
 static inline void dfl_free(dkioc_free_list_t *dfl) {
-	kmem_free(dfl, DFL_SZ(dfl->dfl_num_exts));
+	vmem_free(dfl, DFL_SZ(dfl->dfl_num_exts));
+}
+
+static inline dkioc_free_list_t *dfl_alloc(uint64_t dfl_num_exts, int flags) {
+	return vmem_zalloc(DFL_SZ(dfl_num_exts), flags);
 }
 
 #endif /* _SPL_DKIOC_UTIL_H */
