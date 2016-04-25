@@ -72,6 +72,7 @@ for val in 1 2 3; do
 	log_must $ZFS create -o copies=$val $fs1
 	if is_global_zone; then
 		log_must $ZFS create -V $VOLSIZE -o copies=$val $vol1
+		block_device_wait
 	else
 		log_must $ZFS create -o copies=$val $vol1
 	fi
@@ -83,17 +84,20 @@ for val in 1 2 3; do
 		log_must $ZFS create -o copies=$val2 $fs2
 		if is_global_zone; then
 			log_must $ZFS create -V $VOLSIZE -o copies=$val2 $vol2
+			block_device_wait
 		else
 			log_must $ZFS create -o copies=$val2 $vol2
 		fi
 		for ds in $fs2 $vol2; do
 			cmp_prop $ds $val2
 			log_must $ZFS destroy $ds
+			block_device_wait
 		done
 	done
 
 	for ds in $fs1 $vol1; do
 		log_must $ZFS destroy $ds
+		block_device_wait
 	done
 
 done
