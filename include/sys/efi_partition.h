@@ -28,6 +28,8 @@
 
 #include <sys/uuid.h>
 
+#include <libzfs.h>
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -364,7 +366,7 @@ struct partition64 {
 
 #ifndef _KERNEL
 extern	int	efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
-extern	int	efi_alloc_and_read(int, struct dk_gpt **);
+extern	int	efi_alloc_and_read(int, struct dk_gpt **, zfs_json_t *);
 extern	int	efi_write(int, struct dk_gpt *);
 extern	int	efi_rescan(int);
 extern	void	efi_free(struct dk_gpt *);

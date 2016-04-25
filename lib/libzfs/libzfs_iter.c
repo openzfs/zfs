@@ -36,9 +36,10 @@
 #include "libzfs_impl.h"
 
 int
-zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func,
+    void *data, zfs_json_t *json)
 {
-	nvlist_t *nvl = zfs_get_clones_nvl(zhp);
+	nvlist_t *nvl = zfs_get_clones_nvl(zhp, json);
 	nvpair_t *pair;
 
 	if (nvl == NULL)
@@ -46,10 +47,11 @@ zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 
 	for (pair = nvlist_next_nvpair(nvl, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(nvl, pair)) {
-		zfs_handle_t *clone = zfs_open(zhp->zfs_hdl, nvpair_name(pair),
+		zfs_handle_t *clone = zfs_open(NULL,
+		    zhp->zfs_hdl, nvpair_name(pair),
 		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
 		if (clone != NULL) {
-			int err = func(clone, data);
+			int err = func(clone, data, json);
 			if (err != 0)
 				return (err);
 		}
@@ -88,7 +90,7 @@ top:
 			rc = 1;
 			break;
 		default:
-			rc = zfs_standard_error(zhp->zfs_hdl, errno,
+			rc = zfs_standard_error(NULL, zhp->zfs_hdl, errno,
 			    dgettext(TEXT_DOMAIN,
 			    "cannot iterate filesystems"));
 			break;
@@ -101,7 +103,8 @@ top:
  * Iterate over all child filesystems
  */
 int
-zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func,
+    void *data, zfs_json_t *json)
 {
 	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *nzhp;
@@ -124,7 +127,7 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 			continue;
 		}
 
-		if ((ret = func(nzhp, data)) != 0) {
+		if ((ret = func(nzhp, data, json)) != 0) {
 			zcmd_free_nvlists(&zc);
 			return (ret);
 		}
@@ -137,8 +140,8 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
  * Iterate over all snapshots
  */
 int
-zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
-    void *data)
+zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple,
+    zfs_iter_f func, void *data, zfs_json_t *json)
 {
 	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *nzhp;
@@ -162,7 +165,7 @@ zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
 		if (nzhp == NULL)
 			continue;
 
-		if ((ret = func(nzhp, data)) != 0) {
+		if ((ret = func(nzhp, data, json)) != 0) {
 			zcmd_free_nvlists(&zc);
 			return (ret);
 		}
@@ -175,7 +178,8 @@ zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
  * Iterate over all bookmarks
  */
 int
-zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func,
+    void *data, zfs_json_t *json)
 {
 	zfs_handle_t *nzhp;
 	nvlist_t *props = NULL;
@@ -211,7 +215,7 @@ zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 		if (nzhp == NULL)
 			continue;
 
-		if ((err = func(nzhp, data)) != 0)
+		if ((err = func(nzhp, data, json)) != 0)
 			goto out;
 	}
 
@@ -231,7 +235,7 @@ typedef struct zfs_node {
 } zfs_node_t;
 
 static int
-zfs_sort_snaps(zfs_handle_t *zhp, void *data)
+zfs_sort_snaps(zfs_handle_t *zhp, void *data, zfs_json_t *json)
 {
 	avl_tree_t *avl = data;
 	zfs_node_t *node;
@@ -269,8 +273,8 @@ zfs_snapshot_compare(const void *larg, const void *rarg)
 	 * Sort them according to creation time.  We use the hidden
 	 * CREATETXG property to get an absolute ordering of snapshots.
 	 */
-	lcreate = zfs_prop_get_int(l, ZFS_PROP_CREATETXG);
-	rcreate = zfs_prop_get_int(r, ZFS_PROP_CREATETXG);
+	lcreate = zfs_prop_get_int(NULL, l, ZFS_PROP_CREATETXG);
+	rcreate = zfs_prop_get_int(NULL, r, ZFS_PROP_CREATETXG);
 
 	if (lcreate < rcreate)
 		return (-1);
@@ -281,7 +285,8 @@ zfs_snapshot_compare(const void *larg, const void *rarg)
 }
 
 int
-zfs_iter_snapshots_sorted(zfs_handle_t *zhp, zfs_iter_f callback, void *data)
+zfs_iter_snapshots_sorted(zfs_handle_t *zhp,
+    zfs_iter_f callback, void *data, zfs_json_t *json)
 {
 	int ret = 0;
 	zfs_node_t *node;
@@ -291,10 +296,10 @@ zfs_iter_snapshots_sorted(zfs_handle_t *zhp, zfs_iter_f callback, void *data)
 	avl_create(&avl, zfs_snapshot_compare,
 	    sizeof (zfs_node_t), offsetof(zfs_node_t, zn_avlnode));
 
-	ret = zfs_iter_snapshots(zhp, B_FALSE, zfs_sort_snaps, &avl);
+	ret = zfs_iter_snapshots(zhp, B_FALSE, zfs_sort_snaps, &avl, json);
 
 	for (node = avl_first(&avl); node != NULL; node = AVL_NEXT(&avl, node))
-		ret |= callback(node->zn_handle, data);
+		ret |= callback(node->zn_handle, data, json);
 
 	while ((node = avl_destroy_nodes(&avl, &cookie)) != NULL)
 		free(node);
@@ -314,7 +319,7 @@ typedef struct {
 } snapspec_arg_t;
 
 static int
-snapspec_cb(zfs_handle_t *zhp, void *arg) {
+snapspec_cb(zfs_handle_t *zhp, void *arg, zfs_json_t *json) {
 	snapspec_arg_t *ssa = arg;
 	char *shortsnapname;
 	int err = 0;
@@ -328,7 +333,7 @@ snapspec_cb(zfs_handle_t *zhp, void *arg) {
 		ssa->ssa_seenfirst = B_TRUE;
 
 	if (ssa->ssa_seenfirst) {
-		err = ssa->ssa_func(zhp, ssa->ssa_arg);
+		err = ssa->ssa_func(zhp, ssa->ssa_arg, json);
 	} else {
 		zfs_close(zhp);
 	}
@@ -356,7 +361,7 @@ snapspec_cb(zfs_handle_t *zhp, void *arg) {
  */
 int
 zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
-    zfs_iter_f func, void *arg)
+    zfs_iter_f func, void *arg, zfs_json_t *json)
 {
 	char *buf, *comma_separated, *cp;
 	int err = 0;
@@ -388,7 +393,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 				(void) snprintf(snapname, sizeof (snapname),
 				    "%s@%s", zfs_get_name(fs_zhp),
 				    ssa.ssa_last);
-				if (!zfs_dataset_exists(fs_zhp->zfs_hdl,
+				if (!zfs_dataset_exists(NULL, fs_zhp->zfs_hdl,
 				    snapname, ZFS_TYPE_SNAPSHOT)) {
 					ret = ENOENT;
 					continue;
@@ -396,7 +401,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 			}
 
 			err = zfs_iter_snapshots_sorted(fs_zhp,
-			    snapspec_cb, &ssa);
+			    snapspec_cb, &ssa, json);
 			if (ret == 0)
 				ret = err;
 			if (ret == 0 && (!ssa.ssa_seenfirst ||
@@ -414,7 +419,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 				ret = ENOENT;
 				continue;
 			}
-			err = func(snap_zhp, arg);
+			err = func(snap_zhp, arg, json);
 			if (ret == 0)
 				ret = err;
 		}
@@ -428,14 +433,15 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
  * Iterate over all children, snapshots and filesystems
  */
 int
-zfs_iter_children(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+zfs_iter_children(zfs_handle_t *zhp, zfs_iter_f func,
+    void *data, zfs_json_t *json)
 {
 	int ret;
 
-	if ((ret = zfs_iter_filesystems(zhp, func, data)) != 0)
+	if ((ret = zfs_iter_filesystems(zhp, func, data, json)) != 0)
 		return (ret);
 
-	return (zfs_iter_snapshots(zhp, B_FALSE, func, data));
+	return (zfs_iter_snapshots(zhp, B_FALSE, func, data, json));
 }
 
 
@@ -453,7 +459,7 @@ typedef struct iter_dependents_arg {
 } iter_dependents_arg_t;
 
 static int
-iter_dependents_cb(zfs_handle_t *zhp, void *arg)
+iter_dependents_cb(zfs_handle_t *zhp, void *arg, zfs_json_t *json)
 {
 	iter_dependents_arg_t *ida = arg;
 	int err = 0;
@@ -461,7 +467,7 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 	ida->first = B_FALSE;
 
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT) {
-		err = zfs_iter_clones(zhp, iter_dependents_cb, ida);
+		err = zfs_iter_clones(zhp, iter_dependents_cb, ida, json);
 	} else if (zhp->zfs_type != ZFS_TYPE_BOOKMARK) {
 		iter_stack_frame_t isf;
 		iter_stack_frame_t *f;
@@ -477,11 +483,11 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 					zfs_close(zhp);
 					return (0);
 				} else {
-					zfs_error_aux(zhp->zfs_hdl,
+					zfs_error_aux(json, zhp->zfs_hdl,
 					    dgettext(TEXT_DOMAIN,
 					    "recursive dependency at '%s'"),
 					    zfs_get_name(zhp));
-					err = zfs_error(zhp->zfs_hdl,
+					err = zfs_error(json, zhp->zfs_hdl,
 					    EZFS_RECURSIVE,
 					    dgettext(TEXT_DOMAIN,
 					    "cannot determine dependent "
@@ -495,15 +501,15 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 		isf.zhp = zhp;
 		isf.next = ida->stack;
 		ida->stack = &isf;
-		err = zfs_iter_filesystems(zhp, iter_dependents_cb, ida);
+		err = zfs_iter_filesystems(zhp, iter_dependents_cb, ida, json);
 		if (err == 0)
 			err = zfs_iter_snapshots(zhp, B_FALSE,
-			    iter_dependents_cb, ida);
+			    iter_dependents_cb, ida, json);
 		ida->stack = isf.next;
 	}
 
 	if (!first && err == 0)
-		err = ida->func(zhp, ida->data);
+		err = ida->func(zhp, ida->data, json);
 	else
 		zfs_close(zhp);
 
@@ -512,7 +518,7 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 
 int
 zfs_iter_dependents(zfs_handle_t *zhp, boolean_t allowrecursion,
-    zfs_iter_f func, void *data)
+    zfs_iter_f func, void *data, zfs_json_t *json)
 {
 	iter_dependents_arg_t ida;
 	ida.allowrecursion = allowrecursion;
@@ -520,5 +526,5 @@ zfs_iter_dependents(zfs_handle_t *zhp, boolean_t allowrecursion,
 	ida.func = func;
 	ida.data = data;
 	ida.first = B_TRUE;
-	return (iter_dependents_cb(zfs_handle_dup(zhp), &ida));
+	return (iter_dependents_cb(zfs_handle_dup(zhp), &ida, json));
 }

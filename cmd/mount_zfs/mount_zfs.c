@@ -364,7 +364,7 @@ zfs_selinux_setcontext(zfs_handle_t *zhp, zfs_prop_t zpt, const char *name,
 {
 	char context[ZFS_MAXPROPLEN];
 
-	if (zfs_prop_get(zhp, zpt, context, sizeof (context),
+	if (zfs_prop_get(NULL, zhp, zpt, context, sizeof (context),
 	    NULL, NULL, 0, B_FALSE) == 0) {
 		if (strcmp(context, "none") != 0)
 		    append_mntopt(name, context, mntopts, mtabopt, B_TRUE);
@@ -492,7 +492,7 @@ main(int argc, char **argv)
 	}
 
 	/* try to open the dataset to access the mount point */
-	if ((zhp = zfs_open(g_zfs, dataset,
+	if ((zhp = zfs_open(NULL, g_zfs, dataset,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT)) == NULL) {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
 		    "mounted, unable to open the dataset\n"), dataset);
@@ -508,8 +508,8 @@ main(int argc, char **argv)
 	 * this is needed because the 'context' property overrides others
 	 * if it is not the default, set the 'context' property
 	 */
-	if (zfs_prop_get(zhp, ZFS_PROP_SELINUX_CONTEXT, prop, sizeof (prop),
-	    NULL, NULL, 0, B_FALSE) == 0) {
+	if (zfs_prop_get(NULL, zhp, ZFS_PROP_SELINUX_CONTEXT,
+	    prop, sizeof (prop), NULL, NULL, 0, B_FALSE) == 0) {
 		if (strcmp(prop, "none") == 0) {
 			zfs_selinux_setcontext(zhp, ZFS_PROP_SELINUX_FSCONTEXT,
 			    MNTOPT_FSCONTEXT, mntopts, mtabopt);
@@ -531,7 +531,7 @@ main(int argc, char **argv)
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT)
 		(void) strlcpy(prop, ZFS_MOUNTPOINT_LEGACY, ZFS_MAXPROPLEN);
 	else
-		(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, prop,
+		(void) zfs_prop_get(NULL, zhp, ZFS_PROP_MOUNTPOINT, prop,
 		    sizeof (prop), NULL, NULL, 0, B_FALSE);
 
 	/*
@@ -539,7 +539,7 @@ main(int argc, char **argv)
 	 * back from the mount command, since we need the zfs handle
 	 * to do so.
 	 */
-	zfs_version = zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
+	zfs_version = zfs_prop_get_int(NULL, zhp, ZFS_PROP_VERSION);
 	if (zfs_version == 0) {
 		fprintf(stderr, gettext("unable to fetch "
 		    "ZFS version for filesystem '%s'\n"), dataset);
