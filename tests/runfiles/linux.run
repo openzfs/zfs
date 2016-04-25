@@ -262,7 +262,7 @@ tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg']
 # zpool_create_020_pos - needs investigation
 [tests/functional/cli_root/zpool_create]
 tests = [
-    'zpool_create_003_pos', 'zpool_create_005_pos', 'zpool_create_007_neg', 
+    'zpool_create_003_pos', 'zpool_create_005_pos', 'zpool_create_007_neg',
     'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_017_neg',
     'zpool_create_018_pos', 'zpool_create_019_pos',
     'zpool_create_021_pos', 'zpool_create_022_pos', 'zpool_create_023_neg',
@@ -512,11 +512,14 @@ tests = ['poolversion_001_pos', 'poolversion_002_pos']
 #tests = ['privilege_001_pos', 'privilege_002_pos']
 
 # DISABLED:
-# quota_002_pos - size is less than current used or reserved space 
+# quota_002_pos - size is less than current used or reserved space
 # quota_004_pos - size is less than current used or reserved space
 # quota_005_pos - size is less than current used or reserved space
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_003_pos', 'quota_006_neg']
+
+[tests/functional/raidz]
+tests = ['raidz_001_neg', 'raidz_002_pos']
 
 [tests/functional/redundancy]
 tests = ['redundancy_001_pos', 'redundancy_002_pos', 'redundancy_003_pos']

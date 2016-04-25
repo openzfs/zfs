@@ -1677,6 +1677,33 @@ Default value: \fB4,096\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_raidz_impl\fR (string)
+.ad
+.RS 12n
+Parameter for selecting raidz implementation to use.
+
+Options marked (always) below may be selected on module load as they are
+supported on all systems.
+The remaining options may only be set after the module is loaded, as they
+are available only if the implementations are compiled in and supported
+on the running system.
+
+Once the module is loaded, the content of
+/sys/module/zfs/parameters/zfs_vdev_raidz_impl will show available options
+with the currently selected one enclosed in [].
+Possible options are:
+  fastest  - (always) implementation selected using built-in benchmark
+  original - (always) original raidz implementation
+  scalar   - (always) scalar raidz implementation
+  sse      - implementation using SSE instruction set (64bit x86 only)
+  avx2     - implementation using AVX2 instruction set (64bit x86 only)
+.sp
+Default value: \fBfastest\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_zevent_cols\fR (int)
 .ad
 .RS 12n
@@ -1739,7 +1766,7 @@ Default value: \fB1,048,576\fR.
 .ad
 .RS 12n
 A zevent will be logged if a ZIO operation takes more than N milliseconds to
-complete. Note that this is only a logging facility, not a timeout on 
+complete. Note that this is only a logging facility, not a timeout on
 operations.
 .sp
 Default value: \fB30,000\fR.

@@ -42,6 +42,7 @@ export ZINJECT=${ZINJECT:-${sbindir}/zinject}
 export ZPOOL=${ZPOOL:-${sbindir}/zpool}
 export ZTEST=${ZTEST:-${sbindir}/ztest}
 export ZPIOS=${ZPIOS:-${sbindir}/zpios}
+export RAIDZ_TEST=${RAIDZ_TEST:-${bindir}/raidz_test}
 
 . $STF_SUITE/include/libtest.shlib
 
