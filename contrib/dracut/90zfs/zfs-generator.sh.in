@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GENERATOR_DIR="$1"
+GENERATOR_DIR="$2"
 [ -z "$GENERATOR_DIR" ] && exit 1
 
 [ -f /lib/dracut-lib.sh ] && dracutlib=/lib/dracut-lib.sh
@@ -25,7 +25,6 @@ root="${root##zfs:}"
 root="${root##ZFS=}"
 
 [ -d "$GENERATOR_DIR" ] || mkdir "$GENERATOR_DIR"
-[ -d "$GENERATOR_DIR/sysroot.mount.d" ] || mkdir "$GENERATOR_DIR/sysroot.mount.d"
 
 {
     echo "[Unit]"
@@ -36,4 +35,4 @@ root="${root##ZFS=}"
     echo "What=${root}"
     echo "Type=${rootfstype}"
     echo "Options=${rootflags}"
-} > "$GENERATOR_DIR/sysroot.mount.d/zfs-enhancement.conf"
+} > "$GENERATOR_DIR/sysroot.mount"
