@@ -48,6 +48,7 @@ for val in ${badval[@]}; do
 	log_mustnot $ZFS create -V $VOLSIZE -o copies=$val $TESTPOOL/$TESTVOL1
 	log_mustnot $ZFS set copies=$val $TESTPOOL/$TESTFS
 	log_mustnot $ZFS set copies=$val $TESTPOOL/$TESTVOL
+	block_device_wait
 done
 
 log_pass "The copies property cannot be set to any value other than 1,2 or 3 as expected"
