@@ -12,7 +12,8 @@ esac
 
 # If sysroot.mount exists, the initial RAM disk configured
 # it to mount ZFS on root.  In that case, we bail early.
-if systemctl --system show sysroot.mount | grep -q ^LoadState=not-found$ ; then
+loadstate="$(systemctl --system --show -p LoadState sysroot.mount)"
+if [ "${loadstate}" = "LoadState=not-found" -o "${loadstate}" = "" ] ; then
 	info "ZFS: sysroot.mount absent, mounting root with mount-zfs.sh"
 else
 	info "ZFS: sysroot.mount present, delegating root mount to it"
