@@ -34,14 +34,13 @@ install() {
 	inst_rules @udevruledir@/90-zfs.rules
 	inst_rules @udevruledir@/69-vdev.rules
 	inst_rules @udevruledir@/60-zvol.rules
+	dracut_install hostid
+	dracut_install grep
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
+	dracut_install @sbindir@/mount.zfs
 	dracut_install @udevdir@/vdev_id
 	dracut_install @udevdir@/zvol_id
-	dracut_install mount.zfs
-	dracut_install hostid
-	dracut_install awk
-	dracut_install head
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
 	if [ -n "$systemdutildir" ] ; then
 		inst_script "${moddir}/zfs-generator.sh" "$systemdutildir"/system-generators/dracut-zfs-generator
