@@ -5,8 +5,11 @@ check() {
 	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
-	which zpool >/dev/null 2>&1 || return 1
-	which zfs >/dev/null 2>&1 || return 1
+	for tool in "@sbindir@/zpool" "@sbindir@/zfs" "@sbindir@/mount.zfs" ; do
+		test -x "$tool" || return 1
+	done
+	# Verify grep exists
+	which grep >/dev/null 2>&1 || return 1
 
 	return 0
 }
