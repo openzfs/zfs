@@ -1049,11 +1049,6 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 }
 
 #define	MOUNT_BUSY 0x80		/* Mount failed due to EBUSY (from mntent.h) */
-#define	SET_MOUNT_CMD \
-	"exec 0</dev/null " \
-	"     1>/dev/null " \
-	"     2>/dev/null; " \
-	"mount -t zfs -n '%s' '%s'"
 
 int
 zfsctl_snapshot_mount(struct path *path, int flags)
@@ -1064,7 +1059,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	zfs_sb_t *snap_zsb;
 	zfs_snapentry_t *se;
 	char *full_name, *full_path;
-	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+	char *argv[] = { "/sbin/mount.zfs", "-n", "--", NULL, NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
 	struct path spath;
@@ -1109,9 +1104,9 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * value from call_usermodehelper() will be (exitcode << 8 + signal).
 	 */
 	dprintf("mount; name=%s path=%s\n", full_name, full_path);
-	argv[2] = kmem_asprintf(SET_MOUNT_CMD, full_name, full_path);
+	argv[3] = full_name;
+	argv[4] = full_path;
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	strfree(argv[2]);
 	if (error) {
 		if (!(error & MOUNT_BUSY << 8)) {
 			cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
