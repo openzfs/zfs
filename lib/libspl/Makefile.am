@@ -29,7 +29,6 @@ USER_C = \
 	strnlen.c \
 	timestamp.c \
 	zone.c \
-	xdr.c \
 	include/sys/list.h \
 	include/sys/list_impl.h
 
