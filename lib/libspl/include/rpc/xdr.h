@@ -32,11 +32,20 @@
 #ifndef LIBSPL_RPC_XDR_H
 #define	LIBSPL_RPC_XDR_H
 
-#include_next <rpc/xdr.h>
-
 /*
- * These are XDR control operators
+ * When available prefer libtirpc for xdr functionality.  This library is
+ * mandatory when compiling with musl libc because it does not provide xdr.
  */
+#if defined(HAVE_LIBTIRPC)
+
+#include <tirpc/rpc/xdr.h>
+#ifdef xdr_control
+#undef xdr_control
+#endif
+
+#else
+#include_next <rpc/xdr.h>
+#endif /* HAVE_LIBTIRPC */
 
 #define	XDR_GET_BYTES_AVAIL 1
 
@@ -46,20 +55,20 @@ typedef struct xdr_bytesrec {
 } xdr_bytesrec_t;
 
 /*
- * These are the request arguments to XDR_CONTROL.
- *
- * XDR_PEEK - returns the contents of the next XDR unit on the XDR stream.
- * XDR_SKIPBYTES - skips the next N bytes in the XDR stream.
- * XDR_RDMAGET - for xdr implementation over RDMA, gets private flags from
- *		 the XDR stream being moved over RDMA
- * XDR_RDMANOCHUNK - for xdr implementaion over RDMA, sets private flags in
- *                   the XDR stream moving over RDMA.
+ * This functionality is not required and is disabled in user space.
  */
-#define	XDR_PEEK	2
-#define	XDR_SKIPBYTES	3
-#define	XDR_RDMAGET	4
-#define	XDR_RDMASET	5
+static inline bool_t
+xdr_control(XDR *xdrs, int request, void *info)
+{
+	xdr_bytesrec_t *xptr;
 
-extern bool_t xdr_control(XDR *xdrs, int request, void *info);
+	ASSERT3U(request, ==, XDR_GET_BYTES_AVAIL);
 
-#endif
+	xptr = (xdr_bytesrec_t *)info;
+	xptr->xc_is_last_record = TRUE;
+	xptr->xc_num_avail = xdrs->x_handy;
+
+	return (TRUE);
+}
+
+#endif /* LIBSPL_RPC_XDR_H */
