@@ -75,9 +75,10 @@ main(int argc, char **argv)
 	else
 		return (1);
 
-	freopen("/dev/null", "r", stdin);
-	freopen("/dev/null", "w", stdout);
-	freopen("/dev/null", "w", stderr);
+	if (freopen("/dev/null", "r", stdin) == NULL ||
+	    freopen("/dev/null", "w", stdout) == NULL ||
+	    freopen("/dev/null", "w", stderr) == NULL)
+		return (127);
 
 	return (cmd(argc - 1, argv + 1));
 }
