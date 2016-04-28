@@ -190,20 +190,20 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 
 /*
  * Linux 3.7 API change. posix_acl_{from,to}_xattr gained the user_ns
- * parameter.  For the HAVE_POSIX_ACL_FROM_XATTR_USERNS version the
- * userns _may_ not be correct because it's used outside the RCU.
+ * parameter.  All callers are expected to pass the &init_user_ns which
+ * is available through the init credential (kcred).
  */
 #ifdef HAVE_POSIX_ACL_FROM_XATTR_USERNS
 static inline struct posix_acl *
 zpl_acl_from_xattr(const void *value, int size)
 {
-	return (posix_acl_from_xattr(CRED()->user_ns, value, size));
+	return (posix_acl_from_xattr(kcred->user_ns, value, size));
 }
 
 static inline int
 zpl_acl_to_xattr(struct posix_acl *acl, void *value, int size)
 {
-	return (posix_acl_to_xattr(CRED()->user_ns, acl, value, size));
+	return (posix_acl_to_xattr(kcred->user_ns, acl, value, size));
 }
 
 #else
