@@ -1,4 +1,4 @@
-#!/usr/bin/ksh -p
+#!/bin/ksh -p
 
 #
 # This file and its contents are supplied under the terms of the
