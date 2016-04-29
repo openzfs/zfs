@@ -1865,22 +1865,21 @@ getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 	return (value);
 }
 
-static char *
+static const char *
 getprop_string(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 {
 	nvlist_t *nv;
-	char *value;
+	const char *value;
 
 	*source = NULL;
 	if (nvlist_lookup_nvlist(zhp->zfs_props,
 	    zfs_prop_to_name(prop), &nv) == 0) {
-		verify(nvlist_lookup_string(nv, ZPROP_VALUE, &value) == 0);
+		value = fnvlist_lookup_string(nv, ZPROP_VALUE);
 		(void) nvlist_lookup_string(nv, ZPROP_SOURCE, source);
 	} else {
 		verify(!zhp->zfs_props_table ||
 		    zhp->zfs_props_table[prop] == B_TRUE);
-		if ((value = (char *)zfs_prop_default_string(prop)) == NULL)
-			value = "";
+		value = zfs_prop_default_string(prop);
 		*source = "";
 	}
 
@@ -2301,7 +2300,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 {
 	char *source = NULL;
 	uint64_t val;
-	char *str;
+	const char *str;
 	const char *strval;
 	boolean_t received = zfs_is_recvd_props_mode(zhp);
 
@@ -2407,14 +2406,10 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		break;
 
 	case ZFS_PROP_ORIGIN:
-		(void) strlcpy(propbuf, getprop_string(zhp, prop, &source),
-		    proplen);
-		/*
-		 * If there is no parent at all, return failure to indicate that
-		 * it doesn't apply to this dataset.
-		 */
-		if (propbuf[0] == '\0')
+		str = getprop_string(zhp, prop, &source);
+		if (str == NULL)
 			return (-1);
+		(void) strlcpy(propbuf, str, proplen);
 		break;
 
 	case ZFS_PROP_CLONES:
@@ -2596,8 +2591,10 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			break;
 
 		case PROP_TYPE_STRING:
-			(void) strlcpy(propbuf,
-			    getprop_string(zhp, prop, &source), proplen);
+			str = getprop_string(zhp, prop, &source);
+			if (str == NULL)
+				return (-1);
+			(void) strlcpy(propbuf, str, proplen);
 			break;
 
 		case PROP_TYPE_INDEX:

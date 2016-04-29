@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ZFS_IOCTL_H
@@ -90,14 +90,15 @@ typedef enum drr_headertype {
  * Feature flags for zfs send streams (flags in drr_versioninfo)
  */
 
-#define	DMU_BACKUP_FEATURE_DEDUP		(1<<0)
-#define	DMU_BACKUP_FEATURE_DEDUPPROPS		(1<<1)
-#define	DMU_BACKUP_FEATURE_SA_SPILL		(1<<2)
+#define	DMU_BACKUP_FEATURE_DEDUP		(1 << 0)
+#define	DMU_BACKUP_FEATURE_DEDUPPROPS		(1 << 1)
+#define	DMU_BACKUP_FEATURE_SA_SPILL		(1 << 2)
 /* flags #3 - #15 are reserved for incompatible closed-source implementations */
-#define	DMU_BACKUP_FEATURE_EMBED_DATA		(1<<16)
-#define	DMU_BACKUP_FEATURE_EMBED_DATA_LZ4	(1<<17)
+#define	DMU_BACKUP_FEATURE_EMBED_DATA		(1 << 16)
+#define	DMU_BACKUP_FEATURE_EMBED_DATA_LZ4	(1 << 17)
 /* flag #18 is reserved for a Delphix feature */
-#define	DMU_BACKUP_FEATURE_LARGE_BLOCKS		(1<<19)
+#define	DMU_BACKUP_FEATURE_LARGE_BLOCKS		(1 << 19)
+#define	DMU_BACKUP_FEATURE_RESUMING		(1 << 20)
 
 /*
  * Mask of all supported backup features
@@ -105,10 +106,15 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_DEDUP | \
     DMU_BACKUP_FEATURE_DEDUPPROPS | DMU_BACKUP_FEATURE_SA_SPILL | \
     DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_EMBED_DATA_LZ4 | \
+    DMU_BACKUP_FEATURE_RESUMING | \
     DMU_BACKUP_FEATURE_LARGE_BLOCKS)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
+
+typedef enum dmu_send_resume_token_version {
+	ZFS_SEND_RESUME_TOKEN_VERSION = 1
+} dmu_send_resume_token_version_t;
 
 /*
  * The drr_versioninfo field of the dmu_replay_record has the
@@ -131,6 +137,16 @@ typedef enum drr_headertype {
 
 #define	DRR_FLAG_CLONE		(1<<0)
 #define	DRR_FLAG_CI_DATA	(1<<1)
+/*
+ * This send stream, if it is a full send, includes the FREE and FREEOBJECT
+ * records that are created by the sending process.  This means that the send
+ * stream can be received as a clone, even though it is not an incremental.
+ * This is not implemented as a feature flag, because the receiving side does
+ * not need to have implemented it to receive this stream; it is fully backwards
+ * compatible.  We need a flag, though, because full send streams without it
+ * cannot necessarily be received as a clone correctly.
+ */
+#define	DRR_FLAG_FREERECORDS	(1<<2)
 
 /*
  * flags in the drr_checksumflags field in the DRR_WRITE and
@@ -359,14 +375,14 @@ typedef struct zfs_cmd {
 	uint64_t	zc_iflags;		/* internal to zfs(7fs) */
 	zfs_share_t	zc_share;
 	dmu_objset_stats_t zc_objset_stats;
-	struct drr_begin zc_begin_record;
+	dmu_replay_record_t zc_begin_record;
 	zinject_record_t zc_inject_record;
 	uint32_t	zc_defer_destroy;
 	uint32_t	zc_flags;
 	uint64_t	zc_action_handle;
 	int		zc_cleanup_fd;
 	uint8_t		zc_simple;
-	uint8_t		zc_pad[3];		/* alignment */
+	boolean_t	zc_resumable;
 	uint64_t	zc_sendobj;
 	uint64_t	zc_fromobj;
 	uint64_t	zc_createtxg;
