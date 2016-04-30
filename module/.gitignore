@@ -2,6 +2,7 @@
 *.ko.unsigned
 *.ko.out
 *.ko.out.sig
+*.dwo
 .*.cmd
 
 /.tmp_versions
