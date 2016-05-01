@@ -156,6 +156,7 @@
 #include <sys/vdev.h>
 #include <sys/priv_impl.h>
 #include <sys/dmu.h>
+#include <sys/zio_compress.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_prop.h>
@@ -3817,26 +3818,16 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    SPA_VERSION_ZLE_COMPRESSION))
 				return (SET_ERROR(ENOTSUP));
 
-			if (intval == ZIO_COMPRESS_LZ4 ||
-			    (intval >= ZIO_COMPRESS_LZ4HC_1 &&
-			    intval <= ZIO_COMPRESS_LZ4HC_16)) {
+			if (intval >= ZIO_COMPRESS_LEGACY_FUNCTIONS) {
+				spa_feature_t feature =
+				    zio_compress_table[intval].ci_feature;
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 					return (err);
 
-				/* TODO create zio_compress_to_feature */
-				if (intval == ZIO_COMPRESS_LZ4 &&
-				    !spa_feature_is_enabled(spa,
-				    SPA_FEATURE_LZ4_COMPRESS)) {
-					spa_close(spa, FTAG);
-					return (SET_ERROR(ENOTSUP));
-				}
-
-				if (intval >= ZIO_COMPRESS_LZ4HC_1 &&
-				    intval <= ZIO_COMPRESS_LZ4HC_16 &&
-				    !spa_feature_is_enabled(spa,
-				    SPA_FEATURE_LZ4HC_COMPRESS)) {
+				if (feature != SPA_FEATURE_NONE &&
+				    !spa_feature_is_enabled(spa, feature)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}

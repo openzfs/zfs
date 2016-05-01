@@ -30,6 +30,7 @@
 #define	_SYS_ZIO_COMPRESS_H
 
 #include <sys/abd.h>
+#include <zfeature_common.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -114,6 +115,7 @@ typedef const struct zio_compress_info {
 	int				ci_level;
 	zio_compress_func_t		*ci_compress;
 	enum bp_compress		ci_bp_compress_value;
+	spa_feature_t			ci_feature;
 } zio_compress_info_t;
 
 typedef const struct zio_decompress_info {

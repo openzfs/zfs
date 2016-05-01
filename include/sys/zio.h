@@ -104,7 +104,7 @@ enum zio_checksum {
 
 /*
  * The number of "legacy" compression functions which can be set on individual
- * objects.
+ * objects and don't require feature flags.
  */
 #define	ZIO_COMPRESS_LEGACY_FUNCTIONS ZIO_COMPRESS_LZ4
 
