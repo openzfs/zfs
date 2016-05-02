@@ -5817,8 +5817,11 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	}
 
 
-	if (error == 0 && !(flag & FKIOCTL))
+	if (error == 0 && !(flag & FKIOCTL)) {
+		cookie = spl_fstrans_mark();
 		error = vec->zvec_secpolicy(zc, innvl, CRED());
+		spl_fstrans_unmark(cookie);
+	}
 
 	if (error != 0)
 		goto out;
