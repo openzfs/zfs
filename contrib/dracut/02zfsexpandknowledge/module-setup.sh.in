@@ -23,7 +23,7 @@ get_pool_devices() {
   else
     while read pooldev ; do
       for prefix in /dev/disk/* /dev/mapper ; do
-        if [ -e "$prefix"/"$pooldev" ] ; then
+        if [ -n "$pooldev" -a -e "$prefix"/"$pooldev" ] ; then
           dinfo "zfsexpandknowledge: pool $1 has device $prefix/$pooldev"
           echo `readlink -f "$prefix"/"$pooldev"`
           break
