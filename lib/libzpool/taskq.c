@@ -308,7 +308,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 
 	for (t = 0; t < nthreads; t++)
 		VERIFY((tq->tq_threadlist[t] = thread_create(NULL, 0,
-		    taskq_thread, tq, TS_RUN, NULL, 0, pri)) != NULL);
+		    taskq_thread, tq, 0, &p0, TS_RUN, pri)) != NULL);
 
 	return (tq);
 }
