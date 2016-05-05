@@ -919,6 +919,8 @@ zpool_do_create(int argc, char **argv)
 					enable_all_pool_feat = B_FALSE;
 				}
 			}
+			if (zpool_name_to_prop(optarg) == ZPOOL_PROP_ALTROOT)
+				altroot = propval;
 			break;
 		case 'O':
 			if ((propval = strchr(optarg, '=')) == NULL) {
