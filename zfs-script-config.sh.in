@@ -19,9 +19,11 @@ export ZPIOSPROFILEDIR=${BUILDDIR}/scripts/zpios-profile
 export ETCDIR=${SRCDIR}/etc
 export TESTSDIR=${SRCDIR}/tests
 export RUNFILEDIR=${TESTSDIR}/runfiles
+export UDEVRULEDIR=${BUILDDIR}/udev/rules.d
 
 export ZDB=${CMDDIR}/zdb/zdb
 export ZFS=${CMDDIR}/zfs/zfs
+export ZHACK=${CMDDIR}/zhack/zhack
 export ZINJECT=${CMDDIR}/zinject/zinject
 export ZPOOL=${CMDDIR}/zpool/zpool
 export ZTEST=${CMDDIR}/ztest/ztest

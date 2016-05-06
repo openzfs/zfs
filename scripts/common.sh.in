@@ -37,6 +37,7 @@ bindir=@bindir@
 sbindir=@sbindir@
 udevdir=@udevdir@
 udevruledir=@udevruledir@
+mounthelperdir=@mounthelperdir@
 sysconfdir=@sysconfdir@
 localstatedir=@localstatedir@
 
