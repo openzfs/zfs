@@ -15,4 +15,5 @@ dist_pkgdata_SCRIPTS = \
 	$(top_srcdir)/scripts/zpios.sh \
 	$(top_srcdir)/scripts/zpios-sanity.sh \
 	$(top_srcdir)/scripts/zpios-survey.sh \
-	$(top_srcdir)/scripts/smb.sh
+	$(top_srcdir)/scripts/smb.sh \
+	$(top_srcdir)/scripts/zfs-helpers.sh
