@@ -1168,11 +1168,16 @@ vdev_open_children(vdev_t *vd)
 	tq = taskq_create("vdev_open", children, minclsyspri,
 	    children, children, TASKQ_PREPOPULATE);
 
-	for (c = 0; c < children; c++)
-		VERIFY(taskq_dispatch(tq, vdev_open_child, vd->vdev_child[c],
-		    TQ_SLEEP) != 0);
+	if (tq != NULL) {
+		for (c = 0; c < children; c++)
+			VERIFY(taskq_dispatch(tq, vdev_open_child,
+				vd->vdev_child[c], TQ_SLEEP) != 0);
 
-	taskq_destroy(tq);
+		taskq_destroy(tq);
+	} else {
+		for (c = 0; c < children; c++)
+			vdev_open_child(vd->vdev_child[c]);
+	}
 
 	for (c = 0; c < children; c++)
 		vd->vdev_nonrot &= vd->vdev_child[c]->vdev_nonrot;
