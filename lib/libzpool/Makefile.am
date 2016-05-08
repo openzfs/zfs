@@ -27,6 +27,7 @@ KERNEL_C = \
 	zfs_uio.c \
 	zpool_prop.c \
 	zprop_common.c \
+	abd.c \
 	arc.c \
 	blkptr.c \
 	bplist.c \
@@ -91,6 +92,10 @@ KERNEL_C = \
 	vdev_missing.c \
 	vdev_queue.c \
 	vdev_raidz.c \
+	vdev_raidz_math.c \
+	vdev_raidz_math_scalar.c \
+	vdev_raidz_math_sse.c \
+	vdev_raidz_math_avx2.c \
 	vdev_root.c \
 	zap.c \
 	zap_leaf.c \

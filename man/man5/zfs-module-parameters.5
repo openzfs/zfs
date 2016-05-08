@@ -1626,6 +1626,31 @@ Default value: \fB4,096\fR.
 .sp
 .ne 2
 .na
+\fBzfs_raidz_math_impl\fR (string)
+.ad
+.RS 12n
+Parameter for selecting raidz implementation to use. The parameter can also be
+changed once module is loaded. Available options depend on whether provided
+implementations are compiled in and supported on the running system.
+Once module is loaded content of the
+/sys/module/zfs/parameters/zfs_raidz_math_impl will show available options with
+currently selected one enclosed in [].
+Possible options are:
+  fastest  - methods selected on module load using benchmark routine
+  original - original raidz implementation
+  cycle    - different raidz implementation for each new raidz block (for testing)
+  scalar   - scalar raidz implementation
+  sse      - implementation using SSE instruction set (64bit x86 only)
+  avx2     - implementation using AVX2 instruction set (64bit x86 only)
+.sp
+When specified on loading of zfs module, only first 4 options are accepted.
+.sp
+Default value: \fB[fastest]\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_zevent_cols\fR (int)
 .ad
 .RS 12n

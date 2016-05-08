@@ -24,9 +24,11 @@
  */
 /*
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
@@ -146,7 +148,7 @@ vdev_cache_evict(vdev_cache_t *vc, vdev_cache_entry_t *ve)
 
 	avl_remove(&vc->vc_lastused_tree, ve);
 	avl_remove(&vc->vc_offset_tree, ve);
-	zio_buf_free(ve->ve_data, VCBS);
+	abd_free(ve->ve_data, VCBS);
 	kmem_free(ve, sizeof (vdev_cache_entry_t));
 }
 
@@ -183,7 +185,7 @@ vdev_cache_allocate(zio_t *zio)
 	ve = kmem_zalloc(sizeof (vdev_cache_entry_t), KM_SLEEP);
 	ve->ve_offset = offset;
 	ve->ve_lastused = ddi_get_lbolt();
-	ve->ve_data = zio_buf_alloc(VCBS);
+	ve->ve_data = abd_alloc_scatter(VCBS);
 
 	avl_add(&vc->vc_offset_tree, ve);
 	avl_add(&vc->vc_lastused_tree, ve);
@@ -206,7 +208,8 @@ vdev_cache_hit(vdev_cache_t *vc, vdev_cache_entry_t *ve, zio_t *zio)
 	}
 
 	ve->ve_hits++;
-	bcopy(ve->ve_data + cache_phase, zio->io_data, zio->io_size);
+	abd_copy_off(zio->io_data, ve->ve_data, zio->io_size,
+	    0, cache_phase);
 }
 
 /*
@@ -357,8 +360,8 @@ vdev_cache_write(zio_t *zio)
 		if (ve->ve_fill_io != NULL) {
 			ve->ve_missed_update = 1;
 		} else {
-			bcopy((char *)zio->io_data + start - io_start,
-			    ve->ve_data + start - ve->ve_offset, end - start);
+			abd_copy_off(ve->ve_data, zio->io_data, end - start,
+			    start - ve->ve_offset, start - io_start);
 		}
 		ve = AVL_NEXT(&vc->vc_offset_tree, ve);
 	}

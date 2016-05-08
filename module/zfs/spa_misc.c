@@ -23,6 +23,7 @@
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -36,6 +37,7 @@
 #include <sys/zil.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
+#include <sys/vdev_raidz.h>
 #include <sys/metaslab.h>
 #include <sys/uberblock_impl.h>
 #include <sys/txg.h>
@@ -1822,6 +1824,7 @@ spa_init(int mode)
 	}
 #endif
 
+	abd_init();
 	fm_init();
 	refcount_init();
 	unique_init();
@@ -1831,6 +1834,7 @@ spa_init(int mode)
 	dmu_init();
 	zil_init();
 	vdev_cache_stat_init();
+	vdev_raidz_math_init();
 	zfs_prop_init();
 	zpool_prop_init();
 	zpool_feature_init();
@@ -1846,6 +1850,7 @@ spa_fini(void)
 	spa_evict_all();
 
 	vdev_cache_stat_fini();
+	vdev_raidz_math_fini();
 	zil_fini();
 	dmu_fini();
 	zio_fini();
@@ -1854,6 +1859,7 @@ spa_fini(void)
 	unique_fini();
 	refcount_fini();
 	fm_fini();
+	abd_fini();
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);

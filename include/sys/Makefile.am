@@ -1,6 +1,7 @@
 SUBDIRS = fm fs
 
 COMMON_H = \
+	$(top_srcdir)/include/sys/abd.h \
 	$(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/arc_impl.h \
 	$(top_srcdir)/include/sys/avl.h \
@@ -74,6 +75,8 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/vdev_file.h \
 	$(top_srcdir)/include/sys/vdev.h \
 	$(top_srcdir)/include/sys/vdev_impl.h \
+	$(top_srcdir)/include/sys/vdev_raidz.h \
+	$(top_srcdir)/include/sys/vdev_raidz_impl.h \
 	$(top_srcdir)/include/sys/xvattr.h \
 	$(top_srcdir)/include/sys/zap.h \
 	$(top_srcdir)/include/sys/zap_impl.h \

@@ -25,9 +25,11 @@
 
 /*
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/abd.h>
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
@@ -271,13 +273,12 @@ vdev_mirror_scrub_done(zio_t *zio)
 		while ((pio = zio_walk_parents(zio)) != NULL) {
 			mutex_enter(&pio->io_lock);
 			ASSERT3U(zio->io_size, >=, pio->io_size);
-			bcopy(zio->io_data, pio->io_data, pio->io_size);
+			abd_copy(pio->io_data, zio->io_data, pio->io_size);
 			mutex_exit(&pio->io_lock);
 		}
 		mutex_exit(&zio->io_lock);
 	}
-
-	zio_buf_free(zio->io_data, zio->io_size);
+	abd_free(zio->io_data, zio->io_size);
 
 	mc->mc_error = zio->io_error;
 	mc->mc_tried = 1;
@@ -429,10 +430,16 @@ vdev_mirror_io_start(zio_t *zio)
 			 * data into zio->io_data in vdev_mirror_scrub_done.
 			 */
 			for (c = 0; c < mm->mm_children; c++) {
+				abd_t *tmp;
 				mc = &mm->mm_child[c];
+				if (ABD_IS_LINEAR(zio->io_data))
+					tmp = abd_alloc_linear(zio->io_size);
+				else
+					tmp = abd_alloc_scatter(zio->io_size);
+
 				zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 				    mc->mc_vd, mc->mc_offset,
-				    zio_buf_alloc(zio->io_size), zio->io_size,
+				    tmp, zio->io_size,
 				    zio->io_type, zio->io_priority, 0,
 				    vdev_mirror_scrub_done, mc));
 			}
