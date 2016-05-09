@@ -908,7 +908,9 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			uio_prefaultpages(MIN(n, max_blksz), uio);
 	}
 
+	mutex_lock(&ZTOI(zp)->i_mutex);
 	zfs_inode_update(zp);
+	mutex_unlock(&ZTOI(zp)->i_mutex);
 	zfs_range_unlock(rl);
 
 	/*
@@ -1237,8 +1239,12 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 	}
 
 	error = zfs_dirlook(zdp, nm, ipp, flags, direntflags, realpnp);
-	if ((error == 0) && (*ipp))
+	if ((error == 0) && (*ipp)) {
+		mutex_lock(&((*ipp)->i_mutex));
 		zfs_inode_update(ITOZ(*ipp));
+		mutex_unlock(&((*ipp)->i_mutex));
+	}
+
 
 	ZFS_EXIT(zsb);
 	return (error);
