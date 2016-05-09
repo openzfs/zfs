@@ -67,7 +67,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool get\fR [\fB-pH\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
+\fBzpool get\fR [\fB-Hp\fR] [\fB-o \fR\fIfield\fR[,...]] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...
 .fi
 
 .LP
@@ -105,7 +105,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool list\fR [\fB-T\fR d | u ] [\fB-HgLPv\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
+\fBzpool list\fR [\fB-T\fR d | u ] [\fB-HgLpPv\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
      [\fIinterval\fR[\fIcount\fR]]
 .fi
 
@@ -1199,7 +1199,8 @@ This command will forcefully export the pool even if it has a shared spare that 
 .ne 2
 .mk
 .na
-\fB\fBzpool get\fR [\fB-p\fR] "\fIall\fR" | \fIproperty\fR[,...] \fIpool\fR ...\fR
+\fB\fBzpool get\fR [\fB-Hp\fR] [\fB-o \fR\fIfield\fR[,...]]  "\fIall\fR" | \fIproperty\fR[,...]
+\fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1207,7 +1208,7 @@ Retrieves the given list of properties (or all properties if "\fBall\fR" is used
 .sp
 .in +2
 .nf
-       name          Name of storage pool
+        name          Name of storage pool
         property      Property name
         value         Property value
         source        Property source, either 'default' or 'local'.
@@ -1216,6 +1217,18 @@ Retrieves the given list of properties (or all properties if "\fBall\fR" is used
 .sp
 
 See the "Properties" section for more information on the available pool properties.
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-H\fR\fR
+.ad
+.RS 6n
+.rt
+Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
+.RE
+
 .sp
 .ne 2
 .mk
@@ -1231,13 +1244,13 @@ Display numbers in parseable (exact) values.
 .ne 2
 .mk
 .na
-\fB\fB-H\fR\fR
+\fB\fB-o\fR \fIfield\fR\fR
 .ad
-.RS 6n
+.RS 12n
 .rt
-Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
+A comma-separated list of columns to display. \fBname,property,value,source\fR
+is the default value.
 .RE
-
 .RE
 
 .sp
@@ -1765,7 +1778,7 @@ Treat exported or foreign devices as inactive.
 .ne 2
 .mk
 .na
-\fB\fBzpool list\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-HgLPv\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool list\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-HgLpPv\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
 .ad
 .sp .6
 .RS 4n
@@ -1807,6 +1820,17 @@ Display real paths for vdevs resolving all symbolic links. This can be used to l
 .ne 2
 .mk
 .na
+\fB\fB-p\fR\fR
+.ad
+.RS 12n
+.rt
+Display numbers in parsable (exact) values.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-P\fR\fR
 .ad
 .RS 12n
@@ -1814,6 +1838,7 @@ Display real paths for vdevs resolving all symbolic links. This can be used to l
 Display full paths for vdevs instead of only the last component of the path.  This can be used in conjunction with the \fB-L\fR flag.
 .RE
 
+.sp
 .ne 2
 .mk
 .na
