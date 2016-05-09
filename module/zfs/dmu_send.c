@@ -2351,16 +2351,19 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
     int cleanup_fd, uint64_t *action_handlep)
 {
 	int err = 0;
-	struct receive_arg ra = { 0 };
-	struct receive_writer_arg rwa = { 0 };
+	struct receive_arg *ra;
+	struct receive_writer_arg *rwa;
 	int featureflags;
 	struct receive_ign_obj_node *n;
 
-	ra.byteswap = drc->drc_byteswap;
-	ra.cksum = drc->drc_cksum;
-	ra.vp = vp;
-	ra.voff = *voffp;
-	list_create(&ra.ignore_obj_list, sizeof (struct receive_ign_obj_node),
+	ra = kmem_zalloc(sizeof (*ra), KM_SLEEP);
+	rwa = kmem_zalloc(sizeof (*rwa), KM_SLEEP);
+
+	ra->byteswap = drc->drc_byteswap;
+	ra->cksum = drc->drc_cksum;
+	ra->vp = vp;
+	ra->voff = *voffp;
+	list_create(&ra->ignore_obj_list, sizeof (struct receive_ign_obj_node),
 		offsetof(struct receive_ign_obj_node, node));
 
 	/* these were verified in dmu_recv_begin */
@@ -2371,7 +2374,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	/*
 	 * Open the objset we are modifying.
 	 */
-	VERIFY0(dmu_objset_from_ds(drc->drc_ds, &ra.os));
+	VERIFY0(dmu_objset_from_ds(drc->drc_ds, &ra->os));
 
 	ASSERT(dsl_dataset_phys(drc->drc_ds)->ds_flags & DS_FLAG_INCONSISTENT);
 
@@ -2382,102 +2385,102 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 		minor_t minor;
 
 		if (cleanup_fd == -1) {
-			ra.err = SET_ERROR(EBADF);
+			ra->err = SET_ERROR(EBADF);
 			goto out;
 		}
-		ra.err = zfs_onexit_fd_hold(cleanup_fd, &minor);
-		if (ra.err != 0) {
+		ra->err = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		if (ra->err != 0) {
 			cleanup_fd = -1;
 			goto out;
 		}
 
 		if (*action_handlep == 0) {
-			rwa.guid_to_ds_map =
+			rwa->guid_to_ds_map =
 			    kmem_alloc(sizeof (avl_tree_t), KM_SLEEP);
-			avl_create(rwa.guid_to_ds_map, guid_compare,
+			avl_create(rwa->guid_to_ds_map, guid_compare,
 			    sizeof (guid_map_entry_t),
 			    offsetof(guid_map_entry_t, avlnode));
 			err = zfs_onexit_add_cb(minor,
-			    free_guid_map_onexit, rwa.guid_to_ds_map,
+			    free_guid_map_onexit, rwa->guid_to_ds_map,
 			    action_handlep);
-			if (ra.err != 0)
+			if (ra->err != 0)
 				goto out;
 		} else {
 			err = zfs_onexit_cb_data(minor, *action_handlep,
-			    (void **)&rwa.guid_to_ds_map);
-			if (ra.err != 0)
+			    (void **)&rwa->guid_to_ds_map);
+			if (ra->err != 0)
 				goto out;
 		}
 
-		drc->drc_guid_to_ds_map = rwa.guid_to_ds_map;
+		drc->drc_guid_to_ds_map = rwa->guid_to_ds_map;
 	}
 
-	err = receive_read_payload_and_next_header(&ra, 0, NULL);
+	err = receive_read_payload_and_next_header(ra, 0, NULL);
 	if (err)
 		goto out;
 
-	(void) bqueue_init(&rwa.q, zfs_recv_queue_length,
+	(void) bqueue_init(&rwa->q, zfs_recv_queue_length,
 	    offsetof(struct receive_record_arg, node));
-	cv_init(&rwa.cv, NULL, CV_DEFAULT, NULL);
-	mutex_init(&rwa.mutex, NULL, MUTEX_DEFAULT, NULL);
-	rwa.os = ra.os;
-	rwa.byteswap = drc->drc_byteswap;
+	cv_init(&rwa->cv, NULL, CV_DEFAULT, NULL);
+	mutex_init(&rwa->mutex, NULL, MUTEX_DEFAULT, NULL);
+	rwa->os = ra->os;
+	rwa->byteswap = drc->drc_byteswap;
 
-	(void) thread_create(NULL, 0, receive_writer_thread, &rwa, 0, curproc,
+	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,
 	    TS_RUN, minclsyspri);
 	/*
-	 * We're reading rwa.err without locks, which is safe since we are the
+	 * We're reading rwa->err without locks, which is safe since we are the
 	 * only reader, and the worker thread is the only writer.  It's ok if we
 	 * miss a write for an iteration or two of the loop, since the writer
 	 * thread will keep freeing records we send it until we send it an eos
 	 * marker.
 	 *
-	 * We can leave this loop in 3 ways:  First, if rwa.err is
+	 * We can leave this loop in 3 ways:  First, if rwa->err is
 	 * non-zero.  In that case, the writer thread will free the rrd we just
 	 * pushed.  Second, if  we're interrupted; in that case, either it's the
-	 * first loop and ra.rrd was never allocated, or it's later, and ra.rrd
+	 * first loop and ra->rrd was never allocated, or it's later, and ra.rrd
 	 * has been handed off to the writer thread who will free it.  Finally,
 	 * if receive_read_record fails or we're at the end of the stream, then
-	 * we free ra.rrd and exit.
+	 * we free ra->rrd and exit.
 	 */
-	while (rwa.err == 0) {
+	while (rwa->err == 0) {
 		if (issig(JUSTLOOKING) && issig(FORREAL)) {
 			err = SET_ERROR(EINTR);
 			break;
 		}
 
-		ASSERT3P(ra.rrd, ==, NULL);
-		ra.rrd = ra.next_rrd;
-		ra.next_rrd = NULL;
-		/* Allocates and loads header into ra.next_rrd */
-		err = receive_read_record(&ra);
+		ASSERT3P(ra->rrd, ==, NULL);
+		ra->rrd = ra->next_rrd;
+		ra->next_rrd = NULL;
+		/* Allocates and loads header into ra->next_rrd */
+		err = receive_read_record(ra);
 
-		if (ra.rrd->header.drr_type == DRR_END || err != 0) {
-			kmem_free(ra.rrd, sizeof (*ra.rrd));
-			ra.rrd = NULL;
+		if (ra->rrd->header.drr_type == DRR_END || err != 0) {
+			kmem_free(ra->rrd, sizeof (*ra->rrd));
+			ra->rrd = NULL;
 			break;
 		}
 
-		bqueue_enqueue(&rwa.q, ra.rrd,
-		    sizeof (struct receive_record_arg) + ra.rrd->payload_size);
-		ra.rrd = NULL;
+		bqueue_enqueue(&rwa->q, ra->rrd,
+		    sizeof (struct receive_record_arg) + ra->rrd->payload_size);
+		ra->rrd = NULL;
 	}
-	if (ra.next_rrd == NULL)
-		ra.next_rrd = kmem_zalloc(sizeof (*ra.next_rrd), KM_SLEEP);
-	ra.next_rrd->eos_marker = B_TRUE;
-	bqueue_enqueue(&rwa.q, ra.next_rrd, 1);
+	if (ra->next_rrd == NULL)
+		ra->next_rrd = kmem_zalloc(sizeof (*ra->next_rrd), KM_SLEEP);
+	ra->next_rrd->eos_marker = B_TRUE;
+	bqueue_enqueue(&rwa->q, ra->next_rrd, 1);
 
-	mutex_enter(&rwa.mutex);
-	while (!rwa.done) {
-		cv_wait(&rwa.cv, &rwa.mutex);
+	mutex_enter(&rwa->mutex);
+	while (!rwa->done) {
+		cv_wait(&rwa->cv, &rwa->mutex);
 	}
-	mutex_exit(&rwa.mutex);
+	mutex_exit(&rwa->mutex);
 
-	cv_destroy(&rwa.cv);
-	mutex_destroy(&rwa.mutex);
-	bqueue_destroy(&rwa.q);
+	cv_destroy(&rwa->cv);
+	mutex_destroy(&rwa->mutex);
+	bqueue_destroy(&rwa->q);
 	if (err == 0)
-		err = rwa.err;
+		err = rwa->err;
 
 out:
 	if ((featureflags & DMU_BACKUP_FEATURE_DEDUP) && (cleanup_fd != -1))
@@ -2491,13 +2494,15 @@ out:
 		dmu_recv_cleanup_ds(drc);
 	}
 
-	*voffp = ra.voff;
+	*voffp = ra->voff;
 
-	for (n = list_remove_head(&ra.ignore_obj_list); n != NULL;
-	    n = list_remove_head(&ra.ignore_obj_list)) {
+	for (n = list_remove_head(&ra->ignore_obj_list); n != NULL;
+	    n = list_remove_head(&ra->ignore_obj_list)) {
 		kmem_free(n, sizeof (*n));
 	}
-	list_destroy(&ra.ignore_obj_list);
+	list_destroy(&ra->ignore_obj_list);
+	kmem_free(ra, sizeof (*ra));
+	kmem_free(rwa, sizeof (*rwa));
 	return (err);
 }
 
