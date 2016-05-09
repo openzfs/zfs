@@ -2619,7 +2619,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 			break;
 		case DRR_SPILL:
 			if (byteswap) {
-				drr->drr_u.drr_write.drr_length =
+				drr->drr_u.drr_spill.drr_length =
 				    BSWAP_64(drr->drr_u.drr_spill.drr_length);
 			}
 			(void) recv_read(hdl, fd, buf,
