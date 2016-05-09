@@ -1487,7 +1487,6 @@ out:
 			iput(ZTOI(zp));
 	} else {
 		zfs_inode_update(dzp);
-		zfs_inode_update(zp);
 		*ipp = ZTOI(zp);
 	}
 
@@ -1913,7 +1912,6 @@ top:
 		zil_commit(zilog, 0);
 
 	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
 	ZFS_EXIT(zsb);
 	return (0);
 }
