@@ -13,6 +13,12 @@ type getarg >/dev/null 2>&1 || . "$dracutlib"
 [ -z "$rootflags" ]  && rootflags=$(getarg rootflags=)
 
 [ "${root##zfs:}" = "${root}" -a "${root##ZFS=}" = "${root}" -a "$rootfstype" != "zfs" ] && exit 0
+# If root is set to zfs:AUTO, then we know sysroot.mount will not be generated
+# so we have no need to enhance it.
+# See https://github.com/zfsonlinux/zfs/pull/4558#discussion_r61118952 for details.
+if [ "${root}" = "zfs:AUTO" ] ; then
+  exit 0
+fi
 
 rootfstype=zfs
 if echo "${rootflags}" | grep -Eq '^zfsutil$|^zfsutil,|,zfsutil$|,zfsutil,' ; then
