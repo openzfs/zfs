@@ -15,7 +15,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH zpool 8 "14 December 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.TH zpool 8 "May 11, 2016" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zpool \- configures ZFS storage pools
 .SH SYNOPSIS
@@ -688,7 +688,7 @@ Controls automatic device replacement. If set to "\fBoff\fR", device replacement
 .ad
 .sp .6
 .RS 4n
-Identifies the default bootable dataset for the root pool. This property is expected to be set mainly by the installation and upgrade programs.
+Identifies the default bootable dataset for the root pool. This property is expected to be set mainly by the installation and upgrade programs. Not all Linux distribution boot processes use the \fBbootfs\fR property.
 .RE
 
 .sp
