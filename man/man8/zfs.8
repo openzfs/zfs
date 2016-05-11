@@ -278,7 +278,6 @@ where the maximum length of a dataset name is \fBMAXNAMELEN\fR (256 bytes).
 A dataset can be one of the following:
 .sp
 .ne 2
-.mk
 .na
 \fB\fIfilesystem\fR\fR
 .ad
@@ -289,7 +288,6 @@ A \fBZFS\fR dataset of type \fBfilesystem\fR can be mounted within the standard 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fIvolume\fR\fR
 .ad
@@ -300,7 +298,6 @@ A logical volume exported as a raw or block device. This type of dataset should 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fIsnapshot\fR\fR
 .ad
@@ -311,7 +308,6 @@ A read-only version of a file system or volume at a given point in time. It is s
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fIbookmark\fR\fR
 .ad
@@ -412,7 +408,6 @@ The values of non-numeric native properties are case-sensitive and must be lower
 The following native properties consist of read-only statistics about the dataset. These properties can be neither set, nor inherited.
 .sp
 .ne 2
-.mk
 .na
 \fB\fBavailable\fR\fR
 .ad
@@ -425,7 +420,6 @@ This property can also be referred to by its shortened column name, \fBavail\fR.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBcompressratio\fR\fR
 .ad
@@ -436,7 +430,6 @@ For non-snapshots, the compression ratio achieved for the \fBused\fR space of th
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBcreation\fR\fR
 .ad
@@ -447,7 +440,6 @@ The time this dataset was created.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBclones\fR\fR
 .ad
@@ -473,7 +465,6 @@ This property is \fBon\fR if the snapshot has been marked for deferred destructi
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBfilesystem_count\fR
 .ad
@@ -530,7 +521,6 @@ For file systems, indicates whether the file system is currently mounted. This p
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBorigin\fR\fR
 .ad
@@ -541,7 +531,6 @@ For cloned file systems or volumes, the snapshot from which the clone was create
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBreferenced\fR\fR
 .ad
@@ -554,7 +543,6 @@ This property can also be referred to by its shortened column name, \fBrefer\fR.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBrefcompressratio\fR\fR
 .ad
@@ -567,7 +555,6 @@ property.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsnapshot_count\fR
 .ad
@@ -590,7 +577,6 @@ The type of dataset: \fBfilesystem\fR, \fBvolume\fR, or \fBsnapshot\fR.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBused\fR\fR
 .ad
@@ -605,7 +591,6 @@ The amount of space used, available, or referenced does not take into account pe
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBusedby*\fR\fR
 .ad
@@ -616,7 +601,6 @@ The \fBusedby*\fR properties decompose the \fBused\fR properties into the variou
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBusedbychildren\fR\fR
 .ad
@@ -627,7 +611,6 @@ The amount of space used by children of this dataset, which would be freed if al
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBusedbydataset\fR\fR
 .ad
@@ -638,7 +621,6 @@ The amount of space used by this dataset itself, which would be freed if the dat
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBusedbyrefreservation\fR\fR
 .ad
@@ -649,7 +631,6 @@ The amount of space used by a \fBrefreservation\fR set on this dataset, which wo
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBusedbysnapshots\fR\fR
 .ad
@@ -660,7 +641,6 @@ The amount of space consumed by snapshots of this dataset. In particular, it is 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBuserused@\fR\fIuser\fR\fR
 .ad
@@ -700,7 +680,6 @@ Files created on Linux always have POSIX owners.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBuserrefs\fR\fR
 .ad
@@ -711,7 +690,6 @@ This property is set to the number of user holds on this snapshot. User holds ar
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBgroupused@\fR\fIgroup\fR\fR
 .ad
@@ -724,7 +702,6 @@ Unprivileged users can only access their own groups' space usage. The root user,
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBvolblocksize\fR=\fIblocksize\fR\fR
 .ad
@@ -772,7 +749,6 @@ of the origin's filesystem, etc).
 The following native properties can be used to change the behavior of a \fBZFS\fR dataset.
 .sp
 .ne 2
-.mk
 .na
 \fB\fBaclinherit\fR=\fBrestricted\fR | \fBdiscard\fR | \fBnoallow\fR | \fBpassthrough\fR | \fBpassthrough-x\fR\fR
 .ad
@@ -787,7 +763,6 @@ The \fBaclinherit\fR property does not apply to Posix ACLs.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBacltype\fR=\fBoff\fR | \fBnoacl\fR | \fBposixacl\fR \fR
 .ad
@@ -812,7 +787,6 @@ The value \fBnoacl\fR is an alias for \fBoff\fR.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBatime\fR=\fBon\fR | \fBoff\fR\fR
 .ad
@@ -825,7 +799,6 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBatime\fR and \fBnoati
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBcanmount\fR=\fBon\fR | \fBoff\fR | \fBnoauto\fR\fR
 .ad
@@ -842,7 +815,6 @@ The values \fBon\fR and \fBnoauto\fR are equivalent to the \fBauto\fR and \fBnoa
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBchecksum\fR=\fBon\fR | \fBoff\fR | \fBfletcher2\fR | \fBfletcher4\fR | \fBsha256\fR\fR
 .ad
@@ -855,7 +827,6 @@ Changing this property affects only newly-written data.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBcompression\fR=\fBoff\fR | \fBon\fR | \fBlzjb\fR | \fBlz4\fR |
 \fBgzip\fR | \fBgzip-\fR\fIN\fR | \fBzle\fR\fR
@@ -898,7 +869,6 @@ This property can also be referred to by its shortened column name
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBcopies\fR=\fB1\fR | \fB2\fR | \fB3\fR\fR
 .ad
@@ -913,7 +883,6 @@ Remember that \fBZFS\fR will not import a pool with a missing top-level vdev. Do
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBdedup\fR=\fBoff\fR | \fBon\fR | \fBverify\fR | \fBsha256\fR[,\fBverify\fR]\fR
 .ad
@@ -928,7 +897,6 @@ Unless necessary, deduplication should NOT be enabled on a system. See \fBDedupl
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBdevices\fR=\fBon\fR | \fBoff\fR\fR
 .ad
@@ -941,7 +909,6 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBdev\fR and \fBnodev\f
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBexec\fR=\fBon\fR | \fBoff\fR\fR
 .ad
@@ -954,7 +921,6 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBexec\fR and \fBnoexec
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBmlslabel\fR=\fBnone\fR\fR | \fIlabel\fR
 .ad
@@ -973,7 +939,6 @@ Zones are a Solaris feature and are not relevant on Linux.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBfilesystem_limit\fR=\fBnone\fR\fR | \fIcount\fR
 .ad
@@ -1001,7 +966,6 @@ When the \fBmountpoint\fR property is changed for a file system, the file system
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBnbmand\fR=\fBoff\fR | \fBon\fR\fR
 .ad
@@ -1016,7 +980,6 @@ This property is not used on Linux.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBprimarycache\fR=\fBall\fR | \fBnone\fR | \fBmetadata\fR\fR
 .ad
@@ -1027,7 +990,6 @@ Controls what is cached in the primary cache (ARC). If this property is set to \
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBquota\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
@@ -1040,7 +1002,6 @@ Quotas cannot be set on volumes, as the \fBvolsize\fR property acts as an implic
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsnapshot_limit\fR=\fBnone\fR\fR | \fIcount\fR
 .ad
@@ -1098,7 +1059,6 @@ Files created on Linux always have POSIX owners.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBgroupquota@\fR\fIgroup\fR=\fBnone\fR\fR | \fIsize\fR
 .ad
@@ -1111,7 +1071,6 @@ Unprivileged users can access only their own groups' space usage. The root user,
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBreadonly\fR=\fBoff\fR | \fBon\fR\fR
 .ad
@@ -1126,7 +1085,6 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBro\fR and \fBrw\fR mo
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBrecordsize\fR=\fIsize\fR\fR
 .ad
@@ -1145,7 +1103,6 @@ This property can also be referred to by its shortened column name, \fBrecsize\f
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBredundant_metadata\fR=\fBall\fR | \fBmost\fR\fR
 .ad
@@ -1187,7 +1144,6 @@ Limits the amount of space a dataset can consume. This property enforces a hard 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBrefreservation\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
@@ -1204,7 +1160,6 @@ This property can also be referred to by its shortened column name, \fBrefreserv
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBrelatime\fR=\fBoff\fR | \fBon\fR\fR
 .ad
@@ -1217,7 +1172,6 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBrelatime\fR and \fBno
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBreservation\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
@@ -1230,7 +1184,6 @@ This property can also be referred to by its shortened column name, \fBreserv\fR
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsecondarycache\fR=\fBall\fR | \fBnone\fR | \fBmetadata\fR\fR
 .ad
@@ -1241,7 +1194,6 @@ Controls what is cached in the secondary cache (L2ARC). If this property is set 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsetuid\fR=\fBon\fR | \fBoff\fR\fR
 .ad
@@ -1254,7 +1206,6 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBsuid\fR and \fBnosuid
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsharesmb\fR=\fBoff\fR | \fBon\fR
 .ad
@@ -1270,7 +1221,6 @@ In Linux, the share is created with the ACL (Access Control List) "Everyone:F" (
 .sp
 .in +2
 Example to mount a SMB filesystem shared through ZFS (share/tmp):
-.mk
 Note that a user and his/her password \fBmust\fR be given!
 .sp
 .in +2
@@ -1279,7 +1229,6 @@ smbmount //127.0.0.1/share_tmp /mnt/tmp -o user=workgroup/turbo,password=obrut,u
 .in -2
 .sp
 .ne 2
-.mk
 .na
 \fBMinimal /etc/samba/smb.conf configuration\fR
 .sp
@@ -1295,7 +1244,6 @@ smbmount //127.0.0.1/share_tmp /mnt/tmp -o user=workgroup/turbo,password=obrut,u
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsharenfs\fR=\fBoff\fR | \fBon\fR | \fIopts\fR\fR
 .ad
@@ -1316,7 +1264,6 @@ When the \fBsharenfs\fR property is changed for a dataset, the dataset and any c
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBlogbias\fR=\fBlatency\fR | \fBthroughput\fR\fR
 .ad
@@ -1327,7 +1274,6 @@ Provide a hint to ZFS about handling of synchronous requests in this dataset. If
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsnapdev\fR=\fBhidden\fR | \fBvisible\fR\fR
 .ad
@@ -1340,7 +1286,6 @@ In this context, hidden does not refer to the concept of hiding files or directo
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsnapdir\fR=\fBhidden\fR | \fBvisible\fR\fR
 .ad
@@ -1351,7 +1296,6 @@ Controls whether the \fB\&.zfs\fR directory is hidden or visible in the root of 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBsync\fR=\fBstandard\fR | \fBalways\fR | \fBdisabled\fR\fR
 .ad
@@ -1382,7 +1326,6 @@ The on-disk version of this file system, which is independent of the pool versio
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBvolsize\fR=\fIsize\fR\fR
 .ad
@@ -1397,7 +1340,6 @@ A "sparse volume" (also known as "thin provisioning") can be created by specifyi
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBvscan\fR=\fBoff\fR | \fBon\fR\fR
 .ad
@@ -1410,7 +1352,6 @@ This property is not used on Linux.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBxattr\fR=\fBon\fR | \fBoff\fR | \fBsa\fR\fR
 .ad
@@ -1445,7 +1386,6 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBxattr\fR and \fBnoxat
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzoned\fR=\fBoff\fR | \fBon\fR\fR
 .ad
@@ -1459,7 +1399,6 @@ Controls whether the dataset is managed from a non-global zone. Zones are a Sola
 The following three properties cannot be changed after the file system is created, and therefore, should be set when the file system is created. If the properties are not set with the \fBzfs create\fR or \fBzpool create\fR commands, these properties are inherited from the parent dataset. If the parent dataset lacks these properties due to having been created prior to these features being supported, the new file system will have the default values for these properties.
 .sp
 .ne 2
-.mk
 .na
 \fB\fBcasesensitivity\fR=\fBsensitive\fR | \fBinsensitive\fR | \fBmixed\fR\fR
 .ad
@@ -1472,7 +1411,6 @@ The \fBmixed\fR value for the \fBcasesensitivity\fR property indicates that the 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBnormalization\fR = \fBnone\fR | \fBformC\fR | \fBformD\fR | \fBformKC\fR | \fBformKD\fR\fR
 .ad
@@ -1492,7 +1430,6 @@ This property cannot be changed after the file system is created.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fButf8only\fR=\fBoff\fR | \fBon\fR\fR
 .ad
@@ -1514,7 +1451,6 @@ The \fBcasesensitivity\fR, \fBnormalization\fR, and \fButf8only\fR properties ar
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBcontext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
@@ -1525,7 +1461,6 @@ This flag sets the SELinux context for all files in the filesytem under the moun
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBfscontext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
@@ -1536,7 +1471,6 @@ This flag sets the SELinux context for the filesytem being mounted.  See \fBseli
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBdefntext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
@@ -1547,7 +1481,6 @@ This flag sets the SELinux context for unlabeled files.  See \fBselinux\fR(8) fo
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBrootcontext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
@@ -1558,7 +1491,6 @@ This flag sets the SELinux context for the root inode of the filesystem.  See \f
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBoverlay\fR=\fBoff\fR | \fBon\fR\fR
 .ad
@@ -1613,7 +1545,6 @@ with the \fBzfs create\fR command set up and enable the swap area using the
 All subcommands that modify state are logged persistently to the pool in their original form. The log can be viewed with \fBzpool history\fR.
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs ?\fR\fR
 .ad
@@ -1624,7 +1555,6 @@ Displays a help message.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs create\fR [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIfilesystem\fR\fR
 .ad
@@ -1633,7 +1563,6 @@ Displays a help message.
 Creates a new \fBZFS\fR file system. The file system is automatically mounted according to the \fBmountpoint\fR and \fBcanmount\fR properties.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-p\fR\fR
 .ad
@@ -1644,7 +1573,6 @@ Creates all the non-existing parent datasets. Datasets created in this manner in
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIproperty\fR=\fIvalue\fR\fR
 .ad
@@ -1657,7 +1585,6 @@ Sets the specified property as if the command \fBzfs set\fR \fIproperty\fR=\fIva
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs create\fR [\fB-ps\fR] [\fB-b\fR \fIblocksize\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fB-V\fR \fIsize\fR \fIvolume\fR\fR
 .ad
@@ -1668,7 +1595,6 @@ Creates a volume of the given size. The volume is exported as a block device in 
 \fIsize\fR is automatically rounded up to the nearest 128KiB to ensure that the volume has an integral number of blocks regardless of \fIblocksize\fR.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-p\fR\fR
 .ad
@@ -1679,7 +1605,6 @@ Creates all the non-existing parent datasets as file systems. Datasets created i
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-s\fR\fR
 .ad
@@ -1690,7 +1615,6 @@ Creates a sparse volume by omitting the automatic creation of a \fBrefreservatio
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIproperty\fR=\fIvalue\fR\fR
 .ad
@@ -1703,7 +1627,6 @@ If \fB-o\fR \fBvolsize\fR is provided, the resulting behavior is undefined; it c
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-b\fR \fIblocksize\fR\fR
 .ad
@@ -1716,7 +1639,6 @@ Equivalent to \fB-o\fR \fBvolblocksize\fR=\fIblocksize\fR. If this option is spe
 
 .sp
 .ne 2
-.mk
 .na
 \fBzfs destroy\fR [\fB-fnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR
 .ad
@@ -1725,7 +1647,6 @@ Equivalent to \fB-o\fR \fBvolblocksize\fR=\fIblocksize\fR. If this option is spe
 Destroys the given dataset. By default, the command unshares any file systems that are currently shared, unmounts any file systems that are currently mounted, and refuses to destroy a dataset that has active dependents (children or clones).
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -1736,7 +1657,6 @@ Recursively destroy all children.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-R\fR\fR
 .ad
@@ -1747,7 +1667,6 @@ Recursively destroy all dependents, including cloned file systems outside the ta
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-f\fR\fR
 .ad
@@ -1794,7 +1713,6 @@ Extreme care should be taken when applying either the \fB-r\fR or the \fB-R\fR o
 
 .sp
 .ne 2
-.mk
 .na
 \fBzfs destroy\fR [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
 .ad
@@ -1815,7 +1733,6 @@ part after the \fB@\fR) should be specified when using a range or
 comma-separated list to identify multiple snapshots.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-d\fR\fR
 .ad
@@ -1826,7 +1743,6 @@ If the snapshot does not qualify for immediate destruction, rather than returnin
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -1837,7 +1753,6 @@ Destroy (or mark for deferred destruction) all snapshots with this name in desce
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-R\fR\fR
 .ad
@@ -1890,7 +1805,6 @@ behavior for mounted file systems in use.
 
 .sp
 .ne 2
-.mk
 .na
 \fBzfs destroy\fR \fIfilesystem\fR|\fIvolume\fR#\fIbookmark\fR
 .ad
@@ -1910,7 +1824,6 @@ The given bookmark is destroyed.
 Creates snapshots with the given names. All previous modifications by successful system calls to the file system are part of the snapshots. Snapshots are taken atomically, so that all snapshots correspond to the same moment in time. See the "Snapshots" section for details.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -1921,7 +1834,6 @@ Recursively create snapshots of all descendent datasets.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIproperty\fR=\fIvalue\fR\fR
 .ad
@@ -1934,7 +1846,6 @@ Sets the specified property; see \fBzfs set\fR for details.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs rollback\fR [\fB-rRf\fR] \fIsnapshot\fR\fR
 .ad
@@ -1945,7 +1856,6 @@ Roll back the given dataset to a previous snapshot. When a dataset is rolled bac
 The \fB-rR\fR options do not recursively destroy the child snapshots of a recursive snapshot. Only direct snapshots of the specified filesystem are destroyed by either of these options. To completely roll back a recursive snapshot, you must rollback the individual child snapshots.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -1956,7 +1866,6 @@ Destroy any snapshots and bookmarks more recent than the one specified.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-R\fR\fR
 .ad
@@ -1967,7 +1876,6 @@ Recursively destroy any more recent snapshots and bookmarks, as well as any clon
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-f\fR\fR
 .ad
@@ -1980,7 +1888,6 @@ Used with the \fB-R\fR option to force an unmount (see \fBzfs unmount -f\fR) of 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs clone\fR [\fB-p\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR] ... \fIsnapshot\fR \fIfilesystem\fR|\fIvolume\fR\fR
 .ad
@@ -1989,7 +1896,6 @@ Used with the \fB-R\fR option to force an unmount (see \fBzfs unmount -f\fR) of 
 Creates a clone of the given snapshot. See the "Clones" section for details. The target dataset can be located anywhere in the \fBZFS\fR hierarchy, and is created as the same type as the original.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-p\fR\fR
 .ad
@@ -2000,7 +1906,6 @@ Creates all the non-existing parent datasets; see \fBzfs create\fR for details.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIproperty\fR=\fIvalue\fR\fR
 .ad
@@ -2013,7 +1918,6 @@ Sets the specified property; see \fBzfs set\fR for details.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs promote\fR \fIclone-filesystem\fR\fR
 .ad
@@ -2026,7 +1930,6 @@ The snapshot that was cloned, and any snapshots previous to this snapshot, are n
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs rename\fR [\fB-f\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
 .ad
@@ -2039,7 +1942,6 @@ The snapshot that was cloned, and any snapshots previous to this snapshot, are n
 Renames the given dataset. The new target can be located anywhere in the \fBZFS\fR hierarchy, with the exception of snapshots. Snapshots can only be renamed within the parent file system or volume. When renaming a snapshot, the parent file system of the snapshot does not need to be specified as part of the second argument. Renamed file systems can inherit new mount points, in which case they are unmounted and remounted at the new mount point.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-p\fR\fR
 .ad
@@ -2062,7 +1964,6 @@ Force unmount any filesystems that need to be unmounted in the process.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs rename\fR \fB-r\fR \fIsnapshot\fR \fIsnapshot\fR\fR
 .ad
@@ -2073,7 +1974,6 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-Hp\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR|\fImountpoint\fR] ...\fR
 .ad
@@ -2082,7 +1982,6 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 Lists the property information for the given datasets in tabular form. If a mount point is specified, it can be an absolute pathname or a relative pathname as long as it contains a slash (e.g. \fBzfs list ./\fR). By default, all file systems and volumes are displayed. Snapshots are displayed if the pool's \fBlistsnapshots\fR property is \fBon\fR (the default is \fBoff\fR). When listing hundreds or thousands of snapshots performance can be improved by restricting the output to only the name.  In that case, it is recommended to use \fB-o name -s name\fR. The following fields are displayed by default: \fBname, used, available, referenced, mountpoint\fR
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-H\fR\fR
 .ad
@@ -2093,7 +1992,6 @@ Used for scripting mode. Do not print headers and separate fields by a single ta
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-p\fR\fR
 .sp .6
@@ -2103,7 +2001,6 @@ Display numbers in parsable (exact) values.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -2114,7 +2011,6 @@ Recursively display any children of the dataset on the command line.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-d\fR \fIdepth\fR\fR
 .ad
@@ -2125,7 +2021,6 @@ Recursively display any children of the dataset, limiting the recursion to \fIde
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIproperty\fR\fR
 .ad
@@ -2160,7 +2055,6 @@ The value \fBspace\fR to display space usage properties on file systems and volu
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-s\fR \fIproperty\fR\fR
 .ad
@@ -2197,7 +2091,6 @@ If no sorting options are specified the existing behavior of \fBzfs list\fR is p
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-S\fR \fIproperty\fR\fR
 .ad
@@ -2208,7 +2101,6 @@ Same as the \fB-s\fR option, but sorts by property in descending order.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-t\fR \fItype\fR\fR
 .ad
@@ -2221,7 +2113,6 @@ A comma-separated list of types to display, where \fItype\fR is one of \fBfilesy
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs set\fR \fIproperty\fR=\fIvalue\fR[ \fIproperty\fR=\fIvalue\fR]...
 \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
@@ -2236,7 +2127,6 @@ can be set on snapshots. For more information, see the "User Properties" section
 
 .sp
 .ne 2
-.mk .na
 \fB\fBzfs get\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-Hp\fR] [\fB-o\fR \fIfield\fR[,...] [\fB-t\fR \fItype\fR[,...]] [\fB-s\fR \fIsource\fR[,...] "\fIall\fR" | \fIproperty\fR[,...] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
@@ -2259,7 +2149,6 @@ All columns are displayed by default, though this can be controlled by using the
 The special value \fBall\fR can be used to display all properties that apply to the given dataset's type (filesystem, volume snapshot, or bookmark).
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -2270,7 +2159,6 @@ Recursively display properties for any children.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-d\fR \fIdepth\fR\fR
 .ad
@@ -2281,7 +2169,6 @@ Recursively display any children of the dataset, limiting the recursion to \fIde
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-H\fR\fR
 .ad
@@ -2292,7 +2179,6 @@ Display output in a form more easily parsed by scripts. Any headers are omitted,
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIfield\fR\fR
 .ad
@@ -2303,7 +2189,6 @@ A comma-separated list of columns to display. \fBname,property,value,source\fR i
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-s\fR \fIsource\fR\fR
 .ad
@@ -2314,7 +2199,6 @@ A comma-separated list of sources to display. Those properties coming from a sou
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-p\fR\fR
 .ad
@@ -2327,7 +2211,6 @@ Display numbers in parsable (exact) values.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs inherit\fR [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
@@ -2336,7 +2219,6 @@ Display numbers in parsable (exact) values.
 Clears the specified property, causing it to be inherited from an ancestor, restored to default if no ancestor has the property set, or with the \fB-S\fR option reverted to the received value if one exists.  See the "Properties" section for a listing of default values, and details on which properties can be inherited.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -2359,7 +2241,6 @@ if the \fB-S\fR option was not specified.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs upgrade\fR
 .ad
@@ -2370,7 +2251,6 @@ Displays a list of file systems that are not the most recent version.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs upgrade\fR \fB-v\fR\fR
 .ad
@@ -2382,7 +2262,6 @@ Displays a list of file system versions.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs upgrade\fR [\fB-r\fR] [\fB-V\fR \fIversion\fR] [\fB-a\fR | \fIfilesystem\fR]\fR
 .ad
@@ -2395,7 +2274,6 @@ In general, the file system version is independent of the pool version. See \fBz
 In some cases, the file system version and the pool version are interrelated and the pool version must be upgraded before the file system version can be upgraded.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-a\fR\fR
 .ad
@@ -2406,7 +2284,6 @@ Upgrades all file systems on all imported pools.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fIfilesystem\fR\fR
 .ad
@@ -2417,7 +2294,6 @@ Upgrades the specified file system.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -2428,7 +2304,6 @@ Upgrades the specified file system and all descendent file systems
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-V\fR \fIversion\fR\fR
 .ad
@@ -2441,7 +2316,6 @@ Upgrades to the specified \fIversion\fR. If the \fB-V\fR flag is not specified, 
 
 .sp
 .ne 2
-.mk
 .na
 \fBzfs\fR \fBuserspace\fR [\fB-Hinp\fR] [\fB-o\fR \fIfield\fR[,...]]
 [\fB-s\fR \fIfield\fR] ...
@@ -2455,7 +2329,6 @@ filesystem or snapshot. This corresponds to the \fBuserused@\fR\fIuser\fR and
 \fBuserquota@\fR\fIuser\fR properties.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-n\fR\fR
 .ad
@@ -2466,7 +2339,6 @@ Print numeric ID instead of user/group name.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-H\fR\fR
 .ad
@@ -2477,7 +2349,6 @@ Display output in a form more easily parsed by scripts. Any headers are omitted,
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-p\fR\fR
 .ad
@@ -2488,7 +2359,6 @@ Use exact (parsable) numeric output.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIfield\fR[,...]\fR
 .ad
@@ -2500,7 +2370,6 @@ set: \fBtype, name, used, quota\fR. The default is to display all fields.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-s\fR \fIfield\fR\fR
 .ad
@@ -2513,7 +2382,6 @@ multiple times to sort first by one field, then by another. The default is
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-S\fR \fIfield\fR\fR
 .ad
@@ -2524,7 +2392,6 @@ Sort by this field in reverse order. See \fB-s\fR.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-t\fR \fItype\fR[,...]\fR
 .ad
@@ -2538,7 +2405,6 @@ types.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-i\fR\fR
 .ad
@@ -2560,7 +2426,6 @@ This option is not useful on Linux.
 
 .sp
 .ne 2
-.mk
 .na
 \fBzfs\fR \fBgroupspace\fR [\fB-Hinp\fR] [\fB-o\fR \fIfield\fR[,...]]
 [\fB-s\fR \fIfield\fR] ...
@@ -2576,7 +2441,6 @@ except that the default types to display are \fB-t posixgroup,smbgroup\fR.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs mount\fR\fR
 .ad
@@ -2587,7 +2451,6 @@ Displays all \fBZFS\fR file systems currently mounted.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs mount\fR [\fB-vO\fR] [\fB-o\fR \fIoptions\fR] \fB-a\fR | \fIfilesystem\fR\fR
 .ad
@@ -2596,7 +2459,6 @@ Displays all \fBZFS\fR file systems currently mounted.
 Mounts \fBZFS\fR file systems. This is invoked automatically as part of the boot process.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fIoptions\fR\fR
 .ad
@@ -2609,7 +2471,6 @@ details.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-O\fR\fR
 .ad
@@ -2624,7 +2485,6 @@ On Linux, this is the default for \fBmount\fR(8). In other words, \fBzfs mount -
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-v\fR\fR
 .ad
@@ -2635,7 +2495,6 @@ Report mount progress. This is intended for use with \fBzfs mount -a\fR on a sys
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-a\fR\fR
 .ad
@@ -2647,7 +2506,6 @@ the boot process.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fIfilesystem\fR\fR
 .ad
@@ -2660,7 +2518,6 @@ Mount the specified filesystem.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs unmount\fR [\fB-f\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
 .ad
@@ -2669,7 +2526,6 @@ Mount the specified filesystem.
 Unmounts currently mounted \fBZFS\fR file systems. Invoked automatically as part of the shutdown process.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-f\fR\fR
 .ad
@@ -2680,7 +2536,6 @@ Forcefully unmount the file system, even if it is currently in use.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-a\fR\fR
 .ad
@@ -2691,7 +2546,6 @@ Unmount all available \fBZFS\fR file systems. Invoked automatically as part of t
 
 .sp
 .ne 2
-.mk
 .na
 \fIfilesystem\fR|\fImountpoint\fR
 .ad
@@ -2704,7 +2558,6 @@ Unmount the specified filesystem. The command can also be given a path to a \fBZ
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs share\fR \fB-a\fR | \fIfilesystem\fR\fR
 .ad
@@ -2713,7 +2566,6 @@ Unmount the specified filesystem. The command can also be given a path to a \fBZ
 Shares available \fBZFS\fR file systems.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-a\fR\fR
 .ad
@@ -2724,7 +2576,6 @@ Share all available \fBZFS\fR file systems. Invoked automatically as part of the
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fIfilesystem\fR\fR
 .ad
@@ -2737,7 +2588,6 @@ Share the specified filesystem according to the \fBsharenfs\fR and \fBsharesmb\f
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs unshare\fR \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
 .ad
@@ -2746,7 +2596,6 @@ Share the specified filesystem according to the \fBsharenfs\fR and \fBsharesmb\f
 Unshares currently shared \fBZFS\fR file systems. This is invoked automatically as part of the shutdown process.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-a\fR\fR
 .ad
@@ -2757,7 +2606,6 @@ Unshare all available \fBZFS\fR file systems. Invoked automatically as part of t
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fIfilesystem\fR|\fImountpoint\fR\fR
 .ad
@@ -2770,7 +2618,6 @@ Unshare the specified filesystem. The command can also be given a path to a \fBZ
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs bookmark\fR \fIsnapshot\fR \fIbookmark\fR\fR
 .ad
@@ -2797,7 +2644,6 @@ See \fBzpool-features\fR(5) for details on ZFS feature flags and the
 Creates a stream representation of the (second, if \fB-i\fR is specified) \fIsnapshot\fR, which is written to standard output. The output can be redirected to a file or to a pipe (for example, using \fBssh\fR(1) to send it to a different system with \fBzfs receive\fR). By default, a full stream is generated; specifying \fB-i\fR or \fB-I\fR changes this behavior.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-i\fR \fIsnapshot\fR\fR
 .ad
@@ -2810,7 +2656,6 @@ If the destination is a clone, the source may be the origin snapshot, which must
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-I\fR \fIsnapshot\fR\fR
 .ad
@@ -2821,7 +2666,6 @@ Generate a stream package that sends all intermediary snapshots from the first s
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-R\fR\fR
 .ad
@@ -2834,7 +2678,6 @@ If the \fB-i\fR or \fB-I\fR flags are used in conjunction with the \fB-R\fR flag
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-D\fR\fR
 .ad
@@ -2845,7 +2688,6 @@ Generate a deduplicated stream. Blocks which would have been sent multiple times
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-L\fR\fR
 .ad
@@ -2861,7 +2703,6 @@ flags and the \fBlarge_blocks\fR feature.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-e\fR\fR
 .ad
@@ -2913,7 +2754,6 @@ Print machine-parsable verbose information about the stream package generated.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-v\fR\fR
 .ad
@@ -2960,7 +2800,6 @@ or the origin's origin, etc.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-L\fR\fR
 .ad
@@ -2976,7 +2815,6 @@ flags and the \fBlarge_blocks\fR feature.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-e\fR\fR
 .ad
@@ -2995,7 +2833,6 @@ then the receiving system must have that feature enabled as well. See
 .RE
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
 .ad
@@ -3018,7 +2855,6 @@ If the argument is a snapshot name, the specified \fIsnapshot\fR is created. If 
 The \fB-d\fR and \fB-e\fR options cause the file system name of the target snapshot to be determined by appending a portion of the sent snapshot's name to the specified target \fIfilesystem\fR. If the \fB-d\fR option is specified, all but the first element of the sent snapshot's file system path (usually the pool name) is used and any required intermediate file systems within the specified one are created.  If the \fB-e\fR option is specified, then only the last element of the sent snapshot's file system name (i.e. the name of the source file system itself) is used as the target file system name.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-d\fR\fR
 .ad
@@ -3039,7 +2875,6 @@ Discard all but the last element of the sent snapshot's file system name, using 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-u\fR\fR
 .ad
@@ -3060,7 +2895,6 @@ Print verbose information about the stream and the time required to perform the 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-n\fR\fR
 .ad
@@ -3071,7 +2905,6 @@ Do not actually receive the stream. This can be useful in conjunction with the \
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-o\fR \fBorigin\fR=\fIsnapshot\fR
 .ad
@@ -3082,7 +2915,6 @@ Forces the stream to be received as a clone of the given snapshot. This is only 
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-F\fR\fR
 .ad
@@ -3095,7 +2927,6 @@ Force a rollback of the file system to the most recent snapshot before performin
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs allow\fR \fIfilesystem\fR | \fIvolume\fR\fR
 .ad
@@ -3106,7 +2937,6 @@ Displays permissions that have been delegated on the specified filesystem or vol
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs allow\fR [\fB-ldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR| \fIvolume\fR\fR
 .ad
@@ -3119,7 +2949,6 @@ Displays permissions that have been delegated on the specified filesystem or vol
 Delegates \fBZFS\fR administration permission for the file systems to non-privileged users.
 .sp
 .ne 2
-.mk
 .na
 \fB[\fB-ug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...]\fR
 .ad
@@ -3130,7 +2959,6 @@ Specifies to whom the permissions are delegated. Multiple entities can be specif
 
 .sp
 .ne 2
-.mk
 .na
 \fB[\fB-e\fR] \fIperm\fR|@\fIsetname\fR[,...]\fR
 .ad
@@ -3141,7 +2969,6 @@ Specifies that the permissions be delegated to "everyone." Multiple permissions 
 
 .sp
 .ne 2
-.mk
 .na
 \fB[\fB-ld\fR] \fIfilesystem\fR|\fIvolume\fR\fR
 .ad
@@ -3228,7 +3055,6 @@ zoned            property
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs allow\fR \fB-c\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR\fR
 .ad
@@ -3239,7 +3065,6 @@ Sets "create time" permissions. These permissions are granted (locally) to the c
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs allow\fR \fB-s\fR @\fIsetname\fR \fIperm\fR|@\fIsetname\fR[,...] \fIfilesystem\fR|\fIvolume\fR\fR
 .ad
@@ -3250,7 +3075,6 @@ Defines or adds permissions to a permission set. The set can be used by other \f
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs unallow\fR [\fB-rldug\fR] "\fIeveryone\fR"|\fIuser\fR|\fIgroup\fR[,...] [\fIperm\fR|@\fIsetname\fR[, ...]] \fIfilesystem\fR|\fIvolume\fR\fR
 .ad
@@ -3267,7 +3091,6 @@ Defines or adds permissions to a permission set. The set can be used by other \f
 Removes permissions that were granted with the \fBzfs allow\fR command. No permissions are explicitly denied, so other permissions granted are still in effect. For example, if the permission is granted by an ancestor. If no permissions are specified, then all permissions for the specified \fIuser\fR, \fIgroup\fR, or \fIeveryone\fR are removed. Specifying "everyone" (or using the \fB-e\fR option) only removes the permissions that were granted to "everyone", not all permissions for every user and group. See the \fBzfs allow\fR command for a description of the \fB-ldugec\fR options.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -3280,7 +3103,6 @@ Recursively remove the permissions from this file system and all descendents.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs unallow\fR [\fB-r\fR] \fB-s\fR @\fIsetname\fR [\fIperm\fR|@\fIsetname\fR[,...]]\fR \fB\fIfilesystem\fR|\fIvolume\fR\fR
 .ad
@@ -3291,7 +3113,6 @@ Removes permissions from a permission set. If no permissions are specified, then
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs hold\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...\fR
 .ad
@@ -3302,7 +3123,6 @@ Adds a single reference, named with the \fItag\fR argument, to the specified sna
 If a hold exists on a snapshot, attempts to destroy that snapshot by using the \fBzfs destroy\fR command return \fBEBUSY\fR.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -3315,7 +3135,6 @@ Specifies that a hold with the given tag is applied recursively to the snapshots
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs holds\fR [\fB-r\fR] \fIsnapshot\fR...\fR
 .ad
@@ -3324,7 +3143,6 @@ Specifies that a hold with the given tag is applied recursively to the snapshots
 Lists all existing user references for the given snapshot or snapshots.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -3337,7 +3155,6 @@ Lists the holds that are set on the named descendent snapshots, in addition to l
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs release\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...\fR
 .ad
@@ -3346,7 +3163,6 @@ Lists the holds that are set on the named descendent snapshots, in addition to l
 Removes a single reference, named with the \fItag\fR argument, from the specified snapshot or snapshots. The tag must already exist for each snapshot.
 .sp
 .ne 2
-.mk
 .na
 \fB\fB-r\fR\fR
 .ad
@@ -3359,7 +3175,6 @@ Recursively releases a hold with the given tag on the snapshots of all descenden
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fBzfs diff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
 .ad
@@ -3937,7 +3752,6 @@ Cause \fBzfs\fR to dump core on exit for the purposes of running \fB::findleaks\
 The following exit values are returned:
 .sp
 .ne 2
-.mk
 .na
 \fB\fB0\fR\fR
 .ad
@@ -3948,7 +3762,6 @@ Successful completion.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB1\fR\fR
 .ad
@@ -3959,7 +3772,6 @@ An error occurred.
 
 .sp
 .ne 2
-.mk
 .na
 \fB\fB2\fR\fR
 .ad
