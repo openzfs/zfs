@@ -375,7 +375,7 @@ Deduplication is the process for removing redundant data at the block-level, red
 .sp
 \fBWARNING: DO NOT ENABLE DEDUPLICATION UNLESS YOU NEED IT AND KNOW EXACTLY WHAT YOU ARE DOING!\fR
 .sp
-Deduplicating data is a very resource-intensive operation. It is generally recommended that you have \fIat least\fR 1.25 GB of RAM per 1 TB of storage when you enable deduplication. But calculating the exact requirements is a somewhat complicated affair.
+Deduplicating data is a very resource-intensive operation. It is generally recommended that you have \fIat least\fR 1.25 GiB of RAM per 1 TiB of storage when you enable deduplication. But calculating the exact requirements is a somewhat complicated affair.
 .sp
 Enabling deduplication on an improperly-designed system will result in extreme performance issues (extremely slow filesystem and snapshot deletions etc.) and can potentially lead to data loss (i.e. unimportable pool due to memory exhaustion) if your system is not built for this purpose. Deduplication affects the processing power (CPU), disks (and the controller) as well as primary (real) memory.
 .sp
@@ -390,11 +390,11 @@ Properties are divided into two types, native properties and user-defined (or "u
 Every dataset has a set of properties that export statistics about the dataset as well as control various behaviors. Properties are inherited from the parent unless overridden by the child. Some properties apply only to certain types of datasets (file systems, volumes, or snapshots).
 .sp
 .LP
-The values of numeric properties can be specified using human-readable suffixes (for example, \fBk\fR, \fBKB\fR, \fBM\fR, \fBGb\fR, and so forth, up to \fBZ\fR for zettabyte). The following are all valid (and equal) specifications:
+The values of numeric properties can be specified using human-readable abbreviations (\fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, and \fBZ\fR). These abbreviations can optionally use the IEC binary prefixes (e.g. GiB) or SI decimal prefixes (e.g. GB), though the SI prefixes are treated as binary prefixes. Abbreviations are case-insensitive. The following are all valid (and equal) specifications:
 .sp
 .in +2
 .nf
-1536M, 1.5g, 1.50GB
+1536M, 1.5g, 1.50GB, 1.5GiB
 .fi
 .in -2
 .sp
@@ -722,7 +722,9 @@ Unprivileged users can only access their own groups' space usage. The root user,
 .ad
 .sp .6
 .RS 4n
-For volumes, specifies the block size of the volume. The \fBblocksize\fR cannot be changed once the volume has been written, so it should be set at volume creation time. The default \fBblocksize\fR for volumes is 8 Kbytes. Any power of 2 from 512 bytes to 128 Kbytes is valid.
+This property, which is only valid on volumes, specifies the block size of the volume. Any power of two from 512B to 128KiB is valid. The default is 8KiB.
+.sp
+This property cannot be changed after the volume is created.
 .sp
 This property can also be referred to by its shortened column name, \fBvolblock\fR.
 .RE
@@ -1107,7 +1109,7 @@ Specifies a suggested block size for files in the file system. This property is 
 .sp
 For databases that create very large files but access them in small random chunks, these algorithms may be suboptimal. Specifying a \fBrecordsize\fR greater than or equal to the record size of the database can result in significant performance gains. Use of this property for general purpose file systems is strongly discouraged, and may adversely affect performance.
 .sp
-The size specified must be a power of two greater than or equal to 512 and less than or equal to 128 Kbytes.
+Any power of two from 512B to 1MiB is valid. The default is 128KiB. Values larger than 128KiB require the pool have the \fBlarge_blocks\fR feature enabled. See \fBzpool-features\fR(5) for details on ZFS feature flags and the \fBlarge_blocks\fR feature.
 .sp
 Changing the file system's \fBrecordsize\fR affects only files created afterward; existing files are unaffected.
 .sp
@@ -1608,7 +1610,7 @@ Sets the specified property as if the command \fBzfs set\fR \fIproperty\fR=\fIva
 .RS 4n
 Creates a volume of the given size. The volume is exported as a block device in \fB/dev/zvol/\fR\fIpath\fR, where \fIpath\fR is the name of the volume in the \fBZFS\fR namespace. The size represents the logical size as exported by the device. By default, a reservation of equal size is created.
 .sp
-\fIsize\fR is automatically rounded up to the nearest 128 Kbytes to ensure that the volume has an integral number of blocks regardless of \fIblocksize\fR.
+\fIsize\fR is automatically rounded up to the nearest 128KiB to ensure that the volume has an integral number of blocks regardless of \fIblocksize\fR.
 .sp
 .ne 2
 .mk
@@ -2177,12 +2179,8 @@ A comma-separated list of types to display, where \fItype\fR is one of \fBfilesy
 .RS 4n
 Sets the property or list of properties to the given value(s) for each dataset.
 Only some properties can be edited. See the "Properties" section for more
-information on what properties can be set and acceptable values. Numeric values
-can be specified as exact values, or in a human-readable form with a suffix of
-\fBB\fR, \fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, \fBZ\fR (for
-bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes, exabytes, or
-zettabytes, respectively). User properties can be set on snapshots. For more
-information, see the "User Properties" section.
+information on which properties can be set and acceptable values. User properties
+can be set on snapshots. For more information, see the "User Properties" section.
 .RE
 
 .sp
@@ -2784,10 +2782,10 @@ Generate a deduplicated stream. Blocks which would have been sent multiple times
 .ad
 .sp .6
 .RS 4n
-Generate a stream which may contain blocks larger than 128KB.  This flag
+Generate a stream which may contain blocks larger than 128KiB.  This flag
 has no effect if the \fBlarge_blocks\fR pool feature is disabled, or if
 the \fRrecordsize\fR property of this filesystem has never been set above
-128KB.  The receiving system must have the \fBlarge_blocks\fR pool feature
+128KiB.  The receiving system must have the \fBlarge_blocks\fR pool feature
 enabled as well.  See \fBzpool-features\fR(5) for details on ZFS feature
 flags and the \fBlarge_blocks\fR feature.
 .RE
@@ -2899,10 +2897,10 @@ or the origin's origin, etc.
 .ad
 .sp .6
 .RS 4n
-Generate a stream which may contain blocks larger than 128KB.  This flag
+Generate a stream which may contain blocks larger than 128KiB.  This flag
 has no effect if the \fBlarge_blocks\fR pool feature is disabled, or if
 the \fRrecordsize\fR property of this filesystem has never been set above
-128KB.  The receiving system must have the \fBlarge_blocks\fR pool feature
+128KiB.  The receiving system must have the \fBlarge_blocks\fR pool feature
 enabled as well.  See \fBzpool-features\fR(5) for details on ZFS feature
 flags and the \fBlarge_blocks\fR feature.
 .RE
@@ -3449,7 +3447,7 @@ The following command lists all active file systems and volumes in the system. S
 \fBExample 6 \fRSetting a Quota on a ZFS File System
 .sp
 .LP
-The following command sets a quota of 50 Gbytes for \fBpool/home/bob\fR.
+The following command sets a quota of 50 GiB for \fBpool/home/bob\fR.
 
 .sp
 .in +2
