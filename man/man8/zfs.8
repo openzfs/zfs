@@ -808,7 +808,9 @@ the \fBxattr=sa\fR property.  See the \fBxattr\fR property for more details.
 .ad
 .sp .6
 .RS 4n
-Controls whether the access time for files is updated when they are read. Turning this property off avoids producing write traffic when reading files and can result in significant performance gains, though it might confuse mailers and other similar utilities. The default value is \fBon\fR.  See also \fBrelatime\fR below.
+Controls whether the access time for files is updated when they are read. Setting this property to \fBoff\fR avoids producing write traffic when reading files and can result in significant performance gains, though it might confuse mailers and other similar utilities. The default value is \fBon\fR.  See also \fBrelatime\fR below.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBatime\fR and \fBnoatime\fR mount options.
 .RE
 
 .sp
@@ -823,7 +825,9 @@ If this property is set to \fBoff\fR, the file system cannot be mounted, and is 
 .sp
 When the \fBnoauto\fR option is set, a dataset can only be mounted and unmounted explicitly. The dataset is not mounted automatically when the dataset is created or imported, nor is it mounted by the \fBzfs mount -a\fR command or unmounted by the \fBzfs unmount -a\fR command.
 .sp
-This property is not inherited.
+This property is not inherited. Every dataset defaults to \fBon\fR independently.
+.sp
+The values \fBon\fR and \fBnoauto\fR are equivalent to the \fBauto\fR and \fBnoauto\fR mount options.
 .RE
 
 .sp
@@ -919,6 +923,8 @@ Unless necessary, deduplication should NOT be enabled on a system. See \fBDedupl
 .sp .6
 .RS 4n
 Controls whether device nodes can be opened on this file system. The default value is \fBon\fR.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBdev\fR and \fBnodev\fR mount options.
 .RE
 
 .sp
@@ -930,6 +936,8 @@ Controls whether device nodes can be opened on this file system. The default val
 .sp .6
 .RS 4n
 Controls whether processes can be executed from within this file system. The default value is \fBon\fR.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBexec\fR and \fBnoexec\fR mount options.
 .RE
 
 .sp
@@ -987,7 +995,11 @@ When the \fBmountpoint\fR property is changed for a file system, the file system
 .ad
 .sp .6
 .RS 4n
-Controls whether the file system should be mounted with \fBnbmand\fR (Non Blocking mandatory locks). This is used for \fBCIFS\fR clients. Changes to this property only take effect when the file system is umounted and remounted. See \fBmount\fR(8) for more information on \fBnbmand\fR mounts.
+Controls whether the file system should be mounted with \fBnbmand\fR (Non Blocking mandatory locks). This is used for \fBCIFS\fR clients. Changes to this property only take effect when the file system is umounted and remounted. See \fBmount\fR(1M) on a Solaris system for more information on \fBnbmand\fR mounts.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBnbmand\fR and \fBnonbmand\fR mount options.
+.sp
+This property is not used on Linux.
 .RE
 
 .sp
@@ -1095,6 +1107,8 @@ Unprivileged users can access only their own groups' space usage. The root user,
 Controls whether this dataset can be modified. The default value is \fBoff\fR.
 .sp
 This property can also be referred to by its shortened column name, \fBrdonly\fR.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBro\fR and \fBrw\fR mount options.
 .RE
 
 .sp
@@ -1182,6 +1196,8 @@ This property can also be referred to by its shortened column name, \fBrefreserv
 .sp .6
 .RS 4n
 Controls the manner in which the access time is updated when \fBatime=on\fR is set.  Turning this property \fBon\fR causes the access time to be updated relative to the modify or change time.  Access time is only updated if the previous access time was earlier than the current modify or change time or if the existing access time hasn't been updated within the past 24 hours.  The default value is \fBoff\fR.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBrelatime\fR and \fBnorelatime\fR mount options.
 .RE
 
 .sp
@@ -1216,7 +1232,9 @@ Controls what is cached in the secondary cache (L2ARC). If this property is set 
 .ad
 .sp .6
 .RS 4n
-Controls whether the set-\fBUID\fR bit is respected for the file system. The default value is \fBon\fR.
+Controls whether the setuid bit is respected for the file system. The default value is \fBon\fR.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBsuid\fR and \fBnosuid\fR mount options.
 .RE
 
 .sp
@@ -1402,6 +1420,8 @@ based xattrs are not accessible on platforms which do not support the
 The use of system attribute based xattrs is strongly encouraged for users of
 SELinux or Posix ACLs.  Both of these features heavily rely of xattrs and
 benefit significantly from the reduced xattr access time.
+.sp
+The values \fBon\fR and \fBoff\fR are equivalent to the \fBxattr\fR and \fBnoxattr\fR mount options.
 .RE
 
 .sp
@@ -1520,14 +1540,15 @@ When a file system is mounted, either through \fBmount\fR(8) for legacy mounts o
 .in +2
 .nf
     PROPERTY                MOUNT OPTION
+     atime                   atime/noatime
+     canmount                auto/noauto
      devices                 devices/nodevices
      exec                    exec/noexec
      readonly                ro/rw
-     setuid                  setuid/nosetuid
-     xattr                   xattr/noxattr
-     atime                   atime/noatime
      relatime                relatime/norelatime
-     nbmand                  nbmand/nonbmand
+     setuid                  suid/nosuid
+     xattr                   xattr/noxattr
+     nbmand                  nbmand/nonbmand (Solaris)
 .fi
 .in -2
 .sp
