@@ -630,7 +630,7 @@ The following property can be set at creation time and import time:
 .ne 2
 .mk
 .na
-\fB\fBaltroot\fR\fR
+\fB\fBaltroot\fR=(unset) | \fIpath\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -644,7 +644,7 @@ The following property can only be set at import time:
 .ne 2
 .mk
 .na
-\fB\fBreadonly\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBreadonly\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -662,7 +662,7 @@ The following properties can be set at creation time and import time, and later 
 .ne 2
 .mk
 .na
-\fB\fBautoexpand\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBautoexpand\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -673,7 +673,7 @@ Controls automatic pool expansion when the underlying LUN is grown. If set to \f
 .ne 2
 .mk
 .na
-\fB\fBautoreplace\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBautoreplace\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -684,7 +684,7 @@ Controls automatic device replacement. If set to "\fBoff\fR", device replacement
 .ne 2
 .mk
 .na
-\fB\fBbootfs\fR=\fIpool\fR/\fIdataset\fR\fR
+\fB\fBbootfs\fR=(unset) | \fIpool\fR/\fIdataset\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -695,7 +695,7 @@ Identifies the default bootable dataset for the root pool. This property is expe
 .ne 2
 .mk
 .na
-\fB\fBcachefile\fR=\fIpath\fR | \fBnone\fR\fR
+\fB\fBcachefile\fR=fBnone\fR | \fIpath\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -708,7 +708,7 @@ Multiple pools can share the same cache file. Because the kernel destroys and re
 .ne 2
 .mk
 .na
-\fB\fBcomment\fR=\fB\fItext\fR\fR
+\fB\fBcomment\fR=(unset) | \fB\fItext\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -810,7 +810,7 @@ This property can also be referred to by its shortened name, \fBlistsnaps\fR.
 .ne 2
 .mk
 .na
-\fB\fBversion\fR=\fIversion\fR\fR
+\fB\fBversion\fR=(unset) | \fIversion\fR\fR
 .ad
 .sp .6
 .RS 4n
