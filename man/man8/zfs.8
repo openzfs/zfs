@@ -526,7 +526,7 @@ For file systems, indicates whether the file system is currently mounted. This p
 .ad
 .sp .6
 .RS 4n
-For cloned file systems or volumes, the snapshot from which the clone was created. See also the \fBclones\fR property.
+For cloned file systems or volumes, the snapshot from which the clone was created. The origin cannot be destroyed (even with the \fB-r\fR or \fB-f\fR options) so long as a clone exists. See also the \fBclones\fR property.
 .RE
 
 .sp
@@ -1738,7 +1738,7 @@ comma-separated list to identify multiple snapshots.
 .ad
 .sp .6
 .RS 4n
-If the snapshot does not qualify for immediate destruction, rather than returning an error, it is marked for deferred destruction. In this state, it exists as a usable, visible snapshot until both of the preconditions listed above are met, at which point it is destroyed.
+If a snapshot does not qualify for immediate destruction, rather than returning an error, it is marked for deferred destruction. In this state, it exists as a usable, visible snapshot until both of the preconditions listed above are met, at which point it is destroyed.
 .RE
 
 .sp
