@@ -481,9 +481,7 @@ cv_wait(kcondvar_t *cv, kmutex_t *mp)
 	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
 	ASSERT3P(mutex_owner(mp), ==, curthread);
 	mp->m_owner = MTX_INIT;
-	int ret = pthread_cond_wait(&cv->cv, &mp->m_lock);
-	if (ret != 0)
-		VERIFY3S(ret, ==, EINTR);
+	VERIFY3S(pthread_cond_wait(&cv->cv, &mp->m_lock), ==, 0);
 	mp->m_owner = curthread;
 }
 
@@ -519,9 +517,6 @@ top:
 	if (error == ETIMEDOUT)
 		return (-1);
 
-	if (error == EINTR)
-		goto top;
-
 	VERIFY3S(error, ==, 0);
 
 	return (1);
@@ -536,10 +531,13 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 	timestruc_t ts;
 	hrtime_t delta;
 
-	ASSERT(flag == 0);
+	ASSERT(flag == 0 || flag == CALLOUT_FLAG_ABSOLUTE);
 
 top:
-	delta = tim - gethrtime();
+	delta = tim;
+	if (flag & CALLOUT_FLAG_ABSOLUTE)
+		delta -= gethrtime();
+
 	if (delta <= 0)
 		return (-1);
 
@@ -551,13 +549,10 @@ top:
 	error = pthread_cond_timedwait(&cv->cv, &mp->m_lock, &ts);
 	mp->m_owner = curthread;
 
-	if (error == ETIME)
+	if (error == ETIMEDOUT)
 		return (-1);
 
-	if (error == EINTR)
-		goto top;
-
-	ASSERT(error == 0);
+	VERIFY3S(error, ==, 0);
 
 	return (1);
 }
