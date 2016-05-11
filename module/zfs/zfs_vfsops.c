@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -898,14 +898,149 @@ zfs_owner_overquota(zfsvfs_t *zfsvfs, znode_t *zp, boolean_t isgroup)
 	return (zfs_fuid_overquota(zfsvfs, isgroup, fuid));
 }
 
+/*
+ * Associate this zfsvfs with the given objset, which must be owned.
+ * This will cache a bunch of on-disk state from the objset in the
+ * zfsvfs.
+ */
+static int
+zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
+{
+	int error;
+	uint64_t val;
+
+	zfsvfs->z_max_blksz = SPA_OLD_MAXBLOCKSIZE;
+	zfsvfs->z_show_ctldir = ZFS_SNAPDIR_VISIBLE;
+	zfsvfs->z_os = os;
+
+	error = zfs_get_zplprop(os, ZFS_PROP_VERSION, &zfsvfs->z_version);
+	if (error != 0)
+		return (error);
+	if (zfsvfs->z_version >
+	    zfs_zpl_version_map(spa_version(dmu_objset_spa(os)))) {
+		(void) printk("Can't mount a version %lld file system "
+		    "on a version %lld pool\n. Pool must be upgraded to mount "
+		    "this file system.", (u_longlong_t)zfsvfs->z_version,
+		    (u_longlong_t)spa_version(dmu_objset_spa(os)));
+		return (SET_ERROR(ENOTSUP));
+	}
+	error = zfs_get_zplprop(os, ZFS_PROP_NORMALIZE, &val);
+	if (error != 0)
+		return (error);
+	zfsvfs->z_norm = (int)val;
+
+	error = zfs_get_zplprop(os, ZFS_PROP_UTF8ONLY, &val);
+	if (error != 0)
+		return (error);
+	zfsvfs->z_utf8 = (val != 0);
+
+	error = zfs_get_zplprop(os, ZFS_PROP_CASE, &val);
+	if (error != 0)
+		return (error);
+	zfsvfs->z_case = (uint_t)val;
+
+	if ((error = zfs_get_zplprop(os, ZFS_PROP_ACLTYPE, &val)) != 0)
+		return (error);
+	zfsvfs->z_acl_type = (uint_t)val;
+
+	/*
+	 * Fold case on file systems that are always or sometimes case
+	 * insensitive.
+	 */
+	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE ||
+	    zfsvfs->z_case == ZFS_CASE_MIXED)
+		zfsvfs->z_norm |= U8_TEXTPREP_TOUPPER;
+
+	zfsvfs->z_use_fuids = USE_FUIDS(zfsvfs->z_version, zfsvfs->z_os);
+	zfsvfs->z_use_sa = USE_SA(zfsvfs->z_version, zfsvfs->z_os);
+
+	uint64_t sa_obj = 0;
+	if (zfsvfs->z_use_sa) {
+		/* should either have both of these objects or none */
+		error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_SA_ATTRS, 8, 1,
+		    &sa_obj);
+		if (error != 0)
+			return (error);
+
+		error = zfs_get_zplprop(os, ZFS_PROP_XATTR, &val);
+		if ((error == 0) && (val == ZFS_XATTR_SA))
+			zfsvfs->z_xattr_sa = B_TRUE;
+	}
+
+	error = sa_setup(os, sa_obj, zfs_attr_table, ZPL_END,
+	    &zfsvfs->z_attr_table);
+	if (error != 0)
+		return (error);
+
+	if (zfsvfs->z_version >= ZPL_VERSION_SA)
+		sa_register_update_callback(os, zfs_sa_upgrade);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_ROOT_OBJ, 8, 1,
+	    &zfsvfs->z_root);
+	if (error != 0)
+		return (error);
+	ASSERT(zfsvfs->z_root != 0);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
+	    &zfsvfs->z_unlinkedobj);
+	if (error != 0)
+		return (error);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ,
+	    zfs_userquota_prop_prefixes[ZFS_PROP_USERQUOTA],
+	    8, 1, &zfsvfs->z_userquota_obj);
+	if (error == ENOENT)
+		zfsvfs->z_userquota_obj = 0;
+	else if (error != 0)
+		return (error);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ,
+	    zfs_userquota_prop_prefixes[ZFS_PROP_GROUPQUOTA],
+	    8, 1, &zfsvfs->z_groupquota_obj);
+	if (error == ENOENT)
+		zfsvfs->z_groupquota_obj = 0;
+	else if (error != 0)
+		return (error);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ,
+	    zfs_userquota_prop_prefixes[ZFS_PROP_USEROBJQUOTA],
+	    8, 1, &zfsvfs->z_userobjquota_obj);
+	if (error == ENOENT)
+		zfsvfs->z_userobjquota_obj = 0;
+	else if (error != 0)
+		return (error);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ,
+	    zfs_userquota_prop_prefixes[ZFS_PROP_GROUPOBJQUOTA],
+	    8, 1, &zfsvfs->z_groupobjquota_obj);
+	if (error == ENOENT)
+		zfsvfs->z_groupobjquota_obj = 0;
+	else if (error != 0)
+		return (error);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES, 8, 1,
+	    &zfsvfs->z_fuid_obj);
+	if (error == ENOENT)
+		zfsvfs->z_fuid_obj = 0;
+	else if (error != 0)
+		return (error);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_SHARES_DIR, 8, 1,
+	    &zfsvfs->z_shares_dir);
+	if (error == ENOENT)
+		zfsvfs->z_shares_dir = 0;
+	else if (error != 0)
+		return (error);
+
+	return (0);
+}
+
 int
 zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 {
 	objset_t *os;
 	zfsvfs_t *zfsvfs;
-	uint64_t zval;
-	int i, size, error;
-	uint64_t sa_obj;
+	int error;
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
@@ -919,121 +1054,9 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 		return (error);
 	}
 
-	/*
-	 * Initialize the zfs-specific filesystem structure.
-	 * Should probably make this a kmem cache, shuffle fields.
-	 */
 	zfsvfs->z_vfs = NULL;
 	zfsvfs->z_sb = NULL;
 	zfsvfs->z_parent = zfsvfs;
-	zfsvfs->z_max_blksz = SPA_OLD_MAXBLOCKSIZE;
-	zfsvfs->z_show_ctldir = ZFS_SNAPDIR_VISIBLE;
-	zfsvfs->z_os = os;
-
-	error = zfs_get_zplprop(os, ZFS_PROP_VERSION, &zfsvfs->z_version);
-	if (error) {
-		goto out;
-	} else if (zfsvfs->z_version > ZPL_VERSION) {
-		error = SET_ERROR(ENOTSUP);
-		goto out;
-	}
-	if ((error = zfs_get_zplprop(os, ZFS_PROP_NORMALIZE, &zval)) != 0)
-		goto out;
-	zfsvfs->z_norm = (int)zval;
-
-	if ((error = zfs_get_zplprop(os, ZFS_PROP_UTF8ONLY, &zval)) != 0)
-		goto out;
-	zfsvfs->z_utf8 = (zval != 0);
-
-	if ((error = zfs_get_zplprop(os, ZFS_PROP_CASE, &zval)) != 0)
-		goto out;
-	zfsvfs->z_case = (uint_t)zval;
-
-	if ((error = zfs_get_zplprop(os, ZFS_PROP_ACLTYPE, &zval)) != 0)
-		goto out;
-	zfsvfs->z_acl_type = (uint_t)zval;
-
-	/*
-	 * Fold case on file systems that are always or sometimes case
-	 * insensitive.
-	 */
-	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE ||
-	    zfsvfs->z_case == ZFS_CASE_MIXED)
-		zfsvfs->z_norm |= U8_TEXTPREP_TOUPPER;
-
-	zfsvfs->z_use_fuids = USE_FUIDS(zfsvfs->z_version, zfsvfs->z_os);
-	zfsvfs->z_use_sa = USE_SA(zfsvfs->z_version, zfsvfs->z_os);
-
-	if (zfsvfs->z_use_sa) {
-		/* should either have both of these objects or none */
-		error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_SA_ATTRS, 8, 1,
-		    &sa_obj);
-		if (error)
-			goto out;
-
-		error = zfs_get_zplprop(os, ZFS_PROP_XATTR, &zval);
-		if ((error == 0) && (zval == ZFS_XATTR_SA))
-			zfsvfs->z_xattr_sa = B_TRUE;
-	} else {
-		/*
-		 * Pre SA versions file systems should never touch
-		 * either the attribute registration or layout objects.
-		 */
-		sa_obj = 0;
-	}
-
-	error = sa_setup(os, sa_obj, zfs_attr_table, ZPL_END,
-	    &zfsvfs->z_attr_table);
-	if (error)
-		goto out;
-
-	if (zfsvfs->z_version >= ZPL_VERSION_SA)
-		sa_register_update_callback(os, zfs_sa_upgrade);
-
-	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_ROOT_OBJ, 8, 1,
-	    &zfsvfs->z_root);
-	if (error)
-		goto out;
-	ASSERT(zfsvfs->z_root != 0);
-
-	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
-	    &zfsvfs->z_unlinkedobj);
-	if (error)
-		goto out;
-
-	error = zap_lookup(os, MASTER_NODE_OBJ,
-	    zfs_userquota_prop_prefixes[ZFS_PROP_USERQUOTA],
-	    8, 1, &zfsvfs->z_userquota_obj);
-	if (error && error != ENOENT)
-		goto out;
-
-	error = zap_lookup(os, MASTER_NODE_OBJ,
-	    zfs_userquota_prop_prefixes[ZFS_PROP_GROUPQUOTA],
-	    8, 1, &zfsvfs->z_groupquota_obj);
-	if (error && error != ENOENT)
-		goto out;
-
-	error = zap_lookup(os, MASTER_NODE_OBJ,
-	    zfs_userquota_prop_prefixes[ZFS_PROP_USEROBJQUOTA],
-	    8, 1, &zfsvfs->z_userobjquota_obj);
-	if (error && error != ENOENT)
-		goto out;
-
-	error = zap_lookup(os, MASTER_NODE_OBJ,
-	    zfs_userquota_prop_prefixes[ZFS_PROP_GROUPOBJQUOTA],
-	    8, 1, &zfsvfs->z_groupobjquota_obj);
-	if (error && error != ENOENT)
-		goto out;
-
-	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES, 8, 1,
-	    &zfsvfs->z_fuid_obj);
-	if (error && error != ENOENT)
-		goto out;
-
-	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_SHARES_DIR, 8, 1,
-	    &zfsvfs->z_shares_dir);
-	if (error && error != ENOENT)
-		goto out;
 
 	mutex_init(&zfsvfs->z_znodes_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zfsvfs->z_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1043,28 +1066,31 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
-	size = MIN(1 << (highbit64(zfs_object_mutex_size)-1), ZFS_OBJ_MTX_MAX);
+	int size = MIN(1 << (highbit64(zfs_object_mutex_size) - 1),
+	    ZFS_OBJ_MTX_MAX);
 	zfsvfs->z_hold_size = size;
 	zfsvfs->z_hold_trees = vmem_zalloc(sizeof (avl_tree_t) * size,
 	    KM_SLEEP);
 	zfsvfs->z_hold_locks = vmem_zalloc(sizeof (kmutex_t) * size, KM_SLEEP);
-	for (i = 0; i != size; i++) {
+	for (int i = 0; i != size; i++) {
 		avl_create(&zfsvfs->z_hold_trees[i], zfs_znode_hold_compare,
 		    sizeof (znode_hold_t), offsetof(znode_hold_t, zh_node));
 		mutex_init(&zfsvfs->z_hold_locks[i], NULL, MUTEX_DEFAULT, NULL);
 	}
 
+	error = zfsvfs_init(zfsvfs, os);
+	if (error != 0) {
+		dmu_objset_disown(os, zfsvfs);
+		*zfvp = NULL;
+		kmem_free(zfsvfs, sizeof (zfsvfs_t));
+		return (error);
+	}
+
 	*zfvp = zfsvfs;
 	return (0);
-
-out:
-	dmu_objset_disown(os, zfsvfs);
-	*zfvp = NULL;
-	kmem_free(zfsvfs, sizeof (zfsvfs_t));
-	return (error);
 }
 
-int
+static int
 zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 {
 	int error;
@@ -1879,14 +1905,17 @@ zfs_suspend_fs(zfsvfs_t *zfsvfs)
 }
 
 /*
- * Reopen zfsvfs_t and release VFS ops.
+ * Rebuild SA and release VOPs.  Note that ownership of the underlying dataset
+ * is an invariant across any of the operations that can be performed while the
+ * filesystem was suspended.  Whether it succeeded or failed, the preconditions
+ * are the same: the relevant objset and associated dataset are owned by
+ * zfsvfs, held, and long held on entry.
  */
 int
 zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 {
 	int err, err2;
 	znode_t *zp;
-	uint64_t sa_obj = 0;
 
 	ASSERT(RRM_WRITE_HELD(&zfsvfs->z_teardown_lock));
 	ASSERT(RW_WRITE_HELD(&zfsvfs->z_teardown_inactive_lock));
@@ -1895,33 +1924,14 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	 * We already own this, so just update the objset_t, as the one we
 	 * had before may have been evicted.
 	 */
+	objset_t *os;
 	VERIFY3P(ds->ds_owner, ==, zfsvfs);
 	VERIFY(dsl_dataset_long_held(ds));
-	VERIFY0(dmu_objset_from_ds(ds, &zfsvfs->z_os));
+	VERIFY0(dmu_objset_from_ds(ds, &os));
 
-	/*
-	 * Make sure version hasn't changed
-	 */
-
-	err = zfs_get_zplprop(zfsvfs->z_os, ZFS_PROP_VERSION,
-	    &zfsvfs->z_version);
-
-	if (err)
+	err = zfsvfs_init(zfsvfs, os);
+	if (err != 0)
 		goto bail;
-
-	err = zap_lookup(zfsvfs->z_os, MASTER_NODE_OBJ,
-	    ZFS_SA_ATTRS, 8, 1, &sa_obj);
-
-	if (err && zfsvfs->z_version >= ZPL_VERSION_SA)
-		goto bail;
-
-	if ((err = sa_setup(zfsvfs->z_os, sa_obj,
-	    zfs_attr_table,  ZPL_END, &zfsvfs->z_attr_table)) != 0)
-		goto bail;
-
-	if (zfsvfs->z_version >= ZPL_VERSION_SA)
-		sa_register_update_callback(zfsvfs->z_os,
-		    zfs_sa_upgrade);
 
 	VERIFY(zfsvfs_setup(zfsvfs, B_FALSE) == 0);
 
