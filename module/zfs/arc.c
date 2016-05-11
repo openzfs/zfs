@@ -3506,7 +3506,7 @@ arc_reclaim_thread(void)
 			 * even if we aren't being signalled)
 			 */
 			CALLB_CPR_SAFE_BEGIN(&cpr);
-			(void) cv_timedwait_hires(&arc_reclaim_thread_cv,
+			(void) cv_timedwait_sig_hires(&arc_reclaim_thread_cv,
 			    &arc_reclaim_lock, SEC2NSEC(1), MSEC2NSEC(1), 0);
 			CALLB_CPR_SAFE_END(&cpr, &arc_reclaim_lock);
 		}
