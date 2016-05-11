@@ -280,7 +280,7 @@ A dataset can be one of the following:
 .ne 2
 .mk
 .na
-\fB\fIfile system\fR\fR
+\fB\fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -609,7 +609,7 @@ The amount of space used, available, or referenced does not take into account pe
 .ad
 .sp .6
 .RS 4n
-The \fBusedby*\fR properties decompose the \fBused\fR properties into the various reasons that space is used. Specifically, \fBused\fR = \fBusedbychildren\fR + \fBusedbydataset\fR + \fBusedbyrefreservation\fR +, \fBusedbysnapshots\fR. These properties are only available for datasets created on \fBzpool\fR "version 13" pools.
+The \fBusedby*\fR properties decompose the \fBused\fR properties into the various reasons that space is used. Specifically, \fBused\fR = \fBusedbychildren\fR + \fBusedbydataset\fR + \fBusedbyrefreservation\fR + \fBusedbysnapshots\fR. These properties are only available for datasets created on \fBzpool\fR version 13 or higher pools.
 .RE
 
 .sp
@@ -840,7 +840,7 @@ The values \fBon\fR and \fBnoauto\fR are equivalent to the \fBauto\fR and \fBnoa
 .ne 2
 .mk
 .na
-\fB\fBchecksum\fR=\fBon\fR | \fBoff\fR | \fBfletcher2,\fR| \fBfletcher4\fR | \fBsha256\fR\fR
+\fB\fBchecksum\fR=\fBon\fR | \fBoff\fR | \fBfletcher2\fR | \fBfletcher4\fR | \fBsha256\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1254,11 +1254,11 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBsuid\fR and \fBnosuid
 .RS 4n
 Controls whether the file system is shared by using \fBSamba USERSHARES\fR, and what options are to be used. Otherwise, the file system is automatically shared and unshared with the \fBzfs share\fR and \fBzfs unshare\fR commands. If the property is set to \fBon\fR, the \fBnet\fR(8) command is invoked to create a \fBUSERSHARE\fR.
 .sp
-Because \fBSMB\fR shares requires a resource name, a unique resource name is constructed from the dataset name. The constructed name is a copy of the dataset name except that the characters in the dataset name, which would be illegal in the resource name, are replaced with underscore (\fB_\fR) characters. The ZFS On Linux driver does not (yet) support additional options which might be available in the Solaris version.
+Because \fBSMB\fR shares requires a resource name, a unique resource name is constructed from the dataset name. The constructed name is a copy of the dataset name except that the characters in the dataset name, which would be illegal in the resource name, are replaced with underscore (\fB_\fR) characters. Linux does not currently support additional options which might be available on Solaris.
 .sp
 If the \fBsharesmb\fR property is set to \fBoff\fR, the file systems are unshared.
 .sp
-In Linux, the share is created with the ACL (Access Control List) "Everyone:F" ("F" stands for "full permissions", ie. read and write permissions) and no guest access (which means samba must be able to authenticate a real user, system passwd/shadow, ldap or smbpasswd based) by default. This means that any additional access control (disallow specific user specific access etc) must be done on the underlaying filesystem.
+In Linux, the share is created with the ACL (Access Control List) "Everyone:F" ("F" stands for "full permissions", ie. read and write permissions) and no guest access (which means Samba must be able to authenticate a real user, system passwd/shadow, LDAP or smbpasswd based) by default. This means that any additional access control (disallow specific user specific access etc) must be done on the underlaying filesystem.
 .sp
 .in +2
 Example to mount a SMB filesystem shared through ZFS (share/tmp):
@@ -1276,7 +1276,7 @@ smbmount //127.0.0.1/share_tmp /mnt/tmp -o user=workgroup/turbo,password=obrut,u
 \fBMinimal /etc/samba/smb.conf configuration\fR
 .sp
 .in +2
-* Samba will need to listen to 'localhost' (127.0.0.1) for the zfs utilities to communitate with samba.  This is the default behavior for most Linux distributions.
+* Samba will need to listen to 'localhost' (127.0.0.1) for the zfs utilities to communicate with Samba.  This is the default behavior for most Linux distributions.
 .sp
 * Samba must be able to authenticate a user. This can be done in a number of ways, depending on if using the system password file, LDAP or the Samba specific smbpasswd file. How to do this is outside the scope of this manual. Please refer to the smb.conf(5) manpage for more information.
 .sp
@@ -1310,7 +1310,7 @@ When the \fBsharenfs\fR property is changed for a dataset, the dataset and any c
 .ne 2
 .mk
 .na
-\fB\fBlogbias\fR = \fBlatency\fR | \fBthroughput\fR\fR
+\fB\fBlogbias\fR=\fBlatency\fR | \fBthroughput\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1576,7 +1576,7 @@ User property names must contain a colon (\fB:\fR) character to distinguish them
 When making programmatic use of user properties, it is strongly suggested to use a reversed \fBDNS\fR domain name for the \fImodule\fR component of property names to reduce the chance that two independently-developed packages use the same property name for different purposes. For example, property names beginning with \fBcom.sun\fR. are reserved for definition by Oracle Corporation (which acquired Sun Microsystems).
 .sp
 .LP
-The values of user properties are arbitrary strings, are always inherited, and are never validated. All of the commands that operate on properties (\fBzfs list\fR, \fBzfs get\fR, \fBzfs set\fR, and so forth) can be used to manipulate both native properties and user properties. Use the \fBzfs inherit\fR command to clear a user property . If the property is not defined in any parent dataset, it is removed entirely. Property values are limited to 1024 characters.
+The values of user properties are arbitrary strings, are always inherited, and are never validated. All of the commands that operate on properties (\fBzfs list\fR, \fBzfs get\fR, \fBzfs set\fR, and so forth) can be used to manipulate both native properties and user properties. Use the \fBzfs inherit\fR command to clear a user property. If the property is not defined in any parent dataset, it is removed entirely. Property values are limited to 1024 characters.
 .SS "ZFS Volumes as Swap"
 .LP
 \fBZFS\fR volumes may be used as Linux swap devices.  After creating the volume
@@ -2976,7 +2976,7 @@ Creates a snapshot whose contents are as specified in the stream provided on sta
 .sp
 If an incremental stream is received, then the destination file system must already exist, and its most recent snapshot must match the incremental stream's source. For \fBzvols\fR, the destination device link is destroyed and recreated, which means the \fBzvol\fR cannot be accessed during the \fBreceive\fR operation.
 .sp
-When a snapshot replication package stream that is generated by using the \fBzfs send\fR \fB-R\fR command is  received, any snapshots that do not exist on the sending location are destroyed by using the \fBzfs destroy\fR \fB-d\fR command.
+When a snapshot replication package stream that is generated by using the \fBzfs send\fR \fB-R\fR command is received, any snapshots that do not exist on the sending location are destroyed by using the \fBzfs destroy\fR \fB-d\fR command.
 .sp
 The name of the snapshot (and file system, if a full stream is received) that this subcommand creates depends on the argument type and the use of the \fB-d\fR or \fB-e\fR options.
 .sp
@@ -3121,7 +3121,7 @@ Specifies where the permissions are delegated. If neither of the \fB-ld\fR optio
 
 .sp
 .LP
-Permissions are generally the ability to use a \fBZFS\fR subcommand or change a \fBZFS\fR property. The following permissions are available:
+Permissions are generally the ability to use a \fBzfs\fR subcommand or change a \fBZFS\fR property. The following permissions are available:
 .sp
 .in +2
 .nf
