@@ -33,13 +33,13 @@
 
 #
 # DESCRIPTION:
-# Verify that 'zpool iostat [interval [count]' can be executed as non-root.
+# Verify that 'zpool iostat [interval [count]]' can be executed as non-root.
 #
 # STRATEGY:
 # 1. Set the interval to 1 and count to 4.
 # 2. Sleep for 4 seconds.
 # 3. Verify that the output has 4 records.
-#
+# 4. Set interval to 0.5 and count to 1 to test floating point intervals.
 
 verify_runnable "both"
 
@@ -67,5 +67,8 @@ stat_count=$($GREP $TESTPOOL $tmpfile | $WC -l)
 if [[ $stat_count -ne 4 ]]; then
 	log_fail "zpool iostat [pool_name] [interval] [count] failed"
 fi
+
+# Test a floating point interval value
+log_must $ZPOOL iostat -v 0.5 1
 
 log_pass "zpool iostat [pool_name ...] [interval] [count] passed"

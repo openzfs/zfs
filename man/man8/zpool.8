@@ -95,7 +95,9 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool iostat\fR [\fB-T\fR d | u ] [\fB-gLPvy\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]
+\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-G\fR|[\fB-lq\fR]]
+     [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
+
 .fi
 
 .LP
@@ -1677,11 +1679,22 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .ne 2
 .mk
 .na
-\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-gLPvy\fR] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-w\fR|[\fB-lq\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
+
 .ad
 .sp .6
 .RS 4n
-Displays \fBI/O\fR statistics for the given pools. When given an interval, the statistics are printed every \fIinterval\fR seconds until \fBCtrl-C\fR is pressed. If no \fIpools\fR are specified, statistics for every pool in the system is shown. If \fIcount\fR is specified, the command exits after \fIcount\fR reports are printed.
+Displays \fBI/O\fR statistics for the given \fIpool\fRs/\fIvdev\fRs. You can
+pass in a list of \fIpool\fRs, a \fIpool\fR and list of \fIvdev\fRs in that
+\fIpool\fR, or a list of any \fIvdev\fRs from any \fIpool\fR. If no items are
+specified, statistics for every pool in the system are shown.  When given an
+interval, the statistics are printed every \fIinterval\fR seconds until
+\fBCtrl-C\fR is pressed. If \fIcount\fR is specified, the command exits after
+\fIcount\fR reports are printed.  The first report printed is always the
+statistics since boot regardless of whether \fIinterval\fR and \fIcount\fR
+are passed.  However, this behavior can be suppressed with the -y flag.  Also
+note that the units of 'K', 'M', 'G'...  that are printed in the report are in
+base 1024.  To get the raw values, use the \fB-p\fR flag.
 .sp
 .ne 2
 .mk
@@ -1710,11 +1723,33 @@ Display vdev GUIDs instead of the normal device names. These GUIDs can be used i
 .ne 2
 .mk
 .na
+\fB\fB-H\fR\fR
+.ad
+.RS 12n
+.rt
+Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-L\fR\fR
 .ad
 .RS 12n
 .rt
 Display real paths for vdevs resolving all symbolic links. This can be used to look up the current block device name regardless of the /dev/disk/ path used to open it.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-p\fR\fR
+.ad
+.RS 12n
+.rt
+Display numbers in parseable (exact) values.  Time values are in nanoseconds.
 .RE
 
 .sp
@@ -1749,9 +1784,177 @@ Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within t
 .rt
 Omit statistics since boot.  Normally the first line of output reports the statistics since boot.  This option suppresses that first line of output.
 .RE
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-w\fR\fR
+.ad
+.RS 12n
+.rt
+Display latency histograms:
+
+.sp
+.ne 2
+.mk
+.na
+total_wait:
+.ad
+.RS 20n
+.rt
+Total IO time (queuing + disk IO time).
+.RE
+.ne 2
+.mk
+.na
+disk_wait:
+.ad
+.RS 20n
+.rt
+Disk IO time (time reading/writing the disk).
+.RE
+.ne 2
+.mk
+.na
+syncq_wait:
+.ad
+.RS 20n
+.rt
+Amount of time IO spent in synchronous priority queues.  Does not include
+disk time.
+.RE
+.ne 2
+.mk
+.na
+asyncq_wait:
+.ad
+.RS 20n
+.rt
+Amount of time IO spent in asynchronous priority queues.  Does not include
+disk time.
+.RE
+.ne 2
+.mk
+.na
+scrub:
+.ad
+.RS 20n
+.rt
+Amount of time IO spent in scrub queue. Does not include disk time.
+
 
 .RE
 
+All histogram buckets are power-of-two sized.  The time labels are the end
+ranges of the buckets, so for example, a 15ns bucket stores latencies from
+8-15ns.  The last bucket is also a catch-all for latencies higher than the
+maximum.
+.RE
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-l\fR\fR
+.ad
+.RS 12n
+.rt
+Include average latency statistics:
+
+.sp
+.ne 2
+.mk
+.na
+total_wait:
+.ad
+.RS 20n
+.rt
+Average total IO time (queuing + disk IO time).
+.RE
+.ne 2
+.mk
+.na
+disk_wait:
+.ad
+.RS 20n
+.rt
+Average disk IO time (time reading/writing the disk).
+.RE
+.ne 2
+.mk
+.na
+syncq_wait:
+.ad
+.RS 20n
+.rt
+Average amount of time IO spent in synchronous priority queues.  Does not
+include disk time.
+.RE
+.ne 2
+.mk
+.na
+asyncq_wait:
+.ad
+.RS 20n
+.rt
+Average amount of time IO spent in asynchronous priority queues.  Does not
+include disk time.
+.RE
+.ne 2
+.mk
+.na
+scrub:
+.ad
+.RS 20n
+.rt
+Average queuing time in scrub queue.  Does not include disk time.
+.RE
+
+.RE
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-q\fR\fR
+.ad
+.RS 12n
+.rt
+Include active queue statistics.  Each priority queue has both pending ("pend")
+and active ("activ") IOs.  Pending IOs are waiting to be issued to the disk, and
+active IOs have been issued to disk and are waiting for completion.  These stats
+are broken out by priority queue:
+.sp
+.ne 2
+.mk
+.na
+syncq_read/write:
+.ad
+.RS 20n
+.rt
+Current number of entries in synchronous priority queues.
+.RE
+.ne 2
+.mk
+.na
+asyncq_read/write:
+.ad
+.RS 20n
+.rt
+Current number of entries in asynchronous priority queues.
+.RE
+.ne 2
+.mk
+.na
+scrubq_read:
+.ad
+.RS 20n
+.rt
+Current number of entries in scrub queue.
+.RE
+
+All queue statistics are instantaneous measurements of the number of entries
+in the queues.  If you specify an interval, the measurements will be sampled
+from the end of the interval.
+.RE
 .sp
 .ne 2
 .mk

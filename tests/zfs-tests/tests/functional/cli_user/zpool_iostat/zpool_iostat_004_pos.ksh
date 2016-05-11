@@ -29,14 +29,18 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
+# Copyright (C) 2016 Lawrence Livermore National Security, LLC.
+
 . $STF_SUITE/include/libtest.shlib
 
 #
 # DESCRIPTION:
-# Executing 'zpool iostat' command with bad options fails.
+# Executing 'zpool iostat' command with various combinations of extended
+# stats (-vqL), parseable/script options (-pH), and misc lists of pools
+# and vdevs.
 #
 # STRATEGY:
-# 1. Create an array of badly formed 'zpool iostat' options.
+# 1. Create an array of mixed 'zpool iostat' options.
 # 2. Execute each element of the array.
 # 3. Verify an error code is returned.
 #
@@ -50,17 +54,21 @@ else
         testpool=${TESTPOOL%%/*}
 fi
 
-set -A args "" "-?" "-f" "nonexistpool" "$TESTPOOL/$TESTFS" \
-	"$testpool 0" "$testpool -1" "$testpool 1 0" \
-	"$testpool 0 0" "$testpool -wl" "$testpool -wq"
+set -A args "" "-v" "-q" "-l" "-lq $TESTPOOL" "-ql ${DISKS[0]} ${DISKS[1]}" \
+	"-w $TESTPOOL ${DISKS[0]} ${DISKS[1]}" \
+	"-wp $TESTPOOL" \
+	"-qlH $TESTPOOL ${DISKS[0]}" \
+	"-vpH ${DISKS[0]}" \
+	"-wpH ${DISKS[0]}"
 
-log_assert "Executing 'zpool iostat' with bad options fails"
+log_assert "Executing 'zpool iostat' with extended stat options succeeds"
+log_note "testpool: $TESTPOOL, disks $DISKS"
 
 typeset -i i=1
 while [[ $i -lt ${#args[*]} ]]; do
-	log_assert "doing $ZPOOL iostat ${args[i]}"
-	log_mustnot $ZPOOL iostat ${args[i]}
+	log_note "doing $ZPOOL iostat ${args[i]}"
+	log_must $ZPOOL iostat ${args[i]}
 	((i = i + 1))
 done
 
-log_pass "Executing 'zpool iostat' with bad options fails"
+log_pass "Executing 'zpool iostat' with extended stat options succeeds"

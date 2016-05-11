@@ -38,6 +38,8 @@ extern "C" {
 void *safe_malloc(size_t);
 void zpool_no_memory(void);
 uint_t num_logs(nvlist_t *nv);
+uint64_t array64_max(uint64_t array[], unsigned int len);
+int isnumber(char *str);
 
 /*
  * Virtual device functions
@@ -54,6 +56,10 @@ nvlist_t *split_mirror_vdev(zpool_handle_t *zhp, char *newname,
  */
 int for_each_pool(int, char **, boolean_t unavail, zprop_list_t **,
     zpool_iter_f, void *);
+
+/* Vdev list functions */
+typedef int (*pool_vdev_iter_f)(zpool_handle_t *, nvlist_t *, void *);
+int for_each_vdev(zpool_handle_t *zhp, pool_vdev_iter_f func, void *data);
 
 typedef struct zpool_list zpool_list_t;
 
