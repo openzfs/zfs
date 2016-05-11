@@ -612,11 +612,11 @@ The following property can be set at creation time:
 .ne 2
 .mk
 .na
-\fB\fBashift\fR\fR
+\fB\fBashift\fR=\fIashift\fR\fR
 .ad
 .sp .6
 .RS 4n
-Pool sector size exponent, to the power of 2 (internally referred to as "ashift"). I/O operations will be aligned to the specified size boundaries. Additionally, the minimum (disk) write size will be set to the specified size, so this represents a space vs. performance trade-off. The typical case for setting this property is when performance is important and the underlying disks use 4KiB sectors but report 512B sectors to the OS (for compatibility reasons); in that case, set \fBashift=12\fR (which is 1<<12 = 4096).
+Pool sector size exponent, to the power of 2 (internally referred to as "ashift"). Values from 9 to 13, inclusive, are valid; also, the special value 0 (the default) means to auto-detect using the kernel's block layer and a ZFS internal exception list. I/O operations will be aligned to the specified size boundaries. Additionally, the minimum (disk) write size will be set to the specified size, so this represents a space vs. performance trade-off. The typical case for setting this property is when performance is important and the underlying disks use 4KiB sectors but report 512B sectors to the OS (for compatibility reasons); in that case, set \fBashift=12\fR (which is 1<<12 = 4096).
 .LP
 For optimal performance, the pool sector size should be greater than or equal to the sector size of the underlying disks. Since the property cannot be changed after pool creation, if in a given pool, you \fIever\fR want to use drives that \fIreport\fR 4KiB sectors, you must set \fBashift=12\fR at pool creation time.
 .LP
@@ -797,11 +797,13 @@ details on feature states.
 .ne 2
 .mk
 .na
-\fB\fBlistsnaps\fR=on | off\fR
+\fB\fBlistsnapshots\fR=on | off\fR
 .ad
 .sp .6
 .RS 4n
 Controls whether information about snapshots associated with this pool is output when "\fBzfs list\fR" is run without the \fB-t\fR option. The default value is "off".
+.sp
+This property can also be referred to by its shortened name, \fBlistsnaps\fR.
 .RE
 
 .sp
