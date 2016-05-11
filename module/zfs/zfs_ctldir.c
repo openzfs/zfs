@@ -28,6 +28,7 @@
  *   Rohan Puri <rohan.puri15@gmail.com>
  *   Brian Behlendorf <behlendorf1@llnl.gov>
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  */
 
 /*
@@ -1245,20 +1246,15 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 		return (SET_ERROR(ENOTSUP));
 	}
 
-	error = zfs_zget(zsb, zsb->z_shares_dir, &dzp);
-	if (error) {
-		ZFS_EXIT(zsb);
-		return (error);
+	if ((error = zfs_zget(zsb, zsb->z_shares_dir, &dzp)) == 0) {
+		error = zfs_lookup(ZTOI(dzp), name, &ip, 0, cr, NULL, NULL);
+		iput(ZTOI(dzp));
 	}
 
-	error = zfs_lookup(ZTOI(dzp), name, &ip, 0, cr, NULL, NULL);
-
-	iput(ZTOI(dzp));
 	ZFS_EXIT(zsb);
 
 	return (error);
 }
-
 
 /*
  * Initialize the various pieces we'll need to create and manipulate .zfs
