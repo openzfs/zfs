@@ -2336,12 +2336,24 @@ if the \fB-S\fR option was not specified.
 .ne 2
 .mk
 .na
-\fB\fBzfs upgrade\fR [\fB-v\fR]\fR
+\fB\fBzfs upgrade\fR
 .ad
 .sp .6
 .RS 4n
 Displays a list of file systems that are not the most recent version.
 .RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs upgrade\fR \fB-v\fR\fR
+.ad
+.sp .6
+.RS 4n
+Displays a list of file system versions.
+.RE
+
 
 .sp
 .ne 2
@@ -2364,7 +2376,7 @@ In some cases, the file system version and the pool version are interrelated and
 .ad
 .sp .6
 .RS 4n
-Upgrade all file systems on all imported pools.
+Upgrades all file systems on all imported pools.
 .RE
 
 .sp
@@ -2375,7 +2387,7 @@ Upgrade all file systems on all imported pools.
 .ad
 .sp .6
 .RS 4n
-Upgrade the specified file system.
+Upgrades the specified file system.
 .RE
 
 .sp
@@ -2386,7 +2398,7 @@ Upgrade the specified file system.
 .ad
 .sp .6
 .RS 4n
-Upgrade the specified file system and all descendent file systems
+Upgrades the specified file system and all descendent file systems
 .RE
 
 .sp
@@ -2397,7 +2409,7 @@ Upgrade the specified file system and all descendent file systems
 .ad
 .sp .6
 .RS 4n
-Upgrade to the specified \fIversion\fR. If the \fB-V\fR flag is not specified, this command upgrades to the most recent version. This option can only be used to increase the version number, and only up to the most recent version supported by this software.
+Upgrades to the specified \fIversion\fR. If the \fB-V\fR flag is not specified, this command upgrades to the most recent version. This option can only be used to increase the version number, and only up to the most recent version supported by this software.
 .RE
 
 .RE
