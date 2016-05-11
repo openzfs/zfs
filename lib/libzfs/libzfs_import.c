@@ -599,7 +599,7 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 			}
 
 			/* Prefer paths earlier in the search order. */
-			if (best->ne_num_labels == best->ne_num_labels &&
+			if (ne->ne_num_labels == best->ne_num_labels &&
 			    ne->ne_order < best->ne_order) {
 				best = ne;
 				continue;
