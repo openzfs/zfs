@@ -382,15 +382,20 @@ Enabling deduplication on an improperly-designed system will result in extreme p
 Before creating a pool with deduplication enabled, ensure that you have planned your hardware requirements appropriately and implemented appropriate recovery practices, such as regular backups.
 .sp
 Unless necessary, deduplication should NOT be enabled on a system. Instead, consider using \fIcompression=lz4\fR, as a less resource-intensive alternative.
+.SS "Properties"
+.sp
+.LP
+Properties are divided into two types: native properties and user-defined (or "user") properties. Native properties either export internal statistics or control \fBZFS\fR behavior. User properties have no effect on \fBZFS\fR behavior, but you can use them to annotate datasets and snapshots in a way that is meaningful in your environment.
+.sp
+.LP
+Properties are generally inherited from the parent unless overridden by the child. See the documentation below for exceptions.
+.sp
+.LP
 .SS "Native Properties"
-.LP
-Properties are divided into two types, native properties and user-defined (or "user") properties. Native properties either export internal statistics or control \fBZFS\fR behavior. In addition, native properties are either editable or read-only. User properties have no effect on \fBZFS\fR behavior, but you can use them to annotate datasets in a way that is meaningful in your environment. For more information about user properties, see the "User Properties" section, below.
+Native properties apply to all dataset types unless otherwise noted. However, native properties cannot be edited on snapshots.
 .sp
 .LP
-Every dataset has a set of properties that export statistics about the dataset as well as control various behaviors. Properties are inherited from the parent unless overridden by the child. Some properties apply only to certain types of datasets (file systems, volumes, or snapshots).
-.sp
-.LP
-The values of numeric properties can be specified using human-readable abbreviations (\fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, and \fBZ\fR). These abbreviations can optionally use the IEC binary prefixes (e.g. GiB) or SI decimal prefixes (e.g. GB), though the SI prefixes are treated as binary prefixes. Abbreviations are case-insensitive. The following are all valid (and equal) specifications:
+The values of numeric native properties can be specified using human-readable abbreviations (\fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, and \fBZ\fR). These abbreviations can optionally use the IEC binary prefixes (e.g. GiB) or SI decimal prefixes (e.g. GB), though the SI prefixes are treated as binary prefixes. Abbreviations are case-insensitive. The following are all valid (and equal) specifications:
 .sp
 .in +2
 .nf
@@ -401,10 +406,10 @@ The values of numeric properties can be specified using human-readable abbreviat
 
 .sp
 .LP
-The values of non-numeric properties are case sensitive and must be lowercase, except for \fBmountpoint\fR, \fBsharenfs\fR, and \fBsharesmb\fR.
+The values of non-numeric native properties are case-sensitive and must be lowercase, except for \fBmountpoint\fR, \fBsharenfs\fR, and \fBsharesmb\fR.
 .sp
 .LP
-The following native properties consist of read-only statistics about the dataset. These properties can be neither set, nor inherited. Native properties apply to all dataset types unless otherwise noted.
+The following native properties consist of read-only statistics about the dataset. These properties can be neither set, nor inherited.
 .sp
 .ne 2
 .mk
@@ -1562,13 +1567,13 @@ When a file system is mounted, either through \fBmount\fR(8) for legacy mounts o
 In addition, these options can be set on a per-mount basis using the \fB-o\fR option, without affecting the property that is stored on disk. The values specified on the command line override the values stored in the dataset. The \fB-nosuid\fR option is an alias for \fBnodevices,nosetuid\fR. These properties are reported as "temporary" by the \fBzfs get\fR command. If the properties are changed while the dataset is mounted, the new setting overrides any temporary settings.
 .SS "User Properties"
 .LP
-In addition to the standard native properties, \fBZFS\fR supports arbitrary user properties. User properties have no effect on \fBZFS\fR behavior, but applications or administrators can use them to annotate datasets (file systems, volumes, and snapshots).
+In addition to the standard native properties, \fBZFS\fR supports arbitrary user properties. User properties have no effect on \fBZFS\fR behavior, but applications or administrators can use them to annotate datasets (file systems, volumes, and snapshots). Unlike native properties, user properties are editable on snapshots.
 .sp
 .LP
 User property names must contain a colon (\fB:\fR) character to distinguish them from native properties. They may contain lowercase letters, numbers, and the following punctuation characters: colon (\fB:\fR), dash (\fB-\fR), period (\fB\&.\fR), and underscore (\fB_\fR). The expected convention is that the property name is divided into two portions such as \fImodule\fR\fB:\fR\fIproperty\fR, but this namespace is not enforced by \fBZFS\fR. User property names can be at most 256 characters, and cannot begin with a dash (\fB-\fR).
 .sp
 .LP
-When making programmatic use of user properties, it is strongly suggested to use a reversed \fBDNS\fR domain name for the \fImodule\fR component of property names to reduce the chance that two independently-developed packages use the same property name for different purposes. For example, property names beginning with \fBcom.sun\fR. are reserved for use by Oracle Corporation (which acquired Sun Microsystems).
+When making programmatic use of user properties, it is strongly suggested to use a reversed \fBDNS\fR domain name for the \fImodule\fR component of property names to reduce the chance that two independently-developed packages use the same property name for different purposes. For example, property names beginning with \fBcom.sun\fR. are reserved for definition by Oracle Corporation (which acquired Sun Microsystems).
 .sp
 .LP
 The values of user properties are arbitrary strings, are always inherited, and are never validated. All of the commands that operate on properties (\fBzfs list\fR, \fBzfs get\fR, \fBzfs set\fR, and so forth) can be used to manipulate both native properties and user properties. Use the \fBzfs inherit\fR command to clear a user property . If the property is not defined in any parent dataset, it is removed entirely. Property values are limited to 1024 characters.
