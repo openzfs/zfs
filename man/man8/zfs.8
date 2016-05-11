@@ -774,7 +774,7 @@ The following native properties can be used to change the behavior of a \fBZFS\f
 .ne 2
 .mk
 .na
-\fB\fBaclinherit\fR=\fBdiscard\fR | \fBnoallow\fR | \fBrestricted\fR | \fBpassthrough\fR | \fBpassthrough-x\fR\fR
+\fB\fBaclinherit\fR=\fBrestricted\fR | \fBdiscard\fR | \fBnoallow\fR | \fBpassthrough\fR | \fBpassthrough-x\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -857,7 +857,7 @@ Changing this property affects only newly-written data.
 .ne 2
 .mk
 .na
-\fB\fBcompression\fR=\fBon\fR | \fBoff\fR | \fBlzjb\fR | \fBlz4\fR |
+\fB\fBcompression\fR=\fBoff\fR | \fBon\fR | \fBlzjb\fR | \fBlz4\fR |
 \fBgzip\fR | \fBgzip-\fR\fIN\fR | \fBzle\fR\fR
 .ad
 .sp .6
@@ -915,7 +915,7 @@ Remember that \fBZFS\fR will not import a pool with a missing top-level vdev. Do
 .ne 2
 .mk
 .na
-\fB\fBdedup\fR=\fBon\fR | \fBoff\fR | \fBverify\fR | \fBsha256\fR[,\fBverify\fR]\fR
+\fB\fBdedup\fR=\fBoff\fR | \fBon\fR | \fBverify\fR | \fBsha256\fR[,\fBverify\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -956,7 +956,7 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBexec\fR and \fBnoexec
 .ne 2
 .mk
 .na
-\fB\fBmlslabel\fR=\fIlabel\fR | \fBnone\fR\fR
+\fB\fBmlslabel\fR=\fBnone\fR\fR | \fIlabel\fR
 .ad
 .sp .6
 .RS 4n
@@ -975,7 +975,7 @@ Zones are a Solaris feature and are not relevant on Linux.
 .ne 2
 .mk
 .na
-\fB\fBfilesystem_limit\fR=\fIcount\fR | \fBnone\fR\fR
+\fB\fBfilesystem_limit\fR=\fBnone\fR\fR | \fIcount\fR
 .ad
 .sp .6
 .RS 4n
@@ -1003,7 +1003,7 @@ When the \fBmountpoint\fR property is changed for a file system, the file system
 .ne 2
 .mk
 .na
-\fB\fBnbmand\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBnbmand\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1029,7 +1029,7 @@ Controls what is cached in the primary cache (ARC). If this property is set to \
 .ne 2
 .mk
 .na
-\fB\fBquota\fR=\fIsize\fR | \fBnone\fR\fR
+\fB\fBquota\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1042,7 +1042,7 @@ Quotas cannot be set on volumes, as the \fBvolsize\fR property acts as an implic
 .ne 2
 .mk
 .na
-\fB\fBsnapshot_limit\fR=\fIcount\fR | \fBnone\fR\fR
+\fB\fBsnapshot_limit\fR=\fBnone\fR\fR | \fIcount\fR
 .ad
 .sp .6
 .RS 4n
@@ -1058,7 +1058,7 @@ a zone. This feature must be enabled to be used (see \fBzpool-features\fR(5)).
 .sp
 .ne 2
 .na
-\fB\fBuserquota@\fR\fIuser\fR=\fIsize\fR | \fBnone\fR\fR
+\fB\fBuserquota@\fR\fIuser\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1100,7 +1100,7 @@ Files created on Linux always have POSIX owners.
 .ne 2
 .mk
 .na
-\fB\fBgroupquota@\fR\fIgroup\fR=\fIsize\fR | \fBnone\fR\fR
+\fB\fBgroupquota@\fR\fIgroup\fR=\fBnone\fR\fR | \fIsize\fR
 .ad
 .sp .6
 .RS 4n
@@ -1113,7 +1113,7 @@ Unprivileged users can access only their own groups' space usage. The root user,
 .ne 2
 .mk
 .na
-\fB\fBreadonly\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBreadonly\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1178,7 +1178,7 @@ The default value is \fBall\fR.
 .sp
 .ne 2
 .na
-\fB\fBrefquota\fR=\fIsize\fR | \fBnone\fR\fR
+\fB\fBrefquota\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1189,7 +1189,7 @@ Limits the amount of space a dataset can consume. This property enforces a hard 
 .ne 2
 .mk
 .na
-\fB\fBrefreservation\fR=\fIsize\fR | \fBnone\fR\fR
+\fB\fBrefreservation\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1206,7 +1206,7 @@ This property can also be referred to by its shortened column name, \fBrefreserv
 .ne 2
 .mk
 .na
-\fB\fBrelatime\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBrelatime\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1219,7 +1219,7 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBrelatime\fR and \fBno
 .ne 2
 .mk
 .na
-\fB\fBreservation\fR=\fIsize\fR | \fBnone\fR\fR
+\fB\fBreservation\fR=\fBnone\fR | \fIsize\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1256,7 +1256,7 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBsuid\fR and \fBnosuid
 .ne 2
 .mk
 .na
-\fB\fBsharesmb\fR=\fBon\fR | \fBoff\fR
+\fB\fBsharesmb\fR=\fBoff\fR | \fBon\fR
 .ad
 .sp .6
 .RS 4n
@@ -1297,7 +1297,7 @@ smbmount //127.0.0.1/share_tmp /mnt/tmp -o user=workgroup/turbo,password=obrut,u
 .ne 2
 .mk
 .na
-\fB\fBsharenfs\fR=\fBon\fR | \fBoff\fR | \fIopts\fR\fR
+\fB\fBsharenfs\fR=\fBoff\fR | \fBon\fR | \fIopts\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1373,7 +1373,7 @@ should only use this option when the risks are understood.
 .sp
 .ne 2
 .na
-\fB\fBversion\fR=\fB1\fR | \fB2\fR | \fBcurrent\fR\fR
+\fB\fBversion\fR=\fB5\fR | \fB4\fR | \fB3\fR | \fB2\fR | \fB1\fR | \fBcurrent\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1399,7 +1399,7 @@ A "sparse volume" (also known as "thin provisioning") can be created by specifyi
 .ne 2
 .mk
 .na
-\fB\fBvscan\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBvscan\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1447,7 +1447,7 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBxattr\fR and \fBnoxat
 .ne 2
 .mk
 .na
-\fB\fBzoned\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBzoned\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1494,7 +1494,7 @@ This property cannot be changed after the file system is created.
 .ne 2
 .mk
 .na
-\fB\fButf8only\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fButf8only\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1516,7 +1516,7 @@ The \fBcasesensitivity\fR, \fBnormalization\fR, and \fButf8only\fR properties ar
 .ne 2
 .mk
 .na
-\fB\fBcontext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+\fB\fBcontext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1527,7 +1527,7 @@ This flag sets the SELinux context for all files in the filesytem under the moun
 .ne 2
 .mk
 .na
-\fB\fBfscontext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+\fB\fBfscontext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1538,7 +1538,7 @@ This flag sets the SELinux context for the filesytem being mounted.  See \fBseli
 .ne 2
 .mk
 .na
-\fB\fBdefntext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+\fB\fBdefntext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1549,7 +1549,7 @@ This flag sets the SELinux context for unlabeled files.  See \fBselinux\fR(8) fo
 .ne 2
 .mk
 .na
-\fB\fBrootcontext\fR=\fBSELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
+\fB\fBrootcontext\fR=\fBnone\fR | \fISELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1560,7 +1560,7 @@ This flag sets the SELinux context for the root inode of the filesystem.  See \f
 .ne 2
 .mk
 .na
-\fB\fBoverlay\fR=\fBon\fR | \fBoff\fR\fR
+\fB\fBoverlay\fR=\fBoff\fR | \fBon\fR\fR
 .ad
 .sp .6
 .RS 4n
