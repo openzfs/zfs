@@ -689,6 +689,7 @@ The \fBuserused@\fR... properties are not displayed by \fBzfs get all\fR. The us
 \fISID numeric ID\fR (for example, \fBS-1-123-456-789\fR)
 .RE
 .RE
+Files created on Linux always have POSIX owners.
 
 .sp
 .ne 2
@@ -1082,6 +1083,7 @@ This property is not available on volumes, on file systems before version 4, or 
 \fISID numeric ID\fR (for example, \fBS-1-123-456-789\fR)
 .RE
 .RE
+Files created on Linux always have POSIX owners.
 
 .sp
 .ne 2
@@ -1387,6 +1389,8 @@ Though not recommended, a "sparse volume" (also known as "thin provisioning") ca
 .sp .6
 .RS 4n
 Controls whether regular files should be scanned for viruses when a file is opened and closed. In addition to enabling this property, the virus scan service must also be enabled for virus scanning to occur. The default value is \fBoff\fR.
+.sp
+This property is not used on Linux.
 .RE
 
 .sp
@@ -2503,13 +2507,15 @@ types.
 .sp .6
 .RS 4n
 Translate SID to POSIX ID. The POSIX ID may be ephemeral if no mapping exists.
-Normal POSIX interfaces (for example, \fBstat\fR(2), \fBls\fR \fB-l\fR) perform
+Normal POSIX interfaces (for example, \fBstat\fR(2), \fBls\fR(1) \fB-l\fR) perform
 this translation, so the \fB-i\fR option allows the output from \fBzfs
 userspace\fR to be compared directly with those utilities. However, \fB-i\fR
 may lead to confusion if some files were created by an SMB user before a
 SMB-to-POSIX name mapping was established. In such a case, some files will be owned
 by the SMB entity and some by the POSIX entity. However, the \fB-i\fR option
 will report that the POSIX entity has the total usage and quota for both.
+.sp
+This option is not useful on Linux.
 .RE
 
 .RE
@@ -2571,7 +2577,11 @@ details.
 .ad
 .sp .6
 .RS 4n
-Perform an overlay mount. See \fBmount\fR(8) for more information.
+Allow mounting the filesystem even if the target directory is not empty.
+.sp
+On Solaris, the behavior of \fBzfs mount\fR matches \fBmount\fR and \fBzfs mount -O\fR matches \fBmount -O\fR. See \fBmount\fR(1M).
+.sp
+On Linux, this is the default for \fBmount\fR(8). In other words, \fBzfs mount -O\fR matches \fBmount\fR and there is no \fBmount\fR equivalent to a plain \fBzfs mount\fR.
 .RE
 
 .sp
@@ -3732,6 +3742,8 @@ If you are using \fBDNS\fR for host name resolution, specify the fully qualified
 \fBExample 17 \fRDelegating ZFS Administration Permissions on a ZFS Dataset
 .sp
 .LP
+This is not currently supported on Linux.
+.sp
 The following example shows how to set permissions so that user \fBcindys\fR can create, destroy, mount, and take snapshots on \fBtank/cindys\fR. The permissions on \fBtank/cindys\fR are also displayed.
 
 .sp
@@ -3930,4 +3942,6 @@ Invalid command line options were specified.
 
 .SH SEE ALSO
 .LP
-\fBchmod\fR(2), \fBfsync\fR(2), \fBgzip\fR(1), \fBmount\fR(8), \fBssh\fR(1), \fBstat\fR(2), \fBwrite\fR(2), \fBzpool\fR(8)
+\fBchmod\fR(2), \fBfsync\fR(2), \fBgzip\fR(1), \fBls\fR(1), \fBmount\fR(8), \fBopen\fR(2), \fBreaddir\fR(3), \fBssh\fR(1), \fBstat\fR(2), \fBwrite\fR(2), \fBzpool\fR(8)
+.sp
+On Solaris: \fBdfstab(4)\fR, \fBiscsitadm(1M)\fR, \fBmount(1M)\fR, \fBshare(1M)\fR, \fBsharemgr(1M)\fR, \fBunshare(1M)\fR
