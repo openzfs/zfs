@@ -2393,7 +2393,7 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 			XVA_SET_RTN(xvap, XAT_REPARSE);
 		}
 		if (XVA_ISSET_REQ(xvap, XAT_GEN)) {
-			xoap->xoa_generation = ip->i_generation;
+			xoap->xoa_generation = zp->z_gen;
 			XVA_SET_RTN(xvap, XAT_GEN);
 		}
 

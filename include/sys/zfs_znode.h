@@ -196,6 +196,7 @@ typedef struct znode {
 	uint_t		z_blksz;	/* block size in bytes */
 	uint_t		z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
+	uint64_t	z_gen;		/* generation (cached) */
 	uint64_t	z_size;		/* file size (cached) */
 	uint64_t	z_links;	/* file links (cached) */
 	uint64_t	z_pflags;	/* pflags (cached) */

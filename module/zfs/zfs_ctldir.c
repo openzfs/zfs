@@ -476,6 +476,7 @@ zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
 	zp->z_blksz = 0;
 	zp->z_seq = 0;
 	zp->z_mapcnt = 0;
+	zp->z_gen = 0;
 	zp->z_size = 0;
 	zp->z_links = 0;
 	zp->z_pflags = 0;
@@ -488,7 +489,6 @@ zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
 	zp->z_is_ctldir = B_TRUE;
 	zp->z_is_sa = B_FALSE;
 	zp->z_is_stale = B_FALSE;
-	ip->i_generation = 0;
 	ip->i_ino = id;
 	ip->i_mode = (S_IFDIR | S_IRUGO | S_IXUGO);
 	ip->i_uid = SUID_TO_KUID(0);
