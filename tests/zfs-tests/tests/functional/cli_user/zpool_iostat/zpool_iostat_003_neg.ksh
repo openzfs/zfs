@@ -52,7 +52,8 @@ fi
 
 set -A args "" "-?" "-f" "nonexistpool" "$TESTPOOL/$TESTFS" \
 	"$testpool 0" "$testpool -1" "$testpool 1 0" \
-	"$testpool 0 0" "$testpool -wl" "$testpool -wq"
+	"$testpool 0 0" "$testpool -wl" "$testpool -wq" "$testpool -wr" \
+	"$testpool -rq" "$testpool -lr"
 
 log_assert "Executing 'zpool iostat' with bad options fails"
 

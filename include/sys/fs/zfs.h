@@ -558,7 +558,17 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_W_LAT_HISTO	"vdev_async_w_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_SCRUB_LAT_HISTO	"vdev_scrub_histo"
 
-
+/* Request size histograms */
+#define	ZPOOL_CONFIG_VDEV_SYNC_IND_R_HISTO	"vdev_sync_ind_r_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_IND_W_HISTO	"vdev_sync_ind_w_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_IND_R_HISTO	"vdev_async_ind_r_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_IND_W_HISTO	"vdev_async_ind_w_histo"
+#define	ZPOOL_CONFIG_VDEV_IND_SCRUB_HISTO	"vdev_ind_scrub_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_AGG_R_HISTO	"vdev_sync_agg_r_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_AGG_W_HISTO	"vdev_sync_agg_w_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_AGG_R_HISTO	"vdev_async_agg_r_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_AGG_W_HISTO	"vdev_async_agg_w_histo"
+#define	ZPOOL_CONFIG_VDEV_AGG_SCRUB_HISTO	"vdev_agg_scrub_histo"
 
 #define	ZPOOL_CONFIG_WHOLE_DISK		"whole_disk"
 #define	ZPOOL_CONFIG_ERRCOUNT		"error_count"
@@ -824,20 +834,33 @@ typedef struct vdev_stat_ex {
 	 * 2^37 nanoseconds = 134s. Timeouts will probably start kicking in
 	 * before this.
 	 */
-#define	VDEV_HISTO_BUCKETS 37
+#define	VDEV_L_HISTO_BUCKETS 37		/* Latency histo buckets */
+#define	VDEV_RQ_HISTO_BUCKETS 25	/* Request size histo buckets */
+
 
 	/* Amount of time in ZIO queue (ns) */
 	uint64_t vsx_queue_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
-	    [VDEV_HISTO_BUCKETS];
+	    [VDEV_L_HISTO_BUCKETS];
 
 	/* Total ZIO latency (ns).  Includes queuing and disk access time */
-	uint64_t vsx_total_histo[ZIO_TYPES][VDEV_HISTO_BUCKETS];
+	uint64_t vsx_total_histo[ZIO_TYPES][VDEV_L_HISTO_BUCKETS];
 
 	/* Amount of time to read/write the disk (ns) */
-	uint64_t vsx_disk_histo[ZIO_TYPES][VDEV_HISTO_BUCKETS];
+	uint64_t vsx_disk_histo[ZIO_TYPES][VDEV_L_HISTO_BUCKETS];
 
-	/* "lookup the bucket for a value" macro */
-#define	HISTO(a) (a != 0 ? MIN(highbit64(a) - 1, VDEV_HISTO_BUCKETS - 1) : 0)
+	/* "lookup the bucket for a value" histogram macros */
+#define	HISTO(val, buckets) (val != 0 ? MIN(highbit64(val) - 1, \
+	    buckets - 1) : 0)
+#define	L_HISTO(a) HISTO(a, VDEV_L_HISTO_BUCKETS)
+#define	RQ_HISTO(a) HISTO(a, VDEV_RQ_HISTO_BUCKETS)
+
+	/* Physical IO histogram */
+	uint64_t vsx_ind_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
+	    [VDEV_RQ_HISTO_BUCKETS];
+
+	/* Delegated (aggregated) physical IO histogram */
+	uint64_t vsx_agg_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
+	    [VDEV_RQ_HISTO_BUCKETS];
 
 } vdev_stat_ex_t;
 
