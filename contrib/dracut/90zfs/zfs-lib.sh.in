@@ -1,6 +1,24 @@
 #!/bin/sh
 
 command -v getarg >/dev/null || . /lib/dracut-lib.sh
+command -v getargbool >/dev/null || {
+    # Compatibility with older Dracut versions.
+    # With apologies to the Dracut developers.
+    getargbool() {
+        local _b
+        unset _b
+        local _default
+        _default="$1"; shift
+        _b=$(getarg "$@")
+        [ $? -ne 0 -a -z "$_b" ] && _b="$_default"
+        if [ -n "$_b" ]; then
+            [ $_b = "0" ] && return 1
+            [ $_b = "no" ] && return 1
+            [ $_b = "off" ] && return 1
+        fi
+        return 0
+    }
+}
 
 OLDIFS="${IFS}"
 NEWLINE="
