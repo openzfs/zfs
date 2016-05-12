@@ -1,4 +1,4 @@
-SUBDIRS = fm fs
+SUBDIRS = fm fs crypto
 
 COMMON_H = \
 	$(top_srcdir)/include/sys/arc.h \

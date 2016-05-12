@@ -12,7 +12,7 @@ if [ -f "${basedir}/../${SCRIPT_CONFIG}" ]; then
 . "${basedir}/../${SCRIPT_CONFIG}"
 else
 KERNEL_MODULES=(zlib_deflate zlib_inflate)
-MODULES=(spl splat zavl znvpair zunicode zcommon zfs)
+MODULES=(spl splat zavl znvpair zunicode zcommon icp zfs)
 fi
 
 PROG="<define PROG>"

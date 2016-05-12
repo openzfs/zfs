@@ -126,7 +126,8 @@ nodist_libzpool_la_SOURCES = \
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libicp/libicp.la
 
 libzpool_la_LIBADD += $(ZLIB)
 libzpool_la_LDFLAGS = -version-info 2:0:0

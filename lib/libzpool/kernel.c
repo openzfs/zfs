@@ -41,6 +41,7 @@
 #include <sys/time.h>
 #include <sys/systeminfo.h>
 #include <zfs_fletcher.h>
+#include <sys/crypto/icp.h>
 
 /*
  * Emulation of kernel services in userland.
@@ -1113,8 +1114,95 @@ lowbit64(uint64_t i)
 	return (h);
 }
 
+/*
+ * Find highest one bit set.
+ * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
+ * High order bit is 31 (or 63 in _LP64 kernel).
+ */
+int
+highbit(ulong_t i)
+{
+register int h = 1;
+
+	if (i == 0)
+		return (0);
+#ifdef _LP64
+	if (i & 0xffffffff00000000ul) {
+		h += 32; i >>= 32;
+	}
+#endif
+	if (i & 0xffff0000) {
+		h += 16; i >>= 16;
+	}
+	if (i & 0xff00) {
+		h += 8; i >>= 8;
+	}
+	if (i & 0xf0) {
+		h += 4; i >>= 4;
+	}
+	if (i & 0xc) {
+		h += 2; i >>= 2;
+	}
+	if (i & 0x2) {
+		h += 1;
+	}
+	return (h);
+}
+
+/*
+ * Find lowest one bit set.
+ *     Returns bit number + 1 of lowest bit that is set, otherwise returns 0.
+ * Low order bit is 0.
+ */
+int
+lowbit(ulong_t i)
+{
+	register int h = 1;
+
+	if (i == 0)
+		return (0);
+
+#ifdef _LP64
+	if (!(i & 0xffffffff)) {
+		h += 32; i >>= 32;
+	}
+#endif
+	if (!(i & 0xffff)) {
+		h += 16; i >>= 16;
+	}
+	if (!(i & 0xff)) {
+		h += 8; i >>= 8;
+	}
+	if (!(i & 0xf)) {
+		h += 4; i >>= 4;
+	}
+	if (!(i & 0x3)) {
+		h += 2; i >>= 2;
+	}
+	if (!(i & 0x1)) {
+		h += 1;
+	}
+	return (h);
+}
 
 static int random_fd = -1, urandom_fd = -1;
+
+void
+random_init(void)
+{
+	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
+	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);
+}
+
+void
+random_fini(void)
+{
+	close(random_fd);
+	close(urandom_fd);
+
+	random_fd = -1;
+	urandom_fd = -1;
+}
 
 static int
 random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
@@ -1228,12 +1316,13 @@ kernel_init(int mode)
 	(void) snprintf(hw_serial, sizeof (hw_serial), "%ld",
 	    (mode & FWRITE) ? get_system_hostid() : 0);
 
-	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
-	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);
+	random_init();
+
 	VERIFY0(uname(&hw_utsname));
 
 	thread_init();
 	system_taskq_init();
+	icp_init();
 
 	spa_init(mode);
 
@@ -1248,14 +1337,11 @@ kernel_fini(void)
 	fletcher_4_fini();
 	spa_fini();
 
+	icp_fini();
 	system_taskq_fini();
 	thread_fini();
 
-	close(random_fd);
-	close(urandom_fd);
-
-	random_fd = -1;
-	urandom_fd = -1;
+	random_fini();
 }
 
 uid_t

@@ -82,6 +82,7 @@ export ZFS_MODULES=(                                  \
         ${MODDIR}/nvpair/znvpair.ko                   \
         ${MODDIR}/unicode/zunicode.ko                 \
         ${MODDIR}/zcommon/zcommon.ko                  \
+        ${MODDIR}/icp/icp.ko                          \
         ${MODDIR}/zfs/zfs.ko                          \
 )
 
