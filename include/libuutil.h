@@ -242,7 +242,7 @@ void uu_list_pool_destroy(uu_list_pool_t *);
  * usage:
  *
  *	foo_t *a;
- *	a = malloc(sizeof(*a));
+ *	a = malloc(sizeof (*a));
  *	uu_list_node_init(a, &a->foo_list, pool);
  *	...
  *	uu_list_node_fini(a, &a->foo_list, pool);
@@ -345,7 +345,7 @@ void uu_avl_pool_destroy(uu_avl_pool_t *);
  * usage:
  *
  *	foo_t *a;
- *	a = malloc(sizeof(*a));
+ *	a = malloc(sizeof (*a));
  *	uu_avl_node_init(a, &a->foo_avl, pool);
  *	...
  *	uu_avl_node_fini(a, &a->foo_avl, pool);

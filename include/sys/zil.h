@@ -32,6 +32,7 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/dmu.h>
+#include <sys/zio_crypt.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -86,7 +87,7 @@ typedef struct zil_header {
  * number passed in the blk_cksum field of the blkptr_t
  */
 typedef struct zil_chain {
-	uint64_t zc_pad;
+	uint64_t zc_mac; /* mac for encryption */
 	blkptr_t zc_next_blk;	/* next block in chain */
 	uint64_t zc_nused;	/* bytes in log block used */
 	zio_eck_t zc_eck;	/* block trailer */
@@ -458,7 +459,8 @@ typedef int (*const zil_replay_func_t)(void *, char *, boolean_t);
 typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf, zio_t *zio);
 
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
-    zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg);
+    zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
+    boolean_t decrypt);
 
 extern void	zil_init(void);
 extern void	zil_fini(void);

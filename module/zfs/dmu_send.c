@@ -336,10 +336,10 @@ dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type,
 		payload_size = drrw->drr_logical_size;
 	}
 
-	if (bp == NULL || BP_IS_EMBEDDED(bp)) {
+	if (bp == NULL || BP_IS_EMBEDDED(bp) || BP_IS_ENCRYPTED(bp)) {
 		/*
 		 * There's no pre-computed checksum for partial-block
-		 * writes or embedded BP's, so (like
+		 * writes, embedded BP's, or encrypted BP's, so (like
 		 * fletcher4-checkummed blocks) userland will have to
 		 * compute a dedup-capable checksum itself.
 		 */
@@ -729,7 +729,7 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		    zb->zb_blkid * blksz >= dsa->dsa_resume_offset));
 
 		if (request_compressed)
-			zioflags |= ZIO_FLAG_RAW;
+			zioflags |= ZIO_FLAG_RAW_COMPRESS;
 
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
 		    ZIO_PRIORITY_ASYNC_READ, zioflags,
@@ -1009,7 +1009,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	if (err != 0)
 		return (err);
 
-	err = dsl_dataset_hold_obj(dp, tosnap, FTAG, &ds);
+	err = dsl_dataset_hold_crypt_obj(dp, tosnap, FTAG, &ds);
 	if (err != 0) {
 		dsl_pool_rele(dp, FTAG);
 		return (err);
@@ -1021,7 +1021,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 
 		err = dsl_dataset_hold_obj(dp, fromsnap, FTAG, &fromds);
 		if (err != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_crypt(ds, FTAG);
 			dsl_pool_rele(dp, FTAG);
 			return (err);
 		}
@@ -1039,7 +1039,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE,
 		    embedok, large_block_ok, compressok, outfd, 0, 0, vp, off);
 	}
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_crypt(ds, FTAG);
 	return (err);
 }
 
@@ -1066,10 +1066,10 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 		 * We are sending a filesystem or volume.  Ensure
 		 * that it doesn't change by owning the dataset.
 		 */
-		err = dsl_dataset_own(dp, tosnap, FTAG, &ds);
+		err = dsl_dataset_own(dp, tosnap, FTAG, B_TRUE, &ds);
 		owned = B_TRUE;
 	} else {
-		err = dsl_dataset_hold(dp, tosnap, FTAG, &ds);
+		err = dsl_dataset_hold_crypt(dp, tosnap, FTAG, &ds);
 	}
 	if (err != 0) {
 		dsl_pool_rele(dp, FTAG);
@@ -1109,7 +1109,11 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 			err = dsl_bookmark_lookup(dp, fromsnap, ds, &zb);
 		}
 		if (err != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			if (owned)
+				dsl_dataset_disown(ds, FTAG);
+			else
+				dsl_dataset_rele_crypt(ds, FTAG);
+
 			dsl_pool_rele(dp, FTAG);
 			return (err);
 		}
@@ -1124,7 +1128,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 	if (owned)
 		dsl_dataset_disown(ds, FTAG);
 	else
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 	return (err);
 }
 
@@ -1264,7 +1268,8 @@ dmu_send_estimate_from_txg(dsl_dataset_t *ds, uint64_t from_txg,
 	 * traverse the blocks of the snapshot with birth times after
 	 * from_txg, summing their uncompressed size
 	 */
-	err = traverse_dataset(ds, from_txg, TRAVERSE_POST,
+	err = traverse_dataset(ds, from_txg,
+	    TRAVERSE_POST | TRAVERSE_NO_DECRYPT,
 	    dmu_calculate_send_traversal, &size);
 
 	if (err)
@@ -1431,18 +1436,18 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_DNODE))
 		return (SET_ERROR(ENOTSUP));
 
-	error = dsl_dataset_hold(dp, tofs, FTAG, &ds);
+	error = dsl_dataset_hold_crypt(dp, tofs, FTAG, &ds);
 	if (error == 0) {
 		/* target fs already exists; recv into temp clone */
 
 		/* Can't recv a clone into an existing fs */
 		if (flags & DRR_FLAG_CLONE || drba->drba_origin) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_crypt(ds, FTAG);
 			return (SET_ERROR(EINVAL));
 		}
 
 		error = recv_begin_check_existing_impl(drba, ds, fromguid);
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 	} else if (error == ENOENT) {
 		/* target fs does not exist; must be a full backup or clone */
 		char buf[ZFS_MAX_DATASET_NAME_LEN];
@@ -1467,7 +1472,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		/* Open the parent of tofs */
 		ASSERT3U(strlen(tofs), <, sizeof (buf));
 		(void) strlcpy(buf, tofs, strrchr(tofs, '/') - tofs + 1);
-		error = dsl_dataset_hold(dp, buf, FTAG, &ds);
+		error = dsl_dataset_hold_crypt(dp, buf, FTAG, &ds);
 		if (error != 0)
 			return (error);
 
@@ -1479,14 +1484,14 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
 		    ZFS_PROP_FILESYSTEM_LIMIT, NULL, drba->drba_cred);
 		if (error != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_crypt(ds, FTAG);
 			return (error);
 		}
 
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
 		    ZFS_PROP_SNAPSHOT_LIMIT, NULL, drba->drba_cred);
 		if (error != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_crypt(ds, FTAG);
 			return (error);
 		}
 
@@ -1495,23 +1500,23 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 			error = dsl_dataset_hold(dp, drba->drba_origin,
 			    FTAG, &origin);
 			if (error != 0) {
-				dsl_dataset_rele(ds, FTAG);
+				dsl_dataset_rele_crypt(ds, FTAG);
 				return (error);
 			}
 			if (!origin->ds_is_snapshot) {
 				dsl_dataset_rele(origin, FTAG);
-				dsl_dataset_rele(ds, FTAG);
+				dsl_dataset_rele_crypt(ds, FTAG);
 				return (SET_ERROR(EINVAL));
 			}
 			if (dsl_dataset_phys(origin)->ds_guid != fromguid &&
 			    fromguid != 0) {
 				dsl_dataset_rele(origin, FTAG);
-				dsl_dataset_rele(ds, FTAG);
+				dsl_dataset_rele_crypt(ds, FTAG);
 				return (SET_ERROR(ENODEV));
 			}
 			dsl_dataset_rele(origin, FTAG);
 		}
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 		error = 0;
 	}
 	return (error);
@@ -1533,7 +1538,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	if (drrb->drr_flags & DRR_FLAG_CI_DATA)
 		crflags |= DS_FLAG_CI_DATASET;
 
-	error = dsl_dataset_hold(dp, tofs, FTAG, &ds);
+	error = dsl_dataset_hold_crypt(dp, tofs, FTAG, &ds);
 	if (error == 0) {
 		/* create temporary clone */
 		dsl_dataset_t *snap = NULL;
@@ -1542,10 +1547,10 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 			    drba->drba_snapobj, FTAG, &snap));
 		}
 		dsobj = dsl_dataset_create_sync(ds->ds_dir, recv_clone_name,
-		    snap, crflags, drba->drba_cred, tx);
+		    snap, crflags, drba->drba_cred, NULL, tx);
 		if (drba->drba_snapobj != 0)
 			dsl_dataset_rele(snap, FTAG);
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 	} else {
 		dsl_dir_t *dd;
 		const char *tail;
@@ -1561,13 +1566,13 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		/* Create new dataset. */
 		dsobj = dsl_dataset_create_sync(dd,
 		    strrchr(tofs, '/') + 1,
-		    origin, crflags, drba->drba_cred, tx);
+		    origin, crflags, drba->drba_cred, NULL, tx);
 		if (origin != NULL)
 			dsl_dataset_rele(origin, FTAG);
 		dsl_dir_rele(dd, FTAG);
 		drba->drba_cookie->drc_newfs = B_TRUE;
 	}
-	VERIFY0(dsl_dataset_own_obj(dp, dsobj, dmu_recv_tag, &newds));
+	VERIFY0(dsl_dataset_own_obj(dp, dsobj, dmu_recv_tag, B_TRUE, &newds));
 
 	if (drba->drba_cookie->drc_resumable) {
 		uint64_t one = 1;
@@ -1667,28 +1672,28 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	(void) snprintf(recvname, sizeof (recvname), "%s/%s",
 	    tofs, recv_clone_name);
 
-	if (dsl_dataset_hold(dp, recvname, FTAG, &ds) != 0) {
+	if (dsl_dataset_hold_crypt(dp, recvname, FTAG, &ds) != 0) {
 		/* %recv does not exist; continue in tofs */
-		error = dsl_dataset_hold(dp, tofs, FTAG, &ds);
+		error = dsl_dataset_hold_crypt(dp, tofs, FTAG, &ds);
 		if (error != 0)
 			return (error);
 	}
 
 	/* check that ds is marked inconsistent */
 	if (!DS_IS_INCONSISTENT(ds)) {
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 
 	/* check that there is resuming data, and that the toguid matches */
 	if (!dsl_dataset_is_zapified(ds)) {
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 	error = zap_lookup(dp->dp_meta_objset, ds->ds_object,
 	    DS_FIELD_RESUME_TOGUID, sizeof (val), 1, &val);
 	if (error != 0 || drrb->drr_toguid != val) {
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1698,13 +1703,13 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	 * fails) because it will be marked inconsistent.
 	 */
 	if (dsl_dataset_has_owner(ds)) {
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 		return (SET_ERROR(EBUSY));
 	}
 
 	/* There should not be any snapshots of this fs yet. */
 	if (ds->ds_prev != NULL && ds->ds_prev->ds_dir == ds->ds_dir) {
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1718,11 +1723,11 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	(void) zap_lookup(dp->dp_meta_objset, ds->ds_object,
 	    DS_FIELD_RESUME_FROMGUID, sizeof (val), 1, &val);
 	if (drrb->drr_fromguid != val) {
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_crypt(ds, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_crypt(ds, FTAG);
 	return (0);
 }
 
@@ -1753,7 +1758,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	dsobj = ds->ds_object;
 	dsl_dataset_rele(ds, FTAG);
 
-	VERIFY0(dsl_dataset_own_obj(dp, dsobj, dmu_recv_tag, &ds));
+	VERIFY0(dsl_dataset_own_obj(dp, dsobj, dmu_recv_tag, B_TRUE, &ds));
 
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_INCONSISTENT;
@@ -3262,11 +3267,17 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	}
 	drc->drc_newsnapobj = dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj;
 	zvol_create_minors(dp->dp_spa, drc->drc_tofs, B_TRUE);
+
 	/*
 	 * Release the hold from dmu_recv_begin.  This must be done before
-	 * we return to open context, so that when we free the dataset's dnode,
-	 * we can evict its bonus buffer.
+	 * we return to open context, so that when we free the dataset's dnode
+	 * we can evict its bonus buffer. Since the dataset may be destroyed
+	 * at this point (and therefore won't have a valid pointer to the spa)
+	 * we release the key mapping manually here while we do have a valid
+	 * pointer.
 	 */
+	(void) spa_keystore_remove_mapping(dmu_tx_pool(tx)->dp_spa,
+	    drc->drc_ds, drc->drc_ds);
 	dsl_dataset_disown(drc->drc_ds, dmu_recv_tag);
 	drc->drc_ds = NULL;
 }

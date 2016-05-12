@@ -59,60 +59,60 @@
 int zfs_nopwrite_enabled = 1;
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
-	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"object directory"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"object array"		},
-	{	DMU_BSWAP_UINT8,	TRUE,	"packed nvlist"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"packed nvlist size"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj"			},
-	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj header"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"SPA space map header"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"SPA space map"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"ZIL intent log"	},
-	{	DMU_BSWAP_DNODE,	TRUE,	"DMU dnode"		},
-	{	DMU_BSWAP_OBJSET,	TRUE,	"DMU objset"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"DSL directory"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL directory child map"},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dataset snap map"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL props"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"DSL dataset"		},
-	{	DMU_BSWAP_ZNODE,	TRUE,	"ZFS znode"		},
-	{	DMU_BSWAP_OLDACL,	TRUE,	"ZFS V0 ACL"		},
-	{	DMU_BSWAP_UINT8,	FALSE,	"ZFS plain file"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS directory"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS master node"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS delete queue"	},
-	{	DMU_BSWAP_UINT8,	FALSE,	"zvol object"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"zvol prop"		},
-	{	DMU_BSWAP_UINT8,	FALSE,	"other uint8[]"		},
-	{	DMU_BSWAP_UINT64,	FALSE,	"other uint64[]"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"other ZAP"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"persistent error log"	},
-	{	DMU_BSWAP_UINT8,	TRUE,	"SPA history"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"SPA history offsets"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"Pool properties"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL permissions"	},
-	{	DMU_BSWAP_ACL,		TRUE,	"ZFS ACL"		},
-	{	DMU_BSWAP_UINT8,	TRUE,	"ZFS SYSACL"		},
-	{	DMU_BSWAP_UINT8,	TRUE,	"FUID table"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"FUID table size"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dataset next clones"},
-	{	DMU_BSWAP_ZAP,		TRUE,	"scan work queue"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS user/group used"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS user/group quota"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"snapshot refcount tags"},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DDT ZAP algorithm"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DDT statistics"	},
-	{	DMU_BSWAP_UINT8,	TRUE,	"System attributes"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"SA master node"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"SA attr registration"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"SA attr layouts"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"scan translations"	},
-	{	DMU_BSWAP_UINT8,	FALSE,	"deduplicated block"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL deadlist map"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"DSL deadlist map hdr"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dir clones"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj subobj"		}
+	{ DMU_BSWAP_UINT8,	TRUE,	FALSE,	"unallocated"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"object directory"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"object array"		},
+	{ DMU_BSWAP_UINT8,	TRUE,	FALSE,	"packed nvlist"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"packed nvlist size"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"bpobj"			},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"bpobj header"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"SPA space map header"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"SPA space map"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	TRUE,	"ZIL intent log"	},
+	{ DMU_BSWAP_DNODE,	TRUE,	TRUE,	"DMU dnode"		},
+	{ DMU_BSWAP_OBJSET,	TRUE,	FALSE,	"DMU objset"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"DSL directory"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL directory child map"},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL dataset snap map"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL props"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"DSL dataset"		},
+	{ DMU_BSWAP_ZNODE,	TRUE,	FALSE,	"ZFS znode"		},
+	{ DMU_BSWAP_OLDACL,	TRUE,	TRUE,	"ZFS V0 ACL"		},
+	{ DMU_BSWAP_UINT8,	FALSE,	TRUE,	"ZFS plain file"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS directory"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"ZFS master node"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"ZFS delete queue"	},
+	{ DMU_BSWAP_UINT8,	FALSE,	TRUE,	"zvol object"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"zvol prop"		},
+	{ DMU_BSWAP_UINT8,	FALSE,	TRUE,	"other uint8[]"		},
+	{ DMU_BSWAP_UINT64,	FALSE,	TRUE,	"other uint64[]"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"other ZAP"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"persistent error log"	},
+	{ DMU_BSWAP_UINT8,	TRUE,	FALSE,	"SPA history"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"SPA history offsets"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"Pool properties"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL permissions"	},
+	{ DMU_BSWAP_ACL,	TRUE,	TRUE,	"ZFS ACL"		},
+	{ DMU_BSWAP_UINT8,	TRUE,	TRUE,	"ZFS SYSACL"		},
+	{ DMU_BSWAP_UINT8,	TRUE,	TRUE,	"FUID table"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"FUID table size"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL dataset next clones"},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"scan work queue"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group used"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group quota"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"snapshot refcount tags"},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DDT ZAP algorithm"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DDT statistics"	},
+	{ DMU_BSWAP_UINT8,	TRUE,	TRUE,	"System attributes"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"SA master node"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"SA attr registration"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"SA attr layouts"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"scan translations"	},
+	{ DMU_BSWAP_UINT8,	FALSE,	FALSE,	"deduplicated block"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL deadlist map"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"DSL deadlist map hdr"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL dir clones"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"bpobj subobj"		}
 };
 
 const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
@@ -588,7 +588,9 @@ dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, void *tag)
  * the data starting at offset, and continuing to offset + len.
  *
  * Note that if the indirect blocks above the blocks being prefetched are not in
- * cache, they will be asychronously read in.
+ * cache, they will be asychronously read in. Also, callers should make sure
+ * not to attempt to prefetch encrypted data without the relevant encryption key
+ * being loaded.
  */
 void
 dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
@@ -1426,7 +1428,7 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 			BP_SET_LSIZE(bp, db->db_size);
 		} else if (!BP_IS_EMBEDDED(bp)) {
 			ASSERT(BP_GET_LEVEL(bp) == 0);
-			bp->blk_fill = 1;
+			BP_SET_FILL(bp, 1);
 		}
 	}
 }
@@ -1594,8 +1596,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	dmu_write_policy(os, dn, db->db_level, WP_DMU_SYNC,
-	    ZIO_COMPRESS_INHERIT, &zp);
+	dmu_write_policy(os, dn, db->db_level, WP_DMU_SYNC, &zp);
 	DB_DNODE_EXIT(db);
 
 	/*
@@ -1765,8 +1766,7 @@ int zfs_mdcomp_disable = 0;
 int zfs_redundant_metadata_most_ditto_level = 2;
 
 void
-dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
-    enum zio_compress override_compress, zio_prop_t *zp)
+dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 {
 	dmu_object_type_t type = dn ? dn->dn_type : DMU_OT_OBJSET;
 	boolean_t ismd = (level > 0 || DMU_OT_IS_METADATA(type) ||
@@ -1777,6 +1777,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 	boolean_t dedup = B_FALSE;
 	boolean_t nopwrite = B_FALSE;
 	boolean_t dedup_verify = os->os_dedup_verify;
+	boolean_t encrypt = B_FALSE;
 	int copies = os->os_copies;
 
 	/*
@@ -1864,23 +1865,75 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 		    compress != ZIO_COMPRESS_OFF && zfs_nopwrite_enabled);
 	}
 
-	zp->zp_checksum = checksum;
-
 	/*
-	 * If we're writing a pre-compressed buffer, the compression type we use
-	 * must match the data. If it hasn't been compressed yet, then we should
-	 * use the value dictated by the policies above.
+	 * Encrypted objects override the checksum type with sha256-mac (which
+	 * is dedupable). Encrypted, dedup'd ojects cannot use all available
+	 * copies since we use the last one to store the IV. Encryption is also
+	 * incompatible with nopwrite because encrypted checksums are not
+	 * reproducible (unless dedup is on).
 	 */
-	zp->zp_compress = override_compress != ZIO_COMPRESS_INHERIT
-	    ? override_compress : compress;
-	ASSERT3U(zp->zp_compress, !=, ZIO_COMPRESS_INHERIT);
+	if (os->os_encrypted && DMU_OT_IS_ENCRYPTED(type) &&
+	    !(wp & WP_NOFILL) && level <= 0) {
+		encrypt = B_TRUE;
+		nopwrite = B_FALSE;
 
+		if (copies >= SPA_DVAS_PER_BP)
+			copies = SPA_DVAS_PER_BP - 1;
+		if (type == DMU_OT_DNODE)
+			compress = ZIO_COMPRESS_EMPTY;
+	}
+
+	zp->zp_compress = compress;
+	zp->zp_checksum = checksum;
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;
 	zp->zp_level = level;
 	zp->zp_copies = MIN(copies, spa_max_replication(os->os_spa));
 	zp->zp_dedup = dedup;
 	zp->zp_dedup_verify = dedup && dedup_verify;
 	zp->zp_nopwrite = nopwrite;
+	zp->zp_encrypt = encrypt;
+	bzero(zp->zp_salt, DATA_SALT_LEN);
+	bzero(zp->zp_iv, DATA_IV_LEN);
+	bzero(zp->zp_mac, DATA_MAC_LEN);
+
+	ASSERT(!(zp->zp_encrypt && zp->zp_copies >= 3));
+}
+
+/*
+ * If we're writing a pre-compressed buffer, the compression type we use
+ * must match the data. If it hasn't been compressed yet, then we should
+ * use the value dictated by the original policy.
+ */
+void
+dmu_write_policy_override_compress(zio_prop_t *zp, enum zio_compress compress)
+{
+	ASSERT3U(compress, !=, ZIO_COMPRESS_INHERIT);
+	zp->zp_compress = compress;
+}
+
+/*
+ * Raw encrypted data must pass a few values to the zio layer. The encryption
+ * parameters must be passsed in to the policy so that they can be written along
+ * with the block. In addition, raw encrypted writes must also be raw compressed
+ * since encryption is applied after compression, so we must set that field here
+ * as well.
+ */
+void
+dmu_write_policy_override_encrypt(zio_prop_t *zp, enum zio_compress compress,
+    uint8_t *salt, uint8_t *iv, uint8_t *mac)
+{
+	ASSERT3U(compress, !=, ZIO_COMPRESS_INHERIT);
+	ASSERT3U(zp->zp_level, <=, 0);
+
+	zp->zp_compress = compress;
+	zp->zp_nopwrite = B_FALSE;
+	zp->zp_encrypt = B_TRUE;
+	bcopy(salt, zp->zp_salt, DATA_SALT_LEN);
+	bcopy(iv, zp->zp_iv, DATA_IV_LEN);
+	bcopy(mac, zp->zp_mac, DATA_MAC_LEN);
+
+	if (zp->zp_copies >= SPA_DVAS_PER_BP)
+		zp->zp_copies = SPA_DVAS_PER_BP - 1;
 }
 
 int

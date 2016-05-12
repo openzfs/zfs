@@ -98,7 +98,7 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
     'zfs_create_004_pos', 'zfs_create_005_pos', 'zfs_create_006_pos',
     'zfs_create_007_pos', 'zfs_create_008_neg', 'zfs_create_009_neg',
     'zfs_create_010_neg', 'zfs_create_011_pos', 'zfs_create_012_pos',
-    'zfs_create_013_pos', 'zfs_create_014_pos']
+    'zfs_create_013_pos', 'zfs_create_014_pos', 'zfs_create_encrypted']
 
 # DISABLED:
 # zfs_destroy_005_neg - busy mountpoint behavior
@@ -120,6 +120,10 @@ tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
 [tests/functional/cli_root/zfs_inherit]
 tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos']
 
+[tests/functional/cli_root/zfs_key]
+tests = ['zfs_key_unload_pos', 'zfs_key_unload_neg', 'zfs_key_load_pos',
+	'zfs_key_load_neg', 'zfs_key_change_pos', 'zfs_key_change_neg']
+
 # DISABLED:
 # zfs_mount_006_pos - needs investigation
 # zfs_mount_007_pos - needs investigation
@@ -128,7 +132,7 @@ tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos']
 [tests/functional/cli_root/zfs_mount]
 tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
     'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_008_pos',
-    'zfs_mount_010_neg', 'zfs_mount_011_neg']
+    'zfs_mount_010_neg', 'zfs_mount_011_neg', 'zfs_mount_encrypted']
 
 [tests/functional/cli_root/zfs_promote]
 tests = ['zfs_promote_001_pos', 'zfs_promote_002_pos', 'zfs_promote_003_pos',
@@ -147,7 +151,8 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_005_neg', 'zfs_receive_006_pos',
     'zfs_receive_007_neg', 'zfs_receive_008_pos', 'zfs_receive_009_neg',
     'zfs_receive_010_pos', 'zfs_receive_011_pos', 'zfs_receive_012_pos',
-    'zfs_receive_013_pos', 'zfs_receive_014_pos']
+    'zfs_receive_013_pos', 'zfs_receive_014_pos', 'zfs_receive_encrypted_pos',
+    'zfs_receive_encrypted_neg']
 
 [tests/functional/cli_root/zfs_rename]
 tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos', 'zfs_rename_003_pos',
@@ -168,7 +173,7 @@ tests = ['zfs_rollback_003_neg', 'zfs_rollback_004_neg']
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
-    'zfs_send_007_pos']
+    'zfs_send_007_pos', 'zfs_send_encrypted_pos', 'zfs_send_encrypted_neg']
 
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
@@ -251,7 +256,7 @@ tests = [
     'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_017_neg',
     'zpool_create_018_pos', 'zpool_create_019_pos',
     'zpool_create_021_pos', 'zpool_create_022_pos', 'zpool_create_023_neg',
-    'zpool_create_024_pos',
+    'zpool_create_024_pos', 'zpool_create_encrypted',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
     'zpool_create_features_005_pos']

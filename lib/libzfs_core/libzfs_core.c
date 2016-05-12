@@ -170,27 +170,32 @@ out:
 }
 
 int
-lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props)
+lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props,
+    nvlist_t *hidden_args)
 {
 	int error;
 	nvlist_t *args = fnvlist_alloc();
 	fnvlist_add_int32(args, "type", type);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
+	if (hidden_args != NULL)
+		fnvlist_add_nvlist(args, ZPOOL_HIDDEN_ARGS, hidden_args);
 	error = lzc_ioctl(ZFS_IOC_CREATE, fsname, args, NULL);
 	nvlist_free(args);
 	return (error);
 }
 
 int
-lzc_clone(const char *fsname, const char *origin,
-    nvlist_t *props)
+lzc_clone(const char *fsname, const char *origin, nvlist_t *props,
+    nvlist_t *hidden_args)
 {
 	int error;
 	nvlist_t *args = fnvlist_alloc();
 	fnvlist_add_string(args, "origin", origin);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
+	if (hidden_args != NULL)
+		fnvlist_add_nvlist(args, ZPOOL_HIDDEN_ARGS, hidden_args);
 	error = lzc_ioctl(ZFS_IOC_CLONE, fsname, args, NULL);
 	nvlist_free(args);
 	return (error);
@@ -924,5 +929,28 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 
 	error = lzc_ioctl(ZFS_IOC_DESTROY_BOOKMARKS, pool, bmarks, errlist);
 
+	return (error);
+}
+
+/*
+ * Performs key management functions
+ *
+ * crypto_cmd should be a value from zfs_ioc_crypto_cmd_t. If the command
+ * specifies to load or change a wrapping key, the key should be specified in
+ * the hidden_args nvlist so that it is not logged
+ */
+int
+lzc_key(const char *fsname, uint64_t crypto_cmd, nvlist_t *args,
+    nvlist_t *hidden_args)
+{
+	int error;
+	nvlist_t *ioc_args = fnvlist_alloc();
+	fnvlist_add_uint64(ioc_args, "crypto_cmd", crypto_cmd);
+	if (args != NULL)
+		fnvlist_add_nvlist(ioc_args, "args", args);
+	if (hidden_args != NULL)
+		fnvlist_add_nvlist(ioc_args, ZPOOL_HIDDEN_ARGS, hidden_args);
+	error = lzc_ioctl(ZFS_IOC_KEY, fsname, ioc_args, NULL);
+	nvlist_free(ioc_args);
 	return (error);
 }

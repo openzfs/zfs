@@ -1150,6 +1150,8 @@ spa_activate(spa_t *spa, int mode)
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
 	    offsetof(spa_error_entry_t, se_avl));
 
+	spa_keystore_init(&spa->spa_keystore);
+
 	/*
 	 * This taskq is used to perform zvol-minor-related tasks
 	 * asynchronously. This has several advantages, including easy
@@ -1227,9 +1229,10 @@ spa_deactivate(spa_t *spa)
 	 * still have errors left in the queues.  Empty them just in case.
 	 */
 	spa_errlog_drain(spa);
-
 	avl_destroy(&spa->spa_errlist_scrub);
 	avl_destroy(&spa->spa_errlist_last);
+
+	spa_keystore_fini(&spa->spa_keystore);
 
 	spa->spa_state = POOL_STATE_UNINITIALIZED;
 
@@ -2059,8 +2062,8 @@ spa_load_verify(spa_t *spa)
 
 	if (spa_load_verify_metadata) {
 		error = traverse_pool(spa, spa->spa_verify_min_txg,
-		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA,
-		    spa_load_verify_cb, rio);
+		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
+		    TRAVERSE_NO_DECRYPT, spa_load_verify_cb, rio);
 	}
 
 	(void) zio_wait(rio);
@@ -3738,7 +3741,7 @@ spa_l2cache_drop(spa_t *spa)
  */
 int
 spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
-    nvlist_t *zplprops)
+    nvlist_t *zplprops, dsl_crypto_params_t *dcp)
 {
 	spa_t *spa;
 	char *altroot = NULL;
@@ -3751,6 +3754,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	uint_t nspares, nl2cache;
 	uint64_t version, obj;
 	boolean_t has_features;
+	boolean_t has_encryption;
+	spa_feature_t feat;
+	char *feat_name;
 	nvpair_t *elem;
 	int c, i;
 	char *poolname;
@@ -3793,10 +3799,25 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		spa->spa_import_flags |= ZFS_IMPORT_TEMP_NAME;
 
 	has_features = B_FALSE;
+	has_encryption = B_FALSE;
 	for (elem = nvlist_next_nvpair(props, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(props, elem)) {
-		if (zpool_prop_feature(nvpair_name(elem)))
+		if (zpool_prop_feature(nvpair_name(elem))) {
 			has_features = B_TRUE;
+
+			feat_name = strchr(nvpair_name(elem), '@') + 1;
+			VERIFY0(zfeature_lookup_name(feat_name, &feat));
+			if (feat == SPA_FEATURE_ENCRYPTION)
+				has_encryption = B_TRUE;
+		}
+	}
+
+	if (!has_encryption && dcp && dcp->cp_crypt != ZIO_CRYPT_OFF &&
+	    dcp->cp_crypt != ZIO_CRYPT_INHERIT) {
+		spa_deactivate(spa);
+		spa_remove(spa);
+		mutex_exit(&spa_namespace_lock);
+		return (SET_ERROR(EINVAL));
 	}
 
 	if (has_features || nvlist_lookup_uint64(props,
@@ -3886,8 +3907,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	}
 
 	spa->spa_is_initializing = B_TRUE;
-	spa->spa_dsl_pool = dp = dsl_pool_create(spa, zplprops, txg);
-	spa->spa_meta_objset = dp->dp_meta_objset;
+	spa->spa_dsl_pool = dp = dsl_pool_create(spa, zplprops, dcp, txg);
 	spa->spa_is_initializing = B_FALSE;
 
 	/*
@@ -3911,9 +3931,6 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	    sizeof (uint64_t), 1, &spa->spa_config_object, tx) != 0) {
 		cmn_err(CE_PANIC, "failed to add pool config");
 	}
-
-	if (spa_version(spa) >= SPA_VERSION_FEATURES)
-		spa_feature_create_zap_objects(spa, tx);
 
 	if (zap_add(spa->spa_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_CREATION_VERSION,

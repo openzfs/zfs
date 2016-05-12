@@ -1250,7 +1250,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		rw_exit(&mdn->dn_struct_rwlock);
 	if (db == NULL)
 		return (SET_ERROR(EIO));
-	err = dbuf_read(db, NULL, DB_RF_CANFAIL);
+	err = dbuf_read(db, NULL, DB_RF_CANFAIL | DB_RF_NO_DECRYPT);
 	if (err) {
 		dbuf_rele(db, FTAG);
 		return (err);
@@ -2026,7 +2026,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			 */
 			return (SET_ERROR(ESRCH));
 		}
-		error = dbuf_read(db, NULL, DB_RF_CANFAIL | DB_RF_HAVESTRUCT);
+		error = dbuf_read(db, NULL,
+		    DB_RF_CANFAIL | DB_RF_HAVESTRUCT | DB_RF_NO_DECRYPT);
 		if (error) {
 			dbuf_rele(db, FTAG);
 			return (error);

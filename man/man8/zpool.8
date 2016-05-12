@@ -1222,7 +1222,7 @@ Lists destroyed pools only.
 .sp
 .ne 2
 .na
-\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-s\fR] \fB-a\fR\fR
+\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-l\fR] [\fB-m\fR] [\fB-N\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-s\fR] \fB-a\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1288,6 +1288,15 @@ Forces import, even if the pool appears to be potentially active.
 .ad
 .RS 21n
 Recovery mode for a non-importable pool. Attempt to return the pool to an importable state by discarding the last few transactions. Not all damaged pools can be recovered by using this option. If successful, the data from the discarded transactions is irretrievably lost. This option is ignored if the pool is importable or already imported.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-l\fR\fR
+.ad
+.RS 21n
+Indicates that the zpool command will request encryption keys for all encrypted datasets it attempts to mount as it is bringing the pool online. This is equivalent to running \fBzfs mount\fR on each encrypted dataset immediately after the pool is imported. If any datasets have a \fBprompt\fR keysource this command will block waiting for the key to be entered. Otherwise, encrypted datasets will be left unavailable until the keys are loaded.
 .RE
 
 .sp
@@ -1369,7 +1378,7 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .sp
 .ne 2
 .na
-\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] [\fB-s\fR] \fIpool\fR | \fIid\fR [\fInewpool\fR]\fR
+\fB\fBzpool import\fR [\fB-o\fR \fImntopts\fR] [ \fB-o\fR \fIproperty\fR=\fIvalue\fR] ... [\fB-d\fR \fIdir\fR | \fB-c\fR \fIcachefile\fR] [\fB-D\fR] [\fB-f\fR] [\fB-l\fR] [\fB-m\fR] [\fB-R\fR \fIroot\fR] [\fB-F\fR [\fB-n\fR]] [\fB-t\fR]] [\fB-s\fR] \fIpool\fR | \fIid\fR [\fInewpool\fR]\fR
 .ad
 .sp .6
 .RS 4n
@@ -1444,6 +1453,16 @@ Forces import, even if the pool appears to be potentially active.
 .sp .6
 .RS 4n
 Recovery mode for a non-importable pool. Attempt to return the pool to an importable state by discarding the last few transactions. Not all damaged pools can be recovered by using this option. If successful, the data from the discarded transactions is irretrievably lost. This option is ignored if the pool is importable or already imported.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-l\fR\fR
+.ad
+.sp .6
+.RS 4n
+Indicates that the zpool command will request encryption keys for all encrypted datasets it attempts to mount as it is bringing the pool online. This is equivalent to running \fBzfs mount\fR on each encrypted dataset immediately after the pool is imported. If any datasets have a \fBprompt\fR keysource this command will block waiting for the key to be entered. Otherwise, encrypted datasets will be left unavailable until the keys are loaded.
 .RE
 
 .sp

@@ -611,31 +611,106 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 	return (err);
 }
 
+void
+dsl_dataset_rele_crypt(dsl_dataset_t *ds, void *tag)
+{
+	ASSERT(ds->ds_objset != NULL);
+
+	if (ds->ds_objset->os_encrypted) {
+		VERIFY0(spa_keystore_remove_mapping(ds->ds_objset->os_spa,
+		    ds, ds));
+	}
+
+	dsl_dataset_rele(ds, tag);
+}
+
+int
+dsl_dataset_hold_crypt(dsl_pool_t *dp, const char *name,
+    void *tag, dsl_dataset_t **dsp)
+{
+	int err;
+	objset_t *os;
+
+	err = dsl_dataset_hold(dp, name, tag, dsp);
+	if (err != 0)
+		return (err);
+
+	err = dmu_objset_from_ds(*dsp, &os);
+	if (err != 0)
+		goto error;
+
+	if (os->os_encrypted) {
+		err = spa_keystore_create_mapping(dp->dp_spa, *dsp, *dsp);
+		if (err != 0)
+			goto error;
+	}
+
+	return (0);
+
+error:
+	dsl_dataset_rele(*dsp, tag);
+	*dsp = NULL;
+	return (err);
+}
+
+int
+dsl_dataset_hold_crypt_obj(dsl_pool_t *dp, uint64_t dsobj,
+    void *tag, dsl_dataset_t **dsp)
+{
+	int err;
+	objset_t *os;
+
+	err = dsl_dataset_hold_obj(dp, dsobj, tag, dsp);
+	if (err != 0)
+		return (err);
+
+	err = dmu_objset_from_ds(*dsp, &os);
+	if (err != 0)
+		goto error;
+
+	if (os->os_encrypted) {
+		err = spa_keystore_create_mapping(dp->dp_spa, *dsp, *dsp);
+		if (err != 0)
+			goto error;
+	}
+
+	return (0);
+
+error:
+	dsl_dataset_rele(*dsp, tag);
+	*dsp = NULL;
+	return (err);
+}
+
 int
 dsl_dataset_own_obj(dsl_pool_t *dp, uint64_t dsobj,
-    void *tag, dsl_dataset_t **dsp)
+    void *tag, boolean_t key_required, dsl_dataset_t **dsp)
 {
 	int err = dsl_dataset_hold_obj(dp, dsobj, tag, dsp);
 	if (err != 0)
 		return (err);
-	if (!dsl_dataset_tryown(*dsp, tag)) {
+
+	err = dsl_dataset_tryown(*dsp, tag, key_required);
+	if (err != 0) {
 		dsl_dataset_rele(*dsp, tag);
 		*dsp = NULL;
-		return (SET_ERROR(EBUSY));
+		return (err);
 	}
 	return (0);
 }
 
 int
 dsl_dataset_own(dsl_pool_t *dp, const char *name,
-    void *tag, dsl_dataset_t **dsp)
+    void *tag, boolean_t key_required, dsl_dataset_t **dsp)
 {
 	int err = dsl_dataset_hold(dp, name, tag, dsp);
 	if (err != 0)
 		return (err);
-	if (!dsl_dataset_tryown(*dsp, tag)) {
+
+	err = dsl_dataset_tryown(*dsp, tag, key_required);
+	if (err != 0) {
 		dsl_dataset_rele(*dsp, tag);
-		return (SET_ERROR(EBUSY));
+		return (err);
 	}
 	return (0);
 }
@@ -727,26 +802,41 @@ dsl_dataset_disown(dsl_dataset_t *ds, void *tag)
 	ASSERT(ds->ds_dbuf != NULL);
 
 	mutex_enter(&ds->ds_lock);
+	if (ds->ds_dir && ds->ds_dir->dd_crypto_obj) {
+		(void) spa_keystore_remove_mapping(ds->ds_dir->dd_pool->dp_spa,
+		    ds, ds);
+	}
 	ds->ds_owner = NULL;
 	mutex_exit(&ds->ds_lock);
 	dsl_dataset_long_rele(ds, tag);
 	dsl_dataset_rele(ds, tag);
 }
 
-boolean_t
-dsl_dataset_tryown(dsl_dataset_t *ds, void *tag)
+int
+dsl_dataset_tryown(dsl_dataset_t *ds, void *tag, boolean_t key_required)
 {
-	boolean_t gotit = FALSE;
+	int ret = 0;
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
+	uint64_t dckobj = ds->ds_dir->dd_crypto_obj;
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 	mutex_enter(&ds->ds_lock);
 	if (ds->ds_owner == NULL && !DS_IS_INCONSISTENT(ds)) {
+		if (dckobj != 0 && key_required) {
+			ret = spa_keystore_create_mapping(spa, ds, ds);
+			if (ret) {
+				mutex_exit(&ds->ds_lock);
+				return (SET_ERROR(EACCES));
+			}
+		}
 		ds->ds_owner = tag;
 		dsl_dataset_long_hold(ds, tag);
-		gotit = TRUE;
+	} else {
+		ret = SET_ERROR(EBUSY);
 	}
 	mutex_exit(&ds->ds_lock);
-	return (gotit);
+
+	return (ret);
 }
 
 boolean_t
@@ -789,12 +879,13 @@ dsl_dataset_deactivate_feature(uint64_t dsobj, spa_feature_t f, dmu_tx_t *tx)
 
 uint64_t
 dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
-    uint64_t flags, dmu_tx_t *tx)
+	dsl_crypto_params_t *dcp, uint64_t flags, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = dd->dd_pool;
 	dmu_buf_t *dbuf;
 	dsl_dataset_phys_t *dsphys;
-	uint64_t dsobj;
+	uint64_t dsobj, crypt;
+	dsl_wrapping_key_t *wkey;
 	objset_t *mos = dp->dp_meta_objset;
 
 	if (origin == NULL)
@@ -887,6 +978,80 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 		}
 	}
 
+	/* handle encryption */
+	if (dcp == NULL) {
+		crypt = ZIO_CRYPT_INHERIT;
+		wkey = NULL;
+	} else {
+		crypt = dcp->cp_crypt;
+		wkey = dcp->cp_wkey;
+	}
+
+	if (!dsl_dir_is_clone(dd)) {
+		if (crypt == ZIO_CRYPT_INHERIT && dd->dd_parent != NULL) {
+			VERIFY0(dsl_prop_get_dd(dd->dd_parent,
+			    zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
+			    8, 1, &crypt, NULL, B_FALSE));
+		} else if (crypt == ZIO_CRYPT_INHERIT) {
+			crypt = ZIO_CRYPT_OFF;
+		}
+
+		if (crypt == ZIO_CRYPT_OFF)
+			goto no_crypto;
+
+		if (wkey == NULL) {
+			VERIFY0(spa_keystore_wkey_hold_ddobj(dp->dp_spa,
+			    dd->dd_parent->dd_object, FTAG, &wkey));
+		} else {
+			wkey->wk_ddobj = dd->dd_object;
+		}
+
+		dsl_dir_zapify(dd, tx);
+		dd->dd_crypto_obj = dsl_crypto_key_create_sync(crypt, wkey, tx);
+		VERIFY0(zap_add(mos, dd->dd_object, DD_FIELD_CRYPTO_KEY_OBJ,
+		    sizeof (uint64_t), 1, &dd->dd_crypto_obj, tx));
+
+		if (dcp == NULL || dcp->cp_wkey == NULL) {
+			dsl_wrapping_key_rele(wkey, FTAG);
+		} else {
+			VERIFY0(spa_keystore_load_wkey_impl(tx->tx_pool->dp_spa,
+			    wkey));
+		}
+	} else if (origin->ds_dir->dd_crypto_obj != 0) {
+		VERIFY0(dsl_prop_get_dd(origin->ds_dir,
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), 8, 1,
+		    &crypt, NULL, B_FALSE));
+
+		if (crypt == ZIO_CRYPT_OFF)
+			goto no_crypto;
+
+		if (wkey == NULL) {
+			VERIFY0(spa_keystore_wkey_hold_ddobj(dp->dp_spa,
+			    dd->dd_parent->dd_object, FTAG, &wkey));
+		} else {
+			wkey->wk_ddobj = dd->dd_object;
+		}
+
+		VERIFY0(zap_update(mos,
+		    dsl_dir_phys(dd)->dd_props_zapobj,
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
+		    8, 1, &crypt, tx));
+
+		dsl_dir_zapify(dd, tx);
+		dd->dd_crypto_obj = dsl_crypto_key_clone_sync(origin->ds_dir,
+		    wkey, tx);
+		VERIFY0(zap_add(mos, dd->dd_object, DD_FIELD_CRYPTO_KEY_OBJ,
+		    sizeof (uint64_t), 1, &dd->dd_crypto_obj, tx));
+
+		if (dcp == NULL || dcp->cp_wkey == NULL) {
+			dsl_wrapping_key_rele(wkey, FTAG);
+		} else {
+			VERIFY0(spa_keystore_load_wkey_impl(tx->tx_pool->dp_spa,
+			    wkey));
+		}
+	}
+
+no_crypto:
 	if (spa_version(dp->dp_spa) >= SPA_VERSION_UNIQUE_ACCURATE)
 		dsphys->ds_flags |= DS_FLAG_UNIQUE_ACCURATE;
 
@@ -910,7 +1075,8 @@ dsl_dataset_zero_zil(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 uint64_t
 dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
-    dsl_dataset_t *origin, uint64_t flags, cred_t *cr, dmu_tx_t *tx)
+    dsl_dataset_t *origin, uint64_t flags, cred_t *cr,
+    dsl_crypto_params_t *dcp, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = pdd->dd_pool;
 	uint64_t dsobj, ddobj;
@@ -922,7 +1088,7 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 	ddobj = dsl_dir_create_sync(dp, pdd, lastname, tx);
 	VERIFY0(dsl_dir_hold_obj(dp, ddobj, lastname, FTAG, &dd));
 
-	dsobj = dsl_dataset_create_sync_dd(dd, origin,
+	dsobj = dsl_dataset_create_sync_dd(dd, origin, dcp,
 	    flags & ~DS_CREATE_FLAG_NODIRTY, tx);
 
 	dsl_deleg_set_create_perms(dd, tx, cr);
@@ -1863,6 +2029,8 @@ dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	    ds->ds_userrefs);
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_DEFER_DESTROY,
 	    DS_IS_DEFER_DESTROY(ds) ? 1 : 0);
+	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_KEYSTATUS,
+	    dsl_dataset_keystore_keystatus(ds));
 
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		uint64_t written, comp, uncomp;
@@ -2271,7 +2439,7 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 	fnvlist_add_string(ddra->ddra_result, "target", namebuf);
 
 	cloneobj = dsl_dataset_create_sync(ds->ds_dir, "%rollback",
-	    ds->ds_prev, DS_CREATE_FLAG_NODIRTY, kcred, tx);
+	    ds->ds_prev, DS_CREATE_FLAG_NODIRTY, kcred, NULL, tx);
 
 	VERIFY0(dsl_dataset_hold_obj(dp, cloneobj, FTAG, &clone));
 

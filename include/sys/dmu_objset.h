@@ -96,6 +96,7 @@ struct objset {
 	enum zio_compress os_compress;
 	uint8_t os_copies;
 	enum zio_checksum os_dedup_checksum;
+	boolean_t os_encrypted;
 	boolean_t os_dedup_verify;
 	zfs_logbias_op_t os_logbias;
 	zfs_cache_type_t os_primary_cache;
@@ -151,9 +152,10 @@ struct objset {
 /* called from zpl */
 int dmu_objset_hold(const char *name, void *tag, objset_t **osp);
 int dmu_objset_own(const char *name, dmu_objset_type_t type,
-    boolean_t readonly, void *tag, objset_t **osp);
+    boolean_t readonly, boolean_t key_required, void *tag, objset_t **osp);
 int dmu_objset_own_obj(struct dsl_pool *dp, uint64_t obj,
-    dmu_objset_type_t type, boolean_t readonly, void *tag, objset_t **osp);
+    dmu_objset_type_t type, boolean_t readonly, boolean_t key_required,
+    void *tag, objset_t **osp);
 void dmu_objset_refresh_ownership(objset_t *os, void *tag);
 void dmu_objset_rele(objset_t *os, void *tag);
 void dmu_objset_disown(objset_t *os, void *tag);

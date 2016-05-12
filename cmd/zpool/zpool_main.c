@@ -303,12 +303,13 @@ get_usage(zpool_help_t idx) {
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
 		return (gettext("\timport [-d dir] [-D]\n"
-		    "\timport [-d dir | -c cachefile] [-F [-n]] <pool | id>\n"
+		    "\timport [-d dir | -c cachefile] [-F [-n]] [-l] "
+		    "<pool | id>\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
-		    "\t    [-d dir | -c cachefile] [-D] [-f] [-m] [-N] "
+		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]] -a\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
-		    "\t    [-d dir | -c cachefile] [-D] [-f] [-m] [-N] "
+		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]]\n"
 		    "\t    <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
@@ -349,7 +350,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_SET:
 		return (gettext("\tset <property=value> <pool> \n"));
 	case HELP_SPLIT:
-		return (gettext("\tsplit [-gLnP] [-R altroot] [-o mntopts]\n"
+		return (gettext("\tsplit [-gLnPl] [-R altroot] [-o mntopts]\n"
 		    "\t    [-o property=value] <pool> <newpool> "
 		    "[<device> ...]\n"));
 	case HELP_REGUID:
@@ -2147,7 +2148,8 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    !(flags & ZFS_IMPORT_ONLY) &&
-	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
+	    zpool_enable_datasets(zhp, mntopts, 0,
+	    !!(flags & ZFS_IMPORT_LOAD_KEYS)) != 0) {
 		zpool_close(zhp);
 		return (1);
 	}
@@ -2158,9 +2160,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 /*
  * zpool import [-d dir] [-D]
- *       import [-o mntopts] [-o prop=value] ... [-R root] [-D]
+ *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
  *              [-d dir | -c cachefile] [-f] -a
- *       import [-o mntopts] [-o prop=value] ... [-R root] [-D]
+ *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
  *              [-d dir | -c cachefile] [-f] [-n] [-F] <pool | id> [newpool]
  *
  *	 -c	Read pool information from a cachefile instead of searching
@@ -2194,6 +2196,8 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *       	intentionally undocumented option for testing purposes.
  *
  *       -a	Import all pools found.
+ *
+ *       -l	Load encryption keys while importing.
  *
  *       -o	Set property=value and/or temporary mount options (without '=').
  *
@@ -2236,7 +2240,7 @@ zpool_do_import(int argc, char **argv)
 	char *endptr;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:R:stT:VX")) != -1) {
+	while ((c = getopt(argc, argv, ":aCc:d:DEfFlmnNo:R:stT:VX")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
@@ -2265,6 +2269,9 @@ zpool_do_import(int argc, char **argv)
 			break;
 		case 'F':
 			do_rewind = B_TRUE;
+			break;
+		case 'l':
+			flags |= ZFS_IMPORT_LOAD_KEYS;
 			break;
 		case 'm':
 			flags |= ZFS_IMPORT_MISSING_LOG;
@@ -2337,6 +2344,17 @@ zpool_do_import(int argc, char **argv)
 
 	if (cachefile && nsearch != 0) {
 		(void) fprintf(stderr, gettext("-c is incompatible with -d\n"));
+		usage(B_FALSE);
+	}
+
+	if ((flags & ZFS_IMPORT_LOAD_KEYS) && (flags & ZFS_IMPORT_ONLY)) {
+		(void) fprintf(stderr, gettext("-l is incompatible with -N\n"));
+		usage(B_FALSE);
+	}
+
+	if ((flags & ZFS_IMPORT_LOAD_KEYS) && !do_all && argc == 0) {
+		(void) fprintf(stderr, gettext("-l is only meaningful during "
+		    "an import\n"));
 		usage(B_FALSE);
 	}
 
@@ -4955,6 +4973,7 @@ zpool_do_detach(int argc, char **argv)
  *	-o	Set property=value, or set mount options.
  *	-P	Display full path for vdev name.
  *	-R	Mount the split-off pool under an alternate root.
+ *	-l	Load encryption keys while importing.
  *
  * Splits the named pool and gives it the new pool name.  Devices to be split
  * off may be listed, provided that no more than one device is specified
@@ -4971,6 +4990,7 @@ zpool_do_split(int argc, char **argv)
 	char *srcpool, *newpool, *propval;
 	char *mntopts = NULL;
 	splitflags_t flags;
+	boolean_t loadkeys = B_FALSE;
 	int c, ret = 0;
 	zpool_handle_t *zhp;
 	nvlist_t *config, *props = NULL;
@@ -4980,7 +5000,7 @@ zpool_do_split(int argc, char **argv)
 	flags.name_flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":gLR:no:P")) != -1) {
+	while ((c = getopt(argc, argv, ":gLR:lno:P")) != -1) {
 		switch (c) {
 		case 'g':
 			flags.name_flags |= VDEV_NAME_GUID;
@@ -4996,6 +5016,9 @@ zpool_do_split(int argc, char **argv)
 				nvlist_free(props);
 				usage(B_FALSE);
 			}
+			break;
+		case 'l':
+			loadkeys = B_TRUE;
 			break;
 		case 'n':
 			flags.dryrun = B_TRUE;
@@ -5031,6 +5054,12 @@ zpool_do_split(int argc, char **argv)
 
 	if (!flags.import && mntopts != NULL) {
 		(void) fprintf(stderr, gettext("setting mntopts is only "
+		    "valid when importing the pool\n"));
+		usage(B_FALSE);
+	}
+
+	if (!flags.import && loadkeys) {
+		(void) fprintf(stderr, gettext("loading keys is only "
 		    "valid when importing the pool\n"));
 		usage(B_FALSE);
 	}
@@ -5088,7 +5117,7 @@ zpool_do_split(int argc, char **argv)
 		return (1);
 	}
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
-	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
+	    zpool_enable_datasets(zhp, mntopts, 0, loadkeys) != 0) {
 		ret = 1;
 		(void) fprintf(stderr, gettext("Split was successful, but "
 		    "the datasets could not all be mounted\n"));

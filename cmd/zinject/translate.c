@@ -179,7 +179,7 @@ object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
 	 */
 	sync();
 
-	err = dmu_objset_own(dataset, DMU_OST_ZFS, B_TRUE, FTAG, &os);
+	err = dmu_objset_own(dataset, DMU_OST_ZFS, B_TRUE, B_TRUE, FTAG, &os);
 	if (err != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
@@ -267,7 +267,7 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	 * size.
 	 */
 	if ((err = dmu_objset_own(dataset, DMU_OST_ANY,
-	    B_TRUE, FTAG, &os)) != 0) {
+	    B_TRUE, B_TRUE, FTAG, &os)) != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
 		goto out;

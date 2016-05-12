@@ -2204,7 +2204,7 @@ zfs_zaccess_dataset_check(znode_t *zp, uint32_t v4_mode)
  * placed into the working_mode, giving the caller a mask of denied
  * accesses.  Returns:
  *	0		if all AoI granted
- *	EACCESS 	if the denied mask is non-zero
+ *	EACCES 		if the denied mask is non-zero
  *	other error	if abnormal failure (e.g., IO error)
  *
  * A secondary usage of the function is to determine if any of the

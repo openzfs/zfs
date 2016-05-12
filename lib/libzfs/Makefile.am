@@ -12,6 +12,7 @@ lib_LTLIBRARIES = libzfs.la
 USER_C = \
 	libzfs_changelist.c \
 	libzfs_config.c \
+	libzfs_crypto.c \
 	libzfs_dataset.c \
 	libzfs_diff.c \
 	libzfs_fru.c \

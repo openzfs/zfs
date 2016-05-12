@@ -364,7 +364,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	zv = zvol_find_by_name(name);
 
 	if (zv == NULL || zv->zv_objset == NULL) {
-		if ((error = dmu_objset_own(name, DMU_OST_ZVOL, B_FALSE,
+		if ((error = dmu_objset_own(name, DMU_OST_ZVOL, B_FALSE, B_TRUE,
 		    FTAG, &os)) != 0) {
 			mutex_exit(&zvol_state_lock);
 			return (SET_ERROR(error));
@@ -956,7 +956,7 @@ zvol_first_open(zvol_state_t *zv)
 	uint64_t ro;
 
 	/* lie and say we're read-only */
-	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
+	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, 1, zvol_tag, &os);
 	if (error)
 		return (SET_ERROR(-error));
 
@@ -1380,7 +1380,8 @@ zvol_create_minor_impl(const char *name)
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
-	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
+	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, B_TRUE,
+	    zvol_tag, &os);
 	if (error)
 		goto out_doi;
 
@@ -1435,10 +1436,12 @@ zvol_create_minor_impl(const char *name)
 	 * When udev detects the addition of the device it will immediately
 	 * invoke blkid(8) to determine the type of content on the device.
 	 * Prefetching the blocks commonly scanned by blkid(8) will speed
-	 * up this process.
+	 * up this process. We cannot do this optimization for encrypted blocks
+	 * because we are about to disown the objset, which will release the
+	 * dsl_key_mapping_t.
 	 */
 	len = MIN(MAX(zvol_prefetch_bytes, 0), SPA_MAXBLOCKSIZE);
-	if (len > 0) {
+	if (len > 0 && !os->os_encrypted) {
 		dmu_prefetch(os, ZVOL_OBJ, 0, 0, len, ZIO_PRIORITY_SYNC_READ);
 		dmu_prefetch(os, ZVOL_OBJ, 0, volsize - len, len,
 		    ZIO_PRIORITY_SYNC_READ);
@@ -1512,10 +1515,17 @@ zvol_prefetch_minors_impl(void *arg)
 	char *dsname = job->name;
 	objset_t *os = NULL;
 
-	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, zvol_tag,
-	    &os);
+	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, B_TRUE,
+	    zvol_tag, &os);
 	if (job->error == 0) {
-		dmu_prefetch(os, ZVOL_OBJ, 0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		/*
+		 * Encrypted volumes cannot be prefetched if ownership will
+		 * be dropped.
+		 */
+		if (!os->os_encrypted) {
+			dmu_prefetch(os, ZVOL_OBJ, 0, 0, 0,
+			    ZIO_PRIORITY_SYNC_READ);
+		}
 		dmu_objset_disown(os, zvol_tag);
 	}
 }

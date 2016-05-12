@@ -1064,6 +1064,11 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 			    "not an earlier snapshot from the same fs"));
 			return (zfs_error(hdl, EZFS_CROSSTARGET, errbuf));
 
+		case EACCES:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "source key must be loaded"));
+			return (zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf));
+
 		case ENOENT:
 			if (zfs_dataset_exists(hdl, zc.zc_name,
 			    ZFS_TYPE_SNAPSHOT)) {
@@ -1706,6 +1711,11 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 		switch (error) {
 		case 0:
 			return (0);
+		case EACCES:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "source key must be loaded"));
+			return (zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf));
+
 		case EXDEV:
 		case ENOENT:
 		case EDQUOT:
@@ -2053,6 +2063,11 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd,
 				    from);
 			}
 			return (zfs_error(hdl, EZFS_NOENT, errbuf));
+
+		case EACCES:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "dataset key must be loaded"));
+			return (zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf));
 
 		case EBUSY:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -3532,6 +3547,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    "destination %s has been modified\n"
 			    "since most recent snapshot"), name);
 			(void) zfs_error(hdl, EZFS_BADRESTORE, errbuf);
+			break;
+		case EACCES:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "inheritted key must be loaded"));
+			(void) zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf);
 			break;
 		case EEXIST:
 			cp = strchr(destsnap, '@');
