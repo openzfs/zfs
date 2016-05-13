@@ -1780,14 +1780,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	ASSERT(error == 0);
 
 	/*
-	 * Give dmu_object_alloc() a hint about where to start
-	 * allocating new objects. Otherwise, since the metadnode's
-	 * dnode_phys_t structure isn't initialized yet, dmu_object_next()
-	 * would fail and we'd have to skip to the next dnode block.
-	 */
-	os->os_obj_next = moid + 1;
-
-	/*
 	 * Set starting attributes.
 	 */
 	version = zfs_zpl_version_map(spa_version(dmu_objset_spa(os)));
