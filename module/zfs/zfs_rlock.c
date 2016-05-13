@@ -626,3 +626,10 @@ zfs_range_compare(const void *arg1, const void *arg2)
 		return (-1);
 	return (0);
 }
+
+#ifdef _KERNEL
+EXPORT_SYMBOL(zfs_range_lock);
+EXPORT_SYMBOL(zfs_range_unlock);
+EXPORT_SYMBOL(zfs_range_reduce);
+EXPORT_SYMBOL(zfs_range_compare);
+#endif
