@@ -479,6 +479,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_demand_hit_predictive_prefetch;
 	kstat_named_t arcstat_need_free;
 	kstat_named_t arcstat_sys_free;
+	kstat_named_t arcstat_freeze_collisions;
 } arc_stats_t;
 
 static arc_stats_t arc_stats = {
@@ -575,7 +576,8 @@ static arc_stats_t arc_stats = {
 	{ "sync_wait_for_async",	KSTAT_DATA_UINT64 },
 	{ "demand_hit_predictive_prefetch", KSTAT_DATA_UINT64 },
 	{ "arc_need_free",		KSTAT_DATA_UINT64 },
-	{ "arc_sys_free",		KSTAT_DATA_UINT64 }
+	{ "arc_sys_free",		KSTAT_DATA_UINT64 },
+	{ "freeze_collisions",		KSTAT_DATA_UINT64 }
 };
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
@@ -649,6 +651,55 @@ static arc_state_t	*arc_l2c_only;
 
 #define	L2ARC_IS_VALID_COMPRESS(_c_) \
 	((_c_) == ZIO_COMPRESS_LZ4 || (_c_) == ZIO_COMPRESS_EMPTY)
+
+/*
+ * Previously in struct l1arc_buf_hdr_t, removed because Linux has
+ * rather large memory requirements for these data types. Instead we
+ * have a somewhat large collection of them to be shared by pointer
+ * hashing. We pay with increased and superfluous lock contention on
+ * busy systems but benefit with a ~30% object size reduction.
+ */
+struct arc_buf_hdr_mutex {
+    kmutex_t    b_freeze_lock;
+    kcondvar_t  b_cv;
+};
+
+/*
+ * Because we're hashing by memory address, and these are
+ * assigned from slabs, this should be kept a prime number
+ * to keep slots more fairly distributed.
+ */
+#define        ARC_BUF_HDR_MUTEX_COUNT 1021
+static struct arc_buf_hdr_mutex arc_buf_hdr_mutexes[ARC_BUF_HDR_MUTEX_COUNT];
+
+#define        ARC_BUF_HDR_GET_FREEZE_LOCK(hdr) \
+       (&arc_buf_hdr_mutexes[(uintptr_t)(hdr) % \
+           ARC_BUF_HDR_MUTEX_COUNT].b_freeze_lock)
+#define        ARC_BUF_HDR_GET_CV(hdr) \
+       (&arc_buf_hdr_mutexes[(uintptr_t)(hdr) % ARC_BUF_HDR_MUTEX_COUNT].b_cv)
+
+/* Takes the indicated lock and returns the associated mutex. */
+static kmutex_t *
+arc_buf_freeze_mutex_enter(arc_buf_hdr_t *buf)
+{
+       kmutex_t *freeze_lock;
+
+       freeze_lock = ARC_BUF_HDR_GET_FREEZE_LOCK(&buf->b_l1hdr);
+       if (!mutex_tryenter(freeze_lock)) {
+               ARCSTAT_BUMP(arcstat_freeze_collisions);
+               mutex_enter(freeze_lock);
+       }
+
+       return (freeze_lock);
+}
+
+static void
+arc_buf_freeze_mutex_exit(kmutex_t *freeze_lock)
+{
+       mutex_exit(freeze_lock);
+}
+
+
 
 static list_t arc_prune_list;
 static kmutex_t arc_prune_mtx;
@@ -988,9 +1039,7 @@ hdr_full_cons(void *vbuf, void *unused, int kmflag)
 	arc_buf_hdr_t *hdr = vbuf;
 
 	bzero(hdr, HDR_FULL_SIZE);
-	cv_init(&hdr->b_l1hdr.b_cv, NULL, CV_DEFAULT, NULL);
 	refcount_create(&hdr->b_l1hdr.b_refcnt);
-	mutex_init(&hdr->b_l1hdr.b_freeze_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_link_init(&hdr->b_l1hdr.b_arc_node);
 	list_link_init(&hdr->b_l2hdr.b_l2node);
 	multilist_link_init(&hdr->b_l1hdr.b_arc_node);
@@ -1035,9 +1084,7 @@ hdr_full_dest(void *vbuf, void *unused)
 	arc_buf_hdr_t *hdr = vbuf;
 
 	ASSERT(BUF_EMPTY(hdr));
-	cv_destroy(&hdr->b_l1hdr.b_cv);
 	refcount_destroy(&hdr->b_l1hdr.b_refcnt);
-	mutex_destroy(&hdr->b_l1hdr.b_freeze_lock);
 	ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
 	arc_space_return(HDR_FULL_SIZE, ARC_SPACE_HDRS);
 }
@@ -1239,19 +1286,20 @@ static void
 arc_cksum_verify(arc_buf_t *buf)
 {
 	zio_cksum_t zc;
+	kmutex_t *mutex;
 
 	if (!(zfs_flags & ZFS_DEBUG_MODIFY))
 		return;
 
-	mutex_enter(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	mutex = arc_buf_freeze_mutex_enter(buf->b_hdr);
 	if (buf->b_hdr->b_freeze_cksum == NULL || HDR_IO_ERROR(buf->b_hdr)) {
-		mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+		arc_buf_freeze_mutex_exit(mutex);
 		return;
 	}
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size, &zc);
 	if (!ZIO_CHECKSUM_EQUAL(*buf->b_hdr->b_freeze_cksum, zc))
 		panic("buffer modified while frozen!");
-	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	arc_buf_freeze_mutex_exit(mutex);
 }
 
 static int
@@ -1259,11 +1307,12 @@ arc_cksum_equal(arc_buf_t *buf)
 {
 	zio_cksum_t zc;
 	int equal;
+	kmutex_t *mutex;
 
-	mutex_enter(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	mutex = arc_buf_freeze_mutex_enter(buf->b_hdr);
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size, &zc);
 	equal = ZIO_CHECKSUM_EQUAL(*buf->b_hdr->b_freeze_cksum, zc);
-	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	arc_buf_freeze_mutex_exit(mutex);
 
 	return (equal);
 }
@@ -1271,18 +1320,20 @@ arc_cksum_equal(arc_buf_t *buf)
 static void
 arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 {
+	kmutex_t *mutex;
+
 	if (!force && !(zfs_flags & ZFS_DEBUG_MODIFY))
 		return;
 
-	mutex_enter(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	mutex = arc_buf_freeze_mutex_enter(buf->b_hdr);
 	if (buf->b_hdr->b_freeze_cksum != NULL) {
-		mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+		arc_buf_freeze_mutex_exit(mutex);
 		return;
 	}
 	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t), KM_SLEEP);
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
 	    buf->b_hdr->b_freeze_cksum);
-	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	arc_buf_freeze_mutex_exit(mutex);
 	arc_buf_watch(buf);
 }
 
@@ -1345,6 +1396,8 @@ arc_bufc_to_flags(arc_buf_contents_t type)
 void
 arc_buf_thaw(arc_buf_t *buf)
 {
+	kmutex_t *mutex;
+
 	if (zfs_flags & ZFS_DEBUG_MODIFY) {
 		if (buf->b_hdr->b_l1hdr.b_state != arc_anon)
 			panic("modifying non-anon buffer!");
@@ -1353,13 +1406,13 @@ arc_buf_thaw(arc_buf_t *buf)
 		arc_cksum_verify(buf);
 	}
 
-	mutex_enter(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	mutex = arc_buf_freeze_mutex_enter(buf->b_hdr);
 	if (buf->b_hdr->b_freeze_cksum != NULL) {
 		kmem_free(buf->b_hdr->b_freeze_cksum, sizeof (zio_cksum_t));
 		buf->b_hdr->b_freeze_cksum = NULL;
 	}
 
-	mutex_exit(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	arc_buf_freeze_mutex_exit(mutex);
 
 	arc_buf_unwatch(buf);
 }
@@ -4171,7 +4224,7 @@ arc_read_done(zio_t *zio)
 	 * that the hdr (and hence the cv) might be freed before we get to
 	 * the cv_broadcast().
 	 */
-	cv_broadcast(&hdr->b_l1hdr.b_cv);
+	cv_broadcast(ARC_BUF_HDR_GET_CV(&hdr->b_l1hdr));
 
 	if (hash_lock != NULL) {
 		mutex_exit(hash_lock);
@@ -4283,7 +4336,7 @@ top:
 			}
 
 			if (*arc_flags & ARC_FLAG_WAIT) {
-				cv_wait(&hdr->b_l1hdr.b_cv, hash_lock);
+				cv_wait(ARC_BUF_HDR_GET_CV(&hdr->b_l1hdr), hash_lock);
 				mutex_exit(hash_lock);
 				goto top;
 			}
@@ -4956,6 +5009,7 @@ arc_write_ready(zio_t *zio)
 	arc_write_callback_t *callback = zio->io_private;
 	arc_buf_t *buf = callback->awcb_buf;
 	arc_buf_hdr_t *hdr = buf->b_hdr;
+	kmutex_t *mutex;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT(!refcount_is_zero(&buf->b_hdr->b_l1hdr.b_refcnt));
@@ -4969,12 +5023,12 @@ arc_write_ready(zio_t *zio)
 	 * accounting for any re-write attempt.
 	 */
 	if (HDR_IO_IN_PROGRESS(hdr)) {
-		mutex_enter(&hdr->b_l1hdr.b_freeze_lock);
+		mutex = arc_buf_freeze_mutex_enter(hdr);
 		if (hdr->b_freeze_cksum != NULL) {
 			kmem_free(hdr->b_freeze_cksum, sizeof (zio_cksum_t));
 			hdr->b_freeze_cksum = NULL;
 		}
-		mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
+		arc_buf_freeze_mutex_exit(mutex);
 	}
 	arc_cksum_compute(buf, B_FALSE);
 	hdr->b_flags |= ARC_FLAG_IO_IN_PROGRESS;
