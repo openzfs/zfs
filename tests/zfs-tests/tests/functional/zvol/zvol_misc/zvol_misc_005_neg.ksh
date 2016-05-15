@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,6 +44,8 @@
 
 verify_runnable "global"
 
+volsize=$($ZFS get -H -o value volsize $TESTPOOL/$TESTVOL)
+
 function cleanup
 {
 	$SWAP -l | $GREP $voldev > /dev/null 2>&1
@@ -55,6 +57,7 @@ function cleanup
 	if [[ $dumpdev != $savedumpdev ]] ; then
 		safe_dumpadm $savedumpdev
 	fi
+	$ZFS set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "Verify a device cannot be dump and swap at the same time."

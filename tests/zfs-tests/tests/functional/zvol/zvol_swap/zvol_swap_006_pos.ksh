@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -75,13 +75,13 @@ log_note "Verify volume can be add as several segments."
 #
 #		swaplow			swaplen
 set -A swap_opt	$((pageblocks))	    \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) )) \
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks)) \
 		$((volblocks / 3))  \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) )) \
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks)) \
 		$((volblocks / 2))  \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) )) \
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks)) \
 		$(((volblocks*2) / 3))  \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) ))
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks))
 
 swapname=${ZVOL_DEVDIR}/$vol
 typeset -i i=0 count=0
