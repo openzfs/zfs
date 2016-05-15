@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -43,6 +43,8 @@
 
 verify_runnable "global"
 
+volsize=$($ZFS get -H -o value volsize $TESTPOOL/$TESTVOL)
+
 function cleanup
 {
 	snapexists $TESTPOOL/$TESTVOL@snap && \
@@ -52,6 +54,7 @@ function cleanup
 	(( $? == 0 )) && log_must $UMOUNT $TESTDIR
 
 	[[ -e $TESTDIR ]] && $RM -rf $TESTDIR
+	$ZFS set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "Verify that ZFS volume snapshot could be fscked"
@@ -60,6 +63,8 @@ log_onexit cleanup
 TESTVOL='testvol'
 BLOCKSZ=$(( 1024 * 1024 ))
 NUM_WRITES=40
+
+log_must $ZFS set volsize=128m $TESTPOOL/$TESTVOL
 
 $ECHO "y" | $NEWFS -v ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL >/dev/null 2>&1
 (( $? != 0 )) && log_fail "Unable to newfs(1M) $TESTPOOL/$TESTVOL"

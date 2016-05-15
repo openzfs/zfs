@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,7 +54,7 @@ log_assert "For an added swap zvol, (2G <= volsize <= 16G)"
 
 log_onexit cleanup
 
-for vbs in 512 1024 2048 4096 8192 16384 32768 65536 131072; do
+for vbs in 8192 16384 32768 65536 131072; do
 	for multiplier in 1 32 16384 131072; do
 		((volsize = vbs * multiplier))
 		vol="$TESTPOOL/vol_$volsize"
