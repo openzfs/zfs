@@ -104,8 +104,7 @@ thread_fini(void)
 	kthread_nr--; /* Main thread is exiting */
 
 	while (kthread_nr > 0)
-		VERIFY3S(pthread_cond_wait(&kthread_cond, &kthread_lock), ==,
-		    0);
+		VERIFY0(pthread_cond_wait(&kthread_cond, &kthread_lock));
 
 	ASSERT3S(kthread_nr, ==, 0);
 	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
@@ -181,6 +180,10 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 
 	VERIFY3S(stksize, >, 0);
 	stksize = P2ROUNDUP(MAX(stksize, TS_STACK_MIN), PAGESIZE);
+	/*
+	 * If this ever fails, it may be because the stack size is not a
+	 * multiple of system page size.
+	 */
 	VERIFY0(pthread_attr_setstacksize(&attr, stksize));
 	VERIFY0(pthread_attr_setguardsize(&attr, PAGESIZE));
 
@@ -199,11 +202,11 @@ zk_thread_exit(void)
 
 	umem_free(kt, sizeof (kthread_t));
 
-	pthread_mutex_lock(&kthread_lock);
+	VERIFY0(pthread_mutex_lock(&kthread_lock));
 	kthread_nr--;
-	pthread_mutex_unlock(&kthread_lock);
+	VERIFY0(pthread_mutex_unlock(&kthread_lock));
 
-	pthread_cond_broadcast(&kthread_cond);
+	VERIFY0(pthread_cond_broadcast(&kthread_cond));
 	pthread_exit((void *)TS_MAGIC);
 }
 
@@ -316,13 +319,15 @@ mutex_enter(kmutex_t *mp)
 int
 mutex_tryenter(kmutex_t *mp)
 {
+	int err;
 	ASSERT3U(mp->m_magic, ==, MTX_MAGIC);
 	ASSERT3P(mp->m_owner, !=, MTX_DEST);
-	if (0 == pthread_mutex_trylock(&mp->m_lock)) {
+	if (0 == (err = pthread_mutex_trylock(&mp->m_lock))) {
 		ASSERT3P(mp->m_owner, ==, MTX_INIT);
 		mp->m_owner = curthread;
 		return (1);
 	} else {
+		VERIFY3S(err, ==, EBUSY);
 		return (0);
 	}
 }
@@ -464,14 +469,14 @@ cv_init(kcondvar_t *cv, char *name, int type, void *arg)
 {
 	ASSERT3S(type, ==, CV_DEFAULT);
 	cv->cv_magic = CV_MAGIC;
-	VERIFY3S(pthread_cond_init(&cv->cv, NULL), ==, 0);
+	VERIFY0(pthread_cond_init(&cv->cv, NULL));
 }
 
 void
 cv_destroy(kcondvar_t *cv)
 {
 	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
-	VERIFY3S(pthread_cond_destroy(&cv->cv), ==, 0);
+	VERIFY0(pthread_cond_destroy(&cv->cv));
 	cv->cv_magic = 0;
 }
 
@@ -481,9 +486,7 @@ cv_wait(kcondvar_t *cv, kmutex_t *mp)
 	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
 	ASSERT3P(mutex_owner(mp), ==, curthread);
 	mp->m_owner = MTX_INIT;
-	int ret = pthread_cond_wait(&cv->cv, &mp->m_lock);
-	if (ret != 0)
-		VERIFY3S(ret, ==, EINTR);
+	VERIFY0(pthread_cond_wait(&cv->cv, &mp->m_lock));
 	mp->m_owner = curthread;
 }
 
@@ -497,7 +500,6 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 
 	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
 
-top:
 	delta = abstime - ddi_get_lbolt();
 	if (delta <= 0)
 		return (-1);
@@ -519,10 +521,7 @@ top:
 	if (error == ETIMEDOUT)
 		return (-1);
 
-	if (error == EINTR)
-		goto top;
-
-	VERIFY3S(error, ==, 0);
+	VERIFY0(error);
 
 	return (1);
 }
@@ -536,10 +535,12 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 	timestruc_t ts;
 	hrtime_t delta;
 
-	ASSERT(flag == 0);
+	ASSERT(flag == 0 || flag == CALLOUT_FLAG_ABSOLUTE);
 
-top:
-	delta = tim - gethrtime();
+	delta = tim;
+	if (flag & CALLOUT_FLAG_ABSOLUTE)
+		delta -= gethrtime();
+
 	if (delta <= 0)
 		return (-1);
 
@@ -551,13 +552,10 @@ top:
 	error = pthread_cond_timedwait(&cv->cv, &mp->m_lock, &ts);
 	mp->m_owner = curthread;
 
-	if (error == ETIME)
+	if (error == ETIMEDOUT)
 		return (-1);
 
-	if (error == EINTR)
-		goto top;
-
-	ASSERT(error == 0);
+	VERIFY0(error);
 
 	return (1);
 }
@@ -566,14 +564,14 @@ void
 cv_signal(kcondvar_t *cv)
 {
 	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
-	VERIFY3S(pthread_cond_signal(&cv->cv), ==, 0);
+	VERIFY0(pthread_cond_signal(&cv->cv));
 }
 
 void
 cv_broadcast(kcondvar_t *cv)
 {
 	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
-	VERIFY3S(pthread_cond_broadcast(&cv->cv), ==, 0);
+	VERIFY0(pthread_cond_broadcast(&cv->cv));
 }
 
 /*
