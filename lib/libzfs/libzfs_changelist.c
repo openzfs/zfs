@@ -25,6 +25,7 @@
  *
  * Portions Copyright 2007 Ramprakash Jelari
  * Copyright (c) 2014, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  */
 
 #include <libintl.h>
@@ -132,6 +133,7 @@ changelist_prefix(prop_changelist_t *clp)
 			case ZFS_PROP_SHARESMB:
 				(void) zfs_unshare_smb(cn->cn_handle, NULL);
 				break;
+
 			default:
 				break;
 			}

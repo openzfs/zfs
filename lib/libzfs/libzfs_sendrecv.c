@@ -27,6 +27,7 @@
  * All rights reserved
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
+ * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  */
 
 #include <assert.h>
@@ -1325,7 +1326,7 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			pa.pa_parsable = sdd->parsable;
 
 			if ((err = pthread_create(&tid, NULL,
-			    send_progress_thread, &pa))) {
+			    send_progress_thread, &pa)) != 0) {
 				zfs_close(zhp);
 				return (err);
 			}
@@ -1800,7 +1801,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	if (flags->dedup && !flags->dryrun) {
 		featureflags |= (DMU_BACKUP_FEATURE_DEDUP |
 		    DMU_BACKUP_FEATURE_DEDUPPROPS);
-		if ((err = socketpair(AF_UNIX, SOCK_STREAM, 0, pipefd))) {
+		if ((err = socketpair(AF_UNIX, SOCK_STREAM, 0, pipefd)) != 0) {
 			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
 			return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED,
 			    errbuf));
@@ -1808,7 +1809,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		dda.outputfd = outfd;
 		dda.inputfd = pipefd[1];
 		dda.dedup_hdl = zhp->zfs_hdl;
-		if ((err = pthread_create(&tid, NULL, cksummer, &dda))) {
+		if ((err = pthread_create(&tid, NULL, cksummer, &dda)) != 0) {
 			(void) close(pipefd[0]);
 			(void) close(pipefd[1]);
 			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
