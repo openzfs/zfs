@@ -150,13 +150,28 @@ dbuf_hash(void *os, uint64_t obj, uint8_t lvl, uint64_t blkid)
 	(dbuf)->db_level == (level) &&			\
 	(dbuf)->db_blkid == (blkid))
 
-dmu_buf_impl_t *
-dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
+typedef enum {
+	DF_SKIP_MTX = 0,
+	DF_WANT_MTX
+} df_want_mutex_t;
+
+/*
+ * Find the dbuf for a given objset, obj, level, and blkid, if it exists.
+ * If locking was requested, enter db_mtx and return with it held.
+ * Store a pointer to the dbuf in *db_found only if locking was requested.
+ */
+
+int
+dbuf_find_impl(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid,
+		df_want_mutex_t enter_db_mtx, dmu_buf_impl_t **db_found)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	uint64_t hv;
 	uint64_t idx;
 	dmu_buf_impl_t *db;
+
+	/* prevent use of *db_found if we don't find the dbuf */
+	*db_found = NULL;
 
 	hv = DBUF_HASH(os, obj, level, blkid);
 	idx = hv & h->hash_table_mask;
@@ -164,16 +179,37 @@ dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
 	mutex_enter(DBUF_HASH_MUTEX(h, idx));
 	for (db = h->hash_table[idx]; db != NULL; db = db->db_hash_next) {
 		if (DBUF_EQUAL(db, os, obj, level, blkid)) {
-			mutex_enter(&db->db_mtx);
+			if (enter_db_mtx)
+				mutex_enter(&db->db_mtx);
 			if (db->db_state != DB_EVICTING) {
 				mutex_exit(DBUF_HASH_MUTEX(h, idx));
-				return (db);
+				if (enter_db_mtx)
+					*db_found = db;
+				return (1);
 			}
-			mutex_exit(&db->db_mtx);
+			if (enter_db_mtx)
+				mutex_exit(&db->db_mtx);
 		}
 	}
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
-	return (NULL);
+	return (0);
+}
+
+/* returns 1 if found, 0 if not found */
+int
+dbuf_exists(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
+{
+	dmu_buf_impl_t *db;
+	return (dbuf_find_impl(os, obj, level, blkid, DF_SKIP_MTX, &db));
+}
+
+/* returns with db->db_mtx held, if (db != NULL) */
+dmu_buf_impl_t *
+dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
+{
+	dmu_buf_impl_t *db;
+	(void) dbuf_find_impl(os, obj, level, blkid, DF_WANT_MTX, &db);
+	return (db);
 }
 
 static dmu_buf_impl_t *
@@ -2171,7 +2207,6 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	blkptr_t bp;
 	int epbs, nlevels, curlevel;
 	uint64_t curblkid;
-	dmu_buf_impl_t *db;
 	zio_t *pio;
 	dbuf_prefetch_arg_t *dpa;
 	dsl_dataset_t *ds;
@@ -2197,10 +2232,7 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	if (dn->dn_phys->dn_maxblkid < blkid << (epbs * level))
 		return;
 
-	db = dbuf_find(dn->dn_objset, dn->dn_object,
-	    level, blkid);
-	if (db != NULL) {
-		mutex_exit(&db->db_mtx);
+	if (dbuf_exists(dn->dn_objset, dn->dn_object, level, blkid)) {
 		/*
 		 * This dbuf already exists.  It is either CACHED, or
 		 * (we assume) about to be read or filled.
