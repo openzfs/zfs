@@ -219,7 +219,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		 * db_data better be zeroed unless it's dirty in a
 		 * future txg.
 		 */
-		mutex_enter(&child->db_mtx);
+		take_dbuf_lock(child);
 		buf = child->db.db_data;
 		if (buf != NULL && child->db_state != DB_FILL &&
 		    child->db_last_dirty == NULL) {
@@ -418,7 +418,7 @@ dnode_evict_dbufs(dnode_t *dn)
 		DB_DNODE_EXIT(db);
 #endif	/* DEBUG */
 
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 		if (db->db_state != DB_EVICTING &&
 		    refcount_is_zero(&db->db_holds)) {
 			db_marker->db_level = db->db_level;
@@ -450,7 +450,7 @@ dnode_evict_bonus(dnode_t *dn)
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	if (dn->dn_bonus != NULL) {
 		if (refcount_is_zero(&dn->dn_bonus->db_holds)) {
-			mutex_enter(&dn->dn_bonus->db_mtx);
+			take_dbuf_lock(dn->dn_bonus);
 			dbuf_evict(dn->dn_bonus);
 			dn->dn_bonus = NULL;
 		} else {
@@ -472,7 +472,7 @@ dnode_undirty_dbufs(list_t *list)
 		if (db->db_level != 0)
 			dnode_undirty_dbufs(&dr->dt.di.dr_children);
 
-		mutex_enter(&db->db_mtx);
+		take_dbuf_lock(db);
 		/* XXX - use dbuf_undirty()? */
 		list_remove(list, dr);
 		ASSERT(db->db_last_dirty == dr);

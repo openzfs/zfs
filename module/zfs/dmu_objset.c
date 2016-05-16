@@ -1326,7 +1326,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	else if (!before && dn->dn_bonuslen != 0) {
 		if (dn->dn_bonus) {
 			db = dn->dn_bonus;
-			mutex_enter(&db->db_mtx);
+			take_dbuf_lock(db);
 			data = dmu_objset_userquota_find_data(db, tx);
 		} else {
 			data = DN_BONUS(dn->dn_phys);
@@ -1340,7 +1340,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 			    rf | DB_RF_MUST_SUCCEED,
 			    FTAG, (dmu_buf_t **)&db);
 			ASSERT(error == 0);
-			mutex_enter(&db->db_mtx);
+			take_dbuf_lock(db);
 			data = (before) ? db->db.db_data :
 			    dmu_objset_userquota_find_data(db, tx);
 			have_spill = B_TRUE;

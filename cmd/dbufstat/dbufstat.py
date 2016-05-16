@@ -32,9 +32,10 @@ import sys
 import getopt
 import errno
 
-bhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize"]
+bhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize",
+        "contend"]
 bxhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize",
-         "meta", "state", "dbholds", "list", "atype", "flags",
+         "meta", "state", "dbholds", "contend", "list", "atype", "flags",
          "count", "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2",
          "l2_dattr", "l2_asize", "l2_comp", "aholds", "dtype", "btype",
          "data_bs", "meta_bs", "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -67,6 +68,7 @@ cols = {
     "blkid":      [8,    -1, "block number of buffer"],
     "offset":     [12, 1024, "offset in object of buffer"],
     "dbsize":     [7,  1024, "size of buffer"],
+    "contend":    [7,    -1, "number of times db_mtx was contended"],
     "meta":       [4,    -1, "is this buffer metadata?"],
     "state":      [5,    -1, "state of buffer (read, cached, etc)"],
     "dbholds":    [7,  1000, "number of holds on buffer"],
