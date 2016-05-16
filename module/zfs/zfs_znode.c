@@ -542,7 +542,6 @@ zfs_inode_update_impl(znode_t *zp, boolean_t new)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
 
 	spin_lock(&ip->i_lock);
-	ip->i_generation = zp->z_gen;
 	ip->i_uid = SUID_TO_KUID(zp->z_uid);
 	ip->i_gid = SGID_TO_KGID(zp->z_gid);
 	set_nlink(ip, zp->z_links);
@@ -592,6 +591,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	struct inode *ip;
 	uint64_t mode;
 	uint64_t parent;
+	uint64_t tmp_gen;
 	sa_bulk_attr_t bulk[8];
 	int count = 0;
 
@@ -623,7 +623,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL, &mode, 8);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GEN(zsb), NULL, &zp->z_gen, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GEN(zsb), NULL, &tmp_gen, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb), NULL, &zp->z_size, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL, &zp->z_links, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
@@ -633,7 +633,9 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL, &zp->z_uid, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL, &zp->z_gid, 8);
 
-	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 || zp->z_gen == 0) {
+	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 ||
+		tmp_gen == 0) {
+
 		if (hdl == NULL)
 			sa_handle_destroy(zp->z_sa_hdl);
 		zp->z_sa_hdl = NULL;
@@ -641,6 +643,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	}
 
 	zp->z_mode = mode;
+	ip->i_generation = (uint32_t) tmp_gen;
 
 	/*
 	 * xattr znodes hold a reference on their unique parent
@@ -1229,7 +1232,7 @@ zfs_rezget(znode_t *zp)
 
 	zp->z_mode = mode;
 
-	if (gen != zp->z_gen) {
+	if (gen != ZTOI(zp)->i_generation) {
 		zfs_znode_dmu_fini(zp);
 		zfs_znode_hold_exit(zsb, zh);
 		return (SET_ERROR(EIO));
