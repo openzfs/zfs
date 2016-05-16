@@ -1979,7 +1979,7 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ad
 .sp .6
 .RS 4n
-Lists the property information for the given datasets in tabular form. If a mount point is specified, it can be an absolute pathname or a relative pathname as long as it contains a slash (e.g. \fBzfs list ./\fR). By default, all file systems and volumes are displayed. Snapshots are displayed if the pool's \fBlistsnapshots\fR property is \fBon\fR (the default is \fBoff\fR). When listing hundreds or thousands of snapshots performance can be improved by restricting the output to only the name.  In that case, it is recommended to use \fB-o name -s name\fR. The following fields are displayed by default: \fBname, used, available, referenced, mountpoint\fR
+Lists the property information for the given datasets in tabular form. If a mount point is specified, it can be an absolute pathname or a relative pathname starting with "./"  (e.g. \fBzfs list ./\fR). By default, all file systems and volumes are displayed. Snapshots are displayed if the pool's \fBlistsnapshots\fR property is \fBon\fR (the default is \fBoff\fR). When listing hundreds or thousands of snapshots performance can be improved by restricting the output to only the name.  In that case, it is recommended to use \fB-o name -s name\fR. The following fields are displayed by default: \fBname, used, available, referenced, mountpoint\fR
 .sp
 .ne 2
 .na
