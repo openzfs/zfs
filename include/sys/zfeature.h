@@ -63,8 +63,6 @@ extern int feature_get_refcount_from_disk(spa_t *spa, zfeature_info_t *feature,
     uint64_t *res);
 extern void feature_enable_sync(struct spa *, zfeature_info_t *,
     struct dmu_tx *);
-extern void feature_disable_sync(struct spa *, zfeature_info_t *,
-    struct dmu_tx *);
 extern void feature_sync(struct spa *, zfeature_info_t *, uint64_t,
     struct dmu_tx *);
 
