@@ -67,6 +67,13 @@ krwlock_t os_lock;
  */
 int dmu_find_threads = 0;
 
+/*
+ * Backfill lower metadnode objects after this many have been freed.
+ * Backfilling negatively impacts object creation rates, so only do it
+ * if there are enough holes to fill.
+ */
+int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
+
 static void dmu_objset_find_dp_cb(void *arg);
 
 void
@@ -1151,6 +1158,13 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		if (dr->dr_zio)
 			zio_nowait(dr->dr_zio);
 	}
+
+	/* Enable dnode backfill if enough objects have been freed. */
+	if (os->os_freed_dnodes >= dmu_rescan_dnode_threshold) {
+		os->os_rescan_dnodes = B_TRUE;
+		os->os_freed_dnodes = 0;
+	}
+
 	/*
 	 * Free intent log blocks up to this tx.
 	 */

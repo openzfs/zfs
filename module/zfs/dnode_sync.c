@@ -688,6 +688,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	if (freeing_dnode) {
+		dn->dn_objset->os_freed_dnodes++;
 		dnode_sync_free(dn, tx);
 		return;
 	}

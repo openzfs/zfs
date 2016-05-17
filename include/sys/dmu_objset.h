@@ -106,6 +106,8 @@ struct objset {
 	zil_header_t os_zil_header;
 	list_t os_synced_dnodes;
 	uint64_t os_flags;
+	uint64_t os_freed_dnodes;
+	boolean_t os_rescan_dnodes;
 
 	/* Protected by os_obj_lock */
 	kmutex_t os_obj_lock;

@@ -36,20 +36,22 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	uint64_t object;
-	uint64_t L2_dnode_count = DNODES_PER_BLOCK <<
+	uint64_t L1_dnode_count = DNODES_PER_BLOCK <<
 	    (DMU_META_DNODE(os)->dn_indblkshift - SPA_BLKPTRSHIFT);
 	dnode_t *dn = NULL;
-	int restarted = B_FALSE;
 
 	mutex_enter(&os->os_obj_lock);
 	for (;;) {
 		object = os->os_obj_next;
 		/*
-		 * Each time we polish off an L2 bp worth of dnodes
-		 * (2^13 objects), move to another L2 bp that's still
-		 * reasonably sparse (at most 1/4 full).  Look from the
-		 * beginning once, but after that keep looking from here.
-		 * If we can't find one, just keep going from here.
+		 * Each time we polish off a L1 bp worth of dnodes (2^12
+		 * objects), move to another L1 bp that's still reasonably
+		 * sparse (at most 1/4 full). Look from the beginning at most
+		 * once per txg, but after that keep looking from here.
+		 * os_scan_dnodes is set during txg sync if enough objects
+		 * have been freed since the previous rescan to justify
+		 * backfilling again. If we can't find a suitable block, just
+		 * keep going from here.
 		 *
 		 * Note that dmu_traverse depends on the behavior that we use
 		 * multiple blocks of the dnode object before going back to
@@ -57,12 +59,19 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * that property or find another solution to the issues
 		 * described in traverse_visitbp.
 		 */
-		if (P2PHASE(object, L2_dnode_count) == 0) {
-			uint64_t offset = restarted ? object << DNODE_SHIFT : 0;
-			int error = dnode_next_offset(DMU_META_DNODE(os),
+
+		if (P2PHASE(object, L1_dnode_count) == 0) {
+			uint64_t offset;
+			int error;
+			if (os->os_rescan_dnodes) {
+				offset = 0;
+				os->os_rescan_dnodes = B_FALSE;
+			} else {
+				offset = object << DNODE_SHIFT;
+			}
+			error = dnode_next_offset(DMU_META_DNODE(os),
 			    DNODE_FIND_HOLE,
 			    &offset, 2, DNODES_PER_BLOCK >> 2, 0);
-			restarted = B_TRUE;
 			if (error == 0)
 				object = offset >> DNODE_SHIFT;
 		}
