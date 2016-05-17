@@ -1195,7 +1195,28 @@ zio_write_bp_init(zio_t *zio)
 		    spa_max_replication(spa)) == BP_GET_NDVAS(bp));
 	}
 
-	if (compress != ZIO_COMPRESS_OFF) {
+	if (zp->zp_level > 0) {
+		/*
+		 * Check if the metadata block is filled entirely with hole
+		 * bps, and set the psize to 0 so that the block will not be
+		 * allocated and written to, and the zio->io_bp will be
+		 * set properly with the birth epoch if needed
+		 */
+		blkptr_t *bpc, *bps = (blkptr_t *)zio->io_data,
+			*bpe = (blkptr_t *)((char *)zio->io_data + lsize);
+
+		for (bpc = bps; bpc < bpe; bpc++) {
+			if (!BP_IS_HOLE(bpc))
+				break;
+		}
+
+		if (bpc == bpe) {
+			psize = 0;
+			BP_ZERO(bp);
+		}
+	}
+
+	if (psize && compress != ZIO_COMPRESS_OFF) {
 		void *cbuf = zio_buf_alloc(lsize);
 		psize = zio_compress_data(compress, zio->io_data, cbuf, lsize);
 		if (psize == 0 || psize == lsize) {
