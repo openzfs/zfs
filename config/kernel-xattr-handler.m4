@@ -62,18 +62,17 @@ dnl # Supported xattr handler get() interfaces checked newest to oldest.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 	dnl #
-	dnl # 4.4 API change,
-	dnl # The xattr_handler->get() callback was changed to take a
-	dnl # attr_handler, and handler_flags argument was removed and
-	dnl # should be accessed by handler->flags.
+	dnl # 4.7 API change,
+	dnl # The xattr_handler->get() callback was changed to take both
+	dnl # dentry and inode.
 	dnl #
-	AC_MSG_CHECKING([whether xattr_handler->get() wants xattr_handler])
+	AC_MSG_CHECKING([whether xattr_handler->get() wants both dentry and inode])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/xattr.h>
 
 		int get(const struct xattr_handler *handler,
-		    struct dentry *dentry, const char *name,
-		    void *buffer, size_t size) { return 0; }
+		    struct dentry *dentry, struct inode *inode,
+		    const char *name, void *buffer, size_t size) { return 0; }
 		static const struct xattr_handler
 		    xops __attribute__ ((unused)) = {
 			.get = get,
@@ -81,23 +80,22 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 	],[
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_XATTR_GET_HANDLER, 1,
+		AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE, 1,
 		    [xattr_handler->get() wants xattr_handler])
 	],[
 		dnl #
-		dnl # 2.6.33 API change,
-		dnl # The xattr_handler->get() callback was changed to take
-		dnl # a dentry instead of an inode, and a handler_flags
-		dnl # argument was added.
+		dnl # 4.4 API change,
+		dnl # The xattr_handler->get() callback was changed to take a
+		dnl # attr_handler, and handler_flags argument was removed and
+		dnl # should be accessed by handler->flags.
 		dnl #
-		AC_MSG_RESULT(no)
-		AC_MSG_CHECKING([whether xattr_handler->get() wants dentry])
+		AC_MSG_CHECKING([whether xattr_handler->get() wants xattr_handler])
 		ZFS_LINUX_TRY_COMPILE([
 			#include <linux/xattr.h>
 
-			int get(struct dentry *dentry, const char *name,
-			    void *buffer, size_t size, int handler_flags)
-			    { return 0; }
+			int get(const struct xattr_handler *handler,
+			    struct dentry *dentry, const char *name,
+			    void *buffer, size_t size) { return 0; }
 			static const struct xattr_handler
 			    xops __attribute__ ((unused)) = {
 				.get = get,
@@ -105,20 +103,23 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 		],[
 		],[
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_XATTR_GET_DENTRY, 1,
-			    [xattr_handler->get() wants dentry])
+			AC_DEFINE(HAVE_XATTR_GET_HANDLER, 1,
+			    [xattr_handler->get() wants xattr_handler])
 		],[
 			dnl #
-			dnl # 2.6.32 API
+			dnl # 2.6.33 API change,
+			dnl # The xattr_handler->get() callback was changed to take
+			dnl # a dentry instead of an inode, and a handler_flags
+			dnl # argument was added.
 			dnl #
 			AC_MSG_RESULT(no)
-			AC_MSG_CHECKING(
-			    [whether xattr_handler->get() wants inode])
+			AC_MSG_CHECKING([whether xattr_handler->get() wants dentry])
 			ZFS_LINUX_TRY_COMPILE([
 				#include <linux/xattr.h>
 
-				int get(struct inode *ip, const char *name,
-				    void *buffer, size_t size) { return 0; }
+				int get(struct dentry *dentry, const char *name,
+				    void *buffer, size_t size, int handler_flags)
+				    { return 0; }
 				static const struct xattr_handler
 				    xops __attribute__ ((unused)) = {
 					.get = get,
@@ -126,10 +127,32 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 			],[
 			],[
 				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_XATTR_GET_INODE, 1,
-				    [xattr_handler->get() wants inode])
+				AC_DEFINE(HAVE_XATTR_GET_DENTRY, 1,
+				    [xattr_handler->get() wants dentry])
 			],[
-	                        AC_MSG_ERROR([no; please file a bug report])
+				dnl #
+				dnl # 2.6.32 API
+				dnl #
+				AC_MSG_RESULT(no)
+				AC_MSG_CHECKING(
+				    [whether xattr_handler->get() wants inode])
+				ZFS_LINUX_TRY_COMPILE([
+					#include <linux/xattr.h>
+
+					int get(struct inode *ip, const char *name,
+					    void *buffer, size_t size) { return 0; }
+					static const struct xattr_handler
+					    xops __attribute__ ((unused)) = {
+						.get = get,
+					};
+				],[
+				],[
+					AC_MSG_RESULT(yes)
+					AC_DEFINE(HAVE_XATTR_GET_INODE, 1,
+					    [xattr_handler->get() wants inode])
+				],[
+					AC_MSG_ERROR([no; please file a bug report])
+				])
 			])
 		])
 	])
