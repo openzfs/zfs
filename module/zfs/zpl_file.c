@@ -93,7 +93,7 @@ zpl_iterate(struct file *filp, struct dir_context *ctx)
 	return (error);
 }
 
-#if !defined(HAVE_VFS_ITERATE)
+#if !defined(HAVE_VFS_ITERATE) && !defined(HAVE_VFS_ITERATE_SHARED)
 static int
 zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
@@ -421,13 +421,13 @@ zpl_llseek(struct file *filp, loff_t offset, int whence)
 		loff_t maxbytes = ip->i_sb->s_maxbytes;
 		loff_t error;
 
-		spl_inode_lock(ip);
+		spl_inode_lock_shared(ip);
 		cookie = spl_fstrans_mark();
 		error = -zfs_holey(ip, whence, &offset);
 		spl_fstrans_unmark(cookie);
 		if (error == 0)
 			error = lseek_execute(filp, ip, offset, maxbytes);
-		spl_inode_unlock(ip);
+		spl_inode_unlock_shared(ip);
 
 		return (error);
 	}
@@ -853,7 +853,9 @@ const struct file_operations zpl_file_operations = {
 const struct file_operations zpl_dir_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
-#ifdef HAVE_VFS_ITERATE
+#ifdef HAVE_VFS_ITERATE_SHARED
+	.iterate_shared	= zpl_iterate,
+#elif defined(HAVE_VFS_ITERATE)
 	.iterate	= zpl_iterate,
 #else
 	.readdir	= zpl_readdir,
