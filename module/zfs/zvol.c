@@ -1291,7 +1291,9 @@ zvol_alloc(dev_t dev, const char *name)
 
 	blk_queue_make_request(zv->zv_queue, zvol_request);
 
-#ifdef HAVE_BLK_QUEUE_FLUSH
+#ifdef HAVE_BLK_QUEUE_WRITE_CACHE
+	blk_queue_write_cache(zv->zv_queue, B_TRUE, B_TRUE);
+#elif defined(HAVE_BLK_QUEUE_FLUSH)
 	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
 #else
 	blk_queue_ordered(zv->zv_queue, QUEUE_ORDERED_DRAIN, NULL);
