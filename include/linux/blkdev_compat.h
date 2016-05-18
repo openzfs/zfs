@@ -52,6 +52,33 @@ __blk_queue_flush(struct request_queue *q, unsigned int flags)
 	q->flush_flags = flags & (REQ_FLUSH | REQ_FUA);
 }
 #endif /* HAVE_BLK_QUEUE_FLUSH && HAVE_BLK_QUEUE_FLUSH_GPL_ONLY */
+
+/*
+ * 4.7 API change,
+ * The blk_queue_write_cache() interface has replaced blk_queue_flush()
+ * interface.  However, while the new interface is GPL-only. Thus if the
+ * GPL-only version is detected we implement our own trivial helper
+ * compatibility funcion.
+ */
+#if defined(HAVE_BLK_QUEUE_WRITE_CACHE) && \
+	defined(HAVE_BLK_QUEUE_WRITE_CACHE_GPL_ONLY)
+#define	blk_queue_write_cache __blk_queue_write_cache
+static inline void
+__blk_queue_write_cache(struct request_queue *q, bool wc, bool fua)
+{
+	spin_lock_irq(q->queue_lock);
+	if (wc)
+		queue_flag_set(QUEUE_FLAG_WC, q);
+	else
+		queue_flag_clear(QUEUE_FLAG_WC, q);
+	if (fua)
+		queue_flag_set(QUEUE_FLAG_FUA, q);
+	else
+		queue_flag_clear(QUEUE_FLAG_FUA, q);
+	spin_unlock_irq(q->queue_lock);
+}
+#endif
+
 /*
  * Most of the blk_* macros were removed in 2.6.36.  Ostensibly this was
  * done to improve readability and allow easier grepping.  However, from
