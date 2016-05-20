@@ -311,9 +311,8 @@ cv_timedwait_hires_common(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t 
 		tim = (tim / res) * res;
 	}
 
-	ASSERT(!(flag & CALLOUT_FLAG_ABSOLUTE));
-	/* get abs expire time */
-	tim += gethrtime();
+	if (!(flag & CALLOUT_FLAG_ABSOLUTE))
+		tim += gethrtime();
 
 	return (__cv_timedwait_hires(cvp, mp, tim, state));
 }
