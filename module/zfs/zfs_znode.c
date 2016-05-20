@@ -1167,6 +1167,16 @@ zfs_rezget(znode_t *zp)
 	uint64_t gen;
 	znode_hold_t *zh;
 
+	/*
+	 * skip ctldir, otherwise they will always get invalidated. This will
+	 * cause funny behaviour for the mounted snapdirs. Especially for
+	 * Linux >= 3.18, d_invalidate will detach the mountpoint and prevent
+	 * anyone automount it again as long as someone is still using the
+	 * detached mount.
+	 */
+	if (zp->z_is_ctldir)
+		return (0);
+
 	zh = zfs_znode_hold_enter(zsb, obj_num);
 
 	mutex_enter(&zp->z_acl_lock);
