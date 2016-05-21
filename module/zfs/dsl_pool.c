@@ -182,12 +182,20 @@ dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
 
+	/*
+	 * Initialize the caller's dsl_pool_t structure before we actually open
+	 * the meta objset.  This is done because a self-healing write zio may
+	 * be issued as part of dmu_objset_open_impl() and the spa needs its
+	 * dsl_pool_t initialized in order to handle the write.
+	 */
+	*dpp = dp;
+
 	err = dmu_objset_open_impl(spa, NULL, &dp->dp_meta_rootbp,
 	    &dp->dp_meta_objset);
-	if (err != 0)
+	if (err != 0) {
 		dsl_pool_close(dp);
-	else
-		*dpp = dp;
+		*dpp = NULL;
+	}
 
 	return (err);
 }
