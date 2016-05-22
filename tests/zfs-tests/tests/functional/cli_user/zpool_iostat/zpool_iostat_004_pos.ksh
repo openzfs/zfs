@@ -36,7 +36,7 @@
 #
 # DESCRIPTION:
 # Executing 'zpool iostat' command with various combinations of extended
-# stats (-vqL), parseable/script options (-pH), and misc lists of pools
+# stats (-vqL), parsable/script options (-pH), and misc lists of pools
 # and vdevs.
 #
 # STRATEGY:
