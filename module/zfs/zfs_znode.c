@@ -533,8 +533,6 @@ zfs_inode_update_impl(znode_t *zp, boolean_t new)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
 
 	spin_lock(&ip->i_lock);
-	ip->i_uid = SUID_TO_KUID(zp->z_uid);
-	ip->i_gid = SGID_TO_KGID(zp->z_gid);
 	ip->i_mode = zp->z_mode;
 	zfs_set_inode_flags(zp, ip);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
@@ -582,6 +580,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	uint64_t parent;
 	uint64_t tmp_gen;
 	uint64_t links;
+	uint64_t z_uid, z_gid;
 	sa_bulk_attr_t bulk[8];
 	int count = 0;
 
@@ -621,8 +620,8 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	    &zp->z_pflags, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zsb), NULL,
 	    &parent, 8);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL, &zp->z_uid, 8);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL, &zp->z_gid, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL, &z_uid, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL, &z_gid, 8);
 
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 ||
 		tmp_gen == 0) {
@@ -636,6 +635,8 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_mode = mode;
 	ip->i_generation = (uint32_t)tmp_gen;
 	set_nlink(ip, (uint32_t)links);
+	zfs_uid_write(ip, z_uid);
+	zfs_gid_write(ip, z_gid);
 
 	ip->i_ino = obj;
 	zfs_inode_update_new(zp);
@@ -1159,6 +1160,7 @@ zfs_rezget(znode_t *zp)
 	int err;
 	int count = 0;
 	uint64_t gen;
+	uint64_t z_uid, z_gid;
 	znode_hold_t *zh;
 
 	/*
@@ -1216,9 +1218,9 @@ zfs_rezget(znode_t *zp)
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
 	    &zp->z_pflags, sizeof (zp->z_pflags));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
-	    &zp->z_uid, sizeof (zp->z_uid));
+	    &z_uid, sizeof (z_uid));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL,
-	    &zp->z_gid, sizeof (zp->z_gid));
+	    &z_gid, sizeof (z_gid));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL,
 	    &mode, sizeof (mode));
 
@@ -1229,6 +1231,8 @@ zfs_rezget(znode_t *zp)
 	}
 
 	zp->z_mode = mode;
+	zfs_uid_write(ZTOI(zp), z_uid);
+	zfs_gid_write(ZTOI(zp), z_gid);
 
 	if (gen != ZTOI(zp)->i_generation) {
 		zfs_znode_dmu_fini(zp);
