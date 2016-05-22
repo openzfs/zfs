@@ -1104,8 +1104,10 @@ zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 	if ((zdp->z_mode & S_ISVTX) == 0)
 		return (0);
 
-	downer = zfs_fuid_map_id(zsb, zdp->z_uid, cr, ZFS_OWNER);
-	fowner = zfs_fuid_map_id(zsb, zp->z_uid, cr, ZFS_OWNER);
+	downer = zfs_fuid_map_id(zsb, KUID_TO_SUID(ZTOI(zdp)->i_uid),
+	    cr, ZFS_OWNER);
+	fowner = zfs_fuid_map_id(zsb, KUID_TO_SUID(ZTOI(zp)->i_uid),
+	    cr, ZFS_OWNER);
 
 	if ((uid = crgetuid(cr)) == downer || uid == fowner ||
 	    (S_ISDIR(ZTOI(zp)->i_mode) &&
