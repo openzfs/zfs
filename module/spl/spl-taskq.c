@@ -447,8 +447,8 @@ taskq_wait_outstanding_check(taskq_t *tq, taskqid_t id)
 void
 taskq_wait_outstanding(taskq_t *tq, taskqid_t id)
 {
-	wait_event(tq->tq_wait_waitq,
-	    taskq_wait_outstanding_check(tq, id ? id : tq->tq_next_id - 1));
+	id = id ? id : tq->tq_next_id - 1;
+	wait_event(tq->tq_wait_waitq, taskq_wait_outstanding_check(tq, id));
 }
 EXPORT_SYMBOL(taskq_wait_outstanding);
 
