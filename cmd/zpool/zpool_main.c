@@ -3852,7 +3852,7 @@ zpool_do_iostat(int argc, char **argv)
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
 	boolean_t latency = B_FALSE, histo = B_FALSE;
-	boolean_t queues = B_FALSE, parseable = B_FALSE, scripted = B_FALSE;
+	boolean_t queues = B_FALSE, parsable = B_FALSE, scripted = B_FALSE;
 	boolean_t omit_since_boot = B_FALSE;
 	boolean_t guid = B_FALSE;
 	boolean_t follow_links = B_FALSE;
@@ -3884,7 +3884,7 @@ zpool_do_iostat(int argc, char **argv)
 			verbose = B_TRUE;
 			break;
 		case 'p':
-			parseable = B_TRUE;
+			parsable = B_TRUE;
 			break;
 		case 'l':
 			latency = B_TRUE;
@@ -3914,7 +3914,7 @@ zpool_do_iostat(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	cb.cb_literal = parseable;
+	cb.cb_literal = parsable;
 	cb.cb_scripted = scripted;
 
 	if (guid)

@@ -172,7 +172,7 @@ usage(void)
 	    "-e to specify path to vdev dir\n");
 	(void) fprintf(stderr, "        -x <dumpdir> -- "
 	    "dump all read blocks into specified directory\n");
-	(void) fprintf(stderr, "        -P print numbers in parseable form\n");
+	(void) fprintf(stderr, "        -P print numbers in parsable form\n");
 	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
 	    "searching for uberblocks\n");
 	(void) fprintf(stderr, "        -I <number of inflight I/Os> -- "
