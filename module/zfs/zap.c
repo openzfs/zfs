@@ -129,10 +129,20 @@ zap_tryupgradedir(zap_t *zap, dmu_tx_t *tx)
 {
 	if (RW_WRITE_HELD(&zap->zap_rwlock))
 		return (1);
+
+#ifndef __linux__
+	/*
+	 * Unsafe under Linux because the rw_tryupgrade() implementation must
+	 * release the lock before attempting to upgrade.  This can result in
+	 * a lock inversion with the l_rwlock unless the leaf lock is dropped
+	 * first and reaquired.  Rather than restruct this code disable this
+	 * minor optimization under Linux.
+	 */
 	if (rw_tryupgrade(&zap->zap_rwlock)) {
 		dmu_buf_will_dirty(zap->zap_dbuf, tx);
 		return (1);
 	}
+#endif
 	return (0);
 }
 
