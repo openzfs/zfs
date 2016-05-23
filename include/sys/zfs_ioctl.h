@@ -287,6 +287,7 @@ typedef struct zinject_record {
 	uint32_t	zi_iotype;
 	int32_t		zi_duration;
 	uint64_t	zi_timer;
+	uint64_t	zi_nlanes;
 	uint32_t	zi_cmd;
 	uint32_t	zi_pad;
 } zinject_record_t;
