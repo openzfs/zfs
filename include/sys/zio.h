@@ -420,6 +420,7 @@ struct zio {
 
 	uint64_t	io_offset;
 	hrtime_t	io_timestamp;	/* submitted at */
+	hrtime_t	io_target_timestamp;
 	hrtime_t	io_delta;	/* vdev queue service delta */
 	hrtime_t	io_delay;	/* Device access time (disk or */
 					/* file). */
@@ -510,6 +511,8 @@ extern int zio_wait(zio_t *zio);
 extern void zio_nowait(zio_t *zio);
 extern void zio_execute(zio_t *zio);
 extern void zio_interrupt(zio_t *zio);
+extern void zio_delay_init(zio_t *zio);
+extern void zio_delay_interrupt(zio_t *zio);
 
 extern zio_t *zio_walk_parents(zio_t *cio);
 extern zio_t *zio_walk_children(zio_t *pio);
@@ -572,7 +575,7 @@ extern int zio_handle_fault_injection(zio_t *zio, int error);
 extern int zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error);
 extern int zio_handle_label_injection(zio_t *zio, int error);
 extern void zio_handle_ignored_writes(zio_t *zio);
-extern uint64_t zio_handle_io_delay(zio_t *zio);
+extern hrtime_t zio_handle_io_delay(zio_t *zio);
 
 /*
  * Checksum ereport functions
