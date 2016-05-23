@@ -2697,12 +2697,7 @@ arc_prune_task(void *ptr)
 	if (func != NULL)
 		func(ap->p_adjust, ap->p_private);
 
-	/* Callback unregistered concurrently with execution */
-	if (refcount_remove(&ap->p_refcnt, func) == 0) {
-		ASSERT(!list_link_active(&ap->p_node));
-		refcount_destroy(&ap->p_refcnt);
-		kmem_free(ap, sizeof (*ap));
-	}
+	refcount_remove(&ap->p_refcnt, func);
 }
 
 /*
@@ -4568,13 +4563,19 @@ arc_add_prune_callback(arc_prune_func_t *func, void *private)
 void
 arc_remove_prune_callback(arc_prune_t *p)
 {
+	boolean_t wait = B_FALSE;
 	mutex_enter(&arc_prune_mtx);
 	list_remove(&arc_prune_list, p);
-	if (refcount_remove(&p->p_refcnt, &arc_prune_list) == 0) {
-		refcount_destroy(&p->p_refcnt);
-		kmem_free(p, sizeof (*p));
-	}
+	if (refcount_remove(&p->p_refcnt, &arc_prune_list) > 0)
+		wait = B_TRUE;
 	mutex_exit(&arc_prune_mtx);
+
+	/* wait for arc_prune_task to finish */
+	if (wait)
+		taskq_wait_outstanding(arc_prune_taskq, 0);
+	ASSERT0(refcount_count(&p->p_refcnt));
+	refcount_destroy(&p->p_refcnt);
+	kmem_free(p, sizeof (*p));
 }
 
 void
