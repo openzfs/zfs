@@ -55,8 +55,12 @@
 #define SPLAT_RWLOCK_TEST5_DESC		"Write downgrade"
 
 #define SPLAT_RWLOCK_TEST6_ID		0x0706
-#define SPLAT_RWLOCK_TEST6_NAME		"rw_tryupgrade"
-#define SPLAT_RWLOCK_TEST6_DESC		"Read upgrade"
+#define SPLAT_RWLOCK_TEST6_NAME		"rw_tryupgrade-1"
+#define SPLAT_RWLOCK_TEST6_DESC		"rwsem->count value"
+
+#define SPLAT_RWLOCK_TEST7_ID		0x0707
+#define SPLAT_RWLOCK_TEST7_NAME		"rw_tryupgrade-2"
+#define SPLAT_RWLOCK_TEST7_DESC		"Read upgrade"
 
 #define SPLAT_RWLOCK_TEST_MAGIC		0x115599DDUL
 #define SPLAT_RWLOCK_TEST_NAME		"rwlock_test"
@@ -580,8 +584,55 @@ splat_rwlock_test6(struct file *file, void *arg)
 	splat_init_rw_priv(rwp, file);
 
 	rw_enter(&rwp->rw_rwlock, RW_READER);
-	if (!RW_READ_HELD(&rwp->rw_rwlock)) {
+	if (RWSEM_COUNT(SEM(&rwp->rw_rwlock)) !=
+	    SPL_RWSEM_SINGLE_READER_VALUE) {
 		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
+		             "We assumed single reader rwsem->count "
+			     "should be %ld, but is %ld\n",
+			     SPL_RWSEM_SINGLE_READER_VALUE,
+			     RWSEM_COUNT(SEM(&rwp->rw_rwlock)));
+		rc = -ENOLCK;
+		goto out;
+	}
+	rw_exit(&rwp->rw_rwlock);
+
+	rw_enter(&rwp->rw_rwlock, RW_WRITER);
+	if (RWSEM_COUNT(SEM(&rwp->rw_rwlock)) !=
+	    SPL_RWSEM_SINGLE_WRITER_VALUE) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
+		             "We assumed single writer rwsem->count "
+			     "should be %ld, but is %ld\n",
+			     SPL_RWSEM_SINGLE_WRITER_VALUE,
+			     RWSEM_COUNT(SEM(&rwp->rw_rwlock)));
+		rc = -ENOLCK;
+		goto out;
+	}
+	rc = 0;
+	splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "%s",
+		     "rwsem->count same as we assumed\n");
+out:
+	rw_exit(&rwp->rw_rwlock);
+	rw_destroy(&rwp->rw_rwlock);
+	kfree(rwp);
+
+	return rc;
+}
+
+static int
+splat_rwlock_test7(struct file *file, void *arg)
+{
+	rw_priv_t *rwp;
+	int rc;
+
+	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
+	if (rwp == NULL)
+		return -ENOMEM;
+
+	splat_init_rw_priv(rwp, file);
+
+	rw_enter(&rwp->rw_rwlock, RW_READER);
+	if (!RW_READ_HELD(&rwp->rw_rwlock)) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST7_NAME,
 		             "rwlock should be read lock: %d\n",
 			     RW_READ_HELD(&rwp->rw_rwlock));
 		rc = -ENOLCK;
@@ -591,7 +642,7 @@ splat_rwlock_test6(struct file *file, void *arg)
 	/* With one reader upgrade should never fail. */
 	rc = rw_tryupgrade(&rwp->rw_rwlock);
 	if (!rc) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
+		splat_vprint(file, SPLAT_RWLOCK_TEST7_NAME,
 			     "rwlock failed upgrade from reader: %d\n",
 			     RW_READ_HELD(&rwp->rw_rwlock));
 		rc = -ENOLCK;
@@ -599,7 +650,7 @@ splat_rwlock_test6(struct file *file, void *arg)
 	}
 
 	if (RW_READ_HELD(&rwp->rw_rwlock) || !RW_WRITE_HELD(&rwp->rw_rwlock)) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "rwlock should "
+		splat_vprint(file, SPLAT_RWLOCK_TEST7_NAME, "rwlock should "
 			   "have 0 (not %d) reader and 1 (not %d) writer\n",
 			   RW_READ_HELD(&rwp->rw_rwlock),
 			   RW_WRITE_HELD(&rwp->rw_rwlock));
@@ -607,7 +658,7 @@ splat_rwlock_test6(struct file *file, void *arg)
 	}
 
 	rc = 0;
-	splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "%s",
+	splat_vprint(file, SPLAT_RWLOCK_TEST7_NAME, "%s",
 		     "rwlock properly upgraded\n");
 out:
 	rw_exit(&rwp->rw_rwlock);
@@ -646,6 +697,8 @@ splat_rwlock_init(void)
 		      SPLAT_RWLOCK_TEST5_ID, splat_rwlock_test5);
 	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST6_NAME, SPLAT_RWLOCK_TEST6_DESC,
 		      SPLAT_RWLOCK_TEST6_ID, splat_rwlock_test6);
+	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST7_NAME, SPLAT_RWLOCK_TEST7_DESC,
+		      SPLAT_RWLOCK_TEST7_ID, splat_rwlock_test7);
 
 	return sub;
 }
@@ -654,6 +707,7 @@ void
 splat_rwlock_fini(splat_subsystem_t *sub)
 {
 	ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST7_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST6_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST5_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST4_ID);
