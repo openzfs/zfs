@@ -440,7 +440,7 @@ line: while (<$filehandle>) {
 		$function_header_full_indent = 0;
 	}
 	if ($in_function_header && /{$/ ) {
-		if ($picky == 1) {
+		if ($picky) {
 			err("opening brace on same line as function header");
 		}
 		$in_function_header = 0;
