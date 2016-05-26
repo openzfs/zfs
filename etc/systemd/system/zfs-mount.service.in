@@ -12,4 +12,5 @@ Before=local-fs.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=@sbindir@/zfs mount -a
+EnvironmentFile=-@initconfdir@/zfs
+ExecStart=@sbindir@/zfs mount -a ${MOUNT_EXTRA_OPTIONS}
