@@ -61,6 +61,9 @@
 
 #include "statcommon.h"
 
+/* External */
+int zpool_do_nagios(int, char **);
+
 static int zpool_do_create(int, char **);
 static int zpool_do_destroy(int, char **);
 
@@ -141,7 +144,8 @@ typedef enum {
 	HELP_SET,
 	HELP_SPLIT,
 	HELP_REGUID,
-	HELP_REOPEN
+	HELP_REOPEN,
+	HELP_NAGIOS
 } zpool_help_t;
 
 
@@ -269,6 +273,8 @@ static zpool_command_t command_table[] = {
 	{ NULL },
 	{ "get",	zpool_do_get,		HELP_GET		},
 	{ "set",	zpool_do_set,		HELP_SET		},
+	{ NULL },
+	{ "nagios",	zpool_do_nagios,	HELP_NAGIOS		},
 };
 
 #define	NCOMMAND	(ARRAY_SIZE(command_table))
@@ -354,6 +360,8 @@ get_usage(zpool_help_t idx) {
 		    "[<device> ...]\n"));
 	case HELP_REGUID:
 		return (gettext("\treguid <pool>\n"));
+	case HELP_NAGIOS:
+		return (gettext("\tnagios [-o] [-w] [-c] [pool ...]\n"));
 	}
 
 	abort();

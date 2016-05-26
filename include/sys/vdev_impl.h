@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -83,7 +84,7 @@ typedef const struct vdev_ops {
  * Virtual device properties
  */
 struct vdev_cache_entry {
-	char		*ve_data;
+	abd_t		*ve_data;
 	uint64_t	ve_offset;
 	clock_t		ve_lastused;
 	avl_node_t	ve_offset_node;
