@@ -1,5 +1,6 @@
 [Unit]
 Description=Mount ZFS filesystems
+Documentation=man:zfs(8)
 DefaultDependencies=no
 Wants=zfs-import-cache.service
 Wants=zfs-import-scan.service
