@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright 2016 Nexenta Systems, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,7 +45,7 @@
 
 verify_runnable "global"
 
-volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
+volsize=$($ZFS get -H -o value volsize $TESTPOOL/$TESTVOL)
 
 function cleanup
 {
@@ -52,7 +53,7 @@ function cleanup
 	if [[ $dumpdev != $savedumpdev ]] ; then
 		safe_dumpadm $savedumpdev
 	fi
-	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
+	$ZFS set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "zfs volume as dumpdevice should have 128k volblocksize"
