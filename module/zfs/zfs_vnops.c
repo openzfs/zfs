@@ -4194,10 +4194,10 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	 * Iterate over list of pages and read each page individually.
 	 */
 	page_idx = 0;
-	cur_pp   = pl[0];
 	for (total = io_off + io_len; io_off < total; io_off += PAGESIZE) {
 		caddr_t va;
 
+		cur_pp = pl[page_idx++];
 		va = kmap(cur_pp);
 		err = dmu_read(os, zp->z_id, io_off, PAGESIZE, va,
 		    DMU_READ_PREFETCH);
@@ -4208,7 +4208,6 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 				err = SET_ERROR(EIO);
 			return (err);
 		}
-		cur_pp = pl[++page_idx];
 	}
 
 	return (0);
