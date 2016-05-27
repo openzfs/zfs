@@ -1237,18 +1237,83 @@ dmu_objset_userused_enabled(objset_t *os)
 	    DMU_USERUSED_DNODE(os) != NULL);
 }
 
+typedef struct userquota_node {
+	uint64_t uqn_id;
+	int64_t uqn_delta;
+	avl_node_t uqn_node;
+} userquota_node_t;
+
+typedef struct userquota_cache {
+	avl_tree_t uqc_user_deltas;
+	avl_tree_t uqc_group_deltas;
+} userquota_cache_t;
+
+static int
+userquota_compare(const void *l, const void *r)
+{
+	const userquota_node_t *luqn = l;
+	const userquota_node_t *ruqn = r;
+
+	if (luqn->uqn_id < ruqn->uqn_id)
+		return (-1);
+	if (luqn->uqn_id > ruqn->uqn_id)
+		return (1);
+	return (0);
+}
+
 static void
-do_userquota_update(objset_t *os, uint64_t used, uint64_t flags,
-    uint64_t user, uint64_t group, boolean_t subtract, dmu_tx_t *tx)
+do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
+{
+	void *cookie;
+	userquota_node_t *uqn;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	cookie = NULL;
+	while ((uqn = avl_destroy_nodes(&cache->uqc_user_deltas,
+	    &cookie)) != NULL) {
+		VERIFY0(zap_increment_int(os, DMU_USERUSED_OBJECT,
+		    uqn->uqn_id, uqn->uqn_delta, tx));
+		kmem_free(uqn, sizeof (*uqn));
+	}
+	avl_destroy(&cache->uqc_user_deltas);
+
+	cookie = NULL;
+	while ((uqn = avl_destroy_nodes(&cache->uqc_group_deltas,
+	    &cookie)) != NULL) {
+		VERIFY0(zap_increment_int(os, DMU_GROUPUSED_OBJECT,
+		    uqn->uqn_id, uqn->uqn_delta, tx));
+		kmem_free(uqn, sizeof (*uqn));
+	}
+	avl_destroy(&cache->uqc_group_deltas);
+}
+
+static void
+userquota_update_cache(avl_tree_t *avl, uint64_t id, int64_t delta)
+{
+	userquota_node_t search = { .uqn_id = id };
+	avl_index_t idx;
+
+	userquota_node_t *uqn = avl_find(avl, &search, &idx);
+	if (uqn == NULL) {
+		uqn = kmem_zalloc(sizeof (*uqn), KM_SLEEP);
+		uqn->uqn_id = id;
+		avl_insert(avl, uqn, idx);
+	}
+	uqn->uqn_delta += delta;
+}
+
+static void
+do_userquota_update(userquota_cache_t *cache, uint64_t used, uint64_t flags,
+    uint64_t user, uint64_t group, boolean_t subtract)
 {
 	if ((flags & DNODE_FLAG_USERUSED_ACCOUNTED)) {
 		int64_t delta = DNODE_MIN_SIZE + used;
 		if (subtract)
 			delta = -delta;
-		VERIFY3U(0, ==, zap_increment_int(os, DMU_USERUSED_OBJECT,
-		    user, delta, tx));
-		VERIFY3U(0, ==, zap_increment_int(os, DMU_GROUPUSED_OBJECT,
-		    group, delta, tx));
+
+		userquota_update_cache(&cache->uqc_user_deltas, user, delta);
+		userquota_update_cache(&cache->uqc_group_deltas, group, delta);
 	}
 }
 
@@ -1257,8 +1322,14 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 {
 	dnode_t *dn;
 	list_t *list = &os->os_synced_dnodes;
+	userquota_cache_t cache = { { 0 } };
 
 	ASSERT(list_head(list) == NULL || dmu_objset_userused_enabled(os));
+
+	avl_create(&cache.uqc_user_deltas, userquota_compare,
+	    sizeof (userquota_node_t), offsetof(userquota_node_t, uqn_node));
+	avl_create(&cache.uqc_group_deltas, userquota_compare,
+	    sizeof (userquota_node_t), offsetof(userquota_node_t, uqn_node));
 
 	while ((dn = list_head(list))) {
 		int flags;
@@ -1269,32 +1340,26 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 
 		/* Allocate the user/groupused objects if necessary. */
 		if (DMU_USERUSED_DNODE(os)->dn_type == DMU_OT_NONE) {
-			VERIFY(0 == zap_create_claim(os,
+			VERIFY0(zap_create_claim(os,
 			    DMU_USERUSED_OBJECT,
 			    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
-			VERIFY(0 == zap_create_claim(os,
+			VERIFY0(zap_create_claim(os,
 			    DMU_GROUPUSED_OBJECT,
 			    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
 		}
 
-		/*
-		 * We intentionally modify the zap object even if the
-		 * net delta is zero.  Otherwise
-		 * the block of the zap obj could be shared between
-		 * datasets but need to be different between them after
-		 * a bprewrite.
-		 */
-
 		flags = dn->dn_id_flags;
 		ASSERT(flags);
 		if (flags & DN_ID_OLD_EXIST)  {
-			do_userquota_update(os, dn->dn_oldused, dn->dn_oldflags,
-			    dn->dn_olduid, dn->dn_oldgid, B_TRUE, tx);
+			do_userquota_update(&cache,
+			    dn->dn_oldused, dn->dn_oldflags,
+			    dn->dn_olduid, dn->dn_oldgid, B_TRUE);
 		}
 		if (flags & DN_ID_NEW_EXIST) {
-			do_userquota_update(os, DN_USED_BYTES(dn->dn_phys),
+			do_userquota_update(&cache,
+			    DN_USED_BYTES(dn->dn_phys),
 			    dn->dn_phys->dn_flags,  dn->dn_newuid,
-			    dn->dn_newgid, B_FALSE, tx);
+			    dn->dn_newgid, B_FALSE);
 		}
 
 		mutex_enter(&dn->dn_mtx);
@@ -1315,6 +1380,7 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 		list_remove(list, dn);
 		dnode_rele(dn, list);
 	}
+	do_userquota_cacheflush(os, &cache, tx);
 }
 
 /*
