@@ -537,6 +537,24 @@ zap_lockdir_impl(dmu_buf_t *db, void *tag, dmu_tx_t *tx,
 	return (0);
 }
 
+static int
+zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
+    krw_t lti, boolean_t fatreader, boolean_t adding, void *tag, zap_t **zapp)
+{
+	dmu_buf_t *db;
+	int err;
+
+	err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
+	if (err != 0) {
+		return (err);
+	}
+	err = zap_lockdir_impl(db, tag, tx, lti, fatreader, adding, zapp);
+	if (err != 0) {
+		dmu_buf_rele(db, tag);
+	}
+	return (err);
+}
+
 int
 zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, void *tag, zap_t **zapp)
@@ -924,6 +942,33 @@ zap_prefetch(objset_t *os, uint64_t zapobj, const char *name)
 
 	fzap_prefetch(zn);
 	zap_name_free(zn);
+	zap_unlockdir(zap, FTAG);
+	return (err);
+}
+
+int
+zap_lookup_by_dnode(dnode_t *dn, const char *name,
+    uint64_t integer_size, uint64_t num_integers, void *buf)
+{
+	return (zap_lookup_norm_by_dnode(dn, name, integer_size,
+	    num_integers, buf, MT_EXACT, NULL, 0, NULL));
+}
+
+int
+zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
+    uint64_t integer_size, uint64_t num_integers, void *buf,
+    matchtype_t mt, char *realname, int rn_len,
+    boolean_t *ncp)
+{
+	zap_t *zap;
+	int err;
+
+	err = zap_lockdir_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
+	    FTAG, &zap);
+	if (err != 0)
+		return (err);
+	err = zap_lookup_impl(zap, name, integer_size,
+	    num_integers, buf, mt, realname, rn_len, ncp);
 	zap_unlockdir(zap, FTAG);
 	return (err);
 }
@@ -1461,7 +1506,7 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 }
 
 int
-zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
+zap_count_write_by_dnode(dnode_t *dn, const char *name, int add,
     uint64_t *towrite, uint64_t *tooverwrite)
 {
 	zap_t *zap;
@@ -1489,7 +1534,7 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 	 * At present we are just evaluating the possibility of this operation
 	 * and hence we donot want to trigger an upgrade.
 	 */
-	err = zap_lockdir(os, zapobj, NULL, RW_READER, TRUE, FALSE,
+	err = zap_lockdir_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
 	    FTAG, &zap);
 	if (err != 0)
 		return (err);
@@ -1553,7 +1598,7 @@ EXPORT_SYMBOL(zap_lookup_uint64);
 EXPORT_SYMBOL(zap_contains);
 EXPORT_SYMBOL(zap_prefetch);
 EXPORT_SYMBOL(zap_prefetch_uint64);
-EXPORT_SYMBOL(zap_count_write);
+EXPORT_SYMBOL(zap_count_write_by_dnode);
 EXPORT_SYMBOL(zap_add);
 EXPORT_SYMBOL(zap_add_uint64);
 EXPORT_SYMBOL(zap_update);
