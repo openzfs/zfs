@@ -1040,11 +1040,12 @@ splat_taskq_test7_impl(struct file *file, void *arg, boolean_t prealloc)
 
 	error = (tq_arg->depth == SPLAT_TASKQ_DEPTH_MAX ? 0 : -EINVAL);
 
+	splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
+	              "Taskq '%s' destroying\n", tq_arg->name);
+
 	kmem_free(tqe, sizeof (taskq_ent_t));
 	kmem_free(tq_arg, sizeof (splat_taskq_arg_t));
 
-	splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
-	              "Taskq '%s' destroying\n", tq_arg->name);
 	taskq_destroy(tq);
 
 	return (error);
