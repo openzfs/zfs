@@ -1192,6 +1192,19 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_metadnode_backfill\fR (int)
+.ad
+.RS 12n
+Enable backfilling of the metadnode array to avoid sparse dnode blocks.
+Sparse blocks can cost disk space, memory overhead, and increased disk
+I/O, while backfilling can limit overall object creation rates.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_metaslab_fragmentation_threshold\fR (int)
 .ad
 .RS 12n
