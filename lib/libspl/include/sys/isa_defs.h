@@ -190,7 +190,8 @@ extern "C" {
 #define	_SUNOS_VTOC_16
 
 #else
-/* Currently support
+/* 
+ * Currently support
  * x86_64, i386, arm, powerpc, s390, sparc, and mips
  */
 #error "Unsupported ISA type"
