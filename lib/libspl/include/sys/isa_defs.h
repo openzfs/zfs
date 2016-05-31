@@ -184,12 +184,14 @@ extern "C" {
 #endif
 
 #ifndef _LP64
-#define _ILP32
+#define	_ILP32
 #endif
 
 #define	_SUNOS_VTOC_16
 
-#else /* Currently x86_64, i386, arm, powerpc, s390, sparc, and mips are supported */
+#else /* Currently support */
+       * x86_64, i386, arm, powerpc, s390, sparc, and mips
+       */
 #error "Unsupported ISA type"
 #endif
 
