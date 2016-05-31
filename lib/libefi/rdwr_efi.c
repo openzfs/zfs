@@ -154,7 +154,8 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 #if defined(_SUNOS_VTOC_16)
 
 #if defined(i386) || defined(__amd64) || defined(__arm) || \
-    defined(__powerpc) || defined(__sparc) || defined(__s390__)
+    defined(__powerpc) || defined(__sparc) || defined(__s390__) || \
+    defined(__mips__)
 	{	V_BOOT,		V_UNMNT	},		/* i - 8 */
 	{	V_ALTSCTR,	0	},		/* j - 9 */
 
