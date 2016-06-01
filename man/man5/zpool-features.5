@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZPOOL-FEATURES 5 "Aug 27, 2013"
+.TH ZPOOL-FEATURES 5 "Jun 8, 2018"
 .SH NAME
 zpool\-features \- ZFS pool feature descriptions
 .SH DESCRIPTION
@@ -248,8 +248,9 @@ immediately activate the \fBlz4_compress\fR feature on the underlying
 pool using the \fBzfs\fR(1M) command. Also, all newly written metadata
 will be compressed with \fBlz4\fR algorithm. Since this feature is not
 read-only compatible, this operation will render the pool unimportable
-on systems without support for the \fBlz4_compress\fR feature. Booting
-off of \fBlz4\fR-compressed root pools is supported.
+on systems without support for the \fBlz4_compress\fR feature.
+
+Booting off of \fBlz4\fR-compressed root pools is supported.
 
 This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fB.
@@ -598,8 +599,7 @@ can turn on the \fBsha512\fR checksum on any dataset using the
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBsha512\fR are destroyed.
 
-Booting off of pools utilizing SHA-512/256 is supported (provided that
-the updated GRUB stage2 module is installed).
+Booting off of pools utilizing SHA-512/256 is supported.
 
 .RE
 
@@ -633,9 +633,7 @@ can turn on the \fBskein\fR checksum on any dataset using the
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBskein\fR are destroyed.
 
-Booting off of pools using \fBskein\fR is \fBNOT\fR supported
--- any attempt to enable \fBskein\fR on a root pool will fail with an
-error.
+Booting off of pools using \fBskein\fR is supported.
 
 .RE
 
@@ -675,9 +673,7 @@ can turn on the \fBedonr\fR checksum on any dataset using the
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBedonr\fR are destroyed.
 
-Booting off of pools using \fBedonr\fR is \fBNOT\fR supported
--- any attempt to enable \fBedonr\fR on a root pool will fail with an
-error.
+Booting off of pools using \fBedonr\fR is supported.
 
 .RE
 

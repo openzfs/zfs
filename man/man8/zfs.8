@@ -30,7 +30,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright 2018 Joyent, Inc.
 .\"
-.Dd January 10, 2018
+.Dd July 13, 2018
 .Dt ZFS 8 SMM
 .Os Linux
 .Sh NAME
@@ -1184,15 +1184,14 @@ The
 and
 .Sy edonr
 checksum algorithms require enabling the appropriate features on the pool.
+These algorithms are not supported by GRUB and should not be set on the
+.Sy bootfs
+filesystem when using GRUB to boot the system.
 Please see
 .Xr zpool-features 5
 for more information on these algorithms.
 .Pp
 Changing this property affects only newly-written data.
-.Pp
-Salted checksum algorithms
-.Pq Cm edonr , skein
-are currently not supported for any filesystem on the boot pools.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
 .Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
