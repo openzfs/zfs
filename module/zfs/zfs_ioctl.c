@@ -3985,16 +3985,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 		if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 			return (err);
-		/*
-		 * Salted checksums are not supported on root pools.
-		 */
-		if (spa_bootfs(spa) != 0 &&
-		    intval < ZIO_CHECKSUM_FUNCTIONS &&
-		    (zio_checksum_table[intval].ci_flags &
-		    ZCHECKSUM_FLAG_SALTED)) {
-			spa_close(spa, FTAG);
-			return (SET_ERROR(ERANGE));
-		}
+
 		if (!spa_feature_is_enabled(spa, feature)) {
 			spa_close(spa, FTAG);
 			return (SET_ERROR(ENOTSUP));
