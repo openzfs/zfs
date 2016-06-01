@@ -29,7 +29,7 @@
 .\" Copyright 2016 Nexenta Systems, Inc.
 .\" Copyright 2016 Richard Laager. All rights reserved.
 .\"
-.Dd June 28, 2017
+.Dd July 13, 2018
 .Dt ZFS 8 SMM
 .Os Linux
 .Sh NAME
@@ -1049,6 +1049,9 @@ The
 and
 .Sy edonr
 checksum algorithms require enabling the appropriate features on the pool.
+These algorithms are not supported by GRUB and should not be set on the
+.Sy bootfs
+filesystem when using GRUB to boot the system.
 Please see
 .Xr zpool-features 5
 for more information on these algorithms.
