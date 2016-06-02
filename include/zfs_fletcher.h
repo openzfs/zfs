@@ -27,7 +27,7 @@
 #define	_ZFS_FLETCHER_H
 
 #include <sys/types.h>
-#include <sys/spa.h>
+#include <sys/spa_checksum.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -45,6 +45,25 @@ void fletcher_4_incremental_native(const void *, uint64_t,
     zio_cksum_t *);
 void fletcher_4_incremental_byteswap(const void *, uint64_t,
     zio_cksum_t *);
+int fletcher_4_impl_set(const char *selector);
+void fletcher_4_init(void);
+void fletcher_4_fini(void);
+
+/*
+ * fletcher checksum struct
+ */
+typedef struct fletcher_4_func {
+	void (*init)(zio_cksum_t *);
+	void (*fini)(zio_cksum_t *);
+	void (*compute)(const void *, uint64_t, zio_cksum_t *);
+	void (*compute_byteswap)(const void *, uint64_t, zio_cksum_t *);
+	boolean_t (*valid)(void);
+	const char *name;
+} fletcher_4_ops_t;
+
+#if defined(HAVE_AVX) && defined(HAVE_AVX2)
+extern const fletcher_4_ops_t fletcher_4_avx2_ops;
+#endif
 
 #ifdef	__cplusplus
 }
