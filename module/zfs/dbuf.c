@@ -2870,16 +2870,35 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		ASSERT(db->db_state == DB_CACHED || db->db_state == DB_NOFILL);
 	}
 	DBUF_VERIFY(db);
-
+	
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-
+	
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		mutex_enter(&dn->dn_mtx);
-		dn->dn_phys->dn_flags |= DNODE_FLAG_SPILL_BLKPTR;
-		mutex_exit(&dn->dn_mtx);
+		if (!(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
+			/*
+			 * pay attention the following scenario that would
+			 * introduce the potential problems:
+			 * in the previous transaction group, the bonus buffer
+			 * was entirely used to store the attributes for the
+			 * dnode which override the dn_spill field.
+			 * However, when adding more attributes to the file,
+			 * it will need the spill block to hold the extra
+			 * attributes overflowing the bonus buffer.
+			 * Make sure to clear the garbage left in the dn_spill
+			 * field which was the previous attributes in bonus
+			 * buffer, otherwise, after writing out the spill block
+			 * data to the new allocated dva, it will try to free
+			 * the old block pointed by the invalid dn_spill, that
+			 * would introduce the panic.
+			 */
+			db->db_blkptr = NULL;
+		}
+ 		dn->dn_phys->dn_flags |= DNODE_FLAG_SPILL_BLKPTR;
+ 		mutex_exit(&dn->dn_mtx);
 	}
-
+	
 	/*
 	 * If this is a bonus buffer, simply copy the bonus data into the
 	 * dnode.  It will be written out when the dnode is synced (and it
