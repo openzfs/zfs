@@ -227,4 +227,28 @@ refcount_transfer(refcount_t *dst, refcount_t *src)
 	list_destroy(&removed);
 }
 
+void
+refcount_transfer_ownership(refcount_t *rc, void *current_holder,
+    void *new_holder)
+{
+	reference_t *ref;
+	boolean_t found = B_FALSE;
+
+	mutex_enter(&rc->rc_mtx);
+	if (!rc->rc_tracked) {
+		mutex_exit(&rc->rc_mtx);
+		return;
+	}
+
+	for (ref = list_head(&rc->rc_list); ref;
+	    ref = list_next(&rc->rc_list, ref)) {
+		if (ref->ref_holder == current_holder) {
+			ref->ref_holder = new_holder;
+			found = B_TRUE;
+			break;
+		}
+	}
+	ASSERT(found);
+	mutex_exit(&rc->rc_mtx);
+}
 #endif	/* ZFS_DEBUG */
