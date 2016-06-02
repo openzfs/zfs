@@ -514,7 +514,7 @@ dnode_destroy(dnode_t *dn)
 	}
 	if (dn->dn_bonus != NULL) {
 		mutex_enter(&dn->dn_bonus->db_mtx);
-		dbuf_evict(dn->dn_bonus);
+		dbuf_destroy(dn->dn_bonus);
 		dn->dn_bonus = NULL;
 	}
 	dn->dn_zio = NULL;

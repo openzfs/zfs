@@ -292,7 +292,7 @@ zio_data_buf_free(void *buf, size_t size)
  * Push and pop I/O transform buffers
  * ==========================================================================
  */
-static void
+void
 zio_push_transform(zio_t *zio, void *data, uint64_t size, uint64_t bufsize,
 	zio_transform_func_t *transform)
 {
@@ -310,7 +310,7 @@ zio_push_transform(zio_t *zio, void *data, uint64_t size, uint64_t bufsize,
 	zio->io_size = size;
 }
 
-static void
+void
 zio_pop_transforms(zio_t *zio)
 {
 	zio_transform_t *zt;
@@ -2381,7 +2381,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 				    bcmp(abuf->b_data, zio->io_orig_data,
 				    zio->io_orig_size) != 0)
 					error = SET_ERROR(EEXIST);
-				VERIFY(arc_buf_remove_ref(abuf, &abuf));
+				arc_buf_destroy(abuf, &abuf);
 			}
 
 			ddt_enter(ddt);
