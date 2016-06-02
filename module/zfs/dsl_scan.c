@@ -692,7 +692,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			dsl_scan_visitbp(cbp, &czb, dnp,
 			    ds, scn, ostype, tx);
 		}
-		(void) arc_buf_remove_ref(buf, &buf);
+		arc_buf_destroy(buf, &buf);
 	} else if (BP_GET_TYPE(bp) == DMU_OT_DNODE) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
 		dnode_phys_t *cdnp;
@@ -722,7 +722,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			    cdnp, zb->zb_blkid * epb + i, tx);
 		}
 
-		(void) arc_buf_remove_ref(buf, &buf);
+		arc_buf_destroy(buf, &buf);
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
 		objset_phys_t *osp;
@@ -754,7 +754,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			    &osp->os_userused_dnode,
 			    DMU_USERUSED_OBJECT, tx);
 		}
-		(void) arc_buf_remove_ref(buf, &buf);
+		arc_buf_destroy(buf, &buf);
 	}
 
 	return (0);
