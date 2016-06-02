@@ -2870,10 +2870,10 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		ASSERT(db->db_state == DB_CACHED || db->db_state == DB_NOFILL);
 	}
 	DBUF_VERIFY(db);
-	
+
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	
+
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		mutex_enter(&dn->dn_mtx);
 		if (!(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
@@ -2895,10 +2895,10 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 			 */
 			db->db_blkptr = NULL;
 		}
- 		dn->dn_phys->dn_flags |= DNODE_FLAG_SPILL_BLKPTR;
- 		mutex_exit(&dn->dn_mtx);
+		dn->dn_phys->dn_flags |= DNODE_FLAG_SPILL_BLKPTR;
+		mutex_exit(&dn->dn_mtx);
 	}
-	
+
 	/*
 	 * If this is a bonus buffer, simply copy the bonus data into the
 	 * dnode.  It will be written out when the dnode is synced (and it
