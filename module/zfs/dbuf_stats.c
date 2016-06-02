@@ -95,7 +95,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    abi.abi_state_type,
 	    abi.abi_state_contents,
 	    abi.abi_flags,
-	    (ulong_t)abi.abi_datacnt,
+	    (ulong_t)abi.abi_bufcnt,
 	    (u_longlong_t)abi.abi_size,
 	    (u_longlong_t)abi.abi_access,
 	    (ulong_t)abi.abi_mru_hits,

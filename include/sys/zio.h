@@ -527,6 +527,10 @@ extern void *zio_data_buf_alloc(size_t size);
 extern void zio_data_buf_free(void *buf, size_t size);
 extern void *zio_buf_alloc_flags(size_t size, int flags);
 
+extern void zio_push_transform(zio_t *zio, void *data, uint64_t size,
+    uint64_t bufsize, zio_transform_func_t *transform);
+extern void zio_pop_transforms(zio_t *zio);
+
 extern void zio_resubmit_stage_async(void *);
 
 extern zio_t *zio_vdev_child_io(zio_t *zio, blkptr_t *bp, vdev_t *vd,

@@ -187,25 +187,19 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 }
 
 int
-zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
+zio_checksum_error_impl(spa_t *spa, blkptr_t *bp, enum zio_checksum checksum,
+    void *data, uint64_t size, uint64_t offset, zio_bad_cksum_t *info)
 {
-	blkptr_t *bp = zio->io_bp;
-	uint_t checksum = (bp == NULL ? zio->io_prop.zp_checksum :
-	    (BP_IS_GANG(bp) ? ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp)));
-	int byteswap;
-	int error;
-	uint64_t size = (bp == NULL ? zio->io_size :
-	    (BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp)));
-	uint64_t offset = zio->io_offset;
-	void *data = zio->io_data;
 	zio_checksum_info_t *ci = &zio_checksum_table[checksum];
-	zio_cksum_t actual_cksum, expected_cksum, verifier;
+	zio_cksum_t actual_cksum, expected_cksum;
+	int byteswap;
 
 	if (checksum >= ZIO_CHECKSUM_FUNCTIONS || ci->ci_func[0] == NULL)
 		return (SET_ERROR(EINVAL));
 
 	if (ci->ci_eck) {
 		zio_eck_t *eck;
+		zio_cksum_t verifier;
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
 			zil_chain_t *zilc = data;
@@ -244,32 +238,51 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 		ci->ci_func[byteswap](data, size, &actual_cksum);
 		eck->zec_cksum = expected_cksum;
 
-		if (byteswap)
+		if (byteswap) {
 			byteswap_uint64_array(&expected_cksum,
 			    sizeof (zio_cksum_t));
+		}
 	} else {
-		ASSERT(!BP_IS_GANG(bp));
 		byteswap = BP_SHOULD_BYTESWAP(bp);
 		expected_cksum = bp->blk_cksum;
 		ci->ci_func[byteswap](data, size, &actual_cksum);
 	}
 
-	info->zbc_expected = expected_cksum;
-	info->zbc_actual = actual_cksum;
-	info->zbc_checksum_name = ci->ci_name;
-	info->zbc_byteswapped = byteswap;
-	info->zbc_injected = 0;
-	info->zbc_has_cksum = 1;
+	if (info != NULL) {
+		info->zbc_expected = expected_cksum;
+		info->zbc_actual = actual_cksum;
+		info->zbc_checksum_name = ci->ci_name;
+		info->zbc_byteswapped = byteswap;
+		info->zbc_injected = 0;
+		info->zbc_has_cksum = 1;
+	}
 
 	if (!ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
 		return (SET_ERROR(ECKSUM));
 
-	if (zio_injection_enabled && !zio->io_error &&
+	return (0);
+}
+
+int
+zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
+{
+	blkptr_t *bp = zio->io_bp;
+	uint_t checksum = (bp == NULL ? zio->io_prop.zp_checksum :
+	    (BP_IS_GANG(bp) ? ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp)));
+	int error;
+	uint64_t size = (bp == NULL ? zio->io_size :
+	    (BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp)));
+	uint64_t offset = zio->io_offset;
+	void *data = zio->io_data;
+	spa_t *spa = zio->io_spa;
+
+	error = zio_checksum_error_impl(spa, bp, checksum, data, size,
+	    offset, info);
+	if (error != 0 && zio_injection_enabled && !zio->io_error &&
 	    (error = zio_handle_fault_injection(zio, ECKSUM)) != 0) {
 
 		info->zbc_injected = 1;
 		return (error);
 	}
-
-	return (0);
+	return (error);
 }
