@@ -24,7 +24,8 @@
  */
 
 /*
- * Copyright (c) 2014 by Delphix. All rights reserved.
+ * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2015 by Delphix. All rights reserved.
  */
 
 /*
@@ -948,8 +949,8 @@ avl_is_empty(avl_tree_t *tree)
 
 /*
  * Post-order tree walk used to visit all tree nodes and destroy the tree
- * in post order. This is used for destroying a tree without paying any cost
- * for rebalancing it.
+ * in post order. This is used for removing all the nodes from a tree without
+ * paying any cost for rebalancing it.
  *
  * example:
  *
