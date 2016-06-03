@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 #
@@ -63,11 +63,8 @@ typeset -l total=0
 typeset -l snap1_size=0
 typeset -l snap2_size=0
 typeset -l snap3_size=0
-typeset -l metadata=0
 typeset -l mb_block=0
 ((mb_block = 1024 * 1024))
-# approximate metadata on dataset when empty is 32KB
-((metadata = 32 * 1024))
 
 log_note "verify written property statistics for dataset"
 log_must $ZFS create -p $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3
@@ -90,7 +87,10 @@ blocks=0
 for i in 1 2 3; do
 	written=$(get_prop written $TESTPOOL/$TESTFS1@snap$i)
 	if [[ $blocks -eq 0 ]]; then
-		expected_written=$metadata
+		# Written value for the frist non-clone snapshot is
+		# expected to be equal to the referenced value.
+		expected_written=$( \
+		    get_prop referenced $TESTPOOL/$TESTFS1@snap$i)
 	else
 		((expected_written = blocks * mb_block))
 	fi
