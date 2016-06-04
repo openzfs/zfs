@@ -4622,7 +4622,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 	case ZPOOL_STATUS_BAD_LOG:
 		(void) printf(gettext("status: An intent log record "
 		    "could not be read.\n"
-		    "\tWaiting for adminstrator intervention to fix the "
+		    "\tWaiting for administrator intervention to fix the "
 		    "faulted pool.\n"));
 		(void) printf(gettext("action: Either restore the affected "
 		    "device(s) and run 'zpool online',\n"
