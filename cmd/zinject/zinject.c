@@ -222,7 +222,7 @@ usage(void)
 	    "\tzinject -c <id|all>\n"
 	    "\n"
 	    "\t\tClear the particular record (if given a numeric ID), or\n"
-	    "\t\tall records if 'all' is specificed.\n"
+	    "\t\tall records if 'all' is specified.\n"
 	    "\n"
 	    "\tzinject -p <function name> pool\n"
 	    "\t\tInject a panic fault at the specified function. Only \n"
