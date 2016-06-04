@@ -257,7 +257,7 @@ usage(void)
 	    "\n"
 	    "\t\tInject an error into the object specified by the '-t' option\n"
 	    "\t\tand the object descriptor.  The 'object' parameter is\n"
-	    "\t\tinterperted depending on the '-t' option.\n"
+	    "\t\tinterpreted depending on the '-t' option.\n"
 	    "\n"
 	    "\t\t-q\tQuiet mode.  Only print out the handler number added.\n"
 	    "\t\t-e\tInject a specific error.  Must be either 'io' or\n"
