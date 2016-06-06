@@ -343,7 +343,7 @@ args_init(int argc, char **argv)
 	check_mutual_exclusive_command_lines(fl_cs, "chunksize");
 
 	if (args->pool == NULL) {
-		fprintf(stderr, "Error: Pool not specificed\n");
+		fprintf(stderr, "Error: Pool not specified\n");
 		usage();
 		args_fini(args);
 		return (NULL);
