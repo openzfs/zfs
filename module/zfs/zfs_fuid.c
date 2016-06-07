@@ -488,7 +488,6 @@ zfs_fuid_node_add(zfs_fuid_info_t **fuidpp, const char *domain, uint32_t rid,
 	}
 }
 
-#ifdef HAVE_KSID
 /*
  * Create a file system FUID, based on information in the users cred
  *
@@ -501,6 +500,7 @@ uint64_t
 zfs_fuid_create_cred(zfs_sb_t *zsb, zfs_fuid_type_t type,
     cred_t *cr, zfs_fuid_info_t **fuidp)
 {
+#ifdef HAVE_KSID
 	uint64_t	idx;
 	ksid_t		*ksid;
 	uint32_t	rid;
@@ -540,8 +540,12 @@ zfs_fuid_create_cred(zfs_sb_t *zsb, zfs_fuid_type_t type,
 	zfs_fuid_node_add(fuidp, kdomain, rid, idx, id, type);
 
 	return (FUID_ENCODE(idx, rid));
-}
+#else
+	VERIFY(type == ZFS_OWNER || type == ZFS_GROUP);
+
+	return ((uint64_t)((type == ZFS_OWNER) ? crgetuid(cr) : crgetgid(cr)));
 #endif /* HAVE_KSID */
+}
 
 /*
  * Create a file system FUID for an ACL ace

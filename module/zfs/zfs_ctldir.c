@@ -109,7 +109,7 @@ static krwlock_t zfs_snapshot_lock;
  * Control Directory Tunables (.zfs)
  */
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
-int zfs_admin_snapshot = 0;
+int zfs_admin_snapshot = 1;
 
 /*
  * Dedicated task queue for unmounting snapshots.
@@ -490,7 +490,7 @@ zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
 	zp->z_is_stale = B_FALSE;
 	ip->i_generation = 0;
 	ip->i_ino = id;
-	ip->i_mode = (S_IFDIR | S_IRUGO | S_IXUGO);
+	ip->i_mode = (S_IFDIR | S_IRWXUGO);
 	ip->i_uid = SUID_TO_KUID(0);
 	ip->i_gid = SGID_TO_KGID(0);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;

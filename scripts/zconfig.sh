@@ -63,6 +63,17 @@ fi
 # Initialize the test suite
 init
 
+# Disable the udev rule 90-zfs.rules to prevent the zfs module
+# stack from being loaded due to the detection of a zfs device.
+# This is important because this test scripts require full control
+# over when and how the modules are loaded/unloaded.  A trap is
+# set to ensure the udev rule is correctly replaced on exit.
+RULE=${udevruledir}/90-zfs.rules
+if test -e  ${RULE}; then
+	trap "mv ${RULE}.disabled ${RULE}" INT TERM EXIT
+	mv ${RULE} ${RULE}.disabled
+fi
+
 # Perform pre-cleanup is requested
 if [ ${CLEANUP} ]; then
 	${ZFS_SH} -u

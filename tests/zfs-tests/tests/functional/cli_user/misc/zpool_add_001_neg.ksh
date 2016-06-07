@@ -29,8 +29,8 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -50,13 +50,21 @@ ADD_DISK="${ADD_DISK##* }"
 [[ -z $ADD_DISK ]] && \
         log_fail "No spare disks available."
 
-set -A args "add" "add -f" "add -n" \
-    "add $TESTPOOL" "add -f $TESTPOOL" "add -n $TESTPOOL" \
-    "add -fn $TESTPOOL" "add -nf $TESTPOOL" \
-    "add $TESTPOOL $ADD_DISK" "add -f $TESTPOOL $ADD_DISK" \
-    "add -n $TESTPOOL $ADD_DISK" \
-    "add -fn $TESTPOOL $ADD_DISK" \
-    "add -nf $TESTPOOL $ADD_DISK" \
+# Under Linux dry-run commands have no legitimate reason to fail.
+if is_linux; then
+	set -A args "add" "add -f" "add -n" \
+	    "add $TESTPOOL" "add -f $TESTPOOL" "add -n $TESTPOOL" \
+	    "add -fn $TESTPOOL" "add -nf $TESTPOOL" \
+	    "add $TESTPOOL $ADD_DISK" "add -f $TESTPOOL $ADD_DISK"
+else
+	set -A args "add" "add -f" "add -n" \
+	    "add $TESTPOOL" "add -f $TESTPOOL" "add -n $TESTPOOL" \
+	    "add -fn $TESTPOOL" "add -nf $TESTPOOL" \
+	    "add $TESTPOOL $ADD_DISK" "add -f $TESTPOOL $ADD_DISK" \
+	    "add -n $TESTPOOL $ADD_DISK" \
+	    "add -fn $TESTPOOL $ADD_DISK" \
+	    "add -nf $TESTPOOL $ADD_DISK"
+fi
 
 log_assert "zpool add [-fn] pool_name vdev"
 
