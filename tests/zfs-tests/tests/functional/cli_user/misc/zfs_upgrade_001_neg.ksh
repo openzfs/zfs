@@ -29,8 +29,8 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:

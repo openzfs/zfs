@@ -67,7 +67,7 @@ typeset perms="snapshot,reservation,compression,checksum,send,userprop"
 log_note "Create a user called 'everyone'."
 if ! $ID everyone > /dev/null 2>&1; then
 	user_added="TRUE"
-	log_must $USERADD everyone
+	log_must add_user $STAFF_GROUP everyone
 fi
 for dtst in $DATASETS ; do
 	log_must $ZFS allow everyone $perms $dtst
@@ -75,7 +75,7 @@ for dtst in $DATASETS ; do
 done
 log_must restore_root_datasets
 if [[ $user_added == "TRUE" ]]; then
-	log_must $USERDEL everyone
+	log_must del_user everyone
 fi
 
 log_note "Created a group called 'everyone'."

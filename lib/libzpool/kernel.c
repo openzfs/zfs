@@ -1302,6 +1302,12 @@ zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
 	return (0);
 }
 
+int
+secpolicy_zfs(const cred_t *cr)
+{
+	return (0);
+}
+
 ksiddomain_t *
 ksid_lookupdomain(const char *dom)
 {

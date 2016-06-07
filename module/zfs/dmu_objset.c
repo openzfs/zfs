@@ -52,6 +52,7 @@
 #include <sys/zfs_onexit.h>
 #include <sys/dsl_destroy.h>
 #include <sys/vdev.h>
+#include <sys/policy.h>
 
 /*
  * Needed to close a window in dnode_move() that allows the objset to be freed
