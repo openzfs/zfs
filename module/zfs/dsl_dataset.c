@@ -53,6 +53,7 @@
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_userhold.h>
 #include <sys/dsl_bookmark.h>
+#include <sys/policy.h>
 
 /*
  * The SPA supports block sizes up to 16MB.  However, very large blocks

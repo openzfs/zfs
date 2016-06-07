@@ -7,6 +7,6 @@ ENV{ID_FS_TYPE}=="zfs_member", RUN+="/sbin/modprobe zfs"
 KERNEL=="null", SYMLINK+="root"
 SYMLINK=="null", SYMLINK+="root"
 
-SUBSYSTEM=="misc", KERNEL=="zfs", RUN+="@sbindir@/zpool list"
+SUBSYSTEM=="misc", KERNEL=="zfs", MODE="0666"
 
 LABEL="zfs_end"

@@ -186,11 +186,18 @@
 #include <sys/zfeature.h>
 
 #include <linux/miscdevice.h>
+#include <linux/slab.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
 #include "zfs_comutil.h"
+
+/*
+ * Limit maximum nvlist size.  We don't want users passing in insane values
+ * for zc->zc_nvlist_src_size, since we will need to allocate that much memory.
+ */
+#define	MAX_NVLIST_SRC_SIZE	KMALLOC_MAX_SIZE
 
 kmutex_t zfsdev_state_lock;
 zfsdev_state_t *zfsdev_state_list;
@@ -3182,8 +3189,25 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	if (error == 0) {
 		error = zfs_set_prop_nvlist(fsname, ZPROP_SRC_LOCAL,
 		    nvprops, outnvl);
-		if (error != 0)
-			(void) dsl_destroy_head(fsname);
+		if (error != 0) {
+			spa_t *spa;
+			int error2;
+
+			/*
+			 * Volumes will return EBUSY and cannot be destroyed
+			 * until all asynchronous minor handling has completed.
+			 * Wait for the spa_zvol_taskq to drain then retry.
+			 */
+			error2 = dsl_destroy_head(fsname);
+			while ((error2 == EBUSY) && (type == DMU_OST_ZVOL)) {
+				error2 = spa_open(fsname, &spa, FTAG);
+				if (error2 == 0) {
+					taskq_wait(spa->spa_zvol_taskq);
+					spa_close(spa, FTAG);
+				}
+				error2 = dsl_destroy_head(fsname);
+			}
+		}
 	}
 	return (error);
 }
@@ -5795,7 +5819,23 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	}
 
 	zc->zc_iflags = flag & FKIOCTL;
-	if (zc->zc_nvlist_src_size != 0) {
+	if (zc->zc_nvlist_src_size > MAX_NVLIST_SRC_SIZE) {
+		/*
+		 * Make sure the user doesn't pass in an insane value for
+		 * zc_nvlist_src_size.  We have to check, since we will end
+		 * up allocating that much memory inside of get_nvlist().  This
+		 * prevents a nefarious user from allocating tons of kernel
+		 * memory.
+		 *
+		 * Also, we return EINVAL instead of ENOMEM here.  The reason
+		 * being that returning ENOMEM from an ioctl() has a special
+		 * connotation; that the user's size value is too small and
+		 * needs to be expanded to hold the nvlist.  See
+		 * zcmd_expand_dst_nvlist() for details.
+		 */
+		error = SET_ERROR(EINVAL);	/* User's size too big */
+
+	} else if (zc->zc_nvlist_src_size != 0) {
 		error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
 		    zc->zc_iflags, &innvl);
 		if (error != 0)

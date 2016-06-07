@@ -158,6 +158,10 @@ class Cmd(object):
         me = getpwuid(os.getuid())
 
         if not user or user is me:
+            if os.path.isfile(cmd+'.ksh') and os.access(cmd+'.ksh', os.X_OK):
+                cmd += '.ksh'
+            if os.path.isfile(cmd+'.sh') and os.access(cmd+'.sh', os.X_OK):
+                cmd += '.sh'
             return cmd
 
         if not os.path.isfile(cmd):
@@ -207,10 +211,11 @@ class Cmd(object):
         except OSError, e:
             fail('%s' % e)
 
+        self.result.starttime = time()
+        proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
+        t = Timer(int(self.timeout), self.kill_cmd, [proc])
+
         try:
-            self.result.starttime = time()
-            proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
-            t = Timer(int(self.timeout), self.kill_cmd, [proc])
             t.start()
             self.result.stdout, self.result.stderr = self.collect_output(proc)
         except KeyboardInterrupt:

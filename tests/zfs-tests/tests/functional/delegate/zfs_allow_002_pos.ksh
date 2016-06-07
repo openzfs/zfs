@@ -61,7 +61,7 @@ log_onexit cleanup
 eval set -A dataset $DATASETS
 typeset perms="snapshot,reservation,compression,checksum,send,userprop"
 
-log_must $USERADD $STAFF_GROUP
+log_must add_user $STAFF_GROUP $STAFF_GROUP
 for dtst in $DATASETS ; do
 	log_must $ZFS allow $STAFF_GROUP $perms $dtst
 	log_must verify_perm $dtst $perms $STAFF_GROUP

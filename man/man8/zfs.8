@@ -2933,6 +2933,11 @@ Force a rollback of the file system to the most recent snapshot before performin
 .sp .6
 .RS 4n
 Displays permissions that have been delegated on the specified filesystem or volume. See the other forms of \fBzfs allow\fR for more information.
+.sp
+Delegations are supported under Linux with the exception of \fBmount\fR,
+\fBunmount\fR, \fBmountpoint\fR, \fBcanmount\fR, \fBrename\fR, and \fBshare\fR.
+These permissions cannot be delegated because the Linux \fBmount(8)\fR command
+restricts modifications of the global namespace to the root user.
 .RE
 
 .sp
@@ -3583,9 +3588,6 @@ If you are using \fBDNS\fR for host name resolution, specify the fully qualified
 
 .LP
 \fBExample 17 \fRDelegating ZFS Administration Permissions on a ZFS Dataset
-.sp
-.LP
-This is not currently supported on Linux.
 .sp
 The following example shows how to set permissions so that user \fBcindys\fR can create, destroy, mount, and take snapshots on \fBtank/cindys\fR. The permissions on \fBtank/cindys\fR are also displayed.
 
