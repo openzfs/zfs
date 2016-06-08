@@ -2943,6 +2943,22 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		mutex_enter(&dn->dn_mtx);
+		if (!(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
+			/*
+			 * In the previous transaction group, the bonus buffer
+			 * was entirely used to store the attributes for the
+			 * dnode which overrode the dn_spill field.  However,
+			 * when adding more attributes to the file a spill
+			 * block was required to hold the extra attributes.
+			 *
+			 * Make sure to clear the garbage left in the dn_spill
+			 * field from the previous attributes in the bonus
+			 * buffer.  Otherwise, after writing out the spill
+			 * block to the new allocated dva, it will free
+			 * the old block pointed to by the invalid dn_spill.
+			 */
+			db->db_blkptr = NULL;
+		}
 		dn->dn_phys->dn_flags |= DNODE_FLAG_SPILL_BLKPTR;
 		mutex_exit(&dn->dn_mtx);
 	}
