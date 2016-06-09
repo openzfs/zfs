@@ -30,26 +30,29 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/zvol/zvol_common.shlib
 
 #
 # DESCRIPTION:
-#	When a swap zvol is added it is resized to be equal to 1/4 c_max,
-#	capped between 2G and 16G.
+#	When a swap zvol is added its volsize does not change.
 #
 # STRATEGY:
 #	1. Determine what 1/4 arc_c_max is.
 #	2. Create a zvols in a variety of sizes.
-#	3. Add them as swap, and verify the volsize is resized correctly.
+#	3. Add them as swap, and verify the volsize is not changed.
 #
 
 verify_runnable "global"
 
+function cleanup
+{
+	is_swap_inuse $swapname && log_must $SWAP -d $swapname
+	datasetexists $vol && log_must $ZFS destroy $vol
+}
+
 log_assert "For an added swap zvol, (2G <= volsize <= 16G)"
 
-typeset -i min max mem
-((mem = $($KSTAT -p ::arcstats:c_max | $AWK '{print $2}') / 4))
-((min = 2 * 1024 * 1024 * 1024))
-((max = 16 * 1024 * 1024 * 1024))
+log_onexit cleanup
 
 for vbs in 512 1024 2048 4096 8192 16384 32768 65536 131072; do
 	for multiplier in 1 32 16384 131072; do
@@ -61,19 +64,8 @@ for vbs in 512 1024 2048 4096 8192 16384 32768 65536 131072; do
 		log_must $ZFS create -s -b $vbs -V $volsize $vol
 		log_must $SWAP -a $swapname
 
-		if ((mem <= min)); then		# volsize should be 2G
-			new_volsize=$(get_prop volsize $vol)
-			((new_volsize == min)) || log_fail \
-			    "Unexpected volsize: $new_volsize"
-		elif ((mem >= max)); then	# volsize should be 16G
-			new_volsize=$(get_prop volsize $vol)
-			((new_volsize == max)) || log_fail \
-			    "Unexpected volsize: $new_volsize"
-		else				# volsize should be 'mem'
-			new_volsize=$(get_prop volsize $vol)
-			((new_volsize == mem)) || log_fail \
-			    "Unexpected volsize: $new_volsize"
-		fi
+		new_volsize=$(get_prop volsize $vol)
+		[[ $volsize -eq $new_volsize ]] || log_fail "$volsize $new_volsize"
 
 		log_must $SWAP -d $swapname
 		log_must $ZFS destroy $vol
