@@ -26,6 +26,7 @@
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * All rights reserved
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  */
 
 #include <assert.h>
@@ -66,7 +67,7 @@ extern void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
 
 static int zfs_receive_impl(libzfs_handle_t *, const char *, const char *,
     recvflags_t *, int, const char *, nvlist_t *, avl_tree_t *, char **, int,
-    uint64_t *);
+    uint64_t *, const char *);
 static int guid_to_name(libzfs_handle_t *, const char *,
     uint64_t, boolean_t, char *);
 
@@ -2621,6 +2622,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	nvlist_t *stream_nv = NULL;
 	avl_tree_t *stream_avl = NULL;
 	char *fromsnap = NULL;
+	char *sendsnap = NULL;
 	char *cp;
 	char tofs[ZFS_MAXNAMELEN];
 	char sendfs[ZFS_MAXNAMELEN];
@@ -2769,8 +2771,16 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	 */
 	(void) strlcpy(sendfs, drr->drr_u.drr_begin.drr_toname,
 	    ZFS_MAXNAMELEN);
-	if ((cp = strchr(sendfs, '@')) != NULL)
+	if ((cp = strchr(sendfs, '@')) != NULL) {
 		*cp = '\0';
+		/*
+		 * Find the "sendsnap", the final snapshot in a replication
+		 * stream.  zfs_receive_one() handles certain errors
+		 * differently, depending on if the contained stream is the
+		 * last one or not.
+		 */
+		sendsnap = (cp + 1);
+	}
 
 	/* Finally, receive each contained stream */
 	do {
@@ -2783,7 +2793,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 		 */
 		error = zfs_receive_impl(hdl, destname, NULL, flags, fd,
 		    sendfs, stream_nv, stream_avl, top_zfs, cleanup_fd,
-		    action_handlep);
+		    action_handlep, sendsnap);
 		if (error == ENODATA) {
 			error = 0;
 			break;
@@ -2948,7 +2958,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
     const char *originsnap, recvflags_t *flags, dmu_replay_record_t *drr,
     dmu_replay_record_t *drr_noswap, const char *sendfs, nvlist_t *stream_nv,
     avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
-    uint64_t *action_handlep)
+    uint64_t *action_handlep, const char *finalsnap)
 {
 	zfs_cmd_t zc = {"\0"};
 	time_t begin_time;
@@ -2965,6 +2975,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	nvlist_t *snapprops_nvlist = NULL;
 	zprop_errflags_t prop_errflags;
 	boolean_t recursive;
+	char *snapname = NULL;
 
 	begin_time = time(NULL);
 
@@ -2975,7 +2986,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    ENOENT);
 
 	if (stream_avl != NULL) {
-		char *snapname;
 		nvlist_t *fs = fsavl_find(stream_avl, drrb->drr_toguid,
 		    &snapname);
 		nvlist_t *props;
@@ -3316,7 +3326,21 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    ZPROP_N_MORE_ERRORS) == 0) {
 				trunc_prop_errs(intval);
 				break;
-			} else {
+			} else if (snapname == NULL || finalsnap == NULL ||
+			    strcmp(finalsnap, snapname) == 0 ||
+			    strcmp(nvpair_name(prop_err),
+			    zfs_prop_to_name(ZFS_PROP_REFQUOTA)) != 0) {
+				/*
+				 * Skip the special case of, for example,
+				 * "refquota", errors on intermediate
+				 * snapshots leading up to a final one.
+				 * That's why we have all of the checks above.
+				 *
+				 * See zfs_ioctl.c's extract_delay_props() for
+				 * a list of props which can fail on
+				 * intermediate snapshots, but shouldn't
+				 * affect the overall receive.
+				 */
 				(void) snprintf(tbuf, sizeof (tbuf),
 				    dgettext(TEXT_DOMAIN,
 				    "cannot receive %s property on %s"),
@@ -3501,7 +3525,7 @@ static int
 zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
     const char *originsnap, recvflags_t *flags, int infd, const char *sendfs,
     nvlist_t *stream_nv, avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
-    uint64_t *action_handlep)
+    uint64_t *action_handlep, const char *finalsnap)
 {
 	int err;
 	dmu_replay_record_t drr, drr_noswap;
@@ -3597,10 +3621,11 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 			if ((cp = strchr(nonpackage_sendfs, '@')) != NULL)
 				*cp = '\0';
 			sendfs = nonpackage_sendfs;
+			VERIFY(finalsnap == NULL);
 		}
 		return (zfs_receive_one(hdl, infd, tosnap, originsnap, flags,
 		    &drr, &drr_noswap, sendfs, stream_nv, stream_avl, top_zfs,
-		    cleanup_fd, action_handlep));
+		    cleanup_fd, action_handlep, finalsnap));
 	} else {
 		assert(DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 		    DMU_COMPOUNDSTREAM);
@@ -3678,7 +3703,7 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 	VERIFY(cleanup_fd >= 0);
 
 	err = zfs_receive_impl(hdl, tosnap, originsnap, flags, infd, NULL, NULL,
-	    stream_avl, &top_zfs, cleanup_fd, &action_handle);
+	    stream_avl, &top_zfs, cleanup_fd, &action_handle, NULL);
 
 	VERIFY(0 == close(cleanup_fd));
 
