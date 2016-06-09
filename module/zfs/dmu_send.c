@@ -107,6 +107,19 @@ dump_bytes_cb(void *arg)
 	dmu_sendarg_t *dsp = dbi->dbi_dsp;
 	dsl_dataset_t *ds = dmu_objset_ds(dsp->dsa_os);
 	ssize_t resid; /* have to get resid to get detailed errno */
+
+	/*
+	 * The code does not rely on this (len being a multiple of 8).  We keep
+	 * this assertion because of the corresponding assertion in
+	 * receive_read().  Keeping this assertion ensures that we do not
+	 * inadvertently break backwards compatibility (causing the assertion
+	 * in receive_read() to trigger on old software).
+	 *
+	 * Removing the assertions could be rolled into a new feature that uses
+	 * data that isn't 8-byte aligned; if the assertions were removed, a
+	 * feature flag would have to be added.
+	 */
+
 	ASSERT0(dbi->dbi_len % 8);
 
 	dsp->dsa_err = vn_rdwr(UIO_WRITE, dsp->dsa_vp,
@@ -1806,7 +1819,10 @@ receive_read(struct receive_arg *ra, int len, void *buf)
 {
 	int done = 0;
 
-	/* some things will require 8-byte alignment, so everything must */
+	/*
+	 * The code doesn't rely on this (lengths being multiples of 8).  See
+	 * comment in dump_bytes.
+	 */
 	ASSERT0(len % 8);
 
 	while (done < len) {
