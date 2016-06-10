@@ -547,82 +547,168 @@ recv_read(int fd, void *buf, int ilen)
 	return (0);
 }
 
+/*
+ * Linux adds ZFS_IOC_RECV_NEW for resumable streams and preserves the legacy
+ * ZFS_IOC_RECV user/kernel interface.  The new interface supports all stream
+ * options but is currently only used for resumable streams.  This way updated
+ * user space utilities will interoperate with older kernel modules.
+ *
+ * Non-Linux OpenZFS platforms have opted to modify the legacy interface.
+ */
 static int
 recv_impl(const char *snapname, nvlist_t *props, const char *origin,
-    boolean_t force, boolean_t resumable, int fd,
-    const dmu_replay_record_t *begin_record)
+    boolean_t force, boolean_t resumable, int input_fd,
+    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
+    nvlist_t **errors)
 {
-	/*
-	 * The receive ioctl is still legacy, so we need to construct our own
-	 * zfs_cmd_t rather than using zfsc_ioctl().
-	 */
-	zfs_cmd_t zc = {"\0"};
+	dmu_replay_record_t drr;
+	char fsname[MAXPATHLEN];
 	char *atp;
-	char *packed = NULL;
-	size_t size;
 	int error;
 
-	ASSERT3S(g_refcount, >, 0);
-
-	/* zc_name is name of containing filesystem */
-	(void) strlcpy(zc.zc_name, snapname, sizeof (zc.zc_name));
-	atp = strchr(zc.zc_name, '@');
+	/* Set 'fsname' to the name of containing filesystem */
+	(void) strlcpy(fsname, snapname, sizeof (fsname));
+	atp = strchr(fsname, '@');
 	if (atp == NULL)
 		return (EINVAL);
 	*atp = '\0';
 
-	/* if the fs does not exist, try its parent. */
-	if (!lzc_exists(zc.zc_name)) {
-		char *slashp = strrchr(zc.zc_name, '/');
+	/* If the fs does not exist, try its parent. */
+	if (!lzc_exists(fsname)) {
+		char *slashp = strrchr(fsname, '/');
 		if (slashp == NULL)
 			return (ENOENT);
 		*slashp = '\0';
-
 	}
 
-	/* zc_value is full name of the snapshot to create */
-	(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
-
-	if (props != NULL) {
-		/* zc_nvlist_src is props to set */
-		packed = fnvlist_pack(props, &size);
-		zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
-		zc.zc_nvlist_src_size = size;
-	}
-
-	/* zc_string is name of clone origin (if DRR_FLAG_CLONE) */
-	if (origin != NULL)
-		(void) strlcpy(zc.zc_string, origin, sizeof (zc.zc_string));
-
-	/* zc_begin_record is non-byteswapped BEGIN record */
+	/*
+	 * The begin_record is normally a non-byteswapped BEGIN record.
+	 * For resumable streams it may be set to any non-byteswapped
+	 * dmu_replay_record_t.
+	 */
 	if (begin_record == NULL) {
-		error = recv_read(fd, &zc.zc_begin_record,
-		    sizeof (zc.zc_begin_record));
+		error = recv_read(input_fd, &drr, sizeof (drr));
 		if (error != 0)
-			goto out;
+			return (error);
 	} else {
-		zc.zc_begin_record = *begin_record;
+		drr = *begin_record;
 	}
 
-	/* zc_cookie is fd to read from */
-	zc.zc_cookie = fd;
+	if (resumable) {
+		nvlist_t *outnvl = NULL;
+		nvlist_t *innvl = fnvlist_alloc();
 
-	/* zc guid is force flag */
-	zc.zc_guid = force;
+		fnvlist_add_string(innvl, "snapname", snapname);
 
-	zc.zc_resumable = resumable;
+		if (props != NULL)
+			fnvlist_add_nvlist(innvl, "props", props);
 
-	/* zc_cleanup_fd is unused */
-	zc.zc_cleanup_fd = -1;
+		if (origin != NULL && strlen(origin))
+			fnvlist_add_string(innvl, "origin", origin);
 
-	error = ioctl(g_fd, ZFS_IOC_RECV, &zc);
-	if (error != 0)
-		error = errno;
+		fnvlist_add_byte_array(innvl, "begin_record",
+		    (uchar_t *) &drr, sizeof (drr));
 
-out:
-	if (packed != NULL)
-		fnvlist_pack_free(packed, size);
-	free((void*)(uintptr_t)zc.zc_nvlist_dst);
+		fnvlist_add_int32(innvl, "input_fd", input_fd);
+
+		if (force)
+			fnvlist_add_boolean(innvl, "force");
+
+		if (resumable)
+			fnvlist_add_boolean(innvl, "resumable");
+
+		if (cleanup_fd >= 0)
+			fnvlist_add_int32(innvl, "cleanup_fd", cleanup_fd);
+
+		if (action_handle != NULL)
+			fnvlist_add_uint64(innvl, "action_handle",
+			    *action_handle);
+
+		error = lzc_ioctl(ZFS_IOC_RECV_NEW, fsname, innvl, &outnvl);
+
+		if (error == 0 && read_bytes != NULL)
+			error = nvlist_lookup_uint64(outnvl, "read_bytes",
+			    read_bytes);
+
+		if (error == 0 && errflags != NULL)
+			error = nvlist_lookup_uint64(outnvl, "error_flags",
+			    errflags);
+
+		if (error == 0 && action_handle != NULL)
+			error = nvlist_lookup_uint64(outnvl, "action_handle",
+			    action_handle);
+
+		if (error == 0 && errors != NULL) {
+			nvlist_t *nvl;
+			error = nvlist_lookup_nvlist(outnvl, "errors", &nvl);
+			if (error == 0)
+				*errors = fnvlist_dup(nvl);
+		}
+
+		fnvlist_free(innvl);
+		fnvlist_free(outnvl);
+	} else {
+		zfs_cmd_t zc = {"\0"};
+		char *packed = NULL;
+		size_t size;
+
+		ASSERT3S(g_refcount, >, 0);
+
+		(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_value));
+		(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
+
+		if (props != NULL) {
+			packed = fnvlist_pack(props, &size);
+			zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
+			zc.zc_nvlist_src_size = size;
+		}
+
+		if (origin != NULL)
+			(void) strlcpy(zc.zc_string, origin,
+			    sizeof (zc.zc_string));
+
+		ASSERT3S(drr.drr_type, ==, DRR_BEGIN);
+		zc.zc_begin_record = drr.drr_u.drr_begin;
+		zc.zc_guid = force;
+		zc.zc_cookie = input_fd;
+		zc.zc_cleanup_fd = -1;
+		zc.zc_action_handle = 0;
+
+		if (cleanup_fd >= 0)
+			zc.zc_cleanup_fd = cleanup_fd;
+
+		if (action_handle != NULL)
+			zc.zc_action_handle = *action_handle;
+
+		zc.zc_nvlist_dst_size = 128 * 1024;
+		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
+		    malloc(zc.zc_nvlist_dst_size);
+
+		error = ioctl(g_fd, ZFS_IOC_RECV, &zc);
+		if (error != 0) {
+			error = errno;
+		} else {
+			if (read_bytes != NULL)
+				*read_bytes = zc.zc_cookie;
+
+			if (errflags != NULL)
+				*errflags = zc.zc_obj;
+
+			if (action_handle != NULL)
+				*action_handle = zc.zc_action_handle;
+
+			if (errors != NULL)
+				VERIFY0(nvlist_unpack(
+				    (void *)(uintptr_t)zc.zc_nvlist_dst,
+				    zc.zc_nvlist_dst_size, errors, KM_SLEEP));
+		}
+
+		if (packed != NULL)
+			fnvlist_pack_free(packed, size);
+		free((void *)(uintptr_t)zc.zc_nvlist_dst);
+	}
+
 	return (error);
 }
 
@@ -643,7 +729,8 @@ int
 lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, int fd)
 {
-	return (recv_impl(snapname, props, origin, force, B_FALSE, fd, NULL));
+	return (recv_impl(snapname, props, origin, force, B_FALSE, fd,
+	    NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -656,7 +743,8 @@ int
 lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, int fd)
 {
-	return (recv_impl(snapname, props, origin, force, B_TRUE, fd, NULL));
+	return (recv_impl(snapname, props, origin, force, B_TRUE, fd,
+	    NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -678,7 +766,38 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 	if (begin_record == NULL)
 		return (EINVAL);
 	return (recv_impl(snapname, props, origin, force, resumable, fd,
-	    begin_record));
+	    begin_record, -1, NULL, NULL, NULL, NULL));
+}
+
+/*
+ * Like lzc_receive, but allows the caller to pass all supported arguments
+ * and retrieve all values returned.  The only additional input parameter
+ * is 'cleanup_fd' which is used to set a cleanup-on-exit file descriptor.
+ *
+ * The following parameters all provide return values.  Several may be set
+ * in the failure case and will contain additional information.
+ *
+ * The 'read_bytes' value will be set to the total number of bytes read.
+ *
+ * The 'errflags' value will contain zprop_errflags_t flags which are
+ * used to describe any failures.
+ *
+ * The 'action_handle' is used to pass the handle for this guid/ds mapping.
+ * It should be set to zero on first call and will contain an updated handle
+ * on success, it should be passed in subsequent calls.
+ *
+ * The 'errors' nvlist contains an entry for each unapplied received
+ * property.  Callers are responsible for freeing this nvlist.
+ */
+int lzc_receive_one(const char *snapname, nvlist_t *props,
+    const char *origin, boolean_t force, boolean_t resumable, int input_fd,
+    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
+    nvlist_t **errors)
+{
+	return (recv_impl(snapname, props, origin, force, resumable,
+	    input_fd, begin_record, cleanup_fd, read_bytes, errflags,
+	    action_handle, errors));
 }
 
 /*

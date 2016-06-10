@@ -2960,24 +2960,31 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
     avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
     uint64_t *action_handlep, const char *finalsnap)
 {
-	zfs_cmd_t zc = {"\0"};
 	time_t begin_time;
 	int ioctl_err, ioctl_errno, err;
 	char *cp;
 	struct drr_begin *drrb = &drr->drr_u.drr_begin;
 	char errbuf[1024];
-	char prop_errbuf[1024];
 	const char *chopprefix;
 	boolean_t newfs = B_FALSE;
 	boolean_t stream_wantsnewfs;
+	boolean_t newprops = B_FALSE;
+	uint64_t read_bytes = 0;
+	uint64_t errflags = 0;
 	uint64_t parent_snapguid = 0;
 	prop_changelist_t *clp = NULL;
 	nvlist_t *snapprops_nvlist = NULL;
 	zprop_errflags_t prop_errflags;
+	nvlist_t *prop_errors = NULL;
 	boolean_t recursive;
 	char *snapname = NULL;
+	char destsnap[MAXPATHLEN * 2];
+	char origin[MAXNAMELEN];
+	char name[MAXPATHLEN];
+	nvlist_t *props = NULL;
 
 	begin_time = time(NULL);
+	bzero(origin, MAXNAMELEN);
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot receive"));
@@ -2988,24 +2995,19 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	if (stream_avl != NULL) {
 		nvlist_t *fs = fsavl_find(stream_avl, drrb->drr_toguid,
 		    &snapname);
-		nvlist_t *props;
-		int ret;
 
 		(void) nvlist_lookup_uint64(fs, "parentfromsnap",
 		    &parent_snapguid);
 		err = nvlist_lookup_nvlist(fs, "props", &props);
-		if (err)
+		if (err) {
 			VERIFY(0 == nvlist_alloc(&props, NV_UNIQUE_NAME, 0));
+			newprops = B_TRUE;
+		}
 
 		if (flags->canmountoff) {
 			VERIFY(0 == nvlist_add_uint64(props,
 			    zfs_prop_to_name(ZFS_PROP_CANMOUNT), 0));
 		}
-		ret = zcmd_write_src_nvlist(hdl, &zc, props);
-		if (err)
-			nvlist_free(props);
-		if (ret != 0)
-			return (-1);
 	}
 
 	cp = NULL;
@@ -3026,7 +3028,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (strchr(tosnap, '@')) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "invalid "
 			    "argument - snapshot not allowed with -e"));
-			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+			err = zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+			goto out;
 		}
 
 		chopprefix = strrchr(sendfs, '/');
@@ -3053,7 +3056,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (strchr(tosnap, '@')) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "invalid "
 			    "argument - snapshot not allowed with -d"));
-			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+			err = zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+			goto out;
 		}
 
 		chopprefix = strchr(drrb->drr_toname, '/');
@@ -3071,7 +3075,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "cannot specify snapshot name for multi-snapshot "
 			    "stream"));
-			return (zfs_error(hdl, EZFS_BADSTREAM, errbuf));
+			err = zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			goto out;
 		}
 		chopprefix = drrb->drr_toname + strlen(drrb->drr_toname);
 	}
@@ -3083,35 +3088,35 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    chopprefix[0] == '\0');
 
 	/*
-	 * Determine name of destination snapshot, store in zc_value.
+	 * Determine name of destination snapshot.
 	 */
-	(void) strcpy(zc.zc_value, tosnap);
-	(void) strlcat(zc.zc_value, chopprefix, sizeof (zc.zc_value));
+	(void) strcpy(destsnap, tosnap);
+	(void) strlcat(destsnap, chopprefix, sizeof (destsnap));
 	free(cp);
-	if (!zfs_name_valid(zc.zc_value, ZFS_TYPE_SNAPSHOT)) {
-		zcmd_free_nvlists(&zc);
-		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+	if (!zfs_name_valid(destsnap, ZFS_TYPE_SNAPSHOT)) {
+		err = zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+		goto out;
 	}
 
 	/*
-	 * Determine the name of the origin snapshot, store in zc_string.
+	 * Determine the name of the origin snapshot.
 	 */
 	if (drrb->drr_flags & DRR_FLAG_CLONE) {
-		if (guid_to_name(hdl, zc.zc_value,
-		    drrb->drr_fromguid, B_FALSE, zc.zc_string) != 0) {
-			zcmd_free_nvlists(&zc);
+		if (guid_to_name(hdl, destsnap,
+		    drrb->drr_fromguid, B_FALSE, origin) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "local origin for clone %s does not exist"),
-			    zc.zc_value);
-			return (zfs_error(hdl, EZFS_NOENT, errbuf));
+			    destsnap);
+			err = zfs_error(hdl, EZFS_NOENT, errbuf);
+			goto out;
 		}
 		if (flags->verbose)
-			(void) printf("found clone origin %s\n", zc.zc_string);
+			(void) printf("found clone origin %s\n", origin);
 	} else if (originsnap) {
-		(void) strncpy(zc.zc_string, originsnap, ZFS_MAXNAMELEN);
+		(void) strncpy(origin, originsnap, ZFS_MAXNAMELEN);
 		if (flags->verbose)
 			(void) printf("using provided clone origin %s\n",
-			    zc.zc_string);
+			    origin);
 	}
 
 	boolean_t resuming = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
@@ -3127,18 +3132,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot receive new filesystem stream"));
 
-		(void) strcpy(zc.zc_name, zc.zc_value);
-		cp = strrchr(zc.zc_name, '/');
+		(void) strcpy(name, destsnap);
+		cp = strrchr(name, '/');
 		if (cp)
 			*cp = '\0';
 		if (cp &&
-		    !zfs_dataset_exists(hdl, zc.zc_name, ZFS_TYPE_DATASET)) {
+		    !zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
 			char suffix[ZFS_MAXNAMELEN];
-			(void) strcpy(suffix, strrchr(zc.zc_value, '/'));
-			if (guid_to_name(hdl, zc.zc_name, parent_snapguid,
-			    B_FALSE, zc.zc_value) == 0) {
-				*strchr(zc.zc_value, '@') = '\0';
-				(void) strcat(zc.zc_value, suffix);
+			(void) strcpy(suffix, strrchr(destsnap, '/'));
+			if (guid_to_name(hdl, name, parent_snapguid,
+			    B_FALSE, destsnap) == 0) {
+				*strchr(destsnap, '@') = '\0';
+				(void) strcat(destsnap, suffix);
 			}
 		}
 	} else {
@@ -3149,8 +3154,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot receive incremental stream"));
 
-		(void) strcpy(zc.zc_name, zc.zc_value);
-		*strchr(zc.zc_name, '@') = '\0';
+		(void) strcpy(name, destsnap);
+		*strchr(name, '@') = '\0';
 
 		/*
 		 * If the exact receive path was specified and this is the
@@ -3159,22 +3164,25 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 */
 		if ((flags->isprefix || (*(chopprefix = drrb->drr_toname +
 		    strlen(sendfs)) != '\0' && *chopprefix != '@')) &&
-		    !zfs_dataset_exists(hdl, zc.zc_name, ZFS_TYPE_DATASET)) {
+		    !zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
 			char snap[ZFS_MAXNAMELEN];
-			(void) strcpy(snap, strchr(zc.zc_value, '@'));
-			if (guid_to_name(hdl, zc.zc_name, drrb->drr_fromguid,
-			    B_FALSE, zc.zc_value) == 0) {
-				*strchr(zc.zc_value, '@') = '\0';
-				(void) strcat(zc.zc_value, snap);
+			(void) strcpy(snap, strchr(destsnap, '@'));
+			if (guid_to_name(hdl, name, drrb->drr_fromguid,
+			    B_FALSE, destsnap) == 0) {
+				*strchr(destsnap, '@') = '\0';
+				(void) strcat(destsnap, snap);
 			}
 		}
 	}
 
-	(void) strcpy(zc.zc_name, zc.zc_value);
-	*strchr(zc.zc_name, '@') = '\0';
+	(void) strcpy(name, destsnap);
+	*strchr(name, '@') = '\0';
 
-	if (zfs_dataset_exists(hdl, zc.zc_name, ZFS_TYPE_DATASET)) {
+	if (zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
+		zfs_cmd_t zc = {"\0"};
 		zfs_handle_t *zhp;
+
+		(void) strcpy(zc.zc_name, name);
 
 		/*
 		 * Destination fs exists.  It must be one of these cases:
@@ -3186,39 +3194,37 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 */
 		if (stream_wantsnewfs) {
 			if (!flags->force) {
-				zcmd_free_nvlists(&zc);
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "destination '%s' exists\n"
-				    "must specify -F to overwrite it"),
-				    zc.zc_name);
-				return (zfs_error(hdl, EZFS_EXISTS, errbuf));
+				    "must specify -F to overwrite it"), name);
+				err = zfs_error(hdl, EZFS_EXISTS, errbuf);
+				goto out;
 			}
 			if (ioctl(hdl->libzfs_fd, ZFS_IOC_SNAPSHOT_LIST_NEXT,
 			    &zc) == 0) {
-				zcmd_free_nvlists(&zc);
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "destination has snapshots (eg. %s)\n"
 				    "must destroy them to overwrite it"),
-				    zc.zc_name);
-				return (zfs_error(hdl, EZFS_EXISTS, errbuf));
+				    name);
+				err = zfs_error(hdl, EZFS_EXISTS, errbuf);
+				goto out;
 			}
 		}
 
-		if ((zhp = zfs_open(hdl, zc.zc_name,
+		if ((zhp = zfs_open(hdl, name,
 		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME)) == NULL) {
-			zcmd_free_nvlists(&zc);
-			return (-1);
+			err = -1;
+			goto out;
 		}
 
 		if (stream_wantsnewfs &&
 		    zhp->zfs_dmustats.dds_origin[0]) {
-			zcmd_free_nvlists(&zc);
 			zfs_close(zhp);
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "destination '%s' is a clone\n"
-			    "must destroy it to overwrite it"),
-			    zc.zc_name);
-			return (zfs_error(hdl, EZFS_EXISTS, errbuf));
+			    "must destroy it to overwrite it"), name);
+			err = zfs_error(hdl, EZFS_EXISTS, errbuf);
+			goto out;
 		}
 
 		if (!flags->dryrun && zhp->zfs_type == ZFS_TYPE_FILESYSTEM &&
@@ -3227,14 +3233,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0);
 			if (clp == NULL) {
 				zfs_close(zhp);
-				zcmd_free_nvlists(&zc);
-				return (-1);
+				err = -1;
+				goto out;
 			}
 			if (changelist_prefix(clp) != 0) {
 				changelist_free(clp);
 				zfs_close(zhp);
-				zcmd_free_nvlists(&zc);
-				return (-1);
+				err = -1;
+				goto out;
 			}
 		}
 
@@ -3259,11 +3265,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 * contained no slash character).
 		 */
 		if (!stream_wantsnewfs ||
-		    (cp = strrchr(zc.zc_name, '/')) == NULL) {
-			zcmd_free_nvlists(&zc);
+		    (cp = strrchr(name, '/')) == NULL) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "destination '%s' does not exist"), zc.zc_name);
-			return (zfs_error(hdl, EZFS_NOENT, errbuf));
+			    "destination '%s' does not exist"), name);
+			err = zfs_error(hdl, EZFS_NOENT, errbuf);
+			goto out;
 		}
 
 		/*
@@ -3273,45 +3279,34 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		*cp = '\0';
 
 		if (flags->isprefix && !flags->istail && !flags->dryrun &&
-		    create_parents(hdl, zc.zc_value, strlen(tosnap)) != 0) {
-			zcmd_free_nvlists(&zc);
-			return (zfs_error(hdl, EZFS_BADRESTORE, errbuf));
+		    create_parents(hdl, destsnap, strlen(tosnap)) != 0) {
+			err = zfs_error(hdl, EZFS_BADRESTORE, errbuf);
+			goto out;
 		}
 
 		newfs = B_TRUE;
 	}
 
-	zc.zc_begin_record = *drr_noswap;
-	zc.zc_cookie = infd;
-	zc.zc_guid = flags->force;
-	zc.zc_resumable = flags->resumable;
 	if (flags->verbose) {
 		(void) printf("%s %s stream of %s into %s\n",
 		    flags->dryrun ? "would receive" : "receiving",
 		    drrb->drr_fromguid ? "incremental" : "full",
-		    drrb->drr_toname, zc.zc_value);
+		    drrb->drr_toname, destsnap);
 		(void) fflush(stdout);
 	}
 
 	if (flags->dryrun) {
-		zcmd_free_nvlists(&zc);
-		return (recv_skip(hdl, infd, flags->byteswap));
+		err = recv_skip(hdl, infd, flags->byteswap);
+		goto out;
 	}
 
-	zc.zc_nvlist_dst = (uint64_t)(uintptr_t)prop_errbuf;
-	zc.zc_nvlist_dst_size = sizeof (prop_errbuf);
-	zc.zc_cleanup_fd = cleanup_fd;
-	zc.zc_action_handle = *action_handlep;
-
-	err = ioctl_err = zfs_ioctl(hdl, ZFS_IOC_RECV, &zc);
-	ioctl_errno = errno;
-	prop_errflags = (zprop_errflags_t)zc.zc_obj;
+	err = ioctl_err = lzc_receive_one(destsnap, props, origin,
+	    flags->force, flags->resumable, infd, drr_noswap, cleanup_fd,
+	    &read_bytes, &errflags, action_handlep, &prop_errors);
+	ioctl_errno = ioctl_err;
+	prop_errflags = errflags;
 
 	if (err == 0) {
-		nvlist_t *prop_errors;
-		VERIFY(0 == nvlist_unpack((void *)(uintptr_t)zc.zc_nvlist_dst,
-		    zc.zc_nvlist_dst_size, &prop_errors, 0));
-
 		nvpair_t *prop_err = NULL;
 
 		while ((prop_err = nvlist_next_nvpair(prop_errors,
@@ -3344,25 +3339,20 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				(void) snprintf(tbuf, sizeof (tbuf),
 				    dgettext(TEXT_DOMAIN,
 				    "cannot receive %s property on %s"),
-				    nvpair_name(prop_err), zc.zc_name);
+				    nvpair_name(prop_err), name);
 				zfs_setprop_error(hdl, prop, intval, tbuf);
 			}
 		}
-		nvlist_free(prop_errors);
 	}
 
-	zc.zc_nvlist_dst = 0;
-	zc.zc_nvlist_dst_size = 0;
-	zcmd_free_nvlists(&zc);
-
 	if (err == 0 && snapprops_nvlist) {
-		zfs_cmd_t zc2 = {"\0"};
+		zfs_cmd_t zc = {"\0"};
 
-		(void) strcpy(zc2.zc_name, zc.zc_value);
-		zc2.zc_cookie = B_TRUE; /* received */
-		if (zcmd_write_src_nvlist(hdl, &zc2, snapprops_nvlist) == 0) {
-			(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc2);
-			zcmd_free_nvlists(&zc2);
+		(void) strcpy(zc.zc_name, destsnap);
+		zc.zc_cookie = B_TRUE; /* received */
+		if (zcmd_write_src_nvlist(hdl, &zc, snapprops_nvlist) == 0) {
+			(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
+			zcmd_free_nvlists(&zc);
 		}
 	}
 
@@ -3374,7 +3364,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 */
 		avl_tree_t *local_avl;
 		nvlist_t *local_nv, *fs;
-		cp = strchr(zc.zc_value, '@');
+		cp = strchr(destsnap, '@');
 
 		/*
 		 * XXX Do this faster by just iterating over snaps in
@@ -3382,7 +3372,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 * get a strange "does not exist" error message.
 		 */
 		*cp = '\0';
-		if (gather_nvlist(hdl, zc.zc_value, NULL, NULL, B_FALSE,
+		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE,
 		    &local_nv, &local_avl) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
@@ -3392,7 +3382,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			if (fs != NULL) {
 				if (flags->verbose) {
 					(void) printf("snap %s already exists; "
-					    "ignoring\n", zc.zc_value);
+					    "ignoring\n", destsnap);
 				}
 				err = ioctl_err = recv_skip(hdl, infd,
 				    flags->byteswap);
@@ -3404,22 +3394,22 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	if (ioctl_err != 0) {
 		switch (ioctl_errno) {
 		case ENODEV:
-			cp = strchr(zc.zc_value, '@');
+			cp = strchr(destsnap, '@');
 			*cp = '\0';
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "most recent snapshot of %s does not\n"
-			    "match incremental source"), zc.zc_value);
+			    "match incremental source"), destsnap);
 			(void) zfs_error(hdl, EZFS_BADRESTORE, errbuf);
 			*cp = '@';
 			break;
 		case ETXTBSY:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "destination %s has been modified\n"
-			    "since most recent snapshot"), zc.zc_name);
+			    "since most recent snapshot"), name);
 			(void) zfs_error(hdl, EZFS_BADRESTORE, errbuf);
 			break;
 		case EEXIST:
-			cp = strchr(zc.zc_value, '@');
+			cp = strchr(destsnap, '@');
 			if (newfs) {
 				/* it's the containing fs that exists */
 				*cp = '\0';
@@ -3428,14 +3418,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    "destination already exists"));
 			(void) zfs_error_fmt(hdl, EZFS_EXISTS,
 			    dgettext(TEXT_DOMAIN, "cannot restore to %s"),
-			    zc.zc_value);
+			    destsnap);
 			*cp = '@';
 			break;
 		case EINVAL:
+			if (flags->resumable)
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "kernel modules must be upgraded to "
+				    "receive this stream."));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ECKSUM:
-			recv_ecksum_set_aux(hdl, zc.zc_value, flags->resumable);
+			recv_ecksum_set_aux(hdl, destsnap, flags->resumable);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ENOTSUP:
@@ -3445,7 +3439,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			break;
 		case EDQUOT:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "destination %s space quota exceeded"), zc.zc_name);
+			    "destination %s space quota exceeded"), name);
 			(void) zfs_error(hdl, EZFS_NOSPC, errbuf);
 			break;
 		default:
@@ -3458,12 +3452,12 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * children of the target filesystem if we did a replication
 	 * receive (indicated by stream_avl being non-NULL).
 	 */
-	cp = strchr(zc.zc_value, '@');
+	cp = strchr(destsnap, '@');
 	if (cp && (ioctl_err == 0 || !newfs)) {
 		zfs_handle_t *h;
 
 		*cp = '\0';
-		h = zfs_open(hdl, zc.zc_value,
+		h = zfs_open(hdl, destsnap,
 		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
 		if (h != NULL) {
 			if (h->zfs_type == ZFS_TYPE_VOLUME) {
@@ -3474,7 +3468,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				 * for mounting and sharing later.
 				 */
 				if (top_zfs && *top_zfs == NULL)
-					*top_zfs = zfs_strdup(hdl, zc.zc_value);
+					*top_zfs = zfs_strdup(hdl, destsnap);
 			}
 			zfs_close(h);
 		}
@@ -3488,26 +3482,24 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 
 	if (prop_errflags & ZPROP_ERR_NOCLEAR) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Warning: "
-		    "failed to clear unreceived properties on %s"),
-		    zc.zc_name);
+		    "failed to clear unreceived properties on %s"), name);
 		(void) fprintf(stderr, "\n");
 	}
 	if (prop_errflags & ZPROP_ERR_NORESTORE) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Warning: "
-		    "failed to restore original properties on %s"),
-		    zc.zc_name);
+		    "failed to restore original properties on %s"), name);
 		(void) fprintf(stderr, "\n");
 	}
 
-	if (err || ioctl_err)
-		return (-1);
-
-	*action_handlep = zc.zc_action_handle;
+	if (err || ioctl_err) {
+		err = -1;
+		goto out;
+	}
 
 	if (flags->verbose) {
 		char buf1[64];
 		char buf2[64];
-		uint64_t bytes = zc.zc_cookie;
+		uint64_t bytes = read_bytes;
 		time_t delta = time(NULL) - begin_time;
 		if (delta == 0)
 			delta = 1;
@@ -3518,7 +3510,15 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		    buf1, delta, buf2);
 	}
 
-	return (0);
+	err = 0;
+out:
+	if (prop_errors != NULL)
+		nvlist_free(prop_errors);
+
+	if (newprops)
+		nvlist_free(props);
+
+	return (err);
 }
 
 static int
