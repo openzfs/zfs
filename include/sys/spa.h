@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
 #include <sys/spa_checksum.h>
+#include <sys/dmu.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -557,8 +558,6 @@ _NOTE(CONSTCOND) } while (0)
 	}								\
 	ASSERT(len < size);						\
 }
-
-#include <sys/dmu.h>
 
 #define	BP_GET_BUFC_TYPE(bp)						\
 	(((BP_GET_LEVEL(bp) > 0) || (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))) ? \

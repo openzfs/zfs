@@ -562,12 +562,7 @@ typedef struct dmu_buf_user {
  * NOTE: This function should only be called once on a given dmu_buf_user_t.
  *       To allow enforcement of this, dbu must already be zeroed on entry.
  */
-#ifdef __lint
-/* Very ugly, but it beats issuing suppression directives in many Makefiles. */
-extern void
-dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func,
-    dmu_buf_t **clear_on_evict_dbufp);
-#else /* __lint */
+/*ARGSUSED*/
 static inline void
 dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func,
     dmu_buf_t **clear_on_evict_dbufp)
@@ -580,7 +575,6 @@ dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func,
 	dbu->dbu_clear_on_evict_dbufp = clear_on_evict_dbufp;
 #endif
 }
-#endif /* __lint */
 
 /*
  * Attach user data to a dbuf and mark it for normal (when the dbuf's
