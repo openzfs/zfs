@@ -2016,6 +2016,16 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	return (0);
 }
 
+/* ARGSUSED */
+int
+verify_dataset_name_len(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	if (dsl_dataset_namelen(ds) >= ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
+
+	return (0);
+}
+
 static int
 spa_load_verify(spa_t *spa)
 {
@@ -2029,6 +2039,14 @@ spa_load_verify(spa_t *spa)
 
 	if (policy.zrp_request & ZPOOL_NEVER_REWIND)
 		return (0);
+
+	dsl_pool_config_enter(spa->spa_dsl_pool, FTAG);
+	error = dmu_objset_find_dp(spa->spa_dsl_pool,
+	    spa->spa_dsl_pool->dp_root_dir_obj, verify_dataset_name_len, NULL,
+	    DS_FIND_CHILDREN);
+	dsl_pool_config_exit(spa->spa_dsl_pool, FTAG);
+	if (error != 0)
+		return (error);
 
 	rio = zio_root(spa, NULL, &sle,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE);
