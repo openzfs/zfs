@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -62,7 +62,8 @@ ddt_object_create(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 	spa_t *spa = ddt->ddt_spa;
 	objset_t *os = ddt->ddt_os;
 	uint64_t *objectp = &ddt->ddt_object[type][class];
-	boolean_t prehash = zio_checksum_table[ddt->ddt_checksum].ci_dedup;
+	boolean_t prehash = zio_checksum_table[ddt->ddt_checksum].ci_flags &
+	    ZCHECKSUM_FLAG_DEDUP;
 	char name[DDT_NAMELEN];
 
 	ddt_object_name(ddt, type, class, name);

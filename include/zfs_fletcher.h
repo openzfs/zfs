@@ -22,6 +22,9 @@
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright 2013 Saso Kiselkov. All rights reserved.
+ */
 
 #ifndef	_ZFS_FLETCHER_H
 #define	_ZFS_FLETCHER_H
@@ -45,11 +48,11 @@ extern "C" {
  * checksum method is added. This method will ignore last (size % 4) bytes of
  * the data buffer.
  */
-void fletcher_2_native(const void *, uint64_t, zio_cksum_t *);
-void fletcher_2_byteswap(const void *, uint64_t, zio_cksum_t *);
-void fletcher_4_native(const void *, uint64_t, zio_cksum_t *);
+void fletcher_2_native(const void *, uint64_t, const void *, zio_cksum_t *);
+void fletcher_2_byteswap(const void *, uint64_t, const void *, zio_cksum_t *);
+void fletcher_4_native(const void *, uint64_t, const void *, zio_cksum_t *);
 void fletcher_4_native_varsize(const void *, uint64_t, zio_cksum_t *);
-void fletcher_4_byteswap(const void *, uint64_t, zio_cksum_t *);
+void fletcher_4_byteswap(const void *, uint64_t, const void *, zio_cksum_t *);
 void fletcher_4_incremental_native(const void *, uint64_t,
     zio_cksum_t *);
 void fletcher_4_incremental_byteswap(const void *, uint64_t,

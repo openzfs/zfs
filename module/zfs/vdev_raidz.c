@@ -1604,6 +1604,13 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 	int c, ret = 0;
 	raidz_col_t *rc;
 
+	blkptr_t *bp = zio->io_bp;
+	enum zio_checksum checksum = (bp == NULL ? zio->io_prop.zp_checksum :
+	    (BP_IS_GANG(bp) ? ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp)));
+
+	if (checksum == ZIO_CHECKSUM_NOPARITY)
+		return (ret);
+
 	for (c = 0; c < rm->rm_firstdatacol; c++) {
 		rc = &rm->rm_col[c];
 		if (!rc->rc_tried || rc->rc_error != 0)

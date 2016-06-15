@@ -837,12 +837,23 @@ The values \fBon\fR and \fBnoauto\fR are equivalent to the \fBauto\fR and \fBnoa
 .sp
 .ne 2
 .na
-\fB\fBchecksum\fR=\fBon\fR | \fBoff\fR | \fBfletcher2\fR | \fBfletcher4\fR | \fBsha256\fR\fR
+\fB\fBchecksum\fR=\fBon\fR | \fBoff\fR | \fBfletcher2\fR | \fBfletcher4\fR | \fBsha256\fR | \fBnoparity\fR | \fBsha512\fR | \fBskein\fR | \fBedonr\fR\fR
 .ad
 .sp .6
 .RS 4n
-Controls the checksum used to verify data integrity. The default value is \fBon\fR, which automatically selects an appropriate algorithm (currently, \fBfletcher4\fR, but this may change in future releases). The value \fBoff\fR disables integrity checking on user data. Disabling checksums is \fBNOT\fR a recommended practice.
+Controls the checksum used to verify data integrity. The default value is
+\fBon\fR, which automatically selects an appropriate algorithm (currently,
+\fBfletcher4\fR, but this may change in future releases). The value \fBoff\fR
+disables integrity checking on user data.  The value \fBnoparity\fR not only
+disables integrity but also disables maintaining parity for user data.
+This setting is used internally by a dump device residing on a RAID-Z pool and
+should not be used by any other dataset.  Disabling checksums is \fBNOT\fR a
+recommended practice.
 .sp
+The \fBsha512\fR, \fBskein\fR, and \fBedonr\fR checksum algorithms require
+enabling the appropriate features on the pool. Please see zpool-features for
+more information on these algorithms.
+
 Changing this property affects only newly-written data.
 .RE
 

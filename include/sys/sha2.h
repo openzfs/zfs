@@ -27,7 +27,11 @@
 #ifndef _SYS_SHA2_H
 #define	_SYS_SHA2_H
 
+#ifdef  _KERNEL
 #include <sys/types.h>		/* for uint_* */
+#else
+#include <stdint.h>
+#endif
 
 #ifdef	__cplusplus
 extern "C" {
@@ -37,12 +41,27 @@ extern "C" {
 #define	SHA2_HMAC_MAX_KEY_LEN	INT_MAX	/* SHA2-HMAC max key length in bytes */
 
 #define	SHA256_DIGEST_LENGTH	32	/* SHA256 digest length in bytes */
+#define	SHA384_DIGEST_LENGTH	48	/* SHA384 digest length in bytes */
+#define	SHA512_DIGEST_LENGTH	64	/* SHA512 digest length in bytes */
+
+/* Truncated versions of SHA-512 according to FIPS-180-4, section 5.3.6 */
+#define	SHA512_224_DIGEST_LENGTH	28	/* SHA512/224 digest length */
+#define	SHA512_256_DIGEST_LENGTH	32	/* SHA512/256 digest length */
 
 #define	SHA256_HMAC_BLOCK_SIZE	64	/* SHA256-HMAC block size */
+#define	SHA512_HMAC_BLOCK_SIZE	128	/* SHA512-HMAC block size */
 
 #define	SHA256			0
 #define	SHA256_HMAC		1
 #define	SHA256_HMAC_GEN		2
+#define	SHA384			3
+#define	SHA384_HMAC		4
+#define	SHA384_HMAC_GEN		5
+#define	SHA512			6
+#define	SHA512_HMAC		7
+#define	SHA512_HMAC_GEN		8
+#define	SHA512_224		9
+#define	SHA512_256		10
 
 /*
  * SHA2 context.
@@ -87,6 +106,18 @@ extern void SHA256Update(SHA256_CTX *, const void *, size_t);
 
 extern void SHA256Final(void *, SHA256_CTX *);
 
+extern void SHA384Init(SHA384_CTX *);
+
+extern void SHA384Update(SHA384_CTX *, const void *, size_t);
+
+extern void SHA384Final(void *, SHA384_CTX *);
+
+extern void SHA512Init(SHA512_CTX *);
+
+extern void SHA512Update(SHA512_CTX *, const void *, size_t);
+
+extern void SHA512Final(void *, SHA512_CTX *);
+
 #ifdef _SHA2_IMPL
 /*
  * The following types/functions are all private to the implementation
@@ -105,6 +136,14 @@ typedef enum sha2_mech_type {
 	SHA256_MECH_INFO_TYPE,		/* SUN_CKM_SHA256 */
 	SHA256_HMAC_MECH_INFO_TYPE,	/* SUN_CKM_SHA256_HMAC */
 	SHA256_HMAC_GEN_MECH_INFO_TYPE,	/* SUN_CKM_SHA256_HMAC_GENERAL */
+	SHA384_MECH_INFO_TYPE,		/* SUN_CKM_SHA384 */
+	SHA384_HMAC_MECH_INFO_TYPE,	/* SUN_CKM_SHA384_HMAC */
+	SHA384_HMAC_GEN_MECH_INFO_TYPE,	/* SUN_CKM_SHA384_HMAC_GENERAL */
+	SHA512_MECH_INFO_TYPE,		/* SUN_CKM_SHA512 */
+	SHA512_HMAC_MECH_INFO_TYPE,	/* SUN_CKM_SHA512_HMAC */
+	SHA512_HMAC_GEN_MECH_INFO_TYPE,	/* SUN_CKM_SHA512_HMAC_GENERAL */
+	SHA512_224_MECH_INFO_TYPE,	/* SUN_CKM_SHA512_224 */
+	SHA512_256_MECH_INFO_TYPE	/* SUN_CKM_SHA512_256 */
 } sha2_mech_type_t;
 
 #endif /* _SHA2_IMPL */

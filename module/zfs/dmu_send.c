@@ -346,7 +346,8 @@ dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type,
 		drrw->drr_checksumtype = ZIO_CHECKSUM_OFF;
 	} else {
 		drrw->drr_checksumtype = BP_GET_CHECKSUM(bp);
-		if (zio_checksum_table[drrw->drr_checksumtype].ci_dedup)
+		if (zio_checksum_table[drrw->drr_checksumtype].ci_flags &
+		    ZCHECKSUM_FLAG_DEDUP)
 			drrw->drr_checksumflags |= DRR_CHECKSUM_DEDUP;
 		DDK_SET_LSIZE(&drrw->drr_key, BP_GET_LSIZE(bp));
 		DDK_SET_PSIZE(&drrw->drr_key, BP_GET_PSIZE(bp));

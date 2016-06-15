@@ -253,4 +253,16 @@ zpool_feature_init(void)
 	    "Variable on-disk size of dnodes.",
 	    ZFEATURE_FLAG_PER_DATASET, large_dnode_deps);
 	}
+	zfeature_register(SPA_FEATURE_SHA512,
+	    "org.illumos:sha512", "sha512",
+	    "SHA-512/256 hash algorithm.",
+	    ZFEATURE_FLAG_PER_DATASET, NULL);
+	zfeature_register(SPA_FEATURE_SKEIN,
+	    "org.illumos:skein", "skein",
+	    "Skein hash algorithm.",
+	    ZFEATURE_FLAG_PER_DATASET, NULL);
+	zfeature_register(SPA_FEATURE_EDONR,
+	    "org.illumos:edonr", "edonr",
+	    "Edon-R hash algorithm.",
+	    ZFEATURE_FLAG_PER_DATASET, NULL);
 }

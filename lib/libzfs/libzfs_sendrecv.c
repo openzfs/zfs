@@ -61,6 +61,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/ddt.h>
 #include <sys/socket.h>
+#include <sys/sha2.h>
 
 /* in libzfs_dataset.c */
 extern void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
@@ -365,10 +366,11 @@ cksummer(void *arg)
 			if (ZIO_CHECKSUM_EQUAL(drrw->drr_key.ddk_cksum,
 			    zero_cksum) ||
 			    !DRR_IS_DEDUP_CAPABLE(drrw->drr_checksumflags)) {
+				SHA256_CTX ctx;
 				zio_cksum_t tmpsha256;
 
 				zio_checksum_SHA256(buf,
-				    payload_size, &tmpsha256);
+				    payload_size, &ctx, &tmpsha256);
 
 				drrw->drr_key.ddk_cksum.zc_word[0] =
 				    BE_64(tmpsha256.zc_word[0]);

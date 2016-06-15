@@ -31,6 +31,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dsl_scan.h \
 	$(top_srcdir)/include/sys/dsl_synctask.h \
 	$(top_srcdir)/include/sys/dsl_userhold.h \
+	$(top_srcdir)/include/sys/edonr.h \
 	$(top_srcdir)/include/sys/efi_partition.h \
 	$(top_srcdir)/include/sys/metaslab.h \
 	$(top_srcdir)/include/sys/metaslab_impl.h \
@@ -46,6 +47,8 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/sa.h \
 	$(top_srcdir)/include/sys/sa_impl.h \
 	$(top_srcdir)/include/sys/sdt.h \
+	$(top_srcdir)/include/sys/sha2.h \
+	$(top_srcdir)/include/sys/skein.h \
 	$(top_srcdir)/include/sys/spa_boot.h \
 	$(top_srcdir)/include/sys/space_map.h \
 	$(top_srcdir)/include/sys/space_reftree.h \

@@ -5,6 +5,7 @@ SUBDIRS = \
 	cache \
 	cachefile \
 	casenorm \
+	checksum \
 	clean_mirror \
 	cli_root \
 	cli_user \
