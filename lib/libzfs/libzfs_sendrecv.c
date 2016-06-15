@@ -837,7 +837,7 @@ typedef struct send_dump_data {
 	/* these are all just the short snapname (the part after the @) */
 	const char *fromsnap;
 	const char *tosnap;
-	char prevsnap[ZFS_MAXNAMELEN];
+	char prevsnap[ZFS_MAX_DATASET_NAME_LEN];
 	uint64_t prevsnap_obj;
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
 	boolean_t verbose, dryrun, parsable, progress, embed_data, std_out;
@@ -850,7 +850,7 @@ typedef struct send_dump_data {
 	snapfilter_cb_t *filter_cb;
 	void *filter_cb_arg;
 	nvlist_t *debugnv;
-	char holdtag[ZFS_MAXNAMELEN];
+	char holdtag[ZFS_MAX_DATASET_NAME_LEN];
 	int cleanup_fd;
 	uint64_t size;
 } send_dump_data_t;
@@ -1485,7 +1485,7 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	uint64_t resumeobj, resumeoff, toguid, fromguid, bytes;
 	zfs_handle_t *zhp;
 	int error = 0;
-	char name[ZFS_MAXNAMELEN];
+	char name[ZFS_MAX_DATASET_NAME_LEN];
 	enum lzc_send_flags lzc_flags = 0;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
@@ -2076,8 +2076,8 @@ recv_rename(libzfs_handle_t *hdl, const char *name, const char *tryname,
 	if (err != 0 && strncmp(name + baselen, "recv-", 5) != 0) {
 		seq++;
 
-		(void) snprintf(newname, ZFS_MAXNAMELEN, "%.*srecv-%u-%u",
-		    baselen, name, getpid(), seq);
+		(void) snprintf(newname, ZFS_MAX_DATASET_NAME_LEN,
+		    "%.*srecv-%u-%u", baselen, name, getpid(), seq);
 		(void) strlcpy(zc.zc_value, newname, sizeof (zc.zc_value));
 
 		if (flags->verbose) {
@@ -2205,7 +2205,7 @@ static int
 guid_to_name(libzfs_handle_t *hdl, const char *parent, uint64_t guid,
     boolean_t bookmark_ok, char *name)
 {
-	char pname[ZFS_MAXNAMELEN];
+	char pname[ZFS_MAX_DATASET_NAME_LEN];
 	guid_to_name_data_t gtnd;
 
 	gtnd.guid = guid;
@@ -2260,7 +2260,7 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
 {
 	nvlist_t *nvfs;
 	char *fsname = NULL, *snapname = NULL;
-	char buf[ZFS_MAXNAMELEN];
+	char buf[ZFS_MAX_DATASET_NAME_LEN];
 	int rv;
 	zfs_handle_t *guid1hdl, *guid2hdl;
 	uint64_t create1, create2;
@@ -2311,7 +2311,7 @@ recv_incremental_replication(libzfs_handle_t *hdl, const char *tofs,
 	avl_tree_t *local_avl;
 	nvpair_t *fselem, *nextfselem;
 	char *fromsnap;
-	char newname[ZFS_MAXNAMELEN];
+	char newname[ZFS_MAX_DATASET_NAME_LEN];
 	char guidname[32];
 	int error;
 	boolean_t needagain, progress, recursive;
@@ -2430,7 +2430,7 @@ again:
 
 			/* check for delete */
 			if (found == NULL) {
-				char name[ZFS_MAXNAMELEN];
+				char name[ZFS_MAX_DATASET_NAME_LEN];
 
 				if (!flags->force)
 					continue;
@@ -2471,8 +2471,8 @@ again:
 			/* check for different snapname */
 			if (strcmp(nvpair_name(snapelem),
 			    stream_snapname) != 0) {
-				char name[ZFS_MAXNAMELEN];
-				char tryname[ZFS_MAXNAMELEN];
+				char name[ZFS_MAX_DATASET_NAME_LEN];
+				char tryname[ZFS_MAX_DATASET_NAME_LEN];
 
 				(void) snprintf(name, sizeof (name), "%s@%s",
 				    fsname, nvpair_name(snapelem));
@@ -2556,7 +2556,7 @@ again:
 		    ((flags->isprefix || strcmp(tofs, fsname) != 0) &&
 		    (s1 != NULL) && (s2 != NULL) && strcmp(s1, s2) != 0)) {
 			nvlist_t *parent;
-			char tryname[ZFS_MAXNAMELEN];
+			char tryname[ZFS_MAX_DATASET_NAME_LEN];
 
 			parent = fsavl_find(local_avl,
 			    stream_parent_fromsnap_guid, NULL);
@@ -2624,8 +2624,8 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	char *fromsnap = NULL;
 	char *sendsnap = NULL;
 	char *cp;
-	char tofs[ZFS_MAXNAMELEN];
-	char sendfs[ZFS_MAXNAMELEN];
+	char tofs[ZFS_MAX_DATASET_NAME_LEN];
+	char sendfs[ZFS_MAX_DATASET_NAME_LEN];
 	char errbuf[1024];
 	dmu_replay_record_t drre;
 	int error;
@@ -2709,7 +2709,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 			nvlist_t *renamed = NULL;
 			nvpair_t *pair = NULL;
 
-			(void) strlcpy(tofs, destname, ZFS_MAXNAMELEN);
+			(void) strlcpy(tofs, destname, sizeof (tofs));
 			if (flags->isprefix) {
 				struct drr_begin *drrb = &drr->drr_u.drr_begin;
 				int i;
@@ -2718,7 +2718,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 					cp = strrchr(drrb->drr_toname, '/');
 					if (cp == NULL) {
 						(void) strlcat(tofs, "/",
-						    ZFS_MAXNAMELEN);
+						    sizeof (tofs));
 						i = 0;
 					} else {
 						i = (cp - drrb->drr_toname);
@@ -2728,7 +2728,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 				}
 				/* zfs_receive_one() will create_parents() */
 				(void) strlcat(tofs, &drrb->drr_toname[i],
-				    ZFS_MAXNAMELEN);
+				    sizeof (tofs));
 				*strchr(tofs, '@') = '\0';
 			}
 
@@ -2770,7 +2770,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	 * zfs_receive_one().
 	 */
 	(void) strlcpy(sendfs, drr->drr_u.drr_begin.drr_toname,
-	    ZFS_MAXNAMELEN);
+	    sizeof (sendfs));
 	if ((cp = strchr(sendfs, '@')) != NULL) {
 		*cp = '\0';
 		/*
@@ -2920,7 +2920,7 @@ static void
 recv_ecksum_set_aux(libzfs_handle_t *hdl, const char *target_snap,
     boolean_t resumable)
 {
-	char target_fs[ZFS_MAXNAMELEN];
+	char target_fs[ZFS_MAX_DATASET_NAME_LEN];
 
 	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 	    "checksum mismatch or incomplete stream"));
@@ -3113,7 +3113,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (flags->verbose)
 			(void) printf("found clone origin %s\n", origin);
 	} else if (originsnap) {
-		(void) strncpy(origin, originsnap, ZFS_MAXNAMELEN);
+		(void) strncpy(origin, originsnap, sizeof (origin));
 		if (flags->verbose)
 			(void) printf("using provided clone origin %s\n",
 			    origin);
@@ -3138,7 +3138,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			*cp = '\0';
 		if (cp &&
 		    !zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
-			char suffix[ZFS_MAXNAMELEN];
+			char suffix[ZFS_MAX_DATASET_NAME_LEN];
 			(void) strcpy(suffix, strrchr(destsnap, '/'));
 			if (guid_to_name(hdl, name, parent_snapguid,
 			    B_FALSE, destsnap) == 0) {
@@ -3165,7 +3165,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if ((flags->isprefix || (*(chopprefix = drrb->drr_toname +
 		    strlen(sendfs)) != '\0' && *chopprefix != '@')) &&
 		    !zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
-			char snap[ZFS_MAXNAMELEN];
+			char snap[ZFS_MAX_DATASET_NAME_LEN];
 			(void) strcpy(snap, strchr(destsnap, '@'));
 			if (guid_to_name(hdl, name, drrb->drr_fromguid,
 			    B_FALSE, destsnap) == 0) {
@@ -3609,7 +3609,7 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 	}
 
 	if (DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) == DMU_SUBSTREAM) {
-		char nonpackage_sendfs[ZFS_MAXNAMELEN];
+		char nonpackage_sendfs[ZFS_MAX_DATASET_NAME_LEN];
 		if (sendfs == NULL) {
 			/*
 			 * We were not called from zfs_receive_package(). Get
@@ -3617,7 +3617,8 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 			 */
 			char *cp;
 			(void) strlcpy(nonpackage_sendfs,
-			    drr.drr_u.drr_begin.drr_toname, ZFS_MAXNAMELEN);
+			    drr.drr_u.drr_begin.drr_toname,
+			    sizeof (nonpackage_sendfs));
 			if ((cp = strchr(nonpackage_sendfs, '@')) != NULL)
 				*cp = '\0';
 			sendfs = nonpackage_sendfs;

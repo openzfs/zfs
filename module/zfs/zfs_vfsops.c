@@ -1020,7 +1020,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	statp->f_fsid.val[0] = (uint32_t)fsid;
 	statp->f_fsid.val[1] = (uint32_t)(fsid >> 32);
 	statp->f_type = ZFS_SUPER_MAGIC;
-	statp->f_namelen = ZFS_MAXNAMELEN;
+	statp->f_namelen = MAXNAMELEN - 1;
 
 	/*
 	 * We have all of 40 characters to stuff a string here.

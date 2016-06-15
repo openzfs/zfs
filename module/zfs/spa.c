@@ -361,8 +361,7 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 					break;
 				}
 
-				strval = kmem_alloc(
-				    MAXNAMELEN + strlen(MOS_DIR_NAME) + 1,
+				strval = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN,
 				    KM_SLEEP);
 				dsl_dataset_name(ds, strval);
 				dsl_dataset_rele(ds, FTAG);
@@ -375,8 +374,7 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 			spa_prop_add_list(*nvp, prop, strval, intval, src);
 
 			if (strval != NULL)
-				kmem_free(strval,
-				    MAXNAMELEN + strlen(MOS_DIR_NAME) + 1);
+				kmem_free(strval, ZFS_MAX_DATASET_NAME_LEN);
 
 			break;
 

@@ -67,9 +67,13 @@ typedef enum dmu_objset_type {
 #define	ZFS_TYPE_DATASET	\
 	(ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME | ZFS_TYPE_SNAPSHOT)
 
+/*
+ * All of these include the terminating NUL byte.
+ */
 #define	ZAP_MAXNAMELEN 256
 #define	ZAP_MAXVALUELEN (1024 * 8)
 #define	ZAP_OLDMAXVALUELEN 1024
+#define	ZFS_MAX_DATASET_NAME_LEN 256
 
 /*
  * Dataset properties are identified by these constants and must be added to
@@ -1019,7 +1023,7 @@ typedef enum zfs_ioc {
 /*
  * zvol ioctl to get dataset name
  */
-#define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAXNAMELEN])
+#define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAX_DATASET_NAME_LEN])
 
 /*
  * Internal SPA load state.  Used by FMA diagnosis engine.

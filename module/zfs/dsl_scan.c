@@ -1115,7 +1115,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		 * rootbp's birth time is < cur_min_txg.  Then we will
 		 * add the next snapshots/clones to the work queue.
 		 */
-		char *dsname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
+		char *dsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 		dsl_dataset_name(ds, dsname);
 		zfs_dbgmsg("scanning dataset %llu (%s) is unnecessary because "
 		    "cur_min_txg (%llu) >= max_txg (%llu)",
@@ -1146,7 +1146,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	dsl_scan_visit_rootbp(scn, ds, &dsl_dataset_phys(ds)->ds_bp, tx);
 
-	dsname = kmem_alloc(ZFS_MAXNAMELEN, KM_SLEEP);
+	dsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	dsl_dataset_name(ds, dsname);
 	zfs_dbgmsg("scanned dataset %llu (%s) with min=%llu max=%llu; "
 	    "pausing=%u",
@@ -1154,7 +1154,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	    (longlong_t)scn->scn_phys.scn_cur_min_txg,
 	    (longlong_t)scn->scn_phys.scn_cur_max_txg,
 	    (int)scn->scn_pausing);
-	kmem_free(dsname, ZFS_MAXNAMELEN);
+	kmem_free(dsname, ZFS_MAX_DATASET_NAME_LEN);
 
 	if (scn->scn_pausing)
 		goto out;

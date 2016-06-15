@@ -441,7 +441,7 @@ pool_uses_efi(nvlist_t *config)
 boolean_t
 zpool_is_bootable(zpool_handle_t *zhp)
 {
-	char bootfs[ZPOOL_MAXNAMELEN];
+	char bootfs[ZFS_MAX_DATASET_NAME_LEN];
 
 	return (zpool_get_prop(zhp, ZPOOL_PROP_BOOTFS, bootfs,
 	    sizeof (bootfs), NULL, B_FALSE) == 0 && strncmp(bootfs, "-",
@@ -4006,7 +4006,7 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	zfs_cmd_t zc = {"\0"};
 	boolean_t mounted = B_FALSE;
 	char *mntpnt = NULL;
-	char dsname[MAXNAMELEN];
+	char dsname[ZFS_MAX_DATASET_NAME_LEN];
 
 	if (dsobj == 0) {
 		/* special case for the MOS */

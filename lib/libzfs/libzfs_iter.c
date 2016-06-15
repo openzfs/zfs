@@ -197,7 +197,7 @@ zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 
 	for (pair = nvlist_next_nvpair(bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(bmarks, pair)) {
-		char name[ZFS_MAXNAMELEN];
+		char name[ZFS_MAX_DATASET_NAME_LEN];
 		char *bmark_name;
 		nvlist_t *bmark_props;
 
@@ -384,7 +384,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 			 * exists.
 			 */
 			if (ssa.ssa_last[0] != '\0') {
-				char snapname[ZFS_MAXNAMELEN];
+				char snapname[ZFS_MAX_DATASET_NAME_LEN];
 				(void) snprintf(snapname, sizeof (snapname),
 				    "%s@%s", zfs_get_name(fs_zhp),
 				    ssa.ssa_last);
@@ -404,7 +404,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
 				ret = ENOENT;
 			}
 		} else {
-			char snapname[ZFS_MAXNAMELEN];
+			char snapname[ZFS_MAX_DATASET_NAME_LEN];
 			zfs_handle_t *snap_zhp;
 			(void) snprintf(snapname, sizeof (snapname), "%s@%s",
 			    zfs_get_name(fs_zhp), comma_separated);

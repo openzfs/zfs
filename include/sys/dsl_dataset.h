@@ -227,7 +227,7 @@ typedef struct dsl_dataset {
 	uint8_t ds_feature_activation_needed[SPA_FEATURES];
 
 	/* Protected by ds_lock; keep at end of struct for better locality */
-	char ds_snapname[MAXNAMELEN];
+	char ds_snapname[ZFS_MAX_DATASET_NAME_LEN];
 } dsl_dataset_t;
 
 static inline dsl_dataset_phys_t *
@@ -262,6 +262,7 @@ int dsl_dataset_own_obj(struct dsl_pool *dp, uint64_t dsobj,
 void dsl_dataset_disown(dsl_dataset_t *ds, void *tag);
 void dsl_dataset_name(dsl_dataset_t *ds, char *name);
 boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, void *tag);
+int dsl_dataset_namelen(dsl_dataset_t *ds);
 boolean_t dsl_dataset_has_owner(dsl_dataset_t *ds);
 uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     dsl_dataset_t *origin, uint64_t flags, cred_t *, dmu_tx_t *);
@@ -353,10 +354,10 @@ void dsl_dataset_deactivate_feature(uint64_t dsobj,
 #ifdef ZFS_DEBUG
 #define	dprintf_ds(ds, fmt, ...) do { \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) { \
-	char *__ds_name = kmem_alloc(MAXNAMELEN, KM_SLEEP); \
+	char *__ds_name = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP); \
 	dsl_dataset_name(ds, __ds_name); \
 	dprintf("ds=%s " fmt, __ds_name, __VA_ARGS__); \
-	kmem_free(__ds_name, MAXNAMELEN); \
+	kmem_free(__ds_name, ZFS_MAX_DATASET_NAME_LEN); \
 	} \
 _NOTE(CONSTCOND) } while (0)
 #else
