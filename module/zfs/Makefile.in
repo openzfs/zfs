@@ -71,6 +71,7 @@ $(MODULE)-objs += vdev_mirror.o
 $(MODULE)-objs += vdev_missing.o
 $(MODULE)-objs += vdev_queue.o
 $(MODULE)-objs += vdev_raidz.o
+$(MODULE)-objs += vdev_raidz_neon8.o
 $(MODULE)-objs += vdev_root.o
 $(MODULE)-objs += zap.o
 $(MODULE)-objs += zap_leaf.o

@@ -92,6 +92,7 @@ KERNEL_C = \
 	vdev_missing.c \
 	vdev_queue.c \
 	vdev_raidz.c \
+	vdev_raidz_neon8.c \
 	vdev_root.c \
 	zap.c \
 	zap_leaf.c \
