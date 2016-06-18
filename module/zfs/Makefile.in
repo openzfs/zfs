@@ -4,6 +4,7 @@ obj = @abs_builddir@
 MODULE := zfs
 
 EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
+EXTRA_AFLAGS += $(ZFS_MODULE_CFLAGS)
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
@@ -109,3 +110,9 @@ $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
+
+# x86_64
+$(MODULE)-$(CONFIG_X86_64) += sha256-ssse3-asm.o
+$(MODULE)-$(CONFIG_X86_64) += sha256-avx-asm.o
+$(MODULE)-$(CONFIG_X86_64) += sha256-avx2-asm.o
+$(MODULE)-$(CONFIG_X86_64) += sha256_x86_64.o
