@@ -96,7 +96,7 @@ secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
 int
 secpolicy_vnode_any_access(const cred_t *cr, struct inode *ip, uid_t owner)
 {
-	if (crgetuid(cr) == owner)
+	if (crgetfsuid(cr) == owner)
 		return (0);
 
 	if (zpl_inode_owner_or_capable(ip))
@@ -117,7 +117,7 @@ secpolicy_vnode_any_access(const cred_t *cr, struct inode *ip, uid_t owner)
 int
 secpolicy_vnode_chown(const cred_t *cr, uid_t owner)
 {
-	if (crgetuid(cr) == owner)
+	if (crgetfsuid(cr) == owner)
 		return (0);
 
 	return (priv_policy(cr, CAP_FOWNER, B_FALSE, EPERM));
@@ -149,7 +149,7 @@ secpolicy_vnode_remove(const cred_t *cr)
 int
 secpolicy_vnode_setdac(const cred_t *cr, uid_t owner)
 {
-	if (crgetuid(cr) == owner)
+	if (crgetfsuid(cr) == owner)
 		return (0);
 
 	return (priv_policy(cr, CAP_FOWNER, B_FALSE, EPERM));
@@ -175,7 +175,7 @@ secpolicy_vnode_setid_retain(const cred_t *cr, boolean_t issuidroot)
 int
 secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid)
 {
-	if (!groupmember(gid, cr))
+	if (crgetfsgid(cr) != gid && !groupmember(gid, cr))
 		return (priv_policy(cr, CAP_FSETID, B_FALSE, EPERM));
 
 	return (0);
@@ -219,7 +219,7 @@ secpolicy_setid_clear(vattr_t *vap, cred_t *cr)
 static int
 secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner)
 {
-	if (crgetuid(cr) == owner)
+	if (crgetfsuid(cr) == owner)
 		return (0);
 
 	return (priv_policy(cr, CAP_FSETID, B_FALSE, EPERM));

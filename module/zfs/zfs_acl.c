@@ -1744,7 +1744,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 	int		error;
 	zfs_sb_t	*zsb = ZTOZSB(dzp);
 	zfs_acl_t	*paclp;
-	gid_t		gid;
+	gid_t		gid = vap->va_gid;
 	boolean_t	need_chmod = B_TRUE;
 	boolean_t	inherited = B_FALSE;
 
@@ -1758,6 +1758,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 
 	acl_ids->z_fuid = vap->va_uid;
 	acl_ids->z_fgid = vap->va_gid;
+#ifdef HAVE_KSID
 	/*
 	 * Determine uid and gid.
 	 */
@@ -1809,6 +1810,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 			}
 		}
 	}
+#endif /* HAVE_KSID */
 
 	/*
 	 * If we're creating a directory, and the parent directory has the
