@@ -24,6 +24,9 @@
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
+#if defined(_KERNEL)
+#include <linux/kernel.h>
+#endif
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
@@ -99,60 +102,7 @@
  * or in concert to recover missing data columns.
  */
 
-typedef struct raidz_col {
-	uint64_t rc_devidx;		/* child device index for I/O */
-	uint64_t rc_offset;		/* device offset */
-	uint64_t rc_size;		/* I/O size */
-	void *rc_data;			/* I/O data */
-	void *rc_gdata;			/* used to store the "good" version */
-	int rc_error;			/* I/O error for this device */
-	uint8_t rc_tried;		/* Did we attempt this I/O column? */
-	uint8_t rc_skipped;		/* Did we skip this I/O column? */
-} raidz_col_t;
-
-typedef struct raidz_map {
-	uint64_t rm_cols;		/* Regular column count */
-	uint64_t rm_scols;		/* Count including skipped columns */
-	uint64_t rm_bigcols;		/* Number of oversized columns */
-	uint64_t rm_asize;		/* Actual total I/O size */
-	uint64_t rm_missingdata;	/* Count of missing data devices */
-	uint64_t rm_missingparity;	/* Count of missing parity devices */
-	uint64_t rm_firstdatacol;	/* First data column/parity count */
-	uint64_t rm_nskip;		/* Skipped sectors for padding */
-	uint64_t rm_skipstart;		/* Column index of padding start */
-	void *rm_datacopy;		/* rm_asize-buffer of copied data */
-	uintptr_t rm_reports;		/* # of referencing checksum reports */
-	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
-	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
-	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
-} raidz_map_t;
-
-#define	VDEV_RAIDZ_P		0
-#define	VDEV_RAIDZ_Q		1
-#define	VDEV_RAIDZ_R		2
-
-#define	VDEV_RAIDZ_MUL_2(x)	(((x) << 1) ^ (((x) & 0x80) ? 0x1d : 0))
-#define	VDEV_RAIDZ_MUL_4(x)	(VDEV_RAIDZ_MUL_2(VDEV_RAIDZ_MUL_2(x)))
-
-/*
- * We provide a mechanism to perform the field multiplication operation on a
- * 64-bit value all at once rather than a byte at a time. This works by
- * creating a mask from the top bit in each byte and using that to
- * conditionally apply the XOR of 0x1d.
- */
-#define	VDEV_RAIDZ_64MUL_2(x, mask) \
-{ \
-	(mask) = (x) & 0x8080808080808080ULL; \
-	(mask) = ((mask) << 1) - ((mask) >> 7); \
-	(x) = (((x) << 1) & 0xfefefefefefefefeULL) ^ \
-	    ((mask) & 0x1d1d1d1d1d1d1d1dULL); \
-}
-
-#define	VDEV_RAIDZ_64MUL_4(x, mask) \
-{ \
-	VDEV_RAIDZ_64MUL_2((x), mask); \
-	VDEV_RAIDZ_64MUL_2((x), mask); \
-}
+#include <sys/vdev_raidz.h>
 
 /*
  * Force reconstruction to use the general purpose method.
@@ -582,8 +532,10 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	return (rm);
 }
 
+void (*vdev_raidz_generate_parity_p)(raidz_map_t *rm);
+
 static void
-vdev_raidz_generate_parity_p(raidz_map_t *rm)
+vdev_raidz_generate_parity_p_c(raidz_map_t *rm)
 {
 	uint64_t *p, *src, pcount, ccount, i;
 	int c;
@@ -609,8 +561,10 @@ vdev_raidz_generate_parity_p(raidz_map_t *rm)
 	}
 }
 
+void (*vdev_raidz_generate_parity_pq)(raidz_map_t *rm);
+
 static void
-vdev_raidz_generate_parity_pq(raidz_map_t *rm)
+vdev_raidz_generate_parity_pq_c(raidz_map_t *rm)
 {
 	uint64_t *p, *q, *src, pcnt, ccnt, mask, i;
 	int c;
@@ -661,8 +615,10 @@ vdev_raidz_generate_parity_pq(raidz_map_t *rm)
 	}
 }
 
+void (*vdev_raidz_generate_parity_pqr)(raidz_map_t *rm);
+
 static void
-vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
+vdev_raidz_generate_parity_pqr_c(raidz_map_t *rm)
 {
 	uint64_t *p, *q, *r, *src, pcnt, ccnt, mask, i;
 	int c;
@@ -720,6 +676,51 @@ vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
 			}
 		}
 	}
+}
+
+#if defined(__x86_64__)
+void vdev_raidz_generate_parity_p_avx128(raidz_map_t *rm);
+void vdev_raidz_generate_parity_pq_avx128(raidz_map_t *rm);
+void vdev_raidz_generate_parity_pqr_avx128(raidz_map_t *rm);
+void vdev_raidz_generate_parity_p_avx2(raidz_map_t *rm);
+void vdev_raidz_generate_parity_pq_avx2(raidz_map_t *rm);
+void vdev_raidz_generate_parity_pqr_avx2(raidz_map_t *rm);
+void vdev_raidz_generate_parity_p_sse(raidz_map_t *rm);
+void vdev_raidz_generate_parity_pq_sse(raidz_map_t *rm);
+void vdev_raidz_generate_parity_pqr_sse(raidz_map_t *rm);
+#endif
+
+static void vdev_raidz_pick_parity_functions(void) {
+	vdev_raidz_generate_parity_p = &vdev_raidz_generate_parity_p_c;
+	vdev_raidz_generate_parity_pq = &vdev_raidz_generate_parity_pq_c;
+	vdev_raidz_generate_parity_pqr = &vdev_raidz_generate_parity_pqr_c;
+#if defined(__x86_64__)
+#if defined(_KERNEL) && defined(CONFIG_AS_AVX2)
+	if (boot_cpu_has(X86_FEATURE_AVX2)) {
+		vdev_raidz_generate_parity_p =
+			&vdev_raidz_generate_parity_p_avx2;
+		vdev_raidz_generate_parity_pq =
+			&vdev_raidz_generate_parity_pq_avx2;
+		vdev_raidz_generate_parity_pqr =
+			&vdev_raidz_generate_parity_pqr_avx2;
+		printk(KERN_INFO \
+		    "ZFS: using vdev_raidz_generate_parity_*_avx2\n");
+	} else
+#endif
+		{
+			/* x86-64 always has SSE2 */
+			vdev_raidz_generate_parity_p =
+				&vdev_raidz_generate_parity_p_sse;
+			vdev_raidz_generate_parity_pq =
+				&vdev_raidz_generate_parity_pq_sse;
+			vdev_raidz_generate_parity_pqr =
+				&vdev_raidz_generate_parity_pqr_sse;
+#if defined(_KERNEL)
+			printk(KERN_INFO \
+			    "ZFS: using vdev_raidz_generate_parity_*_sse\n");
+#endif
+		}
+#endif
 }
 
 /*
@@ -1480,6 +1481,14 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	int c;
 	int lasterror = 0;
 	int numerrors = 0;
+
+	/*
+	 * Should probably be done elsewhere,
+	 * to be done once per module load.
+	 * This could cause a race condition
+	 * on which function is used.
+	 */
+	vdev_raidz_pick_parity_functions();
 
 	ASSERT(nparity > 0);
 
