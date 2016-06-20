@@ -69,6 +69,81 @@ function log_must
 	(( $? != 0 )) && log_fail
 }
 
+# Execute a positive test but retry the command on failure if the output
+# matches an expected pattern.  Otherwise behave like log_must and exit
+# $STF_FAIL is test fails.
+#
+# $1 - retry keyword
+# $2 - retry attempts
+# $3-$@ - command to execute
+#
+function log_must_retry
+{
+	typeset out=""
+	typeset logfile="/tmp/log.$$"
+	typeset status=1
+	typeset expect=$1
+	typeset retry=$2
+	typeset delay=1
+	shift 2
+
+	while [[ -e $logfile ]]; do
+		logfile="$logfile.$$"
+	done
+
+	while (( $retry > 0 )); do
+		"$@" 2>$logfile
+		status=$?
+		out="$CAT $logfile"
+
+		if (( $status == 0 )); then
+			$out | $EGREP -i "internal error|assertion failed" \
+				> /dev/null 2>&1
+			# internal error or assertion failed
+			if [[ $? -eq 0 ]]; then
+				print -u2 $($out)
+				_printerror "$@" "internal error or" \
+					" assertion failure exited $status"
+				status=1
+			else
+				[[ -n $LOGAPI_DEBUG ]] && print $($out)
+				_printsuccess "$@"
+			fi
+			break
+		else
+			$out | $GREP -i "$expect" > /dev/null 2>&1
+			if (( $? == 0 )); then
+				print -u2 $($out)
+				_printerror "$@" "Retry in $delay seconds"
+				$SLEEP $delay
+
+				(( retry=retry - 1 ))
+				(( delay=delay * 2 ))
+			else
+				break;
+			fi
+		fi
+	done
+
+	if (( $status != 0 )) ; then
+		print -u2 $($out)
+		_printerror "$@" "exited $status"
+	fi
+
+	_recursive_output $logfile "false"
+	return $status
+}
+
+# Execute a positive test and exit $STF_FAIL is test fails after being
+# retried up to 5 times when the command returns the keyword "busy".
+#
+# $@ - command to execute
+function log_must_busy
+{
+	log_must_retry "busy" 5 "$@"
+	(( $? != 0 )) && log_fail
+}
+
 # Execute a negative test and exit $STF_FAIL if test passes
 #
 # $@ - command to execute
