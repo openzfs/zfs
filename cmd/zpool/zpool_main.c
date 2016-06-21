@@ -631,7 +631,8 @@ zpool_do_add(int argc, char **argv)
 			*propval = '\0';
 			propval++;
 
-			if ((strcmp(optarg, ZPOOL_CONFIG_ASHIFT) != 0) ||
+			if (((strcmp(optarg, ZPOOL_CONFIG_ASHIFT) != 0) &&
+			    (strcmp(optarg, ZPOOL_CONFIG_WHOLE_DISK) != 0))||
 			    (add_prop_list(optarg, propval, &props, B_TRUE)))
 				usage(B_FALSE);
 			break;
@@ -4698,7 +4699,8 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 			*propval = '\0';
 			propval++;
 
-			if ((strcmp(optarg, ZPOOL_CONFIG_ASHIFT) != 0) ||
+			if (((strcmp(optarg, ZPOOL_CONFIG_ASHIFT) != 0) &&
+			    (strcmp(optarg, ZPOOL_CONFIG_WHOLE_DISK) != 0))||
 			    (add_prop_list(optarg, propval, &props, B_TRUE)))
 				usage(B_FALSE);
 			break;
