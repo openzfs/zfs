@@ -59,7 +59,7 @@ export READMMAP=${TESTSDIR}/zfs-tests/cmd/readmmap/readmmap
 export RENAME_DIR=${TESTSDIR}/zfs-tests/cmd/rename_dir/rename_dir
 export RM_LNKCNT_ZERO_FILE=${TESTSDIR}/zfs-tests/cmd/rm_lnkcnt_zero_file/rm_lnkcnt_zero_file
 export THREADSAPPEND=${TESTSDIR}/zfs-tests/cmd/threadsappend/threadsappend
-export XATTRTEST=${TESTDIR}/zfs-tests/cmd/xattrtest
+export XATTRTEST=${TESTSDIR}/zfs-tests/cmd/xattrtest/xattrtest
 
 export INTREE=1
 export LDMOD=/sbin/insmod

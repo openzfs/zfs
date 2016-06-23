@@ -30,26 +30,55 @@
 #include <sys/dnode.h>
 #include <sys/zap.h>
 #include <sys/zfeature.h>
+#include <sys/dsl_dataset.h>
 
 uint64_t
 dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
+	return dmu_object_alloc_dnsize(os, ot, blocksize, bonustype, bonuslen,
+	    0, tx);
+}
+
+uint64_t
+dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+{
 	uint64_t object;
-	uint64_t L2_dnode_count = DNODES_PER_BLOCK <<
+	uint64_t L1_dnode_count = DNODES_PER_BLOCK <<
 	    (DMU_META_DNODE(os)->dn_indblkshift - SPA_BLKPTRSHIFT);
 	dnode_t *dn = NULL;
-	int restarted = B_FALSE;
+	int dn_slots = dnodesize >> DNODE_SHIFT;
+	boolean_t restarted = B_FALSE;
+
+	if (dn_slots == 0) {
+		dn_slots = DNODE_MIN_SLOTS;
+	} else {
+		ASSERT3S(dn_slots, >=, DNODE_MIN_SLOTS);
+		ASSERT3S(dn_slots, <=, DNODE_MAX_SLOTS);
+	}
 
 	mutex_enter(&os->os_obj_lock);
 	for (;;) {
 		object = os->os_obj_next;
 		/*
-		 * Each time we polish off an L2 bp worth of dnodes
-		 * (2^13 objects), move to another L2 bp that's still
-		 * reasonably sparse (at most 1/4 full).  Look from the
-		 * beginning once, but after that keep looking from here.
-		 * If we can't find one, just keep going from here.
+		 * Each time we polish off a L1 bp worth of dnodes (2^12
+		 * objects), move to another L1 bp that's still
+		 * reasonably sparse (at most 1/4 full). Look from the
+		 * beginning at most once per txg. If we still can't
+		 * allocate from that L1 block, search for an empty L0
+		 * block, which will quickly skip to the end of the
+		 * metadnode if the no nearby L0 blocks are empty. This
+		 * fallback avoids a pathology where full dnode blocks
+		 * containing large dnodes appear sparse because they
+		 * have a low blk_fill, leading to many failed
+		 * allocation attempts. In the long term a better
+		 * mechanism to search for sparse metadnode regions,
+		 * such as spacemaps, could be implemented.
+		 *
+		 * os_scan_dnodes is set during txg sync if enough objects
+		 * have been freed since the previous rescan to justify
+		 * backfilling again.
 		 *
 		 * Note that dmu_traverse depends on the behavior that we use
 		 * multiple blocks of the dnode object before going back to
@@ -57,16 +86,26 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * that property or find another solution to the issues
 		 * described in traverse_visitbp.
 		 */
-		if (P2PHASE(object, L2_dnode_count) == 0) {
-			uint64_t offset = restarted ? object << DNODE_SHIFT : 0;
-			int error = dnode_next_offset(DMU_META_DNODE(os),
-			    DNODE_FIND_HOLE,
-			    &offset, 2, DNODES_PER_BLOCK >> 2, 0);
+		if (P2PHASE(object, L1_dnode_count) == 0) {
+			uint64_t offset;
+			uint64_t blkfill;
+			int minlvl;
+			int error;
+			if (os->os_rescan_dnodes) {
+				offset = 0;
+				os->os_rescan_dnodes = B_FALSE;
+			} else {
+				offset = object << DNODE_SHIFT;
+			}
+			blkfill = restarted ? 1 : DNODES_PER_BLOCK >> 2;
+			minlvl = restarted ? 1 : 2;
 			restarted = B_TRUE;
+			error = dnode_next_offset(DMU_META_DNODE(os),
+			    DNODE_FIND_HOLE, &offset, minlvl, blkfill, 0);
 			if (error == 0)
 				object = offset >> DNODE_SHIFT;
 		}
-		os->os_obj_next = ++object;
+		os->os_obj_next = object + dn_slots;
 
 		/*
 		 * XXX We should check for an i/o error here and return
@@ -74,16 +113,22 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * dmu_tx_assign(), but there is currently no mechanism
 		 * to do so.
 		 */
-		(void) dnode_hold_impl(os, object, DNODE_MUST_BE_FREE,
+		(void) dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, dn_slots,
 		    FTAG, &dn);
 		if (dn)
 			break;
 
 		if (dmu_object_next(os, &object, B_TRUE, 0) == 0)
-			os->os_obj_next = object - 1;
+			os->os_obj_next = object;
+		else
+			/*
+			 * Skip to next known valid starting point for a dnode.
+			 */
+			os->os_obj_next = P2ROUNDUP(object + 1,
+			    DNODES_PER_BLOCK);
 	}
 
-	dnode_allocate(dn, ot, blocksize, 0, bonustype, bonuslen, tx);
+	dnode_allocate(dn, ot, blocksize, 0, bonustype, bonuslen, dn_slots, tx);
 	dnode_rele(dn, FTAG);
 
 	mutex_exit(&os->os_obj_lock);
@@ -96,16 +141,33 @@ int
 dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
+	return (dmu_object_claim_dnsize(os, object, ot, blocksize, bonustype,
+	    bonuslen, 0, tx));
+}
+
+int
+dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
+    int blocksize, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dmu_tx_t *tx)
+{
 	dnode_t *dn;
+	int dn_slots = dnodesize >> DNODE_SHIFT;
 	int err;
+
+	if (dn_slots == 0)
+		dn_slots = DNODE_MIN_SLOTS;
+	ASSERT3S(dn_slots, >=, DNODE_MIN_SLOTS);
+	ASSERT3S(dn_slots, <=, DNODE_MAX_SLOTS);
 
 	if (object == DMU_META_DNODE_OBJECT && !dmu_tx_private_ok(tx))
 		return (SET_ERROR(EBADF));
 
-	err = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, FTAG, &dn);
+	err = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, dn_slots,
+	    FTAG, &dn);
 	if (err)
 		return (err);
-	dnode_allocate(dn, ot, blocksize, 0, bonustype, bonuslen, tx);
+
+	dnode_allocate(dn, ot, blocksize, 0, bonustype, bonuslen, dn_slots, tx);
 	dnode_rele(dn, FTAG);
 
 	dmu_tx_add_new_object(tx, os, object);
@@ -116,22 +178,33 @@ int
 dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
+	return (dmu_object_reclaim_dnsize(os, object, ot, blocksize, bonustype,
+	    bonuslen, 0, tx));
+}
+
+int
+dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
+    int blocksize, dmu_object_type_t bonustype, int bonuslen, int dnodesize,
+    dmu_tx_t *tx)
+{
 	dnode_t *dn;
+	int dn_slots = dnodesize >> DNODE_SHIFT;
 	int err;
 
 	if (object == DMU_META_DNODE_OBJECT)
 		return (SET_ERROR(EBADF));
 
-	err = dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED,
+	err = dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED, 0,
 	    FTAG, &dn);
 	if (err)
 		return (err);
 
-	dnode_reallocate(dn, ot, blocksize, bonustype, bonuslen, tx);
+	dnode_reallocate(dn, ot, blocksize, bonustype, bonuslen, dn_slots, tx);
 
 	dnode_rele(dn, FTAG);
 	return (err);
 }
+
 
 int
 dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
@@ -141,7 +214,7 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 
 	ASSERT(object != DMU_META_DNODE_OBJECT || dmu_tx_private_ok(tx));
 
-	err = dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED,
+	err = dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED, 0,
 	    FTAG, &dn);
 	if (err)
 		return (err);
@@ -162,8 +235,29 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 int
 dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 {
-	uint64_t offset = (*objectp + 1) << DNODE_SHIFT;
+	uint64_t offset;
+	dmu_object_info_t doi;
+	struct dsl_dataset *ds = os->os_dsl_dataset;
+	int dnodesize;
 	int error;
+
+	/*
+	 * Avoid expensive dnode hold if this dataset doesn't use large dnodes.
+	 */
+	if (ds && ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE]) {
+		error = dmu_object_info(os, *objectp, &doi);
+		if (error && !(error == EINVAL && *objectp == 0))
+			return (SET_ERROR(error));
+		else
+			dnodesize = doi.doi_dnodesize;
+	} else {
+		dnodesize = DNODE_MIN_SIZE;
+	}
+
+	if (*objectp == 0)
+		offset = 1 << DNODE_SHIFT;
+	else
+		offset = (*objectp << DNODE_SHIFT) + dnodesize;
 
 	error = dnode_next_offset(DMU_META_DNODE(os),
 	    (hole ? DNODE_FIND_HOLE : 0), &offset, 0, DNODES_PER_BLOCK, txg);
@@ -226,8 +320,11 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_object_alloc);
+EXPORT_SYMBOL(dmu_object_alloc_dnsize);
 EXPORT_SYMBOL(dmu_object_claim);
+EXPORT_SYMBOL(dmu_object_claim_dnsize);
 EXPORT_SYMBOL(dmu_object_reclaim);
+EXPORT_SYMBOL(dmu_object_reclaim_dnsize);
 EXPORT_SYMBOL(dmu_object_free);
 EXPORT_SYMBOL(dmu_object_next);
 EXPORT_SYMBOL(dmu_object_zapify);

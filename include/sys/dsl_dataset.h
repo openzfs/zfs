@@ -92,6 +92,13 @@ struct dsl_pool;
 #define	DS_FIELD_LARGE_BLOCKS "org.open-zfs:large_blocks"
 
 /*
+ * This field is present (with value=0) if this dataset may contain large
+ * dnodes (>512B).  If it is present, then this dataset is counted in the
+ * refcount of the SPA_FEATURE_LARGE_DNODE feature.
+ */
+#define	DS_FIELD_LARGE_DNODE "org.zfsonlinux:large_dnode"
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */

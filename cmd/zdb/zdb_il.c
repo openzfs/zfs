@@ -80,8 +80,10 @@ zil_prt_rec_create(zilog_t *zilog, int txtype, lr_create_t *lr)
 	}
 
 	(void) printf("%s%s", prefix, ctime(&crtime));
-	(void) printf("%sdoid %llu, foid %llu, mode %llo\n", prefix,
-	    (u_longlong_t)lr->lr_doid, (u_longlong_t)lr->lr_foid,
+	(void) printf("%sdoid %llu, foid %llu, slots %llu, mode %llo\n", prefix,
+	    (u_longlong_t)lr->lr_doid,
+	    (u_longlong_t)LR_FOID_GET_OBJ(lr->lr_foid),
+	    (u_longlong_t)LR_FOID_GET_SLOTS(lr->lr_foid),
 	    (longlong_t)lr->lr_mode);
 	(void) printf("%suid %llu, gid %llu, gen %llu, rdev 0x%llx\n", prefix,
 	    (u_longlong_t)lr->lr_uid, (u_longlong_t)lr->lr_gid,

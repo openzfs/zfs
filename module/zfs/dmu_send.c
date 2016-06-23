@@ -445,6 +445,7 @@ dump_dnode(dmu_sendarg_t *dsp, uint64_t object, dnode_phys_t *dnp)
 	drro->drr_bonustype = dnp->dn_bonustype;
 	drro->drr_blksz = dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT;
 	drro->drr_bonuslen = dnp->dn_bonuslen;
+	drro->drr_dn_slots = dnp->dn_extra_slots + 1;
 	drro->drr_checksumtype = dnp->dn_checksum;
 	drro->drr_compress = dnp->dn_compress;
 	drro->drr_toguid = dsp->dsa_toguid;
@@ -570,7 +571,6 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
 	dmu_object_type_t type = bp ? BP_GET_TYPE(bp) : DMU_OT_NONE;
 	int err = 0;
-	dnode_phys_t *blk;
 	uint64_t dnobj;
 
 	ASSERT3U(zb->zb_level, >=, 0);
@@ -590,7 +590,8 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 	} else if (zb->zb_level > 0 || type == DMU_OT_OBJSET) {
 		return (0);
 	} else if (type == DMU_OT_DNODE) {
-		int blksz = BP_GET_LSIZE(bp);
+		dnode_phys_t *blk;
+		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 		arc_flags_t aflags = ARC_FLAG_WAIT;
 		arc_buf_t *abuf;
 		int i;
@@ -603,8 +604,8 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 			return (SET_ERROR(EIO));
 
 		blk = abuf->b_data;
-		dnobj = zb->zb_blkid * (blksz >> DNODE_SHIFT);
-		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
+		dnobj = zb->zb_blkid * epb;
+		for (i = 0; i < epb; i += blk[i].dn_extra_slots + 1) {
 			err = dump_dnode(dsa, dnobj + i, blk + i);
 			if (err != 0)
 				break;
@@ -736,6 +737,8 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 
 	if (large_block_ok && to_ds->ds_feature_inuse[SPA_FEATURE_LARGE_BLOCKS])
 		featureflags |= DMU_BACKUP_FEATURE_LARGE_BLOCKS;
+	if (to_ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE])
+		featureflags |= DMU_BACKUP_FEATURE_LARGE_DNODE;
 	if (embedok &&
 	    spa_feature_is_active(dp->dp_spa, SPA_FEATURE_EMBEDDED_DATA)) {
 		featureflags |= DMU_BACKUP_FEATURE_EMBED_DATA;
@@ -1252,6 +1255,15 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS))
 		return (SET_ERROR(ENOTSUP));
 
+	/*
+	 * The receiving code doesn't know how to translate large dnodes
+	 * to smaller ones, so the pool must have the LARGE_DNODE
+	 * feature enabled if the stream has LARGE_DNODE.
+	 */
+	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_DNODE) &&
+	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_DNODE))
+		return (SET_ERROR(ENOTSUP));
+
 	error = dsl_dataset_hold(dp, tofs, FTAG, &ds);
 	if (error == 0) {
 		/* target fs already exists; recv into temp clone */
@@ -1658,7 +1670,8 @@ deduce_nblkptr(dmu_object_type_t bonus_type, uint64_t bonus_size)
 		return (1);
 	} else {
 		return (1 +
-		    ((DN_MAX_BONUSLEN - bonus_size) >> SPA_BLKPTRSHIFT));
+		    ((DN_OLD_MAX_BONUSLEN -
+		    MIN(DN_OLD_MAX_BONUSLEN, bonus_size)) >> SPA_BLKPTRSHIFT));
 	}
 }
 
@@ -1679,7 +1692,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    P2PHASE(drro->drr_blksz, SPA_MINBLOCKSIZE) ||
 	    drro->drr_blksz < SPA_MINBLOCKSIZE ||
 	    drro->drr_blksz > spa_maxblocksize(dmu_objset_spa(rwa->os)) ||
-	    drro->drr_bonuslen > DN_MAX_BONUSLEN) {
+	    drro->drr_bonuslen >
+	    DN_BONUS_SIZE(spa_maxdnodesize(dmu_objset_spa(rwa->os)))) {
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1719,9 +1733,10 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 	if (object == DMU_NEW_OBJECT) {
 		/* currently free, want to be allocated */
-		err = dmu_object_claim(rwa->os, drro->drr_object,
+		err = dmu_object_claim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
-		    drro->drr_bonustype, drro->drr_bonuslen, tx);
+		    drro->drr_bonustype, drro->drr_bonuslen,
+		    drro->drr_dn_slots << DNODE_SHIFT, tx);
 	} else if (drro->drr_type != doi.doi_type ||
 	    drro->drr_blksz != doi.doi_data_block_size ||
 	    drro->drr_bonustype != doi.doi_bonus_type ||
@@ -1771,18 +1786,25 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 	if (drrfo->drr_firstobj + drrfo->drr_numobjs < drrfo->drr_firstobj)
 		return (SET_ERROR(EINVAL));
 
-	for (obj = drrfo->drr_firstobj;
+	for (obj = drrfo->drr_firstobj == 0 ? 1 : drrfo->drr_firstobj;
 	    obj < drrfo->drr_firstobj + drrfo->drr_numobjs;
 	    (void) dmu_object_next(rwa->os, &obj, FALSE, 0)) {
+		dmu_object_info_t doi;
 		int err;
 
-		if (dmu_object_info(rwa->os, obj, NULL) != 0)
+		err = dmu_object_info(rwa->os, obj, &doi);
+		if (err == ENOENT) {
+			obj++;
 			continue;
+		} else if (err != 0) {
+			return (err);
+		}
 
 		err = dmu_free_long_object(rwa->os, obj);
 		if (err != 0)
 			return (err);
 	}
+
 	return (0);
 }
 

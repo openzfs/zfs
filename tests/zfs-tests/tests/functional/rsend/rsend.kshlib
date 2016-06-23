@@ -201,8 +201,8 @@ function cmp_ds_prop
 
 	for item in "type" "origin" "volblocksize" "aclinherit" "aclmode" \
 	    "atime" "canmount" "checksum" "compression" "copies" "devices" \
-	    "exec" "quota" "readonly" "recordsize" "reservation" "setuid" \
-	    "sharenfs" "snapdir" "version" "volsize" "xattr" "zoned" \
+	    "dnodesize" "exec" "quota" "readonly" "recordsize" "reservation" \
+	    "setuid" "sharenfs" "snapdir" "version" "volsize" "xattr" "zoned" \
 	    "mountpoint";
 	do
 		$ZFS get -H -o property,value,source $item $dtst1 >> \

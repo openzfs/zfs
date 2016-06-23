@@ -279,6 +279,8 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	lr = (lr_create_t *)&itx->itx_lr;
 	lr->lr_doid = dzp->z_id;
 	lr->lr_foid = zp->z_id;
+	/* Store dnode slot count in 8 bits above object id. */
+	LR_FOID_SET_SLOTS(lr->lr_foid, zp->z_dnodesize >> DNODE_SHIFT);
 	lr->lr_mode = zp->z_mode;
 	if (!IS_EPHEMERAL(zp->z_uid)) {
 		lr->lr_uid = (uint64_t)zp->z_uid;

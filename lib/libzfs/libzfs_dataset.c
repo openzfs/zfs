@@ -1473,6 +1473,7 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 
 	case ERANGE:
 		if (prop == ZFS_PROP_COMPRESSION ||
+		    prop == ZFS_PROP_DNODESIZE ||
 		    prop == ZFS_PROP_RECORDSIZE) {
 			(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "property setting is not allowed on "

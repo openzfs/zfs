@@ -250,6 +250,10 @@ function check_fs_perm
 			verify_fs_canmount $user $perm $fs
 			ret=$?
 			;;
+		dnodesize)
+			verify_fs_dnodesize $user $perm $fs
+			ret=$?
+			;;
 		recordsize)
 			verify_fs_recordsize $user $perm $fs
 			ret=$?
@@ -1106,6 +1110,21 @@ function verify_fs_recordsize
 	typeset value8k=$(( 1024 * 8 ))
 	user_run $user $ZFS set recordsize=$value8k $fs
 	if [[ $value8k != $(get_prop recordsize $fs) ]]; then
+		return 1
+	fi
+
+	return 0
+}
+
+function verify_fs_dnodesize
+{
+	typeset user=$1
+	typeset perm=$2
+	typeset fs=$3
+	value="2k"
+
+	user_run $user $ZFS set dnodesize=$value $fs
+	if [[ $value != $(get_prop dnodesize $fs) ]]; then
 		return 1
 	fi
 
