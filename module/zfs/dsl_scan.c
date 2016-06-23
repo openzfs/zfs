@@ -56,7 +56,8 @@ typedef int (scan_cb_t)(dsl_pool_t *, const blkptr_t *,
 
 static scan_cb_t dsl_scan_scrub_cb;
 static void dsl_scan_cancel_sync(void *, dmu_tx_t *);
-static void dsl_scan_sync_state(dsl_scan_t *, dmu_tx_t *tx);
+static void dsl_scan_sync_state(dsl_scan_t *, dmu_tx_t *);
+static boolean_t dsl_scan_restarting(dsl_scan_t *, dmu_tx_t *);
 
 int zfs_top_maxinflight = 32;		/* maximum I/Os per top-level */
 int zfs_resilver_delay = 2;		/* number of ticks to delay resilver */
@@ -329,8 +330,15 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	else
 		scn->scn_phys.scn_state = DSS_CANCELED;
 
-	spa_history_log_internal(spa, "scan done", tx,
-	    "complete=%u", complete);
+	if (dsl_scan_restarting(scn, tx))
+		spa_history_log_internal(spa, "scan aborted, restarting", tx,
+		    "errors=%llu", spa_get_errlog_size(spa));
+	else if (!complete)
+		spa_history_log_internal(spa, "scan cancelled", tx,
+		    "errors=%llu", spa_get_errlog_size(spa));
+	else
+		spa_history_log_internal(spa, "scan done", tx,
+		    "errors=%llu", spa_get_errlog_size(spa));
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		mutex_enter(&spa->spa_scrub_lock);
@@ -1511,8 +1519,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * that we can restart an old-style scan while the pool is being
 	 * imported (see dsl_scan_init).
 	 */
-	if (scn->scn_restart_txg != 0 &&
-	    scn->scn_restart_txg <= tx->tx_txg) {
+	if (dsl_scan_restarting(scn, tx)) {
 		pool_scan_func_t func = POOL_SCAN_SCRUB;
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
@@ -1940,6 +1947,13 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
 	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_NONE));
+}
+
+static boolean_t
+dsl_scan_restarting(dsl_scan_t *scn, dmu_tx_t *tx)
+{
+	return (scn->scn_restart_txg != 0 &&
+	    scn->scn_restart_txg <= tx->tx_txg);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
