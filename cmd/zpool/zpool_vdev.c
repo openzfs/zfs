@@ -486,28 +486,19 @@ static int
 check_device(const char *path, boolean_t force,
     boolean_t isspare, boolean_t iswholedisk)
 {
-	static blkid_cache cache = NULL;
+	blkid_cache cache;
+	int error;
 
-	/*
-	 * There is no easy way to add a correct blkid_put_cache() call,
-	 * memory will be reclaimed when the command exits.
-	 */
-	if (cache == NULL) {
-		int err;
-
-		if ((err = blkid_get_cache(&cache, NULL)) != 0) {
-			check_error(err);
-			return (-1);
-		}
-
-		if ((err = blkid_probe_all(cache)) != 0) {
-			blkid_put_cache(cache);
-			check_error(err);
-			return (-1);
-		}
+	error = blkid_get_cache(&cache, NULL);
+	if (error != 0) {
+		check_error(error);
+		return (-1);
 	}
 
-	return (check_disk(path, cache, force, isspare, iswholedisk));
+	error = check_disk(path, cache, force, isspare, iswholedisk);
+	blkid_put_cache(cache);
+
+	return (error);
 }
 
 /*
