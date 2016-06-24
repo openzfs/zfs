@@ -838,11 +838,15 @@ Default value: \fB67,108,864\fR.
 .RS 12n
 Select a fletcher 4 implementation.
 .sp
-Supported selectors are: \fBfastest\fR, \fBscalar\fR, and \fBavx2\fR when
-AVX2 is supported by the processor.  If multiple implementations of fletcher 4
-are available the \fBfastest\fR will be chosen using a micro benchmark.
-Selecting \fBscalar\fR results in the original CPU based calculation being
-used, \fBavx2\fR uses the AVX2 vector instructions to compute a fletcher 4.
+Supported selectors are: \fBfastest\fR, \fBscalar\fR, \fBsse2\fR, \fBssse3\fR,
+and \fBavx2\fR. All of the selectors except \fBfastest\fR and \fBscalar\fR
+require instruction set extensions to be available and will only appear if ZFS
+detects that they are present at runtime. If multiple implementations of
+fletcher 4 are available, the \fBfastest\fR will be chosen using a micro
+benchmark. Selecting \fBscalar\fR results in the original CPU based calculation
+being used. Selecting any option other than \fBfastest\fR and \fBscalar\fR
+results in vector instructions from the respective CPU instruction set being
+used.
 .sp
 Default value: \fBfastest\fR.
 .RE

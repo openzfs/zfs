@@ -149,6 +149,12 @@ static const fletcher_4_ops_t fletcher_4_scalar_ops = {
 
 static const fletcher_4_ops_t *fletcher_4_algos[] = {
 	&fletcher_4_scalar_ops,
+#if defined(HAVE_SSE2)
+	&fletcher_4_sse2_ops,
+#endif
+#if defined(HAVE_SSE2) && defined(HAVE_SSSE3)
+	&fletcher_4_ssse3_ops,
+#endif
 #if defined(HAVE_AVX) && defined(HAVE_AVX2)
 	&fletcher_4_avx2_ops,
 #endif
@@ -157,6 +163,12 @@ static const fletcher_4_ops_t *fletcher_4_algos[] = {
 static enum fletcher_selector {
 	FLETCHER_FASTEST = 0,
 	FLETCHER_SCALAR,
+#if defined(HAVE_SSE2)
+	FLETCHER_SSE2,
+#endif
+#if defined(HAVE_SSE2) && defined(HAVE_SSSE3)
+	FLETCHER_SSSE3,
+#endif
 #if defined(HAVE_AVX) && defined(HAVE_AVX2)
 	FLETCHER_AVX2,
 #endif
@@ -169,6 +181,12 @@ static struct fletcher_4_impl_selector {
 } fletcher_4_impl_selectors[] = {
 	[ FLETCHER_FASTEST ]	= { "fastest", NULL },
 	[ FLETCHER_SCALAR ]	= { "scalar", &fletcher_4_scalar_ops },
+#if defined(HAVE_SSE2)
+	[ FLETCHER_SSE2 ]	= { "sse2", &fletcher_4_sse2_ops },
+#endif
+#if defined(HAVE_SSE2) && defined(HAVE_SSSE3)
+	[ FLETCHER_SSSE3 ]	= { "ssse3", &fletcher_4_ssse3_ops },
+#endif
 #if defined(HAVE_AVX) && defined(HAVE_AVX2)
 	[ FLETCHER_AVX2 ]	= { "avx2", &fletcher_4_avx2_ops },
 #endif
@@ -407,6 +425,7 @@ fletcher_4_init(void)
 		ops->init(&zc);
 		do {
 			ops->compute(databuf, data_size, &zc);
+			ops->compute_byteswap(databuf, data_size, &zc);
 			run_count++;
 		} while (gethrtime() < start + bench_ns);
 		if (ops->fini != NULL)

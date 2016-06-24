@@ -61,6 +61,14 @@ typedef struct fletcher_4_func {
 	const char *name;
 } fletcher_4_ops_t;
 
+#if defined(HAVE_SSE2)
+extern const fletcher_4_ops_t fletcher_4_sse2_ops;
+#endif
+
+#if defined(HAVE_SSE2) && defined(HAVE_SSSE3)
+extern const fletcher_4_ops_t fletcher_4_ssse3_ops;
+#endif
+
 #if defined(HAVE_AVX) && defined(HAVE_AVX2)
 extern const fletcher_4_ops_t fletcher_4_avx2_ops;
 #endif
