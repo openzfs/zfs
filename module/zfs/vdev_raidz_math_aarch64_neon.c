@@ -19,372 +19,107 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
+ * Copyright (C) 2016 Romain Dolbeau. All rights reserved.
  */
 
 #include <sys/isa_defs.h>
 
-#if defined(__x86_64) && defined(HAVE_SSSE3)
+#if defined(__aarch64__)
 
-#include <sys/types.h>
-#include <linux/simd_x86.h>
+#include "vdev_raidz_math_aarch64_neon_common.h"
 
-#define	__asm __asm__ __volatile__
-
-#define	_REG_CNT(_0, _1, _2, _3, _4, _5, _6, _7, N, ...) N
-#define	REG_CNT(r...) _REG_CNT(r, 8, 7, 6, 5, 4, 3, 2, 1)
-
-#define	VR0_(REG, ...) "xmm"#REG
-#define	VR1_(_1, REG, ...) "xmm"#REG
-#define	VR2_(_1, _2, REG, ...) "xmm"#REG
-#define	VR3_(_1, _2, _3, REG, ...) "xmm"#REG
-#define	VR4_(_1, _2, _3, _4, REG, ...) "xmm"#REG
-#define	VR5_(_1, _2, _3, _4, _5, REG, ...) "xmm"#REG
-#define	VR6_(_1, _2, _3, _4, _5, _6, REG, ...) "xmm"#REG
-#define	VR7_(_1, _2, _3, _4, _5, _6, _7, REG, ...) "xmm"#REG
-
-#define	VR0(r...) VR0_(r)
-#define	VR1(r...) VR1_(r)
-#define	VR2(r...) VR2_(r, 1)
-#define	VR3(r...) VR3_(r, 1, 2)
-#define	VR4(r...) VR4_(r, 1, 2)
-#define	VR5(r...) VR5_(r, 1, 2, 3)
-#define	VR6(r...) VR6_(r, 1, 2, 3, 4)
-#define	VR7(r...) VR7_(r, 1, 2, 3, 4, 5)
-
-#define	R_01(REG1, REG2, ...) REG1, REG2
-#define	_R_23(_0, _1, REG2, REG3, ...) REG2, REG3
-#define	R_23(REG...) _R_23(REG, 1, 2, 3)
-
-#define	ASM_BUG()	ASSERT(0)
-
-const uint8_t gf_clmul_mod_lt[4*256][16];
-
-#define	ELEM_SIZE 16
-
-typedef struct v {
-	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
-} v_t;
-
-#define	PREFETCHNTA(ptr, offset) 					\
-{									\
-	__asm(								\
-	    "prefetchnta " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
-
-#define	PREFETCH(ptr, offset) 						\
-{									\
-	__asm(								\
-	    "prefetcht0 " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
-
-#define	XOR_ACC(src, r...) 						\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "pxor 0x00(%[SRC]), %%" VR0(r) "\n"			\
-		    "pxor 0x10(%[SRC]), %%" VR1(r) "\n"			\
-		    "pxor 0x20(%[SRC]), %%" VR2(r) "\n"			\
-		    "pxor 0x30(%[SRC]), %%" VR3(r) "\n"			\
-		    : : [SRC] "r" (src));				\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "pxor 0x00(%[SRC]), %%" VR0(r) "\n"			\
-		    "pxor 0x10(%[SRC]), %%" VR1(r) "\n"			\
-		    : : [SRC] "r" (src));				\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	XOR(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 8:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR4(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR5(r) "\n"			\
-		    "pxor %" VR2(r) ", %" VR6(r) "\n"			\
-		    "pxor %" VR3(r) ", %" VR7(r));			\
-		break;							\
-	case 4:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR2(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR3(r));			\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	ZERO(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r) "\n"			\
-		    "pxor %" VR2(r) ", %" VR2(r) "\n"			\
-		    "pxor %" VR3(r) ", %" VR3(r));			\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r));			\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	COPY(r...) 							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 8:								\
-		__asm(							\
-		    "movdqa %" VR0(r) ", %" VR4(r) "\n"			\
-		    "movdqa %" VR1(r) ", %" VR5(r) "\n"			\
-		    "movdqa %" VR2(r) ", %" VR6(r) "\n"			\
-		    "movdqa %" VR3(r) ", %" VR7(r));			\
-		break;							\
-	case 4:								\
-		__asm(							\
-		    "movdqa %" VR0(r) ", %" VR2(r) "\n"			\
-		    "movdqa %" VR1(r) ", %" VR3(r));			\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	LOAD(src, r...) 						\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "movdqa 0x00(%[SRC]), %%" VR0(r) "\n"		\
-		    "movdqa 0x10(%[SRC]), %%" VR1(r) "\n"		\
-		    "movdqa 0x20(%[SRC]), %%" VR2(r) "\n"		\
-		    "movdqa 0x30(%[SRC]), %%" VR3(r) "\n"		\
-		    : : [SRC] "r" (src));				\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "movdqa 0x00(%[SRC]), %%" VR0(r) "\n"		\
-		    "movdqa 0x10(%[SRC]), %%" VR1(r) "\n"		\
-		    : : [SRC] "r" (src));				\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	STORE(dst, r...)						\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "movdqa %%" VR0(r)", 0x00(%[DST])\n"		\
-		    "movdqa %%" VR1(r)", 0x10(%[DST])\n"		\
-		    "movdqa %%" VR2(r)", 0x20(%[DST])\n"		\
-		    "movdqa %%" VR3(r)", 0x30(%[DST])\n"		\
-		    : : [DST] "r" (dst));				\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "movdqa %%" VR0(r)", 0x00(%[DST])\n"		\
-		    "movdqa %%" VR1(r)", 0x10(%[DST])\n"		\
-		    : : [DST] "r" (dst));				\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	MUL2_SETUP()							\
-{   									\
-	__asm(								\
-	    "movd %[mask], %%xmm15\n"					\
-	    "pshufd $0x0, %%xmm15, %%xmm15\n"				\
-	    : : [mask] "r" (0x1d1d1d1d));				\
-}
-
-#define	_MUL2_x2(r...) 							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 2:								\
-		__asm(							\
-		    "pxor    %xmm14,      %xmm14\n"			\
-		    "pxor    %xmm13,      %xmm13\n"			\
-		    "pcmpgtb %" VR0(r)",  %xmm14\n"			\
-		    "pcmpgtb %" VR1(r)",  %xmm13\n"			\
-		    "pand    %xmm15,      %xmm14\n"			\
-		    "pand    %xmm15,      %xmm13\n"			\
-		    "paddb   %" VR0(r)",  %" VR0(r) "\n"		\
-		    "paddb   %" VR1(r)",  %" VR1(r) "\n"		\
-		    "pxor    %xmm14,      %" VR0(r) "\n"		\
-		    "pxor    %xmm13,      %" VR1(r));			\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	MUL2(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		_MUL2_x2(R_01(r));					\
-		_MUL2_x2(R_23(r));					\
-		break;							\
-	case 2:								\
-		_MUL2_x2(r);						\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	MUL4(r...)							\
-{									\
-	MUL2(r);							\
-	MUL2(r);							\
-}
-
-#define	_0f		"xmm15"
-#define	_a_save		"xmm14"
-#define	_b_save		"xmm13"
-#define	_lt_mod_a	"xmm12"
-#define	_lt_clmul_a	"xmm11"
-#define	_lt_mod_b	"xmm10"
-#define	_lt_clmul_b	"xmm15"
-
-#define	_MULx2(c, r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 2:								\
-		__asm(							\
-		    /* lts for upper part */				\
-		    "movd %[mask], %%" _0f "\n"				\
-		    "pshufd $0x0, %%" _0f ", %%" _0f "\n"		\
-		    "movdqa 0x00(%[lt]), %%" _lt_mod_a "\n"		\
-		    "movdqa 0x10(%[lt]), %%" _lt_clmul_a "\n"		\
-		    /* upper part */					\
-		    "movdqa %%" VR0(r) ", %%" _a_save "\n"		\
-		    "movdqa %%" VR1(r) ", %%" _b_save "\n"		\
-		    "psraw $0x4, %%" VR0(r) "\n"			\
-		    "psraw $0x4, %%" VR1(r) "\n"			\
-		    "pand %%" _0f ", %%" _a_save "\n"			\
-		    "pand %%" _0f ", %%" _b_save "\n"			\
-		    "pand %%" _0f ", %%" VR0(r) "\n"			\
-		    "pand %%" _0f ", %%" VR1(r) "\n"			\
-									\
-		    "movdqa %%" _lt_mod_a ", %%" _lt_mod_b "\n"		\
-		    "movdqa %%" _lt_clmul_a ", %%" _lt_clmul_b "\n"	\
-									\
-		    "pshufb %%" VR0(r) ",%%" _lt_mod_a "\n"		\
-		    "pshufb %%" VR1(r) ",%%" _lt_mod_b "\n"		\
-		    "pshufb %%" VR0(r) ",%%" _lt_clmul_a "\n"		\
-		    "pshufb %%" VR1(r) ",%%" _lt_clmul_b "\n"		\
-									\
-		    "pxor %%" _lt_mod_a ",%%" _lt_clmul_a "\n"		\
-		    "pxor %%" _lt_mod_b ",%%" _lt_clmul_b "\n"		\
-		    "movdqa %%" _lt_clmul_a ",%%" VR0(r) "\n"		\
-		    "movdqa %%" _lt_clmul_b ",%%" VR1(r) "\n"		\
-		    /* lts for lower part */				\
-		    "movdqa 0x20(%[lt]), %%" _lt_mod_a "\n"		\
-		    "movdqa 0x30(%[lt]), %%" _lt_clmul_a "\n"		\
-		    "movdqa %%" _lt_mod_a ", %%" _lt_mod_b "\n"		\
-		    "movdqa %%" _lt_clmul_a ", %%" _lt_clmul_b "\n"	\
-		    /* lower part */					\
-		    "pshufb %%" _a_save ",%%" _lt_mod_a "\n"		\
-		    "pshufb %%" _b_save ",%%" _lt_mod_b "\n"		\
-		    "pshufb %%" _a_save ",%%" _lt_clmul_a "\n"		\
-		    "pshufb %%" _b_save ",%%" _lt_clmul_b "\n"		\
-									\
-		    "pxor %%" _lt_mod_a ",%%" VR0(r) "\n"		\
-		    "pxor %%" _lt_mod_b ",%%" VR1(r) "\n"		\
-		    "pxor %%" _lt_clmul_a ",%%" VR0(r) "\n"		\
-		    "pxor %%" _lt_clmul_b ",%%" VR1(r) "\n"		\
-		    : : [mask] "r" (0x0f0f0f0f),			\
-		    [lt] "r" (gf_clmul_mod_lt[4*(c)]));			\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	MUL(c, r...) 							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		_MULx2(c, R_23(r));					\
-		_MULx2(c, R_01(r));					\
-		break;							\
-	case 2:								\
-		_MULx2(c, R_01(r));					\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
-
-#define	raidz_math_begin()	kfpu_begin()
-#define	raidz_math_end()	kfpu_end()
-
-#define	GEN_P_DEFINE()		{}
+#define	GEN_P_DEFINE() \
+	GEN_X_DEFINE_0_3() \
+	GEN_X_DEFINE_33_36()
 #define	GEN_P_STRIDE		4
 #define	GEN_P_P			0, 1, 2, 3
 
-#define	GEN_PQ_DEFINE() 	{}
+#define	GEN_PQ_DEFINE()	\
+	GEN_X_DEFINE_0_3()	\
+	GEN_X_DEFINE_4_5()	\
+	GEN_X_DEFINE_6_7()	\
+	GEN_X_DEFINE_8_9()	\
+	GEN_X_DEFINE_10_11()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
+	GEN_X_DEFINE_33_36()
 #define	GEN_PQ_STRIDE		4
 #define	GEN_PQ_D		0, 1, 2, 3
 #define	GEN_PQ_P		4, 5, 6, 7
 #define	GEN_PQ_Q		8, 9, 10, 11
 
-#define	GEN_PQR_DEFINE() 	{}
+#define	GEN_PQR_DEFINE() \
+	GEN_X_DEFINE_0_3()	\
+	GEN_X_DEFINE_4_5()	\
+	GEN_X_DEFINE_6_7()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
+	GEN_X_DEFINE_31()	\
+	GEN_X_DEFINE_32()	\
+	GEN_X_DEFINE_33_36()
 #define	GEN_PQR_STRIDE		2
 #define	GEN_PQR_D		0, 1
 #define	GEN_PQR_P		2, 3
 #define	GEN_PQR_Q		4, 5
 #define	GEN_PQR_R		6, 7
 
-#define	REC_P_DEFINE() 		{}
+#define	REC_P_DEFINE() \
+	GEN_X_DEFINE_0_3() \
+	GEN_X_DEFINE_33_36()
 #define	REC_P_STRIDE		4
 #define	REC_P_X			0, 1, 2, 3
 
-#define	REC_Q_DEFINE() 		{}
+#define	REC_Q_DEFINE() \
+	GEN_X_DEFINE_0_3()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
+	GEN_X_DEFINE_33_36()
 #define	REC_Q_STRIDE		4
 #define	REC_Q_X			0, 1, 2, 3
 
-#define	REC_R_DEFINE() 		{}
+#define	REC_R_DEFINE() \
+	GEN_X_DEFINE_0_3()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
+	GEN_X_DEFINE_33_36()
 #define	REC_R_STRIDE		4
 #define	REC_R_X			0, 1, 2, 3
 
-#define	REC_PQ_DEFINE() 	{}
+#define	REC_PQ_DEFINE() \
+	GEN_X_DEFINE_0_3()	\
+	GEN_X_DEFINE_4_5()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
+	GEN_X_DEFINE_31()	\
+	GEN_X_DEFINE_32()	\
+	GEN_X_DEFINE_33_36()
 #define	REC_PQ_STRIDE		2
 #define	REC_PQ_X		0, 1
 #define	REC_PQ_Y		2, 3
 #define	REC_PQ_D		4, 5
 
-#define	REC_PR_DEFINE() 	{}
+#define	REC_PR_DEFINE() REC_PQ_DEFINE()
 #define	REC_PR_STRIDE		2
 #define	REC_PR_X		0, 1
 #define	REC_PR_Y		2, 3
 #define	REC_PR_D		4, 5
 
-#define	REC_QR_DEFINE() 	{}
+#define	REC_QR_DEFINE() REC_PQ_DEFINE()
 #define	REC_QR_STRIDE		2
 #define	REC_QR_X		0, 1
 #define	REC_QR_Y		2, 3
 #define	REC_QR_D		4, 5
 
-#define	REC_PQR_DEFINE() 	{}
+#define	REC_PQR_DEFINE() \
+	GEN_X_DEFINE_0_3()	\
+	GEN_X_DEFINE_4_5()	\
+	GEN_X_DEFINE_6_7()	\
+	GEN_X_DEFINE_8_9()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
+	GEN_X_DEFINE_31()	\
+	GEN_X_DEFINE_32()	\
+	GEN_X_DEFINE_33_36()
 #define	REC_PQR_STRIDE		2
 #define	REC_PQR_X		0, 1
 #define	REC_PQR_Y		2, 3
@@ -397,29 +132,28 @@ typedef struct v {
 #include <sys/vdev_raidz_impl.h>
 #include "vdev_raidz_math_impl.h"
 
-DEFINE_GEN_METHODS(ssse3);
-DEFINE_REC_METHODS(ssse3);
+DEFINE_GEN_METHODS(aarch64_neon);
+DEFINE_REC_METHODS(aarch64_neon);
 
 static boolean_t
-raidz_will_ssse3_work(void)
+raidz_will_aarch64_neon_work(void)
 {
-	return (zfs_sse_available() && zfs_sse2_available() &&
-	    zfs_ssse3_available());
+	return (B_TRUE); // __arch64__ requires NEON
 }
 
-const raidz_impl_ops_t vdev_raidz_ssse3_impl = {
+const raidz_impl_ops_t vdev_raidz_aarch64_neon_impl = {
 	.init = NULL,
 	.fini = NULL,
-	.gen = RAIDZ_GEN_METHODS(ssse3),
-	.rec = RAIDZ_REC_METHODS(ssse3),
-	.is_supported = &raidz_will_ssse3_work,
-	.name = "ssse3"
+	.gen = RAIDZ_GEN_METHODS(aarch64_neon),
+	.rec = RAIDZ_REC_METHODS(aarch64_neon),
+	.is_supported = &raidz_will_aarch64_neon_work,
+	.name = "aarch64_neon"
 };
 
-#endif /* defined(__x86_64) && defined(HAVE_SSSE3) */
+#endif /* defined(__aarch64__) */
 
 
-#if defined(__x86_64) && (defined(HAVE_SSSE3) || defined(HAVE_AVX2))
+#if defined(__aarch64__)
 
 const uint8_t
 __attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {
@@ -2473,4 +2207,4 @@ __attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {
 	    0xf8, 0x07, 0x06, 0xf9, 0x04, 0xfb, 0xfa, 0x05  }
 };
 
-#endif /* defined(__x86_64) && (defined(HAVE_SSSE3) || defined(HAVE_AVX2)) */
+#endif /* defined(__aarch64__) */

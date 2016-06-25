@@ -55,7 +55,11 @@ const raidz_impl_ops_t *raidz_all_maths[] = {
 	&vdev_raidz_ssse3_impl,
 #endif
 #if defined(__x86_64) && defined(HAVE_AVX2)	/* only x86_64 for now */
-	&vdev_raidz_avx2_impl
+	&vdev_raidz_avx2_impl,
+#endif
+#if defined(__aarch64__)
+	&vdev_raidz_aarch64_neon_impl,
+	&vdev_raidz_aarch64_neonx2_impl,
 #endif
 };
 

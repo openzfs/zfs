@@ -91,6 +91,7 @@ raidz_init_scalar(void)
 
 #define	XOR_ACC(src, acc)	acc.e ^= ((v_t *)src)[0].e
 #define	XOR(src, acc)		acc.e ^= src.e
+#define	ZERO(acc)		acc.e = 0
 #define	COPY(src, dst)		dst = src
 #define	LOAD(src, val) 		val = ((v_t *)src)[0]
 #define	STORE(dst, val)		((v_t *)dst)[0] = val
