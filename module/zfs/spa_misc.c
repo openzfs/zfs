@@ -334,9 +334,14 @@ int spa_asize_inflation = 24;
  * it is possible to run the pool completely out of space, causing it to
  * be permanently read-only.
  *
+ * Note that on very small pools, the slop space will be larger than
+ * 3.2%, in an effort to have it be at least spa_min_slop (128MB),
+ * but we never allow it to be more than half the pool size.
+ *
  * See also the comments in zfs_space_check_t.
  */
 int spa_slop_shift = 5;
+uint64_t spa_min_slop = 128 * 1024 * 1024;
 
 /*
  * ==========================================================================
@@ -1598,14 +1603,15 @@ spa_get_asize(spa_t *spa, uint64_t lsize)
 
 /*
  * Return the amount of slop space in bytes.  It is 1/32 of the pool (3.2%),
- * or at least 32MB.
+ * or at least 128MB, unless that would cause it to be more than half the
+ * pool size.
  *
  * See the comment above spa_slop_shift for details.
  */
 uint64_t
 spa_get_slop_space(spa_t *spa) {
 	uint64_t space = spa_get_dspace(spa);
-	return (MAX(space >> spa_slop_shift, SPA_MINDEVSIZE >> 1));
+	return (MAX(space >> spa_slop_shift, MIN(space >> 1, spa_min_slop)));
 }
 
 uint64_t
