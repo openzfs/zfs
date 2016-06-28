@@ -31,7 +31,8 @@
 static const char *raidz_impl_names[] = {
 	"original",
 	"scalar",
-	"sse",
+	"sse2",
+	"ssse3",
 	"avx2",
 	NULL
 };
