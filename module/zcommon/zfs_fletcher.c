@@ -334,7 +334,12 @@ fletcher_4_impl_get(void)
 void
 fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
-	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
+	const fletcher_4_ops_t *ops;
+
+	if (IS_P2ALIGNED(size, 4 * sizeof (uint32_t)))
+		ops = fletcher_4_impl_get();
+	else
+		ops = &fletcher_4_scalar_ops;
 
 	ops->init(zcp);
 	ops->compute(buf, size, zcp);
@@ -345,7 +350,12 @@ fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 void
 fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
-	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
+	const fletcher_4_ops_t *ops;
+
+	if (IS_P2ALIGNED(size, 4 * sizeof (uint32_t)))
+		ops = fletcher_4_impl_get();
+	else
+		ops = &fletcher_4_scalar_ops;
 
 	ops->init(zcp);
 	ops->compute_byteswap(buf, size, zcp);
