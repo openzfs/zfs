@@ -127,6 +127,17 @@ typedef struct raidz_map {
 	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
 } raidz_map_t;
 
+extern const raidz_impl_ops_t vdev_raidz_scalar_impl;
+#if defined(__x86_64) && defined(HAVE_SSE2)	/* only x86_64 for now */
+extern const raidz_impl_ops_t vdev_raidz_sse2_impl;
+#endif
+#if defined(__x86_64) && defined(HAVE_SSSE3)	/* only x86_64 for now */
+extern const raidz_impl_ops_t vdev_raidz_ssse3_impl;
+#endif
+#if defined(__x86_64) && defined(HAVE_AVX2)	/* only x86_64 for now */
+extern const raidz_impl_ops_t vdev_raidz_avx2_impl;
+#endif
+
 /*
  * Commonly used raidz_map helpers
  *

@@ -94,7 +94,8 @@ KERNEL_C = \
 	vdev_raidz.c \
 	vdev_raidz_math.c \
 	vdev_raidz_math_scalar.c \
-	vdev_raidz_math_sse.c \
+	vdev_raidz_math_sse2.c \
+	vdev_raidz_math_ssse3.c \
 	vdev_raidz_math_avx2.c \
 	vdev_root.c \
 	zap.c \

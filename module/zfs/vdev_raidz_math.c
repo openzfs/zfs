@@ -31,15 +31,14 @@
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
 
-extern const raidz_impl_ops_t vdev_raidz_scalar_impl;
-extern const raidz_impl_ops_t vdev_raidz_sse_impl;
-extern const raidz_impl_ops_t vdev_raidz_avx2_impl;
-
 /* All compiled in implementations */
 const raidz_impl_ops_t *raidz_all_maths[] = {
 	&vdev_raidz_scalar_impl,
+#if defined(__x86_64) && defined(HAVE_SSE2)	/* only x86_64 for now */
+	&vdev_raidz_sse2_impl,
+#endif
 #if defined(__x86_64) && defined(HAVE_SSSE3)	/* only x86_64 for now */
-	&vdev_raidz_sse_impl,
+	&vdev_raidz_ssse3_impl,
 #endif
 #if defined(__x86_64) && defined(HAVE_AVX2)	/* only x86_64 for now */
 	&vdev_raidz_avx2_impl
