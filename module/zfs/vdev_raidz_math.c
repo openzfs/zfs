@@ -271,7 +271,7 @@ init_raidz_kstat(raidz_impl_kstat_t *rs, const char *name)
 
 #define	BENCH_D_COLS	(8ULL)
 #define	BENCH_COLS	(BENCH_D_COLS + PARITY_PQR)
-#define	BENCH_ZIO_SIZE	(2ULL << 17)			/* 128 kiB */
+#define	BENCH_ZIO_SIZE	(1ULL << SPA_OLD_MAXBLOCKSHIFT)	/* 128 kiB */
 #define	BENCH_NS	MSEC2NSEC(25)			/* 25ms */
 
 typedef void (*benchmark_fn)(raidz_map_t *rm, const int fn);
