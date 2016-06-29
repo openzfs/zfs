@@ -143,12 +143,21 @@ zio_init(void)
 		 */
 		if (arc_watch && !IS_P2ALIGNED(size, PAGESIZE))
 			continue;
-#endif
+		/*
+		 * Here's the problem - on 4K native devices in userland on
+		 * Linux using O_DIRECT, buffers must be 4K aligned or I/O
+		 * will fail with EINVAL, causing zdb (and others) to coredump.
+		 * Since userland probably doesn't need optimized buffer caches,
+		 * we just force 4K alignment on everything.
+		 */
+		align = 8 * SPA_MINBLOCKSIZE;
+#else
 		if (size <= 4 * SPA_MINBLOCKSIZE) {
 			align = SPA_MINBLOCKSIZE;
 		} else if (IS_P2ALIGNED(size, p2 >> 2)) {
 			align = MIN(p2 >> 2, PAGESIZE);
 		}
+#endif
 
 		if (align != 0) {
 			char name[36];
