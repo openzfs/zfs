@@ -61,7 +61,7 @@ unsigned long zvol_max_discard_blocks = 16384;
 
 static kmutex_t zvol_state_lock;
 static list_t zvol_state_list;
-static char *zvol_tag = "zvol_tag";
+void *zvol_tag = "zvol_tag";
 
 /*
  * The in-core state of each volume.

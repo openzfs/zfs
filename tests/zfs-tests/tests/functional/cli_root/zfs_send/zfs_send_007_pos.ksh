@@ -61,7 +61,7 @@ test_pool ()
 	first_object=$(ls -i $mntpnt | awk '{print $1}')
 	log_must $ZFS snapshot $POOL/fs@a
 	while true; do
-		log_must $FIND $mntpnt -delete
+		log_must $FIND $mntpnt/* -delete
 		sync
 		log_must $MKFILES "$mntpnt/" 4000
 		FILE=$(ls -i $mntpnt | awk \

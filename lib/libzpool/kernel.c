@@ -1408,6 +1408,8 @@ spl_fstrans_check(void)
 	return (0);
 }
 
+void *zvol_tag = "zvol_tag";
+
 void
 zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
 {

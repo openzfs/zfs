@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  */
 
 /*
@@ -330,7 +330,7 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 	basezc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
 	baseza = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
-	source = kmem_alloc(MAXNAMELEN + strlen(MOS_DIR_NAME) + 1, KM_SLEEP);
+	source = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 	for (dd = startdd; dd != NULL; dd = dd->dd_parent) {
@@ -370,7 +370,7 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 		nvlist_free(sp_nvp);
 	}
 
-	kmem_free(source, MAXNAMELEN + strlen(MOS_DIR_NAME) + 1);
+	kmem_free(source, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(baseza, sizeof (zap_attribute_t));
 	kmem_free(basezc, sizeof (zap_cursor_t));
 	kmem_free(za, sizeof (zap_attribute_t));
