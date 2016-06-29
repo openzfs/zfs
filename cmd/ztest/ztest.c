@@ -92,7 +92,7 @@
 #include <sys/dbuf.h>
 #include <sys/zap.h>
 #include <sys/dmu_objset.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>

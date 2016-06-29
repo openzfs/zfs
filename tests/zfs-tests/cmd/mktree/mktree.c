@@ -32,7 +32,7 @@
 #include <attr/xattr.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/param.h>
 
 #define	TYPE_D 'D'

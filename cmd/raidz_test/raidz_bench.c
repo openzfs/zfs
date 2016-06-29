@@ -42,6 +42,11 @@
 #define	MIN_CS_SHIFT		BENCH_ASHIFT
 #define	MAX_CS_SHIFT		SPA_MAXBLOCKSHIFT
 
+// Musl libc in versions up to and including 1.1.14 does not define this value
+#ifndef RUSAGE_THREAD
+#define RUSAGE_THREAD 1
+#endif
+
 
 static zio_t zio_bench;
 static raidz_map_t *rm_bench;
