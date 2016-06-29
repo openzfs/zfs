@@ -3414,7 +3414,8 @@ zdb_read_block(char *thing, spa_t *spa)
 	psize = size;
 	lsize = size;
 
-	pbuf = umem_alloc_aligned(SPA_MAXBLOCKSIZE, 512, UMEM_NOFAIL);
+	/* Some 4K native devices require 4K buffer alignment */
+	pbuf = umem_alloc_aligned(SPA_MAXBLOCKSIZE, PAGESIZE, UMEM_NOFAIL);
 	lbuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 
 	BP_ZERO(bp);
@@ -3481,9 +3482,18 @@ zdb_read_block(char *thing, spa_t *spa)
 		VERIFY(random_get_pseudo_bytes((uint8_t *)pbuf2 + psize,
 		    SPA_MAXBLOCKSIZE - psize) == 0);
 
-		for (lsize = SPA_MAXBLOCKSIZE; lsize > psize;
-		    lsize -= SPA_MINBLOCKSIZE) {
+		/*
+		 * XXX - On the one hand, with SPA_MAXBLOCKSIZE at 16MB,
+		 * this could take a while and we should let the user know
+		 * we are not stuck.  On the other hand, printing progress
+		 * info gets old after a while.  What to do?
+		 */
+		for (lsize = psize + SPA_MINBLOCKSIZE;
+		    lsize <= SPA_MAXBLOCKSIZE; lsize += SPA_MINBLOCKSIZE) {
 			for (c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++) {
+				(void) printf("Trying %05llx -> %05llx (%s)\n",
+				    (u_longlong_t)psize, (u_longlong_t)lsize,
+				    zio_compress_table[c].ci_name);
 				if (zio_decompress_data(c, pbuf, lbuf,
 				    psize, lsize) == 0 &&
 				    zio_decompress_data(c, pbuf2, lbuf2,
