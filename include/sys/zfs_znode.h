@@ -305,6 +305,7 @@ extern void	zfs_znode_init(void);
 extern void	zfs_znode_fini(void);
 extern int	zfs_znode_hold_compare(const void *, const void *);
 extern int	zfs_zget(zfs_sb_t *, uint64_t, znode_t **);
+extern int	zfs_zget_retry(zfs_sb_t *, uint64_t, znode_t **, boolean_t);
 extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
