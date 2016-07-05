@@ -594,7 +594,7 @@ zfs_purgedir(znode_t *dzp)
 		if (error)
 			skipped += 1;
 		dmu_tx_commit(tx);
-
+		set_nlink(ZTOI(xzp), xzp->z_links);
 		zfs_iput_async(ZTOI(xzp));
 	}
 	zap_cursor_fini(&zc);
@@ -695,6 +695,7 @@ zfs_rmnode(znode_t *zp)
 		mutex_enter(&xzp->z_lock);
 		xzp->z_unlinked = B_TRUE;	/* mark xzp for deletion */
 		xzp->z_links = 0;	/* no more links to it */
+		set_nlink(ZTOI(xzp), 0); /* this will let iput purge us */
 		VERIFY(0 == sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zsb),
 		    &xzp->z_links, sizeof (xzp->z_links), tx));
 		mutex_exit(&xzp->z_lock);
