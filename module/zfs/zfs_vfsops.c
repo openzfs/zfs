@@ -1540,6 +1540,14 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		ZFS_EXIT(zsb);
 		return (err);
 	}
+
+	/* Don't export xattr stuff */
+	if (zp->z_pflags & ZFS_XATTR) {
+		iput(ZTOI(zp));
+		ZFS_EXIT(zsb);
+		return (SET_ERROR(ENOENT));
+	}
+
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zsb), &zp_gen,
 	    sizeof (uint64_t));
 	zp_gen = zp_gen & gen_mask;
