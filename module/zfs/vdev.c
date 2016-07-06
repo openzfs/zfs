@@ -44,6 +44,7 @@
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
 #include <sys/zvol.h>
+#include <sys/zfs_ratelimit.h>
 
 /*
  * When a vdev is added, it will be divided into approximately (but no
@@ -346,12 +347,21 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	vd->vdev_state = VDEV_STATE_CLOSED;
 	vd->vdev_ishole = (ops == &vdev_hole_ops);
 
+	/*
+	 * Initialize rate limit structs for events.  We rate limit ZIO delay
+	 * and checksum events so that we don't overwhelm ZED with thousands
+	 * of events when a disk is acting up.
+	 */
+	zfs_ratelimit_init(&vd->vdev_delay_rl, DELAYS_PER_SECOND, 1);
+	zfs_ratelimit_init(&vd->vdev_checksum_rl, CHECKSUMS_PER_SECOND, 1);
+
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
 	mutex_init(&vd->vdev_dtl_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 	mutex_init(&vd->vdev_stat_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&vd->vdev_probe_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&vd->vdev_queue_lock, NULL, MUTEX_DEFAULT, NULL);
+
 	for (t = 0; t < DTL_TYPES; t++) {
 		vd->vdev_dtl[t] = range_tree_create(NULL, NULL,
 		    &vd->vdev_dtl_lock);
@@ -2221,7 +2231,6 @@ vdev_load(vdev_t *vd)
 	    vdev_metaslab_init(vd, 0) != 0))
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_CORRUPT_DATA);
-
 	/*
 	 * If this is a leaf vdev, load its DTL.
 	 */
@@ -3458,15 +3467,17 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 	/*
 	 * Notify ZED of any significant state-change on a leaf vdev.
 	 *
-	 * We ignore transitions from a closed state to healthy unless
-	 * the parent was degraded.
 	 */
-	if (vd->vdev_ops->vdev_op_leaf &&
-	    ((save_state > VDEV_STATE_CLOSED) ||
-	    (vd->vdev_state < VDEV_STATE_HEALTHY) ||
-	    (vd->vdev_parent != NULL &&
-	    vd->vdev_parent->vdev_prevstate == VDEV_STATE_DEGRADED))) {
-		zfs_post_state_change(spa, vd, save_state);
+	if (vd->vdev_ops->vdev_op_leaf) {
+		/* preserve original state from a vdev_reopen() */
+		if ((vd->vdev_prevstate != VDEV_STATE_UNKNOWN) &&
+		    (vd->vdev_prevstate != vd->vdev_state) &&
+		    (save_state <= VDEV_STATE_CLOSED))
+			save_state = vd->vdev_prevstate;
+
+		/* filter out state change due to initial vdev_open */
+		if (save_state > VDEV_STATE_CLOSED)
+			zfs_post_state_change(spa, vd, save_state);
 	}
 
 	if (!isopen && vd->vdev_parent)

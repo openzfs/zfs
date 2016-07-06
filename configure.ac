@@ -301,4 +301,9 @@ AC_CONFIG_FILES([
 	zfs.release
 ])
 
+
 AC_OUTPUT
+
+AS_IF([test "x$user_libdevmapper" != xyes ], [
+    AC_MSG_WARN([Building without libdevmapper.  Auto-replace, auto-online, and statechange-led.sh may not work correctly with device mapper vdevs.])
+])

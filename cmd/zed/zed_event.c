@@ -843,6 +843,23 @@ _zed_internal_event(const char *class, nvlist_t *nvl)
 	}
 }
 
+static void
+_zed_event_add_upath(uint64_t eid, zed_strings_t *zsp, nvlist_t *nvl)
+{
+	char *path = NULL;
+	char *upath = NULL;
+	if (nvlist_lookup_string(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_PATH,
+	    &path) == 0) {
+		upath = get_underlying_path(NULL, path);
+		if (upath) {
+			_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX,
+			    "VDEV_UPATH",
+			    "%s", upath);
+			free(upath);
+		}
+	}
+}
+
 /*
  * Service the next zevent, blocking until one is available.
  */
@@ -912,7 +929,18 @@ zed_event_service(struct zed_conf *zcp)
 		subclass = _zed_event_get_subclass(class);
 		_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "SUBCLASS",
 		    "%s", (subclass ? subclass : class));
+
 		_zed_event_add_time_strings(eid, zsp, etime);
+
+		/*
+		 * If a VDEV is included, resolve it's path to the "underlying
+		 * device".  This is useful for resolving device mapper and
+		 * multipath devices to their underlying /dev/sd* devices.
+		 * For example, if you have a DM or multipath VDEV
+		 * (/dev/mapper/mpatha) that points to one or more /dev/sd*
+		 * devices, this will return the first of its devices.
+		 */
+		_zed_event_add_upath(eid, zsp, nvl);
 
 		zed_exec_process(eid, class, subclass,
 		    zcp->zedlet_dir, zcp->zedlets, zsp, zcp->zevent_fd);

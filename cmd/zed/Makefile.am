@@ -60,7 +60,9 @@ dist_zedexec_SCRIPTS = \
 	zed.d/io-notify.sh \
 	zed.d/io-spare.sh \
 	zed.d/resilver_finish-notify.sh \
-	zed.d/scrub_finish-notify.sh
+	zed.d/scrub_finish-notify.sh \
+	zed.d/statechange-led.sh \
+	zed.d/vdev_clear-led.sh
 
 zedconfdefaults = \
 	all-syslog.sh \
@@ -70,7 +72,9 @@ zedconfdefaults = \
 	io-notify.sh \
 	io-spare.sh \
 	resilver_finish-notify.sh \
-	scrub_finish-notify.sh
+	scrub_finish-notify.sh \
+	statechange-blinkled.sh \
+	vdev_clear-blinkled.sh
 
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zedconfdir)"

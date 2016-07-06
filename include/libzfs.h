@@ -280,6 +280,9 @@ extern nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
 extern int zpool_label_disk_wait(char *, int);
 extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, char *);
 
+int dev_is_dm(char *devname);
+char *get_underlying_path(libzfs_handle_t *hdl, char *dev_name);
+
 /*
  * Functions to manage pool properties
  */
@@ -827,10 +830,12 @@ extern int zpool_fru_set(zpool_handle_t *, uint64_t, const char *);
  */
 extern boolean_t is_mpath_whole_disk(const char *);
 extern void update_vdev_config_dev_strs(nvlist_t *);
-extern char *zfs_strip_partition(libzfs_handle_t *, char *);
+extern char *zfs_strip_partition(char *);
 
 #ifdef HAVE_LIBUDEV
 struct udev_device;
+
+extern boolean_t udev_is_mpath(struct udev_device *dev);
 extern int zfs_device_get_devid(struct udev_device *, char *, size_t);
 extern int zfs_device_get_physical(struct udev_device *, char *, size_t);
 #endif

@@ -73,6 +73,7 @@ Requires:       libzpool2 = %{version}
 Requires:       libnvpair1 = %{version}
 Requires:       libuutil1 = %{version}
 Requires:       libzfs2 = %{version}
+Requires:       device-mapper
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 
@@ -84,6 +85,7 @@ Conflicts:      zfs-fuse
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
+BuildRequires:  device-mapper-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 %endif

@@ -172,22 +172,34 @@ zfs_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 int
 zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 {
-	const char *physpath, *value;
+	const char *physpath = NULL;
 
 	/*
-	 * Skip indirect multipath device nodes
+	 * Normal disks use ID_PATH for their physical path.  Device mapper
+	 * devices are virtual and don't have a physical path.  For them we
+	 * use ID_VDEV instead, which is setup via the /etc/vdev_id.conf file.
+	 * ID_VDEV provides a persistent path to a virtual device.  If you
+	 * don't have vdev_id.conf setup, you cannot use multipath autoreplace.
 	 */
-	value = udev_device_get_property_value(dev, "DM_MULTIPATH_DEVICE_PATH");
-	if (value != NULL && strcmp(value, "1") == 0)
-		return (ENODATA);  /* skip physical for multipath nodes */
-
-	physpath = udev_device_get_property_value(dev, "ID_PATH");
-	if (physpath != NULL && physpath[0] != '\0') {
-		(void) strlcpy(bufptr, physpath, buflen);
-		return (0);
+	if (!((physpath = udev_device_get_property_value(dev, "ID_PATH")) &&
+	    physpath[0])) {
+		if (!((physpath =
+		    udev_device_get_property_value(dev, "ID_VDEV")) &&
+		    physpath[0])) {
+			return (ENODATA);
+		}
 	}
 
-	return (ENODATA);
+	(void) strlcpy(bufptr, physpath, buflen);
+
+	return (0);
+}
+
+boolean_t
+udev_is_mpath(struct udev_device *dev)
+{
+	return udev_device_get_property_value(dev, "DM_UUID") &&
+	udev_device_get_property_value(dev, "MPATH_SBIN_PATH");
 }
 
 /*
@@ -200,15 +212,13 @@ zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 static boolean_t
 udev_mpath_whole_disk(struct udev_device *dev)
 {
-	const char *devname, *mapname, *type, *uuid;
+	const char *devname, *type, *uuid;
 
 	devname = udev_device_get_property_value(dev, "DEVNAME");
-	mapname = udev_device_get_property_value(dev, "DM_NAME");
 	type = udev_device_get_property_value(dev, "ID_PART_TABLE_TYPE");
 	uuid = udev_device_get_property_value(dev, "DM_UUID");
 
 	if ((devname != NULL && strncmp(devname, "/dev/dm-", 8) == 0) &&
-	    (mapname != NULL && strncmp(mapname, "mpath", 5) == 0) &&
 	    ((type == NULL) || (strcmp(type, "gpt") != 0)) &&
 	    (uuid != NULL)) {
 		return (B_TRUE);

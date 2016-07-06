@@ -84,6 +84,9 @@ static int zevent_len_cur = 0;
 static int zevent_waiters = 0;
 static int zevent_flags = 0;
 
+/* Num events rate limited since the last time zfs_zevent_next() was called */
+static uint64_t ratelimit_dropped = 0;
+
 /*
  * The EID (Event IDentifier) is used to uniquely tag a zevent when it is
  * posted.  The posted EIDs are monotonically increasing but not persistent.
@@ -654,6 +657,12 @@ zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *event_size,
 	list_insert_head(&ev->ev_ze_list, ze);
 	(void) nvlist_dup(ev->ev_nvl, event, KM_SLEEP);
 	*dropped = ze->ze_dropped;
+
+#ifdef _KERNEL
+	/* Include events dropped due to rate limiting */
+	*dropped += ratelimit_dropped;
+	ratelimit_dropped = 0;
+#endif
 	ze->ze_dropped = 0;
 out:
 	mutex_exit(&zevent_lock);
@@ -1585,6 +1594,19 @@ fm_ena_time_get(uint64_t ena)
 
 	return (time);
 }
+
+#ifdef _KERNEL
+/*
+ * Helper function to increment ereport dropped count.  Used by the event
+ * rate limiting code to give feedback to the user about how many events were
+ * rate limited by including them in the 'dropped' count.
+ */
+void
+fm_erpt_dropped_increment(void)
+{
+	atomic_inc_64(&ratelimit_dropped);
+}
+#endif
 
 #ifdef _KERNEL
 void
