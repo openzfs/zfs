@@ -892,11 +892,11 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT(oldc <= newc);
 
-	mspp = kmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
+	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
 	if (oldc != 0) {
 		bcopy(vd->vdev_ms, mspp, oldc * sizeof (*mspp));
-		kmem_free(vd->vdev_ms, oldc * sizeof (*mspp));
+		vmem_free(vd->vdev_ms, oldc * sizeof (*mspp));
 	}
 
 	vd->vdev_ms = mspp;
@@ -950,7 +950,7 @@ vdev_metaslab_fini(vdev_t *vd)
 			if (msp != NULL)
 				metaslab_fini(msp);
 		}
-		kmem_free(vd->vdev_ms, count * sizeof (metaslab_t *));
+		vmem_free(vd->vdev_ms, count * sizeof (metaslab_t *));
 		vd->vdev_ms = NULL;
 	}
 
