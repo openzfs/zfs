@@ -1143,10 +1143,17 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
 
 	uint64_t recordsize;
 	uint64_t record_count;
+	objset_t *os;
+	VERIFY0(dmu_objset_from_ds(ds, &os));
 
 	/* Assume all (uncompressed) blocks are recordsize. */
-	err = dsl_prop_get_int_ds(ds, zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
-	    &recordsize);
+	if (os->os_phys->os_type == DMU_OST_ZVOL) {
+		err = dsl_prop_get_int_ds(ds,
+		    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE), &recordsize);
+	} else {
+		err = dsl_prop_get_int_ds(ds,
+		    zfs_prop_to_name(ZFS_PROP_RECORDSIZE), &recordsize);
+	}
 	if (err != 0)
 		return (err);
 	record_count = uncompressed / recordsize;
@@ -1214,6 +1221,10 @@ dmu_send_estimate(dsl_dataset_t *ds, dsl_dataset_t *fromds,
 
 	err = dmu_adjust_send_estimate_for_indirects(ds, uncomp, comp,
 	    stream_compressed, sizep);
+	/*
+	 * Add the size of the BEGIN and END records to the estimate.
+	 */
+	*sizep += 2 * sizeof (dmu_replay_record_t);
 	return (err);
 }
 
