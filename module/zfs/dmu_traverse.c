@@ -39,6 +39,7 @@
 #include <sys/zfeature.h>
 
 int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
+int32_t ignore_hole_birth = 0;
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;
@@ -251,7 +252,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		 *
 		 * Note that the meta-dnode cannot be reallocated.
 		 */
-		if ((!td->td_realloc_possible ||
+		if (!ignore_hole_birth && (!td->td_realloc_possible ||
 			zb->zb_object == DMU_META_DNODE_OBJECT) &&
 			td->td_hole_birth_enabled_txg <= td->td_min_txg)
 			return (0);
@@ -727,4 +728,7 @@ EXPORT_SYMBOL(traverse_pool);
 
 module_param(zfs_pd_bytes_max, int, 0644);
 MODULE_PARM_DESC(zfs_pd_bytes_max, "Max number of bytes to prefetch");
+
+module_param(ignore_hole_birth, int, 0644);
+MODULE_PARM_DESC(ignore_hole_birth, "Ignore hole_birth txg for send");
 #endif
