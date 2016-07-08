@@ -3971,7 +3971,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	return (0);
 }
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && !defined(__linux__)
 /*
  * Get the root pool information from the root disk, then import the root pool
  * during the system boot up time.
@@ -4174,7 +4174,7 @@ out:
 	return (error);
 }
 
-#endif
+#endif /* defined(_KERNEL) && !defined(__linux__) */
 
 /*
  * Import a non-root pool into the system.
@@ -7038,7 +7038,6 @@ EXPORT_SYMBOL(spa_open);
 EXPORT_SYMBOL(spa_open_rewind);
 EXPORT_SYMBOL(spa_get_stats);
 EXPORT_SYMBOL(spa_create);
-EXPORT_SYMBOL(spa_import_rootpool);
 EXPORT_SYMBOL(spa_import);
 EXPORT_SYMBOL(spa_tryimport);
 EXPORT_SYMBOL(spa_destroy);
