@@ -1560,7 +1560,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		    fid_gen);
 		iput(ZTOI(zp));
 		ZFS_EXIT(zsb);
-		return (SET_ERROR(EINVAL));
+		return (SET_ERROR(ENOENT));
 	}
 
 	*ipp = ZTOI(zp);
