@@ -1379,9 +1379,9 @@ get_zfs_sb(const char *dsname, zfs_sb_t **zsbp)
 
 	mutex_enter(&os->os_user_ptr_lock);
 	*zsbp = dmu_objset_get_user(os);
-	if (*zsbp && (*zsbp)->z_sb) {
-		atomic_inc(&((*zsbp)->z_sb->s_active));
-	} else {
+	/* bump s_active only when non-zero to prevent umount race */
+	if (*zsbp == NULL || (*zsbp)->z_sb == NULL ||
+	    !atomic_inc_not_zero(&((*zsbp)->z_sb->s_active))) {
 		error = SET_ERROR(ESRCH);
 	}
 	mutex_exit(&os->os_user_ptr_lock);
