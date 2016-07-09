@@ -2538,6 +2538,8 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	return (bytes_evicted);
 }
 
+static  void arc_prune_async(int64_t adjust);
+
 /*
  * Evict buffers from the given arc state, until we've removed the
  * specified number of bytes. Move the removed buffers to the
@@ -2560,6 +2562,8 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	int num_sublists;
 	arc_buf_hdr_t **markers;
 	int i;
+	int restarts = MAX(zfs_arc_meta_adjust_restarts, 0);
+	int64_t prune = 0;
 
 	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
@@ -2594,6 +2598,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	 * While we haven't hit our target number of bytes to evict, or
 	 * we're evicting all available buffers.
 	 */
+restart:
 	while (total_evicted < bytes || bytes == ARC_EVICT_ALL) {
 		/*
 		 * Start eviction using a randomly selected sublist,
@@ -2635,6 +2640,22 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		if (scan_evicted == 0) {
 			/* This isn't possible, let's make that obvious */
 			ASSERT3S(bytes, !=, 0);
+
+			/*
+			 * Extend balanced strategy to try to unpin metadata
+			 * and allow it to be evicted.  Use the same parameters
+			 * as in arc_adjust_meta_balanced().
+			 */
+			if (zfs_arc_meta_strategy == ARC_STRATEGY_META_BALANCED &&
+			    arc_meta_used > arc_meta_min) {
+				prune += zfs_arc_meta_prune;
+				arc_prune_async(prune);
+
+				if (restarts > 0) {
+					restarts--;
+					goto restart;
+				}
+			}
 
 			/*
 			 * When bytes is ARC_EVICT_ALL, the only way to
