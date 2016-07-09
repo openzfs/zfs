@@ -4054,8 +4054,8 @@ static boolean_t zfs_ioc_recv_inject_err;
 #endif
 
 /*
- * On failure the 'errors' nvlist may be allocated and will contain a
- * descriptions of the failures.  It's the callers responsibilty to free.
+ * nvlist 'errors' is always allocated. It will contain descriptions of
+ * encountered errors, if any. It's the callers responsibility to free.
  */
 static int
 zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
@@ -4072,7 +4072,10 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 	boolean_t first_recvd_props = B_FALSE;
 	file_t *input_fp;
 
-	*errors = NULL;
+	*read_bytes = 0;
+	*errflags = 0;
+	*errors = fnvlist_alloc();
+
 	input_fp = getf(input_fd);
 	if (input_fp == NULL)
 		return (SET_ERROR(EBADF));
@@ -4081,10 +4084,6 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 	    begin_record, force, resumable, origin, &drc);
 	if (error != 0)
 		goto out;
-
-	*read_bytes = 0;
-	*errflags = 0;
-	*errors = fnvlist_alloc();
 
 	/*
 	 * Set properties before we receive the stream so that they are applied
