@@ -1461,15 +1461,19 @@ arc_buf_info(arc_buf_t *ab, arc_buf_info_t *abi, int state_index)
 	l2arc_buf_hdr_t *l2hdr = NULL;
 	arc_state_t *state = NULL;
 
+	memset(abi, 0, sizeof (arc_buf_info_t));
+
+	if (hdr == NULL)
+		return;
+
+	abi->abi_flags = hdr->b_flags;
+
 	if (HDR_HAS_L1HDR(hdr)) {
 		l1hdr = &hdr->b_l1hdr;
 		state = l1hdr->b_state;
 	}
 	if (HDR_HAS_L2HDR(hdr))
 		l2hdr = &hdr->b_l2hdr;
-
-	memset(abi, 0, sizeof (arc_buf_info_t));
-	abi->abi_flags = hdr->b_flags;
 
 	if (l1hdr) {
 		abi->abi_datacnt = l1hdr->b_datacnt;
