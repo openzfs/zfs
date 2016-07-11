@@ -45,8 +45,11 @@ extern "C" {
  * checksum method is added. This method will ignore last (size % 4) bytes of
  * the data buffer.
  */
+void fletcher_init(zio_cksum_t *);
 void fletcher_2_native(const void *, uint64_t, zio_cksum_t *);
 void fletcher_2_byteswap(const void *, uint64_t, zio_cksum_t *);
+void fletcher_2_incremental_native(void *, uint64_t, zio_cksum_t *);
+void fletcher_2_incremental_byteswap(void *, uint64_t, zio_cksum_t *);
 void fletcher_4_native(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_native_varsize(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_byteswap(const void *, uint64_t, zio_cksum_t *);

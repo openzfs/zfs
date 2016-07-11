@@ -92,6 +92,7 @@ struct arc_callback {
 	void			*acb_private;
 	arc_done_func_t		*acb_done;
 	arc_buf_t		*acb_buf;
+	boolean_t		acb_compressed;
 	zio_t			*acb_zio_dummy;
 	arc_callback_t		*acb_next;
 };
@@ -165,7 +166,7 @@ typedef struct l1arc_buf_hdr {
 	refcount_t		b_refcnt;
 
 	arc_callback_t		*b_acb;
-	void			*b_pdata;
+	abd_t			*b_pabd;
 } l1arc_buf_hdr_t;
 
 typedef struct l2arc_dev {

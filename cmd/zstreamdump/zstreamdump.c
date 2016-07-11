@@ -27,7 +27,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  */
 
 #include <ctype.h>
@@ -40,6 +40,7 @@
 
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zio.h>
 #include <zfs_fletcher.h>
 
 /*
@@ -252,6 +253,7 @@ main(int argc, char *argv[])
 			(void) fprintf(stderr, "invalid option '%c'\n",
 			    optopt);
 			usage();
+			break;
 		}
 	}
 
@@ -457,38 +459,50 @@ main(int argc, char *argv[])
 				drrw->drr_object = BSWAP_64(drrw->drr_object);
 				drrw->drr_type = BSWAP_32(drrw->drr_type);
 				drrw->drr_offset = BSWAP_64(drrw->drr_offset);
-				drrw->drr_length = BSWAP_64(drrw->drr_length);
+				drrw->drr_logical_size =
+				    BSWAP_64(drrw->drr_logical_size);
 				drrw->drr_toguid = BSWAP_64(drrw->drr_toguid);
 				drrw->drr_key.ddk_prop =
 				    BSWAP_64(drrw->drr_key.ddk_prop);
+				drrw->drr_compressed_size =
+				    BSWAP_64(drrw->drr_compressed_size);
 			}
+
+			uint64_t payload_size = DRR_WRITE_PAYLOAD_SIZE(drrw);
+
 			/*
 			 * If this is verbose and/or dump output,
 			 * print info on the modified block
 			 */
 			if (verbose) {
 				(void) printf("WRITE object = %llu type = %u "
-				    "checksum type = %u\n"
-				    "    offset = %llu length = %llu "
+				    "checksum type = %u compression type = %u\n"
+				    "    offset = %llu logical_size = %llu "
+				    "compressed_size = %llu "
+				    "payload_size = %llu "
 				    "props = %llx\n",
 				    (u_longlong_t)drrw->drr_object,
 				    drrw->drr_type,
 				    drrw->drr_checksumtype,
+				    drrw->drr_compressiontype,
 				    (u_longlong_t)drrw->drr_offset,
-				    (u_longlong_t)drrw->drr_length,
+				    (u_longlong_t)drrw->drr_logical_size,
+				    (u_longlong_t)drrw->drr_compressed_size,
+				    (u_longlong_t)payload_size,
 				    (u_longlong_t)drrw->drr_key.ddk_prop);
 			}
+
 			/*
 			 * Read the contents of the block in from STDIN to buf
 			 */
-			(void) ssread(buf, drrw->drr_length, &zc);
+			(void) ssread(buf, payload_size, &zc);
 			/*
 			 * If in dump mode
 			 */
 			if (dump) {
-				print_block(buf, drrw->drr_length);
+				print_block(buf, payload_size);
 			}
-			total_write_size += drrw->drr_length;
+			total_write_size += payload_size;
 			break;
 
 		case DRR_WRITE_BYREF:

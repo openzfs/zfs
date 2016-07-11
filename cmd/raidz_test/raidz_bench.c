@@ -23,6 +23,8 @@
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
 
+#ifdef _ABD_READY_
+
 #include <sys/zfs_context.h>
 #include <sys/time.h>
 #include <sys/wait.h>
@@ -225,3 +227,4 @@ run_raidz_benchmark(void)
 
 	bench_fini_raidz_maps();
 }
+#endif
