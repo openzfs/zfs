@@ -108,7 +108,9 @@ struct dsl_pool;
 #define	DS_FIELD_RESUME_OBJECT "com.delphix:resume_object"
 #define	DS_FIELD_RESUME_OFFSET "com.delphix:resume_offset"
 #define	DS_FIELD_RESUME_BYTES "com.delphix:resume_bytes"
+#define	DS_FIELD_RESUME_LARGEBLOCK "com.delphix:resume_largeblockok"
 #define	DS_FIELD_RESUME_EMBEDOK "com.delphix:resume_embedok"
+#define	DS_FIELD_RESUME_COMPRESSOK "com.delphix:resume_compressok"
 
 /*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose

@@ -96,20 +96,21 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_SA_SPILL		(1 << 2)
 /* flags #3 - #15 are reserved for incompatible closed-source implementations */
 #define	DMU_BACKUP_FEATURE_EMBED_DATA		(1 << 16)
-#define	DMU_BACKUP_FEATURE_EMBED_DATA_LZ4	(1 << 17)
+#define	DMU_BACKUP_FEATURE_LZ4			(1 << 17)
 /* flag #18 is reserved for a Delphix feature */
 #define	DMU_BACKUP_FEATURE_LARGE_BLOCKS		(1 << 19)
 #define	DMU_BACKUP_FEATURE_RESUMING		(1 << 20)
 #define	DMU_BACKUP_FEATURE_LARGE_DNODE		(1 << 21)
+#define	DMU_BACKUP_FEATURE_COMPRESSED		(1 << 22)
 
 /*
  * Mask of all supported backup features
  */
 #define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_DEDUP | \
     DMU_BACKUP_FEATURE_DEDUPPROPS | DMU_BACKUP_FEATURE_SA_SPILL | \
-    DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_EMBED_DATA_LZ4 | \
+    DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_LZ4 | \
     DMU_BACKUP_FEATURE_RESUMING | DMU_BACKUP_FEATURE_LARGE_BLOCKS | \
-    DMU_BACKUP_FEATURE_LARGE_DNODE)
+    DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
@@ -162,6 +163,12 @@ typedef enum dmu_send_resume_token_version {
 
 #define	DRR_IS_DEDUP_CAPABLE(flags)	((flags) & DRR_CHECKSUM_DEDUP)
 
+/* deal with compressed drr_write replay records */
+#define	DRR_WRITE_COMPRESSED(drrw)	((drrw)->drr_compressiontype != 0)
+#define	DRR_WRITE_PAYLOAD_SIZE(drrw) \
+	(DRR_WRITE_COMPRESSED(drrw) ? (drrw)->drr_compressed_size : \
+	(drrw)->drr_logical_size)
+
 /*
  * zfs ioctl command structure
  */
@@ -210,12 +217,16 @@ typedef struct dmu_replay_record {
 			dmu_object_type_t drr_type;
 			uint32_t drr_pad;
 			uint64_t drr_offset;
-			uint64_t drr_length;
+			uint64_t drr_logical_size;
 			uint64_t drr_toguid;
 			uint8_t drr_checksumtype;
 			uint8_t drr_checksumflags;
-			uint8_t drr_pad2[6];
-			ddt_key_t drr_key; /* deduplication key */
+			uint8_t drr_compressiontype;
+			uint8_t drr_pad2[5];
+			/* deduplication key */
+			ddt_key_t drr_key;
+			/* only nonzero if drr_compressiontype is not 0 */
+			uint64_t drr_compressed_size;
 			/* content follows */
 		} drr_write;
 		struct drr_free {

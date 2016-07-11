@@ -92,6 +92,7 @@ struct arc_callback {
 	void			*acb_private;
 	arc_done_func_t		*acb_done;
 	arc_buf_t		*acb_buf;
+	boolean_t		acb_compressed;
 	zio_t			*acb_zio_dummy;
 	arc_callback_t		*acb_next;
 };
