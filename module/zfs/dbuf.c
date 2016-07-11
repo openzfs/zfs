@@ -901,7 +901,7 @@ dbuf_loan_arcbuf(dmu_buf_impl_t *db)
 		spa_t *spa = db->db_objset->os_spa;
 
 		mutex_exit(&db->db_mtx);
-		abuf = arc_loan_buf(spa, blksz);
+		abuf = arc_loan_buf(spa, B_FALSE, blksz);
 		bcopy(db->db.db_data, abuf->b_data, blksz);
 	} else {
 		abuf = db->db_buf;
@@ -1030,8 +1030,8 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	    BP_IS_HOLE(db->db_blkptr)))) {
 		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
 
-		dbuf_set_data(db, arc_alloc_buf(db->db_objset->os_spa,
-		    db->db.db_size, db, type));
+		dbuf_set_data(db, arc_alloc_buf(db->db_objset->os_spa, db, type,
+		    db->db.db_size));
 		bzero(db->db.db_data, db->db.db_size);
 
 		if (db->db_blkptr != NULL && db->db_level > 0 &&
@@ -1083,6 +1083,70 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	return (SET_ERROR(err));
 }
 
+/*
+ * This is our just-in-time copy function.  It makes a copy of buffers that
+ * have been modified in a previous transaction group before we access them in
+ * the current active group.
+ *
+ * This function is used in three places: when we are dirtying a buffer for the
+ * first time in a txg, when we are freeing a range in a dnode that includes
+ * this buffer, and when we are accessing a buffer which was received compressed
+ * and later referenced in a WRITE_BYREF record.
+ *
+ * Note that when we are called from dbuf_free_range() we do not put a hold on
+ * the buffer, we just traverse the active dbuf list for the dnode.
+ */
+static void
+dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr = db->db_last_dirty;
+
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT(db->db.db_data != NULL);
+	ASSERT(db->db_level == 0);
+	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT);
+
+	if (dr == NULL ||
+	    (dr->dt.dl.dr_data !=
+	    ((db->db_blkid  == DMU_BONUS_BLKID) ? db->db.db_data : db->db_buf)))
+		return;
+
+	/*
+	 * If the last dirty record for this dbuf has not yet synced
+	 * and its referencing the dbuf data, either:
+	 *	reset the reference to point to a new copy,
+	 * or (if there a no active holders)
+	 *	just null out the current db_data pointer.
+	 */
+	ASSERT(dr->dr_txg >= txg - 2);
+	if (db->db_blkid == DMU_BONUS_BLKID) {
+		/* Note that the data bufs here are zio_bufs */
+		dnode_t *dn = DB_DNODE(db);
+		int bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
+		dr->dt.dl.dr_data = zio_buf_alloc(bonuslen);
+		arc_space_consume(bonuslen, ARC_SPACE_BONUS);
+		bcopy(db->db.db_data, dr->dt.dl.dr_data, bonuslen);
+	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
+		int size = arc_buf_size(db->db_buf);
+		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+		spa_t *spa = db->db_objset->os_spa;
+		enum zio_compress compress_type =
+		    arc_get_compression(db->db_buf);
+
+		if (compress_type == ZIO_COMPRESS_OFF) {
+			dr->dt.dl.dr_data = arc_alloc_buf(spa, db, type, size);
+		} else {
+			ASSERT3U(type, ==, ARC_BUFC_DATA);
+			dr->dt.dl.dr_data = arc_alloc_compressed_buf(spa, db,
+			    size, arc_buf_lsize(db->db_buf), compress_type);
+		}
+		bcopy(db->db.db_data, dr->dt.dl.dr_data->b_data, size);
+	} else {
+		db->db_buf = NULL;
+		dbuf_clear_data(db);
+	}
+}
+
 int
 dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 {
@@ -1111,6 +1175,18 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 
 	mutex_enter(&db->db_mtx);
 	if (db->db_state == DB_CACHED) {
+		/*
+		 * If the arc buf is compressed, we need to decompress it to
+		 * read the data. This could happen during the "zfs receive" of
+		 * a stream which is compressed and deduplicated.
+		 */
+		if (db->db_buf != NULL &&
+		    arc_get_compression(db->db_buf) != ZIO_COMPRESS_OFF) {
+			dbuf_fix_old_data(db,
+			    spa_syncing_txg(dmu_objset_spa(db->db_objset)));
+			err = arc_decompress(db->db_buf);
+			dbuf_set_data(db, db->db_buf);
+		}
 		mutex_exit(&db->db_mtx);
 		if (prefetch)
 			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1);
@@ -1187,7 +1263,7 @@ dbuf_noread(dmu_buf_impl_t *db)
 
 		ASSERT(db->db_buf == NULL);
 		ASSERT(db->db.db_data == NULL);
-		dbuf_set_data(db, arc_alloc_buf(spa, db->db.db_size, db, type));
+		dbuf_set_data(db, arc_alloc_buf(spa, db, type, db->db.db_size));
 		db->db_state = DB_FILL;
 	} else if (db->db_state == DB_NOFILL) {
 		dbuf_clear_data(db);
@@ -1195,62 +1271,6 @@ dbuf_noread(dmu_buf_impl_t *db)
 		ASSERT3U(db->db_state, ==, DB_CACHED);
 	}
 	mutex_exit(&db->db_mtx);
-}
-
-/*
- * This is our just-in-time copy function.  It makes a copy of
- * buffers, that have been modified in a previous transaction
- * group, before we modify them in the current active group.
- *
- * This function is used in two places: when we are dirtying a
- * buffer for the first time in a txg, and when we are freeing
- * a range in a dnode that includes this buffer.
- *
- * Note that when we are called from dbuf_free_range() we do
- * not put a hold on the buffer, we just traverse the active
- * dbuf list for the dnode.
- */
-static void
-dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
-{
-	dbuf_dirty_record_t *dr = db->db_last_dirty;
-
-	ASSERT(MUTEX_HELD(&db->db_mtx));
-	ASSERT(db->db.db_data != NULL);
-	ASSERT(db->db_level == 0);
-	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT);
-
-	if (dr == NULL ||
-	    (dr->dt.dl.dr_data !=
-	    ((db->db_blkid  == DMU_BONUS_BLKID) ? db->db.db_data : db->db_buf)))
-		return;
-
-	/*
-	 * If the last dirty record for this dbuf has not yet synced
-	 * and its referencing the dbuf data, either:
-	 *	reset the reference to point to a new copy,
-	 * or (if there a no active holders)
-	 *	just null out the current db_data pointer.
-	 */
-	ASSERT(dr->dr_txg >= txg - 2);
-	if (db->db_blkid == DMU_BONUS_BLKID) {
-		/* Note that the data bufs here are zio_bufs */
-		dnode_t *dn = DB_DNODE(db);
-		int bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
-		dr->dt.dl.dr_data = zio_buf_alloc(bonuslen);
-		arc_space_consume(bonuslen, ARC_SPACE_BONUS);
-		bcopy(db->db.db_data, dr->dt.dl.dr_data, bonuslen);
-	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
-		int size = db->db.db_size;
-		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
-		spa_t *spa = db->db_objset->os_spa;
-
-		dr->dt.dl.dr_data = arc_alloc_buf(spa, size, db, type);
-		bcopy(db->db.db_data, dr->dt.dl.dr_data->b_data, size);
-	} else {
-		db->db_buf = NULL;
-		dbuf_clear_data(db);
-	}
 }
 
 void
@@ -1480,7 +1500,7 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 	dmu_buf_will_dirty(&db->db, tx);
 
 	/* create the data buffer for the new block */
-	buf = arc_alloc_buf(dn->dn_objset->os_spa, size, db, type);
+	buf = arc_alloc_buf(dn->dn_objset->os_spa, db, type, size);
 
 	/* copy old block data to the new block */
 	obuf = db->db_buf;
@@ -2045,9 +2065,9 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 	ASSERT(!refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	ASSERT(db->db_level == 0);
-	ASSERT(DBUF_GET_BUFC_TYPE(db) == ARC_BUFC_DATA);
+	ASSERT3U(dbuf_is_metadata(db), ==, arc_is_metadata(buf));
 	ASSERT(buf != NULL);
-	ASSERT(arc_buf_size(buf) == db->db.db_size);
+	ASSERT(arc_buf_lsize(buf) == db->db.db_size);
 	ASSERT(tx->tx_txg != 0);
 
 	arc_return_buf(buf, db);
@@ -2690,7 +2710,7 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 
 			dbuf_set_data(dh->dh_db,
 			    arc_alloc_buf(dh->dh_dn->dn_objset->os_spa,
-			    dh->dh_db->db.db_size, dh->dh_db, dh->dh_type));
+			    dh->dh_db, dh->dh_type, dh->dh_db->db.db_size));
 			bcopy(dh->dh_dr->dt.dl.dr_data->b_data,
 			    dh->dh_db->db.db_data, dh->dh_db->db.db_size);
 		}
@@ -3321,10 +3341,19 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		 * objects only modified in the syncing context (e.g.
 		 * DNONE_DNODE blocks).
 		 */
-		int blksz = arc_buf_size(*datap);
+		int psize = arc_buf_size(*datap);
 		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
-		*datap = arc_alloc_buf(os->os_spa, blksz, db, type);
-		bcopy(db->db.db_data, (*datap)->b_data, blksz);
+		enum zio_compress compress_type = arc_get_compression(*datap);
+
+		if (compress_type == ZIO_COMPRESS_OFF) {
+			*datap = arc_alloc_buf(os->os_spa, db, type, psize);
+		} else {
+			int lsize = arc_buf_lsize(*datap);
+			ASSERT3U(type, ==, ARC_BUFC_DATA);
+			*datap = arc_alloc_compressed_buf(os->os_spa, db,
+			    psize, lsize, compress_type);
+		}
+		bcopy(db->db.db_data, (*datap)->b_data, psize);
 	}
 	db->db_data_pending = dr;
 
@@ -3734,7 +3763,9 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		wp_flag = WP_SPILL;
 	wp_flag |= (db->db_state == DB_NOFILL) ? WP_NOFILL : 0;
 
-	dmu_write_policy(os, dn, db->db_level, wp_flag, &zp);
+	dmu_write_policy(os, dn, db->db_level, wp_flag,
+	    (data != NULL && arc_get_compression(data) != ZIO_COMPRESS_OFF) ?
+	    arc_get_compression(data) : ZIO_COMPRESS_INHERIT, &zp);
 	DB_DNODE_EXIT(db);
 
 	/*
@@ -3754,8 +3785,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		void *contents = (data != NULL) ? data->b_data : NULL;
 
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
-		    &dr->dr_bp_copy, contents, db->db.db_size, &zp,
-		    dbuf_write_override_ready, NULL, NULL,
+		    &dr->dr_bp_copy, contents, db->db.db_size, db->db.db_size,
+		    &zp, dbuf_write_override_ready, NULL, NULL,
 		    dbuf_write_override_done,
 		    dr, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 		mutex_enter(&db->db_mtx);
@@ -3766,7 +3797,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	} else if (db->db_state == DB_NOFILL) {
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF);
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
-		    &dr->dr_bp_copy, NULL, db->db.db_size, &zp,
+		    &dr->dr_bp_copy, NULL, db->db.db_size, db->db.db_size, &zp,
 		    dbuf_write_nofill_ready, NULL, NULL,
 		    dbuf_write_nofill_done, db,
 		    ZIO_PRIORITY_ASYNC_WRITE,

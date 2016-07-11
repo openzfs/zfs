@@ -175,7 +175,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-DnPpRveL\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .fi
 
 .LP
@@ -2687,7 +2687,7 @@ See \fBzpool-features\fR(5) for details on ZFS feature flags and the
 .sp
 .ne 2
 .na
-\fBzfs send\fR [\fB-DnPpRveL\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs send\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2771,6 +2771,22 @@ then the receiving system must have that feature enabled as well. See
 .sp
 .ne 2
 .na
+\fB\fB-c\fR, \fB--compressed\fR\fR
+.ad
+.sp .6
+.RS 4n
+Generate a more compact stream by using compressed WRITE records for blocks
+which are compressed on disk and in memory (see the \fBcompression\fR property
+for details).  If the \fBlz4_compress\fR feature is active on the sending
+system, then the receiving system must have that feature enabled as well.  If
+the \fBlarge_blocks\fR feature is enabled on the sending system but the \fB-L\fR
+option is not supplied in conjunction with \fB-c\fR, then the data will be
+decompressed before sending so it can be split into smaller block sizes.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fB-p\fR\fR
 .ad
 .sp .6
@@ -2820,7 +2836,7 @@ The format of the stream is committed. You will be able to receive your streams 
 .sp
 .ne 2
 .na
-\fBzfs send\fR [\fB-Le\fR] [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs send\fR [\fB-Lec\fR] [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2860,6 +2876,22 @@ enabled.  If the \fBlz4_compress\fR feature is active on the sending system,
 then the receiving system must have that feature enabled as well. See
 \fBzpool-features\fR(5) for details on ZFS feature flags and the
 \fBembedded_data\fR feature.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-c\fR, \fB--compressed\fR\fR
+.ad
+.sp .6
+.RS 4n
+Generate a more compact stream by using compressed WRITE records for blocks
+which are compressed on disk and in memory (see the \fBcompression\fR property
+for details).  If the \fBlz4_compress\fR feature is active on the sending
+system, then the receiving system must have that feature enabled as well.  If
+the \fBlarge_blocks\fR feature is enabled on the sending system but the \fB-L\fR
+option is not supplied in conjunction with \fB-c\fR, then the data will be
+decompressed before sending so it can be split into smaller block sizes.
 .RE
 
 .sp

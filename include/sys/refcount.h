@@ -98,7 +98,7 @@ typedef struct refcount {
 	atomic_add_64(&(src)->rc_count, -__tmp); \
 	atomic_add_64(&(dst)->rc_count, __tmp); \
 }
-#define	refcount_transfer_ownership(rc, current_holder, new_holder)
+#define	refcount_transfer_ownership(rc, current_holder, new_holder)	(void)0
 
 #define	refcount_init()
 #define	refcount_fini()

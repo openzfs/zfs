@@ -4461,6 +4461,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 	boolean_t estimate = (zc->zc_guid != 0);
 	boolean_t embedok = (zc->zc_flags & 0x1);
 	boolean_t large_block_ok = (zc->zc_flags & 0x2);
+	boolean_t compressok = (zc->zc_flags & 0x4);
 
 	if (zc->zc_obj != 0) {
 		dsl_pool_t *dp;
@@ -4508,7 +4509,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 			}
 		}
 
-		error = dmu_send_estimate(tosnap, fromsnap,
+		error = dmu_send_estimate(tosnap, fromsnap, compressok,
 		    &zc->zc_objset_type);
 
 		if (fromsnap != NULL)
@@ -4522,7 +4523,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 
 		off = fp->f_offset;
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
-		    zc->zc_fromobj, embedok, large_block_ok,
+		    zc->zc_fromobj, embedok, large_block_ok, compressok,
 		    zc->zc_cookie, fp->f_vnode, &off);
 
 		if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
@@ -5415,6 +5416,8 @@ zfs_ioc_space_snaps(const char *lastsnap, nvlist_t *innvl, nvlist_t *outnvl)
  *         indicates that blocks > 128KB are permitted
  *     (optional) "embedok" -> (value ignored)
  *         presence indicates DRR_WRITE_EMBEDDED records are permitted
+ *     (optional) "compressok" -> (value ignored)
+ *         presence indicates compressed DRR_WRITE records are permitted
  *     (optional) "resume_object" and "resume_offset" -> (uint64)
  *         if present, resume send stream from specified object and offset.
  * }
@@ -5432,6 +5435,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	file_t *fp;
 	boolean_t largeblockok;
 	boolean_t embedok;
+	boolean_t compressok;
 	uint64_t resumeobj = 0;
 	uint64_t resumeoff = 0;
 
@@ -5443,6 +5447,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	largeblockok = nvlist_exists(innvl, "largeblockok");
 	embedok = nvlist_exists(innvl, "embedok");
+	compressok = nvlist_exists(innvl, "compressok");
 
 	(void) nvlist_lookup_uint64(innvl, "resume_object", &resumeobj);
 	(void) nvlist_lookup_uint64(innvl, "resume_offset", &resumeoff);
@@ -5451,8 +5456,8 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EBADF));
 
 	off = fp->f_offset;
-	error = dmu_send(snapname, fromname, embedok, largeblockok, fd,
-	    resumeobj, resumeoff, fp->f_vnode, &off);
+	error = dmu_send(snapname, fromname, embedok, largeblockok, compressok,
+		fd, resumeobj, resumeoff, fp->f_vnode, &off);
 
 	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 		fp->f_offset = off;
@@ -5468,6 +5473,12 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
  * innvl: {
  *     (optional) "from" -> full snap or bookmark name to send an incremental
  *                          from
+ *     (optional) "largeblockok" -> (value ignored)
+ *         indicates that blocks > 128KB are permitted
+ *     (optional) "embedok" -> (value ignored)
+ *         presence indicates DRR_WRITE_EMBEDDED records are permitted
+ *     (optional) "compressok" -> (value ignored)
+ *         presence indicates compressed DRR_WRITE records are permitted
  * }
  *
  * outnvl: {
@@ -5481,6 +5492,11 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	dsl_dataset_t *tosnap;
 	int error;
 	char *fromname;
+	/* LINTED E_FUNC_SET_NOT_USED */
+	boolean_t largeblockok;
+	/* LINTED E_FUNC_SET_NOT_USED */
+	boolean_t embedok;
+	boolean_t compressok;
 	uint64_t space;
 
 	error = dsl_pool_hold(snapname, FTAG, &dp);
@@ -5492,6 +5508,10 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 		dsl_pool_rele(dp, FTAG);
 		return (error);
 	}
+
+	largeblockok = nvlist_exists(innvl, "largeblockok");
+	embedok = nvlist_exists(innvl, "embedok");
+	compressok = nvlist_exists(innvl, "compressok");
 
 	error = nvlist_lookup_string(innvl, "from", &fromname);
 	if (error == 0) {
@@ -5505,7 +5525,8 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 			error = dsl_dataset_hold(dp, fromname, FTAG, &fromsnap);
 			if (error != 0)
 				goto out;
-			error = dmu_send_estimate(tosnap, fromsnap, &space);
+			error = dmu_send_estimate(tosnap, fromsnap, compressok,
+				&space);
 			dsl_dataset_rele(fromsnap, FTAG);
 		} else if (strchr(fromname, '#') != NULL) {
 			/*
@@ -5520,7 +5541,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 			if (error != 0)
 				goto out;
 			error = dmu_send_estimate_from_txg(tosnap,
-			    frombm.zbm_creation_txg, &space);
+			    frombm.zbm_creation_txg, compressok, &space);
 		} else {
 			/*
 			 * from is not properly formatted as a snapshot or
@@ -5531,7 +5552,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 		}
 	} else {
 		// If estimating the size of a full send, use dmu_send_estimate
-		error = dmu_send_estimate(tosnap, NULL, &space);
+		error = dmu_send_estimate(tosnap, NULL, compressok, &space);
 	}
 
 	fnvlist_add_uint64(outnvl, "space", space);

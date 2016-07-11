@@ -278,8 +278,10 @@ dump_free(dmu_sendarg_t *dsp, uint64_t object, uint64_t offset,
 
 static int
 dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type,
-    uint64_t object, uint64_t offset, int blksz, const blkptr_t *bp, void *data)
+    uint64_t object, uint64_t offset, int lsize, int psize, const blkptr_t *bp,
+    void *data)
 {
+	uint64_t payload_size;
 	struct drr_write *drrw = &(dsp->dsa_drr->drr_u.drr_write);
 
 	/*
@@ -290,7 +292,7 @@ dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type,
 	    (object == dsp->dsa_last_data_object &&
 	    offset > dsp->dsa_last_data_offset));
 	dsp->dsa_last_data_object = object;
-	dsp->dsa_last_data_offset = offset + blksz - 1;
+	dsp->dsa_last_data_offset = offset + lsize - 1;
 
 	/*
 	 * If there is any kind of pending aggregation (currently either
@@ -309,8 +311,26 @@ dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type,
 	drrw->drr_object = object;
 	drrw->drr_type = type;
 	drrw->drr_offset = offset;
-	drrw->drr_length = blksz;
 	drrw->drr_toguid = dsp->dsa_toguid;
+	drrw->drr_logical_size = lsize;
+
+	/* only set the compression fields if the buf is compressed */
+	if (lsize != psize) {
+		ASSERT(dsp->dsa_featureflags & DMU_BACKUP_FEATURE_COMPRESSED);
+		ASSERT(!BP_IS_EMBEDDED(bp));
+		ASSERT(!BP_SHOULD_BYTESWAP(bp));
+		ASSERT(!DMU_OT_IS_METADATA(BP_GET_TYPE(bp)));
+		ASSERT3U(BP_GET_COMPRESS(bp), !=, ZIO_COMPRESS_OFF);
+		ASSERT3S(psize, >, 0);
+		ASSERT3S(lsize, >=, psize);
+
+		drrw->drr_compressiontype = BP_GET_COMPRESS(bp);
+		drrw->drr_compressed_size = psize;
+		payload_size = drrw->drr_compressed_size;
+	} else {
+		payload_size = drrw->drr_logical_size;
+	}
+
 	if (bp == NULL || BP_IS_EMBEDDED(bp)) {
 		/*
 		 * There's no pre-computed checksum for partial-block
@@ -329,7 +349,7 @@ dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type,
 		drrw->drr_key.ddk_cksum = bp->blk_cksum;
 	}
 
-	if (dump_record(dsp, data, blksz) != 0)
+	if (dump_record(dsp, data, payload_size) != 0)
 		return (SET_ERROR(EINTR));
 	return (0);
 }
@@ -505,7 +525,7 @@ backup_do_embed(dmu_sendarg_t *dsp, const blkptr_t *bp)
 	 * Compression function must be legacy, or explicitly enabled.
 	 */
 	if ((BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_LEGACY_FUNCTIONS &&
-	    !(dsp->dsa_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA_LZ4)))
+	    !(dsp->dsa_featureflags & DMU_BACKUP_FEATURE_LZ4)))
 		return (B_FALSE);
 
 	/*
@@ -672,20 +692,47 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		arc_buf_t *abuf;
 		int blksz = dblkszsec << SPA_MINBLOCKSHIFT;
 		uint64_t offset;
+		enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
+
+		/*
+		 * If we have large blocks stored on disk but the send flags
+		 * don't allow us to send large blocks, we split the data from
+		 * the arc buf into chunks.
+		 */
+		boolean_t split_large_blocks =
+		    data->datablkszsec > SPA_OLD_MAXBLOCKSIZE &&
+		    !(dsa->dsa_featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS);
+		/*
+		 * We should only request compressed data from the ARC if all
+		 * the following are true:
+		 *  - stream compression was requested
+		 *  - we aren't splitting large blocks into smaller chunks
+		 *  - the data won't need to be byteswapped before sending
+		 *  - this isn't an embedded block
+		 *  - this isn't metadata (if receiving on a different endian
+		 *    system it can be byteswapped more easily)
+		 */
+		boolean_t request_compressed =
+		    (dsa->dsa_featureflags & DMU_BACKUP_FEATURE_COMPRESSED) &&
+		    !split_large_blocks && !BP_SHOULD_BYTESWAP(bp) &&
+		    !BP_IS_EMBEDDED(bp) && !DMU_OT_IS_METADATA(BP_GET_TYPE(bp));
 
 		ASSERT0(zb->zb_level);
 		ASSERT(zb->zb_object > dsa->dsa_resume_object ||
 		    (zb->zb_object == dsa->dsa_resume_object &&
 		    zb->zb_blkid * blksz >= dsa->dsa_resume_offset));
 
+		if (request_compressed)
+			zioflags |= ZIO_FLAG_RAW;
+
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
+		    ZIO_PRIORITY_ASYNC_READ, zioflags,
 		    &aflags, zb) != 0) {
 			if (zfs_send_corrupt_data) {
 				uint64_t *ptr;
 				/* Send a block filled with 0x"zfs badd bloc" */
-				abuf = arc_alloc_buf(spa, blksz, &abuf,
-				    ARC_BUFC_DATA);
+				abuf = arc_alloc_buf(spa, &abuf, ARC_BUFC_DATA,
+				    blksz);
 				for (ptr = abuf->b_data;
 				    (char *)ptr < (char *)abuf->b_data + blksz;
 				    ptr++)
@@ -697,21 +744,22 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 
 		offset = zb->zb_blkid * blksz;
 
-		if (!(dsa->dsa_featureflags &
-		    DMU_BACKUP_FEATURE_LARGE_BLOCKS) &&
-		    blksz > SPA_OLD_MAXBLOCKSIZE) {
+		if (split_large_blocks) {
 			char *buf = abuf->b_data;
+			ASSERT3U(arc_get_compression(abuf), ==,
+			    ZIO_COMPRESS_OFF);
 			while (blksz > 0 && err == 0) {
 				int n = MIN(blksz, SPA_OLD_MAXBLOCKSIZE);
 				err = dump_write(dsa, type, zb->zb_object,
-				    offset, n, NULL, buf);
+				    offset, n, n, NULL, buf);
 				offset += n;
 				buf += n;
 				blksz -= n;
 			}
 		} else {
-			err = dump_write(dsa, type, zb->zb_object,
-			    offset, blksz, bp, abuf->b_data);
+			err = dump_write(dsa, type, zb->zb_object, offset,
+			    blksz, arc_buf_size(abuf), bp,
+			    abuf->b_data);
 		}
 		arc_buf_destroy(abuf, &abuf);
 	}
@@ -738,9 +786,9 @@ get_next_record(bqueue_t *bq, struct send_block_record *data)
  */
 static int
 dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
-    zfs_bookmark_phys_t *ancestor_zb,
-    boolean_t is_clone, boolean_t embedok, boolean_t large_block_ok, int outfd,
-    uint64_t resumeobj, uint64_t resumeoff,
+    zfs_bookmark_phys_t *ancestor_zb, boolean_t is_clone,
+    boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
+    int outfd, uint64_t resumeobj, uint64_t resumeoff,
     vnode_t *vp, offset_t *off)
 {
 	objset_t *os;
@@ -789,8 +837,14 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 	if (embedok &&
 	    spa_feature_is_active(dp->dp_spa, SPA_FEATURE_EMBEDDED_DATA)) {
 		featureflags |= DMU_BACKUP_FEATURE_EMBED_DATA;
-		if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS))
-			featureflags |= DMU_BACKUP_FEATURE_EMBED_DATA_LZ4;
+	}
+	if (compressok) {
+		featureflags |= DMU_BACKUP_FEATURE_COMPRESSED;
+	}
+	if ((featureflags &
+	    (DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_COMPRESSED)) !=
+	    0 && spa_feature_is_active(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS)) {
+		featureflags |= DMU_BACKUP_FEATURE_LZ4;
 	}
 
 	if (resumeobj != 0 || resumeoff != 0) {
@@ -935,7 +989,7 @@ out:
 
 int
 dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
-    boolean_t embedok, boolean_t large_block_ok,
+    boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
     int outfd, vnode_t *vp, offset_t *off)
 {
 	dsl_pool_t *dp;
@@ -972,10 +1026,10 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 		is_clone = (fromds->ds_dir != ds->ds_dir);
 		dsl_dataset_rele(fromds, FTAG);
 		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone,
-		    embedok, large_block_ok, outfd, 0, 0, vp, off);
+		    embedok, large_block_ok, compressok, outfd, 0, 0, vp, off);
 	} else {
 		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE,
-		    embedok, large_block_ok, outfd, 0, 0, vp, off);
+		    embedok, large_block_ok, compressok, outfd, 0, 0, vp, off);
 	}
 	dsl_dataset_rele(ds, FTAG);
 	return (err);
@@ -983,7 +1037,8 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
-    boolean_t large_block_ok, int outfd, uint64_t resumeobj, uint64_t resumeoff,
+    boolean_t large_block_ok, boolean_t compressok, int outfd,
+    uint64_t resumeobj, uint64_t resumeoff,
     vnode_t *vp, offset_t *off)
 {
 	dsl_pool_t *dp;
@@ -1051,11 +1106,11 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 			return (err);
 		}
 		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone,
-		    embedok, large_block_ok,
+		    embedok, large_block_ok, compressok,
 		    outfd, resumeobj, resumeoff, vp, off);
 	} else {
 		err = dmu_send_impl(FTAG, dp, ds, NULL, B_FALSE,
-		    embedok, large_block_ok,
+		    embedok, large_block_ok, compressok,
 		    outfd, resumeobj, resumeoff, vp, off);
 	}
 	if (owned)
@@ -1066,33 +1121,46 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 }
 
 static int
-dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t size,
-    uint64_t *sizep)
+dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
+    uint64_t compressed, boolean_t stream_compressed, uint64_t *sizep)
 {
 	int err;
+	uint64_t size;
 	/*
 	 * Assume that space (both on-disk and in-stream) is dominated by
 	 * data.  We will adjust for indirect blocks and the copies property,
 	 * but ignore per-object space used (eg, dnodes and DRR_OBJECT records).
 	 */
 
+	uint64_t recordsize;
+	uint64_t record_count;
+
+	/* Assume all (uncompressed) blocks are recordsize. */
+	err = dsl_prop_get_int_ds(ds, zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
+	    &recordsize);
+	if (err != 0)
+		return (err);
+	record_count = uncompressed / recordsize;
+
+	/*
+	 * If we're estimating a send size for a compressed stream, use the
+	 * compressed data size to estimate the stream size. Otherwise, use the
+	 * uncompressed data size.
+	 */
+	size = stream_compressed ? compressed : uncompressed;
+
 	/*
 	 * Subtract out approximate space used by indirect blocks.
 	 * Assume most space is used by data blocks (non-indirect, non-dnode).
-	 * Assume all blocks are recordsize.  Assume ditto blocks and
-	 * internal fragmentation counter out compression.
+	 * Assume no ditto blocks or internal fragmentation.
 	 *
 	 * Therefore, space used by indirect blocks is sizeof(blkptr_t) per
-	 * block, which we observe in practice.
+	 * block.
 	 */
-	uint64_t recordsize;
-	err = dsl_prop_get_int_ds(ds, "recordsize", &recordsize);
-	if (err != 0)
-		return (err);
-	size -= size / recordsize * sizeof (blkptr_t);
+	size -= record_count * sizeof (blkptr_t);
 
 	/* Add in the space for the record associated with each block. */
-	size += size / recordsize * sizeof (dmu_replay_record_t);
+	size += record_count * sizeof (dmu_replay_record_t);
 
 	*sizep = size;
 
@@ -1100,10 +1168,11 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t size,
 }
 
 int
-dmu_send_estimate(dsl_dataset_t *ds, dsl_dataset_t *fromds, uint64_t *sizep)
+dmu_send_estimate(dsl_dataset_t *ds, dsl_dataset_t *fromds,
+    boolean_t stream_compressed, uint64_t *sizep)
 {
 	int err;
-	uint64_t size;
+	uint64_t uncomp, comp;
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
@@ -1122,33 +1191,41 @@ dmu_send_estimate(dsl_dataset_t *ds, dsl_dataset_t *fromds, uint64_t *sizep)
 	if (fromds != NULL && !dsl_dataset_is_before(ds, fromds, 0))
 		return (SET_ERROR(EXDEV));
 
-	/* Get uncompressed size estimate of changed data. */
+	/* Get compressed and uncompressed size estimates of changed data. */
 	if (fromds == NULL) {
-		size = dsl_dataset_phys(ds)->ds_uncompressed_bytes;
+		uncomp = dsl_dataset_phys(ds)->ds_uncompressed_bytes;
+		comp = dsl_dataset_phys(ds)->ds_compressed_bytes;
 	} else {
-		uint64_t used, comp;
+		uint64_t used;
 		err = dsl_dataset_space_written(fromds, ds,
-		    &used, &comp, &size);
+		    &used, &comp, &uncomp);
 		if (err != 0)
 			return (err);
 	}
 
-	err = dmu_adjust_send_estimate_for_indirects(ds, size, sizep);
+	err = dmu_adjust_send_estimate_for_indirects(ds, uncomp, comp,
+	    stream_compressed, sizep);
 	return (err);
 }
 
+struct calculate_send_arg {
+	uint64_t uncompressed;
+	uint64_t compressed;
+};
+
 /*
  * Simple callback used to traverse the blocks of a snapshot and sum their
- * uncompressed size
+ * uncompressed and compressed sizes.
  */
 /* ARGSUSED */
 static int
 dmu_calculate_send_traversal(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
-	uint64_t *spaceptr = arg;
+	struct calculate_send_arg *space = arg;
 	if (bp != NULL && !BP_IS_HOLE(bp)) {
-		*spaceptr += BP_GET_UCSIZE(bp);
+		space->uncompressed += BP_GET_UCSIZE(bp);
+		space->compressed += BP_GET_PSIZE(bp);
 	}
 	return (0);
 }
@@ -1160,10 +1237,10 @@ dmu_calculate_send_traversal(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
  */
 int
 dmu_send_estimate_from_txg(dsl_dataset_t *ds, uint64_t from_txg,
-    uint64_t *sizep)
+    boolean_t stream_compressed, uint64_t *sizep)
 {
 	int err;
-	uint64_t size = 0;
+	struct calculate_send_arg size = { 0 };
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
@@ -1181,10 +1258,12 @@ dmu_send_estimate_from_txg(dsl_dataset_t *ds, uint64_t from_txg,
 	 */
 	err = traverse_dataset(ds, from_txg, TRAVERSE_POST,
 	    dmu_calculate_send_traversal, &size);
+
 	if (err)
 		return (err);
 
-	err = dmu_adjust_send_estimate_for_indirects(ds, size, sizep);
+	err = dmu_adjust_send_estimate_for_indirects(ds, size.uncompressed,
+	    size.compressed, stream_compressed, sizep);
 	return (err);
 }
 
@@ -1315,14 +1394,14 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 
 	/*
 	 * The receiving code doesn't know how to translate a WRITE_EMBEDDED
-	 * record to a plan WRITE record, so the pool must have the
+	 * record to a plain WRITE record, so the pool must have the
 	 * EMBEDDED_DATA feature enabled if the stream has WRITE_EMBEDDED
 	 * records.  Same with WRITE_EMBEDDED records that use LZ4 compression.
 	 */
 	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) &&
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_EMBEDDED_DATA))
 		return (SET_ERROR(ENOTSUP));
-	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA_LZ4) &&
+	if ((featureflags & DMU_BACKUP_FEATURE_LZ4) &&
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS))
 		return (SET_ERROR(ENOTSUP));
 
@@ -1502,8 +1581,18 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_BYTES,
 		    8, 1, &zero, tx));
 		if (DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
+		    DMU_BACKUP_FEATURE_LARGE_BLOCKS) {
+			VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_LARGEBLOCK,
+						8, 1, &one, tx));
+		}
+		if (DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 		    DMU_BACKUP_FEATURE_EMBED_DATA) {
 			VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_EMBEDOK,
+			    8, 1, &one, tx));
+		}
+		if (DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
+		    DMU_BACKUP_FEATURE_COMPRESSED) {
+			VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_COMPRESSOK,
 			    8, 1, &one, tx));
 		}
 	}
@@ -1563,7 +1652,7 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) &&
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_EMBEDDED_DATA))
 		return (SET_ERROR(ENOTSUP));
-	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA_LZ4) &&
+	if ((featureflags & DMU_BACKUP_FEATURE_LZ4) &&
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS))
 		return (SET_ERROR(ENOTSUP));
 
@@ -1892,10 +1981,11 @@ byteswap_record(dmu_replay_record_t *drr)
 		DO64(drr_write.drr_object);
 		DO32(drr_write.drr_type);
 		DO64(drr_write.drr_offset);
-		DO64(drr_write.drr_length);
+		DO64(drr_write.drr_logical_size);
 		DO64(drr_write.drr_toguid);
 		ZIO_CHECKSUM_BSWAP(&drr->drr_u.drr_write.drr_key.ddk_cksum);
 		DO64(drr_write.drr_key.ddk_prop);
+		DO64(drr_write.drr_compressed_size);
 		break;
 	case DRR_WRITE_BYREF:
 		DO64(drr_write_byref.drr_object);
@@ -2137,7 +2227,7 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	dmu_buf_t *bonus;
 	int err;
 
-	if (drrw->drr_offset + drrw->drr_length < drrw->drr_offset ||
+	if (drrw->drr_offset + drrw->drr_logical_size < drrw->drr_offset ||
 	    !DMU_OT_IS_VALID(drrw->drr_type))
 		return (SET_ERROR(EINVAL));
 
@@ -2159,7 +2249,7 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	tx = dmu_tx_create(rwa->os);
 
 	dmu_tx_hold_write(tx, drrw->drr_object,
-	    drrw->drr_offset, drrw->drr_length);
+	    drrw->drr_offset, drrw->drr_logical_size);
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
@@ -2169,9 +2259,10 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		dmu_object_byteswap_t byteswap =
 		    DMU_OT_BYTESWAP(drrw->drr_type);
 		dmu_ot_byteswap[byteswap].ob_func(abuf->b_data,
-		    drrw->drr_length);
+		    DRR_WRITE_PAYLOAD_SIZE(drrw));
 	}
 
+	/* use the bonus buf to look up the dnode in dmu_assign_arcbuf */
 	if (dmu_bonus_hold(rwa->os, drrw->drr_object, FTAG, &bonus) != 0)
 		return (SET_ERROR(EINVAL));
 	dmu_assign_arcbuf(bonus, drrw->drr_offset, abuf, tx);
@@ -2587,18 +2678,31 @@ receive_read_record(struct receive_arg *ra)
 	case DRR_WRITE:
 	{
 		struct drr_write *drrw = &ra->rrd->header.drr_u.drr_write;
-		arc_buf_t *abuf = arc_loan_buf(dmu_objset_spa(ra->os),
-		    drrw->drr_length);
+		arc_buf_t *abuf;
+		boolean_t is_meta = DMU_OT_IS_METADATA(drrw->drr_type);
+		if (DRR_WRITE_COMPRESSED(drrw)) {
+			ASSERT3U(drrw->drr_compressed_size, >, 0);
+			ASSERT3U(drrw->drr_logical_size, >=,
+			    drrw->drr_compressed_size);
+			ASSERT(!is_meta);
+			abuf = arc_loan_compressed_buf(
+			    dmu_objset_spa(ra->os),
+			    drrw->drr_compressed_size, drrw->drr_logical_size,
+			    drrw->drr_compressiontype);
+		} else {
+			abuf = arc_loan_buf(dmu_objset_spa(ra->os),
+			    is_meta, drrw->drr_logical_size);
+		}
 
 		err = receive_read_payload_and_next_header(ra,
-		    drrw->drr_length, abuf->b_data);
+		    DRR_WRITE_PAYLOAD_SIZE(drrw), abuf->b_data);
 		if (err != 0) {
 			dmu_return_arcbuf(abuf);
 			return (err);
 		}
 		ra->rrd->write_buf = abuf;
 		receive_read_prefetch(ra, drrw->drr_object, drrw->drr_offset,
-		    drrw->drr_length);
+		    drrw->drr_logical_size);
 		return (err);
 	}
 	case DRR_WRITE_BYREF:
