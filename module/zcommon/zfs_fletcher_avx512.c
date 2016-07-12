@@ -48,7 +48,7 @@ fletcher_4_avx512f_init(zio_cksum_t *zcp)
 }
 
 static void
-fletcher_4_avx512f(const void *buf, uint64_t size, zio_cksum_t *unused)
+fletcher_4_avx512f_native(const void *buf, uint64_t size, zio_cksum_t *unused)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
@@ -146,9 +146,11 @@ fletcher_4_avx512f_valid(void)
 }
 
 const fletcher_4_ops_t fletcher_4_avx512f_ops = {
-	.init = fletcher_4_avx512f_init,
-	.fini = fletcher_4_avx512f_fini,
-	.compute = fletcher_4_avx512f,
+	.init_native = fletcher_4_avx512f_init,
+	.fini_native = fletcher_4_avx512f_fini,
+	.compute_native = fletcher_4_avx512f_native,
+	.init_byteswap = fletcher_4_avx512f_init,
+	.fini_byteswap = fletcher_4_avx512f_fini,
 	.compute_byteswap = fletcher_4_avx512f_byteswap,
 	.valid = fletcher_4_avx512f_valid,
 	.name = "avx512f"

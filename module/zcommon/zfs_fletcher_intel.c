@@ -92,7 +92,7 @@ fletcher_4_avx2_fini(zio_cksum_t *zcp)
 }
 
 static void
-fletcher_4_avx2(const void *buf, uint64_t size, zio_cksum_t *unused)
+fletcher_4_avx2_native(const void *buf, uint64_t size, zio_cksum_t *unused)
 {
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
@@ -137,9 +137,11 @@ static boolean_t fletcher_4_avx2_valid(void)
 }
 
 const fletcher_4_ops_t fletcher_4_avx2_ops = {
-	.init = fletcher_4_avx2_init,
-	.fini = fletcher_4_avx2_fini,
-	.compute = fletcher_4_avx2,
+	.init_native = fletcher_4_avx2_init,
+	.fini_native = fletcher_4_avx2_fini,
+	.compute_native = fletcher_4_avx2_native,
+	.init_byteswap = fletcher_4_avx2_init,
+	.fini_byteswap = fletcher_4_avx2_fini,
 	.compute_byteswap = fletcher_4_avx2_byteswap,
 	.valid = fletcher_4_avx2_valid,
 	.name = "avx2"

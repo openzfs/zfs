@@ -1770,7 +1770,7 @@ get_receive_resume_stats(dsl_dataset_t *ds, nvlist_t *nv)
 		compressed_size = gzip_compress(packed, compressed,
 		    packed_size, packed_size, 6);
 
-		fletcher_4_native(compressed, compressed_size, &cksum);
+		fletcher_4_native_varsize(compressed, compressed_size, &cksum);
 
 		str = kmem_alloc(compressed_size * 2 + 1, KM_SLEEP);
 		for (i = 0; i < compressed_size; i++) {
