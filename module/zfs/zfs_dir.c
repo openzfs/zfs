@@ -518,7 +518,7 @@ zfs_unlinked_drain(zfs_sb_t *zsb)
 		 * We need to re-mark these list entries for deletion,
 		 * so we pull them back into core and set zp->z_unlinked.
 		 */
-		error = zfs_zget(zsb, zap.za_first_integer, &zp);
+		error = zfs_zget_retry(zsb, zap.za_first_integer, &zp, B_FALSE);
 
 		/*
 		 * We may pick up znodes that are already marked for deletion.
@@ -561,8 +561,8 @@ zfs_purgedir(znode_t *dzp)
 	for (zap_cursor_init(&zc, zsb->z_os, dzp->z_id);
 	    (error = zap_cursor_retrieve(&zc, &zap)) == 0;
 	    zap_cursor_advance(&zc)) {
-		error = zfs_zget(zsb,
-		    ZFS_DIRENT_OBJ(zap.za_first_integer), &xzp);
+		error = zfs_zget_retry(zsb,
+		    ZFS_DIRENT_OBJ(zap.za_first_integer), &xzp, B_FALSE);
 		if (error) {
 			skipped += 1;
 			continue;
