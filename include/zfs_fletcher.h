@@ -35,11 +35,20 @@ extern "C" {
 
 /*
  * fletcher checksum functions
+ *
+ * Note: Fletcher checksum methods expect buffer size to be 4B aligned. This
+ * limitation stems from the algorithm design. Performing incremental checksum
+ * without said alignment would yield different results. Therefore, the code
+ * includes assertions for the size alignment.
+ * For compatibility, it is required that some code paths calculate checksum of
+ * non-aligned buffer sizes. For this purpose, `fletcher_4_native_varsize()`
+ * checksum method is added. This method will ignore last (size % 4) bytes of
+ * the data buffer.
  */
-
 void fletcher_2_native(const void *, uint64_t, zio_cksum_t *);
 void fletcher_2_byteswap(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_native(const void *, uint64_t, zio_cksum_t *);
+void fletcher_4_native_varsize(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_byteswap(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_incremental_native(const void *, uint64_t,
     zio_cksum_t *);
@@ -49,14 +58,21 @@ int fletcher_4_impl_set(const char *selector);
 void fletcher_4_init(void);
 void fletcher_4_fini(void);
 
+
 /*
  * fletcher checksum struct
  */
+typedef void (*fletcher_4_init_f)(zio_cksum_t *);
+typedef void (*fletcher_4_fini_f)(zio_cksum_t *);
+typedef void (*fletcher_4_compute_f)(const void *, uint64_t, zio_cksum_t *);
+
 typedef struct fletcher_4_func {
-	void (*init)(zio_cksum_t *);
-	void (*fini)(zio_cksum_t *);
-	void (*compute)(const void *, uint64_t, zio_cksum_t *);
-	void (*compute_byteswap)(const void *, uint64_t, zio_cksum_t *);
+	fletcher_4_init_f init_native;
+	fletcher_4_fini_f fini_native;
+	fletcher_4_compute_f compute_native;
+	fletcher_4_init_f init_byteswap;
+	fletcher_4_fini_f fini_byteswap;
+	fletcher_4_compute_f compute_byteswap;
 	boolean_t (*valid)(void);
 	const char *name;
 } fletcher_4_ops_t;
