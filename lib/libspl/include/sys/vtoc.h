@@ -79,6 +79,7 @@ extern "C" {
 #define	V_ALTSCTR	0x09		/* Alternate sector partition */
 #define	V_CACHE		0x0a		/* Cache (cachefs) partition */
 #define	V_RESERVED	0x0b		/* SMI reserved data */
+#define V_BIOSBOOT	0x1d		/* BIOS Boot Partition */
 
 /*
  * Partition permission flags
