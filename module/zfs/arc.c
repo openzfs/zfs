@@ -862,8 +862,8 @@ static taskq_t *arc_prune_taskq;
 	HDR_COMPRESS_OFFSET, SPA_COMPRESSBITS, (cmp));
 
 #define	ARC_BUF_LAST(buf)	((buf)->b_next == NULL)
-#define	ARC_BUF_SHARED(buf)	((buf)->b_prop_flags & ARC_BUF_FLAG_SHARED)
-#define	ARC_BUF_COMPRESSED(buf)	((buf)->b_prop_flags & ARC_BUF_FLAG_COMPRESSED)
+#define	ARC_BUF_SHARED(buf)	((buf)->b_flags & ARC_BUF_FLAG_SHARED)
+#define	ARC_BUF_COMPRESSED(buf)	((buf)->b_flags & ARC_BUF_FLAG_COMPRESSED)
 
 /*
  * Other sizes
@@ -1333,6 +1333,12 @@ arc_buf_is_shared(arc_buf_t *buf)
 	IMPLY(shared, HDR_SHARED_DATA(buf->b_hdr));
 	IMPLY(shared, ARC_BUF_SHARED(buf));
 	IMPLY(shared, ARC_BUF_COMPRESSED(buf) || ARC_BUF_LAST(buf));
+
+	/*
+	 * It would be nice to assert arc_can_share() too, but the "hdr isn't
+	 * already being shared" requirement prevents us from doing that.
+	 */
+
 	return (shared);
 }
 
@@ -1348,6 +1354,11 @@ arc_cksum_free(arc_buf_hdr_t *hdr)
 	mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 }
 
+/*
+ * If we've turned on the ZFS_DEBUG_MODIFY flag, verify that the buf's data
+ * matches the checksum that is stored in the hdr. If there is no checksum,
+ * or if the buf is compressed, this is a no-op.
+ */
 static void
 arc_cksum_verify(arc_buf_t *buf)
 {
@@ -1356,6 +1367,12 @@ arc_cksum_verify(arc_buf_t *buf)
 
 	if (!(zfs_flags & ZFS_DEBUG_MODIFY))
 		return;
+
+	if (ARC_BUF_COMPRESSED(buf)) {
+		ASSERT(hdr->b_l1hdr.b_freeze_cksum == NULL ||
+		    hdr->b_l1hdr.b_bufcnt > 1);
+		return;
+	}
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
@@ -1441,6 +1458,12 @@ arc_cksum_is_equal(arc_buf_hdr_t *hdr, zio_t *zio)
 	return (valid_cksum);
 }
 
+/*
+ * Given a buf full of data, if ZFS_DEBUG_MODIFY is enabled this computes a
+ * checksum and attaches it to the buf's hdr so that we can ensure that the buf
+ * isn't modified later on. If buf is compressed or there is already a checksum
+ * on the hdr, this is a no-op (we only checksum uncompressed bufs).
+ */
 static void
 arc_cksum_compute(arc_buf_t *buf)
 {
@@ -1457,7 +1480,14 @@ arc_cksum_compute(arc_buf_t *buf)
 		mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 		return;
 	} else if (ARC_BUF_COMPRESSED(buf)) {
-		ASSERT3U(hdr->b_l1hdr.b_bufcnt, ==, 1);
+		/*
+		 * Since the checksum doesn't apply to compressed buffers, we
+		 * only keep a checksum if there are uncompressed buffers.
+		 * Therefore there must be another buffer, which is
+		 * uncompressed.
+		 */
+		IMPLY(hdr->b_l1hdr.b_freeze_cksum != NULL,
+		    hdr->b_l1hdr.b_bufcnt > 1);
 		mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 		return;
 	}
@@ -1545,9 +1575,7 @@ arc_buf_thaw(arc_buf_t *buf)
 	ASSERT3P(hdr->b_l1hdr.b_state, ==, arc_anon);
 	ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 
-	if (zfs_flags & ZFS_DEBUG_MODIFY) {
-		arc_cksum_verify(buf);
-	}
+	arc_cksum_verify(buf);
 
 	/*
 	 * Compressed buffers do not manipulate the b_freeze_cksum or
@@ -1626,8 +1654,6 @@ arc_hdr_set_compress(arc_buf_hdr_t *hdr, enum zio_compress cmp)
 	/*
 	 * Holes and embedded blocks will always have a psize = 0 so
 	 * we ignore the compression of the blkptr and set the
-	 * arc_buf_hdr_t's compression to ZIO_COMPRESS_OFF.
-	 * Holes and embedded blocks remain anonymous so we don't
 	 * want to uncompress them. Mark them as uncompressed.
 	 */
 	if (!zfs_compressed_arc_enabled || HDR_GET_PSIZE(hdr) == 0) {
@@ -1643,63 +1669,156 @@ arc_hdr_set_compress(arc_buf_hdr_t *hdr, enum zio_compress cmp)
 	}
 }
 
-int
-arc_decompress(arc_buf_t *buf)
+/*
+ * Looks for another buf on the same hdr which has the data decompressed, copies
+ * from it, and returns true. If no such buf exists, returns false.
+ */
+static boolean_t
+arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
-	dmu_object_byteswap_t bswap = hdr->b_l1hdr.b_byteswap;
-	int error;
+	arc_buf_t *from;
+	boolean_t copied = B_FALSE;
 
-	if (HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF) {
-		/*
-		 * The arc_buf_hdr_t is either not compressed or is
-		 * associated with an embedded block or a hole in which
-		 * case they remain anonymous.
-		 */
-		IMPLY(HDR_COMPRESSION_ENABLED(hdr), HDR_GET_PSIZE(hdr) == 0 ||
-		    HDR_GET_PSIZE(hdr) == HDR_GET_LSIZE(hdr));
+	ASSERT(HDR_HAS_L1HDR(hdr));
+	ASSERT3P(buf->b_data, !=, NULL);
+	ASSERT(!ARC_BUF_COMPRESSED(buf));
+
+	for (from = hdr->b_l1hdr.b_buf; from != NULL;
+	    from = from->b_next) {
+		/* can't use our own data buffer */
+		if (from == buf) {
+			continue;
+		}
+
+		if (!ARC_BUF_COMPRESSED(from)) {
+			bcopy(from->b_data, buf->b_data, arc_buf_size(buf));
+			copied = B_TRUE;
+			break;
+		}
+	}
+
+	/*
+	 * There were no decompressed bufs, so there should not be a
+	 * checksum on the hdr either.
+	 */
+	EQUIV(!copied, hdr->b_l1hdr.b_freeze_cksum == NULL);
+
+	return (copied);
+}
+
+/*
+ * Given a buf that has a data buffer attached to it, this function will
+ * efficiently fill the buf with data of the specified compression setting from
+ * the hdr and update the hdr's b_freeze_cksum if necessary. If the buf and hdr
+ * are already sharing a data buf, no copy is performed.
+ *
+ * If the buf is marked as compressed but uncompressed data was requested, this
+ * will allocate a new data buffer for the buf, remove that flag, and fill the
+ * buf with uncompressed data. You can't request a compressed buf on a hdr with
+ * uncompressed data, and (since we haven't added support for it yet) if you
+ * want compressed data your buf must already be marked as compressed and have
+ * the correct-sized data buffer.
+ */
+static int
+arc_buf_fill(arc_buf_t *buf, boolean_t compressed)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+	boolean_t hdr_compressed = (HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF);
+	dmu_object_byteswap_t bswap = hdr->b_l1hdr.b_byteswap;
+
+	ASSERT3P(buf->b_data, !=, NULL);
+	IMPLY(compressed, hdr_compressed);
+	IMPLY(compressed, ARC_BUF_COMPRESSED(buf));
+
+	if (hdr_compressed == compressed) {
 		if (!arc_buf_is_shared(buf)) {
 			bcopy(hdr->b_l1hdr.b_pdata, buf->b_data,
-			    HDR_GET_LSIZE(hdr));
+			    arc_buf_size(buf));
 		}
 	} else {
+		ASSERT(hdr_compressed);
+		ASSERT(!compressed);
 		ASSERT3U(HDR_GET_LSIZE(hdr), !=, HDR_GET_PSIZE(hdr));
 
 		/*
-		 * If the buf is compressed and sharing data with hdr, unlink
-		 * its data buf from the header and make it uncompressed.
+		 * If the buf is sharing its data with the hdr, unlink it and
+		 * allocate a new data buffer for the buf.
 		 */
-		if (ARC_BUF_COMPRESSED(buf)) {
-			buf->b_prop_flags &=
-			    ~(ARC_BUF_FLAG_SHARED | ARC_BUF_FLAG_COMPRESSED);
+		if (arc_buf_is_shared(buf)) {
+			ASSERT(ARC_BUF_COMPRESSED(buf));
+
+			/* We need to give the buf it's own b_data */
+			buf->b_flags &= ~ARC_BUF_FLAG_SHARED;
 			buf->b_data =
 			    arc_get_data_buf(hdr, HDR_GET_LSIZE(hdr), buf);
 			arc_hdr_clear_flags(hdr, ARC_FLAG_SHARED_DATA);
 
-			/*
-			 * Previously this buf was shared so overhead was 0, so
-			 * just add new overhead.
-			 */
+			/* Previously overhead was 0; just add new overhead */
 			ARCSTAT_INCR(arcstat_overhead_size, HDR_GET_LSIZE(hdr));
+		} else if (ARC_BUF_COMPRESSED(buf)) {
+			/* We need to reallocate the buf's b_data */
+			arc_free_data_buf(hdr, buf->b_data, HDR_GET_PSIZE(hdr),
+			    buf);
+			buf->b_data =
+			    arc_get_data_buf(hdr, HDR_GET_LSIZE(hdr), buf);
+
+			/* We increased the size of b_data; update overhead */
+			ARCSTAT_INCR(arcstat_overhead_size,
+			    HDR_GET_LSIZE(hdr) - HDR_GET_PSIZE(hdr));
 		}
 
-		error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
-		    hdr->b_l1hdr.b_pdata, buf->b_data, HDR_GET_PSIZE(hdr),
-		    HDR_GET_LSIZE(hdr));
-		if (error != 0) {
-			zfs_dbgmsg("hdr %p, compress %d, psize %d, lsize %d",
-			    hdr, HDR_GET_COMPRESS(hdr), HDR_GET_PSIZE(hdr),
-			    HDR_GET_LSIZE(hdr));
-			return (SET_ERROR(EIO));
+		/*
+		 * Regardless of the buf's previous compression settings, it
+		 * should not be compressed at the end of this function.
+		 */
+		buf->b_flags &= ~ARC_BUF_FLAG_COMPRESSED;
+
+		/*
+		 * Try copying the data from another buf which already has a
+		 * decompressed version. If that's not possible, it's time to
+		 * bite the bullet and decompress the data from the hdr.
+		 */
+		if (arc_buf_try_copy_decompressed_data(buf)) {
+			/* Skip byteswapping and checksumming (already done) */
+			ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, !=, NULL);
+			return (0);
+		} else {
+			int error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
+			    hdr->b_l1hdr.b_pdata, buf->b_data,
+			    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
+
+			/*
+			 * Absent hardware errors or software bugs, this should
+			 * be impossible, but log it anyway so we can debug it.
+			 */
+			if (error != 0) {
+				zfs_dbgmsg(
+				    "hdr %p, compress %d, psize %d, lsize %d",
+				    hdr, HDR_GET_COMPRESS(hdr),
+				    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
+				return (SET_ERROR(EIO));
+			}
 		}
 	}
+
+	/* Byteswap the buf's data if necessary */
 	if (bswap != DMU_BSWAP_NUMFUNCS) {
 		ASSERT(!HDR_SHARED_DATA(hdr));
 		ASSERT3U(bswap, <, DMU_BSWAP_NUMFUNCS);
 		dmu_ot_byteswap[bswap].ob_func(buf->b_data, HDR_GET_LSIZE(hdr));
 	}
+
+	/* Compute the hdr's checksum if necessary */
 	arc_cksum_compute(buf);
+
 	return (0);
+}
+
+int
+arc_decompress(arc_buf_t *buf)
+{
+	return (arc_buf_fill(buf, B_FALSE));
 }
 
 /*
@@ -1750,7 +1869,6 @@ arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 	for (buf = hdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next) {
 		if (arc_buf_is_shared(buf))
 			continue;
-		ASSERT3U(HDR_GET_LSIZE(hdr), ==, arc_buf_size(buf));
 		(void) refcount_add_many(&state->arcs_esize[type],
 		    arc_buf_size(buf), buf);
 	}
@@ -1786,7 +1904,6 @@ arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 	for (buf = hdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next) {
 		if (arc_buf_is_shared(buf))
 			continue;
-		ASSERT3U(HDR_GET_LSIZE(hdr), ==, arc_buf_size(buf));
 		(void) refcount_remove_many(&state->arcs_esize[type],
 		    arc_buf_size(buf), buf);
 	}
@@ -2021,8 +2138,6 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 				if (arc_buf_is_shared(buf))
 					continue;
 
-				ASSERT3U(HDR_GET_LSIZE(hdr), ==,
-				    arc_buf_size(buf));
 				(void) refcount_add_many(&new_state->arcs_size,
 				    arc_buf_size(buf), buf);
 			}
@@ -2077,8 +2192,6 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 				if (arc_buf_is_shared(buf))
 					continue;
 
-				ASSERT3U(HDR_GET_LSIZE(hdr), ==,
-				    arc_buf_size(buf));
 				(void) refcount_remove_many(
 				    &old_state->arcs_size, arc_buf_size(buf),
 				    buf);
@@ -2181,18 +2294,61 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 }
 
 /*
- * Allocate either the first buffer for this hdr, or a compressed buffer for
- * this hdr. Subsequent non-compressed buffers use arc_buf_clone().
+ * Given a hdr and a buf, returns whether that buf can share its b_data buffer
+ * with the hdr's b_pdata.
  */
-static arc_buf_t *
-arc_buf_alloc_impl(arc_buf_hdr_t *hdr, void *tag, boolean_t compressed)
+static boolean_t
+arc_can_share(arc_buf_hdr_t *hdr, arc_buf_t *buf)
+{
+	boolean_t hdr_compressed, buf_compressed;
+	/*
+	 * The criteria for sharing a hdr's data are:
+	 * 1. the hdr's compression matches the buf's compression
+	 * 2. the hdr doesn't need to be byteswapped
+	 * 3. the hdr isn't already being shared
+	 * 4. the buf is either compressed or it is the last buf in the hdr list
+	 *
+	 * Criterion #4 maintains the invariant that shared uncompressed
+	 * bufs must be the final buf in the hdr's b_buf list. Reading this, you
+	 * might ask, "if a compressed buf is allocated first, won't that be the
+	 * last thing in the list?", but in that case it's impossible to create
+	 * a shared uncompressed buf anyway (because the hdr must be compressed
+	 * to have the compressed buf). You might also think that #3 is
+	 * sufficient to make this guarantee, however it's possible
+	 * (specifically in the rare L2ARC write race mentioned in
+	 * arc_buf_alloc_impl()) there will be an existing uncompressed buf that
+	 * is sharable, but wasn't at the time of its allocation. Rather than
+	 * allow a new shared uncompressed buf to be created and then shuffle
+	 * the list around to make it the last element, this simply disallows
+	 * sharing if the new buf isn't the first to be added.
+	 */
+	ASSERT3P(buf->b_hdr, ==, hdr);
+	hdr_compressed = HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF;
+	buf_compressed = ARC_BUF_COMPRESSED(buf) != 0;
+	return (buf_compressed == hdr_compressed &&
+	    hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS &&
+	    !HDR_SHARED_DATA(hdr) &&
+	    (ARC_BUF_LAST(buf) || ARC_BUF_COMPRESSED(buf)));
+}
+
+/*
+ * Allocate a buf for this hdr. If you care about the data that's in the hdr,
+ * or if you want a compressed buffer, pass those flags in. Returns 0 if the
+ * copy was made successfully, or an error code otherwise.
+ */
+static int
+arc_buf_alloc_impl(arc_buf_hdr_t *hdr, void *tag, boolean_t compressed,
+    boolean_t fill, arc_buf_t **ret)
 {
 	arc_buf_t *buf;
+	boolean_t can_share;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT3U(HDR_GET_LSIZE(hdr), >, 0);
 	VERIFY(hdr->b_type == ARC_BUFC_DATA ||
 	    hdr->b_type == ARC_BUFC_METADATA);
+	ASSERT3P(ret, !=, NULL);
+	ASSERT3P(*ret, ==, NULL);
 
 	hdr->b_l1hdr.b_mru_hits = 0;
 	hdr->b_l1hdr.b_mru_ghost_hits = 0;
@@ -2200,10 +2356,11 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, void *tag, boolean_t compressed)
 	hdr->b_l1hdr.b_mfu_ghost_hits = 0;
 	hdr->b_l1hdr.b_l2_hits = 0;
 
-	buf = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
+	buf = *ret = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
 	buf->b_hdr = hdr;
 	buf->b_data = NULL;
 	buf->b_next = hdr->b_l1hdr.b_buf;
+	buf->b_flags = 0;
 
 	add_reference(hdr, tag);
 
@@ -2214,67 +2371,57 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, void *tag, boolean_t compressed)
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
 
 	/*
-	 * If the hdr's data can be shared (no byteswapping, hdr compression
-	 * matches the requested buf compression) then we share the data buffer
-	 * and set the appropriate bit in the hdr's b_flags to indicate
-	 * the hdr is sharing it's b_pdata with the arc_buf_t. Otherwise, we
-	 * allocate a new buffer to store the buf's data.
+	 * Only honor requests for compressed bufs if the hdr is actually
+	 * compressed.
 	 */
-	if (hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS && compressed &&
-	    HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF) {
-		ASSERT(!HDR_SHARED_DATA(hdr));
+	if (compressed && HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF)
+		buf->b_flags |= ARC_BUF_FLAG_COMPRESSED;
+
+	/*
+	 * Although the ARC should handle it correctly, levels above the ARC
+	 * should prevent us from having multiple compressed bufs off the same
+	 * hdr. To ensure we notice it if this behavior changes, we assert this
+	 * here the best we can.
+	 */
+	IMPLY(ARC_BUF_COMPRESSED(buf), !HDR_SHARED_DATA(hdr));
+
+	/*
+	 * If the hdr's data can be shared then we share the data buffer and
+	 * set the appropriate bit in the hdr's b_flags to indicate the hdr is
+	 * allocate a new buffer to store the buf's data.
+	 *
+	 * There is one additional restriction here because we're sharing
+	 * hdr -> buf instead of the usual buf -> hdr: the hdr can't be actively
+	 * involved in an L2ARC write, because if this buf is used by an
+	 * arc_write() then the hdr's data buffer will be released when the
+	 * write completes, even though the L2ARC write might still be using it.
+	 */
+	can_share = arc_can_share(hdr, buf) && !HDR_L2_WRITING(hdr);
+
+	/* Set up b_data and sharing */
+	if (can_share) {
 		buf->b_data = hdr->b_l1hdr.b_pdata;
-		buf->b_prop_flags =
-		    ARC_BUF_FLAG_SHARED | ARC_BUF_FLAG_COMPRESSED;
-		arc_hdr_set_flags(hdr, ARC_FLAG_SHARED_DATA);
-	} else if (hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS &&
-	    !compressed && HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF) {
-		ASSERT(!HDR_SHARED_DATA(hdr));
-		ASSERT(ARC_BUF_LAST(buf));
-		buf->b_data = hdr->b_l1hdr.b_pdata;
-		buf->b_prop_flags = ARC_BUF_FLAG_SHARED;
+		buf->b_flags |= ARC_BUF_FLAG_SHARED;
 		arc_hdr_set_flags(hdr, ARC_FLAG_SHARED_DATA);
 	} else {
-		ASSERT(!compressed);
-		buf->b_data = arc_get_data_buf(hdr, HDR_GET_LSIZE(hdr), buf);
-		buf->b_prop_flags = 0;
-		ARCSTAT_INCR(arcstat_overhead_size, HDR_GET_LSIZE(hdr));
-		arc_hdr_clear_flags(hdr, ARC_FLAG_SHARED_DATA);
+		buf->b_data =
+		    arc_get_data_buf(hdr, arc_buf_size(buf), buf);
+		ARCSTAT_INCR(arcstat_overhead_size, arc_buf_size(buf));
 	}
 	VERIFY3P(buf->b_data, !=, NULL);
 
 	hdr->b_l1hdr.b_buf = buf;
 	hdr->b_l1hdr.b_bufcnt += 1;
 
-	return (buf);
-}
+	/*
+	 * If the user wants the data from the hdr, we need to either copy or
+	 * decompress the data.
+	 */
+	if (fill) {
+		return (arc_buf_fill(buf, ARC_BUF_COMPRESSED(buf) != 0));
+	}
 
-/*
- * Used when allocating additional buffers.
- */
-static arc_buf_t *
-arc_buf_clone(arc_buf_t *from)
-{
-	arc_buf_t *buf;
-	arc_buf_hdr_t *hdr = from->b_hdr;
-	uint64_t size = HDR_GET_LSIZE(hdr);
-
-	ASSERT(HDR_HAS_L1HDR(hdr));
-	ASSERT(hdr->b_l1hdr.b_state != arc_anon);
-	ASSERT(!ARC_BUF_COMPRESSED(from));
-
-	buf = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
-	buf->b_hdr = hdr;
-	buf->b_data = NULL;
-	buf->b_prop_flags = 0;
-	buf->b_next = hdr->b_l1hdr.b_buf;
-	hdr->b_l1hdr.b_buf = buf;
-	buf->b_data = arc_get_data_buf(hdr, HDR_GET_LSIZE(hdr), buf);
-	bcopy(from->b_data, buf->b_data, size);
-	hdr->b_l1hdr.b_bufcnt += 1;
-
-	ARCSTAT_INCR(arcstat_overhead_size, HDR_GET_LSIZE(hdr));
-	return (buf);
+	return (0);
 }
 
 static char *arc_onloan_tag = "onloan";
@@ -2378,8 +2525,7 @@ arc_hdr_free_on_write(arc_buf_hdr_t *hdr)
 static void
 arc_share_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 {
-	ASSERT(!HDR_SHARED_DATA(hdr));
-	ASSERT(!arc_buf_is_shared(buf));
+	ASSERT(arc_can_share(hdr, buf));
 	ASSERT3P(hdr->b_l1hdr.b_pdata, ==, NULL);
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
 
@@ -2391,7 +2537,7 @@ arc_share_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 	refcount_transfer_ownership(&hdr->b_l1hdr.b_state->arcs_size, buf, hdr);
 	hdr->b_l1hdr.b_pdata = buf->b_data;
 	arc_hdr_set_flags(hdr, ARC_FLAG_SHARED_DATA);
-	buf->b_prop_flags |= ARC_BUF_FLAG_SHARED;
+	buf->b_flags |= ARC_BUF_FLAG_SHARED;
 
 	/*
 	 * Since we've transferred ownership to the hdr we need
@@ -2406,7 +2552,6 @@ arc_share_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 static void
 arc_unshare_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 {
-	ASSERT(HDR_SHARED_DATA(hdr));
 	ASSERT(arc_buf_is_shared(buf));
 	ASSERT3P(hdr->b_l1hdr.b_pdata, !=, NULL);
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
@@ -2418,7 +2563,7 @@ arc_unshare_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 	refcount_transfer_ownership(&hdr->b_l1hdr.b_state->arcs_size, hdr, buf);
 	arc_hdr_clear_flags(hdr, ARC_FLAG_SHARED_DATA);
 	hdr->b_l1hdr.b_pdata = NULL;
-	buf->b_prop_flags &= ~ARC_BUF_FLAG_SHARED;
+	buf->b_flags &= ~ARC_BUF_FLAG_SHARED;
 
 	/*
 	 * Since the buffer is no longer shared between
@@ -2481,10 +2626,9 @@ arc_buf_destroy_impl(arc_buf_t *buf)
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
 	/*
-	 * Free up the data associated with the buf but only
-	 * if we're not sharing this with the hdr. If we are sharing
-	 * it with the hdr, then hdr will have performed the allocation
-	 * so allow it to do the free.
+	 * Free up the data associated with the buf but only if we're not
+	 * sharing this with the hdr. If we are sharing it with the hdr, the
+	 * hdr is responsible for doing the free.
 	 */
 	if (buf->b_data != NULL) {
 		/*
@@ -2493,9 +2637,7 @@ arc_buf_destroy_impl(arc_buf_t *buf)
 		 */
 		ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
 
-		if (!ARC_BUF_COMPRESSED(buf)) {
-			arc_cksum_verify(buf);
-		}
+		arc_cksum_verify(buf);
 		arc_buf_unwatch(buf);
 
 		if (arc_buf_is_shared(buf)) {
@@ -2513,27 +2655,23 @@ arc_buf_destroy_impl(arc_buf_t *buf)
 
 	lastbuf = arc_buf_remove(hdr, buf);
 
-	if (ARC_BUF_COMPRESSED(buf)) {
+	if (ARC_BUF_SHARED(buf) && !ARC_BUF_COMPRESSED(buf)) {
 		/*
-		 * For compressed, shared buffers we don't need to do anything
-		 * special so take the opportunity to ensure that compressed
-		 * buffers must be shared. The hdr has already been marked as
-		 * not shared and we already cleared b_data, so just check the
-		 * flag on the buf.
-		 */
-		VERIFY(ARC_BUF_SHARED(buf));
-	} else if (ARC_BUF_SHARED(buf)) {
-		ASSERT(!ARC_BUF_COMPRESSED(buf));
-
-		/*
-		 * If the current arc_buf_t is sharing its data
-		 * buffer with the hdr, then reassign the hdr's
-		 * b_pdata to share it with the new buffer at the end
-		 * of the list. The shared buffer is always the last one
-		 * on the hdr's buffer list.
+		 * If the current arc_buf_t is sharing its data buffer with the
+		 * hdr, then reassign the hdr's b_pdata to share it with the new
+		 * buffer at the end of the list. The shared buffer is always
+		 * the last one on the hdr's buffer list.
+		 *
+		 * There is an equivalent case for compressed bufs, but since
+		 * they aren't guaranteed to be the last buf in the list and
+		 * that is an exceedingly rare case, we just allow that space be
+		 * wasted temporarily.
 		 */
 		if (lastbuf != NULL) {
+			/* Only one buf can be shared at once */
 			VERIFY(!arc_buf_is_shared(lastbuf));
+			/* hdr is uncompressed so can't have compressed buf */
+			VERIFY(!ARC_BUF_COMPRESSED(lastbuf));
 
 			ASSERT3P(hdr->b_l1hdr.b_pdata, !=, NULL);
 			arc_hdr_free_pdata(hdr);
@@ -2755,7 +2893,8 @@ arc_alloc_buf(spa_t *spa, void *tag, arc_buf_contents_t type, int32_t size)
 	    ZIO_COMPRESS_OFF, type);
 	ASSERT(!MUTEX_HELD(HDR_LOCK(hdr)));
 
-	buf = arc_buf_alloc_impl(hdr, tag, B_FALSE);
+	buf = NULL;
+	VERIFY0(arc_buf_alloc_impl(hdr, tag, B_FALSE, B_FALSE, &buf));
 	arc_buf_thaw(buf);
 
 	return (buf);
@@ -2780,7 +2919,8 @@ arc_alloc_compressed_buf(spa_t *spa, void *tag, uint64_t psize, uint64_t lsize,
 	    compression_type, ARC_BUFC_DATA);
 	ASSERT(!MUTEX_HELD(HDR_LOCK(hdr)));
 
-	buf = arc_buf_alloc_impl(hdr, tag, B_TRUE);
+	buf = NULL;
+	VERIFY0(arc_buf_alloc_impl(hdr, tag, B_TRUE, B_FALSE, &buf));
 	arc_buf_thaw(buf);
 	ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
 
@@ -4652,9 +4792,10 @@ arc_read_done(zio_t *zio)
 {
 	arc_buf_hdr_t	*hdr = zio->io_private;
 	kmutex_t	*hash_lock = NULL;
-	arc_callback_t	*callback_list, *acb;
+	arc_callback_t	*callback_list;
+	arc_callback_t	*acb;
 	boolean_t	freeable = B_FALSE;
-	arc_buf_t *decomp_buf = NULL;
+	boolean_t	no_zio_error = (zio->io_error == 0);
 	int callback_cnt = 0;
 	/*
 	 * The hdr was inserted into hash-table and removed from lists
@@ -4681,7 +4822,7 @@ arc_read_done(zio_t *zio)
 		ASSERT3P(hash_lock, !=, NULL);
 	}
 
-	if (zio->io_error == 0) {
+	if (no_zio_error) {
 		/* byteswap if necessary */
 		if (BP_SHOULD_BYTESWAP(zio->io_bp)) {
 			if (BP_GET_LEVEL(zio->io_bp) > 0) {
@@ -4702,8 +4843,7 @@ arc_read_done(zio_t *zio)
 	callback_list = hdr->b_l1hdr.b_acb;
 	ASSERT3P(callback_list, !=, NULL);
 
-	if (hash_lock && zio->io_error == 0 &&
-	    hdr->b_l1hdr.b_state == arc_anon) {
+	if (hash_lock && no_zio_error && hdr->b_l1hdr.b_state == arc_anon) {
 		/*
 		 * Only call arc_access on anonymous buffers.  This is because
 		 * if we've issued an I/O for an evicted buffer, we've already
@@ -4713,40 +4853,25 @@ arc_read_done(zio_t *zio)
 		arc_access(hdr, hash_lock);
 	}
 
-	/* create buffers for the callers. only decompress the data once. */
+	/*
+	 * If a read request has a callback (i.e. acb_done is not NULL), then we
+	 * make a buf containing the data according to the parameters which were
+	 * passed in. The implementation of arc_buf_alloc_impl() ensures that we
+	 * aren't needlessly decompressing the data multiple times.
+	 */
 	for (acb = callback_list; acb != NULL; acb = acb->acb_next) {
+		int error;
 		if (!acb->acb_done)
 			continue;
 
-		/*
-		 * If we're here, then this must be a demand read
-		 * since prefetch requests don't have callbacks.
-		 * If a read request has a callback (i.e. acb_done is
-		 * not NULL), then we decompress the data for the
-		 * first request and clone the rest. This avoids
-		 * having to waste cpu resources decompressing data
-		 * that nobody is explicitly waiting to read.
-		 */
+		/* This is a demand read since prefetches don't use callbacks */
 
 		callback_cnt++;
-		if (acb->acb_compressed && !HDR_SHARED_DATA(hdr) &&
-		    HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF &&
-		    hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS) {
-			acb->acb_buf = arc_buf_alloc_impl(hdr,
-			    acb->acb_private, B_TRUE);
-		} else {
-			if (decomp_buf == NULL) {
-				decomp_buf = arc_buf_alloc_impl(hdr,
-				    acb->acb_private, B_FALSE);
-				if (zio->io_error == 0) {
-					zio->io_error =
-					    arc_decompress(decomp_buf);
-				}
-				acb->acb_buf = decomp_buf;
-			} else {
-				add_reference(hdr, acb->acb_private);
-				acb->acb_buf = arc_buf_clone(decomp_buf);
-			}
+
+		error = arc_buf_alloc_impl(hdr, acb->acb_private,
+		    acb->acb_compressed, no_zio_error, &acb->acb_buf);
+		if (no_zio_error) {
+			zio->io_error = error;
 		}
 	}
 	hdr->b_l1hdr.b_acb = NULL;
@@ -4760,7 +4885,7 @@ arc_read_done(zio_t *zio)
 	ASSERT(refcount_is_zero(&hdr->b_l1hdr.b_refcnt) ||
 	    callback_list != NULL);
 
-	if (zio->io_error == 0) {
+	if (no_zio_error) {
 		arc_hdr_verify(hdr, zio->io_bp);
 	} else {
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
@@ -4936,47 +5061,9 @@ top:
 			}
 			ASSERT(!BP_IS_EMBEDDED(bp) || !BP_IS_HOLE(bp));
 
-			/*
-			 * If we're doing a raw read, the header hasn't been
-			 * shared yet, the header contains compressed data, and
-			 * the data does not need to be byteswapped, use the
-			 * header's b_pdata as the new buf's b_data. Otherwise,
-			 * we'll either need to clone an existing decompressed
-			 * buf or decompress the data ourselves.
-			 */
-			if (compressed_read && !HDR_SHARED_DATA(hdr) &&
-			    HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF &&
-			    hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS) {
-				buf = arc_buf_alloc_impl(hdr, private, B_TRUE);
-			} else {
-				/* search for a decompressed buf */
-				for (buf = hdr->b_l1hdr.b_buf; buf != NULL;
-				    buf = buf->b_next) {
-					if (!ARC_BUF_COMPRESSED(buf))
-						break;
-				}
-
-				if (buf == NULL) {
-					/* there could be one compressed buf */
-					IMPLY(HDR_SHARED_DATA(hdr),
-					    refcount_count(
-					    &hdr->b_l1hdr.b_refcnt) == 1);
-					/* otherwise there won't be any */
-					IMPLY(!HDR_SHARED_DATA(hdr),
-					    refcount_count(
-					    &hdr->b_l1hdr.b_refcnt) == 0);
-					ASSERT3P(hdr->b_l1hdr.b_freeze_cksum,
-					    ==, NULL);
-					buf = arc_buf_alloc_impl(hdr, private,
-					    B_FALSE);
-					VERIFY0(arc_decompress(buf));
-				} else {
-					add_reference(hdr, private);
-					buf = arc_buf_clone(buf);
-				}
-			}
-			ASSERT3P(buf->b_data, !=, NULL);
-
+			/* Get a buf with the desired data in it. */
+			VERIFY0(arc_buf_alloc_impl(hdr, private,
+			    compressed_read, B_TRUE, &buf));
 		} else if (*arc_flags & ARC_FLAG_PREFETCH &&
 		    refcount_count(&hdr->b_l1hdr.b_refcnt) == 0) {
 			arc_hdr_set_flags(hdr, ARC_FLAG_PREFETCH);
@@ -5407,8 +5494,10 @@ arc_release(arc_buf_t *buf, void *tag)
 		ASSERT(hdr->b_l1hdr.b_buf != buf || buf->b_next != NULL);
 		(void) remove_reference(hdr, hash_lock, tag);
 
-		if (arc_buf_is_shared(buf))
+		if (arc_buf_is_shared(buf) && !ARC_BUF_COMPRESSED(buf)) {
 			ASSERT3P(hdr->b_l1hdr.b_buf, !=, buf);
+			ASSERT(ARC_BUF_LAST(buf));
+		}
 
 		/*
 		 * Pull the data off of this hdr and attach it to
@@ -5420,9 +5509,7 @@ arc_release(arc_buf_t *buf, void *tag)
 
 		/*
 		 * If the current arc_buf_t and the hdr are sharing their data
-		 * buffer, then we must stop sharing that block, transfer
-		 * ownership and setup sharing with a new arc_buf_t at the end
-		 * of the hdr's b_buf list.
+		 * buffer, then we must stop sharing that block.
 		 */
 		if (arc_buf_is_shared(buf)) {
 			ASSERT3P(hdr->b_l1hdr.b_buf, !=, buf);
@@ -5437,19 +5524,16 @@ arc_release(arc_buf_t *buf, void *tag)
 			arc_unshare_buf(hdr, buf);
 
 			/*
-			 * If the buf we removed was compressed, then
-			 * we need to allocate a new compressed block for the
-			 * hdr and copy the data over. Otherwise, the
-			 * buffer was uncompressed and we can now share
-			 * the data with the lastbuf.
+			 * Now we need to recreate the hdr's b_pdata. Since we
+			 * have lastbuf handy, we try to share with it, but if
+			 * we can't then we allocate a new b_pdata and copy the
+			 * data from buf into it.
 			 */
-			if (ARC_BUF_COMPRESSED(buf)) {
-				ASSERT(!ARC_BUF_COMPRESSED(lastbuf));
+			if (arc_can_share(hdr, lastbuf)) {
+				arc_share_buf(hdr, lastbuf);
+			} else {
 				arc_hdr_alloc_pdata(hdr);
 				bcopy(buf->b_data, hdr->b_l1hdr.b_pdata, psize);
-			} else {
-				ASSERT(!ARC_BUF_COMPRESSED(lastbuf));
-				arc_share_buf(hdr, lastbuf);
 			}
 			VERIFY3P(lastbuf->b_data, !=, NULL);
 		} else if (HDR_SHARED_DATA(hdr)) {
@@ -5612,32 +5696,21 @@ arc_write_ready(zio_t *zio)
 	 */
 	if (HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF &&
 	    !ARC_BUF_COMPRESSED(buf)) {
-		ASSERT(BP_GET_COMPRESS(zio->io_bp) != ZIO_COMPRESS_OFF);
+		ASSERT3U(BP_GET_COMPRESS(zio->io_bp), !=, ZIO_COMPRESS_OFF);
 		ASSERT3U(psize, >, 0);
 		arc_hdr_alloc_pdata(hdr);
 		bcopy(zio->io_data, hdr->b_l1hdr.b_pdata, psize);
 	} else {
 		ASSERT3P(buf->b_data, ==, zio->io_orig_data);
 		ASSERT3U(zio->io_orig_size, ==, arc_buf_size(buf));
-		ASSERT3U(hdr->b_l1hdr.b_byteswap, ==, DMU_BSWAP_NUMFUNCS);
-		ASSERT(!HDR_SHARED_DATA(hdr));
-		ASSERT(!arc_buf_is_shared(buf));
 		ASSERT3U(hdr->b_l1hdr.b_bufcnt, ==, 1);
-		ASSERT3P(hdr->b_l1hdr.b_pdata, ==, NULL);
-		if (ARC_BUF_COMPRESSED(buf)) {
-			ASSERT3U(zio->io_orig_size, ==, HDR_GET_PSIZE(hdr));
-		} else {
-			ASSERT3U(zio->io_orig_size, ==, HDR_GET_LSIZE(hdr));
-		}
-		EQUIV(HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF,
-		    ARC_BUF_COMPRESSED(buf));
 
 		/*
 		 * This hdr is not compressed so we're able to share
 		 * the arc_buf_t data buffer with the hdr.
 		 */
 		arc_share_buf(hdr, buf);
-		VERIFY0(bcmp(zio->io_orig_data, hdr->b_l1hdr.b_pdata,
+		ASSERT0(bcmp(zio->io_orig_data, hdr->b_l1hdr.b_pdata,
 		    HDR_GET_LSIZE(hdr)));
 	}
 	arc_hdr_verify(hdr, zio->io_bp);
@@ -5696,7 +5769,7 @@ arc_write_done(zio_t *zio)
 		arc_buf_hdr_t *exists;
 		kmutex_t *hash_lock;
 
-		ASSERT(zio->io_error == 0);
+		ASSERT3U(zio->io_error, ==, 0);
 
 		arc_cksum_verify(buf);
 
