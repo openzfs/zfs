@@ -1376,7 +1376,7 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 
 		/* compressed bufs must always be assignable to their dbuf */
 		ASSERT3U(arc_get_compression(buf), ==, ZIO_COMPRESS_OFF);
-		ASSERT(!(buf->b_prop_flags & ARC_BUF_FLAG_COMPRESSED));
+		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
 
 		DB_DNODE_ENTER(dbuf);
 		dn = DB_DNODE(dbuf);
