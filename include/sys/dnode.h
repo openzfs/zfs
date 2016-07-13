@@ -64,7 +64,7 @@ extern "C" {
  * 4 levels of indirect blocks would not be able to guarantee addressing an
  * entire object, so 5 levels will be used, but 5 * (20 - 7) = 65.
  */
-#define	DN_MAX_INDBLKSHIFT	14	/* 16k */
+#define	DN_MAX_INDBLKSHIFT	17	/* 128k */
 #define	DNODE_BLOCK_SHIFT	14	/* 16k */
 #define	DNODE_CORE_SIZE		64	/* 64 bytes for dnode sans blkptrs */
 #define	DN_MAX_OBJECT_SHIFT	48	/* 256 trillion (zfs_fid_t limit) */
@@ -101,6 +101,11 @@ extern "C" {
 
 #define	DNODES_PER_BLOCK_SHIFT	(DNODE_BLOCK_SHIFT - DNODE_SHIFT)
 #define	DNODES_PER_BLOCK	(1ULL << DNODES_PER_BLOCK_SHIFT)
+
+/*
+ * This is inaccurate if the indblkshift of the particular object is not the
+ * max.  But it's only used by userland to calculate the zvol reservation.
+ */
 #define	DNODES_PER_LEVEL_SHIFT	(DN_MAX_INDBLKSHIFT - SPA_BLKPTRSHIFT)
 #define	DNODES_PER_LEVEL	(1ULL << DNODES_PER_LEVEL_SHIFT)
 

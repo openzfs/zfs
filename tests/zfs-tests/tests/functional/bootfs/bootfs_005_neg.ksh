@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_upgrade/zpool_upgrade.kshlib
 

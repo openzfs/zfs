@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -58,7 +58,7 @@ log_onexit cleanup
 
 specials_list=""
 for i in 0 1 2; do
-	$MKFILE 64m $TESTDIR/$TESTFILE1.$i
+	$MKFILE $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 done
 disk=($specials_list)

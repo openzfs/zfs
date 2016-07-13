@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -99,7 +103,7 @@ arguments[${#arguments[@]}]="bootfs=$bigname"
 # Create a pool called bootfs (so-called, so as to trip any clashes between
 # property name, and pool name)
 # Also create a filesystem in this pool
-log_must $MKFILE 64m /tmp/zpool_set_002.$$.dat
+log_must $MKFILE $MINVDEVSIZE /tmp/zpool_set_002.$$.dat
 log_must $ZPOOL create bootfs /tmp/zpool_set_002.$$.dat
 log_must $ZFS create bootfs/root
 

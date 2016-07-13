@@ -360,7 +360,7 @@ test_6() {
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raid0 || fail 2
-	${ZFS} create -V 800M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} create -s -V 800M ${FULL_ZVOL_NAME} || fail 3
 	${ZFS} set snapdev=visible ${FULL_ZVOL_NAME} || fail 3
 	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
 	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1 -1 || fail 4

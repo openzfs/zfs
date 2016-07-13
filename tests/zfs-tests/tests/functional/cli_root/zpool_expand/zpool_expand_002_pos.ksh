@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -103,7 +103,7 @@ for type in " " mirror raidz raidz2; do
 	    "expanded size: $expand_size"
 
 	# compare available pool size from zfs
-	if [[ $zfs_expand_size > $zfs_prev_size ]]; then
+	if [[ $zfs_expand_size -gt $zfs_prev_size ]]; then
 	# check for zpool history for the pool size expansion
 		if [[ $type == " " ]]; then
 			typeset	size_addition=$($ZPOOL history -il $TESTPOOL1 \
