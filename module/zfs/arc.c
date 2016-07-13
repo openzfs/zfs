@@ -231,6 +231,8 @@ unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
 unsigned long zfs_arc_meta_min = 0;
+unsigned long zfs_arc_dnode_limit = 0;
+unsigned long zfs_arc_dnode_reduce_percent = 10;
 int zfs_arc_grow_retry = 0;
 int zfs_arc_shrink_shift = 0;
 int zfs_arc_p_min_shift = 0;
@@ -328,13 +330,17 @@ typedef struct arc_stats {
 	 */
 	kstat_named_t arcstat_metadata_size;
 	/*
-	 * Number of bytes consumed by various buffers and structures
-	 * not actually backed with ARC buffers. This includes bonus
-	 * buffers (allocated directly via zio_buf_* functions),
-	 * dmu_buf_impl_t structures (allocated via dmu_buf_impl_t
-	 * cache), and dnode_t structures (allocated via dnode_t cache).
+	 * Number of bytes consumed by dmu_buf_impl_t objects.
 	 */
-	kstat_named_t arcstat_other_size;
+	kstat_named_t arcstat_dbuf_size;
+	/*
+	 * Number of bytes consumed by dnode_t objects.
+	 */
+	kstat_named_t arcstat_dnode_size;
+	/*
+	 * Number of bytes consumed by bonus buffers.
+	 */
+	kstat_named_t arcstat_bonus_size;
 	/*
 	 * Total number of bytes consumed by ARC buffers residing in the
 	 * arc_anon state. This includes *all* buffers in the arc_anon
@@ -473,6 +479,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_prune;
 	kstat_named_t arcstat_meta_used;
 	kstat_named_t arcstat_meta_limit;
+	kstat_named_t arcstat_dnode_limit;
 	kstat_named_t arcstat_meta_max;
 	kstat_named_t arcstat_meta_min;
 	kstat_named_t arcstat_sync_wait_for_async;
@@ -517,7 +524,9 @@ static arc_stats_t arc_stats = {
 	{ "hdr_size",			KSTAT_DATA_UINT64 },
 	{ "data_size",			KSTAT_DATA_UINT64 },
 	{ "metadata_size",		KSTAT_DATA_UINT64 },
-	{ "other_size",			KSTAT_DATA_UINT64 },
+	{ "dbuf_size",			KSTAT_DATA_UINT64 },
+	{ "dnode_size",			KSTAT_DATA_UINT64 },
+	{ "bonus_size",			KSTAT_DATA_UINT64 },
 	{ "anon_size",			KSTAT_DATA_UINT64 },
 	{ "anon_evictable_data",	KSTAT_DATA_UINT64 },
 	{ "anon_evictable_metadata",	KSTAT_DATA_UINT64 },
@@ -570,6 +579,7 @@ static arc_stats_t arc_stats = {
 	{ "arc_prune",			KSTAT_DATA_UINT64 },
 	{ "arc_meta_used",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_limit",		KSTAT_DATA_UINT64 },
+	{ "arc_dnode_limit",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_max",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_min",		KSTAT_DATA_UINT64 },
 	{ "sync_wait_for_async",	KSTAT_DATA_UINT64 },
@@ -641,9 +651,13 @@ static arc_state_t	*arc_l2c_only;
 #define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
 #define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
 #define	arc_meta_limit	ARCSTAT(arcstat_meta_limit) /* max size for metadata */
+#define	arc_dnode_limit	ARCSTAT(arcstat_dnode_limit) /* max size for dnodes */
 #define	arc_meta_min	ARCSTAT(arcstat_meta_min) /* min size for metadata */
 #define	arc_meta_used	ARCSTAT(arcstat_meta_used) /* size of metadata */
 #define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
+#define	arc_dbuf_size	ARCSTAT(arcstat_dbuf_size) /* dbuf metadata */
+#define	arc_dnode_size	ARCSTAT(arcstat_dnode_size) /* dnode metadata */
+#define	arc_bonus_size	ARCSTAT(arcstat_bonus_size) /* bonus buffer metadata */
 #define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
 #define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
 
@@ -803,6 +817,7 @@ static void arc_access(arc_buf_hdr_t *, kmutex_t *);
 static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
 static void arc_tuning_update(void);
+static void arc_prune_async(int64_t);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
 static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
@@ -1680,8 +1695,14 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	case ARC_SPACE_META:
 		ARCSTAT_INCR(arcstat_metadata_size, space);
 		break;
-	case ARC_SPACE_OTHER:
-		ARCSTAT_INCR(arcstat_other_size, space);
+	case ARC_SPACE_BONUS:
+		ARCSTAT_INCR(arcstat_bonus_size, space);
+		break;
+	case ARC_SPACE_DNODE:
+		ARCSTAT_INCR(arcstat_dnode_size, space);
+		break;
+	case ARC_SPACE_DBUF:
+		ARCSTAT_INCR(arcstat_dbuf_size, space);
 		break;
 	case ARC_SPACE_HDRS:
 		ARCSTAT_INCR(arcstat_hdr_size, space);
@@ -1711,8 +1732,14 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	case ARC_SPACE_META:
 		ARCSTAT_INCR(arcstat_metadata_size, -space);
 		break;
-	case ARC_SPACE_OTHER:
-		ARCSTAT_INCR(arcstat_other_size, -space);
+	case ARC_SPACE_BONUS:
+		ARCSTAT_INCR(arcstat_bonus_size, -space);
+		break;
+	case ARC_SPACE_DNODE:
+		ARCSTAT_INCR(arcstat_dnode_size, -space);
+		break;
+	case ARC_SPACE_DBUF:
+		ARCSTAT_INCR(arcstat_dbuf_size, -space);
 		break;
 	case ARC_SPACE_HDRS:
 		ARCSTAT_INCR(arcstat_hdr_size, -space);
@@ -2599,6 +2626,18 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	 * we're evicting all available buffers.
 	 */
 	while (total_evicted < bytes || bytes == ARC_EVICT_ALL) {
+		int sublist_idx = multilist_get_random_index(ml);
+		uint64_t scan_evicted = 0;
+
+		/*
+		 * Try to reduce pinned dnodes with a floor of arc_dnode_limit.
+		 * Request that 10% of the LRUs be scanned by the superblock
+		 * shrinker.
+		 */
+		if (type == ARC_BUFC_DATA && arc_dnode_size > arc_dnode_limit)
+			arc_prune_async((arc_dnode_size - arc_dnode_limit) /
+			    sizeof (dnode_t) / zfs_arc_dnode_reduce_percent);
+
 		/*
 		 * Start eviction using a randomly selected sublist,
 		 * this is to try and evenly balance eviction across all
@@ -2606,9 +2645,6 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		 * (e.g. index 0) would cause evictions to favor certain
 		 * sublists over others.
 		 */
-		int sublist_idx = multilist_get_random_index(ml);
-		uint64_t scan_evicted = 0;
-
 		for (i = 0; i < num_sublists; i++) {
 			uint64_t bytes_remaining;
 			uint64_t bytes_evicted;
@@ -5329,6 +5365,7 @@ arc_tuning_update(void)
 		arc_c = arc_c_max;
 		arc_p = (arc_c >> 1);
 		arc_meta_limit = MIN(arc_meta_limit, (3 * arc_c_max) / 4);
+		arc_dnode_limit = arc_meta_limit / 10;
 	}
 
 	/* Valid range: 32M - <arc_c_max> */
@@ -5345,6 +5382,7 @@ arc_tuning_update(void)
 	    (zfs_arc_meta_min <= arc_c_max)) {
 		arc_meta_min = zfs_arc_meta_min;
 		arc_meta_limit = MAX(arc_meta_limit, arc_meta_min);
+		arc_dnode_limit = arc_meta_limit / 10;
 	}
 
 	/* Valid range: <arc_meta_min> - <arc_c_max> */
@@ -5352,6 +5390,12 @@ arc_tuning_update(void)
 	    (zfs_arc_meta_limit >= zfs_arc_meta_min) &&
 	    (zfs_arc_meta_limit <= arc_c_max))
 		arc_meta_limit = zfs_arc_meta_limit;
+
+	/* Valid range: <arc_meta_min> - <arc_c_max> */
+	if ((zfs_arc_dnode_limit) && (zfs_arc_dnode_limit != arc_dnode_limit) &&
+	    (zfs_arc_dnode_limit >= zfs_arc_meta_min) &&
+	    (zfs_arc_dnode_limit <= arc_c_max))
+		arc_dnode_limit = zfs_arc_dnode_limit;
 
 	/* Valid range: 1 - N */
 	if (zfs_arc_grow_retry)
@@ -5451,6 +5495,8 @@ arc_init(void)
 	arc_meta_max = 0;
 	/* Set limit to 3/4 of arc_c_max with a floor of arc_meta_min */
 	arc_meta_limit = MAX((3 * arc_c_max) / 4, arc_meta_min);
+	/* Default dnode limit is 10% of overall meta limit */
+	arc_dnode_limit = arc_meta_limit / 10;
 
 	/* Apply user specified tunings */
 	arc_tuning_update();
@@ -7203,5 +7249,12 @@ MODULE_PARM_DESC(zfs_arc_lotsfree_percent,
 
 module_param(zfs_arc_sys_free, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_sys_free, "System free memory target size in bytes");
+
+module_param(zfs_arc_dnode_limit, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_dnode_limit, "Minimum bytes of dnodes in arc");
+
+module_param(zfs_arc_dnode_reduce_percent, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_dnode_reduce_percent,
+	"Percentage of excess dnodes to try to unpin");
 
 #endif
