@@ -531,15 +531,19 @@ zfs_inode_update_impl(znode_t *zp, boolean_t new)
 	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zsb), &ctime, 16);
 
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
+	if (new)
+		mutex_lock(&ip->i_mutex);
 
-	spin_lock(&ip->i_lock);
 	ip->i_uid = SUID_TO_KUID(zp->z_uid);
 	ip->i_gid = SGID_TO_KGID(zp->z_gid);
 	set_nlink(ip, zp->z_links);
 	ip->i_mode = zp->z_mode;
 	zfs_set_inode_flags(zp, ip);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
+
+	spin_lock(&ip->i_lock);
 	ip->i_blocks = i_blocks;
+	spin_unlock(&ip->i_lock);
 
 	/*
 	 * Only read atime from SA if we are newly created inode (or rezget),
@@ -550,19 +554,23 @@ zfs_inode_update_impl(znode_t *zp, boolean_t new)
 	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
 	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
 
+	if (new)
+		mutex_unlock(&ip->i_mutex);
+
 	i_size_write(ip, zp->z_size);
-	spin_unlock(&ip->i_lock);
 }
 
 static void
 zfs_inode_update_new(znode_t *zp)
 {
+	ASSERT(!mutex_is_locked(&zp->z_inode.i_mutex));
 	zfs_inode_update_impl(zp, B_TRUE);
 }
 
 void
 zfs_inode_update(znode_t *zp)
 {
+	ASSERT(mutex_is_locked(&zp->z_inode.i_mutex));
 	zfs_inode_update_impl(zp, B_FALSE);
 }
 
