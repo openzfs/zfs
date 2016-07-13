@@ -4263,12 +4263,12 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	zpool_label_name(vtoc->efi_parts[0].p_name, EFI_PART_NAME_LEN);
 
 	/*
-	 * When BIOS-booting off a disk in GPT format grub2 needs to embed itself
+	 * When BIOS-booting off disks in GPT format grub2 needs to embed itself
 	 * in a BIOS Boot Partition with type 0xEF02 at least 31 KiB in size.
 	 * The space between the default start block 34 and NEW_START_BLOCK is a
 	 * good place for putting the BIOS Boot Partition, however we start at
 	 * 48 to ensure alignment on drives with 8KB physical sectors.
-	 * Only create this partition if its size is at least 62 logical sectors.
+	 * Only create the partition if its size is at least 62 logical sectors.
 	 */
 
 	if ((start_block - 48) >= 62) {
