@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -38,7 +38,7 @@
 #
 # STRATEGY:
 # 1. Create a file based pool.
-# 2. Add 32 file based vdevs to it.
+# 2. Add 16 file based vdevs to it.
 # 3. Attempt to add a file based vdev that's too small; verify failure.
 #
 
@@ -61,11 +61,11 @@ log_onexit cleanup
 
 create_pool $TESTPOOL ${DISKS%% *}
 log_must $ZFS create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
-log_must $MKFILE 64m $TESTDIR/file.00
+log_must $MKFILE $MINVDEVSIZE $TESTDIR/file.00
 create_pool "$TESTPOOL1" "$TESTDIR/file.00"
 
-vdevs_list=$($ECHO $TESTDIR/file.{01..32})
-log_must $MKFILE 64m $vdevs_list
+vdevs_list=$($ECHO $TESTDIR/file.{01..16})
+log_must $MKFILE $MINVDEVSIZE $vdevs_list
 
 log_must $ZPOOL add -f "$TESTPOOL1" $vdevs_list
 log_must vdevs_in_pool "$TESTPOOL1" "$vdevs_list"

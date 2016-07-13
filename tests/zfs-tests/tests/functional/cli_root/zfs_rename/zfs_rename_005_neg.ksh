@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.kshlib
 
@@ -63,8 +68,7 @@ log_assert "'zfs rename' should fail while datasets are within different pool."
 
 additional_setup
 
-typeset FILESIZE=64m
-log_must $MKFILE $FILESIZE $TESTDIR/$TESTFILE1
+log_must $MKFILE $MINVDEVSIZE $TESTDIR/$TESTFILE1
 create_pool $TESTPOOL1 $TESTDIR/$TESTFILE1
 
 for src in ${src_dataset[@]} ; do

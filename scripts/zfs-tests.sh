@@ -39,7 +39,7 @@ QUIET=
 CLEANUP=1
 CLEANUPALL=0
 LOOPBACK=1
-FILESIZE="2G"
+FILESIZE="4G"
 RUNFILE=${RUNFILE:-"linux.run"}
 FILEDIR=${FILEDIR:-/var/tmp}
 DISKS=${DISKS:-""}
@@ -165,7 +165,7 @@ OPTIONS:
 	-k          Disable cleanup after test failure
 	-f          Use files only, disables block device tests
 	-d DIR      Use DIR for files and loopback devices
-	-s SIZE     Use vdevs of SIZE (default: 2G)
+	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILE  Run tests in RUNFILE (default: linux.run)
 
 EXAMPLES:

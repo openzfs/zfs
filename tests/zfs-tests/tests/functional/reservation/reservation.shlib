@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/reservation/reservation.cfg
@@ -144,9 +144,9 @@ function volsize_to_reservation
 	typeset vol=$1
 	typeset volsize=$2
 
-	typeset DN_MAX_INDBLKSHIFT=14
-	typeset SPA_BLKPTRSHIFT=7
-	typeset SPA_DVAS_PER_BP=3
+	typeset -i DN_MAX_INDBLKSHIFT=17
+	typeset -i SPA_BLKPTRSHIFT=7
+	typeset -i SPA_DVAS_PER_BP=3
 
 	typeset DNODES_PER_LEVEL_SHIFT=$((DN_MAX_INDBLKSHIFT - \
 	    SPA_BLKPTRSHIFT))
