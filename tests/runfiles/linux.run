@@ -339,12 +339,13 @@ post =
 [tests/functional/cli_root/zpool_status]
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos']
 
-# DISABLED: ENOSPC failure
-#[tests/functional/cli_root/zpool_upgrade]
-#tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
-#    'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos', 'zpool_upgrade_005_neg',
-#    'zpool_upgrade_006_neg', 'zpool_upgrade_007_pos', 'zpool_upgrade_008_pos',
-#    'zpool_upgrade_009_neg']
+# DISABLED:
+# zpool_upgrade_007_pos - needs investigation
+[tests/functional/cli_root/zpool_upgrade]
+tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
+    'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos', 'zpool_upgrade_005_neg',
+    'zpool_upgrade_006_neg', 'zpool_upgrade_008_pos',
+    'zpool_upgrade_009_neg']
 
 # DISABLED:
 # zfs_share_001_neg - requires additional dependencies
