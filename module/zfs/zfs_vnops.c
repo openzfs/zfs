@@ -1524,6 +1524,7 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 	uint64_t	acl_obj, xattr_obj;
 	uint64_t	xattr_obj_unlinked = 0;
 	uint64_t	obj = 0;
+	uint64_t	links;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
 	boolean_t	may_delete_now, delete_now = FALSE;
@@ -1672,12 +1673,13 @@ top:
 
 	if (delete_now) {
 		if (xattr_obj_unlinked) {
-			ASSERT3U(xzp->z_links, ==, 2);
+			ASSERT3U(ZTOI(xzp)->i_nlink, ==, 2);
 			mutex_enter(&xzp->z_lock);
 			xzp->z_unlinked = 1;
-			xzp->z_links = 0;
+			clear_nlink(ZTOI(xzp));
+			links = 0;
 			error = sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zsb),
-			    &xzp->z_links, sizeof (xzp->z_links), tx);
+			    &links, sizeof (links), tx);
 			ASSERT3U(error,  ==,  0);
 			mutex_exit(&xzp->z_lock);
 			zfs_unlinked_add(xzp, tx);
@@ -2297,9 +2299,9 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	vap->va_fsid = ZTOI(zp)->i_sb->s_dev;
 	vap->va_nodeid = zp->z_id;
 	if ((zp->z_id == zsb->z_root) && zfs_show_ctldir(zp))
-		links = zp->z_links + 1;
+		links = ZTOI(zp)->i_nlink + 1;
 	else
-		links = zp->z_links;
+		links = ZTOI(zp)->i_nlink;
 	vap->va_nlink = MIN(links, ZFS_LINK_MAX);
 	vap->va_size = i_size_read(ip);
 	vap->va_rdev = ip->i_rdev;

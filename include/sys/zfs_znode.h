@@ -187,7 +187,6 @@ typedef struct znode {
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
 	uint64_t	z_dnodesize;	/* dnode size */
 	uint64_t	z_size;		/* file size (cached) */
-	uint64_t	z_links;	/* file links (cached) */
 	uint64_t	z_pflags;	/* pflags (cached) */
 	uint64_t	z_uid;		/* uid fuid (cached) */
 	uint64_t	z_gid;		/* gid fuid (cached) */
