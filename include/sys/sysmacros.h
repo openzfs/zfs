@@ -158,6 +158,9 @@ extern uint32_t zone_get_hostid(void *zone);
 extern void spl_setup(void);
 extern void spl_cleanup(void);
 
+#define	highbit(x)		__fls(x)
+#define	lowbit(x)		__ffs(x)
+
 #define	highbit64(x)		fls64(x)
 #define	makedevice(maj,min)	makedev(maj,min)
 
