@@ -55,7 +55,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __field(uint_t,		z_seq)
 	    __field(uint64_t,		z_mapcnt)
 	    __field(uint64_t,		z_size)
-	    __field(uint64_t,		z_links)
 	    __field(uint64_t,		z_pflags)
 	    __field(uint64_t,		z_uid)
 	    __field(uint64_t,		z_gid)
@@ -91,7 +90,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_seq		= zn->z_seq;
 	    __entry->z_mapcnt		= zn->z_mapcnt;
 	    __entry->z_size		= zn->z_size;
-	    __entry->z_links		= zn->z_links;
 	    __entry->z_pflags		= zn->z_pflags;
 	    __entry->z_uid		= zn->z_uid;
 	    __entry->z_gid		= zn->z_gid;
@@ -119,7 +117,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	),
 	TP_printk("zn { id %llu unlinked %u atime_dirty %u "
 	    "zn_prefetch %u moved %u blksz %u seq %u "
-	    "mapcnt %llu size %llu links %llu pflags %llu "
+	    "mapcnt %llu size %llu pflags %llu "
 	    "uid %llu gid %llu sync_cnt %u mode 0x%x is_sa %d "
 	    "is_mapped %d is_ctldir %d is_stale %d inode { "
 	    "ino %lu nlink %u version %llu size %lli blkbits %u "
@@ -128,7 +126,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_id, __entry->z_unlinked, __entry->z_atime_dirty,
 	    __entry->z_zn_prefetch, __entry->z_moved, __entry->z_blksz,
 	    __entry->z_seq, __entry->z_mapcnt, __entry->z_size,
-	    __entry->z_links, __entry->z_pflags, __entry->z_uid,
+	    __entry->z_pflags, __entry->z_uid,
 	    __entry->z_gid, __entry->z_sync_cnt, __entry->z_mode,
 	    __entry->z_is_sa, __entry->z_is_mapped,
 	    __entry->z_is_ctldir, __entry->z_is_stale, __entry->i_ino,

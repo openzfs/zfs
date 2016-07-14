@@ -277,6 +277,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	zfs_acl_locator_cb_t locate = { 0 };
 	uint64_t uid, gid, mode, rdev, xattr, parent, tmp_gen;
 	uint64_t crtime[2], mtime[2], ctime[2], atime[2];
+	uint64_t links;
 	zfs_acl_phys_t znode_acl;
 	char scanstamp[AV_SCANSTAMP_SZ];
 	boolean_t drop_lock = B_FALSE;
@@ -351,8 +352,9 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	    &ctime, 16);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_CRTIME(zsb), NULL,
 	    &crtime, 16);
+	links = ZTOI(zp)->i_nlink;
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_LINKS(zsb), NULL,
-	    &zp->z_links, 8);
+	    &links, 8);
 	if (S_ISBLK(ZTOI(zp)->i_mode) || S_ISCHR(ZTOI(zp)->i_mode))
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_RDEV(zsb), NULL,
 		    &rdev, 8);

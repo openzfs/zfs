@@ -535,7 +535,6 @@ zfs_inode_update_impl(znode_t *zp, boolean_t new)
 	spin_lock(&ip->i_lock);
 	ip->i_uid = SUID_TO_KUID(zp->z_uid);
 	ip->i_gid = SGID_TO_KGID(zp->z_gid);
-	set_nlink(ip, zp->z_links);
 	ip->i_mode = zp->z_mode;
 	zfs_set_inode_flags(zp, ip);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
@@ -582,6 +581,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	uint64_t mode;
 	uint64_t parent;
 	uint64_t tmp_gen;
+	uint64_t links;
 	sa_bulk_attr_t bulk[8];
 	int count = 0;
 
@@ -616,7 +616,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GEN(zsb), NULL, &tmp_gen, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb), NULL, &zp->z_size, 8);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL, &zp->z_links, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL, &links, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
 	    &zp->z_pflags, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zsb), NULL,
@@ -635,6 +635,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 	zp->z_mode = mode;
 	ip->i_generation = (uint32_t)tmp_gen;
+	set_nlink(ip, (uint32_t)links);
 
 	ip->i_ino = obj;
 	zfs_inode_update_new(zp);
@@ -798,9 +799,10 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 
 	if (S_ISDIR(vap->va_mode)) {
 		size = 2;		/* contents ("." and "..") */
-		links = (flag & (IS_ROOT_NODE | IS_XATTR)) ? 2 : 1;
+		links = 2;
 	} else {
-		size = links = 0;
+		size = 0;
+		links = 1;
 	}
 
 	if (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))
@@ -1152,6 +1154,7 @@ zfs_rezget(znode_t *zp)
 	dmu_buf_t *db;
 	uint64_t obj_num = zp->z_id;
 	uint64_t mode;
+	uint64_t links;
 	sa_bulk_attr_t bulk[7];
 	int err;
 	int count = 0;
@@ -1209,7 +1212,7 @@ zfs_rezget(znode_t *zp)
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb), NULL,
 	    &zp->z_size, sizeof (zp->z_size));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL,
-	    &zp->z_links, sizeof (zp->z_links));
+	    &links, sizeof (links));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
 	    &zp->z_pflags, sizeof (zp->z_pflags));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
@@ -1233,7 +1236,9 @@ zfs_rezget(znode_t *zp)
 		return (SET_ERROR(EIO));
 	}
 
-	zp->z_unlinked = (zp->z_links == 0);
+	zp->z_unlinked = (ZTOI(zp)->i_nlink == 0);
+	set_nlink(ZTOI(zp), (uint32_t)links);
+
 	zp->z_blksz = doi.doi_data_block_size;
 	zp->z_atime_dirty = 0;
 	zfs_inode_update_new(zp);
