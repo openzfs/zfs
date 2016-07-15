@@ -25,7 +25,7 @@
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  * Portions Copyright 2012 Pawel Jakub Dawidek <pawel@dawidek.net>
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -3568,10 +3568,38 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 			return (err);
 	}
 
-	if (strchr(zc->zc_name, '@'))
+	if (strchr(zc->zc_name, '@')) {
 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
-	else
+	} else {
 		err = dsl_destroy_head(zc->zc_name);
+		if (err == EEXIST) {
+			/*
+			 * It is possible that the given DS may have
+			 * hidden child (%recv) datasets - "leftovers"
+			 * resulting from the previously interrupted
+			 * 'zfs receive'.
+			 *
+			 * 6 extra bytes for /%recv
+			 */
+			char namebuf[ZFS_MAX_DATASET_NAME_LEN + 6];
+
+			(void) snprintf(namebuf, sizeof (namebuf),
+			    "%s/%s", zc->zc_name, recv_clone_name);
+
+			/*
+			 * Try to remove the hidden child (%recv) and after
+			 * that try to remove the target dataset.
+			 * If the hidden child (%recv) does not exist
+			 * the original error (EEXIST) will be returned
+			 */
+			err = dsl_destroy_head(namebuf);
+			if (err == 0)
+				err = dsl_destroy_head(zc->zc_name);
+			else if (err == ENOENT)
+				err = EEXIST;
+
+		}
+	}
 
 	return (err);
 }
