@@ -102,6 +102,8 @@ KERNEL_C = \
 	vdev_raidz_math_sse2.c \
 	vdev_raidz_math_ssse3.c \
 	vdev_raidz_math_avx2.c \
+	vdev_raidz_math_avx512f.c \
+	vdev_raidz_math_avx512bw.c \
 	vdev_raidz_math_aarch64_neon.c \
 	vdev_raidz_math_aarch64_neonx2.c \
 	vdev_root.c \
