@@ -41,7 +41,7 @@
 #include <sys/sunddi.h>
 #include <sys/sa_impl.h>
 #include <sys/dnode.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/zfs_context.h>
 
 /*

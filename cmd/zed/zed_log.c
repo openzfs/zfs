@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 #include "zed_log.h"
 
 #define	ZED_LOG_MAX_LOG_LEN	1024

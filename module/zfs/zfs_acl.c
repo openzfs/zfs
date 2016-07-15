@@ -37,7 +37,7 @@
 #include <sys/stat.h>
 #include <sys/kmem.h>
 #include <sys/cmn_err.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/unistd.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>

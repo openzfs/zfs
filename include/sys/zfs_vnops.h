@@ -29,7 +29,7 @@
 #include <sys/xvattr.h>
 #include <sys/uio.h>
 #include <sys/cred.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/pathname.h>
 #include <sys/zpl.h>
 

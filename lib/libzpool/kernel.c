@@ -31,7 +31,7 @@
 #include <string.h>
 #include <zlib.h>
 #include <libgen.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <sys/spa.h>
 #include <sys/stat.h>
 #include <sys/processor.h>

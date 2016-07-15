@@ -28,7 +28,7 @@
 
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/va_list.h>
 
 #if defined(_KERNEL) && !defined(_BOOT)

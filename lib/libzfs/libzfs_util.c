@@ -43,7 +43,7 @@
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
 #include <sys/types.h>
-#include <wait.h>
+#include <sys/wait.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>

@@ -41,7 +41,7 @@
 #include <sys/vnode.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/unistd.h>
 #include <sys/mode.h>
 #include <sys/atomic.h>

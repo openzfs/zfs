@@ -32,7 +32,7 @@
 #include <sys/kmem.h>
 #include <sys/thread.h>
 #include <sys/file.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/vfs.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_znode.h>

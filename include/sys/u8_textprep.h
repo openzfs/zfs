@@ -30,7 +30,7 @@
 
 #include <sys/isa_defs.h>
 #include <sys/types.h>
-#include <sys/errno.h>
+#include <errno.h>
 
 #ifdef	__cplusplus
 extern "C" {
