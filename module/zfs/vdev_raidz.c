@@ -458,8 +458,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	zio->io_vsd = rm;
 	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
 
-	/* RAIDZ ops init */
-	vdev_raidz_math_get_ops(rm);
+	/* init RAIDZ parity ops */
+	rm->rm_ops = vdev_raidz_math_get_ops();
 
 	return (rm);
 }
@@ -611,10 +611,9 @@ vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
 void
 vdev_raidz_generate_parity(raidz_map_t *rm)
 {
-	if (rm->rm_ops) {
-		vdev_raidz_math_generate(rm);
+	/* Generate using the new math implementation */
+	if (vdev_raidz_math_generate(rm) != RAIDZ_ORIGINAL_IMPL)
 		return;
-	}
 
 	switch (rm->rm_firstdatacol) {
 	case 1:
@@ -1284,7 +1283,7 @@ vdev_raidz_reconstruct(raidz_map_t *rm, const int *t, int nt)
 {
 	int tgts[VDEV_RAIDZ_MAXPARITY], *dt;
 	int ntgts;
-	int i, c;
+	int i, c, ret;
 	int code;
 	int nbadparity, nbaddata;
 	int parity_valid[VDEV_RAIDZ_MAXPARITY];
@@ -1322,14 +1321,11 @@ vdev_raidz_reconstruct(raidz_map_t *rm, const int *t, int nt)
 
 	dt = &tgts[nbadparity];
 
-	/*
-	 * Reconstruct using the new math implementation if
-	 * rm_ops is set.
-	 */
-	if (rm->rm_ops) {
-		return (vdev_raidz_math_reconstruct(rm, parity_valid, dt,
-		    nbaddata));
-	}
+
+	/* Reconstruct using the new math implementation */
+	ret = vdev_raidz_math_reconstruct(rm, parity_valid, dt, nbaddata);
+	if (ret != RAIDZ_ORIGINAL_IMPL)
+		return (ret);
 
 	/*
 	 * See if we can use any of our optimized reconstruction routines.

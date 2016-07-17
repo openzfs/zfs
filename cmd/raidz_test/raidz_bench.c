@@ -32,7 +32,6 @@
 #include <stdio.h>
 
 #include <sys/time.h>
-#include <sys/resource.h>
 
 #include "raidz_test.h"
 
@@ -41,7 +40,6 @@
 #define	BENCH_ASHIFT		12
 #define	MIN_CS_SHIFT		BENCH_ASHIFT
 #define	MAX_CS_SHIFT		SPA_MAXBLOCKSHIFT
-
 
 static zio_t zio_bench;
 static raidz_map_t *rm_bench;
@@ -70,28 +68,18 @@ bench_fini_raidz_maps(void)
 	bzero(&zio_bench, sizeof (zio_t));
 }
 
-static double
-get_time_diff(struct rusage *start, struct rusage *stop)
-{
-	return (((double)stop->ru_utime.tv_sec * (double)MICROSEC +
-		(double)stop->ru_utime.tv_usec) -
-		((double)start->ru_utime.tv_sec * (double)MICROSEC +
-		(double)start->ru_utime.tv_usec)) / (double)MICROSEC;
-}
-
 static inline void
 run_gen_bench_impl(const char *impl)
 {
 	int fn, ncols;
 	uint64_t ds, iter_cnt, iter, disksize;
-	struct rusage start, stop;
+	hrtime_t start;
 	double elapsed, d_bw;
 
 	/* Benchmark generate functions */
 	for (fn = 0; fn < RAIDZ_GEN_NUM; fn++) {
 
 		for (ds = MIN_CS_SHIFT; ds <= MAX_CS_SHIFT; ds++) {
-
 			/* create suitable raidz_map */
 			ncols = rto_opts.rto_dcols + fn + 1;
 			zio_bench.io_size = 1ULL << ds;
@@ -102,12 +90,11 @@ run_gen_bench_impl(const char *impl)
 			iter_cnt = GEN_BENCH_MEMORY;
 			iter_cnt /= zio_bench.io_size;
 
-			getrusage(RUSAGE_THREAD, &start);
+			start = gethrtime();
 			for (iter = 0; iter < iter_cnt; iter++)
 				vdev_raidz_generate_parity(rm_bench);
-			getrusage(RUSAGE_THREAD, &stop);
+			elapsed = NSEC2SEC((double) (gethrtime() - start));
 
-			elapsed = get_time_diff(&start, &stop);
 			disksize = (1ULL << ds) / rto_opts.rto_dcols;
 			d_bw = (double)iter_cnt * (double)disksize;
 			d_bw /= (1024.0 * 1024.0 * elapsed);
@@ -147,9 +134,9 @@ run_gen_bench(void)
 static void
 run_rec_bench_impl(const char *impl)
 {
-	struct rusage start, stop;
 	int fn, ncols, nbad;
 	uint64_t ds, iter_cnt, iter, disksize;
+	hrtime_t start;
 	double elapsed, d_bw;
 	static const int tgt[7][3] = {
 		{1, 2, 3},	/* rec_p:   bad QR & D[0]	*/
@@ -187,12 +174,11 @@ run_rec_bench_impl(const char *impl)
 			nbad = MIN(3, raidz_ncols(rm_bench) -
 			    raidz_parity(rm_bench));
 
-			getrusage(RUSAGE_THREAD, &start);
+			start = gethrtime();
 			for (iter = 0; iter < iter_cnt; iter++)
 				vdev_raidz_reconstruct(rm_bench, tgt[fn], nbad);
-			getrusage(RUSAGE_THREAD, &stop);
+			elapsed = NSEC2SEC((double) (gethrtime() - start));
 
-			elapsed = get_time_diff(&start, &stop);
 			disksize = (1ULL << ds) / rto_opts.rto_dcols;
 			d_bw = (double)iter_cnt * (double)(disksize);
 			d_bw /= (1024.0 * 1024.0 * elapsed);
