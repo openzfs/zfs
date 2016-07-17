@@ -222,7 +222,7 @@ static const struct {
 DEFINE_GEN_METHODS(scalar);
 DEFINE_REC_METHODS(scalar);
 
-static boolean_t
+boolean_t
 raidz_will_scalar_work(void)
 {
 	return (B_TRUE); /* always */
