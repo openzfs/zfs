@@ -78,8 +78,8 @@ static size_t raidz_supp_impl_cnt = 0;
 static raidz_impl_ops_t *raidz_supp_impl[ARRAY_SIZE(raidz_all_maths)];
 
 /*
- * kstats values for supported impl & original methods
- * Values represent per disk throughput of 8 disk+parity raidz vdev (Bps)
+ * kstats values for supported implementations
+ * Values represent per disk throughput of 8 disk+parity raidz vdev [B/s]
  */
 static raidz_impl_kstat_t raidz_impl_kstats[ARRAY_SIZE(raidz_all_maths) + 1];
 
@@ -263,33 +263,83 @@ const char *raidz_rec_name[] = {
 	"rec_pq", "rec_pr", "rec_qr", "rec_pqr"
 };
 
-static void
-init_raidz_kstat(raidz_impl_kstat_t *rs, const char *name)
+#define	RAIDZ_KSTAT_LINE_LEN	(17 + 10*12 + 1)
+
+static int
+raidz_math_kstat_headers(char *buf, size_t size)
 {
 	int i;
-	const size_t impl_name_len = strnlen(name, KSTAT_STRLEN);
-	const size_t op_name_max = (KSTAT_STRLEN - 2) > impl_name_len ?
-		KSTAT_STRLEN - impl_name_len - 2 : 0;
+	ssize_t off;
 
-	for (i = 0; i < RAIDZ_GEN_NUM; i++) {
-		strncpy(rs->gen[i].name, name, impl_name_len);
-		strncpy(rs->gen[i].name + impl_name_len, "_", 1);
-		strncpy(rs->gen[i].name + impl_name_len + 1,
-			raidz_gen_name[i], op_name_max);
+	ASSERT3U(size, >=, RAIDZ_KSTAT_LINE_LEN);
 
-		rs->gen[i].data_type = KSTAT_DATA_UINT64;
-		rs->gen[i].value.ui64  = 0;
+	off = snprintf(buf, size, "%-17s", "implementation");
+
+	for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
+		off += snprintf(buf + off, size - off, "%-12s",
+		    raidz_gen_name[i]);
+
+	for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
+		off += snprintf(buf + off, size - off, "%-12s",
+		    raidz_rec_name[i]);
+
+	(void) snprintf(buf + off, size - off, "\n");
+
+	return (0);
+}
+
+static int
+raidz_math_kstat_data(char *buf, size_t size, void *data)
+{
+	raidz_impl_kstat_t * fstat = &raidz_impl_kstats[raidz_supp_impl_cnt];
+	raidz_impl_kstat_t * cstat = (raidz_impl_kstat_t *) data;
+	ssize_t off = 0;
+	int i;
+
+	ASSERT3U(size, >=, RAIDZ_KSTAT_LINE_LEN);
+
+	if (cstat == fstat) {
+		off += snprintf(buf + off, size - off, "%-17s", "fastest");
+
+		for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++) {
+			int id = fstat->gen[i];
+			off += snprintf(buf + off, size - off, "%-12s",
+			    raidz_supp_impl[id]->name);
+		}
+		for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++) {
+			int id = fstat->rec[i];
+			off += snprintf(buf + off, size - off, "%-12s",
+			    raidz_supp_impl[id]->name);
+		}
+	} else {
+		ptrdiff_t id = cstat - raidz_impl_kstats;
+
+		off += snprintf(buf + off, size - off, "%-17s",
+		    raidz_supp_impl[id]->name);
+
+		for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
+			off += snprintf(buf + off, size - off, "%-12llu",
+			    (u_longlong_t) cstat->gen[i]);
+
+		for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
+			off += snprintf(buf + off, size - off, "%-12llu",
+			    (u_longlong_t) cstat->rec[i]);
 	}
 
-	for (i = 0; i < RAIDZ_REC_NUM; i++) {
-		strncpy(rs->rec[i].name, name, impl_name_len);
-		strncpy(rs->rec[i].name + impl_name_len, "_", 1);
-		strncpy(rs->rec[i].name + impl_name_len + 1,
-			raidz_rec_name[i], op_name_max);
+	(void) snprintf(buf + off, size - off, "\n");
 
-		rs->rec[i].data_type = KSTAT_DATA_UINT64;
-		rs->rec[i].value.ui64  = 0;
-	}
+	return (0);
+}
+
+static void *
+raidz_math_kstat_addr(kstat_t *ksp, loff_t n)
+{
+	if (n <= raidz_supp_impl_cnt)
+		ksp->ks_private = (void *) (raidz_impl_kstats + n);
+	else
+		ksp->ks_private = NULL;
+
+	return (ksp->ks_private);
 }
 
 #define	BENCH_D_COLS	(8ULL)
@@ -355,22 +405,22 @@ benchmark_raidz_impl(raidz_map_t *bench_rm, const int fn, benchmark_fn bench_fn)
 		speed /= (t_diff * BENCH_COLS);
 
 		if (bench_fn == benchmark_gen_impl)
-			raidz_impl_kstats[impl].gen[fn].value.ui64 = speed;
+			raidz_impl_kstats[impl].gen[fn] = speed;
 		else
-			raidz_impl_kstats[impl].rec[fn].value.ui64 = speed;
+			raidz_impl_kstats[impl].rec[fn] = speed;
 
 		/* Update fastest implementation method */
 		if (speed > best_speed) {
 			best_speed = speed;
 
 			if (bench_fn == benchmark_gen_impl) {
+				fstat->gen[fn] = impl;
 				vdev_raidz_fastest_impl.gen[fn] =
 				    curr_impl->gen[fn];
-				fstat->gen[fn].value.ui64 = speed;
 			} else {
+				fstat->rec[fn] = impl;
 				vdev_raidz_fastest_impl.rec[fn] =
 				    curr_impl->rec[fn];
-				fstat->rec[fn].value.ui64 = speed;
 			}
 		}
 	}
@@ -393,17 +443,11 @@ vdev_raidz_math_init(void)
 		if (curr_impl->init)
 			curr_impl->init();
 
-		if (curr_impl->is_supported()) {
-			/* init kstat */
-			init_raidz_kstat(&raidz_impl_kstats[c],
-			    curr_impl->name);
+		if (curr_impl->is_supported())
 			raidz_supp_impl[c++] = (raidz_impl_ops_t *) curr_impl;
-		}
 	}
 	membar_producer();		/* complete raidz_supp_impl[] init */
 	raidz_supp_impl_cnt = c;	/* number of supported impl */
-
-	init_raidz_kstat(&(raidz_impl_kstats[raidz_supp_impl_cnt]), "fastest");
 
 #if !defined(_KERNEL)
 	/* Skip benchmarking and use last implementation as fastest */
@@ -452,13 +496,16 @@ vdev_raidz_math_init(void)
 	kmem_free(bench_zio, sizeof (zio_t));
 
 	/* install kstats for all impl */
-	raidz_math_kstat = kstat_create("zfs", 0, "vdev_raidz_bench",
-		"misc", KSTAT_TYPE_NAMED,
-		sizeof (raidz_impl_kstat_t) / sizeof (kstat_named_t) *
-		(raidz_supp_impl_cnt + 1), KSTAT_FLAG_VIRTUAL);
+	raidz_math_kstat = kstat_create("zfs", 0, "vdev_raidz_bench", "misc",
+		KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 
 	if (raidz_math_kstat != NULL) {
-		raidz_math_kstat->ks_data = raidz_impl_kstats;
+		raidz_math_kstat->ks_data = NULL;
+		raidz_math_kstat->ks_ndata = UINT32_MAX;
+		kstat_set_raw_ops(raidz_math_kstat,
+		    raidz_math_kstat_headers,
+		    raidz_math_kstat_data,
+		    raidz_math_kstat_addr);
 		kstat_install(raidz_math_kstat);
 	}
 

@@ -233,8 +233,8 @@ impl ## _rec_ ## code(void *rmp, const int *tgtidx)			\
 
 
 typedef struct raidz_impl_kstat {
-	kstat_named_t gen[RAIDZ_GEN_NUM];	/* gen method speed kiB/s */
-	kstat_named_t rec[RAIDZ_REC_NUM];	/* rec method speed kiB/s */
+	uint64_t gen[RAIDZ_GEN_NUM];	/* gen method speed B/s */
+	uint64_t rec[RAIDZ_REC_NUM];	/* rec method speed B/s */
 } raidz_impl_kstat_t;
 
 /*
