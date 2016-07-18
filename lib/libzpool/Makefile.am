@@ -23,7 +23,6 @@ KERNEL_C = \
 	zfs_deleg.c \
 	zfs_fletcher.c \
 	zfs_fletcher_intel.c \
-	zfs_fletcher_sse.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
 	zfs_uio.c \
