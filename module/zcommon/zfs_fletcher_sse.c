@@ -69,12 +69,12 @@ fletcher_4_sse2_fini(zio_cksum_t *zcp)
 	struct zfs_fletcher_sse_array a, b, c, d;
 	uint64_t A, B, C, D;
 
-	asm volatile("movdqa %%xmm0, %0":"=m" (a.v));
-	asm volatile("movdqa %%xmm1, %0":"=m" (b.v));
+	asm volatile("movdqu %%xmm0, %0":"=m" (a.v));
+	asm volatile("movdqu %%xmm1, %0":"=m" (b.v));
 	asm volatile("psllq $0x2, %xmm2");
-	asm volatile("movdqa %%xmm2, %0":"=m" (c.v));
+	asm volatile("movdqu %%xmm2, %0":"=m" (c.v));
 	asm volatile("psllq $0x3, %xmm3");
-	asm volatile("movdqa %%xmm3, %0":"=m" (d.v));
+	asm volatile("movdqu %%xmm3, %0":"=m" (d.v));
 
 	kfpu_end();
 
@@ -168,7 +168,7 @@ fletcher_4_ssse3_byteswap(const void *buf, uint64_t size, zio_cksum_t *unused)
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
 
-	asm volatile("movdqa %0, %%xmm7"::"m" (mask));
+	asm volatile("movdqu %0, %%xmm7"::"m" (mask));
 	asm volatile("pxor %xmm4, %xmm4");
 
 	for (; ip < ipend; ip += 2) {
