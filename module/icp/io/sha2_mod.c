@@ -681,7 +681,7 @@ sha2_mac_init_ctx(sha2_hmac_ctx_t *ctx, void *keyval, uint_t length_in_bytes)
 {
 	uint64_t ipad[SHA256_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
 	uint64_t opad[SHA256_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
-	int i, block_size, blocks_per_int64;
+	int i, block_size, blocks_per_int64 = 0;
 
 	/* Determine the block size */
 	if (ctx->hc_mech_type <= SHA256_HMAC_GEN_MECH_INFO_TYPE) {
