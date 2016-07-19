@@ -3264,8 +3264,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 * specified only the pool name (i.e. if the destination name
 		 * contained no slash character).
 		 */
-		if (!stream_wantsnewfs ||
-		    (cp = strrchr(name, '/')) == NULL) {
+		cp = strrchr(name, '/');
+
+		if (!stream_wantsnewfs || cp == NULL) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "destination '%s' does not exist"), name);
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);

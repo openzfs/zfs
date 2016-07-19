@@ -127,7 +127,10 @@ main(int argc, char **argv)
 		err++;
 	}
 
-	if (err) usage(prog);
+	if (err) {
+		usage(prog); /* no return */
+		return (1);
+	}
 
 	/*
 	 * Prepare the buffer and determine the requested operation

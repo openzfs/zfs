@@ -663,8 +663,8 @@ main(int argc, char **argv)
 	err_type_t type = TYPE_INVAL;
 	err_type_t label = TYPE_INVAL;
 	zinject_record_t record = { 0 };
-	char pool[MAXNAMELEN];
-	char dataset[MAXNAMELEN];
+	char pool[MAXNAMELEN] = "";
+	char dataset[MAXNAMELEN] = "";
 	zfs_handle_t *zhp = NULL;
 	int nowrites = 0;
 	int dur_txg = 0;
