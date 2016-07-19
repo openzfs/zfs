@@ -24,6 +24,8 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
@@ -31,6 +33,8 @@
 #
 # DESCRIPTION:
 # Verify that read-only properties are immutable.
+# Note that we can only check properties that have no possibility of
+# changing while we are running (which excludes e.g. "available").
 #
 # STRATEGY:
 # 1. Create pool, fs, vol, fs@snap & vol@snap.
@@ -44,10 +48,10 @@ verify_runnable "both"
 set -A values filesystem volume snapshot -3 0 1 50K 10G 80G \
 	2005/06/17 30K 20x yes no \
 	on off default pool/fs@snap $TESTDIR
-set -A dataset $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
+set -A dataset $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
 	$TESTPOOL/$TESTCTR/$TESTFS1 $TESTPOOL/$TESTFS@$TESTSNAP \
 	$TESTPOOL/$TESTVOL@$TESTSNAP
-typeset ro_props="type used available avail creation referenced refer compressratio \
+typeset ro_props="type used creation referenced refer compressratio \
 	mounted origin"
 typeset snap_ro_props="volsize recordsize recsize quota reservation reserv mountpoint \
 	sharenfs checksum compression compress atime devices exec readonly rdonly \
