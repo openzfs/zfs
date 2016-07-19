@@ -1369,7 +1369,8 @@ zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 		dmu_objset_set_user(zsb->z_os, zsb);
 		mutex_exit(&zsb->z_os->os_user_ptr_lock);
 	} else {
-		error = zfs_sb_setup(zsb, B_TRUE);
+		if ((error = zfs_sb_setup(zsb, B_TRUE)))
+			goto out;
 	}
 
 	/* Allocate a root inode for the filesystem. */
@@ -1395,6 +1396,11 @@ out:
 	if (error) {
 		dmu_objset_disown(zsb->z_os, zsb);
 		zfs_sb_free(zsb);
+		/*
+		 * make sure we don't have dangling sb->s_fs_info which
+		 * zfs_preumount will use.
+		 */
+		sb->s_fs_info = NULL;
 	}
 
 	return (error);
@@ -1413,26 +1419,29 @@ zfs_preumount(struct super_block *sb)
 {
 	zfs_sb_t *zsb = sb->s_fs_info;
 
-	if (zsb)
+	/* zsb is NULL when zfs_domount fails during mount */
+	if (zsb) {
 		zfsctl_destroy(sb->s_fs_info);
-	/*
-	 * Wait for iput_async before entering evict_inodes in
-	 * generic_shutdown_super. The reason we must finish before
-	 * evict_inodes is when lazytime is on, or when zfs_purgedir calls
-	 * zfs_zget, iput would bump i_count from 0 to 1. This would race
-	 * with the i_count check in evict_inodes.  This means it could
-	 * destroy the inode while we are still using it.
-	 *
-	 * We wait for two passes.  xattr directories in the first pass may
-	 * add xattr entries in zfs_purgedir, so in the second pass we wait
-	 * for them.  We don't use taskq_wait here because it is a pool wide
-	 * taskq.  Other mounted filesystems can constantly do iput_async
-	 * and there's no guarantee when taskq will be empty.
-	 */
-	taskq_wait_outstanding(dsl_pool_iput_taskq(
-	    dmu_objset_pool(zsb->z_os)), 0);
-	taskq_wait_outstanding(dsl_pool_iput_taskq(
-	    dmu_objset_pool(zsb->z_os)), 0);
+		/*
+		 * Wait for iput_async before entering evict_inodes in
+		 * generic_shutdown_super. The reason we must finish before
+		 * evict_inodes is when lazytime is on, or when zfs_purgedir
+		 * calls zfs_zget, iput would bump i_count from 0 to 1. This
+		 * would race with the i_count check in evict_inodes. This means
+		 * it could destroy the inode while we are still using it.
+		 *
+		 * We wait for two passes. xattr directories in the first pass
+		 * may add xattr entries in zfs_purgedir, so in the second pass
+		 * we wait for them. We don't use taskq_wait here because it is
+		 * a pool wide taskq. Other mounted filesystems can constantly
+		 * do iput_async and there's no guarantee when taskq will be
+		 * empty.
+		 */
+		taskq_wait_outstanding(dsl_pool_iput_taskq(
+		    dmu_objset_pool(zsb->z_os)), 0);
+		taskq_wait_outstanding(dsl_pool_iput_taskq(
+		    dmu_objset_pool(zsb->z_os)), 0);
+	}
 }
 EXPORT_SYMBOL(zfs_preumount);
 
