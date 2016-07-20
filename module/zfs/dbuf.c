@@ -2808,6 +2808,13 @@ dmu_buf_get_blkptr(dmu_buf_t *db)
 	return (dbi->db_blkptr);
 }
 
+objset_t *
+dmu_buf_get_objset(dmu_buf_t *db)
+{
+	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
+	return (dbi->db_objset);
+}
+
 static void
 dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 {
