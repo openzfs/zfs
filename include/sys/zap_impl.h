@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_IMPL_H
@@ -195,8 +196,8 @@ typedef struct zap_name {
 
 boolean_t zap_match(zap_name_t *zn, const char *matchname);
 int zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
-    krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp);
-void zap_unlockdir(zap_t *zap);
+    krw_t lti, boolean_t fatreader, boolean_t adding, void *tag, zap_t **zapp);
+void zap_unlockdir(zap_t *zap, void *tag);
 void zap_evict(void *dbu);
 zap_name_t *zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt);
 void zap_name_free(zap_name_t *zn);
@@ -215,9 +216,10 @@ void fzap_prefetch(zap_name_t *zn);
 int fzap_count_write(zap_name_t *zn, int add, uint64_t *towrite,
     uint64_t *tooverwrite);
 int fzap_add(zap_name_t *zn, uint64_t integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx);
+    const void *val, void *tag, dmu_tx_t *tx);
 int fzap_update(zap_name_t *zn,
-    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
+    int integer_size, uint64_t num_integers, const void *val,
+    void *tag, dmu_tx_t *tx);
 int fzap_length(zap_name_t *zn,
     uint64_t *integer_size, uint64_t *num_integers);
 int fzap_remove(zap_name_t *zn, dmu_tx_t *tx);
@@ -227,7 +229,7 @@ void zap_put_leaf(struct zap_leaf *l);
 
 int fzap_add_cd(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
-    const void *val, uint32_t cd, dmu_tx_t *tx);
+    const void *val, uint32_t cd, void *tag, dmu_tx_t *tx);
 void fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags);
 
 #ifdef	__cplusplus
