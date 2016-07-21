@@ -2472,7 +2472,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	struct dbuf_hold_impl_data *dh;
 	int error;
 
-	dh = kmem_zalloc(sizeof (struct dbuf_hold_impl_data) *
+	dh = kmem_alloc(sizeof (struct dbuf_hold_impl_data) *
 	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_SLEEP);
 	__dbuf_hold_impl_init(dh, dn, level, blkid, fail_sparse,
 		fail_uncached, tag, dbp, 0);
@@ -2500,6 +2500,14 @@ __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
 
 	dh->dh_tag = tag;
 	dh->dh_dbp = dbp;
+
+	dh->dh_db = NULL;
+	dh->dh_parent = NULL;
+	dh->dh_bp = NULL;
+	dh->dh_err = 0;
+	dh->dh_dr = NULL;
+	dh->dh_type = 0;
+
 	dh->dh_depth = depth;
 }
 
