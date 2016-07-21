@@ -302,15 +302,9 @@ typedef struct kcf_prov_mech_desc {
 #define	pm_provider_handle	pm_prov_desc.pd_provider_handle
 #define	pm_ops_vector		pm_prov_desc.pd_ops_vector
 
-
-#define	KCF_CPU_PAD (128 - sizeof (crypto_mech_name_t) - \
-    sizeof (crypto_mech_type_t) - \
-    sizeof (kmutex_t) - 2 * sizeof (kcf_prov_mech_desc_t *) - \
-    sizeof (int) - sizeof (uint32_t) - sizeof (size_t))
-
 /*
- * A mechanism entry in an xxx_mech_tab[]. KCF_CPU_PAD needs
- * to be adjusted if this structure is changed.
+ * A mechanism entry in an xxx_mech_tab[]. me_pad was deemed
+ * to be unnecessary and removed.
  */
 typedef	struct kcf_mech_entry {
 	crypto_mech_name_t	me_name;	/* mechanism name */
@@ -332,7 +326,6 @@ typedef	struct kcf_mech_entry {
 	 *  threshold for using hardware providers for this mech
 	 */
 	size_t			me_threshold;
-	uint8_t			me_pad[KCF_CPU_PAD];
 } kcf_mech_entry_t;
 
 /*
