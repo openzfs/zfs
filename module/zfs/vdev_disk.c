@@ -30,6 +30,7 @@
 #include <sys/spa.h>
 #include <sys/vdev_disk.h>
 #include <sys/vdev_impl.h>
+#include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <sys/sunldi.h>
@@ -42,6 +43,7 @@ static void *zfs_vdev_holder = VDEV_HOLDER;
  */
 typedef struct dio_request {
 	zio_t			*dr_zio;	/* Parent ZIO */
+	void			*dr_loanbuf;	/* borrowed abd buffer */
 	atomic_t		dr_ref;		/* References */
 	int			dr_error;	/* Bio error */
 	int			dr_bio_count;	/* Count of bio's */
@@ -402,6 +404,7 @@ vdev_disk_dio_put(dio_request_t *dr)
 	 */
 	if (rc == 0) {
 		zio_t *zio = dr->dr_zio;
+		void *loanbuf = dr->dr_loanbuf;
 		int error = dr->dr_error;
 
 		vdev_disk_dio_free(dr);
@@ -411,6 +414,15 @@ vdev_disk_dio_put(dio_request_t *dr)
 			ASSERT3S(zio->io_error, >=, 0);
 			if (zio->io_error)
 				vdev_disk_error(zio);
+			/* ABD placeholder */
+			if (loanbuf != NULL) {
+				if (zio->io_type == ZIO_TYPE_READ) {
+					abd_copy_from_buf(zio->io_abd, loanbuf,
+					    zio->io_size);
+				}
+				zio_buf_free(loanbuf, zio->io_size);
+			}
+
 			zio_delay_interrupt(zio);
 		}
 	}
@@ -547,7 +559,30 @@ retry:
 	 * their volume block size to match the maximum request size and
 	 * the common case will be one bio per vdev IO request.
 	 */
-	bio_ptr    = kbuf_ptr;
+	if (zio != NULL) {
+		abd_t *abd = zio->io_abd;
+
+		/*
+		 * ABD placeholder
+		 * We can't use abd_borrow_buf routines here since our
+		 * completion context is interrupt and abd refcounts
+		 * take a mutex (in debug mode).
+		 */
+		if (abd_is_linear(abd)) {
+			bio_ptr = abd_to_buf(abd);
+			dr->dr_loanbuf = NULL;
+		} else {
+			bio_ptr = zio_buf_alloc(zio->io_size);
+			dr->dr_loanbuf = bio_ptr;
+			if (zio->io_type != ZIO_TYPE_READ)
+				abd_copy_to_buf(bio_ptr, abd, zio->io_size);
+
+		}
+	} else {
+		bio_ptr = kbuf_ptr;
+		dr->dr_loanbuf = NULL;
+	}
+
 	bio_offset = kbuf_offset;
 	bio_size   = kbuf_size;
 	for (i = 0; i <= dr->dr_bio_count; i++) {
@@ -562,6 +597,8 @@ retry:
 		 * are needed we allocate a larger dio and warn the user.
 		 */
 		if (dr->dr_bio_count == i) {
+			if (dr->dr_loanbuf)
+				zio_buf_free(dr->dr_loanbuf, zio->io_size);
 			vdev_disk_dio_free(dr);
 			bio_count *= 2;
 			goto retry;
@@ -571,6 +608,8 @@ retry:
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
 		    MIN(bio_nr_pages(bio_ptr, bio_size), BIO_MAX_PAGES));
 		if (unlikely(dr->dr_bio[i] == NULL)) {
+			if (dr->dr_loanbuf)
+				zio_buf_free(dr->dr_loanbuf, zio->io_size);
 			vdev_disk_dio_free(dr);
 			return (ENOMEM);
 		}
@@ -730,7 +769,7 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
-	error = __vdev_disk_physio(vd->vd_bdev, zio, zio->io_data,
+	error = __vdev_disk_physio(vd->vd_bdev, zio, NULL,
 	    zio->io_size, zio->io_offset, rw, flags);
 	if (error) {
 		zio->io_error = error;

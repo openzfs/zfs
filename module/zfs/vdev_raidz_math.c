@@ -44,6 +44,16 @@ static raidz_impl_ops_t vdev_raidz_fastest_impl = {
 	.name = "fastest"
 };
 
+/* ABD BRINGUP -- not ready yet */
+#if 1
+#ifdef HAVE_SSSE3
+#undef HAVE_SSSE3
+#endif
+#ifdef HAVE_AVX2
+#undef HAVE_AVX2
+#endif
+#endif
+
 /* All compiled in implementations */
 const raidz_impl_ops_t *raidz_all_maths[] = {
 	&vdev_raidz_original_impl,
@@ -149,6 +159,8 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 {
 	raidz_gen_f gen_parity = NULL;
 
+/* ABD Bringup -- vector code not ready */
+#if 0
 	switch (raidz_parity(rm)) {
 		case 1:
 			gen_parity = rm->rm_ops->gen[RAIDZ_GEN_P];
@@ -165,6 +177,7 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 				raidz_parity(rm));
 			break;
 	}
+#endif
 
 	/* if method is NULL execute the original implementation */
 	if (gen_parity == NULL)
@@ -175,6 +188,8 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 	return (0);
 }
 
+/* ABD Bringup -- vector code not ready */
+#if 0
 static raidz_rec_f
 reconstruct_fun_p_sel(raidz_map_t *rm, const int *parity_valid,
 	const int nbaddata)
@@ -229,6 +244,7 @@ reconstruct_fun_pqr_sel(raidz_map_t *rm, const int *parity_valid,
 	}
 	return ((raidz_rec_f) NULL);
 }
+#endif
 
 /*
  * Select data reconstruction method for raidz_map
@@ -242,6 +258,8 @@ vdev_raidz_math_reconstruct(raidz_map_t *rm, const int *parity_valid,
 {
 	raidz_rec_f rec_data = NULL;
 
+/* ABD Bringup -- vector code not ready */
+#if 0
 	switch (raidz_parity(rm)) {
 	case PARITY_P:
 		rec_data = reconstruct_fun_p_sel(rm, parity_valid, nbaddata);
@@ -257,6 +275,7 @@ vdev_raidz_math_reconstruct(raidz_map_t *rm, const int *parity_valid,
 		    raidz_parity(rm));
 		break;
 	}
+#endif
 
 	if (rec_data == NULL)
 		return (RAIDZ_ORIGINAL_IMPL);
@@ -471,13 +490,12 @@ vdev_raidz_math_init(void)
 	return;
 #endif
 
-	/* Fake an zio and run the benchmark on it */
+	/* Fake an zio and run the benchmark on a warmed up buffer */
 	bench_zio = kmem_zalloc(sizeof (zio_t), KM_SLEEP);
 	bench_zio->io_offset = 0;
 	bench_zio->io_size = BENCH_ZIO_SIZE; /* only data columns */
-	bench_zio->io_data = zio_data_buf_alloc(BENCH_ZIO_SIZE);
-	VERIFY(bench_zio->io_data);
-	memset(bench_zio->io_data, 0xAA, BENCH_ZIO_SIZE); /* warm up */
+	bench_zio->io_abd = abd_alloc_linear(BENCH_ZIO_SIZE, B_TRUE);
+	memset(abd_to_buf(bench_zio->io_abd), 0xAA, BENCH_ZIO_SIZE);
 
 	/* Benchmark parity generation methods */
 	for (fn = 0; fn < RAIDZ_GEN_NUM; fn++) {
@@ -501,7 +519,7 @@ vdev_raidz_math_init(void)
 	vdev_raidz_map_free(bench_rm);
 
 	/* cleanup the bench zio */
-	zio_data_buf_free(bench_zio->io_data, BENCH_ZIO_SIZE);
+	abd_free(bench_zio->io_abd);
 	kmem_free(bench_zio, sizeof (zio_t));
 
 	/* install kstats for all impl */

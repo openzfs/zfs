@@ -32,6 +32,16 @@
 #include <sys/vdev_raidz_impl.h>
 #include <assert.h>
 #include <stdio.h>
+
+#ifndef _ABD_READY_
+int
+main(int argc, char **argv)
+{
+	exit(0);
+}
+
+#else
+
 #include "raidz_test.h"
 
 static int *rand_data;
@@ -782,3 +792,4 @@ main(int argc, char **argv)
 
 	return (err);
 }
+#endif
