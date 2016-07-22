@@ -403,8 +403,13 @@ DEFINE_REC_METHODS(ssse3);
 static boolean_t
 raidz_will_ssse3_work(void)
 {
+/* ABD Bringup -- vector code not ready */
+#if 1
+	return (B_FALSE);
+#else
 	return (zfs_sse_available() && zfs_sse2_available() &&
 	    zfs_ssse3_available());
+#endif
 }
 
 const raidz_impl_ops_t vdev_raidz_ssse3_impl = {

@@ -166,7 +166,7 @@ typedef struct l1arc_buf_hdr {
 	refcount_t		b_refcnt;
 
 	arc_callback_t		*b_acb;
-	void			*b_pdata;
+	abd_t			*b_pabd;
 } l1arc_buf_hdr_t;
 
 typedef struct l2arc_dev {

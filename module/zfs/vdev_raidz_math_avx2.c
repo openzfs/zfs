@@ -21,7 +21,6 @@
 /*
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
-
 #include <sys/isa_defs.h>
 
 #if defined(__x86_64) && defined(HAVE_AVX2)
@@ -401,7 +400,12 @@ DEFINE_REC_METHODS(avx2);
 static boolean_t
 raidz_will_avx2_work(void)
 {
+/* ABD Bringup -- vector code not ready */
+#if 1
+	return (B_FALSE);
+#else
 	return (zfs_avx_available() && zfs_avx2_available());
+#endif
 }
 
 const raidz_impl_ops_t vdev_raidz_avx2_impl = {
