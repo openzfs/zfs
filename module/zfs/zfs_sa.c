@@ -97,7 +97,8 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 	dmu_buf_t *db = sa_get_db(zp->z_sa_hdl);
 
 	if (ZFS_OLD_ZNODE_PHYS_SIZE + len <= dmu_bonus_max()) {
-		VERIFY0(dmu_set_bonus(db, len + ZFS_OLD_ZNODE_PHYS_SIZE, tx));
+		VERIFY(dmu_set_bonus(db,
+		    len + ZFS_OLD_ZNODE_PHYS_SIZE, tx) == 0);
 		if (len) {
 			bcopy(link, (caddr_t)db->db_data +
 			    ZFS_OLD_ZNODE_PHYS_SIZE, len);
@@ -106,8 +107,8 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 		dmu_buf_t *dbp;
 
 		zfs_grow_blocksize(zp, len, tx);
-		VERIFY0(dmu_buf_hold(ZTOZSB(zp)->z_os, zp->z_id, 0, FTAG, &dbp,
-		    DMU_READ_NO_PREFETCH));
+		VERIFY(0 == dmu_buf_hold(ZTOZSB(zp)->z_os,
+		    zp->z_id, 0, FTAG, &dbp, DMU_READ_NO_PREFETCH));
 
 		dmu_buf_will_dirty(dbp, tx);
 
@@ -277,7 +278,6 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	zfs_acl_locator_cb_t locate = { 0 };
 	uint64_t uid, gid, mode, rdev, xattr, parent, tmp_gen;
 	uint64_t crtime[2], mtime[2], ctime[2], atime[2];
-	uint64_t links;
 	zfs_acl_phys_t znode_acl;
 	char scanstamp[AV_SCANSTAMP_SZ];
 	boolean_t drop_lock = B_FALSE;
@@ -352,9 +352,8 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	    &ctime, 16);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_CRTIME(zsb), NULL,
 	    &crtime, 16);
-	links = ZTOI(zp)->i_nlink;
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_LINKS(zsb), NULL,
-	    &links, 8);
+	    &zp->z_links, 8);
 	if (S_ISBLK(ZTOI(zp)->i_mode) || S_ISCHR(ZTOI(zp)->i_mode))
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_RDEV(zsb), NULL,
 		    &rdev, 8);

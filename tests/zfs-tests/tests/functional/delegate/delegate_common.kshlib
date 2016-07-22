@@ -63,7 +63,6 @@ function restore_root_datasets
 			log_must $ZFS destroy -Rf $ROOT_TESTVOL
 		fi
 		log_must $ZFS create -V $VOLSIZE $ROOT_TESTVOL
-		block_device_wait
 	fi
 
 	return 0
@@ -102,7 +101,6 @@ function verify_perm
 				ret=$?
 			fi
 
-			log_note "Check $type $user $perm $dtst"
 			if ((ret != 0)) ; then
 				log_note "Fail: $user should have $perm " \
 					"on $dtst"
@@ -250,10 +248,6 @@ function check_fs_perm
 			verify_fs_canmount $user $perm $fs
 			ret=$?
 			;;
-		dnodesize)
-			verify_fs_dnodesize $user $perm $fs
-			ret=$?
-			;;
 		recordsize)
 			verify_fs_recordsize $user $perm $fs
 			ret=$?
@@ -382,7 +376,7 @@ function verify_send
 	typeset dtst=$3
 
 	typeset oldval
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 	typeset snap=$dtst@snap.$stamp
 
 	typeset -i ret=1
@@ -411,7 +405,7 @@ function verify_fs_receive
 	typeset fs=$3
 
 	typeset dtst
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 	typeset newfs=$fs/newfs.$stamp
 	typeset newvol=$fs/newvol.$stamp
 	typeset bak_user=/tmp/bak.$user.$stamp
@@ -421,7 +415,6 @@ function verify_fs_receive
 	typeset datasets="$newfs"
 	if is_global_zone ; then
 		log_must $ZFS create -V $VOLSIZE $newvol
-		block_device_wait
 		datasets="$newfs $newvol"
 	fi
 
@@ -483,7 +476,7 @@ function verify_userprop
 	typeset perm=$2
 	typeset dtst=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 
 	user_run $user $ZFS set "$user:ts=$stamp" $dtst
 	if [[ $stamp != $(get_prop "$user:ts" $dtst) ]]; then
@@ -567,7 +560,7 @@ function verify_fs_create
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 	typeset newfs=$fs/nfs.$stamp
 	typeset newvol=$fs/nvol.$stamp
 
@@ -588,7 +581,6 @@ function verify_fs_create
 	if is_global_zone ; then
 		# mount permission is required for sparse volume
 		user_run $user $ZFS create -V 150m -s $newvol
-		block_device_wait
 		if datasetexists $newvol ; then
 			return 1
 		fi
@@ -599,22 +591,17 @@ function verify_fs_create
 		if ! datasetexists $newvol ; then
 			return 1
 		fi
-
-		block_device_wait
 		log_must $ZFS destroy $newvol
-		block_device_wait
 
 		# mount and reserveration permission are
 		# required for normal volume
 		user_run $user $ZFS create -V 150m $newvol
-		block_device_wait
 		if datasetexists $newvol ; then
 			return 1
 		fi
 
 		log_must $ZFS allow $user mount $fs
 		user_run $user $ZFS create -V 150m $newvol
-		block_device_wait
 		log_must $ZFS unallow $user mount $fs
 		if datasetexists $newvol ; then
 			return 1
@@ -622,7 +609,6 @@ function verify_fs_create
 
 		log_must $ZFS allow $user reservation $fs
 		user_run $user $ZFS create -V 150m $newvol
-		block_device_wait
 		log_must $ZFS unallow $user reservation $fs
 		if datasetexists $newvol ; then
 			return 1
@@ -630,7 +616,6 @@ function verify_fs_create
 
 		log_must $ZFS allow $user refreservation $fs
 		user_run $user $ZFS create -V 150m $newvol
-		block_device_wait
 		log_must $ZFS unallow $user refreservation $fs
 		if datasetexists $newvol ; then
 			return 1
@@ -646,10 +631,7 @@ function verify_fs_create
 		if ! datasetexists $newvol ; then
 			return 1
 		fi
-
-		block_device_wait
 		log_must $ZFS destroy $newvol
-		block_device_wait
 	fi
 
 	return 0
@@ -695,7 +677,7 @@ function verify_fs_snapshot
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 	typeset snap=$fs@snap.$stamp
 	typeset mntpt=$(get_prop mountpoint $fs)
 
@@ -736,7 +718,7 @@ function verify_fs_rollback
 	typeset fs=$3
 
 	typeset oldval
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 	typeset snap=$fs@snap.$stamp
 	typeset mntpt=$(get_prop mountpoint $fs)
 
@@ -769,7 +751,7 @@ function verify_fs_clone
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset clone=$basefs/cfs.$stamp
@@ -814,7 +796,7 @@ function verify_fs_rename
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset renamefs=$basefs/nfs.$stamp
@@ -897,7 +879,7 @@ function verify_fs_mount
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 	typeset mntpt=$(get_prop mountpoint $fs)
 	typeset newmntpt=/tmp/mnt.$stamp
 
@@ -965,7 +947,7 @@ function verify_fs_mountpoint
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 	typeset mntpt=$(get_prop mountpoint $fs)
 	typeset newmntpt=/tmp/mnt.$stamp
 
@@ -1004,7 +986,7 @@ function verify_fs_promote
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset clone=$basefs/cfs.$stamp
@@ -1060,7 +1042,7 @@ function verify_fs_canmount
 	typeset fs=$3
 
 	typeset oldval
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
 
 	if ! ismounted $fs ; then
 		set -A modes "on" "off"
@@ -1110,21 +1092,6 @@ function verify_fs_recordsize
 	typeset value8k=$(( 1024 * 8 ))
 	user_run $user $ZFS set recordsize=$value8k $fs
 	if [[ $value8k != $(get_prop recordsize $fs) ]]; then
-		return 1
-	fi
-
-	return 0
-}
-
-function verify_fs_dnodesize
-{
-	typeset user=$1
-	typeset perm=$2
-	typeset fs=$3
-	value="2k"
-
-	user_run $user $ZFS set dnodesize=$value $fs
-	if [[ $value != $(get_prop dnodesize $fs) ]]; then
 		return 1
 	fi
 
@@ -1371,7 +1338,7 @@ function verify_vol_snapshot
 	typeset perm=$2
 	typeset vol=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 
@@ -1396,7 +1363,7 @@ function verify_vol_rollback
 	typeset perm=$2
 	typeset vol=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 
@@ -1431,7 +1398,7 @@ function verify_vol_clone
 	typeset perm=$2
 	typeset vol=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
@@ -1477,7 +1444,7 @@ function verify_vol_rename
 	typeset perm=$2
 	typeset vol=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
@@ -1524,7 +1491,7 @@ function verify_vol_promote
 	typeset perm=$2
 	typeset vol=$3
 
-	typeset stamp=${perm}.${user}.$($DATE +'%F-%T-%N')
+	typeset stamp=${perm}.${user}.$($DATE +'%F-%H%M%S')
         typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp

@@ -336,12 +336,12 @@ zpl_parse_options(char *osname, char *mntopts, zfs_mntopts_t *zmo,
 
 	if (mntopts) {
 		substring_t args[MAX_OPT_ARGS];
-		char *tmp_mntopts, *p, *t;
+		char *tmp_mntopts, *p;
 		int token;
 
-		t = tmp_mntopts = strdup(mntopts);
+		tmp_mntopts = strdup(mntopts);
 
-		while ((p = strsep(&t, ",")) != NULL) {
+		while ((p = strsep(&tmp_mntopts, ",")) != NULL) {
 			if (!*p)
 				continue;
 

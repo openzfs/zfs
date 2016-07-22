@@ -47,5 +47,4 @@
 #include <sys/trace_multilist.h>
 #include <sys/trace_txg.h>
 #include <sys/trace_zil.h>
-#include <sys/trace_zio.h>
 #include <sys/trace_zrlock.h>

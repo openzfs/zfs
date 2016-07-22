@@ -10,4 +10,3 @@ Restart=on-abort
 
 [Install]
 Alias=zed.service
-WantedBy=zfs.target

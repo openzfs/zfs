@@ -20,17 +20,27 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#ifndef _SYS_ASM_LINKAGE_H
-#define	_SYS_ASM_LINKAGE_H
+#ifndef _LIBSPL_PRIV_H
+#define	_LIBSPL_PRIV_H
 
-#if defined(__i386) || defined(__amd64)
+#include <sys/types.h>
 
-#include <sys/ia32/asm_linkage.h>	/* XX64	x86/sys/asm_linkage.h */
+/* Couldn't find this definition in OpenGrok */
+#define	PRIV_SYS_CONFIG	"sys_config"
+
+/*
+ * priv_op_t indicates a privilege operation type
+ */
+typedef enum priv_op {
+	PRIV_ON,
+	PRIV_OFF,
+	PRIV_SET
+} priv_op_t;
+
+static inline boolean_t priv_ineffect(const char *priv) { return B_TRUE; }
 
 #endif
-
-#endif	/* _SYS_ASM_LINKAGE_H */

@@ -34,10 +34,10 @@ static int
 dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
     dsl_dataset_t **dsp, void *tag, char **shortnamep)
 {
-	char buf[ZFS_MAX_DATASET_NAME_LEN];
+	char buf[MAXNAMELEN];
 	char *hashp;
 
-	if (strlen(fullname) >= ZFS_MAX_DATASET_NAME_LEN)
+	if (strlen(fullname) >= MAXNAMELEN)
 		return (SET_ERROR(ENAMETOOLONG));
 	hashp = strchr(fullname, '#');
 	if (hashp == NULL)

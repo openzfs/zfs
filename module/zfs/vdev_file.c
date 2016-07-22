@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -159,7 +159,7 @@ vdev_file_io_strategy(void *arg)
 	if (resid != 0 && zio->io_error == 0)
 		zio->io_error = SET_ERROR(ENOSPC);
 
-	zio_delay_interrupt(zio);
+	zio_interrupt(zio);
 }
 
 static void
@@ -216,8 +216,6 @@ vdev_file_io_start(zio_t *zio)
 		zio_execute(zio);
 		return;
 	}
-
-	zio->io_target_timestamp = zio_handle_io_delay(zio);
 
 	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, 0);

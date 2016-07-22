@@ -154,26 +154,12 @@ fn(struct inode *ip, const char *name, void *buffer, size_t size)	\
 #endif
 
 /*
- * 4.7 API change,
- * The xattr_handler->set() callback was changed to take a both dentry and
- * inode, because the dentry might not be attached to an inode yet.
- */
-#if defined(HAVE_XATTR_SET_DENTRY_INODE)
-#define	ZPL_XATTR_SET_WRAPPER(fn)					\
-static int								\
-fn(const struct xattr_handler *handler, struct dentry *dentry,		\
-    struct inode *inode, const char *name, const void *buffer,		\
-    size_t size, int flags)						\
-{									\
-	return (__ ## fn(inode, name, buffer, size, flags));		\
-}
-/*
  * 4.4 API change,
  * The xattr_handler->set() callback was changed to take a xattr_handler,
  * and handler_flags argument was removed and should be accessed by
  * handler->flags.
  */
-#elif defined(HAVE_XATTR_SET_HANDLER)
+#if defined(HAVE_XATTR_SET_HANDLER)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\

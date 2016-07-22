@@ -39,14 +39,14 @@ static int
 ioctl_get_msg(char *var, int fd)
 {
 	int error = 0;
-	char msg[ZFS_MAX_DATASET_NAME_LEN];
+	char msg[ZFS_MAXNAMELEN];
 
 	error = ioctl(fd, BLKZNAME, msg);
 	if (error < 0) {
 		return (error);
 	}
 
-	snprintf(var, ZFS_MAX_DATASET_NAME_LEN, "%s", msg);
+	snprintf(var, ZFS_MAXNAMELEN, "%s", msg);
 	return (error);
 }
 
@@ -54,8 +54,7 @@ int
 main(int argc, char **argv)
 {
 	int fd, error = 0;
-	char zvol_name[ZFS_MAX_DATASET_NAME_LEN];
-	char zvol_name_part[ZFS_MAX_DATASET_NAME_LEN];
+	char zvol_name[ZFS_MAXNAMELEN], zvol_name_part[ZFS_MAXNAMELEN];
 	char *dev_name;
 	struct stat64 statbuf;
 	int dev_minor, dev_part;
@@ -88,11 +87,10 @@ main(int argc, char **argv)
 		return (errno);
 	}
 	if (dev_part > 0)
-		snprintf(zvol_name_part, ZFS_MAX_DATASET_NAME_LEN,
-		    "%s-part%d", zvol_name, dev_part);
+		snprintf(zvol_name_part, ZFS_MAXNAMELEN, "%s-part%d", zvol_name,
+		    dev_part);
 	else
-		snprintf(zvol_name_part, ZFS_MAX_DATASET_NAME_LEN,
-		    "%s", zvol_name);
+		snprintf(zvol_name_part, ZFS_MAXNAMELEN, "%s", zvol_name);
 
 	for (i = 0; i < strlen(zvol_name_part); i++) {
 		if (isblank(zvol_name_part[i]))

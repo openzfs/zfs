@@ -39,7 +39,7 @@ AC_CONFIG_MACRO_DIR([config])
 AC_CANONICAL_SYSTEM
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-AM_INIT_AUTOMAKE([subdir-objects])
+AM_INIT_AUTOMAKE
 AC_CONFIG_HEADERS([zfs_config.h], [
 	(mv zfs_config.h zfs_config.h.tmp &&
 	awk -f ${ac_srcdir}/config/config.awk zfs_config.h.tmp >zfs_config.h &&
@@ -85,7 +85,6 @@ AC_CONFIG_FILES([
 	lib/libspl/include/util/Makefile
 	lib/libavl/Makefile
 	lib/libefi/Makefile
-	lib/libicp/Makefile
 	lib/libnvpair/Makefile
 	lib/libunicode/Makefile
 	lib/libuutil/Makefile
@@ -112,7 +111,6 @@ AC_CONFIG_FILES([
 	cmd/dbufstat/Makefile
 	cmd/arc_summary/Makefile
 	cmd/zed/Makefile
-	cmd/raidz_test/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
 	contrib/dracut/Makefile
@@ -126,14 +124,12 @@ AC_CONFIG_FILES([
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	module/zpios/Makefile
-	module/icp/Makefile
 	include/Makefile
 	include/linux/Makefile
 	include/sys/Makefile
 	include/sys/fs/Makefile
 	include/sys/fm/Makefile
 	include/sys/fm/fs/Makefile
-	include/sys/crypto/Makefile
 	scripts/Makefile
 	scripts/zpios-profile/Makefile
 	scripts/zpios-test/Makefile
@@ -233,7 +229,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/devices/Makefile
 	tests/zfs-tests/tests/functional/exec/Makefile
 	tests/zfs-tests/tests/functional/features/async_destroy/Makefile
-	tests/zfs-tests/tests/functional/features/large_dnode/Makefile
 	tests/zfs-tests/tests/functional/features/Makefile
 	tests/zfs-tests/tests/functional/grow_pool/Makefile
 	tests/zfs-tests/tests/functional/grow_replicas/Makefile
@@ -255,7 +250,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/poolversion/Makefile
 	tests/zfs-tests/tests/functional/privilege/Makefile
 	tests/zfs-tests/tests/functional/quota/Makefile
-	tests/zfs-tests/tests/functional/raidz/Makefile
 	tests/zfs-tests/tests/functional/redundancy/Makefile
 	tests/zfs-tests/tests/functional/refquota/Makefile
 	tests/zfs-tests/tests/functional/refreserv/Makefile

@@ -1,7 +1,2 @@
 # ZFS is enabled by default
-enable zfs-import-cache.service
-disable zfs-import-scan.service
-enable zfs-mount.service
-enable zfs-share.service
-enable zfs-zed.service
-enable zfs.target
+enable zfs.*

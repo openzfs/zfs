@@ -81,7 +81,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE, 1,
-		    [xattr_handler->get() wants both dentry and inode])
+		    [xattr_handler->get() wants xattr_handler])
 	],[
 		dnl #
 		dnl # 4.4 API change,
@@ -89,7 +89,6 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 		dnl # attr_handler, and handler_flags argument was removed and
 		dnl # should be accessed by handler->flags.
 		dnl #
-		AC_MSG_RESULT(no)
 		AC_MSG_CHECKING([whether xattr_handler->get() wants xattr_handler])
 		ZFS_LINUX_TRY_COMPILE([
 			#include <linux/xattr.h>
@@ -164,18 +163,18 @@ dnl # Supported xattr handler set() interfaces checked newest to oldest.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 	dnl #
-	dnl # 4.7 API change,
-	dnl # The xattr_handler->set() callback was changed to take both
-	dnl # dentry and inode.
+	dnl # 4.4 API change,
+	dnl # The xattr_handler->set() callback was changed to take a
+	dnl # xattr_handler, and handler_flags argument was removed and
+	dnl # should be accessed by handler->flags.
 	dnl #
-	AC_MSG_CHECKING([whether xattr_handler->set() wants both dentry and inode])
+	AC_MSG_CHECKING([whether xattr_handler->set() wants xattr_handler])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/xattr.h>
 
 		int set(const struct xattr_handler *handler,
-		    struct dentry *dentry, struct inode *inode,
-		    const char *name, const void *buffer,
-		    size_t size, int flags)
+		    struct dentry *dentry, const char *name,
+		    const void *buffer, size_t size, int flags)
 		    { return 0; }
 		static const struct xattr_handler
 		    xops __attribute__ ((unused)) = {
@@ -184,24 +183,23 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 	],[
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_XATTR_SET_DENTRY_INODE, 1,
-		    [xattr_handler->set() wants both dentry and inode])
+		AC_DEFINE(HAVE_XATTR_SET_HANDLER, 1,
+		    [xattr_handler->set() wants xattr_handler])
 	],[
 		dnl #
-		dnl # 4.4 API change,
+		dnl # 2.6.33 API change,
 		dnl # The xattr_handler->set() callback was changed to take a
-		dnl # xattr_handler, and handler_flags argument was removed and
-		dnl # should be accessed by handler->flags.
+		dnl # dentry instead of an inode, and a handler_flags
+		dnl # argument was added.
 		dnl #
 		AC_MSG_RESULT(no)
-		AC_MSG_CHECKING([whether xattr_handler->set() wants xattr_handler])
+		AC_MSG_CHECKING([whether xattr_handler->set() wants dentry])
 		ZFS_LINUX_TRY_COMPILE([
 			#include <linux/xattr.h>
 
-			int set(const struct xattr_handler *handler,
-			    struct dentry *dentry, const char *name,
-			    const void *buffer, size_t size, int flags)
-			    { return 0; }
+			int set(struct dentry *dentry, const char *name,
+			    const void *buffer, size_t size, int flags,
+			    int handler_flags) { return 0; }
 			static const struct xattr_handler
 			    xops __attribute__ ((unused)) = {
 				.set = set,
@@ -209,23 +207,21 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 		],[
 		],[
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_XATTR_SET_HANDLER, 1,
-			    [xattr_handler->set() wants xattr_handler])
+			AC_DEFINE(HAVE_XATTR_SET_DENTRY, 1,
+			    [xattr_handler->set() wants dentry])
 		],[
 			dnl #
-			dnl # 2.6.33 API change,
-			dnl # The xattr_handler->set() callback was changed to take a
-			dnl # dentry instead of an inode, and a handler_flags
-			dnl # argument was added.
+			dnl # 2.6.32 API
 			dnl #
 			AC_MSG_RESULT(no)
-			AC_MSG_CHECKING([whether xattr_handler->set() wants dentry])
+			AC_MSG_CHECKING(
+			    [whether xattr_handler->set() wants inode])
 			ZFS_LINUX_TRY_COMPILE([
 				#include <linux/xattr.h>
 
-				int set(struct dentry *dentry, const char *name,
-				    const void *buffer, size_t size, int flags,
-				    int handler_flags) { return 0; }
+				int set(struct inode *ip, const char *name,
+				    const void *buffer, size_t size, int flags)
+				    { return 0; }
 				static const struct xattr_handler
 				    xops __attribute__ ((unused)) = {
 					.set = set,
@@ -233,33 +229,10 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 			],[
 			],[
 				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_XATTR_SET_DENTRY, 1,
-				    [xattr_handler->set() wants dentry])
+				AC_DEFINE(HAVE_XATTR_SET_INODE, 1,
+				    [xattr_handler->set() wants inode])
 			],[
-				dnl #
-				dnl # 2.6.32 API
-				dnl #
-				AC_MSG_RESULT(no)
-				AC_MSG_CHECKING(
-				    [whether xattr_handler->set() wants inode])
-				ZFS_LINUX_TRY_COMPILE([
-					#include <linux/xattr.h>
-
-					int set(struct inode *ip, const char *name,
-					    const void *buffer, size_t size, int flags)
-					    { return 0; }
-					static const struct xattr_handler
-					    xops __attribute__ ((unused)) = {
-						.set = set,
-					};
-				],[
-				],[
-					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_XATTR_SET_INODE, 1,
-					    [xattr_handler->set() wants inode])
-				],[
-		                        AC_MSG_ERROR([no; please file a bug report])
-				])
+	                        AC_MSG_ERROR([no; please file a bug report])
 			])
 		])
 	])

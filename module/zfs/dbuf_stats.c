@@ -148,6 +148,7 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 		}
 
 		mutex_enter(&db->db_mtx);
+		mutex_exit(DBUF_HASH_MUTEX(h, dsh->idx));
 
 		if (db->db_state != DB_EVICTING) {
 			length = __dbuf_stats_hash_table_data(buf, size, db);
@@ -156,6 +157,7 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 		}
 
 		mutex_exit(&db->db_mtx);
+		mutex_enter(DBUF_HASH_MUTEX(h, dsh->idx));
 	}
 	mutex_exit(DBUF_HASH_MUTEX(h, dsh->idx));
 

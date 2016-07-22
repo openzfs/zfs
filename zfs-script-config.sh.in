@@ -28,7 +28,6 @@ export ZINJECT=${CMDDIR}/zinject/zinject
 export ZPOOL=${CMDDIR}/zpool/zpool
 export ZTEST=${CMDDIR}/ztest/ztest
 export ZPIOS=${CMDDIR}/zpios/zpios
-export RAIDZ_TEST=${CMDDIR}/raidz_test/raidz_test
 
 export COMMON_SH=${SCRIPTDIR}/common.sh
 export ZFS_SH=${SCRIPTDIR}/zfs.sh
@@ -50,7 +49,7 @@ export FILE_WRITE=${TESTSDIR}/zfs-tests/cmd/file_write/file_write
 export LARGEST_FILE=${TESTSDIR}/zfs-tests/cmd/largest_file/largest_file
 export MKBUSY=${TESTSDIR}/zfs-tests/cmd/mkbusy/mkbusy
 export MKFILE=${TESTSDIR}/zfs-tests/cmd/mkfile/mkfile
-export MKFILES=${TESTSDIR}/zfs-tests/cmd/mkfiles/mkfiles
+export MKFILES=${TESTSDIR}/zfs-tests/cmd/mkfile/mkfiles
 export MKTREE=${TESTSDIR}/zfs-tests/cmd/mktree/mktree
 export MMAP_EXEC=${TESTSDIR}/zfs-tests/cmd/mmap_exec/mmap_exec
 export MMAPWRITE=${TESTSDIR}/zfs-tests/cmd/mmapwrite/mmapwrite
@@ -59,7 +58,7 @@ export READMMAP=${TESTSDIR}/zfs-tests/cmd/readmmap/readmmap
 export RENAME_DIR=${TESTSDIR}/zfs-tests/cmd/rename_dir/rename_dir
 export RM_LNKCNT_ZERO_FILE=${TESTSDIR}/zfs-tests/cmd/rm_lnkcnt_zero_file/rm_lnkcnt_zero_file
 export THREADSAPPEND=${TESTSDIR}/zfs-tests/cmd/threadsappend/threadsappend
-export XATTRTEST=${TESTSDIR}/zfs-tests/cmd/xattrtest/xattrtest
+export XATTRTEST=${TESTDIR}/zfs-tests/cmd/xattrtest
 
 export INTREE=1
 export LDMOD=/sbin/insmod
@@ -82,7 +81,6 @@ export ZFS_MODULES=(                                  \
         ${MODDIR}/nvpair/znvpair.ko                   \
         ${MODDIR}/unicode/zunicode.ko                 \
         ${MODDIR}/zcommon/zcommon.ko                  \
-        ${MODDIR}/icp/icp.ko                          \
         ${MODDIR}/zfs/zfs.ko                          \
 )
 

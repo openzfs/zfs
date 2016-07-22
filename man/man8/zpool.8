@@ -95,7 +95,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-lq\fR]|[\fB-r\fR|-\fBw\fR]]
+\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-G\fR|[\fB-lq\fR]]
      [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .fi
@@ -1125,7 +1125,7 @@ Scripted mode. Do not display headers, and separate fields by a single tab inste
 \fB\fB-p\fR\fR
 .ad
 .RS 6n
-Display numbers in parsable (exact) values.
+Display numbers in parseable (exact) values.
 .RE
 
 .sp
@@ -1510,7 +1510,7 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .sp
 .ne 2
 .na
-\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [[\fB-lq\fR]|[\fB-r\fR|\fB-w\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-w\fR|[\fB-lq\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .ad
 .sp .6
@@ -1570,7 +1570,7 @@ Display real paths for vdevs resolving all symbolic links. This can be used to l
 \fB\fB-p\fR\fR
 .ad
 .RS 12n
-Display numbers in parsable (exact) values.  Time values are in nanoseconds.
+Display numbers in parseable (exact) values.  Time values are in nanoseconds.
 .RE
 
 .sp
@@ -1580,19 +1580,6 @@ Display numbers in parsable (exact) values.  Time values are in nanoseconds.
 .ad
 .RS 12n
 Display full paths for vdevs instead of only the last component of the path.  This can be used in conjunction with the \fB-L\fR flag.
-.RE
-
-.sp
-.ne 2
-.na
-\fB\fB-r\fR\fR
-.ad
-.RS 12n
-Print request size histograms for the leaf ZIOs.  This includes histograms of
-individual ZIOs ("ind") and aggregate ZIOs ("agg").  These stats can be useful
-for seeing how well the ZFS IO aggregator is working.  Do not confuse these
-request size stats with the block layer requests; it's possible ZIOs can
-be broken up before being sent to the block device.
 .RE
 
 .sp
@@ -2569,4 +2556,4 @@ them on \fBzpool create\fR or \fBzpool add\fR by setting ZFS_VDEV_DEVID_OPT_OUT.
 .SH SEE ALSO
 .sp
 .LP
-\fBzfs\fR(8), \fBzpool-features\fR(5), \fBzfs-events\fR(5), \fBzfs-module-parameters\fR(5)
+\fBzfs\fR(8), \fBzpool-features\fR(5), \fBzfs-events\fR(5)

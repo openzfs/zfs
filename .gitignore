@@ -21,7 +21,6 @@
 *.swp
 .deps
 .libs
-.dirstamp
 .DS_Store
 modules.order
 Makefile
