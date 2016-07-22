@@ -15,7 +15,6 @@ USER_C = \
 	libzfs_dataset.c \
 	libzfs_diff.c \
 	libzfs_fru.c \
-	libzfs_graph.c \
 	libzfs_import.c \
 	libzfs_iter.c \
 	libzfs_mount.c \

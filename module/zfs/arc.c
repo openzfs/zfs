@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2014 by Saso Kiselkov. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  */
@@ -1461,15 +1461,19 @@ arc_buf_info(arc_buf_t *ab, arc_buf_info_t *abi, int state_index)
 	l2arc_buf_hdr_t *l2hdr = NULL;
 	arc_state_t *state = NULL;
 
+	memset(abi, 0, sizeof (arc_buf_info_t));
+
+	if (hdr == NULL)
+		return;
+
+	abi->abi_flags = hdr->b_flags;
+
 	if (HDR_HAS_L1HDR(hdr)) {
 		l1hdr = &hdr->b_l1hdr;
 		state = l1hdr->b_state;
 	}
 	if (HDR_HAS_L2HDR(hdr))
 		l2hdr = &hdr->b_l2hdr;
-
-	memset(abi, 0, sizeof (arc_buf_info_t));
-	abi->abi_flags = hdr->b_flags;
 
 	if (l1hdr) {
 		abi->abi_datacnt = l1hdr->b_datacnt;
@@ -2707,12 +2711,7 @@ arc_prune_task(void *ptr)
 	if (func != NULL)
 		func(ap->p_adjust, ap->p_private);
 
-	/* Callback unregistered concurrently with execution */
-	if (refcount_remove(&ap->p_refcnt, func) == 0) {
-		ASSERT(!list_link_active(&ap->p_node));
-		refcount_destroy(&ap->p_refcnt);
-		kmem_free(ap, sizeof (*ap));
-	}
+	refcount_remove(&ap->p_refcnt, func);
 }
 
 /*
@@ -4628,13 +4627,19 @@ arc_add_prune_callback(arc_prune_func_t *func, void *private)
 void
 arc_remove_prune_callback(arc_prune_t *p)
 {
+	boolean_t wait = B_FALSE;
 	mutex_enter(&arc_prune_mtx);
 	list_remove(&arc_prune_list, p);
-	if (refcount_remove(&p->p_refcnt, &arc_prune_list) == 0) {
-		refcount_destroy(&p->p_refcnt);
-		kmem_free(p, sizeof (*p));
-	}
+	if (refcount_remove(&p->p_refcnt, &arc_prune_list) > 0)
+		wait = B_TRUE;
 	mutex_exit(&arc_prune_mtx);
+
+	/* wait for arc_prune_task to finish */
+	if (wait)
+		taskq_wait_outstanding(arc_prune_taskq, 0);
+	ASSERT0(refcount_count(&p->p_refcnt));
+	refcount_destroy(&p->p_refcnt);
+	kmem_free(p, sizeof (*p));
 }
 
 void
@@ -4980,6 +4985,15 @@ arc_write_ready(zio_t *zio)
 	hdr->b_flags |= ARC_FLAG_IO_IN_PROGRESS;
 }
 
+static void
+arc_write_children_ready(zio_t *zio)
+{
+	arc_write_callback_t *callback = zio->io_private;
+	arc_buf_t *buf = callback->awcb_buf;
+
+	callback->awcb_children_ready(zio, buf, callback->awcb_private);
+}
+
 /*
  * The SPA calls this callback for each physical write that happens on behalf
  * of a logical write.  See the comment in dbuf_write_physdone() for details.
@@ -5076,7 +5090,8 @@ arc_write_done(zio_t *zio)
 zio_t *
 arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
     blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, boolean_t l2arc_compress,
-    const zio_prop_t *zp, arc_done_func_t *ready, arc_done_func_t *physdone,
+    const zio_prop_t *zp, arc_done_func_t *ready,
+    arc_done_func_t *children_ready, arc_done_func_t *physdone,
     arc_done_func_t *done, void *private, zio_priority_t priority,
     int zio_flags, const zbookmark_phys_t *zb)
 {
@@ -5096,13 +5111,16 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 		hdr->b_flags |= ARC_FLAG_L2COMPRESS;
 	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_SLEEP);
 	callback->awcb_ready = ready;
+	callback->awcb_children_ready = children_ready;
 	callback->awcb_physdone = physdone;
 	callback->awcb_done = done;
 	callback->awcb_private = private;
 	callback->awcb_buf = buf;
 
 	zio = zio_write(pio, spa, txg, bp, buf->b_data, hdr->b_size, zp,
-	    arc_write_ready, arc_write_physdone, arc_write_done, callback,
+	    arc_write_ready,
+	    (children_ready != NULL) ? arc_write_children_ready : NULL,
+	    arc_write_physdone, arc_write_done, callback,
 	    priority, zio_flags, zb);
 
 	return (zio);

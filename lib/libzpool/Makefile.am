@@ -22,6 +22,8 @@ KERNEL_C = \
 	zfs_comutil.c \
 	zfs_deleg.c \
 	zfs_fletcher.c \
+	zfs_fletcher_intel.c \
+	zfs_fletcher_sse.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
 	zfs_uio.c \
@@ -91,6 +93,11 @@ KERNEL_C = \
 	vdev_missing.c \
 	vdev_queue.c \
 	vdev_raidz.c \
+	vdev_raidz_math.c \
+	vdev_raidz_math_scalar.c \
+	vdev_raidz_math_sse2.c \
+	vdev_raidz_math_ssse3.c \
+	vdev_raidz_math_avx2.c \
 	vdev_root.c \
 	zap.c \
 	zap_leaf.c \
@@ -119,7 +126,8 @@ nodist_libzpool_la_SOURCES = \
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libicp/libicp.la
 
 libzpool_la_LIBADD += $(ZLIB)
 libzpool_la_LDFLAGS = -version-info 2:0:0

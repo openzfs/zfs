@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -52,6 +52,7 @@
 #include <sys/zfs_onexit.h>
 #include <sys/dsl_destroy.h>
 #include <sys/vdev.h>
+#include <sys/policy.h>
 
 /*
  * Needed to close a window in dnode_move() that allows the objset to be freed
@@ -66,6 +67,13 @@ krwlock_t os_lock;
  * Default is 4 times the number of leaf vdevs.
  */
 int dmu_find_threads = 0;
+
+/*
+ * Backfill lower metadnode objects after this many have been freed.
+ * Backfilling negatively impacts object creation rates, so only do it
+ * if there are enough holes to fill.
+ */
+int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
 
 static void dmu_objset_find_dp_cb(void *arg);
 
@@ -128,6 +136,12 @@ dmu_objset_id(objset_t *os)
 	dsl_dataset_t *ds = os->os_dsl_dataset;
 
 	return (ds ? ds->ds_object : 0);
+}
+
+uint64_t
+dmu_objset_dnodesize(objset_t *os)
+{
+	return (os->os_dnodesize);
 }
 
 zfs_sync_type_t
@@ -260,6 +274,34 @@ redundant_metadata_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+dnodesize_changed_cb(void *arg, uint64_t newval)
+{
+	objset_t *os = arg;
+
+	switch (newval) {
+	case ZFS_DNSIZE_LEGACY:
+		os->os_dnodesize = DNODE_MIN_SIZE;
+		break;
+	case ZFS_DNSIZE_AUTO:
+		/*
+		 * Choose a dnode size that will work well for most
+		 * workloads if the user specified "auto". Future code
+		 * improvements could dynamically select a dnode size
+		 * based on observed workload patterns.
+		 */
+		os->os_dnodesize = DNODE_MIN_SIZE * 2;
+		break;
+	case ZFS_DNSIZE_1K:
+	case ZFS_DNSIZE_2K:
+	case ZFS_DNSIZE_4K:
+	case ZFS_DNSIZE_8K:
+	case ZFS_DNSIZE_16K:
+		os->os_dnodesize = newval;
+		break;
+	}
+}
+
+static void
 logbias_changed_cb(void *arg, uint64_t newval)
 {
 	objset_t *os = arg;
@@ -363,6 +405,17 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	 * checksum/compression/copies.
 	 */
 	if (ds != NULL) {
+		boolean_t needlock = B_FALSE;
+
+		/*
+		 * Note: it's valid to open the objset if the dataset is
+		 * long-held, in which case the pool_config lock will not
+		 * be held.
+		 */
+		if (!dsl_pool_config_held(dmu_objset_pool(os))) {
+			needlock = B_TRUE;
+			dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
+		}
 		err = dsl_prop_register(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
 		    primary_cache_changed_cb, os);
@@ -413,7 +466,14 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    zfs_prop_to_name(ZFS_PROP_RECORDSIZE),
 				    recordsize_changed_cb, os);
 			}
+			if (err == 0) {
+				err = dsl_prop_register(ds,
+				    zfs_prop_to_name(ZFS_PROP_DNODESIZE),
+				    dnodesize_changed_cb, os);
+			}
 		}
+		if (needlock)
+			dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 		if (err != 0) {
 			VERIFY(arc_buf_remove_ref(os->os_phys_buf,
 			    &os->os_phys_buf));
@@ -431,6 +491,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_sync = ZFS_SYNC_STANDARD;
 		os->os_primary_cache = ZFS_CACHE_ALL;
 		os->os_secondary_cache = ZFS_CACHE_ALL;
+		os->os_dnodesize = DNODE_MIN_SIZE;
 	}
 
 	if (ds == NULL || !ds->ds_is_snapshot)
@@ -471,6 +532,13 @@ int
 dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
 {
 	int err = 0;
+
+	/*
+	 * We shouldn't be doing anything with dsl_dataset_t's unless the
+	 * pool_config lock is held, or the dataset is long-held.
+	 */
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool) ||
+	    dsl_dataset_long_held(ds));
 
 	mutex_enter(&ds->ds_opening_lock);
 	if (ds->ds_objset == NULL) {
@@ -603,7 +671,7 @@ dmu_objset_refresh_ownership(objset_t *os, void *tag)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds, *newds;
-	char name[MAXNAMELEN];
+	char name[ZFS_MAX_DATASET_NAME_LEN];
 
 	ds = os->os_dsl_dataset;
 	VERIFY3P(ds, !=, NULL);
@@ -760,8 +828,8 @@ dmu_objset_create_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	mdn = DMU_META_DNODE(os);
 
-	dnode_allocate(mdn, DMU_OT_DNODE, 1 << DNODE_BLOCK_SHIFT,
-	    DN_MAX_INDBLKSHIFT, DMU_OT_NONE, 0, tx);
+	dnode_allocate(mdn, DMU_OT_DNODE, DNODE_BLOCK_SIZE, DN_MAX_INDBLKSHIFT,
+	    DMU_OT_NONE, 0, DNODE_MIN_SLOTS, tx);
 
 	/*
 	 * We don't want to have to increase the meta-dnode's nlevels
@@ -826,6 +894,9 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 
 	if (strchr(doca->doca_name, '@') != NULL)
 		return (SET_ERROR(EINVAL));
+
+	if (strlen(doca->doca_name) >= ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
 
 	error = dsl_dir_hold(dp, doca->doca_name, FTAG, &pdd, &tail);
 	if (error != 0)
@@ -913,6 +984,9 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 	if (strchr(doca->doca_clone, '@') != NULL)
 		return (SET_ERROR(EINVAL));
 
+	if (strlen(doca->doca_clone) >= ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
+
 	error = dsl_dir_hold(dp, doca->doca_clone, FTAG, &pdd, &tail);
 	if (error != 0)
 		return (error);
@@ -952,7 +1026,7 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	const char *tail;
 	dsl_dataset_t *origin, *ds;
 	uint64_t obj;
-	char namebuf[MAXNAMELEN];
+	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 
 	VERIFY0(dsl_dir_hold(dp, doca->doca_clone, FTAG, &pdd, &tail));
 	VERIFY0(dsl_dataset_hold(dp, doca->doca_origin, FTAG, &origin));
@@ -1109,9 +1183,9 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 
 	zio = arc_write(pio, os->os_spa, tx->tx_txg,
 	    os->os_rootbp, os->os_phys_buf, DMU_OS_IS_L2CACHEABLE(os),
-	    DMU_OS_IS_L2COMPRESSIBLE(os), &zp, dmu_objset_write_ready,
-	    NULL, dmu_objset_write_done, os, ZIO_PRIORITY_ASYNC_WRITE,
-	    ZIO_FLAG_MUSTSUCCEED, &zb);
+	    DMU_OS_IS_L2COMPRESSIBLE(os),
+	    &zp, dmu_objset_write_ready, NULL, NULL, dmu_objset_write_done,
+	    os, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 
 	/*
 	 * Sync special dnodes - the parent IO for the sync is the root block
@@ -1151,6 +1225,13 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		if (dr->dr_zio)
 			zio_nowait(dr->dr_zio);
 	}
+
+	/* Enable dnode backfill if enough objects have been freed. */
+	if (os->os_freed_dnodes >= dmu_rescan_dnode_threshold) {
+		os->os_rescan_dnodes = B_TRUE;
+		os->os_freed_dnodes = 0;
+	}
+
 	/*
 	 * Free intent log blocks up to this tx.
 	 */
@@ -1187,7 +1268,7 @@ do_userquota_update(objset_t *os, uint64_t used, uint64_t flags,
     uint64_t user, uint64_t group, boolean_t subtract, dmu_tx_t *tx)
 {
 	if ((flags & DNODE_FLAG_USERUSED_ACCOUNTED)) {
-		int64_t delta = DNODE_SIZE + used;
+		int64_t delta = DNODE_MIN_SIZE + used;
 		if (subtract)
 			delta = -delta;
 		VERIFY3U(0, ==, zap_increment_int(os, DMU_USERUSED_OBJECT,
@@ -1972,7 +2053,7 @@ dmu_objset_get_user(objset_t *os)
 
 /*
  * Determine name of filesystem, given name of snapshot.
- * buf must be at least MAXNAMELEN bytes
+ * buf must be at least ZFS_MAX_DATASET_NAME_LEN bytes
  */
 int
 dmu_fsname(const char *snapname, char *buf)
@@ -1980,7 +2061,7 @@ dmu_fsname(const char *snapname, char *buf)
 	char *atp = strchr(snapname, '@');
 	if (atp == NULL)
 		return (SET_ERROR(EINVAL));
-	if (atp - snapname >= MAXNAMELEN)
+	if (atp - snapname >= ZFS_MAX_DATASET_NAME_LEN)
 		return (SET_ERROR(ENAMETOOLONG));
 	(void) strlcpy(buf, snapname, atp - snapname + 1);
 	return (0);
@@ -2008,6 +2089,7 @@ EXPORT_SYMBOL(dmu_objset_find);
 EXPORT_SYMBOL(dmu_objset_byteswap);
 EXPORT_SYMBOL(dmu_objset_evict_dbufs);
 EXPORT_SYMBOL(dmu_objset_snap_cmtime);
+EXPORT_SYMBOL(dmu_objset_dnodesize);
 
 EXPORT_SYMBOL(dmu_objset_sync);
 EXPORT_SYMBOL(dmu_objset_is_dirty);

@@ -23,7 +23,7 @@
  * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -414,7 +414,7 @@ vdev_disk_dio_put(dio_request_t *dr)
 			ASSERT3S(zio->io_error, >=, 0);
 			if (zio->io_error)
 				vdev_disk_error(zio);
-			zio_interrupt(zio);
+			zio_delay_interrupt(zio);
 		}
 	}
 
@@ -726,6 +726,7 @@ vdev_disk_io_start(zio_t *zio)
 		return;
 	}
 
+	zio->io_target_timestamp = zio_handle_io_delay(zio);
 	error = __vdev_disk_physio(vd->vd_bdev, zio, zio->io_data,
 	    zio->io_size, zio->io_offset, flags, 0);
 	if (error) {

@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2015 by Delphix. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -180,17 +180,27 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-eL\fR] [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-Le\fR] [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-Penv\fR] \fB-t\fR \fIreceive_resume_token\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR
+\fBzfs\fR \fBreceive\fR [\fB-Fnsuv\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+.fi
+
+.LP
+.nf
+\fBzfs\fR \fBreceive\fR [\fB-Fnsuv\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR
+.fi
+
+.LP
+.nf
+\fBzfs\fR \fBreceive\fR \fB-A\fR \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
@@ -531,6 +541,17 @@ For cloned file systems or volumes, the snapshot from which the clone was create
 
 .sp
 .ne 2
+.na
+\fB\fBreceive_resume_token\fR\fR
+.ad
+.sp .6
+.RS 4n
+For filesystems or volumes which have saved partially-completed state from \fBzfs receive -s\fR , this opaque token can be provided to \fBzfs send -t\fR to resume and complete the \fBzfs receive\fR.
+.RE
+
+.sp
+.ne 2
+.mk
 .na
 \fB\fBreferenced\fR\fR
 .ad
@@ -909,6 +930,35 @@ The values \fBon\fR and \fBoff\fR are equivalent to the \fBdev\fR and \fBnodev\f
 
 .sp
 .ne 2
+.na
+\fB\fBdnodesize\fR=\fBlegacy\fR | \fBauto\fR | \fB1k\fR | \fB2k\fR | \fB4k\fR | \fB8k\fR | \fB16k\fR\fR
+.ad
+.sp .6
+.RS 4n
+Specifies a compatibility mode or literal value for the size of dnodes
+in the file system. The default value is \fBlegacy\fR. Setting this
+property to a value other than \fBlegacy\fR requires the
+\fBlarge_dnode\fR pool feature to be enabled.
+.sp
+Consider setting \fBdnodesize\fR to \fBauto\fR if the dataset uses the
+\fBxattr=sa\fR property setting and the workload makes heavy use of
+extended attributes. This may be applicable to SELinux-enabled systems,
+Lustre servers, and Samba servers, for example. Literal values are
+supported for cases where the optimal size is known in advance and for
+performance testing.
+.sp
+Leave \fBdnodesize\fR set to \fBlegacy\fR if you need to receive
+a \fBzfs send\fR stream of this dataset on a pool that doesn't enable
+the \fBlarge_dnode\fR feature, or if you need to import this pool on a
+system that doesn't support the \fBlarge_dnode\fR feature.
+.sp
+This property can also be referred to by its shortened column name,
+\fBdnsize\fR.
+.RE
+
+.sp
+.ne 2
+.mk
 .na
 \fB\fBexec\fR=\fBon\fR | \fBoff\fR\fR
 .ad
@@ -2770,7 +2820,7 @@ The format of the stream is committed. You will be able to receive your streams 
 .sp
 .ne 2
 .na
-\fBzfs send\fR [\fB-eL\fR] [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs send\fR [\fB-Le\fR] [\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2779,24 +2829,6 @@ incremental from a bookmark.  If the destination is a filesystem or volume,
 the pool must be read-only, or the filesystem must not be mounted.  When the
 stream generated from a filesystem or volume is received, the default snapshot
 name will be "--head--".
-
-.sp
-.ne 2
-.na
-\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR
-.ad
-.sp .6
-.RS 4n
-Generate an incremental send stream.  The incremental source must be an earlier
-snapshot in the destination's history. It will commonly be an earlier
-snapshot in the destination's filesystem, in which case it can be
-specified as the last component of the name (the \fB#\fR or \fB@\fR character
-and following).
-.sp
-If the incremental target is a clone, the incremental source can
-be the origin snapshot, or an earlier snapshot in the origin's filesystem,
-or the origin's origin, etc.
-.RE
 
 .sp
 .ne 2
@@ -2830,15 +2862,39 @@ then the receiving system must have that feature enabled as well. See
 \fBembedded_data\fR feature.
 .RE
 
+.sp
+.ne 2
+.na
+\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR
+.ad
+.sp .6
+.RS 4n
+Generate an incremental send stream.  The incremental source must be an earlier snapshot in the destination's history. It will commonly be an earlier snapshot in the destination's filesystem, in which case it can be specified as the last component of the name (the \fB#\fR or \fB@\fR character and following).
+.sp
+If the incremental target is a clone, the incremental source can be the origin snapshot, or an earlier snapshot in the origin's filesystem, or the origin's origin, etc.
+.RE
+
 .RE
 .sp
 .ne 2
 .na
-\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
+\fB\fBzfs send\fR [\fB-Penv\fR] \fB-t\fR \fIreceive_resume_token\fR\fR
+.ad
+.sp .6
+.RS 4n
+Creates a send stream which resumes an interrupted receive. The \fIreceive_resume_token\fR is the value of this property on the filesystem or volume that was being received into. See the documentation for \fBzfs receive -s\fR for more details.
+
+.RE
+
+.RE
+.sp
+.ne 2
+.na
+\fB\fBzfs receive\fR [\fB-Fnsuv\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
 .ad
 .br
 .na
-\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR\fR
+\fB\fBzfs receive\fR [\fB-Fnsuv\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2856,21 +2912,36 @@ The \fB-d\fR and \fB-e\fR options cause the file system name of the target snaps
 .sp
 .ne 2
 .na
-\fB\fB-d\fR\fR
+\fB\fB-F\fR\fR
 .ad
 .sp .6
 .RS 4n
-Discard the first element of the sent snapshot's file system name, using the remaining elements to determine the name of the target file system for the new snapshot as described in the paragraph above.
+Force a rollback of the file system to the most recent snapshot before performing the receive operation. If receiving an incremental replication stream (for example, one generated by \fBzfs send -R -[iI]\fR), destroy snapshots and file systems that do not exist on the sending side.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-n\fR\fR
+.ad
+.sp .6
+.RS 4n
+Do not actually receive the stream. This can be useful in conjunction with the \fB-v\fR option to verify the name the receive operation would use.
 .RE
 
 .sp
 .ne 2
 .na
-\fB\fB-e\fR\fR
+\fB\fB-s\fR\fR
 .ad
 .sp .6
 .RS 4n
-Discard all but the last element of the sent snapshot's file system name, using that element to determine the name of the target file system for the new snapshot as described in the paragraph above.
+If the receive is interrupted, save the partially received state, rather than deleting it. Interruption may be due to premature termination of the stream (e.g. due to network failure or failure of the remote system if the stream is being read over a network connection), a checksum error in the stream, termination of the \fBzfs receive\fR process, or unclean shutdown of the system.
+.sp
+The receive can be resumed with a stream generated by \fBzfs send -t\fR token, where the \fItoken\fR is the value of the \fBreceive_resume_token\fR property of the filesystem or volume which is received into.
+.sp
+To use this flag, the storage pool must have the \fBextensible_dataset\fR feature enabled.  See \fBzpool-features\fR(5) for details on ZFS feature flags.
 .RE
 
 .sp
@@ -2896,11 +2967,21 @@ Print verbose information about the stream and the time required to perform the 
 .sp
 .ne 2
 .na
-\fB\fB-n\fR\fR
+\fB\fB-d\fR\fR
 .ad
 .sp .6
 .RS 4n
-Do not actually receive the stream. This can be useful in conjunction with the \fB-v\fR option to verify the name the receive operation would use.
+Discard the first element of the sent snapshot's file system name, using the remaining elements to determine the name of the target file system for the new snapshot as described in the paragraph above.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-e\fR\fR
+.ad
+.sp .6
+.RS 4n
+Discard all but the last element of the sent snapshot's file system name, using that element to determine the name of the target file system for the new snapshot as described in the paragraph above.
 .RE
 
 .sp
@@ -2910,18 +2991,24 @@ Do not actually receive the stream. This can be useful in conjunction with the \
 .ad
 .sp .6
 .RS 4n
-Forces the stream to be received as a clone of the given snapshot. This is only valid if the stream is an incremental stream whose source is the same as the provided origin.
+Forces the stream to be received as a clone of the given snapshot.
+If the stream is a full send stream, this will create the filesystem
+described by the stream as a clone of the specified snapshot. Which
+snapshot was specified will not affect the success or failure of the
+receive, as long as the snapshot does exist.  If the stream is an
+incremental send stream, all the normal verification will be performed.
+.RE
+
 .RE
 
 .sp
 .ne 2
 .na
-\fB\fB-F\fR\fR
+\fB\fBzfs receive\fR [\fB-A\fR] \fIfilesystem\fR|\fIvolume\fR
 .ad
 .sp .6
 .RS 4n
-Force a rollback of the file system to the most recent snapshot before performing the receive operation. If receiving an incremental replication stream (for example, one generated by \fBzfs send -R -[iI]\fR), destroy snapshots and file systems that do not exist on the sending side.
-.RE
+Abort an interrupted \fBzfs receive \fB-s\fR\fR, deleting its saved partially received state.
 
 .RE
 
@@ -2933,6 +3020,11 @@ Force a rollback of the file system to the most recent snapshot before performin
 .sp .6
 .RS 4n
 Displays permissions that have been delegated on the specified filesystem or volume. See the other forms of \fBzfs allow\fR for more information.
+.sp
+Delegations are supported under Linux with the exception of \fBmount\fR,
+\fBunmount\fR, \fBmountpoint\fR, \fBcanmount\fR, \fBrename\fR, and \fBshare\fR.
+These permissions cannot be delegated because the Linux \fBmount(8)\fR command
+restricts modifications of the global namespace to the root user.
 .RE
 
 .sp
@@ -3584,9 +3676,6 @@ If you are using \fBDNS\fR for host name resolution, specify the fully qualified
 .LP
 \fBExample 17 \fRDelegating ZFS Administration Permissions on a ZFS Dataset
 .sp
-.LP
-This is not currently supported on Linux.
-.sp
 The following example shows how to set permissions so that user \fBcindys\fR can create, destroy, mount, and take snapshots on \fBtank/cindys\fR. The permissions on \fBtank/cindys\fR are also displayed.
 
 .sp
@@ -3782,6 +3871,6 @@ Invalid command line options were specified.
 
 .SH SEE ALSO
 .LP
-\fBchmod\fR(2), \fBfsync\fR(2), \fBgzip\fR(1), \fBls\fR(1), \fBmount\fR(8), \fBopen\fR(2), \fBreaddir\fR(3), \fBssh\fR(1), \fBstat\fR(2), \fBwrite\fR(2), \fBzpool\fR(8)
+\fBchmod\fR(2), \fBfsync\fR(2), \fBgzip\fR(1), \fBls\fR(1), \fBmount\fR(8), \fBopen\fR(2), \fBreaddir\fR(3), \fBssh\fR(1), \fBstat\fR(2), \fBwrite\fR(2), \fBzpool\fR(8), \fBzfs-module-parameters\fR(5)
 .sp
 On Solaris: \fBdfstab(4)\fR, \fBiscsitadm(1M)\fR, \fBmount(1M)\fR, \fBshare(1M)\fR, \fBsharemgr(1M)\fR, \fBunshare(1M)\fR

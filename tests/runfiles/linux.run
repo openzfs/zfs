@@ -19,10 +19,11 @@ post_user = root
 post = cleanup
 outputdir = /var/tmp/test_results
 
-# DISABLED:
-# posix_001_pos - needs investigation
+# DISABLED: update to use ZFS_ACL_* variables and user_run helper.
+# posix_001_pos
+# posix_002_pos
 [tests/functional/acl/posix]
-tests = ['posix_002_pos', 'posix_003_pos']
+tests = ['posix_003_pos']
 
 [tests/functional/atime]
 tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos']
@@ -145,14 +146,13 @@ tests = ['zfs_promote_001_pos', 'zfs_promote_002_pos', 'zfs_promote_003_pos',
 tests = []
 
 # DISABLED:
-# zfs_receive_003_pos - needs investigation
-# zfs_receive_010_pos - needs investigation
-# zfs_receive_011_pos - needs investigation
-# zfs_receive_012_pos - needs investigation
+# zfs_receive_004_neg - Fails for OpenZFS on illumos
+# zfs_receive_011_pos - Requires port of OpenZFS 6562
 [tests/functional/cli_root/zfs_receive]
-tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_005_neg',
-    'zfs_receive_006_pos', 'zfs_receive_007_neg', 'zfs_receive_008_pos',
-    'zfs_receive_009_neg']
+tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
+    'zfs_receive_005_neg', 'zfs_receive_006_pos',
+    'zfs_receive_007_neg', 'zfs_receive_008_pos', 'zfs_receive_009_neg',
+    'zfs_receive_010_pos', 'zfs_receive_012_pos']
 
 # DISABLED:
 # zfs_rename_002_pos - needs investigation
@@ -174,11 +174,10 @@ tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 [tests/functional/cli_root/zfs_rollback]
 tests = ['zfs_rollback_003_neg', 'zfs_rollback_004_neg']
 
-# DISABLED:
-# zfs_send_007_pos - needs investigation
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
-    'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos']
+    'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
+    'zfs_send_007_pos']
 
 # DISABLED:
 # mountpoint_003_pos - needs investigation
@@ -206,10 +205,11 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
 
 # DISABLED:
 # zfs_snapshot_008_neg - nested pools
+# zfs_snapshot_009_pos - Fails for OpenZFS on illumos
 [tests/functional/cli_root/zfs_snapshot]
 tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
     'zfs_snapshot_003_neg', 'zfs_snapshot_004_neg', 'zfs_snapshot_005_neg',
-    'zfs_snapshot_006_pos', 'zfs_snapshot_007_neg', 'zfs_snapshot_009_pos']
+    'zfs_snapshot_006_pos', 'zfs_snapshot_007_neg']
 
 # DISABLED:
 # zfs_unmount_005_pos - needs investigation
@@ -261,7 +261,7 @@ tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg']
 # zpool_create_020_pos - needs investigation
 [tests/functional/cli_root/zpool_create]
 tests = [
-    'zpool_create_003_pos', 'zpool_create_005_pos', 'zpool_create_007_neg', 
+    'zpool_create_003_pos', 'zpool_create_005_pos', 'zpool_create_007_neg',
     'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_017_neg',
     'zpool_create_018_pos', 'zpool_create_019_pos',
     'zpool_create_021_pos', 'zpool_create_022_pos', 'zpool_create_023_neg',
@@ -339,41 +339,47 @@ post =
 [tests/functional/cli_root/zpool_status]
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos']
 
-# DISABLED: ENOSPC failure
-#[tests/functional/cli_root/zpool_upgrade]
-#tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
-#    'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos', 'zpool_upgrade_005_neg',
-#    'zpool_upgrade_006_neg', 'zpool_upgrade_007_pos', 'zpool_upgrade_008_pos',
-#    'zpool_upgrade_009_neg']
+# DISABLED:
+# zpool_upgrade_007_pos - needs investigation
+[tests/functional/cli_root/zpool_upgrade]
+tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
+    'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos', 'zpool_upgrade_005_neg',
+    'zpool_upgrade_006_neg', 'zpool_upgrade_008_pos',
+    'zpool_upgrade_009_neg']
 
-# DISABLED: nested pools
-#[tests/functional/cli_user/misc]
-#tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
-#    'zfs_clone_001_neg', 'zfs_create_001_neg', 'zfs_destroy_001_neg',
-#    'zfs_get_001_neg', 'zfs_inherit_001_neg', 'zfs_mount_001_neg',
-#    'zfs_promote_001_neg', 'zfs_receive_001_neg', 'zfs_rename_001_neg',
-#    'zfs_rollback_001_neg', 'zfs_send_001_neg', 'zfs_set_001_neg',
-#    'zfs_share_001_neg', 'zfs_snapshot_001_neg', 'zfs_unallow_001_neg',
-#    'zfs_unmount_001_neg', 'zfs_unshare_001_neg', 'zfs_upgrade_001_neg',
-#    'zpool_001_neg', 'zpool_add_001_neg', 'zpool_attach_001_neg',
-#    'zpool_clear_001_neg', 'zpool_create_001_neg', 'zpool_destroy_001_neg',
-#    'zpool_detach_001_neg', 'zpool_export_001_neg', 'zpool_get_001_neg',
-#    'zpool_history_001_neg', 'zpool_import_001_neg', 'zpool_import_002_neg',
-#    'zpool_offline_001_neg', 'zpool_online_001_neg', 'zpool_remove_001_neg',
-#    'zpool_replace_001_neg', 'zpool_scrub_001_neg', 'zpool_set_001_neg',
-#    'zpool_status_001_neg', 'zpool_upgrade_001_neg']
-#user = zfs-tests
+# DISABLED:
+# zfs_share_001_neg - requires additional dependencies
+# zfs_unshare_001_neg - requires additional dependencies
+[tests/functional/cli_user/misc]
+tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
+    'zfs_clone_001_neg', 'zfs_create_001_neg', 'zfs_destroy_001_neg',
+    'zfs_get_001_neg', 'zfs_inherit_001_neg', 'zfs_mount_001_neg',
+    'zfs_promote_001_neg', 'zfs_receive_001_neg', 'zfs_rename_001_neg',
+    'zfs_rollback_001_neg', 'zfs_send_001_neg', 'zfs_set_001_neg',
+    'zfs_snapshot_001_neg', 'zfs_unallow_001_neg',
+    'zfs_unmount_001_neg', 'zfs_upgrade_001_neg',
+    'zpool_001_neg', 'zpool_add_001_neg', 'zpool_attach_001_neg',
+    'zpool_clear_001_neg', 'zpool_create_001_neg', 'zpool_destroy_001_neg',
+    'zpool_detach_001_neg', 'zpool_export_001_neg', 'zpool_get_001_neg',
+    'zpool_history_001_neg', 'zpool_import_001_neg', 'zpool_import_002_neg',
+    'zpool_offline_001_neg', 'zpool_online_001_neg', 'zpool_remove_001_neg',
+    'zpool_replace_001_neg', 'zpool_scrub_001_neg', 'zpool_set_001_neg',
+    'zpool_status_001_neg', 'zpool_upgrade_001_neg']
+user =
 
 [tests/functional/cli_user/zfs_list]
 tests = ['zfs_list_001_pos', 'zfs_list_002_pos', 'zfs_list_003_pos',
     'zfs_list_004_neg', 'zfs_list_007_pos', 'zfs_list_008_neg']
+user =
 
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
     'zpool_iostat_003_neg', 'zpool_iostat_004_pos']
+user =
 
 [tests/functional/cli_user/zpool_list]
 tests = ['zpool_list_001_pos', 'zpool_list_002_neg']
+user =
 
 [tests/functional/compression]
 tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
@@ -382,15 +388,14 @@ tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
 [tests/functional/ctime]
 tests = ['ctime_001_pos' ]
 
-# DISABLED: Linux does not yet support delegations.
-#[tests/functional/delegate]
-#tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos',
-#    'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
-#    'zfs_allow_007_pos', 'zfs_allow_008_pos', 'zfs_allow_009_neg',
-#    'zfs_allow_010_pos', 'zfs_allow_011_neg', 'zfs_allow_012_neg',
-#    'zfs_unallow_001_pos', 'zfs_unallow_002_pos', 'zfs_unallow_003_pos',
-#    'zfs_unallow_004_pos', 'zfs_unallow_005_pos', 'zfs_unallow_006_pos',
-#    'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
+[tests/functional/delegate]
+tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos',
+    'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
+    'zfs_allow_007_pos', 'zfs_allow_008_pos', 'zfs_allow_009_neg',
+    'zfs_allow_010_pos', 'zfs_allow_011_neg', 'zfs_allow_012_neg',
+    'zfs_unallow_001_pos', 'zfs_unallow_002_pos', 'zfs_unallow_003_pos',
+    'zfs_unallow_004_pos', 'zfs_unallow_005_pos', 'zfs_unallow_006_pos',
+    'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
 
 # DISABLED:
 # devices_001_pos - needs investigation
@@ -405,6 +410,11 @@ tests = ['exec_001_pos']
 
 [tests/functional/features/async_destroy]
 tests = ['async_destroy_001_pos']
+
+[tests/functional/features/large_dnode]
+tests = ['large_dnode_001_pos', 'large_dnode_002_pos', 'large_dnode_003_pos',
+         'large_dnode_004_neg', 'large_dnode_005_pos', 'large_dnode_006_pos',
+         'large_dnode_007_neg']
 
 # DISABLED: needs investigation
 #[tests/functional/grow_pool]
@@ -507,11 +517,14 @@ tests = ['poolversion_001_pos', 'poolversion_002_pos']
 #tests = ['privilege_001_pos', 'privilege_002_pos']
 
 # DISABLED:
-# quota_002_pos - size is less than current used or reserved space 
+# quota_002_pos - size is less than current used or reserved space
 # quota_004_pos - size is less than current used or reserved space
 # quota_005_pos - size is less than current used or reserved space
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_003_pos', 'quota_006_neg']
+
+[tests/functional/raidz]
+tests = ['raidz_001_neg', 'raidz_002_pos']
 
 [tests/functional/redundancy]
 tests = ['redundancy_001_pos', 'redundancy_002_pos', 'redundancy_003_pos']
@@ -552,12 +565,17 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
 #[tests/functional/rootpool]
 #tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_neg']
 
-# DISABLED: Hangs on I/O for unclear reason.
-#[tests/functional/rsend]
-#tests = ['rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
-#    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos', 'rsend_008_pos',
-#    'rsend_009_pos', 'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
-#    'rsend_013_pos']
+# DISABLED:
+# rsend_008_pos - Fails for OpenZFS on illumos
+# rsend_009_pos - Fails for OpenZFS on illumos
+# rsend_020_pos - ASSERTs in dump_record()
+[tests/functional/rsend]
+tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
+    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos',
+    'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
+    'rsend_013_pos', 'rsend_014_pos',
+    'rsend_019_pos',
+    'rsend_021_pos', 'rsend_022_pos', 'rsend_024_pos']
 
 [tests/functional/scrub_mirror]
 tests = ['scrub_mirror_001_pos', 'scrub_mirror_002_pos',
@@ -573,17 +591,17 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg']
 
 # DISABLED:
+# clone_001_pos - nested pools
 # rollback_003_pos - Hangs in unmount and spins.
-# snapshot_013_pos - Hangs on I/O for unclear reason.
-# snapshot_016_pos - .zfs mv/rmdir/mkdir disabled by default.
-#[tests/functional/snapshot]
-#tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
-#    'snapshot_001_pos', 'snapshot_002_pos',
-#    'snapshot_003_pos', 'snapshot_004_pos', 'snapshot_005_pos',
-#    'snapshot_006_pos', 'snapshot_007_pos', 'snapshot_008_pos',
-#    'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
-#    'snapshot_012_pos', 'snapshot_014_pos',
-#    'snapshot_015_pos', 'snapshot_017_pos']
+# snapshot_016_pos - Problem with automount
+[tests/functional/snapshot]
+tests = ['rollback_001_pos', 'rollback_002_pos',
+    'snapshot_001_pos', 'snapshot_002_pos',
+    'snapshot_003_pos', 'snapshot_004_pos', 'snapshot_005_pos',
+    'snapshot_006_pos', 'snapshot_007_pos', 'snapshot_008_pos',
+    'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
+    'snapshot_012_pos', 'snapshot_013_pos', 'snapshot_014_pos',
+    'snapshot_015_pos', 'snapshot_017_pos']
 [tests/functional/snapused]
 tests = ['snapused_001_pos', 'snapused_002_pos', 'snapused_003_pos',
     'snapused_004_pos', 'snapused_005_pos']

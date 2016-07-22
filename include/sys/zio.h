@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -400,7 +400,8 @@ struct zio {
 	zio_transform_t *io_transform_stack;
 
 	/* Callback info */
-	zio_done_func_t *io_ready;
+	zio_done_func_t	*io_ready;
+	zio_done_func_t	*io_children_ready;
 	zio_done_func_t	*io_physdone;
 	zio_done_func_t	*io_done;
 	void		*io_private;
@@ -420,6 +421,7 @@ struct zio {
 
 	uint64_t	io_offset;
 	hrtime_t	io_timestamp;	/* submitted at */
+	hrtime_t	io_target_timestamp;
 	hrtime_t	io_delta;	/* vdev queue service delta */
 	hrtime_t	io_delay;	/* Device access time (disk or */
 					/* file). */
@@ -467,9 +469,10 @@ extern zio_t *zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, void *data,
 
 extern zio_t *zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     void *data, uint64_t size, const zio_prop_t *zp,
-    zio_done_func_t *ready, zio_done_func_t *physdone, zio_done_func_t *done,
-    void *private,
-    zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb);
+    zio_done_func_t *ready, zio_done_func_t *children_ready,
+    zio_done_func_t *physdone, zio_done_func_t *done,
+    void *private, zio_priority_t priority, enum zio_flag flags,
+    const zbookmark_phys_t *zb);
 
 extern zio_t *zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     void *data, uint64_t size, zio_done_func_t *done, void *private,
@@ -510,6 +513,8 @@ extern int zio_wait(zio_t *zio);
 extern void zio_nowait(zio_t *zio);
 extern void zio_execute(zio_t *zio);
 extern void zio_interrupt(zio_t *zio);
+extern void zio_delay_init(zio_t *zio);
+extern void zio_delay_interrupt(zio_t *zio);
 
 extern zio_t *zio_walk_parents(zio_t *cio);
 extern zio_t *zio_walk_children(zio_t *pio);
@@ -572,7 +577,7 @@ extern int zio_handle_fault_injection(zio_t *zio, int error);
 extern int zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error);
 extern int zio_handle_label_injection(zio_t *zio, int error);
 extern void zio_handle_ignored_writes(zio_t *zio);
-extern uint64_t zio_handle_io_delay(zio_t *zio);
+extern hrtime_t zio_handle_io_delay(zio_t *zio);
 
 /*
  * Checksum ereport functions

@@ -892,11 +892,11 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT(oldc <= newc);
 
-	mspp = kmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
+	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
 	if (oldc != 0) {
 		bcopy(vd->vdev_ms, mspp, oldc * sizeof (*mspp));
-		kmem_free(vd->vdev_ms, oldc * sizeof (*mspp));
+		vmem_free(vd->vdev_ms, oldc * sizeof (*mspp));
 	}
 
 	vd->vdev_ms = mspp;
@@ -950,7 +950,7 @@ vdev_metaslab_fini(vdev_t *vd)
 			if (msp != NULL)
 				metaslab_fini(msp);
 		}
-		kmem_free(vd->vdev_ms, count * sizeof (metaslab_t *));
+		vmem_free(vd->vdev_ms, count * sizeof (metaslab_t *));
 		vd->vdev_ms = NULL;
 	}
 
@@ -1909,12 +1909,15 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 
 		/*
 		 * If the vdev was resilvering and no longer has any
-		 * DTLs then reset its resilvering flag.
+		 * DTLs then reset its resilvering flag and dirty
+		 * the top level so that we persist the change.
 		 */
 		if (vd->vdev_resilver_txg != 0 &&
 		    range_tree_space(vd->vdev_dtl[DTL_MISSING]) == 0 &&
-		    range_tree_space(vd->vdev_dtl[DTL_OUTAGE]) == 0)
+		    range_tree_space(vd->vdev_dtl[DTL_OUTAGE]) == 0) {
 			vd->vdev_resilver_txg = 0;
+			vdev_config_dirty(vd->vdev_top);
+		}
 
 		mutex_exit(&vd->vdev_dtl_lock);
 
@@ -2784,21 +2787,30 @@ vdev_get_child_stat_ex(vdev_t *cvd, vdev_stat_ex_t *vsx, vdev_stat_ex_t *cvsx)
 {
 	int t, b;
 	for (t = 0; t < ZIO_TYPES; t++) {
-		for (b = 0; b < VDEV_HISTO_BUCKETS; b++) {
+		for (b = 0; b < ARRAY_SIZE(vsx->vsx_disk_histo[0]); b++)
 			vsx->vsx_disk_histo[t][b] += cvsx->vsx_disk_histo[t][b];
+
+		for (b = 0; b < ARRAY_SIZE(vsx->vsx_total_histo[0]); b++) {
 			vsx->vsx_total_histo[t][b] +=
 			    cvsx->vsx_total_histo[t][b];
 		}
 	}
 
 	for (t = 0; t < ZIO_PRIORITY_NUM_QUEUEABLE; t++) {
-		for (b = 0; b < VDEV_HISTO_BUCKETS; b++) {
+		for (b = 0; b < ARRAY_SIZE(vsx->vsx_queue_histo[0]); b++) {
 			vsx->vsx_queue_histo[t][b] +=
 			    cvsx->vsx_queue_histo[t][b];
 		}
 		vsx->vsx_active_queue[t] += cvsx->vsx_active_queue[t];
 		vsx->vsx_pend_queue[t] += cvsx->vsx_pend_queue[t];
+
+		for (b = 0; b < ARRAY_SIZE(vsx->vsx_ind_histo[0]); b++)
+			vsx->vsx_ind_histo[t][b] += cvsx->vsx_ind_histo[t][b];
+
+		for (b = 0; b < ARRAY_SIZE(vsx->vsx_agg_histo[0]); b++)
+			vsx->vsx_agg_histo[t][b] += cvsx->vsx_agg_histo[t][b];
 	}
+
 }
 
 /*
@@ -2974,13 +2986,21 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 			vs->vs_ops[type]++;
 			vs->vs_bytes[type] += psize;
 
+			if (flags & ZIO_FLAG_DELEGATED) {
+				vsx->vsx_agg_histo[zio->io_priority]
+				    [RQ_HISTO(zio->io_size)]++;
+			} else {
+				vsx->vsx_ind_histo[zio->io_priority]
+				    [RQ_HISTO(zio->io_size)]++;
+			}
+
 			if (zio->io_delta && zio->io_delay) {
 				vsx->vsx_queue_histo[zio->io_priority]
-				    [HISTO(zio->io_delta - zio->io_delay)]++;
+				    [L_HISTO(zio->io_delta - zio->io_delay)]++;
 				vsx->vsx_disk_histo[type]
-				    [HISTO(zio->io_delay)]++;
+				    [L_HISTO(zio->io_delay)]++;
 				vsx->vsx_total_histo[type]
-				    [HISTO(zio->io_delta)]++;
+				    [L_HISTO(zio->io_delta)]++;
 			}
 		}
 

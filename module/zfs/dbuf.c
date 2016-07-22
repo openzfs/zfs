@@ -478,7 +478,6 @@ dbuf_verify(dmu_buf_impl_t *db)
 		ASSERT3U(db->db.db_offset, ==, DMU_BONUS_BLKID);
 	} else if (db->db_blkid == DMU_SPILL_BLKID) {
 		ASSERT(dn != NULL);
-		ASSERT3U(db->db.db_size, >=, dn->dn_bonuslen);
 		ASSERT0(db->db.db_offset);
 	} else {
 		ASSERT3U(db->db.db_offset, ==, db->db_blkid * db->db.db_size);
@@ -543,13 +542,50 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * If the blkptr isn't set but they have nonzero data,
 		 * it had better be dirty, otherwise we'll lose that
 		 * data when we evict this buffer.
+		 *
+		 * There is an exception to this rule for indirect blocks; in
+		 * this case, if the indirect block is a hole, we fill in a few
+		 * fields on each of the child blocks (importantly, birth time)
+		 * to prevent hole birth times from being lost when you
+		 * partially fill in a hole.
 		 */
 		if (db->db_dirtycnt == 0) {
-			ASSERTV(uint64_t *buf = db->db.db_data);
-			int i;
+			if (db->db_level == 0) {
+				uint64_t *buf = db->db.db_data;
+				int i;
 
-			for (i = 0; i < db->db.db_size >> 3; i++) {
-				ASSERT(buf[i] == 0);
+				for (i = 0; i < db->db.db_size >> 3; i++) {
+					ASSERT(buf[i] == 0);
+				}
+			} else {
+				int i;
+				blkptr_t *bps = db->db.db_data;
+				ASSERT3U(1 << DB_DNODE(db)->dn_indblkshift, ==,
+				    db->db.db_size);
+				/*
+				 * We want to verify that all the blkptrs in the
+				 * indirect block are holes, but we may have
+				 * automatically set up a few fields for them.
+				 * We iterate through each blkptr and verify
+				 * they only have those fields set.
+				 */
+				for (i = 0;
+				    i < db->db.db_size / sizeof (blkptr_t);
+				    i++) {
+					blkptr_t *bp = &bps[i];
+					ASSERT(ZIO_CHECKSUM_IS_ZERO(
+					    &bp->blk_cksum));
+					ASSERT(
+					    DVA_IS_EMPTY(&bp->blk_dva[0]) &&
+					    DVA_IS_EMPTY(&bp->blk_dva[1]) &&
+					    DVA_IS_EMPTY(&bp->blk_dva[2]));
+					ASSERT0(bp->blk_fill);
+					ASSERT0(bp->blk_pad[0]);
+					ASSERT0(bp->blk_pad[1]);
+					ASSERT(!BP_IS_EMBEDDED(bp));
+					ASSERT(BP_IS_HOLE(bp));
+					ASSERT0(bp->blk_phys_birth);
+				}
 			}
 		}
 	}
@@ -693,13 +729,18 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	ASSERT(db->db_buf == NULL);
 
 	if (db->db_blkid == DMU_BONUS_BLKID) {
+		/*
+		 * The bonus length stored in the dnode may be less than
+		 * the maximum available space in the bonus buffer.
+		 */
 		int bonuslen = MIN(dn->dn_bonuslen, dn->dn_phys->dn_bonuslen);
+		int max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
 
 		ASSERT3U(bonuslen, <=, db->db.db_size);
-		db->db.db_data = zio_buf_alloc(DN_MAX_BONUSLEN);
-		arc_space_consume(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
-		if (bonuslen < DN_MAX_BONUSLEN)
-			bzero(db->db.db_data, DN_MAX_BONUSLEN);
+		db->db.db_data = zio_buf_alloc(max_bonuslen);
+		arc_space_consume(max_bonuslen, ARC_SPACE_OTHER);
+		if (bonuslen < max_bonuslen)
+			bzero(db->db.db_data, max_bonuslen);
 		if (bonuslen)
 			bcopy(DN_BONUS(dn->dn_phys), db->db.db_data, bonuslen);
 		DB_DNODE_EXIT(db);
@@ -718,10 +759,32 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	    BP_IS_HOLE(db->db_blkptr)))) {
 		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
 
-		DB_DNODE_EXIT(db);
 		dbuf_set_data(db, arc_buf_alloc(db->db_objset->os_spa,
 		    db->db.db_size, db, type));
 		bzero(db->db.db_data, db->db.db_size);
+
+		if (db->db_blkptr != NULL && db->db_level > 0 &&
+		    BP_IS_HOLE(db->db_blkptr) &&
+		    db->db_blkptr->blk_birth != 0) {
+			blkptr_t *bps = db->db.db_data;
+			int i;
+			for (i = 0; i < ((1 <<
+			    DB_DNODE(db)->dn_indblkshift) / sizeof (blkptr_t));
+			    i++) {
+				blkptr_t *bp = &bps[i];
+				ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==,
+				    1 << dn->dn_indblkshift);
+				BP_SET_LSIZE(bp,
+				    BP_GET_LEVEL(db->db_blkptr) == 1 ?
+				    dn->dn_datablksz :
+				    BP_GET_LSIZE(db->db_blkptr));
+				BP_SET_TYPE(bp, BP_GET_TYPE(db->db_blkptr));
+				BP_SET_LEVEL(bp,
+				    BP_GET_LEVEL(db->db_blkptr) - 1);
+				BP_SET_BIRTH(bp, db->db_blkptr->blk_birth, 0);
+			}
+		}
+		DB_DNODE_EXIT(db);
 		db->db_state = DB_CACHED;
 		mutex_exit(&db->db_mtx);
 		return (0);
@@ -903,9 +966,11 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	ASSERT(dr->dr_txg >= txg - 2);
 	if (db->db_blkid == DMU_BONUS_BLKID) {
 		/* Note that the data bufs here are zio_bufs */
-		dr->dt.dl.dr_data = zio_buf_alloc(DN_MAX_BONUSLEN);
-		arc_space_consume(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
-		bcopy(db->db.db_data, dr->dt.dl.dr_data, DN_MAX_BONUSLEN);
+		dnode_t *dn = DB_DNODE(db);
+		int bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
+		dr->dt.dl.dr_data = zio_buf_alloc(bonuslen);
+		arc_space_consume(bonuslen, ARC_SPACE_OTHER);
+		bcopy(db->db.db_data, dr->dt.dl.dr_data, bonuslen);
 	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
 		int size = db->db.db_size;
 		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
@@ -1799,8 +1864,10 @@ dbuf_clear(dmu_buf_impl_t *db)
 	if (db->db_state == DB_CACHED) {
 		ASSERT(db->db.db_data != NULL);
 		if (db->db_blkid == DMU_BONUS_BLKID) {
-			zio_buf_free(db->db.db_data, DN_MAX_BONUSLEN);
-			arc_space_return(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
+			int slots = DB_DNODE(db)->dn_num_slots;
+			int bonuslen = DN_SLOTS_TO_BONUSLEN(slots);
+			zio_buf_free(db->db.db_data, bonuslen);
+			arc_space_return(bonuslen, ARC_SPACE_OTHER);
 		}
 		db->db.db_data = NULL;
 		db->db_state = DB_UNCACHED;
@@ -1870,7 +1937,7 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 		mutex_enter(&dn->dn_mtx);
 		if (dn->dn_have_spill &&
 		    (dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR))
-			*bpp = &dn->dn_phys->dn_spill;
+			*bpp = DN_SPILL_BLKPTR(dn->dn_phys);
 		else
 			*bpp = NULL;
 		dbuf_add_ref(dn->dn_dbuf, NULL);
@@ -1959,7 +2026,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	if (blkid == DMU_BONUS_BLKID) {
 		ASSERT3P(parent, ==, dn->dn_dbuf);
-		db->db.db_size = DN_MAX_BONUSLEN -
+		db->db.db_size = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots) -
 		    (dn->dn_nblkptr-1) * sizeof (blkptr_t);
 		ASSERT3U(db->db.db_size, >=, dn->dn_bonuslen);
 		db->db.db_offset = DMU_BONUS_BLKID;
@@ -2751,7 +2818,7 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 		return;
 
 	if (db->db_blkid == DMU_SPILL_BLKID) {
-		db->db_blkptr = &dn->dn_phys->dn_spill;
+		db->db_blkptr = DN_SPILL_BLKPTR(dn->dn_phys);
 		BP_ZERO(db->db_blkptr);
 		return;
 	}
@@ -2876,6 +2943,22 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		mutex_enter(&dn->dn_mtx);
+		if (!(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
+			/*
+			 * In the previous transaction group, the bonus buffer
+			 * was entirely used to store the attributes for the
+			 * dnode which overrode the dn_spill field.  However,
+			 * when adding more attributes to the file a spill
+			 * block was required to hold the extra attributes.
+			 *
+			 * Make sure to clear the garbage left in the dn_spill
+			 * field from the previous attributes in the bonus
+			 * buffer.  Otherwise, after writing out the spill
+			 * block to the new allocated dva, it will free
+			 * the old block pointed to by the invalid dn_spill.
+			 */
+			db->db_blkptr = NULL;
+		}
 		dn->dn_phys->dn_flags |= DNODE_FLAG_SPILL_BLKPTR;
 		mutex_exit(&dn->dn_mtx);
 	}
@@ -2891,13 +2974,16 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 		ASSERT(*datap != NULL);
 		ASSERT0(db->db_level);
-		ASSERT3U(dn->dn_phys->dn_bonuslen, <=, DN_MAX_BONUSLEN);
+		ASSERT3U(dn->dn_phys->dn_bonuslen, <=,
+		    DN_SLOTS_TO_BONUSLEN(dn->dn_phys->dn_extra_slots + 1));
 		bcopy(*datap, DN_BONUS(dn->dn_phys), dn->dn_phys->dn_bonuslen);
 		DB_DNODE_EXIT(db);
 
 		if (*datap != db->db.db_data) {
-			zio_buf_free(*datap, DN_MAX_BONUSLEN);
-			arc_space_return(DN_MAX_BONUSLEN, ARC_SPACE_OTHER);
+			int slots = DB_DNODE(db)->dn_num_slots;
+			int bonuslen = DN_SLOTS_TO_BONUSLEN(slots);
+			zio_buf_free(*datap, bonuslen);
+			arc_space_return(bonuslen, ARC_SPACE_OTHER);
 		}
 		db->db_data_pending = NULL;
 		drp = &db->db_last_dirty;
@@ -3048,7 +3134,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		ASSERT(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR);
 		ASSERT(!(BP_IS_HOLE(bp)) &&
-		    db->db_blkptr == &dn->dn_phys->dn_spill);
+		    db->db_blkptr == DN_SPILL_BLKPTR(dn->dn_phys));
 	}
 #endif
 
@@ -3060,11 +3146,16 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		mutex_exit(&dn->dn_mtx);
 
 		if (dn->dn_type == DMU_OT_DNODE) {
-			dnode_phys_t *dnp = db->db.db_data;
-			for (i = db->db.db_size >> DNODE_SHIFT; i > 0;
-			    i--, dnp++) {
-				if (dnp->dn_type != DMU_OT_NONE)
+			i = 0;
+			while (i < db->db.db_size) {
+				dnode_phys_t *dnp = db->db.db_data + i;
+
+				i += DNODE_MIN_SIZE;
+				if (dnp->dn_type != DMU_OT_NONE) {
 					fill++;
+					i += dnp->dn_extra_slots *
+					    DNODE_MIN_SIZE;
+				}
 			}
 		} else {
 			if (BP_IS_HOLE(bp)) {
@@ -3092,6 +3183,45 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	*db->db_blkptr = *bp;
 	rw_exit(&dn->dn_struct_rwlock);
+}
+
+/* ARGSUSED */
+/*
+ * This function gets called just prior to running through the compression
+ * stage of the zio pipeline. If we're an indirect block comprised of only
+ * holes, then we want this indirect to be compressed away to a hole. In
+ * order to do that we must zero out any information about the holes that
+ * this indirect points to prior to before we try to compress it.
+ */
+static void
+dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
+{
+	dmu_buf_impl_t *db = vdb;
+	dnode_t *dn;
+	blkptr_t *bp;
+	uint64_t i;
+	int epbs;
+
+	ASSERT3U(db->db_level, >, 0);
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+
+	/* Determine if all our children are holes */
+	for (i = 0, bp = db->db.db_data; i < 1 << epbs; i++, bp++) {
+		if (!BP_IS_HOLE(bp))
+			break;
+	}
+
+	/*
+	 * If all the children are holes, then zero them all out so that
+	 * we may get compressed away.
+	 */
+	if (i == 1 << epbs) {
+		/* didn't find any non-holes */
+		bzero(db->db.db_data, db->db.db_size);
+	}
+	DB_DNODE_EXIT(db);
 }
 
 /*
@@ -3172,7 +3302,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		dn = DB_DNODE(db);
 		ASSERT(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR);
 		ASSERT(!(BP_IS_HOLE(db->db_blkptr)) &&
-		    db->db_blkptr == &dn->dn_phys->dn_spill);
+		    db->db_blkptr == DN_SPILL_BLKPTR(dn->dn_phys));
 		DB_DNODE_EXIT(db);
 	}
 #endif
@@ -3348,7 +3478,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
 		    &dr->dr_bp_copy, contents, db->db.db_size, &zp,
-		    dbuf_write_override_ready, NULL, dbuf_write_override_done,
+		    dbuf_write_override_ready, NULL, NULL,
+		    dbuf_write_override_done,
 		    dr, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 		mutex_enter(&db->db_mtx);
 		dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
@@ -3359,14 +3490,26 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF);
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
 		    &dr->dr_bp_copy, NULL, db->db.db_size, &zp,
-		    dbuf_write_nofill_ready, NULL, dbuf_write_nofill_done, db,
+		    dbuf_write_nofill_ready, NULL, NULL,
+		    dbuf_write_nofill_done, db,
 		    ZIO_PRIORITY_ASYNC_WRITE,
 		    ZIO_FLAG_MUSTSUCCEED | ZIO_FLAG_NODATA, &zb);
 	} else {
+		arc_done_func_t *children_ready_cb = NULL;
 		ASSERT(arc_released(data));
+
+		/*
+		 * For indirect blocks, we want to setup the children
+		 * ready callback so that we can properly handle an indirect
+		 * block that only contains holes.
+		 */
+		if (db->db_level != 0)
+			children_ready_cb = dbuf_write_children_ready;
+
 		dr->dr_zio = arc_write(zio, os->os_spa, txg,
 		    &dr->dr_bp_copy, data, DBUF_IS_L2CACHEABLE(db),
 		    DBUF_IS_L2COMPRESSIBLE(db), &zp, dbuf_write_ready,
+		    children_ready_cb,
 		    dbuf_write_physdone, dbuf_write_done, db,
 		    ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 	}

@@ -36,7 +36,7 @@
 #
 # DESCRIPTION:
 # Executing 'zpool iostat' command with various combinations of extended
-# stats (-vqL), parseable/script options (-pH), and misc lists of pools
+# stats (-lqwr), parsable/script options (-pH), and misc lists of pools
 # and vdevs.
 #
 # STRATEGY:
@@ -59,7 +59,9 @@ set -A args "" "-v" "-q" "-l" "-lq $TESTPOOL" "-ql ${DISKS[0]} ${DISKS[1]}" \
 	"-wp $TESTPOOL" \
 	"-qlH $TESTPOOL ${DISKS[0]}" \
 	"-vpH ${DISKS[0]}" \
-	"-wpH ${DISKS[0]}"
+	"-wpH ${DISKS[0]}" \
+	"-r ${DISKS[0]}" \
+	"-rpH ${DISKS[0]}"
 
 log_assert "Executing 'zpool iostat' with extended stat options succeeds"
 log_note "testpool: $TESTPOOL, disks $DISKS"

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -40,6 +40,7 @@
 #include <sys/blkptr.h>
 #include <sys/zfeature.h>
 #include <sys/time.h>
+#include <sys/trace_zio.h>
 
 /*
  * ==========================================================================
@@ -736,9 +737,10 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 zio_t *
 zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     void *data, uint64_t size, const zio_prop_t *zp,
-    zio_done_func_t *ready, zio_done_func_t *physdone, zio_done_func_t *done,
-    void *private,
-    zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb)
+    zio_done_func_t *ready, zio_done_func_t *children_ready,
+    zio_done_func_t *physdone, zio_done_func_t *done,
+    void *private, zio_priority_t priority, enum zio_flag flags,
+    const zbookmark_phys_t *zb)
 {
 	zio_t *zio;
 
@@ -757,6 +759,7 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 	    ZIO_DDT_CHILD_WRITE_PIPELINE : ZIO_WRITE_PIPELINE);
 
 	zio->io_ready = ready;
+	zio->io_children_ready = children_ready;
 	zio->io_physdone = physdone;
 	zio->io_prop = *zp;
 
@@ -1131,6 +1134,16 @@ zio_write_bp_init(zio_t *zio)
 	if (!IO_IS_ALLOCATING(zio))
 		return (ZIO_PIPELINE_CONTINUE);
 
+	if (zio->io_children_ready != NULL) {
+		/*
+		 * Now that all our children are ready, run the callback
+		 * associated with this zio in case it wants to modify the
+		 * data to be written.
+		 */
+		ASSERT3U(zp->zp_level, >, 0);
+		zio->io_children_ready(zio);
+	}
+
 	ASSERT(zio->io_child_type != ZIO_CHILD_DDT);
 
 	if (zio->io_bp_override) {
@@ -1388,6 +1401,76 @@ void
 zio_interrupt(zio_t *zio)
 {
 	zio_taskq_dispatch(zio, ZIO_TASKQ_INTERRUPT, B_FALSE);
+}
+
+void
+zio_delay_interrupt(zio_t *zio)
+{
+	/*
+	 * The timeout_generic() function isn't defined in userspace, so
+	 * rather than trying to implement the function, the zio delay
+	 * functionality has been disabled for userspace builds.
+	 */
+
+#ifdef _KERNEL
+	/*
+	 * If io_target_timestamp is zero, then no delay has been registered
+	 * for this IO, thus jump to the end of this function and "skip" the
+	 * delay; issuing it directly to the zio layer.
+	 */
+	if (zio->io_target_timestamp != 0) {
+		hrtime_t now = gethrtime();
+
+		if (now >= zio->io_target_timestamp) {
+			/*
+			 * This IO has already taken longer than the target
+			 * delay to complete, so we don't want to delay it
+			 * any longer; we "miss" the delay and issue it
+			 * directly to the zio layer. This is likely due to
+			 * the target latency being set to a value less than
+			 * the underlying hardware can satisfy (e.g. delay
+			 * set to 1ms, but the disks take 10ms to complete an
+			 * IO request).
+			 */
+
+			DTRACE_PROBE2(zio__delay__miss, zio_t *, zio,
+			    hrtime_t, now);
+
+			zio_interrupt(zio);
+		} else {
+			taskqid_t tid;
+			hrtime_t diff = zio->io_target_timestamp - now;
+			clock_t expire_at_tick = ddi_get_lbolt() +
+			    NSEC_TO_TICK(diff);
+
+			DTRACE_PROBE3(zio__delay__hit, zio_t *, zio,
+			    hrtime_t, now, hrtime_t, diff);
+
+			if (NSEC_TO_TICK(diff) == 0) {
+				/* Our delay is less than a jiffy - just spin */
+				zfs_sleep_until(zio->io_target_timestamp);
+			} else {
+				/*
+				 * Use taskq_dispatch_delay() in the place of
+				 * OpenZFS's timeout_generic().
+				 */
+				tid = taskq_dispatch_delay(system_taskq,
+				    (task_func_t *) zio_interrupt,
+				    zio, TQ_NOSLEEP, expire_at_tick);
+				if (!tid) {
+					/*
+					 * Couldn't allocate a task.  Just
+					 * finish the zio without a delay.
+					 */
+					zio_interrupt(zio);
+				}
+			}
+		}
+		return;
+	}
+#endif
+	DTRACE_PROBE1(zio__delay__skip, zio_t *, zio);
+	zio_interrupt(zio);
 }
 
 /*
@@ -2072,9 +2155,9 @@ zio_write_gang_block(zio_t *pio)
 
 		zio_nowait(zio_write(zio, spa, txg, &gbh->zg_blkptr[g],
 		    (char *)pio->io_data + (pio->io_size - resid), lsize, &zp,
-		    zio_write_gang_member_ready, NULL, NULL, &gn->gn_child[g],
-		    pio->io_priority, ZIO_GANG_CHILD_FLAGS(pio),
-		    &pio->io_bookmark));
+		    zio_write_gang_member_ready, NULL, NULL, NULL,
+		    &gn->gn_child[g], pio->io_priority,
+		    ZIO_GANG_CHILD_FLAGS(pio), &pio->io_bookmark));
 	}
 
 	/*
@@ -2457,7 +2540,7 @@ zio_ddt_write(zio_t *zio)
 
 		dio = zio_write(zio, spa, txg, bp, zio->io_orig_data,
 		    zio->io_orig_size, &czp, NULL, NULL,
-		    zio_ddt_ditto_write_done, dde, zio->io_priority,
+		    NULL, zio_ddt_ditto_write_done, dde, zio->io_priority,
 		    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);
 
 		zio_push_transform(dio, zio->io_data, zio->io_size, 0, NULL);
@@ -2478,7 +2561,8 @@ zio_ddt_write(zio_t *zio)
 		ddt_phys_addref(ddp);
 	} else {
 		cio = zio_write(zio, spa, txg, bp, zio->io_orig_data,
-		    zio->io_orig_size, zp, zio_ddt_child_write_ready, NULL,
+		    zio->io_orig_size, zp,
+		    zio_ddt_child_write_ready, NULL, NULL,
 		    zio_ddt_child_write_done, dde, zio->io_priority,
 		    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);
 

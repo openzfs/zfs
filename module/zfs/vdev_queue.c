@@ -249,20 +249,29 @@ static int
 vdev_queue_max_async_writes(spa_t *spa)
 {
 	int writes;
-	uint64_t dirty = spa->spa_dsl_pool->dp_dirty_total;
+	uint64_t dirty = 0;
+	dsl_pool_t *dp = spa_get_dsl(spa);
 	uint64_t min_bytes = zfs_dirty_data_max *
 	    zfs_vdev_async_write_active_min_dirty_percent / 100;
 	uint64_t max_bytes = zfs_dirty_data_max *
 	    zfs_vdev_async_write_active_max_dirty_percent / 100;
 
 	/*
+	 * Async writes may occur before the assignment of the spa's
+	 * dsl_pool_t if a self-healing zio is issued prior to the
+	 * completion of dmu_objset_open_impl().
+	 */
+	if (dp == NULL)
+		return (zfs_vdev_async_write_max_active);
+
+	/*
 	 * Sync tasks correspond to interactive user actions. To reduce the
 	 * execution time of those actions we push data out as fast as possible.
 	 */
-	if (spa_has_pending_synctask(spa)) {
+	if (spa_has_pending_synctask(spa))
 		return (zfs_vdev_async_write_max_active);
-	}
 
+	dirty = dp->dp_dirty_total;
 	if (dirty < min_bytes)
 		return (zfs_vdev_async_write_min_active);
 	if (dirty > max_bytes)
@@ -752,9 +761,6 @@ vdev_queue_io_done(zio_t *zio)
 {
 	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
 	zio_t *nio;
-
-	if (zio_injection_enabled)
-		delay(SEC_TO_TICK(zio_handle_io_delay(zio)));
 
 	mutex_enter(&vq->vq_lock);
 

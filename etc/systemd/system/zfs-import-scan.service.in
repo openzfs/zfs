@@ -11,4 +11,8 @@ ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/sbin/modprobe zfs
-ExecStart=@sbindir@/zpool import -d /dev/disk/by-id -aN
+ExecStart=@sbindir@/zpool import -aN -o cachefile=none
+
+[Install]
+WantedBy=zfs-mount.service
+WantedBy=zfs.target

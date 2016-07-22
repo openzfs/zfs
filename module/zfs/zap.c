@@ -968,9 +968,17 @@ uint64_t
 zap_create_link(objset_t *os, dmu_object_type_t ot, uint64_t parent_obj,
     const char *name, dmu_tx_t *tx)
 {
+	return (zap_create_link_dnsize(os, ot, parent_obj, name, 0, tx));
+}
+
+uint64_t
+zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot, uint64_t parent_obj,
+    const char *name, int dnodesize, dmu_tx_t *tx)
+{
 	uint64_t new_obj;
 
-	VERIFY((new_obj = zap_create(os, ot, DMU_OT_NONE, 0, tx)) > 0);
+	VERIFY((new_obj = zap_create_dnsize(os, ot, DMU_OT_NONE, 0,
+	    dnodesize, tx)) > 0);
 	VERIFY0(zap_add(os, parent_obj, name, sizeof (uint64_t), 1, &new_obj,
 	    tx));
 

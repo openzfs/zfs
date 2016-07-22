@@ -1,4 +1,4 @@
-SUBDIRS = fm fs
+SUBDIRS = fm fs crypto
 
 COMMON_H = \
 	$(top_srcdir)/include/sys/arc.h \
@@ -39,6 +39,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
 	$(top_srcdir)/include/sys/pathname.h \
+	$(top_srcdir)/include/sys/policy.h \
 	$(top_srcdir)/include/sys/range_tree.h \
 	$(top_srcdir)/include/sys/refcount.h \
 	$(top_srcdir)/include/sys/rrwlock.h \
@@ -50,9 +51,11 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/space_reftree.h \
 	$(top_srcdir)/include/sys/spa.h \
 	$(top_srcdir)/include/sys/spa_impl.h \
+	$(top_srcdir)/include/sys/spa_checksum.h \
 	$(top_srcdir)/include/sys/trace.h \
 	$(top_srcdir)/include/sys/trace_acl.h \
 	$(top_srcdir)/include/sys/trace_arc.h \
+	$(top_srcdir)/include/sys/trace_common.h \
 	$(top_srcdir)/include/sys/trace_dbgmsg.h \
 	$(top_srcdir)/include/sys/trace_dbuf.h \
 	$(top_srcdir)/include/sys/trace_dmu.h \
@@ -60,6 +63,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/trace_multilist.h \
 	$(top_srcdir)/include/sys/trace_txg.h \
 	$(top_srcdir)/include/sys/trace_zil.h \
+	$(top_srcdir)/include/sys/trace_zio.h \
 	$(top_srcdir)/include/sys/trace_zrlock.h \
 	$(top_srcdir)/include/sys/txg.h \
 	$(top_srcdir)/include/sys/txg_impl.h \
@@ -74,6 +78,8 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/vdev_file.h \
 	$(top_srcdir)/include/sys/vdev.h \
 	$(top_srcdir)/include/sys/vdev_impl.h \
+	$(top_srcdir)/include/sys/vdev_raidz.h \
+	$(top_srcdir)/include/sys/vdev_raidz_impl.h \
 	$(top_srcdir)/include/sys/xvattr.h \
 	$(top_srcdir)/include/sys/zap.h \
 	$(top_srcdir)/include/sys/zap_impl.h \

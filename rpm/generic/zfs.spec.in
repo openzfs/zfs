@@ -84,6 +84,8 @@ Conflicts:      zfs-fuse
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
+BuildRequires:  libudev-devel
+BuildRequires:  libattr-devel
 %endif
 %if 0%{?_systemd}
 Requires(post): systemd

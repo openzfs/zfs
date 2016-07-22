@@ -51,7 +51,7 @@ extern char *program_invocation_short_name;
 		program_invocation_short_name, __FILE__, __LINE__,      \
 		__func__, ## __VA_ARGS__);
 
-static const char shortopts[] = "hvycdn:f:x:s:p:t:e:rRk";
+static const char shortopts[] = "hvycdn:f:x:s:p:t:e:rRko:";
 static const struct option longopts[] = {
 	{ "help",		no_argument,		0,	'h' },
 	{ "verbose",		no_argument,		0,	'v' },
@@ -68,7 +68,17 @@ static const struct option longopts[] = {
 	{ "random",		no_argument,		0,	'r' },
 	{ "randomvalue",	no_argument,		0,	'R' },
 	{ "keep",		no_argument,		0,	'k' },
+	{ "only",		required_argument,	0,	'o' },
 	{ 0,			0,			0,	0   }
+};
+
+enum phases {
+	PHASE_ALL = 0,
+	PHASE_CREATE,
+	PHASE_SETXATTR,
+	PHASE_GETXATTR,
+	PHASE_UNLINK,
+	PHASE_INVAL
 };
 
 static int verbose = 0;
@@ -78,18 +88,22 @@ static int dropcaches = 0;
 static int nth = 0;
 static int files = 1000;
 static int xattrs = 1;
-static int size  = 1;
+static int size = 6;
 static int size_is_random = 0;
 static int value_is_random = 0;
 static int keep_files = 0;
+static int phase = PHASE_ALL;
 static char path[PATH_MAX] = "/tmp/xattrtest";
 static char script[PATH_MAX] = "/bin/true";
+static char xattrbytes[XATTR_SIZE_MAX];
 
 static int
 usage(int argc, char **argv) {
 	fprintf(stderr,
 	"usage: %s [-hvycdrRk] [-n <nth>] [-f <files>] [-x <xattrs>]\n"
-	"       [-s <bytes>] [-p <path>] [-t <script> ]\n", argv[0]);
+	"       [-s <bytes>] [-p <path>] [-t <script> ] [-o <phase>]\n",
+	argv[0]);
+
 	fprintf(stderr,
 	"  --help        -h           This help\n"
 	"  --verbose     -v           Increase verbosity\n"
@@ -105,9 +119,12 @@ usage(int argc, char **argv) {
 	"  --seed        -e <seed>    Random seed value\n"
 	"  --random      -r           Randomly sized xattrs [16-size]\n"
 	"  --randomvalue -R           Random xattr values\n"
-	"  --keep        -k           Don't unlink files\n\n");
+	"  --keep        -k           Don't unlink files\n"
+	"  --only        -o <num>     Only run phase N\n"
+	"                             0=all, 1=create, 2=setxattr,\n"
+	"                             3=getxattr, 4=unlink\n\n");
 
-	return (0);
+	return (1);
 }
 
 static int
@@ -115,7 +132,7 @@ parse_args(int argc, char **argv)
 {
 	long seed = time(NULL);
 	int c;
-	int rc;
+	int rc = 0;
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (c) {
@@ -126,9 +143,9 @@ parse_args(int argc, char **argv)
 			break;
 		case 'y':
 			verify = 1;
-			if (value_is_random != 0) {
+			if (phase != PHASE_ALL) {
 				fprintf(stderr,
-				    "Error: -y and -R are incompatible.\n");
+				    "Error: -y and -o are incompatible.\n");
 				rc = 1;
 			}
 			break;
@@ -144,8 +161,8 @@ parse_args(int argc, char **argv)
 		case 's':
 			size = strtol(optarg, NULL, 0);
 			if (size > XATTR_SIZE_MAX) {
-				fprintf(stderr, "Error: the size may not be "
-				    "greater than %d\n", XATTR_SIZE_MAX);
+				fprintf(stderr, "Error: the -s value may not "
+				    "be greater than %d\n", XATTR_SIZE_MAX);
 				rc = 1;
 			}
 			break;
@@ -169,14 +186,23 @@ parse_args(int argc, char **argv)
 			break;
 		case 'R':
 			value_is_random = 1;
-			if (verify != 0) {
-				fprintf(stderr,
-				    "Error: -y and -R are incompatible.\n");
-				rc = 1;
-			}
 			break;
 		case 'k':
 			keep_files = 1;
+			break;
+		case 'o':
+			phase = strtol(optarg, NULL, 0);
+			if (phase <= PHASE_ALL || phase >= PHASE_INVAL) {
+				fprintf(stderr, "Error: the -o value must be "
+				    "greater than %d and less than %d\n",
+				    PHASE_ALL, PHASE_INVAL);
+				rc = 1;
+			}
+			if (verify == 1) {
+				fprintf(stderr,
+				    "Error: -y and -o are incompatible.\n");
+				rc = 1;
+			}
 			break;
 		default:
 			rc = 1;
@@ -204,6 +230,7 @@ parse_args(int argc, char **argv)
 		fprintf(stdout, "random size:      %d\n", size_is_random);
 		fprintf(stdout, "random value:     %d\n", value_is_random);
 		fprintf(stdout, "keep:             %d\n", keep_files);
+		fprintf(stdout, "only:             %d\n", phase);
 		fprintf(stdout, "%s", "\n");
 	}
 
@@ -319,12 +346,22 @@ timeval_sub(struct timeval *delta, struct timeval *tv1, struct timeval *tv2)
 	    tv1->tv_usec - tv2->tv_usec);
 }
 
+static double
+timeval_sub_seconds(struct timeval *tv1, struct timeval *tv2)
+{
+	struct timeval delta;
+
+	timeval_sub(&delta, tv1, tv2);
+	return ((double)delta.tv_usec / USEC_PER_SEC + delta.tv_sec);
+}
+
 static int
 create_files(void)
 {
 	int i, rc;
 	char *file = NULL;
-	struct timeval start, stop, delta;
+	struct timeval start, stop;
+	double seconds;
 
 	file = malloc(PATH_MAX);
 	if (file == NULL) {
@@ -366,9 +403,9 @@ create_files(void)
 	}
 
 	(void) gettimeofday(&stop, NULL);
-	timeval_sub(&delta, &stop, &start);
-	fprintf(stdout, "create:   %d.%d seconds\n",
-	    (int)delta.tv_sec, (int)delta.tv_usec);
+	seconds = timeval_sub_seconds(&stop, &start);
+	fprintf(stdout, "create:   %f seconds %f creates/second\n",
+	    seconds, files / seconds);
 
 	rc = post_hook("post");
 out:
@@ -408,7 +445,8 @@ setxattrs(void)
 	char name[XATTR_NAME_MAX];
 	char *value = NULL;
 	char *file = NULL;
-	struct timeval start, stop, delta;
+	struct timeval start, stop;
+	double seconds;
 
 	value = malloc(XATTR_SIZE_MAX);
 	if (value == NULL) {
@@ -439,19 +477,9 @@ setxattrs(void)
 				rnd_size = (random() % (size - 16)) + 16;
 
 			(void) sprintf(name, "user.%d", j);
-			if (value_is_random) {
-				rc = get_random_bytes(value, rnd_size);
-				if (rc < rnd_size) {
-					ERROR("Error %d: get_random_bytes() "
-					    "wanted %d got %d\n", errno,
-					    rnd_size, rc);
-					goto out;
-				}
-			} else {
-				shift = sprintf(value, "size=%d ", rnd_size);
-				memset(value + shift, 'x', XATTR_SIZE_MAX -
-				    shift);
-			}
+			shift = sprintf(value, "size=%d ", rnd_size);
+			memcpy(value + shift, xattrbytes,
+			    sizeof (xattrbytes) - shift);
 
 			rc = lsetxattr(file, name, value, rnd_size, 0);
 			if (rc == -1) {
@@ -463,9 +491,9 @@ setxattrs(void)
 	}
 
 	(void) gettimeofday(&stop, NULL);
-	timeval_sub(&delta, &stop, &start);
-	fprintf(stdout, "setxattr: %d.%d seconds\n",
-	    (int)delta.tv_sec, (int)delta.tv_usec);
+	seconds = timeval_sub_seconds(&stop, &start);
+	fprintf(stdout, "setxattr: %f seconds %f setxattrs/second\n",
+	    seconds, (files * xattrs) / seconds);
 
 	rc = post_hook("post");
 out:
@@ -484,9 +512,12 @@ getxattrs(void)
 	int i, j, rnd_size, shift, rc = 0;
 	char name[XATTR_NAME_MAX];
 	char *verify_value = NULL;
+	char *verify_string;
 	char *value = NULL;
+	char *value_string;
 	char *file = NULL;
-	struct timeval start, stop, delta;
+	struct timeval start, stop;
+	double seconds;
 
 	verify_value = malloc(XATTR_SIZE_MAX);
 	if (verify_value == NULL) {
@@ -503,6 +534,9 @@ getxattrs(void)
 			rc, XATTR_SIZE_MAX);
 		goto out;
 	}
+
+	verify_string = value_is_random ? "<random>" : verify_value;
+	value_string = value_is_random ? "<random>" : value;
 
 	file = malloc(PATH_MAX);
 	if (file == NULL) {
@@ -530,28 +564,30 @@ getxattrs(void)
 				goto out;
 			}
 
-			if (verify) {
-				sscanf(value, "size=%d [a-z]", &rnd_size);
-				shift = sprintf(verify_value, "size=%d ",
-				    rnd_size);
-				memset(verify_value + shift, 'x',
-				    XATTR_SIZE_MAX - shift);
+			if (!verify)
+				continue;
 
-				if (rnd_size != rc ||
-				    memcmp(verify_value, value, rnd_size)) {
-					ERROR("Error %d: verify failed\n "
-					    "verify: %s\nvalue:  %s\n",
-					    EINVAL, verify_value, value);
-					goto out;
-				}
+			sscanf(value, "size=%d [a-z]", &rnd_size);
+			shift = sprintf(verify_value, "size=%d ",
+			    rnd_size);
+			memcpy(verify_value + shift, xattrbytes,
+			    sizeof (xattrbytes) - shift);
+
+			if (rnd_size != rc ||
+			    memcmp(verify_value, value, rnd_size)) {
+				ERROR("Error %d: verify failed\n "
+				    "verify: %s\n value:  %s\n", EINVAL,
+				    verify_string, value_string);
+				rc = 1;
+				goto out;
 			}
 		}
 	}
 
 	(void) gettimeofday(&stop, NULL);
-	timeval_sub(&delta, &stop, &start);
-	fprintf(stdout, "getxattr: %d.%d seconds\n",
-	    (int)delta.tv_sec, (int)delta.tv_usec);
+	seconds = timeval_sub_seconds(&stop, &start);
+	fprintf(stdout, "getxattr: %f seconds %f getxattrs/second\n",
+	    seconds, (files * xattrs) / seconds);
 
 	rc = post_hook("post");
 out:
@@ -572,7 +608,8 @@ unlink_files(void)
 {
 	int i, rc;
 	char *file = NULL;
-	struct timeval start, stop, delta;
+	struct timeval start, stop;
+	double seconds;
 
 	file = malloc(PATH_MAX);
 	if (file == NULL) {
@@ -598,9 +635,9 @@ unlink_files(void)
 	}
 
 	(void) gettimeofday(&stop, NULL);
-	timeval_sub(&delta, &stop, &start);
-	fprintf(stdout, "unlink:   %d.%d seconds\n",
-	    (int)delta.tv_sec, (int)delta.tv_usec);
+	seconds = timeval_sub_seconds(&stop, &start);
+	fprintf(stdout, "unlink:   %f seconds %f unlinks/second\n",
+	    seconds, files / seconds);
 
 	rc = post_hook("post");
 out:
@@ -619,19 +656,38 @@ main(int argc, char **argv)
 	if (rc)
 		return (rc);
 
-	rc = create_files();
-	if (rc)
-		return (rc);
+	if (value_is_random) {
+		size_t rndsz = sizeof (xattrbytes);
 
-	rc = setxattrs();
-	if (rc)
-		return (rc);
+		rc = get_random_bytes(xattrbytes, rndsz);
+		if (rc < rndsz) {
+			ERROR("Error %d: get_random_bytes() wanted %zd "
+			    "got %d\n", errno, rndsz, rc);
+			return (rc);
+		}
+	} else {
+		memset(xattrbytes, 'x', sizeof (xattrbytes));
+	}
 
-	rc = getxattrs();
-	if (rc)
-		return (rc);
+	if (phase == PHASE_ALL || phase == PHASE_CREATE) {
+		rc = create_files();
+		if (rc)
+			return (rc);
+	}
 
-	if (!keep_files) {
+	if (phase == PHASE_ALL || phase == PHASE_SETXATTR) {
+		rc = setxattrs();
+		if (rc)
+			return (rc);
+	}
+
+	if (phase == PHASE_ALL || phase == PHASE_GETXATTR) {
+		rc = getxattrs();
+		if (rc)
+			return (rc);
+	}
+
+	if (!keep_files && (phase == PHASE_ALL || phase == PHASE_UNLINK)) {
 		rc = unlink_files();
 		if (rc)
 			return (rc);

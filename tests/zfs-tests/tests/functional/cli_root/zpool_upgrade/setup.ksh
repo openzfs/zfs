@@ -35,4 +35,4 @@ verify_runnable "global"
 verify_disk_count "$DISKS" 2
 
 # give us a pool to play in
-default_mirror_setup $DISKS
+default_setup "$DISKS"

@@ -334,10 +334,19 @@ typedef struct dmu_buf {
  */
 uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
+uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
+    int blocksize, dmu_object_type_t bonus_type, int bonus_len,
+    int dnodesize, dmu_tx_t *tx);
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
+int dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
+    int blocksize, dmu_object_type_t bonus_type, int bonus_len,
+    int dnodesize, dmu_tx_t *tx);
 int dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *txp);
+int dmu_object_reclaim_dnsize(objset_t *os, uint64_t object,
+    dmu_object_type_t ot, int blocksize, dmu_object_type_t bonustype,
+    int bonuslen, int dnodesize, dmu_tx_t *txp);
 
 /*
  * Free an object from this objset.
@@ -756,6 +765,7 @@ typedef struct dmu_object_info {
 	uint8_t doi_compress;
 	uint8_t doi_nblkptr;
 	uint8_t doi_pad[4];
+	uint64_t doi_dnodesize;
 	uint64_t doi_physical_blocks_512;	/* data + metadata, 512b blks */
 	uint64_t doi_max_offset;
 	uint64_t doi_fill_count;		/* number of non-empty blocks */
@@ -797,6 +807,8 @@ void dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi);
 void dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize,
     u_longlong_t *nblk512);
 
+void dmu_object_dnsize_from_db(dmu_buf_t *db, int *dnsize);
+
 typedef struct dmu_objset_stats {
 	uint64_t dds_num_clones; /* number of clones of this */
 	uint64_t dds_creation_txg;
@@ -804,7 +816,7 @@ typedef struct dmu_objset_stats {
 	dmu_objset_type_t dds_type;
 	uint8_t dds_is_snapshot;
 	uint8_t dds_inconsistent;
-	char dds_origin[MAXNAMELEN];
+	char dds_origin[ZFS_MAX_DATASET_NAME_LEN];
 } dmu_objset_stats_t;
 
 /*
@@ -854,6 +866,7 @@ extern struct dsl_dataset *dmu_objset_ds(objset_t *os);
 extern void dmu_objset_name(objset_t *os, char *buf);
 extern dmu_objset_type_t dmu_objset_type(objset_t *os);
 extern uint64_t dmu_objset_id(objset_t *os);
+extern uint64_t dmu_objset_dnodesize(objset_t *os);
 extern zfs_sync_type_t dmu_objset_syncprop(objset_t *os);
 extern zfs_logbias_op_t dmu_objset_logbias(objset_t *os);
 extern int dmu_snapshot_list_next(objset_t *os, int namelen, char *name,

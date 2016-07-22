@@ -478,7 +478,7 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	zfs_sb_t *zsb = ZTOZSB(zp);
 
 	ASSERT(zp->z_unlinked);
-	ASSERT(zp->z_links == 0);
+	ASSERT(ZTOI(zp)->i_nlink == 0);
 
 	VERIFY3U(0, ==,
 	    zap_add_int(zsb->z_os, zsb->z_unlinkedobj, zp->z_id, tx));
@@ -612,9 +612,10 @@ zfs_rmnode(znode_t *zp)
 	dmu_tx_t	*tx;
 	uint64_t	acl_obj;
 	uint64_t	xattr_obj;
+	uint64_t	links;
 	int		error;
 
-	ASSERT(zp->z_links == 0);
+	ASSERT(ZTOI(zp)->i_nlink == 0);
 	ASSERT(atomic_read(&ZTOI(zp)->i_count) == 0);
 
 	/*
@@ -694,9 +695,10 @@ zfs_rmnode(znode_t *zp)
 		ASSERT(error == 0);
 		mutex_enter(&xzp->z_lock);
 		xzp->z_unlinked = B_TRUE;	/* mark xzp for deletion */
-		xzp->z_links = 0;	/* no more links to it */
+		clear_nlink(ZTOI(xzp));		/* no more links to it */
+		links = 0;
 		VERIFY(0 == sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zsb),
-		    &xzp->z_links, sizeof (xzp->z_links), tx));
+		    &links, sizeof (links), tx));
 		mutex_exit(&xzp->z_lock);
 		zfs_unlinked_add(xzp, tx);
 	}
@@ -735,6 +737,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	int zp_is_dir = S_ISDIR(ZTOI(zp)->i_mode);
 	sa_bulk_attr_t bulk[5];
 	uint64_t mtime[2], ctime[2];
+	uint64_t links;
 	int count = 0;
 	int error;
 
@@ -746,10 +749,16 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 			mutex_exit(&zp->z_lock);
 			return (SET_ERROR(ENOENT));
 		}
-		zp->z_links++;
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL,
-		    &zp->z_links, sizeof (zp->z_links));
-
+		if (!(flag & ZNEW)) {
+			/*
+			 * ZNEW nodes come from zfs_mknode() where the link
+			 * count has already been initialised
+			 */
+			inc_nlink(ZTOI(zp));
+			links = ZTOI(zp)->i_nlink;
+			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL,
+			    &links, sizeof (links));
+		}
 	}
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zsb), NULL,
 	    &dzp->z_id, sizeof (dzp->z_id));
@@ -769,12 +778,14 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 
 	mutex_enter(&dzp->z_lock);
 	dzp->z_size++;
-	dzp->z_links += zp_is_dir;
+	if (zp_is_dir)
+		inc_nlink(ZTOI(dzp));
+	links = ZTOI(dzp)->i_nlink;
 	count = 0;
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb), NULL,
 	    &dzp->z_size, sizeof (dzp->z_size));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb), NULL,
-	    &dzp->z_links, sizeof (dzp->z_links));
+	    &links, sizeof (links));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL,
 	    mtime, sizeof (mtime));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL,
@@ -835,6 +846,7 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 	boolean_t unlinked = B_FALSE;
 	sa_bulk_attr_t bulk[5];
 	uint64_t mtime[2], ctime[2];
+	uint64_t links;
 	int count = 0;
 	int error;
 
@@ -861,15 +873,16 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 			return (error);
 		}
 
-		if (zp->z_links <= zp_is_dir) {
+		if (ZTOI(zp)->i_nlink <= zp_is_dir) {
 			zfs_panic_recover("zfs: link count on %lu is %u, "
 			    "should be at least %u", zp->z_id,
-			    (int)zp->z_links, zp_is_dir + 1);
-			zp->z_links = zp_is_dir + 1;
+			    (int)ZTOI(zp)->i_nlink, zp_is_dir + 1);
+			set_nlink(ZTOI(zp), zp_is_dir + 1);
 		}
-		if (--zp->z_links == zp_is_dir) {
+		drop_nlink(ZTOI(zp));
+		if (ZTOI(zp)->i_nlink == zp_is_dir) {
 			zp->z_unlinked = B_TRUE;
-			zp->z_links = 0;
+			clear_nlink(ZTOI(zp));
 			unlinked = B_TRUE;
 		} else {
 			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb),
@@ -879,8 +892,9 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 			zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime,
 			    ctime);
 		}
+		links = ZTOI(zp)->i_nlink;
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb),
-		    NULL, &zp->z_links, sizeof (zp->z_links));
+		    NULL, &links, sizeof (links));
 		error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		count = 0;
 		ASSERT(error == 0);
@@ -893,9 +907,11 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 
 	mutex_enter(&dzp->z_lock);
 	dzp->z_size--;		/* one dirent removed */
-	dzp->z_links -= zp_is_dir;	/* ".." link from zp */
+	if (zp_is_dir)
+		drop_nlink(ZTOI(dzp));	/* ".." link from zp */
+	links = ZTOI(dzp)->i_nlink;
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb),
-	    NULL, &dzp->z_links, sizeof (dzp->z_links));
+	    NULL, &links, sizeof (links));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zsb),
 	    NULL, &dzp->z_size, sizeof (dzp->z_size));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb),

@@ -775,39 +775,13 @@ def _l2arc_summary(Kstat):
 def get_dmu_summary(Kstat):
     output = {}
 
-    zfetch_bogus_streams = Kstat["kstat.zfs.misc.zfetchstats.bogus_streams"]
-    zfetch_colinear_hits = Kstat["kstat.zfs.misc.zfetchstats.colinear_hits"]
-    zfetch_colinear_misses = \
-            Kstat["kstat.zfs.misc.zfetchstats.colinear_misses"]
     zfetch_hits = Kstat["kstat.zfs.misc.zfetchstats.hits"]
     zfetch_misses = Kstat["kstat.zfs.misc.zfetchstats.misses"]
-    zfetch_reclaim_failures = \
-            Kstat["kstat.zfs.misc.zfetchstats.reclaim_failures"]
-    zfetch_reclaim_successes = \
-            Kstat["kstat.zfs.misc.zfetchstats.reclaim_successes"]
-    zfetch_streams_noresets = \
-            Kstat["kstat.zfs.misc.zfetchstats.streams_noresets"]
-    zfetch_streams_resets = Kstat["kstat.zfs.misc.zfetchstats.streams_resets"]
-    zfetch_stride_hits = Kstat["kstat.zfs.misc.zfetchstats.stride_hits"]
-    zfetch_stride_misses = Kstat["kstat.zfs.misc.zfetchstats.stride_misses"]
 
     zfetch_access_total = (zfetch_hits + zfetch_misses)
-    zfetch_colinear_total = (zfetch_colinear_hits + zfetch_colinear_misses)
-    zfetch_health_count = (zfetch_bogus_streams)
-    zfetch_reclaim_total = (zfetch_reclaim_successes + zfetch_reclaim_failures)
-    zfetch_streams_total = (zfetch_streams_resets + zfetch_streams_noresets +
-            zfetch_bogus_streams)
-    zfetch_stride_total = (zfetch_stride_hits + zfetch_stride_misses)
     output['zfetch_access_total'] = zfetch_access_total
 
     if zfetch_access_total > 0:
-
-        output['file_level_prefetch'] = {}
-        if zfetch_health_count > 0:
-            output['file_level_prefetch']['health'] = 'DEGRADED'
-        else:
-            output['file_level_prefetch']['health'] = 'HEALTHY'
-
         output['dmu'] = {}
         output['dmu']['efficiency'] = {}
         output['dmu']['efficiency']['value'] = fHits(zfetch_access_total)
@@ -820,57 +794,6 @@ def get_dmu_summary(Kstat):
             'num': fHits(zfetch_misses),
         }
 
-        output['dmu']['colinear'] = {}
-        output['dmu']['colinear']['value'] = fHits(zfetch_colinear_total)
-        output['dmu']['colinear']['hit_ratio'] = {
-            'per': fPerc(zfetch_colinear_hits, zfetch_colinear_total),
-            'num': fHits(zfetch_colinear_hits),
-        }
-        output['dmu']['colinear']['miss_ratio'] = {
-            'per': fPerc(zfetch_colinear_misses, zfetch_colinear_total),
-            'num': fHits(zfetch_colinear_misses),
-        }
-
-        output['dmu']['stride'] = {}
-        output['dmu']['stride']['value'] = fHits(zfetch_stride_total)
-        output['dmu']['stride']['hit_ratio'] = {
-            'per': fPerc(zfetch_stride_hits, zfetch_stride_total),
-            'num': fHits(zfetch_stride_hits),
-        }
-        output['dmu']['stride']['miss_ratio'] = {
-            'per': fPerc(zfetch_stride_misses, zfetch_stride_total),
-            'num': fHits(zfetch_stride_misses),
-        }
-
-        output['dmu_misc'] = {}
-        if zfetch_health_count > 0:
-            output['dmu_misc']['status'] = "FAULTED"
-        else:
-            output['dmu_misc']['status'] = ""
-
-        output['dmu_misc']['reclaim'] = {}
-        output['dmu_misc']['reclaim']['value'] = fHits(zfetch_reclaim_total)
-        output['dmu_misc']['reclaim']['successes'] = {
-            'per': fPerc(zfetch_reclaim_successes, zfetch_reclaim_total),
-            'num': fHits(zfetch_reclaim_successes),
-        }
-        output['dmu_misc']['reclaim']['failure'] = {
-            'per': fPerc(zfetch_reclaim_failures, zfetch_reclaim_total),
-            'num': fHits(zfetch_reclaim_failures),
-        }
-
-        output['dmu_misc']['streams'] = {}
-        output['dmu_misc']['streams']['value'] = fHits(zfetch_streams_total)
-        output['dmu_misc']['streams']['plus_resets'] = {
-            'per': fPerc(zfetch_streams_resets, zfetch_streams_total),
-            'num': fHits(zfetch_streams_resets),
-        }
-        output['dmu_misc']['streams']['neg_resets'] = {
-            'per': fPerc(zfetch_streams_noresets, zfetch_streams_total),
-            'num': fHits(zfetch_streams_noresets),
-        }
-        output['dmu_misc']['streams']['bogus'] = fHits(zfetch_bogus_streams)
-
     return output
 
 
@@ -879,11 +802,7 @@ def _dmu_summary(Kstat):
     arc = get_dmu_summary(Kstat)
 
     if arc['zfetch_access_total'] > 0:
-        sys.stdout.write("File-Level Prefetch: (%s)" %
-                arc['file_level_prefetch']['health'])
-        sys.stdout.write("\n")
-
-        sys.stdout.write("DMU Efficiency:\t\t\t\t\t%s\n" %
+        sys.stdout.write("DMU Prefetch Efficiency:\t\t\t\t\t%s\n" %
                 arc['dmu']['efficiency']['value'])
         sys.stdout.write("\tHit Ratio:\t\t\t%s\t%s\n" % (
             arc['dmu']['efficiency']['hit_ratio']['per'],
@@ -897,70 +816,6 @@ def _dmu_summary(Kstat):
         )
 
         sys.stdout.write("\n")
-
-        sys.stdout.write("\tColinear:\t\t\t\t%s\n" %
-                arc['dmu']['colinear']['value'])
-        sys.stdout.write("\t  Hit Ratio:\t\t\t%s\t%s\n" % (
-            arc['dmu']['colinear']['hit_ratio']['per'],
-            arc['dmu']['colinear']['hit_ratio']['num'],
-            )
-        )
-
-        sys.stdout.write("\t  Miss Ratio:\t\t\t%s\t%s\n" % (
-            arc['dmu']['colinear']['miss_ratio']['per'],
-            arc['dmu']['colinear']['miss_ratio']['num'],
-            )
-        )
-
-        sys.stdout.write("\n")
-
-        sys.stdout.write("\tStride:\t\t\t\t\t%s\n" %
-                arc['dmu']['stride']['value'])
-        sys.stdout.write("\t  Hit Ratio:\t\t\t%s\t%s\n" % (
-            arc['dmu']['stride']['hit_ratio']['per'],
-            arc['dmu']['stride']['hit_ratio']['num'],
-            )
-        )
-
-        sys.stdout.write("\t  Miss Ratio:\t\t\t%s\t%s\n" % (
-            arc['dmu']['stride']['miss_ratio']['per'],
-            arc['dmu']['stride']['miss_ratio']['num'],
-            )
-        )
-
-        sys.stdout.write("\n")
-        sys.stdout.write("DMU Misc: %s\n" % arc['dmu_misc']['status'])
-
-        sys.stdout.write("\tReclaim:\t\t\t\t%s\n" %
-                arc['dmu_misc']['reclaim']['value'])
-        sys.stdout.write("\t  Successes:\t\t\t%s\t%s\n" % (
-            arc['dmu_misc']['reclaim']['successes']['per'],
-            arc['dmu_misc']['reclaim']['successes']['num'],
-            )
-        )
-
-        sys.stdout.write("\t  Failures:\t\t\t%s\t%s\n" % (
-            arc['dmu_misc']['reclaim']['failure']['per'],
-            arc['dmu_misc']['reclaim']['failure']['num'],
-            )
-        )
-
-        sys.stdout.write("\n\tStreams:\t\t\t\t%s\n" %
-                arc['dmu_misc']['streams']['value'])
-        sys.stdout.write("\t  +Resets:\t\t\t%s\t%s\n" % (
-            arc['dmu_misc']['streams']['plus_resets']['per'],
-            arc['dmu_misc']['streams']['plus_resets']['num'],
-            )
-        )
-
-        sys.stdout.write("\t  -Resets:\t\t\t%s\t%s\n" % (
-            arc['dmu_misc']['streams']['neg_resets']['per'],
-            arc['dmu_misc']['streams']['neg_resets']['num'],
-            )
-        )
-
-        sys.stdout.write("\t  Bogus:\t\t\t\t%s\n" %
-                arc['dmu_misc']['streams']['bogus'])
 
 
 def get_vdev_summary(Kstat):

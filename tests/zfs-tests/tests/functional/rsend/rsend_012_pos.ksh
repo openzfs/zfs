@@ -110,9 +110,6 @@ function cleanup
 		log_must $ZFS inherit $prop $POOL2
 	done
 
-	#if is_shared $POOL; then
-	#	log_must $ZFS set sharenfs=off $POOL
-	#fi
 	log_must setup_test_model $POOL
 
 	if [[ -d $TESTDIR ]]; then
@@ -131,7 +128,7 @@ for fs in "$POOL" "$POOL/pclone" "$POOL/$FS" "$POOL/$FS/fs1" \
 	"$POOL/$FS/fs1/fs2" "$POOL/$FS/fs1/fclone" ; do
 	rand_set_prop $fs aclinherit "discard" "noallow" "secure" "passthrough"
 	rand_set_prop $fs checksum "on" "off" "fletcher2" "fletcher4" "sha256"
-	rand_set_prop $fs aclmode "discard" "groupmask" "passthrough"
+	rand_set_prop $fs acltype "off" "noacl" "posixacl"
 	rand_set_prop $fs atime "on" "off"
 	rand_set_prop $fs checksum "on" "off" "fletcher2" "fletcher4" "sha256"
 	rand_set_prop $fs compression "on" "off" "lzjb" "gzip" \
@@ -142,6 +139,7 @@ for fs in "$POOL" "$POOL/pclone" "$POOL/$FS" "$POOL/$FS/fs1" \
 	rand_set_prop $fs exec "on" "off"
 	rand_set_prop $fs quota "512M" "1024M"
 	rand_set_prop $fs recordsize "512" "2K" "8K" "32K" "128K"
+	rand_set_prop $fs dnodesize "legacy" "auto" "1k" "2k" "4k" "8k" "16k"
 	rand_set_prop $fs setuid "on" "off"
 	rand_set_prop $fs snapdir "hidden" "visible"
 	rand_set_prop $fs xattr "on" "off"
@@ -160,7 +158,8 @@ done
 
 
 # Verify inherited property can be received
-rand_set_prop $POOL sharenfs "on" "off" "rw"
+rand_set_prop $POOL redundant_metadata "all" "most"
+rand_set_prop $POOL sync "standard" "always" "disabled"
 
 #
 # Duplicate POOL2 for testing

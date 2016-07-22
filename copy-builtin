@@ -34,27 +34,8 @@ cp --recursive include "$KERNEL_DIR/include/zfs"
 cp --recursive module "$KERNEL_DIR/fs/zfs"
 cp zfs_config.h "$KERNEL_DIR/"
 
-adjust_obj_paths()
-{
-	local FILE="$1"
-	local LINE OBJPATH
-
-	while IFS='' read -r LINE
-	do
-		OBJPATH="${LINE#\$(MODULE)-objs += }"
-		if [ "$OBJPATH" = "$LINE" ]
-		then
-			echo "$LINE"
-		else
-			echo "\$(MODULE)-objs += ${OBJPATH##*/}"
-		fi
-	done < "$FILE" > "$FILE.new"
-	mv "$FILE.new" "$FILE"
-}
-
 for MODULE in "${MODULES[@]}"
 do
-	adjust_obj_paths "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
 	sed -i.bak '/obj =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
 	sed -i.bak '/src =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
 done
