@@ -41,6 +41,11 @@ ismounted $TESTPOOL/$TESTFS
 [[ $? == 0 ]] && log_must $ZFS umount -f $TESTDIR
 destroy_pool $TESTPOOL
 
+DISK=${DISKS%% *}
+if is_mpath_device $DISK; then
+        delete_partitions
+fi
+
 # recreate and destroy a zpool over the disks to restore the partitions to
 # normal
 case $DISK_COUNT in

@@ -31,8 +31,14 @@
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/zvol/zvol_common.shlib
+. $STF_SUITE/tests/functional/zvol/zvol_ENOSPC/zvol_ENOSPC.cfg
 
 verify_runnable "global"
+
+DISK=${DISKS%% *}
+if is_mpath_device $DISK; then
+	delete_partitions
+fi
 
 default_zvol_setup $DISK $VOLSIZE
 
