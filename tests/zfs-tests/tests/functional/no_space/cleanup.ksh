@@ -40,6 +40,11 @@ ismounted "$TESTPOOL/$TESTFS"
         log_must $ZFS umount $TESTDIR
 
 destroy_pool $TESTPOOL
+
+if is_mpath_device $DISK; then
+	delete_partitions
+fi
+
 #
 # Remove 100mb partition.
 #

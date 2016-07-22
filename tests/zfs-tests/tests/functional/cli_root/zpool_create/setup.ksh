@@ -32,6 +32,13 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
+[[ -z $FORMAT ]] || \
+[[ -z $MKDIR ]] || \
+[[ -z $LSBLK ]] || \
+[[ -z $READLINK ]] || \
+[[ -z $TOUCH ]] && \
+	log_fail "Missing required commands"
+
 verify_runnable "global"
 
 if ! $(is_physical_device $DISKS) ; then
