@@ -704,6 +704,7 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_TOP_ZAP	"com.delphix:vdev_zap_top"
 #define	ZPOOL_CONFIG_VDEV_LEAF_ZAP	"com.delphix:vdev_zap_leaf"
 #define	ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS	"com.delphix:has_per_vdev_zaps"
+#define	ZPOOL_CONFIG_CACHEFILE		"cachefile"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_STATE		"mmp_state"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_TXG		"mmp_txg"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_HOSTNAME	"mmp_hostname"	/* not stored on disk */
@@ -811,6 +812,7 @@ typedef enum vdev_aux {
 	VDEV_AUX_BAD_ASHIFT,	/* vdev ashift is invalid		*/
 	VDEV_AUX_EXTERNAL_PERSIST,	/* persistent forced fault	*/
 	VDEV_AUX_ACTIVE,	/* vdev active on a different host	*/
+	VDEV_AUX_CHILDREN_OFFLINE, /* all children are offline		*/
 } vdev_aux_t;
 
 /*

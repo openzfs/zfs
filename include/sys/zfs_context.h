@@ -674,6 +674,7 @@ typedef struct callb_cpr {
 
 #define	zone_dataset_visible(x, y)	(1)
 #define	INGLOBALZONE(z)			(1)
+extern uint32_t zone_get_hostid(void *zonep);
 
 extern char *kmem_vasprintf(const char *fmt, va_list adx);
 extern char *kmem_asprintf(const char *fmt, ...);
