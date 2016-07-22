@@ -2,6 +2,17 @@ pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_impo
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
+	zpool_import.kshlib \
+	import_cache_device_added.ksh \
+	import_cache_device_removed.ksh \
+	import_cache_device_replaced.ksh \
+	import_cache_mirror_attached.ksh \
+	import_cache_mirror_detached.ksh \
+	import_cache_shared_device.ksh \
+	import_devices_missing.ksh \
+	import_paths_changed.ksh \
+	import_rewind_config_changed.ksh \
+	import_rewind_device_replaced.ksh \
 	zpool_import_001_pos.ksh \
 	zpool_import_002_pos.ksh \
 	zpool_import_003_pos.ksh \

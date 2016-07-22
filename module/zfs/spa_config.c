@@ -393,7 +393,8 @@ void
 spa_config_set(spa_t *spa, nvlist_t *config)
 {
 	mutex_enter(&spa->spa_props_lock);
-	nvlist_free(spa->spa_config);
+	if (spa->spa_config != NULL && spa->spa_config != config)
+		nvlist_free(spa->spa_config);
 	spa->spa_config = config;
 	mutex_exit(&spa->spa_props_lock);
 }

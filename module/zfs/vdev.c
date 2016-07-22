@@ -74,6 +74,8 @@ unsigned int zfs_checksums_per_second = 20;
  */
 int zfs_scan_ignore_errors = 0;
 
+int vdev_validate_skip = B_FALSE;
+
 /*PRINTFLIKE2*/
 void
 vdev_dbgmsg(vdev_t *vd, const char *fmt, ...)
@@ -94,6 +96,57 @@ vdev_dbgmsg(vdev_t *vd, const char *fmt, ...)
 		    (u_longlong_t)vd->vdev_id,
 		    (u_longlong_t)vd->vdev_guid, buf);
 	}
+}
+
+void
+vdev_dbgmsg_print_tree(vdev_t *vd, int indent)
+{
+	char state[20];
+
+	if (vd->vdev_ishole || vd->vdev_ops == &vdev_missing_ops) {
+		zfs_dbgmsg("%*svdev %u: %s", indent, "", vd->vdev_id,
+		    vd->vdev_ops->vdev_op_type);
+		return;
+	}
+
+	switch (vd->vdev_state) {
+	case VDEV_STATE_UNKNOWN:
+		(void) snprintf(state, sizeof (state), "unknown");
+		break;
+	case VDEV_STATE_CLOSED:
+		(void) snprintf(state, sizeof (state), "closed");
+		break;
+	case VDEV_STATE_OFFLINE:
+		(void) snprintf(state, sizeof (state), "offline");
+		break;
+	case VDEV_STATE_REMOVED:
+		(void) snprintf(state, sizeof (state), "removed");
+		break;
+	case VDEV_STATE_CANT_OPEN:
+		(void) snprintf(state, sizeof (state), "can't open");
+		break;
+	case VDEV_STATE_FAULTED:
+		(void) snprintf(state, sizeof (state), "faulted");
+		break;
+	case VDEV_STATE_DEGRADED:
+		(void) snprintf(state, sizeof (state), "degraded");
+		break;
+	case VDEV_STATE_HEALTHY:
+		(void) snprintf(state, sizeof (state), "healthy");
+		break;
+	default:
+		(void) snprintf(state, sizeof (state), "<state %u>",
+		    (uint_t)vd->vdev_state);
+	}
+
+	zfs_dbgmsg("%*svdev %u: %s%s, guid: %llu, path: %s, %s", indent,
+	    "", vd->vdev_id, vd->vdev_ops->vdev_op_type,
+	    vd->vdev_islog ? " (log)" : "",
+	    (u_longlong_t)vd->vdev_guid,
+	    vd->vdev_path ? vd->vdev_path : "N/A", state);
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++)
+		vdev_dbgmsg_print_tree(vd->vdev_child[i], indent + 2);
 }
 
 /*
@@ -1424,8 +1477,13 @@ vdev_open(vdev_t *vd)
 		    vd->vdev_stat.vs_aux != VDEV_AUX_OPEN_FAILED)
 			vd->vdev_removed = B_FALSE;
 
-		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
-		    vd->vdev_stat.vs_aux);
+		if (vd->vdev_stat.vs_aux == VDEV_AUX_CHILDREN_OFFLINE) {
+			vdev_set_state(vd, B_TRUE, VDEV_STATE_OFFLINE,
+			    vd->vdev_stat.vs_aux);
+		} else {
+			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+			    vd->vdev_stat.vs_aux);
+		}
 		return (error);
 	}
 
@@ -1596,13 +1654,8 @@ vdev_open(vdev_t *vd)
 
 /*
  * Called once the vdevs are all opened, this routine validates the label
- * contents.  This needs to be done before vdev_load() so that we don't
+ * contents. This needs to be done before vdev_load() so that we don't
  * inadvertently do repair I/Os to the wrong device.
- *
- * If 'strict' is false ignore the spa guid check. This is necessary because
- * if the machine crashed during a re-guid the new guid might have been written
- * to all of the vdev labels, but not the cached config. The strict check
- * will be performed when the pool is opened again using the mos config.
  *
  * This function will only return failure if one of the vdevs indicates that it
  * has since been destroyed or exported.  This is only possible if
@@ -1610,15 +1663,20 @@ vdev_open(vdev_t *vd)
  * will be updated but the function will return 0.
  */
 int
-vdev_validate(vdev_t *vd, boolean_t strict)
+vdev_validate(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *label;
-	uint64_t guid = 0, top_guid;
+	uint64_t guid = 0, aux_guid = 0, top_guid;
 	uint64_t state;
+	nvlist_t *nvl;
+	uint64_t txg;
 
-	for (int c = 0; c < vd->vdev_children; c++)
-		if (vdev_validate(vd->vdev_child[c], strict) != 0)
+	if (vdev_validate_skip)
+		return (0);
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
+		if (vdev_validate(vd->vdev_child[c]) != 0)
 			return (SET_ERROR(EBADF));
 
 	/*
@@ -1626,113 +1684,274 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 	 * any further validation.  Otherwise, label I/O will fail and we will
 	 * overwrite the previous state.
 	 */
-	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd)) {
-		uint64_t aux_guid = 0;
-		nvlist_t *nvl;
-		uint64_t txg = spa_last_synced_txg(spa) != 0 ?
-		    spa_last_synced_txg(spa) : -1ULL;
+	if (!vd->vdev_ops->vdev_op_leaf || !vdev_readable(vd))
+		return (0);
 
-		if ((label = vdev_label_read_config(vd, txg)) == NULL) {
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
-			    VDEV_AUX_BAD_LABEL);
-			vdev_dbgmsg(vd, "vdev_validate: failed reading config");
-			return (0);
-		}
+	/*
+	 * If we are performing an extreme rewind, we allow for a label that
+	 * was modified at a point after the current txg.
+	 */
+	if (spa->spa_extreme_rewind || spa_last_synced_txg(spa) == 0)
+		txg = UINT64_MAX;
+	else
+		txg = spa_last_synced_txg(spa);
 
-		/*
-		 * Determine if this vdev has been split off into another
-		 * pool.  If so, then refuse to open it.
-		 */
-		if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_SPLIT_GUID,
-		    &aux_guid) == 0 && aux_guid == spa_guid(spa)) {
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
-			    VDEV_AUX_SPLIT_POOL);
-			nvlist_free(label);
-			vdev_dbgmsg(vd, "vdev_validate: vdev split into other "
-			    "pool");
-			return (0);
-		}
-
-		if (strict && (nvlist_lookup_uint64(label,
-		    ZPOOL_CONFIG_POOL_GUID, &guid) != 0 ||
-		    guid != spa_guid(spa))) {
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
-			    VDEV_AUX_CORRUPT_DATA);
-			nvlist_free(label);
-			vdev_dbgmsg(vd, "vdev_validate: vdev label pool_guid "
-			    "doesn't match config (%llu != %llu)",
-			    (u_longlong_t)guid,
-			    (u_longlong_t)spa_guid(spa));
-			return (0);
-		}
-
-		if (nvlist_lookup_nvlist(label, ZPOOL_CONFIG_VDEV_TREE, &nvl)
-		    != 0 || nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_ORIG_GUID,
-		    &aux_guid) != 0)
-			aux_guid = 0;
-
-		/*
-		 * If this vdev just became a top-level vdev because its
-		 * sibling was detached, it will have adopted the parent's
-		 * vdev guid -- but the label may or may not be on disk yet.
-		 * Fortunately, either version of the label will have the
-		 * same top guid, so if we're a top-level vdev, we can
-		 * safely compare to that instead.
-		 *
-		 * If we split this vdev off instead, then we also check the
-		 * original pool's guid.  We don't want to consider the vdev
-		 * corrupt if it is partway through a split operation.
-		 */
-		if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID,
-		    &guid) != 0 ||
-		    nvlist_lookup_uint64(label, ZPOOL_CONFIG_TOP_GUID,
-		    &top_guid) != 0 ||
-		    ((vd->vdev_guid != guid && vd->vdev_guid != aux_guid) &&
-		    (vd->vdev_guid != top_guid || vd != vd->vdev_top))) {
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
-			    VDEV_AUX_CORRUPT_DATA);
-			nvlist_free(label);
-			vdev_dbgmsg(vd, "vdev_validate: config guid doesn't "
-			    "match label guid (%llu != %llu)",
-			    (u_longlong_t)vd->vdev_guid, (u_longlong_t)guid);
-			return (0);
-		}
-
-		if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    &state) != 0) {
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
-			    VDEV_AUX_CORRUPT_DATA);
-			nvlist_free(label);
-			vdev_dbgmsg(vd, "vdev_validate: '%s' missing",
-			    ZPOOL_CONFIG_POOL_STATE);
-			return (0);
-		}
-
-		nvlist_free(label);
-
-		/*
-		 * If this is a verbatim import, no need to check the
-		 * state of the pool.
-		 */
-		if (!(spa->spa_import_flags & ZFS_IMPORT_VERBATIM) &&
-		    spa_load_state(spa) == SPA_LOAD_OPEN &&
-		    state != POOL_STATE_ACTIVE) {
-			vdev_dbgmsg(vd, "vdev_validate: invalid pool state "
-			    "(%llu) for spa %s", (u_longlong_t)state,
-			    spa->spa_name);
-			return (SET_ERROR(EBADF));
-		}
-
-		/*
-		 * If we were able to open and validate a vdev that was
-		 * previously marked permanently unavailable, clear that state
-		 * now.
-		 */
-		if (vd->vdev_not_present)
-			vd->vdev_not_present = 0;
+	if ((label = vdev_label_read_config(vd, txg)) == NULL) {
+		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_BAD_LABEL);
+		vdev_dbgmsg(vd, "vdev_validate: failed reading config");
+		return (0);
 	}
 
+	/*
+	 * Determine if this vdev has been split off into another
+	 * pool.  If so, then refuse to open it.
+	 */
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_SPLIT_GUID,
+	    &aux_guid) == 0 && aux_guid == spa_guid(spa)) {
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_SPLIT_POOL);
+		nvlist_free(label);
+		vdev_dbgmsg(vd, "vdev_validate: vdev split into other pool");
+		return (0);
+	}
+
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID, &guid) != 0) {
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_CORRUPT_DATA);
+		nvlist_free(label);
+		vdev_dbgmsg(vd, "vdev_validate: '%s' missing from label",
+		    ZPOOL_CONFIG_POOL_GUID);
+		return (0);
+	}
+
+	/*
+	 * If config is not trusted then ignore the spa guid check. This is
+	 * necessary because if the machine crashed during a re-guid the new
+	 * guid might have been written to all of the vdev labels, but not the
+	 * cached config. The check will be performed again once we have the
+	 * trusted config from the MOS.
+	 */
+	if (spa->spa_trust_config && guid != spa_guid(spa)) {
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_CORRUPT_DATA);
+		nvlist_free(label);
+		vdev_dbgmsg(vd, "vdev_validate: vdev label pool_guid doesn't "
+		    "match config (%llu != %llu)", (u_longlong_t)guid,
+		    (u_longlong_t)spa_guid(spa));
+		return (0);
+	}
+
+	if (nvlist_lookup_nvlist(label, ZPOOL_CONFIG_VDEV_TREE, &nvl)
+	    != 0 || nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_ORIG_GUID,
+	    &aux_guid) != 0)
+		aux_guid = 0;
+
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid) != 0) {
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_CORRUPT_DATA);
+		nvlist_free(label);
+		vdev_dbgmsg(vd, "vdev_validate: '%s' missing from label",
+		    ZPOOL_CONFIG_GUID);
+		return (0);
+	}
+
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_TOP_GUID, &top_guid)
+	    != 0) {
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_CORRUPT_DATA);
+		nvlist_free(label);
+		vdev_dbgmsg(vd, "vdev_validate: '%s' missing from label",
+		    ZPOOL_CONFIG_TOP_GUID);
+		return (0);
+	}
+
+	/*
+	 * If this vdev just became a top-level vdev because its sibling was
+	 * detached, it will have adopted the parent's vdev guid -- but the
+	 * label may or may not be on disk yet. Fortunately, either version
+	 * of the label will have the same top guid, so if we're a top-level
+	 * vdev, we can safely compare to that instead.
+	 * However, if the config comes from a cachefile that failed to update
+	 * after the detach, a top-level vdev will appear as a non top-level
+	 * vdev in the config. Also relax the constraints if we perform an
+	 * extreme rewind.
+	 *
+	 * If we split this vdev off instead, then we also check the
+	 * original pool's guid. We don't want to consider the vdev
+	 * corrupt if it is partway through a split operation.
+	 */
+	if (vd->vdev_guid != guid && vd->vdev_guid != aux_guid) {
+		boolean_t mismatch = B_FALSE;
+		if (spa->spa_trust_config && !spa->spa_extreme_rewind) {
+			if (vd != vd->vdev_top || vd->vdev_guid != top_guid)
+				mismatch = B_TRUE;
+		} else {
+			if (vd->vdev_guid != top_guid &&
+			    vd->vdev_top->vdev_guid != guid)
+				mismatch = B_TRUE;
+		}
+
+		if (mismatch) {
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_CORRUPT_DATA);
+			nvlist_free(label);
+			vdev_dbgmsg(vd, "vdev_validate: config guid "
+			    "doesn't match label guid");
+			vdev_dbgmsg(vd, "CONFIG: guid %llu, top_guid %llu",
+			    (u_longlong_t)vd->vdev_guid,
+			    (u_longlong_t)vd->vdev_top->vdev_guid);
+			vdev_dbgmsg(vd, "LABEL: guid %llu, top_guid %llu, "
+			    "aux_guid %llu", (u_longlong_t)guid,
+			    (u_longlong_t)top_guid, (u_longlong_t)aux_guid);
+			return (0);
+		}
+	}
+
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_STATE,
+	    &state) != 0) {
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_CORRUPT_DATA);
+		nvlist_free(label);
+		vdev_dbgmsg(vd, "vdev_validate: '%s' missing from label",
+		    ZPOOL_CONFIG_POOL_STATE);
+		return (0);
+	}
+
+	nvlist_free(label);
+
+	/*
+	 * If this is a verbatim import, no need to check the
+	 * state of the pool.
+	 */
+	if (!(spa->spa_import_flags & ZFS_IMPORT_VERBATIM) &&
+	    spa_load_state(spa) == SPA_LOAD_OPEN &&
+	    state != POOL_STATE_ACTIVE) {
+		vdev_dbgmsg(vd, "vdev_validate: invalid pool state (%llu) "
+		    "for spa %s", (u_longlong_t)state, spa->spa_name);
+		return (SET_ERROR(EBADF));
+	}
+
+	/*
+	 * If we were able to open and validate a vdev that was
+	 * previously marked permanently unavailable, clear that state
+	 * now.
+	 */
+	if (vd->vdev_not_present)
+		vd->vdev_not_present = 0;
+
 	return (0);
+}
+
+static void
+vdev_copy_path_impl(vdev_t *svd, vdev_t *dvd)
+{
+	if (svd->vdev_path != NULL && dvd->vdev_path != NULL) {
+		if (strcmp(svd->vdev_path, dvd->vdev_path) != 0) {
+			zfs_dbgmsg("vdev_copy_path: vdev %llu: path changed "
+			    "from '%s' to '%s'", (u_longlong_t)dvd->vdev_guid,
+			    dvd->vdev_path, svd->vdev_path);
+			spa_strfree(dvd->vdev_path);
+			dvd->vdev_path = spa_strdup(svd->vdev_path);
+		}
+	} else if (svd->vdev_path != NULL) {
+		dvd->vdev_path = spa_strdup(svd->vdev_path);
+		zfs_dbgmsg("vdev_copy_path: vdev %llu: path set to '%s'",
+		    (u_longlong_t)dvd->vdev_guid, dvd->vdev_path);
+	}
+}
+
+/*
+ * Recursively copy vdev paths from one vdev to another. Source and destination
+ * vdev trees must have same geometry otherwise return error. Intended to copy
+ * paths from userland config into MOS config.
+ */
+int
+vdev_copy_path_strict(vdev_t *svd, vdev_t *dvd)
+{
+	if ((svd->vdev_ops == &vdev_missing_ops) ||
+	    (svd->vdev_ishole && dvd->vdev_ishole) ||
+	    (dvd->vdev_ops == &vdev_indirect_ops))
+		return (0);
+
+	if (svd->vdev_ops != dvd->vdev_ops) {
+		vdev_dbgmsg(svd, "vdev_copy_path: vdev type mismatch: %s != %s",
+		    svd->vdev_ops->vdev_op_type, dvd->vdev_ops->vdev_op_type);
+		return (SET_ERROR(EINVAL));
+	}
+
+	if (svd->vdev_guid != dvd->vdev_guid) {
+		vdev_dbgmsg(svd, "vdev_copy_path: guids mismatch (%llu != "
+		    "%llu)", (u_longlong_t)svd->vdev_guid,
+		    (u_longlong_t)dvd->vdev_guid);
+		return (SET_ERROR(EINVAL));
+	}
+
+	if (svd->vdev_children != dvd->vdev_children) {
+		vdev_dbgmsg(svd, "vdev_copy_path: children count mismatch: "
+		    "%llu != %llu", (u_longlong_t)svd->vdev_children,
+		    (u_longlong_t)dvd->vdev_children);
+		return (SET_ERROR(EINVAL));
+	}
+
+	for (uint64_t i = 0; i < svd->vdev_children; i++) {
+		int error = vdev_copy_path_strict(svd->vdev_child[i],
+		    dvd->vdev_child[i]);
+		if (error != 0)
+			return (error);
+	}
+
+	if (svd->vdev_ops->vdev_op_leaf)
+		vdev_copy_path_impl(svd, dvd);
+
+	return (0);
+}
+
+static void
+vdev_copy_path_search(vdev_t *stvd, vdev_t *dvd)
+{
+	ASSERT(stvd->vdev_top == stvd);
+	ASSERT3U(stvd->vdev_id, ==, dvd->vdev_top->vdev_id);
+
+	for (uint64_t i = 0; i < dvd->vdev_children; i++) {
+		vdev_copy_path_search(stvd, dvd->vdev_child[i]);
+	}
+
+	if (!dvd->vdev_ops->vdev_op_leaf || !vdev_is_concrete(dvd))
+		return;
+
+	/*
+	 * The idea here is that while a vdev can shift positions within
+	 * a top vdev (when replacing, attaching mirror, etc.) it cannot
+	 * step outside of it.
+	 */
+	vdev_t *vd = vdev_lookup_by_guid(stvd, dvd->vdev_guid);
+
+	if (vd == NULL || vd->vdev_ops != dvd->vdev_ops)
+		return;
+
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+
+	vdev_copy_path_impl(vd, dvd);
+}
+
+/*
+ * Recursively copy vdev paths from one root vdev to another. Source and
+ * destination vdev trees may differ in geometry. For each destination leaf
+ * vdev, search a vdev with the same guid and top vdev id in the source.
+ * Intended to copy paths from userland config into MOS config.
+ */
+void
+vdev_copy_path_relaxed(vdev_t *srvd, vdev_t *drvd)
+{
+	uint64_t children = MIN(srvd->vdev_children, drvd->vdev_children);
+	ASSERT(srvd->vdev_ops == &vdev_root_ops);
+	ASSERT(drvd->vdev_ops == &vdev_root_ops);
+
+	for (uint64_t i = 0; i < children; i++) {
+		vdev_copy_path_search(srvd->vdev_child[i],
+		    drvd->vdev_child[i]);
+	}
 }
 
 /*
@@ -1828,7 +2047,7 @@ vdev_reopen(vdev_t *vd)
 		    !l2arc_vdev_present(vd))
 			l2arc_add_vdev(spa, vd);
 	} else {
-		(void) vdev_validate(vd, B_TRUE);
+		(void) vdev_validate(vd);
 	}
 
 	/*
@@ -3873,6 +4092,19 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 		vdev_propagate_state(vd->vdev_parent);
 }
 
+boolean_t
+vdev_children_are_offline(vdev_t *vd)
+{
+	ASSERT(!vd->vdev_ops->vdev_op_leaf);
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
+		if (vd->vdev_child[i]->vdev_state != VDEV_STATE_OFFLINE)
+			return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
 /*
  * Check the vdev configuration to ensure that it's capable of supporting
  * a root pool. We do not support partial configuration.
@@ -3905,34 +4137,6 @@ vdev_is_concrete(vdev_t *vd)
 		return (B_FALSE);
 	} else {
 		return (B_TRUE);
-	}
-}
-
-/*
- * Load the state from the original vdev tree (ovd) which
- * we've retrieved from the MOS config object. If the original
- * vdev was offline or faulted then we transfer that state to the
- * device in the current vdev tree (nvd).
- */
-void
-vdev_load_log_state(vdev_t *nvd, vdev_t *ovd)
-{
-	ASSERT(nvd->vdev_top->vdev_islog);
-	ASSERT(spa_config_held(nvd->vdev_spa,
-	    SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
-	ASSERT3U(nvd->vdev_guid, ==, ovd->vdev_guid);
-
-	for (int c = 0; c < nvd->vdev_children; c++)
-		vdev_load_log_state(nvd->vdev_child[c], ovd->vdev_child[c]);
-
-	if (nvd->vdev_ops->vdev_op_leaf) {
-		/*
-		 * Restore the persistent vdev state
-		 */
-		nvd->vdev_offline = ovd->vdev_offline;
-		nvd->vdev_faulted = ovd->vdev_faulted;
-		nvd->vdev_degraded = ovd->vdev_degraded;
-		nvd->vdev_removed = ovd->vdev_removed;
 	}
 }
 
@@ -4051,5 +4255,9 @@ module_param(zfs_checksums_per_second, uint, 0644);
 module_param(zfs_scan_ignore_errors, int, 0644);
 MODULE_PARM_DESC(zfs_scan_ignore_errors,
 	"Ignore errors during resilver/scrub");
+
+module_param(vdev_validate_skip, int, 0644);
+MODULE_PARM_DESC(vdev_validate_skip,
+	"Bypass vdev_validate()");
 /* END CSTYLED */
 #endif

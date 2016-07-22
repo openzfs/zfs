@@ -37,6 +37,23 @@
  * Virtual device vector for the pool's root vdev.
  */
 
+static uint64_t
+vdev_root_core_tvds(vdev_t *vd)
+{
+	uint64_t tvds = 0;
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (!cvd->vdev_ishole && !cvd->vdev_islog &&
+		    cvd->vdev_ops != &vdev_indirect_ops) {
+			tvds++;
+		}
+	}
+
+	return (tvds);
+}
+
 /*
  * We should be able to tolerate one failure with absolutely no damage
  * to our metadata.  Two failures will take out space maps, a bunch of
@@ -46,17 +63,28 @@
  * probably fine.  Adding bean counters during alloc/free can make this
  * future guesswork more accurate.
  */
-static int
-too_many_errors(vdev_t *vd, int numerrors)
+static boolean_t
+too_many_errors(vdev_t *vd, uint64_t numerrors)
 {
-	ASSERT3U(numerrors, <=, vd->vdev_children);
-	return (numerrors > 0);
+	uint64_t tvds;
+
+	if (numerrors == 0)
+		return (B_FALSE);
+
+	tvds = vdev_root_core_tvds(vd);
+	ASSERT3U(numerrors, <=, tvds);
+
+	if (numerrors == tvds)
+		return (B_TRUE);
+
+	return (numerrors > spa_missing_tvds_allowed(vd->vdev_spa));
 }
 
 static int
 vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
     uint64_t *ashift)
 {
+	spa_t *spa = vd->vdev_spa;
 	int lasterror = 0;
 	int numerrors = 0;
 
@@ -75,6 +103,9 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 			numerrors++;
 		}
 	}
+
+	if (spa_load_state(spa) != SPA_LOAD_NONE)
+		spa_set_missing_tvds(spa, numerrors);
 
 	if (too_many_errors(vd, numerrors)) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
@@ -101,7 +132,7 @@ vdev_root_state_change(vdev_t *vd, int faulted, int degraded)
 	if (too_many_errors(vd, faulted)) {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_NO_REPLICAS);
-	} else if (degraded) {
+	} else if (degraded || faulted) {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_DEGRADED, VDEV_AUX_NONE);
 	} else {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_HEALTHY, VDEV_AUX_NONE);

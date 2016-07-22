@@ -251,9 +251,33 @@ vdev_mirror_map_init(zio_t *zio)
 	if (vd == NULL) {
 		dva_t *dva = zio->io_bp->blk_dva;
 		spa_t *spa = zio->io_spa;
+		dva_t dva_copy[SPA_DVAS_PER_BP];
 
-		mm = vdev_mirror_map_alloc(BP_GET_NDVAS(zio->io_bp), B_FALSE,
-		    B_TRUE);
+		c = BP_GET_NDVAS(zio->io_bp);
+
+		/*
+		 * If we do not trust the pool config, some DVAs might be
+		 * invalid or point to vdevs that do not exist. We skip them.
+		 */
+		if (!spa_trust_config(spa)) {
+			ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
+			int j = 0;
+			for (int i = 0; i < c; i++) {
+				if (zfs_dva_valid(spa, &dva[i], zio->io_bp))
+					dva_copy[j++] = dva[i];
+			}
+			if (j == 0) {
+				zio->io_vsd = NULL;
+				zio->io_error = ENXIO;
+				return (NULL);
+			}
+			if (j < c) {
+				dva = dva_copy;
+				c = j;
+			}
+		}
+
+		mm = vdev_mirror_map_alloc(c, B_FALSE, B_TRUE);
 		for (c = 0; c < mm->mm_children; c++) {
 			mc = &mm->mm_child[c];
 
@@ -305,7 +329,10 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	}
 
 	if (numerrors == vd->vdev_children) {
-		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
+		if (vdev_children_are_offline(vd))
+			vd->vdev_stat.vs_aux = VDEV_AUX_CHILDREN_OFFLINE;
+		else
+			vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
 		return (lasterror);
 	}
 
@@ -485,6 +512,13 @@ vdev_mirror_io_start(zio_t *zio)
 
 	mm = vdev_mirror_map_init(zio);
 
+	if (mm == NULL) {
+		ASSERT(!spa_trust_config(zio->io_spa));
+		ASSERT(zio->io_type == ZIO_TYPE_READ);
+		zio_execute(zio);
+		return;
+	}
+
 	if (zio->io_type == ZIO_TYPE_READ) {
 		if (zio->io_bp != NULL &&
 		    (zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_replacing) {
@@ -557,6 +591,9 @@ vdev_mirror_io_done(zio_t *zio)
 	int c;
 	int good_copies = 0;
 	int unexpected_errors = 0;
+
+	if (mm == NULL)
+		return;
 
 	for (c = 0; c < mm->mm_children; c++) {
 		mc = &mm->mm_child[c];
@@ -677,13 +714,19 @@ vdev_mirror_io_done(zio_t *zio)
 static void
 vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 {
-	if (faulted == vd->vdev_children)
-		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
-		    VDEV_AUX_NO_REPLICAS);
-	else if (degraded + faulted != 0)
+	if (faulted == vd->vdev_children) {
+		if (vdev_children_are_offline(vd)) {
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_OFFLINE,
+			    VDEV_AUX_CHILDREN_OFFLINE);
+		} else {
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_NO_REPLICAS);
+		}
+	} else if (degraded + faulted != 0) {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_DEGRADED, VDEV_AUX_NONE);
-	else
+	} else {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_HEALTHY, VDEV_AUX_NONE);
+	}
 }
 
 vdev_ops_t vdev_mirror_ops = {

@@ -879,6 +879,13 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 	}
 
 	/*
+	 * Do not verify individual DVAs if the config is not trusted. This
+	 * will be done once the zio is executed in vdev_mirror_map_alloc.
+	 */
+	if (!spa->spa_trust_config)
+		return;
+
+	/*
 	 * Pool-specific checks.
 	 *
 	 * Note: it would be nice to verify that the blk_birth and
@@ -926,6 +933,36 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 			    bp, i, (longlong_t)offset);
 		}
 	}
+}
+
+boolean_t
+zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
+{
+	uint64_t vdevid = DVA_GET_VDEV(dva);
+
+	if (vdevid >= spa->spa_root_vdev->vdev_children)
+		return (B_FALSE);
+
+	vdev_t *vd = spa->spa_root_vdev->vdev_child[vdevid];
+	if (vd == NULL)
+		return (B_FALSE);
+
+	if (vd->vdev_ops == &vdev_hole_ops)
+		return (B_FALSE);
+
+	if (vd->vdev_ops == &vdev_missing_ops) {
+		return (B_FALSE);
+	}
+
+	uint64_t offset = DVA_GET_OFFSET(dva);
+	uint64_t asize = DVA_GET_ASIZE(dva);
+
+	if (BP_IS_GANG(bp))
+		asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+	if (offset + asize > vd->vdev_asize)
+		return (B_FALSE);
+
+	return (B_TRUE);
 }
 
 zio_t *
@@ -3473,14 +3510,18 @@ zio_vdev_io_start(zio_t *zio)
 	}
 
 	ASSERT3P(zio->io_logical, !=, zio);
-	if (zio->io_type == ZIO_TYPE_WRITE && zio->io_vd->vdev_removing) {
+	if (zio->io_type == ZIO_TYPE_WRITE) {
+		ASSERT(spa->spa_trust_config);
+
 		/*
 		 * Note: the code can handle other kinds of writes,
 		 * but we don't expect them.
 		 */
-		ASSERT(zio->io_flags &
-		    (ZIO_FLAG_PHYSICAL | ZIO_FLAG_SELF_HEAL |
-		    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE));
+		if (zio->io_vd->vdev_removing) {
+			ASSERT(zio->io_flags &
+			    (ZIO_FLAG_PHYSICAL | ZIO_FLAG_SELF_HEAL |
+			    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE));
+		}
 	}
 
 	align = 1ULL << vd->vdev_top->vdev_ashift;
