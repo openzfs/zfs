@@ -26,6 +26,12 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_remove/zpool_remove.cfg
+
+DISK=${DISKS%% *}
+if is_mpath_device $DISK; then
+        delete_partitions
+fi
 
 cleanup_devices $DISKS
 

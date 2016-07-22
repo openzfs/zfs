@@ -171,6 +171,8 @@ for i in $ZFS_ALL_VERSIONS; do
 	eval 'export ZFS_VERSION_$i="v${i}-fs"'
 done
 
+export MAX_PARTITIONS=8
+
 if is_linux; then
 	unpack_opts="--sparse -xf"
 	pack_opts="--sparse -cf"
@@ -180,8 +182,8 @@ if is_linux; then
 
 	ZVOL_DEVDIR="/dev/zvol"
 	ZVOL_RDEVDIR="/dev/zvol"
-	DEV_DSKDIR="/dev"
 	DEV_RDSKDIR="/dev"
+	DEV_MPATHDIR="/dev/mapper"
 
 	NEWFS_DEFAULT_FS="ext2"
 else
@@ -199,4 +201,4 @@ else
 	NEWFS_DEFAULT_FS="ufs"
 fi
 export unpack_opts pack_opts verbose unpack_preserve pack_preserve \
-       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_DSKDIR DEV_RDSKDIR
+       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_RDSKDIR DEV_MPATHDIR

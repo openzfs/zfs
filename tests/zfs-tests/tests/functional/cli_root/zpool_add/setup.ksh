@@ -38,6 +38,11 @@ if ! $(is_physical_device $DISKS) ; then
 	log_unsupported "This directory cannot be run on raw files."
 fi
 
+disk1=${DISKS%% *}
+if is_mpath_device $disk1; then
+        delete_partitions
+fi
+
 if [[ -n $DISK ]]; then
 	#
         # Use 'zpool create' to clean up the infomation in

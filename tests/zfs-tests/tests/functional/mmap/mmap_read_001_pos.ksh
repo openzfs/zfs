@@ -30,6 +30,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/mmap/mmap.cfg
 
 #
 # DESCRIPTION:
