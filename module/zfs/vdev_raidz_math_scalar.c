@@ -24,7 +24,6 @@
  */
 
 #include <sys/vdev_raidz_impl.h>
-
 /*
  * Provide native CPU scalar routines.
  * Support 32bit and 64bit CPUs.

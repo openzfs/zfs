@@ -33,7 +33,8 @@
 #endif
 
 /* Calculate data offset in raidz column, offset is in bytes */
-#define	COL_OFF(col, off)	((v_t *)(((char *)(col)->rc_data) + (off)))
+/* ADB BRINGUP -- needs to be refactored for ABD */
+#define	COL_OFF(col, off)	((v_t *)(((char *)(col)->rc_abd) + (off)))
 
 /*
  * PARITY CALCULATION
@@ -82,6 +83,8 @@ raidz_generate_p_impl(raidz_map_t * const rm)
 	const int ncols = raidz_ncols(rm);
 	const size_t psize = raidz_big_size(rm);
 	const size_t short_size = raidz_short_size(rm);
+
+	panic("not ABD ready");
 
 	raidz_math_begin();
 
@@ -140,6 +143,8 @@ raidz_generate_pq_impl(raidz_map_t * const rm)
 	const int ncols = raidz_ncols(rm);
 	const size_t psize = raidz_big_size(rm);
 	const size_t short_size = raidz_short_size(rm);
+
+	panic("not ABD ready");
 
 	raidz_math_begin();
 
@@ -207,6 +212,8 @@ raidz_generate_pqr_impl(raidz_map_t * const rm)
 	const int ncols = raidz_ncols(rm);
 	const size_t psize = raidz_big_size(rm);
 	const size_t short_size = raidz_short_size(rm);
+
+	panic("not ABD ready");
 
 	raidz_math_begin();
 
