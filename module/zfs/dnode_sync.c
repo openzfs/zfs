@@ -421,7 +421,7 @@ dnode_evict_dbufs(dnode_t *dn)
 			avl_insert_here(&dn->dn_dbufs, db_marker, db,
 			    AVL_BEFORE);
 
-			dbuf_clear(db);
+			dbuf_destroy(db);
 
 			db_next = AVL_NEXT(&dn->dn_dbufs, db_marker);
 			avl_remove(&dn->dn_dbufs, db_marker);
@@ -445,7 +445,7 @@ dnode_evict_bonus(dnode_t *dn)
 	if (dn->dn_bonus != NULL) {
 		if (refcount_is_zero(&dn->dn_bonus->db_holds)) {
 			mutex_enter(&dn->dn_bonus->db_mtx);
-			dbuf_evict(dn->dn_bonus);
+			dbuf_destroy(dn->dn_bonus);
 			dn->dn_bonus = NULL;
 		} else {
 			dn->dn_bonus->db_pending_evict = TRUE;
