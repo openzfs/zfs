@@ -627,10 +627,11 @@ zfs_owner_overquota(zfs_sb_t *zsb, znode_t *zp, boolean_t isgroup)
 {
 	uint64_t fuid;
 	uint64_t quotaobj;
+	struct inode *ip = ZTOI(zp);
 
 	quotaobj = isgroup ? zsb->z_groupquota_obj : zsb->z_userquota_obj;
 
-	fuid = isgroup ? zp->z_gid : zp->z_uid;
+	fuid = isgroup ? KGID_TO_SGID(ip->i_gid) : KUID_TO_SUID(ip->i_uid);
 
 	if (quotaobj == 0 || zsb->z_replay)
 		return (B_FALSE);
