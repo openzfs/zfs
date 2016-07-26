@@ -294,7 +294,7 @@ int
 fletcher_4_impl_set(const char *val)
 {
 	const fletcher_4_ops_t *ops;
-	enum fletcher_selector idx;
+	enum fletcher_selector idx = FLETCHER_FASTEST;
 	size_t val_len;
 	unsigned i;
 

@@ -1060,7 +1060,7 @@ do_composition(size_t uv, uchar_t *s, uchar_t *comb_class, uchar_t *start,
 	uchar_t *disp, size_t last, uchar_t **os, uchar_t *oslast)
 {
 	uchar_t t[U8_STREAM_SAFE_TEXT_MAX + 1];
-	uchar_t tc[U8_MB_CUR_MAX];
+	uchar_t tc[U8_MB_CUR_MAX] = { '\0' };
 	uint8_t saved_marks[U8_MAX_CHARS_A_SEQ];
 	size_t saved_marks_count;
 	uchar_t *p;
@@ -1396,7 +1396,7 @@ collect_a_seq(size_t uv, uchar_t *u8s, uchar_t **source, uchar_t *slast,
 	uchar_t comb_class[U8_MAX_CHARS_A_SEQ];
 	uchar_t disp[U8_MAX_CHARS_A_SEQ];
 	uchar_t start[U8_MAX_CHARS_A_SEQ];
-	uchar_t u8t[U8_MB_CUR_MAX];
+	uchar_t u8t[U8_MB_CUR_MAX] = { '\0' };
 	uchar_t uts[U8_STREAM_SAFE_TEXT_MAX + 1];
 	uchar_t tc;
 	size_t last;
