@@ -1551,6 +1551,7 @@ check_slices(avl_tree_t *r, int fd, const char *sname)
 	int i;
 
 	(void) strncpy(diskname, sname, MAXNAMELEN);
+	diskname[MAXNAMELEN - 1] = '\0';
 	if ((ptr = strrchr(diskname, 's')) == NULL || !isdigit(ptr[1]))
 		return;
 	ptr[1] = '\0';

@@ -1522,8 +1522,13 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				if (child == NULL)
 					zpool_no_memory();
 				if ((nv = make_leaf_vdev(props, argv[c],
-				    B_FALSE)) == NULL)
+				    B_FALSE)) == NULL) {
+					for (c = 0; c < children - 1; c++)
+						nvlist_free(child[c]);
+					free(child);
 					return (NULL);
+				}
+
 				child[children - 1] = nv;
 			}
 
@@ -1531,6 +1536,9 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				(void) fprintf(stderr, gettext("invalid vdev "
 				    "specification: %s requires at least %d "
 				    "devices\n"), argv[0], mindev);
+				for (c = 0; c < children; c++)
+					nvlist_free(child[c]);
+				free(child);
 				return (NULL);
 			}
 
@@ -1538,6 +1546,9 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				(void) fprintf(stderr, gettext("invalid vdev "
 				    "specification: %s supports no more than "
 				    "%d devices\n"), argv[0], maxdev);
+				for (c = 0; c < children; c++)
+					nvlist_free(child[c]);
+				free(child);
 				return (NULL);
 			}
 

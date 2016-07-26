@@ -1106,7 +1106,7 @@ check_input(struct dk_gpt *vtoc)
 int
 efi_use_whole_disk(int fd)
 {
-	struct dk_gpt		*efi_label;
+	struct dk_gpt		*efi_label = NULL;
 	int			rval;
 	int			i;
 	uint_t			resv_index = 0, data_index = 0;
@@ -1115,6 +1115,8 @@ efi_use_whole_disk(int fd)
 
 	rval = efi_alloc_and_read(fd, &efi_label);
 	if (rval < 0) {
+		if (efi_label != NULL)
+			efi_free(efi_label);
 		return (rval);
 	}
 

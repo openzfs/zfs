@@ -199,6 +199,8 @@ uu_panic(const char *format, ...)
 
 	(void) vfprintf(stderr, format, args);
 
+	va_end(args);
+
 	if (uu_panic_thread == pthread_self())
 		abort();
 	else

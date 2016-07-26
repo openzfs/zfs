@@ -308,7 +308,7 @@ for_each_vdev_cb(zpool_handle_t *zhp, nvlist_t *nv, pool_vdev_iter_f func,
 int
 for_each_vdev(zpool_handle_t *zhp, pool_vdev_iter_f func, void *data)
 {
-	nvlist_t *config, *nvroot;
+	nvlist_t *config, *nvroot = NULL;
 
 	if ((config = zpool_get_config(zhp, NULL)) != NULL) {
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
