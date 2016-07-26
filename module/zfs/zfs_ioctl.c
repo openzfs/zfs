@@ -3340,14 +3340,16 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	/*
 	 * The poolname in the ioctl is not set, we get it from the TSD,
 	 * which was set at the end of the last successful ioctl that allows
-	 * logging.  The secpolicy func already checked that it is set.
-	 * Only one log ioctl is allowed after each successful ioctl, so
-	 * we clear the TSD here.
+	 * logging.  The secpolicy func already checked that it is set but
+	 * that assertion is reverified and handled.  Only one log ioctl is
+	 * allowed after each successful ioctl, so we clear the TSD here.
 	 */
 	poolname = tsd_get(zfs_allow_log_key);
-	(void) tsd_set(zfs_allow_log_key, NULL);
+	if (poolname == NULL)
+		return (SET_ERROR(EINVAL));
+
 	error = spa_open(poolname, &spa, FTAG);
-	strfree(poolname);
+	(void) tsd_set(zfs_allow_log_key, NULL);
 	if (error != 0)
 		return (error);
 
