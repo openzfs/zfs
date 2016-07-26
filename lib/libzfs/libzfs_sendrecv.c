@@ -3710,8 +3710,8 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 	VERIFY(0 == close(cleanup_fd));
 
 	if (err == 0 && !flags->nomount && top_zfs) {
-		zfs_handle_t *zhp;
-		prop_changelist_t *clp;
+		zfs_handle_t *zhp = NULL;
+		prop_changelist_t *clp = NULL;
 
 		zhp = zfs_open(hdl, top_zfs, ZFS_TYPE_FILESYSTEM);
 		if (zhp != NULL) {
