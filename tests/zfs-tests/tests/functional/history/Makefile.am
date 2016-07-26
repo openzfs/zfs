@@ -13,10 +13,7 @@ dist_pkgdata_SCRIPTS = \
 	history_007_pos.ksh \
 	history_008_pos.ksh \
 	history_009_pos.ksh \
-	history_010_pos.ksh
-
-
-EXTRA_DIST = \
+	history_010_pos.ksh \
 	i386.migratedpool.DAT.Z \
 	i386.orig_history.txt \
 	sparc.migratedpool.DAT.Z \

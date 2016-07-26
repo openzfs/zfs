@@ -92,10 +92,21 @@ for i in 0 2; do
 	$ZPOOL history $MPOOL > $TMP_HISTORY 2>/dev/null
 	$DIFF $OLD_HISTORY $TMP_HISTORY | $GREP "^> " | $SED 's/^> //g' > \
 	    $NEW_HISTORY
-	$GREP "$($ECHO "$cmd1" | $SED 's/\/usr\/sbin\///g')" $NEW_HISTORY \
-	    >/dev/null 2>&1 || log_fail "Didn't find \"$cmd1\" in pool history"
-	$GREP "$($ECHO "$cmd2" | $SED 's/\/usr\/sbin\///g')" $NEW_HISTORY \
-	    >/dev/null 2>&1 || log_fail "Didn't find \"$cmd2\" in pool history"
+        if is_linux; then
+		$GREP "$($ECHO "$cmd1" | $SED 's/^.*\/\(zpool .*\).*$/\1/')" \
+		    $NEW_HISTORY >/dev/null 2>&1 || \
+		    log_fail "Didn't find \"$cmd1\" in pool history"
+		$GREP "$($ECHO "$cmd2" | $SED 's/^.*\/\(zpool .*\).*$/\1/')" \
+		    $NEW_HISTORY >/dev/null 2>&1 || \
+		    log_fail "Didn't find \"$cmd2\" in pool history"
+        else
+		$GREP "$($ECHO "$cmd1" | $SED 's/\/usr\/sbin\///g')" \
+		    $NEW_HISTORY >/dev/null 2>&1 || \
+		    log_fail "Didn't find \"$cmd1\" in pool history"
+		$GREP "$($ECHO "$cmd2" | $SED 's/\/usr\/sbin\///g')" \
+		    $NEW_HISTORY >/dev/null 2>&1 || \
+		    log_fail "Didn't find \"$cmd2\" in pool history"
+        fi
 done
 
 run_and_verify -p "$MPOOL" "$ZPOOL split $MPOOL ${MPOOL}_split"

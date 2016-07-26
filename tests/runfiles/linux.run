@@ -428,16 +428,11 @@ tests = ['large_dnode_001_pos', 'large_dnode_002_pos', 'large_dnode_003_pos',
 #pre =
 #post =
 
-# DISABLED:
-# history_001_pos - export commands missing from history
-# history_003_pos - nested pool
-# history_006_neg - needs investigation
-# history_007_pos - needs investigation
-# history_008_pos - needs investigation
-# history_010_pos - needs investigation
 [tests/functional/history]
-tests = ['history_002_pos', 'history_004_pos', 'history_005_neg',
-    'history_009_pos']
+tests = ['history_001_pos', 'history_002_pos', 'history_003_pos',
+    'history_004_pos', 'history_005_neg', 'history_006_neg',
+    'history_007_pos', 'history_008_pos', 'history_009_pos',
+    'history_010_pos']
 
 [tests/functional/inheritance]
 tests = ['inherit_001_pos']
