@@ -32,7 +32,7 @@
 
 #define DEBUG_SUBSYSTEM S_RWLOCK
 
-#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+#if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
 static int
 __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 {
@@ -46,6 +46,15 @@ __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 	}
 	spl_rwsem_unlock_irqrestore(&rwsem->wait_lock, flags);
 	return (ret);
+}
+#elif defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
+static int
+__rwsem_tryupgrade(struct rw_semaphore *rwsem)
+{
+	long val;
+	val = atomic_long_cmpxchg(&rwsem->count, SPL_RWSEM_SINGLE_READER_VALUE,
+	    SPL_RWSEM_SINGLE_WRITER_VALUE);
+	return (val == SPL_RWSEM_SINGLE_READER_VALUE);
 }
 #else
 static int

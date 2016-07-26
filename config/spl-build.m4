@@ -40,6 +40,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_SHRINK_CONTROL_STRUCT
 	SPL_AC_RWSEM_SPINLOCK_IS_RAW
 	SPL_AC_RWSEM_ACTIVITY
+	SPL_AC_RWSEM_ATOMIC_LONG_COUNT
 	SPL_AC_SCHED_RT_HEADER
 	SPL_AC_2ARGS_VFS_GETATTR
 	SPL_AC_USLEEP_RANGE
@@ -1335,6 +1336,31 @@ AC_DEFUN([SPL_AC_RWSEM_ACTIVITY], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_RWSEM_ACTIVITY, 1,
 		[struct rw_semaphore has member activity])
+	],[
+		AC_MSG_RESULT(no)
+	])
+	EXTRA_KCFLAGS="$tmp_flags"
+])
+
+dnl #
+dnl # 4.8 API Change
+dnl #
+dnl # rwsem "->count" changed to atomic_long_t type
+dnl #
+AC_DEFUN([SPL_AC_RWSEM_ATOMIC_LONG_COUNT], [
+	AC_MSG_CHECKING(
+	[whether struct rw_semaphore has atomic_long_t member count])
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/rwsem.h>
+	],[
+		DECLARE_RWSEM(dummy_semaphore);
+		(void) atomic_long_read(&dummy_semaphore.count);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_RWSEM_ATOMIC_LONG_COUNT, 1,
+		[struct rw_semaphore has atomic_long_t member count])
 	],[
 		AC_MSG_RESULT(no)
 	])

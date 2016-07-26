@@ -35,9 +35,12 @@
 #define	SPL_RWSEM_SINGLE_WRITER_VALUE	(RWSEM_ACTIVE_WRITE_BIAS)
 #endif
 
-/* Linux 3.16 change activity to count for rwsem-spinlock */
-#ifdef HAVE_RWSEM_ACTIVITY
+/* Linux 3.16 changed activity to count for rwsem-spinlock */
+#if defined(HAVE_RWSEM_ACTIVITY)
 #define	RWSEM_COUNT(sem)	sem->activity
+/* Linux 4.8 changed count to an atomic_long_t for !rwsem-spinlock */
+#elif defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
+#define	RWSEM_COUNT(sem)	atomic_long_read(&(sem)->count)
 #else
 #define	RWSEM_COUNT(sem)	sem->count
 #endif
