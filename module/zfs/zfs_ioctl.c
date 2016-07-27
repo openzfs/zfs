@@ -3346,7 +3346,7 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	 */
 	poolname = tsd_get(zfs_allow_log_key);
 	if (poolname == NULL)
-	    return (SET_ERROR(SET_ERROR));
+	    return (SET_ERROR(EINVAL));
 	    
 	(void) tsd_set(zfs_allow_log_key, NULL);
 	
