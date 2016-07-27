@@ -322,15 +322,30 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif
 
 /*
- * 2.6.32 API change
- * Use the normal I/O patch for discards.
+ * 2.6.28 - 2.6.35 API,
+ *   BIO_RW_DISCARD
+ *
+ * 2.6.36 - 4.7 API,
+ *   REQ_DISCARD
+ *
+ * 4.8 - 4.x API,
+ *   REQ_OP_DISCARD
+ *
+ * In all cases the normal I/O path is used for discards.  The only
+ * difference is how the kernel tags individual I/Os as discards.
  */
 #ifdef QUEUE_FLAG_DISCARD
-#ifdef HAVE_BIO_RW_DISCARD
-#define	VDEV_REQ_DISCARD		(1 << BIO_RW_DISCARD)
+static inline boolean_t
+bio_is_discard(struct bio *bio)
+{
+#if defined(HAVE_BIO_RW_DISCARD)
+	return (bio->bi_rw & (1 << BIO_RW_DISCARD));
+#elif defined(REQ_DISCARD)
+	return (bio->bi_rw & REQ_DISCARD);
 #else
-#define	VDEV_REQ_DISCARD		REQ_DISCARD
+	return (bio_op(bio) == REQ_OP_DISCARD);
 #endif
+}
 #else
 #error	"Allowing the build will cause discard requests to become writes "
 	"potentially triggering the DMU_MAX_ACCESS assertion. Please file a "
