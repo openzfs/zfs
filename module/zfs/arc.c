@@ -5364,7 +5364,7 @@ arc_tuning_update(void)
 		arc_c_max = zfs_arc_max;
 		arc_c = arc_c_max;
 		arc_p = (arc_c >> 1);
-		arc_meta_limit = MIN(arc_meta_limit, (3 * arc_c_max) / 4);
+		arc_meta_limit = (3 * arc_c_max) / 4;
 		arc_dnode_limit = arc_meta_limit / 10;
 	}
 
