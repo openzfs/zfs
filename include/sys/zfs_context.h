@@ -64,8 +64,9 @@
 #include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/zfs_debug.h>
+#include <sys/sysevent.h>
+#include <sys/sysevent/eventdefs.h>
 #include <sys/zfs_delay.h>
-#include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
 #include <sys/ctype.h>
 #include <sys/disp.h>
@@ -119,7 +120,8 @@
 #include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/u8_textprep.h>
-#include <sys/fm/fs/zfs.h>
+#include <sys/sysevent.h>
+#include <sys/sysevent/eventdefs.h>
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 #include <sys/utsname.h>

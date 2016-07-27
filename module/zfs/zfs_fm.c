@@ -860,7 +860,7 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 }
 
 static void
-zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
+zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name)
 {
 #ifdef _KERNEL
 	nvlist_t *resource;
@@ -872,7 +872,7 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 	if ((resource = fm_nvlist_create(NULL)) == NULL)
 		return;
 
-	(void) snprintf(class, sizeof (class), "%s.%s.%s", FM_RSRC_RESOURCE,
+	(void) snprintf(class, sizeof (class), "%s.%s.%s", type,
 	    ZFS_ERROR_CLASS, name);
 	VERIFY0(nvlist_add_uint8(resource, FM_VERSION, FM_RSRC_VERSION));
 	VERIFY0(nvlist_add_string(resource, FM_CLASS, class));
@@ -886,6 +886,15 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 		    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, vd->vdev_guid));
 		VERIFY0(nvlist_add_uint64(resource,
 		    FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, vd->vdev_state));
+		if (vd->vdev_path != NULL)
+			VERIFY0(nvlist_add_string(resource,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_PATH, vd->vdev_path));
+		if (vd->vdev_devid != NULL)
+			VERIFY0(nvlist_add_string(resource,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_DEVID, vd->vdev_devid));
+		if (vd->vdev_fru != NULL)
+			VERIFY0(nvlist_add_string(resource,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU, vd->vdev_fru));
 	}
 
 	zfs_zevent_post(resource, NULL, zfs_zevent_post_cb);
@@ -901,7 +910,7 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 void
 zfs_post_remove(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_EREPORT_RESOURCE_REMOVED);
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_REMOVED);
 }
 
 /*
@@ -912,7 +921,7 @@ zfs_post_remove(spa_t *spa, vdev_t *vd)
 void
 zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_EREPORT_RESOURCE_AUTOREPLACE);
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_AUTOREPLACE);
 }
 
 /*
@@ -924,7 +933,19 @@ zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
 void
 zfs_post_state_change(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_EREPORT_RESOURCE_STATECHANGE);
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_STATECHANGE);
+}
+
+/*
+ * The 'sysevent.fs.zfs.*' events are signals posted to notify user space of
+ * change in the pool.  All sysevents are listed in sys/sysevent/eventdefs.h
+ * and are designed to be consumed by the ZFS Event Daemon (ZED).  For
+ * additional details refer to the zed(8) man page.
+ */
+void
+zfs_post_sysevent(spa_t *spa, vdev_t *vd, const char *name)
+{
+	zfs_post_common(spa, vd, FM_SYSEVENT_CLASS, name);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
@@ -933,4 +954,5 @@ EXPORT_SYMBOL(zfs_ereport_post_checksum);
 EXPORT_SYMBOL(zfs_post_remove);
 EXPORT_SYMBOL(zfs_post_autoreplace);
 EXPORT_SYMBOL(zfs_post_state_change);
+EXPORT_SYMBOL(zfs_post_sysevent);
 #endif /* _KERNEL */

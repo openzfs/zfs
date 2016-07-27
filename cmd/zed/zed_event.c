@@ -748,9 +748,8 @@ _zed_event_add_env_preserve(uint64_t eid, zed_strings_t *zsp)
 
 /*
  * Compute the "subclass" by removing the first 3 components of [class]
- * (which seem to always be either "ereport.fs.zfs" or "resource.fs.zfs").
- * Return a pointer inside the string [class], or NULL if insufficient
- * components exist.
+ * (which will always be of the form "*.fs.zfs").  Return a pointer inside
+ * the string [class], or NULL if insufficient components exist.
  */
 static const char *
 _zed_event_get_subclass(const char *class)

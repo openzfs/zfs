@@ -329,7 +329,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 	spa_config_generation++;
 
 	if (postsysevent)
-		spa_event_notify(target, NULL, FM_EREPORT_ZFS_CONFIG_SYNC);
+		spa_event_notify(target, NULL, ESC_ZFS_CONFIG_SYNC);
 }
 
 /*
