@@ -305,12 +305,23 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * The existence of these flags implies that REQ_FLUSH an REQ_FUA are
  * defined.  Thus we can safely define VDEV_REQ_FLUSH and VDEV_REQ_FUA
  * compatibility macros.
+ *
+ * Linux 4.8 renamed the REQ_FLUSH to REQ_PREFLUSH but there was no
+ * functional change in behavior.
  */
 #ifdef WRITE_FLUSH_FUA
+
 #define	VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
-#define	VDEV_REQ_FLUSH			REQ_FLUSH
+#ifdef REQ_PREFLUSH
+#define	VDEV_REQ_FLUSH			REQ_PREFLUSH
 #define	VDEV_REQ_FUA			REQ_FUA
 #else
+#define	VDEV_REQ_FLUSH			REQ_FLUSH
+#define	VDEV_REQ_FUA			REQ_FUA
+#endif
+
+#else
+
 #define	VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
 #ifdef HAVE_BIO_RW_BARRIER
 #define	VDEV_REQ_FLUSH			(1 << BIO_RW_BARRIER)
@@ -319,6 +330,7 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #define	VDEV_REQ_FLUSH			REQ_HARDBARRIER
 #define	VDEV_REQ_FUA			REQ_FUA
 #endif
+
 #endif
 
 /*
