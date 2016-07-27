@@ -50,6 +50,7 @@ extern "C" {
 #define	FM_RSRC_CLASS			"resource"
 #define	FM_LIST_EVENT			"list"
 #define	FM_IREPORT_CLASS		"ireport"
+#define	FM_SYSEVENT_CLASS		"sysevent"
 
 /* FM list.* event class values */
 #define	FM_LIST_SUSPECT_CLASS		FM_LIST_EVENT ".suspect"

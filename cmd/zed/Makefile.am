@@ -49,8 +49,8 @@ dist_zedexec_SCRIPTS = \
 	zed.d/generic-notify.sh \
 	zed.d/io-notify.sh \
 	zed.d/io-spare.sh \
-	zed.d/resilver.finish-notify.sh \
-	zed.d/scrub.finish-notify.sh
+	zed.d/resilver_finish-notify.sh \
+	zed.d/scrub_finish-notify.sh
 
 zedconfdefaults = \
 	all-syslog.sh \
@@ -59,8 +59,8 @@ zedconfdefaults = \
 	data-notify.sh \
 	io-notify.sh \
 	io-spare.sh \
-	resilver.finish-notify.sh \
-	scrub.finish-notify.sh
+	resilver_finish-notify.sh \
+	scrub_finish-notify.sh
 
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zedconfdir)"

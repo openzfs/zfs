@@ -1,4 +1,4 @@
-SUBDIRS = dktp sysevent
+SUBDIRS = dktp
 
 libspldir = $(includedir)/libspl/sys
 libspl_HEADERS = \
@@ -37,7 +37,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/stat.h \
 	$(top_srcdir)/lib/libspl/include/sys/stropts.h \
 	$(top_srcdir)/lib/libspl/include/sys/sunddi.h \
-	$(top_srcdir)/lib/libspl/include/sys/sysevent.h \
 	$(top_srcdir)/lib/libspl/include/sys/sysmacros.h \
 	$(top_srcdir)/lib/libspl/include/sys/systeminfo.h \
 	$(top_srcdir)/lib/libspl/include/sys/systm.h \

@@ -1,4 +1,4 @@
-SUBDIRS = fm fs crypto
+SUBDIRS = fm fs crypto sysevent
 
 COMMON_H = \
 	$(top_srcdir)/include/sys/arc.h \
@@ -52,6 +52,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/spa.h \
 	$(top_srcdir)/include/sys/spa_impl.h \
 	$(top_srcdir)/include/sys/spa_checksum.h \
+	$(top_srcdir)/include/sys/sysevent.h \
 	$(top_srcdir)/include/sys/trace.h \
 	$(top_srcdir)/include/sys/trace_acl.h \
 	$(top_srcdir)/include/sys/trace_arc.h \

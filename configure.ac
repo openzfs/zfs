@@ -80,7 +80,6 @@ AC_CONFIG_FILES([
 	lib/libspl/include/ia32/sys/Makefile
 	lib/libspl/include/rpc/Makefile
 	lib/libspl/include/sys/Makefile
-	lib/libspl/include/sys/sysevent/Makefile
 	lib/libspl/include/sys/dktp/Makefile
 	lib/libspl/include/util/Makefile
 	lib/libavl/Makefile
@@ -134,6 +133,7 @@ AC_CONFIG_FILES([
 	include/sys/fm/Makefile
 	include/sys/fm/fs/Makefile
 	include/sys/crypto/Makefile
+	include/sys/sysevent/Makefile
 	scripts/Makefile
 	scripts/zpios-profile/Makefile
 	scripts/zpios-test/Makefile

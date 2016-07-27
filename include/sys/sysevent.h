@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#ifndef _LIBSPL_SYS_SYSEVENT_H
-#define	_LIBSPL_SYS_SYSEVENT_H
+#ifndef _SYS_SYSEVENT_H
+#define	_SYS_SYSEVENT_H
 
 #endif
