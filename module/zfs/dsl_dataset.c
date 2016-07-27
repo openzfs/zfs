@@ -2836,7 +2836,8 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	 * "slack" factor for received datasets with refquota set on them.
 	 * See the bottom of this function for details on its use.
 	 */
-	uint64_t refquota_slack = DMU_MAX_ACCESS * spa_asize_inflation;
+	uint64_t refquota_slack = (uint64_t)DMU_MAX_ACCESS *
+				  spa_asize_inflation;
 	int64_t unused_refres_delta;
 
 	/* they should both be heads */
