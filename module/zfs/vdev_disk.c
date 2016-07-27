@@ -495,17 +495,28 @@ bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 }
 
 static inline void
+vdev_submit_bio_impl(int rw, struct bio *bio)
+{
+#ifdef HAVE_1ARG_SUBMIT_BIO
+	bio->bi_rw |= rw;
+	submit_bio(bio);
+#else
+	submit_bio(rw, bio);
+#endif
+}
+
+static inline void
 vdev_submit_bio(int rw, struct bio *bio)
 {
 #ifdef HAVE_CURRENT_BIO_TAIL
 	struct bio **bio_tail = current->bio_tail;
 	current->bio_tail = NULL;
-	submit_bio(rw, bio);
+	vdev_submit_bio_impl(rw, bio);
 	current->bio_tail = bio_tail;
 #else
 	struct bio_list *bio_list = current->bio_list;
 	current->bio_list = NULL;
-	submit_bio(rw, bio);
+	vdev_submit_bio_impl(rw, bio);
 	current->bio_list = bio_list;
 #endif
 }
