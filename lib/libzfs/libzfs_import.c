@@ -1695,6 +1695,7 @@ zpool_find_import_scan(libzfs_handle_t *hdl, kmutex_t *lock,
 	return (0);
 
 error:
+	cookie = NULL;
 	while ((slice = avl_destroy_nodes(cache, &cookie)) != NULL) {
 		free(slice->rn_name);
 		free(slice);
