@@ -24,6 +24,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_ATOMIC_SPINLOCK
 	SPL_AC_SHRINKER_CALLBACK
 	SPL_AC_CTL_NAME
+	SPL_AC_CONFIG_TRIM_UNUSED_KSYMS
 	SPL_AC_PDE_DATA
 	SPL_AC_SET_FS_PWD_WITH_CONST
 	SPL_AC_2ARGS_VFS_UNLINK
@@ -1245,6 +1246,26 @@ AC_DEFUN([SPL_AC_CONFIG_ZLIB_DEFLATE], [
 		AC_MSG_ERROR([
 	*** This kernel does not include the required zlib deflate support.
 	*** Rebuild the kernel with CONFIG_ZLIB_DEFLATE=y|m set.])
+	])
+])
+
+dnl #
+dnl # config trim unused symbols,
+dnl # Verify the kernel has CONFIG_TRIM_UNUSED_KSYMS DISABLED.
+dnl #
+AC_DEFUN([SPL_AC_CONFIG_TRIM_UNUSED_KSYMS], [
+	AC_MSG_CHECKING([whether CONFIG_TRIM_UNUSED_KSYM is disabled])
+	SPL_LINUX_TRY_COMPILE([
+		#if defined(CONFIG_TRIM_UNUSED_KSYMS)
+		#error CONFIG_TRIM_UNUSED_KSYMS not defined
+		#endif
+	],[ ],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		AC_MSG_ERROR([
+	*** This kernel has unused symbols trimming enabled, please disable.
+	*** Rebuild the kernel with CONFIG_TRIM_UNUSED_KSYMS=n set.])
 	])
 ])
 
