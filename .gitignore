@@ -13,7 +13,7 @@
 #
 # Normal rules
 #
-*.[oa]
+*.[oad]
 *.lo
 *.la
 *~
