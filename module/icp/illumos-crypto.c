@@ -148,5 +148,5 @@ icp_init(void)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_exit(icp_fini);
 module_init(icp_init);
-MODULE_LICENSE("CDDL");
+MODULE_LICENSE(ZFS_META_LICENSE);
 #endif
