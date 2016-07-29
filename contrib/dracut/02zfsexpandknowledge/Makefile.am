@@ -5,7 +5,7 @@ pkgdracut_SCRIPTS = \
 EXTRA_DIST = \
 	$(top_srcdir)/contrib/dracut/02zfsexpandknowledge/module-setup.sh.in
 
-$(pkgdracut_SCRIPTS):
+$(pkgdracut_SCRIPTS):%:%.in
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
 		-e 's,@sbindir\@,$(sbindir),g' \
 		-e 's,@datadir\@,$(datadir),g' \
@@ -13,7 +13,7 @@ $(pkgdracut_SCRIPTS):
 		-e 's,@udevdir\@,$(udevdir),g' \
 		-e 's,@udevruledir\@,$(udevruledir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		"$(top_srcdir)/contrib/dracut/02zfsexpandknowledge/$@.in" >'$@'
+		$< >'$@'
 
 clean-local::
 	-$(RM) $(pkgdracut_SCRIPTS)
