@@ -641,11 +641,14 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 	    &state) == 0 &&
 	    (state == POOL_STATE_SPARE || state == POOL_STATE_L2CACHE) &&
 	    nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, &vdev_guid) == 0) {
-		if ((ne = zfs_alloc(hdl, sizeof (name_entry_t))) == NULL)
+		if ((ne = zfs_alloc(hdl, sizeof (name_entry_t))) == NULL) {
+			nvlist_free(config);
 			return (-1);
+		}
 
 		if ((ne->ne_name = zfs_strdup(hdl, path)) == NULL) {
 			free(ne);
+			nvlist_free(config);
 			return (-1);
 		}
 		ne->ne_guid = vdev_guid;
@@ -653,6 +656,7 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 		ne->ne_num_labels = num_labels;
 		ne->ne_next = pl->names;
 		pl->names = ne;
+		nvlist_free(config);
 		return (0);
 	}
 
