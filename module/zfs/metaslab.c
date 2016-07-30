@@ -2572,7 +2572,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 
-	BP_SET_BIRTH(bp, txg, txg);
+	BP_SET_BIRTH(bp, txg, 0);
 
 	return (0);
 }
