@@ -29,14 +29,17 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
+. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
 
 cleanup_user_group
 
-# restore the state of svc:/network/nis/client:default
-if [[ -e $NISSTAFILE ]]; then
-	log_must $SVCADM enable svc:/network/nis/client:default
-	log_must $RM -f $NISSTAFILE
+if ! is_linux; then
+	# restore the state of svc:/network/nis/client:default
+	if [[ -e $NISSTAFILE ]]; then
+		log_must $SVCADM enable svc:/network/nis/client:default
+		log_must $RM -f $NISSTAFILE
+	fi
 fi
 
 default_cleanup

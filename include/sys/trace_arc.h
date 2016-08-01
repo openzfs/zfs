@@ -34,6 +34,7 @@
 
 #include <linux/tracepoint.h>
 #include <sys/types.h>
+#include <sys/trace_common.h> /* For ZIO macros */
 
 /*
  * Generic support for one argument tracepoints of the form:
@@ -114,86 +115,6 @@ DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__miss);
  *     vdev_t *, ...,
  *     zio_t *, ...);
  */
-
-#define	ZIO_TP_STRUCT_ENTRY						\
-		__field(zio_type_t,		zio_type)		\
-		__field(int,			zio_cmd)		\
-		__field(zio_priority_t,		zio_priority)		\
-		__field(uint64_t,		zio_size)		\
-		__field(uint64_t,		zio_orig_size)		\
-		__field(uint64_t,		zio_offset)		\
-		__field(hrtime_t,		zio_timestamp)		\
-		__field(hrtime_t,		zio_delta)		\
-		__field(uint64_t,		zio_delay)		\
-		__field(enum zio_flag,		zio_flags)		\
-		__field(enum zio_stage,		zio_stage)		\
-		__field(enum zio_stage,		zio_pipeline)		\
-		__field(enum zio_flag,		zio_orig_flags)		\
-		__field(enum zio_stage,		zio_orig_stage)		\
-		__field(enum zio_stage,		zio_orig_pipeline)	\
-		__field(uint8_t,		zio_reexecute)		\
-		__field(uint64_t,		zio_txg)		\
-		__field(int,			zio_error)		\
-		__field(uint64_t,		zio_ena)		\
-									\
-		__field(enum zio_checksum,	zp_checksum)		\
-		__field(enum zio_compress,	zp_compress)		\
-		__field(dmu_object_type_t,	zp_type)		\
-		__field(uint8_t,		zp_level)		\
-		__field(uint8_t,		zp_copies)		\
-		__field(boolean_t,		zp_dedup)		\
-		__field(boolean_t,		zp_dedup_verify)	\
-		__field(boolean_t,		zp_nopwrite)
-
-#define	ZIO_TP_FAST_ASSIGN						    \
-		__entry->zio_type		= zio->io_type;		    \
-		__entry->zio_cmd		= zio->io_cmd;		    \
-		__entry->zio_priority		= zio->io_priority;	    \
-		__entry->zio_size		= zio->io_size;		    \
-		__entry->zio_orig_size		= zio->io_orig_size;	    \
-		__entry->zio_offset		= zio->io_offset;	    \
-		__entry->zio_timestamp		= zio->io_timestamp;	    \
-		__entry->zio_delta		= zio->io_delta;	    \
-		__entry->zio_delay		= zio->io_delay;	    \
-		__entry->zio_flags		= zio->io_flags;	    \
-		__entry->zio_stage		= zio->io_stage;	    \
-		__entry->zio_pipeline		= zio->io_pipeline;	    \
-		__entry->zio_orig_flags		= zio->io_orig_flags;	    \
-		__entry->zio_orig_stage		= zio->io_orig_stage;	    \
-		__entry->zio_orig_pipeline	= zio->io_orig_pipeline;    \
-		__entry->zio_reexecute		= zio->io_reexecute;	    \
-		__entry->zio_txg		= zio->io_txg;		    \
-		__entry->zio_error		= zio->io_error;	    \
-		__entry->zio_ena		= zio->io_ena;		    \
-									    \
-		__entry->zp_checksum		= zio->io_prop.zp_checksum; \
-		__entry->zp_compress		= zio->io_prop.zp_compress; \
-		__entry->zp_type		= zio->io_prop.zp_type;	    \
-		__entry->zp_level		= zio->io_prop.zp_level;    \
-		__entry->zp_copies		= zio->io_prop.zp_copies;   \
-		__entry->zp_dedup		= zio->io_prop.zp_dedup;    \
-		__entry->zp_nopwrite		= zio->io_prop.zp_nopwrite; \
-		__entry->zp_dedup_verify	= zio->io_prop.zp_dedup_verify;
-
-#define	ZIO_TP_PRINTK_FMT						\
-	"zio { type %u cmd %i prio %u size %llu orig_size %llu "	\
-	"offset %llu timestamp %llu delta %llu delay %llu "		\
-	"flags 0x%x stage 0x%x pipeline 0x%x orig_flags 0x%x "		\
-	"orig_stage 0x%x orig_pipeline 0x%x reexecute %u "		\
-	"txg %llu error %d ena %llu prop { checksum %u compress %u "	\
-	"type %u level %u copies %u dedup %u dedup_verify %u nopwrite %u } }"
-
-#define	ZIO_TP_PRINTK_ARGS						\
-	__entry->zio_type, __entry->zio_cmd, __entry->zio_priority,	\
-	__entry->zio_size, __entry->zio_orig_size, __entry->zio_offset,	\
-	__entry->zio_timestamp, __entry->zio_delta, __entry->zio_delay,	\
-	__entry->zio_flags, __entry->zio_stage, __entry->zio_pipeline,	\
-	__entry->zio_orig_flags, __entry->zio_orig_stage,		\
-	__entry->zio_orig_pipeline, __entry->zio_reexecute,		\
-	__entry->zio_txg, __entry->zio_error, __entry->zio_ena,		\
-	__entry->zp_checksum, __entry->zp_compress, __entry->zp_type,	\
-	__entry->zp_level, __entry->zp_copies, __entry->zp_dedup,	\
-	__entry->zp_dedup_verify, __entry->zp_nopwrite
 
 DECLARE_EVENT_CLASS(zfs_l2arc_rw_class,
 	TP_PROTO(vdev_t *vd, zio_t *zio),

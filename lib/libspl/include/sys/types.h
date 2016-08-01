@@ -64,6 +64,7 @@ typedef int		major_t;
 typedef int		minor_t;
 
 typedef ushort_t o_mode_t; /* old file attribute type */
+typedef short		index_t;
 
 /*
  * Definitions remaining from previous partial support for 64-bit file

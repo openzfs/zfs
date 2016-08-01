@@ -63,9 +63,25 @@ function or_die
 	fi
 }
 
+# core file helpers
+origcorepattern="$(cat /proc/sys/kernel/core_pattern)"
+coreglob="$(egrep -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
+
+if [[ $coreglob = "*" ]]; then
+        echo "Setting core file pattern..."
+        echo "core" > /proc/sys/kernel/core_pattern
+        coreglob="$(egrep -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
+fi
+
+function core_file
+{
+        printf "%s" "$(ls -tr1 $coreglob 2> /dev/null | head -1)"
+}
+
 function store_core
 {
-	if [[ $ztrc -ne 0 ]] || [[ -f core ]]; then
+	core="$(core_file)"
+	if [[ $ztrc -ne 0 ]] || [[ -f "$core" ]]; then
 		coreid=$(date "+zloop-%y%m%d-%H%M%S")
 		foundcrashes=$(($foundcrashes + 1))
 
@@ -82,7 +98,7 @@ function store_core
 		or_die mv $workdir/zpool.cache $dest/vdev/
 
 		# check for core
-		if [[ -f core ]]; then
+		if [[ -f "$core" ]]; then
 			corestatus=$($GDB --batch --quiet \
 			    -ex "set print thread-events off" \
 			    -ex "printf \"*\n* Backtrace \n*\n\"" \
@@ -95,14 +111,14 @@ function store_core
 			    -ex "thread apply all bt" \
 			    -ex "printf \"*\n* Backtraces (full) \n*\n\"" \
 			    -ex "thread apply all bt full" \
-			    -ex "quit" $ZTEST core | grep -v "New LWP")
+			    -ex "quit" $ZTEST "$core" | grep -v "New LWP")
 
 			# Dump core + logs to stored directory
 			echo "$corestatus" >>$dest/status
-			or_die mv core $dest/
+			or_die mv "$core" $dest/
 
 			# Record info in cores logfile
-			echo "*** core @ $coredir/$coreid/core:" | \
+			echo "*** core @ $coredir/$coreid/$core:" | \
 			    tee -a ztest.cores
 			echo "$corestatus" | tee -a ztest.cores
 			echo "" | tee -a ztest.cores
@@ -135,8 +151,9 @@ shift $((OPTIND - 1))
 # enable core dumps
 ulimit -c unlimited
 
-if [[ -f core ]]; then
-	echo "There's a core dump here you might want to look at first."
+if [[ -f "$(core_file)" ]]; then
+	echo -n "There's a core dump here you might want to look at first... "
+	echo "$(core_file)"
 	exit 1
 fi
 
@@ -205,6 +222,9 @@ while [[ $timeout -eq 0 ]] || [[ $curtime -le $(($starttime + $timeout)) ]]; do
 done
 
 echo "zloop finished, $foundcrashes crashes found"
+
+#restore core pattern
+echo "$origcorepattern" > /proc/sys/kernel/core_pattern
 
 uptime >>ztest.out
 

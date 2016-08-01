@@ -38,16 +38,15 @@
 #	3. Verify zpool scrub -s succeed when the system is scrubbing.
 #
 # NOTES:
-#	A 1 second delay is added to 10% of zio's in order to ensure that
-#	the scrub does not complete before it has a chance to be cancelled.
+#	A 10ms delay is added to the ZIOs in order to ensure that the
+#	scrub does not complete before it has a chance to be cancelled.
 #	This can occur when testing with small pools or very fast hardware.
 #
 
 verify_runnable "global"
 
 log_assert "Verify scrub -s works correctly."
-
-log_must $ZINJECT -d $DISK1 -f10 -D1 $TESTPOOL
+log_must $ZINJECT -d $DISK1 -D10:1 $TESTPOOL
 log_must $ZPOOL scrub $TESTPOOL
 log_must $ZPOOL scrub -s $TESTPOOL
 log_must is_pool_scrub_stopped $TESTPOOL

@@ -630,8 +630,16 @@ int
 zap_create_claim(objset_t *os, uint64_t obj, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
-	return (zap_create_claim_norm(os, obj,
-	    0, ot, bonustype, bonuslen, tx));
+	return (zap_create_claim_dnsize(os, obj, ot, bonustype, bonuslen,
+	    0, tx));
+}
+
+int
+zap_create_claim_dnsize(objset_t *os, uint64_t obj, dmu_object_type_t ot,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+{
+	return (zap_create_claim_norm_dnsize(os, obj,
+	    0, ot, bonustype, bonuslen, dnodesize, tx));
 }
 
 int
@@ -639,9 +647,19 @@ zap_create_claim_norm(objset_t *os, uint64_t obj, int normflags,
     dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
+	return (zap_create_claim_norm_dnsize(os, obj, normflags, ot, bonustype,
+	    bonuslen, 0, tx));
+}
+
+int
+zap_create_claim_norm_dnsize(objset_t *os, uint64_t obj, int normflags,
+    dmu_object_type_t ot, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dmu_tx_t *tx)
+{
 	int err;
 
-	err = dmu_object_claim(os, obj, ot, 0, bonustype, bonuslen, tx);
+	err = dmu_object_claim_dnsize(os, obj, ot, 0, bonustype, bonuslen,
+	    dnodesize, tx);
 	if (err != 0)
 		return (err);
 	mzap_create_impl(os, obj, normflags, 0, tx);
@@ -656,10 +674,27 @@ zap_create(objset_t *os, dmu_object_type_t ot,
 }
 
 uint64_t
+zap_create_dnsize(objset_t *os, dmu_object_type_t ot,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+{
+	return (zap_create_norm_dnsize(os, 0, ot, bonustype, bonuslen,
+	    dnodesize, tx));
+}
+
+uint64_t
 zap_create_norm(objset_t *os, int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
-	uint64_t obj = dmu_object_alloc(os, ot, 0, bonustype, bonuslen, tx);
+	return (zap_create_norm_dnsize(os, normflags, ot, bonustype, bonuslen,
+	    0, tx));
+}
+
+uint64_t
+zap_create_norm_dnsize(objset_t *os, int normflags, dmu_object_type_t ot,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+{
+	uint64_t obj = dmu_object_alloc_dnsize(os, ot, 0, bonustype, bonuslen,
+	    dnodesize, tx);
 
 	mzap_create_impl(os, obj, normflags, 0, tx);
 	return (obj);
@@ -670,7 +705,17 @@ zap_create_flags(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
-	uint64_t obj = dmu_object_alloc(os, ot, 0, bonustype, bonuslen, tx);
+	return (zap_create_flags_dnsize(os, normflags, flags, ot,
+	    leaf_blockshift, indirect_blockshift, bonustype, bonuslen, 0, tx));
+}
+
+uint64_t
+zap_create_flags_dnsize(objset_t *os, int normflags, zap_flags_t flags,
+    dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+{
+	uint64_t obj = dmu_object_alloc_dnsize(os, ot, 0, bonustype, bonuslen,
+	    dnodesize, tx);
 
 	ASSERT(leaf_blockshift >= SPA_MINBLOCKSHIFT &&
 	    leaf_blockshift <= SPA_OLD_MAXBLOCKSHIFT &&
@@ -1458,10 +1503,14 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(zap_create);
+EXPORT_SYMBOL(zap_create_dnsize);
 EXPORT_SYMBOL(zap_create_norm);
+EXPORT_SYMBOL(zap_create_norm_dnsize);
 EXPORT_SYMBOL(zap_create_flags);
+EXPORT_SYMBOL(zap_create_flags_dnsize);
 EXPORT_SYMBOL(zap_create_claim);
 EXPORT_SYMBOL(zap_create_claim_norm);
+EXPORT_SYMBOL(zap_create_claim_norm_dnsize);
 EXPORT_SYMBOL(zap_destroy);
 EXPORT_SYMBOL(zap_lookup);
 EXPORT_SYMBOL(zap_lookup_norm);

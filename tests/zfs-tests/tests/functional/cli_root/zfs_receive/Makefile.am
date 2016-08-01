@@ -10,4 +10,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_receive_006_pos.ksh \
 	zfs_receive_007_neg.ksh \
 	zfs_receive_008_pos.ksh \
-	zfs_receive_009_neg.ksh
+	zfs_receive_009_neg.ksh \
+	zfs_receive_010_pos.ksh \
+	zfs_receive_011_pos.ksh \
+	zfs_receive_012_pos.ksh

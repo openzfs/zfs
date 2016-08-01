@@ -1876,6 +1876,14 @@ function add_user #<group_name> <user_name> <basedir>
 
 	log_must $USERADD -g $gname -d $basedir/$uname -m $uname
 
+	# Add new users to the same group and the command line utils.
+	# This allows them to be run out of the original users home
+	# directory as long as it permissioned to be group readable.
+	if is_linux; then
+		cmd_group=$(stat --format="%G" $ZFS)
+		log_must $USERMOD -a -G $cmd_group $uname
+	fi
+
 	return 0
 }
 
@@ -1919,15 +1927,11 @@ function add_group #<group_name>
 	# Assign 100 as the base gid, a larger value is selected for
 	# Linux because for many distributions 1000 and under are reserved.
 	if is_linux; then
-		typeset -i gid=1500
-
 		while true; do
-			$GROUPADD -g $gid $group > /dev/null 2>&1
+			$GROUPADD $group > /dev/null 2>&1
 			typeset -i ret=$?
 			case $ret in
 				0) return 0 ;;
-				# The gid is not  unique
-				9) ((gid += 1)) ;;
 				*) return 1 ;;
 			esac
 		done
@@ -2592,6 +2596,7 @@ function user_run
 	typeset user=$1
 	shift
 
+	log_note "user:$user $@"
 	eval \$SU \$user -c \"$@\" > /tmp/out 2>/tmp/err
 	return $?
 }

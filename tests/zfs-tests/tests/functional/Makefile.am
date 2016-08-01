@@ -34,6 +34,7 @@ SUBDIRS = \
 	poolversion \
 	privilege \
 	quota \
+	raidz \
 	redundancy \
 	refquota \
 	refreserv \

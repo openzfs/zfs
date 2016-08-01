@@ -53,6 +53,7 @@
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/trace_acl.h>
+#include <sys/zpl.h>
 #include "fs/fs_subr.h"
 
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE
@@ -1166,7 +1167,8 @@ zfs_acl_chown_setattr(znode_t *zp)
 	error = zfs_acl_node_read(zp, B_TRUE, &aclp, B_FALSE);
 	if (error == 0 && aclp->z_acl_count > 0)
 		zp->z_mode = zfs_mode_compute(zp->z_mode, aclp,
-		    &zp->z_pflags, zp->z_uid, zp->z_gid);
+		    &zp->z_pflags, KUID_TO_SUID(ZTOI(zp)->i_uid),
+		    KGID_TO_SGID(ZTOI(zp)->i_gid));
 
 	/*
 	 * Some ZFS implementations (ZEVO) create neither a ZNODE_ACL
@@ -1324,7 +1326,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	mode = zp->z_mode;
 
 	mode = zfs_mode_compute(mode, aclp, &zp->z_pflags,
-	    zp->z_uid, zp->z_gid);
+	    zfs_uid_read(ZTOI(zp)), zfs_gid_read(ZTOI(zp)));
 
 	zp->z_mode = mode;
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL,
@@ -1394,7 +1396,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 				    otype == DMU_OT_ACL ?
 				    DMU_OT_SYSACL : DMU_OT_NONE,
 				    otype == DMU_OT_ACL ?
-				    DN_MAX_BONUSLEN : 0, tx);
+				    DN_OLD_MAX_BONUSLEN : 0, tx);
 			} else {
 				(void) dmu_object_set_blocksize(zsb->z_os,
 				    aoid, aclp->z_acl_bytes, 0, tx);
@@ -1744,9 +1746,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 	int		error;
 	zfs_sb_t	*zsb = ZTOZSB(dzp);
 	zfs_acl_t	*paclp;
-#ifdef HAVE_KSID
-	gid_t		gid;
-#endif /* HAVE_KSID */
+	gid_t		gid = vap->va_gid;
 	boolean_t	need_chmod = B_TRUE;
 	boolean_t	inherited = B_FALSE;
 
@@ -1780,7 +1780,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 			    (uint64_t)vap->va_gid,
 			    cr, ZFS_GROUP, &acl_ids->z_fuidp);
 			gid = vap->va_gid;
-			if (acl_ids->z_fgid != dzp->z_gid &&
+			if (acl_ids->z_fgid != KGID_TO_SGID(ZTOI(dzp)->i_gid) &&
 			    !groupmember(vap->va_gid, cr) &&
 			    secpolicy_vnode_create_gid(cr) != 0)
 				acl_ids->z_fgid = 0;
@@ -1790,7 +1790,8 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 				char		*domain;
 				uint32_t	rid;
 
-				acl_ids->z_fgid = dzp->z_gid;
+				acl_ids->z_fgid = KGID_TO_SGID(
+				    ZTOI(dzp)->i_gid);
 				gid = zfs_fuid_map_id(zsb, acl_ids->z_fgid,
 				    cr, ZFS_GROUP);
 
@@ -2342,7 +2343,8 @@ zfs_has_access(znode_t *zp, cred_t *cr)
 	if (zfs_zaccess_aces_check(zp, &have, B_TRUE, cr) != 0) {
 		uid_t owner;
 
-		owner = zfs_fuid_map_id(ZTOZSB(zp), zp->z_uid, cr, ZFS_OWNER);
+		owner = zfs_fuid_map_id(ZTOZSB(zp),
+		    KUID_TO_SUID(ZTOI(zp)->i_uid), cr, ZFS_OWNER);
 		return (secpolicy_vnode_any_access(cr, ZTOI(zp), owner) == 0);
 	}
 	return (B_TRUE);
@@ -2420,12 +2422,13 @@ zfs_fastaccesschk_execute(znode_t *zdp, cred_t *cr)
 		return (0);
 	}
 
-	if (FUID_INDEX(zdp->z_uid) != 0 || FUID_INDEX(zdp->z_gid) != 0) {
+	if (KUID_TO_SUID(ZTOI(zdp)->i_uid) != 0 ||
+	    KGID_TO_SGID(ZTOI(zdp)->i_gid) != 0) {
 		mutex_exit(&zdp->z_acl_lock);
 		goto slow;
 	}
 
-	if (uid == zdp->z_uid) {
+	if (uid == KUID_TO_SUID(ZTOI(zdp)->i_uid)) {
 		owner = B_TRUE;
 		if (zdp->z_mode & S_IXUSR) {
 			mutex_exit(&zdp->z_acl_lock);
@@ -2435,7 +2438,7 @@ zfs_fastaccesschk_execute(znode_t *zdp, cred_t *cr)
 			goto slow;
 		}
 	}
-	if (groupmember(zdp->z_gid, cr)) {
+	if (groupmember(KGID_TO_SGID(ZTOI(zdp)->i_gid), cr)) {
 		groupmbr = B_TRUE;
 		if (zdp->z_mode & S_IXGRP) {
 			mutex_exit(&zdp->z_acl_lock);
@@ -2473,52 +2476,32 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 {
 	uint32_t	working_mode;
 	int		error;
-	boolean_t	check_privs;
-	znode_t		*check_zp = zp;
+	int		is_attr;
+	boolean_t 	check_privs;
+	znode_t		*xzp;
+	znode_t 	*check_zp = zp;
 	mode_t		needed_bits;
 	uid_t		owner;
+
+	is_attr = ((zp->z_pflags & ZFS_XATTR) && S_ISDIR(ZTOI(zp)->i_mode));
 
 	/*
 	 * If attribute then validate against base file
 	 */
-	if ((zp->z_pflags & ZFS_XATTR) && S_ISDIR(ZTOI(zp)->i_mode)) {
+	if (is_attr) {
 		uint64_t	parent;
 
-		rw_enter(&zp->z_xattr_lock, RW_READER);
-		if (zp->z_xattr_parent) {
-			check_zp = zp->z_xattr_parent;
-			rw_exit(&zp->z_xattr_lock);
+		if ((error = sa_lookup(zp->z_sa_hdl,
+		    SA_ZPL_PARENT(ZTOZSB(zp)), &parent,
+		    sizeof (parent))) != 0)
+			return (error);
 
-			/*
-			 * Verify a lookup yields the same znode.
-			 */
-			ASSERT3S(sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(
-			    ZTOZSB(zp)), &parent, sizeof (parent)), ==, 0);
-			ASSERT3U(check_zp->z_id, ==, parent);
-		} else {
-			rw_exit(&zp->z_xattr_lock);
-
-			error = sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(
-			    ZTOZSB(zp)), &parent, sizeof (parent));
-			if (error)
-				return (error);
-
-			/*
-			 * Cache the lookup on the parent file znode as
-			 * zp->z_xattr_parent and hold a reference.  This
-			 * effectively pins the parent in memory until all
-			 * child xattr znodes have been destroyed and
-			 * release their references in zfs_inode_destroy().
-			 */
-			error = zfs_zget(ZTOZSB(zp), parent, &check_zp);
-			if (error)
-				return (error);
-
-			rw_enter(&zp->z_xattr_lock, RW_WRITER);
-			if (zp->z_xattr_parent == NULL)
-				zp->z_xattr_parent = check_zp;
-			rw_exit(&zp->z_xattr_lock);
+		if ((error = zfs_zget(ZTOZSB(zp),
+		    parent, &xzp)) != 0)	{
+			return (error);
 		}
+
+		check_zp = xzp;
 
 		/*
 		 * fixup mode to map to xattr perms
@@ -2535,7 +2518,8 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 		}
 	}
 
-	owner = zfs_fuid_map_id(ZTOZSB(zp), zp->z_uid, cr, ZFS_OWNER);
+	owner = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOI(zp)->i_uid),
+	    cr, ZFS_OWNER);
 	/*
 	 * Map the bits required to the standard inode flags
 	 * S_IRUSR|S_IWUSR|S_IXUSR in the needed_bits.  Map the bits
@@ -2561,11 +2545,15 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 
 	if ((error = zfs_zaccess_common(check_zp, mode, &working_mode,
 	    &check_privs, skipaclchk, cr)) == 0) {
+		if (is_attr)
+			iput(ZTOI(xzp));
 		return (secpolicy_vnode_access2(cr, ZTOI(zp), owner,
 		    needed_bits, needed_bits));
 	}
 
 	if (error && !check_privs) {
+		if (is_attr)
+			iput(ZTOI(xzp));
 		return (error);
 	}
 
@@ -2626,6 +2614,9 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 		    needed_bits, needed_bits);
 	}
 
+	if (is_attr)
+		iput(ZTOI(xzp));
+
 	return (error);
 }
 
@@ -2657,7 +2648,8 @@ zfs_delete_final_check(znode_t *zp, znode_t *dzp,
 	int error;
 	uid_t downer;
 
-	downer = zfs_fuid_map_id(ZTOZSB(dzp), dzp->z_uid, cr, ZFS_OWNER);
+	downer = zfs_fuid_map_id(ZTOZSB(dzp), KUID_TO_SUID(ZTOI(dzp)->i_uid),
+	    cr, ZFS_OWNER);
 
 	error = secpolicy_vnode_access2(cr, ZTOI(dzp),
 	    downer, available_perms, S_IWUSR|S_IXUSR);

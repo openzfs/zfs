@@ -38,10 +38,7 @@ verify_disk_count "$DISKS" 2
 default_mirror_setup_noexit $DISK1 $DISK2
 
 mntpnt=$(get_prop mountpoint $TESTPOOL)
-typeset -i i=0
-while ((i < 10)); do
-	log_must $DD if=/dev/urandom of=$mntpnt/bigfile.$i bs=1024k count=100
-	((i += 1))
-done
 
+# Create 100MB of data
+log_must $FILE_WRITE -b 1048576 -c 100 -o create -d 0 -f $mntpnt/bigfile
 log_pass

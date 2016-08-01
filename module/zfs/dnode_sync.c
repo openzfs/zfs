@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -60,20 +60,14 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	dprintf("os=%p obj=%llu, increase to %d\n", dn->dn_objset,
 	    dn->dn_object, dn->dn_phys->dn_nlevels);
 
-	/* check for existing blkptrs in the dnode */
-	for (i = 0; i < nblkptr; i++)
-		if (!BP_IS_HOLE(&dn->dn_phys->dn_blkptr[i]))
-			break;
-	if (i != nblkptr) {
-		/* transfer dnode's block pointers to new indirect block */
-		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
-		ASSERT(db->db.db_data);
-		ASSERT(arc_released(db->db_buf));
-		ASSERT3U(sizeof (blkptr_t) * nblkptr, <=, db->db.db_size);
-		bcopy(dn->dn_phys->dn_blkptr, db->db.db_data,
-		    sizeof (blkptr_t) * nblkptr);
-		arc_buf_freeze(db->db_buf);
-	}
+	/* transfer dnode's block pointers to new indirect block */
+	(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
+	ASSERT(db->db.db_data);
+	ASSERT(arc_released(db->db_buf));
+	ASSERT3U(sizeof (blkptr_t) * nblkptr, <=, db->db.db_size);
+	bcopy(dn->dn_phys->dn_blkptr, db->db.db_data,
+	    sizeof (blkptr_t) * nblkptr);
+	arc_buf_freeze(db->db_buf);
 
 	/* set dbuf's parent pointers to new indirect buf */
 	for (i = 0; i < nblkptr; i++) {
@@ -530,7 +524,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dn->dn_free_txg > 0);
 	if (dn->dn_allocated_txg != dn->dn_free_txg)
 		dmu_buf_will_dirty(&dn->dn_dbuf->db, tx);
-	bzero(dn->dn_phys, sizeof (dnode_phys_t));
+	bzero(dn->dn_phys, sizeof (dnode_phys_t) * dn->dn_num_slots);
 
 	mutex_enter(&dn->dn_mtx);
 	dn->dn_type = DMU_OT_NONE;
@@ -565,7 +559,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dnp->dn_type != DMU_OT_NONE || dn->dn_allocated_txg);
 	ASSERT(dnp->dn_type != DMU_OT_NONE ||
-	    bcmp(dnp, &zerodn, DNODE_SIZE) == 0);
+	    bcmp(dnp, &zerodn, DNODE_MIN_SIZE) == 0);
 	DNODE_VERIFY(dn);
 
 	ASSERT(dn->dn_dbuf == NULL || arc_released(dn->dn_dbuf->db_buf));
@@ -597,6 +591,9 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dnp->dn_bonustype = dn->dn_bonustype;
 		dnp->dn_bonuslen = dn->dn_bonuslen;
 	}
+
+	dnp->dn_extra_slots = dn->dn_num_slots - 1;
+
 	ASSERT(dnp->dn_nlevels > 1 ||
 	    BP_IS_HOLE(&dnp->dn_blkptr[0]) ||
 	    BP_IS_EMBEDDED(&dnp->dn_blkptr[0]) ||
@@ -629,7 +626,8 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			dnp->dn_bonuslen = 0;
 		else
 			dnp->dn_bonuslen = dn->dn_next_bonuslen[txgoff];
-		ASSERT(dnp->dn_bonuslen <= DN_MAX_BONUSLEN);
+		ASSERT(dnp->dn_bonuslen <=
+		    DN_SLOTS_TO_BONUSLEN(dnp->dn_extra_slots + 1));
 		dn->dn_next_bonuslen[txgoff] = 0;
 	}
 
@@ -668,7 +666,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	mutex_exit(&dn->dn_mtx);
 
 	if (kill_spill) {
-		free_blocks(dn, &dn->dn_phys->dn_spill, 1, tx);
+		free_blocks(dn, DN_SPILL_BLKPTR(dn->dn_phys), 1, tx);
 		mutex_enter(&dn->dn_mtx);
 		dnp->dn_flags &= ~DNODE_FLAG_SPILL_BLKPTR;
 		mutex_exit(&dn->dn_mtx);
@@ -688,8 +686,17 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	if (freeing_dnode) {
+		dn->dn_objset->os_freed_dnodes++;
 		dnode_sync_free(dn, tx);
 		return;
+	}
+
+	if (dn->dn_num_slots > DNODE_MIN_SLOTS) {
+		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+		mutex_enter(&ds->ds_lock);
+		ds->ds_feature_activation_needed[SPA_FEATURE_LARGE_DNODE] =
+		    B_TRUE;
+		mutex_exit(&ds->ds_lock);
 	}
 
 	if (dn->dn_next_nlevels[txgoff]) {

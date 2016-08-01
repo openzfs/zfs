@@ -40,8 +40,8 @@
 #	4. Check the percent again, verify a new scrub started.
 #
 # NOTES:
-#	A 1 second delay is added to 10% of zio's in order to ensure that
-#	the scrub does not complete before it has a chance to be restarted.
+#	A 10ms delay is added to the ZIOs in order to ensure that the
+#	scrub does not complete before it has a chance to be restarted.
 #	This can occur when testing with small pools or very fast hardware.
 #
 
@@ -61,7 +61,7 @@ function get_scrub_percent
 log_assert "scrub command terminates the existing scrub process and starts" \
 	"a new scrub."
 
-log_must $ZINJECT -d $DISK1 -f10 -D1 $TESTPOOL
+log_must $ZINJECT -d $DISK1 -D10:1 $TESTPOOL
 log_must $ZPOOL scrub $TESTPOOL
 typeset -i PERCENT=30 percent=0
 while ((percent < PERCENT)) ; do

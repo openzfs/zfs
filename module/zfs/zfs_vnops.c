@@ -602,6 +602,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	int		count = 0;
 	sa_bulk_attr_t	bulk[4];
 	uint64_t	mtime[2], ctime[2];
+	uint32_t	uid;
 	ASSERTV(int	iovcnt = uio->uio_iovcnt);
 
 	/*
@@ -862,11 +863,12 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * user 0 is not an ephemeral uid.
 		 */
 		mutex_enter(&zp->z_acl_lock);
+		uid = KUID_TO_SUID(ip->i_uid);
 		if ((zp->z_mode & (S_IXUSR | (S_IXUSR >> 3) |
 		    (S_IXUSR >> 6))) != 0 &&
 		    (zp->z_mode & (S_ISUID | S_ISGID)) != 0 &&
 		    secpolicy_vnode_setid_retain(cr,
-		    (zp->z_mode & S_ISUID) != 0 && zp->z_uid == 0) != 0) {
+		    ((zp->z_mode & S_ISUID) != 0 && uid == 0)) != 0) {
 			uint64_t newmode;
 			zp->z_mode &= ~(S_ISUID | S_ISGID);
 			newmode = zp->z_mode;
@@ -1524,6 +1526,7 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 	uint64_t	acl_obj, xattr_obj;
 	uint64_t	xattr_obj_unlinked = 0;
 	uint64_t	obj = 0;
+	uint64_t	links;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
 	boolean_t	may_delete_now, delete_now = FALSE;
@@ -1672,12 +1675,13 @@ top:
 
 	if (delete_now) {
 		if (xattr_obj_unlinked) {
-			ASSERT3U(xzp->z_links, ==, 2);
+			ASSERT3U(ZTOI(xzp)->i_nlink, ==, 2);
 			mutex_enter(&xzp->z_lock);
 			xzp->z_unlinked = 1;
-			xzp->z_links = 0;
+			clear_nlink(ZTOI(xzp));
+			links = 0;
 			error = sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zsb),
-			    &xzp->z_links, sizeof (xzp->z_links), tx);
+			    &links, sizeof (links), tx);
 			ASSERT3U(error,  ==,  0);
 			mutex_exit(&xzp->z_lock);
 			zfs_unlinked_add(xzp, tx);
@@ -2297,9 +2301,9 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	vap->va_fsid = ZTOI(zp)->i_sb->s_dev;
 	vap->va_nodeid = zp->z_id;
 	if ((zp->z_id == zsb->z_root) && zfs_show_ctldir(zp))
-		links = zp->z_links + 1;
+		links = ZTOI(zp)->i_nlink + 1;
 	else
-		links = zp->z_links;
+		links = ZTOI(zp)->i_nlink;
 	vap->va_nlink = MIN(links, ZFS_LINK_MAX);
 	vap->va_size = i_size_read(ip);
 	vap->va_rdev = ip->i_rdev;
@@ -2842,7 +2846,7 @@ top:
 		if (mask & ATTR_UID) {
 			new_uid = zfs_fuid_create(zsb,
 			    (uint64_t)vap->va_uid, cr, ZFS_OWNER, &fuidp);
-			if (new_uid != zp->z_uid &&
+			if (new_uid != KUID_TO_SUID(ZTOI(zp)->i_uid) &&
 			    zfs_fuid_overquota(zsb, B_FALSE, new_uid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
@@ -2854,7 +2858,7 @@ top:
 		if (mask & ATTR_GID) {
 			new_gid = zfs_fuid_create(zsb, (uint64_t)vap->va_gid,
 			    cr, ZFS_GROUP, &fuidp);
-			if (new_gid != zp->z_gid &&
+			if (new_gid != KGID_TO_SGID(ZTOI(zp)->i_gid) &&
 			    zfs_fuid_overquota(zsb, B_TRUE, new_gid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
@@ -2948,24 +2952,24 @@ top:
 		if (mask & ATTR_UID) {
 			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
 			    &new_uid, sizeof (new_uid));
-			zp->z_uid = new_uid;
+			ZTOI(zp)->i_uid = SUID_TO_KUID(new_uid);
 			if (attrzp) {
 				SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 				    SA_ZPL_UID(zsb), NULL, &new_uid,
 				    sizeof (new_uid));
-				attrzp->z_uid = new_uid;
+				ZTOI(attrzp)->i_uid = SUID_TO_KUID(new_uid);
 			}
 		}
 
 		if (mask & ATTR_GID) {
 			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb),
 			    NULL, &new_gid, sizeof (new_gid));
-			zp->z_gid = new_gid;
+			ZTOI(zp)->i_gid = SGID_TO_KGID(new_gid);
 			if (attrzp) {
 				SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 				    SA_ZPL_GID(zsb), NULL, &new_gid,
 				    sizeof (new_gid));
-				attrzp->z_gid = new_gid;
+				ZTOI(attrzp)->i_gid = SGID_TO_KGID(new_gid);
 			}
 		}
 		if (!(mask & ATTR_MODE)) {
@@ -3845,7 +3849,7 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 		return (SET_ERROR(EINVAL));
 	}
 
-	owner = zfs_fuid_map_id(zsb, szp->z_uid, cr, ZFS_OWNER);
+	owner = zfs_fuid_map_id(zsb, KUID_TO_SUID(sip->i_uid), cr, ZFS_OWNER);
 	if (owner != crgetuid(cr) && secpolicy_basic_link(cr) != 0) {
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EPERM));
@@ -4271,10 +4275,10 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	 * Iterate over list of pages and read each page individually.
 	 */
 	page_idx = 0;
-	cur_pp   = pl[0];
 	for (total = io_off + io_len; io_off < total; io_off += PAGESIZE) {
 		caddr_t va;
 
+		cur_pp = pl[page_idx++];
 		va = kmap(cur_pp);
 		err = dmu_read(os, zp->z_id, io_off, PAGESIZE, va,
 		    DMU_READ_PREFETCH);
@@ -4285,7 +4289,6 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 				err = SET_ERROR(EIO);
 			return (err);
 		}
-		cur_pp = pl[++page_idx];
 	}
 
 	return (0);

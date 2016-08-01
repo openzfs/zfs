@@ -486,28 +486,19 @@ static int
 check_device(const char *path, boolean_t force,
     boolean_t isspare, boolean_t iswholedisk)
 {
-	static blkid_cache cache = NULL;
+	blkid_cache cache;
+	int error;
 
-	/*
-	 * There is no easy way to add a correct blkid_put_cache() call,
-	 * memory will be reclaimed when the command exits.
-	 */
-	if (cache == NULL) {
-		int err;
-
-		if ((err = blkid_get_cache(&cache, NULL)) != 0) {
-			check_error(err);
-			return (-1);
-		}
-
-		if ((err = blkid_probe_all(cache)) != 0) {
-			blkid_put_cache(cache);
-			check_error(err);
-			return (-1);
-		}
+	error = blkid_get_cache(&cache, NULL);
+	if (error != 0) {
+		check_error(error);
+		return (-1);
 	}
 
-	return (check_disk(path, cache, force, isspare, iswholedisk));
+	error = check_disk(path, cache, force, isspare, iswholedisk);
+	blkid_put_cache(cache);
+
+	return (error);
 }
 
 /*
@@ -1522,8 +1513,13 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				if (child == NULL)
 					zpool_no_memory();
 				if ((nv = make_leaf_vdev(props, argv[c],
-				    B_FALSE)) == NULL)
+				    B_FALSE)) == NULL) {
+					for (c = 0; c < children - 1; c++)
+						nvlist_free(child[c]);
+					free(child);
 					return (NULL);
+				}
+
 				child[children - 1] = nv;
 			}
 
@@ -1531,6 +1527,9 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				(void) fprintf(stderr, gettext("invalid vdev "
 				    "specification: %s requires at least %d "
 				    "devices\n"), argv[0], mindev);
+				for (c = 0; c < children; c++)
+					nvlist_free(child[c]);
+				free(child);
 				return (NULL);
 			}
 
@@ -1538,6 +1537,9 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				(void) fprintf(stderr, gettext("invalid vdev "
 				    "specification: %s supports no more than "
 				    "%d devices\n"), argv[0], maxdev);
+				for (c = 0; c < children; c++)
+					nvlist_free(child[c]);
+				free(child);
 				return (NULL);
 			}
 

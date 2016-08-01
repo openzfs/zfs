@@ -36,6 +36,7 @@
 #include <sys/zil.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
+#include <sys/vdev_raidz.h>
 #include <sys/metaslab.h>
 #include <sys/uberblock_impl.h>
 #include <sys/txg.h>
@@ -1831,6 +1832,7 @@ spa_init(int mode)
 	dmu_init();
 	zil_init();
 	vdev_cache_stat_init();
+	vdev_raidz_math_init();
 	zfs_prop_init();
 	zpool_prop_init();
 	zpool_feature_init();
@@ -1846,6 +1848,7 @@ spa_fini(void)
 	spa_evict_all();
 
 	vdev_cache_stat_fini();
+	vdev_raidz_math_fini();
 	zil_fini();
 	dmu_fini();
 	zio_fini();
@@ -1997,6 +2000,15 @@ spa_maxblocksize(spa_t *spa)
 		return (SPA_OLD_MAXBLOCKSIZE);
 }
 
+int
+spa_maxdnodesize(spa_t *spa)
+{
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_DNODE))
+		return (DNODE_MAX_SIZE);
+	else
+		return (DNODE_MIN_SIZE);
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* Namespace manipulation */
 EXPORT_SYMBOL(spa_lookup);
@@ -2053,6 +2065,7 @@ EXPORT_SYMBOL(spa_bootfs);
 EXPORT_SYMBOL(spa_delegation);
 EXPORT_SYMBOL(spa_meta_objset);
 EXPORT_SYMBOL(spa_maxblocksize);
+EXPORT_SYMBOL(spa_maxdnodesize);
 
 /* Miscellaneous support routines */
 EXPORT_SYMBOL(spa_rename);

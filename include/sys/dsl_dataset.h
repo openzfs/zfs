@@ -92,6 +92,25 @@ struct dsl_pool;
 #define	DS_FIELD_LARGE_BLOCKS "org.open-zfs:large_blocks"
 
 /*
+ * This field is present (with value=0) if this dataset may contain large
+ * dnodes (>512B).  If it is present, then this dataset is counted in the
+ * refcount of the SPA_FEATURE_LARGE_DNODE feature.
+ */
+#define	DS_FIELD_LARGE_DNODE "org.zfsonlinux:large_dnode"
+
+/*
+ * These fields are set on datasets that are in the middle of a resumable
+ * receive, and allow the sender to resume the send if it is interrupted.
+ */
+#define	DS_FIELD_RESUME_FROMGUID "com.delphix:resume_fromguid"
+#define	DS_FIELD_RESUME_TONAME "com.delphix:resume_toname"
+#define	DS_FIELD_RESUME_TOGUID "com.delphix:resume_toguid"
+#define	DS_FIELD_RESUME_OBJECT "com.delphix:resume_object"
+#define	DS_FIELD_RESUME_OFFSET "com.delphix:resume_offset"
+#define	DS_FIELD_RESUME_BYTES "com.delphix:resume_bytes"
+#define	DS_FIELD_RESUME_EMBEDOK "com.delphix:resume_embedok"
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */
@@ -184,6 +203,14 @@ typedef struct dsl_dataset {
 	kmutex_t ds_sendstream_lock;
 	list_t ds_sendstreams;
 
+	/*
+	 * When in the middle of a resumable receive, tracks how much
+	 * progress we have made.
+	 */
+	uint64_t ds_resume_object[TXG_SIZE];
+	uint64_t ds_resume_offset[TXG_SIZE];
+	uint64_t ds_resume_bytes[TXG_SIZE];
+
 	/* Protected by our dsl_dir's dd_lock */
 	list_t ds_prop_cbs;
 
@@ -200,7 +227,7 @@ typedef struct dsl_dataset {
 	uint8_t ds_feature_activation_needed[SPA_FEATURES];
 
 	/* Protected by ds_lock; keep at end of struct for better locality */
-	char ds_snapname[MAXNAMELEN];
+	char ds_snapname[ZFS_MAX_DATASET_NAME_LEN];
 } dsl_dataset_t;
 
 static inline dsl_dataset_phys_t *
@@ -235,6 +262,8 @@ int dsl_dataset_own_obj(struct dsl_pool *dp, uint64_t dsobj,
 void dsl_dataset_disown(dsl_dataset_t *ds, void *tag);
 void dsl_dataset_name(dsl_dataset_t *ds, char *name);
 boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, void *tag);
+int dsl_dataset_namelen(dsl_dataset_t *ds);
+boolean_t dsl_dataset_has_owner(dsl_dataset_t *ds);
 uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     dsl_dataset_t *origin, uint64_t flags, cred_t *, dmu_tx_t *);
 uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
@@ -315,6 +344,8 @@ int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
 void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
     zprop_source_t source, uint64_t value, dmu_tx_t *tx);
 void dsl_dataset_zapify(dsl_dataset_t *ds, dmu_tx_t *tx);
+boolean_t dsl_dataset_is_zapified(dsl_dataset_t *ds);
+boolean_t dsl_dataset_has_resume_receive_state(dsl_dataset_t *ds);
 int dsl_dataset_rollback(const char *fsname, void *owner, nvlist_t *result);
 
 void dsl_dataset_deactivate_feature(uint64_t dsobj,
@@ -323,10 +354,10 @@ void dsl_dataset_deactivate_feature(uint64_t dsobj,
 #ifdef ZFS_DEBUG
 #define	dprintf_ds(ds, fmt, ...) do { \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) { \
-	char *__ds_name = kmem_alloc(MAXNAMELEN, KM_SLEEP); \
+	char *__ds_name = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP); \
 	dsl_dataset_name(ds, __ds_name); \
 	dprintf("ds=%s " fmt, __ds_name, __VA_ARGS__); \
-	kmem_free(__ds_name, MAXNAMELEN); \
+	kmem_free(__ds_name, ZFS_MAX_DATASET_NAME_LEN); \
 	} \
 _NOTE(CONSTCOND) } while (0)
 #else

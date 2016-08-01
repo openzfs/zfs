@@ -302,9 +302,51 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	    vsx->vsx_queue_histo[ZIO_PRIORITY_SCRUB],
 	    ARRAY_SIZE(vsx->vsx_queue_histo[ZIO_PRIORITY_SCRUB]));
 
+	/* Request sizes */
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_SYNC_IND_R_HISTO,
+	    vsx->vsx_ind_histo[ZIO_PRIORITY_SYNC_READ],
+	    ARRAY_SIZE(vsx->vsx_ind_histo[ZIO_PRIORITY_SYNC_READ]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_SYNC_IND_W_HISTO,
+	    vsx->vsx_ind_histo[ZIO_PRIORITY_SYNC_WRITE],
+	    ARRAY_SIZE(vsx->vsx_ind_histo[ZIO_PRIORITY_SYNC_WRITE]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_ASYNC_IND_R_HISTO,
+	    vsx->vsx_ind_histo[ZIO_PRIORITY_ASYNC_READ],
+	    ARRAY_SIZE(vsx->vsx_ind_histo[ZIO_PRIORITY_ASYNC_READ]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_ASYNC_IND_W_HISTO,
+	    vsx->vsx_ind_histo[ZIO_PRIORITY_ASYNC_WRITE],
+	    ARRAY_SIZE(vsx->vsx_ind_histo[ZIO_PRIORITY_ASYNC_WRITE]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_IND_SCRUB_HISTO,
+	    vsx->vsx_ind_histo[ZIO_PRIORITY_SCRUB],
+	    ARRAY_SIZE(vsx->vsx_ind_histo[ZIO_PRIORITY_SCRUB]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_SYNC_AGG_R_HISTO,
+	    vsx->vsx_agg_histo[ZIO_PRIORITY_SYNC_READ],
+	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_SYNC_READ]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_SYNC_AGG_W_HISTO,
+	    vsx->vsx_agg_histo[ZIO_PRIORITY_SYNC_WRITE],
+	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_SYNC_WRITE]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_ASYNC_AGG_R_HISTO,
+	    vsx->vsx_agg_histo[ZIO_PRIORITY_ASYNC_READ],
+	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_ASYNC_READ]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_ASYNC_AGG_W_HISTO,
+	    vsx->vsx_agg_histo[ZIO_PRIORITY_ASYNC_WRITE],
+	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_ASYNC_WRITE]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_AGG_SCRUB_HISTO,
+	    vsx->vsx_agg_histo[ZIO_PRIORITY_SCRUB],
+	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_SCRUB]));
+
 	/* Add extended stats nvlist to main nvlist */
 	fnvlist_add_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX, nvx);
 
+	fnvlist_free(nvx);
 	kmem_free(vsx, sizeof (*vsx));
 }
 

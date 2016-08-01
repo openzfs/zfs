@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -134,7 +134,9 @@ typedef enum arc_space_type {
 	ARC_SPACE_META,
 	ARC_SPACE_HDRS,
 	ARC_SPACE_L2HDRS,
-	ARC_SPACE_OTHER,
+	ARC_SPACE_DBUF,
+	ARC_SPACE_DNODE,
+	ARC_SPACE_BONUS,
 	ARC_SPACE_NUMTYPES
 } arc_space_type_t;
 
@@ -193,9 +195,11 @@ int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     arc_flags_t *arc_flags, const zbookmark_phys_t *zb);
 zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
     blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, boolean_t l2arc_compress,
-    const zio_prop_t *zp, arc_done_func_t *ready, arc_done_func_t *physdone,
-    arc_done_func_t *done, void *private, zio_priority_t priority,
-    int zio_flags, const zbookmark_phys_t *zb);
+    const zio_prop_t *zp,
+    arc_done_func_t *ready, arc_done_func_t *child_ready,
+    arc_done_func_t *physdone, arc_done_func_t *done,
+    void *private, zio_priority_t priority, int zio_flags,
+    const zbookmark_phys_t *zb);
 
 arc_prune_t *arc_add_prune_callback(arc_prune_func_t *func, void *private);
 void arc_remove_prune_callback(arc_prune_t *p);

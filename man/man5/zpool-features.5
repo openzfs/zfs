@@ -432,5 +432,30 @@ set larger than 128KB, and will return to being \fBenabled\fR once all
 filesystems that have ever had their recordsize larger than 128KB are destroyed.
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBlarge_dnode\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:large_dnode
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+The \fBlarge_dnode\fR feature allows the size of dnodes in a dataset to be
+set larger than 512B.
+
+This feature becomes \fBactive\fR once a dataset contains an object with
+a dnode larger than 512B, which occurs as a result of setting the
+\fBdnodesize\fR dataset property to a value other than \fBlegacy\fR. The
+feature will return to being \fBenabled\fR once all filesystems that
+have ever contained a dnode larger than 512B are destroyed. Large dnodes
+allow more data to be stored in the bonus buffer, thus potentially
+improving performance by avoiding the use of spill blocks.
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)

@@ -43,7 +43,6 @@
 #include <fcntl.h>
 #include <sys/mntent.h>
 #include <sys/mount.h>
-#include <priv.h>
 #include <pwd.h>
 #include <grp.h>
 #include <stddef.h>
@@ -552,7 +551,7 @@ zfs_bookmark_exists(const char *path)
 {
 	nvlist_t *bmarks;
 	nvlist_t *props;
-	char fsname[ZFS_MAXNAMELEN];
+	char fsname[ZFS_MAX_DATASET_NAME_LEN];
 	char *bmark_name;
 	char *pound;
 	int err;
@@ -1474,6 +1473,7 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 
 	case ERANGE:
 		if (prop == ZFS_PROP_COMPRESSION ||
+		    prop == ZFS_PROP_DNODESIZE ||
 		    prop == ZFS_PROP_RECORDSIZE) {
 			(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "property setting is not allowed on "
@@ -1865,22 +1865,21 @@ getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 	return (value);
 }
 
-static char *
+static const char *
 getprop_string(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 {
 	nvlist_t *nv;
-	char *value;
+	const char *value;
 
 	*source = NULL;
 	if (nvlist_lookup_nvlist(zhp->zfs_props,
 	    zfs_prop_to_name(prop), &nv) == 0) {
-		verify(nvlist_lookup_string(nv, ZPROP_VALUE, &value) == 0);
+		value = fnvlist_lookup_string(nv, ZPROP_VALUE);
 		(void) nvlist_lookup_string(nv, ZPROP_SOURCE, source);
 	} else {
 		verify(!zhp->zfs_props_table ||
 		    zhp->zfs_props_table[prop] == B_TRUE);
-		if ((value = (char *)zfs_prop_default_string(prop)) == NULL)
-			value = "";
+		value = zfs_prop_default_string(prop);
 		*source = "";
 	}
 
@@ -2202,7 +2201,7 @@ struct get_clones_arg {
 	uint64_t numclones;
 	nvlist_t *value;
 	const char *origin;
-	char buf[ZFS_MAXNAMELEN];
+	char buf[ZFS_MAX_DATASET_NAME_LEN];
 };
 
 int
@@ -2257,7 +2256,7 @@ zfs_get_clones_nvl(zfs_handle_t *zhp)
 
 		if (gca.numclones != 0) {
 			zfs_handle_t *root;
-			char pool[ZFS_MAXNAMELEN];
+			char pool[ZFS_MAX_DATASET_NAME_LEN];
 			char *cp = pool;
 
 			/* get the pool name */
@@ -2301,7 +2300,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 {
 	char *source = NULL;
 	uint64_t val;
-	char *str;
+	const char *str;
 	const char *strval;
 	boolean_t received = zfs_is_recvd_props_mode(zhp);
 
@@ -2407,14 +2406,10 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		break;
 
 	case ZFS_PROP_ORIGIN:
-		(void) strlcpy(propbuf, getprop_string(zhp, prop, &source),
-		    proplen);
-		/*
-		 * If there is no parent at all, return failure to indicate that
-		 * it doesn't apply to this dataset.
-		 */
-		if (propbuf[0] == '\0')
+		str = getprop_string(zhp, prop, &source);
+		if (str == NULL)
 			return (-1);
+		(void) strlcpy(propbuf, str, proplen);
 		break;
 
 	case ZFS_PROP_CLONES:
@@ -2596,8 +2591,10 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			break;
 
 		case PROP_TYPE_STRING:
-			(void) strlcpy(propbuf,
-			    getprop_string(zhp, prop, &source), proplen);
+			str = getprop_string(zhp, prop, &source);
+			if (str == NULL)
+				return (-1);
+			(void) strlcpy(propbuf, str, proplen);
 			break;
 
 		case PROP_TYPE_INDEX:
@@ -3004,7 +3001,7 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
     boolean_t accept_ancestor, int *prefixlen)
 {
 	zfs_cmd_t zc = {"\0"};
-	char parent[ZFS_MAXNAMELEN];
+	char parent[ZFS_MAX_DATASET_NAME_LEN];
 	char *slash;
 	zfs_handle_t *zhp;
 	char errbuf[1024];
@@ -3243,7 +3240,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 		ost = DMU_OST_ZFS;
 
 	/* open zpool handle for prop validation */
-	char pool_path[MAXNAMELEN];
+	char pool_path[ZFS_MAX_DATASET_NAME_LEN];
 	(void) strlcpy(pool_path, path, sizeof (pool_path));
 
 	/* truncate pool_path at first slash */
@@ -3312,7 +3309,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 
 	/* check for failure */
 	if (ret != 0) {
-		char parent[ZFS_MAXNAMELEN];
+		char parent[ZFS_MAX_DATASET_NAME_LEN];
 		(void) parent_name(path, parent, sizeof (parent));
 
 		switch (errno) {
@@ -3402,7 +3399,7 @@ static int
 zfs_check_snap_cb(zfs_handle_t *zhp, void *arg)
 {
 	struct destroydata *dd = arg;
-	char name[ZFS_MAXNAMELEN];
+	char name[ZFS_MAX_DATASET_NAME_LEN];
 	int rv = 0;
 
 	(void) snprintf(name, sizeof (name),
@@ -3493,7 +3490,7 @@ zfs_destroy_snaps_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, boolean_t defer)
 int
 zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 {
-	char parent[ZFS_MAXNAMELEN];
+	char parent[ZFS_MAX_DATASET_NAME_LEN];
 	int ret;
 	char errbuf[1024];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
@@ -3623,7 +3620,7 @@ static int
 zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 {
 	snapdata_t *sd = arg;
-	char name[ZFS_MAXNAMELEN];
+	char name[ZFS_MAX_DATASET_NAME_LEN];
 	int rv = 0;
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) == 0) {
@@ -3672,7 +3669,7 @@ zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, nvlist_t *props)
 	 * get pool handle for prop validation. assumes all snaps are in the
 	 * same pool, as does lzc_snapshot (below).
 	 */
-	char pool[MAXNAMELEN];
+	char pool[ZFS_MAX_DATASET_NAME_LEN];
 	elem = nvlist_next_nvpair(snaps, NULL);
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/@")] = '\0';
@@ -3726,7 +3723,7 @@ zfs_snapshot(libzfs_handle_t *hdl, const char *path, boolean_t recursive,
 {
 	int ret;
 	snapdata_t sd = { 0 };
-	char fsname[ZFS_MAXNAMELEN];
+	char fsname[ZFS_MAX_DATASET_NAME_LEN];
 	char *cp;
 	zfs_handle_t *zhp;
 	char errbuf[1024];
@@ -3905,7 +3902,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 	prop_changelist_t *cl = NULL;
 	zfs_handle_t *zhrp = NULL;
 	char *parentname = NULL;
-	char parent[ZFS_MAXNAMELEN];
+	char parent[ZFS_MAX_DATASET_NAME_LEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char errbuf[1024];
 
@@ -4325,7 +4322,7 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 
 		zc.zc_nvlist_dst_size = sizeof (buf);
 		if (zfs_ioctl(hdl, ZFS_IOC_USERSPACE_MANY, &zc) != 0) {
-			char errbuf[ZFS_MAXNAMELEN + 32];
+			char errbuf[1024];
 
 			(void) snprintf(errbuf, sizeof (errbuf),
 			    dgettext(TEXT_DOMAIN,
@@ -4359,7 +4356,7 @@ static int
 zfs_hold_one(zfs_handle_t *zhp, void *arg)
 {
 	struct holdarg *ha = arg;
-	char name[ZFS_MAXNAMELEN];
+	char name[ZFS_MAX_DATASET_NAME_LEN];
 	int rv = 0;
 
 	(void) snprintf(name, sizeof (name),
@@ -4478,7 +4475,7 @@ static int
 zfs_release_one(zfs_handle_t *zhp, void *arg)
 {
 	struct holdarg *ha = arg;
-	char name[ZFS_MAXNAMELEN];
+	char name[ZFS_MAX_DATASET_NAME_LEN];
 	int rv = 0;
 	nvlist_t *existing_holds;
 
@@ -4607,7 +4604,7 @@ tryagain:
 	zc.zc_nvlist_dst_size = nvsz;
 	zc.zc_nvlist_dst = (uintptr_t)nvbuf;
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, ZFS_MAXNAMELEN);
+	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
 	if (ioctl(hdl->libzfs_fd, ZFS_IOC_GET_FSACL, &zc) != 0) {
 		(void) snprintf(errbuf, sizeof (errbuf),

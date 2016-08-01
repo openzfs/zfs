@@ -67,9 +67,13 @@ typedef enum dmu_objset_type {
 #define	ZFS_TYPE_DATASET	\
 	(ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME | ZFS_TYPE_SNAPSHOT)
 
+/*
+ * All of these include the terminating NUL byte.
+ */
 #define	ZAP_MAXNAMELEN 256
 #define	ZAP_MAXVALUELEN (1024 * 8)
 #define	ZAP_OLDMAXVALUELEN 1024
+#define	ZFS_MAX_DATASET_NAME_LEN 256
 
 /*
  * Dataset properties are identified by these constants and must be added to
@@ -137,6 +141,7 @@ typedef enum {
 	ZFS_PROP_DEDUP,
 	ZFS_PROP_MLSLABEL,
 	ZFS_PROP_SYNC,
+	ZFS_PROP_DNODESIZE,
 	ZFS_PROP_REFRATIO,
 	ZFS_PROP_WRITTEN,
 	ZFS_PROP_CLONES,
@@ -157,6 +162,7 @@ typedef enum {
 	ZFS_PROP_REDUNDANT_METADATA,
 	ZFS_PROP_OVERLAY,
 	ZFS_PROP_PREV_SNAP,
+	ZFS_PROP_RECEIVE_RESUME_TOKEN,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -204,6 +210,7 @@ typedef enum {
 	ZPOOL_PROP_LEAKED,
 	ZPOOL_PROP_MAXBLOCKSIZE,
 	ZPOOL_PROP_TNAME,
+	ZPOOL_PROP_MAXDNODESIZE,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -229,6 +236,7 @@ typedef enum {
 
 #define	ZPROP_SOURCE_VAL_RECVD	"$recvd"
 #define	ZPROP_N_MORE_ERRORS	"N_MORE_ERRORS"
+
 /*
  * Dataset flag implemented as a special entry in the props zap object
  * indicating that the dataset has received properties on or after
@@ -360,6 +368,16 @@ typedef enum {
 	ZFS_XATTR_DIR = 1,
 	ZFS_XATTR_SA = 2
 } zfs_xattr_type_t;
+
+typedef enum {
+	ZFS_DNSIZE_LEGACY = 0,
+	ZFS_DNSIZE_AUTO = 1,
+	ZFS_DNSIZE_1K = 1024,
+	ZFS_DNSIZE_2K = 2048,
+	ZFS_DNSIZE_4K = 4096,
+	ZFS_DNSIZE_8K = 8192,
+	ZFS_DNSIZE_16K = 16384
+} zfs_dnsize_type_t;
 
 typedef enum {
 	ZFS_REDUNDANT_METADATA_ALL,
@@ -558,7 +576,17 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_W_LAT_HISTO	"vdev_async_w_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_SCRUB_LAT_HISTO	"vdev_scrub_histo"
 
-
+/* Request size histograms */
+#define	ZPOOL_CONFIG_VDEV_SYNC_IND_R_HISTO	"vdev_sync_ind_r_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_IND_W_HISTO	"vdev_sync_ind_w_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_IND_R_HISTO	"vdev_async_ind_r_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_IND_W_HISTO	"vdev_async_ind_w_histo"
+#define	ZPOOL_CONFIG_VDEV_IND_SCRUB_HISTO	"vdev_ind_scrub_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_AGG_R_HISTO	"vdev_sync_agg_r_histo"
+#define	ZPOOL_CONFIG_VDEV_SYNC_AGG_W_HISTO	"vdev_sync_agg_w_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_AGG_R_HISTO	"vdev_async_agg_r_histo"
+#define	ZPOOL_CONFIG_VDEV_ASYNC_AGG_W_HISTO	"vdev_async_agg_w_histo"
+#define	ZPOOL_CONFIG_VDEV_AGG_SCRUB_HISTO	"vdev_agg_scrub_histo"
 
 #define	ZPOOL_CONFIG_WHOLE_DISK		"whole_disk"
 #define	ZPOOL_CONFIG_ERRCOUNT		"error_count"
@@ -824,20 +852,33 @@ typedef struct vdev_stat_ex {
 	 * 2^37 nanoseconds = 134s. Timeouts will probably start kicking in
 	 * before this.
 	 */
-#define	VDEV_HISTO_BUCKETS 37
+#define	VDEV_L_HISTO_BUCKETS 37		/* Latency histo buckets */
+#define	VDEV_RQ_HISTO_BUCKETS 25	/* Request size histo buckets */
+
 
 	/* Amount of time in ZIO queue (ns) */
 	uint64_t vsx_queue_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
-	    [VDEV_HISTO_BUCKETS];
+	    [VDEV_L_HISTO_BUCKETS];
 
 	/* Total ZIO latency (ns).  Includes queuing and disk access time */
-	uint64_t vsx_total_histo[ZIO_TYPES][VDEV_HISTO_BUCKETS];
+	uint64_t vsx_total_histo[ZIO_TYPES][VDEV_L_HISTO_BUCKETS];
 
 	/* Amount of time to read/write the disk (ns) */
-	uint64_t vsx_disk_histo[ZIO_TYPES][VDEV_HISTO_BUCKETS];
+	uint64_t vsx_disk_histo[ZIO_TYPES][VDEV_L_HISTO_BUCKETS];
 
-	/* "lookup the bucket for a value" macro */
-#define	HISTO(a) (a != 0 ? MIN(highbit64(a) - 1, VDEV_HISTO_BUCKETS - 1) : 0)
+	/* "lookup the bucket for a value" histogram macros */
+#define	HISTO(val, buckets) (val != 0 ? MIN(highbit64(val) - 1, \
+	    buckets - 1) : 0)
+#define	L_HISTO(a) HISTO(a, VDEV_L_HISTO_BUCKETS)
+#define	RQ_HISTO(a) HISTO(a, VDEV_RQ_HISTO_BUCKETS)
+
+	/* Physical IO histogram */
+	uint64_t vsx_ind_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
+	    [VDEV_RQ_HISTO_BUCKETS];
+
+	/* Delegated (aggregated) physical IO histogram */
+	uint64_t vsx_agg_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
+	    [VDEV_RQ_HISTO_BUCKETS];
 
 } vdev_stat_ex_t;
 
@@ -887,7 +928,7 @@ typedef struct ddt_histogram {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Illumos - 70/128 numbers reserved.
+	 * Illumos - 71/128 numbers reserved.
 	 */
 	ZFS_IOC_FIRST =	('Z' << 8),
 	ZFS_IOC = ZFS_IOC_FIRST,
@@ -961,6 +1002,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_BOOKMARK,
 	ZFS_IOC_GET_BOOKMARKS,
 	ZFS_IOC_DESTROY_BOOKMARKS,
+	ZFS_IOC_RECV_NEW,
 
 	/*
 	 * Linux - 3/64 numbers reserved.
@@ -981,7 +1023,7 @@ typedef enum zfs_ioc {
 /*
  * zvol ioctl to get dataset name
  */
-#define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAXNAMELEN])
+#define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAX_DATASET_NAME_LEN])
 
 /*
  * Internal SPA load state.  Used by FMA diagnosis engine.

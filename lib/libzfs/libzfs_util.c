@@ -390,7 +390,7 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ENOSPC:
 	case EDQUOT:
 		zfs_verror(hdl, EZFS_NOSPC, fmt, ap);
-		return (-1);
+		break;
 
 	case EEXIST:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

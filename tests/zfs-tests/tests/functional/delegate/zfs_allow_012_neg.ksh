@@ -55,11 +55,19 @@ log_assert "Verify privileged user can not use permissions properly when " \
 log_onexit cleanup
 
 
+if is_linux; then
 set -A perms	create snapshot mount send allow quota reservation \
 		recordsize mountpoint checksum compression canmount atime \
 		devices exec volsize setuid readonly snapdir userprop \
-		aclmode aclinherit rollback clone rename promote \
+		rollback clone rename promote dnodesize \
+		zoned xattr receive destroy
+else
+set -A perms	create snapshot mount send allow quota reservation \
+		recordsize mountpoint checksum compression canmount atime \
+		devices exec volsize setuid readonly snapdir userprop \
+		aclmode aclinherit rollback clone rename promote dnodesize \
 		zoned xattr receive destroy sharenfs share
+fi
 
 log_must $ZPOOL set delegation=off $TESTPOOL
 

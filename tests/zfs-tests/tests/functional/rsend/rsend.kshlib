@@ -74,9 +74,11 @@ function setup_test_model
 	if is_global_zone ; then
 		log_must $ZFS create -V 16M $pool/vol
 		log_must $ZFS create -V 16M $pool/$FS/vol
+		block_device_wait
 
 		log_must $ZFS snapshot $pool/$FS/vol@vsnap
 		log_must $ZFS clone $pool/$FS/vol@vsnap $pool/$FS/vclone
+		block_device_wait
 	fi
 
 	log_must snapshot_tree $pool/$FS/fs1/fs2@fsnap
@@ -199,10 +201,10 @@ function cmp_ds_prop
 	typeset dtst1=$1
 	typeset dtst2=$2
 
-	for item in "type" "origin" "volblocksize" "aclinherit" "aclmode" \
+	for item in "type" "origin" "volblocksize" "aclinherit" "acltype" \
 	    "atime" "canmount" "checksum" "compression" "copies" "devices" \
-	    "exec" "quota" "readonly" "recordsize" "reservation" "setuid" \
-	    "sharenfs" "snapdir" "version" "volsize" "xattr" "zoned" \
+	    "dnodesize" "exec" "quota" "readonly" "recordsize" "reservation" \
+	    "setuid" "snapdir" "version" "volsize" "xattr" "zoned" \
 	    "mountpoint";
 	do
 		$ZFS get -H -o property,value,source $item $dtst1 >> \
@@ -393,7 +395,7 @@ function mk_files
 	for ((i=0; i<$nfiles; i=i+1)); do
 		$DD if=/dev/urandom \
 		    of=/$fs/file-$maxsize-$((i+$file_id_offset)) \
-		    bs=$(($RANDOM * $RANDOM % $maxsize)) \
+		    bs=$((($RANDOM * $RANDOM % ($maxsize - 1)) + 1)) \
 		    count=1 >/dev/null 2>&1 || log_fail \
 		    "Failed to create /$fs/file-$maxsize-$((i+$file_id_offset))"
 	done
@@ -438,7 +440,7 @@ function mess_file
 		# write the same value that's already there.
 		#
 		log_must eval "$DD if=/dev/urandom of=$file conv=notrunc " \
-		    "bs=1 count=2 oseek=$offset >/dev/null 2>&1"
+		    "bs=1 count=2 seek=$offset >/dev/null 2>&1"
 	else
 		log_must $TRUNCATE -s $offset $file
 	fi
@@ -523,20 +525,20 @@ function test_fs_setup
 		mk_files 100 1048576 0 $sendfs &
 		mk_files 10 10485760 0 $sendfs &
 		mk_files 1 104857600 0 $sendfs &
-		log_must $WAIT
+		wait
 		log_must $ZFS snapshot $sendfs@a
 
 		rm_files 200 256 0 $sendfs &
 		rm_files 200 131072 0 $sendfs &
 		rm_files 20 1048576 0 $sendfs &
 		rm_files 2 10485760 0 $sendfs &
-		log_must $WAIT
+		wait
 
 		mk_files 400 256 0 $sendfs &
 		mk_files 400 131072 0 $sendfs &
 		mk_files 40 1048576 0 $sendfs &
 		mk_files 4 10485760 0 $sendfs &
-		log_must $WAIT
+		wait
 
 		log_must $ZFS snapshot $sendfs@b
 		log_must eval "$ZFS send -v $sendfs@a >/$sendpool/initial.zsend"

@@ -230,7 +230,7 @@ static boolean_t
 zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
     zprop_source_t *source)
 {
-	char sourceloc[ZFS_MAXNAMELEN];
+	char sourceloc[MAXNAMELEN];
 	zprop_source_t sourcetype;
 
 	if (!zfs_prop_valid_for_type(ZFS_PROP_MOUNTPOINT, zhp->zfs_type,
@@ -1047,6 +1047,17 @@ mount_cb(zfs_handle_t *zhp, void *data)
 	}
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_NOAUTO) {
+		zfs_close(zhp);
+		return (0);
+	}
+
+	/*
+	 * If this filesystem is inconsistent and has a receive resume
+	 * token, we can not mount it.
+	 */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) &&
+	    zfs_prop_get(zhp, ZFS_PROP_RECEIVE_RESUME_TOKEN,
+	    NULL, 0, NULL, NULL, 0, B_TRUE) == 0) {
 		zfs_close(zhp);
 		return (0);
 	}

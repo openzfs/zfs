@@ -60,6 +60,13 @@ set -A badopts "everyone -e" "everyone -u $STAFF1" "everyone everyone" \
 
 log_must setup_unallow_testenv
 
+#
+# The GNU getopt(3) implementation will reorder these arguments such the
+# the parser can handle them and the test doesn't fail.  POSIXLY_CORRECT
+# is set to disable the reordering so the original test cases will fail.
+#
+export POSIXLY_CORRECT=1
+
 for dtst in $DATASETS ; do
 	log_must $ZFS allow -c create $dtst
 
@@ -71,5 +78,7 @@ for dtst in $DATASETS ; do
 
 	# Causes test failure: neg_test user_run $STAFF1 $ZFS unallow $dtst
 done
+
+unset POSIXLY_CORRECT
 
 log_pass "zfs unallow can handle invalid arguments passed."

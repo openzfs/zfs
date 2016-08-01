@@ -20,8 +20,9 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
@@ -179,7 +180,7 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 int
 dmu_bonus_max(void)
 {
-	return (DN_MAX_BONUSLEN);
+	return (DN_OLD_MAX_BONUSLEN);
 }
 
 int
@@ -1480,10 +1481,11 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	dsa->dsa_zgd = zgd;
 	dsa->dsa_tx = tx;
 
-	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx), zgd->zgd_bp,
-	    zgd->zgd_db->db_data, zgd->zgd_db->db_size, zp,
-	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done, dsa,
-	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL|ZIO_FLAG_FASTWRITE, zb));
+	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx),
+	    zgd->zgd_bp, zgd->zgd_db->db_data, zgd->zgd_db->db_size,
+	    zp, dmu_sync_late_arrival_ready, NULL,
+	    NULL, dmu_sync_late_arrival_done, dsa, ZIO_PRIORITY_SYNC_WRITE,
+	    ZIO_FLAG_CANFAIL, zb));
 
 	return (0);
 }
@@ -1636,8 +1638,8 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	zio_nowait(arc_write(pio, os->os_spa, txg,
 	    bp, dr->dt.dl.dr_data, DBUF_IS_L2CACHEABLE(db),
 	    DBUF_IS_L2COMPRESSIBLE(db), &zp, dmu_sync_ready,
-	    NULL, dmu_sync_done, dsa, ZIO_PRIORITY_SYNC_WRITE,
-	    ZIO_FLAG_CANFAIL, &zb));
+	    NULL, NULL, dmu_sync_done, dsa,
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, &zb));
 
 	return (0);
 }
@@ -1851,6 +1853,7 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_type = dn->dn_type;
 	doi->doi_bonus_type = dn->dn_bonustype;
 	doi->doi_bonus_size = dn->dn_bonuslen;
+	doi->doi_dnodesize = dn->dn_num_slots << DNODE_SHIFT;
 	doi->doi_indirection = dn->dn_nlevels;
 	doi->doi_checksum = dn->dn_checksum;
 	doi->doi_compress = dn->dn_compress;
@@ -1922,9 +1925,21 @@ dmu_object_size_from_db(dmu_buf_t *db_fake, uint32_t *blksize,
 	dn = DB_DNODE(db);
 
 	*blksize = dn->dn_datablksz;
-	/* add 1 for dnode space */
+	/* add in number of slots used for the dnode itself */
 	*nblk512 = ((DN_USED_BYTES(dn->dn_phys) + SPA_MINBLOCKSIZE/2) >>
-	    SPA_MINBLOCKSHIFT) + 1;
+	    SPA_MINBLOCKSHIFT) + dn->dn_num_slots;
+	DB_DNODE_EXIT(db);
+}
+
+void
+dmu_object_dnsize_from_db(dmu_buf_t *db_fake, int *dnsize)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
+
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	*dnsize = dn->dn_num_slots << DNODE_SHIFT;
 	DB_DNODE_EXIT(db);
 }
 
@@ -2018,6 +2033,7 @@ EXPORT_SYMBOL(dmu_object_info);
 EXPORT_SYMBOL(dmu_object_info_from_dnode);
 EXPORT_SYMBOL(dmu_object_info_from_db);
 EXPORT_SYMBOL(dmu_object_size_from_db);
+EXPORT_SYMBOL(dmu_object_dnsize_from_db);
 EXPORT_SYMBOL(dmu_object_set_blocksize);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);

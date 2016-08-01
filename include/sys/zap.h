@@ -129,16 +129,30 @@ typedef enum zap_flags {
  *     MT_FIRST/MT_BEST matching will find entries that match without
  *     regard to case (eg. looking for "foo" can find an entry "Foo").
  * Eventually, other flags will permit unicode normalization as well.
+ *
+ * dnodesize specifies the on-disk size of the dnode for the new zapobj.
+ * Valid values are multiples of 512 up to DNODE_MAX_SIZE.
  */
 uint64_t zap_create(objset_t *ds, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+uint64_t zap_create_dnsize(objset_t *ds, dmu_object_type_t ot,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx);
 uint64_t zap_create_norm(objset_t *ds, int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+uint64_t zap_create_norm_dnsize(objset_t *ds, int normflags,
+    dmu_object_type_t ot, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dmu_tx_t *tx);
 uint64_t zap_create_flags(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+uint64_t zap_create_flags_dnsize(objset_t *os, int normflags,
+    zap_flags_t flags, dmu_object_type_t ot, int leaf_blockshift,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dmu_tx_t *tx);
 uint64_t zap_create_link(objset_t *os, dmu_object_type_t ot,
     uint64_t parent_obj, const char *name, dmu_tx_t *tx);
+uint64_t zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot,
+    uint64_t parent_obj, const char *name, int dnodesize, dmu_tx_t *tx);
 
 /*
  * Initialize an already-allocated object.
@@ -152,9 +166,14 @@ void mzap_create_impl(objset_t *os, uint64_t obj, int normflags,
  */
 int zap_create_claim(objset_t *ds, uint64_t obj, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+int zap_create_claim_dnsize(objset_t *ds, uint64_t obj, dmu_object_type_t ot,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx);
 int zap_create_claim_norm(objset_t *ds, uint64_t obj,
     int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+int zap_create_claim_norm_dnsize(objset_t *ds, uint64_t obj,
+    int normflags, dmu_object_type_t ot,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx);
 
 /*
  * The zapobj passed in must be a valid ZAP object for all of the
@@ -344,7 +363,7 @@ typedef struct {
 	boolean_t za_normalization_conflict;
 	uint64_t za_num_integers;
 	uint64_t za_first_integer;	/* no sign extension for <8byte ints */
-	char za_name[MAXNAMELEN];
+	char za_name[ZAP_MAXNAMELEN];
 } zap_attribute_t;
 
 /*
