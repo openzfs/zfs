@@ -1537,6 +1537,7 @@ AC_DEFUN([SPL_AC_MUTEX_OWNER], [
 	EXTRA_KCFLAGS="-Werror"
 	SPL_LINUX_TRY_COMPILE([
 		#include <linux/mutex.h>
+		#include <linux/spinlock.h>
 	],[
 		DEFINE_MUTEX(m);
 		struct task_struct *t __attribute__ ((unused));
