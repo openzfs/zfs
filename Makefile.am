@@ -55,6 +55,13 @@ shellcheck:
 		 done; \
 	 fi
 
+lint: cppcheck
+
+cppcheck:
+	@if type cppcheck > /dev/null 2>&1; then \
+		cppcheck --quiet --force ${top_srcdir}; \
+	fi
+
 ctags:
 	$(RM) tags
 	find $(top_srcdir) -name .git -prune -o -name '*.[hc]' | xargs ctags
