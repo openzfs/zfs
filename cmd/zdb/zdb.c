@@ -67,12 +67,21 @@
 	zio_compress_table[(idx)].ci_name : "UNKNOWN")
 #define	ZDB_CHECKSUM_NAME(idx) ((idx) < ZIO_CHECKSUM_FUNCTIONS ?	\
 	zio_checksum_table[(idx)].ci_name : "UNKNOWN")
-#define	ZDB_OT_NAME(idx) ((idx) < DMU_OT_NUMTYPES ?	\
-	dmu_ot[(idx)].ot_name : DMU_OT_IS_VALID(idx) ?	\
-	dmu_ot_byteswap[DMU_OT_BYTESWAP(idx)].ob_name : "UNKNOWN")
 #define	ZDB_OT_TYPE(idx) ((idx) < DMU_OT_NUMTYPES ? (idx) :		\
 	(((idx) == DMU_OTN_ZAP_DATA || (idx) == DMU_OTN_ZAP_METADATA) ?	\
 	DMU_OT_ZAP_OTHER : DMU_OT_NUMTYPES))
+
+static char *
+zdb_ot_name(dmu_object_type_t type)
+{
+	if (type < DMU_OT_NUMTYPES)
+		return (dmu_ot[type].ot_name);
+	else if ((type & DMU_OT_NEWTYPE) &&
+		((type & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS))
+		return (dmu_ot_byteswap[type & DMU_OT_BYTESWAP_MASK].ob_name);
+	else
+		return ("UNKNOWN");
+}
 
 #ifndef lint
 extern int zfs_recover;
@@ -1925,12 +1934,12 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 
 	(void) printf("%10lld  %3u  %5s  %5s  %5s  %5s  %6s  %s%s\n",
 	    (u_longlong_t)object, doi.doi_indirection, iblk, dblk,
-	    asize, lsize, fill, ZDB_OT_NAME(doi.doi_type), aux);
+	    asize, lsize, fill, zdb_ot_name(doi.doi_type), aux);
 
 	if (doi.doi_bonus_type != DMU_OT_NONE && verbosity > 3) {
 		(void) printf("%10s  %3s  %5s  %5s  %5s  %5s  %6s  %s\n",
 		    "", "", "", "", "", bonus_size, "bonus",
-		    ZDB_OT_NAME(doi.doi_bonus_type));
+		    zdb_ot_name(doi.doi_bonus_type));
 	}
 
 	if (verbosity >= 4) {
