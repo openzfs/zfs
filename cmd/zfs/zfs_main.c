@@ -4553,7 +4553,7 @@ parse_fs_perm(fs_perm_t *fsperm, nvlist_t *nvl)
 				who_perm = &node->who_perm;
 			}
 		}
-
+		VERIFY3P(who_perm, !=, NULL);
 		(void) parse_who_perm(who_perm, nvl2, perm_locality);
 	}
 

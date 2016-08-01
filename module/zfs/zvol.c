@@ -812,7 +812,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			goto out2;
 		}
 
-		if (bio->bi_rw & VDEV_REQ_DISCARD) {
+		if (bio_is_discard(bio)) {
 			error = zvol_discard(bio);
 			goto out2;
 		}

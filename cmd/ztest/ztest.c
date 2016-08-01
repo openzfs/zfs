@@ -726,6 +726,7 @@ process_options(int argc, char **argv)
 			} else {
 				(void) strlcpy(zo->zo_dir, path,
 				    sizeof (zo->zo_dir));
+				free(path);
 			}
 			break;
 		case 'V':
@@ -4702,8 +4703,10 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 		tx = dmu_tx_create(os);
 		dmu_tx_hold_zap(tx, object, B_TRUE, NULL);
 		txg = ztest_tx_assign(tx, TXG_MIGHTWAIT, FTAG);
-		if (txg == 0)
+		if (txg == 0) {
+			umem_free(od, sizeof (ztest_od_t));
 			return;
+		}
 		bcopy(name, string_value, namelen);
 	} else {
 		tx = NULL;

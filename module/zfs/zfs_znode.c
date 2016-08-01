@@ -535,7 +535,6 @@ zfs_inode_update_impl(znode_t *zp, boolean_t new)
 	spin_lock(&ip->i_lock);
 	ip->i_mode = zp->z_mode;
 	zfs_set_inode_flags(zp, ip);
-	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	ip->i_blocks = i_blocks;
 
 	/*
@@ -634,6 +633,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 	zp->z_mode = mode;
 	ip->i_generation = (uint32_t)tmp_gen;
+	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	set_nlink(ip, (uint32_t)links);
 	zfs_uid_write(ip, z_uid);
 	zfs_gid_write(ip, z_gid);

@@ -83,16 +83,20 @@ main(int argc, char *argv[])
 	else
 		usage(argv[0]);
 
-	buf = (char *)malloc(filesize);
-
 	if ((fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, mode)) < 0) {
 		perror("open");
 		return (1);
 	}
+
+	buf = (char *)malloc(filesize);
+
 	if (write(fd, buf, filesize) < filesize) {
+		free(buf);
 		perror("write");
 		return (1);
 	}
+
+	free(buf);
 
 	if (fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
 	    start_off, off_len) < 0) {
@@ -100,6 +104,5 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	free(buf);
 	return (0);
 }

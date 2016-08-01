@@ -384,6 +384,37 @@ Default value: \fB2\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_dnode_limit\fR (ulong)
+.ad
+.RS 12n
+When the number of bytes consumed by dnodes in the ARC exceeds this number of
+bytes, try to unpin some of it in response to demand for non-metadata.  This
+value acts as a floor to the amount of dnode metadata.
+
+See also \fBzfs_arc_meta_prune\fR which serves a similar purpose but is used
+when the amount of metadata in the ARC exceeds \fBzfs_arc_meta_limit\fR rather
+than in response to overall demand for non-metadata.
+
+.sp
+Default value: \fB10% of zfs_arc_meta_limit\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_dnode_reduce_percent\fR (ulong)
+.ad
+.RS 12n
+Percentage of ARC dnodes to try to scan in response to demand for non-metadata
+when the number of bytes consumed by dnodes exceeds \fBzfs_arc_dnode_limit\fB.
+
+.sp
+Default value: \fB10% of the number of dnodes in the ARC\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_average_blocksize\fR (int)
 .ad
 .RS 12n

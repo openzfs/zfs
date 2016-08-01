@@ -109,8 +109,13 @@ function verify_long
 		hname=$hname:$($ZONENAME)
 	fi
 
-	$GREP "$cmd \[user $uid ($user) on $hname\]" $NEW_HISTORY >/dev/null \
-	    2>&1
+	typeset suffix=""
+	if [ is_linux ]; then
+		suffix=":linux"
+	fi
+
+	$GREP "$cmd \[user $uid ($user) on $hname$suffix\]" \
+	    $NEW_HISTORY >/dev/null 2>&1
 	if [[ $? != 0 ]]; then
 		log_note "Couldn't find long information for \"$cmd\""
 		return 1
