@@ -2914,13 +2914,17 @@ arc_alloc_compressed_buf(spa_t *spa, void *tag, uint64_t psize, uint64_t lsize,
 	arc_buf_thaw(buf);
 	ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
 
-	/*
-	 * To ensure that the hdr has the correct data in it if we call
-	 * arc_decompress() on this buf before it's been written to disk, it's
-	 * easiest if we just set up sharing between the buf and the hdr.
-	 */
-	arc_hdr_free_pabd(hdr);
-	arc_share_buf(hdr, buf);
+	if (!arc_buf_is_shared(buf)) {
+		/*
+		 * To ensure that the hdr has the correct data in it if we call
+		 * arc_decompress() on this buf before it's been written to
+		 * disk, it's easiest if we just set up sharing between the
+		 * buf and the hdr.
+		 */
+		ASSERT(!abd_is_linear(hdr->b_l1hdr.b_pabd));
+		arc_hdr_free_pabd(hdr);
+		arc_share_buf(hdr, buf);
+	}
 
 	return (buf);
 }
