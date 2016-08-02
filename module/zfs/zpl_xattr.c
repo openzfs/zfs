@@ -1017,11 +1017,9 @@ zpl_get_acl(struct inode *ip, int type)
 	char *name;
 	int size;
 
-#ifdef HAVE_POSIX_ACL_CACHING
 	acl = get_cached_acl(ip, type);
 	if (acl != ACL_NOT_CACHED)
 		return (acl);
-#endif /* HAVE_POSIX_ACL_CACHING */
 
 	switch (type) {
 	case ACL_TYPE_ACCESS:
