@@ -1094,7 +1094,7 @@ libzfs_dataset_cmp(const void *a, const void *b)
 	if (gotb)
 		return (1);
 
-	return (strcmp(zfs_get_name(a), zfs_get_name(b)));
+	return (strcmp(zfs_get_name(*za), zfs_get_name(*zb)));
 }
 
 /*
