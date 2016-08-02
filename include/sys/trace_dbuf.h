@@ -92,6 +92,20 @@ DEFINE_EVENT(zfs_dbuf_class, name, \
 	TP_ARGS(db, zio))
 DEFINE_DBUF_EVENT(zfs_blocked__read);
 
+DECLARE_EVENT_CLASS(zfs_dbuf_evict_one_class,
+	TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls),
+	TP_ARGS(db, mls),
+	TP_STRUCT__entry(DBUF_TP_STRUCT_ENTRY),
+	TP_fast_assign(DBUF_TP_FAST_ASSIGN),
+	TP_printk(DBUF_TP_PRINTK_FMT, DBUF_TP_PRINTK_ARGS)
+);
+
+#define	DEFINE_DBUF_EVICT_ONE_EVENT(name) \
+DEFINE_EVENT(zfs_dbuf_evict_one_class, name, \
+	TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls), \
+	TP_ARGS(db, mls))
+DEFINE_DBUF_EVICT_ONE_EVENT(zfs_dbuf__evict__one);
+
 #endif /* _TRACE_DBUF_H */
 
 #undef TRACE_INCLUDE_PATH
