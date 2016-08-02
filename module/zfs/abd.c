@@ -167,7 +167,7 @@ size_t zfs_abd_chunk_size = 1024;
 extern vmem_t *zio_alloc_arena;
 #endif
 
-static kmem_cache_t *abd_chunk_cache;
+kmem_cache_t *abd_chunk_cache;
 static kstat_t *abd_ksp;
 
 static void *
