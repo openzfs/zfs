@@ -316,6 +316,18 @@ typedef umode_t zpl_equivmode_t;
 #else
 typedef mode_t zpl_equivmode_t;
 #endif /* HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T */
+
+/*
+ * 4.8 API change,
+ * posix_acl_valid() now must be passed a namespace, the namespace from
+ * from super block associated with the given inode is used for this purpose.
+ */
+#ifdef HAVE_POSIX_ACL_VALID_WITH_NS
+#define	zpl_posix_acl_valid(ip, acl)  posix_acl_valid(ip->i_sb->s_user_ns, acl)
+#else
+#define	zpl_posix_acl_valid(ip, acl)  posix_acl_valid(acl)
+#endif
+
 #endif /* CONFIG_FS_POSIX_ACL */
 
 /*
