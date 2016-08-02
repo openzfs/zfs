@@ -97,6 +97,30 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
 ])
 
 dnl #
+dnl # 4.8 API change,
+dnl # The function posix_acl_valid now must be passed a namespace.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS], [
+	AC_MSG_CHECKING([whether posix_acl_valid() wants user namespace])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+		#include <linux/posix_acl.h>
+	],[
+		struct user_namespace *user_ns = NULL;
+		const struct posix_acl *acl = NULL;
+		int error;
+
+		error = posix_acl_valid(user_ns, acl);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_POSIX_ACL_VALID_WITH_NS, 1,
+		    [posix_acl_valid() wants user namespace])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 2.6.27 API change,
 dnl # Check if inode_operations contains the function permission
 dnl # and expects the nameidata structure to have been removed.

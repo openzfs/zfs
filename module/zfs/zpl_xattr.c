@@ -1298,7 +1298,7 @@ __zpl_xattr_acl_set_access(struct inode *ip, const char *name,
 		if (IS_ERR(acl))
 			return (PTR_ERR(acl));
 		else if (acl) {
-			error = posix_acl_valid(acl);
+			error = zpl_posix_acl_valid(ip, acl);
 			if (error) {
 				zpl_posix_acl_release(acl);
 				return (error);
@@ -1338,7 +1338,7 @@ __zpl_xattr_acl_set_default(struct inode *ip, const char *name,
 		if (IS_ERR(acl))
 			return (PTR_ERR(acl));
 		else if (acl) {
-			error = posix_acl_valid(acl);
+			error = zpl_posix_acl_valid(ip, acl);
 			if (error) {
 				zpl_posix_acl_release(acl);
 				return (error);
