@@ -202,9 +202,6 @@ lseek_execute(
  * At 60 seconds the kernel will also begin issuing RCU stall warnings.
  */
 #include <linux/posix_acl.h>
-#ifndef HAVE_POSIX_ACL_CACHING
-#define	ACL_NOT_CACHED ((void *)(-1))
-#endif /* HAVE_POSIX_ACL_CACHING */
 
 #if defined(HAVE_POSIX_ACL_RELEASE) && !defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
 
@@ -233,7 +230,6 @@ zpl_posix_acl_release(struct posix_acl *acl)
 
 static inline void
 zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
-#ifdef HAVE_POSIX_ACL_CACHING
 	struct posix_acl *older = NULL;
 
 	spin_lock(&ip->i_lock);
@@ -255,7 +251,6 @@ zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
 	spin_unlock(&ip->i_lock);
 
 	zpl_posix_acl_release(older);
-#endif /* HAVE_POSIX_ACL_CACHING */
 }
 
 static inline void
@@ -321,14 +316,6 @@ typedef umode_t zpl_equivmode_t;
 typedef mode_t zpl_equivmode_t;
 #endif /* HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T */
 #endif /* CONFIG_FS_POSIX_ACL */
-
-#ifndef HAVE_CURRENT_UMASK
-static inline int
-current_umask(void)
-{
-	return (current->fs->umask);
-}
-#endif /* HAVE_CURRENT_UMASK */
 
 /*
  * 2.6.38 API change,

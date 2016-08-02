@@ -76,27 +76,6 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CHMOD], [
 ])
 
 dnl #
-dnl # 2.6.30 API change,
-dnl # caching of ACL into the inode was added in this version.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CACHING], [
-	AC_MSG_CHECKING([whether inode has i_acl and i_default_acl])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		struct inode ino;
-		ino.i_acl = NULL;
-		ino.i_default_acl = NULL;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_POSIX_ACL_CACHING, 1,
-		    [inode contains i_acl and i_default_acl])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.1 API change,
 dnl # posix_acl_equiv_mode now wants an umode_t* instead of a mode_t*
 dnl #
@@ -241,24 +220,6 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_GET_ACL, 1, [iops->get_acl() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.30 API change,
-dnl # current_umask exists only since this version.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CURRENT_UMASK], [
-	AC_MSG_CHECKING([whether current_umask exists])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		current_umask();
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CURRENT_UMASK, 1, [current_umask() exists])
 	],[
 		AC_MSG_RESULT(no)
 	])
