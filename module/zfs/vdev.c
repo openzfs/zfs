@@ -2982,7 +2982,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		 * The bytes/ops/histograms are recorded at the leaf level and
 		 * aggregated into the higher level vdevs in vdev_get_stats().
 		 */
-		if (vd->vdev_ops->vdev_op_leaf) {
+		if (vd->vdev_ops->vdev_op_leaf &&
+		    (zio->io_priority < ZIO_PRIORITY_NUM_QUEUEABLE)) {
 
 			vs->vs_ops[type]++;
 			vs->vs_bytes[type] += psize;
