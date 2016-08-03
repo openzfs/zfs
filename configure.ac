@@ -280,6 +280,10 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/zvol/zvol_ENOSPC/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_misc/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_swap/Makefile
+	tests/zfs-tests/tests/perf/Makefile
+	tests/zfs-tests/tests/perf/fio/Makefile
+	tests/zfs-tests/tests/perf/regression/Makefile
+	tests/zfs-tests/tests/perf/scripts/Makefile
 	tests/zfs-tests/tests/stress/Makefile
 	rpm/Makefile
 	rpm/redhat/Makefile
