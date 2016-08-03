@@ -99,8 +99,8 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_is_ctldir	= zn->z_is_ctldir;
 	    __entry->z_is_stale		= zn->z_is_stale;
 
-	    __entry->i_uid		= zfs_uid_read(ZTOI(zn));
-	    __entry->i_gid		= zfs_gid_read(ZTOI(zn));
+	    __entry->i_uid		= KUID_TO_SUID(ZTOI(zn)->i_uid);
+	    __entry->i_gid		= KGID_TO_SGID(ZTOI(zn)->i_gid);
 	    __entry->i_ino		= zn->z_inode.i_ino;
 	    __entry->i_nlink		= zn->z_inode.i_nlink;
 	    __entry->i_version		= zn->z_inode.i_version;
