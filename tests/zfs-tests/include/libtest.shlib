@@ -2809,6 +2809,30 @@ function vdevs_in_pool
 	return 0;
 }
 
+function get_max
+{
+	typeset -l i max=$1
+	shift
+
+	for i in "$@"; do
+		max=$(echo $((max > i ? max : i)))
+	done
+
+	echo $max
+}
+
+function get_min
+{
+	typeset -l i min=$1
+	shift
+
+	for i in "$@"; do
+		min=$(echo $((min < i ? min : i)))
+	done
+
+	echo $min
+}
+
 #
 # Wait for newly created block devices to have their minors created.
 #

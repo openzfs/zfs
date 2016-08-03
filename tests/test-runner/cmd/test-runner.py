@@ -26,6 +26,7 @@ from select import select
 from subprocess import PIPE
 from subprocess import Popen
 from sys import argv
+from sys import maxint
 from sys import exit
 from threading import Timer
 from time import time
@@ -121,13 +122,16 @@ class Cmd(object):
     def __init__(self, pathname, outputdir=None, timeout=None, user=None):
         self.pathname = pathname
         self.outputdir = outputdir or 'BASEDIR'
-        self.timeout = timeout or 60
+        self.timeout = timeout
         self.user = user or ''
         self.killed = False
         self.result = Result()
 
+        if self.timeout == None:
+	    self.timeout = 60
+
     def __str__(self):
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %s\nUser: %s\n" % (
+        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nUser: %s\n" % (
                 self.pathname, self.outputdir, self.timeout, self.user)
 
     def kill_cmd(self, proc):
@@ -213,6 +217,9 @@ class Cmd(object):
 
         self.result.starttime = time()
         proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
+        # Allow a special timeout value of 0 to mean infinity
+        if int(self.timeout) == 0:
+            self.timeout = maxint
         t = Timer(int(self.timeout), self.kill_cmd, [proc])
 
         try:
@@ -301,7 +308,7 @@ class Test(Cmd):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %s\nPre: %s%s\nPost: " \
+        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nPre: %s%s\nPost: " \
                "%s%s\nUser: %s\n" % (self.pathname, self.outputdir,
                 self.timeout, self.pre, pre_user, self.post, post_user,
                 self.user)
@@ -376,7 +383,7 @@ class TestGroup(Test):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %s\n" \
+        return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %d\n" \
                "Pre: %s%s\nPost: %s%s\nUser: %s\n" % (self.pathname,
                 self.outputdir, self.tests, self.timeout, self.pre, pre_user,
                 self.post, post_user, self.user)
