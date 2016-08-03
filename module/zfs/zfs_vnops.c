@@ -2524,7 +2524,7 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	uint_t		saved_mask = 0;
 	int		trim_mask = 0;
 	uint64_t	new_mode;
-	uint64_t	new_uid, new_gid;
+	uint64_t	new_kuid = 0, new_kgid = 0, new_uid, new_gid;
 	uint64_t	xattr_obj;
 	uint64_t	mtime[2], ctime[2], atime[2];
 	znode_t		*attrzp;
@@ -2844,10 +2844,10 @@ top:
 				goto out2;
 		}
 		if (mask & ATTR_UID) {
-			new_uid = zfs_fuid_create(zsb,
+			new_kuid = zfs_fuid_create(zsb,
 			    (uint64_t)vap->va_uid, cr, ZFS_OWNER, &fuidp);
-			if (new_uid != KUID_TO_SUID(ZTOI(zp)->i_uid) &&
-			    zfs_fuid_overquota(zsb, B_FALSE, new_uid)) {
+			if (new_kuid != KUID_TO_SUID(ZTOI(zp)->i_uid) &&
+			    zfs_fuid_overquota(zsb, B_FALSE, new_kuid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
 				err = EDQUOT;
@@ -2856,10 +2856,10 @@ top:
 		}
 
 		if (mask & ATTR_GID) {
-			new_gid = zfs_fuid_create(zsb, (uint64_t)vap->va_gid,
+			new_kgid = zfs_fuid_create(zsb, (uint64_t)vap->va_gid,
 			    cr, ZFS_GROUP, &fuidp);
-			if (new_gid != KGID_TO_SGID(ZTOI(zp)->i_gid) &&
-			    zfs_fuid_overquota(zsb, B_TRUE, new_gid)) {
+			if (new_kgid != KGID_TO_SGID(ZTOI(zp)->i_gid) &&
+			    zfs_fuid_overquota(zsb, B_TRUE, new_kgid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
 				err = EDQUOT;
@@ -2950,9 +2950,10 @@ top:
 	if (mask & (ATTR_UID|ATTR_GID)) {
 
 		if (mask & ATTR_UID) {
+			ZTOI(zp)->i_uid = SUID_TO_KUID(new_kuid);
+			new_uid = zfs_uid_read(ZTOI(zp));
 			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
 			    &new_uid, sizeof (new_uid));
-			ZTOI(zp)->i_uid = SUID_TO_KUID(new_uid);
 			if (attrzp) {
 				SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 				    SA_ZPL_UID(zsb), NULL, &new_uid,
@@ -2962,14 +2963,15 @@ top:
 		}
 
 		if (mask & ATTR_GID) {
+			ZTOI(zp)->i_gid = SGID_TO_KGID(new_kgid);
+			new_gid = zfs_gid_read(ZTOI(zp));
 			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb),
 			    NULL, &new_gid, sizeof (new_gid));
-			ZTOI(zp)->i_gid = SGID_TO_KGID(new_gid);
 			if (attrzp) {
 				SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 				    SA_ZPL_GID(zsb), NULL, &new_gid,
 				    sizeof (new_gid));
-				ZTOI(attrzp)->i_gid = SGID_TO_KGID(new_gid);
+				ZTOI(attrzp)->i_gid = SGID_TO_KGID(new_kgid);
 			}
 		}
 		if (!(mask & ATTR_MODE)) {

@@ -1326,7 +1326,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	mode = zp->z_mode;
 
 	mode = zfs_mode_compute(mode, aclp, &zp->z_pflags,
-	    zfs_uid_read(ZTOI(zp)), zfs_gid_read(ZTOI(zp)));
+	    KUID_TO_SUID(ZTOI(zp)->i_uid), KGID_TO_SGID(ZTOI(zp)->i_gid));
 
 	zp->z_mode = mode;
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL,
