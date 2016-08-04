@@ -2354,7 +2354,7 @@ typedef struct zdb_cb {
 	uint64_t	zcb_dedup_blocks;
 	uint64_t	zcb_embedded_blocks[NUM_BP_EMBEDDED_TYPES];
 	uint64_t	zcb_embedded_histogram[NUM_BP_EMBEDDED_TYPES]
-	    [BPE_PAYLOAD_SIZE];
+	    [BPE_PAYLOAD_SIZE + 1];
 	uint64_t	zcb_start;
 	uint64_t	zcb_lastprint;
 	uint64_t	zcb_totalasize;
