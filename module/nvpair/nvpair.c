@@ -916,6 +916,8 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 
 	/* calculate sizes of the nvpair elements and the nvpair itself */
 	name_sz = strlen(name) + 1;
+	if (name_sz >= 1ULL << (sizeof (nvp->nvp_name_sz) * NBBY - 1))
+		return (EINVAL);
 
 	nvp_sz = NVP_SIZE_CALC(name_sz, value_sz);
 
