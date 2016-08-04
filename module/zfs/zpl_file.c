@@ -78,14 +78,13 @@ zpl_release(struct inode *ip, struct file *filp)
 static int
 zpl_iterate(struct file *filp, struct dir_context *ctx)
 {
-	struct dentry *dentry = filp->f_path.dentry;
 	cred_t *cr = CRED();
 	int error;
 	fstrans_cookie_t cookie;
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_readdir(dentry->d_inode, ctx, cr);
+	error = -zfs_readdir(file_inode(filp), ctx, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -135,7 +134,7 @@ static int
 zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 {
 	struct file *filp = kiocb->ki_filp;
-	return (zpl_fsync(filp, filp->f_path.dentry, datasync));
+	return (zpl_fsync(filp, file_dentry(filp), datasync));
 }
 #elif defined(HAVE_FSYNC_WITHOUT_DENTRY)
 /*
@@ -688,7 +687,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 static long
 zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
 {
-	return zpl_fallocate_common(filp->f_path.dentry->d_inode,
+	return zpl_fallocate_common(file_inode(filp),
 	    mode, offset, len);
 }
 #endif /* HAVE_FILE_FALLOCATE */

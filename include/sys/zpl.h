@@ -156,14 +156,14 @@ static inline bool
 dir_emit_dot(struct file *file, struct dir_context *ctx)
 {
 	return (ctx->actor(ctx->dirent, ".", 1, ctx->pos,
-	    file->f_path.dentry->d_inode->i_ino, DT_DIR) == 0);
+	    file_inode(file)->i_ino, DT_DIR) == 0);
 }
 
 static inline bool
 dir_emit_dotdot(struct file *file, struct dir_context *ctx)
 {
 	return (ctx->actor(ctx->dirent, "..", 2, ctx->pos,
-	    parent_ino(file->f_path.dentry), DT_DIR) == 0);
+	    parent_ino(file_dentry(file)), DT_DIR) == 0);
 }
 
 static inline bool
