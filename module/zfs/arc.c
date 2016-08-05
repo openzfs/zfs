@@ -4083,7 +4083,6 @@ arc_kmem_reap_now(void)
 	extern kmem_cache_t	*zio_buf_cache[];
 	extern kmem_cache_t	*zio_data_buf_cache[];
 	extern kmem_cache_t	*range_seg_cache;
-	extern kmem_cache_t	*abd_chunk_cache;
 
 	if ((arc_meta_used >= arc_meta_limit) && zfs_arc_meta_prune) {
 		/*
@@ -4108,7 +4107,6 @@ arc_kmem_reap_now(void)
 			kmem_cache_reap_now(zio_data_buf_cache[i]);
 		}
 	}
-	kmem_cache_reap_now(abd_chunk_cache);
 	kmem_cache_reap_now(buf_cache);
 	kmem_cache_reap_now(hdr_full_cache);
 	kmem_cache_reap_now(hdr_l2only_cache);
