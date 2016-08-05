@@ -31,6 +31,7 @@
 #include <sys/debug.h>
 #include <sys/refcount.h>
 #ifdef _KERNEL
+#include <linux/mm.h>
 #include <sys/uio.h>
 #endif
 
@@ -51,12 +52,12 @@ typedef struct abd {
 	refcount_t	abd_children;
 	union {
 		struct abd_scatter {
-			uint_t	abd_offset;
-			uint_t	abd_chunk_size;
-			void	*abd_chunks[];
+			uint_t		abd_offset;
+			uint_t		abd_chunk_size;
+			struct page	*abd_chunks[];
 		} abd_scatter;
 		struct abd_linear {
-			void	*abd_buf;
+			void		*abd_buf;
 		} abd_linear;
 	} abd_u;
 } abd_t;
