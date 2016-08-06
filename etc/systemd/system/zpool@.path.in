@@ -1,0 +1,7 @@
+[Unit]
+Description=zpool ready path
+DefaultDependencies=no
+
+[Path]
+PathExists=/dev/zpool/%i/ready
+Unit=zpool@%i.service

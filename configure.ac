@@ -113,6 +113,7 @@ AC_CONFIG_FILES([
 	cmd/arc_summary/Makefile
 	cmd/zed/Makefile
 	cmd/raidz_test/Makefile
+	cmd/zready/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
 	contrib/dracut/Makefile

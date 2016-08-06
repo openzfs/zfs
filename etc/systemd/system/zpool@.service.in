@@ -1,0 +1,15 @@
+[Unit]
+Description="Import pool"
+DefaultDependencies=no
+Requires=zpool@%i.path
+After=zpool@%i.path
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/sbin/modprobe zfs
+ExecStart=@sbindir@/zpool import -EN %i
+ExecStop=@sbindir@/zpool export %i
+
+[Install]
+WantedBy=local-fs.target

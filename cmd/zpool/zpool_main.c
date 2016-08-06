@@ -2191,6 +2191,7 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
 	boolean_t do_scan = B_FALSE;
+	boolean_t do_imported = B_FALSE;
 	uint64_t pool_state, txg = -1ULL;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
@@ -2220,6 +2221,9 @@ zpool_do_import(int argc, char **argv)
 			break;
 		case 'D':
 			do_destroyed = B_TRUE;
+			break;
+		case 'E':
+			do_imported = B_TRUE;
 			break;
 		case 'f':
 			flags |= ZFS_IMPORT_ANY_HOST;
@@ -2420,6 +2424,11 @@ zpool_do_import(int argc, char **argv)
 
 	if (pools != NULL && idata.exists &&
 	    (argc == 1 || strcmp(argv[0], argv[1]) == 0)) {
+		if (do_imported) {
+			err = 0;
+			log_history = B_FALSE;
+			goto exit_early;
+		}
 		(void) fprintf(stderr, gettext("cannot import '%s': "
 		    "a pool with that name already exists\n"),
 		    argv[0]);
@@ -2443,12 +2452,13 @@ zpool_do_import(int argc, char **argv)
 	}
 
 	if (err == 1) {
+exit_early:
 		if (searchdirs != NULL)
 			free(searchdirs);
 		if (envdup != NULL)
 			free(envdup);
 		nvlist_free(policy);
-		return (1);
+		return (err);
 	}
 
 	/*

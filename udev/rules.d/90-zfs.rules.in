@@ -2,7 +2,7 @@ SUBSYSTEM!="block|misc", GOTO="zfs_end"
 ACTION!="add|change", GOTO="zfs_end"
 
 ENV{ID_FS_TYPE}=="zfs", RUN+="/sbin/modprobe zfs"
-ENV{ID_FS_TYPE}=="zfs_member", RUN+="/sbin/modprobe zfs"
+ENV{ID_FS_TYPE}=="zfs_member", RUN+="/sbin/modprobe zfs", RUN+="@sbindir@/zready /dev/%k"
 
 KERNEL=="null", SYMLINK+="root"
 SYMLINK=="null", SYMLINK+="root"
