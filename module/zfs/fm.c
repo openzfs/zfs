@@ -154,7 +154,7 @@ fm_printf(int depth, int c, int cols, const char *format, ...)
 }
 
 /*
- * Recursively print a nvlist in the specified column width and return the
+ * Recursively print an nvlist in the specified column width and return the
  * column we end up in.  This function is called recursively by fm_nvprint(),
  * below.  We generically format the entire nvpair using hexadecimal
  * integers and strings, and elide any integer arrays.  Arrays are basically

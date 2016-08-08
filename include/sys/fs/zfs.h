@@ -834,7 +834,7 @@ typedef struct vdev_stat {
  *
  * These are stats which aren't included in the original iostat output.  For
  * convenience, they are grouped together in vdev_stat_ex, although each stat
- * is individually exported as a nvlist.
+ * is individually exported as an nvlist.
  */
 typedef struct vdev_stat_ex {
 	/* Number of ZIOs issued to disk and waiting to finish */

@@ -391,7 +391,7 @@ lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
  *
  * The keys in the nvlist are snapshot names.
  * The snapshots must all be in the same pool.
- * The value is a nvlist whose keys are the holds to remove.
+ * The value is an nvlist whose keys are the holds to remove.
  *
  * Holds which failed to release because they didn't exist will have an entry
  * added to errlist, but will not cause an overall failure.
@@ -424,7 +424,7 @@ lzc_release(nvlist_t *holds, nvlist_t **errlist)
 /*
  * Retrieve list of user holds on the specified snapshot.
  *
- * On success, *holdsp will be set to a nvlist which the caller must free.
+ * On success, *holdsp will be set to an nvlist which the caller must free.
  * The keys are the names of the holds, and the value is the creation time
  * of the hold (uint64) in seconds since the epoch.
  */

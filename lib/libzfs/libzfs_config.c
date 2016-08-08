@@ -212,7 +212,7 @@ namespace_reload(libzfs_handle_t *hdl)
 }
 
 /*
- * Retrieve the configuration for the given pool.  The configuration is a nvlist
+ * Retrieve the configuration for the given pool. The configuration is an nvlist
  * describing the vdevs, as well as the statistics associated with each one.
  */
 nvlist_t *
