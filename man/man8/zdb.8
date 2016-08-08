@@ -11,15 +11,15 @@
 .\"
 .\"
 .\" Copyright 2012, Richard Lowe.
-.\" Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 .\"
-.TH "ZDB" "8" "February 15, 2012" "" ""
+.TH "ZDB" "8" "Feb 4, 2016" "" ""
 
 .SH "NAME"
 \fBzdb\fR - Display zpool debugging and consistency information
 
 .SH "SYNOPSIS"
-\fBzdb\fR [-CumdibcsDvhLMXFPA] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
+\fBzdb\fR [-CumdibcsDvhLMXFPAG] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
     [-U \fIcache\fR] [-I \fIinflight I/Os\fR] [-x \fIdumpdir\fR]
     [\fIpoolname\fR [\fIobject\fR ...]]
 
@@ -395,6 +395,17 @@ all metadata on the pool.
 .RS 4n
 Attempt to make an unreadable pool readable by trying progressively older
 transactions.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-G\fR
+.ad
+.sp .6
+.RS 4n
+Dump the contents of the zfs_dbgmsg buffer before exiting zdb. zfs_dbgmsg is
+a buffer used by ZFS to dump advanced debug information.
 .RE
 
 .sp
