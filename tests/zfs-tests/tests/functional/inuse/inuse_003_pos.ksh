@@ -26,11 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
-#
-
-#
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -141,6 +137,7 @@ log_note "$UFSDUMP 0bf 512 $rawdisk0 $disk1"
 $UFSDUMP 0bf 512 $rawdisk0 $disk1 &
 PIDUFSDUMP=$!
 
+unset NOINUSE_CHECK
 log_note "Attempt to zpool the source device in use by ufsdump"
 log_mustnot $ZPOOL create $TESTPOOL1 "$disk1"
 log_mustnot poolexists $TESTPOOL1

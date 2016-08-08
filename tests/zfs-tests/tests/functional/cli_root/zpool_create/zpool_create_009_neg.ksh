@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -66,6 +66,7 @@ log_assert "Create a pool with same devices twice or create two pools with " \
 	"same devices, 'zpool create' should fail."
 log_onexit cleanup
 
+unset NOINUSE_CHECK
 typeset opt
 for opt in "" "mirror" "raidz" "raidz1"; do
 	typeset disk="$DISKS"

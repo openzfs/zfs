@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -76,6 +76,7 @@ set -A vdevs "" "mirror" "raidz" "raidz1" "raidz2"
 
 typeset -i i=0
 
+unset NOINUSE_CHECK
 while (( i < ${#vdevs[*]} )); do
 
 	for num in 0 1 2 3 ; do

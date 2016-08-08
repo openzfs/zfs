@@ -65,6 +65,7 @@ savedumpdev=$(get_dumpdevice)
 
 safe_dumpadm $voldev
 
+unset NOINUSE_CHECK
 $ECHO "y" | $NEWFS -v $voldev > /dev/null 2>&1
 if (( $? == 0 )) ; then
 	log_fail "newfs on dump zvol succeeded unexpectedly"

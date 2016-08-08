@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -79,6 +79,7 @@ dumpdev=`$DUMPADM | $GREP "Dump device" | $AWK '{print $3}'`
     log_untested "Dump device has not been been configured to $diskslice"
 
 log_note "Attempt to zpool the dump device"
+unset NOINUSE_CHECK
 log_mustnot $ZPOOL create $TESTPOOL "$diskslice"
 log_mustnot poolexists $TESTPOOL
 
