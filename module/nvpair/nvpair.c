@@ -2022,7 +2022,7 @@ typedef struct {
 /*
  * nvs operations are:
  *   - nvs_nvlist
- *     encoding / decoding of a nvlist header (nvlist_t)
+ *     encoding / decoding of an nvlist header (nvlist_t)
  *     calculates the size used for header and end detection
  *
  *   - nvs_nvpair

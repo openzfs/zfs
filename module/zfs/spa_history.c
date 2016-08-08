@@ -46,7 +46,7 @@
  * The history log is stored as a dmu object containing
  * <packed record length, record nvlist> tuples.
  *
- * Where "record nvlist" is a nvlist containing uint64_ts and strings, and
+ * Where "record nvlist" is an nvlist containing uint64_ts and strings, and
  * "packed record length" is the packed length of the "record nvlist" stored
  * as a little endian uint64_t.
  *
