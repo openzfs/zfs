@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -84,6 +84,7 @@ log_must $MKFILE $SIZE /var/tmp/$FILEDISK0
 log_must $MKFILE $SIZE /var/tmp/$FILEDISK1
 log_must $MKFILE $SIZE /var/tmp/$FILEDISK2
 
+unset NOINUSE_CHECK
 log_must $ZPOOL export $TESTPOOL
 log_note "'zpool create' without '-f' will fail " \
 	"while device is belong to an exported pool."

@@ -40,6 +40,7 @@ export ZPIOS_SH=${SCRIPTDIR}/zpios.sh
 export ZPIOS_SURVEY_SH=${SCRIPTDIR}/zpios-survey.sh
 
 # Test Suite Specific Commands
+export NOINUSE_CHECK=1
 export TEST_RUNNER=${TESTSDIR}/test-runner/cmd/test-runner.py
 export STF_TOOLS=${TESTSDIR}/test-runner
 export STF_SUITE=${TESTSDIR}/zfs-tests

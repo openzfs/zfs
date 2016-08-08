@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
@@ -71,10 +76,10 @@ log_must poolexists "$TESTPOOL"
 
 create_pool "$TESTPOOL1" "${disk}${SLICE_PREFIX}${SLICE1}"
 log_must poolexists "$TESTPOOL1"
-log_mustnot $ZPOOL add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1}
 
+unset NOINUSE_CHECK
+log_mustnot $ZPOOL add -f "$TESTPOOL" ${disk}s${SLICE1}
 log_mustnot $ZPOOL add -f "$TESTPOOL" $mnttab_dev
-
 log_mustnot $ZPOOL add -f "$TESTPOOL" $vfstab_dev
 
 log_must $ECHO "y" | $NEWFS ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1

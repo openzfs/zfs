@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -105,6 +105,7 @@ set -A arg "$TESTPOOL $pooldev2" \
         "$TESTPOOL1 ${disk}s10" \
 	"$TESTPOOL1 spare $pooldev2"
 
+unset NOINUSE_CHECK
 typeset -i i=0
 while (( i < ${#arg[*]} )); do
         log_mustnot $ZPOOL create ${arg[i]}

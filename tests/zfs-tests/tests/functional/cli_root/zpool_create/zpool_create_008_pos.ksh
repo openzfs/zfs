@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -129,6 +129,7 @@ destroy_pool $TESTPOOL
 log_must labelvtoc $disk
 log_must create_overlap_slice $disk
 
+unset NOINUSE_CHECK
 log_mustnot $ZPOOL create $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
 log_must $ZPOOL create -f $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
 destroy_pool $TESTPOOL

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -63,9 +63,9 @@ function cleanup
 			destroy_pool $pool
 		fi
 	done
-
 }
 
+unset NOINUSE_CHECK
 if [[ -n $DISK ]]; then
         disk=$DISK
 else
