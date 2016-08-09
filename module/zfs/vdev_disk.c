@@ -602,16 +602,6 @@ retry:
 	return (error);
 }
 
-#ifndef __linux__
-int
-vdev_disk_physio(struct block_device *bdev, caddr_t kbuf,
-    size_t size, uint64_t offset, int rw, int flags)
-{
-	bio_set_flags_failfast(bdev, &flags);
-	return (__vdev_disk_physio(bdev, NULL, kbuf, size, offset, rw, flags));
-}
-#endif
-
 BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, rc)
 {
 	zio_t *zio = bio->bi_private;
@@ -797,72 +787,6 @@ vdev_ops_t vdev_disk_ops = {
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
-
-#ifndef __linux__
-/*
- * Given the root disk device devid or pathname, read the label from
- * the device, and construct a configuration nvlist.
- */
-int
-vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
-{
-	struct block_device *bdev;
-	vdev_label_t *label;
-	uint64_t s, size;
-	int i;
-
-	bdev = vdev_bdev_open(devpath, vdev_bdev_mode(FREAD), zfs_vdev_holder);
-	if (IS_ERR(bdev))
-		return (-PTR_ERR(bdev));
-
-	s = bdev_capacity(bdev);
-	if (s == 0) {
-		vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
-		return (EIO);
-	}
-
-	size = P2ALIGN_TYPED(s, sizeof (vdev_label_t), uint64_t);
-	label = vmem_alloc(sizeof (vdev_label_t), KM_SLEEP);
-
-	for (i = 0; i < VDEV_LABELS; i++) {
-		uint64_t offset, state, txg = 0;
-
-		/* read vdev label */
-		offset = vdev_label_offset(size, i, 0);
-		if (vdev_disk_physio(bdev, (caddr_t)label,
-		    VDEV_SKIP_SIZE + VDEV_PHYS_SIZE, offset, READ,
-		    REQ_SYNC) != 0)
-			continue;
-
-		if (nvlist_unpack(label->vl_vdev_phys.vp_nvlist,
-		    sizeof (label->vl_vdev_phys.vp_nvlist), config, 0) != 0) {
-			*config = NULL;
-			continue;
-		}
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_STATE,
-		    &state) != 0 || state >= POOL_STATE_DESTROYED) {
-			nvlist_free(*config);
-			*config = NULL;
-			continue;
-		}
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_TXG,
-		    &txg) != 0 || txg == 0) {
-			nvlist_free(*config);
-			*config = NULL;
-			continue;
-		}
-
-		break;
-	}
-
-	vmem_free(label, sizeof (vdev_label_t));
-	vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
-
-	return (0);
-}
-#endif	/* __linux__ */
 
 module_param(zfs_vdev_scheduler, charp, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");
