@@ -249,3 +249,23 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 4.7 API change,
+dnl # The kernel get_acl will now check cache before calling i_op->get_acl and
+dnl # do set_cached_acl after that, so i_op->get_acl don't need to do that
+dnl # anymore.
+dnl #
+AC_DEFUN([ZFS_AC_KERNE_GET_ACL_HANDLE_CACHE], [
+	AC_MSG_CHECKING([whether uncached_acl_sentinel() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		void *sentinel __attribute__ ((unused)) = uncached_acl_sentinel(NULL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERNEL_GET_ACL_HANDLE_CACHE, 1, [uncached_acl_sentinel() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
