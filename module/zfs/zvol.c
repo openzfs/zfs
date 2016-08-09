@@ -715,7 +715,7 @@ zvol_discard(struct bio *bio)
 	 * 2.6.35) will not receive this optimization.
 	 */
 #ifdef REQ_SECURE
-	if (!(bio->bi_rw & REQ_SECURE)) {
+	if (!(BIO_BI_OPF(bio) & REQ_SECURE)) {
 		start = P2ROUNDUP(start, zv->zv_volblocksize);
 		end = P2ALIGN(end, zv->zv_volblocksize);
 		size = end - start;
@@ -821,13 +821,13 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		 * Some requests are just for flush and nothing else.
 		 */
 		if (uio.uio_resid == 0) {
-			if (bio->bi_rw & VDEV_REQ_FLUSH)
+			if (BIO_BI_OPF(bio) & VDEV_REQ_FLUSH)
 				zil_commit(zv->zv_zilog, ZVOL_OBJ);
 			goto out2;
 		}
 
 		error = zvol_write(zv, &uio,
-		    ((bio->bi_rw & (VDEV_REQ_FUA|VDEV_REQ_FLUSH)) ||
+		    ((BIO_BI_OPF(bio) & (VDEV_REQ_FUA|VDEV_REQ_FLUSH)) ||
 		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS));
 	} else
 		error = zvol_read(zv, &uio);

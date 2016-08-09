@@ -159,6 +159,13 @@ typedef struct bvec_iter bvec_iterator_t;
 typedef int bvec_iterator_t;
 #endif
 
+/* Linux 4.8, bi_rw renamed to bi_opf to reflect encoding change */
+#ifdef HAVE_BIO_BI_OPF
+#define	BIO_BI_OPF(bio)		(bio)->bi_opf
+#else
+#define	BIO_BI_OPF(bio)		(bio)->bi_rw
+#endif
+
 /*
  * Portable helper for correctly setting the FAILFAST flags.  The
  * correct usage has changed 3 times from 2.6.12 to 2.6.38.
