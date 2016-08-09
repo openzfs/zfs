@@ -623,7 +623,7 @@ zvol_write(struct bio *bio)
 
 	ASSERT(zv && zv->zv_open_count > 0);
 
-	if (bio->bi_rw & VDEV_REQ_FLUSH)
+	if (bio_is_flush(bio))
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	/*
@@ -648,12 +648,12 @@ zvol_write(struct bio *bio)
 	error = dmu_write_bio(zv->zv_objset, ZVOL_OBJ, bio, tx);
 	if (error == 0)
 		zvol_log_write(zv, tx, offset, size,
-		    !!(bio->bi_rw & VDEV_REQ_FUA));
+		    !!(bio_is_fua(bio)));
 
 	dmu_tx_commit(tx);
 	zfs_range_unlock(rl);
 
-	if ((bio->bi_rw & VDEV_REQ_FUA) ||
+	if ((bio_is_fua(bio)) ||
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
@@ -677,20 +677,16 @@ zvol_discard(struct bio *bio)
 		return (SET_ERROR(EIO));
 
 	/*
-	 * Align the request to volume block boundaries when REQ_SECURE is
-	 * available, but not requested. If we don't, then this will force
-	 * dnode_free_range() to zero out the unaligned parts, which is slow
-	 * (read-modify-write) and useless since we are not freeing any space
-	 * by doing so. Kernels that do not support REQ_SECURE (2.6.32 through
-	 * 2.6.35) will not receive this optimization.
+	 * Align the request to volume block boundaries when a secure erase is
+	 * not required.  This will prevent dnode_free_range() from zeroing out
+	 * the unaligned parts which is slow (read-modify-write) and useless
+	 * since we are not freeing any space by doing so.
 	 */
-#ifdef REQ_SECURE
-	if (!(bio->bi_rw & REQ_SECURE)) {
+	if (!bio_is_secure_erase(bio)) {
 		start = P2ROUNDUP(start, zv->zv_volblocksize);
 		end = P2ALIGN(end, zv->zv_volblocksize);
 		size = end - start;
 	}
-#endif
 
 	if (start >= end)
 		return (0);
@@ -766,7 +762,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			goto out2;
 		}
 
-		if (bio_is_discard(bio)) {
+		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
 			error = zvol_discard(bio);
 			goto out2;
 		}
@@ -1234,14 +1230,7 @@ zvol_alloc(dev_t dev, const char *name)
 		goto out_kmem;
 
 	blk_queue_make_request(zv->zv_queue, zvol_request);
-
-#ifdef HAVE_BLK_QUEUE_WRITE_CACHE
-	blk_queue_write_cache(zv->zv_queue, B_TRUE, B_TRUE);
-#elif defined(HAVE_BLK_QUEUE_FLUSH)
-	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
-#else
-	blk_queue_ordered(zv->zv_queue, QUEUE_ORDERED_DRAIN, NULL);
-#endif /* HAVE_BLK_QUEUE_FLUSH */
+	blk_queue_set_write_cache(zv->zv_queue, B_TRUE, B_TRUE);
 
 	zv->zv_disk = alloc_disk(ZVOL_MINORS);
 	if (zv->zv_disk == NULL)
