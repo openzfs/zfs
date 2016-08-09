@@ -37,6 +37,11 @@
 extern "C" {
 #endif
 
+#ifdef CONSTIFY_PLUGIN
+#define	__no_const __attribute__((no_const))
+#else
+#define	__no_const
+#endif /* CONSTIFY_PLUGIN */
 
 #define	CRYPTO_SPI_VERSION_1	1
 #define	CRYPTO_SPI_VERSION_2	2
@@ -122,7 +127,7 @@ typedef struct crypto_ctx {
  */
 typedef struct crypto_control_ops {
 	void (*provider_status)(crypto_provider_handle_t, uint_t *);
-} crypto_control_ops_t;
+} __no_const crypto_control_ops_t;
 
 /*
  * The crypto_ctx_ops structure contains points to context and context
@@ -135,7 +140,7 @@ typedef struct crypto_ctx_ops {
 	    crypto_mechanism_t *, crypto_key_t *,
 	    crypto_spi_ctx_template_t *, size_t *, crypto_req_handle_t);
 	int (*free_context)(crypto_ctx_t *);
-} crypto_ctx_ops_t;
+} __no_const crypto_ctx_ops_t;
 
 /*
  * The crypto_digest_ops structure contains pointers to digest
@@ -156,7 +161,7 @@ typedef struct crypto_digest_ops {
 	int (*digest_atomic)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_req_handle_t);
-} crypto_digest_ops_t;
+} __no_const crypto_digest_ops_t;
 
 /*
  * The crypto_cipher_ops structure contains pointers to encryption
@@ -190,7 +195,7 @@ typedef struct crypto_cipher_ops {
 	int (*decrypt_atomic)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_spi_ctx_template_t, crypto_req_handle_t);
-} crypto_cipher_ops_t;
+} __no_const crypto_cipher_ops_t;
 
 /*
  * The crypto_mac_ops structure contains pointers to MAC
@@ -216,7 +221,7 @@ typedef struct crypto_mac_ops {
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_spi_ctx_template_t,
 	    crypto_req_handle_t);
-} crypto_mac_ops_t;
+} __no_const crypto_mac_ops_t;
 
 /*
  * The crypto_sign_ops structure contains pointers to signing
@@ -247,7 +252,7 @@ typedef struct crypto_sign_ops {
 	    crypto_session_id_t, crypto_mechanism_t *, crypto_key_t *,
 	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t,
 	    crypto_req_handle_t);
-} crypto_sign_ops_t;
+} __no_const crypto_sign_ops_t;
 
 /*
  * The crypto_verify_ops structure contains pointers to verify
@@ -278,7 +283,7 @@ typedef struct crypto_verify_ops {
 	    crypto_session_id_t, crypto_mechanism_t *, crypto_key_t *,
 	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t,
 	    crypto_req_handle_t);
-} crypto_verify_ops_t;
+} __no_const crypto_verify_ops_t;
 
 /*
  * The crypto_dual_ops structure contains pointers to dual
@@ -300,7 +305,7 @@ typedef struct crypto_dual_ops {
 	int (*decrypt_verify_update)(
 	    crypto_ctx_t *, crypto_ctx_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_req_handle_t);
-} crypto_dual_ops_t;
+} __no_const crypto_dual_ops_t;
 
 /*
  * The crypto_dual_cipher_mac_ops structure contains pointers to dual
@@ -348,7 +353,7 @@ typedef struct crypto_dual_cipher_mac_ops {
 	    crypto_mechanism_t *, crypto_key_t *, crypto_dual_data_t *,
 	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t,
 	    crypto_spi_ctx_template_t, crypto_req_handle_t);
-} crypto_dual_cipher_mac_ops_t;
+} __no_const crypto_dual_cipher_mac_ops_t;
 
 /*
  * The crypto_random_number_ops structure contains pointers to random
@@ -361,7 +366,7 @@ typedef struct crypto_random_number_ops {
 	    uchar_t *, size_t, uint_t, uint32_t, crypto_req_handle_t);
 	int (*generate_random)(crypto_provider_handle_t, crypto_session_id_t,
 	    uchar_t *, size_t, crypto_req_handle_t);
-} crypto_random_number_ops_t;
+} __no_const crypto_random_number_ops_t;
 
 /*
  * Flag values for seed_random.
@@ -383,7 +388,7 @@ typedef struct crypto_session_ops {
 	    crypto_user_type_t, char *, size_t, crypto_req_handle_t);
 	int (*session_logout)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_req_handle_t);
-} crypto_session_ops_t;
+} __no_const crypto_session_ops_t;
 
 /*
  * The crypto_object_ops structure contains pointers to object
@@ -415,7 +420,7 @@ typedef struct crypto_object_ops {
 	    crypto_object_id_t *, uint_t, uint_t *, crypto_req_handle_t);
 	int (*object_find_final)(crypto_provider_handle_t, void *,
 	    crypto_req_handle_t);
-} crypto_object_ops_t;
+} __no_const crypto_object_ops_t;
 
 /*
  * The crypto_key_ops structure contains pointers to key
@@ -443,7 +448,7 @@ typedef struct crypto_key_ops {
 	    uint_t, crypto_object_id_t *, crypto_req_handle_t);
 	int (*key_check)(crypto_provider_handle_t, crypto_mechanism_t *,
 	    crypto_key_t *);
-} crypto_key_ops_t;
+} __no_const crypto_key_ops_t;
 
 /*
  * The crypto_provider_management_ops structure contains pointers
@@ -460,7 +465,7 @@ typedef struct crypto_provider_management_ops {
 	    char *, size_t, crypto_req_handle_t);
 	int (*set_pin)(crypto_provider_handle_t, crypto_session_id_t,
 	    char *, size_t, char *, size_t, crypto_req_handle_t);
-} crypto_provider_management_ops_t;
+} __no_const crypto_provider_management_ops_t;
 
 typedef struct crypto_mech_ops {
 	int (*copyin_mechanism)(crypto_provider_handle_t,
@@ -468,7 +473,7 @@ typedef struct crypto_mech_ops {
 	int (*copyout_mechanism)(crypto_provider_handle_t,
 	    crypto_mechanism_t *, crypto_mechanism_t *, int *, int);
 	int (*free_mechanism)(crypto_provider_handle_t, crypto_mechanism_t *);
-} crypto_mech_ops_t;
+} __no_const crypto_mech_ops_t;
 
 typedef struct crypto_nostore_key_ops {
 	int (*nostore_key_generate)(crypto_provider_handle_t,
@@ -483,7 +488,7 @@ typedef struct crypto_nostore_key_ops {
 	int (*nostore_key_derive)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_object_attribute_t *,
 	    uint_t, crypto_object_attribute_t *, uint_t, crypto_req_handle_t);
-} crypto_nostore_key_ops_t;
+} __no_const crypto_nostore_key_ops_t;
 
 /*
  * The crypto_ops(9S) structure contains the structures containing
