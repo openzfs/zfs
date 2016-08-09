@@ -1423,7 +1423,7 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 		    spa_last_synced_txg(spa) : -1ULL;
 
 		if ((label = vdev_label_read_config(vd, txg)) == NULL) {
-			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_BAD_LABEL);
 			return (0);
 		}
