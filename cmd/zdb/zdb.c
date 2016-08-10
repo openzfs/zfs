@@ -3500,7 +3500,8 @@ zdb_read_block(char *thing, spa_t *spa)
 		for (lsize = psize + SPA_MINBLOCKSIZE;
 		    lsize <= SPA_MAXBLOCKSIZE; lsize += SPA_MINBLOCKSIZE) {
 			for (c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++) {
-				(void) printf("Trying %05llx -> %05llx (%s)\n",
+				(void) fprintf(stderr,
+				    "Trying %05llx -> %05llx (%s)\n",
 				    (u_longlong_t)psize, (u_longlong_t)lsize,
 				    zio_compress_table[c].ci_name);
 				if (zio_decompress_data(c, pbuf, lbuf,
@@ -3512,7 +3513,6 @@ zdb_read_block(char *thing, spa_t *spa)
 			}
 			if (c != ZIO_COMPRESS_FUNCTIONS)
 				break;
-			lsize -= SPA_MINBLOCKSIZE;
 		}
 
 		umem_free(pbuf2, SPA_MAXBLOCKSIZE);
