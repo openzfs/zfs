@@ -898,3 +898,7 @@ dec_tab:
 
 	SET_SIZE(aes_decrypt_amd64)
 #endif	/* lint || __lint */
+
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
