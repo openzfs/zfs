@@ -240,6 +240,17 @@ int zfs_disable_dup_eviction = 0;
 int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
 
 /*
+ * ARC will evict meta buffers that exceed arc_meta_limit. This
+ * tunable make arc_meta_limit adjustable for different workloads.
+ */
+unsigned long zfs_arc_meta_limit_percent = 75;
+
+/*
+ * Percentage that can be consumed by dnodes of ARC meta buffers.
+ */
+unsigned long zfs_arc_dnode_limit_percent = 10;
+
+/*
  * These tunables are Linux specific
  */
 unsigned long zfs_arc_sys_free = 0;
@@ -5357,6 +5368,7 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 static void
 arc_tuning_update(void)
 {
+	uint64_t percent;
 	/* Valid range: 64M - <all physical memory> */
 	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
 	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < ptob(physmem)) &&
@@ -5364,8 +5376,11 @@ arc_tuning_update(void)
 		arc_c_max = zfs_arc_max;
 		arc_c = arc_c_max;
 		arc_p = (arc_c >> 1);
-		arc_meta_limit = (3 * arc_c_max) / 4;
-		arc_dnode_limit = arc_meta_limit / 10;
+		/* Valid range of arc_meta_limit: arc_meta_min - arc_c_max */
+		percent = MIN(zfs_arc_meta_limit_percent, 100);
+		arc_meta_limit = MAX(arc_meta_min, (percent * arc_c_max) / 100);
+		percent = MIN(zfs_arc_dnode_limit_percent, 100);
+		arc_dnode_limit = (percent * arc_meta_limit) / 100;
 	}
 
 	/* Valid range: 32M - <arc_c_max> */
@@ -5437,6 +5452,7 @@ arc_init(void)
 #else
 	uint64_t allmem = (physmem * PAGESIZE) / 2;
 #endif
+	uint64_t percent;
 
 	mutex_init(&arc_reclaim_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&arc_reclaim_thread_cv, NULL, CV_DEFAULT, NULL);
@@ -5493,10 +5509,14 @@ arc_init(void)
 	arc_meta_min = 1ULL << SPA_MAXBLOCKSHIFT;
 	/* Initialize maximum observed usage to zero */
 	arc_meta_max = 0;
-	/* Set limit to 3/4 of arc_c_max with a floor of arc_meta_min */
-	arc_meta_limit = MAX((3 * arc_c_max) / 4, arc_meta_min);
-	/* Default dnode limit is 10% of overall meta limit */
-	arc_dnode_limit = arc_meta_limit / 10;
+	/*
+	 * Set arc_meta_limit to a percent of arc_c_max with a floor of
+	 * arc_meta_min, and a ceiling of arc_c_max.
+	 */
+	percent = MIN(zfs_arc_meta_limit_percent, 100);
+	arc_meta_limit = MAX(arc_meta_min, (percent * arc_c_max) / 100);
+	percent = MIN(zfs_arc_dnode_limit_percent, 100);
+	arc_dnode_limit = (percent * arc_meta_limit) / 100;
 
 	/* Apply user specified tunings */
 	arc_tuning_update();
@@ -7169,6 +7189,10 @@ MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
 module_param(zfs_arc_meta_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
 
+module_param(zfs_arc_meta_limit_percent, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_meta_limit_percent,
+	"Percent of arc size for arc meta limit");
+
 module_param(zfs_arc_meta_min, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_min, "Min arc metadata");
 
@@ -7252,6 +7276,10 @@ MODULE_PARM_DESC(zfs_arc_sys_free, "System free memory target size in bytes");
 
 module_param(zfs_arc_dnode_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_dnode_limit, "Minimum bytes of dnodes in arc");
+
+module_param(zfs_arc_dnode_limit_percent, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_dnode_limit_percent,
+	"Percent of ARC meta buffers for dnodes");
 
 module_param(zfs_arc_dnode_reduce_percent, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_dnode_reduce_percent,

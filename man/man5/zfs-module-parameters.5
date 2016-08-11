@@ -401,15 +401,31 @@ Default value: \fB2\fR.
 .ad
 .RS 12n
 When the number of bytes consumed by dnodes in the ARC exceeds this number of
-bytes, try to unpin some of it in response to demand for non-metadata.  This
-value acts as a floor to the amount of dnode metadata.
+bytes, try to unpin some of it in response to demand for non-metadata. This
+value acts as a floor to the amount of dnode metadata, and defaults to 0 which
+indicates that a percent which is based on \fBzfs_arc_dnode_limit_percent\fR of
+the ARC meta buffers that may be used for dnodes.
 
 See also \fBzfs_arc_meta_prune\fR which serves a similar purpose but is used
 when the amount of metadata in the ARC exceeds \fBzfs_arc_meta_limit\fR rather
 than in response to overall demand for non-metadata.
 
 .sp
-Default value: \fB10% of zfs_arc_meta_limit\fR.
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_dnode_limit_percent\fR (ulong)
+.ad
+.RS 12n
+Percentage that can be consumed by dnodes of ARC meta buffers.
+.sp
+See also \fBzfs_arc_dnode_limit\fR which serves a similar purpose but has a
+higher priority if set to nonzero value.
+.sp
+Default value: \fB10\fR.
 .RE
 
 .sp
@@ -503,13 +519,28 @@ Default value: \fB0\fR.
 The maximum allowed size in bytes that meta data buffers are allowed to
 consume in the ARC.  When this limit is reached meta data buffers will
 be reclaimed even if the overall arc_c_max has not been reached.  This
-value defaults to 0 which indicates that 3/4 of the ARC may be used
-for meta data.
+value defaults to 0 which indicates that a percent which is based on
+\fBzfs_arc_meta_limit_percent\fR of the ARC may be used for meta data.
 .sp
 This value my be changed dynamically except that it cannot be set back to 0
-for 3/4 of the ARC; it must be set to an explicit value.
+for a specific percent of the ARC; it must be set to an explicit value.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_limit_percent\fR (ulong)
+.ad
+.RS 12n
+Percentage of ARC buffers that can be used for meta data. 
+
+See also \fBzfs_arc_meta_limit\fR which serves a similar purpose but has a
+higher priority if set to nonzero value.
+
+.sp
+Default value: \fB75\fR.
 .RE
 
 .sp
