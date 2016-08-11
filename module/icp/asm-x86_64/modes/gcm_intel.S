@@ -332,3 +332,7 @@ ENTRY_NP(gcm_mul_pclmulqdq)
 	SET_SIZE(gcm_mul_pclmulqdq)
 
 #endif	/* lint || __lint */
+
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif

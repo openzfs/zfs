@@ -1344,3 +1344,7 @@ SET_SIZE(sha1_block_data_order)
 .asciz	"SHA1 block transform for x86_64, CRYPTOGAMS by <appro@openssl.org>"
 
 #endif /* lint || __lint */
+
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
