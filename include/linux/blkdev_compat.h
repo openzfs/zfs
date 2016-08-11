@@ -326,6 +326,10 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * and the new preflush behavior introduced in Linux 4.8.  This is correct
  * in all cases but may have a performance impact for some kernels.  It
  * has the advantage of minimizing kernel specific changes in the zvol code.
+ *
+ * Note that 2.6.32 era kernels provide both BIO_RW_BARRIER and REQ_FLUSH,
+ * where BIO_RW_BARRIER is the correct interface.  Therefore, it is important
+ * that the HAVE_BIO_RW_BARRIER check occur before the REQ_FLUSH check.
  */
 static inline boolean_t
 bio_is_flush(struct bio *bio)
@@ -336,10 +340,10 @@ bio_is_flush(struct bio *bio)
 	return (bio->bi_opf & REQ_PREFLUSH);
 #elif defined(REQ_PREFLUSH) && !defined(HAVE_BIO_BI_OPF)
 	return (bio->bi_rw & REQ_PREFLUSH);
-#elif defined(REQ_FLUSH)
-	return (bio->bi_rw & REQ_FLUSH);
 #elif defined(HAVE_BIO_RW_BARRIER)
 	return (bio->bi_rw & (1 << BIO_RW_BARRIER));
+#elif defined(REQ_FLUSH)
+	return (bio->bi_rw & REQ_FLUSH);
 #else
 #error	"Allowing the build will cause flush requests to be ignored. Please "
 	"file an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
@@ -378,16 +382,20 @@ bio_is_fua(struct bio *bio)
  *
  * In all cases the normal I/O path is used for discards.  The only
  * difference is how the kernel tags individual I/Os as discards.
+ *
+ * Note that 2.6.32 era kernels provide both BIO_RW_DISCARD and REQ_DISCARD,
+ * where BIO_RW_DISCARD is the correct interface.  Therefore, it is important
+ * that the HAVE_BIO_RW_DISCARD check occur before the REQ_DISCARD check.
  */
 static inline boolean_t
 bio_is_discard(struct bio *bio)
 {
 #if defined(HAVE_REQ_OP_DISCARD)
 	return (bio_op(bio) == REQ_OP_DISCARD);
-#elif defined(REQ_DISCARD)
-	return (bio->bi_rw & REQ_DISCARD);
 #elif defined(HAVE_BIO_RW_DISCARD)
 	return (bio->bi_rw & (1 << BIO_RW_DISCARD));
+#elif defined(REQ_DISCARD)
+	return (bio->bi_rw & REQ_DISCARD);
 #else
 #error	"Allowing the build will cause discard requests to become writes "
 	"potentially triggering the DMU_MAX_ACCESS assertion. Please file "
