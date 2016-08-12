@@ -849,3 +849,7 @@ ENTRY_NP(aes_decrypt_intel)
 	SET_SIZE(aes_decrypt_intel)
 
 #endif	/* lint || __lint */
+
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
