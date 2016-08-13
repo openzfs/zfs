@@ -27,6 +27,19 @@ Description of the different parameters to the ZFS module.
 .sp
 .ne 2
 .na
+\fBignore_hole_birth\fR (int)
+.ad
+.RS 12n
+When set, the hole_birth optimization will not be used, and all holes will
+always be sent on zfs send. Useful if you suspect your datasets are affected
+by a bug in hole_birth.
+.sp
+Use \fB1\fR for on and \fB0\fR (default) for off.
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2arc_feed_again\fR (int)
 .ad
 .RS 12n
