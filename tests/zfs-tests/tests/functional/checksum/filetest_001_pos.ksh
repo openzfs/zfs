@@ -89,7 +89,7 @@ while is_pool_scrubbing $TESTPOOL; do
 	$SLEEP 1
 done
 $ZPOOL status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
-log_assert "Normal file write test saw: $cksum errors"
+log_assert "Normal file write test saw $cksum checksum errors"
 log_must [ $cksum -eq 0 ]
 
 rm -fr $TESTDIR/*

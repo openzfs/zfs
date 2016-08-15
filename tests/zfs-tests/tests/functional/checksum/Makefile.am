@@ -7,6 +7,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/checksum
 
 dist_pkgdata_SCRIPTS = \
+	default.cfg \
 	setup.ksh \
 	cleanup.ksh \
 	run_edonr_test.ksh \

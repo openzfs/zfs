@@ -25,6 +25,26 @@
 # Use is subject to license terms.
 #
 
-. $STF_SUITE/include/libtest.shlib
+#
+# Copyright (c) 2013 by Delphix. All rights reserved.
+#
 
-default_cleanup
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/scrub_mirror/default.cfg
+
+
+verify_runnable "global"
+
+$DF -F zfs -h | $GREP "$TESTFS " >/dev/null
+[[ $? == 0 ]] && log_must $ZFS umount -f $TESTDIR
+destroy_pool $TESTPOOL
+
+# recreate and destroy a zpool over the disks to restore the partitions to
+# normal
+if [[ -n $SINGLE_DISK ]]; then
+	log_must cleanup_devices $MIRROR_PRIMARY
+else
+	log_must cleanup_devices $MIRROR_PRIMARY $MIRROR_SECONDARY
+fi
+
+log_pass
