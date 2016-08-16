@@ -145,17 +145,19 @@ do_link(const char *pfile)
 {
 	int ret = 0;
 	char link_file[BUFSIZ] = { 0 };
+	char pfile_copy[BUFSIZ] = { 0 };
 	char *dname;
 
 	if (pfile == NULL) {
 		return (-1);
 	}
 
+	strcpy(pfile_copy, pfile);
 	/*
 	 * Figure out source file directory name, and create
 	 * the link file in the same directory.
 	 */
-	dname = dirname((char *)pfile);
+	dname = dirname((char *)pfile_copy);
 	(void) snprintf(link_file, BUFSIZ, "%s/%s", dname, "link_file");
 
 	if (link(pfile, link_file) == -1) {
