@@ -45,10 +45,8 @@ verify_runnable "global"
 
 log_assert "log device can survive when one of the pool device get corrupted."
 
-for type in "mirror" "raidz" "raidz2"
-do
-	for spare in "" "spare"
-	do
+for type in "mirror" "raidz" "raidz2"; do
+	for spare in "" "spare"; do
 		log_must zpool create $TESTPOOL $type $VDEV $spare $SDEV \
 			log $LDEV
 
@@ -64,14 +62,8 @@ do
 		fi
 		log_must zpool scrub $TESTPOOL
 		log_must display_status $TESTPOOL
-		log_must zpool status $TESTPOOL 2>&1 >/dev/null
 		log_must zpool offline $TESTPOOL $VDIR/a
-
-		zpool status -v $TESTPOOL | \
-			grep "state: DEGRADED" 2>&1 >/dev/null
-		if (( $? != 0 )); then
-			log_fail "pool $TESTPOOL status should be DEGRADED"
-		fi
+		log_must wait_for_degraded $TESTPOOL
 
 		zpool status -v $TESTPOOL | grep logs | \
 			grep "DEGRADED" 2>&1 >/dev/null
