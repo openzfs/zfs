@@ -44,16 +44,9 @@
 
 verify_runnable "global"
 
-if ! $(is_physical_device $DISKS) ; then
-	log_unsupported "This directory cannot be run on raw files."
-fi
-
 function cleanup_testenv
 {
 	cleanup
-	if datasetexists $TESTPOOL2 ; then
-		log_must zpool destroy -f $TESTPOOL2
-	fi
 	if [[ -n $lofidev ]]; then
 		if is_linux; then
 			losetup -d $lofidev
@@ -71,19 +64,19 @@ log_onexit cleanup_testenv
 dsk1=${DISKS%% *}
 log_must zpool create $TESTPOOL ${DISKS#$dsk1}
 
-# Add nomal disk
+# Add provided disk
 log_must zpool add $TESTPOOL log $dsk1
 log_must verify_slog_device $TESTPOOL $dsk1 'ONLINE'
-# Add nomal file
+# Add normal file
 log_must zpool add $TESTPOOL log $LDEV
 ldev=$(random_get $LDEV)
 log_must verify_slog_device $TESTPOOL $ldev 'ONLINE'
 
-# Add lofi device
+# Add loop back device
 if is_linux; then
 	lofidev=$(losetup -f)
-	lofidev=${lofidev##*/}
 	log_must losetup $lofidev ${LDEV2%% *}
+	lofidev=${lofidev##*/}
 else
 	lofidev=${LDEV2%% *}
 	log_must lofiadm -a $lofidev
@@ -94,13 +87,3 @@ log_must verify_slog_device $TESTPOOL $lofidev 'ONLINE'
 
 log_pass "Verify slog device can be disk, file, lofi device or any device " \
 	"that presents a block interface."
-
-# Add file which reside in the itself
-mntpnt=$(get_prop mountpoint $TESTPOOL)
-log_must mkfile $MINVDEVSIZE $mntpnt/vdev
-log_must zpool add $TESTPOOL $mntpnt/vdev
-
-# Add ZFS volume
-vol=$TESTPOOL/vol
-log_must zpool create -V $MINVDEVSIZE $vol
-log_must zpool add $TESTPOOL ${ZVOL_DEVDIR}/$vol

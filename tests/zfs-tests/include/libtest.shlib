@@ -2152,6 +2152,25 @@ function is_pool_removed #pool
 	return $?
 }
 
+function wait_for_degraded
+{
+	typeset pool=$1
+	typeset timeout=${2:-30}
+	typeset t0=$SECONDS
+
+	while :; do
+		[[ $(get_pool_prop health $pool) == "DEGRADED" ]] && break
+		log_note "$pool is not yet degraded."
+		sleep 1
+		if ((SECONDS - t0 > $timeout)); then
+			log_note "$pool not degraded after $timeout seconds."
+			return 1
+		fi
+	done
+
+	return 0
+}
+
 #
 # Use create_pool()/destroy_pool() to clean up the information in
 # in the given disk to avoid slice overlapping.
