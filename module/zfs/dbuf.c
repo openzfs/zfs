@@ -1946,17 +1946,35 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 		return (0);
 	}
 
-	if (dn->dn_phys->dn_nlevels == 0)
-		nlevels = 1;
-	else
-		nlevels = dn->dn_phys->dn_nlevels;
-
+	nlevels =
+	    (dn->dn_phys->dn_nlevels == 0) ? 1 : dn->dn_phys->dn_nlevels;
 	epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 
 	ASSERT3U(level * epbs, <, 64);
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
+	/*
+	 * This assertion shouldn't trip as long as the max indirect block size
+	 * is less than 1M.  The reason for this is that up to that point,
+	 * the number of levels required to address an entire object with blocks
+	 * of size SPA_MINBLOCKSIZE satisfies nlevels * epbs + 1 <= 64.	 In
+	 * other words, if N * epbs + 1 > 64, then if (N-1) * epbs + 1 > 55
+	 * (i.e. we can address the entire object), objects will all use at most
+	 * N-1 levels and the assertion won't overflow.	 However, once epbs is
+	 * 13, 4 * 13 + 1 = 53, but 5 * 13 + 1 = 66.  Then, 4 levels will not be
+	 * enough to address an entire object, so objects will have 5 levels,
+	 * but then this assertion will overflow.
+	 *
+	 * All this is to say that if we ever increase DN_MAX_INDBLKSHIFT, we
+	 * need to redo this logic to handle overflows.
+	 */
+	ASSERT(level >= nlevels ||
+	    ((nlevels - level - 1) * epbs) +
+	    highbit64(dn->dn_phys->dn_nblkptr) <= 64);
 	if (level >= nlevels ||
-	    (blkid > (dn->dn_phys->dn_maxblkid >> (level * epbs)))) {
+	    blkid >= ((uint64_t)dn->dn_phys->dn_nblkptr <<
+	    ((nlevels - level - 1) * epbs)) ||
+	    (fail_sparse &&
+	    blkid > (dn->dn_phys->dn_maxblkid >> (level * epbs)))) {
 		/* the buffer has no parent yet */
 		return (SET_ERROR(ENOENT));
 	} else if (level < nlevels-1) {
@@ -1982,6 +2000,8 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 		}
 		*bpp = ((blkptr_t *)(*parentp)->db.db_data) +
 		    (blkid & ((1ULL << epbs) - 1));
+		if (blkid > (dn->dn_phys->dn_maxblkid >> (level * epbs)))
+			ASSERT(BP_IS_HOLE(*bpp));
 		return (0);
 	} else {
 		/* the block is referenced from the dnode */
