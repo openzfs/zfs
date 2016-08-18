@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_H
@@ -235,8 +235,14 @@ int zap_contains(objset_t *ds, uint64_t zapobj, const char *name);
 int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
 int zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints);
+int zap_lookup_by_dnode(dnode_t *dn, const char *name,
+    uint64_t integer_size, uint64_t num_integers, void *buf);
+int zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
+    uint64_t integer_size, uint64_t num_integers, void *buf,
+    matchtype_t mt, char *realname, int rn_len,
+    boolean_t *ncp);
 
-int zap_count_write(objset_t *os, uint64_t zapobj, const char *name,
+int zap_count_write_by_dnode(dnode_t *dn, const char *name,
     int add, uint64_t *towrite, uint64_t *tooverwrite);
 
 /*
