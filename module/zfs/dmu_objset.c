@@ -847,11 +847,17 @@ dmu_objset_create_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 		/*
 		 * Determine the number of levels necessary for the meta-dnode
-		 * to contain DN_MAX_OBJECT dnodes.
+		 * to contain DN_MAX_OBJECT dnodes.  Note that in order to
+		 * ensure that we do not overflow 64 bits, there has to be
+		 * a nlevels that gives us a number of blocks > DN_MAX_OBJECT
+		 * but < 2^64.  Therefore,
+		 * (mdn->dn_indblkshift - SPA_BLKPTRSHIFT) (10) must be
+		 * less than (64 - log2(DN_MAX_OBJECT)) (16).
 		 */
-		while ((uint64_t)mdn->dn_nblkptr << (mdn->dn_datablkshift +
+		while ((uint64_t)mdn->dn_nblkptr <<
+		    (mdn->dn_datablkshift - DNODE_SHIFT +
 		    (levels - 1) * (mdn->dn_indblkshift - SPA_BLKPTRSHIFT)) <
-		    DN_MAX_OBJECT * sizeof (dnode_phys_t))
+		    DN_MAX_OBJECT)
 			levels++;
 
 		mdn->dn_next_nlevels[tx->tx_txg & TXG_MASK] =

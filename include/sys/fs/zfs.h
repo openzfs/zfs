@@ -667,6 +667,8 @@ typedef struct zpool_rewind_policy {
 
 /*
  * This is needed in userland to report the minimum necessary device size.
+ *
+ * Note that the zfs test suite uses 64MB vdevs.
  */
 #define	SPA_MINDEVSIZE		(64ULL << 20)
 
