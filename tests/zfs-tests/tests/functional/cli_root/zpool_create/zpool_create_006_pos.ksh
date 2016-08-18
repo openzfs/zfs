@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -33,7 +37,7 @@
 #
 # STRATEGY:
 #	1. Create base filesystem to hold virtual disk files.
-#	2. Create several files >= 64M.
+#	2. Create several files == $MINVDEVSIZE.
 #	3. Verify 'zpool create' succeed with valid keywords combination.
 #
 
@@ -54,7 +58,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0
 while ((i < 10)); do
-	log_must $MKFILE 64M $mntpnt/vdev$i
+	log_must $MKFILE $MINVDEVSIZE $mntpnt/vdev$i
 
 	eval vdev$i=$mntpnt/vdev$i
 	((i += 1))

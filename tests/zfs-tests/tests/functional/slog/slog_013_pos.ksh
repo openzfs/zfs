@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -81,14 +81,12 @@ log_must verify_slog_device $TESTPOOL $lofidev 'ONLINE'
 log_pass "Verify slog device can be disk, file, lofi device or any device " \
 	"that presents a block interface."
 
-# Temp disable fore bug 6569095
 # Add file which reside in the itself
 mntpnt=$(get_prop mountpoint $TESTPOOL)
-log_must $MKFILE 100M $mntpnt/vdev
+log_must $MKFILE $MINVDEVSIZE $mntpnt/vdev
 log_must $ZPOOL add $TESTPOOL $mntpnt/vdev
 
-# Temp disable fore bug 6569072
 # Add ZFS volume
 vol=$TESTPOOL/vol
-log_must $ZPOOL create -V 64M $vol
+log_must $ZPOOL create -V $MINVDEVSIZE $vol
 log_must $ZPOOL add $TESTPOOL ${ZVOL_DEVDIR}/$vol

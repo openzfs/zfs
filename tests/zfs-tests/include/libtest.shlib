@@ -1277,7 +1277,7 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	#
 	if verify_slog_support ; then
 		typeset sdevs="/var/tmp/sdev1 /var/tmp/sdev2"
-		log_must $MKFILE 100M $sdevs
+		log_must $MKFILE $MINVDEVSIZE $sdevs
 		log_must $ZPOOL add $pool_name log mirror $sdevs
 	fi
 
@@ -2235,7 +2235,7 @@ function verify_slog_support
 	typeset sdev=$dir/b
 
 	$MKDIR -p $dir
-	$MKFILE 64M $vdev $sdev
+	$MKFILE $MINVDEVSIZE $vdev $sdev
 
 	typeset -i ret=0
 	if ! $ZPOOL create -n $pool $vdev log $sdev > /dev/null 2>&1; then

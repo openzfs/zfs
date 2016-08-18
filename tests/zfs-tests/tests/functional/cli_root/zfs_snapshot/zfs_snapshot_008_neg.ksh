@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_snapshot/zfs_snapshot.cfg
@@ -57,8 +57,8 @@ function cleanup
 log_assert "'zfs snapshot pool1@snap1 pool2@snap2' should fail since snapshots are in different pools."
 log_onexit cleanup
 
-log_must $MKFILE 64m $SNAPDEV1
-log_must $MKFILE 64m $SNAPDEV2
+log_must $MKFILE $MINVDEVSIZE $SNAPDEV1
+log_must $MKFILE $MINVDEVSIZE $SNAPDEV2
 
 log_must $ZPOOL create $SNAPPOOL1 $SNAPDEV1
 log_must $ZPOOL create $SNAPPOOL2 $SNAPDEV2

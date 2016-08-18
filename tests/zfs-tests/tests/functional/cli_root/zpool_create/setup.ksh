@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,12 +45,12 @@ if [[ -n $DISK ]]; then
         #
 	cleanup_devices $DISK
 
-        partition_disk $SIZE $DISK 7
+        partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 3))m $DISK 7
 else
 	for disk in `$ECHO $DISKSARRAY`; do
 		cleanup_devices $disk
 
-		partition_disk $SIZE $disk 7
+		partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 3))m $disk 7
 	done
 fi
 

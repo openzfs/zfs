@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,7 +56,7 @@ log_onexit cleanup
 
 log_assert "zpool set cannot set a readonly property"
 
-log_must $MKFILE 64m /tmp/zpool_set_003.$$.dat
+log_must $MKFILE $MINVDEVSIZE /tmp/zpool_set_003.$$.dat
 log_must $ZPOOL create $TESTPOOL /tmp/zpool_set_003.$$.dat
 
 typeset -i i=0;

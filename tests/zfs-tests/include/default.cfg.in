@@ -153,6 +153,12 @@ export BIGVOLSIZE=1eb
 # Default to limit disks to be checked
 export MAX_FINDDISKSNUM=6
 
+# Default minimum size for file based vdevs in the test suite
+export MINVDEVSIZE=$((256 * 1024 * 1024))
+
+# Minimum vdev size possible as defined in the OS
+export SPA_MINDEVSIZE=$((64 * 1024 * 1024))
+
 # For iscsi target support
 export ISCSITGTFILE=/tmp/iscsitgt_file
 export ISCSITGT_FMRI=svc:/system/iscsitgt:default
