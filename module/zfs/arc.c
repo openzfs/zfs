@@ -5687,6 +5687,7 @@ arc_write_ready(zio_t *zio)
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	uint64_t psize = BP_IS_HOLE(zio->io_bp) ? 0 : BP_GET_PSIZE(zio->io_bp);
 	enum zio_compress compress;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT(!refcount_is_zero(&buf->b_hdr->b_l1hdr.b_refcnt));
@@ -5770,6 +5771,7 @@ arc_write_ready(zio_t *zio)
 	}
 
 	arc_hdr_verify(hdr, zio->io_bp);
+	spl_fstrans_unmark(cookie);
 }
 
 static void
