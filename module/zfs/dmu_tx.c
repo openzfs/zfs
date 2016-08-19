@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -794,15 +794,14 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 		 * access the name in this fat-zap so that we'll check
 		 * for i/o errors to the leaf blocks, etc.
 		 */
-		err = zap_lookup(dn->dn_objset, dn->dn_object, name,
-		    8, 0, NULL);
+		err = zap_lookup_by_dnode(dn, name, 8, 0, NULL);
 		if (err == EIO) {
 			tx->tx_err = err;
 			return;
 		}
 	}
 
-	err = zap_count_write(dn->dn_objset, dn->dn_object, name, add,
+	err = zap_count_write_by_dnode(dn, name, add,
 	    &txh->txh_space_towrite, &txh->txh_space_tooverwrite);
 
 	/*
