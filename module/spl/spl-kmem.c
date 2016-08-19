@@ -383,6 +383,10 @@ spl_kmem_free_track(const void *ptr, size_t size)
 {
 	kmem_debug_t *dptr;
 
+	/* Ignore NULL pointer since we haven't tracked it at all*/
+	if (ptr == NULL)
+		return;
+
 	/* Must exist in hash due to kmem_alloc() */
 	dptr = kmem_del_init(&kmem_lock, kmem_table, KMEM_HASH_BITS, ptr);
 	ASSERT3P(dptr, !=, NULL);
