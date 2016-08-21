@@ -30,12 +30,12 @@
 #
 # DESCRIPTION:
 # Verify that zfs mount should fail when mounting a mounted zfs filesystem or
-# the mountpoint is busy
+# the mountpoint is busy.  On Linux the mount should succeed.
 #
 # STRATEGY:
 # 1. Make a zfs filesystem mounted or mountpoint busy
 # 2. Use zfs mount to mount the filesystem
-# 3. Verify that zfs mount returns error
+# 3. Verify that zfs mount succeeds on Linux and fails for other platforms
 #
 
 verify_runnable "both"
@@ -61,7 +61,11 @@ mpt=$(get_prop mountpoint $fs)
 log_must $ZFS umount $fs
 curpath=`$DIRNAME $0`
 cd $mpt
-log_mustnot $ZFS mount $fs
+if is_linux; then
+    log_must $ZFS mount $fs
+else
+    log_mustnot $ZFS mount $fs
+fi
 cd $curpath
 
 log_pass "zfs mount fails with mounted filesystem or busy moutpoint as expected."

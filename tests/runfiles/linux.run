@@ -124,16 +124,14 @@ tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
 tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos']
 
 # DISABLED:
-# zfs_mount_005_pos - needs investigation
 # zfs_mount_006_pos - needs investigation
 # zfs_mount_007_pos - needs investigation
 # zfs_mount_009_neg - needs investigation
-# zfs_mount_010_neg - needs investigation
 # zfs_mount_all_001_pos - needs investigation
 [tests/functional/cli_root/zfs_mount]
 tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
-    'zfs_mount_004_pos', 'zfs_mount_008_pos',
-    'zfs_mount_011_neg']
+    'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_008_pos',
+    'zfs_mount_010_neg', 'zfs_mount_011_neg']
 
 [tests/functional/cli_root/zfs_promote]
 tests = ['zfs_promote_001_pos', 'zfs_promote_002_pos', 'zfs_promote_003_pos',
