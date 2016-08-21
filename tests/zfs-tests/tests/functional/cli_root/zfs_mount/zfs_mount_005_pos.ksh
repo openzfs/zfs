@@ -70,13 +70,24 @@ cd $TESTDIR || \
 
 $ZFS $mountcmd $TESTPOOL/$TESTFS
 ret=$?
-(( ret == 1 )) || \
-	log_fail "'$ZFS $mountcmd $TESTPOOL/$TESTFS' " \
-		"unexpected return code of $ret."
+if is_linux; then
+    (( ret == 0 )) || \
+        log_fail "'$ZFS $mountcmd $TESTPOOL/$TESTFS' " \
+            "unexpected return code of $ret."
+else
+    (( ret == 1 )) || \
+        log_fail "'$ZFS $mountcmd $TESTPOOL/$TESTFS' " \
+            "unexpected return code of $ret."
+fi
 
 log_note "Make sure the filesystem $TESTPOOL/$TESTFS is unmounted"
-unmounted $TESTPOOL/$TESTFS || \
-	log_fail Filesystem $TESTPOOL/$TESTFS is mounted
+if is_linux; then
+    mounted $TESTPOOL/$TESTFS || \
+        log_fail Filesystem $TESTPOOL/$TESTFS is unmounted
+else
+    unmounted $TESTPOOL/$TESTFS || \
+        log_fail Filesystem $TESTPOOL/$TESTFS is mounted
+fi
 
 log_pass "'$ZFS $mountcmd' with a filesystem " \
 	"whose mountpoint is currently in use failed with return code 1."

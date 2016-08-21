@@ -61,7 +61,11 @@ mpt=$(get_prop mountpoint $fs)
 log_must $ZFS umount $fs
 curpath=`$DIRNAME $0`
 cd $mpt
-log_mustnot $ZFS mount $fs
+if is_linux; then
+    log_must $ZFS mount $fs
+else
+    log_mustnot $ZFS mount $fs
+fi
 cd $curpath
 
 log_pass "zfs mount fails with mounted filesystem or busy moutpoint as expected."
