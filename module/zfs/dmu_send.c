@@ -573,6 +573,7 @@ send_traverse_thread(void *arg)
 	struct send_thread_arg *st_arg = arg;
 	int err;
 	struct send_block_record *data;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 
 	if (st_arg->ds != NULL) {
 		err = traverse_dataset_resume(st_arg->ds,
@@ -585,6 +586,7 @@ send_traverse_thread(void *arg)
 	data = kmem_zalloc(sizeof (*data), KM_SLEEP);
 	data->eos_marker = B_TRUE;
 	bqueue_enqueue(&st_arg->q, data, 1);
+	spl_fstrans_unmark(cookie);
 }
 
 /*
@@ -2737,6 +2739,8 @@ receive_writer_thread(void *arg)
 {
 	struct receive_writer_arg *rwa = arg;
 	struct receive_record_arg *rrd;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
+
 	for (rrd = bqueue_dequeue(&rwa->q); !rrd->eos_marker;
 	    rrd = bqueue_dequeue(&rwa->q)) {
 		/*
@@ -2761,6 +2765,7 @@ receive_writer_thread(void *arg)
 	rwa->done = B_TRUE;
 	cv_signal(&rwa->cv);
 	mutex_exit(&rwa->mutex);
+	spl_fstrans_unmark(cookie);
 }
 
 static int
