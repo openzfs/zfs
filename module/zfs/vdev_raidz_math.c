@@ -120,7 +120,6 @@ vdev_raidz_math_get_ops()
 		ops = (raidz_impl_ops_t *) &vdev_raidz_scalar_impl;
 		break;
 	default:
-		ASSERT(raidz_math_initialized);
 		ASSERT3U(impl, <, raidz_supp_impl_cnt);
 		ASSERT3U(raidz_supp_impl_cnt, >, 0);
 		ops = raidz_supp_impl[impl];
@@ -556,8 +555,8 @@ static const struct {
  * @val		Name of raidz implementation to use
  * @param	Unused.
  */
-static int
-zfs_vdev_raidz_impl_set(const char *val, struct kernel_param *kp)
+int
+vdev_raidz_impl_set(const char *val)
 {
 	int err = -EINVAL;
 	char req_name[RAIDZ_IMPL_NAME_MAX];
@@ -605,17 +604,17 @@ zfs_vdev_raidz_impl_set(const char *val, struct kernel_param *kp)
 	return (err);
 }
 
-int
-vdev_raidz_impl_set(const char *val)
-{
-	ASSERT(raidz_math_initialized);
+#if defined(_KERNEL) && defined(HAVE_SPL)
+#include <linux/mod_compat.h>
 
-	return (zfs_vdev_raidz_impl_set(val, NULL));
+static int
+zfs_vdev_raidz_impl_set(const char *val, zfs_kernel_param_t *kp)
+{
+	return (vdev_raidz_impl_set(val));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
 static int
-zfs_vdev_raidz_impl_get(char *buffer, struct kernel_param *kp)
+zfs_vdev_raidz_impl_get(char *buffer, zfs_kernel_param_t *kp)
 {
 	int i, cnt = 0;
 	char *fmt;

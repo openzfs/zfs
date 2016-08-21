@@ -653,9 +653,10 @@ fletcher_4_fini(void)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+#include <linux/mod_compat.h>
 
 static int
-fletcher_4_param_get(char *buffer, struct kernel_param *unused)
+fletcher_4_param_get(char *buffer, zfs_kernel_param_t *unused)
 {
 	const uint32_t impl = IMPL_READ(fletcher_4_impl_chosen);
 	char *fmt;
@@ -676,7 +677,7 @@ fletcher_4_param_get(char *buffer, struct kernel_param *unused)
 }
 
 static int
-fletcher_4_param_set(const char *val, struct kernel_param *unused)
+fletcher_4_param_set(const char *val, zfs_kernel_param_t *unused)
 {
 	return (fletcher_4_impl_set(val));
 }
