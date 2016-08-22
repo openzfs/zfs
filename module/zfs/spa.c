@@ -1346,6 +1346,14 @@ spa_unload(spa_t *spa)
 	}
 
 	/*
+	 * Stop autotrim tasks.
+	 */
+	mutex_enter(&spa->spa_auto_trim_lock);
+	if (spa->spa_auto_trim_taskq)
+		spa_auto_trim_taskq_destroy(spa);
+	mutex_exit(&spa->spa_auto_trim_lock);
+
+	/*
 	 * Even though vdev_free() also calls vdev_metaslab_fini, we need
 	 * to call it earlier, before we wait for async i/o to complete.
 	 * This ensures that there is no async metaslab prefetching, by
@@ -1371,14 +1379,6 @@ spa_unload(spa_t *spa)
 	bpobj_close(&spa->spa_deferred_bpobj);
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-
-	/*
-	 * Stop autotrim tasks.
-	 */
-	mutex_enter(&spa->spa_auto_trim_lock);
-	if (spa->spa_auto_trim_taskq)
-		spa_auto_trim_taskq_destroy(spa);
-	mutex_exit(&spa->spa_auto_trim_lock);
 
 	/*
 	 * Close all vdevs.
