@@ -62,7 +62,7 @@ while (( i < ${#options[*]} )); do
 	datasetexists $vol || \
 		log_fail "zfs create ${options[i]} -V $VOLSIZE $vol fail."
 
-	log_must $ZFS destroy -f $vol
+	log_must_busy $ZFS destroy -f $vol
 	((i = i + 1))
 done
 
