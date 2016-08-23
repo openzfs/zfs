@@ -110,11 +110,11 @@ for arg in "$fs1 $mntp1" "$clone $mntp2"; do
 	cd $mntp
 	log_mustnot $ZFS destroy $fs
 
+	cd $olddir
 	log_must $ZFS destroy -f $fs
 	datasetexists $fs && \
 		log_fail "'zfs destroy -f' fails to destroy busy filesystem."
 
-	cd $olddir
 done
 
 log_pass "'zfs destroy -f' succeeds as root."
