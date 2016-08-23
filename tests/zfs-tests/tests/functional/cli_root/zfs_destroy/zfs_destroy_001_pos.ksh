@@ -144,6 +144,11 @@ function test_n_check
 		*)	log_fail "Unsupported dataset: '$dtst'."
 	esac
 
+        # Kill any lingering instances of mkbusy, and clear the list.
+	[[ -z $pidlist ]] || log_must $KILL -TERM $pidlist
+	pidlist=""
+	log_mustnot $PGREP -fl $MKBUSY
+	
 	# Firstly, umount ufs filesystem which was created by zfs volume.
 	if is_global_zone; then
 		log_must $UMOUNT -f $TESTDIR1
@@ -151,11 +156,6 @@ function test_n_check
 
 	# Invoke 'zfs destroy [-rRf] <dataset>'
 	log_must $ZFS destroy $opt $dtst
-
-	# Kill any lingering instances of mkbusy, and clear the list.
-	[[ -z $pidlist ]] || log_must $KILL -TERM $pidlist
-	pidlist=""
-	log_mustnot $PGREP -fl $MKBUSY
 
 	case $dtst in
 		$CTR)	check_dataset datasetnonexists \
