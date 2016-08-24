@@ -228,8 +228,8 @@ abd_fini(void)
 struct page;
 #define	kpm_enable			1
 #define	abd_alloc_chunk() \
-	((struct page *)kmem_alloc(PAGESIZE, KM_SLEEP))
-#define	abd_free_chunk(chunk) 		kmem_free(chunk, PAGESIZE)
+	((struct page *) umem_alloc_aligned(PAGESIZE, 64, KM_SLEEP))
+#define	abd_free_chunk(chunk) 		umem_free(chunk, PAGESIZE)
 #define	abd_map_chunk(chunk)		((void *)chunk)
 static void
 abd_unmap_chunk(struct page *c)
@@ -474,8 +474,8 @@ abd_alloc_for_io(size_t size, boolean_t is_metadata)
  * buffer data with sabd. Use abd_put() to free. sabd must not be freed while
  * any derived ABDs exist.
  */
-abd_t *
-abd_get_offset(abd_t *sabd, size_t off)
+static inline abd_t *
+abd_get_offset_impl(abd_t *sabd, size_t off, size_t size)
 {
 	abd_t *abd;
 
@@ -496,8 +496,8 @@ abd_get_offset(abd_t *sabd, size_t off)
 		    (char *)sabd->abd_u.abd_linear.abd_buf + off;
 	} else {
 		size_t new_offset = sabd->abd_u.abd_scatter.abd_offset + off;
-		size_t chunkcnt = abd_scatter_chunkcnt(sabd) -
-		    (new_offset / PAGESIZE);
+		size_t chunkcnt =  abd_chunkcnt_for_bytes(size +
+		    new_offset % PAGESIZE);
 
 		abd = abd_alloc_struct(chunkcnt);
 
@@ -517,12 +517,30 @@ abd_get_offset(abd_t *sabd, size_t off)
 		    chunkcnt * sizeof (void *));
 	}
 
-	abd->abd_size = sabd->abd_size - off;
+	abd->abd_size = size;
 	abd->abd_parent = sabd;
 	refcount_create(&abd->abd_children);
 	(void) refcount_add_many(&sabd->abd_children, abd->abd_size, abd);
 
 	return (abd);
+}
+
+abd_t *
+abd_get_offset(abd_t *sabd, size_t off)
+{
+	size_t size = sabd->abd_size > off ? sabd->abd_size - off : 0;
+
+	VERIFY3U(size, >, 0);
+
+	return (abd_get_offset_impl(sabd, off, size));
+}
+
+abd_t *
+abd_get_offset_size(abd_t *sabd, size_t off, size_t size)
+{
+	ASSERT3U(off + size, <=, sabd->abd_size);
+
+	return (abd_get_offset_impl(sabd, off, size));
 }
 
 /*
@@ -757,10 +775,14 @@ abd_iter_map(struct abd_iter *aiter)
 	} else {
 		size_t index = abd_iter_scatter_chunk_index(aiter);
 		offset = abd_iter_scatter_chunk_offset(aiter);
-		aiter->iter_mapsize = PAGESIZE - offset;
+
+		aiter->iter_mapsize = MIN(PAGESIZE - offset,
+		    aiter->iter_abd->abd_size - aiter->iter_pos);
+
 		paddr = abd_map_chunk(
 			aiter->iter_abd->abd_u.abd_scatter.abd_chunks[index]);
 	}
+
 	aiter->iter_mapaddr = (char *)paddr + offset;
 }
 
@@ -997,6 +1019,166 @@ abd_cmp(abd_t *dabd, abd_t *sabd)
 	ASSERT3U(dabd->abd_size, ==, sabd->abd_size);
 	return (abd_iterate_func2(dabd, sabd, 0, 0, dabd->abd_size,
 	    abd_cmp_cb, NULL));
+}
+
+/*
+ * Iterate over code ABDs and a data ABD and call @func_raidz_gen.
+ *
+ * @cabds          parity ABDs, must have equal size
+ * @dabd           data ABD. Can be NULL (in this case @dsize = 0)
+ * @func_raidz_gen should be implemented so that its behaviour
+ *                 is the same when taking linear and when taking scatter
+ */
+void
+abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
+	ssize_t csize, ssize_t dsize, const unsigned parity,
+	void (*func_raidz_gen)(void **, const void *, size_t, size_t))
+{
+	int i;
+	ssize_t len, dlen;
+	struct abd_iter caiters[3];
+	struct abd_iter daiter;
+	void *caddrs[3];
+
+	ASSERT3U(parity, <=, 3);
+
+	for (i = 0; i < parity; i++)
+		abd_iter_init(&caiters[i], cabds[i]);
+
+	if (dabd)
+		abd_iter_init(&daiter, dabd);
+
+	ASSERT3S(dsize, >=, 0);
+
+	while (csize > 0) {
+		len = csize;
+
+		if (dabd && dsize > 0)
+			abd_iter_map(&daiter);
+
+		for (i = 0; i < parity; i++) {
+			abd_iter_map(&caiters[i]);
+			caddrs[i] = caiters[i].iter_mapaddr;
+		}
+
+		switch (parity) {
+			case 3:
+				len = MIN(caiters[2].iter_mapsize, len);
+			case 2:
+				len = MIN(caiters[1].iter_mapsize, len);
+			case 1:
+				len = MIN(caiters[0].iter_mapsize, len);
+		}
+
+		/* must be progressive */
+		ASSERT3S(len, >, 0);
+
+		if (dabd && dsize > 0) {
+			/* this needs precise iter.length */
+			len = MIN(daiter.iter_mapsize, len);
+			dlen = len;
+		} else
+			dlen = 0;
+
+		/* must be progressive */
+		ASSERT3S(len, >, 0);
+		/*
+		 * The iterated function likely will not do well if each
+		 * segment except the last one is not multiple of 512 (raidz).
+		 */
+		ASSERT3U(((uint64_t)len & 511ULL), ==, 0);
+
+		func_raidz_gen(caddrs, daiter.iter_mapaddr, len, dlen);
+
+		for (i = parity-1; i >= 0; i--) {
+			abd_iter_unmap(&caiters[i]);
+			abd_iter_advance(&caiters[i], len);
+		}
+
+		if (dabd && dsize > 0) {
+			abd_iter_unmap(&daiter);
+			abd_iter_advance(&daiter, dlen);
+			dsize -= dlen;
+		}
+
+		csize -= len;
+
+		ASSERT3S(dsize, >=, 0);
+		ASSERT3S(csize, >=, 0);
+	}
+}
+
+/*
+ * Iterate over code ABDs and data reconstruction target ABDs and call
+ * @func_raidz_rec. Function maps at most 6 pages atomically.
+ *
+ * @cabds           parity ABDs, must have equal size
+ * @tabds           rec target ABDs, at most 3
+ * @tsize           size of data target columns
+ * @func_raidz_rec  expects syndrome data in target columns. Function
+ *                  reconstructs data and overwrites target columns.
+ */
+void
+abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
+	ssize_t tsize, const unsigned parity,
+	void (*func_raidz_rec)(void **t, const size_t tsize, void **c,
+	const unsigned *mul),
+	const unsigned *mul)
+{
+	int i;
+	ssize_t len;
+	struct abd_iter citers[3];
+	struct abd_iter xiters[3];
+	void *caddrs[3], *xaddrs[3];
+
+	ASSERT3U(parity, <=, 3);
+
+	for (i = 0; i < parity; i++) {
+		abd_iter_init(&citers[i], cabds[i]);
+		abd_iter_init(&xiters[i], tabds[i]);
+	}
+
+	while (tsize > 0) {
+
+		for (i = 0; i < parity; i++) {
+			abd_iter_map(&citers[i]);
+			abd_iter_map(&xiters[i]);
+			caddrs[i] = citers[i].iter_mapaddr;
+			xaddrs[i] = xiters[i].iter_mapaddr;
+		}
+
+		len = tsize;
+		switch (parity) {
+			case 3:
+				len = MIN(xiters[2].iter_mapsize, len);
+				len = MIN(citers[2].iter_mapsize, len);
+			case 2:
+				len = MIN(xiters[1].iter_mapsize, len);
+				len = MIN(citers[1].iter_mapsize, len);
+			case 1:
+				len = MIN(xiters[0].iter_mapsize, len);
+				len = MIN(citers[0].iter_mapsize, len);
+		}
+		/* must be progressive */
+		ASSERT3S(len, >, 0);
+		/*
+		 * The iterated function likely will not do well if each
+		 * segment except the last one is not multiple of 512 (raidz).
+		 */
+		ASSERT3U(((uint64_t)len & 511ULL), ==, 0);
+
+		func_raidz_rec(xaddrs, len, caddrs, mul);
+
+		for (i = parity-1; i >= 0; i--) {
+			abd_iter_unmap(&xiters[i]);
+			abd_iter_unmap(&citers[i]);
+			abd_iter_advance(&xiters[i], len);
+			abd_iter_advance(&citers[i], len);
+		}
+
+		tsize -= len;
+		ASSERT3S(tsize, >=, 0);
+	}
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
