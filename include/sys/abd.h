@@ -84,6 +84,7 @@ abd_t *abd_alloc_for_io(size_t, boolean_t);
 abd_t *abd_alloc_sametype(abd_t *, size_t);
 void abd_free(abd_t *);
 abd_t *abd_get_offset(abd_t *, size_t);
+abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
 abd_t *abd_get_from_buf(void *, size_t);
 void abd_put(abd_t *);
 
@@ -118,6 +119,15 @@ unsigned int abd_scatter_bio_map_off(struct bio *, abd_t *, unsigned int,
 		size_t);
 unsigned long abd_nr_pages_off(abd_t *, unsigned int, size_t);
 #endif
+
+void abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
+	ssize_t csize, ssize_t dsize, const unsigned parity,
+	void (*func_raidz_gen)(void **, const void *, size_t, size_t));
+void abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
+	ssize_t tsize, const unsigned parity,
+	void (*func_raidz_rec)(void **t, const size_t tsize, void **c,
+	const unsigned *mul),
+	const unsigned *mul);
 
 /*
  * Wrappers for calls with offsets of 0
