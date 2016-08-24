@@ -23,8 +23,9 @@
  */
 
 #include <sys/isa_defs.h>
+#include <sys/types.h>
 
-#if defined(__aarch64__)
+#if 0 // defined(__aarch64__)
 
 #include "vdev_raidz_math_aarch64_neon_common.h"
 
@@ -153,7 +154,7 @@ const raidz_impl_ops_t vdev_raidz_aarch64_neon_impl = {
 #endif /* defined(__aarch64__) */
 
 
-#if defined(__aarch64__)
+#if 0 // defined(__aarch64__)
 
 const uint8_t
 __attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {

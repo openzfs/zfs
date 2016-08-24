@@ -24,7 +24,7 @@
 
 #include <sys/isa_defs.h>
 
-#if defined(__x86_64) && defined(HAVE_AVX512F)
+#if 0 // defined(__x86_64) && defined(HAVE_AVX512F)
 
 #include <sys/types.h>
 #include <linux/simd_x86.h>
@@ -437,6 +437,21 @@ typedef struct v {
 	kfpu_end();							\
 }
 
+#define	ZERO_STRIDE		4
+#define	ZERO_DEFINE()		{}
+#define	ZERO_D			20, 21, 22, 23
+
+#define	COPY_STRIDE		4
+#define	COPY_DEFINE()		{}
+#define	COPY_D			20, 21, 22, 23
+
+#define	ADD_STRIDE		4
+#define	ADD_DEFINE()		{}
+#define	ADD_D 			20, 21, 22, 23
+
+#define	MUL_STRIDE		4
+#define	MUL_DEFINE() 		{}
+#define	MUL_D			20, 21, 22, 23
 /*
  * This use zmm16-zmm31 registers to free up zmm0-zmm15
  * to use with the AVX2 pshufb, see above
