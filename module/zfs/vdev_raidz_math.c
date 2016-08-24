@@ -44,16 +44,6 @@ static raidz_impl_ops_t vdev_raidz_fastest_impl = {
 	.name = "fastest"
 };
 
-/* ABD BRINGUP -- not ready yet */
-#if 1
-#ifdef HAVE_SSSE3
-#undef HAVE_SSSE3
-#endif
-#ifdef HAVE_AVX2
-#undef HAVE_AVX2
-#endif
-#endif
-
 /* All compiled in implementations */
 const raidz_impl_ops_t *raidz_all_maths[] = {
 	&vdev_raidz_original_impl,
@@ -149,8 +139,6 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 {
 	raidz_gen_f gen_parity = NULL;
 
-/* ABD Bringup -- vector code not ready */
-#if 0
 	switch (raidz_parity(rm)) {
 		case 1:
 			gen_parity = rm->rm_ops->gen[RAIDZ_GEN_P];
@@ -167,7 +155,6 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 				raidz_parity(rm));
 			break;
 	}
-#endif
 
 	/* if method is NULL execute the original implementation */
 	if (gen_parity == NULL)
@@ -178,8 +165,6 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 	return (0);
 }
 
-/* ABD Bringup -- vector code not ready */
-#if 0
 static raidz_rec_f
 reconstruct_fun_p_sel(raidz_map_t *rm, const int *parity_valid,
 	const int nbaddata)
@@ -234,7 +219,6 @@ reconstruct_fun_pqr_sel(raidz_map_t *rm, const int *parity_valid,
 	}
 	return ((raidz_rec_f) NULL);
 }
-#endif
 
 /*
  * Select data reconstruction method for raidz_map
@@ -246,31 +230,28 @@ int
 vdev_raidz_math_reconstruct(raidz_map_t *rm, const int *parity_valid,
 	const int *dt, const int nbaddata)
 {
-	raidz_rec_f rec_data = NULL;
+	raidz_rec_f rec_fn = NULL;
 
-/* ABD Bringup -- vector code not ready */
-#if 0
 	switch (raidz_parity(rm)) {
 	case PARITY_P:
-		rec_data = reconstruct_fun_p_sel(rm, parity_valid, nbaddata);
+		rec_fn = reconstruct_fun_p_sel(rm, parity_valid, nbaddata);
 		break;
 	case PARITY_PQ:
-		rec_data = reconstruct_fun_pq_sel(rm, parity_valid, nbaddata);
+		rec_fn = reconstruct_fun_pq_sel(rm, parity_valid, nbaddata);
 		break;
 	case PARITY_PQR:
-		rec_data = reconstruct_fun_pqr_sel(rm, parity_valid, nbaddata);
+		rec_fn = reconstruct_fun_pqr_sel(rm, parity_valid, nbaddata);
 		break;
 	default:
 		cmn_err(CE_PANIC, "invalid RAID-Z configuration %d",
 		    raidz_parity(rm));
 		break;
 	}
-#endif
 
-	if (rec_data == NULL)
+	if (rec_fn == NULL)
 		return (RAIDZ_ORIGINAL_IMPL);
 	else
-		return (rec_data(rm, dt));
+		return (rec_fn(rm, dt));
 }
 
 const char *raidz_gen_name[] = {

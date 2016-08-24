@@ -23,8 +23,6 @@
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
 
-#ifdef _ABD_READY_
-
 #include <sys/zfs_context.h>
 #include <sys/time.h>
 #include <sys/wait.h>
@@ -55,18 +53,18 @@ bench_init_raidz_map(void)
 
 	/*
 	 * To permit larger column sizes these have to be done
-	 * allocated using aligned alloc instead of zio_data_buf_alloc
+	 * allocated using aligned alloc instead of zio_abd_buf_alloc
 	 */
-	zio_bench.io_data = raidz_alloc(max_data_size);
+	zio_bench.io_abd = raidz_alloc(max_data_size);
 
-	init_zio_data(&zio_bench);
+	init_zio_abd(&zio_bench);
 }
 
 static void
 bench_fini_raidz_maps(void)
 {
 	/* tear down golden zio */
-	raidz_free(zio_bench.io_data, max_data_size);
+	raidz_free(zio_bench.io_abd, max_data_size);
 	bzero(&zio_bench, sizeof (zio_t));
 }
 
@@ -227,4 +225,3 @@ run_raidz_benchmark(void)
 
 	bench_fini_raidz_maps();
 }
-#endif
