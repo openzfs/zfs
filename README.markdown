@@ -8,3 +8,5 @@ includes fully functional and stable SPA, DMU, ZVOL, and ZPL layers.
 
 Full documentation for installing ZoL on your favorite Linux distribution can
 be found at: <http://zfsonlinux.org>
+
+Just another edit - Greg
