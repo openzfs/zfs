@@ -24,6 +24,7 @@
  */
 
 #include <sys/vdev_raidz_impl.h>
+
 /*
  * Provide native CPU scalar routines.
  * Support 32bit and 64bit CPUs.
@@ -153,71 +154,96 @@ static const struct {
 #define	raidz_math_begin()	{}
 #define	raidz_math_end()	{}
 
-#define	GEN_P_DEFINE() v_t p0
-#define	GEN_P_STRIDE	1
-#define	GEN_P_P		p0
+#define	SYN_STRIDE		1
 
-#define	GEN_PQ_DEFINE() v_t d0, p0, q0
-#define	GEN_PQ_STRIDE	1
-#define	GEN_PQ_D	d0
-#define	GEN_PQ_P	p0
-#define	GEN_PQ_Q	q0
+#define	ZERO_DEFINE()		v_t d0
+#define	ZERO_STRIDE		1
+#define	ZERO_D			d0
 
-#define	GEN_PQR_DEFINE() v_t d0, p0, q0, r0
-#define	GEN_PQR_STRIDE	1
-#define	GEN_PQR_D	d0
-#define	GEN_PQR_P	p0
-#define	GEN_PQR_Q	q0
-#define	GEN_PQR_R	r0
+#define	COPY_DEFINE()		v_t d0
+#define	COPY_STRIDE		1
+#define	COPY_D			d0
 
-#define	REC_P_DEFINE() 	v_t x0
-#define	REC_P_STRIDE	1
-#define	REC_P_X		x0
+#define	ADD_DEFINE()		v_t d0
+#define	ADD_STRIDE		1
+#define	ADD_D			d0
 
-#define	REC_Q_DEFINE() 	v_t x0
-#define	REC_Q_STRIDE	1
-#define	REC_Q_X		x0
+#define	MUL_DEFINE()		v_t d0
+#define	MUL_STRIDE		1
+#define	MUL_D			d0
 
-#define	REC_R_DEFINE() 	v_t x0
-#define	REC_R_STRIDE	1
-#define	REC_R_X		x0
+#define	GEN_P_STRIDE		1
+#define	GEN_P_DEFINE()		v_t p0
+#define	GEN_P_P			p0
 
-#define	REC_PQ_DEFINE() v_t x0, y0, d0
-#define	REC_PQ_STRIDE	1
-#define	REC_PQ_X	x0
-#define	REC_PQ_Y	y0
-#define	REC_PQ_D	d0
+#define	GEN_PQ_STRIDE		1
+#define	GEN_PQ_DEFINE()		v_t d0, c0
+#define	GEN_PQ_D		d0
+#define	GEN_PQ_C		c0
 
-#define	REC_PR_DEFINE() v_t x0, y0, d0
-#define	REC_PR_STRIDE	1
-#define	REC_PR_X	x0
-#define	REC_PR_Y	y0
-#define	REC_PR_D	d0
+#define	GEN_PQR_STRIDE		1
+#define	GEN_PQR_DEFINE()	v_t d0, c0
+#define	GEN_PQR_D		d0
+#define	GEN_PQR_C		c0
 
-#define	REC_QR_DEFINE() v_t x0, y0, d0
-#define	REC_QR_STRIDE	1
-#define	REC_QR_X	x0
-#define	REC_QR_Y	y0
-#define	REC_QR_D	d0
+#define	SYN_Q_DEFINE()		v_t d0, x0
+#define	SYN_Q_D			d0
+#define	SYN_Q_X			x0
 
-#define	REC_PQR_DEFINE() v_t x0, y0, z0, d0, t0
-#define	REC_PQR_STRIDE	1
-#define	REC_PQR_X	x0
-#define	REC_PQR_Y	y0
-#define	REC_PQR_Z	z0
-#define	REC_PQR_D	d0
-#define	REC_PQR_XS	d0
-#define	REC_PQR_YS	t0
+
+#define	SYN_R_DEFINE()		v_t d0, x0
+#define	SYN_R_D			d0
+#define	SYN_R_X			x0
+
+
+#define	SYN_PQ_DEFINE()		v_t d0, x0
+#define	SYN_PQ_D		d0
+#define	SYN_PQ_X		x0
+
+
+#define	REC_PQ_STRIDE		1
+#define	REC_PQ_DEFINE()		v_t x0, y0, t0
+#define	REC_PQ_X		x0
+#define	REC_PQ_Y		y0
+#define	REC_PQ_T		t0
+
+
+#define	SYN_PR_DEFINE()		v_t d0, x0
+#define	SYN_PR_D		d0
+#define	SYN_PR_X		x0
+
+#define	REC_PR_STRIDE		1
+#define	REC_PR_DEFINE()		v_t x0, y0, t0
+#define	REC_PR_X		x0
+#define	REC_PR_Y		y0
+#define	REC_PR_T		t0
+
+
+#define	SYN_QR_DEFINE()		v_t d0, x0
+#define	SYN_QR_D		d0
+#define	SYN_QR_X		x0
+
+
+#define	REC_QR_STRIDE		1
+#define	REC_QR_DEFINE()		v_t x0, y0, t0
+#define	REC_QR_X		x0
+#define	REC_QR_Y		y0
+#define	REC_QR_T		t0
+
+
+#define	SYN_PQR_DEFINE()	v_t d0, x0
+#define	SYN_PQR_D		d0
+#define	SYN_PQR_X		x0
+
+#define	REC_PQR_STRIDE		1
+#define	REC_PQR_DEFINE()	v_t x0, y0, z0, xs0, ys0
+#define	REC_PQR_X		x0
+#define	REC_PQR_Y		y0
+#define	REC_PQR_Z		z0
+#define	REC_PQR_XS		xs0
+#define	REC_PQR_YS		ys0
 
 #include "vdev_raidz_math_impl.h"
-
-/*
- * If compiled with -O0, gcc doesn't do any stack frame coalescing
- * and -Wframe-larger-than=1024 is triggered in debug mode.
- * Starting with gcc 4.8, new opt level -Og is introduced for debugging, which
- * does not trigger this warning.
- */
-#pragma GCC diagnostic ignored "-Wframe-larger-than="
 
 DEFINE_GEN_METHODS(scalar);
 DEFINE_REC_METHODS(scalar);

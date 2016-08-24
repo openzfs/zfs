@@ -32,16 +32,6 @@
 #include <sys/vdev_raidz_impl.h>
 #include <assert.h>
 #include <stdio.h>
-
-#ifndef _ABD_READY_
-int
-main(int argc, char **argv)
-{
-	exit(0);
-}
-
-#else
-
 #include "raidz_test.h"
 
 static int *rand_data;
@@ -191,10 +181,10 @@ static void process_options(int argc, char **argv)
 	}
 }
 
-#define	DATA_COL(rm, i) ((rm)->rm_col[raidz_parity(rm) + (i)].rc_data)
+#define	DATA_COL(rm, i) ((rm)->rm_col[raidz_parity(rm) + (i)].rc_abd)
 #define	DATA_COL_SIZE(rm, i) ((rm)->rm_col[raidz_parity(rm) + (i)].rc_size)
 
-#define	CODE_COL(rm, i) ((rm)->rm_col[(i)].rc_data)
+#define	CODE_COL(rm, i) ((rm)->rm_col[(i)].rc_abd)
 #define	CODE_COL_SIZE(rm, i) ((rm)->rm_col[(i)].rc_size)
 
 static int
@@ -205,10 +195,9 @@ cmp_code(raidz_test_opts_t *opts, const raidz_map_t *rm, const int parity)
 	VERIFY(parity >= 1 && parity <= 3);
 
 	for (i = 0; i < parity; i++) {
-		if (0 != memcmp(CODE_COL(rm, i), CODE_COL(opts->rm_golden, i),
-			CODE_COL_SIZE(rm, i))) {
+		if (abd_cmp(CODE_COL(rm, i), CODE_COL(opts->rm_golden, i))
+		    != 0) {
 			ret++;
-
 			LOG_OPT(D_DEBUG, opts,
 			    "\nParity block [%d] different!\n", i);
 		}
@@ -223,8 +212,8 @@ cmp_data(raidz_test_opts_t *opts, raidz_map_t *rm)
 	int dcols = opts->rm_golden->rm_cols - raidz_parity(opts->rm_golden);
 
 	for (i = 0; i < dcols; i++) {
-		if (0 != memcmp(DATA_COL(opts->rm_golden, i), DATA_COL(rm, i),
-			DATA_COL_SIZE(opts->rm_golden, i))) {
+		if (abd_cmp(DATA_COL(opts->rm_golden, i), DATA_COL(rm, i))
+		    != 0) {
 			ret++;
 
 			LOG_OPT(D_DEBUG, opts,
@@ -234,37 +223,55 @@ cmp_data(raidz_test_opts_t *opts, raidz_map_t *rm)
 	return (ret);
 }
 
+static int
+init_rand(void *data, size_t size, void *private)
+{
+	int i;
+	int *dst = (int *) data;
+
+	for (i = 0; i < size / sizeof (int); i++)
+		dst[i] = rand_data[i];
+
+	return (0);
+}
+
+static int
+corrupt_rand(void *data, size_t size, void *private)
+{
+	int i;
+	int *dst = (int *) data;
+
+	for (i = 0; i < size / sizeof (int); i++)
+		dst[i] = rand();
+
+	return (0);
+}
+
+
 static void
 corrupt_colums(raidz_map_t *rm, const int *tgts, const int cnt)
 {
 	int i;
-	int *dst;
 	raidz_col_t *col;
 
 	for (i = 0; i < cnt; i++) {
 		col = &rm->rm_col[tgts[i]];
-		dst = col->rc_data;
-		for (i = 0; i < col->rc_size / sizeof (int); i++)
-			dst[i] = rand();
+		abd_iterate_func(col->rc_abd, 0, col->rc_size, corrupt_rand,
+		    NULL);
 	}
 }
 
 void
-init_zio_data(zio_t *zio)
+init_zio_abd(zio_t *zio)
 {
-	int i;
-	int *dst = (int *) zio->io_data;
-
-	for (i = 0; i < zio->io_size / sizeof (int); i++) {
-		dst[i] = rand_data[i];
-	}
+	abd_iterate_func(zio->io_abd, 0, zio->io_size, init_rand, NULL);
 }
 
 static void
 fini_raidz_map(zio_t **zio, raidz_map_t **rm)
 {
 	vdev_raidz_map_free(*rm);
-	raidz_free((*zio)->io_data, (*zio)->io_size);
+	raidz_free((*zio)->io_abd, (*zio)->io_size);
 	umem_free(*zio, sizeof (zio_t));
 
 	*zio = NULL;
@@ -289,11 +296,11 @@ init_raidz_golden_map(raidz_test_opts_t *opts, const int parity)
 	opts->zio_golden->io_offset = zio_test->io_offset = opts->rto_offset;
 	opts->zio_golden->io_size = zio_test->io_size = opts->rto_dsize;
 
-	opts->zio_golden->io_data = raidz_alloc(opts->rto_dsize);
-	zio_test->io_data = raidz_alloc(opts->rto_dsize);
+	opts->zio_golden->io_abd = raidz_alloc(opts->rto_dsize);
+	zio_test->io_abd = raidz_alloc(opts->rto_dsize);
 
-	init_zio_data(opts->zio_golden);
-	init_zio_data(zio_test);
+	init_zio_abd(opts->zio_golden);
+	init_zio_abd(zio_test);
 
 	VERIFY0(vdev_raidz_impl_set("original"));
 
@@ -336,8 +343,8 @@ init_raidz_map(raidz_test_opts_t *opts, zio_t **zio, const int parity)
 
 	(*zio)->io_offset = 0;
 	(*zio)->io_size = alloc_dsize;
-	(*zio)->io_data = raidz_alloc(alloc_dsize);
-	init_zio_data(*zio);
+	(*zio)->io_abd = raidz_alloc(alloc_dsize);
+	init_zio_abd(*zio);
 
 	rm = vdev_raidz_map_alloc(*zio, opts->rto_ashift,
 		total_ncols, parity);
@@ -792,4 +799,3 @@ main(int argc, char **argv)
 
 	return (err);
 }
-#endif
