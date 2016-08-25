@@ -1572,7 +1572,7 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 	char errbuf[1024];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	nvlist_t *nvl;
-	int nvl_len;
+	int nvl_len = 0;
 	int added_resv = 0;
 	zfs_prop_t prop = 0;
 	nvpair_t *elem;
@@ -1602,7 +1602,6 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 	 * Check how many properties we're setting and allocate an array to
 	 * store changelist pointers for postfix().
 	 */
-	nvl_len = 0;
 	for (elem = nvlist_next_nvpair(nvl, NULL);
 	    elem != NULL;
 	    elem = nvlist_next_nvpair(nvl, elem))
