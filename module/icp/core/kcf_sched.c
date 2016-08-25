@@ -496,7 +496,7 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 	kcf_provider_desc_t *new_pd;
 	crypto_mechanism_t *mech1 = NULL, *mech2 = NULL;
 	crypto_mech_type_t prov_mt1, prov_mt2;
-	crypto_func_group_t fg;
+	crypto_func_group_t fg = 0;
 
 	if (!can_resubmit(areq, &mech1, &mech2, &fg))
 		return (error);
