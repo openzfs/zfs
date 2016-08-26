@@ -67,9 +67,9 @@ libzfs_error_init(int error)
 		    "loaded.\nTry running '/sbin/modprobe zfs' as root "
 		    "to load them.\n"));
 	case ENOENT:
-		return (dgettext(TEXT_DOMAIN, "The /dev/zfs device is "
-		    "missing and must be created.\nTry running 'udevadm "
-		    "trigger' as root to create it.\n"));
+		return (dgettext(TEXT_DOMAIN, "/dev/zfs and /proc/self/mounts "
+		    "are required.\nTry running 'udevadm trigger' and 'mount "
+		    "-t proc proc /proc' as root.\n"));
 	case ENOEXEC:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules cannot be "
 		    "auto-loaded.\nTry running '/sbin/modprobe zfs' as "

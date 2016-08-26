@@ -288,9 +288,8 @@ load_module_initrd()
 		wait_for_dev
 	fi
 
-	# zpool import refuse to import without a valid mtab
-	[ ! -f /proc/mounts ] && mount proc /proc
-	[ ! -f /etc/mtab ] && cat /proc/mounts > /etc/mtab
+	# zpool import refuse to import without a valid /proc/self/mounts
+	[ ! -f /proc/self/mounts ] && mount proc /proc
 
 	# Load the module
 	load_module "zfs" || return 1
@@ -919,7 +918,7 @@ mountroot()
 	#
 	#   but the MOUNTPOINT prefix is preserved on descendent filesystem
 	#   after the pivot into the regular root, which later breaks things
-	#   like `zfs mount -a` and the /etc/mtab refresh.
+	#   like `zfs mount -a` and the /proc/self/mounts refresh.
 	#
 	# * Mount additional filesystems required
 	#   Such as /usr, /var, /usr/local etc.

@@ -6141,9 +6141,10 @@ share_mount(int op, int argc, char **argv)
 		}
 
 		/*
-		 * When mount is given no arguments, go through /etc/mtab and
-		 * display any active ZFS mounts.  We hide any snapshots, since
-		 * they are controlled automatically.
+		 * When mount is given no arguments, go through
+		 * /proc/self/mounts and display any active ZFS mounts.
+		 * We hide any snapshots, since they are controlled
+		 * automatically.
 		 */
 
 		/* Reopen MNTTAB to prevent reading stale data from open file */
@@ -6223,8 +6224,8 @@ unshare_unmount_compare(const void *larg, const void *rarg, void *unused)
 
 /*
  * Convenience routine used by zfs_do_umount() and manual_unmount().  Given an
- * absolute path, find the entry /etc/mtab, verify that its a ZFS filesystem,
- * and unmount it appropriately.
+ * absolute path, find the entry /proc/self/mounts, verify that its a
+ * ZFS filesystems, and unmount it appropriately.
  */
 static int
 unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
@@ -6237,7 +6238,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	ino_t path_inode;
 
 	/*
-	 * Search for the path in /etc/mtab.  Rather than looking for the
+	 * Search for the path in /proc/self/mounts. Rather than looking for the
 	 * specific path, which can be fooled by non-standard paths (i.e. ".."
 	 * or "//"), we stat() the path and search for the corresponding
 	 * (major,minor) device pair.
@@ -6268,8 +6269,8 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			    "currently mounted\n"), cmdname, path);
 			return (1);
 		}
-		(void) fprintf(stderr, gettext("warning: %s not in mtab\n"),
-		    path);
+		(void) fprintf(stderr, gettext("warning: %s not in"
+		    "/proc/self/mounts\n"), path);
 		if ((ret = umount2(path, flags)) != 0)
 			(void) fprintf(stderr, gettext("%s: %s\n"), path,
 			    strerror(errno));
@@ -6380,9 +6381,9 @@ unshare_unmount(int op, int argc, char **argv)
 		/*
 		 * We could make use of zfs_for_each() to walk all datasets in
 		 * the system, but this would be very inefficient, especially
-		 * since we would have to linearly search /etc/mtab for each
-		 * one.  Instead, do one pass through /etc/mtab looking for
-		 * zfs entries and call zfs_unmount() for each one.
+		 * since we would have to linearly search /proc/self/mounts for
+		 * each one. Instead, do one pass through /proc/self/mounts
+		 * looking for zfs entries and call zfs_unmount() for each one.
 		 *
 		 * Things get a little tricky if the administrator has created
 		 * mountpoints beneath other ZFS filesystems.  In this case, we

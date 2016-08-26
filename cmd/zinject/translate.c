@@ -120,7 +120,7 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 #else
 	if ((fp = fopen(MNTTAB, "r")) == NULL) {
 #endif
-		(void) fprintf(stderr, "cannot open /etc/mtab\n");
+		(void) fprintf(stderr, "cannot open %s\n", MNTTAB);
 		return (-1);
 	}
 

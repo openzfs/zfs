@@ -39,7 +39,7 @@ chkroot() {
 		if [ "$2" = "/" ]; then
 			return 0
 		fi
-	done < /etc/mtab
+	done < /proc/self/mounts
 
 	return 1
 }
@@ -178,7 +178,7 @@ do_start()
 
 	check_module_loaded "zfs" || exit 0
 
-	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
+	# Ensure / exists in /proc/self/mounts.
 	# This should be handled by rc.sysinit but lets be paranoid.
 	if ! chkroot
 	then
