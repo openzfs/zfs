@@ -327,6 +327,46 @@ exit 0
 %endif
 
 %changelog
+* Fri Sep 9 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.8-1
+- Linux 4.6, 4.7 and 4.8 compatibility zfsonlinux/spl#549 zfsonlinux/spl#563 zfsonlinux/spl#565 zfsonlinux/spl#566 zfsonlinux/zfs#4664 zfsonlinux/zfs#4665 zfsonlinux/zfs#4717 zfsonlinux/zfs#4726 zfsonlinux/zfs#4892  zfsonlinux/zfs#4899 zfsonlinux/zfs#4922  zfsonlinux/zfs#4944  zfsonlinux/zfs#4946 zfsonlinux/zfs#4951
+- Fix new tunable to ignore hole_birth, enabled by default zfsonlinux/zfs#4833
+- Fix rw_tryupgrade() semantics zfsonlinux/spl#534 zfsonlinux/spl#554
+- Fix taskq_wait_outstanding() re-evaluation issue zfsonlinux/spl#553
+- Fix race between taskq_destroy and new spawning thread zfsonlinux/spl#550 zfsonlinux/spl#553
+- Fix handle NULL case in spl_kmem_free_track() zfsonlinux/spl#567
+- Fix persist vdev_resilver_txg changes zfsonlinux/zfs#4790
+- Fix array bounds read in zprop_print_one_property() zfsonlinux/zfs#5003
+- Fix call zfs_get_name() with invalid parameter zfsonlinux/zfs#4919
+- Fix incorrect pool state after import zfsonlinux/zfs#4948
+- Fix self-healing IO prior to dsl_pool_init() completion zfsonlinux/zfs#4652
+- Fix stack corruption after importing a pool with a too-long name zfsonlinux/zfs@dc4abb4
+- Fix deeply nested nvlist can overflow stack zfsonlinux/zfs#4924
+- Fix dbuf_stats_hash_table_data race zfsonlinux/zfs#4846
+- Fix NULL dereference when accessing dbuf kstat zfsonlinux/zfs#4837
+- Fix NFS fh_to_dentry() should return ESTALE when generation mismatch zfsonlinux/zfs#4828
+- Fix allowing accessing XATTR via export handle zfsonlinux/zfs#4828
+- Fix out-of-bound access in zfs_fillpage() zfsonlinux/zfs#4705 zfsonlinux/zfs#4708
+- Fix memleak in zpl_parse_options zfsonlinux/zfs#4706 zfsonlinux/zfs#4708
+- Fix arc_prune_task use-after-free zfsonlinux/zfs#4687 zfsonlinux/zfs#4690
+- Fix get_zfs_sb() race with concurrent umount zfsonlinux/zfs@5cff9a0
+- Fix xattr parent inode pinning zfsonlinux/zfs#4359 zfsonlinux/zfs#3508 zfsonlinux/zfs#4413 zfsonlinux/zfs#4827
+- Fix xattr purge during iput zfsonlinux/zfs#4359 zfsonlinux/zfs#3508 zfsonlinux/zfs#4413 zfsonlinux/zfs#4827
+- Fix metaslab_free_dva(): bad DVA X:Y:Z zfsonlinux/zfs#3937
+- Fix large kmem_alloc in vdev_metaslab_init zfsonlinux/zfs#4752
+- Fix snapdir by skipping ctldir znode in zfs_rezget zfsonlinux/zfs#4514 zfsonlinux/zfs#4661 zfsonlinux/zfs#4672
+- Fix libshare performance issue zfsonlinux/zfs#4119
+- Fix ztest truncated cache file zfsonlinux/zfs#4129
+- Fix obeying arc_meta_limit default size when changing arc_max zfsonlinux/zfs#4001
+- Fix bug in fix_paths() zfsonlinux/zfs#4632
+- Fix systemd configuration zfsonlinux/zfs#4325 zfsonlinux/zfs#4496 zfsonlinux/zfs#4658 zfsonlinux/zfs#4699
+- Fix use kernel provided mutex owner zfsonlinux/spl#540
+- Fix rename 'zed.service' to 'zfs-zed.service' zfsonlinux/zfs#3837
+- Add support for MIPS zfsonlinux/spl#558
+- Add nfs-kernel-server for Debian zfsonlinux/zfs#4350
+- Remove HAVE_CURRENT_UMASK and HAVE_POSIX_ACL_CACHING zfsonlinux/zfs#4922
+- Remove dummy znode from zvol_state zfsonlinux/zfs#4510
+- Fix gcc -Warray-bounds check for dump_object() in zdb zfsonlinux/zfs#4907
+- Handle block pointers with a corrupt logical size zfsonlinux/zfs#4069 zfsonlinux/zfs#4080
 * Thu May 12 2016 Ned Bass <bass6@llnl.gov> - 0.6.5.7-1
 - Fix user namespaces uid/gid mapping zfsonlinux/zfs#4177
 - Fix ZPL miswrite of default POSIX ACL zfsonlinux/zfs#4520
