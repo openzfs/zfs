@@ -5643,17 +5643,25 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 	while (gethrtime() <= end) {
 		int run_count = 100;
 		void *buf;
+		struct abd *abd_data, *abd_meta;
 		uint32_t size;
+
 		int *ptr;
 		int i;
 		zio_cksum_t zc_ref;
 		zio_cksum_t zc_ref_byteswap;
 
 		size = ztest_random_blocksize();
+
 		buf = umem_alloc(size, UMEM_NOFAIL);
+		abd_data = abd_alloc(size, B_FALSE);
+		abd_meta = abd_alloc(size, B_TRUE);
 
 		for (i = 0, ptr = buf; i < size / sizeof (*ptr); i++, ptr++)
 			*ptr = ztest_random(UINT_MAX);
+
+		abd_copy_from_buf_off(abd_data, buf, 0, size);
+		abd_copy_from_buf_off(abd_meta, buf, 0, size);
 
 		VERIFY0(fletcher_4_impl_set("scalar"));
 		fletcher_4_native(buf, size, &zc_ref);
@@ -5670,9 +5678,30 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
 			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
 			    sizeof (zc_byteswap)));
+
+			/* Test ABD - data */
+
+			abd_fletcher_4_byteswap(abd_data, size, &zc_byteswap);
+			abd_fletcher_4_native(abd_data, size, &zc);
+
+			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
+			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
+			    sizeof (zc_byteswap)));
+
+			/* Test ABD - metadata */
+
+			abd_fletcher_4_byteswap(abd_meta, size, &zc_byteswap);
+			abd_fletcher_4_native(abd_meta, size, &zc);
+
+			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
+			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
+			    sizeof (zc_byteswap)));
+
 		}
 
 		umem_free(buf, size);
+		abd_free(abd_data);
+		abd_free(abd_meta);
 	}
 }
 

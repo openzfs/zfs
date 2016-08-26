@@ -103,38 +103,39 @@ abd_fletcher_2_byteswap(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
 }
 
 /*ARGSUSED*/
-static int
-fletcher_4_incremental_native_compat(void *buf, size_t size, void *zcp)
+static inline void
+abd_fletcher_4_impl(abd_t *abd, uint64_t size, zio_abd_checksum_data_t *acdp)
 {
-	fletcher_4_incremental_native(buf, size, (zio_cksum_t *)zcp);
-	return (0);
+	fletcher_4_abd_ops.acf_init(acdp);
+	abd_iterate_func(abd, 0, size, fletcher_4_abd_ops.acf_iter, acdp);
+	fletcher_4_abd_ops.acf_fini(acdp);
 }
 
 /*ARGSUSED*/
 void
 abd_fletcher_4_native(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
 {
-	fletcher_init(zcp);
-	(void) abd_iterate_func(abd, 0, size,
-	    fletcher_4_incremental_native_compat, zcp);
-}
+	zio_abd_checksum_data_t acd = {
+		.acd_byteorder	= ZIO_CHECKSUM_NATIVE,
+		.acd_zcp 	= zcp
+	};
 
-/*ARGSUSED*/
-static int
-fletcher_4_incremental_byteswap_compat(void *buf, size_t size, void *zcp)
-{
-	fletcher_4_incremental_byteswap(buf, size, (zio_cksum_t *)zcp);
-	return (0);
+	abd_fletcher_4_impl(abd, size, &acd);
 }
 
 /*ARGSUSED*/
 void
 abd_fletcher_4_byteswap(abd_t *abd, uint64_t size, zio_cksum_t *zcp)
 {
-	fletcher_init(zcp);
-	(void) abd_iterate_func(abd, 0, size,
-	    fletcher_4_incremental_byteswap_compat, zcp);
+
+	zio_abd_checksum_data_t acd = {
+		.acd_byteorder	= ZIO_CHECKSUM_BYTESWAP,
+		.acd_zcp 	= zcp
+	};
+
+	abd_fletcher_4_impl(abd, size, &acd);
 }
+
 
 zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 	{{NULL,			NULL},			0, 0, 0, "inherit"},
