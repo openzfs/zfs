@@ -1015,19 +1015,13 @@ retry:
  * among uberblocks with equal txg, choose the one with the latest timestamp.
  */
 static int
-vdev_uberblock_compare(uberblock_t *ub1, uberblock_t *ub2)
+vdev_uberblock_compare(const uberblock_t *ub1, const uberblock_t *ub2)
 {
-	if (ub1->ub_txg < ub2->ub_txg)
-		return (-1);
-	if (ub1->ub_txg > ub2->ub_txg)
-		return (1);
+	int cmp = AVL_CMP(ub1->ub_txg, ub2->ub_txg);
+	if (likely(cmp))
+		return (cmp);
 
-	if (ub1->ub_timestamp < ub2->ub_timestamp)
-		return (-1);
-	if (ub1->ub_timestamp > ub2->ub_timestamp)
-		return (1);
-
-	return (0);
+	return (AVL_CMP(ub1->ub_timestamp, ub2->ub_timestamp));
 }
 
 struct ubl_cbdata {

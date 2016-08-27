@@ -174,20 +174,15 @@ int zfs_vdev_write_gap_limit = 4 << 10;
 int
 vdev_queue_offset_compare(const void *x1, const void *x2)
 {
-	const zio_t *z1 = x1;
-	const zio_t *z2 = x2;
+	const zio_t *z1 = (const zio_t *)x1;
+	const zio_t *z2 = (const zio_t *)x2;
 
-	if (z1->io_offset < z2->io_offset)
-		return (-1);
-	if (z1->io_offset > z2->io_offset)
-		return (1);
+	int cmp = AVL_CMP(z1->io_offset, z2->io_offset);
 
-	if (z1 < z2)
-		return (-1);
-	if (z1 > z2)
-		return (1);
+	if (likely(cmp))
+		return (cmp);
 
-	return (0);
+	return (AVL_PCMP(z1, z2));
 }
 
 static inline avl_tree_t *
@@ -209,20 +204,15 @@ vdev_queue_type_tree(vdev_queue_t *vq, zio_type_t t)
 int
 vdev_queue_timestamp_compare(const void *x1, const void *x2)
 {
-	const zio_t *z1 = x1;
-	const zio_t *z2 = x2;
+	const zio_t *z1 = (const zio_t *)x1;
+	const zio_t *z2 = (const zio_t *)x2;
 
-	if (z1->io_timestamp < z2->io_timestamp)
-		return (-1);
-	if (z1->io_timestamp > z2->io_timestamp)
-		return (1);
+	int cmp = AVL_CMP(z1->io_timestamp, z2->io_timestamp);
 
-	if (z1 < z2)
-		return (-1);
-	if (z1 > z2)
-		return (1);
+	if (likely(cmp))
+		return (cmp);
 
-	return (0);
+	return (AVL_PCMP(z1, z2));
 }
 
 static int
