@@ -399,25 +399,16 @@ metaslab_class_expandable_space(metaslab_class_t *mc)
 static int
 metaslab_compare(const void *x1, const void *x2)
 {
-	const metaslab_t *m1 = x1;
-	const metaslab_t *m2 = x2;
+	const metaslab_t *m1 = (const metaslab_t *)x1;
+	const metaslab_t *m2 = (const metaslab_t *)x2;
 
-	if (m1->ms_weight < m2->ms_weight)
-		return (1);
-	if (m1->ms_weight > m2->ms_weight)
-		return (-1);
+	int cmp = AVL_CMP(m2->ms_weight, m1->ms_weight);
+	if (likely(cmp))
+		return (cmp);
 
-	/*
-	 * If the weights are identical, use the offset to force uniqueness.
-	 */
-	if (m1->ms_start < m2->ms_start)
-		return (-1);
-	if (m1->ms_start > m2->ms_start)
-		return (1);
+	IMPLY(AVL_CMP(m1->ms_start, m2->ms_start) == 0, m1 == m2);
 
-	ASSERT3P(m1, ==, m2);
-
-	return (0);
+	return (AVL_CMP(m1->ms_start, m2->ms_start));
 }
 
 /*
@@ -795,18 +786,11 @@ metaslab_rangesize_compare(const void *x1, const void *x2)
 	uint64_t rs_size1 = r1->rs_end - r1->rs_start;
 	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
 
-	if (rs_size1 < rs_size2)
-		return (-1);
-	if (rs_size1 > rs_size2)
-		return (1);
+	int cmp = AVL_CMP(rs_size1, rs_size2);
+	if (likely(cmp))
+		return (cmp);
 
-	if (r1->rs_start < r2->rs_start)
-		return (-1);
-
-	if (r1->rs_start > r2->rs_start)
-		return (1);
-
-	return (0);
+	return (AVL_CMP(r1->rs_start, r2->rs_start));
 }
 
 /*

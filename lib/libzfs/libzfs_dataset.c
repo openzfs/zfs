@@ -674,15 +674,13 @@ typedef struct mnttab_node {
 static int
 libzfs_mnttab_cache_compare(const void *arg1, const void *arg2)
 {
-	const mnttab_node_t *mtn1 = arg1;
-	const mnttab_node_t *mtn2 = arg2;
+	const mnttab_node_t *mtn1 = (const mnttab_node_t *)arg1;
+	const mnttab_node_t *mtn2 = (const mnttab_node_t *)arg2;
 	int rv;
 
 	rv = strcmp(mtn1->mtn_mt.mnt_special, mtn2->mtn_mt.mnt_special);
 
-	if (rv == 0)
-		return (0);
-	return (rv > 0 ? 1 : -1);
+	return (AVL_ISIGN(rv));
 }
 
 void

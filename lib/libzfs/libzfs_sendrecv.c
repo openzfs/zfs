@@ -475,15 +475,10 @@ typedef struct fsavl_node {
 static int
 fsavl_compare(const void *arg1, const void *arg2)
 {
-	const fsavl_node_t *fn1 = arg1;
-	const fsavl_node_t *fn2 = arg2;
+	const fsavl_node_t *fn1 = (const fsavl_node_t *)arg1;
+	const fsavl_node_t *fn2 = (const fsavl_node_t *)arg2;
 
-	if (fn1->fn_guid > fn2->fn_guid)
-		return (+1);
-	else if (fn1->fn_guid < fn2->fn_guid)
-		return (-1);
-	else
-		return (0);
+	return (AVL_CMP(fn1->fn_guid, fn2->fn_guid));
 }
 
 /*

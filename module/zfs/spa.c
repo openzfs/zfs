@@ -820,19 +820,14 @@ spa_change_guid(spa_t *spa)
 static int
 spa_error_entry_compare(const void *a, const void *b)
 {
-	spa_error_entry_t *sa = (spa_error_entry_t *)a;
-	spa_error_entry_t *sb = (spa_error_entry_t *)b;
+	const spa_error_entry_t *sa = (const spa_error_entry_t *)a;
+	const spa_error_entry_t *sb = (const spa_error_entry_t *)b;
 	int ret;
 
-	ret = bcmp(&sa->se_bookmark, &sb->se_bookmark,
+	ret = memcmp(&sa->se_bookmark, &sb->se_bookmark,
 	    sizeof (zbookmark_phys_t));
 
-	if (ret < 0)
-		return (-1);
-	else if (ret > 0)
-		return (1);
-	else
-		return (0);
+	return (AVL_ISIGN(ret));
 }
 
 /*

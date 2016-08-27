@@ -228,15 +228,10 @@ zfs_znode_fini(void)
 int
 zfs_znode_hold_compare(const void *a, const void *b)
 {
-	const znode_hold_t *zh_a = a;
-	const znode_hold_t *zh_b = b;
+	const znode_hold_t *zh_a = (const znode_hold_t *)a;
+	const znode_hold_t *zh_b = (const znode_hold_t *)b;
 
-	if (zh_a->zh_obj < zh_b->zh_obj)
-		return (-1);
-	else if (zh_a->zh_obj > zh_b->zh_obj)
-		return (1);
-	else
-		return (0);
+	return (AVL_CMP(zh_a->zh_obj, zh_b->zh_obj));
 }
 
 boolean_t

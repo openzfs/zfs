@@ -272,12 +272,7 @@ zfs_snapshot_compare(const void *larg, const void *rarg)
 	lcreate = zfs_prop_get_int(l, ZFS_PROP_CREATETXG);
 	rcreate = zfs_prop_get_int(r, ZFS_PROP_CREATETXG);
 
-	if (lcreate < rcreate)
-		return (-1);
-	else if (lcreate > rcreate)
-		return (+1);
-	else
-		return (0);
+	return (AVL_CMP(lcreate, rcreate));
 }
 
 int
