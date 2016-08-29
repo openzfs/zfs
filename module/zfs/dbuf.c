@@ -1468,7 +1468,20 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		dnode_setdirty(dn, tx);
 		DB_DNODE_EXIT(db);
 		return (dr);
-	} else if (do_free_accounting) {
+	}
+
+	/*
+	 * The dn_struct_rwlock prevents db_blkptr from changing
+	 * due to a write from syncing context completing
+	 * while we are running, so we want to acquire it before
+	 * looking at db_blkptr.
+	 */
+	if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
+		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+		drop_struct_lock = TRUE;
+	}
+
+	if (do_free_accounting) {
 		blkptr_t *bp = db->db_blkptr;
 		int64_t willfree = (bp && !BP_IS_HOLE(bp)) ?
 		    bp_get_dsize(os->os_spa, bp) : db->db.db_size;
@@ -1482,11 +1495,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		 */
 		ddt_prefetch(os->os_spa, bp);
 		dnode_willuse_space(dn, -willfree, tx);
-	}
-
-	if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		drop_struct_lock = TRUE;
 	}
 
 	if (db->db_level == 0) {
