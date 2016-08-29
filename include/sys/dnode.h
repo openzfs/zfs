@@ -349,6 +349,15 @@ int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
 void dnode_evict_dbufs(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
 
+#define	DNODE_IS_CACHEABLE(_dn)						\
+	((_dn)->dn_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
+	(DMU_OT_IS_METADATA((_dn)->dn_type) &&				\
+	(_dn)->dn_objset->os_primary_cache == ZFS_CACHE_METADATA))
+
+#define	DNODE_META_IS_CACHEABLE(_dn)					\
+	((_dn)->dn_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
+	(_dn)->dn_objset->os_primary_cache == ZFS_CACHE_METADATA)
+
 #ifdef ZFS_DEBUG
 
 /*
