@@ -50,6 +50,8 @@ unsigned int	zfetch_max_streams = 8;
 unsigned int	zfetch_min_sec_reap = 2;
 /* max bytes to prefetch per stream (default 8MB) */
 unsigned int	zfetch_max_distance = 8 * 1024 * 1024;
+/* max bytes to prefetch indirects for per stream (default 64MB) */
+unsigned int	zfetch_max_idistance = 64 * 1024 * 1024;
 /* max number of bytes in an array_read in which we allow prefetching (1MB) */
 unsigned long	zfetch_array_rd_sz = 1024 * 1024;
 
@@ -189,6 +191,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	zs = kmem_zalloc(sizeof (*zs), KM_SLEEP);
 	zs->zs_blkid = blkid;
 	zs->zs_pf_blkid = blkid;
+	zs->zs_ipf_blkid = blkid;
 	zs->zs_atime = gethrtime();
 	mutex_init(&zs->zs_lock, NULL, MUTEX_DEFAULT, NULL);
 
@@ -196,16 +199,22 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 }
 
 /*
- * This is the prefetch entry point.  It calls all of the other dmu_zfetch
- * routines to create, delete, find, or operate upon prefetch streams.
+ * This is the predictive prefetch entry point.  It associates dnode access
+ * specified with blkid and nblks arguments with prefetch stream, predicts
+ * further accesses based on that stats and initiates speculative prefetch.
+ * fetch_data argument specifies whether actual data blocks should be fetched:
+ *   FALSE -- prefetch only indirect blocks for predicted data blocks;
+ *   TRUE -- prefetch predicted data blocks plus following indirect blocks.
  */
 void
-dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks)
+dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 {
 	zstream_t *zs;
-	int64_t pf_start;
-	int pf_nblks;
-	int i;
+	int64_t pf_start, ipf_start, ipf_istart, ipf_iend;
+	int64_t pf_ahead_blks, max_blks, iblk;
+	int epbs, max_dist_blks, pf_nblks, ipf_nblks, i;
+	uint64_t end_of_access_blkid;
+	end_of_access_blkid = blkid + nblks;
 
 	if (zfs_prefetch_disable)
 		return;
@@ -242,7 +251,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks)
 		 */
 		ZFETCHSTAT_BUMP(zfetchstat_misses);
 		if (rw_tryupgrade(&zf->zf_rwlock))
-			dmu_zfetch_stream_create(zf, blkid + nblks);
+			dmu_zfetch_stream_create(zf, end_of_access_blkid);
 		rw_exit(&zf->zf_rwlock);
 		return;
 	}
@@ -254,34 +263,73 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks)
 	 * Normally, we start prefetching where we stopped
 	 * prefetching last (zs_pf_blkid).  But when we get our first
 	 * hit on this stream, zs_pf_blkid == zs_blkid, we don't
-	 * want to prefetch to block we just accessed.  In this case,
+	 * want to prefetch the block we just accessed.  In this case,
 	 * start just after the block we just accessed.
 	 */
-	pf_start = MAX(zs->zs_pf_blkid, blkid + nblks);
+	pf_start = MAX(zs->zs_pf_blkid, end_of_access_blkid);
 
 	/*
 	 * Double our amount of prefetched data, but don't let the
 	 * prefetch get further ahead than zfetch_max_distance.
 	 */
-	pf_nblks =
-	    MIN((int64_t)zs->zs_pf_blkid - zs->zs_blkid + nblks,
-	    zs->zs_blkid + nblks +
-	    (zfetch_max_distance >> zf->zf_dnode->dn_datablkshift) - pf_start);
+	if (fetch_data) {
+		max_dist_blks =
+		    zfetch_max_distance >> zf->zf_dnode->dn_datablkshift;
+		/*
+		 * Previously, we were (zs_pf_blkid - blkid) ahead.  We
+		 * want to now be double that, so read that amount again,
+		 * plus the amount we are catching up by (i.e. the amount
+		 * read just now).
+		 */
+		pf_ahead_blks = zs->zs_pf_blkid - blkid + nblks;
+		max_blks = max_dist_blks - (pf_start - end_of_access_blkid);
+		pf_nblks = MIN(pf_ahead_blks, max_blks);
+	} else {
+		pf_nblks = 0;
+	}
 
 	zs->zs_pf_blkid = pf_start + pf_nblks;
-	zs->zs_atime = gethrtime();
-	zs->zs_blkid = blkid + nblks;
 
 	/*
-	 * dbuf_prefetch() issues the prefetch i/o
-	 * asynchronously, but it may need to wait for an
-	 * indirect block to be read from disk.  Therefore
-	 * we do not want to hold any locks while we call it.
+	 * Do the same for indirects, starting from where we stopped last,
+	 * or where we will stop reading data blocks (and the indirects
+	 * that point to them).
 	 */
+	ipf_start = MAX(zs->zs_ipf_blkid, zs->zs_pf_blkid);
+	max_dist_blks = zfetch_max_idistance >> zf->zf_dnode->dn_datablkshift;
+	/*
+	 * We want to double our distance ahead of the data prefetch
+	 * (or reader, if we are not prefetching data).  Previously, we
+	 * were (zs_ipf_blkid - blkid) ahead.  To double that, we read
+	 * that amount again, plus the amount we are catching up by
+	 * (i.e. the amount read now + the amount of data prefetched now).
+	 */
+	pf_ahead_blks = zs->zs_ipf_blkid - blkid + nblks + pf_nblks;
+	max_blks = max_dist_blks - (ipf_start - end_of_access_blkid);
+	ipf_nblks = MIN(pf_ahead_blks, max_blks);
+	zs->zs_ipf_blkid = ipf_start + ipf_nblks;
+
+	epbs = zf->zf_dnode->dn_indblkshift - SPA_BLKPTRSHIFT;
+	ipf_istart = P2ROUNDUP(ipf_start, 1 << epbs) >> epbs;
+	ipf_iend = P2ROUNDUP(zs->zs_ipf_blkid, 1 << epbs) >> epbs;
+
+	zs->zs_atime = gethrtime();
+	zs->zs_blkid = end_of_access_blkid;
 	mutex_exit(&zs->zs_lock);
 	rw_exit(&zf->zf_rwlock);
+
+	/*
+	 * dbuf_prefetch() is asynchronous (even when it needs to read
+	 * indirect blocks), but we still prefer to drop our locks before
+	 * calling it to reduce the time we hold them.
+	 */
+
 	for (i = 0; i < pf_nblks; i++) {
 		dbuf_prefetch(zf->zf_dnode, 0, pf_start + i,
+		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
+	}
+	for (iblk = ipf_istart; iblk < ipf_iend; iblk++) {
+		dbuf_prefetch(zf->zf_dnode, 1, iblk,
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
 	}
 	ZFETCHSTAT_BUMP(zfetchstat_hits);
