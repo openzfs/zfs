@@ -97,7 +97,6 @@ static list_t zevent_list;
 static kcondvar_t zevent_cv;
 #endif /* _KERNEL */
 
-extern void fastreboot_disable_highpil(void);
 
 /*
  * Common fault management kstats to record event generation failures
