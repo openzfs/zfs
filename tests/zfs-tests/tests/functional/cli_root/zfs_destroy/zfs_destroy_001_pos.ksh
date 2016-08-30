@@ -145,61 +145,65 @@ function test_n_check
 	esac
 
 	# Firstly, umount ufs filesystem which was created by zfs volume.
-	if is_global_zone; then
+	if is_global_zone && ! is_linux ; then
 		log_must $UMOUNT -f $TESTDIR1
 	fi
 
 	# Invoke 'zfs destroy [-rRf] <dataset>'
-	log_must $ZFS destroy $opt $dtst
-
+	if ! is_linux ; then
+	        log_must $ZFS destroy $opt $dtst
+	fi
+	
 	# Kill any lingering instances of mkbusy, and clear the list.
 	[[ -z $pidlist ]] || log_must $KILL -TERM $pidlist
 	pidlist=""
 	log_mustnot $PGREP -fl $MKBUSY
 
-	case $dtst in
-		$CTR)	check_dataset datasetnonexists \
-					$CTR $FS $VOL $FSSNAP $VOLSNAP
-			if [[ $opt == *R* ]]; then
-				check_dataset datasetnonexists \
-					$FSCLONE $VOLCLONE
-			fi
-			;;
-		$FS)	check_dataset datasetexists $CTR $VOL
-			check_dataset datasetnonexists $FS
-			if [[ $opt != -f ]]; then
-				check_dataset datasetexists $VOLSNAP
+    if ! is_linux ; then
+		case $dtst in
+			$CTR)	check_dataset datasetnonexists \
+						$CTR $FS $VOL $FSSNAP $VOLSNAP
+				if [[ $opt == *R* ]]; then
+					check_dataset datasetnonexists \
+						$FSCLONE $VOLCLONE
+				fi
+				;;
+			$FS)	check_dataset datasetexists $CTR $VOL
+				check_dataset datasetnonexists $FS
+				if [[ $opt != -f ]]; then
+					check_dataset datasetexists $VOLSNAP
+					check_dataset datasetnonexists $FSSNAP
+				fi
+				if [[ $opt == *R* ]]; then
+					check_dataset datasetexists $VOLCLONE
+					check_dataset datasetnonexists $FSCLONE
+				fi
+				;;
+			$VOL)	check_dataset datasetexists $CTR $FS $FSSNAP
+				check_dataset datasetnonexists $VOL $VOLSNAP
+				if [[ $opt == *R* ]]; then
+					check_dataset datasetexists $FSCLONE
+					check_dataset datasetnonexists $VOLCLONE
+				fi
+				;;
+			$FSSNAP)
+				check_dataset datasetexists $CTR $FS $VOL $VOLSNAP
 				check_dataset datasetnonexists $FSSNAP
-			fi
-			if [[ $opt == *R* ]]; then
-				check_dataset datasetexists $VOLCLONE
-				check_dataset datasetnonexists $FSCLONE
-			fi
-			;;
-		$VOL)	check_dataset datasetexists $CTR $FS $FSSNAP
-			check_dataset datasetnonexists $VOL $VOLSNAP
-			if [[ $opt == *R* ]]; then
-				check_dataset datasetexists $FSCLONE
-				check_dataset datasetnonexists $VOLCLONE
-			fi
-			;;
-		$FSSNAP)
-			check_dataset datasetexists $CTR $FS $VOL $VOLSNAP
-			check_dataset datasetnonexists $FSSNAP
-			if [[ $opt == *R* ]]; then
-				check_dataset datasetexists $VOLCLONE
-				check_dataset datasetnonexists $FSCLONE
-			fi
-			;;
-		$VOLSNAP)
-			check_dataset datasetexists $CTR $FS $VOL $FSSNAP
-			check_dataset datasetnonexists $VOLSNAP
-			if [[ $opt == *R* ]]; then
-				check_dataset datasetexists $FSCLONE
-				check_dataset datasetnonexists $VOLCLONE
-			fi
-			;;
-	esac
+				if [[ $opt == *R* ]]; then
+					check_dataset datasetexists $VOLCLONE
+					check_dataset datasetnonexists $FSCLONE
+				fi
+				;;
+			$VOLSNAP)
+				check_dataset datasetexists $CTR $FS $VOL $FSSNAP
+				check_dataset datasetnonexists $VOLSNAP
+				if [[ $opt == *R* ]]; then
+					check_dataset datasetexists $FSCLONE
+					check_dataset datasetnonexists $VOLCLONE
+				fi
+				;;
+		esac
+	fi
 
 	log_note "'$ZFS destroy $opt $dtst' passed."
 }
