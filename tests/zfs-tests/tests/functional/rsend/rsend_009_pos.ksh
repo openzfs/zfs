@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -67,8 +67,7 @@ log_must zpool create spool $TESTDIR/sfile
 # Test out of space on sub-filesystem
 #
 log_must $ZFS create bpool/fs
-mntpnt=$(get_prop mountpoint bpool/fs)
-log_must $MKFILE 30M $mntpnt/file
+log_must $MKFILE 30M /bpool/fs/file
 
 log_must $ZFS snapshot bpool/fs@snap
 log_must eval "$ZFS send -R bpool/fs@snap > $BACKDIR/fs-R"
@@ -80,8 +79,7 @@ log_must ismounted spool
 #
 # Test out of space on top filesystem
 #
-mntpnt2=$(get_prop mountpoint bpool)
-log_must $MV $mntpnt/file $mntpnt2
+log_must $MV /bpool/fs/file /bpool
 log_must $ZFS destroy -rf bpool/fs
 
 log_must $ZFS snapshot bpool@snap
