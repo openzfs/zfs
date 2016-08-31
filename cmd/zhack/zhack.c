@@ -69,9 +69,10 @@ usage(void)
 	(void) fprintf(stderr,
 	    "    feature stat <pool>\n"
 	    "        print information about enabled features\n"
-	    "    feature enable [-d desc] <pool> <feature>\n"
+	    "    feature enable [-r] [-d desc] <pool> <feature>\n"
 	    "        add a new enabled feature to the pool\n"
 	    "        -d <desc> sets the feature's description\n"
+	    "        -r set read-only compatible flag for feature\n"
 	    "    feature ref [-md] <pool> <feature>\n"
 	    "        change the refcount on the given feature\n"
 	    "        -d decrease instead of increase the refcount\n"
@@ -318,7 +319,7 @@ zhack_do_feature_enable(int argc, char **argv)
 	feature.fi_feature = SPA_FEATURE_NONE;
 
 	optind = 1;
-	while ((c = getopt(argc, argv, "rmd:")) != -1) {
+	while ((c = getopt(argc, argv, "+rd:")) != -1) {
 		switch (c) {
 		case 'r':
 			feature.fi_flags |= ZFEATURE_FLAG_READONLY_COMPAT;
@@ -416,7 +417,7 @@ zhack_do_feature_ref(int argc, char **argv)
 	feature.fi_feature = SPA_FEATURE_NONE;
 
 	optind = 1;
-	while ((c = getopt(argc, argv, "md")) != -1) {
+	while ((c = getopt(argc, argv, "+md")) != -1) {
 		switch (c) {
 		case 'm':
 			feature.fi_flags |= ZFEATURE_FLAG_MOS;
@@ -522,7 +523,7 @@ main(int argc, char **argv)
 	dprintf_setup(&argc, argv);
 	zfs_prop_init();
 
-	while ((c = getopt(argc, argv, "c:d:")) != -1) {
+	while ((c = getopt(argc, argv, "+c:d:")) != -1) {
 		switch (c) {
 		case 'c':
 			g_importargs.cachefile = optarg;
