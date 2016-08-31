@@ -459,6 +459,8 @@ abd_alloc_sametype(abd_t *sabd, size_t size)
  * with vanilla abd_alloc().
  *
  * LINUX ABD TODO - once vdev_disk.c has ABD page support change to vanilla
+ * - TODO vdev_disk.c now has ABD page support, but some disk label checksumming
+ *   code still assumes linear ABD.
  */
 abd_t *
 abd_alloc_for_io(size_t size, boolean_t is_metadata)
@@ -1006,8 +1008,66 @@ abd_cmp(abd_t *dabd, abd_t *sabd)
 	    abd_cmp_cb, NULL));
 }
 
-
 #if defined(_KERNEL) && defined(HAVE_SPL)
+/*
+ * bio_nr_pages for ABD.
+ * @off is the offset in @abd
+ */
+unsigned long
+abd_nr_pages_off(abd_t *abd, unsigned int size, size_t off)
+{
+	unsigned long pos;
+
+	if (abd_is_linear(abd))
+		pos = (unsigned long)abd_to_buf(abd) + off;
+	else
+		pos = abd->abd_u.abd_scatter.abd_offset + off;
+
+	return ((pos + size + PAGESIZE - 1) >> PAGE_SHIFT)
+					- (pos >> PAGE_SHIFT);
+}
+
+/*
+ * bio_map for scatter ABD.
+ * @off is the offset in @abd
+ * Remaining IO size is returned
+ */
+unsigned int
+abd_scatter_bio_map_off(struct bio *bio, abd_t *abd,
+			unsigned int io_size, size_t off)
+{
+	int i;
+	struct abd_iter aiter;
+
+	ASSERT(!abd_is_linear(abd));
+	ASSERT3U(io_size, <=, abd->abd_size - off);
+
+	abd_iter_init(&aiter, abd);
+	abd_iter_advance(&aiter, off);
+
+	for (i = 0; i < bio->bi_max_vecs; i++) {
+		struct page *pg;
+		size_t len, pgoff, index;
+
+		if (io_size <= 0)
+			break;
+
+		pgoff = abd_iter_scatter_chunk_offset(&aiter);
+		len = MIN(io_size, PAGESIZE - pgoff);
+		ASSERT(len > 0);
+
+		index = abd_iter_scatter_chunk_index(&aiter);
+		pg = abd->abd_u.abd_scatter.abd_chunks[index];
+		if (bio_add_page(bio, pg, len, pgoff) != len)
+			break;
+
+		io_size -= len;
+		abd_iter_advance(&aiter, len);
+	}
+
+	return (io_size);
+}
+
 /* Tunable Parameters */
 module_param(zfs_abd_scatter_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_enabled,

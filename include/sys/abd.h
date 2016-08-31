@@ -32,6 +32,7 @@
 #include <sys/refcount.h>
 #ifdef _KERNEL
 #include <linux/mm.h>
+#include <linux/bio.h>
 #include <sys/uio.h>
 #endif
 
@@ -112,6 +113,12 @@ void abd_copy_to_buf_off(void *, abd_t *, size_t, size_t);
 int abd_cmp(abd_t *, abd_t *);
 int abd_cmp_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_zero_off(abd_t *, size_t, size_t);
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+unsigned int abd_scatter_bio_map_off(struct bio *, abd_t *, unsigned int,
+		size_t);
+unsigned long abd_nr_pages_off(abd_t *, unsigned int, size_t);
+#endif
 
 /*
  * Wrappers for calls with offsets of 0
