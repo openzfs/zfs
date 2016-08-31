@@ -30,7 +30,7 @@
 
 #include <sys/zfs_context.h>
 
-int taskq_now;
+int taskq_now = 0;
 taskq_t *system_taskq;
 
 #define	TASKQ_ACTIVE	0x00010000
