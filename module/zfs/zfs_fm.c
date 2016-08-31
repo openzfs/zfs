@@ -112,10 +112,6 @@ zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
 		fm_nvlist_destroy(detector, FM_NVA_FREE);
 }
 
-static void
-zfs_zevent_post_cb_noop(nvlist_t *nvl, nvlist_t *detector)
-{
-}
 
 static void
 zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
@@ -824,14 +820,6 @@ zfs_ereport_free_checksum(zio_cksum_report_t *rpt)
 	kmem_free(rpt, sizeof (*rpt));
 }
 
-void
-zfs_ereport_send_interim_checksum(zio_cksum_report_t *report)
-{
-#ifdef _KERNEL
-	zfs_zevent_post(report->zcr_ereport, report->zcr_detector,
-	    zfs_zevent_post_cb_noop);
-#endif
-}
 
 void
 zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
