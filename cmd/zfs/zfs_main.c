@@ -659,8 +659,10 @@ zfs_do_clone(int argc, char **argv)
 	while ((c = getopt(argc, argv, "o:p")) != -1) {
 		switch (c) {
 		case 'o':
-			if (parseprop(props, optarg) != 0)
+			if (parseprop(props, optarg) != 0) {
+				nvlist_free(props);
 				return (1);
+			}
 			break;
 		case 'p':
 			parents = B_TRUE;
@@ -692,8 +694,10 @@ zfs_do_clone(int argc, char **argv)
 	}
 
 	/* open the source dataset */
-	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL)
+	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL) {
+		nvlist_free(props);
 		return (1);
+	}
 
 	if (parents && zfs_name_valid(argv[1], ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_VOLUME)) {
@@ -703,10 +707,16 @@ zfs_do_clone(int argc, char **argv)
 		 * complain.
 		 */
 		if (zfs_dataset_exists(g_zfs, argv[1], ZFS_TYPE_FILESYSTEM |
-		    ZFS_TYPE_VOLUME))
+		    ZFS_TYPE_VOLUME)) {
+		    	zfs_close(zhp);
+		    	nvlist_free(props);
 			return (0);
-		if (zfs_create_ancestors(g_zfs, argv[1]) != 0)
+		    }
+		if (zfs_create_ancestors(g_zfs, argv[1]) != 0) {
+			zfs_close(zhp);
+			nvlist_free(props);
 			return (1);
+		}
 	}
 
 	/* pass to libzfs */
