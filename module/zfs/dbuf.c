@@ -918,7 +918,7 @@ dbuf_loan_arcbuf(dmu_buf_impl_t *db)
  * provided.
  */
 uint64_t
-dbuf_whichblock(dnode_t *dn, int64_t level, uint64_t offset)
+dbuf_whichblock(const dnode_t *dn, const int64_t level, const uint64_t offset)
 {
 	if (dn->dn_datablkshift != 0 && dn->dn_indblkshift != 0) {
 		/*
@@ -940,8 +940,19 @@ dbuf_whichblock(dnode_t *dn, int64_t level, uint64_t offset)
 		 * = offset >> (datablkshift + level *
 		 *   (indblkshift - SPA_BLKPTRSHIFT))
 		 */
-		return (offset >> (dn->dn_datablkshift + level *
-		    (dn->dn_indblkshift - SPA_BLKPTRSHIFT)));
+
+		const unsigned exp = dn->dn_datablkshift +
+		    level * (dn->dn_indblkshift - SPA_BLKPTRSHIFT);
+
+		if (exp >= 8 * sizeof (offset)) {
+			/* This only happens on the highest indirection level */
+			ASSERT3U(level, ==, dn->dn_nlevels - 1);
+			return (0);
+		}
+
+		ASSERT3U(exp, <, 8 * sizeof (offset));
+
+		return (offset >> exp);
 	} else {
 		ASSERT3U(offset, <, dn->dn_datablksz);
 		return (0);
