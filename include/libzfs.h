@@ -824,6 +824,13 @@ extern int zpool_fru_set(zpool_handle_t *, uint64_t, const char *);
  */
 extern boolean_t is_mpath_whole_disk(const char *);
 extern void update_vdev_config_dev_strs(nvlist_t *);
+extern char *zfs_strip_partition(libzfs_handle_t *, char *);
+
+#ifdef HAVE_LIBUDEV
+struct udev_device;
+extern int zfs_device_get_devid(struct udev_device *, char *, size_t);
+extern int zfs_device_get_physical(struct udev_device *, char *, size_t);
+#endif
 
 #ifdef	__cplusplus
 }

@@ -3373,19 +3373,6 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 	    vd->vdev_ops->vdev_op_leaf)
 		vd->vdev_ops->vdev_op_close(vd);
 
-	/*
-	 * If we have brought this vdev back into service, we need
-	 * to notify fmd so that it can gracefully repair any outstanding
-	 * cases due to a missing device.  We do this in all cases, even those
-	 * that probably don't correlate to a repaired fault.  This is sure to
-	 * catch all cases, and we let the zfs-retire agent sort it out.  If
-	 * this is a transient state it's OK, as the retire agent will
-	 * double-check the state of the vdev before repairing it.
-	 */
-	if (state == VDEV_STATE_HEALTHY && vd->vdev_ops->vdev_op_leaf &&
-	    vd->vdev_prevstate != state)
-		zfs_post_state_change(spa, vd);
-
 	if (vd->vdev_removed &&
 	    state == VDEV_STATE_CANT_OPEN &&
 	    (aux == VDEV_AUX_OPEN_FAILED || vd->vdev_checkremove)) {
@@ -3464,6 +3451,20 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 		vd->vdev_removed = B_FALSE;
 	} else {
 		vd->vdev_removed = B_FALSE;
+	}
+
+	/*
+	 * Notify ZED of any significant state-change on a leaf vdev.
+	 *
+	 * We ignore transitions from a closed state to healthy unless
+	 * the parent was degraded.
+	 */
+	if (vd->vdev_ops->vdev_op_leaf &&
+	    ((save_state > VDEV_STATE_CLOSED) ||
+	    (vd->vdev_state < VDEV_STATE_HEALTHY) ||
+	    (vd->vdev_parent != NULL &&
+	    vd->vdev_parent->vdev_prevstate == VDEV_STATE_DEGRADED))) {
+		zfs_post_state_change(spa, vd, save_state);
 	}
 
 	if (!isopen && vd->vdev_parent)

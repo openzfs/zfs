@@ -860,7 +860,8 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 }
 
 static void
-zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name)
+zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
+    nvlist_t *aux)
 {
 #ifdef _KERNEL
 	nvlist_t *resource;
@@ -895,6 +896,13 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name)
 		if (vd->vdev_fru != NULL)
 			VERIFY0(nvlist_add_string(resource,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU, vd->vdev_fru));
+		/* also copy any optional payload data */
+		if (aux) {
+			nvpair_t *elem = NULL;
+
+			while ((elem = nvlist_next_nvpair(aux, elem)) != NULL)
+				(void) nvlist_add_nvpair(resource, elem);
+		}
 	}
 
 	zfs_zevent_post(resource, NULL, zfs_zevent_post_cb);
@@ -910,7 +918,7 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name)
 void
 zfs_post_remove(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_REMOVED);
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_REMOVED, NULL);
 }
 
 /*
@@ -921,7 +929,7 @@ zfs_post_remove(spa_t *spa, vdev_t *vd)
 void
 zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_AUTOREPLACE);
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_AUTOREPLACE, NULL);
 }
 
 /*
@@ -931,9 +939,31 @@ zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
  * open because the device was not found (fault.fs.zfs.device).
  */
 void
-zfs_post_state_change(spa_t *spa, vdev_t *vd)
+zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate)
 {
-	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_STATECHANGE);
+#ifdef _KERNEL
+	nvlist_t *aux;
+
+	/*
+	 * Add optional supplemental keys to payload
+	 */
+	aux = fm_nvlist_create(NULL);
+	if (vd && aux) {
+		if (vd->vdev_physpath) {
+			(void) nvlist_add_string(aux,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_PHYSPATH,
+			    vd->vdev_physpath);
+		}
+		(void) nvlist_add_uint64(aux,
+		    FM_EREPORT_PAYLOAD_ZFS_VDEV_LASTSTATE, laststate);
+	}
+
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_STATECHANGE,
+	    aux);
+
+	if (aux)
+		fm_nvlist_destroy(aux, FM_NVA_FREE);
+#endif
 }
 
 /*
@@ -945,7 +975,7 @@ zfs_post_state_change(spa_t *spa, vdev_t *vd)
 void
 zfs_post_sysevent(spa_t *spa, vdev_t *vd, const char *name)
 {
-	zfs_post_common(spa, vd, FM_SYSEVENT_CLASS, name);
+	zfs_post_common(spa, vd, FM_SYSEVENT_CLASS, name, NULL);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
