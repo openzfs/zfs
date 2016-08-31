@@ -24,12 +24,16 @@
 #include <sys/zfs_ioctl.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/fm/fs/zfs.h>
 #include "zed.h"
 #include "zed_conf.h"
+#include "zed_disk_event.h"
 #include "zed_exec.h"
 #include "zed_file.h"
 #include "zed_log.h"
 #include "zed_strings.h"
+
+#include "agents/zfs_agents.h"
 
 #define	MAXBUF	4096
 
@@ -50,6 +54,15 @@ zed_event_init(struct zed_conf *zcp)
 	if (zcp->zevent_fd < 0)
 		zed_log_die("Failed to open \"%s\": %s",
 		    ZFS_DEV, strerror(errno));
+
+	if (zfs_slm_init(zcp->zfs_hdl) != 0)
+		zed_log_die("Failed to initialize zfs slm");
+	if (zfs_diagnosis_init(zcp->zfs_hdl) != 0)
+		zed_log_die("Failed to initialize zfs diagnosis");
+	if (zfs_retire_init(zcp->zfs_hdl) != 0)
+		zed_log_die("Failed to initialize zfs retire");
+	if (zed_disk_event_init() != 0)
+		zed_log_die("Failed to initialize disk events");
 }
 
 /*
@@ -60,6 +73,11 @@ zed_event_fini(struct zed_conf *zcp)
 {
 	if (!zcp)
 		zed_log_die("Failed zed_event_fini: %s", strerror(EINVAL));
+
+	zed_disk_event_fini();
+	zfs_retire_fini();
+	zfs_diagnosis_fini();
+	zfs_slm_fini();
 
 	if (zcp->zevent_fd >= 0) {
 		if (close(zcp->zevent_fd) < 0)
@@ -624,6 +642,17 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		_zed_event_add_var(eid, zsp, prefix, name,
 		    (_zed_event_value_is_hex(name) ? "0x%.16llX" : "%llu"),
 		    (u_longlong_t) i64);
+		/*
+		 * shadow readable strings for vdev state pairs
+		 */
+		if (strcmp(name, FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE) == 0 ||
+		    strcmp(name, FM_EREPORT_PAYLOAD_ZFS_VDEV_LASTSTATE) == 0) {
+			char alt[32];
+
+			(void) snprintf(alt, sizeof (alt), "%s_str", name);
+			_zed_event_add_var(eid, zsp, prefix, alt, "%s",
+			    zpool_state_to_name(i64, VDEV_AUX_NONE));
+		}
 		break;
 	case DATA_TYPE_DOUBLE:
 		(void) nvpair_value_double(nvp, &d);
@@ -803,6 +832,17 @@ _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 	}
 }
 
+static void
+_zed_internal_event(const char *class, nvlist_t *nvl)
+{
+	/*
+	 * NOTE: only vdev check is handled for now
+	 */
+	if (strcmp(class, "sysevent.fs.zfs.vdev_check") == 0) {
+		(void) zfs_slm_event("EC_zfs", "ESC_ZFS_vdev_check", nvl);
+	}
+}
+
 /*
  * Service the next zevent, blocking until one is available.
  */
@@ -853,6 +893,9 @@ zed_event_service(struct zed_conf *zcp)
 		zed_log_msg(LOG_WARNING,
 		    "Failed to lookup zevent class (eid=%llu)", eid);
 	} else {
+		/* let internal modules see this event first */
+		_zed_internal_event(class, nvl);
+
 		zsp = zed_strings_create();
 
 		nvp = NULL;

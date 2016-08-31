@@ -3397,9 +3397,11 @@ set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
  * case only occurs when the suffix is preceded by a digit, i.e. "md0p0" The
  * third case only occurs when preceded by a string matching the regular
  * expression "^([hsv]|xv)d[a-z]+", i.e. a scsi, ide, virtio or xen disk.
+ *
+ * caller must free the returned string
  */
-static char *
-strip_partition(libzfs_handle_t *hdl, char *path)
+char *
+zfs_strip_partition(libzfs_handle_t *hdl, char *path)
 {
 	char *tmp = zfs_strdup(hdl, path);
 	char *part = NULL, *d = NULL;
@@ -3542,7 +3544,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 */
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &value)
 		    == 0 && value && !(name_flags & VDEV_NAME_PATH)) {
-			return (strip_partition(hdl, path));
+			return (zfs_strip_partition(hdl, path));
 		}
 	} else {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &path) == 0);
@@ -4216,7 +4218,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 
 	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
 
-	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0) {
 		/*
 		 * This shouldn't happen.  We've long since verified that this
 		 * is a valid device.

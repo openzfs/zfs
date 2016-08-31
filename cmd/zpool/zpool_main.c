@@ -47,6 +47,7 @@
 #include <zfs_prop.h>
 #include <sys/fs/zfs.h>
 #include <sys/stat.h>
+#include <sys/fm/fs/zfs.h>
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
 #include <sys/zfs_ioctl.h>
@@ -6849,7 +6850,20 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 
 		case DATA_TYPE_UINT64:
 			(void) nvpair_value_uint64(nvp, &i64);
-			printf(gettext("0x%llx"), (u_longlong_t)i64);
+			/*
+			 * translate vdev state values to readable
+			 * strings to aide zpool events consumers
+			 */
+			if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE) == 0 ||
+			    strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_LASTSTATE) == 0) {
+				printf(gettext("\"%s\" (0x%llx)"),
+				    zpool_state_to_name(i64, VDEV_AUX_NONE),
+				    (u_longlong_t)i64);
+			} else {
+				printf(gettext("0x%llx"), (u_longlong_t)i64);
+			}
 			break;
 
 		case DATA_TYPE_HRTIME:
