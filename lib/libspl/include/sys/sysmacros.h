@@ -42,6 +42,9 @@
 #ifndef ARRAY_SIZE
 #define	ARRAY_SIZE(a) (sizeof (a) / sizeof (a[0]))
 #endif
+#ifndef	DIV_ROUND_UP
+#define	DIV_ROUND_UP(n, d)	(((n) + (d) - 1) / (d))
+#endif
 
 #define	makedevice(maj, min)	makedev(maj, min)
 #define	_sysconf(a)		sysconf(a)

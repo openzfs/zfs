@@ -270,7 +270,8 @@ typedef struct dbuf_hash_table {
 	kmutex_t hash_mutexes[DBUF_MUTEXES];
 } dbuf_hash_table_t;
 
-uint64_t dbuf_whichblock(struct dnode *di, int64_t level, uint64_t offset);
+uint64_t dbuf_whichblock(const struct dnode *di, const int64_t level,
+    const uint64_t offset);
 
 void dbuf_create_bonus(struct dnode *dn);
 int dbuf_spill_set_blksz(dmu_buf_t *db, uint64_t blksz, dmu_tx_t *tx);
