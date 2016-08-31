@@ -708,8 +708,8 @@ zfs_do_clone(int argc, char **argv)
 		 */
 		if (zfs_dataset_exists(g_zfs, argv[1], ZFS_TYPE_FILESYSTEM |
 		    ZFS_TYPE_VOLUME)) {
-		    	zfs_close(zhp);
-		    	nvlist_free(props);
+			zfs_close(zhp);
+			nvlist_free(props);
 			return (0);
 		    }
 		if (zfs_create_ancestors(g_zfs, argv[1]) != 0) {
