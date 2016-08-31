@@ -19,6 +19,7 @@
 #
 # CDDL HEADER END
 #
+# Copyright 2016 Nexenta Systems, Inc.
 #
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
@@ -399,7 +400,7 @@ line: while (<$filehandle>) {
 		$prev = $line;
 		next line;
 	}
-	if ($in_function_header && ! /^    ./ ) {
+	if ($in_function_header && ! /^    (\w|\.)/ ) {
 		if (/^{}$/ # empty functions
 		|| /;/ #run function with multiline arguments
 		|| /#/ #preprocessor commands
@@ -507,7 +508,7 @@ line: while (<$filehandle>) {
 		err("spaces instead of tabs");
 	}
 	if (/^ / && !/^ \*[ \t\/]/ && !/^ \*$/ &&
-	    (!/^    \w/ || $in_function != 0)) {
+	    (!/^    (\w|\.)/ || $in_function != 0)) {
 		err("indent by spaces instead of tabs");
 	}
 	if (/^\t+ [^ \t\*]/ || /^\t+  \S/ || /^\t+   \S/) {
