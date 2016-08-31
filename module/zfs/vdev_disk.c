@@ -43,7 +43,6 @@ static void *zfs_vdev_holder = VDEV_HOLDER;
  */
 typedef struct dio_request {
 	zio_t			*dr_zio;	/* Parent ZIO */
-	void			*dr_loanbuf;	/* borrowed abd buffer */
 	atomic_t		dr_ref;		/* References */
 	int			dr_error;	/* Bio error */
 	int			dr_bio_count;	/* Count of bio's */
@@ -404,7 +403,6 @@ vdev_disk_dio_put(dio_request_t *dr)
 	 */
 	if (rc == 0) {
 		zio_t *zio = dr->dr_zio;
-		void *loanbuf = dr->dr_loanbuf;
 		int error = dr->dr_error;
 
 		vdev_disk_dio_free(dr);
@@ -414,14 +412,6 @@ vdev_disk_dio_put(dio_request_t *dr)
 			ASSERT3S(zio->io_error, >=, 0);
 			if (zio->io_error)
 				vdev_disk_error(zio);
-			/* ABD placeholder */
-			if (loanbuf != NULL) {
-				if (zio->io_type == ZIO_TYPE_READ) {
-					abd_copy_from_buf(zio->io_abd, loanbuf,
-					    zio->io_size);
-				}
-				zio_buf_free(loanbuf, zio->io_size);
-			}
 
 			zio_delay_interrupt(zio);
 		}
@@ -446,15 +436,8 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 #endif
 	}
 
-	/* Drop reference aquired by __vdev_disk_physio */
+	/* Drop reference acquired by __vdev_disk_physio */
 	rc = vdev_disk_dio_put(dr);
-}
-
-static inline unsigned long
-bio_nr_pages(void *bio_ptr, unsigned int bio_size)
-{
-	return ((((unsigned long)bio_ptr + bio_size + PAGE_SIZE - 1) >>
-	    PAGE_SHIFT) - ((unsigned long)bio_ptr >> PAGE_SHIFT));
 }
 
 static unsigned int
@@ -496,6 +479,15 @@ bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 	return (bio_size);
 }
 
+static unsigned int
+bio_map_abd_off(struct bio *bio, abd_t *abd, unsigned int size, size_t off)
+{
+	if (abd_is_linear(abd))
+		return (bio_map(bio, ((char *)abd_to_buf(abd)) + off, size));
+
+	return (abd_scatter_bio_map_off(bio, abd, size, off));
+}
+
 #ifndef bio_set_op_attrs
 #define	bio_set_op_attrs(bio, rw, flags) \
 	do { (bio)->bi_rw |= (rw)|(flags); } while (0)
@@ -528,11 +520,11 @@ vdev_submit_bio(struct bio *bio)
 }
 
 static int
-__vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
-    size_t kbuf_size, uint64_t kbuf_offset, int rw, int flags)
+__vdev_disk_physio(struct block_device *bdev, zio_t *zio,
+    size_t io_size, uint64_t io_offset, int rw, int flags)
 {
 	dio_request_t *dr;
-	caddr_t bio_ptr;
+	uint64_t abd_offset;
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
 	int i = 0, error = 0;
@@ -540,7 +532,8 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	struct blk_plug plug;
 #endif
 
-	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
+	ASSERT(zio != NULL);
+	ASSERT3U(io_offset + io_size, <=, bdev->bd_inode->i_size);
 
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
@@ -559,32 +552,10 @@ retry:
 	 * their volume block size to match the maximum request size and
 	 * the common case will be one bio per vdev IO request.
 	 */
-	if (zio != NULL) {
-		abd_t *abd = zio->io_abd;
 
-		/*
-		 * ABD placeholder
-		 * We can't use abd_borrow_buf routines here since our
-		 * completion context is interrupt and abd refcounts
-		 * take a mutex (in debug mode).
-		 */
-		if (abd_is_linear(abd)) {
-			bio_ptr = abd_to_buf(abd);
-			dr->dr_loanbuf = NULL;
-		} else {
-			bio_ptr = zio_buf_alloc(zio->io_size);
-			dr->dr_loanbuf = bio_ptr;
-			if (zio->io_type != ZIO_TYPE_READ)
-				abd_copy_to_buf(bio_ptr, abd, zio->io_size);
-
-		}
-	} else {
-		bio_ptr = kbuf_ptr;
-		dr->dr_loanbuf = NULL;
-	}
-
-	bio_offset = kbuf_offset;
-	bio_size   = kbuf_size;
+	abd_offset = 0;
+	bio_offset = io_offset;
+	bio_size   = io_size;
 	for (i = 0; i <= dr->dr_bio_count; i++) {
 
 		/* Finished constructing bio's for given buffer */
@@ -597,8 +568,6 @@ retry:
 		 * are needed we allocate a larger dio and warn the user.
 		 */
 		if (dr->dr_bio_count == i) {
-			if (dr->dr_loanbuf)
-				zio_buf_free(dr->dr_loanbuf, zio->io_size);
 			vdev_disk_dio_free(dr);
 			bio_count *= 2;
 			goto retry;
@@ -606,10 +575,9 @@ retry:
 
 		/* bio_alloc() with __GFP_WAIT never returns NULL */
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
-		    MIN(bio_nr_pages(bio_ptr, bio_size), BIO_MAX_PAGES));
+		    MIN(abd_nr_pages_off(zio->io_abd, bio_size, abd_offset),
+			BIO_MAX_PAGES));
 		if (unlikely(dr->dr_bio[i] == NULL)) {
-			if (dr->dr_loanbuf)
-				zio_buf_free(dr->dr_loanbuf, zio->io_size);
 			vdev_disk_dio_free(dr);
 			return (ENOMEM);
 		}
@@ -624,10 +592,11 @@ retry:
 		bio_set_op_attrs(dr->dr_bio[i], rw, flags);
 
 		/* Remaining size is returned to become the new size */
-		bio_size = bio_map(dr->dr_bio[i], bio_ptr, bio_size);
+		bio_size = bio_map_abd_off(dr->dr_bio[i], zio->io_abd,
+						bio_size, abd_offset);
 
 		/* Advance in buffer and construct another bio if needed */
-		bio_ptr    += BIO_BI_SIZE(dr->dr_bio[i]);
+		abd_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 		bio_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 	}
 
@@ -769,7 +738,7 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
-	error = __vdev_disk_physio(vd->vd_bdev, zio, NULL,
+	error = __vdev_disk_physio(vd->vd_bdev, zio,
 	    zio->io_size, zio->io_offset, rw, flags);
 	if (error) {
 		zio->io_error = error;
