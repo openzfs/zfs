@@ -52,7 +52,7 @@
 verify_runnable "global"
 
 set -A pools "$TESTPOOL" "$TESTPOOL1"
-set -A devs "" "-d $DEVICE_DIR"
+set -A devs " -s" "-d $DEVICE_DIR"
 set -A options "" "-R $ALTER_ROOT"
 set -A mtpts "$TESTDIR" "$TESTDIR1"
 
