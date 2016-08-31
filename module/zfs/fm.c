@@ -426,8 +426,6 @@ zfs_zevent_alloc(void)
 	zevent_t *ev;
 
 	ev = kmem_zalloc(sizeof (zevent_t), KM_SLEEP);
-	if (ev == NULL)
-		return (NULL);
 
 	list_create(&ev->ev_ze_list, sizeof (zfs_zevent_t),
 		    offsetof(zfs_zevent_t, ze_node));

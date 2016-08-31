@@ -287,11 +287,6 @@ zpios_setup_run(run_args_t **run_args, zpios_cmd_t *kcmd, struct file *file)
 	size = sizeof (*ra) + kcmd->cmd_region_count * sizeof (zpios_region_t);
 
 	ra = vmem_zalloc(size, KM_SLEEP);
-	if (ra == NULL) {
-		zpios_print(file, "Unable to vmem_zalloc() %d bytes "
-			    "for regions\n", size);
-		return (-ENOMEM);
-	}
 
 	*run_args = ra;
 	strncpy(ra->pool, kcmd->cmd_pool, ZPIOS_NAME_SIZE - 1);
@@ -734,16 +729,8 @@ zpios_threads_run(run_args_t *run_args)
 	int i, rc = 0, tc = run_args->thread_count;
 
 	tsks = kmem_zalloc(sizeof (struct task_struct *) * tc, KM_SLEEP);
-	if (tsks == NULL) {
-		rc = -ENOMEM;
-		goto cleanup2;
-	}
 
 	run_args->threads = kmem_zalloc(sizeof (thread_data_t *)*tc, KM_SLEEP);
-	if (run_args->threads == NULL) {
-		rc = -ENOMEM;
-		goto cleanup;
-	}
 
 	init_waitqueue_head(&run_args->waitq);
 	run_args->threads_done = 0;
@@ -751,10 +738,6 @@ zpios_threads_run(run_args_t *run_args)
 	/* Create all the needed threads which will sleep until awoken */
 	for (i = 0; i < tc; i++) {
 		thr = kmem_zalloc(sizeof (thread_data_t), KM_SLEEP);
-		if (thr == NULL) {
-			rc = -ENOMEM;
-			goto taskerr;
-		}
 
 		thr->thread_no = i;
 		thr->run_args = run_args;
@@ -846,8 +829,6 @@ out:
 
 cleanup:
 	kmem_free(tsks, sizeof (struct task_struct *) * tc);
-cleanup2:
-	/* Returns first encountered thread error (if any) */
 	return (rc);
 
 taskerr:
@@ -943,17 +924,11 @@ zpios_open(struct inode *inode, struct file *file)
 	zpios_info_t *info;
 
 	info = (zpios_info_t *)kmem_alloc(sizeof (*info), KM_SLEEP);
-	if (info == NULL)
-		return (-ENOMEM);
 
 	spin_lock_init(&info->info_lock);
 	info->info_size = ZPIOS_INFO_BUFFER_SIZE;
 	info->info_buffer =
 	    (char *) vmem_alloc(ZPIOS_INFO_BUFFER_SIZE, KM_SLEEP);
-	if (info->info_buffer == NULL) {
-		kmem_free(info, sizeof (*info));
-		return (-ENOMEM);
-	}
 
 	info->info_head = info->info_buffer;
 	file->private_data = (void *)info;
@@ -1006,10 +981,6 @@ zpios_buffer_size(struct file *file, zpios_cfg_t *kcfg, unsigned long arg)
 
 		size = kcfg->cfg_arg1;
 		buf = (char *)vmem_alloc(size, KM_SLEEP);
-		if (buf == NULL) {
-			rc = -ENOMEM;
-			goto out;
-		}
 
 		/* Zero fill and truncate contents when coping buffer */
 		min = ((size < info->info_size) ? size : info->info_size);
@@ -1026,7 +997,7 @@ zpios_buffer_size(struct file *file, zpios_cfg_t *kcfg, unsigned long arg)
 	if (copy_to_user((struct zpios_cfg_t __user *)arg,
 	    kcfg, sizeof (*kcfg)))
 		rc = -EFAULT;
-out:
+
 	spin_unlock(&info->info_lock);
 
 	return (rc);
@@ -1080,11 +1051,6 @@ zpios_ioctl_cmd(struct file *file, unsigned long arg)
 	int rc = -EINVAL;
 
 	kcmd = kmem_alloc(sizeof (zpios_cmd_t), KM_SLEEP);
-	if (kcmd == NULL) {
-		zpios_print(file, "Unable to kmem_alloc() %ld byte for "
-			    "zpios_cmd_t\n", (long int)sizeof (zpios_cmd_t));
-		return (-ENOMEM);
-	}
 
 	rc = copy_from_user(kcmd, (zpios_cfg_t *)arg, sizeof (zpios_cmd_t));
 	if (rc) {
@@ -1103,13 +1069,6 @@ zpios_ioctl_cmd(struct file *file, unsigned long arg)
 	/* Allocate memory for any opaque data the caller needed to pass on */
 	if (kcmd->cmd_data_size > 0) {
 		data = (void *)vmem_alloc(kcmd->cmd_data_size, KM_SLEEP);
-		if (data == NULL) {
-			zpios_print(file, "Unable to vmem_alloc() %ld "
-				    "bytes for data buffer\n",
-				    (long)kcmd->cmd_data_size);
-			rc = -ENOMEM;
-			goto out_cmd;
-		}
 
 		rc = copy_from_user(data, (void *)(arg + offsetof(zpios_cmd_t,
 		    cmd_data_str)), kcmd->cmd_data_size);
