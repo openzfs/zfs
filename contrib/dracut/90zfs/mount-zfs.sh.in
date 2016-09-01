@@ -10,14 +10,16 @@ case "${root}" in
 	*) return ;;
 esac
 
-# If sysroot.mount exists, the initial RAM disk configured
-# it to mount ZFS on root.  In that case, we bail early.
-loadstate="$(systemctl --system --show -p LoadState sysroot.mount || true)"
-if [ "${loadstate}" = "LoadState=not-found" -o "${loadstate}" = "" ] ; then
-	info "ZFS: sysroot.mount absent, mounting root with mount-zfs.sh"
-else
-	info "ZFS: sysroot.mount present, delegating root mount to it"
-	return
+if command -v systemctl >/dev/null; then
+	# If sysroot.mount exists, the initial RAM disk configured
+	# it to mount ZFS on root.  In that case, we bail early.
+	loadstate="$(systemctl --system --show -p LoadState sysroot.mount || true)"
+	if [ "${loadstate}" = "LoadState=not-found" -o "${loadstate}" = "" ] ; then
+		info "ZFS: sysroot.mount absent, mounting root with mount-zfs.sh"
+	else
+		info "ZFS: sysroot.mount present, delegating root mount to it"
+		return
+	fi
 fi
 
 # Delay until all required block devices are present.
