@@ -1665,11 +1665,17 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize)
 static uint64_t
 vdev_raidz_psize_floor(vdev_t *vd, uint64_t asize)
 {
-	uint64_t psize = (asize / vd->vdev_children) *
-	    (vd->vdev_children - vd->vdev_nparity);
+	uint64_t psize;
+	uint64_t ashift = vd->vdev_top->vdev_ashift;
+	uint64_t cols = vd->vdev_children;
+	uint64_t nparity = vd->vdev_nparity;
 
-	psize = P2ALIGN(psize, 1 << vd->vdev_top->vdev_ashift);
-	ASSERT(psize != 0);
+	psize = (asize - (nparity << ashift));
+	psize /= cols;
+	psize *= cols - nparity;
+	psize += (1 << ashift) - 1;
+
+	psize = P2ALIGN(psize, 1 << ashift);
 
 	return (psize);
 }
