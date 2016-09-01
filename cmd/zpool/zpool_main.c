@@ -1295,6 +1295,7 @@ zpool_do_destroy(int argc, char **argv)
 	if (zpool_disable_datasets(zhp, force) != 0) {
 		(void) fprintf(stderr, gettext("could not destroy '%s': "
 		    "could not unmount datasets\n"), zpool_get_name(zhp));
+		zpool_close(zhp);
 		return (1);
 	}
 
@@ -2342,6 +2343,7 @@ zpool_do_import(int argc, char **argv)
 		if (searchdirs != NULL)
 			free(searchdirs);
 
+		nvlist_free(props);
 		nvlist_free(policy);
 		return (1);
 	}
@@ -2448,6 +2450,8 @@ zpool_do_import(int argc, char **argv)
 		if (envdup != NULL)
 			free(envdup);
 		nvlist_free(policy);
+		nvlist_free(pools);
+		nvlist_free(props);
 		return (1);
 	}
 
@@ -4748,13 +4752,16 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		usage(B_FALSE);
 	}
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(g_zfs, poolname)) == NULL) {
+		nvlist_free(props);
 		return (1);
+	}
 
 	if (zpool_get_config(zhp, NULL) == NULL) {
 		(void) fprintf(stderr, gettext("pool '%s' is unavailable\n"),
 		    poolname);
 		zpool_close(zhp);
+		nvlist_free(props);
 		return (1);
 	}
 
@@ -4762,11 +4769,13 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	    argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
+		nvlist_free(props);
 		return (1);
 	}
 
 	ret = zpool_vdev_attach(zhp, old_disk, new_disk, nvroot, replacing);
 
+	nvlist_free(props);
 	nvlist_free(nvroot);
 	zpool_close(zhp);
 
@@ -4972,8 +4981,10 @@ zpool_do_split(int argc, char **argv)
 	argc -= 2;
 	argv += 2;
 
-	if ((zhp = zpool_open(g_zfs, srcpool)) == NULL)
+	if ((zhp = zpool_open(g_zfs, srcpool)) == NULL) {
+		nvlist_free(props);
 		return (1);
+	}
 
 	config = split_mirror_vdev(zhp, newpool, props, flags, argc, argv);
 	if (config == NULL) {
@@ -4985,20 +4996,25 @@ zpool_do_split(int argc, char **argv)
 			print_vdev_tree(NULL, newpool, config, 0, B_FALSE,
 			    flags.name_flags);
 		}
-		nvlist_free(config);
 	}
 
 	zpool_close(zhp);
 
-	if (ret != 0 || flags.dryrun || !flags.import)
+	if (ret != 0 || flags.dryrun || !flags.import) {
+		nvlist_free(config);
+		nvlist_free(props);
 		return (ret);
+	}
 
 	/*
 	 * The split was successful. Now we need to open the new
 	 * pool and import it.
 	 */
-	if ((zhp = zpool_open_canfail(g_zfs, newpool)) == NULL)
+	if ((zhp = zpool_open_canfail(g_zfs, newpool)) == NULL) {
+		nvlist_free(config);
+		nvlist_free(props);
 		return (1);
+	}
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		ret = 1;
@@ -5008,6 +5024,8 @@ zpool_do_split(int argc, char **argv)
 		    "different altroot\n"), "zpool import");
 	}
 	zpool_close(zhp);
+	nvlist_free(config);
+	nvlist_free(props);
 
 	return (ret);
 }
