@@ -1280,8 +1280,10 @@ zfs_do_destroy(int argc, char **argv)
 		*at = '\0';
 		zhp = zfs_open(g_zfs, argv[0],
 		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
-		if (zhp == NULL)
+		if (zhp == NULL) {
+			fnvlist_free(cb.cb_nvl);
 			return (1);
+		}
 
 		cb.cb_snapspec = at + 1;
 		if (gather_snapshots(zfs_handle_dup(zhp), &cb) != 0 ||
@@ -1370,7 +1372,7 @@ zfs_do_destroy(int argc, char **argv)
 			    "cannot destroy bookmark");
 		}
 
-		nvlist_free(cb.cb_nvl);
+		nvlist_free(nvl);
 
 		return (err);
 	} else {
