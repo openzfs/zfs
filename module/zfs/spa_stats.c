@@ -600,7 +600,7 @@ spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs)
 	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
 	uint64_t idx = 0;
 
-	while (((1 << idx) < nsecs) && (idx < ssh->size - 1))
+	while (((1ULL << idx) < nsecs) && (idx < ssh->size - 1))
 		idx++;
 
 	atomic_inc_64(&((kstat_named_t *)ssh->private)[idx].value.ui64);
