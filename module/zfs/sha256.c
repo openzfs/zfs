@@ -76,7 +76,8 @@ SHA256Transform(uint32_t *H, const uint8_t *cp)
 	uint32_t a, b, c, d, e, f, g, h, t, T1, T2, W[64];
 
 	for (t = 0; t < 16; t++, cp += 4)
-		W[t] = (cp[0] << 24) | (cp[1] << 16) | (cp[2] << 8) | cp[3];
+		W[t] = ((uint32_t)cp[0] << 24) | ((uint32_t)cp[1] << 16) |
+		    ((uint32_t)cp[2] << 8) | (uint32_t)cp[3];
 
 	for (t = 16; t < 64; t++)
 		W[t] = sigma1(W[t - 2]) + W[t - 7] +
