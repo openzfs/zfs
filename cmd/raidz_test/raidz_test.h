@@ -29,7 +29,6 @@
 #include <sys/spa.h>
 
 static const char *raidz_impl_names[] = {
-	"original",
 	"scalar",
 	"sse2",
 	"ssse3",

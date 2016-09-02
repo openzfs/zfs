@@ -33,12 +33,6 @@
 
 extern boolean_t raidz_will_scalar_work(void);
 
-/* Opaque implementation with NULL methods to represent original methods */
-static const raidz_impl_ops_t vdev_raidz_original_impl = {
-	.name = "original",
-	.is_supported = raidz_will_scalar_work,
-};
-
 /* RAIDZ parity op that contain the fastest methods */
 static raidz_impl_ops_t vdev_raidz_fastest_impl = {
 	.name = "fastest"
@@ -46,7 +40,6 @@ static raidz_impl_ops_t vdev_raidz_fastest_impl = {
 
 /* All compiled in implementations */
 const raidz_impl_ops_t *raidz_all_maths[] = {
-	&vdev_raidz_original_impl,
 	&vdev_raidz_scalar_impl,
 #if defined(__x86_64) && defined(HAVE_SSE2)	/* only x86_64 for now */
 	&vdev_raidz_sse2_impl,
@@ -65,8 +58,7 @@ static boolean_t raidz_math_initialized = B_FALSE;
 /* Select raidz implementation */
 #define	IMPL_FASTEST	(UINT32_MAX)
 #define	IMPL_CYCLE	(UINT32_MAX - 1)
-#define	IMPL_ORIGINAL	(0)
-#define	IMPL_SCALAR	(1)
+#define	IMPL_SCALAR	(0)
 
 #define	RAIDZ_IMPL_READ(i)	(*(volatile uint32_t *) &(i))
 
@@ -113,9 +105,6 @@ vdev_raidz_math_get_ops()
 	}
 	break;
 #endif
-	case IMPL_ORIGINAL:
-		ops = (raidz_impl_ops_t *) &vdev_raidz_original_impl;
-		break;
 	case IMPL_SCALAR:
 		ops = (raidz_impl_ops_t *) &vdev_raidz_scalar_impl;
 		break;
@@ -156,9 +145,7 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 			break;
 	}
 
-	/* if method is NULL execute the original implementation */
-	if (gen_parity == NULL)
-		return (RAIDZ_ORIGINAL_IMPL);
+	ASSERT(gen_parity);
 
 	gen_parity(rm);
 
@@ -248,10 +235,9 @@ vdev_raidz_math_reconstruct(raidz_map_t *rm, const int *parity_valid,
 		break;
 	}
 
-	if (rec_fn == NULL)
-		return (RAIDZ_ORIGINAL_IMPL);
-	else
-		return (rec_fn(rm, dt));
+	ASSERT(rec_fn);
+
+	return (rec_fn(rm, dt));
 }
 
 const char *raidz_gen_name[] = {
@@ -539,7 +525,6 @@ static const struct {
 		{ "cycle",	IMPL_CYCLE },
 #endif
 		{ "fastest",	IMPL_FASTEST },
-		{ "original",	IMPL_ORIGINAL },
 		{ "scalar",	IMPL_SCALAR }
 };
 

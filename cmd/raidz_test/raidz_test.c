@@ -302,7 +302,7 @@ init_raidz_golden_map(raidz_test_opts_t *opts, const int parity)
 	init_zio_abd(opts->zio_golden);
 	init_zio_abd(zio_test);
 
-	VERIFY0(vdev_raidz_impl_set("original"));
+	VERIFY0(vdev_raidz_impl_set("scalar")); /* write simple impl */
 
 	opts->rm_golden = vdev_raidz_map_alloc(opts->zio_golden,
 	    opts->rto_ashift, total_ncols, parity);
