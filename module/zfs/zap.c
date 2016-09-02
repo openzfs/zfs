@@ -693,6 +693,8 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
 		ASSERT0(err); /* we checked for i/o errors above */
 	}
 
+	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_prefix_len, >, 0);
+
 	if (hash & (1ULL << (64 - zap_leaf_phys(l)->l_hdr.lh_prefix_len))) {
 		/* we want the sibling */
 		zap_put_leaf(l);
@@ -1230,17 +1232,23 @@ again:
 	err = zap_leaf_lookup_closest(l, zc->zc_hash, zc->zc_cd, &zeh);
 
 	if (err == ENOENT) {
-		uint64_t nocare =
-		    (1ULL << (64 - zap_leaf_phys(l)->l_hdr.lh_prefix_len)) - 1;
-		zc->zc_hash = (zc->zc_hash & ~nocare) + nocare + 1;
-		zc->zc_cd = 0;
-		if (zap_leaf_phys(l)->l_hdr.lh_prefix_len == 0 ||
-		    zc->zc_hash == 0) {
+		if (zap_leaf_phys(l)->l_hdr.lh_prefix_len == 0) {
 			zc->zc_hash = -1ULL;
+			zc->zc_cd = 0;
 		} else {
-			zap_put_leaf(zc->zc_leaf);
-			zc->zc_leaf = NULL;
-			goto again;
+			uint64_t nocare = (1ULL <<
+			    (64 - zap_leaf_phys(l)->l_hdr.lh_prefix_len)) - 1;
+
+			zc->zc_hash = (zc->zc_hash & ~nocare) + nocare + 1;
+			zc->zc_cd = 0;
+
+			if (zc->zc_hash == 0) {
+				zc->zc_hash = -1ULL;
+			} else {
+				zap_put_leaf(zc->zc_leaf);
+				zc->zc_leaf = NULL;
+				goto again;
+			}
 		}
 	}
 
