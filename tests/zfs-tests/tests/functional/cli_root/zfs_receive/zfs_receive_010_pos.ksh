@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -138,7 +138,7 @@ $RM $mntpnt/h17
 $RM $mntpnt2/h*
 
 # Add empty objects to $fs to exercise dmu_traverse code
-for i in `seq 1 100`; do
+for i in {1..100}; do
 	log_must touch $mntpnt/uf$i
 done
 
