@@ -579,10 +579,10 @@ test_9() {
 	${ZFS} create -V 300M ${FULL_NAME} || fail 3
 	udev_trigger
 
-	# Dump the events, there should be at least 5 lines.
+	# Dump the events, there should be a pool create event
 	${ZPOOL} events >${TMP_EVENTS} || fail 4
-	EVENTS=`wc -l ${TMP_EVENTS} | cut -f1 -d' '`
-	[ $EVENTS -lt 5 ] && fail 5
+	MATCHES=`grep -c sysevent\.fs\.zfs\.pool_create ${TMP_EVENTS}`
+	[ $MATCHES -eq 1 ] || fail 5
 
 	# Clear the events and ensure there are none.
 	${ZPOOL} events -c >/dev/null || fail 6

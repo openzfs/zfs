@@ -87,19 +87,15 @@ tests = ['zfs_clone_001_neg', 'zfs_clone_002_pos', 'zfs_clone_003_pos',
 [tests/functional/cli_root/zfs_copies]
 tests = ['zfs_copies_001_pos', 'zfs_copies_004_neg', 'zfs_copies_006_pos']
 
-# DISABLED:
-# zfs_create_006_pos - needs investigation
-# zfs_create_003_pos - needs investigation
 [tests/functional/cli_root/zfs_create]
-tests = ['zfs_create_001_pos', 'zfs_create_002_pos',
-    'zfs_create_004_pos', 'zfs_create_005_pos',
+tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
+    'zfs_create_004_pos', 'zfs_create_005_pos', 'zfs_create_006_pos',
     'zfs_create_007_pos', 'zfs_create_008_neg', 'zfs_create_009_neg',
     'zfs_create_010_neg', 'zfs_create_011_pos', 'zfs_create_012_pos',
     'zfs_create_013_pos']
 
 # DISABLED:
 # zfs_destroy_001_pos - busy mountpoint behavior
-# zfs_destroy_004_pos - busy mountpoint behavior
 # zfs_destroy_005_neg - busy mountpoint behavior
 # zfs_destroy_008_pos - busy mountpoint behavior
 # zfs_destroy_009_pos - busy mountpoint behavior
@@ -108,9 +104,9 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos',
 # zfs_destroy_012_pos - busy mountpoint behavior
 # zfs_destroy_013_neg - busy mountpoint behavior
 [tests/functional/cli_root/zfs_destroy]
-tests = ['zfs_destroy_002_pos', 'zfs_destroy_003_pos', 'zfs_destroy_006_neg',
-    'zfs_destroy_007_neg', 'zfs_destroy_014_pos', 'zfs_destroy_015_pos',
-    'zfs_destroy_016_pos']
+tests = ['zfs_destroy_002_pos', 'zfs_destroy_003_pos', 'zfs_destroy_004_pos',
+    'zfs_destroy_006_neg', 'zfs_destroy_007_neg', 'zfs_destroy_014_pos',
+    'zfs_destroy_015_pos', 'zfs_destroy_016_pos']
 
 # DISABLED:
 # zfs_get_004_pos - nested pools
@@ -299,7 +295,6 @@ tests = ['zpool_history_001_neg', 'zpool_history_002_pos']
 # DISABLED:
 # zpool_import_012_pos - sharenfs issue
 # zpool_import_all_001_pos - partition issue
-# zpool_import_features_003_pos - zhack: invalid option -- 'r'
 [tests/functional/cli_root/zpool_import]
 tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_003_pos', 'zpool_import_004_pos', 'zpool_import_005_pos',
@@ -307,7 +302,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_009_neg', 'zpool_import_010_pos', 'zpool_import_011_neg',
     'zpool_import_013_neg',
     'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
-    'zpool_import_missing_001_pos',
+    'zpool_import_features_003_pos','zpool_import_missing_001_pos',
     'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
     'zpool_import_rename_001_pos']
 

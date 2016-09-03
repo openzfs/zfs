@@ -54,15 +54,10 @@
 static int
 dsl_deadlist_compare(const void *arg1, const void *arg2)
 {
-	const dsl_deadlist_entry_t *dle1 = arg1;
-	const dsl_deadlist_entry_t *dle2 = arg2;
+	const dsl_deadlist_entry_t *dle1 = (const dsl_deadlist_entry_t *)arg1;
+	const dsl_deadlist_entry_t *dle2 = (const dsl_deadlist_entry_t *)arg2;
 
-	if (dle1->dle_mintxg < dle2->dle_mintxg)
-		return (-1);
-	else if (dle1->dle_mintxg > dle2->dle_mintxg)
-		return (+1);
-	else
-		return (0);
+	return (AVL_CMP(dle1->dle_mintxg, dle2->dle_mintxg));
 }
 
 static void

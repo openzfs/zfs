@@ -564,8 +564,10 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		/*
 		 * Unshare and unmount the filesystem
 		 */
-		if (zfs_unshare_proto(zhp, mntpt, share_all_proto) != 0)
+		if (zfs_unshare_proto(zhp, mntpt, share_all_proto) != 0) {
+			free(mntpt);
 			return (-1);
+		}
 
 		if (unmount_one(hdl, mntpt, flags) != 0) {
 			free(mntpt);
@@ -904,7 +906,7 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 
 	/* check to see if need to unmount the filesystem */
 	if (mountpoint != NULL)
-		mountpoint = mntpt = zfs_strdup(hdl, mountpoint);
+		mntpt = zfs_strdup(hdl, mountpoint);
 
 	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
 	    libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry) == 0)) {
@@ -918,7 +920,7 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 
 			if (is_shared(hdl, mntpt, *curr_proto) &&
 			    unshare_one(hdl, zhp->zfs_name,
-					mntpt, *curr_proto) != 0) {
+			    mntpt, *curr_proto) != 0) {
 				if (mntpt != NULL)
 					free(mntpt);
 				return (-1);

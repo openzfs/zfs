@@ -30,17 +30,17 @@
 
 #
 # DESCRIPTION:
-# Invoke "zfs mount <filesystem>" with a filesystem
-# but its mountpoint is currently in use,
-# it will fail with a return code of 1
-# and issue an error message.
+# Invoke "zfs mount <filesystem>" with a filesystem but its mountpoint
+# is currently in use.  Under Linux this should succeed and is the
+# expected behavior, it will fail with a return code of 1 and issue
+# an error message on other platforms.
 #
 # STRATEGY:
 # 1. Make sure that the ZFS filesystem is unmounted.
 # 2. Apply 'zfs set mountpoint=path <filesystem>'.
 # 3. Change directory to that given mountpoint.
 # 3. Invoke 'zfs mount <filesystem>'.
-# 4. Verify that mount failed with return code of 1.
+# 4. Verify that mount succeeds on Linux and fails for other platforms.
 #
 
 verify_runnable "both"

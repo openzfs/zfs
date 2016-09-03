@@ -116,10 +116,10 @@ typedef struct vdev_dev_strs {
 /*
  * Obtain the persistent device id string (describes what)
  *
- * used by ZED auto-{online,expand,replace}
+ * used by ZED vdev matching for auto-{online,expand,replace}
  */
-static int
-udev_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
+int
+zfs_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 {
 	struct udev_list_entry *entry;
 	const char *bus;
@@ -167,10 +167,10 @@ udev_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 /*
  * Obtain the persistent physical location string (describes where)
  *
- * used by ZED auto-{online,expand,replace}
+ * used by ZED vdev matching for auto-{online,expand,replace}
  */
-static int
-udev_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
+int
+zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 {
 	const char *physpath, *value;
 
@@ -394,12 +394,12 @@ encode_device_strings(const char *path, vdev_dev_strs_t *ds,
 	if (!wholedisk && !udev_mpath_whole_disk(dev))
 		goto no_dev;
 
-	ret = udev_device_get_devid(dev, ds->vds_devid, sizeof (ds->vds_devid));
+	ret = zfs_device_get_devid(dev, ds->vds_devid, sizeof (ds->vds_devid));
 	if (ret != 0)
 		goto no_dev_ref;
 
 	/* physical location string (optional) */
-	if (udev_device_get_physical(dev, ds->vds_devphys,
+	if (zfs_device_get_physical(dev, ds->vds_devphys,
 	    sizeof (ds->vds_devphys)) != 0) {
 		ds->vds_devphys[0] = '\0'; /* empty string --> not available */
 	}

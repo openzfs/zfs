@@ -674,15 +674,13 @@ typedef struct mnttab_node {
 static int
 libzfs_mnttab_cache_compare(const void *arg1, const void *arg2)
 {
-	const mnttab_node_t *mtn1 = arg1;
-	const mnttab_node_t *mtn2 = arg2;
+	const mnttab_node_t *mtn1 = (const mnttab_node_t *)arg1;
+	const mnttab_node_t *mtn2 = (const mnttab_node_t *)arg2;
 	int rv;
 
 	rv = strcmp(mtn1->mtn_mt.mnt_special, mtn2->mtn_mt.mnt_special);
 
-	if (rv == 0)
-		return (0);
-	return (rv > 0 ? 1 : -1);
+	return (AVL_ISIGN(rv));
 }
 
 void
@@ -1572,7 +1570,7 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 	char errbuf[1024];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	nvlist_t *nvl;
-	int nvl_len;
+	int nvl_len = 0;
 	int added_resv = 0;
 	zfs_prop_t prop = 0;
 	nvpair_t *elem;
@@ -1602,7 +1600,6 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 	 * Check how many properties we're setting and allocate an array to
 	 * store changelist pointers for postfix().
 	 */
-	nvl_len = 0;
 	for (elem = nvlist_next_nvpair(nvl, NULL);
 	    elem != NULL;
 	    elem = nvlist_next_nvpair(nvl, elem))

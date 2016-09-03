@@ -844,7 +844,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	if (db->db_state == DB_CACHED) {
 		mutex_exit(&db->db_mtx);
 		if (prefetch)
-			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1);
+			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1, B_TRUE);
 		if ((flags & DB_RF_HAVESTRUCT) == 0)
 			rw_exit(&dn->dn_struct_rwlock);
 		DB_DNODE_EXIT(db);
@@ -859,7 +859,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		/* dbuf_read_impl has dropped db_mtx for us */
 
 		if (!err && prefetch)
-			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1);
+			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1, B_TRUE);
 
 		if ((flags & DB_RF_HAVESTRUCT) == 0)
 			rw_exit(&dn->dn_struct_rwlock);
@@ -878,7 +878,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		 */
 		mutex_exit(&db->db_mtx);
 		if (prefetch)
-			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1);
+			dmu_zfetch(&dn->dn_zfetch, db->db_blkid, 1, B_TRUE);
 		if ((flags & DB_RF_HAVESTRUCT) == 0)
 			rw_exit(&dn->dn_struct_rwlock);
 		DB_DNODE_EXIT(db);
@@ -1468,7 +1468,20 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		dnode_setdirty(dn, tx);
 		DB_DNODE_EXIT(db);
 		return (dr);
-	} else if (do_free_accounting) {
+	}
+
+	/*
+	 * The dn_struct_rwlock prevents db_blkptr from changing
+	 * due to a write from syncing context completing
+	 * while we are running, so we want to acquire it before
+	 * looking at db_blkptr.
+	 */
+	if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
+		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+		drop_struct_lock = TRUE;
+	}
+
+	if (do_free_accounting) {
 		blkptr_t *bp = db->db_blkptr;
 		int64_t willfree = (bp && !BP_IS_HOLE(bp)) ?
 		    bp_get_dsize(os->os_spa, bp) : db->db.db_size;
@@ -1482,11 +1495,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		 */
 		ddt_prefetch(os->os_spa, bp);
 		dnode_willuse_space(dn, -willfree, tx);
-	}
-
-	if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		drop_struct_lock = TRUE;
 	}
 
 	if (db->db_level == 0) {

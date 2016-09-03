@@ -104,29 +104,24 @@ static vdc_stats_t vdc_stats = {
 
 #define	VDCSTAT_BUMP(stat)	atomic_inc_64(&vdc_stats.stat.value.ui64);
 
-static int
+static inline int
 vdev_cache_offset_compare(const void *a1, const void *a2)
 {
-	const vdev_cache_entry_t *ve1 = a1;
-	const vdev_cache_entry_t *ve2 = a2;
+	const vdev_cache_entry_t *ve1 = (const vdev_cache_entry_t *)a1;
+	const vdev_cache_entry_t *ve2 = (const vdev_cache_entry_t *)a2;
 
-	if (ve1->ve_offset < ve2->ve_offset)
-		return (-1);
-	if (ve1->ve_offset > ve2->ve_offset)
-		return (1);
-	return (0);
+	return (AVL_CMP(ve1->ve_offset, ve2->ve_offset));
 }
 
 static int
 vdev_cache_lastused_compare(const void *a1, const void *a2)
 {
-	const vdev_cache_entry_t *ve1 = a1;
-	const vdev_cache_entry_t *ve2 = a2;
+	const vdev_cache_entry_t *ve1 = (const vdev_cache_entry_t *)a1;
+	const vdev_cache_entry_t *ve2 = (const vdev_cache_entry_t *)a2;
 
-	if (ddi_time_before(ve1->ve_lastused, ve2->ve_lastused))
-		return (-1);
-	if (ddi_time_after(ve1->ve_lastused, ve2->ve_lastused))
-		return (1);
+	int cmp = AVL_CMP(ve1->ve_lastused, ve2->ve_lastused);
+	if (likely(cmp))
+		return (cmp);
 
 	/*
 	 * Among equally old entries, sort by offset to ensure uniqueness.

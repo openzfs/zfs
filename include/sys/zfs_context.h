@@ -131,6 +131,7 @@
  */
 
 #define	noinline	__attribute__((noinline))
+#define	likely(x)	__builtin_expect((x), 1)
 
 /*
  * Debugging

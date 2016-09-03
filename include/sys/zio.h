@@ -587,7 +587,6 @@ extern void zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, struct zio *zio,
 extern void zfs_ereport_finish_checksum(zio_cksum_report_t *report,
     const void *good_data, const void *bad_data, boolean_t drop_if_identical);
 
-extern void zfs_ereport_send_interim_checksum(zio_cksum_report_t *report);
 extern void zfs_ereport_free_checksum(zio_cksum_report_t *report);
 
 /* If we have the good data in hand, this function can be used */

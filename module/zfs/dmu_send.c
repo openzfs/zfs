@@ -573,6 +573,7 @@ send_traverse_thread(void *arg)
 	struct send_thread_arg *st_arg = arg;
 	int err;
 	struct send_block_record *data;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 
 	if (st_arg->ds != NULL) {
 		err = traverse_dataset_resume(st_arg->ds,
@@ -585,6 +586,7 @@ send_traverse_thread(void *arg)
 	data = kmem_zalloc(sizeof (*data), KM_SLEEP);
 	data->eos_marker = B_TRUE;
 	bqueue_enqueue(&st_arg->q, data, 1);
+	spl_fstrans_unmark(cookie);
 }
 
 /*
@@ -1791,14 +1793,10 @@ typedef struct guid_map_entry {
 static int
 guid_compare(const void *arg1, const void *arg2)
 {
-	const guid_map_entry_t *gmep1 = arg1;
-	const guid_map_entry_t *gmep2 = arg2;
+	const guid_map_entry_t *gmep1 = (const guid_map_entry_t *)arg1;
+	const guid_map_entry_t *gmep2 = (const guid_map_entry_t *)arg2;
 
-	if (gmep1->guid < gmep2->guid)
-		return (-1);
-	else if (gmep1->guid > gmep2->guid)
-		return (1);
-	return (0);
+	return (AVL_CMP(gmep1->guid, gmep2->guid));
 }
 
 static void
@@ -2737,6 +2735,8 @@ receive_writer_thread(void *arg)
 {
 	struct receive_writer_arg *rwa = arg;
 	struct receive_record_arg *rrd;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
+
 	for (rrd = bqueue_dequeue(&rwa->q); !rrd->eos_marker;
 	    rrd = bqueue_dequeue(&rwa->q)) {
 		/*
@@ -2761,6 +2761,7 @@ receive_writer_thread(void *arg)
 	rwa->done = B_TRUE;
 	cv_signal(&rwa->cv);
 	mutex_exit(&rwa->mutex);
+	spl_fstrans_unmark(cookie);
 }
 
 static int

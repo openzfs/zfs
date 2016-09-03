@@ -1,5 +1,6 @@
 COMMON_H = \
-	$(top_srcdir)/include/sys/sysevent/eventdefs.h
+	$(top_srcdir)/include/sys/sysevent/eventdefs.h \
+	$(top_srcdir)/include/sys/sysevent/dev.h
 
 KERNEL_H =
 

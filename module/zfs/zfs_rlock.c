@@ -617,14 +617,10 @@ zfs_range_reduce(rl_t *rl, uint64_t off, uint64_t len)
 int
 zfs_range_compare(const void *arg1, const void *arg2)
 {
-	const rl_t *rl1 = arg1;
-	const rl_t *rl2 = arg2;
+	const rl_t *rl1 = (const rl_t *)arg1;
+	const rl_t *rl2 = (const rl_t *)arg2;
 
-	if (rl1->r_off > rl2->r_off)
-		return (1);
-	if (rl1->r_off < rl2->r_off)
-		return (-1);
-	return (0);
+	return (AVL_CMP(rl1->r_off, rl2->r_off));
 }
 
 #ifdef _KERNEL
