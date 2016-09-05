@@ -376,11 +376,9 @@ range_tree_verify(range_tree_t *rt, uint64_t off, uint64_t size)
 {
 	range_seg_t *rs;
 
-	mutex_enter(rt->rt_lock);
 	rs = range_tree_find(rt, off, size);
 	if (rs != NULL)
 		panic("freeing free block; rs=%p", (void *)rs);
-	mutex_exit(rt->rt_lock);
 }
 
 boolean_t
