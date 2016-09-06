@@ -765,6 +765,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 
 		if (db->db_blkptr != NULL && db->db_level > 0 &&
 		    BP_IS_HOLE(db->db_blkptr) &&
+		    BP_GET_LEVEL(db->db_blkptr) > 0 &&
 		    db->db_blkptr->blk_birth != 0) {
 			blkptr_t *bps = db->db.db_data;
 			int i;
