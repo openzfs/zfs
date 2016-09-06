@@ -457,15 +457,11 @@ abd_alloc_sametype(abd_t *sabd, size_t size)
  * Currently this is linear ABDs, however if ldi_strategy() can ever issue I/Os
  * using a scatter/gather list we should switch to that and replace this call
  * with vanilla abd_alloc().
- *
- * LINUX ABD TODO - once vdev_disk.c has ABD page support change to vanilla
- * - TODO vdev_disk.c now has ABD page support, but some disk label checksumming
- *   code still assumes linear ABD.
  */
 abd_t *
 abd_alloc_for_io(size_t size, boolean_t is_metadata)
 {
-	return (abd_alloc_linear(size, is_metadata));
+	return (abd_alloc(size, is_metadata));
 }
 
 abd_t *
