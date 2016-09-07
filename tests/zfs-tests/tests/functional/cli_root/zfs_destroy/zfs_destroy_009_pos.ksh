@@ -41,12 +41,10 @@
 #
 ################################################################################
 
-log_assert "'zfs destroy -d <snap>' marks cloned snapshot for deferred destroy"
-log_onexit cleanup_testenv
+function test_c_run
+{
+    typeset dstype=$1
 
-setup_testenv clone
-
-for dstype in FS VOL; do
     snap=$(eval echo \$${dstype}SNAP)
     clone=$(eval echo \$${dstype}CLONE)
     log_must $ZFS destroy -d $snap
@@ -55,6 +53,21 @@ for dstype in FS VOL; do
     log_must $ZFS destroy $clone
     log_mustnot datasetexists $snap
     log_mustnot datasetexists $clone
+}
+
+log_assert "'zfs destroy -d <snap>' marks cloned snapshot for deferred destroy"
+log_onexit cleanup_testenv
+
+setup_testenv clone
+
+for dstype in FS VOL; do
+    if [[ $dstype == VOL ]]; then
+		if is_global_zone; then
+			test_c_run $dstype
+		fi
+	else
+		test_c_run $dstype
+	fi
 done
 
 log_pass "'zfs destroy -d <snap>' marks cloned snapshot for deferred destroy"
