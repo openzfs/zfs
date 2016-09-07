@@ -1,0 +1,4 @@
+SUBDIRS = \
+	fio \
+	regression \
+	scripts
