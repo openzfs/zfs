@@ -59,7 +59,7 @@ lint: cppcheck
 
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
-		cppcheck --quiet --force ${top_srcdir}; \
+		cppcheck --quiet --force --error-exitcode=2 ${top_srcdir}; \
 	fi
 
 ctags:
