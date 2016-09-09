@@ -13,6 +13,7 @@ $(MODULE)-objs += zprop_common.o
 $(MODULE)-objs += zfs_namecheck.o
 $(MODULE)-objs += zfs_comutil.o
 $(MODULE)-objs += zfs_fletcher.o
+$(MODULE)-objs += zfs_type.o
 $(MODULE)-objs += zfs_uio.o
 $(MODULE)-objs += zpool_prop.o
 

@@ -35,6 +35,7 @@
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_dataset.h>
+#include <sys/dsl_dir.h>
 #include <sys/vdev_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
@@ -654,8 +655,9 @@ zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx)
 }
 
 int
-zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
+zil_claim(dsl_dataset_t *ds, const char *unused, void *txarg)
 {
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	dmu_tx_t *tx = txarg;
 	uint64_t first_txg = dmu_tx_get_txg(tx);
 	zilog_t *zilog;
@@ -722,7 +724,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
  */
 /* ARGSUSED */
 int
-zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
+zil_check_log_chain(dsl_dataset_t *ds, const char *unused, void *tx)
 {
 	zilog_t *zilog;
 	objset_t *os;

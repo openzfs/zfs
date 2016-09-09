@@ -573,19 +573,19 @@ extern int spa_get_stats(const char *pool, nvlist_t **config, char *altroot,
     size_t buflen);
 extern int spa_create(const char *pool, nvlist_t *config, nvlist_t *props,
     nvlist_t *zplprops);
-extern int spa_import_rootpool(char *devpath, char *devid);
-extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
+extern int spa_import_rootpool(const char *devpath, const char *devid);
+extern int spa_import(const char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
-extern int spa_destroy(char *pool);
-extern int spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
+extern int spa_destroy(const char *pool);
+extern int spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce);
-extern int spa_reset(char *pool);
+extern int spa_reset(const char *pool);
 extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
 extern void spa_async_suspend(spa_t *spa);
 extern void spa_async_resume(spa_t *spa);
-extern spa_t *spa_inject_addref(char *pool);
+extern spa_t *spa_inject_addref(const char *pool);
 extern void spa_inject_delref(spa_t *spa);
 extern void spa_scan_stat_init(spa_t *spa);
 extern int spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps);
@@ -615,8 +615,8 @@ extern int spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare);
 extern boolean_t spa_vdev_remove_active(spa_t *spa);
 extern int spa_vdev_setpath(spa_t *spa, uint64_t guid, const char *newpath);
 extern int spa_vdev_setfru(spa_t *spa, uint64_t guid, const char *newfru);
-extern int spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
-    nvlist_t *props, boolean_t exp);
+extern int spa_vdev_split_mirror(spa_t *spa, const char *newname,
+    nvlist_t *config, nvlist_t *props, boolean_t exp);
 
 /* spare state (which is global across all pools) */
 extern void spa_spare_add(vdev_t *vd);
@@ -765,7 +765,7 @@ extern blkptr_t *spa_get_rootblkptr(spa_t *spa);
 extern void spa_set_rootblkptr(spa_t *spa, const blkptr_t *bp);
 extern void spa_altroot(spa_t *, char *, size_t);
 extern int spa_sync_pass(spa_t *spa);
-extern char *spa_name(spa_t *spa);
+extern const char *spa_name(spa_t *spa);
 extern uint64_t spa_guid(spa_t *spa);
 extern uint64_t spa_load_guid(spa_t *spa);
 extern uint64_t spa_last_synced_txg(spa_t *spa);
@@ -826,7 +826,7 @@ extern int spa_maxdnodesize(spa_t *spa);
 extern void zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp);
 
 extern int spa_mode(spa_t *spa);
-extern uint64_t strtonum(const char *str, char **nptr);
+extern uint64_t strtonum(const char *str, const char **nptr);
 
 extern char *spa_his_ievent_table[];
 

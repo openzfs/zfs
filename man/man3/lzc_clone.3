@@ -1,0 +1,185 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_clone 3 "2015 JUL 3" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_clone\fR(\fBconst char *\fR\fIfsname\fR, \fBconst char *\fR\fIorigin\fR, \fBnvlist_t *\fR\fIprops\fR);
+.sp
+\fBint\fR \fBlzc_clone_ext\fR(\fBconst char *\fR\fIfsname\fR, \fBconst char *\fR\fIorigin\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+
+.SH NAME
+lzc_clone, lzc_clone_ext \- Creates a clone from a snapshot
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_clone\fR() function creates a ZFS dataset or volume named
+\fIfsname\fR from the snapshot \fIorigin\fR Properties may optionally be set
+using \fIprops\fR. Application of properties to the clone at this time is
+non-atomic and failure of any property changes does not cause failure of the
+clone. The \fBlzc_clone_ext\fR() function behaves identically unless additional
+options are non-NULL. The \fIopts\fR nvlist permits changes to the command
+behavior. At present, it permits the command invocation to be passed by a
+string named "log_history". The \fIerrlist\fR will return individual error
+codes for properties that failed to be set.
+
+.I fsname
+shall be the SPA namespace name for the new clone. It must be inside the same pool as the snapshot from which it is created.
+
+.I origin
+shall be the SPA namespace name of the snapshot used as the starting
+point for the clone. It must be inside the same pool as the clone being
+created.
+
+.I props
+shall either be NULL or contain a nvlist with properties to set on the snapshot
+at creation time. It shall be of the format:
+.sp
+{ user:prop_name -> string value }
+
+.I opts
+shall be either NULL or a pointer to a nvlist containing options that alter
+behavior. At present, it only permits the command invocation to be passed by a
+string named "log_history" so that the command line invocation can be stored in
+the zpool history log.
+
+.I errlist
+shall be either NULL or contain a handle that shall be used to store a pointer
+to a library allocated nvlist when non-NULL and the operation for at least one
+hold fails.  The names of the holds shall be the keys while the values shall
+contain the error codes and be of type int32. Holds that failed to release
+because they did not exist shall also have an entry added. It shall not be
+touched otherwise.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_clone()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEDQUOT\fR\fR
+.ad
+.RS 13n
+Creation of the clone will require storage space in excess of the filesystem
+quota.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.sp
+A dataset named \fIfsname\fR already exists.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The dataset name \fIfsname\fR is not syntactically correct. This includes situations where bookmarks, snapshots or holds are specified.
+.sp
+The snapshot name \fIorigin\fR is not syntactically correct. This includes the case of attempting to clone a non-snapshot.
+.sp
+The nvlist_t \fIprops\fR could not be understood by the kernel as being NULL or a nvlist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The dataset name \fIfsname\fR exceeds 256 characters.
+.sp
+The snapshot name \fIorigin\fR nvlist exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loadng unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+The dataset \fIfsname\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIprops\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEOVERFLOW\fR\fR
+.ad
+.RS 13n
+Specified volume size through \fIprops\fR exceeds system supported device size.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEXDEV\fR\fR
+.ad
+.RS 13n
+Attempted to clone across pools.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBzfs\fR(8)

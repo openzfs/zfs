@@ -1,0 +1,149 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_destroy_one 3 "2015 JUL 7" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_destroy_one\fR(\fBconst char *\fR\fIfsname\fR, \fBnvlist_t *\fR\fIopts\fR);
+
+.SH NAME
+lzc_destroy_one \- Destroys a dataset or volume
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_destroy_one\fR() function shall destroys a dataset or a volume.
+Destroying snapshots and bookmarks is not currently supported. Call
+lzc_destroy_snaps and lzc_destroy_bookmarks for those respectively.
+
+The only currently valid property is the boolean "defer". It makes destruction
+asynchronous such that the only error code back is if we try to destroy
+something that does not exist. The caller must unmount the dataset before
+calling this. Otherwise, it will fail.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned.
+.sp
+On error, an error is returned from one of the bookmarks where an error
+occurred and \fIerrlist\fR is populated with more specific information if a
+pointer is provided. \fIerrlist\fR shall contain keys with the snapshot names
+and int32 values of the error codes. The caller must call \fBnvlist_free\fR()
+on \fIerrlist\fR if this occurs.
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_destroy_one()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEBUSY\fR\fR
+.ad
+.RS 13n
+Dataset named \fIdataset\fR has a long hold from a zfs send stream or a user
+hold from \fBlzc_hold\fR().
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.sp
+The dataset or volume \fIfsname\fR has children in its pool's namespace.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The string \fIfsname\fR is an invalid name for a dataset or volume.
+.sp
+The \fIopts\fR nvlist is neither NULL nor a valid nvlist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The string \fIfsname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+The string \fIfsname\fR does not name a dataset that exists.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIbmarks\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSUP\fR\fR
+.ad
+.RS 13n
+\fIdefer\fR specified, but pool version predates version 18
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_hold\fR(3), \fBzfs\fR(8)

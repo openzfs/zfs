@@ -1,0 +1,226 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_send 3 "2015 JUL 8" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_send\fR(\fBconst char *\fR\fIsnapname\fR, \fBconst char
+*\fR\fIfrom\fR, \fBint\fR \fIfd\fR, \fBenum lzc_send_flags\fR \fIflags);
+.sp
+\fBint\fR \fBlzc_send_ext\fR(\fBconst char *\fR\fIsnapname\fR, \fBconst char
+*\fR\fIfrom\fR, \fBint\fR \fIfd\fR, \fBnvlist_t *\fR\fIparams\fR);
+
+.SH NAME
+lzc_send, lzc_send_ext \- Generate a send stream from a snapshot
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_send\fR() and \fBlzc_send_ext\fR() functions write a ZFS stream to
+file descriptor \fIfd\fR from snapshot \fIsnapname\fR of dataset \fIfrom\fR.
+The only difference between the two functions is that one uses a bitmask called
+\fIflags\fR for passing flags while the other uses a nvlist called \fIparams\fR
+for passing flags.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned.
+.sp
+On error, an error is returned from one of the holds where an error occurred
+and \fI*errlist\fR is initialized with a pointer to a nvlist with more specific
+information when \fIerrlist\fR is non-NULL. The caller must call
+\fBnvlist_free\fR(\fI*errlist\fR) when this occurs.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_send()\fR and \fBlzc_send_ext()\fR functions shall fail if:
+.sp
+.ne 2
+.na
+\fB\fBEAGAIN\fR\fR, \fB\fBEWOULDBLOCK\fR\fR
+.ad
+.RS 13n
+The file descriptor was marked non-blocking and the call would block. This is
+from \fBwrite\fR(2).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEBADF\fR\fR
+.ad
+.RS 13n
+The file descriptor \fIfd\fR is invalid.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEDESTADDRREQ\fR\fR
+.ad
+.RS 13n
+The file descriptor is a datagram socket for which a peer address has not been
+set using \fBconnect\fR(2).  This is from \fBwrite\fR(2).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEFAULT\fR\fR
+.ad
+.RS 13n
+Internal issue occurred when copying command data from userland to kernel. See
+Illumos ddi_copyin(9F).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEFBIG\fR\fR
+.ad
+.RS 13n
+The file descriptor \fIfd\fR is a file and writing to it would cause it to
+exceed the maximum file size permitted by the filesystem. This is from
+\fBwrite\fR(2).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEIO\fR\fR
+.ad
+.RS 13n
+A low level error occurred. This is from \fBwrite\fR(2).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINTR\fR\fR
+.ad
+.RS 13n
+The call was interrupted by a userspace signal.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The string \fIsnapname\fR is not a valid bookmark or snapshot name.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The string \fIsnapname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+The snapshot or bookmark named \fIsnapname\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIparams\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOSPC\fR\fR
+.ad
+.RS 13n
+The file descriptor \fIfd\fR cannot be appended. This is from \fBwrite\fR(2).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPIPE\fR\fR
+.ad
+.RS 13n
+The file descriptor is a pipe whose reading end is closed. This is from
+\fBwrite\fR(2).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBESRCH\fR\fR
+.ad
+.RS 13n
+A specified, but valid, bookmark was not found. This merits a bug report.
+.RE
+
+.SH BUGS
+File descriptors with O_NONBLOCK do not fail immediately.
+
+.SH SEE ALSO
+.sp
+.LP
+\fBconnect\fR(2) \fBlibzfs_core.h\fR(3), \fBlzc_hold\fR(3),
+\fBlzc_receive\fR(3), \fBwrite\fR(2), \fBzfs\fR(8)

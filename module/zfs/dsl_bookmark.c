@@ -53,8 +53,8 @@ dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
 /*
  * Returns ESRCH if bookmark is not found.
  */
-static int
-dsl_dataset_bmark_lookup(dsl_dataset_t *ds, const char *shortname,
+int
+dsl_bookmark_lookup_ds(dsl_dataset_t *ds, const char *shortname,
     zfs_bookmark_phys_t *bmark_phys)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
@@ -96,7 +96,7 @@ dsl_bookmark_lookup(dsl_pool_t *dp, const char *fullname,
 	if (error != 0)
 		return (error);
 
-	error = dsl_dataset_bmark_lookup(ds, shortname, bmp);
+	error = dsl_bookmark_lookup_ds(ds, shortname, bmp);
 	if (error == 0 && later_ds != NULL) {
 		if (!dsl_dataset_is_before(later_ds, ds, bmp->zbm_creation_txg))
 			error = SET_ERROR(EXDEV);
@@ -133,7 +133,7 @@ dsl_bookmark_create_check_impl(dsl_dataset_t *snapds, const char *bookmark_name,
 		return (SET_ERROR(EINVAL));
 	}
 
-	error = dsl_dataset_bmark_lookup(bmark_fs, shortname,
+	error = dsl_bookmark_lookup_ds(bmark_fs, shortname,
 	    &bmark_phys);
 	dsl_dataset_rele(bmark_fs, FTAG);
 	if (error == 0)
@@ -272,7 +272,7 @@ dsl_get_bookmarks_impl(dsl_dataset_t *ds, nvlist_t *props, nvlist_t *outnvl)
 		char *bmark_name = attr.za_name;
 		zfs_bookmark_phys_t bmark_phys;
 
-		err = dsl_dataset_bmark_lookup(ds, bmark_name, &bmark_phys);
+		err = dsl_bookmark_lookup_ds(ds, bmark_name, &bmark_phys);
 		ASSERT3U(err, !=, ENOENT);
 		if (err != 0)
 			break;
@@ -378,7 +378,7 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 			continue;
 		}
 		if (error == 0) {
-			error = dsl_dataset_bmark_lookup(ds, shortname, &bm);
+			error = dsl_bookmark_lookup_ds(ds, shortname, &bm);
 			dsl_dataset_rele(ds, FTAG);
 			if (error == ESRCH) {
 				/*

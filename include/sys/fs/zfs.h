@@ -1017,6 +1017,11 @@ typedef enum zfs_ioc {
 	 */
 	ZFS_IOC_FREEBSD = ('Z' << 8) + 0xC0,
 
+	/*
+	 * OpenZFS - 1/64 numbers reserved.
+	 */
+	ZFS_IOC_OPENZFS = ('Z' << 8) + 0x100,
+	ZFS_IOC_LIBZFS_CORE,
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 

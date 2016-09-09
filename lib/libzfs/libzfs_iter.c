@@ -32,8 +32,15 @@
 #include <stddef.h>
 #include <libintl.h>
 #include <libzfs.h>
+#include <zfs_type.h>
 
 #include "libzfs_impl.h"
+
+/*
+ * XXX: Workaround for conflicting type declarations for sa_handle_t between
+ * sys/sa.h and libshare.h
+ */
+extern int dmu_objset_stat_nvlts(nvlist_t *nvl, dmu_objset_stats_t *stat);
 
 int
 zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
@@ -57,42 +64,148 @@ zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	return (0);
 }
 
-static int
-zfs_do_list_ioctl(zfs_handle_t *zhp, int arg, zfs_cmd_t *zc)
+typedef struct zfs_iter_cb_data {
+	libzfs_handle_t		*zicb_hdl;
+	zfs_handle_t		zicb_zhp;
+	void 			*zicb_data;
+	zfs_iter_f		zicb_func;
+	zfs_cmd_t		zicb_zc;
+} zfs_iter_cb_data_t;
+
+int
+zfs_iter_cb(nvlist_t *nvl, void *data)
 {
-	int rc;
-	uint64_t	orig_cookie;
+	nvlist_t *nvl_prop, *nvl_dds;
+	zfs_iter_cb_data_t *cb = data;
+	zfs_handle_t *nzhp;
+	size_t nvsz;
+	char *name;
+	int ret;
 
-	orig_cookie = zc->zc_cookie;
-top:
-	(void) strlcpy(zc->zc_name, zhp->zfs_name, sizeof (zc->zc_name));
-	rc = ioctl(zhp->zfs_hdl->libzfs_fd, arg, zc);
+	if ((ret = nvlist_lookup_nvlist(nvl, "properties", &nvl_prop))
+	    != 0 ||
+	    (ret = nvlist_lookup_string(nvl, "name", &name)) != 0 ||
+	    (ret = nvlist_lookup_nvlist(nvl, "dmu_objset_stats",
+	    &nvl_dds)) != 0 ||
+	    (ret = dmu_objset_stat_nvlts(nvl_dds, &cb->zicb_zc.zc_objset_stats))
+	    != 0) {
+		return (EINVAL);
+	}
 
-	if (rc == -1) {
-		switch (errno) {
-		case ENOMEM:
-			/* expand nvlist memory and try again */
-			if (zcmd_expand_dst_nvlist(zhp->zfs_hdl, zc) != 0) {
-				zcmd_free_nvlists(zc);
-				return (-1);
-			}
-			zc->zc_cookie = orig_cookie;
-			goto top;
-		/*
-		 * An errno value of ESRCH indicates normal completion.
-		 * If ENOENT is returned, then the underlying dataset
-		 * has been removed since we obtained the handle.
-		 */
-		case ESRCH:
-		case ENOENT:
-			rc = 1;
+	strlcpy(cb->zicb_zc.zc_name, name, sizeof (cb->zicb_zc.zc_name));
+
+	cb->zicb_zc.zc_nvlist_dst_size = nvsz = fnvlist_size(nvl_prop);
+	if ((ret = zcmd_expand_dst_nvlist(cb->zicb_hdl, &cb->zicb_zc))) {
+		if (ret == -1)
+			ret = ENOMEM;
+		return (ret);
+	}
+
+	ret = nvlist_pack(nvl_prop, (char **) &cb->zicb_zc.zc_nvlist_dst,
+	    &nvsz, NV_ENCODE_NATIVE, 0);
+
+	cb->zicb_zc.zc_nvlist_dst_filled = B_TRUE;
+
+	/*
+	 * Errors here do not make sense, so we bail.
+	 */
+	if (strchr(name, '#') != NULL) {
+		zfs_handle_t *zhp = &cb->zicb_zhp;
+		bzero(zhp, sizeof (zfs_handle_t));
+		zhp->zfs_hdl = cb->zicb_hdl;
+		switch (cb->zicb_zc.zc_objset_stats.dds_type) {
+		case DMU_OST_ZFS:
+			zhp->zfs_head_type = ZFS_TYPE_FILESYSTEM;
+			break;
+		case DMU_OST_ZVOL:
+			zhp->zfs_head_type = ZFS_TYPE_VOLUME;
 			break;
 		default:
-			rc = zfs_standard_error(zhp->zfs_hdl, errno,
-			    dgettext(TEXT_DOMAIN,
-			    "cannot iterate filesystems"));
-			break;
+			return (EINVAL);
 		}
+		nzhp = make_bookmark_handle(zhp, name, nvl_prop);
+	} else if ((ret != 0) ||
+	    (nzhp = make_dataset_handle_zc(cb->zicb_hdl, &cb->zicb_zc)) == NULL)
+		return (EINVAL);
+
+	ret = (*cb->zicb_func)(nzhp, cb->zicb_data);
+
+	return (ret);
+}
+
+/*
+ * Iterate over all children filesystems
+ */
+int
+zfs_iter_generic(libzfs_handle_t *hdl, const char *name, zfs_type_t type,
+    int64_t mindepth, int64_t maxdepth, boolean_t depth_specified,
+    zfs_iter_f func, void *data)
+{
+	zfs_iter_cb_data_t cb_data;
+	nvlist_t *tnvl, *opts;
+	int ret;
+
+	bzero(&cb_data.zicb_zc, sizeof (cb_data.zicb_zc));
+	if (zcmd_alloc_dst_nvlist(hdl, &cb_data.zicb_zc, 0) != 0)
+		return (-1);
+
+	opts = fnvlist_alloc();
+	if (depth_specified) {
+		switch (maxdepth) {
+		case -1:
+			fnvlist_add_boolean(opts, "recurse");
+		default:
+			if (maxdepth < 0) {
+				fnvlist_free(opts);
+				ret = -1;
+				goto out;
+			}
+			fnvlist_add_uint64(opts, "maxrecurse", maxdepth);
+		}
+		fnvlist_add_uint64(opts, "minrecurse", mindepth);
+	} else
+		fnvlist_add_boolean(opts, "recurse");
+
+	tnvl = zfs_type_to_nvl(type);
+	fnvlist_add_nvlist(opts, "type", tnvl);
+
+	cb_data.zicb_hdl = hdl;
+	cb_data.zicb_func = func;
+	cb_data.zicb_data = data;
+
+	ret = lzc_list_iter(name, opts, &zfs_iter_cb, &cb_data);
+
+	fnvlist_free(tnvl);
+	fnvlist_free(opts);
+out:
+	zcmd_free_nvlists(&cb_data.zicb_zc);
+
+	return (ret);
+}
+
+static int
+zfs_do_list_call(zfs_handle_t *zhp, zfs_type_t type, zfs_iter_f func,
+    void *data)
+{
+	int rc;
+
+	rc = zfs_iter_generic(zhp->zfs_hdl, zhp->zfs_name,
+	    type, 1, 1, B_TRUE, func, data);
+
+	switch (rc) {
+	/*
+	 * An rc value of 0 indicates normal completion.
+	 * Treat a missing dataset as a dataset with no relevant children.
+	 */
+	case 0:
+	case ENOENT:
+		rc = 1;
+		break;
+	default:
+		rc = zfs_standard_error(zhp->zfs_hdl, rc,
+		    dgettext(TEXT_DOMAIN,
+		    "cannot iterate filesystems"));
+		break;
 	}
 	return (rc);
 }
@@ -103,33 +216,14 @@ top:
 int
 zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
-	zfs_cmd_t zc = {"\0"};
-	zfs_handle_t *nzhp;
 	int ret;
 
 	if (zhp->zfs_type != ZFS_TYPE_FILESYSTEM)
 		return (0);
 
-	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
-		return (-1);
+	ret = zfs_do_list_call(zhp, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    func, data);
 
-	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_DATASET_LIST_NEXT,
-	    &zc)) == 0) {
-		/*
-		 * Silently ignore errors, as the only plausible explanation is
-		 * that the pool has since been removed.
-		 */
-		if ((nzhp = make_dataset_handle_zc(zhp->zfs_hdl,
-		    &zc)) == NULL) {
-			continue;
-		}
-
-		if ((ret = func(nzhp, data)) != 0) {
-			zcmd_free_nvlists(&zc);
-			return (ret);
-		}
-	}
-	zcmd_free_nvlists(&zc);
 	return ((ret < 0) ? ret : 0);
 }
 
@@ -140,34 +234,14 @@ int
 zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
     void *data)
 {
-	zfs_cmd_t zc = {"\0"};
-	zfs_handle_t *nzhp;
 	int ret;
 
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT ||
 	    zhp->zfs_type == ZFS_TYPE_BOOKMARK)
 		return (0);
 
-	zc.zc_simple = simple;
+	ret = zfs_do_list_call(zhp, ZFS_TYPE_SNAPSHOT, func, data);
 
-	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
-		return (-1);
-	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_SNAPSHOT_LIST_NEXT,
-	    &zc)) == 0) {
-
-		if (simple)
-			nzhp = make_dataset_simple_handle_zc(zhp, &zc);
-		else
-			nzhp = make_dataset_handle_zc(zhp->zfs_hdl, &zc);
-		if (nzhp == NULL)
-			continue;
-
-		if ((ret = func(nzhp, data)) != 0) {
-			zcmd_free_nvlists(&zc);
-			return (ret);
-		}
-	}
-	zcmd_free_nvlists(&zc);
 	return ((ret < 0) ? ret : 0);
 }
 

@@ -1,0 +1,146 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH libzfs_core.h 3 "2015 JUL 3" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual. The location of
+the header might vary on different systems. Compilation with GCC on Linux
+systems requires the addition of -I/usr/include/libspl -I/usr/include/libzfs to
+GCC's parameters to include the proper headers.
+
+.SH NAME
+libzfs_core.h \- Stable OpenZFS Management C API
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+.SH DESCRIPTION
+.LP
+The
+.IR <libzfs_core.h>
+header shall define the following function prototype headers:
+.sp
+.RS 4
+.nf
+
+\fBint\fR \fBlibzfs_core_init\fR(\fBvoid\fR);
+.p
+\fBvoid\fR \fBlibzfs_core_fini\fR(\fBvoid\fR);
+.sp
+\fBint\fR \fBlzc_pool_configs\fR(\fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIconfigs\R);
+\fBint\fR \fBlzc_pool_getprops\fR(\fBconst char *\fR\fIpool\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIprops\fR);
+\fBint\fR \fBlzc_pool_export\fR(\fBconst char *\fR\fIpool\fR, \fBnvlist_t *\fR\fIopts\fR);
+\fBint\fR \fBlzc_pool_import\fR(\fBconst char *\fR\fIpool\fR, \fBnvlist_t *\fR\fIconfig\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fInewconfig\fR);
+\fBint\fR \fBlzc_pool_tryimport\fR(\fBnvlist_t *\fR\fIconfig\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fInewconfig\fR);
+\fBint\fR \fBlzc_pool_stats\fR(\fBconst char *\fR\fIpool\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIstats\fR);
+.sp
+\fBint\fR \fBlzc_list\fR(\fBconst char *\fR\fIname\fR, \fBnvlist_t *\fR\fIopts\fR)
+.p
+\fBint\fR \fBlzc_snapshot\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_snapshot_ext\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_rollback\fR(\fBconst char *\fR\fIfsname\fR, \fBchar *\fR\fIsnapnamebuf\fR, \fBint\fR \fIsnapnamelen\fR);
+.p
+\fBint\fR \fBlzc_rollback_ext\fR(\fBconst char *\fR\fIfsname\fR, \fBchar *\fR\fIsnapnamebuf\fR, \fBint\fR \fIsnapnamelen\fR, \fBnvlist_t *\fR\fIopts\fR);
+.p
+\fBint\fR \fBlzc_create\fR(\fBconst char *\fR\fIfsname\fR, \fBdmu_objset_type_t\fR \fItype\fR, \fBnvlist_t *\fR\fIprops\fR);
+.p
+\fBint\fR \fBlzc_create_ext\fR(\fBconst char *\fR\fIfsname\fR, \fBdmu_objset_type_t\fR \fItype\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_clone\fR(\fBconst char *\fR\fIfsname\fR, \fBconst char *\fR \fIorigin\fR, \fBnvlist_t *\fR\fIprops\fR);
+.p
+\fBint\fR \fBlzc_clone_ext\fR(\fBconst char *\fR\fIfsname\fR, \fBconst char *\fR \fIorigin\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_promote\fR(\fBconst char *\fR\fIfsname\fR, \fBnvlist_t *\fR\fIopts\fR);
+.p
+\fBint\fR \fBlzc_set_props\fR(\fBconst char *\fR\fIfsname\fR, \fBnvlist_t*\fR\fIprops\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_destroy_one\fR(\fBconst char *\fR\fIfsname\fR, \fBnvlist_t *\fR\fIopts\fR);
+.p
+\fBint\fR \fBlzc_destroy_snaps\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBboolean_t\fR \fIdefer\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_destroy_snaps_ext\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_bookmark\fR(\fBnvlist_t *\fR\fIbookmarks\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_bookmark_ext\fR(\fBnvlist_t *\fR\fIbookmarks\fR, \fInvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_get_bookmarks\fR(\fBconst char *\fR\fIfsname\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t **\fR\fIbmarks\fR);
+.p
+\fBint\fR \fBlzc_destroy_bookmarks\fR(\fBnvlist_t *\fR\fIbmarks\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_destroy_bookmarks_ext\fR(\fBnvlist_t *\fR\fIbmarks\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.sp
+\fBint\fR \fBlzc_snaprange_space\fR(\fBconst char *\fR\fIfirstsnap\fR, \fBconst char *\fR\fIlastsnap\fR, \fBuint64_t *\fR\fIusedp\fR);
+.sp
+\fBint\fR \fBlzc_hold\fR(\fBnvlist_t *\fR\fIholds\fR, \fBint\fR \fIcleanup_fd\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_release\fR(\fBnvlist_t *\fR\fIholds\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_release_ext\fR(\fBnvlist_t *\fR\fIholds\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.p
+\fBint\fR \fBlzc_get_holds\fR(\fBconst char *\fR\fIsnapname\fR, \fBnvlist_t **\fR\fIholdsp\fR);
+.sp
+\fBint\fR \fBlzc_inherit\fR(\fBconst char *\fR\fIfsname\fR, \fBconst char *\fR fIpropname\fR, \fBnvlist_t *\fR\fIopts\fR);
+.p
+\fBint\fR \fBlzc_rename\fR(\fBconst char *\fR\fIoldname\fR, \fBchar *\fR\fInewname\fR, \fBnvlist_t *\fR\fIopts\fR, \fBchar **\fR\fIerrname\fR);
+.sp
+\fBint\fR \fBlzc_send\fR(\fBconst char *\fR\fIsnapname\fR, \fBconst char *\fR\fIfrom\fR, \fBint\fR \fIfd\fR, \fBenum lzc_send_flags\fR \fIflags);
+.p
+\fBint\fR \fBlzc_send_ext\fR(\fBconst char *\fR\fIsnapname\fR, \fBconst char *\fR\fIfrom\fR, \fBint\fR \fIfd\fR, \fBnvlist_t *\fR\fIparams\fR);
+.p
+\fBint\fR \fBlzc_receive\fR(\fBconst char *\fR\fIsnapname\fR, \fBnvlist_t *\fR\fIprops\fR, \fBconst char *\fR\fIorigin\fR, \fBboolean_t\fR \fIforce\fR, \fBint\fR \fIfd\fR);
+.p
+\fBint\fR \fBlzc_receive_with_header\fR(\fBconst char *\fR\fIsnapname\fR, \fBnvlist_t *\fR\fIprops\fR, \fBconst char *\fR\fIorigin\fR, \fBboolean_t\fR \fIforce\fBR, \fBboolean_t\fR \fIresumable\fR, \fBint\fR \fIfd\fR, \fBconst dmu_replay_record_t *\fR\fIbegin_record\fR);
+.p
+\fBint\fR \fBlzc_send_space\fR(\fBconst char *\fR\fIsnapname\fR, \fBconst char *\fR\fIfrom\fR, \fBuint64_t *\fR\fIspacep\fR);
+.p
+\fBint\fR \fBlzc_send_progress\fR(\fBconst char *\fR\fIsnapname\fR, \fBint\fR \fIfd\fR, \fBuint64_t *\fR\fIbytesp\fR);
+.sp
+\fBboolean_t\fR \fBlzc_exists\fR(\fBconst char *\fR\fIdataset\fR);
+
+.fi \fR
+.P
+.RE
+.P
+The
+.IR <libzfs_core.h>
+header shall define the following type for lzc_send:
+.sp
+.RS 4
+.nf
+\fB
+
+enum lzc_send_flags {
+	LZC_SEND_FLAG_EMBED_DATA = 1 << 0
+};
+.fi \fR
+.SH "NOTES"
+.LP
+The above functions have their own man pages in section 3 of the system manual.
+.sp
+All functions will clobber errno with an error code that is the error code of
+the function before the attempt to copy into userspace.

@@ -107,7 +107,6 @@ namespace_reload(libzfs_handle_t *hdl)
 	nvlist_t *config;
 	config_node_t *cn;
 	nvpair_t *elem;
-	zfs_cmd_t zc = {"\0"};
 	void *cookie;
 
 	if (hdl->libzfs_ns_gen == 0) {
@@ -127,45 +126,25 @@ namespace_reload(libzfs_handle_t *hdl)
 			return (no_memory(hdl));
 	}
 
-	if (zcmd_alloc_dst_nvlist(hdl, &zc, 0) != 0)
-		return (-1);
-
 	for (;;) {
-		zc.zc_cookie = hdl->libzfs_ns_gen;
-		if (ioctl(hdl->libzfs_fd, ZFS_IOC_POOL_CONFIGS, &zc) != 0) {
+		if (lzc_pool_configs(NULL, &config) != 0) {
 			switch (errno) {
 			case EEXIST:
 				/*
 				 * The namespace hasn't changed.
 				 */
-				zcmd_free_nvlists(&zc);
 				return (0);
 
-			case ENOMEM:
-				if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
-					zcmd_free_nvlists(&zc);
-					return (-1);
-				}
-				break;
-
 			default:
-				zcmd_free_nvlists(&zc);
 				return (zfs_standard_error(hdl, errno,
 				    dgettext(TEXT_DOMAIN, "failed to read "
 				    "pool configuration")));
 			}
 		} else {
-			hdl->libzfs_ns_gen = zc.zc_cookie;
+			hdl->libzfs_ns_gen++;
 			break;
 		}
 	}
-
-	if (zcmd_read_dst_nvlist(hdl, &zc, &config) != 0) {
-		zcmd_free_nvlists(&zc);
-		return (-1);
-	}
-
-	zcmd_free_nvlists(&zc);
 
 	/*
 	 * Clear out any existing configuration information.
@@ -263,37 +242,23 @@ zpool_get_features(zpool_handle_t *zhp)
 int
 zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 {
-	zfs_cmd_t zc = {"\0"};
 	int error;
 	nvlist_t *config;
-	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	*missing = B_FALSE;
-	(void) strcpy(zc.zc_name, zhp->zpool_name);
-
-	if (zhp->zpool_config_size == 0)
-		zhp->zpool_config_size = 1 << 16;
-
-	if (zcmd_alloc_dst_nvlist(hdl, &zc, zhp->zpool_config_size) != 0)
-		return (-1);
 
 	for (;;) {
-		if (ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_POOL_STATS,
-		    &zc) == 0) {
+		if (lzc_pool_stats(zhp->zpool_name, NULL, &config) == 0) {
 			/*
-			 * The real error is returned in the zc_cookie field.
+			 * The real error is returned in errno.
 			 */
-			error = zc.zc_cookie;
+			error = errno;
 			break;
 		}
 
 		if (errno == ENOMEM) {
-			if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
-				zcmd_free_nvlists(&zc);
 				return (-1);
-			}
 		} else {
-			zcmd_free_nvlists(&zc);
 			if (errno == ENOENT || errno == EINVAL)
 				*missing = B_TRUE;
 			zhp->zpool_state = POOL_STATE_UNAVAIL;
@@ -301,14 +266,7 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 		}
 	}
 
-	if (zcmd_read_dst_nvlist(hdl, &zc, &config) != 0) {
-		zcmd_free_nvlists(&zc);
-		return (-1);
-	}
-
-	zcmd_free_nvlists(&zc);
-
-	zhp->zpool_config_size = zc.zc_nvlist_dst_size;
+	VERIFY0(nvlist_size(config, &zhp->zpool_config_size, NV_ENCODE_XDR));
 
 	if (zhp->zpool_config != NULL) {
 		nvlist_free(zhp->zpool_old_config);

@@ -1,0 +1,64 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH libzfs_core_init 3 "2015 JUL 3" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlibzfs_core_init\fR(\fBvoid\fR);
+.sp
+\fBvoid\fR \fBlibzfs_core_fini\fR(\fBvoid\fR);
+
+.SH NAME
+libzfs_core_init, libzfs_core_fini \- Initialize and deinitialize libzfs_core library.
+
+.SH DESCRIPTION
+.LP
+The \fBlibzfs_core_init\fR() function is a singleton constructor for the
+libzfs_core library. It should be called once at program initialization.
+Multiple calls to \fBlibzfs_core_init\fR() are fine provided that they be
+matched by an equal number of alls to the \fBlibzfs_core_fini\fR() function.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion of the \fBlibzfs_core_init\fR() function, 0 is
+returned and a file descriptor is open for /dev/zfs. Otherwise, an error is
+returned.
+.sp
+The \fBlibzfs_core_fini\fR() function returns no value and does not fail.
+.BR
+.SH ERRORS
+.sp
+.LP
+The \fBlibzfs_core_init\fR() function shall fail if \fBopen\fR(2) of /dev/zfs
+fails. In this situation, the error code from \fBopen\fR(2) will be returned.
+
+.SH "SEE ALSO"
+.sp
+.LP
+"\fIlibzfs_core.h\fR(3)", "\fIopen\fR(2)"

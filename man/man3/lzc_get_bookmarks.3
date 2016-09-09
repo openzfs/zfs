@@ -1,0 +1,165 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_get_boomarks 3 "2015 JUL 7" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual. The location of
+the header might vary on different systems.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_get_bookmarks\fR(\fBconst char *\fR\fIfsname\fR, \fBnvlist_t *\fR\fIprops\fR, \fBnvlist_t **\fR\fIbmarks\fR);
+
+.SH NAME
+lzc_get_bookmarks \- Retrieve bookmarks of a given filesystem
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_get_bookmarks\fR() function will retrieve the list of bookmarks for
+the given file system. The \fIprops\fR parameter is an nvlist of property names
+(with no values) that will be returned for each bookmark. The \fIbmarks\fR
+parameter is a pointer to a nvlist of the bookmarks. The caller is responsible
+for freeing it with \fBnvlist_free\fR().
+
+The format of the returned nvlist as follows:
+.P
+<short name of bookmark> -> {
+    <name of property> -> {
+        "value" -> uint64
+     }
+.br
+}
+
+The following are valid properties on bookmarks. All of them are uint64 values
+in the nvlist:
+.sp
+.na
+\fB\fBguid\fR\fR
+.ad
+.RS
+Globally unique identifier of the referenced snapshot
+.RE
+
+.na
+\fB\fBcreatetxg\fR\fR
+.ad
+.RS
+Number of transaction group (txg) when the snapshot provided to the bookmark was created
+.RE
+
+.na
+\fB\fBcreation\fR\fR
+.RS
+UNIX timestamp when the snapshot used to make the bookmark was created
+.RE
+
+.sp
+Unsupported properties will be silently ignored.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_inherit()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+The dataset name \fIfsname\fR is invalid.
+.sp
+The nvlist \fIprops\fR is invalid.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+The dataset name \fIfsname\fR exceeds 256 characters.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+The dataset \fIfsname\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIprops\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBESRCH\fR\fR
+.ad
+.RS 13n
+A specified, but valid, bookmark was not found. This merits a bug report.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBzfs\fR(8)

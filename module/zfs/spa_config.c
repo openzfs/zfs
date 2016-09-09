@@ -230,7 +230,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 {
 	spa_config_dirent_t *dp, *tdp;
 	nvlist_t *nvl;
-	char *pool_name;
+	const char *pool_name;
 	boolean_t ccw_failure;
 	int error = 0;
 
@@ -388,7 +388,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	unsigned long hostid = 0;
 	boolean_t locked = B_FALSE;
 	uint64_t split_guid;
-	char *pool_name;
+	const char *pool_name;
 	int config_gen_flags = 0;
 
 	if (vd == NULL) {
@@ -418,7 +418,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	 */
 	if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME) {
 		VERIFY0(nvlist_lookup_string(spa->spa_config,
-			ZPOOL_CONFIG_POOL_NAME, &pool_name));
+			ZPOOL_CONFIG_POOL_NAME, (char **)&pool_name));
 	} else
 		pool_name = spa_name(spa);
 

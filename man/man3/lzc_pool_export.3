@@ -1,0 +1,110 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2016 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_pool_import 3 "2016 MAY 24" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_pool_export\fR(\fBconst char *\fR\fIpool\fR, \fBnvlist_t *\fR\fIopts\fR);
+
+.SH NAME
+lzc_pool_export \- Export a pool from the system.
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_pool_export\fR() function will export a pool from the system. Unless
+told otherwise, this will remove the pool from any cachefile and update the
+disk labels to indicate that the pool is disassociated from the system.
+
+.I pool
+shall be the name of the pool in the SPA namespace.
+
+.I opts
+shall be either NULL or a pointer to a nvlist containing options that alter
+behavior. At present, the options are:
+.sp
+.in +2
+.nf
+NAME                    TYPE                    DESCRIPTION
+"history"               string                  Records passed shell command to history
+"force"                 boolean                 Force export of a pool with a shared spare
+"hardforce"		boolean			Do not update cachefile or disk labels.
+.fi
+.in -2
+.sp
+
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. Otherwise, an error is returned.
+
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_pool_export()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fREBUSY\fR\fR
+.ad
+.RS 13n
+There are active references to the pool, such as mount points.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+No pool named \fIpool\fR exists in the SPA namespace. 
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEROFS\fR\fR
+.ad
+.RS 13n
+The SPA in the kernel driver was initialized with SPA modification support disabled.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEXDEV\fR\fR
+.ad
+.RS 13n
+The pool has an active shared spare. Using "hardforce" will override this.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBlzc_pool_import\fR(3), \fBzpool\fR(8)

@@ -76,6 +76,7 @@ int dsl_prop_get(const char *ddname, const char *propname,
 int dsl_prop_get_integer(const char *ddname, const char *propname,
     uint64_t *valuep, char *setpoint);
 int dsl_prop_get_all(objset_t *os, nvlist_t **nvp);
+int dsl_prop_get_all_new(objset_t *os, nvlist_t **nvp);
 int dsl_prop_get_received(const char *dsname, nvlist_t **nvp);
 int dsl_prop_get_ds(struct dsl_dataset *ds, const char *propname,
     int intsz, int numints, void *buf, char *setpoint);

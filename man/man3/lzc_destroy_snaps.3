@@ -1,0 +1,178 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2015 ClusterHQ Inc. All rights reserved.
+.\"
+.TH lzc_destroy_snaps 3 "2015 JUL 7" "OpenZFS" "OpenZFS Programmer's Manual"
+
+.SH PROLOG
+This manual page is part of the OpenZFS Programmer's Manual.
+
+.SH SYNOPSIS
+#include <libzfs_core.h>
+
+\fBint\fR \fBlzc_destroy_snaps\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBboolean_t\fR \fIdefer\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+.sp
+\fBint\fR \fBlzc_destroy_snaps_ext\fR(\fBnvlist_t *\fR\fIsnaps\fR, \fBnvlist_t *\fR\fIopts\fR, \fBnvlist_t **\fR\fIerrlist\fR);
+
+.SH NAME
+lzc_destroy_snaps, lzc_destroy_snaps_ext \- Destroy snapshots
+
+.SH DESCRIPTION
+.LP
+The \fBlzc_destroy_snaps\fR() function destroys snapshots specified via strings
+through the nvlist \fRsnaps\fR. They must all be in the same pool.
+.sp
+Snapshots that do not exist will be silently ignored.
+
+.I snaps
+shall be a nvlist containing booleans whose keys are snapshot names.
+
+.I defer
+shall indicate whether a destroy operation on a snapshot that cannot be
+destroyed due to user holds and/or clones will be destroyed at a later date. If
+it is false, the destroy peration will fail and none of the snapshots will be
+destroyed. If it is true, and a snapshot has user holds or clones, it will be
+marked for deferred destruction, and will be destroyed when the last hold or
+clone is removed/destroyed.
+
+.I opts
+shall be either NULL or a pointer to a nvlist containing options that alter
+behavior. It supports "defer" as a boolean that is equivalent to the
+\fIdefer\fR argument of \fBlzc_destroy_snaps\fR. It also supports logging the
+command line invocation to the pool history log via a string named
+"log_history".
+
+.I errlist
+shall be either NULL or contain a handle that shall be used to store a pointer
+to a library allocated nvlist when non-NULL and the operation for at least one
+hold fails. The names of each snapshot that cannot be destroyed will be
+returned as keys of int32 values. The values are the error codes. It shall not
+be touched otherwise.
+
+.SH RETURN VALUES
+.sp
+.LP
+Upon successful completion, 0 is returned. This means that all snapshots were
+destroyed (excluding those that did not exist) or were marked for later
+distruction if \fIdefer\fR is set.
+.sp
+On error, an error is returned from one of the snapshots where an error
+occurred and \fIerrlist\fR is populated with more specific information if a
+pointer is provided. \fIerrlist\fR shall contain keys with the snapshot names
+and int32 values of the error codes. The caller must call \fBnvlist_free\fR()
+on \fIerrlist\fR if this occurs.
+.SH ERRORS
+.sp
+.LP
+The \fBlzc_destroy_snaps()\fR function will fail if:
+.sp
+.ne 2
+.na
+\fB\fBEBUSY\fR\fR
+.ad
+.RS 13n
+Snapshot held by a user hold and \fIdefer\fR is not specified.
+.sp
+Snapshot held by a zfs send stream and \fIdefer\fR is not specified.
+.sp
+Snapshot held by an open file hanle or program's present working directory and
+\fIdefer\fR is not specified.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEEXIST\fR\fR
+.ad
+.RS 13n
+The pool was uninitialized and a pool with the same GUID already existed.
+.sp
+This snapshot is the parent of clones and cannot be deleted.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEINVAL\fR\fR
+.ad
+.RS 13n
+No snaphsots specified in \fIsnaps\fR.
+.sp
+The nvlist \fIsnaps\fR is not a valid nvlist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENAMETOOLONG\fR\fR
+.ad
+.RS 13n
+Snapshot name specified in \fIsnaps\fR is too long.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOENT\fR\fR
+.ad
+.RS 13n
+Pool does not exist.
+.sp
+Loading unitialized pool from cachefile failed because the pool was exported or destroyed.
+.sp
+Internal error where uninitialized pool lacks a GUID in its config that was read from the cachefile.
+.sp
+The dataset \fIfsname\fR does not exist.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOMEM\fR\fR
+.ad
+.RS 13n
+Failed to allocate memory necessary to send \fIprops\fR to the kernel.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBEPERM\fR\fR
+.ad
+.RS 13n
+Permission denied by zone security policy.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBENOTSUP\fR\fR
+.ad
+.RS 13n
+\fIdeferred\fR specified on pool that is earlier than version 18.
+.RE
+
+.SH SEE ALSO
+.sp
+.LP
+\fBlibzfs_core.h\fR(3), \fBzfs\fR(8)

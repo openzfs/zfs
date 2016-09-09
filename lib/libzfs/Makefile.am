@@ -30,12 +30,12 @@ nodist_libzfs_la_SOURCES = \
 	$(KERNEL_C)
 
 libzfs_la_LIBADD = \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(top_builddir)/lib/libzfs_core-$(LIBZFS_CORE_VARIANT)/libzfs_core-$(LIBZFS_CORE_VARIANT).la \
 	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libzpool/libzpool.la
 
 libzfs_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV)
-libzfs_la_LDFLAGS = -version-info 2:0:0
+libzfs_la_LDFLAGS = -version-info 3:0:0
 
 EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)

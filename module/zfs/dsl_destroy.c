@@ -697,7 +697,7 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 	 * Remove our reservation. The impl() routine avoids setting the
 	 * actual property, which would require the (already destroyed) ds.
 	 */
-	dsl_dir_set_reservation_sync_impl(dd, 0, tx);
+	dsl_dir_set_reservation_sync_impl_impl(dd, 0, tx);
 
 	ASSERT0(dsl_dir_phys(dd)->dd_used_bytes);
 	ASSERT0(dsl_dir_phys(dd)->dd_reserved);
