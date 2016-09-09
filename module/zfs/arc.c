@@ -5464,17 +5464,7 @@ arc_init(void)
 	/* Convert seconds to clock ticks */
 	arc_min_prefetch_lifespan = 1 * hz;
 
-	/* Start out with 1/8 of all memory */
-	arc_c = allmem / 8;
-
 #ifdef _KERNEL
-	/*
-	 * On architectures where the physical memory can be larger
-	 * than the addressable space (intel in 32-bit mode), we may
-	 * need to limit the cache to 1/8 of VM size.
-	 */
-	arc_c = MIN(arc_c, vmem_size(heap_arena, VMEM_ALLOC | VMEM_FREE) / 8);
-
 	/*
 	 * Register a shrinker to support synchronous (direct) memory
 	 * reclaim from the arc.  This is done to prevent kswapd from
