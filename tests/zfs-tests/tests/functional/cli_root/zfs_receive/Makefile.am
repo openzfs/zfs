@@ -1,0 +1,13 @@
+pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zfs_receive
+dist_pkgdata_SCRIPTS = \
+	setup.ksh \
+	cleanup.ksh \
+	zfs_receive_001_pos.ksh \
+	zfs_receive_002_pos.ksh \
+	zfs_receive_003_pos.ksh \
+	zfs_receive_004_neg.ksh \
+	zfs_receive_005_neg.ksh \
+	zfs_receive_006_pos.ksh \
+	zfs_receive_007_neg.ksh \
+	zfs_receive_008_pos.ksh \
+	zfs_receive_009_neg.ksh
