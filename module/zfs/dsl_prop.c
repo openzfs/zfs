@@ -261,7 +261,7 @@ dsl_prop_fini(dsl_dir_t *dd)
 
 	while ((pr = list_remove_head(&dd->dd_props)) != NULL) {
 		list_destroy(&pr->pr_cbs);
-		strfree((char *)pr->pr_propname);
+		spa_strfree((char *)pr->pr_propname);
 		kmem_free(pr, sizeof (dsl_prop_record_t));
 	}
 	list_destroy(&dd->dd_props);
