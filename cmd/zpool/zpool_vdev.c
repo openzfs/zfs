@@ -334,8 +334,11 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 		/*
 		 * Allow hot spares to be shared between pools.
 		 */
-		if (state == POOL_STATE_SPARE && isspare)
+		if (state == POOL_STATE_SPARE && isspare) {
+			free(name);
+			(void) close(fd);
 			return (0);
+		}
 
 		if (state == POOL_STATE_ACTIVE ||
 		    state == POOL_STATE_SPARE || !force) {
@@ -583,8 +586,10 @@ is_spare(nvlist_t *config, const char *path)
 	free(name);
 	(void) close(fd);
 
-	if (config == NULL)
+	if (config == NULL) {
+		nvlist_free(label);
 		return (B_TRUE);
+	}
 
 	verify(nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid) == 0);
 	nvlist_free(label);
