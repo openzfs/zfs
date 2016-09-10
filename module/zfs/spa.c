@@ -1528,19 +1528,20 @@ spa_load_l2cache(spa_t *spa)
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
-	if (sav->sav_config != NULL) {
-		VERIFY(nvlist_lookup_nvlist_array(sav->sav_config,
-		    ZPOOL_CONFIG_L2CACHE, &l2cache, &nl2cache) == 0);
-		newvdevs = kmem_alloc(nl2cache * sizeof (void *), KM_SLEEP);
-	} else {
-		nl2cache = 0;
-		newvdevs = NULL;
-	}
-
 	oldvdevs = sav->sav_vdevs;
 	oldnvdevs = sav->sav_count;
 	sav->sav_vdevs = NULL;
 	sav->sav_count = 0;
+
+	if (sav->sav_config == NULL) {
+		nl2cache = 0;
+		newvdevs = NULL;
+		goto out;
+	}
+
+	VERIFY(nvlist_lookup_nvlist_array(sav->sav_config,
+	    ZPOOL_CONFIG_L2CACHE, &l2cache, &nl2cache) == 0);
+	newvdevs = kmem_alloc(nl2cache * sizeof (void *), KM_SLEEP);
 
 	/*
 	 * Process new nvlist of vdevs.
@@ -1592,6 +1593,24 @@ spa_load_l2cache(spa_t *spa)
 		}
 	}
 
+	sav->sav_vdevs = newvdevs;
+	sav->sav_count = (int)nl2cache;
+
+	/*
+	 * Recompute the stashed list of l2cache devices, with status
+	 * information this time.
+	 */
+	VERIFY(nvlist_remove(sav->sav_config, ZPOOL_CONFIG_L2CACHE,
+	    DATA_TYPE_NVLIST_ARRAY) == 0);
+
+	l2cache = kmem_alloc(sav->sav_count * sizeof (void *), KM_SLEEP);
+	for (i = 0; i < sav->sav_count; i++)
+		l2cache[i] = vdev_config_generate(spa,
+		    sav->sav_vdevs[i], B_TRUE, VDEV_CONFIG_L2CACHE);
+	VERIFY(nvlist_add_nvlist_array(sav->sav_config,
+	    ZPOOL_CONFIG_L2CACHE, l2cache, sav->sav_count) == 0);
+
+out:
 	/*
 	 * Purge vdevs that were dropped
 	 */
@@ -1613,26 +1632,6 @@ spa_load_l2cache(spa_t *spa)
 	if (oldvdevs)
 		kmem_free(oldvdevs, oldnvdevs * sizeof (void *));
 
-	if (sav->sav_config == NULL)
-		goto out;
-
-	sav->sav_vdevs = newvdevs;
-	sav->sav_count = (int)nl2cache;
-
-	/*
-	 * Recompute the stashed list of l2cache devices, with status
-	 * information this time.
-	 */
-	VERIFY(nvlist_remove(sav->sav_config, ZPOOL_CONFIG_L2CACHE,
-	    DATA_TYPE_NVLIST_ARRAY) == 0);
-
-	l2cache = kmem_alloc(sav->sav_count * sizeof (void *), KM_SLEEP);
-	for (i = 0; i < sav->sav_count; i++)
-		l2cache[i] = vdev_config_generate(spa,
-		    sav->sav_vdevs[i], B_TRUE, VDEV_CONFIG_L2CACHE);
-	VERIFY(nvlist_add_nvlist_array(sav->sav_config,
-	    ZPOOL_CONFIG_L2CACHE, l2cache, sav->sav_count) == 0);
-out:
 	for (i = 0; i < sav->sav_count; i++)
 		nvlist_free(l2cache[i]);
 	if (sav->sav_count)
