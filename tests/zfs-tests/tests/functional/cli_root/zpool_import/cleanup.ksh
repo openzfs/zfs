@@ -48,6 +48,10 @@ for dir in "$TESTDIR" "$TESTDIR1" "$DEVICE_DIR" ; do
 		log_must $RM -rf $dir
 done
 
+DISK=${DISKS%% *}
+if is_mpath_device $DISK; then
+	delete_partitions
+fi
 # recreate and destroy a zpool over the disks to restore the partitions to
 # normal
 case $DISK_COUNT in

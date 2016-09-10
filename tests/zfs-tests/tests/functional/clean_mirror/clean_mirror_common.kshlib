@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/clean_mirror/default.cfg
@@ -35,6 +35,32 @@
 # involving the device to be affected and the 'object' to use to mangle
 # the contents of the mirror.
 # This code is sourced into each of these test cases.
+
+#
+# Synchronize all the data in pool
+#
+# $1 pool name
+#
+function sync_pool #pool
+{
+	typeset pool=$1
+
+	log_must $SYNC
+	log_must $SLEEP 2
+	# Flush all the pool data.
+	typeset -i ret
+	$ZPOOL scrub $pool >/dev/null 2>&1
+	ret=$?
+	(( $ret != 0 )) && \
+		log_fail "$ZPOOL scrub $pool failed."
+
+	while ! is_pool_scrubbed $pool; do
+		if is_pool_resilvered $pool ; then
+			log_fail "$pool should not be resilver completed."
+		fi
+		log_must $SLEEP 2
+	done
+}
 
 function overwrite_verify_mirror
 {
@@ -60,6 +86,12 @@ function overwrite_verify_mirror
 
 	atfile=0
 
+	#
+	# Flush out the cache so that we ensure we're reading from disk.
+	#
+	log_must $ZPOOL export $TESTPOOL
+	log_must $ZPOOL import $TESTPOOL
+
 	typeset -i failedcount=0
 	while (( atfile < FILE_COUNT )); do
 		files[$atfile]=$TESTDIR/file.$atfile
@@ -75,4 +107,6 @@ function overwrite_verify_mirror
 		log_fail "of the $FILE_COUNT files $failedcount did not " \
 		    "have the same checksum before and after."
 	fi
+
+	sync_pool $TESTPOOL
 }

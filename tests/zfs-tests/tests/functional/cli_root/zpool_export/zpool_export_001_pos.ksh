@@ -25,6 +25,7 @@
 # Use is subject to license terms.
 #
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.cfg
 
 #
 # DESCRIPTION:

@@ -51,7 +51,7 @@ function cleanup
 
 tmpfile="/var/tmp/zpool_create_003.tmp$$"
 
-log_assert "'zpool create -n <pool> <vspec> ...' can display the configureation" \
+log_assert "'zpool create -n <pool> <vspec> ...' can display the configuration" \
         "without actually creating the pool."
 
 log_onexit cleanup
@@ -60,6 +60,11 @@ if [[ -n $DISK ]]; then
         disk=$DISK
 else
         disk=$DISK0
+fi
+
+DISK=${DISKS%% *}
+if is_mpath_device $DISK; then
+	partition_disk $SIZE $disk 1
 fi
 
 #

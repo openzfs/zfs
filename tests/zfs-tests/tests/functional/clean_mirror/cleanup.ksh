@@ -38,6 +38,12 @@ $DF -F zfs -h | $GREP "$TESTFS " >/dev/null
 [[ $? == 0 ]] && log_must $ZFS umount -f $TESTDIR
 destroy_pool $TESTPOOL
 
+if is_mpath_device $MIRROR_PRIMARY; then
+	$FORMAT $DEV_DSKDIR/$MIRROR_PRIMARY -s rm 1
+fi
+if is_mpath_device $MIRROR_SECONDARY; then
+	$FORMAT $DEV_DSKDIR/$MIRROR_SECONDARY -s rm 1
+fi
 # recreate and destroy a zpool over the disks to restore the partitions to
 # normal
 if [[ -n $SINGLE_DISK ]]; then

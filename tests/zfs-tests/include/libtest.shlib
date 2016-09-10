@@ -456,6 +456,11 @@ function default_cleanup_noexit
 
 	[[ -d $TESTDIR ]] && \
 		log_must $RM -rf $TESTDIR
+
+	disk1=${DISKS%% *}
+	if is_mpath_device $disk1; then
+		delete_partitions
+	fi
 }
 
 
@@ -730,6 +735,69 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 	$RM -f $format_file
 	[[ $ret_val -ne 0 ]] && \
 	    log_fail "Unable to format $disk slice $slicenum to $size"
+	return 0
+}
+
+#
+# Delete all partitions on all disks - this is specifically for the use of multipath
+# devices which currently can only be used in the test suite as raw/un-partitioned
+# devices (ie a zpool cannot be created on a whole mpath device that has partitions)
+#
+function delete_partitions
+{
+	typeset -i j=1
+
+	if [[ -z $DISK_ARRAY_NUM ]]; then
+		DISK_ARRAY_NUM=$($ECHO ${DISKS} | $NAWK '{print NF}')
+	fi
+	if [[ -z $DISKSARRAY ]]; then
+		DISKSARRAY=$DISKS
+	fi
+
+	if is_linux; then
+		if (( $DISK_ARRAY_NUM == 1 )); then
+			while ((j < MAX_PARTITIONS)); do
+				$FORMAT $DEV_DSKDIR/$DISK -s rm $j > /dev/null 2>&1
+				if (( $? == 1 )); then
+					$LSBLK | $EGREP ${DISK}${SLICE_PREFIX}${j} > /dev/null
+						if (( $? == 1 )); then
+							log_note "Partitions for $DISK should be deleted"
+						else
+							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
+						fi
+						return 0
+				else
+					$LSBLK | $EGREP ${DISK}${SLICE_PREFIX}${j} > /dev/null
+						if (( $? == 0 )); then
+							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
+						fi
+				fi
+				((j = j+1))
+			done
+		else
+			for disk in `$ECHO $DISKSARRAY`; do
+				while ((j < MAX_PARTITIONS)); do
+					$FORMAT $DEV_DSKDIR/$disk -s rm $j > /dev/null 2>&1
+					if (( $? == 1 )); then
+						$LSBLK | $EGREP ${disk}${SLICE_PREFIX}${j} > /dev/null
+						if (( $? == 1 )); then
+							log_note "Partitions for $disk should be deleted"
+						else
+							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
+						fi
+						j=7
+					else
+						$LSBLK | $EGREP ${disk}${SLICE_PREFIX}${j} > /dev/null
+						if (( $? == 0 )); then
+							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
+						fi
+					fi
+					((j = j+1))
+				done
+				j=1
+			done
+		fi
+	fi
 	return 0
 }
 
@@ -2483,6 +2551,113 @@ function is_physical_device #device
 }
 
 #
+# Check if the given device is a real device (ie SCSI device)
+#
+function is_real_device #disk
+{
+	typeset disk=$1
+	[[ -z $disk ]] && log_fail "No argument for disk given."
+
+       if is_linux; then
+		$LSBLK $DEV_RDSKDIR/$disk -o TYPE | $EGREP disk > /dev/null 2>&1
+		return $?
+       fi
+}
+
+#
+# Check if the given device is a loop device
+#
+function is_loop_device #disk
+{
+	typeset disk=$1
+	[[ -z $disk ]] && log_fail "No argument for disk given."
+
+       if is_linux; then
+		$LSBLK $DEV_RDSKDIR/$disk -o TYPE | $EGREP loop > /dev/null 2>&1
+		return $?
+       fi
+}
+
+#
+# Check if the given device is a multipath device and if there is a sybolic
+# link to a device mapper and to a disk
+# Currently no support for dm devices alone without multipath
+#
+function is_mpath_device #disk
+{
+	typeset disk=$1
+	[[ -z $disk ]] && log_fail "No argument for disk given."
+
+	if is_linux; then
+		$LSBLK $DEV_MPATHDIR/$disk -o TYPE | $EGREP mpath > /dev/null 2>&1
+		if (($? == 0)); then
+			$READLINK $DEV_MPATHDIR/$disk > /dev/null 2>&1
+			return $?
+		else
+			return $?
+		fi
+	fi
+}
+
+# Set the slice prefix for disk partitioning depending
+# on whether the device is a real, multipath, or loop device.
+# Currently all disks have to be of the same type, so only
+# checks first disk to determine slice prefix.
+#
+function set_slice_prefix
+{
+	typeset disk
+	typeset -i i=0
+
+	if is_linux; then
+		while (( i < $DISK_ARRAY_NUM )); do
+			disk="$($ECHO $DISKS | $NAWK '{print $(i + 1)}')"
+			if ( is_mpath_device $disk ) && [[ -z $($ECHO $disk | awk 'substr($1,18,1)\
+			     ~ /^[[:digit:]]+$/') ]] || ( is_real_device $disk ); then
+				export SLICE_PREFIX=""
+				return 0
+			elif ( is_mpath_device $disk || is_loop_device $disk ); then
+				export SLICE_PREFIX="p"
+				return 0
+			else
+				log_fail "$disk not supported for partitioning."
+			fi
+			(( i = i + 1))
+		done
+	fi
+}
+
+#
+# Set the directory path of the listed devices in $DISK_ARRAY_NUM
+# Currently all disks have to be of the same type, so only
+# checks first disk to determine device directory
+# default = /dev (linux)
+# real disk = /dev (linux)
+# multipath device = /dev/mapper (linux)
+#
+function set_device_dir
+{
+	typeset disk
+	typeset -i i=0
+
+	if is_linux; then
+		while (( i < $DISK_ARRAY_NUM )); do
+			disk="$($ECHO $DISKS | $NAWK '{print $(i + 1)}')"
+			if is_mpath_device $disk; then
+				export DEV_DSKDIR=$DEV_MPATHDIR
+				return 0
+			else
+				export DEV_DSKDIR=$DEV_RDSKDIR
+				return 0
+			fi
+			(( i = i + 1))
+		done
+	else
+		export DEV_DSKDIR=$DEV_RDSKDIR
+	fi
+}
+
+#
 # Get the directory path of given device
 #
 function get_device_dir #device
@@ -2632,6 +2807,30 @@ function vdevs_in_pool
 	$RM -f $tmpfile
 
 	return 0;
+}
+
+function get_max
+{
+	typeset -l i max=$1
+	shift
+
+	for i in "$@"; do
+		max=$(echo $((max > i ? max : i)))
+	done
+
+	echo $max
+}
+
+function get_min
+{
+	typeset -l i min=$1
+	shift
+
+	for i in "$@"; do
+		min=$(echo $((min < i ? min : i)))
+	done
+
+	echo $min
 }
 
 #

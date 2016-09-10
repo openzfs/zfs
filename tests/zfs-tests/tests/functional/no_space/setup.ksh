@@ -43,7 +43,14 @@ DISK=${DISKS%% *}
 log_must set_partition 0 "" $SIZE $DISK
 
 if is_linux; then
-	default_setup $DISK"p1"
+	if ( is_mpath_device $DISK ) && [[ -z $($ECHO $DISK | awk 'substr($1,18,1)\
+	    ~ /^[[:digit:]]+$/') ]] || ( is_real_device $DISK ); then
+		default_setup $DISK"1"
+	elif ( is_mpath_device $DISK || is_loop_device $DISK ); then
+		default_setup $DISK"p1"
+	else
+		log_fail "$DISK not supported for partitioning."
+	fi
 else
 	default_setup $DISK"s0"
 fi
