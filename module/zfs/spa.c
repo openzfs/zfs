@@ -433,6 +433,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 		char *strval, *slash, *check, *fname;
 		const char *propname = nvpair_name(elem);
 		zpool_prop_t prop = zpool_name_to_prop(propname);
+		metaslab_class_t *mc_tmp;
 
 		switch ((int)prop) {
 		case ZPROP_INVAL:
@@ -625,6 +626,18 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			break;
 
 		case ZPOOL_PROP_ROTORVECTOR:
+			/*
+			 * Hack?: using temporary structure to allow
+			 * simplistic verification before accepting
+			 * rotor vector pool property.
+			 */
+			if ((error = nvpair_value_string(elem, &strval)) != 0)
+				break;
+			mc_tmp = kmem_zalloc(sizeof (metaslab_class_t),
+			    KM_SLEEP);
+			if (!metaslab_parse_rotor_config(mc_tmp, strval))
+				error = SET_ERROR(EINVAL);
+			kmem_free(mc_tmp, sizeof (metaslab_class_t));
 			break;
 
 		default:
@@ -6343,6 +6356,10 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			if (spa->spa_rotorvector != NULL)
 				spa_strfree(spa->spa_rotorvector);
 			spa->spa_rotorvector = spa_strdup(strval);
+			/*
+			 * TODO:
+			 * VERIFY(metaslab_parse_rotor_config(...));
+			 */
 			/* Same as for ZPOOL_PROP_COMMENT below. */
 			if (tx->tx_txg != TXG_INITIAL)
 				vdev_config_dirty(spa->spa_root_vdev);

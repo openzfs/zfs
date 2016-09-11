@@ -218,8 +218,6 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops, char *rvconfig)
 	metaslab_class_t *mc;
 	int i;
 
-	(void) rvconfig;
-
 	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_SLEEP);
 
 	mc->mc_spa = spa;
@@ -228,6 +226,8 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops, char *rvconfig)
 	mc->mc_ops = ops;
 	mutex_init(&mc->mc_lock, NULL, MUTEX_DEFAULT, NULL);
 	refcount_create_tracked(&mc->mc_alloc_slots);
+
+	metaslab_parse_rotor_config(mc, rvconfig);
 
 	return (mc);
 }
@@ -575,6 +575,207 @@ metaslab_group_alloc_update(metaslab_group_t *mg)
 	mutex_exit(&mc->mc_lock);
 
 	mutex_exit(&mg->mg_lock);
+}
+
+/*
+ * Five categories, from faster to slower:
+ *
+ * nonrot (SSD)      disk or mirror
+ * nonrot (SSD)      raidz
+ * mixed nonrot+rot  anything (raidz makes little sense)
+ * rot (HDD)         disk or mirror
+ * rot (HDD)         raidz
+ */
+
+#define	METASLAB_ROTOR_VDEV_TYPE_SSD		0x01
+#define	METASLAB_ROTOR_VDEV_TYPE_SSD_RAIDZ	0x02
+#define	METASLAB_ROTOR_VDEV_TYPE_MIXED		0x04
+#define	METASLAB_ROTOR_VDEV_TYPE_HDD		0x08
+#define	METASLAB_ROTOR_VDEV_TYPE_HDD_RAIDZ	0x10
+
+/*
+ * Please do not judge the rotor vector approach based on the ugliness
+ * of this parsing routine.  :-)
+ */
+int
+metaslab_parse_rotor_config(metaslab_class_t *mc, char *rotorvector)
+{
+	int nrot = 0;
+	char *endconfig;
+
+	if (rotorvector == NULL)
+		return (1);
+
+	/*
+	 * The list consist of semicolon-separated categories.
+	 * Each catagory is a comma-separated list of vdev guids or
+	 * types (ssd,ssd-raidz,mixed,hdd,hdd-raidz), followed
+	 * by <= and the allocation threshold for the category.
+	 * ('<=' since users likely want to specify that rather than '<')
+	 * The threshold for the last rotor is not to be given, as we
+	 * always allocate somewhere.
+	 */
+
+	/* Clear the configuration. */
+	memset(mc->mc_rotvec_threshold, 0, sizeof (mc->mc_rotvec_threshold));
+	memset(mc->mc_rotvec_vdev_guids, 0, sizeof (mc->mc_rotvec_vdev_guids));
+	memset(mc->mc_rotvec_categories, 0, sizeof (mc->mc_rotvec_categories));
+
+	/*
+	 * The returns when encountering a malformed configuration are
+	 * ok in the sense that we just do not fill the fields any
+	 * further.
+	 */
+
+	/*
+	 * Separate properties for each vector category and each
+	 * vector threshold would have less parsing logics.  But
+	 * user-visible configuration would be less compact.
+	 */
+
+	endconfig = rotorvector + strlen(rotorvector);
+
+	while (rotorvector < endconfig) {
+		char *nextrotor;
+		char *semicolon, *lessthan;
+		char *endtypes;
+		int nguids = 0;
+
+		nextrotor = endconfig;
+		semicolon = strchr(rotorvector, ';');
+		if (semicolon == NULL)
+			semicolon = endconfig;
+		else
+			nextrotor = semicolon+1;
+		lessthan = strstr(rotorvector, "<=");
+		if ((lessthan == NULL && semicolon != endconfig) ||
+		    lessthan > semicolon)
+			return (0); /* malformed, missing '<=' in this item */
+		if (lessthan != NULL && semicolon == endconfig)
+			return (0); /* malformed, '<=' for last item */
+
+		endtypes = (lessthan) ? lessthan : semicolon;
+
+		while (rotorvector < endtypes) {
+			char *comma, *nexttype;
+			size_t len;
+
+			nexttype = endtypes;
+			comma = strchr(rotorvector, ',');
+			if (comma == NULL || comma > endtypes)
+				comma = endtypes;
+			else
+				nexttype = comma+1;
+
+			len = comma-rotorvector;
+
+			if (strncmp(rotorvector, "ssd", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_SSD;
+			else if (strncmp(rotorvector, "ssd-raidz", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_SSD_RAIDZ;
+			else if (strncmp(rotorvector, "mixed", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_MIXED;
+			else if (strncmp(rotorvector, "hdd", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_HDD;
+			else if (strncmp(rotorvector, "hdd-raidz", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_HDD_RAIDZ;
+			else {
+				/* It must be a vdev guid. */
+				uint64_t guid;
+#ifdef _KERNEL
+				char tmpstr[64];
+				size_t len = comma-rotorvector;
+				strncpy(tmpstr, rotorvector, len);
+				tmpstr[len] = 0;
+#endif
+#ifdef _KERNEL
+				if (kstrtoull(tmpstr, 0, &guid) != 0)
+					return (0); /* malformed config */
+#else
+				char *endptr;
+				guid = strtoull(rotorvector, &endptr, 0);
+				if (endptr != comma)
+					return (0); /* malformed config */
+#endif
+				if (nguids >= 5)
+					return (0); /* too many guids... */
+				mc->mc_rotvec_vdev_guids[nrot][nguids] = guid;
+				nguids++;
+			}
+			rotorvector = nexttype;
+		}
+
+		if (lessthan) {
+			uint64_t threshold;
+#ifdef _KERNEL
+			char tmpstr[64];
+			size_t len = semicolon-(lessthan+2);
+			strncpy(tmpstr, lessthan+2, len);
+			tmpstr[len] = 0;
+#endif
+#ifdef _KERNEL
+			if (kstrtoull(tmpstr, 0, &threshold) != 0)
+				return (0); /* malformed configuration */
+#else
+			char *endptr;
+			threshold = strtoull(lessthan+2, &endptr, 0);
+			if (endptr != semicolon)
+				return (0); /* malformed configuration */
+#endif
+			/*
+			 * To live with the 32 character limit for the
+			 * comment field, we multiply the threshold by
+			 * 1024 internally.
+			 */
+			mc->mc_rotvec_threshold[nrot] = threshold * 1024;
+		}
+		rotorvector = nextrotor;
+		nrot++;
+	}
+
+#if 0
+#ifdef _KERNEL
+	{
+		int i;
+
+		for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+			int j;
+
+			printk("rotvec[%d]: limit:%llu typemask:%02x guids:",
+			    i,
+			    mc->mc_rotvec_threshold[i],
+			    mc->mc_rotvec_categories[i]);
+			for (j = 0; j < 5 && mc->mc_rotvec_vdev_guids[i][j];
+			    j++) {
+				printk(" %llu", mc->mc_rotvec_vdev_guids[i][j]);
+			}
+			printk("\n");
+		}
+	}
+#endif
+#endif
+	return (1);
+}
+
+int
+metaslab_vdev_rotor_category(vdev_t *vd)
+{
+	if (vd->vdev_nonrot) {
+		return ((vd->vdev_ops != &vdev_raidz_ops) ?
+		    METASLAB_ROTOR_VDEV_TYPE_SSD :
+		    METASLAB_ROTOR_VDEV_TYPE_SSD_RAIDZ);
+	} else if (vd->vdev_nonrot_mix) {
+		return (METASLAB_ROTOR_VDEV_TYPE_MIXED);
+	} else {
+		return ((vd->vdev_ops != &vdev_raidz_ops) ?
+		    METASLAB_ROTOR_VDEV_TYPE_HDD :
+		    METASLAB_ROTOR_VDEV_TYPE_HDD_RAIDZ);
+	}
 }
 
 metaslab_group_t *

@@ -724,6 +724,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			break;
 
 		case ZPOOL_PROP_ROTORVECTOR:
+			/* TODO: syntax check property. */
 			break;
 		}
 	}

@@ -95,6 +95,8 @@ uint64_t metaslab_class_get_space(metaslab_class_t *);
 uint64_t metaslab_class_get_dspace(metaslab_class_t *);
 uint64_t metaslab_class_get_deferred(metaslab_class_t *);
 
+int metaslab_parse_rotor_config(metaslab_class_t *, char *);
+
 metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
 void metaslab_group_destroy(metaslab_group_t *);
 void metaslab_group_activate(metaslab_group_t *);
