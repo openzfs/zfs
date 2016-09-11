@@ -199,6 +199,14 @@ struct metaslab_class {
 	uint64_t		mc_space;	/* total space (alloc + free) */
 	uint64_t		mc_dspace;	/* total deflated space */
 	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+
+	/* Maximum allocation size in each rotor vector category. */
+	uint64_t		mc_rotvec_threshold[METASLAB_CLASS_ROTORS];
+	/* List of vdev guids to place in each rotor vector category. */
+	/* Should be a dynamic list. */
+	uint64_t		mc_rotvec_vdev_guids[METASLAB_CLASS_ROTORS][5];
+	/* vdev types to place in rotor vector category, if no guid match. */
+	int			mc_rotvec_categories[METASLAB_CLASS_ROTORS];
 };
 
 /*
