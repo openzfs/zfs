@@ -347,6 +347,8 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_MEDIA_TYPE,
 	    vsx->vsx_media_type);
 
+	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_NROTOR, vsx->vsx_nrotor);
+
 	/* Add extended stats nvlist to main nvlist */
 	fnvlist_add_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX, nvx);
 

@@ -2938,6 +2938,10 @@ vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			vsx->vsx_media_type = VDEV_MEDIA_TYPE_MIXED;
 		else
 			vsx->vsx_media_type = VDEV_MEDIA_TYPE_HDD;
+		if (vd->vdev_mg)
+			vsx->vsx_nrotor = vd->vdev_mg->mg_nrot;
+		else
+			vsx->vsx_nrotor = -1;
 	}
 }
 

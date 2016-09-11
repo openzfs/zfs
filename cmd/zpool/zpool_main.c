@@ -2810,7 +2810,6 @@ print_iostat_labels(iostat_cbdata_t *cb, unsigned int force_column_width,
 
 		}
 	}
-	printf("\n");
 }
 
 /*
@@ -2881,6 +2880,10 @@ print_iostat_dashes(iostat_cbdata_t *cb, unsigned int force_column_width,
 				    "--------------------");
 		}
 	}
+
+	if (cb->cb_flags & IOS_MEDIA_TYPE_M)
+		printf("  ---");
+
 	printf("\n");
 }
 
@@ -2923,10 +2926,14 @@ print_iostat_header_impl(iostat_cbdata_t *cb, unsigned int force_column_width,
 
 
 	print_iostat_labels(cb, force_column_width, iostat_top_labels);
+	printf("\n");
 
 	printf("%-*s", namewidth, title);
 
 	print_iostat_labels(cb, force_column_width, iostat_bottom_labels);
+	if (cb->cb_flags & IOS_MEDIA_TYPE_M)
+		printf("  nrv");
+	printf("\n");
 
 	print_iostat_separator_impl(cb, force_column_width);
 }
@@ -3379,6 +3386,8 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	int ret = 0;
 	uint64_t tdelta;
 	double scale;
+	nvlist_t *nvx;
+	uint64_t nrotor = (uint64_t)-1;
 
 	calcvs = safe_malloc(sizeof (*calcvs));
 
@@ -3459,6 +3468,17 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	if (cb->cb_flags & IOS_ANYHISTO_M) {
 		printf("\n");
 		print_iostat_histos(cb, oldnv, newnv, scale, name);
+	}
+
+	if (nvlist_lookup_nvlist(newnv, ZPOOL_CONFIG_VDEV_STATS_EX, &nvx) == 0)
+		nvlist_lookup_uint64(nvx, ZPOOL_CONFIG_VDEV_NROTOR,
+		    &nrotor);
+
+	if (cb->cb_flags & IOS_MEDIA_TYPE_M) {
+		if (nrotor != (uint64_t)-1)
+			(void) printf("  %d", (int)nrotor);
+		else
+			(void) printf("  -");
 	}
 
 	if (cb->vcdl != NULL) {
