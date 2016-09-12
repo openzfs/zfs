@@ -97,6 +97,58 @@ fletcher_4_sse2_fini(zio_cksum_t *zcp)
 }
 
 static void
+fletcher_4_sse2_incremental_init(zio_cksum_t *zcp)
+{
+	struct zfs_fletcher_sse_array a = {{ zcp->zc_word[0] }};
+	kfpu_begin();
+
+	asm volatile("movdqu %0, %%xmm0"::"m" (a));
+	/* clear sse registers */
+	asm volatile("pxor %xmm1, %xmm1");
+	asm volatile("pxor %xmm2, %xmm2");
+	asm volatile("pxor %xmm3, %xmm3");
+}
+
+static void
+fletcher_4_sse2_incremental_fini(zio_cksum_t *zcp, uint64_t size)
+{
+	struct zfs_fletcher_sse_array a, b, c, d;
+	uint64_t A, B, C, D;
+
+	asm volatile("movdqu %%xmm0, %0":"=m" (a.v));
+	asm volatile("movdqu %%xmm1, %0":"=m" (b.v));
+	asm volatile("psllq $0x2, %xmm2");
+	asm volatile("movdqu %%xmm2, %0":"=m" (c.v));
+	asm volatile("psllq $0x3, %xmm3");
+	asm volatile("movdqu %%xmm3, %0":"=m" (d.v));
+
+	kfpu_end();
+
+	/*
+	 * The mixing matrix for checksum calculation is:
+	 * a = a0 + a1
+	 * b = 2b0 + 2b1 - a1
+	 * c = 4c0 - b0 + 4c1 -3b1
+	 * d = 8d0 - 4c0 + 8d1 - 8c1 + b1;
+	 *
+	 * c and d are multiplied by 4 and 8, respectively,
+	 * before spilling the vectors out to memory.
+	 */
+	A = a.v[0] + a.v[1];
+	B = 2*b.v[0] + 2*b.v[1] - a.v[1];
+	C = c.v[0] - b.v[0] + c.v[1] - 3*b.v[1];
+	D = d.v[0] - c.v[0] + d.v[1] - 2*c.v[1] + b.v[1];
+
+	size /= sizeof (uint32_t);
+	B += zcp->zc_word[1];
+	C += zcp->zc_word[2] + size*zcp->zc_word[1];
+	D += zcp->zc_word[3] + size*zcp->zc_word[2]
+	    + size/2*(size+1)*zcp->zc_word[1];
+
+	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
+}
+
+static void
 fletcher_4_sse2_native(const void *buf, uint64_t size, zio_cksum_t *unused)
 {
 	const uint64_t *ip = buf;
@@ -153,6 +205,10 @@ const fletcher_4_ops_t fletcher_4_sse2_ops = {
 	.init_byteswap = fletcher_4_sse2_init,
 	.fini_byteswap = fletcher_4_sse2_fini,
 	.compute_byteswap = fletcher_4_sse2_byteswap,
+	.init_incr_native = fletcher_4_sse2_incremental_init,
+	.fini_incr_native = fletcher_4_sse2_incremental_fini,
+	.init_incr_byteswap = fletcher_4_sse2_incremental_init,
+	.fini_incr_byteswap = fletcher_4_sse2_incremental_fini,
 	.valid = fletcher_4_sse2_valid,
 	.name = "sse2"
 };
@@ -202,6 +258,10 @@ const fletcher_4_ops_t fletcher_4_ssse3_ops = {
 	.init_byteswap = fletcher_4_sse2_init,
 	.fini_byteswap = fletcher_4_sse2_fini,
 	.compute_byteswap = fletcher_4_ssse3_byteswap,
+	.init_incr_native = fletcher_4_sse2_incremental_init,
+	.fini_incr_native = fletcher_4_sse2_incremental_fini,
+	.init_incr_byteswap = fletcher_4_sse2_incremental_init,
+	.fini_incr_byteswap = fletcher_4_sse2_incremental_fini,
 	.valid = fletcher_4_ssse3_valid,
 	.name = "ssse3"
 };

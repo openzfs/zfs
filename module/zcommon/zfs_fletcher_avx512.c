@@ -48,6 +48,19 @@ fletcher_4_avx512f_init(zio_cksum_t *zcp)
 }
 
 static void
+fletcher_4_avx512f_incremental_init(zio_cksum_t *zcp)
+{
+	zfs_avx512_t a = {{ zcp->zc_word[0] }};
+	kfpu_begin();
+
+	__asm("vmovdqu64 %0, %%zmm0"::"m" (a));
+	/* clear registers */
+	__asm("vpxorq %zmm1, %zmm1, %zmm1");
+	__asm("vpxorq %zmm2, %zmm2, %zmm2");
+	__asm("vpxorq %zmm3, %zmm3, %zmm3");
+}
+
+static void
 fletcher_4_avx512f_native(const void *buf, uint64_t size, zio_cksum_t *unused)
 {
 	const uint32_t *ip = buf;
@@ -139,6 +152,55 @@ fletcher_4_avx512f_fini(zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 }
 
+static void
+fletcher_4_avx512f_incremental_fini(zio_cksum_t *zcp, uint64_t size)
+{
+	static const uint64_t
+	CcA[] = {   0,   0,   1,   3,   6,  10,  15,  21 },
+	CcB[] = {  28,  36,  44,  52,  60,  68,  76,  84 },
+	DcA[] = {   0,   0,   0,   1,   4,  10,  20,  35 },
+	DcB[] = {  56,  84, 120, 164, 216, 276, 344, 420 },
+	DcC[] = { 448, 512, 576, 640, 704, 768, 832, 896 };
+
+	zfs_avx512_t a, b, c, b8, c64, d512;
+	uint64_t A, B, C, D;
+	uint64_t i;
+
+	__asm("vmovdqu64 %%zmm0, %0":"=m" (a));
+	__asm("vmovdqu64 %%zmm1, %0":"=m" (b));
+	__asm("vmovdqu64 %%zmm2, %0":"=m" (c));
+	__asm("vpsllq $3, %zmm1, %zmm1");
+	__asm("vpsllq $6, %zmm2, %zmm2");
+	__asm("vpsllq $9, %zmm3, %zmm3");
+
+	__asm("vmovdqu64 %%zmm1, %0":"=m" (b8));
+	__asm("vmovdqu64 %%zmm2, %0":"=m" (c64));
+	__asm("vmovdqu64 %%zmm3, %0":"=m" (d512));
+
+	kfpu_end();
+
+	A = a.v[0];
+	B = b8.v[0];
+	C = c64.v[0] - CcB[0] * b.v[0];
+	D = d512.v[0] - DcC[0] * c.v[0] + DcB[0] * b.v[0];
+
+	for (i = 1; i < 8; i++) {
+		A += a.v[i];
+		B += b8.v[i] - i * a.v[i];
+		C += c64.v[i] - CcB[i] * b.v[i] + CcA[i] * a.v[i];
+		D += d512.v[i] - DcC[i] * c.v[i] + DcB[i] * b.v[i] -
+		    DcA[i] * a.v[i];
+	}
+
+	size /= sizeof (uint32_t);
+	B += zcp->zc_word[1];
+	C += zcp->zc_word[2] + size*zcp->zc_word[1];
+	D += zcp->zc_word[3] + size*zcp->zc_word[2]
+	    + size/2*(size+1)*zcp->zc_word[1];
+
+	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
+}
+
 static boolean_t
 fletcher_4_avx512f_valid(void)
 {
@@ -152,6 +214,10 @@ const fletcher_4_ops_t fletcher_4_avx512f_ops = {
 	.init_byteswap = fletcher_4_avx512f_init,
 	.fini_byteswap = fletcher_4_avx512f_fini,
 	.compute_byteswap = fletcher_4_avx512f_byteswap,
+	.init_incr_native = fletcher_4_avx512f_incremental_init,
+	.fini_incr_native = fletcher_4_avx512f_incremental_fini,
+	.init_incr_byteswap = fletcher_4_avx512f_incremental_init,
+	.fini_incr_byteswap = fletcher_4_avx512f_incremental_fini,
 	.valid = fletcher_4_avx512f_valid,
 	.name = "avx512f"
 };

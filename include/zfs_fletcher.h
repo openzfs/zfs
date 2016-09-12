@@ -64,6 +64,7 @@ void fletcher_4_fini(void);
  */
 typedef void (*fletcher_4_init_f)(zio_cksum_t *);
 typedef void (*fletcher_4_fini_f)(zio_cksum_t *);
+typedef void (*fletcher_4_fini_incremental_f)(zio_cksum_t *, uint64_t);
 typedef void (*fletcher_4_compute_f)(const void *, uint64_t, zio_cksum_t *);
 
 typedef struct fletcher_4_func {
@@ -73,6 +74,10 @@ typedef struct fletcher_4_func {
 	fletcher_4_init_f init_byteswap;
 	fletcher_4_fini_f fini_byteswap;
 	fletcher_4_compute_f compute_byteswap;
+	fletcher_4_init_f init_incr_native;
+	fletcher_4_fini_incremental_f fini_incr_native;
+	fletcher_4_init_f init_incr_byteswap;
+	fletcher_4_fini_incremental_f fini_incr_byteswap;
 	boolean_t (*valid)(void);
 	const char *name;
 } fletcher_4_ops_t;
