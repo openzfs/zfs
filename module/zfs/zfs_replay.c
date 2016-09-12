@@ -805,6 +805,8 @@ zfs_replay_setattr(zfs_sb_t *zsb, lr_setattr_t *lr, boolean_t byteswap)
 	vap->va_size = lr->lr_size;
 	ZFS_TIME_DECODE(&vap->va_atime, lr->lr_atime);
 	ZFS_TIME_DECODE(&vap->va_mtime, lr->lr_mtime);
+	gethrestime(&vap->va_ctime);
+	vap->va_mask |= ATTR_CTIME;
 
 	/*
 	 * Fill in xvattr_t portions if necessary.
