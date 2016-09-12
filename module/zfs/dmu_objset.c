@@ -60,6 +60,7 @@
 #include <sys/spa_impl.h>
 #include <sys/dmu_send.h>
 #include <sys/zfs_project.h>
+#include "zfs_namecheck.h"
 
 /*
  * Needed to close a window in dnode_move() that allows the objset to be freed
@@ -1096,6 +1097,9 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 
 	if (strlen(doca->doca_name) >= ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
+
+	if (dataset_nestcheck(doca->doca_name) != 0)
 		return (SET_ERROR(ENAMETOOLONG));
 
 	error = dsl_dir_hold(dp, doca->doca_name, FTAG, &pdd, &tail);

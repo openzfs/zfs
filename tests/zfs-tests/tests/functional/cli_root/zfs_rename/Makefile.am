@@ -15,6 +15,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_rename_011_pos.ksh \
 	zfs_rename_012_neg.ksh \
 	zfs_rename_013_pos.ksh \
+	zfs_rename_014_neg.ksh \
 	zfs_rename_encrypted_child.ksh \
 	zfs_rename_to_encrypted.ksh
 

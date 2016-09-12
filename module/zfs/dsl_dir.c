@@ -1854,16 +1854,28 @@ typedef struct dsl_dir_rename_arg {
 	cred_t *ddra_cred;
 } dsl_dir_rename_arg_t;
 
+typedef struct dsl_valid_rename_arg {
+	int char_delta;
+	int nest_delta;
+} dsl_valid_rename_arg_t;
+
 /* ARGSUSED */
 static int
 dsl_valid_rename(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
-	int *deltap = arg;
+	dsl_valid_rename_arg_t *dvra = arg;
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 
 	dsl_dataset_name(ds, namebuf);
 
-	if (strlen(namebuf) + *deltap >= ZFS_MAX_DATASET_NAME_LEN)
+	ASSERT3U(strnlen(namebuf, ZFS_MAX_DATASET_NAME_LEN),
+	    <, ZFS_MAX_DATASET_NAME_LEN);
+	int namelen = strlen(namebuf) + dvra->char_delta;
+	int depth = get_dataset_depth(namebuf) + dvra->nest_delta;
+
+	if (namelen >= ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
+	if (dvra->nest_delta > 0 && depth >= zfs_max_dataset_nesting)
 		return (SET_ERROR(ENAMETOOLONG));
 	return (0);
 }
@@ -1874,9 +1886,9 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 	dsl_dir_rename_arg_t *ddra = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dir_t *dd, *newparent;
+	dsl_valid_rename_arg_t dvra;
 	const char *mynewname;
 	int error;
-	int delta = strlen(ddra->ddra_newname) - strlen(ddra->ddra_oldname);
 
 	/* target dir should exist */
 	error = dsl_dir_hold(dp, ddra->ddra_oldname, FTAG, &dd, NULL);
@@ -1905,10 +1917,19 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EEXIST));
 	}
 
+	ASSERT3U(strnlen(ddra->ddra_newname, ZFS_MAX_DATASET_NAME_LEN),
+	    <, ZFS_MAX_DATASET_NAME_LEN);
+	ASSERT3U(strnlen(ddra->ddra_oldname, ZFS_MAX_DATASET_NAME_LEN),
+	    <, ZFS_MAX_DATASET_NAME_LEN);
+	dvra.char_delta = strlen(ddra->ddra_newname)
+	    - strlen(ddra->ddra_oldname);
+	dvra.nest_delta = get_dataset_depth(ddra->ddra_newname)
+	    - get_dataset_depth(ddra->ddra_oldname);
+
 	/* if the name length is growing, validate child name lengths */
-	if (delta > 0) {
+	if (dvra.char_delta > 0 || dvra.nest_delta > 0) {
 		error = dmu_objset_find_dp(dp, dd->dd_object, dsl_valid_rename,
-		    &delta, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+		    &dvra, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
 		if (error != 0) {
 			dsl_dir_rele(newparent, FTAG);
 			dsl_dir_rele(dd, FTAG);

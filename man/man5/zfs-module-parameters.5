@@ -1599,6 +1599,18 @@ Default value: \fB104,857,600\fR.
 .sp
 .ne 2
 .na
+\fBzfs_max_dataset_nesting\fR (int)
+.ad
+.RS 12n
+The maximum depth of nested datasets.  This value can be tuned temporarily to
+fix existing datasets that exceed the predefined limit.
+.sp
+Default value: \fB50\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_max_recordsize\fR (int)
 .ad
 .RS 12n
