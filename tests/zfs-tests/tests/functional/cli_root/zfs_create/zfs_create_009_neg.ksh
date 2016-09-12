@@ -43,6 +43,7 @@
 #	*Beyond maximal name length.
 #	*Same property set multiple times via '-o property=value'
 #	*Volume's property set on filesystem
+#	*Exceeding maximum name nesting
 #
 # STRATEGY:
 # 1. Create an array of <filesystem> arguments
@@ -89,7 +90,7 @@ set -A args  "$TESTPOOL/" "$TESTPOOL//blah" "$TESTPOOL/@blah" \
 	"$TESTPOOL/blah*blah" "$TESTPOOL/blah blah" \
 	"-s $TESTPOOL/$TESTFS1" "-b 1092 $TESTPOOL/$TESTFS1" \
 	"-b 64k $TESTPOOL/$TESTFS1" "-s -b 32k $TESTPOOL/$TESTFS1" \
-	"$TESTPOOL/$BYND_MAX_NAME"
+	"$TESTPOOL/$BYND_MAX_NAME" "$TESTPOOL/$BYND_NEST_LIMIT"
 
 log_assert "Verify 'zfs create <filesystem>' fails with bad <filesystem> argument."
 

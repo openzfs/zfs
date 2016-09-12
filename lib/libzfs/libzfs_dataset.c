@@ -3583,7 +3583,21 @@ zfs_create_ancestors(libzfs_handle_t *hdl, const char *path)
 {
 	int prefix;
 	char *path_copy;
+	char errbuf[1024];
 	int rc = 0;
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot create '%s'"), path);
+
+	/*
+	 * Check that we are not passing the nesting limit
+	 * before we start creating any ancestors.
+	 */
+	if (dataset_nestcheck(path) != 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "maximum name nesting depth exceeded"));
+		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+	}
 
 	if (check_parents(hdl, path, NULL, B_TRUE, &prefix) != 0)
 		return (-1);
@@ -3622,6 +3636,12 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	/* validate the path, taking care to note the extended error message */
 	if (!zfs_validate_name(hdl, path, type, B_TRUE))
 		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+
+	if (dataset_nestcheck(path) != 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "maximum name nesting depth exceeded"));
+		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+	}
 
 	/* validate parents exist */
 	if (check_parents(hdl, path, &zoned, B_FALSE, NULL) != 0)
@@ -4434,6 +4454,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 				    errbuf));
 			}
 		}
+
 		if (!zfs_validate_name(hdl, target, zhp->zfs_type, B_TRUE))
 			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
 	} else {

@@ -201,7 +201,7 @@ stack_clear() {
 stack_check() {
 	STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
 	STACK_TRACE=/sys/kernel/debug/tracing/stack_trace
-	STACK_LIMIT=7600
+	STACK_LIMIT=15362
 
 	if [ -e "$STACK_MAX_SIZE" ]; then
 		STACK_SIZE=$(cat "$STACK_MAX_SIZE")
