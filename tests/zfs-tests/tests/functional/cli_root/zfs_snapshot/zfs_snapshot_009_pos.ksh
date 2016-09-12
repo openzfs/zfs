@@ -29,7 +29,7 @@
 function cleanup
 {
 	for ds in $datasets; do
-		datasetexists $ds && log_must $ZFS destroy -r $ds
+		datasetexists $ds && log_must $ZFS destroy -R $ds
 	done
 	$ZFS destroy -r $TESTPOOL/TESTFS4
 }
@@ -42,23 +42,25 @@ invalid_args=("$TESTPOOL/$TESTFS1@now $TESTPOOL/$TESTFS2@now \
     "$TESTPOOL/$TESTFS1@$($PYTHON -c 'print "x" * 300') $TESTPOOL/$TESTFS2@300 \
     $TESTPOOL/$TESTFS3@300")
 
-valid_args=("$TESTPOOL/$TESTFS1@snap $TESTPOOL/$TESTFS2@snap \
-    $TESTPOOL/$TESTFS3@snap" "$TESTPOOL/$TESTFS1@$($PYTHON -c 'print "x" * 200')\
-    $TESTPOOL/$TESTFS2@2 $TESTPOOL/$TESTFS3@s")
+valid_args=("$TESTPOOL/$TESTFS1@snap" "$TESTPOOL/$TESTFS2@snap" \
+    "$TESTPOOL/$TESTFS3@snap" "$TESTPOOL/$TESTFS1@$($PYTHON -c 'print "x" * 200')"\
+    "$TESTPOOL/$TESTFS2@2" "$TESTPOOL/$TESTFS3@s")
 
 log_assert "verify zfs supports multiple consistent snapshots"
 log_onexit cleanup
 typeset -i i=1
-test_data=$STF_SUITE/tests/functional/cli_root/zpool_upgrade/*.bz2
+test_data=$STF_SUITE/tests/functional/cli_root/zpool_upgrade
 
 log_note "destroy a list of valid snapshots"
 for ds in $datasets; do
 	log_must $ZFS create $ds
-	log_must $CP -r $test_data /$ds
+	log_must $CP -r $test_data/* /$ds
 done
 i=0
 while (( i < ${#valid_args[*]} )); do
 	log_must $ZFS snapshot ${valid_args[i]}
+	log_must $ZFS clone ${valid_args[i]} $TESTPOOL/clone$i
+	log_must $ZFS set snapdir=hidden $TESTPOOL/clone$i
 	for token in ${valid_args[i]}; do
 		log_must snapexists $token && \
 		    log_must $ZFS destroy $token
@@ -83,12 +85,22 @@ for i in 1 2 3; do
 	    && log_fail "snapshots belong to differnt transaction groups"
 done
 log_note "verify snapshot contents"
-for ds in $datasets; do
-	status=$($DIRCMP /$ds /$ds/.zfs/snapshot/snap | $GREP "different")
-	[[ -z $status ]] || log_fail "snapshot contents are different from" \
-	    "the filesystem"
-done
-
+if is_linux; then 
+	while (( i < ${#valid_args[*]} )); do
+		status=$($DIFF -r $test_data /$TESTPOOL/clone$i; $ECHO $?)
+        if [[ $status != 0 ]]; then
+			log_fail "snapshot contents are different from" \
+					 "the filesystem"
+        fi
+		((i = i + 1))
+	done
+else
+	for ds in $datasets; do
+		status=$($DIRCMP /$ds /$ds/.zfs/snapshot/snap | $GREP "different")
+		[[ -z $status ]] || log_fail "snapshot contents are different from" \
+			"the filesystem"
+	done
+fi
 log_note "verify multiple snapshot with -r option"
 log_must $ZFS create $TESTPOOL/TESTFS4
 log_must $ZFS create -p $TESTPOOL/$TESTFS3/TESTFSA$($PYTHON -c 'print "x" * 210')/TESTFSB
