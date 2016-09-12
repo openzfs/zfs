@@ -3001,7 +3001,6 @@ top:
 		aclp = NULL;
 	}
 
-
 	if ((mask & ATTR_ATIME) || zp->z_atime_dirty) {
 		zp->z_atime_dirty = 0;
 		ZFS_TIME_ENCODE(&ip->i_atime, atime);
@@ -3011,29 +3010,27 @@ top:
 
 	if (mask & ATTR_MTIME) {
 		ZFS_TIME_ENCODE(&vap->va_mtime, mtime);
+		ZTOI(zp)->i_mtime = timespec_trunc(vap->va_mtime,
+		    ZTOI(zp)->i_sb->s_time_gran);
+
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL,
 		    mtime, sizeof (mtime));
 	}
 
-	/* XXX - shouldn't this be done *before* the ATIME/MTIME checks? */
-	if (mask & ATTR_SIZE && !(mask & ATTR_MTIME)) {
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb),
-		    NULL, mtime, sizeof (mtime));
+	if (mask & ATTR_CTIME) {
+		ZFS_TIME_ENCODE(&vap->va_ctime, ctime);
+		ZTOI(zp)->i_ctime = timespec_trunc(vap->va_ctime,
+		    ZTOI(zp)->i_sb->s_time_gran);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL,
-		    &ctime, sizeof (ctime));
-		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime);
-	} else if (mask != 0) {
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL,
-		    &ctime, sizeof (ctime));
-		zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime, ctime);
-		if (attrzp) {
-			SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
-			    SA_ZPL_CTIME(zsb), NULL,
-			    &ctime, sizeof (ctime));
-			zfs_tstamp_update_setup(attrzp, STATE_CHANGED,
-			    mtime, ctime);
-		}
+		    ctime, sizeof (ctime));
 	}
+
+	if (attrzp && mask) {
+		SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
+		    SA_ZPL_CTIME(zsb), NULL, &ctime,
+		    sizeof (ctime));
+	}
+
 	/*
 	 * Do this after setting timestamps to prevent timestamp
 	 * update from toggling bit
