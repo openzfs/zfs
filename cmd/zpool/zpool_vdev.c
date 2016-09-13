@@ -1445,6 +1445,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	nl2cache = 0;
 	is_log = B_FALSE;
 	seen_logs = B_FALSE;
+	nvroot = NULL;
 
 	while (argc > 0) {
 		nv = NULL;
@@ -1463,7 +1464,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    gettext("invalid vdev "
 					    "specification: 'spare' can be "
 					    "specified only once\n"));
-					return (NULL);
+					goto spec_out;
 				}
 				is_log = B_FALSE;
 			}
@@ -1474,7 +1475,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    gettext("invalid vdev "
 					    "specification: 'log' can be "
 					    "specified only once\n"));
-					return (NULL);
+					goto spec_out;
 				}
 				seen_logs = B_TRUE;
 				is_log = B_TRUE;
@@ -1493,7 +1494,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    gettext("invalid vdev "
 					    "specification: 'cache' can be "
 					    "specified only once\n"));
-					return (NULL);
+					goto spec_out;
 				}
 				is_log = B_FALSE;
 			}
@@ -1504,7 +1505,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    gettext("invalid vdev "
 					    "specification: unsupported 'log' "
 					    "device: %s\n"), type);
-					return (NULL);
+					goto spec_out;
 				}
 				nlogs++;
 			}
@@ -1522,7 +1523,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					for (c = 0; c < children - 1; c++)
 						nvlist_free(child[c]);
 					free(child);
-					return (NULL);
+					goto spec_out;
 				}
 
 				child[children - 1] = nv;
@@ -1535,7 +1536,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				for (c = 0; c < children; c++)
 					nvlist_free(child[c]);
 				free(child);
-				return (NULL);
+				goto spec_out;
 			}
 
 			if (children > maxdev) {
@@ -1545,7 +1546,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				for (c = 0; c < children; c++)
 					nvlist_free(child[c]);
 				free(child);
-				return (NULL);
+				goto spec_out;
 			}
 
 			argc -= c;
@@ -1586,7 +1587,8 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			 */
 			if ((nv = make_leaf_vdev(props, argv[0],
 			    is_log)) == NULL)
-				return (NULL);
+				goto spec_out;
+
 			if (is_log)
 				nlogs++;
 			argc--;
@@ -1604,13 +1606,13 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 		(void) fprintf(stderr, gettext("invalid vdev "
 		    "specification: at least one toplevel vdev must be "
 		    "specified\n"));
-		return (NULL);
+		goto spec_out;
 	}
 
 	if (seen_logs && nlogs == 0) {
 		(void) fprintf(stderr, gettext("invalid vdev specification: "
 		    "log requires at least 1 device\n"));
-		return (NULL);
+		goto spec_out;
 	}
 
 	/*
@@ -1628,16 +1630,16 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 		verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
 		    l2cache, nl2cache) == 0);
 
+spec_out:
 	for (t = 0; t < toplevels; t++)
 		nvlist_free(top[t]);
 	for (t = 0; t < nspares; t++)
 		nvlist_free(spares[t]);
 	for (t = 0; t < nl2cache; t++)
 		nvlist_free(l2cache[t]);
-	if (spares)
-		free(spares);
-	if (l2cache)
-		free(l2cache);
+
+	free(spares);
+	free(l2cache);
 	free(top);
 
 	return (nvroot);
