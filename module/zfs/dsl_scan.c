@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright 2016 Gary Mills
  */
 
@@ -47,6 +47,7 @@
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 #include <sys/zfeature.h>
+#include <sys/abd.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
@@ -692,7 +693,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			dsl_scan_visitbp(cbp, &czb, dnp,
 			    ds, scn, ostype, tx);
 		}
-		(void) arc_buf_remove_ref(buf, &buf);
+		arc_buf_destroy(buf, &buf);
 	} else if (BP_GET_TYPE(bp) == DMU_OT_DNODE) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
 		dnode_phys_t *cdnp;
@@ -722,7 +723,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			    cdnp, zb->zb_blkid * epb + i, tx);
 		}
 
-		(void) arc_buf_remove_ref(buf, &buf);
+		arc_buf_destroy(buf, &buf);
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
 		objset_phys_t *osp;
@@ -754,7 +755,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			    &osp->os_userused_dnode,
 			    DMU_USERUSED_OBJECT, tx);
 		}
-		(void) arc_buf_remove_ref(buf, &buf);
+		arc_buf_destroy(buf, &buf);
 	}
 
 	return (0);
@@ -1820,7 +1821,7 @@ dsl_scan_scrub_done(zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
 
-	zio_data_buf_free(zio->io_data, zio->io_size);
+	abd_free(zio->io_abd);
 
 	mutex_enter(&spa->spa_scrub_lock);
 	spa->spa_scrub_inflight--;
@@ -1904,7 +1905,6 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	if (needs_io && !zfs_no_scrub_io) {
 		vdev_t *rvd = spa->spa_root_vdev;
 		uint64_t maxinflight = rvd->vdev_children * zfs_top_maxinflight;
-		void *data = zio_data_buf_alloc(size);
 
 		mutex_enter(&spa->spa_scrub_lock);
 		while (spa->spa_scrub_inflight >= maxinflight)
@@ -1919,9 +1919,9 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		if (ddi_get_lbolt64() - spa->spa_last_io <= zfs_scan_idle)
 			delay(scan_delay);
 
-		zio_nowait(zio_read(NULL, spa, bp, data, size,
-		    dsl_scan_scrub_done, NULL, ZIO_PRIORITY_SCRUB,
-		    zio_flags, zb));
+		zio_nowait(zio_read(NULL, spa, bp,
+		    abd_alloc_for_io(size, B_FALSE), size, dsl_scan_scrub_done,
+		    NULL, ZIO_PRIORITY_SCRUB, zio_flags, zb));
 	}
 
 	/* do not relocate this block */

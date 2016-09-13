@@ -1760,8 +1760,16 @@ get_receive_resume_stats(dsl_dataset_t *ds, nvlist_t *nv)
 			fnvlist_add_string(token_nv, "toname", buf);
 		}
 		if (zap_contains(dp->dp_meta_objset, ds->ds_object,
+		    DS_FIELD_RESUME_LARGEBLOCK) == 0) {
+			fnvlist_add_boolean(token_nv, "largeblockok");
+		}
+		if (zap_contains(dp->dp_meta_objset, ds->ds_object,
 		    DS_FIELD_RESUME_EMBEDOK) == 0) {
 			fnvlist_add_boolean(token_nv, "embedok");
+		}
+		if (zap_contains(dp->dp_meta_objset, ds->ds_object,
+		    DS_FIELD_RESUME_COMPRESSOK) == 0) {
+			fnvlist_add_boolean(token_nv, "compressok");
 		}
 		packed = fnvlist_pack(token_nv, &packed_size);
 		fnvlist_free(token_nv);
