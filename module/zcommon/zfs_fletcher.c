@@ -25,6 +25,10 @@
  */
 
 /*
+ * Copyright (c) 2016 by Delphix. All rights reserved.
+ */
+
+/*
  * Fletcher Checksums
  * ------------------
  *
@@ -134,6 +138,8 @@
 #include <sys/zfs_context.h>
 #include <zfs_fletcher.h>
 
+#define	FLETCHER_MIN_SIMD_SIZE	64
+
 
 static void fletcher_4_scalar_init(zio_cksum_t *zcp);
 static void fletcher_4_scalar_native(const void *buf, uint64_t size,
@@ -207,13 +213,24 @@ static struct fletcher_4_kstat {
 static boolean_t fletcher_4_initialized = B_FALSE;
 
 void
-fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_init(zio_cksum_t *zcp)
+{
+	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+}
+
+void
+fletcher_2_incremental_native(void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += ip[0];
 		a1 += ip[1];
 		b0 += a0;
@@ -223,14 +240,27 @@ fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
 }
 
+/*ARGSUSED*/
 void
-fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	fletcher_init(zcp);
+	(void) fletcher_2_incremental_native((void *) buf, size, zcp);
+}
+
+void
+fletcher_2_incremental_byteswap(void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += BSWAP_64(ip[0]);
 		a1 += BSWAP_64(ip[1]);
 		b0 += a0;
@@ -238,6 +268,14 @@ fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
+}
+
+/*ARGSUSED*/
+void
+fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	fletcher_init(zcp);
+	(void) fletcher_2_incremental_byteswap((void *) buf, size, zcp);
 }
 
 static void
@@ -371,7 +409,7 @@ fletcher_4_impl_get(void)
 		break;
 	}
 
-	ASSERT3P(ops, !=, NULL);
+	VERIFY(ops);
 
 	return (ops);
 }
@@ -408,7 +446,7 @@ void
 fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	const fletcher_4_ops_t *ops;
-	uint64_t p2size = P2ALIGN(size, 64);
+	uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
@@ -447,7 +485,7 @@ void
 fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	const fletcher_4_ops_t *ops;
-	uint64_t p2size = P2ALIGN(size, 64);
+	uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
@@ -526,6 +564,8 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 
 #define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(50))		/* 50ms */
 
+typedef void fletcher_checksum_func_t(const void *, uint64_t, zio_cksum_t *);
+
 static void
 fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 {
@@ -537,8 +577,9 @@ fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 	zio_cksum_t zc;
 	uint32_t i, l, sel_save = IMPL_READ(fletcher_4_impl_chosen);
 
-	zio_checksum_func_t *fletcher_4_test = native ? fletcher_4_native :
-	    fletcher_4_byteswap;
+
+	fletcher_checksum_func_t *fletcher_4_test = native ?
+	    fletcher_4_native : fletcher_4_byteswap;
 
 	for (i = 0; i < fletcher_4_supp_impls_cnt; i++) {
 		struct fletcher_4_kstat *stat = &fletcher_4_stat_data[i];
@@ -652,6 +693,94 @@ fletcher_4_fini(void)
 	}
 }
 
+
+
+/* ABD adapters */
+
+static void
+abd_fletcher_4_init(zio_abd_checksum_data_t *cdp)
+{
+	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
+	cdp->acd_private = (void *) ops;
+
+	ASSERT(ops);
+
+	if (cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE)
+		ops->init_native(cdp->acd_zcp);
+	else
+		ops->init_byteswap(cdp->acd_zcp);
+}
+
+static void
+abd_fletcher_4_fini(zio_abd_checksum_data_t *cdp)
+{
+	fletcher_4_ops_t *ops = (fletcher_4_ops_t *) cdp->acd_private;
+
+	ASSERT(ops);
+
+	if (cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE) {
+		if (ops->fini_native)
+			ops->fini_native(cdp->acd_zcp);
+	} else {
+		if (ops->fini_byteswap)
+			ops->fini_byteswap(cdp->acd_zcp);
+	}
+}
+
+static void
+abd_fletcher_4_simd2scalar(boolean_t native, void *data, size_t size,
+    zio_abd_checksum_data_t *cdp)
+{
+	zio_cksum_t *zcp = cdp->acd_zcp;
+
+	ASSERT3U(size, <, FLETCHER_MIN_SIMD_SIZE);
+
+	abd_fletcher_4_fini(cdp);
+	cdp->acd_private = (void *) &fletcher_4_scalar_ops;
+
+	if (native)
+		fletcher_4_incremental_native(data, size, zcp);
+	else
+		fletcher_4_incremental_byteswap(data, size, zcp);
+}
+
+static int
+abd_fletcher_4_iter(void *data, size_t size, void *private)
+{
+	zio_abd_checksum_data_t *cdp = (zio_abd_checksum_data_t *) private;
+	zio_cksum_t *zcp = cdp->acd_zcp;
+	fletcher_4_ops_t *ops = (fletcher_4_ops_t *) cdp->acd_private;
+	boolean_t native = cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE;
+	uint64_t asize = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
+
+	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
+
+	if (asize > 0) {
+		if (native)
+			ops->compute_native(data, asize, zcp);
+		else
+			ops->compute_byteswap(data, asize, zcp);
+
+		size -= asize;
+		data = (char *)data + asize;
+	}
+
+	if (size > 0) {
+		ASSERT3U(size, <, FLETCHER_MIN_SIMD_SIZE);
+		/* At this point we have to switch to scalar impl */
+		abd_fletcher_4_simd2scalar(native, data, size, cdp);
+	}
+
+	return (0);
+}
+
+zio_abd_checksum_func_t fletcher_4_abd_ops = {
+	.acf_init = abd_fletcher_4_init,
+	.acf_fini = abd_fletcher_4_fini,
+	.acf_iter = abd_fletcher_4_iter
+};
+
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 #include <linux/mod_compat.h>
 
@@ -682,6 +811,8 @@ fletcher_4_param_set(const char *val, zfs_kernel_param_t *unused)
 	return (fletcher_4_impl_set(val));
 }
 
+
+
 /*
  * Choose a fletcher 4 implementation in ZFS.
  * Users can choose "cycle" to exercise all implementations, but this is
@@ -691,6 +822,9 @@ module_param_call(zfs_fletcher_4_impl,
     fletcher_4_param_set, fletcher_4_param_get, NULL, 0644);
 MODULE_PARM_DESC(zfs_fletcher_4_impl, "Select fletcher 4 implementation.");
 
+EXPORT_SYMBOL(fletcher_init);
+EXPORT_SYMBOL(fletcher_2_incremental_native);
+EXPORT_SYMBOL(fletcher_2_incremental_byteswap);
 EXPORT_SYMBOL(fletcher_4_init);
 EXPORT_SYMBOL(fletcher_4_fini);
 EXPORT_SYMBOL(fletcher_2_native);
@@ -700,4 +834,6 @@ EXPORT_SYMBOL(fletcher_4_native_varsize);
 EXPORT_SYMBOL(fletcher_4_byteswap);
 EXPORT_SYMBOL(fletcher_4_incremental_native);
 EXPORT_SYMBOL(fletcher_4_incremental_byteswap);
+
+EXPORT_SYMBOL(fletcher_4_abd_ops);
 #endif

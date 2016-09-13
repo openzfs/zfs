@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
 #include <sys/spa_checksum.h>
+#include <sys/dmu.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -134,6 +135,8 @@ _NOTE(CONSTCOND) } while (0)
 #define	SPA_LSIZEBITS		16	/* LSIZE up to 32M (2^16 * 512)	*/
 #define	SPA_PSIZEBITS		16	/* PSIZE up to 32M (2^16 * 512)	*/
 #define	SPA_ASIZEBITS		24	/* ASIZE up to 64 times larger	*/
+
+#define	SPA_COMPRESSBITS	7
 
 /*
  * All SPA data is represented by 128-bit data virtual addresses (DVAs).
@@ -363,8 +366,10 @@ _NOTE(CONSTCOND) } while (0)
 	    16, SPA_PSIZEBITS, SPA_MINBLOCKSHIFT, 1, x); \
 _NOTE(CONSTCOND) } while (0)
 
-#define	BP_GET_COMPRESS(bp)		BF64_GET((bp)->blk_prop, 32, 7)
-#define	BP_SET_COMPRESS(bp, x)		BF64_SET((bp)->blk_prop, 32, 7, x)
+#define	BP_GET_COMPRESS(bp)		\
+	BF64_GET((bp)->blk_prop, 32, SPA_COMPRESSBITS)
+#define	BP_SET_COMPRESS(bp, x)		\
+	BF64_SET((bp)->blk_prop, 32, SPA_COMPRESSBITS, x)
 
 #define	BP_IS_EMBEDDED(bp)		BF64_GET((bp)->blk_prop, 39, 1)
 #define	BP_SET_EMBEDDED(bp, x)		BF64_SET((bp)->blk_prop, 39, 1, x)
@@ -402,15 +407,17 @@ _NOTE(CONSTCOND) } while (0)
 
 #define	BP_GET_FILL(bp) (BP_IS_EMBEDDED(bp) ? 1 : (bp)->blk_fill)
 
+#define	BP_IS_METADATA(bp)	\
+	(BP_GET_LEVEL(bp) > 0 || DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))
+
 #define	BP_GET_ASIZE(bp)	\
 	(BP_IS_EMBEDDED(bp) ? 0 : \
 	DVA_GET_ASIZE(&(bp)->blk_dva[0]) + \
 	DVA_GET_ASIZE(&(bp)->blk_dva[1]) + \
 	DVA_GET_ASIZE(&(bp)->blk_dva[2]))
 
-#define	BP_GET_UCSIZE(bp) \
-	((BP_GET_LEVEL(bp) > 0 || DMU_OT_IS_METADATA(BP_GET_TYPE(bp))) ? \
-	BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp))
+#define	BP_GET_UCSIZE(bp)	\
+	(BP_IS_METADATA(bp) ? BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp))
 
 #define	BP_GET_NDVAS(bp)	\
 	(BP_IS_EMBEDDED(bp) ? 0 : \
@@ -554,11 +561,8 @@ _NOTE(CONSTCOND) } while (0)
 	ASSERT(len < size);						\
 }
 
-#include <sys/dmu.h>
-
 #define	BP_GET_BUFC_TYPE(bp)						\
-	(((BP_GET_LEVEL(bp) > 0) || (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))) ? \
-	ARC_BUFC_METADATA : ARC_BUFC_DATA)
+	(BP_IS_METADATA(bp) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
 
 typedef enum spa_import_type {
 	SPA_IMPORT_EXISTING,
@@ -573,7 +577,6 @@ extern int spa_get_stats(const char *pool, nvlist_t **config, char *altroot,
     size_t buflen);
 extern int spa_create(const char *pool, nvlist_t *config, nvlist_t *props,
     nvlist_t *zplprops);
-extern int spa_import_rootpool(char *devpath, char *devid);
 extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);

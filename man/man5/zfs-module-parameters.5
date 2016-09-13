@@ -99,20 +99,6 @@ Default value: \fB200\fR.
 .sp
 .ne 2
 .na
-\fBl2arc_max_block_size\fR (ulong)
-.ad
-.RS 12n
-The maximum block size which may be written to an L2ARC device, after
-compression and other factors.  This setting is used to prevent a small
-number of large blocks from pushing a larger number of small blocks out
-of the cache.
-.sp
-Default value: \fB16,777,216\fR.
-.RE
-
-.sp
-.ne 2
-.na
 \fBl2arc_nocompress\fR (int)
 .ad
 .RS 12n
@@ -1772,7 +1758,6 @@ Once the module is loaded, the content of
 with the currently selected one enclosed in [].
 Possible options are:
   fastest  - (always) implementation selected using built-in benchmark
-  original - (always) original raidz implementation
   scalar   - (always) scalar raidz implementation
   sse2     - implementation using SSE2 instruction set (64bit x86 only)
   ssse3    - implementation using SSSE3 instruction set (64bit x86 only)

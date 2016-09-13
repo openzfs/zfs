@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -40,6 +40,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/metaslab.h>
 #include <sys/trace_zil.h>
+#include <sys/abd.h>
 
 /*
  * The zfs intent log (ZIL) saves transaction records of system calls
@@ -260,7 +261,7 @@ zil_read_log_block(zilog_t *zilog, const blkptr_t *bp, blkptr_t *nbp, void *dst,
 			}
 		}
 
-		VERIFY(arc_buf_remove_ref(abuf, &abuf));
+		arc_buf_destroy(abuf, &abuf);
 	}
 
 	return (error);
@@ -297,7 +298,7 @@ zil_read_log_data(zilog_t *zilog, const lr_write_t *lr, void *wbuf)
 	if (error == 0) {
 		if (wbuf != NULL)
 			bcopy(abuf->b_data, wbuf, arc_buf_size(abuf));
-		(void) arc_buf_remove_ref(abuf, &abuf);
+		arc_buf_destroy(abuf, &abuf);
 	}
 
 	return (error);
@@ -878,6 +879,7 @@ zil_lwb_write_done(zio_t *zio)
 	 * one in zil_commit_writer(). zil_sync() will only remove
 	 * the lwb if lwb_buf is null.
 	 */
+	abd_put(zio->io_abd);
 	zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 	mutex_enter(&zilog->zl_lock);
 	lwb->lwb_zio = NULL;
@@ -914,12 +916,14 @@ zil_lwb_write_init(zilog_t *zilog, lwb_t *lwb)
 	/* Lock so zil_sync() doesn't fastwrite_unmark after zio is created */
 	mutex_enter(&zilog->zl_lock);
 	if (lwb->lwb_zio == NULL) {
+		abd_t *lwb_abd = abd_get_from_buf(lwb->lwb_buf,
+		    BP_GET_LSIZE(&lwb->lwb_blk));
 		if (!lwb->lwb_fastwrite) {
 			metaslab_fastwrite_mark(zilog->zl_spa, &lwb->lwb_blk);
 			lwb->lwb_fastwrite = 1;
 		}
 		lwb->lwb_zio = zio_rewrite(zilog->zl_root_zio, zilog->zl_spa,
-		    0, &lwb->lwb_blk, lwb->lwb_buf, BP_GET_LSIZE(&lwb->lwb_blk),
+		    0, &lwb->lwb_blk, lwb_abd, BP_GET_LSIZE(&lwb->lwb_blk),
 		    zil_lwb_write_done, lwb, ZIO_PRIORITY_SYNC_WRITE,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
 		    ZIO_FLAG_FASTWRITE, &zb);

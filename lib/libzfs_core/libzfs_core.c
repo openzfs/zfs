@@ -484,6 +484,8 @@ lzc_send_resume(const char *snapname, const char *from, int fd,
 		fnvlist_add_string(args, "fromsnap", from);
 	if (flags & LZC_SEND_FLAG_LARGE_BLOCK)
 		fnvlist_add_boolean(args, "largeblockok");
+	if (flags & LZC_SEND_FLAG_COMPRESS)
+		fnvlist_add_boolean(args, "compressok");
 	if (flags & LZC_SEND_FLAG_EMBED_DATA)
 		fnvlist_add_boolean(args, "embedok");
 	if (resumeobj != 0 || resumeoff != 0) {
@@ -511,7 +513,8 @@ lzc_send_resume(const char *snapname, const char *from, int fd,
  * an equivalent snapshot.
  */
 int
-lzc_send_space(const char *snapname, const char *from, uint64_t *spacep)
+lzc_send_space(const char *snapname, const char *from,
+    enum lzc_send_flags flags, uint64_t *spacep)
 {
 	nvlist_t *args;
 	nvlist_t *result;
@@ -520,6 +523,12 @@ lzc_send_space(const char *snapname, const char *from, uint64_t *spacep)
 	args = fnvlist_alloc();
 	if (from != NULL)
 		fnvlist_add_string(args, "from", from);
+	if (flags & LZC_SEND_FLAG_LARGE_BLOCK)
+		fnvlist_add_boolean(args, "largeblockok");
+	if (flags & LZC_SEND_FLAG_EMBED_DATA)
+		fnvlist_add_boolean(args, "embedok");
+	if (flags & LZC_SEND_FLAG_COMPRESS)
+		fnvlist_add_boolean(args, "compressok");
 	err = lzc_ioctl(ZFS_IOC_SEND_SPACE, snapname, args, &result);
 	nvlist_free(args);
 	if (err == 0)

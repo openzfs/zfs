@@ -54,13 +54,14 @@ int lzc_get_holds(const char *, nvlist_t **);
 
 enum lzc_send_flags {
 	LZC_SEND_FLAG_EMBED_DATA = 1 << 0,
-	LZC_SEND_FLAG_LARGE_BLOCK = 1 << 1
+	LZC_SEND_FLAG_LARGE_BLOCK = 1 << 1,
+	LZC_SEND_FLAG_COMPRESS = 1 << 2
 };
 
 int lzc_send(const char *, const char *, int, enum lzc_send_flags);
 int lzc_send_resume(const char *, const char *, int,
     enum lzc_send_flags, uint64_t, uint64_t);
-int lzc_send_space(const char *, const char *, uint64_t *);
+int lzc_send_space(const char *, const char *, enum lzc_send_flags, uint64_t *);
 
 struct dmu_replay_record;
 

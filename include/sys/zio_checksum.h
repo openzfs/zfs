@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZIO_CHECKSUM_H
@@ -32,16 +32,40 @@
 extern "C" {
 #endif
 
+struct abd;
+
 /*
  * Signature for checksum functions.
  */
-typedef void zio_checksum_func_t(const void *, uint64_t, zio_cksum_t *);
+typedef void zio_checksum_t(struct abd *, uint64_t, zio_cksum_t *);
+
+typedef enum {
+	ZIO_CHECKSUM_NATIVE,
+	ZIO_CHECKSUM_BYTESWAP
+} zio_byteorder_t;
+
+typedef struct zio_abd_checksum_data {
+	zio_byteorder_t		acd_byteorder;
+	zio_cksum_t 		*acd_zcp;
+	void 			*acd_private;
+} zio_abd_checksum_data_t;
+
+typedef void zio_abd_checksum_init_t(zio_abd_checksum_data_t *);
+typedef void zio_abd_checksum_fini_t(zio_abd_checksum_data_t *);
+typedef int zio_abd_checksum_iter_t(void *, size_t, void *);
+
+typedef const struct zio_abd_checksum_func {
+	zio_abd_checksum_init_t *acf_init;
+	zio_abd_checksum_fini_t *acf_fini;
+	zio_abd_checksum_iter_t *acf_iter;
+} zio_abd_checksum_func_t;
+
 
 /*
  * Information about each checksum function.
  */
 typedef const struct zio_checksum_info {
-	zio_checksum_func_t *ci_func[2]; /* checksum function per byteorder */
+	zio_checksum_t *ci_func[2];	/* checksum function per byteorder */
 	int		ci_correctable;	/* number of correctable bits	*/
 	int		ci_eck;		/* uses zio embedded checksum? */
 	boolean_t	ci_dedup;	/* strong enough for dedup? */
@@ -62,10 +86,22 @@ extern zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
 /*
  * Checksum routines.
  */
-extern zio_checksum_func_t zio_checksum_SHA256;
+extern void zio_checksum_SHA256(const void *, uint64_t, zio_cksum_t *);
 
-extern void zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
-    void *data, uint64_t size);
+extern zio_checksum_t abd_checksum_SHA256;
+extern zio_checksum_t abd_checksum_SHA512_native;
+extern zio_checksum_t abd_checksum_SHA512_byteswap;
+
+extern zio_abd_checksum_func_t fletcher_4_abd_ops;
+extern zio_checksum_t abd_fletcher_4_native;
+extern zio_checksum_t abd_fletcher_4_byteswap;
+
+extern int zio_checksum_equal(spa_t *, blkptr_t *, enum zio_checksum,
+    void *, uint64_t, uint64_t, zio_bad_cksum_t *);
+extern void zio_checksum_compute(zio_t *, enum zio_checksum,
+    struct abd *, uint64_t);
+extern int zio_checksum_error_impl(spa_t *, const blkptr_t *, enum zio_checksum,
+    struct abd *, uint64_t, uint64_t, zio_bad_cksum_t *);
 extern int zio_checksum_error(zio_t *zio, zio_bad_cksum_t *out);
 extern enum zio_checksum spa_dedup_checksum(spa_t *spa);
 

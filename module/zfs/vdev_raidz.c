@@ -30,6 +30,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
+#include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/vdev_raidz.h>
@@ -106,29 +107,6 @@
 #define	VDEV_RAIDZ_Q		1
 #define	VDEV_RAIDZ_R		2
 
-#define	VDEV_RAIDZ_MUL_2(x)	(((x) << 1) ^ (((x) & 0x80) ? 0x1d : 0))
-#define	VDEV_RAIDZ_MUL_4(x)	(VDEV_RAIDZ_MUL_2(VDEV_RAIDZ_MUL_2(x)))
-
-/*
- * We provide a mechanism to perform the field multiplication operation on a
- * 64-bit value all at once rather than a byte at a time. This works by
- * creating a mask from the top bit in each byte and using that to
- * conditionally apply the XOR of 0x1d.
- */
-#define	VDEV_RAIDZ_64MUL_2(x, mask) \
-{ \
-	(mask) = (x) & 0x8080808080808080ULL; \
-	(mask) = ((mask) << 1) - ((mask) >> 7); \
-	(x) = (((x) << 1) & 0xfefefefefefefefeULL) ^ \
-	    ((mask) & 0x1d1d1d1d1d1d1d1dULL); \
-}
-
-#define	VDEV_RAIDZ_64MUL_4(x, mask) \
-{ \
-	VDEV_RAIDZ_64MUL_2((x), mask); \
-	VDEV_RAIDZ_64MUL_2((x), mask); \
-}
-
 void
 vdev_raidz_map_free(raidz_map_t *rm)
 {
@@ -136,19 +114,20 @@ vdev_raidz_map_free(raidz_map_t *rm)
 	size_t size;
 
 	for (c = 0; c < rm->rm_firstdatacol; c++) {
-		zio_buf_free(rm->rm_col[c].rc_data, rm->rm_col[c].rc_size);
+		abd_free(rm->rm_col[c].rc_abd);
 
 		if (rm->rm_col[c].rc_gdata != NULL)
-			zio_buf_free(rm->rm_col[c].rc_gdata,
-			    rm->rm_col[c].rc_size);
+			abd_free(rm->rm_col[c].rc_gdata);
 	}
 
 	size = 0;
-	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++)
+	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
+		abd_put(rm->rm_col[c].rc_abd);
 		size += rm->rm_col[c].rc_size;
+	}
 
-	if (rm->rm_datacopy != NULL)
-		zio_buf_free(rm->rm_datacopy, size);
+	if (rm->rm_abd_copy != NULL)
+		abd_free(rm->rm_abd_copy);
 
 	kmem_free(rm, offsetof(raidz_map_t, rm_col[rm->rm_scols]));
 }
@@ -178,14 +157,14 @@ vdev_raidz_cksum_free(void *arg, size_t ignored)
 }
 
 static void
-vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
+vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const abd_t *good_data)
 {
 	raidz_map_t *rm = zcr->zcr_cbdata;
-	size_t c = zcr->zcr_cbinfo;
-	size_t x;
+	const size_t c = zcr->zcr_cbinfo;
+	size_t x, offset;
 
-	const char *good = NULL;
-	const char *bad = rm->rm_col[c].rc_data;
+	const abd_t *good = NULL;
+	const abd_t *bad = rm->rm_col[c].rc_abd;
 
 	if (good_data == NULL) {
 		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
@@ -199,8 +178,7 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
 		 * data never changes for a given logical ZIO)
 		 */
 		if (rm->rm_col[0].rc_gdata == NULL) {
-			char *bad_parity[VDEV_RAIDZ_MAXPARITY];
-			char *buf;
+			abd_t *bad_parity[VDEV_RAIDZ_MAXPARITY];
 
 			/*
 			 * Set up the rm_col[]s to generate the parity for
@@ -208,16 +186,22 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
 			 * replacing them with buffers to hold the result.
 			 */
 			for (x = 0; x < rm->rm_firstdatacol; x++) {
-				bad_parity[x] = rm->rm_col[x].rc_data;
-				rm->rm_col[x].rc_data = rm->rm_col[x].rc_gdata =
-				    zio_buf_alloc(rm->rm_col[x].rc_size);
+				bad_parity[x] = rm->rm_col[x].rc_abd;
+				rm->rm_col[x].rc_abd =
+				    rm->rm_col[x].rc_gdata =
+				    abd_alloc_for_io(rm->rm_col[x].rc_size,
+				    B_FALSE);
 			}
 
 			/* fill in the data columns from good_data */
-			buf = (char *)good_data;
+			offset = 0;
 			for (; x < rm->rm_cols; x++) {
-				rm->rm_col[x].rc_data = buf;
-				buf += rm->rm_col[x].rc_size;
+				abd_put(rm->rm_col[x].rc_abd);
+
+				rm->rm_col[x].rc_abd =
+				    abd_get_offset_size((abd_t *)good_data,
+				    offset, rm->rm_col[x].rc_size);
+				offset += rm->rm_col[x].rc_size;
 			}
 
 			/*
@@ -227,27 +211,32 @@ vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
 
 			/* restore everything back to its original state */
 			for (x = 0; x < rm->rm_firstdatacol; x++)
-				rm->rm_col[x].rc_data = bad_parity[x];
+				rm->rm_col[x].rc_abd = bad_parity[x];
 
-			buf = rm->rm_datacopy;
+			offset = 0;
 			for (x = rm->rm_firstdatacol; x < rm->rm_cols; x++) {
-				rm->rm_col[x].rc_data = buf;
-				buf += rm->rm_col[x].rc_size;
+				abd_put(rm->rm_col[x].rc_abd);
+				rm->rm_col[x].rc_abd = abd_get_offset_size(
+				    rm->rm_abd_copy, offset,
+				    rm->rm_col[x].rc_size);
+				offset += rm->rm_col[x].rc_size;
 			}
 		}
 
 		ASSERT3P(rm->rm_col[c].rc_gdata, !=, NULL);
-		good = rm->rm_col[c].rc_gdata;
+		good = abd_get_offset(rm->rm_col[c].rc_gdata, 0);
 	} else {
 		/* adjust good_data to point at the start of our column */
-		good = good_data;
-
+		offset = 0;
 		for (x = rm->rm_firstdatacol; x < c; x++)
-			good += rm->rm_col[x].rc_size;
+			offset += rm->rm_col[x].rc_size;
+
+		good = abd_get_offset((abd_t *)good_data, offset);
 	}
 
 	/* we drop the ereport if it ends up that the data was good */
 	zfs_ereport_finish_checksum(zcr, good, bad, B_TRUE);
+	abd_put((abd_t *)good);
 }
 
 /*
@@ -260,7 +249,7 @@ static void
 vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
 {
 	size_t c = (size_t)(uintptr_t)arg;
-	caddr_t buf;
+	size_t offset;
 
 	raidz_map_t *rm = zio->io_vsd;
 	size_t size;
@@ -274,7 +263,7 @@ vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
 	rm->rm_reports++;
 	ASSERT3U(rm->rm_reports, >, 0);
 
-	if (rm->rm_datacopy != NULL)
+	if (rm->rm_abd_copy != NULL)
 		return;
 
 	/*
@@ -290,17 +279,21 @@ vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
 	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++)
 		size += rm->rm_col[c].rc_size;
 
-	buf = rm->rm_datacopy = zio_buf_alloc(size);
+	rm->rm_abd_copy = abd_alloc_for_io(size, B_FALSE);
 
-	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
+	for (offset = 0, c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
 		raidz_col_t *col = &rm->rm_col[c];
+		abd_t *tmp = abd_get_offset_size(rm->rm_abd_copy, offset,
+		    col->rc_size);
 
-		bcopy(col->rc_data, buf, col->rc_size);
-		col->rc_data = buf;
+		abd_copy(tmp, col->rc_abd, col->rc_size);
 
-		buf += col->rc_size;
+		abd_put(col->rc_abd);
+		col->rc_abd = tmp;
+
+		offset += col->rc_size;
 	}
-	ASSERT3P(buf - (caddr_t)rm->rm_datacopy, ==, size);
+	ASSERT3U(offset, ==, size);
 }
 
 static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
@@ -329,6 +322,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	/* The starting byte offset on each child vdev. */
 	uint64_t o = (b / dcols) << unit_shift;
 	uint64_t q, r, c, bc, col, acols, scols, coff, devidx, asize, tot;
+	uint64_t off = 0;
 
 	/*
 	 * "Quotient": The number of data sectors for this stripe on all but
@@ -373,7 +367,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	rm->rm_missingdata = 0;
 	rm->rm_missingparity = 0;
 	rm->rm_firstdatacol = nparity;
-	rm->rm_datacopy = NULL;
+	rm->rm_abd_copy = NULL;
 	rm->rm_reports = 0;
 	rm->rm_freed = 0;
 	rm->rm_ecksuminjected = 0;
@@ -389,7 +383,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 		}
 		rm->rm_col[c].rc_devidx = col;
 		rm->rm_col[c].rc_offset = coff;
-		rm->rm_col[c].rc_data = NULL;
+		rm->rm_col[c].rc_abd = NULL;
 		rm->rm_col[c].rc_gdata = NULL;
 		rm->rm_col[c].rc_error = 0;
 		rm->rm_col[c].rc_tried = 0;
@@ -412,13 +406,18 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	ASSERT3U(rm->rm_nskip, <=, nparity);
 
 	for (c = 0; c < rm->rm_firstdatacol; c++)
-		rm->rm_col[c].rc_data = zio_buf_alloc(rm->rm_col[c].rc_size);
+		rm->rm_col[c].rc_abd =
+		    abd_alloc_for_io(rm->rm_col[c].rc_size, B_FALSE);
 
-	rm->rm_col[c].rc_data = zio->io_data;
+	rm->rm_col[c].rc_abd = abd_get_offset_size(zio->io_abd, 0,
+	    rm->rm_col[c].rc_size);
+	off = rm->rm_col[c].rc_size;
 
-	for (c = c + 1; c < acols; c++)
-		rm->rm_col[c].rc_data = (char *)rm->rm_col[c - 1].rc_data +
-		    rm->rm_col[c - 1].rc_size;
+	for (c = c + 1; c < acols; c++) {
+		rm->rm_col[c].rc_abd = abd_get_offset_size(zio->io_abd, off,
+		    rm->rm_col[c].rc_size);
+		off += rm->rm_col[c].rc_size;
+	}
 
 	/*
 	 * If all data stored spans all columns, there's a danger that parity
@@ -464,146 +463,6 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	return (rm);
 }
 
-static void
-vdev_raidz_generate_parity_p(raidz_map_t *rm)
-{
-	uint64_t *p, *src, pcount, ccount, i;
-	int c;
-
-	pcount = rm->rm_col[VDEV_RAIDZ_P].rc_size / sizeof (src[0]);
-
-	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		src = rm->rm_col[c].rc_data;
-		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
-		ccount = rm->rm_col[c].rc_size / sizeof (src[0]);
-
-		if (c == rm->rm_firstdatacol) {
-			ASSERT(ccount == pcount);
-			for (i = 0; i < ccount; i++, src++, p++) {
-				*p = *src;
-			}
-		} else {
-			ASSERT(ccount <= pcount);
-			for (i = 0; i < ccount; i++, src++, p++) {
-				*p ^= *src;
-			}
-		}
-	}
-}
-
-static void
-vdev_raidz_generate_parity_pq(raidz_map_t *rm)
-{
-	uint64_t *p, *q, *src, pcnt, ccnt, mask, i;
-	int c;
-
-	pcnt = rm->rm_col[VDEV_RAIDZ_P].rc_size / sizeof (src[0]);
-	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
-	    rm->rm_col[VDEV_RAIDZ_Q].rc_size);
-
-	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		src = rm->rm_col[c].rc_data;
-		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
-		q = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
-
-		ccnt = rm->rm_col[c].rc_size / sizeof (src[0]);
-
-		if (c == rm->rm_firstdatacol) {
-			ASSERT(ccnt == pcnt || ccnt == 0);
-			for (i = 0; i < ccnt; i++, src++, p++, q++) {
-				*p = *src;
-				*q = *src;
-			}
-			for (; i < pcnt; i++, src++, p++, q++) {
-				*p = 0;
-				*q = 0;
-			}
-		} else {
-			ASSERT(ccnt <= pcnt);
-
-			/*
-			 * Apply the algorithm described above by multiplying
-			 * the previous result and adding in the new value.
-			 */
-			for (i = 0; i < ccnt; i++, src++, p++, q++) {
-				*p ^= *src;
-
-				VDEV_RAIDZ_64MUL_2(*q, mask);
-				*q ^= *src;
-			}
-
-			/*
-			 * Treat short columns as though they are full of 0s.
-			 * Note that there's therefore nothing needed for P.
-			 */
-			for (; i < pcnt; i++, q++) {
-				VDEV_RAIDZ_64MUL_2(*q, mask);
-			}
-		}
-	}
-}
-
-static void
-vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
-{
-	uint64_t *p, *q, *r, *src, pcnt, ccnt, mask, i;
-	int c;
-
-	pcnt = rm->rm_col[VDEV_RAIDZ_P].rc_size / sizeof (src[0]);
-	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
-	    rm->rm_col[VDEV_RAIDZ_Q].rc_size);
-	ASSERT(rm->rm_col[VDEV_RAIDZ_P].rc_size ==
-	    rm->rm_col[VDEV_RAIDZ_R].rc_size);
-
-	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		src = rm->rm_col[c].rc_data;
-		p = rm->rm_col[VDEV_RAIDZ_P].rc_data;
-		q = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
-		r = rm->rm_col[VDEV_RAIDZ_R].rc_data;
-
-		ccnt = rm->rm_col[c].rc_size / sizeof (src[0]);
-
-		if (c == rm->rm_firstdatacol) {
-			ASSERT(ccnt == pcnt || ccnt == 0);
-			for (i = 0; i < ccnt; i++, src++, p++, q++, r++) {
-				*p = *src;
-				*q = *src;
-				*r = *src;
-			}
-			for (; i < pcnt; i++, src++, p++, q++, r++) {
-				*p = 0;
-				*q = 0;
-				*r = 0;
-			}
-		} else {
-			ASSERT(ccnt <= pcnt);
-
-			/*
-			 * Apply the algorithm described above by multiplying
-			 * the previous result and adding in the new value.
-			 */
-			for (i = 0; i < ccnt; i++, src++, p++, q++, r++) {
-				*p ^= *src;
-
-				VDEV_RAIDZ_64MUL_2(*q, mask);
-				*q ^= *src;
-
-				VDEV_RAIDZ_64MUL_4(*r, mask);
-				*r ^= *src;
-			}
-
-			/*
-			 * Treat short columns as though they are full of 0s.
-			 * Note that there's therefore nothing needed for P.
-			 */
-			for (; i < pcnt; i++, q++, r++) {
-				VDEV_RAIDZ_64MUL_2(*q, mask);
-				VDEV_RAIDZ_64MUL_4(*r, mask);
-			}
-		}
-	}
-}
-
 /*
  * Generate RAID parity in the first virtual columns according to the number of
  * parity columns available.
@@ -611,671 +470,7 @@ vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
 void
 vdev_raidz_generate_parity(raidz_map_t *rm)
 {
-	/* Generate using the new math implementation */
-	if (vdev_raidz_math_generate(rm) != RAIDZ_ORIGINAL_IMPL)
-		return;
-
-	switch (rm->rm_firstdatacol) {
-	case 1:
-		vdev_raidz_generate_parity_p(rm);
-		break;
-	case 2:
-		vdev_raidz_generate_parity_pq(rm);
-		break;
-	case 3:
-		vdev_raidz_generate_parity_pqr(rm);
-		break;
-	default:
-		cmn_err(CE_PANIC, "invalid RAID-Z configuration");
-	}
-}
-
-static int
-vdev_raidz_reconstruct_p(raidz_map_t *rm, int *tgts, int ntgts)
-{
-	uint64_t *dst, *src, xcount, ccount, count, i;
-	int x = tgts[0];
-	int c;
-
-	ASSERT(ntgts == 1);
-	ASSERT(x >= rm->rm_firstdatacol);
-	ASSERT(x < rm->rm_cols);
-
-	xcount = rm->rm_col[x].rc_size / sizeof (src[0]);
-	ASSERT(xcount <= rm->rm_col[VDEV_RAIDZ_P].rc_size / sizeof (src[0]));
-	ASSERT(xcount > 0);
-
-	src = rm->rm_col[VDEV_RAIDZ_P].rc_data;
-	dst = rm->rm_col[x].rc_data;
-	for (i = 0; i < xcount; i++, dst++, src++) {
-		*dst = *src;
-	}
-
-	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		src = rm->rm_col[c].rc_data;
-		dst = rm->rm_col[x].rc_data;
-
-		if (c == x)
-			continue;
-
-		ccount = rm->rm_col[c].rc_size / sizeof (src[0]);
-		count = MIN(ccount, xcount);
-
-		for (i = 0; i < count; i++, dst++, src++) {
-			*dst ^= *src;
-		}
-	}
-
-	return (1 << VDEV_RAIDZ_P);
-}
-
-static int
-vdev_raidz_reconstruct_q(raidz_map_t *rm, int *tgts, int ntgts)
-{
-	uint64_t *dst, *src, xcount, ccount, count, mask, i;
-	uint8_t *b;
-	int x = tgts[0];
-	int c, j, exp;
-
-	ASSERT(ntgts == 1);
-
-	xcount = rm->rm_col[x].rc_size / sizeof (src[0]);
-	ASSERT(xcount <= rm->rm_col[VDEV_RAIDZ_Q].rc_size / sizeof (src[0]));
-
-	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		src = rm->rm_col[c].rc_data;
-		dst = rm->rm_col[x].rc_data;
-
-		if (c == x)
-			ccount = 0;
-		else
-			ccount = rm->rm_col[c].rc_size / sizeof (src[0]);
-
-		count = MIN(ccount, xcount);
-
-		if (c == rm->rm_firstdatacol) {
-			for (i = 0; i < count; i++, dst++, src++) {
-				*dst = *src;
-			}
-			for (; i < xcount; i++, dst++) {
-				*dst = 0;
-			}
-
-		} else {
-			for (i = 0; i < count; i++, dst++, src++) {
-				VDEV_RAIDZ_64MUL_2(*dst, mask);
-				*dst ^= *src;
-			}
-
-			for (; i < xcount; i++, dst++) {
-				VDEV_RAIDZ_64MUL_2(*dst, mask);
-			}
-		}
-	}
-
-	src = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
-	dst = rm->rm_col[x].rc_data;
-	exp = 255 - (rm->rm_cols - 1 - x);
-
-	for (i = 0; i < xcount; i++, dst++, src++) {
-		*dst ^= *src;
-		for (j = 0, b = (uint8_t *)dst; j < 8; j++, b++) {
-			*b = vdev_raidz_exp2(*b, exp);
-		}
-	}
-
-	return (1 << VDEV_RAIDZ_Q);
-}
-
-static int
-vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
-{
-	uint8_t *p, *q, *pxy, *qxy, *xd, *yd, tmp, a, b, aexp, bexp;
-	void *pdata, *qdata;
-	uint64_t xsize, ysize, i;
-	int x = tgts[0];
-	int y = tgts[1];
-
-	ASSERT(ntgts == 2);
-	ASSERT(x < y);
-	ASSERT(x >= rm->rm_firstdatacol);
-	ASSERT(y < rm->rm_cols);
-
-	ASSERT(rm->rm_col[x].rc_size >= rm->rm_col[y].rc_size);
-
-	/*
-	 * Move the parity data aside -- we're going to compute parity as
-	 * though columns x and y were full of zeros -- Pxy and Qxy. We want to
-	 * reuse the parity generation mechanism without trashing the actual
-	 * parity so we make those columns appear to be full of zeros by
-	 * setting their lengths to zero.
-	 */
-	pdata = rm->rm_col[VDEV_RAIDZ_P].rc_data;
-	qdata = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
-	xsize = rm->rm_col[x].rc_size;
-	ysize = rm->rm_col[y].rc_size;
-
-	rm->rm_col[VDEV_RAIDZ_P].rc_data =
-	    zio_buf_alloc(rm->rm_col[VDEV_RAIDZ_P].rc_size);
-	rm->rm_col[VDEV_RAIDZ_Q].rc_data =
-	    zio_buf_alloc(rm->rm_col[VDEV_RAIDZ_Q].rc_size);
-	rm->rm_col[x].rc_size = 0;
-	rm->rm_col[y].rc_size = 0;
-
-	vdev_raidz_generate_parity_pq(rm);
-
-	rm->rm_col[x].rc_size = xsize;
-	rm->rm_col[y].rc_size = ysize;
-
-	p = pdata;
-	q = qdata;
-	pxy = rm->rm_col[VDEV_RAIDZ_P].rc_data;
-	qxy = rm->rm_col[VDEV_RAIDZ_Q].rc_data;
-	xd = rm->rm_col[x].rc_data;
-	yd = rm->rm_col[y].rc_data;
-
-	/*
-	 * We now have:
-	 *	Pxy = P + D_x + D_y
-	 *	Qxy = Q + 2^(ndevs - 1 - x) * D_x + 2^(ndevs - 1 - y) * D_y
-	 *
-	 * We can then solve for D_x:
-	 *	D_x = A * (P + Pxy) + B * (Q + Qxy)
-	 * where
-	 *	A = 2^(x - y) * (2^(x - y) + 1)^-1
-	 *	B = 2^(ndevs - 1 - x) * (2^(x - y) + 1)^-1
-	 *
-	 * With D_x in hand, we can easily solve for D_y:
-	 *	D_y = P + Pxy + D_x
-	 */
-
-	a = vdev_raidz_pow2[255 + x - y];
-	b = vdev_raidz_pow2[255 - (rm->rm_cols - 1 - x)];
-	tmp = 255 - vdev_raidz_log2[a ^ 1];
-
-	aexp = vdev_raidz_log2[vdev_raidz_exp2(a, tmp)];
-	bexp = vdev_raidz_log2[vdev_raidz_exp2(b, tmp)];
-
-	for (i = 0; i < xsize; i++, p++, q++, pxy++, qxy++, xd++, yd++) {
-		*xd = vdev_raidz_exp2(*p ^ *pxy, aexp) ^
-		    vdev_raidz_exp2(*q ^ *qxy, bexp);
-
-		if (i < ysize)
-			*yd = *p ^ *pxy ^ *xd;
-	}
-
-	zio_buf_free(rm->rm_col[VDEV_RAIDZ_P].rc_data,
-	    rm->rm_col[VDEV_RAIDZ_P].rc_size);
-	zio_buf_free(rm->rm_col[VDEV_RAIDZ_Q].rc_data,
-	    rm->rm_col[VDEV_RAIDZ_Q].rc_size);
-
-	/*
-	 * Restore the saved parity data.
-	 */
-	rm->rm_col[VDEV_RAIDZ_P].rc_data = pdata;
-	rm->rm_col[VDEV_RAIDZ_Q].rc_data = qdata;
-
-	return ((1 << VDEV_RAIDZ_P) | (1 << VDEV_RAIDZ_Q));
-}
-
-/* BEGIN CSTYLED */
-/*
- * In the general case of reconstruction, we must solve the system of linear
- * equations defined by the coeffecients used to generate parity as well as
- * the contents of the data and parity disks. This can be expressed with
- * vectors for the original data (D) and the actual data (d) and parity (p)
- * and a matrix composed of the identity matrix (I) and a dispersal matrix (V):
- *
- *            __   __                     __     __
- *            |     |         __     __   |  p_0  |
- *            |  V  |         |  D_0  |   | p_m-1 |
- *            |     |    x    |   :   | = |  d_0  |
- *            |  I  |         | D_n-1 |   |   :   |
- *            |     |         ~~     ~~   | d_n-1 |
- *            ~~   ~~                     ~~     ~~
- *
- * I is simply a square identity matrix of size n, and V is a vandermonde
- * matrix defined by the coeffecients we chose for the various parity columns
- * (1, 2, 4). Note that these values were chosen both for simplicity, speedy
- * computation as well as linear separability.
- *
- *      __               __               __     __
- *      |   1   ..  1 1 1 |               |  p_0  |
- *      | 2^n-1 ..  4 2 1 |   __     __   |   :   |
- *      | 4^n-1 .. 16 4 1 |   |  D_0  |   | p_m-1 |
- *      |   1   ..  0 0 0 |   |  D_1  |   |  d_0  |
- *      |   0   ..  0 0 0 | x |  D_2  | = |  d_1  |
- *      |   :       : : : |   |   :   |   |  d_2  |
- *      |   0   ..  1 0 0 |   | D_n-1 |   |   :   |
- *      |   0   ..  0 1 0 |   ~~     ~~   |   :   |
- *      |   0   ..  0 0 1 |               | d_n-1 |
- *      ~~               ~~               ~~     ~~
- *
- * Note that I, V, d, and p are known. To compute D, we must invert the
- * matrix and use the known data and parity values to reconstruct the unknown
- * data values. We begin by removing the rows in V|I and d|p that correspond
- * to failed or missing columns; we then make V|I square (n x n) and d|p
- * sized n by removing rows corresponding to unused parity from the bottom up
- * to generate (V|I)' and (d|p)'. We can then generate the inverse of (V|I)'
- * using Gauss-Jordan elimination. In the example below we use m=3 parity
- * columns, n=8 data columns, with errors in d_1, d_2, and p_1:
- *           __                               __
- *           |  1   1   1   1   1   1   1   1  |
- *           | 128  64  32  16  8   4   2   1  | <-----+-+-- missing disks
- *           |  19 205 116  29  64  16  4   1  |      / /
- *           |  1   0   0   0   0   0   0   0  |     / /
- *           |  0   1   0   0   0   0   0   0  | <--' /
- *  (V|I)  = |  0   0   1   0   0   0   0   0  | <---'
- *           |  0   0   0   1   0   0   0   0  |
- *           |  0   0   0   0   1   0   0   0  |
- *           |  0   0   0   0   0   1   0   0  |
- *           |  0   0   0   0   0   0   1   0  |
- *           |  0   0   0   0   0   0   0   1  |
- *           ~~                               ~~
- *           __                               __
- *           |  1   1   1   1   1   1   1   1  |
- *           | 128  64  32  16  8   4   2   1  |
- *           |  19 205 116  29  64  16  4   1  |
- *           |  1   0   0   0   0   0   0   0  |
- *           |  0   1   0   0   0   0   0   0  |
- *  (V|I)' = |  0   0   1   0   0   0   0   0  |
- *           |  0   0   0   1   0   0   0   0  |
- *           |  0   0   0   0   1   0   0   0  |
- *           |  0   0   0   0   0   1   0   0  |
- *           |  0   0   0   0   0   0   1   0  |
- *           |  0   0   0   0   0   0   0   1  |
- *           ~~                               ~~
- *
- * Here we employ Gauss-Jordan elimination to find the inverse of (V|I)'. We
- * have carefully chosen the seed values 1, 2, and 4 to ensure that this
- * matrix is not singular.
- * __                                                                 __
- * |  1   1   1   1   1   1   1   1     1   0   0   0   0   0   0   0  |
- * |  19 205 116  29  64  16  4   1     0   1   0   0   0   0   0   0  |
- * |  1   0   0   0   0   0   0   0     0   0   1   0   0   0   0   0  |
- * |  0   0   0   1   0   0   0   0     0   0   0   1   0   0   0   0  |
- * |  0   0   0   0   1   0   0   0     0   0   0   0   1   0   0   0  |
- * |  0   0   0   0   0   1   0   0     0   0   0   0   0   1   0   0  |
- * |  0   0   0   0   0   0   1   0     0   0   0   0   0   0   1   0  |
- * |  0   0   0   0   0   0   0   1     0   0   0   0   0   0   0   1  |
- * ~~                                                                 ~~
- * __                                                                 __
- * |  1   0   0   0   0   0   0   0     0   0   1   0   0   0   0   0  |
- * |  1   1   1   1   1   1   1   1     1   0   0   0   0   0   0   0  |
- * |  19 205 116  29  64  16  4   1     0   1   0   0   0   0   0   0  |
- * |  0   0   0   1   0   0   0   0     0   0   0   1   0   0   0   0  |
- * |  0   0   0   0   1   0   0   0     0   0   0   0   1   0   0   0  |
- * |  0   0   0   0   0   1   0   0     0   0   0   0   0   1   0   0  |
- * |  0   0   0   0   0   0   1   0     0   0   0   0   0   0   1   0  |
- * |  0   0   0   0   0   0   0   1     0   0   0   0   0   0   0   1  |
- * ~~                                                                 ~~
- * __                                                                 __
- * |  1   0   0   0   0   0   0   0     0   0   1   0   0   0   0   0  |
- * |  0   1   1   0   0   0   0   0     1   0   1   1   1   1   1   1  |
- * |  0  205 116  0   0   0   0   0     0   1   19  29  64  16  4   1  |
- * |  0   0   0   1   0   0   0   0     0   0   0   1   0   0   0   0  |
- * |  0   0   0   0   1   0   0   0     0   0   0   0   1   0   0   0  |
- * |  0   0   0   0   0   1   0   0     0   0   0   0   0   1   0   0  |
- * |  0   0   0   0   0   0   1   0     0   0   0   0   0   0   1   0  |
- * |  0   0   0   0   0   0   0   1     0   0   0   0   0   0   0   1  |
- * ~~                                                                 ~~
- * __                                                                 __
- * |  1   0   0   0   0   0   0   0     0   0   1   0   0   0   0   0  |
- * |  0   1   1   0   0   0   0   0     1   0   1   1   1   1   1   1  |
- * |  0   0  185  0   0   0   0   0    205  1  222 208 141 221 201 204 |
- * |  0   0   0   1   0   0   0   0     0   0   0   1   0   0   0   0  |
- * |  0   0   0   0   1   0   0   0     0   0   0   0   1   0   0   0  |
- * |  0   0   0   0   0   1   0   0     0   0   0   0   0   1   0   0  |
- * |  0   0   0   0   0   0   1   0     0   0   0   0   0   0   1   0  |
- * |  0   0   0   0   0   0   0   1     0   0   0   0   0   0   0   1  |
- * ~~                                                                 ~~
- * __                                                                 __
- * |  1   0   0   0   0   0   0   0     0   0   1   0   0   0   0   0  |
- * |  0   1   1   0   0   0   0   0     1   0   1   1   1   1   1   1  |
- * |  0   0   1   0   0   0   0   0    166 100  4   40 158 168 216 209 |
- * |  0   0   0   1   0   0   0   0     0   0   0   1   0   0   0   0  |
- * |  0   0   0   0   1   0   0   0     0   0   0   0   1   0   0   0  |
- * |  0   0   0   0   0   1   0   0     0   0   0   0   0   1   0   0  |
- * |  0   0   0   0   0   0   1   0     0   0   0   0   0   0   1   0  |
- * |  0   0   0   0   0   0   0   1     0   0   0   0   0   0   0   1  |
- * ~~                                                                 ~~
- * __                                                                 __
- * |  1   0   0   0   0   0   0   0     0   0   1   0   0   0   0   0  |
- * |  0   1   0   0   0   0   0   0    167 100  5   41 159 169 217 208 |
- * |  0   0   1   0   0   0   0   0    166 100  4   40 158 168 216 209 |
- * |  0   0   0   1   0   0   0   0     0   0   0   1   0   0   0   0  |
- * |  0   0   0   0   1   0   0   0     0   0   0   0   1   0   0   0  |
- * |  0   0   0   0   0   1   0   0     0   0   0   0   0   1   0   0  |
- * |  0   0   0   0   0   0   1   0     0   0   0   0   0   0   1   0  |
- * |  0   0   0   0   0   0   0   1     0   0   0   0   0   0   0   1  |
- * ~~                                                                 ~~
- *                   __                               __
- *                   |  0   0   1   0   0   0   0   0  |
- *                   | 167 100  5   41 159 169 217 208 |
- *                   | 166 100  4   40 158 168 216 209 |
- *       (V|I)'^-1 = |  0   0   0   1   0   0   0   0  |
- *                   |  0   0   0   0   1   0   0   0  |
- *                   |  0   0   0   0   0   1   0   0  |
- *                   |  0   0   0   0   0   0   1   0  |
- *                   |  0   0   0   0   0   0   0   1  |
- *                   ~~                               ~~
- *
- * We can then simply compute D = (V|I)'^-1 x (d|p)' to discover the values
- * of the missing data.
- *
- * As is apparent from the example above, the only non-trivial rows in the
- * inverse matrix correspond to the data disks that we're trying to
- * reconstruct. Indeed, those are the only rows we need as the others would
- * only be useful for reconstructing data known or assumed to be valid. For
- * that reason, we only build the coefficients in the rows that correspond to
- * targeted columns.
- */
-/* END CSTYLED */
-
-static void
-vdev_raidz_matrix_init(raidz_map_t *rm, int n, int nmap, int *map,
-    uint8_t **rows)
-{
-	int i, j;
-	int pow;
-
-	ASSERT(n == rm->rm_cols - rm->rm_firstdatacol);
-
-	/*
-	 * Fill in the missing rows of interest.
-	 */
-	for (i = 0; i < nmap; i++) {
-		ASSERT3S(0, <=, map[i]);
-		ASSERT3S(map[i], <=, 2);
-
-		pow = map[i] * n;
-		if (pow > 255)
-			pow -= 255;
-		ASSERT(pow <= 255);
-
-		for (j = 0; j < n; j++) {
-			pow -= map[i];
-			if (pow < 0)
-				pow += 255;
-			rows[i][j] = vdev_raidz_pow2[pow];
-		}
-	}
-}
-
-static void
-vdev_raidz_matrix_invert(raidz_map_t *rm, int n, int nmissing, int *missing,
-    uint8_t **rows, uint8_t **invrows, const uint8_t *used)
-{
-	int i, j, ii, jj;
-	uint8_t log;
-
-	/*
-	 * Assert that the first nmissing entries from the array of used
-	 * columns correspond to parity columns and that subsequent entries
-	 * correspond to data columns.
-	 */
-	for (i = 0; i < nmissing; i++) {
-		ASSERT3S(used[i], <, rm->rm_firstdatacol);
-	}
-	for (; i < n; i++) {
-		ASSERT3S(used[i], >=, rm->rm_firstdatacol);
-	}
-
-	/*
-	 * First initialize the storage where we'll compute the inverse rows.
-	 */
-	for (i = 0; i < nmissing; i++) {
-		for (j = 0; j < n; j++) {
-			invrows[i][j] = (i == j) ? 1 : 0;
-		}
-	}
-
-	/*
-	 * Subtract all trivial rows from the rows of consequence.
-	 */
-	for (i = 0; i < nmissing; i++) {
-		for (j = nmissing; j < n; j++) {
-			ASSERT3U(used[j], >=, rm->rm_firstdatacol);
-			jj = used[j] - rm->rm_firstdatacol;
-			ASSERT3S(jj, <, n);
-			invrows[i][j] = rows[i][jj];
-			rows[i][jj] = 0;
-		}
-	}
-
-	/*
-	 * For each of the rows of interest, we must normalize it and subtract
-	 * a multiple of it from the other rows.
-	 */
-	for (i = 0; i < nmissing; i++) {
-		for (j = 0; j < missing[i]; j++) {
-			ASSERT0(rows[i][j]);
-		}
-		ASSERT3U(rows[i][missing[i]], !=, 0);
-
-		/*
-		 * Compute the inverse of the first element and multiply each
-		 * element in the row by that value.
-		 */
-		log = 255 - vdev_raidz_log2[rows[i][missing[i]]];
-
-		for (j = 0; j < n; j++) {
-			rows[i][j] = vdev_raidz_exp2(rows[i][j], log);
-			invrows[i][j] = vdev_raidz_exp2(invrows[i][j], log);
-		}
-
-		for (ii = 0; ii < nmissing; ii++) {
-			if (i == ii)
-				continue;
-
-			ASSERT3U(rows[ii][missing[i]], !=, 0);
-
-			log = vdev_raidz_log2[rows[ii][missing[i]]];
-
-			for (j = 0; j < n; j++) {
-				rows[ii][j] ^=
-				    vdev_raidz_exp2(rows[i][j], log);
-				invrows[ii][j] ^=
-				    vdev_raidz_exp2(invrows[i][j], log);
-			}
-		}
-	}
-
-	/*
-	 * Verify that the data that is left in the rows are properly part of
-	 * an identity matrix.
-	 */
-	for (i = 0; i < nmissing; i++) {
-		for (j = 0; j < n; j++) {
-			if (j == missing[i]) {
-				ASSERT3U(rows[i][j], ==, 1);
-			} else {
-				ASSERT0(rows[i][j]);
-			}
-		}
-	}
-}
-
-static void
-vdev_raidz_matrix_reconstruct(raidz_map_t *rm, int n, int nmissing,
-    int *missing, uint8_t **invrows, const uint8_t *used)
-{
-	int i, j, x, cc, c;
-	uint8_t *src;
-	uint64_t ccount;
-	uint8_t *dst[VDEV_RAIDZ_MAXPARITY] = { NULL };
-	uint64_t dcount[VDEV_RAIDZ_MAXPARITY] = { 0 };
-	uint8_t log = 0;
-	uint8_t val;
-	int ll;
-	uint8_t *invlog[VDEV_RAIDZ_MAXPARITY];
-	uint8_t *p, *pp;
-	size_t psize;
-
-	psize = sizeof (invlog[0][0]) * n * nmissing;
-	p = kmem_alloc(psize, KM_SLEEP);
-
-	for (pp = p, i = 0; i < nmissing; i++) {
-		invlog[i] = pp;
-		pp += n;
-	}
-
-	for (i = 0; i < nmissing; i++) {
-		for (j = 0; j < n; j++) {
-			ASSERT3U(invrows[i][j], !=, 0);
-			invlog[i][j] = vdev_raidz_log2[invrows[i][j]];
-		}
-	}
-
-	for (i = 0; i < n; i++) {
-		c = used[i];
-		ASSERT3U(c, <, rm->rm_cols);
-
-		src = rm->rm_col[c].rc_data;
-		ccount = rm->rm_col[c].rc_size;
-		for (j = 0; j < nmissing; j++) {
-			cc = missing[j] + rm->rm_firstdatacol;
-			ASSERT3U(cc, >=, rm->rm_firstdatacol);
-			ASSERT3U(cc, <, rm->rm_cols);
-			ASSERT3U(cc, !=, c);
-
-			dst[j] = rm->rm_col[cc].rc_data;
-			dcount[j] = rm->rm_col[cc].rc_size;
-		}
-
-		ASSERT(ccount >= rm->rm_col[missing[0]].rc_size || i > 0);
-
-		for (x = 0; x < ccount; x++, src++) {
-			if (*src != 0)
-				log = vdev_raidz_log2[*src];
-
-			for (cc = 0; cc < nmissing; cc++) {
-				if (x >= dcount[cc])
-					continue;
-
-				if (*src == 0) {
-					val = 0;
-				} else {
-					if ((ll = log + invlog[cc][i]) >= 255)
-						ll -= 255;
-					val = vdev_raidz_pow2[ll];
-				}
-
-				if (i == 0)
-					dst[cc][x] = val;
-				else
-					dst[cc][x] ^= val;
-			}
-		}
-	}
-
-	kmem_free(p, psize);
-}
-
-static int
-vdev_raidz_reconstruct_general(raidz_map_t *rm, int *tgts, int ntgts)
-{
-	int n, i, c, t, tt;
-	int nmissing_rows;
-	int missing_rows[VDEV_RAIDZ_MAXPARITY];
-	int parity_map[VDEV_RAIDZ_MAXPARITY];
-
-	uint8_t *p, *pp;
-	size_t psize;
-
-	uint8_t *rows[VDEV_RAIDZ_MAXPARITY];
-	uint8_t *invrows[VDEV_RAIDZ_MAXPARITY];
-	uint8_t *used;
-
-	int code = 0;
-
-
-	n = rm->rm_cols - rm->rm_firstdatacol;
-
-	/*
-	 * Figure out which data columns are missing.
-	 */
-	nmissing_rows = 0;
-	for (t = 0; t < ntgts; t++) {
-		if (tgts[t] >= rm->rm_firstdatacol) {
-			missing_rows[nmissing_rows++] =
-			    tgts[t] - rm->rm_firstdatacol;
-		}
-	}
-
-	/*
-	 * Figure out which parity columns to use to help generate the missing
-	 * data columns.
-	 */
-	for (tt = 0, c = 0, i = 0; i < nmissing_rows; c++) {
-		ASSERT(tt < ntgts);
-		ASSERT(c < rm->rm_firstdatacol);
-
-		/*
-		 * Skip any targeted parity columns.
-		 */
-		if (c == tgts[tt]) {
-			tt++;
-			continue;
-		}
-
-		code |= 1 << c;
-
-		parity_map[i] = c;
-		i++;
-	}
-
-	ASSERT(code != 0);
-	ASSERT3U(code, <, 1 << VDEV_RAIDZ_MAXPARITY);
-
-	psize = (sizeof (rows[0][0]) + sizeof (invrows[0][0])) *
-	    nmissing_rows * n + sizeof (used[0]) * n;
-	p = kmem_alloc(psize, KM_SLEEP);
-
-	for (pp = p, i = 0; i < nmissing_rows; i++) {
-		rows[i] = pp;
-		pp += n;
-		invrows[i] = pp;
-		pp += n;
-	}
-	used = pp;
-
-	for (i = 0; i < nmissing_rows; i++) {
-		used[i] = parity_map[i];
-	}
-
-	for (tt = 0, c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
-		if (tt < nmissing_rows &&
-		    c == missing_rows[tt] + rm->rm_firstdatacol) {
-			tt++;
-			continue;
-		}
-
-		ASSERT3S(i, <, n);
-		used[i] = c;
-		i++;
-	}
-
-	/*
-	 * Initialize the interesting rows of the matrix.
-	 */
-	vdev_raidz_matrix_init(rm, n, nmissing_rows, parity_map, rows);
-
-	/*
-	 * Invert the matrix.
-	 */
-	vdev_raidz_matrix_invert(rm, n, nmissing_rows, missing_rows, rows,
-	    invrows, used);
-
-	/*
-	 * Reconstruct the missing data using the generated matrix.
-	 */
-	vdev_raidz_matrix_reconstruct(rm, n, nmissing_rows, missing_rows,
-	    invrows, used);
-
-	kmem_free(p, psize);
-
-	return (code);
+	vdev_raidz_math_generate(rm);
 }
 
 int
@@ -1283,8 +478,7 @@ vdev_raidz_reconstruct(raidz_map_t *rm, const int *t, int nt)
 {
 	int tgts[VDEV_RAIDZ_MAXPARITY], *dt;
 	int ntgts;
-	int i, c, ret;
-	int code;
+	int i, c;
 	int nbadparity, nbaddata;
 	int parity_valid[VDEV_RAIDZ_MAXPARITY];
 
@@ -1321,44 +515,8 @@ vdev_raidz_reconstruct(raidz_map_t *rm, const int *t, int nt)
 
 	dt = &tgts[nbadparity];
 
-
 	/* Reconstruct using the new math implementation */
-	ret = vdev_raidz_math_reconstruct(rm, parity_valid, dt, nbaddata);
-	if (ret != RAIDZ_ORIGINAL_IMPL)
-		return (ret);
-
-	/*
-	 * See if we can use any of our optimized reconstruction routines.
-	 */
-	switch (nbaddata) {
-	case 1:
-		if (parity_valid[VDEV_RAIDZ_P])
-			return (vdev_raidz_reconstruct_p(rm, dt, 1));
-
-		ASSERT(rm->rm_firstdatacol > 1);
-
-		if (parity_valid[VDEV_RAIDZ_Q])
-			return (vdev_raidz_reconstruct_q(rm, dt, 1));
-
-		ASSERT(rm->rm_firstdatacol > 2);
-		break;
-
-	case 2:
-		ASSERT(rm->rm_firstdatacol > 1);
-
-		if (parity_valid[VDEV_RAIDZ_P] &&
-		    parity_valid[VDEV_RAIDZ_Q])
-			return (vdev_raidz_reconstruct_pq(rm, dt, 2));
-
-		ASSERT(rm->rm_firstdatacol > 2);
-
-		break;
-	}
-
-	code = vdev_raidz_reconstruct_general(rm, tgts, ntgts);
-	ASSERT(code < (1 << VDEV_RAIDZ_MAXPARITY));
-	ASSERT(code > 0);
-	return (code);
+	return (vdev_raidz_math_reconstruct(rm, parity_valid, dt, nbaddata));
 }
 
 static int
@@ -1479,7 +637,7 @@ vdev_raidz_io_start(zio_t *zio)
 			rc = &rm->rm_col[c];
 			cvd = vd->vdev_child[rc->rc_devidx];
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
-			    rc->rc_offset, rc->rc_data, rc->rc_size,
+			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
 			    vdev_raidz_child_done, rc));
 		}
@@ -1536,7 +694,7 @@ vdev_raidz_io_start(zio_t *zio)
 		if (c >= rm->rm_firstdatacol || rm->rm_missingdata > 0 ||
 		    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))) {
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
-			    rc->rc_offset, rc->rc_data, rc->rc_size,
+			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
 			    vdev_raidz_child_done, rc));
 		}
@@ -1550,7 +708,7 @@ vdev_raidz_io_start(zio_t *zio)
  * Report a checksum error for a child of a RAID-Z device.
  */
 static void
-raidz_checksum_error(zio_t *zio, raidz_col_t *rc, void *bad_data)
+raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 {
 	vdev_t *vd = zio->io_vd->vdev_child[rc->rc_devidx];
 
@@ -1566,7 +724,7 @@ raidz_checksum_error(zio_t *zio, raidz_col_t *rc, void *bad_data)
 		zbc.zbc_injected = rm->rm_ecksuminjected;
 
 		zfs_ereport_post_checksum(zio->io_spa, vd, zio,
-		    rc->rc_offset, rc->rc_size, rc->rc_data, bad_data,
+		    rc->rc_offset, rc->rc_size, rc->rc_abd, bad_data,
 		    &zbc);
 	}
 }
@@ -1600,7 +758,7 @@ raidz_checksum_verify(zio_t *zio)
 static int
 raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 {
-	void *orig[VDEV_RAIDZ_MAXPARITY];
+	abd_t *orig[VDEV_RAIDZ_MAXPARITY];
 	int c, ret = 0;
 	raidz_col_t *rc;
 
@@ -1608,8 +766,9 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 		rc = &rm->rm_col[c];
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
-		orig[c] = zio_buf_alloc(rc->rc_size);
-		bcopy(rc->rc_data, orig[c], rc->rc_size);
+
+		orig[c] = abd_alloc_sametype(rc->rc_abd, rc->rc_size);
+		abd_copy(orig[c], rc->rc_abd, rc->rc_size);
 	}
 
 	vdev_raidz_generate_parity(rm);
@@ -1618,12 +777,12 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 		rc = &rm->rm_col[c];
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
-		if (bcmp(orig[c], rc->rc_data, rc->rc_size) != 0) {
+		if (abd_cmp(orig[c], rc->rc_abd) != 0) {
 			raidz_checksum_error(zio, rc, orig[c]);
 			rc->rc_error = SET_ERROR(ECKSUM);
 			ret++;
 		}
-		zio_buf_free(orig[c], rc->rc_size);
+		abd_free(orig[c]);
 	}
 
 	return (ret);
@@ -1653,7 +812,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 {
 	raidz_map_t *rm = zio->io_vsd;
 	raidz_col_t *rc;
-	void *orig[VDEV_RAIDZ_MAXPARITY];
+	abd_t *orig[VDEV_RAIDZ_MAXPARITY] = { NULL };
 	int tstore[VDEV_RAIDZ_MAXPARITY + 2];
 	int *tgts = &tstore[1];
 	int curr, next, i, c, n;
@@ -1702,7 +861,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 			ASSERT(orig[i] != NULL);
 		}
 
-		orig[n - 1] = zio_buf_alloc(rm->rm_col[0].rc_size);
+		orig[n - 1] = abd_alloc_for_io(rm->rm_col[0].rc_size, B_FALSE);
 
 		curr = 0;
 		next = tgts[curr];
@@ -1721,7 +880,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 				ASSERT3S(c, >=, 0);
 				ASSERT3S(c, <, rm->rm_cols);
 				rc = &rm->rm_col[c];
-				bcopy(rc->rc_data, orig[i], rc->rc_size);
+				abd_copy(orig[i], rc->rc_abd, rc->rc_size);
 			}
 
 			/*
@@ -1751,7 +910,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 			for (i = 0; i < n; i++) {
 				c = tgts[i];
 				rc = &rm->rm_col[c];
-				bcopy(orig[i], rc->rc_data, rc->rc_size);
+				abd_copy(rc->rc_abd, orig[i], rc->rc_size);
 			}
 
 			do {
@@ -1788,9 +947,8 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 	}
 	n--;
 done:
-	for (i = 0; i < n; i++) {
-		zio_buf_free(orig[i], rm->rm_col[0].rc_size);
-	}
+	for (i = 0; i < n; i++)
+		abd_free(orig[i]);
 
 	return (ret);
 }
@@ -1990,7 +1148,7 @@ vdev_raidz_io_done(zio_t *zio)
 				continue;
 			zio_nowait(zio_vdev_child_io(zio, NULL,
 			    vd->vdev_child[rc->rc_devidx],
-			    rc->rc_offset, rc->rc_data, rc->rc_size,
+			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
 			    vdev_raidz_child_done, rc));
 		} while (++c < rm->rm_cols);
@@ -2070,7 +1228,7 @@ done:
 				continue;
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
-			    rc->rc_offset, rc->rc_data, rc->rc_size,
+			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
 			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));

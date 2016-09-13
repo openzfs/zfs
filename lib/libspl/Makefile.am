@@ -29,6 +29,7 @@ USER_C = \
 	strnlen.c \
 	timestamp.c \
 	zone.c \
+	init.c \
 	include/sys/list.h \
 	include/sys/list_impl.h
 

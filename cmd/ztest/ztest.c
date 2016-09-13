@@ -114,6 +114,7 @@
 #include <sys/refcount.h>
 #include <sys/zfeature.h>
 #include <sys/dsl_userhold.h>
+#include <sys/abd.h>
 #include <stdio.h>
 #include <stdio_ext.h>
 #include <stdlib.h>
@@ -192,6 +193,8 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 extern uint64_t metaslab_gang_bang;
 extern uint64_t metaslab_df_alloc_threshold;
 extern int metaslab_preload_limit;
+extern boolean_t zfs_compressed_arc_enabled;
+extern int  zfs_abd_scatter_enabled;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
@@ -5441,7 +5444,7 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	enum zio_checksum checksum = spa_dedup_checksum(spa);
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
-	void *buf;
+	abd_t *abd;
 	blkptr_t blk;
 	int copies = 2 * ZIO_DEDUPDITTO_MIN;
 	int i;
@@ -5522,14 +5525,14 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	 * Damage the block.  Dedup-ditto will save us when we read it later.
 	 */
 	psize = BP_GET_PSIZE(&blk);
-	buf = zio_buf_alloc(psize);
-	ztest_pattern_set(buf, psize, ~pattern);
+	abd = abd_alloc_linear(psize, B_TRUE);
+	ztest_pattern_set(abd_to_buf(abd), psize, ~pattern);
 
 	(void) zio_wait(zio_rewrite(NULL, spa, 0, &blk,
-	    buf, psize, NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
+	    abd, psize, NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_INDUCE_DAMAGE, NULL));
 
-	zio_buf_free(buf, psize);
+	abd_free(abd);
 
 	(void) rw_unlock(&ztest_name_lock);
 	umem_free(od, sizeof (ztest_od_t));
@@ -5640,17 +5643,25 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 	while (gethrtime() <= end) {
 		int run_count = 100;
 		void *buf;
+		struct abd *abd_data, *abd_meta;
 		uint32_t size;
+
 		int *ptr;
 		int i;
 		zio_cksum_t zc_ref;
 		zio_cksum_t zc_ref_byteswap;
 
 		size = ztest_random_blocksize();
+
 		buf = umem_alloc(size, UMEM_NOFAIL);
+		abd_data = abd_alloc(size, B_FALSE);
+		abd_meta = abd_alloc(size, B_TRUE);
 
 		for (i = 0, ptr = buf; i < size / sizeof (*ptr); i++, ptr++)
 			*ptr = ztest_random(UINT_MAX);
+
+		abd_copy_from_buf_off(abd_data, buf, 0, size);
+		abd_copy_from_buf_off(abd_meta, buf, 0, size);
 
 		VERIFY0(fletcher_4_impl_set("scalar"));
 		fletcher_4_native(buf, size, &zc_ref);
@@ -5667,9 +5678,30 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
 			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
 			    sizeof (zc_byteswap)));
+
+			/* Test ABD - data */
+
+			abd_fletcher_4_byteswap(abd_data, size, &zc_byteswap);
+			abd_fletcher_4_native(abd_data, size, &zc);
+
+			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
+			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
+			    sizeof (zc_byteswap)));
+
+			/* Test ABD - metadata */
+
+			abd_fletcher_4_byteswap(abd_meta, size, &zc_byteswap);
+			abd_fletcher_4_native(abd_meta, size, &zc);
+
+			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
+			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
+			    sizeof (zc_byteswap)));
+
 		}
 
 		umem_free(buf, size);
+		abd_free(abd_data);
+		abd_free(abd_meta);
 	}
 }
 
@@ -5880,6 +5912,18 @@ ztest_resume_thread(void *arg)
 		if (spa_suspended(spa))
 			ztest_resume(spa);
 		(void) poll(NULL, 0, 100);
+
+		/*
+		 * Periodically change the zfs_compressed_arc_enabled setting.
+		 */
+		if (ztest_random(10) == 0)
+			zfs_compressed_arc_enabled = ztest_random(2);
+
+		/*
+		 * Periodically change the zfs_abd_scatter_enabled setting.
+		 */
+		if (ztest_random(10) == 0)
+			zfs_abd_scatter_enabled = ztest_random(2);
 	}
 
 	thread_exit();
