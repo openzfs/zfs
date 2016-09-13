@@ -474,6 +474,7 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 		if (tgt == NULL) {
 			(void) fprintf(stderr, "cannot find device '%s' in "
 			    "pool '%s'\n", device, pool);
+			zpool_close(zhp);
 			return (-1);
 		}
 
@@ -515,5 +516,6 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 		record->zi_end = record->zi_start + VDEV_PAD_SIZE - 1;
 		break;
 	}
+	zpool_close(zhp);
 	return (0);
 }

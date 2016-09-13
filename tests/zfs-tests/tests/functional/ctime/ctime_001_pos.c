@@ -110,6 +110,7 @@ do_read(const char *pfile)
 	if (read(fd, buf, sizeof (buf)) == -1) {
 		(void) fprintf(stderr, "read(%d, buf, %zd) failed with errno "
 		    "%d\n", fd, sizeof (buf), errno);
+		(void) close(fd);
 		return (1);
 	}
 	(void) close(fd);
@@ -133,6 +134,7 @@ do_write(const char *pfile)
 	if (write(fd, buf, strlen(buf)) == -1) {
 		(void) fprintf(stderr, "write(%d, buf, %d) failed with errno "
 		    "%d\n", fd, (int)strlen(buf), errno);
+		(void) close(fd);
 		return (1);
 	}
 	(void) close(fd);

@@ -758,7 +758,7 @@ zpool_do_remove(int argc, char **argv)
 {
 	char *poolname;
 	int i, ret = 0;
-	zpool_handle_t *zhp;
+	zpool_handle_t *zhp = NULL;
 
 	argc--;
 	argv++;
@@ -782,6 +782,7 @@ zpool_do_remove(int argc, char **argv)
 		if (zpool_vdev_remove(zhp, argv[i]) != 0)
 			ret = 1;
 	}
+	zpool_close(zhp);
 
 	return (ret);
 }
