@@ -98,26 +98,6 @@ enum zio_checksum {
 #define	ZIO_DEDUPCHECKSUM	ZIO_CHECKSUM_SHA256
 #define	ZIO_DEDUPDITTO_MIN	100
 
-enum zio_compress {
-	ZIO_COMPRESS_INHERIT = 0,
-	ZIO_COMPRESS_ON,
-	ZIO_COMPRESS_OFF,
-	ZIO_COMPRESS_LZJB,
-	ZIO_COMPRESS_EMPTY,
-	ZIO_COMPRESS_GZIP_1,
-	ZIO_COMPRESS_GZIP_2,
-	ZIO_COMPRESS_GZIP_3,
-	ZIO_COMPRESS_GZIP_4,
-	ZIO_COMPRESS_GZIP_5,
-	ZIO_COMPRESS_GZIP_6,
-	ZIO_COMPRESS_GZIP_7,
-	ZIO_COMPRESS_GZIP_8,
-	ZIO_COMPRESS_GZIP_9,
-	ZIO_COMPRESS_ZLE,
-	ZIO_COMPRESS_LZ4,
-	ZIO_COMPRESS_FUNCTIONS
-};
-
 /*
  * The number of "legacy" compression functions which can be set on individual
  * objects.
@@ -407,6 +387,8 @@ struct zio {
 	void		*io_private;
 	int64_t		io_prev_space_delta;	/* DMU private */
 	blkptr_t	io_bp_orig;
+	/* io_lsize != io_orig_size iff this is a raw write */
+	uint64_t	io_lsize;
 
 	/* Data represented by this I/O */
 	void		*io_data;
@@ -464,11 +446,11 @@ extern zio_t *zio_root(spa_t *spa,
     zio_done_func_t *done, void *private, enum zio_flag flags);
 
 extern zio_t *zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, void *data,
-    uint64_t size, zio_done_func_t *done, void *private,
+    uint64_t lsize, zio_done_func_t *done, void *private,
     zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb);
 
 extern zio_t *zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
-    void *data, uint64_t size, const zio_prop_t *zp,
+    void *data, uint64_t size, uint64_t psize, const zio_prop_t *zp,
     zio_done_func_t *ready, zio_done_func_t *children_ready,
     zio_done_func_t *physdone, zio_done_func_t *done,
     void *private, zio_priority_t priority, enum zio_flag flags,
@@ -526,6 +508,10 @@ extern void zio_buf_free(void *buf, size_t size);
 extern void *zio_data_buf_alloc(size_t size);
 extern void zio_data_buf_free(void *buf, size_t size);
 extern void *zio_buf_alloc_flags(size_t size, int flags);
+
+extern void zio_push_transform(zio_t *zio, void *data, uint64_t size,
+    uint64_t bufsize, zio_transform_func_t *transform);
+extern void zio_pop_transforms(zio_t *zio);
 
 extern void zio_resubmit_stage_async(void *);
 

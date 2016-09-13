@@ -1039,7 +1039,7 @@ dmu_xuio_add(xuio_t *xuio, arc_buf_t *abuf, offset_t off, size_t n)
 	int i = priv->next++;
 
 	ASSERT(i < priv->cnt);
-	ASSERT(off + n <= arc_buf_size(abuf));
+	ASSERT(off + n <= arc_buf_lsize(abuf));
 	iov = (iovec_t *)uio->uio_iov + i;
 	iov->iov_base = (char *)abuf->b_data + off;
 	iov->iov_len = n;
@@ -1327,7 +1327,7 @@ dmu_request_arcbuf(dmu_buf_t *handle, int size)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
 
-	return (arc_loan_buf(db->db_objset->os_spa, size));
+	return (arc_loan_buf(db->db_objset->os_spa, B_FALSE, size));
 }
 
 /*
@@ -1337,7 +1337,7 @@ void
 dmu_return_arcbuf(arc_buf_t *buf)
 {
 	arc_return_buf(buf, FTAG);
-	VERIFY(arc_buf_remove_ref(buf, FTAG));
+	arc_buf_destroy(buf, FTAG);
 }
 
 /*
@@ -1352,7 +1352,7 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
 	dnode_t *dn;
 	dmu_buf_impl_t *db;
-	uint32_t blksz = (uint32_t)arc_buf_size(buf);
+	uint32_t blksz = (uint32_t)arc_buf_lsize(buf);
 	uint64_t blkid;
 
 	DB_DNODE_ENTER(dbuf);
@@ -1365,17 +1365,18 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 
 	/*
 	 * We can only assign if the offset is aligned, the arc buf is the
-	 * same size as the dbuf, and the dbuf is not metadata.  It
-	 * can't be metadata because the loaned arc buf comes from the
-	 * user-data kmem area.
+	 * same size as the dbuf, and the dbuf is not metadata.
 	 */
-	if (offset == db->db.db_offset && blksz == db->db.db_size &&
-	    DBUF_GET_BUFC_TYPE(db) == ARC_BUFC_DATA) {
+	if (offset == db->db.db_offset && blksz == db->db.db_size) {
 		dbuf_assign_arcbuf(db, buf, tx);
 		dbuf_rele(db, FTAG);
 	} else {
 		objset_t *os;
 		uint64_t object;
+
+		/* compressed bufs must always be assignable to their dbuf */
+		ASSERT3U(arc_get_compression(buf), ==, ZIO_COMPRESS_OFF);
+		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
 
 		DB_DNODE_ENTER(dbuf);
 		dn = DB_DNODE(dbuf);
@@ -1527,7 +1528,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 
 	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx),
 	    zgd->zgd_bp, zgd->zgd_db->db_data, zgd->zgd_db->db_size,
-	    zp, dmu_sync_late_arrival_ready, NULL,
+	    zgd->zgd_db->db_size, zp, dmu_sync_late_arrival_ready, NULL,
 	    NULL, dmu_sync_late_arrival_done, dsa, ZIO_PRIORITY_SYNC_WRITE,
 	    ZIO_FLAG_CANFAIL, zb));
 
@@ -1580,7 +1581,8 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	dmu_write_policy(os, dn, db->db_level, WP_DMU_SYNC, &zp);
+	dmu_write_policy(os, dn, db->db_level, WP_DMU_SYNC,
+	    ZIO_COMPRESS_INHERIT, &zp);
 	DB_DNODE_EXIT(db);
 
 	/*
@@ -1681,8 +1683,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 
 	zio_nowait(arc_write(pio, os->os_spa, txg,
 	    bp, dr->dt.dl.dr_data, DBUF_IS_L2CACHEABLE(db),
-	    DBUF_IS_L2COMPRESSIBLE(db), &zp, dmu_sync_ready,
-	    NULL, NULL, dmu_sync_done, dsa,
+	    &zp, dmu_sync_ready, NULL, NULL, dmu_sync_done, dsa,
 	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, &zb));
 
 	return (0);
@@ -1751,7 +1752,8 @@ int zfs_mdcomp_disable = 0;
 int zfs_redundant_metadata_most_ditto_level = 2;
 
 void
-dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
+dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
+    enum zio_compress override_compress, zio_prop_t *zp)
 {
 	dmu_object_type_t type = dn ? dn->dn_type : DMU_OT_OBJSET;
 	boolean_t ismd = (level > 0 || DMU_OT_IS_METADATA(type) ||
@@ -1845,7 +1847,16 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	}
 
 	zp->zp_checksum = checksum;
-	zp->zp_compress = compress;
+
+	/*
+	 * If we're writing a pre-compressed buffer, the compression type we use
+	 * must match the data. If it hasn't been compressed yet, then we should
+	 * use the value dictated by the policies above.
+	 */
+	zp->zp_compress = override_compress != ZIO_COMPRESS_INHERIT
+	    ? override_compress : compress;
+	ASSERT3U(zp->zp_compress, !=, ZIO_COMPRESS_INHERIT);
+
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;
 	zp->zp_level = level;
 	zp->zp_copies = MIN(copies, spa_max_replication(os->os_spa));
@@ -2040,11 +2051,11 @@ dmu_init(void)
 	xuio_stat_init();
 	dmu_objset_init();
 	dnode_init();
-	dbuf_init();
 	zfetch_init();
 	dmu_tx_init();
 	l2arc_init();
 	arc_init();
+	dbuf_init();
 }
 
 void

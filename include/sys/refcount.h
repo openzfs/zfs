@@ -70,6 +70,7 @@ int64_t refcount_remove(refcount_t *rc, void *holder_tag);
 int64_t refcount_add_many(refcount_t *rc, uint64_t number, void *holder_tag);
 int64_t refcount_remove_many(refcount_t *rc, uint64_t number, void *holder_tag);
 void refcount_transfer(refcount_t *dst, refcount_t *src);
+void refcount_transfer_ownership(refcount_t *, void *, void *);
 
 void refcount_init(void);
 void refcount_fini(void);
@@ -97,6 +98,7 @@ typedef struct refcount {
 	atomic_add_64(&(src)->rc_count, -__tmp); \
 	atomic_add_64(&(dst)->rc_count, __tmp); \
 }
+#define	refcount_transfer_ownership(rc, current_holder, new_holder)	(void)0
 
 #define	refcount_init()
 #define	refcount_fini()

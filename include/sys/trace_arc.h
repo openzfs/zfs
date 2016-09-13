@@ -50,9 +50,10 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	    __array(uint64_t,		hdr_dva_word, 2)
 	    __field(uint64_t,		hdr_birth)
 	    __field(uint32_t,		hdr_flags)
-	    __field(uint32_t,		hdr_datacnt)
+	    __field(uint32_t,		hdr_bufcnt)
 	    __field(arc_buf_contents_t,	hdr_type)
-	    __field(uint64_t,		hdr_size)
+	    __field(uint16_t,		hdr_psize)
+	    __field(uint16_t,		hdr_lsize)
 	    __field(uint64_t,		hdr_spa)
 	    __field(arc_state_type_t,	hdr_state_type)
 	    __field(clock_t,		hdr_access)
@@ -68,8 +69,9 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	    __entry->hdr_dva_word[1]	= ab->b_dva.dva_word[1];
 	    __entry->hdr_birth		= ab->b_birth;
 	    __entry->hdr_flags		= ab->b_flags;
-	    __entry->hdr_datacnt	= ab->b_l1hdr.b_datacnt;
-	    __entry->hdr_size		= ab->b_size;
+	    __entry->hdr_bufcnt	= ab->b_l1hdr.b_bufcnt;
+	    __entry->hdr_psize		= ab->b_psize;
+	    __entry->hdr_lsize		= ab->b_lsize;
 	    __entry->hdr_spa		= ab->b_spa;
 	    __entry->hdr_state_type	= ab->b_l1hdr.b_state->arcs_state;
 	    __entry->hdr_access		= ab->b_l1hdr.b_arc_access;
@@ -81,13 +83,13 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	    __entry->hdr_refcount	= ab->b_l1hdr.b_refcnt.rc_count;
 	),
 	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu "
-	    "flags 0x%x datacnt %u type %u size %llu spa %llu "
+	    "flags 0x%x bufcnt %u type %u psize %u lsize %u spa %llu "
 	    "state_type %u access %lu mru_hits %u mru_ghost_hits %u "
 	    "mfu_hits %u mfu_ghost_hits %u l2_hits %u refcount %lli }",
 	    __entry->hdr_dva_word[0], __entry->hdr_dva_word[1],
 	    __entry->hdr_birth, __entry->hdr_flags,
-	    __entry->hdr_datacnt, __entry->hdr_type, __entry->hdr_size,
-	    __entry->hdr_spa, __entry->hdr_state_type,
+	    __entry->hdr_bufcnt, __entry->hdr_type, __entry->hdr_psize,
+	    __entry->hdr_lsize, __entry->hdr_spa, __entry->hdr_state_type,
 	    __entry->hdr_access, __entry->hdr_mru_hits,
 	    __entry->hdr_mru_ghost_hits, __entry->hdr_mfu_hits,
 	    __entry->hdr_mfu_ghost_hits, __entry->hdr_l2_hits,
@@ -185,9 +187,10 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    __array(uint64_t,		hdr_dva_word, 2)
 	    __field(uint64_t,		hdr_birth)
 	    __field(uint32_t,		hdr_flags)
-	    __field(uint32_t,		hdr_datacnt)
+	    __field(uint32_t,		hdr_bufcnt)
 	    __field(arc_buf_contents_t,	hdr_type)
-	    __field(uint64_t,		hdr_size)
+	    __field(uint16_t,		hdr_psize)
+	    __field(uint16_t,		hdr_lsize)
 	    __field(uint64_t,		hdr_spa)
 	    __field(arc_state_type_t,	hdr_state_type)
 	    __field(clock_t,		hdr_access)
@@ -215,8 +218,9 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    __entry->hdr_dva_word[1]	= hdr->b_dva.dva_word[1];
 	    __entry->hdr_birth		= hdr->b_birth;
 	    __entry->hdr_flags		= hdr->b_flags;
-	    __entry->hdr_datacnt	= hdr->b_l1hdr.b_datacnt;
-	    __entry->hdr_size		= hdr->b_size;
+	    __entry->hdr_bufcnt		= hdr->b_l1hdr.b_bufcnt;
+	    __entry->hdr_psize		= hdr->b_psize;
+	    __entry->hdr_lsize		= hdr->b_lsize;
 	    __entry->hdr_spa		= hdr->b_spa;
 	    __entry->hdr_state_type	= hdr->b_l1hdr.b_state->arcs_state;
 	    __entry->hdr_access		= hdr->b_l1hdr.b_arc_access;
@@ -246,7 +250,7 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    __entry->zb_blkid		= zb->zb_blkid;
 	),
 	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu "
-	    "flags 0x%x datacnt %u size %llu spa %llu state_type %u "
+	    "flags 0x%x bufcnt %u psize %u lsize %u spa %llu state_type %u "
 	    "access %lu mru_hits %u mru_ghost_hits %u mfu_hits %u "
 	    "mfu_ghost_hits %u l2_hits %u refcount %lli } "
 	    "bp { dva0 0x%llx:0x%llx dva1 0x%llx:0x%llx dva2 "
@@ -255,7 +259,7 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    "blkid %llu }",
 	    __entry->hdr_dva_word[0], __entry->hdr_dva_word[1],
 	    __entry->hdr_birth, __entry->hdr_flags,
-	    __entry->hdr_datacnt, __entry->hdr_size,
+	    __entry->hdr_bufcnt, __entry->hdr_psize, __entry->hdr_lsize,
 	    __entry->hdr_spa, __entry->hdr_state_type, __entry->hdr_access,
 	    __entry->hdr_mru_hits, __entry->hdr_mru_ghost_hits,
 	    __entry->hdr_mfu_hits, __entry->hdr_mfu_ghost_hits,

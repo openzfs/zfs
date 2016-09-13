@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
 #include <sys/spa_checksum.h>
+#include <sys/dmu.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -134,6 +135,8 @@ _NOTE(CONSTCOND) } while (0)
 #define	SPA_LSIZEBITS		16	/* LSIZE up to 32M (2^16 * 512)	*/
 #define	SPA_PSIZEBITS		16	/* PSIZE up to 32M (2^16 * 512)	*/
 #define	SPA_ASIZEBITS		24	/* ASIZE up to 64 times larger	*/
+
+#define	SPA_COMPRESSBITS	7
 
 /*
  * All SPA data is represented by 128-bit data virtual addresses (DVAs).
@@ -363,8 +366,10 @@ _NOTE(CONSTCOND) } while (0)
 	    16, SPA_PSIZEBITS, SPA_MINBLOCKSHIFT, 1, x); \
 _NOTE(CONSTCOND) } while (0)
 
-#define	BP_GET_COMPRESS(bp)		BF64_GET((bp)->blk_prop, 32, 7)
-#define	BP_SET_COMPRESS(bp, x)		BF64_SET((bp)->blk_prop, 32, 7, x)
+#define	BP_GET_COMPRESS(bp)		\
+	BF64_GET((bp)->blk_prop, 32, SPA_COMPRESSBITS)
+#define	BP_SET_COMPRESS(bp, x)		\
+	BF64_SET((bp)->blk_prop, 32, SPA_COMPRESSBITS, x)
 
 #define	BP_IS_EMBEDDED(bp)		BF64_GET((bp)->blk_prop, 39, 1)
 #define	BP_SET_EMBEDDED(bp, x)		BF64_SET((bp)->blk_prop, 39, 1, x)
@@ -553,8 +558,6 @@ _NOTE(CONSTCOND) } while (0)
 	}								\
 	ASSERT(len < size);						\
 }
-
-#include <sys/dmu.h>
 
 #define	BP_GET_BUFC_TYPE(bp)						\
 	(((BP_GET_LEVEL(bp) > 0) || (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))) ? \
