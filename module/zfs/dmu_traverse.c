@@ -39,7 +39,7 @@
 #include <sys/zfeature.h>
 
 int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
-int32_t ignore_hole_birth = 0;
+int32_t ignore_hole_birth = 1;
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;
