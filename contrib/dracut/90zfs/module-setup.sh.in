@@ -38,11 +38,17 @@ install() {
 	dracut_install grep
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
-	# Include libgcc_s.so.1 to workaround zfsonlinux/zfs#4749
-	if type gcc-config 2>&1 1>/dev/null; then
+	# Workaround for zfsonlinux/zfs#4749 by ensuring libgcc_s.so(.1) is included
+	if [[ -n "$(ldd @sbindir@/zpool | grep -F 'libgcc_s.so')" ]]; then
+		# Dracut will have already tracked and included it
+		:;
+	elif command -v gcc-config 2>&1 1>/dev/null; then
+		# On systems with gcc-config (Gentoo, Funtoo, etc.):
+		# Use the current profile to resolve the appropriate path
 		dracut_install "/usr/lib/gcc/$(s=$(gcc-config -c); echo ${s%-*}/${s##*-})/libgcc_s.so.1"
 	else
-		dracut_install /usr/lib/gcc/*/*/libgcc_s.so.1
+		# Fallback: Guess the path and include all matches
+		dracut_install /usr/lib/gcc/*/*/libgcc_s.so*
 	fi
 	dracut_install @sbindir@/mount.zfs
 	dracut_install @udevdir@/vdev_id
