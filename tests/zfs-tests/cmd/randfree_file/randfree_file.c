@@ -98,11 +98,18 @@ main(int argc, char *argv[])
 
 	free(buf);
 
+#if defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)
 	if (fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
 	    start_off, off_len) < 0) {
 		perror("fallocate");
 		return (1);
 	}
+#else /* !(defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)) */
+	{
+		perror("FALLOC_FL_PUNCH_HOLE unsupported");
+		return (1);
+	}
+#endif /* defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE) */
 
 	return (0);
 }
