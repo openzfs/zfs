@@ -932,6 +932,8 @@ unsigned long l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
 int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
 int l2arc_feed_again = B_TRUE;			/* turbo warmup */
 int l2arc_norw = B_FALSE;			/* no reads during writes */
+boolean_t arc_evict_l2_first = B_FALSE;		/* first evict buffers from ARC which are in L2ARC */
+boolean_t arc_evict_l2_only = B_FALSE;		/* only evict buffers from ARC which are in L2ARC */
 
 /*
  * L2ARC Internals
@@ -3173,7 +3175,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	for (hdr = multilist_sublist_prev(mls, marker); hdr != NULL;
 	    hdr = multilist_sublist_prev(mls, marker)) {
 		if ((bytes != ARC_EVICT_ALL && bytes_evicted >= bytes) ||
-		    (evict_count >= zfs_arc_evict_batch_limit))
+		    (evict_count >= zfs_arc_evict_batch_limit && marker->b_lsize != 1))
 			break;
 
 		/*
@@ -3221,7 +3223,9 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 		ASSERT(!MUTEX_HELD(hash_lock));
 
 		if (mutex_tryenter(hash_lock)) {
-			uint64_t evicted = arc_evict_hdr(hdr, hash_lock);
+			uint64_t evicted = 0;
+			if (bytes == ARC_EVICT_ALL || marker->b_lsize == 2 || HDR_HAS_L2HDR(hdr) || (HDR_PREFETCH(hdr) && l2arc_noprefetch))
+				evicted = arc_evict_hdr(hdr, hash_lock);
 			mutex_exit(hash_lock);
 
 			bytes_evicted += evicted;
@@ -3287,11 +3291,20 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	multilist_t *ml = &state->arcs_list[type];
 	int num_sublists;
 	arc_buf_hdr_t **markers;
-	int i;
+	int l, i;
 
 	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
 	num_sublists = multilist_get_num_sublists(ml);
+
+	/*
+	* Do the job for each type of headers (see b_lsize note below)
+	*/
+	for (l = 0; l < 3 && (total_evicted < bytes || bytes == ARC_EVICT_ALL); l++) {
+		if(l < 2 && !arc_evict_l2_first && !arc_evict_l2_only)
+			continue;
+		if(l == 2 && arc_evict_l2_only && total_evicted > 0 && bytes != ARC_EVICT_ALL)
+			continue;
 
 	/*
 	 * If we've tried to evict from each sublist, made some
@@ -3310,8 +3323,14 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		 * A b_spa of 0 is used to indicate that this header is
 		 * a marker. This fact is used in arc_adjust_type() and
 		 * arc_evict_state_impl().
+		 * A b_lsize of 0 is used to indicate that we first only
+		 * evict headers which have L2 headers.
+		 * A b_lsize of 1 does the same but tries to find more
+		 * such headers ignoring zfs_arc_evict_batch_limit.
+		 * A b_lsize of 2 catches both L1 & L2 headers (default).
 		 */
 		markers[i]->b_spa = 0;
+		markers[i]->b_lsize = l;
 
 		mls = multilist_sublist_lock(ml, i);
 		multilist_sublist_insert_tail(mls, markers[i]);
@@ -3396,6 +3415,8 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		kmem_cache_free(hdr_full_cache, markers[i]);
 	}
 	kmem_free(markers, sizeof (*markers) * num_sublists);
+
+	}
 
 	return (total_evicted);
 }
@@ -7169,7 +7190,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				continue;
 			}
 
-			passed_sz += HDR_GET_LSIZE(hdr);
+			passed_sz += arc_hdr_size(hdr);
 			if (passed_sz > headroom) {
 				/*
 				 * Searched too far.
@@ -7183,7 +7204,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				continue;
 			}
 
-			if ((write_asize + HDR_GET_LSIZE(hdr)) > target_sz) {
+			if ((write_asize + arc_hdr_size(hdr)) > target_sz) {
 				full = B_TRUE;
 				mutex_exit(hash_lock);
 				break;
