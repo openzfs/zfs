@@ -62,6 +62,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	/* Rotational optimizations only make sense on block devices */
 	vd->vdev_nonrot = B_TRUE;
+	vd->vdev_nonrot_mix = B_FALSE;
 
 	/*
 	 * We must have a pathname, and it must be absolute.
