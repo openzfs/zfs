@@ -2928,6 +2928,17 @@ vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			    &vd->vdev_queue.vq_class[t].vqc_queued_tree);
 		}
 	}
+	if (vsx) {
+		if (vd->vdev_nonrot) {
+			if (vd->vdev_ops == &vdev_file_ops)
+				vsx->vsx_media_type = VDEV_MEDIA_TYPE_FILE;
+			else
+				vsx->vsx_media_type = VDEV_MEDIA_TYPE_SSD;
+		} else if (vd->vdev_nonrot_mix)
+			vsx->vsx_media_type = VDEV_MEDIA_TYPE_MIXED;
+		else
+			vsx->vsx_media_type = VDEV_MEDIA_TYPE_HDD;
+	}
 }
 
 void
