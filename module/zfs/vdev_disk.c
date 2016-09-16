@@ -321,6 +321,7 @@ skip_open:
 
 	/* Inform the ZIO pipeline that we are non-rotational */
 	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(vd->vd_bdev));
+	v->vdev_nonrot_mix = B_FALSE;
 
 	/* Physical volume size in bytes */
 	*psize = bdev_capacity(vd->vd_bdev);

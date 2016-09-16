@@ -159,6 +159,7 @@ struct vdev {
 	boolean_t	vdev_expanding;	/* expand the vdev?		*/
 	boolean_t	vdev_reopening;	/* reopen in progress?		*/
 	boolean_t	vdev_nonrot;	/* true if solid state		*/
+	boolean_t	vdev_nonrot_mix; /* true if partial solid state	*/
 	int		vdev_open_error; /* error on last open		*/
 	kthread_t	*vdev_open_thread; /* thread opening children	*/
 	uint64_t	vdev_crtxg;	/* txg when top-level was added */
