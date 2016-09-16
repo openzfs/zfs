@@ -428,6 +428,9 @@ tests = ['history_001_pos', 'history_002_pos', 'history_003_pos',
     'history_007_pos', 'history_008_pos', 'history_009_pos',
     'history_010_pos']
 
+[tests/functional/hole_birth]
+tests = ['hole_birth_001_pos', 'hole_birth_002_pos', 'hole_birth_003_pos']
+
 [tests/functional/inheritance]
 tests = ['inherit_001_pos']
 pre =
