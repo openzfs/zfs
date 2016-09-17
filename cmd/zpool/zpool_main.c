@@ -7440,7 +7440,7 @@ main(int argc, char **argv)
 		 */
 		char buf[16384];
 		int fd = open(ZFS_DEV, O_RDWR);
-		(void) strcpy((void *)buf, argv[2]);
+		(void) strlcpy((void *)buf, argv[2], sizeof (buf));
 		return (!!ioctl(fd, ZFS_IOC_POOL_FREEZE, buf));
 	} else {
 		(void) fprintf(stderr, gettext("unrecognized "
