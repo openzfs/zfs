@@ -3520,8 +3520,8 @@ arc_adjust_impl(arc_state_t *state, uint64_t spa, int64_t bytes,
 static uint64_t
 arc_adjust_meta_balanced(void)
 {
-	int64_t delta, prune = 0;
-	uint64_t adjustmnt, total_evicted = 0;
+	int64_t delta, prune = 0, adjustmnt;
+	uint64_t total_evicted = 0;
 	arc_buf_contents_t type = ARC_BUFC_DATA;
 	int restarts = MAX(zfs_arc_meta_adjust_restarts, 0);
 
