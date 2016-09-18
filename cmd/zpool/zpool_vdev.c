@@ -1199,7 +1199,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * window between when udev deletes and recreates the link
 		 * during which access attempts will fail with ENOENT.
 		 */
-		strncpy(udevpath, path, MAXPATHLEN);
+		strlcpy(udevpath, path, MAXPATHLEN);
 		(void) zfs_append_partition(udevpath, MAXPATHLEN);
 
 		fd = open(devpath, O_RDWR|O_EXCL);
