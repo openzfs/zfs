@@ -1470,8 +1470,10 @@ top:
 		if (S_ISREG(ZTOI(zp)->i_mode) &&
 		    (vap->va_mask & ATTR_SIZE) && (vap->va_size == 0)) {
 			/* we can't hold any locks when calling zfs_freesp() */
-			zfs_dirent_unlock(dl);
-			dl = NULL;
+			if (dl) {
+				zfs_dirent_unlock(dl);
+				dl = NULL;
+			}
 			error = zfs_freesp(zp, 0, 0, mode, TRUE);
 		}
 	}
