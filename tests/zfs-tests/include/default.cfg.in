@@ -47,8 +47,8 @@ export RAIDZ_TEST=${RAIDZ_TEST:-${bindir}/raidz_test}
 . $STF_SUITE/include/libtest.shlib
 
 # Optionally override the installed ZFS commands to run in-tree
-if [[ -f "$STF_SUITE/include/zfs_commands.cfg" ]]; then
-	. $STF_SUITE/include/zfs_commands.cfg
+if [[ -f "$SRCDIR/zfs-script-config.sh" ]]; then
+	. $SRCDIR/zfs-script-config.sh
 fi
 
 # Define run length constants
