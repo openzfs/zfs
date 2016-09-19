@@ -659,7 +659,9 @@ kcf_remove_mech_provider(char *mech_name, kcf_provider_desc_t *prov_desc)
 		mech_entry->me_sw_prov = NULL;
 		break;
 	default:
-		break;
+		/* unexpected crypto_provider_type_t */
+		mutex_exit(&mech_entry->me_mutex);
+		return;
 	}
 
 	mutex_exit(&mech_entry->me_mutex);
