@@ -101,9 +101,13 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 		struct dentry *new_dentry;
 		struct qstr ci_name;
 
-		ci_name.name = pn.pn_buf;
-		ci_name.len = strlen(pn.pn_buf);
-		new_dentry = d_add_ci(dentry, ip, &ci_name);
+		if (strcmp(dname(dentry), pn.pn_buf) == 0) {
+			new_dentry = d_splice_alias(ip,  dentry);
+		} else {
+			ci_name.name = pn.pn_buf;
+			ci_name.len = strlen(pn.pn_buf);
+			new_dentry = d_add_ci(dentry, ip, &ci_name);
+		}
 		pn_free(ppn);
 		return (new_dentry);
 	} else {
