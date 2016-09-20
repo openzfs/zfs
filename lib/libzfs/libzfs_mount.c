@@ -347,8 +347,8 @@ zfs_add_option(zfs_handle_t *zhp, char *options, int len,
 		return (0);
 
 	/*
-	 * zfs_prop_get_int() to not used to ensure our mount options
-	 * are not influenced by the current /etc/mtab contents.
+	 * zfs_prop_get_int() is not used to ensure our mount options
+	 * are not influenced by the current /proc/self/mounts contents.
 	 */
 	value = getprop_uint64(zhp, prop, &source);
 
@@ -1184,8 +1184,8 @@ mountpoint_compare(const void *a, const void *b)
  * Unshare and unmount all datasets within the given pool.  We don't want to
  * rely on traversing the DSL to discover the filesystems within the pool,
  * because this may be expensive (if not all of them are mounted), and can fail
- * arbitrarily (on I/O error, for example).  Instead, we walk /etc/mtab and
- * gather all the filesystems that are currently mounted.
+ * arbitrarily (on I/O error, for example).  Instead, we walk /proc/self/mounts
+ * and gather all the filesystems that are currently mounted.
  */
 int
 zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)

@@ -185,7 +185,11 @@ CHECKSUM_BEFORE=$(sha256sum -b "$PAYLOAD")
 #
 # TX_WRITE (small file with ordering)
 #
-cp /etc/mtab $ROOT/small_file
+if is_linux; then
+	cp /proc/self/mounts $ROOT/small_file
+else
+	cp /etc/mtab $ROOT/small_file
+fi
 cp /etc/profile $ROOT/small_file
 
 #
