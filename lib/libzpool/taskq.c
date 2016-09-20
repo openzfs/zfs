@@ -268,7 +268,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	cv_init(&tq->tq_dispatch_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&tq->tq_wait_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&tq->tq_maxalloc_cv, NULL, CV_DEFAULT, NULL);
-	(void) strncpy(tq->tq_name, name, TASKQ_NAMELEN + 1);
+	(void) strncpy(tq->tq_name, name, TASKQ_NAMELEN);
 	tq->tq_flags = flags | TASKQ_ACTIVE;
 	tq->tq_active = nthreads;
 	tq->tq_nthreads = nthreads;
