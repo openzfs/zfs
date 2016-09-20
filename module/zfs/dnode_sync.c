@@ -230,9 +230,24 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 }
 #endif
 
+/*
+ * We don't usually free the indirect blocks here.  If in one txg we have a
+ * free_range and a write to the same indirect block, it's important that we
+ * preserve the hole's birth times. Therefore, we don't free any any indirect
+ * blocks in free_children().  If an indirect block happens to turn into all
+ * holes, it will be freed by dbuf_write_children_ready, which happens at a
+ * point in the syncing process where we know for certain the contents of the
+ * indirect block.
+ *
+ * However, if we're freeing a dnode, its space accounting must go to zero
+ * before we actually try to free the dnode, or we will trip an assertion. In
+ * addition, we know the case described above cannot occur, because the dnode is
+ * being freed.  Therefore, we free the indirect blocks immediately in that
+ * case.
+ */
 static void
 free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
-    dmu_tx_t *tx)
+    boolean_t free_indirects, dmu_tx_t *tx)
 {
 	dnode_t *dn;
 	blkptr_t *bp;
@@ -284,32 +299,16 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 			rw_exit(&dn->dn_struct_rwlock);
 			ASSERT3P(bp, ==, subdb->db_blkptr);
 
-			free_children(subdb, blkid, nblks, tx);
+			free_children(subdb, blkid, nblks, free_indirects, tx);
 			dbuf_rele(subdb, FTAG);
 		}
 	}
 
-	/* If this whole block is free, free ourself too. */
-	for (i = 0, bp = db->db.db_data; i < 1ULL << epbs; i++, bp++) {
-		if (!BP_IS_HOLE(bp))
-			break;
-	}
-	if (i == 1 << epbs) {
-		/*
-		 * We only found holes. Grab the rwlock to prevent
-		 * anybody from reading the blocks we're about to
-		 * zero out.
-		 */
-		rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+	if (free_indirects) {
+		for (i = 0, bp = db->db.db_data; i < 1 << epbs; i++, bp++)
+			ASSERT(BP_IS_HOLE(bp));
 		bzero(db->db.db_data, db->db.db_size);
-		rw_exit(&dn->dn_struct_rwlock);
 		free_blocks(dn, db->db_blkptr, 1, tx);
-	} else {
-		/*
-		 * Partial block free; must be marked dirty so that it
-		 * will be written out.
-		 */
-		ASSERT(db->db_dirtycnt > 0);
 	}
 
 	DB_DNODE_EXIT(db);
@@ -322,7 +321,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
  */
 static void
 dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
-    dmu_tx_t *tx)
+    boolean_t free_indirects, dmu_tx_t *tx)
 {
 	blkptr_t *bp = dn->dn_phys->dn_blkptr;
 	int dnlevel = dn->dn_phys->dn_nlevels;
@@ -362,7 +361,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 			    TRUE, FALSE, FTAG, &db));
 			rw_exit(&dn->dn_struct_rwlock);
 
-			free_children(db, blkid, nblks, tx);
+			free_children(db, blkid, nblks, free_indirects, tx);
 			dbuf_rele(db, FTAG);
 		}
 	}
@@ -387,6 +386,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 typedef struct dnode_sync_free_range_arg {
 	dnode_t *dsfra_dnode;
 	dmu_tx_t *dsfra_tx;
+	boolean_t dsfra_free_indirects;
 } dnode_sync_free_range_arg_t;
 
 static void
@@ -396,7 +396,8 @@ dnode_sync_free_range(void *arg, uint64_t blkid, uint64_t nblks)
 	dnode_t *dn = dsfra->dsfra_dnode;
 
 	mutex_exit(&dn->dn_mtx);
-	dnode_sync_free_range_impl(dn, blkid, nblks, dsfra->dsfra_tx);
+	dnode_sync_free_range_impl(dn, blkid, nblks,
+	    dsfra->dsfra_free_indirects, dsfra->dsfra_tx);
 	mutex_enter(&dn->dn_mtx);
 }
 
@@ -712,6 +713,11 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dnode_sync_free_range_arg_t dsfra;
 		dsfra.dsfra_dnode = dn;
 		dsfra.dsfra_tx = tx;
+		dsfra.dsfra_free_indirects = freeing_dnode;
+		if (freeing_dnode) {
+			ASSERT(range_tree_contains(dn->dn_free_ranges[txgoff],
+			    0, dn->dn_maxblkid + 1));
+		}
 		mutex_enter(&dn->dn_mtx);
 		range_tree_vacate(dn->dn_free_ranges[txgoff],
 		    dnode_sync_free_range, &dsfra);

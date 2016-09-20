@@ -311,6 +311,10 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 		return (err);
 
 	ASSERT(dn->dn_type != DMU_OT_NONE);
+	/*
+	 * If we don't create this free range, we'll leak indirect blocks when
+	 * we get to freeing the dnode in syncing context.
+	 */
 	dnode_free_range(dn, 0, DMU_OBJECT_END, tx);
 	dnode_free(dn, tx);
 	dnode_rele(dn, FTAG);
