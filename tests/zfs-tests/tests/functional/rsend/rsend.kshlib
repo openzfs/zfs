@@ -153,6 +153,20 @@ function cleanup_pools
 	destroy_pool $POOL3
 }
 
+function cmp_md5s {
+	typeset file1=$1
+	typeset file2=$2
+
+	eval md5sum $file1 | awk '{ print $1 }'	> $BACKDIR/md5_file1
+	eval md5sum $file2 | awk '{ print $1 }'	> $BACKDIR/md5_file2
+	diff $BACKDIR/md5_file1 $BACKDIR/md5_file2
+	typeset -i ret=$?
+
+	rm -f $BACKDIR/md5_file1 $BACKDIR/md5_file2
+
+	return $ret
+}
+
 #
 # Detect if the given two filesystems have same sub-datasets
 #
@@ -388,13 +402,36 @@ function mk_files
 	maxsize=$2
 	file_id_offset=$3
 	fs=$4
+	bs=512
 
 	for ((i=0; i<$nfiles; i=i+1)); do
-		dd if=/dev/urandom \
-		    of=/$fs/file-$maxsize-$((i+$file_id_offset)) \
-		    bs=$((($RANDOM * $RANDOM % ($maxsize - 1)) + 1)) \
-		    count=1 >/dev/null 2>&1 || log_fail \
-		    "Failed to create /$fs/file-$maxsize-$((i+$file_id_offset))"
+		file_name="/$fs/file-$maxsize-$((i+$file_id_offset))"
+		file_size=$((($RANDOM * $RANDOM % ($maxsize - 1)) + 1))
+
+		#
+		# Create an interesting mix of files which contain both
+		# data blocks and holes for more realistic test coverage.
+		# Half the files are created as sparse then partially filled,
+		# the other half is dense then a hole is punched in the file.
+		#
+		if [ $((RANDOM % 2)) -eq 0 ]; then
+			truncate -s $file_size $file_name || \
+			    log_fail "Failed to create $file_name"
+			dd if=/dev/urandom of=$file_name \
+			    bs=$bs count=$(($file_size / 2 / $bs)) \
+			    seek=$(($RANDOM % (($file_size / 2 / $bs) + 1))) \
+			    conv=notrunc >/dev/null 2>&1 || \
+			    log_fail "Failed to create $file_name"
+		else
+			dd if=/dev/urandom of=$file_name \
+			    bs=$file_size count=1 >/dev/null 2>&1 || \
+			    log_fail "Failed to create $file_name"
+			dd if=/dev/zero of=$file_name \
+			    bs=$bs count=$(($file_size / 2 / $bs)) \
+			    seek=$(($RANDOM % (($file_size / 2 / $bs) + 1))) \
+			    conv=notrunc >/dev/null 2>&1 || \
+			    log_fail "Failed to create $file_name"
+		fi
 	done
 	echo Created $nfiles files of random sizes up to $maxsize bytes
 }
