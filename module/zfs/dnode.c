@@ -2001,9 +2001,6 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	boolean_t hole;
 	int i, inc, error, span;
 
-	dprintf("probing object %llu offset %llx level %d of %u\n",
-	    dn->dn_object, *offset, lvl, dn->dn_phys->dn_nlevels);
-
 	hole = ((flags & DNODE_FIND_HOLE) != 0);
 	inc = (flags & DNODE_FIND_BACKWARDS) ? -1 : 1;
 	ASSERT(txg == 0 || !hole);
