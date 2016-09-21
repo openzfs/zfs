@@ -1724,7 +1724,7 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 		nvlist_t **child, *nv;
 		uint64_t idx = 0;
 
-		child = kmem_alloc(rvd->vdev_children * sizeof (nvlist_t **),
+		child = kmem_alloc(rvd->vdev_children * sizeof (nvlist_t *),
 		    KM_SLEEP);
 		VERIFY(nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 

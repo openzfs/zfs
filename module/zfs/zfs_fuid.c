@@ -691,7 +691,7 @@ zfs_fuid_info_free(zfs_fuid_info_t *fuidp)
 
 	if (fuidp->z_domain_table != NULL)
 		kmem_free(fuidp->z_domain_table,
-		    (sizeof (char **)) * fuidp->z_domain_cnt);
+		    (sizeof (char *)) * fuidp->z_domain_cnt);
 
 	while ((zdomain = list_head(&fuidp->z_domains)) != NULL) {
 		list_remove(&fuidp->z_domains, zdomain);
