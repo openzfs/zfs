@@ -252,6 +252,7 @@ drop_caches(void)
 	rc = write(fd, "3", 1);
 	if ((rc == -1) || (rc != 1)) {
 		ERROR("Error %d: write(%d, \"3\", 1)\n", errno, fd);
+		(void) close(fd);
 		return (errno);
 	}
 
@@ -630,6 +631,7 @@ unlink_files(void)
 		rc = unlink(file);
 		if ((rc == -1) && (errno != ENOENT)) {
 			ERROR("Error %d: unlink(%s)\n", errno, file);
+			free(file);
 			return (errno);
 		}
 	}

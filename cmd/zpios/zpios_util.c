@@ -170,8 +170,11 @@ split_string(const char *optarg, char *pattern, range_repeat_t *range)
 		 * value of the * first  argument, starts searching from the
 		 * saved pointer and behaves as described above.
 		 */
-		token[i] = strtok(cp, comma);
-		cp = NULL;
+		if (i == 0) {
+			token[i] = strtok(cp, comma);
+		} else {
+			token[i] = strtok(NULL, comma);
+		}
 	} while ((token[i++] != NULL) && (i < 32));
 
 	range->val_count = i - 1;
@@ -260,12 +263,13 @@ set_noise(uint64_t *noise, char *optarg, char *arg)
 int
 set_load_params(cmd_args_t *args, char *optarg)
 {
-	char *param, *search, comma[] = ",";
+	char *param, *search, *searchdup, comma[] = ",";
 	int rc = 0;
 
 	search = strdup(optarg);
 	if (search == NULL)
 		return (ENOMEM);
+	searchdup = search;
 
 	while ((param = strtok(search, comma)) != NULL) {
 		search = NULL;
@@ -283,7 +287,7 @@ set_load_params(cmd_args_t *args, char *optarg)
 		}
 	}
 
-	free(search);
+	free(searchdup);
 
 	return (rc);
 }
