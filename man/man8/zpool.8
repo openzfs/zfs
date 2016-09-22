@@ -20,7 +20,7 @@
 .\"
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright (c) 2013 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2017 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2017 George Melikov. All Rights Reserved.
@@ -144,7 +144,12 @@
 .Ar pool
 .Nm
 .Cm remove
+.Op Fl np
 .Ar pool Ar device Ns ...
+.Nm
+.Cm remove
+.Fl s
+.Ar pool
 .Nm
 .Cm replace
 .Op Fl f
@@ -438,8 +443,7 @@ section for an example of mirroring multiple log devices.
 Log devices can be added, replaced, attached, detached and removed.  In
 addition, log devices are imported and exported as part of the pool
 that contains them.
-Mirrored log devices can be removed by specifying the top-level mirror for the
-log.
+Mirrored devices can be removed by specifying the top-level mirror vdev.
 .Ss Cache Devices
 Devices can be added to a storage pool as
 .Qq cache devices .
@@ -1758,18 +1762,51 @@ result in partially resilvered devices unless a second scrub is performed.
 .It Xo
 .Nm
 .Cm remove
+.Op Fl np
 .Ar pool Ar device Ns ...
 .Xc
 Removes the specified device from the pool.
-This command currently only supports removing hot spares, cache, and log
-devices.
-A mirrored log device can be removed by specifying the top-level mirror for the
-log.
-Non-log devices that are part of a mirrored configuration can be removed using
+This command currently only supports removing hot spares, cache, log
+devices and mirrored top-level vdevs (mirror of leaf devices); but not raidz.
+.sp
+Removing a top-level vdev reduces the total amount of space in the storage pool.
+The specified device will be evacuated by copying all allocated space from it to
+the other devices in the pool.
+In this case, the
+.Nm zpool Cm remove
+command initiates the removal and returns, while the evacuation continues in
+the background.
+The removal progress can be monitored with
+.Nm zpool Cm status.
+This feature must be enabled to be used, see
+.Xr zpool-features 5
+.Pp
+A mirrored top-level device (log or data) can be removed by specifying the top-level mirror for the
+same.
+Non-log devices or data devices that are part of a mirrored configuration can be removed using
 the
 .Nm zpool Cm detach
 command.
-Non-redundant and raidz devices cannot be removed from a pool.
+.Bl -tag -width Ds
+.It Fl n
+Do not actually perform the removal ("no-op").
+Instead, print the estimated amount of memory that will be used by the
+mapping table after the removal completes.
+This is nonzero only for top-level vdevs.
+.El
+.Bl -tag -width Ds
+.It Fl p
+Used in conjunction with the
+.Fl n
+flag, displays numbers as parsable (exact) values.
+.El
+.It Xo
+.Nm
+.Cm remove
+.Fl s
+.Ar pool
+.Xc
+Stops and cancels an in-progress removal of a top-level vdev.
 .It Xo
 .Nm
 .Cm replace
@@ -2216,9 +2253,12 @@ option as follows:
 .Bd -literal
 # zpool iostat -v pool 5
 .Ed
-.It Sy Example 14 No Removing a Mirrored Log Device
-The following command removes the mirrored log device
-.Sy mirror-2 .
+.It Sy Example 14 No Removing a Mirrored top-level (Log or Data) Device
+The following commands remove the mirrored log device
+.Sy mirror-2
+and mirrored top-level data device
+.Sy mirror-1 .
+.Pp
 Given this configuration:
 .Bd -literal
   pool: tank
@@ -2245,6 +2285,13 @@ The command to remove the mirrored log
 is:
 .Bd -literal
 # zpool remove tank mirror-2
+.Ed
+.Pp
+The command to remove the mirrored data
+.Sy mirror-1
+is:
+.Bd -literal
+# zpool remove tank mirror-1
 .Ed
 .It Sy Example 15 No Displaying expanded space on a device
 The following command displays the detailed information for the pool

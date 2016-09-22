@@ -253,6 +253,7 @@ vdev_ops_t vdev_file_ops = {
 	NULL,
 	vdev_file_hold,
 	vdev_file_rele,
+	NULL,
 	VDEV_TYPE_FILE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
@@ -287,6 +288,7 @@ vdev_ops_t vdev_disk_ops = {
 	NULL,
 	vdev_file_hold,
 	vdev_file_rele,
+	NULL,
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };

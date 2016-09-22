@@ -47,6 +47,7 @@
 #include <sys/trace_dbuf.h>
 #include <sys/callb.h>
 #include <sys/abd.h>
+#include <sys/vdev.h>
 
 kstat_t *dbuf_ksp;
 
@@ -3530,6 +3531,7 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	db->db_data_pending = dr;
 
 	mutex_exit(&db->db_mtx);
+
 	dbuf_write(dr, db->db_buf, tx);
 
 	zio = dr->dr_zio;
@@ -4054,6 +4056,142 @@ dbuf_write_override_done(zio_t *zio)
 		abd_put(zio->io_abd);
 }
 
+typedef struct dbuf_remap_impl_callback_arg {
+	objset_t	*drica_os;
+	uint64_t	drica_blk_birth;
+	dmu_tx_t	*drica_tx;
+} dbuf_remap_impl_callback_arg_t;
+
+static void
+dbuf_remap_impl_callback(uint64_t vdev, uint64_t offset, uint64_t size,
+    void *arg)
+{
+	dbuf_remap_impl_callback_arg_t *drica = arg;
+	objset_t *os = drica->drica_os;
+	spa_t *spa = dmu_objset_spa(os);
+	dmu_tx_t *tx = drica->drica_tx;
+
+	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)));
+
+	if (os == spa_meta_objset(spa)) {
+		spa_vdev_indirect_mark_obsolete(spa, vdev, offset, size, tx);
+	} else {
+		dsl_dataset_block_remapped(dmu_objset_ds(os), vdev, offset,
+		    size, drica->drica_blk_birth, tx);
+	}
+}
+
+static void
+dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, dmu_tx_t *tx)
+{
+	blkptr_t bp_copy = *bp;
+	spa_t *spa = dmu_objset_spa(dn->dn_objset);
+	dbuf_remap_impl_callback_arg_t drica;
+
+	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)));
+
+	drica.drica_os = dn->dn_objset;
+	drica.drica_blk_birth = bp->blk_birth;
+	drica.drica_tx = tx;
+	if (spa_remap_blkptr(spa, &bp_copy, dbuf_remap_impl_callback,
+	    &drica)) {
+		/*
+		 * The struct_rwlock prevents dbuf_read_impl() from
+		 * dereferencing the BP while we are changing it.  To
+		 * avoid lock contention, only grab it when we are actually
+		 * changing the BP.
+		 */
+		rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+		*bp = bp_copy;
+		rw_exit(&dn->dn_struct_rwlock);
+	}
+}
+
+/*
+ * Returns true if a dbuf_remap would modify the dbuf. We do this by attempting
+ * to remap a copy of every bp in the dbuf.
+ */
+boolean_t
+dbuf_can_remap(const dmu_buf_impl_t *db)
+{
+	spa_t *spa = dmu_objset_spa(db->db_objset);
+	blkptr_t *bp = db->db.db_data;
+	boolean_t ret = B_FALSE;
+
+	ASSERT3U(db->db_level, >, 0);
+	ASSERT3S(db->db_state, ==, DB_CACHED);
+
+	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL));
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	for (int i = 0; i < db->db.db_size >> SPA_BLKPTRSHIFT; i++) {
+		blkptr_t bp_copy = bp[i];
+		if (spa_remap_blkptr(spa, &bp_copy, NULL, NULL)) {
+			ret = B_TRUE;
+			break;
+		}
+	}
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	return (ret);
+}
+
+boolean_t
+dnode_needs_remap(const dnode_t *dn)
+{
+	spa_t *spa = dmu_objset_spa(dn->dn_objset);
+	boolean_t ret = B_FALSE;
+
+	if (dn->dn_phys->dn_nlevels == 0) {
+		return (B_FALSE);
+	}
+
+	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL));
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	for (int j = 0; j < dn->dn_phys->dn_nblkptr; j++) {
+		blkptr_t bp_copy = dn->dn_phys->dn_blkptr[j];
+		if (spa_remap_blkptr(spa, &bp_copy, NULL, NULL)) {
+			ret = B_TRUE;
+			break;
+		}
+	}
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	return (ret);
+}
+
+/*
+ * Remap any existing BP's to concrete vdevs, if possible.
+ */
+static void
+dbuf_remap(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_objset_spa(db->db_objset);
+	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)));
+
+	if (!spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL))
+		return;
+
+	if (db->db_level > 0) {
+		blkptr_t *bp = db->db.db_data;
+		for (int i = 0; i < db->db.db_size >> SPA_BLKPTRSHIFT; i++) {
+			dbuf_remap_impl(dn, &bp[i], tx);
+		}
+	} else if (db->db.db_object == DMU_META_DNODE_OBJECT) {
+		dnode_phys_t *dnp = db->db.db_data;
+		ASSERT3U(db->db_dnode_handle->dnh_dnode->dn_type, ==,
+		    DMU_OT_DNODE);
+		for (int i = 0; i < db->db.db_size >> DNODE_SHIFT;
+		    i += dnp[i].dn_extra_slots + 1) {
+			for (int j = 0; j < dnp[i].dn_nblkptr; j++) {
+				dbuf_remap_impl(dn, &dnp[i].dn_blkptr[j], tx);
+			}
+		}
+	}
+}
+
+
 /* Issue I/O to commit a dirty buffer to disk. */
 static void
 dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
@@ -4087,6 +4225,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 			} else {
 				dbuf_release_bp(db);
 			}
+			dbuf_remap(dn, db, tx);
 		}
 	}
 

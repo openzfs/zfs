@@ -102,6 +102,7 @@ typedef struct dsl_pool {
 	bpobj_t dp_free_bpobj;
 	uint64_t dp_bptree_obj;
 	uint64_t dp_empty_bpobj;
+	bpobj_t dp_obsolete_bpobj;
 
 	struct dsl_scan *dp_scan;
 
@@ -151,7 +152,6 @@ void dsl_pool_sync(dsl_pool_t *dp, uint64_t txg);
 void dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg);
 int dsl_pool_sync_context(dsl_pool_t *dp);
 uint64_t dsl_pool_adjustedsize(dsl_pool_t *dp, boolean_t netfree);
-uint64_t dsl_pool_adjustedfree(dsl_pool_t *dp, boolean_t netfree);
 void dsl_pool_dirty_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx);
 void dsl_pool_undirty_space(dsl_pool_t *dp, int64_t space, uint64_t txg);
 void dsl_free(dsl_pool_t *dp, uint64_t txg, const blkptr_t *bpp);
@@ -179,6 +179,9 @@ void dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp);
 int dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **);
 int dsl_pool_hold(const char *name, void *tag, dsl_pool_t **dp);
 void dsl_pool_rele(dsl_pool_t *dp, void *tag);
+
+void dsl_pool_create_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx);
+void dsl_pool_destroy_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx);
 
 #ifdef	__cplusplus
 }

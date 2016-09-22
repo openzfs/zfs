@@ -261,6 +261,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		return (dgettext(TEXT_DOMAIN, "invalid diff data"));
 	case EZFS_POOLREADONLY:
 		return (dgettext(TEXT_DOMAIN, "pool is read-only"));
+	case EZFS_NO_PENDING:
+		return (dgettext(TEXT_DOMAIN, "operation is not "
+		    "in progress"));
 	case EZFS_ACTIVE_POOL:
 		return (dgettext(TEXT_DOMAIN, "pool is imported on a "
 		    "different host"));
@@ -480,6 +483,11 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case EBUSY:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "pool is busy"));
 		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
+		break;
+
+	/* There is no pending operation to cancel */
+	case ENOTACTIVE:
+		zfs_verror(hdl, EZFS_NO_PENDING, fmt, ap);
 		break;
 
 	case ENXIO:

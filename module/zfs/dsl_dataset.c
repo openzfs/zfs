@@ -46,6 +46,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/spa.h>
+#include <sys/vdev.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
@@ -81,6 +82,11 @@ int zfs_max_recordsize = 1 * 1024 * 1024;
 #define	DS_REF_MAX	(1ULL << 62)
 
 extern inline dsl_dataset_phys_t *dsl_dataset_phys(dsl_dataset_t *ds);
+
+static void dsl_dataset_set_remap_deadlist_object(dsl_dataset_t *ds,
+    uint64_t obj, dmu_tx_t *tx);
+static void dsl_dataset_unset_remap_deadlist_object(dsl_dataset_t *ds,
+    dmu_tx_t *tx);
 
 extern int spa_asize_inflation;
 
@@ -155,6 +161,47 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	    compressed, uncompressed, tx);
 	dsl_dir_transfer_space(ds->ds_dir, used - delta,
 	    DD_USED_REFRSRV, DD_USED_HEAD, tx);
+}
+
+/*
+ * Called when the specified segment has been remapped, and is thus no
+ * longer referenced in the head dataset.  The vdev must be indirect.
+ *
+ * If the segment is referenced by a snapshot, put it on the remap deadlist.
+ * Otherwise, add this segment to the obsolete spacemap.
+ */
+void
+dsl_dataset_block_remapped(dsl_dataset_t *ds, uint64_t vdev, uint64_t offset,
+    uint64_t size, uint64_t birth, dmu_tx_t *tx)
+{
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT(birth <= tx->tx_txg);
+	ASSERT(!ds->ds_is_snapshot);
+
+	if (birth > dsl_dataset_phys(ds)->ds_prev_snap_txg) {
+		spa_vdev_indirect_mark_obsolete(spa, vdev, offset, size, tx);
+	} else {
+		blkptr_t fakebp;
+		dva_t *dva = &fakebp.blk_dva[0];
+
+		ASSERT(ds != NULL);
+
+		mutex_enter(&ds->ds_remap_deadlist_lock);
+		if (!dsl_dataset_remap_deadlist_exists(ds)) {
+			dsl_dataset_create_remap_deadlist(ds, tx);
+		}
+		mutex_exit(&ds->ds_remap_deadlist_lock);
+
+		BP_ZERO(&fakebp);
+		fakebp.blk_birth = birth;
+		DVA_SET_VDEV(dva, vdev);
+		DVA_SET_OFFSET(dva, offset);
+		DVA_SET_ASIZE(dva, size);
+
+		dsl_deadlist_insert(&ds->ds_remap_deadlist, &fakebp, tx);
+	}
 }
 
 int
@@ -275,8 +322,10 @@ dsl_dataset_evict_async(void *dbu)
 	}
 
 	bplist_destroy(&ds->ds_pending_deadlist);
-	if (ds->ds_deadlist.dl_os != NULL)
+	if (dsl_deadlist_is_open(&ds->ds_deadlist))
 		dsl_deadlist_close(&ds->ds_deadlist);
+	if (dsl_deadlist_is_open(&ds->ds_remap_deadlist))
+		dsl_deadlist_close(&ds->ds_remap_deadlist);
 	if (ds->ds_dir)
 		dsl_dir_async_rele(ds->ds_dir, ds);
 
@@ -286,6 +335,7 @@ dsl_dataset_evict_async(void *dbu)
 	mutex_destroy(&ds->ds_lock);
 	mutex_destroy(&ds->ds_opening_lock);
 	mutex_destroy(&ds->ds_sendstream_lock);
+	mutex_destroy(&ds->ds_remap_deadlist_lock);
 	refcount_destroy(&ds->ds_longholds);
 	rrw_destroy(&ds->ds_bp_rwlock);
 
@@ -417,15 +467,23 @@ dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj,
 		ds->ds_is_snapshot = dsl_dataset_phys(ds)->ds_num_children != 0;
 		list_link_init(&ds->ds_synced_link);
 
+		err = dsl_dir_hold_obj(dp, dsl_dataset_phys(ds)->ds_dir_obj,
+		    NULL, ds, &ds->ds_dir);
+		if (err != 0) {
+			kmem_free(ds, sizeof (dsl_dataset_t));
+			dmu_buf_rele(dbuf, tag);
+			return (err);
+		}
+
 		mutex_init(&ds->ds_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_opening_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_sendstream_lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&ds->ds_remap_deadlist_lock,
+		    NULL, MUTEX_DEFAULT, NULL);
 		rrw_init(&ds->ds_bp_rwlock, B_FALSE);
 		refcount_create(&ds->ds_longholds);
 
 		bplist_create(&ds->ds_pending_deadlist);
-		dsl_deadlist_open(&ds->ds_deadlist,
-		    mos, dsl_dataset_phys(ds)->ds_deadlist_obj);
 
 		list_create(&ds->ds_sendstreams, sizeof (dmu_sendarg_t),
 		    offsetof(dmu_sendarg_t, dsa_link));
@@ -449,20 +507,6 @@ dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj,
 					err = 0;
 				}
 			}
-		}
-
-		err = dsl_dir_hold_obj(dp,
-		    dsl_dataset_phys(ds)->ds_dir_obj, NULL, ds, &ds->ds_dir);
-		if (err != 0) {
-			mutex_destroy(&ds->ds_lock);
-			mutex_destroy(&ds->ds_opening_lock);
-			mutex_destroy(&ds->ds_sendstream_lock);
-			refcount_destroy(&ds->ds_longholds);
-			bplist_destroy(&ds->ds_pending_deadlist);
-			dsl_deadlist_close(&ds->ds_deadlist);
-			kmem_free(ds, sizeof (dsl_dataset_t));
-			dmu_buf_rele(dbuf, tag);
-			return (err);
 		}
 
 		if (!ds->ds_is_snapshot) {
@@ -505,6 +549,15 @@ dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj,
 			ds->ds_reserved = ds->ds_quota = 0;
 		}
 
+		dsl_deadlist_open(&ds->ds_deadlist,
+		    mos, dsl_dataset_phys(ds)->ds_deadlist_obj);
+		uint64_t remap_deadlist_obj =
+		    dsl_dataset_get_remap_deadlist_object(ds);
+		if (remap_deadlist_obj != 0) {
+			dsl_deadlist_open(&ds->ds_remap_deadlist, mos,
+			    remap_deadlist_obj);
+		}
+
 		dmu_buf_init_user(&ds->ds_dbu, dsl_dataset_evict_sync,
 		    dsl_dataset_evict_async, &ds->ds_dbuf);
 		if (err == 0)
@@ -513,6 +566,8 @@ dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj,
 		if (err != 0 || winner != NULL) {
 			bplist_destroy(&ds->ds_pending_deadlist);
 			dsl_deadlist_close(&ds->ds_deadlist);
+			if (dsl_deadlist_is_open(&ds->ds_remap_deadlist))
+				dsl_deadlist_close(&ds->ds_remap_deadlist);
 			if (ds->ds_prev)
 				dsl_dataset_rele(ds->ds_prev, ds);
 			dsl_dir_rele(ds->ds_dir, ds);
@@ -1457,10 +1512,27 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dsl_deadlist_add_key(&ds->ds_deadlist,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
 
+	if (dsl_dataset_remap_deadlist_exists(ds)) {
+		uint64_t remap_deadlist_obj =
+		    dsl_dataset_get_remap_deadlist_object(ds);
+		/*
+		 * Move the remap_deadlist to the snapshot.  The head
+		 * will create a new remap deadlist on demand, from
+		 * dsl_dataset_block_remapped().
+		 */
+		dsl_dataset_unset_remap_deadlist_object(ds, tx);
+		dsl_deadlist_close(&ds->ds_remap_deadlist);
+
+		dmu_object_zapify(mos, dsobj, DMU_OT_DSL_DATASET, tx);
+		VERIFY0(zap_add(mos, dsobj, DS_FIELD_REMAP_DEADLIST,
+		    sizeof (remap_deadlist_obj), 1, &remap_deadlist_obj, tx));
+	}
+
 	ASSERT3U(dsl_dataset_phys(ds)->ds_prev_snap_txg, <, tx->tx_txg);
 	dsl_dataset_phys(ds)->ds_prev_snap_obj = dsobj;
 	dsl_dataset_phys(ds)->ds_prev_snap_txg = crtxg;
 	dsl_dataset_phys(ds)->ds_unique_bytes = 0;
+
 	if (spa_version(dp->dp_spa) >= SPA_VERSION_UNIQUE_ACCURATE)
 		dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_UNIQUE_ACCURATE;
 
@@ -3365,6 +3437,41 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	return (0);
 }
 
+static void
+dsl_dataset_swap_remap_deadlists(dsl_dataset_t *clone,
+    dsl_dataset_t *origin, dmu_tx_t *tx)
+{
+	uint64_t clone_remap_dl_obj, origin_remap_dl_obj;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+
+	ASSERT(dsl_pool_sync_context(dp));
+
+	clone_remap_dl_obj = dsl_dataset_get_remap_deadlist_object(clone);
+	origin_remap_dl_obj = dsl_dataset_get_remap_deadlist_object(origin);
+
+	if (clone_remap_dl_obj != 0) {
+		dsl_deadlist_close(&clone->ds_remap_deadlist);
+		dsl_dataset_unset_remap_deadlist_object(clone, tx);
+	}
+	if (origin_remap_dl_obj != 0) {
+		dsl_deadlist_close(&origin->ds_remap_deadlist);
+		dsl_dataset_unset_remap_deadlist_object(origin, tx);
+	}
+
+	if (clone_remap_dl_obj != 0) {
+		dsl_dataset_set_remap_deadlist_object(origin,
+		    clone_remap_dl_obj, tx);
+		dsl_deadlist_open(&origin->ds_remap_deadlist,
+		    dp->dp_meta_objset, clone_remap_dl_obj);
+	}
+	if (origin_remap_dl_obj != 0) {
+		dsl_dataset_set_remap_deadlist_object(clone,
+		    origin_remap_dl_obj, tx);
+		dsl_deadlist_open(&clone->ds_remap_deadlist,
+		    dp->dp_meta_objset, origin_remap_dl_obj);
+	}
+}
+
 void
 dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx)
@@ -3534,6 +3641,7 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	    dsl_dataset_phys(clone)->ds_deadlist_obj);
 	dsl_deadlist_open(&origin_head->ds_deadlist, dp->dp_meta_objset,
 	    dsl_dataset_phys(origin_head)->ds_deadlist_obj);
+	dsl_dataset_swap_remap_deadlists(clone, origin_head, tx);
 
 	dsl_scan_ds_clone_swapped(origin_head, clone, tx);
 
@@ -4040,6 +4148,93 @@ dsl_dataset_has_resume_receive_state(dsl_dataset_t *ds)
 	return (dsl_dataset_is_zapified(ds) &&
 	    zap_contains(ds->ds_dir->dd_pool->dp_meta_objset,
 	    ds->ds_object, DS_FIELD_RESUME_TOGUID) == 0);
+}
+
+uint64_t
+dsl_dataset_get_remap_deadlist_object(dsl_dataset_t *ds)
+{
+	uint64_t remap_deadlist_obj;
+	int err;
+
+	if (!dsl_dataset_is_zapified(ds))
+		return (0);
+
+	err = zap_lookup(ds->ds_dir->dd_pool->dp_meta_objset, ds->ds_object,
+	    DS_FIELD_REMAP_DEADLIST, sizeof (remap_deadlist_obj), 1,
+	    &remap_deadlist_obj);
+
+	if (err != 0) {
+		VERIFY3S(err, ==, ENOENT);
+		return (0);
+	}
+
+	ASSERT(remap_deadlist_obj != 0);
+	return (remap_deadlist_obj);
+}
+
+boolean_t
+dsl_dataset_remap_deadlist_exists(dsl_dataset_t *ds)
+{
+	EQUIV(dsl_deadlist_is_open(&ds->ds_remap_deadlist),
+	    dsl_dataset_get_remap_deadlist_object(ds) != 0);
+	return (dsl_deadlist_is_open(&ds->ds_remap_deadlist));
+}
+
+static void
+dsl_dataset_set_remap_deadlist_object(dsl_dataset_t *ds, uint64_t obj,
+    dmu_tx_t *tx)
+{
+	ASSERT(obj != 0);
+	dsl_dataset_zapify(ds, tx);
+	VERIFY0(zap_add(ds->ds_dir->dd_pool->dp_meta_objset, ds->ds_object,
+	    DS_FIELD_REMAP_DEADLIST, sizeof (obj), 1, &obj, tx));
+}
+
+static void
+dsl_dataset_unset_remap_deadlist_object(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	VERIFY0(zap_remove(ds->ds_dir->dd_pool->dp_meta_objset,
+	    ds->ds_object, DS_FIELD_REMAP_DEADLIST, tx));
+}
+
+void
+dsl_dataset_destroy_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	uint64_t remap_deadlist_object;
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT(dsl_dataset_remap_deadlist_exists(ds));
+
+	remap_deadlist_object = ds->ds_remap_deadlist.dl_object;
+	dsl_deadlist_close(&ds->ds_remap_deadlist);
+	dsl_deadlist_free(spa_meta_objset(spa), remap_deadlist_object, tx);
+	dsl_dataset_unset_remap_deadlist_object(ds, tx);
+	spa_feature_decr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
+}
+
+void
+dsl_dataset_create_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	uint64_t remap_deadlist_obj;
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT(MUTEX_HELD(&ds->ds_remap_deadlist_lock));
+	/*
+	 * Currently we only create remap deadlists when there are indirect
+	 * vdevs with referenced mappings.
+	 */
+	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL));
+
+	remap_deadlist_obj = dsl_deadlist_clone(
+	    &ds->ds_deadlist, UINT64_MAX,
+	    dsl_dataset_phys(ds)->ds_prev_snap_obj, tx);
+	dsl_dataset_set_remap_deadlist_object(ds,
+	    remap_deadlist_obj, tx);
+	dsl_deadlist_open(&ds->ds_remap_deadlist, spa_meta_objset(spa),
+	    remap_deadlist_obj);
+	spa_feature_incr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

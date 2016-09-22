@@ -258,6 +258,16 @@ lzc_promote(const char *fsname, char *snapnamebuf, int snapnamelen)
 	return (0);
 }
 
+int
+lzc_remap(const char *fsname)
+{
+	int error;
+	nvlist_t *args = fnvlist_alloc();
+	error = lzc_ioctl(ZFS_IOC_REMAP, fsname, args, NULL);
+	nvlist_free(args);
+	return (error);
+}
+
 /*
  * Creates snapshots.
  *

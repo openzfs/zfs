@@ -49,6 +49,7 @@ enum lzc_dataset_type {
 	LZC_DATSET_TYPE_ZVOL
 };
 
+int lzc_remap(const char *fsname);
 int lzc_snapshot(nvlist_t *, nvlist_t *, nvlist_t **);
 int lzc_create(const char *, enum lzc_dataset_type, nvlist_t *, uint8_t *,
     uint_t);

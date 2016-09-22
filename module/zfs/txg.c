@@ -860,6 +860,8 @@ txg_list_remove(txg_list_t *tl, uint64_t txg)
 	txg_verify(tl->tl_spa, txg);
 	mutex_enter(&tl->tl_lock);
 	if ((tn = tl->tl_head[t]) != NULL) {
+		ASSERT(tn->tn_member[t]);
+		ASSERT(tn->tn_next[t] == NULL || tn->tn_next[t]->tn_member[t]);
 		p = (char *)tn - tl->tl_offset;
 		tl->tl_head[t] = tn->tn_next[t];
 		tn->tn_next[t] = NULL;

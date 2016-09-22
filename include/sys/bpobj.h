@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_BPOBJ_H
@@ -74,6 +74,7 @@ void bpobj_decr_empty(objset_t *os, dmu_tx_t *tx);
 
 int bpobj_open(bpobj_t *bpo, objset_t *mos, uint64_t object);
 void bpobj_close(bpobj_t *bpo);
+boolean_t bpobj_is_open(const bpobj_t *bpo);
 
 int bpobj_iterate(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx);
 int bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *, dmu_tx_t *);
@@ -85,6 +86,7 @@ int bpobj_space(bpobj_t *bpo,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 int bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
+boolean_t bpobj_is_empty(bpobj_t *bpo);
 
 #ifdef	__cplusplus
 }

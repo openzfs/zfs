@@ -27,6 +27,7 @@
 #define	_SYS_VDEV_IMPL_H
 
 #include <sys/avl.h>
+#include <sys/bpobj.h>
 #include <sys/dmu.h>
 #include <sys/metaslab.h>
 #include <sys/nvpair.h>
@@ -34,6 +35,9 @@
 #include <sys/vdev.h>
 #include <sys/dkio.h>
 #include <sys/uberblock_impl.h>
+#include <sys/vdev_indirect_mapping.h>
+#include <sys/vdev_indirect_births.h>
+#include <sys/vdev_removal.h>
 #include <sys/zfs_ratelimit.h>
 
 #ifdef	__cplusplus
@@ -72,6 +76,11 @@ typedef boolean_t vdev_need_resilver_func_t(vdev_t *vd, uint64_t, size_t);
 typedef void	vdev_hold_func_t(vdev_t *vd);
 typedef void	vdev_rele_func_t(vdev_t *vd);
 
+typedef void	vdev_remap_cb_t(uint64_t inner_offset, vdev_t *vd,
+    uint64_t offset, uint64_t size, void *arg);
+typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
+    vdev_remap_cb_t callback, void *arg);
+
 typedef const struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
 	vdev_close_func_t		*vdev_op_close;
@@ -82,6 +91,7 @@ typedef const struct vdev_ops {
 	vdev_need_resilver_func_t	*vdev_op_need_resilver;
 	vdev_hold_func_t		*vdev_op_hold;
 	vdev_rele_func_t		*vdev_op_rele;
+	vdev_remap_func_t		*vdev_op_remap;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -128,6 +138,45 @@ struct vdev_queue {
 	zio_t		vq_io_search; /* used as local for stack reduction */
 	kmutex_t	vq_lock;
 };
+
+/*
+ * On-disk indirect vdev state.
+ *
+ * An indirect vdev is described exclusively in the MOS config of a pool.
+ * The config for an indirect vdev includes several fields, which are
+ * accessed in memory by a vdev_indirect_config_t.
+ */
+typedef struct vdev_indirect_config {
+	/*
+	 * Object (in MOS) which contains the indirect mapping. This object
+	 * contains an array of vdev_indirect_mapping_entry_phys_t ordered by
+	 * vimep_src. The bonus buffer for this object is a
+	 * vdev_indirect_mapping_phys_t. This object is allocated when a vdev
+	 * removal is initiated.
+	 *
+	 * Note that this object can be empty if none of the data on the vdev
+	 * has been copied yet.
+	 */
+	uint64_t	vic_mapping_object;
+
+	/*
+	 * Object (in MOS) which contains the birth times for the mapping
+	 * entries. This object contains an array of
+	 * vdev_indirect_birth_entry_phys_t sorted by vibe_offset. The bonus
+	 * buffer for this object is a vdev_indirect_birth_phys_t. This object
+	 * is allocated when a vdev removal is initiated.
+	 *
+	 * Note that this object can be empty if none of the vdev has yet been
+	 * copied.
+	 */
+	uint64_t	vic_births_object;
+
+	/*
+	 * This is the vdev ID which was removed previous to this vdev, or
+	 * UINT64_MAX if there are no previously removed vdevs.
+	 */
+	uint64_t	vic_prev_indirect_vdev;
+} vdev_indirect_config_t;
 
 /*
  * Virtual device descriptor
@@ -186,6 +235,40 @@ struct vdev {
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
 	kmutex_t	vdev_queue_lock; /* protects vdev_queue_depth	*/
 	uint64_t	vdev_top_zap;
+
+	/*
+	 * Values stored in the config for an indirect or removing vdev.
+	 */
+	vdev_indirect_config_t	vdev_indirect_config;
+
+	/*
+	 * The vdev_indirect_rwlock protects the vdev_indirect_mapping
+	 * pointer from changing on indirect vdevs (when it is condensed).
+	 * Note that removing (not yet indirect) vdevs have different
+	 * access patterns (the mapping is not accessed from open context,
+	 * e.g. from zio_read) and locking strategy (e.g. svr_lock).
+	 */
+	krwlock_t vdev_indirect_rwlock;
+	vdev_indirect_mapping_t *vdev_indirect_mapping;
+	vdev_indirect_births_t *vdev_indirect_births;
+
+	/*
+	 * In memory data structures used to manage the obsolete sm, for
+	 * indirect or removing vdevs.
+	 *
+	 * The vdev_obsolete_segments is the in-core record of the segments
+	 * that are no longer referenced anywhere in the pool (due to
+	 * being freed or remapped and not referenced by any snapshots).
+	 * During a sync, segments are added to vdev_obsolete_segments
+	 * via vdev_indirect_mark_obsolete(); at the end of each sync
+	 * pass, this is appended to vdev_obsolete_sm via
+	 * vdev_indirect_sync_obsolete().  The vdev_obsolete_lock
+	 * protects against concurrent modifications of vdev_obsolete_segments
+	 * from multiple zio threads.
+	 */
+	kmutex_t	vdev_obsolete_lock;
+	range_tree_t	*vdev_obsolete_segments;
+	space_map_t	*vdev_obsolete_sm;
 
 	/*
 	 * The queue depth parameters determine how many async writes are
@@ -356,7 +439,7 @@ extern void vdev_remove_parent(vdev_t *cvd);
  */
 extern void vdev_load_log_state(vdev_t *nvd, vdev_t *ovd);
 extern boolean_t vdev_log_state_valid(vdev_t *vd);
-extern void vdev_load(vdev_t *vd);
+extern int vdev_load(vdev_t *vd);
 extern int vdev_dtl_load(vdev_t *vd);
 extern void vdev_sync(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_done(vdev_t *vd, uint64_t txg);
@@ -375,6 +458,7 @@ extern vdev_ops_t vdev_file_ops;
 extern vdev_ops_t vdev_missing_ops;
 extern vdev_ops_t vdev_hole_ops;
 extern vdev_ops_t vdev_spare_ops;
+extern vdev_ops_t vdev_indirect_ops;
 
 /*
  * Common size functions
@@ -388,6 +472,15 @@ extern void vdev_set_min_asize(vdev_t *vd);
  */
 /* zdb uses this tunable, so it must be declared here to make lint happy. */
 extern int zfs_vdev_cache_size;
+
+/*
+ * Functions from vdev_indirect.c
+ */
+extern void vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx);
+extern boolean_t vdev_indirect_should_condense(vdev_t *vd);
+extern void spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx);
+extern int vdev_obsolete_sm_object(vdev_t *vd);
+extern boolean_t vdev_obsolete_counts_are_precise(vdev_t *vd);
 
 #ifdef	__cplusplus
 }

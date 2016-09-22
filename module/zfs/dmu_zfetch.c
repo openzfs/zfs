@@ -213,8 +213,18 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	int epbs, max_dist_blks, pf_nblks, ipf_nblks;
 	uint64_t end_of_access_blkid;
 	end_of_access_blkid = blkid + nblks;
+	spa_t *spa = zf->zf_dnode->dn_objset->os_spa;
 
 	if (zfs_prefetch_disable)
+		return;
+	/*
+	 * If we haven't yet loaded the indirect vdevs' mappings, we
+	 * can only read from blocks that we carefully ensure are on
+	 * concrete vdevs (or previously-loaded indirect vdevs).  So we
+	 * can't allow the predictive prefetcher to attempt reads of other
+	 * blocks (e.g. of the MOS's dnode obejct).
+	 */
+	if (!spa_indirect_vdevs_loaded(spa))
 		return;
 
 	/*
