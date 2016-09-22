@@ -434,6 +434,8 @@ vdev_raidz_math_init(void)
 	uint64_t bench_parity;
 	int i, c, fn;
 
+	return;
+
 	/* move supported impl into raidz_supp_impl */
 	for (i = 0, c = 0; i < ARRAY_SIZE(raidz_all_maths); i++) {
 		curr_impl = (raidz_impl_ops_t *) raidz_all_maths[i];
@@ -518,6 +520,8 @@ vdev_raidz_math_fini(void)
 {
 	raidz_impl_ops_t const *curr_impl;
 	int i;
+
+	return;
 
 	if (raidz_math_kstat != NULL) {
 		kstat_delete(raidz_math_kstat);

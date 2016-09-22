@@ -671,8 +671,8 @@ void
 vdev_raidz_generate_parity(raidz_map_t *rm)
 {
 	/* Generate using the new math implementation */
-	if (vdev_raidz_math_generate(rm) != RAIDZ_ORIGINAL_IMPL)
-		return;
+//	if (vdev_raidz_math_generate(rm) != RAIDZ_ORIGINAL_IMPL)
+//		return;
 
 	switch (rm->rm_firstdatacol) {
 	case 1:
@@ -1480,7 +1480,8 @@ vdev_raidz_reconstruct(raidz_map_t *rm, const int *t, int nt)
 
 
 	/* Reconstruct using the new math implementation */
-	ret = vdev_raidz_math_reconstruct(rm, parity_valid, dt, nbaddata);
+//	ret = vdev_raidz_math_reconstruct(rm, parity_valid, dt, nbaddata);
+	ret = RAIDZ_ORIGINAL_IMPL;
 	if (ret != RAIDZ_ORIGINAL_IMPL)
 		return (ret);
 
