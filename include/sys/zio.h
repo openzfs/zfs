@@ -244,7 +244,7 @@ enum zio_flag {
 
 #define	ZIO_VDEV_CHILD_FLAGS(zio)				\
 	(((zio)->io_flags & ZIO_FLAG_VDEV_INHERIT) |		\
-	ZIO_FLAG_CANFAIL)
+	ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_CANFAIL)
 
 #define	ZIO_CHILD_BIT(x)		(1 << (x))
 #define	ZIO_CHILD_BIT_IS_SET(val, x)	((val) & (1 << (x)))
@@ -277,6 +277,9 @@ enum zio_wait_type {
  */
 #define	ECKSUM	EBADE
 #define	EFRAGS	EBADR
+
+/* Similar for ENOACTIVE */
+#define	ENOTACTIVE	ENOANO
 
 typedef void zio_done_func_t(zio_t *zio);
 

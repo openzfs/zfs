@@ -4068,6 +4068,24 @@ zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 	return (rv);
 }
 
+int
+zfs_remap_indirects(libzfs_handle_t *hdl, const char *fs)
+{
+	int err;
+	char errbuf[1024];
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot remap filesystem '%s' "), fs);
+
+	err = lzc_remap(fs);
+
+	if (err != 0) {
+		(void) zfs_standard_error(hdl, err, errbuf);
+	}
+
+	return (err);
+}
+
 /*
  * Creates snapshots.  The keys in the snaps nvlist are the snapshots to be
  * created.

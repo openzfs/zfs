@@ -291,6 +291,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/redundancy/Makefile
 	tests/zfs-tests/tests/functional/refquota/Makefile
 	tests/zfs-tests/tests/functional/refreserv/Makefile
+	tests/zfs-tests/tests/functional/removal/Makefile
 	tests/zfs-tests/tests/functional/rename_dirs/Makefile
 	tests/zfs-tests/tests/functional/replacement/Makefile
 	tests/zfs-tests/tests/functional/reservation/Makefile

@@ -300,9 +300,25 @@ dsl_pool_open(dsl_pool_t *dp)
 		    dp->dp_meta_objset, obj));
 	}
 
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
+		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_OBSOLETE_BPOBJ, sizeof (uint64_t), 1, &obj);
+		if (err == 0) {
+			VERIFY0(bpobj_open(&dp->dp_obsolete_bpobj,
+			    dp->dp_meta_objset, obj));
+		} else if (err == ENOENT) {
+			/*
+			 * We might not have created the remap bpobj yet.
+			 */
+			err = 0;
+		} else {
+			goto out;
+		}
+	}
+
 	/*
-	 * Note: errors ignored, because the leak dir will not exist if we
-	 * have not encountered a leak yet.
+	 * Note: errors ignored, because the these special dirs, used for
+	 * space accounting, are only created on demand.
 	 */
 	(void) dsl_pool_open_special_dir(dp, LEAK_DIR_NAME,
 	    &dp->dp_leak_dir);
@@ -348,21 +364,22 @@ dsl_pool_close(dsl_pool_t *dp)
 	 * includes pool-opening context), it actually only got a "ref"
 	 * and not a hold, so just drop that here.
 	 */
-	if (dp->dp_origin_snap)
+	if (dp->dp_origin_snap != NULL)
 		dsl_dataset_rele(dp->dp_origin_snap, dp);
-	if (dp->dp_mos_dir)
+	if (dp->dp_mos_dir != NULL)
 		dsl_dir_rele(dp->dp_mos_dir, dp);
-	if (dp->dp_free_dir)
+	if (dp->dp_free_dir != NULL)
 		dsl_dir_rele(dp->dp_free_dir, dp);
-	if (dp->dp_leak_dir)
+	if (dp->dp_leak_dir != NULL)
 		dsl_dir_rele(dp->dp_leak_dir, dp);
-	if (dp->dp_root_dir)
+	if (dp->dp_root_dir != NULL)
 		dsl_dir_rele(dp->dp_root_dir, dp);
 
 	bpobj_close(&dp->dp_free_bpobj);
+	bpobj_close(&dp->dp_obsolete_bpobj);
 
 	/* undo the dmu_objset_open_impl(mos) from dsl_pool_open() */
-	if (dp->dp_meta_objset)
+	if (dp->dp_meta_objset != NULL)
 		dmu_objset_evict(dp->dp_meta_objset);
 
 	txg_list_destroy(&dp->dp_dirty_datasets);
@@ -390,11 +407,40 @@ dsl_pool_close(dsl_pool_t *dp)
 	mutex_destroy(&dp->dp_lock);
 	cv_destroy(&dp->dp_spaceavail_cv);
 	taskq_destroy(dp->dp_iput_taskq);
-	if (dp->dp_blkstats) {
+	if (dp->dp_blkstats != NULL) {
 		mutex_destroy(&dp->dp_blkstats->zab_lock);
 		vmem_free(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
 	}
 	kmem_free(dp, sizeof (dsl_pool_t));
+}
+
+void
+dsl_pool_create_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx)
+{
+	uint64_t obj;
+	/*
+	 * Currently, we only create the obsolete_bpobj where there are
+	 * indirect vdevs with referenced mappings.
+	 */
+	ASSERT(spa_feature_is_active(dp->dp_spa, SPA_FEATURE_DEVICE_REMOVAL));
+	/* create and open the obsolete_bpobj */
+	obj = bpobj_alloc(dp->dp_meta_objset, SPA_OLD_MAXBLOCKSIZE, tx);
+	VERIFY0(bpobj_open(&dp->dp_obsolete_bpobj, dp->dp_meta_objset, obj));
+	VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_OBSOLETE_BPOBJ, sizeof (uint64_t), 1, &obj, tx));
+	spa_feature_incr(dp->dp_spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
+}
+
+void
+dsl_pool_destroy_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx)
+{
+	spa_feature_decr(dp->dp_spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
+	VERIFY0(zap_remove(dp->dp_meta_objset,
+	    DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_OBSOLETE_BPOBJ, tx));
+	bpobj_free(dp->dp_meta_objset,
+	    dp->dp_obsolete_bpobj.bpo_object, tx);
+	bpobj_close(&dp->dp_obsolete_bpobj);
 }
 
 dsl_pool_t *

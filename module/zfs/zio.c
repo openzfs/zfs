@@ -1018,6 +1018,8 @@ void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
 
+	zfs_blkptr_verify(spa, bp);
+
 	/*
 	 * The check for EMBEDDED is a performance optimization.  We
 	 * process the free here (by ignoring it) rather than
@@ -1081,7 +1083,7 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	dprintf_bp(bp, "claiming in txg %llu", txg);
+	zfs_blkptr_verify(spa, bp);
 
 	if (BP_IS_EMBEDDED(bp))
 		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
@@ -1200,8 +1202,26 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	enum zio_stage pipeline = ZIO_VDEV_CHILD_PIPELINE;
 	zio_t *zio;
 
-	ASSERT(vd->vdev_parent ==
-	    (pio->io_vd ? pio->io_vd : pio->io_spa->spa_root_vdev));
+	/*
+	 * vdev child I/Os do not propagate their error to the parent.
+	 * Therefore, for correct operation the caller *must* check for
+	 * and handle the error in the child i/o's done callback.
+	 * The only exceptions are i/os that we don't care about
+	 * (OPTIONAL or REPAIR).
+	 */
+	ASSERT((flags & ZIO_FLAG_OPTIONAL) || (flags & ZIO_FLAG_IO_REPAIR) ||
+	    done != NULL);
+
+	/*
+	 * In the common case, where the parent zio was to a normal vdev,
+	 * the child zio must be to a child vdev of that vdev.  Otherwise,
+	 * the child zio must be to a top-level vdev.
+	 */
+	if (pio->io_vd != NULL && pio->io_vd->vdev_ops != &vdev_indirect_ops) {
+		ASSERT3P(vd->vdev_parent, ==, pio->io_vd);
+	} else {
+		ASSERT3P(vd, ==, vd->vdev_top);
+	}
 
 	if (type == ZIO_TYPE_READ && bp != NULL) {
 		/*
@@ -1214,10 +1234,12 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 		pio->io_pipeline &= ~ZIO_STAGE_CHECKSUM_VERIFY;
 	}
 
-	if (vd->vdev_children == 0)
+	if (vd->vdev_ops->vdev_op_leaf) {
+		ASSERT0(vd->vdev_children);
 		offset += VDEV_LABEL_START_SIZE;
+	}
 
-	flags |= ZIO_VDEV_CHILD_FLAGS(pio) | ZIO_FLAG_DONT_PROPAGATE;
+	flags |= ZIO_VDEV_CHILD_FLAGS(pio);
 
 	/*
 	 * If we've decided to do a repair, the write is not speculative --
@@ -1318,6 +1340,8 @@ zio_read_bp_init(zio_t *zio)
 	uint64_t psize =
 	    BP_IS_EMBEDDED(bp) ? BPE_GET_PSIZE(bp) : BP_GET_PSIZE(bp);
 
+	ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
+
 	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
 	    zio->io_child_type == ZIO_CHILD_LOGICAL &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
@@ -1341,6 +1365,7 @@ zio_read_bp_init(zio_t *zio)
 		abd_return_buf_copy(zio->io_abd, data, psize);
 	} else {
 		ASSERT(!BP_IS_EMBEDDED(bp));
+		ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
 	}
 
 	if (!DMU_OT_IS_METADATA(BP_GET_TYPE(bp)) && BP_GET_LEVEL(bp) == 0)
@@ -1613,6 +1638,8 @@ zio_free_bp_init(zio_t *zio)
 		if (BP_GET_DEDUP(bp))
 			zio->io_pipeline = ZIO_DDT_FREE_PIPELINE;
 	}
+
+	ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
 
 	return (ZIO_PIPELINE_CONTINUE);
 }
@@ -3447,6 +3474,15 @@ zio_vdev_io_start(zio_t *zio)
 	}
 
 	ASSERT3P(zio->io_logical, !=, zio);
+	if (zio->io_type == ZIO_TYPE_WRITE && zio->io_vd->vdev_removing) {
+		/*
+		 * Note: the code can handle other kinds of writes,
+		 * but we don't expect them.
+		 */
+		ASSERT(zio->io_flags &
+		    (ZIO_FLAG_PHYSICAL | ZIO_FLAG_SELF_HEAL |
+		    ZIO_FLAG_INDUCE_DAMAGE));
+	}
 
 	align = 1ULL << vd->vdev_top->vdev_ashift;
 

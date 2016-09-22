@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2010 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  */
 
@@ -53,6 +53,7 @@ zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
 	{ZFS_DELEG_PERM_MOUNT},
 	{ZFS_DELEG_PERM_PROMOTE},
 	{ZFS_DELEG_PERM_RECEIVE},
+	{ZFS_DELEG_PERM_REMAP},
 	{ZFS_DELEG_PERM_RENAME},
 	{ZFS_DELEG_PERM_ROLLBACK},
 	{ZFS_DELEG_PERM_SNAPSHOT},

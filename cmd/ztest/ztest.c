@@ -343,6 +343,8 @@ ztest_func_t ztest_vdev_aux_add_remove;
 ztest_func_t ztest_split_pool;
 ztest_func_t ztest_reguid;
 ztest_func_t ztest_spa_upgrade;
+ztest_func_t ztest_device_removal;
+ztest_func_t ztest_remap_blocks;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
@@ -393,6 +395,8 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_vdev_LUN_growth, 1, &zopt_rarely),
 	ZTI_INIT(ztest_vdev_add_remove, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime),
+	ZTI_INIT(ztest_device_removal, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_remap_blocks, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
@@ -866,10 +870,10 @@ ztest_kill(ztest_shared_t *zs)
 
 	/*
 	 * Before we kill off ztest, make sure that the config is updated.
-	 * See comment above spa_config_sync().
+	 * See comment above spa_write_cachefile().
 	 */
 	mutex_enter(&spa_namespace_lock);
-	spa_config_sync(ztest_spa, B_FALSE, B_FALSE);
+	spa_write_cachefile(ztest_spa, B_FALSE, B_FALSE);
 	mutex_exit(&spa_namespace_lock);
 
 	(void) kill(getpid(), SIGKILL);
@@ -1128,7 +1132,7 @@ ztest_random_vdev_top(spa_t *spa, boolean_t log_ok)
 	do {
 		top = ztest_random(rvd->vdev_children);
 		tvd = rvd->vdev_child[top];
-	} while (tvd->vdev_ishole || (tvd->vdev_islog && !log_ok) ||
+	} while (!vdev_is_concrete(tvd) || (tvd->vdev_islog && !log_ok) ||
 	    tvd->vdev_mg == NULL || tvd->vdev_mg->mg_class == NULL);
 
 	return (top);
@@ -3191,7 +3195,19 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	mutex_enter(&ztest_vdev_lock);
 	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raidz;
 
-	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+
+	/*
+	 * If a vdev is in the process of being removed, its removal may
+	 * finish while we are in progress, leading to an unexpected error
+	 * value.  Don't bother trying to attach while we are in the middle
+	 * of removal.
+	 */
+	if (spa->spa_vdev_removal != NULL) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
+		mutex_exit(&ztest_vdev_lock);
+		return;
+	}
 
 	/*
 	 * Decide whether to do an attach or a replace.
@@ -3244,7 +3260,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * If oldvd has siblings, then half of the time, detach it.
 	 */
 	if (oldvd_has_siblings && ztest_random(2) == 0) {
-		spa_config_exit(spa, SCL_VDEV, FTAG);
+		spa_config_exit(spa, SCL_ALL, FTAG);
 		error = spa_vdev_detach(spa, oldguid, pguid, B_FALSE);
 		if (error != 0 && error != ENODEV && error != EBUSY &&
 		    error != ENOTSUP)
@@ -3270,6 +3286,10 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	}
 
 	if (newvd) {
+		/*
+		 * Reopen to ensure the vdev's asize field isn't stale.
+		 */
+		vdev_reopen(newvd);
 		newsize = vdev_get_min_asize(newvd);
 	} else {
 		/*
@@ -3307,7 +3327,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	else
 		expected_error = 0;
 
-	spa_config_exit(spa, SCL_VDEV, FTAG);
+	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	/*
 	 * Build the nvlist describing newpath.
@@ -3346,6 +3366,26 @@ out:
 
 	umem_free(oldpath, MAXPATHLEN);
 	umem_free(newpath, MAXPATHLEN);
+}
+
+/* ARGSUSED */
+void
+ztest_device_removal(ztest_ds_t *zd, uint64_t id)
+{
+	spa_t *spa = ztest_spa;
+	vdev_t *vd;
+	uint64_t guid;
+
+	mutex_enter(&ztest_vdev_lock);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	vd = vdev_lookup_top(spa, ztest_random_vdev_top(spa, B_FALSE));
+	guid = vd->vdev_guid;
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	(void) spa_vdev_remove(spa, guid, B_FALSE);
+
+	mutex_exit(&ztest_vdev_lock);
 }
 
 /*
@@ -3478,6 +3518,18 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	mutex_enter(&ztest_vdev_lock);
 	spa_config_enter(spa, SCL_STATE, spa, RW_READER);
 
+	/*
+	 * If there is a vdev removal in progress, it could complete while
+	 * we are running, in which case we would not be able to verify
+	 * that the metaslab_class space increased (because it decreases
+	 * when the device removal completes).
+	 */
+	if (spa->spa_vdev_removal != NULL) {
+		spa_config_exit(spa, SCL_STATE, FTAG);
+		mutex_exit(&ztest_vdev_lock);
+		return;
+	}
+
 	top = ztest_random_vdev_top(spa, B_TRUE);
 
 	tvd = spa->spa_root_vdev->vdev_child[top];
@@ -3569,16 +3621,18 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Make sure we were able to grow the vdev.
 	 */
-	if (new_ms_count <= old_ms_count)
-		fatal(0, "LUN expansion failed: ms_count %llu <= %llu\n",
+	if (new_ms_count <= old_ms_count) {
+		fatal(0, "LUN expansion failed: ms_count %llu < %llu\n",
 		    old_ms_count, new_ms_count);
+	}
 
 	/*
 	 * Make sure we were able to grow the pool.
 	 */
-	if (new_class_space <= old_class_space)
-		fatal(0, "LUN expansion failed: class_space %llu <= %llu\n",
+	if (new_class_space <= old_class_space) {
+		fatal(0, "LUN expansion failed: class_space %llu < %llu\n",
 		    old_class_space, new_class_space);
+	}
 
 	if (ztest_opts.zo_verbose >= 5) {
 		char oldnumbuf[NN_NUMBUF_SZ], newnumbuf[NN_NUMBUF_SZ];
@@ -5263,6 +5317,20 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 
 /* ARGSUSED */
 void
+ztest_remap_blocks(ztest_ds_t *zd, uint64_t id)
+{
+	(void) rw_rdlock(&ztest_name_lock);
+
+	int error = dmu_objset_remap_indirects(zd->zd_name);
+	if (error == ENOSPC)
+		error = 0;
+	ASSERT0(error);
+
+	(void) rw_unlock(&ztest_name_lock);
+}
+
+/* ARGSUSED */
+void
 ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
 	nvlist_t *props = NULL;
@@ -5515,6 +5583,9 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 			 * corruption below exceeds the pool's fault tolerance.
 			 */
 			vdev_file_t *vf = vd0->vdev_tsd;
+
+			zfs_dbgmsg("injecting fault to vdev %llu; maxfaults=%d",
+			    (long long)vd0->vdev_id, (int)maxfaults);
 
 			if (vf != NULL && ztest_random(3) == 0) {
 				(void) close(vf->vf_vnode->v_fd);

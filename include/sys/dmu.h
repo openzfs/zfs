@@ -326,6 +326,7 @@ int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
 void dmu_objset_byteswap(void *buf, size_t size);
 int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
+int dmu_objset_remap_indirects(const char *fsname);
 
 typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
@@ -362,6 +363,9 @@ typedef struct dmu_buf {
 #define	DMU_POOL_EMPTY_BPOBJ		"empty_bpobj"
 #define	DMU_POOL_CHECKSUM_SALT		"org.illumos:checksum_salt"
 #define	DMU_POOL_VDEV_ZAP_MAP		"com.delphix:vdev_zap_map"
+#define	DMU_POOL_REMOVING		"com.delphix:removing"
+#define	DMU_POOL_OBSOLETE_BPOBJ		"com.delphix:obsolete_bpobj"
+#define	DMU_POOL_CONDENSING_INDIRECT	"com.delphix:condensing_indirect"
 
 /*
  * Allocate an object from this objset.  The range of object numbers
@@ -470,6 +474,8 @@ void dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 
 int dmu_object_dirty_raw(objset_t *os, uint64_t object, dmu_tx_t *tx);
 
+int dmu_object_remap_indirects(objset_t *os, uint64_t object, uint64_t txg);
+
 void dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
     int compressed_size, int byteorder, dmu_tx_t *tx);
@@ -488,8 +494,8 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
  * The bonus data is accessed more or less like a regular buffer.
  * You must dmu_bonus_hold() to get the buffer, which will give you a
  * dmu_buf_t with db_offset==-1ULL, and db_size = the size of the bonus
- * data.  As with any normal buffer, you must call dmu_buf_read() to
- * read db_data, dmu_buf_will_dirty() before modifying it, and the
+ * data.  As with any normal buffer, you must call dmu_buf_will_dirty()
+ * before modifying it, and the
  * object must be held in an assigned transaction before calling
  * dmu_buf_will_dirty.  You may use dmu_buf_set_user() on the bonus
  * buffer as well.  You must release what you hold with dmu_buf_rele().
@@ -740,6 +746,7 @@ void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
 void dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
     uint64_t len);
+void dmu_tx_hold_remap_l1indirect(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name);
 void dmu_tx_hold_zap_by_dnode(dmu_tx_t *tx, dnode_t *dn, int add,
     const char *name);

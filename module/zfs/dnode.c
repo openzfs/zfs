@@ -2077,8 +2077,7 @@ done:
 	{
 	int txgoff = tx->tx_txg & TXG_MASK;
 	if (dn->dn_free_ranges[txgoff] == NULL) {
-		dn->dn_free_ranges[txgoff] =
-		    range_tree_create(NULL, NULL, &dn->dn_mtx);
+		dn->dn_free_ranges[txgoff] = range_tree_create(NULL, NULL);
 	}
 	range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
 	range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);

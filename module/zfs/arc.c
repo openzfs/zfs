@@ -6227,7 +6227,7 @@ top:
 			devw = hdr->b_l2hdr.b_dev->l2ad_writing;
 			addr = hdr->b_l2hdr.b_daddr;
 			/*
-			 * Lock out device removal.
+			 * Lock out L2ARC device removal.
 			 */
 			if (vdev_is_dead(vd) ||
 			    !spa_config_tryenter(spa, SCL_L2ARC, vd, RW_READER))
