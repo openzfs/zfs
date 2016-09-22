@@ -88,6 +88,7 @@ static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
 	dsl_scan_scrub_cb,	/* POOL_SCAN_SCRUB */
 	dsl_scan_scrub_cb,	/* POOL_SCAN_RESILVER */
+	NULL,			/* POOL_SCAN_REBUILD */
 };
 
 int
@@ -338,7 +339,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		spa_history_log_internal(spa, "scan done", tx,
 		    "errors=%llu", spa_get_errlog_size(spa));
 
-	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
+	if (DSL_SCAN_IS_SCRUB_RESILVER(scn) ||
+	    scn->scn_phys.scn_func == POOL_SCAN_REBUILD) {
 		mutex_enter(&spa->spa_scrub_lock);
 		while (spa->spa_scrub_inflight > 0) {
 			cv_wait(&spa->spa_scrub_io_cv,
@@ -1508,6 +1510,35 @@ dsl_scan_active(dsl_scan_t *scn)
 	return (used != 0);
 }
 
+static void
+spa_scan_setup_sync(dmu_tx_t *tx)
+{
+	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
+	spa_t *spa = scn->scn_dp->dp_spa;
+
+	ASSERT(scn->scn_phys.scn_state != DSS_SCANNING);
+
+	bzero(&scn->scn_phys, sizeof (scn->scn_phys));
+	scn->scn_phys.scn_func = POOL_SCAN_REBUILD;
+	scn->scn_phys.scn_state = DSS_SCANNING;
+	scn->scn_phys.scn_min_txg = 0;
+	scn->scn_phys.scn_max_txg = tx->tx_txg;
+	scn->scn_phys.scn_ddt_class_max = 0;
+	scn->scn_phys.scn_start_time = gethrestime_sec();
+	scn->scn_phys.scn_errors = 0;
+	/* HH: or just the draid vd? */
+	scn->scn_phys.scn_to_examine = spa->spa_root_vdev->vdev_stat.vs_alloc;
+	scn->scn_restart_txg = 0;
+	scn->scn_done_txg = 0;
+
+	scn->scn_sync_start_time = gethrtime();
+	scn->scn_pausing = B_FALSE;
+	spa->spa_scrub_active = B_TRUE;
+	spa_scan_stat_init(spa);
+
+	spa->spa_scrub_started = B_TRUE;
+}
+
 void
 dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 {
@@ -1523,11 +1554,18 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	if (dsl_scan_restarting(scn, tx)) {
 		pool_scan_func_t func = POOL_SCAN_SCRUB;
 		dsl_scan_done(scn, B_FALSE, tx);
-		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
-			func = POOL_SCAN_RESILVER;
+		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL)) {
+			if (scn->scn_is_sequential)
+				func = POOL_SCAN_REBUILD;
+			else
+				func = POOL_SCAN_RESILVER;
+		}
 		zfs_dbgmsg("restarting scan func=%u txg=%llu",
 		    func, tx->tx_txg);
-		dsl_scan_setup_sync(&func, tx);
+		if (func == POOL_SCAN_REBUILD)
+			spa_scan_setup_sync(tx);
+		else
+			dsl_scan_setup_sync(&func, tx);
 	}
 
 	/*
@@ -1549,6 +1587,18 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 */
 	if (!scn->scn_async_stalled && !dsl_scan_active(scn))
 		return;
+
+	if (scn->scn_phys.scn_func == POOL_SCAN_REBUILD) {
+		if (scn->scn_visited_this_txg == 19890604) {
+			ASSERT(!scn->scn_pausing);
+			/* finished with scan. */
+			dsl_scan_done(scn, B_TRUE, tx);
+			scn->scn_visited_this_txg = 0;
+			dsl_scan_sync_state(scn, tx);
+		}
+		/* HH: sequential scan is mostly handled in the open-context scan thread */
+		return;
+	}
 
 	scn->scn_visited_this_txg = 0;
 	scn->scn_pausing = B_FALSE;
@@ -1751,6 +1801,7 @@ dsl_resilver_restart(dsl_pool_t *dp, uint64_t txg)
 	} else {
 		dp->dp_scan->scn_restart_txg = txg;
 	}
+	dp->dp_scan->scn_is_sequential = B_FALSE;
 	zfs_dbgmsg("restarting resilver txg=%llu", txg);
 }
 

@@ -113,6 +113,8 @@ typedef struct dsl_scan {
 	uint64_t scn_sync_start_time;
 	zio_t *scn_zio_root;
 
+	boolean_t scn_is_sequential;
+
 	/* for freeing blocks */
 	boolean_t scn_is_bptree;
 	boolean_t scn_async_destroying;

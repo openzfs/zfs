@@ -3053,7 +3053,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 
 	if (type == ZIO_TYPE_WRITE && txg != 0 &&
 	    (!(flags & ZIO_FLAG_IO_REPAIR) ||
-	    (flags & ZIO_FLAG_SCAN_THREAD) ||
+	    ((flags & ZIO_FLAG_SCAN_THREAD) && !spa->spa_dsl_pool->dp_scan->scn_is_sequential) ||
 	    spa->spa_claiming)) {
 		/*
 		 * This is either a normal write (not a repair), or it's
