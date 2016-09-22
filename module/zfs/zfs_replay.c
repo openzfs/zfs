@@ -204,7 +204,7 @@ zfs_replay_fuid_domain(void *buf, void **end, uint64_t uid, uint64_t gid)
 		return (fuid_infop);
 
 	fuid_infop->z_domain_table =
-	    kmem_zalloc(domcnt * sizeof (char **), KM_SLEEP);
+	    kmem_zalloc(domcnt * sizeof (char *), KM_SLEEP);
 
 	zfs_replay_fuid_ugid(fuid_infop, uid, gid);
 
@@ -228,7 +228,7 @@ zfs_replay_fuids(void *start, void **end, int idcnt, int domcnt, uint64_t uid,
 	fuid_infop->z_domain_cnt = domcnt;
 
 	fuid_infop->z_domain_table =
-	    kmem_zalloc(domcnt * sizeof (char **), KM_SLEEP);
+	    kmem_zalloc(domcnt * sizeof (char *), KM_SLEEP);
 
 	for (i = 0; i != idcnt; i++) {
 		zfs_fuid_t *zfuid;
