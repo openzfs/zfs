@@ -97,7 +97,7 @@ function setup_testenv #[dtst]
 #
 function cleanup_testenv
 {
-	if is_global_zone && ismounted "$TESTDIR1" "ufs" ; then
+	if is_global_zone && ismounted "$TESTDIR1" "$NEWFS_DEFAULT_FS" ; then
 		log_must $UMOUNT -f $TESTDIR1
 	fi
 	if [[ -d $TESTDIR1 ]]; then

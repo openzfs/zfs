@@ -32,12 +32,10 @@
 #
 ################################################################################
 
-log_assert "'zfs destroy -d <snap>' marks held snapshot for deferred destroy"
-log_onexit cleanup_testenv
+function test_snap_run
+{
+    typeset dstype=$1
 
-setup_testenv snap
-
-for dstype in FS VOL; do
     snap=$(eval echo \$${dstype}SNAP)
     log_must $ZFS hold zfstest $snap
     log_must $ZFS destroy -d $snap
@@ -45,6 +43,21 @@ for dstype in FS VOL; do
     log_must eval "[[ $(get_prop defer_destroy $snap) == 'on' ]]"
     log_must $ZFS release zfstest $snap
     log_mustnot datasetexists $snap
+}
+
+log_assert "'zfs destroy -d <snap>' marks held snapshot for deferred destroy"
+log_onexit cleanup_testenv
+
+setup_testenv snap
+
+for dstype in FS VOL; do
+    if [[ $dstype == VOL ]]; then
+		if is_global_zone; then
+			test_snap_run $dstype
+		fi
+	else
+		test_snap_run $dstype
+	fi
 done
 
 log_pass "'zfs destroy -d <snap>' marks held snapshot for deferred destroy"

@@ -45,21 +45,33 @@
 #
 ################################################################################
 
-log_assert "'zfs destroy -R' works on deferred destroyed snapshots"
-log_onexit cleanup_testenv
+function test_clone_run
+{
+    typeset dstype=$1
 
-setup_testenv clone
-log_must $UMOUNT -f $TESTDIR1
-
-for dstype in FS VOL; do
     ds=$(eval echo \$${dstype})
     snap=$(eval echo \$${dstype}SNAP)
     clone=$(eval echo \$${dstype}CLONE)
     log_must $ZFS destroy -d $snap
     log_must datasetexists $snap
-    log_must $ZFS destroy -R $ds
+    log_must $ZFS destroy -R $clone
     log_mustnot datasetexists $snap
     log_mustnot datasetexists $clone
+}
+
+log_assert "'zfs destroy -R' works on deferred destroyed snapshots"
+log_onexit cleanup_testenv
+
+setup_testenv clone
+
+for dstype in FS VOL; do
+    if [[ $dstype == VOL ]]; then
+		if is_global_zone; then
+			test_clone_run $dstype
+		fi
+	else
+		test_clone_run $dstype
+	fi
 done
 
 log_pass "'zfs destroy -R' works on deferred destroyed snapshots"

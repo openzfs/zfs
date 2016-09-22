@@ -32,12 +32,10 @@
 #
 ################################################################################
 
-log_assert "deferred destroyed snapshots remain until last hold is released"
-log_onexit cleanup_testenv
+function test_snap_run
+{
+    typeset dstype=$1
 
-setup_testenv snap
-
-for dstype in FS VOL; do
     snap=$(eval echo \$${dstype}SNAP)
     log_must $ZFS hold zfstest1 $snap
     log_must $ZFS destroy -d $snap
@@ -57,6 +55,21 @@ for dstype in FS VOL; do
 
     log_must $ZFS release zfstest2 $snap
     log_mustnot datasetexists $snap
+}
+
+log_assert "deferred destroyed snapshots remain until last hold is released"
+log_onexit cleanup_testenv
+
+setup_testenv snap
+
+for dstype in FS VOL; do
+    if [[ $dstype == VOL ]]; then
+		if is_global_zone; then
+			test_snap_run $dstype
+		fi
+	else
+		test_snap_run $dstype
+	fi
 done
 
 log_pass "deferred destroyed snapshots remain until last hold is released"
