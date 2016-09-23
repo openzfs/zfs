@@ -3382,10 +3382,12 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	if (!(cb->cb_flags & IOS_ANYHISTO_M))
 		printf("\n");
 
-	free(calcvs);
 	ret++;
 
 children:
+
+	free(calcvs);
+
 	if (!cb->cb_verbose)
 		return (ret);
 
@@ -3734,14 +3736,16 @@ static int
 is_vdev_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_data)
 {
 	iostat_cbdata_t *cb = cb_data;
-	char *name;
+	char *name = NULL;
+	int ret = 0;
 
 	name = zpool_vdev_name(g_zfs, zhp, nv, cb->cb_name_flags);
 
 	if (strcmp(name, cb->cb_vdev_names[0]) == 0)
-		return (1); /* match */
+		ret = 1; /* match */
+	free(name);
 
-	return (0);
+	return (ret);
 }
 
 /*
