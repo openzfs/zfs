@@ -1645,20 +1645,142 @@ function reexport_pool
 }
 
 #
-# Verify a given disk is online or offline
+# Verify a given disk or pool state
 #
 # Return 0 is pool/disk matches expected state, 1 otherwise
 #
-function check_state # pool disk state{online,offline}
+function check_state # pool disk state{online,offline,degraded}
 {
 	typeset pool=$1
 	typeset disk=${2#$DEV_DSKDIR/}
 	typeset state=$3
 
-	$ZPOOL status -v $pool | grep "$disk"  \
-	    | grep -i "$state" > /dev/null 2>&1
+	[[ -z $pool ]] || [[ -z $state ]] \
+	    && log_fail "Arguments invalid or missing"
+
+	if [[ -z $disk ]]; then
+		#check pool state only
+		$ZPOOL get -H -o value health $pool \
+		    | grep -i "$state" > /dev/null 2>&1
+	else
+		$ZPOOL status -v $pool | grep "$disk"  \
+		    | grep -i "$state" > /dev/null 2>&1
+	fi
 
 	return $?
+}
+
+#
+# Cause a scan of all scsi host adapters by default
+#
+# $1 optional host number
+#
+function scan_scsi_hosts
+{
+	typeset hostnum=${1}
+
+	if [[ -z $hostnum ]]; then
+		for host in /sys/class/scsi_host/host*; do
+			echo '- - -' > $host/scan
+		done
+	else
+		echo "/sys/class/scsi_host/host$hostnum/scan"
+		echo '- - -' > "/sys/class/scsi_host/host$hostnum/scan"
+	fi
+}
+#
+# Wait for newly created block devices to have their minors created.
+#
+function block_device_wait
+{
+	if is_linux; then
+		$UDEVADM trigger
+		$UDEVADM settle
+	fi
+}
+
+#
+# Online or offline a disk on the system
+#
+# First checks state of disk. Test will fail if disk is not properly onlined
+# or offlined. Online is a full rescan of SCSI disks by echoing to every
+# host entry.
+#
+function on_off_disk # disk state{online,offline} host
+{
+	typeset disk=$1
+	typeset state=$2
+	typeset host=$3
+
+	[[ -z $disk ]] || [[ -z $state ]] &&  \
+	    log_fail "Arguments invalid or missing"
+
+	if is_linux; then
+		if [[ $state == "offline" ]] && ( is_mpath_device $disk ); then
+			dm_name="$($READLINK $DEV_DSKDIR/$disk \
+			    | $NAWK -F / '{print $2}')"
+			slave="$($LS /sys/block/${dm_name}/slaves \
+			    | $NAWK '{print $1}')"
+			while [[ -n $slave ]]; do
+				#check if disk is online
+				$LSSCSI | $EGREP $slave > /dev/null
+				if (($? == 0)); then
+					slave_dir="/sys/block/${dm_name}"
+					slave_dir+="/slaves/${slave}/device"
+					ss="${slave_dir}/state"
+					sd="${slave_dir}/delete"
+					log_must eval "$ECHO 'offline' > ${ss}"
+					log_must eval "$ECHO '1' > ${sd}"
+					$LSSCSI | $EGREP $slave > /dev/null
+						if (($? == 0)); then
+							log_fail "Offlining" \
+							    "$disk failed"
+						fi
+				fi
+				slave="$($LS /sys/block/$dm_name/slaves \
+				    2>/dev/null | $NAWK '{print $1}')"
+			done
+		elif [[ $state == "offline" ]] && ( is_real_device $disk ); then
+			#check if disk is online
+			$LSSCSI | $EGREP $disk > /dev/null
+			if (($? == 0)); then
+				dev_state="/sys/block/$disk/device/state"
+				dev_delete="/sys/block/$disk/device/delete"
+				log_must eval "$ECHO 'offline' > ${dev_state}"
+				log_must eval "$ECHO '1' > ${dev_delete}"
+				$LSSCSI | $EGREP $disk > /dev/null
+					if (($? == 0)); then
+						log_fail "Offlining $disk" \
+						    "failed"
+					fi
+			else
+				log_note "$disk is already offline"
+			fi
+		elif [[ $state == "online" ]]; then
+			#force a full rescan
+			log_must scan_scsi_hosts $host
+			block_device_wait
+			if is_mpath_device $disk; then
+				dm_name="$($READLINK $DEV_DSKDIR/$disk \
+				    | $NAWK -F / '{print $2}')"
+				slave="$($LS /sys/block/$dm_name/slaves \
+				    | $NAWK '{print $1}')"
+				$LSSCSI | $EGREP $slave > /dev/null
+				if (($? != 0)); then
+					log_fail "Onlining $disk failed"
+				fi
+			elif is_real_device $disk; then
+				$LSSCSI | $EGREP $disk > /dev/null
+				if (($? != 0)); then
+					log_fail "Onlining $disk failed"
+				fi
+			else
+				log_fail "$disk is not a real dev"
+			fi
+		else
+			log_fail "$disk failed to $state"
+		fi
+	fi
 }
 
 #
@@ -2754,7 +2876,8 @@ function is_real_device #disk
 	[[ -z $disk ]] && log_fail "No argument for disk given."
 
        if is_linux; then
-		$LSBLK $DEV_RDSKDIR/$disk -o TYPE | $EGREP disk > /dev/null 2>&1
+		($LSBLK $DEV_RDSKDIR/$disk -o TYPE | $EGREP disk > /dev/null) \
+		    2>/dev/null
 		return $?
        fi
 }
@@ -2768,7 +2891,8 @@ function is_loop_device #disk
 	[[ -z $disk ]] && log_fail "No argument for disk given."
 
        if is_linux; then
-		$LSBLK $DEV_RDSKDIR/$disk -o TYPE | $EGREP loop > /dev/null 2>&1
+		($LSBLK $DEV_RDSKDIR/$disk -o TYPE | $EGREP loop > /dev/null) \
+		    2>/dev/null
 		return $?
        fi
 }
@@ -2784,7 +2908,8 @@ function is_mpath_device #disk
 	[[ -z $disk ]] && log_fail "No argument for disk given."
 
 	if is_linux; then
-		$LSBLK $DEV_MPATHDIR/$disk -o TYPE | $EGREP mpath > /dev/null 2>&1
+		($LSBLK $DEV_MPATHDIR/$disk -o TYPE | $EGREP mpath >/dev/null) \
+		     2>/dev/null
 		if (($? == 0)); then
 			$READLINK $DEV_MPATHDIR/$disk > /dev/null 2>&1
 			return $?
@@ -2807,11 +2932,13 @@ function set_slice_prefix
 	if is_linux; then
 		while (( i < $DISK_ARRAY_NUM )); do
 			disk="$($ECHO $DISKS | $NAWK '{print $(i + 1)}')"
-			if ( is_mpath_device $disk ) && [[ -z $($ECHO $disk | awk 'substr($1,18,1)\
-			     ~ /^[[:digit:]]+$/') ]] || ( is_real_device $disk ); then
+			if ( is_mpath_device $disk ) && [[ -z $($ECHO $disk \
+			    | awk 'substr($1,18,1) ~ /^[[:digit:]]+$/') ]] || \
+			    ( is_real_device $disk ); then
 				export SLICE_PREFIX=""
 				return 0
-			elif ( is_mpath_device $disk || is_loop_device $disk ); then
+			elif ( is_mpath_device $disk || is_loop_device \
+			    $disk ); then
 				export SLICE_PREFIX="p"
 				return 0
 			else
@@ -2869,6 +2996,34 @@ function get_device_dir #device
 		$ECHO $device
 	else
 		$ECHO "$DEV_DSKDIR"
+	fi
+}
+
+#
+# Get persistent name for given disk
+#
+function get_persistent_disk_name #device
+{
+	typeset device=$1
+	typeset dev_id
+
+	if is_linux; then
+		if is_real_device $device; then
+			dev_id="$($UDEVADM info -q all -n $DEV_DSKDIR/$device \
+			    | $EGREP disk/by-id | $NAWK '{print $2; exit}' \
+			    | $NAWK -F / '{print $3}')"
+			$ECHO $dev_id
+		elif is_mpath_device $device; then
+			dev_id="$($UDEVADM info -q all -n $DEV_DSKDIR/$device \
+			    | $EGREP disk/by-id/dm-uuid \
+			    | $NAWK '{print $2; exit}' \
+			    | $NAWK -F / '{print $3}')"
+			$ECHO $dev_id
+		else
+			$ECHO $device
+		fi
+	else
+		$ECHO $device
 	fi
 }
 
@@ -3026,17 +3181,6 @@ function get_min
 	done
 
 	echo $min
-}
-
-#
-# Wait for newly created block devices to have their minors created.
-#
-function block_device_wait
-{
-	if is_linux; then
-		$UDEVADM trigger
-		$UDEVADM settle
-	fi
 }
 
 #
