@@ -523,7 +523,6 @@ zfs_inode_update(znode_t *zp)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
 
 	spin_lock(&ip->i_lock);
-	ip->i_mode = zp->z_mode;
 	zfs_set_inode_flags(zp, ip);
 	ip->i_blocks = i_blocks;
 	i_size_write(ip, zp->z_size);
@@ -604,7 +603,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 		goto error;
 	}
 
-	zp->z_mode = mode;
+	zp->z_mode = ip->i_mode = mode;
 	ip->i_generation = (uint32_t)tmp_gen;
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	set_nlink(ip, (uint32_t)links);
@@ -917,7 +916,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	}
 
 	(*zpp)->z_pflags = pflags;
-	(*zpp)->z_mode = mode;
+	(*zpp)->z_mode = ZTOI(*zpp)->i_mode = mode;
 	(*zpp)->z_dnodesize = dnodesize;
 
 	if (obj_type == DMU_OT_ZNODE ||
@@ -1214,7 +1213,7 @@ zfs_rezget(znode_t *zp)
 		return (SET_ERROR(EIO));
 	}
 
-	zp->z_mode = mode;
+	zp->z_mode = ZTOI(zp)->i_mode = mode;
 	zfs_uid_write(ZTOI(zp), z_uid);
 	zfs_gid_write(ZTOI(zp), z_gid);
 
