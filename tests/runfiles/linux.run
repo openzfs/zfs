@@ -98,13 +98,20 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
     'zfs_create_013_pos']
 
 # DISABLED:
+# zfs_destroy_001_pos - busy mountpoint behavior
 # zfs_destroy_005_neg - busy mountpoint behavior
 [tests/functional/cli_root/zfs_destroy]
+<<<<<<< 848a24ecacb5cb97541d53b6d5d55b947cce011d
 tests = ['zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
     'zfs_destroy_004_pos','zfs_destroy_006_neg', 'zfs_destroy_007_neg',
     'zfs_destroy_008_pos','zfs_destroy_009_pos', 'zfs_destroy_010_pos',
     'zfs_destroy_011_pos','zfs_destroy_012_pos', 'zfs_destroy_013_neg',
     'zfs_destroy_014_pos','zfs_destroy_015_pos', 'zfs_destroy_016_pos']
+=======
+tests = ['zfs_destroy_002_pos', 'zfs_destroy_003_pos', 'zfs_destroy_004_pos',
+    'zfs_destroy_006_neg', 'zfs_destroy_007_neg', 'zfs_destroy_014_pos',
+    'zfs_destroy_015_pos', 'zfs_destroy_016_pos']
+>>>>>>> Moved from dd to file_trunc
 
 # DISABLED:
 # zfs_get_004_pos - nested pools
@@ -479,10 +486,8 @@ tests = ['nopwrite_copies', 'nopwrite_mtime', 'nopwrite_negative',
     'nopwrite_promoted_clone', 'nopwrite_recsize', 'nopwrite_sync',
     'nopwrite_volume']
 
-# DISABLED: needs investigation
-#[tests/functional/online_offline]
-#tests = ['online_offline_001_pos', 'online_offline_002_neg',
-#    'online_offline_003_neg']
+[tests/functional/online_offline]
+tests = ['online_offline_001_pos', 'online_offline_002_neg', 'online_offline_003_neg']
 
 [tests/functional/pool_names]
 tests = ['pool_names_001_pos', 'pool_names_002_neg']

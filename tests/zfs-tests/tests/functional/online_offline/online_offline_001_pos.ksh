@@ -30,6 +30,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/online_offline/online_offline.cfg
 
 #
 # DESCRIPTION:
@@ -60,14 +61,15 @@ function cleanup
 
 	done
 
-	$KILL $killpid >/dev/null 2>&1
+	kill_process $killpid file_write
 	[[ -e $TESTDIR ]] && log_must $RM -rf $TESTDIR/*
 }
 
 log_assert "Turning a disk offline and back online during I/O completes."
 
-$FILE_TRUNC -f $((64 * 1024 * 1024)) -b 8192 -c 0 -r $TESTDIR/$TESTFILE1 &
+$FILE_WRITE -f $TESTDIR/$TESTFILE1 -o create -b 8192 -c $((64 * 1024 * 1024)) -d 25 &
 typeset killpid="$! "
+log_note "$FILE_WRITE has started, killpid: $killpid"
 
 for disk in $DISKLIST; do
         for i in 'do_offline' 'do_offline_while_already_offline'; do
@@ -85,7 +87,7 @@ for disk in $DISKLIST; do
         fi
 done
 
-log_must $KILL $killpid
+kill_process $killpid file_write
 $SYNC
 
 typeset dir=$(get_device_dir $DISKS)
