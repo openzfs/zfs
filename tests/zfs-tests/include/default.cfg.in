@@ -34,6 +34,10 @@
 # Common paths
 bindir=@bindir@
 sbindir=@sbindir@
+etcdir=@sysconfdir@
+
+# ZFS Directories
+export ZEDLETDIR=${ZEDLETDIR:-${etcdir}/zfs/zed.d}
 
 # ZFS Commands
 export ZDB=${ZDB:-${sbindir}/zdb}
@@ -47,6 +51,7 @@ export RAIDZ_TEST=${RAIDZ_TEST:-${bindir}/raidz_test}
 export ARC_SUMMARY=${ARC_SUMMARY:-${bindir}/arc_summary.py}
 export ARCSTAT=${ARCSTAT:-${bindir}/arcstat.py}
 export DBUFSTAT=${DBUFSTAT:-${bindir}/dbufstat.py}
+export ZED=${ZED:-${sbindir}/zed}
 
 . $STF_SUITE/include/libtest.shlib
 

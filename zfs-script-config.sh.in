@@ -20,6 +20,7 @@ export ETCDIR=${SRCDIR}/etc
 export TESTSDIR=${SRCDIR}/tests
 export RUNFILEDIR=${TESTSDIR}/runfiles
 export UDEVRULEDIR=${BUILDDIR}/udev/rules.d
+export ZEDLETDIR=${SRCDIR}/cmd/zed/zed.d
 
 export ZDB=${CMDDIR}/zdb/zdb
 export ZFS=${CMDDIR}/zfs/zfs
@@ -32,6 +33,7 @@ export RAIDZ_TEST=${CMDDIR}/raidz_test/raidz_test
 export ARC_SUMMARY=${CMDDIR}/arc_summary/arc_summary.py
 export ARCSTAT=${CMDDIR}/arcstat/arcstat.py
 export DBUFSTAT=${CMDDIR}/dbufstat/dbufstat.py
+export ZED=${CMDDIR}/zed/zed
 
 export COMMON_SH=${SCRIPTDIR}/common.sh
 export ZFS_SH=${SCRIPTDIR}/zfs.sh
