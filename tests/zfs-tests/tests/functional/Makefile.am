@@ -14,6 +14,7 @@ SUBDIRS = \
 	delegate \
 	devices \
 	exec \
+	fault \
 	features \
 	grow_pool \
 	grow_replicas \

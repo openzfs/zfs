@@ -234,6 +234,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/delegate/Makefile
 	tests/zfs-tests/tests/functional/devices/Makefile
 	tests/zfs-tests/tests/functional/exec/Makefile
+	tests/zfs-tests/tests/functional/fault/Makefile
 	tests/zfs-tests/tests/functional/features/async_destroy/Makefile
 	tests/zfs-tests/tests/functional/features/large_dnode/Makefile
 	tests/zfs-tests/tests/functional/features/Makefile
