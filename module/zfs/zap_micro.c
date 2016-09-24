@@ -1110,7 +1110,8 @@ again:
 		if (mze->mze_name[0] == 0) {
 			mze->mze_value = value;
 			mze->mze_cd = cd;
-			(void) strcpy(mze->mze_name, zn->zn_key_orig);
+			(void) strlcpy(mze->mze_name, zn->zn_key_orig,
+			    sizeof (mze->mze_name));
 			zap->zap_m.zap_num_entries++;
 			zap->zap_m.zap_alloc_next = i+1;
 			if (zap->zap_m.zap_alloc_next ==

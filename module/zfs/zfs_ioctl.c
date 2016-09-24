@@ -3928,12 +3928,13 @@ zfs_check_clearable(char *dataset, nvlist_t *props, nvlist_t **errlist)
 	VERIFY(nvlist_alloc(&errors, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 	zc = kmem_alloc(sizeof (zfs_cmd_t), KM_SLEEP);
-	(void) strcpy(zc->zc_name, dataset);
+	(void) strlcpy(zc->zc_name, dataset, sizeof (zc->zc_name));
 	pair = nvlist_next_nvpair(props, NULL);
 	while (pair != NULL) {
 		next_pair = nvlist_next_nvpair(props, pair);
 
-		(void) strcpy(zc->zc_value, nvpair_name(pair));
+		(void) strlcpy(zc->zc_value, nvpair_name(pair),
+		    sizeof (zc->zc_value));
 		if ((err = zfs_check_settable(dataset, pair, CRED())) != 0 ||
 		    (err = zfs_secpolicy_inherit_prop(zc, NULL, CRED())) != 0) {
 			VERIFY(nvlist_remove_nvpair(props, pair) == 0);
@@ -4951,7 +4952,8 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 	error = dsl_dataset_snapshot_tmp(zc->zc_name, snap_name, minor,
 	    hold_name);
 	if (error == 0)
-		(void) strcpy(zc->zc_value, snap_name);
+		(void) strlcpy(zc->zc_value, snap_name,
+		    sizeof (zc->zc_value));
 	strfree(snap_name);
 	strfree(hold_name);
 	zfs_onexit_fd_rele(zc->zc_cleanup_fd);

@@ -203,7 +203,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 				    sizeof (foundobj), 1, &foundobj);
 				ASSERT(err || foundobj == ddobj);
 #endif
-				(void) strcpy(dd->dd_myname, tail);
+				(void) strlcpy(dd->dd_myname, tail,
+				    sizeof (dd->dd_myname));
 			} else {
 				err = zap_value_search(dp->dp_meta_objset,
 				    dsl_dir_phys(dd->dd_parent)->
