@@ -1263,7 +1263,7 @@ EXPORT_SYMBOL(zfs_sb_prune);
 /*
  * Teardown the zfs_sb_t.
  *
- * Note, if 'unmounting' if FALSE, we return with the 'z_teardown_lock'
+ * Note, if 'unmounting' is FALSE, we return with the 'z_teardown_lock'
  * and 'z_teardown_inactive_lock' held.
  */
 int
@@ -1358,8 +1358,8 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	 */
 	if (unmounting) {
 		zsb->z_unmounted = B_TRUE;
-		rrm_exit(&zsb->z_teardown_lock, FTAG);
 		rw_exit(&zsb->z_teardown_inactive_lock);
+		rrm_exit(&zsb->z_teardown_lock, FTAG);
 	}
 
 	/*
@@ -1905,6 +1905,28 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	return (error);
 }
 EXPORT_SYMBOL(zfs_get_zplprop);
+
+/*
+ * Return true if the coresponding vfs's unmounted flag is set.
+ * Otherwise return false.
+ * If this function returns true we know VFS unmount has been initiated.
+ */
+boolean_t
+zfs_get_vfs_flag_unmounted(objset_t *os)
+{
+	zfs_sb_t *zfvp;
+	boolean_t unmounted = B_FALSE;
+
+	ASSERT(dmu_objset_type(os) == DMU_OST_ZFS);
+
+	mutex_enter(&os->os_user_ptr_lock);
+	zfvp = dmu_objset_get_user(os);
+	if (zfvp != NULL && zfvp->z_unmounted)
+		unmounted = B_TRUE;
+	mutex_exit(&os->os_user_ptr_lock);
+
+	return (unmounted);
+}
 
 void
 zfs_init(void)

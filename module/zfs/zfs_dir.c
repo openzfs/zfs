@@ -644,8 +644,8 @@ zfs_rmnode(znode_t *zp)
 		error = dmu_free_long_range(os, zp->z_id, 0, DMU_OBJECT_END);
 		if (error) {
 			/*
-			 * Not enough space.  Leave the file in the unlinked
-			 * set.
+			 * Not enough space or we were interrupted by unmount.
+			 * Leave the file in the unlinked set.
 			 */
 			zfs_znode_dmu_fini(zp);
 			return;
