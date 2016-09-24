@@ -25,7 +25,7 @@
 # Use is subject to license terms.
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -371,52 +371,48 @@ function scan_state { #state-file
 }
 
 #
+# Note that we keep this list relatively short so that this test doesn't
+# time out (after taking more than 10 minutes).
+#
+set -A prop "checksum" "" \
+	"compression" "" \
+	"atime" "" \
+	"sharenfs" "" \
+	"recordsize" "recsize" \
+	"snapdir" "" \
+	"readonly" ""
+
+#
 # Note except for the mountpoint default value (which is handled in
 # the routine itself), each property specified in the 'prop' array
 # above must have a corresponding entry in the two arrays below.
 #
-if is_linux; then
-	set -A prop "checksum" "" \
-		"compression" "compress" \
-		"atime" "" \
-		"devices" "" \
-		"exec" "" \
-		"setuid" "" \
-		"recordsize" "recsize" \
-		"snapdir" "" \
-		"acltype"
 
-	set -A def_val "on" "off" "on" "on" "on" \
-		"on" "" \
-		"hidden" "off"
+set -A def_val "on" "off" "on" \
+	"off" "" \
+	"hidden" \
+	"off"
 
-	set -A local_val "off" "on" "off" "off" "off" \
-		"off" "" \
-		"visible" "off"
+set -A local_val "off" "on" "off" \
+	"on" "" \
+	"visible" \
+	"off"
+
+#
+# Add system specific values
+#
+
+if ! is_linux; then
+	prop+=("aclmode" "" \
+		"mountpoint" "")
+	def_val+=("discard" \
+		"")
+	local_val+=("groupmask" \
+		"$TESTDIR")
 else
-	set -A prop "checksum" "" \
-		"compression" "compress" \
-		"atime" "" \
-		"devices" "" \
-		"exec" "" \
-		"setuid" "" \
-		"sharenfs", "" \
-		"recordsize" "recsize" \
-		"mountpoint" "" \
-		"snapdir" "" \
-		"aclmode", "" \
-		"aclinherit" "" \
-		"readonly" "rdonly"
-
-	set -A def_val "on" "off" "on" "on" "on" \
-		"on" "off" "" \
-		"" "hidden" "discard" "secure" \
-		"off"
-
-	set -A local_val "off" "on" "off" "off" "off" \
-		"off" "on" "" \
-		"$TESTDIR" "visible" "groupmask" "discard" \
-		"off"
+	prop+=("acltype" "")
+	def_val+=("off")
+	local_val+=("off")
 fi
 
 
