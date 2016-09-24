@@ -38,6 +38,7 @@
 #include <sys/zfs_context.h>
 #include <sys/dsl_deadlist.h>
 #include <sys/refcount.h>
+#include <sys/rrwlock.h>
 #include <zfeature_common.h>
 
 #ifdef	__cplusplus
@@ -149,6 +150,7 @@ typedef struct dsl_dataset_phys {
 
 typedef struct dsl_dataset {
 	dmu_buf_user_t ds_dbu;
+	rrwlock_t ds_bp_rwlock; /* Protects ds_phys->ds_bp */
 
 	/* Immutable: */
 	struct dsl_dir *ds_dir;
