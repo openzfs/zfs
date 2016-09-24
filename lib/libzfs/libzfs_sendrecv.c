@@ -3225,7 +3225,12 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	/*
 	 * Determine the name of the origin snapshot.
 	 */
-	if (drrb->drr_flags & DRR_FLAG_CLONE) {
+	if (originsnap) {
+		(void) strncpy(origin, originsnap, sizeof (origin));
+		if (flags->verbose)
+			(void) printf("using provided clone origin %s\n",
+			    origin);
+	} else if (drrb->drr_flags & DRR_FLAG_CLONE) {
 		if (guid_to_name(hdl, destsnap,
 		    drrb->drr_fromguid, B_FALSE, origin) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -3236,11 +3241,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 		if (flags->verbose)
 			(void) printf("found clone origin %s\n", origin);
-	} else if (originsnap) {
-		(void) strncpy(origin, originsnap, sizeof (origin));
-		if (flags->verbose)
-			(void) printf("using provided clone origin %s\n",
-			    origin);
 	}
 
 	boolean_t resuming = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
