@@ -28,30 +28,72 @@
 #include <sys/byteorder.h>
 #include <sys/spa_checksum.h>
 #include <zfs_fletcher.h>
+#include <strings.h>
 
 #define	__asm __asm__ __volatile__
 
-typedef struct {
-	uint64_t v[8] __attribute__((aligned(64)));
-} zfs_avx512_t;
-
 static void
-fletcher_4_avx512f_init(zio_cksum_t *zcp)
+fletcher_4_avx512f_init(fletcher_4_ctx_t *ctx)
 {
-	kfpu_begin();
-
-	/* clear registers */
-	__asm("vpxorq %zmm0, %zmm0, %zmm0");
-	__asm("vpxorq %zmm1, %zmm1, %zmm1");
-	__asm("vpxorq %zmm2, %zmm2, %zmm2");
-	__asm("vpxorq %zmm3, %zmm3, %zmm3");
+	bzero(ctx->avx512, 4 * sizeof (zfs_fletcher_avx512_t));
 }
 
 static void
-fletcher_4_avx512f_native(const void *buf, uint64_t size, zio_cksum_t *unused)
+fletcher_4_avx512f_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
+{
+	static const uint64_t
+	CcA[] = {   0,   0,   1,   3,   6,  10,  15,  21 },
+	CcB[] = {  28,  36,  44,  52,  60,  68,  76,  84 },
+	DcA[] = {   0,   0,   0,   1,   4,  10,  20,  35 },
+	DcB[] = {  56,  84, 120, 164, 216, 276, 344, 420 },
+	DcC[] = { 448, 512, 576, 640, 704, 768, 832, 896 };
+
+	uint64_t A, B, C, D;
+	uint64_t i;
+
+	A = ctx->avx512[0].v[0];
+	B = 8 * ctx->avx512[1].v[0];
+	C = 64 * ctx->avx512[2].v[0] - CcB[0] * ctx->avx512[1].v[0];
+	D = 512 * ctx->avx512[3].v[0] - DcC[0] * ctx->avx512[2].v[0] +
+	    DcB[0] * ctx->avx512[1].v[0];
+
+	for (i = 1; i < 8; i++) {
+		A += ctx->avx512[0].v[i];
+		B += 8 * ctx->avx512[1].v[i] - i * ctx->avx512[0].v[i];
+		C += 64 * ctx->avx512[2].v[i] - CcB[i] * ctx->avx512[1].v[i] +
+		    CcA[i] * ctx->avx512[0].v[i];
+		D += 512 * ctx->avx512[3].v[i] - DcC[i] * ctx->avx512[2].v[i] +
+		    DcB[i] * ctx->avx512[1].v[i] - DcA[i] * ctx->avx512[0].v[i];
+	}
+
+	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
+}
+
+#define	FLETCHER_4_AVX512_RESTORE_CTX(ctx)				\
+{									\
+	__asm("vmovdqu64 %0, %%zmm0" :: "m" ((ctx)->avx512[0]));	\
+	__asm("vmovdqu64 %0, %%zmm1" :: "m" ((ctx)->avx512[1]));	\
+	__asm("vmovdqu64 %0, %%zmm2" :: "m" ((ctx)->avx512[2]));	\
+	__asm("vmovdqu64 %0, %%zmm3" :: "m" ((ctx)->avx512[3]));	\
+}
+
+#define	FLETCHER_4_AVX512_SAVE_CTX(ctx)					\
+{									\
+	__asm("vmovdqu64 %%zmm0, %0" : "=m" ((ctx)->avx512[0]));	\
+	__asm("vmovdqu64 %%zmm1, %0" : "=m" ((ctx)->avx512[1]));	\
+	__asm("vmovdqu64 %%zmm2, %0" : "=m" ((ctx)->avx512[2]));	\
+	__asm("vmovdqu64 %%zmm3, %0" : "=m" ((ctx)->avx512[3]));	\
+}
+
+static void
+fletcher_4_avx512f_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
+
+	kfpu_begin();
+
+	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
 	for (; ip < ipend; ip += 8) {
 		__asm("vpmovzxdq %0, %%zmm4"::"m" (*ip));
@@ -60,14 +102,23 @@ fletcher_4_avx512f_native(const void *buf, uint64_t size, zio_cksum_t *unused)
 		__asm("vpaddq %zmm1, %zmm2, %zmm2");
 		__asm("vpaddq %zmm2, %zmm3, %zmm3");
 	}
+
+	FLETCHER_4_AVX512_SAVE_CTX(ctx);
+
+	kfpu_end();
 }
 
 static void
-fletcher_4_avx512f_byteswap(const void *buf, uint64_t size, zio_cksum_t *unused)
+fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
+    uint64_t size)
 {
 	static const uint64_t byteswap_mask = 0xFFULL;
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
+
+	kfpu_begin();
+
+	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
 	__asm("vpbroadcastq %0, %%zmm8" :: "r" (byteswap_mask));
 	__asm("vpsllq $8, %zmm8, %zmm9");
@@ -94,49 +145,10 @@ fletcher_4_avx512f_byteswap(const void *buf, uint64_t size, zio_cksum_t *unused)
 		__asm("vpaddq %zmm1, %zmm2, %zmm2");
 		__asm("vpaddq %zmm2, %zmm3, %zmm3");
 	}
-}
 
-static void
-fletcher_4_avx512f_fini(zio_cksum_t *zcp)
-{
-	static const uint64_t
-	CcA[] = {   0,   0,   1,   3,   6,  10,  15,  21 },
-	CcB[] = {  28,  36,  44,  52,  60,  68,  76,  84 },
-	DcA[] = {   0,   0,   0,   1,   4,  10,  20,  35 },
-	DcB[] = {  56,  84, 120, 164, 216, 276, 344, 420 },
-	DcC[] = { 448, 512, 576, 640, 704, 768, 832, 896 };
-
-	zfs_avx512_t a, b, c, b8, c64, d512;
-	uint64_t A, B, C, D;
-	uint64_t i;
-
-	__asm("vmovdqu64 %%zmm0, %0":"=m" (a));
-	__asm("vmovdqu64 %%zmm1, %0":"=m" (b));
-	__asm("vmovdqu64 %%zmm2, %0":"=m" (c));
-	__asm("vpsllq $3, %zmm1, %zmm1");
-	__asm("vpsllq $6, %zmm2, %zmm2");
-	__asm("vpsllq $9, %zmm3, %zmm3");
-
-	__asm("vmovdqu64 %%zmm1, %0":"=m" (b8));
-	__asm("vmovdqu64 %%zmm2, %0":"=m" (c64));
-	__asm("vmovdqu64 %%zmm3, %0":"=m" (d512));
+	FLETCHER_4_AVX512_SAVE_CTX(ctx)
 
 	kfpu_end();
-
-	A = a.v[0];
-	B = b8.v[0];
-	C = c64.v[0] - CcB[0] * b.v[0];
-	D = d512.v[0] - DcC[0] * c.v[0] + DcB[0] * b.v[0];
-
-	for (i = 1; i < 8; i++) {
-		A += a.v[i];
-		B += b8.v[i] - i * a.v[i];
-		C += c64.v[i] - CcB[i] * b.v[i] + CcA[i] * a.v[i];
-		D += d512.v[i] - DcC[i] * c.v[i] + DcB[i] * b.v[i] -
-		    DcA[i] * a.v[i];
-	}
-
-	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 }
 
 static boolean_t

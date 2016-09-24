@@ -138,17 +138,20 @@
 #include <zfs_fletcher.h>
 
 
-static void fletcher_4_scalar_init(zio_cksum_t *zcp);
-static void fletcher_4_scalar_native(const void *buf, uint64_t size,
-    zio_cksum_t *zcp);
-static void fletcher_4_scalar_byteswap(const void *buf, uint64_t size,
-    zio_cksum_t *zcp);
+static void fletcher_4_scalar_init(fletcher_4_ctx_t *ctx);
+static void fletcher_4_scalar_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp);
+static void fletcher_4_scalar_native(fletcher_4_ctx_t *ctx,
+    const void *buf, uint64_t size);
+static void fletcher_4_scalar_byteswap(fletcher_4_ctx_t *ctx,
+    const void *buf, uint64_t size);
 static boolean_t fletcher_4_scalar_valid(void);
 
 static const fletcher_4_ops_t fletcher_4_scalar_ops = {
 	.init_native = fletcher_4_scalar_init,
+	.fini_native = fletcher_4_scalar_fini,
 	.compute_native = fletcher_4_scalar_native,
 	.init_byteswap = fletcher_4_scalar_init,
+	.fini_byteswap = fletcher_4_scalar_fini,
 	.compute_byteswap = fletcher_4_scalar_byteswap,
 	.valid = fletcher_4_scalar_valid,
 	.name = "scalar"
@@ -248,22 +251,29 @@ fletcher_2_byteswap(const void *buf, uint64_t size,
 }
 
 static void
-fletcher_4_scalar_init(zio_cksum_t *zcp)
+fletcher_4_scalar_init(fletcher_4_ctx_t *ctx)
 {
-	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+	ZIO_SET_CHECKSUM(&ctx->scalar, 0, 0, 0, 0);
 }
 
 static void
-fletcher_4_scalar_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_4_scalar_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
+{
+	memcpy(zcp, &ctx->scalar, sizeof (zio_cksum_t));
+}
+
+static void
+fletcher_4_scalar_native(fletcher_4_ctx_t *ctx, const void *buf,
+    uint64_t size)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
 	uint64_t a, b, c, d;
 
-	a = zcp->zc_word[0];
-	b = zcp->zc_word[1];
-	c = zcp->zc_word[2];
-	d = zcp->zc_word[3];
+	a = ctx->scalar.zc_word[0];
+	b = ctx->scalar.zc_word[1];
+	c = ctx->scalar.zc_word[2];
+	d = ctx->scalar.zc_word[3];
 
 	for (; ip < ipend; ip++) {
 		a += ip[0];
@@ -272,20 +282,21 @@ fletcher_4_scalar_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 		d += c;
 	}
 
-	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+	ZIO_SET_CHECKSUM(&ctx->scalar, a, b, c, d);
 }
 
 static void
-fletcher_4_scalar_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_4_scalar_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
+    uint64_t size)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
 	uint64_t a, b, c, d;
 
-	a = zcp->zc_word[0];
-	b = zcp->zc_word[1];
-	c = zcp->zc_word[2];
-	d = zcp->zc_word[3];
+	a = ctx->scalar.zc_word[0];
+	b = ctx->scalar.zc_word[1];
+	c = ctx->scalar.zc_word[2];
+	d = ctx->scalar.zc_word[3];
 
 	for (; ip < ipend; ip++) {
 		a += BSWAP_32(ip[0]);
@@ -294,7 +305,7 @@ fletcher_4_scalar_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 		d += c;
 	}
 
-	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+	ZIO_SET_CHECKSUM(&ctx->scalar, a, b, c, d);
 }
 
 static boolean_t
@@ -384,13 +395,14 @@ fletcher_4_impl_get(void)
 }
 
 static inline void
-fletcher_4_native_impl(const fletcher_4_ops_t *ops, const void *buf,
-	uint64_t size, zio_cksum_t *zcp)
+fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
-	ops->init_native(zcp);
-	ops->compute_native(buf, size, zcp);
-	if (ops->fini_native != NULL)
-		ops->fini_native(zcp);
+	fletcher_4_ctx_t ctx;
+	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
+
+	ops->init_native(&ctx);
+	ops->compute_native(&ctx, buf, size);
+	ops->fini_native(&ctx, zcp);
 }
 
 /*ARGSUSED*/
@@ -398,40 +410,41 @@ void
 fletcher_4_native(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
-	const fletcher_4_ops_t *ops;
-	uint64_t p2size = P2ALIGN(size, 64);
+	const uint64_t p2size = P2ALIGN(size, 64);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
-	if (size == 0) {
+	if (size == 0 || p2size == 0) {
 		ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
-	} else if (p2size == 0) {
-		ops = &fletcher_4_scalar_ops;
-		fletcher_4_native_impl(ops, buf, size, zcp);
+
+		if (size > 0)
+			fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp,
+			    buf, size);
 	} else {
-		ops = fletcher_4_impl_get();
-		fletcher_4_native_impl(ops, buf, p2size, zcp);
+		fletcher_4_native_impl(buf, p2size, zcp);
 
 		if (p2size < size)
-			fletcher_4_incremental_native((char *)buf + p2size,
-			    size - p2size, zcp);
+			fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp,
+			    (char *)buf + p2size, size - p2size);
 	}
 }
 
 void
 fletcher_4_native_varsize(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
-	fletcher_4_native_impl(&fletcher_4_scalar_ops, buf, size, zcp);
+	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+	fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp, buf, size);
 }
 
 static inline void
-fletcher_4_byteswap_impl(const fletcher_4_ops_t *ops, const void *buf,
-	uint64_t size, zio_cksum_t *zcp)
+fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
-	ops->init_byteswap(zcp);
-	ops->compute_byteswap(buf, size, zcp);
-	if (ops->fini_byteswap != NULL)
-		ops->fini_byteswap(zcp);
+	fletcher_4_ctx_t ctx;
+	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
+
+	ops->init_byteswap(&ctx);
+	ops->compute_byteswap(&ctx, buf, size);
+	ops->fini_byteswap(&ctx, zcp);
 }
 
 /*ARGSUSED*/
@@ -439,27 +452,28 @@ void
 fletcher_4_byteswap(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
-	const fletcher_4_ops_t *ops;
-	uint64_t p2size = P2ALIGN(size, 64);
+	const uint64_t p2size = P2ALIGN(size, 64);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
-	if (size == 0) {
+	if (size == 0 || p2size == 0) {
 		ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
-	} else if (p2size == 0) {
-		ops = &fletcher_4_scalar_ops;
-		fletcher_4_byteswap_impl(ops, buf, size, zcp);
+
+		if (size > 0)
+			fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp,
+			    buf, size);
 	} else {
-		ops = fletcher_4_impl_get();
-		fletcher_4_byteswap_impl(ops, buf, p2size, zcp);
+		fletcher_4_byteswap_impl(buf, p2size, zcp);
 
 		if (p2size < size)
-			fletcher_4_incremental_byteswap((char *)buf + p2size,
-			    size - p2size, zcp);
+			fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp,
+			    (char *)buf + p2size, size - p2size);
 	}
 }
 
 /* Incremental Fletcher 4 */
+
+#define	ZFS_FLETCHER_4_INC_MAX_SIZE	(8ULL << 20)
 
 static inline void
 fletcher_4_incremental_combine(zio_cksum_t *zcp, const uint64_t size,
@@ -468,6 +482,13 @@ fletcher_4_incremental_combine(zio_cksum_t *zcp, const uint64_t size,
 	const uint64_t c1 = size / sizeof (uint32_t);
 	const uint64_t c2 = c1 * (c1 + 1) / 2;
 	const uint64_t c3 = c2 * (c1 + 2) / 3;
+
+	/*
+	 * Value of 'c3' overflows on buffer sizes close to 16MiB. For that
+	 * reason we split incremental fletcher4 computation of large buffers
+	 * to steps of (ZFS_FLETCHER_4_INC_MAX_SIZE) size.
+	 */
+	ASSERT3U(size, <=, ZFS_FLETCHER_4_INC_MAX_SIZE);
 
 	zcp->zc_word[3] += nzcp->zc_word[3] + c1 * zcp->zc_word[2] +
 	    c2 * zcp->zc_word[1] + c3 * zcp->zc_word[0];
@@ -481,13 +502,9 @@ static inline void
 fletcher_4_incremental_impl(boolean_t native, const void *buf, uint64_t size,
     zio_cksum_t *zcp)
 {
-	static const uint64_t FLETCHER_4_INC_MAX = 8ULL << 20;
-	uint64_t len;
-
 	while (size > 0) {
 		zio_cksum_t nzc;
-
-		len = MIN(size, FLETCHER_4_INC_MAX);
+		uint64_t len = MIN(size, ZFS_FLETCHER_4_INC_MAX_SIZE);
 
 		if (native)
 			fletcher_4_native(buf, len, NULL, &nzc);
@@ -504,14 +521,22 @@ fletcher_4_incremental_impl(boolean_t native, const void *buf, uint64_t size,
 void
 fletcher_4_incremental_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
-	fletcher_4_incremental_impl(B_TRUE, buf, size, zcp);
+	/* Use scalar impl to directly update cksum of small blocks */
+	if (size < SPA_MINBLOCKSIZE)
+		fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp, buf, size);
+	else
+		fletcher_4_incremental_impl(B_TRUE, buf, size, zcp);
 }
 
 void
 fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
     zio_cksum_t *zcp)
 {
-	fletcher_4_incremental_impl(B_FALSE, buf, size, zcp);
+	/* Use scalar impl to directly update cksum of small blocks */
+	if (size < SPA_MINBLOCKSIZE)
+		fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp, buf, size);
+	else
+		fletcher_4_incremental_impl(B_FALSE, buf, size, zcp);
 }
 
 
@@ -662,9 +687,6 @@ fletcher_4_init(void)
 	membar_producer();
 
 	fletcher_4_initialized = B_TRUE;
-
-	/* Use 'cycle' math selection method for userspace */
-	VERIFY0(fletcher_4_impl_set("cycle"));
 	return;
 #endif
 	/* Benchmark all supported implementations */
