@@ -2072,7 +2072,8 @@ dsl_dataset_rename_snapshot_sync_impl(dsl_pool_t *dp,
 	VERIFY0(dsl_dataset_snap_remove(hds, ddrsa->ddrsa_oldsnapname, tx,
 	    B_FALSE));
 	mutex_enter(&ds->ds_lock);
-	(void) strcpy(ds->ds_snapname, ddrsa->ddrsa_newsnapname);
+	(void) strlcpy(ds->ds_snapname, ddrsa->ddrsa_newsnapname,
+	    sizeof (ds->ds_snapname));
 	mutex_exit(&ds->ds_lock);
 	VERIFY0(zap_add(dp->dp_meta_objset,
 	    dsl_dataset_phys(hds)->ds_snapnames_zapobj,

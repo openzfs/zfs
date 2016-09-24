@@ -1221,7 +1221,8 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	if (!sdd->seenfrom && isfromsnap) {
 		gather_holds(zhp, sdd);
 		sdd->seenfrom = B_TRUE;
-		(void) strcpy(sdd->prevsnap, thissnap);
+		(void) strlcpy(sdd->prevsnap, thissnap,
+		    sizeof (sdd->prevsnap));
 		sdd->prevsnap_obj = zfs_prop_get_int(zhp, ZFS_PROP_OBJSETID);
 		zfs_close(zhp);
 		return (0);
