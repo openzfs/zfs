@@ -130,6 +130,7 @@ struct spa {
 	 */
 	char		spa_name[ZFS_MAX_DATASET_NAME_LEN];	/* pool name */
 	char		*spa_comment;		/* comment */
+	char		*spa_rotorvector;	/* rotorvector categories */
 	avl_node_t	spa_avl;		/* node in spa_namespace_avl */
 	nvlist_t	*spa_config;		/* last synced config */
 	nvlist_t	*spa_config_syncing;	/* currently syncing config */

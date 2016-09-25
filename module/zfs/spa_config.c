@@ -434,6 +434,9 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (spa->spa_comment != NULL)
 		fnvlist_add_string(config, ZPOOL_CONFIG_COMMENT,
 		    spa->spa_comment);
+	if (spa->spa_rotorvector != NULL)
+		fnvlist_add_string(config, ZPOOL_CONFIG_ROTORVECTOR,
+		    spa->spa_rotorvector);
 
 #ifdef	_KERNEL
 	hostid = zone_get_hostid(NULL);
