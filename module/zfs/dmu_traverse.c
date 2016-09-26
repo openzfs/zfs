@@ -39,7 +39,7 @@
 #include <sys/zfeature.h>
 
 int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
-int32_t ignore_hole_birth = 1;
+int32_t send_holes_without_birth_time = 1;
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;
@@ -252,9 +252,10 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		 *
 		 * Note that the meta-dnode cannot be reallocated.
 		 */
-		if (!ignore_hole_birth && (!td->td_realloc_possible ||
-			zb->zb_object == DMU_META_DNODE_OBJECT) &&
-			td->td_hole_birth_enabled_txg <= td->td_min_txg)
+		if (!send_holes_without_birth_time &&
+		    (!td->td_realloc_possible ||
+		    zb->zb_object == DMU_META_DNODE_OBJECT) &&
+		    td->td_hole_birth_enabled_txg <= td->td_min_txg)
 			return (0);
 	} else if (bp->blk_birth <= td->td_min_txg) {
 		return (0);
@@ -729,6 +730,11 @@ EXPORT_SYMBOL(traverse_pool);
 module_param(zfs_pd_bytes_max, int, 0644);
 MODULE_PARM_DESC(zfs_pd_bytes_max, "Max number of bytes to prefetch");
 
-module_param(ignore_hole_birth, int, 0644);
-MODULE_PARM_DESC(ignore_hole_birth, "Ignore hole_birth txg for send");
+module_param_named(ignore_hole_birth, send_holes_without_birth_time, int, 0644);
+MODULE_PARM_DESC(ignore_hole_birth, "Alias for send_holes_without_birth_time");
+
+module_param_named(send_holes_without_birth_time,
+	send_holes_without_birth_time, int, 0644);
+MODULE_PARM_DESC(send_holes_without_birth_time,
+	"Ignore hole_birth txg for zfs send");
 #endif
