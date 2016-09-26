@@ -732,6 +732,6 @@ MODULE_PARM_DESC(zfs_pd_bytes_max, "Max number of bytes to prefetch");
 module_param_named(ignore_hole_birth, send_holes_without_birth_time, bool, 0644);
 MODULE_PARM_DESC(ignore_hole_birth, "Alias for send_holes_without_birth_time");
 
-module_param_named(send_holes_without_birth_time,send_holes_without_birth_time, bool, 0644);
-MODULE_PARM_DESC(ignore_hole_birth, "Ignore hole_birth txg for send");
+module_param_named(send_holes_without_birth_time, send_holes_without_birth_time, bool, 0644);
+MODULE_PARM_DESC(send_holes_without_birth_time, "Ignore hole_birth txg for send");
 #endif
