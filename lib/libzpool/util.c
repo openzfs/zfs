@@ -123,13 +123,15 @@ show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
 
 	for (c = 0; c < children; c++) {
 		nvlist_t *cnv = child[c];
-		char *cname, *tname;
+		char *cname = NULL, *tname;
 		uint64_t np;
+		int len;
 		if (nvlist_lookup_string(cnv, ZPOOL_CONFIG_PATH, &cname) &&
 		    nvlist_lookup_string(cnv, ZPOOL_CONFIG_TYPE, &cname))
 			cname = "<unknown>";
-		tname = calloc(1, strlen(cname) + 2);
-		(void) strcpy(tname, cname);
+		len = strlen(cname) + 2;
+		tname = umem_zalloc(len, UMEM_NOFAIL);
+		(void) strlcpy(tname, cname, len);
 		if (nvlist_lookup_uint64(cnv, ZPOOL_CONFIG_NPARITY, &np) == 0)
 			tname[strlen(tname)] = '0' + np;
 		show_vdev_stats(tname, ctype, cnv, indent + 2);
