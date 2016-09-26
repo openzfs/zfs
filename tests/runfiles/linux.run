@@ -81,11 +81,11 @@ tests = ['zfs_clone_001_neg', 'zfs_clone_002_pos', 'zfs_clone_003_pos',
     'zfs_clone_007_pos', 'zfs_clone_008_neg', 'zfs_clone_009_neg']
 
 # DISABLED:
-# zfs_copies_002_pos - needs investigation
 # zfs_copies_003_pos - zpool on zvol
 # zfs_copies_005_neg - nested pools
 [tests/functional/cli_root/zfs_copies]
-tests = ['zfs_copies_001_pos', 'zfs_copies_004_neg', 'zfs_copies_006_pos']
+tests = ['zfs_copies_001_pos', 'zfs_copies_002_pos', 'zfs_copies_004_neg',
+    'zfs_copies_006_pos']
 
 [tests/functional/cli_root/zfs_create]
 tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
