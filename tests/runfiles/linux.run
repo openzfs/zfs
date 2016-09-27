@@ -172,7 +172,6 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
 # mountpoint_003_pos - needs investigation
 # ro_props_001_pos - needs investigation
 # onoffs_001_pos - needs investigation
-# property_alias_001_pos - needs investigation
 # readonly_001_pos - needs investigation
 # user_property_002_pos - needs investigation
 [tests/functional/cli_root/zfs_set]
@@ -183,7 +182,7 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'share_mount_001_neg', 'snapdir_001_pos',
     'user_property_001_pos', 'user_property_003_neg',
     'user_property_004_pos', 'version_001_neg', 'zfs_set_001_neg',
-    'zfs_set_002_neg', 'zfs_set_003_neg']
+    'zfs_set_002_neg', 'zfs_set_003_neg', 'property_alias_001_pos']
 
 # DISABLED: Tests need to be updated for Linux share behavior
 #[tests/functional/cli_root/zfs_share]
