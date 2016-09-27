@@ -524,6 +524,9 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
 	int i = 0, error = 0;
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+	struct blk_plug plug;
+#endif
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
 
@@ -592,10 +595,20 @@ retry:
 	/* Extra reference to protect dio_request during vdev_submit_bio */
 	vdev_disk_dio_get(dr);
 
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+	if (dr->dr_bio_count > 1)
+		blk_start_plug(&plug);
+#endif
+
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
 			vdev_submit_bio(dr->dr_bio[i]);
+
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+	if (dr->dr_bio_count > 1)
+		blk_finish_plug(&plug);
+#endif
 
 	(void) vdev_disk_dio_put(dr);
 
