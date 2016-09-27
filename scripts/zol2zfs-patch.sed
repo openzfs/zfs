@@ -15,3 +15,4 @@ s:lib/libzfs:usr/src/lib/libzfs/common:g
 s:lib/libzfs_core:usr/src/lib/libzfs_core/common:g
 s:include/sys:lib/libzpool/common/sys:g
 s:lib/libzpool:lib/libzpool/common:g
+s:tests/zfs-tests:test/zfs-tests:g
