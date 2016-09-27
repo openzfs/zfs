@@ -369,6 +369,10 @@ run_gen_check(raidz_test_opts_t *opts)
 
 		for (fn = 0; fn < RAIDZ_GEN_NUM; fn++) {
 
+			/* Check if should stop */
+			if (rto_opts.rto_should_stop)
+				return (err);
+
 			/* create suitable raidz_map */
 			rm_test = init_raidz_map(opts, &zio_test, fn+1);
 			VERIFY(rm_test);
@@ -418,6 +422,10 @@ run_rec_check_impl(raidz_test_opts_t *opts, raidz_map_t *rm, const int fn)
 			if (x0 >= rm->rm_cols - raidz_parity(rm))
 				continue;
 
+			/* Check if should stop */
+			if (rto_opts.rto_should_stop)
+				return (err);
+
 			LOG(D_DEBUG, "[%d] ", x0);
 
 			tgtidx[2] = x0 + raidz_parity(rm);
@@ -441,6 +449,10 @@ run_rec_check_impl(raidz_test_opts_t *opts, raidz_map_t *rm, const int fn)
 			for (x1 = x0 + 1; x1 < opts->rto_dcols; x1++) {
 				if (x1 >= rm->rm_cols - raidz_parity(rm))
 					continue;
+
+				/* Check if should stop */
+				if (rto_opts.rto_should_stop)
+					return (err);
 
 				LOG(D_DEBUG, "[%d %d] ", x0, x1);
 
@@ -474,6 +486,10 @@ run_rec_check_impl(raidz_test_opts_t *opts, raidz_map_t *rm, const int fn)
 					if (x2 >=
 						rm->rm_cols - raidz_parity(rm))
 						continue;
+
+					/* Check if should stop */
+					if (rto_opts.rto_should_stop)
+						return (err);
 
 					LOG(D_DEBUG, "[%d %d %d]", x0, x1, x2);
 
@@ -620,20 +636,19 @@ sweep_thread(void *arg)
 static int
 run_sweep(void)
 {
-	static const size_t dcols_v[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-	static const size_t ashift_v[] = { 9, 12 };
-	static const size_t offset_cnt = 4;
+	static const size_t dcols_v[] = { 1, 2, 3, 4, 5, 6, 7, 8, 12, 15, 16 };
+	static const size_t ashift_v[] = { 9, 12, 14 };
 	static const size_t size_v[] = { 1 << 9, 21 * (1 << 9), 13 * (1 << 12),
 		1 << 17, (1 << 20) - (1 << 12), SPA_MAXBLOCKSIZE };
 
 	(void) setvbuf(stdout, NULL, _IONBF, 0);
 
 	ulong_t total_comb = ARRAY_SIZE(size_v) * ARRAY_SIZE(ashift_v) *
-	    ARRAY_SIZE(dcols_v) * offset_cnt;
+	    ARRAY_SIZE(dcols_v);
 	ulong_t tried_comb = 0;
 	hrtime_t time_diff, start_time = gethrtime();
 	raidz_test_opts_t *opts;
-	int a, d, o, s;
+	int a, d, s;
 
 	max_free_slots = free_slots = MAX(2, boot_ncpus);
 
@@ -642,11 +657,9 @@ run_sweep(void)
 
 	for (s = 0; s < ARRAY_SIZE(size_v); s++)
 	for (a = 0; a < ARRAY_SIZE(ashift_v); a++)
-	for (o = 0; o < offset_cnt; o++)
 	for (d = 0; d < ARRAY_SIZE(dcols_v); d++) {
 
-		if ((size_v[s] < (1 << ashift_v[a]) * o) ||
-		    (size_v[s] < (1 << ashift_v[a]) * dcols_v[d])) {
+		if (size_v[s] < (1 << ashift_v[a])) {
 			total_comb--;
 			continue;
 		}
@@ -664,6 +677,7 @@ run_sweep(void)
 			if (rto_opts.rto_sweep_timeout > 0 &&
 			    time_diff >= rto_opts.rto_sweep_timeout) {
 				sweep_state = SWEEP_TIMEOUT;
+				rto_opts.rto_should_stop = B_TRUE;
 				mutex_exit(&sem_mtx);
 				goto exit;
 			}
@@ -686,7 +700,7 @@ run_sweep(void)
 		opts = umem_zalloc(sizeof (raidz_test_opts_t), UMEM_NOFAIL);
 		opts->rto_ashift = ashift_v[a];
 		opts->rto_dcols = dcols_v[d];
-		opts->rto_offset = (1 << ashift_v[a]) * o;
+		opts->rto_offset = (1 << ashift_v[a]) * rand();
 		opts->rto_dsize = size_v[s];
 		opts->rto_v = 0; /* be quiet */
 

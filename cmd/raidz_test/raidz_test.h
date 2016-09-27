@@ -49,6 +49,9 @@ typedef struct raidz_test_opts {
 	size_t rto_sanity;
 	size_t rto_gdb;
 
+	/* non-user options */
+	boolean_t rto_should_stop;
+
 	zio_t *zio_golden;
 	raidz_map_t *rm_golden;
 } raidz_test_opts_t;
@@ -62,7 +65,8 @@ static const raidz_test_opts_t rto_opts_defaults = {
 	.rto_sweep = 0,
 	.rto_benchmark = 0,
 	.rto_sanity = 0,
-	.rto_gdb = 0
+	.rto_gdb = 0,
+	.rto_should_stop = B_FALSE
 };
 
 extern raidz_test_opts_t rto_opts;
