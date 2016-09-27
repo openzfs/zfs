@@ -39,7 +39,7 @@
 #include <sys/zfeature.h>
 
 int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
-boolean_t send_holes_without_birth_time = 1;
+int32_t send_holes_without_birth_time = 1;
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;
@@ -729,9 +729,9 @@ EXPORT_SYMBOL(traverse_pool);
 module_param(zfs_pd_bytes_max, int, 0644);
 MODULE_PARM_DESC(zfs_pd_bytes_max, "Max number of bytes to prefetch");
 
-module_param_named(ignore_hole_birth, send_holes_without_birth_time, bool, 0644);
+module_param_named(ignore_hole_birth, send_holes_without_birth_time, int, 0644);
 MODULE_PARM_DESC(ignore_hole_birth, "Alias for send_holes_without_birth_time");
 
-module_param_named(send_holes_without_birth_time, send_holes_without_birth_time, bool, 0644);
+module_param_named(send_holes_without_birth_time, send_holes_without_birth_time, int, 0644);
 MODULE_PARM_DESC(send_holes_without_birth_time, "Ignore hole_birth txg for send");
 #endif
