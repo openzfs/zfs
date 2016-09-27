@@ -119,6 +119,9 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
+#ifdef _KERNEL
+#include <linux/kmap_compat.h>
+#endif
 
 #ifndef KMC_NOTOUCH
 #define	KMC_NOTOUCH	0
@@ -187,22 +190,6 @@ abd_free_chunk(struct page *c)
 	__free_pages(c, 0);
 }
 
-static void *
-abd_map_chunk(struct page *c)
-{
-	/*
-	 * Use of segkpm means we don't care if this is mapped S_READ or S_WRITE
-	 * but S_WRITE is conceptually more accurate.
-	 */
-	return (kmap(c));
-}
-
-static void
-abd_unmap_chunk(struct page *c)
-{
-	kunmap(c);
-}
-
 void
 abd_init(void)
 {
@@ -230,11 +217,10 @@ struct page;
 #define	abd_alloc_chunk() \
 	((struct page *) umem_alloc_aligned(PAGESIZE, 64, KM_SLEEP))
 #define	abd_free_chunk(chunk) 		umem_free(chunk, PAGESIZE)
-#define	abd_map_chunk(chunk)		((void *)chunk)
-static void
-abd_unmap_chunk(struct page *c)
-{
-}
+#define	zfs_kmap_atomic(chunk, km)	((void *)chunk)
+#define	zfs_kunmap_atomic(addr, km)	do { (void)(addr); } while (0)
+#define	local_irq_save(flags)		do { (void)(flags); } while (0)
+#define	local_irq_restore(flags)	do { (void)(flags); } while (0)
 
 void
 abd_init(void)
@@ -697,11 +683,28 @@ abd_release_ownership_of_buf(abd_t *abd)
 	ABDSTAT_INCR(abdstat_linear_data_size, -(int)abd->abd_size);
 }
 
+#ifndef HAVE_1ARG_KMAP_ATOMIC
+#define	NR_KM_TYPE (6)
+#ifdef _KERNEL
+int km_table[NR_KM_TYPE] = {
+	KM_USER0,
+	KM_USER1,
+	KM_BIO_SRC_IRQ,
+	KM_BIO_DST_IRQ,
+	KM_PTE0,
+	KM_PTE1,
+};
+#endif
+#endif
+
 struct abd_iter {
 	abd_t		*iter_abd;	/* ABD being iterated through */
 	size_t		iter_pos;	/* position (relative to abd_offset) */
 	void		*iter_mapaddr;	/* addr corresponding to iter_pos */
 	size_t		iter_mapsize;	/* length of data valid at mapaddr */
+#ifndef HAVE_1ARG_KMAP_ATOMIC
+	int		iter_km;	/* KM_* for kmap_atomic */
+#endif
 };
 
 static inline size_t
@@ -724,13 +727,17 @@ abd_iter_scatter_chunk_index(struct abd_iter *aiter)
  * Initialize the abd_iter.
  */
 static void
-abd_iter_init(struct abd_iter *aiter, abd_t *abd)
+abd_iter_init(struct abd_iter *aiter, abd_t *abd, int km_type)
 {
 	abd_verify(abd);
 	aiter->iter_abd = abd;
 	aiter->iter_pos = 0;
 	aiter->iter_mapaddr = NULL;
 	aiter->iter_mapsize = 0;
+#ifndef HAVE_1ARG_KMAP_ATOMIC
+	ASSERT3U(km_type, <, NR_KM_TYPE);
+	aiter->iter_km = km_type;
+#endif
 }
 
 /*
@@ -779,8 +786,9 @@ abd_iter_map(struct abd_iter *aiter)
 		aiter->iter_mapsize = MIN(PAGESIZE - offset,
 		    aiter->iter_abd->abd_size - aiter->iter_pos);
 
-		paddr = abd_map_chunk(
-			aiter->iter_abd->abd_u.abd_scatter.abd_chunks[index]);
+		paddr = zfs_kmap_atomic(
+			aiter->iter_abd->abd_u.abd_scatter.abd_chunks[index],
+			km_table[aiter->iter_km]);
 	}
 
 	aiter->iter_mapaddr = (char *)paddr + offset;
@@ -799,9 +807,9 @@ abd_iter_unmap(struct abd_iter *aiter)
 
 	if (!abd_is_linear(aiter->iter_abd)) {
 		/* LINTED E_FUNC_SET_NOT_USED */
-		size_t index = abd_iter_scatter_chunk_index(aiter);
-		abd_unmap_chunk(
-		    aiter->iter_abd->abd_u.abd_scatter.abd_chunks[index]);
+		zfs_kunmap_atomic(aiter->iter_mapaddr -
+		    abd_iter_scatter_chunk_offset(aiter),
+		    km_table[aiter->iter_km]);
 	}
 
 	ASSERT3P(aiter->iter_mapaddr, !=, NULL);
@@ -821,7 +829,7 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
 
-	abd_iter_init(&aiter, abd);
+	abd_iter_init(&aiter, abd, 0);
 	abd_iter_advance(&aiter, off);
 
 	while (size > 0) {
@@ -953,8 +961,8 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 	ASSERT3U(doff + size, <=, dabd->abd_size);
 	ASSERT3U(soff + size, <=, sabd->abd_size);
 
-	abd_iter_init(&daiter, dabd);
-	abd_iter_init(&saiter, sabd);
+	abd_iter_init(&daiter, dabd, 0);
+	abd_iter_init(&saiter, sabd, 1);
 	abd_iter_advance(&daiter, doff);
 	abd_iter_advance(&saiter, soff);
 
@@ -1039,17 +1047,19 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 	struct abd_iter caiters[3];
 	struct abd_iter daiter;
 	void *caddrs[3];
+	unsigned long flags;
 
 	ASSERT3U(parity, <=, 3);
 
 	for (i = 0; i < parity; i++)
-		abd_iter_init(&caiters[i], cabds[i]);
+		abd_iter_init(&caiters[i], cabds[i], i);
 
 	if (dabd)
-		abd_iter_init(&daiter, dabd);
+		abd_iter_init(&daiter, dabd, i);
 
 	ASSERT3S(dsize, >=, 0);
 
+	local_irq_save(flags);
 	while (csize > 0) {
 		len = csize;
 
@@ -1106,6 +1116,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 		ASSERT3S(dsize, >=, 0);
 		ASSERT3S(csize, >=, 0);
 	}
+	local_irq_restore(flags);
 }
 
 /*
@@ -1130,14 +1141,16 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 	struct abd_iter citers[3];
 	struct abd_iter xiters[3];
 	void *caddrs[3], *xaddrs[3];
+	unsigned long flags;
 
 	ASSERT3U(parity, <=, 3);
 
 	for (i = 0; i < parity; i++) {
-		abd_iter_init(&citers[i], cabds[i]);
-		abd_iter_init(&xiters[i], tabds[i]);
+		abd_iter_init(&citers[i], cabds[i], 2*i);
+		abd_iter_init(&xiters[i], tabds[i], 2*i+1);
 	}
 
+	local_irq_save(flags);
 	while (tsize > 0) {
 
 		for (i = 0; i < parity; i++) {
@@ -1179,6 +1192,7 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 		tsize -= len;
 		ASSERT3S(tsize, >=, 0);
 	}
+	local_irq_restore(flags);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
@@ -1215,7 +1229,7 @@ abd_scatter_bio_map_off(struct bio *bio, abd_t *abd,
 	ASSERT(!abd_is_linear(abd));
 	ASSERT3U(io_size, <=, abd->abd_size - off);
 
-	abd_iter_init(&aiter, abd);
+	abd_iter_init(&aiter, abd, 0);
 	abd_iter_advance(&aiter, off);
 
 	for (i = 0; i < bio->bi_max_vecs; i++) {
