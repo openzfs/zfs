@@ -668,7 +668,11 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	 * FREAD and FWRITE to the corresponding O_RDONLY, O_WRONLY, and O_RDWR.
 	 */
 	fd = open64(realpath, flags - FREAD, mode);
-	err = errno;
+	if (fd == -1) {
+		err = errno;
+		free(realpath);
+		return (err);
+	}
 
 	if (flags & FCREAT)
 		(void) umask(old_umask);
@@ -690,9 +694,6 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	}
 
 	free(realpath);
-
-	if (fd == -1)
-		return (err);
 
 	if (fstat64_blk(fd, &st) == -1) {
 		err = errno;
@@ -740,7 +741,7 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 
 	if (uio == UIO_READ) {
 		rc = pread64(vp->v_fd, addr, len, offset);
-		if (vp->v_dump_fd != -1) {
+		if (vp->v_dump_fd != -1 && rc != -1) {
 			int status;
 			status = pwrite64(vp->v_dump_fd, addr, rc, offset);
 			ASSERT(status != -1);
