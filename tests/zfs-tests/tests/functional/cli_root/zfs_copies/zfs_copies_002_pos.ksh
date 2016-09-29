@@ -77,9 +77,14 @@ for val in 1 2 3; do
 done
 
 log_note "Verify 'ls -s' can correctly list the space charged."
+if is_linux; then
+	blksize=1024
+else
+	blksize=512
+fi
 for val in 1 2 3; do
 	blks=`$LS -ls /$TESTPOOL/fs_$val/$FILE | $AWK '{print $1}'`
-	(( used = blks * 512 / (1024 * 1024) ))
+	(( used = blks * $blksize / (1024 * 1024) ))
 	check_used $used $val
 done
 
