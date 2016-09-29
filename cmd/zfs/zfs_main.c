@@ -6700,9 +6700,10 @@ zfs_do_diff(int argc, char **argv)
 	if ((atp = strchr(copy, '@')))
 		*atp = '\0';
 
-	if ((zhp = zfs_open(g_zfs, copy, ZFS_TYPE_FILESYSTEM)) == NULL)
+	if ((zhp = zfs_open(g_zfs, copy, ZFS_TYPE_FILESYSTEM)) == NULL) {
+		free(copy);
 		return (1);
-
+	}
 	free(copy);
 
 	/*
