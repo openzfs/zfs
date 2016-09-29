@@ -217,16 +217,21 @@ log_note "verify clone list truncated correctly"
 typeset -i j=200
 i=1
 fs=$TESTPOOL/$TESTFS1
+if is_linux; then
+	ZFS_MAXPROPLEN=4096
+else
+	ZFS_MAXPROPLEN=1024
+fi
 log_must $ZFS create $fs
 log_must $ZFS snapshot $fs@snap
-while((i < 7)); do
+while((i <= $(( $ZFS_MAXPROPLEN/200+1 )))); do
 	log_must $ZFS clone $fs@snap $fs/$TESTCLONE$(python -c 'print "x" * 200').$i
 	((i=i+1))
 	((j=j+200))
 done
 clone_list=$($ZFS list -o clones $fs@snap)
 char_count=$($ECHO "$clone_list" | $TAIL -1 | wc | $AWK '{print $3}')
-[[ $char_count -eq 1024 ]] || \
+[[ $char_count -eq $ZFS_MAXPROPLEN ]] || \
     log_fail "Clone list not truncated correctly. Unexpected character count" \
         "$char_count"
 
