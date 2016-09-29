@@ -548,7 +548,7 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 {
 	zfs_cmd_t zc = {"\0"};
 
-	(void) strcpy(zc.zc_name, pool);
+	(void) strlcpy(zc.zc_name, pool, sizeof (zc.zc_name));
 	zc.zc_inject_record = *record;
 	zc.zc_guid = flags;
 

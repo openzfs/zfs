@@ -304,7 +304,8 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 		remove_mountpoint(cn->cn_handle);
 
 		(void) strlcpy(newname, dst, sizeof (newname));
-		(void) strcat(newname, cn->cn_handle->zfs_name + strlen(src));
+		(void) strlcat(newname, cn->cn_handle->zfs_name + strlen(src),
+		    sizeof (newname));
 
 		(void) strlcpy(cn->cn_handle->zfs_name, newname,
 		    sizeof (cn->cn_handle->zfs_name));

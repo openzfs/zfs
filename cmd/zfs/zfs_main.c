@@ -6768,7 +6768,7 @@ zfs_do_bookmark(int argc, char **argv)
 		 * Snapshot name begins with @.
 		 * Default to same fs as bookmark.
 		 */
-		(void) strncpy(snapname, argv[1], sizeof (snapname));
+		(void) strlcpy(snapname, argv[1], sizeof (snapname));
 		*strchr(snapname, '#') = '\0';
 		(void) strlcat(snapname, argv[0], sizeof (snapname));
 	} else {

@@ -1107,8 +1107,8 @@ zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
 	dup = strdup(cmp);
 	dir = strtok(dup, "/");
 	while (dir) {
-		strcat(cmp_name, "/");
-		strcat(cmp_name, dir);
+		strlcat(cmp_name, "/", sizeof (cmp_name));
+		strlcat(cmp_name, dir, sizeof (cmp_name));
 		dir = strtok(NULL, "/");
 	}
 	free(dup);
