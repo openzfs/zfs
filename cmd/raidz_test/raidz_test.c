@@ -233,7 +233,7 @@ corrupt_colums(raidz_map_t *rm, const int *tgts, const int cnt)
 
 	for (i = 0; i < cnt; i++) {
 		col = &rm->rm_col[tgts[i]];
-		dst = col->rc_data;
+		dst = (void *)col->rc_data;
 		for (i = 0; i < col->rc_size / sizeof (int); i++)
 			dst[i] = rand();
 	}

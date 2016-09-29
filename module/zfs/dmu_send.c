@@ -24,10 +24,12 @@
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
+ * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
@@ -614,6 +616,16 @@ send_traverse_thread(void *arg)
 	spl_fstrans_unmark(cookie);
 }
 
+static int
+fillbadblock(void *p, uint64_t size, void *private)
+{
+	int i;
+	uint64_t *x = p;
+	for (i = 0; i < size >> 3; i++)
+		x[i] = 0x2f5baddb10cULL;
+	return (0);
+}
+
 /*
  * This function actually handles figuring out what kind of record needs to be
  * dumped, reading the data (which has hopefully been prefetched), and calling
@@ -665,7 +677,7 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		blk = abuf->b_data;
+		blk = ABD_TO_BUF(abuf->b_data);
 		dnobj = zb->zb_blkid * epb;
 		for (i = 0; i < epb; i += blk[i].dn_extra_slots + 1) {
 			err = dump_dnode(dsa, dnobj + i, blk + i);
@@ -683,7 +695,8 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		    &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		err = dump_spill(dsa, zb->zb_object, blksz, abuf->b_data);
+		err = dump_spill(dsa, zb->zb_object, blksz,
+		    ABD_TO_BUF(abuf->b_data));
 		arc_buf_destroy(abuf, &abuf);
 	} else if (backup_do_embed(dsa, bp)) {
 		/* it's an embedded level-0 block of a regular object */
@@ -697,6 +710,8 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		arc_buf_t *abuf;
 		int blksz = dblkszsec << SPA_MINBLOCKSHIFT;
 		uint64_t offset;
+		int oblksz;
+		void *buf, *obuf;
 		enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
 
 		/*
@@ -734,14 +749,11 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		    ZIO_PRIORITY_ASYNC_READ, zioflags,
 		    &aflags, zb) != 0) {
 			if (zfs_send_corrupt_data) {
-				uint64_t *ptr;
 				/* Send a block filled with 0x"zfs badd bloc" */
 				abuf = arc_alloc_buf(spa, &abuf, ARC_BUFC_DATA,
 				    blksz);
-				for (ptr = abuf->b_data;
-				    (char *)ptr < (char *)abuf->b_data + blksz;
-				    ptr++)
-					*ptr = 0x2f5baddb10cULL;
+				abd_iterate_wfunc(abuf->b_data, blksz,
+				    fillbadblock, NULL);
 			} else {
 				return (SET_ERROR(EIO));
 			}
@@ -749,8 +761,11 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 
 		offset = zb->zb_blkid * blksz;
 
+		buf = abd_borrow_buf_copy(abuf->b_data, blksz);
+		/* save buf and blksz */
+		obuf = buf;
+		oblksz = blksz;
 		if (split_large_blocks) {
-			char *buf = abuf->b_data;
 			ASSERT3U(arc_get_compression(abuf), ==,
 			    ZIO_COMPRESS_OFF);
 			while (blksz > 0 && err == 0) {
@@ -763,9 +778,9 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 			}
 		} else {
 			err = dump_write(dsa, type, zb->zb_object, offset,
-			    blksz, arc_buf_size(abuf), bp,
-			    abuf->b_data);
+			    blksz, arc_buf_size(abuf), bp, buf);
 		}
+		abd_return_buf(abuf->b_data, obuf, oblksz);
 		arc_buf_destroy(abuf, &abuf);
 	}
 
@@ -2174,12 +2189,12 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		dmu_buf_will_dirty(db, tx);
 
 		ASSERT3U(db->db_size, >=, drro->drr_bonuslen);
-		bcopy(data, db->db_data, drro->drr_bonuslen);
+		bcopy(data, ABD_TO_BUF(db->db_data), drro->drr_bonuslen);
 		if (rwa->byteswap) {
 			dmu_object_byteswap_t byteswap =
 			    DMU_OT_BYTESWAP(drro->drr_bonustype);
-			dmu_ot_byteswap[byteswap].ob_func(db->db_data,
-			    drro->drr_bonuslen);
+			dmu_ot_byteswap[byteswap].ob_func(
+			    ABD_TO_BUF(db->db_data), drro->drr_bonuslen);
 		}
 		dmu_buf_rele(db, FTAG);
 	}
@@ -2261,7 +2276,7 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	if (rwa->byteswap) {
 		dmu_object_byteswap_t byteswap =
 		    DMU_OT_BYTESWAP(drrw->drr_type);
-		dmu_ot_byteswap[byteswap].ob_func(abuf->b_data,
+		dmu_ot_byteswap[byteswap].ob_abd_func(abuf->b_data,
 		    DRR_WRITE_PAYLOAD_SIZE(drrw));
 	}
 
@@ -2335,7 +2350,7 @@ receive_write_byref(struct receive_writer_arg *rwa,
 		dmu_tx_abort(tx);
 		return (err);
 	}
-	dmu_write(rwa->os, drrwbr->drr_object,
+	dmu_write_abd(rwa->os, drrwbr->drr_object,
 	    drrwbr->drr_offset, drrwbr->drr_length, dbp->db_data, tx);
 	dmu_buf_rele(dbp, FTAG);
 
@@ -2421,7 +2436,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
 		    drrs->drr_length, tx));
-	bcopy(data, db_spill->db_data, drrs->drr_length);
+	abd_copy_from_buf(db_spill->db_data, data, drrs->drr_length);
 
 	dmu_buf_rele(db, FTAG);
 	dmu_buf_rele(db_spill, FTAG);
@@ -2680,6 +2695,7 @@ receive_read_record(struct receive_arg *ra)
 	}
 	case DRR_WRITE:
 	{
+		void *buf;
 		struct drr_write *drrw = &ra->rrd->header.drr_u.drr_write;
 		arc_buf_t *abuf;
 		boolean_t is_meta = DMU_OT_IS_METADATA(drrw->drr_type);
@@ -2697,8 +2713,18 @@ receive_read_record(struct receive_arg *ra)
 			    is_meta, drrw->drr_logical_size);
 		}
 
+		buf = abd_borrow_buf(abuf->b_data,
+		    DRR_WRITE_PAYLOAD_SIZE(drrw));
 		err = receive_read_payload_and_next_header(ra,
-		    DRR_WRITE_PAYLOAD_SIZE(drrw), abuf->b_data);
+		    DRR_WRITE_PAYLOAD_SIZE(drrw), buf);
+		abd_return_buf_copy(abuf->b_data, buf,
+		    DRR_WRITE_PAYLOAD_SIZE(drrw));
+		/*
+		 * payload is set to buf in the above function, but we've
+		 * return buf back to ABD, so we set it to NULL to make sure
+		 * we don't accidentally use it.
+		 */
+		ra->rrd->payload = NULL;
 		if (err != 0) {
 			dmu_return_arcbuf(abuf);
 			return (err);

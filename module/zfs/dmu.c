@@ -27,6 +27,7 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
+#include <sys/abd.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
@@ -114,17 +115,19 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj subobj"		}
 };
 
+#define	OB_FUNC(func)	func, abd_##func
+
 const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
-	{	byteswap_uint8_array,	"uint8"		},
-	{	byteswap_uint16_array,	"uint16"	},
-	{	byteswap_uint32_array,	"uint32"	},
-	{	byteswap_uint64_array,	"uint64"	},
-	{	zap_byteswap,		"zap"		},
-	{	dnode_buf_byteswap,	"dnode"		},
-	{	dmu_objset_byteswap,	"objset"	},
-	{	zfs_znode_byteswap,	"znode"		},
-	{	zfs_oldacl_byteswap,	"oldacl"	},
-	{	zfs_acl_byteswap,	"acl"		}
+	{ OB_FUNC(byteswap_uint8_array),	"uint8"		},
+	{ OB_FUNC(byteswap_uint16_array),	"uint16"	},
+	{ OB_FUNC(byteswap_uint32_array),	"uint32"	},
+	{ OB_FUNC(byteswap_uint64_array),	"uint64"	},
+	{ OB_FUNC(zap_byteswap),		"zap"		},
+	{ OB_FUNC(dnode_buf_byteswap),		"dnode"		},
+	{ OB_FUNC(dmu_objset_byteswap),		"objset"	},
+	{ OB_FUNC(zfs_znode_byteswap),		"znode"		},
+	{ OB_FUNC(zfs_oldacl_byteswap),		"oldacl"	},
+	{ OB_FUNC(zfs_acl_byteswap),		"acl"		}
 };
 
 int
@@ -863,7 +866,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 			bufoff = offset - db->db_offset;
 			tocpy = MIN(db->db_size - bufoff, size);
 
-			(void) memcpy(buf, (char *)db->db_data + bufoff, tocpy);
+			abd_copy_to_buf_off(buf, db->db_data, tocpy, bufoff);
 
 			offset += tocpy;
 			size -= tocpy;
@@ -905,7 +908,7 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
+		abd_copy_from_buf_off(db->db_data, buf, tocpy, bufoff);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -913,6 +916,49 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		offset += tocpy;
 		size -= tocpy;
 		buf = (char *)buf + tocpy;
+	}
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+}
+
+void
+dmu_write_abd(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    abd_t *sabd, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs, i;
+	uint64_t soff = 0;
+
+	if (size == 0)
+		return;
+
+	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp));
+
+	for (i = 0; i < numbufs; i++) {
+		uint64_t tocpy;
+		int64_t dboff;
+		dmu_buf_t *db = dbp[i];
+
+		ASSERT(size > 0);
+
+		dboff = offset - db->db_offset;
+		tocpy = MIN(db->db_size - dboff, size);
+
+		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
+
+		if (tocpy == db->db_size)
+			dmu_buf_will_fill(db, tx);
+		else
+			dmu_buf_will_dirty(db, tx);
+
+		abd_copy_off(db->db_data, sabd, tocpy, dboff, soff);
+
+		if (tocpy == db->db_size)
+			dmu_buf_fill_done(db, tx);
+
+		offset += tocpy;
+		size -= tocpy;
+		soff += tocpy;
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
@@ -1030,6 +1076,7 @@ dmu_xuio_fini(xuio_t *xuio)
  * Initialize iov[priv->next] and priv->bufs[priv->next] with { off, n, abuf }
  * and increase priv->next by 1.
  */
+/* TODO: abd handle xuio */
 int
 dmu_xuio_add(xuio_t *xuio, arc_buf_t *abuf, offset_t off, size_t n)
 {
@@ -1147,8 +1194,8 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 			else
 				XUIOSTAT_BUMP(xuiostat_rbuf_copied);
 		} else {
-			err = uiomove((char *)db->db_data + bufoff, tocpy,
-			    UIO_READ, uio);
+			err = abd_uiomove_off(db->db_data, tocpy, UIO_READ,
+			    uio, bufoff);
 		}
 		if (err)
 			break;
@@ -1248,8 +1295,8 @@ dmu_write_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		 * to lock the pages in memory, so that uiomove won't
 		 * block.
 		 */
-		err = uiomove((char *)db->db_data + bufoff, tocpy,
-		    UIO_WRITE, uio);
+		err = abd_uiomove_off(db->db_data, tocpy, UIO_WRITE, uio,
+		    bufoff);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -1385,7 +1432,7 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 		DB_DNODE_EXIT(dbuf);
 
 		dbuf_rele(db, FTAG);
-		dmu_write(os, object, offset, blksz, buf->b_data, tx);
+		dmu_write_abd(os, object, offset, blksz, buf->b_data, tx);
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
@@ -1998,8 +2045,8 @@ dmu_object_dnsize_from_db(dmu_buf_t *db_fake, int *dnsize)
 	DB_DNODE_EXIT(db);
 }
 
-void
-byteswap_uint64_array(void *vbuf, size_t size)
+static int
+byteswap_uint64_array_func(void *vbuf, uint64_t size, void *private)
 {
 	uint64_t *buf = vbuf;
 	size_t count = size >> 3;
@@ -2009,10 +2056,23 @@ byteswap_uint64_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_64(buf[i]);
+	return (0);
 }
 
 void
-byteswap_uint32_array(void *vbuf, size_t size)
+abd_byteswap_uint64_array(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, byteswap_uint64_array_func, NULL);
+}
+
+void
+byteswap_uint64_array(void *vbuf, size_t size)
+{
+	byteswap_uint64_array_func(vbuf, size, NULL);
+}
+
+static int
+byteswap_uint32_array_func(void *vbuf, uint64_t size, void *private)
 {
 	uint32_t *buf = vbuf;
 	size_t count = size >> 2;
@@ -2022,10 +2082,23 @@ byteswap_uint32_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_32(buf[i]);
+	return (0);
 }
 
 void
-byteswap_uint16_array(void *vbuf, size_t size)
+abd_byteswap_uint32_array(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, byteswap_uint32_array_func, NULL);
+}
+
+void
+byteswap_uint32_array(void *vbuf, size_t size)
+{
+	byteswap_uint32_array_func(vbuf, size, NULL);
+}
+
+static int
+byteswap_uint16_array_func(void *vbuf, uint64_t size, void *private)
 {
 	uint16_t *buf = vbuf;
 	size_t count = size >> 1;
@@ -2035,6 +2108,25 @@ byteswap_uint16_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_16(buf[i]);
+	return (0);
+}
+
+void
+abd_byteswap_uint16_array(abd_t *abd, size_t size)
+{
+	abd_iterate_wfunc(abd, size, byteswap_uint16_array_func, NULL);
+}
+
+void
+byteswap_uint16_array(void *vbuf, size_t size)
+{
+	byteswap_uint16_array_func(vbuf, size, NULL);
+}
+
+/* ARGSUSED */
+void
+abd_byteswap_uint8_array(abd_t *abd, size_t size)
+{
 }
 
 /* ARGSUSED */
