@@ -170,13 +170,14 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
 
 # DISABLED:
 # mountpoint_003_pos - needs investigation
+# ro_props_001_pos - https://github.com/zfsonlinux/zfs/issues/5201
 # readonly_001_pos - needs investigation
 # user_property_002_pos - needs investigation
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
     'checksum_001_pos', 'compression_001_pos', 'mountpoint_001_pos',
-    'mountpoint_002_pos', 'reservation_001_neg', 'ro_props_001_pos',
+    'mountpoint_002_pos', 'reservation_001_neg',
     'share_mount_001_neg', 'snapdir_001_pos', 'onoffs_001_pos',
     'user_property_001_pos', 'user_property_003_neg',
     'user_property_004_pos', 'version_001_neg', 'zfs_set_001_neg',
@@ -285,10 +286,11 @@ tests = ['zpool_get_001_pos', 'zpool_get_002_pos', 'zpool_get_003_pos',
 tests = ['zpool_history_001_neg', 'zpool_history_002_pos']
 
 # DISABLED:
+# zpool_import_002_pos - https://github.com/zfsonlinux/zfs/issues/5202
 # zpool_import_012_pos - sharenfs issue
 # zpool_import_all_001_pos - partition issue
 [tests/functional/cli_root/zpool_import]
-tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
+tests = ['zpool_import_001_pos',
     'zpool_import_003_pos', 'zpool_import_004_pos', 'zpool_import_005_pos',
     'zpool_import_006_pos', 'zpool_import_007_pos', 'zpool_import_008_pos',
     'zpool_import_009_neg', 'zpool_import_010_pos', 'zpool_import_011_neg',
