@@ -1260,6 +1260,8 @@ nvpair_type_is_array(nvpair_t *nvp)
 static int
 nvpair_value_common(nvpair_t *nvp, data_type_t type, uint_t *nelem, void *data)
 {
+	int value_sz;
+
 	if (nvp == NULL || nvpair_type(nvp) != type)
 		return (EINVAL);
 
@@ -1289,8 +1291,9 @@ nvpair_value_common(nvpair_t *nvp, data_type_t type, uint_t *nelem, void *data)
 #endif
 		if (data == NULL)
 			return (EINVAL);
-		bcopy(NVP_VALUE(nvp), data,
-		    (size_t)i_get_value_size(type, NULL, 1));
+		if ((value_sz = i_get_value_size(type, NULL, 1)) < 0)
+			return (EINVAL);
+		bcopy(NVP_VALUE(nvp), data, (size_t)value_sz);
 		if (nelem != NULL)
 			*nelem = 1;
 		break;

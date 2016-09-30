@@ -519,6 +519,7 @@ nfs_validate_shareopts(const char *shareopts)
 static boolean_t
 nfs_is_share_active(sa_share_impl_t impl_share)
 {
+	int fd;
 	char line[512];
 	char *tab, *cur;
 	FILE *nfs_exportfs_temp_fp;
@@ -526,7 +527,10 @@ nfs_is_share_active(sa_share_impl_t impl_share)
 	if (!nfs_available())
 		return (B_FALSE);
 
-	nfs_exportfs_temp_fp = fdopen(dup(nfs_exportfs_temp_fd), "r");
+	if ((fd = dup(nfs_exportfs_temp_fd)) == -1)
+		return (B_FALSE);
+
+	nfs_exportfs_temp_fp = fdopen(fd, "r");
 
 	if (nfs_exportfs_temp_fp == NULL ||
 	    fseek(nfs_exportfs_temp_fp, 0, SEEK_SET) < 0) {
