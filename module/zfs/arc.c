@@ -1249,7 +1249,7 @@ hdr_recl(void *unused)
 static void
 buf_init(void)
 {
-	uint64_t *ct;
+	uint64_t *ct = NULL;
 	uint64_t hsize = 1ULL << 12;
 	int i, j;
 
