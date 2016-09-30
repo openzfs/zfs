@@ -2354,6 +2354,10 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 	}
 
 	snap = list_head(&ddpa->shared_snaps);
+	if (snap == NULL) {
+		err = SET_ERROR(ENOENT);
+		goto out;
+	}
 	origin_ds = snap->ds;
 
 	/* compute origin's new unique space */
@@ -2462,6 +2466,10 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 		 * iterate over all bps.
 		 */
 		snap = list_head(&ddpa->origin_snaps);
+		if (snap == NULL) {
+			err = SET_ERROR(ENOENT);
+			goto out;
+		}
 		err = snaplist_space(&ddpa->shared_snaps,
 		    snap->ds->ds_dir->dd_origin_txg, &ddpa->cloneusedsnap);
 		if (err != 0)

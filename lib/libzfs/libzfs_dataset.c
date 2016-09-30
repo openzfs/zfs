@@ -2262,6 +2262,11 @@ zfs_get_clones_nvl(zfs_handle_t *zhp)
 			(void) strsep(&cp, "/@");
 			root = zfs_open(zhp->zfs_hdl, pool,
 			    ZFS_TYPE_FILESYSTEM);
+			if (root == NULL) {
+				nvlist_free(nv);
+				nvlist_free(value);
+				return (NULL);
+			}
 
 			(void) get_clones_cb(root, &gca);
 		}
