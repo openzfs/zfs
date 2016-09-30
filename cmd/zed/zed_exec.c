@@ -106,10 +106,11 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		return;
 	} else if (pid == 0) {
 		(void) umask(022);
-		fd = open("/dev/null", O_RDWR);
-		(void) dup2(fd, STDIN_FILENO);
-		(void) dup2(fd, STDOUT_FILENO);
-		(void) dup2(fd, STDERR_FILENO);
+		if ((fd = open("/dev/null", O_RDWR)) != -1) {
+			(void) dup2(fd, STDIN_FILENO);
+			(void) dup2(fd, STDOUT_FILENO);
+			(void) dup2(fd, STDERR_FILENO);
+		}
 		(void) dup2(zfd, ZEVENT_FILENO);
 		zed_file_close_from(ZEVENT_FILENO + 1);
 		execle(path, prog, NULL, env);
