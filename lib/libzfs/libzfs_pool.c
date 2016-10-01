@@ -3126,8 +3126,8 @@ out:
 }
 
 /*
- * Remove the given device.  Currently, this is supported only for hot spares
- * and level 2 cache devices.
+ * Remove the given device.  Currently, this is supported only for hot spares,
+ * cache, and log devices.
  */
 int
 zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
@@ -3151,7 +3151,7 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 	 */
 	if (!avail_spare && !l2cache && !islog) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "only inactive hot spares, cache, top-level, "
+		    "only inactive hot spares, cache, "
 		    "or log devices can be removed"));
 		return (zfs_error(hdl, EZFS_NODEVICE, msg));
 	}
