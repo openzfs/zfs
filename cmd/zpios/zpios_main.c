@@ -388,7 +388,7 @@ dev_clear(void)
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
 		    (unsigned long) ZPIOS_CFG, cfg.cfg_cmd, errno);
 
-	lseek(zpiosctl_fd, 0, SEEK_SET);
+	(void) lseek(zpiosctl_fd, 0, SEEK_SET);
 
 	return (rc);
 }

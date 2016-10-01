@@ -735,7 +735,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 	}
 
 	if (ashift > 0)
-		nvlist_add_uint64(vdev, ZPOOL_CONFIG_ASHIFT, ashift);
+		(void) nvlist_add_uint64(vdev, ZPOOL_CONFIG_ASHIFT, ashift);
 
 	return (vdev);
 }
