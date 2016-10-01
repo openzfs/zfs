@@ -6120,8 +6120,11 @@ share_mount(int op, int argc, char **argv)
 		start_progress_timer();
 		get_all_datasets(&dslist, &count, verbose);
 
-		if (count == 0)
+		if (count == 0) {
+			if (options != NULL)
+				free(options);
 			return (0);
+		}
 
 		qsort(dslist, count, sizeof (void *), libzfs_dataset_cmp);
 
@@ -6153,8 +6156,11 @@ share_mount(int op, int argc, char **argv)
 		 */
 
 		/* Reopen MNTTAB to prevent reading stale data from open file */
-		if (freopen(MNTTAB, "r", mnttab_file) == NULL)
+		if (freopen(MNTTAB, "r", mnttab_file) == NULL) {
+			if (options != NULL)
+				free(options);
 			return (ENOENT);
+		}
 
 		while (getmntent(mnttab_file, &entry) == 0) {
 			if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0 ||
@@ -6183,6 +6189,9 @@ share_mount(int op, int argc, char **argv)
 			zfs_close(zhp);
 		}
 	}
+
+	if (options != NULL)
+		free(options);
 
 	return (ret);
 }
