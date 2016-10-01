@@ -279,11 +279,11 @@ raidz_math_kstat_headers(char *buf, size_t size)
 	off = snprintf(buf, size, "%-17s", "implementation");
 
 	for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
-		off += snprintf(buf + off, size - off, "%-12s",
+		off += snprintf(buf + off, size - off, "%-16s",
 		    raidz_gen_name[i]);
 
 	for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
-		off += snprintf(buf + off, size - off, "%-12s",
+		off += snprintf(buf + off, size - off, "%-16s",
 		    raidz_rec_name[i]);
 
 	(void) snprintf(buf + off, size - off, "\n");
@@ -306,12 +306,12 @@ raidz_math_kstat_data(char *buf, size_t size, void *data)
 
 		for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++) {
 			int id = fstat->gen[i];
-			off += snprintf(buf + off, size - off, "%-12s",
+			off += snprintf(buf + off, size - off, "%-16s",
 			    raidz_supp_impl[id]->name);
 		}
 		for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++) {
 			int id = fstat->rec[i];
-			off += snprintf(buf + off, size - off, "%-12s",
+			off += snprintf(buf + off, size - off, "%-16s",
 			    raidz_supp_impl[id]->name);
 		}
 	} else {
@@ -321,11 +321,11 @@ raidz_math_kstat_data(char *buf, size_t size, void *data)
 		    raidz_supp_impl[id]->name);
 
 		for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
-			off += snprintf(buf + off, size - off, "%-12llu",
+			off += snprintf(buf + off, size - off, "%-16llu",
 			    (u_longlong_t) cstat->gen[i]);
 
 		for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
-			off += snprintf(buf + off, size - off, "%-12llu",
+			off += snprintf(buf + off, size - off, "%-16llu",
 			    (u_longlong_t) cstat->rec[i]);
 	}
 
