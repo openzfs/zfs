@@ -380,18 +380,52 @@ void
 fletcher_4_incremental_native(const void *buf, uint64_t size,
     zio_cksum_t *zcp)
 {
+	const fletcher_4_ops_t *ops;
+	uint64_t p2size = P2ALIGN(size, 64);
+
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
-	fletcher_4_scalar_native(buf, size, zcp);
+#ifndef _KERNEL
+	if (!fletcher_4_initialized)
+		ops = &fletcher_4_scalar_ops;
+	else
+#endif
+		ops = fletcher_4_impl_get();
+
+	if (size >= 1024 && ops->init_incr_native) {
+		ops->init_incr_native(zcp);
+		ops->compute_native(buf, p2size, zcp);
+		ops->fini_incr_native(zcp, p2size);
+		fletcher_4_scalar_native(buf + p2size, size - p2size, zcp);
+	} else {
+		fletcher_4_scalar_native(buf, size, zcp);
+	}
 }
 
 void
 fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
     zio_cksum_t *zcp)
 {
+	const fletcher_4_ops_t *ops;
+	uint64_t p2size = P2ALIGN(size, 64);
+
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
-	fletcher_4_scalar_byteswap(buf, size, zcp);
+#ifndef _KERNEL
+	if (!fletcher_4_initialized)
+		ops = &fletcher_4_scalar_ops;
+	else
+#endif
+		ops = fletcher_4_impl_get();
+
+	if (size >= 1024 && ops->init_incr_byteswap) {
+		ops->init_incr_byteswap(zcp);
+		ops->compute_byteswap(buf, p2size, zcp);
+		ops->fini_incr_byteswap(zcp, p2size);
+		fletcher_4_scalar_byteswap(buf + p2size, size - p2size, zcp);
+	} else {
+		fletcher_4_scalar_byteswap(buf, size, zcp);
+	}
 }
 
 static inline void
@@ -422,7 +456,7 @@ fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 		fletcher_4_native_impl(ops, buf, p2size, zcp);
 
 		if (p2size < size)
-			fletcher_4_incremental_native((char *)buf + p2size,
+			fletcher_4_scalar_native((char *)buf + p2size,
 			    size - p2size, zcp);
 	}
 }
@@ -461,7 +495,7 @@ fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
 		fletcher_4_byteswap_impl(ops, buf, p2size, zcp);
 
 		if (p2size < size)
-			fletcher_4_incremental_byteswap((char *)buf + p2size,
+			fletcher_4_scalar_byteswap((char *)buf + p2size,
 			    size - p2size, zcp);
 	}
 }
@@ -522,6 +556,8 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 	fletcher_4_fastest_impl.init_ ## type = src->init_ ## type;	  \
 	fletcher_4_fastest_impl.fini_ ## type = src->fini_ ## type;	  \
 	fletcher_4_fastest_impl.compute_ ## type = src->compute_ ## type; \
+	fletcher_4_fastest_impl.init_incr_ ## type = src->init_incr_ ## type; \
+	fletcher_4_fastest_impl.fini_incr_ ## type = src->fini_incr_ ## type; \
 }
 
 #define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(50))		/* 50ms */

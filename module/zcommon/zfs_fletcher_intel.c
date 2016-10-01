@@ -46,6 +46,10 @@
 #include <sys/spa_checksum.h>
 #include <zfs_fletcher.h>
 
+typedef struct {
+	uint64_t v[4] __attribute__((aligned(32)));
+} zfs_avx2_t;
+
 static void
 fletcher_4_avx2_init(zio_cksum_t *zcp)
 {
@@ -87,6 +91,57 @@ fletcher_4_avx2_fini(zio_cksum_t *zcp)
 	    +  4*b[0] + 10*b[1] + 20*b[2] + 34*b[3]
 	    - 48*c[0] - 64*c[1] - 80*c[2] - 96*c[3]
 	    + 64*d[0] + 64*d[1] + 64*d[2] + 64*d[3];
+
+	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
+}
+
+static void
+fletcher_4_avx2_incremental_init(zio_cksum_t *zcp)
+{
+	zfs_avx2_t a = {{ zcp->zc_word[0] }};
+
+	kfpu_begin();
+	asm volatile("vmovdqu %0, %%ymm0"::"m" (a));
+	asm volatile("vpxor %ymm1, %ymm1, %ymm1");
+	asm volatile("vpxor %ymm2, %ymm2, %ymm2");
+	asm volatile("vpxor %ymm3, %ymm3, %ymm3");
+}
+
+static void
+fletcher_4_avx2_incremental_fini(zio_cksum_t *zcp, uint64_t size)
+{
+	uint64_t __attribute__((aligned(32))) a[4];
+	uint64_t __attribute__((aligned(32))) b[4];
+	uint64_t __attribute__((aligned(32))) c[4];
+	uint64_t __attribute__((aligned(32))) d[4];
+	uint64_t A, B, C, D;
+
+	asm volatile("vmovdqu %%ymm0, %0":"=m" (a));
+	asm volatile("vmovdqu %%ymm1, %0":"=m" (b));
+	asm volatile("vmovdqu %%ymm2, %0":"=m" (c));
+	asm volatile("vmovdqu %%ymm3, %0":"=m" (d));
+	asm volatile("vzeroupper");
+
+	kfpu_end();
+
+	A = a[0] + a[1] + a[2] + a[3];
+	B = 0 - a[1] - 2*a[2] - 3*a[3]
+	    + 4*b[0] + 4*b[1] + 4*b[2] + 4*b[3];
+
+	C = a[2] + 3*a[3]
+	    -  6*b[0] - 10*b[1] - 14*b[2] - 18*b[3]
+	    + 16*c[0] + 16*c[1] + 16*c[2] + 16*c[3];
+
+	D = 0 - a[3]
+	    +  4*b[0] + 10*b[1] + 20*b[2] + 34*b[3]
+	    - 48*c[0] - 64*c[1] - 80*c[2] - 96*c[3]
+	    + 64*d[0] + 64*d[1] + 64*d[2] + 64*d[3];
+
+	size /= sizeof (uint32_t);
+	B += zcp->zc_word[1];
+	C += zcp->zc_word[2] + size*zcp->zc_word[1];
+	D += zcp->zc_word[3] + size*zcp->zc_word[2]
+	    + size/2*(size+1)*zcp->zc_word[1];
 
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 }
@@ -143,6 +198,10 @@ const fletcher_4_ops_t fletcher_4_avx2_ops = {
 	.init_byteswap = fletcher_4_avx2_init,
 	.fini_byteswap = fletcher_4_avx2_fini,
 	.compute_byteswap = fletcher_4_avx2_byteswap,
+	.init_incr_native = fletcher_4_avx2_incremental_init,
+	.fini_incr_native = fletcher_4_avx2_incremental_fini,
+	.init_incr_byteswap = fletcher_4_avx2_incremental_init,
+	.fini_incr_byteswap = fletcher_4_avx2_incremental_fini,
 	.valid = fletcher_4_avx2_valid,
 	.name = "avx2"
 };
