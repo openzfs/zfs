@@ -652,7 +652,7 @@ zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *event_size,
 
 	ze->ze_zevent = ev;
 	list_insert_head(&ev->ev_ze_list, ze);
-	nvlist_dup(ev->ev_nvl, event, KM_SLEEP);
+	(void) nvlist_dup(ev->ev_nvl, event, KM_SLEEP);
 	*dropped = ze->ze_dropped;
 	ze->ze_dropped = 0;
 out:

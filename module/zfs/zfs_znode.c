@@ -456,7 +456,7 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 	 */
 	case S_IFCHR:
 	case S_IFBLK:
-		sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zsb), &rdev,
+		(void) sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zsb), &rdev,
 		    sizeof (rdev));
 		/*FALLTHROUGH*/
 	case S_IFIFO:
