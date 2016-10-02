@@ -587,10 +587,10 @@ splat_rwlock_test6(struct file *file, void *arg)
 	if (RWSEM_COUNT(SEM(&rwp->rw_rwlock)) !=
 	    SPL_RWSEM_SINGLE_READER_VALUE) {
 		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
-		             "We assumed single reader rwsem->count "
-			     "should be %ld, but is %ld\n",
-			     SPL_RWSEM_SINGLE_READER_VALUE,
-			     RWSEM_COUNT(SEM(&rwp->rw_rwlock)));
+		    "We assumed single reader rwsem->count "
+		    "should be %ld, but is %ld\n",
+		    (long int)SPL_RWSEM_SINGLE_READER_VALUE,
+		    (long int)RWSEM_COUNT(SEM(&rwp->rw_rwlock)));
 		rc = -ENOLCK;
 		goto out;
 	}
@@ -600,10 +600,10 @@ splat_rwlock_test6(struct file *file, void *arg)
 	if (RWSEM_COUNT(SEM(&rwp->rw_rwlock)) !=
 	    SPL_RWSEM_SINGLE_WRITER_VALUE) {
 		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
-		             "We assumed single writer rwsem->count "
-			     "should be %ld, but is %ld\n",
-			     SPL_RWSEM_SINGLE_WRITER_VALUE,
-			     RWSEM_COUNT(SEM(&rwp->rw_rwlock)));
+		    "We assumed single writer rwsem->count "
+		    "should be %ld, but is %ld\n",
+		    (long int)SPL_RWSEM_SINGLE_WRITER_VALUE,
+		    (long int)RWSEM_COUNT(SEM(&rwp->rw_rwlock)));
 		rc = -ENOLCK;
 		goto out;
 	}
