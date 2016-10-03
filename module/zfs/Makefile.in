@@ -115,3 +115,6 @@ $(MODULE)-objs += dsl_userhold.o
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_sse2.o
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_ssse3.o
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx2.o
+
+$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neon.o
+$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neonx2.o

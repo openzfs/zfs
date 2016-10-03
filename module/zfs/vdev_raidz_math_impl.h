@@ -490,7 +490,7 @@ REC_Q_BLOCK(raidz_map_t * const rm, const size_t off, const size_t end,
 	for (ioff = off; ioff < end; ioff += (REC_Q_STRIDE * sizeof (v_t))) {
 		MUL2_SETUP();
 
-		XOR(REC_Q_X, REC_Q_X);
+		ZERO(REC_Q_X);
 
 		if (ncols == nbigcols) {
 			for (c = firstdc; c < x; c++)
@@ -587,7 +587,7 @@ REC_R_BLOCK(raidz_map_t * const rm, const size_t off, const size_t end,
 	for (ioff = off; ioff < end; ioff += (REC_R_STRIDE * sizeof (v_t))) {
 		MUL2_SETUP();
 
-		XOR(REC_R_X, REC_R_X);
+		ZERO(REC_R_X);
 
 		if (ncols == nbigcols) {
 			for (c = firstdc; c < x; c++)
@@ -690,7 +690,7 @@ REC_PQ_BLOCK(raidz_map_t * const rm, const size_t off, const size_t end,
 
 	for (ioff = off; ioff < end; ioff += (REC_PQ_STRIDE * sizeof (v_t))) {
 		LOAD(COL_OFF(pcol, ioff), REC_PQ_X);
-		XOR(REC_PQ_Y, REC_PQ_Y);
+		ZERO(REC_PQ_Y);
 		MUL2_SETUP();
 
 		if (ncols == nbigcols) {
@@ -816,7 +816,7 @@ REC_PR_BLOCK(raidz_map_t * const rm, const size_t off, const size_t end,
 
 	for (ioff = off; ioff < end; ioff += (REC_PR_STRIDE * sizeof (v_t))) {
 		LOAD(COL_OFF(pcol, ioff), REC_PR_X);
-		XOR(REC_PR_Y, REC_PR_Y);
+		ZERO(REC_PR_Y);
 		MUL2_SETUP();
 
 		if (ncols == nbigcols) {
@@ -949,8 +949,8 @@ REC_QR_BLOCK(raidz_map_t * const rm, const size_t off, const size_t end,
 
 	for (ioff = off; ioff < end; ioff += (REC_QR_STRIDE * sizeof (v_t))) {
 		MUL2_SETUP();
-		XOR(REC_QR_X, REC_QR_X);
-		XOR(REC_QR_Y, REC_QR_Y);
+		ZERO(REC_QR_X);
+		ZERO(REC_QR_Y);
 
 		if (ncols == nbigcols) {
 			for (c = firstdc; c < x; c++)
@@ -1090,8 +1090,8 @@ REC_PQR_BLOCK(raidz_map_t * const rm, const size_t off, const size_t end,
 	for (ioff = off; ioff < end; ioff += (REC_PQR_STRIDE * sizeof (v_t))) {
 		MUL2_SETUP();
 		LOAD(COL_OFF(pcol, ioff), REC_PQR_X);
-		XOR(REC_PQR_Y, REC_PQR_Y);
-		XOR(REC_PQR_Z, REC_PQR_Z);
+		ZERO(REC_PQR_Y);
+		ZERO(REC_PQR_Z);
 
 		if (ncols == nbigcols) {
 			for (c = firstdc; c < x; c++)

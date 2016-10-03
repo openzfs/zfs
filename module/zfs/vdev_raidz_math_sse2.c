@@ -106,6 +106,27 @@ typedef struct v {
 		break;							\
 	}								\
 }
+#define	ZERO(r...)							\
+{									\
+	switch (REG_CNT(r)) {						\
+	case 4:								\
+		__asm(							\
+		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
+		    "pxor %" VR1(r) ", %" VR1(r) "\n"			\
+		    "pxor %" VR2(r) ", %" VR2(r) "\n"			\
+		    "pxor %" VR3(r) ", %" VR3(r));			\
+		break;							\
+	case 2:								\
+		__asm(							\
+		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
+		    "pxor %" VR1(r) ", %" VR1(r));			\
+		break;							\
+	case 1:								\
+		__asm(							\
+		    "pxor %" VR0(r) ", %" VR0(r));			\
+		break;							\
+	}								\
+}
 
 #define	COPY(r...) 							\
 {									\
