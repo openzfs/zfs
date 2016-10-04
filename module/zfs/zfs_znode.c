@@ -478,25 +478,6 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 	}
 }
 
-void
-zfs_set_inode_flags(znode_t *zp, struct inode *ip)
-{
-	/*
-	 * Linux and Solaris have different sets of file attributes, so we
-	 * restrict this conversion to the intersection of the two.
-	 */
-
-	if (zp->z_pflags & ZFS_IMMUTABLE)
-		ip->i_flags |= S_IMMUTABLE;
-	else
-		ip->i_flags &= ~S_IMMUTABLE;
-
-	if (zp->z_pflags & ZFS_APPENDONLY)
-		ip->i_flags |= S_APPEND;
-	else
-		ip->i_flags &= ~S_APPEND;
-}
-
 /*
  * Update the embedded inode given the znode.  We should work toward
  * eliminating this function as soon as possible by removing values
@@ -523,7 +504,6 @@ zfs_inode_update(znode_t *zp)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
 
 	spin_lock(&ip->i_lock);
-	zfs_set_inode_flags(zp, ip);
 	ip->i_blocks = i_blocks;
 	i_size_write(ip, zp->z_size);
 	spin_unlock(&ip->i_lock);
@@ -946,6 +926,7 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    &times, sizeof (times), tx);
 		XVA_SET_RTN(xvap, XAT_CREATETIME);
 	}
+
 	if (XVA_ISSET_REQ(xvap, XAT_READONLY)) {
 		ZFS_ATTR_SET(zp, ZFS_READONLY, xoap->xoa_readonly,
 		    zp->z_pflags, tx);
@@ -970,7 +951,12 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		ZFS_ATTR_SET(zp, ZFS_IMMUTABLE, xoap->xoa_immutable,
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_IMMUTABLE);
+
+		ZTOI(zp)->i_flags |= S_IMMUTABLE;
+	} else {
+		ZTOI(zp)->i_flags &= ~S_IMMUTABLE;
 	}
+
 	if (XVA_ISSET_REQ(xvap, XAT_NOUNLINK)) {
 		ZFS_ATTR_SET(zp, ZFS_NOUNLINK, xoap->xoa_nounlink,
 		    zp->z_pflags, tx);
@@ -980,7 +966,13 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		ZFS_ATTR_SET(zp, ZFS_APPENDONLY, xoap->xoa_appendonly,
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_APPENDONLY);
+
+		ZTOI(zp)->i_flags |= S_APPEND;
+	} else {
+
+		ZTOI(zp)->i_flags &= ~S_APPEND;
 	}
+
 	if (XVA_ISSET_REQ(xvap, XAT_NODUMP)) {
 		ZFS_ATTR_SET(zp, ZFS_NODUMP, xoap->xoa_nodump,
 		    zp->z_pflags, tx);
@@ -1233,6 +1225,7 @@ zfs_rezget(znode_t *zp)
 	zp->z_blksz = doi.doi_data_block_size;
 	zp->z_atime_dirty = 0;
 	zfs_inode_update(zp);
+
 
 	zfs_znode_hold_exit(zsb, zh);
 
