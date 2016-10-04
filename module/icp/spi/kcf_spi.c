@@ -889,7 +889,7 @@ kcf_do_notify(kcf_provider_desc_t *prov_desc, boolean_t is_added)
 		ec.ec_change = is_added ? CRYPTO_MECH_ADDED :
 		    CRYPTO_MECH_REMOVED;
 		for (i = 0; i < prov_desc->pd_mech_list_count; i++) {
-			(void) strncpy(ec.ec_mech_name,
+			(void) strlcpy(ec.ec_mech_name,
 			    prov_desc->pd_mechanisms[i].cm_mech_name,
 			    CRYPTO_MAX_MECH_NAME);
 			kcf_walk_ntfylist(CRYPTO_EVENT_MECHS_CHANGED, &ec);
