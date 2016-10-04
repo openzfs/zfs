@@ -38,8 +38,11 @@ function cleanup_quota
 {
 	if datasetexists $QFS; then
 		log_must $ZFS set userquota@$QUSER1=none $QFS
+		log_must $ZFS set userobjquota@$QUSER1=none $QFS
 		log_must $ZFS set userquota@$QUSER2=none $QFS
+		log_must $ZFS set userobjquota@$QUSER2=none $QFS
 		log_must $ZFS set groupquota@$QGROUP=none $QFS
+		log_must $ZFS set groupobjquota@$QGROUP=none $QFS
 		recovery_writable $QFS
 	fi
 
@@ -47,7 +50,7 @@ function cleanup_quota
 	[[ -f $OFILE ]] && log_must $RM -f $OFILE
 	$SYNC
 
-	 return 0
+	return 0
 }
 
 #

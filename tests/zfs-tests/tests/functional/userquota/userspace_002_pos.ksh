@@ -75,7 +75,7 @@ for fs in "$QFS" "$snapfs"; do
 	log_must eval "$ZFS userspace $fs | $GREP $QUSER1 | $GREP 100M"
 
 	log_note "check the user used size in zfs userspace $fs"
-	log_must eval "$ZFS userspace $fs | $GREP $QUSER1 | $GREP 50.0M"
+	log_must eval "$ZFS userspace $fs | $GREP $QUSER1 | $GREP 50\\.\*M"
 done
 
 log_pass "Check the zfs userspace used and quota"

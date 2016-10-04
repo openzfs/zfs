@@ -51,6 +51,7 @@ SUBDIRS = \
 	sparse \
 	threadsappend \
 	truncate \
+	upgrade \
 	userquota \
 	vdev_zaps \
 	write_dirs \

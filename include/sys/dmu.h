@@ -257,6 +257,12 @@ void zfs_znode_byteswap(void *buf, size_t size);
 #define	DMU_GROUPUSED_OBJECT	(-2ULL)
 
 /*
+ * Zap prefix for object accounting in DMU_{USER,GROUP}USED_OBJECT.
+ */
+#define	DMU_OBJACCT_PREFIX	"obj-"
+#define	DMU_OBJACCT_PREFIX_LEN	4
+
+/*
  * artificial blkids for bonus buffer and spill blocks
  */
 #define	DMU_BONUS_BLKID		(-1ULL)

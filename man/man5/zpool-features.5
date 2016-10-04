@@ -563,5 +563,31 @@ Booting off of pools using \fBedonr\fR is \fBNOT\fR supported
 -- any attempt to enable \fBedonr\fR on a root pool will fail with an
 error.
 
+.sp
+.ne 2
+.na
+\fB\fBuserobj_accounting\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:userobj_accounting
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature allows administrators to account the object usage information
+by user and group.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will never
+return to being \fBenabled\fR. Each filesystem will be upgraded automatically
+when remounted, or when new files are created under that filesystem.
+The upgrade can also be started manually on filesystems by running
+`zfs set version=current <pool/fs>`. The upgrade process runs in the background
+and may take a while to complete for filesystems containing a large number of
+files.
+
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)

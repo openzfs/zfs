@@ -26,57 +26,52 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2016 by Jinshan Xiong. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
 #
+#
 # DESCRIPTION:
-#       Check the basic function user|group used
+#       Check the basic function of the userobjquota and groupobjquota
 #
 #
 # STRATEGY:
-#       1. Write some data to fs by normal user and check the user|group used
+#       1. Set userobjquota and overwrite the quota size
+#       2. Creating new object should fail with Disc quota exceeded
+#       3. Set groupobjquota and overwrite the quota size
+#       4. Creating new object should fail with Disc quota exceeded
+#
 #
 
 function cleanup
 {
+	log_must $RM -f ${QFILE}_*
 	cleanup_quota
 }
 
 log_onexit cleanup
 
-log_assert "Check the basic function of {user|group} used"
-
-sync_pool
-typeset user_used=$(get_value "userused@$QUSER1" $QFS)
-typeset group_used=$(get_value "groupused@$QGROUP" $QFS)
-
-if [[ $user_used != 0 ]]; then
-	log_fail "FAIL: userused is $user_used, should be 0"
-fi
-if [[ $group_used != 0 ]]; then
-	log_fail "FAIL: groupused is $group_used, should be 0"
-fi
+log_assert "If creating object exceeds {user|group}objquota count, it will fail"
 
 mkmount_writable $QFS
-log_must user_run $QUSER1 $MKFILE 100m $QFILE
+log_must $ZFS set xattr=sa $QFS
+
+log_note "Check the userobjquota@$QUSER1"
+log_must $ZFS set userobjquota@$QUSER1=100 $QFS
+log_must user_run $QUSER1 $MKFILES ${QFILE}_1 100
 sync_pool
+log_mustnot user_run $QUSER1 $MKFILE 1 $OFILE
+cleanup_quota
 
-user_used=$(get_value "userused@$QUSER1" $QFS)
-group_used=$(get_value "groupused@$QGROUP" $QFS)
+log_note "Check the groupobjquota@$QGROUP"
+log_must $ZFS set groupobjquota@$QGROUP=200 $QFS
+mkmount_writable $QFS
+log_must user_run $QUSER1 $MKFILES ${QFILE}_2 100
+sync_pool
+log_mustnot user_run $QUSER2 $MKFILE 1 $OFILE
 
-if [[ $user_used != "100M" ]]; then
-	log_note "user $QUSER1 used is $user_used"
-	log_fail "userused for user $QUSER1 expected to be 50.0M, not $user_used"
-fi
-
-if [[ $user_used != $group_used ]]; then
-	log_note "user $QUSER1 used is $user_used"
-	log_note "group $QGROUP used is $group_used"
-	log_fail "FAIL: userused should equal to groupused"
-fi
-
-log_pass "Check the basic function of {user|group}used pass as expect"
+cleanup
+log_pass "Creating objects exceeds {user|group}objquota count, it as expect"

@@ -126,11 +126,14 @@ enum dnode_dirtycontext {
 };
 
 /* Is dn_used in bytes?  if not, it's in multiples of SPA_MINBLOCKSIZE */
-#define	DNODE_FLAG_USED_BYTES		(1<<0)
-#define	DNODE_FLAG_USERUSED_ACCOUNTED	(1<<1)
+#define	DNODE_FLAG_USED_BYTES			(1 << 0)
+#define	DNODE_FLAG_USERUSED_ACCOUNTED		(1 << 1)
 
 /* Does dnode have a SA spill blkptr in bonus? */
-#define	DNODE_FLAG_SPILL_BLKPTR	(1<<2)
+#define	DNODE_FLAG_SPILL_BLKPTR			(1 << 2)
+
+/* User/Group dnode accounting */
+#define	DNODE_FLAG_USEROBJUSED_ACCOUNTED	(1 << 3)
 
 typedef struct dnode_phys {
 	uint8_t dn_type;		/* dmu_object_type_t */

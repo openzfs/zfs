@@ -57,7 +57,7 @@ log_must $ZFS set groupquota@$QGROUP=$GQUOTA_SIZE $QFS
 
 mkmount_writable $QFS
 log_must user_run $QUSER1 $MKFILE $UQUOTA_SIZE $QFILE
-$SYNC
+sync_pool
 
 log_must eval "$ZFS get -p userused@$QUSER1 $QFS >/dev/null 2>&1"
 log_must eval "$ZFS get -p groupused@$GROUPUSED $QFS >/dev/null 2>&1"
