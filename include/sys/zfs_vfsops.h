@@ -110,6 +110,8 @@ typedef struct zfs_sb {
 	kmutex_t	z_lock;
 	uint64_t	z_userquota_obj;
 	uint64_t	z_groupquota_obj;
+	uint64_t	z_userobjquota_obj;
+	uint64_t	z_groupobjquota_obj;
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 	uint64_t	z_hold_size;	/* znode hold array size */
@@ -189,6 +191,8 @@ extern int zfs_set_userquota(zfs_sb_t *zsb, zfs_userquota_prop_t type,
 extern boolean_t zfs_owner_overquota(zfs_sb_t *zsb, struct znode *,
     boolean_t isgroup);
 extern boolean_t zfs_fuid_overquota(zfs_sb_t *zsb, boolean_t isgroup,
+    uint64_t fuid);
+extern boolean_t zfs_fuid_overobjquota(zfs_sb_t *zsb, boolean_t isgroup,
     uint64_t fuid);
 extern int zfs_set_version(zfs_sb_t *zsb, uint64_t newvers);
 extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop,

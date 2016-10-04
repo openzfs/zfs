@@ -602,21 +602,18 @@ tests = ['sparse_001_pos']
 [tests/functional/truncate]
 tests = ['truncate_001_pos', 'truncate_002_pos']
 
-# DISABLED:
-# groupspace_001_pos
-# groupspace_002_pos
-# userquota_001_pos
-# userquota_004_pos
-# userquota_007_pos
-# userquota_010_pos
-# userspace_001_pos
-# userspace_002_pos
+[tests/functional/upgrade]
+tests = [ 'upgrade_userobj_001_pos' ]
+
 [tests/functional/userquota]
 tests = [
-    'userquota_002_pos', 'userquota_003_pos',
-    'userquota_005_neg', 'userquota_006_pos',
-    'userquota_008_pos', 'userquota_009_pos',
-    'userquota_011_pos', 'userquota_012_neg']
+    'userquota_001_pos', 'userquota_002_pos', 'userquota_003_pos',
+    'userquota_004_pos', 'userquota_005_neg', 'userquota_006_pos',
+    'userquota_007_pos', 'userquota_008_pos', 'userquota_009_pos',
+    'userquota_010_pos', 'userquota_011_pos', 'userquota_012_neg',
+    'userquota_013_pos',
+    'userspace_001_pos', 'userspace_002_pos', 'userspace_003_pos',
+    'groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos' ]
 
 # DISABLED:
 # vdev_zaps_007_pos -- fails due to a pre-existing issue with zpool split

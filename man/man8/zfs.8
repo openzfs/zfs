@@ -663,6 +663,8 @@ The amount of space consumed by snapshots of this dataset. In particular, it is 
 .sp
 .ne 2
 .na
+\fB\fBuserobjused@\fR\fIuser\fR\fR
+.br
 \fB\fBuserused@\fR\fIuser\fR\fR
 .ad
 .sp .6
@@ -699,6 +701,11 @@ The \fBuserused@\fR... properties are not displayed by \fBzfs get all\fR. The us
 .RE
 Files created on Linux always have POSIX owners.
 
+.RS 4n
+The \fBuserobjused\fR is similar to \fBuserused\fR but instead it counts the number of objects consumed by \fIuser\fR. This feature doesn't count the internal objects used by ZFS, therefore it may under count a few objects comparing with the results of third-party tool such as \fBdfs -i\fR.
+When the property \fBxattr=on\fR is set on a fileset, ZFS will create additional objects per-file to store extended attributes. These additional objects are reflected in the \fBuserobjused\fR value and are counted against the user's \fBuserobjquota\fR. When a filesystem is configured to use \fBxattr=sa\fR no additional internal objects are required.
+.RE
+
 .sp
 .ne 2
 .na
@@ -713,12 +720,19 @@ This property is set to the number of user holds on this snapshot. User holds ar
 .ne 2
 .na
 \fB\fBgroupused@\fR\fIgroup\fR\fR
+.br
+\fB\fBgroupobjused@\fR\fIgroup\fR\fR
 .ad
 .sp .6
 .RS 4n
 The amount of space consumed by the specified group in this dataset. Space is charged to the group of each file, as displayed by \fBls\fR \fB-l\fR. See the \fBuserused@\fR\fIuser\fR property for more information.
 .sp
 Unprivileged users can only access their own groups' space usage. The root user, or a user who has been granted the \fBgroupused\fR privilege with \fBzfs allow\fR, can access all groups' usage.
+.RE
+
+.RS 4n
+The \fBgroupobjused\fR is similar to \fBgroupused\fR but instead it counts the number of objects consumed by \fIgroup\fR.
+When the property \fBxattr=on\fR is set on a fileset, ZFS will create additional objects per-file to store extended attributes. These additional objects are reflected in the \fBgroupobjused\fR value and are counted against the group's \fBgroupobjquota.\fR. When a filesystem is configured to use \fBxattr=sa\fR no additional internal objects are required.
 .RE
 
 .sp
@@ -1081,6 +1095,8 @@ a zone. This feature must be enabled to be used (see \fBzpool-features\fR(5)).
 .ne 2
 .na
 \fB\fBuserquota@\fR\fIuser\fR=\fBnone\fR | \fIsize\fR\fR
+.br
+\fB\fBuserobjquota@\fR\fIuser\fR=\fBnone\fR | \fIcount\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -1118,16 +1134,26 @@ This property is not available on volumes, on file systems before version 4, or 
 .RE
 Files created on Linux always have POSIX owners.
 
+.RS 4
+The \fBuserobjquota\fR is similar to \fBuserquota\fR but it limits the number of objects a \fIuser\fR can create.
+Please refer to \fBuserobjused\fR for more information about how ZFS counts object usage.
+.RE
+
 .sp
 .ne 2
 .na
 \fB\fBgroupquota@\fR\fIgroup\fR=\fBnone\fR\fR | \fIsize\fR
+.br
+\fB\fBgroupobjquota@\fR\fIgroup\fR=\fBnone\fR\fR | \fIcount\fR
 .ad
 .sp .6
 .RS 4n
 Limits the amount of space consumed by the specified group. Group space consumption is identified by the \fBuserquota@\fR\fIuser\fR property.
 .sp
 Unprivileged users can access only their own groups' space usage. The root user, or a user who has been granted the \fBgroupquota\fR privilege with \fBzfs allow\fR, can get and set all groups' quotas.
+
+The \fBgroupobjquota\fR is similar to \fBgroupquota\fR but it limits that the \fIgroup\fR can consume \fIcount\fR number of objects at most.
+Please refer to \fBuserobjused\fR for more information about how zfs counts object usage.
 .RE
 
 .sp
@@ -2386,8 +2412,8 @@ Upgrades to the specified \fIversion\fR. If the \fB-V\fR flag is not specified, 
 .sp .6
 .RS 4n
 Displays space consumed by, and quotas on, each user in the specified
-filesystem or snapshot. This corresponds to the \fBuserused@\fR\fIuser\fR and
-\fBuserquota@\fR\fIuser\fR properties.
+filesystem or snapshot. This corresponds to the \fBuserused@\fR\fIuser\fR, \fBuserobjused@\fR\fIuser\fR,
+\fBuserquota@\fR\fIuser\fR, and \fBuserobjquota@\fR\fIuser\fR properties.
 .sp
 .ne 2
 .na
@@ -3141,10 +3167,14 @@ send             subcommand
 share            subcommand     Allows sharing file systems over NFS or SMB
                                 protocols
 snapshot         subcommand     Must also have the 'mount' ability
+groupobjquota    other          Allows accessing any groupobjquota@... property
 groupquota       other          Allows accessing any groupquota@... property
+groupobjused     other          Allows reading any groupobjused@... property
 groupused        other          Allows reading any groupused@... property
 userprop         other          Allows changing any user property
+userobjquota     other          Allows accessing any userobjquota@... property
 userquota        other          Allows accessing any userquota@... property
+userobjused      other          Allows reading any userobjused@... property
 userused         other          Allows reading any userused@... property
 
 acltype          property

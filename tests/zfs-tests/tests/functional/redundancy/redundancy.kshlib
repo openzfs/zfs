@@ -214,32 +214,6 @@ function get_vdevs #pool cnt
 }
 
 #
-# Synchronize all the data in pool
-#
-# $1 pool name
-#
-function sync_pool #pool
-{
-	typeset pool=$1
-
-	log_must $SYNC
-	log_must $SLEEP 2
-	# Flush all the pool data.
-	typeset -i ret
-	$ZPOOL scrub $pool >/dev/null 2>&1
-	ret=$?
-	(( $ret != 0 )) && \
-		log_fail "$ZPOOL scrub $pool failed."
-
-	while ! is_pool_scrubbed $pool; do
-		if is_pool_resilvered $pool ; then
-			log_fail "$pool should not be resilver completed."
-		fi
-		log_must $SLEEP 2
-	done
-}
-
-#
 # Create and replace the same name virtual device files
 #
 # $1 pool name

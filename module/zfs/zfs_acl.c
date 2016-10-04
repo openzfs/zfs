@@ -1886,7 +1886,9 @@ boolean_t
 zfs_acl_ids_overquota(zfs_sb_t *zsb, zfs_acl_ids_t *acl_ids)
 {
 	return (zfs_fuid_overquota(zsb, B_FALSE, acl_ids->z_fuid) ||
-	    zfs_fuid_overquota(zsb, B_TRUE, acl_ids->z_fgid));
+	    zfs_fuid_overquota(zsb, B_TRUE, acl_ids->z_fgid) ||
+	    zfs_fuid_overobjquota(zsb, B_FALSE, acl_ids->z_fuid) ||
+	    zfs_fuid_overobjquota(zsb, B_TRUE, acl_ids->z_fgid));
 }
 
 /*

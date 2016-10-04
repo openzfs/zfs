@@ -2223,10 +2223,14 @@ enum us_field_types {
 	USFIELD_TYPE,
 	USFIELD_NAME,
 	USFIELD_USED,
-	USFIELD_QUOTA
+	USFIELD_QUOTA,
+	USFIELD_OBJUSED,
+	USFIELD_OBJQUOTA
 };
-static char *us_field_hdr[] = { "TYPE", "NAME", "USED", "QUOTA" };
-static char *us_field_names[] = { "type", "name", "used", "quota" };
+static char *us_field_hdr[] = { "TYPE", "NAME", "USED", "QUOTA",
+				    "OBJUSED", "OBJQUOTA" };
+static char *us_field_names[] = { "type", "name", "used", "quota",
+				    "objused", "objquota" };
 #define	USFIELD_LAST	(sizeof (us_field_names) / sizeof (char *))
 
 #define	USTYPE_PSX_GRP	(1 << 0)
@@ -2374,6 +2378,20 @@ compare_nums:
 	return (0);
 }
 
+static boolean_t
+zfs_prop_is_user(unsigned p)
+{
+	return (p == ZFS_PROP_USERUSED || p == ZFS_PROP_USERQUOTA ||
+	    p == ZFS_PROP_USEROBJUSED || p == ZFS_PROP_USEROBJQUOTA);
+}
+
+static boolean_t
+zfs_prop_is_group(unsigned p)
+{
+	return (p == ZFS_PROP_GROUPUSED || p == ZFS_PROP_GROUPQUOTA ||
+	    p == ZFS_PROP_GROUPOBJUSED || p == ZFS_PROP_GROUPOBJQUOTA);
+}
+
 static inline const char *
 us_type2str(unsigned field_type)
 {
@@ -2463,7 +2481,7 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 
 	if (cb->cb_sid2posix || domain == NULL || domain[0] == '\0') {
 		/* POSIX or -i */
-		if (prop == ZFS_PROP_GROUPUSED || prop == ZFS_PROP_GROUPQUOTA) {
+		if (zfs_prop_is_group(prop)) {
 			type = USTYPE_PSX_GRP;
 			if (!cb->cb_numname) {
 				struct group *g;
@@ -2538,10 +2556,22 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 		propname = "used";
 		if (!nvlist_exists(props, "quota"))
 			(void) nvlist_add_uint64(props, "quota", 0);
-	} else {
+	} else if (prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA) {
 		propname = "quota";
 		if (!nvlist_exists(props, "used"))
 			(void) nvlist_add_uint64(props, "used", 0);
+	} else if (prop == ZFS_PROP_USEROBJUSED ||
+		    prop == ZFS_PROP_GROUPOBJUSED) {
+		propname = "objused";
+		if (!nvlist_exists(props, "objquota"))
+			(void) nvlist_add_uint64(props, "objquota", 0);
+	} else if (prop == ZFS_PROP_USEROBJQUOTA ||
+		    prop == ZFS_PROP_GROUPOBJQUOTA) {
+		propname = "objquota";
+		if (!nvlist_exists(props, "objused"))
+			(void) nvlist_add_uint64(props, "objused", 0);
+	} else {
+		return (-1);
 	}
 	sizeidx = us_field_index(propname);
 	if (sizelen > cb->cb_width[sizeidx])
@@ -2574,7 +2604,7 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 		data_type_t type;
 		uint32_t val32;
 		uint64_t val64;
-		char *strval = NULL;
+		char *strval = "-";
 
 		while ((nvp = nvlist_next_nvpair(nvl, nvp)) != NULL) {
 			if (strcmp(nvpair_name(nvp),
@@ -2582,7 +2612,7 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 				break;
 		}
 
-		type = nvpair_type(nvp);
+		type = nvp == NULL ? DATA_TYPE_UNKNOWN : nvpair_type(nvp);
 		switch (type) {
 		case DATA_TYPE_UINT32:
 			(void) nvpair_value_uint32(nvp, &val32);
@@ -2593,13 +2623,16 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 		case DATA_TYPE_STRING:
 			(void) nvpair_value_string(nvp, &strval);
 			break;
+		case DATA_TYPE_UNKNOWN:
+			break;
 		default:
 			(void) fprintf(stderr, "invalid data type\n");
 		}
 
 		switch (field) {
 		case USFIELD_TYPE:
-			strval = (char *)us_type2str(val32);
+			if (type == DATA_TYPE_UINT32)
+				strval = (char *)us_type2str(val32);
 			break;
 		case USFIELD_NAME:
 			if (type == DATA_TYPE_UINT64) {
@@ -2610,6 +2643,8 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 			break;
 		case USFIELD_USED:
 		case USFIELD_QUOTA:
+		case USFIELD_OBJUSED:
+		case USFIELD_OBJQUOTA:
 			if (type == DATA_TYPE_UINT64) {
 				if (parsable) {
 					(void) sprintf(valstr, "%llu",
@@ -2618,7 +2653,8 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 					zfs_nicenum(val64, valstr,
 					    sizeof (valstr));
 				}
-				if (field == USFIELD_QUOTA &&
+				if ((field == USFIELD_QUOTA ||
+				    field == USFIELD_OBJQUOTA) &&
 				    strcmp(valstr, "0") == 0)
 					strval = "none";
 				else
@@ -2690,7 +2726,7 @@ zfs_do_userspace(int argc, char **argv)
 	uu_avl_t *avl_tree;
 	uu_avl_walk_t *walk;
 	char *delim;
-	char deffields[] = "type,name,used,quota";
+	char deffields[] = "type,name,used,quota,objused,objquota";
 	char *ofield = NULL;
 	char *tfield = NULL;
 	int cfield = 0;
@@ -2839,11 +2875,12 @@ zfs_do_userspace(int argc, char **argv)
 		cb.cb_width[i] = strlen(gettext(us_field_hdr[i]));
 
 	for (p = 0; p < ZFS_NUM_USERQUOTA_PROPS; p++) {
-		if (((p == ZFS_PROP_USERUSED || p == ZFS_PROP_USERQUOTA) &&
+		if ((zfs_prop_is_user(p) &&
 		    !(types & (USTYPE_PSX_USR | USTYPE_SMB_USR))) ||
-		    ((p == ZFS_PROP_GROUPUSED || p == ZFS_PROP_GROUPQUOTA) &&
+		    (zfs_prop_is_group(p) &&
 		    !(types & (USTYPE_PSX_GRP | USTYPE_SMB_GRP))))
 			continue;
+
 		cb.cb_prop = p;
 		if ((ret = zfs_userspace(zhp, p, userspace_cb, &cb)) != 0)
 			return (ret);
@@ -4099,6 +4136,11 @@ zfs_do_receive(int argc, char **argv)
 #define	ZFS_DELEG_PERM_GROUPQUOTA	"groupquota"
 #define	ZFS_DELEG_PERM_USERUSED		"userused"
 #define	ZFS_DELEG_PERM_GROUPUSED	"groupused"
+#define	ZFS_DELEG_PERM_USEROBJQUOTA	"userobjquota"
+#define	ZFS_DELEG_PERM_GROUPOBJQUOTA	"groupobjquota"
+#define	ZFS_DELEG_PERM_USEROBJUSED	"userobjused"
+#define	ZFS_DELEG_PERM_GROUPOBJUSED	"groupobjused"
+
 #define	ZFS_DELEG_PERM_HOLD		"hold"
 #define	ZFS_DELEG_PERM_RELEASE		"release"
 #define	ZFS_DELEG_PERM_DIFF		"diff"
@@ -4129,6 +4171,10 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_USERPROP, ZFS_DELEG_NOTE_USERPROP },
 	{ ZFS_DELEG_PERM_USERQUOTA, ZFS_DELEG_NOTE_USERQUOTA },
 	{ ZFS_DELEG_PERM_USERUSED, ZFS_DELEG_NOTE_USERUSED },
+	{ ZFS_DELEG_PERM_USEROBJQUOTA, ZFS_DELEG_NOTE_USEROBJQUOTA },
+	{ ZFS_DELEG_PERM_USEROBJUSED, ZFS_DELEG_NOTE_USEROBJUSED },
+	{ ZFS_DELEG_PERM_GROUPOBJQUOTA, ZFS_DELEG_NOTE_GROUPOBJQUOTA },
+	{ ZFS_DELEG_PERM_GROUPOBJUSED, ZFS_DELEG_NOTE_GROUPOBJUSED },
 	{ NULL, ZFS_DELEG_NOTE_NONE }
 };
 
@@ -4206,6 +4252,10 @@ deleg_perm_type(zfs_deleg_note_t note)
 	case ZFS_DELEG_NOTE_USERPROP:
 	case ZFS_DELEG_NOTE_USERQUOTA:
 	case ZFS_DELEG_NOTE_USERUSED:
+	case ZFS_DELEG_NOTE_USEROBJQUOTA:
+	case ZFS_DELEG_NOTE_USEROBJUSED:
+	case ZFS_DELEG_NOTE_GROUPOBJQUOTA:
+	case ZFS_DELEG_NOTE_GROUPOBJUSED:
 		/* other */
 		return (gettext("other"));
 	default:
@@ -4708,6 +4758,19 @@ deleg_perm_comment(zfs_deleg_note_t note)
 		break;
 	case ZFS_DELEG_NOTE_USERUSED:
 		str = gettext("Allows reading any userused@... property");
+		break;
+	case ZFS_DELEG_NOTE_USEROBJQUOTA:
+		str = gettext("Allows accessing any userobjquota@... property");
+		break;
+	case ZFS_DELEG_NOTE_GROUPOBJQUOTA:
+		str = gettext("Allows accessing any \n\t\t\t\t"
+		    "groupobjquota@... property");
+		break;
+	case ZFS_DELEG_NOTE_GROUPOBJUSED:
+		str = gettext("Allows reading any groupobjused@... property");
+		break;
+	case ZFS_DELEG_NOTE_USEROBJUSED:
+		str = gettext("Allows reading any userobjused@... property");
 		break;
 		/* other */
 	default:

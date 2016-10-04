@@ -285,4 +285,15 @@ zpool_feature_init(void)
 	    "Edon-R hash algorithm.",
 	    ZFEATURE_FLAG_PER_DATASET, edonr_deps);
 	}
+	{
+	static const spa_feature_t userobj_accounting_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_USEROBJ_ACCOUNTING,
+	    "org.zfsonlinux:userobj_accounting", "userobj_accounting",
+	    "User/Group object accounting.",
+	    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
+	    userobj_accounting_deps);
+	}
 }
