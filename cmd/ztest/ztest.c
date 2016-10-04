@@ -5654,16 +5654,16 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 			*ptr = ztest_random(UINT_MAX);
 
 		VERIFY0(fletcher_4_impl_set("scalar"));
-		fletcher_4_native(buf, size, &zc_ref);
-		fletcher_4_byteswap(buf, size, &zc_ref_byteswap);
+		fletcher_4_native(buf, size, NULL, &zc_ref);
+		fletcher_4_byteswap(buf, size, NULL, &zc_ref_byteswap);
 
 		VERIFY0(fletcher_4_impl_set("cycle"));
 		while (run_count-- > 0) {
 			zio_cksum_t zc;
 			zio_cksum_t zc_byteswap;
 
-			fletcher_4_byteswap(buf, size, &zc_byteswap);
-			fletcher_4_native(buf, size, &zc);
+			fletcher_4_byteswap(buf, size, NULL, &zc_byteswap);
+			fletcher_4_native(buf, size, NULL, &zc);
 
 			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
 			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,

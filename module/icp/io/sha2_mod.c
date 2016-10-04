@@ -30,7 +30,7 @@
 #include <sys/crypto/spi.h>
 #include <sys/crypto/icp.h>
 #define	_SHA2_IMPL
-#include <sha2/sha2.h>
+#include <sys/sha2.h>
 #include <sha2/sha2_impl.h>
 
 /*

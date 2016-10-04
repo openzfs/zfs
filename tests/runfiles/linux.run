@@ -60,6 +60,9 @@ tests = ['cache_002_pos', 'cache_003_pos', 'cache_004_neg',
 [tests/functional/casenorm]
 tests = ['case_all_values', 'norm_all_values']
 
+[tests/functional/checksum]
+tests = ['run_edonr_test', 'run_sha2_test', 'run_skein_test', 'filetest_001_pos']
+
 [tests/functional/clean_mirror]
 tests = [ 'clean_mirror_001_pos', 'clean_mirror_002_pos',
     'clean_mirror_003_pos', 'clean_mirror_004_pos']

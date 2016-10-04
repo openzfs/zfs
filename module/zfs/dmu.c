@@ -1445,7 +1445,8 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 
 			ASSERT(BP_EQUAL(bp, bp_orig));
 			ASSERT(zio->io_prop.zp_compress != ZIO_COMPRESS_OFF);
-			ASSERT(zio_checksum_table[chksum].ci_dedup);
+			ASSERT(zio_checksum_table[chksum].ci_flags &
+			    ZCHECKSUM_FLAG_NOPWRITE);
 		}
 		dr->dt.dl.dr_overridden_by = *zio->io_bp;
 		dr->dt.dl.dr_override_state = DR_OVERRIDDEN;
@@ -1792,8 +1793,10 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 		 * as well.  Otherwise, the metadata checksum defaults
 		 * to fletcher4.
 		 */
-		if (zio_checksum_table[checksum].ci_correctable < 1 ||
-		    zio_checksum_table[checksum].ci_eck)
+		if (!(zio_checksum_table[checksum].ci_flags &
+		    ZCHECKSUM_FLAG_METADATA) ||
+		    (zio_checksum_table[checksum].ci_flags &
+		    ZCHECKSUM_FLAG_EMBEDDED))
 			checksum = ZIO_CHECKSUM_FLETCHER_4;
 
 		if (os->os_redundant_metadata == ZFS_REDUNDANT_METADATA_ALL ||
@@ -1832,17 +1835,20 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 		 */
 		if (dedup_checksum != ZIO_CHECKSUM_OFF) {
 			dedup = (wp & WP_DMU_SYNC) ? B_FALSE : B_TRUE;
-			if (!zio_checksum_table[checksum].ci_dedup)
+			if (!(zio_checksum_table[checksum].ci_flags &
+			    ZCHECKSUM_FLAG_DEDUP))
 				dedup_verify = B_TRUE;
 		}
 
 		/*
-		 * Enable nopwrite if we have a cryptographically secure
-		 * checksum that has no known collisions (i.e. SHA-256)
-		 * and compression is enabled.  We don't enable nopwrite if
-		 * dedup is enabled as the two features are mutually exclusive.
+		 * Enable nopwrite if we have secure enough checksum
+		 * algorithm (see comment in zio_nop_write) and
+		 * compression is enabled.  We don't enable nopwrite if
+		 * dedup is enabled as the two features are mutually
+		 * exclusive.
 		 */
-		nopwrite = (!dedup && zio_checksum_table[checksum].ci_dedup &&
+		nopwrite = (!dedup && (zio_checksum_table[checksum].ci_flags &
+		    ZCHECKSUM_FLAG_NOPWRITE) &&
 		    compress != ZIO_COMPRESS_OFF && zfs_nopwrite_enabled);
 	}
 

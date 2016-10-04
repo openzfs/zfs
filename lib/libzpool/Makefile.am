@@ -61,6 +61,7 @@ KERNEL_C = \
 	dsl_synctask.c \
 	dsl_destroy.c \
 	dsl_userhold.c \
+	edonr_zfs.c \
 	fm.c \
 	gzip.c \
 	lzjb.c \
@@ -73,6 +74,7 @@ KERNEL_C = \
 	rrwlock.c \
 	sa.c \
 	sha256.c \
+	skein_zfs.c \
 	spa.c \
 	spa_boot.c \
 	spa_config.c \

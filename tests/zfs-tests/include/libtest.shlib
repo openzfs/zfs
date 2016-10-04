@@ -147,12 +147,14 @@ function default_setup_noexit
 	typeset disklist=$1
 	typeset container=$2
 	typeset volume=$3
+	log_note begin default_setup_noexit
 
 	if is_global_zone; then
 		if poolexists $TESTPOOL ; then
 			destroy_pool $TESTPOOL
 		fi
 		[[ -d /$TESTPOOL ]] && $RM -rf /$TESTPOOL
+		log_note creating pool $TESTPOOL $disklist
 		log_must $ZPOOL create -f $TESTPOOL $disklist
 	else
 		reexport_pool
@@ -1538,6 +1540,18 @@ function get_disklist # pool
 
 	$ECHO $disklist
 }
+
+#
+# Given a pool, and this function list all disks in the pool with their full
+# path (like "/dev/sda" instead of "sda").
+#
+function get_disklist_fullpath # pool
+{
+	args="-P $1"
+	get_disklist $args
+}
+
+
 
 # /**
 #  This function kills a given list of processes after a time period. We use

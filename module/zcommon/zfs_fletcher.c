@@ -23,6 +23,9 @@
  * Use is subject to license terms.
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
+/*
+ * Copyright 2013 Saso Kiselkov. All rights reserved.
+ */
 
 /*
  * Fletcher Checksums
@@ -206,8 +209,10 @@ static struct fletcher_4_kstat {
 /* Indicate that benchmark has been completed */
 static boolean_t fletcher_4_initialized = B_FALSE;
 
+/*ARGSUSED*/
 void
-fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_2_native(const void *buf, uint64_t size,
+    const void *ctx_template, zio_cksum_t *zcp)
 {
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
@@ -223,8 +228,10 @@ fletcher_2_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
 }
 
+/*ARGSUSED*/
 void
-fletcher_2_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_2_byteswap(const void *buf, uint64_t size,
+    const void *ctx_template, zio_cksum_t *zcp)
 {
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
@@ -404,8 +411,10 @@ fletcher_4_native_impl(const fletcher_4_ops_t *ops, const void *buf,
 		ops->fini_native(zcp);
 }
 
+/*ARGSUSED*/
 void
-fletcher_4_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_4_native(const void *buf, uint64_t size,
+    const void *ctx_template, zio_cksum_t *zcp)
 {
 	const fletcher_4_ops_t *ops;
 	uint64_t p2size = P2ALIGN(size, 64);
@@ -443,8 +452,10 @@ fletcher_4_byteswap_impl(const fletcher_4_ops_t *ops, const void *buf,
 		ops->fini_byteswap(zcp);
 }
 
+/*ARGSUSED*/
 void
-fletcher_4_byteswap(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_4_byteswap(const void *buf, uint64_t size,
+    const void *ctx_template, zio_cksum_t *zcp)
 {
 	const fletcher_4_ops_t *ops;
 	uint64_t p2size = P2ALIGN(size, 64);
@@ -551,7 +562,7 @@ fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 		start = gethrtime();
 		do {
 			for (l = 0; l < 32; l++, run_count++)
-				fletcher_4_test(data, data_size, &zc);
+				fletcher_4_test(data, data_size, NULL, &zc);
 
 			run_time_ns = gethrtime() - start;
 		} while (run_time_ns < FLETCHER_4_BENCH_NS);

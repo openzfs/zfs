@@ -49,6 +49,7 @@ AC_PROG_INSTALL
 AC_PROG_CC
 AC_PROG_LIBTOOL
 AM_PROG_AS
+AM_PROG_CC_C_O
 
 ZFS_AC_LICENSE
 ZFS_AC_PACKAGE
@@ -178,6 +179,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cache/Makefile
 	tests/zfs-tests/tests/functional/cachefile/Makefile
 	tests/zfs-tests/tests/functional/casenorm/Makefile
+	tests/zfs-tests/tests/functional/checksum/Makefile
 	tests/zfs-tests/tests/functional/clean_mirror/Makefile
 	tests/zfs-tests/tests/functional/cli_root/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zdb/Makefile

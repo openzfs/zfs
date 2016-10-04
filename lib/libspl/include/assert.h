@@ -73,6 +73,14 @@ do {									\
 #undef assert
 #endif
 
+/* Compile time assert */
+#define	CTASSERT_GLOBAL(x)		_CTASSERT(x, __LINE__)
+#define	CTASSERT(x)			{ _CTASSERT(x, __LINE__); }
+#define	_CTASSERT(x, y)			__CTASSERT(x, y)
+#define	__CTASSERT(x, y)						\
+	typedef char __attribute__((unused))				\
+	__compile_time_assertion__ ## y[(x) ? 1 : -1]
+
 #ifdef NDEBUG
 #define	ASSERT3S(x, y, z)	((void)0)
 #define	ASSERT3U(x, y, z)	((void)0)
