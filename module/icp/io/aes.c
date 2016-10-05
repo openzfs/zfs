@@ -1282,7 +1282,7 @@ aes_common_init_ctx(aes_ctx_t *aes_ctx, crypto_spi_ctx_template_t *template,
 {
 	int rv = CRYPTO_SUCCESS;
 	void *keysched;
-	size_t size;
+	size_t size = 0;
 
 	if (template == NULL) {
 		if ((keysched = aes_alloc_keysched(&size, kmflag)) == NULL)
