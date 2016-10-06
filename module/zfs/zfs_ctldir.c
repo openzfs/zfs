@@ -1032,10 +1032,10 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 
 	argv[2] = kmem_asprintf(SET_UNMOUNT_CMD,
 	    flags & MNT_FORCE ? "-f " : "", se->se_path);
-	zfsctl_snapshot_rele(se);
 	dprintf("unmount; path=%s\n", se->se_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
+	zfsctl_snapshot_rele(se);
 
 
 	/*
