@@ -229,14 +229,18 @@ def print_header():
         sys.stdout.write("%*s%s" % (cols[col][0], col, sep))
     sys.stdout.write("\n")
 
+
 def get_terminal_lines():
     try:
-        import fcntl, termios, struct
+        import fcntl
+        import termios
+        import struct
         data = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234')
         sz = struct.unpack('hh', data)
         return sz[0]
     except:
         pass
+
 
 def update_hdr_intr():
     global hdr_intr
@@ -244,6 +248,7 @@ def update_hdr_intr():
     lines = get_terminal_lines()
     if lines and lines > 3:
         hdr_intr = lines - 3
+
 
 def resize_handler(signum, frame):
     update_hdr_intr()
