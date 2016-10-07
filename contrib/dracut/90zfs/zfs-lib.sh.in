@@ -90,7 +90,7 @@ mount_dataset() {
 # export_all OPTS
 #   exports all imported zfs pools.
 export_all() {
-	local opts="${1}"
+	local opts="${@}"
 	local ret=0
 
 	IFS="${NEWLINE}"

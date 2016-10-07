@@ -4,18 +4,19 @@
 
 _do_zpool_export() {
 	local ret=0
+	local errs=""
 	local final="${1}"
-	local opts=""
 
-	if [ "x${final}" != "x" ]; then
-		opts="-f"
+	info "ZFS: Exporting ZFS storage pools..."
+	errs=$(export_all -F 2>&1)
+	ret=$?
+	[ -z "${errs}" ] || echo "${errs}" | vwarn
+	if [ "x${ret}" != "x0" ]; then
+		info "ZFS: There was a problem exporting pools."
 	fi
 
-	info "Exporting ZFS storage pools."
-	export_all ${opts} || ret=$?
-
 	if [ "x${final}" != "x" ]; then
-		info "zpool list"
+		info "ZFS: pool list"
 		zpool list 2>&1 | vinfo
 	fi
 
