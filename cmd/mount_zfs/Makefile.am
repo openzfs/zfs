@@ -9,10 +9,12 @@ DEFAULT_INCLUDES += \
 # because this path is hardcoded in the mount(8) for security reasons.
 #
 sbindir=$(mounthelperdir)
-sbin_PROGRAMS = mount.zfs
+sbin_PROGRAMS = mount.zfs umount.zfs
 
 mount_zfs_SOURCES = \
 	mount_zfs.c
+umount_zfs_SOURCES = \
+	umount_zfs.c
 
 mount_zfs_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \

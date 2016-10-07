@@ -1009,19 +1009,13 @@ out:
  * best effort.  In the case where it does fail, perhaps because
  * it's in use, the unmount will fail harmlessly.
  */
-#define	SET_UNMOUNT_CMD \
-	"exec 0</dev/null " \
-	"     1>/dev/null " \
-	"     2>/dev/null; " \
-	"umount -t zfs -n %s'%s'"
-
 int
 zfsctl_snapshot_unmount(char *snapname, int flags)
 {
-	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+	char *argv[] = { "/sbin/umount.zfs", "-n", NULL, NULL, NULL };
 	char *envp[] = { NULL };
 	zfs_snapentry_t *se;
-	int error;
+	int error, i = 2;
 
 	rw_enter(&zfs_snapshot_lock, RW_READER);
 	if ((se = zfsctl_snapshot_find_by_name(snapname)) == NULL) {
@@ -1030,12 +1024,12 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 	}
 	rw_exit(&zfs_snapshot_lock);
 
-	argv[2] = kmem_asprintf(SET_UNMOUNT_CMD,
-	    flags & MNT_FORCE ? "-f " : "", se->se_path);
-	zfsctl_snapshot_rele(se);
+	if (flags & MNT_FORCE)
+		argv[i++] = "-f";
+	argv[i] = se->se_path;
 	dprintf("unmount; path=%s\n", se->se_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	strfree(argv[2]);
+	zfsctl_snapshot_rele(se);
 
 
 	/*
@@ -1050,11 +1044,6 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 }
 
 #define	MOUNT_BUSY 0x80		/* Mount failed due to EBUSY (from mntent.h) */
-#define	SET_MOUNT_CMD \
-	"exec 0</dev/null " \
-	"     1>/dev/null " \
-	"     2>/dev/null; " \
-	"mount -t zfs -n '%s' '%s'"
 
 int
 zfsctl_snapshot_mount(struct path *path, int flags)
@@ -1065,7 +1054,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	zfs_sb_t *snap_zsb;
 	zfs_snapentry_t *se;
 	char *full_name, *full_path;
-	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+	char *argv[] = { "/sbin/mount.zfs", "-n", "--", NULL, NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
 	struct path spath;
@@ -1110,9 +1099,9 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * value from call_usermodehelper() will be (exitcode << 8 + signal).
 	 */
 	dprintf("mount; name=%s path=%s\n", full_name, full_path);
-	argv[2] = kmem_asprintf(SET_MOUNT_CMD, full_name, full_path);
+	argv[3] = full_name;
+	argv[4] = full_path;
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	strfree(argv[2]);
 	if (error) {
 		if (!(error & MOUNT_BUSY << 8)) {
 			cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
