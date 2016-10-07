@@ -39,7 +39,7 @@ dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-checkstyle: cstyle shellcheck
+checkstyle: cstyle shellcheck flake8
 
 cstyle:
 	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
@@ -60,6 +60,11 @@ lint: cppcheck
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
 		cppcheck --quiet --force --error-exitcode=2 ${top_srcdir}; \
+	fi
+
+flake8:
+	@if type flake8 > /dev/null 2>&1; then \
+		flake8 ${top_srcdir}; \
 	fi
 
 ctags:

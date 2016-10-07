@@ -66,31 +66,16 @@ def get_Kstat():
             name, unused, value = kstat.split()
             Kstat[namespace + name] = D(value)
 
-    Kstats = [
-        "hw.pagesize",
-        "hw.physmem",
-        "kern.maxusers",
-        "vm.kmem_map_free",
-        "vm.kmem_map_size",
-        "vm.kmem_size",
-        "vm.kmem_size_max",
-        "vm.kmem_size_min",
-        "vm.kmem_size_scale",
-        "vm.stats",
-        "vm.swap_total",
-        "vm.swap_reserved",
-        "kstat.zfs",
-        "vfs.zfs"
-    ]
     Kstat = {}
     load_proc_kstats('/proc/spl/kstat/zfs/arcstats',
-            'kstat.zfs.misc.arcstats.')
+                     'kstat.zfs.misc.arcstats.')
     load_proc_kstats('/proc/spl/kstat/zfs/zfetchstats',
-            'kstat.zfs.misc.zfetchstats.')
+                     'kstat.zfs.misc.zfetchstats.')
     load_proc_kstats('/proc/spl/kstat/zfs/vdev_cache_stats',
-            'kstat.zfs.misc.vdev_cache_stats.')
+                     'kstat.zfs.misc.vdev_cache_stats.')
 
     return Kstat
+
 
 def div1():
     sys.stdout.write("\n")
@@ -188,17 +173,17 @@ def get_arc_summary(Kstat):
 
     output['memory_throttle_count'] = fHits(memory_throttle_count)
 
-    ### ARC Misc. ###
+    # ARC Misc.
     deleted = Kstat["kstat.zfs.misc.arcstats.deleted"]
     mutex_miss = Kstat["kstat.zfs.misc.arcstats.mutex_miss"]
 
-    ### ARC Misc. ###
+    # ARC Misc.
     output["arc_misc"] = {}
     output["arc_misc"]["deleted"] = fHits(deleted)
     output["arc_misc"]['mutex_miss'] = fHits(mutex_miss)
     output["arc_misc"]['evict_skips'] = fHits(mutex_miss)
 
-    ### ARC Sizing ###
+    # ARC Sizing
     arc_size = Kstat["kstat.zfs.misc.arcstats.size"]
     mru_size = Kstat["kstat.zfs.misc.arcstats.p"]
     target_max_size = Kstat["kstat.zfs.misc.arcstats.c_max"]
@@ -207,7 +192,7 @@ def get_arc_summary(Kstat):
 
     target_size_ratio = (target_max_size / target_min_size)
 
-    ### ARC Sizing ###
+    # ARC Sizing
     output['arc_sizing'] = {}
     output['arc_sizing']['arc_size'] = {
         'per': fPerc(arc_size, target_max_size),
@@ -226,7 +211,7 @@ def get_arc_summary(Kstat):
         'num': fBytes(target_size),
     }
 
-    ### ARC Hash Breakdown ###
+    # ARC Hash Breakdown
     output['arc_hash_break'] = {}
     output['arc_hash_break']['hash_chain_max'] = Kstat[
         "kstat.zfs.misc.arcstats.hash_chain_max"
@@ -267,7 +252,7 @@ def get_arc_summary(Kstat):
             'num': fBytes(mfu_size),
         }
 
-    ### ARC Hash Breakdown ###
+    # ARC Hash Breakdown
     hash_chain_max = Kstat["kstat.zfs.misc.arcstats.hash_chain_max"]
     hash_chains = Kstat["kstat.zfs.misc.arcstats.hash_chains"]
     hash_collisions = Kstat["kstat.zfs.misc.arcstats.hash_collisions"]
@@ -288,25 +273,25 @@ def get_arc_summary(Kstat):
 
 
 def _arc_summary(Kstat):
-    ### ARC Sizing ###
+    # ARC Sizing
     arc = get_arc_summary(Kstat)
 
     sys.stdout.write("ARC Summary: (%s)\n" % arc['health'])
 
     sys.stdout.write("\tMemory Throttle Count:\t\t\t%s\n" %
-            arc['memory_throttle_count'])
+                     arc['memory_throttle_count'])
     sys.stdout.write("\n")
 
-    ### ARC Misc. ###
+    # ARC Misc.
     sys.stdout.write("ARC Misc:\n")
     sys.stdout.write("\tDeleted:\t\t\t\t%s\n" % arc['arc_misc']['deleted'])
     sys.stdout.write("\tMutex Misses:\t\t\t\t%s\n" %
-            arc['arc_misc']['mutex_miss'])
+                     arc['arc_misc']['mutex_miss'])
     sys.stdout.write("\tEvict Skips:\t\t\t\t%s\n" %
-            arc['arc_misc']['mutex_miss'])
+                     arc['arc_misc']['mutex_miss'])
     sys.stdout.write("\n")
 
-    ### ARC Sizing ###
+    # ARC Sizing
     sys.stdout.write("ARC Size:\t\t\t\t%s\t%s\n" % (
         arc['arc_sizing']['arc_size']['per'],
         arc['arc_sizing']['arc_size']['num']
@@ -344,21 +329,21 @@ def _arc_summary(Kstat):
 
     sys.stdout.write("\n")
 
-    ### ARC Hash Breakdown ###
+    # ARC Hash Breakdown
     sys.stdout.write("ARC Hash Breakdown:\n")
     sys.stdout.write("\tElements Max:\t\t\t\t%s\n" %
-            arc['arc_hash_break']['elements_max'])
+                     arc['arc_hash_break']['elements_max'])
     sys.stdout.write("\tElements Current:\t\t%s\t%s\n" % (
         arc['arc_hash_break']['elements_current']['per'],
         arc['arc_hash_break']['elements_current']['num'],
         )
     )
     sys.stdout.write("\tCollisions:\t\t\t\t%s\n" %
-            arc['arc_hash_break']['collisions'])
+                     arc['arc_hash_break']['collisions'])
     sys.stdout.write("\tChain Max:\t\t\t\t%s\n" %
-            arc['arc_hash_break']['chain_max'])
+                     arc['arc_hash_break']['chain_max'])
     sys.stdout.write("\tChains:\t\t\t\t\t%s\n" %
-            arc['arc_hash_break']['chains'])
+                     arc['arc_hash_break']['chains'])
 
 
 def get_arc_efficiency(Kstat):
@@ -488,7 +473,7 @@ def _arc_efficiency(Kstat):
     arc = get_arc_efficiency(Kstat)
 
     sys.stdout.write("ARC Total accesses:\t\t\t\t\t%s\n" %
-            arc['total_accesses'])
+                     arc['total_accesses'])
     sys.stdout.write("\tCache Hit Ratio:\t\t%s\t%s\n" % (
         arc['cache_hit_ratio']['per'],
         arc['cache_hit_ratio']['num'],
@@ -699,7 +684,7 @@ def _l2arc_summary(Kstat):
         else:
             sys.stdout.write("(HEALTHY)\n")
         sys.stdout.write("\tLow Memory Aborts:\t\t\t%s\n" %
-                arc['low_memory_aborts'])
+                         arc['low_memory_aborts'])
         sys.stdout.write("\tFree on Write:\t\t\t\t%s\n" % arc['free_on_write'])
         sys.stdout.write("\tR/W Clashes:\t\t\t\t%s\n" % arc['rw_clashes'])
         sys.stdout.write("\tBad Checksums:\t\t\t\t%s\n" % arc['bad_checksums'])
@@ -707,7 +692,7 @@ def _l2arc_summary(Kstat):
         sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Size: (Adaptive)\t\t\t\t%s\n" %
-                arc["l2_arc_size"]["adative"])
+                         arc["l2_arc_size"]["adative"])
         sys.stdout.write("\tCompressed:\t\t\t%s\t%s\n" % (
             arc["l2_arc_size"]["actual"]["per"],
             arc["l2_arc_size"]["actual"]["num"],
@@ -724,13 +709,13 @@ def _l2arc_summary(Kstat):
                 arc["l2_arc_evicts"]["reading"] > 0:
             sys.stdout.write("L2 ARC Evicts:\n")
             sys.stdout.write("\tLock Retries:\t\t\t\t%s\n" %
-                    arc["l2_arc_evicts"]['lock_retries'])
+                             arc["l2_arc_evicts"]['lock_retries'])
             sys.stdout.write("\tUpon Reading:\t\t\t\t%s\n" %
-                    arc["l2_arc_evicts"]["reading"])
+                             arc["l2_arc_evicts"]["reading"])
             sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Breakdown:\t\t\t\t%s\n" %
-                arc['l2_arc_breakdown']['value'])
+                         arc['l2_arc_breakdown']['value'])
         sys.stdout.write("\tHit Ratio:\t\t\t%s\t%s\n" % (
             arc['l2_arc_breakdown']['hit_ratio']['per'],
             arc['l2_arc_breakdown']['hit_ratio']['num'],
@@ -744,7 +729,7 @@ def _l2arc_summary(Kstat):
         )
 
         sys.stdout.write("\tFeeds:\t\t\t\t\t%s\n" %
-                arc['l2_arc_breakdown']['feeds'])
+                         arc['l2_arc_breakdown']['feeds'])
         sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Writes:\n")
@@ -803,7 +788,7 @@ def _dmu_summary(Kstat):
 
     if arc['zfetch_access_total'] > 0:
         sys.stdout.write("DMU Prefetch Efficiency:\t\t\t\t\t%s\n" %
-                arc['dmu']['efficiency']['value'])
+                         arc['dmu']['efficiency']['value'])
         sys.stdout.write("\tHit Ratio:\t\t\t%s\t%s\n" % (
             arc['dmu']['efficiency']['hit_ratio']['per'],
             arc['dmu']['efficiency']['hit_ratio']['num'],
@@ -822,11 +807,11 @@ def get_vdev_summary(Kstat):
     output = {}
 
     vdev_cache_delegations = \
-            Kstat["kstat.zfs.misc.vdev_cache_stats.delegations"]
+        Kstat["kstat.zfs.misc.vdev_cache_stats.delegations"]
     vdev_cache_misses = Kstat["kstat.zfs.misc.vdev_cache_stats.misses"]
     vdev_cache_hits = Kstat["kstat.zfs.misc.vdev_cache_stats.hits"]
     vdev_cache_total = (vdev_cache_misses + vdev_cache_hits +
-            vdev_cache_delegations)
+                        vdev_cache_delegations)
 
     output['vdev_cache_total'] = vdev_cache_total
 
@@ -875,7 +860,8 @@ def _tunable_summary(Kstat):
 
     values = {}
     for name in names:
-        with open("/sys/module/zfs/parameters/" + name) as f: value = f.read()
+        with open("/sys/module/zfs/parameters/" + name) as f:
+            value = f.read()
         values[name] = value.strip()
 
     descriptions = {}
@@ -884,7 +870,7 @@ def _tunable_summary(Kstat):
         try:
             command = ["/sbin/modinfo", "zfs", "-0"]
             p = Popen(command, stdin=PIPE, stdout=PIPE,
-                    stderr=PIPE, shell=False, close_fds=True)
+                      stderr=PIPE, shell=False, close_fds=True)
             p.wait()
 
             description_list = p.communicate()[0].strip().split('\0')
@@ -899,11 +885,11 @@ def _tunable_summary(Kstat):
                         descriptions[name] = description
             else:
                 sys.stderr.write("%s: '%s' exited with code %i\n" %
-                        (sys.argv[0], command[0], p.returncode))
+                                 (sys.argv[0], command[0], p.returncode))
                 sys.stderr.write("Tunable descriptions will be disabled.\n")
         except OSError as e:
             sys.stderr.write("%s: Cannot run '%s': %s\n" %
-                    (sys.argv[0], command[0], e.strerror))
+                             (sys.argv[0], command[0], e.strerror))
             sys.stderr.write("Tunable descriptions will be disabled.\n")
 
     sys.stdout.write("ZFS Tunable:\n")
@@ -942,20 +928,22 @@ def zfs_header():
 def usage():
     sys.stdout.write("Usage: arc_summary.py [-h] [-a] [-d] [-p PAGE]\n\n")
     sys.stdout.write("\t -h, --help           : "
-            "Print this help message and exit\n")
+                     "Print this help message and exit\n")
     sys.stdout.write("\t -a, --alternate      : "
-            "Show an alternate sysctl layout\n")
+                     "Show an alternate sysctl layout\n")
     sys.stdout.write("\t -d, --description    : "
-            "Show the sysctl descriptions\n")
+                     "Show the sysctl descriptions\n")
     sys.stdout.write("\t -p PAGE, --page=PAGE : "
-            "Select a single output page to display,\n")
+                     "Select a single output page to display,\n")
     sys.stdout.write("\t                        "
-            "should be an integer between 1 and " + str(len(unSub)) + "\n\n")
+                     "should be an integer between 1 and " +
+                     str(len(unSub)) + "\n\n")
     sys.stdout.write("Examples:\n")
     sys.stdout.write("\tarc_summary.py -a\n")
     sys.stdout.write("\tarc_summary.py -p 4\n")
     sys.stdout.write("\tarc_summary.py -ad\n")
     sys.stdout.write("\tarc_summary.py --page=2\n")
+
 
 def main():
     global show_tunable_descriptions
@@ -987,9 +975,9 @@ def main():
     if 'p' in args:
         try:
             pages.append(unSub[int(args['p']) - 1])
-        except IndexError as e:
+        except IndexError:
             sys.stderr.write('the argument to -p must be between 1 and ' +
-                    str(len(unSub)) + '\n')
+                             str(len(unSub)) + '\n')
             sys.exit()
     else:
         pages = unSub

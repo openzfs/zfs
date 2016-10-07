@@ -29,6 +29,9 @@ export ZPOOL=${CMDDIR}/zpool/zpool
 export ZTEST=${CMDDIR}/ztest/ztest
 export ZPIOS=${CMDDIR}/zpios/zpios
 export RAIDZ_TEST=${CMDDIR}/raidz_test/raidz_test
+export ARC_SUMMARY=${CMDDIR}/arc_summary/arc_summary.py
+export ARCSTAT=${CMDDIR}/arcstat/arcstat.py
+export DBUFSTAT=${CMDDIR}/dbufstat/dbufstat.py
 
 export COMMON_SH=${SCRIPTDIR}/common.sh
 export ZFS_SH=${SCRIPTDIR}/zfs.sh

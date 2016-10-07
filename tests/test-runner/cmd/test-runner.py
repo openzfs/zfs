@@ -127,12 +127,12 @@ class Cmd(object):
         self.killed = False
         self.result = Result()
 
-        if self.timeout == None:
-	    self.timeout = 60
+        if self.timeout is None:
+            self.timeout = 60
 
     def __str__(self):
         return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nUser: %s\n" % (
-                self.pathname, self.outputdir, self.timeout, self.user)
+            self.pathname, self.outputdir, self.timeout, self.user)
 
     def kill_cmd(self, proc):
         """
@@ -309,9 +309,10 @@ class Test(Cmd):
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
         return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nPre: %s%s\nPost: " \
-               "%s%s\nUser: %s\n" % (self.pathname, self.outputdir,
-                self.timeout, self.pre, pre_user, self.post, post_user,
-                self.user)
+               "%s%s\nUser: %s\n" % (
+                   self.pathname, self.outputdir,
+                   self.timeout, self.pre, pre_user, self.post, post_user,
+                   self.user)
 
     def verify(self, logger):
         """
@@ -384,9 +385,9 @@ class TestGroup(Test):
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
         return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %d\n" \
-               "Pre: %s%s\nPost: %s%s\nUser: %s\n" % (self.pathname,
-                self.outputdir, self.tests, self.timeout, self.pre, pre_user,
-                self.post, post_user, self.user)
+            "Pre: %s%s\nPost: %s%s\nUser: %s\n" % (
+                self.pathname, self.outputdir, self.tests, self.timeout,
+                self.pre, pre_user, self.post, post_user, self.user)
 
     def verify(self, logger):
         """
@@ -428,8 +429,8 @@ class TestGroup(Test):
             if not verify_file(os.path.join(self.pathname, test)):
                 del self.tests[self.tests.index(test)]
                 logger.info("Warning: Test '%s' removed from TestGroup '%s' "
-                            "because it failed verification." % (test,
-                            self.pathname))
+                            "because it failed verification." %
+                            (test, self.pathname))
 
         return len(self.tests) is not 0
 
@@ -634,7 +635,7 @@ class TestRun(object):
             components -= 1
             for testfile in tmp_dict.keys():
                 uniq = '/'.join(testfile.split('/')[components:]).lstrip('/')
-                if not uniq in l:
+                if uniq not in l:
                     l.append(uniq)
                     tmp_dict[testfile].outputdir = os.path.join(base, uniq)
                 else:
@@ -705,8 +706,8 @@ class TestRun(object):
         m, s = divmod(time() - self.starttime, 60)
         h, m = divmod(m, 60)
         print '\nRunning Time:\t%02d:%02d:%02d' % (h, m, s)
-        print 'Percent passed:\t%.1f%%' % ((float(Result.runresults['PASS']) /
-               float(Result.total)) * 100)
+        print 'Percent passed:\t%.1f%%' % (
+            (float(Result.runresults['PASS']) / float(Result.total)) * 100)
         print 'Log directory:\t%s' % self.outputdir
 
 
@@ -717,10 +718,10 @@ def verify_file(pathname):
     if os.path.isdir(pathname) or os.path.islink(pathname):
         return False
 
-    if (os.path.isfile(pathname) and os.access(pathname, os.X_OK)) or \
-            (os.path.isfile(pathname+'.ksh') and os.access(pathname+'.ksh', os.X_OK)) or \
-            (os.path.isfile(pathname+'.sh') and os.access(pathname+'.sh', os.X_OK)):
-        return True
+    for ext in '', '.ksh', '.sh':
+        script_path = pathname + ext
+        if os.path.isfile(script_path) and os.access(script_path, os.X_OK):
+            return True
 
     return False
 
@@ -731,15 +732,13 @@ def verify_user(user, logger):
     sudo without being prompted for a password.
     """
     testcmd = [SUDO, '-n', '-u', user, TRUE]
-    can_sudo = exists = True
 
     if user in Cmd.verified_users:
         return True
 
     try:
-        _ = getpwnam(user)
+        getpwnam(user)
     except KeyError:
-        exists = False
         logger.info("Warning: user '%s' does not exist.", user)
         return False
 
@@ -782,7 +781,7 @@ def options_cb(option, opt_str, value, parser):
     path_options = ['runfile', 'outputdir', 'template', 'testdir']
 
     if option.dest is 'runfile' and '-w' in parser.rargs or \
-        option.dest is 'template' and '-c' in parser.rargs:
+       option.dest is 'template' and '-c' in parser.rargs:
         fail('-c and -w are mutually exclusive.')
 
     if opt_str in parser.rargs:

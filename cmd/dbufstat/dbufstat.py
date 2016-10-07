@@ -143,7 +143,7 @@ def detailed_usage():
         sys.stderr.write("%11s : %s\n" % (key, cols[key][2]))
     sys.stderr.write("\n")
 
-    sys.exit(1)
+    sys.exit(0)
 
 
 def usage():
