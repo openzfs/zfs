@@ -51,6 +51,7 @@
 #include "libzfs_impl.h"
 #include "zfs_prop.h"
 #include "zfeature_common.h"
+#include <zfs_fletcher.h>
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -876,6 +877,7 @@ libzfs_init(void)
 	zpool_prop_init();
 	zpool_feature_init();
 	libzfs_mnttab_init(hdl);
+	fletcher_4_init();
 
 	return (hdl);
 }
@@ -898,6 +900,7 @@ libzfs_fini(libzfs_handle_t *hdl)
 	namespace_clear(hdl);
 	libzfs_mnttab_fini(hdl);
 	libzfs_core_fini();
+	fletcher_4_fini();
 	free(hdl);
 }
 

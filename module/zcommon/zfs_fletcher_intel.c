@@ -45,57 +45,68 @@
 #include <linux/simd_x86.h>
 #include <sys/spa_checksum.h>
 #include <zfs_fletcher.h>
+#include <strings.h>
 
 static void
-fletcher_4_avx2_init(zio_cksum_t *zcp)
+fletcher_4_avx2_init(fletcher_4_ctx_t *ctx)
 {
-	kfpu_begin();
-
-	/* clear avx2 registers */
-	asm volatile("vpxor %ymm0, %ymm0, %ymm0");
-	asm volatile("vpxor %ymm1, %ymm1, %ymm1");
-	asm volatile("vpxor %ymm2, %ymm2, %ymm2");
-	asm volatile("vpxor %ymm3, %ymm3, %ymm3");
+	bzero(ctx->avx, 4 * sizeof (zfs_fletcher_avx_t));
 }
 
 static void
-fletcher_4_avx2_fini(zio_cksum_t *zcp)
+fletcher_4_avx2_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
-	uint64_t __attribute__((aligned(32))) a[4];
-	uint64_t __attribute__((aligned(32))) b[4];
-	uint64_t __attribute__((aligned(32))) c[4];
-	uint64_t __attribute__((aligned(32))) d[4];
 	uint64_t A, B, C, D;
 
-	asm volatile("vmovdqu %%ymm0, %0":"=m" (a));
-	asm volatile("vmovdqu %%ymm1, %0":"=m" (b));
-	asm volatile("vmovdqu %%ymm2, %0":"=m" (c));
-	asm volatile("vmovdqu %%ymm3, %0":"=m" (d));
-	asm volatile("vzeroupper");
+	A = ctx->avx[0].v[0] + ctx->avx[0].v[1] +
+	    ctx->avx[0].v[2] + ctx->avx[0].v[3];
+	B = 0 - ctx->avx[0].v[1] - 2 * ctx->avx[0].v[2] - 3 * ctx->avx[0].v[3] +
+	    4 * ctx->avx[1].v[0] + 4 * ctx->avx[1].v[1] + 4 * ctx->avx[1].v[2] +
+	    4 * ctx->avx[1].v[3];
 
-	kfpu_end();
+	C = ctx->avx[0].v[2] + 3 * ctx->avx[0].v[3] - 6 * ctx->avx[1].v[0] -
+	    10 * ctx->avx[1].v[1] - 14 * ctx->avx[1].v[2] -
+	    18 * ctx->avx[1].v[3] + 16 * ctx->avx[2].v[0] +
+	    16 * ctx->avx[2].v[1] + 16 * ctx->avx[2].v[2] +
+	    16 * ctx->avx[2].v[3];
 
-	A = a[0] + a[1] + a[2] + a[3];
-	B = 0 - a[1] - 2*a[2] - 3*a[3]
-	    + 4*b[0] + 4*b[1] + 4*b[2] + 4*b[3];
-
-	C = a[2] + 3*a[3]
-	    -  6*b[0] - 10*b[1] - 14*b[2] - 18*b[3]
-	    + 16*c[0] + 16*c[1] + 16*c[2] + 16*c[3];
-
-	D = 0 - a[3]
-	    +  4*b[0] + 10*b[1] + 20*b[2] + 34*b[3]
-	    - 48*c[0] - 64*c[1] - 80*c[2] - 96*c[3]
-	    + 64*d[0] + 64*d[1] + 64*d[2] + 64*d[3];
+	D = 0 - ctx->avx[0].v[3] + 4 * ctx->avx[1].v[0] +
+	    10 * ctx->avx[1].v[1] + 20 * ctx->avx[1].v[2] +
+	    34 * ctx->avx[1].v[3] - 48 * ctx->avx[2].v[0] -
+	    64 * ctx->avx[2].v[1] - 80 * ctx->avx[2].v[2] -
+	    96 * ctx->avx[2].v[3] + 64 * ctx->avx[3].v[0] +
+	    64 * ctx->avx[3].v[1] + 64 * ctx->avx[3].v[2] +
+	    64 * ctx->avx[3].v[3];
 
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 }
 
+#define	FLETCHER_4_AVX2_RESTORE_CTX(ctx)				\
+{									\
+	asm volatile("vmovdqu %0, %%ymm0" :: "m" ((ctx)->avx[0]));	\
+	asm volatile("vmovdqu %0, %%ymm1" :: "m" ((ctx)->avx[1]));	\
+	asm volatile("vmovdqu %0, %%ymm2" :: "m" ((ctx)->avx[2]));	\
+	asm volatile("vmovdqu %0, %%ymm3" :: "m" ((ctx)->avx[3]));	\
+}
+
+#define	FLETCHER_4_AVX2_SAVE_CTX(ctx)					\
+{									\
+	asm volatile("vmovdqu %%ymm0, %0" : "=m" ((ctx)->avx[0]));	\
+	asm volatile("vmovdqu %%ymm1, %0" : "=m" ((ctx)->avx[1]));	\
+	asm volatile("vmovdqu %%ymm2, %0" : "=m" ((ctx)->avx[2]));	\
+	asm volatile("vmovdqu %%ymm3, %0" : "=m" ((ctx)->avx[3]));	\
+}
+
+
 static void
-fletcher_4_avx2_native(const void *buf, uint64_t size, zio_cksum_t *unused)
+fletcher_4_avx2_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 {
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
+
+	kfpu_begin();
+
+	FLETCHER_4_AVX2_RESTORE_CTX(ctx);
 
 	for (; ip < ipend; ip += 2) {
 		asm volatile("vpmovzxdq %0, %%ymm4"::"m" (*ip));
@@ -104,21 +115,28 @@ fletcher_4_avx2_native(const void *buf, uint64_t size, zio_cksum_t *unused)
 		asm volatile("vpaddq %ymm1, %ymm2, %ymm2");
 		asm volatile("vpaddq %ymm2, %ymm3, %ymm3");
 	}
+
+	FLETCHER_4_AVX2_SAVE_CTX(ctx);
+	asm volatile("vzeroupper");
+
+	kfpu_end();
 }
 
 static void
-fletcher_4_avx2_byteswap(const void *buf, uint64_t size, zio_cksum_t *unused)
+fletcher_4_avx2_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 {
-	static const struct {
-		uint64_t v[4] __attribute__((aligned(32)));
-	} mask = {
+	static const zfs_fletcher_avx_t mask = {
 		.v = { 0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B,
 		    0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B }
 	};
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
 
-	asm volatile("vmovdqa %0, %%ymm5"::"m"(mask));
+	kfpu_begin();
+
+	FLETCHER_4_AVX2_RESTORE_CTX(ctx);
+
+	asm volatile("vmovdqu %0, %%ymm5" :: "m" (mask));
 
 	for (; ip < ipend; ip += 2) {
 		asm volatile("vpmovzxdq %0, %%ymm4"::"m" (*ip));
@@ -129,6 +147,11 @@ fletcher_4_avx2_byteswap(const void *buf, uint64_t size, zio_cksum_t *unused)
 		asm volatile("vpaddq %ymm1, %ymm2, %ymm2");
 		asm volatile("vpaddq %ymm2, %ymm3, %ymm3");
 	}
+
+	FLETCHER_4_AVX2_SAVE_CTX(ctx);
+	asm volatile("vzeroupper");
+
+	kfpu_end();
 }
 
 static boolean_t fletcher_4_avx2_valid(void)

@@ -332,6 +332,7 @@ ztest_func_t ztest_split_pool;
 ztest_func_t ztest_reguid;
 ztest_func_t ztest_spa_upgrade;
 ztest_func_t ztest_fletcher;
+ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
 
 uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
@@ -379,6 +380,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_vdev_add_remove, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
+	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
 };
 
@@ -5668,6 +5670,82 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
 			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
 			    sizeof (zc_byteswap)));
+		}
+
+		umem_free(buf, size);
+	}
+}
+
+void
+ztest_fletcher_incr(ztest_ds_t *zd, uint64_t id)
+{
+	void *buf;
+	size_t size;
+	int *ptr;
+	int i;
+	zio_cksum_t zc_ref;
+	zio_cksum_t zc_ref_bswap;
+
+	hrtime_t end = gethrtime() + NANOSEC;
+
+	while (gethrtime() <= end) {
+		int run_count = 100;
+
+		size = ztest_random_blocksize();
+		buf = umem_alloc(size, UMEM_NOFAIL);
+
+		for (i = 0, ptr = buf; i < size / sizeof (*ptr); i++, ptr++)
+			*ptr = ztest_random(UINT_MAX);
+
+		VERIFY0(fletcher_4_impl_set("scalar"));
+		fletcher_4_native(buf, size, NULL, &zc_ref);
+		fletcher_4_byteswap(buf, size, NULL, &zc_ref_bswap);
+
+		VERIFY0(fletcher_4_impl_set("cycle"));
+
+		while (run_count-- > 0) {
+			zio_cksum_t zc;
+			zio_cksum_t zc_bswap;
+			size_t pos = 0;
+
+			ZIO_SET_CHECKSUM(&zc, 0, 0, 0, 0);
+			ZIO_SET_CHECKSUM(&zc_bswap, 0, 0, 0, 0);
+
+			while (pos < size) {
+				size_t inc = 64 * ztest_random(size / 67);
+				/* sometimes add few bytes to test non-simd */
+				if (ztest_random(100) < 10)
+					inc += P2ALIGN(ztest_random(64),
+					    sizeof (uint32_t));
+
+				if (inc > (size - pos))
+					inc = size - pos;
+
+				fletcher_4_incremental_native(buf + pos, inc,
+				    &zc);
+				fletcher_4_incremental_byteswap(buf + pos, inc,
+				    &zc_bswap);
+
+				pos += inc;
+			}
+
+			VERIFY3U(pos, ==, size);
+
+			VERIFY(ZIO_CHECKSUM_EQUAL(zc, zc_ref));
+			VERIFY(ZIO_CHECKSUM_EQUAL(zc_bswap, zc_ref_bswap));
+
+			/*
+			 * verify if incremental on the whole buffer is
+			 * equivalent to non-incremental version
+			 */
+			ZIO_SET_CHECKSUM(&zc, 0, 0, 0, 0);
+			ZIO_SET_CHECKSUM(&zc_bswap, 0, 0, 0, 0);
+
+			fletcher_4_incremental_native(buf, size, &zc);
+			fletcher_4_incremental_byteswap(buf, size, &zc_bswap);
+
+			VERIFY(ZIO_CHECKSUM_EQUAL(zc, zc_ref));
+			VERIFY(ZIO_CHECKSUM_EQUAL(zc_bswap, zc_ref_bswap));
 		}
 
 		umem_free(buf, size);
