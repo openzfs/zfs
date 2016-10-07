@@ -270,6 +270,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 			mutex_enter(&spa->spa_props_lock);
 			tdp = list_head(&spa->spa_config_list);
 			if (spa->spa_config == NULL ||
+			    tdp == NULL ||
 			    tdp->scd_path == NULL ||
 			    strcmp(tdp->scd_path, dp->scd_path) != 0) {
 				mutex_exit(&spa->spa_props_lock);
