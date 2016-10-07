@@ -4945,7 +4945,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * But first make sure we're not on any *other* txg's DTL list, to
 	 * prevent vd from being accessed after it's freed.
 	 */
-	vdpath = spa_strdup(vd->vdev_path);
+	vdpath = spa_strdup(vd->vdev_path ? vd->vdev_path : "none");
 	for (t = 0; t < TXG_SIZE; t++)
 		(void) txg_list_remove_this(&tvd->vdev_dtl_list, vd, t);
 	vd->vdev_detached = B_TRUE;

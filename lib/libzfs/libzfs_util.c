@@ -1585,6 +1585,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 	const char *propname;
 	char *value;
 	boolean_t isnone = B_FALSE;
+	int err = 0;
 
 	if (type == ZFS_TYPE_POOL) {
 		proptype = zpool_prop_get_type(prop);
@@ -1607,7 +1608,12 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 			    "'%s' must be a string"), nvpair_name(elem));
 			goto error;
 		}
-		(void) nvpair_value_string(elem, svalp);
+		err = nvpair_value_string(elem, svalp);
+		if (err != 0) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "'%s' in invalid"), nvpair_name(elem));
+			goto error;
+		}
 		if (strlen(*svalp) >= ZFS_MAXPROPLEN) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' is too long"), nvpair_name(elem));
