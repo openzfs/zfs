@@ -108,6 +108,7 @@ main(int argc, char **argv)
 			}
 			j++;
 		}
+		(void) close(fd);
 	} else if (pid == 0) {
 		int fd = open(dirpath, O_RDONLY);
 		int chownret;
@@ -128,6 +129,7 @@ main(int argc, char **argv)
 
 			k++;
 		}
+		(void) close(fd);
 	}
 
 	return (0);

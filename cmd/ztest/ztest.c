@@ -6203,8 +6203,11 @@ ztest_run(ztest_shared_t *zs)
 		kthread_t *thread;
 
 		if (t < ztest_opts.zo_datasets &&
-		    ztest_dataset_open(t) != 0)
+		    ztest_dataset_open(t) != 0) {
+			umem_free(tid,
+			    ztest_opts.zo_threads * sizeof (kt_did_t));
 			return;
+		}
 
 		VERIFY3P(thread = zk_thread_create(NULL, 0,
 		    (thread_func_t)ztest_thread,

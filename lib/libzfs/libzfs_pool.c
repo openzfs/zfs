@@ -4159,7 +4159,7 @@ zpool_label_name(char *label_name, int label_size)
 	int fd;
 
 	fd = open("/dev/urandom", O_RDONLY);
-	if (fd > 0) {
+	if (fd >= 0) {
 		if (read(fd, &id, sizeof (id)) != sizeof (id))
 			id = 0;
 
