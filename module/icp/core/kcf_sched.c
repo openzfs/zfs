@@ -1740,9 +1740,13 @@ kcf_last_req(void *last_req_arg, int status)
 		ct = (crypto_dual_data_t *)dcrops->dop_ciphertext;
 		break;
 	}
-	default:
-		break;
+	default: {
+		ASSERT(params->rp_opgrp == KCF_OG_MAC ||
+			params->rp_opgrp == KCF_OG_DECRYPT);
+		return;
 	}
+	}
+
 	ct->dd_offset1 = last_req->kr_saveoffset;
 	ct->dd_len1 = last_req->kr_savelen;
 
