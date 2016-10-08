@@ -1422,7 +1422,7 @@ max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max,
 	uint_t c, children;
 	int ret;
 
-	name = zpool_vdev_name(g_zfs, zhp, nv, name_flags | VDEV_NAME_TYPE_ID);
+	name = zpool_vdev_name(g_zfs, zhp, nv, name_flags);
 	if (strlen(name) + depth > max)
 		max = strlen(name) + depth;
 
@@ -2044,7 +2044,7 @@ show_import(nvlist_t *config)
 
 	(void) printf(gettext(" config:\n\n"));
 
-	cb.cb_namewidth = max_width(NULL, nvroot, 0, 0, 0);
+	cb.cb_namewidth = max_width(NULL, nvroot, 0, 0, VDEV_NAME_TYPE_ID);
 	if (cb.cb_namewidth < 10)
 		cb.cb_namewidth = 10;
 
@@ -5949,7 +5949,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		print_scan_status(ps);
 
 		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
-		    cbp->cb_name_flags);
+		    cbp->cb_name_flags | VDEV_NAME_TYPE_ID);
 		if (cbp->cb_namewidth < 10)
 			cbp->cb_namewidth = 10;
 
