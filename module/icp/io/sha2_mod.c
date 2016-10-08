@@ -623,6 +623,8 @@ sha2_digest_atomic(crypto_provider_handle_t provider,
 
 	if (mechanism->cm_type <= SHA256_HMAC_GEN_MECH_INFO_TYPE)
 		sha_digest_len = SHA256_DIGEST_LENGTH;
+	else
+		sha_digest_len = SHA512_DIGEST_LENGTH;
 
 	/*
 	 * Do a SHA2 final, must be done separately since the digest
@@ -842,7 +844,7 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac, crypto_req_handle_t req)
 		digest_len = PROV_SHA2_HMAC_CTX(ctx)->hc_digest_len;
 		break;
 	default:
-		break;
+		return (CRYPTO_MECHANISM_INVALID);
 	}
 
 	/*
