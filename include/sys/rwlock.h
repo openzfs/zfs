@@ -114,7 +114,12 @@ spl_rw_lockdep_on_maybe(krwlock_t *rwp)			\
 static inline int
 RW_READ_HELD(krwlock_t *rwp)
 {
-	return (spl_rwsem_is_locked(SEM(rwp)) && rw_owner(rwp) == NULL);
+	/*
+	 * Linux 4.8 will set owner to 1 when read held instead of leave it
+	 * NULL. So we check whether owner <= 1.
+	 */
+	return (spl_rwsem_is_locked(SEM(rwp)) &&
+	    (unsigned long)rw_owner(rwp) <= 1);
 }
 
 static inline int
