@@ -93,6 +93,34 @@ static crypto_mech_info_t sha2_mech_info_tab[] = {
 	{SUN_CKM_SHA256_HMAC_GENERAL, SHA256_HMAC_GEN_MECH_INFO_TYPE,
 	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC,
 	    SHA2_HMAC_MIN_KEY_LEN, SHA2_HMAC_MAX_KEY_LEN,
+	    CRYPTO_KEYSIZE_UNIT_IN_BYTES},
+	/* SHA384 */
+	{SUN_CKM_SHA384, SHA384_MECH_INFO_TYPE,
+	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC,
+	    0, 0, CRYPTO_KEYSIZE_UNIT_IN_BITS},
+	/* SHA384-HMAC */
+	{SUN_CKM_SHA384_HMAC, SHA384_HMAC_MECH_INFO_TYPE,
+	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC,
+	    SHA2_HMAC_MIN_KEY_LEN, SHA2_HMAC_MAX_KEY_LEN,
+	    CRYPTO_KEYSIZE_UNIT_IN_BYTES},
+	/* SHA384-HMAC GENERAL */
+	{SUN_CKM_SHA384_HMAC_GENERAL, SHA384_HMAC_GEN_MECH_INFO_TYPE,
+	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC,
+	    SHA2_HMAC_MIN_KEY_LEN, SHA2_HMAC_MAX_KEY_LEN,
+	    CRYPTO_KEYSIZE_UNIT_IN_BYTES},
+	/* SHA512 */
+	{SUN_CKM_SHA512, SHA512_MECH_INFO_TYPE,
+	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC,
+	    0, 0, CRYPTO_KEYSIZE_UNIT_IN_BITS},
+	/* SHA512-HMAC */
+	{SUN_CKM_SHA512_HMAC, SHA512_HMAC_MECH_INFO_TYPE,
+	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC,
+	    SHA2_HMAC_MIN_KEY_LEN, SHA2_HMAC_MAX_KEY_LEN,
+	    CRYPTO_KEYSIZE_UNIT_IN_BYTES},
+	/* SHA512-HMAC GENERAL */
+	{SUN_CKM_SHA512_HMAC_GENERAL, SHA512_HMAC_GEN_MECH_INFO_TYPE,
+	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC,
+	    SHA2_HMAC_MIN_KEY_LEN, SHA2_HMAC_MAX_KEY_LEN,
 	    CRYPTO_KEYSIZE_UNIT_IN_BYTES}
 };
 
@@ -355,7 +383,9 @@ sha2_digest_final_uio(SHA2_CTX *sha2_ctx, crypto_data_t *digest,
 		 * iovec.
 		 */
 		if (((sha2_ctx->algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE) &&
-		    (digest_len != SHA256_DIGEST_LENGTH))) {
+		    (digest_len != SHA256_DIGEST_LENGTH)) ||
+		    ((sha2_ctx->algotype > SHA256_HMAC_GEN_MECH_INFO_TYPE) &&
+		    (digest_len != SHA512_DIGEST_LENGTH))) {
 			/*
 			 * The caller requested a short digest. Digest
 			 * into a scratch buffer and return to
@@ -379,7 +409,7 @@ sha2_digest_final_uio(SHA2_CTX *sha2_ctx, crypto_data_t *digest,
 		 * Allocate a small scratch buffer on the stack and
 		 * copy it piece meal to the specified digest iovec's.
 		 */
-		uchar_t digest_tmp[SHA256_DIGEST_LENGTH];
+		uchar_t digest_tmp[SHA512_DIGEST_LENGTH];
 		off_t scratch_offset = 0;
 		size_t length = digest_len;
 		size_t cur_len;
@@ -427,6 +457,12 @@ sha2_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest,
 	switch (PROV_SHA2_CTX(ctx)->sc_mech_type) {
 	case SHA256_MECH_INFO_TYPE:
 		sha_digest_len = SHA256_DIGEST_LENGTH;
+		break;
+	case SHA384_MECH_INFO_TYPE:
+		sha_digest_len = SHA384_DIGEST_LENGTH;
+		break;
+	case SHA512_MECH_INFO_TYPE:
+		sha_digest_len = SHA512_DIGEST_LENGTH;
 		break;
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
@@ -539,6 +575,12 @@ sha2_digest_final(crypto_ctx_t *ctx, crypto_data_t *digest,
 	case SHA256_MECH_INFO_TYPE:
 		sha_digest_len = SHA256_DIGEST_LENGTH;
 		break;
+	case SHA384_MECH_INFO_TYPE:
+		sha_digest_len = SHA384_DIGEST_LENGTH;
+		break;
+	case SHA512_MECH_INFO_TYPE:
+		sha_digest_len = SHA512_DIGEST_LENGTH;
+		break;
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
 	}
@@ -623,6 +665,8 @@ sha2_digest_atomic(crypto_provider_handle_t provider,
 
 	if (mechanism->cm_type <= SHA256_HMAC_GEN_MECH_INFO_TYPE)
 		sha_digest_len = SHA256_DIGEST_LENGTH;
+	else
+		sha_digest_len = SHA512_DIGEST_LENGTH;
 
 	/*
 	 * Do a SHA2 final, must be done separately since the digest
@@ -679,14 +723,17 @@ sha2_digest_atomic(crypto_provider_handle_t provider,
 static void
 sha2_mac_init_ctx(sha2_hmac_ctx_t *ctx, void *keyval, uint_t length_in_bytes)
 {
-	uint64_t ipad[SHA256_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
-	uint64_t opad[SHA256_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
-	int i, block_size = 0, blocks_per_int64 = 0;
+	uint64_t ipad[SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
+	uint64_t opad[SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
+	int i, block_size, blocks_per_int64;
 
 	/* Determine the block size */
 	if (ctx->hc_mech_type <= SHA256_HMAC_GEN_MECH_INFO_TYPE) {
 		block_size = SHA256_HMAC_BLOCK_SIZE;
 		blocks_per_int64 = SHA256_HMAC_BLOCK_SIZE / sizeof (uint64_t);
+	} else {
+		block_size = SHA512_HMAC_BLOCK_SIZE;
+		blocks_per_int64 = SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t);
 	}
 
 	(void) bzero(ipad, block_size);
@@ -722,7 +769,7 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	uint_t sha_digest_len, sha_hmac_block_size;
 
 	/*
-	 * Set the digest length and block size to values approriate to the
+	 * Set the digest length and block size to values appropriate to the
 	 * mechanism
 	 */
 	switch (mechanism->cm_type) {
@@ -730,6 +777,13 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	case SHA256_HMAC_GEN_MECH_INFO_TYPE:
 		sha_digest_len = SHA256_DIGEST_LENGTH;
 		sha_hmac_block_size = SHA256_HMAC_BLOCK_SIZE;
+		break;
+	case SHA384_HMAC_MECH_INFO_TYPE:
+	case SHA384_HMAC_GEN_MECH_INFO_TYPE:
+	case SHA512_HMAC_MECH_INFO_TYPE:
+	case SHA512_HMAC_GEN_MECH_INFO_TYPE:
+		sha_digest_len = SHA512_DIGEST_LENGTH;
+		sha_hmac_block_size = SHA512_HMAC_BLOCK_SIZE;
 		break;
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
@@ -751,7 +805,7 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	} else {
 		/* no context template, compute context */
 		if (keylen_in_bytes > sha_hmac_block_size) {
-			uchar_t digested_key[SHA256_DIGEST_LENGTH];
+			uchar_t digested_key[SHA512_DIGEST_LENGTH];
 			sha2_hmac_ctx_t *hmac_ctx = ctx->cc_provider_private;
 
 			/*
@@ -827,22 +881,33 @@ static int
 sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac, crypto_req_handle_t req)
 {
 	int ret = CRYPTO_SUCCESS;
-	uchar_t digest[SHA256_DIGEST_LENGTH];
-	uint32_t digest_len = 0, sha_digest_len = 0;
+	uchar_t digest[SHA512_DIGEST_LENGTH];
+	uint32_t digest_len, sha_digest_len;
 
 	ASSERT(ctx->cc_provider_private != NULL);
 
-	/* Set the digest lengths to values approriate to the mechanism */
+	/* Set the digest lengths to values appropriate to the mechanism */
 	switch (PROV_SHA2_HMAC_CTX(ctx)->hc_mech_type) {
 	case SHA256_HMAC_MECH_INFO_TYPE:
 		sha_digest_len = digest_len = SHA256_DIGEST_LENGTH;
+		break;
+	case SHA384_HMAC_MECH_INFO_TYPE:
+		sha_digest_len = digest_len = SHA384_DIGEST_LENGTH;
+		break;
+	case SHA512_HMAC_MECH_INFO_TYPE:
+		sha_digest_len = digest_len = SHA512_DIGEST_LENGTH;
 		break;
 	case SHA256_HMAC_GEN_MECH_INFO_TYPE:
 		sha_digest_len = SHA256_DIGEST_LENGTH;
 		digest_len = PROV_SHA2_HMAC_CTX(ctx)->hc_digest_len;
 		break;
-	default:
+	case SHA384_HMAC_GEN_MECH_INFO_TYPE:
+	case SHA512_HMAC_GEN_MECH_INFO_TYPE:
+		sha_digest_len = SHA512_DIGEST_LENGTH;
+		digest_len = PROV_SHA2_HMAC_CTX(ctx)->hc_digest_len;
 		break;
+	default:
+		return (CRYPTO_ARGUMENTS_BAD);
 	}
 
 	/*
@@ -932,7 +997,7 @@ sha2_mac_atomic(crypto_provider_handle_t provider,
     crypto_spi_ctx_template_t ctx_template, crypto_req_handle_t req)
 {
 	int ret = CRYPTO_SUCCESS;
-	uchar_t digest[SHA256_DIGEST_LENGTH];
+	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;
 	uint32_t sha_digest_len, digest_len, sha_hmac_block_size;
 	uint_t keylen_in_bytes = CRYPTO_BITS2BYTES(key->ck_length);
@@ -946,6 +1011,13 @@ sha2_mac_atomic(crypto_provider_handle_t provider,
 	case SHA256_HMAC_GEN_MECH_INFO_TYPE:
 		sha_digest_len = digest_len = SHA256_DIGEST_LENGTH;
 		sha_hmac_block_size = SHA256_HMAC_BLOCK_SIZE;
+		break;
+	case SHA384_HMAC_MECH_INFO_TYPE:
+	case SHA384_HMAC_GEN_MECH_INFO_TYPE:
+	case SHA512_HMAC_MECH_INFO_TYPE:
+	case SHA512_HMAC_GEN_MECH_INFO_TYPE:
+		sha_digest_len = digest_len = SHA512_DIGEST_LENGTH;
+		sha_hmac_block_size = SHA512_HMAC_BLOCK_SIZE;
 		break;
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
@@ -1006,8 +1078,16 @@ sha2_mac_atomic(crypto_provider_handle_t provider,
 	/*
 	 * Do an SHA2 update on the outer context, feeding the inner
 	 * digest as data.
+	 *
+	 * HMAC-SHA384 needs special handling as the outer hash needs only 48
+	 * bytes of the inner hash value.
 	 */
-	SHA2Update(&sha2_hmac_ctx.hc_ocontext, digest, sha_digest_len);
+	if (mechanism->cm_type == SHA384_HMAC_MECH_INFO_TYPE ||
+	    mechanism->cm_type == SHA384_HMAC_GEN_MECH_INFO_TYPE)
+		SHA2Update(&sha2_hmac_ctx.hc_ocontext, digest,
+		    SHA384_DIGEST_LENGTH);
+	else
+		SHA2Update(&sha2_hmac_ctx.hc_ocontext, digest, sha_digest_len);
 
 	/*
 	 * Do a SHA2 final on the outer context, storing the computed
@@ -1055,7 +1135,7 @@ sha2_mac_verify_atomic(crypto_provider_handle_t provider,
     crypto_spi_ctx_template_t ctx_template, crypto_req_handle_t req)
 {
 	int ret = CRYPTO_SUCCESS;
-	uchar_t digest[SHA256_DIGEST_LENGTH];
+	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;
 	uint32_t sha_digest_len, digest_len, sha_hmac_block_size;
 	uint_t keylen_in_bytes = CRYPTO_BITS2BYTES(key->ck_length);
@@ -1069,6 +1149,13 @@ sha2_mac_verify_atomic(crypto_provider_handle_t provider,
 	case SHA256_HMAC_GEN_MECH_INFO_TYPE:
 		sha_digest_len = digest_len = SHA256_DIGEST_LENGTH;
 		sha_hmac_block_size = SHA256_HMAC_BLOCK_SIZE;
+		break;
+	case SHA384_HMAC_MECH_INFO_TYPE:
+	case SHA384_HMAC_GEN_MECH_INFO_TYPE:
+	case SHA512_HMAC_MECH_INFO_TYPE:
+	case SHA512_HMAC_GEN_MECH_INFO_TYPE:
+		sha_digest_len = digest_len = SHA512_DIGEST_LENGTH;
+		sha_hmac_block_size = SHA512_HMAC_BLOCK_SIZE;
 		break;
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
@@ -1132,8 +1219,16 @@ sha2_mac_verify_atomic(crypto_provider_handle_t provider,
 	/*
 	 * Do an SHA2 update on the outer context, feeding the inner
 	 * digest as data.
+	 *
+	 * HMAC-SHA384 needs special handling as the outer hash needs only 48
+	 * bytes of the inner hash value.
 	 */
-	SHA2Update(&sha2_hmac_ctx.hc_ocontext, digest, sha_digest_len);
+	if (mechanism->cm_type == SHA384_HMAC_MECH_INFO_TYPE ||
+	    mechanism->cm_type == SHA384_HMAC_GEN_MECH_INFO_TYPE)
+		SHA2Update(&sha2_hmac_ctx.hc_ocontext, digest,
+		    SHA384_DIGEST_LENGTH);
+	else
+		SHA2Update(&sha2_hmac_ctx.hc_ocontext, digest, sha_digest_len);
 
 	/*
 	 * Do a SHA2 final on the outer context, storing the computed
@@ -1237,6 +1332,13 @@ sha2_create_ctx_template(crypto_provider_handle_t provider,
 		sha_digest_len = SHA256_DIGEST_LENGTH;
 		sha_hmac_block_size = SHA256_HMAC_BLOCK_SIZE;
 		break;
+	case SHA384_HMAC_MECH_INFO_TYPE:
+	case SHA384_HMAC_GEN_MECH_INFO_TYPE:
+	case SHA512_HMAC_MECH_INFO_TYPE:
+	case SHA512_HMAC_GEN_MECH_INFO_TYPE:
+		sha_digest_len = SHA512_DIGEST_LENGTH;
+		sha_hmac_block_size = SHA512_HMAC_BLOCK_SIZE;
+		break;
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
 	}
@@ -1256,7 +1358,7 @@ sha2_create_ctx_template(crypto_provider_handle_t provider,
 	sha2_hmac_ctx_tmpl->hc_mech_type = mechanism->cm_type;
 
 	if (keylen_in_bytes > sha_hmac_block_size) {
-		uchar_t digested_key[SHA256_DIGEST_LENGTH];
+		uchar_t digested_key[SHA512_DIGEST_LENGTH];
 
 		/*
 		 * Hash the passed-in key to get a smaller key.
