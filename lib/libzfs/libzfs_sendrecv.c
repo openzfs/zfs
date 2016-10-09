@@ -3212,7 +3212,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	/*
 	 * Determine name of destination snapshot.
 	 */
-	(void) strcpy(destsnap, tosnap);
+	(void) strlcpy(destsnap, tosnap, sizeof (destsnap));
 	(void) strlcat(destsnap, chopprefix, sizeof (destsnap));
 	free(cp);
 	if (!zfs_name_valid(destsnap, ZFS_TYPE_SNAPSHOT)) {
