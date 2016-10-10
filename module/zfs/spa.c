@@ -862,7 +862,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 	char name[32];
-	uint_t i, flags = TASKQ_DYNAMIC;
+	uint_t i, flags = 0;
 	boolean_t batch = B_FALSE;
 
 	if (mode == ZTI_MODE_NULL) {
@@ -880,6 +880,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	case ZTI_MODE_FIXED:
 		ASSERT3U(value, >=, 1);
 		value = MAX(value, 1);
+		flags |= TASKQ_DYNAMIC;
 		break;
 
 	case ZTI_MODE_BATCH:
