@@ -1740,8 +1740,10 @@ kcf_last_req(void *last_req_arg, int status)
 		ct = (crypto_dual_data_t *)dcrops->dop_ciphertext;
 		break;
 	}
-	default:
-		break;
+	default: {
+		panic("invalid kcf_op_group_t %d", (int)params->rp_opgrp);
+		return;
+	}
 	}
 	ct->dd_offset1 = last_req->kr_saveoffset;
 	ct->dd_len1 = last_req->kr_savelen;
