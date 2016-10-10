@@ -53,6 +53,9 @@ typedef struct vdev_queue vdev_queue_t;
 typedef struct vdev_cache vdev_cache_t;
 typedef struct vdev_cache_entry vdev_cache_entry_t;
 
+extern int zfs_vdev_queue_depth_pct;
+extern uint32_t zfs_vdev_async_write_max_active;
+
 /*
  * Virtual device operations
  */
@@ -177,8 +180,19 @@ struct vdev {
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
 	uint64_t	vdev_islog;	/* is an intent log device	*/
 	uint64_t	vdev_removing;	/* device is being removed?	*/
-	boolean_t	vdev_ishole;	/* is a hole in the namespace 	*/
+	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
+	kmutex_t	vdev_queue_lock; /* protects vdev_queue_depth	*/
 	uint64_t	vdev_top_zap;
+
+	/*
+	 * The queue depth parameters determine how many async writes are
+	 * still pending (i.e. allocated by net yet issued to disk) per
+	 * top-level (vdev_async_write_queue_depth) and the maximum allowed
+	 * (vdev_max_async_write_queue_depth). These values only apply to
+	 * top-level vdevs.
+	 */
+	uint64_t	vdev_async_write_queue_depth;
+	uint64_t	vdev_max_async_write_queue_depth;
 
 	/*
 	 * Leaf vdev state.
