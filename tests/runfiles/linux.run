@@ -192,13 +192,11 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
 #    'zfs_share_007_neg', 'zfs_share_008_neg', 'zfs_share_009_neg',
 #    'zfs_share_010_neg', 'zfs_share_011_pos']
 
-# DISABLED:
-# zfs_snapshot_008_neg - nested pools
-# zfs_snapshot_009_pos - Fails for OpenZFS on illumos
 [tests/functional/cli_root/zfs_snapshot]
 tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
     'zfs_snapshot_003_neg', 'zfs_snapshot_004_neg', 'zfs_snapshot_005_neg',
-    'zfs_snapshot_006_pos', 'zfs_snapshot_007_neg']
+    'zfs_snapshot_006_pos', 'zfs_snapshot_007_neg', 'zfs_snapshot_008_neg',
+    'zfs_snapshot_009_pos']
 
 # DISABLED:
 # zfs_unmount_005_pos - needs investigation
