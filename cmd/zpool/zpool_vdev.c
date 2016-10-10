@@ -536,19 +536,19 @@ is_whole_disk(const char *path)
  * (minus the slice number).
  */
 static int
-is_shorthand_path(const char *arg, char *path,
+is_shorthand_path(const char *arg, char *path, size_t path_size,
     struct stat64 *statbuf, boolean_t *wholedisk)
 {
 	int error;
 
-	error = zfs_resolve_shortname(arg, path, MAXPATHLEN);
+	error = zfs_resolve_shortname(arg, path, path_size);
 	if (error == 0) {
 		*wholedisk = is_whole_disk(path);
 		if (*wholedisk || (stat64(path, statbuf) == 0))
 			return (0);
 	}
 
-	strlcpy(path, arg, sizeof (path));
+	strlcpy(path, arg, path_size);
 	memset(statbuf, 0, sizeof (*statbuf));
 	*wholedisk = B_FALSE;
 
@@ -658,9 +658,10 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		}
 
 		/* After is_whole_disk() check restore original passed path */
-		strlcpy(path, arg, MAXPATHLEN);
+		strlcpy(path, arg, sizeof (path));
 	} else {
-		err = is_shorthand_path(arg, path, &statbuf, &wholedisk);
+		err = is_shorthand_path(arg, path, sizeof (path),
+		    &statbuf, &wholedisk);
 		if (err != 0) {
 			/*
 			 * If we got ENOENT, then the user gave us
