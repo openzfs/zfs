@@ -215,7 +215,7 @@ update_sharetab(sa_handle_impl_t impl_handle)
 	fsync(temp_fd);
 	fclose(temp_fp);
 
-	rename(tempfile, "/etc/dfs/sharetab");
+	(void) rename(tempfile, "/etc/dfs/sharetab");
 }
 
 typedef struct update_cookie_s {

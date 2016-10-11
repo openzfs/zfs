@@ -1045,7 +1045,7 @@ kobj_get_filesize(struct _buf *file, uint64_t *size)
 void
 delay(clock_t ticks)
 {
-	poll(0, 0, ticks * (1000 / hz));
+	(void) poll(0, 0, ticks * (1000 / hz));
 }
 
 /*
