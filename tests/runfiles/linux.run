@@ -535,17 +535,13 @@ tests = ['refreserv_001_pos', 'refreserv_002_pos', 'refreserv_003_pos',
 [tests/functional/replacement]
 tests = ['replacement_001_pos', 'replacement_002_pos', 'replacement_003_pos']
 
-# DISABLED:
-# reservation_012_pos - needs investigation
-# reservation_015_pos - needs investigation
-# reservation_016_pos - needs investigation
 [tests/functional/reservation]
 tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_004_pos', 'reservation_005_pos', 'reservation_006_pos',
     'reservation_007_pos', 'reservation_008_pos', 'reservation_009_pos',
-    'reservation_010_pos', 'reservation_011_pos',
-    'reservation_013_pos', 'reservation_014_pos',
-    'reservation_017_pos', 'reservation_018_pos']
+    'reservation_010_pos', 'reservation_011_pos', 'reservation_012_pos',
+    'reservation_013_pos', 'reservation_014_pos', 'reservation_015_pos',
+    'reservation_016_pos', 'reservation_017_pos', 'reservation_018_pos']
 
 # DISABLED: Root pools must be handled differently under Linux
 #[tests/functional/rootpool]
