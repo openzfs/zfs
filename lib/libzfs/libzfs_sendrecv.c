@@ -3025,6 +3025,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 		default:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "invalid record type"));
+			free(buf);
 			return (zfs_error(hdl, EZFS_BADSTREAM, errbuf));
 		}
 	}
