@@ -675,7 +675,7 @@ nfs_check_exportfs(void)
 
 	unlink(nfs_exportfs_tempfile);
 
-	fcntl(nfs_exportfs_temp_fd, F_SETFD, FD_CLOEXEC);
+	(void) fcntl(nfs_exportfs_temp_fd, F_SETFD, FD_CLOEXEC);
 
 	pid = fork();
 
