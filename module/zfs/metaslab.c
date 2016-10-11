@@ -978,6 +978,10 @@ metaslab_group_set_rotor_category(metaslab_group_t *mg, boolean_t failed_dev)
 		mg->mg_nrot = METASLAB_CLASS_ROTORS-1;
 	else
 		mg->mg_nrot = metaslab_vdev_rotor_category(mc, mg->mg_vd);
+
+#ifndef _KERNEL
+	printf("SET mg->mg_nrot = %d\n", mg->mg_nrot);
+#endif
 }
 
 void

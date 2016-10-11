@@ -1001,6 +1001,20 @@ make_vdev_root(char *path, char *aux, char *pool, size_t size, uint64_t ashift,
 	return (root);
 }
 
+boolean_t ztest_vdev_nonrot(void);
+
+boolean_t
+ztest_vdev_nonrot()
+{
+	boolean_t nonrot;
+
+	nonrot = ztest_random(2) == 1 ? B_TRUE : B_FALSE;
+
+	printf("NONROT: %d\n", nonrot);
+
+	return (nonrot);
+}
+
 /*
  * Find a random spa version. Returns back a random spa version in the
  * range [initial_version, SPA_VERSION_FEATURES].
@@ -6539,6 +6553,14 @@ ztest_init(ztest_shared_t *zs)
 		VERIFY3S(-1, !=, asprintf(&buf, "feature@%s",
 		    spa_feature_table[i].fi_uname));
 		VERIFY3U(0, ==, nvlist_add_uint64(props, buf, 0));
+		free(buf);
+	}
+	{
+		char *buf;
+		VERIFY3S(-1, !=, asprintf(&buf, "ssd<=meta:%d,%d;mixed<=%d;hdd",
+		    32, 4, 64));
+		VERIFY3U(0, ==, nvlist_add_string(props,
+		    ZPOOL_CONFIG_ROTORVECTOR, buf));
 		free(buf);
 	}
 	VERIFY3U(0, ==, spa_create(ztest_opts.zo_pool, nvroot, props, NULL));

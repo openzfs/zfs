@@ -51,6 +51,16 @@ vdev_file_rele(vdev_t *vd)
 	ASSERT(vd->vdev_path != NULL);
 }
 
+#ifndef _KERNEL
+boolean_t ztest_vdev_nonrot(void);
+
+boolean_t
+__attribute__((weak)) ztest_vdev_nonrot()
+{
+	return (B_TRUE);
+}
+#endif
+
 static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
     uint64_t *ashift)
@@ -60,9 +70,14 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	vattr_t vattr;
 	int error;
 
+#ifdef _KERNEL
 	/* Rotational optimizations only make sense on block devices */
 	vd->vdev_nonrot = B_TRUE;
 	vd->vdev_nonrot_mix = B_FALSE;
+#else
+	vd->vdev_nonrot = ztest_vdev_nonrot();
+	vd->vdev_nonrot_mix = B_FALSE;
+#endif
 
 	/*
 	 * We must have a pathname, and it must be absolute.
