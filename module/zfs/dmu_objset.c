@@ -1405,7 +1405,7 @@ userquota_update_cache(avl_tree_t *avl, const char *id, int64_t delta)
 	uqn = avl_find(avl, (const void *)id, &idx);
 	if (uqn == NULL) {
 		uqn = kmem_zalloc(sizeof (*uqn), KM_SLEEP);
-		strcpy(uqn->uqn_id, id);
+		strlcpy(uqn->uqn_id, id, sizeof (uqn->uqn_id));
 		avl_insert(avl, uqn, idx);
 	}
 	uqn->uqn_delta += delta;
