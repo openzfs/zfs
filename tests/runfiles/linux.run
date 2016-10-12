@@ -500,12 +500,9 @@ tests = ['poolversion_001_pos', 'poolversion_002_pos']
 #[tests/functional/privilege]
 #tests = ['privilege_001_pos', 'privilege_002_pos']
 
-# DISABLED:
-# quota_002_pos - size is less than current used or reserved space
-# quota_004_pos - size is less than current used or reserved space
-# quota_005_pos - size is less than current used or reserved space
 [tests/functional/quota]
-tests = ['quota_001_pos', 'quota_003_pos', 'quota_006_neg']
+tests = ['quota_001_pos', 'quota_002_pos', 'quota_003_pos',
+         'quota_004_pos', 'quota_005_pos', 'quota_006_neg']
 
 [tests/functional/raidz]
 tests = ['raidz_001_neg', 'raidz_002_pos']

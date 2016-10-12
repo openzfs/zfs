@@ -60,9 +60,9 @@ function fill_quota
         [[ $zret -ne $EDQUOT ]] && \
             log_fail "Returned error code: $zret. Expected: $EDQUOT."
 
-	typeset -i file_size=`$LS -ls $MNTPT/$TESTFILE1 | $AWK '{ print $1 }'`
+	typeset -i file_size=`$LS -lsk $MNTPT/$TESTFILE1 | $AWK '{ print $1 }'`
 	typeset -i limit=0
-	(( file_size = file_size * 512 ))
+	(( file_size = file_size * 1024 ))
 	(( limit = QUOTA_VALUE + TOLERANCE ))
 	(( file_size > limit )) && \
 	    log_fail "File was created larger than the quota value, aborting!!!"
