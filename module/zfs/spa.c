@@ -5928,7 +5928,7 @@ spa_async_tasks_pending(spa_t *spa)
 	} else {
 		config_task_suspended =
 		    (gethrtime() - spa->spa_ccw_fail_time) <
-		    (zfs_ccw_retry_interval * NANOSEC);
+		    ((hrtime_t)zfs_ccw_retry_interval * NANOSEC);
 	}
 
 	return (non_config_tasks || (config_task && !config_task_suspended));
