@@ -231,6 +231,19 @@ skein_mod_init(void)
 
 int
 skein_mod_fini(void) {
+	int ret;
+
+	if (skein_prov_handle != 0) {
+		if ((ret = crypto_unregister_provider(skein_prov_handle)) !=
+		    CRYPTO_SUCCESS) {
+			cmn_err(CE_WARN,
+			    "skein _fini: crypto_unregister_provider() "
+			    "failed (0x%x)", ret);
+			return (EBUSY);
+		}
+		skein_prov_handle = 0;
+	}
+
 	return (mod_remove(&modlinkage));
 }
 
