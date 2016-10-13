@@ -3538,7 +3538,7 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 
 	/* Determine if all our children are holes */
-	for (i = 0, bp = db->db.db_data; i < 1 << epbs; i++, bp++) {
+	for (i = 0, bp = db->db.db_data; i < 1ULL << epbs; i++, bp++) {
 		if (!BP_IS_HOLE(bp))
 			break;
 	}
@@ -3547,7 +3547,7 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	 * If all the children are holes, then zero them all out so that
 	 * we may get compressed away.
 	 */
-	if (i == 1 << epbs) {
+	if (i == 1ULL << epbs) {
 		/* didn't find any non-holes */
 		bzero(db->db.db_data, db->db.db_size);
 	}
