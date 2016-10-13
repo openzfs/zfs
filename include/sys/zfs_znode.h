@@ -194,6 +194,7 @@ typedef struct znode {
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
 	krwlock_t	z_xattr_lock;	/* xattr data lock */
 	nvlist_t	*z_xattr_cached; /* cached xattrs */
+	uint64_t	z_xattr_parent;	/* parent obj for this xattr */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */

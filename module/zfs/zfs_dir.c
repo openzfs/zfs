@@ -240,7 +240,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 
 	mutex_enter(&dzp->z_lock);
 	for (;;) {
-		if (dzp->z_unlinked) {
+		if (dzp->z_unlinked && !(flag & ZXATTR)) {
 			mutex_exit(&dzp->z_lock);
 			if (!(flag & ZHAVELOCK))
 				rw_exit(&dzp->z_name_lock);
@@ -998,8 +998,9 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
 	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_XATTR(zsb), &xzp->z_id,
 	    sizeof (xzp->z_id), tx));
 
-	(void) zfs_log_create(zsb->z_log, tx, TX_MKXATTR, zp,
-	    xzp, "", NULL, acl_ids.z_fuidp, vap);
+	if (!zp->z_unlinked)
+		(void) zfs_log_create(zsb->z_log, tx, TX_MKXATTR, zp,
+		    xzp, "", NULL, acl_ids.z_fuidp, vap);
 
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);

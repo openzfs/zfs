@@ -2492,15 +2492,8 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 	 * If attribute then validate against base file
 	 */
 	if (is_attr) {
-		uint64_t	parent;
-
-		if ((error = sa_lookup(zp->z_sa_hdl,
-		    SA_ZPL_PARENT(ZTOZSB(zp)), &parent,
-		    sizeof (parent))) != 0)
-			return (error);
-
 		if ((error = zfs_zget(ZTOZSB(zp),
-		    parent, &xzp)) != 0)	{
+		    zp->z_xattr_parent, &xzp)) != 0) {
 			return (error);
 		}
 
