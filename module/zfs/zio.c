@@ -49,12 +49,11 @@
  * ==========================================================================
  */
 const char *zio_type_name[ZIO_TYPES] = {
-#ifdef __linux__
+	/*
+	 * Note: Linux kernel thread name length is limited
+	 * so these names will differ from upstream open zfs.
+	 */
 	"z_null", "z_rd", "z_wr", "z_fr", "z_cl", "z_ioctl"
-#else
-	"zio_null", "zio_read", "zio_write", "zio_free", "zio_claim",
-	"zio_ioctl"
-#endif
 };
 
 int zio_dva_throttle_enabled = B_TRUE;
