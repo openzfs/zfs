@@ -117,6 +117,7 @@ log_must $DIFF $SRC_FILE $obj
 if is_global_zone; then
 	vol=$TESTPOOL/$TESTFS/vol.$$ ;	volclone=$TESTPOOL/$TESTFS/volclone.$$
 	log_must $ZFS create -V 100M $vol
+	block_device_wait
 
 	obj=$(target_obj $vol)
 	log_must $DD if=$SRC_FILE of=$obj bs=$BS count=$CNT
@@ -131,9 +132,11 @@ if is_global_zone; then
 
 	# Compare source file and target file
 	obj=$(target_obj ${vol}-new)
+	$RM -rf $DST_FILE
 	log_must $DD if=$obj of=$DST_FILE bs=$BS count=$CNT
 	log_must $DIFF $SRC_FILE $DST_FILE
 	obj=$(target_obj ${volclone}-new)
+	$RM -rf $DST_FILE
 	log_must $DD if=$obj of=$DST_FILE bs=$BS count=$CNT
 	log_must $DIFF $SRC_FILE $DST_FILE
 
@@ -144,6 +147,7 @@ if is_global_zone; then
 
 	# Compare source file and target file
 	obj=$(target_obj $volclone)
+	$RM -rf $DST_FILE
 	log_must $DD if=$obj of=$DST_FILE bs=$BS count=$CNT
 	log_must $DIFF $SRC_FILE $DST_FILE
 fi

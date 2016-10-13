@@ -71,6 +71,7 @@ while ((i < ${#dataset[*]} )); do
 	if [[ ${dataset[i]} == *@* ]]; then
 		data=$(snapshot_mountpoint ${dataset[i]})/$TESTFILE0
 	elif [[ ${dataset[i]} == "$TESTPOOL/$TESTVOL" ]] && is_global_zone; then
+		$RM -rf $VOLDATA
 		log_must eval "$DD if=$VOL_R_PATH of=$VOLDATA bs=$BS count=$CNT >/dev/null 2>&1"
 		data=$VOLDATA
 	else
