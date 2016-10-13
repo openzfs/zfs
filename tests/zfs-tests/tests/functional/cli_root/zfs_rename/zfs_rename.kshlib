@@ -71,6 +71,7 @@ function rename_dataset # src dest
 	typeset dest=$2
 
 	log_must $ZFS rename $src $dest
+	block_device_wait
 
 	#
 	# Verify src name no longer in use

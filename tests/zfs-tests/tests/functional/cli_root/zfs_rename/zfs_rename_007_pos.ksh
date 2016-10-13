@@ -117,6 +117,7 @@ log_must $DIFF $SRC_FILE $obj
 if is_global_zone; then
 	vol=$TESTPOOL/$TESTFS/vol.$$ ;	volclone=$TESTPOOL/$TESTFS/volclone.$$
 	log_must $ZFS create -V 100M $vol
+	block_device_wait
 
 	obj=$(target_obj $vol)
 	log_must $DD if=$SRC_FILE of=$obj bs=$BS count=$CNT
@@ -124,10 +125,12 @@ if is_global_zone; then
 	snap=${vol}@snap.$$
 	log_must $ZFS snapshot $snap
 	log_must $ZFS clone $snap $volclone
+	block_device_wait
 
 	# Rename dataset & clone
 	log_must $ZFS rename $vol ${vol}-new
 	log_must $ZFS rename $volclone ${volclone}-new
+	block_device_wait
 
 	# Compare source file and target file
 	obj=$(target_obj ${vol}-new)
@@ -141,6 +144,7 @@ if is_global_zone; then
 	log_must $ZFS rename ${vol}-new $vol
 	log_must $ZFS rename $snap ${snap}-new
 	log_must $ZFS clone ${snap}-new $volclone
+	block_device_wait
 
 	# Compare source file and target file
 	obj=$(target_obj $volclone)
