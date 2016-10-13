@@ -57,7 +57,7 @@ const char *zio_type_name[ZIO_TYPES] = {
 #endif
 };
 
-boolean_t zio_dva_throttle_enabled = B_TRUE;
+int zio_dva_throttle_enabled = B_TRUE;
 
 /*
  * ==========================================================================
@@ -533,23 +533,17 @@ zio_timestamp_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = x1;
 	const zio_t *z2 = x2;
+	int cmp;
 
-	if (z1->io_queued_timestamp < z2->io_queued_timestamp)
-		return (-1);
-	if (z1->io_queued_timestamp > z2->io_queued_timestamp)
-		return (1);
+	cmp = AVL_CMP(z1->io_queued_timestamp, z2->io_queued_timestamp);
+	if (likely(cmp))
+		return (cmp);
 
-	if (z1->io_offset < z2->io_offset)
-		return (-1);
-	if (z1->io_offset > z2->io_offset)
-		return (1);
+	cmp = AVL_CMP(z1->io_offset, z2->io_offset);
+	if (likely(cmp))
+		return (cmp);
 
-	if (z1 < z2)
-		return (-1);
-	if (z1 > z2)
-		return (1);
-
-	return (0);
+	return (AVL_PCMP(z1, z2));
 }
 
 /*
@@ -4126,4 +4120,8 @@ MODULE_PARM_DESC(zfs_sync_pass_dont_compress,
 module_param(zfs_sync_pass_rewrite, int, 0644);
 MODULE_PARM_DESC(zfs_sync_pass_rewrite,
 	"Rewrite new bps starting in this pass");
+
+module_param(zio_dva_throttle_enabled, int, 0644);
+MODULE_PARM_DESC(zio_dva_throttle_enabled,
+	"Throttle block allocations in the ZIO pipeline");
 #endif

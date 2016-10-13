@@ -875,4 +875,8 @@ MODULE_PARM_DESC(zfs_vdev_sync_write_max_active,
 module_param(zfs_vdev_sync_write_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_write_min_active,
 	"Min active sync write I/Os per vdev");
+
+module_param(zfs_vdev_queue_depth_pct, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_queue_depth_pct,
+	"Queue depth percentage for each top-level vdev");
 #endif
