@@ -119,6 +119,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_dirlocks = NULL;
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
+	zp->z_xattr_parent = 0;
 	zp->z_moved = 0;
 	return (0);
 }
@@ -590,6 +591,10 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zfs_uid_write(ip, z_uid);
 	zfs_gid_write(ip, z_gid);
 
+	/* Cache the xattr parent id */
+	if (zp->z_pflags & ZFS_XATTR)
+		zp->z_xattr_parent = parent;
+
 	ZFS_TIME_DECODE(&ip->i_atime, atime);
 	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
 	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
@@ -1060,34 +1065,30 @@ again:
 
 		mutex_enter(&zp->z_lock);
 		ASSERT3U(zp->z_id, ==, obj_num);
-		if (zp->z_unlinked) {
-			err = SET_ERROR(ENOENT);
-		} else {
-			/*
-			 * If igrab() returns NULL the VFS has independently
-			 * determined the inode should be evicted and has
-			 * called iput_final() to start the eviction process.
-			 * The SA handle is still valid but because the VFS
-			 * requires that the eviction succeed we must drop
-			 * our locks and references to allow the eviction to
-			 * complete.  The zfs_zget() may then be retried.
-			 *
-			 * This unlikely case could be optimized by registering
-			 * a sops->drop_inode() callback.  The callback would
-			 * need to detect the active SA hold thereby informing
-			 * the VFS that this inode should not be evicted.
-			 */
-			if (igrab(ZTOI(zp)) == NULL) {
-				mutex_exit(&zp->z_lock);
-				sa_buf_rele(db, NULL);
-				zfs_znode_hold_exit(zsb, zh);
-				/* inode might need this to finish evict */
-				cond_resched();
-				goto again;
-			}
-			*zpp = zp;
-			err = 0;
+		/*
+		 * If igrab() returns NULL the VFS has independently
+		 * determined the inode should be evicted and has
+		 * called iput_final() to start the eviction process.
+		 * The SA handle is still valid but because the VFS
+		 * requires that the eviction succeed we must drop
+		 * our locks and references to allow the eviction to
+		 * complete.  The zfs_zget() may then be retried.
+		 *
+		 * This unlikely case could be optimized by registering
+		 * a sops->drop_inode() callback.  The callback would
+		 * need to detect the active SA hold thereby informing
+		 * the VFS that this inode should not be evicted.
+		 */
+		if (igrab(ZTOI(zp)) == NULL) {
+			mutex_exit(&zp->z_lock);
+			sa_buf_rele(db, NULL);
+			zfs_znode_hold_exit(zsb, zh);
+			/* inode might need this to finish evict */
+			cond_resched();
+			goto again;
 		}
+		*zpp = zp;
+		err = 0;
 		mutex_exit(&zp->z_lock);
 		sa_buf_rele(db, NULL);
 		zfs_znode_hold_exit(zsb, zh);
