@@ -513,12 +513,9 @@ tests = ['raidz_001_neg', 'raidz_002_pos']
 [tests/functional/redundancy]
 tests = ['redundancy_001_pos', 'redundancy_002_pos', 'redundancy_003_pos']
 
-# DISABLED:
-# refquota_002_pos - size is less than current used or reserved space
-# refquota_004_pos - needs investigation
 [tests/functional/refquota]
-tests = ['refquota_001_pos', 'refquota_003_pos',
-    'refquota_005_pos', 'refquota_006_neg']
+tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
+    'refquota_004_pos', 'refquota_005_pos', 'refquota_006_neg']
 
 # DISABLED:
 # refreserv_004_pos - needs investigation
