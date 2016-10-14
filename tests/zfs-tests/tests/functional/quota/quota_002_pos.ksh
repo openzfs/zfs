@@ -42,7 +42,7 @@
 # 1) Apply quota to the ZFS file system
 # 2) Exceed the quota
 # 3) Attempt to write another file
-# 4) Verify the attempt fails with error code 49 (EDQUOTA)
+# 4) Verify the attempt fails with error code EDQUOTA (linux 122, others 49)
 #
 #
 
