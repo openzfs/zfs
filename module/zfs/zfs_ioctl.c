@@ -2773,6 +2773,10 @@ zfs_ioc_inherit_prop(zfs_cmd_t *zc)
 		}
 
 		pair = nvlist_next_nvpair(dummy, NULL);
+		if (pair == NULL) {
+			nvlist_free(dummy);
+			return (SET_ERROR(EINVAL));
+		}
 		err = zfs_prop_set_special(zc->zc_name, source, pair);
 		nvlist_free(dummy);
 		if (err != -1)
