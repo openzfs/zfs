@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016 by Delphix. All rights reserved.
  */
 
 #include <assert.h>
@@ -31,6 +32,7 @@
 #include <sys/spa.h>
 #include <sys/fs/zfs.h>
 #include <sys/refcount.h>
+#include <dlfcn.h>
 
 /*
  * Routines needed by more than one client of libzpool.
@@ -157,4 +159,59 @@ show_pool_stats(spa_t *spa)
 	show_vdev_stats(NULL, ZPOOL_CONFIG_SPARES, nvroot, 0);
 
 	nvlist_free(config);
+}
+
+/*
+ * Sets given global variable in libzpool to given unsigned 32-bit value.
+ * arg: "<variable>=<value>"
+ */
+int
+set_global_var(char *arg)
+{
+	void *zpoolhdl;
+	char *varname = arg, *varval;
+	u_longlong_t val;
+
+#ifndef _LITTLE_ENDIAN
+	/*
+	 * On big endian systems changing a 64-bit variable would set the high
+	 * 32 bits instead of the low 32 bits, which could cause unexpected
+	 * results.
+	 */
+	fprintf(stderr, "Setting global variables is only supported on "
+	    "little-endian systems\n");
+	return (ENOTSUP);
+#endif
+	if ((varval = strchr(arg, '=')) != NULL) {
+		*varval = '\0';
+		varval++;
+		val = strtoull(varval, NULL, 0);
+		if (val > UINT32_MAX) {
+			fprintf(stderr, "Value for global variable '%s' must "
+			    "be a 32-bit unsigned integer\n", varname);
+			return (EOVERFLOW);
+		}
+	} else {
+		return (EINVAL);
+	}
+
+	zpoolhdl = dlopen("libzpool.so", RTLD_LAZY);
+	if (zpoolhdl != NULL) {
+		uint32_t *var;
+		var = dlsym(zpoolhdl, varname);
+		if (var == NULL) {
+			fprintf(stderr, "Global variable '%s' does not exist "
+			    "in libzpool.so\n", varname);
+			return (EINVAL);
+		}
+		*var = (uint32_t)val;
+
+		dlclose(zpoolhdl);
+	} else {
+		fprintf(stderr, "Failed to open libzpool.so to set global "
+		    "variable\n");
+		return (EIO);
+	}
+
+	return (0);
 }

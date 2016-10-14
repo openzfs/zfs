@@ -127,7 +127,8 @@ usage(void)
 {
 	(void) fprintf(stderr,
 	    "Usage: %s [-CumMdibcsDvhLXFPAG] [-t txg] [-e [-p path...]] "
-	    "[-U config] [-I inflight I/Os] [-x dumpdir] poolname [object...]\n"
+	    "[-U config] [-I inflight I/Os] [-x dumpdir] [-o var=value] "
+	    "poolname [object...]\n"
 	    "       %s [-divPA] [-e -p path...] [-U config] dataset "
 	    "[object...]\n"
 	    "       %s -mM [-LXFPA] [-t txg] [-e [-p path...]] [-U config] "
@@ -189,6 +190,8 @@ usage(void)
 	    "checksumming I/Os [default is 200]\n");
 	(void) fprintf(stderr, "        -G dump zfs_dbgmsg buffer before "
 	    "exiting\n");
+	(void) fprintf(stderr, "        -o <variable>=<value> set global "
+	    "variable to an unsigned 32-bit integer value\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -3707,7 +3710,7 @@ main(int argc, char **argv)
 		spa_config_path = spa_config_path_env;
 
 	while ((c = getopt(argc, argv,
-	    "bcdhilmMI:suCDRSAFLXx:evp:t:U:PVG")) != -1) {
+	    "bcdhilmMI:suCDRSAFLXx:evp:t:U:PVGo")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -3762,9 +3765,6 @@ main(int argc, char **argv)
 			}
 			searchdirs[nsearch++] = optarg;
 			break;
-		case 'x':
-			vn_dumpdir = optarg;
-			break;
 		case 't':
 			max_txg = strtoull(optarg, NULL, 0);
 			if (max_txg < TXG_INITIAL) {
@@ -3778,6 +3778,14 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			verbose++;
+			break;
+		case 'x':
+			vn_dumpdir = optarg;
+			break;
+		case 'o':
+			error = set_global_var(optarg);
+			if (error != 0)
+				usage();
 			break;
 		default:
 			usage();
