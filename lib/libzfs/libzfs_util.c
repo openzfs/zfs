@@ -1611,7 +1611,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		err = nvpair_value_string(elem, svalp);
 		if (err != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' in invalid"), nvpair_name(elem));
+			    "'%s' is invalid"), nvpair_name(elem));
 			goto error;
 		}
 		if (strlen(*svalp) >= ZFS_MAXPROPLEN) {
