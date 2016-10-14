@@ -341,7 +341,7 @@ check_restricted(const char *poolname)
 	static char *restricted = NULL;
 
 	const char *cur, *end;
-	int len, namelen;
+	uint32_t len, namelen;
 
 	if (!initialized) {
 		initialized = B_TRUE;
