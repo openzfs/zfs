@@ -70,8 +70,9 @@ function test_n_check #opt num_snap_clone num_rollback
 	# Clean up the test environment
 	datasetexists $FS && log_must $ZFS destroy -Rf $FS
 	if datasetexists $VOL; then
-		$DF -lhF ufs "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
-		(( $? == 0 )) && log_must $UMOUNT -f $TESTDIR1
+		if ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
+			log_must $UMOUNT -f $TESTDIR1
+		fi
 
 		log_must $ZFS destroy -Rf $VOL
 	fi
@@ -115,6 +116,7 @@ function test_n_check #opt num_snap_clone num_rollback
 		if [[ $dtst == $VOL ]]; then
 			log_must $UMOUNT -f $TESTDIR1
 			log_must $ZFS rollback $opt $dtst@$snap_point
+			block_device_wait
 			log_must $MOUNT \
 				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1
 		else
@@ -137,6 +139,7 @@ function test_n_check #opt num_snap_clone num_rollback
 		done
 
 		check_files $dtst@$snap_point
+		$PKILL ${DD##*/}
 	done
 }
 
