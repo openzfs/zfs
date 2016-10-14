@@ -564,6 +564,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	mutex_init(&spa->spa_suspend_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_vdev_top_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_feat_stats_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&spa->spa_alloc_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	cv_init(&spa->spa_async_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_evicting_os_cv, NULL, CV_DEFAULT, NULL);
@@ -595,6 +596,9 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	 */
 	if (altroot)
 		spa->spa_root = spa_strdup(altroot);
+
+	avl_create(&spa->spa_alloc_tree, zio_timestamp_compare,
+	    sizeof (zio_t), offsetof(zio_t, io_alloc_node));
 
 	/*
 	 * Every pool starts with the default cachefile
@@ -673,6 +677,7 @@ spa_remove(spa_t *spa)
 		kmem_free(dp, sizeof (spa_config_dirent_t));
 	}
 
+	avl_destroy(&spa->spa_alloc_tree);
 	list_destroy(&spa->spa_config_list);
 
 	nvlist_free(spa->spa_label_features);
@@ -696,6 +701,7 @@ spa_remove(spa_t *spa)
 	cv_destroy(&spa->spa_scrub_io_cv);
 	cv_destroy(&spa->spa_suspend_cv);
 
+	mutex_destroy(&spa->spa_alloc_lock);
 	mutex_destroy(&spa->spa_async_lock);
 	mutex_destroy(&spa->spa_errlist_lock);
 	mutex_destroy(&spa->spa_errlog_lock);

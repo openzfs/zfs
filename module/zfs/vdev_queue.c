@@ -33,6 +33,7 @@
 #include <sys/zio.h>
 #include <sys/avl.h>
 #include <sys/dsl_pool.h>
+#include <sys/metaslab_impl.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/kstat.h>
@@ -170,6 +171,23 @@ int zfs_vdev_async_write_active_max_dirty_percent = 60;
 int zfs_vdev_aggregation_limit = SPA_OLD_MAXBLOCKSIZE;
 int zfs_vdev_read_gap_limit = 32 << 10;
 int zfs_vdev_write_gap_limit = 4 << 10;
+
+/*
+ * Define the queue depth percentage for each top-level. This percentage is
+ * used in conjunction with zfs_vdev_async_max_active to determine how many
+ * allocations a specific top-level vdev should handle. Once the queue depth
+ * reaches zfs_vdev_queue_depth_pct * zfs_vdev_async_write_max_active / 100
+ * then allocator will stop allocating blocks on that top-level device.
+ * The default kernel setting is 1000% which will yield 100 allocations per
+ * device. For userland testing, the default setting is 300% which equates
+ * to 30 allocations per device.
+ */
+#ifdef _KERNEL
+int zfs_vdev_queue_depth_pct = 1000;
+#else
+int zfs_vdev_queue_depth_pct = 300;
+#endif
+
 
 int
 vdev_queue_offset_compare(const void *x1, const void *x2)
@@ -476,7 +494,8 @@ vdev_queue_agg_io_done(zio_t *aio)
 {
 	if (aio->io_type == ZIO_TYPE_READ) {
 		zio_t *pio;
-		while ((pio = zio_walk_parents(aio)) != NULL) {
+		zio_link_t *zl = NULL;
+		while ((pio = zio_walk_parents(aio, &zl)) != NULL) {
 			bcopy((char *)aio->io_data + (pio->io_offset -
 			    aio->io_offset), pio->io_data, pio->io_size);
 		}
@@ -856,4 +875,8 @@ MODULE_PARM_DESC(zfs_vdev_sync_write_max_active,
 module_param(zfs_vdev_sync_write_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_write_min_active,
 	"Min active sync write I/Os per vdev");
+
+module_param(zfs_vdev_queue_depth_pct, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_queue_depth_pct,
+	"Queue depth percentage for each top-level vdev");
 #endif

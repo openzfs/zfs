@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -266,9 +266,10 @@ vdev_mirror_scrub_done(zio_t *zio)
 
 	if (zio->io_error == 0) {
 		zio_t *pio;
+		zio_link_t *zl = NULL;
 
 		mutex_enter(&zio->io_lock);
-		while ((pio = zio_walk_parents(zio)) != NULL) {
+		while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
 			mutex_enter(&pio->io_lock);
 			ASSERT3U(zio->io_size, >=, pio->io_size);
 			bcopy(zio->io_data, pio->io_data, pio->io_size);

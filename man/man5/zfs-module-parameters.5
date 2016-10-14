@@ -1100,6 +1100,18 @@ Default value: \fB10\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_queue_depth_pct\fR (int)
+.ad
+.RS 12n
+The queue depth percentage for each top-level virtual device.
+Used in conjunction with zfs_vdev_async_max_active.
+.sp
+Default value: \fB1000\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_disable_dup_eviction\fR (int)
 .ad
 .RS 12n
@@ -1838,6 +1850,18 @@ complete. Note that this is only a logging facility, not a timeout on
 operations.
 .sp
 Default value: \fB30,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_dva_throttle_enabled\fR (int)
+.ad
+.RS 12n
+Throttle block allocations in the ZIO pipeline. This allows for
+dynamic allocation distribution when devices are imbalanced.
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp

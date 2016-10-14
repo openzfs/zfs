@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_H
@@ -55,15 +55,16 @@ void metaslab_sync_done(metaslab_t *, uint64_t);
 void metaslab_sync_reassess(metaslab_group_t *);
 uint64_t metaslab_block_maxsize(metaslab_t *);
 
-#define	METASLAB_HINTBP_FAVOR	0x0
-#define	METASLAB_HINTBP_AVOID	0x1
-#define	METASLAB_GANG_HEADER	0x2
-#define	METASLAB_GANG_CHILD	0x4
-#define	METASLAB_GANG_AVOID	0x8
-#define	METASLAB_FASTWRITE	0x10
+#define	METASLAB_HINTBP_FAVOR		0x0
+#define	METASLAB_HINTBP_AVOID		0x1
+#define	METASLAB_GANG_HEADER		0x2
+#define	METASLAB_GANG_CHILD		0x4
+#define	METASLAB_ASYNC_ALLOC		0x8
+#define	METASLAB_DONT_THROTTLE		0x10
+#define	METASLAB_FASTWRITE		0x20
 
 int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
-    blkptr_t *, int, uint64_t, blkptr_t *, int);
+    blkptr_t *, int, uint64_t, blkptr_t *, int, zio_t *);
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
 int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);
 void metaslab_check_free(spa_t *, const blkptr_t *);
@@ -76,6 +77,9 @@ int metaslab_class_validate(metaslab_class_t *);
 void metaslab_class_histogram_verify(metaslab_class_t *);
 uint64_t metaslab_class_fragmentation(metaslab_class_t *);
 uint64_t metaslab_class_expandable_space(metaslab_class_t *);
+boolean_t metaslab_class_throttle_reserve(metaslab_class_t *, int,
+    zio_t *, int);
+void metaslab_class_throttle_unreserve(metaslab_class_t *, int, zio_t *);
 
 void metaslab_class_space_update(metaslab_class_t *, int64_t, int64_t,
     int64_t, int64_t);
@@ -88,10 +92,13 @@ metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
 void metaslab_group_destroy(metaslab_group_t *);
 void metaslab_group_activate(metaslab_group_t *);
 void metaslab_group_passivate(metaslab_group_t *);
+boolean_t metaslab_group_initialized(metaslab_group_t *);
 uint64_t metaslab_group_get_space(metaslab_group_t *);
 void metaslab_group_histogram_verify(metaslab_group_t *);
 uint64_t metaslab_group_fragmentation(metaslab_group_t *);
 void metaslab_group_histogram_remove(metaslab_group_t *, metaslab_t *);
+void metaslab_group_alloc_decrement(spa_t *, uint64_t, void *, int);
+void metaslab_group_alloc_verify(spa_t *, const blkptr_t *, void *);
 
 #ifdef	__cplusplus
 }
