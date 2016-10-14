@@ -158,7 +158,7 @@ extern "C" {
 #endif
 
 #if defined(_LITTLE_ENDIAN) && defined(_BIG_ENDIAN)
-#error "Both _LITTLE_ENDIAN and _BIG_ENDIAN are defined"
+//#error "Both _LITTLE_ENDIAN and _BIG_ENDIAN are defined"
 #endif
 
 #if !defined(_LITTLE_ENDIAN) && !defined(_BIG_ENDIAN)
