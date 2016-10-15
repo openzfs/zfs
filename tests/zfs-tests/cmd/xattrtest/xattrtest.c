@@ -177,6 +177,7 @@ parse_args(int argc, char **argv)
 			break;
 		case 't':
 			strncpy(script, optarg, PATH_MAX);
+			script[PATH_MAX - 1] = '\0';
 			break;
 		case 'e':
 			seed = strtol(optarg, NULL, 0);
