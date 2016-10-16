@@ -1064,7 +1064,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	 */
 	if (flags & ZIO_FLAG_IO_ALLOCATING &&
 	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY))) {
-		metaslab_class_t *mc = spa_normal_class(pio->io_spa);
+		ASSERTV(metaslab_class_t *mc = spa_normal_class(pio->io_spa));
 
 		ASSERT(mc->mc_alloc_throttle_enabled);
 		ASSERT(type == ZIO_TYPE_WRITE);
@@ -3555,10 +3555,10 @@ zio_ready(zio_t *zio)
 static void
 zio_dva_throttle_done(zio_t *zio)
 {
-	zio_t *lio = zio->io_logical;
 	zio_t *pio = zio_unique_parent(zio);
 	vdev_t *vd = zio->io_vd;
 	int flags = METASLAB_ASYNC_ALLOC;
+	ASSERTV(zio_t *lio = zio->io_logical);
 
 	ASSERT3P(zio->io_bp, !=, NULL);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
