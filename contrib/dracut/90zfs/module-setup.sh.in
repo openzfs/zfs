@@ -58,6 +58,7 @@ install() {
 		inst_script "${moddir}/zfs-generator.sh" "$systemdutildir"/system-generators/dracut-zfs-generator
 	fi
 	inst_hook mount 98 "${moddir}/mount-zfs.sh"
+	inst_hook cleanup 99 "${moddir}/zfs-needshutdown.sh"
 	inst_hook shutdown 20 "${moddir}/export-zfs.sh"
 
 	inst_simple "${moddir}/zfs-lib.sh" "/lib/dracut-zfs-lib.sh"
