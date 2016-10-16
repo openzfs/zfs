@@ -1094,6 +1094,21 @@ Default value: \fB1,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_parallel_open_enabled\fR (int)
+.ad
+.RS 12n
+Accelerates vdev opening during pool import by allowing all devices to be
+opened in parallel.  This should be enabled for pools constructed from
+independent physical devices.  For configurations where a zvol from one pool
+is used as vdev in another this option should be disabled.  This is needed
+in order to avoid a potential deadlock during pool import.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_scrub_max_active\fR (int)
 .ad
 .RS 12n
