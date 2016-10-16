@@ -54,10 +54,18 @@ function cleanup
 
 	[[ -d $TESTDIR ]] && log_must $RM -rf $TESTDIR
 	partition_cleanup
+
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 }
 
 log_assert "Adding a large number of file based vdevs to a zpool works."
 log_onexit cleanup
+
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 create_pool $TESTPOOL ${DISKS%% *}
 log_must $ZFS create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS

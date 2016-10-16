@@ -57,11 +57,18 @@ function cleanup
 
 	partition_cleanup
 
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 }
 
 log_assert "'zpool add <pool> <vdev> ...' can add zfs volume to the pool."
 
 log_onexit cleanup
+
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
 log_must poolexists "$TESTPOOL"

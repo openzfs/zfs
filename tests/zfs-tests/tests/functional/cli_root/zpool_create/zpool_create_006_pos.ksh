@@ -44,11 +44,18 @@ function cleanup
 {
 	datasetexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 }
 
 
 log_assert "Verify 'zpool create' succeed with keywords combination."
 log_onexit cleanup
+
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 create_pool $TESTPOOL $DISKS
 mntpnt=$(get_prop mountpoint $TESTPOOL)

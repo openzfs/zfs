@@ -83,12 +83,9 @@ tests = ['zfs_clone_001_neg', 'zfs_clone_002_pos', 'zfs_clone_003_pos',
     'zfs_clone_007_pos', 'zfs_clone_008_neg', 'zfs_clone_009_neg',
     'zfs_clone_010_pos']
 
-# DISABLED:
-# zfs_copies_003_pos - zpool on zvol
-# zfs_copies_005_neg - nested pools
 [tests/functional/cli_root/zfs_copies]
-tests = ['zfs_copies_001_pos', 'zfs_copies_002_pos', 'zfs_copies_004_neg',
-    'zfs_copies_006_pos']
+tests = ['zfs_copies_001_pos', 'zfs_copies_002_pos', 'zfs_copies_003_pos',
+    'zfs_copies_004_neg', 'zfs_copies_005_neg', 'zfs_copies_006_pos']
 
 [tests/functional/cli_root/zfs_create]
 tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
@@ -107,11 +104,10 @@ tests = ['zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
     'zfs_destroy_014_pos','zfs_destroy_015_pos', 'zfs_destroy_016_pos']
 
 # DISABLED:
-# zfs_get_004_pos - nested pools
 # zfs_get_006_neg - needs investigation
 [tests/functional/cli_root/zfs_get]
 tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
-    'zfs_get_005_neg', 'zfs_get_007_neg', 'zfs_get_008_pos',
+    'zfs_get_004_pos', 'zfs_get_005_neg', 'zfs_get_007_neg', 'zfs_get_008_pos',
     'zfs_get_009_pos', 'zfs_get_010_neg']
 
 [tests/functional/cli_root/zfs_inherit]
@@ -217,12 +213,11 @@ tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',
 tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos']
 
 # DISABLED:
-# zpool_add_004_pos - nested pools
 # zpool_add_005_pos - no 'dumpadm' command.
-# zpool_add_006_pos - nested pools
 [tests/functional/cli_root/zpool_add]
 tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
-    'zpool_add_007_neg', 'zpool_add_008_neg', 'zpool_add_009_neg']
+    'zpool_add_004_pos', 'zpool_add_006_pos', 'zpool_add_007_neg',
+    'zpool_add_008_neg', 'zpool_add_009_neg']
 
 [tests/functional/cli_root/zpool_attach]
 tests = ['zpool_attach_001_neg']
@@ -234,7 +229,6 @@ tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg']
 # zpool_create_001_pos - needs investigation
 # zpool_create_002_pos - needs investigation
 # zpool_create_004_pos - needs investigation
-# zpool_create_006_pos - nested pools
 # zpool_create_008_pos - uses VTOC labels (?) and 'overlapping slices'
 # zpool_create_011_neg - tries to access /etc/vfstab etc
 # zpool_create_012_neg - swap devices
@@ -244,9 +238,9 @@ tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg']
 # zpool_create_020_pos - needs investigation
 [tests/functional/cli_root/zpool_create]
 tests = [
-    'zpool_create_003_pos', 'zpool_create_005_pos', 'zpool_create_007_neg',
-    'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_017_neg',
-    'zpool_create_018_pos', 'zpool_create_019_pos',
+    'zpool_create_003_pos', 'zpool_create_005_pos', 'zpool_create_006_pos',
+    'zpool_create_007_neg', 'zpool_create_009_neg', 'zpool_create_010_neg',
+    'zpool_create_017_neg', 'zpool_create_018_pos', 'zpool_create_019_pos',
     'zpool_create_021_pos', 'zpool_create_022_pos', 'zpool_create_023_neg',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg']
@@ -268,11 +262,9 @@ tests = ['zpool_detach_001_neg']
 #tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
 #    'zpool_expand_003_neg']
 
-# DISABLED:
-# zpool_export_004_pos - nested pools
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
-    'zpool_export_003_neg']
+    'zpool_export_003_neg', 'zpool_export_004_pos']
 
 [tests/functional/cli_root/zpool_get]
 tests = ['zpool_get_001_pos', 'zpool_get_002_pos', 'zpool_get_003_pos',
@@ -516,9 +508,8 @@ tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
 tests = ['refreserv_001_pos', 'refreserv_002_pos', 'refreserv_003_pos',
     'refreserv_005_pos']
 
-# DISABLED: nested pool
-#[tests/functional/rename_dirs]
-#tests = ['rename_dirs_001_pos']
+[tests/functional/rename_dirs]
+tests = ['rename_dirs_001_pos']
 
 [tests/functional/replacement]
 tests = ['replacement_001_pos', 'replacement_002_pos', 'replacement_003_pos']
@@ -561,11 +552,10 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg']
 
 # DISABLED:
-# clone_001_pos - nested pools
 # rollback_003_pos - Hangs in unmount and spins.
 # snapshot_016_pos - Problem with automount
 [tests/functional/snapshot]
-tests = ['rollback_001_pos', 'rollback_002_pos',
+tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
     'snapshot_001_pos', 'snapshot_002_pos',
     'snapshot_003_pos', 'snapshot_004_pos', 'snapshot_005_pos',
     'snapshot_006_pos', 'snapshot_007_pos', 'snapshot_008_pos',

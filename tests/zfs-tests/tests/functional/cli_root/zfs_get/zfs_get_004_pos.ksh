@@ -68,10 +68,19 @@ function cleanup
 				log_must $ZFS destroy -rf $fs
 		done
 	fi
+
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
+
 }
 
 log_assert "Verify the functions of 'zfs get all' work."
 log_onexit cleanup
+
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 typeset globalzone=""
 

@@ -48,10 +48,18 @@ function cleanup
 	if [[ -f $TESTDIR/$ZPOOL_VERSION_1_FILES ]]; then
 		rm -f $TESTDIR/$ZPOOL_VERSION_1_FILES
 	fi
+
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 }
 
 log_assert "Verify that copies cannot be set with pool version 1"
 log_onexit cleanup
+
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 $CP $STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/$ZPOOL_VERSION_1_FILES $TESTDIR
 $BUNZIP2 $TESTDIR/$ZPOOL_VERSION_1_FILES

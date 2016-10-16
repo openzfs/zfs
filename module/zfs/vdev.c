@@ -52,6 +52,11 @@
 int metaslabs_per_vdev = 200;
 
 /*
+ * Allow system administrator to disable parallel open optimization so that
+ * unsupported ZFS on something else on zvol is semi-safe.
+ */
+int zfs_vdev_parallel_open_enabled = 1;
+/*
  * Virtual device management.
  */
 
@@ -1136,7 +1141,7 @@ vdev_uses_zvols(vdev_t *vd)
 	int c;
 
 #ifdef _KERNEL
-	if (zvol_is_zvol(vd->vdev_path))
+	if (zfs_vdev_parallel_open_enabled == 0 || zvol_is_zvol(vd->vdev_path))
 		return (B_TRUE);
 #endif
 
@@ -3641,6 +3646,10 @@ EXPORT_SYMBOL(vdev_degrade);
 EXPORT_SYMBOL(vdev_online);
 EXPORT_SYMBOL(vdev_offline);
 EXPORT_SYMBOL(vdev_clear);
+
+module_param(zfs_vdev_parallel_open_enabled, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_parallel_open_enabled,
+	"Open vdev children in parallel during import.");
 
 module_param(metaslabs_per_vdev, int, 0644);
 MODULE_PARM_DESC(metaslabs_per_vdev,
