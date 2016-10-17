@@ -3472,7 +3472,11 @@ arc_prune_async(int64_t adjust)
 
 		refcount_add(&ap->p_refcnt, ap->p_pfunc);
 		ap->p_adjust = adjust;
-		taskq_dispatch(arc_prune_taskq, arc_prune_task, ap, TQ_SLEEP);
+		if (taskq_dispatch(arc_prune_taskq, arc_prune_task,
+		    ap, TQ_SLEEP) == 0) {
+			refcount_remove(&ap->p_refcnt, ap->p_pfunc);
+			continue;
+		}
 		ARCSTAT_BUMP(arcstat_prune);
 	}
 	mutex_exit(&arc_prune_mtx);
