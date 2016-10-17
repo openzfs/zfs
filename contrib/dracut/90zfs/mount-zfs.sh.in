@@ -22,7 +22,6 @@ if [ -e "$GENERATOR_FILE" -a -e "$GENERATOR_EXTENSION" ] ; then
 	# Let us tell the initrd to run on shutdown.
 	# We have a shutdown hook to run
 	# because we imported the pool.
-	need_shutdown
 	# We now prevent Dracut from running this thing again.
 	for zfsmounthook in "$hookdir"/mount/*zfs* ; do
 		if [ -f "$zfsmounthook" ] ; then
@@ -60,7 +59,6 @@ if import_pool "${ZFS_POOL}" ; then
 	# Let us tell the initrd to run on shutdown.
 	# We have a shutdown hook to run
 	# because we imported the pool.
-	need_shutdown
 	info "ZFS: Mounting dataset ${ZFS_DATASET}..."
 	if mount_dataset "${ZFS_DATASET}" ; then
 		ROOTFS_MOUNTED=yes
