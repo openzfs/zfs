@@ -1495,12 +1495,24 @@ find_spare(zpool_handle_t *zhp, void *data)
 	return (0);
 }
 
+typedef struct status_cbdata {
+	int		cb_count;
+	int		cb_name_flags;
+	int		cb_namewidth;
+	boolean_t	cb_allpools;
+	boolean_t	cb_verbose;
+	boolean_t	cb_explain;
+	boolean_t	cb_first;
+	boolean_t	cb_dedup_stats;
+	boolean_t	cb_print_status;
+} status_cbdata_t;
+
 /*
  * Print out configuration state as requested by status_callback.
  */
 static void
-print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
-    int namewidth, int depth, boolean_t isspare, int name_flags)
+print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
+    nvlist_t *nv, int depth, boolean_t isspare)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1509,7 +1521,7 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	char rbuf[6], wbuf[6], cbuf[6];
 	char *vname;
 	uint64_t notpresent;
-	spare_cbdata_t cb;
+	spare_cbdata_t spare_cb;
 	char *state;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
@@ -1531,7 +1543,7 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 			state = "AVAIL";
 	}
 
-	(void) printf("\t%*s%-*s  %-8s", depth, "", namewidth - depth,
+	(void) printf("\t%*s%-*s  %-8s", depth, "", cb->cb_namewidth - depth,
 	    name, state);
 
 	if (!isspare) {
@@ -1572,17 +1584,17 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 
 		case VDEV_AUX_SPARED:
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
-			    &cb.cb_guid) == 0);
-			if (zpool_iter(g_zfs, find_spare, &cb) == 1) {
-				if (strcmp(zpool_get_name(cb.cb_zhp),
+			    &spare_cb.cb_guid) == 0);
+			if (zpool_iter(g_zfs, find_spare, &spare_cb) == 1) {
+				if (strcmp(zpool_get_name(spare_cb.cb_zhp),
 				    zpool_get_name(zhp)) == 0)
 					(void) printf(gettext("currently in "
 					    "use"));
 				else
 					(void) printf(gettext("in use by "
 					    "pool '%s'"),
-					    zpool_get_name(cb.cb_zhp));
-				zpool_close(cb.cb_zhp);
+					    zpool_get_name(spare_cb.cb_zhp));
+				zpool_close(spare_cb.cb_zhp);
 			} else {
 				(void) printf(gettext("currently in use"));
 			}
@@ -1637,9 +1649,9 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (islog || ishole)
 			continue;
 		vname = zpool_vdev_name(g_zfs, zhp, child[c],
-		    name_flags | VDEV_NAME_TYPE_ID);
-		print_status_config(zhp, vname, child[c],
-		    namewidth, depth + 2, isspare, name_flags);
+		    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
+		print_status_config(zhp, cb, vname, child[c], depth + 2,
+		    isspare);
 		free(vname);
 	}
 }
@@ -1649,8 +1661,8 @@ print_status_config(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
  * pool, printing out the name and status for each one.
  */
 static void
-print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
-    int name_flags)
+print_import_config(status_cbdata_t *cb, const char *name, nvlist_t *nv,
+    int depth)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1665,7 +1677,7 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
 
-	(void) printf("\t%*s%-*s", depth, "", namewidth - depth, name);
+	(void) printf("\t%*s%-*s", depth, "", cb->cb_namewidth - depth, name);
 	(void) printf("  %s", zpool_state_to_name(vs->vs_state, vs->vs_aux));
 
 	if (vs->vs_aux != 0) {
@@ -1716,9 +1728,8 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
 			continue;
 
 		vname = zpool_vdev_name(g_zfs, NULL, child[c],
-		    name_flags | VDEV_NAME_TYPE_ID);
-		print_import_config(vname, child[c], namewidth, depth + 2,
-		    name_flags);
+		    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
+		print_import_config(cb, vname, child[c], depth + 2);
 		free(vname);
 	}
 
@@ -1727,7 +1738,7 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
 		(void) printf(gettext("\tcache\n"));
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, NULL, child[c],
-			    name_flags);
+			    cb->cb_name_flags);
 			(void) printf("\t  %s\n", vname);
 			free(vname);
 		}
@@ -1738,7 +1749,7 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
 		(void) printf(gettext("\tspares\n"));
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, NULL, child[c],
-			    name_flags);
+			    cb->cb_name_flags);
 			(void) printf("\t  %s\n", vname);
 			free(vname);
 		}
@@ -1754,8 +1765,7 @@ print_import_config(const char *name, nvlist_t *nv, int namewidth, int depth,
  * works because only the top level vdev is marked "is_log"
  */
 static void
-print_logs(zpool_handle_t *zhp, nvlist_t *nv, int namewidth, boolean_t verbose,
-    int name_flags)
+print_logs(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv)
 {
 	uint_t c, children;
 	nvlist_t **child;
@@ -1775,13 +1785,12 @@ print_logs(zpool_handle_t *zhp, nvlist_t *nv, int namewidth, boolean_t verbose,
 		if (!is_log)
 			continue;
 		name = zpool_vdev_name(g_zfs, zhp, child[c],
-		    name_flags | VDEV_NAME_TYPE_ID);
-		if (verbose)
-			print_status_config(zhp, name, child[c], namewidth,
-			    2, B_FALSE, name_flags);
+		    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
+		if (cb->cb_print_status)
+			print_status_config(zhp, cb, name, child[c], 2,
+			    B_FALSE);
 		else
-			print_import_config(name, child[c], namewidth, 2,
-			    name_flags);
+			print_import_config(cb, name, child[c], 2);
 		free(name);
 	}
 }
@@ -1802,8 +1811,8 @@ show_import(nvlist_t *config)
 	zpool_errata_t errata;
 	const char *health;
 	uint_t vsc;
-	int namewidth;
 	char *comment;
+	status_cbdata_t cb = { 0 };
 
 	verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
 	    &name) == 0);
@@ -2030,13 +2039,13 @@ show_import(nvlist_t *config)
 
 	(void) printf(gettext(" config:\n\n"));
 
-	namewidth = max_width(NULL, nvroot, 0, 0, 0);
-	if (namewidth < 10)
-		namewidth = 10;
+	cb.cb_namewidth = max_width(NULL, nvroot, 0, 0, 0);
+	if (cb.cb_namewidth < 10)
+		cb.cb_namewidth = 10;
 
-	print_import_config(name, nvroot, namewidth, 0, 0);
+	print_import_config(&cb, name, nvroot, 0);
 	if (num_logs(nvroot) > 0)
-		print_logs(NULL, nvroot, namewidth, B_FALSE, 0);
+		print_logs(NULL, &cb, nvroot);
 
 	if (reason == ZPOOL_STATUS_BAD_GUID_SUM) {
 		(void) printf(gettext("\n\tAdditional devices are known to "
@@ -5411,16 +5420,6 @@ zpool_do_scrub(int argc, char **argv)
 	return (for_each_pool(argc, argv, B_TRUE, NULL, scrub_callback, &cb));
 }
 
-typedef struct status_cbdata {
-	int		cb_count;
-	int		cb_name_flags;
-	boolean_t	cb_allpools;
-	boolean_t	cb_verbose;
-	boolean_t	cb_explain;
-	boolean_t	cb_first;
-	boolean_t	cb_dedup_stats;
-} status_cbdata_t;
-
 /*
  * Print out detailed scrub status.
  */
@@ -5569,8 +5568,8 @@ print_error_log(zpool_handle_t *zhp)
 }
 
 static void
-print_spares(zpool_handle_t *zhp, nvlist_t **spares, uint_t nspares,
-    int namewidth, int name_flags)
+print_spares(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t **spares,
+    uint_t nspares)
 {
 	uint_t i;
 	char *name;
@@ -5581,16 +5580,16 @@ print_spares(zpool_handle_t *zhp, nvlist_t **spares, uint_t nspares,
 	(void) printf(gettext("\tspares\n"));
 
 	for (i = 0; i < nspares; i++) {
-		name = zpool_vdev_name(g_zfs, zhp, spares[i], name_flags);
-		print_status_config(zhp, name, spares[i],
-		    namewidth, 2, B_TRUE, name_flags);
+		name = zpool_vdev_name(g_zfs, zhp, spares[i],
+		    cb->cb_name_flags);
+		print_status_config(zhp, cb, name, spares[i], 2, B_TRUE);
 		free(name);
 	}
 }
 
 static void
-print_l2cache(zpool_handle_t *zhp, nvlist_t **l2cache, uint_t nl2cache,
-    int namewidth, int name_flags)
+print_l2cache(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t **l2cache,
+    uint_t nl2cache)
 {
 	uint_t i;
 	char *name;
@@ -5601,9 +5600,9 @@ print_l2cache(zpool_handle_t *zhp, nvlist_t **l2cache, uint_t nl2cache,
 	(void) printf(gettext("\tcache\n"));
 
 	for (i = 0; i < nl2cache; i++) {
-		name = zpool_vdev_name(g_zfs, zhp, l2cache[i], name_flags);
-		print_status_config(zhp, name, l2cache[i],
-		    namewidth, 2, B_FALSE, name_flags);
+		name = zpool_vdev_name(g_zfs, zhp, l2cache[i],
+		    cb->cb_name_flags);
+		print_status_config(zhp, cb, name, l2cache[i], 2, B_FALSE);
 		free(name);
 	}
 }
@@ -5935,7 +5934,6 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    msgid);
 
 	if (config != NULL) {
-		int namewidth;
 		uint64_t nerr;
 		nvlist_t **spares, **l2cache;
 		uint_t nspares, nl2cache;
@@ -5945,28 +5943,27 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
 		print_scan_status(ps);
 
-		namewidth = max_width(zhp, nvroot, 0, 0, cbp->cb_name_flags);
-		if (namewidth < 10)
-			namewidth = 10;
+		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
+		    cbp->cb_name_flags);
+		if (cbp->cb_namewidth < 10)
+			cbp->cb_namewidth = 10;
 
 		(void) printf(gettext("config:\n\n"));
-		(void) printf(gettext("\t%-*s  %-8s %5s %5s %5s\n"), namewidth,
-		    "NAME", "STATE", "READ", "WRITE", "CKSUM");
-		print_status_config(zhp, zpool_get_name(zhp), nvroot,
-		    namewidth, 0, B_FALSE, cbp->cb_name_flags);
+		(void) printf(gettext("\t%-*s  %-8s %5s %5s %5s\n"),
+		    cbp->cb_namewidth, "NAME", "STATE", "READ", "WRITE",
+		    "CKSUM");
+		print_status_config(zhp, cbp, zpool_get_name(zhp), nvroot, 0,
+		    B_FALSE);
 
 		if (num_logs(nvroot) > 0)
-			print_logs(zhp, nvroot, namewidth, B_TRUE,
-			    cbp->cb_name_flags);
+			print_logs(zhp, cbp, nvroot);
 		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
 		    &l2cache, &nl2cache) == 0)
-			print_l2cache(zhp, l2cache, nl2cache, namewidth,
-				cbp->cb_name_flags);
+			print_l2cache(zhp, cbp, l2cache, nl2cache);
 
 		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
 		    &spares, &nspares) == 0)
-			print_spares(zhp, spares, nspares, namewidth,
-			    cbp->cb_name_flags);
+			print_spares(zhp, cbp, spares, nspares);
 
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
 		    &nerr) == 0) {
@@ -6075,6 +6072,7 @@ zpool_do_status(int argc, char **argv)
 		cb.cb_allpools = B_TRUE;
 
 	cb.cb_first = B_TRUE;
+	cb.cb_print_status = B_TRUE;
 
 	for (;;) {
 		if (timestamp_fmt != NODATE)
