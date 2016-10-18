@@ -362,4 +362,15 @@ static inline struct inode *file_inode(const struct file *f)
 #define	zpl_follow_up(path)			follow_up(path)
 #endif
 
+/*
+ * 4.9 API change
+ */
+#ifndef HAVE_SETATTR_PREPARE
+static inline int
+setattr_prepare(struct dentry *dentry, struct iattr *ia)
+{
+	return (inode_change_ok(dentry->d_inode, ia));
+}
+#endif
+
 #endif /* _ZFS_VFS_H */
