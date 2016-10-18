@@ -62,19 +62,17 @@ cr_groups_search(const struct group_info *group_info, gid_t grp)
 	return 0;
 }
 
-/* Hold a reference on the credential and group info */
+/* Hold a reference on the credential */
 void
 crhold(cred_t *cr)
 {
 	(void)get_cred((const cred_t *)cr);
-	(void)get_group_info(cr->group_info);
 }
 
-/* Free a reference on the credential and group info */
+/* Free a reference on the credential */
 void
 crfree(cred_t *cr)
 {
-	put_group_info(cr->group_info);
 	put_cred((const cred_t *)cr);
 }
 
@@ -85,28 +83,32 @@ crgetngroups(const cred_t *cr)
 	struct group_info *gi;
 	int rc;
 
-	gi = get_group_info(cr->group_info);
+	gi = cr->group_info;
 	rc = gi->ngroups;
-	put_group_info(gi);
-
+	/*
+	 * crgetgroups will only returns gi->blocks[0], which contains only
+	 * the first NGROUPS_PER_BLOCK groups.
+	 */
+	if (rc > NGROUPS_PER_BLOCK) {
+		WARN_ON_ONCE(1);
+		rc = NGROUPS_PER_BLOCK;
+	}
 	return rc;
 }
 
 /*
  * Return an array of supplemental gids.  The returned address is safe
  * to use as long as the caller has taken a reference with crhold().
- * The caller is responsible for releasing the reference with crfree().
  */
 gid_t *
 crgetgroups(const cred_t *cr)
 {
 	struct group_info *gi;
-	gid_t *gids;
+	gid_t *gids = NULL;
 
-	gi = get_group_info(cr->group_info);
-	gids = KGIDP_TO_SGIDP(gi->blocks[0]);
-	put_group_info(gi);
-
+	gi = cr->group_info;
+	if (gi->nblocks > 0)
+		gids = KGIDP_TO_SGIDP(gi->blocks[0]);
 	return gids;
 }
 
@@ -117,9 +119,8 @@ groupmember(gid_t gid, const cred_t *cr)
 	struct group_info *gi;
 	int rc;
 
-	gi = get_group_info(cr->group_info);
+	gi = cr->group_info;
 	rc = cr_groups_search(gi, SGID_TO_KGID(gid));
-	put_group_info(gi);
 
 	return rc;
 }
