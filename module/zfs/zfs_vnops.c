@@ -932,6 +932,12 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 }
 EXPORT_SYMBOL(zfs_write);
 
+/*
+ * Drop a reference on the passed inode asynchronously. This ensures
+ * that the caller will never drop the last reference on an inode in
+ * the current context. Doing so while holding open a tx could result
+ * in a deadlock if iput_final() re-enters the filesystem code.
+ */
 void
 zfs_iput_async(struct inode *ip)
 {
@@ -941,8 +947,8 @@ zfs_iput_async(struct inode *ip)
 	ASSERT(os != NULL);
 
 	if (atomic_read(&ip->i_count) == 1)
-		taskq_dispatch(dsl_pool_iput_taskq(dmu_objset_pool(os)),
-		    (task_func_t *)iput, ip, TQ_SLEEP);
+		VERIFY(taskq_dispatch(dsl_pool_iput_taskq(dmu_objset_pool(os)),
+		    (task_func_t *)iput, ip, TQ_SLEEP) != 0);
 	else
 		iput(ip);
 }
