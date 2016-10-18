@@ -355,13 +355,24 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	return (error);
 }
 
+#if defined(HAVE_RENAME_WITH_FLAGS)
+static int
+zpl_rename(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+#else
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
+#endif
 {
 	cred_t *cr = CRED();
 	int error;
 	fstrans_cookie_t cookie;
+
+#if defined(HAVE_RENAME_WITH_FLAGS)
+	if (flags)
+		return (-EINVAL);
+#endif
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
