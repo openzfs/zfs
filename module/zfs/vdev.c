@@ -1170,12 +1170,15 @@ vdev_open_children(vdev_t *vd)
 	 * spa_namespace_lock
 	 */
 	if (vdev_uses_zvols(vd)) {
+retry_sync:
 		for (c = 0; c < children; c++)
 			vd->vdev_child[c]->vdev_open_error =
 			    vdev_open(vd->vdev_child[c]);
 	} else {
 		tq = taskq_create("vdev_open", children, minclsyspri,
 		    children, children, TASKQ_PREPOPULATE);
+		if (tq == NULL)
+			goto retry_sync;
 
 		for (c = 0; c < children; c++)
 			VERIFY(taskq_dispatch(tq, vdev_open_child,
