@@ -550,7 +550,8 @@ run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
 	print_stats(args, cmd);
 
 	if (args->verbose) {
-		rc2 = read(zpiosctl_fd, zpios_buffer, zpios_buffer_size - 1);
+		rc2 = read(zpiosctl_fd, zpios_buffer, zpios_buffer_size);
+		zpios_buffer[zpios_buffer_size - 1] = '\0';
 		if (rc2 < 0) {
 			fprintf(stdout, "Error reading results: %d\n", rc2);
 		} else if ((rc2 > 0) && (strlen(zpios_buffer) > 0)) {
