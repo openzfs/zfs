@@ -324,7 +324,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	int error;
 	fstrans_cookie_t cookie;
 
-	error = inode_change_ok(ip, ia);
+	error = setattr_prepare(dentry, ia);
 	if (error)
 		return (error);
 
