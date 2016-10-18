@@ -49,6 +49,7 @@ Makefile.in
 !.gitignore
 tags
 TAGS
+current
 cscope.*
 *.rpm
 *.deb
