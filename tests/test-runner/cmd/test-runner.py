@@ -685,10 +685,18 @@ class TestRun(object):
         """
         Walk through all the Tests and TestGroups, calling run().
         """
+        logsymlink = os.path.join(os.getcwd(), 'current')
         try:
             os.chdir(self.outputdir)
         except OSError:
             fail('Could not change to directory %s' % self.outputdir)
+        if os.path.islink(logsymlink):
+            os.unlink(logsymlink)
+        if not os.path.exists(logsymlink):
+            os.symlink(self.outputdir, logsymlink)
+        else:
+            print 'Could not make a symlink to directory %s' % (
+                self.outputdir)
         for test in sorted(self.tests.keys()):
             self.tests[test].run(self.logger, options)
         for testgroup in sorted(self.testgroups.keys()):
