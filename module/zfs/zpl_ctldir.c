@@ -301,12 +301,16 @@ zpl_snapdir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 }
 #endif /* HAVE_VFS_ITERATE */
 
-int
-zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry)
+static int
+zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
 {
 	cred_t *cr = CRED();
 	int error;
+
+	/* We probably don't want to support renameat2(2) in ctldir */
+	if (flags)
+		return (-EINVAL);
 
 	crhold(cr);
 	error = -zfsctl_snapdir_rename(sdip, dname(sdentry),
@@ -316,6 +320,15 @@ zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
 
 	return (error);
 }
+
+#ifndef HAVE_RENAME_WANTS_FLAGS
+static int
+zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry)
+{
+	return (zpl_snapdir_rename2(sdip, sdentry, tdip, tdentry, 0));
+}
+#endif
 
 static int
 zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
@@ -405,7 +418,11 @@ const struct file_operations zpl_fops_snapdir = {
 const struct inode_operations zpl_ops_snapdir = {
 	.lookup		= zpl_snapdir_lookup,
 	.getattr	= zpl_snapdir_getattr,
+#ifdef HAVE_RENAME_WANTS_FLAGS
+	.rename		= zpl_snapdir_rename2,
+#else
 	.rename		= zpl_snapdir_rename,
+#endif
 	.rmdir		= zpl_snapdir_rmdir,
 	.mkdir		= zpl_snapdir_mkdir,
 };
