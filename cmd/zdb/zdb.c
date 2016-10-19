@@ -3290,7 +3290,7 @@ zdb_vdev_lookup(vdev_t *vdev, char *path)
 		return (NULL);
 
 	vdev = vdev->vdev_child[i];
-	if (*s == '\0')
+	if (s && *s == '\0')
 		return (vdev);
 	return (zdb_vdev_lookup(vdev, s+1));
 
