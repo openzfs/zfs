@@ -390,3 +390,30 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS], [
 	])
 ])
 
+dnl #
+dnl # 4.9 API change,
+dnl # All filesystems which support xattrs are required to have registered
+dnl # them with sb->s_xattr.  The old getxattr, setxattr, removexattr and
+dnl # assoicated helper functions have been removed.  This was done all in
+dnl # one commit upstream so if one has been removed they all should be.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_XATTR], [
+	AC_MSG_CHECKING([whether iops->*xattr() exist])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+		#include <linux/xattr.h>
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
+			.setxattr = generic_setxattr,
+			.getxattr = generic_getxattr,
+			.removexattr = generic_removexattr,
+		};
+	],[
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_XATTR, 1, [iops->*xattr() exist])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])

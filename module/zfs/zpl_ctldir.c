@@ -301,12 +301,23 @@ zpl_snapdir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 }
 #endif /* HAVE_VFS_ITERATE */
 
+#if defined(HAVE_RENAME_WITH_FLAGS)
+int
+zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+#else
 int
 zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
+#endif
 {
 	cred_t *cr = CRED();
 	int error;
+
+#if defined(HAVE_RENAME_WITH_FLAGS)
+	if (flags)
+		return (-EINVAL);
+#endif
 
 	crhold(cr);
 	error = -zfsctl_snapdir_rename(sdip, dname(sdentry),
@@ -316,6 +327,8 @@ zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
 
 	return (error);
 }
+
+
 
 static int
 zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)

@@ -323,7 +323,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	int error;
 	fstrans_cookie_t cookie;
 
-	error = inode_change_ok(ip, ia);
+	error = setattr_prepare(dentry, ia);
 	if (error)
 		return (error);
 
@@ -355,13 +355,24 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	return (error);
 }
 
+#if defined(HAVE_RENAME_WITH_FLAGS)
+static int
+zpl_rename(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+#else
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
+#endif
 {
 	cred_t *cr = CRED();
 	int error;
 	fstrans_cookie_t cookie;
+
+#if defined(HAVE_RENAME_WITH_FLAGS)
+	if (flags)
+		return (-EINVAL);
+#endif
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -659,9 +670,11 @@ const struct inode_operations zpl_inode_operations = {
 	.rename		= zpl_rename,
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
+#ifdef HAVE_INODE_XATTR
 	.setxattr	= generic_setxattr,
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
+#endif /* HAVE_INODE_XATTR */
 	.listxattr	= zpl_xattr_list,
 #ifdef HAVE_INODE_TRUNCATE_RANGE
 	.truncate_range = zpl_truncate_range,
@@ -692,9 +705,11 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.rename		= zpl_rename,
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
+#ifdef HAVE_INODE_XATTR
 	.setxattr	= generic_setxattr,
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
+#endif /* HAVE_INODE_XATTR */
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_GET_ACL)
@@ -719,18 +734,22 @@ const struct inode_operations zpl_symlink_inode_operations = {
 #endif
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
+#ifdef HAVE_INODE_XATTR
 	.setxattr	= generic_setxattr,
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
+#endif /* HAVE_INODE_XATTR */
 	.listxattr	= zpl_xattr_list,
 };
 
 const struct inode_operations zpl_special_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
+#ifdef HAVE_INODE_XATTR
 	.setxattr	= generic_setxattr,
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
+#endif /* HAVE_INODE_XATTR */
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_GET_ACL)
