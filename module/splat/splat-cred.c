@@ -166,6 +166,7 @@ splat_cred_test2(struct file *file, void *arg)
         return 0;
 } /* splat_cred_test2() */
 
+#define	SPLAT_NGROUPS	32
 /*
  * Verify the groupmember() works correctly by constructing an interesting
  * CRED() and checking that the expected gids are part of it.
@@ -188,7 +189,7 @@ splat_cred_test3(struct file *file, void *arg)
 	 * 1:(NGROUPS_MAX-1).  Gid 0 is explicitly avoided so we can reliably
 	 * test for its absence in the test cases.
 	 */
-	gi = groups_alloc(NGROUPS_SMALL);
+	gi = groups_alloc(SPLAT_NGROUPS);
 	if (gi == NULL) {
 		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Failed create "
 		    "group_info for known gids: %d\n", -ENOMEM);
@@ -196,7 +197,7 @@ splat_cred_test3(struct file *file, void *arg)
 		goto show_groups;
 	}
 
-	for (i = 0, tmp_gid = known_gid; i < NGROUPS_SMALL; i++) {
+	for (i = 0, tmp_gid = known_gid; i < SPLAT_NGROUPS; i++) {
 		splat_vprint(file, SPLAT_CRED_TEST3_NAME, "Adding gid %d "
 		    "to current CRED() (%d/%d)\n", tmp_gid, i, gi->ngroups);
 #ifdef HAVE_KUIDGID_T
