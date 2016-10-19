@@ -53,18 +53,18 @@ splat_cred_test1(struct file *file, void *arg)
 	uid_t uid, ruid, suid;
 	gid_t gid, rgid, sgid, *groups;
 	int ngroups, i, count = 0;
+	cred_t *cr = CRED();
 
-	uid  = crgetuid(CRED());
-	ruid = crgetruid(CRED());
-	suid = crgetsuid(CRED());
+	uid  = crgetuid(cr);
+	ruid = crgetruid(cr);
+	suid = crgetsuid(cr);
 
-	gid  = crgetgid(CRED());
-	rgid = crgetrgid(CRED());
-	sgid = crgetsgid(CRED());
+	gid  = crgetgid(cr);
+	rgid = crgetrgid(cr);
+	sgid = crgetsgid(cr);
 
-	crhold(CRED());
-	ngroups = crgetngroups(CRED());
-	groups  = crgetgroups(CRED());
+	ngroups = crgetngroups(cr);
+	groups = crgetgroups(cr);
 
 	memset(str, 0, GROUP_STR_SIZE);
 	for (i = 0; i < ngroups; i++) {
@@ -77,8 +77,6 @@ splat_cred_test1(struct file *file, void *arg)
 			return -ENOSPC;
 		}
 	}
-
-	crfree(CRED());
 
 	splat_vprint(file, SPLAT_CRED_TEST1_NAME,
 		     "uid: %d ruid: %d suid: %d "
@@ -114,6 +112,8 @@ splat_cred_test2(struct file *file, void *arg)
 	gid_t gid, rgid, sgid, *groups;
 	int ngroups, i, count = 0;
 
+	crhold(kcred);
+
 	uid  = crgetuid(kcred);
 	ruid = crgetruid(kcred);
 	suid = crgetsuid(kcred);
@@ -122,7 +122,6 @@ splat_cred_test2(struct file *file, void *arg)
 	rgid = crgetrgid(kcred);
 	sgid = crgetsgid(kcred);
 
-	crhold(kcred);
 	ngroups = crgetngroups(kcred);
 	groups  = crgetgroups(kcred);
 
@@ -134,6 +133,7 @@ splat_cred_test2(struct file *file, void *arg)
 			splat_vprint(file, SPLAT_CRED_TEST2_NAME,
 				     "Failed too many group entries for temp "
 				     "buffer: %d, %s\n", ngroups, str);
+			crfree(kcred);
 			return -ENOSPC;
 		}
 	}
