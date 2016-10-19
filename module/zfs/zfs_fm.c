@@ -112,6 +112,33 @@ zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
 		fm_nvlist_destroy(detector, FM_NVA_FREE);
 }
 
+/*
+ * We want to rate limit ZIO delay and checksum events so as to not
+ * flood ZED when a disk is acting up.
+ *
+ * Returns 1 if we're ratelimiting, 0 if not.
+ */
+static int
+zfs_is_ratelimiting_event(const char *subclass, vdev_t *vd)
+{
+	int rc = 0;
+	/*
+	 * __ratelimit() returns 1 if we're *not* ratelimiting and 0 if we
+	 * are.  Invert it to get our return value.
+	 */
+	if (strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) {
+		rc = !zfs_ratelimit(&vd->vdev_delay_rl);
+	} else if (strcmp(subclass, FM_EREPORT_ZFS_CHECKSUM) == 0) {
+		rc = !zfs_ratelimit(&vd->vdev_checksum_rl);
+	}
+
+	if (rc)	{
+		/* We're rate limiting */
+		fm_erpt_dropped_increment();
+	}
+
+	return (rc);
+}
 
 static void
 zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
@@ -188,6 +215,12 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 
 	if ((detector = fm_nvlist_create(NULL)) == NULL) {
 		fm_nvlist_destroy(ereport, FM_NVA_FREE);
+		return;
+	}
+
+	if ((strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) &&
+	    !zio->io_timestamp) {
+		/* Ignore bogus delay events */
 		return;
 	}
 
@@ -738,6 +771,9 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	if (ereport == NULL)
 		return;
 
+	if (zfs_is_ratelimiting_event(subclass, vd))
+		return;
+
 	/* Cleanup is handled by the callback function */
 	zfs_zevent_post(ereport, detector, zfs_zevent_post_cb);
 #endif
@@ -748,7 +784,15 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
     struct zio *zio, uint64_t offset, uint64_t length, void *arg,
     zio_bad_cksum_t *info)
 {
-	zio_cksum_report_t *report = kmem_zalloc(sizeof (*report), KM_SLEEP);
+	zio_cksum_report_t *report;
+
+
+#ifdef _KERNEL
+	if (zfs_is_ratelimiting_event(FM_EREPORT_ZFS_CHECKSUM, vd))
+		return;
+#endif
+
+	report = kmem_zalloc(sizeof (*report), KM_SLEEP);
 
 	if (zio->io_vsd != NULL)
 		zio->io_vsd_ops->vsd_cksum_report(zio, report, arg);

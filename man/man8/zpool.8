@@ -626,7 +626,7 @@ Controls automatic pool expansion when the underlying LUN is grown. If set to \f
 .ad
 .sp .6
 .RS 4n
-Controls automatic device replacement. If set to "\fBoff\fR", device replacement must be initiated by the administrator by using the "\fBzpool replace\fR" command. If set to "\fBon\fR", any new device, found in the same physical location as a device that previously belonged to the pool, is automatically formatted and replaced. The default behavior is "\fBoff\fR". This property can also be referred to by its shortened column name, "replace".
+Controls automatic device replacement. If set to "\fBoff\fR", device replacement must be initiated by the administrator by using the "\fBzpool replace\fR" command. If set to "\fBon\fR", any new device, found in the same physical location as a device that previously belonged to the pool, is automatically formatted and replaced. The default behavior is "\fBoff\fR". This property can also be referred to by its shortened column name, "replace".  Autoreplace can also be used with virtual disks (like device mapper) provided that you use the /dev/disk/by-vdev paths setup by vdev_id.conf.  See the vdev_id.conf man page for more details.  Autoreplace and autoonline require libudev to be present at build time.  If you're using device mapper disks, you must have libdevmapper installed at build time as well.
 .RE
 
 .sp

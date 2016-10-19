@@ -86,6 +86,14 @@
 #ZED_SPARE_ON_IO_ERRORS=1
 
 ##
+# Turn on/off enclosure LEDs when drives get DEGRADED/FAULTED.  This works for
+# device mapper and multipath devices as well.  Your enclosure must be
+# supported by the Linux SES driver for this to work.
+#
+ZED_USE_ENCLOSURE_LEDS=1
+
+
+##
 # The syslog priority (e.g., specified as a "facility.level" pair).
 #
 #ZED_SYSLOG_PRIORITY="daemon.notice"

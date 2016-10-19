@@ -159,6 +159,7 @@ static void *
 zed_udev_monitor(void *arg)
 {
 	struct udev_monitor *mon = arg;
+	char *tmp, *tmp2;
 
 	zed_log_msg(LOG_INFO, "Waiting for new uduev disk events...");
 
@@ -284,9 +285,26 @@ zed_udev_monitor(void *arg)
 		if (strcmp(class, EC_DEV_STATUS) == 0 &&
 		    udev_device_get_property_value(dev, "DM_UUID") &&
 		    udev_device_get_property_value(dev, "MPATH_SBIN_PATH")) {
-			/* Fake a MP "change" event to look like a "create" */
-			class = EC_DEV_ADD;
-			subclass = ESC_DISK;
+			tmp = (char *) udev_device_get_devnode(dev);
+			tmp2 = get_underlying_path(NULL, tmp);
+			if (tmp && tmp2 && (strcmp(tmp, tmp2) != 0)) {
+				/*
+				 * We have a real underlying device, which
+				 * means that this multipath "change" event is
+				 * an "add" event.
+				 *
+				 * If the multipath device and the underlying
+				 * dev are the same name (i.e. /dev/dm-5), then
+				 * there is no real underlying disk for this
+				 * multipath device, and so this "change" event
+				 * really a multipath removal.
+				 */
+				class = EC_DEV_ADD;
+				subclass = ESC_DISK;
+			} else {
+				/* multipath remove, ignore it. */
+			}
+			free(tmp2);
 		}
 
 		if ((nvl = dev_event_nvlist(dev)) != NULL) {
