@@ -353,12 +353,16 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 }
 
 static int
-zpl_rename(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry)
+zpl_rename2(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
 {
 	cred_t *cr = CRED();
 	int error;
 	fstrans_cookie_t cookie;
+
+	/* We don't have renameat2(2) support */
+	if (flags)
+		return (-EINVAL);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -369,6 +373,15 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 
 	return (error);
 }
+
+#ifndef HAVE_RENAME_WANTS_FLAGS
+static int
+zpl_rename(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry)
+{
+	return (zpl_rename2(sdip, sdentry, tdip, tdentry, 0));
+}
+#endif
 
 static int
 zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
@@ -678,7 +691,11 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mkdir		= zpl_mkdir,
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
+#ifdef HAVE_RENAME_WANTS_FLAGS
+	.rename		= zpl_rename2,
+#else
 	.rename		= zpl_rename,
+#endif
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
 	.setxattr	= generic_setxattr,
