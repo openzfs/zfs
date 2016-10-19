@@ -642,14 +642,6 @@ zpl_revalidate(struct dentry *dentry, unsigned int flags)
 }
 
 const struct inode_operations zpl_inode_operations = {
-	.create		= zpl_create,
-	.link		= zpl_link,
-	.unlink		= zpl_unlink,
-	.symlink	= zpl_symlink,
-	.mkdir		= zpl_mkdir,
-	.rmdir		= zpl_rmdir,
-	.mknod		= zpl_mknod,
-	.rename		= zpl_rename,
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
 	.setxattr	= generic_setxattr,
