@@ -64,6 +64,7 @@
 #include <blkid/blkid.h>
 #include "libzfs.h"
 #include "libzfs_impl.h"
+#include <libzfs.h>
 
 /*
  * Intermediate structures used to gather configuration information.
@@ -437,6 +438,10 @@ no_dev:
  *
  * multipath device node example:
  * 	devid:		'dm-uuid-mpath-35000c5006304de3f'
+ *
+ * We also store the enclosure sysfs path for turning on enclosure LEDs
+ * (if applicable):
+ *	vdev_enc_sysfs_path: '/sys/class/enclosure/11:0:1:0/SLOT 4'
  */
 void
 update_vdev_config_dev_strs(nvlist_t *nv)
@@ -444,6 +449,7 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	vdev_dev_strs_t vds;
 	char *env, *type, *path;
 	uint64_t wholedisk = 0;
+	char *upath, *spath;
 
 	/*
 	 * For the benefit of legacy ZFS implementations, allow
@@ -470,6 +476,7 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	    !strncasecmp(env, "YES", 3) || !strncasecmp(env, "ON", 2))) {
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
 		return;
 	}
 
@@ -490,10 +497,20 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 			(void) nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
 			    vds.vds_devphys);
 		}
+
+		/* Add enclosure sysfs path (if disk is in an enclosure) */
+		upath = zfs_get_underlying_path(path);
+		spath = zfs_get_enclosure_sysfs_path(upath);
+		if (spath)
+			nvlist_add_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+			    spath);
+		free(upath);
+		free(spath);
 	} else {
 		/* clear out any stale entries */
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
 	}
 }
 #else

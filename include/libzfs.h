@@ -280,8 +280,9 @@ extern nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
 extern int zpool_label_disk_wait(char *, int);
 extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, char *);
 
-int dev_is_dm(char *devname);
-char *get_underlying_path(libzfs_handle_t *hdl, char *dev_name);
+int zfs_dev_is_dm(char *dev_name);
+char *zfs_get_underlying_path(char *dev_name);
+char *zfs_get_enclosure_sysfs_path(char *dev_name);
 
 /*
  * Functions to manage pool properties

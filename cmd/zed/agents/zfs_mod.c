@@ -185,7 +185,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	uint64_t wholedisk = 0ULL;
 	uint64_t offline = 0ULL;
 	uint64_t guid = 0ULL;
-	char *physpath = NULL, *new_devid = NULL;
+	char *physpath = NULL, *new_devid = NULL, *enc_sysfs_path = NULL;
 	char rawpath[PATH_MAX], fullpath[PATH_MAX];
 	char devpath[PATH_MAX];
 	int ret;
@@ -206,6 +206,8 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	}
 
 	(void) nvlist_lookup_string(vdev, ZPOOL_CONFIG_PHYS_PATH, &physpath);
+	(void) nvlist_lookup_string(vdev, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+	    &enc_sysfs_path);
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK, &wholedisk);
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_OFFLINE, &offline);
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_GUID, &guid);
@@ -214,7 +216,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		return;  /* don't intervene if it was taken offline */
 
 #ifdef	HAVE_LIBDEVMAPPER
-	is_dm = dev_is_dm(path);
+	is_dm = zfs_dev_is_dm(path);
 #endif
 	zed_log_msg(LOG_INFO, "zfs_process_add: pool '%s' vdev '%s', phys '%s'"
 	    " wholedisk %d, dm %d (%llu)", zpool_get_name(zhp), path,
@@ -402,6 +404,8 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	    nvlist_add_string(newvd, ZPOOL_CONFIG_DEVID, new_devid) != 0 ||
 	    (physpath != NULL && nvlist_add_string(newvd,
 	    ZPOOL_CONFIG_PHYS_PATH, physpath) != 0) ||
+	    nvlist_add_string(newvd, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+	    enc_sysfs_path) != 0 ||
 	    nvlist_add_uint64(newvd, ZPOOL_CONFIG_WHOLE_DISK, wholedisk) != 0 ||
 	    nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT) != 0 ||
 	    nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, &newvd,

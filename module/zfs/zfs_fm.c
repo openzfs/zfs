@@ -986,6 +986,12 @@ zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate)
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_PHYSPATH,
 			    vd->vdev_physpath);
 		}
+		if (vd->vdev_enc_sysfs_path) {
+			(void) nvlist_add_string(aux,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ENC_SYSFS_PATH,
+			    vd->vdev_enc_sysfs_path);
+		}
+
 		(void) nvlist_add_uint64(aux,
 		    FM_EREPORT_PAYLOAD_ZFS_VDEV_LASTSTATE, laststate);
 	}
