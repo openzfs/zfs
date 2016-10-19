@@ -1249,7 +1249,8 @@ dmu_tx_unassign(dmu_tx_t *tx)
 	 * Walk the transaction's hold list, removing the hold on the
 	 * associated dnode, and notifying waiters if the refcount drops to 0.
 	 */
-	for (txh = list_head(&tx->tx_holds); txh != tx->tx_needassign_txh;
+	for (txh = list_head(&tx->tx_holds);
+	    txh && txh != tx->tx_needassign_txh;
 	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
 
