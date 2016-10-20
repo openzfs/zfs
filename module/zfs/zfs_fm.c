@@ -219,7 +219,7 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	}
 
 	if ((strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) &&
-	    !zio->io_timestamp) {
+	    (zio != NULL) && (!zio->io_timestamp)) {
 		/* Ignore bogus delay events */
 		return;
 	}
