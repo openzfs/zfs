@@ -987,6 +987,7 @@ static xuio_stats_t xuio_stats = {
 	atomic_add_64(&xuio_stats.stat.value.ui64, (val))
 #define	XUIOSTAT_BUMP(stat)	XUIOSTAT_INCR(stat, 1)
 
+#ifdef HAVE_UIO_ZEROCOPY
 int
 dmu_xuio_init(xuio_t *xuio, int nblk)
 {
@@ -1071,6 +1072,7 @@ dmu_xuio_clear(xuio_t *xuio, int i)
 	ASSERT(i < priv->cnt);
 	priv->bufs[i] = NULL;
 }
+#endif /* HAVE_UIO_ZEROCOPY */
 
 static void
 xuio_stat_init(void)
@@ -1111,7 +1113,9 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 {
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
+#ifdef HAVE_UIO_ZEROCOPY
 	xuio_t *xuio = NULL;
+#endif
 
 	/*
 	 * NB: we could do this block-at-a-time, but it's nice
@@ -1132,6 +1136,7 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 		bufoff = uio->uio_loffset - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
 
+#ifdef HAVE_UIO_ZEROCOPY
 		if (xuio) {
 			dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
 			arc_buf_t *dbuf_abuf = dbi->db_buf;
@@ -1146,10 +1151,10 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 				XUIOSTAT_BUMP(xuiostat_rbuf_nocopy);
 			else
 				XUIOSTAT_BUMP(xuiostat_rbuf_copied);
-		} else {
+		} else
+#endif
 			err = uiomove((char *)db->db_data + bufoff, tocpy,
 			    UIO_READ, uio);
-		}
 		if (err)
 			break;
 

@@ -596,14 +596,16 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	arc_buf_t	*abuf;
 	const iovec_t	*aiov = NULL;
 	xuio_t		*xuio = NULL;
-	int		i_iov = 0;
-	const iovec_t	*iovp = uio->uio_iov;
 	int		write_eof;
 	int		count = 0;
 	sa_bulk_attr_t	bulk[4];
 	uint64_t	mtime[2], ctime[2];
 	uint32_t	uid;
+#ifdef HAVE_UIO_ZEROCOPY
+	int		i_iov = 0;
+	const iovec_t	*iovp = uio->uio_iov;
 	ASSERTV(int	iovcnt = uio->uio_iovcnt);
+#endif
 
 	/*
 	 * Fasttrack empty write
@@ -726,6 +728,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		}
 
 		if (xuio && abuf == NULL) {
+#ifdef HAVE_UIO_ZEROCOPY
 			ASSERT(i_iov < iovcnt);
 			ASSERT3U(uio->uio_segflg, !=, UIO_BVEC);
 			aiov = &iovp[i_iov];
@@ -735,6 +738,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			    ((char *)aiov->iov_base - (char *)abuf->b_data +
 			    aiov->iov_len == arc_buf_size(abuf)));
 			i_iov++;
+#endif
 		} else if (abuf == NULL && n >= max_blksz &&
 		    woff >= zp->z_size &&
 		    P2PHASE(woff, max_blksz) == 0 &&
