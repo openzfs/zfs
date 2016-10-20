@@ -3663,6 +3663,8 @@ zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, nvlist_t *props)
 	char errbuf[1024];
 	nvpair_t *elem;
 	nvlist_t *errors;
+	zpool_handle_t *zpool_hdl;
+	char pool[ZFS_MAX_DATASET_NAME_LEN];
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot create snapshots "));
@@ -3685,11 +3687,12 @@ zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, nvlist_t *props)
 	 * get pool handle for prop validation. assumes all snaps are in the
 	 * same pool, as does lzc_snapshot (below).
 	 */
-	char pool[ZFS_MAX_DATASET_NAME_LEN];
 	elem = nvlist_next_nvpair(snaps, NULL);
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/@")] = '\0';
-	zpool_handle_t *zpool_hdl = zpool_open(hdl, pool);
+	zpool_hdl = zpool_open(hdl, pool);
+	if (zpool_hdl == NULL)
+		return (-1);
 
 	if (props != NULL &&
 	    (props = zfs_valid_proplist(hdl, ZFS_TYPE_SNAPSHOT,
