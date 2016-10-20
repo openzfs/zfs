@@ -146,7 +146,7 @@ mod_info(struct modlinkage *modlp, struct modinfo *modinfop)
 		if (*linkpp == NULL) {
 			msip->msi_linkinfo[0] = '\0';
 		} else {
-			(void) strncpy(msip->msi_linkinfo,
+			(void) strlcpy(msip->msi_linkinfo,
 			    (*linkpp)->misc_linkinfo, MODMAXLINKINFOLEN);
 			retval = MODL_INFO(*linkpp, modlp, &msip->msi_p0);
 			if (retval != 0)
