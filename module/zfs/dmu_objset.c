@@ -1355,12 +1355,15 @@ userquota_compare(const void *l, const void *r)
 {
 	const userquota_node_t *luqn = l;
 	const userquota_node_t *ruqn = r;
+	int rv;
 
 	/*
 	 * NB: can only access uqn_id because userquota_update_cache() doesn't
 	 * pass in an entire userquota_node_t.
 	 */
-	return (strcmp(luqn->uqn_id, ruqn->uqn_id));
+	rv = strcmp(luqn->uqn_id, ruqn->uqn_id);
+
+	return (AVL_ISIGN(rv));
 }
 
 static void
