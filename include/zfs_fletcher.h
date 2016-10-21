@@ -65,6 +65,10 @@ void fletcher_4_fini(void);
 
 /* Internal fletcher ctx */
 
+typedef struct zfs_fletcher_superscalar {
+	uint64_t v[4];
+} zfs_fletcher_superscalar_t;
+
 typedef struct zfs_fletcher_sse {
 	uint64_t v[2] __attribute__((aligned(16)));
 } zfs_fletcher_sse_t;
@@ -84,6 +88,7 @@ typedef struct zfs_fletcher_aarch64_neon {
 
 typedef union fletcher_4_ctx {
 	zio_cksum_t scalar;
+	zfs_fletcher_superscalar_t superscalar[4];
 
 #if defined(HAVE_SSE2) || (defined(HAVE_SSE2) && defined(HAVE_SSSE3))
 	zfs_fletcher_sse_t sse[4];
@@ -118,6 +123,8 @@ typedef struct fletcher_4_func {
 	const char *name;
 } fletcher_4_ops_t;
 
+extern const fletcher_4_ops_t fletcher_4_superscalar_ops;
+extern const fletcher_4_ops_t fletcher_4_superscalar4_ops;
 
 #if defined(HAVE_SSE2)
 extern const fletcher_4_ops_t fletcher_4_sse2_ops;
