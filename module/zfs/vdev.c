@@ -1820,6 +1820,21 @@ vdev_dtl_empty(vdev_t *vd, vdev_dtl_type_t t)
 }
 
 /*
+ * Returns B_TRUE if vdev determines offset needs to be resilvered.
+ */
+boolean_t
+vdev_dtl_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
+{
+	ASSERT(vd != vd->vdev_spa->spa_root_vdev);
+
+	if (vd->vdev_ops->vdev_op_need_resilver == NULL ||
+	    vd->vdev_ops->vdev_op_leaf)
+		return (B_TRUE);
+
+	return (vd->vdev_ops->vdev_op_need_resilver(vd, offset, psize));
+}
+
+/*
  * Returns the lowest txg in the DTL range.
  */
 static uint64_t

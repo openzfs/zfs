@@ -250,6 +250,7 @@ vdev_ops_t vdev_file_ops = {
 	vdev_file_io_start,
 	vdev_file_io_done,
 	NULL,
+	NULL,
 	vdev_file_hold,
 	vdev_file_rele,
 	VDEV_TYPE_FILE,		/* name of this vdev type */
@@ -282,6 +283,7 @@ vdev_ops_t vdev_disk_ops = {
 	vdev_default_asize,
 	vdev_file_io_start,
 	vdev_file_io_done,
+	NULL,
 	NULL,
 	vdev_file_hold,
 	vdev_file_rele,
