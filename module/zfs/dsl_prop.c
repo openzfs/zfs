@@ -1127,6 +1127,10 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 			break;
 	}
 out:
+	if (err) {
+		nvlist_free(*nvp);
+		*nvp = NULL;
+	}
 	return (err);
 }
 
