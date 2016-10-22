@@ -920,6 +920,7 @@ errout:
  *      -m	Set default mountpoint for the root dataset.  By default it's
  *		'/<pool>'
  *	-o	Set property=value.
+ *	-o	Set feature@feature=enabled|disabled.
  *	-d	Don't automatically enable all supported pool features
  *		(individual features can be enabled with -o).
  *	-O	Set fsproperty=value in the pool's root file system
@@ -1188,22 +1189,26 @@ zpool_do_create(int argc, char **argv)
 		/*
 		 * Hand off to libzfs.
 		 */
-		if (enable_all_pool_feat) {
-			spa_feature_t i;
-			for (i = 0; i < SPA_FEATURES; i++) {
-				char propname[MAXPATHLEN];
-				zfeature_info_t *feat = &spa_feature_table[i];
+		spa_feature_t i;
+		for (i = 0; i < SPA_FEATURES; i++) {
+			char propname[MAXPATHLEN];
+			char *propval;
+			zfeature_info_t *feat = &spa_feature_table[i];
 
-				(void) snprintf(propname, sizeof (propname),
-				    "feature@%s", feat->fi_uname);
+			(void) snprintf(propname, sizeof (propname),
+			    "feature@%s", feat->fi_uname);
 
-				/*
-				 * Skip feature if user specified it manually
-				 * on the command line.
-				 */
-				if (nvlist_exists(props, propname))
-					continue;
-
+			/*
+			 * Only features contained in props will be enabled:
+			 * remove from the nvlist every ZFS_FEATURE_DISABLED
+			 * value and add every missing ZFS_FEATURE_ENABLED if
+			 * enable_all_pool_feat is set.
+			 */
+			if (!nvlist_lookup_string(props, propname, &propval)) {
+				if (strcmp(propval, ZFS_FEATURE_DISABLED) == 0)
+					(void) nvlist_remove_all(props,
+					    propname);
+			} else if (enable_all_pool_feat) {
 				ret = add_prop_list(propname,
 				    ZFS_FEATURE_ENABLED, &props, B_TRUE);
 				if (ret != 0)
