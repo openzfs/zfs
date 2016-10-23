@@ -1313,6 +1313,9 @@ zfs_create(struct inode *dip, char *name, vattr_t *vap, int excl,
 	    (vsecp || IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))
 		return (SET_ERROR(EINVAL));
 
+	if (name == NULL)
+		return (SET_ERROR(EINVAL));
+
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(dzp);
 	os = zsb->z_os;
@@ -1549,6 +1552,9 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 	int		error;
 	int		zflg = ZEXISTS;
 	boolean_t	waited = B_FALSE;
+
+	if (name == NULL)
+		return (SET_ERROR(EINVAL));
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(dzp);
@@ -1801,6 +1807,9 @@ zfs_mkdir(struct inode *dip, char *dirname, vattr_t *vap, struct inode **ipp,
 	    (vsecp || IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))
 		return (SET_ERROR(EINVAL));
 
+	if (dirname == NULL)
+		return (SET_ERROR(EINVAL));
+
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(dzp);
 	zilog = zsb->z_log;
@@ -1962,6 +1971,9 @@ zfs_rmdir(struct inode *dip, char *name, struct inode *cwd, cred_t *cr,
 	int		error;
 	int		zflg = ZEXISTS;
 	boolean_t	waited = B_FALSE;
+
+	if (name == NULL)
+		return (SET_ERROR(EINVAL));
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(dzp);
@@ -3265,6 +3277,9 @@ zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
 	int		zflg = 0;
 	boolean_t	waited = B_FALSE;
 
+	if (snm == NULL || tnm == NULL)
+		return (SET_ERROR(EINVAL));
+
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(sdzp);
 	zilog = zsb->z_log;
@@ -3609,6 +3624,9 @@ zfs_symlink(struct inode *dip, char *name, vattr_t *vap, char *link,
 
 	ASSERT(S_ISLNK(vap->va_mode));
 
+	if (name == NULL)
+		return (SET_ERROR(EINVAL));
+
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(dzp);
 	zilog = zsb->z_log;
@@ -3804,6 +3822,9 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 	boolean_t	waited = B_FALSE;
 
 	ASSERT(S_ISDIR(tdip->i_mode));
+
+	if (name == NULL)
+		return (SET_ERROR(EINVAL));
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(dzp);
