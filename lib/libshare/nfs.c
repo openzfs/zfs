@@ -532,8 +532,10 @@ nfs_is_share_active(sa_share_impl_t impl_share)
 
 	nfs_exportfs_temp_fp = fdopen(fd, "r");
 
-	if (nfs_exportfs_temp_fp == NULL ||
-	    fseek(nfs_exportfs_temp_fp, 0, SEEK_SET) < 0) {
+	if (nfs_exportfs_temp_fp == NULL)
+		return (B_FALSE);
+
+	if (fseek(nfs_exportfs_temp_fp, 0, SEEK_SET) < 0) {
 		fclose(nfs_exportfs_temp_fp);
 		return (B_FALSE);
 	}
