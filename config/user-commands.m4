@@ -89,6 +89,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_COMMANDS_COMMON], [
 	AC_PATH_TOOL(USERADD, useradd, "/usr/sbin/useradd")
 	AC_PATH_TOOL(USERDEL, userdel, "/usr/sbin/userdel")
 	AC_PATH_TOOL(USERMOD, usermod, "/usr/sbin/usermod")
+	AC_PATH_TOOL(UUIDGEN, uuidgen, "")
 	AC_PATH_TOOL(WAIT, wait, "wait") dnl # Builtin in bash
 	AC_PATH_TOOL(WC, wc, "")
 ])

@@ -248,6 +248,7 @@ tests = [
     'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_017_neg',
     'zpool_create_018_pos', 'zpool_create_019_pos',
     'zpool_create_021_pos', 'zpool_create_022_pos', 'zpool_create_023_neg',
+    'zpool_create_024_pos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg']
 
