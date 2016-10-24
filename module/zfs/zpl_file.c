@@ -658,8 +658,6 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	if (mode != (FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE))
 		return (error);
 
-	crhold(cr);
-
 	if (offset < 0 || len <= 0)
 		return (-EINVAL);
 
@@ -678,6 +676,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	bf.l_len = len;
 	bf.l_pid = 0;
 
+	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
 	spl_fstrans_unmark(cookie);
