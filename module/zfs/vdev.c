@@ -488,6 +488,11 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PHYS_PATH,
 	    &vd->vdev_physpath) == 0)
 		vd->vdev_physpath = spa_strdup(vd->vdev_physpath);
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+	    &vd->vdev_enc_sysfs_path) == 0)
+		vd->vdev_enc_sysfs_path = spa_strdup(vd->vdev_enc_sysfs_path);
+
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_FRU, &vd->vdev_fru) == 0)
 		vd->vdev_fru = spa_strdup(vd->vdev_fru);
 
@@ -673,6 +678,10 @@ vdev_free(vdev_t *vd)
 		spa_strfree(vd->vdev_devid);
 	if (vd->vdev_physpath)
 		spa_strfree(vd->vdev_physpath);
+
+	if (vd->vdev_enc_sysfs_path)
+		spa_strfree(vd->vdev_enc_sysfs_path);
+
 	if (vd->vdev_fru)
 		spa_strfree(vd->vdev_fru);
 

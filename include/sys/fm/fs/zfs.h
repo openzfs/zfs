@@ -58,6 +58,7 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_TYPE	"vdev_type"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_PATH	"vdev_path"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_PHYSPATH	"vdev_physpath"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_ENC_SYSFS_PATH	"vdev_enc_sysfs_path"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_DEVID	"vdev_devid"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU		"vdev_fru"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE	"vdev_state"

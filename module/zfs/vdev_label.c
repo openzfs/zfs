@@ -375,6 +375,10 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		fnvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
 		    vd->vdev_physpath);
 
+	if (vd->vdev_enc_sysfs_path != NULL)
+		fnvlist_add_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+		    vd->vdev_enc_sysfs_path);
+
 	if (vd->vdev_fru != NULL)
 		fnvlist_add_string(nv, ZPOOL_CONFIG_FRU, vd->vdev_fru);
 

@@ -286,7 +286,7 @@ zed_udev_monitor(void *arg)
 		    udev_device_get_property_value(dev, "DM_UUID") &&
 		    udev_device_get_property_value(dev, "MPATH_SBIN_PATH")) {
 			tmp = (char *) udev_device_get_devnode(dev);
-			tmp2 = get_underlying_path(NULL, tmp);
+			tmp2 = zfs_get_underlying_path(tmp);
 			if (tmp && tmp2 && (strcmp(tmp, tmp2) != 0)) {
 				/*
 				 * We have a real underlying device, which
