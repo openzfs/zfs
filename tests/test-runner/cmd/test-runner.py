@@ -685,11 +685,12 @@ class TestRun(object):
         """
         Walk through all the Tests and TestGroups, calling run().
         """
-        logsymlink = os.path.join(os.getcwd(), 'current')
         try:
             os.chdir(self.outputdir)
         except OSError:
             fail('Could not change to directory %s' % self.outputdir)
+        # make a symlink to the output for the currently running test
+        logsymlink = os.path.join(self.outputdir, '../current')
         if os.path.islink(logsymlink):
             os.unlink(logsymlink)
         if not os.path.exists(logsymlink):
