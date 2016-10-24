@@ -323,10 +323,11 @@ post =
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos']
 
 # DISABLED:
+# zpool_upgrade_002_pos - Issue zfsonlinux/zfs#4034
 # zpool_upgrade_004_pos - Issue zfsonlinux/zfs#4034
 # zpool_upgrade_007_pos - needs investigation
 [tests/functional/cli_root/zpool_upgrade]
-tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
+tests = ['zpool_upgrade_001_pos',
     'zpool_upgrade_003_pos', 'zpool_upgrade_005_neg',
     'zpool_upgrade_006_neg', 'zpool_upgrade_008_pos',
     'zpool_upgrade_009_neg']
