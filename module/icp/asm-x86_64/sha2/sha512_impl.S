@@ -2081,3 +2081,7 @@ K512:
 	.quad	0x4cc5d4becb3e42b6,0x597f299cfc657e2a
 	.quad	0x5fcb6fab3ad6faec,0x6c44198c4a475817
 #endif /* !lint && !__lint */
+
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
