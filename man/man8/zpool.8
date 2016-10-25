@@ -41,8 +41,9 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR]
-     ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...
+\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-o\fR feature@\fIfeature=value\fR]
+     ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR]
+     ... [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...
 .fi
 
 .LP
@@ -877,7 +878,7 @@ Clears device errors in a pool. If no arguments are specified, all device errors
 .sp
 .ne 2
 .na
-\fB\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...\fR
+\fB\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-o\fR feature@\fIfeature=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] [\fB-t\fR \fItname\fR] \fIpool\fR \fIvdev\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -928,6 +929,18 @@ Do not enable any features on the new pool. Individual features can be enabled b
 .sp .6
 .RS 4n
 Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-o\fR feature@\fIfeature=value\fR [\fB-o\fR feature@\fIfeature=value\fR] ...\fR
+.ad
+.sp .6
+.RS 4n
+Sets the given pool feature. See \fBzpool-features(5)\fR for a list of valid features that can be set.
+.sp
+Value can be either \fBdisabled\fR or \fBenabled\fR.
 .RE
 
 .sp

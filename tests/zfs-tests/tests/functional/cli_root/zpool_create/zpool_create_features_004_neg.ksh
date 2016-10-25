@@ -39,7 +39,7 @@
 verify_runnable "global"
 
 properties="\
-feature@async_destroy=disabled \
+feature@async_destroy=disable \
 feature@async_destroy=active \
 feature@xxx_fake_xxx=enabled \
 unsupported@some_feature=inactive \
