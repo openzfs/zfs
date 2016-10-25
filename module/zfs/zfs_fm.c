@@ -307,6 +307,10 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			fm_payload_set(ereport,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU,
 			    DATA_TYPE_STRING, vd->vdev_fru, NULL);
+		if (vd->vdev_enc_sysfs_path != NULL)
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ENC_SYSFS_PATH,
+			    DATA_TYPE_STRING, vd->vdev_enc_sysfs_path, NULL);
 		if (vd->vdev_ashift)
 			fm_payload_set(ereport,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ASHIFT,
@@ -928,6 +932,10 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
 		if (vd->vdev_fru != NULL)
 			VERIFY0(nvlist_add_string(resource,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU, vd->vdev_fru));
+		if (vd->vdev_enc_sysfs_path != NULL)
+			VERIFY0(nvlist_add_string(resource,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ENC_SYSFS_PATH,
+			    vd->vdev_enc_sysfs_path));
 		/* also copy any optional payload data */
 		if (aux) {
 			nvpair_t *elem = NULL;

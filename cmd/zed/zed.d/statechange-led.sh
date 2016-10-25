@@ -71,29 +71,12 @@ function led
 function process {
 	path="$1"
 	fault=$2
-	prev=$3
-	if [ "$fault" == "FAULTED" ] || [ "$fault" == "DEGRADED" ] ; then
-		led "$path" 1
-	elif [ "$fault" == "UNAVAIL" ] && [ "$prev" != "ONLINE" ] ; then
-		# For the most part, UNAVAIL should turn on the LED.  However,
-		# during an autoreplace, we see our new drive go online,
-		# followed by our "old" drive going ONLINE->UNAVAIL. Since the
-		# "old" drive has the same slot information, we want to ignore
-		# the ONLINE->UNAVAIL event.
-		#
-		# 	NAME             STATE     READ WRITE CKSUM
-		#	mypool3          DEGRADED     0     0     0
-		#	  mirror-0       DEGRADED     0     0     0
-		#	    A1           ONLINE       0     0     0
-		#	    A2           ONLINE       0   880     0
-		#	    replacing-3  UNAVAIL      0     0     0
-		#	      old        UNAVAIL      0 2.93K     0  corrupted data
-		#	      A3         ONLINE       0     0   156  (resilvering)
+	if [ "$fault" == "FAULTED" ] || [ "$fault" == "DEGRADED" ] || \
+	   [ "$fault" == "UNAVAIL" ] ; then
 		led "$path" 1
 	elif [ "$fault" == "ONLINE" ] ; then
 		led "$path" 0
 	fi
 }
 
-process "$ZEVENT_VDEV_ENC_SYSFS_PATH" "$ZEVENT_VDEV_STATE_STR" \
-    "$ZEVENT_VDEV_LASTSTATE_STR"
+process "$ZEVENT_VDEV_ENC_SYSFS_PATH" "$ZEVENT_VDEV_STATE_STR"
