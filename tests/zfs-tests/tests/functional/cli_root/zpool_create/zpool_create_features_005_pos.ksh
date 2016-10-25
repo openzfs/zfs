@@ -33,7 +33,7 @@
 #
 # 1. Loop through all existing features:
 #    a. Create a new pool with '-o feature@XXX=disabled'.
-#    b. Verify that every other features is in the 'enabled' state.
+#    b. Verify that every other feature is 'enabled' or 'active'.
 #
 ################################################################################
 
@@ -46,52 +46,48 @@ function cleanup
 
 function check_features
 {
-	feature="${1}"
-	feature_set=false
-	other_feature_set=false
+	typeset feature="${1}"
 
-	${ZPOOL} get all ${TESTPOOL} | \
-	    grep feature@ | \
-	    while read line; do
+	${ZPOOL} get all ${TESTPOOL} | $GREP feature@ | while read line; do
 		set -- $(echo "${line}")
 
-		if [[ "${3}" == "enabled" || "${3}" == "active" ]]; then
-			if [[ "feature@${feature}" == "${2}" ]]; then
-				feature_set=true
-			else
-				other_feature_set=true
+		if [[ "feature@${feature}" == "${2}" ]]; then
+			# Failure passed feature must be disabled.
+			if [[ "${3}" != "disabled" ]]; then
+				return 1;
+			fi
+		else
+			# Failure other features must be enabled or active.
+			if [[ "${3}" != "enabled" && "${3}" != "active" ]]; then
+				return 2;
 			fi
 		fi
-	    done
+	done
 
-	if [[ "${feature_set}" == "true" ]]; then
-		# This is a success
-		if [[ "${other_feature_set}" == "true" ]]; then
-			# .. but if _any_ of the other features is enabled,
-			# it's a failure!
-			return 0
-		else
-			# All good - feature is enabled, all other disabled.
-			return 1
-		fi
-	else
-		# Feature is not set - failure.
-		return 1
-	fi
+	# All features enabled or active except the expected one.
+	return 0
 }
 
 log_onexit cleanup
 
-for feature in async_destroy bookmarks embedded_data empty_bpobj enabled_txg \
-               extensible_dataset filesystem_limits hole_birth large_blocks  \
-               lz4_compress spacemap_histogram large_dnode userobj_accounting \
-               sha512 skein edonr
-do
-	log_assert "'zpool create' creates pools with ${feature} disabled"
+# Several representative features are tested to keep the test time short.
+# The features 'extensible_dataset' and 'enabled_txg' are intentionally
+# excluded because other features depend on them.
+set -A features \
+    "hole_birth" \
+    "large_blocks"  \
+    "large_dnode" \
+    "userobj_accounting"
 
-	log_must $ZPOOL create -f -o "feature@${feature}=disabled" $TESTPOOL $DISKS
-	check_features ${feature}
+typeset -i i=0
+while (( $i < ${#features[*]} )); do
+	log_assert "'zpool create' creates pools with ${features[i]} disabled"
+
+	log_must $ZPOOL create -f -o "feature@${features[i]}=disabled" \
+	    $TESTPOOL $DISKS
+	log_must check_features "${features[i]}"
 	log_must $ZPOOL destroy -f $TESTPOOL
-
-	log_pass "'zpool create' creates pools with ${feature} disabled"
+	(( i = i+1 ))
 done
+
+log_pass "'zpool create -o feature@feature=disabled' disables features"
