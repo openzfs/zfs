@@ -24,6 +24,7 @@ USER_C = \
 	getmntany.c \
 	list.c \
 	mkdirp.c \
+	page.c \
 	strlcat.c \
 	strlcpy.c \
 	strnlen.c \
