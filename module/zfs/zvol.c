@@ -174,7 +174,7 @@ zvol_is_zvol(const char *device)
 	struct block_device *bdev;
 	unsigned int major;
 
-	bdev = lookup_bdev(device);
+	bdev = vdev_lookup_bdev(device);
 	if (IS_ERR(bdev))
 		return (B_FALSE);
 
