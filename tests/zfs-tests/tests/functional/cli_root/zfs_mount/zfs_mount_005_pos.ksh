@@ -83,10 +83,10 @@ fi
 log_note "Make sure the filesystem $TESTPOOL/$TESTFS is unmounted"
 if is_linux; then
     mounted $TESTPOOL/$TESTFS || \
-        log_fail Filesystem $TESTPOOL/$TESTFS is unmounted
+        log_fail "Filesystem $TESTPOOL/$TESTFS is unmounted"
 else
     unmounted $TESTPOOL/$TESTFS || \
-        log_fail Filesystem $TESTPOOL/$TESTFS is mounted
+        log_fail "Filesystem $TESTPOOL/$TESTFS is mounted"
 fi
 
 log_pass "'$ZFS $mountcmd' with a filesystem " \
