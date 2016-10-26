@@ -263,12 +263,21 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 
 /*
  * 2.6.27 API change
- * The function was exported for use, prior to this it existed by the
+ * The function was exported for use, prior to this it existed but the
  * symbol was not exported.
+ *
+ * 4.4.0-6.21 API change for Ubuntu
+ * lookup_bdev() gained a second argument, FMODE_*, to check inode permissions.
  */
-#ifndef HAVE_LOOKUP_BDEV
-#define	lookup_bdev(path)		ERR_PTR(-ENOTSUP)
-#endif
+#ifdef HAVE_1ARG_LOOKUP_BDEV
+#define	vdev_lookup_bdev(path)	lookup_bdev(path)
+#else
+#ifdef HAVE_2ARGS_LOOKUP_BDEV
+#define	vdev_lookup_bdev(path)	lookup_bdev(path, 0)
+#else
+#define	vdev_lookup_bdev(path)	ERR_PTR(-ENOTSUP)
+#endif /* HAVE_2ARGS_LOOKUP_BDEV */
+#endif /* HAVE_1ARG_LOOKUP_BDEV */
 
 /*
  * 2.6.30 API change
