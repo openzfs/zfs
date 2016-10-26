@@ -43,7 +43,9 @@ extern "C" {
 typedef enum abd_flags {
 	ABD_FLAG_LINEAR	= 1 << 0,	/* is buffer linear (or scattered)? */
 	ABD_FLAG_OWNER	= 1 << 1,	/* does it own its data buffers? */
-	ABD_FLAG_META	= 1 << 2	/* does this represent FS metadata? */
+	ABD_FLAG_META	= 1 << 2,	/* does this represent FS metadata? */
+	ABD_FLAG_MULTI_ZONE  = 1 << 3,	/* pages split over memory zones */
+	ABD_FLAG_MULTI_CHUNK = 1 << 4	/* pages split over multiple chunks */
 } abd_flags_t;
 
 typedef struct abd {
@@ -54,8 +56,8 @@ typedef struct abd {
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;
-			uint_t		abd_chunk_size;
-			struct page	*abd_chunks[];
+			uint_t		abd_nents;
+			struct scatterlist *abd_sgl;
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;
