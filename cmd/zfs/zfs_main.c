@@ -250,10 +250,12 @@ get_usage(zfs_help_t idx)
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
-		return (gettext("\treceive [-vnsFu] <filesystem|volume|"
-		    "snapshot>\n"
-		    "\treceive [-vnsFu] [-o origin=<snapshot>] [-d | -e] "
-		    "<filesystem>\n"
+		return (gettext("\treceive [-vnsFu] "
+		    "[-o <property>=<value>] ... [-x <property>] ...\n"
+		    "\t    <filesystem|volume|snapshot>\n"
+		    "\treceive [-vnsFu] [-o <property>=<value>] ... "
+		    "[-x <property>] ... \n"
+		    "\t    [-d | -e] <filesystem>\n"
 		    "\treceive -A <filesystem|volume>\n"));
 	case HELP_RENAME:
 		return (gettext("\trename [-f] <filesystem|volume|snapshot> "
@@ -488,26 +490,48 @@ usage(boolean_t requested)
  * Take a property=value argument string and add it to the given nvlist.
  * Modifies the argument inplace.
  */
-static int
+static boolean_t
 parseprop(nvlist_t *props, char *propname)
 {
-	char *propval, *strval;
+	char *propval;
 
 	if ((propval = strchr(propname, '=')) == NULL) {
 		(void) fprintf(stderr, gettext("missing "
 		    "'=' for property=value argument\n"));
-		return (-1);
+		return (B_FALSE);
 	}
 	*propval = '\0';
 	propval++;
-	if (nvlist_lookup_string(props, propname, &strval) == 0) {
+	if (nvlist_exists(props, propname)) {
 		(void) fprintf(stderr, gettext("property '%s' "
 		    "specified multiple times\n"), propname);
-		return (-1);
+		return (B_FALSE);
 	}
 	if (nvlist_add_string(props, propname, propval) != 0)
 		nomem();
-	return (0);
+	return (B_TRUE);
+}
+
+/*
+ * Take a property name argument and add it to the given nvlist.
+ * Modifies the argument inplace.
+ */
+static boolean_t
+parsepropname(nvlist_t *props, char *propname)
+{
+	if (strchr(propname, '=') != NULL) {
+		(void) fprintf(stderr, gettext("invalid character "
+		    "'=' in property argument\n"));
+		return (B_FALSE);
+	}
+	if (nvlist_exists(props, propname)) {
+		(void) fprintf(stderr, gettext("property '%s' "
+		    "specified multiple times\n"), propname);
+		return (B_FALSE);
+	}
+	if (nvlist_add_boolean(props, propname) != 0)
+		nomem();
+	return (B_TRUE);
 }
 
 static int
@@ -661,7 +685,7 @@ zfs_do_clone(int argc, char **argv)
 	while ((c = getopt(argc, argv, "o:p")) != -1) {
 		switch (c) {
 		case 'o':
-			if (parseprop(props, optarg) != 0) {
+			if (!parseprop(props, optarg)) {
 				nvlist_free(props);
 				return (1);
 			}
@@ -813,7 +837,7 @@ zfs_do_create(int argc, char **argv)
 				nomem();
 			break;
 		case 'o':
-			if (parseprop(props, optarg) != 0)
+			if (!parseprop(props, optarg))
 				goto error;
 			break;
 		case 's':
@@ -3649,8 +3673,10 @@ zfs_do_set(int argc, char **argv)
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
 	for (i = 1; i < ds_start; i++) {
-		if ((ret = parseprop(props, argv[i])) != 0)
+		if (!parseprop(props, argv[i])) {
+			ret = -1;
 			goto error;
+		}
 	}
 
 	ret = zfs_for_each(argc - ds_start, argv + ds_start, 0,
@@ -3717,7 +3743,7 @@ zfs_do_snapshot(int argc, char **argv)
 	while ((c = getopt(argc, argv, "ro:")) != -1) {
 		switch (c) {
 		case 'o':
-			if (parseprop(props, optarg) != 0) {
+			if (!parseprop(props, optarg)) {
 				nvlist_free(sd.sd_nvl);
 				nvlist_free(props);
 				return (1);
@@ -4050,20 +4076,24 @@ zfs_do_receive(int argc, char **argv)
 	int c, err = 0;
 	recvflags_t flags = { 0 };
 	boolean_t abort_resumable = B_FALSE;
-
 	nvlist_t *props;
-	nvpair_t *nvp = NULL;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":o:denuvFsA")) != -1) {
+	while ((c = getopt(argc, argv, ":o:x:denuvFsA")) != -1) {
 		switch (c) {
 		case 'o':
-			if (parseprop(props, optarg) != 0) {
+			if (!parseprop(props, optarg)) {
 				nvlist_free(props);
-				return (1);
+				usage(B_FALSE);
+			}
+			break;
+		case 'x':
+			if (!parsepropname(props, optarg)) {
+				nvlist_free(props);
+				usage(B_FALSE);
 			}
 			break;
 		case 'd':
@@ -4114,13 +4144,6 @@ zfs_do_receive(int argc, char **argv)
 	if (argc > 1) {
 		(void) fprintf(stderr, gettext("too many arguments\n"));
 		usage(B_FALSE);
-	}
-
-	while ((nvp = nvlist_next_nvpair(props, nvp))) {
-		if (strcmp(nvpair_name(nvp), "origin") != 0) {
-			(void) fprintf(stderr, gettext("invalid option"));
-			usage(B_FALSE);
-		}
 	}
 
 	if (abort_resumable) {

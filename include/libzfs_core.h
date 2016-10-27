@@ -81,6 +81,9 @@ int lzc_receive_with_header(const char *, nvlist_t *, const char *, boolean_t,
 int lzc_receive_one(const char *, nvlist_t *, const char *, boolean_t,
     boolean_t, int, const struct dmu_replay_record *, int, uint64_t *,
     uint64_t *, uint64_t *, nvlist_t **);
+int lzc_receive_with_cmdprops(const char *, nvlist_t *, nvlist_t *,
+    const char *, boolean_t, boolean_t, int, const struct dmu_replay_record *,
+    int, uint64_t *, uint64_t *, uint64_t *, nvlist_t **);
 
 boolean_t lzc_exists(const char *);
 

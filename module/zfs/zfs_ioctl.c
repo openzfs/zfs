@@ -33,6 +33,7 @@
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 /*
@@ -2497,7 +2498,11 @@ retry:
 		}
 
 		/* Validate value type */
-		if (err == 0 && prop == ZPROP_INVAL) {
+		if (err == 0 && source == ZPROP_SRC_INHERITED) {
+			/* inherited properties are expected to be booleans */
+			if (nvpair_type(propval) != DATA_TYPE_BOOLEAN)
+				err = SET_ERROR(EINVAL);
+		} else if (err == 0 && prop == ZPROP_INVAL) {
 			if (zfs_prop_user(propname)) {
 				if (nvpair_type(propval) != DATA_TYPE_STRING)
 					err = SET_ERROR(EINVAL);
@@ -2542,7 +2547,11 @@ retry:
 			err = zfs_check_settable(dsname, pair, CRED());
 
 		if (err == 0) {
-			err = zfs_prop_set_special(dsname, source, pair);
+			if (source == ZPROP_SRC_INHERITED)
+				err = -1; /* does not need special handling */
+			else
+				err = zfs_prop_set_special(dsname, source,
+				    pair);
 			if (err == -1) {
 				/*
 				 * For better performance we build up a list of
@@ -2594,6 +2603,9 @@ retry:
 				strval = fnvpair_value_string(propval);
 				err = dsl_prop_set_string(dsname, propname,
 				    source, strval);
+			} else if (nvpair_type(propval) == DATA_TYPE_BOOLEAN) {
+				err = dsl_prop_inherit(dsname, propname,
+				    source);
 			} else {
 				intval = fnvpair_value_uint64(propval);
 				err = dsl_prop_set_int(dsname, propname, source,
@@ -4159,8 +4171,8 @@ static boolean_t zfs_ioc_recv_inject_err;
  * encountered errors, if any. It's the callers responsibility to free.
  */
 static int
-zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
-    nvlist_t *props, boolean_t force, boolean_t resumable, int input_fd,
+zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
+    nvlist_t *localprops, boolean_t force, boolean_t resumable, int input_fd,
     dmu_replay_record_t *begin_record, int cleanup_fd, uint64_t *read_bytes,
     uint64_t *errflags, uint64_t *action_handle, nvlist_t **errors)
 {
@@ -4170,6 +4182,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 	offset_t off;
 	nvlist_t *delayprops = NULL; /* sent properties applied post-receive */
 	nvlist_t *origprops = NULL; /* existing properties */
+	nvlist_t *origrecvd = NULL; /* existing received properties */
 	boolean_t first_recvd_props = B_FALSE;
 	file_t *input_fp;
 
@@ -4191,7 +4204,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 	 * to the new data. Note that we must call dmu_recv_stream() if
 	 * dmu_recv_begin() succeeds.
 	 */
-	if (props != NULL && !drc.drc_newfs) {
+	if (recvprops != NULL && !drc.drc_newfs) {
 		if (spa_version(dsl_dataset_get_spa(drc.drc_ds)) >=
 		    SPA_VERSION_RECVD_PROPS &&
 		    !dsl_prop_get_hasrecvd(tofs))
@@ -4202,7 +4215,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 		 * completely replace the existing received properties, so stash
 		 * away the existing ones.
 		 */
-		if (dsl_prop_get_received(tofs, &origprops) == 0) {
+		if (dsl_prop_get_received(tofs, &origrecvd) == 0) {
 			nvlist_t *errlist = NULL;
 			/*
 			 * Don't bother writing a property if its value won't
@@ -4213,27 +4226,74 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 			 * regardless.
 			 */
 			if (!first_recvd_props)
-				props_reduce(props, origprops);
-			if (zfs_check_clearable(tofs, origprops, &errlist) != 0)
+				props_reduce(recvprops, origrecvd);
+			if (zfs_check_clearable(tofs, origrecvd, &errlist) != 0)
 				(void) nvlist_merge(*errors, errlist, 0);
 			nvlist_free(errlist);
 
-			if (clear_received_props(tofs, origprops,
-			    first_recvd_props ? NULL : props) != 0)
+			if (clear_received_props(tofs, origrecvd,
+			    first_recvd_props ? NULL : recvprops) != 0)
 				*errflags |= ZPROP_ERR_NOCLEAR;
 		} else {
 			*errflags |= ZPROP_ERR_NOCLEAR;
 		}
 	}
 
-	if (props != NULL) {
+	/*
+	 * Stash away existing properties so we can restore them on error unless
+	 * we're doing the first receive after SPA_VERSION_RECVD_PROPS, in which
+	 * case "origrecvd" will take care of that.
+	 */
+	if (localprops != NULL && !drc.drc_newfs && !first_recvd_props) {
+		objset_t *os;
+		if (dmu_objset_hold(tofs, FTAG, &os) == 0) {
+			if (dsl_prop_get_all(os, &origprops) != 0) {
+				*errflags |= ZPROP_ERR_NOCLEAR;
+			}
+			dmu_objset_rele(os, FTAG);
+		} else {
+			*errflags |= ZPROP_ERR_NOCLEAR;
+		}
+	}
+
+	if (recvprops != NULL) {
 		props_error = dsl_prop_set_hasrecvd(tofs);
 
 		if (props_error == 0) {
-			delayprops = extract_delay_props(props);
+			delayprops = extract_delay_props(recvprops);
 			(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_RECEIVED,
-			    props, *errors);
+			    recvprops, *errors);
 		}
+	}
+
+	if (localprops != NULL) {
+		nvlist_t *oprops = fnvlist_alloc();
+		nvlist_t *xprops = fnvlist_alloc();
+		nvpair_t *nvp = NULL;
+
+		while ((nvp = nvlist_next_nvpair(localprops, nvp)) != NULL) {
+			if (nvpair_type(nvp) == DATA_TYPE_BOOLEAN) {
+				/* -x property */
+				const char *name = nvpair_name(nvp);
+				zfs_prop_t prop = zfs_name_to_prop(name);
+				if (prop != ZPROP_INVAL) {
+					if (!zfs_prop_inheritable(prop))
+						continue;
+				} else if (!zfs_prop_user(name))
+					continue;
+				fnvlist_add_boolean(xprops, name);
+			} else {
+				/* -o property=value */
+				fnvlist_add_nvpair(oprops, nvp);
+			}
+		}
+		(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_LOCAL,
+		    oprops, *errors);
+		(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_INHERITED,
+		    xprops, *errors);
+
+		nvlist_free(oprops);
+		nvlist_free(xprops);
 	}
 
 	off = input_fp->f_offset;
@@ -4284,7 +4344,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 		 * Since zfs_ioc_recv_inject_err is only in DEBUG kernels,
 		 * using ASSERT() will be just like a VERIFY.
 		 */
-		ASSERT(nvlist_merge(props, delayprops, 0) == 0);
+		ASSERT(nvlist_merge(recvprops, delayprops, 0) == 0);
 		nvlist_free(delayprops);
 	}
 
@@ -4303,8 +4363,8 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 	/*
 	 * On error, restore the original props.
 	 */
-	if (error != 0 && props != NULL && !drc.drc_newfs) {
-		if (clear_received_props(tofs, props, NULL) != 0) {
+	if (error != 0 && recvprops != NULL && !drc.drc_newfs) {
+		if (clear_received_props(tofs, recvprops, NULL) != 0) {
 			/*
 			 * We failed to clear the received properties.
 			 * Since we may have left a $recvd value on the
@@ -4315,7 +4375,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 			dsl_prop_unset_hasrecvd(tofs);
 		}
 
-		if (origprops == NULL && !drc.drc_newfs) {
+		if (origrecvd == NULL && !drc.drc_newfs) {
 			/* We failed to stash the original properties. */
 			*errflags |= ZPROP_ERR_NORESTORE;
 		}
@@ -4326,10 +4386,10 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 		 * explicitly if we're restoring local properties cleared in the
 		 * first new-style receive.
 		 */
-		if (origprops != NULL &&
+		if (origrecvd != NULL &&
 		    zfs_set_prop_nvlist(tofs, (first_recvd_props ?
 		    ZPROP_SRC_LOCAL : ZPROP_SRC_RECEIVED),
-		    origprops, NULL) != 0) {
+		    origrecvd, NULL) != 0) {
 			/*
 			 * We stashed the original properties but failed to
 			 * restore them.
@@ -4337,8 +4397,64 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 			*errflags |= ZPROP_ERR_NORESTORE;
 		}
 	}
+	if (error != 0 && localprops != NULL && !drc.drc_newfs &&
+	    !first_recvd_props) {
+		nvlist_t *setprops;
+		nvlist_t *inheritprops;
+		nvpair_t *nvp;
+
+		if (origprops == NULL) {
+			/* We failed to stash the original properties. */
+			*errflags |= ZPROP_ERR_NORESTORE;
+			goto out;
+		}
+
+		/* Restore original props */
+		setprops = fnvlist_alloc();
+		inheritprops = fnvlist_alloc();
+		nvp = NULL;
+		while ((nvp = nvlist_next_nvpair(localprops, nvp)) != NULL) {
+			const char *name = nvpair_name(nvp);
+			const char *source;
+			nvlist_t *attrs;
+
+			if (!nvlist_exists(origprops, name)) {
+				/*
+				 * Property was not present or was explicitly
+				 * inherited before the receive, restore this.
+				 */
+				fnvlist_add_boolean(inheritprops, name);
+				continue;
+			}
+			attrs = fnvlist_lookup_nvlist(origprops, name);
+			source = fnvlist_lookup_string(attrs, ZPROP_SOURCE);
+
+			/* Skip received properties */
+			if (strcmp(source, ZPROP_SOURCE_VAL_RECVD) == 0)
+				continue;
+
+			if (strcmp(source, tofs) == 0) {
+				/* Property was locally set */
+				fnvlist_add_nvlist(setprops, name, attrs);
+			} else {
+				/* Property was implicitly inherited */
+				fnvlist_add_boolean(inheritprops, name);
+			}
+		}
+
+		if (zfs_set_prop_nvlist(tofs, ZPROP_SRC_LOCAL, setprops,
+		    NULL) != 0)
+			*errflags |= ZPROP_ERR_NORESTORE;
+		if (zfs_set_prop_nvlist(tofs, ZPROP_SRC_INHERITED, inheritprops,
+		    NULL) != 0)
+			*errflags |= ZPROP_ERR_NORESTORE;
+
+		nvlist_free(setprops);
+		nvlist_free(inheritprops);
+	}
 out:
 	releasef(input_fd);
+	nvlist_free(origrecvd);
 	nvlist_free(origprops);
 
 	if (error == 0)
@@ -4351,6 +4467,8 @@ out:
  * inputs:
  * zc_name		name of containing filesystem (unused)
  * zc_nvlist_src{_size}	nvlist of properties to apply
+ * zc_nvlist_conf{_size}	nvlist of properties to exclude
+ *			(DATA_TYPE_BOOLEAN) and override (everything else)
  * zc_value		name of snapshot to create
  * zc_string		name of clone origin (if DRR_FLAG_CLONE)
  * zc_cookie		file descriptor to recv from
@@ -4370,7 +4488,8 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 {
 	dmu_replay_record_t begin_record;
 	nvlist_t *errors = NULL;
-	nvlist_t *props = NULL;
+	nvlist_t *recvdprops = NULL;
+	nvlist_t *localprops = NULL;
 	char *origin = NULL;
 	char *tosnap;
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
@@ -4387,7 +4506,12 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	if (zc->zc_nvlist_src != 0 &&
 	    (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
-	    zc->zc_iflags, &props)) != 0)
+	    zc->zc_iflags, &recvdprops)) != 0)
+		return (error);
+
+	if (zc->zc_nvlist_conf != 0 &&
+	    (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+	    zc->zc_iflags, &localprops)) != 0)
 		return (error);
 
 	if (zc->zc_string[0])
@@ -4397,10 +4521,12 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	begin_record.drr_payloadlen = 0;
 	begin_record.drr_u.drr_begin = zc->zc_begin_record;
 
-	error = zfs_ioc_recv_impl(tofs, tosnap, origin, props, zc->zc_guid,
-	    B_FALSE, zc->zc_cookie, &begin_record, zc->zc_cleanup_fd,
-	    &zc->zc_cookie, &zc->zc_obj, &zc->zc_action_handle, &errors);
-	nvlist_free(props);
+	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
+	    zc->zc_guid, B_FALSE, zc->zc_cookie, &begin_record,
+	    zc->zc_cleanup_fd, &zc->zc_cookie, &zc->zc_obj,
+	    &zc->zc_action_handle, &errors);
+	nvlist_free(recvdprops);
+	nvlist_free(localprops);
 
 	/*
 	 * Now that all props, initial and delayed, are set, report the prop
@@ -4424,7 +4550,8 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 /*
  * innvl: {
  *     "snapname" -> full name of the snapshot to create
- *     (optional) "props" -> properties to set (nvlist)
+ *     (optional) "props" -> received properties to set (nvlist)
+ *     (optional) "localprops" -> override and exclude properties (nvlist)
  *     (optional) "origin" -> name of clone origin (DRR_FLAG_CLONE)
  *     "begin_record" -> non-byteswapped dmu_replay_record_t
  *     "input_fd" -> file descriptor to read stream from (int32)
@@ -4447,7 +4574,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	dmu_replay_record_t *begin_record;
 	uint_t begin_record_size;
 	nvlist_t *errors = NULL;
-	nvlist_t *props = NULL;
+	nvlist_t *recvprops = NULL;
+	nvlist_t *localprops = NULL;
 	char *snapname = NULL;
 	char *origin = NULL;
 	char *tosnap;
@@ -4498,12 +4626,17 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	if (error && error != ENOENT)
 		return (error);
 
-	error = nvlist_lookup_nvlist(innvl, "props", &props);
+	/* we still use "props" here for backwards compatibility */
+	error = nvlist_lookup_nvlist(innvl, "props", &recvprops);
 	if (error && error != ENOENT)
 		return (error);
 
-	error = zfs_ioc_recv_impl(tofs, tosnap, origin, props, force,
-	    resumable, input_fd, begin_record, cleanup_fd, &read_bytes,
+	error = nvlist_lookup_nvlist(innvl, "localprops", &localprops);
+	if (error && error != ENOENT)
+		return (error);
+
+	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
+	    force, resumable, input_fd, begin_record, cleanup_fd, &read_bytes,
 	    &errflags, &action_handle, &errors);
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
@@ -4512,7 +4645,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	fnvlist_add_nvlist(outnvl, "errors", errors);
 
 	nvlist_free(errors);
-	nvlist_free(props);
+	nvlist_free(recvprops);
+	nvlist_free(localprops);
 
 	return (error);
 }
