@@ -32,6 +32,9 @@
 #define	ZVOL_OBJ		1ULL
 #define	ZVOL_ZAP_OBJ		2ULL
 
+#define	SPEC_MAXOFFSET_T	((1LL << ((NBBY * sizeof (daddr32_t)) + \
+				DEV_BSHIFT - 1)) - 1)
+
 extern void *zvol_tag;
 
 extern void zvol_create_minors(spa_t *spa, const char *name, boolean_t async);
