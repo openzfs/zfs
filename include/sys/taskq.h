@@ -57,6 +57,12 @@
 #define	TQ_FRONT		0x08000000
 
 /*
+ * Reserved taskqid values.
+ */
+#define	TASKQID_INVALID		((taskqid_t)0)
+#define	TASKQID_INITIAL		((taskqid_t)1)
+
+/*
  * spin_lock(lock) and spin_lock_nested(lock,0) are equivalent,
  * so TQ_LOCK_DYNAMIC must not evaluate to 0
  */

@@ -348,7 +348,8 @@ splat_rwlock_test2(struct file *file, void *arg)
 	 * rwlock is implemented right this will never happy, that's a pass.
 	 */
 	for (i = 0; i < tq_count; i++) {
-		if (!taskq_dispatch(tq,splat_rwlock_test2_func,rwp,TQ_SLEEP)) {
+		if (taskq_dispatch(tq, splat_rwlock_test2_func, rwp,
+		    TQ_SLEEP) == TASKQID_INVALID) {
 			splat_vprint(file, SPLAT_RWLOCK_TEST2_NAME,
 				     "Failed to queue task %d\n", i);
 			rc = -EINVAL;
@@ -469,7 +470,7 @@ splat_rwlock_test4_type(taskq_t *tq, rw_priv_t *rwp, int expected_rc,
 		rw_enter(&rwp->rw_rwlock, holder_type);
 
 	id = taskq_dispatch(tq, splat_rwlock_test4_func, rwp, TQ_SLEEP);
-	if (id == 0) {
+	if (id == TASKQID_INVALID) {
 		splat_vprint(rwp->rw_file, SPLAT_RWLOCK_TEST4_NAME, "%s",
 			     "taskq_dispatch() failed\n");
 		rc = -EINVAL;
