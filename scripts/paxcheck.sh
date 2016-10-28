@@ -2,7 +2,7 @@
 
 if ! type scanelf > /dev/null 2>&1; then
     echo "scanelf (from pax-utils) is required for these checks." >&2
-    exit 1
+    exit 3
 fi
 
 RET=0
@@ -27,7 +27,7 @@ fi
 OUT="$(scanelf -qyRAF '%T %p' $1)"
 
 if [ x"${OUT}" != x ]; then
-    RET=3
+    RET=2
     echo "The following files contain runtime text relocations"
     echo " Text relocations force the dynamic linker to perform extra"
     echo " work at startup, waste system resources, and may pose a security"
