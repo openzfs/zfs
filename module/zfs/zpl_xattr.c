@@ -1441,3 +1441,103 @@ zpl_xattr_handler(const char *name)
 
 	return (NULL);
 }
+
+#if !defined(HAVE_POSIX_ACL_RELEASE) || defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
+struct acl_rel_struct {
+	struct acl_rel_struct *next;
+	struct posix_acl *acl;
+	clock_t time;
+};
+
+#define	ACL_REL_GRACE	(60*HZ)
+#define	ACL_REL_WINDOW	(1*HZ)
+#define	ACL_REL_SCHED	(ACL_REL_GRACE+ACL_REL_WINDOW)
+
+/*
+ * Lockless multi-producer single-consumer fifo list.
+ * Nodes are added to tail and removed from head. Tail pointer is our
+ * synchronization point. It always points to the next pointer of the last
+ * node, or head if list is empty.
+ */
+static struct acl_rel_struct *acl_rel_head = NULL;
+static struct acl_rel_struct **acl_rel_tail = &acl_rel_head;
+
+static void
+zpl_posix_acl_free(void *arg)
+{
+	struct acl_rel_struct *freelist = NULL;
+	struct acl_rel_struct *a;
+	clock_t new_time;
+	boolean_t refire = B_FALSE;
+
+	ASSERT3P(acl_rel_head, !=, NULL);
+	while (acl_rel_head) {
+		a = acl_rel_head;
+		if (ddi_get_lbolt() - a->time >= ACL_REL_GRACE) {
+			/*
+			 * If a is the last node we need to reset tail, but we
+			 * need to use cmpxchg to make sure it is still the
+			 * last node.
+			 */
+			if (acl_rel_tail == &a->next) {
+				acl_rel_head = NULL;
+				if (cmpxchg(&acl_rel_tail, &a->next,
+				    &acl_rel_head) == &a->next) {
+					ASSERT3P(a->next, ==, NULL);
+					a->next = freelist;
+					freelist = a;
+					break;
+				}
+			}
+			/*
+			 * a is not last node, make sure next pointer is set
+			 * by the adder and advance the head.
+			 */
+			while (ACCESS_ONCE(a->next) == NULL)
+				cpu_relax();
+			acl_rel_head = a->next;
+			a->next = freelist;
+			freelist = a;
+		} else {
+			/*
+			 * a is still in grace period. We are responsible to
+			 * reschedule the free task, since adder will only do
+			 * so if list is empty.
+			 */
+			new_time = a->time + ACL_REL_SCHED;
+			refire = B_TRUE;
+			break;
+		}
+	}
+
+	if (refire)
+		taskq_dispatch_delay(system_taskq, zpl_posix_acl_free, NULL,
+		    TQ_SLEEP, new_time);
+
+	while (freelist) {
+		a = freelist;
+		freelist = a->next;
+		kfree(a->acl);
+		kmem_free(a, sizeof (struct acl_rel_struct));
+	}
+}
+
+void
+zpl_posix_acl_release_impl(struct posix_acl *acl)
+{
+	struct acl_rel_struct *a, **prev;
+
+	a = kmem_alloc(sizeof (struct acl_rel_struct), KM_SLEEP);
+	a->next = NULL;
+	a->acl = acl;
+	a->time = ddi_get_lbolt();
+	/* atomically points tail to us and get the previous tail */
+	prev = xchg(&acl_rel_tail, &a->next);
+	ASSERT3P(*prev, ==, NULL);
+	*prev = a;
+	/* if it was empty before, schedule the free task */
+	if (prev == &acl_rel_head)
+		taskq_dispatch_delay(system_taskq, zpl_posix_acl_free, NULL,
+		    TQ_SLEEP, ddi_get_lbolt() + ACL_REL_SCHED);
+}
+#endif
