@@ -212,10 +212,7 @@ lseek_execute(
 
 #else
 
-static inline void
-zpl_posix_acl_free(void *arg) {
-	kfree(arg);
-}
+void zpl_posix_acl_release_impl(struct posix_acl *);
 
 static inline void
 zpl_posix_acl_release(struct posix_acl *acl)
@@ -223,10 +220,8 @@ zpl_posix_acl_release(struct posix_acl *acl)
 	if ((acl == NULL) || (acl == ACL_NOT_CACHED))
 		return;
 
-	if (atomic_dec_and_test(&acl->a_refcount)) {
-		taskq_dispatch_delay(system_taskq, zpl_posix_acl_free, acl,
-		    TQ_SLEEP, ddi_get_lbolt() + 60*HZ);
-	}
+	if (atomic_dec_and_test(&acl->a_refcount))
+		zpl_posix_acl_release_impl(acl);
 }
 
 static inline void
