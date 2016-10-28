@@ -1118,7 +1118,7 @@ dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb)
 		os->os_upgrade_id = taskq_dispatch(
 		    os->os_spa->spa_upgrade_taskq,
 		    dmu_objset_upgrade_task_cb, os, TQ_SLEEP);
-		if (os->os_upgrade_id == 0)
+		if (os->os_upgrade_id == TASKQID_INVALID)
 			os->os_upgrade_status = ENOMEM;
 	}
 	mutex_exit(&os->os_upgrade_lock);

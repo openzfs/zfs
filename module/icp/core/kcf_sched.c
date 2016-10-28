@@ -561,7 +561,7 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 		taskq_t *taskq = new_pd->pd_sched_info.ks_taskq;
 
 		if (taskq_dispatch(taskq, process_req_hwp, areq, TQ_NOSLEEP) ==
-		    (taskqid_t)0) {
+		    TASKQID_INVALID) {
 			error = CRYPTO_HOST_MEMORY;
 		} else {
 			error = CRYPTO_QUEUED;
@@ -782,7 +782,7 @@ kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
 
 			if (taskq_dispatch(taskq,
 			    process_req_hwp, areq, TQ_NOSLEEP) ==
-			    (taskqid_t)0) {
+			    TASKQID_INVALID) {
 				error = CRYPTO_HOST_MEMORY;
 				if (!(crq->cr_flag & CRYPTO_SKIP_REQID))
 					kcf_reqid_delete(areq);

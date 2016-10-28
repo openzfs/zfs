@@ -202,7 +202,8 @@ vdev_file_io_start(zio_t *zio)
 			 */
 			if (spl_fstrans_check()) {
 				VERIFY3U(taskq_dispatch(system_taskq,
-				    vdev_file_io_fsync, zio, TQ_SLEEP), !=, 0);
+				    vdev_file_io_fsync, zio, TQ_SLEEP), !=,
+				    TASKQID_INVALID);
 				return;
 			}
 
@@ -220,7 +221,7 @@ vdev_file_io_start(zio_t *zio)
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
 
 	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
-	    TQ_SLEEP), !=, 0);
+	    TQ_SLEEP), !=, TASKQID_INVALID);
 }
 
 /* ARGSUSED */

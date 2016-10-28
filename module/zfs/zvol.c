@@ -1895,7 +1895,7 @@ zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
 		return;
 
 	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
-	if ((async == B_FALSE) && (id != 0))
+	if ((async == B_FALSE) && (id != TASKQID_INVALID))
 		taskq_wait_id(spa->spa_zvol_taskq, id);
 }
 
@@ -1910,7 +1910,7 @@ zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 		return;
 
 	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
-	if ((async == B_FALSE) && (id != 0))
+	if ((async == B_FALSE) && (id != TASKQID_INVALID))
 		taskq_wait_id(spa->spa_zvol_taskq, id);
 }
 
@@ -1926,7 +1926,7 @@ zvol_rename_minors(spa_t *spa, const char *name1, const char *name2,
 		return;
 
 	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
-	if ((async == B_FALSE) && (id != 0))
+	if ((async == B_FALSE) && (id != TASKQID_INVALID))
 		taskq_wait_id(spa->spa_zvol_taskq, id);
 }
 
