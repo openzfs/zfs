@@ -548,7 +548,6 @@ zfsctl_inode_lookup(zfs_sb_t *zsb, uint64_t id,
 int
 zfsctl_create(zfs_sb_t *zsb)
 {
-#if defined(CONFIG_64BIT)
 	ASSERT(zsb->z_ctldir == NULL);
 
 	zsb->z_ctldir = zfsctl_inode_alloc(zsb, ZFSCTL_INO_ROOT,
@@ -557,9 +556,6 @@ zfsctl_create(zfs_sb_t *zsb)
 		return (SET_ERROR(ENOENT));
 
 	return (0);
-#else
-	return (SET_ERROR(EOPNOTSUPP));
-#endif /* CONFIG_64BIT */
 }
 
 /*
