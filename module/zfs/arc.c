@@ -3479,7 +3479,7 @@ arc_prune_async(int64_t adjust)
 		refcount_add(&ap->p_refcnt, ap->p_pfunc);
 		ap->p_adjust = adjust;
 		if (taskq_dispatch(arc_prune_taskq, arc_prune_task,
-		    ap, TQ_SLEEP) == 0) {
+		    ap, TQ_SLEEP) == TASKQID_INVALID) {
 			refcount_remove(&ap->p_refcnt, ap->p_pfunc);
 			continue;
 		}

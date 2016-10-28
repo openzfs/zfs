@@ -952,7 +952,7 @@ zfs_iput_async(struct inode *ip)
 
 	if (atomic_read(&ip->i_count) == 1)
 		VERIFY(taskq_dispatch(dsl_pool_iput_taskq(dmu_objset_pool(os)),
-		    (task_func_t *)iput, ip, TQ_SLEEP) != 0);
+		    (task_func_t *)iput, ip, TQ_SLEEP) != TASKQID_INVALID);
 	else
 		iput(ip);
 }

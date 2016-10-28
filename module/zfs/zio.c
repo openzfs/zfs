@@ -1557,7 +1557,7 @@ zio_delay_interrupt(zio_t *zio)
 				tid = taskq_dispatch_delay(system_taskq,
 				    (task_func_t *) zio_interrupt,
 				    zio, TQ_NOSLEEP, expire_at_tick);
-				if (!tid) {
+				if (tid == TASKQID_INVALID) {
 					/*
 					 * Couldn't allocate a task.  Just
 					 * finish the zio without a delay.
