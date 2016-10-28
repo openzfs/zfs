@@ -1919,7 +1919,10 @@ zfs_init(void)
 void
 zfs_fini(void)
 {
-	taskq_wait_outstanding(system_taskq, 0);
+	/*
+	 * we don't use outstanding because zpl_posix_acl_free might add more.
+	 */
+	taskq_wait(system_taskq);
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
 	zfsctl_fini();
