@@ -1131,9 +1131,15 @@ out:
 static int
 splat_kmem_test10(struct file *file, void *arg)
 {
-	uint64_t size, alloc, rc = 0;
+	uint64_t size, alloc, maxsize, limit, rc = 0;
 
-	for (size = 32; size <= 1024*1024; size *= 2) {
+#if defined(CONFIG_64BIT)
+	maxsize = (1024 * 1024);
+#else
+	maxsize = (128 * 1024);
+#endif
+
+	for (size = 32; size <= maxsize; size *= 2) {
 
 		splat_vprint(file, SPLAT_KMEM_TEST10_NAME, "%-22s  %s", "name",
 			     "time (sec)\tslabs       \tobjs	\thash\n");
@@ -1142,8 +1148,10 @@ splat_kmem_test10(struct file *file, void *arg)
 
 		for (alloc = 1; alloc <= 1024; alloc *= 2) {
 
-			/* Skip tests which exceed 1/2 of physical memory. */
-			if (size * alloc * SPLAT_KMEM_THREADS > physmem / 2)
+			/* Skip tests which exceed 1/2 of memory. */
+			limit = MIN(physmem * PAGE_SIZE,
+			    vmem_size(NULL, VMEM_ALLOC | VMEM_FREE)) / 2;
+			if (size * alloc * SPLAT_KMEM_THREADS > limit)
 				continue;
 
 			rc = splat_kmem_cache_thread_test(file, arg,
@@ -1223,7 +1231,8 @@ splat_kmem_test13(struct file *file, void *arg)
 	int i, rc = 0, max_time = 10;
 
 	size = 128 * 1024;
-	count = ((physmem * PAGE_SIZE) / 4 / size);
+	count = MIN(physmem * PAGE_SIZE, vmem_size(NULL,
+	    VMEM_ALLOC | VMEM_FREE)) / 4 / size;
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST13_NAME,
 	                                      size, 0, 0);
