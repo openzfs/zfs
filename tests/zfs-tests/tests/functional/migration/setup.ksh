@@ -34,10 +34,6 @@
 
 verify_runnable "global"
 
-if ! $(is_physical_device $ZFS_DISK) ; then
-	log_unsupported "Only partitionable physical disks can be used"
-fi
-
 case $DISK_COUNT in
 0)
 	log_untested "Need at least 1 disk device for test"
@@ -50,10 +46,7 @@ case $DISK_COUNT in
 	;;
 esac
 
-set_partition ${ZFSSIDE_DISK##*s} "" $FS_SIZE $ZFS_DISK
-set_partition ${NONZFSSIDE_DISK##*s} "" $FS_SIZE $NONZFS_DISK
-
-create_pool $TESTPOOL "$ZFSSIDE_DISK"
+create_pool $TESTPOOL "$ZFS_DISK"
 
 $RM -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR
 $MKDIR -p $TESTDIR || log_unresolved Could not create $TESTDIR
@@ -64,10 +57,10 @@ log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 $RM -rf $NONZFS_TESTDIR  || log_unresolved Could not remove $NONZFS_TESTDIR
 $MKDIR -p $NONZFS_TESTDIR || log_unresolved Could not create $NONZFS_TESTDIR
 
-$ECHO "y" | $NEWFS -v ${DEV_DSKDIR}/$NONZFSSIDE_DISK
+$ECHO "y" | $NEWFS -v ${DEV_DSKDIR}/$NONZFS_DISK
 (( $? != 0 )) &&
 	log_untested "Unable to setup a UFS file system"
 
-log_must $MOUNT ${DEV_DSKDIR}/$NONZFSSIDE_DISK $NONZFS_TESTDIR
+log_must $MOUNT ${DEV_DSKDIR}/$NONZFS_DISK $NONZFS_TESTDIR
 
 log_pass
