@@ -369,12 +369,17 @@ dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags, void *tag, dmu_buf_t **dbp)
 	if ((flags & DB_RF_HAVESTRUCT) == 0)
 		rw_exit(&dn->dn_struct_rwlock);
 
-	ASSERT(db != NULL);
+	if (db == NULL) {
+		*dbp = NULL;
+		return (SET_ERROR(EIO));
+	}
 	err = dbuf_read(db, NULL, flags);
 	if (err == 0)
 		*dbp = &db->db;
-	else
+	else {
 		dbuf_rele(db, tag);
+		*dbp = NULL;
+	}
 	return (err);
 }
 
