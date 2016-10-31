@@ -113,7 +113,7 @@ parse_sharetab(sa_handle_impl_t impl_handle) {
 	char line[512];
 	char *eol, *pathname, *resource, *fstype, *options, *description;
 
-	fp = fopen("/etc/dfs/sharetab", "r");
+	fp = fopen(ZFS_SHARETAB, "r");
 
 	if (fp == NULL)
 		return;
@@ -170,7 +170,7 @@ update_sharetab(sa_handle_impl_t impl_handle)
 	sa_share_impl_t impl_share;
 	int temp_fd;
 	FILE *temp_fp;
-	char tempfile[] = "/etc/dfs/sharetab.XXXXXX";
+	char tempfile[] = ZFS_SHARETAB".XXXXXX";
 	sa_fstype_t *fstype;
 	const char *resource;
 
@@ -215,7 +215,7 @@ update_sharetab(sa_handle_impl_t impl_handle)
 	fsync(temp_fd);
 	fclose(temp_fp);
 
-	(void) rename(tempfile, "/etc/dfs/sharetab");
+	(void) rename(tempfile, ZFS_SHARETAB);
 }
 
 typedef struct update_cookie_s {
