@@ -919,6 +919,12 @@ uint64_t zfs_crc64_table[256];
 #define	L2ARC_FEED_SECS		1		/* caching interval secs */
 #define	L2ARC_FEED_MIN_MS	200		/* min caching interval ms */
 
+/*
+ * We can feed L2ARC from two states of ARC buffers, mru and mfu,
+ * and each of the state has two types: data and metadata.
+ */
+#define	L2ARC_FEED_TYPES	4
+
 #define	l2arc_writes_sent	ARCSTAT(arcstat_l2_writes_sent)
 #define	l2arc_writes_done	ARCSTAT(arcstat_l2_writes_done)
 
@@ -6965,7 +6971,7 @@ l2arc_sublist_lock(int list_num)
 	multilist_t *ml = NULL;
 	unsigned int idx;
 
-	ASSERT(list_num >= 0 && list_num <= 3);
+	ASSERT(list_num >= 0 && list_num < L2ARC_FEED_TYPES);
 
 	switch (list_num) {
 	case 0:
@@ -6980,6 +6986,8 @@ l2arc_sublist_lock(int list_num)
 	case 3:
 		ml = &arc_mru->arcs_list[ARC_BUFC_DATA];
 		break;
+	default:
+		return (NULL);
 	}
 
 	/*
@@ -7138,9 +7146,11 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	/*
 	 * Copy buffers for L2ARC writing.
 	 */
-	for (try = 0; try <= 3; try++) {
+	for (try = 0; try < L2ARC_FEED_TYPES; try++) {
 		multilist_sublist_t *mls = l2arc_sublist_lock(try);
 		uint64_t passed_sz = 0;
+
+		VERIFY3P(mls, !=, NULL);
 
 		/*
 		 * L2ARC fast warmup.
