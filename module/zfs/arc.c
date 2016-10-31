@@ -979,6 +979,7 @@ static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
 static void arc_tuning_update(void);
 static void arc_prune_async(int64_t);
+static uint64_t arc_all_memory(void);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
 static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
@@ -1265,7 +1266,7 @@ buf_init(void)
 	 * By default, the table will take up
 	 * totalmem * sizeof(void*) / 8K (1MB per GB with 8-byte pointers).
 	 */
-	while (hsize * zfs_arc_average_blocksize < physmem * PAGESIZE)
+	while (hsize * zfs_arc_average_blocksize < arc_all_memory())
 		hsize <<= 1;
 retry:
 	buf_hash_table.ht_mask = hsize - 1;
@@ -3928,6 +3929,21 @@ arc_shrink(int64_t to_free)
 		(void) arc_adjust();
 }
 
+/*
+ * Return maximum amount of memory that we could possibly use.  Reduced
+ * to half of all memory in user space which is primarily used for testing.
+ */
+static uint64_t
+arc_all_memory(void)
+{
+#ifdef _KERNEL
+	return (MIN(ptob(physmem),
+	    vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC)));
+#else
+	return (ptob(physmem) / 2);
+#endif
+}
+
 typedef enum free_memory_reason_t {
 	FMR_UNKNOWN,
 	FMR_NEEDFREE,
@@ -3964,11 +3980,17 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 	free_memory_reason_t r = FMR_UNKNOWN;
 #ifdef _KERNEL
+	uint64_t available_memory = ptob(freemem);
 	int64_t n;
 #ifdef __linux__
 	pgcnt_t needfree = btop(arc_need_free);
 	pgcnt_t lotsfree = btop(arc_sys_free);
 	pgcnt_t desfree = 0;
+#endif
+
+#if defined(__i386)
+	available_memory =
+	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
 #endif
 
 	if (needfree > 0) {
@@ -3986,7 +4008,7 @@ arc_available_memory(void)
 	 * number of needed free pages.  We add extra pages here to make sure
 	 * the scanner doesn't start up while we're freeing memory.
 	 */
-	n = PAGESIZE * (freemem - lotsfree - needfree - desfree);
+	n = PAGESIZE * (btop(available_memory) - lotsfree - needfree - desfree);
 	if (n < lowest) {
 		lowest = n;
 		r = FMR_LOTSFREE;
@@ -4053,8 +4075,9 @@ arc_available_memory(void)
 	 * fragmentation issues.
 	 */
 	if (zio_arena != NULL) {
-		n = vmem_size(zio_arena, VMEM_FREE) - (vmem_size(zio_arena,
-		    VMEM_ALLOC) >> arc_zio_arena_free_shift);
+		n = (int64_t)vmem_size(zio_arena, VMEM_FREE) -
+		    (vmem_size(zio_arena, VMEM_ALLOC) >>
+		    arc_zio_arena_free_shift);
 		if (n < lowest) {
 			lowest = n;
 			r = FMR_ZIO_ARENA;
@@ -5905,7 +5928,12 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	pgcnt_t minfree = btop(arc_sys_free / 4);
 #endif
 
-	if (freemem > physmem * arc_lotsfree_percent / 100)
+#if defined(__i386)
+	available_memory =
+	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
+#endif
+
+	if (available_memory > arc_all_memory() * arc_lotsfree_percent / 100)
 		return (0);
 
 	if (txg > last_txg) {
@@ -6092,10 +6120,11 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 static void
 arc_tuning_update(void)
 {
-	uint64_t percent;
+	uint64_t percent, allmem = arc_all_memory();
+
 	/* Valid range: 64M - <all physical memory> */
 	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
-	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < ptob(physmem)) &&
+	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < allmem) &&
 	    (zfs_arc_max > arc_c_min)) {
 		arc_c_max = zfs_arc_max;
 		arc_c = arc_c_max;
@@ -6161,7 +6190,7 @@ arc_tuning_update(void)
 
 	/* Valid range: 0 - <all physical memory> */
 	if ((zfs_arc_sys_free) && (zfs_arc_sys_free != arc_sys_free))
-		arc_sys_free = MIN(MAX(zfs_arc_sys_free, 0), ptob(physmem));
+		arc_sys_free = MIN(MAX(zfs_arc_sys_free, 0), allmem);
 
 }
 
@@ -6288,15 +6317,7 @@ arc_max_bytes(void)
 void
 arc_init(void)
 {
-	/*
-	 * allmem is "all memory that we could possibly use".
-	 */
-#ifdef _KERNEL
-	uint64_t allmem = ptob(physmem);
-#else
-	uint64_t allmem = (physmem * PAGESIZE) / 2;
-#endif
-	uint64_t percent;
+	uint64_t percent, allmem = arc_all_memory();
 
 	mutex_init(&arc_reclaim_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&arc_reclaim_thread_cv, NULL, CV_DEFAULT, NULL);
@@ -6314,7 +6335,7 @@ arc_init(void)
 	spl_register_shrinker(&arc_shrinker);
 
 	/* Set to 1/64 of all memory or a minimum of 512K */
-	arc_sys_free = MAX(ptob(physmem / 64), (512 * 1024));
+	arc_sys_free = MAX(allmem / 64, (512 * 1024));
 	arc_need_free = 0;
 #endif
 
@@ -6398,11 +6419,11 @@ arc_init(void)
 	 * zfs_dirty_data_max_max (default 25% of physical memory).
 	 */
 	if (zfs_dirty_data_max_max == 0)
-		zfs_dirty_data_max_max = (uint64_t)physmem * PAGESIZE *
+		zfs_dirty_data_max_max = allmem *
 		    zfs_dirty_data_max_max_percent / 100;
 
 	if (zfs_dirty_data_max == 0) {
-		zfs_dirty_data_max = (uint64_t)physmem * PAGESIZE *
+		zfs_dirty_data_max = allmem *
 		    zfs_dirty_data_max_percent / 100;
 		zfs_dirty_data_max = MIN(zfs_dirty_data_max,
 		    zfs_dirty_data_max_max);
