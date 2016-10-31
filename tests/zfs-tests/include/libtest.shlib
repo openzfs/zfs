@@ -44,6 +44,19 @@ function is_linux
 	fi
 }
 
+# Determine if this is a 32-bit system
+#
+# Return 0 if platform is 32-bit, 1 if otherwise
+
+function is_32bit
+{
+	if [[ $(getconf LONG_BIT) == "32" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine whether a dataset is mounted
 #
 # $1 dataset name
