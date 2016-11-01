@@ -202,7 +202,7 @@ sa_attr_type_t sa_legacy_zpl_layout[] = {
  */
 sa_attr_type_t sa_dummy_zpl_layout[] = { 0 };
 
-static int sa_legacy_attr_count = 16;
+static int sa_legacy_attr_count = ARRAY_SIZE(sa_legacy_attrs);
 static kmem_cache_t *sa_cache = NULL;
 
 /*ARGSUSED*/
