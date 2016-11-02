@@ -182,11 +182,12 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'zfs_set_002_neg', 'zfs_set_003_neg', 'property_alias_001_pos']
 
 # DISABLED: Tests need to be updated for Linux share behavior
-#[tests/functional/cli_root/zfs_share]
-#tests = ['zfs_share_001_pos', 'zfs_share_002_pos', 'zfs_share_003_pos',
-#    'zfs_share_004_pos', 'zfs_share_005_pos', 'zfs_share_006_pos',
-#    'zfs_share_007_neg', 'zfs_share_008_neg', 'zfs_share_009_neg',
-#    'zfs_share_010_neg', 'zfs_share_011_pos']
+# zfs_share_005_pos - needs investigation, probably unsupported NFS share format
+[tests/functional/cli_root/zfs_share]
+tests = ['zfs_share_001_pos', 'zfs_share_002_pos', 'zfs_share_003_pos',
+    'zfs_share_004_pos', 'zfs_share_006_pos',
+    'zfs_share_007_neg', 'zfs_share_008_neg', 'zfs_share_009_neg',
+    'zfs_share_010_neg', 'zfs_share_011_pos']
 
 [tests/functional/cli_root/zfs_snapshot]
 tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
@@ -204,9 +205,11 @@ tests = ['zfs_unmount_001_pos', 'zfs_unmount_002_pos', 'zfs_unmount_003_pos',
     'zfs_unmount_007_neg', 'zfs_unmount_008_neg']
 
 # DISABLED: Tests need to be updated for Linux unshare behavior
-#[tests/functional/cli_root/zfs_unshare]
-#tests = ['zfs_unshare_001_pos', 'zfs_unshare_002_pos', 'zfs_unshare_003_pos',
-#    'zfs_unshare_004_neg', 'zfs_unshare_005_neg']
+# zfs_unshare_002_pos - zfs set sharenfs=off won't unshare if it was already off
+# zfs_unshare_006_pos - some distros come with Samba "user shares" disabled
+[tests/functional/cli_root/zfs_unshare]
+tests = ['zfs_unshare_001_pos', 'zfs_unshare_003_pos',
+    'zfs_unshare_004_neg', 'zfs_unshare_005_neg']
 
 [tests/functional/cli_root/zfs_upgrade]
 tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',

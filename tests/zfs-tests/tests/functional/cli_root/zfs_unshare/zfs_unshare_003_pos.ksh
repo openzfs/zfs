@@ -68,7 +68,7 @@ function test_snap_unshare # <mntp> <filesystem>
 	prop_value=$(get_prop "sharenfs" $filesystem)
 
 	if [[ $prop_value == "off" ]]; then
-		is_shared $mntp || $UNSHARE -F nfs $mntp
+		is_shared $mntp || unshare_nfs $mntp
 		log_must $ZFS set sharenfs=on $filesystem
 	fi
 

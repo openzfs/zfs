@@ -160,12 +160,12 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBshare\fR \fB-a\fR | \fIfilesystem\fR
+\fBzfs\fR \fBshare\fR [\fBnfs\fR|\fBsmb\fR] \fB-a\fR | \fIfilesystem\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBunshare\fR \fB-a\fR \fIfilesystem\fR|\fImountpoint\fR
+\fBzfs\fR \fBunshare\fR [\fBnfs\fR|\fBsmb\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR
 .fi
 
 .LP
@@ -2646,7 +2646,7 @@ Unmount the specified filesystem. The command can also be given a path to a \fBZ
 .sp
 .ne 2
 .na
-\fB\fBzfs share\fR \fB-a\fR | \fIfilesystem\fR\fR
+\fB\fBzfs share\fR [\fBnfs\fR|\fBsmb\fR] \fB-a\fR | \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2658,7 +2658,7 @@ Shares available \fBZFS\fR file systems.
 .ad
 .sp .6
 .RS 4n
-Share all available \fBZFS\fR file systems. Invoked automatically as part of the boot process.
+Share all available \fBZFS\fR file systems. Invoked automatically as part of the boot process. Additionally if one of \fBnfs\fR|\fBsmb\fR protocols is specified only share file systems whose \fBsharenfs\fR|\fBsharesmb\fR is set.
 .RE
 
 .sp
@@ -2676,11 +2676,11 @@ Share the specified filesystem according to the \fBsharenfs\fR and \fBsharesmb\f
 .sp
 .ne 2
 .na
-\fB\fBzfs unshare\fR \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
+\fB\fBzfs unshare\fR [\fBnfs\fR|\fBsmb\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR\fR
 .ad
 .sp .6
 .RS 4n
-Unshares currently shared \fBZFS\fR file systems. This is invoked automatically as part of the shutdown process.
+Unshares currently shared \fBZFS\fR file systems. This is invoked automatically as part of the shutdown process. Additionally if one of \fBnfs\fR|\fBsmb\fR is specified unshare only file systems currently shared by that protocol.
 .sp
 .ne 2
 .na
