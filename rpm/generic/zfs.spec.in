@@ -40,6 +40,7 @@
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
+%define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target
 %endif
 
 # RHEL >= 7 comes with systemd
@@ -241,7 +242,7 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
 %if 0%{?_systemd}
-%systemd_post zfs.target
+%systemd_post %{systemd_svcs}
 %else
 if [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --add zfs-import
@@ -254,7 +255,7 @@ exit 0
 
 %preun
 %if 0%{?_systemd}
-%systemd_preun zfs.target
+%systemd_preun %{systemd_svcs}
 %else
 if [ $1 -eq 0 ] && [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --del zfs-import
@@ -267,7 +268,7 @@ exit 0
 
 %postun
 %if 0%{?_systemd}
-%systemd_postun zfs.target
+%systemd_postun %{systemd_svcs}
 %endif
 
 %files
