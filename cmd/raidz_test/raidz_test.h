@@ -34,6 +34,8 @@ static const char *raidz_impl_names[] = {
 	"sse2",
 	"ssse3",
 	"avx2",
+	"avx512f",
+	"avx512bw",
 	"aarch64_neon",
 	"aarch64_neonx2",
 	NULL
