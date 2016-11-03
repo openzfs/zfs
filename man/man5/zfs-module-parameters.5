@@ -1935,12 +1935,14 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
-\fBzil_slog_limit\fR (ulong)
+\fBzil_slog_bulk\fR (ulong)
 .ad
 .RS 12n
-Max commit bytes to separate log device
+Limit SLOG write size per commit executed with synchronous priority.
+Any writes above that will be executed with lower (asynchronous) priority
+to limit potential SLOG device abuse by single active ZIL writer.
 .sp
-Default value: \fB1,048,576\fR.
+Default value: \fB786,432\fR.
 .RE
 
 .sp
