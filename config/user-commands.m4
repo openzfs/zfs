@@ -144,7 +144,6 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_COMMANDS_BSD], [
 	AC_PATH_TOOL(DUMPADM, dumpadm, "")
 	AC_PATH_TOOL(FORMAT, format, "")
 	AC_PATH_TOOL(GETMAJOR, getmajor, "")
-	AC_PATH_TOOL(ISAINFO, isainfo, "")
 	AC_PATH_TOOL(KSTAT, kstat, "")
 	AC_PATH_TOOL(LOCKFS, lockfs, "")
 	AC_PATH_TOOL(LOFIADM, lofiadm, "")
