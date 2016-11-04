@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -1602,7 +1602,8 @@ zfs_trunc(znode_t *zp, uint64_t end)
 		return (0);
 	}
 
-	error = dmu_free_long_range(zsb->z_os, zp->z_id, end,  -1);
+	error = dmu_free_long_range(zsb->z_os, zp->z_id, end,
+	    DMU_OBJECT_END);
 	if (error) {
 		zfs_range_unlock(rl);
 		return (error);

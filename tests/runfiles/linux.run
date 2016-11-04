@@ -639,3 +639,6 @@ tests = ['zvol_cli_001_pos', 'zvol_cli_002_pos', 'zvol_cli_003_neg']
 #[tests/functional/zvol/zvol_swap]
 #tests = ['zvol_swap_001_pos', 'zvol_swap_002_pos', 'zvol_swap_003_pos',
 #    'zvol_swap_004_pos', 'zvol_swap_005_pos', 'zvol_swap_006_pos']
+
+[tests/functional/hole_birth]
+tests = ['hole_birth_7176','hole_birth_4809','hole_birth_4996']
