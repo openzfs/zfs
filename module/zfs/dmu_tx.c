@@ -755,7 +755,7 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 		 * block.  So there will be at most 2 blocks total,
 		 * including the header block.
 		 */
-		dmu_tx_count_write(txh, 0, 2 << fzap_default_block_shift);
+		dmu_tx_count_write(txh, 0, 2ULL << fzap_default_block_shift);
 		return;
 	}
 
