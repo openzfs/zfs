@@ -404,8 +404,8 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	    nvlist_add_string(newvd, ZPOOL_CONFIG_DEVID, new_devid) != 0 ||
 	    (physpath != NULL && nvlist_add_string(newvd,
 	    ZPOOL_CONFIG_PHYS_PATH, physpath) != 0) ||
-	    nvlist_add_string(newvd, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
-	    enc_sysfs_path) != 0 ||
+	    (enc_sysfs_path != NULL && nvlist_add_string(newvd,
+	    ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH, enc_sysfs_path) != 0) ||
 	    nvlist_add_uint64(newvd, ZPOOL_CONFIG_WHOLE_DISK, wholedisk) != 0 ||
 	    nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT) != 0 ||
 	    nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, &newvd,
