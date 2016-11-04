@@ -15,6 +15,8 @@ $(MODULE)-objs += zfs_comutil.o
 $(MODULE)-objs += zfs_fletcher.o
 $(MODULE)-objs += zfs_uio.o
 $(MODULE)-objs += zpool_prop.o
+$(MODULE)-objs += zfs_fletcher_superscalar.o
+$(MODULE)-objs += zfs_fletcher_superscalar4.o
 
 $(MODULE)-$(CONFIG_X86) += zfs_fletcher_intel.o
 $(MODULE)-$(CONFIG_X86) += zfs_fletcher_sse.o

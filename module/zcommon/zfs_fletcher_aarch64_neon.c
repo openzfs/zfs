@@ -2,7 +2,7 @@
  * Implement fast Fletcher4 with NEON instructions. (aarch64)
  *
  * Use the 128-bit NEON SIMD instructions and registers to compute
- * Fletcher4 in four incremental 64-bit parallel accumulator streams,
+ * Fletcher4 in two incremental 64-bit parallel accumulator streams,
  * and then combine the streams to form the final four checksum words.
  * This implementation is a derivative of the AVX SIMD implementation by
  * James Guilford and Jinshan Xiong from Intel (see zfs_fletcher_intel.c).
