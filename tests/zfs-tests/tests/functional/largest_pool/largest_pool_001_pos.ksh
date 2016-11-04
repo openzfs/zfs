@@ -126,7 +126,7 @@ for volsize in $VOLSIZES; do
 	str=$($ZFS create -sV $volsize $TESTPOOL2/$TESTVOL 2>&1)
 	ret=$?
 	if (( ret != 0 )); then
-		if [[ $($ISAINFO -b) == 32 && \
+		if [[ is_32bit && \
 			$str == *${VOL_LIMIT_KEYWORD1}* || \
 			$str == *${VOL_LIMIT_KEYWORD2}* || \
 			$str == *${VOL_LIMIT_KEYWORD3}* ]]
