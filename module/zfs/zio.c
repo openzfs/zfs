@@ -131,7 +131,7 @@ zio_init(void)
 		size_t align = 0;
 		size_t cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
 
-#ifdef _ILP32
+#if defined(_ILP32) && defined(_KERNEL)
 		/*
 		 * Cache size limited to 1M on 32-bit platforms until ARC
 		 * buffers no longer require virtual address space.
