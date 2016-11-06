@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -116,9 +116,7 @@ fi
 log_must cmp_ds_subs $POOL $dstds
 typeset -i i=0
 while ((i < ${#pair[@]})); do
-	log_must cmp_ds_cont ${pair[$i]} ${pair[((i+1))]}
 	log_must cmp_ds_prop ${pair[$i]} ${pair[((i+1))]}
-
 	((i += 2))
 done
 
