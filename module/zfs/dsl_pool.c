@@ -615,9 +615,16 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 {
 	zilog_t *zilog;
 
-	while ((zilog = txg_list_remove(&dp->dp_dirty_zilogs, txg))) {
+	while ((zilog = txg_list_head(&dp->dp_dirty_zilogs, txg))) {
 		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+		/*
+		 * We don't remove the zilog from the dp_dirty_zilogs
+		 * list until after we've cleaned it. This ensures that
+		 * callers of zilog_is_dirty() receive an accurate
+		 * answer when they are racing with the spa sync thread.
+		 */
 		zil_clean(zilog, txg);
+		(void) txg_list_remove_this(&dp->dp_dirty_zilogs, zilog, txg);
 		ASSERT(!dmu_objset_is_dirty(zilog->zl_os, txg));
 		dmu_buf_rele(ds->ds_dbuf, zilog);
 	}
