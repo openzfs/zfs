@@ -1,1 +1,1 @@
-SUBDIRS = cmd include tests
+SUBDIRS = cmd include tests callbacks

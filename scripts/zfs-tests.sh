@@ -41,6 +41,9 @@ FILEDIR=${FILEDIR:-/var/tmp}
 DISKS=${DISKS:-""}
 SINGLETEST=()
 SINGLETESTUSER="root"
+ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
+ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
+TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DBGMSG:$ZFS_DMESG"}
 
 #
 # Attempt to remove loopback devices and files which where created earlier
@@ -475,6 +478,14 @@ if [ -x "$STF_PATH/setenforce" ]; then
 	sudo setenforce permissive &>/dev/null
 fi
 
+#
+# Enable interal ZFS debug log and clear it.
+#
+if [ -e /sys/module/zfs/parameters/zfs_dbgmsg_enable ]; then
+	sudo /bin/sh -c "echo 1 >/sys/module/zfs/parameters/zfs_dbgmsg_enable"
+	sudo /bin/sh -c "echo 0 >/proc/spl/kstat/zfs/dbgmsg"
+fi
+
 msg "FILEDIR:         $FILEDIR"
 msg "FILES:           $FILES"
 msg "LOOPBACKS:       $LOOPBACKS"
@@ -491,6 +502,7 @@ export STF_PATH
 export DISKS
 export KEEP
 export __ZFS_POOL_EXCLUDE
+export TESTFAIL_CALLBACKS
 export PATH=$STF_PATH
 
 msg "${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -i ${STF_SUITE}"

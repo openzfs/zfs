@@ -146,6 +146,7 @@ AC_CONFIG_FILES([
 	tests/test-runner/man/Makefile
 	tests/runfiles/Makefile
 	tests/zfs-tests/Makefile
+	tests/zfs-tests/callbacks/Makefile
 	tests/zfs-tests/cmd/Makefile
 	tests/zfs-tests/cmd/chg_usr_exec/Makefile
 	tests/zfs-tests/cmd/devname2devid/Makefile
