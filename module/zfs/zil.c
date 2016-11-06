@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Integros [integros.com]
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -504,6 +505,27 @@ zilog_dirty(zilog_t *zilog, uint64_t txg)
 	}
 }
 
+/*
+ * Determine if the zil is dirty in the specified txg. Callers wanting to
+ * ensure that the dirty state does not change must hold the itxg_lock for
+ * the specified txg. Holding the lock will ensure that the zil cannot be
+ * dirtied (zil_itx_assign) or cleaned (zil_clean) while we check its current
+ * state.
+ */
+boolean_t
+zilog_is_dirty_in_txg(zilog_t *zilog, uint64_t txg)
+{
+	dsl_pool_t *dp = zilog->zl_dmu_pool;
+
+	if (txg_list_member(&dp->dp_dirty_zilogs, zilog, txg & TXG_MASK))
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
+/*
+ * Determine if the zil is dirty. The zil is considered dirty if it has
+ * any pending itx records that have not been cleaned by zil_clean().
+ */
 boolean_t
 zilog_is_dirty(zilog_t *zilog)
 {
@@ -1091,8 +1113,6 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 		return (NULL);
 
 	ASSERT(lwb->lwb_buf != NULL);
-	ASSERT(zilog_is_dirty(zilog) ||
-	    spa_freeze_txg(zilog->zl_spa) != UINT64_MAX);
 
 	if (lrc->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_NEED_COPY)
 		dlen = P2ROUNDUP_TYPED(
@@ -1339,6 +1359,8 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 			 * this itxg. Save the itxs for release below.
 			 * This should be rare.
 			 */
+			zfs_dbgmsg("zil_itx_assign: missed itx cleanup for "
+			    "txg %llu", itxg->itxg_txg);
 			atomic_add_64(&zilog->zl_itx_list_sz, -itxg->itxg_sod);
 			itxg->itxg_sod = 0;
 			clean = itxg->itxg_itxs;
@@ -1439,6 +1461,11 @@ zil_get_commit_list(zilog_t *zilog)
 	else
 		otxg = spa_last_synced_txg(zilog->zl_spa) + 1;
 
+	/*
+	 * This is inherently racy, since there is nothing to prevent
+	 * the last synced txg from changing. That's okay since we'll
+	 * only commit things in the future.
+	 */
 	for (txg = otxg; txg < (otxg + TXG_CONCURRENT_STATES); txg++) {
 		itxg_t *itxg = &zilog->zl_itxg[txg & TXG_MASK];
 
@@ -1448,6 +1475,16 @@ zil_get_commit_list(zilog_t *zilog)
 			continue;
 		}
 
+		/*
+		 * If we're adding itx records to the zl_itx_commit_list,
+		 * then the zil better be dirty in this "txg". We can assert
+		 * that here since we're holding the itxg_lock which will
+		 * prevent spa_sync from cleaning it. Once we add the itxs
+		 * to the zl_itx_commit_list we must commit it to disk even
+		 * if it's unnecessary (i.e. the txg was synced).
+		 */
+		ASSERT(zilog_is_dirty_in_txg(zilog, txg) ||
+		    spa_freeze_txg(zilog->zl_spa) != UINT64_MAX);
 		list_move_tail(commit_list, &itxg->itxg_itxs->i_sync_list);
 		push_sod += itxg->itxg_sod;
 		itxg->itxg_sod = 0;
@@ -1473,6 +1510,10 @@ zil_async_to_sync(zilog_t *zilog, uint64_t foid)
 	else
 		otxg = spa_last_synced_txg(zilog->zl_spa) + 1;
 
+	/*
+	 * This is inherently racy, since there is nothing to prevent
+	 * the last synced txg from changing.
+	 */
 	for (txg = otxg; txg < (otxg + TXG_CONCURRENT_STATES); txg++) {
 		itxg_t *itxg = &zilog->zl_itxg[txg & TXG_MASK];
 
@@ -1545,8 +1586,14 @@ zil_commit_writer(zilog_t *zilog)
 	for (itx = list_head(&zilog->zl_itx_commit_list); itx != NULL;
 	    itx = list_next(&zilog->zl_itx_commit_list, itx)) {
 		txg = itx->itx_lr.lrc_txg;
-		ASSERT(txg);
+		ASSERT3U(txg, !=, 0);
 
+		/*
+		 * This is inherently racy and may result in us writing
+		 * out a log block for a txg that was just synced. This is
+		 * ok since we'll end cleaning up that log block the next
+		 * time we call zil_sync().
+		 */
 		if (txg > spa_last_synced_txg(spa) || txg > spa_freeze_txg(spa))
 			lwb = zil_lwb_commit(zilog, itx, lwb);
 	}
@@ -1907,8 +1954,11 @@ zil_close(zilog_t *zilog)
 	mutex_exit(&zilog->zl_lock);
 	if (txg)
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
+
+	if (zilog_is_dirty(zilog))
+		zfs_dbgmsg("zil (%p) is dirty, txg %llu", zilog, txg);
 	if (txg < spa_freeze_txg(zilog->zl_spa))
-		ASSERT(!zilog_is_dirty(zilog));
+		VERIFY(!zilog_is_dirty(zilog));
 
 	taskq_destroy(zilog->zl_clean_taskq);
 	zilog->zl_clean_taskq = NULL;
