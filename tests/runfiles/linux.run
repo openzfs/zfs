@@ -615,6 +615,9 @@ tests = ['sparse_001_pos']
 [tests/functional/tmpfile]
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos']
 
+[tests/functional/trim]
+tests = ['autotrim_001_pos', 'manualtrim_001_pos']
+
 [tests/functional/truncate]
 tests = ['truncate_001_pos', 'truncate_002_pos']
 
