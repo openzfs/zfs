@@ -259,7 +259,7 @@ cksummer(void *arg)
 	 * a power of 2 if necessary.
 	 */
 	if (!ISP2(numbuckets))
-		numbuckets = 1 << high_order_bit(numbuckets);
+		numbuckets = 1ULL << high_order_bit(numbuckets);
 
 	ddt.dedup_hash_array = calloc(numbuckets, sizeof (dedup_entry_t *));
 	ddt.ddecache = umem_cache_create("dde", sizeof (dedup_entry_t), 0,

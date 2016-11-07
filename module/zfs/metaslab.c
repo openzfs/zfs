@@ -1769,7 +1769,7 @@ metaslab_should_condense(metaslab_t *msp)
 	range_seg_t *rs;
 	uint64_t size, entries, segsz, object_size, optimal_size, record_size;
 	dmu_object_info_t doi;
-	uint64_t vdev_blocksize = 1 << msp->ms_group->mg_vd->vdev_ashift;
+	uint64_t vdev_blocksize = 1ULL << msp->ms_group->mg_vd->vdev_ashift;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loaded);
