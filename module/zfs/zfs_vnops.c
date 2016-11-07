@@ -1613,10 +1613,7 @@ top:
 	dmu_tx_commit(tx);
 out:
 
-	if (error) {
-		if (zp)
-			iput(ZTOI(zp));
-	} else {
+	if (error != 0) {
 		zfs_inode_update(dzp);
 		zfs_inode_update(zp);
 		*ipp = ZTOI(zp);
