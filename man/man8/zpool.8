@@ -149,7 +149,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool trim\fR [\fB-r \fIrate\fR|\fB-s\fR] \fIpool\fR ...
+\fBzpool trim\fR [\fB-p\fR] [\fB-r \fIrate\fR|\fB-s\fR] \fIpool\fR ...
 .fi
 
 .LP
@@ -2070,7 +2070,7 @@ Stop scrubbing.
 .sp
 .ne 2
 .na
-\fB\fBzpool trim\fR [\fB-r \fIrate\fR|\fB-s\fR] \fIpool\fR ...\fR
+\fB\fBzpool trim\fR [\fB-p\fR] [\fB-r \fIrate\fR|\fB-s\fR] \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -2097,6 +2097,17 @@ prematurely terminate an on-demand TRIM operation.
 .sp
 See the documentation for the \fBautotrim\fR property above for a description
 of the vdevs on which \fBzpool trim\fR is supported.
+.sp
+.ne 2
+.na
+\fB\fB-p\fR\R
+.ad
+.RS 6n
+Causes a "partial" TRIM to be initiated.  A partial TRIM skips free
+space which has never been used by ZFS (e.g. most of the free space on
+a newly-created pool).  This operation is useful for certain storage
+backends for which large TRIM operations are slow.
+.RE
 .sp
 .ne 2
 .na

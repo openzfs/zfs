@@ -154,6 +154,7 @@ extern nvlist_t *vdev_config_generate(spa_t *spa, vdev_t *vd,
     boolean_t getstats, vdev_config_flag_t flags);
 
 extern void vdev_man_trim(vdev_trim_info_t *vti);
+extern void vdev_man_trim_full(vdev_trim_info_t *vti);
 extern void vdev_auto_trim(vdev_trim_info_t *vti);
 
 /*
