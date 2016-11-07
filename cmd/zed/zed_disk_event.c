@@ -80,7 +80,7 @@ zed_udev_event(const char *class, const char *subclass, nvlist_t *nvl)
 	if (nvlist_lookup_uint64(nvl, ZFS_EV_VDEV_GUID, &numval) == 0)
 		zed_log_msg(LOG_INFO, "\t%s: %llu", ZFS_EV_VDEV_GUID, numval);
 
-	(void) zfs_slm_event(class, subclass, nvl);
+	(void) zfs_agent_post_event(class, subclass, nvl);
 }
 
 /*
@@ -213,8 +213,6 @@ zed_udev_monitor(void *arg)
 		    strcmp(type, "disk") == 0 &&
 		    part != NULL && part[0] != '\0') {
 			/* skip and wait for partition event */
-			zed_log_msg(LOG_INFO, "zed_udev_monitor: %s waiting "
-			    "for slice", udev_device_get_devnode(dev));
 			udev_device_unref(dev);
 			continue;
 		}
@@ -297,12 +295,19 @@ zed_udev_monitor(void *arg)
 				 * dev are the same name (i.e. /dev/dm-5), then
 				 * there is no real underlying disk for this
 				 * multipath device, and so this "change" event
-				 * really a multipath removal.
+				 * really is a multipath removal.
 				 */
 				class = EC_DEV_ADD;
 				subclass = ESC_DISK;
 			} else {
-				/* multipath remove, ignore it. */
+				tmp = (char *)
+				    udev_device_get_property_value(dev,
+				    "DM_NR_VALID_PATHS");
+				/* treat as a multipath remove */
+				if (tmp != NULL && strcmp(tmp, "0") == 0) {
+					class = EC_DEV_REMOVE;
+					subclass = ESC_DISK;
+				}
 			}
 			free(tmp2);
 		}

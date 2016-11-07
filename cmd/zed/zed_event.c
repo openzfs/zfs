@@ -55,12 +55,8 @@ zed_event_init(struct zed_conf *zcp)
 		zed_log_die("Failed to open \"%s\": %s",
 		    ZFS_DEV, strerror(errno));
 
-	if (zfs_slm_init(zcp->zfs_hdl) != 0)
-		zed_log_die("Failed to initialize zfs slm");
-	if (zfs_diagnosis_init(zcp->zfs_hdl) != 0)
-		zed_log_die("Failed to initialize zfs diagnosis");
-	if (zfs_retire_init(zcp->zfs_hdl) != 0)
-		zed_log_die("Failed to initialize zfs retire");
+	zfs_agent_init(zcp->zfs_hdl);
+
 	if (zed_disk_event_init() != 0)
 		zed_log_die("Failed to initialize disk events");
 }
@@ -75,9 +71,7 @@ zed_event_fini(struct zed_conf *zcp)
 		zed_log_die("Failed zed_event_fini: %s", strerror(EINVAL));
 
 	zed_disk_event_fini();
-	zfs_retire_fini();
-	zfs_diagnosis_fini();
-	zfs_slm_fini();
+	zfs_agent_fini();
 
 	if (zcp->zevent_fd >= 0) {
 		if (close(zcp->zevent_fd) < 0)
@@ -832,17 +826,6 @@ _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 	}
 }
 
-static void
-_zed_internal_event(const char *class, nvlist_t *nvl)
-{
-	/*
-	 * NOTE: only vdev check is handled for now
-	 */
-	if (strcmp(class, "sysevent.fs.zfs.vdev_check") == 0) {
-		(void) zfs_slm_event("EC_zfs", "ESC_ZFS_vdev_check", nvl);
-	}
-}
-
 /*
  * Service the next zevent, blocking until one is available.
  */
@@ -894,7 +877,7 @@ zed_event_service(struct zed_conf *zcp)
 		    "Failed to lookup zevent class (eid=%llu)", eid);
 	} else {
 		/* let internal modules see this event first */
-		_zed_internal_event(class, nvl);
+		zfs_agent_post_event(class, NULL, nvl);
 
 		zsp = zed_strings_create();
 
