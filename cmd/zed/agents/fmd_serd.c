@@ -300,6 +300,9 @@ fmd_serd_eng_gc(fmd_serd_eng_t *sgp)
 		return; /* no garbage collection needed if empty or fired */
 
 	sep = list_head(&sgp->sg_list);
+	if (sep == NULL)
+		return;
+
 	hrt = sep->se_hrt - sgp->sg_t;
 
 	for (sep = list_head(&sgp->sg_list); sep != NULL; sep = nep) {
