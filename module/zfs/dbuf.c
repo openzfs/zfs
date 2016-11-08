@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -1207,7 +1207,8 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	} else if (db->db_state == DB_UNCACHED) {
 		spa_t *spa = dn->dn_objset->os_spa;
 
-		if (zio == NULL)
+		if (zio == NULL &&
+		    db->db_blkptr != NULL && !BP_IS_HOLE(db->db_blkptr))
 			zio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 
 		err = dbuf_read_impl(db, zio, flags);
@@ -1221,7 +1222,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 			rw_exit(&dn->dn_struct_rwlock);
 		DB_DNODE_EXIT(db);
 
-		if (!err && !havepzio)
+		if (!err && !havepzio && zio != NULL)
 			err = zio_wait(zio);
 	} else {
 		/*
