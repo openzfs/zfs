@@ -57,8 +57,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE], [
 	],[
 		struct inode *ip = NULL;
 		struct posix_acl *acl = posix_acl_alloc(1, 0);
-		set_cached_acl(ip, 0, acl);
-		forget_cached_acl(ip, 0);
+		set_cached_acl(ip, ACL_TYPE_ACCESS, acl);
+		forget_cached_acl(ip, ACL_TYPE_ACCESS);
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_SET_CACHED_ACL_USABLE, 1,
