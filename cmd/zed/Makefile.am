@@ -77,8 +77,8 @@ zedconfdefaults = \
 	io-notify.sh \
 	resilver_finish-notify.sh \
 	scrub_finish-notify.sh \
-	statechange-blinkled.sh \
-	vdev_clear-blinkled.sh
+	statechange-led.sh \
+	vdev_clear-led.sh
 
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zedconfdir)"
