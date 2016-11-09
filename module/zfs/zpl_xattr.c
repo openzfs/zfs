@@ -936,7 +936,7 @@ xattr_handler_t zpl_xattr_security_handler = {
  */
 #ifdef CONFIG_FS_POSIX_ACL
 int
-zpl_set_acl(struct inode *ip, int type, struct posix_acl *acl)
+zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type)
 {
 	struct super_block *sb = ITOZSB(ip)->z_sb;
 	char *name, *value = NULL;
@@ -1140,7 +1140,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		umode_t mode;
 
 		if (S_ISDIR(ip->i_mode)) {
-			error = zpl_set_acl(ip, ACL_TYPE_DEFAULT, acl);
+			error = zpl_set_acl(ip, acl, ACL_TYPE_DEFAULT);
 			if (error)
 				goto out;
 		}
@@ -1151,7 +1151,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 			ip->i_mode = mode;
 			zfs_mark_inode_dirty(ip);
 			if (error > 0)
-				error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
+				error = zpl_set_acl(ip, acl, ACL_TYPE_ACCESS);
 		}
 	}
 out:
@@ -1178,7 +1178,7 @@ zpl_chmod_acl(struct inode *ip)
 
 	error = __posix_acl_chmod(&acl, GFP_KERNEL, ip->i_mode);
 	if (!error)
-		error = zpl_set_acl(ip, ACL_TYPE_ACCESS, acl);
+		error = zpl_set_acl(ip, acl, ACL_TYPE_ACCESS);
 
 	zpl_posix_acl_release(acl);
 
@@ -1308,7 +1308,7 @@ __zpl_xattr_acl_set_access(struct inode *ip, const char *name,
 		acl = NULL;
 	}
 
-	error = zpl_set_acl(ip, type, acl);
+	error = zpl_set_acl(ip, acl, type);
 	zpl_posix_acl_release(acl);
 
 	return (error);
@@ -1348,7 +1348,7 @@ __zpl_xattr_acl_set_default(struct inode *ip, const char *name,
 		acl = NULL;
 	}
 
-	error = zpl_set_acl(ip, type, acl);
+	error = zpl_set_acl(ip, acl, type);
 	zpl_posix_acl_release(acl);
 
 	return (error);
