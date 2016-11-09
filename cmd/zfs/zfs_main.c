@@ -4832,9 +4832,9 @@ allow_usage(boolean_t un, boolean_t requested, const char *msg)
 	(void) fprintf(fp, gettext("Usage: %s\n"), get_usage(un ? HELP_UNALLOW :
 	    HELP_ALLOW));
 	(void) fprintf(fp, gettext("Options:\n"));
-	for (i = 0; i < (un ? unallow_size : allow_size); i++) {
-		const char *opt = opt_desc[i++];
-		const char *optdsc = opt_desc[i];
+	for (i = 0; i < (un ? unallow_size : allow_size); i += 2) {
+		const char *opt = opt_desc[i];
+		const char *optdsc = opt_desc[i + 1];
 		(void) fprintf(fp, gettext("  %-10s  %s\n"), opt, optdsc);
 	}
 
