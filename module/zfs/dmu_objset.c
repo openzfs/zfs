@@ -1771,6 +1771,15 @@ dmu_objset_userobjspace_upgrade(objset_t *os)
 	dmu_objset_upgrade(os, dmu_objset_userobjspace_upgrade_cb);
 }
 
+boolean_t
+dmu_objset_userobjspace_upgradable(objset_t *os)
+{
+	return (dmu_objset_type(os) == DMU_OST_ZFS &&
+	    !dmu_objset_is_snapshot(os) &&
+	    dmu_objset_userobjused_enabled(os) &&
+	    !dmu_objset_userobjspace_present(os));
+}
+
 void
 dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp)
@@ -2334,5 +2343,6 @@ EXPORT_SYMBOL(dmu_objset_userspace_upgrade);
 EXPORT_SYMBOL(dmu_objset_userspace_present);
 EXPORT_SYMBOL(dmu_objset_userobjused_enabled);
 EXPORT_SYMBOL(dmu_objset_userobjspace_upgrade);
+EXPORT_SYMBOL(dmu_objset_userobjspace_upgradable);
 EXPORT_SYMBOL(dmu_objset_userobjspace_present);
 #endif
