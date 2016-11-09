@@ -250,6 +250,31 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
 ])
 
 dnl #
+dnl # 3.14 API change,
+dnl # Check if inode_operations contains the function set_acl
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
+	AC_MSG_CHECKING([whether iops->set_acl() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+
+		int set_acl_fn(struct inode *inode, struct posix_acl *acl, int type)
+		    { return 0; }
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
+			.set_acl = set_acl_fn,
+		};
+	],[
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 4.7 API change,
 dnl # The kernel get_acl will now check cache before calling i_op->get_acl and
 dnl # do set_cached_acl after that, so i_op->get_acl don't need to do that
