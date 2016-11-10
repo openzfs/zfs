@@ -61,23 +61,21 @@ zedexecdir = $(libexecdir)/zfs/zed.d
 dist_zedexec_SCRIPTS = \
 	zed.d/all-debug.sh \
 	zed.d/all-syslog.sh \
-	zed.d/checksum-notify.sh \
 	zed.d/data-notify.sh \
 	zed.d/generic-notify.sh \
-	zed.d/io-notify.sh \
 	zed.d/resilver_finish-notify.sh \
 	zed.d/scrub_finish-notify.sh \
 	zed.d/statechange-led.sh \
+	zed.d/statechange-notify.sh \
 	zed.d/vdev_clear-led.sh
 
 zedconfdefaults = \
 	all-syslog.sh \
-	checksum-notify.sh \
 	data-notify.sh \
-	io-notify.sh \
 	resilver_finish-notify.sh \
 	scrub_finish-notify.sh \
 	statechange-led.sh \
+	statechange-notify.sh \
 	vdev_clear-led.sh
 
 install-data-hook:
