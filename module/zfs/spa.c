@@ -555,8 +555,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 
 		case ZPOOL_PROP_FAILUREMODE:
 			error = nvpair_value_uint64(elem, &intval);
-			if (!error && (intval < ZIO_FAILURE_MODE_WAIT ||
-			    intval > ZIO_FAILURE_MODE_PANIC))
+			if (!error && intval > ZIO_FAILURE_MODE_PANIC)
 				error = SET_ERROR(EINVAL);
 
 			/*
