@@ -549,8 +549,14 @@ typedef struct dmu_buf_user {
 	 */
 	taskq_ent_t	dbu_tqent;
 
-	/* This instance's eviction function pointer. */
-	dmu_buf_evict_func_t *dbu_evict_func;
+	/*
+	 * This instance's eviction function pointers.
+	 *
+	 * dbu_evict_func_sync is called synchronously and then
+	 * dbu_evict_func_async is executed asynchronously on a taskq.
+	 */
+	dmu_buf_evict_func_t *dbu_evict_func_sync;
+	dmu_buf_evict_func_t *dbu_evict_func_async;
 #ifdef ZFS_DEBUG
 	/*
 	 * Pointer to user's dbuf pointer.  NULL for clients that do
@@ -572,12 +578,16 @@ typedef struct dmu_buf_user {
  */
 /*ARGSUSED*/
 static inline void
-dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func,
-    dmu_buf_t **clear_on_evict_dbufp)
+dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func_sync,
+    dmu_buf_evict_func_t *evict_func_async, dmu_buf_t **clear_on_evict_dbufp)
 {
-	ASSERT(dbu->dbu_evict_func == NULL);
-	ASSERT(evict_func != NULL);
-	dbu->dbu_evict_func = evict_func;
+	ASSERT(dbu->dbu_evict_func_sync == NULL);
+	ASSERT(dbu->dbu_evict_func_async == NULL);
+
+	/* must have at least one evict func */
+	IMPLY(evict_func_sync == NULL, evict_func_async != NULL);
+	dbu->dbu_evict_func_sync = evict_func_sync;
+	dbu->dbu_evict_func_async = evict_func_async;
 	taskq_init_ent(&dbu->dbu_tqent);
 #ifdef ZFS_DEBUG
 	dbu->dbu_clear_on_evict_dbufp = clear_on_evict_dbufp;

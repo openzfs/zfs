@@ -1021,7 +1021,7 @@ dnode_special_open(objset_t *os, dnode_phys_t *dnp, uint64_t object,
 }
 
 static void
-dnode_buf_pageout(void *dbu)
+dnode_buf_evict_async(void *dbu)
 {
 	dnode_children_t *children_dnodes = dbu;
 	int i;
@@ -1271,8 +1271,8 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		for (i = 0; i < epb; i++) {
 			zrl_init(&dnh[i].dnh_zrlock);
 		}
-		dmu_buf_init_user(&children_dnodes->dnc_dbu,
-		    dnode_buf_pageout, NULL);
+		dmu_buf_init_user(&children_dnodes->dnc_dbu, NULL,
+		    dnode_buf_evict_async, NULL);
 		winner = dmu_buf_set_user(&db->db, &children_dnodes->dnc_dbu);
 		if (winner != NULL) {
 
