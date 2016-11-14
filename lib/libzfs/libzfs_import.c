@@ -1912,6 +1912,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		if (slice->rn_config != NULL) {
 			nvlist_t *config = slice->rn_config;
 			boolean_t matched = B_TRUE;
+			int fd;
 
 			if (iarg->poolname != NULL) {
 				char *pname;
@@ -1929,9 +1930,21 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			if (!matched) {
 				nvlist_free(config);
 			} else {
-				add_config(hdl, &pools,
-				    slice->rn_name, slice->rn_order,
-				    slice->rn_num_labels, config);
+				/*
+				 * Verify all remaining entries can be opened
+				 * exclusively. This will prune all underlying
+				 * multipath devices which otherwise could
+				 * result in the vdev appearing as UNAVAIL.
+				 */
+				fd = open(slice->rn_name, O_RDONLY | O_EXCL);
+				if (fd >= 0) {
+					close(fd);
+					add_config(hdl, &pools,
+					    slice->rn_name, slice->rn_order,
+					    slice->rn_num_labels, config);
+				} else {
+					nvlist_free(config);
+				}
 			}
 		}
 		free(slice->rn_name);
