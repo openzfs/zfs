@@ -30,8 +30,14 @@
 
 function cleanup
 {
-	log_must $ZFS destroy $TESTFS
+	# kill fio and iostat
+	$PKILL ${FIO##*/}
+	$PKILL ${IOSTAT##*/}
+	log_must_busy $ZFS destroy $TESTFS
+	log_must_busy $ZPOOL destroy $PERFPOOL
 }
+
+trap "log_fail \"Measure IO stats during random read load\"" SIGTERM
 
 log_assert "Measure IO stats during sequential read load"
 log_onexit cleanup
