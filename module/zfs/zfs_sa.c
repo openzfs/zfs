@@ -203,13 +203,13 @@ zfs_sa_get_xattr(znode_t *zp)
 			return (error);
 	}
 
-	obj = zio_buf_alloc(size);
+	obj = vmem_alloc(size, KM_SLEEP);
 
 	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), obj, size);
 	if (error == 0)
 		error = nvlist_unpack(obj, size, &zp->z_xattr_cached, KM_SLEEP);
 
-	zio_buf_free(obj, size);
+	vmem_free(obj, size);
 
 	return (error);
 }
@@ -233,7 +233,7 @@ zfs_sa_set_xattr(znode_t *zp)
 	if (error)
 		goto out;
 
-	obj = zio_buf_alloc(size);
+	obj = vmem_alloc(size, KM_SLEEP);
 
 	error = nvlist_pack(zp->z_xattr_cached, &obj, &size,
 	    NV_ENCODE_XDR, KM_SLEEP);
@@ -253,7 +253,7 @@ zfs_sa_set_xattr(znode_t *zp)
 		dmu_tx_commit(tx);
 	}
 out_free:
-	zio_buf_free(obj, size);
+	vmem_free(obj, size);
 out:
 	return (error);
 }
