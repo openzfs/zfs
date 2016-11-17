@@ -173,7 +173,6 @@ space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
 	dmu_buf_will_dirty(sm->sm_dbuf, tx);
 
 	ASSERT(space_map_histogram_verify(sm, rt));
-
 	/*
 	 * Transfer the content of the range tree histogram to the space
 	 * map histogram. The space map histogram contains 32 buckets ranging

@@ -358,6 +358,11 @@ typedef int zio_pipe_stage_t(zio_t *zio);
 #define	ZIO_REEXECUTE_NOW	0x01
 #define	ZIO_REEXECUTE_SUSPEND	0x02
 
+typedef struct zio_alloc_list {
+	list_t  zal_list;
+	uint64_t zal_size;
+} zio_alloc_list_t;
+
 typedef struct zio_link {
 	zio_t		*zl_parent;
 	zio_t		*zl_child;
@@ -417,6 +422,7 @@ struct zio {
 	avl_node_t	io_queue_node;
 	avl_node_t	io_offset_node;
 	avl_node_t	io_alloc_node;
+	zio_alloc_list_t 	io_alloc_list;
 
 	/* Internal pipeline state */
 	enum zio_flag	io_flags;

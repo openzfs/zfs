@@ -182,6 +182,30 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBzfs_metaslab_segment_weight_enabled\fR (int)
+.ad
+.RS 12n
+Enable/disable segment-based metaslab selection.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_switch_threshold\fR (int)
+.ad
+.RS 12n
+When using segment-based metaslab selection, continue allocating
+from the active metaslab until \fBlzfs_metaslab_switch_threshold\fR
+worth of buckets have been exhausted.
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBmetaslab_debug_load\fR (int)
 .ad
 .RS 12n
