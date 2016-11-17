@@ -120,7 +120,7 @@ function cleanup_pool
 	if is_global_zone ; then
 		log_must zfs destroy -Rf $pool
 	else
-		typeset list=$(zfs list -H -r -t filesystem,snapshot,volume -o name $pool)
+		typeset list=$(zfs list -H -r -t all -o name $pool)
 		for ds in $list ; do
 			if [[ $ds != $pool ]] ; then
 				if datasetexists $ds ; then
@@ -140,10 +140,16 @@ function cleanup_pool
 		log_must zfs mount $pool
 	fi
 	if [[ -d $mntpnt ]]; then
-		log_must rm -rf $mntpnt/*
+		rm -rf $mntpnt/*
 	fi
 
 	return 0
+}
+
+function cleanup_pools
+{
+	cleanup_pool $POOL2
+	destroy_pool $POOL3
 }
 
 #
@@ -157,8 +163,8 @@ function cmp_ds_subs
 	typeset src_fs=$1
 	typeset dst_fs=$2
 
-	zfs list -r -H -t filesystem,snapshot,volume -o name $src_fs > $BACKDIR/src1
-	zfs list -r -H -t filesystem,snapshot,volume -o name $dst_fs > $BACKDIR/dst1
+	zfs list -r -H -t all -o name $src_fs > $BACKDIR/src1
+	zfs list -r -H -t all -o name $dst_fs > $BACKDIR/dst1
 
 	eval sed -e 's:^$src_fs:PREFIX:g' < $BACKDIR/src1 > $BACKDIR/src
 	eval sed -e 's:^$dst_fs:PREFIX:g' < $BACKDIR/dst1 > $BACKDIR/dst
@@ -324,8 +330,7 @@ function getds_with_suffix
 	typeset ds=$1
 	typeset suffix=$2
 
-	typeset list=$(zfs list -r -H -t filesystem,snapshot,volume -o name $ds \
-	    | grep "$suffix$")
+	typeset list=$(zfs list -r -H -t all -o name $ds | grep "$suffix$")
 
 	echo $list
 }
@@ -487,7 +492,7 @@ function resume_test
 
 	for ((i=0; i<2; i=i+1)); do
 		mess_file /$streamfs/$stream_num
-		log_mustnot zfs recv -sv $recvfs </$streamfs/$stream_num
+		log_mustnot zfs recv -suv $recvfs </$streamfs/$stream_num
 		stream_num=$((stream_num+1))
 
 		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
@@ -495,31 +500,26 @@ function resume_test
 		[[ -f /$streamfs/$stream_num ]] || \
 		    log_fail "NO FILE /$streamfs/$stream_num"
 	done
-	log_must zfs recv -sv $recvfs </$streamfs/$stream_num
+	log_must zfs recv -suv $recvfs </$streamfs/$stream_num
 }
 
 #
 # Setup filesystems for the resumable send/receive tests
 #
-# $1 The pool to set up with the "send" filesystems
-# $2 The pool for receive
+# $1 The "send" filesystem
+# $2 The "recv" filesystem
 #
 function test_fs_setup
 {
-	sendpool=$1
-	recvpool=$2
+	typeset sendfs=$1
+	typeset recvfs=$2
+	typeset sendpool=${sendfs%%/*}
+	typeset recvpool=${recvfs%%/*}
 
-	sendfs=$sendpool/sendfs
-	recvfs=$recvpool/recvfs
-	streamfs=$sendpool/stream
+	datasetexists $sendfs && log_must zfs destroy -r $sendpool
+	datasetexists $recvfs && log_must zfs destroy -r $recvpool
 
-	if datasetexists $recvfs; then
-		log_must zfs destroy -r $recvfs
-	fi
-	if datasetexists $sendfs; then
-		log_must zfs destroy -r $sendfs
-	fi
-	if $(zfs create -o compress=lz4 $sendfs); then
+	if $(datasetexists $sendfs || zfs create -o compress=lz4 $sendfs); then
 		mk_files 1000 256 0 $sendfs &
 		mk_files 1000 131072 0 $sendfs &
 		mk_files 100 1048576 0 $sendfs &

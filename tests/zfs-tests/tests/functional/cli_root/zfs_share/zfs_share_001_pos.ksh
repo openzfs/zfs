@@ -47,9 +47,9 @@
 verify_runnable "global"
 
 set -A fs \
-    "$TESTDIR" "$TESTPOOL/$TESTFS" \
     "$TESTDIR1" "$TESTPOOL/$TESTCTR/$TESTFS1" \
-    "$TESTDIR2" "$TESTPOOL/$TESTFS-clone"
+    "$TESTDIR2" "$TESTPOOL/$TESTFS-clone" \
+    "$TESTDIR" "$TESTPOOL/$TESTFS"
 
 function cleanup
 {

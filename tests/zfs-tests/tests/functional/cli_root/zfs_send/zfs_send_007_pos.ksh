@@ -42,7 +42,7 @@ function cleanup
 	zfs destroy -rf $TESTPOOL/recvfs
 	rm $streamfile
 	rm $vdev
-	zpool destroy testpool
+	zpool destroy tmp_pool
 }
 
 
@@ -88,12 +88,11 @@ test_pool ()
 
 test_pool $TESTPOOL
 log_must truncate --size=1G $vdev
-log_must zpool create -o version=1 testpool $vdev
-test_pool testpool
-log_must zpool destroy testpool
-log_must zpool create -d testpool $vdev
-test_pool testpool
-log_must zpool destroy testpool
-
+log_must zpool create -o version=1 tmp_pool $vdev
+test_pool tmp_pool
+log_must zpool destroy tmp_pool
+log_must zpool create -d tmp_pool $vdev
+test_pool tmp_pool
+log_must zpool destroy tmp_pool
 
 log_pass "'zfs send' drills appropriate holes"
