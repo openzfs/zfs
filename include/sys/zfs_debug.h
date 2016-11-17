@@ -42,14 +42,15 @@ extern int zfs_flags;
 extern int zfs_recover;
 extern int zfs_free_leak_on_eio;
 
-#define	ZFS_DEBUG_DPRINTF		(1<<0)
-#define	ZFS_DEBUG_DBUF_VERIFY		(1<<1)
-#define	ZFS_DEBUG_DNODE_VERIFY		(1<<2)
-#define	ZFS_DEBUG_SNAPNAMES		(1<<3)
-#define	ZFS_DEBUG_MODIFY		(1<<4)
-#define	ZFS_DEBUG_SPA			(1<<5)
-#define	ZFS_DEBUG_ZIO_FREE		(1<<6)
-#define	ZFS_DEBUG_HISTOGRAM_VERIFY	(1<<7)
+#define	ZFS_DEBUG_DPRINTF		(1 << 0)
+#define	ZFS_DEBUG_DBUF_VERIFY		(1 << 1)
+#define	ZFS_DEBUG_DNODE_VERIFY		(1 << 2)
+#define	ZFS_DEBUG_SNAPNAMES		(1 << 3)
+#define	ZFS_DEBUG_MODIFY		(1 << 4)
+#define	ZFS_DEBUG_SPA			(1 << 5)
+#define	ZFS_DEBUG_ZIO_FREE		(1 << 6)
+#define	ZFS_DEBUG_HISTOGRAM_VERIFY	(1 << 7)
+#define	ZFS_DEBUG_METASLAB_VERIFY	(1 << 8)
 
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
