@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2016 by Delphix. All rights reserved.
  */
 
 /*
@@ -745,31 +745,27 @@ zfs_is_shared_smb(zfs_handle_t *zhp, char **where)
 int
 zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 {
-	int ret = SA_OK;
 
-	if (ret == SA_OK && zhandle->libzfs_shareflags & ZFSSHARE_MISS) {
-		/*
-		 * We had a cache miss. Most likely it is a new ZFS
-		 * dataset that was just created. We want to make sure
-		 * so check timestamps to see if a different process
-		 * has updated any of the configuration. If there was
-		 * some non-ZFS change, we need to re-initialize the
-		 * internal cache.
-		 */
-		zhandle->libzfs_shareflags &= ~ZFSSHARE_MISS;
-		if (sa_needs_refresh(zhandle->libzfs_sharehdl)) {
-			zfs_uninit_libshare(zhandle);
-			zhandle->libzfs_sharehdl = sa_init(service);
-		}
+	/*
+	 * Attempt to refresh libshare. This is necessary if there was a cache
+	 * miss for a new ZFS dataset that was just created, or if state of the
+	 * sharetab file has changed since libshare was last initialized. We
+	 * want to make sure so check timestamps to see if a different process
+	 * has updated any of the configuration. If there was some non-ZFS
+	 * change, we need to re-initialize the internal cache.
+	 */
+	if (sa_needs_refresh(zhandle->libzfs_sharehdl)) {
+		zfs_uninit_libshare(zhandle);
+		zhandle->libzfs_sharehdl = sa_init(service);
 	}
 
-	if (ret == SA_OK && zhandle && zhandle->libzfs_sharehdl == NULL)
+	if (zhandle && zhandle->libzfs_sharehdl == NULL)
 		zhandle->libzfs_sharehdl = sa_init(service);
 
-	if (ret == SA_OK && zhandle->libzfs_sharehdl == NULL)
-		ret = SA_NO_MEMORY;
+	if (zhandle->libzfs_sharehdl == NULL)
+		return (SA_NO_MEMORY);
 
-	return (ret);
+	return (SA_OK);
 }
 
 /*
@@ -868,7 +864,6 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 				    zfs_get_name(zhp));
 				return (-1);
 			}
-			hdl->libzfs_shareflags |= ZFSSHARE_MISS;
 			share = sa_find_share(hdl->libzfs_sharehdl,
 			    mountpoint);
 		}
