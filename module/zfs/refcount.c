@@ -26,8 +26,6 @@
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
 
-#ifdef	ZFS_DEBUG
-
 #ifdef _KERNEL
 int reference_tracking_enable = FALSE; /* runs out of memory too easily */
 #else
@@ -35,6 +33,7 @@ int reference_tracking_enable = TRUE;
 #endif
 int reference_history = 3; /* tunable */
 
+#ifdef	ZFS_DEBUG
 static kmem_cache_t *reference_cache;
 static kmem_cache_t *reference_history_cache;
 

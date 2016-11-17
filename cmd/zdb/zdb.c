@@ -84,10 +84,12 @@ zdb_ot_name(dmu_object_type_t type)
 }
 
 #ifndef lint
+extern int reference_tracking_enable;
 extern int zfs_recover;
 extern uint64_t zfs_arc_max, zfs_arc_meta_limit;
 extern int zfs_vdev_async_read_max_active;
 #else
+int reference_tracking_enable;
 int zfs_recover;
 uint64_t zfs_arc_max, zfs_arc_meta_limit;
 int zfs_vdev_async_read_max_active;
@@ -3788,6 +3790,11 @@ main(int argc, char **argv)
 	 * For good performance, let several of them be active at once.
 	 */
 	zfs_vdev_async_read_max_active = 10;
+
+	/*
+	 * Disable reference tracking for better performance.
+	 */
+	reference_tracking_enable = B_FALSE;
 
 	kernel_init(FREAD);
 	if ((g_zfs = libzfs_init()) == NULL) {
