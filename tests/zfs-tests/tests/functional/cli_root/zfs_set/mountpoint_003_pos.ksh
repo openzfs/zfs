@@ -61,13 +61,13 @@ log_onexit cleanup
 #
 if is_linux; then
 	set -A args \
-	"dev"		"/dev/"		"nodev"		"/nodev/"	\
-	"exec"		"/exec/"	"noexec"	"/noexec/"	\
-	"mand"		"/mand/"	"nomand"	"/nomand/"	\
-	"ro"		"read only"	"rw"		"read/write"	\
-	"suid"		"/suid/"	"nosuid"	"/nosuid/"	\
-	"xattr"		"/xattr/"	"noxattr"	"/noxattr/"	\
-	"atime"		"/atime/"	"noatime"	"/noatime/"
+	"nodev"		"dev"	\
+	"noexec"	"exec"	\
+	"mand"		"nomand"	\
+	"ro"		"rw"	\
+	"nosuid"	"suid"	\
+	"xattr"		"noxattr"	\
+	"atime"		"noatime"
 else
 	set -A args \
 	"devices"	"/devices/"	"nodevices"	"/nodevices/"	\
@@ -90,26 +90,40 @@ typeset i=0
 while ((i < ${#args[@]})); do
 	if is_linux; then
 		log_must $MOUNT -t zfs -o ${args[$i]} $testfs $tmpmnt
+		
+		msg=$($MOUNT | $GREP "$tmpmnt ")
+		
+		$ECHO $msg | $GREP "${args[((i))]}" > /dev/null 2>&1
+		if (($? != 0)) ; then
+			$ECHO $msg | $GREP "${args[((i-1))]}" > /dev/null 2>&1
+			if (($? == 0)) ; then
+				log_fail "Expected option: ${args[((i))]} \n" \
+					 "Real option: $msg"
+			fi
+		fi
+
+		log_must $UMOUNT $tmpmnt
+		((i += 1))
 	else
 		log_must $MOUNT -F zfs -o ${args[$i]} $testfs $tmpmnt
-	fi
-	msg=$($MOUNT | $GREP "^$tmpmnt ")
 
-	if ! is_linux; then
+		msg=$($MOUNT | $GREP "^$tmpmnt ")
+
 		# In LZ, a user with all zone privileges can never "devices"
 		if ! is_global_zone && [[ ${args[$i]} == devices ]] ; then
 			args[((i+1))]="/nodevices/"
 		fi
-	fi
 
-	$ECHO $msg | $GREP "${args[((i+1))]}" > /dev/null 2>&1
-	if (($? != 0)) ; then
-		log_fail "Expected option: ${args[((i+1))]} \n" \
-			 "Real option: $msg"
-	fi
+		$ECHO $msg | $GREP "${args[((i+1))]}" > /dev/null 2>&1
+		if (($? != 0)) ; then
+			log_fail "Expected option: ${args[((i+1))]} \n" \
+				 "Real option: $msg"
+		fi
 
-	log_must $UMOUNT $tmpmnt
-	((i += 2))
+
+		log_must $UMOUNT $tmpmnt
+		((i += 2))
+	fi
 done
 
 log_pass "With legacy mount, FSType-specific option works well passed."
