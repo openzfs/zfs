@@ -474,7 +474,7 @@ spa_txg_history_set(spa_t *spa, uint64_t txg, txg_state_t completed_state,
 /*
  * Set txg IO stats.
  */
-int
+static int
 spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
     uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t ndirty)
 {
@@ -501,6 +501,54 @@ spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
 	mutex_exit(&ssh->lock);
 
 	return (error);
+}
+
+txg_stat_t *
+spa_txg_history_init_io(spa_t *spa, uint64_t txg, dsl_pool_t *dp)
+{
+	txg_stat_t *ts;
+
+	if (zfs_txg_history == 0)
+		return (NULL);
+
+	ts = kmem_alloc(sizeof (txg_stat_t), KM_SLEEP);
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
+	vdev_get_stats(spa->spa_root_vdev, &ts->vs1);
+	spa_config_exit(spa, SCL_ALL, FTAG);
+
+	ts->txg = txg;
+	ts->ndirty = dp->dp_dirty_pertxg[txg & TXG_MASK];
+
+	spa_txg_history_set(spa, txg, TXG_STATE_WAIT_FOR_SYNC, gethrtime());
+
+	return (ts);
+}
+
+void
+spa_txg_history_fini_io(spa_t *spa, txg_stat_t *ts)
+{
+	if (ts == NULL)
+		return;
+
+	if (zfs_txg_history == 0) {
+		kmem_free(ts, sizeof (txg_stat_t));
+		return;
+	}
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
+	vdev_get_stats(spa->spa_root_vdev, &ts->vs2);
+	spa_config_exit(spa, SCL_ALL, FTAG);
+
+	spa_txg_history_set(spa, ts->txg, TXG_STATE_SYNCED, gethrtime());
+	spa_txg_history_set_io(spa, ts->txg,
+	    ts->vs2.vs_bytes[ZIO_TYPE_READ] - ts->vs1.vs_bytes[ZIO_TYPE_READ],
+	    ts->vs2.vs_bytes[ZIO_TYPE_WRITE] - ts->vs1.vs_bytes[ZIO_TYPE_WRITE],
+	    ts->vs2.vs_ops[ZIO_TYPE_READ] - ts->vs1.vs_ops[ZIO_TYPE_READ],
+	    ts->vs2.vs_ops[ZIO_TYPE_WRITE] - ts->vs1.vs_ops[ZIO_TYPE_WRITE],
+	    ts->ndirty);
+
+	kmem_free(ts, sizeof (txg_stat_t));
 }
 
 /*

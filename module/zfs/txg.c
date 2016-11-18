@@ -481,22 +481,17 @@ txg_sync_thread(dsl_pool_t *dp)
 	spa_t *spa = dp->dp_spa;
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
-	vdev_stat_t *vs1, *vs2;
 	clock_t start, delta;
 
 	(void) spl_fstrans_mark();
 	txg_thread_enter(tx, &cpr);
 
-	vs1 = kmem_alloc(sizeof (vdev_stat_t), KM_SLEEP);
-	vs2 = kmem_alloc(sizeof (vdev_stat_t), KM_SLEEP);
-
 	start = delta = 0;
 	for (;;) {
-		clock_t timer, timeout;
+		clock_t timeout = zfs_txg_timeout * hz;
+		clock_t timer;
 		uint64_t txg;
-		uint64_t ndirty;
-
-		timeout = zfs_txg_timeout * hz;
+		txg_stat_t *ts;
 
 		/*
 		 * We sync when we're scanning, there's someone waiting
@@ -527,15 +522,8 @@ txg_sync_thread(dsl_pool_t *dp)
 			txg_thread_wait(tx, &cpr, &tx->tx_quiesce_done_cv, 0);
 		}
 
-		if (tx->tx_exiting) {
-			kmem_free(vs2, sizeof (vdev_stat_t));
-			kmem_free(vs1, sizeof (vdev_stat_t));
+		if (tx->tx_exiting)
 			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
-		}
-
-		spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
-		vdev_get_stats(spa->spa_root_vdev, vs1);
-		spa_config_exit(spa, SCL_ALL, FTAG);
 
 		/*
 		 * Consume the quiesced txg which has been handed off to
@@ -546,15 +534,12 @@ txg_sync_thread(dsl_pool_t *dp)
 		tx->tx_quiesced_txg = 0;
 		tx->tx_syncing_txg = txg;
 		DTRACE_PROBE2(txg__syncing, dsl_pool_t *, dp, uint64_t, txg);
+		ts = spa_txg_history_init_io(spa, txg, dp);
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
-
-		spa_txg_history_set(spa, txg, TXG_STATE_WAIT_FOR_SYNC,
-		    gethrtime());
-		ndirty = dp->dp_dirty_pertxg[txg & TXG_MASK];
 
 		start = ddi_get_lbolt();
 		spa_sync(spa, txg);
@@ -564,23 +549,13 @@ txg_sync_thread(dsl_pool_t *dp)
 		tx->tx_synced_txg = txg;
 		tx->tx_syncing_txg = 0;
 		DTRACE_PROBE2(txg__synced, dsl_pool_t *, dp, uint64_t, txg);
+		spa_txg_history_fini_io(spa, ts);
 		cv_broadcast(&tx->tx_sync_done_cv);
 
 		/*
 		 * Dispatch commit callbacks to worker threads.
 		 */
 		txg_dispatch_callbacks(dp, txg);
-
-		spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
-		vdev_get_stats(spa->spa_root_vdev, vs2);
-		spa_config_exit(spa, SCL_ALL, FTAG);
-		spa_txg_history_set_io(spa, txg,
-		    vs2->vs_bytes[ZIO_TYPE_READ]-vs1->vs_bytes[ZIO_TYPE_READ],
-		    vs2->vs_bytes[ZIO_TYPE_WRITE]-vs1->vs_bytes[ZIO_TYPE_WRITE],
-		    vs2->vs_ops[ZIO_TYPE_READ]-vs1->vs_ops[ZIO_TYPE_READ],
-		    vs2->vs_ops[ZIO_TYPE_WRITE]-vs1->vs_ops[ZIO_TYPE_WRITE],
-		    ndirty);
-		spa_txg_history_set(spa, txg, TXG_STATE_SYNCED, gethrtime());
 	}
 }
 
