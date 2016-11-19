@@ -170,12 +170,11 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
 # DISABLED:
 # mountpoint_003_pos - needs investigation
 # ro_props_001_pos - https://github.com/zfsonlinux/zfs/issues/5201
-# user_property_002_pos - needs investigation
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
     'checksum_001_pos', 'compression_001_pos', 'mountpoint_001_pos',
-    'mountpoint_002_pos', 'reservation_001_neg',
+    'mountpoint_002_pos', 'reservation_001_neg', 'user_property_002_pos',
     'share_mount_001_neg', 'snapdir_001_pos', 'onoffs_001_pos',
     'user_property_001_pos', 'user_property_003_neg', 'readonly_001_pos',
     'user_property_004_pos', 'version_001_neg', 'zfs_set_001_neg',
