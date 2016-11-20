@@ -20,11 +20,12 @@
  */
 /*
  * Copyright (C) 2016 Romain Dolbeau. All rights reserved.
+ * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
 
 #include <sys/isa_defs.h>
 
-#if 0 // defined(__x86_64) && defined(HAVE_AVX512F)
+#if defined(__x86_64) && defined(HAVE_AVX512F)
 
 #include <sys/types.h>
 #include <linux/simd_x86.h>
@@ -74,29 +75,12 @@
 #define	_R_23(_0, _1, REG2, REG3, ...) REG2, REG3
 #define	R_23(REG...) _R_23(REG, 1, 2, 3)
 
-#define	ASM_BUG()	ASSERT(0)
-
-extern const uint8_t gf_clmul_mod_lt[4*256][16];
-
 #define	ELEM_SIZE 64
 
 typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
 
-#define	PREFETCHNTA(ptr, offset) 					\
-{									\
-	__asm(								\
-	    "prefetchnta " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
-
-#define	PREFETCH(ptr, offset) 						\
-{									\
-	__asm(								\
-	    "prefetcht0 " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
 
 #define	XOR_ACC(src, r...)						\
 {									\
@@ -109,14 +93,6 @@ typedef struct v {
 		    "vpxorq 0xc0(%[SRC]), %%" VR3(r)", %%" VR3(r) "\n"	\
 		    : : [SRC] "r" (src));				\
 		break;							\
-	case 2:								\
-		__asm(							\
-		    "vpxorq 0x00(%[SRC]), %%" VR0(r)", %%" VR0(r) "\n"	\
-		    "vpxorq 0x40(%[SRC]), %%" VR1(r)", %%" VR1(r) "\n"	\
-		    : : [SRC] "r" (src));				\
-		break;							\
-	default:							\
-		ASM_BUG();						\
 	}								\
 }
 
@@ -135,30 +111,12 @@ typedef struct v {
 		    "vpxorq %" VR0(r) ", %" VR2(r)", %" VR2(r) "\n"	\
 		    "vpxorq %" VR1(r) ", %" VR3(r)", %" VR3(r));	\
 		break;							\
-	default:							\
-		ASM_BUG();						\
 	}								\
 }
 
-#define	ZERO(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "vpxorq %" VR0(r) ", %" VR0(r)", %" VR0(r) "\n"	\
-		    "vpxorq %" VR1(r) ", %" VR1(r)", %" VR1(r) "\n"	\
-		    "vpxorq %" VR2(r) ", %" VR2(r)", %" VR2(r) "\n"	\
-		    "vpxorq %" VR3(r) ", %" VR3(r)", %" VR3(r));	\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "vpxorq %" VR0(r) ", %" VR0(r)", %" VR0(r) "\n"	\
-		    "vpxorq %" VR1(r) ", %" VR1(r)", %" VR1(r));	\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
+
+#define	ZERO(r...)	XOR(r, r)
+
 
 #define	COPY(r...) 							\
 {									\
@@ -175,8 +133,6 @@ typedef struct v {
 		    "vmovdqa64 %" VR0(r) ", %" VR2(r) "\n"		\
 		    "vmovdqa64 %" VR1(r) ", %" VR3(r));			\
 		break;							\
-	default:							\
-		ASM_BUG();						\
 	}								\
 }
 
@@ -191,14 +147,6 @@ typedef struct v {
 		    "vmovdqa64 0xc0(%[SRC]), %%" VR3(r) "\n"		\
 		    : : [SRC] "r" (src));				\
 		break;							\
-	case 2:								\
-		__asm(							\
-		    "vmovdqa64 0x00(%[SRC]), %%" VR0(r) "\n"		\
-		    "vmovdqa64 0x40(%[SRC]), %%" VR1(r) "\n"		\
-		    : : [SRC] "r" (src));				\
-		break;							\
-	default:							\
-		ASM_BUG();						\
 	}								\
 }
 
@@ -213,31 +161,17 @@ typedef struct v {
 		    "vmovdqa64 %%" VR3(r) ", 0xc0(%[DST])\n"		\
 		    : : [DST] "r" (dst));				\
 		break;							\
-	case 2:								\
-		__asm(							\
-		    "vmovdqa64 %%" VR0(r) ", 0x00(%[DST])\n"		\
-		    "vmovdqa64 %%" VR1(r) ", 0x40(%[DST])\n"		\
-		    : : [DST] "r" (dst));				\
-		break;							\
-	default:							\
-		ASM_BUG();						\
 	}								\
-}
-
-#define	FLUSH()								\
-{									\
-	__asm("vzeroupper");						\
 }
 
 #define	MUL2_SETUP() 							\
 {   									\
-	__asm("vmovq %0,   %%xmm14" :: "r"(0x1d1d1d1d1d1d1d1d));	\
-	__asm("vpbroadcastq %xmm14, %zmm14");				\
-	__asm("vmovq %0,   %%xmm13" :: "r"(0x8080808080808080));	\
-	__asm("vpbroadcastq %xmm13, %zmm13");				\
-	__asm("vmovq %0,   %%xmm12" :: "r"(0xfefefefefefefefe));	\
-	__asm("vpbroadcastq %xmm12, %zmm12");				\
-	__asm("vpxorq       %zmm0, %zmm0 ,%zmm0");			\
+	__asm("vmovq %0,   %%xmm31" :: "r"(0x1d1d1d1d1d1d1d1d));	\
+	__asm("vpbroadcastq %xmm31, %zmm31");				\
+	__asm("vmovq %0,   %%xmm30" :: "r"(0x8080808080808080));	\
+	__asm("vpbroadcastq %xmm30, %zmm30");				\
+	__asm("vmovq %0,   %%xmm29" :: "r"(0xfefefefefefefefe));	\
+	__asm("vpbroadcastq %xmm29, %zmm29");				\
 }
 
 #define	_MUL2(r...) 							\
@@ -245,23 +179,21 @@ typedef struct v {
 	switch	(REG_CNT(r)) {						\
 	case 2:								\
 		__asm(							\
-		    "vpandq   %" VR0(r)", %zmm13, %zmm10\n"		\
-		    "vpandq   %" VR1(r)", %zmm13, %zmm11\n"		\
-		    "vpsrlq   $7, %zmm10, %zmm30\n"			\
-		    "vpsrlq   $7, %zmm11, %zmm31\n"			\
-		    "vpsllq   $1, %zmm10, %zmm10\n"			\
-		    "vpsllq   $1, %zmm11, %zmm11\n"			\
-		    "vpsubq   %zmm30, %zmm10, %zmm10\n"			\
-		    "vpsubq   %zmm31, %zmm11, %zmm11\n"			\
+		    "vpandq   %" VR0(r)", %zmm30, %zmm26\n"		\
+		    "vpandq   %" VR1(r)", %zmm30, %zmm25\n"		\
+		    "vpsrlq   $7, %zmm26, %zmm28\n"			\
+		    "vpsrlq   $7, %zmm25, %zmm27\n"			\
+		    "vpsllq   $1, %zmm26, %zmm26\n"			\
+		    "vpsllq   $1, %zmm25, %zmm25\n"			\
+		    "vpsubq   %zmm28, %zmm26, %zmm26\n"			\
+		    "vpsubq   %zmm27, %zmm25, %zmm25\n"			\
 		    "vpsllq   $1, %" VR0(r)", %" VR0(r) "\n"		\
 		    "vpsllq   $1, %" VR1(r)", %" VR1(r) "\n"		\
-		    "vpandq   %zmm10, %zmm14, %zmm10\n" 		\
-		    "vpandq   %zmm11, %zmm14, %zmm11\n" 		\
-		    "vpternlogd $0x6c,%zmm12, %zmm10, %" VR0(r) "\n"	\
-		    "vpternlogd $0x6c,%zmm12, %zmm11, %" VR1(r));	\
+		    "vpandq   %zmm26, %zmm31, %zmm26\n" 		\
+		    "vpandq   %zmm25, %zmm31, %zmm25\n" 		\
+		    "vpternlogd $0x6c,%zmm29, %zmm26, %" VR0(r) "\n"	\
+		    "vpternlogd $0x6c,%zmm29, %zmm25, %" VR1(r));	\
 		break;							\
-	default:							\
-		ASM_BUG();						\
 	}								\
 }
 
@@ -275,8 +207,6 @@ typedef struct v {
 	case 2:								\
 	    _MUL2(r);							\
 	    break;							\
-	default:							\
-		ASM_BUG();						\
 	}								\
 }
 
@@ -286,231 +216,249 @@ typedef struct v {
 	MUL2(r);							\
 }
 
-/*
- * Must match the init above
- */
-#define	_0f		"zmm0"
-#define	_as		"zmm14"
-#define	_bs		"zmm13"
-#define	_ltmod		"zmm12"
-#define	_ltmul		"zmm11"
-#define	_ta		"zmm10"
-#define	_tb		"zmm15"
 
-/*
- * Must be in the first 16, otherwise an EVEX pshufb is generated
- * Must match above
- */
-#define	_asYlo		"ymm14"
-#define	_bsYlo		"ymm13"
-#define	_ltmodYlo	"ymm12"
-#define	_ltmulYlo	"ymm11"
-#define	_taYlo		"ymm10"
-#define	_tbYlo		"ymm15"
+/* General multiplication by adding powers of two */
 
-/*
- * Must be in the first 16, otherwise an EVEX pshufb is generated
- * ...
- */
-#define	_asYhi		"ymm9"
-#define	_bsYhi		"ymm8"
-#define	_ltmodYhi	"ymm7"
-#define	_ltmulYhi	"ymm6"
-#define	_taYhi		"ymm5"
-#define	_tbYhi		"ymm4"
+#define	_mul_x2_in	21, 22
+#define	_mul_x2_acc	23, 24
 
-/*
- * This uses a pair of AVX2 pshufb to emulate the missing AVX512 pshufb.
- * AVX512BW has the full pshufb
- * To get VEX pshufb (AVX2, supported in KNL) instead of EVEX pshufb
- * (AVX512BW, not supported on KNL, probably also requiring AVX51VL
- * since we use a 256 bits version), all registers in parameters to
- * pshufb must be among ymm0-ymm15, since only EVEX can encore
- * ymm16-ymm31
- * This is a bit hackish, but short of encoding the instruction in
- * binary, how do we force the use of AVX2 pshufb ?
- * Note that the other way round (forcing AVX512) is easy, just encode
- * k0 as the mask register (k0 is all-1).
- */
-#define	_MULx2(c, r...)							\
+#define	_MUL_PARAM(x, in, acc)						\
 {									\
-	switch (REG_CNT(r)) {						\
-	case 2:								\
-	__asm(								\
-	    "vmovq %[c0f], %%xmm0\n"					\
-	    "vpbroadcastq %%xmm0, %%" _0f "\n"				\
-	    /* upper bits */						\
-	    "vbroadcasti32x4 0x00(%[lt]), %%" _ltmod "\n"		\
-	    "vbroadcasti32x4 0x10(%[lt]), %%" _ltmul "\n"		\
-									\
-	    "vpsrad $0x4, %%" VR0(r) ", %%"_as "\n"			\
-	    "vpsrad $0x4, %%" VR1(r) ", %%"_bs "\n"			\
-	    "vpandq %%" _0f ", %%" VR0(r) ", %%" VR0(r) "\n"		\
-	    "vpandq %%" _0f ", %%" VR1(r) ", %%" VR1(r) "\n"		\
-	    "vpandq %%" _0f ", %%" _as ", %%" _as "\n"			\
-	    "vpandq %%" _0f ", %%" _bs ", %%" _bs "\n"			\
-									\
-	    "vextracti64x4 $1,%%" _ltmod ",%%" _ltmodYhi"\n"		\
-									\
-	    "vextracti64x4 $1,%%" _as ",%%" _asYhi"\n"			\
-	    "vpshufb %%" _asYlo ", %%" _ltmodYlo ", %%" _taYlo "\n"	\
-	    "vpshufb %%" _asYhi ", %%" _ltmodYhi ", %%" _taYhi "\n"	\
-	    "vinserti64x4 $1,%%" _taYhi ",%%" _ta ",%%" _ta  "\n"	\
-									\
-	    "vextracti64x4 $1,%%" _bs ",%%" _bsYhi"\n"			\
-	    "vpshufb %%" _bsYlo ", %%" _ltmodYlo ", %%" _tbYlo "\n"	\
-	    "vpshufb %%" _bsYhi ", %%" _ltmodYhi ", %%" _tbYhi "\n"	\
-	    "vinserti64x4 $1,%%" _tbYhi ",%%" _tb ",%%" _tb  "\n"	\
-									\
-	    "vextracti64x4 $1,%%" _ltmul ",%%" _ltmulYhi"\n"		\
-									\
-	    "vpshufb %%" _asYlo ", %%" _ltmulYlo ", %%" _asYlo "\n"	\
-	    "vpshufb %%" _asYhi ", %%" _ltmulYhi ", %%" _asYhi "\n"	\
-	    "vinserti64x4 $1,%%" _asYhi ",%%" _as ",%%" _as  "\n"	\
-									\
-	    "vpshufb %%" _bsYlo ", %%" _ltmulYlo ", %%" _bsYlo "\n"	\
-	    "vpshufb %%" _bsYhi ", %%" _ltmulYhi ", %%" _bsYhi "\n"	\
-	    "vinserti64x4 $1,%%" _bsYhi ",%%" _bs ",%%" _bs  "\n"	\
-									\
-	    /* lower bits */						\
-	    "vbroadcasti32x4 0x20(%[lt]), %%" _ltmod "\n"		\
-	    "vbroadcasti32x4 0x30(%[lt]), %%" _ltmul "\n"		\
-									\
-	    "vpxorq %%" _ta ", %%" _as ", %%" _as "\n"			\
-	    "vpxorq %%" _tb ", %%" _bs ", %%" _bs "\n"			\
-									\
-	    "vextracti64x4 $1,%%" _ltmod ",%%" _ltmodYhi"\n"		\
-									\
-	    "vextracti64x4 $0,%%" VR0(r) ",%%" "ymm1" "\n"		\
-	    "vextracti64x4 $1,%%" VR0(r) ",%%" _asYhi"\n"		\
-	    "vpshufb %%" "ymm1" ", %%" _ltmodYlo ", %%" _taYlo "\n"	\
-	    "vpshufb %%" _asYhi ", %%" _ltmodYhi ", %%" _taYhi "\n"	\
-	    "vinserti64x4 $1,%%" _taYhi ",%%" _ta ",%%" _ta  "\n"	\
-									\
-	    "vextracti64x4 $0,%%" VR1(r) ",%%" "ymm2" "\n"		\
-	    "vextracti64x4 $1,%%" VR1(r) ",%%" _bsYhi"\n"		\
-	    "vpshufb %%" "ymm2" ", %%" _ltmodYlo ", %%" _tbYlo "\n"	\
-	    "vpshufb %%" _bsYhi ", %%" _ltmodYhi ", %%" _tbYhi "\n"	\
-	    "vinserti64x4 $1,%%" _tbYhi ",%%" _tb ",%%" _tb  "\n"	\
-									\
-	    "vextracti64x4 $1,%%" _ltmul ",%%" _ltmulYhi"\n"		\
-									\
-	    "vpshufb %%" "ymm1" ", %%" _ltmulYlo ", %%" "ymm1" "\n"	\
-	    "vpshufb %%" _asYhi ", %%" _ltmulYhi ", %%" _asYhi "\n"	\
-	    "vinserti64x4 $1,%%" _asYhi ",%%" "zmm1" ",%%" VR0(r) "\n"	\
-									\
-	    "vpshufb %%" "ymm2" ", %%" _ltmulYlo ", %%" "ymm2" "\n"	\
-	    "vpshufb %%" _bsYhi ", %%" _ltmulYhi ", %%" _bsYhi "\n"	\
-	    "vinserti64x4 $1,%%" _bsYhi ",%%" "zmm2" ",%%" VR1(r) "\n"	\
-									\
-	    "vpxorq %%" _ta ", %%" VR0(r) ", %%" VR0(r) "\n"		\
-	    "vpxorq %%" _as ", %%" VR0(r) ", %%" VR0(r) "\n"		\
-	    "vpxorq %%" _tb ", %%" VR1(r) ", %%" VR1(r) "\n"		\
-	    "vpxorq %%" _bs ", %%" VR1(r) ", %%" VR1(r) "\n"		\
-	    : : [c0f] "r" (0x0f0f0f0f0f0f0f0f),				\
-		[lt] "r" (gf_clmul_mod_lt[4*(c)]));			\
-	break;								\
-	default:							\
-		ASM_BUG();						\
-	}								\
+	if (x & 0x01) {	COPY(in, acc); } else { ZERO(acc); }		\
+	if (x & 0xfe) { MUL2(in); }					\
+	if (x & 0x02) { XOR(in, acc); }					\
+	if (x & 0xfc) { MUL2(in); }					\
+	if (x & 0x04) { XOR(in, acc); }					\
+	if (x & 0xf8) { MUL2(in); }					\
+	if (x & 0x08) { XOR(in, acc); }					\
+	if (x & 0xf0) { MUL2(in); }					\
+	if (x & 0x10) { XOR(in, acc); }					\
+	if (x & 0xe0) { MUL2(in); }					\
+	if (x & 0x20) { XOR(in, acc); }					\
+	if (x & 0xc0) { MUL2(in); }					\
+	if (x & 0x40) { XOR(in, acc); }					\
+	if (x & 0x80) { MUL2(in); XOR(in, acc); }			\
 }
 
-#define	MUL(c, r...)							\
+#define	MUL_x2_DEFINE(x)						\
+static void 								\
+mul_x2_ ## x(void) { _MUL_PARAM(x, _mul_x2_in, _mul_x2_acc); }
+
+
+MUL_x2_DEFINE(0); MUL_x2_DEFINE(1); MUL_x2_DEFINE(2); MUL_x2_DEFINE(3);
+MUL_x2_DEFINE(4); MUL_x2_DEFINE(5); MUL_x2_DEFINE(6); MUL_x2_DEFINE(7);
+MUL_x2_DEFINE(8); MUL_x2_DEFINE(9); MUL_x2_DEFINE(10); MUL_x2_DEFINE(11);
+MUL_x2_DEFINE(12); MUL_x2_DEFINE(13); MUL_x2_DEFINE(14); MUL_x2_DEFINE(15);
+MUL_x2_DEFINE(16); MUL_x2_DEFINE(17); MUL_x2_DEFINE(18); MUL_x2_DEFINE(19);
+MUL_x2_DEFINE(20); MUL_x2_DEFINE(21); MUL_x2_DEFINE(22); MUL_x2_DEFINE(23);
+MUL_x2_DEFINE(24); MUL_x2_DEFINE(25); MUL_x2_DEFINE(26); MUL_x2_DEFINE(27);
+MUL_x2_DEFINE(28); MUL_x2_DEFINE(29); MUL_x2_DEFINE(30); MUL_x2_DEFINE(31);
+MUL_x2_DEFINE(32); MUL_x2_DEFINE(33); MUL_x2_DEFINE(34); MUL_x2_DEFINE(35);
+MUL_x2_DEFINE(36); MUL_x2_DEFINE(37); MUL_x2_DEFINE(38); MUL_x2_DEFINE(39);
+MUL_x2_DEFINE(40); MUL_x2_DEFINE(41); MUL_x2_DEFINE(42); MUL_x2_DEFINE(43);
+MUL_x2_DEFINE(44); MUL_x2_DEFINE(45); MUL_x2_DEFINE(46); MUL_x2_DEFINE(47);
+MUL_x2_DEFINE(48); MUL_x2_DEFINE(49); MUL_x2_DEFINE(50); MUL_x2_DEFINE(51);
+MUL_x2_DEFINE(52); MUL_x2_DEFINE(53); MUL_x2_DEFINE(54); MUL_x2_DEFINE(55);
+MUL_x2_DEFINE(56); MUL_x2_DEFINE(57); MUL_x2_DEFINE(58); MUL_x2_DEFINE(59);
+MUL_x2_DEFINE(60); MUL_x2_DEFINE(61); MUL_x2_DEFINE(62); MUL_x2_DEFINE(63);
+MUL_x2_DEFINE(64); MUL_x2_DEFINE(65); MUL_x2_DEFINE(66); MUL_x2_DEFINE(67);
+MUL_x2_DEFINE(68); MUL_x2_DEFINE(69); MUL_x2_DEFINE(70); MUL_x2_DEFINE(71);
+MUL_x2_DEFINE(72); MUL_x2_DEFINE(73); MUL_x2_DEFINE(74); MUL_x2_DEFINE(75);
+MUL_x2_DEFINE(76); MUL_x2_DEFINE(77); MUL_x2_DEFINE(78); MUL_x2_DEFINE(79);
+MUL_x2_DEFINE(80); MUL_x2_DEFINE(81); MUL_x2_DEFINE(82); MUL_x2_DEFINE(83);
+MUL_x2_DEFINE(84); MUL_x2_DEFINE(85); MUL_x2_DEFINE(86); MUL_x2_DEFINE(87);
+MUL_x2_DEFINE(88); MUL_x2_DEFINE(89); MUL_x2_DEFINE(90); MUL_x2_DEFINE(91);
+MUL_x2_DEFINE(92); MUL_x2_DEFINE(93); MUL_x2_DEFINE(94); MUL_x2_DEFINE(95);
+MUL_x2_DEFINE(96); MUL_x2_DEFINE(97); MUL_x2_DEFINE(98); MUL_x2_DEFINE(99);
+MUL_x2_DEFINE(100); MUL_x2_DEFINE(101); MUL_x2_DEFINE(102); MUL_x2_DEFINE(103);
+MUL_x2_DEFINE(104); MUL_x2_DEFINE(105); MUL_x2_DEFINE(106); MUL_x2_DEFINE(107);
+MUL_x2_DEFINE(108); MUL_x2_DEFINE(109); MUL_x2_DEFINE(110); MUL_x2_DEFINE(111);
+MUL_x2_DEFINE(112); MUL_x2_DEFINE(113); MUL_x2_DEFINE(114); MUL_x2_DEFINE(115);
+MUL_x2_DEFINE(116); MUL_x2_DEFINE(117); MUL_x2_DEFINE(118); MUL_x2_DEFINE(119);
+MUL_x2_DEFINE(120); MUL_x2_DEFINE(121); MUL_x2_DEFINE(122); MUL_x2_DEFINE(123);
+MUL_x2_DEFINE(124); MUL_x2_DEFINE(125); MUL_x2_DEFINE(126); MUL_x2_DEFINE(127);
+MUL_x2_DEFINE(128); MUL_x2_DEFINE(129); MUL_x2_DEFINE(130); MUL_x2_DEFINE(131);
+MUL_x2_DEFINE(132); MUL_x2_DEFINE(133); MUL_x2_DEFINE(134); MUL_x2_DEFINE(135);
+MUL_x2_DEFINE(136); MUL_x2_DEFINE(137); MUL_x2_DEFINE(138); MUL_x2_DEFINE(139);
+MUL_x2_DEFINE(140); MUL_x2_DEFINE(141); MUL_x2_DEFINE(142); MUL_x2_DEFINE(143);
+MUL_x2_DEFINE(144); MUL_x2_DEFINE(145); MUL_x2_DEFINE(146); MUL_x2_DEFINE(147);
+MUL_x2_DEFINE(148); MUL_x2_DEFINE(149); MUL_x2_DEFINE(150); MUL_x2_DEFINE(151);
+MUL_x2_DEFINE(152); MUL_x2_DEFINE(153); MUL_x2_DEFINE(154); MUL_x2_DEFINE(155);
+MUL_x2_DEFINE(156); MUL_x2_DEFINE(157); MUL_x2_DEFINE(158); MUL_x2_DEFINE(159);
+MUL_x2_DEFINE(160); MUL_x2_DEFINE(161); MUL_x2_DEFINE(162); MUL_x2_DEFINE(163);
+MUL_x2_DEFINE(164); MUL_x2_DEFINE(165); MUL_x2_DEFINE(166); MUL_x2_DEFINE(167);
+MUL_x2_DEFINE(168); MUL_x2_DEFINE(169); MUL_x2_DEFINE(170); MUL_x2_DEFINE(171);
+MUL_x2_DEFINE(172); MUL_x2_DEFINE(173); MUL_x2_DEFINE(174); MUL_x2_DEFINE(175);
+MUL_x2_DEFINE(176); MUL_x2_DEFINE(177); MUL_x2_DEFINE(178); MUL_x2_DEFINE(179);
+MUL_x2_DEFINE(180); MUL_x2_DEFINE(181); MUL_x2_DEFINE(182); MUL_x2_DEFINE(183);
+MUL_x2_DEFINE(184); MUL_x2_DEFINE(185); MUL_x2_DEFINE(186); MUL_x2_DEFINE(187);
+MUL_x2_DEFINE(188); MUL_x2_DEFINE(189); MUL_x2_DEFINE(190); MUL_x2_DEFINE(191);
+MUL_x2_DEFINE(192); MUL_x2_DEFINE(193); MUL_x2_DEFINE(194); MUL_x2_DEFINE(195);
+MUL_x2_DEFINE(196); MUL_x2_DEFINE(197); MUL_x2_DEFINE(198); MUL_x2_DEFINE(199);
+MUL_x2_DEFINE(200); MUL_x2_DEFINE(201); MUL_x2_DEFINE(202); MUL_x2_DEFINE(203);
+MUL_x2_DEFINE(204); MUL_x2_DEFINE(205); MUL_x2_DEFINE(206); MUL_x2_DEFINE(207);
+MUL_x2_DEFINE(208); MUL_x2_DEFINE(209); MUL_x2_DEFINE(210); MUL_x2_DEFINE(211);
+MUL_x2_DEFINE(212); MUL_x2_DEFINE(213); MUL_x2_DEFINE(214); MUL_x2_DEFINE(215);
+MUL_x2_DEFINE(216); MUL_x2_DEFINE(217); MUL_x2_DEFINE(218); MUL_x2_DEFINE(219);
+MUL_x2_DEFINE(220); MUL_x2_DEFINE(221); MUL_x2_DEFINE(222); MUL_x2_DEFINE(223);
+MUL_x2_DEFINE(224); MUL_x2_DEFINE(225); MUL_x2_DEFINE(226); MUL_x2_DEFINE(227);
+MUL_x2_DEFINE(228); MUL_x2_DEFINE(229); MUL_x2_DEFINE(230); MUL_x2_DEFINE(231);
+MUL_x2_DEFINE(232); MUL_x2_DEFINE(233); MUL_x2_DEFINE(234); MUL_x2_DEFINE(235);
+MUL_x2_DEFINE(236); MUL_x2_DEFINE(237); MUL_x2_DEFINE(238); MUL_x2_DEFINE(239);
+MUL_x2_DEFINE(240); MUL_x2_DEFINE(241); MUL_x2_DEFINE(242); MUL_x2_DEFINE(243);
+MUL_x2_DEFINE(244); MUL_x2_DEFINE(245); MUL_x2_DEFINE(246); MUL_x2_DEFINE(247);
+MUL_x2_DEFINE(248); MUL_x2_DEFINE(249); MUL_x2_DEFINE(250); MUL_x2_DEFINE(251);
+MUL_x2_DEFINE(252); MUL_x2_DEFINE(253); MUL_x2_DEFINE(254); MUL_x2_DEFINE(255);
+
+
+typedef void (*mul_fn_ptr_t)(void);
+
+static const mul_fn_ptr_t __attribute__((aligned(256)))
+gf_x2_mul_fns[256] = {
+	mul_x2_0, mul_x2_1, mul_x2_2, mul_x2_3, mul_x2_4, mul_x2_5,
+	mul_x2_6, mul_x2_7, mul_x2_8, mul_x2_9, mul_x2_10, mul_x2_11,
+	mul_x2_12, mul_x2_13, mul_x2_14, mul_x2_15, mul_x2_16, mul_x2_17,
+	mul_x2_18, mul_x2_19, mul_x2_20, mul_x2_21, mul_x2_22, mul_x2_23,
+	mul_x2_24, mul_x2_25, mul_x2_26, mul_x2_27, mul_x2_28, mul_x2_29,
+	mul_x2_30, mul_x2_31, mul_x2_32, mul_x2_33, mul_x2_34, mul_x2_35,
+	mul_x2_36, mul_x2_37, mul_x2_38, mul_x2_39, mul_x2_40, mul_x2_41,
+	mul_x2_42, mul_x2_43, mul_x2_44, mul_x2_45, mul_x2_46, mul_x2_47,
+	mul_x2_48, mul_x2_49, mul_x2_50, mul_x2_51, mul_x2_52, mul_x2_53,
+	mul_x2_54, mul_x2_55, mul_x2_56, mul_x2_57, mul_x2_58, mul_x2_59,
+	mul_x2_60, mul_x2_61, mul_x2_62, mul_x2_63, mul_x2_64, mul_x2_65,
+	mul_x2_66, mul_x2_67, mul_x2_68, mul_x2_69, mul_x2_70, mul_x2_71,
+	mul_x2_72, mul_x2_73, mul_x2_74, mul_x2_75, mul_x2_76, mul_x2_77,
+	mul_x2_78, mul_x2_79, mul_x2_80, mul_x2_81, mul_x2_82, mul_x2_83,
+	mul_x2_84, mul_x2_85, mul_x2_86, mul_x2_87, mul_x2_88, mul_x2_89,
+	mul_x2_90, mul_x2_91, mul_x2_92, mul_x2_93, mul_x2_94, mul_x2_95,
+	mul_x2_96, mul_x2_97, mul_x2_98, mul_x2_99, mul_x2_100, mul_x2_101,
+	mul_x2_102, mul_x2_103, mul_x2_104, mul_x2_105, mul_x2_106, mul_x2_107,
+	mul_x2_108, mul_x2_109, mul_x2_110, mul_x2_111, mul_x2_112, mul_x2_113,
+	mul_x2_114, mul_x2_115, mul_x2_116, mul_x2_117, mul_x2_118, mul_x2_119,
+	mul_x2_120, mul_x2_121, mul_x2_122, mul_x2_123, mul_x2_124, mul_x2_125,
+	mul_x2_126, mul_x2_127, mul_x2_128, mul_x2_129, mul_x2_130, mul_x2_131,
+	mul_x2_132, mul_x2_133, mul_x2_134, mul_x2_135, mul_x2_136, mul_x2_137,
+	mul_x2_138, mul_x2_139, mul_x2_140, mul_x2_141, mul_x2_142, mul_x2_143,
+	mul_x2_144, mul_x2_145, mul_x2_146, mul_x2_147, mul_x2_148, mul_x2_149,
+	mul_x2_150, mul_x2_151, mul_x2_152, mul_x2_153, mul_x2_154, mul_x2_155,
+	mul_x2_156, mul_x2_157, mul_x2_158, mul_x2_159, mul_x2_160, mul_x2_161,
+	mul_x2_162, mul_x2_163, mul_x2_164, mul_x2_165, mul_x2_166, mul_x2_167,
+	mul_x2_168, mul_x2_169, mul_x2_170, mul_x2_171, mul_x2_172, mul_x2_173,
+	mul_x2_174, mul_x2_175, mul_x2_176, mul_x2_177, mul_x2_178, mul_x2_179,
+	mul_x2_180, mul_x2_181, mul_x2_182, mul_x2_183, mul_x2_184, mul_x2_185,
+	mul_x2_186, mul_x2_187, mul_x2_188, mul_x2_189, mul_x2_190, mul_x2_191,
+	mul_x2_192, mul_x2_193, mul_x2_194, mul_x2_195, mul_x2_196, mul_x2_197,
+	mul_x2_198, mul_x2_199, mul_x2_200, mul_x2_201, mul_x2_202, mul_x2_203,
+	mul_x2_204, mul_x2_205, mul_x2_206, mul_x2_207, mul_x2_208, mul_x2_209,
+	mul_x2_210, mul_x2_211, mul_x2_212, mul_x2_213, mul_x2_214, mul_x2_215,
+	mul_x2_216, mul_x2_217, mul_x2_218, mul_x2_219, mul_x2_220, mul_x2_221,
+	mul_x2_222, mul_x2_223, mul_x2_224, mul_x2_225, mul_x2_226, mul_x2_227,
+	mul_x2_228, mul_x2_229, mul_x2_230, mul_x2_231, mul_x2_232, mul_x2_233,
+	mul_x2_234, mul_x2_235, mul_x2_236, mul_x2_237, mul_x2_238, mul_x2_239,
+	mul_x2_240, mul_x2_241, mul_x2_242, mul_x2_243, mul_x2_244, mul_x2_245,
+	mul_x2_246, mul_x2_247, mul_x2_248, mul_x2_249, mul_x2_250, mul_x2_251,
+	mul_x2_252, mul_x2_253, mul_x2_254, mul_x2_255
+};
+
+#define	MUL(c, r...) 							\
 {									\
 	switch (REG_CNT(r)) {						\
 	case 4:								\
-		_MULx2(c, R_01(r));					\
-		_MULx2(c, R_23(r));					\
-		break;							\
-	case 2:								\
-		_MULx2(c, R_01(r));					\
-		break;							\
-	default:							\
-		ASM_BUG();						\
+		COPY(R_01(r), _mul_x2_in);				\
+		gf_x2_mul_fns[c]();					\
+		COPY(_mul_x2_acc, R_01(r));				\
+		COPY(R_23(r), _mul_x2_in);				\
+		gf_x2_mul_fns[c]();					\
+		COPY(_mul_x2_acc, R_23(r));				\
 	}								\
 }
 
+
 #define	raidz_math_begin()	kfpu_begin()
-#define	raidz_math_end()						\
-{									\
-	FLUSH();							\
-	kfpu_end();							\
-}
+#define	raidz_math_end()	kfpu_end()
+
+
+#define	SYN_STRIDE		4
 
 #define	ZERO_STRIDE		4
 #define	ZERO_DEFINE()		{}
-#define	ZERO_D			20, 21, 22, 23
+#define	ZERO_D			0, 1, 2, 3
 
 #define	COPY_STRIDE		4
 #define	COPY_DEFINE()		{}
-#define	COPY_D			20, 21, 22, 23
+#define	COPY_D			0, 1, 2, 3
 
 #define	ADD_STRIDE		4
 #define	ADD_DEFINE()		{}
-#define	ADD_D 			20, 21, 22, 23
+#define	ADD_D 			0, 1, 2, 3
 
 #define	MUL_STRIDE		4
-#define	MUL_DEFINE() 		{}
-#define	MUL_D			20, 21, 22, 23
-/*
- * This use zmm16-zmm31 registers to free up zmm0-zmm15
- * to use with the AVX2 pshufb, see above
- */
-#define	GEN_P_DEFINE()		{}
+#define	MUL_DEFINE() 		MUL2_SETUP()
+#define	MUL_D			0, 1, 2, 3
+
 #define	GEN_P_STRIDE		4
-#define	GEN_P_P			20, 21, 22, 23
+#define	GEN_P_DEFINE()		{}
+#define	GEN_P_P			0, 1, 2, 3
 
-#define	GEN_PQ_DEFINE() 	{}
 #define	GEN_PQ_STRIDE		4
-#define	GEN_PQ_D		20, 21, 22, 23
-#define	GEN_PQ_P		24, 25, 26, 27
-#define	GEN_PQ_Q		28, 29, 3, 4
+#define	GEN_PQ_DEFINE() 	{}
+#define	GEN_PQ_D		0, 1, 2, 3
+#define	GEN_PQ_C		4, 5, 6, 7
 
+#define	GEN_PQR_STRIDE		4
 #define	GEN_PQR_DEFINE() 	{}
-#define	GEN_PQR_STRIDE		2
-#define	GEN_PQR_D		20, 21
-#define	GEN_PQR_P		22, 23
-#define	GEN_PQR_Q		24, 25
-#define	GEN_PQR_R		26, 27
+#define	GEN_PQR_D		0, 1, 2, 3
+#define	GEN_PQR_C		4, 5, 6, 7
 
-#define	REC_P_DEFINE() 		{}
-#define	REC_P_STRIDE		4
-#define	REC_P_X			20, 21, 22, 23
+#define	SYN_Q_DEFINE()		{}
+#define	SYN_Q_D			0, 1, 2, 3
+#define	SYN_Q_X			4, 5, 6, 7
 
-#define	REC_Q_DEFINE() 		{}
-#define	REC_Q_STRIDE		4
-#define	REC_Q_X			20, 21, 22, 23
+#define	SYN_R_DEFINE()		{}
+#define	SYN_R_D			0, 1, 2, 3
+#define	SYN_R_X			4, 5, 6, 7
 
-#define	REC_R_DEFINE() 		{}
-#define	REC_R_STRIDE		4
-#define	REC_R_X			20, 21, 22, 23
+#define	SYN_PQ_DEFINE() 	{}
+#define	SYN_PQ_D		0, 1, 2, 3
+#define	SYN_PQ_X		4, 5, 6, 7
 
-#define	REC_PQ_DEFINE() 	{}
-#define	REC_PQ_STRIDE		2
-#define	REC_PQ_X		20, 21
-#define	REC_PQ_Y		22, 23
-#define	REC_PQ_D		24, 25
+#define	REC_PQ_STRIDE		4
+#define	REC_PQ_DEFINE()		MUL2_SETUP()
+#define	REC_PQ_X		0, 1, 2, 3
+#define	REC_PQ_Y		4, 5, 6, 7
+#define	REC_PQ_T		8, 9, 10, 11
 
-#define	REC_PR_DEFINE() 	{}
-#define	REC_PR_STRIDE		2
-#define	REC_PR_X		20, 21
-#define	REC_PR_Y		22, 23
-#define	REC_PR_D		24, 25
+#define	SYN_PR_DEFINE() 	{}
+#define	SYN_PR_D		0, 1, 2, 3
+#define	SYN_PR_X		4, 5, 6, 7
 
-#define	REC_QR_DEFINE() 	{}
-#define	REC_QR_STRIDE		2
-#define	REC_QR_X		20, 21
-#define	REC_QR_Y		22, 23
-#define	REC_QR_D		24, 25
+#define	REC_PR_STRIDE		4
+#define	REC_PR_DEFINE() 	MUL2_SETUP()
+#define	REC_PR_X		0, 1, 2, 3
+#define	REC_PR_Y		4, 5, 6, 7
+#define	REC_PR_T		8, 9, 10, 11
 
-#define	REC_PQR_DEFINE() 	{}
-#define	REC_PQR_STRIDE		2
-#define	REC_PQR_X		20, 21
-#define	REC_PQR_Y		22, 23
-#define	REC_PQR_Z		24, 25
-#define	REC_PQR_D		26, 27
-#define	REC_PQR_XS		26, 27
-#define	REC_PQR_YS		28, 29
+#define	SYN_QR_DEFINE() 	{}
+#define	SYN_QR_D		0, 1, 2, 3
+#define	SYN_QR_X		4, 5, 6, 7
+
+#define	REC_QR_STRIDE		4
+#define	REC_QR_DEFINE() 	MUL2_SETUP()
+#define	REC_QR_X		0, 1, 2, 3
+#define	REC_QR_Y		4, 5, 6, 7
+#define	REC_QR_T		8, 9, 10, 11
+
+#define	SYN_PQR_DEFINE() 	{}
+#define	SYN_PQR_D		0, 1, 2, 3
+#define	SYN_PQR_X		4, 5, 6, 7
+
+#define	REC_PQR_STRIDE		4
+#define	REC_PQR_DEFINE() 	MUL2_SETUP()
+#define	REC_PQR_X		0, 1, 2, 3
+#define	REC_PQR_Y		4, 5, 6, 7
+#define	REC_PQR_Z		8, 9, 10, 11
+#define	REC_PQR_XS		12, 13, 14, 15
+#define	REC_PQR_YS		16, 17, 18, 19
 
 
 #include <sys/vdev_raidz_impl.h>
@@ -523,6 +471,7 @@ static boolean_t
 raidz_will_avx512f_work(void)
 {
 	return (zfs_avx_available() &&
+		zfs_avx2_available() &&
 		zfs_avx512f_available());
 }
 

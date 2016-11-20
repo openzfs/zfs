@@ -235,19 +235,6 @@ init_rand(void *data, size_t size, void *private)
 	return (0);
 }
 
-static int
-corrupt_rand(void *data, size_t size, void *private)
-{
-	int i;
-	int *dst = (int *) data;
-
-	for (i = 0; i < size / sizeof (int); i++)
-		dst[i] = rand();
-
-	return (0);
-}
-
-
 static void
 corrupt_colums(raidz_map_t *rm, const int *tgts, const int cnt)
 {
@@ -256,8 +243,7 @@ corrupt_colums(raidz_map_t *rm, const int *tgts, const int cnt)
 
 	for (i = 0; i < cnt; i++) {
 		col = &rm->rm_col[tgts[i]];
-		abd_iterate_func(col->rc_abd, 0, col->rc_size, corrupt_rand,
-		    NULL);
+		abd_iterate_func(col->rc_abd, 0, col->rc_size, init_rand, NULL);
 	}
 }
 
