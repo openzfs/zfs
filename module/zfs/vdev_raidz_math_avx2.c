@@ -65,19 +65,6 @@ typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
 
-#define	PREFETCHNTA(ptr, offset) 					\
-{									\
-	__asm(								\
-	    "prefetchnta " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
-
-#define	PREFETCH(ptr, offset) 						\
-{									\
-	__asm(								\
-	    "prefetcht0 " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
 
 #define	XOR_ACC(src, r...)						\
 {									\
@@ -121,25 +108,7 @@ typedef struct v {
 	}								\
 }
 
-#define	ZERO(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "vpxor %" VR0(r) ", %" VR0(r)", %" VR0(r) "\n"	\
-		    "vpxor %" VR1(r) ", %" VR1(r)", %" VR1(r) "\n"	\
-		    "vpxor %" VR2(r) ", %" VR2(r)", %" VR2(r) "\n"	\
-		    "vpxor %" VR3(r) ", %" VR3(r)", %" VR3(r));		\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "vpxor %" VR0(r) ", %" VR0(r)", %" VR0(r) "\n"	\
-		    "vpxor %" VR1(r) ", %" VR1(r)", %" VR1(r));		\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
+#define	ZERO(r...)	XOR(r, r)
 
 #define	COPY(r...) 							\
 {									\

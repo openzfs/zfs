@@ -58,7 +58,7 @@ const raidz_impl_ops_t *raidz_all_maths[] = {
 	&vdev_raidz_avx2_impl,
 #endif
 #if defined(__x86_64) && defined(HAVE_AVX512F)	/* only x86_64 for now */
-	// &vdev_raidz_avx512f_impl,
+	&vdev_raidz_avx512f_impl,
 #endif
 #if defined(__x86_64) && defined(HAVE_AVX512BW)	/* only x86_64 for now */
 	// &vdev_raidz_avx512bw_impl,

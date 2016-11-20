@@ -66,19 +66,6 @@ typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
 
-#define	PREFETCHNTA(ptr, offset) 					\
-{									\
-	__asm(								\
-	    "prefetchnta " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
-
-#define	PREFETCH(ptr, offset) 						\
-{									\
-	__asm(								\
-	    "prefetcht0 " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
 
 #define	XOR_ACC(src, r...) 						\
 {									\
@@ -122,25 +109,7 @@ typedef struct v {
 	}								\
 }
 
-#define	ZERO(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r) "\n"			\
-		    "pxor %" VR2(r) ", %" VR2(r) "\n"			\
-		    "pxor %" VR3(r) ", %" VR3(r));			\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r));			\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
+#define	ZERO(r...)	XOR(r, r)
 
 #define	COPY(r...) 							\
 {									\
@@ -446,7 +415,8 @@ const raidz_impl_ops_t vdev_raidz_ssse3_impl = {
 #endif /* defined(__x86_64) && defined(HAVE_SSSE3) */
 
 
-#if defined(__x86_64) && (defined(HAVE_SSSE3) || defined(HAVE_AVX2))
+#if defined(__x86_64)
+#if defined(HAVE_SSSE3) || defined(HAVE_AVX2) || defined(HAVE_AVX512BW)
 
 const uint8_t
 __attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {
@@ -2500,4 +2470,5 @@ __attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {
 	    0xf8, 0x07, 0x06, 0xf9, 0x04, 0xfb, 0xfa, 0x05  }
 };
 
-#endif /* defined(__x86_64) && (defined(HAVE_SSSE3) || defined(HAVE_AVX2)) */
+#endif /* defined(HAVE_SSSE3) || defined(HAVE_AVX2) || defined(HAVE_AVX512BW) */
+#endif /* defined(__x86_64) */

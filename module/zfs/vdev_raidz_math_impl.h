@@ -268,7 +268,7 @@ raidz_add_abd_cb(void *dc, void *sc, size_t size, void *private)
  * @private	pointer to the multiplication constant (unsigned)
  */
 static int
-raidz_mul_abd(void *dc, size_t size, void *private)
+raidz_mul_abd_cb(void *dc, size_t size, void *private)
 {
 	const unsigned mul = *((unsigned *) private);
 	v_t *d = (v_t *) dc;
@@ -651,7 +651,7 @@ raidz_syn_q_abd(void **xc, const void *dc, const size_t xsize,
  * Reconstruct single data column using Q parity
  *
  * @syn_method	raidz_add_abd()
- * @rec_method	raidz_mul_abd()
+ * @rec_method	raidz_mul_abd_cb()
  *
  * @rm		RAIDZ map
  * @tgtidx	array of missing data indexes
@@ -699,7 +699,7 @@ raidz_reconstruct_q_impl(raidz_map_t *rm, const int *tgtidx)
 	raidz_add(xabd, rm->rm_col[CODE_Q].rc_abd, xsize);
 
 	/* transform the syndrome */
-	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd, (void*) coeff);
+	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd_cb, (void*) coeff);
 
 	raidz_math_end();
 
@@ -742,7 +742,7 @@ raidz_syn_r_abd(void **xc, const void *dc, const size_t tsize,
  * Reconstruct single data column using R parity
  *
  * @syn_method	raidz_add_abd()
- * @rec_method	raidz_mul_abd()
+ * @rec_method	raidz_mul_abd_cb()
  *
  * @rm		RAIDZ map
  * @tgtidx	array of missing data indexes
@@ -791,7 +791,7 @@ raidz_reconstruct_r_impl(raidz_map_t *rm, const int *tgtidx)
 	raidz_add(xabd, rm->rm_col[CODE_R].rc_abd, xsize);
 
 	/* transform the syndrome */
-	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd, (void *)coeff);
+	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd_cb, (void *)coeff);
 
 	raidz_math_end();
 

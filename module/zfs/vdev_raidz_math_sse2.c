@@ -58,9 +58,6 @@ typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
 
-#define	PREFETCHNTA(ptr, offset) 	{}
-#define	PREFETCH(ptr, offset) 		{}
-
 #define	XOR_ACC(src, r...) 						\
 {									\
 	switch (REG_CNT(r)) {						\
@@ -106,27 +103,8 @@ typedef struct v {
 		break;							\
 	}								\
 }
-#define	ZERO(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r) "\n"			\
-		    "pxor %" VR2(r) ", %" VR2(r) "\n"			\
-		    "pxor %" VR3(r) ", %" VR3(r));			\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r));			\
-		break;							\
-	case 1:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r));			\
-		break;							\
-	}								\
-}
+
+#define	ZERO(r...)	XOR(r, r)
 
 #define	COPY(r...) 							\
 {									\
@@ -259,7 +237,7 @@ typedef struct v {
 
 #define	_MUL_PARAM(x, in, acc)						\
 {									\
-	if (x & 0x01) {	COPY(in, acc); } else { XOR(acc, acc); }	\
+	if (x & 0x01) {	COPY(in, acc); } else { ZERO(acc); }	\
 	if (x & 0xfe) { MUL2(in); }					\
 	if (x & 0x02) { XOR(in, acc); }					\
 	if (x & 0xfc) { MUL2(in); }					\
@@ -552,7 +530,7 @@ gf_x2_mul_fns[256] = {
 #define	ADD_D 			0, 1, 2, 3
 
 #define	MUL_STRIDE		2
-#define	MUL_DEFINE() 		{}
+#define	MUL_DEFINE() 		MUL2_SETUP()
 #define	MUL_D			0, 1
 
 #define	GEN_P_STRIDE		4
@@ -582,7 +560,7 @@ gf_x2_mul_fns[256] = {
 #define	SYN_PQ_X		4, 5, 6, 7
 
 #define	REC_PQ_STRIDE		2
-#define	REC_PQ_DEFINE() 	{}
+#define	REC_PQ_DEFINE() 	MUL2_SETUP()
 #define	REC_PQ_X		0, 1
 #define	REC_PQ_Y		2, 3
 #define	REC_PQ_T		4, 5
@@ -592,7 +570,7 @@ gf_x2_mul_fns[256] = {
 #define	SYN_PR_X		4, 5, 6, 7
 
 #define	REC_PR_STRIDE		2
-#define	REC_PR_DEFINE() 	{}
+#define	REC_PR_DEFINE() 	MUL2_SETUP()
 #define	REC_PR_X		0, 1
 #define	REC_PR_Y		2, 3
 #define	REC_PR_T		4, 5
@@ -602,7 +580,7 @@ gf_x2_mul_fns[256] = {
 #define	SYN_QR_X		4, 5, 6, 7
 
 #define	REC_QR_STRIDE		2
-#define	REC_QR_DEFINE() 	{}
+#define	REC_QR_DEFINE() 	MUL2_SETUP()
 #define	REC_QR_X		0, 1
 #define	REC_QR_Y		2, 3
 #define	REC_QR_T		4, 5
@@ -612,7 +590,7 @@ gf_x2_mul_fns[256] = {
 #define	SYN_PQR_X		4, 5, 6, 7
 
 #define	REC_PQR_STRIDE		1
-#define	REC_PQR_DEFINE() 	{}
+#define	REC_PQR_DEFINE() 	MUL2_SETUP()
 #define	REC_PQR_X		0
 #define	REC_PQR_Y		1
 #define	REC_PQR_Z		2
