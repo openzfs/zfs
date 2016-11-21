@@ -1031,9 +1031,10 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 				    "trailing slash in name"));
 				break;
 
-			case NAME_ERR_MULTIPLE_AT:
+			case NAME_ERR_MULTIPLE_DELIMITERS:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "multiple '@' delimiters in name"));
+				    "multiple '@' and/or '#' delimiters in "
+				    "name"));
 				break;
 			case NAME_ERR_NO_AT:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

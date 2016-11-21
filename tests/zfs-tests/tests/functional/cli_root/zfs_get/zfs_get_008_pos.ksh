@@ -33,7 +33,7 @@
 # Verify "-d <n>" can work with other options
 #
 # STRATEGY:
-# 1. Create pool, filesystem, dataset, volume and snapshot.
+# 1. Create pool, filesystem, dataset, volume, snapshot, and bookmark.
 # 2. Getting an -d option, other options and properties random combination.
 # 3. Using the combination as the parameters of 'zfs get' to check the
 # command line return value.
@@ -61,12 +61,19 @@ fi
 set -A dataset $TESTPOOL/$TESTCTR $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
 	$TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTVOL@$TESTSNAP
 
+set -A bookmark_props creation
+set -A bookmark $TESTPOOL/$TESTFS#$TESTBKMARK $TESTPOOL/$TESTVOL#$TESTBKMARK
+
 log_assert "Verify '-d <n>' can work with other options"
 log_onexit cleanup
 
 # Create volume and filesystem's snapshot
 create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 create_snapshot $TESTPOOL/$TESTVOL $TESTSNAP
+
+# Create filesystem and volume's bookmark
+create_bookmark $TESTPOOL/$TESTFS $TESTSNAP $TESTBKMARK
+create_bookmark $TESTPOOL/$TESTVOL $TESTSNAP $TESTBKMARK
 
 typeset -i opt_numb=16
 typeset -i prop_numb=16
@@ -83,6 +90,16 @@ for dst in ${dataset[@]}; do
 		do
 			log_must eval "$ZFS get -${depth_options[depth_item]} ${options[item]} $prop $dst > /dev/null 2>&1"
 		done
+		(( i += 1 ))
+	done
+done
+
+for dst in ${bookmark[@]}; do
+	(( i=0 ))
+	while (( i < opt_numb )); do
+		(( item = $RANDOM % ${#options[@]} ))
+		(( depth_item = $RANDOM % ${#depth_options[@]} ))
+		log_must eval "$ZFS get -${depth_options[depth_item]} ${options[item]} $bookmark_props $dst > /dev/null 2>&1"
 		(( i += 1 ))
 	done
 done
