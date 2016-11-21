@@ -119,9 +119,12 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
+#include <sys/spinlock.h>
 #ifdef _KERNEL
 #include <linux/scatterlist.h>
 #include <linux/kmap_compat.h>
+#include <linux/mm_compat.h>
+#include <asm/page.h>
 #else
 #define	MAX_ORDER	1
 #endif
@@ -138,6 +141,13 @@ typedef struct abd_stats {
 	kstat_named_t abdstat_scatter_page_multi_zone;
 	kstat_named_t abdstat_scatter_page_alloc_retry;
 	kstat_named_t abdstat_scatter_sg_table_retry;
+	kstat_named_t abdstat_alloc_from_lru;
+	kstat_named_t abdstat_alloc_no_lru;
+	kstat_named_t abdstat_size_not_pow2;
+	kstat_named_t abdstat_size_too_small;
+	kstat_named_t abdstat_purge_count;
+	kstat_named_t abdstat_put_to_lru;
+	kstat_named_t abdstat_put_to_lru_overflow;
 } abd_stats_t;
 
 static abd_stats_t abd_stats = {
@@ -192,6 +202,34 @@ static abd_stats_t abd_stats = {
 	 *  allocate the sg table for an ABD.
 	 */
 	{ "scatter_sg_table_retry",		KSTAT_DATA_UINT64 },
+	/*
+	 * The number of ABD allocations from LRU.
+	 */
+	{ "alloc_from_lru",			KSTAT_DATA_UINT64 },
+	/*
+	 * The number of unsucessful ABD allocations from LRU due to
+	 * lack of entries.
+	 */
+	{ "alloc_no_lru",			KSTAT_DATA_UINT64 },
+	/*
+	 * The number of unsuccessful attempts to allocate ABD from LRU
+	 * because the buffer size is not power of 2.
+	 */
+	{ "size_not_pow2",			KSTAT_DATA_UINT64 },
+	{ "size_too_small",			KSTAT_DATA_UINT64 },
+	/*
+	 * The number of slab shrinker called from kernel.
+	 */
+	{ "purge_count",			KSTAT_DATA_UINT64 },
+	/*
+	 * The number of ABDs ever added into LRU list.
+	 */
+	{ "put_to_lru",				KSTAT_DATA_UINT64 },
+	/*
+	 * The number of unsuccessful attempts to add ABD buffers into LRU
+	 * due to lru_max_size overflow.
+	 */
+	{ "put_to_lru_overflow",		KSTAT_DATA_UINT64 },
 };
 
 #define	ABDSTAT(stat)		(abd_stats.stat.value.ui64)
@@ -211,6 +249,200 @@ unsigned zfs_abd_scatter_max_order = MAX_ORDER - 1;
 
 static kmem_cache_t *abd_cache = NULL;
 static kstat_t *abd_ksp;
+
+#define	ABD_LRU_MINBLOCKSHIFT	PAGESHIFT
+#define	ABD_LRU_ENTRIES		(SPA_MAXBLOCKSHIFT - ABD_LRU_MINBLOCKSHIFT + 1)
+
+typedef struct abd_lru {
+	list_t		al_head;
+	spinlock_t	al_lock;
+	unsigned	al_count;
+	unsigned	al_blocksize;
+} abd_lru_t;
+
+typedef struct abd_lru_cpu {
+	abd_lru_t	alc_blocks[ABD_LRU_ENTRIES];
+	uint64_t	alc_size;
+} abd_lru_cpu_t;
+
+static abd_lru_cpu_t *abd_lru_percpu;
+
+/*
+ * How much memory each CPU can cache for abd
+ */
+static unsigned long zfs_abd_lru_max_size = 100000000;
+
+/*
+ * How many objects it should purge for one round
+ */
+static unsigned int zfs_abd_lru_purge_count = 5;
+
+static void abd_free_scatter(abd_t *abd);
+
+static inline unsigned
+lru_index(size_t size)
+{
+	return (highbit64(size) - 1 - ABD_LRU_MINBLOCKSHIFT);
+}
+
+static abd_t *
+abd_lru_get(size_t size)
+{
+	abd_t *abd = NULL;
+	abd_lru_cpu_t *lc;
+	abd_lru_t *al;
+
+	if (!ISP2(size)) {
+		ABDSTAT_BUMP(abdstat_size_not_pow2);
+		return (NULL);
+	}
+
+	if (size < (1 << ABD_LRU_MINBLOCKSHIFT)) {
+		ABDSTAT_BUMP(abdstat_size_too_small);
+		return (NULL);
+	}
+
+	kpreempt_disable();
+	lc = &abd_lru_percpu[CPU_SEQID];
+	al = &lc->alc_blocks[lru_index(size)];
+	if (al->al_count > 0) {
+		spin_lock(&al->al_lock);
+		if (al->al_count > 0) {
+			abd = list_remove_head(&al->al_head);
+			al->al_count--;
+
+			ABDSTAT_BUMP(abdstat_alloc_from_lru);
+
+			ASSERT(abd->abd_size == size);
+			list_link_init(&abd->abd_lru);
+
+			atomic_sub_64(&lc->alc_size, size);
+		}
+		spin_unlock(&al->al_lock);
+	}
+	kpreempt_enable();
+
+	if (abd == NULL)
+		ABDSTAT_BUMP(abdstat_alloc_no_lru);
+
+	return (abd);
+}
+
+static abd_t *
+abd_lru_put(abd_t *abd)
+{
+	size_t size = abd->abd_size;
+	abd_lru_cpu_t *lc;
+
+	if (!ISP2(size) || size <= (1 << ABD_LRU_MINBLOCKSHIFT))
+		return (abd);
+
+	ASSERT(refcount_is_zero(&abd->abd_children));
+
+	kpreempt_disable();
+	lc = &abd_lru_percpu[CPU_SEQID];
+	if (atomic_add_64_nv(&lc->alc_size, size) < zfs_abd_lru_max_size) {
+		abd_lru_t *al = &lc->alc_blocks[lru_index(size)];
+
+		ASSERT(size == al->al_blocksize);
+		ABDSTAT_BUMP(abdstat_put_to_lru);
+
+		spin_lock(&al->al_lock);
+		list_insert_tail(&al->al_head, abd);
+		al->al_count++;
+		spin_unlock(&al->al_lock);
+
+		ABD_SCATTER(abd).abd_offset = 0;
+		abd->abd_parent = NULL;
+		abd = NULL;
+	} else {
+		atomic_sub_64(&lc->alc_size, size);
+		ABDSTAT_BUMP(abdstat_put_to_lru_overflow);
+	}
+	kpreempt_enable();
+	return (abd);
+}
+
+static uint64_t
+abd_lru_cpu_purge(abd_lru_cpu_t *lc)
+{
+	list_t tmp_list;
+	uint64_t evicted_bytes = 0;
+	int i;
+
+	list_create(&tmp_list, sizeof (abd_t), offsetof(abd_t, abd_lru));
+
+	for (i = 0; i < ABD_LRU_ENTRIES; i++) {
+		abd_lru_t *al = &lc->alc_blocks[i];
+		unsigned count = MAX(zfs_abd_lru_purge_count, 1);
+		abd_t *obj;
+
+		if (al->al_count == 0)
+			continue;
+
+		spin_lock(&al->al_lock);
+		if (al->al_count < count) {
+			list_move_tail(&tmp_list, &al->al_head);
+			al->al_count = 0;
+		} else {
+			al->al_count -= count;
+			while (count-- > 0) {
+				obj = list_remove_head(&al->al_head);
+				list_insert_head(&tmp_list, obj);
+			}
+		}
+		spin_unlock(&al->al_lock);
+
+		while ((obj = list_head(&tmp_list)) != NULL) {
+			list_remove(&tmp_list, obj);
+			ASSERT(!abd_is_linear(obj));
+			evicted_bytes += obj->abd_size;
+			abd_free_scatter(obj);
+		}
+	}
+	atomic_sub_64(&lc->alc_size, evicted_bytes);
+
+	list_destroy(&tmp_list);
+
+	return (evicted_bytes >> PAGESHIFT);
+}
+
+static uint64_t
+abd_lru_purge(uint64_t pages)
+{
+	static uint32_t last_index;
+	uint64_t total_pages;
+	int i;
+
+	ABDSTAT_BUMP(abdstat_purge_count);
+
+	while (pages > 0) {
+		unsigned ncpus_scanned = 0;
+		uint64_t remaining_pages = pages;
+
+		while (pages > 0 && ncpus_scanned++ < max_ncpus) {
+			unsigned c = atomic_inc_32_nv(&last_index) % max_ncpus;
+			abd_lru_cpu_t *lc = &abd_lru_percpu[c];
+			unsigned evicted_pages;
+
+			if (lc->alc_size == 0)
+				continue;
+
+			evicted_pages = abd_lru_cpu_purge(lc);
+
+			pages -= MIN(pages, evicted_pages);
+		}
+
+		if (remaining_pages == pages) /* no progress */
+			break;
+	}
+
+	total_pages = 0;
+	for (i = 0; i < max_ncpus; i++)
+		total_pages += abd_lru_percpu[i].alc_size >> PAGESHIFT;
+
+	return (total_pages);
+}
 
 static inline size_t
 abd_chunkcnt_for_bytes(size_t size)
@@ -384,7 +616,7 @@ abd_free_pages(abd_t *abd)
 
 	abd_for_each_sg(abd, sg, nr_pages, i) {
 		for (j = 0; j < sg->length; ) {
-			page = nth_page(sg_page(sg), j >> PAGE_SHIFT);
+			page = nth_page(sg_page(sg), j >> PAGESHIFT);
 			order = compound_order(page);
 			__free_pages(page, order);
 			j += (PAGESIZE << order);
@@ -397,11 +629,16 @@ abd_free_pages(abd_t *abd)
 	sg_free_table(&table);
 }
 
-#else /* _KERNEL */
+static spl_shrinker_t
+__abd_lru_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
+{
+	return (abd_lru_purge(sc->nr_to_scan));
+}
+SPL_SHRINKER_CALLBACK_WRAPPER(abd_lru_shrinker_func);
 
-#ifndef PAGE_SHIFT
-#define	PAGE_SHIFT (highbit64(PAGESIZE)-1)
-#endif
+SPL_SHRINKER_DECLARE(abd_lru_shrinker, abd_lru_shrinker_func, DEFAULT_SEEKS);
+
+#else /* _KERNEL */
 
 struct page;
 
@@ -515,11 +752,49 @@ abd_init(void)
 			    KSTAT_DATA_UINT64;
 		}
 	}
+
+	abd_lru_percpu = vmem_zalloc(sizeof (abd_lru_cpu_t) * max_ncpus,
+	    KM_SLEEP);
+	for (i = 0; i < max_ncpus; i++) {
+		abd_lru_cpu_t *lc = &abd_lru_percpu[i];
+		int j;
+
+		for (j = 0; j < ABD_LRU_ENTRIES; j++) {
+			abd_lru_t *al = &lc->alc_blocks[j];
+			list_create(&al->al_head, sizeof (abd_t),
+			    offsetof(abd_t, abd_lru));
+			spin_lock_init(&al->al_lock);
+			al->al_blocksize = 1 << (ABD_LRU_MINBLOCKSHIFT + j);
+		}
+	}
+
+#ifdef _KERNEL
+	spl_register_shrinker(&abd_lru_shrinker);
+#endif
 }
 
 void
 abd_fini(void)
 {
+	unsigned i, j;
+
+#ifdef _KERNEL
+	spl_unregister_shrinker(&abd_lru_shrinker);
+#endif
+	abd_lru_purge(UINT64_MAX);
+
+	for (i = 0; i < max_ncpus; i++) {
+		abd_lru_cpu_t *lc = &abd_lru_percpu[i];
+
+		ASSERT(lc->alc_size == 0);
+		for (j = 0; j < ABD_LRU_ENTRIES; j++) {
+			abd_lru_t *al = &lc->alc_blocks[j];
+			list_destroy(&al->al_head);
+		}
+	}
+
+	vmem_free(abd_lru_percpu, sizeof (abd_lru_cpu_t) * max_ncpus);
+
 	if (abd_ksp != NULL) {
 		kstat_delete(abd_ksp);
 		abd_ksp = NULL;
@@ -590,6 +865,10 @@ abd_alloc(size_t size, boolean_t is_metadata)
 
 	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
 
+	abd = abd_lru_get(size);
+	if (abd != NULL)
+		return (abd);
+
 	abd = abd_alloc_struct();
 	abd->abd_flags = ABD_FLAG_OWNER;
 	abd_alloc_pages(abd, size);
@@ -600,6 +879,7 @@ abd_alloc(size_t size, boolean_t is_metadata)
 	abd->abd_size = size;
 	abd->abd_parent = NULL;
 	refcount_create(&abd->abd_children);
+	list_link_init(&abd->abd_lru);
 
 	abd->abd_u.abd_scatter.abd_offset = 0;
 
@@ -685,7 +965,7 @@ abd_free(abd_t *abd)
 	ASSERT(abd->abd_flags & ABD_FLAG_OWNER);
 	if (abd_is_linear(abd))
 		abd_free_linear(abd);
-	else
+	else if (abd_lru_put(abd) != NULL)
 		abd_free_scatter(abd);
 }
 
@@ -1542,4 +1822,12 @@ MODULE_PARM_DESC(zfs_abd_scatter_enabled,
 module_param(zfs_abd_scatter_max_order, uint, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_max_order,
 	"Maximum order allocation used for a scatter ABD.");
+/* CSTYLED */
+module_param(zfs_abd_lru_max_size, ulong, 0644);
+MODULE_PARM_DESC(zfs_abd_lru_max_size,
+	"Maximum size of abd cache per CPU.");
+/* CSTYLED */
+module_param(zfs_abd_lru_purge_count, uint, 0644);
+MODULE_PARM_DESC(zfs_abd_lru_purge_count,
+	"Number of abd_t to be purged in each round");
 #endif
