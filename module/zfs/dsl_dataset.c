@@ -84,6 +84,8 @@ extern inline dsl_dataset_phys_t *dsl_dataset_phys(dsl_dataset_t *ds);
 
 extern int spa_asize_inflation;
 
+static zil_header_t zero_zil;
+
 /*
  * Figure out how much of this delta should be propagated to the dsl_dir
  * layer.  If there's a refreservation, that space has already been
@@ -131,6 +133,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		return;
 	}
 
+	ASSERT3U(bp->blk_birth, >, dsl_dataset_phys(ds)->ds_prev_snap_txg);
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	mutex_enter(&ds->ds_lock);
 	delta = parent_delta(ds, used);
@@ -931,8 +934,20 @@ dsl_dataset_zero_zil(dsl_dataset_t *ds, dmu_tx_t *tx)
 	objset_t *os;
 
 	VERIFY0(dmu_objset_from_ds(ds, &os));
-	bzero(&os->os_zil_header, sizeof (os->os_zil_header));
-	dsl_dataset_dirty(ds, tx);
+	if (bcmp(&os->os_zil_header, &zero_zil, sizeof (zero_zil)) != 0) {
+		dsl_pool_t *dp = ds->ds_dir->dd_pool;
+		zio_t *zio;
+
+		bzero(&os->os_zil_header, sizeof (os->os_zil_header));
+
+		zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+		dsl_dataset_sync(ds, zio, tx);
+		VERIFY0(zio_wait(zio));
+
+		/* dsl_dataset_sync_done will drop this reference. */
+		dmu_buf_add_ref(ds->ds_dbuf, ds);
+		dsl_dataset_sync_done(ds, tx);
+	}
 }
 
 uint64_t
@@ -1072,8 +1087,10 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 	if (dsl_dataset_phys(ds)->ds_next_snap_obj != 0)
 		panic("dirtying snapshot!");
 
-	dp = ds->ds_dir->dd_pool;
+	/* Must not dirty a dataset in the same txg where it got snapshotted. */
+	ASSERT3U(tx->tx_txg, >, dsl_dataset_phys(ds)->ds_prev_snap_txg);
 
+	dp = ds->ds_dir->dd_pool;
 	if (txg_list_add(&dp->dp_dirty_datasets, ds, tx->tx_txg)) {
 		/* up the hold count until we can be written out */
 		dmu_buf_add_ref(ds->ds_dbuf, ds);
@@ -1353,6 +1370,10 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	    dmu_objset_from_ds(ds, &os) != 0 ||
 	    bcmp(&os->os_phys->os_zil_header, &zero_zil,
 	    sizeof (zero_zil)) == 0);
+
+	/* Should not snapshot a dirty dataset. */
+	ASSERT(!txg_list_member(&ds->ds_dir->dd_pool->dp_dirty_datasets,
+	    ds, tx->tx_txg));
 
 	dsl_fs_ss_count_adjust(ds->ds_dir, 1, DD_FIELD_SNAPSHOT_COUNT, tx);
 
@@ -1701,6 +1722,27 @@ dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 			ds->ds_feature_inuse[f] = B_TRUE;
 		}
 	}
+}
+
+static int
+deadlist_enqueue_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+{
+	dsl_deadlist_t *dl = arg;
+	dsl_deadlist_insert(dl, bp, tx);
+	return (0);
+}
+
+void
+dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	ASSERTV(objset_t *os = ds->ds_objset);
+
+	bplist_iterate(&ds->ds_pending_deadlist,
+	    deadlist_enqueue_cb, &ds->ds_deadlist, tx);
+
+	ASSERT(!dmu_objset_is_dirty(os, dmu_tx_get_txg(tx)));
+
+	dmu_buf_rele(ds->ds_dbuf, ds);
 }
 
 static void
@@ -2217,6 +2259,18 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	if (dsl_dataset_phys(ds)->ds_prev_snap_txg < TXG_INITIAL) {
 		dsl_dataset_rele(ds, FTAG);
 		return (SET_ERROR(EINVAL));
+	}
+
+	/*
+	 * No rollback to a snapshot created in the current txg, because
+	 * the rollback may dirty the dataset and create blocks that are
+	 * not reachable from the rootbp while having a birth txg that
+	 * falls into the snapshot's range.
+	 */
+	if (dmu_tx_is_syncing(tx) &&
+	    dsl_dataset_phys(ds)->ds_prev_snap_txg >= tx->tx_txg) {
+		dsl_dataset_rele(ds, FTAG);
+		return (SET_ERROR(EAGAIN));
 	}
 
 	/* must not have any bookmarks after the most recent snapshot */
