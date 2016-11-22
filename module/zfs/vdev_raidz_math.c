@@ -64,8 +64,8 @@ const raidz_impl_ops_t *raidz_all_maths[] = {
 	// &vdev_raidz_avx512bw_impl,
 #endif
 #if defined(__aarch64__)
-	// &vdev_raidz_aarch64_neon_impl,
-	// &vdev_raidz_aarch64_neonx2_impl,
+	&vdev_raidz_aarch64_neon_impl,
+	&vdev_raidz_aarch64_neonx2_impl,
 #endif
 };
 
