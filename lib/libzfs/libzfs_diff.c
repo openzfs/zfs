@@ -555,11 +555,13 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 
 	/*
 	 * Can accept
-	 *    dataset@snap1
-	 *    dataset@snap1 dataset@snap2
-	 *    dataset@snap1 @snap2
-	 *    dataset@snap1 dataset
-	 *    @snap1 dataset@snap2
+	 *                                      fdslen fsnlen tdslen tsnlen
+	 *       dataset@snap1
+	 *    0. dataset@snap1 dataset@snap2      >0     >1     >0     >1
+	 *    1. dataset@snap1 @snap2             >0     >1    ==0     >1
+	 *    2. dataset@snap1 dataset            >0     >1     >0    ==0
+	 *    3. @snap1 dataset@snap2            ==0     >1     >0     >1
+	 *    4. @snap1 dataset                  ==0     >1     >0    ==0
 	 */
 	if (tosnap == NULL) {
 		/* only a from snapshot given, must be valid */
@@ -596,8 +598,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 	fsnlen = strlen(fromsnap) - fdslen;	/* includes @ sign */
 	tsnlen = strlen(tosnap) - tdslen;	/* includes @ sign */
 
-	if (fsnlen <= 1 || tsnlen == 1 || (fdslen == 0 && tdslen == 0) ||
-	    (fsnlen == 0 && tsnlen == 0)) {
+	if (fsnlen <= 1 || tsnlen == 1 || (fdslen == 0 && tdslen == 0)) {
 		return (zfs_error(hdl, EZFS_INVALIDNAME, di->errbuf));
 	} else if ((fdslen > 0 && tdslen > 0) &&
 	    ((tdslen != fdslen || strncmp(fromsnap, tosnap, fdslen) != 0))) {
