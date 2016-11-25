@@ -635,6 +635,9 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_min_ashift = INT_MAX;
 	spa->spa_max_ashift = 0;
 
+	/* Reset cached value */
+	spa->spa_dedup_dspace = ~0ULL;
+
 	/*
 	 * As a pool is being created, treat all features as disabled by
 	 * setting SPA_FEATURE_DISABLED for all entries in the feature
