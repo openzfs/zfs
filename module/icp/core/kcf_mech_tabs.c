@@ -140,7 +140,21 @@ kcf_mech_hash_find(char *mechname)
 void
 kcf_destroy_mech_tabs(void)
 {
-	if (kcf_mech_hash) mod_hash_destroy_hash(kcf_mech_hash);
+	int i, max;
+	kcf_ops_class_t class;
+	kcf_mech_entry_t *me_tab;
+
+	if (kcf_mech_hash)
+		mod_hash_destroy_hash(kcf_mech_hash);
+
+	mutex_destroy(&kcf_mech_tabs_lock);
+
+	for (class = KCF_FIRST_OPSCLASS; class <= KCF_LAST_OPSCLASS; class++) {
+		max = kcf_mech_tabs_tab[class].met_size;
+		me_tab = kcf_mech_tabs_tab[class].met_tab;
+		for (i = 0; i < max; i++)
+			mutex_destroy(&(me_tab[i].me_mutex));
+	}
 }
 
 /*
