@@ -983,9 +983,17 @@ zfs_unshareall(zfs_handle_t *zhp)
 }
 
 int
-zfs_unshareall_bypath(zfs_handle_t *zhp, const char *mountpoint)
+zfs_unshareall_bypath(zfs_handle_t *zhp, const char *mountpoint,
+    const char *proto)
 {
-	return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
+	zfs_share_proto_t *share_proto = share_all_proto;
+
+	if (strcmp(proto, "nfs") == 0)
+		share_proto = nfs_only;
+	else if (strcmp(proto, "smb") == 0)
+		share_proto = smb_only;
+
+	return (zfs_unshare_proto(zhp, mountpoint, share_proto));
 }
 
 /*
