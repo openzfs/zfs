@@ -84,7 +84,7 @@ fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags)
 	zap->zap_dbu.dbu_evict_func_sync = zap_evict_sync;
 	zap->zap_dbu.dbu_evict_func_async = NULL;
 
-	mutex_init(&zap->zap_f.zap_num_entries_mtx, 0, 0, 0);
+	mutex_init(&zap->zap_f.zap_num_entries_mtx, 0, MUTEX_DEFAULT, 0);
 	zap->zap_f.zap_block_shift = highbit64(zap->zap_dbuf->db_size) - 1;
 
 	zp = zap_f_phys(zap);

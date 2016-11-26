@@ -846,6 +846,7 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_userused_lock);
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
+	mutex_destroy(&os->os_upgrade_lock);
 	for (int i = 0; i < TXG_SIZE; i++) {
 		multilist_destroy(os->os_dirty_dnodes[i]);
 	}

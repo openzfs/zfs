@@ -710,6 +710,9 @@ vdev_free(vdev_t *vd)
 	mutex_destroy(&vd->vdev_stat_lock);
 	mutex_destroy(&vd->vdev_probe_lock);
 
+	zfs_ratelimit_fini(&vd->vdev_delay_rl);
+	zfs_ratelimit_fini(&vd->vdev_checksum_rl);
+
 	if (vd == spa->spa_root_vdev)
 		spa->spa_root_vdev = NULL;
 

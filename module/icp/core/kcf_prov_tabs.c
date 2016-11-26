@@ -67,6 +67,8 @@ static uint_t prov_tab_max = KCF_MAX_PROVIDERS;
 void
 kcf_prov_tab_destroy(void)
 {
+	mutex_destroy(&prov_tab_mutex);
+
 	if (prov_tab)
 		kmem_free(prov_tab, prov_tab_max *
 		    sizeof (kcf_provider_desc_t *));
@@ -484,6 +486,10 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 
 	if (desc->pd_sched_info.ks_taskq != NULL)
 		taskq_destroy(desc->pd_sched_info.ks_taskq);
+
+	mutex_destroy(&desc->pd_lock);
+	cv_destroy(&desc->pd_resume_cv);
+	cv_destroy(&desc->pd_remove_cv);
 
 	kmem_free(desc, sizeof (kcf_provider_desc_t));
 }
