@@ -12,8 +12,6 @@
 # Linux SCSI enclosure services (ses) driver.  The script will do nothing
 # if you have no enclosure, or if your enclosure isn't supported.
 #
-# This script also requires ZFS to be built with libdevmapper support.
-#
 # Exit codes:
 #   0: enclosure led successfully set
 #   1: enclosure leds not not available

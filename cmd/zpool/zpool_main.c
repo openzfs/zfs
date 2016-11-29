@@ -1510,7 +1510,22 @@ typedef struct status_cbdata {
 	boolean_t	cb_first;
 	boolean_t	cb_dedup_stats;
 	boolean_t	cb_print_status;
+	vdev_cmd_data_list_t	*vcdl;
 } status_cbdata_t;
+
+/* Print output line for specific vdev in a specific pool */
+static void
+zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, char *path)
+{
+	int i;
+	for (i = 0; i < vcdl->count; i++) {
+		if ((strcmp(vcdl->data[i].path, path) == 0) &&
+		    (strcmp(vcdl->data[i].pool, pool) == 0)) {
+			printf("%s", vcdl->data[i].line);
+			break;
+		}
+	}
+}
 
 /*
  * Print out configuration state as requested by status_callback.
@@ -1528,6 +1543,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	uint64_t notpresent;
 	spare_cbdata_t spare_cb;
 	char *state;
+	char *path = NULL;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0)
@@ -1560,7 +1576,6 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
 	    &notpresent) == 0) {
-		char *path;
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
 		(void) printf("  was %s", path);
 	} else if (vs->vs_aux != 0) {
@@ -1639,6 +1654,13 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 		(void) printf(gettext("  (%s)"),
 		    (ps->pss_func == POOL_SCAN_RESILVER) ?
 		    "resilvering" : "repairing");
+	}
+
+	if (cb->vcdl != NULL) {
+		if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
+			printf("  ");
+			zpool_print_cmd(cb->vcdl, zpool_get_name(zhp), path);
+		}
 	}
 
 	(void) printf("\n");
@@ -2586,6 +2608,7 @@ typedef struct iostat_cbdata {
 	boolean_t cb_literal;
 	boolean_t cb_scripted;
 	zpool_list_t *cb_list;
+	vdev_cmd_data_list_t *vcdl;
 } iostat_cbdata_t;
 
 /*  iostat labels */
@@ -3393,6 +3416,18 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 		print_iostat_histos(cb, oldnv, newnv, scale, name);
 	}
 
+	if (cb->vcdl != NULL) {
+		char *path;
+		if (nvlist_lookup_string(newnv, ZPOOL_CONFIG_PATH,
+		    &path) == 0) {
+			if (!(cb->cb_flags & IOS_ANYHISTO_M))
+				printf("  ");
+			zpool_print_cmd(cb->vcdl, zpool_get_name(zhp), path);
+			if (cb->cb_flags & IOS_ANYHISTO_M)
+				printf("\n");
+		}
+	}
+
 	if (!(cb->cb_flags & IOS_ANYHISTO_M))
 		printf("\n");
 
@@ -3924,10 +3959,11 @@ fsleep(float sec) {
 
 
 /*
- * zpool iostat [-ghHLpPvy] [[-lq]|[-r|-w]] [-n name] [-T d|u]
+ * zpool iostat [-c CMD] [-ghHLpPvy] [[-lq]|[-r|-w]] [-n name] [-T d|u]
  *		[[ pool ...]|[pool vdev ...]|[vdev ...]]
  *		[interval [count]]
  *
+ *	-c CMD  For each vdev, run command CMD
  *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
  *	-P	Display full path for vdev name.
@@ -3965,6 +4001,7 @@ zpool_do_iostat(int argc, char **argv)
 	boolean_t follow_links = B_FALSE;
 	boolean_t full_name = B_FALSE;
 	iostat_cbdata_t cb = { 0 };
+	char *cmd = NULL;
 
 	/* Used for printing error message */
 	const char flag_to_arg[] = {[IOS_LATENCY] = 'l', [IOS_QUEUES] = 'q',
@@ -3973,8 +4010,11 @@ zpool_do_iostat(int argc, char **argv)
 	uint64_t unsupported_flags;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "gLPT:vyhplqrwH")) != -1) {
+	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwH")) != -1) {
 		switch (c) {
+		case 'c':
+			cmd = optarg;
+			break;
 		case 'g':
 			guid = B_TRUE;
 			break;
@@ -4167,7 +4207,6 @@ zpool_do_iostat(int argc, char **argv)
 		return (1);
 	}
 
-
 	for (;;) {
 		if ((npools = pool_list_count(list)) == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));
@@ -4217,7 +4256,14 @@ zpool_do_iostat(int argc, char **argv)
 				continue;
 			}
 
+			if (cmd != NULL)
+				cb.vcdl = all_pools_for_each_vdev_run(argc,
+				    argv, cmd);
+
 			pool_list_iter(list, B_FALSE, print_iostat, &cb);
+
+			if (cb.vcdl != NULL)
+				free_vdev_cmd_data_list(cb.vcdl);
 
 			/*
 			 * If there's more than one pool, and we're not in
@@ -6016,8 +6062,9 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-gLPvx] [-T d|u] [pool] ... [interval [count]]
+ * zpool status [-c CMD] [-gLPvx] [-T d|u] [pool] ... [interval [count]]
  *
+ *	-c CMD	For each vdev, run command CMD
  *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
  *	-P	Display full path for vdev name.
@@ -6036,10 +6083,14 @@ zpool_do_status(int argc, char **argv)
 	float interval = 0;
 	unsigned long count = 0;
 	status_cbdata_t cb = { 0 };
+	char *cmd = NULL;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "gLPvxDT:")) != -1) {
+	while ((c = getopt(argc, argv, "c:gLPvxDT:")) != -1) {
 		switch (c) {
+		case 'c':
+			cmd = optarg;
+			break;
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
 			break;
@@ -6083,8 +6134,14 @@ zpool_do_status(int argc, char **argv)
 		if (timestamp_fmt != NODATE)
 			print_timestamp(timestamp_fmt);
 
+		if (cmd != NULL)
+			cb.vcdl = all_pools_for_each_vdev_run(argc, argv, cmd);
+
 		ret = for_each_pool(argc, argv, B_TRUE, NULL,
 		    status_callback, &cb);
+
+		if (cb.vcdl != NULL)
+			free_vdev_cmd_data_list(cb.vcdl);
 
 		if (argc == 0 && cb.cb_count == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));

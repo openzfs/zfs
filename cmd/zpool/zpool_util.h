@@ -72,6 +72,27 @@ void pool_list_remove(zpool_list_t *, zpool_handle_t *);
 
 libzfs_handle_t *g_zfs;
 
+
+typedef	struct vdev_cmd_data
+{
+	char *line;	/* cmd output */
+	char *path;	/* vdev path */
+	char *upath;	/* vdev underlying path */
+	char *pool;	/* Pool name */
+	char *cmd;	/* backpointer to cmd */
+} vdev_cmd_data_t;
+
+typedef struct vdev_cmd_data_list
+{
+	char *cmd;		/* Command to run */
+	unsigned int count;	/* Number of vdev_cmd_data items (vdevs) */
+	vdev_cmd_data_t *data;	/* Array of vdevs */
+} vdev_cmd_data_list_t;
+
+vdev_cmd_data_list_t * all_pools_for_each_vdev_run(int argc, char **argv,
+    char *cmd);
+void free_vdev_cmd_data_list(vdev_cmd_data_list_t *vcdl);
+
 #ifdef	__cplusplus
 }
 #endif

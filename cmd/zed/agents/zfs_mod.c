@@ -215,9 +215,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	if (offline)
 		return;  /* don't intervene if it was taken offline */
 
-#ifdef	HAVE_LIBDEVMAPPER
 	is_dm = zfs_dev_is_dm(path);
-#endif
 	zed_log_msg(LOG_INFO, "zfs_process_add: pool '%s' vdev '%s', phys '%s'"
 	    " wholedisk %d, dm %d (%llu)", zpool_get_name(zhp), path,
 	    physpath ? physpath : "NULL", wholedisk, is_dm,

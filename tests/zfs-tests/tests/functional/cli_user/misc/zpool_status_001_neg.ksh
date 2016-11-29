@@ -69,6 +69,21 @@ check_pool_status
 log_must eval "$ZPOOL status -v $TESTPOOL > /tmp/pool-status.$$"
 check_pool_status
 
+# Make sure -c option works, and that VDEV_PATH and VDEV_UPATH get set.
+#
+# grep for '^\s+/' to just get the vdevs (not pools).  All vdevs will start with
+# a '/' when we specify the path (-P) flag. We check for "{}" to see if one
+# of the VDEV variables isn't set.
+C1=$($ZPOOL status -P | $GREP -E '^\s+/' | $WC -l)
+C2=$($ZPOOL status -P -c 'echo vdev_test{$VDEV_PATH}{$VDEV_UPATH}' | \
+    $GREP -E '^\s+/' | $GREP -v '{}' | $WC -l)
+
+if [ "$C1" != "$C2" ] ; then
+	log_fail "zpool status -c option failed.  Expected $C1 vdevs, got $C2"
+else
+	log_pass "zpool status -c option passed.  Expected $C1 vdevs, got $C2"
+fi
+
 # $TESTPOOL.virt has an offline device, so -x will show it
 log_must eval "$ZPOOL status -x $TESTPOOL.virt > /tmp/pool-status.$$"
 check_pool_status
