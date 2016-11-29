@@ -116,6 +116,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_COMMANDS_LINUX], [
 	AC_PATH_TOOL(READLINK, readlink, "")
 	AC_PATH_TOOL(SETFACL, setfacl, "")
 	AC_PATH_TOOL(SHARE, exportfs, "")
+	AC_PATH_TOOL(NET, net, "")
 	AC_PATH_TOOL(SWAP, swapon, "")
 	AC_PATH_TOOL(SWAPADD, swapon, "")
 	AC_PATH_TOOL(UDEVADM, udevadm, "")

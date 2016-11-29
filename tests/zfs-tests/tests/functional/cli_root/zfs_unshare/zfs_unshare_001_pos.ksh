@@ -88,7 +88,7 @@ function test_unshare # <mntp> <filesystem>
 
 	if [[ $prop_value == "off" ]]; then
 		not_shared $mntp ||
-			log_must $UNSHARE -F nfs $mntp
+			log_must eval "unshare_nfs $mntp"
 		log_must $ZFS set sharenfs=on $filesystem
 		is_shared $mntp || \
 			log_fail "'$ZFS set sharenfs=on' fails to make" \
