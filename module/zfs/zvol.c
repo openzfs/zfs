@@ -1036,7 +1036,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 
 	/*
 	 * Obtain a copy of private_data under the lock to make sure
-	 * that either the result of zvol_freeg() setting
+	 * that either the result of zvol_free() setting
 	 * bdev->bd_disk->private_data to NULL is observed, or zvol_free()
 	 * is not called on this zv because of the positive zv_open_count.
 	 */
@@ -1316,12 +1316,13 @@ out_kmem:
 }
 
 /*
- * Cleanup then free a zvol_state_t which was created by zvol_alloc().
+ * Used for taskq, if used out side zvol_state_lock, you need to clear
+ * zv_disk->private_data inside lock first.
  */
 static void
-zvol_free(zvol_state_t *zv)
+zvol_free_impl(void *arg)
 {
-	ASSERT(MUTEX_HELD(&zvol_state_lock));
+	zvol_state_t *zv = arg;
 	ASSERT(zv->zv_open_count == 0);
 
 	zfs_rlock_destroy(&zv->zv_range_lock);
@@ -1334,6 +1335,16 @@ zvol_free(zvol_state_t *zv)
 
 	ida_simple_remove(&zvol_ida, MINOR(zv->zv_dev) >> ZVOL_MINOR_BITS);
 	kmem_free(zv, sizeof (zvol_state_t));
+}
+
+/*
+ * Cleanup then free a zvol_state_t which was created by zvol_alloc().
+ */
+static void
+zvol_free(zvol_state_t *zv)
+{
+	ASSERT(MUTEX_HELD(&zvol_state_lock));
+	zvol_free_impl(zv);
 }
 
 /*
@@ -1691,6 +1702,7 @@ zvol_remove_minors_impl(const char *name)
 {
 	zvol_state_t *zv, *zv_next;
 	int namelen = ((name) ? strlen(name) : 0);
+	taskqid_t t, tid = TASKQID_INVALID;
 
 	if (zvol_inhibit_dev)
 		return;
@@ -1710,11 +1722,22 @@ zvol_remove_minors_impl(const char *name)
 				continue;
 
 			zvol_remove(zv);
-			zvol_free(zv);
+
+			/* clear this so zvol_open won't open it */
+			zv->zv_disk->private_data = NULL;
+
+			/* try parallel zv_free, if failed do it in place */
+			t = taskq_dispatch(system_taskq, zvol_free_impl, zv,
+			    TQ_SLEEP);
+			if (t == TASKQID_INVALID)
+				zvol_free(zv);
+			else
+				tid = t;
 		}
 	}
-
 	mutex_exit(&zvol_state_lock);
+	if (tid != TASKQID_INVALID)
+		taskq_wait_outstanding(system_taskq, tid);
 }
 
 /* Remove minor for this specific snapshot only */
