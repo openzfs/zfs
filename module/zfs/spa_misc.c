@@ -530,7 +530,7 @@ spa_deadman(void *arg)
 	if (zfs_deadman_enabled)
 		vdev_deadman(spa->spa_root_vdev);
 
-	spa->spa_deadman_tqid = taskq_dispatch_delay(system_taskq,
+	spa->spa_deadman_tqid = taskq_dispatch_delay(system_delay_taskq,
 	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
 	    NSEC_TO_TICK(spa->spa_deadman_synctime));
 }
