@@ -169,7 +169,6 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
 
 # DISABLED:
 # mountpoint_003_pos - needs investigation
-# ro_props_001_pos - https://github.com/zfsonlinux/zfs/issues/5201
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
@@ -178,7 +177,8 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'share_mount_001_neg', 'snapdir_001_pos', 'onoffs_001_pos',
     'user_property_001_pos', 'user_property_003_neg', 'readonly_001_pos',
     'user_property_004_pos', 'version_001_neg', 'zfs_set_001_neg',
-    'zfs_set_002_neg', 'zfs_set_003_neg', 'property_alias_001_pos']
+    'zfs_set_002_neg', 'zfs_set_003_neg', 'property_alias_001_pos',
+    'ro_props_001_pos']
 
 # DISABLED: Tests need to be updated for Linux share behavior
 # zfs_share_005_pos - needs investigation, probably unsupported NFS share format

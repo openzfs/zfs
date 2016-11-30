@@ -72,6 +72,8 @@ log_onexit cleanup
 # Create filesystem and volume's snapshot
 create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 create_snapshot $TESTPOOL/$TESTVOL $TESTSNAP
+sync_pool $TESTPOOL
+$SLEEP 5
 
 typeset -i i=0
 typeset -i j=0
