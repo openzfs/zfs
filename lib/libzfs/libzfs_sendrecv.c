@@ -366,11 +366,12 @@ cksummer(void *arg)
 			if (ZIO_CHECKSUM_EQUAL(drrw->drr_key.ddk_cksum,
 			    zero_cksum) ||
 			    !DRR_IS_DEDUP_CAPABLE(drrw->drr_checksumflags)) {
-				SHA256_CTX ctx;
+				SHA2_CTX ctx;
 				zio_cksum_t tmpsha256;
 
-				zio_checksum_SHA256(buf,
-				    payload_size, &ctx, &tmpsha256);
+				SHA2Init(SHA256, &ctx);
+				SHA2Update(&ctx, buf, payload_size);
+				SHA2Final(&tmpsha256, &ctx);
 
 				drrw->drr_key.ddk_cksum.zc_word[0] =
 				    BE_64(tmpsha256.zc_word[0]);

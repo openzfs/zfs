@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/debug.h>
 #include <sys/kstat.h>
+#include <sys/abd.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -104,7 +105,7 @@ typedef struct raidz_col {
 	size_t rc_devidx;		/* child device index for I/O */
 	size_t rc_offset;		/* device offset */
 	size_t rc_size;			/* I/O size */
-	void *rc_data;			/* I/O data */
+	abd_t *rc_abd;			/* I/O data */
 	void *rc_gdata;			/* used to store the "good" version */
 	int rc_error;			/* I/O error for this device */
 	unsigned int rc_tried;		/* Did we attempt this I/O column? */
@@ -121,7 +122,7 @@ typedef struct raidz_map {
 	size_t rm_firstdatacol;		/* First data column/parity count */
 	size_t rm_nskip;		/* Skipped sectors for padding */
 	size_t rm_skipstart;		/* Column index of padding start */
-	void *rm_datacopy;		/* rm_asize-buffer of copied data */
+	abd_t *rm_abd_copy;		/* rm_asize-buffer of copied data */
 	size_t rm_reports;		/* # of referencing checksum reports */
 	unsigned int rm_freed;		/* map no longer has referencing ZIO */
 	unsigned int rm_ecksuminjected;	/* checksum error was injected */

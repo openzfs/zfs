@@ -31,6 +31,7 @@
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
+#include <sys/abd.h>
 #include <sys/fs/zfs.h>
 
 /*
@@ -272,13 +273,13 @@ vdev_mirror_scrub_done(zio_t *zio)
 		while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
 			mutex_enter(&pio->io_lock);
 			ASSERT3U(zio->io_size, >=, pio->io_size);
-			bcopy(zio->io_data, pio->io_data, pio->io_size);
+			abd_copy(pio->io_abd, zio->io_abd, pio->io_size);
 			mutex_exit(&pio->io_lock);
 		}
 		mutex_exit(&zio->io_lock);
 	}
 
-	zio_buf_free(zio->io_data, zio->io_size);
+	abd_free(zio->io_abd);
 
 	mc->mc_error = zio->io_error;
 	mc->mc_tried = 1;
@@ -433,7 +434,8 @@ vdev_mirror_io_start(zio_t *zio)
 				mc = &mm->mm_child[c];
 				zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 				    mc->mc_vd, mc->mc_offset,
-				    zio_buf_alloc(zio->io_size), zio->io_size,
+				    abd_alloc_sametype(zio->io_abd,
+				    zio->io_size), zio->io_size,
 				    zio->io_type, zio->io_priority, 0,
 				    vdev_mirror_scrub_done, mc));
 			}
@@ -458,7 +460,7 @@ vdev_mirror_io_start(zio_t *zio)
 	while (children--) {
 		mc = &mm->mm_child[c];
 		zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
-		    mc->mc_vd, mc->mc_offset, zio->io_data, zio->io_size,
+		    mc->mc_vd, mc->mc_offset, zio->io_abd, zio->io_size,
 		    zio->io_type, zio->io_priority, 0,
 		    vdev_mirror_child_done, mc));
 		c++;
@@ -543,7 +545,7 @@ vdev_mirror_io_done(zio_t *zio)
 		mc = &mm->mm_child[c];
 		zio_vdev_io_redone(zio);
 		zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
-		    mc->mc_vd, mc->mc_offset, zio->io_data, zio->io_size,
+		    mc->mc_vd, mc->mc_offset, zio->io_abd, zio->io_size,
 		    ZIO_TYPE_READ, zio->io_priority, 0,
 		    vdev_mirror_child_done, mc));
 		return;
@@ -584,7 +586,7 @@ vdev_mirror_io_done(zio_t *zio)
 
 			zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 			    mc->mc_vd, mc->mc_offset,
-			    zio->io_data, zio->io_size,
+			    zio->io_abd, zio->io_size,
 			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
 			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));

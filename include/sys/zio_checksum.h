@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2016 by Delphix. All rights reserved.
  * Copyright Saso Kiselkov 2013, All rights reserved.
  */
 
@@ -34,12 +34,12 @@
 extern "C" {
 #endif
 
+struct abd;
+
 /*
  * Signature for checksum functions.
  */
-typedef void zio_checksum_func_t(const void *, uint64_t, const void *,
-    zio_cksum_t *);
-typedef void zio_checksum_t(const void *data, uint64_t size,
+typedef void zio_checksum_t(struct abd *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp);
 typedef void *zio_checksum_tmpl_init_t(const zio_cksum_salt_t *salt);
 typedef void zio_checksum_tmpl_free_t(void *ctx_template);
@@ -83,28 +83,28 @@ extern zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
 /*
  * Checksum routines.
  */
-extern zio_checksum_t zio_checksum_SHA256;
-extern zio_checksum_t zio_checksum_SHA512_native;
-extern zio_checksum_t zio_checksum_SHA512_byteswap;
+extern zio_checksum_t abd_checksum_SHA256;
+extern zio_checksum_t abd_checksum_SHA512_native;
+extern zio_checksum_t abd_checksum_SHA512_byteswap;
 
 /* Skein */
-extern zio_checksum_t zio_checksum_skein_native;
-extern zio_checksum_t zio_checksum_skein_byteswap;
-extern zio_checksum_tmpl_init_t zio_checksum_skein_tmpl_init;
-extern zio_checksum_tmpl_free_t zio_checksum_skein_tmpl_free;
+extern zio_checksum_t abd_checksum_skein_native;
+extern zio_checksum_t abd_checksum_skein_byteswap;
+extern zio_checksum_tmpl_init_t abd_checksum_skein_tmpl_init;
+extern zio_checksum_tmpl_free_t abd_checksum_skein_tmpl_free;
 
 /* Edon-R */
-extern zio_checksum_t zio_checksum_edonr_native;
-extern zio_checksum_t zio_checksum_edonr_byteswap;
-extern zio_checksum_tmpl_init_t zio_checksum_edonr_tmpl_init;
-extern zio_checksum_tmpl_free_t zio_checksum_edonr_tmpl_free;
+extern zio_checksum_t abd_checksum_edonr_native;
+extern zio_checksum_t abd_checksum_edonr_byteswap;
+extern zio_checksum_tmpl_init_t abd_checksum_edonr_tmpl_init;
+extern zio_checksum_tmpl_free_t abd_checksum_edonr_tmpl_free;
 
 extern int zio_checksum_equal(spa_t *, blkptr_t *, enum zio_checksum,
     void *, uint64_t, uint64_t, zio_bad_cksum_t *);
-extern void zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
-    void *data, uint64_t size);
+extern void zio_checksum_compute(zio_t *, enum zio_checksum,
+    struct abd *, uint64_t);
 extern int zio_checksum_error_impl(spa_t *, blkptr_t *, enum zio_checksum,
-    void *, uint64_t, uint64_t, zio_bad_cksum_t *);
+    struct abd *, uint64_t, uint64_t, zio_bad_cksum_t *);
 extern int zio_checksum_error(zio_t *zio, zio_bad_cksum_t *out);
 extern enum zio_checksum spa_dedup_checksum(spa_t *spa);
 extern void zio_checksum_templates_free(spa_t *spa);

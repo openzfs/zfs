@@ -33,6 +33,7 @@ KERNEL_C = \
 	zfs_uio.c \
 	zpool_prop.c \
 	zprop_common.c \
+	abd.c \
 	arc.c \
 	blkptr.c \
 	bplist.c \
