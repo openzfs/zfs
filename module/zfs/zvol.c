@@ -1482,6 +1482,32 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	set_disk_ro(zv->zv_disk, readonly);
 }
 
+typedef struct minors_job {
+	list_t *list;
+	list_node_t link;
+	/* input */
+	char *name;
+	/* output */
+	int error;
+} minors_job_t;
+
+/*
+ * Prefetch zvol dnodes for the minors_job
+ */
+static void
+zvol_prefetch_minors_impl(void *arg)
+{
+	minors_job_t *job = arg;
+	char *dsname = job->name;
+	objset_t *os = NULL;
+
+	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, zvol_tag,
+	    &os);
+	if (job->error == 0) {
+		dmu_prefetch(os, ZVOL_OBJ, 0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		dmu_objset_disown(os, zvol_tag);
+	}
+}
 
 /*
  * Mask errors to continue dmu_objset_find() traversal
@@ -1489,7 +1515,9 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 static int
 zvol_create_snap_minor_cb(const char *dsname, void *arg)
 {
-	const char *name = (const char *)arg;
+	minors_job_t *j = arg;
+	list_t *minors_list = j->list;
+	const char *name = j->name;
 
 	ASSERT0(MUTEX_HELD(&spa_namespace_lock));
 
@@ -1502,7 +1530,19 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 		dprintf("zvol_create_snap_minor_cb(): "
 			"%s is not a shapshot name\n", dsname);
 	} else {
-		(void) zvol_create_minor_impl(dsname);
+		minors_job_t *job;
+		char *n = strdup(dsname);
+		if (n == NULL)
+			return (0);
+
+		job = kmem_alloc(sizeof (minors_job_t), KM_SLEEP);
+		job->name = n;
+		job->list = minors_list;
+		job->error = 0;
+		list_insert_tail(minors_list, job);
+		/* don't care if dispatch fails, because job->error is 0 */
+		taskq_dispatch(system_taskq, zvol_prefetch_minors_impl, job,
+		    TQ_SLEEP);
 	}
 
 	return (0);
@@ -1516,6 +1556,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 {
 	uint64_t snapdev;
 	int error;
+	list_t *minors_list = arg;
 
 	ASSERT0(MUTEX_HELD(&spa_namespace_lock));
 
@@ -1531,19 +1572,28 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 	 * snapshots and create device minor nodes for those.
 	 */
 	if (strchr(dsname, '@') == 0) {
-		/* create minor for the 'dsname' explicitly */
-		error = zvol_create_minor_impl(dsname);
-		if ((error == 0 || error == EEXIST) &&
-		    (snapdev == ZFS_SNAPDEV_VISIBLE)) {
-			fstrans_cookie_t cookie = spl_fstrans_mark();
+		minors_job_t *job;
+		char *n = strdup(dsname);
+		if (n == NULL)
+			return (0);
+
+		job = kmem_alloc(sizeof (minors_job_t), KM_SLEEP);
+		job->name = n;
+		job->list = minors_list;
+		job->error = 0;
+		list_insert_tail(minors_list, job);
+		/* don't care if dispatch fails, because job->error is 0 */
+		taskq_dispatch(system_taskq, zvol_prefetch_minors_impl, job,
+		    TQ_SLEEP);
+
+		if (snapdev == ZFS_SNAPDEV_VISIBLE) {
 			/*
 			 * traverse snapshots only, do not traverse children,
 			 * and skip the 'dsname'
 			 */
 			error = dmu_objset_find((char *)dsname,
-			    zvol_create_snap_minor_cb, (void *)dsname,
+			    zvol_create_snap_minor_cb, (void *)job,
 			    DS_FIND_SNAPSHOTS);
-			spl_fstrans_unmark(cookie);
 		}
 	} else {
 		dprintf("zvol_create_minors_cb(): %s is not a zvol name\n",
@@ -1576,9 +1626,23 @@ zvol_create_minors_impl(const char *name)
 	int error = 0;
 	fstrans_cookie_t cookie;
 	char *atp, *parent;
+	list_t minors_list;
+	minors_job_t *job;
 
 	if (zvol_inhibit_dev)
 		return (0);
+
+	/*
+	 * This is the list for prefetch jobs. Whenever we found a match
+	 * during dmu_objset_find, we insert a minors_job to the list and do
+	 * taskq_dispatch to parallel prefetch zvol dnodes. Note we don't need
+	 * any lock because all list operation is done on the current thread.
+	 *
+	 * We will use this list to do zvol_create_minor_impl after prefetch
+	 * so we don't have to traverse using dmu_objset_find again.
+	 */
+	list_create(&minors_list, sizeof (minors_job_t),
+	    offsetof(minors_job_t, link));
 
 	parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 	(void) strlcpy(parent, name, MAXPATHLEN);
@@ -1595,11 +1659,26 @@ zvol_create_minors_impl(const char *name)
 	} else {
 		cookie = spl_fstrans_mark();
 		error = dmu_objset_find(parent, zvol_create_minors_cb,
-		    NULL, DS_FIND_CHILDREN);
+		    &minors_list, DS_FIND_CHILDREN);
 		spl_fstrans_unmark(cookie);
 	}
 
 	kmem_free(parent, MAXPATHLEN);
+	taskq_wait_outstanding(system_taskq, 0);
+
+	/*
+	 * Prefetch is completed, we can do zvol_create_minor_impl
+	 * sequentially.
+	 */
+	while ((job = list_head(&minors_list)) != NULL) {
+		list_remove(&minors_list, job);
+		if (!job->error)
+			zvol_create_minor_impl(job->name);
+		strfree(job->name);
+		kmem_free(job, sizeof (minors_job_t));
+	}
+
+	list_destroy(&minors_list);
 
 	return (SET_ERROR(error));
 }
