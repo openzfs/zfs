@@ -447,7 +447,7 @@ vdev_cmd_data_list_t *
 all_pools_for_each_vdev_run(int argc, char **argv, char *cmd)
 {
 	vdev_cmd_data_list_t *vcdl;
-	vcdl = safe_malloc(sizeof (vcdl));
+	vcdl = safe_malloc(sizeof (vdev_cmd_data_list_t));
 	vcdl->cmd = cmd;
 
 	/* Gather our list of all vdevs in all pools */
