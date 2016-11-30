@@ -1,6 +1,7 @@
 SUBDIRS = fm fs crypto sysevent
 
 COMMON_H = \
+	$(top_srcdir)/include/sys/abd.h \
 	$(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/arc_impl.h \
 	$(top_srcdir)/include/sys/avl.h \
