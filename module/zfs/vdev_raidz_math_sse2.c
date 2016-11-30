@@ -58,9 +58,6 @@ typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
 
-#define	PREFETCHNTA(ptr, offset) 	{}
-#define	PREFETCH(ptr, offset) 		{}
-
 #define	XOR_ACC(src, r...) 						\
 {									\
 	switch (REG_CNT(r)) {						\
@@ -106,27 +103,8 @@ typedef struct v {
 		break;							\
 	}								\
 }
-#define	ZERO(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r) "\n"			\
-		    "pxor %" VR2(r) ", %" VR2(r) "\n"			\
-		    "pxor %" VR3(r) ", %" VR3(r));			\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r) "\n"			\
-		    "pxor %" VR1(r) ", %" VR1(r));			\
-		break;							\
-	case 1:								\
-		__asm(							\
-		    "pxor %" VR0(r) ", %" VR0(r));			\
-		break;							\
-	}								\
-}
+
+#define	ZERO(r...)	XOR(r, r)
 
 #define	COPY(r...) 							\
 {									\
@@ -236,6 +214,10 @@ typedef struct v {
 #define	MUL2(r...)							\
 {									\
 	switch (REG_CNT(r)) {						\
+	case 4:								\
+		_MUL2_x2(VR0(r), VR1(r));				\
+		_MUL2_x2(VR2(r), VR3(r));				\
+		break;							\
 	case 2:								\
 		_MUL2_x2(VR0(r), VR1(r));				\
 		break;							\
@@ -255,7 +237,7 @@ typedef struct v {
 
 #define	_MUL_PARAM(x, in, acc)						\
 {									\
-	if (x & 0x01) {	COPY(in, acc); } else { XOR(acc, acc); }	\
+	if (x & 0x01) {	COPY(in, acc); } else { ZERO(acc); }	\
 	if (x & 0xfe) { MUL2(in); }					\
 	if (x & 0x02) { XOR(in, acc); }					\
 	if (x & 0xfc) { MUL2(in); }					\
@@ -271,8 +253,8 @@ typedef struct v {
 	if (x & 0x80) { MUL2(in); XOR(in, acc); }			\
 }
 
-#define	_mul_x1_in	9
-#define	_mul_x1_acc	11
+#define	_mul_x1_in	11
+#define	_mul_x1_acc	12
 
 #define	MUL_x1_DEFINE(x)						\
 static void 								\
@@ -533,61 +515,87 @@ gf_x2_mul_fns[256] = {
 #define	raidz_math_begin()	kfpu_begin()
 #define	raidz_math_end()	kfpu_end()
 
-#define	GEN_P_DEFINE()		{}
+#define	SYN_STRIDE		4
+
+#define	ZERO_STRIDE		4
+#define	ZERO_DEFINE()		{}
+#define	ZERO_D			0, 1, 2, 3
+
+#define	COPY_STRIDE		4
+#define	COPY_DEFINE()		{}
+#define	COPY_D			0, 1, 2, 3
+
+#define	ADD_STRIDE		4
+#define	ADD_DEFINE()		{}
+#define	ADD_D 			0, 1, 2, 3
+
+#define	MUL_STRIDE		2
+#define	MUL_DEFINE() 		MUL2_SETUP()
+#define	MUL_D			0, 1
+
 #define	GEN_P_STRIDE		4
+#define	GEN_P_DEFINE()		{}
 #define	GEN_P_P			0, 1, 2, 3
 
+#define	GEN_PQ_STRIDE		4
 #define	GEN_PQ_DEFINE() 	{}
-#define	GEN_PQ_STRIDE		2
-#define	GEN_PQ_D		0, 1
-#define	GEN_PQ_P		2, 3
-#define	GEN_PQ_Q		4, 5
+#define	GEN_PQ_D		0, 1, 2, 3
+#define	GEN_PQ_C		4, 5, 6, 7
 
+#define	GEN_PQR_STRIDE		4
 #define	GEN_PQR_DEFINE() 	{}
-#define	GEN_PQR_STRIDE		2
-#define	GEN_PQR_D		0, 1
-#define	GEN_PQR_P		2, 3
-#define	GEN_PQR_Q		4, 5
-#define	GEN_PQR_R		6, 7
+#define	GEN_PQR_D		0, 1, 2, 3
+#define	GEN_PQR_C		4, 5, 6, 7
 
-#define	REC_P_DEFINE() 		{}
-#define	REC_P_STRIDE		4
-#define	REC_P_X			0, 1, 2, 3
+#define	SYN_Q_DEFINE()		{}
+#define	SYN_Q_D			0, 1, 2, 3
+#define	SYN_Q_X			4, 5, 6, 7
 
-#define	REC_Q_DEFINE() 		{}
-#define	REC_Q_STRIDE		2
-#define	REC_Q_X			0, 1
+#define	SYN_R_DEFINE()		{}
+#define	SYN_R_D			0, 1, 2, 3
+#define	SYN_R_X			4, 5, 6, 7
 
-#define	REC_R_DEFINE() 		{}
-#define	REC_R_STRIDE		2
-#define	REC_R_X			0, 1
+#define	SYN_PQ_DEFINE() 	{}
+#define	SYN_PQ_D		0, 1, 2, 3
+#define	SYN_PQ_X		4, 5, 6, 7
 
-#define	REC_PQ_DEFINE() 	{}
 #define	REC_PQ_STRIDE		2
+#define	REC_PQ_DEFINE() 	MUL2_SETUP()
 #define	REC_PQ_X		0, 1
 #define	REC_PQ_Y		2, 3
-#define	REC_PQ_D		4, 5
+#define	REC_PQ_T		4, 5
 
-#define	REC_PR_DEFINE() 	{}
+#define	SYN_PR_DEFINE() 	{}
+#define	SYN_PR_D		0, 1, 2, 3
+#define	SYN_PR_X		4, 5, 6, 7
+
 #define	REC_PR_STRIDE		2
+#define	REC_PR_DEFINE() 	MUL2_SETUP()
 #define	REC_PR_X		0, 1
 #define	REC_PR_Y		2, 3
-#define	REC_PR_D		4, 5
+#define	REC_PR_T		4, 5
 
-#define	REC_QR_DEFINE() 	{}
+#define	SYN_QR_DEFINE() 	{}
+#define	SYN_QR_D		0, 1, 2, 3
+#define	SYN_QR_X		4, 5, 6, 7
+
 #define	REC_QR_STRIDE		2
+#define	REC_QR_DEFINE() 	MUL2_SETUP()
 #define	REC_QR_X		0, 1
 #define	REC_QR_Y		2, 3
-#define	REC_QR_D		4, 5
+#define	REC_QR_T		4, 5
 
-#define	REC_PQR_DEFINE() 	{}
+#define	SYN_PQR_DEFINE() 	{}
+#define	SYN_PQR_D		0, 1, 2, 3
+#define	SYN_PQR_X		4, 5, 6, 7
+
 #define	REC_PQR_STRIDE		1
+#define	REC_PQR_DEFINE() 	MUL2_SETUP()
 #define	REC_PQR_X		0
 #define	REC_PQR_Y		1
 #define	REC_PQR_Z		2
-#define	REC_PQR_D		3
-#define	REC_PQR_XS		4
-#define	REC_PQR_YS		5
+#define	REC_PQR_XS		3
+#define	REC_PQR_YS		4
 
 
 #include <sys/vdev_raidz_impl.h>

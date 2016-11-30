@@ -21,7 +21,6 @@
 /*
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
-
 #include <sys/isa_defs.h>
 
 #if defined(__x86_64) && defined(HAVE_AVX2)
@@ -66,19 +65,6 @@ typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
 
-#define	PREFETCHNTA(ptr, offset) 					\
-{									\
-	__asm(								\
-	    "prefetchnta " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
-
-#define	PREFETCH(ptr, offset) 						\
-{									\
-	__asm(								\
-	    "prefetcht0 " #offset "(%[MEM])\n"				\
-	    : : [MEM] "r" (ptr));					\
-}
 
 #define	XOR_ACC(src, r...)						\
 {									\
@@ -122,25 +108,7 @@ typedef struct v {
 	}								\
 }
 
-#define	ZERO(r...)							\
-{									\
-	switch (REG_CNT(r)) {						\
-	case 4:								\
-		__asm(							\
-		    "vpxor %" VR0(r) ", %" VR0(r)", %" VR0(r) "\n"	\
-		    "vpxor %" VR1(r) ", %" VR1(r)", %" VR1(r) "\n"	\
-		    "vpxor %" VR2(r) ", %" VR2(r)", %" VR2(r) "\n"	\
-		    "vpxor %" VR3(r) ", %" VR3(r)", %" VR3(r));		\
-		break;							\
-	case 2:								\
-		__asm(							\
-		    "vpxor %" VR0(r) ", %" VR0(r)", %" VR0(r) "\n"	\
-		    "vpxor %" VR1(r) ", %" VR1(r)", %" VR1(r));		\
-		break;							\
-	default:							\
-		ASM_BUG();						\
-	}								\
-}
+#define	ZERO(r...)	XOR(r, r)
 
 #define	COPY(r...) 							\
 {									\
@@ -335,59 +303,86 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 	kfpu_end();							\
 }
 
-#define	GEN_P_DEFINE()		{}
+
+#define	SYN_STRIDE		4
+
+#define	ZERO_STRIDE		4
+#define	ZERO_DEFINE()		{}
+#define	ZERO_D			0, 1, 2, 3
+
+#define	COPY_STRIDE		4
+#define	COPY_DEFINE()		{}
+#define	COPY_D			0, 1, 2, 3
+
+#define	ADD_STRIDE		4
+#define	ADD_DEFINE()		{}
+#define	ADD_D 			0, 1, 2, 3
+
+#define	MUL_STRIDE		4
+#define	MUL_DEFINE() 		{}
+#define	MUL_D			0, 1, 2, 3
+
 #define	GEN_P_STRIDE		4
+#define	GEN_P_DEFINE()		{}
 #define	GEN_P_P			0, 1, 2, 3
 
-#define	GEN_PQ_DEFINE() 	{}
 #define	GEN_PQ_STRIDE		4
+#define	GEN_PQ_DEFINE() 	{}
 #define	GEN_PQ_D		0, 1, 2, 3
-#define	GEN_PQ_P		4, 5, 6, 7
-#define	GEN_PQ_Q		8, 9, 10, 11
+#define	GEN_PQ_C		4, 5, 6, 7
 
+#define	GEN_PQR_STRIDE		4
 #define	GEN_PQR_DEFINE() 	{}
-#define	GEN_PQR_STRIDE		2
-#define	GEN_PQR_D		0, 1
-#define	GEN_PQR_P		2, 3
-#define	GEN_PQR_Q		4, 5
-#define	GEN_PQR_R		6, 7
+#define	GEN_PQR_D		0, 1, 2, 3
+#define	GEN_PQR_C		4, 5, 6, 7
 
-#define	REC_P_DEFINE() 		{}
-#define	REC_P_STRIDE		4
-#define	REC_P_X			0, 1, 2, 3
+#define	SYN_Q_DEFINE()		{}
+#define	SYN_Q_D			0, 1, 2, 3
+#define	SYN_Q_X			4, 5, 6, 7
 
-#define	REC_Q_DEFINE() 		{}
-#define	REC_Q_STRIDE		4
-#define	REC_Q_X			0, 1, 2, 3
+#define	SYN_R_DEFINE()		{}
+#define	SYN_R_D			0, 1, 2, 3
+#define	SYN_R_X			4, 5, 6, 7
 
-#define	REC_R_DEFINE() 		{}
-#define	REC_R_STRIDE		4
-#define	REC_R_X			0, 1, 2, 3
+#define	SYN_PQ_DEFINE() 	{}
+#define	SYN_PQ_D		0, 1, 2, 3
+#define	SYN_PQ_X		4, 5, 6, 7
 
-#define	REC_PQ_DEFINE() 	{}
 #define	REC_PQ_STRIDE		2
+#define	REC_PQ_DEFINE() 	{}
 #define	REC_PQ_X		0, 1
 #define	REC_PQ_Y		2, 3
-#define	REC_PQ_D		4, 5
+#define	REC_PQ_T		4, 5
 
-#define	REC_PR_DEFINE() 	{}
+#define	SYN_PR_DEFINE() 	{}
+#define	SYN_PR_D		0, 1, 2, 3
+#define	SYN_PR_X		4, 5, 6, 7
+
 #define	REC_PR_STRIDE		2
+#define	REC_PR_DEFINE() 	{}
 #define	REC_PR_X		0, 1
 #define	REC_PR_Y		2, 3
-#define	REC_PR_D		4, 5
+#define	REC_PR_T		4, 5
 
-#define	REC_QR_DEFINE() 	{}
+#define	SYN_QR_DEFINE() 	{}
+#define	SYN_QR_D		0, 1, 2, 3
+#define	SYN_QR_X		4, 5, 6, 7
+
 #define	REC_QR_STRIDE		2
+#define	REC_QR_DEFINE() 	{}
 #define	REC_QR_X		0, 1
 #define	REC_QR_Y		2, 3
-#define	REC_QR_D		4, 5
+#define	REC_QR_T		4, 5
 
-#define	REC_PQR_DEFINE() 	{}
+#define	SYN_PQR_DEFINE() 	{}
+#define	SYN_PQR_D		0, 1, 2, 3
+#define	SYN_PQR_X		4, 5, 6, 7
+
 #define	REC_PQR_STRIDE		2
+#define	REC_PQR_DEFINE() 	{}
 #define	REC_PQR_X		0, 1
 #define	REC_PQR_Y		2, 3
 #define	REC_PQR_Z		4, 5
-#define	REC_PQR_D		6, 7
 #define	REC_PQR_XS		6, 7
 #define	REC_PQR_YS		8, 9
 

@@ -28,6 +28,10 @@
  */
 
 /*
+ * Copyright (c) 2016 by Delphix. All rights reserved.
+ */
+
+/*
  * Fletcher Checksums
  * ------------------
  *
@@ -219,14 +223,26 @@ static boolean_t fletcher_4_initialized = B_FALSE;
 
 /*ARGSUSED*/
 void
-fletcher_2_native(const void *buf, uint64_t size,
-    const void *ctx_template, zio_cksum_t *zcp)
+fletcher_init(zio_cksum_t *zcp)
 {
+	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+}
+
+int
+fletcher_2_incremental_native(void *buf, size_t size, void *data)
+{
+	zio_cksum_t *zcp = data;
+
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += ip[0];
 		a1 += ip[1];
 		b0 += a0;
@@ -234,18 +250,33 @@ fletcher_2_native(const void *buf, uint64_t size,
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
+	return (0);
 }
 
 /*ARGSUSED*/
 void
-fletcher_2_byteswap(const void *buf, uint64_t size,
+fletcher_2_native(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	fletcher_init(zcp);
+	(void) fletcher_2_incremental_native((void *) buf, size, zcp);
+}
+
+int
+fletcher_2_incremental_byteswap(void *buf, size_t size, void *data)
+{
+	zio_cksum_t *zcp = data;
+
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = ip + (size / sizeof (uint64_t));
 	uint64_t a0, b0, a1, b1;
 
-	for (a0 = b0 = a1 = b1 = 0; ip < ipend; ip += 2) {
+	a0 = zcp->zc_word[0];
+	a1 = zcp->zc_word[1];
+	b0 = zcp->zc_word[2];
+	b1 = zcp->zc_word[3];
+
+	for (; ip < ipend; ip += 2) {
 		a0 += BSWAP_64(ip[0]);
 		a1 += BSWAP_64(ip[1]);
 		b0 += a0;
@@ -253,6 +284,16 @@ fletcher_2_byteswap(const void *buf, uint64_t size,
 	}
 
 	ZIO_SET_CHECKSUM(zcp, a0, a1, b0, b1);
+	return (0);
+}
+
+/*ARGSUSED*/
+void
+fletcher_2_byteswap(const void *buf, uint64_t size,
+    const void *ctx_template, zio_cksum_t *zcp)
+{
+	fletcher_init(zcp);
+	(void) fletcher_2_incremental_byteswap((void *) buf, size, zcp);
 }
 
 static void
@@ -523,25 +564,28 @@ fletcher_4_incremental_impl(boolean_t native, const void *buf, uint64_t size,
 	}
 }
 
-void
-fletcher_4_incremental_native(const void *buf, uint64_t size, zio_cksum_t *zcp)
+int
+fletcher_4_incremental_native(void *buf, size_t size, void *data)
 {
+	zio_cksum_t *zcp = data;
 	/* Use scalar impl to directly update cksum of small blocks */
 	if (size < SPA_MINBLOCKSIZE)
 		fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp, buf, size);
 	else
 		fletcher_4_incremental_impl(B_TRUE, buf, size, zcp);
+	return (0);
 }
 
-void
-fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
-    zio_cksum_t *zcp)
+int
+fletcher_4_incremental_byteswap(void *buf, size_t size, void *data)
 {
+	zio_cksum_t *zcp = data;
 	/* Use scalar impl to directly update cksum of small blocks */
 	if (size < SPA_MINBLOCKSIZE)
 		fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp, buf, size);
 	else
 		fletcher_4_incremental_impl(B_FALSE, buf, size, zcp);
+	return (0);
 }
 
 
@@ -607,6 +651,9 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 
 #define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(50))		/* 50ms */
 
+typedef void fletcher_checksum_func_t(const void *, uint64_t, const void *,
+					zio_cksum_t *);
+
 static void
 fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 {
@@ -618,8 +665,9 @@ fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 	zio_cksum_t zc;
 	uint32_t i, l, sel_save = IMPL_READ(fletcher_4_impl_chosen);
 
-	zio_checksum_func_t *fletcher_4_test = native ? fletcher_4_native :
-	    fletcher_4_byteswap;
+
+	fletcher_checksum_func_t *fletcher_4_test = native ?
+	    fletcher_4_native : fletcher_4_byteswap;
 
 	for (i = 0; i < fletcher_4_supp_impls_cnt; i++) {
 		struct fletcher_4_kstat *stat = &fletcher_4_stat_data[i];
@@ -769,6 +817,9 @@ module_param_call(zfs_fletcher_4_impl,
     fletcher_4_param_set, fletcher_4_param_get, NULL, 0644);
 MODULE_PARM_DESC(zfs_fletcher_4_impl, "Select fletcher 4 implementation.");
 
+EXPORT_SYMBOL(fletcher_init);
+EXPORT_SYMBOL(fletcher_2_incremental_native);
+EXPORT_SYMBOL(fletcher_2_incremental_byteswap);
 EXPORT_SYMBOL(fletcher_4_init);
 EXPORT_SYMBOL(fletcher_4_fini);
 EXPORT_SYMBOL(fletcher_2_native);
