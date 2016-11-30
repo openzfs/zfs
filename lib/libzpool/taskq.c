@@ -32,6 +32,7 @@
 
 int taskq_now;
 taskq_t *system_taskq;
+taskq_t *system_delay_taskq;
 
 #define	TASKQ_ACTIVE	0x00010000
 
@@ -353,6 +354,8 @@ system_taskq_init(void)
 {
 	system_taskq = taskq_create("system_taskq", 64, maxclsyspri, 4, 512,
 	    TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
+	system_delay_taskq = taskq_create("delay_taskq", 4, maxclsyspri, 4,
+	    512, TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
 }
 
 void
@@ -360,4 +363,6 @@ system_taskq_fini(void)
 {
 	taskq_destroy(system_taskq);
 	system_taskq = NULL; /* defensive */
+	taskq_destroy(system_delay_taskq);
+	system_delay_taskq = NULL;
 }
