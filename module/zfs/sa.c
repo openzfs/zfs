@@ -1846,26 +1846,6 @@ sa_update(sa_handle_t *hdl, sa_attr_type_t type,
 	return (error);
 }
 
-int
-sa_update_from_cb(sa_handle_t *hdl, sa_attr_type_t attr,
-    uint32_t buflen, sa_data_locator_t *locator, void *userdata, dmu_tx_t *tx)
-{
-	int error;
-	sa_bulk_attr_t bulk;
-
-	VERIFY3U(buflen, <=, SA_ATTR_MAX_LEN);
-
-	bulk.sa_attr = attr;
-	bulk.sa_data = userdata;
-	bulk.sa_data_func = locator;
-	bulk.sa_length = buflen;
-
-	mutex_enter(&hdl->sa_lock);
-	error = sa_bulk_update_impl(hdl, &bulk, 1, tx);
-	mutex_exit(&hdl->sa_lock);
-	return (error);
-}
-
 /*
  * Return size of an attribute
  */
@@ -2044,7 +2024,6 @@ EXPORT_SYMBOL(sa_bulk_lookup);
 EXPORT_SYMBOL(sa_bulk_lookup_locked);
 EXPORT_SYMBOL(sa_bulk_update);
 EXPORT_SYMBOL(sa_size);
-EXPORT_SYMBOL(sa_update_from_cb);
 EXPORT_SYMBOL(sa_object_info);
 EXPORT_SYMBOL(sa_object_size);
 EXPORT_SYMBOL(sa_get_userdata);
