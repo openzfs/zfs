@@ -1321,7 +1321,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 	int i;
 	ssize_t len, dlen;
 	struct abd_iter caiters[3];
-	struct abd_iter daiter;
+	struct abd_iter daiter = {0};
 	void *caddrs[3];
 	unsigned long flags;
 
