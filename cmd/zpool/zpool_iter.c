@@ -360,7 +360,7 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 	vdev_cmd_data_list_t *vcdl = cb_vcdl;
 	vdev_cmd_data_t *data;
 	char *path = NULL;
-	int i;
+	int i, match = 0;
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		return (1);
@@ -373,6 +373,19 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 			return (0);
 		}
 	}
+
+	/* Check for whitelisted vdevs here, if any */
+	for (i = 0; i < vcdl->vdev_names_count; i++) {
+		if (strcmp(vcdl->vdev_names[i], zpool_vdev_name(g_zfs, zhp, nv,
+		    vcdl->cb_name_flags)) == 0) {
+			match = 1;
+			break; /* match */
+		}
+	}
+
+	/* If we whitelisted vdevs, and this isn't one of them, then bail out */
+	if (!match && vcdl->vdev_names_count)
+		return (0);
 
 	/*
 	 * Resize our array and add in the new element.
@@ -437,18 +450,27 @@ all_pools_for_each_vdev_run_vcdl(vdev_cmd_data_list_t *vcdl)
 }
 
 /*
- * Run command 'cmd' on all vdevs in all pools.  Saves the first line of output
- * from the command in vcdk->data[].line for all vdevs.
+ * Run command 'cmd' on all vdevs in all pools in argv.  Saves the first line of
+ * output from the command in vcdk->data[].line for all vdevs.  If you want
+ * to run the command on only certain vdevs, fill in g_zfs, vdev_names,
+ * vdev_names_count, and cb_name_flags.  Otherwise leave them as zero.
  *
  * Returns a vdev_cmd_data_list_t that must be freed with
  * free_vdev_cmd_data_list();
  */
 vdev_cmd_data_list_t *
-all_pools_for_each_vdev_run(int argc, char **argv, char *cmd)
+all_pools_for_each_vdev_run(int argc, char **argv, char *cmd,
+    libzfs_handle_t *g_zfs, char **vdev_names, int vdev_names_count,
+    int cb_name_flags)
 {
 	vdev_cmd_data_list_t *vcdl;
 	vcdl = safe_malloc(sizeof (vdev_cmd_data_list_t));
 	vcdl->cmd = cmd;
+
+	vcdl->vdev_names = vdev_names;
+	vcdl->vdev_names_count = vdev_names_count;
+	vcdl->cb_name_flags = cb_name_flags;
+	vcdl->g_zfs = g_zfs;
 
 	/* Gather our list of all vdevs in all pools */
 	for_each_pool(argc, argv, B_TRUE, NULL,

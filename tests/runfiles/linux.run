@@ -362,7 +362,8 @@ user =
 
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
-    'zpool_iostat_003_neg', 'zpool_iostat_004_pos']
+    'zpool_iostat_003_neg', 'zpool_iostat_004_pos',
+    'zpool_iostat_005_pos']
 user =
 
 [tests/functional/cli_user/zpool_list]
