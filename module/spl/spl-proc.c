@@ -234,6 +234,10 @@ taskq_seq_show_headers(struct seq_file *f)
 #define LHEAD_ACTIVE	4
 #define LHEAD_SIZE	5
 
+static unsigned int spl_max_show_tasks = 512;
+module_param(spl_max_show_tasks, uint, 0644);
+MODULE_PARM_DESC(spl_max_show_tasks, "Max number of tasks shown in taskq proc");
+
 static int
 taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 {
@@ -308,16 +312,20 @@ taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 		if (lheads[i]) {
 			j = 0;
 			list_for_each(lh, lheads[i]) {
+				if (spl_max_show_tasks != 0 &&
+				    j >= spl_max_show_tasks) {
+					seq_printf(f, "\n\t(truncated)");
+					break;
+				}
 				/* show the wait waitq list */
 				if (i == LHEAD_WAIT) {
 					wq = list_entry(lh, wait_queue_t, task_list);
 					if (j == 0)
 						seq_printf(f, "\t%s:",
 						    list_names[i]);
-					else if (j == 12) {
+					else if (j % 8 == 0)
 						seq_printf(f, "\n\t     ");
-						j = 0;
-					}
+
 					tsk = wq->private;
 					seq_printf(f, " %d", tsk->pid);
 				/* pend, prio and delay lists */
@@ -327,10 +335,9 @@ taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 					if (j == 0)
 						seq_printf(f, "\t%s:",
 						    list_names[i]);
-					else if (j == 2) {
+					else if (j % 2 == 0)
 						seq_printf(f, "\n\t     ");
-						j = 0;
-					}
+
 					seq_printf(f, " %pf(%ps)",
 					    tqe->tqent_func,
 					    tqe->tqent_arg);
