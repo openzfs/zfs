@@ -3514,13 +3514,13 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	dmu_buf_impl_t *db = vdb;
 	dnode_t *dn;
 	blkptr_t *bp;
-	uint64_t i;
-	int epbs;
+	unsigned int epbs, i;
 
 	ASSERT3U(db->db_level, >, 0);
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+	ASSERT3U(epbs, <, 31);
 
 	/* Determine if all our children are holes */
 	for (i = 0, bp = db->db.db_data; i < 1ULL << epbs; i++, bp++) {
@@ -3533,8 +3533,14 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	 * we may get compressed away.
 	 */
 	if (i == 1ULL << epbs) {
-		/* didn't find any non-holes */
+		/*
+		 * We only found holes. Grab the rwlock to prevent
+		 * anybody from reading the blocks we're about to
+		 * zero out.
+		 */
+		rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 		bzero(db->db.db_data, db->db.db_size);
+		rw_exit(&dn->dn_struct_rwlock);
 	}
 	DB_DNODE_EXIT(db);
 }
