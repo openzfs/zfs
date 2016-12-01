@@ -988,6 +988,20 @@ zfs_unshareall_bypath(zfs_handle_t *zhp, const char *mountpoint)
 	return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
 }
 
+int
+zfs_unshareall_bytype(zfs_handle_t *zhp, const char *mountpoint,
+    const char *proto)
+{
+	if (proto == NULL)
+		return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
+	if (strcmp(proto, "nfs") == 0)
+		return (zfs_unshare_proto(zhp, mountpoint, nfs_only));
+	else if (strcmp(proto, "smb") == 0)
+		return (zfs_unshare_proto(zhp, mountpoint, smb_only));
+	else
+		return (1);
+}
+
 /*
  * Remove the mountpoint associated with the current dataset, if necessary.
  * We only remove the underlying directory if:

@@ -270,7 +270,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tset <property=value> ... "
 		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_SHARE:
-		return (gettext("\tshare <-a | filesystem>\n"));
+		return (gettext("\tshare <-a [nfs|smb] | filesystem>\n"));
 	case HELP_SNAPSHOT:
 		return (gettext("\tsnapshot|snap [-r] [-o property=value] ... "
 		    "<filesystem|volume>@<snap> ...\n"));
@@ -279,7 +279,7 @@ get_usage(zfs_help_t idx)
 		    "<-a | filesystem|mountpoint>\n"));
 	case HELP_UNSHARE:
 		return (gettext("\tunshare "
-		    "<-a | filesystem|mountpoint>\n"));
+		    "<-a [nfs|smb] | filesystem|mountpoint>\n"));
 	case HELP_ALLOW:
 		return (gettext("\tallow <filesystem|volume>\n"
 		    "\tallow [-ldug] "
@@ -4832,9 +4832,9 @@ allow_usage(boolean_t un, boolean_t requested, const char *msg)
 	(void) fprintf(fp, gettext("Usage: %s\n"), get_usage(un ? HELP_UNALLOW :
 	    HELP_ALLOW));
 	(void) fprintf(fp, gettext("Options:\n"));
-	for (i = 0; i < (un ? unallow_size : allow_size); i++) {
-		const char *opt = opt_desc[i++];
-		const char *optdsc = opt_desc[i];
+	for (i = 0; i < (un ? unallow_size : allow_size); i += 2) {
+		const char *opt = opt_desc[i];
+		const char *optdsc = opt_desc[i + 1];
 		(void) fprintf(fp, gettext("  %-10s  %s\n"), opt, optdsc);
 	}
 
@@ -6436,13 +6436,18 @@ unshare_unmount(int op, int argc, char **argv)
 	char sharesmb[ZFS_MAXPROPLEN];
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_SHARE ? "a" : "af")) != -1) {
+	while ((c = getopt(argc, argv, op == OP_SHARE ? ":a" : "af")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = 1;
 			break;
 		case 'f':
 			flags = MS_FORCE;
+			break;
+		case ':':
+			(void) fprintf(stderr, gettext("missing argument for "
+			    "'%c' option\n"), optopt);
+			usage(B_FALSE);
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -6475,6 +6480,19 @@ unshare_unmount(int op, int argc, char **argv)
 		unshare_unmount_node_t *node;
 		uu_avl_index_t idx;
 		uu_avl_walk_t *walk;
+		char *protocol = NULL;
+
+		if (op == OP_SHARE && argc > 0) {
+			if (strcmp(argv[0], "nfs") != 0 &&
+			    strcmp(argv[0], "smb") != 0) {
+				(void) fprintf(stderr, gettext("share type "
+				    "must be 'nfs' or 'smb'\n"));
+				usage(B_FALSE);
+			}
+			protocol = argv[0];
+			argc--;
+			argv++;
+		}
 
 		if (argc != 0) {
 			(void) fprintf(stderr, gettext("too many arguments\n"));
@@ -6567,8 +6585,8 @@ unshare_unmount(int op, int argc, char **argv)
 
 			switch (op) {
 			case OP_SHARE:
-				if (zfs_unshareall_bypath(node->un_zhp,
-				    node->un_mountp) != 0)
+				if (zfs_unshareall_bytype(node->un_zhp,
+				    node->un_mountp, protocol) != 0)
 					ret = 1;
 				break;
 

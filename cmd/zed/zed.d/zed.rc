@@ -51,6 +51,12 @@
 #ZED_NOTIFY_VERBOSE=0
 
 ##
+# Send notifications for 'ereport.fs.zfs.data' events.
+# Disabled by default
+#
+#ZED_NOTIFY_DATA=1
+
+##
 # Pushbullet access token.
 # This grants full access to your account -- protect it accordingly!
 #   <https://www.pushbullet.com/get-started>
@@ -72,18 +78,6 @@
 # Default directory for zed state files.
 #
 #ZED_RUNDIR="/var/run"
-
-##
-# Replace a device with a hot spare after N checksum errors are detected.
-# Disabled by default; uncomment to enable.
-#
-#ZED_SPARE_ON_CHECKSUM_ERRORS=10
-
-##
-# Replace a device with a hot spare after N I/O errors are detected.
-# Disabled by default; uncomment to enable.
-#
-#ZED_SPARE_ON_IO_ERRORS=1
 
 ##
 # Turn on/off enclosure LEDs when drives get DEGRADED/FAULTED.  This works for

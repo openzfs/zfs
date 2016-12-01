@@ -272,15 +272,13 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, DATA_TYPE_INT32,
 	    spa_load_state(spa), NULL);
 
-	if (spa != NULL) {
-		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE,
-		    DATA_TYPE_STRING,
-		    spa_get_failmode(spa) == ZIO_FAILURE_MODE_WAIT ?
-		    FM_EREPORT_FAILMODE_WAIT :
-		    spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE ?
-		    FM_EREPORT_FAILMODE_CONTINUE : FM_EREPORT_FAILMODE_PANIC,
-		    NULL);
-	}
+	fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE,
+	    DATA_TYPE_STRING,
+	    spa_get_failmode(spa) == ZIO_FAILURE_MODE_WAIT ?
+	    FM_EREPORT_FAILMODE_WAIT :
+	    spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE ?
+	    FM_EREPORT_FAILMODE_CONTINUE : FM_EREPORT_FAILMODE_PANIC,
+	    NULL);
 
 	if (vd != NULL) {
 		vdev_t *pvd = vd->vdev_parent;

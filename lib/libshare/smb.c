@@ -354,17 +354,19 @@ smb_validate_shareopts(const char *shareopts)
 static boolean_t
 smb_is_share_active(sa_share_impl_t impl_share)
 {
+	smb_share_t *iter = smb_shares;
+
 	if (!smb_available())
 		return (B_FALSE);
 
 	/* Retrieve the list of (possible) active shares */
 	smb_retrieve_shares();
 
-	while (smb_shares != NULL) {
-		if (strcmp(impl_share->sharepath, smb_shares->path) == 0)
+	while (iter != NULL) {
+		if (strcmp(impl_share->sharepath, iter->path) == 0)
 			return (B_TRUE);
 
-		smb_shares = smb_shares->next;
+		iter = iter->next;
 	}
 
 	return (B_FALSE);

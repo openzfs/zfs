@@ -1137,6 +1137,45 @@ zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
 }
 
 /*
+ * Given a full path to a device determine if that device appears in the
+ * import search path.  If it does return the first match and store the
+ * index in the passed 'order' variable, otherwise return an error.
+ */
+int
+zfs_path_order(char *name, int *order)
+{
+	int i = 0, error = ENOENT;
+	char *dir, *env, *envdup;
+
+	env = getenv("ZPOOL_IMPORT_PATH");
+	if (env) {
+		envdup = strdup(env);
+		dir = strtok(envdup, ":");
+		while (dir) {
+			if (strncmp(name, dir, strlen(dir)) == 0) {
+				*order = i;
+				error = 0;
+				break;
+			}
+			dir = strtok(NULL, ":");
+			i++;
+		}
+		free(envdup);
+	} else {
+		for (i = 0; i < DEFAULT_IMPORT_PATH_SIZE; i++) {
+			if (strncmp(name, zpool_default_import_path[i],
+			    strlen(zpool_default_import_path[i])) == 0) {
+				*order = i;
+				error = 0;
+				break;
+			}
+		}
+	}
+
+	return (error);
+}
+
+/*
  * Initialize the zc_nvlist_dst member to prepare for receiving an nvlist from
  * an ioctl().
  */

@@ -96,7 +96,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-lq\fR]|[\fB-r\fR|-\fBw\fR]]
+\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-lq\fR]|[\fB-r\fR|-\fBw\fR]]
      [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .fi
@@ -159,7 +159,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool status\fR [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .fi
 
 .LP
@@ -1523,7 +1523,7 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .sp
 .ne 2
 .na
-\fB\fBzpool iostat\fR [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [[\fB-lq\fR]|[\fB-r\fR|\fB-w\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [[\fB-lq\fR]|[\fB-r\fR|\fB-w\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .ad
 .sp .6
@@ -1539,6 +1539,23 @@ statistics since boot regardless of whether \fIinterval\fR and \fIcount\fR
 are passed.  However, this behavior can be suppressed with the -y flag.  Also
 note that the units of 'K', 'M', 'G'...  that are printed in the report are in
 base 1024.  To get the raw values, use the \fB-p\fR flag.
+.sp
+.ne 2
+.na
+\fB\fB-c\fR \fBCMD\fR
+.ad
+.RS 12n
+Run a command on each vdev and include first line of output
+.sp
+The \fB-c\fR option allows you to run an arbitrary command on each vdev and
+display the first line of output in zpool iostat.  The environment vars
+\fBVDEV_PATH\fR and \fBVDEV_UPATH\fR are set to the vdev's path and "underlying
+path" before running the command.  For device mapper, multipath, or partitioned
+vdevs, \fBVDEV_UPATH\fR is the actual underlying /dev/sd* disk.  This can be
+useful if the command you're running requires a /dev/sd* device.  Commands run
+in parallel for each vdev for performance.
+.RE
+
 .sp
 .ne 2
 .na
@@ -1764,6 +1781,9 @@ All queue statistics are instantaneous measurements of the number of entries
 in the queues.  If you specify an interval, the measurements will be sampled
 from the end of the interval.
 .RE
+
+.RE
+
 .sp
 .ne 2
 .na
@@ -2079,13 +2099,30 @@ Sets the specified property for \fInewpool\fR. See the “Properties” section 
 .sp
 .ne 2
 .na
-\fBzpool status\fR [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .ad
 .sp .6
 .RS 4n
 Displays the detailed health status for the given pools. If no \fIpool\fR is specified, then the status of each pool in the system is displayed. For more information on pool and device health, see the "Device Failure and Recovery" section.
 .sp
 If a scrub or resilver is in progress, this command reports the percentage done and the estimated time to completion. Both of these are only approximate, because the amount of data in the pool and the other workloads on the system can change.
+
+.sp
+.ne 2
+.na
+\fB\fB-c\fR \fBCMD\fR
+.ad
+.RS 12n
+Run a command on each vdev and include first line of output
+.sp
+The \fB-c\fR option allows you to run an arbitrary command on each vdev and
+display the first line of output in zpool status.  The environment vars
+\fBVDEV_PATH\fR and \fBVDEV_UPATH\fR are set to the vdev's path and "underlying
+path" before running the command.  For device mapper, multipath, or partitioned
+vdevs, \fBVDEV_UPATH\fR is the actual underlying /dev/sd* disk.  This can be
+useful if the command you're running requires a /dev/sd* device.  Commands run
+in parallel for each vdev for performance.
+.RE
 
 .sp
 .ne 2
@@ -2514,6 +2551,40 @@ data        23.9G  14.6G  9.30G    48%         -    61%  1.00x  ONLINE  -
     c1t1d0      -      -      -      -         -
     c1t2d0      -      -      -      -       10G
     c1t3d0      -      -      -      -         -
+.fi
+.in -2
+.sp
+
+.LP
+\fBExample 16 \fRRunning commands in zpool status and zpool iostat with -c
+.sp
+.LP
+Some examples of using the command (-c) option with zpool status and zpool
+iostat:
+.sp
+.in +2
+.nf
+# \fBzpool status -c  \[aq]echo I am $VDEV_PATH, $VDEV_UPATH\[aq]\fR
+NAME        STATE     READ WRITE CKSUM
+mypool      ONLINE       0     0     0
+  mirror-0  ONLINE       0     0     0
+    mpatha  ONLINE       0     0     0  I am /dev/mapper/mpatha, /dev/sdc
+    sdb     ONLINE       0     0     0  I am /dev/sdb1, /dev/sdb
+.fi
+.in -2
+
+.sp
+.in +2
+.nf
+# \fBzpool iostat -v -c \[aq]smartctl -a $VDEV_UPATH | grep "Current Drive Temperature"\[aq]\fR
+mypool       997M  7.25T      0      0   105K   106K
+  mirror     997M  7.25T      0      0   105K   106K
+    B0          -      -      0      0  17.4K  15.2K  Current Drive Temperature:     25 C
+    B1          -      -      0      0  17.4K  15.2K  Current Drive Temperature:     24 C
+    B2          -      -      0      0  17.5K  15.2K  Current Drive Temperature:     24 C
+    B3          -      -      0      0      0  15.1K  Current Drive Temperature:     24 C
+logs            -      -      -      -      -      -
+  B8            0  7.25T      0      0  1.14K  20.2K  Current Drive Temperature:     23 C
 .fi
 .in -2
 

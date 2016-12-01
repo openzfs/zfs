@@ -33,6 +33,7 @@
 #include <strings.h>
 
 #include <libzfs.h>
+#include <sys/zfs_context.h>
 
 #include "zpool_util.h"
 
@@ -315,4 +316,163 @@ for_each_vdev(zpool_handle_t *zhp, pool_vdev_iter_f func, void *data)
 		    &nvroot) == 0);
 	}
 	return (for_each_vdev_cb(zhp, nvroot, func, data));
+}
+
+/* Thread function run for each vdev */
+static void
+vdev_run_cmd_thread(void *cb_cmd_data)
+{
+	vdev_cmd_data_t *data = cb_cmd_data;
+	char *pos = NULL;
+	FILE *fp;
+	size_t len = 0;
+	char cmd[_POSIX_ARG_MAX];
+
+	/* Set our VDEV_PATH and VDEV_UPATH env vars and run command */
+	if (snprintf(cmd, sizeof (cmd), "VDEV_PATH=%s && VDEV_UPATH=%s && %s",
+	    data->path, data->upath ? data->upath : "\"\"", data->cmd) >=
+	    sizeof (cmd)) {
+		/* Our string was truncated */
+		return;
+	}
+
+	fp = popen(cmd, "r");
+	if (fp == NULL)
+		return;
+
+	data->line = NULL;
+
+	/* Save the first line of output from the command */
+	if (getline(&data->line, &len, fp) != -1) {
+		/* Success.  Remove newline from the end, if necessary. */
+		if ((pos = strchr(data->line, '\n')) != NULL)
+		    *pos = '\0';
+	} else {
+		data->line = NULL;
+	}
+	pclose(fp);
+}
+
+/* For each vdev in the pool run a command */
+static int
+for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
+{
+	vdev_cmd_data_list_t *vcdl = cb_vcdl;
+	vdev_cmd_data_t *data;
+	char *path = NULL;
+	int i;
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
+		return (1);
+
+	/* Spares show more than once if they're in use, so skip if exists */
+	for (i = 0; i < vcdl->count; i++) {
+		if ((strcmp(vcdl->data[i].path, path) == 0) &&
+		    (strcmp(vcdl->data[i].pool, zpool_get_name(zhp)) == 0)) {
+			/* vdev already exists, skip it */
+			return (0);
+		}
+	}
+
+	/*
+	 * Resize our array and add in the new element.
+	 */
+	if (!(vcdl->data = realloc(vcdl->data,
+	    sizeof (*vcdl->data) * (vcdl->count + 1))))
+		return (ENOMEM);	/* couldn't realloc */
+
+	data = &vcdl->data[vcdl->count];
+
+	data->pool = strdup(zpool_get_name(zhp));
+	data->path = strdup(path);
+	data->upath = zfs_get_underlying_path(path);
+	data->cmd = vcdl->cmd;
+
+	vcdl->count++;
+
+	return (0);
+}
+
+/* Get the names and count of the vdevs */
+static int
+all_pools_for_each_vdev_gather_cb(zpool_handle_t *zhp, void *cb_vcdl)
+{
+	return (for_each_vdev(zhp, for_each_vdev_run_cb, cb_vcdl));
+}
+
+/*
+ * Now that vcdl is populated with our complete list of vdevs, spawn
+ * off the commands.
+ */
+static void
+all_pools_for_each_vdev_run_vcdl(vdev_cmd_data_list_t *vcdl)
+{
+	taskq_t *t;
+	int i;
+	/* 5 * boot_ncpus selfishly chosen since it works best on LLNL's HW */
+	int max_threads = 5 * boot_ncpus;
+
+	/*
+	 * Under Linux we use a taskq to parallelize running a command
+	 * on each vdev.  It is therefore necessary to initialize this
+	 * functionality for the duration of the threads.
+	 */
+	thread_init();
+
+	t = taskq_create("z_pool_cmd", max_threads, defclsyspri, max_threads,
+	    INT_MAX, 0);
+	if (t == NULL)
+		return;
+
+	/* Spawn off the command for each vdev */
+	for (i = 0; i < vcdl->count; i++) {
+		(void) taskq_dispatch(t, vdev_run_cmd_thread,
+		    (void *) &vcdl->data[i], TQ_SLEEP);
+	}
+
+	/* Wait for threads to finish */
+	taskq_wait(t);
+	taskq_destroy(t);
+	thread_fini();
+}
+
+/*
+ * Run command 'cmd' on all vdevs in all pools.  Saves the first line of output
+ * from the command in vcdk->data[].line for all vdevs.
+ *
+ * Returns a vdev_cmd_data_list_t that must be freed with
+ * free_vdev_cmd_data_list();
+ */
+vdev_cmd_data_list_t *
+all_pools_for_each_vdev_run(int argc, char **argv, char *cmd)
+{
+	vdev_cmd_data_list_t *vcdl;
+	vcdl = safe_malloc(sizeof (vdev_cmd_data_list_t));
+	vcdl->cmd = cmd;
+
+	/* Gather our list of all vdevs in all pools */
+	for_each_pool(argc, argv, B_TRUE, NULL,
+	    all_pools_for_each_vdev_gather_cb, vcdl);
+
+	/* Run command on all vdevs in all pools */
+	all_pools_for_each_vdev_run_vcdl(vcdl);
+
+	return (vcdl);
+}
+
+/*
+ * Free the vdev_cmd_data_list_t created by all_pools_for_each_vdev_run()
+ */
+void
+free_vdev_cmd_data_list(vdev_cmd_data_list_t *vcdl)
+{
+	int i;
+	for (i = 0; i < vcdl->count; i++) {
+		free(vcdl->data[i].path);
+		free(vcdl->data[i].pool);
+		free(vcdl->data[i].upath);
+		free(vcdl->data[i].line);
+	}
+	free(vcdl->data);
+	free(vcdl);
 }

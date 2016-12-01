@@ -93,3 +93,14 @@ Ubuntu*)
 *)
     ;;
 esac
+
+###
+#
+# Disable the following test suites on 32-bit systems.
+#
+if [ $(getconf LONG_BIT) = "32" ]; then
+    TEST_ZTEST_SKIP="yes"
+    TEST_FILEBENCH_SKIP="yes"
+    TEST_XFSTESTS_SKIP="yes"
+    TEST_ZFSSTRESS_SKIP="yes"
+fi

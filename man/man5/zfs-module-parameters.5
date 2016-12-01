@@ -421,7 +421,7 @@ Default value: \fB10\fR.
 .ad
 .RS 12n
 Percentage of ARC dnodes to try to scan in response to demand for non-metadata
-when the number of bytes consumed by dnodes exceeds \fBzfs_arc_dnode_limit\fB.
+when the number of bytes consumed by dnodes exceeds \fBzfs_arc_dnode_limit\fR.
 
 .sp
 Default value: \fB10% of the number of dnodes in the ARC\fR.
@@ -606,7 +606,7 @@ of lists for both data and meta data objects.  Locking is performed at
 the level of these "sub-lists".  This parameters controls the number of
 sub-lists per ARC state.
 .sp
-Default value: \fR1\fB or the number of online CPUs, whichever is greater
+Default value: \fB1\fR or the number of online CPUs, whichever is greater
 .RE
 
 .sp
@@ -1236,7 +1236,7 @@ Default value: \fB0\fR.
 \fBzfs_free_min_time_ms\fR (int)
 .ad
 .RS 12n
-During a \fRzfs destroy\fB operation using \fRfeature@async_destroy\fB a minimum
+During a \fBzfs destroy\fR operation using \fBfeature@async_destroy\fR a minimum
 of this much time will be spent working on freeing blocks per txg.
 .sp
 Default value: \fB1,000\fR.
@@ -1249,7 +1249,7 @@ Default value: \fB1,000\fR.
 .ad
 .RS 12n
 Largest data block to write to zil. Larger blocks will be treated as if the
-dataset being written to had the property setting \fRlogbias=throughput\fB.
+dataset being written to had the property setting \fBlogbias=throughput\fR.
 .sp
 Default value: \fB32,768\fR.
 .RE
@@ -1391,7 +1391,7 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .ad
 .RS 12n
 The number of bytes which should be prefetched during a pool traversal
-(eg: \fRzfs send\fB or other data crawling operations)
+(eg: \fBzfs send\fR or other data crawling operations)
 .sp
 Default value: \fB52,428,800\fR.
 .RE

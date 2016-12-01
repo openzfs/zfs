@@ -1313,6 +1313,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 	vdev_label_t *label;
 	nvlist_t *expected_config = NULL;
 	uint64_t expected_guid = 0, size;
+	int error;
 
 	*config = NULL;
 
@@ -1320,7 +1321,8 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 		return (0);
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
-	if ((label = malloc(sizeof (vdev_label_t))) == NULL)
+	error = posix_memalign((void **)&label, PAGESIZE, sizeof (*label));
+	if (error)
 		return (-1);
 
 	for (l = 0; l < VDEV_LABELS; l++) {
@@ -1378,6 +1380,7 @@ typedef struct rdsk_node {
 	char *rn_name;			/* Full path to device */
 	int rn_order;			/* Preferred order (low to high) */
 	int rn_num_labels;		/* Number of valid labels */
+	uint64_t rn_vdev_guid;		/* Expected vdev guid when set */
 	libzfs_handle_t *rn_hdl;
 	nvlist_t *rn_config;		/* Label config */
 	avl_tree_t *rn_avl;
@@ -1386,39 +1389,29 @@ typedef struct rdsk_node {
 	boolean_t rn_labelpaths;
 } rdsk_node_t;
 
+/*
+ * Sorted by vdev guid and full path to allow for multiple entries with
+ * the same full path name.  This is required because it's possible to
+ * have multiple block devices with labels that refer to the same
+ * ZPOOL_CONFIG_PATH yet have different vdev guids.  In this case both
+ * entries need to be added to the cache.  Scenarios where this can occur
+ * include overwritten pool labels, devices which are visible from multiple
+ * hosts and multipath devices.
+ */
 static int
 slice_cache_compare(const void *arg1, const void *arg2)
 {
 	const char  *nm1 = ((rdsk_node_t *)arg1)->rn_name;
 	const char  *nm2 = ((rdsk_node_t *)arg2)->rn_name;
-	char *nm1slice, *nm2slice;
+	uint64_t guid1 = ((rdsk_node_t *)arg1)->rn_vdev_guid;
+	uint64_t guid2 = ((rdsk_node_t *)arg2)->rn_vdev_guid;
 	int rv;
 
-	/*
-	 * partitions one and three (slices zero and two) are the most
-	 * likely to provide results, so put those first
-	 */
-	nm1slice = strstr(nm1, "part1");
-	nm2slice = strstr(nm2, "part1");
-	if (nm1slice && !nm2slice) {
-		return (-1);
-	}
-	if (!nm1slice && nm2slice) {
-		return (1);
-	}
-	nm1slice = strstr(nm1, "part3");
-	nm2slice = strstr(nm2, "part3");
-	if (nm1slice && !nm2slice) {
-		return (-1);
-	}
-	if (!nm1slice && nm2slice) {
-		return (1);
-	}
+	rv = AVL_CMP(guid1, guid2);
+	if (rv)
+		return (rv);
 
-	rv = strcmp(nm1, nm2);
-	if (rv == 0)
-		return (0);
-	return (rv > 0 ? 1 : -1);
+	return (AVL_ISIGN(strcmp(nm1, nm2)));
 }
 
 static boolean_t
@@ -1506,6 +1499,7 @@ zpool_open_func(void *arg)
 	struct stat64 statbuf;
 	nvlist_t *config;
 	char *bname, *dupname;
+	uint64_t vdev_guid = 0;
 	int error;
 	int num_labels;
 	int fd;
@@ -1531,24 +1525,45 @@ zpool_open_func(void *arg)
 	    (!S_ISREG(statbuf.st_mode) && !S_ISBLK(statbuf.st_mode)))
 		return;
 
-	if ((fd = open(rn->rn_name, O_RDONLY)) < 0)
+	/*
+	 * Preferentially open using O_DIRECT to bypass the block device
+	 * cache which may be stale for multipath devices.  An EINVAL errno
+	 * indicates O_DIRECT is unsupported so fallback to just O_RDONLY.
+	 */
+	fd = open(rn->rn_name, O_RDONLY | O_DIRECT);
+	if ((fd < 0) && (errno == EINVAL))
+		fd = open(rn->rn_name, O_RDONLY);
+
+	if (fd < 0)
 		return;
 
 	/*
 	 * This file is too small to hold a zpool
 	 */
-	if (S_ISREG(statbuf.st_mode) &&
-	    statbuf.st_size < SPA_MINDEVSIZE) {
+	if (S_ISREG(statbuf.st_mode) && statbuf.st_size < SPA_MINDEVSIZE) {
 		(void) close(fd);
 		return;
 	}
 
-	if ((zpool_read_label(fd, &config, &num_labels)) != 0) {
+	error = zpool_read_label(fd, &config, &num_labels);
+	if (error != 0) {
 		(void) close(fd);
 		return;
 	}
 
 	if (num_labels == 0) {
+		(void) close(fd);
+		nvlist_free(config);
+		return;
+	}
+
+	/*
+	 * Check that the vdev is for the expected guid.  Additional entries
+	 * are speculatively added based on the paths stored in the labels.
+	 * Entries with valid paths but incorrect guids must be removed.
+	 */
+	error = nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, &vdev_guid);
+	if (error || (rn->rn_vdev_guid && rn->rn_vdev_guid != vdev_guid)) {
 		(void) close(fd);
 		nvlist_free(config);
 		return;
@@ -1580,9 +1595,10 @@ zpool_open_func(void *arg)
 		if (path != NULL) {
 			slice = zfs_alloc(hdl, sizeof (rdsk_node_t));
 			slice->rn_name = zfs_strdup(hdl, path);
+			slice->rn_vdev_guid = vdev_guid;
 			slice->rn_avl = rn->rn_avl;
 			slice->rn_hdl = hdl;
-			slice->rn_order = 1;
+			slice->rn_order = IMPORT_ORDER_PREFERRED_1;
 			slice->rn_labelpaths = B_FALSE;
 			mutex_enter(rn->rn_lock);
 			if (avl_find(rn->rn_avl, slice, &where)) {
@@ -1605,9 +1621,10 @@ zpool_open_func(void *arg)
 				return;
 			}
 
+			slice->rn_vdev_guid = vdev_guid;
 			slice->rn_avl = rn->rn_avl;
 			slice->rn_hdl = hdl;
-			slice->rn_order = 2;
+			slice->rn_order = IMPORT_ORDER_PREFERRED_2;
 			slice->rn_labelpaths = B_FALSE;
 			mutex_enter(rn->rn_lock);
 			if (avl_find(rn->rn_avl, slice, &where)) {
@@ -1709,10 +1726,11 @@ zpool_find_import_scan(libzfs_handle_t *hdl, kmutex_t *lock,
 				free(slice);
 				continue;
 			}
+			slice->rn_vdev_guid = 0;
 			slice->rn_lock = lock;
 			slice->rn_avl = cache;
 			slice->rn_hdl = hdl;
-			slice->rn_order = i+1;
+			slice->rn_order = i + IMPORT_ORDER_SCAN_OFFSET;
 			slice->rn_labelpaths = B_FALSE;
 			mutex_enter(lock);
 			avl_add(cache, slice);
@@ -1747,6 +1765,7 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, kmutex_t *lock,
 	blkid_cache cache;
 	blkid_dev_iterate iter;
 	blkid_dev dev;
+	avl_index_t where;
 	int error;
 
 	*slice_cache = NULL;
@@ -1781,13 +1800,25 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, kmutex_t *lock,
 	while (blkid_dev_next(iter, &dev) == 0) {
 		slice = zfs_alloc(hdl, sizeof (rdsk_node_t));
 		slice->rn_name = zfs_strdup(hdl, blkid_dev_devname(dev));
+		slice->rn_vdev_guid = 0;
 		slice->rn_lock = lock;
 		slice->rn_avl = *slice_cache;
 		slice->rn_hdl = hdl;
-		slice->rn_order = 100;
 		slice->rn_labelpaths = B_TRUE;
+
+		error = zfs_path_order(slice->rn_name, &slice->rn_order);
+		if (error == 0)
+			slice->rn_order += IMPORT_ORDER_SCAN_OFFSET;
+		else
+			slice->rn_order = IMPORT_ORDER_DEFAULT;
+
 		mutex_enter(lock);
-		avl_add(*slice_cache, slice);
+		if (avl_find(*slice_cache, slice, &where)) {
+			free(slice->rn_name);
+			free(slice);
+		} else {
+			avl_insert(*slice_cache, slice, where);
+		}
 		mutex_exit(lock);
 	}
 
@@ -1881,6 +1912,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		if (slice->rn_config != NULL) {
 			nvlist_t *config = slice->rn_config;
 			boolean_t matched = B_TRUE;
+			int fd;
 
 			if (iarg->poolname != NULL) {
 				char *pname;
@@ -1898,9 +1930,21 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			if (!matched) {
 				nvlist_free(config);
 			} else {
-				add_config(hdl, &pools,
-				    slice->rn_name, slice->rn_order,
-				    slice->rn_num_labels, config);
+				/*
+				 * Verify all remaining entries can be opened
+				 * exclusively. This will prune all underlying
+				 * multipath devices which otherwise could
+				 * result in the vdev appearing as UNAVAIL.
+				 */
+				fd = open(slice->rn_name, O_RDONLY | O_EXCL);
+				if (fd >= 0) {
+					close(fd);
+					add_config(hdl, &pools,
+					    slice->rn_name, slice->rn_order,
+					    slice->rn_num_labels, config);
+				} else {
+					nvlist_free(config);
+				}
 			}
 		}
 		free(slice->rn_name);

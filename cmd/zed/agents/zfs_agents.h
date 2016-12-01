@@ -26,29 +26,25 @@ extern "C" {
 #endif
 
 /*
- * Agents from ZFS FMA and syseventd - linked directly into ZED daemon binary
+ * Agent abstraction presented to ZED
  */
+extern void zfs_agent_init(libzfs_handle_t *);
+extern void zfs_agent_fini(void);
+extern void zfs_agent_post_event(const char *, const char *, nvlist_t *);
 
 /*
  * ZFS Sysevent Linkable Module (SLM)
  */
-extern int zfs_slm_init(libzfs_handle_t *zfs_hdl);
+extern int zfs_slm_init(void);
 extern void zfs_slm_fini(void);
 extern void zfs_slm_event(const char *, const char *, nvlist_t *);
 
 /*
- * ZFS FMA Retire Agent
+ * In ZED context, all the FMA agents run in the same thread
+ * and do not require a unique libzfs instance.
  */
-extern int zfs_retire_init(libzfs_handle_t *zfs_hdl);
-extern void zfs_retire_fini(void);
-extern void zfs_retire_recv(nvlist_t *nvl, const char *class);
-
-/*
- * ZFS FMA Diagnosis Engine
- */
-extern int zfs_diagnosis_init(libzfs_handle_t *zfs_hdl);
-extern void zfs_diagnosis_fini(void);
-extern void zfs_diagnosis_recv(nvlist_t *nvl, const char *class);
+extern libzfs_handle_t *__libzfs_init(void);
+extern void __libzfs_fini(libzfs_handle_t *);
 
 #ifdef	__cplusplus
 }

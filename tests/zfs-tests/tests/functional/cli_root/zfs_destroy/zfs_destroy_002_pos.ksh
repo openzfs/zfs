@@ -73,7 +73,7 @@ if is_global_zone ; then
 	log_must $ZFS create -V $VOLSIZE $TESTPOOL/$TESTVOL
 
 	# Max volume size is 1TB on 32-bit systems
-	[[ $($ISAINFO -b) == 32 ]] && \
+	[[ is_32bit ]] && \
 		BIGVOLSIZE=1Tb
 	log_must $ZFS create -sV $BIGVOLSIZE $TESTPOOL/$TESTVOL1
 fi

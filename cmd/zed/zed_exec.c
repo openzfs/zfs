@@ -20,6 +20,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #include "zed_file.h"
 #include "zed_log.h"
@@ -115,19 +116,39 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		zed_file_close_from(ZEVENT_FILENO + 1);
 		execle(path, prog, NULL, env);
 		_exit(127);
-	} else {
-		zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
-		    prog, eid, pid);
-		/* FIXME: Timeout rogue child processes with sigalarm? */
-restart:
-		wpid = waitpid(pid, &status, 0);
+	}
+
+	/* parent process */
+
+	zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
+	    prog, eid, pid);
+
+	/* FIXME: Timeout rogue child processes with sigalarm? */
+
+	/*
+	 * Wait for child process using WNOHANG to limit
+	 * the time spent waiting to 10 seconds (10,000ms).
+	 */
+	for (n = 0; n < 1000; n++) {
+		wpid = waitpid(pid, &status, WNOHANG);
 		if (wpid == (pid_t) -1) {
 			if (errno == EINTR)
-				goto restart;
+				continue;
 			zed_log_msg(LOG_WARNING,
 			    "Failed to wait for \"%s\" eid=%llu pid=%d",
 			    prog, eid, pid);
-		} else if (WIFEXITED(status)) {
+			break;
+		} else if (wpid == 0) {
+			struct timespec t;
+
+			/* child still running */
+			t.tv_sec = 0;
+			t.tv_nsec = 10000000;	/* 10ms */
+			(void) nanosleep(&t, NULL);
+			continue;
+		}
+
+		if (WIFEXITED(status)) {
 			zed_log_msg(LOG_INFO,
 			    "Finished \"%s\" eid=%llu pid=%d exit=%d",
 			    prog, eid, pid, WEXITSTATUS(status));
@@ -141,6 +162,16 @@ restart:
 			    "Finished \"%s\" eid=%llu pid=%d status=0x%X",
 			    prog, eid, (unsigned int) status);
 		}
+		break;
+	}
+
+	/*
+	 * kill child process after 10 seconds
+	 */
+	if (wpid == 0) {
+		zed_log_msg(LOG_WARNING, "Killing hung \"%s\" pid=%d",
+		    prog, pid);
+		(void) kill(pid, SIGKILL);
 	}
 }
 

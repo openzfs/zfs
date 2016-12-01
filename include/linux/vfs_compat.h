@@ -205,17 +205,9 @@ lseek_execute(
 #include <linux/posix_acl.h>
 
 #if defined(HAVE_POSIX_ACL_RELEASE) && !defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
-
 #define	zpl_posix_acl_release(arg)		posix_acl_release(arg)
-#define	zpl_set_cached_acl(ip, ty, n)		set_cached_acl(ip, ty, n)
-#define	zpl_forget_cached_acl(ip, ty)		forget_cached_acl(ip, ty)
-
 #else
-
-static inline void
-zpl_posix_acl_free(void *arg) {
-	kfree(arg);
-}
+void zpl_posix_acl_release_impl(struct posix_acl *);
 
 static inline void
 zpl_posix_acl_release(struct posix_acl *acl)
@@ -223,12 +215,15 @@ zpl_posix_acl_release(struct posix_acl *acl)
 	if ((acl == NULL) || (acl == ACL_NOT_CACHED))
 		return;
 
-	if (atomic_dec_and_test(&acl->a_refcount)) {
-		taskq_dispatch_delay(system_taskq, zpl_posix_acl_free, acl,
-		    TQ_SLEEP, ddi_get_lbolt() + 60*HZ);
-	}
+	if (atomic_dec_and_test(&acl->a_refcount))
+		zpl_posix_acl_release_impl(acl);
 }
+#endif /* HAVE_POSIX_ACL_RELEASE */
 
+#ifdef HAVE_SET_CACHED_ACL_USABLE
+#define	zpl_set_cached_acl(ip, ty, n)		set_cached_acl(ip, ty, n)
+#define	zpl_forget_cached_acl(ip, ty)		forget_cached_acl(ip, ty)
+#else
 static inline void
 zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
 	struct posix_acl *older = NULL;
@@ -258,7 +253,7 @@ static inline void
 zpl_forget_cached_acl(struct inode *ip, int type) {
 	zpl_set_cached_acl(ip, type, (struct posix_acl *)ACL_NOT_CACHED);
 }
-#endif /* HAVE_POSIX_ACL_RELEASE */
+#endif /* HAVE_SET_CACHED_ACL_USABLE */
 
 #ifndef HAVE___POSIX_ACL_CHMOD
 #ifdef HAVE_POSIX_ACL_CHMOD

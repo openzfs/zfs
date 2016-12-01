@@ -46,6 +46,7 @@
 #include <sys/range_tree.h>
 #include <sys/trace_dbuf.h>
 #include <sys/callb.h>
+#include <sys/abd.h>
 
 struct dbuf_hold_impl_data {
 	/* Function arguments */
@@ -1019,7 +1020,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		int max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
 
 		ASSERT3U(bonuslen, <=, db->db.db_size);
-		db->db.db_data = zio_buf_alloc(max_bonuslen);
+		db->db.db_data = kmem_alloc(max_bonuslen, KM_SLEEP);
 		arc_space_consume(max_bonuslen, ARC_SPACE_BONUS);
 		if (bonuslen < max_bonuslen)
 			bzero(db->db.db_data, max_bonuslen);
@@ -1131,10 +1132,9 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	 */
 	ASSERT(dr->dr_txg >= txg - 2);
 	if (db->db_blkid == DMU_BONUS_BLKID) {
-		/* Note that the data bufs here are zio_bufs */
 		dnode_t *dn = DB_DNODE(db);
 		int bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
-		dr->dt.dl.dr_data = zio_buf_alloc(bonuslen);
+		dr->dt.dl.dr_data = kmem_alloc(bonuslen, KM_SLEEP);
 		arc_space_consume(bonuslen, ARC_SPACE_BONUS);
 		bcopy(db->db.db_data, dr->dt.dl.dr_data, bonuslen);
 	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
@@ -2156,7 +2156,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 		int slots = DB_DNODE(db)->dn_num_slots;
 		int bonuslen = DN_SLOTS_TO_BONUSLEN(slots);
 		ASSERT(db->db.db_data != NULL);
-		zio_buf_free(db->db.db_data, bonuslen);
+		kmem_free(db->db.db_data, bonuslen);
 		arc_space_return(bonuslen, ARC_SPACE_BONUS);
 		db->db_state = DB_UNCACHED;
 	}
@@ -3303,7 +3303,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		if (*datap != db->db.db_data) {
 			int slots = DB_DNODE(db)->dn_num_slots;
 			int bonuslen = DN_SLOTS_TO_BONUSLEN(slots);
-			zio_buf_free(*datap, bonuslen);
+			kmem_free(*datap, bonuslen);
 			arc_space_return(bonuslen, ARC_SPACE_BONUS);
 		}
 		db->db_data_pending = NULL;
@@ -3709,6 +3709,9 @@ dbuf_write_override_done(zio_t *zio)
 	mutex_exit(&db->db_mtx);
 
 	dbuf_write_done(zio, NULL, db);
+
+	if (zio->io_abd != NULL)
+		abd_put(zio->io_abd);
 }
 
 /* Issue I/O to commit a dirty buffer to disk. */
@@ -3801,7 +3804,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		 * The BP for this block has been provided by open context
 		 * (by dmu_sync() or dmu_buf_write_embedded()).
 		 */
-		void *contents = (data != NULL) ? data->b_data : NULL;
+		abd_t *contents = (data != NULL) ?
+		    abd_get_from_buf(data->b_data, arc_buf_size(data)) : NULL;
 
 		dr->dr_zio = zio_write(zio, os->os_spa, txg,
 		    &dr->dr_bp_copy, contents, db->db.db_size, db->db.db_size,

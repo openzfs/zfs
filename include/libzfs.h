@@ -64,6 +64,10 @@ extern "C" {
  */
 #define	DISK_LABEL_WAIT		(30 * 1000)  /* 30 seconds */
 
+#define	IMPORT_ORDER_PREFERRED_1	1
+#define	IMPORT_ORDER_PREFERRED_2	2
+#define	IMPORT_ORDER_SCAN_OFFSET	10
+#define	IMPORT_ORDER_DEFAULT		100
 #define	DEFAULT_IMPORT_PATH_SIZE	9
 extern char *zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE];
 
@@ -728,6 +732,7 @@ extern boolean_t zfs_bookmark_exists(const char *path);
 extern int zfs_append_partition(char *path, size_t max_len);
 extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
 extern int zfs_strcmp_pathname(char *name, char *cmp_name, int wholedisk);
+extern int zfs_path_order(char *path, int *order);
 
 /*
  * Mount support functions.
@@ -758,6 +763,7 @@ extern int zfs_unshare_smb(zfs_handle_t *, const char *);
 extern int zfs_unshareall_nfs(zfs_handle_t *);
 extern int zfs_unshareall_smb(zfs_handle_t *);
 extern int zfs_unshareall_bypath(zfs_handle_t *, const char *);
+extern int zfs_unshareall_bytype(zfs_handle_t *, const char *, const char *);
 extern int zfs_unshareall(zfs_handle_t *);
 extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
     void *, void *, int, zfs_share_op_t);
@@ -832,6 +838,7 @@ extern int zpool_fru_set(zpool_handle_t *, uint64_t, const char *);
 extern boolean_t is_mpath_whole_disk(const char *);
 extern void update_vdev_config_dev_strs(nvlist_t *);
 extern char *zfs_strip_partition(char *);
+extern char *zfs_strip_partition_path(char *);
 
 #ifdef HAVE_LIBUDEV
 struct udev_device;

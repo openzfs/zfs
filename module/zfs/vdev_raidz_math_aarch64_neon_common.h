@@ -125,7 +125,7 @@
 
 #define	ASM_BUG()	ASSERT(0)
 
-#define	OFFSET(ptr, val)	(((unsigned char *)ptr)+val)
+#define	OFFSET(ptr, val)	(((unsigned char *)(ptr))+val)
 
 extern const uint8_t gf_clmul_mod_lt[4*256][16];
 
@@ -134,20 +134,6 @@ extern const uint8_t gf_clmul_mod_lt[4*256][16];
 typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
-
-#define	PREFETCHNTA(ptr, offset) 					\
-{									\
-	__asm(								\
-	    "prfm pstl1strm, %[MEM]\n"					\
-	    :	:	[MEM] "Q" (*(ptr + offset)));			\
-}
-
-#define	PREFETCH(ptr, offset) 						\
-{									\
-	__asm(								\
-	    "prfm pldl1keep, %[MEM]\n"					\
-	    :	:	[MEM] "Q" (*(ptr + offset)));			\
-}
 
 #define	XOR_ACC(src, r...)						\
 {									\
@@ -242,6 +228,19 @@ typedef struct v {
 #define	ZERO(r...)							\
 {									\
 	switch (REG_CNT(r)) {						\
+	case 8:								\
+		__asm(							\
+		"eor " VR0(r) ".16b," VR0(r) ".16b," VR0(r) ".16b\n"	\
+		"eor " VR1(r) ".16b," VR1(r) ".16b," VR1(r) ".16b\n"	\
+		"eor " VR2(r) ".16b," VR2(r) ".16b," VR2(r) ".16b\n"	\
+		"eor " VR3(r) ".16b," VR3(r) ".16b," VR3(r) ".16b\n"	\
+		"eor " VR4(r) ".16b," VR4(r) ".16b," VR4(r) ".16b\n"	\
+		"eor " VR5(r) ".16b," VR5(r) ".16b," VR5(r) ".16b\n"	\
+		"eor " VR6(r) ".16b," VR6(r) ".16b," VR6(r) ".16b\n"	\
+		"eor " VR7(r) ".16b," VR7(r) ".16b," VR7(r) ".16b\n"	\
+		:	WVR0(r), WVR1(r), WVR2(r), WVR3(r),		\
+			WVR4(r), WVR5(r), WVR6(r), WVR7(r));		\
+		break;							\
 	case 4:								\
 		__asm(							\
 		"eor " VR0(r) ".16b," VR0(r) ".16b," VR0(r) ".16b\n"	\
