@@ -30,9 +30,6 @@
 #ifndef _ZIO_IMPL_H
 #define	_ZIO_IMPL_H
 
-#include <sys/zfs_context.h>
-#include <sys/zio.h>
-
 #ifdef	__cplusplus
 extern "C" {
 #endif

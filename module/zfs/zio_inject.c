@@ -41,7 +41,7 @@
  */
 
 #include <sys/arc.h>
-#include <sys/zio_impl.h>
+#include <sys/zio.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/vdev_impl.h>
 #include <sys/dmu_objset.h>
