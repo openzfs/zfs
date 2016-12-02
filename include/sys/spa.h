@@ -725,6 +725,13 @@ typedef enum txg_state {
 	TXG_STATE_COMMITTED	= 5,
 } txg_state_t;
 
+typedef struct txg_stat {
+	vdev_stat_t		vs1;
+	vdev_stat_t		vs2;
+	uint64_t		txg;
+	uint64_t		ndirty;
+} txg_stat_t;
+
 extern void spa_stats_init(spa_t *spa);
 extern void spa_stats_destroy(spa_t *spa);
 extern void spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb,
@@ -732,8 +739,9 @@ extern void spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb,
 extern void spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time);
 extern int spa_txg_history_set(spa_t *spa,  uint64_t txg,
     txg_state_t completed_state, hrtime_t completed_time);
-extern int spa_txg_history_set_io(spa_t *spa,  uint64_t txg, uint64_t nread,
-    uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t ndirty);
+extern txg_stat_t *spa_txg_history_init_io(spa_t *, uint64_t,
+    struct dsl_pool *);
+extern void spa_txg_history_fini_io(spa_t *, txg_stat_t *);
 extern void spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs);
 
 /* Pool configuration locks */
