@@ -48,6 +48,11 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5444
+if is_32bit; then
+	log_unsupported "Test case fails on 32-bit systems"
+fi
+
 log_assert "Resilver prevent scrub from starting until the resilver completes"
 
 log_must $ZPOOL detach $TESTPOOL $DISK2
