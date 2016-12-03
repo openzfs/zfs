@@ -2702,8 +2702,11 @@ function is_zfsroot
 function get_rootfs
 {
 	typeset rootfs=""
-	rootfs=$(awk '{if ($2 == "/" && $3 == "zfs") print $1}' \
-		/etc/mnttab)
+
+	if ! is_linux; then
+		rootfs=$(awk '{if ($2 == "/" && $3 == "zfs") print $1}' \
+			/etc/mnttab)
+	fi
 	if [[ -z "$rootfs" ]]; then
 		log_fail "Can not get rootfs"
 	fi
@@ -2724,8 +2727,11 @@ function get_rootpool
 {
 	typeset rootfs=""
 	typeset rootpool=""
-	rootfs=$(awk '{if ($2 == "/" && $3 =="zfs") print $1}' \
-		 /etc/mnttab)
+
+	if ! is_linux; then
+		rootfs=$(awk '{if ($2 == "/" && $3 =="zfs") print $1}' \
+			 /etc/mnttab)
+	fi
 	if [[ -z "$rootfs" ]]; then
 		log_fail "Can not get rootpool"
 	fi

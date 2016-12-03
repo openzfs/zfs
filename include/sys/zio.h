@@ -120,6 +120,16 @@ enum zio_checksum {
 #define	BOOTFS_COMPRESS_VALID(compress)			\
 	((compress) == ZIO_COMPRESS_LZJB ||		\
 	(compress) == ZIO_COMPRESS_LZ4 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_1 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_2 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_3 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_4 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_5 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_6 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_7 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_8 ||		\
+	(compress) == ZIO_COMPRESS_GZIP_9 ||		\
+	(compress) == ZIO_COMPRESS_ZLE ||		\
 	(compress) == ZIO_COMPRESS_ON ||		\
 	(compress) == ZIO_COMPRESS_OFF)
 

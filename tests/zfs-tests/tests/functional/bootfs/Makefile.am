@@ -8,5 +8,5 @@ dist_pkgdata_SCRIPTS = \
 	bootfs_004_neg.ksh \
 	bootfs_005_neg.ksh \
 	bootfs_006_pos.ksh \
-	bootfs_007_neg.ksh \
-	bootfs_008_neg.ksh
+	bootfs_007_pos.ksh \
+	bootfs_008_pos.ksh
