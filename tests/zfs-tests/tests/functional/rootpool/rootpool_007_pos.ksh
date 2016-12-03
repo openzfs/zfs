@@ -34,12 +34,12 @@
 #
 # DESCRIPTION:
 #
-# the zfs rootfilesystem's compression property can not set to gzip[1-9]
+# the zfs rootfilesystem's compression property can be set to gzip[1-9]
 #
 # STRATEGY:
 # 1) check if the current system is installed as zfs root
 # 2) get the rootfs
-# 3) set the rootfs's compression to gzip 1-9 which should fail.
+# 3) set the rootfs's compression to gzip 1-9 which should not fail.
 #
 
 verify_runnable "global"
@@ -55,7 +55,7 @@ typeset rootpool=$(get_rootpool)
 typeset rootfs=$(get_pool_prop bootfs $rootpool)
 typeset orig_compress=$(get_prop compression $rootfs)
 
-typeset assert_msg="the zfs rootfs's compression property can not set to \
+typeset assert_msg="the zfs rootfs's compression property can be set to \
 		   gzip and gzip[1-9]"
 
 set -A gtype "gzip" "gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" \
@@ -63,7 +63,7 @@ set -A gtype "gzip" "gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" \
 
 typeset -i i=0
 while (( i < ${#gtype[@]} )); do
-	log_mustnot zfs set compression=${gtype[i]} $rootfs
+	log_must zfs set compression=${gtype[i]} $rootfs
 	(( i += 1 ))
 done
 

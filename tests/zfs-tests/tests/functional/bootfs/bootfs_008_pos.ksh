@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,13 +34,13 @@
 #
 # DESCRIPTION:
 #
-# Setting bootfs on a pool which was configured with the whole disk
-# (i.e. EFI) will fail
+# setting bootfs on a dataset which has gzip compression enabled will not fail
 #
 # STRATEGY:
-# 1. create a pool with a whole disk
-# 2. create a filesystem on this pool
-# 3. verify we can not set bootfs on the filesystem we just created.
+# 1. create pools based on a valid vdev
+# 2. create a filesystem on this pool, set the compression property to gzip1-9
+# 3. set the pool's bootfs property to filesystem we just configured which
+#    should not fail
 #
 
 verify_runnable "global"
@@ -49,23 +49,34 @@ function cleanup {
 	if poolexists $TESTPOOL ; then
 		destroy_pool "$TESTPOOL"
 	fi
+
+	if [[ -f $VDEV ]]; then
+		log_must rm -f $VDEV
+	fi
 }
 
+typeset assert_msg="setting bootfs on a dataset which has gzip \
+    compression enabled will not fail"
+
+typeset VDEV=$TEST_BASE_DIR/bootfs_008_pos_a.$$.dat
+typeset COMP_FS=$TESTPOOL/COMP_FS
+
 log_onexit cleanup
+log_assert $assert_msg
 
-DISK=${DISKS%% *}
-typeset EFI_BOOTFS=$TESTPOOL/efs
-typeset assert_mesg="setting bootfs on a pool which was configured with the \
-    whole disk will fail"
+log_must mkfile $MINVDEVSIZE $VDEV
+log_must zpool create $TESTPOOL $VDEV
+log_must zfs create $COMP_FS
 
-log_assert $assert_mesg
-create_pool "$TESTPOOL" "$DISK"
-log_must zfs create $EFI_BOOTFS
+typeset -i i=0
+set -A gtype "gzip" "gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" \
+	     "gzip-6" "gzip-7" "gzip-8" "gzip-9"
 
-if is_linux; then
-	log_must zpool set bootfs=$EFI_BOOTFS $TESTPOOL
-else
-	log_mustnot zpool set bootfs=$EFI_BOOTFS $TESTPOOL
-fi
+while (( i < ${#gtype[@]} )); do
+	log_must zfs set compression=${gtype[i]} $COMP_FS
+	log_must zpool set bootfs=$COMP_FS $TESTPOOL
+	log_must zfs set compression=off $COMP_FS
+	(( i += 1 ))
+done
 
-log_pass $assert_mesg
+log_pass $assert_msg
