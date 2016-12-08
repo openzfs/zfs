@@ -50,6 +50,9 @@ MODULE_PARM_DESC(spl_taskq_thread_sequential,
 /* Global system-wide dynamic task queue available for all consumers */
 taskq_t *system_taskq;
 EXPORT_SYMBOL(system_taskq);
+/* Global dynamic task queue for long delay */
+taskq_t *system_delay_taskq;
+EXPORT_SYMBOL(system_delay_taskq);
 
 /* Private dedicated taskq for creating new taskq threads on demand. */
 static taskq_t *dynamic_taskq;
@@ -1238,10 +1241,18 @@ spl_taskq_init(void)
 	if (system_taskq == NULL)
 		return (1);
 
+	system_delay_taskq = taskq_create("spl_delay_taskq", MAX(boot_ncpus, 4),
+	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
+	if (system_delay_taskq == NULL) {
+		taskq_destroy(system_taskq);
+		return (1);
+	}
+
 	dynamic_taskq = taskq_create("spl_dynamic_taskq", 1,
 	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE);
 	if (dynamic_taskq == NULL) {
 		taskq_destroy(system_taskq);
+		taskq_destroy(system_delay_taskq);
 		return (1);
 	}
 
@@ -1260,6 +1271,9 @@ spl_taskq_fini(void)
 {
 	taskq_destroy(dynamic_taskq);
 	dynamic_taskq = NULL;
+
+	taskq_destroy(system_delay_taskq);
+	system_delay_taskq = NULL;
 
 	taskq_destroy(system_taskq);
 	system_taskq = NULL;

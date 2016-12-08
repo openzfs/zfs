@@ -129,6 +129,8 @@ typedef struct taskq_thread {
 
 /* Global system-wide dynamic task queue available for all consumers */
 extern taskq_t *system_taskq;
+/* Global dynamic task queue for long delay */
+extern taskq_t *system_delay_taskq;
 
 /* List of all taskqs */
 extern struct list_head tq_list;
