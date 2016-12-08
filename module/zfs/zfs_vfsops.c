@@ -1922,6 +1922,7 @@ zfs_fini(void)
 	/*
 	 * we don't use outstanding because zpl_posix_acl_free might add more.
 	 */
+	taskq_wait(system_delay_taskq);
 	taskq_wait(system_taskq);
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();

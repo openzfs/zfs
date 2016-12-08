@@ -1511,8 +1511,8 @@ zpl_posix_acl_free(void *arg)
 	}
 
 	if (refire)
-		taskq_dispatch_delay(system_taskq, zpl_posix_acl_free, NULL,
-		    TQ_SLEEP, new_time);
+		taskq_dispatch_delay(system_delay_taskq, zpl_posix_acl_free,
+		    NULL, TQ_SLEEP, new_time);
 
 	while (freelist) {
 		a = freelist;
@@ -1537,7 +1537,7 @@ zpl_posix_acl_release_impl(struct posix_acl *acl)
 	*prev = a;
 	/* if it was empty before, schedule the free task */
 	if (prev == &acl_rel_head)
-		taskq_dispatch_delay(system_taskq, zpl_posix_acl_free, NULL,
-		    TQ_SLEEP, ddi_get_lbolt() + ACL_REL_SCHED);
+		taskq_dispatch_delay(system_delay_taskq, zpl_posix_acl_free,
+		    NULL, TQ_SLEEP, ddi_get_lbolt() + ACL_REL_SCHED);
 }
 #endif

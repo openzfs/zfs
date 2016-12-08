@@ -111,11 +111,6 @@ static krwlock_t zfs_snapshot_lock;
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
 int zfs_admin_snapshot = 1;
 
-/*
- * Dedicated task queue for unmounting snapshots.
- */
-static taskq_t *zfs_expire_taskq;
-
 typedef struct {
 	char		*se_name;	/* full snapshot name */
 	char		*se_path;	/* full mount path */
@@ -365,7 +360,7 @@ zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
 {
 	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
 
-	if (taskq_cancel_id(zfs_expire_taskq, se->se_taskqid) == 0) {
+	if (taskq_cancel_id(system_delay_taskq, se->se_taskqid) == 0) {
 		se->se_taskqid = TASKQID_INVALID;
 		zfsctl_snapshot_rele(se);
 	}
@@ -383,7 +378,7 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 		return;
 
 	zfsctl_snapshot_hold(se);
-	se->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
+	se->se_taskqid = taskq_dispatch_delay(system_delay_taskq,
 	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
 }
 
@@ -1257,9 +1252,6 @@ zfsctl_init(void)
 	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t,
 	    se_node_objsetid));
 	rw_init(&zfs_snapshot_lock, NULL, RW_DEFAULT, NULL);
-
-	zfs_expire_taskq = taskq_create("z_unmount", 1, defclsyspri,
-	    1, 8, TASKQ_PREPOPULATE);
 }
 
 /*
@@ -1269,8 +1261,6 @@ zfsctl_init(void)
 void
 zfsctl_fini(void)
 {
-	taskq_destroy(zfs_expire_taskq);
-
 	avl_destroy(&zfs_snapshots_by_name);
 	avl_destroy(&zfs_snapshots_by_objsetid);
 	rw_destroy(&zfs_snapshot_lock);

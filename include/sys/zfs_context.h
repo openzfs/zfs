@@ -498,6 +498,7 @@ typedef struct taskq {
 #define	TASKQID_INVALID		((taskqid_t)0)
 
 extern taskq_t *system_taskq;
+extern taskq_t *system_delay_taskq;
 
 extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 #define	taskq_create_proc(a, b, c, d, e, p, f) \
