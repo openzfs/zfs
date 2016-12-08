@@ -3155,7 +3155,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
  * and the root vdev.
  */
 void
-vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
+vdev_space_update(vdev_t *vd, int nrot,
+    int64_t alloc_delta, int64_t defer_delta,
     int64_t space_delta)
 {
 	int64_t dspace_delta = space_delta;
@@ -3195,7 +3196,7 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 		ASSERT(rvd == vd->vdev_parent);
 		ASSERT(vd->vdev_ms_count != 0);
 
-		metaslab_class_space_update(mc,
+		metaslab_class_space_update(mc, nrot,
 		    alloc_delta, defer_delta, space_delta, dspace_delta);
 	}
 }

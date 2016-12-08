@@ -33,6 +33,7 @@
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
 #include <sys/zfeature.h>
+#include <linux/kernel.h>
 
 #define	WITH_DF_BLOCK_ALLOCATOR
 
@@ -240,10 +241,12 @@ metaslab_class_destroy(metaslab_class_t *mc)
 
 	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
 		ASSERT(mc->mc_rotorv[i] == NULL);
-	ASSERT(mc->mc_alloc == 0);
-	ASSERT(mc->mc_deferred == 0);
-	ASSERT(mc->mc_space == 0);
-	ASSERT(mc->mc_dspace == 0);
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+		ASSERT(mc->mc_allocv[i] == 0);
+		ASSERT(mc->mc_deferredv[i] == 0);
+		ASSERT(mc->mc_spacev[i] == 0);
+		ASSERT(mc->mc_dspacev[i] == 0);
+	}
 
 	refcount_destroy(&mc->mc_alloc_slots);
 	mutex_destroy(&mc->mc_lock);
@@ -280,37 +283,110 @@ metaslab_class_validate(metaslab_class_t *mc)
 }
 
 void
-metaslab_class_space_update(metaslab_class_t *mc, int64_t alloc_delta,
+metaslab_class_space_update(metaslab_class_t *mc, int nrot,
+    int64_t alloc_delta,
     int64_t defer_delta, int64_t space_delta, int64_t dspace_delta)
 {
-	atomic_add_64(&mc->mc_alloc, alloc_delta);
-	atomic_add_64(&mc->mc_deferred, defer_delta);
-	atomic_add_64(&mc->mc_space, space_delta);
-	atomic_add_64(&mc->mc_dspace, dspace_delta);
+	ASSERT(nrot >= 0 && nrot < METASLAB_CLASS_ROTORS);
+	atomic_add_64(&mc->mc_allocv[nrot], alloc_delta);
+	atomic_add_64(&mc->mc_deferredv[nrot], defer_delta);
+	atomic_add_64(&mc->mc_spacev[nrot], space_delta);
+	atomic_add_64(&mc->mc_dspacev[nrot], dspace_delta);
 }
 
 uint64_t
 metaslab_class_get_alloc(metaslab_class_t *mc)
 {
-	return (mc->mc_alloc);
+	uint64_t total_alloc = 0;
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		total_alloc += mc->mc_allocv[i];
+
+	return (total_alloc);
 }
 
 uint64_t
 metaslab_class_get_deferred(metaslab_class_t *mc)
 {
-	return (mc->mc_deferred);
+	uint64_t total_deferred = 0;
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		total_deferred += mc->mc_deferredv[i];
+
+	return (total_deferred);
 }
 
 uint64_t
 metaslab_class_get_space(metaslab_class_t *mc)
 {
-	return (mc->mc_space);
+	uint64_t total_space = 0;
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		total_space += mc->mc_spacev[i];
+
+	return (total_space);
 }
 
 uint64_t
 metaslab_class_get_dspace(metaslab_class_t *mc)
 {
-	return (spa_deflate(mc->mc_spa) ? mc->mc_dspace : mc->mc_space);
+	uint64_t total_dspace_adj = 0;
+	uint64_t total_dspace = 0;
+	int i;
+	uint64_t max_ratio = 1; /* 1 to avoid division by 0 */
+
+	/*
+	 * When we have a vector of rotors, we (artificially) adjust
+	 * the total dspace returned to reflect the fill fraction of
+	 * the most filled rotor.  This since the dspace value
+	 * returned is used to determine if new writes can be made to
+	 * the pool, and we do not want writes to continue if one of
+	 * the vectors has gotten full.
+	 *
+	 * If there is only one component of the vector, we'll return
+	 * the usual value.
+	 */
+
+	/* Counting in per-mille for the moment... */
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+		uint64_t ratio =
+		    (1000 * mc->mc_allocv[i]) / (mc->mc_spacev[i] + 1);
+		if (ratio > max_ratio)
+			max_ratio = ratio;
+	}
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+		uint64_t dspace =
+		    (spa_deflate(mc->mc_spa) ?
+		    mc->mc_dspacev[i] : mc->mc_spacev[i]);
+		uint64_t ratio =
+		    (1000 * mc->mc_allocv[i]) / (mc->mc_spacev[i] + 1);
+		total_dspace_adj += (dspace * ratio) / max_ratio;
+		total_dspace += dspace;
+	}
+
+	/*
+	 * When max_ratio is small (we have a *lot* of free space),
+	 * then the values will fluctuate considerably.  But does not
+	 * matter, since what matters is the values when little space
+	 * is free.
+	 *
+	 * However, the value is (luckily) also the value given to the
+	 * user in e.g. df(1), so would be nice to be accurate.  Below
+	 * 25 % we return the normal value, and above 75 % the
+	 * adjusted.  In between we give a sliding value.
+	 */
+
+	if (max_ratio < 250)
+		return (total_dspace);
+	if (max_ratio > 750)
+		return (total_dspace_adj);
+
+	return (total_dspace_adj * (max_ratio - 250) +
+	    total_dspace * (750 - max_ratio)) / 500;
 }
 
 void
@@ -1751,7 +1827,9 @@ metaslab_fini(metaslab_t *msp)
 
 	mutex_enter(&msp->ms_lock);
 	VERIFY(msp->ms_group == NULL);
-	vdev_space_update(mg->mg_vd, -space_map_allocated(msp->ms_sm),
+	ASSERT(mg->mg_nrot != -1);
+	vdev_space_update(mg->mg_vd, mg->mg_nrot,
+	    -space_map_allocated(msp->ms_sm),
 	    0, -msp->ms_size);
 	space_map_close(msp->ms_sm);
 
@@ -2658,7 +2736,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 			    &msp->ms_lock);
 		}
 
-		vdev_space_update(vd, 0, 0, msp->ms_size);
+		vdev_space_update(vd, mg->mg_nrot, 0, 0, msp->ms_size);
 	}
 
 	freed_tree = &msp->ms_freetree[TXG_CLEAN(txg) & TXG_MASK];
@@ -2679,7 +2757,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		defer_delta -= range_tree_space(*defer_tree);
 	}
 
-	vdev_space_update(vd, alloc_delta + defer_delta, defer_delta, 0);
+	vdev_space_update(vd, mg->mg_nrot,
+	    alloc_delta + defer_delta, defer_delta, 0);
 
 	ASSERT0(range_tree_space(msp->ms_alloctree[txg & TXG_MASK]));
 	ASSERT0(range_tree_space(msp->ms_freetree[txg & TXG_MASK]));
@@ -3445,7 +3524,8 @@ top2:
 			    metaslab_bias_enabled) {
 				vdev_stat_t *vs = &vd->vdev_stat;
 				int64_t vs_free = vs->vs_space - vs->vs_alloc;
-				int64_t mc_free = mc->mc_space - mc->mc_alloc;
+				int64_t mc_free = mc->mc_spacev[mg->mg_nrot] -
+				    mc->mc_allocv[mg->mg_nrot];
 				int64_t ratio;
 
 				/*

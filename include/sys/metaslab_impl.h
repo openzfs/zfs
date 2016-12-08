@@ -195,10 +195,14 @@ struct metaslab_class {
 
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 
-	uint64_t		mc_alloc;	/* total allocated space */
-	uint64_t		mc_deferred;	/* total deferred frees */
-	uint64_t		mc_space;	/* total space (alloc + free) */
-	uint64_t		mc_dspace;	/* total deflated space */
+	/* total allocated space */
+	uint64_t		mc_allocv[METASLAB_CLASS_ROTORS];
+	/* total deferred frees */
+	uint64_t		mc_deferredv[METASLAB_CLASS_ROTORS];
+	/* total space (alloc + free) */
+	uint64_t		mc_spacev[METASLAB_CLASS_ROTORS];
+	/* total deflated space */
+	uint64_t		mc_dspacev[METASLAB_CLASS_ROTORS];
 	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
 
 	/* Maximum allocation size in each rotor vector category. */
