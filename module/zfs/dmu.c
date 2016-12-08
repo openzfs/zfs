@@ -23,8 +23,8 @@
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
- * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -57,6 +57,14 @@
  * Enable/disable nopwrite feature.
  */
 int zfs_nopwrite_enabled = 1;
+
+/*
+ * Tunable to control percentage of dirtied blocks from frees in one TXG.
+ * After this threshold is crossed, additional dirty blocks from frees
+ * wait until the next TXG.
+ * A value of zero will disable this throttle.
+ */
+uint32_t zfs_per_txg_dirty_frees_percent = 30;
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
@@ -711,6 +719,8 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 {
 	uint64_t object_size;
 	int err;
+	uint8_t dirty_frees_threshold;
+	dsl_pool_t *dp = dmu_objset_pool(os);
 
 	if (dn == NULL)
 		return (SET_ERROR(EINVAL));
@@ -719,11 +729,20 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 	if (offset >= object_size)
 		return (0);
 
+	if (zfs_per_txg_dirty_frees_percent <= 100)
+		dirty_frees_threshold =
+		    (uint8_t) zfs_per_txg_dirty_frees_percent;
+	else
+		dirty_frees_threshold = MAX(1, zfs_delay_min_dirty_percent / 4);
+
+
 	if (length == DMU_OBJECT_END || offset + length > object_size)
 		length = object_size - offset;
 
 	while (length != 0) {
-		uint64_t chunk_end, chunk_begin;
+		uint8_t t, free_dirty_pct;
+		uint64_t chunk_end, chunk_begin, chunk_len;
+		uint64_t long_free_dirty_all_txgs = 0;
 		dmu_tx_t *tx;
 
 		chunk_end = chunk_begin = offset + length;
@@ -735,9 +754,29 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		ASSERT3U(chunk_begin, >=, offset);
 		ASSERT3U(chunk_begin, <=, chunk_end);
 
+		chunk_len = chunk_end - chunk_begin;
+
+		mutex_enter(&dp->dp_lock);
+		for (t = 0; t < TXG_SIZE; t++) {
+			long_free_dirty_all_txgs +=
+			    dp->dp_long_free_dirty_pertxg[t];
+		}
+		mutex_exit(&dp->dp_lock);
+		free_dirty_pct = 100 * long_free_dirty_all_txgs /
+		    zfs_dirty_data_max;
+		/*
+		 * To avoid filling up a TXG with just frees wait for
+		 * the next TXG to open before freeing more chunks if
+		 * we have reached the threshold of frees
+		 */
+		if (dirty_frees_threshold != 0 &&
+		    free_dirty_pct >= dirty_frees_threshold) {
+			txg_wait_open(dp, 0);
+			continue;
+		}
+
 		tx = dmu_tx_create(os);
-		dmu_tx_hold_free(tx, dn->dn_object,
-		    chunk_begin, chunk_end - chunk_begin);
+		dmu_tx_hold_free(tx, dn->dn_object, chunk_begin, chunk_len);
 
 		/*
 		 * Mark this transaction as typically resulting in a net
@@ -749,10 +788,17 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 			dmu_tx_abort(tx);
 			return (err);
 		}
-		dnode_free_range(dn, chunk_begin, chunk_end - chunk_begin, tx);
+
+		mutex_enter(&dp->dp_lock);
+		dp->dp_long_free_dirty_pertxg[dmu_tx_get_txg(tx) & TXG_MASK] +=
+		    chunk_len;
+		mutex_exit(&dp->dp_lock);
+		DTRACE_PROBE3(free__long__range, uint8_t, free_dirty_pct,
+		    uint64_t, chunk_len, uint64_t, dmu_tx_get_txg(tx));
+		dnode_free_range(dn, chunk_begin, chunk_len, tx);
 		dmu_tx_commit(tx);
 
-		length -= chunk_end - chunk_begin;
+		length -= chunk_len;
 	}
 	return (0);
 }

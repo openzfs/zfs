@@ -596,6 +596,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	    offsetof(zio_link_t, zl_parent_node));
 	list_create(&zio->io_child_list, sizeof (zio_link_t),
 	    offsetof(zio_link_t, zl_child_node));
+	metaslab_trace_init(&zio->io_alloc_list);
 
 	if (vd != NULL)
 		zio->io_child_type = ZIO_CHILD_VDEV;
@@ -657,6 +658,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 static void
 zio_destroy(zio_t *zio)
 {
+	metaslab_trace_fini(&zio->io_alloc_list);
 	list_destroy(&zio->io_parent_list);
 	list_destroy(&zio->io_child_list);
 	mutex_destroy(&zio->io_lock);
@@ -2299,7 +2301,8 @@ zio_write_gang_block(zio_t *pio)
 	}
 
 	error = metaslab_alloc(spa, mc, SPA_GANGBLOCKSIZE,
-	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags, pio);
+	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
+	    &pio->io_alloc_list, pio);
 	if (error) {
 		if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 			ASSERT(pio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
@@ -3011,7 +3014,8 @@ zio_dva_allocate(zio_t *zio)
 		flags |= METASLAB_ASYNC_ALLOC;
 
 	error = metaslab_alloc(spa, mc, zio->io_size, bp,
-	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags, zio);
+	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
+	    &zio->io_alloc_list, zio);
 
 	if (error != 0) {
 		spa_dbgmsg(spa, "%s: metaslab allocation failure: zio %p, "
@@ -3077,18 +3081,24 @@ zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp, uint64_t size,
     boolean_t use_slog)
 {
 	int error = 1;
+	zio_alloc_list_t io_alloc_list;
 
 	ASSERT(txg > spa_syncing_txg(spa));
 
+	metaslab_trace_init(&io_alloc_list);
+
 	if (use_slog) {
 		error = metaslab_alloc(spa, spa_log_class(spa), size,
-		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE, NULL);
+		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE,
+		    &io_alloc_list, NULL);
 	}
 
 	if (error) {
 		error = metaslab_alloc(spa, spa_normal_class(spa), size,
-		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE, NULL);
+		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE,
+		    &io_alloc_list, NULL);
 	}
+	metaslab_trace_fini(&io_alloc_list);
 
 	if (error == 0) {
 		BP_SET_LSIZE(new_bp, size);
@@ -3875,7 +3885,7 @@ zio_done(zio_t *zio)
 	 */
 	if ((zio->io_flags & ZIO_FLAG_GODFATHER) &&
 	    (zio->io_reexecute & ZIO_REEXECUTE_SUSPEND))
-		zio->io_reexecute = 0;
+		zio->io_reexecute &= ~ZIO_REEXECUTE_SUSPEND;
 
 	if (zio->io_reexecute) {
 		/*
