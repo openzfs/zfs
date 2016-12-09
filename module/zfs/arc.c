@@ -1510,7 +1510,7 @@ arc_cksum_compute(arc_buf_t *buf)
 void
 arc_buf_sigsegv(int sig, siginfo_t *si, void *unused)
 {
-	panic("Got SIGSEGV at address: 0x%lx\n", (long) si->si_addr);
+	panic("Got SIGSEGV at address: 0x%lx\n", (long)si->si_addr);
 }
 #endif
 
@@ -7688,6 +7688,7 @@ EXPORT_SYMBOL(arc_getbuf_func);
 EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
+/* BEGIN CSTYLED */
 module_param(zfs_arc_min, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
 
@@ -7786,5 +7787,5 @@ MODULE_PARM_DESC(zfs_arc_dnode_limit_percent,
 module_param(zfs_arc_dnode_reduce_percent, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_dnode_reduce_percent,
 	"Percentage of excess dnodes to try to unpin");
-
+/* END CSTYLED */
 #endif

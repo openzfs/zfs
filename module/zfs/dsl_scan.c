@@ -73,7 +73,7 @@ int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
 enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 int dsl_scan_delay_completion = B_FALSE; /* set to delay scan completion */
 /* max number of blocks to free in a single TXG */
-ulong zfs_free_max_blocks = 100000;
+unsigned long zfs_free_max_blocks = 100000;
 
 #define	DSL_SCAN_IS_SCRUB_RESILVER(scn) \
 	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB || \
@@ -1985,6 +1985,7 @@ MODULE_PARM_DESC(zfs_no_scrub_io, "Set to disable scrub I/O");
 module_param(zfs_no_scrub_prefetch, int, 0644);
 MODULE_PARM_DESC(zfs_no_scrub_prefetch, "Set to disable scrub prefetching");
 
+/* CSTYLED */
 module_param(zfs_free_max_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_free_max_blocks, "Max number of blocks freed in one txg");
 

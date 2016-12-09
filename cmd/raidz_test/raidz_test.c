@@ -53,7 +53,7 @@ static void sig_handler(int signo)
 	(void) sigaction(signo, &action, NULL);
 
 	if (rto_opts.rto_gdb)
-		if (system(gdb));
+		if (system(gdb)) { }
 
 	raise(signo);
 }
@@ -86,8 +86,7 @@ static void print_opts(raidz_test_opts_t *opts, boolean_t force)
 		    opts->rto_dcols,			/* -d */
 		    ilog2(opts->rto_dsize),		/* -s */
 		    opts->rto_sweep ? "yes" : "no",	/* -S */
-		    verbose 				/* -v */
-		);
+		    verbose);				/* -v */
 	}
 }
 
@@ -98,25 +97,24 @@ static void usage(boolean_t requested)
 	FILE *fp = requested ? stdout : stderr;
 
 	(void) fprintf(fp, "Usage:\n"
-	"\t[-a zio ashift (default: %zu)]\n"
-	"\t[-o zio offset, exponent radix 2 (default: %zu)]\n"
-	"\t[-d number of raidz data columns (default: %zu)]\n"
-	"\t[-s zio size, exponent radix 2 (default: %zu)]\n"
-	"\t[-S parameter sweep (default: %s)]\n"
-	"\t[-t timeout for parameter sweep test]\n"
-	"\t[-B benchmark all raidz implementations]\n"
-	"\t[-v increase verbosity (default: %zu)]\n"
-	"\t[-h (print help)]\n"
-	"\t[-T test the test, see if failure would be detected]\n"
-	"\t[-D debug (attach gdb on SIGSEGV)]\n"
-	"",
-	o->rto_ashift,				/* -a */
-	ilog2(o->rto_offset),			/* -o */
-	o->rto_dcols,				/* -d */
-	ilog2(o->rto_dsize),			/* -s */
-	rto_opts.rto_sweep ? "yes" : "no",	/* -S */
-	o->rto_v				/* -d */
-	);
+	    "\t[-a zio ashift (default: %zu)]\n"
+	    "\t[-o zio offset, exponent radix 2 (default: %zu)]\n"
+	    "\t[-d number of raidz data columns (default: %zu)]\n"
+	    "\t[-s zio size, exponent radix 2 (default: %zu)]\n"
+	    "\t[-S parameter sweep (default: %s)]\n"
+	    "\t[-t timeout for parameter sweep test]\n"
+	    "\t[-B benchmark all raidz implementations]\n"
+	    "\t[-v increase verbosity (default: %zu)]\n"
+	    "\t[-h (print help)]\n"
+	    "\t[-T test the test, see if failure would be detected]\n"
+	    "\t[-D debug (attach gdb on SIGSEGV)]\n"
+	    "",
+	    o->rto_ashift,				/* -a */
+	    ilog2(o->rto_offset),			/* -o */
+	    o->rto_dcols,				/* -d */
+	    ilog2(o->rto_dsize),			/* -s */
+	    rto_opts.rto_sweep ? "yes" : "no",		/* -S */
+	    o->rto_v);					/* -d */
 
 	exit(requested ? 0 : 1);
 }
@@ -227,7 +225,7 @@ static int
 init_rand(void *data, size_t size, void *private)
 {
 	int i;
-	int *dst = (int *) data;
+	int *dst = (int *)data;
 
 	for (i = 0; i < size / sizeof (int); i++)
 		dst[i] = rand_data[i];
@@ -333,7 +331,7 @@ init_raidz_map(raidz_test_opts_t *opts, zio_t **zio, const int parity)
 	init_zio_abd(*zio);
 
 	rm = vdev_raidz_map_alloc(*zio, opts->rto_ashift,
-		total_ncols, parity);
+	    total_ncols, parity);
 	VERIFY(rm);
 
 	/* Make sure code columns are destroyed */
@@ -476,18 +474,15 @@ run_rec_check_impl(raidz_test_opts_t *opts, raidz_map_t *rm, const int fn)
 		}
 	} else {
 		/* can reconstruct 3 failed data disk */
-		for (x0 = 0;
-			x0 < opts->rto_dcols; x0++) {
+		for (x0 = 0; x0 < opts->rto_dcols; x0++) {
 			if (x0 >= rm->rm_cols - raidz_parity(rm))
 				continue;
-			for (x1 = x0 + 1;
-				x1 < opts->rto_dcols; x1++) {
+			for (x1 = x0 + 1; x1 < opts->rto_dcols; x1++) {
 				if (x1 >= rm->rm_cols - raidz_parity(rm))
 					continue;
-				for (x2 = x1 + 1;
-					x2 < opts->rto_dcols; x2++) {
+				for (x2 = x1 + 1; x2 < opts->rto_dcols; x2++) {
 					if (x2 >=
-						rm->rm_cols - raidz_parity(rm))
+					    rm->rm_cols - raidz_parity(rm))
 						continue;
 
 					/* Check if should stop */
@@ -504,7 +499,7 @@ run_rec_check_impl(raidz_test_opts_t *opts, raidz_map_t *rm, const int fn)
 
 					if (!opts->rto_sanity)
 						vdev_raidz_reconstruct(rm,
-							tgtidx, 3);
+						    tgtidx, 3);
 
 					if (cmp_data(opts, rm) != 0) {
 						err++;
@@ -555,7 +550,7 @@ run_rec_check(raidz_test_opts_t *opts)
 		for (fn = 0; fn < RAIDZ_REC_NUM; fn++) {
 
 			LOG(D_INFO, "\t\tTesting method [%s] ...",
-				raidz_rec_name[fn]);
+			    raidz_rec_name[fn]);
 
 			if (run_rec_check_impl(opts, rm_test, fn) != 0) {
 				LOG(D_INFO, "[FAIL]\n");
@@ -607,7 +602,7 @@ static void
 sweep_thread(void *arg)
 {
 	int err = 0;
-	raidz_test_opts_t *opts = (raidz_test_opts_t *) arg;
+	raidz_test_opts_t *opts = (raidz_test_opts_t *)arg;
 	VERIFY(opts != NULL);
 
 	err = run_test(opts);
@@ -708,7 +703,7 @@ run_sweep(void)
 		opts->rto_v = 0; /* be quiet */
 
 		VERIFY3P(zk_thread_create(NULL, 0,
-		    (thread_func_t) sweep_thread,
+		    (thread_func_t)sweep_thread,
 		    (void *) opts, TS_RUN, NULL, 0, 0,
 		    PTHREAD_CREATE_JOINABLE), !=, NULL);
 	}
@@ -765,7 +760,7 @@ main(int argc, char **argv)
 	kernel_init(FREAD);
 
 	/* setup random data because rand() is not reentrant */
-	rand_data = (int *) umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
+	rand_data = (int *)umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 	srand((unsigned)time(NULL) * getpid());
 	for (i = 0; i < SPA_MAXBLOCKSIZE / sizeof (int); i++)
 		rand_data[i] = rand();

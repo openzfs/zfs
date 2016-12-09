@@ -456,7 +456,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 */
 	if (!(flags & MS_OVERLAY)) {
 		if (zfs_prop_get(zhp, ZFS_PROP_OVERLAY, overlay,
-			    sizeof (overlay), NULL, NULL, 0, B_FALSE) == 0) {
+		    sizeof (overlay), NULL, NULL, 0, B_FALSE) == 0) {
 			if (strcmp(overlay, "on") == 0) {
 				flags |= MS_OVERLAY;
 			}

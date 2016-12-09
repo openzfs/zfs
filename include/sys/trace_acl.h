@@ -42,7 +42,7 @@
  *     zfs_ace_hdr_t *, ...,
  *     uint32_t, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_ace_class,
 	TP_PROTO(znode_t *zn, zfs_ace_hdr_t *ace, uint32_t mask_matched),
 	TP_ARGS(zn, ace, mask_matched),
@@ -136,6 +136,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_type, __entry->z_flags, __entry->z_access_mask,
 	    __entry->mask_matched)
 );
+/* END CSTYLED */
 
 #define	DEFINE_ACE_EVENT(name) \
 DEFINE_EVENT(zfs_ace_class, name, \

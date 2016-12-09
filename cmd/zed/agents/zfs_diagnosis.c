@@ -378,7 +378,7 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 	boolean_t serialize;
 	nvlist_t *fru = NULL;
 #ifdef _HAS_FMD_TOPO
-	nvlist_t *fmri
+	nvlist_t *fmri;
 	topo_hdl_t *thp;
 	int err;
 #endif

@@ -41,7 +41,7 @@
  *     uint64_t, ...,
  *     uint64_t, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_delay_mintime_class,
 	TP_PROTO(dmu_tx_t *tx, uint64_t dirty, uint64_t min_tx_time),
 	TP_ARGS(tx, dirty, min_tx_time),
@@ -102,6 +102,7 @@ DECLARE_EVENT_CLASS(zfs_delay_mintime_class,
 #endif
 	    __entry->dirty, __entry->min_tx_time)
 );
+/* END CSTYLED */
 
 #define	DEFINE_DELAY_MINTIME_EVENT(name) \
 DEFINE_EVENT(zfs_delay_mintime_class, name, \

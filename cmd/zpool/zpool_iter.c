@@ -346,7 +346,7 @@ vdev_run_cmd_thread(void *cb_cmd_data)
 	if (getline(&data->line, &len, fp) != -1) {
 		/* Success.  Remove newline from the end, if necessary. */
 		if ((pos = strchr(data->line, '\n')) != NULL)
-		    *pos = '\0';
+			*pos = '\0';
 	} else {
 		data->line = NULL;
 	}

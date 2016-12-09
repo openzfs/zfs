@@ -71,7 +71,7 @@ mod_install(struct modlinkage *modlp)
 
 	if (modlp->ml_rev != MODREV_1) {
 		cmn_err(CE_WARN, "mod_install: "
-			"modlinkage structure is not MODREV_1\n");
+		    "modlinkage structure is not MODREV_1\n");
 		return (EINVAL);
 	}
 	linkpp = (struct modlmisc **)&modlp->ml_linkage[0];

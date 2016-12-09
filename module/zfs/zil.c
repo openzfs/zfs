@@ -2270,6 +2270,7 @@ MODULE_PARM_DESC(zil_replay_disable, "Disable intent logging replay");
 module_param(zfs_nocacheflush, int, 0644);
 MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
 
+/* CSTYLED */
 module_param(zil_slog_limit, ulong, 0644);
 MODULE_PARM_DESC(zil_slog_limit, "Max commit bytes to separate log device");
 #endif

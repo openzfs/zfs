@@ -371,11 +371,11 @@ vdev_queue_init(vdev_t *vd)
 	avl_create(&vq->vq_active_tree, vdev_queue_offset_compare,
 	    sizeof (zio_t), offsetof(struct zio, io_queue_node));
 	avl_create(vdev_queue_type_tree(vq, ZIO_TYPE_READ),
-		vdev_queue_offset_compare, sizeof (zio_t),
-		offsetof(struct zio, io_offset_node));
+	    vdev_queue_offset_compare, sizeof (zio_t),
+	    offsetof(struct zio, io_offset_node));
 	avl_create(vdev_queue_type_tree(vq, ZIO_TYPE_WRITE),
-		vdev_queue_offset_compare, sizeof (zio_t),
-		offsetof(struct zio, io_offset_node));
+	    vdev_queue_offset_compare, sizeof (zio_t),
+	    offsetof(struct zio, io_offset_node));
 
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
 		int (*compfn) (const void *, const void *);
@@ -390,7 +390,7 @@ vdev_queue_init(vdev_t *vd)
 		else
 			compfn = vdev_queue_offset_compare;
 		avl_create(vdev_queue_class_tree(vq, p), compfn,
-			sizeof (zio_t), offsetof(struct zio, io_queue_node));
+		    sizeof (zio_t), offsetof(struct zio, io_queue_node));
 	}
 
 	vq->vq_lastoffset = 0;

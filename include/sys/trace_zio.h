@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/trace_common.h> /* For ZIO macros */
 
+/* BEGIN CSTYLED */
 TRACE_EVENT(zfs_zio__delay__miss,
 	TP_PROTO(zio_t *zio, hrtime_t now),
 	TP_ARGS(zio, now),
@@ -75,6 +76,7 @@ TRACE_EVENT(zfs_zio__delay__skip,
 	TP_fast_assign(ZIO_TP_FAST_ASSIGN),
 	TP_printk(ZIO_TP_PRINTK_FMT, ZIO_TP_PRINTK_ARGS)
 );
+/* END CSTYLED */
 
 #endif /* _TRACE_ZIO_H */
 

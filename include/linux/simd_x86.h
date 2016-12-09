@@ -208,8 +208,8 @@ xgetbv(uint32_t index)
 	uint32_t eax, edx;
 	/* xgetbv - instruction byte code */
 	__asm__ __volatile__(".byte 0x0f; .byte 0x01; .byte 0xd0"
-		: "=a" (eax), "=d" (edx)
-		: "c" (index));
+	    : "=a" (eax), "=d" (edx)
+	    : "c" (index));
 
 	return ((((uint64_t)edx)<<32) | (uint64_t)eax);
 }
@@ -229,13 +229,13 @@ __cpuid_check_feature(const cpuid_feature_desc_t *desc)
 		 * are passed by value.
 		 */
 		__cpuid_count(desc->leaf, desc->subleaf,
-			r[EAX], r[EBX], r[ECX], r[EDX]);
+		    r[EAX], r[EBX], r[ECX], r[EDX]);
 		return ((r[desc->reg] & desc->flag) == desc->flag);
 	}
 	return (B_FALSE);
 }
 
-#define	CPUID_FEATURE_CHECK(name, id) 				\
+#define	CPUID_FEATURE_CHECK(name, id)				\
 static inline boolean_t						\
 __cpuid_has_ ## name(void)					\
 {								\

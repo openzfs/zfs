@@ -158,7 +158,7 @@ raidz_rec_pqr_coeff(const raidz_map_t *rm, const int *tgtidx, unsigned *coeff)
 static int
 raidz_zero_abd_cb(void *dc, size_t dsize, void *private)
 {
-	v_t *dst = (v_t *) dc;
+	v_t *dst = (v_t *)dc;
 	size_t i;
 
 	ZERO_DEFINE();
@@ -193,8 +193,8 @@ raidz_zero_abd_cb(void *dc, size_t dsize, void *private)
 static int
 raidz_copy_abd_cb(void *dc, void *sc, size_t size, void *private)
 {
-	v_t *dst = (v_t *) dc;
-	const v_t *src = (v_t *) sc;
+	v_t *dst = (v_t *)dc;
+	const v_t *src = (v_t *)sc;
 	size_t i;
 
 	COPY_DEFINE();
@@ -232,8 +232,8 @@ raidz_copy_abd_cb(void *dc, void *sc, size_t size, void *private)
 static int
 raidz_add_abd_cb(void *dc, void *sc, size_t size, void *private)
 {
-	v_t *dst = (v_t *) dc;
-	const v_t *src = (v_t *) sc;
+	v_t *dst = (v_t *)dc;
+	const v_t *src = (v_t *)sc;
 	size_t i;
 
 	ADD_DEFINE();
@@ -270,8 +270,8 @@ raidz_add_abd_cb(void *dc, void *sc, size_t size, void *private)
 static int
 raidz_mul_abd_cb(void *dc, size_t size, void *private)
 {
-	const unsigned mul = *((unsigned *) private);
-	v_t *d = (v_t *) dc;
+	const unsigned mul = *((unsigned *)private);
+	v_t *d = (v_t *)dc;
 	size_t i;
 
 	MUL_DEFINE();
@@ -389,9 +389,9 @@ static void
 raidz_gen_pq_add(void **c, const void *dc, const size_t csize,
 	const size_t dsize)
 {
-	v_t *p = (v_t *) c[0];
-	v_t *q = (v_t *) c[1];
-	const v_t *d = (v_t *) dc;
+	v_t *p = (v_t *)c[0];
+	v_t *q = (v_t *)c[1];
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 	const v_t * const qend = q + (csize / sizeof (v_t));
 
@@ -439,7 +439,7 @@ raidz_generate_pq_impl(raidz_map_t * const rm)
 		dsize = rm->rm_col[c].rc_size;
 
 		abd_raidz_gen_iterate(cabds, dabd, csize, dsize, 2,
-			raidz_gen_pq_add);
+		    raidz_gen_pq_add);
 	}
 
 	raidz_math_end();
@@ -459,10 +459,10 @@ static void
 raidz_gen_pqr_add(void **c, const void *dc, const size_t csize,
 	const size_t dsize)
 {
-	v_t *p = (v_t *) c[0];
-	v_t *q = (v_t *) c[1];
-	v_t *r = (v_t *) c[CODE_R];
-	const v_t *d = (v_t *) dc;
+	v_t *p = (v_t *)c[0];
+	v_t *q = (v_t *)c[1];
+	v_t *r = (v_t *)c[CODE_R];
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 	const v_t * const qend = q + (csize / sizeof (v_t));
 
@@ -514,7 +514,7 @@ raidz_generate_pqr_impl(raidz_map_t * const rm)
 		dsize = rm->rm_col[c].rc_size;
 
 		abd_raidz_gen_iterate(cabds, dabd, csize, dsize, 3,
-			raidz_gen_pqr_add);
+		    raidz_gen_pqr_add);
 	}
 
 	raidz_math_end();
@@ -628,8 +628,8 @@ static void
 raidz_syn_q_abd(void **xc, const void *dc, const size_t xsize,
 	const size_t dsize)
 {
-	v_t *x = (v_t *) xc[TARGET_X];
-	const v_t *d = (v_t *) dc;
+	v_t *x = (v_t *)xc[TARGET_X];
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 	const v_t * const xend = x + (xsize / sizeof (v_t));
 
@@ -719,8 +719,8 @@ static void
 raidz_syn_r_abd(void **xc, const void *dc, const size_t tsize,
 	const size_t dsize)
 {
-	v_t *x = (v_t *) xc[TARGET_X];
-	const v_t *d = (v_t *) dc;
+	v_t *x = (v_t *)xc[TARGET_X];
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 	const v_t * const xend = x + (tsize / sizeof (v_t));
 
@@ -784,7 +784,7 @@ raidz_reconstruct_r_impl(raidz_map_t *rm, const int *tgtidx)
 		}
 
 		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 1,
-			raidz_syn_r_abd);
+		    raidz_syn_r_abd);
 	}
 
 	/* add R to the syndrome */
@@ -811,9 +811,9 @@ static void
 raidz_syn_pq_abd(void **tc, const void *dc, const size_t tsize,
 	const size_t dsize)
 {
-	v_t *x = (v_t *) tc[TARGET_X];
-	v_t *y = (v_t *) tc[TARGET_Y];
-	const v_t *d = (v_t *) dc;
+	v_t *x = (v_t *)tc[TARGET_X];
+	v_t *y = (v_t *)tc[TARGET_Y];
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 	const v_t * const yend = y + (tsize / sizeof (v_t));
 
@@ -843,11 +843,11 @@ static void
 raidz_rec_pq_abd(void **tc, const size_t tsize, void **c,
 	const unsigned *mul)
 {
-	v_t *x = (v_t *) tc[TARGET_X];
-	v_t *y = (v_t *) tc[TARGET_Y];
+	v_t *x = (v_t *)tc[TARGET_X];
+	v_t *y = (v_t *)tc[TARGET_Y];
 	const v_t * const xend = x + (tsize / sizeof (v_t));
-	const v_t *p = (v_t *) c[CODE_P];
-	const v_t *q = (v_t *) c[CODE_Q];
+	const v_t *p = (v_t *)c[CODE_P];
+	const v_t *q = (v_t *)c[CODE_Q];
 
 	REC_PQ_DEFINE();
 
@@ -939,7 +939,7 @@ raidz_reconstruct_pq_impl(raidz_map_t *rm, const int *tgtidx)
 		}
 
 		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 2,
-			raidz_syn_pq_abd);
+		    raidz_syn_pq_abd);
 	}
 
 	abd_raidz_rec_iterate(cabds, tabds, xsize, 2, raidz_rec_pq_abd, coeff);
@@ -969,9 +969,9 @@ static void
 raidz_syn_pr_abd(void **c, const void *dc, const size_t tsize,
 	const size_t dsize)
 {
-	v_t *x = (v_t *) c[TARGET_X];
-	v_t *y = (v_t *) c[TARGET_Y];
-	const v_t *d = (v_t *) dc;
+	v_t *x = (v_t *)c[TARGET_X];
+	v_t *y = (v_t *)c[TARGET_Y];
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 	const v_t * const yend = y + (tsize / sizeof (v_t));
 
@@ -1001,11 +1001,11 @@ static void
 raidz_rec_pr_abd(void **t, const size_t tsize, void **c,
 	const unsigned *mul)
 {
-	v_t *x = (v_t *) t[TARGET_X];
-	v_t *y = (v_t *) t[TARGET_Y];
+	v_t *x = (v_t *)t[TARGET_X];
+	v_t *y = (v_t *)t[TARGET_Y];
 	const v_t * const xend = x + (tsize / sizeof (v_t));
-	const v_t *p = (v_t *) c[CODE_P];
-	const v_t *q = (v_t *) c[CODE_Q];
+	const v_t *p = (v_t *)c[CODE_P];
+	const v_t *q = (v_t *)c[CODE_Q];
 
 	REC_PR_DEFINE();
 
@@ -1095,7 +1095,7 @@ raidz_reconstruct_pr_impl(raidz_map_t *rm, const int *tgtidx)
 		}
 
 		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 2,
-			raidz_syn_pr_abd);
+		    raidz_syn_pr_abd);
 	}
 
 	abd_raidz_rec_iterate(cabds, tabds, xsize, 2, raidz_rec_pr_abd, coeff);
@@ -1127,10 +1127,10 @@ static void
 raidz_syn_qr_abd(void **c, const void *dc, const size_t tsize,
 	const size_t dsize)
 {
-	v_t *x = (v_t *) c[TARGET_X];
-	v_t *y = (v_t *) c[TARGET_Y];
+	v_t *x = (v_t *)c[TARGET_X];
+	v_t *y = (v_t *)c[TARGET_Y];
 	const v_t * const xend = x + (tsize / sizeof (v_t));
-	const v_t *d = (v_t *) dc;
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 
 	SYN_QR_DEFINE();
@@ -1161,11 +1161,11 @@ static void
 raidz_rec_qr_abd(void **t, const size_t tsize, void **c,
 	const unsigned *mul)
 {
-	v_t *x = (v_t *) t[TARGET_X];
-	v_t *y = (v_t *) t[TARGET_Y];
+	v_t *x = (v_t *)t[TARGET_X];
+	v_t *y = (v_t *)t[TARGET_Y];
 	const v_t * const xend = x + (tsize / sizeof (v_t));
-	const v_t *p = (v_t *) c[CODE_P];
-	const v_t *q = (v_t *) c[CODE_Q];
+	const v_t *p = (v_t *)c[CODE_P];
+	const v_t *q = (v_t *)c[CODE_Q];
 
 	REC_QR_DEFINE();
 
@@ -1258,7 +1258,7 @@ raidz_reconstruct_qr_impl(raidz_map_t *rm, const int *tgtidx)
 		}
 
 		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 2,
-			raidz_syn_qr_abd);
+		    raidz_syn_qr_abd);
 	}
 
 	abd_raidz_rec_iterate(cabds, tabds, xsize, 2, raidz_rec_qr_abd, coeff);
@@ -1291,11 +1291,11 @@ static void
 raidz_syn_pqr_abd(void **c, const void *dc, const size_t tsize,
 	const size_t dsize)
 {
-	v_t *x = (v_t *) c[TARGET_X];
-	v_t *y = (v_t *) c[TARGET_Y];
-	v_t *z = (v_t *) c[TARGET_Z];
+	v_t *x = (v_t *)c[TARGET_X];
+	v_t *y = (v_t *)c[TARGET_Y];
+	v_t *z = (v_t *)c[TARGET_Z];
 	const v_t * const yend = y + (tsize / sizeof (v_t));
-	const v_t *d = (v_t *) dc;
+	const v_t *d = (v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
 
 	SYN_PQR_DEFINE();
@@ -1328,13 +1328,13 @@ static void
 raidz_rec_pqr_abd(void **t, const size_t tsize, void **c,
 	const unsigned * const mul)
 {
-	v_t *x = (v_t *) t[TARGET_X];
-	v_t *y = (v_t *) t[TARGET_Y];
-	v_t *z = (v_t *) t[TARGET_Z];
+	v_t *x = (v_t *)t[TARGET_X];
+	v_t *y = (v_t *)t[TARGET_Y];
+	v_t *z = (v_t *)t[TARGET_Z];
 	const v_t * const xend = x + (tsize / sizeof (v_t));
-	const v_t *p = (v_t *) c[CODE_P];
-	const v_t *q = (v_t *) c[CODE_Q];
-	const v_t *r = (v_t *) c[CODE_R];
+	const v_t *p = (v_t *)c[CODE_P];
+	const v_t *q = (v_t *)c[CODE_Q];
+	const v_t *r = (v_t *)c[CODE_R];
 
 	REC_PQR_DEFINE();
 
@@ -1451,7 +1451,7 @@ raidz_reconstruct_pqr_impl(raidz_map_t *rm, const int *tgtidx)
 		}
 
 		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 3,
-			raidz_syn_pqr_abd);
+		    raidz_syn_pqr_abd);
 	}
 
 	abd_raidz_rec_iterate(cabds, tabds, xsize, 3, raidz_rec_pqr_abd, coeff);

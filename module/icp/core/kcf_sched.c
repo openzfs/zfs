@@ -1062,7 +1062,7 @@ kcf_sched_destroy(void)
 	for (i = 0; i < REQID_TABLES; i++) {
 		if (kcf_reqid_table[i])
 			kmem_free(kcf_reqid_table[i],
-				sizeof (kcf_reqid_table_t));
+			    sizeof (kcf_reqid_table_t));
 	}
 
 	if (gswq)

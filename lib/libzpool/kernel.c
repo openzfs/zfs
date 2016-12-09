@@ -127,7 +127,7 @@ zk_thread_current(void)
 void *
 zk_thread_helper(void *arg)
 {
-	kthread_t *kt = (kthread_t *) arg;
+	kthread_t *kt = (kthread_t *)arg;
 
 	VERIFY3S(pthread_setspecific(kthread_key, kt), ==, 0);
 
@@ -137,7 +137,7 @@ zk_thread_helper(void *arg)
 	(void) setpriority(PRIO_PROCESS, 0, kt->t_pri);
 
 	kt->t_tid = pthread_self();
-	((thread_func_arg_t) kt->t_func)(kt->t_arg);
+	((thread_func_arg_t)kt->t_func)(kt->t_arg);
 
 	/* Unreachable, thread must exit with thread_exit() */
 	abort();
@@ -916,7 +916,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		if (dprintf_find_string("pid"))
 			(void) printf("%d ", getpid());
 		if (dprintf_find_string("tid"))
-			(void) printf("%u ", (uint_t) pthread_self());
+			(void) printf("%u ", (uint_t)pthread_self());
 		if (dprintf_find_string("cpu"))
 			(void) printf("%u ", getcpuid());
 		if (dprintf_find_string("time"))
@@ -1490,7 +1490,7 @@ zfs_onexit_cb_data(minor_t minor, uint64_t action_handle, void **data)
 fstrans_cookie_t
 spl_fstrans_mark(void)
 {
-	return ((fstrans_cookie_t) 0);
+	return ((fstrans_cookie_t)0);
 }
 
 void

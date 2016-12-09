@@ -45,7 +45,7 @@
  *     int, ...,
  *     const char *, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_dprintf_class,
 	TP_PROTO(const char *file, const char *function, int line,
 	    const char *msg),
@@ -66,6 +66,7 @@ DECLARE_EVENT_CLASS(zfs_dprintf_class,
 	TP_printk("%s:%d:%s(): %s", __get_str(file), __entry->line,
 	    __get_str(function), __get_str(msg))
 );
+/* END CSTYLED */
 
 #define	DEFINE_DPRINTF_EVENT(name) \
 DEFINE_EVENT(zfs_dprintf_class, name, \
@@ -83,7 +84,7 @@ DEFINE_DPRINTF_EVENT(zfs_zfs__dprintf);
  *     int, ...,
  *     uintptr_t, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_set_error_class,
 	TP_PROTO(const char *file, const char *function, int line,
 	    uintptr_t error),
@@ -104,6 +105,7 @@ DECLARE_EVENT_CLASS(zfs_set_error_class,
 	TP_printk("%s:%d:%s(): error 0x%lx", __get_str(file), __entry->line,
 	    __get_str(function), __entry->error)
 );
+/* END CSTYLED */
 
 #ifdef TP_CONDITION
 #define	DEFINE_SET_ERROR_EVENT(name) \
