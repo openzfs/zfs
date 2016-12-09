@@ -4,6 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
 	ZFS_AC_SPL
+	ZFS_AC_QAT
 	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_CONFIG
 	ZFS_AC_KERNEL_DECLARE_EVENT_CLASS
@@ -465,6 +466,95 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 	AC_MSG_RESULT([$SPL_SYMBOLS])
 	AC_SUBST(SPL_SYMBOLS)
+])
+
+dnl #
+dnl # Detect the QAT module to be built against
+dnl # QAT provides hardware acceleration for data compression:
+dnl # 	https://01.org/intel-quickassist-technology
+dnl # * Download and install QAT driver from the above link
+dnl # * Start QAT driver in your system:
+dnl # 	service qat_service start
+dnl # * Enable QAT in ZFS, e.g.:
+dnl # 	./configure --with-qat=<qat-driver-path>/QAT1.6
+dnl #	make
+dnl # * Set GZIP compression in ZFS dataset:
+dnl # 	zfs set compression = gzip <dataset>
+dnl # Then the data written to this ZFS pool is compressed
+dnl # by QAT accelerator automatically, and de-compressed by
+dnl # QAT when read from the pool.
+dnl # * Get QAT hardware statistics by:
+dnl #	cat /proc/icp_dh895xcc_dev/qat
+dnl # * To disable QAT:
+dnl # 	insmod zfs.ko zfs_qat_disable=1
+dnl #
+AC_DEFUN([ZFS_AC_QAT], [
+	AC_ARG_WITH([qat],
+		AS_HELP_STRING([--with-qat=PATH],
+		[Path to qat source]),
+		AS_IF([test "$withval" = "yes"],
+			AC_MSG_ERROR([--with-qat=PATH requires a PATH]),
+			[qatsrc="$withval"]))
+
+	AC_ARG_WITH([qat-obj],
+		AS_HELP_STRING([--with-qat-obj=PATH],
+		[Path to qat build objects]),
+		[qatbuild="$withval"])
+
+	AS_IF([test ! -z "${qatsrc}"], [
+		AC_MSG_CHECKING([qat source directory])
+		AC_MSG_RESULT([$qatsrc])
+		QAT_SRC="${qatsrc}/quickassist"
+		AS_IF([ test ! -e "$QAT_SRC/include/cpa.h"], [
+			AC_MSG_ERROR([
+		*** Please make sure the qat driver package is installed
+		*** and specify the location of the qat source with the
+		*** '--with-qat=PATH' option then try again. Failed to
+		*** find cpa.h in:
+		${QAT_SRC}/include])
+		])
+	])
+
+	AS_IF([test ! -z "${qatsrc}"], [
+		AC_MSG_CHECKING([qat build directory])
+		AS_IF([test -z "$qatbuild"], [
+			qatbuild="${qatsrc}/build"
+		])
+
+		AC_MSG_RESULT([$qatbuild])
+		QAT_OBJ=${qatbuild}
+		AS_IF([ ! test -e "$QAT_OBJ/icp_qa_al.ko"], [
+			AC_MSG_ERROR([
+		*** Please make sure the qat driver is installed then try again.
+		*** Failed to find icp_qa_al.ko in:
+		$QAT_OBJ])
+		])
+
+		AC_SUBST(QAT_SRC)
+		AC_SUBST(QAT_OBJ)
+
+		AC_DEFINE(HAVE_QAT, 1,
+		[qat is enabled and existed])
+	])
+
+	dnl #
+	dnl # Detect the name used for the QAT Module.symvers file.
+	dnl #
+	AS_IF([test ! -z "${qatsrc}"], [
+		AC_MSG_CHECKING([qat file for module symbols])
+		QAT_SYMBOLS=$QAT_SRC/lookaside/access_layer/src/Module.symvers
+
+		AS_IF([test -r $QAT_SYMBOLS], [
+			AC_MSG_RESULT([$QAT_SYMBOLS])
+			AC_SUBST(QAT_SYMBOLS)
+		],[
+                       AC_MSG_ERROR([
+			*** Please make sure the qat driver is installed then try again.
+			*** Failed to find Module.symvers in:
+			$QAT_SYMBOLS])
+			])
+		])
+	])
 ])
 
 dnl #
