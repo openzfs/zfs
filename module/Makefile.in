@@ -11,6 +11,8 @@ INSTALL_MOD_DIR ?= extra
 ZFS_MODULE_CFLAGS += -include @SPL_OBJ@/spl_config.h
 ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@
+@CONFIG_QAT_TRUE@ZFS_MODULE_CFLAGS += -I@QAT_SRC@/include
+@CONFIG_QAT_TRUE@KBUILD_EXTRA_SYMBOLS += @QAT_SYMBOLS@
 export ZFS_MODULE_CFLAGS
 
 SUBDIR_TARGETS = icp
