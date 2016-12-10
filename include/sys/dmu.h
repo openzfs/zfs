@@ -674,10 +674,17 @@ boolean_t dmu_buf_freeable(dmu_buf_t *);
 
 dmu_tx_t *dmu_tx_create(objset_t *os);
 void dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len);
+void dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    int len);
 void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
+void dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    uint64_t len);
 void dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name);
+void dmu_tx_hold_zap_by_dnode(dmu_tx_t *tx, dnode_t *dn, int add,
+    const char *name);
 void dmu_tx_hold_bonus(dmu_tx_t *tx, uint64_t object);
+void dmu_tx_hold_bonus_by_dnode(dmu_tx_t *tx, dnode_t *dn);
 void dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_sa(dmu_tx_t *tx, struct sa_handle *hdl, boolean_t may_grow);
 void dmu_tx_hold_sa_create(dmu_tx_t *tx, int total_size);
@@ -727,8 +734,12 @@ int dmu_free_long_object(objset_t *os, uint64_t object);
 #define	DMU_READ_NO_PREFETCH	1 /* don't prefetch */
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	void *buf, uint32_t flags);
+int dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
+    uint32_t flags);
 void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	const void *buf, dmu_tx_t *tx);
+void dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx);
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_tx_t *tx);
 #ifdef _KERNEL

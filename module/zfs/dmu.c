@@ -822,17 +822,12 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	return (0);
 }
 
-int
-dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+static int
+dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
     void *buf, uint32_t flags)
 {
-	dnode_t *dn;
 	dmu_buf_t **dbp;
-	int numbufs, err;
-
-	err = dnode_hold(os, object, FTAG, &dn);
-	if (err)
-		return (err);
+	int numbufs, err = 0;
 
 	/*
 	 * Deal with odd block sizes, where there can't be data past the first
@@ -877,22 +872,37 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		}
 		dmu_buf_rele_array(dbp, numbufs, FTAG);
 	}
+	return (err);
+}
+
+int
+dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    void *buf, uint32_t flags)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err != 0)
+		return (err);
+
+	err = dmu_read_impl(dn, offset, size, buf, flags);
 	dnode_rele(dn, FTAG);
 	return (err);
 }
 
-void
-dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+int
+dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
+    uint32_t flags)
+{
+	return (dmu_read_impl(dn, offset, size, buf, flags));
+}
+
+static void
+dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx)
 {
-	dmu_buf_t **dbp;
-	int numbufs, i;
-
-	if (size == 0)
-		return;
-
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp));
+	int i;
 
 	for (i = 0; i < numbufs; i++) {
 		uint64_t tocpy;
@@ -920,6 +930,37 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		size -= tocpy;
 		buf = (char *)buf + tocpy;
 	}
+}
+
+void
+dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+
+	if (size == 0)
+		return;
+
+	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp));
+	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+}
+
+void
+dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+
+	if (size == 0)
+		return;
+
+	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
+	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
@@ -2102,7 +2143,9 @@ EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_free_long_range);
 EXPORT_SYMBOL(dmu_free_long_object);
 EXPORT_SYMBOL(dmu_read);
+EXPORT_SYMBOL(dmu_read_by_dnode);
 EXPORT_SYMBOL(dmu_write);
+EXPORT_SYMBOL(dmu_write_by_dnode);
 EXPORT_SYMBOL(dmu_prealloc);
 EXPORT_SYMBOL(dmu_object_info);
 EXPORT_SYMBOL(dmu_object_info_from_dnode);

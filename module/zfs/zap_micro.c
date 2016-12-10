@@ -1128,34 +1128,30 @@ again:
 	cmn_err(CE_PANIC, "out of entries!");
 }
 
-int
-zap_add(objset_t *os, uint64_t zapobj, const char *key,
+static int
+zap_add_impl(zap_t *zap, const char *key,
     int integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx)
+    const void *val, dmu_tx_t *tx, void *tag)
 {
-	zap_t *zap;
-	int err;
+	int err = 0;
 	mzap_ent_t *mze;
 	const uint64_t *intval = val;
 	zap_name_t *zn;
 
-	err = zap_lockdir(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
-	if (err)
-		return (err);
 	zn = zap_name_alloc(zap, key, MT_EXACT);
 	if (zn == NULL) {
-		zap_unlockdir(zap, FTAG);
+		zap_unlockdir(zap, tag);
 		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
-		err = fzap_add(zn, integer_size, num_integers, val, FTAG, tx);
+		err = fzap_add(zn, integer_size, num_integers, val, tag, tx);
 		zap = zn->zn_zap;	/* fzap_add() may change zap */
 	} else if (integer_size != 8 || num_integers != 1 ||
 	    strlen(key) >= MZAP_NAME_LEN) {
-		err = mzap_upgrade(&zn->zn_zap, FTAG, tx, 0);
+		err = mzap_upgrade(&zn->zn_zap, tag, tx, 0);
 		if (err == 0) {
 			err = fzap_add(zn, integer_size, num_integers, val,
-			    FTAG, tx);
+			    tag, tx);
 		}
 		zap = zn->zn_zap;	/* fzap_add() may change zap */
 	} else {
@@ -1168,8 +1164,39 @@ zap_add(objset_t *os, uint64_t zapobj, const char *key,
 	}
 	ASSERT(zap == zn->zn_zap);
 	zap_name_free(zn);
-	if (zap != NULL)	/* may be NULL if fzap_add() failed */
-		zap_unlockdir(zap, FTAG);
+	zap_unlockdir(zap, tag);
+	return (err);
+}
+
+int
+zap_add(objset_t *os, uint64_t zapobj, const char *key,
+    int integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx)
+{
+	zap_t *zap;
+	int err;
+
+	err = zap_lockdir(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	if (err != 0)
+		return (err);
+	err = zap_add_impl(zap, key, integer_size, num_integers, val, tx, FTAG);
+	/* zap_add_impl() calls zap_unlockdir() */
+	return (err);
+}
+
+int
+zap_add_by_dnode(dnode_t *dn, const char *key,
+    int integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx)
+{
+	zap_t *zap;
+	int err;
+
+	err = zap_lockdir_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	if (err != 0)
+		return (err);
+	err = zap_add_impl(zap, key, integer_size, num_integers, val, tx, FTAG);
+	/* zap_add_impl() calls zap_unlockdir() */
 	return (err);
 }
 
@@ -1288,23 +1315,17 @@ zap_remove(objset_t *os, uint64_t zapobj, const char *name, dmu_tx_t *tx)
 	return (zap_remove_norm(os, zapobj, name, MT_EXACT, tx));
 }
 
-int
-zap_remove_norm(objset_t *os, uint64_t zapobj, const char *name,
+static int
+zap_remove_impl(zap_t *zap, const char *name,
     matchtype_t mt, dmu_tx_t *tx)
 {
-	zap_t *zap;
-	int err;
 	mzap_ent_t *mze;
 	zap_name_t *zn;
+	int err = 0;
 
-	err = zap_lockdir(os, zapobj, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
-	if (err)
-		return (err);
 	zn = zap_name_alloc(zap, name, mt);
-	if (zn == NULL) {
-		zap_unlockdir(zap, FTAG);
+	if (zn == NULL)
 		return (SET_ERROR(ENOTSUP));
-	}
 	if (!zap->zap_ismicro) {
 		err = fzap_remove(zn, tx);
 	} else {
@@ -1319,6 +1340,34 @@ zap_remove_norm(objset_t *os, uint64_t zapobj, const char *name,
 		}
 	}
 	zap_name_free(zn);
+	return (err);
+}
+
+int
+zap_remove_norm(objset_t *os, uint64_t zapobj, const char *name,
+    matchtype_t mt, dmu_tx_t *tx)
+{
+	zap_t *zap;
+	int err;
+
+	err = zap_lockdir(os, zapobj, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
+	if (err)
+		return (err);
+	err = zap_remove_impl(zap, name, mt, tx);
+	zap_unlockdir(zap, FTAG);
+	return (err);
+}
+
+int
+zap_remove_by_dnode(dnode_t *dn, const char *name, dmu_tx_t *tx)
+{
+	zap_t *zap;
+	int err;
+
+	err = zap_lockdir_by_dnode(dn, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
+	if (err)
+		return (err);
+	err = zap_remove_impl(zap, name, MT_EXACT, tx);
 	zap_unlockdir(zap, FTAG);
 	return (err);
 }
@@ -1589,6 +1638,7 @@ EXPORT_SYMBOL(zap_create_claim_norm);
 EXPORT_SYMBOL(zap_create_claim_norm_dnsize);
 EXPORT_SYMBOL(zap_destroy);
 EXPORT_SYMBOL(zap_lookup);
+EXPORT_SYMBOL(zap_lookup_by_dnode);
 EXPORT_SYMBOL(zap_lookup_norm);
 EXPORT_SYMBOL(zap_lookup_uint64);
 EXPORT_SYMBOL(zap_contains);
@@ -1596,12 +1646,14 @@ EXPORT_SYMBOL(zap_prefetch);
 EXPORT_SYMBOL(zap_prefetch_uint64);
 EXPORT_SYMBOL(zap_count_write_by_dnode);
 EXPORT_SYMBOL(zap_add);
+EXPORT_SYMBOL(zap_add_by_dnode);
 EXPORT_SYMBOL(zap_add_uint64);
 EXPORT_SYMBOL(zap_update);
 EXPORT_SYMBOL(zap_update_uint64);
 EXPORT_SYMBOL(zap_length);
 EXPORT_SYMBOL(zap_length_uint64);
 EXPORT_SYMBOL(zap_remove);
+EXPORT_SYMBOL(zap_remove_by_dnode);
 EXPORT_SYMBOL(zap_remove_norm);
 EXPORT_SYMBOL(zap_remove_uint64);
 EXPORT_SYMBOL(zap_count);
