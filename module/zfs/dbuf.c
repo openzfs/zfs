@@ -3895,7 +3895,7 @@ MODULE_PARM_DESC(dbuf_cache_hiwater_pct,
 
 module_param(dbuf_cache_lowater_pct, uint, 0644);
 MODULE_PARM_DESC(dbuf_cache_lowater_pct,
-		"Percentage below dbuf_cache_max_bytes when the evict thread stop evicting dbufs.");
+		"Percentage below dbuf_cache_max_bytes when the evict thread stops evicting dbufs.");
 
 module_param(dbuf_cache_max_shift, int, 0644);
 MODULE_PARM_DESC(dbuf_cache_max_shift,
