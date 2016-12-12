@@ -254,21 +254,24 @@ struct metaslab_group {
 #define	MAX_LBAS	64
 
 /*
- * Each metaslab maintains a set of in-core trees to track metaslab operations.
- * The in-core free tree (ms_tree) contains the current list of free segments.
- * As blocks are allocated, the allocated segment are removed from the ms_tree
- * and added to a per txg allocation tree (ms_alloctree). As blocks are freed,
- * they are added to the per txg free tree (ms_freetree). These per txg
- * trees allow us to process all allocations and frees in syncing context
- * where it is safe to update the on-disk space maps. One additional in-core
- * tree is maintained to track deferred frees (ms_defertree). Once a block
- * is freed it will move from the ms_freetree to the ms_defertree. A deferred
- * free means that a block has been freed but cannot be used by the pool
- * until TXG_DEFER_SIZE transactions groups later. For example, a block
- * that is freed in txg 50 will not be available for reallocation until
- * txg 52 (50 + TXG_DEFER_SIZE).  This provides a safety net for uberblock
- * rollback. A pool could be safely rolled back TXG_DEFERS_SIZE
- * transactions groups and ensure that no block has been reallocated.
+ * Each metaslab maintains a set of in-core trees to track metaslab
+ * operations.  The in-core free tree (ms_tree) contains the list of
+ * free segments which are eligible for allocation.  As blocks are
+ * allocated, the allocated segments are removed from the ms_tree and
+ * added to a per txg allocation tree (ms_alloctree).  This allows us to
+ * process all allocations in syncing context where it is safe to update
+ * the on-disk space maps.  Frees are also processed in syncing context.
+ * Most frees are generated from syncing context, and those that are not
+ * are held in the spa_free_bplist for processing in syncing context.
+ * An additional set of in-core trees is maintained to track deferred
+ * frees (ms_defertree).  Once a block is freed it will move from the
+ * ms_freedtree to the ms_defertree.  A deferred free means that a block
+ * has been freed but cannot be used by the pool until TXG_DEFER_SIZE
+ * transactions groups later.  For example, a block that is freed in txg
+ * 50 will not be available for reallocation until txg 52 (50 +
+ * TXG_DEFER_SIZE).  This provides a safety net for uberblock rollback.
+ * A pool could be safely rolled back TXG_DEFERS_SIZE transactions
+ * groups and ensure that no block has been reallocated.
  *
  * The simplified transition diagram looks like this:
  *
@@ -276,33 +279,34 @@ struct metaslab_group {
  *      ALLOCATE
  *         |
  *         V
- *    free segment (ms_tree) --------> ms_alloctree ----> (write to space map)
+ *    free segment (ms_tree) -----> ms_alloctree[4] ----> (write to space map)
  *         ^
- *         |
- *         |                           ms_freetree <--- FREE
+ *         |                           ms_freeingtree <--- FREE
  *         |                                 |
+ *         |                                 v
+ *         |                           ms_freedtree
  *         |                                 |
- *         |                                 |
- *         +----------- ms_defertree <-------+---------> (write to space map)
+ *         +-------- ms_defertree[2] <-------+---------> (write to space map)
  *
  *
  * Each metaslab's space is tracked in a single space map in the MOS,
- * which is only updated in syncing context. Each time we sync a txg,
- * we append the allocs and frees from that txg to the space map.
- * The pool space is only updated once all metaslabs have finished syncing.
+ * which is only updated in syncing context.  Each time we sync a txg,
+ * we append the allocs and frees from that txg to the space map.  The
+ * pool space is only updated once all metaslabs have finished syncing.
  *
- * To load the in-core free tree we read the space map from disk.
- * This object contains a series of alloc and free records that are
- * combined to make up the list of all free segments in this metaslab. These
+ * To load the in-core free tree we read the space map from disk.  This
+ * object contains a series of alloc and free records that are combined
+ * to make up the list of all free segments in this metaslab.  These
  * segments are represented in-core by the ms_tree and are stored in an
  * AVL tree.
  *
  * As the space map grows (as a result of the appends) it will
- * eventually become space-inefficient. When the metaslab's in-core free tree
- * is zfs_condense_pct/100 times the size of the minimal on-disk
- * representation, we rewrite it in its minimized form. If a metaslab
- * needs to condense then we must set the ms_condensing flag to ensure
- * that allocations are not performed on the metaslab that is being written.
+ * eventually become space-inefficient.  When the metaslab's in-core
+ * free tree is zfs_condense_pct/100 times the size of the minimal
+ * on-disk representation, we rewrite it in its minimized form.  If a
+ * metaslab needs to condense then we must set the ms_condensing flag to
+ * ensure that allocations are not performed on the metaslab that is
+ * being written.
  */
 struct metaslab {
 	kmutex_t	ms_lock;
@@ -314,9 +318,16 @@ struct metaslab {
 	uint64_t	ms_fragmentation;
 
 	range_tree_t	*ms_alloctree[TXG_SIZE];
-	range_tree_t	*ms_freetree[TXG_SIZE];
-	range_tree_t	*ms_defertree[TXG_DEFER_SIZE];
 	range_tree_t	*ms_tree;
+
+	/*
+	 * The following range trees are accessed only from syncing context.
+	 * ms_free*tree only have entries while syncing, and are empty
+	 * between syncs.
+	 */
+	range_tree_t	*ms_freeingtree; /* to free this syncing txg */
+	range_tree_t	*ms_freedtree; /* already freed this syncing txg */
+	range_tree_t	*ms_defertree[TXG_DEFER_SIZE];
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
