@@ -193,7 +193,7 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 		 */
 		p = iov->iov_base + skip;
 		while (cnt) {
-			if (fuword8((uint8_t *) p, &tmp))
+			if (fuword8((uint8_t *)p, &tmp))
 				return;
 			incr = MIN(cnt, PAGESIZE);
 			p += incr;
@@ -203,7 +203,7 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 		 * touch the last byte in case it straddles a page.
 		 */
 		p--;
-		if (fuword8((uint8_t *) p, &tmp))
+		if (fuword8((uint8_t *)p, &tmp))
 			return;
 	}
 }

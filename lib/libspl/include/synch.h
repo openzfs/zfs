@@ -53,11 +53,11 @@ rwlock_init(rwlock_t *rwlp, int type, void *arg)
 	switch (type) {
 	case USYNC_THREAD:
 		VERIFY0(pthread_rwlockattr_setpshared(&attr,
-			PTHREAD_PROCESS_PRIVATE));
+		    PTHREAD_PROCESS_PRIVATE));
 		break;
 	case USYNC_PROCESS:
 		VERIFY0(pthread_rwlockattr_setpshared(&attr,
-			PTHREAD_PROCESS_SHARED));
+		    PTHREAD_PROCESS_SHARED));
 		break;
 	default:
 		VERIFY0(1);

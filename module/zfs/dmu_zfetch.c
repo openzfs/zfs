@@ -336,6 +336,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+/* BEGIN CSTYLED */
 module_param(zfs_prefetch_disable, int, 0644);
 MODULE_PARM_DESC(zfs_prefetch_disable, "Disable all ZFS prefetching");
 
@@ -351,4 +352,5 @@ MODULE_PARM_DESC(zfetch_max_distance,
 
 module_param(zfetch_array_rd_sz, ulong, 0644);
 MODULE_PARM_DESC(zfetch_array_rd_sz, "Number of bytes in a array_read");
+/* END CSTYLED */
 #endif

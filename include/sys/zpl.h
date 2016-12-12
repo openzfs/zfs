@@ -148,8 +148,7 @@ static inline bool
 dir_emit(struct dir_context *ctx, const char *name, int namelen,
     uint64_t ino, unsigned type)
 {
-	return (ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type)
-		== 0);
+	return (!ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type));
 }
 
 static inline bool

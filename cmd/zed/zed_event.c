@@ -489,7 +489,7 @@ _zed_event_add_int64_array(uint64_t eid, zed_strings_t *zsp,
 	name = nvpair_name(nvp);
 	(void) nvpair_value_int64_array(nvp, &i64p, &nelem);
 	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, "%lld ", (u_longlong_t) i64p[i]);
+		n = snprintf(p, buflen, "%lld ", (u_longlong_t)i64p[i]);
 		if ((n < 0) || (n >= buflen))
 			return (_zed_event_add_array_err(eid, name));
 		p += n;
@@ -521,7 +521,7 @@ _zed_event_add_uint64_array(uint64_t eid, zed_strings_t *zsp,
 	fmt = _zed_event_value_is_hex(name) ? "0x%.16llX " : "%llu ";
 	(void) nvpair_value_uint64_array(nvp, &u64p, &nelem);
 	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
-		n = snprintf(p, buflen, fmt, (u_longlong_t) u64p[i]);
+		n = snprintf(p, buflen, fmt, (u_longlong_t)u64p[i]);
 		if ((n < 0) || (n >= buflen))
 			return (_zed_event_add_array_err(eid, name));
 		p += n;
@@ -603,7 +603,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		_zed_event_add_var(eid, zsp, prefix, name, "%d", i8);
 		break;
 	case DATA_TYPE_INT8:
-		(void) nvpair_value_int8(nvp, (int8_t *) &i8);
+		(void) nvpair_value_int8(nvp, (int8_t *)&i8);
 		_zed_event_add_var(eid, zsp, prefix, name, "%d", i8);
 		break;
 	case DATA_TYPE_UINT8:
@@ -611,7 +611,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		_zed_event_add_var(eid, zsp, prefix, name, "%u", i8);
 		break;
 	case DATA_TYPE_INT16:
-		(void) nvpair_value_int16(nvp, (int16_t *) &i16);
+		(void) nvpair_value_int16(nvp, (int16_t *)&i16);
 		_zed_event_add_var(eid, zsp, prefix, name, "%d", i16);
 		break;
 	case DATA_TYPE_UINT16:
@@ -619,7 +619,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		_zed_event_add_var(eid, zsp, prefix, name, "%u", i16);
 		break;
 	case DATA_TYPE_INT32:
-		(void) nvpair_value_int32(nvp, (int32_t *) &i32);
+		(void) nvpair_value_int32(nvp, (int32_t *)&i32);
 		_zed_event_add_var(eid, zsp, prefix, name, "%d", i32);
 		break;
 	case DATA_TYPE_UINT32:
@@ -627,15 +627,15 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		_zed_event_add_var(eid, zsp, prefix, name, "%u", i32);
 		break;
 	case DATA_TYPE_INT64:
-		(void) nvpair_value_int64(nvp, (int64_t *) &i64);
+		(void) nvpair_value_int64(nvp, (int64_t *)&i64);
 		_zed_event_add_var(eid, zsp, prefix, name,
-		    "%lld", (longlong_t) i64);
+		    "%lld", (longlong_t)i64);
 		break;
 	case DATA_TYPE_UINT64:
 		(void) nvpair_value_uint64(nvp, &i64);
 		_zed_event_add_var(eid, zsp, prefix, name,
 		    (_zed_event_value_is_hex(name) ? "0x%.16llX" : "%llu"),
-		    (u_longlong_t) i64);
+		    (u_longlong_t)i64);
 		/*
 		 * shadow readable strings for vdev state pairs
 		 */
@@ -653,9 +653,9 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		_zed_event_add_var(eid, zsp, prefix, name, "%g", d);
 		break;
 	case DATA_TYPE_HRTIME:
-		(void) nvpair_value_hrtime(nvp, (hrtime_t *) &i64);
+		(void) nvpair_value_hrtime(nvp, (hrtime_t *)&i64);
 		_zed_event_add_var(eid, zsp, prefix, name,
-		    "%llu", (u_longlong_t) i64);
+		    "%llu", (u_longlong_t)i64);
 		break;
 	case DATA_TYPE_NVLIST:
 		_zed_event_add_var(eid, zsp, prefix, name,
@@ -889,7 +889,7 @@ zed_event_service(struct zed_conf *zcp)
 		_zed_event_add_env_preserve(eid, zsp);
 
 		_zed_event_add_var(eid, zsp, ZED_VAR_PREFIX, "PID",
-		    "%d", (int) getpid());
+		    "%d", (int)getpid());
 		_zed_event_add_var(eid, zsp, ZED_VAR_PREFIX, "ZEDLET_DIR",
 		    "%s", zcp->zedlet_dir);
 		subclass = _zed_event_get_subclass(class);

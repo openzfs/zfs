@@ -790,7 +790,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 		} else {
 			/* db is pointed to by an indirect block */
 			ASSERTV(int epb = db->db_parent->db.db_size >>
-				SPA_BLKPTRSHIFT);
+			    SPA_BLKPTRSHIFT);
 			ASSERT3U(db->db_parent->db_level, ==, db->db_level+1);
 			ASSERT3U(db->db_parent->db.db_object, ==,
 			    db->db.db_object);
@@ -2686,8 +2686,7 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 
 		ASSERT3P(dh->dh_parent, ==, NULL);
 		dh->dh_err = dbuf_findbp(dh->dh_dn, dh->dh_level, dh->dh_blkid,
-					dh->dh_fail_sparse, &dh->dh_parent,
-					&dh->dh_bp, dh);
+		    dh->dh_fail_sparse, &dh->dh_parent, &dh->dh_bp, dh);
 		if (dh->dh_fail_sparse) {
 			if (dh->dh_err == 0 &&
 			    dh->dh_bp && BP_IS_HOLE(dh->dh_bp))
@@ -2701,7 +2700,7 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 		if (dh->dh_err && dh->dh_err != ENOENT)
 			return (dh->dh_err);
 		dh->dh_db = dbuf_create(dh->dh_dn, dh->dh_level, dh->dh_blkid,
-					dh->dh_parent, dh->dh_bp);
+		    dh->dh_parent, dh->dh_bp);
 	}
 
 	if (dh->dh_fail_uncached && dh->dh_db->db_state != DB_CACHED) {
@@ -2775,7 +2774,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	dh = kmem_alloc(sizeof (struct dbuf_hold_impl_data) *
 	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_SLEEP);
 	__dbuf_hold_impl_init(dh, dn, level, blkid, fail_sparse,
-		fail_uncached, tag, dbp, 0);
+	    fail_uncached, tag, dbp, 0);
 
 	error = __dbuf_hold_impl(dh);
 
@@ -3884,23 +3883,23 @@ EXPORT_SYMBOL(dmu_buf_get_user);
 EXPORT_SYMBOL(dmu_buf_freeable);
 EXPORT_SYMBOL(dmu_buf_get_blkptr);
 
-
+/* BEGIN CSTYLED */
 module_param(dbuf_cache_max_bytes, ulong, 0644);
 MODULE_PARM_DESC(dbuf_cache_max_bytes,
-		"Maximum size in bytes of the dbuf cache.");
+	"Maximum size in bytes of the dbuf cache.");
 
 module_param(dbuf_cache_hiwater_pct, uint, 0644);
 MODULE_PARM_DESC(dbuf_cache_hiwater_pct,
-		"Percentage over dbuf_cache_max_bytes when dbufs \
-		 much be evicted directly.");
+	"Percentage over dbuf_cache_max_bytes when dbufs \
+	 much be evicted directly.");
 
 module_param(dbuf_cache_lowater_pct, uint, 0644);
 MODULE_PARM_DESC(dbuf_cache_lowater_pct,
-		"Percentage below dbuf_cache_max_bytes \
-		when the evict thread stop evicting dbufs.");
+	"Percentage below dbuf_cache_max_bytes \
+	when the evict thread stop evicting dbufs.");
 
 module_param(dbuf_cache_max_shift, int, 0644);
 MODULE_PARM_DESC(dbuf_cache_max_shift,
-		"Cap the size of the dbuf cache to log2 fraction of arc size.");
-
+	"Cap the size of the dbuf cache to log2 fraction of arc size.");
+/* END CSTYLED */
 #endif

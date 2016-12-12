@@ -367,7 +367,7 @@ zfs_selinux_setcontext(zfs_handle_t *zhp, zfs_prop_t zpt, const char *name,
 	if (zfs_prop_get(zhp, zpt, context, sizeof (context),
 	    NULL, NULL, 0, B_FALSE) == 0) {
 		if (strcmp(context, "none") != 0)
-		    append_mntopt(name, context, mntopts, mtabopt, B_TRUE);
+			append_mntopt(name, context, mntopts, mtabopt, B_TRUE);
 	}
 }
 
@@ -600,7 +600,7 @@ main(int argc, char **argv)
 				    gettext("filesystem '%s' (v%d) is not "
 				    "supported by this implementation of "
 				    "ZFS (max v%d).\n"), dataset,
-				    (int) zfs_version, (int) ZPL_VERSION);
+				    (int)zfs_version, (int)ZPL_VERSION);
 			} else {
 				(void) fprintf(stderr,
 				    gettext("filesystem '%s' mount "

@@ -723,18 +723,17 @@ intel_pclmulqdq_instruction_present(void)
 		    : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
 		    : "a"(func), "c"(subfunc));
 
-		if (memcmp((char *) (&ebx), "Genu", 4) == 0 &&
-		    memcmp((char *) (&edx), "ineI", 4) == 0 &&
-			memcmp((char *) (&ecx), "ntel", 4) == 0) {
-
+		if (memcmp((char *)(&ebx), "Genu", 4) == 0 &&
+		    memcmp((char *)(&edx), "ineI", 4) == 0 &&
+		    memcmp((char *)(&ecx), "ntel", 4) == 0) {
 			func = 1;
 			subfunc = 0;
 
 			/* check for aes-ni instruction set */
 			__asm__ __volatile__(
-				"cpuid"
-				: "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
-				: "a"(func), "c"(subfunc));
+			    "cpuid"
+			    : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
+			    : "a"(func), "c"(subfunc));
 
 			cached_result = !!(ecx & INTEL_PCLMULQDQ_FLAG);
 		} else {

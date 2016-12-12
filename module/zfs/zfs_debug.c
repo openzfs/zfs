@@ -62,7 +62,7 @@ zfs_dbgmsg_data(char *buf, size_t size, void *data)
 	zfs_dbgmsg_t *zdm = (zfs_dbgmsg_t *)data;
 
 	(void) snprintf(buf, size, "%-12llu %-s\n",
-	    (u_longlong_t) zdm->zdm_timestamp, zdm->zdm_msg);
+	    (u_longlong_t)zdm->zdm_timestamp, zdm->zdm_msg);
 
 	return (0);
 }

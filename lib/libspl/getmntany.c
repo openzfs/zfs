@@ -53,7 +53,7 @@ getmntany(FILE *fp, struct mnttab *mgetp, struct mnttab *mrefp)
 	while (
 	    ((ret = _sol_getmntent(fp, mgetp)) == 0) && (
 	    DIFF(mnt_special) || DIFF(mnt_mountp) ||
-	    DIFF(mnt_fstype) || DIFF(mnt_mntopts)));
+	    DIFF(mnt_fstype) || DIFF(mnt_mntopts))) { }
 
 	return (ret);
 }
@@ -86,7 +86,7 @@ getextmntent(FILE *fp, struct extmnttab *mp, int len)
 	int ret;
 	struct stat64 st;
 
-	ret = _sol_getmntent(fp, (struct mnttab *) mp);
+	ret = _sol_getmntent(fp, (struct mnttab *)mp);
 	if (ret == 0) {
 		if (stat64(mp->mnt_mountp, &st) != 0) {
 			mp->mnt_major = 0;

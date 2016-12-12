@@ -2093,9 +2093,9 @@ EXPORT_SYMBOL(spa_has_slogs);
 EXPORT_SYMBOL(spa_is_root);
 EXPORT_SYMBOL(spa_writeable);
 EXPORT_SYMBOL(spa_mode);
-
 EXPORT_SYMBOL(spa_namespace_lock);
 
+/* BEGIN CSTYLED */
 module_param(zfs_flags, uint, 0644);
 MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
 
@@ -2118,4 +2118,5 @@ MODULE_PARM_DESC(spa_asize_inflation,
 
 module_param(spa_slop_shift, int, 0644);
 MODULE_PARM_DESC(spa_slop_shift, "Reserved free space in pool");
+/* END CSTYLED */
 #endif

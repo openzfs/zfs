@@ -308,7 +308,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_ASHIFT:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
-					(u_longlong_t)intval);
+				    (u_longlong_t)intval);
 			else
 				(void) zfs_nicenum(intval, buf, len);
 			break;
@@ -3416,12 +3416,12 @@ zfs_strip_partition(char *path)
 		d = part + 1;
 	} else if ((tmp[0] == 'h' || tmp[0] == 's' || tmp[0] == 'v') &&
 	    tmp[1] == 'd') {
-		for (d = &tmp[2]; isalpha(*d); part = ++d);
+		for (d = &tmp[2]; isalpha(*d); part = ++d) { }
 	} else if (strncmp("xvd", tmp, 3) == 0) {
-		for (d = &tmp[3]; isalpha(*d); part = ++d);
+		for (d = &tmp[3]; isalpha(*d); part = ++d) { }
 	}
 	if (part && d && *d != '\0') {
-		for (; isdigit(*d); d++);
+		for (; isdigit(*d); d++) { }
 		if (*d == '\0')
 			*part = '\0';
 	}
@@ -4210,7 +4210,7 @@ zpool_label_name(char *label_name, int label_size)
 	if (id == 0)
 		id = (((uint64_t)rand()) << 32) | (uint64_t)rand();
 
-	snprintf(label_name, label_size, "zfs-%016llx", (u_longlong_t) id);
+	snprintf(label_name, label_size, "zfs-%016llx", (u_longlong_t)id);
 }
 
 /*

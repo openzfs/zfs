@@ -66,14 +66,14 @@ typedef struct v {
 	uint8_t b[ELEM_SIZE] __attribute__((aligned(ELEM_SIZE)));
 } v_t;
 
-#define	PREFETCHNTA(ptr, offset) 					\
+#define	PREFETCHNTA(ptr, offset)					\
 {									\
 	__asm(								\
 	    "prefetchnta " #offset "(%[MEM])\n"				\
 	    : : [MEM] "r" (ptr));					\
 }
 
-#define	PREFETCH(ptr, offset) 						\
+#define	PREFETCH(ptr, offset)						\
 {									\
 	__asm(								\
 	    "prefetcht0 " #offset "(%[MEM])\n"				\
@@ -142,7 +142,7 @@ typedef struct v {
 	}								\
 }
 
-#define	COPY(r...) 							\
+#define	COPY(r...)							\
 {									\
 	switch (REG_CNT(r)) {						\
 	case 8:								\
@@ -162,7 +162,7 @@ typedef struct v {
 	}								\
 }
 
-#define	LOAD(src, r...) 						\
+#define	LOAD(src, r...)							\
 {									\
 	switch (REG_CNT(r)) {						\
 	case 4:								\
@@ -184,7 +184,7 @@ typedef struct v {
 	}								\
 }
 
-#define	STORE(dst, r...)   						\
+#define	STORE(dst, r...)						\
 {									\
 	switch (REG_CNT(r)) {						\
 	case 4:								\
@@ -211,8 +211,8 @@ typedef struct v {
 	__asm("vzeroupper");						\
 }
 
-#define	MUL2_SETUP() 							\
-{   									\
+#define	MUL2_SETUP()							\
+{									\
 	__asm("vmovq %0,   %%xmm14" :: "r"(0x1d1d1d1d1d1d1d1d));	\
 	__asm("vpbroadcastq %xmm14, %zmm14");				\
 	__asm("vmovq %0,   %%xmm13" :: "r"(0x8080808080808080));	\
@@ -222,7 +222,7 @@ typedef struct v {
 	__asm("vpxorq       %zmm15, %zmm15 ,%zmm15");			\
 }
 
-#define	_MUL2(r...) 							\
+#define	_MUL2(r...)							\
 {									\
 	switch	(REG_CNT(r)) {						\
 	case 2:								\
@@ -237,8 +237,8 @@ typedef struct v {
 		    "vpsubq   %zmm9, %zmm11, %zmm11\n"			\
 		    "vpsllq   $1, %" VR0(r)", %" VR0(r) "\n"		\
 		    "vpsllq   $1, %" VR1(r)", %" VR1(r) "\n"		\
-		    "vpandq   %zmm10, %zmm14, %zmm10\n" 		\
-		    "vpandq   %zmm11, %zmm14, %zmm11\n" 		\
+		    "vpandq   %zmm10, %zmm14, %zmm10\n"			\
+		    "vpandq   %zmm11, %zmm14, %zmm11\n"			\
 		    "vpternlogd $0x6c,%zmm12, %zmm10, %" VR0(r) "\n"	\
 		    "vpternlogd $0x6c,%zmm12, %zmm11, %" VR1(r));	\
 		break;							\
@@ -355,60 +355,60 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 
 #define	ADD_STRIDE		4
 #define	ADD_DEFINE()		{}
-#define	ADD_D 			0, 1, 2, 3
+#define	ADD_D			0, 1, 2, 3
 
 #define	MUL_STRIDE		4
-#define	MUL_DEFINE() 		{}
+#define	MUL_DEFINE()		{}
 #define	MUL_D			0, 1, 2, 3
 
 #define	GEN_P_DEFINE()		{}
 #define	GEN_P_STRIDE		4
 #define	GEN_P_P			0, 1, 2, 3
 
-#define	GEN_PQ_DEFINE() 	{}
+#define	GEN_PQ_DEFINE()		{}
 #define	GEN_PQ_STRIDE		4
 #define	GEN_PQ_D		0, 1, 2, 3
 #define	GEN_PQ_P		4, 5, 6, 7
 #define	GEN_PQ_Q		20, 21, 22, 23
 
-#define	GEN_PQR_DEFINE() 	{}
+#define	GEN_PQR_DEFINE()	{}
 #define	GEN_PQR_STRIDE		2
 #define	GEN_PQR_D		0, 1
 #define	GEN_PQR_P		2, 3
 #define	GEN_PQR_Q		4, 5
 #define	GEN_PQR_R		6, 7
 
-#define	REC_P_DEFINE() 		{}
+#define	REC_P_DEFINE()		{}
 #define	REC_P_STRIDE		4
 #define	REC_P_X			0, 1, 2, 3
 
-#define	REC_Q_DEFINE() 		{}
+#define	REC_Q_DEFINE()		{}
 #define	REC_Q_STRIDE		4
 #define	REC_Q_X			0, 1, 2, 3
 
-#define	REC_R_DEFINE() 		{}
+#define	REC_R_DEFINE()		{}
 #define	REC_R_STRIDE		4
 #define	REC_R_X			0, 1, 2, 3
 
-#define	REC_PQ_DEFINE() 	{}
+#define	REC_PQ_DEFINE()		{}
 #define	REC_PQ_STRIDE		4
 #define	REC_PQ_X		0, 1, 2, 3
 #define	REC_PQ_Y		4, 5, 6, 7
 #define	REC_PQ_D		20, 21, 22, 23
 
-#define	REC_PR_DEFINE() 	{}
+#define	REC_PR_DEFINE()		{}
 #define	REC_PR_STRIDE		4
 #define	REC_PR_X		0, 1, 2, 3
 #define	REC_PR_Y		4, 5, 6, 7
 #define	REC_PR_D		20, 21, 22, 23
 
-#define	REC_QR_DEFINE() 	{}
+#define	REC_QR_DEFINE()		{}
 #define	REC_QR_STRIDE		4
 #define	REC_QR_X		0, 1, 2, 3
 #define	REC_QR_Y		4, 5, 6, 7
 #define	REC_QR_D		20, 21, 22, 23
 
-#define	REC_PQR_DEFINE() 	{}
+#define	REC_PQR_DEFINE()	{}
 #define	REC_PQR_STRIDE		2
 #define	REC_PQR_X		0, 1
 #define	REC_PQR_Y		2, 3
@@ -428,8 +428,8 @@ static boolean_t
 raidz_will_avx512bw_work(void)
 {
 	return (zfs_avx_available() &&
-		zfs_avx512f_available() &&
-		zfs_avx512bw_available());
+	    zfs_avx512f_available() &&
+	    zfs_avx512bw_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_avx512bw_impl = {

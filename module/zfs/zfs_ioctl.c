@@ -3883,7 +3883,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			 * because GRUB doesn't support them.
 			 */
 			if (zfs_is_bootfs(dsname) &&
-				intval != ZFS_DNSIZE_LEGACY) {
+			    intval != ZFS_DNSIZE_LEGACY) {
 				return (SET_ERROR(EDOM));
 			}
 
@@ -4275,7 +4275,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 
 	*read_bytes = off - input_fp->f_offset;
 	if (VOP_SEEK(input_fp->f_vnode, input_fp->f_offset, &off, NULL) == 0)
-	    input_fp->f_offset = off;
+		input_fp->f_offset = off;
 
 #ifdef	DEBUG
 	if (zfs_ioc_recv_inject_err) {
@@ -4463,7 +4463,7 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 
 	error = nvlist_lookup_byte_array(innvl, "begin_record",
-	    (uchar_t **) &begin_record, &begin_record_size);
+	    (uchar_t **)&begin_record, &begin_record_size);
 	if (error != 0 || begin_record_size != sizeof (*begin_record))
 		return (SET_ERROR(EINVAL));
 
@@ -5356,7 +5356,7 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 
 	do {
 		error = zfs_zevent_next(ze, &event,
-			&zc->zc_nvlist_dst_size, &dropped);
+		    &zc->zc_nvlist_dst_size, &dropped);
 		if (event != NULL) {
 			zc->zc_cookie = dropped;
 			error = put_nvlist(zc, event);
@@ -5562,7 +5562,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	off = fp->f_offset;
 	error = dmu_send(snapname, fromname, embedok, largeblockok, compressok,
-		fd, resumeobj, resumeoff, fp->f_vnode, &off);
+	    fd, resumeobj, resumeoff, fp->f_vnode, &off);
 
 	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 		fp->f_offset = off;
@@ -5631,7 +5631,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 			if (error != 0)
 				goto out;
 			error = dmu_send_estimate(tosnap, fromsnap, compressok,
-				&space);
+			    &space);
 			dsl_dataset_rele(fromsnap, FTAG);
 		} else if (strchr(fromname, '#') != NULL) {
 			/*

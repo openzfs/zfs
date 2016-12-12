@@ -608,7 +608,7 @@ fletcher_4_kstat_data(char *buf, size_t size, void *data)
 {
 	struct fletcher_4_kstat *fastest_stat =
 	    &fletcher_4_stat_data[fletcher_4_supp_impls_cnt];
-	struct fletcher_4_kstat *curr_stat = (struct fletcher_4_kstat *) data;
+	struct fletcher_4_kstat *curr_stat = (struct fletcher_4_kstat *)data;
 	ssize_t off = 0;
 
 	if (curr_stat == fastest_stat) {
@@ -623,9 +623,9 @@ fletcher_4_kstat_data(char *buf, size_t size, void *data)
 		off += snprintf(buf + off, size - off, "%-17s",
 		    fletcher_4_supp_impls[id]->name);
 		off += snprintf(buf + off, size - off, "%-15llu",
-			    (u_longlong_t) curr_stat->native);
+		    (u_longlong_t)curr_stat->native);
 		off += snprintf(buf + off, size - off, "%-15llu\n",
-			    (u_longlong_t) curr_stat->byteswap);
+		    (u_longlong_t)curr_stat->byteswap);
 	}
 
 	return (0);
@@ -723,7 +723,7 @@ fletcher_4_init(void)
 
 	/* move supported impl into fletcher_4_supp_impls */
 	for (i = 0, c = 0; i < ARRAY_SIZE(fletcher_4_impls); i++) {
-		curr_impl = (fletcher_4_ops_t *) fletcher_4_impls[i];
+		curr_impl = (fletcher_4_ops_t *)fletcher_4_impls[i];
 
 		if (curr_impl->valid && curr_impl->valid())
 			fletcher_4_supp_impls[c++] = curr_impl;
@@ -754,7 +754,7 @@ fletcher_4_init(void)
 
 	/* install kstats for all implementations */
 	fletcher_4_kstat = kstat_create("zfs", 0, "fletcher_4_bench", "misc",
-		KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 	if (fletcher_4_kstat != NULL) {
 		fletcher_4_kstat->ks_data = NULL;
 		fletcher_4_kstat->ks_ndata = UINT32_MAX;

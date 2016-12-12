@@ -200,7 +200,7 @@ boolean_t
 udev_is_mpath(struct udev_device *dev)
 {
 	return udev_device_get_property_value(dev, "DM_UUID") &&
-	udev_device_get_property_value(dev, "MPATH_SBIN_PATH");
+	    udev_device_get_property_value(dev, "MPATH_SBIN_PATH");
 }
 
 /*

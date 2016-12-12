@@ -67,8 +67,9 @@ static uint_t prov_tab_max = KCF_MAX_PROVIDERS;
 void
 kcf_prov_tab_destroy(void)
 {
-	if (prov_tab) kmem_free(prov_tab, prov_tab_max *
-		sizeof (kcf_provider_desc_t *));
+	if (prov_tab)
+		kmem_free(prov_tab, prov_tab_max *
+		    sizeof (kcf_provider_desc_t *));
 }
 
 /*
