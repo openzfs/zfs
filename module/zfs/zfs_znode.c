@@ -575,9 +575,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
 
-	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 ||
-		tmp_gen == 0) {
-
+	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 || tmp_gen == 0) {
 		if (hdl == NULL)
 			sa_handle_destroy(zp->z_sa_hdl);
 		zp->z_sa_hdl = NULL;
@@ -2142,6 +2140,7 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 EXPORT_SYMBOL(zfs_create_fs);
 EXPORT_SYMBOL(zfs_obj_to_path);
 
+/* CSTYLED */
 module_param(zfs_object_mutex_size, uint, 0644);
 MODULE_PARM_DESC(zfs_object_mutex_size, "Size of znode hold array");
 #endif

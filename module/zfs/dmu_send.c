@@ -1591,7 +1591,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		if (DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 		    DMU_BACKUP_FEATURE_LARGE_BLOCKS) {
 			VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_LARGEBLOCK,
-						8, 1, &one, tx));
+			    8, 1, &one, tx));
 		}
 		if (DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 		    DMU_BACKUP_FEATURE_EMBED_DATA) {

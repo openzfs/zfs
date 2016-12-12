@@ -617,7 +617,7 @@ recv_impl(const char *snapname, nvlist_t *props, const char *origin,
 			fnvlist_add_string(innvl, "origin", origin);
 
 		fnvlist_add_byte_array(innvl, "begin_record",
-		    (uchar_t *) &drr, sizeof (drr));
+		    (uchar_t *)&drr, sizeof (drr));
 
 		fnvlist_add_int32(innvl, "input_fd", input_fd);
 

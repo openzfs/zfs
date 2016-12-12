@@ -688,7 +688,8 @@ nfs_check_exportfs(void)
 	}
 
 	if (pid > 0) {
-		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR);
+		while ((rc = waitpid(pid, &status, 0)) <= 0 &&
+		    errno == EINTR) { }
 
 		if (rc <= 0) {
 			(void) close(nfs_exportfs_temp_fd);

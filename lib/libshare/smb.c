@@ -154,7 +154,7 @@ smb_retrieve_shares(void)
 				continue; /* Incomplete share definition */
 			else {
 				shares = (smb_share_t *)
-						malloc(sizeof (smb_share_t));
+				    malloc(sizeof (smb_share_t));
 				if (shares == NULL) {
 					rc = SA_NO_MEMORY;
 					goto out;
@@ -395,7 +395,7 @@ smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	old_shareopts = FSINFO(impl_share, smb_fstype)->shareopts;
 
 	if (FSINFO(impl_share, smb_fstype)->active && old_shareopts != NULL &&
-		strcmp(old_shareopts, shareopts) != 0) {
+	    strcmp(old_shareopts, shareopts) != 0) {
 		needs_reshare = B_TRUE;
 		smb_disable_share(impl_share);
 	}

@@ -1131,9 +1131,8 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 
 		err = zfs_prop_index_to_string(prop, curval, &valname);
 		if (err)
-			(void) printf("%s %s = %llu at '%s'\n",
-			    osname, propname, (unsigned long long)curval,
-				setpoint);
+			(void) printf("%s %s = %llu at '%s'\n", osname,
+			    propname, (unsigned long long)curval, setpoint);
 		else
 			(void) printf("%s %s = %s at '%s'\n",
 			    osname, propname, valname, setpoint);
@@ -4479,7 +4478,7 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	ztest_od_init(od, id, FTAG, 0, DMU_OT_ZAP_OTHER, 0, 0, 0);
 
 	if (ztest_object_init(zd, od, sizeof (ztest_od_t),
-			!ztest_random(2)) != 0)
+	    !ztest_random(2)) != 0)
 		goto out;
 
 	object = od->od_object;
@@ -4616,7 +4615,7 @@ ztest_fzap(ztest_ds_t *zd, uint64_t id)
 	ztest_od_init(od, id, FTAG, 0, DMU_OT_ZAP_OTHER, 0, 0, 0);
 
 	if (ztest_object_init(zd, od, sizeof (ztest_od_t),
-				!ztest_random(2)) != 0)
+	    !ztest_random(2)) != 0)
 		goto out;
 	object = od->od_object;
 

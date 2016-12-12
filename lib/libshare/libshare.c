@@ -498,7 +498,7 @@ sa_enable_share(sa_share_t share, char *protocol)
 
 #ifdef DEBUG
 	fprintf(stderr, "sa_enable_share: share->sharepath=%s, protocol=%s\n",
-		impl_share->sharepath, protocol);
+	    impl_share->sharepath, protocol);
 #endif
 
 	assert(impl_share->handle != NULL);
@@ -539,7 +539,7 @@ sa_disable_share(sa_share_t share, char *protocol)
 
 #ifdef DEBUG
 	fprintf(stderr, "sa_disable_share: share->sharepath=%s, protocol=%s\n",
-		impl_share->sharepath, protocol);
+	    impl_share->sharepath, protocol);
 #endif
 
 	ret = SA_OK;
@@ -697,7 +697,7 @@ sa_parse_legacy_options(sa_group_t group, char *options, char *proto)
 
 #ifdef DEBUG
 	fprintf(stderr, "sa_parse_legacy_options: options=%s, proto=%s\n",
-		options, proto);
+	    options, proto);
 #endif
 
 	fstype = fstypes;

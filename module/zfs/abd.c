@@ -407,7 +407,7 @@ struct page;
 
 #define	kpm_enable			1
 #define	abd_alloc_chunk(o) \
-	((struct page *) umem_alloc_aligned(PAGESIZE << (o), 64, KM_SLEEP))
+	((struct page *)umem_alloc_aligned(PAGESIZE << (o), 64, KM_SLEEP))
 #define	abd_free_chunk(chunk, o)	umem_free(chunk, PAGESIZE << (o))
 #define	zfs_kmap_atomic(chunk, km)	((void *)chunk)
 #define	zfs_kunmap_atomic(addr, km)	do { (void)(addr); } while (0)
@@ -1486,8 +1486,8 @@ abd_nr_pages_off(abd_t *abd, unsigned int size, size_t off)
 	else
 		pos = abd->abd_u.abd_scatter.abd_offset + off;
 
-	return ((pos + size + PAGESIZE - 1) >> PAGE_SHIFT)
-					- (pos >> PAGE_SHIFT);
+	return ((pos + size + PAGESIZE - 1) >> PAGE_SHIFT) -
+	    (pos >> PAGE_SHIFT);
 }
 
 /*
@@ -1537,6 +1537,7 @@ abd_scatter_bio_map_off(struct bio *bio, abd_t *abd,
 module_param(zfs_abd_scatter_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_enabled,
 	"Toggle whether ABD allocations must be linear.");
+/* CSTYLED */
 module_param(zfs_abd_scatter_max_order, uint, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_max_order,
 	"Maximum order allocation used for a scatter ABD.");

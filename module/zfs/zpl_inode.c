@@ -314,7 +314,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 }
 
 static int
-zpl_rmdir(struct inode * dir, struct dentry *dentry)
+zpl_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	cred_t *cr = CRED();
 	int error;
@@ -379,7 +379,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 
 	if (vap->va_mask & ATTR_ATIME)
 		ip->i_atime = timespec_trunc(ia->ia_atime,
-				ip->i_sb->s_time_gran);
+		    ip->i_sb->s_time_gran);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_setattr(ip, vap, 0, cr);
@@ -657,6 +657,7 @@ zpl_revalidate(struct dentry *dentry, struct nameidata *nd)
 zpl_revalidate(struct dentry *dentry, unsigned int flags)
 {
 #endif /* HAVE_D_REVALIDATE_NAMEIDATA */
+	/* CSTYLED */
 	zfs_sb_t *zsb = dentry->d_sb->s_fs_info;
 	int error;
 

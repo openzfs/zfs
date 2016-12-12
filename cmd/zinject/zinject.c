@@ -1091,7 +1091,7 @@ main(int argc, char **argv)
 		record.zi_cmd = ZINJECT_DATA_FAULT;
 		if (translate_record(type, argv[0], range, level, &record, pool,
 		    dataset) != 0) {
-		    libzfs_fini(g_zfs);
+			libzfs_fini(g_zfs);
 			return (1);
 		}
 		if (!error)
@@ -1105,7 +1105,7 @@ main(int argc, char **argv)
 	 */
 	if (dataset[0] != '\0' && domount) {
 		if ((zhp = zfs_open(g_zfs, dataset,
-			ZFS_TYPE_DATASET)) == NULL) {
+		    ZFS_TYPE_DATASET)) == NULL) {
 			libzfs_fini(g_zfs);
 			return (1);
 		}

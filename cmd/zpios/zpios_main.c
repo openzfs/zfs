@@ -99,44 +99,44 @@ usage(void)
 {
 	fprintf(stderr, "Usage: zpios\n");
 	fprintf(stderr,
-		"	--threadcount       -t    =values\n"
-		"	--threadcount_low   -l    =value\n"
-		"	--threadcount_high  -h    =value\n"
-		"	--threadcount_incr  -e    =value\n"
-		"	--regioncount       -n    =values\n"
-		"	--regioncount_low   -i    =value\n"
-		"	--regioncount_high  -j    =value\n"
-		"	--regioncount_incr  -k    =value\n"
-		"	--offset            -o    =values\n"
-		"	--offset_low        -m    =value\n"
-		"	--offset_high       -q    =value\n"
-		"	--offset_incr       -r    =value\n"
-		"	--chunksize         -c    =values\n"
-		"	--chunksize_low     -a    =value\n"
-		"	--chunksize_high    -b    =value\n"
-		"	--chunksize_incr    -g    =value\n"
-		"	--regionsize        -s    =values\n"
-		"	--regionsize_low    -A    =value\n"
-		"	--regionsize_high   -B    =value\n"
-		"	--regionsize_incr   -C    =value\n"
-		"	--blocksize         -S    =values\n"
-		"	--load              -L    =dmuio|ssf|fpp\n"
-		"	--pool              -p    =pool name\n"
-		"	--name              -M    =test name\n"
-		"	--cleanup           -x\n"
-		"	--prerun            -P    =pre-command\n"
-		"	--postrun           -R    =post-command\n"
-		"	--log               -G    =log directory\n"
-		"	--regionnoise       -I    =shift\n"
-		"	--chunknoise        -N    =bytes\n"
-		"	--threaddelay       -T    =jiffies\n"
-		"	--verify            -V\n"
-		"	--zerocopy          -z\n"
-		"	--nowait            -O\n"
-		"	--noprefetch        -f\n"
-		"	--human-readable    -H\n"
-		"	--verbose           -v    =increase verbosity\n"
-		"	--help              -?    =this help\n\n");
+	    "	--threadcount       -t    =values\n"
+	    "	--threadcount_low   -l    =value\n"
+	    "	--threadcount_high  -h    =value\n"
+	    "	--threadcount_incr  -e    =value\n"
+	    "	--regioncount       -n    =values\n"
+	    "	--regioncount_low   -i    =value\n"
+	    "	--regioncount_high  -j    =value\n"
+	    "	--regioncount_incr  -k    =value\n"
+	    "	--offset            -o    =values\n"
+	    "	--offset_low        -m    =value\n"
+	    "	--offset_high       -q    =value\n"
+	    "	--offset_incr       -r    =value\n"
+	    "	--chunksize         -c    =values\n"
+	    "	--chunksize_low     -a    =value\n"
+	    "	--chunksize_high    -b    =value\n"
+	    "	--chunksize_incr    -g    =value\n"
+	    "	--regionsize        -s    =values\n"
+	    "	--regionsize_low    -A    =value\n"
+	    "	--regionsize_high   -B    =value\n"
+	    "	--regionsize_incr   -C    =value\n"
+	    "	--blocksize         -S    =values\n"
+	    "	--load              -L    =dmuio|ssf|fpp\n"
+	    "	--pool              -p    =pool name\n"
+	    "	--name              -M    =test name\n"
+	    "	--cleanup           -x\n"
+	    "	--prerun            -P    =pre-command\n"
+	    "	--postrun           -R    =post-command\n"
+	    "	--log               -G    =log directory\n"
+	    "	--regionnoise       -I    =shift\n"
+	    "	--chunknoise        -N    =bytes\n"
+	    "	--threaddelay       -T    =jiffies\n"
+	    "	--verify            -V\n"
+	    "	--zerocopy          -z\n"
+	    "	--nowait            -O\n"
+	    "	--noprefetch        -f\n"
+	    "	--human-readable    -H\n"
+	    "	--verbose           -v    =increase verbosity\n"
+	    "	--help              -?    =this help\n\n");
 
 	return (0);
 }
@@ -517,9 +517,8 @@ run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
 
 	dev_clear();
 
-	cmd_size =
-		sizeof (zpios_cmd_t)
-		+ ((T + N + 1) * sizeof (zpios_stats_t));
+	cmd_size = sizeof (zpios_cmd_t) +
+	    ((T + N + 1) * sizeof (zpios_stats_t));
 	cmd = (zpios_cmd_t *)malloc(cmd_size);
 	if (cmd == NULL)
 		return (ENOMEM);

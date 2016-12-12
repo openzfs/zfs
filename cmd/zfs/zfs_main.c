@@ -2332,9 +2332,9 @@ compare_nums:
 					rc = (rv64 < lv64) ? 1 : -1;
 			} else {
 				if ((nvlist_lookup_string(lnvl, propname,
-						&lvstr) == ENOENT) ||
+				    &lvstr) == ENOENT) ||
 				    (nvlist_lookup_string(rnvl, propname,
-						&rvstr) == ENOENT)) {
+				    &rvstr) == ENOENT)) {
 					goto compare_nums;
 				}
 				rc = strcmp(lvstr, rvstr);
@@ -2561,12 +2561,12 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 		if (!nvlist_exists(props, "used"))
 			(void) nvlist_add_uint64(props, "used", 0);
 	} else if (prop == ZFS_PROP_USEROBJUSED ||
-		    prop == ZFS_PROP_GROUPOBJUSED) {
+	    prop == ZFS_PROP_GROUPOBJUSED) {
 		propname = "objused";
 		if (!nvlist_exists(props, "objquota"))
 			(void) nvlist_add_uint64(props, "objquota", 0);
 	} else if (prop == ZFS_PROP_USEROBJQUOTA ||
-		    prop == ZFS_PROP_GROUPOBJQUOTA) {
+	    prop == ZFS_PROP_GROUPOBJQUOTA) {
 		propname = "objquota";
 		if (!nvlist_exists(props, "objused"))
 			(void) nvlist_add_uint64(props, "objused", 0);
@@ -2637,7 +2637,7 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 		case USFIELD_NAME:
 			if (type == DATA_TYPE_UINT64) {
 				(void) sprintf(valstr, "%llu",
-				    (u_longlong_t) val64);
+				    (u_longlong_t)val64);
 				strval = valstr;
 			}
 			break;
@@ -2648,7 +2648,7 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 			if (type == DATA_TYPE_UINT64) {
 				if (parsable) {
 					(void) sprintf(valstr, "%llu",
-					    (u_longlong_t) val64);
+					    (u_longlong_t)val64);
 				} else {
 					zfs_nicenum(val64, valstr,
 					    sizeof (valstr));
@@ -2672,9 +2672,9 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 		if (scripted)
 			(void) printf("%s", strval);
 		else if (field == USFIELD_TYPE || field == USFIELD_NAME)
-			(void) printf("%-*s", (int) width[field], strval);
+			(void) printf("%-*s", (int)width[field], strval);
 		else
-			(void) printf("%*s", (int) width[field], strval);
+			(void) printf("%*s", (int)width[field], strval);
 
 		first = B_FALSE;
 		cfield++;
@@ -2699,10 +2699,10 @@ print_us(boolean_t scripted, boolean_t parsable, int *fields, int types,
 			col = gettext(us_field_hdr[field]);
 			if (field == USFIELD_TYPE || field == USFIELD_NAME) {
 				(void) printf(first ? "%-*s" : "  %-*s",
-				    (int) width[field], col);
+				    (int)width[field], col);
 			} else {
 				(void) printf(first ? "%*s" : "  %*s",
-				    (int) width[field], col);
+				    (int)width[field], col);
 			}
 			first = B_FALSE;
 			cfield++;

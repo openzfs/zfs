@@ -864,7 +864,7 @@ zfsctl_snapdir_rename(struct inode *sdip, char *snm,
 	    ZFS_MAX_DATASET_NAME_LEN, from);
 	if (error == 0)
 		error = zfsctl_snapshot_name(ITOZSB(tdip), tnm,
-	    ZFS_MAX_DATASET_NAME_LEN, to);
+		    ZFS_MAX_DATASET_NAME_LEN, to);
 	if (error == 0)
 		error = zfs_secpolicy_rename_perms(from, to, cr);
 	if (error != 0)

@@ -1577,7 +1577,7 @@ zio_delay_interrupt(zio_t *zio)
 				 * OpenZFS's timeout_generic().
 				 */
 				tid = taskq_dispatch_delay(system_taskq,
-				    (task_func_t *) zio_interrupt,
+				    (task_func_t *)zio_interrupt,
 				    zio, TQ_NOSLEEP, expire_at_tick);
 				if (tid == TASKQID_INVALID) {
 					/*
@@ -3802,9 +3802,9 @@ zio_done(zio_t *zio)
 		 * device is currently unavailable.
 		 */
 		if (zio->io_error != ECKSUM && zio->io_vd != NULL &&
-			!vdev_is_dead(zio->io_vd))
+		    !vdev_is_dead(zio->io_vd))
 			zfs_ereport_post(FM_EREPORT_ZFS_IO, zio->io_spa,
-						zio->io_vd, zio, 0, 0);
+			    zio->io_vd, zio, 0, 0);
 
 		if ((zio->io_error == EIO || !(zio->io_flags &
 		    (ZIO_FLAG_SPECULATIVE | ZIO_FLAG_DONT_PROPAGATE))) &&
