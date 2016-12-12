@@ -89,7 +89,7 @@ typedef struct vdev_cmd_data_list
 	vdev_cmd_data_t *data;	/* Array of vdevs */
 } vdev_cmd_data_list_t;
 
-vdev_cmd_data_list_t * all_pools_for_each_vdev_run(int argc, char **argv,
+vdev_cmd_data_list_t *all_pools_for_each_vdev_run(int argc, char **argv,
     char *cmd);
 void free_vdev_cmd_data_list(vdev_cmd_data_list_t *vcdl);
 

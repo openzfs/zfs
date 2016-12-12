@@ -701,16 +701,13 @@ kcf_prov_kstat_update(kstat_t *ksp, int rw)
 
 	ks_data = ksp->ks_data;
 
-	ks_data->ps_ops_total.value.ui64 =
-		pd->pd_sched_info.ks_ndispatches;
-	ks_data->ps_ops_failed.value.ui64 =
-		pd->pd_sched_info.ks_nfails;
-	ks_data->ps_ops_busy_rval.value.ui64 =
-		pd->pd_sched_info.ks_nbusy_rval;
+	ks_data->ps_ops_total.value.ui64 = pd->pd_sched_info.ks_ndispatches;
+	ks_data->ps_ops_failed.value.ui64 = pd->pd_sched_info.ks_nfails;
+	ks_data->ps_ops_busy_rval.value.ui64 = pd->pd_sched_info.ks_nbusy_rval;
 	ks_data->ps_ops_passed.value.ui64 =
-		pd->pd_sched_info.ks_ndispatches -
-		pd->pd_sched_info.ks_nfails -
-		pd->pd_sched_info.ks_nbusy_rval;
+	    pd->pd_sched_info.ks_ndispatches -
+	    pd->pd_sched_info.ks_nfails -
+	    pd->pd_sched_info.ks_nbusy_rval;
 
 	return (0);
 }

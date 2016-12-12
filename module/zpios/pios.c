@@ -179,7 +179,7 @@ zpios_dmu_object_free(run_args_t *run_args, objset_t *os, uint64_t obj)
 	rc = dmu_tx_assign(tx, TXG_WAIT);
 	if (rc) {
 		zpios_print(run_args->file,
-			    "dmu_tx_assign() failed: %d\n", rc);
+		    "dmu_tx_assign() failed: %d\n", rc);
 		dmu_tx_abort(tx);
 		return (rc);
 	}
@@ -187,7 +187,7 @@ zpios_dmu_object_free(run_args_t *run_args, objset_t *os, uint64_t obj)
 	rc = dmu_object_free(os, obj, tx);
 	if (rc) {
 		zpios_print(run_args->file,
-			    "dmu_object_free() failed: %d\n", rc);
+		    "dmu_object_free() failed: %d\n", rc);
 		dmu_tx_abort(tx);
 		return (rc);
 	}
@@ -213,14 +213,14 @@ zpios_dmu_setup(run_args_t *run_args)
 	rc = dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL);
 	if (rc) {
 		zpios_print(run_args->file, "Error dmu_objset_create(%s, ...) "
-			    "failed: %d\n", name, rc);
+		    "failed: %d\n", name, rc);
 		goto out;
 	}
 
 	rc = dmu_objset_own(name, DMU_OST_OTHER, 0, zpios_tag, &os);
 	if (rc) {
 		zpios_print(run_args->file, "Error dmu_objset_own(%s, ...) "
-			    "failed: %d\n", name, rc);
+		    "failed: %d\n", name, rc);
 		goto out_destroy;
 	}
 
@@ -229,7 +229,7 @@ zpios_dmu_setup(run_args_t *run_args)
 		if (obj == 0) {
 			rc = -EBADF;
 			zpios_print(run_args->file, "Error zpios_dmu_"
-				    "object_create() failed, %d\n", rc);
+			    "object_create() failed, %d\n", rc);
 			goto out_destroy;
 		}
 	}
@@ -268,7 +268,7 @@ out_destroy:
 		rc2 = dsl_destroy_head(name);
 		if (rc2)
 			zpios_print(run_args->file, "Error dsl_destroy_head"
-				    "(%s, ...) failed: %d\n", name, rc2);
+			    "(%s, ...) failed: %d\n", name, rc2);
 	}
 out:
 	t->stop  = zpios_timespec_now();
@@ -497,7 +497,7 @@ zpios_dmu_write(run_args_t *run_args, objset_t *os, uint64_t object,
 				continue;
 			}
 			zpios_print(run_args->file,
-				    "Error in dmu_tx_assign(), %d", rc);
+			    "Error in dmu_tx_assign(), %d", rc);
 			dmu_tx_abort(tx);
 			return (rc);
 		}
@@ -588,7 +588,7 @@ zpios_thread_main(void *data)
 
 		if (rc) {
 			zpios_print(run_args->file, "IO error while doing "
-				    "dmu_write(): %d\n", rc);
+			    "dmu_write(): %d\n", rc);
 			break;
 		}
 
@@ -651,13 +651,13 @@ zpios_thread_main(void *data)
 
 		t.start = zpios_timespec_now();
 		rc = zpios_dmu_read(run_args, obj.os, obj.obj,
-				    offset, chunk_size, buf);
+		    offset, chunk_size, buf);
 		t.stop  = zpios_timespec_now();
 		t.delta = zpios_timespec_sub(t.stop, t.start);
 
 		if (rc) {
 			zpios_print(run_args->file, "IO error while doing "
-				    "dmu_read(): %d\n", rc);
+			    "dmu_read(): %d\n", rc);
 			break;
 		}
 
@@ -928,7 +928,7 @@ zpios_open(struct inode *inode, struct file *file)
 	spin_lock_init(&info->info_lock);
 	info->info_size = ZPIOS_INFO_BUFFER_SIZE;
 	info->info_buffer =
-	    (char *) vmem_alloc(ZPIOS_INFO_BUFFER_SIZE, KM_SLEEP);
+	    (char *)vmem_alloc(ZPIOS_INFO_BUFFER_SIZE, KM_SLEEP);
 
 	info->info_head = info->info_buffer;
 	file->private_data = (void *)info;
@@ -1035,7 +1035,7 @@ zpios_ioctl_cfg(struct file *file, unsigned long arg)
 			break;
 		default:
 			zpios_print(file, "Bad config command %d\n",
-				    kcfg.cfg_cmd);
+			    kcfg.cfg_cmd);
 			rc = -EINVAL;
 			break;
 	}
@@ -1055,7 +1055,7 @@ zpios_ioctl_cmd(struct file *file, unsigned long arg)
 	rc = copy_from_user(kcmd, (zpios_cfg_t *)arg, sizeof (zpios_cmd_t));
 	if (rc) {
 		zpios_print(file, "Unable to copy command structure "
-			    "from user to kernel memory, %d\n", rc);
+		    "from user to kernel memory, %d\n", rc);
 		goto out_cmd;
 	}
 
@@ -1074,7 +1074,7 @@ zpios_ioctl_cmd(struct file *file, unsigned long arg)
 		    cmd_data_str)), kcmd->cmd_data_size);
 		if (rc) {
 			zpios_print(file, "Unable to copy data buffer "
-				    "from user to kernel memory, %d\n", rc);
+			    "from user to kernel memory, %d\n", rc);
 			goto out_data;
 		}
 	}
@@ -1090,7 +1090,7 @@ zpios_ioctl_cmd(struct file *file, unsigned long arg)
 		    cmd_data_str)), data, kcmd->cmd_data_size);
 		if (rc) {
 			zpios_print(file, "Unable to copy data buffer "
-				    "from kernel to user memory, %d\n", rc);
+			    "from kernel to user memory, %d\n", rc);
 			rc = -EFAULT;
 		}
 

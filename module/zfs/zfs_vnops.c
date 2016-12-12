@@ -2626,7 +2626,7 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	if (zsb->z_issnap) {
 		if (ip->i_sb->s_root->d_inode == ip)
 			sp->ino = ZFSCTL_INO_SNAPDIRS -
-				dmu_objset_id(zsb->z_os);
+			    dmu_objset_id(zsb->z_os);
 	}
 
 	ZFS_EXIT(zsb);
@@ -4932,6 +4932,7 @@ zfs_retzcbuf(struct inode *ip, xuio_t *xuio, cred_t *cr)
 #endif /* HAVE_UIO_ZEROCOPY */
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+/* CSTYLED */
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
 module_param(zfs_read_chunk_size, long, 0644);

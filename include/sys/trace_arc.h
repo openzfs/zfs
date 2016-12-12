@@ -42,7 +42,7 @@
  * DTRACE_PROBE1(...,
  *     arc_buf_hdr_t *, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	TP_PROTO(arc_buf_hdr_t *ab),
 	TP_ARGS(ab),
@@ -95,6 +95,7 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	    __entry->hdr_mfu_ghost_hits, __entry->hdr_l2_hits,
 	    __entry->hdr_refcount)
 );
+/* END CSTYLED */
 
 #define	DEFINE_ARC_BUF_HDR_EVENT(name) \
 DEFINE_EVENT(zfs_arc_buf_hdr_class, name, \
@@ -117,7 +118,7 @@ DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__miss);
  *     vdev_t *, ...,
  *     zio_t *, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_l2arc_rw_class,
 	TP_PROTO(vdev_t *vd, zio_t *zio),
 	TP_ARGS(vd, zio),
@@ -137,6 +138,7 @@ DECLARE_EVENT_CLASS(zfs_l2arc_rw_class,
 	    ZIO_TP_PRINTK_FMT, __entry->vdev_id, __entry->vdev_guid,
 	    __entry->vdev_state, ZIO_TP_PRINTK_ARGS)
 );
+/* END CSTYLED */
 
 #define	DEFINE_L2ARC_RW_EVENT(name) \
 DEFINE_EVENT(zfs_l2arc_rw_class, name, \
@@ -153,7 +155,7 @@ DEFINE_L2ARC_RW_EVENT(zfs_l2arc__write);
  *     zio_t *, ...,
  *     l2arc_write_callback_t *, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_l2arc_iodone_class,
 	TP_PROTO(zio_t *zio, l2arc_write_callback_t *cb),
 	TP_ARGS(zio, cb),
@@ -161,6 +163,7 @@ DECLARE_EVENT_CLASS(zfs_l2arc_iodone_class,
 	TP_fast_assign(ZIO_TP_FAST_ASSIGN),
 	TP_printk(ZIO_TP_PRINTK_FMT, ZIO_TP_PRINTK_ARGS)
 );
+/* END CSTYLED */
 
 #define	DEFINE_L2ARC_IODONE_EVENT(name) \
 DEFINE_EVENT(zfs_l2arc_iodone_class, name, \
@@ -178,7 +181,7 @@ DEFINE_L2ARC_IODONE_EVENT(zfs_l2arc__iodone);
  *     uint64_t,
  *     const zbookmark_phys_t *);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	TP_PROTO(arc_buf_hdr_t *hdr,
 	    const blkptr_t *bp, uint64_t size, const zbookmark_phys_t *zb),
@@ -272,6 +275,7 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    __entry->bp_lsize, __entry->zb_objset, __entry->zb_object,
 	    __entry->zb_level, __entry->zb_blkid)
 );
+/* END CSTYLED */
 
 #define	DEFINE_ARC_MISS_EVENT(name) \
 DEFINE_EVENT(zfs_arc_miss_class, name, \
@@ -289,7 +293,7 @@ DEFINE_ARC_MISS_EVENT(zfs_arc__miss);
  *     uint64_t, ...,
  *     boolean_t, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_l2arc_evict_class,
 	TP_PROTO(l2arc_dev_t *dev,
 	    list_t *buflist, uint64_t taddr, boolean_t all),
@@ -330,6 +334,7 @@ DECLARE_EVENT_CLASS(zfs_l2arc_evict_class,
 	    __entry->l2ad_end, __entry->l2ad_first, __entry->l2ad_writing,
 	    __entry->taddr, __entry->all)
 );
+/* END CSTYLED */
 
 #define	DEFINE_L2ARC_EVICT_EVENT(name) \
 DEFINE_EVENT(zfs_l2arc_evict_class, name, \

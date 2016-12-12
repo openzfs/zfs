@@ -1087,6 +1087,7 @@ dsl_pool_config_held_writer(dsl_pool_t *dp)
 EXPORT_SYMBOL(dsl_pool_config_enter);
 EXPORT_SYMBOL(dsl_pool_config_exit);
 
+/* BEGIN CSTYLED */
 /* zfs_dirty_data_max_percent only applied at module load in arc_init(). */
 module_param(zfs_dirty_data_max_percent, int, 0444);
 MODULE_PARM_DESC(zfs_dirty_data_max_percent, "percent of ram can be dirty");
@@ -1112,4 +1113,5 @@ MODULE_PARM_DESC(zfs_dirty_data_sync, "sync txg when this much dirty data");
 
 module_param(zfs_delay_scale, ulong, 0644);
 MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");
+/* END CSTYLED */
 #endif

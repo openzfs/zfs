@@ -419,7 +419,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	 */
 	if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME) {
 		VERIFY0(nvlist_lookup_string(spa->spa_config,
-			ZPOOL_CONFIG_POOL_NAME, &pool_name));
+		    ZPOOL_CONFIG_POOL_NAME, &pool_name));
 	} else
 		pool_name = spa_name(spa);
 

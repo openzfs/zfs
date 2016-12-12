@@ -215,7 +215,7 @@ main(int argc, char **argv)
 				    (ssize_t)bytes) {
 					saverr = errno;
 					if (result < 0)
-					    result = 0;
+						result = 0;
 					written += result;
 					(void) fprintf(stderr, gettext(
 			    "%s: initialized %lu of %lu bytes: %s\n"),
@@ -269,7 +269,7 @@ main(int argc, char **argv)
 static void usage()
 {
 	(void) fprintf(stderr, gettext(
-		"Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n"));
+	    "Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n"));
 	exit(1);
 	/* NOTREACHED */
 }

@@ -77,7 +77,7 @@ zdb_ot_name(dmu_object_type_t type)
 	if (type < DMU_OT_NUMTYPES)
 		return (dmu_ot[type].ot_name);
 	else if ((type & DMU_OT_NEWTYPE) &&
-		((type & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS))
+	    ((type & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS))
 		return (dmu_ot_byteswap[type & DMU_OT_BYTESWAP_MASK].ob_name);
 	else
 		return ("UNKNOWN");

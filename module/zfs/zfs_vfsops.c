@@ -1222,8 +1222,9 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	defined(SHRINKER_NUMA_AWARE)
 	if (sb->s_shrink.flags & SHRINKER_NUMA_AWARE) {
 		*objects = 0;
-		for_each_online_node(sc.nid)
+		for_each_online_node(sc.nid) {
 			*objects += (*shrinker->scan_objects)(shrinker, &sc);
+		}
 	} else {
 			*objects = (*shrinker->scan_objects)(shrinker, &sc);
 	}
@@ -1344,7 +1345,7 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	if (!unmounting) {
 		mutex_enter(&zsb->z_znodes_lock);
 		for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
-		zp = list_next(&zsb->z_all_znodes, zp)) {
+		    zp = list_next(&zsb->z_all_znodes, zp)) {
 			if (zp->z_sa_hdl)
 				zfs_znode_dmu_fini(zp);
 		}

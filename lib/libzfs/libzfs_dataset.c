@@ -1938,9 +1938,9 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	 * the property is valid for the snapshot's head dataset type.
 	 */
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT &&
-		!zfs_prop_valid_for_type(prop, zhp->zfs_head_type, B_TRUE)) {
-			*val = zfs_prop_default_numeric(prop);
-			return (-1);
+	    !zfs_prop_valid_for_type(prop, zhp->zfs_head_type, B_TRUE)) {
+		*val = zfs_prop_default_numeric(prop);
+		return (-1);
 	}
 
 	switch (prop) {
@@ -2343,7 +2343,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			    strftime(propbuf, proplen, "%a %b %e %k:%M %Y",
 			    &t) == 0)
 				(void) snprintf(propbuf, proplen, "%llu",
-				    (u_longlong_t) val);
+				    (u_longlong_t)val);
 		}
 		break;
 
@@ -2744,11 +2744,11 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	*typep = type;
 
 	isuser = (type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_USERUSED ||
-		    type == ZFS_PROP_USEROBJQUOTA ||
-		    type == ZFS_PROP_USEROBJUSED);
+	    type == ZFS_PROP_USEROBJQUOTA ||
+	    type == ZFS_PROP_USEROBJUSED);
 	isgroup = (type == ZFS_PROP_GROUPQUOTA || type == ZFS_PROP_GROUPUSED ||
-		    type == ZFS_PROP_GROUPOBJQUOTA ||
-		    type == ZFS_PROP_GROUPOBJUSED);
+	    type == ZFS_PROP_GROUPOBJQUOTA ||
+	    type == ZFS_PROP_GROUPOBJUSED);
 
 	cp = strchr(propname, '@') + 1;
 

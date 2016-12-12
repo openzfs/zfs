@@ -65,7 +65,7 @@ main(int argc, char **argv)
 	cp1 = argv[1];
 	if (strlen(cp1) >= (sizeof (dirpath) - strlen("TMP_DIR"))) {
 		(void) printf("The string length of mount point is "
-			"too large\n");
+		    "too large\n");
 		exit(-1);
 	}
 	(void) strcpy(&dirpath[0], (const char *)cp1);

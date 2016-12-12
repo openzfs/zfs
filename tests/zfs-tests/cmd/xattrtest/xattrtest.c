@@ -289,7 +289,8 @@ run_process(const char *path, char *argv[])
 	} else if (pid > 0) {
 		int status;
 
-		while ((rc = waitpid(pid, &status, 0)) == -1 && errno == EINTR);
+		while ((rc = waitpid(pid, &status, 0)) == -1 &&
+		    errno == EINTR) { }
 
 		if (rc < 0 || !WIFEXITED(status))
 			return (-1);
@@ -369,8 +370,8 @@ create_files(void)
 	file = malloc(PATH_MAX);
 	if (file == NULL) {
 		rc = ENOMEM;
-		ERROR("Error %d: malloc(%d) bytes for file name\n",
-			rc, PATH_MAX);
+		ERROR("Error %d: malloc(%d) bytes for file name\n", rc,
+		    PATH_MAX);
 		goto out;
 	}
 
@@ -392,7 +393,7 @@ create_files(void)
 		rc = open(file, O_CREAT, 0644);
 		if (rc == -1) {
 			ERROR("Error %d: open(%s, O_CREATE, 0644)\n",
-				errno, file);
+			    errno, file);
 			rc = errno;
 			goto out;
 		}
@@ -454,16 +455,16 @@ setxattrs(void)
 	value = malloc(XATTR_SIZE_MAX);
 	if (value == NULL) {
 		rc = ENOMEM;
-		ERROR("Error %d: malloc(%d) bytes for xattr value\n",
-			rc, XATTR_SIZE_MAX);
+		ERROR("Error %d: malloc(%d) bytes for xattr value\n", rc,
+		    XATTR_SIZE_MAX);
 		goto out;
 	}
 
 	file = malloc(PATH_MAX);
 	if (file == NULL) {
 		rc = ENOMEM;
-		ERROR("Error %d: malloc(%d) bytes for file name\n",
-			rc, PATH_MAX);
+		ERROR("Error %d: malloc(%d) bytes for file name\n", rc,
+		    PATH_MAX);
 		goto out;
 	}
 
@@ -525,16 +526,16 @@ getxattrs(void)
 	verify_value = malloc(XATTR_SIZE_MAX);
 	if (verify_value == NULL) {
 		rc = ENOMEM;
-		ERROR("Error %d: malloc(%d) bytes for xattr verify\n",
-			rc, XATTR_SIZE_MAX);
+		ERROR("Error %d: malloc(%d) bytes for xattr verify\n", rc,
+		    XATTR_SIZE_MAX);
 		goto out;
 	}
 
 	value = malloc(XATTR_SIZE_MAX);
 	if (value == NULL) {
 		rc = ENOMEM;
-		ERROR("Error %d: malloc(%d) bytes for xattr value\n",
-			rc, XATTR_SIZE_MAX);
+		ERROR("Error %d: malloc(%d) bytes for xattr value\n", rc,
+		    XATTR_SIZE_MAX);
 		goto out;
 	}
 
@@ -544,8 +545,8 @@ getxattrs(void)
 	file = malloc(PATH_MAX);
 	if (file == NULL) {
 		rc = ENOMEM;
-		ERROR("Error %d: malloc(%d) bytes for file name\n",
-			rc, PATH_MAX);
+		ERROR("Error %d: malloc(%d) bytes for file name\n", rc,
+		    PATH_MAX);
 		goto out;
 	}
 

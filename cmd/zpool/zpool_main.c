@@ -2752,7 +2752,7 @@ print_iostat_labels(iostat_cbdata_t *cb, unsigned int force_column_width,
 			rw_column_width = (column_width * columns) +
 			    (2 * (columns - 1));
 
-			text_start = (int) ((rw_column_width)/columns -
+			text_start = (int)((rw_column_width)/columns -
 			    slen/columns);
 
 			printf("  ");	/* Two spaces between columns */
@@ -3090,7 +3090,7 @@ print_iostat_histo(struct stat_array *nva, unsigned int len,
 		}
 
 		if (cb->cb_scripted)
-			printf("%llu", (u_longlong_t) val);
+			printf("%llu", (u_longlong_t)val);
 		else
 			printf("%-*s", namewidth, buf);
 
@@ -3567,7 +3567,7 @@ print_iostat(zpool_handle_t *zhp, void *data)
 		    &oldnvroot) == 0);
 
 	ret = print_vdev_stats(zhp, zpool_get_name(zhp), oldnvroot, newnvroot,
-									cb, 0);
+	    cb, 0);
 	if ((ret != 0) && !(cb->cb_flags & IOS_ANYHISTO_M) &&
 	    !cb->cb_scripted && cb->cb_verbose && !cb->cb_vdev_names_count) {
 		print_iostat_separator(cb);
@@ -4201,7 +4201,7 @@ zpool_do_iostat(int argc, char **argv)
 			fprintf(stderr, " -%c", flag_to_arg[idx]);
 		}
 
-		fprintf(stderr, ".  Try running a newer module.\n"),
+		fprintf(stderr, ".  Try running a newer module.\n");
 		pool_list_free(list);
 
 		return (1);
@@ -6173,7 +6173,7 @@ typedef struct upgrade_cbdata {
 static int
 check_unsupp_fs(zfs_handle_t *zhp, void *unsupp_fs)
 {
-	int zfs_version = (int) zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
+	int zfs_version = (int)zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
 	int *count = (int *)unsupp_fs;
 
 	if (zfs_version > ZPL_VERSION) {
@@ -6212,7 +6212,7 @@ upgrade_version(zpool_handle_t *zhp, uint64_t version)
 	if (unsupp_fs) {
 		(void) fprintf(stderr, gettext("Upgrade not performed due "
 		    "to %d unsupported filesystems (max v%d).\n"),
-		    unsupp_fs, (int) ZPL_VERSION);
+		    unsupp_fs, (int)ZPL_VERSION);
 		return (1);
 	}
 
@@ -6223,12 +6223,12 @@ upgrade_version(zpool_handle_t *zhp, uint64_t version)
 	if (version >= SPA_VERSION_FEATURES) {
 		(void) printf(gettext("Successfully upgraded "
 		    "'%s' from version %llu to feature flags.\n"),
-		    zpool_get_name(zhp), (u_longlong_t) oldversion);
+		    zpool_get_name(zhp), (u_longlong_t)oldversion);
 	} else {
 		(void) printf(gettext("Successfully upgraded "
 		    "'%s' from version %llu to version %llu.\n"),
-		    zpool_get_name(zhp), (u_longlong_t) oldversion,
-		    (u_longlong_t) version);
+		    zpool_get_name(zhp), (u_longlong_t)oldversion,
+		    (u_longlong_t)version);
 	}
 
 	return (0);
@@ -6435,14 +6435,14 @@ upgrade_one(zpool_handle_t *zhp, void *data)
 	if (cur_version > cbp->cb_version) {
 		(void) printf(gettext("Pool '%s' is already formatted "
 		    "using more current version '%llu'.\n\n"),
-		    zpool_get_name(zhp), (u_longlong_t) cur_version);
+		    zpool_get_name(zhp), (u_longlong_t)cur_version);
 		return (0);
 	}
 
 	if (cbp->cb_version != SPA_VERSION && cur_version == cbp->cb_version) {
 		(void) printf(gettext("Pool '%s' is already formatted "
 		    "using version %llu.\n\n"), zpool_get_name(zhp),
-		    (u_longlong_t) cbp->cb_version);
+		    (u_longlong_t)cbp->cb_version);
 		return (0);
 	}
 
@@ -6629,7 +6629,7 @@ zpool_do_upgrade(int argc, char **argv)
 			} else {
 				(void) printf(gettext("All pools are already "
 				    "formatted with version %llu or higher.\n"),
-				    (u_longlong_t) cb.cb_version);
+				    (u_longlong_t)cb.cb_version);
 			}
 		}
 	} else if (argc == 0) {
@@ -6720,14 +6720,14 @@ get_history_one(zpool_handle_t *zhp, void *data)
 			}
 			(void) printf("%s [internal %s txg:%lld] %s", tbuf,
 			    zfs_history_event_names[ievent],
-			    (longlong_t) fnvlist_lookup_uint64(
+			    (longlong_t)fnvlist_lookup_uint64(
 			    rec, ZPOOL_HIST_TXG),
 			    fnvlist_lookup_string(rec, ZPOOL_HIST_INT_STR));
 		} else if (nvlist_exists(rec, ZPOOL_HIST_INT_NAME)) {
 			if (!cb->internal)
 				continue;
 			(void) printf("%s [txg:%lld] %s", tbuf,
-			    (longlong_t) fnvlist_lookup_uint64(
+			    (longlong_t)fnvlist_lookup_uint64(
 			    rec, ZPOOL_HIST_TXG),
 			    fnvlist_lookup_string(rec, ZPOOL_HIST_INT_NAME));
 			if (nvlist_exists(rec, ZPOOL_HIST_DSNAME)) {

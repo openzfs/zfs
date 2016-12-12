@@ -572,9 +572,9 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 		return;
 
 	immediate_write_sz = (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
-		? 0 : zvol_immediate_write_sz;
+	    ? 0 : zvol_immediate_write_sz;
 	slogging = spa_has_slogs(zilog->zl_spa) &&
-		(zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
+	    (zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
 
 	while (size) {
 		itx_t *itx;
@@ -1441,7 +1441,7 @@ zvol_create_minor_impl(const char *name)
 	if (len > 0) {
 		dmu_prefetch(os, ZVOL_OBJ, 0, 0, len, ZIO_PRIORITY_SYNC_READ);
 		dmu_prefetch(os, ZVOL_OBJ, 0, volsize - len, len,
-			ZIO_PRIORITY_SYNC_READ);
+		    ZIO_PRIORITY_SYNC_READ);
 	}
 
 	zv->zv_objset = NULL;
@@ -1539,7 +1539,7 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 	/* at this point, the dsname should name a snapshot */
 	if (strchr(dsname, '@') == 0) {
 		dprintf("zvol_create_snap_minor_cb(): "
-			"%s is not a shapshot name\n", dsname);
+		    "%s is not a shapshot name\n", dsname);
 	} else {
 		minors_job_t *job;
 		char *n = strdup(dsname);
@@ -1608,7 +1608,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 		}
 	} else {
 		dprintf("zvol_create_minors_cb(): %s is not a zvol name\n",
-			dsname);
+		    dsname);
 	}
 
 	return (0);
@@ -1954,7 +1954,7 @@ zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 		return (0);
 
 	(void) taskq_dispatch(dp->dp_spa->spa_zvol_taskq, zvol_task_cb,
-		task, TQ_SLEEP);
+	    task, TQ_SLEEP);
 	return (0);
 }
 
@@ -2087,6 +2087,7 @@ zvol_fini(void)
 	mutex_destroy(&zvol_state_lock);
 }
 
+/* BEGIN CSTYLED */
 module_param(zvol_inhibit_dev, uint, 0644);
 MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
 
@@ -2098,3 +2099,4 @@ MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
 
 module_param(zvol_prefetch_bytes, uint, 0644);
 MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");
+/* END CSTYLED */

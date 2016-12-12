@@ -576,7 +576,7 @@ retry:
 		/* bio_alloc() with __GFP_WAIT never returns NULL */
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
 		    MIN(abd_nr_pages_off(zio->io_abd, bio_size, abd_offset),
-			BIO_MAX_PAGES));
+		    BIO_MAX_PAGES));
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
 			return (ENOMEM);
@@ -593,7 +593,7 @@ retry:
 
 		/* Remaining size is returned to become the new size */
 		bio_size = bio_map_abd_off(dr->dr_bio[i], zio->io_abd,
-						bio_size, abd_offset);
+		    bio_size, abd_offset);
 
 		/* Advance in buffer and construct another bio if needed */
 		abd_offset += BIO_BI_SIZE(dr->dr_bio[i]);
