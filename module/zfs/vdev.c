@@ -1249,14 +1249,36 @@ vdev_open(vdev_t *vd)
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    vd->vdev_label_aux);
+		/*
+		 * Must set some rotor category, such that
+		 * metaslab_class_space_update() can be safely called.
+		 */
+		if (vd->vdev_mg)
+			metaslab_group_set_rotor_category(vd->vdev_mg, B_TRUE);
 		return (SET_ERROR(ENXIO));
 	} else if (vd->vdev_offline) {
 		ASSERT(vd->vdev_children == 0);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_OFFLINE, VDEV_AUX_NONE);
+		if (vd->vdev_mg)
+			metaslab_group_set_rotor_category(vd->vdev_mg, B_TRUE);
 		return (SET_ERROR(ENXIO));
 	}
 
 	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize, &ashift);
+
+	/*
+	 * Somewhere after vd->vdev_ops->vdev_op_open() (that calls
+	 * vdev_open_children() and thus updates vd->vdev_nonrot) and
+	 * before metaslab_class_space_update() gets called, we need
+	 * to assign the rotor category of the metaslab group.
+	 *
+	 * At this point, the metaslab group has already been created.
+	 *
+	 * Do the handling here, before any return in case error has
+	 * been set.
+	 */
+	if (vd->vdev_mg)
+		metaslab_group_set_rotor_category(vd->vdev_mg, B_FALSE);
 
 	/*
 	 * Reset the vdev_reopening flag so that we actually close

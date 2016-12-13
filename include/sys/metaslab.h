@@ -99,6 +99,7 @@ int metaslab_parse_rotor_config(metaslab_class_t *, char *);
 
 metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
 void metaslab_group_destroy(metaslab_group_t *);
+void metaslab_group_set_rotor_category(metaslab_group_t *, boolean_t);
 void metaslab_group_activate(metaslab_group_t *);
 void metaslab_group_passivate(metaslab_group_t *);
 boolean_t metaslab_group_initialized(metaslab_group_t *);

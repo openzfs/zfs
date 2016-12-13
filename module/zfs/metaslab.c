@@ -226,6 +226,7 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops, char *rvconfig)
 	mc->mc_ops = ops;
 	mutex_init(&mc->mc_lock, NULL, MUTEX_DEFAULT, NULL);
 	refcount_create_tracked(&mc->mc_alloc_slots);
+	mc->mc_max_nrot = -1;
 
 	metaslab_parse_rotor_config(mc, rvconfig);
 
@@ -763,19 +764,43 @@ metaslab_parse_rotor_config(metaslab_class_t *mc, char *rotorvector)
 }
 
 int
-metaslab_vdev_rotor_category(vdev_t *vd)
+metaslab_vdev_rotor_category(metaslab_class_t *mc, vdev_t *vd)
 {
+	int i, j;
+	int type;
+
+	/* First match on the vdev guid assignments. */
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		for (j = 0; j < 5 && mc->mc_rotvec_vdev_guids[i][j]; j++)
+			if (mc->mc_rotvec_vdev_guids[i][j] == vd->vdev_guid)
+				return (i);
+
+	/* Match on the kind of vdev. */
+
+	/* Figure out what kind we are. */
+
 	if (vd->vdev_nonrot) {
-		return ((vd->vdev_ops != &vdev_raidz_ops) ?
+		type = ((vd->vdev_ops != &vdev_raidz_ops) ?
 		    METASLAB_ROTOR_VDEV_TYPE_SSD :
 		    METASLAB_ROTOR_VDEV_TYPE_SSD_RAIDZ);
 	} else if (vd->vdev_nonrot_mix) {
-		return (METASLAB_ROTOR_VDEV_TYPE_MIXED);
+		type = METASLAB_ROTOR_VDEV_TYPE_MIXED;
 	} else {
-		return ((vd->vdev_ops != &vdev_raidz_ops) ?
+		type = ((vd->vdev_ops != &vdev_raidz_ops) ?
 		    METASLAB_ROTOR_VDEV_TYPE_HDD :
 		    METASLAB_ROTOR_VDEV_TYPE_HDD_RAIDZ);
 	}
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		if (mc->mc_rotvec_categories[i] & type)
+			return (i);
+
+	/* Assign to last category, i.e. with a (dummy) zero limit. */
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		if (mc->mc_rotvec_threshold[i] == 0)
+			return (i);
+
+	return (METASLAB_CLASS_ROTORS-1);
 }
 
 metaslab_group_t *
@@ -806,7 +831,6 @@ metaslab_group_destroy(metaslab_group_t *mg)
 {
 	ASSERT(mg->mg_prev == NULL);
 	ASSERT(mg->mg_next == NULL);
-	ASSERT(mg->mg_nrot == -1);
 	/*
 	 * We may have gone below zero with the activation count
 	 * either because we never activated in the first place or
@@ -822,25 +846,46 @@ metaslab_group_destroy(metaslab_group_t *mg)
 }
 
 void
+metaslab_group_set_rotor_category(metaslab_group_t *mg, boolean_t failed_dev)
+{
+	metaslab_class_t *mc = mg->mg_class;
+
+	/* Already done? */
+	if (mg->mg_nrot != -1)
+		return;
+
+	ASSERT(mg->mg_activation_count <= 0);
+
+	/*
+	 * For a failed device, we assign it to the last rotor
+	 * category.  Failed devices would not allocate, but needed
+	 * such that metaslab_class_space_update() can be called for
+	 * them too.
+	 */
+	if (failed_dev)
+		mg->mg_nrot = METASLAB_CLASS_ROTORS-1;
+	else
+		mg->mg_nrot = metaslab_vdev_rotor_category(mc, mg->mg_vd);
+}
+
+void
 metaslab_group_activate(metaslab_group_t *mg)
 {
 	metaslab_class_t *mc = mg->mg_class;
 	metaslab_group_t *mgprev, *mgnext;
 	int i;
 
+	ASSERT(mg->mg_nrot != -1);
 	ASSERT(spa_config_held(mc->mc_spa, SCL_ALLOC, RW_WRITER));
 
 	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
 		ASSERT(mc->mc_rotorv[i] != mg);
 	ASSERT(mg->mg_prev == NULL);
 	ASSERT(mg->mg_next == NULL);
-	ASSERT(mg->mg_nrot == -1);
 	ASSERT(mg->mg_activation_count <= 0);
 
 	if (++mg->mg_activation_count <= 0)
 		return;
-
-	mg->mg_nrot = 0; /* TODO: when vector, decide which rotor to place in */
 
 	mg->mg_aliquot = metaslab_aliquot * MAX(1, mg->mg_vd->vdev_children);
 	metaslab_group_alloc_update(mg);
@@ -856,6 +901,9 @@ metaslab_group_activate(metaslab_group_t *mg)
 		mgnext->mg_prev = mg;
 	}
 	mc->mc_rotorv[mg->mg_nrot] = mg;
+
+	if (mg->mg_nrot > mc->mc_max_nrot)
+		mc->mc_max_nrot = mg->mg_nrot;
 }
 
 void
@@ -872,7 +920,6 @@ metaslab_group_passivate(metaslab_group_t *mg)
 			ASSERT(mc->mc_rotorv[i] != mg);
 		ASSERT(mg->mg_prev == NULL);
 		ASSERT(mg->mg_next == NULL);
-		ASSERT(mg->mg_nrot == -1);
 		ASSERT(mg->mg_activation_count < 0);
 		return;
 	}
@@ -887,6 +934,10 @@ metaslab_group_passivate(metaslab_group_t *mg)
 
 	if (mg == mgnext) {
 		mc->mc_rotorv[mg->mg_nrot] = NULL;
+		mc->mc_max_nrot = -1;
+		for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+			if (mc->mc_rotorv[i] != NULL)
+				mc->mc_max_nrot = i;
 	} else {
 		mc->mc_rotorv[mg->mg_nrot] = mgnext;
 		mgprev->mg_next = mgnext;
@@ -895,7 +946,6 @@ metaslab_group_passivate(metaslab_group_t *mg)
 
 	mg->mg_prev = NULL;
 	mg->mg_next = NULL;
-	mg->mg_nrot = -1;
 }
 
 boolean_t
@@ -3214,6 +3264,16 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 */
 	nrot = 0;
 
+	while (nrot < mc->mc_max_nrot) {
+		if (psize < mc->mc_rotvec_threshold[nrot])
+			break; /* Size below threshold, accept. */
+		nrot++;
+	}
+
+	for (; nrot < METASLAB_CLASS_ROTORS; nrot++)
+		if (mc->mc_rotorv[nrot])
+			break;
+
 	/*
 	 * Start at the rotor and loop through all mgs until we find something.
 	 * Note that there's no locking on mc_rotor or mc_aliquot because
@@ -3273,12 +3333,21 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		mg = mc->mc_rotorv[nrot];
 	}
 
+	ASSERT(mg != NULL);
 	/*
 	 * If the hint put us into the wrong metaslab class, or into a
 	 * metaslab group that has been passivated, just follow the rotor.
+	 * Also if we got a better rotor than chosen.
 	 */
-	if (mg->mg_class != mc || mg->mg_activation_count <= 0)
-		mg = mc->mc_rotorv[nrot];
+	if (mg->mg_class != mc || mg->mg_activation_count <= 0 ||
+	    mg->mg_nrot < nrot) {
+		for (i = nrot; i < METASLAB_CLASS_ROTORS; i++) {
+			if (mc->mc_rotorv[i] != NULL) {
+				mg = mc->mc_rotorv[i];
+				break;
+			}
+		}
+	}
 
 top1:
 	rotor = mg;

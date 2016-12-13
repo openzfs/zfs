@@ -155,7 +155,7 @@ typedef enum trace_alloc_type {
  * big and less expensive.  Depending on the size of an allocation,
  * a rotor will be chosen.
  */
-#define	METASLAB_CLASS_ROTORS	1
+#define	METASLAB_CLASS_ROTORS	5
 
 struct metaslab_class {
 	kmutex_t		mc_lock;
@@ -163,6 +163,7 @@ struct metaslab_class {
 	metaslab_group_t	*mc_rotorv[METASLAB_CLASS_ROTORS];
 	metaslab_ops_t		*mc_ops;
 	uint64_t		mc_aliquotv[METASLAB_CLASS_ROTORS];
+	int			mc_max_nrot;    /* highest rotor with member */
 
 	/*
 	 * Track the number of metaslab groups that have been initialized
