@@ -3890,16 +3890,16 @@ MODULE_PARM_DESC(dbuf_cache_max_bytes,
 
 module_param(dbuf_cache_hiwater_pct, uint, 0644);
 MODULE_PARM_DESC(dbuf_cache_hiwater_pct,
-	"Percentage over dbuf_cache_max_bytes when dbufs \
-	 much be evicted directly.");
+	"Percentage over dbuf_cache_max_bytes when dbufs must be evicted "
+	"directly.");
 
 module_param(dbuf_cache_lowater_pct, uint, 0644);
 MODULE_PARM_DESC(dbuf_cache_lowater_pct,
-	"Percentage below dbuf_cache_max_bytes \
-	when the evict thread stop evicting dbufs.");
+	"Percentage below dbuf_cache_max_bytes when the evict thread stops "
+	"evicting dbufs.");
 
 module_param(dbuf_cache_max_shift, int, 0644);
 MODULE_PARM_DESC(dbuf_cache_max_shift,
-	"Cap the size of the dbuf cache to log2 fraction of arc size.");
+	"Cap the size of the dbuf cache to a log2 fraction of arc size.");
 /* END CSTYLED */
 #endif
