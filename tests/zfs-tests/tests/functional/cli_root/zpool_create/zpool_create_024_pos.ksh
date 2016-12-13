@@ -39,6 +39,11 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5479
+if is_kmemleak; then
+	log_unsupported "Test case runs slowly when kmemleak is enabled"
+fi
+
 function cleanup
 {
 	if [[ -n "$child_pids" ]]; then
