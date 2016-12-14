@@ -76,7 +76,13 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 case "$BB_NAME" in
 Amazon*)
     ;;
-CentOS*)
+CentOS-7*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
+    TEST_ZILTEST_SKIP="yes"
+    ;;
+CentOS-6*)
     # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
     TEST_ZILTEST_SKIP="yes"
     ;;
@@ -87,6 +93,11 @@ Fedora*)
 RHEL*)
     ;;
 SUSE*)
+    ;;
+Ubuntu-16.04*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    TEST_FILEBENCH_SKIP="yes"
     ;;
 Ubuntu*)
     ;;
