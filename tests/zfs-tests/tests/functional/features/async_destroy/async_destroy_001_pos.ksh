@@ -46,6 +46,11 @@ TEST_FS=$TESTPOOL/async_destroy
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5479
+if is_kmemleak; then
+	log_unsupported "Test case runs slowly when kmemleak is enabled"
+fi
+
 function cleanup
 {
 	datasetexists $TEST_FS && log_must $ZFS destroy $TEST_FS
