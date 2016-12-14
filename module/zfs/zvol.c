@@ -2085,6 +2085,8 @@ zvol_fini(void)
 
 	list_destroy(&zvol_state_list);
 	mutex_destroy(&zvol_state_lock);
+
+	ida_destroy(&zvol_ida);
 }
 
 /* BEGIN CSTYLED */
