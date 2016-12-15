@@ -94,6 +94,7 @@
 		                 &((sub)->test_list), test_list) {	\
                 if (_test_->desc.id == tid) {                           \
                         list_del_init(&(_test_->test_list));		\
+			kfree(_test_);					\
                         _flag_ = 1;                                     \
                 }                                                       \
         }                                                               \
