@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,12 +48,8 @@ log_must file_write -o create -f $TESTDIR/$TESTFILE1 -b $((2**20)) -c $((2**9))
 #
 start_random_writer $TESTDIR/$TESTFILE1
 
-callback_count=0
 function callback
 {
-	(( callback_count++ ))
-	(( callback_count == 1 )) || return 0
-
 	# Attempt to write more than the new pool will be able to handle.
 	file_write -o create -f $TESTDIR/$TESTFILE2 -b $((2**20)) -c $((2**9))
 	zret=$?
@@ -62,7 +58,6 @@ function callback
 	(( $zret == $ENOSPC )) || log_fail "Did not get ENOSPC during removal."
 }
 
-log_must zpool remove $TESTPOOL $REMOVEDISK
-log_must wait_for_removal $TESTPOOL callback
+log_must attempt_during_removal $TESTPOOL $REMOVEDISK callback
 
 log_pass "Removal properly sets reservation."

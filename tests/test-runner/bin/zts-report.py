@@ -254,6 +254,7 @@ maybe = {
     'userquota/setup': ['SKIP', exec_reason],
     'vdev_zaps/vdev_zaps_004_pos': ['FAIL', '6935'],
     'write_dirs/setup': ['SKIP', disk_reason],
+    'zpool_import/import_rewind_device_replaced': ['FAIL', known_reason],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', '5848'],
 }
 

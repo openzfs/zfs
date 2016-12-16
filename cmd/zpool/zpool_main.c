@@ -36,6 +36,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <libgen.h>
 #include <libintl.h>
 #include <libuutil.h>
@@ -75,6 +76,8 @@ static int zpool_do_destroy(int, char **);
 static int zpool_do_add(int, char **);
 static int zpool_do_remove(int, char **);
 static int zpool_do_labelclear(int, char **);
+
+static int zpool_do_checkpoint(int, char **);
 
 static int zpool_do_list(int, char **);
 static int zpool_do_iostat(int, char **);
@@ -131,6 +134,7 @@ typedef enum {
 	HELP_ATTACH,
 	HELP_CLEAR,
 	HELP_CREATE,
+	HELP_CHECKPOINT,
 	HELP_DESTROY,
 	HELP_DETACH,
 	HELP_EXPORT,
@@ -254,6 +258,8 @@ static zpool_command_t command_table[] = {
 	{ NULL },
 	{ "labelclear",	zpool_do_labelclear,	HELP_LABELCLEAR		},
 	{ NULL },
+	{ "checkpoint",	zpool_do_checkpoint,	HELP_CHECKPOINT		},
+	{ NULL },
 	{ "list",	zpool_do_list,		HELP_LIST		},
 	{ "iostat",	zpool_do_iostat,	HELP_IOSTAT		},
 	{ "status",	zpool_do_status,	HELP_STATUS		},
@@ -306,6 +312,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tcreate [-fnd] [-o property=value] ... \n"
 		    "\t    [-O file-system-property=value] ... \n"
 		    "\t    [-m mountpoint] [-R root] <pool> <vdev> ...\n"));
+	case HELP_CHECKPOINT:
+		return (gettext("\tcheckpoint [--discard] <pool> ...\n"));
 	case HELP_DESTROY:
 		return (gettext("\tdestroy [-f] <pool>\n"));
 	case HELP_DETACH:
@@ -316,15 +324,13 @@ get_usage(zpool_help_t idx)
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
 		return (gettext("\timport [-d dir] [-D]\n"
-		    "\timport [-d dir | -c cachefile] [-F [-n]] [-l] "
-		    "<pool | id>\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
 		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]] -a\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
 		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]]\n"
-		    "\t    <pool | id> [newpool]\n"));
+		    "\t    [--rewind-to-checkpoint] <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
@@ -2454,6 +2460,79 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 }
 
 /*
+ * zpool checkpoint <pool>
+ *       checkpoint --discard <pool>
+ *
+ *       -d         Discard the checkpoint from a checkpointed
+ *       --discard  pool.
+ *
+ * Checkpoints the specified pool, by taking a "snapshot" of its
+ * current state. A pool can only have one checkpoint at a time.
+ */
+int
+zpool_do_checkpoint(int argc, char **argv)
+{
+	boolean_t discard;
+	char *pool;
+	zpool_handle_t *zhp;
+	int c, err;
+
+	struct option long_options[] = {
+		{"discard", no_argument, NULL, 'd'},
+		{0, 0, 0, 0}
+	};
+
+	discard = B_FALSE;
+	while ((c = getopt_long(argc, argv, ":d", long_options, NULL)) != -1) {
+		switch (c) {
+		case 'd':
+			discard = B_TRUE;
+			break;
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing pool argument\n"));
+		usage(B_FALSE);
+	}
+
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	pool = argv[0];
+
+	if ((zhp = zpool_open(g_zfs, pool)) == NULL) {
+		/* As a special case, check for use of '/' in the name */
+		if (strchr(pool, '/') != NULL)
+			(void) fprintf(stderr, gettext("'zpool checkpoint' "
+			    "doesn't work on datasets. To save the state "
+			    "of a dataset from a specific point in time "
+			    "please use 'zfs snapshot'\n"));
+		return (1);
+	}
+
+	if (discard)
+		err = (zpool_discard_checkpoint(zhp) != 0);
+	else
+		err = (zpool_checkpoint(zhp) != 0);
+
+	zpool_close(zhp);
+
+	return (err);
+}
+
+#define	CHECKPOINT_OPT	1024
+
+/*
  * zpool import [-d dir] [-D]
  *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
  *              [-d dir | -c cachefile] [-f] -a
@@ -2499,6 +2578,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *	 -s	Scan using the default search path, the libblkid cache will
  *	        not be consulted.
  *
+ *       --rewind-to-checkpoint
+ *       	Import the pool and revert back to the checkpoint.
+ *
  * The import command scans for pools to import, and import pools based on pool
  * name and GUID.  The pool can also be renamed as part of the import process.
  */
@@ -2534,8 +2616,14 @@ zpool_do_import(int argc, char **argv)
 	importargs_t idata = { 0 };
 	char *endptr;
 
+	struct option long_options[] = {
+		{"rewind-to-checkpoint", no_argument, NULL, CHECKPOINT_OPT},
+		{0, 0, 0, 0}
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFlmnNo:R:stT:VX")) != -1) {
+	while ((c = getopt_long(argc, argv, ":aCc:d:DEfFlmnNo:R:stT:VX",
+	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
@@ -2621,6 +2709,9 @@ zpool_do_import(int argc, char **argv)
 			break;
 		case 'X':
 			xtreme_rewind = B_TRUE;
+			break;
+		case CHECKPOINT_OPT:
+			flags |= ZFS_IMPORT_CHECKPOINT;
 			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "
@@ -4977,6 +5068,7 @@ print_one_column(zpool_prop_t prop, uint64_t value, boolean_t scripted,
 
 	switch (prop) {
 	case ZPOOL_PROP_EXPANDSZ:
+	case ZPOOL_PROP_CHECKPOINT:
 		if (value == 0)
 			(void) strlcpy(propval, "-", sizeof (propval));
 		else
@@ -5064,6 +5156,8 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		    toplevel, format);
 		print_one_column(ZPOOL_PROP_FREE, vs->vs_space - vs->vs_alloc,
 		    scripted, toplevel, format);
+		print_one_column(ZPOOL_PROP_CHECKPOINT,
+		    vs->vs_checkpoint_space, scripted, toplevel, format);
 		print_one_column(ZPOOL_PROP_EXPANDSZ, vs->vs_esize, scripted,
 		    B_TRUE, format);
 		print_one_column(ZPOOL_PROP_FRAGMENTATION,
@@ -5187,8 +5281,8 @@ zpool_do_list(int argc, char **argv)
 	int ret = 0;
 	list_cbdata_t cb = { 0 };
 	static char default_props[] =
-	    "name,size,allocated,free,expandsize,fragmentation,capacity,"
-	    "dedupratio,health,altroot";
+	    "name,size,allocated,free,checkpoint,expandsize,fragmentation,"
+	    "capacity,dedupratio,health,altroot";
 	char *props = default_props;
 	float interval = 0;
 	unsigned long count = 0;
@@ -5990,6 +6084,32 @@ typedef struct scrub_cbdata {
 	pool_scrub_cmd_t cb_scrub_cmd;
 } scrub_cbdata_t;
 
+static boolean_t
+zpool_has_checkpoint(zpool_handle_t *zhp)
+{
+	nvlist_t *config, *nvroot;
+
+	config = zpool_get_config(zhp, NULL);
+
+	if (config != NULL) {
+		pool_checkpoint_stat_t *pcs = NULL;
+		uint_t c;
+
+		nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c);
+
+		if (pcs == NULL || pcs->pcs_state == CS_NONE)
+			return (B_FALSE);
+
+		assert(pcs->pcs_state == CS_CHECKPOINT_EXISTS ||
+		    pcs->pcs_state == CS_CHECKPOINT_DISCARDING);
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
 int
 scrub_callback(zpool_handle_t *zhp, void *data)
 {
@@ -6006,6 +6126,13 @@ scrub_callback(zpool_handle_t *zhp, void *data)
 	}
 
 	err = zpool_scan(zhp, cb->cb_type, cb->cb_scrub_cmd);
+
+	if (err == 0 && zpool_has_checkpoint(zhp) &&
+	    cb->cb_type == POOL_SCAN_SCRUB) {
+		(void) printf(gettext("warning: will not scrub state that "
+		    "belongs to the checkpoint of pool '%s'\n"),
+		    zpool_get_name(zhp));
+	}
 
 	return (err != 0);
 }
@@ -6212,6 +6339,40 @@ print_scan_status(pool_scan_stat_t *ps)
 }
 
 /*
+ * As we don't scrub checkpointed blocks, we want to warn the
+ * user that we skipped scanning some blocks if a checkpoint exists
+ * or existed at any time during the scan.
+ */
+static void
+print_checkpoint_scan_warning(pool_scan_stat_t *ps, pool_checkpoint_stat_t *pcs)
+{
+	if (ps == NULL || pcs == NULL)
+		return;
+
+	if (pcs->pcs_state == CS_NONE ||
+	    pcs->pcs_state == CS_CHECKPOINT_DISCARDING)
+		return;
+
+	assert(pcs->pcs_state == CS_CHECKPOINT_EXISTS);
+
+	if (ps->pss_state == DSS_NONE)
+		return;
+
+	if ((ps->pss_state == DSS_FINISHED || ps->pss_state == DSS_CANCELED) &&
+	    ps->pss_end_time < pcs->pcs_start_time)
+		return;
+
+	if (ps->pss_state == DSS_FINISHED || ps->pss_state == DSS_CANCELED) {
+		(void) printf(gettext("    scan warning: skipped blocks "
+		    "that are only referenced by the checkpoint.\n"));
+	} else {
+		assert(ps->pss_state == DSS_SCANNING);
+		(void) printf(gettext("    scan warning: skipping blocks "
+		    "that are only referenced by the checkpoint.\n"));
+	}
+}
+
+/*
  * Print out detailed removal status.
  */
 static void
@@ -6314,6 +6475,39 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 		    "removed device mappings\n"),
 		    mem_buf);
 	}
+}
+
+static void
+print_checkpoint_status(pool_checkpoint_stat_t *pcs)
+{
+	time_t start;
+	char space_buf[7];
+
+	if (pcs == NULL || pcs->pcs_state == CS_NONE)
+		return;
+
+	(void) printf(gettext("checkpoint: "));
+
+	start = pcs->pcs_start_time;
+	zfs_nicenum(pcs->pcs_space, space_buf, sizeof (space_buf));
+
+	if (pcs->pcs_state == CS_CHECKPOINT_EXISTS) {
+		char *date = ctime(&start);
+
+		/*
+		 * ctime() adds a newline at the end of the generated
+		 * string, thus the weird format specifier and the
+		 * strlen() call used to chop it off from the output.
+		 */
+		(void) printf(gettext("created %.*s, consumes %s\n"),
+		    (int)(strlen(date) - 1), date, space_buf);
+		return;
+	}
+
+	assert(pcs->pcs_state == CS_CHECKPOINT_DISCARDING);
+
+	(void) printf(gettext("discarding, %s remaining.\n"),
+	    space_buf);
 }
 
 static void
@@ -6741,16 +6935,21 @@ status_callback(zpool_handle_t *zhp, void *data)
 		uint64_t nerr;
 		nvlist_t **spares, **l2cache;
 		uint_t nspares, nl2cache;
+		pool_checkpoint_stat_t *pcs = NULL;
 		pool_scan_stat_t *ps = NULL;
 		pool_removal_stat_t *prs = NULL;
 
 		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c);
+		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
-		print_scan_status(ps);
-
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_REMOVAL_STATS, (uint64_t **)&prs, &c);
+
+		print_scan_status(ps);
+		print_checkpoint_scan_warning(ps, pcs);
 		print_removal_status(zhp, prs);
+		print_checkpoint_status(pcs);
 
 		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
 		    cbp->cb_name_flags | VDEV_NAME_TYPE_ID);

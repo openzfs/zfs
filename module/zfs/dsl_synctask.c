@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -39,33 +39,10 @@ dsl_null_checkfunc(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-/*
- * Called from open context to perform a callback in syncing context.  Waits
- * for the operation to complete.
- *
- * The checkfunc will be called from open context as a preliminary check
- * which can quickly fail.  If it succeeds, it will be called again from
- * syncing context.  The checkfunc should generally be designed to work
- * properly in either context, but if necessary it can check
- * dmu_tx_is_syncing(tx).
- *
- * The synctask infrastructure enforces proper locking strategy with respect
- * to the dp_config_rwlock -- the lock will always be held when the callbacks
- * are called.  It will be held for read during the open-context (preliminary)
- * call to the checkfunc, and then held for write from syncing context during
- * the calls to the check and sync funcs.
- *
- * A dataset or pool name can be passed as the first argument.  Typically,
- * the check func will hold, check the return value of the hold, and then
- * release the dataset.  The sync func will VERIFYO(hold()) the dataset.
- * This is safe because no changes can be made between the check and sync funcs,
- * and the sync func will only be called if the check func successfully opened
- * the dataset.
- */
-int
-dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
+static int
+dsl_sync_task_common(const char *pool, dsl_checkfunc_t *checkfunc,
     dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check)
+    int blocks_modified, zfs_space_check_t space_check, boolean_t early)
 {
 	spa_t *spa;
 	dmu_tx_t *tx;
@@ -102,7 +79,9 @@ top:
 		return (err);
 	}
 
-	VERIFY(txg_list_add_tail(&dp->dp_sync_tasks, &dst, dst.dst_txg));
+	txg_list_t *task_list = (early) ?
+	    &dp->dp_early_sync_tasks : &dp->dp_sync_tasks;
+	VERIFY(txg_list_add_tail(task_list, &dst, dst.dst_txg));
 
 	dmu_tx_commit(tx);
 
@@ -117,9 +96,64 @@ top:
 	return (dst.dst_error);
 }
 
-void
-dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
+/*
+ * Called from open context to perform a callback in syncing context.  Waits
+ * for the operation to complete.
+ *
+ * The checkfunc will be called from open context as a preliminary check
+ * which can quickly fail.  If it succeeds, it will be called again from
+ * syncing context.  The checkfunc should generally be designed to work
+ * properly in either context, but if necessary it can check
+ * dmu_tx_is_syncing(tx).
+ *
+ * The synctask infrastructure enforces proper locking strategy with respect
+ * to the dp_config_rwlock -- the lock will always be held when the callbacks
+ * are called.  It will be held for read during the open-context (preliminary)
+ * call to the checkfunc, and then held for write from syncing context during
+ * the calls to the check and sync funcs.
+ *
+ * A dataset or pool name can be passed as the first argument.  Typically,
+ * the check func will hold, check the return value of the hold, and then
+ * release the dataset.  The sync func will VERIFYO(hold()) the dataset.
+ * This is safe because no changes can be made between the check and sync funcs,
+ * and the sync func will only be called if the check func successfully opened
+ * the dataset.
+ */
+int
+dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
+    dsl_syncfunc_t *syncfunc, void *arg,
+    int blocks_modified, zfs_space_check_t space_check)
+{
+	return (dsl_sync_task_common(pool, checkfunc, syncfunc, arg,
+	    blocks_modified, space_check, B_FALSE));
+}
+
+/*
+ * An early synctask works exactly as a standard synctask with one important
+ * difference on the way it is handled during syncing context. Standard
+ * synctasks run after we've written out all the dirty blocks of dirty
+ * datasets. Early synctasks are executed before writing out any dirty data,
+ * and thus before standard synctasks.
+ *
+ * For that reason, early synctasks can affect the process of writing dirty
+ * changes to disk for the txg that they run and should be used with caution.
+ * In addition, early synctasks should not dirty any metaslabs as this would
+ * invalidate the precodition/invariant for subsequent early synctasks.
+ * [see dsl_pool_sync() and dsl_early_sync_task_verify()]
+ */
+int
+dsl_early_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
+    dsl_syncfunc_t *syncfunc, void *arg,
+    int blocks_modified, zfs_space_check_t space_check)
+{
+	return (dsl_sync_task_common(pool, checkfunc, syncfunc, arg,
+	    blocks_modified, space_check, B_TRUE));
+}
+
+static void
+dsl_sync_task_nowait_common(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
+    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx,
+    boolean_t early)
 {
 	dsl_sync_task_t *dst = kmem_zalloc(sizeof (*dst), KM_SLEEP);
 
@@ -133,7 +167,25 @@ dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
 	dst->dst_error = 0;
 	dst->dst_nowaiter = B_TRUE;
 
-	VERIFY(txg_list_add_tail(&dp->dp_sync_tasks, dst, dst->dst_txg));
+	txg_list_t *task_list = (early) ?
+	    &dp->dp_early_sync_tasks : &dp->dp_sync_tasks;
+	VERIFY(txg_list_add_tail(task_list, dst, dst->dst_txg));
+}
+
+void
+dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
+    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
+{
+	dsl_sync_task_nowait_common(dp, syncfunc, arg,
+	    blocks_modified, space_check, tx, B_FALSE);
+}
+
+void
+dsl_early_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
+    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
+{
+	dsl_sync_task_nowait_common(dp, syncfunc, arg,
+	    blocks_modified, space_check, tx, B_TRUE);
 }
 
 /*
@@ -160,12 +212,12 @@ dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 	 * (arc_tempreserve, dsl_pool_tempreserve).
 	 */
 	if (dst->dst_space_check != ZFS_SPACE_CHECK_NONE) {
-		uint64_t quota = dsl_pool_adjustedsize(dp,
-		    dst->dst_space_check == ZFS_SPACE_CHECK_RESERVED) -
-		    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
+		uint64_t quota = dsl_pool_unreserved_space(dp,
+		    dst->dst_space_check);
 		uint64_t used = dsl_dir_phys(dp->dp_root_dir)->dd_used_bytes;
+
 		/* MOS space is triple-dittoed, so we multiply by 3. */
-		if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
+		if (used + dst->dst_space * 3 > quota) {
 			dst->dst_error = SET_ERROR(ENOSPC);
 			if (dst->dst_nowaiter)
 				kmem_free(dst, sizeof (*dst));

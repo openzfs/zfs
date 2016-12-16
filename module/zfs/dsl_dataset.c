@@ -46,6 +46,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/vdev.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_onexit.h>
@@ -208,7 +209,9 @@ int
 dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
     boolean_t async)
 {
-	int used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	int used = bp_get_dsize_sync(spa, bp);
 	int compressed = BP_GET_PSIZE(bp);
 	int uncompressed = BP_GET_UCSIZE(bp);
 
@@ -3821,7 +3824,8 @@ dsl_dataset_set_refquota(const char *dsname, zprop_source_t source,
 	ddsqra.ddsqra_value = refquota;
 
 	return (dsl_sync_task(dsname, dsl_dataset_set_refquota_check,
-	    dsl_dataset_set_refquota_sync, &ddsqra, 0, ZFS_SPACE_CHECK_NONE));
+	    dsl_dataset_set_refquota_sync, &ddsqra, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
 static int
@@ -3936,8 +3940,8 @@ dsl_dataset_set_refreservation(const char *dsname, zprop_source_t source,
 	ddsqra.ddsqra_value = refreservation;
 
 	return (dsl_sync_task(dsname, dsl_dataset_set_refreservation_check,
-	    dsl_dataset_set_refreservation_sync, &ddsqra,
-	    0, ZFS_SPACE_CHECK_NONE));
+	    dsl_dataset_set_refreservation_sync, &ddsqra, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
 /*

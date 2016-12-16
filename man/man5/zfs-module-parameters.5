@@ -293,12 +293,23 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
-\fBmetaslabs_per_vdev\fR (int)
+\fBvdev_max_ms_count\fR (int)
 .ad
 .RS 12n
 When a vdev is added, it will be divided into approximately (but no more than) this number of metaslabs.
 .sp
 Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBvdev_min_ms_count\fR (int)
+.ad
+.RS 12n
+Minimum number of metaslabs to create in a top-level vdev.
+.sp
+Default value: \fB16\fR.
 .RE
 
 .sp
@@ -2098,6 +2109,18 @@ Default value: \fB16,777,216\fR.
 Flushing of data to disk is done in passes. Defer frees starting in this pass
 .sp
 Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_spa_discard_memory_limit\fR (int)
+.ad
+.RS 12n
+Maximum memory used for prefetching a checkpoint's space map on each
+vdev while discarding the checkpoint.
+.sp
+Default value: \fB16,777,216\fR.
 .RE
 
 .sp

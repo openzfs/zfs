@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -38,12 +38,13 @@
 #include <sys/zfeature.h>
 
 /*
+ * Note on space map block size:
+ *
  * The data for a given space map can be kept on blocks of any size.
  * Larger blocks entail fewer i/o operations, but they also cause the
  * DMU to keep more data in-core, and also to waste more i/o bandwidth
  * when only a few blocks have changed since the last transaction group.
  */
-int space_map_blksz = (1 << 12);
 
 /*
  * Iterate through the space map, invoking the callback on each (non-debug)
@@ -102,6 +103,137 @@ space_map_iterate(space_map_t *sm, sm_cb_t callback, void *arg)
 	}
 
 	vmem_free(entry_map, bufsize);
+	return (error);
+}
+
+/*
+ * Note: This function performs destructive actions - specifically
+ * it deletes entries from the end of the space map. Thus, callers
+ * should ensure that they are holding the appropriate locks for
+ * the space map that they provide.
+ */
+int
+space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
+    dmu_tx_t *tx)
+{
+	uint64_t bufsize, len;
+	uint64_t *entry_map;
+	int error = 0;
+
+	len = space_map_length(sm);
+	bufsize = MAX(sm->sm_blksz, SPA_MINBLOCKSIZE);
+	entry_map = zio_buf_alloc(bufsize);
+
+	dmu_buf_will_dirty(sm->sm_dbuf, tx);
+
+	/*
+	 * Since we can't move the starting offset of the space map
+	 * (e.g there are reference on-disk pointing to it), we destroy
+	 * its entries incrementally starting from the end.
+	 *
+	 * The logic that follows is basically the same as the one used
+	 * in space_map_iterate() but it traverses the space map
+	 * backwards:
+	 *
+	 * 1] We figure out the size of the buffer that we want to use
+	 *    to read the on-disk space map entries.
+	 * 2] We figure out the offset at the end of the space map where
+	 *    we will start reading entries into our buffer.
+	 * 3] We read the on-disk entries into the buffer.
+	 * 4] We iterate over the entries from end to beginning calling
+	 *    the callback function on each one. As we move from entry
+	 *    to entry we decrease the size of the space map, deleting
+	 *    effectively each entry.
+	 * 5] If there are no more entries in the space map or the
+	 *    callback returns a value other than 0, we stop iterating
+	 *    over the space map. If there are entries remaining and
+	 *    the callback returned zero we go back to step [1].
+	 */
+	uint64_t offset = 0, size = 0;
+	while (len > 0 && error == 0) {
+		size = MIN(bufsize, len);
+
+		VERIFY(P2PHASE(size, sizeof (uint64_t)) == 0);
+		VERIFY3U(size, >, 0);
+		ASSERT3U(sm->sm_blksz, !=, 0);
+
+		offset = len - size;
+
+		IMPLY(bufsize > len, offset == 0);
+		IMPLY(bufsize == len, offset == 0);
+		IMPLY(bufsize < len, offset > 0);
+
+
+		EQUIV(size == len, offset == 0);
+		IMPLY(size < len, bufsize < len);
+
+		dprintf("object=%llu  offset=%llx  size=%llx\n",
+		    space_map_object(sm), offset, size);
+
+		error = dmu_read(sm->sm_os, space_map_object(sm),
+		    offset, size, entry_map, DMU_READ_PREFETCH);
+		if (error != 0)
+			break;
+
+		uint64_t num_entries = size / sizeof (uint64_t);
+
+		ASSERT3U(num_entries, >, 0);
+
+		while (num_entries > 0) {
+			uint64_t e, entry_offset, entry_size;
+			maptype_t type;
+
+			e = entry_map[num_entries - 1];
+
+			ASSERT3U(num_entries, >, 0);
+			ASSERT0(error);
+
+			if (SM_DEBUG_DECODE(e)) {
+				sm->sm_phys->smp_objsize -= sizeof (uint64_t);
+				space_map_update(sm);
+				len -= sizeof (uint64_t);
+				num_entries--;
+				continue;
+			}
+
+			type = SM_TYPE_DECODE(e);
+			entry_offset = (SM_OFFSET_DECODE(e) << sm->sm_shift) +
+			    sm->sm_start;
+			entry_size = SM_RUN_DECODE(e) << sm->sm_shift;
+
+			VERIFY0(P2PHASE(entry_offset, 1ULL << sm->sm_shift));
+			VERIFY0(P2PHASE(entry_size, 1ULL << sm->sm_shift));
+			VERIFY3U(entry_offset, >=, sm->sm_start);
+			VERIFY3U(entry_offset + entry_size, <=,
+			    sm->sm_start + sm->sm_size);
+
+			error = callback(type, entry_offset, entry_size, arg);
+			if (error != 0)
+				break;
+
+			if (type == SM_ALLOC)
+				sm->sm_phys->smp_alloc -= entry_size;
+			else
+				sm->sm_phys->smp_alloc += entry_size;
+
+			sm->sm_phys->smp_objsize -= sizeof (uint64_t);
+			space_map_update(sm);
+			len -= sizeof (uint64_t);
+			num_entries--;
+		}
+		IMPLY(error == 0, num_entries == 0);
+		EQUIV(offset == 0 && error == 0, len == 0 && num_entries == 0);
+	}
+
+	if (len == 0) {
+		ASSERT0(error);
+		ASSERT0(offset);
+		ASSERT0(sm->sm_length);
+		ASSERT0(sm->sm_phys->smp_objsize);
+		ASSERT0(sm->sm_alloc);
+	}
+
+	zio_buf_free(entry_map, bufsize);
 	return (error);
 }
 
@@ -279,7 +411,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 */
 	sm->sm_phys->smp_object = sm->sm_object;
 
-	if (range_tree_space(rt) == 0) {
+	if (range_tree_is_empty(rt)) {
 		VERIFY3U(sm->sm_object, ==, sm->sm_phys->smp_object);
 		return;
 	}
@@ -418,7 +550,7 @@ space_map_close(space_map_t *sm)
 }
 
 void
-space_map_truncate(space_map_t *sm, dmu_tx_t *tx)
+space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 {
 	objset_t *os = sm->sm_os;
 	spa_t *spa = dmu_objset_spa(os);
@@ -440,7 +572,7 @@ space_map_truncate(space_map_t *sm, dmu_tx_t *tx)
 	 */
 	if ((spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) &&
 	    doi.doi_bonus_size != sizeof (space_map_phys_t)) ||
-	    doi.doi_data_block_size != space_map_blksz) {
+	    doi.doi_data_block_size != blocksize) {
 		zfs_dbgmsg("txg %llu, spa %s, sm %p, reallocating "
 		    "object[%llu]: old bonus %u, old blocksz %u",
 		    dmu_tx_get_txg(tx), spa_name(spa), sm, sm->sm_object,
@@ -449,7 +581,7 @@ space_map_truncate(space_map_t *sm, dmu_tx_t *tx)
 		space_map_free(sm, tx);
 		dmu_buf_rele(sm->sm_dbuf, sm);
 
-		sm->sm_object = space_map_alloc(sm->sm_os, tx);
+		sm->sm_object = space_map_alloc(sm->sm_os, blocksize, tx);
 		VERIFY0(space_map_open_impl(sm));
 	} else {
 		VERIFY0(dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx));
@@ -482,7 +614,7 @@ space_map_update(space_map_t *sm)
 }
 
 uint64_t
-space_map_alloc(objset_t *os, dmu_tx_t *tx)
+space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_objset_spa(os);
 	uint64_t object;
@@ -496,8 +628,7 @@ space_map_alloc(objset_t *os, dmu_tx_t *tx)
 		bonuslen = SPACE_MAP_SIZE_V0;
 	}
 
-	object = dmu_object_alloc(os,
-	    DMU_OT_SPACE_MAP, space_map_blksz,
+	object = dmu_object_alloc(os, DMU_OT_SPACE_MAP, blocksize,
 	    DMU_OT_SPACE_MAP_HEADER, bonuslen, tx);
 
 	return (object);

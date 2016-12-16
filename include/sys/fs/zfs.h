@@ -239,6 +239,7 @@ typedef enum {
 	ZPOOL_PROP_TNAME,
 	ZPOOL_PROP_MAXDNODESIZE,
 	ZPOOL_PROP_MULTIHOST,
+	ZPOOL_PROP_CHECKPOINT,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -616,6 +617,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_DTL		"DTL"
 #define	ZPOOL_CONFIG_SCAN_STATS		"scan_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_REMOVAL_STATS	"removal_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_CHECKPOINT_STATS	"checkpoint_stats" /* not on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_INDIRECT_SIZE	"indirect_size"	/* not stored on disk */
 
@@ -752,6 +754,8 @@ typedef struct zpool_load_policy {
 	"com.delphix:indirect_obsolete_sm"
 #define	VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE \
 	"com.delphix:obsolete_counts_are_precise"
+#define	VDEV_TOP_ZAP_POOL_CHECKPOINT_SM \
+	"com.delphix:pool_checkpoint_sm"
 
 /*
  * This is needed in userland to report the minimum necessary device size.
@@ -861,6 +865,18 @@ typedef enum pool_scrub_cmd {
 	POOL_SCRUB_FLAGS_END
 } pool_scrub_cmd_t;
 
+typedef enum {
+	CS_NONE,
+	CS_CHECKPOINT_EXISTS,
+	CS_CHECKPOINT_DISCARDING,
+	CS_NUM_STATES
+} checkpoint_state_t;
+
+typedef struct pool_checkpoint_stat {
+	uint64_t pcs_state;		/* checkpoint_state_t */
+	uint64_t pcs_start_time;	/* time checkpoint/discard started */
+	uint64_t pcs_space;		/* checkpointed space */
+} pool_checkpoint_stat_t;
 
 /*
  * ZIO types.  Needed to interpret vdev statistics below.
@@ -958,7 +974,7 @@ typedef struct vdev_stat {
 	uint64_t	vs_scan_removing;	/* removing?	*/
 	uint64_t	vs_scan_processed;	/* scan processed bytes	*/
 	uint64_t	vs_fragmentation;	/* device fragmentation */
-
+	uint64_t	vs_checkpoint_space;    /* checkpoint-consumed space */
 } vdev_stat_t;
 
 /*
@@ -1144,6 +1160,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_UNLOAD_KEY,
 	ZFS_IOC_CHANGE_KEY,
 	ZFS_IOC_REMAP,
+	ZFS_IOC_POOL_CHECKPOINT,
+	ZFS_IOC_POOL_DISCARD_CHECKPOINT,
 
 	/*
 	 * Linux - 3/64 numbers reserved.
@@ -1165,6 +1183,22 @@ typedef enum zfs_ioc {
  * zvol ioctl to get dataset name
  */
 #define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAX_DATASET_NAME_LEN])
+
+/*
+ * ZFS-specific error codes used for returning descriptive errors
+ * to the userland through zfs ioctls.
+ *
+ * The enum implicitly includes all the error codes from errno.h.
+ * New code should use and extend this enum for errors that are
+ * not described precisely by generic errno codes.
+ */
+typedef enum {
+	ZFS_ERR_CHECKPOINT_EXISTS = 1024,
+	ZFS_ERR_DISCARDING_CHECKPOINT,
+	ZFS_ERR_NO_CHECKPOINT,
+	ZFS_ERR_DEVRM_IN_PROGRESS,
+	ZFS_ERR_VDEV_TOO_BIG
+} zfs_errno_t;
 
 /*
  * Internal SPA load state.  Used by FMA diagnosis engine.
@@ -1235,6 +1269,7 @@ typedef enum {
 #define	ZFS_IMPORT_TEMP_NAME	0x10
 #define	ZFS_IMPORT_SKIP_MMP	0x20
 #define	ZFS_IMPORT_LOAD_KEYS	0x40
+#define	ZFS_IMPORT_CHECKPOINT	0x80
 
 /*
  * Channel program argument/return nvlist keys and defaults.

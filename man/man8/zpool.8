@@ -47,6 +47,10 @@
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool device new_device
 .Nm
+.Cm checkpoint
+.Op Fl d, -discard
+.Ar pool
+.Nm
 .Cm clear
 .Ar pool
 .Op Ar device
@@ -93,6 +97,7 @@
 .Fl a
 .Op Fl DflmN
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
+.Op Fl -rewind-to-checkpoint
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
@@ -101,6 +106,7 @@
 .Cm import
 .Op Fl Dflm
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
+.Op Fl -rewind-to-checkpoint
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
@@ -470,6 +476,50 @@ configuration.
 .Pp
 The content of the cache devices is considered volatile, as is the case with
 other system caches.
+.Ss Pool checkpoint
+Before starting critical procedures that include destructive actions (e.g
+.Nm zfs Cm destroy
+), an administrator can checkpoint the pool's state and in the case of a
+mistake or failure, rewind the entire pool back to the checkpoint.
+Otherwise, the checkpoint can be discarded when the procedure has completed
+successfully.
+.Pp
+A pool checkpoint can be thought of as a pool-wide snapshot and should be used
+with care as it contains every part of the pool's state, from properties to vdev
+configuration.
+Thus, while a pool has a checkpoint certain operations are not allowed.
+Specifically, vdev removal/attach/detach, mirror splitting, and
+changing the pool's guid.
+Adding a new vdev is supported but in the case of a rewind it will have to be
+added again.
+Finally, users of this feature should keep in mind that scrubs in a pool that
+has a checkpoint do not repair checkpointed data.
+.Pp
+To create a checkpoint for a pool:
+.Bd -literal
+# zpool checkpoint pool
+.Ed
+.Pp
+To later rewind to its checkpointed state, you need to first export it and
+then rewind it during import:
+.Bd -literal
+# zpool export pool
+# zpool import --rewind-to-checkpoint pool
+.Ed
+.Pp
+To discard the checkpoint from a pool:
+.Bd -literal
+# zpool checkpoint -d pool
+.Ed
+.Pp
+Dataset reservations (controlled by the
+.Nm reservation
+or
+.Nm refreservation
+zfs properties) may be unenforceable while a checkpoint exists, because the
+checkpoint is allowed to consume the dataset's reservation.
+Finally, data that is part of the checkpoint but has been freed in the
+current state of the pool won't be scanned during a scrub.
 .Ss Properties
 Each pool has several properties associated with it.
 Some properties are read-only statistics while others are configurable and
@@ -853,6 +903,39 @@ Sets the given pool properties. See the
 .Sx Properties
 section for a list of valid properties that can be set. The only property
 supported at the moment is ashift.
+.El
+.It Xo
+.Nm
+.Cm checkpoint
+.Op Fl d, -discard
+.Ar pool
+.Xc
+Checkpoints the current state of
+.Ar pool
+, which can be later restored by
+.Nm zpool Cm import --rewind-to-checkpoint .
+The existence of a checkpoint in a pool prohibits the following
+.Nm zpool
+commands:
+.Cm remove ,
+.Cm attach ,
+.Cm detach ,
+.Cm split ,
+and
+.Cm reguid .
+In addition, it may break reservation boundaries if the pool lacks free
+space.
+The
+.Nm zpool Cm status
+command indicates the existence of a checkpoint or the progress of discarding a
+checkpoint from a pool.
+The
+.Nm zpool Cm list
+command reports how much space the checkpoint takes from the pool.
+.Bl -tag -width Ds
+.It Fl d, -discard
+Discards an existing checkpoint from
+.Ar pool .
 .El
 .It Xo
 .Nm
@@ -1290,6 +1373,16 @@ and the
 .Sy altroot
 property to
 .Ar root .
+.It Fl -rewind-to-checkpoint
+Rewinds pool to the checkpointed state.
+Once the pool is imported with this flag there is no way to undo the rewind.
+All changes and data that were written after the checkpoint are lost!
+The only exception is when the
+.Sy readonly
+mounting option is enabled.
+In this case, the checkpointed state of the pool is opened and an
+administrator can see how the pool would look like if they were
+to fully rewind.
 .It Fl s
 Scan using the default search path, the libblkid cache will not be
 consulted. A custom search path may be specified by setting the

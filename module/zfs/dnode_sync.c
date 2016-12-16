@@ -644,7 +644,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		    dn->dn_maxblkid == 0 || list_head(list) != NULL ||
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT ==
 		    dnp->dn_datablkszsec ||
-		    range_tree_space(dn->dn_free_ranges[txgoff]) != 0);
+		    !range_tree_is_empty(dn->dn_free_ranges[txgoff]));
 		dnp->dn_datablkszsec =
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT;
 		dn->dn_next_blksz[txgoff] = 0;

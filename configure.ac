@@ -177,6 +177,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/mmapwrite/Makefile
 	tests/zfs-tests/cmd/nvlist_to_lua/Makefile
 	tests/zfs-tests/cmd/randfree_file/Makefile
+	tests/zfs-tests/cmd/randwritecomp/Makefile
 	tests/zfs-tests/cmd/readmmap/Makefile
 	tests/zfs-tests/cmd/rename_dir/Makefile
 	tests/zfs-tests/cmd/rm_lnkcnt_zero_file/Makefile
@@ -291,6 +292,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/nopwrite/Makefile
 	tests/zfs-tests/tests/functional/online_offline/Makefile
 	tests/zfs-tests/tests/functional/pool_names/Makefile
+	tests/zfs-tests/tests/functional/pool_checkpoint/Makefile
 	tests/zfs-tests/tests/functional/poolversion/Makefile
 	tests/zfs-tests/tests/functional/privilege/Makefile
 	tests/zfs-tests/tests/functional/projectquota/Makefile

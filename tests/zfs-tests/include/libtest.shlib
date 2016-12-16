@@ -22,7 +22,7 @@
 #
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2017 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2017 Datto Inc.
@@ -3518,6 +3518,24 @@ function mdb_set_uint32
 	typeset value=$2
 
 	mdb -kw -e "$variable/W 0t$value" > /dev/null
+	if [[ $? -ne 0 ]]; then
+		echo "Failed to set '$variable' to '$value' in mdb."
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Set global scalar integer variable to a hex value using mdb.
+# Note: Target should have CTF data loaded.
+#
+function mdb_ctf_set_int
+{
+	typeset variable=$1
+	typeset value=$2
+
+	mdb -kw -e "$variable/z $value" > /dev/null
 	if [[ $? -ne 0 ]]; then
 		echo "Failed to set '$variable' to '$value' in mdb."
 		return 1

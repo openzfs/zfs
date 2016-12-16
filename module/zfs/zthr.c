@@ -235,8 +235,6 @@ zthr_destroy(zthr_t *t)
 void
 zthr_wakeup(zthr_t *t)
 {
-	ASSERT3P(t->zthr_thread, !=, NULL);
-
 	mutex_enter(&t->zthr_lock);
 	cv_broadcast(&t->zthr_cv);
 	mutex_exit(&t->zthr_lock);

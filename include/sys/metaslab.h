@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_H
@@ -70,8 +70,8 @@ int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
 int metaslab_alloc_dva(spa_t *, metaslab_class_t *, uint64_t,
     dva_t *, int, dva_t *, uint64_t, int, zio_alloc_list_t *);
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
-void metaslab_free_concrete(vdev_t *, uint64_t, uint64_t, uint64_t);
-void metaslab_free_dva(spa_t *, const dva_t *, uint64_t);
+void metaslab_free_concrete(vdev_t *, uint64_t, uint64_t, boolean_t);
+void metaslab_free_dva(spa_t *, const dva_t *, boolean_t);
 void metaslab_free_impl_cb(uint64_t, vdev_t *, uint64_t, uint64_t, void *);
 void metaslab_unalloc_dva(spa_t *, const dva_t *, uint64_t);
 int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);

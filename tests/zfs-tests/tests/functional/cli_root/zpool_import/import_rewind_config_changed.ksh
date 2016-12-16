@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zpool_import/zpool_import.kshlib
@@ -28,10 +28,11 @@
 #	4. Take a snapshot to make sure old blocks are not overwritten.
 #	5. Perform zpool add/attach/detach/remove operation.
 #	6. Change device paths if requested and re-import pool.
-#	7. Overwrite the files.
-#	8. Export the pool.
-#	9. Verify that we can rewind the pool to the noted txg.
-#	10. Verify that the files are readable and retain their old data.
+#	7. Checkpoint the pool as one last attempt to preserve old blocks.
+#	8. Overwrite the files.
+#	9. Export the pool.
+#	10. Verify that we can rewind the pool to the noted txg.
+#	11. Verify that the files are readable and retain their old data.
 #
 # DISCLAIMER:
 #	This test can fail since nothing guarantees that old MOS blocks aren't
@@ -47,6 +48,7 @@ function custom_cleanup
 {
 	set_vdev_validate_skip 0
 	cleanup
+	log_must set_tunable64 vdev_min_ms_count 16
 }
 
 log_onexit custom_cleanup
@@ -76,8 +78,8 @@ function test_common
 	#
 	# Perform config change operations
 	#
-	if [[ -n $addvdev ]]; then
-		log_must zpool add -f $TESTPOOL1 $addvdev
+	if [[ -n $addvdevs ]]; then
+		log_must zpool add -f $TESTPOOL1 $addvdevs
 	fi
 	if [[ -n $attachargs ]]; then
 		log_must zpool attach $TESTPOOL1 $attachargs
@@ -103,6 +105,22 @@ function test_common
 		done
 		zpool import -d $DEVICE_DIR $TESTPOOL1
 	fi
+
+	#
+	# In an attempt to leave MOS data untouched so extreme
+	# rewind is successful during import we checkpoint the
+	# pool and hope that these MOS data are part of the
+	# checkpoint (e.g they stay around). If this goes as
+	# expected, then extreme rewind should rewind back even
+	# further than the time that we took the checkpoint.
+	#
+	# Note that, ideally we would want to take a checkpoint
+	# right after we recond the txg we plan to rewind to.
+	# But since we can't attach, detach or remove devices
+	# while having a checkpoint, we take it after the
+	# operation that changes the config.
+	#
+	log_must zpool checkpoint $TESTPOOL1
 
 	log_must overwrite_data $TESTPOOL1 ""
 
@@ -187,6 +205,10 @@ is_linux && log_must set_tunable32 zfs_txg_history 100
 
 # Make the devices bigger to reduce chances of overwriting MOS metadata.
 increase_device_sizes $(( FILE_SIZE * 4 ))
+
+# Increase the number of metaslabs for small pools temporarily to
+# reduce the chance of reusing a metaslab that holds old MOS metadata.
+log_must set_tunable64 vdev_min_ms_count 150
 
 # Part of the rewind test is to see how it reacts to path changes
 typeset pathstochange="$VDEV0 $VDEV1 $VDEV2 $VDEV3"
