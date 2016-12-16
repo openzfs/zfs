@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -24,24 +24,21 @@
 default_setup_noexit "$DISKS"
 log_onexit default_cleanup_noexit
 
-function callback # count
+function callback
 {
-	typeset count=$1
-	if ((count == 0)); then
-		is_linux && test_removal_with_operation_kill
-		log_must zpool export $TESTPOOL
+	is_linux && test_removal_with_operation_kill
+	log_must zpool export $TESTPOOL
 
-		#
-		# We are concurrently starting dd processes that will
-		# create files in $TESTDIR.  These could cause the import
-		# to fail because it can't mount on the filesystem on a
-		# non-empty directory.  Therefore, remove the directory
-		# so that the dd process will fail.
-		#
-		log_must rm -rf $TESTDIR
+	#
+	# We are concurrently starting dd processes that will
+	# create files in $TESTDIR.  These could cause the import
+	# to fail because it can't mount on the filesystem on a
+	# non-empty directory.  Therefore, remove the directory
+	# so that the dd process will fail.
+	#
+	log_must rm -rf $TESTDIR
 
-		log_must zpool import $TESTPOOL
-	fi
+	log_must zpool import $TESTPOOL
 	return 0
 }
 

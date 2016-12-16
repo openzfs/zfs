@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,14 +36,10 @@ log_onexit cleanup
 
 function callback
 {
-	typeset count=$1
-	if ((count == 0)); then
-		log_mustnot zpool attach -f $TESTPOOL $TMPDIR/dsk1 $TMPDIR/dsk2
-		log_mustnot zpool add -f $TESTPOOL \
-		    raidz $TMPDIR/dsk1 $TMPDIR/dsk2
-		log_must zpool add -f $TESTPOOL $TMPDIR/dsk1
-	fi
-
+	log_mustnot zpool attach -f $TESTPOOL $TMPDIR/dsk1 $TMPDIR/dsk2
+	log_mustnot zpool add -f $TESTPOOL \
+	    raidz $TMPDIR/dsk1 $TMPDIR/dsk2
+	log_must zpool add -f $TESTPOOL $TMPDIR/dsk1
 	return 0
 }
 

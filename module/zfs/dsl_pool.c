@@ -43,6 +43,8 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/dsl_deadlist.h>
+#include <sys/vdev_impl.h>
+#include <sys/metaslab_impl.h>
 #include <sys/bptree.h>
 #include <sys/zfeature.h>
 #include <sys/zil_impl.h>
@@ -200,6 +202,8 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	txg_list_create(&dp->dp_dirty_dirs, spa,
 	    offsetof(dsl_dir_t, dd_dirty_link));
 	txg_list_create(&dp->dp_sync_tasks, spa,
+	    offsetof(dsl_sync_task_t, dst_node));
+	txg_list_create(&dp->dp_early_sync_tasks, spa,
 	    offsetof(dsl_sync_task_t, dst_node));
 
 	dp->dp_sync_taskq = taskq_create("dp_sync_taskq",
@@ -385,6 +389,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	txg_list_destroy(&dp->dp_dirty_datasets);
 	txg_list_destroy(&dp->dp_dirty_zilogs);
 	txg_list_destroy(&dp->dp_sync_tasks);
+	txg_list_destroy(&dp->dp_early_sync_tasks);
 	txg_list_destroy(&dp->dp_dirty_dirs);
 
 	taskq_destroy(dp->dp_zil_clean_taskq);
@@ -574,6 +579,29 @@ dsl_pool_dirty_delta(dsl_pool_t *dp, int64_t delta)
 		cv_signal(&dp->dp_spaceavail_cv);
 }
 
+#ifdef ZFS_DEBUG
+static boolean_t
+dsl_early_sync_task_verify(dsl_pool_t *dp, uint64_t txg)
+{
+	spa_t *spa = dp->dp_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
+
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		txg_list_t *tl = &vd->vdev_ms_list;
+		metaslab_t *ms;
+
+		for (ms = txg_list_head(tl, TXG_CLEAN(txg)); ms;
+		    ms = txg_list_next(tl, ms, TXG_CLEAN(txg))) {
+			VERIFY(range_tree_is_empty(ms->ms_freeing));
+			VERIFY(range_tree_is_empty(ms->ms_checkpointing));
+		}
+	}
+
+	return (B_TRUE);
+}
+#endif
+
 void
 dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 {
@@ -588,6 +616,23 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	    offsetof(dsl_dataset_t, ds_synced_link));
 
 	tx = dmu_tx_create_assigned(dp, txg);
+
+	/*
+	 * Run all early sync tasks before writing out any dirty blocks.
+	 * For more info on early sync tasks see block comment in
+	 * dsl_early_sync_task().
+	 */
+	if (!txg_list_empty(&dp->dp_early_sync_tasks, txg)) {
+		dsl_sync_task_t *dst;
+
+		ASSERT3U(spa_sync_pass(dp->dp_spa), ==, 1);
+		while ((dst =
+		    txg_list_remove(&dp->dp_early_sync_tasks, txg)) != NULL) {
+			ASSERT(dsl_early_sync_task_verify(dp, txg));
+			dsl_sync_task_sync(dst, tx);
+		}
+		ASSERT(dsl_early_sync_task_verify(dp, txg));
+	}
 
 	/*
 	 * Write out all dirty blocks of dirty datasets.
@@ -744,22 +789,66 @@ dsl_pool_sync_context(dsl_pool_t *dp)
 	    taskq_member(dp->dp_sync_taskq, curthread));
 }
 
+/*
+ * This function returns the amount of allocatable space in the pool
+ * minus whatever space is currently reserved by ZFS for specific
+ * purposes. Specifically:
+ *
+ * 1] Any reserved SLOP space
+ * 2] Any space used by the checkpoint
+ * 3] Any space used for deferred frees
+ *
+ * The latter 2 are especially important because they are needed to
+ * rectify the SPA's and DMU's different understanding of how much space
+ * is used. Now the DMU is aware of that extra space tracked by the SPA
+ * without having to maintain a separate special dir (e.g similar to
+ * $MOS, $FREEING, and $LEAKED).
+ *
+ * Note: By deferred frees here, we mean the frees that were deferred
+ * in spa_sync() after sync pass 1 (spa_deferred_bpobj), and not the
+ * segments placed in ms_defer trees during metaslab_sync_done().
+ */
 uint64_t
-dsl_pool_adjustedsize(dsl_pool_t *dp, boolean_t netfree)
+dsl_pool_adjustedsize(dsl_pool_t *dp, zfs_space_check_t slop_policy)
 {
-	uint64_t space, resv;
+	spa_t *spa = dp->dp_spa;
+	uint64_t space, resv, adjustedsize;
+	uint64_t spa_deferred_frees =
+	    spa->spa_deferred_bpobj.bpo_phys->bpo_bytes;
 
-	/*
-	 * If we're trying to assess whether it's OK to do a free,
-	 * cut the reservation in half to allow forward progress
-	 * (e.g. make it possible to rm(1) files from a full pool).
-	 */
-	space = spa_get_dspace(dp->dp_spa);
-	resv = spa_get_slop_space(dp->dp_spa);
-	if (netfree)
+	space = spa_get_dspace(spa)
+	    - spa_get_checkpoint_space(spa) - spa_deferred_frees;
+	resv = spa_get_slop_space(spa);
+
+	switch (slop_policy) {
+	case ZFS_SPACE_CHECK_NORMAL:
+		break;
+	case ZFS_SPACE_CHECK_RESERVED:
 		resv >>= 1;
+		break;
+	case ZFS_SPACE_CHECK_EXTRA_RESERVED:
+		resv >>= 2;
+		break;
+	case ZFS_SPACE_CHECK_NONE:
+		resv = 0;
+		break;
+	default:
+		panic("invalid slop policy value: %d", slop_policy);
+		break;
+	}
+	adjustedsize = (space >= resv) ? (space - resv) : 0;
 
-	return (space - resv);
+	return (adjustedsize);
+}
+
+uint64_t
+dsl_pool_unreserved_space(dsl_pool_t *dp, zfs_space_check_t slop_policy)
+{
+	uint64_t poolsize = dsl_pool_adjustedsize(dp, slop_policy);
+	uint64_t deferred =
+	    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
+	uint64_t quota = (poolsize >= deferred) ? (poolsize - deferred) : 0;
+	return (quota);
 }
 
 boolean_t

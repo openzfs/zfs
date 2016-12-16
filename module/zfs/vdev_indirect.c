@@ -298,14 +298,13 @@ static const zio_vsd_ops_t vdev_indirect_vsd_ops = {
 };
 
 /*
- * Mark the given offset and size as being obsolete in the given txg.
+ * Mark the given offset and size as being obsolete.
  */
 void
-vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size,
-    uint64_t txg)
+vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size)
 {
 	spa_t *spa = vd->vdev_spa;
-	ASSERT3U(spa_syncing_txg(spa), ==, txg);
+
 	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
 	ASSERT(size > 0);
@@ -316,7 +315,7 @@ vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size,
 		mutex_enter(&vd->vdev_obsolete_lock);
 		range_tree_add(vd->vdev_obsolete_segments, offset, size);
 		mutex_exit(&vd->vdev_obsolete_lock);
-		vdev_dirty(vd, 0, NULL, txg);
+		vdev_dirty(vd, 0, NULL, spa_syncing_txg(spa));
 	}
 }
 
@@ -334,7 +333,7 @@ spa_vdev_indirect_mark_obsolete(spa_t *spa, uint64_t vdev_id, uint64_t offset,
 
 	/* The DMU can only remap indirect vdevs. */
 	ASSERT3P(vd->vdev_ops, ==, &vdev_indirect_ops);
-	vdev_indirect_mark_obsolete(vd, offset, size, dmu_tx_get_txg(tx));
+	vdev_indirect_mark_obsolete(vd, offset, size);
 }
 
 static spa_condensing_indirect_t *
@@ -727,7 +726,8 @@ spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 		return (0);
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    spa_condense_indirect_complete_sync, sci, 0, ZFS_SPACE_CHECK_NONE));
+	    spa_condense_indirect_complete_sync, sci, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 
 	return (0);
 }
@@ -804,7 +804,8 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 
 	if (vdev_obsolete_sm_object(vd) == 0) {
 		uint64_t obsolete_sm_object =
-		    space_map_alloc(spa->spa_meta_objset, tx);
+		    space_map_alloc(spa->spa_meta_objset,
+		    vdev_standard_sm_blksz, tx);
 
 		ASSERT(vd->vdev_top_zap != 0);
 		VERIFY0(zap_add(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,

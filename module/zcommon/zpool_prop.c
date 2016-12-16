@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -79,6 +79,8 @@ zpool_prop_init(void)
 	    ZFS_TYPE_POOL, "<size>", "FREE");
 	zprop_register_number(ZPOOL_PROP_FREEING, "freeing", 0, PROP_READONLY,
 	    ZFS_TYPE_POOL, "<size>", "FREEING");
+	zprop_register_number(ZPOOL_PROP_CHECKPOINT, "checkpoint", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<size>", "CKPOINT");
 	zprop_register_number(ZPOOL_PROP_LEAKED, "leaked", 0, PROP_READONLY,
 	    ZFS_TYPE_POOL, "<size>", "LEAKED");
 	zprop_register_number(ZPOOL_PROP_ALLOCATED, "allocated", 0,

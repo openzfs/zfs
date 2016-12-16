@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -24,15 +24,6 @@
 default_setup_noexit "$DISKS"
 log_onexit default_cleanup_noexit
 
-function callback
-{
-	typeset count=$1
-	if ((count == 0)); then
-		zfs remap $TESTPOOL/$TESTFS
-	fi
-	return 0
-}
-
-test_removal_with_operation callback
+test_removal_with_operation zfs remap $TESTPOOL/$TESTFS
 
 log_pass "Can remap a filesystem during removal"
