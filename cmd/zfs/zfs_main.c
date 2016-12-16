@@ -2529,7 +2529,7 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 		namelen = strlen(name);
 	}
 	nameidx = us_field_index("name");
-	if (namelen > cb->cb_width[nameidx])
+	if (nameidx >= 0 && namelen > cb->cb_width[nameidx])
 		cb->cb_width[nameidx] = namelen;
 
 	/*
@@ -2574,7 +2574,7 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 		return (-1);
 	}
 	sizeidx = us_field_index(propname);
-	if (sizelen > cb->cb_width[sizeidx])
+	if (sizeidx >= 0 && sizelen > cb->cb_width[sizeidx])
 		cb->cb_width[sizeidx] = sizelen;
 
 	if (nvlist_add_uint64(props, propname, space) != 0)
