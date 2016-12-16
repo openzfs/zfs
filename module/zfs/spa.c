@@ -1888,6 +1888,7 @@ spa_check_for_missing_logs(spa_t *spa)
 
 		if (idx > 0) {
 			spa_load_failed(spa, "some log devices are missing");
+			vdev_dbgmsg_print_tree(rvd, 2);
 			return (SET_ERROR(ENXIO));
 		}
 	} else {
@@ -1899,6 +1900,7 @@ spa_check_for_missing_logs(spa_t *spa)
 				spa_set_log_state(spa, SPA_LOG_CLEAR);
 				spa_load_note(spa, "some log devices are "
 				    "missing, ZIL is dropped.");
+				vdev_dbgmsg_print_tree(rvd, 2);
 				break;
 			}
 		}
