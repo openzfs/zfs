@@ -86,11 +86,21 @@ typedef struct vdev_cmd_data_list
 {
 	char *cmd;		/* Command to run */
 	unsigned int count;	/* Number of vdev_cmd_data items (vdevs) */
+
+	/* vars to whitelist only certain vdevs, if requested */
+	libzfs_handle_t *g_zfs;
+	char **vdev_names;
+	int vdev_names_count;
+	int cb_name_flags;
+
 	vdev_cmd_data_t *data;	/* Array of vdevs */
+
 } vdev_cmd_data_list_t;
 
 vdev_cmd_data_list_t *all_pools_for_each_vdev_run(int argc, char **argv,
-    char *cmd);
+    char *cmd, libzfs_handle_t *g_zfs, char **vdev_names, int vdev_names_count,
+    int cb_name_flags);
+
 void free_vdev_cmd_data_list(vdev_cmd_data_list_t *vcdl);
 
 #ifdef	__cplusplus

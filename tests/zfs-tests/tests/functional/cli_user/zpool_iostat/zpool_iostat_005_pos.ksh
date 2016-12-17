@@ -54,10 +54,27 @@ fi
 # a '/' when we specify the path (-P) flag. We check for "{}" to see if one
 # of the VDEV variables isn't set.
 #
-C1=$($ZPOOL iostat -Pv | $GREP -E '^\s+/' | $WC -l)
-C2=$($ZPOOL iostat -Pv -c 'echo vdev_test{$VDEV_PATH}{$VDEV_UPATH}' | $GREP -E '^\s+/' | $GREP -v '{}' | $WC -l)
+C1=$($ZPOOL iostat -Pv $testpool | $GREP -E '^\s+/' | $WC -l)
+C2=$($ZPOOL iostat -Pv -c 'echo vdev_test{$VDEV_PATH}{$VDEV_UPATH}' $testpool \
+    | $GREP -E '^\s+/' | $GREP -v '{}' | $WC -l)
 if [ "$C1" != "$C2" ] ; then
 	log_fail "zpool iostat -c failed, expected $C1 vdevs, got $C2"
 else
-	log_pass "zpool iostat -c passed, expected $C1 vdevs, got $C2"
+	log_note "zpool iostat -c passed, expected $C1 vdevs, got $C2"
+fi
+
+# Call iostat on only a specific vdev, and verify that the command only gets
+# run on the vdev.  We write the command results to a temp file to verify that
+# the command actually gets run, rather than just verifying that the results
+# are *displayed* for the specific vdev.
+TMP=$($MKTEMP)
+FIRST_VDEV=$($ZPOOL iostat -Pv $testpool | $GREP -Eo '^\s+/[^ ]+' | $HEAD -n 1)
+log_must $ZPOOL iostat -Pv -c "echo \$VDEV_PATH >> $TMP" $testpool \
+    $FIRST_VDEV > /dev/null
+C2=$($WC -w < $TMP)
+$RM $TMP
+if [ "$C2" != "1" ] ; then
+	log_fail "zpool iostat -c <VDEV> failed, expected 1 vdev, got $C2"
+else
+	log_note "zpool iostat -c <VDEV> passed, expected 1 vdev, got $C2"
 fi

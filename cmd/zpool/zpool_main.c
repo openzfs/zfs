@@ -312,7 +312,7 @@ get_usage(zpool_help_t idx) {
 		    "[-R root] [-F [-n]]\n"
 		    "\t    <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
-		return (gettext("\tiostat [-T d | u] [-ghHLpPvy] "
+		return (gettext("\tiostat [-c CMD] [-T d | u] [-ghHLpPvy] "
 		    "[[-lq]|[-r|-w]]\n"
 		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]] "
 		    "[interval [count]]\n"));
@@ -335,8 +335,8 @@ get_usage(zpool_help_t idx) {
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s] <pool> ...\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-gLPvxD] [-T d|u] [pool] ... "
-		    "[interval [count]]\n"));
+		return (gettext("\tstatus [-c CMD] [-gLPvxD] [-T d|u] [pool]"
+		    " ... [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -4055,8 +4055,13 @@ zpool_do_iostat(int argc, char **argv)
 			usage(B_FALSE);
 			break;
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
-			    optopt);
+			if (optopt == 'c') {
+				fprintf(stderr,
+				    gettext("Missing CMD for -c\n"));
+			} else {
+				fprintf(stderr,
+				    gettext("invalid option '%c'\n"), optopt);
+			}
 			usage(B_FALSE);
 		}
 	}
@@ -4256,9 +4261,10 @@ zpool_do_iostat(int argc, char **argv)
 				continue;
 			}
 
-			if (cmd != NULL)
+			if (cmd != NULL && cb.cb_verbose)
 				cb.vcdl = all_pools_for_each_vdev_run(argc,
-				    argv, cmd);
+				    argv, cmd, g_zfs, cb.cb_vdev_names,
+				    cb.cb_vdev_names_count, cb.cb_name_flags);
 
 			pool_list_iter(list, B_FALSE, print_iostat, &cb);
 
@@ -6113,8 +6119,13 @@ zpool_do_status(int argc, char **argv)
 			get_timestamp_arg(*optarg);
 			break;
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
-			    optopt);
+			if (optopt == 'c') {
+				fprintf(stderr,
+				    gettext("Missing CMD for -c\n"));
+			} else {
+				fprintf(stderr,
+				    gettext("invalid option '%c'\n"), optopt);
+			}
 			usage(B_FALSE);
 		}
 	}
@@ -6135,7 +6146,8 @@ zpool_do_status(int argc, char **argv)
 			print_timestamp(timestamp_fmt);
 
 		if (cmd != NULL)
-			cb.vcdl = all_pools_for_each_vdev_run(argc, argv, cmd);
+			cb.vcdl = all_pools_for_each_vdev_run(argc, argv, cmd,
+			    NULL, NULL, 0, 0);
 
 		ret = for_each_pool(argc, argv, B_TRUE, NULL,
 		    status_callback, &cb);
