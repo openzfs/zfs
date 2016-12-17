@@ -213,14 +213,6 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
-/*
- * This implementation of rw_tryupgrade() behaves slightly differently
- * from its counterparts on other platforms.  It drops the RW_READER lock
- * and then acquires the RW_WRITER lock leaving a small window where no
- * lock is held.  On other platforms the lock is never released during
- * the upgrade process.  This is necessary under Linux because the kernel
- * does not provide an upgrade function.
- */
 #define rw_tryupgrade(rwp)						\
 ({									\
 	int _rc_ = 0;							\
