@@ -106,6 +106,17 @@ void splat_init_rw_priv(rw_priv_t *rwp, struct file *file)
 	rwp->rw_type = 0;
 }
 
+#if defined(CONFIG_PREEMPT_RT_FULL)
+static int
+splat_rwlock_test1(struct file *file, void *arg)
+{
+	/*
+	 * This test will never succeed on PREEMPT_RT_FULL because these
+	 * kernels only allow a single thread to hold the lock.
+	 */
+	return 0;
+}
+#else
 static int
 splat_rwlock_wr_thr(void *arg)
 {
@@ -297,6 +308,7 @@ splat_rwlock_test1(struct file *file, void *arg)
 
 	return rc;
 }
+#endif
 
 static void
 splat_rwlock_test2_func(void *arg)
@@ -514,11 +526,22 @@ splat_rwlock_test4(struct file *file, void *arg)
 
 	splat_init_rw_priv(rwp, file);
 
-	/* Validate all combinations of rw_tryenter() contention */
+	/*
+	 * Validate all combinations of rw_tryenter() contention.
+	 *
+	 * The concurrent reader test is modified for PREEMPT_RT_FULL
+	 * kernels which do not permit concurrent read locks to be taken
+	 * from different threads.  The same thread is allowed to take
+	 * the read lock multiple times.
+	 */
 	rc1 = splat_rwlock_test4_type(tq, rwp, -EBUSY, RW_WRITER, RW_WRITER);
 	rc2 = splat_rwlock_test4_type(tq, rwp, -EBUSY, RW_WRITER, RW_READER);
 	rc3 = splat_rwlock_test4_type(tq, rwp, -EBUSY, RW_READER, RW_WRITER);
+#if defined(CONFIG_PREEMPT_RT_FULL)
+	rc4 = splat_rwlock_test4_type(tq, rwp, -EBUSY, RW_READER, RW_READER);
+#else
 	rc4 = splat_rwlock_test4_type(tq, rwp, 0,      RW_READER, RW_READER);
+#endif
 	rc5 = splat_rwlock_test4_type(tq, rwp, 0,      RW_NONE,   RW_WRITER);
 	rc6 = splat_rwlock_test4_type(tq, rwp, 0,      RW_NONE,   RW_READER);
 
