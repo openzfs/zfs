@@ -311,10 +311,14 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * the block layers responsibility to choose the correct way to
  * implement these semantics.
  */
-#ifdef WRITE_FLUSH_FUA
+#if defined(WRITE_FLUSH_FUA)
 #define	VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
-#else
+#elif defined(WRITE_BARRIER)
 #define	VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
+#elif defined(HAVE_REQ_FUA)
+#define	VDEV_WRITE_FLUSH_FUA		REQ_FUA
+#else
+#error "Unable to determine FUA method."
 #endif
 
 /*
