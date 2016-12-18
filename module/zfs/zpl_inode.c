@@ -770,7 +770,9 @@ const struct inode_operations zpl_dir_inode_operations = {
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
+#ifdef HAVE_GENERIC_READLINK
 	.readlink	= generic_readlink,
+#endif
 #if defined(HAVE_GET_LINK_DELAYED) || defined(HAVE_GET_LINK_COOKIE)
 	.get_link	= zpl_get_link,
 #elif defined(HAVE_FOLLOW_LINK_COOKIE) || defined(HAVE_FOLLOW_LINK_NAMEIDATA)

@@ -488,11 +488,6 @@ bio_map_abd_off(struct bio *bio, abd_t *abd, unsigned int size, size_t off)
 	return (abd_scatter_bio_map_off(bio, abd, size, off));
 }
 
-#ifndef bio_set_op_attrs
-#define	bio_set_op_attrs(bio, rw, flags) \
-	do { (bio)->bi_rw |= (rw)|(flags); } while (0)
-#endif
-
 static inline void
 vdev_submit_bio_impl(struct bio *bio)
 {
@@ -659,7 +654,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
 	bio->bi_bdev = bdev;
-	bio_set_op_attrs(bio, 0, VDEV_WRITE_FLUSH_FUA);
+	bio_set_flush(bio);
 	vdev_submit_bio(bio);
 	invalidate_bdev(bdev);
 

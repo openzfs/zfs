@@ -10,7 +10,7 @@ AC_DEFUN([ZFS_AC_KERNEL_REQ_OP_DISCARD], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blk_types.h>
 	],[
-		enum req_op op __attribute__ ((unused)) = REQ_OP_DISCARD;
+		int op __attribute__ ((unused)) = REQ_OP_DISCARD;
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_REQ_OP_DISCARD, 1,
@@ -25,10 +25,10 @@ AC_DEFUN([ZFS_AC_KERNEL_REQ_OP_SECURE_ERASE], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blk_types.h>
 	],[
-		enum req_op op __attribute__ ((unused)) = REQ_OP_SECURE_ERASE;
+		int op __attribute__ ((unused)) = REQ_OP_SECURE_ERASE;
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_REQ_OP_SECURE_DISCARD, 1,
+		AC_DEFINE(HAVE_REQ_OP_SECURE_ERASE, 1,
 		    [REQ_OP_SECURE_ERASE is defined])
 	],[
 		AC_MSG_RESULT(no)
@@ -41,7 +41,7 @@ AC_DEFUN([ZFS_AC_KERNEL_REQ_OP_FLUSH], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blk_types.h>
 	],[
-		enum req_op op __attribute__ ((unused)) = REQ_OP_FLUSH;
+		int op __attribute__ ((unused)) = REQ_OP_FLUSH;
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_REQ_OP_FLUSH, 1,
@@ -61,6 +61,23 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_BI_OPF], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BIO_BI_OPF, 1, [bio->bi_opf is defined])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_HAVE_BIO_SET_OP_ATTRS], [
+	AC_MSG_CHECKING([whether bio_set_op_attrs is available])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/blk_types.h>
+	],[
+		struct bio *bio __attribute__ ((unused)) = NULL;
+
+		bio_set_op_attrs(bio, 0, 0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BIO_SET_OP_ATTRS, 1,
+		    [bio_set_op_attrs is available])
 	],[
 		AC_MSG_RESULT(no)
 	])
