@@ -953,11 +953,11 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 	if (XVA_ISSET_REQ(xvap, XAT_IMMUTABLE)) {
 		ZFS_ATTR_SET(zp, ZFS_IMMUTABLE, xoap->xoa_immutable,
 		    zp->z_pflags, tx);
-		XVA_SET_RTN(xvap, XAT_IMMUTABLE);
-
-		ZTOI(zp)->i_flags |= S_IMMUTABLE;
-	} else {
-		ZTOI(zp)->i_flags &= ~S_IMMUTABLE;
+		if (xoap->xoa_immutable) {
+			XVA_SET_RTN(xvap, XAT_IMMUTABLE);
+			ZTOI(zp)->i_flags |= S_IMMUTABLE;
+		} else
+			ZTOI(zp)->i_flags &= ~S_IMMUTABLE;
 	}
 
 	if (XVA_ISSET_REQ(xvap, XAT_NOUNLINK)) {
@@ -968,14 +968,12 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 	if (XVA_ISSET_REQ(xvap, XAT_APPENDONLY)) {
 		ZFS_ATTR_SET(zp, ZFS_APPENDONLY, xoap->xoa_appendonly,
 		    zp->z_pflags, tx);
-		XVA_SET_RTN(xvap, XAT_APPENDONLY);
-
-		ZTOI(zp)->i_flags |= S_APPEND;
-	} else {
-
-		ZTOI(zp)->i_flags &= ~S_APPEND;
+		if (xoap->xoa_appendonly) {
+			XVA_SET_RTN(xvap, XAT_APPENDONLY);
+			ZTOI(zp)->i_flags |= S_APPEND;
+		} else
+			ZTOI(zp)->i_flags &= ~S_APPEND;
 	}
-
 	if (XVA_ISSET_REQ(xvap, XAT_NODUMP)) {
 		ZFS_ATTR_SET(zp, ZFS_NODUMP, xoap->xoa_nodump,
 		    zp->z_pflags, tx);
