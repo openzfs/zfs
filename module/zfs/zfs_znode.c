@@ -479,6 +479,34 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 	}
 }
 
+void
+zfs_set_inode_flags(znode_t *zp, struct inode *ip)
+{
+	/*
+	 * Linux and Solaris have different sets of file attributes, so we
+	 * restrict this conversion to the intersection of the two.
+	 */
+#ifdef HAVE_INODE_SET_FLAGS
+	unsigned int flags = 0;
+	if (zp->z_pflags & ZFS_IMMUTABLE)
+		flags |= S_IMMUTABLE;
+	if (zp->z_pflags & ZFS_APPENDONLY)
+		flags |= S_APPEND;
+
+	inode_set_flags(ip, flags, S_IMMUTABLE|S_APPEND);
+#else
+	if (zp->z_pflags & ZFS_IMMUTABLE)
+		ip->i_flags |= S_IMMUTABLE;
+	else
+		ip->i_flags &= ~S_IMMUTABLE;
+
+	if (zp->z_pflags & ZFS_APPENDONLY)
+		ip->i_flags |= S_APPEND;
+	else
+		ip->i_flags &= ~S_APPEND;
+#endif
+}
+
 /*
  * Update the embedded inode given the znode.  We should work toward
  * eliminating this function as soon as possible by removing values
@@ -588,6 +616,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	set_nlink(ip, (uint32_t)links);
 	zfs_uid_write(ip, z_uid);
 	zfs_gid_write(ip, z_gid);
+	zfs_set_inode_flags(zp, ip);
 
 	/* Cache the xattr parent id */
 	if (zp->z_pflags & ZFS_XATTR)
@@ -918,6 +947,7 @@ void
 zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 {
 	xoptattr_t *xoap;
+	boolean_t update_inode = B_FALSE;
 
 	xoap = xva_getxoptattr(xvap);
 	ASSERT(xoap);
@@ -929,7 +959,6 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    &times, sizeof (times), tx);
 		XVA_SET_RTN(xvap, XAT_CREATETIME);
 	}
-
 	if (XVA_ISSET_REQ(xvap, XAT_READONLY)) {
 		ZFS_ATTR_SET(zp, ZFS_READONLY, xoap->xoa_readonly,
 		    zp->z_pflags, tx);
@@ -955,11 +984,8 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_IMMUTABLE);
 
-		ZTOI(zp)->i_flags |= S_IMMUTABLE;
-	} else {
-		ZTOI(zp)->i_flags &= ~S_IMMUTABLE;
+		update_inode = B_TRUE;
 	}
-
 	if (XVA_ISSET_REQ(xvap, XAT_NOUNLINK)) {
 		ZFS_ATTR_SET(zp, ZFS_NOUNLINK, xoap->xoa_nounlink,
 		    zp->z_pflags, tx);
@@ -970,12 +996,8 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_APPENDONLY);
 
-		ZTOI(zp)->i_flags |= S_APPEND;
-	} else {
-
-		ZTOI(zp)->i_flags &= ~S_APPEND;
+		update_inode = B_TRUE;
 	}
-
 	if (XVA_ISSET_REQ(xvap, XAT_NODUMP)) {
 		ZFS_ATTR_SET(zp, ZFS_NODUMP, xoap->xoa_nodump,
 		    zp->z_pflags, tx);
@@ -1015,6 +1037,9 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_SPARSE);
 	}
+
+	if (update_inode)
+		zfs_set_inode_flags(zp, ZTOI(zp));
 }
 
 int
@@ -1220,11 +1245,11 @@ zfs_rezget(znode_t *zp)
 
 	zp->z_unlinked = (ZTOI(zp)->i_nlink == 0);
 	set_nlink(ZTOI(zp), (uint32_t)links);
+	zfs_set_inode_flags(zp, ZTOI(zp));
 
 	zp->z_blksz = doi.doi_data_block_size;
 	zp->z_atime_dirty = 0;
 	zfs_inode_update(zp);
-
 
 	zfs_znode_hold_exit(zsb, zh);
 

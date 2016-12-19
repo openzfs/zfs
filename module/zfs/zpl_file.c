@@ -737,8 +737,7 @@ zpl_ioctl_getflags(struct file *filp, void __user *arg)
  * is outside of our jurisdiction.
  */
 
-#define	fchange(f0, f1, b0, b1) ((((f0) & (b0)) == (b0)) != \
-	(((b1) & (f1)) == (f1)))
+#define	fchange(f0, f1, b0, b1) (!((f0) & (b0)) != !((f1) & (b1)))
 
 static int
 zpl_ioctl_setflags(struct file *filp, void __user *arg)
