@@ -744,19 +744,17 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP);
 
 	/*
+	 * Optional temporary mount options, free'd in zfs_sb_free().
+	 */
+	zsb->z_mntopts = (zmo ? zmo : zfs_mntopts_alloc());
+
+	/*
 	 * We claim to always be readonly so we can open snapshots;
 	 * other ZPL code will prevent us from writing to snapshots.
 	 */
 	error = dmu_objset_own(osname, DMU_OST_ZFS, B_TRUE, zsb, &os);
-	if (error) {
-		kmem_free(zsb, sizeof (zfs_sb_t));
-		return (error);
-	}
-
-	/*
-	 * Optional temporary mount options, free'd in zfs_sb_free().
-	 */
-	zsb->z_mntopts = (zmo ? zmo : zfs_mntopts_alloc());
+	if (error)
+		goto out_zmo;
 
 	/*
 	 * Initialize the zfs-specific filesystem structure.
@@ -896,8 +894,9 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 
 out:
 	dmu_objset_disown(os, zsb);
+out_zmo:
 	*zsbp = NULL;
-
+	zfs_mntopts_free(zsb->z_mntopts);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 	return (error);
 }
