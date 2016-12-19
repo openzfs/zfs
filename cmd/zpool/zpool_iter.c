@@ -360,6 +360,7 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 	vdev_cmd_data_list_t *vcdl = cb_vcdl;
 	vdev_cmd_data_t *data;
 	char *path = NULL;
+	char *vname = NULL;
 	int i, match = 0;
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
@@ -376,11 +377,13 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 
 	/* Check for whitelisted vdevs here, if any */
 	for (i = 0; i < vcdl->vdev_names_count; i++) {
-		if (strcmp(vcdl->vdev_names[i], zpool_vdev_name(g_zfs, zhp, nv,
-		    vcdl->cb_name_flags)) == 0) {
+		vname = zpool_vdev_name(g_zfs, zhp, nv, vcdl->cb_name_flags);
+		if (strcmp(vcdl->vdev_names[i], vname) == 0) {
+			free(vname);
 			match = 1;
 			break; /* match */
 		}
+		free(vname);
 	}
 
 	/* If we whitelisted vdevs, and this isn't one of them, then bail out */
