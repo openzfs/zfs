@@ -254,8 +254,10 @@ typedef struct kmutex {
 
 #define	MUTEX_DEFAULT		0
 #define	MUTEX_NOLOCKDEP		MUTEX_DEFAULT
+#define	MUTEX_NOTRACKING	MUTEX_DEFAULT
+
 #define	MUTEX_HELD(mp)		pthread_equal((mp)->m_owner, pthread_self())
-#define	MUTEX_NOT_HELD(mp)	!MUTEX_HELD(mp)
+#define	MUTEX_NOT_HELD(mp)	(!MUTEX_HELD(mp))
 
 extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
 extern void mutex_destroy(kmutex_t *mp);

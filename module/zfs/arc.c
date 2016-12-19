@@ -1375,7 +1375,7 @@ retry:
 
 	for (i = 0; i < BUF_LOCKS; i++) {
 		mutex_init(&buf_hash_table.ht_locks[i].ht_lock,
-		    NULL, MUTEX_DEFAULT, NULL);
+		    NULL, MUTEX_DEFAULT | MUTEX_NOTRACKING, NULL);
 	}
 }
 

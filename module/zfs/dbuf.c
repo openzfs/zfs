@@ -649,7 +649,8 @@ retry:
 	    0, dbuf_cons, dbuf_dest, NULL, NULL, NULL, 0);
 
 	for (i = 0; i < DBUF_MUTEXES; i++)
-		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&h->hash_mutexes[i], NULL,
+		    MUTEX_DEFAULT | MUTEX_NOTRACKING, NULL);
 
 	dbuf_stats_init(h);
 
