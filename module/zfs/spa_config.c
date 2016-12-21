@@ -426,7 +426,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	config = fnvlist_alloc();
 
 	fnvlist_add_uint64(config, ZPOOL_CONFIG_VERSION, spa_version(spa));
-	fnvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME, spa_name(spa));
+	fnvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME, pool_name);
 	fnvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE, spa_state(spa));
 	fnvlist_add_uint64(config, ZPOOL_CONFIG_POOL_TXG, txg);
 	fnvlist_add_uint64(config, ZPOOL_CONFIG_POOL_GUID, spa_guid(spa));
