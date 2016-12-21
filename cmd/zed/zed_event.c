@@ -264,6 +264,13 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
 	*dstp++ = '=';
 	buflen--;
 
+	if (buflen <= 0) {
+		errno = EMSGSIZE;
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
+		    keybuf, eid, "Exceeded buffer size");
+		return (-1);
+	}
+
 	va_start(vargs, fmt);
 	n = vsnprintf(dstp, buflen, fmt, vargs);
 	va_end(vargs);
