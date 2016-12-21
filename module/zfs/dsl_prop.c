@@ -892,11 +892,15 @@ dsl_props_set_sync_impl(dsl_dataset_t *ds, zprop_source_t source,
 
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
 		nvpair_t *pair = elem;
+		const char *name = nvpair_name(pair);
 
 		if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
 			/*
-			 * dsl_prop_get_all_impl() returns properties in this
-			 * format.
+			 * This usually happens when we reuse the nvlist_t data
+			 * returned by the counterpart dsl_prop_get_all_impl().
+			 * For instance we do this to restore the original
+			 * received properties when an error occurs in the
+			 * zfs_ioc_recv() codepath.
 			 */
 			nvlist_t *attrs = fnvpair_value_nvlist(pair);
 			pair = fnvlist_lookup_nvpair(attrs, ZPROP_VALUE);
@@ -904,14 +908,14 @@ dsl_props_set_sync_impl(dsl_dataset_t *ds, zprop_source_t source,
 
 		if (nvpair_type(pair) == DATA_TYPE_STRING) {
 			const char *value = fnvpair_value_string(pair);
-			dsl_prop_set_sync_impl(ds, nvpair_name(pair),
+			dsl_prop_set_sync_impl(ds, name,
 			    source, 1, strlen(value) + 1, value, tx);
 		} else if (nvpair_type(pair) == DATA_TYPE_UINT64) {
 			uint64_t intval = fnvpair_value_uint64(pair);
-			dsl_prop_set_sync_impl(ds, nvpair_name(pair),
+			dsl_prop_set_sync_impl(ds, name,
 			    source, sizeof (intval), 1, &intval, tx);
 		} else if (nvpair_type(pair) == DATA_TYPE_BOOLEAN) {
-			dsl_prop_set_sync_impl(ds, nvpair_name(pair),
+			dsl_prop_set_sync_impl(ds, name,
 			    source, 0, 0, NULL, tx);
 		} else {
 			panic("invalid nvpair type");
