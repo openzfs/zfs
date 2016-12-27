@@ -1184,6 +1184,7 @@ dnode_is_free(dmu_buf_impl_t *db, int idx, int slots)
  * errors:
  * EINVAL - invalid object number.
  * ENOSPC - hole too small to fulfill "slots" request
+ * ENOENT - the requested dnode is not allocated
  * EIO - i/o error.
  * succeeds even for free dnodes.
  */

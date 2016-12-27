@@ -236,28 +236,39 @@ int
 dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 {
 	uint64_t offset;
-	dmu_object_info_t doi;
+	uint64_t start_obj;
 	struct dsl_dataset *ds = os->os_dsl_dataset;
-	int dnodesize;
 	int error;
 
-	/*
-	 * Avoid expensive dnode hold if this dataset doesn't use large dnodes.
-	 */
-	if (ds && ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE]) {
-		error = dmu_object_info(os, *objectp, &doi);
-		if (error && !(error == EINVAL && *objectp == 0))
-			return (SET_ERROR(error));
-		else
-			dnodesize = doi.doi_dnodesize;
+	if (*objectp == 0) {
+		start_obj = 1;
+	} else if (ds && ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE]) {
+		/*
+		 * For large_dnode datasets, scan from the beginning of the
+		 * dnode block to find the starting offset. This is needed
+		 * because objectp could be part of a large dnode so we can't
+		 * assume it's a hole even if dmu_object_info() returns ENOENT.
+		 */
+		int epb = DNODE_BLOCK_SIZE >> DNODE_SHIFT;
+		int skip;
+		uint64_t i;
+
+		for (i = *objectp & ~(epb - 1); i <= *objectp; i += skip) {
+			dmu_object_info_t doi;
+
+			error = dmu_object_info(os, i, &doi);
+			if (error)
+				skip = 1;
+			else
+				skip = doi.doi_dnodesize >> DNODE_SHIFT;
+		}
+
+		start_obj = i;
 	} else {
-		dnodesize = DNODE_MIN_SIZE;
+		start_obj = *objectp + 1;
 	}
 
-	if (*objectp == 0)
-		offset = 1 << DNODE_SHIFT;
-	else
-		offset = (*objectp << DNODE_SHIFT) + dnodesize;
+	offset = start_obj << DNODE_SHIFT;
 
 	error = dnode_next_offset(DMU_META_DNODE(os),
 	    (hole ? DNODE_FIND_HOLE : 0), &offset, 0, DNODES_PER_BLOCK, txg);
