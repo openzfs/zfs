@@ -128,10 +128,10 @@
 typedef void (sa_iterfunc_t)(void *hdr, void *addr, sa_attr_type_t,
     uint16_t length, int length_idx, boolean_t, void *userp);
 
-static int sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype);
+static int sa_build_index(sa_handle_t *hdl, sa_lot_t *, sa_buf_type_t buftype);
 static void sa_idx_tab_hold(objset_t *os, sa_idx_tab_t *idx_tab);
-static void *sa_find_idx_tab(objset_t *os, dmu_object_type_t bonustype,
-    void *data);
+static void *sa_find_idx_tab(objset_t *os, sa_lot_t *,
+    dmu_object_type_t bonustype, void *data);
 static void sa_idx_tab_rele(objset_t *os, void *arg);
 static void sa_copy_data(sa_data_locator_t *func, void *start, void *target,
     int buflen);
@@ -296,7 +296,7 @@ sa_get_spill(sa_handle_t *hdl)
 	if (hdl->sa_spill == NULL) {
 		if ((rc = dmu_spill_hold_existing(hdl->sa_bonus, NULL,
 		    &hdl->sa_spill)) == 0)
-			VERIFY(0 == sa_build_index(hdl, SA_SPILL));
+			VERIFY(0 == sa_build_index(hdl, NULL, SA_SPILL));
 	} else {
 		rc = 0;
 	}
@@ -451,6 +451,54 @@ sa_add_layout_entry(objset_t *os, sa_attr_type_t *attrs, int attr_count,
 	return (tb);
 }
 
+static sa_lot_t *
+sa_lookup_cached_layout(sa_os_t *sa, uint64_t hash, sa_attr_type_t *attrs,
+    int count)
+{
+	sa_layout_cache_t *slc;
+	sa_lot_t *tb = NULL;
+	int i, j;
+
+	slc = sa->sa_layout_cache + CPU_SEQID;
+	mutex_enter(&slc->slc_lock);
+
+	for (i = 0; i < SA_LAYOUT_ENTRIES; i++) {
+		if (slc->slc_lot[i] == NULL)
+			break;
+		if (slc->slc_lot[i]->lot_hash != hash)
+			continue;
+		if (sa_layout_equal(slc->slc_lot[i], attrs, count) == 0) {
+			tb = slc->slc_lot[i];
+			break;
+		}
+	}
+	if (tb != NULL) {
+		/* shift toward the most recently used */
+		j = (i + 1) % SA_LAYOUT_ENTRIES;
+		if (j != slc->slc_head) {
+			sa_lot_t *t = slc->slc_lot[i];
+			ASSERT(j < SA_LAYOUT_ENTRIES);
+			slc->slc_lot[i] = slc->slc_lot[j];
+			slc->slc_lot[j] = t;
+		}
+	}
+	mutex_exit(&slc->slc_lock);
+
+	return (tb);
+}
+
+static void
+sa_add_cached_layout(sa_os_t *sa, sa_lot_t *tb)
+{
+	sa_layout_cache_t *slc;
+
+	slc = sa->sa_layout_cache + CPU_SEQID;
+	mutex_enter(&slc->slc_lock);
+	slc->slc_lot[slc->slc_head] = tb;
+	slc->slc_head = (slc->slc_head + 1) % SA_LAYOUT_ENTRIES;
+	mutex_exit(&slc->slc_lock);
+}
+
 static void
 sa_find_layout(objset_t *os, uint64_t hash, sa_attr_type_t *attrs,
     int count, dmu_tx_t *tx, sa_lot_t **lot)
@@ -459,6 +507,10 @@ sa_find_layout(objset_t *os, uint64_t hash, sa_attr_type_t *attrs,
 	avl_index_t loc;
 	sa_os_t *sa = os->os_sa;
 	boolean_t found = B_FALSE;
+
+	*lot = sa_lookup_cached_layout(sa, hash, attrs, count);
+	if (*lot != NULL)
+		return;
 
 	mutex_enter(&sa->sa_lock);
 	tbsearch.lot_hash = hash;
@@ -478,6 +530,9 @@ sa_find_layout(objset_t *os, uint64_t hash, sa_attr_type_t *attrs,
 		    avl_numnodes(&sa->sa_layout_num_tree), hash, B_TRUE, tx);
 	}
 	mutex_exit(&sa->sa_lock);
+
+	sa_add_cached_layout(sa, tb);
+
 	*lot = tb;
 }
 
@@ -783,7 +838,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		hdl->sa_bonus_tab = NULL;
 	}
 	if (!sa->sa_force_spill)
-		VERIFY(0 == sa_build_index(hdl, SA_BONUS));
+		VERIFY(0 == sa_build_index(hdl, lot, SA_BONUS));
 	if (hdl->sa_spill) {
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_spill_tab);
 		if (!spilling) {
@@ -796,7 +851,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 			VERIFY(0 == dmu_rm_spill(hdl->sa_os,
 			    sa_handle_object(hdl), tx));
 		} else {
-			VERIFY(0 == sa_build_index(hdl, SA_SPILL));
+			VERIFY(0 == sa_build_index(hdl, NULL, SA_SPILL));
 		}
 	}
 
@@ -992,7 +1047,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, sa_attr_reg_t *reg_attrs, int count,
 	sa_os_t *sa;
 	dmu_objset_type_t ostype = dmu_objset_type(os);
 	sa_attr_type_t *tb;
-	int error;
+	int i, error;
 
 	mutex_enter(&os->os_user_ptr_lock);
 	if (os->os_sa) {
@@ -1095,7 +1150,20 @@ sa_setup(objset_t *os, uint64_t sa_obj, sa_attr_reg_t *reg_attrs, int count,
 	}
 	*user_table = os->os_sa->sa_user_table;
 	mutex_exit(&sa->sa_lock);
+	sa->sa_idx_cache =
+	    vmem_zalloc(max_ncpus * sizeof (sa_idx_cache_t), KM_SLEEP);
+	for (i = 0; i < max_ncpus; i++) {
+		mutex_init(&sa->sa_idx_cache[i].sac_lock, NULL,
+		    MUTEX_DEFAULT, NULL);
+	}
+	sa->sa_layout_cache =
+	    vmem_zalloc(max_ncpus * sizeof (sa_layout_cache_t), KM_SLEEP);
+	for (i = 0; i < max_ncpus; i++) {
+		mutex_init(&sa->sa_layout_cache[i].slc_lock, NULL,
+		    MUTEX_DEFAULT, NULL);
+	}
 	return (0);
+
 fail:
 	os->os_sa = NULL;
 	sa_free_attr_table(sa);
@@ -1115,11 +1183,26 @@ sa_tear_down(objset_t *os)
 	sa_os_t *sa = os->os_sa;
 	sa_lot_t *layout;
 	void *cookie;
+	int i, j;
 
 	kmem_free(sa->sa_user_table, sa->sa_user_table_sz);
 
-	/* Free up attr table */
+	/* release index cache */
+	for (i = 0; i < max_ncpus; i++) {
+		for (j = 0; j < SA_IDX_ENTRIES; j++) {
+			if (sa->sa_idx_cache[i].sac_entries[j].sac_idx == NULL)
+				continue;
+			sa_idx_tab_rele(os,
+			    sa->sa_idx_cache[i].sac_entries[j].sac_idx);
+		}
+		mutex_destroy(&sa->sa_idx_cache[i].sac_lock);
+	}
+	vmem_free(sa->sa_idx_cache, max_ncpus * sizeof (sa_idx_cache_t));
+	for (i = 0; i < max_ncpus; i++)
+		mutex_destroy(&sa->sa_layout_cache[i].slc_lock);
+	vmem_free(sa->sa_layout_cache, max_ncpus * sizeof (sa_layout_cache_t));
 
+	/* Free up attr table */
 	sa_free_attr_table(sa);
 
 	cookie = NULL;
@@ -1262,8 +1345,89 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 		arc_buf_freeze(((dmu_buf_impl_t *)hdl->sa_spill)->db_buf);
 }
 
+void
+sa_add_cached_idx_tab(objset_t *os, sa_lot_t *tb, sa_idx_tab_t *idx_tab)
+{
+	sa_idx_cache_t *sac;
+	int i;
+
+	if (tb == NULL || idx_tab == NULL)
+		return;
+
+	sac = os->os_sa->sa_idx_cache + CPU_SEQID;
+	mutex_enter(&sac->sac_lock);
+
+	i = sac->sac_head;
+	if (sac->sac_entries[i].sac_lot != NULL) {
+		ASSERT(sac->sac_entries[i].sac_idx != NULL);
+		sa_idx_tab_rele(os, sac->sac_entries[i].sac_idx);
+		sac->sac_entries[i].sac_idx = NULL;
+		sac->sac_entries[i].sac_lot = NULL;
+	}
+	sac->sac_entries[i].sac_lot = tb;
+	sac->sac_entries[i].sac_idx = idx_tab;
+	sac->sac_head = (i + 1) % SA_IDX_ENTRIES;
+	(void) refcount_add(&idx_tab->sa_refcount, NULL);
+
+	mutex_exit(&sac->sac_lock);
+}
+
+void *
+sa_lookup_cached_idx_tab(sa_os_t *sa, sa_lot_t *tb, sa_hdr_phys_t *hdr)
+{
+	sa_idx_tab_t *idx_tab = NULL;
+	sa_idx_cache_t *sac;
+	int i, j;
+
+	if (tb == NULL)
+		return (NULL);
+
+	sac = sa->sa_idx_cache + CPU_SEQID;
+	mutex_enter(&sac->sac_lock);
+
+	for (i = SA_IDX_ENTRIES - 1; i >= 0; i--) {
+		if (sac->sac_entries[i].sac_lot != tb)
+			continue;
+
+		idx_tab = sac->sac_entries[i].sac_idx;
+		ASSERT(idx_tab != NULL);
+
+		if (tb->lot_var_sizes != 0 &&
+		    idx_tab->sa_variable_lengths != NULL) {
+			for (j = 0; j != tb->lot_var_sizes; j++) {
+				if (hdr->sa_lengths[j] !=
+				    idx_tab->sa_variable_lengths[j]) {
+					idx_tab = NULL;
+					break;
+				}
+			}
+		}
+		if (idx_tab != NULL)
+			break;
+	}
+	if (idx_tab) {
+		(void) refcount_add(&idx_tab->sa_refcount, NULL);
+		/* shift toward the most recently used */
+		j = (i + 1) % SA_IDX_ENTRIES;
+		if (j != sac->sac_head) {
+			sa_lot_t *t1 = sac->sac_entries[i].sac_lot;
+			sa_idx_tab_t *t2 = sac->sac_entries[i].sac_idx;
+			ASSERT(j < SA_IDX_ENTRIES);
+			sac->sac_entries[i].sac_lot =
+			    sac->sac_entries[j].sac_lot;
+			sac->sac_entries[i].sac_idx =
+			    sac->sac_entries[j].sac_idx;
+			sac->sac_entries[j].sac_lot = t1;
+			sac->sac_entries[j].sac_idx = t2;
+		}
+	}
+	mutex_exit(&sac->sac_lock);
+
+	return (idx_tab);
+}
+
 static int
-sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype)
+sa_build_index(sa_handle_t *hdl, sa_lot_t *lot, sa_buf_type_t buftype)
 {
 	sa_hdr_phys_t *sa_hdr_phys;
 	dmu_buf_impl_t *db = SA_GET_DB(hdl, buftype);
@@ -1272,8 +1436,6 @@ sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype)
 	sa_idx_tab_t *idx_tab;
 
 	sa_hdr_phys = SA_GET_HDR(hdl, buftype);
-
-	mutex_enter(&sa->sa_lock);
 
 	/* Do we need to byteswap? */
 
@@ -1284,14 +1446,20 @@ sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype)
 		sa_byteswap(hdl, buftype);
 	}
 
-	idx_tab = sa_find_idx_tab(hdl->sa_os, bonustype, sa_hdr_phys);
+	idx_tab = sa_lookup_cached_idx_tab(sa, lot, sa_hdr_phys);
+	if (idx_tab == NULL) {
+		mutex_enter(&sa->sa_lock);
+		idx_tab = sa_find_idx_tab(hdl->sa_os, lot, bonustype,
+		    sa_hdr_phys);
+		mutex_exit(&sa->sa_lock);
+		sa_add_cached_idx_tab(hdl->sa_os, lot, idx_tab);
+	}
 
 	if (buftype == SA_BONUS)
 		hdl->sa_bonus_tab = idx_tab;
 	else
 		hdl->sa_spill_tab = idx_tab;
 
-	mutex_exit(&sa->sa_lock);
 	return (0);
 }
 
@@ -1403,7 +1571,7 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
 		handle->sa_bonus_tab = NULL;
 		handle->sa_spill_tab = NULL;
 
-		error = sa_build_index(handle, SA_BONUS);
+		error = sa_build_index(handle, NULL, SA_BONUS);
 
 		if (hdl_type == SA_HDL_SHARED) {
 			dmu_buf_init_user(&handle->sa_dbu, sa_evict_sync, NULL,
@@ -1499,12 +1667,13 @@ sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, uio_t *uio)
 #endif
 
 void *
-sa_find_idx_tab(objset_t *os, dmu_object_type_t bonustype, void *data)
+sa_find_idx_tab(objset_t *os, sa_lot_t *tb, dmu_object_type_t bonustype,
+    void *data)
 {
 	sa_idx_tab_t *idx_tab;
 	sa_hdr_phys_t *hdr = (sa_hdr_phys_t *)data;
 	sa_os_t *sa = os->os_sa;
-	sa_lot_t *tb, search;
+	sa_lot_t search;
 	avl_index_t loc;
 
 	/*
@@ -1518,7 +1687,8 @@ sa_find_idx_tab(objset_t *os, dmu_object_type_t bonustype, void *data)
 
 	search.lot_num = SA_LAYOUT_NUM(hdr, bonustype);
 
-	tb = avl_find(&sa->sa_layout_num_tree, &search, &loc);
+	if (tb == NULL)
+		tb = avl_find(&sa->sa_layout_num_tree, &search, &loc);
 
 	/* Verify header size is consistent with layout information */
 	ASSERT(tb);
