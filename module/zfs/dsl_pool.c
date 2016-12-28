@@ -23,6 +23,7 @@
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -508,6 +509,16 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * Shore up the accounting of any dirtied space now.
 	 */
 	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
+
+	/*
+	 * Update the long range free counter after
+	 * we're done syncing user data
+	 */
+	mutex_enter(&dp->dp_lock);
+	ASSERT(spa_sync_pass(dp->dp_spa) == 1 ||
+	    dp->dp_long_free_dirty_pertxg[txg & TXG_MASK] == 0);
+	dp->dp_long_free_dirty_pertxg[txg & TXG_MASK] = 0;
+	mutex_exit(&dp->dp_lock);
 
 	/*
 	 * After the data blocks have been written (ensured by the zio_wait()

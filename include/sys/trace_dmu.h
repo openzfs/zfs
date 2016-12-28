@@ -112,6 +112,36 @@ DEFINE_EVENT(zfs_delay_mintime_class, name, \
 /* END CSTYLED */
 DEFINE_DELAY_MINTIME_EVENT(zfs_delay__mintime);
 
+/* BEGIN CSTYLED */
+DECLARE_EVENT_CLASS(zfs_free_long_range_class,
+	TP_PROTO(uint64_t long_free_dirty_all_txgs, uint64_t chunk_len, \
+	    uint64_t txg),
+	TP_ARGS(long_free_dirty_all_txgs, chunk_len, txg),
+	TP_STRUCT__entry(
+	    __field(uint64_t,			long_free_dirty_all_txgs)
+	    __field(uint64_t,			chunk_len)
+	    __field(uint64_t,			txg)
+	),
+	TP_fast_assign(
+	    __entry->long_free_dirty_all_txgs	= long_free_dirty_all_txgs;
+	    __entry->chunk_len					= chunk_len;
+	    __entry->txg						= txg;
+	),
+	TP_printk("long_free_dirty_all_txgs %llu chunk_len %llu txg %llu",
+	   __entry->long_free_dirty_all_txgs,
+	   __entry->chunk_len, __entry->txg)
+);
+/* END CSTYLED */
+
+/* BEGIN CSTYLED */
+#define	DEFINE_FREE_LONG_RANGE_EVENT(name) \
+DEFINE_EVENT(zfs_free_long_range_class, name, \
+	TP_PROTO(uint64_t long_free_dirty_all_txgs, \
+	    uint64_t chunk_len, uint64_t txg), \
+	TP_ARGS(long_free_dirty_all_txgs, chunk_len, txg))
+/* END CSTYLED */
+DEFINE_FREE_LONG_RANGE_EVENT(zfs_free__long__range);
+
 #endif /* _TRACE_DMU_H */
 
 #undef TRACE_INCLUDE_PATH
