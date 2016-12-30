@@ -303,19 +303,58 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* HAVE_BDEV_LOGICAL_BLOCK_SIZE */
 #endif /* HAVE_BDEV_PHYSICAL_BLOCK_SIZE */
 
+#ifndef HAVE_BIO_SET_OP_ATTRS
 /*
- * 2.6.37 API change
- * The WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags have been
- * introduced as a replacement for WRITE_BARRIER.  This was done to
- * allow richer semantics to be expressed to the block layer.  It is
- * the block layers responsibility to choose the correct way to
- * implement these semantics.
+ * Kernels without bio_set_op_attrs use bi_rw for the bio flags.
  */
-#ifdef WRITE_FLUSH_FUA
-#define	VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
-#else
-#define	VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
+static inline void
+bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
+{
+	bio->bi_rw |= rw | flags;
+}
 #endif
+
+/*
+ * bio_set_flush - Set the appropriate flags in a bio to guarantee
+ * data are on non-volatile media on completion.
+ *
+ * 2.6.X - 2.6.36 API,
+ *   WRITE_BARRIER - Tells the block layer to commit all previously submitted
+ *   writes to stable storage before this one is started and that the current
+ *   write is on stable storage upon completion.  Also prevents reordering
+ *   on both sides of the current operation.
+ *
+ * 2.6.37 - 4.8 API,
+ *   Introduce  WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags as a
+ *   replacement for WRITE_BARRIER to allow expressing richer semantics
+ *   to the block layer.  It's up to the block layer to implement the
+ *   semantics correctly. Use the WRITE_FLUSH_FUA flag combination.
+ *
+ * 4.8 - 4.9 API,
+ *   REQ_FLUSH was renamed to REQ_PREFLUSH.  For consistency with previous
+ *   ZoL releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
+ *
+ * 4.10 API,
+ *   The read/write flags and their modifiers, including WRITE_FLUSH,
+ *   WRITE_FUA and WRITE_FLUSH_FUA were removed from fs.h in
+ *   torvalds/linux@70fd7614 and replaced by direct flag modification
+ *   of the REQ_ flags in bio->bi_opf.  Use REQ_PREFLUSH.
+ */
+static inline void
+bio_set_flush(struct bio *bio)
+{
+#if defined(WRITE_BARRIER)	/* < 2.6.37 */
+	bio_set_op_attrs(bio, 0, WRITE_BARRIER);
+#elif defined(WRITE_FLUSH_FUA)	/* >= 2.6.37 and <= 4.9 */
+	bio_set_op_attrs(bio, 0, WRITE_FLUSH_FUA);
+#elif defined(REQ_PREFLUSH)	/* >= 4.10 */
+	bio_set_op_attrs(bio, 0, REQ_PREFLUSH);
+#else
+#error	"Allowing the build will cause bio_set_flush requests to be ignored."
+	"Please file an issue report at: "
+	"https://github.com/zfsonlinux/zfs/issues/new"
+#endif
+}
 
 /*
  * 4.8 - 4.x API,
