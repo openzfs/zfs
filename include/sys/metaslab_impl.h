@@ -104,7 +104,7 @@ struct metaslab_class {
 
 /*
  * Metaslab groups encapsulate all the allocatable regions (i.e. metaslabs)
- * of a top-level vdev. They are linked togther to form a circular linked
+ * of a top-level vdev. They are linked together to form a circular linked
  * list and can belong to only one metaslab class. Metaslab groups may become
  * ineligible for allocations for a number of reasons such as limited free
  * space, fragmentation, or going offline. When this happens the allocator will

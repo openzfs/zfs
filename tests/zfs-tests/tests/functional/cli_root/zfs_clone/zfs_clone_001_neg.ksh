@@ -35,7 +35,7 @@
 # DESCRIPTION:
 #	'zfs clone' should fail with inapplicable scenarios, including:
 #		* Null arguments
-#		* non-existant snapshots.
+#		* non-existent snapshots.
 #		* invalid characters in ZFS namesapec
 #		* Leading slash in the target clone name
 #		* The argument contains an empty component.

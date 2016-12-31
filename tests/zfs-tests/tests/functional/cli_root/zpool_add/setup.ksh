@@ -45,7 +45,7 @@ fi
 
 if [[ -n $DISK ]]; then
 	#
-        # Use 'zpool create' to clean up the infomation in
+        # Use 'zpool create' to clean up the information in
         # in the given disk to avoid slice overlapping.
         #
 	cleanup_devices $DISK

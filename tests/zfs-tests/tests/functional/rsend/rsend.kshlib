@@ -172,7 +172,7 @@ function cmp_ds_subs
 }
 
 #
-# Compare all the directores and files in two filesystems
+# Compare all the directories and files in two filesystems
 #
 # $1 source filesystem
 # $2 destination filesystem

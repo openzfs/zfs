@@ -30,7 +30,7 @@
 
 #
 # DESCRIPTION:
-#	Seperately verify 'zfs rollback ''|-f|-r|-rf|-R|-rR will fail in
+#	Separately verify 'zfs rollback ''|-f|-r|-rf|-R|-rR will fail in
 #	different conditions.
 #
 # STRATEGY:
@@ -53,7 +53,7 @@ function cleanup
 	done
 }
 
-log_assert "Seperately verify 'zfs rollback ''|-f|-r|-rf will fail in " \
+log_assert "Separately verify 'zfs rollback ''|-f|-r|-rf will fail in " \
 	"different conditions."
 log_onexit cleanup
 

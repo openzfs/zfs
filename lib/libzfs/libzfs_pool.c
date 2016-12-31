@@ -902,7 +902,7 @@ zpool_prop_get_feature(zpool_handle_t *zhp, const char *propname, char *buf,
 
 	/*
 	 * Convert from feature name to feature guid. This conversion is
-	 * unecessary for unsupported@... properties because they already
+	 * unnecessary for unsupported@... properties because they already
 	 * use guids.
 	 */
 	if (supported) {

@@ -296,7 +296,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_LIST], [
 	dnl # 4.5 API change,
 	dnl # The xattr_handler->list() callback was changed to take only a
-	dnl # dentry and it only needs to return if it's accessable.
+	dnl # dentry and it only needs to return if it's accessible.
 	AC_MSG_CHECKING([whether xattr_handler->list() wants simple])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/xattr.h>

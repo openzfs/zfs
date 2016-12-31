@@ -37,7 +37,7 @@
 #
 # STRATEGY:
 #	1. Setting refquota < quota for parent
-#	2. Create file in sub-filesytem, take snapshot and remove the file
+#	2. Create file in sub-filesystem, take snapshot and remove the file
 #	3. Verify sub-filesystem snapshot will not consume refquota
 #
 

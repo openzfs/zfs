@@ -266,7 +266,7 @@ struct dnode {
 	 * duplicate entries, we order the dbufs by an arbitrary value -
 	 * their address in memory. This means that dn_dbufs cannot be used to
 	 * directly look up a dbuf. Instead, callers must use avl_walk, have
-	 * a reference to the dbuf, or look up a non-existant node with
+	 * a reference to the dbuf, or look up a non-existent node with
 	 * db_state = DB_SEARCH (see dbuf_free_range for an example).
 	 */
 	avl_tree_t dn_dbufs;

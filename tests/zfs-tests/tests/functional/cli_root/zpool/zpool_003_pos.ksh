@@ -37,7 +37,7 @@
 #	should run successfully.
 #
 # STRATEGY:
-# 1. Create an array containg each zpool options.
+# 1. Create an array containing each zpool options.
 # 2. For each element, execute the zpool command.
 # 3. Verify it run successfully.
 #

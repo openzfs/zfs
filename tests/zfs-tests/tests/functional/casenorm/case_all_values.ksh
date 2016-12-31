@@ -21,7 +21,7 @@
 # Check that we can create FS with any supported casesensitivity value.
 #
 # STRATEGY:
-# For all suported casesensitivity values:
+# For all supported casesensitivity values:
 # 1. Create FS with given casesensitivity value.
 
 verify_runnable "global"

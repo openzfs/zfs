@@ -36,7 +36,7 @@
 #	1. Create a multiple depth filesystem.
 #	2. 'zfs get -d <n>' to get the output.
 #	3. 'zfs get -r|egrep' to get the expected output.
-#	4. Compare the two outputs, they shoud be same.
+#	4. Compare the two outputs, they should be same.
 #
 
 verify_runnable "both"

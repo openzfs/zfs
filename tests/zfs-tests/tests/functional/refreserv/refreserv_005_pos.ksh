@@ -37,7 +37,7 @@
 #
 # STRATEGY:
 #	1. Create volume on filesystem
-#	2. Setting quota for parenet filesytem
+#	2. Setting quota for parenet filesystem
 #	3. Verify volume refreservation is only limited by volsize
 #	4. Verify volume refreservation can be changed when volsize changed
 #

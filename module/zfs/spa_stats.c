@@ -106,7 +106,7 @@ spa_read_history_addr(kstat_t *ksp, loff_t n)
 }
 
 /*
- * When the kstat is written discard all spa_read_history_t entires.  The
+ * When the kstat is written discard all spa_read_history_t entries.  The
  * ssh->lock will be held until ksp->ks_ndata entries are processed.
  */
 static int
@@ -327,7 +327,7 @@ spa_txg_history_addr(kstat_t *ksp, loff_t n)
 }
 
 /*
- * When the kstat is written discard all spa_txg_history_t entires.  The
+ * When the kstat is written discard all spa_txg_history_t entries.  The
  * ssh->lock will be held until ksp->ks_ndata entries are processed.
  */
 static int

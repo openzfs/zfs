@@ -83,7 +83,7 @@ extern inline dsl_dataset_phys_t *dsl_dataset_phys(dsl_dataset_t *ds);
 extern int spa_asize_inflation;
 
 /*
- * Figure out how much of this delta should be propogated to the dsl_dir
+ * Figure out how much of this delta should be propagated to the dsl_dir
  * layer.  If there's a refreservation, that space has already been
  * partially accounted for in our ancestors.
  */

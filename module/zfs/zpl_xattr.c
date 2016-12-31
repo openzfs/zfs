@@ -50,7 +50,7 @@
  * are the security.selinux xattrs which are less than 100 bytes and
  * exist for every file when xattr labeling is enabled.
  *
- * The Linux xattr implemenation has been written to take advantage of
+ * The Linux xattr implementation has been written to take advantage of
  * this typical usage.  When the dataset property 'xattr=sa' is set,
  * then xattrs will be preferentially stored as System Attributes (SA).
  * This allows tiny xattrs (~100 bytes) to be stored with the dnode and

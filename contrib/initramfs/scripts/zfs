@@ -130,7 +130,7 @@ get_pools()
 		if [ -n "$npools" ]
 		then
 			# Because we have found extra pool(s) here, which wasn't
-			# found 'normaly', we need to force USE_DISK_BY_ID to
+			# found 'normally', we need to force USE_DISK_BY_ID to
 			# make sure we're able to actually import it/them later.
 			USE_DISK_BY_ID='yes'
 
@@ -195,7 +195,7 @@ import_pool()
 	# Make as sure as we can to not require '-f' to import.
 	"${ZPOOL}" status "$pool" > /dev/null 2>&1 && return 0
 
-	# For backwards compability, make sure that ZPOOL_IMPORT_PATH is set
+	# For backwards compatibility, make sure that ZPOOL_IMPORT_PATH is set
 	# to something we can use later with the real import(s). We want to
 	# make sure we find all by* dirs, BUT by-vdev should be first (if it
 	# exists).
@@ -485,7 +485,7 @@ destroy_fs()
 
 # Clone snapshot $1 to destination filesystem $2
 # Set 'canmount=noauto' and 'mountpoint=none' so that we get to keep
-# manual controll over it's mounting (i.e., make sure it's not automatically
+# manual control over it's mounting (i.e., make sure it's not automatically
 # mounted with a 'zfs mount -a' in the init/systemd scripts).
 clone_snap()
 {
@@ -497,7 +497,7 @@ clone_snap()
 
 	# Clone the snapshot into a dataset we can boot from
 	# + We don't want this filesystem to be automatically mounted, we
-	#   want controll over this here and nowhere else.
+	#   want control over this here and nowhere else.
 	# + We don't need any mountpoint set for the same reason.
 	# We use the 'org.zol:mountpoint' property to remember the mountpoint.
 	ZFS_CMD="${ZFS} clone -o canmount=noauto -o mountpoint=none"
@@ -585,7 +585,7 @@ EOT
 	echo -n "  Snap nr [0-$((i-1))]? " > /dev/stderr
 	read snapnr
 
-	# Reenable debugging.
+	# Re-enable debugging.
 	if [ -n "${debug}" ]; then
 		ZFS_DEBUG=1
 		set -x
@@ -795,7 +795,7 @@ mountroot()
 	#       supported by ZoL (whatever it's for).
 	if [ -z "$ZFS_RPOOL" ]
 	then
-		# The ${zfs-bootfs} variable is set at the kernel commmand
+		# The ${zfs-bootfs} variable is set at the kernel command
 		# line, usually by GRUB, but it cannot be referenced here
 		# directly because bourne variable names cannot contain a
 		# hyphen.

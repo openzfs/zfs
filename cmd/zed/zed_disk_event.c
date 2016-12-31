@@ -185,7 +185,7 @@ zed_udev_monitor(void *arg)
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		/*
-		 * Strongly typed device is the prefered filter
+		 * Strongly typed device is the preferred filter
 		 */
 		type = udev_device_get_property_value(dev, "ID_FS_TYPE");
 		if (type != NULL && type[0] != '\0') {

@@ -113,7 +113,7 @@ function cleanup_testenv
 
 #
 # Delete volume and related datasets from list, if the test cases was
-# runing in local zone. Then check them are existed or non-exists.
+# running in local zone. Then check them are existed or non-exists.
 #
 # $1   function name
 # $2-n datasets name

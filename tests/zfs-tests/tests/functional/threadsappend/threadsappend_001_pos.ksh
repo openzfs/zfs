@@ -74,7 +74,7 @@ log_must $THREADSAPPEND ${TESTDIR}/${TESTFILE}
 #
 SIZE=`$LS -l ${TESTDIR}/${TESTFILE} | $AWK '{print $5}'`
 if [[ $SIZE -ne $FILE_SIZE ]]; then
-	log_fail "'The length of ${TESTDIR}/${TESTFILE}' doesnt equal 1310720."
+	log_fail "'The length of ${TESTDIR}/${TESTFILE}' doesn't equal 1310720."
 fi
 
 log_pass "Multiple thread appends succeeded. File size as expected"

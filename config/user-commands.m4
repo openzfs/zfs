@@ -95,7 +95,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_COMMANDS_COMMON], [
 ])
 
 dnl #
-dnl # Linux commands, used withing 'is_linux' blocks of test scripts.
+dnl # Linux commands, used within 'is_linux' blocks of test scripts.
 dnl # These commands may take different command line arguments.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_USER_COMMANDS_LINUX], [

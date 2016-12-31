@@ -100,7 +100,7 @@ log_assert "Verify all mount & share status of sub-filesystems within a pool \
 	can be restored after import [-Df]."
 
 setup_filesystem "$DEVICE_FILES" $TESTPOOL1 $TESTFS $TESTDIR1
-# create a heirarchy of filesystem
+# create a hierarchy of filesystem
 for pool in ${pools[@]} ; do
 	log_must $ZFS create $pool/$TESTFS/$TESTCTR
 	log_must $ZFS create $pool/$TESTFS/$TESTCTR/$TESTCTR1

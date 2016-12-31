@@ -82,7 +82,7 @@ sparse_vol_set_size=$(floor_volsize $sparse_vol_set_size)
 
 # When initially created, a regular volume's reservation property is set
 # equal to its size (unlike a sparse volume), so we don't need to set it
-# explictly later on
+# explicitly later on
 log_must $ZFS create -V $resv_set $TESTPOOL/$TESTVOL
 log_must $ZFS create -s -V $sparse_vol_set_size $TESTPOOL/$TESTVOL2
 

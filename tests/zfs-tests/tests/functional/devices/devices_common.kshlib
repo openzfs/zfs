@@ -32,7 +32,7 @@
 . $STF_SUITE/include/libtest.shlib
 
 #
-# Create block file or charactor file according to parameter.
+# Create block file or character file according to parameter.
 #
 # $1 device file type
 # $2 file name

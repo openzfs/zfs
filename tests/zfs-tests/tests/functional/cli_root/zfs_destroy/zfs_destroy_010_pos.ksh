@@ -30,7 +30,7 @@
 
 ################################################################################
 #
-# When using 'zfs destroy -R' on a file system heirarchy that inclues a
+# When using 'zfs destroy -R' on a file system hierarchy that includes a
 # snapshot and a clone of that snapshot, and the snapshot has been
 # defer-destroyed, make sure that the 'zfs destroy -R' works as expected.
 # In particular make sure that libzfs is not confused by the fact that the

@@ -146,7 +146,7 @@ typeset -i i
 i=1
 log_must setup_ds
 
-log_note "Verify zfs clone propery for multiple clones"
+log_note "Verify zfs clone property for multiple clones"
 names=$($ZFS list -rt all -o name $TESTPOOL)
 log_must verify_clones 3 0
 

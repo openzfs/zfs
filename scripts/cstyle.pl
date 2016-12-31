@@ -64,7 +64,7 @@ my $usage =
 	-C	don't check anything in header block comments
 	-P	check for use of non-POSIX types
 	-o constructs
-		allow a comma-seperated list of optional constructs:
+		allow a comma-separated list of optional constructs:
 		    doxygen	allow doxygen-style block comments (/** /*!)
 		    splint	allow splint-style lint comments (/*@ ... @*/)
 ";

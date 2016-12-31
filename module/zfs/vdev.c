@@ -2706,7 +2706,7 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	    !vdev_readable(vd) || !vdev_writeable(vd)) {
 
 		/*
-		 * When reopening in reponse to a clear event, it may be due to
+		 * When reopening in response to a clear event, it may be due to
 		 * a fmadm repair request.  In this case, if the device is
 		 * still broken, we want to still post the ereport again.
 		 */

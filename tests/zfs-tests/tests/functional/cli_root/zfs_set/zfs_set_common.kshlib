@@ -124,7 +124,7 @@ function cleanup_user_prop
 }
 
 #
-# Random select charactor from the specified charactor set and combine into a
+# Random select character from the specified character set and combine into a
 # random string
 #
 # $1 character set name

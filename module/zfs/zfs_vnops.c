@@ -857,7 +857,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 		/*
 		 * Clear Set-UID/Set-GID bits on successful write if not
-		 * privileged and at least one of the excute bits is set.
+		 * privileged and at least one of the execute bits is set.
 		 *
 		 * It would be nice to to this after all writes have
 		 * been done, but that would still expose the ISUID/ISGID
@@ -2127,7 +2127,7 @@ top:
 	}
 
 	/*
-	 * Grab a lock on the directory to make sure that noone is
+	 * Grab a lock on the directory to make sure that no one is
 	 * trying to add (or lookup) entries while we are removing it.
 	 */
 	rw_enter(&zp->z_name_lock, RW_WRITER);

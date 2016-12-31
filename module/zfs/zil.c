@@ -544,7 +544,7 @@ zil_create(zilog_t *zilog)
 	/*
 	 * Allocate an initial log block if:
 	 *    - there isn't one already
-	 *    - the existing block is the wrong endianess
+	 *    - the existing block is the wrong endianness
 	 */
 	if (BP_IS_HOLE(&blk) || BP_SHOULD_BYTESWAP(&blk)) {
 		tx = dmu_tx_create(zilog->zl_os);

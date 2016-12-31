@@ -35,7 +35,7 @@
 
 #
 # DESCRIPTION:
-#	Seperately verify 'zfs destroy -f|-r|-rf|-R|-rR <dataset>' will fail in
+#	Separately verify 'zfs destroy -f|-r|-rf|-R|-rR <dataset>' will fail in
 #       different conditions.
 #
 # STRATEGY:
@@ -50,7 +50,7 @@
 
 verify_runnable "both"
 
-log_assert "Seperately verify 'zfs destroy -f|-r|-rf|-R|-rR <dataset>' will " \
+log_assert "Separately verify 'zfs destroy -f|-r|-rf|-R|-rR <dataset>' will " \
 	"fail in different conditions."
 log_onexit cleanup_testenv
 

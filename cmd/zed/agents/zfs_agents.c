@@ -217,7 +217,7 @@ zfs_agent_dispatch(const char *class, const char *subclass, nvlist_t *nvl)
 	 * On illumos these subscriptions reside in:
 	 * 	/usr/lib/fm/fmd/plugins/zfs-retire.conf
 	 *
-	 * NOTE: faults events come directy from our diagnosis engine
+	 * NOTE: faults events come directly from our diagnosis engine
 	 * and will not pass through the zfs kernel module.
 	 */
 	if (strcmp(class, FM_LIST_SUSPECT_CLASS) == 0 ||

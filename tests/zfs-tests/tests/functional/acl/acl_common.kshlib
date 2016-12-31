@@ -237,7 +237,7 @@ function usr_exec #<commands> [...]
 }
 
 #
-# Count how many ACEs for the speficied file or directory.
+# Count how many ACEs for the specified file or directory.
 #
 # $1 file or directroy name
 #

@@ -40,7 +40,7 @@
 #	1. Create multiple snapshots and a clone to a middle point snapshot
 #	2. Promote the clone filesystem
 #	3. Verify the origin filesystem and promoted filesystem include
-#	   correct datasets seperated by the clone point.
+#	   correct datasets separated by the clone point.
 #
 
 verify_runnable "both"

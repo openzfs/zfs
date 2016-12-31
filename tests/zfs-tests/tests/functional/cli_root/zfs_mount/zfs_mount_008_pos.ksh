@@ -85,7 +85,7 @@ log_must $ZFS set mountpoint=$mntpnt1 $fs1
 log_must $ZFS mount $fs1
 log_must $LS $testfile1 $mntpnt1/$TESTFILE2
 
-# Verify $TESTFILE2 was not created in $fs, and $fs is accessable again.
+# Verify $TESTFILE2 was not created in $fs, and $fs is accessible again.
 log_mustnot $LS $mntpnt/$TESTFILE2
 log_must $LS $testfile
 

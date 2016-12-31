@@ -60,8 +60,8 @@ if is_linux; then
 # - rename      - mount(8) does not permit non-superuser mounts
 # - zoned	- zones are not supported
 # - destroy     - umount(8) does not permit non-superuser umounts
-# - sharenfs	- sharing requires superuser priviliges
-# - share	- sharing requires superuser priviliges
+# - sharenfs	- sharing requires superuser privileges
+# - share	- sharing requires superuser privileges
 # - readonly	- mount(8) does not permit non-superuser remounts
 #
 set -A perms	create		true		false	\

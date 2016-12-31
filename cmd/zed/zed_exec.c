@@ -71,7 +71,7 @@ _zed_exec_create_env(zed_strings_t *zsp)
 
 /*
  * Fork a child process to handle event [eid].  The program [prog]
- * in directory [dir] is executed with the envionment [env].
+ * in directory [dir] is executed with the environment [env].
  *
  * The file descriptor [zfd] is the zevent_fd used to track the
  * current cursor location within the zevent nvlist.

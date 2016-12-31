@@ -153,7 +153,7 @@ vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 
 	/*
 	 * Apply half the seek increment to I/O's within seek offset
-	 * of the last I/O queued to this vdev as they should incure less
+	 * of the last I/O queued to this vdev as they should incur less
 	 * of a seek increment.
 	 */
 	if (ABS(lastoffset - zio_offset) <

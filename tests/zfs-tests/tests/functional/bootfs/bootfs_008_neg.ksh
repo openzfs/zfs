@@ -34,7 +34,7 @@
 #
 # STRATEGY:
 # 1. create pools based on a valid vdev
-# 2. create a filesytem on this pool and set the compression property to gzip1-9
+# 2. create a filesystem on this pool and set the compression property to gzip1-9
 # 3. set the pool's bootfs property to filesystem we just configured which
 #    should fail
 #
