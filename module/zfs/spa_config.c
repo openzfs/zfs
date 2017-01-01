@@ -222,7 +222,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
  * the configuration has been synced to the MOS. This exposes a window where
  * the MOS config will have been updated but the cache file has not. If
  * the system were to crash at that instant then the cached config may not
- * contain the correct information to open the pool and an explicitly import
+ * contain the correct information to open the pool and an explicit import
  * would be required.
  */
 void
