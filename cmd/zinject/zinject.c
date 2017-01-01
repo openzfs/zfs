@@ -282,7 +282,7 @@ usage(void)
 	    "\n"
 	    "\t\tInject an error into pool 'pool' with the numeric bookmark\n"
 	    "\t\tspecified by the remaining tuple.  Each number is in\n"
-	    "\t\thexidecimal, and only one block can be specified.\n"
+	    "\t\thexadecimal, and only one block can be specified.\n"
 	    "\n"
 	    "\tzinject [-q] <-t type> [-e errno] [-l level] [-r range]\n"
 	    "\t    [-a] [-m] [-u] [-f freq] <object>\n"
