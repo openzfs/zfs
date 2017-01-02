@@ -1,0 +1,53 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = "ubuntu/trusty64"
+
+  #
+  # Don't share an additional folder to the guest VM. At some point, it
+  # would be nice to share any local SPL and ZFS repositories with the
+  # guest VM. This would allow edits to happen outside of the VM (e.g.
+  # in any graphical editor of the user's choice) but get automatically
+  # shared with the VM for ease of compilation and testing.
+  #
+  # Unfortunately, this would require knowing the path to the local
+  # repositories relative to the Vagrant file. I'm not sure how to pass
+  # this information in, and any hard coded paths places unneeded
+  # restrictions on where the repositories must live in the developers
+  # file system.
+  #
+  # For now, simply disable sharing any additional folders. Instead, the
+  # SPL and ZFS repositories will be cloned into the default user's home
+  # directory. A developer can 'vagrant ssh' to log into the VM and edit
+  # the source directly with a CLI editor (e.g. Vim), or pull down any
+  # changes from a remote git repositories (e.g. from GitHub). Likewise,
+  # code changes can be exported out of the VM by pushing to a remote
+  # git repository.
+  #
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  #
+  # Pull in any packages needed to edit, compile, and test the code.
+  #
+  config.vm.provision "shell", inline: <<-SHELL
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -q
+    apt-get install -q -y \
+      -o Dpkg::Options::="--force-confdef" \
+      -o Dpkg::Options::="--force-confold" \
+      git autoconf automake libtool zlib1g-dev uuid-dev dpkg-dev alien
+  SHELL
+
+  #
+  # Since we aren't sharing the SPL and ZFS repositories with the guest
+  # VM via the "synced folder" functionality (see comment above), the
+  # two repositories are automatically cloned into the default user's
+  # home directory.
+  #
+  config.vm.provision "shell", privileged: false, inline: <<-SHELL
+    git clone git://github.com/zfsonlinux/spl.git
+    git clone git://github.com/zfsonlinux/zfs.git
+  SHELL
+
+end
