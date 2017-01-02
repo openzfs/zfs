@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2016 by Delphix. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -603,9 +603,9 @@ The type of dataset: \fBfilesystem\fR, \fBvolume\fR, or \fBsnapshot\fR.
 .ad
 .sp .6
 .RS 4n
-The amount of space consumed by this dataset and all its descendents. This is the value that is checked against this dataset's quota and reservation. The space used does not include this dataset's reservation, but does take into account the reservations of any descendent datasets. The amount of space that a dataset consumes from its parent, as well as the amount of space that are freed if this dataset is recursively destroyed, is the greater of its space used and its reservation.
+The amount of space consumed by this dataset and all its descendents. This is the value that is checked against this dataset's quota and reservation. The space used does not include this dataset's reservation, but does take into account the reservations of any descendent datasets. The amount of space that a dataset consumes from its parent, as well as the amount of space that is freed if this dataset is recursively destroyed, is the greater of its space used and its reservation.
 .sp
-When snapshots (see the "Snapshots" section) are created, their space is initially shared between the snapshot and the file system, and possibly with previous snapshots. As the file system changes, space that was previously shared becomes unique to the snapshot, and counted in the snapshot's space used. Additionally, deleting snapshots can increase the amount of space unique to (and used by) other snapshots.
+The used space of a snapshot (see the "Snapshots" section) is space that is referenced exclusively by this snapshot. If this snapshot is destroyed, the amount of \fBused\fR space will be freed. Space that is shared by multiple snapshots isn't accounted for in this metric. When a snapshot is destroyed, space that was previously shared with this snapshot can become unique to snapshots adjacent to it, thus changing the used space of those snapshots. The used space of the latest snapshot can also be affected by changes in the file system. Note that the \fBused\fR space of a snapshot is a subset of the \fBwritten\fR space of the snapshot.
 .sp
 The amount of space used, available, or referenced does not take into account pending changes. Pending changes are generally accounted for within a few seconds. Committing a change to a disk using \fBfsync\fR(2) or \fBO_SYNC\fR (see \fBopen\fR(2)) does not necessarily guarantee that the space usage information is updated immediately.
 .RE
@@ -756,8 +756,8 @@ This property can also be referred to by its shortened column name, \fBvolblock\
 .ad
 .sp .6
 .RS 4n
-The amount of \fBreferenced\fR space written to this dataset since the
-previous snapshot.
+The amount of space \fBreferenced\fR by this dataset, that was written since the previous snapshot
+(i.e. that is not referenced by the previous snapshot).
 .RE
 
 .sp
