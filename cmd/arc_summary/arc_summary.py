@@ -705,8 +705,8 @@ def _l2arc_summary(Kstat):
         )
         sys.stdout.write("\n")
 
-        if arc["l2_arc_evicts"]['lock_retries'] + \
-                arc["l2_arc_evicts"]["reading"] > 0:
+        if arc["l2_arc_evicts"]['lock_retries'] != '0' or \
+           arc["l2_arc_evicts"]["reading"] != '0':
             sys.stdout.write("L2 ARC Evicts:\n")
             sys.stdout.write("\tLock Retries:\t\t\t\t%s\n" %
                              arc["l2_arc_evicts"]['lock_retries'])
