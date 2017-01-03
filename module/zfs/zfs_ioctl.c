@@ -4307,7 +4307,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 		/*
 		 * dsl_props_set() will not convert RECEIVED to LOCAL on or
 		 * after SPA_VERSION_RECVD_PROPS, so we need to specify LOCAL
-		 * explictly if we're restoring local properties cleared in the
+		 * explicitly if we're restoring local properties cleared in the
 		 * first new-style receive.
 		 */
 		if (origprops != NULL &&

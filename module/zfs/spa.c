@@ -3677,7 +3677,7 @@ spa_set_aux_vdevs(spa_aux_vdev_t *sav, nvlist_t **devs, int ndevs,
 		nvlist_t **newdevs;
 
 		/*
-		 * Generate new dev list by concatentating with the
+		 * Generate new dev list by concatenating with the
 		 * current dev list.
 		 */
 		VERIFY(nvlist_lookup_nvlist_array(sav->sav_config, config,
@@ -6274,7 +6274,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		case ZPOOL_PROP_VERSION:
 			intval = fnvpair_value_uint64(elem);
 			/*
-			 * The version is synced seperatly before other
+			 * The version is synced separately before other
 			 * properties and should be correct by now.
 			 */
 			ASSERT3U(spa_version(spa), >=, intval);
@@ -6304,7 +6304,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			 * We need to dirty the configuration on all the vdevs
 			 * so that their labels get updated.  It's unnecessary
 			 * to do this for pool creation since the vdev's
-			 * configuratoin has already been dirtied.
+			 * configuration has already been dirtied.
 			 */
 			if (tx->tx_txg != TXG_INITIAL)
 				vdev_config_dirty(spa->spa_root_vdev);

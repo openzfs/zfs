@@ -1245,7 +1245,7 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 	sa_hdr_phys->sa_layout_info = BSWAP_16(sa_hdr_phys->sa_layout_info);
 
 	/*
-	 * Determine number of variable lenghts in header
+	 * Determine number of variable lengths in header
 	 * The standard 8 byte header has one for free and a
 	 * 16 byte header would have 4 + 1;
 	 */

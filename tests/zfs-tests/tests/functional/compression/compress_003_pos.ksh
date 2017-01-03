@@ -50,7 +50,7 @@ function cleanup
 	$RM -f $TESTDIR/*
 }
 
-log_assert "Changing blocksize doesn't casue system panic with compression settings"
+log_assert "Changing blocksize doesn't cause system panic with compression settings"
 log_onexit cleanup
 
 fs=$TESTPOOL/$TESTFS

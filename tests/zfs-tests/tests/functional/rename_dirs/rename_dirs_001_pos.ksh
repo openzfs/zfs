@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-# Create two directory trees in ZFS filesystem, and concurently rename
+# Create two directory trees in ZFS filesystem, and concurrently rename
 # directory across the two trees. ZFS should be able to handle the race
 # situation.
 #

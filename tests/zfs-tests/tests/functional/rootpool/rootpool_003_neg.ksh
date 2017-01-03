@@ -47,7 +47,7 @@
 #
 
 verify_runnable "global"
-log_assert "system related filesytems can not be renamed or destroyed"
+log_assert "system related filesystems can not be renamed or destroyed"
 
 typeset rootpool=$(get_rootpool)
 typeset rootfs=$(get_rootfs)

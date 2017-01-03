@@ -273,7 +273,7 @@ if [ ! -d $IMAGES_DIR ]; then
 fi
 
 # Given the available images in the zfs-images directory substitute the
-# list of available images for the reserved keywork 'all'.
+# list of available images for the reserved keyword 'all'.
 for TAG in $POOL_TAGS; do
 
 	if  [ "$TAG" = "all" ]; then

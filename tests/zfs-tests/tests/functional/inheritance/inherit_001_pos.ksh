@@ -157,10 +157,10 @@ function update_recordsize { #dataset init_code
 # The mountpoint property is slightly different from other properties and
 # so is handled here. For all other properties if they are set to a specific
 # value at a higher level in the data hierarchy (i.e. checksum=on) then that
-# value propogates down the hierarchy unchanged, with the source field being
+# value propagates down the hierarchy unchanged, with the source field being
 # set to 'inherited from <higher dataset>'.
 #
-# The mountpoint property is different in that while the value propogates
+# The mountpoint property is different in that while the value propagates
 # down the hierarchy, the value at each level is determined by a combination
 # of the top-level value and the current level in the hierarchy.
 #
@@ -327,7 +327,7 @@ function scan_state { #state-file
 				# set up correctly as specified in the
 				# configX.cfg file (which includes 'set'ting
 				# properties at a higher level and checking
-				# that they propogate down to the lower levels.
+				# that they propagate down to the lower levels.
 				#
 				# Note in a few places here, we use
 				# check_failure, rather than log_must - this

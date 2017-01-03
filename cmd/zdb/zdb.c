@@ -3249,7 +3249,7 @@ zdb_dump_block(char *label, void *buf, uint64_t size, int flags)
 	(void) printf("\n%s\n%6s   %s  0123456789abcdef\n", label, "", hdr);
 
 #ifdef _LITTLE_ENDIAN
-	/* correct the endianess */
+	/* correct the endianness */
 	do_bswap = !do_bswap;
 #endif
 	for (i = 0; i < nwords; i += 2) {
@@ -3271,7 +3271,7 @@ zdb_dump_block(char *label, void *buf, uint64_t size, int flags)
  *	child[.child]*    - For example: 0.1.1
  *
  * The second form can be used to specify arbitrary vdevs anywhere
- * in the heirarchy.  For example, in a pool with a mirror of
+ * in the hierarchy.  For example, in a pool with a mirror of
  * RAID-Zs, you can specify either RAID-Z vdev with 0.0 or 0.1 .
  */
 static vdev_t *

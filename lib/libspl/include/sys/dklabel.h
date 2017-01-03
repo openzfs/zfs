@@ -107,7 +107,7 @@ struct dk_map2 {
 
 struct dkl_partition    {
 	uint16_t	p_tag;		/* ID tag of partition */
-	uint16_t	p_flag;		/* permision flags */
+	uint16_t	p_flag;		/* permission flags */
 	daddr32_t	p_start;	/* start sector no of partition */
 	int32_t		p_size;		/* # of blocks in partition */
 };

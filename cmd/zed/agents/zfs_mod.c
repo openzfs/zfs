@@ -477,7 +477,7 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	} else if (dp->dd_compare != NULL) {
 		/*
 		 * NOTE: On Linux there is an event for partition, so unlike
-		 * illumos, substring matching is not required to accomodate
+		 * illumos, substring matching is not required to accommodate
 		 * the partition suffix. An exact match will be present in
 		 * the dp->dd_compare value.
 		 */

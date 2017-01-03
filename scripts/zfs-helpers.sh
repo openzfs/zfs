@@ -42,7 +42,7 @@ DESCRIPTION:
 OPTIONS:
 	-d      Dry run
 	-h      Show this message
-	-i      Install the helper utilties
+	-i      Install the helper utilities
 	-r      Remove the helper utilities
 	-v      Verbose
 

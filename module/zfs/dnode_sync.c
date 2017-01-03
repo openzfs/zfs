@@ -539,7 +539,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	/*
 	 * Now that we've released our hold, the dnode may
-	 * be evicted, so we musn't access it.
+	 * be evicted, so we mustn't access it.
 	 */
 }
 

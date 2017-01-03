@@ -37,7 +37,7 @@
 # return an error.
 #
 # STRATEGY:
-# 1. Create an array containg bad zdb parameters.
+# 1. Create an array containing bad zdb parameters.
 # 2. For each element, execute the sub-command.
 # 3. Verify it returns an error.
 #

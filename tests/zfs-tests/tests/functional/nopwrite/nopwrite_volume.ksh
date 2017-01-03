@@ -46,7 +46,7 @@ log_assert "nopwrite works on volumes"
 log_must $ZFS set compress=on $origin
 log_must $ZFS set checksum=sha256 $origin
 $DD if=/dev/urandom of=$vol bs=8192 count=4096 conv=notrunc >/dev/null \
-    2>&1 || log_fail "dd into $orgin failed."
+    2>&1 || log_fail "dd into $origin failed."
 $ZFS snapshot $origin@a || log_fail "zfs snap failed"
 log_must $ZFS clone $origin@a $clone
 log_must $ZFS set compress=on $clone

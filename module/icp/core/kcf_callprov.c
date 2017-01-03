@@ -282,7 +282,7 @@ kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
 	prov_chain = me->me_hw_prov_chain;
 
 	/*
-	 * We check for the threshhold for using a hardware provider for
+	 * We check for the threshold for using a hardware provider for
 	 * this amount of data. If there is no software provider available
 	 * for the mechanism, then the threshold is ignored.
 	 */

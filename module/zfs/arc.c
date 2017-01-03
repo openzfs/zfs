@@ -4438,7 +4438,7 @@ SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
 
 /*
  * Adapt arc info given the number of bytes we are trying to add and
- * the state that we are comming from.  This function is only called
+ * the state that we are coming from.  This function is only called
  * when we are adding new content to the cache.
  */
 static void

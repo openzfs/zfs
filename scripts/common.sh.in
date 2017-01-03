@@ -567,8 +567,8 @@ udev_trigger() {
 udev_setup() {
 	local SRC_PATH=$1
 
-	# When running in tree manually contruct symlinks in tree to
-	# the proper devices.  Symlinks are installed for all entires
+	# When running in tree manually construct symlinks in tree to
+	# the proper devices.  Symlinks are installed for all entries
 	# in the config file regardless of if that device actually
 	# exists.  When installed as a package udev can be relied on for
 	# this and it will only create links for devices which exist.

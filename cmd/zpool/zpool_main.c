@@ -1909,7 +1909,7 @@ show_import(nvlist_t *config)
 
 	case ZPOOL_STATUS_UNSUP_FEAT_READ:
 		(void) printf(gettext("status: The pool uses the following "
-		    "feature(s) not supported on this sytem:\n"));
+		    "feature(s) not supported on this system:\n"));
 		zpool_print_unsup_feat(config);
 		break;
 
@@ -7251,7 +7251,7 @@ get_callback(zpool_handle_t *zhp, void *data)
  *		by a single tab.
  *	-o	List of columns to display.  Defaults to
  *		"name,property,value,source".
- * 	-p	Diplay values in parsable (exact) format.
+ * 	-p	Display values in parsable (exact) format.
  *
  * Get properties of pools in the system. Output space statistics
  * for each one as well as other attributes.

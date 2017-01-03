@@ -75,7 +75,7 @@ resv_size_set=`expr $space_avail / 3`
 # for.
 #
 # Any special arguments for create are passed in via the args
-# paramater.
+# parameter.
 #
 function create_resv_destroy { # args1 dataset1 args2 dataset2
 

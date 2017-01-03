@@ -150,7 +150,7 @@ int dbuf_cache_max_shift = 5;
  * cache size). Once the eviction thread is woken up and eviction is required,
  * it will continue evicting buffers until it's able to reduce the cache size
  * to the low water mark. If the cache size continues to grow and hits the high
- * water mark, then callers adding elments to the cache will begin to evict
+ * water mark, then callers adding elements to the cache will begin to evict
  * directly from the cache until the cache is no longer above the high water
  * mark.
  */
@@ -320,7 +320,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	idx = hv & h->hash_table_mask;
 
 	/*
-	 * We musn't hold db_mtx to maintain lock ordering:
+	 * We mustn't hold db_mtx to maintain lock ordering:
 	 * DBUF_HASH_MUTEX > db_mtx.
 	 */
 	ASSERT(refcount_is_zero(&db->db_holds));

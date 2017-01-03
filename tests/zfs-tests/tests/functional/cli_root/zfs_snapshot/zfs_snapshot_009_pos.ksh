@@ -20,7 +20,7 @@
 #
 # STRATEGY
 # 1. Create multiple datasets
-# 2. Create mutiple snapshots with a list of valid and invalid
+# 2. Create multiple snapshots with a list of valid and invalid
 #    snapshot names
 # 3. Verify the valid snpashot creation
 

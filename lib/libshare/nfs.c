@@ -723,7 +723,7 @@ nfs_check_exportfs(void)
 }
 
 /*
- * Provides a convenient wrapper for determing nfs availability
+ * Provides a convenient wrapper for determining nfs availability
  */
 static boolean_t
 nfs_available(void)

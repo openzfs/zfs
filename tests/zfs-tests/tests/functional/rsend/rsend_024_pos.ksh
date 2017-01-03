@@ -30,7 +30,7 @@
 # 4. Mess up the contents of the stream state file on disk
 # 5. Try ZFS receive, which should fail with a checksum mismatch error
 # 6. ZFS send to the stream state file again using the receive_resume_token
-# 7. ZFS receieve and verify the receive completes successfully
+# 7. ZFS receive and verify the receive completes successfully
 #
 
 verify_runnable "both"

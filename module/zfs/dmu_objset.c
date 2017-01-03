@@ -63,7 +63,7 @@
 krwlock_t os_lock;
 
 /*
- * Tunable to overwrite the maximum number of threads for the parallization
+ * Tunable to overwrite the maximum number of threads for the parallelization
  * of dmu_objset_find_dp, needed to speed up the import of pools with many
  * datasets.
  * Default is 4 times the number of leaf vdevs.

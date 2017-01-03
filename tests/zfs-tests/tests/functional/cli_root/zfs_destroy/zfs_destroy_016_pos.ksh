@@ -90,7 +90,7 @@ for args in $valid_args; do
 	verify_snapshots
 done
 
-log_note "Verify invalid arguements"
+log_note "Verify invalid arguments"
 setup_snapshots
 for args in $invalid_args; do
 	log_mustnot $ZFS destroy $TESTPOOL/$TESTFS1$args
@@ -98,7 +98,7 @@ for args in $invalid_args; do
 	log_must verify_snapshots 1
 done
 
-log_note "Destroy the begining range"
+log_note "Destroy the beginning range"
 
 log_must $ZFS destroy $TESTPOOL/$TESTFS1@%snap3
 log_must $ZFS destroy $TESTPOOL/$TESTVOL@%snap3

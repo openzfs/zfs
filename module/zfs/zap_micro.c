@@ -124,7 +124,7 @@ zap_hash(zap_name_t *zn)
 	 * Don't use all 64 bits, since we need some in the cookie for
 	 * the collision differentiator.  We MUST use the high bits,
 	 * since those are the ones that we first pay attention to when
-	 * chosing the bucket.
+	 * choosing the bucket.
 	 */
 	h &= ~((1ULL << (64 - zap_hashbits(zap))) - 1);
 

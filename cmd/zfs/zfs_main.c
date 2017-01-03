@@ -2174,7 +2174,7 @@ zfs_do_upgrade(int argc, char **argv)
 		if (cb.cb_numfailed != 0)
 			ret = 1;
 	} else {
-		/* List old-version filesytems */
+		/* List old-version filesystems */
 		boolean_t found;
 		(void) printf(gettext("This system is currently running "
 		    "ZFS filesystem version %llu.\n\n"), ZPL_VERSION);
@@ -3376,7 +3376,7 @@ zfs_do_promote(int argc, char **argv)
  *
  *	-r	Delete any intervening snapshots before doing rollback
  *	-R	Delete any snapshots and their clones
- *	-f	ignored for backwards compatability
+ *	-f	ignored for backwards compatibility
  *
  * Given a filesystem, rollback to a specific snapshot, discarding any changes
  * since then and making it the active dataset.  If more recent snapshots exist,

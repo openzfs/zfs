@@ -1627,7 +1627,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
  * - for each zvol, create a minor node, then check if the zvol's snapshots
  *   are 'visible', and only then iterate over the snapshots if needed
  *
- * If the name represents a snapshot, a check is perfromed if the snapshot is
+ * If the name represents a snapshot, a check is performed if the snapshot is
  * 'visible' (which also verifies that the parent is a zvol), and if so,
  * a minor node for that snapshot is created.
  */

@@ -436,7 +436,7 @@ translate_raw(const char *str, zinject_record_t *record)
 {
 	/*
 	 * A raw bookmark of the form objset:object:level:blkid, where each
-	 * number is a hexidecimal value.
+	 * number is a hexadecimal value.
 	 */
 	if (sscanf(str, "%llx:%llx:%x:%llx", (u_longlong_t *)&record->zi_objset,
 	    (u_longlong_t *)&record->zi_object, &record->zi_level,

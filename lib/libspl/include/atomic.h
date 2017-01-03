@@ -247,7 +247,7 @@ extern uint64_t atomic_swap_64(volatile uint64_t *, uint64_t);
 
 /*
  * Perform an exclusive atomic bit set/clear on a target.
- * Returns 0 if bit was sucessfully set/cleared, or -1
+ * Returns 0 if bit was successfully set/cleared, or -1
  * if the bit was already set/cleared.
  */
 extern int atomic_set_long_excl(volatile ulong_t *, uint_t);

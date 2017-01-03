@@ -143,7 +143,7 @@ zfs_prop_init(void)
 		{ "noallow",	ZFS_ACL_NOALLOW },
 		{ "restricted",	ZFS_ACL_RESTRICTED },
 		{ "passthrough", ZFS_ACL_PASSTHROUGH },
-		{ "secure",	ZFS_ACL_RESTRICTED }, /* bkwrd compatability */
+		{ "secure",	ZFS_ACL_RESTRICTED }, /* bkwrd compatibility */
 		{ "passthrough-x", ZFS_ACL_PASSTHROUGH_X },
 		{ NULL }
 	};

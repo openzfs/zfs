@@ -55,7 +55,7 @@ do
 
 		mntpnt=$(get_prop mountpoint $TESTPOOL)
 		#
-		# Create file in pool to trigger writting in slog devices
+		# Create file in pool to trigger writing in slog devices
 		#
 		log_must $DD if=/dev/urandom of=$mntpnt/testfile.$$ count=100
 

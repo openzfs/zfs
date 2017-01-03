@@ -100,7 +100,7 @@ kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 };
 
 /*
- * Per-algorithm internal threasholds for the minimum input size of before
+ * Per-algorithm internal thresholds for the minimum input size of before
  * offloading to hardware provider.
  * Dispatching a crypto operation  to a hardware provider entails paying the
  * cost of an additional context switch.  Measurments with Sun Accelerator 4000

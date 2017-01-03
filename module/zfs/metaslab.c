@@ -1989,7 +1989,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	} else {
 		/*
 		 * Since the space map is not loaded we simply update the
-		 * exisiting histogram with what was freed in this txg. This
+		 * existing histogram with what was freed in this txg. This
 		 * means that the on-disk histogram may not have an accurate
 		 * view of the free space but it's close enough to allow
 		 * us to make allocation decisions.

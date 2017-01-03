@@ -32,7 +32,7 @@
 #	are not in the same pool.
 #
 # STRATEGY:
-#	1. Create 2 separate zpools, zpool name lenghts must be the same.
+#	1. Create 2 separate zpools, zpool name lengths must be the same.
 #	2. Attempt to simultaneously create a snapshot of each pool.
 #	3. Veriy the snapshot creation failed.
 #

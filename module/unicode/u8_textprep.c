@@ -842,7 +842,7 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 	}
 
 	/*
-	 * At this point, this rountine does not know what it would get.
+	 * At this point, this routine does not know what it would get.
 	 * The caller should sort it out if the state isn't a Hangul one.
 	 */
 	*state = U8_STATE_START;

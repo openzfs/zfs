@@ -129,25 +129,25 @@ for clone in $child_fs1_snap_clone $child_fs1_snap_clone1; do
 done
 
 log_note "Verify that 'zfs destroy -r' fails to destroy dataset " \
-	"with clone dependant outside it."
+	"with dependent clone outside it."
 
 for obj in $child_fs $child_fs1 $ctr $ctr1; do
 	log_mustnot $ZFS destroy -r $obj
 	datasetexists $obj || \
-		log_fail "'zfs destroy -r' fails to keep clone " \
-			"dependant outside the hirearchy."
+		log_fail "'zfs destroy -r' fails to keep dependent " \
+			"clone outside the hirearchy."
 done
 
 
 log_note "Verify that 'zfs destroy -R' succeeds to destroy dataset " \
-	"with clone dependant outside it."
+	"with dependent clone outside it."
 
 log_must $ZFS destroy -R $ctr1
 datasetexists $ctr1 && \
 	log_fail "'zfs destroy -R' fails to destroy dataset with clone outside it."
 
 log_note "Verify that 'zfs destroy -r' succeeds to destroy dataset " \
-	"without clone dependant outside it."
+	"without dependent clone outside it."
 
 log_must $ZFS destroy -r $ctr
 datasetexists $ctr && \

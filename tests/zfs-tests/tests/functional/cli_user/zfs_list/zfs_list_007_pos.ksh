@@ -38,7 +38,7 @@
 # STRATEGY:
 #	1. 'zfs list -d <n>' to get the output.
 #	2. 'zfs list -r|egrep' to get the expected output.
-#	3. Compare the two outputs, they shoud be same.
+#	3. Compare the two outputs, they should be same.
 #
 
 verify_runnable "both"

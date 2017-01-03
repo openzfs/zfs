@@ -621,7 +621,7 @@ tests = ['vdev_zaps_001_pos', 'vdev_zaps_002_pos', 'vdev_zaps_003_pos',
 [tests/functional/write_dirs]
 tests = ['write_dirs_001_pos']
 
-# DISABLED: No 'runat' command, replace the Linux equivilant and add xattrtest
+# DISABLED: No 'runat' command, replace the Linux equivalent and add xattrtest
 #[tests/functional/xattr]
 #tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
 #    'xattr_005_pos', 'xattr_006_pos', 'xattr_007_neg', 'xattr_008_pos',

@@ -914,7 +914,7 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 #	filenum:    the maximum number of files per subdirectory
 #	bytes:	    number of bytes to write
 #	num_writes: numer of types to write out bytes
-#	data:	    the data that will be writen
+#	data:	    the data that will be written
 #
 #	E.g.
 #	file_fs /testdir 20 25 1024 256 0
@@ -1836,7 +1836,7 @@ function is_pool_scrub_stopped #pool
 }
 
 #
-# Use create_pool()/destroy_pool() to clean up the infomation in
+# Use create_pool()/destroy_pool() to clean up the information in
 # in the given disk to avoid slice overlapping.
 #
 function cleanup_devices #vdevs
