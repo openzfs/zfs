@@ -29,9 +29,20 @@ modinfo spl | grep -iw version
 ### Describe how to reproduce the problem
 
 ### Include any warning/errors/backtraces from the system logs
+
 <!-- 
-Example:
+
+Hints for formatting
+
 ```
-this is an example how log text should be marked (wrap it with ```)
+wrap commands with ```
 ```
+
+    prefix multiline output with four spaces. an easy way is to pipe it to sed 's/^/\ \ \ \ /g'
+    
+    pool: rpool
+     state: ONLINE
+    status: Some supported features are not enabled on the pool. The pool can
+        still be used, but some features are unavailable.
+
 -->
