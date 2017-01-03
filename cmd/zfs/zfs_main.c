@@ -3670,6 +3670,20 @@ found3:;
 	}
 
 	/*
+	 * We can go even faster if only sorting by name.
+	 */
+	if (strcmp(fields, "name") == 0 && zfs_sort_only_by_name(sortcol))
+		flags |= ZFS_ITER_FASTSORT;
+
+	/*
+	 * If we are not going to do alignment on the columns and use either
+	 * the default sort or sort only by name, we can use the fast sort
+	 */
+	if (cb.cb_scripted && (sortcol == NULL ||
+	    zfs_sort_only_by_name(sortcol)))
+		flags |= ZFS_ITER_FASTSORT;
+
+	/*
 	 * If "-o space" and no types were specified, don't display snapshots.
 	 */
 	if (strcmp(fields, "space") == 0 && types_specified == B_FALSE)
