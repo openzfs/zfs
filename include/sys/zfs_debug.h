@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
@@ -48,7 +48,7 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_DNODE_VERIFY		(1 << 2)
 #define	ZFS_DEBUG_SNAPNAMES		(1 << 3)
 #define	ZFS_DEBUG_MODIFY		(1 << 4)
-#define	ZFS_DEBUG_SPA			(1 << 5)
+/* 1<<5 was previously used, try not to reuse */
 #define	ZFS_DEBUG_ZIO_FREE		(1 << 6)
 #define	ZFS_DEBUG_HISTOGRAM_VERIFY	(1 << 7)
 #define	ZFS_DEBUG_METASLAB_VERIFY	(1 << 8)

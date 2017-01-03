@@ -248,7 +248,7 @@ int spa_mode_global;
  * by default in debug builds.
  */
 int zfs_flags = ~(ZFS_DEBUG_DPRINTF | ZFS_DEBUG_SET_ERROR |
-    ZFS_DEBUG_SPA | ZFS_DEBUG_INDIRECT_REMAP);
+    ZFS_DEBUG_INDIRECT_REMAP);
 #else
 int zfs_flags = 0;
 #endif
@@ -658,8 +658,6 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 		VERIFY(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
 		    KM_SLEEP) == 0);
 	}
-
-	spa->spa_debug = ((zfs_flags & ZFS_DEBUG_SPA) != 0);
 
 	spa->spa_min_ashift = INT_MAX;
 	spa->spa_max_ashift = 0;
@@ -2120,12 +2118,6 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	    scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
 
 	return (0);
-}
-
-boolean_t
-spa_debug_enabled(spa_t *spa)
-{
-	return (spa->spa_debug);
 }
 
 int

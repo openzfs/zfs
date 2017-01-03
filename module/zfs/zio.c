@@ -3295,7 +3295,7 @@ zio_dva_allocate(zio_t *zio)
 	    &zio->io_alloc_list, zio);
 
 	if (error != 0) {
-		spa_dbgmsg(spa, "%s: metaslab allocation failure: zio %p, "
+		zfs_dbgmsg("%s: metaslab allocation failure: zio %p, "
 		    "size %llu, error %d", spa_name(spa), zio, zio->io_size,
 		    error);
 		if (error == ENOSPC && zio->io_size > SPA_MINBLOCKSIZE)
