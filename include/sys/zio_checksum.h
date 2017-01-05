@@ -130,7 +130,7 @@ extern int zio_checksum_equal(spa_t *, blkptr_t *, enum zio_checksum,
     void *, uint64_t, uint64_t, zio_bad_cksum_t *);
 extern void zio_checksum_compute(zio_t *, enum zio_checksum,
     struct abd *, uint64_t);
-extern int zio_checksum_error_impl(spa_t *, blkptr_t *, enum zio_checksum,
+extern int zio_checksum_error_impl(spa_t *, const blkptr_t *, enum zio_checksum,
     struct abd *, uint64_t, uint64_t, zio_bad_cksum_t *);
 extern int zio_checksum_error(zio_t *zio, zio_bad_cksum_t *out);
 extern enum zio_checksum spa_dedup_checksum(spa_t *spa);
