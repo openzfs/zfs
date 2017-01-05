@@ -596,11 +596,11 @@ zei_range_total_size(zfs_ecksum_info_t *eip)
 
 static zfs_ecksum_info_t *
 annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
-    const uint8_t *goodbuf, const uint8_t *badbuf, size_t size,
+    const abd_t *goodabd, const abd_t *badabd, size_t size,
     boolean_t drop_if_identical)
 {
-	const uint64_t *good = (const uint64_t *)goodbuf;
-	const uint64_t *bad = (const uint64_t *)badbuf;
+	const uint64_t *good;
+	const uint64_t *bad;
 
 	uint64_t allset = 0;
 	uint64_t allcleared = 0;
@@ -644,12 +644,15 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 		}
 	}
 
-	if (badbuf == NULL || goodbuf == NULL)
+	if (badabd == NULL || goodabd == NULL)
 		return (eip);
 
 	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
 	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT3U(size, <=, UINT32_MAX);
+
+	good = (const uint64_t *) abd_borrow_buf_copy((abd_t *)goodabd, size);
+	bad = (const uint64_t *) abd_borrow_buf_copy((abd_t *)badabd, size);
 
 	/* build up the range list by comparing the two buffers. */
 	for (idx = 0; idx < nui64s; idx++) {
@@ -680,6 +683,8 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	 */
 	if (inline_size == 0 && drop_if_identical) {
 		kmem_free(eip, sizeof (*eip));
+		abd_return_buf((abd_t *)goodabd, (void *)good, size);
+		abd_return_buf((abd_t *)badabd, (void *)bad, size);
 		return (NULL);
 	}
 
@@ -720,6 +725,10 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 		eip->zei_ranges[range].zr_start	*= sizeof (uint64_t);
 		eip->zei_ranges[range].zr_end	*= sizeof (uint64_t);
 	}
+
+	abd_return_buf((abd_t *)goodabd, (void *)good, size);
+	abd_return_buf((abd_t *)badabd, (void *)bad, size);
+
 	eip->zei_allowed_mingap	*= sizeof (uint64_t);
 	inline_size		*= sizeof (uint64_t);
 
@@ -827,8 +836,8 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
 }
 
 void
-zfs_ereport_finish_checksum(zio_cksum_report_t *report,
-    const void *good_data, const void *bad_data, boolean_t drop_if_identical)
+zfs_ereport_finish_checksum(zio_cksum_report_t *report, const abd_t *good_data,
+    const abd_t *bad_data, boolean_t drop_if_identical)
 {
 #ifdef _KERNEL
 	zfs_ecksum_info_t *info;
@@ -870,7 +879,7 @@ zfs_ereport_free_checksum(zio_cksum_report_t *rpt)
 void
 zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
     struct zio *zio, uint64_t offset, uint64_t length,
-    const void *good_data, const void *bad_data, zio_bad_cksum_t *zbc)
+    const abd_t *good_data, const abd_t *bad_data, zio_bad_cksum_t *zbc)
 {
 #ifdef _KERNEL
 	nvlist_t *ereport = NULL;

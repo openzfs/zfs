@@ -722,7 +722,7 @@ abd_alloc_sametype(abd_t *sabd, size_t size)
 abd_t *
 abd_alloc_for_io(size_t size, boolean_t is_metadata)
 {
-	return (abd_alloc_linear(size, is_metadata));
+	return (abd_alloc(size, is_metadata));
 }
 
 /*
