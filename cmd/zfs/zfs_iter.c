@@ -92,7 +92,7 @@ static int
 zfs_callback(zfs_handle_t *zhp, void *data)
 {
 	callback_data_t *cb = data;
-	boolean_t dontclose = B_FALSE;
+	boolean_t should_close = B_TRUE;
 	boolean_t include_snaps = zfs_include_snapshots(zhp, cb);
 	boolean_t include_bmarks = (cb->cb_types & ZFS_TYPE_BOOKMARK);
 
@@ -120,7 +120,7 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 				}
 			}
 			uu_avl_insert(cb->cb_avl, node, idx);
-			dontclose = B_TRUE;
+			should_close = B_FALSE;
 		} else {
 			free(node);
 		}
@@ -146,7 +146,7 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 		cb->cb_depth--;
 	}
 
-	if (!dontclose)
+	if (should_close)
 		zfs_close(zhp);
 
 	return (0);
