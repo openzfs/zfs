@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2014, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -945,6 +945,57 @@ rs_alloc(vdev_t *vd, uint64_t offset, uint64_t asize, uint64_t split_offset)
 }
 
 /*
+ * Given an indirect vdev and an extent on that vdev, it duplicates the
+ * physical entries of the indirect mapping that correspond to the extent
+ * to a new array and returns a pointer to it. In addition, copied_entries
+ * is populated with the number of mapping entries that were duplicated.
+ *
+ * Note that the function assumes that the caller holds vdev_indirect_rwlock.
+ * This ensures that the mapping won't change due to condensing as we
+ * copy over its contents.
+ *
+ * Finally, since we are doing an allocation, it is up to the caller to
+ * free the array allocated in this function.
+ */
+vdev_indirect_mapping_entry_phys_t *
+vdev_indirect_mapping_duplicate_adjacent_entries(vdev_t *vd, uint64_t offset,
+    uint64_t asize, uint64_t *copied_entries)
+{
+	vdev_indirect_mapping_entry_phys_t *duplicate_mappings = NULL;
+	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
+	uint64_t entries = 0;
+
+	ASSERT(RW_READ_HELD(&vd->vdev_indirect_rwlock));
+
+	vdev_indirect_mapping_entry_phys_t *first_mapping =
+	    vdev_indirect_mapping_entry_for_offset(vim, offset);
+	ASSERT3P(first_mapping, !=, NULL);
+
+	vdev_indirect_mapping_entry_phys_t *m = first_mapping;
+	while (asize > 0) {
+		uint64_t size = DVA_GET_ASIZE(&m->vimep_dst);
+
+		ASSERT3U(offset, >=, DVA_MAPPING_GET_SRC_OFFSET(m));
+		ASSERT3U(offset, <, DVA_MAPPING_GET_SRC_OFFSET(m) + size);
+
+		uint64_t inner_offset = offset - DVA_MAPPING_GET_SRC_OFFSET(m);
+		uint64_t inner_size = MIN(asize, size - inner_offset);
+
+		offset += inner_size;
+		asize -= inner_size;
+		entries++;
+		m++;
+	}
+
+	size_t copy_length = entries * sizeof (*first_mapping);
+	duplicate_mappings = kmem_alloc(copy_length, KM_SLEEP);
+	bcopy(first_mapping, duplicate_mappings, copy_length);
+	*copied_entries = entries;
+
+	return (duplicate_mappings);
+}
+
+/*
  * Goes through the relevant indirect mappings until it hits a concrete vdev
  * and issues the callback. On the way to the concrete vdev, if any other
  * indirect vdevs are encountered, then the callback will also be called on
@@ -984,24 +1035,41 @@ vdev_indirect_remap(vdev_t *vd, uint64_t offset, uint64_t asize,
 	for (remap_segment_t *rs = rs_alloc(vd, offset, asize, 0);
 	    rs != NULL; rs = list_remove_head(&stack)) {
 		vdev_t *v = rs->rs_vd;
-
-		/*
-		 * Note: this can be called from open context
-		 * (eg. zio_read()), so we need the rwlock to prevent
-		 * the mapping from being changed by condensing.
-		 */
-		rw_enter(&v->vdev_indirect_rwlock, RW_READER);
-		vdev_indirect_mapping_t *vim = v->vdev_indirect_mapping;
-		ASSERT3P(vim, !=, NULL);
+		uint64_t num_entries = 0;
 
 		ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
 		ASSERT(rs->rs_asize > 0);
 
-		vdev_indirect_mapping_entry_phys_t *mapping =
-		    vdev_indirect_mapping_entry_for_offset(vim, rs->rs_offset);
-		ASSERT3P(mapping, !=, NULL);
+		/*
+		 * Note: As this function can be called from open context
+		 * (e.g. zio_read()), we need the following rwlock to
+		 * prevent the mapping from being changed by condensing.
+		 *
+		 * So we grab the lock and we make a copy of the entries
+		 * that are relevant to the extent that we are working on.
+		 * Once that is done, we drop the lock and iterate over
+		 * our copy of the mapping. Once we are done with the with
+		 * the remap segment and we free it, we also free our copy
+		 * of the indirect mapping entries that are relevant to it.
+		 *
+		 * This way we don't need to wait until the function is
+		 * finished with a segment, to condense it. In addition, we
+		 * don't need a recursive rwlock for the case that a call to
+		 * vdev_indirect_remap() needs to call itself (through the
+		 * codepath of its callback) for the same vdev in the middle
+		 * of its execution.
+		 */
+		rw_enter(&v->vdev_indirect_rwlock, RW_READER);
+		ASSERT3P(v->vdev_indirect_mapping, !=, NULL);
 
-		while (rs->rs_asize > 0) {
+		vdev_indirect_mapping_entry_phys_t *mapping =
+		    vdev_indirect_mapping_duplicate_adjacent_entries(v,
+		    rs->rs_offset, rs->rs_asize, &num_entries);
+		ASSERT3P(mapping, !=, NULL);
+		ASSERT3U(num_entries, >, 0);
+		rw_exit(&v->vdev_indirect_rwlock);
+
+		for (uint64_t i = 0; i < num_entries; i++) {
 			/*
 			 * Note: the vdev_indirect_mapping can not change
 			 * while we are running.  It only changes while the
@@ -1010,20 +1078,23 @@ vdev_indirect_remap(vdev_t *vd, uint64_t offset, uint64_t asize,
 			 * function is only called for frees, which also only
 			 * happen from syncing context.
 			 */
+			vdev_indirect_mapping_entry_phys_t *m = &mapping[i];
 
-			uint64_t size = DVA_GET_ASIZE(&mapping->vimep_dst);
-			uint64_t dst_offset =
-			    DVA_GET_OFFSET(&mapping->vimep_dst);
-			uint64_t dst_vdev = DVA_GET_VDEV(&mapping->vimep_dst);
+			ASSERT3P(m, !=, NULL);
+			ASSERT3U(rs->rs_asize, >, 0);
+
+			uint64_t size = DVA_GET_ASIZE(&m->vimep_dst);
+			uint64_t dst_offset = DVA_GET_OFFSET(&m->vimep_dst);
+			uint64_t dst_vdev = DVA_GET_VDEV(&m->vimep_dst);
 
 			ASSERT3U(rs->rs_offset, >=,
-			    DVA_MAPPING_GET_SRC_OFFSET(mapping));
+			    DVA_MAPPING_GET_SRC_OFFSET(m));
 			ASSERT3U(rs->rs_offset, <,
-			    DVA_MAPPING_GET_SRC_OFFSET(mapping) + size);
+			    DVA_MAPPING_GET_SRC_OFFSET(m) + size);
 			ASSERT3U(dst_vdev, !=, v->vdev_id);
 
 			uint64_t inner_offset = rs->rs_offset -
-			    DVA_MAPPING_GET_SRC_OFFSET(mapping);
+			    DVA_MAPPING_GET_SRC_OFFSET(m);
 			uint64_t inner_size =
 			    MIN(rs->rs_asize, size - inner_offset);
 
@@ -1064,10 +1135,10 @@ vdev_indirect_remap(vdev_t *vd, uint64_t offset, uint64_t asize,
 			rs->rs_offset += inner_size;
 			rs->rs_asize -= inner_size;
 			rs->rs_split_offset += inner_size;
-			mapping++;
 		}
+		VERIFY0(rs->rs_asize);
 
-		rw_exit(&v->vdev_indirect_rwlock);
+		kmem_free(mapping, num_entries * sizeof (*mapping));
 		kmem_free(rs, sizeof (remap_segment_t));
 	}
 	list_destroy(&stack);
