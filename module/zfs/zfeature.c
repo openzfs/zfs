@@ -277,7 +277,8 @@ feature_get_refcount_from_disk(spa_t *spa, zfeature_info_t *feature,
 
 
 static int
-feature_get_enabled_txg(spa_t *spa, zfeature_info_t *feature, uint64_t *res) {
+feature_get_enabled_txg(spa_t *spa, zfeature_info_t *feature, uint64_t *res)
+{
 	ASSERTV(uint64_t enabled_txg_obj = spa->spa_feat_enabled_txg_obj);
 
 	ASSERT(zfeature_depends_on(feature->fi_feature,
@@ -500,7 +501,8 @@ spa_feature_is_active(spa_t *spa, spa_feature_t fid)
  * Returns B_FALSE otherwise (i.e. if the feature is not enabled).
  */
 boolean_t
-spa_feature_enabled_txg(spa_t *spa, spa_feature_t fid, uint64_t *txg) {
+spa_feature_enabled_txg(spa_t *spa, spa_feature_t fid, uint64_t *txg)
+{
 	int err;
 
 	ASSERT(VALID_FEATURE_FID(fid));

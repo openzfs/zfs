@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015 by Delphix. All rights reserved.
  */
 
 
@@ -374,7 +375,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  */
 void
 zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-	znode_t *dzp, char *name, uint64_t foid)
+    znode_t *dzp, char *name, uint64_t foid)
 {
 	itx_t *itx;
 	lr_remove_t *lr;
@@ -398,7 +399,7 @@ zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  */
 void
 zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-	znode_t *dzp, znode_t *zp, char *name)
+    znode_t *dzp, znode_t *zp, char *name)
 {
 	itx_t *itx;
 	lr_link_t *lr;
@@ -453,7 +454,7 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  */
 void
 zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-	znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp)
+    znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp)
 {
 	itx_t *itx;
 	lr_rename_t *lr;
@@ -483,8 +484,8 @@ long zfs_immediate_write_sz = 32768;
 
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-	znode_t *zp, offset_t off, ssize_t resid, int ioflag,
-	zil_callback_t callback, void *callback_data)
+    znode_t *zp, offset_t off, ssize_t resid, int ioflag,
+    zil_callback_t callback, void *callback_data)
 {
 	itx_wr_state_t write_state;
 	boolean_t slogging;
@@ -567,7 +568,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
  */
 void
 zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-	znode_t *zp, uint64_t off, uint64_t len)
+    znode_t *zp, uint64_t off, uint64_t len)
 {
 	itx_t *itx;
 	lr_truncate_t *lr;

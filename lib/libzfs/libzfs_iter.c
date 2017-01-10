@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -309,7 +309,8 @@ typedef struct {
 } snapspec_arg_t;
 
 static int
-snapspec_cb(zfs_handle_t *zhp, void *arg) {
+snapspec_cb(zfs_handle_t *zhp, void *arg)
+{
 	snapspec_arg_t *ssa = arg;
 	char *shortsnapname;
 	int err = 0;

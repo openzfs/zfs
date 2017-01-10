@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 /*
@@ -180,7 +180,7 @@ vdev_label_number(uint64_t psize, uint64_t offset)
 
 static void
 vdev_label_read(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
-	uint64_t size, zio_done_func_t *done, void *private, int flags)
+    uint64_t size, zio_done_func_t *done, void *private, int flags)
 {
 	ASSERT(spa_config_held(zio->io_spa, SCL_STATE_ALL, RW_WRITER) ==
 	    SCL_STATE_ALL);
@@ -194,7 +194,7 @@ vdev_label_read(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
 
 static void
 vdev_label_write(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
-	uint64_t size, zio_done_func_t *done, void *private, int flags)
+    uint64_t size, zio_done_func_t *done, void *private, int flags)
 {
 	ASSERT(spa_config_held(zio->io_spa, SCL_ALL, RW_WRITER) == SCL_ALL ||
 	    (spa_config_held(zio->io_spa, SCL_CONFIG | SCL_STATE, RW_READER) ==

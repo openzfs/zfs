@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  */
 
 
@@ -838,7 +838,7 @@ zfs_dropname(zfs_dirlock_t *dl, znode_t *zp, znode_t *dzp, dmu_tx_t *tx,
  */
 int
 zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
-	boolean_t *unlinkedp)
+    boolean_t *unlinkedp)
 {
 	znode_t *dzp = dl->dl_dzp;
 	zfs_sb_t *zsb = ZTOZSB(dzp);

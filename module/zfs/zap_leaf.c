@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  */
 
 /*
@@ -538,7 +538,7 @@ zap_entry_read_name(zap_t *zap, const zap_entry_handle_t *zeh, uint16_t buflen,
 
 int
 zap_entry_update(zap_entry_handle_t *zeh,
-	uint8_t integer_size, uint64_t num_integers, const void *buf)
+    uint8_t integer_size, uint64_t num_integers, const void *buf)
 {
 	int delta_chunks;
 	zap_leaf_t *l = zeh->zeh_leaf;

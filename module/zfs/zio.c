@@ -317,7 +317,7 @@ zio_data_buf_free(void *buf, size_t size)
  */
 void
 zio_push_transform(zio_t *zio, abd_t *data, uint64_t size, uint64_t bufsize,
-	zio_transform_func_t *transform)
+    zio_transform_func_t *transform)
 {
 	zio_transform_t *zt = kmem_alloc(sizeof (zio_transform_t), KM_SLEEP);
 
@@ -1108,8 +1108,8 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 
 zio_t *
 zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
-	int type, zio_priority_t priority, enum zio_flag flags,
-	zio_done_func_t *done, void *private)
+    int type, zio_priority_t priority, enum zio_flag flags,
+    zio_done_func_t *done, void *private)
 {
 	zio_t *zio;
 
