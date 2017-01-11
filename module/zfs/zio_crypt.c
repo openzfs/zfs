@@ -846,25 +846,6 @@ zio_crypt_copy_dnode_bonus(abd_t *src_abd, uint8_t *dst, uint_t datalen)
 	abd_return_buf(src_abd, src, datalen);
 }
 
-/*
- * ZIL blocks are rewritten as new log entries are synced to
- * disk. We generated the IV randomly when we allocated the
- * block, but we cannot reuse this each time we do a rewrite.
- * To combat this we add in zc_nused from the zil_chain_t. We
- * only need the IV to be unique for each, not securely random
- * so it is ok for us to just add it into the existing value.
- */
-void
-zio_crypt_derive_zil_iv(const void *data, uint8_t *iv, uint8_t *iv_out)
-{
-	uint64_t *iv_word;
-	zil_chain_t *zc = (zil_chain_t *)data;
-
-	bcopy(iv, iv_out, DATA_IV_LEN);
-	iv_word = (uint64_t *)iv_out;
-	*iv_word = LE_64(LE_64(*iv_word) + zc->zc_nused);
-}
-
 static void
 zio_crypt_destroy_uio(uio_t *uio)
 {

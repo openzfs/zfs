@@ -268,6 +268,21 @@ zfs \- configures ZFS file systems
 .LP
 .nf
 \fBzfs\fR \fBdiff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+.fi
+
+.LP
+.nf
+\fB\fBzfs key -l\fR \fIfilesystem\fR | \fIvolume\fR\fR
+.fi
+
+.LP
+.nf
+\fB\fBzfs key -u\fR \fIfilesystem\fR | \fIvolume\fR\fR
+.fi
+
+.LP
+.nf
+\fB\fBzfs key -c\fR [\fB-o\fR \fIkeysource\fR=\fIkeysource\fR] [\fB-o\fR \fIpbkdf2iters\fR=\fIiterations\fR] \fIfilesystem\fR | \fIvolume\fR\fR
 
 .SH DESCRIPTION
 .LP
@@ -3206,6 +3221,9 @@ destroy          subcommand     Must also have the 'mount' ability
 diff             subcommand     Allows lookup of paths within a dataset
                                 given an object number, and the ability to
                                 create snapshots necessary to 'zfs diff'.
+keyload          subcommand     Allows loading and unloading of encryption key.
+keychange        subcommand     Allows changing anencryption key via
+                                'zfs key -c'.
 mount            subcommand     Allows mount/umount of ZFS datasets
 promote          subcommand     Must also have the 'mount'
                                 and 'promote' ability in the origin file system

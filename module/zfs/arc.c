@@ -5275,25 +5275,22 @@ arc_read_done(zio_t *zio)
 	}
 
 	if (BP_IS_ENCRYPTED(bp)) {
-		uint8_t tmpiv[DATA_IV_LEN];
-		void *tmpbuf;
-
 		hdr->b_crypt_hdr.b_ot = BP_GET_TYPE(bp);
 		hdr->b_crypt_hdr.b_dsobj = zio->io_bookmark.zb_objset;
-		zio_crypt_decode_params_bp(bp, hdr->b_crypt_hdr.b_salt, tmpiv);
+		zio_crypt_decode_params_bp(bp, hdr->b_crypt_hdr.b_salt,
+		    hdr->b_crypt_hdr.b_iv);
 
 		if (BP_GET_TYPE(bp) == DMU_OT_INTENT_LOG) {
+			void *tmpbuf;
+
 			tmpbuf = abd_borrow_buf_copy(zio->io_abd,
 			    sizeof (zil_chain_t));
 			zio_crypt_decode_mac_zil(tmpbuf,
 			    hdr->b_crypt_hdr.b_mac);
-			zio_crypt_derive_zil_iv(tmpbuf, tmpiv,
-			    hdr->b_crypt_hdr.b_iv);
 			abd_return_buf(zio->io_abd, tmpbuf,
 			    sizeof (zil_chain_t));
 		} else {
 			zio_crypt_decode_mac_bp(bp, hdr->b_crypt_hdr.b_mac);
-			bcopy(tmpiv, hdr->b_crypt_hdr.b_iv, DATA_IV_LEN);
 		}
 	}
 

@@ -1506,7 +1506,6 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, zbookmark_phys_t *zb,
 	int ret;
 	dmu_object_type_t ot = BP_GET_TYPE(bp);
 	dsl_crypto_key_t *dck;
-	uint8_t tmpiv[DATA_IV_LEN];
 	uint8_t *plainbuf = NULL, *cipherbuf = NULL;
 
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_ENCRYPTION));
@@ -1550,11 +1549,6 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, zbookmark_phys_t *zb,
 		    plainbuf, datalen, iv, salt);
 		if (ret)
 			goto error;
-	} else if (ot == DMU_OT_INTENT_LOG) {
-		uint8_t *src = (encrypt) ? plainbuf : cipherbuf;
-
-		zio_crypt_derive_zil_iv(src, iv, tmpiv);
-		iv = tmpiv;
 	}
 
 	/* call lower level function to perform encryption / decryption */

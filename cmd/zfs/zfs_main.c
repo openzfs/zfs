@@ -6991,8 +6991,16 @@ zfs_do_key(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	if (argc < 3) {
-		(void) fprintf(stderr, gettext("Too few arguments\n"));
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("Missing dataset argument\n"));
+		usage(B_FALSE);
+	}
+
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("Too many arguments\n"));
 		usage(B_FALSE);
 	}
 
