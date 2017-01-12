@@ -120,7 +120,8 @@ typedef struct spa_taskqs {
 typedef enum spa_all_vdev_zap_action {
 	AVZ_ACTION_NONE = 0,
 	AVZ_ACTION_DESTROY,	/* Destroy all per-vdev ZAPs and the AVZ. */
-	AVZ_ACTION_REBUILD	/* Populate the new AVZ, see spa_avz_rebuild */
+	AVZ_ACTION_REBUILD,	/* Populate the new AVZ, see spa_avz_rebuild */
+	AVZ_ACTION_INITIALIZE
 } spa_avz_action_t;
 
 struct spa {
