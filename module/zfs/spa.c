@@ -4544,6 +4544,214 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	return (0);
 }
 
+typedef struct {
+	vdev_t  *ssa_newvd;
+	vdev_t  *ssa_draid;
+	uint64_t ssa_dtl_max;
+} sequential_scan_arg_t;
+
+int vdev_draid_max_rebuild = 128;
+
+static void
+vdev_draid_scan_done(zio_t *zio)
+{
+	spa_t *spa = zio->io_spa;
+	dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
+
+	ASSERT(zio->io_bp != NULL);
+
+	zio_data_buf_free(zio->io_data, zio->io_size);
+	kmem_free(zio->io_private, sizeof(blkptr_t));
+
+	scn->scn_phys.scn_examined += DVA_GET_ASIZE(&zio->io_bp->blk_dva[0]);
+	spa->spa_scan_pass_exam += DVA_GET_ASIZE(&zio->io_bp->blk_dva[0]);
+
+	mutex_enter(&spa->spa_scrub_lock);
+
+	spa->spa_scrub_inflight--;
+	cv_broadcast(&spa->spa_scrub_io_cv);
+
+	if (zio->io_error && (zio->io_error != ECKSUM ||
+	    !(zio->io_flags & ZIO_FLAG_SPECULATIVE))) {
+		spa->spa_dsl_pool->dp_scan->scn_phys.scn_errors++;
+	}
+
+	mutex_exit(&spa->spa_scrub_lock);
+}
+
+static void
+vdev_draid_rebuild_block(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t asize)
+{
+	/* HH: maybe bp can be on the stack */
+	blkptr_t *bp = kmem_alloc(sizeof(*bp), KM_SLEEP);
+	dva_t *dva = bp->blk_dva;
+	uint64_t psize;
+	spa_t *spa = vd->vdev_spa;
+
+	ASSERT3P(vd->vdev_ops, ==, &vdev_mirror_ops);
+
+	psize = asize;
+	ASSERT3U(asize, ==, vdev_psize_to_asize(vd, psize));
+
+	mutex_enter(&spa->spa_scrub_lock);
+	while (spa->spa_scrub_inflight > vdev_draid_max_rebuild)
+		cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
+	spa->spa_scrub_inflight++;
+	mutex_exit(&spa->spa_scrub_lock);
+
+	BP_ZERO(bp);
+
+	DVA_SET_VDEV(&dva[0], vd->vdev_id);
+	DVA_SET_OFFSET(&dva[0], offset);
+	DVA_SET_GANG(&dva[0], !!0);
+	DVA_SET_ASIZE(&dva[0], asize);
+
+	BP_SET_BIRTH(bp, TXG_INITIAL, TXG_INITIAL);
+	BP_SET_LSIZE(bp, psize);
+	BP_SET_PSIZE(bp, psize);
+	BP_SET_COMPRESS(bp, ZIO_COMPRESS_OFF);
+	BP_SET_CHECKSUM(bp, ZIO_CHECKSUM_OFF);
+	BP_SET_TYPE(bp, DMU_OT_NONE);
+	BP_SET_LEVEL(bp, 0);
+	BP_SET_DEDUP(bp, 0);
+	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
+
+	zio_nowait(zio_read(pio, spa, bp,
+		   zio_data_buf_alloc(psize), psize,
+		   vdev_draid_scan_done, bp, ZIO_PRIORITY_SCRUB,
+		   ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL | ZIO_FLAG_RESILVER, NULL));
+}
+
+static void
+vdev_draid_rebuild(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t length)
+{
+	while (length > 0) {
+		uint64_t chunksz = MIN(length, vdev_psize_to_asize(vd, SPA_MAXBLOCKSIZE));
+
+		vdev_draid_rebuild_block(pio, vd, offset, chunksz);
+		length -= chunksz;
+		offset += chunksz;
+	}
+}
+
+void
+vdev_draid_scan_thread(void *arg)
+{
+	sequential_scan_arg_t *sscan = arg;
+	vdev_t *vd = sscan->ssa_draid;
+	spa_t *spa = vd->vdev_spa;
+	zio_t *pio = zio_root(spa, NULL, NULL, 0);
+	range_tree_t *allocd_segs;
+	kmutex_t lock;
+	uint64_t msi;
+	int err;
+
+	/* HH: allows zpool to return from syscall quickly */
+	txg_wait_synced(spa->spa_dsl_pool, sscan->ssa_dtl_max);
+
+	mutex_init(&lock, NULL, MUTEX_DEFAULT, NULL);
+	allocd_segs = range_tree_create(NULL, NULL, &lock);
+
+	for (msi = 0; msi < vd->vdev_ms_count; msi++) {
+		metaslab_t *msp = vd->vdev_ms[msi];
+
+		ASSERT0(range_tree_space(allocd_segs));
+
+		mutex_enter(&msp->ms_lock);
+
+		VERIFY(!msp->ms_condensing); /* HH: need to handle this */
+		VERIFY(!msp->ms_rebuilding);
+		msp->ms_rebuilding = B_TRUE;
+
+		/*
+		 * If the metaslab has ever been allocated from (ms_sm!=NULL),
+		 * read the allocated segments from the space map object
+		 * into svr_allocd_segs. Since we do this while holding
+		 * svr_lock and ms_sync_lock, concurrent frees (which
+		 * would have modified the space map) will wait for us
+		 * to finish loading the spacemap, and then take the
+		 * appropriate action (see free_from_removing_vdev()).
+		 */
+		if (msp->ms_sm != NULL) {
+			space_map_t *sm = NULL;
+
+			/*
+			 * We have to open a new space map here, because
+			 * ms_sm's sm_length and sm_alloc may not reflect
+			 * what's in the object contents, if we are in between
+			 * metaslab_sync() and metaslab_sync_done().
+			 *
+			 * Note: space_map_open() drops and reacquires the
+			 * caller-provided lock.  Therefore we can not provide
+			 * any lock that we are using (e.g. ms_lock, svr_lock).
+			 */
+			VERIFY0(space_map_open(&sm,
+			    spa->spa_dsl_pool->dp_meta_objset,
+			    msp->ms_sm->sm_object, msp->ms_sm->sm_start,
+			    msp->ms_sm->sm_size, msp->ms_sm->sm_shift, &lock));
+			mutex_enter(&lock);
+			space_map_update(sm);
+			VERIFY0(space_map_load(sm, allocd_segs, SM_ALLOC));
+			mutex_exit(&lock);
+			space_map_close(sm);
+
+			/*
+			 * When we are resuming from a paused removal (i.e.
+			 * when importing a pool with a removal in progress),
+			 * discard any state that we have already processed.
+			range_tree_clear(svr->svr_allocd_segs, 0, start_offset);
+			 */
+		}
+		mutex_exit(&msp->ms_lock);
+
+		zfs_dbgmsg("Scanning %llu segments for metaslab %llu",
+		    avl_numnodes(&allocd_segs->rt_root), msp->ms_id);
+
+		mutex_enter(&lock);
+		while (range_tree_space(allocd_segs) != 0) {
+			range_seg_t *rs = avl_first(&allocd_segs->rt_root);
+			uint64_t offset, length;
+
+			if (rs == NULL)
+				continue;
+
+			offset = rs->rs_start;
+			length = rs->rs_end - rs->rs_start;
+
+			range_tree_remove(allocd_segs, offset, length);
+			mutex_exit(&lock);
+
+#ifdef _KERNEL
+			/* GPL only {facepalm}
+			trace_printk("MS (%llu at %lluK) segment: %lluK + %lluK\n", msp->ms_id, msp->ms_start >> 10, (offset - msp->ms_start) >> 10, length >> 10);
+			*/
+#endif
+
+			vdev_draid_rebuild(pio, vd, offset, length);
+
+			mutex_enter(&lock);
+		}
+		mutex_exit(&lock);
+
+		mutex_enter(&msp->ms_lock);
+
+		/* HH: wait for rebuild IOs to complete for this metaslab? */
+		msp->ms_rebuilding = B_FALSE;
+
+		mutex_exit(&msp->ms_lock);
+	}
+
+	range_tree_destroy(allocd_segs);
+	mutex_destroy(&lock);
+
+	err = zio_wait(pio);
+	if (err != 0) /* HH: handle error */
+		err = SET_ERROR(err);
+	kmem_free(sscan, sizeof(*sscan));
+	/* HH: we don't use scn_visited_this_txg anyway */
+	spa->spa_dsl_pool->dp_scan->scn_visited_this_txg = 19890604;
+}
+
 /*
  * Attach a device to a mirror.  The arguments are the path to any device
  * in the mirror, and the nvroot for the new device.  If the path specifies
@@ -4566,6 +4774,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	char *oldvdpath, *newvdpath;
 	int newvd_isspare;
 	int error;
+	sequential_scan_arg_t *sscan_arg;
+	boolean_t rebuild = B_FALSE;
+
 	ASSERTV(vdev_t *rvd = spa->spa_root_vdev);
 
 	ASSERT(spa_writeable(spa));
@@ -4581,6 +4792,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 
 	pvd = oldvd->vdev_parent;
+	if (pvd->vdev_ops == &vdev_mirror_ops && vdev_draid_max_rebuild > 0)
+		rebuild = B_TRUE; /* HH: let zpool cmd choose */
 
 	if ((error = spa_config_parse(spa, &newrootvd, nvroot, NULL, 0,
 	    VDEV_ALLOC_ATTACH)) != 0)
@@ -4731,7 +4944,19 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 * ensure that dmu_sync-ed blocks have been stitched into the
 	 * respective datasets.
 	 */
-	dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
+	if (rebuild) {
+		spa->spa_dsl_pool->dp_scan->scn_restart_txg = dtl_max_txg;
+		spa->spa_dsl_pool->dp_scan->scn_is_sequential = B_TRUE;
+
+		sscan_arg = kmem_alloc(sizeof(*sscan_arg), KM_SLEEP);
+		sscan_arg->ssa_draid = tvd;
+		sscan_arg->ssa_newvd = newvd;
+		sscan_arg->ssa_dtl_max = dtl_max_txg;
+		(void) thread_create(NULL, 0, vdev_draid_scan_thread, sscan_arg, 0, NULL,
+				TS_RUN, defclsyspri);
+	} else {
+		dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
+	}
 
 	if (spa->spa_bootfs)
 		spa_event_notify(spa, newvd, ESC_ZFS_BOOTFS_VDEV_ATTACH);
@@ -7000,5 +7225,8 @@ MODULE_PARM_DESC(spa_load_verify_data,
 module_param(zio_taskq_batch_pct, uint, 0444);
 MODULE_PARM_DESC(zio_taskq_batch_pct,
 	"Percentage of CPUs to run an IO worker thread");
+
+module_param(vdev_draid_max_rebuild, int, 0644);
+MODULE_PARM_DESC(vdev_draid_max_rebuild, "Max dRAID rebuild I/Os");
 
 #endif

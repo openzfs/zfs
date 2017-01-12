@@ -1000,6 +1000,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size)
 	range_tree_t *rt = msp->ms_tree;
 
 	VERIFY(!msp->ms_condensing);
+	VERIFY(!msp->ms_rebuilding);
 
 	start = msp->ms_ops->msop_alloc(msp, size);
 	if (start != -1ULL) {
@@ -2247,7 +2248,7 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t asize,
 			/*
 			 * If the selected metaslab is condensing, skip it.
 			 */
-			if (msp->ms_condensing)
+			if (msp->ms_condensing || msp->ms_rebuilding)
 				continue;
 
 			was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
@@ -2302,7 +2303,7 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t asize,
 		 * we can't manipulate this metaslab until it's committed
 		 * to disk.
 		 */
-		if (msp->ms_condensing) {
+		if (msp->ms_condensing || msp->ms_rebuilding) {
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
@@ -2676,6 +2677,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	}
 
 	VERIFY(!msp->ms_condensing);
+	VERIFY(!msp->ms_rebuilding);
 	VERIFY0(P2PHASE(offset, 1ULL << vd->vdev_ashift));
 	VERIFY0(P2PHASE(size, 1ULL << vd->vdev_ashift));
 	VERIFY3U(range_tree_space(msp->ms_tree) - size, <=, msp->ms_size);
