@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_H
@@ -36,9 +36,11 @@
 extern "C" {
 #endif
 
+
 typedef struct metaslab_ops {
-	uint64_t (*msop_alloc)(metaslab_t *msp, uint64_t size);
+	uint64_t (*msop_alloc)(metaslab_t *, uint64_t);
 } metaslab_ops_t;
+
 
 extern metaslab_ops_t *zfs_metaslab_ops;
 
@@ -64,12 +66,17 @@ uint64_t metaslab_block_maxsize(metaslab_t *);
 #define	METASLAB_FASTWRITE		0x20
 
 int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
-    blkptr_t *, int, uint64_t, blkptr_t *, int, zio_t *);
+    blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *);
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
 int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);
 void metaslab_check_free(spa_t *, const blkptr_t *);
 void metaslab_fastwrite_mark(spa_t *, const blkptr_t *);
 void metaslab_fastwrite_unmark(spa_t *, const blkptr_t *);
+
+void metaslab_alloc_trace_init(void);
+void metaslab_alloc_trace_fini(void);
+void metaslab_trace_init(zio_alloc_list_t *);
+void metaslab_trace_fini(zio_alloc_list_t *);
 
 metaslab_class_t *metaslab_class_create(spa_t *, metaslab_ops_t *);
 void metaslab_class_destroy(metaslab_class_t *);
