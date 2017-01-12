@@ -737,7 +737,7 @@ vn_openat(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2,
 /*ARGSUSED*/
 int
 vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
-	int x1, int x2, rlim64_t x3, void *x4, ssize_t *residp)
+    int x1, int x2, rlim64_t x3, void *x4, ssize_t *residp)
 {
 	ssize_t rc, done = 0, split;
 

@@ -122,7 +122,8 @@ zfeature_lookup_name(const char *name, spa_feature_t *res)
 }
 
 boolean_t
-zfeature_depends_on(spa_feature_t fid, spa_feature_t check) {
+zfeature_depends_on(spa_feature_t fid, spa_feature_t check)
+{
 	zfeature_info_t *feature = &spa_feature_table[fid];
 	int i;
 

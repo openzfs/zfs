@@ -5767,7 +5767,7 @@ zfs_ioctl_register_dataset_read(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func)
 
 static void
 zfs_ioctl_register_dataset_modify(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
-	zfs_secpolicy_func_t *secpolicy)
+    zfs_secpolicy_func_t *secpolicy)
 {
 	zfs_ioctl_register_legacy(ioc, func, secpolicy,
 	    DATASET_NAME, B_TRUE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);

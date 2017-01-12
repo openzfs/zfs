@@ -3550,7 +3550,7 @@ dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap,
  */
 boolean_t
 dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier,
-	uint64_t earlier_txg)
+    uint64_t earlier_txg)
 {
 	dsl_pool_t *dp = later->ds_dir->dd_pool;
 	int error;

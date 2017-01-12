@@ -279,7 +279,8 @@ static boolean_t log_history = B_TRUE;
 static uint_t timestamp_fmt = NODATE;
 
 static const char *
-get_usage(zpool_help_t idx) {
+get_usage(zpool_help_t idx)
+{
 	switch (idx) {
 	case HELP_ADD:
 		return (gettext("\tadd [-fgLnP] [-o property=value] "

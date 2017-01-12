@@ -70,11 +70,7 @@ zrl_destroy(zrlock_t *zrl)
 }
 
 void
-#ifdef	ZFS_DEBUG
-zrl_add_debug(zrlock_t *zrl, const char *zc)
-#else
-zrl_add(zrlock_t *zrl)
-#endif
+zrl_add_impl(zrlock_t *zrl, const char *zc)
 {
 	uint32_t n = (uint32_t)zrl->zr_refcount;
 
@@ -199,11 +195,7 @@ zrl_owner(zrlock_t *zrl)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 
-#ifdef ZFS_DEBUG
-EXPORT_SYMBOL(zrl_add_debug);
-#else
-EXPORT_SYMBOL(zrl_add);
-#endif
+EXPORT_SYMBOL(zrl_add_impl);
 EXPORT_SYMBOL(zrl_remove);
 
 #endif
