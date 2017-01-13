@@ -1097,13 +1097,20 @@ spa_thread(void *arg)
 static void
 spa_activate(spa_t *spa, int mode)
 {
+	char *rvconfig;
+
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
 	spa->spa_mode = mode;
 
-	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops);
-	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	if (nvlist_lookup_string(spa->spa_config, ZPOOL_CONFIG_ROTORVECTOR,
+	    &rvconfig) != 0)
+		rvconfig = NULL;
+
+	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops,
+	    rvconfig);
+	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops, NULL);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);

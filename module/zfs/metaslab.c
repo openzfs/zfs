@@ -213,9 +213,11 @@ kmem_cache_t *metaslab_alloc_trace_cache;
  * ==========================================================================
  */
 metaslab_class_t *
-metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
+metaslab_class_create(spa_t *spa, metaslab_ops_t *ops, char *rvconfig)
 {
 	metaslab_class_t *mc;
+
+	(void) rvconfig;
 
 	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_SLEEP);
 
