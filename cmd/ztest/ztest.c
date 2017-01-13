@@ -2768,10 +2768,12 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 {
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
+	metaslab_class_t *mc;
 	uint64_t leaves;
 	uint64_t guid;
 	nvlist_t *nvroot;
 	int error;
+	int i;
 
 	mutex_enter(&ztest_vdev_lock);
 	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) * ztest_opts.zo_raidz;
@@ -2787,7 +2789,15 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		/*
 		 * Grab the guid from the head of the log class rotor.
 		 */
-		guid = spa_log_class(spa)->mc_rotor->mg_vd->vdev_guid;
+		/* Dummy, loop will find a guid, or VERIFY fails after loop. */
+		guid = 0;
+		mc = spa_log_class(spa);
+		for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+			if (mc->mc_rotorv[i] != NULL) {
+				guid = mc->mc_rotorv[i]->mg_vd->vdev_guid;
+				break;
+			}
+		VERIFY(i < METASLAB_CLASS_ROTORS);
 
 		spa_config_exit(spa, SCL_VDEV, FTAG);
 

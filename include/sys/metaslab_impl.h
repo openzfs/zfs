@@ -146,12 +146,23 @@ typedef enum trace_alloc_type {
  * final step in allocation. These allocators are pluggable allowing each class
  * to use a block allocator that best suits that class.
  */
+
+/*
+ * To (preferentially) do allocations from faster (SSD) vdevs for
+ * small requests we keep a vector of several rotors, for different
+ * kinds (fast, slow) of vdev.  Idea is that fast vdevs are small and
+ * expensive, and especially good for latency, while large vdevs are
+ * big and less expensive.  Depending on the size of an allocation,
+ * a rotor will be chosen.
+ */
+#define	METASLAB_CLASS_ROTORS	1
+
 struct metaslab_class {
 	kmutex_t		mc_lock;
 	spa_t			*mc_spa;
-	metaslab_group_t	*mc_rotor;
+	metaslab_group_t	*mc_rotorv[METASLAB_CLASS_ROTORS];
 	metaslab_ops_t		*mc_ops;
-	uint64_t		mc_aliquot;
+	uint64_t		mc_aliquotv[METASLAB_CLASS_ROTORS];
 
 	/*
 	 * Track the number of metaslab groups that have been initialized
@@ -203,6 +214,7 @@ struct metaslab_group {
 	kmutex_t		mg_lock;
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
+	int			mg_nrot;  /* which rotor */
 	boolean_t		mg_allocatable;		/* can we allocate? */
 
 	/*
