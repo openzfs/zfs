@@ -2515,12 +2515,36 @@ dump_label(const char *dev)
 
 	bzero(labels, sizeof (labels));
 
+	/*
+	 * Check if we were given absolute path and use it as is.
+	 * Otherwise if the provided vdev name doesn't point to a file,
+	 * try prepending expected disk paths and partition numbers.
+	 */
 	(void) strlcpy(path, dev, sizeof (path));
+	if (dev[0] != '/' && stat64(path, &statbuf) != 0) {
+		int error;
+
+		error = zfs_resolve_shortname(dev, path, MAXPATHLEN);
+		if (error == 0 && zfs_dev_is_whole_disk(path)) {
+			if (zfs_append_partition(path, MAXPATHLEN) == -1)
+				error = ENOENT;
+		}
+
+		if (error || (stat64(path, &statbuf) != 0)) {
+			(void) printf("failed to find device %s, try "
+			    "specifying absolute path instead\n", dev);
+			return (1);
+		}
+	}
 
 	if ((fd = open64(path, O_RDONLY)) < 0) {
 		(void) printf("cannot open '%s': %s\n", path, strerror(errno));
 		exit(1);
 	}
+
+	if (ioctl(fd, BLKFLSBUF) != 0)
+		(void) printf("failed to invalidate cache '%s' : %s\n", path,
+		    strerror(errno));
 
 	if (fstat64_blk(fd, &statbuf) != 0) {
 		(void) printf("failed to stat '%s': %s\n", path,

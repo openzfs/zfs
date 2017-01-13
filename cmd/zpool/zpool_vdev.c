@@ -507,31 +507,6 @@ check_device(const char *path, boolean_t force,
 }
 
 /*
- * By "whole disk" we mean an entire physical disk (something we can
- * label, toggle the write cache on, etc.) as opposed to the full
- * capacity of a pseudo-device such as lofi or did.  We act as if we
- * are labeling the disk, which should be a pretty good test of whether
- * it's a viable device or not.  Returns B_TRUE if it is and B_FALSE if
- * it isn't.
- */
-static boolean_t
-is_whole_disk(const char *path)
-{
-	struct dk_gpt *label;
-	int fd;
-
-	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0)
-		return (B_FALSE);
-	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {
-		(void) close(fd);
-		return (B_FALSE);
-	}
-	efi_free(label);
-	(void) close(fd);
-	return (B_TRUE);
-}
-
-/*
  * This may be a shorthand device path or it could be total gibberish.
  * Check to see if it is a known device available in zfs_vdev_paths.
  * As part of this check, see if we've been given an entire disk
@@ -545,7 +520,7 @@ is_shorthand_path(const char *arg, char *path, size_t path_size,
 
 	error = zfs_resolve_shortname(arg, path, path_size);
 	if (error == 0) {
-		*wholedisk = is_whole_disk(path);
+		*wholedisk = zfs_dev_is_whole_disk(path);
 		if (*wholedisk || (stat64(path, statbuf) == 0))
 			return (0);
 	}
@@ -640,7 +615,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		/*
 		 * Complete device or file path.  Exact type is determined by
 		 * examining the file descriptor afterwards.  Symbolic links
-		 * are resolved to their real paths for the is_whole_disk()
+		 * are resolved to their real paths to determine whole disk
 		 * and S_ISBLK/S_ISREG type checks.  However, we are careful
 		 * to store the given path as ZPOOL_CONFIG_PATH to ensure we
 		 * can leverage udev's persistent device labels.
@@ -651,7 +626,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 			return (NULL);
 		}
 
-		wholedisk = is_whole_disk(path);
+		wholedisk = zfs_dev_is_whole_disk(path);
 		if (!wholedisk && (stat64(path, &statbuf) != 0)) {
 			(void) fprintf(stderr,
 			    gettext("cannot open '%s': %s\n"),
@@ -659,7 +634,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 			return (NULL);
 		}
 
-		/* After is_whole_disk() check restore original passed path */
+		/* After whole disk check restore original passed path */
 		strlcpy(path, arg, sizeof (path));
 	} else {
 		err = is_shorthand_path(arg, path, sizeof (path),

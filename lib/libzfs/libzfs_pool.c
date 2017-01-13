@@ -2361,12 +2361,18 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 	 * The module will do it for us in vdev_disk_open().
 	 */
 	error = efi_use_whole_disk(fd);
+
+	/* Flush the buffers to disk and invalidate the page cache. */
+	(void) fsync(fd);
+	(void) ioctl(fd, BLKFLSBUF);
+
 	(void) close(fd);
 	if (error && error != VT_ENOSPC) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
 		    "relabel '%s': unable to read disk capacity"), path);
 		return (zfs_error(hdl, EZFS_NOCAP, msg));
 	}
+
 	return (0);
 }
 
@@ -4062,7 +4068,7 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 
 	(void) snprintf(diskname, sizeof (diskname), "%s%s", DISK_ROOT,
 	    strrchr(path, '/'));
-	if ((fd = open(diskname, O_RDWR|O_DIRECT)) >= 0) {
+	if ((fd = open(diskname, O_RDONLY|O_DIRECT)) >= 0) {
 		struct dk_gpt *vtoc;
 
 		if ((err = efi_alloc_and_read(fd, &vtoc)) >= 0) {
@@ -4114,7 +4120,7 @@ zpool_label_disk_check(char *path)
 	struct dk_gpt *vtoc;
 	int fd, err;
 
-	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0)
+	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0)
 		return (errno);
 
 	if ((err = efi_alloc_and_read(fd, &vtoc)) != 0) {
@@ -4246,13 +4252,21 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	vtoc->efi_parts[8].p_size = resv;
 	vtoc->efi_parts[8].p_tag = V_RESERVED;
 
-	if ((rval = efi_write(fd, vtoc)) != 0 || (rval = efi_rescan(fd)) != 0) {
-		/*
-		 * Some block drivers (like pcata) may not support EFI
-		 * GPT labels.  Print out a helpful error message dir-
-		 * ecting the user to manually label the disk and give
-		 * a specific slice.
-		 */
+	rval = efi_write(fd, vtoc);
+
+	/* Flush the buffers to disk and invalidate the page cache. */
+	(void) fsync(fd);
+	(void) ioctl(fd, BLKFLSBUF);
+
+	if (rval == 0)
+		rval = efi_rescan(fd);
+
+	/*
+	 * Some block drivers (like pcata) may not support EFI GPT labels.
+	 * Print out a helpful error message directing the user to manually
+	 * label the disk and give a specific slice.
+	 */
+	if (rval != 0) {
 		(void) close(fd);
 		efi_free(vtoc);
 
@@ -4368,6 +4382,34 @@ zfs_dev_is_dm(char *dev_name)
 		return (0);
 
 	free(tmp);
+	return (1);
+}
+
+/*
+ * By "whole disk" we mean an entire physical disk (something we can
+ * label, toggle the write cache on, etc.) as opposed to the full
+ * capacity of a pseudo-device such as lofi or did.  We act as if we
+ * are labeling the disk, which should be a pretty good test of whether
+ * it's a viable device or not.  Returns B_TRUE if it is and B_FALSE if
+ * it isn't.
+ */
+int
+zfs_dev_is_whole_disk(char *dev_name)
+{
+	struct dk_gpt *label;
+	int fd;
+
+	if ((fd = open(dev_name, O_RDONLY | O_DIRECT)) < 0)
+		return (0);
+
+	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {
+		(void) close(fd);
+		return (0);
+	}
+
+	efi_free(label);
+	(void) close(fd);
+
 	return (1);
 }
 
