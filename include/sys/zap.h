@@ -255,6 +255,9 @@ int zap_count_write_by_dnode(dnode_t *dn, const char *name,
 int zap_add(objset_t *ds, uint64_t zapobj, const char *key,
     int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx);
+int zap_add_by_dnode(dnode_t *dn, const char *key,
+    int integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx);
 int zap_add_uint64(objset_t *ds, uint64_t zapobj, const uint64_t *key,
     int key_numints, int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx);
@@ -294,6 +297,7 @@ int zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 int zap_remove(objset_t *ds, uint64_t zapobj, const char *name, dmu_tx_t *tx);
 int zap_remove_norm(objset_t *ds, uint64_t zapobj, const char *name,
     matchtype_t mt, dmu_tx_t *tx);
+int zap_remove_by_dnode(dnode_t *dn, const char *name, dmu_tx_t *tx);
 int zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, dmu_tx_t *tx);
 
