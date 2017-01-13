@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #
 # CDDL HEADER START
 #
@@ -51,6 +51,7 @@
 #
 
 require 5.0;
+use warnings;
 use IO::File;
 use Getopt::Std;
 use strict;
