@@ -159,11 +159,9 @@ tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos', 'zfs_rename_003_pos',
 [tests/functional/cli_root/zfs_reservation]
 tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 
-# DISABLED:
-# zfs_rollback_001_pos - busy mountpoint behavior
-# zfs_rollback_002_pos - busy mountpoint behavior
 [tests/functional/cli_root/zfs_rollback]
-tests = ['zfs_rollback_003_neg', 'zfs_rollback_004_neg']
+tests = ['zfs_rollback_001_pos', 'zfs_rollback_002_pos',
+    'zfs_rollback_003_neg', 'zfs_rollback_004_neg']
 
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
@@ -579,6 +577,7 @@ tests = ['rollback_001_pos', 'rollback_002_pos',
     'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
     'snapshot_012_pos', 'snapshot_013_pos', 'snapshot_014_pos',
     'snapshot_015_pos', 'snapshot_017_pos']
+
 [tests/functional/snapused]
 tests = ['snapused_001_pos', 'snapused_002_pos', 'snapused_003_pos',
     'snapused_004_pos', 'snapused_005_pos']
