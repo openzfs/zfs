@@ -911,13 +911,6 @@ zfs_sb_setup(zfs_sb_t *zsb, boolean_t mounting)
 	if (error)
 		return (error);
 
-	/*
-	 * Set the objset user_ptr to track its zsb.
-	 */
-	mutex_enter(&zsb->z_os->os_user_ptr_lock);
-	dmu_objset_set_user(zsb->z_os, zsb);
-	mutex_exit(&zsb->z_os->os_user_ptr_lock);
-
 	zsb->z_log = zil_open(zsb->z_os, zfs_get_data);
 
 	/*
@@ -980,6 +973,13 @@ zfs_sb_setup(zfs_sb_t *zsb, boolean_t mounting)
 		if (readonly != 0)
 			readonly_changed_cb(zsb, B_TRUE);
 	}
+
+	/*
+	 * Set the objset user_ptr to track its zsb.
+	 */
+	mutex_enter(&zsb->z_os->os_user_ptr_lock);
+	dmu_objset_set_user(zsb->z_os, zsb);
+	mutex_exit(&zsb->z_os->os_user_ptr_lock);
 
 	return (0);
 }
