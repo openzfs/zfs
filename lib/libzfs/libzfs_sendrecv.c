@@ -193,7 +193,7 @@ ddt_update(libzfs_handle_t *hdl, dedup_table_t *ddt, zio_cksum_t *cs,
 }
 
 static int
-dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
+dump_record(dmu_replay_record_t *drr, void *payload, size_t payload_len,
     zio_cksum_t *zc, int outfd)
 {
 	ASSERT3U(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum),
@@ -277,7 +277,7 @@ cksummer(void *arg)
 		{
 			struct drr_begin *drrb = &drr->drr_u.drr_begin;
 			int fflags;
-			int sz = 0;
+			size_t sz = 0;
 			ZIO_SET_CHECKSUM(&stream_cksum, 0, 0, 0, 0);
 
 			ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
