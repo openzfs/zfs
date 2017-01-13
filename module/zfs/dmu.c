@@ -1143,13 +1143,13 @@ xuio_stat_fini(void)
 }
 
 void
-xuio_stat_wbuf_copied()
+xuio_stat_wbuf_copied(void)
 {
 	XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 }
 
 void
-xuio_stat_wbuf_nocopy()
+xuio_stat_wbuf_nocopy(void)
 {
 	XUIOSTAT_BUMP(xuiostat_wbuf_nocopy);
 }
