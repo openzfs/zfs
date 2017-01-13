@@ -308,6 +308,11 @@ tests = ['zpool_import_001_pos',
     'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
     'zpool_import_rename_001_pos']
 
+[tests/functional/cli_root/zpool_labelclear]
+tests = ['zpool_labelclear_active', 'zpool_labelclear_exported']
+pre =
+post =
+
 [tests/functional/cli_root/zpool_offline]
 tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg']
 

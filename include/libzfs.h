@@ -286,6 +286,7 @@ extern int zpool_label_disk_wait(char *, int);
 extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, char *);
 
 int zfs_dev_is_dm(char *dev_name);
+int zfs_dev_is_whole_disk(char *dev_name);
 char *zfs_get_underlying_path(char *dev_name);
 char *zfs_get_enclosure_sysfs_path(char *dev_name);
 

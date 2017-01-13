@@ -100,7 +100,7 @@ do
 	log_mustnot zpool add -o ashift="$badval" $disk2
 	log_must zpool destroy $TESTPOOL
 	log_must zpool labelclear $disk1
-	log_must zpool labelclear $disk2
+	log_mustnot zpool labelclear $disk2
 done
 
 log_pass "zpool add -o ashift=<n>' works with different ashift values"

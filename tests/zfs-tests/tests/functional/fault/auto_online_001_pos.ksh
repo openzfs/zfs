@@ -76,7 +76,7 @@ fi
 # Clear disk labels
 for i in {0..2}
 do
-	log_must zpool labelclear -f /dev/disk/by-id/"${devs_id[i]}"
+	zpool labelclear -f /dev/disk/by-id/"${devs_id[i]}"
 done
 
 if is_loop_device $DISK1; then
