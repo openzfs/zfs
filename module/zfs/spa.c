@@ -2766,10 +2766,14 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	error = spa_dir_prop(spa, DMU_POOL_VDEV_ZAP_MAP,
 	    &spa->spa_all_vdev_zaps);
 
-	if (error != ENOENT && error != 0) {
+	if (error == ENOENT) {
+		VERIFY(!nvlist_exists(mos_config,
+		    ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS));
+		spa->spa_avz_action = AVZ_ACTION_INITIALIZE;
+		ASSERT0(vdev_count_verify_zaps(spa->spa_root_vdev));
+	} else if (error != 0) {
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
-	} else if (error == 0 && !nvlist_exists(mos_config,
-	    ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS)) {
+	} else if (!nvlist_exists(mos_config, ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS)) {
 		/*
 		 * An older version of ZFS overwrote the sentinel value, so
 		 * we have orphaned per-vdev ZAPs in the MOS. Defer their
@@ -6135,6 +6139,7 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 
 	ASSERT(spa->spa_avz_action == AVZ_ACTION_NONE ||
+	    spa->spa_avz_action == AVZ_ACTION_INITIALIZE ||
 	    spa->spa_all_vdev_zaps != 0);
 
 	if (spa->spa_avz_action == AVZ_ACTION_REBUILD) {
