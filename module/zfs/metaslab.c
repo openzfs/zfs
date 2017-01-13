@@ -788,28 +788,62 @@ metaslab_parse_rotor_config(metaslab_class_t *mc, char *rotorvector)
 		}
 
 		if (lessthan) {
-			uint64_t threshold;
+			char *limit = lessthan+2;
+
+			mc->mc_rotvec_threshold[nrot][0] = 0;
+			mc->mc_rotvec_threshold[nrot][1] = 0;
+
+			while (limit < semicolon) {
+				char *comma, *nextlimit;
+				size_t len;
+				uint64_t threshold;
+				int alloc_class = 0;
 #ifdef _KERNEL
-			char tmpstr[64];
-			size_t len = semicolon-(lessthan+2);
-			strncpy(tmpstr, lessthan+2, len);
-			tmpstr[len] = 0;
+				char tmpstr[64];
+#endif
+
+				nextlimit = semicolon;
+				comma = strchr(limit, ',');
+				if (comma == NULL || comma > semicolon)
+					comma = semicolon;
+				else
+					nextlimit = comma+1;
+
+				len = comma-limit;
+
+				if (len > 2 &&
+				    strncmp(limit, "meta:", 5) == 0) {
+					alloc_class = 1;
+					limit += 5;
+					len -= 5;
+				}
+#ifdef _KERNEL
+				strncpy(tmpstr, limit, len);
+				tmpstr[len] = 0;
 #endif
 #ifdef _KERNEL
-			if (kstrtoull(tmpstr, 0, &threshold) != 0)
-				return (0); /* malformed configuration */
+				if (kstrtoull(tmpstr, 0, &threshold) != 0)
+					return (0); /* malformed config */
 #else
-			char *endptr;
-			threshold = strtoull(lessthan+2, &endptr, 0);
-			if (endptr != semicolon)
-				return (0); /* malformed configuration */
+				char *endptr;
+				threshold = strtoull(limit, &endptr, 0);
+				if (endptr != comma)
+					return (0); /* malformed config */
 #endif
-			/*
-			 * To live with the 32 character limit for the
-			 * comment field, we multiply the threshold by
-			 * 1024 internally.
-			 */
-			mc->mc_rotvec_threshold[nrot] = threshold * 1024;
+				/*
+				 * To live with the 32 character limit for the
+				 * comment field, we multiply the threshold by
+				 * 1024 internally.
+				 */
+				mc->mc_rotvec_threshold[nrot][alloc_class] =
+				    threshold * 1024;
+				limit = nextlimit;
+			}
+			/* Metadata allowed as much as data, at least. */
+			if (mc->mc_rotvec_threshold[nrot][0] >
+			    mc->mc_rotvec_threshold[nrot][1])
+				mc->mc_rotvec_threshold[nrot][1] =
+				    mc->mc_rotvec_threshold[nrot][0];
 		}
 		rotorvector = nextrotor;
 		nrot++;
@@ -823,9 +857,11 @@ metaslab_parse_rotor_config(metaslab_class_t *mc, char *rotorvector)
 		for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
 			int j;
 
-			printk("rotvec[%d]: limit:%llu typemask:%02x guids:",
+			printk("rotvec[%d]: limit: data:%5llu meta:%5llu "
+			    "typemask:%02x guids:",
 			    i,
-			    mc->mc_rotvec_threshold[i],
+			    mc->mc_rotvec_threshold[i][0],
+			    mc->mc_rotvec_threshold[i][1],
 			    mc->mc_rotvec_categories[i]);
 			for (j = 0; j < 5 && mc->mc_rotvec_vdev_guids[i][j];
 			    j++) {
@@ -3320,7 +3356,7 @@ int ditto_same_vdev_distance_shift = 3;
 static int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     dva_t *dva, int d, dva_t *hintdva, uint64_t txg, int flags,
-    zio_alloc_list_t *zal)
+    zio_alloc_list_t *zal, int alloc_class)
 {
 	metaslab_group_t *mg, *fast_mg, *rotor;
 	vdev_t *vd;
@@ -3344,7 +3380,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	nrot = 0;
 
 	while (nrot < mc->mc_max_nrot) {
-		if (psize < mc->mc_rotvec_threshold[nrot])
+		if (psize < mc->mc_rotvec_threshold[nrot][alloc_class])
 			break; /* Size below threshold, accept. */
 		nrot++;
 	}
@@ -3787,6 +3823,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	dva_t *hintdva = hintbp->blk_dva;
 	int d, error = 0;
 	int i;
+	int alloc_class;
 
 	ASSERT(bp->blk_birth == 0);
 	ASSERT(BP_PHYSICAL_BIRTH(bp) == 0);
@@ -3807,9 +3844,17 @@ has_vdev:
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 	ASSERT3P(zal, !=, NULL);
 
+	alloc_class = METASLAB_ROTOR_ALLOC_CLASS_DATA;
+	if (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))
+		alloc_class = METASLAB_ROTOR_ALLOC_CLASS_METADATA;
+	/* Also include these blocks in metadata (from #5182). */
+	if (BP_GET_LEVEL(bp) > 0)
+		alloc_class = METASLAB_ROTOR_ALLOC_CLASS_METADATA;
+
+
 	for (d = 0; d < ndvas; d++) {
 		error = metaslab_alloc_dva(spa, mc, psize, dva, d, hintdva,
-		    txg, flags, zal);
+		    txg, flags, zal, alloc_class);
 		if (error != 0) {
 			for (d--; d >= 0; d--) {
 				metaslab_free_dva(spa, &dva[d], txg, B_TRUE);

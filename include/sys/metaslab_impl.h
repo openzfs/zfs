@@ -157,6 +157,15 @@ typedef enum trace_alloc_type {
  */
 #define	METASLAB_CLASS_ROTORS	5
 
+/*
+ * Number of different categories of allocations.  Currently data and
+ * metadata.
+ */
+#define	METASLAB_ROTOR_ALLOC_CLASS_DATA		0
+#define	METASLAB_ROTOR_ALLOC_CLASS_METADATA	1
+
+#define	METASLAB_ROTOR_ALLOC_CLASSES		2
+
 struct metaslab_class {
 	kmutex_t		mc_lock;
 	spa_t			*mc_spa;
@@ -206,7 +215,8 @@ struct metaslab_class {
 	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
 
 	/* Maximum allocation size in each rotor vector category. */
-	uint64_t		mc_rotvec_threshold[METASLAB_CLASS_ROTORS];
+	uint64_t		mc_rotvec_threshold[METASLAB_CLASS_ROTORS]
+	    [METASLAB_ROTOR_ALLOC_CLASSES];
 	/* List of vdev guids to place in each rotor vector category. */
 	/* Should be a dynamic list. */
 	uint64_t		mc_rotvec_vdev_guids[METASLAB_CLASS_ROTORS][5];
