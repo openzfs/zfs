@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DMU_TX_H
@@ -102,12 +102,12 @@ typedef struct dmu_tx_hold {
 	dmu_tx_t *txh_tx;
 	list_node_t txh_node;
 	struct dnode *txh_dnode;
-	uint64_t txh_space_towrite;
-	uint64_t txh_space_tofree;
-	uint64_t txh_space_tooverwrite;
-	uint64_t txh_space_tounref;
-	uint64_t txh_memory_tohold;
-	uint64_t txh_fudge;
+	refcount_t txh_space_towrite;
+	refcount_t txh_space_tofree;
+	refcount_t txh_space_tooverwrite;
+	refcount_t txh_space_tounref;
+	refcount_t txh_memory_tohold;
+	refcount_t txh_fudge;
 #ifdef DEBUG_DMU_TX
 	enum dmu_tx_hold_type txh_type;
 	uint64_t txh_arg1;
