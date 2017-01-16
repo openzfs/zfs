@@ -1644,8 +1644,11 @@ sa_replace_all_by_template(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc,
 }
 
 /*
- * add/remove/replace a single attribute and then rewrite the entire set
+ * Add/remove a single attribute or replace a variable-sized attribute value
+ * with a value of a different size, and then rewrite the entire set
  * of attributes.
+ * Same-length attribute value replacement (including fixed-length attributes)
+ * is handled more efficiently by the upper layers.
  */
 static int
 sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
@@ -1662,7 +1665,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	int spill_data_size = 0;
 	int spill_attr_count = 0;
 	int error;
-	uint16_t length;
+	uint16_t length, reg_length;
 	int i, j, k, length_idx;
 	sa_hdr_phys_t *hdr;
 	sa_idx_tab_t *idx_tab;
@@ -1731,20 +1734,36 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 			sa_attr_type_t attr;
 
 			attr = idx_tab->sa_layout->lot_attrs[i];
-			length = SA_REGISTERED_LEN(sa, attr);
+			reg_length = SA_REGISTERED_LEN(sa, attr);
+			if (reg_length == 0) {
+				length = hdr->sa_lengths[length_idx];
+				length_idx++;
+			} else {
+				length = reg_length;
+			}
 			if (attr == newattr) {
-				if (length == 0)
-					++length_idx;
+				/*
+				 * There is nothing to do for SA_REMOVE,
+				 * so it is just skipped.
+				 */
 				if (action == SA_REMOVE)
 					continue;
-				ASSERT(length == 0);
-				ASSERT(action == SA_REPLACE);
+
+				/*
+				 * Duplicate attributes are not allowed, so the
+				 * action can not be SA_ADD here.
+				 */
+				ASSERT3S(action, ==, SA_REPLACE);
+
+				/*
+				 * Only a variable-sized attribute can be
+				 * replaced here, and its size must be changing.
+				 */
+				ASSERT3U(reg_length, ==, 0);
+				ASSERT3U(length, !=, buflen);
 				SA_ADD_BULK_ATTR(attr_desc, j, attr,
 				    locator, datastart, buflen);
 			} else {
-				if (length == 0)
-					length = hdr->sa_lengths[length_idx++];
-
 				SA_ADD_BULK_ATTR(attr_desc, j, attr,
 				    NULL, (void *)
 				    (TOC_OFF(idx_tab->sa_idx_tab[attr]) +
@@ -1760,13 +1779,12 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 		}
 	}
 	if (action == SA_ADD) {
-		length = SA_REGISTERED_LEN(sa, newattr);
-		if (length == 0) {
-			length = buflen;
-		}
+		reg_length = SA_REGISTERED_LEN(sa, newattr);
+		IMPLY(reg_length != 0, reg_length == buflen);
 		SA_ADD_BULK_ATTR(attr_desc, j, newattr, locator,
-		    datastart, length);
+		    datastart, buflen);
 	}
+	ASSERT3U(j, ==, attr_count);
 
 	error = sa_build_layouts(hdl, attr_desc, attr_count, tx);
 
