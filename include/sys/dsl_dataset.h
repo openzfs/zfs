@@ -271,7 +271,6 @@ int dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
     minor_t cleanup_minor, const char *htag);
 
 blkptr_t *dsl_dataset_get_blkptr(dsl_dataset_t *ds);
-void dsl_dataset_set_blkptr(dsl_dataset_t *ds, blkptr_t *bp, dmu_tx_t *tx);
 
 spa_t *dsl_dataset_get_spa(dsl_dataset_t *ds);
 
