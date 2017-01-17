@@ -240,6 +240,7 @@ my $comment_done = 0;
 my $in_warlock_comment = 0;
 my $in_function = 0;
 my $in_function_header = 0;
+my $function_header_full_indent = 0;
 my $in_declaration = 0;
 my $note_level = 0;
 my $nextok = 0;
@@ -385,6 +386,7 @@ line: while (<$filehandle>) {
 		$in_function = 1;
 		$in_declaration = 1;
 		$in_function_header = 0;
+		$function_header_full_indent = 0;
 		$prev = $line;
 		next line;
 	}
@@ -397,8 +399,54 @@ line: while (<$filehandle>) {
 		$prev = $line;
 		next line;
 	}
-	if (/^\w*\($/) {
+	if ($in_function_header && ! /^    ./ ) {
+		if (/^{}$/ # empty functions
+		|| /;/ #run function with multiline arguments
+		|| /#/ #preprocessor commands
+		|| /^[^\s\\]*\(.*\)$/ #functions without ; at the end
+		|| /^$/ #function declaration can't have empty line
+		) {
+			$in_function_header = 0;
+			$function_header_full_indent = 0;
+		} elsif ($prev =~ /^__attribute__/) { #__attribute__((*))
+			$in_function_header = 0;
+			$function_header_full_indent = 0;
+			$prev = $line;
+			next line;
+		} elsif ($picky	&& ! (/^\t/ && $function_header_full_indent != 0)) {
+			
+			err("continuation line should be indented by 4 spaces");
+		}
+	}
+
+	#
+	# If this matches something of form "foo(", it's probably a function
+	# definition, unless it ends with ") bar;", in which case it's a declaration
+	# that uses a macro to generate the type.
+	#
+	if (/^\w+\(/ && !/\) \w+;/) {
 		$in_function_header = 1;
+		if (/\($/) {
+			$function_header_full_indent = 1;
+		}
+	}
+	if ($in_function_header && /^{$/) {
+		$in_function_header = 0;
+		$function_header_full_indent = 0;
+		$in_function = 1;
+	}
+	if ($in_function_header && /\);$/) {
+		$in_function_header = 0;
+		$function_header_full_indent = 0;
+	}
+	if ($in_function_header && /{$/ ) {
+		if ($picky == 1) {
+			err("opening brace on same line as function header");
+		}
+		$in_function_header = 0;
+		$function_header_full_indent = 0;
+		$in_function = 1;
+		next line;
 	}
 
 	if ($in_warlock_comment && /\*\//) {
