@@ -1620,7 +1620,7 @@ User property names must contain a colon (\fB:\fR) character to distinguish them
 When making programmatic use of user properties, it is strongly suggested to use a reversed \fBDNS\fR domain name for the \fImodule\fR component of property names to reduce the chance that two independently-developed packages use the same property name for different purposes. For example, property names beginning with \fBcom.sun\fR. are reserved for definition by Oracle Corporation (which acquired Sun Microsystems).
 .sp
 .LP
-The values of user properties are arbitrary strings, are always inherited, and are never validated. All of the commands that operate on properties (\fBzfs list\fR, \fBzfs get\fR, \fBzfs set\fR, and so forth) can be used to manipulate both native properties and user properties. Use the \fBzfs inherit\fR command to clear a user property. If the property is not defined in any parent dataset, it is removed entirely. Property values are limited to 1024 characters.
+The values of user properties are arbitrary strings, are always inherited, and are never validated. All of the commands that operate on properties (\fBzfs list\fR, \fBzfs get\fR, \fBzfs set\fR, and so forth) can be used to manipulate both native properties and user properties. Use the \fBzfs inherit\fR command to clear a user property. If the property is not defined in any parent dataset, it is removed entirely. Property values are limited to 8192 bytes.
 .SS "ZFS Volumes as Swap"
 .LP
 \fBZFS\fR volumes may be used as Linux swap devices.  After creating the volume
