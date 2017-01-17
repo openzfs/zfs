@@ -3204,12 +3204,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t encrypt)
 	nhdr = kmem_cache_alloc(ncache, KM_PUSHPAGE);
 	bcopy(hdr, nhdr, HDR_L2ONLY_SIZE);
 	nhdr->b_l1hdr.b_freeze_cksum = hdr->b_l1hdr.b_freeze_cksum;
-
-	nhdr->b_l1hdr.b_buf = hdr->b_l1hdr.b_buf;
-	for (buf = nhdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next) {
-		buf->b_hdr = nhdr;
-	}
-
 	nhdr->b_l1hdr.b_bufcnt = hdr->b_l1hdr.b_bufcnt;
 	nhdr->b_l1hdr.b_byteswap = hdr->b_l1hdr.b_byteswap;
 	nhdr->b_l1hdr.b_state = hdr->b_l1hdr.b_state;
@@ -3219,9 +3213,25 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t encrypt)
 	nhdr->b_l1hdr.b_mfu_hits = hdr->b_l1hdr.b_mfu_hits;
 	nhdr->b_l1hdr.b_mfu_ghost_hits = hdr->b_l1hdr.b_mfu_ghost_hits;
 	nhdr->b_l1hdr.b_l2_hits = hdr->b_l1hdr.b_l2_hits;
-	refcount_transfer(&nhdr->b_l1hdr.b_refcnt, &hdr->b_l1hdr.b_refcnt);
 	nhdr->b_l1hdr.b_acb = hdr->b_l1hdr.b_acb;
 	nhdr->b_l1hdr.b_pabd = hdr->b_l1hdr.b_pabd;
+	nhdr->b_l1hdr.b_buf = hdr->b_l1hdr.b_buf;
+
+	/*
+	 * This refcount_add() exists only to ensure that the individual
+	 * arc buffers always point to a header that is referenced, avoiding
+	 * a small race condition that could trigger ASSERTs.
+	 */
+	(void) refcount_add(&nhdr->b_l1hdr.b_refcnt, FTAG);
+
+	for (buf = nhdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next) {
+		mutex_enter(&buf->b_evict_lock);
+		buf->b_hdr = nhdr;
+		mutex_exit(&buf->b_evict_lock);
+	}
+
+	refcount_transfer(&nhdr->b_l1hdr.b_refcnt, &hdr->b_l1hdr.b_refcnt);
+	(void) refcount_remove(&nhdr->b_l1hdr.b_refcnt, FTAG);
 
 	if (encrypt) {
 		arc_hdr_set_flags(nhdr, ARC_FLAG_ENCRYPT);
