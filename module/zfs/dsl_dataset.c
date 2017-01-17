@@ -557,10 +557,10 @@ dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj, int flags, void *tag,
 	    dp->dp_origin_snap == NULL || ds == dp->dp_origin_snap);
 	*dsp = ds;
 
-	if (flags & DS_HOLD_FLAG_DECRYPT) {
+	if (flags & DS_HOLD_FLAG_DECRYPT && ds->ds_dir->dd_crypto_obj != 0) {
 		err = spa_keystore_create_mapping(dp->dp_spa, ds, ds);
 		if (err != 0) {
-			dsl_dataset_rele_flags(ds, flags, tag);
+			dsl_dataset_rele(ds, tag);
 			return (SET_ERROR(EACCES));
 		}
 	}
@@ -640,15 +640,13 @@ int
 dsl_dataset_own_obj(dsl_pool_t *dp, uint64_t dsobj, int flags, void *tag,
     dsl_dataset_t **dsp)
 {
-	int err = dsl_dataset_hold_obj(dp, dsobj, tag, dsp);
+	int err = dsl_dataset_hold_obj_flags(dp, dsobj, flags, tag, dsp);
 	if (err != 0)
 		return (err);
-
-	err = dsl_dataset_tryown(*dsp, flags, tag);
-	if (err != 0) {
-		dsl_dataset_rele(*dsp, tag);
+	if (!dsl_dataset_tryown(*dsp, tag)) {
+		dsl_dataset_rele_flags(*dsp, flags, tag);
 		*dsp = NULL;
-		return (err);
+		return (SET_ERROR(EBUSY));
 	}
 	return (0);
 }
@@ -657,14 +655,12 @@ int
 dsl_dataset_own(dsl_pool_t *dp, const char *name, int flags, void *tag,
     dsl_dataset_t **dsp)
 {
-	int err = dsl_dataset_hold(dp, name, tag, dsp);
+	int err = dsl_dataset_hold_flags(dp, name, flags, tag, dsp);
 	if (err != 0)
 		return (err);
-
-	err = dsl_dataset_tryown(*dsp, flags, tag);
-	if (err != 0) {
-		dsl_dataset_rele(*dsp, tag);
-		return (err);
+	if (!dsl_dataset_tryown(*dsp, tag)) {
+		dsl_dataset_rele_flags(*dsp, flags, tag);
+		return (SET_ERROR(EBUSY));
 	}
 	return (0);
 }
@@ -777,31 +773,20 @@ dsl_dataset_disown(dsl_dataset_t *ds, int flags, void *tag)
 	dsl_dataset_rele(ds, tag);
 }
 
-int
-dsl_dataset_tryown(dsl_dataset_t *ds, int flags, void *tag)
+boolean_t
+dsl_dataset_tryown(dsl_dataset_t *ds, void *tag)
 {
-	int ret = 0;
-	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
-	uint64_t dckobj = ds->ds_dir->dd_crypto_obj;
+	boolean_t gotit = FALSE;
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 	mutex_enter(&ds->ds_lock);
 	if (ds->ds_owner == NULL && !DS_IS_INCONSISTENT(ds)) {
-		if (dckobj != 0 && (flags & DS_HOLD_FLAG_DECRYPT)) {
-			ret = spa_keystore_create_mapping(spa, ds, ds);
-			if (ret) {
-				mutex_exit(&ds->ds_lock);
-				return (SET_ERROR(EACCES));
-			}
-		}
 		ds->ds_owner = tag;
 		dsl_dataset_long_hold(ds, tag);
-	} else {
-		ret = SET_ERROR(EBUSY);
+		gotit = TRUE;
 	}
 	mutex_exit(&ds->ds_lock);
-
-	return (ret);
+	return (gotit);
 }
 
 boolean_t

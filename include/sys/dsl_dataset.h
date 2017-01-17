@@ -267,7 +267,7 @@ void dsl_dataset_disown(dsl_dataset_t *ds, int flags, void *tag);
 void dsl_dataset_name(dsl_dataset_t *ds, char *name);
 int dsl_dataset_namelen(dsl_dataset_t *ds);
 boolean_t dsl_dataset_has_owner(dsl_dataset_t *ds);
-int dsl_dataset_tryown(dsl_dataset_t *ds, int flags, void *tag);
+boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, void *tag);
 uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     dsl_dataset_t *origin, uint64_t flags, cred_t *,
     struct dsl_crypto_params *, dmu_tx_t *);
