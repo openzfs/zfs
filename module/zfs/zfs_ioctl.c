@@ -3633,6 +3633,7 @@ static int
 zfs_ioc_rollback(const char *fsname, nvlist_t *args, nvlist_t *outnvl)
 {
 	zfs_sb_t *zsb;
+	zvol_state_t *zv;
 	int error;
 
 	if (get_zfs_sb(fsname, &zsb) == 0) {
@@ -3645,6 +3646,9 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *args, nvlist_t *outnvl)
 			error = error ? error : resume_err;
 		}
 		deactivate_super(zsb->z_sb);
+	} else if ((zv = zvol_suspend(fsname)) != NULL) {
+		error = dsl_dataset_rollback(fsname, NULL, outnvl);
+		zvol_resume(zv);
 	} else {
 		error = dsl_dataset_rollback(fsname, NULL, outnvl);
 	}
@@ -4232,6 +4236,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 
 	if (error == 0) {
 		zfs_sb_t *zsb = NULL;
+		zvol_state_t *zv = NULL;
 
 		if (get_zfs_sb(tofs, &zsb) == 0) {
 			/* online recv */
@@ -4247,6 +4252,9 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 				error = zfs_resume_fs(zsb, tofs);
 			error = error ? error : end_err;
 			deactivate_super(zsb->z_sb);
+		} else if ((zv = zvol_suspend(tofs)) != NULL) {
+			error = dmu_recv_end(&drc, NULL);
+			zvol_resume(zv);
 		} else {
 			error = dmu_recv_end(&drc, NULL);
 		}
