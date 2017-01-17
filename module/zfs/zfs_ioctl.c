@@ -553,12 +553,12 @@ zfs_set_slabel_policy(const char *name, char *strval, cred_t *cr)
 		 * Try to own the dataset; abort if there is any error,
 		 * (e.g., already mounted, in use, or other error).
 		 */
-		error = dmu_objset_own(name, DMU_OST_ZFS, B_TRUE,
+		error = dmu_objset_own(name, DMU_OST_ZFS, B_TRUE, B_TRUE,
 		    setsl_tag, &os);
 		if (error != 0)
 			return (SET_ERROR(EPERM));
 
-		dmu_objset_disown(os, setsl_tag);
+		dmu_objset_disown(os, B_TRUE, setsl_tag);
 
 		if (new_default) {
 			needed_priv = PRIV_FILE_DOWNGRADE_SL;
@@ -1481,7 +1481,7 @@ zfs_sb_rele(zfs_sb_t *zsb, void *tag)
 	if (zsb->z_sb) {
 		deactivate_super(zsb->z_sb);
 	} else {
-		dmu_objset_disown(zsb->z_os, zsb);
+		dmu_objset_disown(zsb->z_os, B_TRUE, zsb);
 		zfs_sb_free(zsb);
 	}
 }
@@ -4622,7 +4622,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		if (error != 0)
 			return (error);
 
-		error = dsl_dataset_hold_crypt_obj(dp, zc->zc_sendobj,
+		error = dsl_dataset_hold_obj(dp, zc->zc_sendobj,
 		    FTAG, &tosnap);
 		if (error != 0) {
 			dsl_pool_rele(dp, FTAG);
@@ -4633,7 +4633,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 			error = dsl_dataset_hold_obj(dp, zc->zc_fromobj,
 			    FTAG, &fromsnap);
 			if (error != 0) {
-				dsl_dataset_rele_crypt(tosnap, FTAG);
+				dsl_dataset_rele(tosnap, FTAG);
 				dsl_pool_rele(dp, FTAG);
 				return (error);
 			}
@@ -4644,7 +4644,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 
 		if (fromsnap != NULL)
 			dsl_dataset_rele(fromsnap, FTAG);
-		dsl_dataset_rele_crypt(tosnap, FTAG);
+		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 	} else {
 		file_t *fp = getf(zc->zc_cookie);
@@ -4999,7 +4999,7 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 			error = zfs_suspend_fs(zsb);
 			if (error == 0) {
 				dmu_objset_refresh_ownership(zsb->z_os,
-				    zsb);
+				    B_TRUE, zsb);
 				error = zfs_resume_fs(zsb, zc->zc_name);
 			}
 		}

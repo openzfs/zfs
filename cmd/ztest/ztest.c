@@ -3494,7 +3494,7 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 		ASSERT3U(doi.doi_type, ==, DMU_OT_ZAP_OTHER);
 		ASSERT3S(doi.doi_physical_blocks_512, >=, 0);
 	}
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_TRUE, FTAG);
 
 	/*
 	 * Destroy the dataset.
@@ -3572,7 +3572,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 		ztest_zd_init(zdtmp, NULL, os);
 		zil_replay(os, zdtmp, ztest_replay_vector);
 		ztest_zd_fini(zdtmp);
-		dmu_objset_disown(os, FTAG);
+		dmu_objset_disown(os, B_TRUE, FTAG);
 	}
 
 	/*
@@ -3641,7 +3641,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	    dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE, FTAG, &os2));
 
 	zil_close(zilog);
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_TRUE, FTAG);
 	ztest_zd_fini(zdtmp);
 out:
 	(void) rw_unlock(&ztest_name_lock);
@@ -3801,14 +3801,14 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 		fatal(0, "dmu_objset_own(%s) = %d", snap2name, error);
 	error = dsl_dataset_promote(clone2name, NULL);
 	if (error == ENOSPC) {
-		dmu_objset_disown(os, FTAG);
+		dmu_objset_disown(os, B_TRUE, FTAG);
 		ztest_record_enospc(FTAG);
 		goto out;
 	}
 	if (error != EBUSY)
 		fatal(0, "dsl_dataset_promote(%s), %d, not EBUSY", clone2name,
 		    error);
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_TRUE, FTAG);
 
 out:
 	ztest_dsl_dataset_cleanup(osname, id);
@@ -6172,7 +6172,7 @@ ztest_dataset_close(int d)
 	ztest_ds_t *zd = &ztest_ds[d];
 
 	zil_close(zd->zd_zilog);
-	dmu_objset_disown(zd->zd_os, zd);
+	dmu_objset_disown(zd->zd_os, B_TRUE, zd);
 
 	ztest_zd_fini(zd);
 }
@@ -6226,7 +6226,7 @@ ztest_run(ztest_shared_t *zs)
 	VERIFY0(dmu_objset_own(ztest_opts.zo_pool,
 	    DMU_OST_ANY, B_TRUE, B_TRUE, FTAG, &os));
 	zs->zs_guid = dmu_objset_fsid_guid(os);
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_TRUE, FTAG);
 
 	spa->spa_dedup_ditto = 2 * ZIO_DEDUPDITTO_MIN;
 

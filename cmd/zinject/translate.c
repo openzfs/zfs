@@ -189,7 +189,7 @@ object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
 	record->zi_objset = dmu_objset_id(os);
 	record->zi_object = statbuf->st_ino;
 
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_TRUE, FTAG);
 
 	return (0);
 }
@@ -329,7 +329,7 @@ out:
 			dnode_rele(dn, FTAG);
 	}
 	if (os)
-		dmu_objset_disown(os, FTAG);
+		dmu_objset_disown(os, B_TRUE, FTAG);
 
 	return (ret);
 }

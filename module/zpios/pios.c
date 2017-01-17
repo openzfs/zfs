@@ -429,7 +429,7 @@ zpios_remove_objset(run_args_t *run_args)
 		}
 	}
 
-	dmu_objset_disown(run_args->os, zpios_tag);
+	dmu_objset_disown(run_args->os, 1, zpios_tag);
 
 	if (run_args->flags & DMU_REMOVE) {
 		rc = dsl_destroy_head(name);

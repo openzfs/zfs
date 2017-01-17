@@ -293,7 +293,7 @@ int dmu_objset_hold(const char *name, void *tag, objset_t **osp);
 int dmu_objset_own(const char *name, dmu_objset_type_t type,
     boolean_t readonly, boolean_t key_required, void *tag, objset_t **osp);
 void dmu_objset_rele(objset_t *os, void *tag);
-void dmu_objset_disown(objset_t *os, void *tag);
+void dmu_objset_disown(objset_t *os, boolean_t key_required, void *tag);
 int dmu_objset_open_ds(struct dsl_dataset *ds, objset_t **osp);
 
 void dmu_objset_evict_dbufs(objset_t *os);

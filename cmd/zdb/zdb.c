@@ -2340,7 +2340,7 @@ dump_one_dir(const char *dsname, void *arg)
 	}
 
 	dump_dir(os);
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_FALSE, FTAG);
 	fuid_table_destroy();
 	sa_loaded = B_FALSE;
 	return (0);
@@ -3945,7 +3945,10 @@ main(int argc, char **argv)
 			zdb_read_block(argv[i], spa);
 	}
 
-	(os != NULL) ? dmu_objset_disown(os, FTAG) : spa_close(spa, FTAG);
+	if (os != NULL)
+		dmu_objset_disown(os, B_FALSE, FTAG);
+	else
+		spa_close(spa, FTAG);
 
 	fuid_table_destroy();
 	sa_loaded = B_FALSE;

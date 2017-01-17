@@ -893,7 +893,7 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfs_sb_t **zsbp)
 	return (0);
 
 out:
-	dmu_objset_disown(os, zsb);
+	dmu_objset_disown(os, B_TRUE, zsb);
 out_zmo:
 	*zsbp = NULL;
 	zfs_mntopts_free(zsb->z_mntopts);
@@ -1481,7 +1481,7 @@ zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 	zsb->z_arc_prune = arc_add_prune_callback(zpl_prune_sb, sb);
 out:
 	if (error) {
-		dmu_objset_disown(zsb->z_os, zsb);
+		dmu_objset_disown(zsb->z_os, B_TRUE, zsb);
 		zfs_sb_free(zsb);
 		/*
 		 * make sure we don't have dangling sb->s_fs_info which
@@ -1563,7 +1563,7 @@ zfs_umount(struct super_block *sb)
 		/*
 		 * Finally release the objset
 		 */
-		dmu_objset_disown(os, zsb);
+		dmu_objset_disown(os, B_TRUE, zsb);
 	}
 
 	zfs_sb_free(zsb);

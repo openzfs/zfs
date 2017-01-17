@@ -708,7 +708,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 			zio_free_zil(zilog->zl_spa, first_txg, &zh->zh_log);
 		BP_ZERO(&zh->zh_log);
 		dsl_dataset_dirty(dmu_objset_ds(os), tx);
-		dmu_objset_disown(os, FTAG);
+		dmu_objset_disown(os, B_FALSE, FTAG);
 		return (0);
 	}
 
@@ -733,7 +733,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 	}
 
 	ASSERT3U(first_txg, ==, (spa_last_synced_txg(zilog->zl_spa) + 1));
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_FALSE, FTAG);
 	return (0);
 }
 

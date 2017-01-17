@@ -616,15 +616,13 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 
 	err = dmu_objset_from_ds(ds, osp);
 	if (err != 0) {
-		dsl_dataset_disown(ds, tag);
+		return (err);
 	} else if (type != DMU_OST_ANY && type != (*osp)->os_phys->os_type) {
-		dsl_dataset_disown(ds, tag);
 		return (SET_ERROR(EINVAL));
 	} else if (!readonly && dsl_dataset_is_snapshot(ds)) {
-		dsl_dataset_disown(ds, tag);
 		return (SET_ERROR(EROFS));
 	}
-	return (err);
+	return (0);
 }
 
 /*
@@ -639,19 +637,26 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
+	int flags = (key_required) ? DS_HOLD_FLAG_DECRYPT : 0;
 
 	err = dsl_pool_hold(name, FTAG, &dp);
 	if (err != 0)
 		return (err);
-	err = dsl_dataset_own(dp, name, tag, key_required, &ds);
+	err = dsl_dataset_own(dp, name, flags, tag, &ds);
 	if (err != 0) {
 		dsl_pool_rele(dp, FTAG);
 		return (err);
 	}
 	err = dmu_objset_own_impl(ds, type, readonly, tag, osp);
+	if (err != 0) {
+		dsl_dataset_disown(ds, flags, tag);
+		dsl_pool_rele(dp, FTAG);
+		return (err);
+	}
+
 	dsl_pool_rele(dp, FTAG);
 
-	if (err == 0 && dmu_objset_userobjspace_upgradable(*osp))
+	if (dmu_objset_userobjspace_upgradable(*osp))
 		dmu_objset_userobjspace_upgrade(*osp);
 
 	return (err);
@@ -663,12 +668,19 @@ dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
 {
 	dsl_dataset_t *ds;
 	int err;
+	int flags = (key_required) ? DS_HOLD_FLAG_DECRYPT: 0;
 
-	err = dsl_dataset_own_obj(dp, obj, tag, key_required, &ds);
+	err = dsl_dataset_own_obj(dp, obj, flags, tag, &ds);
 	if (err != 0)
 		return (err);
 
-	return (dmu_objset_own_impl(ds, type, readonly, tag, osp));
+	err = dmu_objset_own_impl(ds, type, readonly, tag, osp);
+	if (err != 0) {
+		dsl_dataset_disown(ds, flags, tag);
+		return (err);
+	}
+
+	return (0);
 }
 
 void
@@ -691,11 +703,10 @@ dmu_objset_rele(objset_t *os, void *tag)
  * same name so that it can be partially torn down and reconstructed.
  */
 void
-dmu_objset_refresh_ownership(objset_t *os, void *tag)
+dmu_objset_refresh_ownership(objset_t *os, boolean_t key_needed, void *tag)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds, *newds;
-	boolean_t key_needed;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 
 	ds = os->os_dsl_dataset;
@@ -703,30 +714,25 @@ dmu_objset_refresh_ownership(objset_t *os, void *tag)
 	VERIFY3P(ds->ds_owner, ==, tag);
 	VERIFY(dsl_dataset_long_held(ds));
 
-	if (os->os_encrypted &&
-	    (spa_keystore_lookup_key(os->os_spa,
-	    os->os_dsl_dataset->ds_object, NULL, NULL) == 0))
-		key_needed = B_TRUE;
-	else
-		key_needed = B_FALSE;
-
 	dsl_dataset_name(ds, name);
 	dp = dmu_objset_pool(os);
 	dsl_pool_config_enter(dp, FTAG);
-	dmu_objset_disown(os, tag);
-	VERIFY0(dsl_dataset_own(dp, name, tag, key_needed, &newds));
+	dmu_objset_disown(os, key_needed, tag);
+	VERIFY0(dsl_dataset_own(dp, name,
+	    (key_needed) ? DS_HOLD_FLAG_DECRYPT : 0, tag, &newds));
 	VERIFY3P(newds, ==, os->os_dsl_dataset);
 	dsl_pool_config_exit(dp, FTAG);
 }
 
 void
-dmu_objset_disown(objset_t *os, void *tag)
+dmu_objset_disown(objset_t *os, boolean_t key_needed, void *tag)
 {
 	/*
 	 * Stop upgrading thread
 	 */
 	dmu_objset_upgrade_stop(os);
-	dsl_dataset_disown(os->os_dsl_dataset, tag);
+	dsl_dataset_disown(os->os_dsl_dataset,
+	    (key_needed) ? DS_HOLD_FLAG_DECRYPT : 0, tag);
 }
 
 void

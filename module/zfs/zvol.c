@@ -389,7 +389,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		error = zvol_update_live_volsize(zv, volsize);
 out:
 	if (owned) {
-		dmu_objset_disown(os, FTAG);
+		dmu_objset_disown(os, B_TRUE, FTAG);
 		if (zv != NULL)
 			zv->zv_objset = NULL;
 	}
@@ -989,7 +989,7 @@ zvol_first_open(zvol_state_t *zv)
 
 out_owned:
 	if (error) {
-		dmu_objset_disown(os, zvol_tag);
+		dmu_objset_disown(os, 1, zvol_tag);
 		zv->zv_objset = NULL;
 	}
 
@@ -1013,7 +1013,7 @@ zvol_last_close(zvol_state_t *zv)
 		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 	(void) dmu_objset_evict_dbufs(zv->zv_objset);
 
-	dmu_objset_disown(zv->zv_objset, zvol_tag);
+	dmu_objset_disown(zv->zv_objset, 1, zvol_tag);
 	zv->zv_objset = NULL;
 }
 
@@ -1449,7 +1449,7 @@ zvol_create_minor_impl(const char *name)
 
 	zv->zv_objset = NULL;
 out_dmu_objset_disown:
-	dmu_objset_disown(os, zvol_tag);
+	dmu_objset_disown(os, B_TRUE, zvol_tag);
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
 out:
@@ -1526,7 +1526,7 @@ zvol_prefetch_minors_impl(void *arg)
 			dmu_prefetch(os, ZVOL_OBJ, 0, 0, 0,
 			    ZIO_PRIORITY_SYNC_READ);
 		}
-		dmu_objset_disown(os, zvol_tag);
+		dmu_objset_disown(os, B_TRUE, zvol_tag);
 	}
 }
 

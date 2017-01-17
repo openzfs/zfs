@@ -963,7 +963,7 @@ dsl_destroy_head(const char *name)
 				(void) dmu_free_long_object(os, obj);
 			/* sync out all frees */
 			txg_wait_synced(dmu_objset_pool(os), 0);
-			dmu_objset_disown(os, FTAG);
+			dmu_objset_disown(os, B_TRUE, FTAG);
 		}
 	}
 

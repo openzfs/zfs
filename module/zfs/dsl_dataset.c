@@ -406,7 +406,7 @@ dsl_dataset_try_add_ref(dsl_pool_t *dp, dsl_dataset_t *ds, void *tag)
 }
 
 int
-dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
+dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj, int flags, void *tag,
     dsl_dataset_t **dsp)
 {
 	objset_t *mos = dp->dp_meta_objset;
@@ -556,11 +556,27 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 	    spa_version(dp->dp_spa) < SPA_VERSION_ORIGIN ||
 	    dp->dp_origin_snap == NULL || ds == dp->dp_origin_snap);
 	*dsp = ds;
+
+	if (flags & DS_HOLD_FLAG_DECRYPT) {
+		err = spa_keystore_create_mapping(dp->dp_spa, ds, ds);
+		if (err != 0) {
+			dsl_dataset_rele_flags(ds, flags, tag);
+			return (SET_ERROR(EACCES));
+		}
+	}
+
 	return (0);
 }
 
 int
-dsl_dataset_hold(dsl_pool_t *dp, const char *name,
+dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
+    dsl_dataset_t **dsp)
+{
+	return (dsl_dataset_hold_obj_flags(dp, dsobj, 0, tag, dsp));
+}
+
+int
+dsl_dataset_hold_flags(dsl_pool_t *dp, const char *name, int flags,
     void *tag, dsl_dataset_t **dsp)
 {
 	dsl_dir_t *dd;
@@ -576,7 +592,7 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 	ASSERT(dsl_pool_config_held(dp));
 	obj = dsl_dir_phys(dd)->dd_head_dataset_obj;
 	if (obj != 0)
-		err = dsl_dataset_hold_obj(dp, obj, tag, &ds);
+		err = dsl_dataset_hold_obj_flags(dp, obj, flags, tag, &ds);
 	else
 		err = SET_ERROR(ENOENT);
 
@@ -592,8 +608,10 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 
 		dprintf("looking for snapshot '%s'\n", snapname);
 		err = dsl_dataset_snap_lookup(ds, snapname, &obj);
-		if (err == 0)
-			err = dsl_dataset_hold_obj(dp, obj, tag, &snap_ds);
+		if (err == 0) {
+			err = dsl_dataset_hold_obj_flags(dp, obj, flags, tag,
+			    &snap_ds);
+		}
 		dsl_dataset_rele(ds, tag);
 
 		if (err == 0) {
@@ -611,86 +629,22 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 	return (err);
 }
 
-void
-dsl_dataset_rele_crypt(dsl_dataset_t *ds, void *tag)
+int
+dsl_dataset_hold(dsl_pool_t *dp, const char *name, void *tag,
+    dsl_dataset_t **dsp)
 {
-	ASSERT(ds->ds_objset != NULL);
-
-	if (ds->ds_objset->os_encrypted) {
-		VERIFY0(spa_keystore_remove_mapping(ds->ds_objset->os_spa,
-		    ds, ds));
-	}
-
-	dsl_dataset_rele(ds, tag);
+	return (dsl_dataset_hold_flags(dp, name, 0, tag, dsp));
 }
 
 int
-dsl_dataset_hold_crypt(dsl_pool_t *dp, const char *name,
-    void *tag, dsl_dataset_t **dsp)
-{
-	int err;
-	objset_t *os;
-
-	err = dsl_dataset_hold(dp, name, tag, dsp);
-	if (err != 0)
-		return (err);
-
-	err = dmu_objset_from_ds(*dsp, &os);
-	if (err != 0)
-		goto error;
-
-	if (os->os_encrypted) {
-		err = spa_keystore_create_mapping(dp->dp_spa, *dsp, *dsp);
-		if (err != 0)
-			goto error;
-	}
-
-	return (0);
-
-error:
-	dsl_dataset_rele(*dsp, tag);
-	*dsp = NULL;
-	return (err);
-}
-
-int
-dsl_dataset_hold_crypt_obj(dsl_pool_t *dp, uint64_t dsobj,
-    void *tag, dsl_dataset_t **dsp)
-{
-	int err;
-	objset_t *os;
-
-	err = dsl_dataset_hold_obj(dp, dsobj, tag, dsp);
-	if (err != 0)
-		return (err);
-
-	err = dmu_objset_from_ds(*dsp, &os);
-	if (err != 0)
-		goto error;
-
-	if (os->os_encrypted) {
-		err = spa_keystore_create_mapping(dp->dp_spa, *dsp, *dsp);
-		if (err != 0)
-			goto error;
-	}
-
-	return (0);
-
-error:
-	dsl_dataset_rele(*dsp, tag);
-	*dsp = NULL;
-	return (err);
-}
-
-int
-dsl_dataset_own_obj(dsl_pool_t *dp, uint64_t dsobj,
-    void *tag, boolean_t key_required, dsl_dataset_t **dsp)
+dsl_dataset_own_obj(dsl_pool_t *dp, uint64_t dsobj, int flags, void *tag,
+    dsl_dataset_t **dsp)
 {
 	int err = dsl_dataset_hold_obj(dp, dsobj, tag, dsp);
 	if (err != 0)
 		return (err);
 
-	err = dsl_dataset_tryown(*dsp, tag, key_required);
+	err = dsl_dataset_tryown(*dsp, flags, tag);
 	if (err != 0) {
 		dsl_dataset_rele(*dsp, tag);
 		*dsp = NULL;
@@ -700,14 +654,14 @@ dsl_dataset_own_obj(dsl_pool_t *dp, uint64_t dsobj,
 }
 
 int
-dsl_dataset_own(dsl_pool_t *dp, const char *name,
-    void *tag, boolean_t key_required, dsl_dataset_t **dsp)
+dsl_dataset_own(dsl_pool_t *dp, const char *name, int flags, void *tag,
+    dsl_dataset_t **dsp)
 {
 	int err = dsl_dataset_hold(dp, name, tag, dsp);
 	if (err != 0)
 		return (err);
 
-	err = dsl_dataset_tryown(*dsp, tag, key_required);
+	err = dsl_dataset_tryown(*dsp, flags, tag);
 	if (err != 0) {
 		dsl_dataset_rele(*dsp, tag);
 		return (err);
@@ -790,19 +744,30 @@ dsl_dataset_namelen(dsl_dataset_t *ds)
 }
 
 void
-dsl_dataset_rele(dsl_dataset_t *ds, void *tag)
+dsl_dataset_rele_flags(dsl_dataset_t *ds, int flags, void *tag)
 {
 	dmu_buf_rele(ds->ds_dbuf, tag);
+
+	if (flags & DS_HOLD_FLAG_DECRYPT) {
+		(void) spa_keystore_remove_mapping(ds->ds_dir->dd_pool->dp_spa,
+		    ds, ds);
+	}
 }
 
 void
-dsl_dataset_disown(dsl_dataset_t *ds, void *tag)
+dsl_dataset_rele(dsl_dataset_t *ds, void *tag)
+{
+	dsl_dataset_rele_flags(ds, 0, tag);
+}
+
+void
+dsl_dataset_disown(dsl_dataset_t *ds, int flags, void *tag)
 {
 	ASSERT3P(ds->ds_owner, ==, tag);
 	ASSERT(ds->ds_dbuf != NULL);
 
 	mutex_enter(&ds->ds_lock);
-	if (ds->ds_dir && ds->ds_dir->dd_crypto_obj) {
+	if (flags & DS_HOLD_FLAG_DECRYPT) {
 		(void) spa_keystore_remove_mapping(ds->ds_dir->dd_pool->dp_spa,
 		    ds, ds);
 	}
@@ -813,7 +778,7 @@ dsl_dataset_disown(dsl_dataset_t *ds, void *tag)
 }
 
 int
-dsl_dataset_tryown(dsl_dataset_t *ds, void *tag, boolean_t key_required)
+dsl_dataset_tryown(dsl_dataset_t *ds, int flags, void *tag)
 {
 	int ret = 0;
 	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
@@ -822,7 +787,7 @@ dsl_dataset_tryown(dsl_dataset_t *ds, void *tag, boolean_t key_required)
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 	mutex_enter(&ds->ds_lock);
 	if (ds->ds_owner == NULL && !DS_IS_INCONSISTENT(ds)) {
-		if (dckobj != 0 && key_required) {
+		if (dckobj != 0 && (flags & DS_HOLD_FLAG_DECRYPT)) {
 			ret = spa_keystore_create_mapping(spa, ds, ds);
 			if (ret) {
 				mutex_exit(&ds->ds_lock);
