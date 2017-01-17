@@ -82,7 +82,8 @@ typedef enum dmu_objset_type {
  * the property table in module/zcommon/zfs_prop.c.
  */
 typedef enum {
-	ZFS_PROP_TYPE,
+	ZFS_PROP_BAD = -1,
+	ZFS_PROP_TYPE = 0,
 	ZFS_PROP_CREATION,
 	ZFS_PROP_USED,
 	ZFS_PROP_AVAILABLE,
