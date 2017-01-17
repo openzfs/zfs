@@ -1026,19 +1026,6 @@ dsl_dataset_get_blkptr(dsl_dataset_t *ds)
 	return (&dsl_dataset_phys(ds)->ds_bp);
 }
 
-void
-dsl_dataset_set_blkptr(dsl_dataset_t *ds, blkptr_t *bp, dmu_tx_t *tx)
-{
-	ASSERT(dmu_tx_is_syncing(tx));
-	/* If it's the meta-objset, set dp_meta_rootbp */
-	if (ds == NULL) {
-		tx->tx_pool->dp_meta_rootbp = *bp;
-	} else {
-		dmu_buf_will_dirty(ds->ds_dbuf, tx);
-		dsl_dataset_phys(ds)->ds_bp = *bp;
-	}
-}
-
 spa_t *
 dsl_dataset_get_spa(dsl_dataset_t *ds)
 {
@@ -3634,7 +3621,6 @@ EXPORT_SYMBOL(dsl_dataset_user_hold);
 EXPORT_SYMBOL(dsl_dataset_user_release);
 EXPORT_SYMBOL(dsl_dataset_get_holds);
 EXPORT_SYMBOL(dsl_dataset_get_blkptr);
-EXPORT_SYMBOL(dsl_dataset_set_blkptr);
 EXPORT_SYMBOL(dsl_dataset_get_spa);
 EXPORT_SYMBOL(dsl_dataset_modified_since_snap);
 EXPORT_SYMBOL(dsl_dataset_space_written);
