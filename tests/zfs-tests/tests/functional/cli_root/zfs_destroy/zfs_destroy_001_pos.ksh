@@ -48,6 +48,11 @@
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5479
+if is_kmemleak; then
+	log_unsupported "Test case often fail when kmemleak is enabled"
+fi
+
 #
 # According to parameters, 1st, create suitable testing environment. 2nd,
 # run 'zfs destroy $opt <dataset>'. 3rd, check the system status.
