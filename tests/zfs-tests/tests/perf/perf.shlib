@@ -61,8 +61,9 @@ function do_fio_run
 	for threads in $PERF_NTHREADS; do
 		for sync in $PERF_SYNC_TYPES; do
 			for iosize in $PERF_IOSIZES; do
+				typeset sync_str=$(get_sync_str $sync)
 				log_note "Running with $threads" \
-				    "$(get_sync_str $sync) threads, $iosize ios"
+				    "$sync_str threads, $iosize ios"
 
 				if $do_recreate; then
 					recreate_perfpool
@@ -86,8 +87,16 @@ function do_fio_run
 				# Start the data collection
 				do_collect_scripts $threads $sync $iosize
 
+				# This will be part of the output filename.
+				typeset suffix="$sync_str.$iosize-ios.$threads-threads"
+
+				# Define output file
+				typeset logbase="$(get_perf_output_dir)/$($BASENAME \
+				    $SUDO_COMMAND)"
+				typeset outfile="$logbase.fio.$suffix"
+
 				# Start the load
-				log_must $FIO $FIO_SCRIPTS/$script
+				log_must $FIO --output $outfile $FIO_SCRIPTS/$script
 			done
 		done
 	done
