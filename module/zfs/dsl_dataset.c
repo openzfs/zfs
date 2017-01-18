@@ -601,7 +601,7 @@ dsl_dataset_hold_flags(dsl_pool_t *dp, const char *name, int flags,
 		dsl_dataset_t *snap_ds;
 
 		if (*snapname++ != '@') {
-			dsl_dataset_rele(ds, tag);
+			dsl_dataset_rele_flags(ds, flags, tag);
 			dsl_dir_rele(dd, FTAG);
 			return (SET_ERROR(ENOENT));
 		}
@@ -612,7 +612,7 @@ dsl_dataset_hold_flags(dsl_pool_t *dp, const char *name, int flags,
 			err = dsl_dataset_hold_obj_flags(dp, obj, flags, tag,
 			    &snap_ds);
 		}
-		dsl_dataset_rele(ds, tag);
+		dsl_dataset_rele_flags(ds, flags, tag);
 
 		if (err == 0) {
 			mutex_enter(&snap_ds->ds_lock);
@@ -763,14 +763,10 @@ dsl_dataset_disown(dsl_dataset_t *ds, int flags, void *tag)
 	ASSERT(ds->ds_dbuf != NULL);
 
 	mutex_enter(&ds->ds_lock);
-	if (flags & DS_HOLD_FLAG_DECRYPT) {
-		(void) spa_keystore_remove_mapping(ds->ds_dir->dd_pool->dp_spa,
-		    ds, ds);
-	}
 	ds->ds_owner = NULL;
 	mutex_exit(&ds->ds_lock);
 	dsl_dataset_long_rele(ds, tag);
-	dsl_dataset_rele(ds, tag);
+	dsl_dataset_rele_flags(ds, flags, tag);
 }
 
 boolean_t
