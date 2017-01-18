@@ -392,7 +392,7 @@ dnode_setdblksz(dnode_t *dn, int size)
 	dn->dn_datablkshift = ISP2(size) ? highbit64(size - 1) : 0;
 }
 
-static dnode_t *
+dnode_t *
 dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
     uint64_t object, dnode_handle_t *dnh)
 {
@@ -1178,6 +1178,155 @@ dnode_is_free(dmu_buf_impl_t *db, int idx, int slots)
 	}
 
 	return (B_TRUE);
+}
+
+static void fill_dnode_bitmap(dmu_buf_impl_t *db, unsigned long *bitmap)
+{
+	dnode_handle_t *dnh;
+	dmu_object_type_t ot;
+	dnode_children_t *children_dnodes;
+	dnode_phys_t *dn_block;
+	int i = 0, j, skip;
+
+	children_dnodes = dmu_buf_get_user(&db->db);
+	dn_block = (dnode_phys_t *)db->db.db_data;
+
+	*bitmap = 0;
+	while (i < DNODES_PER_BLOCK) {
+		dnh = &children_dnodes->dnc_children[i];
+
+		/* XXX: check for dn->dn_free_txg ? */
+		zrl_add(&dnh->dnh_zrlock);
+		if (dnh->dnh_dnode != NULL) {
+			ot = dnh->dnh_dnode->dn_type;
+			skip = dnh->dnh_dnode->dn_num_slots;
+		} else {
+			ot = dn_block[i].dn_type;
+			skip = dn_block[i].dn_extra_slots + 1;
+		}
+		zrl_remove(&dnh->dnh_zrlock);
+
+		if (ot == DMU_OT_NONE) {
+			for (j = i; j < i + skip; j++)
+				*bitmap |= 1 << j;
+		}
+		i += skip;
+	}
+	if (db->db.db_offset == 0)
+		*bitmap &= ~1;
+}
+
+int
+dnode_alloc_impl(objset_t *os, uint64_t *object, int slots, void *tag,
+	dmu_buf_impl_t **rdb)
+{
+	int epb, err, i, drop_struct_lock = FALSE;
+	dnode_children_t *children_dnodes;
+	dmu_buf_impl_t *db;
+	dnode_handle_t *dnh;
+	uint64_t blk;
+	dnode_t *mdn;
+
+	if (*object >= DN_MAX_OBJECT) {
+		*rdb = NULL;
+		return (SET_ERROR(EINVAL));
+	}
+	if (*object == 0)
+		*object = 1;
+
+again:
+	if (os->os_db_alloc_cached != NULL) {
+		unsigned long mask = 0;
+		int i;
+		for (i = 0; i < slots; i++)
+			mask |= 1;
+		for (i = 0; i < DNODES_PER_BLOCK - slots + 1; i++) {
+			if ((os->os_alloc_bitmap & mask) == mask) {
+				/* found */
+				os->os_alloc_bitmap &= ~mask;
+				*object = os->os_alloc_object + i;
+				*rdb = os->os_db_alloc_cached;
+				dbuf_add_ref(*rdb, FTAG);
+				return 0;
+			}
+			/* XXX: search for next bit set */
+			mask <<= 1;
+		}
+		/* not found */
+		dbuf_rele(os->os_db_alloc_cached, FTAG);
+		os->os_db_alloc_cached = NULL;
+		os->os_alloc_bitmap = 0;
+		*object = os->os_alloc_object + DNODES_PER_BLOCK;
+		*rdb = NULL;
+		return 0;
+	}
+
+	mdn = DMU_META_DNODE(os);
+	ASSERT(mdn->dn_object == DMU_META_DNODE_OBJECT);
+
+	DNODE_VERIFY(mdn);
+
+	if (!RW_WRITE_HELD(&mdn->dn_struct_rwlock)) {
+		rw_enter(&mdn->dn_struct_rwlock, RW_READER);
+		drop_struct_lock = TRUE;
+	}
+
+	blk = dbuf_whichblock(mdn, 0, *object * sizeof (dnode_phys_t));
+
+	db = dbuf_hold(mdn, blk, FTAG);
+	if (drop_struct_lock)
+		rw_exit(&mdn->dn_struct_rwlock);
+	if (db == NULL)
+		return (SET_ERROR(EIO));
+	err = dbuf_read(db, NULL, DB_RF_CANFAIL);
+	if (err) {
+		dbuf_rele(db, FTAG);
+		return (err);
+	}
+
+	ASSERT3U(db->db.db_size, >=, 1<<DNODE_SHIFT);
+	epb = db->db.db_size >> DNODE_SHIFT;
+
+	ASSERT(DB_DNODE(db)->dn_type == DMU_OT_DNODE);
+	children_dnodes = dmu_buf_get_user(&db->db);
+	if (children_dnodes == NULL) {
+		dnode_children_t *winner;
+		children_dnodes = kmem_zalloc(sizeof (dnode_children_t) +
+		    epb * sizeof (dnode_handle_t), KM_SLEEP);
+		children_dnodes->dnc_count = epb;
+		dnh = &children_dnodes->dnc_children[0];
+		for (i = 0; i < epb; i++) {
+			zrl_init(&dnh[i].dnh_zrlock);
+		}
+		dmu_buf_init_user(&children_dnodes->dnc_dbu,
+		    dnode_buf_pageout, NULL);
+		winner = dmu_buf_set_user(&db->db, &children_dnodes->dnc_dbu);
+		if (winner != NULL) {
+			for (i = 0; i < epb; i++) {
+				zrl_destroy(&dnh[i].dnh_zrlock);
+			}
+			kmem_free(children_dnodes, sizeof (dnode_children_t) +
+			    epb * sizeof (dnode_handle_t));
+			children_dnodes = winner;
+		}
+	}
+	ASSERT(children_dnodes->dnc_count == epb);
+
+	ASSERT(os->os_db_alloc_cached == NULL);
+	os->os_db_alloc_cached = db;
+	os->os_alloc_bitmap = 0;
+	os->os_alloc_object = *object & ~(DNODES_PER_BLOCK - 1);
+	fill_dnode_bitmap(db, &os->os_alloc_bitmap);
+	if (os->os_alloc_bitmap == 0) {
+		/* empty, return and proceed with the next block */
+		dbuf_rele(db, FTAG);
+		os->os_db_alloc_cached = NULL;
+		*object = os->os_alloc_object + DNODES_PER_BLOCK;
+		*rdb = NULL;
+		return 0;
+	}
+
+	goto again;
 }
 
 /*

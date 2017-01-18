@@ -27,10 +27,16 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
+#include <sys/dbuf.h>
 #include <sys/dnode.h>
 #include <sys/zap.h>
 #include <sys/zfeature.h>
 #include <sys/dsl_dataset.h>
+
+dnode_t *dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
+    uint64_t object, dnode_handle_t *dnh);
+int dnode_alloc_impl(objset_t *os, uint64_t *object, int slots, void *tag,
+	dmu_buf_impl_t **rdb);
 
 uint64_t
 dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
@@ -38,6 +44,72 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 {
 	return dmu_object_alloc_dnsize(os, ot, blocksize, bonustype, bonuslen,
 	    0, tx);
+}
+
+void dnode_allocate_structures(objset_t *os, dmu_buf_impl_t *db,
+	uint64_t object, int slots, dnode_t **dnp, void *tag)
+{
+	dnode_children_t *children_dnodes;
+	dnode_phys_t *dn_block_begin;
+	dnode_handle_t *dnh;
+	dnode_t *dn;
+	int epb, idx;
+
+	epb = db->db.db_size >> DNODE_SHIFT;
+	idx = object & (epb - 1);
+	dn_block_begin = (dnode_phys_t *)db->db.db_data;
+	children_dnodes = dmu_buf_get_user(&db->db);
+
+	dnh = &children_dnodes->dnc_children[idx];
+	zrl_add(&dnh->dnh_zrlock);
+	dn = dnh->dnh_dnode;
+	if (dn == NULL)
+		dn = dnode_create(os, dn_block_begin + idx, db, object, dnh);
+
+	mutex_enter(&dn->dn_mtx);
+	ASSERT(dn->dn_type == DMU_OT_NONE);
+	if (refcount_add(&dn->dn_holds, tag) == 1)
+		dbuf_add_ref(db, dnh);
+	mutex_exit(&dn->dn_mtx);
+
+	/* Now we can rely on the hold to prevent the dnode from moving. */
+	zrl_remove(&dnh->dnh_zrlock);
+
+	DNODE_VERIFY(dn);
+	ASSERT3P(dn->dn_dbuf, ==, db);
+	ASSERT3U(dn->dn_object, ==, object);
+	*dnp = dn;
+}
+
+static dmu_tx_hold_t *
+dmu_tx_hold_dnode_impl(dmu_tx_t *tx, objset_t *os, dnode_t *dn,
+    enum dmu_tx_hold_type type, uint64_t arg1, uint64_t arg2)
+{
+	dmu_tx_hold_t *txh;
+
+	mutex_enter(&dn->dn_mtx);
+	/*
+	 * dn->dn_assigned_txg == tx->tx_txg doesn't pose a
+	 * problem, but there's no way for it to happen (for
+	 * now, at least).
+	 */
+	ASSERT(dn->dn_assigned_txg == 0);
+	dn->dn_assigned_txg = tx->tx_txg;
+	(void) refcount_add(&dn->dn_tx_holds, tx);
+	mutex_exit(&dn->dn_mtx);
+
+	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_SLEEP);
+	txh->txh_tx = tx;
+	txh->txh_dnode = dn;
+	dnode_add_ref(dn, tx);
+#ifdef DEBUG_DMU_TX
+	txh->txh_type = type;
+	txh->txh_arg1 = arg1;
+	txh->txh_arg2 = arg2;
+#endif
+	list_insert_tail(&tx->tx_holds, txh);
+
+	return (txh);
 }
 
 uint64_t
@@ -48,6 +120,7 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 	uint64_t L1_dnode_count = DNODES_PER_BLOCK <<
 	    (DMU_META_DNODE(os)->dn_indblkshift - SPA_BLKPTRSHIFT);
 	dnode_t *dn = NULL;
+	dmu_buf_impl_t *db;
 	int dn_slots = dnodesize >> DNODE_SHIFT;
 	boolean_t restarted = B_FALSE;
 
@@ -113,9 +186,8 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * dmu_tx_assign(), but there is currently no mechanism
 		 * to do so.
 		 */
-		(void) dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, dn_slots,
-		    FTAG, &dn);
-		if (dn)
+		(void) dnode_alloc_impl(os, &object, dn_slots, FTAG, &db);
+		if (db)
 			break;
 
 		if (dmu_object_next(os, &object, B_TRUE, 0) == 0)
@@ -128,11 +200,15 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 			    DNODES_PER_BLOCK);
 	}
 
-	dnode_allocate(dn, ot, blocksize, 0, bonustype, bonuslen, dn_slots, tx);
+	os->os_obj_next = object + dn_slots;
 	mutex_exit(&os->os_obj_lock);
+
+	dnode_allocate_structures(os, db, object, dn_slots, &dn, FTAG);
+	dnode_allocate(dn, ot, blocksize, 0, bonustype, bonuslen, dn_slots, tx);
 
 	dmu_tx_add_new_object(tx, os, dn);
 	dnode_rele(dn, FTAG);
+	dbuf_rele(db, FTAG);
 
 	return (object);
 }

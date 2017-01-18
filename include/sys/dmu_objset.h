@@ -135,6 +135,11 @@ struct objset {
 	dmu_objset_upgrade_cb_t os_upgrade_cb;
 	boolean_t os_upgrade_exit;
 	int os_upgrade_status;
+
+	/* cache for the last block we allocated in */
+	unsigned long os_alloc_bitmap;
+	void *os_db_alloc_cached;
+	uint64_t os_alloc_object;
 };
 
 #define	DMU_META_OBJSET		0
