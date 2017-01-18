@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
@@ -107,7 +111,7 @@ for ds in $pool $fs $vol; do
 			done
 			;;
 		reservation|reserv )
-			(( reservsize = $avail_space % $RANDOM ))
+			(( reservsize = $avail_space % (( $RANDOM + 1 )) ))
 			for val in "0" "$reservsize" "none"; do
 				set_and_check $ds ${rw_prop[i]} $val ${chk_prop[i]}
 			done
