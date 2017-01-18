@@ -1581,6 +1581,11 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
 	rw_exit(&zv->zv_suspend_lock);
 
+	/* move to new hashtable entry  */
+	zv->zv_hash = zvol_name_hash(zv->zv_name);
+	hlist_del(&zv->zv_hlink);
+	hlist_add_head(&zv->zv_hlink, ZVOL_HT_HEAD(zv->zv_hash));
+
 	/*
 	 * The block device's read-only state is briefly changed causing
 	 * a KOBJ_CHANGE uevent to be issued.  This ensures udev detects
