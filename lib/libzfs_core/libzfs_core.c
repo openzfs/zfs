@@ -84,7 +84,7 @@
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
 
-static int g_fd;
+static int g_fd = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
 
@@ -109,9 +109,14 @@ libzfs_core_fini(void)
 {
 	(void) pthread_mutex_lock(&g_lock);
 	ASSERT3S(g_refcount, >, 0);
-	g_refcount--;
-	if (g_refcount == 0)
+
+	if (g_refcount > 0)
+		g_refcount--;
+
+	if (g_refcount == 0 && g_fd != -1) {
 		(void) close(g_fd);
+		g_fd = -1;
+	}
 	(void) pthread_mutex_unlock(&g_lock);
 }
 
@@ -125,6 +130,7 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 	size_t size;
 
 	ASSERT3S(g_refcount, >, 0);
+	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 
@@ -326,6 +332,9 @@ lzc_exists(const char *dataset)
 	 * own zfs_cmd_t rather than using zfsc_ioctl().
 	 */
 	zfs_cmd_t zc = {"\0"};
+
+	ASSERT3S(g_refcount, >, 0);
+	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 	return (ioctl(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
@@ -575,6 +584,9 @@ recv_impl(const char *snapname, nvlist_t *props, const char *origin,
 	char fsname[MAXPATHLEN];
 	char *atp;
 	int error;
+
+	ASSERT3S(g_refcount, >, 0);
+	VERIFY3S(g_fd, !=, -1);
 
 	/* Set 'fsname' to the name of containing filesystem */
 	(void) strlcpy(fsname, snapname, sizeof (fsname));

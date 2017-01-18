@@ -272,6 +272,15 @@ cksummer(void *arg)
 	ofp = fdopen(dda->inputfd, "r");
 	while (ssread(drr, sizeof (*drr), ofp) != 0) {
 
+		/*
+		 * kernel filled in checksum, we are going to write same
+		 * record, but need to regenerate checksum.
+		 */
+		if (drr->drr_type != DRR_BEGIN) {
+			bzero(&drr->drr_u.drr_checksum.drr_checksum,
+			    sizeof (drr->drr_u.drr_checksum.drr_checksum));
+		}
+
 		switch (drr->drr_type) {
 		case DRR_BEGIN:
 		{
