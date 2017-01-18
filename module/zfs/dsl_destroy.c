@@ -950,7 +950,7 @@ dsl_destroy_head(const char *name)
 		 * remove the objects from open context so that the txg sync
 		 * is not too long.
 		 */
-		error = dmu_objset_own(name, DMU_OST_ANY, B_FALSE, B_TRUE,
+		error = dmu_objset_own(name, DMU_OST_ANY, B_FALSE, B_FALSE,
 		    FTAG, &os);
 		if (error == 0) {
 			uint64_t obj;
@@ -963,7 +963,7 @@ dsl_destroy_head(const char *name)
 				(void) dmu_free_long_object(os, obj);
 			/* sync out all frees */
 			txg_wait_synced(dmu_objset_pool(os), 0);
-			dmu_objset_disown(os, B_TRUE, FTAG);
+			dmu_objset_disown(os, B_FALSE, FTAG);
 		}
 	}
 

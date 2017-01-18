@@ -60,7 +60,7 @@ typedef struct dsl_crypto_params {
 	zfs_ioc_crypto_cmd_t cp_cmd;
 
 	/* the encryption algorithm */
-	uint64_t cp_crypt;
+	enum zio_encrypt cp_crypt;
 
 	/* the salt, if the keysource is of type passphrase */
 	uint64_t cp_salt;

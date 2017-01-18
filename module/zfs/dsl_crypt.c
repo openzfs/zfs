@@ -1257,19 +1257,21 @@ spa_keystore_rewrap(const char *dsname, dsl_crypto_params_t *dcp)
 }
 
 int
-dmu_objset_create_encryption_check(dsl_dir_t *pdd, dsl_crypto_params_t *dcp)
+dmu_objset_create_encryption_check(dsl_dir_t *parentdd,
+    dsl_crypto_params_t *dcp)
 {
 	int ret;
 	dsl_wrapping_key_t *wkey = NULL;
-	uint64_t cmd = 0, salt = 0, iters = 0;
+	uint64_t salt = 0, iters = 0;
+	zfs_ioc_crypto_cmd_t cmd = ZFS_IOC_KEY_CMD_NONE;
 	uint64_t pcrypt, crypt = ZIO_CRYPT_INHERIT;
 	const char *keysource = NULL;
 
-	if (!spa_feature_is_enabled(pdd->dd_pool->dp_spa,
+	if (!spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
 	    SPA_FEATURE_ENCRYPTION) && dcp)
 		return (SET_ERROR(EINVAL));
 
-	ret = dsl_prop_get_dd(pdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
+	ret = dsl_prop_get_dd(parentdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
 	    8, 1, &pcrypt, NULL, B_FALSE);
 	if (ret != 0)
 		return (ret);
@@ -1297,12 +1299,13 @@ dmu_objset_create_encryption_check(dsl_dir_t *pdd, dsl_crypto_params_t *dcp)
 		return (SET_ERROR(EINVAL));
 	if (keysource && strncmp(keysource, "passphrase", 10) == 0 &&
 	    (!salt || !iters))
+		return (SET_ERROR(EINVAL));
 	if (cmd)
 		return (SET_ERROR(EINVAL));
 
 	if (!wkey && pcrypt != ZIO_CRYPT_OFF) {
-		ret = spa_keystore_wkey_hold_ddobj(pdd->dd_pool->dp_spa,
-		    pdd->dd_object, FTAG, &wkey);
+		ret = spa_keystore_wkey_hold_ddobj(parentdd->dd_pool->dp_spa,
+		    parentdd->dd_object, FTAG, &wkey);
 		if (ret != 0)
 			return (SET_ERROR(EACCES));
 
@@ -1313,7 +1316,7 @@ dmu_objset_create_encryption_check(dsl_dir_t *pdd, dsl_crypto_params_t *dcp)
 }
 
 int
-dmu_objset_clone_encryption_check(dsl_dir_t *pdd, dsl_dir_t *odd,
+dmu_objset_clone_encryption_check(dsl_dir_t *parentdd, dsl_dir_t *origindd,
     dsl_crypto_params_t *dcp)
 {
 	int ret;
@@ -1322,17 +1325,17 @@ dmu_objset_clone_encryption_check(dsl_dir_t *pdd, dsl_dir_t *odd,
 	uint64_t pcrypt, ocrypt, crypt = ZIO_CRYPT_INHERIT;
 	const char *keysource = NULL;
 
-	if (!spa_feature_is_enabled(pdd->dd_pool->dp_spa,
+	if (!spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
 	    SPA_FEATURE_ENCRYPTION) && dcp)
 		return (SET_ERROR(EINVAL));
 
-	ret = dsl_prop_get_dd(pdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION), 8, 1,
-	    &pcrypt, NULL, B_FALSE);
+	ret = dsl_prop_get_dd(parentdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
+	    8, 1, &pcrypt, NULL, B_FALSE);
 	if (ret != 0)
 		return (ret);
 
-	ret = dsl_prop_get_dd(odd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION), 8, 1,
-	    &ocrypt, NULL, B_FALSE);
+	ret = dsl_prop_get_dd(origindd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
+	    8, 1, &ocrypt, NULL, B_FALSE);
 	if (ret != 0)
 		return (ret);
 
@@ -1358,8 +1361,8 @@ dmu_objset_clone_encryption_check(dsl_dir_t *pdd, dsl_dir_t *odd,
 
 	/* origin wrapping key must be present, if it is encrypted */
 	if (ocrypt != ZIO_CRYPT_OFF) {
-		ret = spa_keystore_wkey_hold_ddobj(pdd->dd_pool->dp_spa,
-		    odd->dd_object, FTAG, &wkey);
+		ret = spa_keystore_wkey_hold_ddobj(parentdd->dd_pool->dp_spa,
+		    origindd->dd_object, FTAG, &wkey);
 		if (ret != 0)
 			return (SET_ERROR(EACCES));
 
@@ -1368,8 +1371,8 @@ dmu_objset_clone_encryption_check(dsl_dir_t *pdd, dsl_dir_t *odd,
 
 	/* parent's wrapping key must be present if a new one isn't specified */
 	if (!wkey && pcrypt != ZIO_CRYPT_OFF) {
-		ret = spa_keystore_wkey_hold_ddobj(pdd->dd_pool->dp_spa,
-		    pdd->dd_object, FTAG, &wkey);
+		ret = spa_keystore_wkey_hold_ddobj(parentdd->dd_pool->dp_spa,
+		    parentdd->dd_object, FTAG, &wkey);
 		if (ret != 0)
 			return (SET_ERROR(EACCES));
 
