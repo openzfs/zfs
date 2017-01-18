@@ -613,6 +613,7 @@ send_traverse_thread(void *arg)
 	data->eos_marker = B_TRUE;
 	bqueue_enqueue(&st_arg->q, data, 1);
 	spl_fstrans_unmark(cookie);
+	thread_exit();
 }
 
 /*
@@ -2874,6 +2875,7 @@ receive_writer_thread(void *arg)
 	cv_signal(&rwa->cv);
 	mutex_exit(&rwa->mutex);
 	spl_fstrans_unmark(cookie);
+	thread_exit();
 }
 
 static int
