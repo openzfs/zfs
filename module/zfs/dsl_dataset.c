@@ -2137,8 +2137,7 @@ dsl_dataset_rename_snapshot(const char *fsname,
  * only one long hold on the dataset.  We're not allowed to change anything here
  * so we don't permanently release the long hold or regular hold here.  We want
  * to do this only when syncing to avoid the dataset unexpectedly going away
- * when we release the long hold.  Allow a long hold to exist for volumes, this
- * may occur when asynchronously registering the minor with the kernel.
+ * when we release the long hold.
  */
 static int
 dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
@@ -2153,7 +2152,7 @@ dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 		dsl_dataset_long_rele(ds, owner);
 	}
 
-	held = (dsl_dataset_long_held(ds) && (ds->ds_owner != zvol_tag));
+	held = dsl_dataset_long_held(ds);
 
 	if (owner != NULL)
 		dsl_dataset_long_hold(ds, owner);

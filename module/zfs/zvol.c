@@ -61,7 +61,6 @@ unsigned long zvol_max_discard_blocks = 16384;
 
 static kmutex_t zvol_state_lock;
 static list_t zvol_state_list;
-void *zvol_tag = "zvol_tag";
 
 #define	ZVOL_HT_SIZE	1024
 static struct hlist_head *zvol_htable;
@@ -977,7 +976,7 @@ zvol_setup_zv(zvol_state_t *zv)
 	if (error)
 		return (SET_ERROR(error));
 
-	error = dmu_bonus_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dbuf);
+	error = dmu_bonus_hold(os, ZVOL_OBJ, zv, &zv->zv_dbuf);
 	if (error)
 		return (SET_ERROR(error));
 
@@ -1006,7 +1005,7 @@ zvol_shutdown_zv(zvol_state_t *zv)
 	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
 
-	dmu_buf_rele(zv->zv_dbuf, zvol_tag);
+	dmu_buf_rele(zv->zv_dbuf, zv);
 	zv->zv_dbuf = NULL;
 
 	/*
@@ -1016,6 +1015,16 @@ zvol_shutdown_zv(zvol_state_t *zv)
 	    !(zv->zv_flags & ZVOL_RDONLY))
 		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 	(void) dmu_objset_evict_dbufs(zv->zv_objset);
+}
+
+/*
+ * return the proper tag for rollback and recv
+ */
+void *
+zvol_tag(zvol_state_t *zv)
+{
+	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
+	return (zv->zv_open_count > 0 ? zv : NULL);
 }
 
 /*
@@ -1050,10 +1059,10 @@ zvol_resume(zvol_state_t *zv)
 
 	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
 	if (zv->zv_open_count > 0) {
-		VERIFY0(dmu_objset_hold(zv->zv_name, zvol_tag, &zv->zv_objset));
-		VERIFY3P(zv->zv_objset->os_dsl_dataset->ds_owner, ==, zvol_tag);
+		VERIFY0(dmu_objset_hold(zv->zv_name, zv, &zv->zv_objset));
+		VERIFY3P(zv->zv_objset->os_dsl_dataset->ds_owner, ==, zv);
 		VERIFY(dsl_dataset_long_held(zv->zv_objset->os_dsl_dataset));
-		dmu_objset_rele(zv->zv_objset, zvol_tag);
+		dmu_objset_rele(zv->zv_objset, zv);
 
 		error = zvol_setup_zv(zv);
 	}
@@ -1076,7 +1085,7 @@ zvol_first_open(zvol_state_t *zv)
 	int error;
 
 	/* lie and say we're read-only */
-	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
+	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zv, &os);
 	if (error)
 		return (SET_ERROR(-error));
 
@@ -1085,7 +1094,7 @@ zvol_first_open(zvol_state_t *zv)
 	error = zvol_setup_zv(zv);
 
 	if (error) {
-		dmu_objset_disown(os, zvol_tag);
+		dmu_objset_disown(os, zv);
 		zv->zv_objset = NULL;
 	}
 
@@ -1097,7 +1106,7 @@ zvol_last_close(zvol_state_t *zv)
 {
 	zvol_shutdown_zv(zv);
 
-	dmu_objset_disown(zv->zv_objset, zvol_tag);
+	dmu_objset_disown(zv->zv_objset, zv);
 	zv->zv_objset = NULL;
 }
 
@@ -1478,7 +1487,7 @@ zvol_create_minor_impl(const char *name)
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
-	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
+	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, FTAG, &os);
 	if (error)
 		goto out_doi;
 
@@ -1544,7 +1553,7 @@ zvol_create_minor_impl(const char *name)
 
 	zv->zv_objset = NULL;
 out_dmu_objset_disown:
-	dmu_objset_disown(os, zvol_tag);
+	dmu_objset_disown(os, FTAG);
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
 out:
@@ -1617,11 +1626,11 @@ zvol_prefetch_minors_impl(void *arg)
 	char *dsname = job->name;
 	objset_t *os = NULL;
 
-	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, zvol_tag,
+	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, FTAG,
 	    &os);
 	if (job->error == 0) {
 		dmu_prefetch(os, ZVOL_OBJ, 0, 0, 0, ZIO_PRIORITY_SYNC_READ);
-		dmu_objset_disown(os, zvol_tag);
+		dmu_objset_disown(os, FTAG);
 	}
 }
 

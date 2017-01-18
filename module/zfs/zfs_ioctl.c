@@ -3647,7 +3647,7 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *args, nvlist_t *outnvl)
 		}
 		deactivate_super(zsb->z_sb);
 	} else if ((zv = zvol_suspend(fsname)) != NULL) {
-		error = dsl_dataset_rollback(fsname, NULL, outnvl);
+		error = dsl_dataset_rollback(fsname, zvol_tag(zv), outnvl);
 		zvol_resume(zv);
 	} else {
 		error = dsl_dataset_rollback(fsname, NULL, outnvl);
@@ -4253,7 +4253,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 			error = error ? error : end_err;
 			deactivate_super(zsb->z_sb);
 		} else if ((zv = zvol_suspend(tofs)) != NULL) {
-			error = dmu_recv_end(&drc, NULL);
+			error = dmu_recv_end(&drc, zvol_tag(zv));
 			zvol_resume(zv);
 		} else {
 			error = dmu_recv_end(&drc, NULL);
