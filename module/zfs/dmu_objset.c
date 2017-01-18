@@ -1035,11 +1035,11 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 	ret = dsl_sync_task(name,
 	    dmu_objset_create_check, dmu_objset_create_sync, &doca,
 	    5, ZFS_SPACE_CHECK_NORMAL);
-	if (ret)
+	if (ret != 0)
 		return (ret);
 
 	ret = dmu_objset_hold(name, FTAG, &os);
-	if (ret)
+	if (ret != 0)
 		return (ret);
 
 	/* See comment in dmu_objset_create_sync() for details */

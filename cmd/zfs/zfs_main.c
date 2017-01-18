@@ -6979,7 +6979,7 @@ zfs_do_key(int argc, char **argv)
 		}
 	}
 
-	if (ret) {
+	if (ret != 0) {
 		(void) fprintf(stderr,
 		    gettext("No action specified\n"));
 		usage(B_FALSE);
@@ -7016,7 +7016,7 @@ zfs_do_key(int argc, char **argv)
 	else
 		ret = zfs_crypto_rewrap(zhp, props);
 
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	nvlist_free(props);
@@ -7024,9 +7024,9 @@ zfs_do_key(int argc, char **argv)
 	return (0);
 
 error:
-	if (props)
+	if (props != NULL)
 		nvlist_free(props);
-	if (zhp)
+	if (zhp != NULL)
 		zfs_close(zhp);
 	return (-1);
 }

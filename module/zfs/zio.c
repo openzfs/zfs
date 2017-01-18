@@ -419,7 +419,7 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 	    bp->blk_birth, size, data, zio->io_abd, iv, mac, salt);
 	if (ret == ZIO_NO_ENCRYPTION_NEEDED) {
 		ASSERT3U(BP_GET_TYPE(bp), ==, DMU_OT_INTENT_LOG);
-	} else if (ret) {
+	} else if (ret != 0) {
 		zio->io_error = ret;
 	}
 }
@@ -3580,7 +3580,7 @@ zio_encrypt(zio_t *zio)
 	/* Perform the encryption. This should not fail */
 	ret = spa_do_crypt_abd(B_TRUE, spa, &zio->io_bookmark, bp,
 	    zio->io_txg, psize, zio->io_abd, eabd, iv, mac, salt);
-	if (ret) {
+	if (ret != 0) {
 		/*
 		 * Dnode blocks and ZIL blocks may not need encryption if there
 		 * is no private data in the blocks. We cannot disable

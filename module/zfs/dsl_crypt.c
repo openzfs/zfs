@@ -1,24 +1,18 @@
 /*
  * CDDL HEADER START
  *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * This file and its contents are supplied under the terms of the
+ * Common Development and Distribution License ("CDDL"), version 1.0.
+ * You may only use this file in accordance with the terms of version
+ * 1.0 of the CDDL.
  *
- * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
- * or http://www.opensolaris.org/os/licensing.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each
- * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
+ * A full copy of the text of the CDDL should have accompanied this
+ * source.  A copy of the CDDL is also available via the Internet at
+ * http://www.illumos.org/license/CDDL.
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2016, Datto, Inc. All rights reserved.
  */
@@ -160,29 +154,29 @@ dsl_crypto_params_create_nvlist(nvlist_t *props, nvlist_t *crypto_args,
 	uint_t wkeydata_len;
 
 	/* get relevant properties from the nvlist */
-	if (props) {
+	if (props != NULL) {
 		ret = nvlist_lookup_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), &crypt);
-		if (ret)
+		if (ret != 0)
 			crypt_exists = B_FALSE;
 
 		ret = nvlist_lookup_string(props,
 		    zfs_prop_to_name(ZFS_PROP_KEYSOURCE), &keysource);
-		if (ret)
+		if (ret != 0)
 			keysource_exists = B_FALSE;
 
 		ret = nvlist_lookup_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_SALT), &salt);
-		if (ret)
+		if (ret != 0)
 			salt_exists = B_FALSE;
 
 		ret = nvlist_lookup_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), &iters);
-		if (ret)
+		if (ret != 0)
 			iters_exists = B_FALSE;
 
 		ret = nvlist_lookup_uint64(props, "crypto_cmd", &cmd);
-		if (ret)
+		if (ret != 0)
 			cmd_exists = B_FALSE;
 	} else {
 		crypt_exists = B_FALSE;
@@ -192,10 +186,10 @@ dsl_crypto_params_create_nvlist(nvlist_t *props, nvlist_t *crypto_args,
 		cmd_exists = B_FALSE;
 	}
 
-	if (crypto_args) {
+	if (crypto_args != NULL) {
 		ret = nvlist_lookup_uint8_array(crypto_args, "wkeydata",
 		    &wkeydata, &wkeydata_len);
-		if (ret)
+		if (ret != 0)
 			wkeydata_exists = B_FALSE;
 	} else {
 		wkeydata_exists = B_FALSE;
@@ -236,11 +230,11 @@ dsl_crypto_params_create_nvlist(nvlist_t *props, nvlist_t *crypto_args,
 
 		ret = nvlist_remove_all(props,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION));
-		if (ret)
+		if (ret != 0)
 			goto error;
 		ret = nvlist_add_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), crypt);
-		if (ret)
+		if (ret != 0)
 			goto error;
 	}
 
@@ -248,7 +242,7 @@ dsl_crypto_params_create_nvlist(nvlist_t *props, nvlist_t *crypto_args,
 	if (wkeydata_exists) {
 		/* create the wrapping key with the verified parameters */
 		ret = dsl_wrapping_key_create(wkeydata, &wkey);
-		if (ret)
+		if (ret != 0)
 			goto error;
 	}
 
@@ -263,9 +257,9 @@ dsl_crypto_params_create_nvlist(nvlist_t *props, nvlist_t *crypto_args,
 	return (0);
 
 error:
-	if (wkey)
+	if (wkey != NULL)
 		dsl_wrapping_key_free(wkey);
-	if (dcp)
+	if (dcp != NULL)
 		kmem_free(dcp, sizeof (dsl_crypto_params_t));
 
 	*dcp_out = NULL;
@@ -275,7 +269,7 @@ error:
 void
 dsl_crypto_params_free(dsl_crypto_params_t *dcp, boolean_t unload)
 {
-	if (!dcp)
+	if (dcp == NULL)
 		return;
 
 	if (unload)
@@ -373,12 +367,12 @@ dsl_dir_hold_keysource_source_dd(dsl_dir_t *dd, void *tag,
 	 */
 	ret = dsl_prop_get_dd(dd, zfs_prop_to_name(ZFS_PROP_KEYSOURCE),
 	    1, sizeof (keysource), keysource, setpoint, B_FALSE);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* hold the dsl dir that we inherited the property from */
 	ret = dsl_dir_hold(dd->dd_pool, setpoint, tag, &inherit_dd, NULL);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	*inherit_dd_out = inherit_dd;
@@ -402,7 +396,7 @@ dsl_dataset_keystore_keystatus(dsl_dataset_t *ds)
 	/* lookup the wkey. if it doesn't exist the key is unavailable */
 	ret = spa_keystore_wkey_hold_ddobj(ds->ds_dir->dd_pool->dp_spa,
 	    ds->ds_dir->dd_object, FTAG, &wkey);
-	if (ret)
+	if (ret != 0)
 		return (ZFS_KEYSTATUS_UNAVAILABLE);
 
 	dsl_wrapping_key_rele(wkey, FTAG);
@@ -475,18 +469,18 @@ spa_keystore_wkey_hold_ddobj(spa_t *spa, uint64_t ddobj, void *tag,
 
 	/* hold the dsl dir */
 	ret = dsl_dir_hold_obj(dp, ddobj, NULL, FTAG, &dd);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* get the dd that the keysource property was inherited from */
 	ret = dsl_dir_hold_keysource_source_dd(dd, FTAG, &inherit_dd);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* lookup the wkey in the avl tree */
 	ret = spa_keystore_wkey_hold_ddobj_impl(spa, inherit_dd->dd_object,
 	    tag, &wkey);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* unlock the wkey tree if we locked it */
@@ -502,9 +496,9 @@ spa_keystore_wkey_hold_ddobj(spa_t *spa, uint64_t ddobj, void *tag,
 error:
 	if (locked)
 		rw_exit(&spa->spa_keystore.sk_wkeys_lock);
-	if (inherit_dd)
+	if (inherit_dd != NULL)
 		dsl_dir_rele(inherit_dd, FTAG);
-	if (dd)
+	if (dd != NULL)
 		dsl_dir_rele(dd, FTAG);
 
 	*wkey_out = NULL;
@@ -554,27 +548,27 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 
 	/* fetch all of the values we need from the ZAP */
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_CRYPT, 8, 1, &crypt);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_MASTER_BUF, 1,
 	    MAX_MASTER_KEY_LEN, raw_keydata);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_HMAC_KEY_BUF, 1,
 	    HMAC_SHA256_KEYLEN, raw_hmac_keydata);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_IV, 1, WRAPPING_IV_LEN,
 	    iv);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_MAC, 1, WRAPPING_MAC_LEN,
 	    mac);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/*
@@ -583,7 +577,7 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 	 */
 	ret = zio_crypt_key_unwrap(&wkey->wk_key, crypt, raw_keydata,
 	    raw_hmac_keydata, iv, mac, &dck->dck_key);
-	if (ret) {
+	if (ret != 0) {
 		ret = SET_ERROR(EACCES);
 		goto error;
 	}
@@ -599,7 +593,7 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 	return (0);
 
 error:
-	if (dck) {
+	if (dck != NULL) {
 		bzero(dck, sizeof (dsl_crypto_key_t));
 		kmem_free(dck, sizeof (dsl_crypto_key_t));
 	}
@@ -670,7 +664,7 @@ spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, void *tag,
 
 	/* lookup the wrapping key from the keystore */
 	ret = spa_keystore_wkey_hold_ddobj(spa, dd->dd_object, FTAG, &wkey);
-	if (ret) {
+	if (ret != 0) {
 		ret = SET_ERROR(EACCES);
 		goto error_unlock;
 	}
@@ -678,7 +672,7 @@ spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, void *tag,
 	/* read the key from disk */
 	ret = dsl_crypto_key_open(spa_get_dsl(spa)->dp_meta_objset, wkey,
 	    dckobj, tag, &dck);
-	if (ret)
+	if (ret != 0)
 		goto error_unlock;
 
 	/*
@@ -698,7 +692,7 @@ spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, void *tag,
 
 error_unlock:
 	rw_exit(&spa->spa_keystore.sk_dk_lock);
-	if (wkey)
+	if (wkey != NULL)
 		dsl_wrapping_key_rele(wkey, FTAG);
 
 	*dck_out = NULL;
@@ -729,7 +723,7 @@ spa_keystore_load_wkey_impl(spa_t *spa, dsl_wrapping_key_t *wkey)
 
 	/* insert the wrapping key into the keystore */
 	found_wkey = avl_find(&spa->spa_keystore.sk_wkeys, wkey, &where);
-	if (found_wkey) {
+	if (found_wkey != NULL) {
 		ret = SET_ERROR(EEXIST);
 		goto error_unlock;
 	}
@@ -760,12 +754,12 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp)
 		return (SET_ERROR(EINVAL));
 
 	ret = dsl_pool_hold(dsname, FTAG, &dp);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* hold the dsl dir */
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* initialize the wkey's ddobj */
@@ -774,12 +768,12 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp)
 	/* verify that the wkey is correct by opening its dsl key */
 	ret = dsl_crypto_key_open(dp->dp_meta_objset, wkey,
 	    dd->dd_crypto_obj, FTAG, &dck);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* insert the wrapping key into the keystore */
 	ret = spa_keystore_load_wkey_impl(dp->dp_spa, wkey);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	dsl_crypto_key_rele(dck, FTAG);
@@ -792,11 +786,11 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp)
 	return (0);
 
 error:
-	if (dck)
+	if (dck != NULL)
 		dsl_crypto_key_rele(dck, FTAG);
-	if (dd)
+	if (dd != NULL)
 		dsl_dir_rele(dd, FTAG);
-	if (dp)
+	if (dp != NULL)
 		dsl_pool_rele(dp, FTAG);
 
 	return (ret);
@@ -847,16 +841,16 @@ spa_keystore_unload_wkey(const char *dsname)
 
 	/* hold the dsl dir */
 	ret = dsl_pool_hold(dsname, FTAG, &dp);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	/* unload the wkey */
 	ret = spa_keystore_unload_wkey_impl(dp->dp_spa, dd->dd_object);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	dsl_dir_rele(dd, FTAG);
@@ -868,9 +862,9 @@ spa_keystore_unload_wkey(const char *dsname)
 	return (0);
 
 error:
-	if (dd)
+	if (dd != NULL)
 		dsl_dir_rele(dd, FTAG);
-	if (dp)
+	if (dp != NULL)
 		dsl_pool_rele(dp, FTAG);
 
 	return (ret);
@@ -894,7 +888,7 @@ spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag)
 
 	ret = spa_keystore_dsl_key_hold_dd(spa, ds->ds_dir, km,
 	    &km->km_key);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	km->km_dsobj = ds->ds_object;
@@ -910,7 +904,7 @@ spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag)
 	 * are times when there could be multiple async users.
 	 */
 	found_km = avl_find(&spa->spa_keystore.sk_key_mappings, km, &where);
-	if (found_km) {
+	if (found_km != NULL) {
 		should_free = B_TRUE;
 		refcount_add(&found_km->km_refcnt, tag);
 	} else {
@@ -1021,14 +1015,14 @@ spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
 
 	rw_exit(&spa->spa_keystore.sk_km_lock);
 
-	if (dck_out)
+	if (dck_out != NULL)
 		*dck_out = found_km->km_key;
 	return (0);
 
 error_unlock:
 	rw_exit(&spa->spa_keystore.sk_km_lock);
 
-	if (dck_out)
+	if (dck_out != NULL)
 		*dck_out = NULL;
 	return (ret);
 }
@@ -1094,7 +1088,7 @@ spa_keystore_rewrap_check(void *arg, dmu_tx_t *tx)
 
 	/* hold the dd */
 	ret = dsl_dir_hold(dp, skra->skra_dsname, FTAG, &dd, NULL);
-	if (ret)
+	if (ret != 0)
 		return (ret);
 
 	/* check that this dd has a dsl key */
@@ -1105,7 +1099,7 @@ spa_keystore_rewrap_check(void *arg, dmu_tx_t *tx)
 
 	/* make sure the dsl key is loaded / loadable */
 	ret = spa_keystore_dsl_key_hold_dd(dp->dp_spa, dd, FTAG, &dck);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	ASSERT(dck->dck_wkey != NULL);
@@ -1116,7 +1110,7 @@ spa_keystore_rewrap_check(void *arg, dmu_tx_t *tx)
 	return (0);
 
 error:
-	if (dck)
+	if (dck != NULL)
 		spa_keystore_dsl_key_rele(dp->dp_spa, dck, FTAG);
 	dsl_dir_rele(dd, FTAG);
 
@@ -1199,7 +1193,7 @@ spa_keystore_rewrap_sync(void *arg, dmu_tx_t *tx)
 	ASSERT(!ds->ds_is_snapshot);
 
 	/* set additional properties which can be sent along with this ioctl */
-	if (keysource)
+	if (keysource != NULL)
 		dsl_prop_set_sync_impl(ds,
 		    zfs_prop_to_name(ZFS_PROP_KEYSOURCE), ZPROP_SRC_LOCAL,
 		    1, strlen(keysource) + 1, keysource, tx);
@@ -1234,7 +1228,7 @@ spa_keystore_rewrap_sync(void *arg, dmu_tx_t *tx)
 	 * existed). Replace the wrapping key.
 	 */
 	found_wkey = avl_find(&spa->spa_keystore.sk_wkeys, wkey, NULL);
-	if (found_wkey) {
+	if (found_wkey != NULL) {
 		ASSERT0(refcount_count(&found_wkey->wk_refcnt));
 		avl_remove(&spa->spa_keystore.sk_wkeys, found_wkey);
 		dsl_wrapping_key_free(found_wkey);
@@ -1277,10 +1271,10 @@ dmu_objset_create_encryption_check(dsl_dir_t *pdd, dsl_crypto_params_t *dcp)
 
 	ret = dsl_prop_get_dd(pdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
 	    8, 1, &pcrypt, NULL, B_FALSE);
-	if (ret)
+	if (ret != 0)
 		return (ret);
 
-	if (dcp) {
+	if (dcp != NULL) {
 		crypt = dcp->cp_crypt;
 		wkey = dcp->cp_wkey;
 		salt = dcp->cp_salt;
@@ -1309,7 +1303,7 @@ dmu_objset_create_encryption_check(dsl_dir_t *pdd, dsl_crypto_params_t *dcp)
 	if (!wkey && pcrypt != ZIO_CRYPT_OFF) {
 		ret = spa_keystore_wkey_hold_ddobj(pdd->dd_pool->dp_spa,
 		    pdd->dd_object, FTAG, &wkey);
-		if (ret)
+		if (ret != 0)
 			return (SET_ERROR(EACCES));
 
 		dsl_wrapping_key_rele(wkey, FTAG);
@@ -1334,15 +1328,15 @@ dmu_objset_clone_encryption_check(dsl_dir_t *pdd, dsl_dir_t *odd,
 
 	ret = dsl_prop_get_dd(pdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION), 8, 1,
 	    &pcrypt, NULL, B_FALSE);
-	if (ret)
+	if (ret != 0)
 		return (ret);
 
 	ret = dsl_prop_get_dd(odd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION), 8, 1,
 	    &ocrypt, NULL, B_FALSE);
-	if (ret)
+	if (ret != 0)
 		return (ret);
 
-	if (dcp) {
+	if (dcp != NULL) {
 		crypt = dcp->cp_crypt;
 		wkey = dcp->cp_wkey;
 		salt = dcp->cp_salt;
@@ -1366,7 +1360,7 @@ dmu_objset_clone_encryption_check(dsl_dir_t *pdd, dsl_dir_t *odd,
 	if (ocrypt != ZIO_CRYPT_OFF) {
 		ret = spa_keystore_wkey_hold_ddobj(pdd->dd_pool->dp_spa,
 		    odd->dd_object, FTAG, &wkey);
-		if (ret)
+		if (ret != 0)
 			return (SET_ERROR(EACCES));
 
 		dsl_wrapping_key_rele(wkey, FTAG);
@@ -1376,7 +1370,7 @@ dmu_objset_clone_encryption_check(dsl_dir_t *pdd, dsl_dir_t *odd,
 	if (!wkey && pcrypt != ZIO_CRYPT_OFF) {
 		ret = spa_keystore_wkey_hold_ddobj(pdd->dd_pool->dp_spa,
 		    pdd->dd_object, FTAG, &wkey);
-		if (ret)
+		if (ret != 0)
 			return (SET_ERROR(EACCES));
 
 		dsl_wrapping_key_rele(wkey, FTAG);
@@ -1477,13 +1471,13 @@ spa_crypt_get_salt(spa_t *spa, uint64_t dsobj, uint8_t *salt)
 
 	/* look up the key from the spa's keystore */
 	ret = spa_keystore_lookup_key(spa, dsobj, NULL, &dck);
-	if (ret) {
+	if (ret != 0) {
 		ret = SET_ERROR(EACCES);
 		goto error;
 	}
 
 	ret = zio_crypt_key_get_salt(&dck->dck_key, salt);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	return (0);
@@ -1514,7 +1508,7 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, zbookmark_phys_t *zb,
 
 	/* look up the key from the spa's keystore */
 	ret = spa_keystore_lookup_key(spa, zb->zb_objset, NULL, &dck);
-	if (ret) {
+	if (ret != 0) {
 		ret = SET_ERROR(EACCES);
 		goto error;
 	}
@@ -1538,23 +1532,23 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, zbookmark_phys_t *zb,
 	 */
 	if (encrypt && ot != DMU_OT_INTENT_LOG && !BP_GET_DEDUP(bp)) {
 		ret = zio_crypt_key_get_salt(&dck->dck_key, salt);
-		if (ret)
+		if (ret != 0)
 			goto error;
 
 		ret = zio_crypt_generate_iv(iv);
-		if (ret)
+		if (ret != 0)
 			goto error;
 	} else if (encrypt && BP_GET_DEDUP(bp)) {
 		ret = zio_crypt_generate_iv_salt_dedup(&dck->dck_key,
 		    plainbuf, datalen, iv, salt);
-		if (ret)
+		if (ret != 0)
 			goto error;
 	}
 
 	/* call lower level function to perform encryption / decryption */
 	ret = zio_do_crypt_data(encrypt, &dck->dck_key, salt, ot, iv, mac,
 	    datalen, plainbuf, cipherbuf);
-	if (ret)
+	if (ret != 0)
 		goto error;
 
 	if (encrypt) {
@@ -1576,9 +1570,9 @@ error:
 		    ZIL_MAC_LEN : DATA_MAC_LEN);
 	}
 
-	if (plainbuf)
+	if (plainbuf != NULL)
 		abd_return_buf(pabd, plainbuf, datalen);
-	if (cipherbuf)
+	if (cipherbuf != NULL)
 		abd_return_buf(cabd, cipherbuf, datalen);
 
 	return (ret);

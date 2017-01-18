@@ -245,7 +245,8 @@ dsl_dataset_phys(dsl_dataset_t *ds)
 #define	DS_UNIQUE_IS_ACCURATE(ds)	\
 	((dsl_dataset_phys(ds)->ds_flags & DS_FLAG_UNIQUE_ACCURATE) != 0)
 
-#define	DS_HOLD_FLAG_DECRYPT	(1 << 0)
+/* flags for holding the dataset */
+#define	DS_HOLD_FLAG_DECRYPT	(1 << 0) /* needs access encrypted data */
 
 int dsl_dataset_hold(struct dsl_pool *dp, const char *name, void *tag,
     dsl_dataset_t **dsp);

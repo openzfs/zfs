@@ -1780,7 +1780,7 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, spa_t *spa,
 	ASSERT(HDR_HAS_RABD(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, ==, NULL);
 
-	if (hash_lock)
+	if (hash_lock != NULL)
 		mutex_enter(hash_lock);
 
 	arc_hdr_alloc_abd(hdr, B_FALSE);
@@ -1795,7 +1795,7 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, spa_t *spa,
 	 * won't be accessible via that dsobj anymore.
 	 */
 	ret = spa_keystore_lookup_key(spa, dsobj, FTAG, &dck);
-	if (ret) {
+	if (ret != 0) {
 		ret = SET_ERROR(EACCES);
 		goto error;
 	}
@@ -1822,7 +1822,7 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, spa_t *spa,
 		ret = zio_decompress_data(HDR_GET_COMPRESS(hdr),
 		    hdr->b_l1hdr.b_pabd, tmp, HDR_GET_PSIZE(hdr),
 		    HDR_GET_LSIZE(hdr));
-		if (ret) {
+		if (ret != 0) {
 			abd_return_buf(cabd, tmp, arc_hdr_size(hdr));
 			goto error;
 		}
@@ -1835,18 +1835,18 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, spa_t *spa,
 
 	spa_keystore_dsl_key_rele(spa, dck, FTAG);
 
-	if (hash_lock)
+	if (hash_lock != NULL)
 		mutex_exit(hash_lock);
 
 	return (0);
 
 error:
 	arc_hdr_free_abd(hdr, B_FALSE);
-	if (dck)
+	if (dck != NULL)
 		spa_keystore_dsl_key_rele(spa, dck, FTAG);
-	if (cabd)
+	if (cabd != NULL)
 		arc_free_data_buf(hdr, cabd, arc_hdr_size(hdr), hdr);
-	if (hash_lock)
+	if (hash_lock != NULL)
 		mutex_exit(hash_lock);
 	return (ret);
 }
@@ -1900,7 +1900,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, uint64_t dsobj, arc_fill_flags_t flags)
 		 * to store the decrypted version in the header for future use.
 		 */
 		error = arc_hdr_decrypt(hdr, hash_lock, spa, dsobj);
-		if (error)
+		if (error != 0)
 			return (error);
 	}
 
@@ -1926,7 +1926,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, uint64_t dsobj, arc_fill_flags_t flags)
 			buf->b_flags &= ~ARC_BUF_FLAG_ENCRYPTED;
 			buf->b_flags &= ~ARC_BUF_FLAG_COMPRESSED;
 
-			if (hash_lock) {
+			if (hash_lock != NULL) {
 				mutex_enter(hash_lock);
 				hdr->b_crypt_hdr.b_ebufcnt -= 1;
 				mutex_exit(hash_lock);
@@ -7812,14 +7812,14 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, abd_t **abd_out,
 		 */
 		ret = spa_keystore_lookup_key(spa, hdr->b_crypt_hdr.b_dsobj,
 		    FTAG, &dck);
-		if (ret)
+		if (ret != 0)
 			goto error;
 
 		ret = zio_do_crypt_abd(B_TRUE, &dck->dck_key,
 		    hdr->b_crypt_hdr.b_salt, hdr->b_crypt_hdr.b_ot,
 		    hdr->b_crypt_hdr.b_iv, hdr->b_crypt_hdr.b_mac,
 		    csize, to_write, eabd);
-		if (ret)
+		if (ret != 0)
 			goto error;
 
 		spa_keystore_dsl_key_rele(spa, dck, FTAG);
@@ -7838,11 +7838,11 @@ out:
 	return (0);
 
 error:
-	if (dck)
+	if (dck != NULL)
 		spa_keystore_dsl_key_rele(spa, dck, FTAG);
-	if (cabd)
+	if (cabd != NULL)
 		abd_free(cabd);
-	if (eabd)
+	if (eabd != NULL)
 		abd_free(eabd);
 
 	*bsize_out = 0;
@@ -7988,7 +7988,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 
 				ret = l2arc_apply_transforms(spa, hdr,
 				    &to_write, &bsize, &csize);
-				if (ret) {
+				if (ret != 0) {
 					arc_hdr_clear_flags(hdr,
 					    ARC_FLAG_L2_WRITING);
 					mutex_exit(hash_lock);
