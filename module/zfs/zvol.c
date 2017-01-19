@@ -61,7 +61,6 @@ unsigned long zvol_max_discard_blocks = 16384;
 
 static kmutex_t zvol_state_lock;
 static list_t zvol_state_list;
-void *zvol_tag = "zvol_tag";
 
 #define	ZVOL_HT_SIZE	1024
 static struct hlist_head *zvol_htable;
@@ -71,7 +70,7 @@ static DEFINE_IDA(zvol_ida);
 /*
  * The in-core state of each volume.
  */
-typedef struct zvol_state {
+struct zvol_state {
 	char			zv_name[MAXNAMELEN];	/* name */
 	uint64_t		zv_volsize;		/* advertised space */
 	uint64_t		zv_volblocksize;	/* volume block size */
@@ -88,7 +87,9 @@ typedef struct zvol_state {
 	list_node_t		zv_next;	/* next zvol_state_t linkage */
 	uint64_t		zv_hash;	/* name hash */
 	struct hlist_node	zv_hlink;	/* hash link */
-} zvol_state_t;
+	atomic_t		zv_suspend_ref;	/* refcount for suspend */
+	krwlock_t		zv_suspend_lock;	/* suspend lock */
+};
 
 typedef enum {
 	ZVOL_ASYNC_CREATE_MINORS,
@@ -373,6 +374,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		if (zv != NULL)
 			zv->zv_objset = os;
 	} else {
+		rw_enter(&zv->zv_suspend_lock, RW_READER);
 		os = zv->zv_objset;
 	}
 
@@ -392,6 +394,8 @@ out:
 		dmu_objset_disown(os, FTAG);
 		if (zv != NULL)
 			zv->zv_objset = NULL;
+	} else {
+		rw_exit(&zv->zv_suspend_lock);
 	}
 	mutex_exit(&zvol_state_lock);
 	return (error);
@@ -457,6 +461,8 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 		goto out;
 	}
 
+	rw_enter(&zv->zv_suspend_lock, RW_READER);
+
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_hold_bonus(tx, ZVOL_OBJ);
 	error = dmu_tx_assign(tx, TXG_WAIT);
@@ -471,6 +477,7 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 		if (error == 0)
 			zv->zv_volblocksize = volblocksize;
 	}
+	rw_exit(&zv->zv_suspend_lock);
 out:
 	mutex_exit(&zvol_state_lock);
 
@@ -785,6 +792,8 @@ zvol_request(struct request_queue *q, struct bio *bio)
 #endif
 	int error = 0;
 
+	rw_enter(&zv->zv_suspend_lock, RW_READER);
+
 	uio.uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
 	uio.uio_skip = BIO_BI_SKIP(bio);
 	uio.uio_resid = BIO_BI_SIZE(bio);
@@ -836,6 +845,7 @@ out2:
 	generic_end_io_acct(rw, &zv->zv_disk->part0, start);
 out1:
 	BIO_END_IO(bio, -error);
+	rw_exit(&zv->zv_suspend_lock);
 	spl_fstrans_unmark(cookie);
 #ifdef HAVE_MAKE_REQUEST_FN_RET_INT
 	return (0);
@@ -947,32 +957,28 @@ zvol_remove(zvol_state_t *zv)
 	hlist_del(&zv->zv_hlink);
 }
 
+/*
+ * Setup zv after we just own the zv->objset
+ */
 static int
-zvol_first_open(zvol_state_t *zv)
+zvol_setup_zv(zvol_state_t *zv)
 {
-	objset_t *os;
 	uint64_t volsize;
 	int error;
 	uint64_t ro;
-
-	/* lie and say we're read-only */
-	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
-	if (error)
-		return (SET_ERROR(-error));
-
-	zv->zv_objset = os;
+	objset_t *os = zv->zv_objset;
 
 	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
 	if (error)
-		goto out_owned;
+		return (SET_ERROR(error));
 
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
 	if (error)
-		goto out_owned;
+		return (SET_ERROR(error));
 
-	error = dmu_bonus_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dbuf);
+	error = dmu_bonus_hold(os, ZVOL_OBJ, zv, &zv->zv_dbuf);
 	if (error)
-		goto out_owned;
+		return (SET_ERROR(error));
 
 	set_capacity(zv->zv_disk, volsize >> 9);
 	zv->zv_volsize = volsize;
@@ -986,23 +992,20 @@ zvol_first_open(zvol_state_t *zv)
 		set_disk_ro(zv->zv_disk, 0);
 		zv->zv_flags &= ~ZVOL_RDONLY;
 	}
-
-out_owned:
-	if (error) {
-		dmu_objset_disown(os, zvol_tag);
-		zv->zv_objset = NULL;
-	}
-
-	return (SET_ERROR(-error));
+	return (0);
 }
 
+/*
+ * Shutdown every zv_objset related stuff except zv_objset itself.
+ * The is the reverse of zvol_setup_zv.
+ */
 static void
-zvol_last_close(zvol_state_t *zv)
+zvol_shutdown_zv(zvol_state_t *zv)
 {
 	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
 
-	dmu_buf_rele(zv->zv_dbuf, zvol_tag);
+	dmu_buf_rele(zv->zv_dbuf, zv);
 	zv->zv_dbuf = NULL;
 
 	/*
@@ -1012,8 +1015,98 @@ zvol_last_close(zvol_state_t *zv)
 	    !(zv->zv_flags & ZVOL_RDONLY))
 		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 	(void) dmu_objset_evict_dbufs(zv->zv_objset);
+}
 
-	dmu_objset_disown(zv->zv_objset, zvol_tag);
+/*
+ * return the proper tag for rollback and recv
+ */
+void *
+zvol_tag(zvol_state_t *zv)
+{
+	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
+	return (zv->zv_open_count > 0 ? zv : NULL);
+}
+
+/*
+ * Suspend the zvol for recv and rollback.
+ */
+zvol_state_t *
+zvol_suspend(const char *name)
+{
+	zvol_state_t *zv;
+
+	mutex_enter(&zvol_state_lock);
+	zv = zvol_find_by_name(name);
+	if (zv == NULL)
+		goto out;
+
+	/* block all I/O, release in zvol_resume. */
+	rw_enter(&zv->zv_suspend_lock, RW_WRITER);
+
+	atomic_inc(&zv->zv_suspend_ref);
+
+	if (zv->zv_open_count > 0)
+		zvol_shutdown_zv(zv);
+out:
+	mutex_exit(&zvol_state_lock);
+	return (zv);
+}
+
+int
+zvol_resume(zvol_state_t *zv)
+{
+	int error = 0;
+
+	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
+	if (zv->zv_open_count > 0) {
+		VERIFY0(dmu_objset_hold(zv->zv_name, zv, &zv->zv_objset));
+		VERIFY3P(zv->zv_objset->os_dsl_dataset->ds_owner, ==, zv);
+		VERIFY(dsl_dataset_long_held(zv->zv_objset->os_dsl_dataset));
+		dmu_objset_rele(zv->zv_objset, zv);
+
+		error = zvol_setup_zv(zv);
+	}
+	rw_exit(&zv->zv_suspend_lock);
+	/*
+	 * We need this because we don't hold zvol_state_lock while releasing
+	 * zv_suspend_lock. zvol_remove_minors_impl thus cannot check
+	 * zv_suspend_lock to determine it is safe to free because rwlock is
+	 * not inherent atomic.
+	 */
+	atomic_dec(&zv->zv_suspend_ref);
+
+	return (SET_ERROR(error));
+}
+
+static int
+zvol_first_open(zvol_state_t *zv)
+{
+	objset_t *os;
+	int error;
+
+	/* lie and say we're read-only */
+	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zv, &os);
+	if (error)
+		return (SET_ERROR(-error));
+
+	zv->zv_objset = os;
+
+	error = zvol_setup_zv(zv);
+
+	if (error) {
+		dmu_objset_disown(os, zv);
+		zv->zv_objset = NULL;
+	}
+
+	return (SET_ERROR(-error));
+}
+
+static void
+zvol_last_close(zvol_state_t *zv)
+{
+	zvol_shutdown_zv(zv);
+
+	dmu_objset_disown(zv->zv_objset, zv);
 	zv->zv_objset = NULL;
 }
 
@@ -1021,7 +1114,7 @@ static int
 zvol_open(struct block_device *bdev, fmode_t flag)
 {
 	zvol_state_t *zv;
-	int error = 0, drop_mutex = 0;
+	int error = 0, drop_mutex = 0, drop_suspend = 0;
 
 	/*
 	 * If the caller is already holding the mutex do not take it
@@ -1047,6 +1140,10 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	}
 
 	if (zv->zv_open_count == 0) {
+		/* make sure zvol is not suspended when first open */
+		rw_enter(&zv->zv_suspend_lock, RW_READER);
+		drop_suspend = 1;
+
 		error = zvol_first_open(zv);
 		if (error)
 			goto out_mutex;
@@ -1064,8 +1161,9 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 out_open_count:
 	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
-
 out_mutex:
+	if (drop_suspend)
+		rw_exit(&zv->zv_suspend_lock);
 	if (drop_mutex)
 		mutex_exit(&zvol_state_lock);
 
@@ -1089,9 +1187,15 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 		drop_mutex = 1;
 	}
 
+	/* make sure zvol is not suspended when last close */
+	if (zv->zv_open_count == 1)
+		rw_enter(&zv->zv_suspend_lock, RW_READER);
+
 	zv->zv_open_count--;
-	if (zv->zv_open_count == 0)
+	if (zv->zv_open_count == 0) {
 		zvol_last_close(zv);
+		rw_exit(&zv->zv_suspend_lock);
+	}
 
 	if (drop_mutex)
 		mutex_exit(&zvol_state_lock);
@@ -1110,6 +1214,7 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 
 	ASSERT(zv && zv->zv_open_count > 0);
 
+	rw_enter(&zv->zv_suspend_lock, RW_READER);
 	switch (cmd) {
 	case BLKFLSBUF:
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -1121,8 +1226,8 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 	default:
 		error = -ENOTTY;
 		break;
-
 	}
+	rw_exit(&zv->zv_suspend_lock);
 
 	return (SET_ERROR(error));
 }
@@ -1296,6 +1401,7 @@ zvol_alloc(dev_t dev, const char *name)
 	strlcpy(zv->zv_name, name, MAXNAMELEN);
 
 	zfs_rlock_init(&zv->zv_range_lock);
+	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 
 	zv->zv_disk->major = zvol_major;
 	zv->zv_disk->first_minor = (dev & MINORMASK);
@@ -1325,6 +1431,7 @@ zvol_free_impl(void *arg)
 	zvol_state_t *zv = arg;
 	ASSERT(zv->zv_open_count == 0);
 
+	rw_destroy(&zv->zv_suspend_lock);
 	zfs_rlock_destroy(&zv->zv_range_lock);
 
 	zv->zv_disk->private_data = NULL;
@@ -1380,7 +1487,7 @@ zvol_create_minor_impl(const char *name)
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
-	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
+	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, FTAG, &os);
 	if (error)
 		goto out_doi;
 
@@ -1446,7 +1553,7 @@ zvol_create_minor_impl(const char *name)
 
 	zv->zv_objset = NULL;
 out_dmu_objset_disown:
-	dmu_objset_disown(os, zvol_tag);
+	dmu_objset_disown(os, FTAG);
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
 out:
@@ -1479,7 +1586,14 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 
 	ASSERT(MUTEX_HELD(&zvol_state_lock));
 
+	rw_enter(&zv->zv_suspend_lock, RW_READER);
 	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
+	rw_exit(&zv->zv_suspend_lock);
+
+	/* move to new hashtable entry  */
+	zv->zv_hash = zvol_name_hash(zv->zv_name);
+	hlist_del(&zv->zv_hlink);
+	hlist_add_head(&zv->zv_hlink, ZVOL_HT_HEAD(zv->zv_hash));
 
 	/*
 	 * The block device's read-only state is briefly changed causing
@@ -1512,11 +1626,11 @@ zvol_prefetch_minors_impl(void *arg)
 	char *dsname = job->name;
 	objset_t *os = NULL;
 
-	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, zvol_tag,
+	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, FTAG,
 	    &os);
 	if (job->error == 0) {
 		dmu_prefetch(os, ZVOL_OBJ, 0, 0, 0, ZIO_PRIORITY_SYNC_READ);
-		dmu_objset_disown(os, zvol_tag);
+		dmu_objset_disown(os, FTAG);
 	}
 }
 
@@ -1718,7 +1832,8 @@ zvol_remove_minors_impl(const char *name)
 		    zv->zv_name[namelen] == '@'))) {
 
 			/* If in use, leave alone */
-			if (zv->zv_open_count > 0)
+			if (zv->zv_open_count > 0 ||
+			    atomic_read(&zv->zv_suspend_ref))
 				continue;
 
 			zvol_remove(zv);
@@ -1759,7 +1874,8 @@ zvol_remove_minor_impl(const char *name)
 
 		if (strcmp(zv->zv_name, name) == 0) {
 			/* If in use, leave alone */
-			if (zv->zv_open_count > 0)
+			if (zv->zv_open_count > 0 ||
+			    atomic_read(&zv->zv_suspend_ref))
 				continue;
 			zvol_remove(zv);
 			zvol_free(zv);
