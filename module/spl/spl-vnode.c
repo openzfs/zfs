@@ -63,9 +63,6 @@ vn_mode_to_vtype(mode_t mode)
 	if (S_ISSOCK(mode))
 		return VSOCK;
 
-	if (S_ISCHR(mode))
-		return VCHR;
-
 	return VNON;
 } /* vn_mode_to_vtype() */
 EXPORT_SYMBOL(vn_mode_to_vtype);
