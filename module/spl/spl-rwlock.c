@@ -35,11 +35,15 @@
 #if defined(CONFIG_PREEMPT_RT_FULL)
 
 #include <linux/rtmutex.h>
+#define	RT_MUTEX_OWNER_MASKALL	1UL
 
 static int
 __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 {
-	ASSERT(rt_mutex_owner(&rwsem->lock) == current);
+
+	ASSERT((struct task_struct *)
+	    ((unsigned long)rwsem->lock.owner & ~RT_MUTEX_OWNER_MASKALL) ==
+	    current);
 
 	/*
 	 * Under the realtime patch series, rwsem is implemented as a
