@@ -18,9 +18,11 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc.
  */
 
 #ifndef	_SYS_ZAP_H
@@ -87,22 +89,15 @@ extern "C" {
 
 /*
  * Specifies matching criteria for ZAP lookups.
+ * MT_NORMALIZE		Use ZAP normalization flags, which can include both
+ *			unicode normalization and case-insensitivity.
+ * MT_MATCH_CASE	Do case-sensitive lookups even if MT_NORMALIZE is
+ *			specified and ZAP normalization flags include
+ *			U8_TEXTPREP_TOUPPER.
  */
-typedef enum matchtype
-{
-	/* Only find an exact match (non-normalized) */
-	MT_EXACT,
-	/*
-	 * If there is an exact match, find that, otherwise find the
-	 * first normalized match.
-	 */
-	MT_BEST,
-	/*
-	 * Find the "first" normalized (case and Unicode form) match;
-	 * the designated "first" match will not change as long as the
-	 * set of entries with this normalization doesn't change.
-	 */
-	MT_FIRST
+typedef enum matchtype {
+	MT_NORMALIZE = 1 << 0,
+	MT_MATCH_CASE = 1 << 1,
 } matchtype_t;
 
 typedef enum zap_flags {
@@ -119,19 +114,6 @@ typedef enum zap_flags {
 
 /*
  * Create a new zapobj with no attributes and return its object number.
- * MT_EXACT will cause the zap object to only support MT_EXACT lookups,
- * otherwise any matchtype can be used for lookups.
- *
- * normflags specifies what normalization will be done.  values are:
- * 0: no normalization (legacy on-disk format, supports MT_EXACT matching
- *     only)
- * U8_TEXTPREP_TOLOWER: case normalization will be performed.
- *     MT_FIRST/MT_BEST matching will find entries that match without
- *     regard to case (eg. looking for "foo" can find an entry "Foo").
- * Eventually, other flags will permit unicode normalization as well.
- *
- * dnodesize specifies the on-disk size of the dnode for the new zapobj.
- * Valid values are multiples of 512 up to DNODE_MAX_SIZE.
  */
 uint64_t zap_create(objset_t *ds, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);

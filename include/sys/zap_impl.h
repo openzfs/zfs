@@ -18,10 +18,12 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc.
  */
 
 #ifndef	_SYS_ZAP_IMPL_H
@@ -188,6 +190,7 @@ typedef struct zap_name {
 	int zn_key_norm_numints;
 	uint64_t zn_hash;
 	matchtype_t zn_matchtype;
+	int zn_normflags;
 	char zn_normbuf[ZAP_MAXNAMELEN];
 } zap_name_t;
 

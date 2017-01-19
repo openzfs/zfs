@@ -18,9 +18,11 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc.
  */
 
 
@@ -64,14 +66,13 @@
  * of names after deciding which is the appropriate lookup interface.
  */
 static int
-zfs_match_find(zfs_sb_t *zsb, znode_t *dzp, char *name, boolean_t exact,
+zfs_match_find(zfs_sb_t *zsb, znode_t *dzp, char *name, matchtype_t mt,
     boolean_t update, int *deflags, pathname_t *rpnp, uint64_t *zoid)
 {
 	boolean_t conflict = B_FALSE;
 	int error;
 
 	if (zsb->z_norm) {
-		matchtype_t mt = MT_FIRST;
 		size_t bufsz = 0;
 		char *buf = NULL;
 
@@ -79,8 +80,7 @@ zfs_match_find(zfs_sb_t *zsb, znode_t *dzp, char *name, boolean_t exact,
 			buf = rpnp->pn_buf;
 			bufsz = rpnp->pn_bufsize;
 		}
-		if (exact)
-			mt = MT_EXACT;
+
 		/*
 		 * In the non-mixed case we only expect there would ever
 		 * be one match, but we need to use the normalizing lookup.
@@ -156,7 +156,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 	zfs_sb_t	*zsb = ZTOZSB(dzp);
 	zfs_dirlock_t	*dl;
 	boolean_t	update;
-	boolean_t	exact;
+	matchtype_t	mt = 0;
 	uint64_t	zoid;
 #ifdef HAVE_DNLC
 	vnode_t		*vp = NULL;
@@ -193,13 +193,29 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 	 */
 
 	/*
-	 * Decide if exact matches should be requested when performing
-	 * a zap lookup on file systems supporting case-insensitive
-	 * access.
+	 * When matching we may need to normalize & change case according to
+	 * FS settings.
+	 *
+	 * Note that a normalized match is necessary for a case insensitive
+	 * filesystem when the lookup request is not exact because normalization
+	 * can fold case independent of normalizing code point sequences.
+	 *
+	 * See the table above zfs_dropname().
 	 */
-	exact =
-	    ((zsb->z_case == ZFS_CASE_INSENSITIVE) && (flag & ZCIEXACT)) ||
-	    ((zsb->z_case == ZFS_CASE_MIXED) && !(flag & ZCILOOK));
+	if (zsb->z_norm != 0) {
+		mt = MT_NORMALIZE;
+
+		/*
+		 * Determine if the match needs to honor the case specified in
+		 * lookup, and if so keep track of that so that during
+		 * normalization we don't fold case.
+		 */
+		if ((zsb->z_case == ZFS_CASE_INSENSITIVE &&
+		    (flag & ZCIEXACT)) ||
+		    (zsb->z_case == ZFS_CASE_MIXED && !(flag & ZCILOOK))) {
+			mt |= MT_MATCH_CASE;
+		}
+	}
 
 	/*
 	 * Only look in or update the DNLC if we are looking for the
@@ -212,7 +228,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 	 * case for performance improvement?
 	 */
 	update = !zsb->z_norm ||
-	    ((zsb->z_case == ZFS_CASE_MIXED) &&
+	    (zsb->z_case == ZFS_CASE_MIXED &&
 	    !(zsb->z_norm & ~U8_TEXTPREP_TOUPPER) && !(flag & ZCILOOK));
 
 	/*
@@ -327,11 +343,11 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 			*zpp = VTOZ(vp);
 			return (0);
 		} else {
-			error = zfs_match_find(zsb, dzp, name, exact,
+			error = zfs_match_find(zsb, dzp, name, mt,
 			    update, direntflags, realpnp, &zoid);
 		}
 #else
-		error = zfs_match_find(zsb, dzp, name, exact,
+		error = zfs_match_find(zsb, dzp, name, mt,
 		    update, direntflags, realpnp, &zoid);
 #endif /* HAVE_DNLC */
 	}
@@ -805,6 +821,28 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	return (0);
 }
 
+/*
+ * The match type in the code for this function should conform to:
+ *
+ * ------------------------------------------------------------------------
+ * fs type  | z_norm      | lookup type | match type
+ * ---------|-------------|-------------|----------------------------------
+ * CS !norm | 0           |           0 | 0 (exact)
+ * CS  norm | formX       |           0 | MT_NORMALIZE
+ * CI !norm | upper       |   !ZCIEXACT | MT_NORMALIZE
+ * CI !norm | upper       |    ZCIEXACT | MT_NORMALIZE | MT_MATCH_CASE
+ * CI  norm | upper|formX |   !ZCIEXACT | MT_NORMALIZE
+ * CI  norm | upper|formX |    ZCIEXACT | MT_NORMALIZE | MT_MATCH_CASE
+ * CM !norm | upper       |    !ZCILOOK | MT_NORMALIZE | MT_MATCH_CASE
+ * CM !norm | upper       |     ZCILOOK | MT_NORMALIZE
+ * CM  norm | upper|formX |    !ZCILOOK | MT_NORMALIZE | MT_MATCH_CASE
+ * CM  norm | upper|formX |     ZCILOOK | MT_NORMALIZE
+ *
+ * Abbreviations:
+ *    CS = Case Sensitive, CI = Case Insensitive, CM = Case Mixed
+ *    upper = case folding set by fs type on creation (U8_TEXTPREP_TOUPPER)
+ *    formX = unicode normalization form set on fs creation
+ */
 static int
 zfs_dropname(zfs_dirlock_t *dl, znode_t *zp, znode_t *dzp, dmu_tx_t *tx,
     int flag)
@@ -812,18 +850,20 @@ zfs_dropname(zfs_dirlock_t *dl, znode_t *zp, znode_t *dzp, dmu_tx_t *tx,
 	int error;
 
 	if (ZTOZSB(zp)->z_norm) {
-		if (((ZTOZSB(zp)->z_case == ZFS_CASE_INSENSITIVE) &&
+		matchtype_t mt = MT_NORMALIZE;
+
+		if ((ZTOZSB(zp)->z_case == ZFS_CASE_INSENSITIVE &&
 		    (flag & ZCIEXACT)) ||
-		    ((ZTOZSB(zp)->z_case == ZFS_CASE_MIXED) &&
-		    !(flag & ZCILOOK)))
-			error = zap_remove_norm(ZTOZSB(zp)->z_os,
-			    dzp->z_id, dl->dl_name, MT_EXACT, tx);
-		else
-			error = zap_remove_norm(ZTOZSB(zp)->z_os,
-			    dzp->z_id, dl->dl_name, MT_FIRST, tx);
+		    (ZTOZSB(zp)->z_case == ZFS_CASE_MIXED &&
+		    !(flag & ZCILOOK))) {
+			mt |= MT_MATCH_CASE;
+		}
+
+		error = zap_remove_norm(ZTOZSB(zp)->z_os, dzp->z_id,
+		    dl->dl_name, mt, tx);
 	} else {
-		error = zap_remove(ZTOZSB(zp)->z_os,
-		    dzp->z_id, dl->dl_name, tx);
+		error = zap_remove(ZTOZSB(zp)->z_os, dzp->z_id, dl->dl_name,
+		    tx);
 	}
 
 	return (error);
