@@ -506,7 +506,7 @@ zfs_enable_ds(void *arg)
 
 	assert(pool->uap_enable_tid = pthread_self());
 
-	(void) zpool_enable_datasets(pool->uap_zhp, NULL, 0);
+	(void) zpool_enable_datasets(pool->uap_zhp, NULL, 0, B_FALSE);
 	zpool_close(pool->uap_zhp);
 	pool->uap_zhp = NULL;
 

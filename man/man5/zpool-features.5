@@ -563,6 +563,8 @@ Booting off of pools using \fBedonr\fR is \fBNOT\fR supported
 -- any attempt to enable \fBedonr\fR on a root pool will fail with an
 error.
 
+.RE
+
 .sp
 .ne 2
 .na
@@ -586,6 +588,52 @@ The upgrade can also be started manually on filesystems by running
 `zfs set version=current <pool/fs>`. The upgrade process runs in the background
 and may take a while to complete for filesystems containing a large number of
 files.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBencryption\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.datto:encryption
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the creation of natively encrypted datasets. ZFS will
+encrypt all user data including file and zvol data, file attributes, ACLs,
+permission bits, directory listings, and FUID mappings. ZFS will not encrypt
+metadata related to the pool structure, including dataset names, dataset
+hierarchy, file size, file holes, and dedup tables. Key rotation is managed
+internally by the ZFS kernel module and changing the user's key does not
+require re-encrypting the entire dataset. Datasets can be scrubbed, resilvered,
+moved, and deleted without the encryption keys being loaded (see the zfs key
+subcommand for more info).
+
+Encryption changes the behavior of a few ZFS operations. Encryption is applied
+after compression so compression ratios are preserved. Normally checksums in
+ZFS are 256 bits long, but for encrypted data the checksum is 128 bits of the
+user-chosen checksum and 128 bits of MAC from the encryption suite, which
+provides additional protection against maliciously altered data. Deduplication
+is still possible with encryption enabled but for security, datasets will only
+dedup against themselves, their snapshots, and their clones. Encrypted data
+cannot be embedded via the \fIembedded_data\fR feature.
+
+There are a few limitations on encrypted datasets. Encrypted datasets may not
+have \fIcopies=3\fR since the implementation stores some encryption metadata
+where the third copy would normally be. Since compression is applied before
+encryption datasets may be vulnerable to a CRIME-like attack if applications
+accessing the data allow for it. Deduplication with encryption will leak
+information about which blocks are equivalent in a dataset and will incur an
+extra CPU cost per block written.
+
+This feature becomes \fBactive\fR when an encrypted dataset is created and will
+be returned to the \fBenabled\fR state when all datasets that use this feature
+are destroyed.
 
 .RE
 

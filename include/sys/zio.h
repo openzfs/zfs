@@ -102,6 +102,30 @@ enum zio_checksum {
 #define	ZIO_DEDUPCHECKSUM	ZIO_CHECKSUM_SHA256
 #define	ZIO_DEDUPDITTO_MIN	100
 
+/* supported encryption algorithms */
+enum zio_encrypt {
+	ZIO_CRYPT_INHERIT = 0,
+	ZIO_CRYPT_ON,
+	ZIO_CRYPT_OFF,
+	ZIO_CRYPT_AES_128_CCM,
+	ZIO_CRYPT_AES_192_CCM,
+	ZIO_CRYPT_AES_256_CCM,
+	ZIO_CRYPT_AES_128_GCM,
+	ZIO_CRYPT_AES_192_GCM,
+	ZIO_CRYPT_AES_256_GCM,
+	ZIO_CRYPT_FUNCTIONS
+};
+
+#define	ZIO_CRYPT_ON_VALUE	ZIO_CRYPT_AES_256_CCM
+#define	ZIO_CRYPT_DEFAULT	ZIO_CRYPT_OFF
+
+/* macros defining encryption lengths */
+#define	MAX_MASTER_KEY_LEN 32
+#define	DATA_IV_LEN 12
+#define	DATA_SALT_LEN 8
+#define	DATA_MAC_LEN 16
+#define	ZIL_MAC_LEN 8
+
 /*
  * The number of "legacy" compression functions which can be set on individual
  * objects.
@@ -179,17 +203,19 @@ enum zio_flag {
 	ZIO_FLAG_DONT_PROPAGATE	= 1 << 20,
 	ZIO_FLAG_IO_BYPASS	= 1 << 21,
 	ZIO_FLAG_IO_REWRITE	= 1 << 22,
-	ZIO_FLAG_RAW		= 1 << 23,
-	ZIO_FLAG_GANG_CHILD	= 1 << 24,
-	ZIO_FLAG_DDT_CHILD	= 1 << 25,
-	ZIO_FLAG_GODFATHER	= 1 << 26,
-	ZIO_FLAG_NOPWRITE	= 1 << 27,
-	ZIO_FLAG_REEXECUTED	= 1 << 28,
-	ZIO_FLAG_DELEGATED	= 1 << 29,
-	ZIO_FLAG_FASTWRITE	= 1 << 30
+	ZIO_FLAG_RAW_COMPRESS	= 1 << 23,
+	ZIO_FLAG_RAW_ENCRYPT	= 1 << 24,
+	ZIO_FLAG_GANG_CHILD	= 1 << 25,
+	ZIO_FLAG_DDT_CHILD	= 1 << 26,
+	ZIO_FLAG_GODFATHER	= 1 << 27,
+	ZIO_FLAG_NOPWRITE	= 1 << 28,
+	ZIO_FLAG_REEXECUTED	= 1 << 29,
+	ZIO_FLAG_DELEGATED	= 1 << 30,
+	ZIO_FLAG_FASTWRITE	= 1 << 31,
 };
 
 #define	ZIO_FLAG_MUSTSUCCEED		0
+#define	ZIO_FLAG_RAW	(ZIO_FLAG_RAW_COMPRESS | ZIO_FLAG_RAW_ENCRYPT)
 
 #define	ZIO_DDT_CHILD_FLAGS(zio)				\
 	(((zio)->io_flags & ZIO_FLAG_DDT_INHERIT) |		\
@@ -291,6 +317,10 @@ typedef struct zio_prop {
 	boolean_t		zp_dedup;
 	boolean_t		zp_dedup_verify;
 	boolean_t		zp_nopwrite;
+	boolean_t		zp_encrypt;
+	uint8_t			zp_salt[DATA_SALT_LEN];
+	uint8_t			zp_iv[DATA_IV_LEN];
+	uint8_t			zp_mac[DATA_MAC_LEN];
 } zio_prop_t;
 
 typedef struct zio_cksum_report zio_cksum_report_t;
@@ -502,8 +532,8 @@ extern zio_t *zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
 extern zio_t *zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg,
     const blkptr_t *bp, enum zio_flag flags);
 
-extern int zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp,
-    uint64_t size, boolean_t use_slog);
+extern int zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg,
+    blkptr_t *new_bp, uint64_t size, boolean_t use_slog);
 extern void zio_free_zil(spa_t *spa, uint64_t txg, blkptr_t *bp);
 extern void zio_flush(zio_t *zio, vdev_t *vd);
 extern void zio_shrink(zio_t *zio, uint64_t size);

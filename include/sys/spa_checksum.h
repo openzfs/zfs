@@ -47,6 +47,10 @@ typedef struct zio_cksum {
 	(zcp)->zc_word[3] = w3;			\
 }
 
+#define	ZIO_CHECKSUM_MAC_EQUAL(zc1, zc2) \
+	(0 == (((zc1).zc_word[0] - (zc2).zc_word[0]) | \
+	((zc1).zc_word[1] - (zc2).zc_word[1])))
+
 #define	ZIO_CHECKSUM_EQUAL(zc1, zc2) \
 	(0 == (((zc1).zc_word[0] - (zc2).zc_word[0]) | \
 	((zc1).zc_word[1] - (zc2).zc_word[1]) | \

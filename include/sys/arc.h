@@ -60,15 +60,24 @@ _NOTE(CONSTCOND) } while (0)
 typedef struct arc_buf_hdr arc_buf_hdr_t;
 typedef struct arc_buf arc_buf_t;
 typedef struct arc_prune arc_prune_t;
-typedef void arc_done_func_t(zio_t *zio, arc_buf_t *buf, void *private);
+
+/*
+ * With the advent of encrypted data in the ARC it is now possible for
+ * legitimate errors to arise while transforming data into its desired format.
+ * As a result the "error" parameter of arc_read_done_func_t is used to indicate
+ * transform errors even if there is no assoicated zio.
+ */
+typedef void arc_read_done_func_t(zio_t *zio, int error, arc_buf_t *buf,
+    void *private);
+typedef void arc_write_done_func_t(zio_t *zio, arc_buf_t *buf, void *private);
 typedef void arc_prune_func_t(int64_t bytes, void *private);
 
 /* Shared module parameters */
 extern int zfs_arc_average_blocksize;
 
 /* generic arc_done_func_t's which you can use */
-arc_done_func_t arc_bcopy_func;
-arc_done_func_t arc_getbuf_func;
+arc_read_done_func_t arc_bcopy_func;
+arc_read_done_func_t arc_getbuf_func;
 
 extern int zfs_arc_num_sublists_per_state;
 
@@ -112,20 +121,21 @@ typedef enum arc_flags
 	ARC_FLAG_L2_WRITING		= 1 << 11,	/* write in progress */
 	ARC_FLAG_L2_EVICTED		= 1 << 12,	/* evicted during I/O */
 	ARC_FLAG_L2_WRITE_HEAD		= 1 << 13,	/* head of write list */
+	ARC_FLAG_ENCRYPT		= 1 << 14,	/* encrypted on disk */
 	/* indicates that the buffer contains metadata (otherwise, data) */
-	ARC_FLAG_BUFC_METADATA		= 1 << 14,
+	ARC_FLAG_BUFC_METADATA		= 1 << 15,
 
 	/* Flags specifying whether optional hdr struct fields are defined */
-	ARC_FLAG_HAS_L1HDR		= 1 << 15,
-	ARC_FLAG_HAS_L2HDR		= 1 << 16,
+	ARC_FLAG_HAS_L1HDR		= 1 << 16,
+	ARC_FLAG_HAS_L2HDR		= 1 << 17,
 
 	/*
 	 * Indicates the arc_buf_hdr_t's b_pdata matches the on-disk data.
 	 * This allows the l2arc to use the blkptr's checksum to verify
 	 * the data without having to store the checksum in the hdr.
 	 */
-	ARC_FLAG_COMPRESSED_ARC		= 1 << 17,
-	ARC_FLAG_SHARED_DATA		= 1 << 18,
+	ARC_FLAG_COMPRESSED_ARC		= 1 << 18,
+	ARC_FLAG_SHARED_DATA		= 1 << 19,
 
 	/*
 	 * The arc buffer's compression mode is stored in the top 7 bits of the
@@ -144,7 +154,8 @@ typedef enum arc_flags
 
 typedef enum arc_buf_flags {
 	ARC_BUF_FLAG_SHARED		= 1 << 0,
-	ARC_BUF_FLAG_COMPRESSED		= 1 << 1
+	ARC_BUF_FLAG_COMPRESSED		= 1 << 1,
+	ARC_BUF_FLAG_ENCRYPTED		= 1 << 2
 } arc_buf_flags_t;
 
 struct arc_buf {
@@ -208,8 +219,10 @@ typedef struct arc_buf_info {
 void arc_space_consume(uint64_t space, arc_space_type_t type);
 void arc_space_return(uint64_t space, arc_space_type_t type);
 boolean_t arc_is_metadata(arc_buf_t *buf);
+boolean_t arc_is_encrypted(arc_buf_t *buf);
 enum zio_compress arc_get_compression(arc_buf_t *buf);
-int arc_decompress(arc_buf_t *buf);
+int arc_untransform(arc_buf_t *buf, spa_t *spa, uint64_t dsobj,
+    boolean_t in_place);
 arc_buf_t *arc_alloc_buf(spa_t *spa, void *tag, arc_buf_contents_t type,
     int32_t size);
 arc_buf_t *arc_alloc_compressed_buf(spa_t *spa, void *tag,
@@ -233,12 +246,12 @@ int arc_referenced(arc_buf_t *buf);
 #endif
 
 int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
-    arc_done_func_t *done, void *private, zio_priority_t priority, int flags,
-    arc_flags_t *arc_flags, const zbookmark_phys_t *zb);
+    arc_read_done_func_t *done, void *private, zio_priority_t priority,
+    int flags, arc_flags_t *arc_flags, const zbookmark_phys_t *zb);
 zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
     blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, const zio_prop_t *zp,
-    arc_done_func_t *ready, arc_done_func_t *child_ready,
-    arc_done_func_t *physdone, arc_done_func_t *done,
+    arc_write_done_func_t *ready, arc_write_done_func_t *child_ready,
+    arc_write_done_func_t *physdone, arc_write_done_func_t *done,
     void *private, zio_priority_t priority, int zio_flags,
     const zbookmark_phys_t *zb);
 
