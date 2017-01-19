@@ -170,6 +170,8 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
     'zfs_send_007_pos']
 
+# DISABLED:
+# ro_props_001_pos - https://github.com/zfsonlinux/zfs/issues/5511
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
@@ -179,7 +181,7 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'user_property_001_pos', 'user_property_003_neg', 'readonly_001_pos',
     'user_property_004_pos', 'version_001_neg', 'zfs_set_001_neg',
     'zfs_set_002_neg', 'zfs_set_003_neg', 'property_alias_001_pos',
-    'ro_props_001_pos', 'mountpoint_003_pos']
+    'mountpoint_003_pos']
 
 # DISABLED: Tests need to be updated for Linux share behavior
 # zfs_share_005_pos - needs investigation, probably unsupported NFS share format
@@ -480,11 +482,11 @@ tests = ['nestedfs_001_pos']
 tests = ['enospc_001_pos']
 
 # DISABLED:
+# nopwrite_volume - https://github.com/zfsonlinux/zfs/issues/5510
 # nopwrite_varying_compression - needs investigation
 [tests/functional/nopwrite]
 tests = ['nopwrite_copies', 'nopwrite_mtime', 'nopwrite_negative',
-    'nopwrite_promoted_clone', 'nopwrite_recsize', 'nopwrite_sync',
-    'nopwrite_volume']
+    'nopwrite_promoted_clone', 'nopwrite_recsize', 'nopwrite_sync']
 
 # DISABLED: needs investigation
 #[tests/functional/online_offline]
