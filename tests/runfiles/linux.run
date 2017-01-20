@@ -111,11 +111,10 @@ tests = ['zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
 
 # DISABLED:
 # zfs_get_004_pos - nested pools
-# zfs_get_006_neg - needs investigation
 [tests/functional/cli_root/zfs_get]
 tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
-    'zfs_get_005_neg', 'zfs_get_007_neg', 'zfs_get_008_pos',
-    'zfs_get_009_pos', 'zfs_get_010_neg']
+    'zfs_get_005_neg', 'zfs_get_006_neg', 'zfs_get_007_neg',
+    'zfs_get_008_pos', 'zfs_get_009_pos', 'zfs_get_010_neg']
 
 [tests/functional/cli_root/zfs_inherit]
 tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos']
