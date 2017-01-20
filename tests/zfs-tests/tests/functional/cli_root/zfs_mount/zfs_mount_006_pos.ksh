@@ -31,8 +31,10 @@
 #
 # DESCRIPTION:
 #	Invoke "zfs mount <filesystem>" with a filesystem
-#	which mountpoint be the identical or the top of an existing one,
-#	it will fail with a return code of 1
+#	which mountpoint be the identical, it will fail with a return code
+#	of 1 and issue an error message on other platforms, but it will 
+#	succeed on linux. When mountpoint is the top of an existing one,
+#	it will fail whatever the platform.
 #
 # STRATEGY:
 #	1. Prepare an existing mounted filesystem.
@@ -63,8 +65,8 @@ function cleanup
 typeset -i ret=0
 
 log_assert "Verify that '$ZFS $mountcmd <filesystem>' " \
-	"which mountpoint be the identical or the top of an existing one " \
-	"will fail with return code 1."
+	"which mountpoint be the identical will fail with return code 1, but it will succeed on linux. " \
+	"Regardless of the platform, which mountpoint be the top of an existing one will fail with return code 1."
 
 log_onexit cleanup
 
@@ -94,17 +96,31 @@ log_must $ZFS create $TESTPOOL/$TESTFS1
 unmounted $TESTPOOL/$TESTFS1 || \
 	log_must force_unmount $TESTPOOL/$TESTFS1
 
-while [[ -n $mtpt ]] ; do
-	(( depth == MAXDEPTH )) && \
+while (( depth >= 0 )) ; do
+	if (( depth == MAXDEPTH )) ; then
 		log_note "Verify that '$ZFS $mountcmd <filesystem>' " \
 		"which mountpoint be the identical of an existing one " \
-		"will fail with return code 1."
+		"will fail with return code 1, but it will succeed on linux."
+		if is_linux; then
+			log_must $ZFS set mountpoint=$mtpt $TESTPOOL/$TESTFS1
+			log_must $ZFS $mountcmd $TESTPOOL/$TESTFS1
+			
+			mounted $TESTPOOL/$TESTFS1 || \
+				log_fail "Filesystem $TESTPOOL/$TESTFS1 is unmounted."
+		else
+			log_must $ZFS set mountpoint=$mtpt $TESTPOOL/$TESTFS1
+			log_mustnot $ZFS $mountcmd $TESTPOOL/$TESTFS1
+			
+			unmounted $TESTPOOL/$TESTFS1 || \
+				log_fail "Filesystem $TESTPOOL/$TESTFS1 is mounted."
+		fi
+	else
+		$ZFS set mountpoint=$mtpt $TESTPOOL/$TESTFS1
+		log_mustnot $ZFS $mountcmd $TESTPOOL/$TESTFS1
 
-	log_must $ZFS set mountpoint=$mtpt $TESTPOOL/$TESTFS1
-	log_mustnot $ZFS $mountcmd $TESTPOOL/$TESTFS1
-
-	unmounted $TESTPOOL/$TESTFS1 || \
-		log_fail "Filesystem $TESTPOOL/$TESTFS1 is mounted."
+		unmounted $TESTPOOL/$TESTFS1 || \
+			log_fail "Filesystem $TESTPOOL/$TESTFS1 is mounted."
+	fi
 
 	mtpt=${mtpt%/*}
 
@@ -116,5 +132,5 @@ while [[ -n $mtpt ]] ; do
 done
 
 log_pass "'$ZFS $mountcmd <filesystem>' " \
-	"which mountpoint be the identical or the top of an existing one " \
-	"will fail with return code 1."
+	"which mountpoint be the identical will fail with return code 1, but it will succeed on linux. " \
+	"Regardless of the platform, which mountpoint be the top of an existing one will fail with return code 1."
