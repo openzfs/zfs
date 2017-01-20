@@ -1043,8 +1043,8 @@ zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
  */
 zio_t *
 zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
-	abd_t *data, uint64_t size, int type, zio_priority_t priority,
-	enum zio_flag flags, zio_done_func_t *done, void *private)
+    abd_t *data, uint64_t size, int type, zio_priority_t priority,
+    enum zio_flag flags, zio_done_func_t *done, void *private)
 {
 	enum zio_stage pipeline = ZIO_VDEV_CHILD_PIPELINE;
 	zio_t *zio;

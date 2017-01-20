@@ -82,7 +82,7 @@ secpolicy_sys_config(const cred_t *cr, boolean_t checkonly)
  */
 int
 secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
-	mode_t curmode, mode_t wantmode)
+    mode_t curmode, mode_t wantmode)
 {
 	return (0);
 }

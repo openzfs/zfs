@@ -3676,9 +3676,10 @@ EXPORT_SYMBOL(vdev_degrade);
 EXPORT_SYMBOL(vdev_online);
 EXPORT_SYMBOL(vdev_offline);
 EXPORT_SYMBOL(vdev_clear);
-
+/* BEGIN CSTYLED */
 module_param(metaslabs_per_vdev, int, 0644);
 MODULE_PARM_DESC(metaslabs_per_vdev,
 	"Divide added vdev into approximately (but no more than) this number "
 	"of metaslabs");
+/* END CSTYLED */
 #endif

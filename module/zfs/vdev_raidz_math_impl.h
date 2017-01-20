@@ -387,7 +387,7 @@ raidz_generate_p_impl(raidz_map_t * const rm)
  */
 static void
 raidz_gen_pq_add(void **c, const void *dc, const size_t csize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *p = (v_t *)c[0];
 	v_t *q = (v_t *)c[1];
@@ -457,7 +457,7 @@ raidz_generate_pq_impl(raidz_map_t * const rm)
  */
 static void
 raidz_gen_pqr_add(void **c, const void *dc, const size_t csize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *p = (v_t *)c[0];
 	v_t *q = (v_t *)c[1];
@@ -626,7 +626,7 @@ raidz_reconstruct_p_impl(raidz_map_t *rm, const int *tgtidx)
  */
 static void
 raidz_syn_q_abd(void **xc, const void *dc, const size_t xsize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *x = (v_t *)xc[TARGET_X];
 	const v_t *d = (v_t *)dc;
@@ -717,7 +717,7 @@ raidz_reconstruct_q_impl(raidz_map_t *rm, const int *tgtidx)
  */
 static void
 raidz_syn_r_abd(void **xc, const void *dc, const size_t tsize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *x = (v_t *)xc[TARGET_X];
 	const v_t *d = (v_t *)dc;
@@ -809,7 +809,7 @@ raidz_reconstruct_r_impl(raidz_map_t *rm, const int *tgtidx)
  */
 static void
 raidz_syn_pq_abd(void **tc, const void *dc, const size_t tsize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *x = (v_t *)tc[TARGET_X];
 	v_t *y = (v_t *)tc[TARGET_Y];
@@ -841,7 +841,7 @@ raidz_syn_pq_abd(void **tc, const void *dc, const size_t tsize,
  */
 static void
 raidz_rec_pq_abd(void **tc, const size_t tsize, void **c,
-	const unsigned *mul)
+    const unsigned *mul)
 {
 	v_t *x = (v_t *)tc[TARGET_X];
 	v_t *y = (v_t *)tc[TARGET_Y];
@@ -967,7 +967,7 @@ raidz_reconstruct_pq_impl(raidz_map_t *rm, const int *tgtidx)
  */
 static void
 raidz_syn_pr_abd(void **c, const void *dc, const size_t tsize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *x = (v_t *)c[TARGET_X];
 	v_t *y = (v_t *)c[TARGET_Y];
@@ -999,7 +999,7 @@ raidz_syn_pr_abd(void **c, const void *dc, const size_t tsize,
  */
 static void
 raidz_rec_pr_abd(void **t, const size_t tsize, void **c,
-	const unsigned *mul)
+    const unsigned *mul)
 {
 	v_t *x = (v_t *)t[TARGET_X];
 	v_t *y = (v_t *)t[TARGET_Y];
@@ -1125,7 +1125,7 @@ raidz_reconstruct_pr_impl(raidz_map_t *rm, const int *tgtidx)
  */
 static void
 raidz_syn_qr_abd(void **c, const void *dc, const size_t tsize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *x = (v_t *)c[TARGET_X];
 	v_t *y = (v_t *)c[TARGET_Y];
@@ -1159,7 +1159,7 @@ raidz_syn_qr_abd(void **c, const void *dc, const size_t tsize,
  */
 static void
 raidz_rec_qr_abd(void **t, const size_t tsize, void **c,
-	const unsigned *mul)
+    const unsigned *mul)
 {
 	v_t *x = (v_t *)t[TARGET_X];
 	v_t *y = (v_t *)t[TARGET_Y];
@@ -1289,7 +1289,7 @@ raidz_reconstruct_qr_impl(raidz_map_t *rm, const int *tgtidx)
  */
 static void
 raidz_syn_pqr_abd(void **c, const void *dc, const size_t tsize,
-	const size_t dsize)
+    const size_t dsize)
 {
 	v_t *x = (v_t *)c[TARGET_X];
 	v_t *y = (v_t *)c[TARGET_Y];
@@ -1326,7 +1326,7 @@ raidz_syn_pqr_abd(void **c, const void *dc, const size_t tsize,
  */
 static void
 raidz_rec_pqr_abd(void **t, const size_t tsize, void **c,
-	const unsigned * const mul)
+    const unsigned * const mul)
 {
 	v_t *x = (v_t *)t[TARGET_X];
 	v_t *y = (v_t *)t[TARGET_Y];

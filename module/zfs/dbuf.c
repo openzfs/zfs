@@ -2787,8 +2787,8 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 static void
 __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
     dnode_t *dn, uint8_t level, uint64_t blkid,
-	boolean_t fail_sparse, boolean_t fail_uncached,
-	void *tag, dmu_buf_impl_t **dbp, int depth)
+    boolean_t fail_sparse, boolean_t fail_uncached,
+    void *tag, dmu_buf_impl_t **dbp, int depth)
 {
 	dh->dh_dn = dn;
 	dh->dh_level = level;

@@ -958,7 +958,7 @@ out:
  */
 int
 zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
-	struct inode **ipp, cred_t *cr, int flags)
+    struct inode **ipp, cred_t *cr, int flags)
 {
 	zfs_sb_t *zsb = ITOZSB(dip);
 	char *dsname;

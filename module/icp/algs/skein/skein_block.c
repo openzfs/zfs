@@ -57,11 +57,10 @@
 
 /* Skein_256 */
 #if	!(SKEIN_USE_ASM & 256)
-
 void
 Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
     size_t blkCnt, size_t byteCntAdd)
-{				/* do it in C */
+{
 	enum {
 		WCNT = SKEIN_256_STATE_WORDS
 	};
@@ -132,24 +131,24 @@ Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
 		/* run the rounds */
 
 #define	Round256(p0, p1, p2, p3, ROT, rNum)                          \
-    X##p0 += X##p1; X##p1 = RotL_64(X##p1, ROT##_0); X##p1 ^= X##p0; \
-    X##p2 += X##p3; X##p3 = RotL_64(X##p3, ROT##_1); X##p3 ^= X##p2; \
+	X##p0 += X##p1; X##p1 = RotL_64(X##p1, ROT##_0); X##p1 ^= X##p0; \
+	X##p2 += X##p3; X##p3 = RotL_64(X##p3, ROT##_1); X##p3 ^= X##p2; \
 
 #if	SKEIN_UNROLL_256 == 0
 #define	R256(p0, p1, p2, p3, ROT, rNum)		/* fully unrolled */	\
-    Round256(p0, p1, p2, p3, ROT, rNum)					\
-    Skein_Show_R_Ptr(BLK_BITS, &ctx->h, rNum, Xptr);
+	Round256(p0, p1, p2, p3, ROT, rNum)		\
+	Skein_Show_R_Ptr(BLK_BITS, &ctx->h, rNum, Xptr);
 
 #define	I256(R)								\
-    X0 += ks[((R) + 1) % 5];	/* inject the key schedule value */	\
-    X1 += ks[((R) + 2) % 5] + ts[((R) + 1) % 3];			\
-    X2 += ks[((R) + 3) % 5] + ts[((R) + 2) % 3];			\
-    X3 += ks[((R) + 4) % 5] + (R) + 1;					\
-    Skein_Show_R_Ptr(BLK_BITS, &ctx->h, SKEIN_RND_KEY_INJECT, Xptr);
+	X0 += ks[((R) + 1) % 5]; /* inject the key schedule value */ \
+	X1 += ks[((R) + 2) % 5] + ts[((R) + 1) % 3];			\
+	X2 += ks[((R) + 3) % 5] + ts[((R) + 2) % 3];			\
+	X3 += ks[((R) + 4) % 5] + (R) + 1;			\
+	Skein_Show_R_Ptr(BLK_BITS, &ctx->h, SKEIN_RND_KEY_INJECT, Xptr);
 #else				/* looping version */
 #define	R256(p0, p1, p2, p3, ROT, rNum)                             \
-    Round256(p0, p1, p2, p3, ROT, rNum)                             \
-    Skein_Show_R_Ptr(BLK_BITS, &ctx->h, 4 * (r - 1) + rNum, Xptr);
+	Round256(p0, p1, p2, p3, ROT, rNum)                             \
+	Skein_Show_R_Ptr(BLK_BITS, &ctx->h, 4 * (r - 1) + rNum, Xptr);
 
 #define	I256(R)								\
 	X0 += ks[r + (R) + 0];	/* inject the key schedule value */	\
@@ -157,8 +156,8 @@ Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
 	X2 += ks[r + (R) + 2] + ts[r + (R) + 1];			\
 	X3 += ks[r + (R) + 3] + r + (R);				\
 	ks[r + (R) + 4] = ks[r + (R) - 1];   /* rotate key schedule */	\
-    ts[r + (R) + 2] = ts[r + (R) - 1];					\
-    Skein_Show_R_Ptr(BLK_BITS, &ctx->h, SKEIN_RND_KEY_INJECT, Xptr);
+	ts[r + (R) + 2] = ts[r + (R) - 1];			\
+	Skein_Show_R_Ptr(BLK_BITS, &ctx->h, SKEIN_RND_KEY_INJECT, Xptr);
 
 		/* loop thru it */
 		for (r = 1; r < 2 * RCNT; r += 2 * SKEIN_UNROLL_256)
@@ -239,8 +238,7 @@ Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
 		Skein_Show_Round(BLK_BITS, &ctx->h, SKEIN_RND_FEED_FWD, ctx->X);
 
 		ts[1] &= ~SKEIN_T1_FLAG_FIRST;
-	}
-	while (--blkCnt);
+	} while (--blkCnt);
 	ctx->h.T[0] = ts[0];
 	ctx->h.T[1] = ts[1];
 }
@@ -266,7 +264,7 @@ Skein_256_Unroll_Cnt(void)
 void
 Skein_512_Process_Block(Skein_512_Ctxt_t *ctx, const uint8_t *blkPtr,
     size_t blkCnt, size_t byteCntAdd)
-{				/* do it in C */
+{
 	enum {
 		WCNT = SKEIN_512_STATE_WORDS
 	};
@@ -470,8 +468,7 @@ Skein_512_Process_Block(Skein_512_Ctxt_t *ctx, const uint8_t *blkPtr,
 		Skein_Show_Round(BLK_BITS, &ctx->h, SKEIN_RND_FEED_FWD, ctx->X);
 
 		ts[1] &= ~SKEIN_T1_FLAG_FIRST;
-	}
-	while (--blkCnt);
+	} while (--blkCnt);
 	ctx->h.T[0] = ts[0];
 	ctx->h.T[1] = ts[1];
 }

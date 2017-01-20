@@ -230,7 +230,8 @@ skein_mod_init(void)
 }
 
 int
-skein_mod_fini(void) {
+skein_mod_fini(void)
+{
 	int ret;
 
 	if (skein_prov_handle != 0) {

@@ -50,12 +50,14 @@
 #include <strings.h>
 
 static void
-fletcher_4_sse2_init(fletcher_4_ctx_t *ctx) {
+fletcher_4_sse2_init(fletcher_4_ctx_t *ctx)
+{
 	bzero(ctx->sse, 4 * sizeof (zfs_fletcher_sse_t));
 }
 
 static void
-fletcher_4_sse2_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp) {
+fletcher_4_sse2_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
+{
 	uint64_t A, B, C, D;
 
 	/*

@@ -559,7 +559,7 @@ zpl_readpage(struct file *filp, struct page *pp)
  */
 static int
 zpl_readpages(struct file *filp, struct address_space *mapping,
-	struct list_head *pages, unsigned nr_pages)
+    struct list_head *pages, unsigned nr_pages)
 {
 	return (read_cache_pages(mapping, pages,
 	    (filler_t *)zpl_readpage, filp));

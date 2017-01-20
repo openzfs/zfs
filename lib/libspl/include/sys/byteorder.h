@@ -130,22 +130,26 @@ extern	in_port_t ntohs(in_port_t);
 
 #ifdef _BIG_ENDIAN
 static __inline__ uint64_t
-htonll(uint64_t n) {
+htonll(uint64_t n)
+{
 	return (n);
 }
 
 static __inline__ uint64_t
-ntohll(uint64_t n) {
+ntohll(uint64_t n)
+{
 	return (n);
 }
 #else
 static __inline__ uint64_t
-htonll(uint64_t n) {
+htonll(uint64_t n)
+{
 	return ((((uint64_t)htonl(n)) << 32) + htonl(n >> 32));
 }
 
 static __inline__ uint64_t
-ntohll(uint64_t n) {
+ntohll(uint64_t n)
+{
 	return ((((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32));
 }
 #endif

@@ -108,7 +108,8 @@ libshare_init(void)
 }
 
 static void
-parse_sharetab(sa_handle_impl_t impl_handle) {
+parse_sharetab(sa_handle_impl_t impl_handle)
+{
 	FILE *fp;
 	char line[512];
 	char *eol, *pathname, *resource, *fstype, *options, *description;
@@ -759,7 +760,8 @@ alloc_share(const char *sharepath)
 }
 
 static void
-free_share(sa_share_impl_t impl_share) {
+free_share(sa_share_impl_t impl_share)
+{
 	sa_fstype_t *fstype;
 
 	fstype = fstypes;

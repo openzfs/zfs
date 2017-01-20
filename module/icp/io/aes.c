@@ -321,14 +321,16 @@ aes_provider_status(crypto_provider_handle_t provider, uint_t *status)
 static int
 aes_encrypt_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_spi_ctx_template_t template,
-    crypto_req_handle_t req) {
+    crypto_req_handle_t req)
+{
 	return (aes_common_init(ctx, mechanism, key, template, req, B_TRUE));
 }
 
 static int
 aes_decrypt_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_spi_ctx_template_t template,
-    crypto_req_handle_t req) {
+    crypto_req_handle_t req)
+{
 	return (aes_common_init(ctx, mechanism, key, template, req, B_FALSE));
 }
 

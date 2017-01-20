@@ -2953,7 +2953,8 @@ struct stat_array {
 };
 
 static uint64_t
-stat_histo_max(struct stat_array *nva, unsigned int len) {
+stat_histo_max(struct stat_array *nva, unsigned int len)
+{
 	uint64_t max = 0;
 	int i;
 	for (i = 0; i < len; i++)
@@ -2969,7 +2970,8 @@ stat_histo_max(struct stat_array *nva, unsigned int len) {
  */
 static int
 nvpair64_to_stat_array(nvlist_t *nvl, const char *name,
-    struct stat_array *nva) {
+    struct stat_array *nva)
+{
 	nvpair_t *tmp;
 	int ret;
 
@@ -3871,7 +3873,8 @@ is_pool(char *name)
 
 /* Are all our argv[] strings pool names?  If so return 1, 0 otherwise. */
 static int
-are_all_pools(int argc, char **argv) {
+are_all_pools(int argc, char **argv)
+{
 	if ((argc == 0) || !*argv)
 		return (0);
 
@@ -3952,7 +3955,8 @@ get_interval_count_filter_guids(int *argc, char **argv, float *interval,
  * seconds.
  */
 static void
-fsleep(float sec) {
+fsleep(float sec)
+{
 	struct timespec req;
 	req.tv_sec = floor(sec);
 	req.tv_nsec = (sec - (float)req.tv_sec) * NANOSEC;

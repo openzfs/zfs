@@ -1612,7 +1612,8 @@ spa_get_asize(spa_t *spa, uint64_t lsize)
  * See the comment above spa_slop_shift for details.
  */
 uint64_t
-spa_get_slop_space(spa_t *spa) {
+spa_get_slop_space(spa_t *spa)
+{
 	uint64_t space = spa_get_dspace(spa);
 	return (MAX(space >> spa_slop_shift, SPA_MINDEVSIZE >> 1));
 }

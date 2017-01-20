@@ -114,11 +114,13 @@ DECLARE_EVENT_CLASS(zfs_zil_class,
 /* END CSTYLED */
 
 #define	DEFINE_ZIL_EVENT(name) \
+/* BEGIN CSTYLED */
 DEFINE_EVENT(zfs_zil_class, name, \
 	TP_PROTO(zilog_t *zilog), \
 	TP_ARGS(zilog))
 DEFINE_ZIL_EVENT(zfs_zil__cw1);
 DEFINE_ZIL_EVENT(zfs_zil__cw2);
+/* END CSTYLED */
 
 #endif /* _TRACE_ZIL_H */
 

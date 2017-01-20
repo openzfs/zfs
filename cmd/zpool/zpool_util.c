@@ -88,7 +88,8 @@ num_logs(nvlist_t *nv)
 
 /* Find the max element in an array of uint64_t values */
 uint64_t
-array64_max(uint64_t array[], unsigned int len) {
+array64_max(uint64_t array[], unsigned int len)
+{
 	uint64_t max = 0;
 	int i;
 	for (i = 0; i < len; i++)
@@ -102,7 +103,8 @@ array64_max(uint64_t array[], unsigned int len) {
  * floating point numbers.
  */
 int
-isnumber(char *str) {
+isnumber(char *str)
+{
 	for (; *str; str++)
 		if (!(isdigit(*str) || (*str == '.')))
 			return (0);

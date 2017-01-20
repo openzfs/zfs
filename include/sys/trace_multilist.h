@@ -63,9 +63,11 @@ DECLARE_EVENT_CLASS(zfs_multilist_insert_remove_class,
 /* END CSTYLED */
 
 #define	DEFINE_MULTILIST_INSERT_REMOVE_EVENT(name) \
+/* BEGIN CSTYLED */
 DEFINE_EVENT(zfs_multilist_insert_remove_class, name, \
 	TP_PROTO(multilist_t *ml, unsigned int sublist_idx, void *obj), \
 	TP_ARGS(ml, sublist_idx, obj))
+/* END CSTYLED */
 DEFINE_MULTILIST_INSERT_REMOVE_EVENT(zfs_multilist__insert);
 DEFINE_MULTILIST_INSERT_REMOVE_EVENT(zfs_multilist__remove);
 
