@@ -417,9 +417,10 @@ const raidz_impl_ops_t vdev_raidz_ssse3_impl = {
 
 #if defined(__x86_64)
 #if defined(HAVE_SSSE3) || defined(HAVE_AVX2) || defined(HAVE_AVX512BW)
-
+/* BEGIN CSTYLED */
 const uint8_t
-__attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {
+__attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] =
+{
 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  },
 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -2469,6 +2470,6 @@ __attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {
 	{ 0x00, 0xff, 0xfe, 0x01, 0xfc, 0x03, 0x02, 0xfd,
 	    0xf8, 0x07, 0x06, 0xf9, 0x04, 0xfb, 0xfa, 0x05  }
 };
-
+/* END CSTYLED */
 #endif /* defined(HAVE_SSSE3) || defined(HAVE_AVX2) || defined(HAVE_AVX512BW) */
 #endif /* defined(__x86_64) */

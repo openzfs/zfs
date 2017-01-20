@@ -198,7 +198,7 @@ ctr_mode_final(ctr_ctx_t *ctx, crypto_data_t *out,
 
 int
 ctr_init_ctx(ctr_ctx_t *ctr_ctx, ulong_t count, uint8_t *cb,
-void (*copy_block)(uint8_t *, uint8_t *))
+    void (*copy_block)(uint8_t *, uint8_t *))
 {
 	uint64_t upper_mask = 0;
 	uint64_t lower_mask = 0;

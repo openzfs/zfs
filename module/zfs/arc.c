@@ -4336,7 +4336,8 @@ arc_reclaim_thread(void)
  *         increase this negative difference.
  */
 static uint64_t
-arc_evictable_memory(void) {
+arc_evictable_memory(void)
+{
 	uint64_t arc_clean =
 	    refcount_count(&arc_mru->arcs_esize[ARC_BUFC_DATA]) +
 	    refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) +

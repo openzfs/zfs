@@ -212,7 +212,7 @@ aes_encrypt_key256(const unsigned char *key, uint32_t rk[])
  */
 int
 rijndael_key_setup_enc_amd64(uint32_t rk[], const uint32_t cipherKey[],
-	int keyBits)
+    int keyBits)
 {
 	switch (keyBits) {
 	case 128:
@@ -560,7 +560,7 @@ aes_decrypt_key256(const unsigned char *key, uint32_t rk[])
  */
 int
 rijndael_key_setup_dec_amd64(uint32_t rk[], const uint32_t cipherKey[],
-	int keyBits)
+    int keyBits)
 {
 	switch (keyBits) {
 	case 128:

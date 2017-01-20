@@ -78,6 +78,7 @@
 	__entry->db_blkid, __entry->db_offset,			\
 	__entry->db_size, __entry->db_state, __entry->db_holds
 
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_dbuf_class,
 	TP_PROTO(dmu_buf_impl_t *db, zio_t *zio),
 	TP_ARGS(db, zio),
@@ -85,13 +86,17 @@ DECLARE_EVENT_CLASS(zfs_dbuf_class,
 	TP_fast_assign(DBUF_TP_FAST_ASSIGN),
 	TP_printk(DBUF_TP_PRINTK_FMT, DBUF_TP_PRINTK_ARGS)
 );
+/* END CSTYLED */
 
 #define	DEFINE_DBUF_EVENT(name) \
+/* BEGIN CSTYLED */
 DEFINE_EVENT(zfs_dbuf_class, name, \
 	TP_PROTO(dmu_buf_impl_t *db, zio_t *zio), \
 	TP_ARGS(db, zio))
+/* END CSTYLED */
 DEFINE_DBUF_EVENT(zfs_blocked__read);
 
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_dbuf_evict_one_class,
 	TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls),
 	TP_ARGS(db, mls),
@@ -99,11 +104,14 @@ DECLARE_EVENT_CLASS(zfs_dbuf_evict_one_class,
 	TP_fast_assign(DBUF_TP_FAST_ASSIGN),
 	TP_printk(DBUF_TP_PRINTK_FMT, DBUF_TP_PRINTK_ARGS)
 );
+/* END CSTYLED */
 
 #define	DEFINE_DBUF_EVICT_ONE_EVENT(name) \
+/* BEGIN CSTYLED */
 DEFINE_EVENT(zfs_dbuf_evict_one_class, name, \
 	TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls), \
 	TP_ARGS(db, mls))
+/* END CSTYLED */
 DEFINE_DBUF_EVICT_ONE_EVENT(zfs_dbuf__evict__one);
 
 #endif /* _TRACE_DBUF_H */

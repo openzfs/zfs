@@ -1934,7 +1934,8 @@ typedef struct zvol_snapdev_cb_arg {
 } zvol_snapdev_cb_arg_t;
 
 static int
-zvol_set_snapdev_cb(const char *dsname, void *param) {
+zvol_set_snapdev_cb(const char *dsname, void *param)
+{
 	zvol_snapdev_cb_arg_t *arg = param;
 
 	if (strchr(dsname, '@') == NULL)

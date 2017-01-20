@@ -246,7 +246,7 @@ taskq_thread(void *arg)
 /*ARGSUSED*/
 taskq_t *
 taskq_create(const char *name, int nthreads, pri_t pri,
-	int minalloc, int maxalloc, uint_t flags)
+    int minalloc, int maxalloc, uint_t flags)
 {
 	taskq_t *tq = kmem_zalloc(sizeof (taskq_t), KM_SLEEP);
 	int t;

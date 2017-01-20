@@ -225,7 +225,8 @@ zpl_posix_acl_release(struct posix_acl *acl)
 #define	zpl_forget_cached_acl(ip, ty)		forget_cached_acl(ip, ty)
 #else
 static inline void
-zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
+zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer)
+{
 	struct posix_acl *older = NULL;
 
 	spin_lock(&ip->i_lock);
@@ -250,7 +251,8 @@ zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
 }
 
 static inline void
-zpl_forget_cached_acl(struct inode *ip, int type) {
+zpl_forget_cached_acl(struct inode *ip, int type)
+{
 	zpl_set_cached_acl(ip, type, (struct posix_acl *)ACL_NOT_CACHED);
 }
 #endif /* HAVE_SET_CACHED_ACL_USABLE */
@@ -261,7 +263,8 @@ zpl_forget_cached_acl(struct inode *ip, int type) {
 #define	__posix_acl_create(acl, gfp, mode)	posix_acl_create(acl, gfp, mode)
 #else
 static inline int
-__posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
+__posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode)
+{
 	struct posix_acl *oldacl = *acl;
 	mode_t mode = umode;
 	int error;
@@ -282,7 +285,8 @@ __posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
 }
 
 static inline int
-__posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep) {
+__posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep)
+{
 	struct posix_acl *oldacl = *acl;
 	mode_t mode = *umodep;
 	int error;

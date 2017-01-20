@@ -177,7 +177,7 @@ vdev_raidz_math_generate(raidz_map_t *rm)
 
 static raidz_rec_f
 reconstruct_fun_p_sel(raidz_map_t *rm, const int *parity_valid,
-	const int nbaddata)
+    const int nbaddata)
 {
 	if (nbaddata == 1 && parity_valid[CODE_P]) {
 		return (rm->rm_ops->rec[RAIDZ_REC_P]);
@@ -187,7 +187,7 @@ reconstruct_fun_p_sel(raidz_map_t *rm, const int *parity_valid,
 
 static raidz_rec_f
 reconstruct_fun_pq_sel(raidz_map_t *rm, const int *parity_valid,
-	const int nbaddata)
+    const int nbaddata)
 {
 	if (nbaddata == 1) {
 		if (parity_valid[CODE_P]) {
@@ -204,7 +204,7 @@ reconstruct_fun_pq_sel(raidz_map_t *rm, const int *parity_valid,
 
 static raidz_rec_f
 reconstruct_fun_pqr_sel(raidz_map_t *rm, const int *parity_valid,
-	const int nbaddata)
+    const int nbaddata)
 {
 	if (nbaddata == 1) {
 		if (parity_valid[CODE_P]) {
@@ -238,7 +238,7 @@ reconstruct_fun_pqr_sel(raidz_map_t *rm, const int *parity_valid,
  */
 int
 vdev_raidz_math_reconstruct(raidz_map_t *rm, const int *parity_valid,
-	const int *dt, const int nbaddata)
+    const int *dt, const int nbaddata)
 {
 	raidz_rec_f rec_fn = NULL;
 
@@ -647,6 +647,6 @@ zfs_vdev_raidz_impl_get(char *buffer, zfs_kernel_param_t *kp)
 }
 
 module_param_call(zfs_vdev_raidz_impl, zfs_vdev_raidz_impl_set,
-	zfs_vdev_raidz_impl_get, NULL, 0644);
+    zfs_vdev_raidz_impl_get, NULL, 0644);
 MODULE_PARM_DESC(zfs_vdev_raidz_impl, "Select raidz implementation.");
 #endif

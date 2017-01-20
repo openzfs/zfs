@@ -105,9 +105,11 @@ DECLARE_EVENT_CLASS(zfs_delay_mintime_class,
 /* END CSTYLED */
 
 #define	DEFINE_DELAY_MINTIME_EVENT(name) \
+/* BEGIN CSTYLED */
 DEFINE_EVENT(zfs_delay_mintime_class, name, \
 	TP_PROTO(dmu_tx_t *tx, uint64_t dirty, uint64_t min_tx_time), \
 	TP_ARGS(tx, dirty, min_tx_time))
+/* END CSTYLED */
 DEFINE_DELAY_MINTIME_EVENT(zfs_delay__mintime);
 
 #endif /* _TRACE_DMU_H */

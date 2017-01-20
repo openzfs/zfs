@@ -1745,7 +1745,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 
 int
 dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
-	dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
 	dnode_t *dn;
 	int err;
@@ -1760,7 +1760,7 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
 
 void
 dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
-	dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
 	dnode_t *dn;
 
@@ -1780,7 +1780,7 @@ dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 
 void
 dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
-	dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
 	dnode_t *dn;
 

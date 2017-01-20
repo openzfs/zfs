@@ -2090,7 +2090,7 @@ save_resume_state(struct receive_writer_arg *rwa,
 
 noinline static int
 receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
-	void *data)
+    void *data)
 {
 	dmu_object_info_t doi;
 	dmu_tx_t *tx;
@@ -2226,7 +2226,7 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 
 noinline static int
 receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
-	arc_buf_t *abuf)
+    arc_buf_t *abuf)
 {
 	dmu_tx_t *tx;
 	dmu_buf_t *bonus;

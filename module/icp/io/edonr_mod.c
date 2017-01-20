@@ -57,6 +57,7 @@ edonr_mod_init(void)
 }
 
 int
-edonr_mod_fini(void) {
+edonr_mod_fini(void)
+{
 	return (mod_remove(&modlinkage));
 }

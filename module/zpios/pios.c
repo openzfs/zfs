@@ -328,7 +328,7 @@ zpios_setup_run(run_args_t **run_args, zpios_cmd_t *kcmd, struct file *file)
 
 static int
 zpios_get_work_item(run_args_t *run_args, dmu_obj_t *obj, __u64 *offset,
-		    __u32 *chunk_size, zpios_region_t **region, __u32 flags)
+    __u32 *chunk_size, zpios_region_t **region, __u32 flags)
 {
 	int i, j, count = 0;
 	unsigned int random_int;
@@ -476,7 +476,7 @@ zpios_cleanup_run(run_args_t *run_args)
 
 static int
 zpios_dmu_write(run_args_t *run_args, objset_t *os, uint64_t object,
-		uint64_t offset, uint64_t size, const void *buf)
+    uint64_t offset, uint64_t size, const void *buf)
 {
 	struct dmu_tx *tx;
 	int rc, how = TXG_WAIT;
