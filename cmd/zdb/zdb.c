@@ -2654,7 +2654,7 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 
 		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
-			metaslab_group_t *mg = vd->vdev_mg;
+			ASSERTV(metaslab_group_t *mg = vd->vdev_mg);
 			for (m = 0; m < vd->vdev_ms_count; m++) {
 				metaslab_t *msp = vd->vdev_ms[m];
 				ASSERT3P(msp->ms_group, ==, mg);
@@ -2713,7 +2713,7 @@ zdb_leak_fini(spa_t *spa)
 		vdev_t *rvd = spa->spa_root_vdev;
 		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
-			metaslab_group_t *mg = vd->vdev_mg;
+			ASSERTV(metaslab_group_t *mg = vd->vdev_mg);
 			for (m = 0; m < vd->vdev_ms_count; m++) {
 				metaslab_t *msp = vd->vdev_ms[m];
 				ASSERT3P(mg, ==, msp->ms_group);
