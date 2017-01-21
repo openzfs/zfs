@@ -262,7 +262,7 @@ typedef struct kthread {
 extern kthread_t *zk_thread_current(void);
 extern void zk_thread_exit(void);
 extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
-	thread_func_t func, void *arg, size_t len,
+	thread_func_t func, void *arg, uint64_t len,
 	proc_t *pp, int state, pri_t pri, int detachstate);
 extern void zk_thread_join(kt_did_t tid);
 

@@ -147,13 +147,14 @@ zk_thread_helper(void *arg)
 
 kthread_t *
 zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
-    size_t len, proc_t *pp, int state, pri_t pri, int detachstate)
+    uint64_t len, proc_t *pp, int state, pri_t pri, int detachstate)
 {
 	kthread_t *kt;
 	pthread_attr_t attr;
 	char *stkstr;
 
 	ASSERT0(state & ~TS_RUN);
+	ASSERT0(len);
 
 	kt = umem_zalloc(sizeof (kthread_t), UMEM_NOFAIL);
 	kt->t_func = func;
