@@ -54,6 +54,10 @@ typedef enum {
 	ZFS_TYPE_BOOKMARK	= (1 << 4)
 } zfs_type_t;
 
+/*
+ * NB: lzc_dataset_type should be updated whenever a new objset type is added,
+ * if it represents a real type of a dataset that can be created from userland.
+ */
 typedef enum dmu_objset_type {
 	DMU_OST_NONE,
 	DMU_OST_META,
