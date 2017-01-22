@@ -1,0 +1,80 @@
+#!/bin/sh
+#
+# Add ZoL filesystem capabilities to an initrd, usually for a native ZFS root.
+#
+
+# This hook installs udev rules for ZoL.
+PREREQ="zdev"
+
+# These prerequisites are provided by the zfsutils package. The zdb utility is
+# not strictly required, but it can be useful at the initramfs recovery prompt.
+COPY_EXEC_LIST="/sbin/zdb /sbin/zpool /sbin/zfs /sbin/mount.zfs"
+
+# These prerequisites are provided by the base system.
+COPY_EXEC_LIST="$COPY_EXEC_LIST /bin/hostname /sbin/blkid"
+
+# Explicitly specify all kernel modules because automatic dependency resolution
+# is unreliable on many systems.
+BASE_MODULES="zlib_deflate spl zavl zcommon znvpair zunicode zfs"
+CRPT_MODULES="sun-ccm sun-gcm sun-ctr"
+MANUAL_ADD_MODULES_LIST="$BASE_MODULES"
+
+# Generic result code.
+RC=0
+
+case $1 in
+prereqs)
+	echo "$PREREQ"
+	exit 0
+	;;
+esac
+
+for ii in $COPY_EXEC_LIST
+do
+	if [ ! -x "$ii" ]
+	then
+		echo "Error: $ii is not executable."
+		RC=2
+	fi
+done
+
+if [ "$RC" -ne 0 ]
+then
+	exit "$RC"
+fi
+
+. /usr/share/initramfs-tools/hook-functions
+
+mkdir -p "$DESTDIR/etc/"
+
+# ZDB uses pthreads for some functions, but the library dependency is not
+# automatically detected. The `find` utility and extended `cp` options are
+# used here because libgcc_s.so could be in a subdirectory of /lib for
+# multi-arch installations.
+cp --target-directory="$DESTDIR" --parents $(find /lib -type f -name libgcc_s.so.1)
+
+for ii in $COPY_EXEC_LIST
+do
+	copy_exec "$ii"
+done
+
+for ii in $MANUAL_ADD_MODULES_LIST
+do
+	manual_add_modules "$ii"
+done
+
+if [ -f "/etc/hostname" ]
+then
+	cp -p "/etc/hostname" "$DESTDIR/etc/"
+else
+	hostname >"$DESTDIR/etc/hostname"
+fi
+
+# The spl-dkms package ensures that the /etc/hostid file exists.
+# NB: Commentary in the spl-dkms.postinst script.
+[ -f "/etc/hostid" ] && cp -p "/etc/hostid" "$DESTDIR/etc/hostid"
+
+# Install the zpool.cache file.
+[ ! -d "$DESTDIR/boot/zfs" ] && mkdir -p "$DESTDIR/boot/zfs"
+[ -d /boot/zfs ] && cp -r /boot/zfs "$DESTDIR/boot"
+exit 0

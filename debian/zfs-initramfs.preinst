@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# @FIXME: During system start, the /etc/init/mountall.conf on Ubuntu is unable
+# to generate the /etc/mtab file from the /proc/mounts file if a ZFS filesystem
+# is already mounted.
+
+# This depends on mountall 2.18, which recognizes the link.
+ln -sf /proc/mounts /etc/mtab
+
+#DEBHELPER#

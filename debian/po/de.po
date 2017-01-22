@@ -1,0 +1,64 @@
+# Translation of zfs-linux debconf templates to German
+# Copyright (C) Helge Kreutzmann <debian@helgefjell.de>, 2013.
+# This file is distributed under the same license as the zfs-linux package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux 0.6.1-1\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2013-07-04 22:09+0800\n"
+"PO-Revision-Date: 2013-07-07 19:11+0200\n"
+"Last-Translator: Helge Kreutzmann <debian@helgefjell.de>\n"
+"Language-Team: de <debian-l10n-german@lists.debian.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "Bau von ZFS auf einem 32-Bit-Kernel abbrechen?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "Sie versuchen, ZFS mit einem laufenden 32-Bit-Kernel zu bauen."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Dies ist zwar möglich, allerdings wird der Bau in einer 32-Bit-Umgebung nicht "
+"unterstützt und wird wahrscheinlich Instabilitäten verursachen, die "
+"möglicherweise Daten beschädigen. Es wird Ihnen nachdrücklich empfohlen, "
+"einen 64-Bit-Kernel zu verwenden; falls Sie sich entscheiden, mit der "
+"Verwendung von ZFS unter diesem Kernel fortzufahren, denken Sie daran, dass "
+"dies auf eigenes Risiko passiert."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "Bau von ZFS auf einem unbekannten Kernel abbrechen?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Sie versuchen, ZFS mit einem Kernel zu bauen, der weder als 32-Bit noch als "
+"64-Bit identifiziert werden konnte. Falls Sie sich nicht absolut sicher sind, "
+"dass der laufende Kernel 64-bittig ist, sollten Sie wahrscheinlich den Bau "
+"abbrechen."

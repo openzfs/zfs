@@ -1,0 +1,4 @@
+../tree/zfsutils/* /
+lib/udev
+sbin
+usr/share/man

@@ -1,0 +1,6 @@
+zfs-linux (0.6.2-1) wheezy; urgency=low
+
+  * Initial Release
+
+ -- Turbo Fredriksson <turbo@debian.org>  Wed, 11 Sep 2013 02:58:57 +0200
+

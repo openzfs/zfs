@@ -1,0 +1,6 @@
+lib/modules/_KVERS_-_ARCH_/extra/zcommon
+lib/modules/_KVERS_-_ARCH_/extra/zfs
+lib/modules/_KVERS_-_ARCH_/extra/avl
+lib/modules/_KVERS_-_ARCH_/extra/unicode
+lib/modules/_KVERS_-_ARCH_/extra/zpios
+lib/modules/_KVERS_-_ARCH_/extra/nvpari

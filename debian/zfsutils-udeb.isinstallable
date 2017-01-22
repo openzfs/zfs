@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# Require ZFS v28 in kernel
+exit 0

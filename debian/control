@@ -1,0 +1,51 @@
+Source: zfs-linux
+Section: kernel
+Priority: extra
+Maintainer: Debian ZFS on Linux maintainers <pkg-zfsonlinux-devel@lists.alioth.debian.org>
+Build-Depends: autotools-dev,
+ autoconf,
+ autogen,
+ automake,
+ debhelper (>= 9),
+ dkms (>> 2.1.1.2-5),
+ libtool,
+ linux-headers-3.2.0-4-rt-686-pae,
+ spl-dkms
+Standards-Version: 3.9.4
+Homepage: http://www.zfsonlinux.org/
+Vcs-Git: git://anonscm.debian.org/pkg-zfsonlinux/zfs.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-zfsonlinux/spl.git
+
+Package: zfs-modules-3.2.0-4-rt-686-pae
+Architecture: i386
+Provides: zfs-modules
+Depends: linux-image-3.2.0-4-rt-686-pae, spl-modules | spl-dkms
+Recommends: zfsutils
+Description: Native ZFS filesystem kernel modules for Linux (kernel 3.2.0-4-rt-686-pae)
+ An advanced integrated volume manager and filesystem that is designed for
+ performance and data integrity. Snapshots, clones, checksums, deduplication,
+ compression, and RAID redundancy are built-in features.
+ .
+ This package contains the compiled kernel module for 3.2.0-4-rt-686-pae
+ .
+ Includes the SPA, DMU, ZVOL, and ZPL components of ZFS.
+ .
+ If you have compiled your own kernel, you will most likely need to build
+ your own zfs-modules. The zfs-source package has been
+ provided for use with the Debian kernel-package utility to produce a 
+ version of zfs-module for your kernel.
+
+Package: zfs-modules-3.2.0-4-rt-686-pae-di
+Package-Type: udeb
+Section: debian-installer
+Architecture: i386
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Provides: zfs-modules, zfs-modules-3.2.0-4-rt-686-pae-udeb
+Description: Native ZFS filesystem kernel modules for Linux (debian-installar version for kernel 3.2.0-4-rt-686-pae)
+ An advanced integrated volume manager and filesystem that is designed for
+ performance and data integrity. Snapshots, clones, checksums, deduplication,
+ compression, and RAID redundancy are built-in features.
+ .
+ This package contains the compiled kernel module for 3.2.0-4-rt-686-pae
+ .
+ This is a minimal package for use in debian-installer.
