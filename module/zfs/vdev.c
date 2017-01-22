@@ -54,6 +54,12 @@
 int metaslabs_per_vdev = 200;
 
 /*
+ * When a vdev is added, it will be divided into approximately (but no
+ * more than) this number of metaslabs.
+ */
+int metaslabs_per_vdev = 200;
+
+/*
  * Virtual device management.
  */
 
