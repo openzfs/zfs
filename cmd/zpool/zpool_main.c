@@ -7475,6 +7475,8 @@ main(int argc, char **argv)
 
 	dprintf_setup(&argc, argv);
 
+	dprintf_setup(&argc, argv);
+
 	opterr = 0;
 
 	/*
