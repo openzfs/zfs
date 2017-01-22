@@ -50,12 +50,19 @@ function cleanup
 	if datasetexists $vol; then
 		log_must $ZFS destroy $vol
 	fi
+
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 }
 
 log_assert "Verify that ZFS volume space used by multiple copies is charged correctly."
 log_onexit cleanup
 vol=$TESTPOOL/$TESTVOL1
 
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 for val in 1 2 3; do
 	do_vol_test zfs $val

@@ -59,11 +59,19 @@ function cleanup
 		fi
 		((i += 1))
 	done
+
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 }
 
 
 log_assert "Verify zpool export succeed or fail with spare."
 log_onexit cleanup
+
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 mntpnt=$(get_prop mountpoint $TESTPOOL)
 

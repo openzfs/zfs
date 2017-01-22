@@ -49,11 +49,19 @@ verify_runnable "both"
 function cleanup
 {
 	log_must $RM -rf $TESTDIR/*
+
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 }
 
 log_assert "ZFS can handle race directory rename operation."
 
 log_onexit cleanup
+
+if is_linux; then
+	echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+fi
 
 $CD $TESTDIR
 $MKDIR -p 1/2/3/4/5 a/b/c/d/e

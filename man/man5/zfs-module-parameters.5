@@ -1076,6 +1076,26 @@ Default value: \fB1\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_parallel_open_enabled\fR (bool)
+.ad
+.RS 12n
+Accelerates vdev open from pool import or reopen from reload from cache by
+allow child vdevs to be opened in parallel.
+.sp
+This almost always deadlocks in unsupported stacked ZFS configurations where a
+zvol from one pool is the vdev for another pool. Some logic exists in the
+kernel module to disable this in the direct case when there is nothing
+in-between, but it is impossible to detect the indirect case where another
+block device exists inbetween. Disabling this will often make stacked ZFS
+configurations work, but they continue to be an unsupported configuration in
+the indirect case.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_sync_read_max_active\fR (int)
 .ad
 .RS 12n

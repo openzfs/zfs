@@ -65,6 +65,10 @@ function setup_all
 	log_must $ZFS create $TESTPOOL1/$TESTFS
 	log_must $ZFS set mountpoint=$TESTDIR2 $TESTPOOL1/$TESTFS
 
+	if is_linux; then
+		echo 0 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
+
 	return 0
 }
 
@@ -93,6 +97,10 @@ function cleanup_all
 
 	[[ -d $TESTDIR2 ]] && \
 		log_must $RM -rf $TESTDIR2
+
+	if is_linux; then
+		echo 1 > /sys/module/zfs/parameters/zfs_vdev_parallel_open_enabled
+	fi
 
 	return 0
 }
