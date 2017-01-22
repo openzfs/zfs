@@ -1,0 +1,20 @@
+language: c
+sudo: required
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+    - os: linux
+      dist: precise
+      sudo: required
+install:
+- sudo apt-get update
+- sudo apt-get install --yes build-essential autoconf libtool gawk alien fakeroot gdebi linux-headers-generic
+- sudo apt-get install zlib1g-dev uuid-dev libattr1-dev libblkid-dev libselinux-dev libudev-dev parted lsscsi wget ksh
+script:
+- export MAKEFLAGS="-j1"; echo $MAKEFLAGS
+- git clone https://github.com/zfsonlinux/spl.git && cd spl && ./autogen.sh && ./configure && make && make pkg-utils pkg-kmod && sudo dpkg -i *.deb && cd ..
+- ./autogen.sh && ./configure && make && make pkg-utils pkg-kmod && sudo dpkg -i *.deb
+- export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"; echo $MAKEFLAGS
+- make pkg-utils && make pkg-kmod
