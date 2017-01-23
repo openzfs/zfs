@@ -181,7 +181,7 @@ typedef struct zfid_long {
 extern uint_t zfs_fsyncer_key;
 
 extern int zfs_suspend_fs(zfs_sb_t *zsb);
-extern int zfs_resume_fs(zfs_sb_t *zsb, const char *osname);
+extern int zfs_resume_fs(zfs_sb_t *zsb, struct dsl_dataset *ds);
 extern int zfs_userspace_one(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t *valuep);
 extern int zfs_userspace_many(zfs_sb_t *zsb, zfs_userquota_prop_t type,

@@ -1710,7 +1710,7 @@ EXPORT_SYMBOL(zfs_suspend_fs);
  * Reopen zfs_sb_t and release VFS ops.
  */
 int
-zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
+zfs_resume_fs(zfs_sb_t *zsb, dsl_dataset_t *ds)
 {
 	int err, err2;
 	znode_t *zp;
@@ -1720,13 +1720,12 @@ zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 	ASSERT(RW_WRITE_HELD(&zsb->z_teardown_inactive_lock));
 
 	/*
-	 * We already own this, so just hold and rele it to update the
-	 * objset_t, as the one we had before may have been evicted.
+	 * We already own this, so just update the objset_t, as the one we
+	 * had before may have been evicted.
 	 */
-	VERIFY0(dmu_objset_hold(osname, zsb, &zsb->z_os));
-	VERIFY3P(zsb->z_os->os_dsl_dataset->ds_owner, ==, zsb);
-	VERIFY(dsl_dataset_long_held(zsb->z_os->os_dsl_dataset));
-	dmu_objset_rele(zsb->z_os, zsb);
+	VERIFY3P(ds->ds_owner, ==, zsb);
+	VERIFY(dsl_dataset_long_held(ds));
+	VERIFY0(dmu_objset_from_ds(ds, &zsb->z_os));
 
 	/*
 	 * Make sure version hasn't changed

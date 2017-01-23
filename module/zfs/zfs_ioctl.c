@@ -3645,12 +3645,15 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *args, nvlist_t *outnvl)
 	int error;
 
 	if (get_zfs_sb(fsname, &zsb) == 0) {
+		dsl_dataset_t *ds;
+
+		ds = dmu_objset_ds(zsb->z_os);
 		error = zfs_suspend_fs(zsb);
 		if (error == 0) {
 			int resume_err;
 
 			error = dsl_dataset_rollback(fsname, zsb, outnvl);
-			resume_err = zfs_resume_fs(zsb, fsname);
+			resume_err = zfs_resume_fs(zsb, ds);
 			error = error ? error : resume_err;
 		}
 		deactivate_super(zsb->z_sb);
@@ -4248,8 +4251,10 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 
 		if (get_zfs_sb(tofs, &zsb) == 0) {
 			/* online recv */
+			dsl_dataset_t *ds;
 			int end_err;
 
+			ds = dmu_objset_ds(zsb->z_os);
 			error = zfs_suspend_fs(zsb);
 			/*
 			 * If the suspend fails, then the recv_end will
@@ -4257,7 +4262,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
 			 */
 			end_err = dmu_recv_end(&drc, zsb);
 			if (error == 0)
-				error = zfs_resume_fs(zsb, tofs);
+				error = zfs_resume_fs(zsb, ds);
 			error = error ? error : end_err;
 			deactivate_super(zsb->z_sb);
 		} else if ((zv = zvol_suspend(tofs)) != NULL) {
@@ -4944,11 +4949,14 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 			 * objset needs to be closed & reopened (to grow the
 			 * objset_phys_t).  Suspend/resume the fs will do that.
 			 */
+			dsl_dataset_t *ds;
+
+			ds = dmu_objset_ds(zsb->z_os);
 			error = zfs_suspend_fs(zsb);
 			if (error == 0) {
 				dmu_objset_refresh_ownership(zsb->z_os,
 				    zsb);
-				error = zfs_resume_fs(zsb, zc->zc_name);
+				error = zfs_resume_fs(zsb, ds);
 			}
 		}
 		if (error == 0)
