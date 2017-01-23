@@ -2101,9 +2101,12 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 			/*
 			 * If we tried to use a default value for a
 			 * readonly property, it means that it was not
-			 * present.
+			 * present.  Note this only applies to "truly"
+			 * readonly properties, not set-once properties
+			 * like volblocksize.
 			 */
 			if (zfs_prop_readonly(prop) &&
+			    !zfs_prop_setonce(prop) &&
 			    *source != NULL && (*source)[0] == '\0') {
 				*source = NULL;
 			}
