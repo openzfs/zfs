@@ -1628,8 +1628,9 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 		 * its canmount property to 'on' or 'noauto'.  We only use
 		 * the changelist logic to unmount when setting canmount=off.
 		 */
-		if (!(prop == ZFS_PROP_CANMOUNT &&
-		    fnvpair_value_uint64(elem) != ZFS_CANMOUNT_OFF)) {
+		if (prop != ZFS_PROP_CANMOUNT ||
+		    (fnvpair_value_uint64(elem) == ZFS_CANMOUNT_OFF &&
+		    zfs_is_mounted(zhp, NULL))) {
 			cls[cl_idx] = changelist_gather(zhp, prop, 0, 0);
 			if (cls[cl_idx] == NULL)
 				goto error;
