@@ -137,6 +137,12 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_SLEEP);
 	txh->txh_tx = tx;
 	txh->txh_dnode = dn;
+	refcount_create(&txh->txh_space_towrite);
+	refcount_create(&txh->txh_space_tofree);
+	refcount_create(&txh->txh_space_tooverwrite);
+	refcount_create(&txh->txh_space_tounref);
+	refcount_create(&txh->txh_memory_tohold);
+	refcount_create(&txh->txh_fudge);
 #ifdef DEBUG_DMU_TX
 	txh->txh_type = type;
 	txh->txh_arg1 = arg1;
@@ -228,12 +234,18 @@ dmu_tx_count_twig(dmu_tx_hold_t *txh, dnode_t *dn, dmu_buf_impl_t *db,
 	freeable = (bp && (freeable ||
 	    dsl_dataset_block_freeable(ds, bp, bp->blk_birth)));
 
-	if (freeable)
-		txh->txh_space_tooverwrite += space;
-	else
-		txh->txh_space_towrite += space;
-	if (bp)
-		txh->txh_space_tounref += bp_get_dsize(os->os_spa, bp);
+	if (freeable) {
+		(void) refcount_add_many(&txh->txh_space_tooverwrite,
+		    space, FTAG);
+	} else {
+		(void) refcount_add_many(&txh->txh_space_towrite,
+		    space, FTAG);
+	}
+
+	if (bp) {
+		(void) refcount_add_many(&txh->txh_space_tounref,
+		    bp_get_dsize(os->os_spa, bp), FTAG);
+	}
 
 	dmu_tx_count_twig(txh, dn, parent, level + 1,
 	    blkid >> epbs, freeable, history);
@@ -364,8 +376,11 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 				bits = 64 - min_bs;
 				epbs = min_ibs - SPA_BLKPTRSHIFT;
 				for (bits -= epbs * (nlvls - 1);
-				    bits >= 0; bits -= epbs)
-					txh->txh_fudge += 1ULL << max_ibs;
+				    bits >= 0; bits -= epbs) {
+					(void) refcount_add_many(
+					    &txh->txh_fudge,
+					    1ULL << max_ibs, FTAG);
+					}
 				goto out;
 			}
 			off += delta;
@@ -381,7 +396,8 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	 */
 	start = P2ALIGN(off, 1ULL << max_bs);
 	end = P2ROUNDUP(off + len, 1ULL << max_bs) - 1;
-	txh->txh_space_towrite += end - start + 1;
+	(void) refcount_add_many(&txh->txh_space_towrite,
+	    end - start + 1, FTAG);
 
 	start >>= min_bs;
 	end >>= min_bs;
@@ -396,18 +412,21 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		start >>= epbs;
 		end >>= epbs;
 		ASSERT3U(end, >=, start);
-		txh->txh_space_towrite += (end - start + 1) << max_ibs;
+		(void) refcount_add_many(&txh->txh_space_towrite,
+		    (end - start + 1) << max_ibs, FTAG);
 		if (start != 0) {
 			/*
 			 * We also need a new blkid=0 indirect block
 			 * to reference any existing file data.
 			 */
-			txh->txh_space_towrite += 1ULL << max_ibs;
+			(void) refcount_add_many(&txh->txh_space_towrite,
+			    1ULL << max_ibs, FTAG);
 		}
 	}
 
 out:
-	if (txh->txh_space_towrite + txh->txh_space_tooverwrite >
+	if (refcount_count(&txh->txh_space_towrite) +
+	    refcount_count(&txh->txh_space_tooverwrite) >
 	    2 * DMU_MAX_ACCESS)
 		err = SET_ERROR(EFBIG);
 
@@ -426,12 +445,15 @@ dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 	if (dn && dn->dn_dbuf->db_blkptr &&
 	    dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
 	    dn->dn_dbuf->db_blkptr, dn->dn_dbuf->db_blkptr->blk_birth)) {
-		txh->txh_space_tooverwrite += space;
-		txh->txh_space_tounref += space;
+		(void) refcount_add_many(&txh->txh_space_tooverwrite,
+		    space, FTAG);
+		(void) refcount_add_many(&txh->txh_space_tounref, space, FTAG);
 	} else {
-		txh->txh_space_towrite += space;
-		if (dn && dn->dn_dbuf->db_blkptr)
-			txh->txh_space_tounref += space;
+		(void) refcount_add_many(&txh->txh_space_towrite, space, FTAG);
+		if (dn && dn->dn_dbuf->db_blkptr) {
+			(void) refcount_add_many(&txh->txh_space_tounref,
+			    space, FTAG);
+		}
 	}
 }
 
@@ -570,7 +592,8 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			break;
 		}
 
-		txh->txh_memory_tohold += dbuf->db.db_size;
+		(void) refcount_add_many(&txh->txh_memory_tohold,
+		    dbuf->db.db_size, FTAG);
 
 		/*
 		 * We don't check memory_tohold against DMU_MAX_ACCESS because
@@ -623,20 +646,23 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		    (dn->dn_indblkshift - SPA_BLKPTRSHIFT);
 
 		while (level++ < maxlevel) {
-			txh->txh_memory_tohold += MAX(MIN(blkcnt, nl1blks), 1)
-			    << dn->dn_indblkshift;
+			(void) refcount_add_many(&txh->txh_memory_tohold,
+			    MAX(MIN(blkcnt, nl1blks), 1) << dn->dn_indblkshift,
+			    FTAG);
 			blkcnt = 1 + (blkcnt >> epbs);
 		}
 	}
 
 	/* account for new level 1 indirect blocks that might show up */
 	if (skipped > 0) {
-		txh->txh_fudge += skipped << dn->dn_indblkshift;
+		(void) refcount_add_many(&txh->txh_fudge,
+		    skipped << dn->dn_indblkshift, FTAG);
 		skipped = MIN(skipped, DMU_MAX_DELETEBLKCNT >> epbs);
-		txh->txh_memory_tohold += skipped << dn->dn_indblkshift;
+		(void) refcount_add_many(&txh->txh_memory_tohold,
+		    skipped << dn->dn_indblkshift, FTAG);
 	}
-	txh->txh_space_tofree += space;
-	txh->txh_space_tounref += unref;
+	(void) refcount_add_many(&txh->txh_space_tofree, space, FTAG);
+	(void) refcount_add_many(&txh->txh_space_tounref, unref, FTAG);
 }
 
 /*
@@ -662,7 +688,10 @@ dmu_tx_mark_netfree(dmu_tx_t *tx)
 	 * cause overflows when doing math with these values (e.g. in
 	 * dmu_tx_try_assign()).
 	 */
-	txh->txh_space_tofree = txh->txh_space_tounref = 1024 * 1024 * 1024;
+	(void) refcount_add_many(&txh->txh_space_tofree,
+	    1024 * 1024 * 1024, FTAG);
+	(void) refcount_add_many(&txh->txh_space_tounref,
+	    1024 * 1024 * 1024, FTAG);
 }
 
 static void
@@ -784,9 +813,10 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, int add, const char *name)
 {
 	dmu_tx_t *tx = txh->txh_tx;
 	dnode_t *dn;
+	int err;
+	int epbs;
 	dsl_dataset_phys_t *ds_phys;
-	uint64_t nblocks;
-	int epbs, err;
+	int lvl;
 
 	ASSERT(tx->tx_txg == 0);
 
@@ -825,12 +855,17 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, int add, const char *name)
 		 */
 		bp = &dn->dn_phys->dn_blkptr[0];
 		if (dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
-		    bp, bp->blk_birth))
-			txh->txh_space_tooverwrite += MZAP_MAX_BLKSZ;
-		else
-			txh->txh_space_towrite += MZAP_MAX_BLKSZ;
-		if (!BP_IS_HOLE(bp))
-			txh->txh_space_tounref += MZAP_MAX_BLKSZ;
+		    bp, bp->blk_birth)) {
+			(void) refcount_add_many(&txh->txh_space_tooverwrite,
+			    MZAP_MAX_BLKSZ, FTAG);
+		} else {
+			(void) refcount_add_many(&txh->txh_space_towrite,
+			    MZAP_MAX_BLKSZ, FTAG);
+		}
+		if (!BP_IS_HOLE(bp)) {
+			(void) refcount_add_many(&txh->txh_space_tounref,
+			    MZAP_MAX_BLKSZ, FTAG);
+		}
 		return;
 	}
 
@@ -851,15 +886,29 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, int add, const char *name)
 
 	/*
 	 * If the modified blocks are scattered to the four winds,
-	 * we'll have to modify an indirect twig for each.
+	 * we'll have to modify an indirect twig for each.  We can make
+	 * modifications at up to 3 locations:
+	 *  - header block at the beginning of the object
+	 *  - target leaf block
+	 *  - end of the object, where we might need to write:
+	 *	- a new leaf block if the target block needs to be split
+	 *	- the new pointer table, if it is growing
+	 *	- the new cookie table, if it is growing
 	 */
 	epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
-	ds_phys = dsl_dataset_phys(dn->dn_objset->os_dsl_dataset);
-	for (nblocks = dn->dn_maxblkid >> epbs; nblocks != 0; nblocks >>= epbs)
-		if (ds_phys->ds_prev_snap_obj)
-			txh->txh_space_towrite += 3 << dn->dn_indblkshift;
-		else
-			txh->txh_space_tooverwrite += 3 << dn->dn_indblkshift;
+	ds_phys =
+	    dsl_dataset_phys(dn->dn_objset->os_dsl_dataset);
+	for (lvl = 1; lvl < dn->dn_nlevels; lvl++) {
+		uint64_t num_indirects = 1 + (dn->dn_maxblkid >> (epbs * lvl));
+		uint64_t spc = MIN(3, num_indirects) << dn->dn_indblkshift;
+		if (ds_phys->ds_prev_snap_obj != 0) {
+			(void) refcount_add_many(&txh->txh_space_towrite,
+			    spc, FTAG);
+		} else {
+			(void) refcount_add_many(&txh->txh_space_tooverwrite,
+			    spc, FTAG);
+		}
+	}
 }
 
 void
@@ -925,7 +974,7 @@ dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space)
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    DMU_NEW_OBJECT, THT_SPACE, space, 0);
 	if (txh)
-		txh->txh_space_towrite += space;
+		(void) refcount_add_many(&txh->txh_space_towrite, space, FTAG);
 }
 
 int
@@ -1267,12 +1316,12 @@ dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 			(void) refcount_add(&dn->dn_tx_holds, tx);
 			mutex_exit(&dn->dn_mtx);
 		}
-		towrite += txh->txh_space_towrite;
-		tofree += txh->txh_space_tofree;
-		tooverwrite += txh->txh_space_tooverwrite;
-		tounref += txh->txh_space_tounref;
-		tohold += txh->txh_memory_tohold;
-		fudge += txh->txh_fudge;
+		towrite += refcount_count(&txh->txh_space_towrite);
+		tofree += refcount_count(&txh->txh_space_tofree);
+		tooverwrite += refcount_count(&txh->txh_space_tooverwrite);
+		tounref += refcount_count(&txh->txh_space_tounref);
+		tohold += refcount_count(&txh->txh_memory_tohold);
+		fudge += refcount_count(&txh->txh_fudge);
 	}
 
 	/*
@@ -1487,6 +1536,43 @@ dmu_tx_willuse_space(dmu_tx_t *tx, int64_t delta)
 #endif
 }
 
+static void
+dmu_tx_destroy(dmu_tx_t *tx)
+{
+	dmu_tx_hold_t *txh;
+
+	while ((txh = list_head(&tx->tx_holds)) != NULL) {
+		dnode_t *dn = txh->txh_dnode;
+
+		list_remove(&tx->tx_holds, txh);
+		refcount_destroy_many(&txh->txh_space_towrite,
+		    refcount_count(&txh->txh_space_towrite));
+		refcount_destroy_many(&txh->txh_space_tofree,
+		    refcount_count(&txh->txh_space_tofree));
+		refcount_destroy_many(&txh->txh_space_tooverwrite,
+		    refcount_count(&txh->txh_space_tooverwrite));
+		refcount_destroy_many(&txh->txh_space_tounref,
+		    refcount_count(&txh->txh_space_tounref));
+		refcount_destroy_many(&txh->txh_memory_tohold,
+		    refcount_count(&txh->txh_memory_tohold));
+		refcount_destroy_many(&txh->txh_fudge,
+		    refcount_count(&txh->txh_fudge));
+		kmem_free(txh, sizeof (dmu_tx_hold_t));
+		if (dn != NULL)
+			dnode_rele(dn, tx);
+	}
+
+	list_destroy(&tx->tx_callbacks);
+	list_destroy(&tx->tx_holds);
+#ifdef DEBUG_DMU_TX
+	refcount_destroy_many(&tx->tx_space_written,
+	    refcount_count(&tx->tx_space_written));
+	refcount_destroy_many(&tx->tx_space_freed,
+	    refcount_count(&tx->tx_space_freed));
+#endif
+	kmem_free(tx, sizeof (dmu_tx_t));
+}
+
 void
 dmu_tx_commit(dmu_tx_t *tx)
 {
@@ -1498,13 +1584,13 @@ dmu_tx_commit(dmu_tx_t *tx)
 	 * Go through the transaction's hold list and remove holds on
 	 * associated dnodes, notifying waiters if no holds remain.
 	 */
-	while ((txh = list_head(&tx->tx_holds))) {
+	for (txh = list_head(&tx->tx_holds); txh != NULL;
+	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
 
-		list_remove(&tx->tx_holds, txh);
-		kmem_free(txh, sizeof (dmu_tx_hold_t));
 		if (dn == NULL)
 			continue;
+
 		mutex_enter(&dn->dn_mtx);
 		ASSERT3U(dn->dn_assigned_txg, ==, tx->tx_txg);
 
@@ -1513,7 +1599,6 @@ dmu_tx_commit(dmu_tx_t *tx)
 			cv_broadcast(&dn->dn_notxholds);
 		}
 		mutex_exit(&dn->dn_mtx);
-		dnode_rele(dn, tx);
 	}
 
 	if (tx->tx_tempreserve_cookie)
@@ -1525,35 +1610,18 @@ dmu_tx_commit(dmu_tx_t *tx)
 	if (tx->tx_anyobj == FALSE)
 		txg_rele_to_sync(&tx->tx_txgh);
 
-	list_destroy(&tx->tx_callbacks);
-	list_destroy(&tx->tx_holds);
 #ifdef DEBUG_DMU_TX
 	dprintf("towrite=%llu written=%llu tofree=%llu freed=%llu\n",
 	    tx->tx_space_towrite, refcount_count(&tx->tx_space_written),
 	    tx->tx_space_tofree, refcount_count(&tx->tx_space_freed));
-	refcount_destroy_many(&tx->tx_space_written,
-	    refcount_count(&tx->tx_space_written));
-	refcount_destroy_many(&tx->tx_space_freed,
-	    refcount_count(&tx->tx_space_freed));
 #endif
-	kmem_free(tx, sizeof (dmu_tx_t));
+	dmu_tx_destroy(tx);
 }
 
 void
 dmu_tx_abort(dmu_tx_t *tx)
 {
-	dmu_tx_hold_t *txh;
-
 	ASSERT(tx->tx_txg == 0);
-
-	while ((txh = list_head(&tx->tx_holds))) {
-		dnode_t *dn = txh->txh_dnode;
-
-		list_remove(&tx->tx_holds, txh);
-		kmem_free(txh, sizeof (dmu_tx_hold_t));
-		if (dn != NULL)
-			dnode_rele(dn, tx);
-	}
 
 	/*
 	 * Call any registered callbacks with an error code.
@@ -1561,15 +1629,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 	if (!list_is_empty(&tx->tx_callbacks))
 		dmu_tx_do_callbacks(&tx->tx_callbacks, ECANCELED);
 
-	list_destroy(&tx->tx_callbacks);
-	list_destroy(&tx->tx_holds);
-#ifdef DEBUG_DMU_TX
-	refcount_destroy_many(&tx->tx_space_written,
-	    refcount_count(&tx->tx_space_written));
-	refcount_destroy_many(&tx->tx_space_freed,
-	    refcount_count(&tx->tx_space_freed));
-#endif
-	kmem_free(tx, sizeof (dmu_tx_t));
+	dmu_tx_destroy(tx);
 }
 
 uint64_t
@@ -1607,7 +1667,7 @@ dmu_tx_do_callbacks(list_t *cb_list, int error)
 {
 	dmu_tx_callback_t *dcb;
 
-	while ((dcb = list_head(cb_list))) {
+	while ((dcb = list_head(cb_list)) != NULL) {
 		list_remove(cb_list, dcb);
 		dcb->dcb_func(dcb->dcb_data, error);
 		kmem_free(dcb, sizeof (dmu_tx_callback_t));
@@ -1667,18 +1727,24 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 
 	/* If blkptr doesn't exist then add space to towrite */
 	if (!(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
-		txh->txh_space_towrite += SPA_OLD_MAXBLOCKSIZE;
+		(void) refcount_add_many(&txh->txh_space_towrite,
+		    SPA_OLD_MAXBLOCKSIZE, FTAG);
 	} else {
 		blkptr_t *bp;
 
 		bp = DN_SPILL_BLKPTR(dn->dn_phys);
 		if (dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
-		    bp, bp->blk_birth))
-			txh->txh_space_tooverwrite += SPA_OLD_MAXBLOCKSIZE;
-		else
-			txh->txh_space_towrite += SPA_OLD_MAXBLOCKSIZE;
-		if (!BP_IS_HOLE(bp))
-			txh->txh_space_tounref += SPA_OLD_MAXBLOCKSIZE;
+		    bp, bp->blk_birth)) {
+			(void) refcount_add_many(&txh->txh_space_tooverwrite,
+			    SPA_OLD_MAXBLOCKSIZE, FTAG);
+		} else {
+			(void) refcount_add_many(&txh->txh_space_towrite,
+			    SPA_OLD_MAXBLOCKSIZE, FTAG);
+		}
+		if (!BP_IS_HOLE(bp)) {
+			(void) refcount_add_many(&txh->txh_space_tounref,
+			    SPA_OLD_MAXBLOCKSIZE, FTAG);
+		}
 	}
 }
 
