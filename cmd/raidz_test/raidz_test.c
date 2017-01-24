@@ -704,7 +704,7 @@ run_sweep(void)
 
 		VERIFY3P(zk_thread_create(NULL, 0,
 		    (thread_func_t)sweep_thread,
-		    (void *) opts, TS_RUN, NULL, 0, 0,
+		    (void *) opts, 0, NULL, TS_RUN, 0,
 		    PTHREAD_CREATE_JOINABLE), !=, NULL);
 	}
 
