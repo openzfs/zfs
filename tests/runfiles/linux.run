@@ -87,8 +87,8 @@ tests = ['zfs_clone_001_neg', 'zfs_clone_002_pos', 'zfs_clone_003_pos',
     'zfs_clone_010_pos']
 
 # DISABLED:
-# zfs_copies_003_pos - zpool on zvol
-# zfs_copies_005_neg - nested pools
+# zfs_copies_003_pos - https://github.com/zfsonlinux/zfs/issues/3484
+# zfs_copies_005_neg - https://github.com/zfsonlinux/zfs/issues/3484
 [tests/functional/cli_root/zfs_copies]
 tests = ['zfs_copies_001_pos', 'zfs_copies_002_pos', 'zfs_copies_004_neg',
     'zfs_copies_006_pos']
@@ -102,26 +102,29 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
 
 # DISABLED:
 # zfs_destroy_005_neg - busy mountpoint behavior
+# zfs_destroy_001_pos - https://github.com/zfsonlinux/zfs/issues/5635
 [tests/functional/cli_root/zfs_destroy]
-tests = ['zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
+tests = ['zfs_destroy_002_pos', 'zfs_destroy_003_pos',
     'zfs_destroy_004_pos','zfs_destroy_006_neg', 'zfs_destroy_007_neg',
     'zfs_destroy_008_pos','zfs_destroy_009_pos', 'zfs_destroy_010_pos',
     'zfs_destroy_011_pos','zfs_destroy_012_pos', 'zfs_destroy_013_neg',
     'zfs_destroy_014_pos','zfs_destroy_015_pos', 'zfs_destroy_016_pos']
 
 # DISABLED:
-# zfs_get_004_pos - nested pools
+# zfs_get_004_pos - https://github.com/zfsonlinux/zfs/issues/3484
 # zfs_get_006_neg - needs investigation
 [tests/functional/cli_root/zfs_get]
 tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
     'zfs_get_005_neg', 'zfs_get_007_neg', 'zfs_get_008_pos',
     'zfs_get_009_pos', 'zfs_get_010_neg']
 
+# DISABLED:
+# zfs_inherit_003_pos - https://github.com/zfsonlinux/zfs/issues/5669
 [tests/functional/cli_root/zfs_inherit]
-tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos']
+tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg']
 
 # DISABLED:
-# zfs_mount_006_pos - needs investigation
+# zfs_mount_006_pos - https://github.com/zfsonlinux/zfs/issues/4990
 # zfs_mount_007_pos - needs investigation
 # zfs_mount_009_neg - needs investigation
 # zfs_mount_all_001_pos - needs investigation
@@ -136,7 +139,7 @@ tests = ['zfs_promote_001_pos', 'zfs_promote_002_pos', 'zfs_promote_003_pos',
     'zfs_promote_007_neg', 'zfs_promote_008_pos']
 
 # DISABLED:
-# zfs_written_property_001_pos - sync(1) does not force txg under Linux
+# zfs_written_property_001_pos - https://github.com/zfsonlinux/zfs/issues/2441
 [tests/functional/cli_root/zfs_property]
 tests = []
 
@@ -149,10 +152,13 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_010_pos', 'zfs_receive_011_pos', 'zfs_receive_012_pos',
     'zfs_receive_013_pos', 'zfs_receive_014_pos']
 
+# DISABLED:
+# zfs_rename_006_pos - https://github.com/zfsonlinux/zfs/issues/5647
+# zfs_rename_009_neg - https://github.com/zfsonlinux/zfs/issues/5648
 [tests/functional/cli_root/zfs_rename]
 tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos', 'zfs_rename_003_pos',
-    'zfs_rename_004_neg', 'zfs_rename_005_neg', 'zfs_rename_006_pos',
-    'zfs_rename_007_pos', 'zfs_rename_008_pos', 'zfs_rename_009_neg',
+    'zfs_rename_004_neg', 'zfs_rename_005_neg',
+    'zfs_rename_007_pos', 'zfs_rename_008_pos',
     'zfs_rename_010_neg', 'zfs_rename_011_pos', 'zfs_rename_012_neg',
     'zfs_rename_013_pos']
 
@@ -183,7 +189,7 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'zfs_set_002_neg', 'zfs_set_003_neg', 'property_alias_001_pos',
     'mountpoint_003_pos']
 
-# DISABLED: Tests need to be updated for Linux share behavior
+# DISABLED:
 # zfs_share_005_pos - needs investigation, probably unsupported NFS share format
 [tests/functional/cli_root/zfs_share]
 tests = ['zfs_share_001_pos', 'zfs_share_002_pos', 'zfs_share_003_pos',
@@ -206,7 +212,7 @@ tests = ['zfs_unmount_001_pos', 'zfs_unmount_002_pos', 'zfs_unmount_003_pos',
     'zfs_unmount_004_pos', 'zfs_unmount_006_pos',
     'zfs_unmount_007_neg', 'zfs_unmount_008_neg']
 
-# DISABLED: Tests need to be updated for Linux unshare behavior
+# DISABLED:
 # zfs_unshare_002_pos - zfs set sharenfs=off won't unshare if it was already off
 # zfs_unshare_006_pos - some distros come with Samba "user shares" disabled
 [tests/functional/cli_root/zfs_unshare]
@@ -222,9 +228,9 @@ tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',
 tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos']
 
 # DISABLED:
-# zpool_add_004_pos - nested pools
+# zpool_add_004_pos - https://github.com/zfsonlinux/zfs/issues/3484
 # zpool_add_005_pos - no 'dumpadm' command.
-# zpool_add_006_pos - nested pools
+# zpool_add_006_pos - https://github.com/zfsonlinux/zfs/issues/3484
 [tests/functional/cli_root/zpool_add]
 tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
     'zpool_add_007_neg', 'zpool_add_008_neg', 'zpool_add_009_neg']
@@ -232,14 +238,16 @@ tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
 [tests/functional/cli_root/zpool_attach]
 tests = ['zpool_attach_001_neg']
 
+# DISABLED:
+# zpool_clear_001_pos - https://github.com/zfsonlinux/zfs/issues/5634
 [tests/functional/cli_root/zpool_clear]
-tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg']
+tests = ['zpool_clear_002_neg', 'zpool_clear_003_neg']
 
 # DISABLED:
 # zpool_create_001_pos - needs investigation
 # zpool_create_002_pos - needs investigation
 # zpool_create_004_pos - needs investigation
-# zpool_create_006_pos - nested pools
+# zpool_create_006_pos - https://github.com/zfsonlinux/zfs/issues/3484
 # zpool_create_008_pos - uses VTOC labels (?) and 'overlapping slices'
 # zpool_create_011_neg - tries to access /etc/vfstab etc
 # zpool_create_012_neg - swap devices
@@ -259,8 +267,8 @@ tests = [
     'zpool_create_features_005_pos']
 
 # DISABLED:
-# zpool_destroy_001_pos - failure should be investigated
-# zpool_destroy_002_pos - update for Linux fource unmount behavior
+# zpool_destroy_001_pos - needs investigation
+# zpool_destroy_002_pos - busy mountpoint behavior
 [tests/functional/cli_root/zpool_destroy]
 tests = [
     'zpool_destroy_003_neg']
@@ -271,12 +279,13 @@ post =
 tests = ['zpool_detach_001_neg']
 
 # DISABLED: Requires full FMA support in ZED
+# zpool_expand_* - https://github.com/zfsonlinux/zfs/issues/2437
 #[tests/functional/cli_root/zpool_expand]
 #tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
 #    'zpool_expand_003_neg']
 
 # DISABLED:
-# zpool_export_004_pos - nested pools
+# zpool_export_004_pos - https://github.com/zfsonlinux/zfs/issues/3484
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
     'zpool_export_003_neg']
@@ -330,8 +339,8 @@ post =
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos']
 
 # DISABLED:
-# zpool_upgrade_002_pos - Issue zfsonlinux/zfs#4034
-# zpool_upgrade_004_pos - Issue zfsonlinux/zfs#4034
+# zpool_upgrade_002_pos - https://github.com/zfsonlinux/zfs/issues/4034
+# zpool_upgrade_004_pos - https://github.com/zfsonlinux/zfs/issues/4034
 # zpool_upgrade_007_pos - needs investigation
 [tests/functional/cli_root/zpool_upgrade]
 tests = ['zpool_upgrade_001_pos',
@@ -382,11 +391,13 @@ tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
 [tests/functional/ctime]
 tests = ['ctime_001_pos' ]
 
+# DISABLED:
+# zfs_allow_010_pos - https://github.com/zfsonlinux/zfs/issues/5646
 [tests/functional/delegate]
 tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos',
     'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
     'zfs_allow_007_pos', 'zfs_allow_008_pos', 'zfs_allow_009_neg',
-    'zfs_allow_010_pos', 'zfs_allow_011_neg', 'zfs_allow_012_neg',
+    'zfs_allow_011_neg', 'zfs_allow_012_neg',
     'zfs_unallow_001_pos', 'zfs_unallow_002_pos', 'zfs_unallow_003_pos',
     'zfs_unallow_004_pos', 'zfs_unallow_005_pos', 'zfs_unallow_006_pos',
     'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
@@ -422,10 +433,14 @@ tests = ['large_dnode_001_pos', 'large_dnode_002_pos', 'large_dnode_003_pos',
 #pre =
 #post =
 
+# DISABLED:
+# history_004_pos - https://github.com/zfsonlinux/zfs/issues/5664
+# history_006_neg - https://github.com/zfsonlinux/zfs/issues/5657
+# history_008_pos - https://github.com/zfsonlinux/zfs/issues/5658
 [tests/functional/history]
 tests = ['history_001_pos', 'history_002_pos', 'history_003_pos',
-    'history_004_pos', 'history_005_neg', 'history_006_neg',
-    'history_007_pos', 'history_008_pos', 'history_009_pos',
+    'history_005_neg',
+    'history_007_pos', 'history_009_pos',
     'history_010_pos']
 
 [tests/functional/inheritance]
@@ -463,12 +478,12 @@ tests = ['migration_001_pos', 'migration_002_pos', 'migration_003_pos',
     'migration_010_pos', 'migration_011_pos', 'migration_012_pos']
 
 # DISABLED:
-# mmap_write_001_pos: needs investigation
+# mmap_write_001_pos - needs investigation
 [tests/functional/mmap]
 tests = ['mmap_read_001_pos']
 
 # DISABLED:
-# umountall_001 - Doesn't make sence in Linux - no umountall command.
+# umountall_001 - requires umountall command.
 [tests/functional/mount]
 tests = ['umount_001']
 
@@ -501,7 +516,7 @@ post =
 [tests/functional/poolversion]
 tests = ['poolversion_001_pos', 'poolversion_002_pos']
 
-# DISABLED: Doesn't make sense on Linux - no pfexec command or 'RBAC profile'
+# DISABLED: requires pfexec command or 'RBAC profile'
 #[tests/functional/privilege]
 #tests = ['privilege_001_pos', 'privilege_002_pos']
 
@@ -525,20 +540,24 @@ tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
 tests = ['refreserv_001_pos', 'refreserv_002_pos', 'refreserv_003_pos',
     'refreserv_005_pos']
 
-# DISABLED: nested pool
+# DISABLED:
 #[tests/functional/rename_dirs]
 #tests = ['rename_dirs_001_pos']
 
 [tests/functional/replacement]
 tests = ['replacement_001_pos', 'replacement_002_pos', 'replacement_003_pos']
 
+# DISABLED:
+# reservation_001_pos - https://github.com/zfsonlinux/zfs/issues/4445
+# reservation_013_pos - https://github.com/zfsonlinux/zfs/issues/4444
+# reservation_018_pos - https://github.com/zfsonlinux/zfs/issues/5642
 [tests/functional/reservation]
 tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_004_pos', 'reservation_005_pos', 'reservation_006_pos',
     'reservation_007_pos', 'reservation_008_pos', 'reservation_009_pos',
     'reservation_010_pos', 'reservation_011_pos', 'reservation_012_pos',
     'reservation_013_pos', 'reservation_014_pos', 'reservation_015_pos',
-    'reservation_016_pos', 'reservation_017_pos', 'reservation_018_pos']
+    'reservation_016_pos', 'reservation_017_pos']
 
 # DISABLED: Root pools must be handled differently under Linux
 #[tests/functional/rootpool]
@@ -562,7 +581,7 @@ tests = ['scrub_mirror_001_pos', 'scrub_mirror_002_pos',
 
 # DISABLED: Scripts need to be updated.
 # slog_012_neg - needs investigation
-# slog_013_pos - Linux doesn't have a 'lofiadm' command.
+# slog_013_pos - requires 'lofiadm' command.
 # slog_014_pos - needs investigation
 [tests/functional/slog]
 tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
@@ -570,7 +589,7 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg']
 
 # DISABLED:
-# clone_001_pos - nested pools
+# clone_001_pos - https://github.com/zfsonlinux/zfs/issues/3484
 # rollback_003_pos - Hangs in unmount and spins.
 # snapshot_016_pos - Problem with automount
 [tests/functional/snapshot]
@@ -581,9 +600,12 @@ tests = ['rollback_001_pos', 'rollback_002_pos',
     'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
     'snapshot_012_pos', 'snapshot_013_pos', 'snapshot_014_pos',
     'snapshot_015_pos', 'snapshot_017_pos']
+
+# DISABLED:
+# snapused_004_pos - https://github.com/zfsonlinux/zfs/issues/5513
 [tests/functional/snapused]
 tests = ['snapused_001_pos', 'snapused_002_pos', 'snapused_003_pos',
-    'snapused_004_pos', 'snapused_005_pos']
+    'snapused_005_pos']
 
 [tests/functional/sparse]
 tests = ['sparse_001_pos']
@@ -613,7 +635,6 @@ tests = [
 
 # DISABLED:
 # vdev_zaps_007_pos -- fails due to a pre-existing issue with zpool split
-#
 [tests/functional/vdev_zaps]
 tests = ['vdev_zaps_001_pos', 'vdev_zaps_002_pos', 'vdev_zaps_003_pos',
     'vdev_zaps_004_pos', 'vdev_zaps_005_pos', 'vdev_zaps_006_pos']

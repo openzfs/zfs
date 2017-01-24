@@ -35,6 +35,11 @@
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5665
+if is_32bit; then
+	log_unsupported "Test case fails on 32-bit systems"
+fi
+
 log_assert "Verify resumability of a full ZFS send/receive with the source " \
     "filesystem unmounted"
 log_onexit cleanup_pool $POOL2
