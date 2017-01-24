@@ -3162,7 +3162,8 @@ dump_zpool(spa_t *spa)
 			uint64_t refcount;
 
 			if (!(spa_feature_table[f].fi_flags &
-			    ZFEATURE_FLAG_PER_DATASET)) {
+			    ZFEATURE_FLAG_PER_DATASET) ||
+			    !spa_feature_is_enabled(spa, f)) {
 				ASSERT0(dataset_feature_count[f]);
 				continue;
 			}
