@@ -753,6 +753,79 @@ This property can also be referred to by its shortened name, \fBlistsnaps\fR.
 The current on-disk version of the pool. This can be increased, but never decreased. The preferred method of updating pools is with the "\fBzpool upgrade\fR" command, though this property can be used when a specific version is needed for backwards compatibility. Once feature flags are enabled on a pool this property will no longer have a value.
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBrotorvector\fR=(unset) | \fIconfiguration\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls to which \fBvdev\fR each written block is allocated.  The primary use of this property is to allocate meta-data on faster devices (such as SSDs), while allocating all other (bulk) data on cheaper devices (HDDs).  It can also be used to allocate small data blocks on faster devices.
+.sp
+With this option set, all \fBvdev\fRs are assigned to an allocaton category (= given a rotor vector index).  The categories should be ordered from fast to slow, which would (presumably) also correspond to an ordering from expensive to cheap.  Associated with each category is a description of what kind of data blocks it accepts.  (Kind is currently \fBdata\fR or \fBmetadata\fR, and its size.)  Each written block is allocated to a \fBvdev\fR of the first (fastest) category that accepts it.
+.sp
+If a category is completely full, a slower category will be used.  And as a last resort, faster categories are used.  Note however that generally the entire pool will be reported as full and not allow further user writes before any category becomes completely full.  The rationale is that rather than filling up expensive fast \fBvdev\fRs with some last bulk data when a pool is close to full, the pool shall act as full when the cheaper categories are full.  Likewise, this strategy avoids storing metadata on slow \fBvdev\fRs, which would hamper performance for this metadata even after the full condition of the faster categories has been resolved.
+.sp
+The configuration is a semicolon-separated list of (up to 5) categories:
+.sp
+[\fIspec\fR\fB<=\fR\fIlimit\fR]\fB;\fR...\fB;\fR\fIspec\fR\fR
+.sp
+where \fIspec\fR is a comma-separated list of \fIvdev-guid\fRs and generic media type specifiers: \fBssd\fR, \fBssd-raidz\fR, \fBmixed\fR, \fBhdd\fR, and \fBhdd-raidz\fR.  (\fBmixed\fR denotes mirrors vith both ssd and hdd drives.)  Expecilitly assigned \fBvdev\fR \fIguid\fRs takes precendece over generic assignments.  Any \fBvdev\fRs which are not matched by \fIguid\fR or the generic media types are placed in the last category.
+.sp
+\fIlimit\fR is a comma-separated list of block size limits in KiB that are allowed within the category.  To specify a limit that applies to metadata only, add \fBmeta:\fR before the value.  The last category has no limit.
+.sp
+Examples:
+.sp
+.ne 2
+.na
+\fB\fBssd<=meta:16;hdd\fR\fR
+.ad
+.RS 10n
+Metadata block less than 16 KiB are allocated on ssd-only \fBvdev\fRs.  Other allocations go to remaining disks.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBssd<=16;hdd\fR\fR
+.ad
+.RS 10n
+Any block less than 16 KiB is allocated on ssd-only \fBvdev\fRs.  Other allocations go to remaining disks.  This uses more ssd space than the previous example, but gives full ssd-like performance for small files.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBssd<=4;mixed<=64;123,hdd\fR\fR
+.ad
+.RS 10n
+Blocks less than 4 KiB are allocated on ssd-only \fBvdev\fRs. Allocations less than 64 KiB end up on ssd/hdd mixed mirror  \fBvdev\fRs). Other allocations go to remaining disks. 123 represents av \fBvdev\fR \fIguid\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB123,ssd<=meta:4;mixed<=64;hdd\fR\fR
+.ad
+.RS 10n
+Pure ssd (and explicit \fBvdev\fR \fIguid\fR 123) takes metadata <= 4 KiB.
+Mixed (mirror ssd+hdd) takes data (including metadata) <= 64 KiB.
+Others (hdd) take remainder.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBssd<=meta:128,4;mixed<=64;hdd\fR\fR
+.ad
+.RS 10n
+Pure ssd \fBvdev\fR takes metadata <= 128 KiB and data <= 4 KiB.
+Mixed (mirror) takes data <= 64 KiB (this metadata already taken by ssd).
+Others (hdd) takes remainder.
+.RE
+
+.RE
+
 .SS "Subcommands"
 .sp
 .LP
