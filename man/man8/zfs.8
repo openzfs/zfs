@@ -118,7 +118,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBinherit\fR [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume|snapshot\fR ...
+\fBzfs\fR \fBinherit\fR [\fB-rS\fR] \fIproperty\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...
 .fi
 
 .LP
@@ -267,7 +267,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBdiff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+\fBzfs\fR \fBdiff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot\fR|\fIfilesystem\fR
 
 .SH DESCRIPTION
 .LP
@@ -3341,7 +3341,7 @@ Recursively releases a hold with the given tag on the snapshots of all descenden
 .sp
 .ne 2
 .na
-\fB\fBzfs diff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+\fB\fBzfs diff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot\fR|\fIfilesystem\fR
 .ad
 .sp .6
 .RS 4n
