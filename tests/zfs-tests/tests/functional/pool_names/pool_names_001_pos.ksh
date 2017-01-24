@@ -108,6 +108,7 @@ do
 	log_must $ZFS snapshot $name/$name@$name
 	log_must $ZFS clone $name/$name@$name $name/clone_$name
 	log_must $ZFS create -V 150m $name/$name/$name
+	block_device_wait
 
 	log_must $ZPOOL destroy $name
 done
