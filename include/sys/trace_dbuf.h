@@ -88,8 +88,8 @@ DECLARE_EVENT_CLASS(zfs_dbuf_class,
 );
 /* END CSTYLED */
 
-#define	DEFINE_DBUF_EVENT(name) \
 /* BEGIN CSTYLED */
+#define	DEFINE_DBUF_EVENT(name) \
 DEFINE_EVENT(zfs_dbuf_class, name, \
 	TP_PROTO(dmu_buf_impl_t *db, zio_t *zio), \
 	TP_ARGS(db, zio))
@@ -106,8 +106,8 @@ DECLARE_EVENT_CLASS(zfs_dbuf_evict_one_class,
 );
 /* END CSTYLED */
 
-#define	DEFINE_DBUF_EVICT_ONE_EVENT(name) \
 /* BEGIN CSTYLED */
+#define	DEFINE_DBUF_EVICT_ONE_EVENT(name) \
 DEFINE_EVENT(zfs_dbuf_evict_one_class, name, \
 	TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls), \
 	TP_ARGS(db, mls))
