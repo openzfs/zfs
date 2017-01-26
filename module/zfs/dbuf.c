@@ -85,7 +85,9 @@ static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 
 #ifndef __lint
 extern inline void dmu_buf_init_user(dmu_buf_user_t *dbu,
-    dmu_buf_evict_func_t *evict_func, dmu_buf_t **clear_on_evict_dbufp);
+    dmu_buf_evict_func_t *evict_func_sync,
+    dmu_buf_evict_func_t *evict_func_async,
+    dmu_buf_t **clear_on_evict_dbufp);
 #endif /* ! __lint */
 
 /*
@@ -385,6 +387,7 @@ static void
 dbuf_evict_user(dmu_buf_impl_t *db)
 {
 	dmu_buf_user_t *dbu = db->db_user;
+	boolean_t has_async;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
@@ -400,11 +403,24 @@ dbuf_evict_user(dmu_buf_impl_t *db)
 #endif
 
 	/*
-	 * Invoke the callback from a taskq to avoid lock order reversals
-	 * and limit stack depth.
+	 * There are two eviction callbacks - one that we call synchronously
+	 * and one that we invoke via a taskq.  The async one is useful for
+	 * avoiding lock order reversals and limiting stack depth.
+	 *
+	 * Note that if we have a sync callback but no async callback,
+	 * it's likely that the sync callback will free the structure
+	 * containing the dbu.  In that case we need to take care to not
+	 * dereference dbu after calling the sync evict func.
 	 */
-	taskq_dispatch_ent(dbu_evict_taskq, dbu->dbu_evict_func, dbu, 0,
-	    &dbu->dbu_tqent);
+	has_async = (dbu->dbu_evict_func_async != NULL);
+
+	if (dbu->dbu_evict_func_sync != NULL)
+		dbu->dbu_evict_func_sync(dbu);
+
+	if (has_async) {
+		taskq_dispatch_ent(dbu_evict_taskq, dbu->dbu_evict_func_async,
+		    dbu, 0, &dbu->dbu_tqent);
+	}
 }
 
 boolean_t
