@@ -119,8 +119,6 @@ typedef struct zfs_sb {
 	kmutex_t	*z_hold_locks;	/* znode hold locks */
 } zfs_sb_t;
 
-#define	ZFS_SUPER_MAGIC	0x2fc12fc1
-
 #define	ZSB_XATTR	0x0001		/* Enable user xattrs */
 
 /*
