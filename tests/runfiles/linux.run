@@ -457,9 +457,9 @@ pre =
 tests = ['inuse_004_pos']
 post =
 
-# DISABLED: needs investigation
-#[tests/functional/large_files]
-#tests = ['large_files_001_pos']
+[tests/functional/large_files]
+tests = ['large_files_001_pos']
+tests = ['large_files_002_pos']
 
 # DISABLED: needs investigation
 #[tests/functional/largest_pool]
