@@ -3601,7 +3601,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	if (clp) {
-		err |= changelist_postfix(clp);
+		if (!flags->nomount)
+			err |= changelist_postfix(clp);
 		changelist_free(clp);
 	}
 
