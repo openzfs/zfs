@@ -236,8 +236,6 @@ struct dnode {
 
 	/* protected by dn_dbufs_mtx; declared here to fill 32-bit hole */
 	uint32_t dn_dbufs_count;	/* count of dn_dbufs */
-	/* There are no level-0 blocks of this blkid or higher in dn_dbufs */
-	uint64_t dn_unlisted_l0_blkid;
 
 	/* protected by os_lock: */
 	list_node_t dn_dirty_link[TXG_SIZE];	/* next on dataset's dirty */
