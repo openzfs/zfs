@@ -557,7 +557,7 @@ dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj, int flags, void *tag,
 	    dp->dp_origin_snap == NULL || ds == dp->dp_origin_snap);
 	*dsp = ds;
 
-	if (flags & DS_HOLD_FLAG_DECRYPT && ds->ds_dir->dd_crypto_obj != 0) {
+	if ((flags & DS_HOLD_FLAG_DECRYPT) && ds->ds_dir->dd_crypto_obj != 0) {
 		err = spa_keystore_create_mapping(dp->dp_spa, ds, ds);
 		if (err != 0) {
 			dsl_dataset_rele(ds, tag);
@@ -742,12 +742,13 @@ dsl_dataset_namelen(dsl_dataset_t *ds)
 void
 dsl_dataset_rele_flags(dsl_dataset_t *ds, int flags, void *tag)
 {
-	dmu_buf_rele(ds->ds_dbuf, tag);
-
-	if (flags & DS_HOLD_FLAG_DECRYPT) {
+	if (ds->ds_dir != NULL && ds->ds_dir->dd_crypto_obj != 0 &&
+	    (flags & DS_HOLD_FLAG_DECRYPT)) {
 		(void) spa_keystore_remove_mapping(ds->ds_dir->dd_pool->dp_spa,
 		    ds, ds);
 	}
+
+	dmu_buf_rele(ds->ds_dbuf, tag);
 }
 
 void
@@ -830,8 +831,9 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 	dsl_pool_t *dp = dd->dd_pool;
 	dmu_buf_t *dbuf;
 	dsl_dataset_phys_t *dsphys;
-	uint64_t dsobj, crypt;
-	dsl_wrapping_key_t *wkey;
+	uint64_t dsobj;
+	uint64_t crypt = (dcp != NULL) ? dcp->cp_crypt : ZIO_CRYPT_INHERIT;
+	dsl_wrapping_key_t *wkey = (dcp != NULL) ? dcp->cp_wkey : NULL;
 	objset_t *mos = dp->dp_meta_objset;
 
 	if (origin == NULL)
@@ -925,15 +927,8 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 	}
 
 	/* handle encryption */
-	if (dcp == NULL) {
-		crypt = ZIO_CRYPT_INHERIT;
-		wkey = NULL;
-	} else {
-		crypt = dcp->cp_crypt;
-		wkey = dcp->cp_wkey;
-	}
-
 	if (!dsl_dir_is_clone(dd)) {
+		/* figure out the effective crypt */
 		if (crypt == ZIO_CRYPT_INHERIT && dd->dd_parent != NULL) {
 			VERIFY0(dsl_prop_get_dd(dd->dd_parent,
 			    zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
@@ -945,6 +940,7 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 		if (crypt == ZIO_CRYPT_OFF)
 			goto no_crypto;
 
+		/* use the new key if given or inherit from the parent */
 		if (wkey == NULL) {
 			VERIFY0(spa_keystore_wkey_hold_ddobj(dp->dp_spa,
 			    dd->dd_parent->dd_object, FTAG, &wkey));
@@ -960,8 +956,7 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 		if (dcp == NULL || dcp->cp_wkey == NULL) {
 			dsl_wrapping_key_rele(wkey, FTAG);
 		} else {
-			VERIFY0(spa_keystore_load_wkey_impl(tx->tx_pool->dp_spa,
-			    wkey));
+			VERIFY0(spa_keystore_load_wkey_impl(dp->dp_spa, wkey));
 		}
 	} else if (origin->ds_dir->dd_crypto_obj != 0) {
 		VERIFY0(dsl_prop_get_dd(origin->ds_dir,
@@ -992,8 +987,7 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 		if (dcp == NULL || dcp->cp_wkey == NULL) {
 			dsl_wrapping_key_rele(wkey, FTAG);
 		} else {
-			VERIFY0(spa_keystore_load_wkey_impl(tx->tx_pool->dp_spa,
-			    wkey));
+			VERIFY0(spa_keystore_load_wkey_impl(dp->dp_spa, wkey));
 		}
 	}
 

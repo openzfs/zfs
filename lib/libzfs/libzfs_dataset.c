@@ -56,6 +56,7 @@
 #include <sys/dnode.h>
 #include <sys/spa.h>
 #include <sys/zap.h>
+#include <sys/dsl_crypt.h>
 #include <libzfs.h>
 
 #include "zfs_namecheck.h"
@@ -1283,6 +1284,23 @@ badlabel:
 			}
 
 			break;
+		case ZFS_PROP_KEYLOCATION:
+			if (!zfs_prop_valid_keylocation(strval)) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "invalid keylocation"));
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
+		case ZFS_PROP_PBKDF2_ITERS:
+			if (intval < MIN_PBKDF2_ITERATIONS) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "minimum pbkdf2 iterations is %u"),
+				    MIN_PBKDF2_ITERATIONS);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
 		case ZFS_PROP_UTF8ONLY:
 			chosen_utf = (int)intval;
 			break;
@@ -1514,6 +1532,17 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 
 	case EINVAL:
 		if (prop == ZPROP_INVAL) {
+			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+		} else {
+			(void) zfs_standard_error(hdl, err, errbuf);
+		}
+		break;
+
+	case EACCES:
+		if (prop == ZFS_PROP_KEYLOCATION) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Keylocation may only be set if is set locally. "
+			    "This may be changed with 'zfs key -c'"));
 			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 		} else {
 			(void) zfs_standard_error(hdl, err, errbuf);
@@ -4112,7 +4141,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		} else if (errno == EACCES) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Only encryption roots may be moved. "
-			    "Please set a local keysource."));
+			    "Please set a local key."));
 			(void) zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf);
 		} else {
 			(void) zfs_standard_error(zhp->zfs_hdl, errno, errbuf);

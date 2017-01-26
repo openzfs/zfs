@@ -143,115 +143,128 @@ dsl_crypto_params_create_nvlist(nvlist_t *props, nvlist_t *crypto_args,
     dsl_crypto_params_t **dcp_out)
 {
 	int ret;
+	boolean_t do_inherit = B_TRUE;
+	uint64_t crypt = ZIO_CRYPT_INHERIT;
+	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
 	dsl_crypto_params_t *dcp = NULL;
 	dsl_wrapping_key_t *wkey = NULL;
-	boolean_t crypt_exists = B_TRUE, wkeydata_exists = B_TRUE;
-	boolean_t keysource_exists = B_TRUE, salt_exists = B_TRUE;
-	boolean_t iters_exists = B_TRUE, cmd_exists = B_TRUE;
-	char *keysource = NULL;
-	uint64_t iters = 0, salt = 0, crypt = 0, cmd = ZFS_IOC_KEY_CMD_NONE;
-	uint8_t *wkeydata;
-	uint_t wkeydata_len;
+	uint8_t *wkeydata = NULL;
+	uint_t wkeydata_len = 0;
+	char *keylocation = NULL;
 
-	/* get relevant properties from the nvlist */
-	if (props != NULL) {
-		ret = nvlist_lookup_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), &crypt);
-		if (ret != 0)
-			crypt_exists = B_FALSE;
-
-		ret = nvlist_lookup_string(props,
-		    zfs_prop_to_name(ZFS_PROP_KEYSOURCE), &keysource);
-		if (ret != 0)
-			keysource_exists = B_FALSE;
-
-		ret = nvlist_lookup_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_SALT), &salt);
-		if (ret != 0)
-			salt_exists = B_FALSE;
-
-		ret = nvlist_lookup_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), &iters);
-		if (ret != 0)
-			iters_exists = B_FALSE;
-
-		ret = nvlist_lookup_uint64(props, "crypto_cmd", &cmd);
-		if (ret != 0)
-			cmd_exists = B_FALSE;
-	} else {
-		crypt_exists = B_FALSE;
-		keysource_exists = B_FALSE;
-		salt_exists = B_FALSE;
-		iters_exists = B_FALSE;
-		cmd_exists = B_FALSE;
-	}
-
-	if (crypto_args != NULL) {
-		ret = nvlist_lookup_uint8_array(crypto_args, "wkeydata",
-		    &wkeydata, &wkeydata_len);
-		if (ret != 0)
-			wkeydata_exists = B_FALSE;
-	} else {
-		wkeydata_exists = B_FALSE;
-	}
-
-	/* no parameters are valid; results in inherited crypto settings */
-	if (!crypt_exists && !keysource_exists && !wkeydata_exists &&
-	    !salt_exists && !cmd_exists && !iters_exists) {
-		*dcp_out = NULL;
-		return (0);
-	}
-
-	dcp = kmem_alloc(sizeof (dsl_crypto_params_t), KM_SLEEP);
+	dcp = kmem_zalloc(sizeof (dsl_crypto_params_t), KM_SLEEP);
 	if (!dcp) {
 		ret = SET_ERROR(ENOMEM);
 		goto error;
 	}
 
-	/* check wrapping key length */
-	if (wkeydata_exists && wkeydata_len != WRAPPING_KEY_LEN) {
+	/* get relevant properties from the nvlist */
+	if (props != NULL) {
+		ret = nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), &crypt);
+		if (ret == 0)
+			do_inherit = B_FALSE;
+
+		ret = nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), &keyformat);
+		if (ret == 0)
+			do_inherit = B_FALSE;
+
+		ret = nvlist_lookup_string(props,
+		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), &keylocation);
+		if (ret == 0)
+			do_inherit = B_FALSE;
+
+		ret = nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), &dcp->cp_salt);
+		if (ret == 0)
+			do_inherit = B_FALSE;
+
+		ret = nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), &dcp->cp_iters);
+		if (ret == 0)
+			do_inherit = B_FALSE;
+	}
+
+	if (crypto_args != NULL) {
+		ret = nvlist_lookup_uint8_array(crypto_args, "wkeydata",
+		    &wkeydata, &wkeydata_len);
+		if (ret == 0)
+			do_inherit = B_FALSE;
+	}
+
+	/* no parameters are valid; results in inherited crypto settings */
+	if (do_inherit) {
+		kmem_free(dcp, sizeof (dsl_crypto_params_t));
+		*dcp_out = NULL;
+		return (0);
+	}
+
+	/* check for valid crypt */
+	if (crypt >= ZIO_CRYPT_FUNCTIONS) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	} else {
+		dcp->cp_crypt = crypt;
+	}
+
+	/* check for valid keyformat */
+	if (keyformat >= ZIO_CRYPT_FUNCTIONS) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	} else {
+		dcp->cp_keyformat = keyformat;
+	}
+
+	/* check for a valid keylocation and copy it in */
+	if (keylocation != NULL) {
+		if (!zfs_prop_valid_keylocation(keylocation)) {
+			ret = SET_ERROR(EINVAL);
+			goto error;
+		}
+
+		dcp->cp_keylocation = spa_strdup(keylocation);
+	}
+
+	/* check wrapping key length, if given */
+	if (wkeydata != NULL && wkeydata_len != WRAPPING_KEY_LEN) {
 		ret = SET_ERROR(EINVAL);
 		goto error;
 	}
 
-	/* specifying a keysource requires keydata */
-	if (keysource_exists && !wkeydata_exists) {
+	/* specifying a keyformat requires keydata */
+	if (keyformat != ZFS_KEYFORMAT_NONE && wkeydata == NULL) {
 		ret = SET_ERROR(EINVAL);
 		goto error;
 	}
 
 	/* remove crypto_cmd from props since it should not be used again */
-	if (cmd_exists)
-		(void) nvlist_remove_all(props, "crypto_cmd");
+	(void) nvlist_remove_all(props, "crypto_cmd");
 
-	/* if the user asked for the deault crypt, decide that now */
-	if (crypt == ZIO_CRYPT_ON) {
-		crypt = ZIO_CRYPT_ON_VALUE;
+	/* if the user asked for the deault crypt, determine that now */
+	if (dcp->cp_crypt == ZIO_CRYPT_ON) {
+		dcp->cp_crypt = ZIO_CRYPT_ON_VALUE;
 
 		ret = nvlist_remove_all(props,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION));
 		if (ret != 0)
 			goto error;
 		ret = nvlist_add_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), crypt);
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), dcp->cp_crypt);
 		if (ret != 0)
 			goto error;
 	}
 
 	/* create the wrapping key from the raw data */
-	if (wkeydata_exists) {
+	if (wkeydata != NULL) {
 		/* create the wrapping key with the verified parameters */
 		ret = dsl_wrapping_key_create(wkeydata, &wkey);
 		if (ret != 0)
 			goto error;
+
+		dcp->cp_wkey = wkey;
 	}
 
-	dcp->cp_cmd = cmd;
-	dcp->cp_crypt = crypt;
-	dcp->cp_salt = salt;
-	dcp->cp_iters = iters;
-	dcp->cp_keysource = keysource;
-	dcp->cp_wkey = wkey;
 	*dcp_out = dcp;
 
 	return (0);
@@ -272,8 +285,11 @@ dsl_crypto_params_free(dsl_crypto_params_t *dcp, boolean_t unload)
 	if (dcp == NULL)
 		return;
 
-	if (unload)
+	if (dcp->cp_keylocation != NULL)
+		spa_strfree(dcp->cp_keylocation);
+	if (unload &&& dcp->cp_wkey != NULL)
 		dsl_wrapping_key_free(dcp->cp_wkey);
+
 	kmem_free(dcp, sizeof (dsl_crypto_params_t));
 }
 
@@ -353,22 +369,28 @@ spa_keystore_fini(spa_keystore_t *sk)
 }
 
 static int
-dsl_dir_hold_keysource_source_dd(dsl_dir_t *dd, void *tag,
+dsl_dir_hold_keylocation_source_dd(dsl_dir_t *dd, void *tag,
     dsl_dir_t **inherit_dd_out)
 {
 	int ret;
 	dsl_dir_t *inherit_dd = NULL;
-	char keysource[MAXNAMELEN];
+	char keylocation[MAXNAMELEN];
 	char setpoint[MAXNAMELEN];
 
 	/*
-	 * lookup dd's keysource property and find
-	 * out where it was inherited from
+	 * lookup dd's keylocation property and find out where it was
+	 * inherited from. dsl_prop_get_dd() might not find anything and
+	 * return the default value. We detect this by check9ing if setpoint
+	 * is an empty string and return ENOENT.
 	 */
-	ret = dsl_prop_get_dd(dd, zfs_prop_to_name(ZFS_PROP_KEYSOURCE),
-	    1, sizeof (keysource), keysource, setpoint, B_FALSE);
-	if (ret != 0)
+	ret = dsl_prop_get_dd(dd, zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
+	    1, sizeof (keylocation), keylocation, setpoint, B_FALSE);
+	if (ret != 0) {
 		goto error;
+	} else if (setpoint[0] == '\0') {
+		ret = ENOENT;
+		goto error;
+	}
 
 	/* hold the dsl dir that we inherited the property from */
 	ret = dsl_dir_hold(dd->dd_pool, setpoint, tag, &inherit_dd, NULL);
@@ -379,7 +401,69 @@ dsl_dir_hold_keysource_source_dd(dsl_dir_t *dd, void *tag,
 	return (0);
 
 error:
+
 	*inherit_dd_out = NULL;
+	return (ret);
+}
+
+int
+dsl_crypto_can_set_keylocation(const char *dsname)
+{
+	int ret = 0;
+	dsl_dir_t *dd = NULL;
+	dsl_dir_t *inherit_dd = NULL;
+	dsl_pool_t *dp = NULL;
+
+	/* hold the dsl dir */
+	ret = dsl_pool_hold(dsname, FTAG, &dp);
+	if (ret != 0)
+		goto out;
+
+	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
+	if (ret != 0)
+		goto out;
+
+	/* check that the dd is encrypted */
+	if (dd->dd_crypto_obj == 0) {
+		ret = SET_ERROR(EACCES);
+		goto out;
+	}
+
+	/*
+	 * hold the dd where we are inheritting the keylocation from. If this
+	 * doesn't exist it means we are creating an encryption root (since
+	 * the property didn't exist in this dataset or any parents). It is
+	 * always vallid to set a keylocation at creation time, so just return
+	 * zero in that case.
+	 */
+	ret = dsl_dir_hold_keylocation_source_dd(dd, FTAG, &inherit_dd);
+	if (ret == ENOENT) {
+		ret = 0;
+		goto out;
+	} else if (ret != 0) {
+		goto out;
+	}
+
+	/* check that this is an encryption root */
+	if (inherit_dd->dd_object != dd->dd_object) {
+		ret = SET_ERROR(EACCES);
+		goto out;
+	}
+
+	dsl_dir_rele(inherit_dd, FTAG);
+	dsl_dir_rele(dd, FTAG);
+	dsl_pool_rele(dp, FTAG);
+
+	return (0);
+
+out:
+	if (inherit_dd != NULL)
+		dsl_dir_rele(inherit_dd, FTAG);
+	if (dd != NULL)
+		dsl_dir_rele(dd, FTAG);
+	if (dp != NULL)
+		dsl_pool_rele(dp, FTAG);
+
 	return (ret);
 }
 
@@ -453,7 +537,7 @@ spa_keystore_wkey_hold_ddobj(spa_t *spa, uint64_t ddobj, void *tag,
 	/*
 	 * There is a special case in zfs_create_fs() where the wrapping key
 	 * is needed before the filesystem's properties are set. This is
-	 * problematic because dsl_dir_hold_keysource_source_dd() uses the
+	 * problematic because dsl_dir_hold_keylocation_source_dd() uses the
 	 * properties to determine where the wrapping key is inherited from.
 	 * As a result, here we try to find a wrapping key for this dd before
 	 * checking for wrapping key inheritance.
@@ -472,8 +556,8 @@ spa_keystore_wkey_hold_ddobj(spa_t *spa, uint64_t ddobj, void *tag,
 	if (ret != 0)
 		goto error;
 
-	/* get the dd that the keysource property was inherited from */
-	ret = dsl_dir_hold_keysource_source_dd(dd, FTAG, &inherit_dd);
+	/* get the dd that the keylocation property was inherited from */
+	ret = dsl_dir_hold_keylocation_source_dd(dd, FTAG, &inherit_dd);
 	if (ret != 0)
 		goto error;
 
@@ -747,10 +831,11 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp)
 	dsl_wrapping_key_t *wkey = dcp->cp_wkey;
 	dsl_pool_t *dp = NULL;
 
-	if (!dcp || !dcp->cp_wkey)
+	if (dcp == NULL || dcp->cp_wkey == NULL)
 		return (SET_ERROR(EINVAL));
-	if (dcp->cp_crypt || dcp->cp_keysource || dcp->cp_salt ||
-	    dcp->cp_cmd || dcp->cp_iters)
+	if (dcp->cp_crypt != ZIO_CRYPT_INHERIT || dcp->cp_keylocation != NULL ||
+	    dcp->cp_salt != 0 || dcp->cp_cmd != ZFS_IOC_KEY_CMD_NONE ||
+	    dcp->cp_iters != 0)
 		return (SET_ERROR(EINVAL));
 
 	ret = dsl_pool_hold(dsname, FTAG, &dp);
@@ -1071,33 +1156,61 @@ static int
 spa_keystore_rewrap_check(void *arg, dmu_tx_t *tx)
 {
 	int ret;
-	dsl_dir_t *dd;
+	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
+	dsl_dir_t *dd = NULL;
 	dsl_crypto_key_t *dck = NULL;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	spa_keystore_rewrap_args_t *skra = arg;
 	dsl_crypto_params_t *dcp = skra->skra_cp;
-
-	if (!dcp || !dcp->cp_wkey)
-		return (SET_ERROR(EINVAL));
-	if (dcp->cp_crypt != ZIO_CRYPT_INHERIT || dcp->cp_cmd)
-		return (SET_ERROR(EINVAL));
-	if (dcp->cp_keysource &&
-	    strncmp(dcp->cp_keysource, "passphrase", 10) == 0 &&
-	    (!skra->skra_cp->cp_salt || !skra->skra_cp->cp_iters))
-		return (SET_ERROR(EINVAL));
 
 	/* hold the dd */
 	ret = dsl_dir_hold(dp, skra->skra_dsname, FTAG, &dd, NULL);
 	if (ret != 0)
 		return (ret);
 
-	/* check that this dd has a dsl key */
+	/* verify that the dataset is encrypted */
 	if (dd->dd_crypto_obj == 0) {
 		ret = SET_ERROR(EINVAL);
 		goto error;
 	}
 
-	/* make sure the dsl key is loaded / loadable */
+	/* all callers must specify a dcp */
+	if (dcp == NULL) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	}
+
+	/* figure out what the new format will be */
+	if (dcp->cp_keyformat == ZFS_KEYFORMAT_NONE) {
+		ret = dsl_prop_get_dd(dd, zfs_prop_to_name(ZFS_PROP_KEYFORMAT),
+		    8, 1, &keyformat, NULL, B_FALSE);
+		if (ret != 0)
+			goto error;
+	} else {
+		keyformat = dcp->cp_keyformat;
+	}
+
+	/* all callers must specify a wkey */
+	if (dcp->cp_wkey == NULL) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	}
+
+	/* crypt cannot be changed after creation */
+	if (dcp->cp_crypt != ZIO_CRYPT_INHERIT || dcp->cp_cmd != 0) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	}
+
+	/* passphrases require pbkdf2 salt and iters */
+	if (keyformat == ZFS_KEYFORMAT_PASSPHRASE &&
+	    (skra->skra_cp->cp_salt == 0 ||
+	    skra->skra_cp->cp_iters < MIN_PBKDF2_ITERATIONS)) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	}
+
+	/* make sure the dsl key is loaded */
 	ret = spa_keystore_dsl_key_hold_dd(dp->dp_spa, dd, FTAG, &dck);
 	if (ret != 0)
 		goto error;
@@ -1139,8 +1252,8 @@ spa_keystore_rewrap_sync_impl(uint64_t root_ddobj, uint64_t ddobj,
 		return;
 	}
 
-	/* hold the dd we inherited the keysource from */
-	VERIFY0(dsl_dir_hold_keysource_source_dd(dd, FTAG, &inherit_dd));
+	/* hold the dd we inherited the keylocation from */
+	VERIFY0(dsl_dir_hold_keylocation_source_dd(dd, FTAG, &inherit_dd));
 
 	/* stop recursing if this dsl dir didn't inherit from the root */
 	if (inherit_dd->dd_object != root_ddobj) {
@@ -1186,24 +1299,34 @@ spa_keystore_rewrap_sync(void *arg, dmu_tx_t *tx)
 	dsl_wrapping_key_t *wkey = skra->skra_cp->cp_wkey;
 	dsl_wrapping_key_t *found_wkey;
 	uint64_t crypt;
-	const char *keysource = skra->skra_cp->cp_keysource;
+	const char *keylocation = skra->skra_cp->cp_keylocation;
 
 	/* create and initialize the wrapping key */
 	VERIFY0(dsl_dataset_hold(dp, skra->skra_dsname, FTAG, &ds));
 	ASSERT(!ds->ds_is_snapshot);
 
-	/* set additional properties which can be sent along with this ioctl */
-	if (keysource != NULL)
+	/*
+	 * Set additional properties which can be sent along with this ioctl.
+	 * Note that this command can set keylocation even if it can't normally
+	 * be set via 'zfs set' due to a non-local keysource. In this case we
+	 * will actually sever the inheritted keyocation.
+	 */
+	if (keylocation != NULL) {
 		dsl_prop_set_sync_impl(ds,
-		    zfs_prop_to_name(ZFS_PROP_KEYSOURCE), ZPROP_SRC_LOCAL,
-		    1, strlen(keysource) + 1, keysource, tx);
+		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), ZPROP_SRC_LOCAL,
+		    1, strlen(keylocation) + 1, keylocation, tx);
+	}
 
-	if (skra->skra_cp->cp_iters)
+	if (skra->skra_cp->cp_keyformat != ZFS_KEYFORMAT_NONE) {
 		dsl_prop_set_sync_impl(ds,
-		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
-		    ZPROP_SRC_LOCAL, 8, 1, &skra->skra_cp->cp_iters, tx);
+		    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), ZPROP_SRC_LOCAL,
+		    8, 1, &skra->skra_cp->cp_keyformat, tx);
+	}
 
-	dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_SALT),
+	dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
+	    ZPROP_SRC_LOCAL, 8, 1, &skra->skra_cp->cp_iters, tx);
+
+	dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT),
 	    ZPROP_SRC_LOCAL, 8, 1, &skra->skra_cp->cp_salt, tx);
 
 	/*
@@ -1256,127 +1379,151 @@ spa_keystore_rewrap(const char *dsname, dsl_crypto_params_t *dcp)
 	    spa_keystore_rewrap_sync, &skra, 0, ZFS_SPACE_CHECK_NORMAL));
 }
 
-int
-dmu_objset_create_encryption_check(dsl_dir_t *parentdd,
-    dsl_crypto_params_t *dcp)
+static int
+dmu_objset_check_wkey_loaded(dsl_dir_t *dd)
 {
 	int ret;
 	dsl_wrapping_key_t *wkey = NULL;
-	uint64_t salt = 0, iters = 0;
-	zfs_ioc_crypto_cmd_t cmd = ZFS_IOC_KEY_CMD_NONE;
-	uint64_t pcrypt, crypt = ZIO_CRYPT_INHERIT;
-	const char *keysource = NULL;
 
-	if (!spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
-	    SPA_FEATURE_ENCRYPTION) && dcp)
-		return (SET_ERROR(EINVAL));
-
-	ret = dsl_prop_get_dd(parentdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
-	    8, 1, &pcrypt, NULL, B_FALSE);
+	ret = spa_keystore_wkey_hold_ddobj(dd->dd_pool->dp_spa,
+	    dd->dd_object, FTAG, &wkey);
 	if (ret != 0)
-		return (ret);
+		return (SET_ERROR(EACCES));
 
-	if (dcp != NULL) {
-		crypt = dcp->cp_crypt;
-		wkey = dcp->cp_wkey;
-		salt = dcp->cp_salt;
-		iters = dcp->cp_iters;
-		keysource = dcp->cp_keysource;
-		cmd = dcp->cp_cmd;
-	}
-
-	if (crypt >= ZIO_CRYPT_FUNCTIONS)
-		return (SET_ERROR(EINVAL));
-	if (crypt == ZIO_CRYPT_OFF && pcrypt != ZIO_CRYPT_OFF)
-		return (SET_ERROR(EINVAL));
-	if (crypt == ZIO_CRYPT_INHERIT && pcrypt == ZIO_CRYPT_OFF &&
-	    (salt || keysource || wkey || iters))
-		return (SET_ERROR(EINVAL));
-	if (crypt == ZIO_CRYPT_OFF && (salt || keysource || wkey || iters))
-		return (SET_ERROR(EINVAL));
-	if (crypt != ZIO_CRYPT_INHERIT && crypt != ZIO_CRYPT_OFF &&
-	    pcrypt == ZIO_CRYPT_OFF && (!keysource || !wkey))
-		return (SET_ERROR(EINVAL));
-	if (keysource && strncmp(keysource, "passphrase", 10) == 0 &&
-	    (!salt || !iters))
-		return (SET_ERROR(EINVAL));
-	if (cmd)
-		return (SET_ERROR(EINVAL));
-
-	if (!wkey && pcrypt != ZIO_CRYPT_OFF) {
-		ret = spa_keystore_wkey_hold_ddobj(parentdd->dd_pool->dp_spa,
-		    parentdd->dd_object, FTAG, &wkey);
-		if (ret != 0)
-			return (SET_ERROR(EACCES));
-
-		dsl_wrapping_key_rele(wkey, FTAG);
-	}
+	dsl_wrapping_key_rele(wkey, FTAG);
 
 	return (0);
 }
 
+
+/*
+ * This is the combined check function for verifying encrypted create and
+ * clone parameters. There are a lot of edge cases to handle here so it has
+ * been commented rather extensively. Some checks are duplicated in an effort
+ * to ensure the error codes returned are consistent (EINVAL before EACCES).
+ */
 int
-dmu_objset_clone_encryption_check(dsl_dir_t *parentdd, dsl_dir_t *origindd,
+dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_dir_t *origindd,
     dsl_crypto_params_t *dcp)
 {
 	int ret;
-	dsl_wrapping_key_t *wkey = NULL;
-	uint64_t cmd = 0, salt = 0, iters = 0;
-	uint64_t pcrypt, ocrypt, crypt = ZIO_CRYPT_INHERIT;
-	const char *keysource = NULL;
+	uint64_t pcrypt, effective_crypt;
 
-	if (!spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
-	    SPA_FEATURE_ENCRYPTION) && dcp)
-		return (SET_ERROR(EINVAL));
-
+	/* get the parent's crypt */
 	ret = dsl_prop_get_dd(parentdd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
 	    8, 1, &pcrypt, NULL, B_FALSE);
 	if (ret != 0)
 		return (ret);
 
-	ret = dsl_prop_get_dd(origindd, zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
-	    8, 1, &ocrypt, NULL, B_FALSE);
-	if (ret != 0)
-		return (ret);
-
-	if (dcp != NULL) {
-		crypt = dcp->cp_crypt;
-		wkey = dcp->cp_wkey;
-		salt = dcp->cp_salt;
-		iters = dcp->cp_iters;
-		keysource = dcp->cp_keysource;
-		cmd = dcp->cp_cmd;
+	/*
+	 * Figure out what the crypt will be for the new dataset.
+	 * Clones must always use the same crypt as their origin.
+	 */
+	if (origindd != NULL) {
+		ret = dsl_prop_get_dd(origindd,
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION),
+		    8, 1, &effective_crypt, NULL, B_FALSE);
+		if (ret != 0)
+			return (ret);
+	} else if (dcp == NULL || dcp->cp_crypt == ZIO_CRYPT_INHERIT) {
+		effective_crypt = pcrypt;
+	} else {
+		effective_crypt = dcp->cp_crypt;
 	}
 
-	if (crypt != ZIO_CRYPT_INHERIT)
-		return (SET_ERROR(EINVAL));
-	if (pcrypt != ZIO_CRYPT_OFF && ocrypt == ZIO_CRYPT_OFF)
-		return (SET_ERROR(EINVAL));
-	if (pcrypt == ZIO_CRYPT_OFF && ocrypt != ZIO_CRYPT_OFF &&
-	    (!wkey || !keysource))
-		return (SET_ERROR(EINVAL));
-	if (keysource && strncmp(keysource, "passphrase", 10) == 0 &&
-	    (!salt || !iters))
+	/*
+	 * can't create an unencrypted child of an encrypted parent
+	 * under any circumstances
+	 */
+	if (effective_crypt == ZIO_CRYPT_OFF && pcrypt != ZIO_CRYPT_OFF)
 		return (SET_ERROR(EINVAL));
 
-	/* origin wrapping key must be present, if it is encrypted */
-	if (ocrypt != ZIO_CRYPT_OFF) {
-		ret = spa_keystore_wkey_hold_ddobj(parentdd->dd_pool->dp_spa,
-		    origindd->dd_object, FTAG, &wkey);
+	/* NULL dcp implies inheritence. Make sure the needed keys exist. */
+	if (dcp == NULL) {
+		/* no encryption */
+		if (effective_crypt == ZIO_CRYPT_OFF)
+			return (0);
+
+		/* check for parent key */
+		ret = dmu_objset_check_wkey_loaded(parentdd);
 		if (ret != 0)
-			return (SET_ERROR(EACCES));
+			return (ret);
 
-		dsl_wrapping_key_rele(wkey, FTAG);
+		/* check for origin key if this is a clone */
+		if (origindd != NULL) {
+			ret = dmu_objset_check_wkey_loaded(origindd);
+			if (ret != 0)
+				return (ret);
+		}
+
+		return (0);
 	}
 
-	/* parent's wrapping key must be present if a new one isn't specified */
-	if (!wkey && pcrypt != ZIO_CRYPT_OFF) {
-		ret = spa_keystore_wkey_hold_ddobj(parentdd->dd_pool->dp_spa,
-		    parentdd->dd_object, FTAG, &wkey);
-		if (ret != 0)
-			return (SET_ERROR(EACCES));
+	/* check for valid dcp with no encryption (inherited or local) */
+	if (effective_crypt == ZIO_CRYPT_OFF) {
+		/* Must not specify encryption params */
+		if (dcp->cp_salt != 0 || dcp->cp_iters != 0 ||
+		    dcp->cp_keyformat != ZFS_KEYFORMAT_NONE ||
+		    dcp->cp_keylocation != NULL || dcp->cp_wkey != NULL)
+			return (SET_ERROR(EINVAL));
 
-		dsl_wrapping_key_rele(wkey, FTAG);
+		return (0);
+	}
+
+	/* We will now definitely be encrypting. Check the feature flag */
+	if (!spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
+	    SPA_FEATURE_ENCRYPTION)) {
+		return (SET_ERROR(EINVAL));
+	}
+
+	/* handle non-implicit inheritence */
+	if (dcp->cp_wkey == NULL) {
+		/* key must be fully unspecified */
+		if (dcp->cp_keyformat != ZFS_KEYFORMAT_NONE ||
+		    dcp->cp_keylocation != NULL)
+			return (SET_ERROR(EINVAL));
+
+		/* parent must have a key to inherit */
+		if (pcrypt == ZIO_CRYPT_OFF)
+			return (SET_ERROR(EINVAL));
+
+		/* check for parent key */
+		ret = dmu_objset_check_wkey_loaded(parentdd);
+		if (ret != 0)
+			return (ret);
+
+		/* check for origin key if this is a clone */
+		if (origindd != NULL) {
+			ret = dmu_objset_check_wkey_loaded(origindd);
+			if (ret != 0)
+				return (ret);
+		}
+
+		return (0);
+	}
+
+	/* At this point we should have a fully specified key. Check location */
+	if (dcp->cp_keylocation == NULL)
+		return (SET_ERROR(EINVAL));
+
+	/* Must have fully specified keyformat */
+	switch (dcp->cp_keyformat) {
+	case ZFS_KEYFORMAT_NONE:
+		/* keyformat must be specified */
+		return (SET_ERROR(EINVAL));
+	case ZFS_KEYFORMAT_PASSPHRASE:
+		/* requires pbkdf2 iters and salt */
+		if (dcp->cp_salt == 0 || dcp->cp_iters < MIN_PBKDF2_ITERATIONS)
+			return (SET_ERROR(EINVAL));
+	default:
+		break;
+	}
+
+	/* check for origin key if this is a clone */
+	if (origindd != NULL) {
+		ret = dmu_objset_check_wkey_loaded(origindd);
+		if (ret != 0)
+			return (ret);
 	}
 
 	return (0);

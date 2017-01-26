@@ -67,6 +67,7 @@ typedef enum zfs_ioc_crypto_cmd {
 	ZFS_IOC_KEY_LOAD_KEY,
 	ZFS_IOC_KEY_UNLOAD_KEY,
 	ZFS_IOC_KEY_REWRAP,
+	ZFS_IOC_KEY_COMMANDS
 } zfs_ioc_crypto_cmd_t;
 
 typedef enum zio_crypt_type {

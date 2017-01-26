@@ -326,8 +326,8 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tbookmark <snapshot> <bookmark>\n"));
 	case HELP_KEY:
 		return (gettext("\tkey [-lu] <filesystem|volume>\n"
-		    "\tkey -c [-o keysource=<value>] [-o pbkfd2iters=<value>] "
-		    "<filesystem|volume>\n"));
+		    "\tkey -c [-o keyformat=<value>] [-o keylocation=<value>] "
+		    "[-o pbkfd2iters=<value>] <filesystem|volume>\n"));
 	}
 
 	abort();

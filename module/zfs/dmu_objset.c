@@ -955,7 +955,7 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EEXIST));
 	}
 
-	error = dmu_objset_create_encryption_check(pdd, doca->doca_dcp);
+	error = dmu_objset_create_crypt_check(pdd, NULL, doca->doca_dcp);
 	if (error != 0) {
 		dsl_dir_rele(pdd, FTAG);
 		return (error);
@@ -1101,7 +1101,7 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 	}
 
-	error = dmu_objset_clone_encryption_check(pdd, origin->ds_dir,
+	error = dmu_objset_create_crypt_check(pdd, origin->ds_dir,
 	    doca->doca_dcp);
 	if (error != 0) {
 		dsl_dataset_rele(origin, FTAG);

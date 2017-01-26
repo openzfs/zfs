@@ -1813,12 +1813,12 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 
 			/*
 			 * encrypted datasets can only be moved if they are
-			 * an encryption root (locally set keysource).
+			 * an encryption root (locally set keyformat).
 			 */
 			if (dd->dd_crypto_obj != 0) {
 				err = zap_contains(os,
 				    dsl_dir_phys(dd)->dd_props_zapobj,
-				    zfs_prop_to_name(ZFS_PROP_KEYSOURCE));
+				    zfs_prop_to_name(ZFS_PROP_KEYFORMAT));
 				if (err != 0) {
 					dsl_dir_rele(newparent, FTAG);
 					dsl_dir_rele(dd, FTAG);

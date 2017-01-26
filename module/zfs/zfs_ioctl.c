@@ -2426,10 +2426,13 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		    &pair) == 0);
 	}
 
-	if (zfs_prop_get_type(prop) == PROP_TYPE_STRING)
-		return (-1);
-
-	VERIFY(0 == nvpair_value_uint64(pair, &intval));
+	/* all special properties are numeric except for keylocation */
+	if (zfs_prop_get_type(prop) == PROP_TYPE_STRING) {
+		if (prop != ZFS_PROP_KEYLOCATION)
+			return (-1);
+	} else {
+		VERIFY(0 == nvpair_value_uint64(pair, &intval));
+	}
 
 	switch (prop) {
 	case ZFS_PROP_QUOTA:
@@ -2450,6 +2453,11 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		 * Set err to -1 to force the zfs_set_prop_nvlist code down the
 		 * default path to set the value in the nvlist.
 		 */
+		if (err == 0)
+			err = -1;
+		break;
+	case ZFS_PROP_KEYLOCATION:
+		err = dsl_crypto_can_set_keylocation(dsname);
 		if (err == 0)
 			err = -1;
 		break;
