@@ -927,7 +927,7 @@ zfs_get_pool_handle(const zfs_handle_t *zhp)
  * Given a name, determine whether or not it's a valid path
  * (starts with '/' or "./").  If so, walk the mnttab trying
  * to match the device number.  If not, treat the path as an
- * fs/vol/snap name.
+ * fs/vol/snap/bkmark name.
  */
 zfs_handle_t *
 zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)

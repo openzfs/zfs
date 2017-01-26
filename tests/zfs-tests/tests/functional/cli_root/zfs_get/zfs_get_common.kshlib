@@ -83,8 +83,8 @@ function gen_option_str # $elements $prefix $separator $counter
 }
 
 #
-# Cleanup the volume snapshot and filesystem snapshot were created for
-# this test case.
+# Cleanup the volume snapshot, filesystem snapshot, volume bookmark, and
+# filesystem bookmark that were created for this test case.
 #
 function cleanup
 {
@@ -92,6 +92,11 @@ function cleanup
 		destroy_snapshot $TESTPOOL/$TESTVOL@$TESTSNAP
 	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP && \
 		destroy_snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+
+	bkmarkexists $TESTPOOL/$TESTVOL#$TESTBKMARK && \
+		destroy_bookmark $TESTPOOL/$TESTVOL#$TESTBKMARK
+	bkmarkexists $TESTPOOL/$TESTFS#$TESTBKMARK && \
+		destroy_bookmark $TESTPOOL/$TESTFS#$TESTBKMARK
 
 	[[ -e $TESTFILE0 ]] && log_must $RM $TESTFILE0
 }

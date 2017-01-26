@@ -147,6 +147,7 @@ export TESTVOL2=testvol2$$
 export TESTFILE0=testfile0.$$
 export TESTFILE1=testfile1.$$
 export TESTFILE2=testfile2.$$
+export TESTBKMARK=testbkmark$$
 
 export LONGPNAME="poolname50charslong_012345678901234567890123456789"
 export LONGFSNAME="fsysname50charslong_012345678901234567890123456789"

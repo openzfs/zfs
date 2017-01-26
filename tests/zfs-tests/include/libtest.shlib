@@ -291,6 +291,35 @@ function create_clone   # snapshot clone
 	log_must $ZFS clone $snap $clone
 }
 
+#
+# Create a bookmark of the given snapshot.  Defaultly create a bookmark on
+# filesystem.
+#
+# $1 Existing filesystem or volume name. Default, $TESTFS
+# $2 Existing snapshot name. Default, $TESTSNAP
+# $3 bookmark name. Default, $TESTBKMARK
+#
+function create_bookmark
+{
+	typeset fs_vol=${1:-$TESTFS}
+	typeset snap=${2:-$TESTSNAP}
+	typeset bkmark=${3:-$TESTBKMARK}
+
+	[[ -z $fs_vol ]] && log_fail "Filesystem or volume's name is undefined."
+	[[ -z $snap ]] && log_fail "Snapshot's name is undefined."
+	[[ -z $bkmark ]] && log_fail "Bookmark's name is undefined."
+
+	if bkmarkexists $fs_vol#$bkmark; then
+		log_fail "$fs_vol#$bkmark already exists."
+	fi
+	datasetexists $fs_vol || \
+		log_fail "$fs_vol must exist."
+	snapexists $fs_vol@$snap || \
+		log_fail "$fs_vol@$snap must exist."
+
+	log_must $ZFS bookmark $fs_vol@$snap $fs_vol#$bkmark
+}
+
 function default_mirror_setup
 {
 	default_mirror_setup_noexit $1 $2 $3
@@ -575,6 +604,23 @@ function destroy_clone
 		log_must $RM -rf $mtpt
 }
 
+#
+# Common function used to cleanup bookmark of file system or volume.  Default
+# to delete the file system's bookmark.
+#
+# $1 bookmark name
+#
+function destroy_bookmark
+{
+	typeset bkmark=${1:-$TESTPOOL/$TESTFS#$TESTBKMARK}
+
+	if ! bkmarkexists $bkmark; then
+		log_fail "'$bkmarkp' does not existed."
+	fi
+
+	log_must $ZFS destroy $bkmark
+}
+
 # Return 0 if a snapshot exists; $? otherwise
 #
 # $1 - snapshot name
@@ -582,6 +628,17 @@ function destroy_clone
 function snapexists
 {
 	$ZFS list -H -t snapshot "$1" > /dev/null 2>&1
+	return $?
+}
+
+#
+# Return 0 if a bookmark exists; $? otherwise
+#
+# $1 - bookmark name
+#
+function bkmarkexists
+{
+	$ZFS list -H -t bookmark "$1" > /dev/null 2>&1
 	return $?
 }
 
