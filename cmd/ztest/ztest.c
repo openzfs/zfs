@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
@@ -5476,9 +5476,14 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 		return;
 	}
 
+	dmu_objset_stats_t dds;
+	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
+	dmu_objset_fast_stat(os, &dds);
+	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
+
 	object = od[0].od_object;
 	blocksize = od[0].od_blocksize;
-	pattern = zs->zs_guid ^ dmu_objset_fsid_guid(os);
+	pattern = zs->zs_guid ^ dds.dds_guid;
 
 	ASSERT(object != 0);
 
@@ -6219,9 +6224,13 @@ ztest_run(ztest_shared_t *zs)
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
 
+	dmu_objset_stats_t dds;
 	VERIFY0(dmu_objset_own(ztest_opts.zo_pool,
 	    DMU_OST_ANY, B_TRUE, FTAG, &os));
-	zs->zs_guid = dmu_objset_fsid_guid(os);
+	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
+	dmu_objset_fast_stat(os, &dds);
+	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
+	zs->zs_guid = dds.dds_guid;
 	dmu_objset_disown(os, FTAG);
 
 	spa->spa_dedup_ditto = 2 * ZIO_DEDUPDITTO_MIN;
