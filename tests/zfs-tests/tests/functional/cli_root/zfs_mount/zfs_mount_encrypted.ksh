@@ -58,10 +58,10 @@ log_onexit cleanup
 log_assert "'zfs mount' should properly load a valid wrapping key"
 
 log_must eval 'echo $PASSKEY | $ZFS create -o encryption=on \
-	-o keysource=passphrase,prompt $TESTPOOL/$CRYPTDS'
+	-o keyformat=passphrase $TESTPOOL/$CRYPTDS'
 
 log_must $ZFS unmount $TESTPOOL/$CRYPTDS
-log_must $ZFS key -u $TESTPOOL/$CRYPTDS
+log_must $ZFS unload-key $TESTPOOL/$CRYPTDS
 
 log_must eval '$ECHO $PKEY | $ZFS mount $TESTPOOL/$CRYPTDS'
 mounted $TESTPOOL/$CRYPTDS || \

@@ -45,10 +45,10 @@
  *
  * The Wrapping Key Tree:
  * The wrapping key (wkey) tree stores the user's keys that are fed into the
- * kernel through 'zfs key -K' and related commands. Datasets inherit their
+ * kernel through 'zfs load-key' and related commands. Datasets inherit their
  * parent's wkey, so they are refcounted. The wrapping keys remain in memory
- * until they are explicitly unloaded (with "zfs key -u"). Unloading is only
- * possible when no datasets are using them (refcount=0).
+ * until they are explicitly unloaded (with "zfs unload-key"). Unloading is
+ * only possible when no datasets are using them (refcount=0).
  *
  * The DSL Crypto Key Tree:
  * The DSL Crypto Keys are the in-memory representation of decrypted master
@@ -237,9 +237,6 @@ dsl_crypto_params_create_nvlist(nvlist_t *props, nvlist_t *crypto_args,
 		ret = SET_ERROR(EINVAL);
 		goto error;
 	}
-
-	/* remove crypto_cmd from props since it should not be used again */
-	(void) nvlist_remove_all(props, "crypto_cmd");
 
 	/* if the user asked for the deault crypt, determine that now */
 	if (dcp->cp_crypt == ZIO_CRYPT_ON) {
@@ -834,8 +831,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp)
 	if (dcp == NULL || dcp->cp_wkey == NULL)
 		return (SET_ERROR(EINVAL));
 	if (dcp->cp_crypt != ZIO_CRYPT_INHERIT || dcp->cp_keylocation != NULL ||
-	    dcp->cp_salt != 0 || dcp->cp_cmd != ZFS_IOC_KEY_CMD_NONE ||
-	    dcp->cp_iters != 0)
+	    dcp->cp_salt != 0 || dcp->cp_iters != 0)
 		return (SET_ERROR(EINVAL));
 
 	ret = dsl_pool_hold(dsname, FTAG, &dp);
@@ -1197,7 +1193,7 @@ spa_keystore_rewrap_check(void *arg, dmu_tx_t *tx)
 	}
 
 	/* crypt cannot be changed after creation */
-	if (dcp->cp_crypt != ZIO_CRYPT_INHERIT || dcp->cp_cmd != 0) {
+	if (dcp->cp_crypt != ZIO_CRYPT_INHERIT) {
 		ret = SET_ERROR(EINVAL);
 		goto error;
 	}
@@ -1298,7 +1294,7 @@ spa_keystore_rewrap_sync(void *arg, dmu_tx_t *tx)
 	spa_keystore_rewrap_args_t *skra = arg;
 	dsl_wrapping_key_t *wkey = skra->skra_cp->cp_wkey;
 	dsl_wrapping_key_t *found_wkey;
-	uint64_t crypt;
+	uint64_t keyformat, crypt;
 	const char *keylocation = skra->skra_cp->cp_keylocation;
 
 	/* create and initialize the wrapping key */
@@ -1308,7 +1304,7 @@ spa_keystore_rewrap_sync(void *arg, dmu_tx_t *tx)
 	/*
 	 * Set additional properties which can be sent along with this ioctl.
 	 * Note that this command can set keylocation even if it can't normally
-	 * be set via 'zfs set' due to a non-local keysource. In this case we
+	 * be set via 'zfs set' due to a non-local keylocation. In this case we
 	 * will actually sever the inheritted keyocation.
 	 */
 	if (keylocation != NULL) {
@@ -1318,9 +1314,10 @@ spa_keystore_rewrap_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	if (skra->skra_cp->cp_keyformat != ZFS_KEYFORMAT_NONE) {
+		keyformat = skra->skra_cp->cp_keyformat;
 		dsl_prop_set_sync_impl(ds,
 		    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), ZPROP_SRC_LOCAL,
-		    8, 1, &skra->skra_cp->cp_keyformat, tx);
+		    8, 1, &keyformat, tx);
 	}
 
 	dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),

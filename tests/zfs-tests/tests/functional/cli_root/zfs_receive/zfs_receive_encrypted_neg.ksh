@@ -65,10 +65,9 @@ log_must $ZFS snapshot $TESTPOOL/$TESTFS1@snap
 log_must eval "$ZFS send $TESTPOOL/$TESTFS1@snap > $streamfile"
 
 log_must eval "$ECHO $passphrase | \
-	$ZFS create -o encryption=on -o keysource=passphrase,prompt \
-	$TESTPOOL/$cryptds"
+	$ZFS create -o encryption=on -o keyformat=passphrase $TESTPOOL/$cryptds"
 log_must $ZFS unmount $TESTPOOL/$cryptds
-log_must $ZFS key -u $TESTPOOL/$cryptds
+log_must $ZFS unload-key $TESTPOOL/$cryptds
 log_mustnot eval "$ZFS recv $TESTPOOL/$cryptds/recv < $streamfile"
 
 log_pass "'zfs receive' fails when receiving to a dataset with unloaded keys."

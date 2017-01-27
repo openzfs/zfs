@@ -30,7 +30,7 @@
 function create_default_encrypted_dataset
 {
 	log_must $ECHO $PKEY | $ZFS create -o encryption=on \
-		-o keysource=passphrase,prompt $TESTPOOL/$CRYPTDS
+		-o keyformat=passphrase $TESTPOOL/$CRYPTDS
 }
 
 function destroy_default_encrypted_dataset

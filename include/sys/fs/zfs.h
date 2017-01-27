@@ -1019,7 +1019,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_GET_BOOKMARKS,
 	ZFS_IOC_DESTROY_BOOKMARKS,
 	ZFS_IOC_RECV_NEW,
-	ZFS_IOC_KEY,
+	ZFS_IOC_LOAD_KEY,
+	ZFS_IOC_UNLOAD_KEY,
+	ZFS_IOC_CHANGE_KEY,
 
 	/*
 	 * Linux - 3/64 numbers reserved.

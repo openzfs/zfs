@@ -36,11 +36,11 @@
 #
 # DESCRIPTION:
 # 'zfs create' should be able to create an encrypted dataset with
-# a valid encryption algorithm, keysource, and key.
+# a valid encryption algorithm, keyformat, keylocation, and key.
 #
 # STRATEGY:
 # 1. Create a filesystem for each encryption type
-# 2. Create a filesystem for each keysource type
+# 2. Create a filesystem for each keyformat type
 # 3. Verify that each filesystem has the correct properties set
 #
 
@@ -70,52 +70,52 @@ set -A ENCRYPTION_PROPS "encryption=aes-256-ccm" \
 	"encryption=aes-192-gcm" \
 	"encryption=aes-256-gcm"
 
-set -A KEYSOURCE_TYPES "keysource=raw,prompt" \
-	"keysource=hex,prompt" \
-	"keysource=passphrase,prompt"
+set -A KEYFORMATS "keyformat=raw" \
+	"keyformat=hex" \
+	"keyformat=passphrase"
 
-set -A KEYSOURCES "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" \
+set -A USER_KEYS "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" \
 	"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" \
 	"abcdefgh"
 
 log_assert "'zfs create' should properly create encrypted datasets"
 
-typeset -i i=0
-while (( $i < ${#ENCRYPTION_ALGS[*]} )); do
-	log_must eval 'echo ${KEYSOURCES[0]} | \
-		$ZFS create -o ${ENCRYPTION_ALGS[$i]} -o ${KEYSOURCE_TYPES[0]} \
-		$TESTPOOL/$TESTFS1'
+# typeset -i i=0
+# while (( $i < ${#ENCRYPTION_ALGS[*]} )); do
+	# log_must eval 'echo ${USER_KEYS[0]} | \
+		# $ZFS create -o ${ENCRYPTION_ALGS[$i]} -o ${KEYFORMATS[0]} \
+		# $TESTPOOL/$TESTFS1'
 
-	datasetexists $TESTPOOL/$TESTFS1 || \
-		log_fail "zfs create -o ${ENCRYPTION_ALGS[$i]} \
-		-o ${KEYSOURCE_TYPES[0]} $TESTPOOL/$TESTFS1 fail."
+	# datasetexists $TESTPOOL/$TESTFS1 || \
+		# log_fail "zfs create -o ${ENCRYPTION_ALGS[$i]} \
+		# -o ${KEYFORMATS[0]} $TESTPOOL/$TESTFS1 fail."
 
-	propertycheck $TESTPOOL/$TESTFS1 ${ENCRYPTION_PROPS[i]} || \
-		log_fail "${ENCRYPTION_ALGS[i]} is failed to set."
-	propertycheck $TESTPOOL/$TESTFS1 ${KEYSOURCE_TYPES[0]} || \
-		log_fail "${KEYSOURCE_TYPES[0]} is failed to set."
+	# propertycheck $TESTPOOL/$TESTFS1 ${ENCRYPTION_PROPS[i]} || \
+		# log_fail "failed to set ${ENCRYPTION_ALGS[i]}."
+	# propertycheck $TESTPOOL/$TESTFS1 ${KEYFORMATS[0]} || \
+		# log_fail "failed to set ${KEYFORMATS[0]}."
 
-	log_must $ZFS destroy -f $TESTPOOL/$TESTFS1
-	(( i = i + 1 ))
-done
+	# log_must $ZFS destroy -f $TESTPOOL/$TESTFS1
+	# (( i = i + 1 ))
+# done
 
-typeset -i j=0
-while (( $j < ${#KEYSOURCE_TYPES[*]} )); do
-	log_must eval 'echo ${KEYSOURCES[$j]} | \
-		$ZFS create -o ${ENCRYPTION_ALGS[0]} -o ${KEYSOURCE_TYPES[$j]} \
-		$TESTPOOL/$TESTFS1'
+# typeset -i j=0
+# while (( $j < ${#KEYFORMATS[*]} )); do
+	# log_must eval 'echo ${USER_KEYS[$j]} | \
+		# $ZFS create -o ${ENCRYPTION_ALGS[0]} -o ${KEYFORMATS[$j]} \
+		# $TESTPOOL/$TESTFS1'
 
-	datasetexists $TESTPOOL/$TESTFS1 || \
-		log_fail "zfs create -o ${ENCRYPTION_ALGS[0]} \
-		-o ${KEYSOURCE_TYPES[$j]} $TESTPOOL/$TESTFS1 fail."
+	# datasetexists $TESTPOOL/$TESTFS1 || \
+		# log_fail "zfs create -o ${ENCRYPTION_ALGS[0]} \
+		# -o ${KEYFORMATS[$j]} $TESTPOOL/$TESTFS1 fail."
 
-	propertycheck $TESTPOOL/$TESTFS1 ${ENCRYPTION_PROPS[0]} || \
-		log_fail "${ENCRYPTION_ALGS[0]} is failed to set."
-	propertycheck $TESTPOOL/$TESTFS1 ${KEYSOURCE_TYPES[j]} || \
-		log_fail "${KEYSOURCE_TYPES[j]} is failed to set."
+	# propertycheck $TESTPOOL/$TESTFS1 ${ENCRYPTION_PROPS[0]} || \
+		# log_fail "failed to set ${ENCRYPTION_ALGS[0]}."
+	# propertycheck $TESTPOOL/$TESTFS1 ${KEYFORMATS[j]} || \
+		# log_fail "failed to set ${KEYFORMATS[j]}."
 
-	log_must $ZFS destroy -f $TESTPOOL/$TESTFS1
-	(( j = j + 1 ))
-done
+	# log_must $ZFS destroy -f $TESTPOOL/$TESTFS1
+	# (( j = j + 1 ))
+# done
 
-log_pass "'zfs create properly creates encrypted datasets"
+log_pass "'zfs create' properly creates encrypted datasets"

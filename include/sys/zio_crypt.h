@@ -61,15 +61,6 @@ struct zbookmark_phys;
 #define	BITS_TO_BYTES(x) (((x) + 7) >> 3)
 #define	BYTES_TO_BITS(x) (x << 3)
 
-/* supported commands for zfs_ioc_crypto() */
-typedef enum zfs_ioc_crypto_cmd {
-	ZFS_IOC_KEY_CMD_NONE = 0,
-	ZFS_IOC_KEY_LOAD_KEY,
-	ZFS_IOC_KEY_UNLOAD_KEY,
-	ZFS_IOC_KEY_REWRAP,
-	ZFS_IOC_KEY_COMMANDS
-} zfs_ioc_crypto_cmd_t;
-
 typedef enum zio_crypt_type {
 	ZC_TYPE_NONE = 0,
 	ZC_TYPE_CCM,

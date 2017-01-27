@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-# 'zfs key -u' should not unload a key from the ZFS keystore
+# 'zfs unload-key' should not unload a key from the ZFS keystore
 # if the dataset is busy or not encrypted.
 #
 # STRATEGY:
@@ -53,15 +53,15 @@ function cleanup
 
 log_onexit cleanup
 
-log_assert "'zfs key -u' should not unload a wrapping key if the dataset \
+log_assert "'zfs unload-key' should not unload a wrapping key if the dataset \
 	if the dataset is busy or not encrypted"
 
 create_default_encrypted_dataset
 
-log_mustnot $ZFS key -u $TESTPOOL/$CRYPTDS
+log_mustnot $ZFS unload-key $TESTPOOL/$CRYPTDS
 check_key_available $TESTPOOL/$CRYPTDS
 
-log_mustnot $ZFS key -u $TESTPOOL
+log_mustnot $ZFS unload-key $TESTPOOL
 
-log_pass "'zfs key -u' properly returns an error when unloading a wrapping \
+log_pass "'zfs unload-key' properly returns an error when unloading a wrapping \
 	key from a busy or unencrypted dataset"

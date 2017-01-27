@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-# 'zfs key -c' should not be able to change an unloaded
+# 'zfs change-key' should not be able to change an unloaded
 # wrapping key or allow a change to an invalid key
 #
 # STRATEGY:
@@ -41,9 +41,9 @@
 # 2. Attempt to change the wrapping key to an invalid key
 # 3. Verify that the old key still works for the encrypted system
 # 4. Unload the wrapping key
-# 5. Attempt to change the key and keysource to a valid key
+# 5. Attempt to change the key and keyformat to a valid key
 # 6. Verify that the old key still works for the encrypted system
-# 7. Attempt to change the key and keysource on an unencrypted filesystem
+# 7. Attempt to change the key and keyformat on an unencrypted filesystem
 #
 
 verify_runnable "both"
@@ -55,27 +55,27 @@ function cleanup
 
 log_onexit cleanup
 
-log_assert "'zfs key -c' should not change an unloaded wrapping key \
+log_assert "'zfs change-key' should not change an unloaded wrapping key \
 	or allow a change to an invalid key"
 
 create_default_encrypted_dataset
 log_must $ZFS unmount $TESTPOOL/$CRYPTDS
 
 log_mustnot eval '$ECHO $SHORT_PKEY | \
-	$ZFS key -c -o keysource=passphrase,prompt $TESTPOOL/$CRYPTDS'
+	$ZFS change-key -o keyformat=passphrase $TESTPOOL/$CRYPTDS'
 
-log_must $ZFS key -u $TESTPOOL/$CRYPTDS
-log_must eval '$ECHO $PKEY | $ZFS key -l $TESTPOOL/$CRYPTDS'
+log_must $ZFS unload-key $TESTPOOL/$CRYPTDS
+log_must eval '$ECHO $PKEY | $ZFS load-key $TESTPOOL/$CRYPTDS'
 check_key_available $TESTPOOL/$CRYPTDS
 
-log_must $ZFS key -u $TESTPOOL/$CRYPTDS
+log_must $ZFS unload-key $TESTPOOL/$CRYPTDS
 
-log_mustnot eval '$ECHO $HKEY | $ZFS key -c -o keysource=hex,prompt \
+log_mustnot eval '$ECHO $HKEY | $ZFS change-key -o keyformat=hex \
 	$TESTPOOL/$CRYPTDS'
 check_key_unavailable $TESTPOOL/$CRYPTDS
 
-log_mustnot eval '$ECHO $PKEY | $ZFS key -c -o keysource=passphrase,prompt \
+log_mustnot eval '$ECHO $PKEY | $ZFS change-key -o keyformat=passphrase \
 	$TESTPOOL'
 
-log_pass "'zfs key -c' does not change an unloaded wrapping key \
+log_pass "'zfs change-key' does not change an unloaded wrapping key \
 	or allow a change to an invalid key"

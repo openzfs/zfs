@@ -75,9 +75,6 @@ typedef struct dsl_wrapping_key {
  * passed around the kernel together for convenience
  */
 typedef struct dsl_crypto_params {
-	/* command to be executed */
-	zfs_ioc_crypto_cmd_t cp_cmd;
-
 	/* the encryption algorithm */
 	enum zio_encrypt cp_crypt;
 

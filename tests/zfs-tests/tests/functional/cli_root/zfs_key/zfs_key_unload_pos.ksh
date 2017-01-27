@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-# 'zfs key -u' will unload a key from the ZFS keystore.
+# 'zfs unload-key' will unload a key from the ZFS keystore.
 #
 # STRATEGY:
 # 1. Create an encrypted dataset
@@ -51,11 +51,11 @@ function cleanup
 
 log_onexit cleanup
 
-log_assert "'zfs key -u' should properly unload a wrapping key"
+log_assert "'zfs unload-key' should properly unload a wrapping key"
 
 create_default_encrypted_dataset
 log_must $ZFS unmount $TESTPOOL/$CRYPTDS
-log_must $ZFS key -u $TESTPOOL/$CRYPTDS
+log_must $ZFS unload-key $TESTPOOL/$CRYPTDS
 check_key_unavailable $TESTPOOL/$CRYPTDS
 
-log_pass "'zfs key -u' properly unloads a wrapping key"
+log_pass "'zfs unload-key' properly unloads a wrapping key"

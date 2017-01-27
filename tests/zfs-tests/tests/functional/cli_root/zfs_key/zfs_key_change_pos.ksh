@@ -33,12 +33,12 @@
 
 #
 # DESCRIPTION:
-# 'zfs key -c' should be able to change one loaded, valid
+# 'zfs change-key' should be able to change one loaded, valid
 # wrapping key to another.
 #
 # STRATEGY:
 # 1. Create an encrypted dataset and unmount it
-# 2. Attempt to change the key and keysource
+# 2. Attempt to change the key and keyformat
 # 3. Verify that the old key cannot be loaded
 # 4. Verify that the new can be loaded
 #
@@ -52,22 +52,21 @@ function cleanup
 
 log_onexit cleanup
 
-log_assert "'zfs key -c' should properly change a valid wrapping key \
+log_assert "'zfs change-key' should properly change a valid wrapping key \
 	to another"
 
 create_default_encrypted_dataset
 log_must $ZFS unmount $TESTPOOL/$CRYPTDS
 
-log_must eval '$ECHO $HKEY | $ZFS key -c -o keysource=hex,prompt \
+log_must eval '$ECHO $HKEY | $ZFS change-key -o keyformat=hex \
 	$TESTPOOL/$CRYPTDS'
-
 check_key_available $TESTPOOL/$CRYPTDS
 
-log_must $ZFS key -u $TESTPOOL/$CRYPTDS
-log_mustnot eval '$ECHO $PKEY | $ZFS key -l $TESTPOOL/$CRYPTDS'
+log_must $ZFS unload-key $TESTPOOL/$CRYPTDS
+log_mustnot eval '$ECHO $PKEY | $ZFS load-key $TESTPOOL/$CRYPTDS'
 check_key_unavailable $TESTPOOL/$CRYPTDS
 
-log_must eval '$ECHO $HKEY | $ZFS key -l $TESTPOOL/$CRYPTDS'
+log_must eval '$ECHO $HKEY | $ZFS load-key $TESTPOOL/$CRYPTDS'
 check_key_available $TESTPOOL/$CRYPTDS
 
-log_pass "'zfs key -c' properly changes a valid wrapping key to another"
+log_pass "'zfs change-key' properly changes a valid wrapping key to another"

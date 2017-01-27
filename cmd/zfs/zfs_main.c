@@ -103,7 +103,9 @@ static int zfs_do_holds(int argc, char **argv);
 static int zfs_do_release(int argc, char **argv);
 static int zfs_do_diff(int argc, char **argv);
 static int zfs_do_bookmark(int argc, char **argv);
-static int zfs_do_key(int argc, char **argv);
+static int zfs_do_load_key(int argc, char **argv);
+static int zfs_do_unload_key(int argc, char **argv);
+static int zfs_do_change_key(int argc, char **argv);
 
 /*
  * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
@@ -151,7 +153,9 @@ typedef enum {
 	HELP_RELEASE,
 	HELP_DIFF,
 	HELP_BOOKMARK,
-	HELP_KEY,
+	HELP_LOAD_KEY,
+	HELP_UNLOAD_KEY,
+	HELP_CHANGE_KEY,
 } zfs_help_t;
 
 typedef struct zfs_command {
@@ -205,7 +209,9 @@ static zfs_command_t command_table[] = {
 	{ "holds",	zfs_do_holds,		HELP_HOLDS		},
 	{ "release",	zfs_do_release,		HELP_RELEASE		},
 	{ "diff",	zfs_do_diff,		HELP_DIFF		},
-	{ "key",	zfs_do_key,		HELP_KEY		},
+	{ "load-key",	zfs_do_load_key,	HELP_LOAD_KEY		},
+	{ "unload-key",	zfs_do_unload_key,	HELP_UNLOAD_KEY		},
+	{ "change-key",	zfs_do_change_key,	HELP_CHANGE_KEY		},
 };
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
@@ -324,10 +330,15 @@ get_usage(zfs_help_t idx)
 		    "[snapshot|filesystem]\n"));
 	case HELP_BOOKMARK:
 		return (gettext("\tbookmark <snapshot> <bookmark>\n"));
-	case HELP_KEY:
-		return (gettext("\tkey [-lu] <filesystem|volume>\n"
-		    "\tkey -c [-o keyformat=<value>] [-o keylocation=<value>] "
-		    "[-o pbkfd2iters=<value>] <filesystem|volume>\n"));
+	case HELP_LOAD_KEY:
+		return (gettext("\tload-key [-r] <filesystem|volume>\n"));
+	case HELP_UNLOAD_KEY:
+		return (gettext("\tunload-key [-r] <filesystem|volume>\n"));
+	case HELP_CHANGE_KEY:
+		return (gettext("\tchange-key [-l] [-o keyformat=<value>] "
+		    "[-o keylocation=<value>] [-o pbkfd2iters=<value>] "
+		    "<filesystem|volume>\n"
+		    "\tchangekey -i <filesystem|volume>\n"));
 	}
 
 	abort();
@@ -6932,41 +6943,118 @@ usage:
 }
 
 static int
-zfs_do_key(int argc, char **argv)
+zfs_do_load_key(int argc, char **argv)
+{
+	int c, ret;
+	boolean_t recursive = B_FALSE;
+	zfs_handle_t *zhp = NULL;
+
+	while ((c = getopt(argc, argv, "r")) != -1) {
+		switch (c) {
+		case 'r':
+			recursive = B_TRUE;
+		default:
+			(void) fprintf(stderr,
+			    gettext("invalid option '%c'\n"), optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("Missing dataset argument\n"));
+		usage(B_FALSE);
+	}
+
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("Too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	zhp = zfs_open(g_zfs, argv[argc - 1],
+	    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_VOLUME);
+	if (zhp == NULL)
+		usage(B_FALSE);
+
+	ret = zfs_crypto_load_key(zhp);
+	if (ret != 0)
+		goto error;
+
+	zfs_close(zhp);
+	return (0);
+
+error:
+	if (zhp != NULL)
+		zfs_close(zhp);
+	return (-1);
+}
+
+static int
+zfs_do_unload_key(int argc, char **argv)
 {
 	int c, ret = -1;
-	boolean_t load = B_FALSE, unload = B_FALSE, rewrap = B_FALSE;
+	boolean_t recursive = B_FALSE;
+	zfs_handle_t *zhp = NULL;
+
+	while ((c = getopt(argc, argv, "r")) != -1) {
+		switch (c) {
+		case 'r':
+			recursive = B_TRUE;
+		default:
+			(void) fprintf(stderr,
+			    gettext("invalid option '%c'\n"), optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("Missing dataset argument\n"));
+		usage(B_FALSE);
+	}
+
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("Too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	zhp = zfs_open(g_zfs, argv[argc - 1],
+	    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_VOLUME);
+	if (zhp == NULL)
+		usage(B_FALSE);
+
+	ret = zfs_crypto_unload_key(zhp);
+	if (ret != 0)
+		goto error;
+
+	zfs_close(zhp);
+	return (0);
+
+error:
+	if (zhp != NULL)
+		zfs_close(zhp);
+	return (-1);
+}
+
+static int
+zfs_do_change_key(int argc, char **argv)
+{
+	int c, ret;
+	boolean_t loadkey = B_FALSE, inheritkey = B_FALSE;
 	zfs_handle_t *zhp = NULL;
 	nvlist_t *props = fnvlist_alloc();
 
-	while ((c = getopt(argc, argv, "ulco:")) != -1) {
+	while ((c = getopt(argc, argv, "lio:")) != -1) {
 		switch (c) {
-		case 'u':
-			if (ret == 0) {
-				(void) fprintf(stderr, gettext(
-				    "multiple actions specified\n"));
-				usage(B_FALSE);
-			}
-			unload = B_TRUE;
-			ret = 0;
-			break;
 		case 'l':
-			if (ret == 0) {
-				(void) fprintf(stderr, gettext(
-				    "multiple actions specified\n"));
-				usage(B_FALSE);
-			}
-			load = B_TRUE;
-			ret = 0;
+			loadkey = B_TRUE;
 			break;
-		case 'c':
-			if (ret == 0) {
-				(void) fprintf(stderr, gettext(
-				    "multiple actions specified\n"));
-				usage(B_FALSE);
-			}
-			rewrap = B_TRUE;
-			ret = 0;
+		case 'i':
+			inheritkey = B_TRUE;
 			break;
 		case 'o':
 			if (parseprop(props, optarg) != 0)
@@ -6979,15 +7067,15 @@ zfs_do_key(int argc, char **argv)
 		}
 	}
 
-	if (ret != 0) {
+	if (inheritkey && !nvlist_empty(props)) {
 		(void) fprintf(stderr,
-		    gettext("No action specified\n"));
+		    gettext("Properties not allowed for inheriting\n"));
 		usage(B_FALSE);
 	}
 
-	if (!rewrap && !nvlist_empty(props)) {
+	if (inheritkey && loadkey) {
 		(void) fprintf(stderr,
-		    gettext("Properties not allowed for specified command\n"));
+		    gettext("Inherit flag incompatible with load flag\n"));
 		usage(B_FALSE);
 	}
 
@@ -7009,13 +7097,7 @@ zfs_do_key(int argc, char **argv)
 	if (zhp == NULL)
 		usage(B_FALSE);
 
-	if (load)
-		ret = zfs_crypto_load_key(zhp);
-	else if (unload)
-		ret = zfs_crypto_unload_key(zhp);
-	else
-		ret = zfs_crypto_rewrap(zhp, props);
-
+	ret = zfs_crypto_rewrap(zhp, props);
 	if (ret != 0)
 		goto error;
 

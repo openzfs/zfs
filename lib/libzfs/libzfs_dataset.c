@@ -1542,7 +1542,7 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 		if (prop == ZFS_PROP_KEYLOCATION) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Keylocation may only be set if is set locally. "
-			    "This may be changed with 'zfs key -c'"));
+			    "This may be changed with 'zfs change-key.'"));
 			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 		} else {
 			(void) zfs_standard_error(hdl, err, errbuf);

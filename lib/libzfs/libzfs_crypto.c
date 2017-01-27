@@ -194,13 +194,14 @@ get_key_material_raw(FILE *fd, const char *fsname, zfs_keyformat_t keyformat,
 		 * Raw keys may have newline characters in them and so can't
 		 * use getline(). Read 32 bytes directly instead.
 		 */
+
 		*buf = malloc(32 * sizeof (char));
 		if (*buf == NULL) {
 			ret = ENOMEM;
 			goto out;
 		}
 
-		bytes = fread(buf, 1, 32, fd);
+		bytes = fread(*buf, 1, 32, fd);
 		if (bytes < 0) {
 			/* size errors are handled by the calling function */
 			free(*buf);
@@ -812,8 +813,13 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 	}
 
 	/* default to prompt if no location is specified */
-	if (keyformat != ZFS_KEYFORMAT_NONE && keylocation == NULL)
+	if (keyformat != ZFS_KEYFORMAT_NONE && keylocation == NULL) {
 		keylocation = "prompt";
+		ret = nvlist_add_string(props,
+		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), keylocation);
+		if (ret != 0)
+			goto out;
+	}
 
 	/*
 	 * If the parent doesn't have a keyformat to inherit
@@ -925,8 +931,13 @@ zfs_crypto_clone(libzfs_handle_t *hdl, zfs_handle_t *origin_zhp,
 	}
 
 	/* default to prompt if no location is specified */
-	if (keyformat != ZFS_KEYFORMAT_NONE && keylocation == NULL)
+	if (keyformat != ZFS_KEYFORMAT_NONE && keylocation == NULL) {
 		keylocation = "prompt";
+		ret = nvlist_add_string(props,
+		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), keylocation);
+		if (ret != 0)
+			goto out;
+	}
 
 	/*
 	 * by this point this dataset will be encrypted. The origin's
@@ -993,6 +1004,7 @@ zfs_crypto_load_key(zfs_handle_t *zhp)
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "Key load error"));
 
+	/* check that encryption is enabled for the pool */
 	if (!encryption_feature_is_enabled(zhp->zpool_hdl)) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 		    "Encryption feature not enabled."));
@@ -1004,7 +1016,7 @@ zfs_crypto_load_key(zfs_handle_t *zhp)
 	keyformat = zfs_prop_get_int(zhp, ZFS_PROP_KEYFORMAT);
 	if (keyformat == ZFS_KEYFORMAT_NONE) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-		    "Encryption not enabled for this dataset."));
+		    "Dataset not encrypted."));
 		ret = EINVAL;
 		goto error;
 	}
@@ -1064,8 +1076,7 @@ zfs_crypto_load_key(zfs_handle_t *zhp)
 	if (ret != 0)
 		goto error;
 
-	ret = lzc_key(zhp->zfs_name, ZFS_IOC_KEY_LOAD_KEY, NULL,
-	    crypto_args);
+	ret = lzc_load_key(zhp->zfs_name, crypto_args);
 	if (ret != 0) {
 		switch (ret) {
 		case EINVAL:
@@ -1119,6 +1130,7 @@ zfs_crypto_unload_key(zfs_handle_t *zhp)
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "Key unload error"));
 
+	/* check that encryption is enabled for the pool */
 	if (!encryption_feature_is_enabled(zhp->zpool_hdl)) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 		    "Encryption feature not enabled."));
@@ -1130,7 +1142,7 @@ zfs_crypto_unload_key(zfs_handle_t *zhp)
 	keyformat = zfs_prop_get_int(zhp, ZFS_PROP_KEYFORMAT);
 	if (keyformat == ZFS_KEYFORMAT_NONE) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-		    "Encryption not enabled for this dataset."));
+		    "Dataset not encrypted."));
 		ret = EINVAL;
 		goto error;
 	}
@@ -1164,7 +1176,7 @@ zfs_crypto_unload_key(zfs_handle_t *zhp)
 	}
 
 	/* call the ioctl */
-	ret = lzc_key(zhp->zfs_name, ZFS_IOC_KEY_UNLOAD_KEY, NULL, NULL);
+	ret = lzc_unload_key(zhp->zfs_name);
 
 	if (ret != 0) {
 		switch (ret) {
@@ -1249,8 +1261,9 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props)
 	nvlist_t *props = NULL;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
-	    dgettext(TEXT_DOMAIN, "Key rewrap error"));
+	    dgettext(TEXT_DOMAIN, "Key change error"));
 
+	/* check that encryption is enabled for the pool */
 	if (!encryption_feature_is_enabled(zhp->zpool_hdl)) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 		    "Encryption feature not enabled."));
@@ -1262,7 +1275,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props)
 	crypt = zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION);
 	if (crypt == ZIO_CRYPT_OFF) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-		    "Encryption not enabled for this dataset."));
+		    "Dataset not encrypted."));
 		ret = EINVAL;
 		goto error;
 	}
@@ -1305,7 +1318,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props)
 		goto error;
 
 	/* call the ioctl */
-	ret = lzc_key(zhp->zfs_name, ZFS_IOC_KEY_REWRAP, props, crypto_args);
+	ret = lzc_change_key(zhp->zfs_name, props, crypto_args);
 	if (ret != 0) {
 		switch (ret) {
 		case EINVAL:

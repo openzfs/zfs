@@ -38,7 +38,7 @@
 #
 # STRATEGY:
 # 1. Create a pool for each encryption type and verify that it is properly set
-# 2. Create a pool for each keysource type and verify that it is properly set
+# 2. Create a pool for each keyformat type and verify that it is properly set
 #
 
 verify_runnable "global"
@@ -66,11 +66,11 @@ set -A ENCRYPTION_PROPS "encryption=aes-256-ccm" \
 	"encryption=aes-192-gcm" \
 	"encryption=aes-256-gcm"
 
-set -A KEYSOURCE_TYPES "keysource=raw,prompt" \
-	"keysource=hex,prompt" \
-	"keysource=passphrase,prompt"
+set -A KEYFORMATS "keyformat=raw" \
+	"keyformat=hex" \
+	"keyformat=passphrase"
 
-set -A KEYSOURCES "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" \
+set -A USER_KEYS "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" \
 	"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" \
 	"abcdefgh"
 
@@ -78,31 +78,31 @@ log_assert "'zpool create' can create encrypted pools"
 
 typeset -i i=0
 while (( i < ${#ENCRYPTION_ALGS[*]} )); do
-	log_must eval "$ECHO ${KEYSOURCES[0]} | $ZPOOL create \
-		-O ${ENCRYPTION_ALGS[i]} -O ${KEYSOURCE_TYPES[0]} \
+	log_must eval "$ECHO ${USER_KEYS[0]} | $ZPOOL create \
+		-O ${ENCRYPTION_ALGS[i]} -O ${KEYFORMATS[0]} \
                 $TESTPOOL $DISKS"
 
 	propertycheck $TESTPOOL ${ENCRYPTION_PROPS[i]} || \
 		log_fail "${ENCRYPTION_ALGS[i]} is failed to set."
 
-	propertycheck $TESTPOOL ${KEYSOURCE_TYPES[0]} || \
-		log_fail "${KEYSOURCE_TYPES[0]} is failed to set."
+	propertycheck $TESTPOOL ${KEYFORMATS[0]} || \
+		log_fail "${KEYFORMATS[0]} is failed to set."
 
 	log_must $ZPOOL destroy $TESTPOOL
 	(( i = i + 1 ))
 done
 
 typeset -i j=0
-while (( j < ${#KEYSOURCE_TYPES[*]} )); do
-	log_must eval "$ECHO ${KEYSOURCES[j]} | $ZPOOL create \
-		-O ${ENCRYPTION_ALGS[0]} -O ${KEYSOURCE_TYPES[j]} \
+while (( j < ${#KEYFORMATS[*]} )); do
+	log_must eval "$ECHO ${USER_KEYS[j]} | $ZPOOL create \
+		-O ${ENCRYPTION_ALGS[0]} -O ${KEYFORMATS[j]} \
                 $TESTPOOL $DISKS"
 
 	propertycheck $TESTPOOL ${ENCRYPTION_PROPS[0]} || \
 		log_fail "${ENCRYPTION_ALGS[0]} is failed to set."
 
-	propertycheck $TESTPOOL ${KEYSOURCE_TYPES[j]} || \
-		log_fail "${KEYSOURCE_TYPES[j]} is failed to set."
+	propertycheck $TESTPOOL ${KEYFORMATS[j]} || \
+		log_fail "${KEYFORMATS[j]} is failed to set."
 
 	log_must $ZPOOL destroy $TESTPOOL
 	(( j = j + 1 ))

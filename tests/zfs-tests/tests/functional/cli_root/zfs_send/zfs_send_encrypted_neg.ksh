@@ -61,11 +61,10 @@ typeset passphrase="abcdefgh"
 typeset snap="$TESTPOOL/$cryptds@snap"
 
 log_must eval "$ECHO $passphrase | \
-	$ZFS create -o encryption=on -o keysource=passphrase,prompt \
-	$TESTPOOL/$cryptds"
+	$ZFS create -o encryption=on -o keyformat=passphrase $TESTPOOL/$cryptds"
 log_must $ZFS snapshot $snap
 log_must $ZFS unmount $TESTPOOL/$cryptds
-log_must $ZFS key -u $TESTPOOL/$cryptds
+log_must $ZFS unload-key $TESTPOOL/$cryptds
 log_mustnot eval "$ZFS send $snap > /dev/null"
 
 log_pass "'zfs send' cannot perform sends from encrypted datasets with unloaded keys."
