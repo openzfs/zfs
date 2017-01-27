@@ -3758,6 +3758,7 @@ zpool_history_unpack(char *buf, uint64_t bytes_read, uint64_t *leftover,
 	uint64_t reclen;
 	nvlist_t *nv;
 	int i;
+	void *tmp;
 
 	while (bytes_read > sizeof (reclen)) {
 
@@ -3777,8 +3778,14 @@ zpool_history_unpack(char *buf, uint64_t bytes_read, uint64_t *leftover,
 		/* add record to nvlist array */
 		(*numrecords)++;
 		if (ISP2(*numrecords + 1)) {
-			*records = realloc(*records,
+			tmp = realloc(*records,
 			    *numrecords * 2 * sizeof (nvlist_t *));
+			if (tmp == NULL) {
+				nvlist_free(nv);
+				(*numrecords)--;
+				return (ENOMEM);
+			}
+			*records = tmp;
 		}
 		(*records)[*numrecords - 1] = nv;
 	}
