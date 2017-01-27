@@ -260,20 +260,6 @@ zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
 }
 
 static ssize_t
-zpl_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
-{
-	cred_t *cr = CRED();
-	ssize_t read;
-
-	crhold(cr);
-	read = zpl_read_common(filp->f_mapping->host, buf, len, ppos,
-	    UIO_USERSPACE, filp->f_flags, cr);
-	crfree(cr);
-
-	return (read);
-}
-
-static ssize_t
 zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
     unsigned long nr_segs, size_t count, uio_seg_t seg, size_t skip)
 {
@@ -310,7 +296,14 @@ static ssize_t
 zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
     unsigned long nr_segs, loff_t pos)
 {
-	return (zpl_iter_read_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes,
+	ssize_t ret;
+	size_t count;
+
+	ret = generic_segment_checks(iovp, &nr_segs, &count, VERIFY_WRITE);
+	if (ret)
+		return (ret);
+
+	return (zpl_iter_read_common(kiocb, iovp, nr_segs, count,
 	    UIO_USERSPACE, 0));
 }
 #endif /* HAVE_VFS_RW_ITERATE */
@@ -348,6 +341,7 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 
 	return (wrote);
 }
+
 inline ssize_t
 zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
     uio_seg_t segment, int flags, cred_t *cr)
@@ -359,20 +353,6 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
 
 	return (zpl_write_common_iovec(ip, &iov, len, 1, ppos, segment,
 	    flags, cr, 0));
-}
-
-static ssize_t
-zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
-{
-	cred_t *cr = CRED();
-	ssize_t wrote;
-
-	crhold(cr);
-	wrote = zpl_write_common(filp->f_mapping->host, buf, len, ppos,
-	    UIO_USERSPACE, filp->f_flags, cr);
-	crfree(cr);
-
-	return (wrote);
 }
 
 static ssize_t
@@ -395,16 +375,40 @@ zpl_iter_write_common(struct kiocb *kiocb, const struct iovec *iovp,
 static ssize_t
 zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 {
+	size_t count;
 	ssize_t ret;
 	uio_seg_t seg = UIO_USERSPACE;
+
+#ifndef HAVE_GENERIC_WRITE_CHECKS_KIOCB
+	struct file *file = kiocb->ki_filp;
+	struct address_space *mapping = file->f_mapping;
+	struct inode *ip = mapping->host;
+	int isblk = S_ISBLK(ip->i_mode);
+
+	count = iov_iter_count(from);
+	ret = generic_write_checks(file, &kiocb->ki_pos, &count, isblk);
+#else
+	/*
+	 * XXX - ideally this check should be in the same lock region with
+	 * write operations, so that there's no TOCTTOU race when doing
+	 * append and someone else grow the file.
+	 */
+	ret = generic_write_checks(kiocb, from);
+	count = ret;
+#endif
+	if (ret <= 0)
+		return (ret);
+
 	if (from->type & ITER_KVEC)
 		seg = UIO_SYSSPACE;
 	if (from->type & ITER_BVEC)
 		seg = UIO_BVEC;
+
 	ret = zpl_iter_write_common(kiocb, from->iov, from->nr_segs,
-	    iov_iter_count(from), seg, from->iov_offset);
+	    count, seg, from->iov_offset);
 	if (ret > 0)
 		iov_iter_advance(from, ret);
+
 	return (ret);
 }
 #else
@@ -412,7 +416,22 @@ static ssize_t
 zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
     unsigned long nr_segs, loff_t pos)
 {
-	return (zpl_iter_write_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes,
+	struct file *file = kiocb->ki_filp;
+	struct address_space *mapping = file->f_mapping;
+	struct inode *ip = mapping->host;
+	int isblk = S_ISBLK(ip->i_mode);
+	size_t count;
+	ssize_t ret;
+
+	ret = generic_segment_checks(iovp, &nr_segs, &count, VERIFY_READ);
+	if (ret)
+		return (ret);
+
+	ret = generic_write_checks(file, &pos, &count, isblk);
+	if (ret)
+		return (ret);
+
+	return (zpl_iter_write_common(kiocb, iovp, nr_segs, count,
 	    UIO_USERSPACE, 0));
 }
 #endif /* HAVE_VFS_RW_ITERATE */
@@ -834,8 +853,6 @@ const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
-	.read		= zpl_read,
-	.write		= zpl_write,
 #ifdef HAVE_VFS_RW_ITERATE
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
