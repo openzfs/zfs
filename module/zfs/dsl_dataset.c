@@ -319,6 +319,7 @@ dsl_dataset_evict_async(void *dbu)
 	mutex_destroy(&ds->ds_opening_lock);
 	mutex_destroy(&ds->ds_sendstream_lock);
 	refcount_destroy(&ds->ds_longholds);
+	rrw_destroy(&ds->ds_bp_rwlock);
 
 	kmem_free(ds, sizeof (dsl_dataset_t));
 }
@@ -455,6 +456,7 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		mutex_init(&ds->ds_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_opening_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_sendstream_lock, NULL, MUTEX_DEFAULT, NULL);
+		rrw_init(&ds->ds_bp_rwlock, B_FALSE);
 		refcount_create(&ds->ds_longholds);
 
 		bplist_create(&ds->ds_pending_deadlist);
@@ -862,7 +864,9 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 		    dsl_dataset_phys(origin)->ds_compressed_bytes;
 		dsphys->ds_uncompressed_bytes =
 		    dsl_dataset_phys(origin)->ds_uncompressed_bytes;
+		rrw_enter(&origin->ds_bp_rwlock, RW_READER, FTAG);
 		dsphys->ds_bp = dsl_dataset_phys(origin)->ds_bp;
+		rrw_exit(&origin->ds_bp_rwlock, FTAG);
 
 		/*
 		 * Inherit flags that describe the dataset's contents
@@ -1384,7 +1388,9 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dsphys->ds_uncompressed_bytes =
 	    dsl_dataset_phys(ds)->ds_uncompressed_bytes;
 	dsphys->ds_flags = dsl_dataset_phys(ds)->ds_flags;
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	dsphys->ds_bp = dsl_dataset_phys(ds)->ds_bp;
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	dmu_buf_rele(dbuf, FTAG);
 
 	for (f = 0; f < SPA_FEATURES; f++) {
@@ -1980,18 +1986,25 @@ dsl_dataset_space(dsl_dataset_t *ds,
 		else
 			*availbytesp = 0;
 	}
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	*usedobjsp = BP_GET_FILL(&dsl_dataset_phys(ds)->ds_bp);
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	*availobjsp = DN_MAX_OBJECT - *usedobjsp;
 }
 
 boolean_t
 dsl_dataset_modified_since_snap(dsl_dataset_t *ds, dsl_dataset_t *snap)
 {
-	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
+	ASSERTV(dsl_pool_t *dp = ds->ds_dir->dd_pool);
+	uint64_t birth;
+
+	ASSERT(dsl_pool_config_held(dp));
 	if (snap == NULL)
 		return (B_FALSE);
-	if (dsl_dataset_phys(ds)->ds_bp.blk_birth >
-	    dsl_dataset_phys(snap)->ds_creation_txg) {
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+	birth = dsl_dataset_get_blkptr(ds)->blk_birth;
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
+	if (birth > dsl_dataset_phys(snap)->ds_creation_txg) {
 		objset_t *os, *os_snap;
 		/*
 		 * It may be that only the ZIL differs, because it was
@@ -2948,6 +2961,7 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	spa_feature_t f;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int64_t unused_refres_delta;
+	blkptr_t tmp;
 
 	ASSERT(clone->ds_reserved == 0);
 	/*
@@ -3030,11 +3044,14 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 
 	/* swap blkptrs */
 	{
-		blkptr_t tmp;
+		rrw_enter(&clone->ds_bp_rwlock, RW_WRITER, FTAG);
+		rrw_enter(&origin_head->ds_bp_rwlock, RW_WRITER, FTAG);
 		tmp = dsl_dataset_phys(origin_head)->ds_bp;
 		dsl_dataset_phys(origin_head)->ds_bp =
 		    dsl_dataset_phys(clone)->ds_bp;
 		dsl_dataset_phys(clone)->ds_bp = tmp;
+		rrw_exit(&origin_head->ds_bp_rwlock, FTAG);
+		rrw_exit(&clone->ds_bp_rwlock, FTAG);
 	}
 
 	/* set dd_*_bytes */

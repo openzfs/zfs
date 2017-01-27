@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -402,8 +402,10 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
 
 	/* create the root objset */
 	VERIFY0(dsl_dataset_hold_obj(dp, obj, FTAG, &ds));
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	VERIFY(NULL != (os = dmu_objset_create_impl(dp->dp_spa, ds,
 	    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx)));
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 #ifdef _KERNEL
 	zfs_create_fs(os, kcred, zplprops, tx);
 #endif
@@ -718,7 +720,9 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		 * The $ORIGIN can't have any data, or the accounting
 		 * will be wrong.
 		 */
+		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 		ASSERT0(dsl_dataset_phys(prev)->ds_bp.blk_birth);
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 		/* The origin doesn't get attached to itself */
 		if (ds->ds_object == prev->ds_object) {

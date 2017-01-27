@@ -1613,10 +1613,12 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	 * If we actually created a non-clone, we need to create the
 	 * objset in our new dataset.
 	 */
+	rrw_enter(&newds->ds_bp_rwlock, RW_READER, FTAG);
 	if (BP_IS_HOLE(dsl_dataset_get_blkptr(newds))) {
 		(void) dmu_objset_create_impl(dp->dp_spa,
 		    newds, dsl_dataset_get_blkptr(newds), drrb->drr_type, tx);
 	}
+	rrw_exit(&newds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = newds;
 
@@ -1759,7 +1761,9 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_INCONSISTENT;
 
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	ASSERT(!BP_IS_HOLE(dsl_dataset_get_blkptr(ds)));
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = ds;
 
