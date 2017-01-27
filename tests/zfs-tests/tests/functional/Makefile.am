@@ -19,6 +19,7 @@ SUBDIRS = \
 	grow_pool \
 	grow_replicas \
 	history \
+	hole_birth \
 	inheritance \
 	inuse \
 	large_files \

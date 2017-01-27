@@ -297,6 +297,9 @@ tests = ['zpool_get_001_pos', 'zpool_get_002_pos', 'zpool_get_003_pos',
 [tests/functional/cli_root/zpool_history]
 tests = ['zpool_history_001_neg', 'zpool_history_002_pos']
 
+[tests/functional/hole_birth]
+tests = ['hole_birth_7176', 'hole_birth_4809', 'hole_birth_4996']
+
 # DISABLED:
 # zpool_import_002_pos - https://github.com/zfsonlinux/zfs/issues/5202
 # zpool_import_012_pos - sharenfs issue
