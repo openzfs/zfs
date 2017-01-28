@@ -3230,6 +3230,9 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		dsl_dataset_phys(origin_head)->ds_flags &=
 		    ~DS_FLAG_INCONSISTENT;
 
+		drc->drc_newsnapobj =
+		    dsl_dataset_phys(origin_head)->ds_prev_snap_obj;
+
 		dsl_dataset_rele(origin_head, FTAG);
 		dsl_destroy_head_sync_impl(drc->drc_ds, tx);
 
@@ -3265,8 +3268,9 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 			(void) zap_remove(dp->dp_meta_objset, ds->ds_object,
 			    DS_FIELD_RESUME_TONAME, tx);
 		}
+		drc->drc_newsnapobj =
+		    dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj;
 	}
-	drc->drc_newsnapobj = dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj;
 	zvol_create_minors(dp->dp_spa, drc->drc_tofs, B_TRUE);
 	/*
 	 * Release the hold from dmu_recv_begin.  This must be done before
@@ -3310,8 +3314,6 @@ static int dmu_recv_end_modified_blocks = 3;
 static int
 dmu_recv_existing_end(dmu_recv_cookie_t *drc)
 {
-	int error;
-
 #ifdef _KERNEL
 	/*
 	 * We will be destroying the ds; make sure its origin is unmounted if
@@ -3322,23 +3324,30 @@ dmu_recv_existing_end(dmu_recv_cookie_t *drc)
 	zfs_destroy_unmount_origin(name);
 #endif
 
-	error = dsl_sync_task(drc->drc_tofs,
+	return (dsl_sync_task(drc->drc_tofs,
 	    dmu_recv_end_check, dmu_recv_end_sync, drc,
-	    dmu_recv_end_modified_blocks, ZFS_SPACE_CHECK_NORMAL);
-
-	if (error != 0)
-		dmu_recv_cleanup_ds(drc);
-	return (error);
+	    dmu_recv_end_modified_blocks, ZFS_SPACE_CHECK_NORMAL));
 }
 
 static int
 dmu_recv_new_end(dmu_recv_cookie_t *drc)
 {
+	return (dsl_sync_task(drc->drc_tofs,
+	    dmu_recv_end_check, dmu_recv_end_sync, drc,
+	    dmu_recv_end_modified_blocks, ZFS_SPACE_CHECK_NORMAL));
+}
+
+int
+dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
+{
 	int error;
 
-	error = dsl_sync_task(drc->drc_tofs,
-	    dmu_recv_end_check, dmu_recv_end_sync, drc,
-	    dmu_recv_end_modified_blocks, ZFS_SPACE_CHECK_NORMAL);
+	drc->drc_owner = owner;
+
+	if (drc->drc_newfs)
+		error = dmu_recv_new_end(drc);
+	else
+		error = dmu_recv_existing_end(drc);
 
 	if (error != 0) {
 		dmu_recv_cleanup_ds(drc);
@@ -3348,17 +3357,6 @@ dmu_recv_new_end(dmu_recv_cookie_t *drc)
 		    drc->drc_newsnapobj);
 	}
 	return (error);
-}
-
-int
-dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
-{
-	drc->drc_owner = owner;
-
-	if (drc->drc_newfs)
-		return (dmu_recv_new_end(drc));
-	else
-		return (dmu_recv_existing_end(drc));
 }
 
 /*

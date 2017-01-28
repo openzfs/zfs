@@ -245,12 +245,16 @@ cksummer(void *arg)
 	int outfd;
 	dedup_table_t ddt;
 	zio_cksum_t stream_cksum;
-	uint64_t physmem = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	uint64_t numbuckets;
 
+#ifdef _ILP32
+	ddt.max_ddt_size = SMALLEST_POSSIBLE_MAX_DDT_MB << 20;
+#else
+	uint64_t physmem = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	ddt.max_ddt_size =
 	    MAX((physmem * MAX_DDT_PHYSMEM_PERCENT) / 100,
 	    SMALLEST_POSSIBLE_MAX_DDT_MB << 20);
+#endif
 
 	numbuckets = ddt.max_ddt_size / (sizeof (dedup_entry_t));
 

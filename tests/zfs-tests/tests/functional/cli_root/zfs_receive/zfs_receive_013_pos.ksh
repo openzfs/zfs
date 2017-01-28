@@ -15,69 +15,59 @@
 #
 
 #
-# Copyright 2016, loli10K. All rights reserved.
+# Copyright (c) 2015 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
+. $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
 
 #
 # DESCRIPTION:
-#	Verify ZFS can receive custom properties on both filesystems and
-#	snapshots from full and incremental streams.
+#   Verifying 'zfs receive' works correctly on deduplicated streams
 #
 # STRATEGY:
-#	1. Create a filesystem.
-#	2. Snapshot the filesystem.
-#	3. Set custom properties on both the fs and snapshots.
-#	4. Create different send streams with the properties.
-#	5. Receive the send streams and verify the properties.
+#   1. Create some snapshots with duplicated data
+#   2. Send a deduplicated stream of the last snapshot
+#   3. Attempt to receive the deduplicated stream
 #
 
-verify_runnable "both"
-
-typeset streamfile_full=/var/tmp/streamfile_full.$$
-typeset streamfile_incr=/var/tmp/streamfile_incr.$$
-orig=$TESTPOOL/$TESTFS1
-dest=$TESTPOOL/$TESTFS2
-typeset user_prop=$(valid_user_property 8)
-typeset value=$(user_property_value 8)
+src_fs=$TESTPOOL/drecvsrc
+temppool=recvtank
+dst_fs=$temppool/drecvdest
+streamfile=/var/tmp/drecvstream.$$
+tpoolfile=/temptank.$$
 
 function cleanup
 {
-	log_must $RM $streamfile_full
-	log_must $RM $streamfile_incr
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS1
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS2
+    for fs in $src_fs $dst_fs; do
+        datasetexists $fs && log_must $ZFS destroy -rf $fs
+    done
+    $ZPOOL destroy $temppool
+    [[ -f $streamfile ]] && log_must $RM -f $streamfile
+    [[ -f $tpoolfile ]] && log_must $RM -f $tpoolfile
 }
 
-log_assert "ZFS can receive custom properties."
+log_assert "Verifying 'zfs receive' works correctly on deduplicated streams"
 log_onexit cleanup
 
-#	1. Create a filesystem.
-log_must $ZFS create $orig
+truncate -s 100M $tpoolfile
+log_must $ZPOOL create $temppool $tpoolfile
+log_must $ZFS create $src_fs
+src_mnt=$(get_prop mountpoint $src_fs) || log_fail "get_prop mountpoint $src_fs"
 
-#	2. Snapshot the filesystem.
-log_must $ZFS snapshot $orig@snap1
-log_must $ZFS snapshot $orig@snap2
-log_must $ZFS snapshot $orig@snap3
+echo blah > $src_mnt/blah
+$ZFS snapshot $src_fs@base
 
-#	3. Set custom properties on both the fs and snapshots.
-log_must eval "$ZFS set '$user_prop'='$value' $orig"
-log_must eval "$ZFS set '$user_prop:snap1'='$value:snap1' $orig@snap1"
-log_must eval "$ZFS set '$user_prop:snap2'='$value:snap2' $orig@snap2"
-log_must eval "$ZFS set '$user_prop:snap3'='$value:snap3' $orig@snap3"
+echo grumble > $src_mnt/grumble
+echo blah > $src_mnt/blah2
+$ZFS snapshot $src_fs@snap2
 
-#	4. Create different send streams with the properties.
-log_must eval "$ZFS send -p $orig@snap1 > $streamfile_full"
-log_must eval "$ZFS send -p -I $orig@snap1 $orig@snap3 > $streamfile_incr"
+echo grumble > $src_mnt/mumble
+echo blah > $src_mnt/blah3
+$ZFS snapshot $src_fs@snap3
 
-#	5. Receive the send streams and verify the properties.
-log_must eval "$ZFS recv $dest < $streamfile_full"
-log_must eval "check_user_prop $dest $user_prop '$value'"
-log_must eval "check_user_prop $dest@snap1 '$user_prop:snap1' '$value:snap1'"
-log_must eval "$ZFS recv $dest < $streamfile_incr"
-log_must eval "check_user_prop $dest@snap2 '$user_prop:snap2' '$value:snap2'"
-log_must eval "check_user_prop $dest@snap3 '$user_prop:snap3' '$value:snap3'"
+log_must eval "$ZFS send -D -R $src_fs@snap3 > $streamfile"
+log_must eval "$ZFS receive -v $dst_fs < $streamfile"
 
-log_pass "ZFS can receive custom properties passed."
+cleanup
+
+log_pass "Verifying 'zfs receive' works correctly on deduplicated streams"
