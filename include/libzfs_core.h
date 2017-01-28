@@ -86,6 +86,16 @@ boolean_t lzc_exists(const char *);
 
 int lzc_rollback(const char *, char *, int);
 
+typedef struct version {
+	int major;
+	int minor;
+	int revision;
+	char build[64];
+} version_t;
+
+version_t *lzc_library_version(void);
+version_t *lzc_kernel_version(void);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -98,6 +98,8 @@ static int zpool_do_events(int, char **);
 static int zpool_do_get(int, char **);
 static int zpool_do_set(int, char **);
 
+static int zpool_do_version(int, char **);
+
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -142,7 +144,8 @@ typedef enum {
 	HELP_SET,
 	HELP_SPLIT,
 	HELP_REGUID,
-	HELP_REOPEN
+	HELP_REOPEN,
+	HELP_VERSION
 } zpool_help_t;
 
 
@@ -270,6 +273,8 @@ static zpool_command_t command_table[] = {
 	{ NULL },
 	{ "get",	zpool_do_get,		HELP_GET		},
 	{ "set",	zpool_do_set,		HELP_SET		},
+	{ NULL },
+	{ "version",	zpool_do_version,	HELP_VERSION		},
 };
 
 #define	NCOMMAND	(ARRAY_SIZE(command_table))
@@ -356,6 +361,8 @@ get_usage(zpool_help_t idx)
 		    "[<device> ...]\n"));
 	case HELP_REGUID:
 		return (gettext("\treguid <pool>\n"));
+	case HELP_VERSION:
+		return (gettext("\tversion\n"));
 	}
 
 	abort();
@@ -7464,6 +7471,49 @@ find_command_idx(char *command, int *idx)
 		}
 	}
 	return (1);
+}
+
+static char *
+zpool_format_version(version_t *version) {
+	char *formatted;
+
+	ASSERT(version != NULL);
+
+	formatted = safe_malloc(sizeof (char) * 128);
+	snprintf(formatted, 128, "%d.%d.%d-%s",
+	    version->major, version->minor,
+	    version->revision, version->build);
+
+	return (formatted);
+}
+
+static int
+zpool_do_version(int argc, char **argv)
+{
+	char *str;
+	version_t *library_version, *kernel_version;
+
+	library_version = lzc_library_version();
+	if (library_version != NULL) {
+		str = zpool_format_version(library_version);
+		printf("ZFS utilities/tools version: %s\n", str);
+		free(str);
+	} else {
+		(void) fprintf(stderr, gettext("Tools version information "
+		    "not available\n"));
+	}
+
+	kernel_version = lzc_kernel_version();
+	if (kernel_version != NULL) {
+		str = zpool_format_version(kernel_version);
+		printf("ZFS kernel module version: %s\n", str);
+		free(str);
+	} else {
+		(void) fprintf(stderr, gettext("Module version information "
+		    "not available\n"));
+	}
+
+	return (0);
 }
 
 int

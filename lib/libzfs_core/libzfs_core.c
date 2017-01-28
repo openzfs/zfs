@@ -84,15 +84,114 @@
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
 
+static version_t *g_library;
+static version_t *g_kernel;
+
 static int g_fd;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
+
+static void
+lzc_library_version_fini(void)
+{
+	free(g_library);
+	g_library = NULL;
+}
+
+static int
+lzc_library_version_init(void)
+{
+	char *version;
+
+	g_library = malloc(sizeof (version_t));
+	version = strdup(ZFS_META_VERSION);
+	if (version == NULL || g_library == NULL) {
+		free(version);
+		lzc_library_version_fini();
+
+		return (ENOMEM);
+	}
+	memset(g_library->build, 0, sizeof (g_library->build));
+
+	g_library->major = strtol(strtok(version, "."), NULL, 10);
+	g_library->minor = strtol(strtok(NULL, "."), NULL, 10);
+	g_library->revision = strtol(strtok(NULL, "."), NULL, 10);
+
+	strncpy(g_library->build, ZFS_META_RELEASE,
+	    sizeof (g_library->build) - 1);
+
+	free(version);
+	return (0);
+}
+
+static void
+lzc_kernel_version_fini(void)
+{
+	free(g_kernel);
+	g_kernel = NULL;
+}
+
+static int
+lzc_kernel_version_init(void)
+{
+	int fd;
+	char *running_mod_version, *build;
+	size_t max_version_size = 128;
+	struct stat file_stat;
+
+	g_kernel = malloc(sizeof (version_t));
+	if (g_kernel == NULL) {
+		return (ENOMEM);
+	}
+	memset(g_kernel->build, 0, sizeof (g_kernel->build));
+
+	if (stat("/sys/module/zfs/version", &file_stat) < 0) {
+		lzc_kernel_version_fini();
+		return (ENOENT);
+	}
+
+	fd = open("/sys/module/zfs/version", O_RDONLY);
+	if (fd < 0) {
+		lzc_kernel_version_fini();
+		return (errno);
+	}
+
+	running_mod_version = malloc(sizeof (char) * max_version_size);
+	if (running_mod_version == NULL) {
+		close(fd);
+		lzc_kernel_version_fini();
+		return (ENOMEM);
+	}
+
+	if (read(fd, running_mod_version, max_version_size) < 0) {
+		close(fd);
+		free(running_mod_version);
+		lzc_kernel_version_fini();
+		return (errno);
+	}
+	close(fd);
+
+	g_kernel->major = strtol(strtok(running_mod_version, "."), NULL, 10);
+	g_kernel->minor = strtol(strtok(NULL, "."), NULL, 10);
+	g_kernel->revision = strtol(strtok(NULL, "-"), NULL, 10);
+	build = strtok(NULL, "\n");
+
+	strncpy(g_kernel->build, build, sizeof (g_kernel->build) - 1);
+
+	free(running_mod_version);
+
+	return (0);
+}
 
 int
 libzfs_core_init(void)
 {
 	(void) pthread_mutex_lock(&g_lock);
 	if (g_refcount == 0) {
+		lzc_library_version_init();
+
+		lzc_kernel_version_init();
+
 		g_fd = open("/dev/zfs", O_RDWR);
 		if (g_fd < 0) {
 			(void) pthread_mutex_unlock(&g_lock);
@@ -110,9 +209,28 @@ libzfs_core_fini(void)
 	(void) pthread_mutex_lock(&g_lock);
 	ASSERT3S(g_refcount, >, 0);
 	g_refcount--;
-	if (g_refcount == 0)
+	if (g_refcount == 0) {
 		(void) close(g_fd);
+
+		lzc_library_version_fini();
+
+		lzc_kernel_version_fini();
+	}
 	(void) pthread_mutex_unlock(&g_lock);
+}
+
+version_t *
+lzc_library_version(void) {
+	ASSERT3S(g_refcount, >, 0);
+
+	return (g_library);
+}
+
+version_t *
+lzc_kernel_version(void) {
+	ASSERT3S(g_refcount, >, 0);
+
+	return (g_kernel);
 }
 
 static int
