@@ -240,8 +240,9 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dnode_t *dn;
 	blkptr_t *bp;
 	dmu_buf_impl_t *subdb;
-	uint64_t start, end, dbstart, dbend, i;
-	int epbs, shift;
+	uint64_t start, end, dbstart, dbend;
+	unsigned int epbs, shift, i;
+	uint64_t id;
 
 	/*
 	 * There is a small possibility that this block will not be cached:
@@ -258,6 +259,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+	ASSERT3U(epbs, <, 31);
 	shift = (db->db_level - 1) * epbs;
 	dbstart = db->db_blkid << epbs;
 	start = blkid >> shift;
@@ -277,12 +279,12 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 		FREE_VERIFY(db, start, end, tx);
 		free_blocks(dn, bp, end-start+1, tx);
 	} else {
-		for (i = start; i <= end; i++, bp++) {
+		for (id = start; id <= end; id++, bp++) {
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 			VERIFY0(dbuf_hold_impl(dn, db->db_level - 1,
-			    i, TRUE, FALSE, FTAG, &subdb));
+			    id, TRUE, FALSE, FTAG, &subdb));
 			rw_exit(&dn->dn_struct_rwlock);
 			ASSERT3P(bp, ==, subdb->db_blkptr);
 
@@ -297,8 +299,14 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 			break;
 	}
 	if (i == 1 << epbs) {
-		/* didn't find any non-holes */
+		/*
+		 * We only found holes. Grab the rwlock to prevent
+		 * anybody from reading the blocks we're about to
+		 * zero out.
+		 */
+		rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 		bzero(db->db.db_data, db->db.db_size);
+		rw_exit(&dn->dn_struct_rwlock);
 		free_blocks(dn, db->db_blkptr, 1, tx);
 	} else {
 		/*
