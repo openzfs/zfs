@@ -5548,7 +5548,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	}
 
 	if (!locked)
-		return (spa_vdev_exit(spa, NULL, txg, error));
+		error = spa_vdev_exit(spa, NULL, txg, error);
 
 	return (error);
 }
