@@ -21,7 +21,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright 2015 RackTop Systems.
  * Copyright (c) 2016, Intel Corporation.
  */
@@ -823,13 +823,14 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 {
 	nvlist_t *nvl;
 	zfs_cmd_t zc = {"\0"};
-	int err;
+	int err, dstbuf_size;
 
 	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0)
 		return (NULL);
 
-	if (zcmd_alloc_dst_nvlist(hdl, &zc,
-	    zc.zc_nvlist_conf_size * 2) != 0) {
+	dstbuf_size = MAX(CONFIG_BUF_MINSIZE, zc.zc_nvlist_conf_size * 4);
+
+	if (zcmd_alloc_dst_nvlist(hdl, &zc, dstbuf_size) != 0) {
 		zcmd_free_nvlists(&zc);
 		return (NULL);
 	}
