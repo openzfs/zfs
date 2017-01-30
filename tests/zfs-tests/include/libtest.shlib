@@ -450,7 +450,7 @@ function default_cleanup_noexit
 		[[ -z "$KEEP" ]] && KEEP="rpool"
 		exclude=`eval $ECHO \"'(${KEEP})'\"`
 		ALL_POOLS=$($ZPOOL list -H -o name \
-		    | $GREP -v "$NO_POOLS" | $EGREP -v "$exclude")
+		    | $GREP -v "$NO_POOLS" | $EGREP -vw "$exclude")
 		# Here, we loop through the pools we're allowed to
 		# destroy, only destroying them if it's safe to do
 		# so.
