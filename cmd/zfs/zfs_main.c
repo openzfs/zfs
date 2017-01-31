@@ -3820,13 +3820,42 @@ zfs_do_send(int argc, char **argv)
 			flags.compress = B_TRUE;
 			break;
 		case ':':
-			(void) fprintf(stderr, gettext("missing argument for "
-			    "'%c' option\n"), optopt);
+			/*
+			 * If a parameter was not passed, optopt contains the
+			 * value that would normally lead us into the
+			 * appropriate case statement.  If it's > 256, then this
+			 * must be a longopt and we should look at argv to get
+			 * the string.  Otherwise it's just the character, so we
+			 * should use it directly.
+			 */
+			if (optopt <= UINT8_MAX) {
+				(void) fprintf(stderr,
+				    gettext("missing argument for '%c' "
+				    "option\n"), optopt);
+			} else {
+				(void) fprintf(stderr,
+				    gettext("missing argument for '%s' "
+				    "option\n"), argv[optind - 1]);
+			}
 			usage(B_FALSE);
 			break;
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
-			    optopt);
+			/*FALLTHROUGH*/
+		default:
+			/*
+			 * If an invalid flag was passed, optopt contains the
+			 * character if it was a short flag, or 0 if it was a
+			 * longopt.
+			 */
+			if (optopt != 0) {
+				(void) fprintf(stderr,
+				    gettext("invalid option '%c'\n"), optopt);
+			} else {
+				(void) fprintf(stderr,
+				    gettext("invalid option '%s'\n"),
+				    argv[optind - 1]);
+
+			}
 			usage(B_FALSE);
 		}
 	}
