@@ -11,6 +11,7 @@ Before=local-fs.target
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=@sbindir@/zfs mount -a
+WorkingDirectory=-/sbin/
 
 [Install]
 WantedBy=zfs-share.service
