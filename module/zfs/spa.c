@@ -5476,6 +5476,9 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		 * in this pool.
 		 */
 		if (vd == NULL || unspare) {
+			if (vd == NULL)
+				vd = spa_lookup_by_guid(spa, guid, B_TRUE);
+			spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_AUX);
 			spa_vdev_remove_aux(spa->spa_spares.sav_config,
 			    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
 			spa_load_spares(spa);
@@ -5483,7 +5486,6 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		} else {
 			error = SET_ERROR(EBUSY);
 		}
-		spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_AUX);
 	} else if (spa->spa_l2cache.sav_vdevs != NULL &&
 	    nvlist_lookup_nvlist_array(spa->spa_l2cache.sav_config,
 	    ZPOOL_CONFIG_L2CACHE, &l2cache, &nl2cache) == 0 &&
@@ -5491,11 +5493,12 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		/*
 		 * Cache devices can always be removed.
 		 */
+		vd = spa_lookup_by_guid(spa, guid, B_TRUE);
+		spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_AUX);
 		spa_vdev_remove_aux(spa->spa_l2cache.sav_config,
 		    ZPOOL_CONFIG_L2CACHE, l2cache, nl2cache, nv);
 		spa_load_l2cache(spa);
 		spa->spa_l2cache.sav_sync = B_TRUE;
-		spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_AUX);
 	} else if (vd != NULL && vd->vdev_islog) {
 		ASSERT(!locked);
 		ASSERT(vd == vd->vdev_top);
@@ -5532,9 +5535,9 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		/*
 		 * Clean up the vdev namespace.
 		 */
+		spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_DEV);
 		spa_vdev_remove_from_namespace(spa, vd);
 
-		spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_DEV);
 	} else if (vd != NULL) {
 		/*
 		 * Normal vdevs cannot be removed (yet).
