@@ -22,6 +22,7 @@ get_pool_devices() {
     poolconfigoutput=$(cat "$poolconfigtemp")
     dinfo "zfsexpandknowledge: pool $1 cannot be listed: $poolconfigoutput"
   else
+    cat "$poolconfigtemp" |  awk -F '\t' '/\t\/dev/ { print $2 }' | \
     while read pooldev ; do
         if [ -n "$pooldev" -a -e "$pooldev" ] ; then
           if [ -h "$pooldev" ] ; then
@@ -32,7 +33,7 @@ get_pool_devices() {
           dinfo "zfsexpandknowledge: pool $1 has device $pooldev (which resolves to $resolved)"
           echo "$resolved"
         fi
-    done < <(cat "$poolconfigtemp" |  awk -F '\t' '/\t\/dev/ { print $2 }')
+    done
   fi
   rm -f "$poolconfigtemp"
 }
