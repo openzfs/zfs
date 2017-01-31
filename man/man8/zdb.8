@@ -21,7 +21,7 @@
 .SH "SYNOPSIS"
 \fBzdb\fR [-CumdibcsDvhLMXFPAG] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
     [-U \fIcache\fR] [-I \fIinflight I/Os\fR] [-x \fIdumpdir\fR]
-    [\fIpoolname\fR [\fIobject\fR ...]]
+    [-o \fIvar\fR=\fIvalue\fR] ... [\fIpoolname\fR [\fIobject\fR ...]]
 
 .P
 \fBzdb\fR [-divPA] [-e [-p \fIpath\fR...]] [-U \fIcache\fR]
@@ -418,6 +418,18 @@ a buffer used by ZFS to dump advanced debug information.
 Limit the number of outstanding checksum I/Os to the specified value. The
 default value is 200. This option affects the performance of the \fB-c\fR
 option.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-o \fIvar\fR=\fIvalue\fR ... \fR
+.ad
+.sp .6
+.RS 4n
+Set the given global libzpool variable to the provided value. The value must
+be an unsigned 32-bit integer. Currently only little-endian systems are
+supported to avoid accidentally setting the high 32 bits of 64-bit variables.
 .RE
 
 .sp
