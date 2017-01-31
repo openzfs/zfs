@@ -765,9 +765,28 @@ Default value: \fB0\fR.
 \fBzfs_deadman_enabled\fR (int)
 .ad
 .RS 12n
-Enable deadman timer. See description below.
+When a pool sync operation takes longer than \fBzfs_deadman_synctime_ms\fR
+milliseconds, a "slow spa_sync" message is logged to the debug log
+(see \fBzfs_dbgmsg_enable\fR).  If \fBzfs_deadman_enabled\fR is set,
+all pending IO operations are also checked and if any haven't completed
+within \fBzfs_deadman_synctime_ms\fR milliseconds, a "SLOW IO" message
+is logged to the debug log and a "delay" system event with the details of
+the hung IO is posted.
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_checktime_ms\fR (int)
+.ad
+.RS 12n
+Once a pool sync operation has taken longer than
+\fBzfs_deadman_synctime_ms\fR milliseconds, continue to check for slow
+operations every \fBzfs_deadman_checktime_ms\fR milliseconds.
+.sp
+Default value: \fB5,000\fR.
 .RE
 
 .sp
@@ -776,12 +795,11 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_deadman_synctime_ms\fR (ulong)
 .ad
 .RS 12n
-Expiration time in milliseconds. This value has two meanings. First it is
-used to determine when the spa_deadman() logic should fire. By default the
-spa_deadman() will fire if spa_sync() has not completed in 1000 seconds.
-Secondly, the value determines if an I/O is considered "hung". Any I/O that
-has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
-in a zevent being logged.
+Interval in milliseconds after which the deadman is triggered and also
+the interval after which an IO operation is considered to be "hung"
+if \fBzfs_deadman_enabled\fR is set.
+
+See \fBzfs_deadman_enabled\fR.
 .sp
 Default value: \fB1,000,000\fR.
 .RE

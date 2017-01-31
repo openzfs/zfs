@@ -298,6 +298,12 @@ int zfs_free_leak_on_eio = B_FALSE;
 unsigned long zfs_deadman_synctime_ms = 1000000ULL;
 
 /*
+ * Check time in milliseconds. This defines the frequency at which we check
+ * for hung I/O.
+ */
+unsigned long  zfs_deadman_checktime_ms = 5000ULL;
+
+/*
  * By default the deadman is enabled.
  */
 int zfs_deadman_enabled = 1;
@@ -524,6 +530,10 @@ spa_deadman(void *arg)
 {
 	spa_t *spa = arg;
 
+	/* Disable the deadman if the pool is suspended. */
+	if (spa_suspended(spa))
+		return;
+
 	zfs_dbgmsg("slow spa_sync: started %llu seconds ago, calls %llu",
 	    (gethrtime() - spa->spa_sync_starttime) / NANOSEC,
 	    ++spa->spa_deadman_calls);
@@ -532,7 +542,7 @@ spa_deadman(void *arg)
 
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_delay_taskq,
 	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
-	    NSEC_TO_TICK(spa->spa_deadman_synctime));
+	    MSEC_TO_TICK(zfs_deadman_checktime_ms));
 }
 
 /*
@@ -2113,6 +2123,10 @@ MODULE_PARM_DESC(zfs_free_leak_on_eio,
 
 module_param(zfs_deadman_synctime_ms, ulong, 0644);
 MODULE_PARM_DESC(zfs_deadman_synctime_ms, "Expiration time in milliseconds");
+
+module_param(zfs_deadman_checktime_ms, ulong, 0644);
+MODULE_PARM_DESC(zfs_deadman_checktime_ms,
+	"Dead I/O check interval in milliseconds");
 
 module_param(zfs_deadman_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
