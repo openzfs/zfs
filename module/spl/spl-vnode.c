@@ -897,13 +897,13 @@ spl_vn_init(void)
 				     sizeof(struct vnode), 64,
 	                             vn_cache_constructor,
 				     vn_cache_destructor,
-				     NULL, NULL, NULL, KMC_KMEM);
+				     NULL, NULL, NULL, 0);
 
 	vn_file_cache = kmem_cache_create("spl_vn_file_cache",
 					  sizeof(file_t), 64,
 				          vn_file_cache_constructor,
 				          vn_file_cache_destructor,
-				          NULL, NULL, NULL, KMC_KMEM);
+				          NULL, NULL, NULL, 0);
 	return (0);
 } /* vn_init() */
 
