@@ -32,6 +32,7 @@
 #include <sys/varargs.h>
 #include <sys/zone.h>
 #include <sys/signal.h>
+#include <asm/page.h>
 
 #ifdef HAVE_SCHED_RT_HEADER
 #include <linux/sched/rt.h>
@@ -109,6 +110,10 @@
  */
 #ifndef PAGESIZE
 #define PAGESIZE			PAGE_SIZE
+#endif
+
+#ifndef PAGESHIFT
+#define PAGESHIFT			PAGE_SHIFT
 #endif
 
 /* from Solaris sys/byteorder.h */
