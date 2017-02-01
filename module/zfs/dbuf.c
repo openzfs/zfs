@@ -78,12 +78,10 @@ uint_t zfs_dbuf_evict_key;
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 
-#ifndef __lint
 extern inline void dmu_buf_init_user(dmu_buf_user_t *dbu,
     dmu_buf_evict_func_t *evict_func_sync,
     dmu_buf_evict_func_t *evict_func_async,
     dmu_buf_t **clear_on_evict_dbufp);
-#endif /* ! __lint */
 
 /*
  * Global data structures and functions for the dbuf cache.
