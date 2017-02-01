@@ -119,14 +119,29 @@ abd_fletcher_2_byteswap(abd_t *abd, uint64_t size,
 	    fletcher_2_incremental_byteswap, zcp);
 }
 
+static inline void
+abd_fletcher_4_impl(abd_t *abd, uint64_t size, zio_abd_checksum_data_t *acdp)
+{
+	fletcher_4_abd_ops.acf_init(acdp);
+	abd_iterate_func(abd, 0, size, fletcher_4_abd_ops.acf_iter, acdp);
+	fletcher_4_abd_ops.acf_fini(acdp);
+}
+
 /*ARGSUSED*/
 void
 abd_fletcher_4_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
-	fletcher_init(zcp);
-	(void) abd_iterate_func(abd, 0, size,
-	    fletcher_4_incremental_native, zcp);
+	fletcher_4_ctx_t ctx;
+
+	zio_abd_checksum_data_t acd = {
+		.acd_byteorder	= ZIO_CHECKSUM_NATIVE,
+		.acd_zcp 	= zcp,
+		.acd_ctx	= &ctx
+	};
+
+	abd_fletcher_4_impl(abd, size, &acd);
+
 }
 
 /*ARGSUSED*/
@@ -134,9 +149,15 @@ void
 abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
-	fletcher_init(zcp);
-	(void) abd_iterate_func(abd, 0, size,
-	    fletcher_4_incremental_byteswap, zcp);
+	fletcher_4_ctx_t ctx;
+
+	zio_abd_checksum_data_t acd = {
+		.acd_byteorder	= ZIO_CHECKSUM_BYTESWAP,
+		.acd_zcp 	= zcp,
+		.acd_ctx	= &ctx
+	};
+
+	abd_fletcher_4_impl(abd, size, &acd);
 }
 
 zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
