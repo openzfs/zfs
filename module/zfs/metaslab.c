@@ -413,7 +413,13 @@ metaslab_class_expandable_space(metaslab_class_t *mc)
 			continue;
 		}
 
-		space += tvd->vdev_max_asize - tvd->vdev_asize;
+		/*
+		 * Calculate if we have enough space to add additional
+		 * metaslabs. We report the expandable space in terms
+		 * of the metaslab size since that's the unit of expansion.
+		 */
+		space += P2ALIGN(tvd->vdev_max_asize - tvd->vdev_asize,
+		    1ULL << tvd->vdev_ms_shift);
 	}
 	spa_config_exit(mc->mc_spa, SCL_VDEV, FTAG);
 	return (space);
