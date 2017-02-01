@@ -1,0 +1,201 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/tests/functional/reservation/reservation.cfg
+
+#
+# Function to set the reservation property of a dataset to
+# 'none' and verify that it is correctly set using both the
+# "normal" 'zfs get reservation' and the '-p' option which
+# gives a numerical value.
+#
+function zero_reservation
+{
+	typeset resv_val
+	dataset=$1
+
+	log_must $ZFS set reservation=none $dataset
+
+	resv_val=`$ZFS get -H reservation $dataset | awk '{print $3}'`
+	if [[ $? -ne 0 ]]; then
+		log_fail "Unable to get reservation prop on $dataset"
+	elif [[ $resv_val != "none" ]]; then
+		log_fail "Reservation not 'none' ($resv_val) as expected"
+	fi
+
+
+	resv_val=`$ZFS get -pH reservation $dataset | awk '{print $3}'`
+	if [[ $? -ne 0 ]]; then
+		log_fail "Unable to get reservation prop on $dataset"
+	elif [[ $resv_val -ne 0 ]]; then
+		log_fail "Reservation not 0 ($resv_val) as expected"
+	fi
+
+	return 0
+}
+
+#
+# Utility function to see if two values are within a certain specified
+# limit of each other. Used primarily to check that a dataset's parent
+# is correctly accounting for space used/available. Need this function as
+# currently there is some slop in the way space is accounted (i.e. can't
+# do a direct comparison).
+#
+function within_limits
+{
+	typeset -l valA=$1
+	typeset -l valB=$2
+	typeset -l delta=$3
+
+	if ((valA <= valB)); then
+		if (((valB - valA) <= delta)); then
+			return 0
+		fi
+	elif ((valB <= valA)); then
+		if (((valA - valB) <= delta)); then
+			return 0
+		fi
+	fi
+
+	return 1
+}
+
+#
+# Function to create and mount multiple filesystems. The filesystem
+# will be named according to the name specified with a suffix value
+# taken from the loop counter.
+#
+function create_multiple_fs # num_fs base_fs_name base_mnt_name
+{
+	typeset -i iter=0
+	typeset -i count=$1
+	typeset FS_NAME=$2
+	typeset MNT_NAME=$3
+
+	while  (($iter < $count)); do
+		log_must $ZFS create ${FS_NAME}$iter
+		log_must $ZFS set mountpoint=${MNT_NAME}$iter ${FS_NAME}$iter
+		((iter = iter + 1))
+	done
+}
+
+#
+# This function compute the largest volume size which is multiple of volume
+# block size (default 8K) and not greater than the largest expected volsize.
+#
+# $1 The largest expected volume size.
+# $2 The volume block size
+#
+function floor_volsize #<largest_volsize> [volblksize]
+{
+	typeset -l largest_volsize=$1
+	typeset -l volblksize=${2:-8192}
+
+	if ((largest_volsize < volblksize)); then
+		log_fail "The largest_volsize must be greater than volblksize."
+	fi
+	typeset -l real_volsize
+	typeset -l n
+
+	((n = largest_volsize / volblksize))
+	((largest_volsize = volblksize * n))
+
+	print $largest_volsize
+}
+
+#
+# This function is a copy of a function by the same name in libzfs_dataset.c
+# Its purpose is to reserve additional space for volume metadata so volumes
+# don't unexpectedly run out of room.
+#
+# Note: This function can be used to do an estimate for a volume that has not
+# yet been created. In this case, $vol is not a volume, but rather a pool in
+# which a volume is going to be created. In this case, use default properties.
+#
+function volsize_to_reservation
+{
+	typeset vol=$1
+	typeset -i volsize=$2
+
+	typeset -i DN_MAX_INDBLKSHIFT=14
+	typeset -i SPA_BLKPTRSHIFT=7
+	typeset -i SPA_DVAS_PER_BP=3
+
+	typeset -i DNODES_PER_LEVEL_SHIFT=$((DN_MAX_INDBLKSHIFT - \
+	    SPA_BLKPTRSHIFT))
+	typeset -i DNODES_PER_LEVEL=$((1 << $DNODES_PER_LEVEL_SHIFT))
+
+	if ds_is_volume $vol; then
+		typeset -i ncopies=$(get_prop copies $vol)
+		typeset -i volblocksize=$(get_prop volblocksize $vol)
+	else
+		typeset -i ncopies=1
+		typeset -i volblocksize=8192
+	fi
+	typeset -i nblocks=$((volsize / volblocksize))
+
+	typeset -i numdb=7
+	while ((nblocks > 1)); do
+		((nblocks += DNODES_PER_LEVEL - 1))
+		((nblocks /= DNODES_PER_LEVEL))
+		((numdb += nblocks))
+	done
+
+	((numdb *= SPA_DVAS_PER_BP < ncopies + 1 ? SPA_DVAS_PER_BP : \
+	    ncopies + 1))
+	((volsize *= ncopies))
+	((numdb *= 1 << DN_MAX_INDBLKSHIFT))
+	((volsize += numdb))
+	echo $volsize
+}
+
+#
+# This function takes a pool name as an argument, and returns the largest (give
+# or take some slop) -V value that can be used to create a volume in that pool.
+# This is necessary because during volume creation, a reservation is created
+# that will be larger than the value specified with -V, and potentially larger
+# than the available space in the pool. See volsize_to_reservation().
+#
+function largest_volsize_from_pool
+{
+	typeset pool=$1
+	typeset -i poolsize=$(get_prop available $pool)
+	typeset -i volsize=$poolsize
+	typeset -i nvolsize
+
+	while :; do
+		# knock 50M off the volsize each time through
+		((volsize -= 50 * 1024 * 1024))
+		nvolsize=$(volsize_to_reservation $pool $volsize)
+		nvolsize=$(floor_volsize $nvolsize)
+		((nvolsize < poolsize)) && break
+	done
+	echo $volsize
+}

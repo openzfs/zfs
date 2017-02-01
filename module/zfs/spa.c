@@ -845,7 +845,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 	char name[32];
-	uint_t i, flags = TASKQ_DYNAMIC;
+	uint_t i, flags = 0;
 	boolean_t batch = B_FALSE;
 
 	if (mode == ZTI_MODE_NULL) {
@@ -863,6 +863,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	case ZTI_MODE_FIXED:
 		ASSERT3U(value, >=, 1);
 		value = MAX(value, 1);
+		flags |= TASKQ_DYNAMIC;
 		break;
 
 	case ZTI_MODE_BATCH:
@@ -3862,211 +3863,6 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	return (0);
 }
 
-#ifdef _KERNEL
-/*
- * Get the root pool information from the root disk, then import the root pool
- * during the system boot up time.
- */
-extern int vdev_disk_read_rootlabel(char *, char *, nvlist_t **);
-
-static nvlist_t *
-spa_generate_rootconf(char *devpath, char *devid, uint64_t *guid)
-{
-	nvlist_t *config;
-	nvlist_t *nvtop, *nvroot;
-	uint64_t pgid;
-
-	if (vdev_disk_read_rootlabel(devpath, devid, &config) != 0)
-		return (NULL);
-
-	/*
-	 * Add this top-level vdev to the child array.
-	 */
-	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvtop) == 0);
-	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
-	    &pgid) == 0);
-	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, guid) == 0);
-
-	/*
-	 * Put this pool's top-level vdevs into a root vdev.
-	 */
-	VERIFY(nvlist_alloc(&nvroot, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE,
-	    VDEV_TYPE_ROOT) == 0);
-	VERIFY(nvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL) == 0);
-	VERIFY(nvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID, pgid) == 0);
-	VERIFY(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-	    &nvtop, 1) == 0);
-
-	/*
-	 * Replace the existing vdev_tree with the new root vdev in
-	 * this pool's configuration (remove the old, add the new).
-	 */
-	VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot) == 0);
-	nvlist_free(nvroot);
-	return (config);
-}
-
-/*
- * Walk the vdev tree and see if we can find a device with "better"
- * configuration. A configuration is "better" if the label on that
- * device has a more recent txg.
- */
-static void
-spa_alt_rootvdev(vdev_t *vd, vdev_t **avd, uint64_t *txg)
-{
-	int c;
-
-	for (c = 0; c < vd->vdev_children; c++)
-		spa_alt_rootvdev(vd->vdev_child[c], avd, txg);
-
-	if (vd->vdev_ops->vdev_op_leaf) {
-		nvlist_t *label;
-		uint64_t label_txg;
-
-		if (vdev_disk_read_rootlabel(vd->vdev_physpath, vd->vdev_devid,
-		    &label) != 0)
-			return;
-
-		VERIFY(nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_TXG,
-		    &label_txg) == 0);
-
-		/*
-		 * Do we have a better boot device?
-		 */
-		if (label_txg > *txg) {
-			*txg = label_txg;
-			*avd = vd;
-		}
-		nvlist_free(label);
-	}
-}
-
-/*
- * Import a root pool.
- *
- * For x86. devpath_list will consist of devid and/or physpath name of
- * the vdev (e.g. "id1,sd@SSEAGATE..." or "/pci@1f,0/ide@d/disk@0,0:a").
- * The GRUB "findroot" command will return the vdev we should boot.
- *
- * For Sparc, devpath_list consists the physpath name of the booting device
- * no matter the rootpool is a single device pool or a mirrored pool.
- * e.g.
- *	"/pci@1f,0/ide@d/disk@0,0:a"
- */
-int
-spa_import_rootpool(char *devpath, char *devid)
-{
-	spa_t *spa;
-	vdev_t *rvd, *bvd, *avd = NULL;
-	nvlist_t *config, *nvtop;
-	uint64_t guid, txg;
-	char *pname;
-	int error;
-
-	/*
-	 * Read the label from the boot device and generate a configuration.
-	 */
-	config = spa_generate_rootconf(devpath, devid, &guid);
-#if defined(_OBP) && defined(_KERNEL)
-	if (config == NULL) {
-		if (strstr(devpath, "/iscsi/ssd") != NULL) {
-			/* iscsi boot */
-			get_iscsi_bootpath_phy(devpath);
-			config = spa_generate_rootconf(devpath, devid, &guid);
-		}
-	}
-#endif
-	if (config == NULL) {
-		cmn_err(CE_NOTE, "Cannot read the pool label from '%s'",
-		    devpath);
-		return (SET_ERROR(EIO));
-	}
-
-	VERIFY(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
-	    &pname) == 0);
-	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG, &txg) == 0);
-
-	mutex_enter(&spa_namespace_lock);
-	if ((spa = spa_lookup(pname)) != NULL) {
-		/*
-		 * Remove the existing root pool from the namespace so that we
-		 * can replace it with the correct config we just read in.
-		 */
-		spa_remove(spa);
-	}
-
-	spa = spa_add(pname, config, NULL);
-	spa->spa_is_root = B_TRUE;
-	spa->spa_import_flags = ZFS_IMPORT_VERBATIM;
-
-	/*
-	 * Build up a vdev tree based on the boot device's label config.
-	 */
-	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvtop) == 0);
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-	error = spa_config_parse(spa, &rvd, nvtop, NULL, 0,
-	    VDEV_ALLOC_ROOTPOOL);
-	spa_config_exit(spa, SCL_ALL, FTAG);
-	if (error) {
-		mutex_exit(&spa_namespace_lock);
-		nvlist_free(config);
-		cmn_err(CE_NOTE, "Can not parse the config for pool '%s'",
-		    pname);
-		return (error);
-	}
-
-	/*
-	 * Get the boot vdev.
-	 */
-	if ((bvd = vdev_lookup_by_guid(rvd, guid)) == NULL) {
-		cmn_err(CE_NOTE, "Can not find the boot vdev for guid %llu",
-		    (u_longlong_t)guid);
-		error = SET_ERROR(ENOENT);
-		goto out;
-	}
-
-	/*
-	 * Determine if there is a better boot device.
-	 */
-	avd = bvd;
-	spa_alt_rootvdev(rvd, &avd, &txg);
-	if (avd != bvd) {
-		cmn_err(CE_NOTE, "The boot device is 'degraded'. Please "
-		    "try booting from '%s'", avd->vdev_path);
-		error = SET_ERROR(EINVAL);
-		goto out;
-	}
-
-	/*
-	 * If the boot device is part of a spare vdev then ensure that
-	 * we're booting off the active spare.
-	 */
-	if (bvd->vdev_parent->vdev_ops == &vdev_spare_ops &&
-	    !bvd->vdev_isspare) {
-		cmn_err(CE_NOTE, "The boot device is currently spared. Please "
-		    "try booting from '%s'",
-		    bvd->vdev_parent->
-		    vdev_child[bvd->vdev_parent->vdev_children - 1]->vdev_path);
-		error = SET_ERROR(EINVAL);
-		goto out;
-	}
-
-	error = 0;
-out:
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-	vdev_free(rvd);
-	spa_config_exit(spa, SCL_ALL, FTAG);
-	mutex_exit(&spa_namespace_lock);
-
-	nvlist_free(config);
-	return (error);
-}
-
-#endif
-
 /*
  * Import a non-root pool into the system.
  */
@@ -6780,7 +6576,6 @@ EXPORT_SYMBOL(spa_open);
 EXPORT_SYMBOL(spa_open_rewind);
 EXPORT_SYMBOL(spa_get_stats);
 EXPORT_SYMBOL(spa_create);
-EXPORT_SYMBOL(spa_import_rootpool);
 EXPORT_SYMBOL(spa_import);
 EXPORT_SYMBOL(spa_tryimport);
 EXPORT_SYMBOL(spa_destroy);

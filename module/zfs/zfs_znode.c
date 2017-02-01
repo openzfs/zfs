@@ -482,6 +482,90 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 	}
 }
 
+void
+zfs_set_inode_flags(znode_t *zp, struct inode *ip)
+{
+	/*
+	 * Linux and Solaris have different sets of file attributes, so we
+	 * restrict this conversion to the intersection of the two.
+	 */
+
+	if (zp->z_pflags & ZFS_IMMUTABLE)
+		ip->i_flags |= S_IMMUTABLE;
+	else
+		ip->i_flags &= ~S_IMMUTABLE;
+
+	if (zp->z_pflags & ZFS_APPENDONLY)
+		ip->i_flags |= S_APPEND;
+	else
+		ip->i_flags &= ~S_APPEND;
+}
+
+/*
+ * Update the embedded inode given the znode.  We should work toward
+ * eliminating this function as soon as possible by removing values
+ * which are duplicated between the znode and inode.  If the generic
+ * inode has the correct field it should be used, and the ZFS code
+ * updated to access the inode.  This can be done incrementally.
+ */
+static void
+zfs_inode_update_impl(znode_t *zp, boolean_t new)
+{
+	zfs_sb_t	*zsb;
+	struct inode	*ip;
+	uint32_t	blksize;
+	u_longlong_t	i_blocks;
+	uint64_t	atime[2], mtime[2], ctime[2];
+
+	ASSERT(zp != NULL);
+	zsb = ZTOZSB(zp);
+	ip = ZTOI(zp);
+
+	/* Skip .zfs control nodes which do not exist on disk. */
+	if (zfsctl_is_node(ip))
+		return;
+
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_ATIME(zsb), &atime, 16);
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zsb), &mtime, 16);
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zsb), &ctime, 16);
+
+	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
+
+	spin_lock(&ip->i_lock);
+	ip->i_generation = zp->z_gen;
+	ip->i_uid = SUID_TO_KUID(zp->z_uid);
+	ip->i_gid = SGID_TO_KGID(zp->z_gid);
+	set_nlink(ip, zp->z_links);
+	ip->i_mode = zp->z_mode;
+	zfs_set_inode_flags(zp, ip);
+	ip->i_blkbits = SPA_MINBLOCKSHIFT;
+	ip->i_blocks = i_blocks;
+
+	/*
+	 * Only read atime from SA if we are newly created inode (or rezget),
+	 * otherwise i_atime might be dirty.
+	 */
+	if (new)
+		ZFS_TIME_DECODE(&ip->i_atime, atime);
+	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
+	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
+
+	i_size_write(ip, zp->z_size);
+	spin_unlock(&ip->i_lock);
+}
+
+static void
+zfs_inode_update_new(znode_t *zp)
+{
+	zfs_inode_update_impl(zp, B_TRUE);
+}
+
+void
+zfs_inode_update(znode_t *zp)
+{
+	zfs_inode_update_impl(zp, B_FALSE);
+}
+
 /*
  * Construct a znode+inode and initialize.
  *
@@ -497,7 +581,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	struct inode *ip;
 	uint64_t mode;
 	uint64_t parent;
-	sa_bulk_attr_t bulk[9];
+	sa_bulk_attr_t bulk[8];
 	int count = 0;
 
 	ASSERT(zsb != NULL);
@@ -536,8 +620,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	    &zp->z_pflags, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zsb), NULL,
 	    &parent, 8);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zsb), NULL,
-	    &zp->z_atime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL, &zp->z_uid, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL, &zp->z_gid, 8);
 
@@ -551,7 +633,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_mode = mode;
 
 	ip->i_ino = obj;
-	zfs_inode_update(zp);
+	zfs_inode_update_new(zp);
 	zfs_inode_set_ops(zsb, ip);
 
 	/*
@@ -576,71 +658,6 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 error:
 	iput(ip);
 	return (NULL);
-}
-
-void
-zfs_set_inode_flags(znode_t *zp, struct inode *ip)
-{
-	/*
-	 * Linux and Solaris have different sets of file attributes, so we
-	 * restrict this conversion to the intersection of the two.
-	 */
-
-	if (zp->z_pflags & ZFS_IMMUTABLE)
-		ip->i_flags |= S_IMMUTABLE;
-	else
-		ip->i_flags &= ~S_IMMUTABLE;
-
-	if (zp->z_pflags & ZFS_APPENDONLY)
-		ip->i_flags |= S_APPEND;
-	else
-		ip->i_flags &= ~S_APPEND;
-}
-
-/*
- * Update the embedded inode given the znode.  We should work toward
- * eliminating this function as soon as possible by removing values
- * which are duplicated between the znode and inode.  If the generic
- * inode has the correct field it should be used, and the ZFS code
- * updated to access the inode.  This can be done incrementally.
- */
-void
-zfs_inode_update(znode_t *zp)
-{
-	zfs_sb_t	*zsb;
-	struct inode	*ip;
-	uint32_t	blksize;
-	uint64_t	atime[2], mtime[2], ctime[2];
-
-	ASSERT(zp != NULL);
-	zsb = ZTOZSB(zp);
-	ip = ZTOI(zp);
-
-	/* Skip .zfs control nodes which do not exist on disk. */
-	if (zfsctl_is_node(ip))
-		return;
-
-	sa_lookup(zp->z_sa_hdl, SA_ZPL_ATIME(zsb), &atime, 16);
-	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zsb), &mtime, 16);
-	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zsb), &ctime, 16);
-
-	spin_lock(&ip->i_lock);
-	ip->i_generation = zp->z_gen;
-	ip->i_uid = SUID_TO_KUID(zp->z_uid);
-	ip->i_gid = SGID_TO_KGID(zp->z_gid);
-	set_nlink(ip, zp->z_links);
-	ip->i_mode = zp->z_mode;
-	zfs_set_inode_flags(zp, ip);
-	ip->i_blkbits = SPA_MINBLOCKSHIFT;
-	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize,
-	    (u_longlong_t *)&ip->i_blocks);
-
-	ZFS_TIME_DECODE(&ip->i_atime, atime);
-	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
-	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
-
-	i_size_write(ip, zp->z_size);
-	spin_unlock(&ip->i_lock);
 }
 
 /*
@@ -1123,7 +1140,7 @@ zfs_rezget(znode_t *zp)
 	dmu_buf_t *db;
 	uint64_t obj_num = zp->z_id;
 	uint64_t mode;
-	sa_bulk_attr_t bulk[8];
+	sa_bulk_attr_t bulk[7];
 	int err;
 	int count = 0;
 	uint64_t gen;
@@ -1183,8 +1200,6 @@ zfs_rezget(znode_t *zp)
 	    &zp->z_links, sizeof (zp->z_links));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
 	    &zp->z_pflags, sizeof (zp->z_pflags));
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zsb), NULL,
-	    &zp->z_atime, sizeof (zp->z_atime));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zsb), NULL,
 	    &zp->z_uid, sizeof (zp->z_uid));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zsb), NULL,
@@ -1208,7 +1223,8 @@ zfs_rezget(znode_t *zp)
 
 	zp->z_unlinked = (zp->z_links == 0);
 	zp->z_blksz = doi.doi_data_block_size;
-	zfs_inode_update(zp);
+	zp->z_atime_dirty = 0;
+	zfs_inode_update_new(zp);
 
 	zfs_znode_hold_exit(zsb, zh);
 
@@ -1280,77 +1296,27 @@ zfs_compare_timespec(struct timespec *t1, struct timespec *t2)
 }
 
 /*
- *  Determine whether the znode's atime must be updated.  The logic mostly
- *  duplicates the Linux kernel's relatime_need_update() functionality.
- *  This function is only called if the underlying filesystem actually has
- *  atime updates enabled.
- */
-static inline boolean_t
-zfs_atime_need_update(znode_t *zp, timestruc_t *now)
-{
-	if (!ZTOZSB(zp)->z_relatime)
-		return (B_TRUE);
-
-	/*
-	 * In relatime mode, only update the atime if the previous atime
-	 * is earlier than either the ctime or mtime or if at least a day
-	 * has passed since the last update of atime.
-	 */
-	if (zfs_compare_timespec(&ZTOI(zp)->i_mtime, &ZTOI(zp)->i_atime) >= 0)
-		return (B_TRUE);
-
-	if (zfs_compare_timespec(&ZTOI(zp)->i_ctime, &ZTOI(zp)->i_atime) >= 0)
-		return (B_TRUE);
-
-	if ((long)now->tv_sec - ZTOI(zp)->i_atime.tv_sec >= 24*60*60)
-		return (B_TRUE);
-
-	return (B_FALSE);
-}
-
-/*
  * Prepare to update znode time stamps.
  *
  *	IN:	zp	- znode requiring timestamp update
- *		flag	- ATTR_MTIME, ATTR_CTIME, ATTR_ATIME flags
- *		have_tx	- true of caller is creating a new txg
+ *		flag	- ATTR_MTIME, ATTR_CTIME flags
  *
- *	OUT:	zp	- new atime (via underlying inode's i_atime)
+ *	OUT:	zp	- z_seq
  *		mtime	- new mtime
  *		ctime	- new ctime
  *
- * NOTE: The arguments are somewhat redundant.  The following condition
- * is always true:
- *
- *		have_tx == !(flag & ATTR_ATIME)
+ *	Note: We don't update atime here, because we rely on Linux VFS to do
+ *	atime updating.
  */
 void
 zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
-    uint64_t ctime[2], boolean_t have_tx)
+    uint64_t ctime[2])
 {
 	timestruc_t	now;
 
-	ASSERT(have_tx == !(flag & ATTR_ATIME));
 	gethrestime(&now);
 
-	/*
-	 * NOTE: The following test intentionally does not update z_atime_dirty
-	 * in the case where an ATIME update has been requested but for which
-	 * the update is omitted due to relatime logic.  The rationale being
-	 * that if the flag was set somewhere else, we should leave it alone
-	 * here.
-	 */
-	if (flag & ATTR_ATIME) {
-		if (zfs_atime_need_update(zp, &now)) {
-			ZFS_TIME_ENCODE(&now, zp->z_atime);
-			ZTOI(zp)->i_atime.tv_sec = zp->z_atime[0];
-			ZTOI(zp)->i_atime.tv_nsec = zp->z_atime[1];
-			zp->z_atime_dirty = 1;
-		}
-	} else {
-		zp->z_atime_dirty = 0;
-		zp->z_seq++;
-	}
+	zp->z_seq++;
 
 	if (flag & ATTR_MTIME) {
 		ZFS_TIME_ENCODE(&now, mtime);
@@ -1722,7 +1688,7 @@ log:
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL, ctime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb),
 	    NULL, &zp->z_pflags, 8);
-	zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime, B_TRUE);
+	zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT(error == 0);
 

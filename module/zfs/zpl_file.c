@@ -131,12 +131,15 @@ zpl_fsync(struct file *filp, struct dentry *dentry, int datasync)
 	return (error);
 }
 
+#ifdef HAVE_FILE_AIO_FSYNC
 static int
 zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 {
 	struct file *filp = kiocb->ki_filp;
 	return (zpl_fsync(filp, filp->f_path.dentry, datasync));
 }
+#endif
+
 #elif defined(HAVE_FSYNC_WITHOUT_DENTRY)
 /*
  * Linux 2.6.35 - 3.0 API,
@@ -162,11 +165,14 @@ zpl_fsync(struct file *filp, int datasync)
 	return (error);
 }
 
+#ifdef HAVE_FILE_AIO_FSYNC
 static int
 zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 {
 	return (zpl_fsync(kiocb->ki_filp, datasync));
 }
+#endif
+
 #elif defined(HAVE_FSYNC_RANGE)
 /*
  * Linux 3.1 - 3.x API,
@@ -197,11 +203,14 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	return (error);
 }
 
+#ifdef HAVE_FILE_AIO_FSYNC
 static int
 zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 {
 	return (zpl_fsync(kiocb->ki_filp, kiocb->ki_pos, -1, datasync));
 }
+#endif
+
 #else
 #error "Unsupported fops->fsync() implementation"
 #endif
@@ -251,20 +260,6 @@ zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
 }
 
 static ssize_t
-zpl_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
-{
-	cred_t *cr = CRED();
-	ssize_t read;
-
-	crhold(cr);
-	read = zpl_read_common(filp->f_mapping->host, buf, len, ppos,
-	    UIO_USERSPACE, filp->f_flags, cr);
-	crfree(cr);
-
-	return (read);
-}
-
-static ssize_t
 zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
     unsigned long nr_segs, size_t count, uio_seg_t seg, size_t skip)
 {
@@ -277,6 +272,7 @@ zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
 	    nr_segs, &kiocb->ki_pos, seg, filp->f_flags, cr, skip);
 	crfree(cr);
 
+	file_accessed(filp);
 	return (read);
 }
 
@@ -301,7 +297,14 @@ static ssize_t
 zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
     unsigned long nr_segs, loff_t pos)
 {
-	return (zpl_iter_read_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes,
+	ssize_t ret;
+	size_t count;
+
+	ret = generic_segment_checks(iovp, &nr_segs, &count, VERIFY_WRITE);
+	if (ret)
+		return (ret);
+
+	return (zpl_iter_read_common(kiocb, iovp, nr_segs, count,
 	    UIO_USERSPACE, 0));
 }
 #endif /* HAVE_VFS_RW_ITERATE */
@@ -339,6 +342,7 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 
 	return (wrote);
 }
+
 inline ssize_t
 zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
     uio_seg_t segment, int flags, cred_t *cr)
@@ -350,20 +354,6 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
 
 	return (zpl_write_common_iovec(ip, &iov, len, 1, ppos, segment,
 	    flags, cr, 0));
-}
-
-static ssize_t
-zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
-{
-	cred_t *cr = CRED();
-	ssize_t wrote;
-
-	crhold(cr);
-	wrote = zpl_write_common(filp->f_mapping->host, buf, len, ppos,
-	    UIO_USERSPACE, filp->f_flags, cr);
-	crfree(cr);
-
-	return (wrote);
 }
 
 static ssize_t
@@ -386,16 +376,42 @@ zpl_iter_write_common(struct kiocb *kiocb, const struct iovec *iovp,
 static ssize_t
 zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 {
+	size_t count;
 	ssize_t ret;
 	uio_seg_t seg = UIO_USERSPACE;
+
+#ifndef HAVE_GENERIC_WRITE_CHECKS_KIOCB
+	struct file *file = kiocb->ki_filp;
+	struct address_space *mapping = file->f_mapping;
+	struct inode *ip = mapping->host;
+	int isblk = S_ISBLK(ip->i_mode);
+
+	count = iov_iter_count(from);
+	ret = generic_write_checks(file, &kiocb->ki_pos, &count, isblk);
+	if (ret)
+		return (ret);
+#else
+	/*
+	 * XXX - ideally this check should be in the same lock region with
+	 * write operations, so that there's no TOCTTOU race when doing
+	 * append and someone else grow the file.
+	 */
+	ret = generic_write_checks(kiocb, from);
+	if (ret <= 0)
+		return (ret);
+	count = ret;
+#endif
+
 	if (from->type & ITER_KVEC)
 		seg = UIO_SYSSPACE;
 	if (from->type & ITER_BVEC)
 		seg = UIO_BVEC;
+
 	ret = zpl_iter_write_common(kiocb, from->iov, from->nr_segs,
-	    iov_iter_count(from), seg, from->iov_offset);
+	    count, seg, from->iov_offset);
 	if (ret > 0)
 		iov_iter_advance(from, ret);
+
 	return (ret);
 }
 #else
@@ -403,7 +419,22 @@ static ssize_t
 zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
     unsigned long nr_segs, loff_t pos)
 {
-	return (zpl_iter_write_common(kiocb, iovp, nr_segs, kiocb->ki_nbytes,
+	struct file *file = kiocb->ki_filp;
+	struct address_space *mapping = file->f_mapping;
+	struct inode *ip = mapping->host;
+	int isblk = S_ISBLK(ip->i_mode);
+	size_t count;
+	ssize_t ret;
+
+	ret = generic_segment_checks(iovp, &nr_segs, &count, VERIFY_READ);
+	if (ret)
+		return (ret);
+
+	ret = generic_write_checks(file, &pos, &count, isblk);
+	if (ret)
+		return (ret);
+
+	return (zpl_iter_write_common(kiocb, iovp, nr_segs, count,
 	    UIO_USERSPACE, 0));
 }
 #endif /* HAVE_VFS_RW_ITERATE */
@@ -649,8 +680,6 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	if (mode != (FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE))
 		return (error);
 
-	crhold(cr);
-
 	if (offset < 0 || len <= 0)
 		return (-EINVAL);
 
@@ -669,6 +698,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	bf.l_len = len;
 	bf.l_pid = 0;
 
+	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
 	spl_fstrans_unmark(cookie);
@@ -728,8 +758,7 @@ zpl_ioctl_getflags(struct file *filp, void __user *arg)
  * is outside of our jurisdiction.
  */
 
-#define	fchange(f0, f1, b0, b1) ((((f0) & (b0)) == (b0)) != \
-	(((b1) & (f1)) == (f1)))
+#define	fchange(f0, f1, b0, b1) (!((f0) & (b0)) != !((f1) & (b1)))
 
 static int
 zpl_ioctl_setflags(struct file *filp, void __user *arg)
@@ -827,8 +856,6 @@ const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
-	.read		= zpl_read,
-	.write		= zpl_write,
 #ifdef HAVE_VFS_RW_ITERATE
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
@@ -838,7 +865,9 @@ const struct file_operations zpl_file_operations = {
 #endif
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
+#ifdef HAVE_FILE_AIO_FSYNC
 	.aio_fsync	= zpl_aio_fsync,
+#endif
 #ifdef HAVE_FILE_FALLOCATE
 	.fallocate	= zpl_fallocate,
 #endif /* HAVE_FILE_FALLOCATE */

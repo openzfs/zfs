@@ -760,7 +760,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL,
 		    ctime, sizeof (ctime));
 		zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime,
-		    ctime, B_TRUE);
+		    ctime);
 	}
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT(error == 0);
@@ -781,7 +781,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	    ctime, sizeof (ctime));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
 	    &dzp->z_pflags, sizeof (dzp->z_pflags));
-	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime, B_TRUE);
+	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT(error == 0);
 	mutex_exit(&dzp->z_lock);
@@ -876,8 +876,8 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 			    NULL, &ctime, sizeof (ctime));
 			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb),
 			    NULL, &zp->z_pflags, sizeof (zp->z_pflags));
-			zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime, ctime,
-			    B_TRUE);
+			zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime,
+			    ctime);
 		}
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zsb),
 		    NULL, &zp->z_links, sizeof (zp->z_links));
@@ -904,7 +904,7 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 	    NULL, mtime, sizeof (mtime));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb),
 	    NULL, &dzp->z_pflags, sizeof (dzp->z_pflags));
-	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime, B_TRUE);
+	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT(error == 0);
 	mutex_exit(&dzp->z_lock);

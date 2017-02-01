@@ -261,12 +261,21 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 
 /*
  * 2.6.27 API change
- * The function was exported for use, prior to this it existed by the
+ * The function was exported for use, prior to this it existed but the
  * symbol was not exported.
+ *
+ * 4.4.0-6.21 API change for Ubuntu
+ * lookup_bdev() gained a second argument, FMODE_*, to check inode permissions.
  */
-#ifndef HAVE_LOOKUP_BDEV
-#define	lookup_bdev(path)		ERR_PTR(-ENOTSUP)
-#endif
+#ifdef HAVE_1ARG_LOOKUP_BDEV
+#define	vdev_lookup_bdev(path)	lookup_bdev(path)
+#else
+#ifdef HAVE_2ARGS_LOOKUP_BDEV
+#define	vdev_lookup_bdev(path)	lookup_bdev(path, 0)
+#else
+#define	vdev_lookup_bdev(path)	ERR_PTR(-ENOTSUP)
+#endif /* HAVE_2ARGS_LOOKUP_BDEV */
+#endif /* HAVE_1ARG_LOOKUP_BDEV */
 
 /*
  * 2.6.30 API change
@@ -292,19 +301,58 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* HAVE_BDEV_LOGICAL_BLOCK_SIZE */
 #endif /* HAVE_BDEV_PHYSICAL_BLOCK_SIZE */
 
+#ifndef HAVE_BIO_SET_OP_ATTRS
 /*
- * 2.6.37 API change
- * The WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags have been
- * introduced as a replacement for WRITE_BARRIER.  This was done to
- * allow richer semantics to be expressed to the block layer.  It is
- * the block layers responsibility to choose the correct way to
- * implement these semantics.
+ * Kernels without bio_set_op_attrs use bi_rw for the bio flags.
  */
-#ifdef WRITE_FLUSH_FUA
-#define	VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
-#else
-#define	VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
+static inline void
+bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
+{
+	bio->bi_rw |= rw | flags;
+}
 #endif
+
+/*
+ * bio_set_flush - Set the appropriate flags in a bio to guarantee
+ * data are on non-volatile media on completion.
+ *
+ * 2.6.X - 2.6.36 API,
+ *   WRITE_BARRIER - Tells the block layer to commit all previously submitted
+ *   writes to stable storage before this one is started and that the current
+ *   write is on stable storage upon completion.  Also prevents reordering
+ *   on both sides of the current operation.
+ *
+ * 2.6.37 - 4.8 API,
+ *   Introduce  WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags as a
+ *   replacement for WRITE_BARRIER to allow expressing richer semantics
+ *   to the block layer.  It's up to the block layer to implement the
+ *   semantics correctly. Use the WRITE_FLUSH_FUA flag combination.
+ *
+ * 4.8 - 4.9 API,
+ *   REQ_FLUSH was renamed to REQ_PREFLUSH.  For consistency with previous
+ *   ZoL releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
+ *
+ * 4.10 API,
+ *   The read/write flags and their modifiers, including WRITE_FLUSH,
+ *   WRITE_FUA and WRITE_FLUSH_FUA were removed from fs.h in
+ *   torvalds/linux@70fd7614 and replaced by direct flag modification
+ *   of the REQ_ flags in bio->bi_opf.  Use REQ_PREFLUSH.
+ */
+static inline void
+bio_set_flush(struct bio *bio)
+{
+#if defined(WRITE_BARRIER)	/* < 2.6.37 */
+	bio_set_op_attrs(bio, 0, WRITE_BARRIER);
+#elif defined(WRITE_FLUSH_FUA)	/* >= 2.6.37 and <= 4.9 */
+	bio_set_op_attrs(bio, 0, WRITE_FLUSH_FUA);
+#elif defined(REQ_PREFLUSH)	/* >= 4.10 */
+	bio_set_op_attrs(bio, 0, REQ_PREFLUSH);
+#else
+#error	"Allowing the build will cause bio_set_flush requests to be ignored."
+	"Please file an issue report at: "
+	"https://github.com/zfsonlinux/zfs/issues/new"
+#endif
+}
 
 /*
  * 4.8 - 4.x API,
@@ -324,6 +372,10 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * and the new preflush behavior introduced in Linux 4.8.  This is correct
  * in all cases but may have a performance impact for some kernels.  It
  * has the advantage of minimizing kernel specific changes in the zvol code.
+ *
+ * Note that 2.6.32 era kernels provide both BIO_RW_BARRIER and REQ_FLUSH,
+ * where BIO_RW_BARRIER is the correct interface.  Therefore, it is important
+ * that the HAVE_BIO_RW_BARRIER check occur before the REQ_FLUSH check.
  */
 static inline boolean_t
 bio_is_flush(struct bio *bio)
@@ -334,10 +386,10 @@ bio_is_flush(struct bio *bio)
 	return (bio->bi_opf & REQ_PREFLUSH);
 #elif defined(REQ_PREFLUSH) && !defined(HAVE_BIO_BI_OPF)
 	return (bio->bi_rw & REQ_PREFLUSH);
-#elif defined(REQ_FLUSH)
-	return (bio->bi_rw & REQ_FLUSH);
 #elif defined(HAVE_BIO_RW_BARRIER)
 	return (bio->bi_rw & (1 << BIO_RW_BARRIER));
+#elif defined(REQ_FLUSH)
+	return (bio->bi_rw & REQ_FLUSH);
 #else
 #error	"Allowing the build will cause flush requests to be ignored. Please "
 	"file an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
@@ -376,16 +428,20 @@ bio_is_fua(struct bio *bio)
  *
  * In all cases the normal I/O path is used for discards.  The only
  * difference is how the kernel tags individual I/Os as discards.
+ *
+ * Note that 2.6.32 era kernels provide both BIO_RW_DISCARD and REQ_DISCARD,
+ * where BIO_RW_DISCARD is the correct interface.  Therefore, it is important
+ * that the HAVE_BIO_RW_DISCARD check occur before the REQ_DISCARD check.
  */
 static inline boolean_t
 bio_is_discard(struct bio *bio)
 {
 #if defined(HAVE_REQ_OP_DISCARD)
 	return (bio_op(bio) == REQ_OP_DISCARD);
-#elif defined(REQ_DISCARD)
-	return (bio->bi_rw & REQ_DISCARD);
 #elif defined(HAVE_BIO_RW_DISCARD)
 	return (bio->bi_rw & (1 << BIO_RW_DISCARD));
+#elif defined(REQ_DISCARD)
+	return (bio->bi_rw & REQ_DISCARD);
 #else
 #error	"Allowing the build will cause discard requests to become writes "
 	"potentially triggering the DMU_MAX_ACCESS assertion. Please file "

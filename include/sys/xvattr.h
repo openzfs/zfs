@@ -225,7 +225,7 @@ typedef struct xvattr {
  * of requested attributes (xva_reqattrmap[]).
  */
 #define	XVA_SET_REQ(xvap, attr)					\
-	ASSERT((xvap)->xva_vattr.va_mask | AT_XVATTR);		\
+	ASSERT((xvap)->xva_vattr.va_mask & AT_XVATTR);		\
 	ASSERT((xvap)->xva_magic == XVA_MAGIC);			\
 	(xvap)->xva_reqattrmap[XVA_INDEX(attr)] |= XVA_ATTRBIT(attr)
 /*
@@ -233,7 +233,7 @@ typedef struct xvattr {
  * of requested attributes (xva_reqattrmap[]).
  */
 #define	XVA_CLR_REQ(xvap, attr)					\
-	ASSERT((xvap)->xva_vattr.va_mask | AT_XVATTR);		\
+	ASSERT((xvap)->xva_vattr.va_mask & AT_XVATTR);		\
 	ASSERT((xvap)->xva_magic == XVA_MAGIC);			\
 	(xvap)->xva_reqattrmap[XVA_INDEX(attr)] &= ~XVA_ATTRBIT(attr)
 
@@ -242,7 +242,7 @@ typedef struct xvattr {
  * of returned attributes (xva_rtnattrmap[]).
  */
 #define	XVA_SET_RTN(xvap, attr)					\
-	ASSERT((xvap)->xva_vattr.va_mask | AT_XVATTR);		\
+	ASSERT((xvap)->xva_vattr.va_mask & AT_XVATTR);		\
 	ASSERT((xvap)->xva_magic == XVA_MAGIC);			\
 	(XVA_RTNATTRMAP(xvap))[XVA_INDEX(attr)] |= XVA_ATTRBIT(attr)
 
@@ -251,7 +251,7 @@ typedef struct xvattr {
  * to see of the corresponding attribute bit is set.  If so, returns non-zero.
  */
 #define	XVA_ISSET_REQ(xvap, attr)					\
-	((((xvap)->xva_vattr.va_mask | AT_XVATTR) &&			\
+	((((xvap)->xva_vattr.va_mask & AT_XVATTR) &&			\
 		((xvap)->xva_magic == XVA_MAGIC) &&			\
 		((xvap)->xva_mapsize > XVA_INDEX(attr))) ?		\
 	((xvap)->xva_reqattrmap[XVA_INDEX(attr)] & XVA_ATTRBIT(attr)) :	0)
@@ -261,7 +261,7 @@ typedef struct xvattr {
  * to see of the corresponding attribute bit is set.  If so, returns non-zero.
  */
 #define	XVA_ISSET_RTN(xvap, attr)					\
-	((((xvap)->xva_vattr.va_mask | AT_XVATTR) &&			\
+	((((xvap)->xva_vattr.va_mask & AT_XVATTR) &&			\
 		((xvap)->xva_magic == XVA_MAGIC) &&			\
 		((xvap)->xva_mapsize > XVA_INDEX(attr))) ?		\
 	((XVA_RTNATTRMAP(xvap))[XVA_INDEX(attr)] & XVA_ATTRBIT(attr)) : 0)
