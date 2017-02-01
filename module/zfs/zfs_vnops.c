@@ -4127,7 +4127,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	int		err = 0;
 	uint64_t	mtime[2], ctime[2];
 	sa_bulk_attr_t	bulk[3];
-	int		cnt = 0;
+	int		count = 0;
 	struct address_space *mapping;
 
 	ZFS_ENTER(zsb);
@@ -4253,9 +4253,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	dmu_write(zsb->z_os, zp->z_id, pgoff, pglen, va, tx);
 	kunmap(pp);
 
-	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
-	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
-	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_FLAGS(zsb), NULL, &zp->z_pflags, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
+	    &zp->z_pflags, 8);
 
 	/* Preserve the mtime and ctime provided by the inode */
 	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
@@ -4263,8 +4264,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	zp->z_atime_dirty = 0;
 	zp->z_seq++;
 
-	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
-
+	err = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+	ASSERT0(err);
 	zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0,
 	    zfs_putpage_commit_cb, pp);
 	dmu_tx_commit(tx);
