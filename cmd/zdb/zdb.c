@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
- * Copyright (c) 2015, Intel Corporation.
+ * Copyright (c) 2015, 2017, Intel Corporation.
  */
 
 #include <stdio.h>
@@ -2235,6 +2235,136 @@ dump_label_uberblocks(vdev_label_t *lbl, uint64_t ashift)
 	}
 }
 
+/*
+ * ZFS label nvlist stats
+ */
+typedef struct zdb_nvl_stats {
+	int		zns_list_count;
+	int		zns_leaf_count;
+	size_t		zns_leaf_largest;
+	size_t		zns_leaf_total;
+	nvlist_t	*zns_string;
+	nvlist_t	*zns_uint64;
+	nvlist_t	*zns_boolean;
+} zdb_nvl_stats_t;
+
+static void
+collect_nvlist_stats(nvlist_t *nvl, zdb_nvl_stats_t *stats)
+{
+	nvlist_t *list, **array;
+	nvpair_t *nvp = NULL;
+	char *name;
+	uint_t i, items;
+
+	stats->zns_list_count++;
+
+	while ((nvp = nvlist_next_nvpair(nvl, nvp)) != NULL) {
+		name = nvpair_name(nvp);
+
+		switch (nvpair_type(nvp)) {
+		case DATA_TYPE_STRING:
+			fnvlist_add_string(stats->zns_string, name,
+			    fnvpair_value_string(nvp));
+			break;
+		case DATA_TYPE_UINT64:
+			fnvlist_add_uint64(stats->zns_uint64, name,
+			    fnvpair_value_uint64(nvp));
+			break;
+		case DATA_TYPE_BOOLEAN:
+			fnvlist_add_boolean(stats->zns_boolean, name);
+			break;
+		case DATA_TYPE_NVLIST:
+			if (nvpair_value_nvlist(nvp, &list) == 0)
+				collect_nvlist_stats(list, stats);
+			break;
+		case DATA_TYPE_NVLIST_ARRAY:
+			if (nvpair_value_nvlist_array(nvp, &array, &items) != 0)
+				break;
+
+			for (i = 0; i < items; i++) {
+				collect_nvlist_stats(array[i], stats);
+
+				/* collect stats on leaf vdev */
+				if (strcmp(name, "children") == 0) {
+					size_t size;
+
+					(void) nvlist_size(array[i], &size,
+					    NV_ENCODE_XDR);
+					stats->zns_leaf_total += size;
+					if (size > stats->zns_leaf_largest)
+						stats->zns_leaf_largest = size;
+					stats->zns_leaf_count++;
+				}
+			}
+			break;
+		default:
+			(void) printf("skip type %d!\n", (int)nvpair_type(nvp));
+		}
+	}
+}
+
+static void
+dump_nvlist_stats(nvlist_t *nvl, size_t cap)
+{
+	zdb_nvl_stats_t stats = { 0 };
+	size_t size, sum = 0, total;
+	size_t noise, average;
+
+	/* requires nvlist with non-unique names for stat collection */
+	VERIFY0(nvlist_alloc(&stats.zns_string, 0, 0));
+	VERIFY0(nvlist_alloc(&stats.zns_uint64, 0, 0));
+	VERIFY0(nvlist_alloc(&stats.zns_boolean, 0, 0));
+	VERIFY0(nvlist_size(stats.zns_boolean, &noise, NV_ENCODE_XDR));
+
+	(void) printf("\n\nZFS Label NVList Config Stats:\n");
+
+	VERIFY0(nvlist_size(nvl, &total, NV_ENCODE_XDR));
+	(void) printf("  %d bytes used, %d bytes free (using %4.1f%%)\n\n",
+	    (int)total, (int)(cap - total), 100.0 * total / cap);
+
+	collect_nvlist_stats(nvl, &stats);
+
+	VERIFY0(nvlist_size(stats.zns_uint64, &size, NV_ENCODE_XDR));
+	size -= noise;
+	sum += size;
+	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n", "integers:",
+	    (int)fnvlist_num_pairs(stats.zns_uint64),
+	    (int)size, 100.0 * size / total);
+
+	VERIFY0(nvlist_size(stats.zns_string, &size, NV_ENCODE_XDR));
+	size -= noise;
+	sum += size;
+	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n", "strings:",
+	    (int)fnvlist_num_pairs(stats.zns_string),
+	    (int)size, 100.0 * size / total);
+
+	VERIFY0(nvlist_size(stats.zns_boolean, &size, NV_ENCODE_XDR));
+	size -= noise;
+	sum += size;
+	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n", "booleans:",
+	    (int)fnvlist_num_pairs(stats.zns_boolean),
+	    (int)size, 100.0 * size / total);
+
+	size = total - sum;	/* treat remainder as nvlist overhead */
+	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n\n", "nvlists:",
+	    stats.zns_list_count, (int)size, 100.0 * size / total);
+
+	average = stats.zns_leaf_total / stats.zns_leaf_count;
+	(void) printf("%12s %4d %6d bytes average\n",
+	    "leaf vdevs:", stats.zns_leaf_count, (int)average);
+	(void) printf("%24d bytes largest\n", (int)stats.zns_leaf_largest);
+
+	if (dump_opt['l'] >= 3)
+		(void) printf("  space for %d additional leaf vdevs\n",
+		    (int)((cap - total) / average));
+
+	(void) printf("\n");
+
+	nvlist_free(stats.zns_string);
+	nvlist_free(stats.zns_uint64);
+	nvlist_free(stats.zns_boolean);
+}
+
 static void
 dump_label(const char *dev)
 {
@@ -2292,6 +2422,8 @@ dump_label(const char *dev)
 			nvlist_t *vdev_tree = NULL;
 
 			dump_nvlist(config, 4);
+			if (l == 3 && dump_opt['l'] >= 2)
+				dump_nvlist_stats(config, buflen);
 			if ((nvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_VDEV_TREE, &vdev_tree) != 0) ||
 			    (nvlist_lookup_uint64(vdev_tree,
