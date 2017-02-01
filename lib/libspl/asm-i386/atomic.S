@@ -507,7 +507,7 @@
 	movl	16(%esp), %ebx
 	movl	20(%esp), %ecx
 	subl	%eax, %ebx
-	adcl	%edx, %ecx
+	sbbl	%edx, %ecx
 	lock
 	cmpxchg8b (%edi)
 	jne	1b
