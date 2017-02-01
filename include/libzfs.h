@@ -58,6 +58,7 @@ extern "C" {
  */
 #define	DISK_ROOT		"/dev"
 #define	UDISK_ROOT		"/dev/disk"
+#define	ZVOL_ROOT		"/dev/zvol"
 
 /*
  * Default wait time for a device name to be created.
