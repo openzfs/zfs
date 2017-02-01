@@ -903,7 +903,8 @@ zfs_append_partition(char *path, size_t max_len)
 {
 	int len = strlen(path);
 
-	if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) {
+	if ((strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) ||
+	    (strncmp(path, ZVOL_ROOT, strlen(ZVOL_ROOT)) == 0)) {
 		if (len + 6 >= max_len)
 			return (-1);
 
