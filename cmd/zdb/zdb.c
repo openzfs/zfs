@@ -2410,7 +2410,8 @@ dump_label(const char *dev)
 
 		if (nvlist_unpack(buf, buflen, &config, 0) != 0) {
 			(void) printf("failed to unpack label %d\n", l);
-			ashift = SPA_MINBLOCKSHIFT;
+			if (l == 0)
+				ashift = SPA_MINBLOCKSHIFT;
 		} else {
 			nvlist_t *vdev_tree = NULL;
 
