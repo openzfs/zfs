@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2015, 2017, Intel Corporation.
+ * Copyright 2016 Nexenta Systems, Inc.
  */
 
 #include <stdio.h>
@@ -121,7 +122,7 @@ static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: %s [-CumMdibcsDvhLXFPAG] [-t txg] [-e [-p path...]] "
+	    "Usage: %s [-CmMdibcsDvhLXFPAG] [-t txg] [-e [-p path...]] "
 	    "[-U config] [-I inflight I/Os] [-x dumpdir] [-o var=value] "
 	    "poolname [object...]\n"
 	    "       %s [-divPA] [-e -p path...] [-U config] dataset "
@@ -131,7 +132,7 @@ usage(void)
 	    "       %s -R [-A] [-e [-p path...]] poolname "
 	    "vdev:offset:size[:flags]\n"
 	    "       %s -S [-PA] [-e [-p path...]] [-U config] poolname\n"
-	    "       %s -l [-uA] device\n"
+	    "       %s -l [-Aqu] device\n"
 	    "       %s -C [-A] [-U config]\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
 
@@ -142,7 +143,6 @@ usage(void)
 	(void) fprintf(stderr, "    If object numbers are specified, only "
 	    "those objects are dumped\n\n");
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
-	(void) fprintf(stderr, "        -u uberblock\n");
 	(void) fprintf(stderr, "        -d dataset(s)\n");
 	(void) fprintf(stderr, "        -i intent logs\n");
 	(void) fprintf(stderr, "        -C config (or cachefile if alone)\n");
@@ -156,7 +156,7 @@ usage(void)
 	(void) fprintf(stderr, "        -D dedup statistics\n");
 	(void) fprintf(stderr, "        -S simulate dedup to measure effect\n");
 	(void) fprintf(stderr, "        -v verbose (applies to all others)\n");
-	(void) fprintf(stderr, "        -l dump label contents\n");
+	(void) fprintf(stderr, "        -l read label contents\n");
 	(void) fprintf(stderr, "        -L disable leak tracking (do not "
 	    "load spacemaps)\n");
 	(void) fprintf(stderr, "        -R read and display block from a "
@@ -187,6 +187,8 @@ usage(void)
 	    "exiting\n");
 	(void) fprintf(stderr, "        -o <variable>=<value> set global "
 	    "variable to an unsigned 32-bit integer value\n");
+	(void) fprintf(stderr, "        -q don't print label contents\n");
+	(void) fprintf(stderr, "        -u uberblock\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -2358,36 +2360,29 @@ dump_nvlist_stats(nvlist_t *nvl, size_t cap)
 	nvlist_free(stats.zns_boolean);
 }
 
-static void
+static int
 dump_label(const char *dev)
 {
 	int fd;
 	vdev_label_t label;
-	char *path, *buf = label.vl_vdev_phys.vp_nvlist;
+	char path[MAXPATHLEN];
+	char *buf = label.vl_vdev_phys.vp_nvlist;
 	size_t buflen = sizeof (label.vl_vdev_phys.vp_nvlist);
 	struct stat64 statbuf;
 	uint64_t psize, ashift;
-	int len = strlen(dev) + 1;
+	boolean_t label_found = B_FALSE;
 	int l;
 
-	if (strncmp(dev, "/dev/dsk/", 9) == 0) {
-		len++;
-		path = malloc(len);
-		(void) snprintf(path, len, "%s%s", "/dev/rdsk/", dev + 9);
-	} else {
-		path = strdup(dev);
-	}
+	(void) strlcpy(path, dev, sizeof (path));
 
 	if ((fd = open64(path, O_RDONLY)) < 0) {
 		(void) printf("cannot open '%s': %s\n", path, strerror(errno));
-		free(path);
 		exit(1);
 	}
 
 	if (fstat64_blk(fd, &statbuf) != 0) {
 		(void) printf("failed to stat '%s': %s\n", path,
 		    strerror(errno));
-		free(path);
 		(void) close(fd);
 		exit(1);
 	}
@@ -2398,38 +2393,46 @@ dump_label(const char *dev)
 	for (l = 0; l < VDEV_LABELS; l++) {
 		nvlist_t *config = NULL;
 
-		(void) printf("--------------------------------------------\n");
-		(void) printf("LABEL %d\n", l);
-		(void) printf("--------------------------------------------\n");
+		if (!dump_opt['q']) {
+			(void) printf("------------------------------------\n");
+			(void) printf("LABEL %d\n", l);
+			(void) printf("------------------------------------\n");
+		}
 
 		if (pread64(fd, &label, sizeof (label),
 		    vdev_label_offset(psize, l, 0)) != sizeof (label)) {
-			(void) printf("failed to read label %d\n", l);
+			if (!dump_opt['q'])
+				(void) printf("failed to read label %d\n", l);
 			continue;
 		}
 
 		if (nvlist_unpack(buf, buflen, &config, 0) != 0) {
-			(void) printf("failed to unpack label %d\n", l);
+			if (!dump_opt['q'])
+				(void) printf("failed to unpack label %d\n", l);
 			ashift = SPA_MINBLOCKSHIFT;
 		} else {
 			nvlist_t *vdev_tree = NULL;
 
-			dump_nvlist(config, 4);
-			if (l == 3 && dump_opt['l'] >= 2)
-				dump_nvlist_stats(config, buflen);
+			if (!dump_opt['q']) {
+				dump_nvlist(config, 4);
+				if (l == 3 && dump_opt['l'] >= 2)
+					dump_nvlist_stats(config, buflen);
+			}
 			if ((nvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_VDEV_TREE, &vdev_tree) != 0) ||
 			    (nvlist_lookup_uint64(vdev_tree,
 			    ZPOOL_CONFIG_ASHIFT, &ashift) != 0))
 				ashift = SPA_MINBLOCKSHIFT;
 			nvlist_free(config);
+			label_found = B_TRUE;
 		}
 		if (dump_opt['u'])
 			dump_label_uberblocks(&label, ashift);
 	}
 
-	free(path);
 	(void) close(fd);
+
+	return (label_found ? 0 : 2);
 }
 
 static uint64_t dataset_feature_count[SPA_FEATURES];
@@ -3837,7 +3840,7 @@ main(int argc, char **argv)
 		spa_config_path = spa_config_path_env;
 
 	while ((c = getopt(argc, argv,
-	    "bcdhilmMI:suCDRSAFLXx:evp:t:U:PVGo")) != -1) {
+	    "bcdhilmMI:suCDRSAFLXx:evp:t:U:PVGoq")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -3863,6 +3866,7 @@ main(int argc, char **argv)
 		case 'X':
 		case 'e':
 		case 'P':
+		case 'q':
 			dump_opt[c]++;
 			break;
 		case 'V':
@@ -3977,10 +3981,8 @@ main(int argc, char **argv)
 		usage();
 	}
 
-	if (dump_opt['l']) {
-		dump_label(argv[0]);
-		return (0);
-	}
+	if (dump_opt['l'])
+		return (dump_label(argv[0]));
 
 	if (dump_opt['X'] || dump_opt['F'])
 		rewind = ZPOOL_DO_REWIND |

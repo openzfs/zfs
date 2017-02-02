@@ -12,8 +12,9 @@
 .\"
 .\" Copyright 2012, Richard Lowe.
 .\" Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+.\" Copyright 2016 Nexenta Systems, Inc.
 .\"
-.TH "ZDB" "8" "Feb 4, 2016" "" ""
+.TH "ZDB" "8" "April 9, 2016" "" ""
 
 .SH "NAME"
 \fBzdb\fR - Display zpool debugging and consistency information
@@ -39,7 +40,7 @@
 \fBzdb\fR -S [-AP] [-e [-p \fIpath\fR...]] [-U \fIcache\fR] \fIpoolname\fR
 
 .P
-\fBzdb\fR -l [-uA] \fIdevice\fR
+\fBzdb\fR -l [-Aqu] \fIdevice\fR
 
 .P
 \fBzdb\fR -C [-A] [-U \fIcache\fR]
@@ -176,8 +177,13 @@ transaction type.
 .ad
 .sp .6
 .RS 4n
-Display the vdev labels from the specified device. If the \fB-u\fR option is
-also specified, also display the uberblocks on this device.
+Read the vdev labels from the specified device. \fBzdb -l\fR will return 0 if
+valid label was found, 1 if error occured, and 2 if no valid labels were found.
+.P
+If the \fB-u\fR option is also specified, also display the uberblocks on this
+device.
+.P
+If the \fB-q\fR option is also specified, don't print the labels.
 .RE
 
 .sp
