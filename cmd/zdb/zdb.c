@@ -83,17 +83,10 @@ zdb_ot_name(dmu_object_type_t type)
 		return ("UNKNOWN");
 }
 
-#ifndef lint
 extern int reference_tracking_enable;
 extern int zfs_recover;
 extern uint64_t zfs_arc_max, zfs_arc_meta_limit;
 extern int zfs_vdev_async_read_max_active;
-#else
-int reference_tracking_enable;
-int zfs_recover;
-uint64_t zfs_arc_max, zfs_arc_meta_limit;
-int zfs_vdev_async_read_max_active;
-#endif
 
 const char cmdname[] = "zdb";
 uint8_t dump_opt[256];
