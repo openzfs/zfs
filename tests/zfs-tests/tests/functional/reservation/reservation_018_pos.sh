@@ -60,7 +60,7 @@ fs_child=$TESTPOOL/$TESTFS/$TESTFS
 
 space_avail=$(get_prop available $fs)
 reserv_val=$(get_prop reservation $fs)
-typeset -l reservsize=$space_avail
+typeset reservsize=$space_avail
 ((reservsize = reservsize / 2))
 log_must $ZFS set reservation=$reservsize $fs
 

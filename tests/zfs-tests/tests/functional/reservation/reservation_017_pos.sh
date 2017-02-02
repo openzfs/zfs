@@ -70,13 +70,13 @@ sparsevol=$TESTPOOL/$TESTVOL2
 log_must $ZFS create -V 64M $regvol
 log_must $ZFS create -s -V 64M $sparsevol
 
-typeset -i vsize=$(get_prop available $TESTPOOL)
-typeset -i iterate=10
-typeset -i regreserv
-typeset -i sparsereserv
-typeset -i volblocksize=$(get_prop volblocksize $regvol)
-typeset -i blknum=0
-typeset -i randomblknum
+typeset vsize=$(get_prop available $TESTPOOL)
+typeset iterate=10
+typeset regreserv
+typeset sparsereserv
+typeset volblocksize=$(get_prop volblocksize $regvol)
+typeset blknum=0
+typeset randomblknum
 ((blknum = vsize / volblocksize))
 
 while ((iterate > 1)); do
