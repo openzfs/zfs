@@ -387,6 +387,8 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 
 	count = iov_iter_count(from);
 	ret = generic_write_checks(file, &kiocb->ki_pos, &count, isblk);
+	if (ret)
+		return (ret);
 #else
 	/*
 	 * XXX - ideally this check should be in the same lock region with
@@ -394,10 +396,10 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	 * append and someone else grow the file.
 	 */
 	ret = generic_write_checks(kiocb, from);
-	count = ret;
-#endif
 	if (ret <= 0)
 		return (ret);
+	count = ret;
+#endif
 
 	if (from->type & ITER_KVEC)
 		seg = UIO_SYSSPACE;
