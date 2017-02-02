@@ -1415,6 +1415,31 @@ zio_execute(zio_t *zio)
 	spl_fstrans_unmark(cookie);
 }
 
+/*
+ * Used to determine if in the current context the stack is sized large
+ * enough to allow zio_execute() to be called recursively.  A minimum
+ * stack size of 16K is required to avoid needing to re-dispatch the zio.
+ */
+boolean_t
+zio_execute_stack_check(zio_t *zio)
+{
+#if !defined(HAVE_LARGE_STACKS)
+	dsl_pool_t *dp = spa_get_dsl(zio->io_spa);
+
+	/* Executing in txg_sync_thread() context. */
+	if (dp && curthread == dp->dp_tx.tx_sync_thread)
+		return (B_TRUE);
+
+	/* Pool initialization outside of zio_taskq context. */
+	if (dp && spa_is_initializing(dp->dp_spa) &&
+	    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE) &&
+	    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE_HIGH))
+		return (B_TRUE);
+#endif /* HAVE_LARGE_STACKS */
+
+	return (B_FALSE);
+}
+
 __attribute__((always_inline))
 static inline void
 __zio_execute(zio_t *zio)
@@ -1424,8 +1449,6 @@ __zio_execute(zio_t *zio)
 	while (zio->io_stage < ZIO_STAGE_DONE) {
 		enum zio_stage pipeline = zio->io_pipeline;
 		enum zio_stage stage = zio->io_stage;
-		dsl_pool_t *dp;
-		boolean_t cut;
 		int rv;
 
 		ASSERT(!MUTEX_HELD(&zio->io_lock));
@@ -1438,10 +1461,6 @@ __zio_execute(zio_t *zio)
 
 		ASSERT(stage <= ZIO_STAGE_DONE);
 
-		dp = spa_get_dsl(zio->io_spa);
-		cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
-		    zio_requeue_io_start_cut_in_line : B_FALSE;
-
 		/*
 		 * If we are in interrupt context and this pipeline stage
 		 * will grab a config lock that is held across I/O,
@@ -1453,21 +1472,19 @@ __zio_execute(zio_t *zio)
 		 */
 		if ((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
 		    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) {
+			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
+			    zio_requeue_io_start_cut_in_line : B_FALSE;
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
 			return;
 		}
 
 		/*
-		 * If we executing in the context of the tx_sync_thread,
-		 * or we are performing pool initialization outside of a
-		 * zio_taskq[ZIO_TASKQ_ISSUE|ZIO_TASKQ_ISSUE_HIGH] context.
-		 * Then issue the zio asynchronously to minimize stack usage
-		 * for these deep call paths.
+		 * If the current context doesn't have large enough stacks
+		 * the zio must be issued asynchronously to prevent overflow.
 		 */
-		if ((dp && curthread == dp->dp_tx.tx_sync_thread) ||
-		    (dp && spa_is_initializing(dp->dp_spa) &&
-		    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE) &&
-		    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE_HIGH))) {
+		if (zio_execute_stack_check(zio)) {
+			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
+			    zio_requeue_io_start_cut_in_line : B_FALSE;
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
 			return;
 		}

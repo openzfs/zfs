@@ -6,7 +6,7 @@ include config/tgz.am
 
 SUBDIRS = include rpm
 if CONFIG_USER
-SUBDIRS += udev etc man scripts lib cmd contrib
+SUBDIRS += udev etc man scripts lib tests cmd contrib
 endif
 if CONFIG_KERNEL
 SUBDIRS += module
@@ -39,11 +39,11 @@ dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-checkstyle: cstyle shellcheck
+checkstyle: cstyle shellcheck flake8
 
 cstyle:
-	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
-		! -name '*.mod.c' -type f -exec scripts/cstyle.pl {} \+
+#	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
+#		! -name '*.mod.c' -type f -exec scripts/cstyle.pl -cpP {} \+
 
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
@@ -55,12 +55,19 @@ shellcheck:
 		 done; \
 	 fi
 
-lint: cppcheck
+lint: cppcheck paxcheck
 
 cppcheck:
-	@if type cppcheck > /dev/null 2>&1; then \
-		cppcheck --quiet --force ${top_srcdir}; \
+
+paxcheck:
+	@if type scanelf > /dev/null 2>&1; then \
+		scripts/paxcheck.sh ${top_srcdir}; \
 	fi
+
+flake8:
+#	@if type flake8 > /dev/null 2>&1; then \
+#		flake8 ${top_srcdir}; \
+#	fi
 
 ctags:
 	$(RM) tags

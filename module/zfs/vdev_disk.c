@@ -41,10 +41,8 @@ static void *zfs_vdev_holder = VDEV_HOLDER;
  * Virtual device vector for disks.
  */
 typedef struct dio_request {
-	struct completion	dr_comp;	/* Completion for sync IO */
 	zio_t			*dr_zio;	/* Parent ZIO */
 	atomic_t		dr_ref;		/* References */
-	int			dr_wait;	/* Wait for IO */
 	int			dr_error;	/* Bio error */
 	int			dr_bio_count;	/* Count of bio's */
 	struct bio		*dr_bio[0];	/* Attached bio's */
@@ -363,7 +361,6 @@ vdev_disk_dio_alloc(int bio_count)
 	dr = kmem_zalloc(sizeof (dio_request_t) +
 	    sizeof (struct bio *) * bio_count, KM_SLEEP);
 	if (dr) {
-		init_completion(&dr->dr_comp);
 		atomic_set(&dr->dr_ref, 0);
 		dr->dr_bio_count = bio_count;
 		dr->dr_error = 0;
@@ -426,7 +423,6 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 {
 	dio_request_t *dr = bio->bi_private;
 	int rc;
-	int wait;
 
 	if (dr->dr_error == 0) {
 #ifdef HAVE_1ARG_BIO_END_IO_T
@@ -439,13 +435,8 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 #endif
 	}
 
-	wait = dr->dr_wait;
 	/* Drop reference aquired by __vdev_disk_physio */
 	rc = vdev_disk_dio_put(dr);
-
-	/* Wake up synchronous waiter this is the last outstanding bio */
-	if (wait && rc == 1)
-		complete(&dr->dr_comp);
 }
 
 static inline unsigned long
@@ -494,11 +485,6 @@ bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 	return (bio_size);
 }
 
-#ifndef bio_set_op_attrs
-#define	bio_set_op_attrs(bio, rw, flags) \
-	do { (bio)->bi_rw |= (rw)|(flags); } while (0)
-#endif
-
 static inline void
 vdev_submit_bio_impl(struct bio *bio)
 {
@@ -527,13 +513,16 @@ vdev_submit_bio(struct bio *bio)
 
 static int
 __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
-    size_t kbuf_size, uint64_t kbuf_offset, int rw, int flags, int wait)
+    size_t kbuf_size, uint64_t kbuf_offset, int rw, int flags)
 {
 	dio_request_t *dr;
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
 	int i = 0, error = 0;
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+	struct blk_plug plug;
+#endif
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
 
@@ -546,7 +535,6 @@ retry:
 		bio_set_flags_failfast(bdev, &flags);
 
 	dr->dr_zio = zio;
-	dr->dr_wait = wait;
 
 	/*
 	 * When the IO size exceeds the maximum bio size for the request
@@ -605,37 +593,24 @@ retry:
 	if (zio)
 		zio->io_delay = jiffies_64;
 
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+	if (dr->dr_bio_count > 1)
+		blk_start_plug(&plug);
+#endif
+
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
 			vdev_submit_bio(dr->dr_bio[i]);
 
-	/*
-	 * On synchronous blocking requests we wait for all bio the completion
-	 * callbacks to run.  We will be woken when the last callback runs
-	 * for this dio.  We are responsible for putting the last dio_request
-	 * reference will in turn put back the last bio references.  The
-	 * only synchronous consumer is vdev_disk_read_rootlabel() all other
-	 * IO originating from vdev_disk_io_start() is asynchronous.
-	 */
-	if (wait) {
-		wait_for_completion(&dr->dr_comp);
-		error = dr->dr_error;
-		ASSERT3S(atomic_read(&dr->dr_ref), ==, 1);
-	}
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+	if (dr->dr_bio_count > 1)
+		blk_finish_plug(&plug);
+#endif
 
 	(void) vdev_disk_dio_put(dr);
 
 	return (error);
-}
-
-int
-vdev_disk_physio(struct block_device *bdev, caddr_t kbuf,
-    size_t size, uint64_t offset, int rw, int flags)
-{
-	bio_set_flags_failfast(bdev, &flags);
-	return (__vdev_disk_physio(bdev, NULL, kbuf, size, offset, rw, flags,
-	    1));
 }
 
 BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, rc)
@@ -676,7 +651,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio->bi_private = zio;
 	bio->bi_bdev = bdev;
 	zio->io_delay = jiffies_64;
-	bio_set_op_attrs(bio, 0, VDEV_WRITE_FLUSH_FUA);
+	bio_set_flush(bio);
 	vdev_submit_bio(bio);
 	invalidate_bdev(bdev);
 
@@ -688,7 +663,6 @@ vdev_disk_io_start(zio_t *zio)
 {
 	vdev_t *v = zio->io_vd;
 	vdev_disk_t *vd = v->vdev_tsd;
-	zio_priority_t pri = zio->io_priority;
 	int rw, flags, error;
 
 	switch (zio->io_type) {
@@ -729,18 +703,24 @@ vdev_disk_io_start(zio_t *zio)
 		return;
 	case ZIO_TYPE_WRITE:
 		rw = WRITE;
-		if ((pri == ZIO_PRIORITY_SYNC_WRITE) && (v->vdev_nonrot))
-			flags = WRITE_SYNC;
-		else
-			flags = 0;
+#if defined(HAVE_BLK_QUEUE_HAVE_BIO_RW_UNPLUG)
+		flags = (1 << BIO_RW_UNPLUG);
+#elif defined(REQ_UNPLUG)
+		flags = REQ_UNPLUG;
+#else
+		flags = 0;
+#endif
 		break;
 
 	case ZIO_TYPE_READ:
 		rw = READ;
-		if ((pri == ZIO_PRIORITY_SYNC_READ) && (v->vdev_nonrot))
-			flags = READ_SYNC;
-		else
-			flags = 0;
+#if defined(HAVE_BLK_QUEUE_HAVE_BIO_RW_UNPLUG)
+		flags = (1 << BIO_RW_UNPLUG);
+#elif defined(REQ_UNPLUG)
+		flags = REQ_UNPLUG;
+#else
+		flags = 0;
+#endif
 		break;
 
 	default:
@@ -750,7 +730,7 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	error = __vdev_disk_physio(vd->vd_bdev, zio, zio->io_data,
-	    zio->io_size, zio->io_offset, rw, flags, 0);
+	    zio->io_size, zio->io_offset, rw, flags);
 	if (error) {
 		zio->io_error = error;
 		zio_interrupt(zio);
@@ -819,70 +799,6 @@ vdev_ops_t vdev_disk_ops = {
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
-
-/*
- * Given the root disk device devid or pathname, read the label from
- * the device, and construct a configuration nvlist.
- */
-int
-vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
-{
-	struct block_device *bdev;
-	vdev_label_t *label;
-	uint64_t s, size;
-	int i;
-
-	bdev = vdev_bdev_open(devpath, vdev_bdev_mode(FREAD), zfs_vdev_holder);
-	if (IS_ERR(bdev))
-		return (-PTR_ERR(bdev));
-
-	s = bdev_capacity(bdev);
-	if (s == 0) {
-		vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
-		return (EIO);
-	}
-
-	size = P2ALIGN_TYPED(s, sizeof (vdev_label_t), uint64_t);
-	label = vmem_alloc(sizeof (vdev_label_t), KM_SLEEP);
-
-	for (i = 0; i < VDEV_LABELS; i++) {
-		uint64_t offset, state, txg = 0;
-
-		/* read vdev label */
-		offset = vdev_label_offset(size, i, 0);
-		if (vdev_disk_physio(bdev, (caddr_t)label,
-		    VDEV_SKIP_SIZE + VDEV_PHYS_SIZE, offset, READ,
-		    REQ_SYNC) != 0)
-			continue;
-
-		if (nvlist_unpack(label->vl_vdev_phys.vp_nvlist,
-		    sizeof (label->vl_vdev_phys.vp_nvlist), config, 0) != 0) {
-			*config = NULL;
-			continue;
-		}
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_STATE,
-		    &state) != 0 || state >= POOL_STATE_DESTROYED) {
-			nvlist_free(*config);
-			*config = NULL;
-			continue;
-		}
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_TXG,
-		    &txg) != 0 || txg == 0) {
-			nvlist_free(*config);
-			*config = NULL;
-			continue;
-		}
-
-		break;
-	}
-
-	vmem_free(label, sizeof (vdev_label_t));
-	vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
-
-	return (0);
-}
 
 module_param(zfs_vdev_scheduler, charp, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");

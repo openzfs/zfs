@@ -18,7 +18,7 @@
 #TEST_ZILTEST_OPTIONS=""
 
 ### zconfig
-#TEST_ZCONFIG_SKIP="yes"
+TEST_ZCONFIG_SKIP="yes"
 TEST_ZCONFIG_OPTIONS="-c -s10"
 
 ### zimport
@@ -36,6 +36,12 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 #TEST_XFSTESTS_FS="xfstests"
 #TEST_XFSTESTS_VDEV="/var/tmp/vdev"
 #TEST_XFSTESTS_OPTIONS=""
+
+### zfs-tests.sh
+#TEST_ZFSTESTS_SKIP="yes"
+#TEST_ZFSTESTS_DISKS="vdb vdc vdd"
+#TEST_ZFSTESTS_DISKSIZE="8G"
+#TEST_ZFSTESTS_RUNFILE="linux.run"
 
 ### filebench
 #TEST_FILEBENCH_SKIP="yes"
@@ -70,9 +76,13 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 case "$BB_NAME" in
 Amazon*)
     ;;
-CentOS*)
-    # Sporadic segmentation faults
-    TEST_ZTEST_SKIP="yes"
+CentOS-7*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
+    TEST_ZILTEST_SKIP="yes"
+    ;;
+CentOS-6*)
     # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
     TEST_ZILTEST_SKIP="yes"
     ;;
@@ -84,8 +94,26 @@ RHEL*)
     ;;
 SUSE*)
     ;;
+Ubuntu-16.04*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    TEST_FILEBENCH_SKIP="yes"
+    ;;
 Ubuntu*)
     ;;
 *)
     ;;
 esac
+
+###
+#
+# Disable the following test suites on 32-bit systems.
+#
+if [ $(getconf LONG_BIT) = "32" ]; then
+    TEST_ZILTEST_SKIP="yes"
+    TEST_ZIMPORT_SKIP="yes"
+    TEST_ZTEST_SKIP="yes"
+    TEST_FILEBENCH_SKIP="yes"
+    TEST_XFSTESTS_SKIP="yes"
+    TEST_ZFSSTRESS_SKIP="yes"
+fi

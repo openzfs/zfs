@@ -58,6 +58,31 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_NAME], [
 ])
 
 dnl #
+dnl # 4.9 API change,
+dnl # iops->{set,get,remove}xattr and generic_{set,get,remove}xattr are
+dnl # removed. xattr operations will directly go through sb->s_xattr.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_HAVE_GENERIC_SETXATTR], [
+	AC_MSG_CHECKING([whether generic_setxattr() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+		#include <linux/xattr.h>
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
+			.setxattr = generic_setxattr
+		};
+	],[
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_GENERIC_SETXATTR, 1,
+		    [generic_setxattr() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # Supported xattr handler get() interfaces checked newest to oldest.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
