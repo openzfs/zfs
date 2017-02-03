@@ -279,6 +279,8 @@ if [ -z "${KEEP}" ]; then
 	fi
 fi
 
+__ZFS_POOL_EXCLUDE="$(echo $KEEP | sed ':a;N;s/\n/ /g;ba')"
+
 msg
 msg "--- Configuration ---"
 msg "Runfile:         $RUNFILE"
@@ -341,6 +343,7 @@ export STF_TOOLS
 export STF_SUITE
 export DISKS
 export KEEP
+export __ZFS_POOL_EXCLUDE
 
 msg "${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -i ${STF_SUITE}"
 ${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -i ${STF_SUITE}
