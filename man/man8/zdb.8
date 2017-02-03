@@ -177,13 +177,16 @@ transaction type.
 .ad
 .sp .6
 .RS 4n
-Read the vdev labels from the specified device. \fBzdb -l\fR will return 0 if
-valid label was found, 1 if error occured, and 2 if no valid labels were found.
+Read the vdev labels from the specified device and dump the unique
+configuration nvlist(s). \fBzdb -l\fR will return 1 if an error occured, 2 if
+no configuration nvlist could be unpacked (errors or not), and 0 otherwise.
+Specify multiple times to increase verbosity.
 .P
 If the \fB-u\fR option is also specified, also display the uberblocks on this
-device.
+device.  Specify multiple times to increase verbosity.
 .P
-If the \fB-q\fR option is also specified, don't print the labels.
+If the \fB-q\fR option is also specified, don't dump the configurations or the
+uberblocks.
 .RE
 
 .sp
