@@ -693,8 +693,6 @@ vdev_disk_io_start(zio_t *zio)
 				return;
 
 			zio->io_error = error;
-			if (error == ENOTSUP)
-				v->vdev_nowritecache = B_TRUE;
 
 			break;
 
