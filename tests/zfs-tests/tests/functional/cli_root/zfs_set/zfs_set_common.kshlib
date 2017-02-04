@@ -92,6 +92,8 @@ function set_n_check_prop
 		log_mustnot $ZFS set $prop=$expect_value $dataset
 
 		[[ -n $prop ]] && cur_value=$(get_prop $prop $dataset)
+		
+		wait_freeing
 
 		if [[ "$expect_value" != "" && "$cur_value" != "$old_value" ]];
 		then
