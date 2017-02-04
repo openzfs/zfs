@@ -42,6 +42,11 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5727
+if is_32bit; then
+	log_unsupported "Test case slow on 32-bit systems"
+fi
+
 function cleanup
 {
 	[[ -e $TESTDIR ]] && log_must $RM -rf $TESTDIR/*
