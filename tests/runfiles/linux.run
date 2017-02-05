@@ -118,10 +118,8 @@ tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
     'zfs_get_005_neg', 'zfs_get_007_neg', 'zfs_get_008_pos',
     'zfs_get_009_pos', 'zfs_get_010_neg']
 
-# DISABLED:
-# zfs_inherit_003_pos - https://github.com/zfsonlinux/zfs/issues/5669
 [tests/functional/cli_root/zfs_inherit]
-tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg']
+tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos']
 
 # DISABLED:
 # zfs_mount_006_pos - https://github.com/zfsonlinux/zfs/issues/4990
