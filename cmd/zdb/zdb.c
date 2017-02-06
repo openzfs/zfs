@@ -2303,7 +2303,7 @@ dump_nvlist_stats(nvlist_t *nvl, size_t cap)
 {
 	zdb_nvl_stats_t stats = { 0 };
 	size_t size, sum = 0, total;
-	size_t noise, average;
+	size_t noise;
 
 	/* requires nvlist with non-unique names for stat collection */
 	VERIFY0(nvlist_alloc(&stats.zns_string, 0, 0));
@@ -2344,15 +2344,18 @@ dump_nvlist_stats(nvlist_t *nvl, size_t cap)
 	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n\n", "nvlists:",
 	    stats.zns_list_count, (int)size, 100.0 * size / total);
 
-	average = stats.zns_leaf_total / stats.zns_leaf_count;
-	(void) printf("%12s %4d %6d bytes average\n",
-	    "leaf vdevs:", stats.zns_leaf_count, (int)average);
-	(void) printf("%24d bytes largest\n", (int)stats.zns_leaf_largest);
+	if (stats.zns_leaf_count > 0) {
+		size_t average = stats.zns_leaf_total / stats.zns_leaf_count;
 
-	if (dump_opt['l'] >= 3)
-		(void) printf("  space for %d additional leaf vdevs\n",
-		    (int)((cap - total) / average));
+		(void) printf("%12s %4d %6d bytes average\n", "leaf vdevs:",
+		    stats.zns_leaf_count, (int)average);
+		(void) printf("%24d bytes largest\n",
+		    (int)stats.zns_leaf_largest);
 
+		if (dump_opt['l'] >= 3 && average > 0)
+			(void) printf("  space for %d additional leaf vdevs\n",
+			    (int)((cap - total) / average));
+	}
 	(void) printf("\n");
 
 	nvlist_free(stats.zns_string);
