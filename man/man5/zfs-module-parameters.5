@@ -1441,6 +1441,22 @@ Default value: \fB52,428,800\fR.
 .sp
 .ne 2
 .na
+\fBzfs_per_txg_dirty_frees_percent \fR (ulong)
+.ad
+.RS 12n
+Tunable to control percentage of dirtied blocks from frees in one TXG.
+After this threshold is crossed, additional dirty blocks from frees
+wait until the next TXG.
+A value of zero will disable this throttle.
+.sp
+Default value: \fB30\fR and \fB0\fR to disable.
+.RE
+
+
+
+.sp
+.ne 2
+.na
 \fBzfs_prefetch_disable\fR (int)
 .ad
 .RS 12n

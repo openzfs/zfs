@@ -65,7 +65,7 @@ int zfs_nopwrite_enabled = 1;
  * wait until the next TXG.
  * A value of zero will disable this throttle.
  */
-uint32_t zfs_per_txg_dirty_frees_percent = 30;
+unsigned long zfs_per_txg_dirty_frees_percent = 30;
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
@@ -2228,10 +2228,15 @@ EXPORT_SYMBOL(dmu_assign_arcbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 
+/* BEGIN CSTYLED */
 module_param(zfs_mdcomp_disable, int, 0644);
 MODULE_PARM_DESC(zfs_mdcomp_disable, "Disable meta data compression");
 
 module_param(zfs_nopwrite_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_nopwrite_enabled, "Enable NOP writes");
 
+module_param(zfs_per_txg_dirty_frees_percent, ulong, 0644);
+MODULE_PARM_DESC(zfs_per_txg_dirty_frees_percent,
+	"percentage of dirtied blocks from frees in one TXG");
+/* END CSTYLED */
 #endif
