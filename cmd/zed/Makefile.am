@@ -67,7 +67,9 @@ dist_zedexec_SCRIPTS = \
 	zed.d/scrub_finish-notify.sh \
 	zed.d/statechange-led.sh \
 	zed.d/statechange-notify.sh \
-	zed.d/vdev_clear-led.sh
+	zed.d/vdev_clear-led.sh \
+	zed.d/vdev_attach-led.sh \
+	zed.d/pool_import-led.sh
 
 zedconfdefaults = \
 	all-syslog.sh \
@@ -76,7 +78,9 @@ zedconfdefaults = \
 	scrub_finish-notify.sh \
 	statechange-led.sh \
 	statechange-notify.sh \
-	vdev_clear-led.sh
+	vdev_clear-led.sh \
+	vdev_attach-led.sh \
+	pool_import-led.sh
 
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zedconfdir)"

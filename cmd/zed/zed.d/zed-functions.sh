@@ -413,3 +413,25 @@ zed_rate_limit()
     zed_unlock "${lockfile}" "${lockfile_fd}"
     return "${rv}"
 }
+
+
+# zed_guid_to_pool (guid)
+#
+# Convert a pool GUID into its pool name (like "tank")
+# Arguments
+#   guid: pool GUID (decimal or hex)
+#
+# Return
+#   Pool name
+#
+function zed_guid_to_pool
+{
+	if [ -z "$1" ] ; then
+		return
+	fi
+
+	guid=$(printf "%llu" $1)
+	if [ ! -z "$guid" ] ; then
+		$ZPOOL get -H -ovalue,name guid | awk '$1=='$guid' {print $2}'
+	fi
+}

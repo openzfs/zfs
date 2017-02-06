@@ -80,6 +80,7 @@ typedef	struct vdev_cmd_data
 	char *upath;	/* vdev underlying path */
 	char *pool;	/* Pool name */
 	char *cmd;	/* backpointer to cmd */
+	char *vdev_enc_sysfs_path;	/* enclosure sysfs path (if any) */
 } vdev_cmd_data_t;
 
 typedef struct vdev_cmd_data_list
