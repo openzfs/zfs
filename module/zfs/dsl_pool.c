@@ -473,6 +473,7 @@ dsl_pool_dirty_delta(dsl_pool_t *dp, int64_t delta)
 void
 dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 {
+	int i;
 	zio_t *zio;
 	dmu_tx_t *tx;
 	dsl_dir_t *dd;
@@ -579,9 +580,13 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		dp->dp_mos_uncompressed_delta = 0;
 	}
 
-	if (list_head(&mos->os_dirty_dnodes[txg & TXG_MASK]) != NULL ||
-	    list_head(&mos->os_free_dnodes[txg & TXG_MASK]) != NULL) {
-		dsl_pool_sync_mos(dp, tx);
+	for (i = 0; i < OS_DNODE_LISTS; i++) {
+		struct dnode_list *dnl = mos->os_dnode_list + i;
+		if (list_head(&dnl->dnl_dirty_dnodes[txg & TXG_MASK]) != NULL ||
+		    list_head(&dnl->dnl_free_dnodes[txg & TXG_MASK]) != NULL) {
+			dsl_pool_sync_mos(dp, tx);
+			break;
+		}
 	}
 
 	/*

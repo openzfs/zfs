@@ -71,6 +71,19 @@ typedef struct objset_phys {
 
 typedef int (*dmu_objset_upgrade_cb_t)(objset_t *);
 
+#define	OS_DNODE_LISTS	16
+
+struct dnode_list {
+	kmutex_t dnl_lock;
+	list_t dnl_dirty_dnodes[TXG_SIZE];
+	list_t dnl_free_dnodes[TXG_SIZE];
+	list_t dnl_dnodes;
+}
+#ifdef _KERNEL
+____cacheline_aligned
+#endif
+;
+
 struct objset {
 	/* Immutable: */
 	struct dsl_dataset *os_dsl_dataset;
@@ -120,13 +133,12 @@ struct objset {
 
 	/* Protected by os_obj_lock */
 	kmutex_t os_obj_lock;
+	struct dnode_list os_dnode_list[OS_DNODE_LISTS];
+	int os_dirty[TXG_SIZE];
 	uint64_t os_obj_next;
 
 	/* Protected by os_lock */
 	kmutex_t os_lock;
-	list_t os_dirty_dnodes[TXG_SIZE];
-	list_t os_free_dnodes[TXG_SIZE];
-	list_t os_dnodes;
 	list_t os_downgraded_dbufs;
 
 	/* stuff we store for the user */

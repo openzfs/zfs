@@ -348,7 +348,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
     objset_t **osp)
 {
 	objset_t *os;
-	int i, err;
+	int i, j, err;
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
 
@@ -499,14 +499,20 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_zil_header = os->os_phys->os_zil_header;
 	os->os_zil = zil_alloc(os, &os->os_zil_header);
 
-	for (i = 0; i < TXG_SIZE; i++) {
-		list_create(&os->os_dirty_dnodes[i], sizeof (dnode_t),
-		    offsetof(dnode_t, dn_dirty_link[i]));
-		list_create(&os->os_free_dnodes[i], sizeof (dnode_t),
-		    offsetof(dnode_t, dn_dirty_link[i]));
+	for (j = 0; j < OS_DNODE_LISTS; j++) {
+		struct dnode_list *dnl = os->os_dnode_list + j;
+		for (i = 0; i < TXG_SIZE; i++) {
+			list_create(&dnl->dnl_dirty_dnodes[i], sizeof (dnode_t),
+			    offsetof(dnode_t, dn_dirty_link[i]));
+			list_create(&dnl->dnl_free_dnodes[i], sizeof (dnode_t),
+			    offsetof(dnode_t, dn_dirty_link[i]));
+		}
+		list_create(&dnl->dnl_dnodes, sizeof (dnode_t),
+		    offsetof(dnode_t, dn_link));
+		mutex_init(&dnl->dnl_lock, NULL, MUTEX_DEFAULT, NULL);
 	}
-	list_create(&os->os_dnodes, sizeof (dnode_t),
-	    offsetof(dnode_t, dn_link));
+	for (i = 0; i < TXG_SIZE; i++)
+		os->os_dirty[i] = 0;
 	list_create(&os->os_downgraded_dbufs, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
 
@@ -710,32 +716,38 @@ dmu_objset_evict_dbufs(objset_t *os)
 {
 	dnode_t *dn_marker;
 	dnode_t *dn;
+	int i;
 
 	dn_marker = kmem_alloc(sizeof (dnode_t), KM_SLEEP);
 
-	mutex_enter(&os->os_lock);
-	dn = list_head(&os->os_dnodes);
-	while (dn != NULL) {
-		/*
-		 * Skip dnodes without holds.  We have to do this dance
-		 * because dnode_add_ref() only works if there is already a
-		 * hold.  If the dnode has no holds, then it has no dbufs.
-		 */
-		if (dnode_add_ref(dn, FTAG)) {
-			list_insert_after(&os->os_dnodes, dn, dn_marker);
-			mutex_exit(&os->os_lock);
+	for (i = 0; i < OS_DNODE_LISTS; i++) {
+		struct dnode_list *dnl = os->os_dnode_list + i;
+		mutex_enter(&dnl->dnl_lock);
+		dn = list_head(&dnl->dnl_dnodes);
+		while (dn != NULL) {
+			/*
+			 * Skip dnodes without holds.  We have to do this
+			 * dance because dnode_add_ref() only works if there
+			 * is already a hold.  If the dnode has no holds,
+			 * then it has no dbufs.
+			 */
+			if (dnode_add_ref(dn, FTAG)) {
+				list_insert_after(&dnl->dnl_dnodes,
+				    dn, dn_marker);
+				mutex_exit(&dnl->dnl_lock);
 
-			dnode_evict_dbufs(dn);
-			dnode_rele(dn, FTAG);
+				dnode_evict_dbufs(dn);
+				dnode_rele(dn, FTAG);
 
-			mutex_enter(&os->os_lock);
-			dn = list_next(&os->os_dnodes, dn_marker);
-			list_remove(&os->os_dnodes, dn_marker);
-		} else {
-			dn = list_next(&os->os_dnodes, dn);
+				mutex_enter(&dnl->dnl_lock);
+				dn = list_next(&dnl->dnl_dnodes, dn_marker);
+				list_remove(&dnl->dnl_dnodes, dn_marker);
+			} else {
+				dn = list_next(&dnl->dnl_dnodes, dn);
+			}
 		}
+		mutex_exit(&dnl->dnl_lock);
 	}
-	mutex_exit(&os->os_lock);
 
 	kmem_free(dn_marker, sizeof (dnode_t));
 
@@ -762,7 +774,7 @@ dmu_objset_evict_dbufs(objset_t *os)
 void
 dmu_objset_evict(objset_t *os)
 {
-	int t;
+	int t, empty = 1;
 
 	dsl_dataset_t *ds = os->os_dsl_dataset;
 
@@ -779,18 +791,28 @@ dmu_objset_evict(objset_t *os)
 
 	mutex_enter(&os->os_lock);
 	spa_evicting_os_register(os->os_spa, os);
-	if (list_is_empty(&os->os_dnodes)) {
-		mutex_exit(&os->os_lock);
-		dmu_objset_evict_done(os);
-	} else {
-		mutex_exit(&os->os_lock);
+	mutex_exit(&os->os_lock);
+
+	for (t = 0; t < OS_DNODE_LISTS; t++) {
+		struct dnode_list *dnl = os->os_dnode_list + t;
+		mutex_enter(&dnl->dnl_lock);
+		if (list_is_empty(&dnl->dnl_dnodes) == 0)
+			empty = 0;
+		mutex_exit(&dnl->dnl_lock);
 	}
+	if (empty == 1)
+		dmu_objset_evict_done(os);
 }
 
 void
 dmu_objset_evict_done(objset_t *os)
 {
-	ASSERT3P(list_head(&os->os_dnodes), ==, NULL);
+	int i;
+
+	for (i = 0; i < OS_DNODE_LISTS; i++) {
+		struct dnode_list *dnl = os->os_dnode_list + i;
+		ASSERT3P(list_head(&dnl->dnl_dnodes), ==, NULL);
+	}
 
 	dnode_special_close(&os->os_meta_dnode);
 	if (DMU_USERUSED_DNODE(os)) {
@@ -810,6 +832,10 @@ dmu_objset_evict_done(objset_t *os)
 	rw_enter(&os_lock, RW_READER);
 	rw_exit(&os_lock);
 
+	for (i = 0; i < OS_DNODE_LISTS; i++) {
+		struct dnode_list *dnl = os->os_dnode_list + i;
+		mutex_destroy(&dnl->dnl_lock);
+	}
 	mutex_destroy(&os->os_lock);
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
@@ -1227,7 +1253,7 @@ dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 void
 dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 {
-	int txgoff;
+	int txgoff, i;
 	zbookmark_phys_t zb;
 	zio_prop_t zp;
 	zio_t *zio;
@@ -1295,8 +1321,14 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		    offsetof(dnode_t, dn_dirty_link[txgoff]));
 	}
 
-	dmu_objset_sync_dnodes(&os->os_free_dnodes[txgoff], newlist, tx);
-	dmu_objset_sync_dnodes(&os->os_dirty_dnodes[txgoff], newlist, tx);
+	for (i = 0; i < OS_DNODE_LISTS; i++) {
+		struct dnode_list *dnl = os->os_dnode_list + i;
+		dmu_objset_sync_dnodes(&dnl->dnl_free_dnodes[txgoff],
+		    newlist, tx);
+		dmu_objset_sync_dnodes(&dnl->dnl_dirty_dnodes[txgoff],
+		    newlist, tx);
+	}
+	os->os_dirty[txgoff] = 0;
 
 	list = &DMU_META_DNODE(os)->dn_dirty_records[txgoff];
 	while ((dr = list_head(list))) {
@@ -1323,8 +1355,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 boolean_t
 dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 {
-	return (!list_is_empty(&os->os_dirty_dnodes[txg & TXG_MASK]) ||
-	    !list_is_empty(&os->os_free_dnodes[txg & TXG_MASK]));
+	return (!!os->os_dirty[txg & TXG_MASK]);
 }
 
 static objset_used_cb_t *used_cbs[DMU_OST_NUMTYPES];

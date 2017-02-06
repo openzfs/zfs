@@ -394,6 +394,7 @@ static dnode_t *
 dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
     uint64_t object, dnode_handle_t *dnh)
 {
+	struct dnode_list *dnl;
 	dnode_t *dn;
 
 	dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
@@ -433,10 +434,11 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 
 	ASSERT(DMU_OT_IS_VALID(dn->dn_phys->dn_type));
 
-	mutex_enter(&os->os_lock);
+	dnl = os->os_dnode_list + (dn->dn_object % OS_DNODE_LISTS);
+	mutex_enter(&dnl->dnl_lock);
 	if (dnh->dnh_dnode != NULL) {
 		/* Lost the allocation race. */
-		mutex_exit(&os->os_lock);
+		mutex_exit(&dnl->dnl_lock);
 		kmem_cache_free(dnode_cache, dn);
 		return (dnh->dnh_dnode);
 	}
@@ -449,7 +451,7 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	 * been removed and then complete eviction of the objset.
 	 */
 	if (!DMU_OBJECT_IS_SPECIAL(object))
-		list_insert_head(&os->os_dnodes, dn);
+		list_insert_head(&dnl->dnl_dnodes, dn);
 	membar_producer();
 
 	/*
@@ -459,10 +461,24 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dn->dn_objset = os;
 
 	dnh->dnh_dnode = dn;
-	mutex_exit(&os->os_lock);
+	mutex_exit(&dnl->dnl_lock);
 
 	arc_space_consume(sizeof (dnode_t), ARC_SPACE_DNODE);
 	return (dn);
+}
+
+static int
+dnode_lists_are_empty(objset_t *os)
+{
+	struct dnode_list *dnl;
+	int i;
+
+	for (i = 0; i < OS_DNODE_LISTS; i++) {
+		dnl = os->os_dnode_list + i;
+		if (!list_is_empty(&dnl->dnl_dnodes))
+			return (0);
+	}
+	return (1);
 }
 
 /*
@@ -473,18 +489,20 @@ dnode_destroy(dnode_t *dn)
 {
 	objset_t *os = dn->dn_objset;
 	boolean_t complete_os_eviction = B_FALSE;
+	struct dnode_list *dnl;
 
 	ASSERT((dn->dn_id_flags & DN_ID_NEW_EXIST) == 0);
 
-	mutex_enter(&os->os_lock);
+	dnl = os->os_dnode_list + (dn->dn_object % OS_DNODE_LISTS);
+	mutex_enter(&dnl->dnl_lock);
 	POINTER_INVALIDATE(&dn->dn_objset);
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
-		list_remove(&os->os_dnodes, dn);
+		list_remove(&dnl->dnl_dnodes, dn);
 		complete_os_eviction =
-		    list_is_empty(&os->os_dnodes) &&
-		    list_link_active(&os->os_evicting_node);
+		    list_link_active(&os->os_evicting_node) &&
+		    dnode_lists_are_empty(os);
 	}
-	mutex_exit(&os->os_lock);
+	mutex_exit(&dnl->dnl_lock);
 
 	/* the dnode can no longer move, so we can release the handle */
 	zrl_remove(&dn->dn_handle->dnh_zrlock);
@@ -1401,6 +1419,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 {
 	objset_t *os = dn->dn_objset;
 	uint64_t txg = tx->tx_txg;
+	struct dnode_list *dnl;
 
 	if (DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
 		dsl_dataset_dirty(os->os_dsl_dataset, tx);
@@ -1421,13 +1440,14 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	 */
 	dmu_objset_userquota_get_ids(dn, B_TRUE, tx);
 
-	mutex_enter(&os->os_lock);
+	dnl = os->os_dnode_list + (CPU_SEQID % OS_DNODE_LISTS);
+	mutex_enter(&dnl->dnl_lock);
 
 	/*
 	 * If we are already marked dirty, we're done.
 	 */
 	if (list_link_active(&dn->dn_dirty_link[txg & TXG_MASK])) {
-		mutex_exit(&os->os_lock);
+		mutex_exit(&dnl->dnl_lock);
 		return;
 	}
 
@@ -1442,12 +1462,14 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	    dn->dn_object, txg);
 
 	if (dn->dn_free_txg > 0 && dn->dn_free_txg <= txg) {
-		list_insert_tail(&os->os_free_dnodes[txg&TXG_MASK], dn);
+		list_insert_tail(&dnl->dnl_free_dnodes[txg&TXG_MASK], dn);
 	} else {
-		list_insert_tail(&os->os_dirty_dnodes[txg&TXG_MASK], dn);
+		list_insert_tail(&dnl->dnl_dirty_dnodes[txg&TXG_MASK], dn);
 	}
+	if (os->os_dirty[txg&TXG_MASK] == 0)
+		os->os_dirty[txg&TXG_MASK] = 1;
 
-	mutex_exit(&os->os_lock);
+	mutex_exit(&dnl->dnl_lock);
 
 	/*
 	 * The dnode maintains a hold on its containing dbuf as
@@ -1469,6 +1491,7 @@ void
 dnode_free(dnode_t *dn, dmu_tx_t *tx)
 {
 	int txgoff = tx->tx_txg & TXG_MASK;
+	struct dnode_list *dnl;
 
 	dprintf("dn=%p txg=%llu\n", dn, tx->tx_txg);
 
@@ -1487,13 +1510,16 @@ dnode_free(dnode_t *dn, dmu_tx_t *tx)
 	 * If the dnode is already dirty, it needs to be moved from
 	 * the dirty list to the free list.
 	 */
-	mutex_enter(&dn->dn_objset->os_lock);
+	dnl = dn->dn_objset->os_dnode_list + (CPU_SEQID % OS_DNODE_LISTS);
+	mutex_enter(&dnl->dnl_lock);
+	if (dn->dn_objset->os_dirty[txgoff] == 0)
+		dn->dn_objset->os_dirty[txgoff] = 1;
 	if (list_link_active(&dn->dn_dirty_link[txgoff])) {
-		list_remove(&dn->dn_objset->os_dirty_dnodes[txgoff], dn);
-		list_insert_tail(&dn->dn_objset->os_free_dnodes[txgoff], dn);
-		mutex_exit(&dn->dn_objset->os_lock);
+		list_remove(&dnl->dnl_dirty_dnodes[txgoff], dn);
+		list_insert_tail(&dnl->dnl_free_dnodes[txgoff], dn);
+		mutex_exit(&dnl->dnl_lock);
 	} else {
-		mutex_exit(&dn->dn_objset->os_lock);
+		mutex_exit(&dnl->dnl_lock);
 		dnode_setdirty(dn, tx);
 	}
 }
