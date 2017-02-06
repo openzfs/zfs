@@ -1035,7 +1035,7 @@ function get_prop # property dataset
 		return 1
 	fi
 
-	$ECHO $prop_val
+	$ECHO "$prop_val"
 	return 0
 }
 
@@ -1062,7 +1062,7 @@ function get_pool_prop # property pool
 		return 1
 	fi
 
-	$ECHO $prop_val
+	$ECHO "$prop_val"
 	return 0
 }
 
