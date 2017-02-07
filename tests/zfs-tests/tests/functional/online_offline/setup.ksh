@@ -31,6 +31,12 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+[[ -z $FILE_WRITE ]] || \
+[[ -z $PS ]] || \
+[[ -z $KILL ]] || \
+[[ -z $ZPOOL ]] && \
+	log_fail "Missing required commands"
+
 verify_runnable "global"
 verify_disk_count "$DISKS" 2
 

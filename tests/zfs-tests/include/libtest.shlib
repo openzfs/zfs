@@ -37,7 +37,7 @@
 
 function is_linux
 {
-	if [[ $($UNAME -o) == "GNU/Linux" ]]; then
+    if [[ $($UNAME -o) == "GNU/Linux" ]]; then
 		return 0
 	else
 		return 1
@@ -3053,28 +3053,31 @@ function block_device_wait
 	fi
 }
 
-#
-# Synchronize all the data in pool
-#
-# $1 pool name
-#
-function sync_pool #pool
+
+function kill_process
 {
-	typeset pool=${1:-$TESTPOOL}
+	typeset -l i killpid=$1
+	typeset -l i nameofpid=$2
 
-	log_must $SYNC
-	log_must $SLEEP 2
-	# Flush all the pool data.
-	typeset -i ret
-	$ZPOOL scrub $pool >/dev/null 2>&1
-	ret=$?
-	(( $ret != 0 )) && \
-	log_fail "$ZPOOL scrub $pool failed."
-
-	while ! is_pool_scrubbed $pool; do
-		if is_pool_resilvered $pool ; then
-			log_fail "$pool should not be resilver completed."
+	if [[ -z "$killpid" || -z "$nameofpid" ]]; then
+		log_assert "killpid $killpid or nameofpid $nameofpid is not set"
+	else
+		#attempt to kill
+		log_note "$PS --no-headers -p $killpid"
+		if $PS --no-headers -o pid,command -p $killpid |grep $nameofpid > /dev/null; then
+			log_must $KILL $killpid
+			log_must sleep 5
 		fi
-		log_must $SLEEP 2
-	done
-}
+		#verify killed worked
+		if $PS --no-headers -p $killpid > /dev/null; then
+			log_note "$killpid has not exited"
+			log_must $KILL -9 $killpid
+			log_must sleep 5
+			if $PS --no-headers -p $killpid > /dev/null; then
+				log_assert "$killpid has not exited"
+			fi
+		else
+			log_note "$killpid has exited"
+		fi
+	fi
+} 

@@ -502,10 +502,8 @@ tests = ['enospc_001_pos']
 tests = ['nopwrite_copies', 'nopwrite_mtime', 'nopwrite_negative',
     'nopwrite_promoted_clone', 'nopwrite_recsize', 'nopwrite_sync']
 
-# DISABLED: needs investigation
-#[tests/functional/online_offline]
-#tests = ['online_offline_001_pos', 'online_offline_002_neg',
-#    'online_offline_003_neg']
+[tests/functional/online_offline]
+tests = ['online_offline_001_pos', 'online_offline_002_neg', 'online_offline_003_neg']
 
 [tests/functional/pool_names]
 tests = ['pool_names_001_pos', 'pool_names_002_neg']
