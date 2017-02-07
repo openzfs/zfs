@@ -1778,18 +1778,21 @@ top:
 	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
-		iput(ip);
-		if (xzp)
-			iput(ZTOI(xzp));
 		if (error == ERESTART) {
 			waited = B_TRUE;
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
+			iput(ip);
+			if (xzp)
+				iput(ZTOI(xzp));
 			goto top;
 		}
 		if (realnmp)
 			pn_free(realnmp);
 		dmu_tx_abort(tx);
+		iput(ip);
+		if (xzp)
+			iput(ZTOI(xzp));
 		ZFS_EXIT(zsb);
 		return (error);
 	}
@@ -1847,8 +1850,6 @@ top:
 		 */
 		zfs_unlinked_add(zp, tx);
 		mutex_exit(&zp->z_lock);
-		zfs_inode_update(zp);
-		iput(ip);
 	} else if (unlinked) {
 		mutex_exit(&zp->z_lock);
 		zfs_unlinked_add(zp, tx);
@@ -1866,11 +1867,12 @@ out:
 
 	zfs_dirent_unlock(dl);
 	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
 
-	if (!delete_now) {
-		zfs_inode_update(zp);
+	if (delete_now)
+		iput(ip);
+	else
 		zfs_iput_async(ip);
-	}
 
 	if (xzp) {
 		zfs_inode_update(xzp);
@@ -2161,14 +2163,15 @@ top:
 		rw_exit(&zp->z_parent_lock);
 		rw_exit(&zp->z_name_lock);
 		zfs_dirent_unlock(dl);
-		iput(ip);
 		if (error == ERESTART) {
 			waited = B_TRUE;
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
+			iput(ip);
 			goto top;
 		}
 		dmu_tx_abort(tx);
+		iput(ip);
 		ZFS_EXIT(zsb);
 		return (error);
 	}
@@ -3242,8 +3245,6 @@ out:
 		ASSERT(err2 == 0);
 	}
 
-	if (attrzp)
-		iput(ZTOI(attrzp));
 	if (aclp)
 		zfs_acl_free(aclp);
 
@@ -3254,11 +3255,15 @@ out:
 
 	if (err) {
 		dmu_tx_abort(tx);
+		if (attrzp)
+			iput(ZTOI(attrzp));
 		if (err == ERESTART)
 			goto top;
 	} else {
 		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
+		if (attrzp)
+			iput(ZTOI(attrzp));
 		zfs_inode_update(zp);
 	}
 
@@ -3291,7 +3296,7 @@ zfs_rename_unlock(zfs_zlock_t **zlpp)
 
 	while ((zl = *zlpp) != NULL) {
 		if (zl->zl_znode != NULL)
-			iput(ZTOI(zl->zl_znode));
+			zfs_iput_async(ZTOI(zl->zl_znode));
 		rw_exit(zl->zl_rwlock);
 		*zlpp = zl->zl_next;
 		kmem_free(zl, sizeof (*zl));
@@ -3636,16 +3641,19 @@ top:
 		if (sdzp == tdzp)
 			rw_exit(&sdzp->z_name_lock);
 
-		iput(ZTOI(szp));
-		if (tzp)
-			iput(ZTOI(tzp));
 		if (error == ERESTART) {
 			waited = B_TRUE;
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
+			iput(ZTOI(szp));
+			if (tzp)
+				iput(ZTOI(tzp));
 			goto top;
 		}
 		dmu_tx_abort(tx);
+		iput(ZTOI(szp));
+		if (tzp)
+			iput(ZTOI(tzp));
 		ZFS_EXIT(zsb);
 		return (error);
 	}
