@@ -123,6 +123,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -std=gnu99"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-declaration-after-statement"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS $NO_UNUSED_BUT_SET_VARIABLE"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS $NO_BOOL_COMPARE"

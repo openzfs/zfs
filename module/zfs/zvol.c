@@ -65,7 +65,8 @@ static list_t zvol_state_list;
 #define	ZVOL_HT_SIZE	1024
 static struct hlist_head *zvol_htable;
 #define	ZVOL_HT_HEAD(hash)	(&zvol_htable[(hash) & (ZVOL_HT_SIZE-1)])
-static DEFINE_IDA(zvol_ida);
+
+static struct ida zvol_ida;
 
 /*
  * The in-core state of each volume.
@@ -2161,6 +2162,7 @@ zvol_init(void)
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
 	    offsetof(zvol_state_t, zv_next));
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
+	ida_init(&zvol_ida);
 
 	zvol_htable = kmem_alloc(ZVOL_HT_SIZE * sizeof (struct hlist_head),
 	    KM_SLEEP);
