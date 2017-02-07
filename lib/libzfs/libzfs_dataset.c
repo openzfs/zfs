@@ -28,6 +28,7 @@
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.
+ * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  */
 
 #include <ctype.h>
@@ -80,8 +81,12 @@ zfs_type_to_name(zfs_type_t type)
 		return (dgettext(TEXT_DOMAIN, "snapshot"));
 	case ZFS_TYPE_VOLUME:
 		return (dgettext(TEXT_DOMAIN, "volume"));
+	case ZFS_TYPE_POOL:
+		return (dgettext(TEXT_DOMAIN, "pool"));
+	case ZFS_TYPE_BOOKMARK:
+		return (dgettext(TEXT_DOMAIN, "bookmark"));
 	default:
-		break;
+		assert(!"unhandled zfs_type_t");
 	}
 
 	return (NULL);
@@ -149,7 +154,10 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "reserved disk name"));
 				break;
+
 			default:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "(%d) not defined"), why);
 				break;
 			}
 		}
@@ -827,7 +835,8 @@ libzfs_mnttab_fini(libzfs_handle_t *hdl)
 	void *cookie = NULL;
 	mnttab_node_t *mtn;
 
-	while ((mtn = avl_destroy_nodes(&hdl->libzfs_mnttab_cache, &cookie))) {
+	while ((mtn = avl_destroy_nodes(&hdl->libzfs_mnttab_cache, &cookie))
+	    != NULL) {
 		free(mtn->mtn_mt.mnt_special);
 		free(mtn->mtn_mt.mnt_mountp);
 		free(mtn->mtn_mt.mnt_fstype);
@@ -905,7 +914,8 @@ libzfs_mnttab_remove(libzfs_handle_t *hdl, const char *fsname)
 	mnttab_node_t *ret;
 
 	find.mtn_mt.mnt_special = (char *)fsname;
-	if ((ret = avl_find(&hdl->libzfs_mnttab_cache, (void *)&find, NULL))) {
+	if ((ret = avl_find(&hdl->libzfs_mnttab_cache, (void *)&find, NULL))
+	    != NULL) {
 		avl_remove(&hdl->libzfs_mnttab_cache, ret);
 		free(ret->mtn_mt.mnt_special);
 		free(ret->mtn_mt.mnt_mountp);
@@ -1254,7 +1264,12 @@ badlabel:
 					    "component of '%s' is too long"),
 					    propname);
 					break;
+
 				default:
+					zfs_error_aux(hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "(%d) not defined"),
+					    why);
 					break;
 				}
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
@@ -1374,12 +1389,15 @@ badlabel:
 			}
 
 			break;
+
 		case ZFS_PROP_UTF8ONLY:
 			chosen_utf = (int)intval;
 			break;
+
 		case ZFS_PROP_NORMALIZE:
 			chosen_normal = (int)intval;
 			break;
+
 		default:
 			break;
 		}
@@ -1430,6 +1448,7 @@ badlabel:
 					goto error;
 				}
 				break;
+
 			default:
 				break;
 			}
@@ -2076,6 +2095,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		mntopt_on = MNTOPT_NBMAND;
 		mntopt_off = MNTOPT_NONBMAND;
 		break;
+
 	default:
 		break;
 	}
@@ -3251,7 +3271,7 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 	 * up to the prefixlen-long one.
 	 */
 	for (cp = target + prefixlen + 1;
-	    (cp = strchr(cp, '/')); *cp = '/', cp++) {
+	    (cp = strchr(cp, '/')) != NULL; *cp = '/', cp++) {
 
 		*cp = '\0';
 
@@ -4021,7 +4041,7 @@ int
 zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
     boolean_t force_unmount)
 {
-	int ret;
+	int ret = 0;
 	zfs_cmd_t zc = {"\0"};
 	char *delim;
 	prop_changelist_t *cl = NULL;

@@ -24,6 +24,7 @@
  * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015 by Delphix. All rights reserved.
  * Copyright 2016 Joyent, Inc.
+ * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  */
 
 /*
@@ -345,7 +346,7 @@ write_inuse_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 	int err;
 
 	for (o = dr->ddr_first; o <= dr->ddr_last; o++) {
-		if ((err = write_inuse_diffs_one(fp, di, o)))
+		if ((err = write_inuse_diffs_one(fp, di, o)) != 0)
 			return (err);
 	}
 	return (0);
