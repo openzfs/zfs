@@ -1,0 +1,160 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_upgrade/zpool_upgrade.cfg
+
+# This part of the test suite relies on variables being setup in the
+# zpool_upgrade.cfg script. Those variables give us details about which
+# files make up the pool, and what the pool name is.
+
+
+# A function to import a pool from files we have stored in the test suite
+# We import the pool, and create some random data in the pool.
+# $1 a version number we can use to get information about the pool
+function create_old_pool
+{
+	typeset vers=$1
+	typeset -n pool_files=ZPOOL_VERSION_${vers}_FILES
+	typeset -n pool_name=ZPOOL_VERSION_${vers}_NAME
+
+	log_note "Creating $pool_name from $pool_files"
+	for pool_file in $pool_files; do
+		log_must $BZCAT \
+		    $STF_SUITE/tests/functional/cli_root/zpool_upgrade/$pool_file.bz2 \
+		    >/$TESTPOOL/$pool_file
+	done
+	log_must $ZPOOL import -d /$TESTPOOL $pool_name
+
+	# Put some random contents into the pool
+	for i in {1..1024} ; do
+		$DD if=/dev/urandom of=/$pool_name/random.$i \
+		    count=1 bs=1024 > /dev/null 2>&1
+	done
+}
+
+
+# A function to check the contents of a pool, upgrade it to the current version
+# and then verify that the data is consistent after upgrading. Note that we're
+# not using "zpool status -x" to see if the pool is healthy, as it's possible
+# to also upgrade faulted, or degraded pools.
+# $1 a version number we can use to get information about the pool
+function check_upgrade
+{
+	typeset vers=$1
+	typeset -n pool_files=ZPOOL_VERSION_${vers}_FILES
+	typeset -n pool_name=ZPOOL_VERSION_${vers}_NAME
+	typeset pre_upgrade_checksum
+	typeset post_upgrade_checksum
+
+	log_note "Checking if we can upgrade from ZFS version $vers"
+	pre_upgrade_checksum=$(check_pool $pool_name pre)
+	log_must $ZPOOL upgrade $pool_name
+	post_upgrade_checksum=$(check_pool $pool_name post)
+
+	log_note "Checking that there are no differences between checksum output"
+	log_must $DIFF $pre_upgrade_checksum $post_upgrade_checksum
+	$RM $pre_upgrade_checksum $post_upgrade_checksum
+}
+
+# A function to destroy an upgraded pool, plus the files it was based on.
+# $1 a version number we can use to get information about the pool
+function destroy_upgraded_pool
+{
+	typeset vers=$1
+	typeset -n pool_files=ZPOOL_VERSION_${vers}_FILES
+	typeset -n pool_name=ZPOOL_VERSION_${vers}_NAME
+
+	if poolexists $pool_name; then
+		log_must $ZPOOL destroy $pool_name
+	fi
+	for file in $pool_files; do
+		$RM -f /$TESTPOOL/$file
+	done
+}
+
+# This function does a basic sanity check on the pool by computing the
+# checksums of all files in the pool, echoing the name of the file containing
+# the checksum results.
+# $1 the name of the pool
+# $2 a flag we can use to determine when this check is being performed
+#    (ie. pre or post pool-upgrade)
+function check_pool
+{
+	typeset pool=$1
+	typeset flag=$2
+	$FIND /$pool -type f -exec $CKSUM {} + > \
+		/$TESTPOOL/pool-checksums.$pool.$flag
+	echo /$TESTPOOL/pool-checksums.$pool.$flag
+}
+
+# This function simply checks that a pool has a particular version number
+# as reported by zdb and zpool upgrade -v
+# $1 the name of the pool
+# $2 the version of the pool we expect to see
+function check_poolversion
+{
+	typeset pool=$1
+	typeset vers=$2
+	typeset actual
+
+	# check version using zdb
+	actual=$($ZDB -C $pool | $SED -n 's/^.*version: \(.*\)$/\1/p')
+	if [[ $actual != $vers ]] ; then
+		log_fail "$pool: zdb reported version $actual, expected $vers"
+	fi
+
+	# check version using zpool upgrade
+	actual=$($ZPOOL upgrade | $GREP $pool$ | \
+	    $AWK '{print $1}' | $SED -e 's/ //g')
+	if [[ $actual != $vers ]] ; then
+		log_fail "$pool: zpool reported version $actual, expected $vers"
+	fi
+}
+
+# A simple function to get a random number between two bounds
+# probably not the most efficient for large ranges, but it's okay.
+# Note since we're using $RANDOM, 32767 is the largest number we
+# can accept as the upper bound.
+# $1 lower bound
+# $2 upper bound
+function random
+{
+	typeset min=$1
+	typeset max=$2
+	typeset rand=0
+
+	while [[ $rand -lt $min ]] ; do
+		rand=$(( $RANDOM % $max + 1))
+	done
+
+	echo $rand
+}

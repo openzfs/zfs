@@ -175,6 +175,7 @@ Requires:       parted
 Requires:       lsscsi
 Requires:       mdadm
 Requires:       bc
+Requires:       ksh
 
 %description test
 This package contains test infrastructure and support scripts for

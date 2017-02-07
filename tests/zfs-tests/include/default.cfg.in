@@ -1,0 +1,200 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/commands.cfg
+. $STF_SUITE/include/libtest.shlib
+
+# Optionally override the installed ZFS commands to run in-tree
+if [[ -f "$STF_SUITE/include/zfs_commands.cfg" ]]; then
+	. $STF_SUITE/include/zfs_commands.cfg
+fi
+
+# Define run length constants
+export RT_LONG="3"
+export RT_MEDIUM="2"
+export RT_SHORT="1"
+
+# Define macro for zone test
+export ZONE_POOL="zonepool"
+export ZONE_CTR="zonectr"
+
+# Common paths
+bindir=@bindir@
+sbindir=@sbindir@
+helperdir=@datarootdir@/@PACKAGE@/zfs-tests/bin
+
+# ZFS Commands
+ZDB=${ZDB:-${sbindir}/zdb}
+ZFS=${ZFS:-${sbindir}/zfs}
+ZHACK=${ZHACK:-${sbindir}/zhack}
+ZINJECT=${ZINJECT:-${sbindir}/zinject}
+ZPOOL=${ZPOOL:-${sbindir}/zpool}
+ZTEST=${ZTEST:-${sbindir}/ztest}
+ZPIOS=${ZPIOS:-${sbindir}/zpios}
+
+# Test Suite Specific Commands
+export CHG_USR_EXEC=${CHG_USR_EXEC:-${helperdir}/chg_usr_exec}
+export DEVNAME2DEVID=${DEVNAME2DEVID:-${helperdir}/devname2devid}
+export DIR_RD_UPDATE=${DIR_RD_UPDATE:-${helperdir}/dir_rd_update}
+export FILE_CHECK=${FILE_CHECK:-${helperdir}/file_check}
+export FILE_TRUNC=${FILE_TRUNC:-${helperdir}/file_trunc}
+export FILE_WRITE=${FILE_WRITE:-${helperdir}/file_write}
+export LARGEST_FILE=${LARGEST_FILE:-${helperdir}/largest_file}
+export MKBUSY=${MKBUSY:-${helperdir}/mkbusy}
+export MKFILE=${MKFILE:-${helperdir}/mkfile}
+export MKFILES=${MKFILES:-${helperdir}/mkfiles}
+export MKTREE=${MKTREE:-${helperdir}/mktree}
+export MMAP_EXEC=${MMAP_EXEC:-${helperdir}/mmap_exec}
+export MMAPWRITE=${MMAPWRITE:-${helperdir}/mmapwrite}
+export RANDFREE_FILE=${RANDFREE_FILE:-${helperdir}/randfree_file}
+export READMMAP=${READMMAP:-${helperdir}/readmmap}
+export RENAME_DIR=${RENAME_DIR:-${helperdir}/rename_dir}
+export RM_LNKCNT_ZERO_FILE=${RM_LNKCNT_ZERO_FILE:-${helperdir}/rm_lnkcnt_zero_file}
+export THREADSAPPEND=${THREADSAPPEND:-${helperdir}/threadsappend}
+export XATTRTEST=${XATTRTEST:-${helpdir}/xattrtest}
+
+# ensure we're running in the C locale, since
+# localised messages may result in test failures
+export LC_ALL="C"
+export LANG="C"
+
+#
+# pattern to ignore from 'zpool list'.
+#
+export NO_POOLS="no pools available"
+
+# pattern to ignore from 'zfs list'.
+export NO_DATASETS="no datasets available"
+
+export TEST_BASE_DIR="/var/tmp"
+
+# Default to compression ON
+export COMPRESSION_PROP=on
+
+# Default to using the checksum
+export CHECKSUM_PROP=on
+
+# some common variables used by test scripts :
+
+# some test pool names
+export TESTPOOL=testpool.$$
+export TESTPOOL1=testpool1.$$
+export TESTPOOL2=testpool2.$$
+export TESTPOOL3=testpool3.$$
+
+# some test file system names
+export TESTFS=testfs.$$
+export TESTFS1=testfs1.$$
+export TESTFS2=testfs2.$$
+export TESTFS3=testfs3.$$
+
+# some test directory names
+export TESTDIR=${TEST_BASE_DIR%%/}/testdir$$
+export TESTDIR0=${TEST_BASE_DIR%%/}/testdir0$$
+export TESTDIR1=${TEST_BASE_DIR%%/}/testdir1$$
+export TESTDIR2=${TEST_BASE_DIR%%/}/testdir2$$
+
+export ZFSROOT=
+
+export TESTSNAP=testsnap$$
+export TESTSNAP1=testsnap1$$
+export TESTSNAP2=testsnap2$$
+export TESTCLONE=testclone$$
+export TESTCLONE1=testclone1$$
+export TESTCLONE2=testclone2$$
+export TESTCLCT=testclct$$
+export TESTCTR=testctr$$
+export TESTCTR1=testctr1$$
+export TESTCTR2=testctr2$$
+export TESTVOL=testvol$$
+export TESTVOL1=testvol1$$
+export TESTVOL2=testvol2$$
+export TESTFILE0=testfile0.$$
+export TESTFILE1=testfile1.$$
+export TESTFILE2=testfile2.$$
+
+export LONGPNAME="poolname50charslong_012345678901234567890123456789"
+export LONGFSNAME="fsysname50charslong_012345678901234567890123456789"
+export SNAPFS="$TESTPOOL/$TESTFS@$TESTSNAP"
+export SNAPFS1="$TESTPOOL/$TESTVOL@$TESTSNAP"
+
+export VOLSIZE=150m
+export BIGVOLSIZE=1eb
+
+# Default to limit disks to be checked
+export MAX_FINDDISKSNUM=6
+
+# For iscsi target support
+export ISCSITGTFILE=/tmp/iscsitgt_file
+export ISCSITGT_FMRI=svc:/system/iscsitgt:default
+
+#
+# finally, if we're running in a local zone
+# we take some additional actions
+if ! is_global_zone; then
+	reexport_pool
+fi
+
+export ZFS_VERSION=5
+export ZFS_ALL_VERSIONS="1 2 3 4 5"
+
+for i in $ZFS_ALL_VERSIONS; do
+	eval 'export ZFS_VERSION_$i="v${i}-fs"'
+done
+
+if is_linux; then
+	unpack_opts="--sparse -xf"
+	pack_opts="--sparse -cf"
+	verbose=" -v"
+	unpack_preserve=" -xpf"
+	pack_preserve=" -cpf"
+
+	ZVOL_DEVDIR="/dev/zvol"
+	ZVOL_RDEVDIR="/dev/zvol"
+	DEV_DSKDIR="/dev"
+	DEV_RDSKDIR="/dev"
+
+	NEWFS_DEFAULT_FS="ext2"
+else
+	unpack_opts="xv"
+	pack_opts="cf"
+	verbose="v"
+	unpack_preserve="xpf"
+	pack_preserve="cpf"
+
+	ZVOL_DEVDIR="/dev/zvol/dsk"
+	ZVOL_RDEVDIR="/dev/zvol/rdsk"
+	DEV_DSKDIR="/dev/dsk"
+	DEV_RDSKDIR="/dev/rdsk"
+
+	NEWFS_DEFAULT_FS="ufs"
+fi
+export unpack_opts pack_opts verbose unpack_preserve pack_preserve \
+       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_DSKDIR DEV_RDSKDIR

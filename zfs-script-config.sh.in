@@ -1,54 +1,80 @@
-#!/bin/bash
+export KERNELSRC=@LINUX@
+export KERNELBUILD=@LINUX_OBJ@
+export KERNELSRCVER=@LINUX_VERSION@
+export KERNELMOD=/lib/modules/${KERNELSRCVER}/kernel
 
-KERNELSRC=@LINUX@
-KERNELBUILD=@LINUX_OBJ@
-KERNELSRCVER=@LINUX_VERSION@
-KERNELMOD=/lib/modules/${KERNELSRCVER}/kernel
+export SPLSRC=@SPL@
+export SPLBUILD=@SPL_OBJ@
+export SPLSRCVER=@SPL_VERSION@
 
-SPLSRC=@SPL@
-SPLBUILD=@SPL_OBJ@
-SPLSRCVER=@SPL_VERSION@
+export SRCDIR=@abs_top_srcdir@
+export BUILDDIR=@abs_top_builddir@
+export LIBDIR=${BUILDDIR}/lib
+export CMDDIR=${BUILDDIR}/cmd
+export MODDIR=${BUILDDIR}/module
+export SCRIPTDIR=${BUILDDIR}/scripts
+export ZPOOLDIR=${BUILDDIR}/scripts/zpool-config
+export ZPIOSDIR=${BUILDDIR}/scripts/zpios-test
+export ZPIOSPROFILEDIR=${BUILDDIR}/scripts/zpios-profile
+export ETCDIR=${SRCDIR}/etc
+export TESTSDIR=${SRCDIR}/tests
+export RUNFILEDIR=${TESTSDIR}/runfiles
 
-SRCDIR=@abs_top_srcdir@
-BUILDDIR=@abs_top_builddir@
-LIBDIR=${BUILDDIR}/lib
-CMDDIR=${BUILDDIR}/cmd
-MODDIR=${BUILDDIR}/module
-SCRIPTDIR=${BUILDDIR}/scripts
-ZPOOLDIR=${BUILDDIR}/scripts/zpool-config
-ZPIOSDIR=${BUILDDIR}/scripts/zpios-test
-ZPIOSPROFILEDIR=${BUILDDIR}/scripts/zpios-profile
-ETCDIR=${SRCDIR}/etc
+export ZDB=${CMDDIR}/zdb/zdb
+export ZFS=${CMDDIR}/zfs/zfs
+export ZINJECT=${CMDDIR}/zinject/zinject
+export ZPOOL=${CMDDIR}/zpool/zpool
+export ZTEST=${CMDDIR}/ztest/ztest
+export ZPIOS=${CMDDIR}/zpios/zpios
 
-ZDB=${CMDDIR}/zdb/zdb
-ZFS=${CMDDIR}/zfs/zfs
-ZINJECT=${CMDDIR}/zinject/zinject
-ZPOOL=${CMDDIR}/zpool/zpool
-ZTEST=${CMDDIR}/ztest/ztest
-ZPIOS=${CMDDIR}/zpios/zpios
+export COMMON_SH=${SCRIPTDIR}/common.sh
+export ZFS_SH=${SCRIPTDIR}/zfs.sh
+export ZPOOL_CREATE_SH=${SCRIPTDIR}/zpool-create.sh
+export ZPIOS_SH=${SCRIPTDIR}/zpios.sh
+export ZPIOS_SURVEY_SH=${SCRIPTDIR}/zpios-survey.sh
 
-COMMON_SH=${SCRIPTDIR}/common.sh
-ZFS_SH=${SCRIPTDIR}/zfs.sh
-ZPOOL_CREATE_SH=${SCRIPTDIR}/zpool-create.sh
-ZPIOS_SH=${SCRIPTDIR}/zpios.sh
-ZPIOS_SURVEY_SH=${SCRIPTDIR}/zpios-survey.sh
+# Test Suite Specific Commands
+export TEST_RUNNER=${TESTSDIR}/test-runner/cmd/test-runner.py
+export STF_TOOLS=${TESTSDIR}/test-runner
+export STF_SUITE=${TESTSDIR}/zfs-tests
 
-INTREE=1
-LDMOD=/sbin/insmod
+export CHG_USR_EXEC=${TESTSDIR}/zfs-tests/cmd/chg_usr_exec/chg_usr_exec
+export DEVNAME2DEVID=${TESTSDIR}/zfs-tests/cmd/devname2devid/devname2devid
+export DIR_RD_UPDATE=${TESTSDIR}/zfs-tests/cmd/dir_rd_update/dir_rd_update
+export FILE_CHECK=${TESTSDIR}/zfs-tests/cmd/file_check/file_check
+export FILE_TRUNC=${TESTSDIR}/zfs-tests/cmd/file_trunc/file_trunc
+export FILE_WRITE=${TESTSDIR}/zfs-tests/cmd/file_write/file_write
+export LARGEST_FILE=${TESTSDIR}/zfs-tests/cmd/largest_file/largest_file
+export MKBUSY=${TESTSDIR}/zfs-tests/cmd/mkbusy/mkbusy
+export MKFILE=${TESTSDIR}/zfs-tests/cmd/mkfile/mkfile
+export MKFILES=${TESTSDIR}/zfs-tests/cmd/mkfile/mkfiles
+export MKTREE=${TESTSDIR}/zfs-tests/cmd/mktree/mktree
+export MMAP_EXEC=${TESTSDIR}/zfs-tests/cmd/mmap_exec/mmap_exec
+export MMAPWRITE=${TESTSDIR}/zfs-tests/cmd/mmapwrite/mmapwrite
+export RANDFREE_FILE=${TESTSDIR}/zfs-tests/cmd/randfree_file/randfree_file
+export READMMAP=${TESTSDIR}/zfs-tests/cmd/readmmap/readmmap
+export RENAME_DIR=${TESTSDIR}/zfs-tests/cmd/rename_dir/rename_dir
+export RM_LNKCNT_ZERO_FILE=${TESTSDIR}/zfs-tests/cmd/rm_lnkcnt_zero_file/rm_lnkcnt_zero_file
+export THREADSAPPEND=${TESTSDIR}/zfs-tests/cmd/threadsappend/threadsappend
+export XATTRTEST=${TESTDIR}/zfs-tests/cmd/xattrtest
 
-ZED_PIDFILE=@runstatedir@/zed.pid
+export INTREE=1
+export LDMOD=/sbin/insmod
+export GDB="/usr/bin/libtool --mode=execute gdb"
 
-KERNEL_MODULES=(                                      \
+export ZED_PIDFILE=@runstatedir@/zed.pid
+
+export KERNEL_MODULES=(                               \
         ${KERNELMOD}/lib/zlib_deflate/zlib_deflate.ko \
         ${KERNELMOD}/lib/zlib_inflate/zlib_inflate.ko \
 )
 
-SPL_MODULES=(                                         \
+export SPL_MODULES=(                                  \
         ${SPLBUILD}/module/spl/spl.ko                 \
         ${SPLBUILD}/module/splat/splat.ko             \
 )
 
-ZFS_MODULES=(                                         \
+export ZFS_MODULES=(                                  \
         ${MODDIR}/avl/zavl.ko                         \
         ${MODDIR}/nvpair/znvpair.ko                   \
         ${MODDIR}/unicode/zunicode.ko                 \
@@ -56,11 +82,11 @@ ZFS_MODULES=(                                         \
         ${MODDIR}/zfs/zfs.ko                          \
 )
 
-ZPIOS_MODULES=(                                       \
+export ZPIOS_MODULES=(                                \
         ${MODDIR}/zpios/zpios.ko                      \
 )
 
-MODULES=(                                             \
+export MODULES=(                                      \
         ${SPL_MODULES[*]}                             \
         ${ZFS_MODULES[*]}                             \
 )
