@@ -39,6 +39,7 @@ function cleanup
 	if datasetexists $TESTPOOL2 ; then
 		log_must $ZPOOL destroy -f $TESTPOOL2
 	fi
+	rm -rf $TESTDIR
 }
 
 #

@@ -17,4 +17,5 @@ dist_pkgdata_SCRIPTS = \
 	slog_011_neg.ksh \
 	slog_012_neg.ksh \
 	slog_013_pos.ksh \
-	slog_014_pos.ksh
+	slog_014_pos.ksh \
+	slog_015_pos.ksh
