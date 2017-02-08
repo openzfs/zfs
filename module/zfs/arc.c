@@ -7735,10 +7735,6 @@ MODULE_PARM_DESC(zfs_compressed_arc_enabled, "Disable compressed arc buffers");
 module_param(zfs_arc_min_prefetch_lifespan, int, 0644);
 MODULE_PARM_DESC(zfs_arc_min_prefetch_lifespan, "Min life of prefetch block");
 
-module_param(zfs_arc_num_sublists_per_state, int, 0644);
-MODULE_PARM_DESC(zfs_arc_num_sublists_per_state,
-	"Number of sublists used in each of the ARC state lists");
-
 module_param(l2arc_write_max, ulong, 0644);
 MODULE_PARM_DESC(l2arc_write_max, "Max write bytes per interval");
 

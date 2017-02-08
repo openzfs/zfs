@@ -622,15 +622,16 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_arc_num_sublists_per_state\fR (int)
+\fBzfs_multilist_num_sublists\fR (int)
 .ad
 .RS 12n
 To allow more fine-grained locking, each ARC state contains a series
 of lists for both data and meta data objects.  Locking is performed at
 the level of these "sub-lists".  This parameters controls the number of
-sub-lists per ARC state.
+sub-lists per ARC state, and also applies to other uses of the
+multilist data structure.
 .sp
-Default value: \fB1\fR or the number of online CPUs, whichever is greater
+Default value: \fB4\fR or the number of online CPUs, whichever is greater
 .RE
 
 .sp

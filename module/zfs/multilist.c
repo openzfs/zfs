@@ -382,3 +382,14 @@ multilist_link_active(multilist_node_t *link)
 {
 	return (list_link_active(link));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+
+/* BEGIN CSTYLED */
+
+module_param(zfs_multilist_num_sublists, int, 0644);
+MODULE_PARM_DESC(zfs_multilist_num_sublists,
+	"Number of sublists used in each multilist");
+
+/* END CSTYLED */
+#endif
