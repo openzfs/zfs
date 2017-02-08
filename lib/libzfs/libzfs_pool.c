@@ -679,6 +679,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
+			break;
 
 		default:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -999,9 +1000,11 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 				    "multiple '@' and/or '#' delimiters in "
 				    "name"));
 				break;
+
 			case NAME_ERR_NO_AT:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "permission set is missing '@'"));
+				break;
 
 			default:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
