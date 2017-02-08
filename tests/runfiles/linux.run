@@ -585,7 +585,7 @@ tests = ['scrub_mirror_001_pos', 'scrub_mirror_002_pos',
 [tests/functional/slog]
 tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',
-    'slog_009_neg', 'slog_010_neg', 'slog_011_neg']
+    'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_015_pos']
 
 # DISABLED:
 # clone_001_pos - https://github.com/zfsonlinux/zfs/issues/3484
