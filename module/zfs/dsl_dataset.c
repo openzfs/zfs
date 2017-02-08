@@ -2956,7 +2956,6 @@ void
 dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx)
 {
-	spa_feature_t f;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int64_t unused_refres_delta;
 	blkptr_t tmp;
@@ -2974,7 +2973,7 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	/*
 	 * Swap per-dataset feature flags.
 	 */
-	for (f = 0; f < SPA_FEATURES; f++) {
+	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
 		boolean_t clone_inuse;
 		boolean_t origin_head_inuse;
 
