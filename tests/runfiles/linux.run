@@ -227,10 +227,10 @@ tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos']
 [tests/functional/cli_root/zpool_add]
 tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
     'zpool_add_007_neg', 'zpool_add_008_neg', 'zpool_add_009_neg',
-    'add-o_ashift']
+    'add-o_ashift', 'add_prop_ashift']
 
 [tests/functional/cli_root/zpool_attach]
-tests = ['zpool_attach_001_neg']
+tests = ['zpool_attach_001_neg', 'attach-o_ashift']
 
 # DISABLED:
 # zpool_clear_001_pos - https://github.com/zfsonlinux/zfs/issues/5634
@@ -258,7 +258,8 @@ tests = [
     'zpool_create_024_pos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
-    'zpool_create_features_005_pos']
+    'zpool_create_features_005_pos',
+    'create-o_ashift']
 
 # DISABLED:
 # zpool_destroy_001_pos - needs investigation
@@ -323,7 +324,7 @@ tests = ['zpool_online_001_pos', 'zpool_online_002_neg']
 tests = ['zpool_remove_001_neg', 'zpool_remove_002_pos']
 
 [tests/functional/cli_root/zpool_replace]
-tests = ['zpool_replace_001_neg']
+tests = ['zpool_replace_001_neg', 'replace-o_ashift', 'replace_prop_ashift']
 
 [tests/functional/cli_root/zpool_scrub]
 tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',

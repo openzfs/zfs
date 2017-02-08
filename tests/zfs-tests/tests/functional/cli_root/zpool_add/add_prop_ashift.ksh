@@ -29,13 +29,14 @@
 
 #
 # DESCRIPTION:
-#	'zpool add -o ashift=<n> ...' should work with different ashift
-#	values.
+#	'zpool add' should use the ashift pool property value as default.
 #
 # STRATEGY:
 #	1. Create a pool with default values.
-#	2. Verify 'zpool add -o ashift=<n>' works with allowed values (9-16).
-#	3. Verify 'zpool add -o ashift=<n>' doesn't accept other invalid values.
+#	2. Verify 'zpool add' uses the ashift pool property value when adding
+#	   a new device.
+#	3. Verify the default ashift value can still be overridden by manually
+#	   specifying '-o ashift=<n>' from the command line.
 #
 
 verify_runnable "global"
@@ -46,7 +47,7 @@ function cleanup
 	log_must rm -f $disk1 $disk2
 }
 
-log_assert "zpool add -o ashift=<n>' works with different ashift values"
+log_assert "'zpool add' uses the ashift pool property value as default."
 log_onexit cleanup
 
 disk1=$TEST_BASE_DIR/$FILEDISK0
@@ -57,8 +58,8 @@ log_must mkfile $SIZE $disk2
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 for ashift in ${ashifts[@]}
 do
-	log_must zpool create $TESTPOOL $disk1
-	log_must zpool add -o ashift=$ashift $TESTPOOL $disk2
+	log_must zpool create -o ashift=$ashift $TESTPOOL $disk1
+	log_must zpool add $TESTPOOL $disk2
 	verify_ashift $disk2 $ashift
 	if [[ $? -ne 0 ]]
 	then
@@ -71,15 +72,23 @@ do
 	log_must zpool labelclear $disk2
 done
 
-typeset badvals=("off" "on" "1" "8" "17" "1b" "ff" "-")
-for badval in ${badvals[@]}
+for ashift in ${ashifts[@]}
 do
-	log_must zpool create $TESTPOOL $disk1
-	log_mustnot zpool add $TESTPOOL -o ashift="$badval" $disk2
-	# clean things for the next run
-	log_must zpool destroy $TESTPOOL
-	log_must zpool labelclear $disk1
-	log_mustnot zpool labelclear $disk2
+	for cmdval in ${ashifts[@]}
+	do
+		log_must zpool create -o ashift=$ashift $TESTPOOL $disk1
+		log_must zpool add $TESTPOOL -o ashift=$cmdval $disk2
+		verify_ashift $disk2 $cmdval
+		if [[ $? -ne 0 ]]
+		then
+			log_fail "Device was added without setting ashift " \
+			    "value to $cmdval"
+		fi
+		# clean things for the next run
+		log_must zpool destroy $TESTPOOL
+		log_must zpool labelclear $disk1
+		log_must zpool labelclear $disk2
+	done
 done
 
-log_pass "zpool add -o ashift=<n>' works with different ashift values"
+log_pass "'zpool add' uses the ashift pool property value."

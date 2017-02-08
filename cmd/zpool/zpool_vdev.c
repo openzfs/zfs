@@ -698,7 +698,11 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 
 		if (nvlist_lookup_string(props,
 		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0) {
-			zfs_nicestrtonum(NULL, value, &ashift);
+			if (zfs_nicestrtonum(NULL, value, &ashift) != 0) {
+				(void) fprintf(stderr,
+				    gettext("ashift must be a number.\n"));
+				return (NULL);
+			}
 			if (ashift != 0 &&
 			    (ashift < ASHIFT_MIN || ashift > ASHIFT_MAX)) {
 				(void) fprintf(stderr,
