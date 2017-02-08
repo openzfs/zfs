@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014 by Saso Kiselkov. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  */
@@ -306,13 +306,6 @@ static kcondvar_t	arc_reclaim_waiters_cv;
  * (i.e. more invocations of arc_evict_state_impl()).
  */
 int zfs_arc_evict_batch_limit = 10;
-
-/*
- * The number of sublists used for each of the arc state lists. If this
- * is not set to a suitable value by the user, it will be configured to
- * the number of CPUs on the system in arc_init().
- */
-int zfs_arc_num_sublists_per_state = 0;
 
 /* number of seconds before growing cache again */
 static int		arc_grow_retry = 5;
@@ -6285,43 +6278,43 @@ arc_state_init(void)
 	multilist_create(&arc_mru->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_mru->arcs_list[ARC_BUFC_DATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_mru_ghost->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_mru_ghost->arcs_list[ARC_BUFC_DATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_mfu->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_mfu->arcs_list[ARC_BUFC_DATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_mfu_ghost->arcs_list[ARC_BUFC_DATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_DATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    zfs_arc_num_sublists_per_state, arc_state_multilist_index_func);
+	    arc_state_multilist_index_func);
 
 	refcount_create(&arc_anon->arcs_esize[ARC_BUFC_METADATA]);
 	refcount_create(&arc_anon->arcs_esize[ARC_BUFC_DATA]);
@@ -6451,9 +6444,6 @@ arc_init(void)
 
 	/* Apply user specified tunings */
 	arc_tuning_update();
-
-	if (zfs_arc_num_sublists_per_state < 1)
-		zfs_arc_num_sublists_per_state = MAX(boot_ncpus, 1);
 
 	/* if kmem_flags are set, lets try to use less memory */
 	if (kmem_debugging())
