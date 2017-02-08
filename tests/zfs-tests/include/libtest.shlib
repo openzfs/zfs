@@ -3078,3 +3078,17 @@ function sync_pool #pool
 		log_must $SLEEP 2
 	done
 }
+
+#
+# Wait for zpool 'freeing' property drops to zero.
+#
+# $1 pool name
+#
+function wait_freeing #pool
+{
+	typeset pool=${1:-$TESTPOOL}
+	while true; do
+		[[ "0" == "$($ZPOOL list -Ho freeing $pool)" ]] && break
+		log_must $SLEEP 1
+	done
+}

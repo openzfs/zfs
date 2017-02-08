@@ -88,6 +88,8 @@ while [[ $i -lt $COUNT ]]; do
 	(( i = i + 1 ))
 done
 
+wait_freeing $TESTPOOL
+
 new_size=`get_prop available $TESTPOOL`
 
 typeset -i tolerance=0
