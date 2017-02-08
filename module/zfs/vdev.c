@@ -1173,6 +1173,7 @@ vdev_open_children(vdev_t *vd)
 	taskq_t *tq;
 	int children = vd->vdev_children;
 	int c;
+	boolean_t nonrot_some;
 
 	/*
 	 * in order to handle pools on top of zvols, do the opens
@@ -1198,9 +1199,19 @@ retry_sync:
 	}
 
 	vd->vdev_nonrot = B_TRUE;
+	vd->vdev_nonrot_mix = B_TRUE;
+	nonrot_some = B_FALSE;
 
-	for (c = 0; c < children; c++)
+	for (c = 0; c < children; c++) {
 		vd->vdev_nonrot &= vd->vdev_child[c]->vdev_nonrot;
+		vd->vdev_nonrot_mix &= vd->vdev_child[c]->vdev_nonrot_mix |
+		    vd->vdev_child[c]->vdev_nonrot;
+		nonrot_some |= vd->vdev_child[c]->vdev_nonrot;
+	}
+	if (vd->vdev_ops == &vdev_mirror_ops)
+		vd->vdev_nonrot_mix |= nonrot_some;
+	if (vd->vdev_nonrot)
+		vd->vdev_nonrot_mix = B_FALSE;
 }
 
 /*
@@ -1238,14 +1249,36 @@ vdev_open(vdev_t *vd)
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    vd->vdev_label_aux);
+		/*
+		 * Must set some rotor category, such that
+		 * metaslab_class_space_update() can be safely called.
+		 */
+		if (vd->vdev_mg)
+			metaslab_group_set_rotor_category(vd->vdev_mg, B_TRUE);
 		return (SET_ERROR(ENXIO));
 	} else if (vd->vdev_offline) {
 		ASSERT(vd->vdev_children == 0);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_OFFLINE, VDEV_AUX_NONE);
+		if (vd->vdev_mg)
+			metaslab_group_set_rotor_category(vd->vdev_mg, B_TRUE);
 		return (SET_ERROR(ENXIO));
 	}
 
 	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize, &ashift);
+
+	/*
+	 * Somewhere after vd->vdev_ops->vdev_op_open() (that calls
+	 * vdev_open_children() and thus updates vd->vdev_nonrot) and
+	 * before metaslab_class_space_update() gets called, we need
+	 * to assign the rotor category of the metaslab group.
+	 *
+	 * At this point, the metaslab group has already been created.
+	 *
+	 * Do the handling here, before any return in case error has
+	 * been set.
+	 */
+	if (vd->vdev_mg)
+		metaslab_group_set_rotor_category(vd->vdev_mg, B_FALSE);
 
 	/*
 	 * Reset the vdev_reopening flag so that we actually close
@@ -2895,6 +2928,21 @@ vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			    &vd->vdev_queue.vq_class[t].vqc_queued_tree);
 		}
 	}
+	if (vsx) {
+		if (vd->vdev_nonrot) {
+			if (vd->vdev_ops == &vdev_file_ops)
+				vsx->vsx_media_type = VDEV_MEDIA_TYPE_FILE;
+			else
+				vsx->vsx_media_type = VDEV_MEDIA_TYPE_SSD;
+		} else if (vd->vdev_nonrot_mix)
+			vsx->vsx_media_type = VDEV_MEDIA_TYPE_MIXED;
+		else
+			vsx->vsx_media_type = VDEV_MEDIA_TYPE_HDD;
+		if (vd->vdev_mg)
+			vsx->vsx_nrotor = vd->vdev_mg->mg_nrot;
+		else
+			vsx->vsx_nrotor = -1;
+	}
 }
 
 void
@@ -3134,7 +3182,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
  * and the root vdev.
  */
 void
-vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
+vdev_space_update(vdev_t *vd, int nrot,
+    int64_t alloc_delta, int64_t defer_delta,
     int64_t space_delta)
 {
 	int64_t dspace_delta = space_delta;
@@ -3174,7 +3223,7 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 		ASSERT(rvd == vd->vdev_parent);
 		ASSERT(vd->vdev_ms_count != 0);
 
-		metaslab_class_space_update(mc,
+		metaslab_class_space_update(mc, nrot,
 		    alloc_delta, defer_delta, space_delta, dspace_delta);
 	}
 }

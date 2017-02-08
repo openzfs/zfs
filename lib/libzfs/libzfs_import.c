@@ -984,9 +984,11 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				 *	pool state
 				 *	hostid (if available)
 				 *	hostname (if available)
+				 *	rotorvector (if available)
 				 */
 				uint64_t state, version;
 				char *comment = NULL;
+				char *rotvec = NULL;
 
 				version = fnvlist_lookup_uint64(tmp,
 				    ZPOOL_CONFIG_VERSION);
@@ -1005,6 +1007,11 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				    ZPOOL_CONFIG_COMMENT, &comment) == 0)
 					fnvlist_add_string(config,
 					    ZPOOL_CONFIG_COMMENT, comment);
+
+				if (nvlist_lookup_string(tmp,
+				    ZPOOL_CONFIG_ROTORVECTOR, &rotvec) == 0)
+					fnvlist_add_string(config,
+					    ZPOOL_CONFIG_ROTORVECTOR, rotvec);
 
 				state = fnvlist_lookup_uint64(tmp,
 				    ZPOOL_CONFIG_POOL_STATE);

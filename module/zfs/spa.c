@@ -272,6 +272,10 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		spa_prop_add_list(*nvp, ZPOOL_PROP_COMMENT, spa->spa_comment,
 		    0, ZPROP_SRC_LOCAL);
 	}
+	if (spa->spa_rotorvector != NULL) {
+		spa_prop_add_list(*nvp, ZPOOL_PROP_ROTORVECTOR,
+		    spa->spa_rotorvector, 0, ZPROP_SRC_LOCAL);
+	}
 
 	if (spa->spa_root != NULL)
 		spa_prop_add_list(*nvp, ZPOOL_PROP_ALTROOT, spa->spa_root,
@@ -429,6 +433,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 		char *strval, *slash, *check, *fname;
 		const char *propname = nvpair_name(elem);
 		zpool_prop_t prop = zpool_name_to_prop(propname);
+		metaslab_class_t *mc_tmp;
 
 		switch ((int)prop) {
 		case ZPROP_INVAL:
@@ -618,6 +623,21 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if (error == 0 &&
 			    intval != 0 && intval < ZIO_DEDUPDITTO_MIN)
 				error = SET_ERROR(EINVAL);
+			break;
+
+		case ZPOOL_PROP_ROTORVECTOR:
+			/*
+			 * Hack?: using temporary structure to allow
+			 * simplistic verification before accepting
+			 * rotor vector pool property.
+			 */
+			if ((error = nvpair_value_string(elem, &strval)) != 0)
+				break;
+			mc_tmp = kmem_zalloc(sizeof (metaslab_class_t),
+			    KM_SLEEP);
+			if (!metaslab_parse_rotor_config(mc_tmp, strval))
+				error = SET_ERROR(EINVAL);
+			kmem_free(mc_tmp, sizeof (metaslab_class_t));
 			break;
 
 		default:
@@ -1090,13 +1110,20 @@ spa_thread(void *arg)
 static void
 spa_activate(spa_t *spa, int mode)
 {
+	char *rvconfig;
+
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
 	spa->spa_mode = mode;
 
-	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops);
-	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	if (nvlist_lookup_string(spa->spa_config, ZPOOL_CONFIG_ROTORVECTOR,
+	    &rvconfig) != 0)
+		rvconfig = NULL;
+
+	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops,
+	    rvconfig);
+	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops, NULL);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
@@ -1413,6 +1440,11 @@ spa_unload(spa_t *spa)
 	if (spa->spa_comment != NULL) {
 		spa_strfree(spa->spa_comment);
 		spa->spa_comment = NULL;
+	}
+
+	if (spa->spa_rotorvector != NULL) {
+		spa_strfree(spa->spa_rotorvector);
+		spa->spa_rotorvector = NULL;
 	}
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
@@ -2225,6 +2257,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type,
 	nvlist_t *config = spa->spa_config;
 	char *ereport = FM_EREPORT_ZFS_POOL;
 	char *comment;
+	char *rotorvector;
 	int error;
 	uint64_t pool_guid;
 	nvlist_t *nvl;
@@ -2235,6 +2268,11 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type,
 	ASSERT(spa->spa_comment == NULL);
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
 		spa->spa_comment = spa_strdup(comment);
+
+	ASSERT(spa->spa_rotorvector == NULL);
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_ROTORVECTOR,
+	    &rotorvector) == 0)
+		spa->spa_rotorvector = spa_strdup(rotorvector);
 
 	/*
 	 * Versioning wasn't explicitly added to the label until later, so if
@@ -6316,6 +6354,22 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			 * properties.
 			 */
 			break;
+		case ZPOOL_PROP_ROTORVECTOR:
+			strval = fnvpair_value_string(elem);
+			if (spa->spa_rotorvector != NULL)
+				spa_strfree(spa->spa_rotorvector);
+			spa->spa_rotorvector = spa_strdup(strval);
+			/*
+			 * TODO:
+			 * VERIFY(metaslab_parse_rotor_config(...));
+			 */
+			/* Same as for ZPOOL_PROP_COMMENT below. */
+			if (tx->tx_txg != TXG_INITIAL)
+				vdev_config_dirty(spa->spa_root_vdev);
+			spa_history_log_internal(spa, "set", tx,
+			    "%s=%s", nvpair_name(elem), strval);
+			break;
+
 		case ZPOOL_PROP_COMMENT:
 			strval = fnvpair_value_string(elem);
 			if (spa->spa_comment != NULL)

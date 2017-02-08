@@ -33,6 +33,7 @@
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
 #include <sys/zfeature.h>
+#include <linux/kernel.h>
 
 #define	WITH_DF_BLOCK_ALLOCATOR
 
@@ -213,17 +214,22 @@ kmem_cache_t *metaslab_alloc_trace_cache;
  * ==========================================================================
  */
 metaslab_class_t *
-metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
+metaslab_class_create(spa_t *spa, metaslab_ops_t *ops, char *rvconfig)
 {
 	metaslab_class_t *mc;
+	int i;
 
 	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_SLEEP);
 
 	mc->mc_spa = spa;
-	mc->mc_rotor = NULL;
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		mc->mc_rotorv[i] = NULL;
 	mc->mc_ops = ops;
 	mutex_init(&mc->mc_lock, NULL, MUTEX_DEFAULT, NULL);
 	refcount_create_tracked(&mc->mc_alloc_slots);
+	mc->mc_max_nrot = -1;
+
+	metaslab_parse_rotor_config(mc, rvconfig);
 
 	return (mc);
 }
@@ -231,11 +237,16 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
 void
 metaslab_class_destroy(metaslab_class_t *mc)
 {
-	ASSERT(mc->mc_rotor == NULL);
-	ASSERT(mc->mc_alloc == 0);
-	ASSERT(mc->mc_deferred == 0);
-	ASSERT(mc->mc_space == 0);
-	ASSERT(mc->mc_dspace == 0);
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		ASSERT(mc->mc_rotorv[i] == NULL);
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+		ASSERT(mc->mc_allocv[i] == 0);
+		ASSERT(mc->mc_deferredv[i] == 0);
+		ASSERT(mc->mc_spacev[i] == 0);
+		ASSERT(mc->mc_dspacev[i] == 0);
+	}
 
 	refcount_destroy(&mc->mc_alloc_slots);
 	mutex_destroy(&mc->mc_lock);
@@ -247,6 +258,7 @@ metaslab_class_validate(metaslab_class_t *mc)
 {
 	metaslab_group_t *mg;
 	vdev_t *vd;
+	int i;
 
 	/*
 	 * Must hold one of the spa_config locks.
@@ -254,52 +266,127 @@ metaslab_class_validate(metaslab_class_t *mc)
 	ASSERT(spa_config_held(mc->mc_spa, SCL_ALL, RW_READER) ||
 	    spa_config_held(mc->mc_spa, SCL_ALL, RW_WRITER));
 
-	if ((mg = mc->mc_rotor) == NULL)
-		return (0);
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+		if ((mg = mc->mc_rotorv[i]) == NULL)
+			continue;
 
-	do {
-		vd = mg->mg_vd;
-		ASSERT(vd->vdev_mg != NULL);
-		ASSERT3P(vd->vdev_top, ==, vd);
-		ASSERT3P(mg->mg_class, ==, mc);
-		ASSERT3P(vd->vdev_ops, !=, &vdev_hole_ops);
-	} while ((mg = mg->mg_next) != mc->mc_rotor);
+		do {
+			vd = mg->mg_vd;
+			ASSERT(vd->vdev_mg != NULL);
+			ASSERT3P(vd->vdev_top, ==, vd);
+			ASSERT3P(mg->mg_class, ==, mc);
+			ASSERT3P(vd->vdev_ops, !=, &vdev_hole_ops);
+		} while ((mg = mg->mg_next) != mc->mc_rotorv[i]);
+	}
 
 	return (0);
 }
 
 void
-metaslab_class_space_update(metaslab_class_t *mc, int64_t alloc_delta,
+metaslab_class_space_update(metaslab_class_t *mc, int nrot,
+    int64_t alloc_delta,
     int64_t defer_delta, int64_t space_delta, int64_t dspace_delta)
 {
-	atomic_add_64(&mc->mc_alloc, alloc_delta);
-	atomic_add_64(&mc->mc_deferred, defer_delta);
-	atomic_add_64(&mc->mc_space, space_delta);
-	atomic_add_64(&mc->mc_dspace, dspace_delta);
+	ASSERT(nrot >= 0 && nrot < METASLAB_CLASS_ROTORS);
+	atomic_add_64(&mc->mc_allocv[nrot], alloc_delta);
+	atomic_add_64(&mc->mc_deferredv[nrot], defer_delta);
+	atomic_add_64(&mc->mc_spacev[nrot], space_delta);
+	atomic_add_64(&mc->mc_dspacev[nrot], dspace_delta);
 }
 
 uint64_t
 metaslab_class_get_alloc(metaslab_class_t *mc)
 {
-	return (mc->mc_alloc);
+	uint64_t total_alloc = 0;
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		total_alloc += mc->mc_allocv[i];
+
+	return (total_alloc);
 }
 
 uint64_t
 metaslab_class_get_deferred(metaslab_class_t *mc)
 {
-	return (mc->mc_deferred);
+	uint64_t total_deferred = 0;
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		total_deferred += mc->mc_deferredv[i];
+
+	return (total_deferred);
 }
 
 uint64_t
 metaslab_class_get_space(metaslab_class_t *mc)
 {
-	return (mc->mc_space);
+	uint64_t total_space = 0;
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		total_space += mc->mc_spacev[i];
+
+	return (total_space);
 }
 
 uint64_t
 metaslab_class_get_dspace(metaslab_class_t *mc)
 {
-	return (spa_deflate(mc->mc_spa) ? mc->mc_dspace : mc->mc_space);
+	uint64_t total_dspace_adj = 0;
+	uint64_t total_dspace = 0;
+	int i;
+	uint64_t max_ratio = 1; /* 1 to avoid division by 0 */
+
+	/*
+	 * When we have a vector of rotors, we (artificially) adjust
+	 * the total dspace returned to reflect the fill fraction of
+	 * the most filled rotor.  This since the dspace value
+	 * returned is used to determine if new writes can be made to
+	 * the pool, and we do not want writes to continue if one of
+	 * the vectors has gotten full.
+	 *
+	 * If there is only one component of the vector, we'll return
+	 * the usual value.
+	 */
+
+	/* Counting in per-mille for the moment... */
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+		uint64_t ratio =
+		    (1000 * mc->mc_allocv[i]) / (mc->mc_spacev[i] + 1);
+		if (ratio > max_ratio)
+			max_ratio = ratio;
+	}
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+		uint64_t dspace =
+		    (spa_deflate(mc->mc_spa) ?
+		    mc->mc_dspacev[i] : mc->mc_spacev[i]);
+		uint64_t ratio =
+		    (1000 * mc->mc_allocv[i]) / (mc->mc_spacev[i] + 1);
+		total_dspace_adj += (dspace * ratio) / max_ratio;
+		total_dspace += dspace;
+	}
+
+	/*
+	 * When max_ratio is small (we have a *lot* of free space),
+	 * then the values will fluctuate considerably.  But does not
+	 * matter, since what matters is the values when little space
+	 * is free.
+	 *
+	 * However, the value is (luckily) also the value given to the
+	 * user in e.g. df(1), so would be nice to be accurate.  Below
+	 * 25 % we return the normal value, and above 75 % the
+	 * adjusted.  In between we give a sliding value.
+	 */
+
+	if (max_ratio < 250)
+		return (total_dspace);
+	if (max_ratio > 750)
+		return (total_dspace_adj);
+
+	return (total_dspace_adj * (max_ratio - 250) +
+	    total_dspace * (750 - max_ratio)) / 500;
 }
 
 void
@@ -571,6 +658,267 @@ metaslab_group_alloc_update(metaslab_group_t *mg)
 	mutex_exit(&mg->mg_lock);
 }
 
+/*
+ * Five categories, from faster to slower:
+ *
+ * nonrot (SSD)      disk or mirror
+ * nonrot (SSD)      raidz
+ * mixed nonrot+rot  anything (raidz makes little sense)
+ * rot (HDD)         disk or mirror
+ * rot (HDD)         raidz
+ */
+
+#define	METASLAB_ROTOR_VDEV_TYPE_SSD		0x01
+#define	METASLAB_ROTOR_VDEV_TYPE_SSD_RAIDZ	0x02
+#define	METASLAB_ROTOR_VDEV_TYPE_MIXED		0x04
+#define	METASLAB_ROTOR_VDEV_TYPE_HDD		0x08
+#define	METASLAB_ROTOR_VDEV_TYPE_HDD_RAIDZ	0x10
+
+/*
+ * Please do not judge the rotor vector approach based on the ugliness
+ * of this parsing routine.  :-)
+ */
+int
+metaslab_parse_rotor_config(metaslab_class_t *mc, char *rotorvector)
+{
+	int nrot = 0;
+	char *endconfig;
+
+	if (rotorvector == NULL)
+		return (1);
+
+	/*
+	 * The list consist of semicolon-separated categories.
+	 * Each catagory is a comma-separated list of vdev guids or
+	 * types (ssd,ssd-raidz,mixed,hdd,hdd-raidz), followed
+	 * by <= and the allocation threshold for the category.
+	 * ('<=' since users likely want to specify that rather than '<')
+	 * The threshold for the last rotor is not to be given, as we
+	 * always allocate somewhere.
+	 */
+
+	/* Clear the configuration. */
+	memset(mc->mc_rotvec_threshold, 0, sizeof (mc->mc_rotvec_threshold));
+	memset(mc->mc_rotvec_vdev_guids, 0, sizeof (mc->mc_rotvec_vdev_guids));
+	memset(mc->mc_rotvec_categories, 0, sizeof (mc->mc_rotvec_categories));
+
+	/*
+	 * The returns when encountering a malformed configuration are
+	 * ok in the sense that we just do not fill the fields any
+	 * further.
+	 */
+
+	/*
+	 * Separate properties for each vector category and each
+	 * vector threshold would have less parsing logics.  But
+	 * user-visible configuration would be less compact.
+	 */
+
+	endconfig = rotorvector + strlen(rotorvector);
+
+	while (rotorvector < endconfig) {
+		char *nextrotor;
+		char *semicolon, *lessthan;
+		char *endtypes;
+		int nguids = 0;
+
+		nextrotor = endconfig;
+		semicolon = strchr(rotorvector, ';');
+		if (semicolon == NULL)
+			semicolon = endconfig;
+		else
+			nextrotor = semicolon+1;
+		lessthan = strstr(rotorvector, "<=");
+		if ((lessthan == NULL && semicolon != endconfig) ||
+		    lessthan > semicolon)
+			return (0); /* malformed, missing '<=' in this item */
+		if (lessthan != NULL && semicolon == endconfig)
+			return (0); /* malformed, '<=' for last item */
+
+		endtypes = (lessthan) ? lessthan : semicolon;
+
+		while (rotorvector < endtypes) {
+			char *comma, *nexttype;
+			size_t len;
+
+			nexttype = endtypes;
+			comma = strchr(rotorvector, ',');
+			if (comma == NULL || comma > endtypes)
+				comma = endtypes;
+			else
+				nexttype = comma+1;
+
+			len = comma-rotorvector;
+
+			if (strncmp(rotorvector, "ssd", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_SSD;
+			else if (strncmp(rotorvector, "ssd-raidz", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_SSD_RAIDZ;
+			else if (strncmp(rotorvector, "mixed", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_MIXED;
+			else if (strncmp(rotorvector, "hdd", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_HDD;
+			else if (strncmp(rotorvector, "hdd-raidz", len) == 0)
+				mc->mc_rotvec_categories[nrot] |=
+				    METASLAB_ROTOR_VDEV_TYPE_HDD_RAIDZ;
+			else {
+				/* It must be a vdev guid. */
+				uint64_t guid;
+#ifdef _KERNEL
+				char tmpstr[64];
+				size_t len = comma-rotorvector;
+				strncpy(tmpstr, rotorvector, len);
+				tmpstr[len] = 0;
+#endif
+#ifdef _KERNEL
+				if (kstrtoull(tmpstr, 0, &guid) != 0)
+					return (0); /* malformed config */
+#else
+				char *endptr;
+				guid = strtoull(rotorvector, &endptr, 0);
+				if (endptr != comma)
+					return (0); /* malformed config */
+#endif
+				if (nguids >= 5)
+					return (0); /* too many guids... */
+				mc->mc_rotvec_vdev_guids[nrot][nguids] = guid;
+				nguids++;
+			}
+			rotorvector = nexttype;
+		}
+
+		if (lessthan) {
+			char *limit = lessthan+2;
+
+			mc->mc_rotvec_threshold[nrot][0] = 0;
+			mc->mc_rotvec_threshold[nrot][1] = 0;
+
+			while (limit < semicolon) {
+				char *comma, *nextlimit;
+				size_t len;
+				uint64_t threshold;
+				int alloc_class = 0;
+#ifdef _KERNEL
+				char tmpstr[64];
+#endif
+
+				nextlimit = semicolon;
+				comma = strchr(limit, ',');
+				if (comma == NULL || comma > semicolon)
+					comma = semicolon;
+				else
+					nextlimit = comma+1;
+
+				len = comma-limit;
+
+				if (len > 2 &&
+				    strncmp(limit, "meta:", 5) == 0) {
+					alloc_class = 1;
+					limit += 5;
+					len -= 5;
+				}
+#ifdef _KERNEL
+				strncpy(tmpstr, limit, len);
+				tmpstr[len] = 0;
+#endif
+#ifdef _KERNEL
+				if (kstrtoull(tmpstr, 0, &threshold) != 0)
+					return (0); /* malformed config */
+#else
+				char *endptr;
+				threshold = strtoull(limit, &endptr, 0);
+				if (endptr != comma)
+					return (0); /* malformed config */
+#endif
+				/*
+				 * To live with the 32 character limit for the
+				 * comment field, we multiply the threshold by
+				 * 1024 internally.
+				 */
+				mc->mc_rotvec_threshold[nrot][alloc_class] =
+				    threshold * 1024;
+				limit = nextlimit;
+			}
+			/* Metadata allowed as much as data, at least. */
+			if (mc->mc_rotvec_threshold[nrot][0] >
+			    mc->mc_rotvec_threshold[nrot][1])
+				mc->mc_rotvec_threshold[nrot][1] =
+				    mc->mc_rotvec_threshold[nrot][0];
+		}
+		rotorvector = nextrotor;
+		nrot++;
+	}
+
+#if 0
+#ifdef _KERNEL
+	{
+		int i;
+
+		for (i = 0; i < METASLAB_CLASS_ROTORS; i++) {
+			int j;
+
+			printk("rotvec[%d]: limit: data:%5llu meta:%5llu "
+			    "typemask:%02x guids:",
+			    i,
+			    mc->mc_rotvec_threshold[i][0],
+			    mc->mc_rotvec_threshold[i][1],
+			    mc->mc_rotvec_categories[i]);
+			for (j = 0; j < 5 && mc->mc_rotvec_vdev_guids[i][j];
+			    j++) {
+				printk(" %llu", mc->mc_rotvec_vdev_guids[i][j]);
+			}
+			printk("\n");
+		}
+	}
+#endif
+#endif
+	return (1);
+}
+
+int
+metaslab_vdev_rotor_category(metaslab_class_t *mc, vdev_t *vd)
+{
+	int i, j;
+	int type;
+
+	/* First match on the vdev guid assignments. */
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		for (j = 0; j < 5 && mc->mc_rotvec_vdev_guids[i][j]; j++)
+			if (mc->mc_rotvec_vdev_guids[i][j] == vd->vdev_guid)
+				return (i);
+
+	/* Match on the kind of vdev. */
+
+	/* Figure out what kind we are. */
+
+	if (vd->vdev_nonrot) {
+		type = ((vd->vdev_ops != &vdev_raidz_ops) ?
+		    METASLAB_ROTOR_VDEV_TYPE_SSD :
+		    METASLAB_ROTOR_VDEV_TYPE_SSD_RAIDZ);
+	} else if (vd->vdev_nonrot_mix) {
+		type = METASLAB_ROTOR_VDEV_TYPE_MIXED;
+	} else {
+		type = ((vd->vdev_ops != &vdev_raidz_ops) ?
+		    METASLAB_ROTOR_VDEV_TYPE_HDD :
+		    METASLAB_ROTOR_VDEV_TYPE_HDD_RAIDZ);
+	}
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		if (mc->mc_rotvec_categories[i] & type)
+			return (i);
+
+	/* Assign to last category, i.e. with a (dummy) zero limit. */
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		if (mc->mc_rotvec_threshold[i] == 0)
+			return (i);
+
+	return (METASLAB_CLASS_ROTORS-1);
+}
+
 metaslab_group_t *
 metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
@@ -586,6 +934,7 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 	mg->mg_initialized = B_FALSE;
 	mg->mg_no_free_space = B_TRUE;
 	refcount_create_tracked(&mg->mg_alloc_queue_depth);
+	mg->mg_nrot = -1;
 
 	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
 	    maxclsyspri, 10, INT_MAX, TASKQ_THREADS_CPU_PCT | TASKQ_DYNAMIC);
@@ -613,14 +962,44 @@ metaslab_group_destroy(metaslab_group_t *mg)
 }
 
 void
+metaslab_group_set_rotor_category(metaslab_group_t *mg, boolean_t failed_dev)
+{
+	metaslab_class_t *mc = mg->mg_class;
+
+	/* Already done? */
+	if (mg->mg_nrot != -1)
+		return;
+
+	ASSERT(mg->mg_activation_count <= 0);
+
+	/*
+	 * For a failed device, we assign it to the last rotor
+	 * category.  Failed devices would not allocate, but needed
+	 * such that metaslab_class_space_update() can be called for
+	 * them too.
+	 */
+	if (failed_dev)
+		mg->mg_nrot = METASLAB_CLASS_ROTORS-1;
+	else
+		mg->mg_nrot = metaslab_vdev_rotor_category(mc, mg->mg_vd);
+
+#ifndef _KERNEL
+	printf("SET mg->mg_nrot = %d\n", mg->mg_nrot);
+#endif
+}
+
+void
 metaslab_group_activate(metaslab_group_t *mg)
 {
 	metaslab_class_t *mc = mg->mg_class;
 	metaslab_group_t *mgprev, *mgnext;
+	int i;
 
+	ASSERT(mg->mg_nrot != -1);
 	ASSERT(spa_config_held(mc->mc_spa, SCL_ALLOC, RW_WRITER));
 
-	ASSERT(mc->mc_rotor != mg);
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		ASSERT(mc->mc_rotorv[i] != mg);
 	ASSERT(mg->mg_prev == NULL);
 	ASSERT(mg->mg_next == NULL);
 	ASSERT(mg->mg_activation_count <= 0);
@@ -631,7 +1010,7 @@ metaslab_group_activate(metaslab_group_t *mg)
 	mg->mg_aliquot = metaslab_aliquot * MAX(1, mg->mg_vd->vdev_children);
 	metaslab_group_alloc_update(mg);
 
-	if ((mgprev = mc->mc_rotor) == NULL) {
+	if ((mgprev = mc->mc_rotorv[mg->mg_nrot]) == NULL) {
 		mg->mg_prev = mg;
 		mg->mg_next = mg;
 	} else {
@@ -641,7 +1020,10 @@ metaslab_group_activate(metaslab_group_t *mg)
 		mgprev->mg_next = mg;
 		mgnext->mg_prev = mg;
 	}
-	mc->mc_rotor = mg;
+	mc->mc_rotorv[mg->mg_nrot] = mg;
+
+	if (mg->mg_nrot > mc->mc_max_nrot)
+		mc->mc_max_nrot = mg->mg_nrot;
 }
 
 void
@@ -649,11 +1031,13 @@ metaslab_group_passivate(metaslab_group_t *mg)
 {
 	metaslab_class_t *mc = mg->mg_class;
 	metaslab_group_t *mgprev, *mgnext;
+	int i;
 
 	ASSERT(spa_config_held(mc->mc_spa, SCL_ALLOC, RW_WRITER));
 
 	if (--mg->mg_activation_count != 0) {
-		ASSERT(mc->mc_rotor != mg);
+		for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+			ASSERT(mc->mc_rotorv[i] != mg);
 		ASSERT(mg->mg_prev == NULL);
 		ASSERT(mg->mg_next == NULL);
 		ASSERT(mg->mg_activation_count < 0);
@@ -666,10 +1050,16 @@ metaslab_group_passivate(metaslab_group_t *mg)
 	mgprev = mg->mg_prev;
 	mgnext = mg->mg_next;
 
+	ASSERT(mg->mg_nrot != -1);
+
 	if (mg == mgnext) {
-		mc->mc_rotor = NULL;
+		mc->mc_rotorv[mg->mg_nrot] = NULL;
+		mc->mc_max_nrot = -1;
+		for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+			if (mc->mc_rotorv[i] != NULL)
+				mc->mc_max_nrot = i;
 	} else {
-		mc->mc_rotor = mgnext;
+		mc->mc_rotorv[mg->mg_nrot] = mgnext;
 		mgprev->mg_next = mgnext;
 		mgnext->mg_prev = mgprev;
 	}
@@ -1481,7 +1871,9 @@ metaslab_fini(metaslab_t *msp)
 
 	mutex_enter(&msp->ms_lock);
 	VERIFY(msp->ms_group == NULL);
-	vdev_space_update(mg->mg_vd, -space_map_allocated(msp->ms_sm),
+	ASSERT(mg->mg_nrot != -1);
+	vdev_space_update(mg->mg_vd, mg->mg_nrot,
+	    -space_map_allocated(msp->ms_sm),
 	    0, -msp->ms_size);
 	space_map_close(msp->ms_sm);
 
@@ -2389,7 +2781,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 			    &msp->ms_lock);
 		}
 
-		vdev_space_update(vd, 0, 0, msp->ms_size);
+		vdev_space_update(vd, mg->mg_nrot, 0, 0, msp->ms_size);
 	}
 
 	defer_tree = &msp->ms_defertree[txg % TXG_DEFER_SIZE];
@@ -2409,7 +2801,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		defer_delta -= range_tree_space(*defer_tree);
 	}
 
-	vdev_space_update(vd, alloc_delta + defer_delta, defer_delta, 0);
+	vdev_space_update(vd, mg->mg_nrot,
+	    alloc_delta + defer_delta, defer_delta, 0);
 
 	/*
 	 * If there's a metaslab_load() in progress, wait for it to complete
@@ -2968,11 +3361,13 @@ int ditto_same_vdev_distance_shift = 3;
 static int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     dva_t *dva, int d, dva_t *hintdva, uint64_t txg, int flags,
-    zio_alloc_list_t *zal)
+    zio_alloc_list_t *zal, int alloc_class)
 {
 	metaslab_group_t *mg, *fast_mg, *rotor;
 	vdev_t *vd;
 	boolean_t try_hard = B_FALSE;
+	int nrot;
+	int i, j;
 
 	ASSERT(!DVA_IS_VALID(&dva[d]));
 
@@ -2983,6 +3378,21 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		metaslab_trace_add(zal, NULL, NULL, psize, d, TRACE_FORCE_GANG);
 		return (SET_ERROR(ENOSPC));
 	}
+
+	/*
+	 * Which rotor would we prefer?
+	 */
+	nrot = 0;
+
+	while (nrot < mc->mc_max_nrot) {
+		if (psize < mc->mc_rotvec_threshold[nrot][alloc_class])
+			break; /* Size below threshold, accept. */
+		nrot++;
+	}
+
+	for (; nrot < METASLAB_CLASS_ROTORS; nrot++)
+		if (mc->mc_rotorv[nrot])
+			break;
 
 	/*
 	 * Start at the rotor and loop through all mgs until we find something.
@@ -3021,33 +3431,52 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 			    mg->mg_next != NULL)
 				mg = mg->mg_next;
 		} else {
-			mg = mc->mc_rotor;
+			mg = mc->mc_rotorv[nrot];
 		}
 	} else if (d != 0) {
 		vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d - 1]));
+		/*
+		 * TODO: with multiple rotors, we should also
+		 * switch rotor at some point?
+		 */
 		mg = vd->vdev_mg->mg_next;
 	} else if (flags & METASLAB_FASTWRITE) {
-		mg = fast_mg = mc->mc_rotor;
+		mg = fast_mg = mc->mc_rotorv[nrot];
 
 		do {
 			if (fast_mg->mg_vd->vdev_pending_fastwrite <
 			    mg->mg_vd->vdev_pending_fastwrite)
 				mg = fast_mg;
-		} while ((fast_mg = fast_mg->mg_next) != mc->mc_rotor);
+		} while ((fast_mg = fast_mg->mg_next) != mc->mc_rotorv[nrot]);
 
 	} else {
-		mg = mc->mc_rotor;
+		mg = mc->mc_rotorv[nrot];
 	}
 
+	ASSERT(mg != NULL);
 	/*
 	 * If the hint put us into the wrong metaslab class, or into a
 	 * metaslab group that has been passivated, just follow the rotor.
+	 * Also if we got a better rotor than chosen.
 	 */
-	if (mg->mg_class != mc || mg->mg_activation_count <= 0)
-		mg = mc->mc_rotor;
+	if (mg->mg_class != mc || mg->mg_activation_count <= 0 ||
+	    mg->mg_nrot < nrot) {
+		for (i = nrot; i < METASLAB_CLASS_ROTORS; i++) {
+			/* Better than failing we try the better options. */
+			j = (i + nrot) % METASLAB_CLASS_ROTORS;
+			if (mc->mc_rotorv[j] != NULL) {
+				mg = mc->mc_rotorv[j];
+				break;
+			}
+		}
+		ASSERT(mg->mg_class == mc);
+		ASSERT(mg->mg_activation_count > 0);
+		/* VERIFY3U(mg->mg_nrot, >=, nrot); */
+	}
 
+top1:
 	rotor = mg;
-top:
+top2:
 	do {
 		boolean_t allocatable;
 		uint64_t offset;
@@ -3132,10 +3561,12 @@ top:
 			 * Bias is also used to compensate for unequally
 			 * sized vdevs so that space is allocated fairly.
 			 */
-			if (mc->mc_aliquot == 0 && metaslab_bias_enabled) {
+			if (mc->mc_aliquotv[mg->mg_nrot] == 0 &&
+			    metaslab_bias_enabled) {
 				vdev_stat_t *vs = &vd->vdev_stat;
 				int64_t vs_free = vs->vs_space - vs->vs_alloc;
-				int64_t mc_free = mc->mc_space - mc->mc_alloc;
+				int64_t mc_free = mc->mc_spacev[mg->mg_nrot] -
+				    mc->mc_allocv[mg->mg_nrot];
 				int64_t ratio;
 
 				/*
@@ -3170,10 +3601,11 @@ top:
 			}
 
 			if ((flags & METASLAB_FASTWRITE) ||
-			    atomic_add_64_nv(&mc->mc_aliquot, asize) >=
+			    atomic_add_64_nv(&mc->mc_aliquotv[mg->mg_nrot],
+			    asize) >=
 			    mg->mg_aliquot + mg->mg_bias) {
-				mc->mc_rotor = mg->mg_next;
-				mc->mc_aliquot = 0;
+				mc->mc_rotorv[mg->mg_nrot] = mg->mg_next;
+				mc->mc_aliquotv[mg->mg_nrot] = 0;
 			}
 
 			DVA_SET_VDEV(&dva[d], vd->vdev_id);
@@ -3190,8 +3622,8 @@ top:
 			return (0);
 		}
 next:
-		mc->mc_rotor = mg->mg_next;
-		mc->mc_aliquot = 0;
+		mc->mc_rotorv[mg->mg_nrot] = mg->mg_next;
+		mc->mc_aliquotv[mg->mg_nrot] = 0;
 	} while ((mg = mg->mg_next) != rotor);
 
 	/*
@@ -3199,7 +3631,22 @@ next:
 	 */
 	if (!try_hard) {
 		try_hard = B_TRUE;
-		goto top;
+		goto top2;
+	}
+
+	/*
+	 * We have exhausted this rotor.  Try with the following ones.
+	 * (Not earlier ones, to not waste expensive space for the
+	 * future for data that is not worth it.)
+	 */
+	for (i = (mg->mg_nrot - nrot + METASLAB_CLASS_ROTORS + 1) %
+	    METASLAB_CLASS_ROTORS; i && i < METASLAB_CLASS_ROTORS; i++) {
+		/* Better than failing we try the better options. */
+		j = (i + nrot) % METASLAB_CLASS_ROTORS;
+		if (mc->mc_rotorv[j] != NULL) {
+			mg = mc->mc_rotorv[j];
+			goto top1;
+		}
 	}
 
 	bzero(&dva[d], sizeof (dva_t));
@@ -3380,25 +3827,39 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = hintbp->blk_dva;
 	int d, error = 0;
+	int i;
+	int alloc_class;
 
 	ASSERT(bp->blk_birth == 0);
 	ASSERT(BP_PHYSICAL_BIRTH(bp) == 0);
 
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 
-	if (mc->mc_rotor == NULL) {	/* no vdevs in this class */
-		spa_config_exit(spa, SCL_ALLOC, FTAG);
-		return (SET_ERROR(ENOSPC));
-	}
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		if (mc->mc_rotorv[i] != NULL)
+			goto has_vdev;
 
+	/* no vdevs in this class */
+	spa_config_exit(spa, SCL_ALLOC, FTAG);
+	return (SET_ERROR(ENOSPC));
+
+has_vdev:
 	ASSERT(ndvas > 0 && ndvas <= spa_max_replication(spa));
 	ASSERT(BP_GET_NDVAS(bp) == 0);
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 	ASSERT3P(zal, !=, NULL);
 
+	alloc_class = METASLAB_ROTOR_ALLOC_CLASS_DATA;
+	if (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))
+		alloc_class = METASLAB_ROTOR_ALLOC_CLASS_METADATA;
+	/* Also include these blocks in metadata (from #5182). */
+	if (BP_GET_LEVEL(bp) > 0)
+		alloc_class = METASLAB_ROTOR_ALLOC_CLASS_METADATA;
+
+
 	for (d = 0; d < ndvas; d++) {
 		error = metaslab_alloc_dva(spa, mc, psize, dva, d, hintdva,
-		    txg, flags, zal);
+		    txg, flags, zal, alloc_class);
 		if (error != 0) {
 			for (d--; d >= 0; d--) {
 				metaslab_free_dva(spa, &dva[d], txg, B_TRUE);

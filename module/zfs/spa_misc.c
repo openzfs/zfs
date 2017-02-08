@@ -1897,7 +1897,12 @@ spa_fini(void)
 boolean_t
 spa_has_slogs(spa_t *spa)
 {
-	return (spa->spa_log_class->mc_rotor != NULL);
+	int i;
+
+	for (i = 0; i < METASLAB_CLASS_ROTORS; i++)
+		if (spa->spa_log_class->mc_rotorv[i] != NULL)
+			return (B_TRUE);
+	return (B_FALSE);
 }
 
 spa_log_state_t

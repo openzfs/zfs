@@ -270,6 +270,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_ALTROOT:
 		case ZPOOL_PROP_CACHEFILE:
 		case ZPOOL_PROP_COMMENT:
+		case ZPOOL_PROP_ROTORVECTOR:
 			if (zhp->zpool_props != NULL ||
 			    zpool_get_all_props(zhp) == 0) {
 				(void) strlcpy(buf,
@@ -683,6 +684,10 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 		default:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "property '%s'(%d) not defined"), propname, prop);
+			break;
+
+		case ZPOOL_PROP_ROTORVECTOR:
+			/* TODO: syntax check property. */
 			break;
 		}
 	}
