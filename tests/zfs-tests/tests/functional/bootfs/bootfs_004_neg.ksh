@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -74,7 +78,7 @@ pools[${#pools[@]}]="$bigname"
 
 
 
-$MKFILE 64m $TESTDIR/bootfs_004.$$.dat
+$MKFILE $MINVDEVSIZE $TESTDIR/bootfs_004.$$.dat
 
 typeset -i i=0;
 

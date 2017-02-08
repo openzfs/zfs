@@ -27,6 +27,10 @@
 # Copyright 2015 Nexenta Systems, Inc.
 #
 
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #

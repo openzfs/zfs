@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -116,14 +116,14 @@ then
 
 	# Now create several virtual disks to test zpool with
 
-	$MKFILE 100m /$TESTDIR/disk1.dat
-	$MKFILE 100m /$TESTDIR/disk2.dat
-	$MKFILE 100m /$TESTDIR/disk3.dat
-	$MKFILE 100m /$TESTDIR/disk-additional.dat
-	$MKFILE 100m /$TESTDIR/disk-export.dat
-	$MKFILE 100m /$TESTDIR/disk-offline.dat
-	$MKFILE 100m /$TESTDIR/disk-spare1.dat
-	$MKFILE 100m /$TESTDIR/disk-spare2.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk1.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk2.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk3.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk-additional.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk-export.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk-offline.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk-spare1.dat
+	$MKFILE $MINVDEVSIZE /$TESTDIR/disk-spare2.dat
 
 	# and create a pool we can perform attach remove replace,
 	# etc. operations with

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,11 +36,10 @@
 #	zpool history will truncate on small pools, leaving pool creation intact
 #
 # STRATEGY:
-#	1. Create two 100M virtual disk files.
-#	2. Create test pool using the two virtual files.
-#	3. Loop 100 times to set and remove compression to test dataset.
-#	4. Make sure 'zpool history' output is truncated
-#	5. Verify that the initial pool creation is preserved.
+#	1. Create a test pool on a file.
+#	2. Loop 300 times to set and remove compression to test dataset.
+#	3. Make sure 'zpool history' output is truncated
+#	4. Verify that the initial pool creation is preserved.
 #
 
 verify_runnable "global"
@@ -49,7 +48,6 @@ function cleanup
 {
 	datasetexists $spool && log_must $ZPOOL destroy $spool
 	[[ -f $VDEV0 ]] && log_must $RM -f $VDEV0
-	[[ -f $VDEV1 ]] && log_must $RM -f $VDEV1
 	[[ -f $TMPFILE ]] && log_must $RM -f $TMPFILE
 }
 
@@ -59,11 +57,11 @@ log_onexit cleanup
 mntpnt=$(get_prop mountpoint $TESTPOOL)
 (( $? != 0 )) && log_fail "get_prop mountpoint $TESTPOOL"
 
-VDEV0=$mntpnt/vdev0; VDEV1=$mntpnt/vdev1
-log_must $MKFILE 100m $VDEV0 $VDEV1
+VDEV0=$mntpnt/vdev0
+log_must $MKFILE $MINVDEVSIZE $VDEV0
 
 spool=smallpool.$$; sfs=smallfs.$$
-log_must $ZPOOL create $spool $VDEV0 $VDEV1
+log_must $ZPOOL create $spool $VDEV0
 log_must $ZFS create $spool/$sfs
 
 typeset -i orig_count=$($ZPOOL history $spool | $WC -l)
@@ -71,7 +69,7 @@ typeset orig_md5=$($ZPOOL history $spool | $HEAD -2 | $MD5SUM | \
     $AWK '{print $1}')
 
 typeset -i i=0
-while ((i < 100)); do
+while ((i < 300)); do
 	$ZFS set compression=off $spool/$sfs
 	$ZFS set compression=on $spool/$sfs
 	$ZFS set compression=off $spool/$sfs

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,7 +34,7 @@
 
 #
 # DESCRIPTION:
-# 'zpool create' should return an error with VDEVsof size  <64mb
+# 'zpool create' should return an error with VDEVs of size SPA_MINDEVSIZE
 #
 # STRATEGY:
 # 1. Create an array of parameters
@@ -42,7 +42,7 @@
 # 3. Verify an error is returned.
 #
 
-log_assert "'zpool create' should return an error with VDEVs <64mb"
+log_assert "'zpool create' should return an error with VDEVs SPA_MINDEVSIZE"
 
 verify_runnable "global"
 
@@ -69,9 +69,10 @@ create_pool $TESTPOOL $disk
 log_must $ZFS create $TESTPOOL/$TESTFS
 log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
+typeset -l devsize=$(($SPA_MINDEVSIZE - 1024 * 1024))
 for files in $TESTDIR/file1 $TESTDIR/file2
 do
-	log_must $MKFILE 63m $files
+	log_must $MKFILE $devsize $files
 done
 
 set -A args \

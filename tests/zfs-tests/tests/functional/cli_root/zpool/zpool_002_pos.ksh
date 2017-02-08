@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -66,7 +71,7 @@ vdev1=$TESTDIR/file1
 vdev2=$TESTDIR/file2
 vdev3=$TESTDIR/file3
 for vdev in $vdev1 $vdev2 $vdev3; do
-	$MKFILE 64m $vdev
+	$MKFILE $MINVDEVSIZE $vdev
 done
 
 set -A cmds "create $pool mirror $vdev1 $vdev2" "list $pool" "iostat $pool" \

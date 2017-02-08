@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -92,7 +96,7 @@ log_assert "Pools of correct vdev types accept boot property"
 
 
 log_onexit cleanup
-log_must $MKFILE 64m $VDEV1 $VDEV2 $VDEV3 $VDEV4
+log_must $MKFILE $MINVDEVSIZE $VDEV1 $VDEV2 $VDEV3 $VDEV4
 
 
 ## the following configurations are supported bootable pools

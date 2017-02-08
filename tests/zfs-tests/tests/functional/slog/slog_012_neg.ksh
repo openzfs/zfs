@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -60,7 +60,7 @@ do
 		log_must $DD if=/dev/urandom of=$mntpnt/testfile.$$ count=100
 
 		ldev=$(random_get $LDEV)
-		log_must $MKFILE $SIZE $ldev
+		log_must $MKFILE $MINVDEVSIZE $ldev
 		log_must $ZPOOL scrub $TESTPOOL
 
 		log_must display_status $TESTPOOL

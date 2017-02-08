@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -125,7 +125,7 @@ function attach_test
 specials_list=""
 i=0
 while [[ $i != 2 ]]; do
-	$MKFILE 100m $TESTDIR/$TESTFILE1.$i
+	$MKFILE $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
 	((i = i + 1))
@@ -134,7 +134,7 @@ done
 #
 # Create a replacement disk special file.
 #
-$MKFILE 100m $TESTDIR/$REPLACEFILE
+$MKFILE $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
 for op in "" "-f"; do
 	create_pool $TESTPOOL1 mirror $specials_list

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,11 +52,12 @@ function cleanup
 	clean_blockfile "$TESTDIR0 $TESTDIR1"
 
 	if [[ -n $DISK ]]; then
-		partition_disk $SIZE $DISK 7
+		partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 3))m $DISK 7
 	else
 		typeset disk=""
 		for disk in $DISK0 $DISK1; do
-			partition_disk $SIZE $disk 7
+			partition_disk \
+			    $((($MINVDEVSIZE / (1024 * 1024)) * 3))m $disk 7
 		done
 	fi
 }

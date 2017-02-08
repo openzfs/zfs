@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -107,9 +107,9 @@ allds="$fs $clone $fssnap $volsnap"
 
 #create pool and datasets to guarantee testing under multiple pools and datasets.
 file=$TESTDIR1/poolfile
-typeset -i FILESIZE=104857600    #100M
-(( DFILESIZE = FILESIZE * 2 ))   # double of FILESIZE
-typeset -i VOLSIZE=10485760      #10M
+typeset FILESIZE=$MINVDEVSIZE
+(( DFILESIZE = $FILESIZE * 2 ))
+typeset -i VOLSIZE=10485760
 availspace=$(get_prop available $TESTPOOL)
 typeset -i i=0
 
