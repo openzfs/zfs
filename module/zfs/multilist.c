@@ -48,6 +48,7 @@ multilist_d2l(multilist_t *ml, void *obj)
  *     multilist_node_t.
  *  - 'offset' denotes the byte offset of the mutlilist_node_t within
  *     the structure that contains it.
+ *  - 'num' specifies the number of internal sublists to create.
  *  - 'index_func' is used to determine which sublist to insert into
  *     when the multilist_insert() function is called; as well as which
  *     sublist to remove from when multilist_remove() is called. The
@@ -68,24 +69,20 @@ multilist_d2l(multilist_t *ml, void *obj)
  *     best multi-threaded performance out of the data structure.
  */
 void
-multilist_create(multilist_t *ml, size_t size, size_t offset,
-    multilist_sublist_index_func_t *index_func)
+multilist_create_impl(multilist_t *ml, size_t size, size_t offset,
+    unsigned int num, multilist_sublist_index_func_t *index_func)
 {
 	int i;
 
 	ASSERT3P(ml, !=, NULL);
 	ASSERT3U(size, >, 0);
 	ASSERT3U(size, >=, offset + sizeof (multilist_node_t));
+	ASSERT3U(num, >, 0);
 	ASSERT3P(index_func, !=, NULL);
 
 	ml->ml_offset = offset;
+	ml->ml_num_sublists = num;
 	ml->ml_index_func = index_func;
-
-	if (zfs_multilist_num_sublists > 0) {
-		ml->ml_num_sublists = zfs_multilist_num_sublists;
-	} else {
-		ml->ml_num_sublists = MAX(boot_ncpus, 4);
-	}
 
 	ml->ml_sublists = kmem_zalloc(sizeof (multilist_sublist_t) *
 	    ml->ml_num_sublists, KM_SLEEP);
@@ -97,6 +94,26 @@ multilist_create(multilist_t *ml, size_t size, size_t offset,
 		mutex_init(&mls->mls_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 		list_create(&mls->mls_list, size, offset);
 	}
+}
+
+/*
+ * Initialize a new sublist, using the default number of sublists
+ * (the number of CPUs, or at least 4, or the tunable
+ * zfs_multilist_num_sublists).
+ */
+void
+multilist_create(multilist_t *ml, size_t size, size_t offset,
+    multilist_sublist_index_func_t *index_func)
+{
+	int num_sublists;
+
+	if (zfs_multilist_num_sublists > 0) {
+		num_sublists = zfs_multilist_num_sublists;
+	} else {
+		num_sublists = MAX(boot_ncpus, 4);
+	}
+
+	multilist_create_impl(ml, size, offset, num_sublists, index_func);
 }
 
 /*
