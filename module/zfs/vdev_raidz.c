@@ -1673,6 +1673,13 @@ vdev_raidz_io_start(zio_t *zio)
 	raidz_col_t *rc;
 	int c, i;
 
+	/*
+	 * Optional I/Os that return to us have served their purpose for
+	 * improving aggregation continuity and can be ignored.
+	 */
+	if (zio->io_type == ZIO_TYPE_WRITE && zio->io_flags & ZIO_FLAG_NODATA)
+		return (ZIO_PIPELINE_CONTINUE);
+
 	rm = vdev_raidz_map_alloc(zio, tvd->vdev_ashift, vd->vdev_children,
 	    vd->vdev_nparity);
 
