@@ -23,6 +23,7 @@ SUBDIRS = \
 	inuse \
 	large_files \
 	largest_pool \
+	libzfs \
 	link_count \
 	migration \
 	mmap \
