@@ -438,6 +438,7 @@ struct zio {
 	uint64_t	io_child_count;
 	uint64_t	io_phys_children;
 	uint64_t	io_parent_count;
+	uint64_t	io_recursion_count;
 	uint64_t	*io_stall;
 	zio_t		*io_gang_leader;
 	zio_gang_node_t	*io_gang_tree;

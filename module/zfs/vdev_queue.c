@@ -653,6 +653,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		}
 
 		zio_add_child(dio, aio);
+		dio->io_recursion_count = aio->io_recursion_count + 1;
 		vdev_queue_io_remove(vq, dio);
 		zio_vdev_io_bypass(dio);
 		zio_execute(dio);
@@ -662,7 +663,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 }
 
 static zio_t *
-vdev_queue_io_to_issue(vdev_queue_t *vq)
+vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t recursion_count)
 {
 	zio_t *zio, *aio;
 	zio_priority_t p;
@@ -709,6 +710,7 @@ again:
 	 */
 	if (zio->io_flags & ZIO_FLAG_NODATA) {
 		mutex_exit(&vq->vq_lock);
+		zio->io_recursion_count = recursion_count + 1;
 		zio_vdev_io_bypass(zio);
 		zio_execute(zio);
 		mutex_enter(&vq->vq_lock);
@@ -751,7 +753,7 @@ vdev_queue_io(zio_t *zio)
 	mutex_enter(&vq->vq_lock);
 	zio->io_timestamp = gethrtime();
 	vdev_queue_io_add(vq, zio);
-	nio = vdev_queue_io_to_issue(vq);
+	nio = vdev_queue_io_to_issue(vq, zio->io_recursion_count);
 	mutex_exit(&vq->vq_lock);
 
 	if (nio == NULL)
@@ -779,7 +781,8 @@ vdev_queue_io_done(zio_t *zio)
 	vq->vq_io_complete_ts = gethrtime();
 	vq->vq_io_delta_ts = vq->vq_io_complete_ts - zio->io_timestamp;
 
-	while ((nio = vdev_queue_io_to_issue(vq)) != NULL) {
+	while ((nio = vdev_queue_io_to_issue(vq, zio->io_recursion_count))
+	    != NULL) {
 		mutex_exit(&vq->vq_lock);
 		if (nio->io_done == vdev_queue_agg_io_done) {
 			zio_nowait(nio);
