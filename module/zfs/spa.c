@@ -4713,6 +4713,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	newvd->vdev_crtxg = oldvd->vdev_crtxg;
 	vdev_add_child(pvd, newvd);
 
+	/*
+	 * Reevaluate the parent vdev state.
+	 */
+	vdev_propagate_state(pvd);
+
 	tvd = newvd->vdev_top;
 	ASSERT(pvd->vdev_top == tvd);
 	ASSERT(tvd->vdev_parent == rvd);
