@@ -476,7 +476,6 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	    !strncasecmp(env, "YES", 3) || !strncasecmp(env, "ON", 2))) {
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
-		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
 		return;
 	}
 
@@ -504,6 +503,9 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 		if (spath)
 			nvlist_add_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
 			    spath);
+		else
+			nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
+
 		free(upath);
 		free(spath);
 	} else {
