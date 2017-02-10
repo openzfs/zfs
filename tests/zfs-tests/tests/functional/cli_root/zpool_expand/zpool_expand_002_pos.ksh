@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -39,12 +40,11 @@
 #
 #
 # STRATEGY:
-# 1) Create a pool
-# 2) Create volume on top of the pool
-# 3) Create pool by using the zvols
-# 4) Expand the vol size by zfs set volsize
-# 5  Use zpool online -e to online the zvol vdevs
-# 6) Check that the pool size was expaned
+# 1) Create 3 files
+# 2) Create a pool backed by the files
+# 3) Expand the files' size with truncate
+# 4) Use zpool online -e to online the vdevs
+# 5) Check that the pool size was expanded
 #
 
 verify_runnable "global"
@@ -56,9 +56,7 @@ function cleanup
         fi
 
 	for i in 1 2 3; do
-		if datasetexists $VFS/vol$i; then
-			log_must $ZFS destroy $VFS/vol$i
-		fi
+		[ -e ${TEMPFILE}.$i ] && log_must $RM ${TEMPFILE}.$i
 	done
 }
 
@@ -66,13 +64,14 @@ log_onexit cleanup
 
 log_assert "zpool can expand after zpool online -e zvol vdevs on LUN expansion"
 
-for i in 1 2 3; do
-	log_must $ZFS create -V $org_size $VFS/vol$i
-done
 
 for type in " " mirror raidz raidz2; do
-	log_must $ZPOOL create $TESTPOOL1 $type ${ZVOL_DEVDIR}/$VFS/vol1 \
-	    ${ZVOL_DEVDIR}/$VFS/vol2 ${ZVOL_DEVDIR}/$VFS/vol3
+	for i in 1 2 3; do
+		log_must $TRUNCATE -s $org_size ${TEMPFILE}.$i
+	done
+
+	log_must $ZPOOL create $TESTPOOL1 $type $TEMPFILE.1 \
+	    $TEMPFILE.2 $TEMPFILE.3
 
 	typeset autoexp=$(get_pool_prop autoexpand $TESTPOOL1)
 
@@ -85,11 +84,11 @@ for type in " " mirror raidz raidz2; do
 	    $AWK '{print $3}')
 
 	for i in 1 2 3; do
-		log_must $ZFS set volsize=$exp_size $VFS/vol$i
+		log_must $TRUNCATE -s $exp_size ${TEMPFILE}.$i
 	done
 
 	for i in 1 2 3; do
-		log_must $ZPOOL online -e $TESTPOOL1 ${ZVOL_DEVDIR}/$VFS/vol$i
+		log_must $ZPOOL online -e $TESTPOOL1 ${TEMPFILE}.$i
 	done
 
 	$SYNC
@@ -106,30 +105,33 @@ for type in " " mirror raidz raidz2; do
 	if [[ $zfs_expand_size -gt $zfs_prev_size ]]; then
 	# check for zpool history for the pool size expansion
 		if [[ $type == " " ]]; then
+			typeset expansion_size=$(($exp_size-$org_size))
 			typeset	size_addition=$($ZPOOL history -il $TESTPOOL1 \
 			    | $GREP "pool '$TESTPOOL1' size:" | \
 			    $GREP "vdev online" | \
-			    $GREP "(+${EX_1GB}" | wc -l)
+			    $GREP "(+${expansion_size}" | wc -l)
 
 			if [[ $size_addition -ne $i ]]; then
 				log_fail "pool $TESTPOOL1 is not autoexpand " \
 				    "after LUN expansion"
 			fi
 		elif [[ $type == "mirror" ]]; then
+			typeset expansion_size=$(($exp_size-$org_size))
 			$ZPOOL history -il $TESTPOOL1 | \
 			    $GREP "pool '$TESTPOOL1' size:" | \
 			    $GREP "vdev online" | \
-			    $GREP "(+${EX_1GB})" >/dev/null 2>&1
+			    $GREP "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]]; then
 				log_fail "pool $TESTPOOL1 is not autoexpand " \
 				    "after LUN expansion"
 			fi
 		else
+			typeset expansion_size=$((3*($exp_size-$org_size)))
 			$ZPOOL history -il $TESTPOOL1 | \
 			    $GREP "pool '$TESTPOOL1' size:" | \
 			    $GREP "vdev online" | \
-			    $GREP "(+${EX_3GB})" >/dev/null 2>&1
+			    $GREP "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]] ; then
 				log_fail "pool $TESTPOOL1 is not autoexpand " \
@@ -141,8 +143,5 @@ for type in " " mirror raidz raidz2; do
 		    "expansion"
 	fi
 	log_must $ZPOOL destroy $TESTPOOL1
-	for i in 1 2 3; do
-		log_must $ZFS set volsize=$org_size $VFS/vol$i
-	done
 done
 log_pass "zpool can expand after zpool online -e zvol vdevs on LUN expansion"

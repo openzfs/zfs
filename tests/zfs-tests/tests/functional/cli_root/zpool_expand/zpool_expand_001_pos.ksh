@@ -102,30 +102,33 @@ for type in " " mirror raidz raidz2; do
 	if [[ $zfs_expand_size > $zfs_prev_size ]]; then
 	# check for zpool history for the pool size expansion
 		if [[ $type == " " ]]; then
+			typeset expansion_size=$(($exp_size-$org_size))
 			typeset	size_addition=$($ZPOOL history -il $TESTPOOL1 |\
 			    $GREP "pool '$TESTPOOL1' size:" | \
 			    $GREP "vdev online" | \
-			    $GREP "(+${EX_1GB}" | wc -l)
+			    $GREP "(+${expansion_size}" | wc -l)
 
 			if [[ $size_addition -ne $i ]]; then
 				log_fail "pool $TESTPOOL1 is not autoexpand " \
 				    "after LUN expansion"
 			fi
 		elif [[ $type == "mirror" ]]; then
+			typeset expansion_size=$(($exp_size-$org_size))
 			$ZPOOL history -il $TESTPOOL1 | \
 			    $GREP "pool '$TESTPOOL1' size:" | \
 			    $GREP "vdev online" | \
-			    $GREP "(+${EX_1GB})" >/dev/null 2>&1
+			    $GREP "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]] ; then
 				log_fail "pool $TESTPOOL1 is not autoexpand " \
 				    "after LUN expansion"
 			fi
 		else
+			typeset expansion_size=$((3*($exp_size-$org_size)))
 			$ZPOOL history -il $TESTPOOL1 | \
 			    $GREP "pool '$TESTPOOL1' size:" | \
 			    $GREP "vdev online" | \
-			    $GREP "(+${EX_3GB})" >/dev/null 2>&1
+			    $GREP "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]]; then
 				log_fail "pool $TESTPOOL is not autoexpand " \

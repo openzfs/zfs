@@ -26,6 +26,7 @@
 
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/commands.cfg
@@ -128,6 +129,12 @@ export TESTDIR=${TEST_BASE_DIR%%/}/testdir$$
 export TESTDIR0=${TEST_BASE_DIR%%/}/testdir0$$
 export TESTDIR1=${TEST_BASE_DIR%%/}/testdir1$$
 export TESTDIR2=${TEST_BASE_DIR%%/}/testdir2$$
+
+# some temp files
+export TEMPFILE=${TEST_BASE_DIR%%/}/tempfile$$
+export TEMPFILE0=${TEST_BASE_DIR%%/}/tempfile0$$
+export TEMPFILE1=${TEST_BASE_DIR%%/}/tempfile1$$
+export TEMPFILE2=${TEST_BASE_DIR%%/}/tempfile2$$
 
 export ZFSROOT=
 
