@@ -2093,13 +2093,13 @@ spa_load_verify(spa_t *spa)
 {
 	zio_t *rio;
 	spa_load_error_t sle = { 0 };
-	zpool_rewind_policy_t policy;
+	zpool_load_policy_t policy;
 	boolean_t verify_ok = B_FALSE;
 	int error = 0;
 
-	zpool_get_rewind_policy(spa->spa_config, &policy);
+	zpool_get_load_policy(spa->spa_config, &policy);
 
-	if (policy.zrp_request & ZPOOL_NEVER_REWIND)
+	if (policy.zlp_rewind & ZPOOL_NEVER_REWIND)
 		return (0);
 
 	dsl_pool_config_enter(spa->spa_dsl_pool, FTAG);
@@ -2138,8 +2138,8 @@ spa_load_verify(spa_t *spa)
 	}
 
 	if (spa_load_verify_dryrun ||
-	    (!error && sle.sle_meta_count <= policy.zrp_maxmeta &&
-	    sle.sle_data_count <= policy.zrp_maxdata)) {
+	    (!error && sle.sle_meta_count <= policy.zlp_maxmeta &&
+	    sle.sle_data_count <= policy.zlp_maxdata)) {
 		int64_t loss = 0;
 
 		verify_ok = B_TRUE;
@@ -3020,17 +3020,17 @@ spa_ld_load_trusted_config(spa_t *spa, spa_import_type_t type,
 	/*
 	 * We will use spa_config if we decide to reload the spa or if spa_load
 	 * fails and we rewind. We must thus regenerate the config using the
-	 * MOS information with the updated paths. Rewind policy is an import
-	 * setting and is not in the MOS. We copy it over to our new, trusted
-	 * config.
+	 * MOS information with the updated paths. ZPOOL_LOAD_POLICY is used to
+	 * pass settings on how to load the pool and is not stored in the MOS.
+	 * We copy it over to our new, trusted config.
 	 */
 	mos_config_txg = fnvlist_lookup_uint64(mos_config,
 	    ZPOOL_CONFIG_POOL_TXG);
 	nvlist_free(mos_config);
 	mos_config = spa_config_generate(spa, NULL, mos_config_txg, B_FALSE);
-	if (nvlist_lookup_nvlist(spa->spa_config, ZPOOL_REWIND_POLICY,
+	if (nvlist_lookup_nvlist(spa->spa_config, ZPOOL_LOAD_POLICY,
 	    &policy) == 0)
-		fnvlist_add_nvlist(mos_config, ZPOOL_REWIND_POLICY, policy);
+		fnvlist_add_nvlist(mos_config, ZPOOL_LOAD_POLICY, policy);
 	spa_config_set(spa, mos_config);
 	spa->spa_config_source = SPA_CONFIG_SRC_MOS;
 
@@ -4082,13 +4082,13 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 	}
 
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
-		zpool_rewind_policy_t policy;
+		zpool_load_policy_t policy;
 
 		firstopen = B_TRUE;
 
-		zpool_get_rewind_policy(nvpolicy ? nvpolicy : spa->spa_config,
+		zpool_get_load_policy(nvpolicy ? nvpolicy : spa->spa_config,
 		    &policy);
-		if (policy.zrp_request & ZPOOL_DO_REWIND)
+		if (policy.zlp_rewind & ZPOOL_DO_REWIND)
 			state = SPA_LOAD_RECOVER;
 
 		spa_activate(spa, spa_mode_global);
@@ -4098,8 +4098,8 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 		spa->spa_config_source = SPA_CONFIG_SRC_CACHEFILE;
 
 		zfs_dbgmsg("spa_open_common: opening %s", pool);
-		error = spa_load_best(spa, state, policy.zrp_txg,
-		    policy.zrp_request);
+		error = spa_load_best(spa, state, policy.zlp_txg,
+		    policy.zlp_rewind);
 
 		if (error == EBADF) {
 			/*
@@ -4960,7 +4960,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	spa_t *spa;
 	char *altroot = NULL;
 	spa_load_state_t state = SPA_LOAD_IMPORT;
-	zpool_rewind_policy_t policy;
+	zpool_load_policy_t policy;
 	uint64_t mode = spa_mode_global;
 	uint64_t readonly = B_FALSE;
 	int error;
@@ -5011,8 +5011,8 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	 */
 	spa_async_suspend(spa);
 
-	zpool_get_rewind_policy(config, &policy);
-	if (policy.zrp_request & ZPOOL_DO_REWIND)
+	zpool_get_load_policy(config, &policy);
+	if (policy.zlp_rewind & ZPOOL_DO_REWIND)
 		state = SPA_LOAD_RECOVER;
 
 	spa->spa_config_source = SPA_CONFIG_SRC_TRYIMPORT;
@@ -5022,9 +5022,9 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		zfs_dbgmsg("spa_import: importing %s", pool);
 	} else {
 		zfs_dbgmsg("spa_import: importing %s, max_txg=%lld "
-		    "(RECOVERY MODE)", pool, (longlong_t)policy.zrp_txg);
+		    "(RECOVERY MODE)", pool, (longlong_t)policy.zlp_txg);
 	}
-	error = spa_load_best(spa, state, policy.zrp_txg, policy.zrp_request);
+	error = spa_load_best(spa, state, policy.zlp_txg, policy.zlp_rewind);
 
 	/*
 	 * Propagate anything learned while loading the pool and pass it
@@ -5142,7 +5142,7 @@ spa_tryimport(nvlist_t *tryconfig)
 	spa_t *spa;
 	uint64_t state;
 	int error;
-	zpool_rewind_policy_t policy;
+	zpool_load_policy_t policy;
 
 	if (nvlist_lookup_string(tryconfig, ZPOOL_CONFIG_POOL_NAME, &poolname))
 		return (NULL);
@@ -5158,16 +5158,14 @@ spa_tryimport(nvlist_t *tryconfig)
 	spa_activate(spa, FREAD);
 
 	/*
-	 * Rewind pool if a max txg was provided. Note that even though we
-	 * retrieve the complete rewind policy, only the rewind txg is relevant
-	 * for tryimport.
+	 * Rewind pool if a max txg was provided.
 	 */
-	zpool_get_rewind_policy(spa->spa_config, &policy);
-	if (policy.zrp_txg != UINT64_MAX) {
-		spa->spa_load_max_txg = policy.zrp_txg;
+	zpool_get_load_policy(spa->spa_config, &policy);
+	if (policy.zlp_txg != UINT64_MAX) {
+		spa->spa_load_max_txg = policy.zlp_txg;
 		spa->spa_extreme_rewind = B_TRUE;
 		zfs_dbgmsg("spa_tryimport: importing %s, max_txg=%lld",
-		    poolname, (longlong_t)policy.zrp_txg);
+		    poolname, (longlong_t)policy.zlp_txg);
 	} else {
 		zfs_dbgmsg("spa_tryimport: importing %s", poolname);
 	}
