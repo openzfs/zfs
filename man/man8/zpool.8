@@ -1548,12 +1548,16 @@ base 1024.  To get the raw values, use the \fB-p\fR flag.
 Run a command on each vdev and include first line of output
 .sp
 The \fB-c\fR option allows you to run an arbitrary command on each vdev and
-display the first line of output in zpool iostat.  The environment vars
-\fBVDEV_PATH\fR and \fBVDEV_UPATH\fR are set to the vdev's path and "underlying
-path" before running the command.  For device mapper, multipath, or partitioned
-vdevs, \fBVDEV_UPATH\fR is the actual underlying /dev/sd* disk.  This can be
-useful if the command you're running requires a /dev/sd* device.  Commands run
-in parallel for each vdev for performance.
+display the first line of output in zpool iostat.  The following environment
+vars are set before running each command:
+.sp
+\fB$VDEV_PATH\fR: Full path to the vdev.
+.LP
+\fB$VDEV_UPATH\fR: "Underlying path" to the vdev.  For device mapper, multipath, or
+partitioned vdevs, \fBVDEV_UPATH\fR is the actual underlying /dev/sd* disk.
+This can be useful if the command you're running requires a /dev/sd* device.
+.LP
+\fB$VDEV_ENC_SYSFS_PATH\fR: The sysfs path to the vdev's enclosure LEDs (if any).
 .RE
 
 .sp
@@ -2116,12 +2120,16 @@ If a scrub or resilver is in progress, this command reports the percentage done 
 Run a command on each vdev and include first line of output
 .sp
 The \fB-c\fR option allows you to run an arbitrary command on each vdev and
-display the first line of output in zpool status.  The environment vars
-\fBVDEV_PATH\fR and \fBVDEV_UPATH\fR are set to the vdev's path and "underlying
-path" before running the command.  For device mapper, multipath, or partitioned
-vdevs, \fBVDEV_UPATH\fR is the actual underlying /dev/sd* disk.  This can be
-useful if the command you're running requires a /dev/sd* device.  Commands run
-in parallel for each vdev for performance.
+display the first line of output in zpool iostat.  The following environment
+vars are set before running each command:
+.sp
+\fB$VDEV_PATH\fR: Full path to the vdev.
+.LP
+\fB$VDEV_UPATH\fR: "Underlying path" to the vdev.  For device mapper, multipath, or
+partitioned vdevs, \fBVDEV_UPATH\fR is the actual underlying /dev/sd* disk.
+This can be useful if the command you're running requires a /dev/sd* device.
+.LP
+\fB$VDEV_ENC_SYSFS_PATH\fR: The sysfs path to the vdev's enclosure LEDs (if any).
 .RE
 
 .sp
