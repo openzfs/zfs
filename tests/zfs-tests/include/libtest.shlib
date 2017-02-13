@@ -25,6 +25,7 @@
 # Use is subject to license terms.
 # Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
@@ -1041,6 +1042,8 @@ function get_prop # property dataset
 # Simple function to get the specified property of pool. If unable to
 # get the property then exits.
 #
+# Note property is in 'parsable' format (-p)
+#
 function get_pool_prop # property pool
 {
 	typeset prop_val
@@ -1048,7 +1051,7 @@ function get_pool_prop # property pool
 	typeset pool=$2
 
 	if poolexists $pool ; then
-		prop_val=$($ZPOOL get $prop $pool 2>/dev/null | $TAIL -1 | \
+		prop_val=$($ZPOOL get -pH $prop $pool 2>/dev/null | $TAIL -1 | \
 			$AWK '{print $3}')
 		if [[ $? -ne 0 ]]; then
 			log_note "Unable to get $prop property for pool " \
