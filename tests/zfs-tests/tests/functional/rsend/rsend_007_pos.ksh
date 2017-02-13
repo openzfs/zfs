@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -76,7 +76,6 @@ log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
 log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 dstds=$(get_dst_ds $POOL $POOL2)
 log_must cmp_ds_subs $POOL $dstds
-log_must cmp_ds_cont $POOL $dstds
 
 #
 # Verify zfs send -R -I should succeed
@@ -94,6 +93,5 @@ else
 	$ZFS receive -d -F $dstds < $BACKDIR/pool-init-final-IR
 fi
 log_must cmp_ds_subs $POOL $dstds
-log_must cmp_ds_cont $POOL $dstds
 
 log_pass "Rename parent filesystem name will not change the dependent order."

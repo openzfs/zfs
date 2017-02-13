@@ -332,9 +332,11 @@ vdev_run_cmd_thread(void *cb_cmd_data)
 	char cmd[_POSIX_ARG_MAX];
 
 	/* Set our VDEV_PATH and VDEV_UPATH env vars and run command */
-	if (snprintf(cmd, sizeof (cmd), "VDEV_PATH=%s && VDEV_UPATH=%s && %s",
-	    data->path, data->upath ? data->upath : "\"\"", data->cmd) >=
-	    sizeof (cmd)) {
+	if (snprintf(cmd, sizeof (cmd), "VDEV_PATH=%s && VDEV_UPATH=\"%s\" && "
+	    "VDEV_ENC_SYSFS_PATH=\"%s\" && %s", data->path ? data->path : "",
+	    data->upath ? data->upath : "",
+	    data->vdev_enc_sysfs_path ? data->vdev_enc_sysfs_path : "",
+	    data->cmd) >= sizeof (cmd)) {
 		/* Our string was truncated */
 		return;
 	}
@@ -364,10 +366,14 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 	vdev_cmd_data_t *data;
 	char *path = NULL;
 	char *vname = NULL;
+	char *vdev_enc_sysfs_path = NULL;
 	int i, match = 0;
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		return (1);
+
+	nvlist_lookup_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+	    &vdev_enc_sysfs_path);
 
 	/* Spares show more than once if they're in use, so skip if exists */
 	for (i = 0; i < vcdl->count; i++) {
@@ -406,6 +412,10 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 	data->path = strdup(path);
 	data->upath = zfs_get_underlying_path(path);
 	data->cmd = vcdl->cmd;
+	if (vdev_enc_sysfs_path)
+		data->vdev_enc_sysfs_path = strdup(vdev_enc_sysfs_path);
+	else
+		data->vdev_enc_sysfs_path = NULL;
 
 	vcdl->count++;
 
@@ -500,6 +510,7 @@ free_vdev_cmd_data_list(vdev_cmd_data_list_t *vcdl)
 		free(vcdl->data[i].pool);
 		free(vcdl->data[i].upath);
 		free(vcdl->data[i].line);
+		free(vcdl->data[i].vdev_enc_sysfs_path);
 	}
 	free(vcdl->data);
 	free(vcdl);

@@ -7740,7 +7740,7 @@ module_param(zfs_arc_average_blocksize, int, 0444);
 MODULE_PARM_DESC(zfs_arc_average_blocksize, "Target average block size");
 
 module_param(zfs_compressed_arc_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_arc_average_blocksize, "Disable compressed arc buffers");
+MODULE_PARM_DESC(zfs_compressed_arc_enabled, "Disable compressed arc buffers");
 
 module_param(zfs_arc_min_prefetch_lifespan, int, 0644);
 MODULE_PARM_DESC(zfs_arc_min_prefetch_lifespan, "Min life of prefetch block");

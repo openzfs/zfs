@@ -26,6 +26,8 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+ZFS_MAX_DATASET_NAME_LEN=256
+
 function cleanup
 {
 	for ds in $datasets; do
@@ -36,14 +38,18 @@ function cleanup
 datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS2
     $TESTPOOL/$TESTFS3"
 
+# We subtract 3 for slash (/), at (@), and the terminating nul (\0)
+SNAPSHOT_XXX=$(printf 'x%.0s' \
+    {1..$(($ZFS_MAX_DATASET_NAME_LEN - ${#TESTPOOL} - ${#TESTFS1} - 3))})
+
 invalid_args=("$TESTPOOL/$TESTFS1@now $TESTPOOL/$TESTFS2@now \
     $TESTPOOL/$TESTFS@blah?" "$TESTPOOL/$TESTFS1@blah* \
     $TESTPOOL/$TESTFS2@blah? $TESTPOOL/$TESTFS3@blah%" \
-    "$TESTPOOL/$TESTFS1@$($PYTHON -c 'print "x" * 300') $TESTPOOL/$TESTFS2@300 \
+    "$TESTPOOL/$TESTFS1@x$SNAPSHOT_XXX $TESTPOOL/$TESTFS2@300 \
     $TESTPOOL/$TESTFS3@300")
 
 valid_args=("$TESTPOOL/$TESTFS1@snap $TESTPOOL/$TESTFS2@snap \
-    $TESTPOOL/$TESTFS3@snap" "$TESTPOOL/$TESTFS1@$($PYTHON -c 'print "x" * 200')\
+    $TESTPOOL/$TESTFS3@snap" "$TESTPOOL/$TESTFS1@$SNAPSHOT_XXX \
     $TESTPOOL/$TESTFS2@2 $TESTPOOL/$TESTFS3@s")
 
 log_assert "verify zfs supports multiple consistent snapshots"
@@ -89,12 +95,17 @@ for ds in $datasets; do
 	    "the filesystem"
 done
 
+# We subtract 3 + 7 + 7 + 1 = 18 for three slashes (/), strlen("TESTFSA") == 7,
+# strlen("TESTFSB") == 7, and the terminating nul (\0)
+DATASET_XXX=$(printf 'x%.0s' \
+    {1..$(($ZFS_MAX_DATASET_NAME_LEN - ${#TESTPOOL} - ${#TESTFS3} - 18))})
+
 log_note "verify multiple snapshot with -r option"
 log_must $ZFS create $TESTPOOL/TESTFS4
-log_must $ZFS create -p $TESTPOOL/$TESTFS3/TESTFSA$($PYTHON -c 'print "x" * 210')/TESTFSB
+log_must $ZFS create -p $TESTPOOL/$TESTFS3/TESTFSA$DATASET_XXX/TESTFSB
 log_mustnot $ZFS snapshot -r $TESTPOOL/$TESTFS1@snap1 $TESTPOOL/$TESTFS2@snap1 \
         $TESTPOOL/$TESTFS3@snap1 $TESTPOOL/TESTFS4@snap1
-log_must $ZFS rename  $TESTPOOL/$TESTFS3/TESTFSA$($PYTHON -c 'print "x" * 210') \
+log_must $ZFS rename $TESTPOOL/$TESTFS3/TESTFSA$DATASET_XXX \
     $TESTPOOL/$TESTFS3/TESTFSA
 log_must $ZFS snapshot -r $TESTPOOL/$TESTFS1@snap1 $TESTPOOL/$TESTFS2@snap1 \
         $TESTPOOL/$TESTFS3@snap1 $TESTPOOL/TESTFS4@snap1

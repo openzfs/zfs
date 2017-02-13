@@ -88,13 +88,6 @@ function verify_cache_device
 			"<status> [type]"
 	fi
 
-	if [[ $WRAPPER == *"smi"* ]]; then
-		$ECHO $device | $EGREP "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
-		if (( $? == 0 )); then
-			device=${device}s2
-		fi
-	fi
-
 	#
 	# Get all the cache devices and status table like below
 	#
