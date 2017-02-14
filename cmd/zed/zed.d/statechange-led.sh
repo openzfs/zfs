@@ -11,7 +11,7 @@
 # only set the LED for that particular VDEV. This is the case for statechange
 # events and some vdev_* events.
 #
-# 2. If those vars are not set, then check the state of all VDEVs in the pool,i
+# 2. If those vars are not set, then check the state of all VDEVs in the pool
 # and set the LEDs accordingly.  This is the case for pool_import events.
 #
 # Note that this script requires that your enclosure be supported by the
@@ -41,31 +41,6 @@ zed_check_cmd "$ZPOOL" || exit 4
 # Global used in set_led debug print
 vdev=""
 
-# set_led (file)
-#
-# Write an enclosure sysfs file
-#
-# Arguments
-#   file: sysfs file to set (like /sys/class/enclosure/0:0:1:0/SLOT 10/fault)
-#   val: value to set it to
-#
-# Globals
-#   vdev: VDEV name for debug printing
-#
-# Return
-#   nothing
-#
-function set_led {
-	file="$1"
-	val="$2"
-
-	# Set the value twice.  I've seen enclosures that were
-	# flakey about setting it the first time.
-	echo "$val" > "$file"
-	echo "$val" > "$file"
-	zed_log_msg "vdev $vdev set '$file' LED to $val"
-}
-
 # check_and_set_led (file, val)
 #
 # Read an enclosure sysfs file, and write it if it's not already set to 'val'
@@ -81,25 +56,34 @@ function check_and_set_led
 {
 	file="$1"
 	val="$2"
-	if [ ! -e "$ZEVENT_VDEV_ENC_SYSFS_PATH/fault" ] ; then
+
+	if [ ! -e "$file" ] ; then
 		return 3
 	fi
 
-	# We want to check the current state first, since writing to the
-	# 'fault' entry always always causes a SES command, even if the
-	# current state is already what you want.
-	current=$(cat "${file}")
+	# If another process is accessing the LED when we attempt to update it,
+	# the update will be lost so retry until the LED actually changes or we
+	# timeout.
+	for _ in $(seq 1 5); do
+		# We want to check the current state first, since writing to the
+		# 'fault' entry always always causes a SES command, even if the
+		# current state is already what you want.
+		current=$(cat "${file}")
 
-	# On some enclosures if you write 1 to fault, and read it back,
-	# it will return 2.  Treat all non-zero values as 1 for
-	# simplicity.
-	if [ "$current" != "0" ] ; then
-		current=1
-	fi
+		# On some enclosures if you write 1 to fault, and read it back,
+		# it will return 2.  Treat all non-zero values as 1 for
+		# simplicity.
+		if [ "$current" != "0" ] ; then
+			current=1
+		fi
 
-	if [ "$current" != "$val" ] ; then
-		set_led "$file" "$val"
-	fi
+		if [ "$current" != "$val" ] ; then
+			echo "$val" > "$file"
+			zed_log_msg "vdev $vdev set '$file' LED to $val"
+		else
+			break
+		fi
+        done
 }
 
 function state_to_val {
@@ -130,7 +114,7 @@ function process_pool
 
 	# Lookup all the current LED values and paths in parallel
 	cmd='echo led_token=$(cat "$VDEV_ENC_SYSFS_PATH/fault"),"$VDEV_ENC_SYSFS_PATH",'
-	out=$($ZPOOL status -vc "$cmd" $pool | grep 'led_token=')
+	out=$($ZPOOL status -vc "$cmd" "$pool" | grep 'led_token=')
 	while read -r vdev state read write chksum therest ; do
 
 		# Read out current LED value and path
@@ -142,29 +126,24 @@ function process_pool
 			continue
 		fi
 
-		# On some enclosures if you write 1 to fault, and read it back,
-		# it will return 2.  Treat all non-zero values as 1 for
-		# simplicity.
-		if [ "$current_val" != "0" ] ; then
-			current_val=1
-		fi
-
-		val=$(state_to_val "$state")
-
-		if [ "$current_val" == "$val" ] ; then
-			# LED is already set correctly
-			continue
-		fi
-
 		if [ ! -e "$vdev_enc_sysfs_path/fault" ] ; then
 			rc=1
 			zed_log_msg "vdev $vdev '$file/fault' doesn't exist"
 			continue;
 		fi
 
-		set_led "$vdev_enc_sysfs_path/fault" $val
+		val=$(state_to_val "$state")
+
+		if [ "$current_val" == "$val" ] ; then
+			# LED is already set correctly
+			continue;
+		fi
+
+		check_and_set_led "$vdev_enc_sysfs_path/fault" "$val"
+		(( rc |= $? ))
 
 	done <<< "$out"
+
 	if [ "$rc" == "0" ] ; then
 		return 0
 	else
@@ -176,10 +155,9 @@ function process_pool
 if [ ! -z "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ ! -z "$ZEVENT_VDEV_STATE_STR" ] ; then
 	# Got a statechange for an individual VDEV
 	val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
-
 	vdev="$(basename $ZEVENT_VDEV_PATH)"
 	check_and_set_led "$ZEVENT_VDEV_ENC_SYSFS_PATH/fault" "$val"
 else
 	# Process the entire pool
-	process_pool $(zed_guid_to_pool $ZEVENT_POOL_GUID)
+	process_pool "$(zed_guid_to_pool $ZEVENT_POOL_GUID)"
 fi
