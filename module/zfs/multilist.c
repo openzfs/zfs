@@ -68,7 +68,7 @@ multilist_d2l(multilist_t *ml, void *obj)
  *     requirement, but a general rule of thumb in order to garner the
  *     best multi-threaded performance out of the data structure.
  */
-void
+static void
 multilist_create_impl(multilist_t *ml, size_t size, size_t offset,
     unsigned int num, multilist_sublist_index_func_t *index_func)
 {
