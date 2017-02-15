@@ -11,7 +11,7 @@ General functions reside in "zed-functions.sh".  Use them where applicable.
 Additional references that may be of use:
 
   Google Shell Style Guide
-  https://google-styleguide.googlecode.com/svn/trunk/shell.xml
+  https://github.com/google/styleguide/blob/gh-pages/shell.xml
 
   Dash as /bin/sh
   https://wiki.ubuntu.com/DashAsBinSh
