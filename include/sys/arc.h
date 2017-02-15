@@ -70,8 +70,6 @@ extern int zfs_arc_average_blocksize;
 arc_done_func_t arc_bcopy_func;
 arc_done_func_t arc_getbuf_func;
 
-extern int zfs_arc_num_sublists_per_state;
-
 /* generic arc_prune_func_t wrapper for callbacks */
 struct arc_prune {
 	arc_prune_func_t	*p_pfunc;

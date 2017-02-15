@@ -13,7 +13,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_MULTILIST_H
@@ -72,7 +72,7 @@ struct multilist {
 };
 
 void multilist_destroy(multilist_t *);
-void multilist_create(multilist_t *, size_t, size_t, unsigned int,
+void multilist_create(multilist_t *, size_t, size_t,
     multilist_sublist_index_func_t *);
 
 void multilist_insert(multilist_t *, void *);
