@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  */
 
@@ -305,8 +305,8 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 		 * dl_name in case the first thread goes away before we do.
 		 * Note that we initialize the new name before storing its
 		 * pointer into dl_name, because the first thread may load
-		 * dl->dl_name at any time.  He'll either see the old value,
-		 * which is his, or the new shared copy; either is OK.
+		 * dl->dl_name at any time.  It'll either see the old value,
+		 * which belongs to it, or the new shared copy; either is OK.
 		 */
 		dl->dl_namesize = strlen(dl->dl_name) + 1;
 		name = kmem_alloc(dl->dl_namesize, KM_SLEEP);
