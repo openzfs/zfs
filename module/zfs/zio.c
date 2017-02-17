@@ -1827,7 +1827,7 @@ zio_reexecute(zio_t *pio)
 	/*
 	 * Now that all children have been reexecuted, execute the parent.
 	 * We don't reexecute "The Godfather" I/O here as it's the
-	 * responsibility of the caller to wait on him.
+	 * responsibility of the caller to wait on it.
 	 */
 	if (!(pio->io_flags & ZIO_FLAG_GODFATHER)) {
 		pio->io_queued_timestamp = gethrtime();
