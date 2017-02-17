@@ -21,7 +21,6 @@ VERBOSE=
 VERBOSE_FLAG=
 FORCE=
 FORCE_FLAG=
-DUMP_LOG=
 ERROR=
 RAID0S=()
 RAID10S=()
@@ -155,17 +154,6 @@ init() {
 	populate $SRC_DIR 10 100
 }
 
-spl_dump_log() {
-	${SYSCTL} -w kernel.spl.debug.dump=1 &>/dev/null
-	local NAME=`dmesg | tail -n 1 | cut -f5 -d' '`
-	${SPLBUILD}/cmd/spl ${NAME} >${NAME}.log
-	echo
-	echo "Dumped debug log: ${NAME}.log"
-	tail -n1 ${NAME}.log
-	echo
-	return 0
-}
-
 check_modules() {
 	local LOADED_MODULES=()
 	local MISSING_MODULES=()
@@ -265,11 +253,6 @@ unload_modules() {
 				egrep "^${NAME} "| ${AWK} '{print $3}'`
 
 		if [ "${USE_COUNT}" = 0 ] ; then
-
-			if [ "${DUMP_LOG}" -a ${NAME} = "spl" ]; then
-				spl_dump_log
-			fi
-
 			unload_module ${MOD} || return 1
 		fi
 	done
