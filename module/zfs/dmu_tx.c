@@ -163,7 +163,7 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 
 	if (object != DMU_NEW_OBJECT) {
 		err = dnode_hold(os, object, FTAG, &dn);
-		if (err) {
+		if (err != 0) {
 			tx->tx_err = err;
 			return (NULL);
 		}
@@ -462,17 +462,16 @@ dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
-	ASSERT(len <= DMU_MAX_ACCESS);
+	ASSERT0(tx->tx_txg);
+	ASSERT3U(len, <=, DMU_MAX_ACCESS);
 	ASSERT(len == 0 || UINT64_MAX - off >= len - 1);
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_WRITE, off, len);
-	if (txh == NULL)
-		return;
-
-	dmu_tx_count_write(txh, off, len);
-	dmu_tx_count_dnode(txh);
+	if (txh != NULL) {
+		dmu_tx_count_write(txh, off, len);
+		dmu_tx_count_dnode(txh);
+	}
 }
 
 void
@@ -480,16 +479,15 @@ dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
-	ASSERT(len <= DMU_MAX_ACCESS);
+	ASSERT0(tx->tx_txg);
+	ASSERT3U(len, <=, DMU_MAX_ACCESS);
 	ASSERT(len == 0 || UINT64_MAX - off >= len - 1);
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_WRITE, off, len);
-	if (txh == NULL)
-		return;
-
-	dmu_tx_count_write(txh, off, len);
-	dmu_tx_count_dnode(txh);
+	if (txh != NULL) {
+		dmu_tx_count_write(txh, off, len);
+		dmu_tx_count_dnode(txh);
+	}
 }
 
 static void
@@ -792,9 +790,8 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_FREE, off, len);
-	if (txh == NULL)
-		return;
-	(void) dmu_tx_hold_free_impl(txh, off, len);
+	if (txh != NULL)
+		(void) dmu_tx_hold_free_impl(txh, off, len);
 }
 
 void
@@ -803,9 +800,8 @@ dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, uint64_t len)
 	dmu_tx_hold_t *txh;
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_FREE, off, len);
-	if (txh == NULL)
-		return;
-	(void) dmu_tx_hold_free_impl(txh, off, len);
+	if (txh != NULL)
+		(void) dmu_tx_hold_free_impl(txh, off, len);
 }
 
 static void
@@ -916,13 +912,12 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_ZAP, add, (uintptr_t)name);
-	if (txh == NULL)
-		return;
-	dmu_tx_hold_zap_impl(txh, add, name);
+	if (txh != NULL)
+		dmu_tx_hold_zap_impl(txh, add, name);
 }
 
 void
@@ -930,13 +925,12 @@ dmu_tx_hold_zap_by_dnode(dmu_tx_t *tx, dnode_t *dn, int add, const char *name)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 	ASSERT(dn != NULL);
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_ZAP, add, (uintptr_t)name);
-	if (txh == NULL)
-		return;
-	dmu_tx_hold_zap_impl(txh, add, name);
+	if (txh != NULL)
+		dmu_tx_hold_zap_impl(txh, add, name);
 }
 
 void
@@ -957,7 +951,7 @@ dmu_tx_hold_bonus_by_dnode(dmu_tx_t *tx, dnode_t *dn)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_BONUS, 0, 0);
 	if (txh)
