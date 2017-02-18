@@ -119,7 +119,7 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 	dmu_tx_hold_t *txh;
 
 	if (dn != NULL) {
-		refcount_add(&dn->dn_holds, tx);
+		(void) refcount_add(&dn->dn_holds, tx);
 		if (tx->tx_txg != 0) {
 			mutex_enter(&dn->dn_mtx);
 			/*
@@ -175,7 +175,7 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 }
 
 void
-dmu_tx_add_new_object(dmu_tx_t *tx, objset_t *os, dnode_t *dn)
+dmu_tx_add_new_object(dmu_tx_t *tx, dnode_t *dn)
 {
 	/*
 	 * If we're syncing, they can manipulate any object anyhow, and
