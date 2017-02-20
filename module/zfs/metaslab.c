@@ -1531,6 +1531,12 @@ metaslab_fini(metaslab_t *msp)
 
 	metaslab_group_t *mg = msp->ms_group;
 
+	/* Wait for trimming to finish */
+	mutex_enter(&msp->ms_lock);
+	while (msp->ms_trimming_ts != NULL)
+		cv_wait(&msp->ms_trim_cv, &msp->ms_lock);
+	mutex_exit(&msp->ms_lock);
+
 	metaslab_group_remove(mg, msp);
 
 	mutex_enter(&msp->ms_lock);
