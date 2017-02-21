@@ -4,7 +4,6 @@ obj = @abs_builddir@
 MODULE := zfs
 
 EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-@CONFIG_QAT_TRUE@EXTRA_CFLAGS += -I@ICP_ROOT@/quickassist/include
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
@@ -115,7 +114,7 @@ $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
-@CONFIG_QAT_TRUE@$(MODULE)-objs += qat_compress.o
+$(MODULE)-objs += qat_compress.o
 
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_sse2.o
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_ssse3.o

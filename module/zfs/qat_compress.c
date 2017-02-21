@@ -19,23 +19,26 @@
  * CDDL HEADER END
  */
 
-#ifdef HAVE_QAT
+#if defined(_KERNEL) && defined(HAVE_QAT)
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #include <linux/completion.h>
+#include <sys/zfs_context.h>
 #include "qat_compress.h"
 
-#define	TIMEOUT_MS	500 /* 0.5 seconds */
-#define	INST_NUM	6
-#define	GZIP_HEAD_SZ	2
-#define	GZIP_FOOT_SZ	4
+#define	TIMEOUT_MS		500 /* 0.5 seconds */
+#define	INST_NUM		6
+#define	GZIP_HEAD_SZ		2
+#define	GZIP_FOOT_SZ		4
+#define	QAT_MIN_BUF_SIZE	4096
 
 static CpaInstanceHandle dc_inst_handles[INST_NUM];
 static CpaDcSessionHandle session_handles[INST_NUM];
 static Cpa16U num_inst = 0;
 static Cpa16U inst = 0;
 int qat_init_done = 0;
+int zfs_qat_disable = B_FALSE;
 
 #define	PHYS_CONTIG_ALLOC(pp_mem_addr, size_bytes)	\
 	mem_alloc_contig((void *)(pp_mem_addr), (size_bytes))
@@ -57,8 +60,8 @@ static void qat_dc_callback(void *p_callback, CpaStatus status)
 		complete((struct completion *)p_callback);
 }
 
-static __inline CpaStatus
-mem_alloc_contig(void **pp_mem_addr, Cpa32U size_bytes)
+static inline CpaStatus mem_alloc_contig(void **pp_mem_addr,
+						Cpa32U size_bytes)
 {
 	*pp_mem_addr = kmalloc_node(size_bytes,
 		GFP_KERNEL, 0);
@@ -67,7 +70,7 @@ mem_alloc_contig(void **pp_mem_addr, Cpa32U size_bytes)
 	return (CPA_STATUS_SUCCESS);
 }
 
-static __inline void mem_free_contig(void **pp_mem_addr)
+static inline void mem_free_contig(void **pp_mem_addr)
 {
 	if (NULL != *pp_mem_addr) {
 		kfree(*pp_mem_addr);
@@ -85,7 +88,7 @@ qat_init(void)
 	CpaDcSessionSetupData sd = {0};
 	int i;
 
-	if (qat_init_done != 0)
+	if (zfs_qat_disable == B_TRUE || qat_init_done != 0)
 		return (0);
 
 	status = cpaDcGetNumInstances(&num_inst);
@@ -130,9 +133,14 @@ qat_init(void)
 	}
 
 	qat_init_done = 1;
-	printk(KERN_INFO "qat accel init success\n");
 	return (0);
 fail:
+
+        for (i = 0; i < num_inst; i++) {
+                cpaDcStopInstance(dc_inst_handles[i]);
+                PHYS_CONTIG_FREE(session_handles[i]);
+        }
+
 	return (-1);
 }
 
@@ -140,7 +148,7 @@ void
 qat_fini(void)
 {
 	int i = 0;
-	if (!qat_init_done)
+	if (zfs_qat_disable == B_TRUE || qat_init_done == 0)
 		return;
 
 	for (i = 0; i < num_inst; i++) {
@@ -149,6 +157,17 @@ qat_fini(void)
 	}
 	num_inst = 0;
 	qat_init_done = 0;
+}
+
+int
+use_qat(size_t s_len)
+{
+        if (zfs_qat_disable == B_TRUE ||
+		qat_init_done == 0 ||
+		s_len <= QAT_MIN_BUF_SIZE) {
+                return (0);
+	}
+        return (1);
 }
 
 int
@@ -378,4 +397,6 @@ fail:
 	PHYS_CONTIG_FREE(buf_list_dst);
 	return (ret);
 }
+module_param(zfs_qat_disable, int, 0644);
+MODULE_PARM_DESC(zfs_qat_disable, "Disable QAT compression");
 #endif

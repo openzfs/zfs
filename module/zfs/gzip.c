@@ -28,9 +28,7 @@
 
 #include <sys/debug.h>
 #include <sys/types.h>
-#ifdef HAVE_QAT
 #include "qat_compress.h"
-#endif
 
 #ifdef _KERNEL
 
@@ -52,17 +50,6 @@ typedef uLongf zlen_t;
 
 #endif
 
-#ifdef HAVE_QAT
-#define	QAT_MIN_BUF_SIZE	4096
-int
-use_qat(size_t s_len)
-{
-	if (!qat_init_done || s_len <= QAT_MIN_BUF_SIZE)
-		return (0);
-	return (1);
-}
-#endif
-
 size_t
 gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
@@ -70,15 +57,14 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 
 	ASSERT(d_len <= s_len);
 
-#ifdef HAVE_QAT
 	if (use_qat(s_len)) {
 		if (qat_compress(0, s_start, s_len, d_start, d_len, &dstlen) !=
 			CPA_STATUS_SUCCESS)
 			return (s_len);
 
-		return ((size_t)dstlen);
+		return ((size_t) dstlen);
 	}
-#endif
+
 	if (compress_func(d_start, &dstlen, s_start, s_len, n) != Z_OK) {
 		if (d_len != s_len)
 			return (s_len);
@@ -98,14 +84,14 @@ gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 
 	ASSERT(d_len >= s_len);
 
-#ifdef HAVE_QAT
 	if (use_qat(s_len)) {
 		if (qat_compress(1, s_start, s_len, d_start, d_len, &dstlen) !=
 			CPA_STATUS_SUCCESS)
 			return (-1);
+
 		return (0);
 	}
-#endif
+
 	if (uncompress_func(d_start, &dstlen, s_start, s_len) != Z_OK)
 		return (-1);
 

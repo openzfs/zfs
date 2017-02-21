@@ -67,9 +67,6 @@
 #include <sys/spa_boot.h>
 #include <sys/zpl.h>
 #include "zfs_comutil.h"
-#ifdef HAVE_QAT
-#include "qat_compress.h"
-#endif
 
 /*ARGSUSED*/
 int
@@ -1917,9 +1914,6 @@ zfs_init(void)
 	zfs_znode_init();
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
 	register_filesystem(&zpl_fs_type);
-#ifdef HAVE_QAT
-	qat_init();
-#endif
 }
 
 void
@@ -1932,7 +1926,4 @@ zfs_fini(void)
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
 	zfsctl_fini();
-#ifdef HAVE_QAT
-	qat_fini();
-#endif
 }

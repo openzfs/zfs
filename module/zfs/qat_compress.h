@@ -22,21 +22,22 @@
 #ifndef	_SYS_QAT_COMPRESS_H
 #define	_SYS_QAT_COMPRESS_H
 
-#ifdef	_KERNEL
+#if defined(_KERNEL) && defined(HAVE_QAT)
+
 #include "cpa.h"
 #include "dc/cpa_dc.h"
-
 extern int qat_init_done;
 extern int qat_init(void);
 extern void qat_fini(void);
+extern int use_qat(size_t s_len);
 extern int qat_compress(int dir, char *src, int src_len,
-			    char *dst, int dst_len, size_t *c_len);
+				char *dst, int dst_len,
+				size_t *c_len);
 #else
+#define	CPA_STATUS_SUCCESS	0
 #define	qat_init()
 #define	qat_fini()
-#define	qat_init_done	0
+#define	use_qat(s_len)	0
 #define	qat_compress(dir, s, sl, d, dl, cl)	0
-#define	CPA_STATUS_SUCCESS	0
 #endif
-
 #endif
