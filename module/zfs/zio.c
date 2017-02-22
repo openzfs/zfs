@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #include <sys/sysmacros.h>
@@ -58,7 +59,11 @@ const char *zio_type_name[ZIO_TYPES] = {
 	"z_null", "z_rd", "z_wr", "z_fr", "z_cl", "z_ioctl"
 };
 
+#ifdef ZPOOL_CONFIG_ALLOCATION_BIAS
+int zio_dva_throttle_enabled = B_FALSE;  /* not compatible with alloc classes */
+#else
 int zio_dva_throttle_enabled = B_TRUE;
+#endif
 
 /*
  * ==========================================================================
@@ -1530,7 +1535,7 @@ zio_write_compress(zio_t *zio)
 		zio->io_pipeline = zio->io_orig_pipeline;
 
 	} else {
-		ASSERT3U(psize, !=, 0);
+		VERIFY3U(psize, !=, 0);
 
 	}
 
@@ -1546,7 +1551,8 @@ zio_write_compress(zio_t *zio)
 	    BP_GET_PSIZE(bp) == psize &&
 	    pass >= zfs_sync_pass_rewrite) {
 		enum zio_stage gang_stages = zio->io_pipeline & ZIO_GANG_STAGES;
-		ASSERT(psize != 0);
+
+		VERIFY3U(psize, !=, 0);
 		zio->io_pipeline = ZIO_REWRITE_PIPELINE | gang_stages;
 		zio->io_flags |= ZIO_FLAG_IO_REWRITE;
 	} else {
@@ -2421,7 +2427,7 @@ static int
 zio_write_gang_block(zio_t *pio)
 {
 	spa_t *spa = pio->io_spa;
-	metaslab_class_t *mc = spa_normal_class(spa);
+	metaslab_class_t *mc;
 	blkptr_t *bp = pio->io_bp;
 	zio_t *gio = pio->io_gang_leader;
 	zio_t *zio;
@@ -2444,6 +2450,8 @@ zio_write_gang_block(zio_t *pio)
 	gbh_copies = MIN(copies + 1, spa_max_replication(spa));
 	if (gio->io_prop.zp_encrypt && gbh_copies >= SPA_DVAS_PER_BP)
 		gbh_copies = SPA_DVAS_PER_BP - 1;
+
+	mc = spa_preferred_class(spa, SPA_GANGBLOCKSIZE, BP_GET_TYPE(bp), 0);
 
 	if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 		ASSERT(pio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
@@ -3156,7 +3164,7 @@ static int
 zio_dva_allocate(zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
-	metaslab_class_t *mc = spa_normal_class(spa);
+	metaslab_class_t *mc;
 	blkptr_t *bp = zio->io_bp;
 	int error;
 	int flags = 0;
@@ -3180,9 +3188,23 @@ zio_dva_allocate(zio_t *zio)
 	if (zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE)
 		flags |= METASLAB_ASYNC_ALLOC;
 
+	/* locate an appropriate allocation class */
+	mc = spa_preferred_class(spa, zio->io_size, zio->io_prop.zp_type,
+	    zio->io_prop.zp_level);
+
 	error = metaslab_alloc(spa, mc, zio->io_size, bp,
 	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
 	    &zio->io_alloc_list, zio);
+
+	/*
+	 * Fallback to spa_normal_class when a dedicated class is full
+	 */
+	if (error == ENOSPC && mc != spa_normal_class(spa)) {
+		mc = spa_normal_class(spa);
+		error = metaslab_alloc(spa, mc, zio->io_size, bp,
+		    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
+		    &zio->io_alloc_list, zio);
+	}
 
 	if (error != 0) {
 		spa_dbgmsg(spa, "%s: metaslab allocation failure: zio %p, "
@@ -3253,6 +3275,15 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	ASSERT(txg > spa_syncing_txg(spa));
 
 	metaslab_trace_init(&io_alloc_list);
+
+	/*
+	 * Block pointer fields are useful to metaslabs for stats and debugging.
+	 * Fill in the obvious ones before calling into metaslab_alloc().
+	 */
+	BP_SET_TYPE(new_bp, DMU_OT_INTENT_LOG);
+	BP_SET_PSIZE(new_bp, size);
+	BP_SET_LEVEL(new_bp, 0);
+
 	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
 	    txg, NULL, METASLAB_FASTWRITE, &io_alloc_list, NULL);
 	if (error == 0) {

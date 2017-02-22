@@ -31,6 +31,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 Joyent, Inc.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 /*
@@ -218,8 +219,12 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 	ASSERT(MUTEX_HELD(&spa->spa_props_lock));
 
 	if (rvd != NULL) {
-		alloc = metaslab_class_get_alloc(spa_normal_class(spa));
-		size = metaslab_class_get_space(spa_normal_class(spa));
+		alloc = metaslab_class_get_alloc(mc);
+		alloc += metaslab_class_get_alloc(spa_special_class(spa));
+
+		size = metaslab_class_get_space(mc);
+		size += metaslab_class_get_space(spa_special_class(spa));
+
 		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_ALLOCATED, NULL, alloc, src);
@@ -500,6 +505,14 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if (!error && !spa_get_hostid())
 				error = SET_ERROR(ENOTSUP);
 
+			break;
+
+		case ZPOOL_PROP_SEGREGATE_LOG:
+		case ZPOOL_PROP_SEGREGATE_SPECIAL:
+			/* set-once that can only be enabled */
+			error = nvpair_value_uint64(elem, &intval);
+			if (!error && intval != 1)
+				error = SET_ERROR(EINVAL);
 			break;
 
 		case ZPOOL_PROP_BOOTFS:
@@ -1116,6 +1129,7 @@ spa_activate(spa_t *spa, int mode)
 
 	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	spa->spa_special_class = metaslab_class_create(spa, zfs_metaslab_ops);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
@@ -1243,6 +1257,9 @@ spa_deactivate(spa_t *spa)
 	metaslab_class_destroy(spa->spa_log_class);
 	spa->spa_log_class = NULL;
 
+	metaslab_class_destroy(spa->spa_special_class);
+	spa->spa_special_class = NULL;
+
 	/*
 	 * If this was part of an import or the open otherwise failed, we may
 	 * still have errors left in the queues.  Empty them just in case.
@@ -1367,6 +1384,19 @@ spa_unload(spa_t *spa)
 
 	if (spa->spa_mmp.mmp_thread)
 		mmp_thread_stop(spa);
+
+	/*
+	 * Even though vdev_free() also calls vdev_metaslab_fini, we need
+	 * to call it earlier, before we wait for async i/o to complete.
+	 * This ensures that there is no async metaslab prefetching, by
+	 * calling taskq_wait(mg_taskq).
+	 */
+	if (spa->spa_root_vdev != NULL) {
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+		for (c = 0; c < spa->spa_root_vdev->vdev_children; c++)
+			vdev_metaslab_fini(spa->spa_root_vdev->vdev_child[c]);
+		spa_config_exit(spa, SCL_ALL, FTAG);
+	}
 
 	/*
 	 * Wait for any outstanding async I/O to complete.
@@ -2346,6 +2376,50 @@ vdev_count_verify_zaps(vdev_t *vd)
 #endif
 
 /*
+ * Transfer the vdev top zap keys from mos-config into config
+ */
+static void
+spa_config_transfer_topzap(nvlist_t *config, nvlist_t *mos)
+{
+	nvlist_t *ctree, *mtree;
+	nvlist_t **c_child, **m_child;
+	uint_t c, c_max, m_max, count;
+
+	if (!nvlist_exists(mos, ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS))
+		return;
+
+	VERIFY0(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &ctree));
+	VERIFY0(nvlist_lookup_nvlist(mos, ZPOOL_CONFIG_VDEV_TREE, &mtree));
+
+	/*
+	 * scan through all the top level vdevs to transfer top zap
+	 */
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &ctree) != 0 ||
+	    nvlist_lookup_nvlist_array(ctree, ZPOOL_CONFIG_CHILDREN, &c_child,
+	    &c_max) != 0) {
+		return;
+	}
+	if (nvlist_lookup_nvlist(mos, ZPOOL_CONFIG_VDEV_TREE, &mtree) != 0 ||
+	    nvlist_lookup_nvlist_array(mtree, ZPOOL_CONFIG_CHILDREN, &m_child,
+	    &m_max) != 0) {
+		return;
+	}
+	count = MIN(c_max, m_max);
+
+	for (c = 0; c < count; c++) {
+		uint64_t top_zap;
+
+		/* transfer missing top zap */
+		if (nvlist_lookup_uint64(m_child[c], ZPOOL_CONFIG_VDEV_TOP_ZAP,
+		    &top_zap) == 0) {
+			VERIFY0(nvlist_add_uint64(c_child[c],
+			    ZPOOL_CONFIG_VDEV_TOP_ZAP, top_zap));
+		}
+	}
+	fnvlist_add_boolean(config, ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS);
+}
+
+/*
  * Determine whether the activity check is required.
  */
 static boolean_t
@@ -2534,6 +2608,32 @@ out:
 		nvlist_free(mmp_label);
 
 	return (error);
+}
+
+void
+spa_segregated_prop_get(spa_t *spa, nvlist_t *props)
+{
+	uint64_t segregate_log = 0;
+	uint64_t segregate_special = 0;
+
+	if (props != NULL) {
+		/* Create case is passed as a property */
+		(void) nvlist_lookup_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_SEGREGATE_LOG),
+		    &segregate_log);
+		(void) nvlist_lookup_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_SEGREGATE_SPECIAL),
+		    &segregate_special);
+	} else {
+		/* Import case comes from property zap */
+		spa_prop_find(spa, ZPOOL_PROP_SEGREGATE_LOG,
+		    &segregate_log);
+		spa_prop_find(spa, ZPOOL_PROP_SEGREGATE_SPECIAL,
+		    &segregate_special);
+	}
+
+	spa->spa_segregate_log = (segregate_log == 1);
+	spa->spa_segregate_special = (segregate_special == 1);
 }
 
 /*
@@ -2925,6 +3025,37 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		spa_activate(spa, orig_mode);
 
 		return (spa_load(spa, state, SPA_IMPORT_EXISTING, B_TRUE));
+
+	} else if (!nvlist_exists(config, ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS)) {
+		/*
+		 * The current config is missing vdev zaps. The top vdev
+		 * zap is required before vdev metaslabs are initialized
+		 * for both dRAID and the special allocation class.
+		 *
+		 * Note that we cannot just replace the config with the
+		 * mos config since the passed in config may also contain
+		 * vdev path updates that need to be picked up.
+		 */
+		nvlist_t *mos;
+
+		if (load_nvlist(spa, spa->spa_config_object, &mos) == 0) {
+			if (nvlist_exists(mos,
+			    ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS)) {
+				spa_config_transfer_topzap(config, mos);
+				nvlist_free(mos);
+
+				spa_unload(spa);
+				spa_deactivate(spa);
+				spa_activate(spa, orig_mode);
+
+				error = spa_load(spa, state,
+				    SPA_IMPORT_EXISTING, B_TRUE);
+				if (error == 0)
+					spa_async_suspend(spa);
+				return (error);
+			}
+			nvlist_free(mos);
+		}
 	}
 
 	/* Grab the checksum salt from the MOS. */
@@ -3081,6 +3212,10 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		    &spa->spa_dedup_ditto);
 
 		spa->spa_autoreplace = (autoreplace != 0);
+
+		spa_segregated_prop_get(spa, NULL);
+		spa_prop_find(spa, ZPOOL_PROP_SMALLBLKCEILING,
+		    &spa->spa_smallblk_ceiling);
 	}
 
 	/*
@@ -4023,7 +4158,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	char *poolname;
 	nvlist_t *nvl;
 
-	if (nvlist_lookup_string(props, "tname", &poolname) != 0)
+	if (props == NULL ||
+	    nvlist_lookup_string(props, "tname", &poolname) != 0)
 		poolname = (char *)pool;
 
 	/*
@@ -4090,6 +4226,13 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	}
 	ASSERT(SPA_VERSION_IS_SUPPORTED(version));
 
+	/* examine segregation props before instantiating vdevs */
+	if (props != NULL)
+		spa_segregated_prop_get(spa, props);
+
+	if (spa->spa_segregate_special)
+		spa->spa_smallblk_ceiling = MS_SPECIAL_SMALLBLK_CEILING;
+
 	spa->spa_first_txg = txg;
 	spa->spa_uberblock.ub_txg = txg - 1;
 	spa->spa_uberblock.ub_version = version;
@@ -4125,8 +4268,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	    (error = spa_validate_aux(spa, nvroot, txg,
 	    VDEV_ALLOC_ADD)) == 0) {
 		for (c = 0; c < rvd->vdev_children; c++) {
-			vdev_metaslab_set_size(rvd->vdev_child[c]);
-			vdev_expand(rvd->vdev_child[c], txg);
+			vdev_t *vd = rvd->vdev_child[c];
+
+			vdev_metaslab_set_size(vd);
+			vdev_expand(vd, txg);
 		}
 	}
 
@@ -4252,6 +4397,15 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	if (props != NULL) {
 		spa_configfile_set(spa, props, B_FALSE);
 		spa_sync_props(props, tx);
+	}
+
+	/*
+	 * Set-once segregate properties activate the segregated vdev feature
+	 */
+	if ((spa->spa_segregate_log || spa->spa_segregate_special) &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_ALLOCATION_CLASSES)) {
+		spa_feature_incr(spa, SPA_FEATURE_ALLOCATION_CLASSES, tx);
+		spa_sync_smallblk_ceiling(spa, tx);
 	}
 
 	dmu_tx_commit(tx);
@@ -5123,6 +5277,14 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	ASSERT(pvd->vdev_children >= 2);
 
 	/*
+	 * If dedicated class, then it must remain mirrored
+	 */
+	if (pvd->vdev_alloc_bias == VDEV_BIAS_SPECIAL) {
+		if (pvd->vdev_children <= 2) {
+			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
+		}
+	}
+	/*
 	 * If we are detaching the second disk from a replacing vdev, then
 	 * check to see if we changed the original vdev's path to have "/old"
 	 * at the end in spa_vdev_attach().  If so, undo that change now.
@@ -5362,6 +5524,7 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	/* then, loop over each vdev and validate it */
 	for (c = 0; c < children; c++) {
 		uint64_t is_hole = 0;
+		vdev_alloc_bias_t alloc_bias;
 
 		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_HOLE,
 		    &is_hole);
@@ -5374,6 +5537,15 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 				error = SET_ERROR(EINVAL);
 				break;
 			}
+		}
+
+		/* disallow splitting for allocation classes */
+		alloc_bias = spa->spa_root_vdev->vdev_child[c]->vdev_alloc_bias;
+		if (alloc_bias == VDEV_BIAS_SPECIAL) {
+			cmn_err(CE_NOTE, "%s pool split with allocation "
+			    "classes not allowed", spa_name(spa));
+			error = SET_ERROR(EINVAL);
+			break;
 		}
 
 		/* which disk is going to be split? */
@@ -6140,8 +6312,12 @@ spa_async_thread(void *arg)
 
 		mutex_enter(&spa_namespace_lock);
 		old_space = metaslab_class_get_space(spa_normal_class(spa));
+		old_space += metaslab_class_get_space(spa_special_class(spa));
+
 		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+
 		new_space = metaslab_class_get_space(spa_normal_class(spa));
+		new_space += metaslab_class_get_space(spa_special_class(spa));
 		mutex_exit(&spa_namespace_lock);
 
 		/*
@@ -6694,6 +6870,23 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 	}
 
 	mutex_exit(&spa->spa_props_lock);
+}
+
+/*
+ * Save off the small block ceiling required for special class
+ */
+void
+spa_sync_smallblk_ceiling(spa_t *spa, dmu_tx_t *tx)
+{
+	ASSERT(spa->spa_smallblk_ceiling != 0);
+
+	/* Save off the small block ceiling we'll be using */
+	nvlist_t *ceiling = fnvlist_alloc();
+	fnvlist_add_uint64(ceiling,
+	    zpool_prop_to_name(ZPOOL_PROP_SMALLBLKCEILING),
+	    spa->spa_smallblk_ceiling);
+	spa_sync_props(ceiling, tx);
+	nvlist_free(ceiling);
 }
 
 /*

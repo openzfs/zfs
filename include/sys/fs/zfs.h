@@ -26,6 +26,7 @@
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -232,6 +233,9 @@ typedef enum {
 	ZPOOL_PROP_TNAME,
 	ZPOOL_PROP_MAXDNODESIZE,
 	ZPOOL_PROP_MULTIHOST,
+	ZPOOL_PROP_SEGREGATE_LOG,
+	ZPOOL_PROP_SEGREGATE_SPECIAL,
+	ZPOOL_PROP_SMALLBLKCEILING,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -309,6 +313,7 @@ const char *zpool_prop_to_name(zpool_prop_t);
 const char *zpool_prop_default_string(zpool_prop_t);
 uint64_t zpool_prop_default_numeric(zpool_prop_t);
 boolean_t zpool_prop_readonly(zpool_prop_t);
+boolean_t zpool_prop_setonce(zfs_prop_t);
 boolean_t zpool_prop_feature(const char *);
 boolean_t zpool_prop_unsupported(const char *);
 int zpool_prop_index_to_string(zpool_prop_t, uint64_t, const char **);
@@ -690,6 +695,7 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_MMP_TXG		"mmp_txg"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_HOSTNAME	"mmp_hostname"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_HOSTID		"mmp_hostid"	/* not stored on disk */
+#define	ZPOOL_CONFIG_ALLOCATION_BIAS	"alloc_bias"	/* not stored on disk */
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
@@ -726,6 +732,19 @@ typedef struct zpool_rewind_policy {
 #define	VDEV_TYPE_SPARE			"spare"
 #define	VDEV_TYPE_LOG			"log"
 #define	VDEV_TYPE_L2CACHE		"l2cache"
+
+/* vdev metaslab allocation bias */
+#define	VDEV_ALLOC_BIAS_LOG		"log"
+#define	VDEV_ALLOC_BIAS_SPECIAL		"special"
+#define	VDEV_ALLOC_BIAS_SEGREGATE	"segregate"
+
+/* VDEV_TOP_ZAP_* are used in top-level vdev ZAP objects. */
+#define	VDEV_TOP_ZAP_ALLOCATION_BIAS \
+	"com.intel:allocation_bias"
+#define	VDEV_TOP_ZAP_ALLOCATION_BIRTH \
+	"com.intel:allocation_birth"
+#define	VDEV_TOP_ZAP_METASLAB_INFO_OBJ \
+	"com.intel:metaslab_info_obj"
 
 /*
  * This is needed in userland to report the minimum necessary device size.
@@ -915,6 +934,9 @@ typedef struct vdev_stat {
 	uint64_t	vs_scan_processed;	/* scan processed bytes	*/
 	uint64_t	vs_fragmentation;	/* device fragmentation */
 
+	uint64_t	vs_normal_assigned;	/* ms assigned space	*/
+	uint64_t	vs_special_assigned;	/* ms assigned space	*/
+	uint64_t	vs_special_alloc;	/* special allocated	*/
 } vdev_stat_t;
 
 /*

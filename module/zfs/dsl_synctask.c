@@ -21,14 +21,17 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_synctask.h>
 #include <sys/metaslab.h>
+#include <sys/spa.h>
 
 #define	DST_AVG_BLKSHIFT 14
 
@@ -143,8 +146,11 @@ void
 dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = dst->dst_pool;
+	metaslab_class_t *mc;
 
 	ASSERT0(dst->dst_error);
+
+	mc = spa_preferred_class(dp->dp_spa, dst->dst_space, DMU_OT_NONE, 0);
 
 	/*
 	 * Check for sufficient space.
@@ -162,7 +168,7 @@ dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 	if (dst->dst_space_check != ZFS_SPACE_CHECK_NONE) {
 		uint64_t quota = dsl_pool_adjustedsize(dp,
 		    dst->dst_space_check == ZFS_SPACE_CHECK_RESERVED) -
-		    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
+		    metaslab_class_get_deferred(mc);
 		uint64_t used = dsl_dir_phys(dp->dp_root_dir)->dd_used_bytes;
 		/* MOS space is triple-dittoed, so we multiply by 3. */
 		if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
