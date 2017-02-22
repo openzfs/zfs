@@ -531,8 +531,6 @@ AC_DEFUN([ZFS_AC_QAT], [
 		[qat is enabled and existed])
 	])
 
-	AM_CONDITIONAL([CONFIG_QAT], [test ! -z "${qatsrc}"])
-
 	dnl #
 	dnl # Detect the name used for the QAT Module.symvers file.
 	dnl #
