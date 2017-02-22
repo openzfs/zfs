@@ -498,14 +498,14 @@ AC_DEFUN([ZFS_AC_QAT], [
 	AS_IF([test ! -z "${qatsrc}"], [
 		AC_MSG_CHECKING([qat source directory])
 		AC_MSG_RESULT([$qatsrc])
-		QAT_SRC="${qatsrc}/quickassist/include"
-		AS_IF([ test ! -e "$QAT_SRC/cpa.h"], [
+		QAT_SRC="${qatsrc}/quickassist"
+		AS_IF([ test ! -e "$QAT_SRC/include/cpa.h"], [
 			AC_MSG_ERROR([
 		*** Please make sure the qat driver package is installed
 		*** and specify the location of the qat source with the
 		*** '--with-qat=PATH' option then try again. Failed to
 		*** find cpa.h in:
-		${QAT_SRC}])
+		${QAT_SRC}/include])
 		])
 	])
 
@@ -530,6 +530,8 @@ AC_DEFUN([ZFS_AC_QAT], [
 		AC_DEFINE(HAVE_QAT, 1,
 		[qat is enabled and existed])
 	])
+
+	AM_CONDITIONAL([CONFIG_QAT], [test ! -z "${qatsrc}"])
 
 	dnl #
 	dnl # Detect the name used for the QAT Module.symvers file.
