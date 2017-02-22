@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
- * Copyright (c) 2016 Intel Corporation.
+ * Copyright (c) 2017 Intel Corporation.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>.
  */
 
@@ -682,6 +682,9 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 	verify(nvlist_add_string(vdev, ZPOOL_CONFIG_PATH, path) == 0);
 	verify(nvlist_add_string(vdev, ZPOOL_CONFIG_TYPE, type) == 0);
 	verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_IS_LOG, is_log) == 0);
+	if (is_log)
+		verify(nvlist_add_string(vdev, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    VDEV_ALLOC_BIAS_LOG) == 0);
 	if (strcmp(type, VDEV_TYPE_DISK) == 0)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
@@ -740,6 +743,9 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
  *
  * 	Otherwise, make sure that the current spec (if there is one) and the new
  * 	spec have consistent replication levels.
+ *
+ *	If there is no current spec (create), make sure new spec has at least
+ *	one general purpose vdev.
  */
 typedef struct replication_level {
 	char *zprl_type;
@@ -775,7 +781,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	nvlist_t **child;
 	uint_t c, children;
 	nvlist_t *nv;
-	char *type;
+	char *type, *alloc_bias;
 	replication_level_t lastrep = {0};
 	replication_level_t rep;
 	replication_level_t *ret;
@@ -798,6 +804,9 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		 */
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_IS_LOG, &is_log);
 		if (is_log)
+			continue;
+		if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &alloc_bias) == 0)
 			continue;
 
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE,
@@ -959,7 +968,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		/*
 		 * At this point, we have the replication of the last toplevel
 		 * vdev in 'rep'.  Compare it to 'lastrep' to see if its
-		 * different.
+		 * different. Skip checks involving dedicated top-level vdevs.
 		 */
 		if (lastrep.zprl_type != NULL) {
 			if (is_raidz_mirror(&lastrep, &rep, &raidz, &mirror) ||
@@ -1458,6 +1467,14 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 		return (VDEV_TYPE_LOG);
 	}
 
+	if (strcmp(type, VDEV_ALLOC_BIAS_DEDUP) == 0 ||
+	    strcmp(type, VDEV_ALLOC_BIAS_METADATA) == 0 ||
+	    strcmp(type, VDEV_ALLOC_BIAS_SMALLBLKS) == 0) {
+		if (mindev != NULL)
+			*mindev = 2;
+		return (type);
+	}
+
 	if (strcmp(type, "cache") == 0) {
 		if (mindev != NULL)
 			*mindev = 1;
@@ -1465,6 +1482,19 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 	}
 
 	return (NULL);
+}
+
+static boolean_t
+segregate_prop_active(nvlist_t *props, zpool_prop_t prop)
+{
+	char *str;
+
+	if (props != NULL &&
+	    nvlist_lookup_string(props, zpool_prop_to_name(prop), &str) == 0 &&
+	    strcmp(str, "on") == 0) {
+		return (B_TRUE);
+	}
+	return (B_FALSE);
 }
 
 /*
@@ -1479,7 +1509,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	nvlist_t *nvroot, *nv, **top, **spares, **l2cache;
 	int t, toplevels, mindev, maxdev, nspares, nlogs, nl2cache;
 	const char *type;
-	uint64_t is_log;
+	uint64_t is_log, is_dedup, is_metadata, is_smallblks;
 	boolean_t seen_logs;
 
 	top = NULL;
@@ -1489,7 +1519,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	nspares = 0;
 	nlogs = 0;
 	nl2cache = 0;
-	is_log = B_FALSE;
+	is_log = is_dedup = is_metadata = is_smallblks = B_FALSE;
 	seen_logs = B_FALSE;
 	nvroot = NULL;
 
@@ -1512,7 +1542,8 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    "specified only once\n"));
 					goto spec_out;
 				}
-				is_log = B_FALSE;
+				is_log = is_dedup = B_FALSE;
+				is_metadata = is_smallblks = B_FALSE;
 			}
 
 			if (strcmp(type, VDEV_TYPE_LOG) == 0) {
@@ -1523,14 +1554,71 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    "specified only once\n"));
 					goto spec_out;
 				}
+				if (segregate_prop_active(props,
+				    ZPOOL_PROP_SEGREGATE_LOG)) {
+					(void) fprintf(stderr,
+					    gettext("invalid vdev specified: "
+					    "'%s' was already specified by "
+					    "'%s' property\n"),
+					    VDEV_TYPE_LOG, zpool_prop_to_name(
+					    ZPOOL_PROP_SEGREGATE_LOG));
+					goto spec_out;
+				}
 				seen_logs = B_TRUE;
 				is_log = B_TRUE;
+				is_dedup = is_metadata = is_smallblks = B_FALSE;
 				argc--;
 				argv++;
 				/*
 				 * A log is not a real grouping device.
 				 * We just set is_log and continue.
 				 */
+				continue;
+			}
+
+			if (strcmp(type, VDEV_ALLOC_BIAS_DEDUP) == 0) {
+				is_dedup = B_TRUE;
+				is_log = is_metadata = is_smallblks = B_FALSE;
+				argc--;
+				argv++;
+				continue;
+			}
+
+			if (strcmp(type, VDEV_ALLOC_BIAS_METADATA) == 0) {
+				if (segregate_prop_active(props,
+				    ZPOOL_PROP_SEGREGATE_METADATA)) {
+					(void) fprintf(stderr,
+					    gettext("invalid vdev specified: "
+					    "'%s' was already specified by "
+					    "'%s' property\n"),
+					    VDEV_ALLOC_BIAS_METADATA,
+					    zpool_prop_to_name(
+					    ZPOOL_PROP_SEGREGATE_METADATA));
+					goto spec_out;
+				}
+				is_metadata = B_TRUE;
+				is_log = is_dedup = is_smallblks = B_FALSE;
+				argc--;
+				argv++;
+				continue;
+			}
+
+			if (strcmp(type, VDEV_ALLOC_BIAS_SMALLBLKS) == 0) {
+				if (segregate_prop_active(props,
+				    ZPOOL_PROP_SEGREGATE_SMALLBLKS)) {
+					(void) fprintf(stderr,
+					    gettext("invalid vdev specified: "
+					    "'%s' was already specified by "
+					    "'%s' property\n"),
+					    VDEV_ALLOC_BIAS_SMALLBLKS,
+					    zpool_prop_to_name(
+					    ZPOOL_PROP_SEGREGATE_SMALLBLKS));
+					goto spec_out;
+				}
+				is_smallblks = B_TRUE;
+				is_log = is_metadata = is_dedup = B_FALSE;
+				argc--;
+				argv++;
 				continue;
 			}
 
@@ -1542,15 +1630,17 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    "specified only once\n"));
 					goto spec_out;
 				}
-				is_log = B_FALSE;
+				is_log = is_dedup = is_metadata = B_FALSE;
 			}
 
-			if (is_log) {
+			if (is_log || is_dedup || is_metadata || is_smallblks) {
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
-					    "specification: unsupported 'log' "
-					    "device: %s\n"), type);
+					    "specification: unsupported '%s' "
+					    "device: %s\n"), is_log ? "log" :
+					    is_dedup ? "dedup" : is_metadata ?
+					    "metadata" : "smallblks", type);
 					goto spec_out;
 				}
 				nlogs++;
@@ -1613,6 +1703,25 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				    type) == 0);
 				verify(nvlist_add_uint64(nv,
 				    ZPOOL_CONFIG_IS_LOG, is_log) == 0);
+				if (is_log)
+					verify(nvlist_add_string(nv,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    VDEV_ALLOC_BIAS_LOG) == 0);
+				if (is_dedup) {
+					verify(nvlist_add_string(nv,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    VDEV_ALLOC_BIAS_DEDUP) == 0);
+				}
+				if (is_metadata) {
+					verify(nvlist_add_string(nv,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    VDEV_ALLOC_BIAS_METADATA) == 0);
+				}
+				if (is_smallblks) {
+					verify(nvlist_add_string(nv,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    VDEV_ALLOC_BIAS_SMALLBLKS) == 0);
+				}
 				if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
 					verify(nvlist_add_uint64(nv,
 					    ZPOOL_CONFIG_NPARITY,
@@ -1637,6 +1746,13 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 			if (is_log)
 				nlogs++;
+			if (is_dedup || is_metadata || is_smallblks) {
+				(void) fprintf(stderr,
+				    gettext("invalid vdev specification: '%s' "
+				    "expects mirror\n"), is_dedup ? "dedup" :
+				    is_metadata ? "metadata" : "smallblks");
+				goto spec_out;
+			}
 			argc--;
 			argv++;
 		}
@@ -1737,6 +1853,30 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 	return (newroot);
 }
 
+static int
+num_normal_vdevs(nvlist_t *nvroot)
+{
+	nvlist_t **top;
+	uint_t t, toplevels, normal = 0;
+
+	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &top, &toplevels) == 0);
+
+	for (t = 0; t < toplevels; t++) {
+		uint64_t log = B_FALSE;
+
+		(void) nvlist_lookup_uint64(top[t], ZPOOL_CONFIG_IS_LOG, &log);
+		if (log)
+			continue;
+		if (nvlist_exists(top[t], ZPOOL_CONFIG_ALLOCATION_BIAS))
+			continue;
+
+		normal++;
+	}
+
+	return (normal);
+}
+
 /*
  * Get and validate the contents of the given vdev specification.  This ensures
  * that the nvlist returned is well-formed, that all the devices exist, and that
@@ -1785,6 +1925,16 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * catch changes against the existing replication level.
 	 */
 	if (check_rep && check_replication(poolconfig, newroot) != 0) {
+		nvlist_free(newroot);
+		return (NULL);
+	}
+
+	/*
+	 * On pool create the new vdev spec must have one normal vdev.
+	 */
+	if (poolconfig == NULL && num_normal_vdevs(newroot) == 0) {
+		vdev_error(gettext("at least one general top-level vdev must "
+		    "be specified\n"));
 		nvlist_free(newroot);
 		return (NULL);
 	}

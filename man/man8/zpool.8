@@ -273,6 +273,27 @@ A cache device cannot be configured as a mirror or raidz group.
 For more information, see the
 .Sx Cache Devices
 section.
+.It Sy metadata
+A device that carries only pool metadata. Currently this must be a mirror of 2
+or more disks. Specify the keyword
+.Sy metadata
+keyword before the
+.Sy mirror
+keyword when creating or adding vdevs. Metadata includes
+.Sy dedup
+information. Metadata vdevs are strongly encouraged to be non-rotational
+disks such as flash based drives.
+.It Sy dedup
+Similar to
+.Sy metadata
+except only information needed for deduplication is stored on this vdev.
+.It Sy smallblks
+Similar to
+.Sy metadata
+except only small blocks are stored on the vdev, where currently small blocks
+is defined as 32 KiB or smaller. Large blocks which compress to no more than
+32 KiB may be stored on this vdev. Metadata is typically smaller than 32 KiB
+and will very likely be stored on this vdev.
 .El
 .Pp
 Virtual devices cannot be nested, so a mirror or raidz virtual device can only
@@ -561,6 +582,20 @@ If set to
 the pool will be imported in read-only mode.
 This property can also be referred to by its shortened column name,
 .Sy rdonly .
+.El
+.Pp
+The following properties can be set at creation time:
+.Bl -tag -width Ds -compact
+.It Sy segregate_log Ns = Ns Sy on
+.sp
+.It Sy segregate_metadata Ns = Ns Sy on
+.sp
+.It Sy segregate_smallblks Ns = Ns Sy on
+The segregate properties direct the allocating vdevs in the pool
+to segregate a portion of their metaslabs to the allocation class
+indicated by the property's name. These properties require that
+\fIfeature@segregated_vdevs\fR be enabled and the feature becomes
+permanately active at pool create.
 .El
 .Pp
 The following properties can be set at creation time and import time, and later

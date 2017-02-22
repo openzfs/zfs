@@ -31,6 +31,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 Joyent, Inc.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 /*
@@ -218,8 +219,25 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 	ASSERT(MUTEX_HELD(&spa->spa_props_lock));
 
 	if (rvd != NULL) {
-		alloc = metaslab_class_get_alloc(spa_normal_class(spa));
-		size = metaslab_class_get_space(spa_normal_class(spa));
+		metaslab_class_t *alt_mc;
+
+		alloc = metaslab_class_get_alloc(mc);
+		size = metaslab_class_get_space(mc);
+		/*
+		 * DJB - TBD does this need a fudge factor like for deflate?
+		 * like a compression factor or ditto copies?
+		 */
+		alt_mc = spa_dedup_class(spa);
+		if (alt_mc->mc_rotor != NULL) {
+			alloc += metaslab_class_get_alloc(alt_mc);
+			size += metaslab_class_get_space(alt_mc);
+		}
+		alt_mc = spa_custom_class(spa);
+		if (alt_mc->mc_rotor != NULL) {
+			alloc += metaslab_class_get_alloc(alt_mc);
+			size += metaslab_class_get_space(alt_mc);
+		}
+
 		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_ALLOCATED, NULL, alloc, src);
@@ -499,7 +517,15 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 
 			if (!error && !spa_get_hostid())
 				error = SET_ERROR(ENOTSUP);
+			break;
 
+		case ZPOOL_PROP_SEGREGATE_LOG:
+		case ZPOOL_PROP_SEGREGATE_METADATA:
+		case ZPOOL_PROP_SEGREGATE_SMALLBLKS:
+			/* set-once that can only be enabled */
+			error = nvpair_value_uint64(elem, &intval);
+			if (!error && intval != 1)
+				error = SET_ERROR(EINVAL);
 			break;
 
 		case ZPOOL_PROP_BOOTFS:
@@ -1111,6 +1137,8 @@ spa_activate(spa_t *spa, int mode)
 
 	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	spa->spa_dedup_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	spa->spa_custom_class = metaslab_class_create(spa, zfs_metaslab_ops);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
@@ -1236,6 +1264,12 @@ spa_deactivate(spa_t *spa)
 	metaslab_class_destroy(spa->spa_log_class);
 	spa->spa_log_class = NULL;
 
+	metaslab_class_destroy(spa->spa_dedup_class);
+	spa->spa_dedup_class = NULL;
+
+	metaslab_class_destroy(spa->spa_custom_class);
+	spa->spa_custom_class = NULL;
+
 	/*
 	 * If this was part of an import or the open otherwise failed, we may
 	 * still have errors left in the queues.  Empty them just in case.
@@ -1359,6 +1393,19 @@ spa_unload(spa_t *spa)
 
 	if (spa->spa_mmp.mmp_thread)
 		mmp_thread_stop(spa);
+
+	/*
+	 * Even though vdev_free() also calls vdev_metaslab_fini, we need
+	 * to call it earlier, before we wait for async i/o to complete.
+	 * This ensures that there is no async metaslab prefetching, by
+	 * calling taskq_wait(mg_taskq).
+	 */
+	if (spa->spa_root_vdev != NULL) {
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+		for (c = 0; c < spa->spa_root_vdev->vdev_children; c++)
+			vdev_metaslab_fini(spa->spa_root_vdev->vdev_child[c]);
+		spa_config_exit(spa, SCL_ALL, FTAG);
+	}
 
 	/*
 	 * Wait for any outstanding async I/O to complete.
@@ -2337,6 +2384,39 @@ vdev_count_verify_zaps(vdev_t *vd)
 }
 #endif
 
+void
+spa_segregated_prop_get(spa_t *spa, nvlist_t *props)
+{
+	uint64_t segregate_log = 0;
+	uint64_t segregate_metadata = 0;
+	uint64_t segregate_smallblks = 0;
+
+	if (props != NULL) {
+		/* Create case is passed as a property */
+		(void) nvlist_lookup_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_SEGREGATE_LOG),
+		    &segregate_log);
+		(void) nvlist_lookup_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_SEGREGATE_METADATA),
+		    &segregate_metadata);
+		(void) nvlist_lookup_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_SEGREGATE_SMALLBLKS),
+		    &segregate_smallblks);
+	} else {
+		/* Import case comes from property zap */
+		spa_prop_find(spa, ZPOOL_PROP_SEGREGATE_LOG,
+		    &segregate_log);
+		spa_prop_find(spa, ZPOOL_PROP_SEGREGATE_METADATA,
+		    &segregate_metadata);
+		spa_prop_find(spa, ZPOOL_PROP_SEGREGATE_SMALLBLKS,
+		    &segregate_smallblks);
+	}
+
+	spa->spa_segregate_log = (segregate_log == 1);
+	spa->spa_segregate_metadata = (segregate_metadata == 1);
+	spa->spa_segregate_smallblks = (segregate_smallblks == 1);
+}
+
 /*
  * Determine whether the activity check is required.
  */
@@ -3073,6 +3153,8 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		    &spa->spa_dedup_ditto);
 
 		spa->spa_autoreplace = (autoreplace != 0);
+
+		spa_segregated_prop_get(spa, NULL);
 	}
 
 	/*
@@ -3996,7 +4078,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	char *poolname;
 	nvlist_t *nvl;
 
-	if (nvlist_lookup_string(props, "tname", &poolname) != 0)
+	if (props == NULL ||
+	    nvlist_lookup_string(props, "tname", &poolname) != 0)
 		poolname = (char *)pool;
 
 	/*
@@ -4045,6 +4128,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	}
 	ASSERT(SPA_VERSION_IS_SUPPORTED(version));
 
+	/* examine segregation props before instantiating vdevs */
+	if (props != NULL)
+		spa_segregated_prop_get(spa, props);
+
 	spa->spa_first_txg = txg;
 	spa->spa_uberblock.ub_txg = txg - 1;
 	spa->spa_uberblock.ub_version = version;
@@ -4080,8 +4167,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	    (error = spa_validate_aux(spa, nvroot, txg,
 	    VDEV_ALLOC_ADD)) == 0) {
 		for (c = 0; c < rvd->vdev_children; c++) {
-			vdev_metaslab_set_size(rvd->vdev_child[c]);
-			vdev_expand(rvd->vdev_child[c], txg);
+			vdev_t *vd = rvd->vdev_child[c];
+
+			vdev_metaslab_set_size(vd);
+			vdev_expand(vd, txg);
 		}
 	}
 
@@ -4211,6 +4300,16 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	if (props != NULL) {
 		spa_configfile_set(spa, props, B_FALSE);
 		spa_sync_props(props, tx);
+	}
+
+	/*
+	 * Set-once segregate properties activate the segregated vdev feature
+	 */
+	if ((spa->spa_segregate_log ||
+	    spa->spa_segregate_metadata ||
+	    spa->spa_segregate_smallblks) &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_ALLOCATION_CLASSES)) {
+		spa_feature_incr(spa, SPA_FEATURE_ALLOCATION_CLASSES, tx);
 	}
 
 	dmu_tx_commit(tx);
@@ -5071,6 +5170,16 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	ASSERT(pvd->vdev_children >= 2);
 
 	/*
+	 * If dedicated class, then it must remain mirrored
+	 */
+	if (pvd->vdev_alloc_bias == VDEV_BIAS_DEDUP ||
+	    pvd->vdev_alloc_bias == VDEV_BIAS_METADATA ||
+	    pvd->vdev_alloc_bias == VDEV_BIAS_SMALLBLKS) {
+		if (pvd->vdev_children <= 2) {
+			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
+		}
+	}
+	/*
 	 * If we are detaching the second disk from a replacing vdev, then
 	 * check to see if we changed the original vdev's path to have "/old"
 	 * at the end in spa_vdev_attach().  If so, undo that change now.
@@ -5344,6 +5453,9 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 		    vml[c]->vdev_ishole ||
 		    vml[c]->vdev_isspare ||
 		    vml[c]->vdev_isl2cache ||
+		    vml[c]->vdev_alloc_bias == VDEV_BIAS_DEDUP ||
+		    vml[c]->vdev_alloc_bias == VDEV_BIAS_METADATA ||
+		    vml[c]->vdev_alloc_bias == VDEV_BIAS_SMALLBLKS ||
 		    !vdev_writeable(vml[c]) ||
 		    vml[c]->vdev_children != 0 ||
 		    vml[c]->vdev_state != VDEV_STATE_HEALTHY ||
@@ -6087,8 +6199,14 @@ spa_async_thread(spa_t *spa)
 
 		mutex_enter(&spa_namespace_lock);
 		old_space = metaslab_class_get_space(spa_normal_class(spa));
+		old_space += metaslab_class_get_space(spa_dedup_class(spa));
+		old_space += metaslab_class_get_space(spa_custom_class(spa));
+
 		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+
 		new_space = metaslab_class_get_space(spa_normal_class(spa));
+		new_space += metaslab_class_get_space(spa_dedup_class(spa));
+		new_space += metaslab_class_get_space(spa_custom_class(spa));
 		mutex_exit(&spa_namespace_lock);
 
 		/*

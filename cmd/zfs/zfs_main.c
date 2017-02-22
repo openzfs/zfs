@@ -373,7 +373,7 @@ usage_prop_cb(int prop, void *cb)
 {
 	FILE *fp = cb;
 
-	(void) fprintf(fp, "\t%-15s ", zfs_prop_to_name(prop));
+	(void) fprintf(fp, "\t%-20s ", zfs_prop_to_name(prop));
 
 	if (zfs_prop_readonly(prop))
 		(void) fprintf(fp, " NO    ");
@@ -437,22 +437,22 @@ usage(boolean_t requested)
 		(void) fprintf(fp,
 		    gettext("\nThe following properties are supported:\n"));
 
-		(void) fprintf(fp, "\n\t%-14s %s  %s   %s\n\n",
+		(void) fprintf(fp, "\n\t%-19s %s  %s   %s\n\n",
 		    "PROPERTY", "EDIT", "INHERIT", "VALUES");
 
 		/* Iterate over all properties */
 		(void) zprop_iter(usage_prop_cb, fp, B_FALSE, B_TRUE,
 		    ZFS_TYPE_DATASET);
 
-		(void) fprintf(fp, "\t%-15s ", "userused@...");
+		(void) fprintf(fp, "\t%-20s ", "userused@...");
 		(void) fprintf(fp, " NO       NO   <size>\n");
-		(void) fprintf(fp, "\t%-15s ", "groupused@...");
+		(void) fprintf(fp, "\t%-20s ", "groupused@...");
 		(void) fprintf(fp, " NO       NO   <size>\n");
-		(void) fprintf(fp, "\t%-15s ", "userquota@...");
+		(void) fprintf(fp, "\t%-20s ", "userquota@...");
 		(void) fprintf(fp, "YES       NO   <size> | none\n");
-		(void) fprintf(fp, "\t%-15s ", "groupquota@...");
+		(void) fprintf(fp, "\t%-20s ", "groupquota@...");
 		(void) fprintf(fp, "YES       NO   <size> | none\n");
-		(void) fprintf(fp, "\t%-15s ", "written@<snap>");
+		(void) fprintf(fp, "\t%-20s ", "written@<snap>");
 		(void) fprintf(fp, " NO       NO   <size>\n");
 
 		(void) fprintf(fp, gettext("\nSizes are specified in bytes "
