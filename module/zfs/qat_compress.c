@@ -136,10 +136,10 @@ qat_init(void)
 	return (0);
 fail:
 
-        for (i = 0; i < num_inst; i++) {
-                cpaDcStopInstance(dc_inst_handles[i]);
-                PHYS_CONTIG_FREE(session_handles[i]);
-        }
+	for (i = 0; i < num_inst; i++) {
+		cpaDcStopInstance(dc_inst_handles[i]);
+		PHYS_CONTIG_FREE(session_handles[i]);
+	}
 
 	return (-1);
 }
@@ -162,12 +162,12 @@ qat_fini(void)
 int
 use_qat(size_t s_len)
 {
-        if (zfs_qat_disable == B_TRUE ||
+	if (zfs_qat_disable == B_TRUE ||
 		qat_init_done == 0 ||
 		s_len <= QAT_MIN_BUF_SIZE) {
-                return (0);
+		return (0);
 	}
-        return (1);
+	return (1);
 }
 
 int
