@@ -24,7 +24,7 @@
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
- * Copyright (c) 2016, Intel Corporation.
+ * Copyright (c) 2016, 2017, Intel Corporation.
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017 Datto Inc.
  */
@@ -431,6 +431,7 @@ typedef enum {
 	VDEV_NAME_GUID		= 1 << 1,
 	VDEV_NAME_FOLLOW_LINKS	= 1 << 2,
 	VDEV_NAME_TYPE_ID	= 1 << 3,
+	VDEV_NAME_ALLOC_BIAS	= 1 << 4	/* top-level only */
 } vdev_name_t;
 
 extern char *zpool_vdev_name(libzfs_handle_t *, zpool_handle_t *, nvlist_t *,

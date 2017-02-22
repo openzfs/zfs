@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -130,6 +131,14 @@ struct vdev_queue {
 	uint64_t	vq_lastoffset;
 };
 
+typedef enum vdev_alloc_bias {
+	VDEV_BIAS_NONE,
+	VDEV_BIAS_LOG,		/* dedicated to ZIL data (SLOG) */
+	VDEV_BIAS_SPECIAL,	/* dedicated to ddt, metadata, and small blks */
+	VDEV_BIAS_SEGREGATE,	/* segregate metaslabs into multiple groups */
+} vdev_alloc_bias_t;
+
+
 /*
  * Virtual device descriptor
  */
@@ -171,7 +180,10 @@ struct vdev {
 	uint64_t	vdev_ms_array;	/* metaslab array object	*/
 	uint64_t	vdev_ms_shift;	/* metaslab size shift		*/
 	uint64_t	vdev_ms_count;	/* number of metaslabs		*/
-	metaslab_group_t *vdev_mg;	/* metaslab group		*/
+	uint64_t	vdev_ms_extra;	/* additional info object	*/
+	metaslab_group_t *vdev_mg;	/* primary metaslab group	*/
+	metaslab_group_t *vdev_log_mg;	/* optional log group		*/
+	metaslab_group_t *vdev_special_mg; /* optional special group	*/
 	metaslab_t	**vdev_ms;	/* metaslab array		*/
 	uint64_t	vdev_pending_fastwrite; /* allocated fastwrites */
 	txg_list_t	vdev_ms_list;	/* per-txg dirty metaslab lists	*/
@@ -187,6 +199,8 @@ struct vdev {
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
 	kmutex_t	vdev_queue_lock; /* protects vdev_queue_depth	*/
 	uint64_t	vdev_top_zap;
+	uint64_t	vdev_alloc_bias_birth; /* allocation bias start	*/
+	vdev_alloc_bias_t vdev_alloc_bias; /* metaslab allocation bias	*/
 
 	/*
 	 * The queue depth parameters determine how many async writes are
@@ -383,6 +397,17 @@ extern void vdev_set_min_asize(vdev_t *vd);
  */
 /* zdb uses this tunable, so it must be declared here to make lint happy. */
 extern int zfs_vdev_cache_size;
+
+/*
+ * Metaslab specific
+ */
+metaslab_group_t *vdev_get_mg(vdev_t *vd, metaslab_class_t *mc);
+
+extern void vdev_category_space_update(vdev_t *vd,
+    int64_t normal_assigned_delta, int64_t special_assigned_delta);
+
+boolean_t vdev_category_space_full(spa_t *spa,
+    metaslab_block_category_t category, uint64_t request);
 
 #ifdef	__cplusplus
 }

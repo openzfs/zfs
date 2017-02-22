@@ -25,6 +25,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #include <sys/zfs_context.h>
@@ -1099,6 +1100,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 	 */
 	ASSERT(metaslab_class_validate(spa_normal_class(spa)) == 0);
 	ASSERT(metaslab_class_validate(spa_log_class(spa)) == 0);
+	ASSERT(metaslab_class_validate(spa_special_class(spa)) == 0);
 
 	spa_config_exit(spa, SCL_ALL, spa);
 
@@ -1675,6 +1677,7 @@ void
 spa_update_dspace(spa_t *spa)
 {
 	spa->spa_dspace = metaslab_class_get_dspace(spa_normal_class(spa)) +
+	    metaslab_class_get_dspace(spa_special_class(spa)) +
 	    ddt_get_dedup_dspace(spa);
 }
 
@@ -1716,6 +1719,62 @@ metaslab_class_t *
 spa_log_class(spa_t *spa)
 {
 	return (spa->spa_log_class);
+}
+
+metaslab_class_t *
+spa_special_class(spa_t *spa)
+{
+	return (spa->spa_special_class);
+}
+
+/*
+ * Locate an appropriate allocation class
+ */
+metaslab_class_t *
+spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
+    int level)
+{
+	if (DMU_OT_IS_ZIL(objtype)) {
+		if (spa->spa_log_class->mc_groups != 0)
+			return (spa_log_class(spa));
+		else
+			return (spa_normal_class(spa));
+	}
+	if (DMU_OT_IS_METADATA(objtype) || DMU_OT_IS_DDT(objtype) ||
+	    level > 0) {
+		if (spa->spa_special_class->mc_groups != 0)
+			return (spa_special_class(spa));
+		else
+			return (spa_normal_class(spa));
+	}
+	if (spa->spa_special_class->mc_groups != 0) {
+		/*
+		 * Limit how many small blocks we place into the custom class.
+		 * Also allow large blocks to spill into the custom class when
+		 * the normal class is full.
+		 */
+		if (size <= spa->spa_smallblk_ceiling) {
+			/*
+			 * Allow request if it will keep us under our soft limit
+			 */
+			if (!vdev_category_space_full(spa, MS_CATEGORY_SMALL,
+			    size)) {
+				return (spa_special_class(spa));
+			}
+		} else {
+			/*
+			 * Allow some large blocks to spill when normal is full
+			 */
+			if (vdev_category_space_full(spa, MS_CATEGORY_REGULAR,
+			    size) &&
+			    !vdev_category_space_full(spa, MS_CATEGORY_SMALL,
+			    size)) {
+				return (spa_special_class(spa));
+			}
+		}
+	}
+
+	return (spa_normal_class(spa));
 }
 
 void
@@ -1882,6 +1941,7 @@ spa_init(int mode)
 	unique_init();
 	range_tree_init();
 	metaslab_alloc_trace_init();
+	metaslab_class_stat_init();
 	ddt_init();
 	zio_init();
 	dmu_init();
@@ -1912,6 +1972,7 @@ spa_fini(void)
 	zio_fini();
 	ddt_fini();
 	metaslab_alloc_trace_fini();
+	metaslab_class_stat_fini();
 	range_tree_fini();
 	unique_fini();
 	refcount_fini();
@@ -1931,12 +1992,15 @@ spa_fini(void)
 /*
  * Return whether this pool has slogs. No locking needed.
  * It's not a problem if the wrong answer is returned as it's only for
- * performance and not correctness
+ * performance and not correctness.
+ * Log groups from segregated vdevs don't count as a slog.
  */
 boolean_t
 spa_has_slogs(spa_t *spa)
 {
-	return (spa->spa_log_class->mc_rotor != NULL);
+	metaslab_class_t *mc = spa_log_class(spa);
+
+	return (mc->mc_groups > mc->mc_partial_groups);
 }
 
 spa_log_state_t
@@ -2147,6 +2211,8 @@ EXPORT_SYMBOL(spa_update_dspace);
 EXPORT_SYMBOL(spa_deflate);
 EXPORT_SYMBOL(spa_normal_class);
 EXPORT_SYMBOL(spa_log_class);
+EXPORT_SYMBOL(spa_special_class);
+EXPORT_SYMBOL(spa_preferred_class);
 EXPORT_SYMBOL(spa_max_replication);
 EXPORT_SYMBOL(spa_prev_software_version);
 EXPORT_SYMBOL(spa_get_failmode);

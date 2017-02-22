@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -130,6 +131,54 @@ typedef enum trace_alloc_type {
 #define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 55, x)
 
 /*
+ * Additional per-metaslab allocation info for dedicated/segregated vdevs
+ */
+typedef struct ms_alloc_phys {
+	uint64_t	ms_alloc_flags;		/* flags: ie segregated bias */
+	uint64_t	ms_alloc_metadata;	/* metadata space allocated */
+	uint64_t	ms_alloc_smallblks;	/* smallblks space allocated */
+	uint64_t	ms_alloc_dedup;		/* dedup space allocated */
+} ms_alloc_phys_t;
+
+/*
+ * class allocation bias (segregated vdevs only)
+ */
+typedef enum {
+	MS_ALLOC_BIAS_UNASSIGNED =	0x00,
+	MS_ALLOC_BIAS_LOG =		0x01,
+	MS_ALLOC_BIAS_SPECIAL =		0x02,
+	MS_ALLOC_BIAS_NORMAL =		0x03
+} ms_alloc_bias_t;
+
+/*
+ * ms_alloc_flags
+ *
+ * Note: curently only used for allocation bias in the lower 2 bits
+ *
+ * 64      56      48      40      32      24      16      8     2 0
+ * +-------+-------+-------+-------+-------+-------+-------+-----+-+
+ * |                          RESERVED                           |B|
+ * +-------+-------+-------+-------+-------+-------+-------+-------+
+ */
+#define	MS_ALLOC_FLAG_BIAS_GET(flg) \
+	(ms_alloc_bias_t)BF64_DECODE(flg, 0, 2)
+
+#define	MS_ALLOC_FLAG_BIAS_SET(flg, bias) do { \
+	((flg) ^= BF64_ENCODE((flg) ^ (bias), 0, 2)); \
+_NOTE(CONSTCOND) } while (0)
+
+/*
+ * Special Class Small Block Ceiling
+ *
+ * When the allocation class feature is activated with a special
+ * class, this value is used to establish the pool's ceiling for
+ * small blocks entering the class. Since it is used by metaslab
+ * allocation accounting, it cannot change once it is set.
+ */
+#define	MS_SPECIAL_SMALLBLK_CEILING	32768
+
+
+/*
  * A metaslab class encompasses a category of allocatable top-level vdevs.
  * Each top-level vdev is associated with a metaslab group which defines
  * the allocatable region for that vdev. Examples of these categories include
@@ -160,6 +209,7 @@ struct metaslab_class {
 	 * updated the MOS config and the space has been added to the pool).
 	 */
 	uint64_t		mc_groups;
+	uint64_t		mc_partial_groups; /* from segregated vdevs */
 
 	/*
 	 * Toggle to enable/disable the allocation throttle.
@@ -198,6 +248,9 @@ struct metaslab_class {
  * space, fragmentation, or going offline. When this happens the allocator will
  * simply find the next metaslab group in the linked list and attempt
  * to allocate from that group instead.
+ *
+ * When vdev segregation is enabled (vdev_alloc_bias == VDEV_BIAS_SEGREGATE),
+ * a portion of the vdev's metaslabs will belong to another group.
  */
 struct metaslab_group {
 	kmutex_t		mg_lock;
@@ -221,6 +274,7 @@ struct metaslab_group {
 	taskq_t			*mg_taskq;
 	metaslab_group_t	*mg_prev;
 	metaslab_group_t	*mg_next;
+	uint64_t		mg_metaslab_cnt;	/* member metaslabs */
 
 	/*
 	 * Each metaslab group can handle mg_max_alloc_queue_depth allocations
@@ -329,6 +383,12 @@ struct metaslab {
 	range_tree_t	*ms_freedtree; /* already freed this syncing txg */
 	range_tree_t	*ms_defertree[TXG_DEFER_SIZE];
 
+	/* Track space by block categories (between syncs of SM header) */
+	int64_t		ms_dedup_bytes[TXG_SIZE];
+	int64_t		ms_metadata_bytes[TXG_SIZE];
+	int64_t		ms_smallblks_bytes[TXG_SIZE];
+	ms_alloc_phys_t	ms_alloc_extra;
+
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
 
@@ -367,6 +427,54 @@ struct metaslab {
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
 };
+
+/*
+ * With segregated top-level vdevs, a portion of the metaslabs are
+ * set aside for a specific allocation class. The following diagram
+ * shows the relationship between the vdev, its metaslabs, group and
+ * class when segregation is enabled.
+ *
+ *
+ *            +------------------------------------------+
+ *            |              TOP-LEVEL VDEV              |
+ *      +---->|                                          |<----+
+ *      |     |           ALLOC_BIAS=SEGREGATE           |     |
+ *      |     +------------------------------------------+     |
+ *      |         |        |                         |         |
+ *      |         |        |          vdev_special_mg|         |mg_vd
+ *      |         |        |vdev_ms                  |         |
+ *      |         |        |                         V         |
+ * mg_vd|  vdev_mg|        |    ________   msg  +----------+   |
+ *      |         |        +-->|___00___|------>|          |---+
+ *      |         |            |___01___|------>|          |
+ *      |         |            |___02___|------>| MS_GROUP |<------+
+ *      |         V            |___03___|------>|          |       |
+ *      |   +----------+  msg  |___04___|------>|          |       |
+ *      +---|          |<------|___05___|       +----------+       |
+ *          |          |<------|___06___|            |             |
+ *          |          |<------|___07___|            |             |
+ *          |          |<------|___08___|            |             |
+ *          |          |<------|___09___|            |             |
+ *          |          |<------|___10___|            |             |
+ *          |          |<------|___11___|            |             |
+ *   +----->| MS_GROUP |<------|___12___|            |             |
+ *   |      |          |<------|___13___|            |             |
+ *   |      |          |<------|___14___|            |mg_class     |
+ *   |      |          |<------|___15___|            |             |
+ *   |      |          |<------|___16___|            |             |
+ *   |      |          |<------|___17___|            |             |
+ *   |      |          |<------|___18___|            |             |
+ *   |      |          |<------|___19___|            |             |
+ *   |      +----------+        METASLABS            |             |
+ *   |            |                                  |             |
+ *   |            |mg_class                          |             |
+ *   |            V                                  V             |
+ *   |   +------------------+              +-------------------+   |
+ *   |   |                  |              |                   |   |
+ *   +---| SPA_NORMAL_CLASS |              | SPA_SPECIAL_CLASS |---+
+ * rotor |                  |              |                   | rotor
+ *       +------------------+              +-------------------+
+ */
 
 #ifdef	__cplusplus
 }
