@@ -2034,6 +2034,31 @@ Default value: \fB131,072\fR.
 .sp
 .ne 2
 .na
+\fBzvol_request_sync\fR (uint)
+.ad
+.RS 12n
+When processing I/O requests for a zvol submit them synchronously.  This
+effectively limits the queue depth to 1 for each I/O submitter.  When set
+to 0 requests are handled asynchronously by a thread pool.  The number of
+requests which can be handled concurrently is controller by \fBzvol_threads\fR.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_threads\fR (uint)
+.ad
+.RS 12n
+Max number of threads which can handle zvol I/O requests concurrently.
+.sp
+Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_qat_disable\fR (int)
 .ad
 .RS 12n
