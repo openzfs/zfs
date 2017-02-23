@@ -1,0 +1,1037 @@
+=====================================================================
+2016-07-28 Draft 5		ZFS Multi-{Modifier,Mount} Protection
+=====================================================================
+Originally created 2009 by ricardo.correia@oracle.com
+  ** references 1
+Revised 2017 by {faaland1,bass6,behlendorf1}@llnl.gov,
+                andreas.dilger@intel.com, mahrens@delphix.com
+=====================================================================
+
+It would be desirable to have protection against more than 1 node having the
+same ZFS pool open read/write simultaneously, in order to prevent catastrophic
+corruption in case of malfunction of an HA mechanism in a failover scenario or
+simply in the face of a mistake/misconfiguration by an administrator in a
+networked environment.
+
+This proposal is based on a similar multi-mount protection mechanism
+implemented for ext3/ldiskfs.  For consistency in acronyms, we suggest this
+functionality should also be called MMP - multi-modifier protection.
+
+=== Introduction ===
+
+Currently, to prevent corruption due to multiple entities importing and
+accessing the same ZFS pool at the same time, ZFS relies on reading the pool
+status from the vdev label as well as the host id of the node that last
+imported it. While this provides some amount of protection, it would be
+desirable to have a more reliable mechanism that could protect from "zpool
+import -f" overrides which is needed in failover scenarios, where the HA
+mechanism may not be 100% reliable.
+
+Without having a proper external fencing/STONITH mechanism, it is impossible to
+guarantee mutual exclusion on different nodes due to the impossibility of
+determining whether a node has died or if it's just temporarily stuck or very
+heavily loaded. However, it is possible to use a few techniques that minimize
+the chances of a double spa_open() in read/write mode happening on different
+nodes or, failing that, bring down the node once such a situation is detected
+to hopefully do damage control.
+
+The mechanism here proposed will allow us to provide a very good amount of
+protection against this problem while still being lightweight enough to always
+be enabled, even in high-performance environments.
+
+=== Use cases ===
+
+There should be made a distinction of which scenarios we are trying to avoid.
+
+The general desire is to prevent a ZFS pool, or devices within a pool, from
+being opened in read/write mode by different nodes simultaneously.  There are
+at least four ways this could happen easily:
+
+1) A node has a pool open and is alive, but another node forcibly imports the
+pool erroneuosly, thinking the first node has died.  This is the most important
+scenario that we are trying to avoid.
+
+The current design attempts to handle such issues by reading the host id from
+the vdev labels when opening the pool, but in an HA environment the import is
+typically issued with --force, defeating this.  Furthermore, in a Linux
+environment, there is no such host id that can be relied upon.
+
+2) Different nodes trying to import a non-imported pool at the same time.
+
+These could occur in a lustre filesystem whose OSTs or MDTs use shared storage
+and are configured for failover, and whose HA tool is misconfigured; or
+manually, in error: e.g. an admin running zpool import on two nodes at the same
+time.
+
+ZFS has two such non-imported states of a pool; POOL_STATE_EXPORTED, where a
+zpool export has been issued; and POOL_STATE_ACTIVE, such as when a node
+crashes while the pool is loaded.  The on-disk state is slightly different in
+these two cases, but they are equivalent from an MMP perspective.
+
+3) Different nodes trying to concurrently add devices to an existing pool or
+create a new pool, using a common set of unused devices.
+
+4) One node trying to add devices to an existing pool or create a new pool,
+using devices already part of another pool.
+
+=== MMP blocks ===
+
+Multi-mount protection (MMP) mechanism is based on having block(s) on stable
+storage in the pool, which are updated periodically (e.g., every 5 seconds) to
+indicate that a node has the pool open and is still alive.  We refer to these
+as MMP blocks.  Using this heartbeat-like mechanism, it is possible for another
+node to check whether these blocks are changing and therefore determine if it
+should be safe to import the pool or not.
+
+For ZFS, there are several considerations that must be taken into account, one
+of them being the fact that a ZFS pool can have multiple devices.  Not all of
+them may be accessible at a given point in time.  In addtion, there are
+scenarios such as adding a device to an existing pool, or use of a hot spare,
+where different nodes must not attempt to use the same device at the same time.
+
+=== On-disk format changes ===
+
+Feature flag:
+	feature@multimod_protect
+
+	This feature flag prevents a non-MMP-aware node from importing the
+	pool.  This is required as the mechanism proposed depends on all nodes
+	updating and checking the MMP blocks to function properly.
+
+enum spa_state:
+	POOL_STATE_MMP_FAULT	(XXX value TBD)
+
+Multi-modifier protection struct (MMP struct):
+
+	The MMP structure is written to each MMP block to provide additional
+	information to nodes, beyond the knowledge that a block changed or did
+	not change.  It should contain at least the following data:
+
+	struct mmp_struct {
+	      uint64_t mmp_magic;
+	      uint64_t mmp_pool_guid;
+	      uint64_t mmp_open_id;
+	      uint64_t mmp_seq;
+	      uint32_t mmp_interval;
+	      uint32_t mmp_delay;
+	      zio_eck_t mmp_eck;
+
+	/* Nice-to-have fields: */
+	      char		mmp_nodename[64];
+	      uint64_t		mmp_hostid;
+	};
+
+	* mmp_magic:     Constant value used for sanity checking and endianness.
+	* mmp_pool_guid: Pool guid.
+	* mmp_open_id:   A random 64-bit value generated when opening the pool
+			 in read/write mode. A special constant value
+			 (MMP_CLEAN_ID) indicates the pool has been closed
+			 cleanly.
+	* mmp_seq:       A sequence number. Starts at 0 when a pool is first
+			 opened and increases by at least 1, every mmp_interval
+			 period and every txg sync.
+	* mmp_interval:  Fixed interval at which MMP blocks are being written
+			 (in milliseconds).  They are also written
+			 independently, by spa_sync().
+	* mmp_delay:	 Delay being experienced (in milliseconds) by CPU
+			 scheduling + I/O latency.
+	* mmp_eck:       Embedded checksum of the MMP data.  To work with
+			 existing zio code, this will be stored at the end of
+			 the MMP block, and is not a member of mmp_struct.
+
+	Suggested fields:
+
+	* mmp_nodename:  Hostname of the node that wrote this MMP block, for
+			 admin notification purposes.
+	* mmp_hostid:    Hostid of the node that wrote this MMP block, for
+			 admin notification purposes.
+
+	The MMP structure is added to the end of an Uberblock structure.  This
+	allows the uberblock fields to be used as well, including ub_timestamp.
+
+Uberblock Ring:
+	An MMP block occupies an Uberblock slot.  The last 3 slots in the
+	uberblock ring of each label, on each leaf vdev, are used exclusively
+	by MMP (never overwritten to record a new txg).
+
+	Therefore, MMP_BLOCKS = 12 (ie VDEV_LABELS * 3).
+
+	See "Discussion: Number of MMP Blocks" and "Discussion: Location of MMP
+	blocks" below for more detail.
+
+=== In-memory changes ===
+
+New globals:
+
+* zfs_mmp_period: Fixed interval at which MMP blocks are being written by the
+		  mmp_thread, in milliseconds. Set to 1000*zfs_txg_timeout/3).
+
+New members of spa_t:
+
+* spa_mmp_lease:  The time, in nanoseconds since the kernel started,
+		  that I/O can safely occur. Whenever an MMP block
+		  is written, updated to: (now + mmp_interval).
+* spa_mmp_delay:  Approximate I/O delay from recent MMP writes
+		  (milliseconds)
+* spa_mmp_seq:    Next value used for mmp_seq when an MMP block is written.
+
+New members of vdev_t:
+
+* vdev_mmp_array: The zio_cksum_t of each MMP block as it should exist on disk
+		  if no external actor has altered it; there are MMP_BLOCKS
+		  elements.  For comparison with checksum of MMP blocks on
+		  disk.  At import, these are the checksums read from disk
+		  initially.  Whenever MMP updates the on-disk MMP blocks, the
+		  new checksum is recorded in this array. For leaf vdevs only.
+
+=== Clean pools or devices ===
+
+A clean pool is one which appears not to be in active use.  A pool is clean if
+all the leaf vdevs are clean.
+
+A clean leaf vdev is one in which all MMP blocks meet the following criteria:
+  Checksum valid, MMP_MAGIC valid, and mmp_open_id=MMP_CLEAN_ID
+	or
+  Checksum invalid
+	or
+  Entire uberblock slot is filled with 0s
+
+=== Multi-modifier protection algorithm ===
+
+The MMP algorithm is run before a pool is opened in read/write mode, or before
+new devices are added, to determine whether it's safe to do so.  The algorithm
+must be executed by the kernel within the import process.  A delay between
+completion of the algorithm in user space and the actual import in kernel space
+would introduce a race.
+
+During an import, the "set of disks" referred to is the entire set of disks in
+the pool.  During an add, attach, replace, or use of a hot spare, the "set of
+disks" are the new disks that are about to be made part of the pool.  Let N be
+the total number of MMP blocks in the set of disks.
+
+When ZFS reads an MMP block from disk, it checks for change by comparing the
+checksum of the newly read block with a stored value.  There are four possible
+outcomes:
+ a) The read returned successfully:
+    a.1) If the checksum does not match, a foreign node overwrote the MMP block.
+         This is an MMP Fault (see below) unless specified otherwise.
+    a.2) If the checksum matches, no foreign node is detected.  Continue.
+ b) The read returned an ECKSUM error.  This indicates a bit flip on disk.
+    This does not generate an MMP fault.  If possible, a different MMP block
+    will be read instead.  Continue.
+ c) The read returned a different error.  This does not generate an MMP fault.
+    If possible, a different MMP block will be read instead.  Continue.
+
+Below, ABORT means do not import the pool, and return EBUSY to userspace.
+
+Here's the algorithm's logic:
+
+1) Read all the MMP blocks in all devices, recording their checksums,
+   mmp_interval, and mmp_open_id values.  Record all 0s for faile reads.
+2) Generate a new random value import_id, make sure it's not MMP_CLEAN_ID or
+   any of the mmp_open_id values found.
+3) If all of the MMP blocks are clean, go to step 10.
+
+4) wait_time := 1000, delayed := 0,
+   max_delay := safety_factor*max(mmp_interval seen on disk)
+   (milliseconds), safety_factor := 4
+5) wait for wait_time milliseconds
+6) Reread all MMP blocks in all devices
+7) For any block, if the checksum is valid, but different than vdev_mmp_array,
+   ABORT.  Otherwise ignore it and continue.
+8) delayed := delayed + wait_time
+9) If (delayed < max_delay), return to step 5
+
+10) Execute the "simultaneous open algorithm" (described below).
+
+=== Simultaneous open algorithm ===
+
+This algorithm allows two nodes to detect each other, if they attempt to import
+a pool or add an unused disk at the same time, as described in use case 2.
+
+1) Generate a random sequence which includes all the MMP blocks in the set of
+disks.
+
+2) Serially, for each MMP block, in the order of this random sequence:
+
+   2.1) Read the block.
+   2.2) If the checksum is valid, but different than vdev_mmp_array, ABORT.
+        Otherwise ignore it and continue (bit flip on disk).
+   2.3) Write mmp_id = mmp_open_id, mmp_seq = 0 to this MMP block.
+	Update the recorded checksum for this block in vdev_mmp_array.
+   2.4) Flush the write cache (to make sure the whole IO stack makes
+	the MMP block visible to all nodes).
+   2.5) Go back to 2.1 until all the blocks in the sequence are processed.
+
+3) Open successful, start mmp_thread, perform import.
+
+The cost of this algorithm is paid on import, when resuming a suspended pool,
+onlining an offline disk, attempting to use a hot spare, or when adding new
+disk(s).  Since these are infrequent, it is not problematic that this process
+is slow.
+
+This approach was originally inspired by Lamport's bakery algorithm, but
+because we cannot assign small unique integer ids to different nodes (since
+they don't know about each other), significant changes were needed.
+
+=== MMP block reads/writes while the pool is imported ===
+
+While the pool is imported read/write, a subset of the MMP blocks on disk must
+be updated periodically so that other nodes can see that the devices are in use.
+
+In addition, periodic MMP block reads provide a chance to detect a pool which
+has been imported on two nodes due to an MMP bug or other issue.
+
+1) Every zfs_mmp_period milliseconds, mmp_thread overwrites a subset of MMP
+blocks, as follows:
+    1.1) Read all the MMP blocks on all devices in the pool. If the checksum
+         of any block is valid, but does not match vdev_mmp_array, it is an
+	 MMP Fault, see below.
+    1.2) Choose one top-level vdev randomly.
+    1.3) Determine the minimum number of leaf vdevs under this top-level vdev
+	 which must be unavailable to prevent import of the pool (e.g. for a
+	 4-disk raidz vdev, 2 disks must be unavailable).
+    1.4) Randomly choose that number of leaf vdevs from the top-level vdev.
+    1.5) Overwrite one MMP block on each of the selected leaf vdevs (in parallel).
+    1.6) Record the new checksums in vdev_mmp_array.
+    1.7) Increment spa_mmp_seq.
+    1.8) Update spa_mmp_lease.
+    1.9) Determine the time between calling zio_write_phys() and return of
+         zio_wait().  If that time > spa_mmp_delay, spa_mmp_delay := time.
+	 Otherwise, spa_mmp_delay := (spa_mmp_delay+time)/2.
+
+2) Just prior to writing any data in each txg sync:
+    2.1) If current time >= spa_mmp_lease, suspend the pool.
+        2.1.1) Execute the MMP algorithm starting at step 1.
+        2.1.2) If the algorithm completes successfully, resume I/O;
+               Otherwise it is an MMP Fault, see below.
+    2.2) If txg % TXG_DEFER_SIZE == 0, read all the MMP blocks on all devices
+	 in the pool. If the checksum of any blocks changed, it is an MMP
+	 Fault, see below.
+    2.3) Overwrite a randomly chosen, minimum subset of the MMP blocks as above.
+    2.4) Record the new checksums in vdev_mmp_array.
+    2.5) Increment spa_mmp_seq.
+    2.6) Update spa_mmp_lease.
+
+All such reads must not be from cache, so that the MMP blocks checked are from
+disk and reflect a foreign node writing, if there is one.  All such writes must
+be flushed to disk.
+
+(XXX could increase odds of rolling back to a good txg by delaying deletion of
+outdated objects beyond current TXG_DEFER_SIZE.)
+
+=== MMP thread ===
+
+The mmp_thread should not depend on the sync_thread in any way (e.g. through
+lock contention) so that a stuck or slow sync_thread does not prevent
+mmp_thread from doing its work.
+
+Since taking the config lock as a reader is sufficient for I/O via
+vdev_label_write, and spa_sync takes the config lock as a reader, and since the
+spa_mmp_{seq,lease,delay} are integers that can be altered via atomic
+instructions, this should not be a problem.
+
+=== MMP Faults ===
+
+(XXX What to do when this occurs needs to be worked out in much more
+detail and the rationale for each option recorded)
+
+If another node is detected by these reads, while the pool is imported, the
+first priority is to stop I/O to the devices to minimize damage.  Our second
+priority is to make the situation visible to the user so they can look into the
+underlying problem.
+
+When an MMP fault is detected, the pool is suspended via zio_suspend.
+spa_state is set to POOL_STATE_MMP_FAULT.
+
+ZFS then acts based on the failmode property:
+	panic - console message & system crash dump
+	continue - similar to read-only, in-process writes blocked (default)
+	wait - all I/O blocked
+
+In the case of 'continue' or 'wait', the mmp_thread detects POOL_STATE_MMP_FAULT
+when it next wakes up, and stops issuing I/O to the pool.
+
+(XXX One that is done, it's likely that the uberblocks and/or configs on disk
+have been damaged, but that this node has the best available config and
+uberblock in memory.  We want to be able to execute the MMP algorithm to
+re-establish that we can safely perform I/O on the pool and then write out the
+current config and spa->ubsync, but not allow any other I/O.  What will it
+take to make that possible? Also need to decide whether to do it
+automatically or make the user initiate it.)
+
+=== Delays reading/writing MMP blocks ===
+
+Even if there is no hardware or software problem, there will be delays writing
+MMP blocks to busy devices.
+
+The MMP blocks must be submitted to the kernel for I/O ahead of all other ZFS
+I/O, to minimize this.  This is accomplished by vdev_label_write() with flag
+ZIO_FLAG_DONT_QUEUE.  Thsi should result in a max of about
+
+   min(zfs_vdev_max_active, sum(zfs_vdev_*_max_active))
+
+I/Os ahead of the MMP write, which is 35 by default.
+
+The zio pipeline must be made aware of the time of the last mmp update.  During
+zio_execute, if mmp_interval has been exceeded, it must stop writing data and
+trigger the MMP algorithm.
+
+(XXX perhaps this could just suspend the pool for the initial implementation)
+
+zpool stats or zpool iostat must expose information about the delays to the
+user for troubleshooting.
+
+=== Suspended Pools ===
+
+After a pool is suspended due to I/O errors, or due to delays that prevented
+the MMP blocks from being written, the MMP algorithm must be executed prior to
+resuming I/O.
+
+The 'zpool clear' command requires a new option '-m|--mmp' which triggers
+zfs_ioc_clear() to perform the MMP algorithm and resume I/O without calling
+vdev_clear() and clearing error counters.
+
+If the user does not provide the option then the MMP algorithm is performed in
+addition to calling vdev_clear() when the issue executes 'zpool clear'.
+
+If the MMP detects a foreign node, it is an MMP Fault. See above.
+
+=== Individual VDEVs ===
+
+The MMP algorithm can be applied to any vdev.  In cases where a pool is open
+and has a lease, and a vdev is added to the tree, the MMP algorithm is applied
+to that new vdev prior to allowing writes to the device.  Examples include
+"zpool [add|attach|replace]".
+
+If the MMP algorithm fails, indicating another node is using the device(s)
+represented by that vdev, the relevant action fails and the pool continues to
+function without the device.
+
+See below for hot spares.
+
+=== Hot spares ===
+
+Adding a spare to a pool of hot spares does not invoke the MMP algorithm, since
+at that point the spare is not a member of any pool.
+
+If two pools attempt to activate a hot spare at the same time, they will detect
+each other and the activation will fail.
+
+(XXX In the case of two nodes attempting to activate the same spare at the same
+time, It would be ideal to (a) choose the hot spare randomly, (b) try again if
+there is an MMP failure, and (c) introduce a random delay between attempts, so
+that it eventually succeeds as long as there are enough spares to satisfy the
+need.  What happens with current code, when activation of a spare fails, for
+example if the drive died?)
+
+When an in-use spare is released back to the hot spare pool, its MMP blocks are
+marked clean.  This allows the fastest path through the MMP algorithm when the
+device is next used.
+
+=== Log and l2arc Devices ===
+
+(XXX How must log and l2arc devices be treated?)
+
+=== Zpool online ===
+
+If a device had previously been offline, the MMP algorithm is applied, by the
+same mechanism as adding a new device.
+
+If there is an MMP failure onlining the device, the device is being used by
+another node in another pool.  It is removed from the pool configuration.
+
+While expanding a device, after the psize has been updated but before the next
+sync updates the labels, the MMP blocks in labels 2 and 3 will be appear
+missing.  Those MMP blocks are ignored when checking for an MMP fault prior to
+the sync, and are rewritten along with the new configuration.
+
+This is acceptable because the original MMP blocks in labels 0 and 1 are still
+in place; another node attempting to open the pool during this window would
+write over them and be detected.
+
+(XXX Possibly another case to figure out: A mirror of two small devices, A and
+B; A is replaced with a larger one, then offlined.  Then B is replaced with a
+larger one; the psize is increased and labels rewritten; then pool exported;
+them pool imported; then A onlined.  Will labels 2 and 3 on device A be found?)
+
+=== Zpool [add|attach|replace|create] ===
+
+(XXX I believe the user space tool "zpool" alters the devices before sending
+the IOCTL, partitioning and labeling.  This tool must be prevented from
+circumventing MMP.  Need to look further to be sure.  See
+zpool_do_create->make_root_vdev->make_disks.
+
+Zpool add already checks devices for labels before writing to them.  This can
+be overridden by the user via a --force flag.  This will be altered; if the
+labels found contain MMP blocks,
+    "zpool [add|attach|replace|create] --force <vdev>"
+will fail with an appropriate message.
+
+If there are no labels on the device(s), the device will be partitioned as
+normal.)
+
+=== Zpool labelclear ===
+
+Zpool labelclear zeroes the entire content of all the labels, including the
+uberblock rings.
+
+Zpool labelclear performs the first part of the MMP algorithm, stopping before
+the simultaneous open algorithm.  It reads all the MMP blocks, waits as
+described in the MMP algorithm, and then re-reads them and compares.  It fails
+if change is detected.
+
+The simultaneous open algorithm is not necessary since another node attempting
+to clear or use this device can fail at that point without compromising a pool.
+
+=== Feature Flag ===
+
+Implementing a feature flag both allows the user to control MMP and provides a
+way to prevent a non-MMP aware ZFS implementation from importing a pool and
+circumventing MMP.
+
+The MMP feature is enabled by default for new pools.
+
+(XXX Need to figure out how to reduce the support burden of rolling this out.
+In particular to desktop users that don't need it and think something is broken
+when there is a longer-than-usual delay adding a device or importing a new
+pool).
+
+=== I/O Errors within MMP ===
+
+During MMP writes or reads, if an I/O error is encountered, another MMP block
+and/or device is attempted.
+
+=== HostID ===
+
+There may be HA configurations where multiple nodes share a hostname and IP
+address(es) because of application requirements.  In this case the HostID
+provides a way to distinguish among them.
+
+(XXX What about the rest of the hostid code, e.g. comparing on import?)
+
+=== Misc ===
+^ What about zpool split?
+
+^ What about zpool reguid?  zpool repoen?
+
+^ We could keep the checksum of every uberblock, not just the the ones in mmp
+slots.  Keeping them would be inexpensive; just read them all once at import
+time.  Then after that reading them before a sync would detect concurrent
+import even by a non-MMP node.  Without this, protection against a non-mmp node
+is weak.  Eventually one of the MMP blocks will be changed but that could take
+a long time.  Reading them in for that test would be the expensive part.  Since
+the pool should reflect that the MMP feature is enabled, it should not be
+possible to import the pool on a non-MMP aware node, so this should not be
+necessary.
+
+^ There was a desire to avoid keeping the drives spinning forever, with
+ an MMP update every few seconds even if the pool is idle.  The plan
+ was to have the pool mark the VDEVs as "clean" if they are not using
+ them for some time, and then cease MMP updates.  Before the VDEVs
+ are used again the "clean import" procedure needs to be re-done to
+ ensure that nobody was using the pool while this one is inactive.
+ This would allow the drives to power down, and also means that in case
+ of a crash during idle time the import would not have to wait at all.
+ Since MMP is not designed as the primary point of HA device control,
+ there is no need to force exclusion from some other node taking over
+ the pool during this idle period.  The pool would be entirely stable,
+ and there is no risk of corruption since both nodes need to follow
+ the full MMP import process before they can write to the pool again.
+
+=== Size of MMP blocks ===
+
+To avoid degrading performance, a MMP block should have the smallest size
+possible, while still being big enough to allow an update without incurring a
+read-modify-write cycle.  This suggests the best MMP block size for a given
+device should be vdev_t::vdev_asize, which represents the minimum allocatable
+unit of the device.
+
+Uberblocks obey these restraints for the most part.
+
+=== Discussion: Number of MMP blocks ===
+
+We require multiple MMP blocks per pool for these reasons:
+
+1) Multiple MMP blocks per pool allows nodes to detect each other.  With a
+single MMP block, only the node whose write landed last is visible to the other
+nodes; this guarantees that one node is effectively blind.
+
+2) It achieves wear-leveling, which is a concern in a heartbeat mechanism.
+
+3) A redundant pool may be imported even when some devices are not accessible,
+so enough devices must have MMP blocks to guarantee they are visible to any
+node that might import the pool.
+
+However, it is also useful to apply MMP to individual devices, such as when
+adding a device to a pool.  Point (1) above applies equally in the case of an
+individual device.
+
+We use 12 MMP blocks per device.  Potentially, this number could be adjusted
+based on the number of devices in the pool, but we do not.  After
+implementation, we will measure performance and consider options if performance
+is poor.
+
+There are 12 MMP blocks on each leaf vdev (3 per label).
+
+(XXX There may be errors below, need to review it)
+
+The chances of multiple nodes randomly choosing the same permutation of blocks
+can be calculated using the birthday paradox formula.  With B! permutations of
+blocks, and N nodes, p(N;B!) is approximately 1-e(-N*(N-1)/(2*B!)).
+
+B		B!		p(2;B!)
+=		==		=======
+4	         24		0.04081
+6	        720		0.00138
+8	     40,320		0.00002
+10	  3,628,800		0.000 000 275 5
+12	479,001,600		0.000 000 002
+
+Suppose 2,000 failover pairs exist at a site, they all import their pool 10
+times because of some problem being worked, and STONITH is misconfigured.
+There would be an appx 0.5% probability (20000*p(2;B!)) that two nodes in a
+pair would choose the same permutation.  Even then differences in I/O times to
+to stable storage would be expected to result in detection as one node gets
+ahead of the other.
+
+(XXX We could use some statistics from Tony's work, to see how much variation
+there is in the write+sync time and what the worst case delay is.  The greater
+the variation, the smaller B can be for this algorithm.  However, the longer
+the worst case delay, the bigger we need to make mmp_interval.)
+
+B=12 (12 MMP blocks) provides good protection and requires at most 96K per
+device.
+
+The read/write performance for a contiguous 8k I/O vs. a contiguous 32k I/O is
+insignificant.  The difference in memory consumption, even in a pool with
+hundreds of leaf vdevs, is not significant since it is required only during the
+"simultaneous open" process and is only megabytes anyway.
+
+=== Discussion: Location of MMP blocks ===
+
+The major reasons for this design are:
+
+1) All nodes must know reliably where to read this data, since these on-disk
+structures are the communication medium between nodes.  This is simplest if the
+data is written to a fixed on-disk position.
+
+2) The MMP blocks' contents are more likely to be damaged in some way than
+other data on the devices, because they are overwritten by nodes which have not
+yet successfully imported the pool, possibly racing with each other.
+Therefore, these blocks must not hold any data needed for pool integrity.
+
+MMP blocks occupy slots in the uberblock rings within the labels, on leaf
+vdevs.  The blocks in a given label should be contiguous so that a single I/O
+can be used to read or write them all, when the algorithm permits.
+
+Other locations considered and their pros/cons are described at the end of this
+document.
+
+In the presence of hardware or configuration problems, a given device may be
+visible to one node but not another.  The mmp_thread selects a random top-level
+vdev, since all top-level vdevs must be available.  One random MMP block in each
+label, on each leaf vdev, is updated.
+
+This is more writes than is strictly necessary. If we find performance suffers,
+we will reduce the number of writes as follows.  Given the top-level vdev can
+withstand F device failures (e.g. F=2 for raidz2), the mmp_thread could write a
+single MMP blocks on each of (F+1) randomly selected leaf vdevs.  If all those
+devices are unavailable to another node, it will not be able to successfully
+import the pool anyway, and so updating MMP blocks on more devices is
+unnecessary.
+
+=== Discussion: MMP reads while pool is open R/W ===
+
+The pre-open part of the MMP algorithm is not sufficient to prevent all
+multiple opens, as a node with hardware or software problems may experience
+long delays that cause writes to land on disk long after they were issued on
+the node.  In this case a node may appear to be down when it is not, use case
+#1.  We need to limit the extent of the damage.
+
+The last uberblock updated by the original node pointed to a valid block tree.
+The following uberblock(s) are likely to be damaged, written to by both the
+original node and the non-original nodes.  The block trees they point to, and
+those in the past, may be damaged, e.g. by blocks from prior block trees being
+freed and overwritten.
+
+Limiting the number of uberblocks written out before the problem is detected,
+to less than TXG_DEFER_SIZE, allows the possibility that the bad syncs affect
+only blocks that were unallocated as of the last valid block tree and
+uberblock.  It also guarantees that the last good uberblock has not yet been
+overwritten so it can be used to roll back.  For this to work, all nodes must
+detect the conflicting imports.
+
+Prior to syncing out each transaction group, the txg_sync thread reads all MMP
+blocks on all visible devices in the pool.  If an MMP block checksum does not
+match the current checksum we have recorded for it, respond as dictated by the
+failmode property on the pool.  The txg will not be synced to stable storage.
+
+Also once per sync, the txg_sync thread increments mmp_seq and then writes out
+one randomly chosen MMP block, for each of a minimum set of devices.  Only one
+block is written to minimize the chance that the nodes involved choose the same
+block, which could result in one node failing to detect the other(s).
+
+
+
+
+=============================================
+Alternate locations considered for MMP blocks
+=============================================
+For this discussion, key elements from above:
+	* 12 MMP blocks/device seems sufficient
+	* Since there are 4 labels/device, that means 3 MMP blocks/label
+	* Uberblocks are sector-sized, like MMP blocks should be
+	* Uberblocks need to be distributed across devices like MMP blocks
+	must be.
+	* Spreading MMP blocks across the device provides some insurance
+	but also some performance penalty.
+
+1a) Uberblocks (piggy-backed on top of them).  Since uberblocks have extra
+space, and the anticipated contents of the MMP blocks are very small, MMP data
+could be added to the end of the uberblock structure or placed immediately
+after it within an Uberblock "slot" in the array.
+
+spa_sync could write out the MMP block and the UB at the same time.  This would
+take care of the per-sync MMP block update portion of the algorithm.
+
+If txg_sync is forced to write out a transaction group every mmp_interval
+period, even if there is no new pool data to write, this would be sufficient.
+However, a major disadvantage is that in a pool that is imported, but inactive
+for a long time, the uberblocks written would all point to the same block tree.
+If on-disk corruption rendered that block tree unusable, there would be no
+earlier block tree roots to fall back to.
+
+Instead, txg_sync could be left alone, and non-txg triggered MMP block updates
+(every mmp_interval for quiet pools, and the writes during simultaneous open
+algorithm) could be done in three ways.  For a given UB array slot:
+	* read-modify-write: overwrite the MMP portion of the selected slot,
+	  triggering a RMW cycle on the drive.
+	* invalidate the UB: write an invalid UB struct (e.g. all 0's) followed
+	  by the MMP block
+	* overwrite with the current UB: overwrite with the current UB followed
+	  by the MMP block
+
+All three of those potentially destroy valid uberblocks.  In particular, the
+algorithm requires all MMP blocks be updated as part of the import process, to
+show mmp_open_id=$(new random value) and mmp_seq=0.  A bug could corrupt every
+uberblock in the entire pool.
+
+This approach is deemed too risky.
+
+b) Using a predetermined subset of the uberblock array.  This subset, for
+example k uberblocks at the end of the uberblock array, could be used by MMP.
+txg_sync would be modified so that it did not use those array slots normally.
+The MMP block structure would start with a standard uberblock structure,
+followed by the MMP data.  Those blocks would be written so that the normal
+import code would ignore them (e.g. ub_txg==0).  The main disadvantage of this
+method is space.  The uberblock ring is fixed at 128K.  If the number of MMP
+blocks per label is small, the space usage is acceptable.  At 3 MMP
+blocks/label, worst case space usage is 24K, leaving 104K (13 slots) remaining.
+
+This is the chosen method.
+
+2) Objects in the pool.  When the pool is created, object(s) could be
+allocated for MMP block(s), and the object ID could be stored in some
+easy-to-access location, like the label's configuration nvlist.  The major
+disadvantages of this method are: (1) A new "partially-imported" state is
+required to find the blocks, (2) the normal mechanisms cannot be used to read
+them without adjustments to adapt to the fact that they may be changed
+underneath the ARC, and (3) copy-on-write is not desirable.
+
+3) Entry in the label's configuration nvlist.  An error during write could
+corrupt the configuration, in addition to damaging the MMP block.  The list is
+packed, so the MMP data blocks would not be written/read independently as
+anticipated in the design.
+
+4) Stolen space from the label's configuration nvlist.  The nvlist is
+typically small when packed and written to disk, and does not fill the 112K
+allocated to it between offsets [16K,128K).  The MMP blocks could be placed at
+the end of the allocated area.The main disadvantage of this method is space.
+If the MMP blocks occupy 32K or 64K (see 1b above), much of the space for
+nvlist is lost.
+
+======================================
+=== Multiple device considerations ===
+======================================
+
+When dealing with multiple devices, there are a few safety/overhead tradeoffs
+that can be made.
+
+Here are a few possibilities:
+
+1) Per mmp_interval, the mmp_thread writes one MMP block to only one working
+leaf vdev.
+
+This is the most lightweight approach, but also the most unsafe. In the
+presence of problems such as large timeouts on some devices or failure by
+another node to open each and every device, some MMP blocks might not be
+successfully communicated from one node to another and might cause the MMP
+algorithm to erroneously think it is safe to open the pool.
+
+2) Per mmp_interval, the mmp_thread writes one MMP block per device of a quorum
+of working leaf vdevs.
+
+This should work well in the absence of large timeouts or phantom/misdirected
+writes on the selected devices.
+
+The idea is to choose a single top-level vdev and write MMP blocks to a subset
+of its children only as large as required for another node to see them, relying
+on the fact that a node needs to be able to access a minimum number of devices
+to successfully open the pool.
+
+For example, for a RAID-Z top-level vdev, regardless of the number of leaf
+vdevs, we would write MMP blocks to only 2 of them, because we can be sure that
+another node would see the MMP blocks on at least 1 of those devices (since
+it's not possible to open a pool with 2 missing RAID-Z leaf vdevs).
+
+Similarly, for a RAID-Z2 top-level vdev, we would write MMP blocks to only 3 of
+its children and for mirror vdevs we would write to all of the children.
+
+Note that we would only need to do this on a single top-level vdev because
+every top-level vdev must be able to be accessed when opening a pool.
+
+3) Per mmp_interval, the mmp_thread writes one MMP block in each leaf vdev.
+
+This is the safest approach, which allows a node that is experiencing IO
+failures to several devices (which could unfortunately be manifesting as long
+timeouts or dropped writes) to still be able to communicate to other nodes that
+it's still alive, as long as a single leaf vdev is OK.
+
+Note that this scenario is concerning because such IO failures may have the
+effect of making a server stop working and/or also be caused by network
+partitions, both of which could lead an HA mechanism to think the node has died
+and start failover, which would be very dangerous if proper fencing/STONITH is
+not available.
+
+For periodic reads the tradeoffs are similar as the above 3 cases, although the
+safety concerns are not as serious.
+
+===============================
+Pseudo-code for the MMP thread
+===============================
+
+(XXX this has not been updated)
+(XXX trying to use wall clock time to detect cases where a VM has been
+suspended is a mistake.  Wall clock time is not reliable.  Using a VM with
+shared storage in this way, many things could go wrong.)
+
+void mmp_thread(spa_t *spa) {
+    /*
+     * spa->mmp.open_id has already been set before starting the thread.
+     */
+    spa->mmp.seq = 0;
+    spa->mmp.interval = spa_get_property(spa, "mmp_interval");
+    spa->mmp.io_delay = 0;
+    spa->mmp.cpu_delay = 0;
+
+    spa->io_delay_in_interval = 0;
+    cpu_delay = 0;
+
+    read_interval = spa->mmp.interval; /* not necessarily the same */
+
+    last_read_time = get_monotonic_time();
+
+    for(;;) {
+        spa->mmp.seq++;
+
+        /*
+         * There are 2 timers being used here:
+         *
+         * get_monotonic_time() - returns a monotonically increasing
+         * time, similar to "jiffies" in Linux, "lbolt" in Solaris or
+         * CLOCK_MONOTONIC in clock_gettime(3)
+         *
+         * get_real_time() - returns the real-world time, similar to
+         * CLOCK_REALTIME in clock_gettime(3), preferably in the UTC
+         * timezone to avoid daylight savings changes.
+         *
+         * Usually, get_monotonic_time() is the best value to determine
+         * how much time elapsed during our periodic sleep due to its
+         * immunity against date/time adjustments.
+         * However, if we're running on a VM and it gets suspended (or
+         * possibly if we suspend/hibernate a laptop that uses iSCSI
+         * devices), it is very dangerous to rely on
+         * get_monotonic_time() since it does not account for this very
+         * long period of time in which another node could have
+         * imported/opened the pool.
+         *
+         * Sadly, in some cases such as when running as a VM guest and
+         * especially if the host is running with variable CPU
+         * frequencies, the VM environment can generate interrupts at a
+         * slower rate (sometimes even 2 times slower) than if we were
+         * running outside the VM. In this case, get_real_time() may
+         * be more reliable, since NTP software could be compensating
+         * the real-world clock for the clock drift.
+         *
+         * Therefore, for maximum safety we calculate the best-guess
+         * elapsed sleep time as MAX(elapsed_real_time,
+         * elapsed_monotonic_time), capped to a maximum value to avoid
+         * problems due to date/time resets.
+         */
+        monotonic_time_start = get_monotonic_time();
+        real_time_start = get_real_time();
+
+        /* Sleep... */
+        cv_timedwait(mmp_thread_condvar, MAX(spa->mmp.interval -
+            cpu_delay, 0));
+
+        /* Terminate? */
+        if (mmp_should_stop())
+            break;
+
+        elapsed_monotonic_time = get_monotonic_time() -
+            monotonic_time_start;
+        elapsed_real_time = get_real_time() - real_time_start;
+
+        elapsed_time = MAX(elapsed_real_time, elapsed_monotonic_time);
+
+        /*
+         * The maximum allowable sleep time should be the one used when
+         * opening the pool.
+         */
+        total_delay = spa->mmp.interval + spa->mmp.io_delay +
+            spa->mmp.cpu_delay;
+        max_allowable_sleep = total_delay + max(5, total_delay);
+
+        /*
+         * However, if we are experiencing a large IO latency and we
+         * slept for too close to the threshold, then our next write
+         * will arrive too late. So if that's about to happen, we will
+         * also force a read just to be sure.
+         */
+        max_allowable_sleep -= MAX(spa->mmp.io_delay,
+            spa->io_delay_in_interval);
+        /*
+         * Let's be conservative and allow for a certain margin of error
+         */
+        max_allowable_sleep *= 0.8;
+
+        force_read = FALSE;
+
+        if (elapsed_time >= max_allowable_sleep) {
+            /*
+             * This thread has likely slept for too long..
+             * We will read a few MMP blocks to make sure another node
+             * didn't open the pool in the mean time.
+             */
+            force_read = TRUE;
+        }
+
+        cpu_delay = MAX(elapsed_time - spa->mmp.interval, 0);
+        if (cpu_delay <= MAX_DELAY) {
+            /* Account for CPU load/jitter being experienced */
+            spa->mmp.cpu_delay = MAX(spa->mmp.cpu_delay, cpu_delay);
+        } else {
+            /*
+             * We experienced a huge time jump, probably due to
+             * suspension, therefore skip MMP cpu_delay adjustment.
+             */
+            cpu_delay = MAX_DELAY;
+        }
+
+        /* Account for IO latency being experienced */
+        spa->mmp.io_delay = MAX(spa->mmp.io_delay,
+            spa->io_delay_in_interval);
+
+        for every block in choose_blocks_to_write_in_this_iteration(seq)
+        {
+           mmp_cb_data.spa = spa;
+           mmp_cb_data.vdev = block->address.vdev;
+           mmp_cb_data.time_of_submission = get_monotonic_time();
+
+           submit_async_write(block->address, copy of spa->mmp,
+               mmp_write_callback, copy of mmp_cb_data);
+        }
+
+        if (force_read || get_monotonic_time() - last_read_time >
+            read_interval) {
+            /*
+             * Periodically read a few MMP blocks to check if we are
+             * still the owner of the pool.
+             */
+            for every block in choose_blocks_to_read() {
+               mmp_cb_data.spa = spa;
+               mmp_cb_data.vdev = block->address.vdev;
+               mmp_cb_data.time_of_submission = get_monotonic_time();
+
+               submit_async_read(block->address, copy of spa->mmp,
+                   mmp_read_callback, copy of mmp_cb_data);
+            }
+            last_read_time = get_monotonic_time();
+        }
+
+        /*
+         * Every iteration, slowly bring down spa->mmp.cpu_delay to the
+         * latest value.
+         */
+        spa->mmp.cpu_delay = (9.0 * spa->mmp.cpu_delay + cpu_delay) /
+            10.0;
+
+        /* Similarly, slowly bring back io_delay to the latest value */
+        spa->mmp.io_delay = (9.0 * spa->mmp.io_delay +
+            spa->io_delay_in_interval) / 10.0;
+
+        spa->io_delay_in_interval = 0;
+    }
+
+    /*
+     * The thread is being terminated, which indicates the pool
+     * is being closed.
+     *
+     * Overwrite all MMP blocks with mmp_open_id == MMP_CLEAN_ID to
+     * indicate that from now on it's safe to open the pool.
+     */
+    mmp_overwrite_blocks_with_clean_id();
+}
+
+void mmp_write_callback(mmp_cb_data_t *cb_data) {
+    io_delay = get_monotonic_time() - cb_data->time_of_submission;
+    atomic {
+        cb_data->spa->io_delay_in_interval =
+            MAX(cb_data->spa->io_delay_in_interval, io_delay);
+    }
+}
+
+void mmp_read_callback(struct mmp *read_data, mmp_cb_data_t *cb_data) {
+    io_delay = get_monotonic_time() - cb_data->time_of_submission
+    atomic {
+        cb_data->spa->io_delay_in_interval =
+            MAX(cb_data->spa->io_delay_in_interval, io_delay);
+    }
+
+    spa_mmp = cb_data->spa->mmp;
+
+    if (read_data->open_id != spa_mmp.open_id) {
+        /*
+         * Another node also managed to open this pool.
+         *
+         * With ZFS, it should be safer to let the node which has the
+         * pool open for the longest time to remain up than bring down
+         * all the nodes, so we let the node with the highest sequence
+         * number win.
+         */
+         if (spa_mmp.seq <= read_data->seq) {
+             panic(); /* or maybe just suspend/force-export the pool? */
+         } else {
+             /*
+              * Overwrite all MMP blocks to make sure the other node
+              * panics on his next periodic read.
+              */
+             mmp_overwrite_all_blocks();
+         }
+    }
+}
+
+
+==========================
+References
+==========================
+1) Originally submitted by ricardo.correia@oracle.com on 2009-06-24 13:02:23
+to https://bugzilla.lustre.org/show_bug.cgi?id=15350
+Retrieved 2/5/2016 by Olaf Faaland (faaland1@llnl.gov)
+
+2) Local Jira ticket: https://lc.llnl.gov/jira/browse/FSST-9
+
+2) ZFSonLinux issue: https://github.com/zfsonlinux/zfs/issues/745
+
