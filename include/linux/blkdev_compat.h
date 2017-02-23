@@ -499,7 +499,10 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 
 #ifndef HAVE_GENERIC_IO_ACCT
 #define	generic_start_io_acct(rw, slen, part)		((void)0)
-#define	generic_end_io_acct(rw, part, start_jiffies)	((void)0)
+static inline void
+generic_end_io_acct(int rw, struct hd_struct *part, unsigned long start_time)
+{
+}
 #endif
 
 #endif /* _ZFS_BLKDEV_H */
