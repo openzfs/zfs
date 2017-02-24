@@ -43,6 +43,8 @@ FILESIZE="4G"
 RUNFILE=${RUNFILE:-"linux.run"}
 FILEDIR=${FILEDIR:-/var/tmp}
 DISKS=${DISKS:-""}
+SINGLETEST=()
+SINGLETESTUSER="root"
 
 #
 # Attempt to remove loopback devices and files which where created earlier
@@ -167,6 +169,8 @@ OPTIONS:
 	-d DIR      Use DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILE  Run tests in RUNFILE (default: linux.run)
+	-t PATH     Run single test at PATH
+	-u USER     Run single test as USER (default: root)
 
 EXAMPLES:
 # Run the default (linux) suite of tests and output the configuration used.
@@ -182,7 +186,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfd:s:r:?' OPTION; do
+while getopts 'hvqxkfd:s:r:?t:u:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -212,6 +216,15 @@ while getopts 'hvqxkfd:s:r:?' OPTION; do
 	r)
 		RUNFILE="$OPTARG"
 		;;
+	t)
+		if [ ${#SINGLETEST[@]} -ne 0 ]; then
+			fail "-t can only be provided once."
+		fi
+		SINGLETEST+=("$OPTARG")
+		;;
+	u)
+		SINGLETESTUSER="$OPTARG"
+		;;
 	?)
 		usage
 		exit
@@ -223,6 +236,51 @@ shift $((OPTIND-1))
 
 FILES=${FILES:-"$FILEDIR/file-vdev0 $FILEDIR/file-vdev1 $FILEDIR/file-vdev2"}
 LOOPBACKS=${LOOPBACKS:-""}
+
+if [ ${#SINGLETEST[@]} -ne 0 ]; then
+	RUNFILEDIR="/var/tmp"
+	RUNFILE="zfs-tests.$$.run"
+	SINGLEQUIET="False"
+
+	if [ -n "$QUIET" ]; then
+		SINGLEQUIET="True"
+	fi
+
+	cat >$RUNFILEDIR/$RUNFILE << EOF
+[DEFAULT]
+pre =
+quiet = $SINGLEQUIET
+pre_user = root
+user = $SINGLETESTUSER
+timeout = 600
+post_user = root
+post =
+outputdir = /var/tmp/test_results
+EOF
+	for t in "${SINGLETEST[@]}"
+	do
+		SINGLETESTDIR=$(dirname "$t")
+		SINGLETESTFILE=$(basename "$t")
+		SETUPSCRIPT=
+		CLEANUPSCRIPT=
+
+		if [ -f "$SINGLETESTDIR/setup.ksh" ]; then
+			SETUPSCRIPT="setup"
+		fi
+
+		if [ -f "$SINGLETESTDIR/cleanup.ksh" ]; then
+			CLEANUPSCRIPT="cleanup"
+		fi
+
+		cat >>$RUNFILEDIR/$RUNFILE << EOF
+
+[$SINGLETESTDIR]
+tests = ['$SINGLETESTFILE']
+pre = $SETUPSCRIPT
+post = $CLEANUPSCRIPT
+EOF
+	done
+fi
 
 #
 # Attempt to locate the runfile describing the test workload.
@@ -349,5 +407,9 @@ msg "${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -i ${STF_SUITE}"
 ${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -i ${STF_SUITE}
 RESULT=$?
 echo
+
+if [ ${#SINGLETEST[@]} -ne 0 ]; then
+	rm -f "$RUNFILEDIR/$RUNFILE" &>/dev/null
+fi
 
 exit ${RESULT}
