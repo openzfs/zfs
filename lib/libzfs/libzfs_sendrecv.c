@@ -426,7 +426,7 @@ cksummer(void *arg)
 				wbr_drrr->drr_checksumtype =
 				    drrw->drr_checksumtype;
 				wbr_drrr->drr_checksumflags =
-				    drrw->drr_checksumtype;
+				    drrw->drr_checksumflags;
 				wbr_drrr->drr_key.ddk_cksum =
 				    drrw->drr_key.ddk_cksum;
 				wbr_drrr->drr_key.ddk_prop =
