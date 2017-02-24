@@ -591,20 +591,20 @@ vdev_raidz_generate_parity_pq(raidz_map_t *rm)
 		ccnt = rm->rm_col[c].rc_size / sizeof (p[0]);
 
 		if (c == rm->rm_firstdatacol) {
+			ASSERT(ccnt == pcnt || ccnt == 0);
 			abd_copy_to_buf(p, src, rm->rm_col[c].rc_size);
 			(void) memcpy(q, p, rm->rm_col[c].rc_size);
-		} else {
-			struct pqr_struct pqr = { p, q, NULL };
-			(void) abd_iterate_func(src, 0, rm->rm_col[c].rc_size,
-			    vdev_raidz_pq_func, &pqr);
-		}
 
-		if (c == rm->rm_firstdatacol) {
 			for (i = ccnt; i < pcnt; i++) {
 				p[i] = 0;
 				q[i] = 0;
 			}
 		} else {
+			struct pqr_struct pqr = { p, q, NULL };
+
+			ASSERT(ccnt <= pcnt);
+			(void) abd_iterate_func(src, 0, rm->rm_col[c].rc_size,
+			    vdev_raidz_pq_func, &pqr);
 
 			/*
 			 * Treat short columns as though they are full of 0s.
@@ -639,22 +639,23 @@ vdev_raidz_generate_parity_pqr(raidz_map_t *rm)
 		ccnt = rm->rm_col[c].rc_size / sizeof (p[0]);
 
 		if (c == rm->rm_firstdatacol) {
+			ASSERT(ccnt == pcnt || ccnt == 0);
 			abd_copy_to_buf(p, src, rm->rm_col[c].rc_size);
 			(void) memcpy(q, p, rm->rm_col[c].rc_size);
 			(void) memcpy(r, p, rm->rm_col[c].rc_size);
-		} else {
-			struct pqr_struct pqr = { p, q, r };
-			(void) abd_iterate_func(src, 0, rm->rm_col[c].rc_size,
-			    vdev_raidz_pqr_func, &pqr);
-		}
 
-		if (c == rm->rm_firstdatacol) {
 			for (i = ccnt; i < pcnt; i++) {
 				p[i] = 0;
 				q[i] = 0;
 				r[i] = 0;
 			}
 		} else {
+			struct pqr_struct pqr = { p, q, r };
+
+			ASSERT(ccnt <= pcnt);
+			(void) abd_iterate_func(src, 0, rm->rm_col[c].rc_size,
+			    vdev_raidz_pqr_func, &pqr);
+
 			/*
 			 * Treat short columns as though they are full of 0s.
 			 * Note that there's therefore nothing needed for P.
