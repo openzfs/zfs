@@ -526,6 +526,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	}
 
 	mutex_init(&os->os_upgrade_lock, NULL, MUTEX_DEFAULT, NULL);
+	os->os_db_alloc_cached = NULL;
+	os->os_alloc_bitmap = 0;
 
 	*osp = os;
 	return (0);
@@ -774,6 +776,11 @@ dmu_objset_evict(objset_t *os)
 
 	if (os->os_sa)
 		sa_tear_down(os);
+
+	if (os->os_db_alloc_cached) {
+		dbuf_rele(os->os_db_alloc_cached, FTAG);
+		os->os_db_alloc_cached = 0;
+	}
 
 	dmu_objset_evict_dbufs(os);
 
