@@ -1207,7 +1207,8 @@ zap_add_impl(zap_t *zap, const char *key,
 	}
 	ASSERT(zap == zn->zn_zap);
 	zap_name_free(zn);
-	zap_unlockdir(zap, tag);
+	if (zap != NULL)	/* may be NULL if fzap_add() failed */
+		zap_unlockdir(zap, tag);
 	return (err);
 }
 
