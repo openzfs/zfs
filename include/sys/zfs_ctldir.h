@@ -78,8 +78,8 @@ extern int zfsctl_snapshot_mount(struct path *path, int flags);
 extern int zfsctl_snapshot_unmount(char *snapname, int flags);
 extern int zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid,
     int delay);
-extern int zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid,
-    zfs_sb_t **zsb);
+extern int zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid,
+    int gen, struct inode **ipp);
 
 /* zfsctl '.zfs/shares' functions */
 extern int zfsctl_shares_lookup(struct inode *dip, char *name,
