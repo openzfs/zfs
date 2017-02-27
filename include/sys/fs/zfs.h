@@ -641,6 +641,15 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_TOP_ZAP	"com.delphix:vdev_zap_top"
 #define	ZPOOL_CONFIG_VDEV_LEAF_ZAP	"com.delphix:vdev_zap_leaf"
 #define	ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS	"com.delphix:has_per_vdev_zaps"
+
+#define	ZPOOL_CONFIG_DRAIDCFG		"com.intel:draid_config"
+#define	ZPOOL_CONFIG_DRAIDCFG_DATA	"com.intel:draid_data"
+#define	ZPOOL_CONFIG_DRAIDCFG_PARITY	"com.intel:draid_parity"
+#define	ZPOOL_CONFIG_DRAIDCFG_SPARE	"com.intel:draid_spare"
+#define	ZPOOL_CONFIG_DRAIDCFG_BASE	"com.intel:draid_base"
+#define	ZPOOL_CONFIG_DRAIDCFG_CHILDREN	"com.intel:draid_children"
+#define	ZPOOL_CONFIG_DRAIDCFG_PERM	"com.intel:draid_perm"
+
 /*
  * The persistent vdev state is stored as separate values rather than a single
  * 'vdev_state' entry.  This is because a device can be in multiple states, such
@@ -669,6 +678,8 @@ typedef struct zpool_rewind_policy {
 #define	VDEV_TYPE_MIRROR		"mirror"
 #define	VDEV_TYPE_REPLACING		"replacing"
 #define	VDEV_TYPE_RAIDZ			"raidz"
+#define	VDEV_TYPE_DRAID			"draid"
+#define	VDEV_TYPE_DRAID_SPARE		"dspare"
 #define	VDEV_TYPE_DISK			"disk"
 #define	VDEV_TYPE_FILE			"file"
 #define	VDEV_TYPE_MISSING		"missing"
@@ -760,6 +771,7 @@ typedef enum pool_scan_func {
 	POOL_SCAN_NONE,
 	POOL_SCAN_SCRUB,
 	POOL_SCAN_RESILVER,
+	POOL_SCAN_REBUILD, /* sequential SPA scan */
 	POOL_SCAN_FUNCS
 } pool_scan_func_t;
 

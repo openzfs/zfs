@@ -55,6 +55,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/space_reftree.h \
 	$(top_srcdir)/include/sys/spa.h \
 	$(top_srcdir)/include/sys/spa_impl.h \
+	$(top_srcdir)/include/sys/spa_scan.h \
 	$(top_srcdir)/include/sys/spa_checksum.h \
 	$(top_srcdir)/include/sys/sysevent.h \
 	$(top_srcdir)/include/sys/trace.h \
@@ -85,6 +86,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/vdev_impl.h \
 	$(top_srcdir)/include/sys/vdev_raidz.h \
 	$(top_srcdir)/include/sys/vdev_raidz_impl.h \
+	$(top_srcdir)/include/sys/vdev_draid_impl.h \
 	$(top_srcdir)/include/sys/xvattr.h \
 	$(top_srcdir)/include/sys/zap.h \
 	$(top_srcdir)/include/sys/zap_impl.h \

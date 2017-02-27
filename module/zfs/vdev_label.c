@@ -141,6 +141,7 @@
 #include <sys/zap.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid_impl.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
 #include <sys/zio.h>
@@ -384,8 +385,8 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		fnvlist_add_string(nv, ZPOOL_CONFIG_FRU, vd->vdev_fru);
 
 	if (vd->vdev_nparity != 0) {
-		ASSERT(strcmp(vd->vdev_ops->vdev_op_type,
-		    VDEV_TYPE_RAIDZ) == 0);
+		ASSERT(vd->vdev_ops == &vdev_raidz_ops ||
+		    vd->vdev_ops == &vdev_draid_ops);
 
 		/*
 		 * Make sure someone hasn't managed to sneak a fancy new vdev
@@ -403,6 +404,13 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		 * will just ignore it.
 		 */
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, vd->vdev_nparity);
+	}
+
+	if (vd->vdev_cfg != NULL) {
+		ASSERT(vd->vdev_ops == &vdev_draid_ops);
+		ASSERT(vdev_draid_config_validate(vd, vd->vdev_cfg));
+
+		fnvlist_add_nvlist(nv, ZPOOL_CONFIG_DRAIDCFG, vd->vdev_cfg);
 	}
 
 	if (vd->vdev_wholedisk != -1ULL)
@@ -600,6 +608,9 @@ vdev_label_read_config(vdev_t *vd, uint64_t txg)
 
 	if (!vdev_readable(vd))
 		return (NULL);
+
+	if (vd->vdev_ops == &vdev_draid_spare_ops)
+		return (vdev_draid_spare_read_config(vd));
 
 	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
 	vp = abd_to_buf(vp_abd);
@@ -869,6 +880,11 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		ASSERT(reason == VDEV_LABEL_REPLACE);
 	}
 
+	if (vd->vdev_ops == &vdev_draid_spare_ops) {
+		error = 0;
+		goto skip;
+	}
+
 	/*
 	 * Initialize its label.
 	 */
@@ -990,6 +1006,7 @@ retry:
 	abd_free(ub_abd);
 	abd_free(vp_abd);
 
+skip:
 	/*
 	 * If this vdev hasn't been previously identified as a spare, then we
 	 * mark it as such only if a) we are labeling it as a spare, or b) it
@@ -1079,7 +1096,8 @@ vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
 	for (c = 0; c < vd->vdev_children; c++)
 		vdev_uberblock_load_impl(zio, vd->vdev_child[c], flags, cbp);
 
-	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd)) {
+	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd) &&
+	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		for (l = 0; l < VDEV_LABELS; l++) {
 			for (n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
 				vdev_label_read(zio, vd, l,
@@ -1158,6 +1176,13 @@ vdev_uberblock_sync(zio_t *zio, uberblock_t *ub, vdev_t *vd, int flags)
 		vdev_uberblock_sync(zio, ub, vd->vdev_child[c], flags);
 
 	if (!vd->vdev_ops->vdev_op_leaf)
+		return;
+
+	/*
+	 * HH: no need to sync ub on dspare - if dspare gets a ub sync, so
+	 * does the parent draid vdev
+	 */
+	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return;
 
 	if (!vdev_writeable(vd))
@@ -1262,6 +1287,9 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg, int flags)
 		vdev_label_sync(zio, vd->vdev_child[c], l, txg, flags);
 
 	if (!vd->vdev_ops->vdev_op_leaf)
+		return;
+
+	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return;
 
 	if (!vdev_writeable(vd))

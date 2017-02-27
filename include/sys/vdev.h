@@ -107,6 +107,7 @@ extern int vdev_offline(spa_t *spa, uint64_t guid, uint64_t flags);
 extern void vdev_clear(spa_t *spa, vdev_t *vd);
 
 extern boolean_t vdev_is_dead(vdev_t *vd);
+extern boolean_t vdev_is_dead_at(vdev_t *vd, uint64_t offset);
 extern boolean_t vdev_readable(vdev_t *vd);
 extern boolean_t vdev_writeable(vdev_t *vd);
 extern boolean_t vdev_allocatable(vdev_t *vd);

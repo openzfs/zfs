@@ -32,6 +32,7 @@
 #include <sys/nvpair.h>
 #include <sys/space_map.h>
 #include <sys/vdev.h>
+#include <sys/abd.h>
 #include <sys/dkio.h>
 #include <sys/uberblock_impl.h>
 #include <sys/zfs_ratelimit.h>
@@ -185,6 +186,7 @@ struct vdev {
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
 	kmutex_t	vdev_queue_lock; /* protects vdev_queue_depth	*/
 	uint64_t	vdev_top_zap;
+	nvlist_t	*vdev_cfg; /* additional configuration		*/
 
 	/*
 	 * The queue depth parameters determine how many async writes are
@@ -355,6 +357,8 @@ extern vdev_ops_t vdev_root_ops;
 extern vdev_ops_t vdev_mirror_ops;
 extern vdev_ops_t vdev_replacing_ops;
 extern vdev_ops_t vdev_raidz_ops;
+extern vdev_ops_t vdev_draid_ops;
+extern vdev_ops_t vdev_draid_spare_ops;
 extern vdev_ops_t vdev_disk_ops;
 extern vdev_ops_t vdev_file_ops;
 extern vdev_ops_t vdev_missing_ops;
@@ -362,11 +366,39 @@ extern vdev_ops_t vdev_hole_ops;
 extern vdev_ops_t vdev_spare_ops;
 
 /*
+ * Virtual device vector for mirroring.
+ */
+typedef struct mirror_child {
+	vdev_t		*mc_vd;
+	uint64_t	mc_offset;
+	int		mc_error;
+	int		mc_load;
+	uint8_t		mc_tried;
+	uint8_t		mc_skipped;
+	uint8_t		mc_speculative;
+} mirror_child_t;
+
+typedef struct mirror_map {
+	int		*mm_preferred;
+	int		mm_preferred_cnt;
+	int		mm_children;
+	boolean_t	mm_replacing;
+	boolean_t	mm_root;
+	mirror_child_t	mm_child[];
+} mirror_map_t;
+
+extern mirror_map_t *vdev_mirror_map_alloc(int, boolean_t, boolean_t);
+extern const zio_vsd_ops_t vdev_mirror_vsd_ops;
+
+/*
  * Common size functions
  */
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
+
+extern boolean_t vdev_raidz_need_resilver(vdev_t *, uint64_t, size_t);
+extern boolean_t vdev_draid_need_resilver(vdev_t *, uint64_t, size_t);
 
 /*
  * Global variables

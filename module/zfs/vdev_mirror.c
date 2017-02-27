@@ -30,32 +30,11 @@
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid_impl.h>
 #include <sys/zio.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 
-/*
- * Virtual device vector for mirroring.
- */
-
-typedef struct mirror_child {
-	vdev_t		*mc_vd;
-	uint64_t	mc_offset;
-	int		mc_error;
-	int		mc_load;
-	uint8_t		mc_tried;
-	uint8_t		mc_skipped;
-	uint8_t		mc_speculative;
-} mirror_child_t;
-
-typedef struct mirror_map {
-	int		*mm_preferred;
-	int		mm_preferred_cnt;
-	int		mm_children;
-	boolean_t	mm_replacing;
-	boolean_t	mm_root;
-	mirror_child_t	mm_child[];
-} mirror_map_t;
 
 static int vdev_mirror_shift = 21;
 
@@ -85,7 +64,7 @@ vdev_mirror_map_size(int children)
 	    sizeof (int) * children);
 }
 
-static inline mirror_map_t *
+mirror_map_t *
 vdev_mirror_map_alloc(int children, boolean_t replacing, boolean_t root)
 {
 	mirror_map_t *mm;
@@ -108,7 +87,7 @@ vdev_mirror_map_free(zio_t *zio)
 	kmem_free(mm, vdev_mirror_map_size(mm->mm_children));
 }
 
-static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
+const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 	vdev_mirror_map_free,
 	zio_vsd_default_cksum_report
 };
@@ -331,6 +310,12 @@ vdev_mirror_preferred_child_randomize(zio_t *zio)
 	return (mm->mm_preferred[p]);
 }
 
+static boolean_t
+vdev_mirror_child_readable(mirror_child_t *mc)
+{
+	return (vdev_draid_readable(mc->mc_vd, mc->mc_offset));
+}
+
 /*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
  * prefering vdevs based on determined load.
@@ -356,14 +341,15 @@ vdev_mirror_child_select(zio_t *zio)
 		if (mc->mc_tried || mc->mc_skipped)
 			continue;
 
-		if (mc->mc_vd == NULL || !vdev_readable(mc->mc_vd)) {
+		if (mc->mc_vd == NULL ||
+		    !vdev_mirror_child_readable(mc)) {
 			mc->mc_error = SET_ERROR(ENXIO);
 			mc->mc_tried = 1;	/* don't even try */
 			mc->mc_skipped = 1;
 			continue;
 		}
 
-		if (vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1)) {
+		if (vdev_draid_missing(mc->mc_vd, mc->mc_offset, txg, 1)) {
 			mc->mc_error = SET_ERROR(ESTALE);
 			mc->mc_skipped = 1;
 			mc->mc_speculative = 1;
@@ -420,7 +406,12 @@ vdev_mirror_io_start(zio_t *zio)
 	mirror_child_t *mc;
 	int c, children;
 
-	mm = vdev_mirror_map_init(zio);
+	if (zio->io_vsd != NULL) { /* dRAID hybrid mirror */
+		ASSERT3P(zio->io_vd->vdev_ops, ==, &vdev_draid_ops);
+		mm = zio->io_vsd;
+	} else {
+		mm = vdev_mirror_map_init(zio);
+	}
 
 	if (zio->io_type == ZIO_TYPE_READ) {
 		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_replacing) {

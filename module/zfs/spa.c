@@ -51,6 +51,7 @@
 #include <sys/ddt.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_disk.h>
+#include <sys/vdev_draid_impl.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
 #include <sys/uberblock_impl.h>
@@ -70,6 +71,7 @@
 #include <sys/systeminfo.h>
 #include <sys/spa_boot.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/spa_scan.h>
 #include <sys/dsl_scan.h>
 #include <sys/zfeature.h>
 #include <sys/dsl_destroy.h>
@@ -3746,6 +3748,72 @@ spa_l2cache_drop(spa_t *spa)
 	}
 }
 
+static int
+spa_add_draid_spare(nvlist_t *nvroot, vdev_t *rvd)
+{
+	int i, j, n;
+	nvlist_t **oldspares, **newspares;
+	uint_t nspares;
+	vdev_t *c;
+	struct vdev_draid_configuration *cfg;
+
+	for (i = 0, n = 0; i < rvd->vdev_children; i++) {
+		c = rvd->vdev_child[i];
+
+		if (c->vdev_ops == &vdev_draid_ops) {
+			cfg = c->vdev_tsd;
+			ASSERT(cfg != NULL);
+			n += cfg->dcf_spare;
+		}
+	}
+
+	if (n == 0)
+		return (0);
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
+	    &oldspares, &nspares) != 0)
+		nspares = 0;
+
+	newspares = kmem_alloc(sizeof (*newspares) * (n + nspares), KM_SLEEP);
+	for (i = 0; i < nspares; i++)
+		newspares[i] = fnvlist_dup(oldspares[i]);
+
+	for (i = 0, n = nspares; i < rvd->vdev_children; i++) {
+		c = rvd->vdev_child[i];
+
+		if (c->vdev_ops != &vdev_draid_ops)
+			continue;
+
+		cfg = c->vdev_tsd;
+		for (j = 0; j < cfg->dcf_spare; j++) {
+			nvlist_t *ds = fnvlist_alloc();
+			char path[64];
+
+			snprintf(path, sizeof (path), VDEV_DRAID_SPARE_PATH_FMT,
+			    (long unsigned)c->vdev_nparity,
+			    (long unsigned)c->vdev_id, (long unsigned)j);
+			fnvlist_add_string(ds, ZPOOL_CONFIG_PATH, path);
+			fnvlist_add_string(ds,
+			    ZPOOL_CONFIG_TYPE, VDEV_TYPE_DRAID_SPARE);
+			fnvlist_add_uint64(ds, ZPOOL_CONFIG_IS_LOG, 0);
+			fnvlist_add_uint64(ds, ZPOOL_CONFIG_IS_SPARE, 1);
+			fnvlist_add_uint64(ds, ZPOOL_CONFIG_WHOLE_DISK, 1);
+			fnvlist_add_uint64(ds,
+			    ZPOOL_CONFIG_ASHIFT, c->vdev_ashift);
+
+			newspares[n] = ds;
+			n++;
+		}
+	}
+
+	(void) nvlist_remove_all(nvroot, ZPOOL_CONFIG_SPARES);
+	fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES, newspares, n);
+	for (i = 0; i < n; i++)
+		nvlist_free(newspares[i]);
+	kmem_free(newspares, sizeof (*newspares) * n);
+	return (0);
+}
+
 /*
  * Pool Creation
  */
@@ -3850,6 +3918,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	if (error == 0 &&
 	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
+	    (error = spa_add_draid_spare(nvroot, rvd)) == 0 &&
 	    (error = spa_validate_aux(spa, nvroot, txg,
 	    VDEV_ALLOC_ADD)) == 0) {
 		for (c = 0; c < rvd->vdev_children; c++) {
@@ -4579,6 +4648,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	char *oldvdpath, *newvdpath;
 	int newvd_isspare;
 	int error;
+	boolean_t rebuild = B_FALSE;
 	ASSERTV(vdev_t *rvd = spa->spa_root_vdev);
 
 	ASSERT(spa_writeable(spa));
@@ -4609,6 +4679,14 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 
 	if ((error = vdev_create(newrootvd, txg, replacing)) != 0)
 		return (spa_vdev_exit(spa, newrootvd, txg, error));
+
+	/*
+	 * dRAID spare can only replace a child drive of its parent
+	 * dRAID vdev
+	 */
+	if (newvd->vdev_ops == &vdev_draid_spare_ops &&
+	    oldvd->vdev_top != vdev_draid_spare_get_parent(newvd))
+		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
 	/*
 	 * Spares can't replace logs
@@ -4727,8 +4805,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
-	vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,
-	    dtl_max_txg - TXG_INITIAL);
+	vdev_dtl_dirty(newvd, DTL_MISSING,
+	    TXG_INITIAL, dtl_max_txg - TXG_INITIAL);
 
 	if (newvd->vdev_isspare) {
 		spa_spare_activate(newvd);
@@ -4744,12 +4822,20 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	vdev_dirty(tvd, VDD_DTL, newvd, txg);
 
+	if (spa_scan_enabled(spa) &&
+	    (tvd->vdev_ops == &vdev_mirror_ops ||
+	    newvd->vdev_ops == &vdev_draid_spare_ops))
+		rebuild = B_TRUE; /* HH: let zpool cmd choose */
+
 	/*
 	 * Schedule the resilver to restart in the future. We do this to
 	 * ensure that dmu_sync-ed blocks have been stitched into the
 	 * respective datasets.
 	 */
-	dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
+	if (rebuild)
+		spa_scan_start(spa, oldvd, dtl_max_txg);
+	else
+		dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
 
 	if (spa->spa_bootfs)
 		spa_event_notify(spa, newvd, ESC_ZFS_BOOTFS_VDEV_ATTACH);

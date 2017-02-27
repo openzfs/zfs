@@ -19,6 +19,7 @@
 *.mod.c
 *~
 *.swp
+*.orig
 .deps
 .libs
 .dirstamp

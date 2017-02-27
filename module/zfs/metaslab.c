@@ -30,6 +30,7 @@
 #include <sys/space_map.h>
 #include <sys/metaslab_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid_impl.h>
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
 #include <sys/zfeature.h>
@@ -1103,8 +1104,8 @@ metaslab_block_find(avl_tree_t *t, uint64_t start, uint64_t size)
  * tree looking for a block that matches the specified criteria.
  */
 static uint64_t
-metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
-    uint64_t align)
+metaslab_block_picker(metaslab_t *msp, avl_tree_t *t, uint64_t *cursor,
+    uint64_t size, uint64_t align)
 {
 	range_seg_t *rs = metaslab_block_find(t, *cursor, size);
 
@@ -1112,8 +1113,27 @@ metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
 		uint64_t offset = P2ROUNDUP(rs->rs_start, align);
 
 		if (offset + size <= rs->rs_end) {
-			*cursor = offset + size;
-			return (offset);
+			vdev_t *vd = msp->ms_group->mg_vd;
+			uint64_t next_offset;
+
+			if (vd->vdev_ops != &vdev_draid_ops) {
+				*cursor = offset + size;
+				return (offset);
+			}
+
+			next_offset = vdev_draid_check_block(vd, offset, size);
+			if (next_offset == offset) {
+				*cursor = offset + size;
+				return (offset);
+			}
+
+			offset = P2ROUNDUP(next_offset, align);
+			if (offset + size <= rs->rs_end) {
+				ASSERT3U(offset, ==,
+				    vdev_draid_check_block(vd, offset, size));
+				*cursor = offset + size;
+				return (offset);
+			}
 		}
 		rs = AVL_NEXT(t, rs);
 	}
@@ -1126,7 +1146,7 @@ metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
 		return (-1ULL);
 
 	*cursor = 0;
-	return (metaslab_block_picker(t, cursor, size, align));
+	return (metaslab_block_picker(msp, t, cursor, size, align));
 }
 #endif /* WITH_FF/DF/CF_BLOCK_ALLOCATOR */
 
@@ -1150,7 +1170,7 @@ metaslab_ff_alloc(metaslab_t *msp, uint64_t size)
 	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
 	avl_tree_t *t = &msp->ms_tree->rt_root;
 
-	return (metaslab_block_picker(t, cursor, size, align));
+	return (metaslab_block_picker(msp, t, cursor, size, align));
 }
 
 static metaslab_ops_t metaslab_ff_ops = {
@@ -1202,7 +1222,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 		*cursor = 0;
 	}
 
-	return (metaslab_block_picker(t, cursor, size, 1ULL));
+	return (metaslab_block_picker(msp, t, cursor, size, 1ULL));
 }
 
 static metaslab_ops_t metaslab_df_ops = {
@@ -1408,6 +1428,12 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 	ms->ms_id = id;
 	ms->ms_start = id << vd->vdev_ms_shift;
 	ms->ms_size = 1ULL << vd->vdev_ms_shift;
+	if (vd->vdev_ops == &vdev_draid_ops) {
+		uint64_t astart = vdev_draid_get_astart(vd, ms->ms_start);
+
+		ms->ms_size -= astart - ms->ms_start;
+		ms->ms_start = astart;
+	}
 
 	/*
 	 * We only open space map objects that already exist. All others
@@ -2706,6 +2732,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 
 	VERIFY(!msp->ms_condensing);
+	VERIFY(!msp->ms_rebuilding);
 
 	start = mc->mc_ops->msop_alloc(msp, size);
 	if (start != -1ULL) {
@@ -2718,7 +2745,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 		range_tree_remove(rt, start, size);
 
 		if (range_tree_space(msp->ms_alloctree[txg & TXG_MASK]) == 0)
-			vdev_dirty(mg->mg_vd, VDD_METASLAB, msp, txg);
+			vdev_dirty(vd, VDD_METASLAB, msp, txg);
 
 		range_tree_add(msp->ms_alloctree[txg & TXG_MASK], start, size);
 
@@ -2737,18 +2764,26 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 
 static uint64_t
 metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
-    uint64_t asize, uint64_t txg, uint64_t min_distance, dva_t *dva, int d)
+    uint64_t psize, uint64_t asize, uint64_t txg, uint64_t min_distance,
+    dva_t *dva, int d)
 {
+	vdev_t *vd = mg->mg_vd;
 	metaslab_t *msp = NULL;
 	metaslab_t *search;
 	uint64_t offset = -1ULL;
+	boolean_t hybrid_mirror = B_FALSE;
 	uint64_t activation_weight;
 	uint64_t target_distance;
 	int i;
 
+	if (vd->vdev_ops == &vdev_draid_ops &&
+	    psize <= (1ULL << vd->vdev_top->vdev_ashift)) {
+		hybrid_mirror = B_TRUE;
+	}
+
 	activation_weight = METASLAB_WEIGHT_PRIMARY;
 	for (i = 0; i < d; i++) {
-		if (DVA_GET_VDEV(&dva[i]) == mg->mg_vd->vdev_id) {
+		if (DVA_GET_VDEV(&dva[i]) == vd->vdev_id) {
 			activation_weight = METASLAB_WEIGHT_SECONDARY;
 			break;
 		}
@@ -2789,10 +2824,15 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 				continue;
 			}
 
+			if (vd->vdev_ops == &vdev_draid_ops &&
+			    hybrid_mirror !=
+			    vdev_draid_ms_mirrored(vd, msp->ms_id))
+				continue;
+
 			/*
 			 * If the selected metaslab is condensing, skip it.
 			 */
-			if (msp->ms_condensing)
+			if (msp->ms_condensing || msp->ms_rebuilding)
 				continue;
 
 			was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
@@ -2868,7 +2908,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		 * we can't manipulate this metaslab until it's committed
 		 * to disk.
 		 */
-		if (msp->ms_condensing) {
+		if (msp->ms_condensing || msp->ms_rebuilding) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_CONDENSING);
 			mutex_exit(&msp->ms_lock);
@@ -2932,12 +2972,13 @@ next:
 
 static uint64_t
 metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
-    uint64_t asize, uint64_t txg, uint64_t min_distance, dva_t *dva, int d)
+    uint64_t psize, uint64_t asize, uint64_t txg, uint64_t min_distance,
+    dva_t *dva, int d)
 {
 	uint64_t offset;
 	ASSERT(mg->mg_initialized);
 
-	offset = metaslab_group_alloc_normal(mg, zal, asize, txg,
+	offset = metaslab_group_alloc_normal(mg, zal, psize, asize, txg,
 	    min_distance, dva, d);
 
 	mutex_enter(&mg->mg_lock);
@@ -3130,8 +3171,8 @@ top:
 		asize = vdev_psize_to_asize(vd, psize);
 		ASSERT(P2PHASE(asize, 1ULL << vd->vdev_ashift) == 0);
 
-		offset = metaslab_group_alloc(mg, zal, asize, txg, distance,
-		    dva, d);
+		offset = metaslab_group_alloc(mg, zal, psize, asize, txg,
+		    distance, dva, d);
 
 		if (offset != -1ULL) {
 			/*
@@ -3314,6 +3355,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	}
 
 	VERIFY(!msp->ms_condensing);
+	VERIFY(!msp->ms_rebuilding);
 	VERIFY0(P2PHASE(offset, 1ULL << vd->vdev_ashift));
 	VERIFY0(P2PHASE(size, 1ULL << vd->vdev_ashift));
 	VERIFY3U(range_tree_space(msp->ms_tree) - size, <=, msp->ms_size);
