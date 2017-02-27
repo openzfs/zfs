@@ -2510,6 +2510,12 @@ arc_hdr_free_on_write(arc_buf_hdr_t *hdr)
 		    size, hdr);
 	}
 	(void) refcount_remove_many(&state->arcs_size, size, hdr);
+	if (type == ARC_BUFC_METADATA) {
+		arc_space_return(size, ARC_SPACE_META);
+	} else {
+		ASSERT(type == ARC_BUFC_DATA);
+		arc_space_return(size, ARC_SPACE_DATA);
+	}
 
 	l2arc_free_abd_on_write(hdr->b_l1hdr.b_pabd, size, type);
 }
