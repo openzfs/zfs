@@ -4374,17 +4374,12 @@ arc_evictable_memory(void)
 	    refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) +
 	    refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_DATA]) +
 	    refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
-	uint64_t ghost_clean =
-	    refcount_count(&arc_mru_ghost->arcs_esize[ARC_BUFC_DATA]) +
-	    refcount_count(&arc_mru_ghost->arcs_esize[ARC_BUFC_METADATA]) +
-	    refcount_count(&arc_mfu_ghost->arcs_esize[ARC_BUFC_DATA]) +
-	    refcount_count(&arc_mfu_ghost->arcs_esize[ARC_BUFC_METADATA]);
 	uint64_t arc_dirty = MAX((int64_t)arc_size - (int64_t)arc_clean, 0);
 
 	if (arc_dirty >= arc_c_min)
-		return (ghost_clean + arc_clean);
+		return (arc_clean);
 
-	return (ghost_clean + MAX((int64_t)arc_size - (int64_t)arc_c_min, 0));
+	return (MAX((int64_t)arc_size - (int64_t)arc_c_min, 0));
 }
 
 /*
