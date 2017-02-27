@@ -22,8 +22,10 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
- * Copyright (c) 2015, 2017, Intel Corporation.
+ * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Nexenta Systems, Inc.
+ * Copyright (c) 2017 Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2015, 2017, Intel Corporation.
  */
 
 #include <stdio.h>
@@ -122,19 +124,22 @@ static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: %s [-CmMdibcsDvhLXFPAG] [-t txg] [-e [-p path...]] "
-	    "[-U config] [-I inflight I/Os] [-x dumpdir] [-o var=value] "
-	    "poolname [object...]\n"
-	    "       %s [-divPA] [-e -p path...] [-U config] dataset "
-	    "[object...]\n"
-	    "       %s -mM [-LXFPA] [-t txg] [-e [-p path...]] [-U config] "
-	    "poolname [vdev [metaslab...]]\n"
-	    "       %s -R [-A] [-e [-p path...]] poolname "
-	    "vdev:offset:size[:flags]\n"
-	    "       %s -S [-PA] [-e [-p path...]] [-U config] poolname\n"
-	    "       %s -l [-Aqu] device\n"
-	    "       %s -C [-A] [-U config]\n\n",
-	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
+	    "Usage:\t%s [-AbcdDFGhiLMPsvVX] [-e [-p <path> ...]] "
+	    "[-I <inflight I/Os>]\n"
+	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cache>] [-x <dumpdir>]\n"
+	    "\t\t[<poolname> [<object> ...]]\n"
+	    "\t%s [-AdiPv] [-e [-p <path> ...]] [-U <cache>] <dataset> "
+	    "[<object> ...]\n"
+	    "\t%s -C [-A] [-U <cache>]\n"
+	    "\t%s -l [-Aqu] <device>\n"
+	    "\t%s -m [-AFLPX] [-e [-p <path> ...]] [-t <txg>] [-U <cache>]\n"
+	    "\t\t<poolname> [<vdev> [<metaslab> ...]]\n"
+	    "\t%s -O <dataset> <path>\n"
+	    "\t%s -R [-A] [-e [-p <path> ...]] [-U <cache>]\n"
+	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
+	    "\t%s -S [-AP] [-e [-p <path> ...]] [-U <cache>] <poolname>\n\n",
+	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
+	    cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
 	    "separator character '/' or '@'\n");
@@ -143,52 +148,56 @@ usage(void)
 	(void) fprintf(stderr, "    If object numbers are specified, only "
 	    "those objects are dumped\n\n");
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
-	(void) fprintf(stderr, "        -d dataset(s)\n");
-	(void) fprintf(stderr, "        -i intent logs\n");
-	(void) fprintf(stderr, "        -C config (or cachefile if alone)\n");
-	(void) fprintf(stderr, "        -h pool history\n");
 	(void) fprintf(stderr, "        -b block statistics\n");
-	(void) fprintf(stderr, "        -m metaslabs\n");
-	(void) fprintf(stderr, "        -M metaslab groups\n");
 	(void) fprintf(stderr, "        -c checksum all metadata (twice for "
 	    "all data) blocks\n");
-	(void) fprintf(stderr, "        -s report stats on zdb's I/O\n");
+	(void) fprintf(stderr, "        -C config (or cachefile if alone)\n");
+	(void) fprintf(stderr, "        -d dataset(s)\n");
 	(void) fprintf(stderr, "        -D dedup statistics\n");
-	(void) fprintf(stderr, "        -S simulate dedup to measure effect\n");
-	(void) fprintf(stderr, "        -v verbose (applies to all others)\n");
+	(void) fprintf(stderr, "        -h pool history\n");
+	(void) fprintf(stderr, "        -i intent logs\n");
 	(void) fprintf(stderr, "        -l read label contents\n");
 	(void) fprintf(stderr, "        -L disable leak tracking (do not "
 	    "load spacemaps)\n");
+	(void) fprintf(stderr, "        -m metaslabs\n");
+	(void) fprintf(stderr, "        -M metaslab groups\n");
+	(void) fprintf(stderr, "        -O perform object lookups by path\n");
 	(void) fprintf(stderr, "        -R read and display block from a "
-	    "device\n\n");
+	    "device\n");
+	(void) fprintf(stderr, "        -s report stats on zdb's I/O\n");
+	(void) fprintf(stderr, "        -S simulate dedup to measure effect\n");
+	(void) fprintf(stderr, "        -v verbose (applies to all "
+	    "others)\n\n");
 	(void) fprintf(stderr, "    Below options are intended for use "
 	    "with other options:\n");
 	(void) fprintf(stderr, "        -A ignore assertions (-A), enable "
 	    "panic recovery (-AA) or both (-AAA)\n");
-	(void) fprintf(stderr, "        -F attempt automatic rewind within "
-	    "safe range of transaction groups\n");
-	(void) fprintf(stderr, "        -U <cachefile_path> -- use alternate "
-	    "cachefile\n");
-	(void) fprintf(stderr, "        -X attempt extreme rewind (does not "
-	    "work with dataset)\n");
 	(void) fprintf(stderr, "        -e pool is exported/destroyed/"
 	    "has altroot/not in a cachefile\n");
-	(void) fprintf(stderr, "        -p <path> -- use one or more with "
-	    "-e to specify path to vdev dir\n");
-	(void) fprintf(stderr, "        -x <dumpdir> -- "
-	    "dump all read blocks into specified directory\n");
-	(void) fprintf(stderr, "        -P print numbers in parsable form\n");
-	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
-	    "searching for uberblocks\n");
-	(void) fprintf(stderr, "        -I <number of inflight I/Os> -- "
-	    "specify the maximum number of "
-	    "checksumming I/Os [default is 200]\n");
+	(void) fprintf(stderr, "        -F attempt automatic rewind within "
+	    "safe range of transaction groups\n");
 	(void) fprintf(stderr, "        -G dump zfs_dbgmsg buffer before "
 	    "exiting\n");
+	(void) fprintf(stderr, "        -I <number of inflight I/Os> -- "
+	    "specify the maximum number of\n           "
+	    "checksumming I/Os [default is 200]\n");
 	(void) fprintf(stderr, "        -o <variable>=<value> set global "
-	    "variable to an unsigned 32-bit integer value\n");
+	    "variable to an unsigned 32-bit integer\n");
+	(void) fprintf(stderr, "        -p <path> -- use one or more with "
+	    "-e to specify path to vdev dir\n");
+	(void) fprintf(stderr, "        -P print numbers in parseable form\n");
 	(void) fprintf(stderr, "        -q don't print label contents\n");
+	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
+	    "searching for uberblocks\n");
 	(void) fprintf(stderr, "        -u uberblock\n");
+	(void) fprintf(stderr, "        -U <cachefile_path> -- use alternate "
+	    "cachefile\n");
+	(void) fprintf(stderr, "        -x <dumpdir> -- "
+	    "dump all read blocks into specified directory\n");
+	(void) fprintf(stderr, "        -X attempt extreme rewind (does not "
+	    "work with dataset)\n");
+	(void) fprintf(stderr, "        -V verbatim import (as if it had been "
+	    "loaded at boot)\n\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -1607,8 +1616,55 @@ dump_deadlist(dsl_deadlist_t *dl)
 static avl_tree_t idx_tree;
 static avl_tree_t domain_tree;
 static boolean_t fuid_table_loaded;
-static boolean_t sa_loaded;
-sa_attr_type_t *sa_attr_table;
+static objset_t *sa_os = NULL;
+static sa_attr_type_t *sa_attr_table = NULL;
+
+static int
+open_objset(const char *path, dmu_objset_type_t type, void *tag, objset_t **osp)
+{
+	int err;
+	uint64_t sa_attrs = 0;
+	uint64_t version = 0;
+
+	VERIFY3P(sa_os, ==, NULL);
+	err = dmu_objset_own(path, type, B_TRUE, tag, osp);
+	if (err != 0) {
+		(void) fprintf(stderr, "failed to own dataset '%s': %s\n", path,
+		    strerror(err));
+		return (err);
+	}
+
+	if (dmu_objset_type(*osp) == DMU_OST_ZFS) {
+		(void) zap_lookup(*osp, MASTER_NODE_OBJ, ZPL_VERSION_STR,
+		    8, 1, &version);
+		if (version >= ZPL_VERSION_SA) {
+			(void) zap_lookup(*osp, MASTER_NODE_OBJ, ZFS_SA_ATTRS,
+			    8, 1, &sa_attrs);
+		}
+		err = sa_setup(*osp, sa_attrs, zfs_attr_table, ZPL_END,
+		    &sa_attr_table);
+		if (err != 0) {
+			(void) fprintf(stderr, "sa_setup failed: %s\n",
+			    strerror(err));
+			dmu_objset_disown(*osp, tag);
+			*osp = NULL;
+		}
+	}
+	sa_os = *osp;
+
+	return (0);
+}
+
+static void
+close_objset(objset_t *os, void *tag)
+{
+	VERIFY3P(os, ==, sa_os);
+	if (os->os_sa != NULL)
+		sa_tear_down(os);
+	dmu_objset_disown(os, tag);
+	sa_attr_table = NULL;
+	sa_os = NULL;
+}
 
 static void
 fuid_table_destroy(void)
@@ -1735,25 +1791,7 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	int idx = 0;
 	int error;
 
-	if (!sa_loaded) {
-		uint64_t sa_attrs = 0;
-		uint64_t version;
-
-		VERIFY(zap_lookup(os, MASTER_NODE_OBJ, ZPL_VERSION_STR,
-		    8, 1, &version) == 0);
-		if (version >= ZPL_VERSION_SA) {
-			VERIFY(zap_lookup(os, MASTER_NODE_OBJ, ZFS_SA_ATTRS,
-			    8, 1, &sa_attrs) == 0);
-		}
-		if ((error = sa_setup(os, sa_attrs, zfs_attr_table,
-		    ZPL_END, &sa_attr_table)) != 0) {
-			(void) printf("sa_setup failed errno %d, can't "
-			    "display znode contents\n", error);
-			return;
-		}
-		sa_loaded = B_TRUE;
-	}
-
+	VERIFY3P(os, ==, sa_os);
 	if (sa_handle_get(os, object, NULL, SA_HDL_PRIVATE, &hdl)) {
 		(void) printf("Failed to get handle for SA znode\n");
 		return;
@@ -2499,6 +2537,108 @@ dump_label_uberblocks(label_t *label, uint64_t ashift, int label_num)
 	}
 }
 
+static char curpath[PATH_MAX];
+
+/*
+ * Iterate through the path components, recursively passing
+ * current one's obj and remaining path until we find the obj
+ * for the last one.
+ */
+static int
+dump_path_impl(objset_t *os, uint64_t obj, char *name)
+{
+	int err;
+	int header = 1;
+	uint64_t child_obj;
+	char *s;
+	dmu_buf_t *db;
+	dmu_object_info_t doi;
+
+	if ((s = strchr(name, '/')) != NULL)
+		*s = '\0';
+	err = zap_lookup(os, obj, name, 8, 1, &child_obj);
+
+	(void) strlcat(curpath, name, sizeof (curpath));
+
+	if (err != 0) {
+		(void) fprintf(stderr, "failed to lookup %s: %s\n",
+		    curpath, strerror(err));
+		return (err);
+	}
+
+	child_obj = ZFS_DIRENT_OBJ(child_obj);
+	err = sa_buf_hold(os, child_obj, FTAG, &db);
+	if (err != 0) {
+		(void) fprintf(stderr,
+		    "failed to get SA dbuf for obj %llu: %s\n",
+		    (u_longlong_t)child_obj, strerror(err));
+		return (EINVAL);
+	}
+	dmu_object_info_from_db(db, &doi);
+	sa_buf_rele(db, FTAG);
+
+	if (doi.doi_bonus_type != DMU_OT_SA &&
+	    doi.doi_bonus_type != DMU_OT_ZNODE) {
+		(void) fprintf(stderr, "invalid bonus type %d for obj %llu\n",
+		    doi.doi_bonus_type, (u_longlong_t)child_obj);
+		return (EINVAL);
+	}
+
+	if (dump_opt['v'] > 6) {
+		(void) printf("obj=%llu %s type=%d bonustype=%d\n",
+		    (u_longlong_t)child_obj, curpath, doi.doi_type,
+		    doi.doi_bonus_type);
+	}
+
+	(void) strlcat(curpath, "/", sizeof (curpath));
+
+	switch (doi.doi_type) {
+	case DMU_OT_DIRECTORY_CONTENTS:
+		if (s != NULL && *(s + 1) != '\0')
+			return (dump_path_impl(os, child_obj, s + 1));
+		/*FALLTHROUGH*/
+	case DMU_OT_PLAIN_FILE_CONTENTS:
+		dump_object(os, child_obj, dump_opt['v'], &header);
+		return (0);
+	default:
+		(void) fprintf(stderr, "object %llu has non-file/directory "
+		    "type %d\n", (u_longlong_t)obj, doi.doi_type);
+		break;
+	}
+
+	return (EINVAL);
+}
+
+/*
+ * Dump the blocks for the object specified by path inside the dataset.
+ */
+static int
+dump_path(char *ds, char *path)
+{
+	int err;
+	objset_t *os;
+	uint64_t root_obj;
+
+	err = open_objset(ds, DMU_OST_ZFS, FTAG, &os);
+	if (err != 0)
+		return (err);
+
+	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_ROOT_OBJ, 8, 1, &root_obj);
+	if (err != 0) {
+		(void) fprintf(stderr, "can't lookup root znode: %s\n",
+		    strerror(err));
+		dmu_objset_disown(os, FTAG);
+		return (EINVAL);
+	}
+
+	(void) snprintf(curpath, sizeof (curpath), "dataset=%s path=/", ds);
+
+	err = dump_path_impl(os, root_obj, path);
+
+	close_objset(os, FTAG);
+	return (err);
+}
+
 static int
 dump_label(const char *dev)
 {
@@ -2677,11 +2817,9 @@ dump_one_dir(const char *dsname, void *arg)
 	objset_t *os;
 	spa_feature_t f;
 
-	error = dmu_objset_own(dsname, DMU_OST_ANY, B_TRUE, FTAG, &os);
-	if (error) {
-		(void) printf("Could not open %s, error %d\n", dsname, error);
+	error = open_objset(dsname, DMU_OST_ANY, FTAG, &os);
+	if (error != 0)
 		return (0);
-	}
 
 	for (f = 0; f < SPA_FEATURES; f++) {
 		if (!dmu_objset_ds(os)->ds_feature_inuse[f])
@@ -2692,9 +2830,8 @@ dump_one_dir(const char *dsname, void *arg)
 	}
 
 	dump_dir(os);
-	dmu_objset_disown(os, FTAG);
+	close_objset(os, FTAG);
 	fuid_table_destroy();
-	sa_loaded = B_FALSE;
 	return (0);
 }
 
@@ -4077,38 +4214,37 @@ main(int argc, char **argv)
 		spa_config_path = spa_config_path_env;
 
 	while ((c = getopt(argc, argv,
-	    "bcdhilmMI:suCDRSAFLXx:evp:t:U:PVGoq")) != -1) {
+	    "AbcCdDeFGhiI:lLmMo:Op:PqRsSt:uU:vVx:X")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
+		case 'C':
 		case 'd':
+		case 'D':
+		case 'G':
 		case 'h':
 		case 'i':
 		case 'l':
 		case 'm':
-		case 's':
-		case 'u':
-		case 'C':
-		case 'D':
 		case 'M':
+		case 'O':
 		case 'R':
+		case 's':
 		case 'S':
-		case 'G':
+		case 'u':
 			dump_opt[c]++;
 			dump_all = 0;
 			break;
 		case 'A':
+		case 'e':
 		case 'F':
 		case 'L':
-		case 'X':
-		case 'e':
 		case 'P':
 		case 'q':
+		case 'X':
 			dump_opt[c]++;
 			break;
-		case 'V':
-			flags |= ZFS_IMPORT_VERBATIM;
-			break;
+		/* NB: Sort single match options below. */
 		case 'I':
 			max_inflight = strtoull(optarg, NULL, 0);
 			if (max_inflight == 0) {
@@ -4117,6 +4253,11 @@ main(int argc, char **argv)
 				    "than 0\n");
 				usage();
 			}
+			break;
+		case 'o':
+			error = set_global_var(optarg);
+			if (error != 0)
+				usage();
 			break;
 		case 'p':
 			if (searchdirs == NULL) {
@@ -4147,13 +4288,11 @@ main(int argc, char **argv)
 		case 'v':
 			verbose++;
 			break;
+		case 'V':
+			flags |= ZFS_IMPORT_VERBATIM;
+			break;
 		case 'x':
 			vn_dumpdir = optarg;
-			break;
-		case 'o':
-			error = set_global_var(optarg);
-			if (error != 0)
-				usage();
 			break;
 		default:
 			usage();
@@ -4196,7 +4335,7 @@ main(int argc, char **argv)
 		verbose = MAX(verbose, 1);
 
 	for (c = 0; c < 256; c++) {
-		if (dump_all && !strchr("elAFLRSXP", c))
+		if (dump_all && strchr("AeFlLOPRSX", c) == NULL)
 			dump_opt[c] = 1;
 		if (dump_opt[c])
 			dump_opt[c] += verbose;
@@ -4220,6 +4359,13 @@ main(int argc, char **argv)
 
 	if (dump_opt['l'])
 		return (dump_label(argv[0]));
+
+	if (dump_opt['O']) {
+		if (argc != 2)
+			usage();
+		dump_opt['v'] = verbose + 3;
+		return (dump_path(argv[0], argv[1]));
+	}
 
 	if (dump_opt['X'] || dump_opt['F'])
 		rewind = ZPOOL_DO_REWIND |
@@ -4285,8 +4431,7 @@ main(int argc, char **argv)
 				}
 			}
 		} else {
-			error = dmu_objset_own(target, DMU_OST_ANY,
-			    B_TRUE, FTAG, &os);
+			error = open_objset(target, DMU_OST_ANY, FTAG, &os);
 		}
 	}
 	nvlist_free(policy);
@@ -4329,10 +4474,12 @@ main(int argc, char **argv)
 			zdb_read_block(argv[i], spa);
 	}
 
-	(os != NULL) ? dmu_objset_disown(os, FTAG) : spa_close(spa, FTAG);
+	if (os != NULL)
+		close_objset(os, FTAG);
+	else
+		spa_close(spa, FTAG);
 
 	fuid_table_destroy();
-	sa_loaded = B_FALSE;
 
 	dump_debug_buffer();
 
