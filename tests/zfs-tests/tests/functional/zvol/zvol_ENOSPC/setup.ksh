@@ -40,7 +40,7 @@ if is_mpath_device $DISK; then
 	delete_partitions
 fi
 
-default_zvol_setup $DISK $VOLSIZE
+default_zvol_setup $DISK $VOLSIZE $BLOCKSIZE
 
 $ECHO "y" | $NEWFS -v ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL >/dev/null 2>&1
 (( $? != 0 )) && log_fail "Unable to newfs(1M) $TESTPOOL/$TESTVOL"
