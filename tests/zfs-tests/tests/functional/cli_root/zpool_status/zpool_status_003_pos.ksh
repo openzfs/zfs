@@ -34,7 +34,7 @@
 #
 
 # DESCRIPTION:
-# Verify zpool iostat command mode (-c) works for all pre-baked scripts.
+# Verify zpool status command mode (-c) works for all pre-baked scripts.
 #
 # STRATEGY:
 # 1. Make sure each script creates at least one new column.
@@ -48,9 +48,9 @@ verify_runnable "both"
 
 typeset testpool
 if is_global_zone ; then
-	testpool=$TESTPOOL
+	testpool="$TESTPOOL"
 else
-	testpool=${TESTPOOL%%/*}
+	testpool="${TESTPOOL%%/*}"
 fi
 
 files="$(ls $ZPOOLSCRIPTDIR)"
@@ -65,12 +65,12 @@ for i in $files ; do
 	scripts="$scripts $i"
 
 	# Run each one with -c
-	test_zpool_script "$i" "$testpool" "zpool iostat -Pv -c"
+	test_zpool_script "$i" "$testpool" "zpool status -P -c"
 done
 
 # Test that we can run multiple scripts separated with a commma by running
 # all the scripts in a single -c line.
 allscripts="$(echo $scripts | sed -r 's/[[:blank:]]+/,/g')"
-test_zpool_script "$allscripts" "$testpool" "zpool iostat -Pv -c"
+test_zpool_script "$allscripts" "$testpool" "zpool status -P -c"
 
 exit 0

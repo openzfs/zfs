@@ -45,6 +45,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <zone.h>
+#include <sys/wait.h>
 #include <zfs_prop.h>
 #include <sys/fs/zfs.h>
 #include <sys/stat.h>
@@ -52,6 +53,7 @@
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
 #include <sys/zfs_ioctl.h>
+
 #include <math.h>
 
 #include <libzfs.h>
@@ -314,10 +316,10 @@ get_usage(zpool_help_t idx)
 		    "[-R root] [-F [-n]]\n"
 		    "\t    <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
-		return (gettext("\tiostat [-c CMD] [-T d | u] [-ghHLpPvy] "
-		    "[[-lq]|[-r|-w]]\n"
-		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]] "
-		    "[interval [count]]\n"));
+		return (gettext("\tiostat [[[-c [script1,script2,...]"
+		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
+		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]]"
+		    " [interval [count]]\n"));
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
@@ -337,8 +339,8 @@ get_usage(zpool_help_t idx)
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s] <pool> ...\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-c CMD] [-gLPvxD] [-T d|u] [pool]"
-		    " ... [interval [count]]\n"));
+		return (gettext("\tstatus [-c [script1,script2,...]] [-gLPvxD]"
+		    "[-T d|u] [pool] ... [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -1515,17 +1517,68 @@ typedef struct status_cbdata {
 	vdev_cmd_data_list_t	*vcdl;
 } status_cbdata_t;
 
-/* Print output line for specific vdev in a specific pool */
+/* Return 1 if string is NULL, empty, or whitespace; return 0 otherwise. */
+static int
+is_blank_str(char *str)
+{
+	while (str != NULL && *str != '\0') {
+		if (!isblank(*str))
+			return (0);
+		str++;
+	}
+	return (1);
+}
+
+/* Print command output lines for specific vdev in a specific pool */
 static void
 zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, char *path)
 {
-	int i;
+	vdev_cmd_data_t *data;
+	int i, j;
+	char *val;
+
 	for (i = 0; i < vcdl->count; i++) {
-		if ((strcmp(vcdl->data[i].path, path) == 0) &&
-		    (strcmp(vcdl->data[i].pool, pool) == 0)) {
-			printf("%s", vcdl->data[i].line);
-			break;
+		if ((strcmp(vcdl->data[i].path, path) != 0) ||
+		    (strcmp(vcdl->data[i].pool, pool) != 0)) {
+			/* Not the vdev we're looking for */
+			continue;
 		}
+
+		data = &vcdl->data[i];
+		/* Print out all the output values for this vdev */
+		for (j = 0; j < vcdl->uniq_cols_cnt; j++) {
+			val = NULL;
+			/* Does this vdev have values for this column? */
+			for (int k = 0; k < data->cols_cnt; k++) {
+				if (strcmp(data->cols[k],
+				    vcdl->uniq_cols[j]) == 0) {
+					/* yes it does, record the value */
+					val = data->lines[k];
+					break;
+				}
+			}
+			/*
+			 * Mark empty values with dashes to make output
+			 * awk-able.
+			 */
+			if (is_blank_str(val))
+				val = "-";
+
+			printf("%*s", vcdl->uniq_cols_width[j], val);
+			if (j < vcdl->uniq_cols_cnt - 1)
+				printf("  ");
+		}
+
+		/* Print out any values that aren't in a column at the end */
+		for (j = data->cols_cnt; j < data->lines_cnt; j++) {
+			/* Did we have any columns?  If so print a spacer. */
+			if (vcdl->uniq_cols_cnt > 0)
+				printf("  ");
+
+			val = data->lines[j];
+			printf("%s", val ? val : "");
+		}
+		break;
 	}
 }
 
@@ -2772,8 +2825,53 @@ print_iostat_labels(iostat_cbdata_t *cb, unsigned int force_column_width,
 
 		}
 	}
-	printf("\n");
 }
+
+
+/*
+ * print_cmd_columns - Print custom column titles from -c
+ *
+ * If the user specified the "zpool status|iostat -c" then print their custom
+ * column titles in the header.  For example, print_cmd_columns() would print
+ * the "  col1  col2" part of this:
+ *
+ * $ zpool iostat -vc 'echo col1=val1; echo col2=val2'
+ * ...
+ *	      capacity     operations     bandwidth
+ * pool        alloc   free   read  write   read  write  col1  col2
+ * ----------  -----  -----  -----  -----  -----  -----  ----  ----
+ * mypool       269K  1008M      0      0    107    946
+ *   mirror     269K  1008M      0      0    107    946
+ *     sdb         -      -      0      0    102    473  val1  val2
+ *     sdc         -      -      0      0      5    473  val1  val2
+ * ----------  -----  -----  -----  -----  -----  -----  ----  ----
+ */
+void
+print_cmd_columns(vdev_cmd_data_list_t *vcdl, int use_dashes)
+{
+	int i, j;
+	vdev_cmd_data_t *data = &vcdl->data[0];
+
+	if (vcdl->count == 0 || data == NULL)
+		return;
+
+	/*
+	 * Each vdev cmd should have the same column names unless the user did
+	 * something weird with their cmd.  Just take the column names from the
+	 * first vdev and assume it works for all of them.
+	 */
+	for (i = 0; i < vcdl->uniq_cols_cnt; i++) {
+		printf("  ");
+		if (use_dashes) {
+			for (j = 0; j < vcdl->uniq_cols_width[i]; j++)
+				printf("-");
+		} else {
+			printf("%*s", vcdl->uniq_cols_width[i],
+			    vcdl->uniq_cols[i]);
+		}
+	}
+}
+
 
 /*
  * Utility function to print out a line of dashes like:
@@ -2843,7 +2941,6 @@ print_iostat_dashes(iostat_cbdata_t *cb, unsigned int force_column_width,
 				    "--------------------");
 		}
 	}
-	printf("\n");
 }
 
 
@@ -2885,12 +2982,22 @@ print_iostat_header_impl(iostat_cbdata_t *cb, unsigned int force_column_width,
 
 
 	print_iostat_labels(cb, force_column_width, iostat_top_labels);
+	printf("\n");
 
 	printf("%-*s", namewidth, title);
 
 	print_iostat_labels(cb, force_column_width, iostat_bottom_labels);
+	if (cb->vcdl != NULL)
+		print_cmd_columns(cb->vcdl, 0);
+
+	printf("\n");
 
 	print_iostat_separator_impl(cb, force_column_width);
+
+	if (cb->vcdl != NULL)
+		print_cmd_columns(cb->vcdl, 1);
+
+	printf("\n");
 }
 
 static void
@@ -3424,11 +3531,8 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 		char *path;
 		if (nvlist_lookup_string(newnv, ZPOOL_CONFIG_PATH,
 		    &path) == 0) {
-			if (!(cb->cb_flags & IOS_ANYHISTO_M))
-				printf("  ");
+			printf("  ");
 			zpool_print_cmd(cb->vcdl, zpool_get_name(zhp), path);
-			if (cb->cb_flags & IOS_ANYHISTO_M)
-				printf("\n");
 		}
 	}
 
@@ -3575,6 +3679,10 @@ print_iostat(zpool_handle_t *zhp, void *data)
 	if ((ret != 0) && !(cb->cb_flags & IOS_ANYHISTO_M) &&
 	    !cb->cb_scripted && cb->cb_verbose && !cb->cb_vdev_names_count) {
 		print_iostat_separator(cb);
+		if (cb->vcdl != NULL) {
+			print_cmd_columns(cb->vcdl, 1);
+		}
+		printf("\n");
 	}
 
 	return (ret);
@@ -3963,11 +4071,72 @@ fsleep(float sec)
 	nanosleep(&req, NULL);
 }
 
+/*
+ * Run one of the zpool status/iostat -c scripts with the help (-h) option and
+ * print the result.
+ *
+ * name:	Short name of the script ('iostat').
+ * path:	Full path to the script ('/usr/local/etc/zfs/zpool.d/iostat');
+ */
+static void
+print_zpool_script_help(char *name, char *path)
+{
+	char *argv[] = {path, "-h", NULL};
+	char **lines = NULL;
+	int lines_cnt = 0;
+	int rc;
+
+	rc = libzfs_run_process_get_stdout_nopath(path, argv, NULL, &lines,
+	    &lines_cnt);
+	if (rc != 0 || lines == NULL || lines_cnt <= 0)
+		return;
+
+	for (int i = 0; i < lines_cnt; i++)
+		if (!is_blank_str(lines[i]))
+			printf("  %-14s  %s\n", name, lines[i]);
+
+	libzfs_free_str_array(lines, lines_cnt);
+}
+
 
 /*
- * zpool iostat [-c CMD] [-ghHLpPvy] [[-lq]|[-r|-w]] [-n name] [-T d|u]
- *		[[ pool ...]|[pool vdev ...]|[vdev ...]]
- *		[interval [count]]
+ * Go though the list of all the zpool status/iostat -c scripts, run their
+ * help option (-h), and print out the results.
+ */
+static void
+print_zpool_script_list(void)
+{
+	DIR *dir;
+	struct dirent *ent;
+	char fullpath[MAXPATHLEN];
+	struct stat dir_stat;
+
+	if ((dir = opendir(ZPOOL_SCRIPTS_DIR)) != NULL) {
+		printf("\n");
+		/* print all the files and directories within directory */
+		while ((ent = readdir(dir)) != NULL) {
+			sprintf(fullpath, "%s/%s", ZPOOL_SCRIPTS_DIR,
+			    ent->d_name);
+
+			/* Print the scripts */
+			if (stat(fullpath, &dir_stat) == 0)
+				if (dir_stat.st_mode & S_IXUSR &&
+				    S_ISREG(dir_stat.st_mode))
+					print_zpool_script_help(ent->d_name,
+					    fullpath);
+		}
+		printf("\n");
+		closedir(dir);
+	} else {
+		fprintf(stderr, gettext("Can't open %s scripts dir\n"),
+		    ZPOOL_SCRIPTS_DIR);
+	}
+}
+
+/*
+ * zpool iostat [[-c [script1,script2,...]] [-lq]|[-rw]] [-ghHLpPvy] [-n name]
+ *              [-T d|u] [[ pool ...]|[pool vdev ...]|[vdev ...]]
+ *              [interval [count]]
  *
  *	-c CMD  For each vdev, run command CMD
  *	-g	Display guid for individual vdev name.
@@ -4019,7 +4188,20 @@ zpool_do_iostat(int argc, char **argv)
 	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwH")) != -1) {
 		switch (c) {
 		case 'c':
+			if (cmd != NULL) {
+				fprintf(stderr,
+				    gettext("Can't set -c flag twice\n"));
+				exit(1);
+			}
+			if ((getuid() <= 0 || geteuid() <= 0) &&
+			    !libzfs_envvar_is_set("ZPOOL_SCRIPTS_AS_ROOT")) {
+				fprintf(stderr, gettext(
+				    "Can't run -c with root privileges "
+				    "unless ZPOOL_SCRIPTS_AS_ROOT is set.\n"));
+				exit(1);
+			}
 			cmd = optarg;
+			verbose = B_TRUE;
 			break;
 		case 'g':
 			guid = B_TRUE;
@@ -4062,8 +4244,11 @@ zpool_do_iostat(int argc, char **argv)
 			break;
 		case '?':
 			if (optopt == 'c') {
-				fprintf(stderr,
-				    gettext("Missing CMD for -c\n"));
+				fprintf(stderr, gettext(
+				    "Current scripts in %s:\n"),
+				    ZPOOL_SCRIPTS_DIR);
+				print_zpool_script_list();
+				exit(0);
 			} else {
 				fprintf(stderr,
 				    gettext("invalid option '%c'\n"), optopt);
@@ -4158,10 +4343,10 @@ zpool_do_iostat(int argc, char **argv)
 		return (1);
 	}
 
-	if ((l_histo || rq_histo) && (queues || latency)) {
+	if ((l_histo || rq_histo) && (cmd != NULL || latency || queues)) {
 		pool_list_free(list);
 		(void) fprintf(stderr,
-		    gettext("[-r|-w] isn't allowed with [-q|-l]\n"));
+		    gettext("[-r|-w] isn't allowed with [-c|-l|-q]\n"));
 		usage(B_FALSE);
 		return (1);
 	}
@@ -4249,6 +4434,15 @@ zpool_do_iostat(int argc, char **argv)
 			if (timestamp_fmt != NODATE)
 				print_timestamp(timestamp_fmt);
 
+			if (cmd != NULL && cb.cb_verbose &&
+			    !(cb.cb_flags & IOS_ANYHISTO_M)) {
+				cb.vcdl = all_pools_for_each_vdev_run(argc,
+				    argv, cmd, g_zfs, cb.cb_vdev_names,
+				    cb.cb_vdev_names_count, cb.cb_name_flags);
+			} else {
+				cb.vcdl = NULL;
+			}
+
 			/*
 			 * If it's the first time and we're not skipping it,
 			 * or either skip or verbose mode, print the header.
@@ -4267,15 +4461,8 @@ zpool_do_iostat(int argc, char **argv)
 				continue;
 			}
 
-			if (cmd != NULL && cb.cb_verbose)
-				cb.vcdl = all_pools_for_each_vdev_run(argc,
-				    argv, cmd, g_zfs, cb.cb_vdev_names,
-				    cb.cb_vdev_names_count, cb.cb_name_flags);
 
 			pool_list_iter(list, B_FALSE, print_iostat, &cb);
-
-			if (cb.vcdl != NULL)
-				free_vdev_cmd_data_list(cb.vcdl);
 
 			/*
 			 * If there's more than one pool, and we're not in
@@ -4291,7 +4478,14 @@ zpool_do_iostat(int argc, char **argv)
 			    cb.cb_vdev_names_count)) &&
 			    !cb.cb_scripted) {
 				print_iostat_separator(&cb);
+				if (cb.vcdl != NULL)
+					print_cmd_columns(cb.vcdl, 1);
+				printf("\n");
 			}
+
+			if (cb.vcdl != NULL)
+				free_vdev_cmd_data_list(cb.vcdl);
+
 		}
 
 		/*
@@ -6009,9 +6203,14 @@ status_callback(zpool_handle_t *zhp, void *data)
 			cbp->cb_namewidth = 10;
 
 		(void) printf(gettext("config:\n\n"));
-		(void) printf(gettext("\t%-*s  %-8s %5s %5s %5s\n"),
+		(void) printf(gettext("\t%-*s  %-8s %5s %5s %5s"),
 		    cbp->cb_namewidth, "NAME", "STATE", "READ", "WRITE",
 		    "CKSUM");
+
+		if (cbp->vcdl != NULL)
+			print_cmd_columns(cbp->vcdl, 0);
+
+		printf("\n");
 		print_status_config(zhp, cbp, zpool_get_name(zhp), nvroot, 0,
 		    B_FALSE);
 
@@ -6071,7 +6270,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c CMD] [-gLPvx] [-T d|u] [pool] ... [interval [count]]
+ * zpool status [-c [script1,script2,...]] [-gLPvx] [-T d|u] [pool] ...
+ *              [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
  *	-g	Display guid for individual vdev name.
@@ -6098,6 +6298,18 @@ zpool_do_status(int argc, char **argv)
 	while ((c = getopt(argc, argv, "c:gLPvxDT:")) != -1) {
 		switch (c) {
 		case 'c':
+			if (cmd != NULL) {
+				fprintf(stderr,
+				    gettext("Can't set -c flag twice\n"));
+				exit(1);
+			}
+			if ((getuid() <= 0 || geteuid() <= 0) &&
+			    !libzfs_envvar_is_set("ZPOOL_SCRIPTS_AS_ROOT")) {
+				fprintf(stderr, gettext(
+				    "Can't run -c with root privileges "
+				    "unless ZPOOL_SCRIPTS_AS_ROOT is set.\n"));
+				exit(1);
+			}
 			cmd = optarg;
 			break;
 		case 'g':
@@ -6123,8 +6335,11 @@ zpool_do_status(int argc, char **argv)
 			break;
 		case '?':
 			if (optopt == 'c') {
-				fprintf(stderr,
-				    gettext("Missing CMD for -c\n"));
+				fprintf(stderr, gettext(
+				    "Current scripts in %s:\n"),
+				    ZPOOL_SCRIPTS_DIR);
+				print_zpool_script_list();
+				exit(0);
 			} else {
 				fprintf(stderr,
 				    gettext("invalid option '%c'\n"), optopt);

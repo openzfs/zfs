@@ -332,7 +332,8 @@ pre =
 post =
 
 [tests/functional/cli_root/zpool_status]
-tests = ['zpool_status_001_pos', 'zpool_status_002_pos']
+tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos']
+user =
 
 # DISABLED:
 # zpool_upgrade_002_pos - https://github.com/zfsonlinux/zfs/issues/4034
