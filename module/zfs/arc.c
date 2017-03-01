@@ -956,6 +956,7 @@ typedef struct l2arc_read_callback {
 	blkptr_t		l2rcb_bp;		/* original blkptr */
 	zbookmark_phys_t	l2rcb_zb;		/* original bookmark */
 	int			l2rcb_flags;		/* original flags */
+	abd_t			*l2rcb_abd;		/* temporary buffer */
 } l2arc_read_callback_t;
 
 typedef struct l2arc_data_free {
@@ -5355,6 +5356,8 @@ top:
 			    !HDR_L2_WRITING(hdr) && !HDR_L2_EVICTED(hdr) &&
 			    !(l2arc_noprefetch && HDR_PREFETCH(hdr))) {
 				l2arc_read_callback_t *cb;
+				abd_t *abd;
+				uint64_t asize;
 
 				DTRACE_PROBE1(l2arc__hit, arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_hits);
@@ -5367,8 +5370,17 @@ top:
 				cb->l2rcb_zb = *zb;
 				cb->l2rcb_flags = zio_flags;
 
+				asize = vdev_psize_to_asize(vd, size);
+				if (asize != size) {
+					abd = abd_alloc_for_io(asize,
+					    HDR_ISTYPE_METADATA(hdr));
+					cb->l2rcb_abd = abd;
+				} else {
+					abd = hdr->b_l1hdr.b_pabd;
+				}
+
 				ASSERT(addr >= VDEV_LABEL_START_SIZE &&
-				    addr + lsize < vd->vdev_psize -
+				    addr + asize <= vd->vdev_psize -
 				    VDEV_LABEL_END_SIZE);
 
 				/*
@@ -5380,7 +5392,7 @@ top:
 				ASSERT3U(HDR_GET_COMPRESS(hdr), !=,
 				    ZIO_COMPRESS_EMPTY);
 				rzio = zio_read_phys(pio, vd, addr,
-				    size, hdr->b_l1hdr.b_pabd,
+				    asize, abd,
 				    ZIO_CHECKSUM_OFF,
 				    l2arc_read_done, cb, priority,
 				    zio_flags | ZIO_FLAG_DONT_CACHE |
@@ -7045,6 +7057,33 @@ l2arc_read_done(zio_t *zio)
 	mutex_enter(hash_lock);
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
 
+	/*
+	 * If the data was read into a temporary buffer,
+	 * move it and free the buffer.
+	 */
+	if (cb->l2rcb_abd != NULL) {
+		ASSERT3U(arc_hdr_size(hdr), <, zio->io_size);
+		if (zio->io_error == 0) {
+			abd_copy(hdr->b_l1hdr.b_pabd, cb->l2rcb_abd,
+			    arc_hdr_size(hdr));
+		}
+
+		/*
+		 * The following must be done regardless of whether
+		 * there was an error:
+		 * - free the temporary buffer
+		 * - point zio to the real ARC buffer
+		 * - set zio size accordingly
+		 * These are required because zio is either re-used for
+		 * an I/O of the block in the case of the error
+		 * or the zio is passed to arc_read_done() and it
+		 * needs real data.
+		 */
+		abd_free(cb->l2rcb_abd);
+		zio->io_size = zio->io_orig_size = arc_hdr_size(hdr);
+		zio->io_abd = zio->io_orig_abd = hdr->b_l1hdr.b_pabd;
+	}
+
 	ASSERT3P(zio->io_abd, !=, NULL);
 
 	/*
@@ -7391,22 +7430,32 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			 * Normally the L2ARC can use the hdr's data, but if
 			 * we're sharing data between the hdr and one of its
 			 * bufs, L2ARC needs its own copy of the data so that
-			 * the ZIO below can't race with the buf consumer. To
-			 * ensure that this copy will be available for the
+			 * the ZIO below can't race with the buf consumer.
+			 * Another case where we need to create a copy of the
+			 * data is when the buffer size is not device-aligned
+			 * and we need to pad the block to make it such.
+			 * That also keeps the clock hand suitably aligned.
+			 *
+			 * To ensure that the copy will be available for the
 			 * lifetime of the ZIO and be cleaned up afterwards, we
 			 * add it to the l2arc_free_on_write queue.
 			 */
-			if (!HDR_SHARED_DATA(hdr)) {
+			asize = vdev_psize_to_asize(dev->l2ad_vdev, size);
+			if (!HDR_SHARED_DATA(hdr) && size == asize) {
 				to_write = hdr->b_l1hdr.b_pabd;
 			} else {
-				to_write = abd_alloc_for_io(size,
+				to_write = abd_alloc_for_io(asize,
 				    HDR_ISTYPE_METADATA(hdr));
 				abd_copy(to_write, hdr->b_l1hdr.b_pabd, size);
+				if (asize != size) {
+					abd_zero_off(to_write, size,
+					    asize - size);
+				}
 				l2arc_free_abd_on_write(to_write, size,
 				    arc_buf_type(hdr));
 			}
 			wzio = zio_write_phys(pio, dev->l2ad_vdev,
-			    hdr->b_l2hdr.b_daddr, size, to_write,
+			    hdr->b_l2hdr.b_daddr, asize, to_write,
 			    ZIO_CHECKSUM_OFF, NULL, hdr,
 			    ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_CANFAIL, B_FALSE);
@@ -7416,10 +7465,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			    zio_t *, wzio);
 
 			write_asize += size;
-			/*
-			 * Keep the clock hand suitably device-aligned.
-			 */
-			asize = vdev_psize_to_asize(dev->l2ad_vdev, size);
 			write_psize += asize;
 			dev->l2ad_hand += asize;
 
