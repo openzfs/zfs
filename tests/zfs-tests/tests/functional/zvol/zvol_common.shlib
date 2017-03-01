@@ -36,17 +36,24 @@
 #
 # Where disk_device: is the name of the disk to be used
 #       volume_size: is the size of the volume, e.g. 2G
+#       block_size:  is the block size of the volume
 #
-function default_zvol_setup # disk_device volume_size
+function default_zvol_setup # disk_device volume_size block_size
 {
-        typeset disk=$1
-        typeset size=$2
+	typeset disk=$1
+	typeset size=$2
+	typeset blocksize=$3
 	typeset savedumpdev
 	typeset -i output
+	typeset create_args
 
-        create_pool $TESTPOOL "$disk"
+	create_pool $TESTPOOL "$disk"
 
-        log_must $ZFS create -V $size $TESTPOOL/$TESTVOL
+	if [ -n "$blocksize" ]; then
+		create_args="-b $blocksize"
+	fi
+
+	log_must $ZFS create $create_args -V $size $TESTPOOL/$TESTVOL
 	block_device_wait
 }
 
