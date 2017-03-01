@@ -154,7 +154,7 @@ find_runfile() {
 usage() {
 cat << EOF
 USAGE:
-$0 [hvqxkf] [-s SIZE] [-r RUNFILE]
+$0 [hvqxkf] [-s SIZE] [-r RUNFILE] [-t PATH] [-u USER]
 
 DESCRIPTION:
 	ZFS Test Suite launch script
@@ -169,7 +169,7 @@ OPTIONS:
 	-d DIR      Use DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILE  Run tests in RUNFILE (default: linux.run)
-	-t PATH     Run single test at PATH
+	-t PATH     Run single test at PATH relative to test suite
 	-u USER     Run single test as USER (default: root)
 
 EXAMPLES:
@@ -264,11 +264,11 @@ EOF
 		SETUPSCRIPT=
 		CLEANUPSCRIPT=
 
-		if [ -f "$SINGLETESTDIR/setup.ksh" ]; then
+		if [ -f "$STF_SUITE/$SINGLETESTDIR/setup.ksh" ]; then
 			SETUPSCRIPT="setup"
 		fi
 
-		if [ -f "$SINGLETESTDIR/cleanup.ksh" ]; then
+		if [ -f "$STF_SUITE/$SINGLETESTDIR/cleanup.ksh" ]; then
 			CLEANUPSCRIPT="cleanup"
 		fi
 
@@ -409,7 +409,7 @@ RESULT=$?
 echo
 
 if [ ${#SINGLETEST[@]} -ne 0 ]; then
-	rm -f "$RUNFILEDIR/$RUNFILE" &>/dev/null
+	rm -f "$RUNFILE" &>/dev/null
 fi
 
 exit ${RESULT}
