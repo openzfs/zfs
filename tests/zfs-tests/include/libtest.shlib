@@ -1679,13 +1679,18 @@ function scan_scsi_hosts
 {
 	typeset hostnum=${1}
 
-	if [[ -z $hostnum ]]; then
-		for host in /sys/class/scsi_host/host*; do
-			echo '- - -' > $host/scan
-		done
-	else
-		echo "/sys/class/scsi_host/host$hostnum/scan"
-		echo '- - -' > "/sys/class/scsi_host/host$hostnum/scan"
+	if is_linux; then
+		if [[ -z $hostnum ]]; then
+			for host in /sys/class/scsi_host/host*; do
+				log_must eval "$ECHO '- - -' > $host/scan"
+			done
+		else
+			log_must eval \
+			    "$ECHO /sys/class/scsi_host/host$hostnum/scan" \
+			    > /dev/null
+			log_must eval \
+			    "$ECHO '- - -' > /sys/class/scsi_host/host$hostnum/scan"
+		fi
 	fi
 }
 #
@@ -1758,7 +1763,7 @@ function on_off_disk # disk state{online,offline} host
 			fi
 		elif [[ $state == "online" ]]; then
 			#force a full rescan
-			log_must scan_scsi_hosts $host
+			scan_scsi_hosts $host
 			block_device_wait
 			if is_mpath_device $disk; then
 				dm_name="$($READLINK $DEV_DSKDIR/$disk \
@@ -3028,6 +3033,40 @@ function get_persistent_disk_name #device
 }
 
 #
+# Load scsi_debug module with specified parameters
+#
+function load_scsi_debug # dev_size_mb add_host num_tgts max_luns
+{
+	typeset devsize=$1
+	typeset hosts=$2
+	typeset tgts=$3
+	typeset luns=$4
+
+	[[ -z $devsize ]] || [[ -z $hosts ]] || [[ -z $tgts ]] || \
+	    [[ -z $luns ]] && log_fail "Arguments invalid or missing"
+
+	if is_linux; then
+		$MODLOAD -n scsi_debug
+		if (($? != 0)); then
+			log_unsupported "Platform does not have scsi_debug"
+			    "module"
+		fi
+		$LSMOD | $EGREP scsi_debug > /dev/zero
+		if (($? == 0)); then
+			log_fail "scsi_debug module already installed"
+		else
+			log_must $MODLOAD scsi_debug dev_size_mb=$devsize \
+			    add_host=$hosts num_tgts=$tgts max_luns=$luns
+			block_device_wait
+			$LSSCSI | $EGREP scsi_debug > /dev/null
+			if (($? == 1)); then
+				log_fail "scsi_debug module install failed"
+			fi
+		fi
+	fi
+}
+
+#
 # Get the package name
 #
 function get_package_name
@@ -3221,4 +3260,50 @@ function wait_freeing #pool
 		[[ "0" == "$($ZPOOL list -Ho freeing $pool)" ]] && break
 		log_must $SLEEP 1
 	done
+}
+
+#
+# Check if ZED is currently running, if not start ZED.
+#
+function zed_start
+{
+	if is_linux; then
+		# ZEDLET_DIR=/var/tmp/zed
+		if [[ ! -d $ZEDLET_DIR ]]; then
+			log_must $MKDIR $ZEDLET_DIR
+		fi
+
+		# Verify the ZED is not already running.
+		$PGREP -x zed > /dev/null
+		if (($? == 0)); then
+			log_fail "ZED already running"
+		fi
+
+		log_must $CP ${ZEDLETDIR}/all-syslog.sh $ZEDLET_DIR
+
+		log_note "Starting ZED"
+		# run ZED in the background and redirect foreground logging
+		# output to zedlog
+		log_must eval "$ZED -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
+		    "-s $ZEDLET_DIR/state 2>${ZEDLET_DIR}/zedlog &"
+	fi
+}
+
+#
+# Kill ZED process
+#
+function zed_stop
+{
+	if is_linux; then
+		if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
+			zedpid=$($CAT ${ZEDLET_DIR}/zed.pid)
+			log_must $KILL $zedpid
+		fi
+		log_must $RM -f ${ZEDLET_DIR}/all-syslog.sh
+		log_must $RM -f ${ZEDLET_DIR}/zed.pid
+		log_must $RM -f ${ZEDLET_DIR}/zedlog
+		log_must $RM -f ${ZEDLET_DIR}/state
+		log_must $RMDIR $ZEDLET_DIR
+
+	fi
 }

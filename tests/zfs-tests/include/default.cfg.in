@@ -209,6 +209,7 @@ if is_linux; then
 	ZVOL_RDEVDIR="/dev/zvol"
 	DEV_RDSKDIR="/dev"
 	DEV_MPATHDIR="/dev/mapper"
+	ZEDLET_DIR="/var/tmp/zed"
 
 	NEWFS_DEFAULT_FS="ext2"
 else
@@ -226,4 +227,5 @@ else
 	NEWFS_DEFAULT_FS="ufs"
 fi
 export unpack_opts pack_opts verbose unpack_preserve pack_preserve \
-       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_RDSKDIR DEV_MPATHDIR
+       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_RDSKDIR DEV_MPATHDIR \
+       ZEDLET_DIR
