@@ -412,7 +412,7 @@ tests = ['devices_003_pos']
 tests = ['exec_001_pos']
 
 [tests/functional/fault]
-tests = ['auto_online_001_pos']
+tests = ['auto_online_001_pos', 'auto_replace_001_pos']
 
 [tests/functional/features/async_destroy]
 tests = ['async_destroy_001_pos']

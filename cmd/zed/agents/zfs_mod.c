@@ -22,7 +22,7 @@
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2016, Intel Corporation.
+ * Copyright (c) 2016, 2017, Intel Corporation.
  */
 
 /*
@@ -89,6 +89,7 @@
 
 #define	DEV_BYID_PATH	"/dev/disk/by-id/"
 #define	DEV_BYPATH_PATH	"/dev/disk/by-path/"
+#define	DEV_BYVDEV_PATH	"/dev/disk/by-vdev/"
 
 typedef void (*zfs_process_func_t)(zpool_handle_t *, nvlist_t *, boolean_t);
 
@@ -190,6 +191,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	char devpath[PATH_MAX];
 	int ret;
 	int is_dm = 0;
+	int is_sd = 0;
 	uint_t c;
 	vdev_stat_t *vs;
 
@@ -259,6 +261,13 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	}
 
 	/*
+	 * vdev_id alias rule for using scsi_debug devices (FMA automated
+	 * testing)
+	 */
+	if (strcmp("scsidebug", physpath) == 0)
+		is_sd = 1;
+
+	/*
 	 * If the pool doesn't have the autoreplace property set, then use
 	 * vdev online to trigger a FMA fault by posting an ereport.
 	 */
@@ -272,10 +281,13 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	}
 
 	/*
-	 * convert physical path into its current device node
+	 * Convert physical path into its current device node.  Rawpath
+	 * needs to be /dev/disk/by-vdev for a scsi_debug device since
+	 * /dev/disk/by-path will not be present.
 	 */
-	(void) snprintf(rawpath, sizeof (rawpath), "%s%s", DEV_BYPATH_PATH,
-	    physpath);
+	(void) snprintf(rawpath, sizeof (rawpath), "%s%s",
+	    is_sd ? DEV_BYVDEV_PATH : DEV_BYPATH_PATH, physpath);
+
 	if (realpath(rawpath, devpath) == NULL && !is_dm) {
 		zed_log_msg(LOG_INFO, "  realpath: %s failed (%s)",
 		    rawpath, strerror(errno));
