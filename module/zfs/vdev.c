@@ -1330,6 +1330,13 @@ vdev_open(vdev_t *vd)
 		max_asize = max_osize;
 	}
 
+	/*
+	 * If the vdev was expanded, record this so that we can re-create the
+	 * uberblock rings in labels {2,3}, during the next sync.
+	 */
+	if ((psize > vd->vdev_psize) && (vd->vdev_psize != 0))
+		vd->vdev_copy_uberblocks = B_TRUE;
+
 	vd->vdev_psize = psize;
 
 	/*

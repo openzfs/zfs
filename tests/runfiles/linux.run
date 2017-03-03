@@ -276,7 +276,7 @@ tests = ['zpool_detach_001_neg']
 # zpool_expand_001_pos - https://github.com/zfsonlinux/zfs/issues/2437
 # zpool_expand_003_pos - https://github.com/zfsonlinux/zfs/issues/2437
 [tests/functional/cli_root/zpool_expand]
-tests = ['zpool_expand_002_pos']
+tests = ['zpool_expand_002_pos', 'zpool_expand_004_pos']
 
 # DISABLED:
 # zpool_export_004_pos - https://github.com/zfsonlinux/zfs/issues/3484
