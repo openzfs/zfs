@@ -441,8 +441,9 @@ bio_is_discard(struct bio *bio)
 #elif defined(REQ_DISCARD)
 	return (bio->bi_rw & REQ_DISCARD);
 #else
+/* potentially triggering the DMU_MAX_ACCESS assertion.  */
 #error	"Allowing the build will cause discard requests to become writes."
-#endif /* potentially triggering the DMU_MAX_ACCESS assertion.  */
+#endif
 }
 
 /*
