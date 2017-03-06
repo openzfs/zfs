@@ -21,6 +21,11 @@ Requires:       spl-kmod\n\
 Requires:       @PACKAGE@ = %{version}\n\
 Conflicts:      @PACKAGE@-dkms\n\n" > %{_sourcedir}/kmod-preamble)
 
+# LDFLAGS are not sanitized by arch/powerpc/Makefile (unlike other arches)
+%ifarch ppc ppc64 ppc64le
+%global __global_ldflags %{nil}
+%endif
+
 %description
 This package contains the ZFS kernel modules.
 

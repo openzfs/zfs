@@ -98,10 +98,6 @@ extern "C" {
 #endif
 #endif
 
-#if !defined(_BIG_ENDIAN)
-#define	_BIG_ENDIAN
-#endif
-
 #define	_SUNOS_VTOC_16
 
 /* arm arch specific defines */
