@@ -2344,6 +2344,23 @@ dmu_fsname(const char *snapname, char *buf)
 	return (0);
 }
 
+/*
+ * Call when we think we're going to write/free space in open context to track
+ * the amount of dirty data in the open txg, which is also the amount
+ * of memory that can not be evicted until this txg syncs.
+ */
+void
+dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
+{
+	dsl_dataset_t *ds = os->os_dsl_dataset;
+	int64_t aspace = spa_get_worst_case_asize(os->os_spa, space);
+
+	if (ds != NULL) {
+		dsl_dir_willuse_space(ds->ds_dir, aspace, tx);
+		dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
+	}
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_objset_zil);
 EXPORT_SYMBOL(dmu_objset_pool);

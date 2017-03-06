@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -137,8 +137,7 @@ uint64_t dsl_dir_space_available(dsl_dir_t *dd,
 void dsl_dir_dirty(dsl_dir_t *dd, dmu_tx_t *tx);
 void dsl_dir_sync(dsl_dir_t *dd, dmu_tx_t *tx);
 int dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t mem,
-    uint64_t asize, uint64_t fsize, uint64_t usize, void **tr_cookiep,
-    dmu_tx_t *tx);
+    uint64_t asize, boolean_t netfree, void **tr_cookiep, dmu_tx_t *tx);
 void dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx);
 void dsl_dir_willuse_space(dsl_dir_t *dd, int64_t space, dmu_tx_t *tx);
 void dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,

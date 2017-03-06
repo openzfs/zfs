@@ -1432,41 +1432,6 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	mutex_exit(&dn->dn_dbufs_mtx);
 }
 
-static int
-dbuf_block_freeable(dmu_buf_impl_t *db)
-{
-	dsl_dataset_t *ds = db->db_objset->os_dsl_dataset;
-	uint64_t birth_txg = 0;
-
-	/*
-	 * We don't need any locking to protect db_blkptr:
-	 * If it's syncing, then db_last_dirty will be set
-	 * so we'll ignore db_blkptr.
-	 *
-	 * This logic ensures that only block births for
-	 * filled blocks are considered.
-	 */
-	ASSERT(MUTEX_HELD(&db->db_mtx));
-	if (db->db_last_dirty && (db->db_blkptr == NULL ||
-	    !BP_IS_HOLE(db->db_blkptr))) {
-		birth_txg = db->db_last_dirty->dr_txg;
-	} else if (db->db_blkptr != NULL && !BP_IS_HOLE(db->db_blkptr)) {
-		birth_txg = db->db_blkptr->blk_birth;
-	}
-
-	/*
-	 * If this block don't exist or is in a snapshot, it can't be freed.
-	 * Don't pass the bp to dsl_dataset_block_freeable() since we
-	 * are holding the db_mtx lock and might deadlock if we are
-	 * prefetching a dedup-ed block.
-	 */
-	if (birth_txg != 0)
-		return (ds == NULL ||
-		    dsl_dataset_block_freeable(ds, NULL, birth_txg));
-	else
-		return (B_FALSE);
-}
-
 void
 dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 {
@@ -1516,7 +1481,7 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 	}
 	mutex_exit(&db->db_mtx);
 
-	dnode_willuse_space(dn, size-osize, tx);
+	dmu_objset_willuse_space(dn->dn_objset, size - osize, tx);
 	DB_DNODE_EXIT(db);
 }
 
@@ -1566,7 +1531,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	objset_t *os;
 	dbuf_dirty_record_t **drp, *dr;
 	int drop_struct_lock = FALSE;
-	boolean_t do_free_accounting = B_FALSE;
 	int txgoff = tx->tx_txg & TXG_MASK;
 
 	ASSERT(tx->tx_txg != 0);
@@ -1688,15 +1652,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	dprintf_dbuf(db, "size=%llx\n", (u_longlong_t)db->db.db_size);
 
 	if (db->db_blkid != DMU_BONUS_BLKID) {
-		/*
-		 * Update the accounting.
-		 * Note: we delay "free accounting" until after we drop
-		 * the db_mtx.  This keeps us from grabbing other locks
-		 * (and possibly deadlocking) in bp_get_dsize() while
-		 * also holding the db_mtx.
-		 */
-		dnode_willuse_space(dn, db->db.db_size, tx);
-		do_free_accounting = dbuf_block_freeable(db);
+		dmu_objset_willuse_space(os, db->db.db_size, tx);
 	}
 
 	/*
@@ -1790,21 +1746,13 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		drop_struct_lock = TRUE;
 	}
 
-	if (do_free_accounting) {
-		blkptr_t *bp = db->db_blkptr;
-		int64_t willfree = (bp && !BP_IS_HOLE(bp)) ?
-		    bp_get_dsize(os->os_spa, bp) : db->db.db_size;
-		/*
-		 * This is only a guess -- if the dbuf is dirty
-		 * in a previous txg, we don't know how much
-		 * space it will use on disk yet.  We should
-		 * really have the struct_rwlock to access
-		 * db_blkptr, but since this is just a guess,
-		 * it's OK if we get an odd answer.
-		 */
-		ddt_prefetch(os->os_spa, bp);
-		dnode_willuse_space(dn, -willfree, tx);
-	}
+	/*
+	 * If we are overwriting a dedup BP, then unless it is snapshotted,
+	 * when we get to syncing context we will need to decrement its
+	 * refcount in the DDT.  Prefetch the relevant DDT block so that
+	 * syncing context won't have to wait for the i/o.
+	 */
+	ddt_prefetch(os->os_spa, db->db_blkptr);
 
 	if (db->db_level == 0) {
 		dnode_new_blkid(dn, db->db_blkid, tx, drop_struct_lock);
@@ -3092,19 +3040,6 @@ dmu_buf_user_evict_wait()
 	taskq_wait(dbu_evict_taskq);
 }
 
-boolean_t
-dmu_buf_freeable(dmu_buf_t *dbuf)
-{
-	boolean_t res = B_FALSE;
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbuf;
-
-	if (db->db_blkptr)
-		res = dsl_dataset_block_freeable(db->db_objset->os_dsl_dataset,
-		    db->db_blkptr, db->db_blkptr->blk_birth);
-
-	return (res);
-}
-
 blkptr_t *
 dmu_buf_get_blkptr(dmu_buf_t *db)
 {
@@ -3891,7 +3826,6 @@ EXPORT_SYMBOL(dbuf_sync_list);
 EXPORT_SYMBOL(dmu_buf_set_user);
 EXPORT_SYMBOL(dmu_buf_set_user_ie);
 EXPORT_SYMBOL(dmu_buf_get_user);
-EXPORT_SYMBOL(dmu_buf_freeable);
 EXPORT_SYMBOL(dmu_buf_get_blkptr);
 
 /* BEGIN CSTYLED */

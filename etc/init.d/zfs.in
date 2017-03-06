@@ -91,10 +91,6 @@ MOUNT_EXTRA_OPTIONS=""
 # Only applicable for Debian GNU/Linux {dkms,initramfs}.
 ZFS_DKMS_ENABLE_DEBUG='no'
 
-# Build kernel modules with the --enable-debug-dmu-tx switch?
-# Only applicable for Debian GNU/Linux {dkms,initramfs}.
-ZFS_DKMS_ENABLE_DEBUG_DMU_TX='no'
-
 # Keep debugging symbols in kernel modules?
 # Only applicable for Debian GNU/Linux {dkms,initramfs}.
 ZFS_DKMS_DISABLE_STRIP='no'

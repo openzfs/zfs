@@ -657,11 +657,6 @@ struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
 
 /*
- * Tells if the given dbuf is freeable.
- */
-boolean_t dmu_buf_freeable(dmu_buf_t *);
-
-/*
  * You must create a transaction, then hold the objects which you will
  * (or might) modify as part of this transaction.  Then you must assign
  * the transaction to a transaction group.  Once the transaction has

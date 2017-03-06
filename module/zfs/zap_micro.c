@@ -1594,88 +1594,6 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 	return (0);
 }
 
-int
-zap_count_write_by_dnode(dnode_t *dn, const char *name, int add,
-    refcount_t *towrite, refcount_t *tooverwrite)
-{
-	zap_t *zap;
-	int err = 0;
-
-	/*
-	 * Since, we don't have a name, we cannot figure out which blocks will
-	 * be affected in this operation. So, account for the worst case :
-	 * - 3 blocks overwritten: target leaf, ptrtbl block, header block
-	 * - 4 new blocks written if adding:
-	 *    - 2 blocks for possibly split leaves,
-	 *    - 2 grown ptrtbl blocks
-	 *
-	 * This also accommodates the case where an add operation to a fairly
-	 * large microzap results in a promotion to fatzap.
-	 */
-	if (name == NULL) {
-		(void) refcount_add_many(towrite,
-		    (3 + (add ? 4 : 0)) * SPA_OLD_MAXBLOCKSIZE, FTAG);
-		return (err);
-	}
-
-	/*
-	 * We lock the zap with adding == FALSE. Because, if we pass
-	 * the actual value of add, it could trigger a mzap_upgrade().
-	 * At present we are just evaluating the possibility of this operation
-	 * and hence we do not want to trigger an upgrade.
-	 */
-	err = zap_lockdir_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
-	    FTAG, &zap);
-	if (err != 0)
-		return (err);
-
-	if (!zap->zap_ismicro) {
-		zap_name_t *zn = zap_name_alloc(zap, name, 0);
-		if (zn) {
-			err = fzap_count_write(zn, add, towrite,
-			    tooverwrite);
-			zap_name_free(zn);
-		} else {
-			/*
-			 * We treat this case as similar to (name == NULL)
-			 */
-			(void) refcount_add_many(towrite,
-			    (3 + (add ? 4 : 0)) * SPA_OLD_MAXBLOCKSIZE, FTAG);
-		}
-	} else {
-		/*
-		 * We are here if (name != NULL) and this is a micro-zap.
-		 * We account for the header block depending on whether it
-		 * is freeable.
-		 *
-		 * Incase of an add-operation it is hard to find out
-		 * if this add will promote this microzap to fatzap.
-		 * Hence, we consider the worst case and account for the
-		 * blocks assuming this microzap would be promoted to a
-		 * fatzap.
-		 *
-		 * 1 block overwritten  : header block
-		 * 4 new blocks written : 2 new split leaf, 2 grown
-		 *			ptrtbl blocks
-		 */
-		if (dmu_buf_freeable(zap->zap_dbuf)) {
-			(void) refcount_add_many(tooverwrite,
-			    MZAP_MAX_BLKSZ, FTAG);
-		} else {
-			(void) refcount_add_many(towrite,
-			    MZAP_MAX_BLKSZ, FTAG);
-		}
-
-		if (add) {
-			(void) refcount_add_many(towrite,
-			    4 * MZAP_MAX_BLKSZ, FTAG);
-		}
-	}
-
-	zap_unlockdir(zap, FTAG);
-	return (err);
-}
-
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(zap_create);
 EXPORT_SYMBOL(zap_create_dnsize);
@@ -1694,7 +1612,6 @@ EXPORT_SYMBOL(zap_lookup_uint64);
 EXPORT_SYMBOL(zap_contains);
 EXPORT_SYMBOL(zap_prefetch);
 EXPORT_SYMBOL(zap_prefetch_uint64);
-EXPORT_SYMBOL(zap_count_write_by_dnode);
 EXPORT_SYMBOL(zap_add);
 EXPORT_SYMBOL(zap_add_by_dnode);
 EXPORT_SYMBOL(zap_add_uint64);

@@ -216,8 +216,6 @@ int fzap_lookup(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers, void *buf,
     char *realname, int rn_len, boolean_t *normalization_conflictp);
 void fzap_prefetch(zap_name_t *zn);
-int fzap_count_write(zap_name_t *zn, int add, refcount_t *towrite,
-    refcount_t *tooverwrite);
 int fzap_add(zap_name_t *zn, uint64_t integer_size, uint64_t num_integers,
     const void *val, void *tag, dmu_tx_t *tx);
 int fzap_update(zap_name_t *zn,
