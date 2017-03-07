@@ -351,8 +351,6 @@ bio_set_flush(struct bio *bio)
 	bio_set_op_attrs(bio, 0, REQ_PREFLUSH);
 #else
 #error	"Allowing the build will cause bio_set_flush requests to be ignored."
-	"Please file an issue report at: "
-	"https://github.com/zfsonlinux/zfs/issues/new"
 #endif
 }
 
@@ -393,8 +391,7 @@ bio_is_flush(struct bio *bio)
 #elif defined(REQ_FLUSH)
 	return (bio->bi_rw & REQ_FLUSH);
 #else
-#error	"Allowing the build will cause flush requests to be ignored. Please "
-	"file an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
+#error	"Allowing the build will cause flush requests to be ignored."
 #endif
 }
 
@@ -413,8 +410,7 @@ bio_is_fua(struct bio *bio)
 #elif defined(REQ_FUA)
 	return (bio->bi_rw & REQ_FUA);
 #else
-#error	"Allowing the build will cause fua requests to be ignored. Please "
-	"file an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
+#error	"Allowing the build will cause fua requests to be ignored."
 #endif
 }
 
@@ -445,9 +441,8 @@ bio_is_discard(struct bio *bio)
 #elif defined(REQ_DISCARD)
 	return (bio->bi_rw & REQ_DISCARD);
 #else
-#error	"Allowing the build will cause discard requests to become writes "
-	"potentially triggering the DMU_MAX_ACCESS assertion. Please file "
-	"an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
+/* potentially triggering the DMU_MAX_ACCESS assertion.  */
+#error	"Allowing the build will cause discard requests to become writes."
 #endif
 }
 
