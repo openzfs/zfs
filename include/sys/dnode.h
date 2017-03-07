@@ -344,7 +344,6 @@ void dnode_verify(dnode_t *dn);
 int dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx);
 void dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx);
 void dnode_diduse_space(dnode_t *dn, int64_t space);
-void dnode_willuse_space(dnode_t *dn, int64_t space, dmu_tx_t *tx);
 void dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t);
 uint64_t dnode_block_freed(dnode_t *dn, uint64_t blkid);
 void dnode_init(void);

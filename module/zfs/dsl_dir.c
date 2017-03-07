@@ -1031,13 +1031,12 @@ static uint64_t
 dsl_dir_space_towrite(dsl_dir_t *dd)
 {
 	uint64_t space = 0;
-	int i;
 
 	ASSERT(MUTEX_HELD(&dd->dd_lock));
 
-	for (i = 0; i < TXG_SIZE; i++) {
-		space += dd->dd_space_towrite[i&TXG_MASK];
-		ASSERT3U(dd->dd_space_towrite[i&TXG_MASK], >=, 0);
+	for (int i = 0; i < TXG_SIZE; i++) {
+		space += dd->dd_space_towrite[i & TXG_MASK];
+		ASSERT3U(dd->dd_space_towrite[i & TXG_MASK], >=, 0);
 	}
 	return (space);
 }
@@ -1117,16 +1116,13 @@ struct tempreserve {
 
 static int
 dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
-    boolean_t ignorequota, boolean_t checkrefquota, list_t *tr_list,
+    boolean_t ignorequota, list_t *tr_list,
     dmu_tx_t *tx, boolean_t first)
 {
 	uint64_t txg = tx->tx_txg;
-	uint64_t est_inflight, used_on_disk, quota, parent_rsrv;
-	uint64_t deferred = 0;
+	uint64_t quota;
 	struct tempreserve *tr;
 	int retval = EDQUOT;
-	int txgidx = txg & TXG_MASK;
-	int i;
 	uint64_t ref_rsrv = 0;
 
 	ASSERT3U(txg, !=, 0);
@@ -1138,10 +1134,10 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	 * Check against the dsl_dir's quota.  We don't add in the delta
 	 * when checking for over-quota because they get one free hit.
 	 */
-	est_inflight = dsl_dir_space_towrite(dd);
-	for (i = 0; i < TXG_SIZE; i++)
+	uint64_t est_inflight = dsl_dir_space_towrite(dd);
+	for (int i = 0; i < TXG_SIZE; i++)
 		est_inflight += dd->dd_tempreserved[i];
-	used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
+	uint64_t used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
 
 	/*
 	 * On the first iteration, fetch the dataset's used-on-disk and
@@ -1152,9 +1148,9 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 		int error;
 		dsl_dataset_t *ds = tx->tx_objset->os_dsl_dataset;
 
-		error = dsl_dataset_check_quota(ds, checkrefquota,
+		error = dsl_dataset_check_quota(ds, !netfree,
 		    asize, est_inflight, &used_on_disk, &ref_rsrv);
-		if (error) {
+		if (error != 0) {
 			mutex_exit(&dd->dd_lock);
 			DMU_TX_STAT_BUMP(dmu_tx_quota);
 			return (error);
@@ -1180,6 +1176,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	 * we're very close to full, this will allow a steady trickle of
 	 * removes to get through.
 	 */
+	uint64_t deferred = 0;
 	if (dd->dd_parent == NULL) {
 		spa_t *spa = dd->dd_pool->dp_spa;
 		uint64_t poolsize = dsl_pool_adjustedsize(dd->dd_pool, netfree);
@@ -1210,9 +1207,9 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	}
 
 	/* We need to up our estimated delta before dropping dd_lock */
-	dd->dd_tempreserved[txgidx] += asize;
+	dd->dd_tempreserved[txg & TXG_MASK] += asize;
 
-	parent_rsrv = parent_delta(dd, used_on_disk + est_inflight,
+	uint64_t parent_rsrv = parent_delta(dd, used_on_disk + est_inflight,
 	    asize - ref_rsrv);
 	mutex_exit(&dd->dd_lock);
 
@@ -1222,11 +1219,11 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	list_insert_tail(tr_list, tr);
 
 	/* see if it's OK with our parent */
-	if (dd->dd_parent && parent_rsrv) {
+	if (dd->dd_parent != NULL && parent_rsrv != 0) {
 		boolean_t ismos = (dsl_dir_phys(dd)->dd_head_dataset_obj == 0);
 
 		return (dsl_dir_tempreserve_impl(dd->dd_parent,
-		    parent_rsrv, netfree, ismos, TRUE, tr_list, tx, FALSE));
+		    parent_rsrv, netfree, ismos, tr_list, tx, B_FALSE));
 	} else {
 		return (0);
 	}
@@ -1240,7 +1237,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
  */
 int
 dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
-    uint64_t fsize, uint64_t usize, void **tr_cookiep, dmu_tx_t *tx)
+    boolean_t netfree, void **tr_cookiep, dmu_tx_t *tx)
 {
 	int err;
 	list_t *tr_list;
@@ -1254,7 +1251,6 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 	list_create(tr_list, sizeof (struct tempreserve),
 	    offsetof(struct tempreserve, tr_node));
 	ASSERT3S(asize, >, 0);
-	ASSERT3S(fsize, >=, 0);
 
 	err = arc_tempreserve_space(lsize, tx->tx_txg);
 	if (err == 0) {
@@ -1281,8 +1277,8 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 	}
 
 	if (err == 0) {
-		err = dsl_dir_tempreserve_impl(dd, asize, fsize >= asize,
-		    FALSE, asize > usize, tr_list, tx, TRUE);
+		err = dsl_dir_tempreserve_impl(dd, asize, netfree,
+		    B_FALSE, tr_list, tx, B_TRUE);
 	}
 
 	if (err != 0)

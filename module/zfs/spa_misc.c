@@ -1615,7 +1615,7 @@ spa_freeze_txg(spa_t *spa)
 
 /* ARGSUSED */
 uint64_t
-spa_get_asize(spa_t *spa, uint64_t lsize)
+spa_get_worst_case_asize(spa_t *spa, uint64_t lsize)
 {
 	return (lsize * spa_asize_inflation);
 }
@@ -2078,7 +2078,6 @@ EXPORT_SYMBOL(spa_version);
 EXPORT_SYMBOL(spa_state);
 EXPORT_SYMBOL(spa_load_state);
 EXPORT_SYMBOL(spa_freeze_txg);
-EXPORT_SYMBOL(spa_get_asize);
 EXPORT_SYMBOL(spa_get_dspace);
 EXPORT_SYMBOL(spa_update_dspace);
 EXPORT_SYMBOL(spa_deflate);

@@ -242,42 +242,6 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	return (used);
 }
 
-uint64_t
-dsl_dataset_prev_snap_txg(dsl_dataset_t *ds)
-{
-	uint64_t trysnap = 0;
-
-	if (ds == NULL)
-		return (0);
-	/*
-	 * The snapshot creation could fail, but that would cause an
-	 * incorrect FALSE return, which would only result in an
-	 * overestimation of the amount of space that an operation would
-	 * consume, which is OK.
-	 *
-	 * There's also a small window where we could miss a pending
-	 * snapshot, because we could set the sync task in the quiescing
-	 * phase.  So this should only be used as a guess.
-	 */
-	if (ds->ds_trysnap_txg >
-	    spa_last_synced_txg(ds->ds_dir->dd_pool->dp_spa))
-		trysnap = ds->ds_trysnap_txg;
-	return (MAX(dsl_dataset_phys(ds)->ds_prev_snap_txg, trysnap));
-}
-
-boolean_t
-dsl_dataset_block_freeable(dsl_dataset_t *ds, const blkptr_t *bp,
-    uint64_t blk_birth)
-{
-	if (blk_birth <= dsl_dataset_prev_snap_txg(ds) ||
-	    (bp != NULL && BP_IS_HOLE(bp)))
-		return (B_FALSE);
-
-	ddt_prefetch(dsl_dataset_get_spa(ds), bp);
-
-	return (B_TRUE);
-}
-
 /*
  * We have to release the fsid syncronously or we risk that a subsequent
  * mount of the same dataset will fail to unique_insert the fsid.  This
@@ -3731,8 +3695,6 @@ EXPORT_SYMBOL(dsl_dataset_space_wouldfree);
 EXPORT_SYMBOL(dsl_dataset_sync);
 EXPORT_SYMBOL(dsl_dataset_block_born);
 EXPORT_SYMBOL(dsl_dataset_block_kill);
-EXPORT_SYMBOL(dsl_dataset_block_freeable);
-EXPORT_SYMBOL(dsl_dataset_prev_snap_txg);
 EXPORT_SYMBOL(dsl_dataset_dirty);
 EXPORT_SYMBOL(dsl_dataset_stats);
 EXPORT_SYMBOL(dsl_dataset_fast_stat);
