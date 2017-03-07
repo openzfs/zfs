@@ -71,7 +71,8 @@ tests = [ 'clean_mirror_001_pos', 'clean_mirror_002_pos',
     'clean_mirror_003_pos', 'clean_mirror_004_pos']
 
 [tests/functional/cli_root/zdb]
-tests = ['zdb_001_neg', 'zdb_002_pos']
+tests = ['zdb_001_neg', 'zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos',
+    'zdb_005_pos']
 pre =
 post =
 
