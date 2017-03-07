@@ -43,6 +43,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_RWSEM_ACTIVITY
 	SPL_AC_RWSEM_ATOMIC_LONG_COUNT
 	SPL_AC_SCHED_RT_HEADER
+	SPL_AC_SCHED_SIGNAL_HEADER
 	SPL_AC_4ARGS_VFS_GETATTR
 	SPL_AC_3ARGS_VFS_GETATTR
 	SPL_AC_2ARGS_VFS_GETATTR
@@ -1411,6 +1412,24 @@ AC_DEFUN([SPL_AC_SCHED_RT_HEADER],
 	])
 ])
 
+dnl #
+dnl # 4.11 API change,
+dnl # Moved things from linux/sched.h to linux/sched/signal.h
+dnl #
+AC_DEFUN([SPL_AC_SCHED_SIGNAL_HEADER],
+	[AC_MSG_CHECKING([whether header linux/sched/signal.h exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/sched.h>
+		#include <linux/sched/signal.h>
+	],[
+		return 0;
+	],[
+		AC_DEFINE(HAVE_SCHED_SIGNAL_HEADER, 1, [linux/sched/signal.h exists])
+		AC_MSG_RESULT(yes)
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
 
 dnl #
 dnl # 4.11 API, a528d35e@torvalds/linux
