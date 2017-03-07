@@ -18,12 +18,13 @@ endif
 ifeq ($(TARGET_ASM_DIR), asm-i386)
 ASM_SOURCES :=
 endif
-	
+
 ifeq ($(TARGET_ASM_DIR), asm-generic)
 ASM_SOURCES :=
 endif
 
 EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
+EXTRA_AFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 

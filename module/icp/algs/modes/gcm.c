@@ -22,6 +22,17 @@
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
+#if defined(_KERNEL) && defined(__amd64)
+#include <linux/simd_x86.h>
+
+#define	KPREEMPT_DISABLE	kfpu_begin()
+#define	KPREEMPT_ENABLE		kfpu_end()
+
+#else
+#define	KPREEMPT_DISABLE
+#define	KPREEMPT_ENABLE
+#endif	/* _KERNEL */
+
 #include <sys/zfs_context.h>
 #include <modes/modes.h>
 #include <sys/crypto/common.h>
@@ -29,16 +40,6 @@
 #include <sys/byteorder.h>
 
 #ifdef __amd64
-
-#ifdef _KERNEL
-/* Workaround for no XMM kernel thread save/restore */
-#define	KPREEMPT_DISABLE	kpreempt_disable()
-#define	KPREEMPT_ENABLE		kpreempt_enable()
-
-#else
-#define	KPREEMPT_DISABLE
-#define	KPREEMPT_ENABLE
-#endif	/* _KERNEL */
 
 extern void gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res);
 static int intel_pclmulqdq_instruction_present(void);

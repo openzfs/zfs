@@ -2037,6 +2037,7 @@ ENTRY_NP(SHA512TransformBlocks)
 	ret
 SET_SIZE(SHA512TransformBlocks)
 
+.data
 .align	64
 .type	K512,@object
 K512:

@@ -693,7 +693,8 @@ aes_decrypt_amd64(const uint32_t rk[], int Nr, const uint32_t ct[4],
  * int aes_encrypt(const unsigned char *in,
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
-	.align	64
+.data
+.align	64
 enc_tab:
 	enc_vals(u8)
 #ifdef	LAST_ROUND_TABLES
@@ -702,7 +703,7 @@ enc_tab:
 #endif
 
 
-	ENTRY_NP(aes_encrypt_amd64)
+ENTRY_NP(aes_encrypt_amd64)
 #ifdef	GLADMAN_INTERFACE
 	// Original interface
 	sub	$[4*8], %rsp	// gnu/linux/opensolaris binary interface
@@ -797,7 +798,8 @@ enc_tab:
  * int aes_decrypt(const unsigned char *in,
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
-	.align	64
+.data
+.align	64
 dec_tab:
 	dec_vals(v8)
 #ifdef	LAST_ROUND_TABLES
@@ -806,7 +808,7 @@ dec_tab:
 #endif
 
 
-	ENTRY_NP(aes_decrypt_amd64)
+ENTRY_NP(aes_decrypt_amd64)
 #ifdef	GLADMAN_INTERFACE
 	// Original interface
 	sub	$[4*8], %rsp	// gnu/linux/opensolaris binary interface

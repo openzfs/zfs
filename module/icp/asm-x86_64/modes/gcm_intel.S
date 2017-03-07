@@ -95,97 +95,16 @@ gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res) {
 #define _ASM
 #include <sys/asm_linkage.h>
 
-#ifdef _KERNEL
-	/*
-	 * Note: the CLTS macro clobbers P2 (%rsi) under i86xpv.  That is,
-	 * it calls HYPERVISOR_fpu_taskswitch() which modifies %rsi when it
-	 * uses it to pass P2 to syscall.
-	 * This also occurs with the STTS macro, but we dont care if
-	 * P2 (%rsi) is modified just before function exit.
-	 * The CLTS and STTS macros push and pop P1 (%rdi) already.
-	 */
-#ifdef __xpv
-#define	PROTECTED_CLTS \
-	push	%rsi; \
-	CLTS; \
-	pop	%rsi
-#else
-#define	PROTECTED_CLTS \
-	CLTS
-#endif	/* __xpv */
-
-	/*
-	 * If CR0_TS is not set, align stack (with push %rbp) and push
-	 * %xmm0 - %xmm10 on stack, otherwise clear CR0_TS
-	 */
-#define	CLEAR_TS_OR_PUSH_XMM_REGISTERS(tmpreg) \
-	push	%rbp; \
-	mov	%rsp, %rbp; \
-	movq	%cr0, tmpreg; \
-	testq	$CR0_TS, tmpreg; \
-	jnz	1f; \
-	and	$-XMM_ALIGN, %rsp; \
-	sub	$[XMM_SIZE * 11], %rsp; \
-	movaps	%xmm0, 160(%rsp); \
-	movaps	%xmm1, 144(%rsp); \
-	movaps	%xmm2, 128(%rsp); \
-	movaps	%xmm3, 112(%rsp); \
-	movaps	%xmm4, 96(%rsp); \
-	movaps	%xmm5, 80(%rsp); \
-	movaps	%xmm6, 64(%rsp); \
-	movaps	%xmm7, 48(%rsp); \
-	movaps	%xmm8, 32(%rsp); \
-	movaps	%xmm9, 16(%rsp); \
-	movaps	%xmm10, (%rsp); \
-	jmp	2f; \
-1: \
-	PROTECTED_CLTS; \
-2:
-
-
-	/*
-	 * If CR0_TS was not set above, pop %xmm0 - %xmm10 off stack,
-	 * otherwise set CR0_TS.
-	 */
-#define	SET_TS_OR_POP_XMM_REGISTERS(tmpreg) \
-	testq	$CR0_TS, tmpreg; \
-	jnz	1f; \
-	movaps	(%rsp), %xmm10; \
-	movaps	16(%rsp), %xmm9; \
-	movaps	32(%rsp), %xmm8; \
-	movaps	48(%rsp), %xmm7; \
-	movaps	64(%rsp), %xmm6; \
-	movaps	80(%rsp), %xmm5; \
-	movaps	96(%rsp), %xmm4; \
-	movaps	112(%rsp), %xmm3; \
-	movaps	128(%rsp), %xmm2; \
-	movaps	144(%rsp), %xmm1; \
-	movaps	160(%rsp), %xmm0; \
-	jmp	2f; \
-1: \
-	STTS(tmpreg); \
-2: \
-	mov	%rbp, %rsp; \
-	pop	%rbp
-
-
-#else
-#define	PROTECTED_CLTS
-#define	CLEAR_TS_OR_PUSH_XMM_REGISTERS(tmpreg)
-#define	SET_TS_OR_POP_XMM_REGISTERS(tmpreg)
-#endif	/* _KERNEL */
-
 /*
  * Use this mask to byte-swap a 16-byte integer with the pshufb instruction
  */
 
 // static uint8_t byte_swap16_mask[] = {
 //	 15, 14, 13, 12, 11, 10, 9, 8, 7, 6 ,5, 4, 3, 2, 1, 0 };
-.text
+.data
 .align XMM_ALIGN
 .Lbyte_swap16_mask:
 	.byte	15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
-
 
 
 /*
@@ -221,8 +140,6 @@ gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res) {
  */
 
 ENTRY_NP(gcm_mul_pclmulqdq)
-	CLEAR_TS_OR_PUSH_XMM_REGISTERS(%r10)
-
 	//
 	// Copy Parameters
 	//
@@ -325,9 +242,8 @@ ENTRY_NP(gcm_mul_pclmulqdq)
 
 
 	//
-	// Cleanup and Return
+	// Return
 	//
-	SET_TS_OR_POP_XMM_REGISTERS(%r10)
 	ret
 	SET_SIZE(gcm_mul_pclmulqdq)
 
