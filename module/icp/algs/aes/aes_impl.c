@@ -22,23 +22,22 @@
  * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#include <sys/zfs_context.h>
-#include <sys/crypto/spi.h>
-#include <modes/modes.h>
-#include <aes/aes_impl.h>
+#if defined(_KERNEL) && defined(__amd64)
+#include <linux/simd_x86.h>
 
-#ifdef __amd64
-
-#ifdef _KERNEL
-/* Workaround for no XMM kernel thread save/restore */
-#define	KPREEMPT_DISABLE	kpreempt_disable()
-#define	KPREEMPT_ENABLE		kpreempt_enable()
+#define	KPREEMPT_DISABLE	kfpu_begin()
+#define	KPREEMPT_ENABLE		kfpu_end()
 
 #else
 #define	KPREEMPT_DISABLE
 #define	KPREEMPT_ENABLE
 #endif	/* _KERNEL */
-#endif  /* __amd64 */
+
+#include <sys/zfs_context.h>
+#include <sys/crypto/spi.h>
+#include <modes/modes.h>
+#include <aes/aes_impl.h>
+
 
 
 /*

@@ -1,15 +1,15 @@
 /*
  * !/usr/bin/env perl
- * 
+ *
  *  ====================================================================
  *  Written by Andy Polyakov <appro@fy.chalmers.se> for the OpenSSL
  *  project. The module is, however, dual licensed under OpenSSL and
  *  CRYPTOGAMS licenses depending on where you obtain it. For further
  *  details see http://www.openssl.org/~appro/cryptogams/.
  *  ====================================================================
- * 
+ *
  *  sha1_block procedure for x86_64.
- * 
+ *
  *  It was brought to my attention that on EM64T compiler-generated code
  *  was far behind 32-bit assembler implementation. This is unlike on
  *  Opteron where compiler-generated code was only 15% behind 32-bit
@@ -24,29 +24,29 @@
  *  core must have managed to run-time optimize even 32-bit code just as
  *  good as 64-bit one. Performance improvement is summarized in the
  *  following table:
- * 
+ *
  * 		gcc 3.4		32-bit asm	cycles/byte
  *  Opteron	+45%		+20%		6.8
  *  Xeon P4	+65%		+0%		9.9
  *  Core2		+60%		+10%		7.0
- * 
- * 
+ *
+ *
  *  OpenSolaris OS modifications
- * 
+ *
  *  Sun elects to use this software under the BSD license.
- * 
+ *
  *  This source originates from OpenSSL file sha1-x86_64.pl at
  *  ftp://ftp.openssl.org/snapshot/openssl-0.9.8-stable-SNAP-20080131.tar.gz
  *  (presumably for future OpenSSL release 0.9.8h), with these changes:
- * 
+ *
  *  1. Added perl "use strict" and declared variables.
- * 
+ *
  *  2. Added OpenSolaris ENTRY_NP/SET_SIZE macros from
  *  /usr/include/sys/asm_linkage.h, .ident keywords, and lint(1B) guards.
- * 
+ *
  *  3. Removed x86_64-xlate.pl script (not needed for as(1) or gas(1)
  *  assemblers).
- * 
+ *
  */
 
 /*
@@ -57,6 +57,7 @@
 #if defined(lint) || defined(__lint)
 #include <sys/stdint.h>
 #include <sys/sha1.h>
+
 
 /* ARGSUSED */
 void
@@ -86,7 +87,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	16(%r8),%r11d
 .align	4
 .Lloop:
-	mov	0(%r9),%eax	
+	mov	0(%r9),%eax
 	bswap	%eax
 	mov	%eax,0(%rsp)
 	lea	0x5a827999(%eax,%r11d),%r12d
@@ -94,7 +95,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	4(%r9),%eax
 	mov	%edx,%r11d
 	xor	%ebp,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%r11d
 	and	%esi,%ebx
 	mov	%eax,4(%rsp)
@@ -107,7 +108,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	8(%r9),%eax
 	mov	%r12d,%ebp
 	xor	%edi,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%ebp
 	and	%edx,%ebx
 	mov	%eax,8(%rsp)
@@ -120,7 +121,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	12(%r9),%eax
 	mov	%r11d,%edi
 	xor	%esi,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%edi
 	and	%r12d,%ebx
 	mov	%eax,12(%rsp)
@@ -133,7 +134,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	16(%r9),%eax
 	mov	%ebp,%esi
 	xor	%edx,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%esi
 	and	%r11d,%ebx
 	mov	%eax,16(%rsp)
@@ -146,7 +147,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	20(%r9),%eax
 	mov	%edi,%edx
 	xor	%r12d,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%edx
 	and	%ebp,%ebx
 	mov	%eax,20(%rsp)
@@ -159,7 +160,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	24(%r9),%eax
 	mov	%esi,%r12d
 	xor	%r11d,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%r12d
 	and	%edi,%ebx
 	mov	%eax,24(%rsp)
@@ -172,7 +173,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	28(%r9),%eax
 	mov	%edx,%r11d
 	xor	%ebp,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%r11d
 	and	%esi,%ebx
 	mov	%eax,28(%rsp)
@@ -185,7 +186,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	32(%r9),%eax
 	mov	%r12d,%ebp
 	xor	%edi,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%ebp
 	and	%edx,%ebx
 	mov	%eax,32(%rsp)
@@ -198,7 +199,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	36(%r9),%eax
 	mov	%r11d,%edi
 	xor	%esi,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%edi
 	and	%r12d,%ebx
 	mov	%eax,36(%rsp)
@@ -211,7 +212,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	40(%r9),%eax
 	mov	%ebp,%esi
 	xor	%edx,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%esi
 	and	%r11d,%ebx
 	mov	%eax,40(%rsp)
@@ -224,7 +225,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	44(%r9),%eax
 	mov	%edi,%edx
 	xor	%r12d,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%edx
 	and	%ebp,%ebx
 	mov	%eax,44(%rsp)
@@ -237,7 +238,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	48(%r9),%eax
 	mov	%esi,%r12d
 	xor	%r11d,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%r12d
 	and	%edi,%ebx
 	mov	%eax,48(%rsp)
@@ -250,7 +251,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	52(%r9),%eax
 	mov	%edx,%r11d
 	xor	%ebp,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%r11d
 	and	%esi,%ebx
 	mov	%eax,52(%rsp)
@@ -263,7 +264,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	56(%r9),%eax
 	mov	%r12d,%ebp
 	xor	%edi,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%ebp
 	and	%edx,%ebx
 	mov	%eax,56(%rsp)
@@ -276,7 +277,7 @@ ENTRY_NP(sha1_block_data_order)
 	mov	60(%r9),%eax
 	mov	%r11d,%edi
 	xor	%esi,%ebx
-	bswap	%eax	
+	bswap	%eax
 	rol	$5,%edi
 	and	%r12d,%ebx
 	mov	%eax,60(%rsp)
@@ -1341,6 +1342,8 @@ ENTRY_NP(sha1_block_data_order)
 	pop	%rbx
 	ret
 SET_SIZE(sha1_block_data_order)
+
+.data
 .asciz	"SHA1 block transform for x86_64, CRYPTOGAMS by <appro@openssl.org>"
 
 #endif /* lint || __lint */
