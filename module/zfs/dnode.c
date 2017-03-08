@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -1421,13 +1421,14 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	 */
 	dmu_objset_userquota_get_ids(dn, B_TRUE, tx);
 
-	mutex_enter(&os->os_lock);
+	multilist_t *dirtylist = os->os_dirty_dnodes[txg & TXG_MASK];
+	multilist_sublist_t *mls = multilist_sublist_lock_obj(dirtylist, dn);
 
 	/*
 	 * If we are already marked dirty, we're done.
 	 */
 	if (list_link_active(&dn->dn_dirty_link[txg & TXG_MASK])) {
-		mutex_exit(&os->os_lock);
+		multilist_sublist_unlock(mls);
 		return;
 	}
 
@@ -1441,13 +1442,9 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	dprintf_ds(os->os_dsl_dataset, "obj=%llu txg=%llu\n",
 	    dn->dn_object, txg);
 
-	if (dn->dn_free_txg > 0 && dn->dn_free_txg <= txg) {
-		list_insert_tail(&os->os_free_dnodes[txg&TXG_MASK], dn);
-	} else {
-		list_insert_tail(&os->os_dirty_dnodes[txg&TXG_MASK], dn);
-	}
+	multilist_sublist_insert_head(mls, dn);
 
-	mutex_exit(&os->os_lock);
+	multilist_sublist_unlock(mls);
 
 	/*
 	 * The dnode maintains a hold on its containing dbuf as
@@ -1468,13 +1465,6 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 void
 dnode_free(dnode_t *dn, dmu_tx_t *tx)
 {
-	int txgoff = tx->tx_txg & TXG_MASK;
-
-	dprintf("dn=%p txg=%llu\n", dn, tx->tx_txg);
-
-	/* we should be the only holder... hopefully */
-	/* ASSERT3U(refcount_count(&dn->dn_holds), ==, 1); */
-
 	mutex_enter(&dn->dn_mtx);
 	if (dn->dn_type == DMU_OT_NONE || dn->dn_free_txg) {
 		mutex_exit(&dn->dn_mtx);
@@ -1483,19 +1473,7 @@ dnode_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_free_txg = tx->tx_txg;
 	mutex_exit(&dn->dn_mtx);
 
-	/*
-	 * If the dnode is already dirty, it needs to be moved from
-	 * the dirty list to the free list.
-	 */
-	mutex_enter(&dn->dn_objset->os_lock);
-	if (list_link_active(&dn->dn_dirty_link[txgoff])) {
-		list_remove(&dn->dn_objset->os_dirty_dnodes[txgoff], dn);
-		list_insert_tail(&dn->dn_objset->os_free_dnodes[txgoff], dn);
-		mutex_exit(&dn->dn_objset->os_lock);
-	} else {
-		mutex_exit(&dn->dn_objset->os_lock);
-		dnode_setdirty(dn, tx);
-	}
+	dnode_setdirty(dn, tx);
 }
 
 /*

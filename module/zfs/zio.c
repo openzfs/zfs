@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -544,21 +544,37 @@ zio_inherit_child_errors(zio_t *zio, enum zio_child c)
 }
 
 int
-zio_timestamp_compare(const void *x1, const void *x2)
+zio_bookmark_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = x1;
 	const zio_t *z2 = x2;
-	int cmp;
 
-	cmp = AVL_CMP(z1->io_queued_timestamp, z2->io_queued_timestamp);
-	if (likely(cmp))
-		return (cmp);
+	if (z1->io_bookmark.zb_objset < z2->io_bookmark.zb_objset)
+		return (-1);
+	if (z1->io_bookmark.zb_objset > z2->io_bookmark.zb_objset)
+		return (1);
 
-	cmp = AVL_CMP(z1->io_offset, z2->io_offset);
-	if (likely(cmp))
-		return (cmp);
+	if (z1->io_bookmark.zb_object < z2->io_bookmark.zb_object)
+		return (-1);
+	if (z1->io_bookmark.zb_object > z2->io_bookmark.zb_object)
+		return (1);
 
-	return (AVL_PCMP(z1, z2));
+	if (z1->io_bookmark.zb_level < z2->io_bookmark.zb_level)
+		return (-1);
+	if (z1->io_bookmark.zb_level > z2->io_bookmark.zb_level)
+		return (1);
+
+	if (z1->io_bookmark.zb_blkid < z2->io_bookmark.zb_blkid)
+		return (-1);
+	if (z1->io_bookmark.zb_blkid > z2->io_bookmark.zb_blkid)
+		return (1);
+
+	if (z1 < z2)
+		return (-1);
+	if (z1 > z2)
+		return (1);
+
+	return (0);
 }
 
 /*
@@ -2953,8 +2969,6 @@ zio_dva_throttle(zio_t *zio)
 		return (ZIO_PIPELINE_CONTINUE);
 
 	if (nio != NULL) {
-		ASSERT3U(nio->io_queued_timestamp, <=,
-		    zio->io_queued_timestamp);
 		ASSERT(nio->io_stage == ZIO_STAGE_DVA_THROTTLE);
 		/*
 		 * We are passing control to a new zio so make sure that
