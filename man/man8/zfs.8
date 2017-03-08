@@ -1340,7 +1340,7 @@ Controls whether the file system is shared via \fBNFS\fR, and what options are u
 .sp
 .in +4
 .nf
-/usr/sbin/exportfs -i -o sec=sys,rw,no_subtree_check,no_root_squash,mountpoint *:<mountpoint of dataset>
+/usr/sbin/exportfs -i -o sec=sys,rw,crossmnt,no_subtree_check,no_root_squash,mountpoint *:<mountpoint of dataset>
 .fi
 .in -4
 .sp
@@ -3745,6 +3745,10 @@ The following commands show how to set \fBsharenfs\fR property options to enable
 .sp
 .LP
 If you are using \fBDNS\fR for host name resolution, specify the fully qualified hostname.
+
+.sp
+.LP
+If you want to access snapdir through NFS, be sure to add \fBcrossmnt\fR to the options.
 
 .LP
 \fBExample 17 \fRDelegating ZFS Administration Permissions on a ZFS Dataset

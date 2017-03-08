@@ -4714,12 +4714,7 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 
 	gen = (uint32_t)gen64;
 
-	size = (zsb->z_parent != zsb) ? LONG_FID_LEN : SHORT_FID_LEN;
-	if (fidp->fid_len < size) {
-		fidp->fid_len = size;
-		ZFS_EXIT(zsb);
-		return (SET_ERROR(ENOSPC));
-	}
+	size = SHORT_FID_LEN;
 
 	zfid = (zfid_short_t *)fidp;
 
@@ -4733,20 +4728,6 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 		gen = 1;
 	for (i = 0; i < sizeof (zfid->zf_gen); i++)
 		zfid->zf_gen[i] = (uint8_t)(gen >> (8 * i));
-
-	if (size == LONG_FID_LEN) {
-		uint64_t	objsetid = dmu_objset_id(zsb->z_os);
-		zfid_long_t	*zlfid;
-
-		zlfid = (zfid_long_t *)fidp;
-
-		for (i = 0; i < sizeof (zlfid->zf_setid); i++)
-			zlfid->zf_setid[i] = (uint8_t)(objsetid >> (8 * i));
-
-		/* XXX - this should be the generation number for the objset */
-		for (i = 0; i < sizeof (zlfid->zf_setgen); i++)
-			zlfid->zf_setgen[i] = 0;
-	}
 
 	ZFS_EXIT(zsb);
 	return (0);

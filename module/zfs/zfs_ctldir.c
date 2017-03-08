@@ -590,26 +590,39 @@ zfsctl_root(znode_t *zp)
 	igrab(ZTOZSB(zp)->z_ctldir);
 	return (ZTOZSB(zp)->z_ctldir);
 }
+
 /*
- * Generate a long fid which includes the root object and objset of a
- * snapshot but not the generation number.  For the root object the
- * generation number is ignored when zero to avoid needing to open
- * the dataset when generating fids for the snapshot names.
+ * Generate a long fid to indicate a snapdir. We encode whether snapdir is
+ * already monunted in gen field. We do this because nfsd lookup will not
+ * trigger automount. Next time the nfsd does fh_to_dentry, we will notice
+ * this and do automount and return ESTALE to force nfsd revalidate and follow
+ * mount.
  */
 static int
 zfsctl_snapdir_fid(struct inode *ip, fid_t *fidp)
 {
-	zfs_sb_t *zsb = ITOZSB(ip);
 	zfid_short_t *zfid = (zfid_short_t *)fidp;
 	zfid_long_t *zlfid = (zfid_long_t *)fidp;
 	uint32_t gen = 0;
 	uint64_t object;
 	uint64_t objsetid;
 	int i;
+	struct dentry *dentry;
 
-	object = zsb->z_root;
+	if (fidp->fid_len < LONG_FID_LEN) {
+		fidp->fid_len = LONG_FID_LEN;
+		return (SET_ERROR(ENOSPC));
+	}
+
+	object = ip->i_ino;
 	objsetid = ZFSCTL_INO_SNAPDIRS - ip->i_ino;
 	zfid->zf_len = LONG_FID_LEN;
+
+	dentry = d_obtain_alias(igrab(ip));
+	if (!IS_ERR(dentry)) {
+		gen = !!d_mountpoint(dentry);
+		dput(dentry);
+	}
 
 	for (i = 0; i < sizeof (zfid->zf_object); i++)
 		zfid->zf_object[i] = (uint8_t)(object >> (8 * i));
@@ -640,15 +653,15 @@ zfsctl_fid(struct inode *ip, fid_t *fidp)
 
 	ZFS_ENTER(zsb);
 
+	if (zfsctl_is_snapdir(ip)) {
+		ZFS_EXIT(zsb);
+		return (zfsctl_snapdir_fid(ip, fidp));
+	}
+
 	if (fidp->fid_len < SHORT_FID_LEN) {
 		fidp->fid_len = SHORT_FID_LEN;
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(ENOSPC));
-	}
-
-	if (zfsctl_is_snapdir(ip)) {
-		ZFS_EXIT(zsb);
-		return (zfsctl_snapdir_fid(ip, fidp));
 	}
 
 	zfid = (zfid_short_t *)fidp;
@@ -1145,70 +1158,52 @@ error:
 }
 
 /*
- * Given the objset id of the snapshot return its zfs_sb_t as zsbp.
+ * Get the snapdir inode from fid
  */
 int
-zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
+zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid, int gen,
+    struct inode **ipp)
 {
-	zfs_snapentry_t *se;
 	int error;
-	spa_t *spa = ((zfs_sb_t *)(sb->s_fs_info))->z_os->os_spa;
+	struct path path;
+	char *mnt;
+	struct dentry *dentry;
 
+	mnt = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+
+	error = zfsctl_snapshot_path_objset(sb->s_fs_info, objsetid,
+	    MAXPATHLEN, mnt);
+	if (error)
+		goto out;
+
+	/* Trigger automount */
+	error = kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
+	if (error)
+		goto out;
+
+	path_put(&path);
 	/*
-	 * Verify that the snapshot is mounted then lookup the mounted root
-	 * rather than the covered mount point.  This may fail if the
-	 * snapshot has just been unmounted by an unrelated user space
-	 * process.  This race cannot occur to an expired mount point
-	 * because we hold the zfs_snapshot_lock to prevent the race.
+	 * Get the snapdir inode. Note, we don't want to use the above
+	 * path because it contains the root of the snapshot rather
+	 * than the snapdir.
 	 */
-	rw_enter(&zfs_snapshot_lock, RW_READER);
-	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
-		zfs_sb_t *zsb;
+	*ipp = ilookup(sb, ZFSCTL_INO_SNAPDIRS - objsetid);
+	if (*ipp == NULL) {
+		error = SET_ERROR(ENOENT);
+		goto out;
+	}
 
-		zsb = ITOZSB(se->se_root_dentry->d_inode);
-		ASSERT3U(dmu_objset_id(zsb->z_os), ==, objsetid);
-
-		if (time_after(jiffies, zsb->z_snap_defer_time +
-		    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
-			zsb->z_snap_defer_time = jiffies;
-			zfsctl_snapshot_unmount_cancel(se);
-			zfsctl_snapshot_unmount_delay_impl(se,
-			    zfs_expire_snapshot);
-		}
-
-		*zsbp = zsb;
-		zfsctl_snapshot_rele(se);
-		error = SET_ERROR(0);
-	} else {
+	/* check gen, see zfsctl_snapdir_fid */
+	dentry = d_obtain_alias(igrab(*ipp));
+	if (gen != (!IS_ERR(dentry) && d_mountpoint(dentry))) {
+		iput(*ipp);
+		*ipp = NULL;
 		error = SET_ERROR(ENOENT);
 	}
-	rw_exit(&zfs_snapshot_lock);
-
-	/*
-	 * Automount the snapshot given the objset id by constructing the
-	 * full mount point and performing a traversal.
-	 */
-	if (error == ENOENT) {
-		struct path path;
-		char *mnt;
-
-		mnt = kmem_alloc(MAXPATHLEN, KM_SLEEP);
-		error = zfsctl_snapshot_path_objset(sb->s_fs_info, objsetid,
-		    MAXPATHLEN, mnt);
-		if (error) {
-			kmem_free(mnt, MAXPATHLEN);
-			return (SET_ERROR(error));
-		}
-
-		error = kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
-		if (error == 0) {
-			*zsbp = ITOZSB(path.dentry->d_inode);
-			path_put(&path);
-		}
-
-		kmem_free(mnt, MAXPATHLEN);
-	}
-
+	if (!IS_ERR(dentry))
+		dput(dentry);
+out:
+	kmem_free(mnt, MAXPATHLEN);
 	return (error);
 }
 

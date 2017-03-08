@@ -1597,8 +1597,19 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 
 	*ipp = NULL;
 
-	ZFS_ENTER(zsb);
+	if (fidp->fid_len == SHORT_FID_LEN || fidp->fid_len == LONG_FID_LEN) {
+		zfid_short_t	*zfid = (zfid_short_t *)fidp;
 
+		for (i = 0; i < sizeof (zfid->zf_object); i++)
+			object |= ((uint64_t)zfid->zf_object[i]) << (8 * i);
+
+		for (i = 0; i < sizeof (zfid->zf_gen); i++)
+			fid_gen |= ((uint64_t)zfid->zf_gen[i]) << (8 * i);
+	} else {
+		return (SET_ERROR(EINVAL));
+	}
+
+	/* LONG_FID_LEN means snapdirs */
 	if (fidp->fid_len == LONG_FID_LEN) {
 		zfid_long_t	*zlfid = (zfid_long_t *)fidp;
 		uint64_t	objsetid = 0;
@@ -1610,28 +1621,24 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		for (i = 0; i < sizeof (zlfid->zf_setgen); i++)
 			setgen |= ((uint64_t)zlfid->zf_setgen[i]) << (8 * i);
 
-		ZFS_EXIT(zsb);
+		if (objsetid != ZFSCTL_INO_SNAPDIRS - object) {
+			dprintf("snapdir fid: objsetid (%llu) != "
+			    "ZFSCTL_INO_SNAPDIRS (%llu) - object (%llu)\n",
+			    objsetid, ZFSCTL_INO_SNAPDIRS, object);
 
-		err = zfsctl_lookup_objset(sb, objsetid, &zsb);
-		if (err)
 			return (SET_ERROR(EINVAL));
+		}
 
-		ZFS_ENTER(zsb);
+		if (fid_gen > 1 || setgen != 0) {
+			dprintf("snapdir fid: fid_gen (%llu) and setgen "
+			    "(%llu)\n", fid_gen, setgen);
+			return (SET_ERROR(EINVAL));
+		}
+
+		return (zfsctl_snapdir_vget(sb, objsetid, fid_gen, ipp));
 	}
 
-	if (fidp->fid_len == SHORT_FID_LEN || fidp->fid_len == LONG_FID_LEN) {
-		zfid_short_t	*zfid = (zfid_short_t *)fidp;
-
-		for (i = 0; i < sizeof (zfid->zf_object); i++)
-			object |= ((uint64_t)zfid->zf_object[i]) << (8 * i);
-
-		for (i = 0; i < sizeof (zfid->zf_gen); i++)
-			fid_gen |= ((uint64_t)zfid->zf_gen[i]) << (8 * i);
-	} else {
-		ZFS_EXIT(zsb);
-		return (SET_ERROR(EINVAL));
-	}
-
+	ZFS_ENTER(zsb);
 	/* A zero fid_gen means we are in the .zfs control directories */
 	if (fid_gen == 0 &&
 	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {

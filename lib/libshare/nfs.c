@@ -600,7 +600,7 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	old_shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 
 	if (strcmp(shareopts, "on") == 0)
-		shareopts = "rw";
+		shareopts = "rw,crossmnt";
 
 	if (FSINFO(impl_share, nfs_fstype)->active && old_shareopts != NULL &&
 	    strcmp(old_shareopts, shareopts) != 0) {
