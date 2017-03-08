@@ -60,12 +60,12 @@
  *
  * The '.zfs', '.zfs/snapshot', and all directories created under
  * '.zfs/snapshot' (ie: '.zfs/snapshot/<snapname>') all share the same
- * share the same zfs_sb_t as the head filesystem (what '.zfs' lives under).
+ * share the same zfsvfs_t as the head filesystem (what '.zfs' lives under).
  *
  * File systems mounted on top of the '.zfs/snapshot/<snapname>' paths
  * (ie: snapshots) are complete ZFS filesystems and have their own unique
- * zfs_sb_t.  However, the fsid reported by these mounts will be the same
- * as that used by the parent zfs_sb_t to make NFS happy.
+ * zfsvfs_t.  However, the fsid reported by these mounts will be the same
+ * as that used by the parent zfsvfs_t to make NFS happy.
  */
 
 #include <sys/types.h>
@@ -448,14 +448,14 @@ zfsctl_is_snapdir(struct inode *ip)
  * Allocate a new inode with the passed id and ops.
  */
 static struct inode *
-zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
+zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
     const struct file_operations *fops, const struct inode_operations *ops)
 {
-	struct timespec now = current_fs_time(zsb->z_sb);
+	struct timespec now = current_fs_time(zfsvfs->z_sb);
 	struct inode *ip;
 	znode_t *zp;
 
-	ip = new_inode(zsb->z_sb);
+	ip = new_inode(zfsvfs->z_sb);
 	if (ip == NULL)
 		return (NULL);
 
@@ -498,11 +498,11 @@ zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
 		return (NULL);
 	}
 
-	mutex_enter(&zsb->z_znodes_lock);
-	list_insert_tail(&zsb->z_all_znodes, zp);
-	zsb->z_nr_znodes++;
+	mutex_enter(&zfsvfs->z_znodes_lock);
+	list_insert_tail(&zfsvfs->z_all_znodes, zp);
+	zfsvfs->z_nr_znodes++;
 	membar_producer();
-	mutex_exit(&zsb->z_znodes_lock);
+	mutex_exit(&zfsvfs->z_znodes_lock);
 
 	unlock_new_inode(ip);
 
@@ -513,18 +513,18 @@ zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
  * Lookup the inode with given id, it will be allocated if needed.
  */
 static struct inode *
-zfsctl_inode_lookup(zfs_sb_t *zsb, uint64_t id,
+zfsctl_inode_lookup(zfsvfs_t *zfsvfs, uint64_t id,
     const struct file_operations *fops, const struct inode_operations *ops)
 {
 	struct inode *ip = NULL;
 
 	while (ip == NULL) {
-		ip = ilookup(zsb->z_sb, (unsigned long)id);
+		ip = ilookup(zfsvfs->z_sb, (unsigned long)id);
 		if (ip)
 			break;
 
 		/* May fail due to concurrent zfsctl_inode_alloc() */
-		ip = zfsctl_inode_alloc(zsb, id, fops, ops);
+		ip = zfsctl_inode_alloc(zfsvfs, id, fops, ops);
 	}
 
 	return (ip);
@@ -532,7 +532,7 @@ zfsctl_inode_lookup(zfs_sb_t *zsb, uint64_t id,
 
 /*
  * Create the '.zfs' directory.  This directory is cached as part of the VFS
- * structure.  This results in a hold on the zfs_sb_t.  The code in zfs_umount()
+ * structure.  This results in a hold on the zfsvfs_t.  The code in zfs_umount()
  * therefore checks against a vfs_count of 2 instead of 1.  This reference
  * is removed when the ctldir is destroyed in the unmount.  All other entities
  * under the '.zfs' directory are created dynamically as needed.
@@ -541,13 +541,13 @@ zfsctl_inode_lookup(zfs_sb_t *zsb, uint64_t id,
  * of 64-bit inode numbers this support must be disabled on 32-bit systems.
  */
 int
-zfsctl_create(zfs_sb_t *zsb)
+zfsctl_create(zfsvfs_t *zfsvfs)
 {
-	ASSERT(zsb->z_ctldir == NULL);
+	ASSERT(zfsvfs->z_ctldir == NULL);
 
-	zsb->z_ctldir = zfsctl_inode_alloc(zsb, ZFSCTL_INO_ROOT,
+	zfsvfs->z_ctldir = zfsctl_inode_alloc(zfsvfs, ZFSCTL_INO_ROOT,
 	    &zpl_fops_root, &zpl_ops_root);
-	if (zsb->z_ctldir == NULL)
+	if (zfsvfs->z_ctldir == NULL)
 		return (SET_ERROR(ENOENT));
 
 	return (0);
@@ -558,12 +558,12 @@ zfsctl_create(zfs_sb_t *zsb)
  * Only called when the filesystem is unmounted.
  */
 void
-zfsctl_destroy(zfs_sb_t *zsb)
+zfsctl_destroy(zfsvfs_t *zfsvfs)
 {
-	if (zsb->z_issnap) {
+	if (zfsvfs->z_issnap) {
 		zfs_snapentry_t *se;
-		spa_t *spa = zsb->z_os->os_spa;
-		uint64_t objsetid = dmu_objset_id(zsb->z_os);
+		spa_t *spa = zfsvfs->z_os->os_spa;
+		uint64_t objsetid = dmu_objset_id(zfsvfs->z_os);
 
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
 		if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid))
@@ -573,9 +573,9 @@ zfsctl_destroy(zfs_sb_t *zsb)
 			zfsctl_snapshot_rele(se);
 		}
 		rw_exit(&zfs_snapshot_lock);
-	} else if (zsb->z_ctldir) {
-		iput(zsb->z_ctldir);
-		zsb->z_ctldir = NULL;
+	} else if (zfsvfs->z_ctldir) {
+		iput(zfsvfs->z_ctldir);
+		zfsvfs->z_ctldir = NULL;
 	}
 }
 
@@ -646,21 +646,21 @@ int
 zfsctl_fid(struct inode *ip, fid_t *fidp)
 {
 	znode_t		*zp = ITOZ(ip);
-	zfs_sb_t	*zsb = ITOZSB(ip);
+	zfsvfs_t	*zfsvfs = ITOZSB(ip);
 	uint64_t	object = zp->z_id;
 	zfid_short_t	*zfid;
 	int		i;
 
-	ZFS_ENTER(zsb);
+	ZFS_ENTER(zfsvfs);
 
 	if (zfsctl_is_snapdir(ip)) {
-		ZFS_EXIT(zsb);
+		ZFS_EXIT(zfsvfs);
 		return (zfsctl_snapdir_fid(ip, fidp));
 	}
 
 	if (fidp->fid_len < SHORT_FID_LEN) {
 		fidp->fid_len = SHORT_FID_LEN;
-		ZFS_EXIT(zsb);
+		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(ENOSPC));
 	}
 
@@ -675,7 +675,7 @@ zfsctl_fid(struct inode *ip, fid_t *fidp)
 	for (i = 0; i < sizeof (zfid->zf_gen); i++)
 		zfid->zf_gen[i] = 0;
 
-	ZFS_EXIT(zsb);
+	ZFS_EXIT(zfsvfs);
 	return (0);
 }
 
@@ -683,10 +683,10 @@ zfsctl_fid(struct inode *ip, fid_t *fidp)
  * Construct a full dataset name in full_name: "pool/dataset@snap_name"
  */
 static int
-zfsctl_snapshot_name(zfs_sb_t *zsb, const char *snap_name, int len,
+zfsctl_snapshot_name(zfsvfs_t *zfsvfs, const char *snap_name, int len,
     char *full_name)
 {
-	objset_t *os = zsb->z_os;
+	objset_t *os = zfsvfs->z_os;
 
 	if (zfs_component_namecheck(snap_name, NULL, NULL) != 0)
 		return (SET_ERROR(EILSEQ));
@@ -736,17 +736,17 @@ out:
  * Returns full path in full_path: "/pool/dataset/.zfs/snapshot/snap_name/"
  */
 static int
-zfsctl_snapshot_path_objset(zfs_sb_t *zsb, uint64_t objsetid,
+zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
     int path_len, char *full_path)
 {
-	objset_t *os = zsb->z_os;
+	objset_t *os = zfsvfs->z_os;
 	fstrans_cookie_t cookie;
 	char *snapname;
 	boolean_t case_conflict;
 	uint64_t id, pos = 0;
 	int error = 0;
 
-	if (zsb->z_mntopts->z_mntpoint == NULL)
+	if (zfsvfs->z_mntopts->z_mntpoint == NULL)
 		return (ENOENT);
 
 	cookie = spl_fstrans_mark();
@@ -754,7 +754,7 @@ zfsctl_snapshot_path_objset(zfs_sb_t *zsb, uint64_t objsetid,
 
 	while (error == 0) {
 		dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
-		error = dmu_snapshot_list_next(zsb->z_os,
+		error = dmu_snapshot_list_next(zfsvfs->z_os,
 		    ZFS_MAX_DATASET_NAME_LEN, snapname, &id, &pos,
 		    &case_conflict);
 		dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
@@ -767,7 +767,7 @@ zfsctl_snapshot_path_objset(zfs_sb_t *zsb, uint64_t objsetid,
 
 	memset(full_path, 0, path_len);
 	snprintf(full_path, path_len - 1, "%s/.zfs/snapshot/%s",
-	    zsb->z_mntopts->z_mntpoint, snapname);
+	    zfsvfs->z_mntopts->z_mntpoint, snapname);
 out:
 	kmem_free(snapname, ZFS_MAX_DATASET_NAME_LEN);
 	spl_fstrans_unmark(cookie);
@@ -782,18 +782,18 @@ int
 zfsctl_root_lookup(struct inode *dip, char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
 {
-	zfs_sb_t *zsb = ITOZSB(dip);
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
 	int error = 0;
 
-	ZFS_ENTER(zsb);
+	ZFS_ENTER(zfsvfs);
 
 	if (strcmp(name, "..") == 0) {
 		*ipp = dip->i_sb->s_root->d_inode;
 	} else if (strcmp(name, ZFS_SNAPDIR_NAME) == 0) {
-		*ipp = zfsctl_inode_lookup(zsb, ZFSCTL_INO_SNAPDIR,
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SNAPDIR,
 		    &zpl_fops_snapdir, &zpl_ops_snapdir);
 	} else if (strcmp(name, ZFS_SHAREDIR_NAME) == 0) {
-		*ipp = zfsctl_inode_lookup(zsb, ZFSCTL_INO_SHARES,
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SHARES,
 		    &zpl_fops_shares, &zpl_ops_shares);
 	} else {
 		*ipp = NULL;
@@ -802,7 +802,7 @@ zfsctl_root_lookup(struct inode *dip, char *name, struct inode **ipp,
 	if (*ipp == NULL)
 		error = SET_ERROR(ENOENT);
 
-	ZFS_EXIT(zsb);
+	ZFS_EXIT(zfsvfs);
 
 	return (error);
 }
@@ -816,24 +816,24 @@ int
 zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
 {
-	zfs_sb_t *zsb = ITOZSB(dip);
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
 	uint64_t id;
 	int error;
 
-	ZFS_ENTER(zsb);
+	ZFS_ENTER(zfsvfs);
 
-	error = dmu_snapshot_lookup(zsb->z_os, name, &id);
+	error = dmu_snapshot_lookup(zfsvfs->z_os, name, &id);
 	if (error) {
-		ZFS_EXIT(zsb);
+		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
 
-	*ipp = zfsctl_inode_lookup(zsb, ZFSCTL_INO_SNAPDIRS - id,
+	*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SNAPDIRS - id,
 	    &simple_dir_operations, &simple_dir_inode_operations);
 	if (*ipp == NULL)
 		error = SET_ERROR(ENOENT);
 
-	ZFS_EXIT(zsb);
+	ZFS_EXIT(zfsvfs);
 
 	return (error);
 }
@@ -847,22 +847,22 @@ int
 zfsctl_snapdir_rename(struct inode *sdip, char *snm,
     struct inode *tdip, char *tnm, cred_t *cr, int flags)
 {
-	zfs_sb_t *zsb = ITOZSB(sdip);
+	zfsvfs_t *zfsvfs = ITOZSB(sdip);
 	char *to, *from, *real, *fsname;
 	int error;
 
 	if (!zfs_admin_snapshot)
 		return (EACCES);
 
-	ZFS_ENTER(zsb);
+	ZFS_ENTER(zfsvfs);
 
 	to = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	from = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	real = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	fsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 
-	if (zsb->z_case == ZFS_CASE_INSENSITIVE) {
-		error = dmu_snapshot_realname(zsb->z_os, snm, real,
+	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE) {
+		error = dmu_snapshot_realname(zfsvfs->z_os, snm, real,
 		    ZFS_MAX_DATASET_NAME_LEN, NULL);
 		if (error == 0) {
 			snm = real;
@@ -871,7 +871,7 @@ zfsctl_snapdir_rename(struct inode *sdip, char *snm,
 		}
 	}
 
-	dmu_objset_name(zsb->z_os, fsname);
+	dmu_objset_name(zfsvfs->z_os, fsname);
 
 	error = zfsctl_snapshot_name(ITOZSB(sdip), snm,
 	    ZFS_MAX_DATASET_NAME_LEN, from);
@@ -912,7 +912,7 @@ out:
 	kmem_free(real, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(fsname, ZFS_MAX_DATASET_NAME_LEN);
 
-	ZFS_EXIT(zsb);
+	ZFS_EXIT(zfsvfs);
 
 	return (error);
 }
@@ -924,20 +924,20 @@ out:
 int
 zfsctl_snapdir_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 {
-	zfs_sb_t *zsb = ITOZSB(dip);
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
 	char *snapname, *real;
 	int error;
 
 	if (!zfs_admin_snapshot)
 		return (EACCES);
 
-	ZFS_ENTER(zsb);
+	ZFS_ENTER(zfsvfs);
 
 	snapname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	real = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 
-	if (zsb->z_case == ZFS_CASE_INSENSITIVE) {
-		error = dmu_snapshot_realname(zsb->z_os, name, real,
+	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE) {
+		error = dmu_snapshot_realname(zfsvfs->z_os, name, real,
 		    ZFS_MAX_DATASET_NAME_LEN, NULL);
 		if (error == 0) {
 			name = real;
@@ -960,7 +960,7 @@ out:
 	kmem_free(snapname, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(real, ZFS_MAX_DATASET_NAME_LEN);
 
-	ZFS_EXIT(zsb);
+	ZFS_EXIT(zfsvfs);
 
 	return (error);
 }
@@ -973,7 +973,7 @@ int
 zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
     struct inode **ipp, cred_t *cr, int flags)
 {
-	zfs_sb_t *zsb = ITOZSB(dip);
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
 	char *dsname;
 	int error;
 
@@ -987,7 +987,7 @@ zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
 		goto out;
 	}
 
-	dmu_objset_name(zsb->z_os, dsname);
+	dmu_objset_name(zfsvfs->z_os, dsname);
 
 	error = zfs_secpolicy_snapshot_perms(dsname, cr);
 	if (error != 0)
@@ -1055,8 +1055,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
-	zfs_sb_t *zsb;
-	zfs_sb_t *snap_zsb;
+	zfsvfs_t *zfsvfs;
+	zfsvfs_t *snap_zfsvfs;
 	zfs_snapentry_t *se;
 	char *full_name, *full_path;
 	char *argv[] = { "/usr/bin/env", "mount", "-t", "zfs", "-n", NULL, NULL,
@@ -1068,13 +1068,13 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	if (ip == NULL)
 		return (EISDIR);
 
-	zsb = ITOZSB(ip);
-	ZFS_ENTER(zsb);
+	zfsvfs = ITOZSB(ip);
+	ZFS_ENTER(zfsvfs);
 
 	full_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	full_path = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
-	error = zfsctl_snapshot_name(zsb, dname(dentry),
+	error = zfsctl_snapshot_name(zfsvfs, dname(dentry),
 	    ZFS_MAX_DATASET_NAME_LEN, full_name);
 	if (error)
 		goto error;
@@ -1134,14 +1134,14 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	spath = *path;
 	path_get(&spath);
 	if (zpl_follow_down_one(&spath)) {
-		snap_zsb = ITOZSB(spath.dentry->d_inode);
-		snap_zsb->z_parent = zsb;
+		snap_zfsvfs = ITOZSB(spath.dentry->d_inode);
+		snap_zfsvfs->z_parent = zfsvfs;
 		dentry = spath.dentry;
 		spath.mnt->mnt_flags |= MNT_SHRINKABLE;
 
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
 		se = zfsctl_snapshot_alloc(full_name, full_path,
-		    snap_zsb->z_os->os_spa, dmu_objset_id(snap_zsb->z_os),
+		    snap_zfsvfs->z_os->os_spa, dmu_objset_id(snap_zfsvfs->z_os),
 		    dentry);
 		zfsctl_snapshot_add(se);
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
@@ -1152,7 +1152,7 @@ error:
 	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(full_path, MAXPATHLEN);
 
-	ZFS_EXIT(zsb);
+	ZFS_EXIT(zfsvfs);
 
 	return (error);
 }
@@ -1211,24 +1211,24 @@ int
 zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
 {
-	zfs_sb_t *zsb = ITOZSB(dip);
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
 	struct inode *ip;
 	znode_t *dzp;
 	int error;
 
-	ZFS_ENTER(zsb);
+	ZFS_ENTER(zfsvfs);
 
-	if (zsb->z_shares_dir == 0) {
-		ZFS_EXIT(zsb);
+	if (zfsvfs->z_shares_dir == 0) {
+		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(ENOTSUP));
 	}
 
-	if ((error = zfs_zget(zsb, zsb->z_shares_dir, &dzp)) == 0) {
+	if ((error = zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp)) == 0) {
 		error = zfs_lookup(ZTOI(dzp), name, &ip, 0, cr, NULL, NULL);
 		iput(ZTOI(dzp));
 	}
 
-	ZFS_EXIT(zsb);
+	ZFS_EXIT(zfsvfs);
 
 	return (error);
 }

@@ -378,17 +378,17 @@ zpl_parse_options(char *osname, char *mntopts, zfs_mntopts_t *zmo,
 static int
 zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 {
-	zfs_sb_t *zsb = sb->s_fs_info;
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	fstrans_cookie_t cookie;
 	int error;
 
-	error = zpl_parse_options(zsb->z_mntopts->z_osname, data,
-	    zsb->z_mntopts, B_TRUE);
+	error = zpl_parse_options(zfsvfs->z_mntopts->z_osname, data,
+	    zfsvfs->z_mntopts, B_TRUE);
 	if (error)
 		return (error);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_remount(sb, flags, zsb->z_mntopts);
+	error = -zfs_remount(sb, flags, zfsvfs->z_mntopts);
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
@@ -396,12 +396,13 @@ zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 }
 
 static int
-__zpl_show_options(struct seq_file *seq, zfs_sb_t *zsb)
+__zpl_show_options(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
-	seq_printf(seq, ",%s", zsb->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
+	seq_printf(seq, ",%s",
+	    zfsvfs->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
 
 #ifdef CONFIG_FS_POSIX_ACL
-	switch (zsb->z_acl_type) {
+	switch (zfsvfs->z_acl_type) {
 	case ZFS_ACLTYPE_POSIXACL:
 		seq_puts(seq, ",posixacl");
 		break;

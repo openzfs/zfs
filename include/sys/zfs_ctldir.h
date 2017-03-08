@@ -50,9 +50,9 @@
 extern int zfs_expire_snapshot;
 
 /* zfsctl generic functions */
-extern int zfsctl_create(zfs_sb_t *zsb);
-extern void zfsctl_destroy(zfs_sb_t *zsb);
-extern struct inode *zfsctl_root(znode_t *zp);
+extern int zfsctl_create(zfsvfs_t *);
+extern void zfsctl_destroy(zfsvfs_t *);
+extern struct inode *zfsctl_root(znode_t *);
 extern void zfsctl_init(void);
 extern void zfsctl_fini(void);
 extern boolean_t zfsctl_is_node(struct inode *ip);
