@@ -121,14 +121,12 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 
 	return (0);
 }
-EXPORT_SYMBOL(zfs_sync);
 
 boolean_t
 zfs_is_readonly(zfsvfs_t *zfsvfs)
 {
 	return (!!(zfsvfs->z_sb->s_flags & MS_RDONLY));
 }
-EXPORT_SYMBOL(zfs_is_readonly);
 
 static void
 atime_changed_cb(void *arg, uint64_t newval)
@@ -345,7 +343,6 @@ unregister:
 	dsl_prop_unregister_all(ds, zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_register_callbacks);
 
 static int
 zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
@@ -508,7 +505,6 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	zap_cursor_fini(&zc);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_userspace_many);
 
 /*
  * buf must be big enough (eg, 32 bytes)
@@ -567,7 +563,6 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		err = 0;
 	return (err);
 }
-EXPORT_SYMBOL(zfs_userspace_one);
 
 int
 zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
@@ -640,7 +635,6 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	dmu_tx_commit(tx);
 	return (err);
 }
-EXPORT_SYMBOL(zfs_set_userquota);
 
 boolean_t
 zfs_fuid_overobjquota(zfsvfs_t *zfsvfs, boolean_t isgroup, uint64_t fuid)
@@ -696,7 +690,6 @@ zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup, uint64_t fuid)
 		return (B_FALSE);
 	return (used >= quota);
 }
-EXPORT_SYMBOL(zfs_fuid_overquota);
 
 boolean_t
 zfs_owner_overquota(zfsvfs_t *zfsvfs, znode_t *zp, boolean_t isgroup)
@@ -714,7 +707,6 @@ zfs_owner_overquota(zfsvfs_t *zfsvfs, znode_t *zp, boolean_t isgroup)
 
 	return (zfs_fuid_overquota(zfsvfs, isgroup, fuid));
 }
-EXPORT_SYMBOL(zfs_owner_overquota);
 
 zfs_mntopts_t *
 zfs_mntopts_alloc(void)
@@ -735,7 +727,7 @@ zfs_mntopts_free(zfs_mntopts_t *zmo)
 }
 
 int
-zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfsvfs_t **zfvp)
+zfsvfs_create(const char *osname, zfs_mntopts_t *zmo, zfsvfs_t **zfvp)
 {
 	objset_t *os;
 	zfsvfs_t *zfsvfs;
@@ -746,7 +738,7 @@ zfs_sb_create(const char *osname, zfs_mntopts_t *zmo, zfsvfs_t **zfvp)
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
 	/*
-	 * Optional temporary mount options, free'd in zfs_sb_free().
+	 * Optional temporary mount options, free'd in zfsvfs_free().
 	 */
 	zfsvfs->z_mntopts = (zmo ? zmo : zfs_mntopts_alloc());
 
@@ -903,10 +895,9 @@ out_zmo:
 	kmem_free(zfsvfs, sizeof (zfsvfs_t));
 	return (error);
 }
-EXPORT_SYMBOL(zfs_sb_create);
 
 int
-zfs_sb_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
+zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 {
 	int error;
 
@@ -986,10 +977,9 @@ zfs_sb_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 
 	return (0);
 }
-EXPORT_SYMBOL(zfs_sb_setup);
 
 void
-zfs_sb_free(zfsvfs_t *zfsvfs)
+zfsvfs_free(zfsvfs_t *zfsvfs)
 {
 	int i, size = zfsvfs->z_hold_size;
 
@@ -1010,7 +1000,6 @@ zfs_sb_free(zfsvfs_t *zfsvfs)
 	zfs_mntopts_free(zfsvfs->z_mntopts);
 	kmem_free(zfsvfs, sizeof (zfsvfs_t));
 }
-EXPORT_SYMBOL(zfs_sb_free);
 
 static void
 zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
@@ -1027,7 +1016,6 @@ zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 	if (!dmu_objset_is_snapshot(os))
 		dsl_prop_unregister_all(dmu_objset_ds(os), zfsvfs);
 }
-EXPORT_SYMBOL(zfs_unregister_callbacks);
 
 #ifdef HAVE_MLSLABEL
 /*
@@ -1056,7 +1044,6 @@ zfs_check_global_label(const char *dsname, const char *hexsl)
 	}
 	return (SET_ERROR(EACCES));
 }
-EXPORT_SYMBOL(zfs_check_global_label);
 #endif /* HAVE_MLSLABEL */
 
 int
@@ -1120,7 +1107,6 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_statvfs);
 
 int
 zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
@@ -1137,7 +1123,6 @@ zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_root);
 
 #ifdef HAVE_D_PRUNE_ALIASES
 /*
@@ -1150,7 +1135,7 @@ EXPORT_SYMBOL(zfs_root);
  * end of the list so we're always scanning the oldest znodes first.
  */
 static int
-zfs_sb_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
+zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
 {
 	znode_t **zp_array, *zp;
 	int max_array = MIN(nr_to_scan, PAGE_SIZE * 8 / sizeof (znode_t *));
@@ -1205,7 +1190,7 @@ zfs_sb_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
  * blocks but can't because they are all pinned by entries in these caches.
  */
 int
-zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
+zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 {
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	int error = 0;
@@ -1237,7 +1222,7 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	*objects = (*shrinker->shrink)(shrinker, &sc);
 #elif defined(HAVE_D_PRUNE_ALIASES)
 #define	D_PRUNE_ALIASES_IS_DEFAULT
-	*objects = zfs_sb_prune_aliases(zfsvfs, nr_to_scan);
+	*objects = zfs_prune_aliases(zfsvfs, nr_to_scan);
 #else
 #error "No available dentry and inode cache pruning mechanism."
 #endif
@@ -1245,12 +1230,12 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 #if defined(HAVE_D_PRUNE_ALIASES) && !defined(D_PRUNE_ALIASES_IS_DEFAULT)
 #undef	D_PRUNE_ALIASES_IS_DEFAULT
 	/*
-	 * Fall back to zfs_sb_prune_aliases if the kernel's per-superblock
+	 * Fall back to zfs_prune_aliases if the kernel's per-superblock
 	 * shrinker couldn't free anything, possibly due to the inodes being
 	 * allocated in a different memcg.
 	 */
 	if (*objects == 0)
-		*objects = zfs_sb_prune_aliases(zfsvfs, nr_to_scan);
+		*objects = zfs_prune_aliases(zfsvfs, nr_to_scan);
 #endif
 
 	ZFS_EXIT(zfsvfs);
@@ -1261,7 +1246,6 @@ zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 
 	return (error);
 }
-EXPORT_SYMBOL(zfs_sb_prune);
 
 /*
  * Teardown the zfsvfs_t.
@@ -1269,7 +1253,7 @@ EXPORT_SYMBOL(zfs_sb_prune);
  * Note, if 'unmounting' is FALSE, we return with the 'z_teardown_lock'
  * and 'z_teardown_inactive_lock' held.
  */
-int
+static int
 zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 {
 	znode_t	*zp;
@@ -1389,7 +1373,6 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 
 	return (0);
 }
-EXPORT_SYMBOL(zfsvfs_teardown);
 
 #if !defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
 	!defined(HAVE_3ARGS_BDI_SETUP_AND_REGISTER)
@@ -1405,7 +1388,7 @@ zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 	uint64_t recordsize;
 	int error;
 
-	error = zfs_sb_create(osname, zmo, &zfsvfs);
+	error = zfsvfs_create(osname, zmo, &zfsvfs);
 	if (error)
 		return (error);
 
@@ -1459,7 +1442,7 @@ zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 		dmu_objset_set_user(zfsvfs->z_os, zfsvfs);
 		mutex_exit(&zfsvfs->z_os->os_user_ptr_lock);
 	} else {
-		if ((error = zfs_sb_setup(zfsvfs, B_TRUE)))
+		if ((error = zfsvfs_setup(zfsvfs, B_TRUE)))
 			goto out;
 	}
 
@@ -1485,7 +1468,7 @@ zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 out:
 	if (error) {
 		dmu_objset_disown(zfsvfs->z_os, zfsvfs);
-		zfs_sb_free(zfsvfs);
+		zfsvfs_free(zfsvfs);
 		/*
 		 * make sure we don't have dangling sb->s_fs_info which
 		 * zfs_preumount will use.
@@ -1495,7 +1478,6 @@ out:
 
 	return (error);
 }
-EXPORT_SYMBOL(zfs_domount);
 
 /*
  * Called when an unmount is requested and certain sanity checks have
@@ -1533,7 +1515,6 @@ zfs_preumount(struct super_block *sb)
 		    dmu_objset_pool(zfsvfs->z_os)), 0);
 	}
 }
-EXPORT_SYMBOL(zfs_preumount);
 
 /*
  * Called once all other unmount released tear down has occurred.
@@ -1569,10 +1550,9 @@ zfs_umount(struct super_block *sb)
 		dmu_objset_disown(os, zfsvfs);
 	}
 
-	zfs_sb_free(zfsvfs);
+	zfsvfs_free(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_umount);
 
 int
 zfs_remount(struct super_block *sb, int *flags, zfs_mntopts_t *zmo)
@@ -1585,7 +1565,6 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mntopts_t *zmo)
 
 	return (error);
 }
-EXPORT_SYMBOL(zfs_remount);
 
 int
 zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
@@ -1694,7 +1673,6 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_vget);
 
 /*
  * Block out VFS ops and close zfsvfs_t
@@ -1714,7 +1692,6 @@ zfs_suspend_fs(zfsvfs_t *zfsvfs)
 
 	return (0);
 }
-EXPORT_SYMBOL(zfs_suspend_fs);
 
 /*
  * Reopen zfsvfs_t and release VFS ops.
@@ -1761,7 +1738,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		sa_register_update_callback(zfsvfs->z_os,
 		    zfs_sa_upgrade);
 
-	VERIFY(zfs_sb_setup(zfsvfs, B_FALSE) == 0);
+	VERIFY(zfsvfs_setup(zfsvfs, B_FALSE) == 0);
 
 	zfs_set_fuid_feature(zfsvfs);
 	zfsvfs->z_rollback_time = jiffies;
@@ -1801,7 +1778,6 @@ bail:
 	}
 	return (err);
 }
-EXPORT_SYMBOL(zfs_resume_fs);
 
 int
 zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
@@ -1868,7 +1844,6 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 	return (0);
 }
-EXPORT_SYMBOL(zfs_set_version);
 
 /*
  * Read a property stored within the master node.
@@ -1914,7 +1889,6 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	}
 	return (error);
 }
-EXPORT_SYMBOL(zfs_get_zplprop);
 
 /*
  * Return true if the coresponding vfs's unmounted flag is set.
@@ -1959,3 +1933,25 @@ zfs_fini(void)
 	zfs_znode_fini();
 	zfsctl_fini();
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_suspend_fs);
+EXPORT_SYMBOL(zfs_resume_fs);
+EXPORT_SYMBOL(zfs_userspace_one);
+EXPORT_SYMBOL(zfs_userspace_many);
+EXPORT_SYMBOL(zfs_set_userquota);
+EXPORT_SYMBOL(zfs_owner_overquota);
+EXPORT_SYMBOL(zfs_fuid_overquota);
+EXPORT_SYMBOL(zfs_fuid_overobjquota);
+EXPORT_SYMBOL(zfs_set_version);
+EXPORT_SYMBOL(zfsvfs_create);
+EXPORT_SYMBOL(zfsvfs_free);
+EXPORT_SYMBOL(zfs_is_readonly);
+EXPORT_SYMBOL(zfs_domount);
+EXPORT_SYMBOL(zfs_preumount);
+EXPORT_SYMBOL(zfs_umount);
+EXPORT_SYMBOL(zfs_remount);
+EXPORT_SYMBOL(zfs_statvfs);
+EXPORT_SYMBOL(zfs_vget);
+EXPORT_SYMBOL(zfs_prune);
+#endif

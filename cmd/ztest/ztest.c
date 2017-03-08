@@ -2602,7 +2602,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 	mutex_enter(&zd->zd_dirobj_lock);
 	(void) rw_wrlock(&zd->zd_zilog_lock);
 
-	/* zfs_sb_teardown() */
+	/* zfsvfs_teardown() */
 	zil_close(zd->zd_zilog);
 
 	/* zfsvfs_setup() */

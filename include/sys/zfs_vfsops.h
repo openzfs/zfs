@@ -193,29 +193,21 @@ extern boolean_t zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup,
 extern boolean_t zfs_fuid_overobjquota(zfsvfs_t *zfsvfs, boolean_t isgroup,
     uint64_t fuid);
 extern int zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers);
-extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop,
-    uint64_t *value);
+extern int zfsvfs_create(const char *name, zfs_mntopts_t *zmo, zfsvfs_t **zfvp);
+extern void zfsvfs_free(zfsvfs_t *zfsvfs);
+extern int zfs_check_global_label(const char *dsname, const char *hexsl);
+
+extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
 extern zfs_mntopts_t *zfs_mntopts_alloc(void);
 extern void zfs_mntopts_free(zfs_mntopts_t *zmo);
-extern int zfs_sb_create(const char *name, zfs_mntopts_t *zmo,
-    zfsvfs_t **zfvp);
-extern int zfs_sb_setup(zfsvfs_t *zfsvfs, boolean_t mounting);
-extern void zfs_sb_free(zfsvfs_t *zfsvfs);
-extern int zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan,
-    int *objects);
-extern int zfs_sb_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting);
-extern int zfs_check_global_label(const char *dsname, const char *hexsl);
-extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
-
-extern int zfs_register_callbacks(zfsvfs_t *zfsvfs);
-extern void zfs_unregister_callbacks(zfsvfs_t *zfsvfs);
 extern int zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent);
 extern void zfs_preumount(struct super_block *sb);
 extern int zfs_umount(struct super_block *sb);
 extern int zfs_remount(struct super_block *sb, int *flags, zfs_mntopts_t *zmo);
-extern int zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp);
 extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
 extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);
+extern int zfs_prune(struct super_block *sb, unsigned long nr_to_scan,
+    int *objects);
 
 #ifdef	__cplusplus
 }

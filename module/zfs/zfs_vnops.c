@@ -226,7 +226,6 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_open);
 
 /* ARGSUSED */
 int
@@ -249,7 +248,6 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_close);
 
 #if defined(SEEK_HOLE) && defined(SEEK_DATA)
 /*
@@ -313,7 +311,6 @@ zfs_holey(struct inode *ip, int cmd, loff_t *off)
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_holey);
 #endif /* SEEK_HOLE && SEEK_DATA */
 
 #if defined(_KERNEL)
@@ -556,7 +553,6 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_read);
 
 /*
  * Write the bytes to a file.
@@ -938,7 +934,6 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_write);
 
 /*
  * Drop a reference on the passed inode asynchronously. This ensures
@@ -1132,7 +1127,6 @@ zfs_access(struct inode *ip, int mode, int flag, cred_t *cr)
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_access);
 
 /*
  * Lookup an entry in a directory, or an extended attribute directory.
@@ -1271,7 +1265,6 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_lookup);
 
 /*
  * Attempt to create a new entry in a directory.  If the entry
@@ -1524,7 +1517,6 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_create);
 
 /* ARGSUSED */
 int
@@ -1888,7 +1880,6 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_remove);
 
 /*
  * Create a new directory and insert it into dip using the name
@@ -2071,7 +2062,6 @@ top:
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_mkdir);
 
 /*
  * Remove a directory subdir entry.  If the current working
@@ -2205,7 +2195,6 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_rmdir);
 
 /*
  * Read as many directory entries as will fit into the provided
@@ -2367,7 +2356,6 @@ out:
 
 	return (error);
 }
-EXPORT_SYMBOL(zfs_readdir);
 
 ulong_t zfs_fsync_sync_cnt = 4;
 
@@ -2389,7 +2377,6 @@ zfs_fsync(struct inode *ip, int syncflag, cred_t *cr)
 
 	return (0);
 }
-EXPORT_SYMBOL(zfs_fsync);
 
 
 /*
@@ -2593,7 +2580,6 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_getattr);
 
 /*
  * Get the basic file attributes and place them in the provided kstat
@@ -2650,7 +2636,6 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 
 	return (0);
 }
-EXPORT_SYMBOL(zfs_getattr_fast);
 
 /*
  * Set the file attributes to the values contained in the
@@ -3281,7 +3266,6 @@ out3:
 	ZFS_EXIT(zfsvfs);
 	return (err);
 }
-EXPORT_SYMBOL(zfs_setattr);
 
 typedef struct zfs_zlock {
 	krwlock_t	*zl_rwlock;	/* lock we acquired */
@@ -3725,7 +3709,6 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_rename);
 
 /*
  * Insert the indicated symbolic reference entry into the directory.
@@ -3888,7 +3871,6 @@ top:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_symlink);
 
 /*
  * Return, in the buffer contained in the provided uio structure,
@@ -3926,7 +3908,6 @@ zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_readlink);
 
 /*
  * Insert a new entry into directory tdip referencing sip.
@@ -4110,7 +4091,6 @@ top:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_link);
 
 static void
 zfs_putpage_commit_cb(void *arg)
@@ -4378,7 +4358,6 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_dirty_inode);
 
 /*ARGSUSED*/
 void
@@ -4424,7 +4403,6 @@ zfs_inactive(struct inode *ip)
 	if (need_unlock)
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
 }
-EXPORT_SYMBOL(zfs_inactive);
 
 /*
  * Bounds-check the seek operation.
@@ -4445,7 +4423,6 @@ zfs_seek(struct inode *ip, offset_t ooff, offset_t *noffp)
 		return (0);
 	return ((*noffp < 0 || *noffp > MAXOFFSET_T) ? EINVAL : 0);
 }
-EXPORT_SYMBOL(zfs_seek);
 
 /*
  * Fill pages with data from the disk.
@@ -4525,7 +4502,6 @@ zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages)
 	ZFS_EXIT(zfsvfs);
 	return (err);
 }
-EXPORT_SYMBOL(zfs_getpage);
 
 /*
  * Check ZFS specific permissions to memory map a section of a file.
@@ -4570,7 +4546,6 @@ zfs_map(struct inode *ip, offset_t off, caddr_t *addrp, size_t len,
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_map);
 
 /*
  * convoff - converts the given data (start, whence) to the
@@ -4694,7 +4669,6 @@ zfs_space(struct inode *ip, int cmd, flock64_t *bfp, int flag,
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_space);
 
 /*ARGSUSED*/
 int
@@ -4737,7 +4711,6 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
-EXPORT_SYMBOL(zfs_fid);
 
 /*ARGSUSED*/
 int
@@ -4755,7 +4728,6 @@ zfs_getsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
 
 	return (error);
 }
-EXPORT_SYMBOL(zfs_getsecattr);
 
 /*ARGSUSED*/
 int
@@ -4778,7 +4750,6 @@ zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_setsecattr);
 
 #ifdef HAVE_UIO_ZEROCOPY
 /*
@@ -4937,6 +4908,36 @@ zfs_retzcbuf(struct inode *ip, xuio_t *xuio, cred_t *cr)
 #endif /* HAVE_UIO_ZEROCOPY */
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_open);
+EXPORT_SYMBOL(zfs_close);
+EXPORT_SYMBOL(zfs_read);
+EXPORT_SYMBOL(zfs_write);
+EXPORT_SYMBOL(zfs_access);
+EXPORT_SYMBOL(zfs_lookup);
+EXPORT_SYMBOL(zfs_create);
+EXPORT_SYMBOL(zfs_tmpfile);
+EXPORT_SYMBOL(zfs_remove);
+EXPORT_SYMBOL(zfs_mkdir);
+EXPORT_SYMBOL(zfs_rmdir);
+EXPORT_SYMBOL(zfs_readdir);
+EXPORT_SYMBOL(zfs_fsync);
+EXPORT_SYMBOL(zfs_getattr);
+EXPORT_SYMBOL(zfs_getattr_fast);
+EXPORT_SYMBOL(zfs_setattr);
+EXPORT_SYMBOL(zfs_rename);
+EXPORT_SYMBOL(zfs_symlink);
+EXPORT_SYMBOL(zfs_readlink);
+EXPORT_SYMBOL(zfs_link);
+EXPORT_SYMBOL(zfs_inactive);
+EXPORT_SYMBOL(zfs_space);
+EXPORT_SYMBOL(zfs_fid);
+EXPORT_SYMBOL(zfs_getsecattr);
+EXPORT_SYMBOL(zfs_setsecattr);
+EXPORT_SYMBOL(zfs_getpage);
+EXPORT_SYMBOL(zfs_putpage);
+EXPORT_SYMBOL(zfs_dirty_inode);
+EXPORT_SYMBOL(zfs_map);
+
 /* CSTYLED */
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");

@@ -63,7 +63,6 @@ extern int zfs_rename(struct inode *sdip, char *snm, struct inode *tdip,
     char *tnm, cred_t *cr, int flags);
 extern int zfs_symlink(struct inode *dip, char *name, vattr_t *vap,
     char *link, struct inode **ipp, cred_t *cr, int flags);
-extern int zfs_follow_link(struct dentry *dentry, struct nameidata *nd);
 extern int zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr);
 extern int zfs_link(struct inode *tdip, struct inode *sip,
     char *name, cred_t *cr, int flags);
