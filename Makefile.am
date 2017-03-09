@@ -62,7 +62,8 @@ lint: cppcheck paxcheck
 
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
-		cppcheck --quiet --force --error-exitcode=2 ${top_srcdir}; \
+		cppcheck --inline-suppr --quiet --force --error-exitcode=2 \
+		${top_srcdir}; \
 	fi
 
 paxcheck:
