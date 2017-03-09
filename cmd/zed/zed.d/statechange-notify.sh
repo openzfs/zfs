@@ -39,10 +39,10 @@ umask 077
 note_subject="ZFS device fault for pool ${ZEVENT_POOL_GUID} on $(hostname)"
 note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
 {
-    if [ "${ZEVENT_VDEV_STATE_STR}" == "FAULTED" ] ; then
+    if [ "${ZEVENT_VDEV_STATE_STR}" = "FAULTED" ] ; then
         echo "The number of I/O errors associated with a ZFS device exceeded"
         echo "acceptable levels. ZFS has marked the device as faulted."
-    elif [ "${ZEVENT_VDEV_STATE_STR}" == "DEGRADED" ] ; then
+    elif [ "${ZEVENT_VDEV_STATE_STR}" = "DEGRADED" ] ; then
         echo "The number of checksum errors associated with a ZFS device"
         echo "exceeded acceptable levels. ZFS has marked the device as"
         echo "degraded."

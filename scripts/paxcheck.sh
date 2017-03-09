@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# shellcheck disable=SC2039
 if ! type scanelf > /dev/null 2>&1; then
     echo "scanelf (from pax-utils) is required for these checks." >&2
     exit 3
@@ -8,7 +9,7 @@ fi
 RET=0
 
 # check for exec stacks
-OUT="$(scanelf -qyRAF '%e %p' $1)"
+OUT=$(scanelf -qyRAF '%e %p' "$1")
 
 if [ x"${OUT}" != x ]; then
     RET=2
@@ -24,7 +25,7 @@ fi
 
 
 # check for TEXTRELS
-OUT="$(scanelf -qyRAF '%T %p' $1)"
+OUT=$(scanelf -qyRAF '%T %p' "$1")
 
 if [ x"${OUT}" != x ]; then
     RET=2

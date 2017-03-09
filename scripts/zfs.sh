@@ -2,7 +2,7 @@
 #
 # A simple script to simply the loading/unloading the ZFS module stack.
 
-basedir="$(dirname $0)"
+basedir=$(dirname "$0")
 
 SCRIPT_COMMON=common.sh
 if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
@@ -11,6 +11,7 @@ else
 echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
 fi
 
+# shellcheck disable=SC2034
 PROG=zfs.sh
 UNLOAD=
 
@@ -26,7 +27,6 @@ OPTIONS:
 	-h      Show this message
 	-v      Verbose
 	-u      Unload modules
-	-d      Save debug log on unload
 
 MODULE-OPTIONS:
 	Must be of the from module="options", for example:
@@ -37,20 +37,18 @@ $0 zfs="zfs_prefetch_disable=1 zfs_mdcomp_disable=1"
 EOF
 }
 
-while getopts 'hvud' OPTION; do
+while getopts 'hvu' OPTION; do
 	case $OPTION in
 	h)
 		usage
 		exit 1
 		;;
 	v)
+		# shellcheck disable=SC2034
 		VERBOSE=1
 		;;
 	u)
 		UNLOAD=1
-		;;
-	d)
-		DUMP_LOG=1
 		;;
 	?)
 		usage
@@ -59,7 +57,7 @@ while getopts 'hvud' OPTION; do
 	esac
 done
 
-if [ $(id -u) != 0 ]; then
+if [ "$(id -u)" != 0 ]; then
 	die "Must run as root"
 fi
 
