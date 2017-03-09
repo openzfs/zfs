@@ -746,7 +746,7 @@ zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
 	uint64_t id, pos = 0;
 	int error = 0;
 
-	if (zfsvfs->z_mntopts->z_mntpoint == NULL)
+	if (zfsvfs->z_vfs->vfs_mntpoint == NULL)
 		return (ENOENT);
 
 	cookie = spl_fstrans_mark();
@@ -767,7 +767,7 @@ zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
 
 	memset(full_path, 0, path_len);
 	snprintf(full_path, path_len - 1, "%s/.zfs/snapshot/%s",
-	    zfsvfs->z_mntopts->z_mntpoint, snapname);
+	    zfsvfs->z_vfs->vfs_mntpoint, snapname);
 out:
 	kmem_free(snapname, ZFS_MAX_DATASET_NAME_LEN);
 	spl_fstrans_unmark(cookie);

@@ -41,33 +41,43 @@ extern "C" {
 typedef struct zfsvfs zfsvfs_t;
 struct znode;
 
-typedef struct zfs_mntopts {
-	char		*z_osname;	/* Objset name */
-	char		*z_mntpoint;	/* Primary mount point */
-	uint64_t	z_xattr;
-	boolean_t	z_readonly;
-	boolean_t	z_do_readonly;
-	boolean_t	z_setuid;
-	boolean_t	z_do_setuid;
-	boolean_t	z_exec;
-	boolean_t	z_do_exec;
-	boolean_t	z_devices;
-	boolean_t	z_do_devices;
-	boolean_t	z_do_xattr;
-	boolean_t	z_atime;
-	boolean_t	z_do_atime;
-	boolean_t	z_relatime;
-	boolean_t	z_do_relatime;
-	boolean_t	z_nbmand;
-	boolean_t	z_do_nbmand;
-} zfs_mntopts_t;
+/*
+ * This structure emulates the vfs_t from other platforms.  It's purpose
+ * is to faciliate the handling of mount options and minimize structural
+ * differences between the platforms.
+ */
+typedef struct vfs {
+	struct zfsvfs	*vfs_data;
+	char		*vfs_mntpoint;	/* Primary mount point */
+	uint64_t	vfs_xattr;
+	boolean_t	vfs_readonly;
+	boolean_t	vfs_do_readonly;
+	boolean_t	vfs_setuid;
+	boolean_t	vfs_do_setuid;
+	boolean_t	vfs_exec;
+	boolean_t	vfs_do_exec;
+	boolean_t	vfs_devices;
+	boolean_t	vfs_do_devices;
+	boolean_t	vfs_do_xattr;
+	boolean_t	vfs_atime;
+	boolean_t	vfs_do_atime;
+	boolean_t	vfs_relatime;
+	boolean_t	vfs_do_relatime;
+	boolean_t	vfs_nbmand;
+	boolean_t	vfs_do_nbmand;
+} vfs_t;
+
+typedef struct zfs_mnt {
+	const char	*mnt_osname;	/* Objset name */
+	char		*mnt_data;	/* Raw mount options */
+} zfs_mnt_t;
 
 struct zfsvfs {
+	vfs_t		*z_vfs;		/* generic fs struct */
 	struct super_block *z_sb;	/* generic super_block */
 	struct backing_dev_info z_bdi;	/* generic backing dev info */
 	struct zfsvfs	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
-	zfs_mntopts_t	*z_mntopts;	/* passed mount options */
 	uint64_t	z_flags;	/* super_block flags */
 	uint64_t	z_root;		/* id of root znode */
 	uint64_t	z_unlinkedobj;	/* id of unlinked zapobj */
@@ -193,17 +203,15 @@ extern boolean_t zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup,
 extern boolean_t zfs_fuid_overobjquota(zfsvfs_t *zfsvfs, boolean_t isgroup,
     uint64_t fuid);
 extern int zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers);
-extern int zfsvfs_create(const char *name, zfs_mntopts_t *zmo, zfsvfs_t **zfvp);
+extern int zfsvfs_create(const char *name, zfsvfs_t **zfvp);
 extern void zfsvfs_free(zfsvfs_t *zfsvfs);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
 
 extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
-extern zfs_mntopts_t *zfs_mntopts_alloc(void);
-extern void zfs_mntopts_free(zfs_mntopts_t *zmo);
-extern int zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent);
+extern int zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent);
 extern void zfs_preumount(struct super_block *sb);
 extern int zfs_umount(struct super_block *sb);
-extern int zfs_remount(struct super_block *sb, int *flags, zfs_mntopts_t *zmo);
+extern int zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm);
 extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
 extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);
 extern int zfs_prune(struct super_block *sb, unsigned long nr_to_scan,
