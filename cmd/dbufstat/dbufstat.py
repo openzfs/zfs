@@ -577,5 +577,6 @@ def main():
     if tflag:
         print_dict(types_build_dict(sys.stdin))
 
+
 if __name__ == '__main__':
     main()
