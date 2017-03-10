@@ -829,6 +829,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			    aiov->iov_base != abuf->b_data)) {
 				ASSERT(xuio);
 				dmu_write(zsb->z_os, zp->z_id, woff,
+				    // cppcheck-suppress nullPointer
 				    aiov->iov_len, aiov->iov_base, tx);
 				dmu_return_arcbuf(abuf);
 				xuio_stat_wbuf_copied();
