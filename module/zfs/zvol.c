@@ -1215,20 +1215,29 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 
 	ASSERT(zv && zv->zv_open_count > 0);
 
-	rw_enter(&zv->zv_suspend_lock, RW_READER);
 	switch (cmd) {
 	case BLKFLSBUF:
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		fsync_bdev(bdev);
+		invalidate_bdev(bdev);
+		rw_enter(&zv->zv_suspend_lock, RW_READER);
+
+		if (dsl_dataset_is_dirty(dmu_objset_ds(zv->zv_objset)) &&
+		    !(zv->zv_flags & ZVOL_RDONLY))
+			txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
+
+		rw_exit(&zv->zv_suspend_lock);
 		break;
+
 	case BLKZNAME:
+		mutex_enter(&zvol_state_lock);
 		error = copy_to_user((void *)arg, zv->zv_name, MAXNAMELEN);
+		mutex_exit(&zvol_state_lock);
 		break;
 
 	default:
 		error = -ENOTTY;
 		break;
 	}
-	rw_exit(&zv->zv_suspend_lock);
 
 	return (SET_ERROR(error));
 }
