@@ -226,6 +226,17 @@ zfs_ratelimit_init(zfs_ratelimit_t *rl, unsigned int burst,
 }
 
 /*
+ * Finalize rate limit struct
+ *
+ * rl:		zfs_ratelimit_t struct
+ */
+void
+zfs_ratelimit_fini(zfs_ratelimit_t *rl)
+{
+	mutex_destroy(&rl->lock);
+}
+
+/*
  * Re-implementation of the kernel's __ratelimit() function
  *
  * We had to write our own rate limiter because the kernel's __ratelimit()
@@ -275,5 +286,6 @@ EXPORT_SYMBOL(zfs_zpl_version_map);
 EXPORT_SYMBOL(zfs_spa_version_map);
 EXPORT_SYMBOL(zfs_history_event_names);
 EXPORT_SYMBOL(zfs_ratelimit_init);
+EXPORT_SYMBOL(zfs_ratelimit_fini);
 EXPORT_SYMBOL(zfs_ratelimit);
 #endif

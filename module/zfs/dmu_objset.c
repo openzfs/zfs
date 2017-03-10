@@ -813,6 +813,7 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_lock);
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
+	mutex_destroy(&os->os_upgrade_lock);
 	spa_evicting_os_deregister(os->os_spa, os);
 	kmem_free(os, sizeof (objset_t));
 }

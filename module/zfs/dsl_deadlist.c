@@ -120,6 +120,7 @@ dsl_deadlist_close(dsl_deadlist_t *dl)
 	dsl_deadlist_entry_t *dle;
 
 	dl->dl_os = NULL;
+	mutex_destroy(&dl->dl_lock);
 
 	if (dl->dl_oldfmt) {
 		dl->dl_oldfmt = B_FALSE;
@@ -136,7 +137,6 @@ dsl_deadlist_close(dsl_deadlist_t *dl)
 		avl_destroy(&dl->dl_tree);
 	}
 	dmu_buf_rele(dl->dl_dbuf, dl);
-	mutex_destroy(&dl->dl_lock);
 	dl->dl_dbuf = NULL;
 	dl->dl_phys = NULL;
 }

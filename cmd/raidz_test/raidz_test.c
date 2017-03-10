@@ -729,6 +729,8 @@ exit:
 		    (ulong_t)tried_comb);
 	}
 
+	mutex_destroy(&sem_mtx);
+
 	return (sweep_state == SWEEP_ERROR ? SWEEP_ERROR : 0);
 }
 

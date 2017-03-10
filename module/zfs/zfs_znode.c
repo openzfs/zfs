@@ -1900,6 +1900,8 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 		mutex_destroy(&zsb->z_hold_locks[i]);
 	}
 
+	mutex_destroy(&zsb->z_znodes_lock);
+
 	vmem_free(zsb->z_hold_trees, sizeof (avl_tree_t) * size);
 	vmem_free(zsb->z_hold_locks, sizeof (kmutex_t) * size);
 	kmem_free(sb, sizeof (struct super_block));
