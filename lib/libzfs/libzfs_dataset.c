@@ -4018,14 +4018,19 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	}
 
 	/*
-	 * We rely on zfs_iter_children() to verify that there are no
-	 * newer snapshots for the given dataset.  Therefore, we can
-	 * simply pass the name on to the ioctl() call.  There is still
-	 * an unlikely race condition where the user has taken a
-	 * snapshot since we verified that this was the most recent.
+	 * Pass both the filesystem and the wanted snapshot names,
+	 * we would get an error back if the snapshot is destroyed or
+	 * a new snapshot is created before this request is processed.
 	 */
-	err = lzc_rollback(zhp->zfs_name, NULL, 0);
-	if (err != 0) {
+	err = lzc_rollback_to(zhp->zfs_name, snap->zfs_name);
+	if (err == EXDEV) {
+		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+		    "'%s' is not the latest snapshot"), snap->zfs_name);
+		(void) zfs_error_fmt(zhp->zfs_hdl, EZFS_BUSY,
+		    dgettext(TEXT_DOMAIN, "cannot rollback '%s'"),
+		    zhp->zfs_name);
+		return (err);
+	} else if (err != 0) {
 		(void) zfs_standard_error_fmt(zhp->zfs_hdl, errno,
 		    dgettext(TEXT_DOMAIN, "cannot rollback '%s'"),
 		    zhp->zfs_name);
