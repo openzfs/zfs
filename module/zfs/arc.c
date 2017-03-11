@@ -626,8 +626,8 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_abort_lowmem;
 	kstat_named_t arcstat_l2_cksum_bad;
 	kstat_named_t arcstat_l2_io_error;
-	kstat_named_t arcstat_l2_size;
-	kstat_named_t arcstat_l2_asize;
+	kstat_named_t arcstat_l2_lsize;
+	kstat_named_t arcstat_l2_psize;
 	kstat_named_t arcstat_l2_hdr_size;
 	kstat_named_t arcstat_memory_throttle_count;
 	kstat_named_t arcstat_memory_direct_count;
@@ -2984,19 +2984,19 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 {
 	l2arc_buf_hdr_t *l2hdr = &hdr->b_l2hdr;
 	l2arc_dev_t *dev = l2hdr->b_dev;
-	uint64_t asize = arc_hdr_size(hdr);
+	uint64_t psize = arc_hdr_size(hdr);
 
 	ASSERT(MUTEX_HELD(&dev->l2ad_mtx));
 	ASSERT(HDR_HAS_L2HDR(hdr));
 
 	list_remove(&dev->l2ad_buflist, hdr);
 
-	ARCSTAT_INCR(arcstat_l2_asize, -asize);
-	ARCSTAT_INCR(arcstat_l2_size, -HDR_GET_LSIZE(hdr));
+	ARCSTAT_INCR(arcstat_l2_psize, -psize);
+	ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
-	vdev_space_update(dev->l2ad_vdev, -asize, 0, 0);
+	vdev_space_update(dev->l2ad_vdev, -psize, 0, 0);
 
-	(void) refcount_remove_many(&dev->l2ad_alloc, asize, hdr);
+	(void) refcount_remove_many(&dev->l2ad_alloc, psize, hdr);
 	arc_hdr_clear_flags(hdr, ARC_FLAG_HAS_L2HDR);
 }
 
@@ -7007,8 +7007,8 @@ top:
 			list_remove(buflist, hdr);
 			arc_hdr_clear_flags(hdr, ARC_FLAG_HAS_L2HDR);
 
-			ARCSTAT_INCR(arcstat_l2_asize, -arc_hdr_size(hdr));
-			ARCSTAT_INCR(arcstat_l2_size, -HDR_GET_LSIZE(hdr));
+			ARCSTAT_INCR(arcstat_l2_psize, -arc_hdr_size(hdr));
+			ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
 			bytes_dropped += arc_hdr_size(hdr);
 			(void) refcount_remove_many(&dev->l2ad_alloc,
@@ -7269,7 +7269,7 @@ top:
 			/*
 			 * This doesn't exist in the ARC.  Destroy.
 			 * arc_hdr_destroy() will call list_remove()
-			 * and decrement arcstat_l2_size.
+			 * and decrement arcstat_l2_lsize.
 			 */
 			arc_change_state(arc_anon, hdr, hash_lock);
 			arc_hdr_destroy(hdr);
@@ -7311,7 +7311,7 @@ static uint64_t
 l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 {
 	arc_buf_hdr_t *hdr, *hdr_prev, *head;
-	uint64_t write_asize, write_psize, write_sz, headroom;
+	uint64_t write_asize, write_psize, write_lsize, headroom;
 	boolean_t full;
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;
@@ -7321,7 +7321,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	ASSERT3P(dev->l2ad_vdev, !=, NULL);
 
 	pio = NULL;
-	write_sz = write_asize = write_psize = 0;
+	write_lsize = write_asize = write_psize = 0;
 	full = B_FALSE;
 	head = kmem_cache_alloc(hdr_l2only_cache, KM_PUSHPAGE);
 	arc_hdr_set_flags(head, ARC_FLAG_L2_WRITE_HEAD | ARC_FLAG_HAS_L2HDR);
@@ -7352,8 +7352,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 
 		for (; hdr; hdr = hdr_prev) {
 			kmutex_t *hash_lock;
-			uint64_t asize, size;
-			abd_t *to_write;
 
 			if (arc_warm == B_FALSE)
 				hdr_prev = multilist_sublist_next(mls, hdr);
@@ -7382,7 +7380,22 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				continue;
 			}
 
-			if ((write_asize + HDR_GET_LSIZE(hdr)) > target_sz) {
+			/*
+			 * We rely on the L1 portion of the header below, so
+			 * it's invalid for this header to have been evicted out
+			 * of the ghost cache, prior to being written out. The
+			 * ARC_FLAG_L2_WRITING bit ensures this won't happen.
+			 */
+			ASSERT(HDR_HAS_L1HDR(hdr));
+
+			ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
+			ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
+			ASSERT3U(arc_hdr_size(hdr), >, 0);
+			uint64_t psize = arc_hdr_size(hdr);
+			uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev,
+			    psize);
+
+			if ((write_asize + asize) > target_sz) {
 				full = B_TRUE;
 				mutex_exit(hash_lock);
 				break;
@@ -7417,20 +7430,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			list_insert_head(&dev->l2ad_buflist, hdr);
 			mutex_exit(&dev->l2ad_mtx);
 
-			/*
-			 * We rely on the L1 portion of the header below, so
-			 * it's invalid for this header to have been evicted out
-			 * of the ghost cache, prior to being written out. The
-			 * ARC_FLAG_L2_WRITING bit ensures this won't happen.
-			 */
-			ASSERT(HDR_HAS_L1HDR(hdr));
-
-			ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
-			ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
-			ASSERT3U(arc_hdr_size(hdr), >, 0);
-			size = arc_hdr_size(hdr);
-
-			(void) refcount_add_many(&dev->l2ad_alloc, size, hdr);
+			(void) refcount_add_many(&dev->l2ad_alloc, psize, hdr);
 
 			/*
 			 * Normally the L2ARC can use the hdr's data, but if
@@ -7446,18 +7446,18 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			 * lifetime of the ZIO and be cleaned up afterwards, we
 			 * add it to the l2arc_free_on_write queue.
 			 */
-			asize = vdev_psize_to_asize(dev->l2ad_vdev, size);
-			if (!HDR_SHARED_DATA(hdr) && size == asize) {
+			abd_t *to_write;
+			if (!HDR_SHARED_DATA(hdr) && psize == asize) {
 				to_write = hdr->b_l1hdr.b_pabd;
 			} else {
 				to_write = abd_alloc_for_io(asize,
 				    HDR_ISTYPE_METADATA(hdr));
-				abd_copy(to_write, hdr->b_l1hdr.b_pabd, size);
-				if (asize != size) {
-					abd_zero_off(to_write, size,
-					    asize - size);
+				abd_copy(to_write, hdr->b_l1hdr.b_pabd, psize);
+				if (asize != psize) {
+					abd_zero_off(to_write, psize,
+					    asize - psize);
 				}
-				l2arc_free_abd_on_write(to_write, size,
+				l2arc_free_abd_on_write(to_write, asize,
 				    arc_buf_type(hdr));
 			}
 			wzio = zio_write_phys(pio, dev->l2ad_vdev,
@@ -7466,12 +7466,12 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			    ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_CANFAIL, B_FALSE);
 
-			write_sz += HDR_GET_LSIZE(hdr);
+			write_lsize += HDR_GET_LSIZE(hdr);
 			DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev,
 			    zio_t *, wzio);
 
-			write_asize += size;
-			write_psize += asize;
+			write_psize += psize;
+			write_asize += asize;
 			dev->l2ad_hand += asize;
 
 			mutex_exit(hash_lock);
@@ -7487,7 +7487,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 
 	/* No buffers selected for writing? */
 	if (pio == NULL) {
-		ASSERT0(write_sz);
+		ASSERT0(write_lsize);
 		ASSERT(!HDR_HAS_L1HDR(head));
 		kmem_cache_free(hdr_l2only_cache, head);
 		return (0);
@@ -7495,10 +7495,10 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 
 	ASSERT3U(write_asize, <=, target_sz);
 	ARCSTAT_BUMP(arcstat_l2_writes_sent);
-	ARCSTAT_INCR(arcstat_l2_write_bytes, write_asize);
-	ARCSTAT_INCR(arcstat_l2_size, write_sz);
-	ARCSTAT_INCR(arcstat_l2_asize, write_asize);
-	vdev_space_update(dev->l2ad_vdev, write_asize, 0, 0);
+	ARCSTAT_INCR(arcstat_l2_write_bytes, write_psize);
+	ARCSTAT_INCR(arcstat_l2_lsize, write_lsize);
+	ARCSTAT_INCR(arcstat_l2_psize, write_psize);
+	vdev_space_update(dev->l2ad_vdev, write_psize, 0, 0);
 
 	/*
 	 * Bump device hand to the device start if it is approaching the end.
