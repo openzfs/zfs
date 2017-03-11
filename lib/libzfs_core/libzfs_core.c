@@ -888,6 +888,9 @@ int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
  * Roll back this filesystem or volume to its most recent snapshot.
  * If snapnamebuf is not NULL, it will be filled in with the name
  * of the most recent snapshot.
+ * Note that the latest snapshot may change if a new one is concurrently
+ * created or the current one is destroyed.  lzc_rollback_to can be used
+ * to roll back to a specific latest snapshot.
  *
  * Return 0 on success or an errno on failure.
  */
@@ -907,6 +910,27 @@ lzc_rollback(const char *fsname, char *snapnamebuf, int snapnamelen)
 	}
 	nvlist_free(result);
 
+	return (err);
+}
+
+/*
+ * Roll back this filesystem or volume to the specified snapshot,
+ * if possible.
+ *
+ * Return 0 on success or an errno on failure.
+ */
+int
+lzc_rollback_to(const char *fsname, const char *snapname)
+{
+	nvlist_t *args;
+	nvlist_t *result;
+	int err;
+
+	args = fnvlist_alloc();
+	fnvlist_add_string(args, "target", snapname);
+	err = lzc_ioctl(ZFS_IOC_ROLLBACK, fsname, args, &result);
+	nvlist_free(args);
+	nvlist_free(result);
 	return (err);
 }
 
