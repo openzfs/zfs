@@ -33,7 +33,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_INODE_TRUNCATE_RANGE
 	SPL_AC_FS_STRUCT_SPINLOCK
 	SPL_AC_KUIDGID_T
-	SPL_AC_PUT_TASK_STRUCT
 	SPL_AC_KERNEL_FALLOCATE
 	SPL_AC_CONFIG_ZLIB_INFLATE
 	SPL_AC_CONFIG_ZLIB_DEFLATE
@@ -1081,25 +1080,6 @@ AC_DEFUN([SPL_AC_KUIDGID_T], [
 			AC_DEFINE(HAVE_KUIDGID_T, 1, [kuid_t/kgid_t in use])
 		])
 	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.39 API change,
-dnl # __put_task_struct() was exported by the mainline kernel.
-dnl #
-AC_DEFUN([SPL_AC_PUT_TASK_STRUCT],
-	[AC_MSG_CHECKING([whether __put_task_struct() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/sched.h>
-	], [
-		__put_task_struct(NULL);
-	], [__put_task_struct], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PUT_TASK_STRUCT, 1,
-		          [__put_task_struct() is available])
-	], [
 		AC_MSG_RESULT(no)
 	])
 ])
