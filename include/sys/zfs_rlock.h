@@ -50,7 +50,7 @@ typedef struct zfs_rlock {
 	avl_tree_t zr_avl;	/* avl tree of range locks */
 	uint64_t *zr_size;	/* points to znode->z_size */
 	uint_t *zr_blksz;	/* points to znode->z_blksz */
-	uint64_t *zr_max_blksz; /* points to zsb->z_max_blksz */
+	uint64_t *zr_max_blksz; /* points to zfsvfs->z_max_blksz */
 } zfs_rlock_t;
 
 typedef struct rl {
