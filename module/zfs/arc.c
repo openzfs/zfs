@@ -4407,15 +4407,15 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 #else
 		pages = btop(arc_evictable_memory());
 #endif
+		/*
+		 * We've shrunk what we can, wake up threads.
+		 */
+		cv_broadcast(&arc_reclaim_waiters_cv);
+
 	} else {
 		arc_kmem_reap_now();
 		pages = SHRINK_STOP;
 	}
-
-	/*
-	 * We've reaped what we can, wake up threads.
-	 */
-	cv_broadcast(&arc_reclaim_waiters_cv);
 
 	/*
 	 * When direct reclaim is observed it usually indicates a rapid
