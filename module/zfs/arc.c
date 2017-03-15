@@ -4387,8 +4387,10 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		return (SHRINK_STOP);
 
 	/* Reclaim in progress */
-	if (mutex_tryenter(&arc_reclaim_lock) == 0)
+	if (mutex_tryenter(&arc_reclaim_lock) == 0) {
+		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
 		return (SHRINK_STOP);
+	}
 
 	mutex_exit(&arc_reclaim_lock);
 
@@ -4426,7 +4428,6 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		arc_no_grow = B_TRUE;
-		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
 	}
 
