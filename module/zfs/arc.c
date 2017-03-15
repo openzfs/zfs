@@ -4220,7 +4220,7 @@ arc_reclaim_thread(void)
 	while (!arc_reclaim_thread_exit) {
 		int64_t to_free;
 		uint64_t evicted = 0;
-
+		uint64_t need_free = arc_need_free;
 		arc_tuning_update();
 
 		/*
@@ -4270,7 +4270,7 @@ arc_reclaim_thread(void)
 			to_free = (arc_c >> arc_shrink_shift) - free_memory;
 			if (to_free > 0) {
 #ifdef _KERNEL
-				to_free = MAX(to_free, arc_need_free);
+				to_free = MAX(to_free, need_free);
 #endif
 				arc_shrink(to_free);
 			}
@@ -4295,11 +4295,12 @@ arc_reclaim_thread(void)
 			/*
 			 * We're either no longer overflowing, or we
 			 * can't evict anything more, so we should wake
-			 * up any threads before we go to sleep and clear
-			 * arc_need_free since nothing more can be done.
+			 * up any threads before we go to sleep and remove
+			 * the bytes we were working on from arc_need_free
+			 * since nothing more will be done here.
 			 */
 			cv_broadcast(&arc_reclaim_waiters_cv);
-			arc_need_free = 0;
+			ARCSTAT_INCR(arcstat_need_free, -need_free);
 
 			/*
 			 * Block until signaled, or after one second (we
@@ -4452,7 +4453,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		arc_no_grow = B_TRUE;
-		arc_need_free = ptob(sc->nr_to_scan);
+		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
 	}
 
