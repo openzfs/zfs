@@ -4396,12 +4396,12 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 
 	/*
 	 * Evict the requested number of pages by shrinking arc_c the
-	 * requested amount.  If there is nothing left to evict just
-	 * reap whatever we can from the various arc slabs.
+	 * requested amount.
 	 */
 	if (pages > 0) {
 		arc_shrink(ptob(sc->nr_to_scan));
-		arc_kmem_reap_now();
+		if (current_is_kswapd())
+			arc_kmem_reap_now();
 #ifdef HAVE_SPLIT_SHRINKER_CALLBACK
 		pages = MAX(pages - btop(arc_evictable_memory()), 0);
 #else
@@ -4412,10 +4412,8 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		 */
 		cv_broadcast(&arc_reclaim_waiters_cv);
 
-	} else {
-		arc_kmem_reap_now();
+	} else
 		pages = SHRINK_STOP;
-	}
 
 	/*
 	 * When direct reclaim is observed it usually indicates a rapid
@@ -4428,6 +4426,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		arc_no_grow = B_TRUE;
+		arc_kmem_reap_now();
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
 	}
 
