@@ -133,6 +133,7 @@ $(MODULE)-objs += zpl_inode.o
 $(MODULE)-objs += zpl_super.o
 $(MODULE)-objs += zpl_xattr.o
 $(MODULE)-objs += zrlock.o
+$(MODULE)-objs += zthr.o
 $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o

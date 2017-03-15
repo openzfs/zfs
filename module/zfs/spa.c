@@ -1400,6 +1400,12 @@ spa_unload(spa_t *spa)
 		spa->spa_vdev_removal = NULL;
 	}
 
+	if (spa->spa_condense_zthr != NULL) {
+		ASSERT(!zthr_isrunning(spa->spa_condense_zthr));
+		zthr_destroy(spa->spa_condense_zthr);
+		spa->spa_condense_zthr = NULL;
+	}
+
 	spa_condense_fini(spa);
 
 	bpobj_close(&spa->spa_deferred_bpobj);
@@ -2178,6 +2184,16 @@ spa_vdev_err(vdev_t *vdev, vdev_aux_t aux, int err)
 {
 	vdev_set_state(vdev, B_TRUE, VDEV_STATE_CANT_OPEN, aux);
 	return (SET_ERROR(err));
+}
+
+static void
+spa_spawn_aux_threads(spa_t *spa)
+{
+	ASSERT(spa_writeable(spa));
+
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	spa_start_indirect_condensing_thread(spa);
 }
 
 /*
@@ -3244,18 +3260,6 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		int need_update = B_FALSE;
 		dsl_pool_t *dp = spa_get_dsl(spa);
 
-		/*
-		 * We must check this before we start the sync thread, because
-		 * we only want to start a condense thread for condense
-		 * operations that were in progress when the pool was
-		 * imported.  Once we start syncing, spa_sync() could
-		 * initiate a condense (and start a thread for it).  In
-		 * that case it would be wrong to start a second
-		 * condense thread.
-		 */
-		boolean_t condense_in_progress =
-		    (spa->spa_condensing_indirect != NULL);
-
 		ASSERT(state != SPA_LOAD_TRYIMPORT);
 
 		/*
@@ -3336,15 +3340,9 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		 */
 		dsl_pool_clean_tmp_userrefs(spa->spa_dsl_pool);
 
-		/*
-		 * Note: unlike condensing, we don't need an analogous
-		 * "removal_in_progress" dance because no other thread
-		 * can start a removal while we hold the spa_namespace_lock.
-		 */
 		spa_restart_removal(spa);
 
-		if (condense_in_progress)
-			spa_condense_indirect_restart(spa);
+		spa_spawn_aux_threads(spa);
 	}
 
 	return (0);
@@ -4352,6 +4350,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	if (dp->dp_root_dir->dd_crypto_obj != 0)
 		VERIFY0(spa_keystore_remove_mapping(spa, root_dsobj, FTAG));
+
+	spa_spawn_aux_threads(spa);
 
 	spa_write_cachefile(spa, B_FALSE, B_TRUE);
 
@@ -6059,12 +6059,15 @@ spa_async_suspend(spa_t *spa)
 {
 	mutex_enter(&spa->spa_async_lock);
 	spa->spa_async_suspended++;
-	while (spa->spa_async_thread != NULL ||
-	    spa->spa_condense_thread != NULL)
+	while (spa->spa_async_thread != NULL)
 		cv_wait(&spa->spa_async_cv, &spa->spa_async_lock);
 	mutex_exit(&spa->spa_async_lock);
 
 	spa_vdev_remove_suspend(spa);
+
+	zthr_t *condense_thread = spa->spa_condense_zthr;
+	if (condense_thread != NULL && zthr_isrunning(condense_thread))
+		VERIFY0(zthr_cancel(condense_thread));
 }
 
 void
@@ -6075,6 +6078,10 @@ spa_async_resume(spa_t *spa)
 	spa->spa_async_suspended--;
 	mutex_exit(&spa->spa_async_lock);
 	spa_restart_removal(spa);
+
+	zthr_t *condense_thread = spa->spa_condense_zthr;
+	if (condense_thread != NULL && !zthr_isrunning(condense_thread))
+		zthr_resume(condense_thread);
 }
 
 static boolean_t
