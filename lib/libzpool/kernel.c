@@ -1276,6 +1276,12 @@ __spl_pf_fstrans_check(void)
 	return (0);
 }
 
+int
+kmem_cache_reap_active(void)
+{
+	return (0);
+}
+
 void *zvol_tag = "zvol_tag";
 
 void
