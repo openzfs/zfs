@@ -45,6 +45,7 @@
 #include <sys/bpobj.h>
 #include <sys/dsl_crypt.h>
 #include <sys/zfeature.h>
+#include <sys/zthr.h>
 #include <zfeature_common.h>
 
 #ifdef	__cplusplus
@@ -268,7 +269,7 @@ struct spa {
 
 	spa_condensing_indirect_phys_t	spa_condensing_indirect_phys;
 	spa_condensing_indirect_t	*spa_condensing_indirect;
-	kthread_t	*spa_condense_thread;	/* thread doing condense. */
+	zthr_t		*spa_condense_zthr;	/* zthr doing condense. */
 
 	char		*spa_root;		/* alternate root directory */
 	uint64_t	spa_ena;		/* spa-wide ereport ENA */

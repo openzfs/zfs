@@ -31,6 +31,8 @@
 #include <sys/dmu_tx.h>
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>
+#include <sys/abd.h>
+#include <sys/zthr.h>
 
 /*
  * An indirect vdev corresponds to a vdev that has been removed.  Since
@@ -569,7 +571,7 @@ spa_condense_indirect_commit_entry(spa_t *spa,
 
 static void
 spa_condense_indirect_generate_new_mapping(vdev_t *vd,
-    uint32_t *obsolete_counts, uint64_t start_index)
+    uint32_t *obsolete_counts, uint64_t start_index, zthr_t *zthr)
 {
 	spa_t *spa = vd->vdev_spa;
 	uint64_t mapi = start_index;
@@ -584,7 +586,15 @@ spa_condense_indirect_generate_new_mapping(vdev_t *vd,
 	    (u_longlong_t)vd->vdev_id,
 	    (u_longlong_t)mapi);
 
-	while (mapi < old_num_entries && !spa_shutting_down(spa)) {
+	while (mapi < old_num_entries) {
+
+		if (zthr_iscancelled(zthr)) {
+			zfs_dbgmsg("pausing condense of vdev %llu "
+			    "at index %llu", (u_longlong_t)vd->vdev_id,
+			    (u_longlong_t)mapi);
+			break;
+		}
+
 		vdev_indirect_mapping_entry_phys_t *entry =
 		    &old_mapping->vim_entries[mapi];
 		uint64_t entry_size = DVA_GET_ASIZE(&entry->vimep_dst);
@@ -605,18 +615,30 @@ spa_condense_indirect_generate_new_mapping(vdev_t *vd,
 
 		mapi++;
 	}
-	if (spa_shutting_down(spa)) {
-		zfs_dbgmsg("pausing condense of vdev %llu at index %llu",
-		    (u_longlong_t)vd->vdev_id,
-		    (u_longlong_t)mapi);
-	}
 }
 
-static void
-spa_condense_indirect_thread(void *arg)
+/* ARGSUSED */
+static boolean_t
+spa_condense_indirect_thread_check(void *arg, zthr_t *zthr)
 {
-	vdev_t *vd = arg;
-	spa_t *spa = vd->vdev_spa;
+	spa_t *spa = arg;
+
+	return (spa->spa_condensing_indirect != NULL);
+}
+
+/* ARGSUSED */
+static int
+spa_condense_indirect_thread(void *arg, zthr_t *zthr)
+{
+	spa_t *spa = arg;
+	vdev_t *vd;
+
+	ASSERT3P(spa->spa_condensing_indirect, !=, NULL);
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	vd = vdev_lookup_top(spa, spa->spa_condensing_indirect_phys.scip_vdev);
+	ASSERT3P(vd, !=, NULL);
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
 	spa_condensing_indirect_t *sci = spa->spa_condensing_indirect;
 	spa_condensing_indirect_phys_t *scip =
 	    &spa->spa_condensing_indirect_phys;
@@ -690,25 +712,24 @@ spa_condense_indirect_thread(void *arg)
 		}
 	}
 
-	spa_condense_indirect_generate_new_mapping(vd, counts, start_index);
+	spa_condense_indirect_generate_new_mapping(vd, counts,
+	    start_index, zthr);
 
 	vdev_indirect_mapping_free_obsolete_counts(old_mapping, counts);
 
 	/*
-	 * We may have bailed early from generate_new_mapping(), if
-	 * the spa is shutting down.  In this case, do not complete
-	 * the condense.
+	 * If the zthr has received a cancellation signal while running
+	 * in generate_new_mapping() or at any point after that, then bail
+	 * early. We don't want to complete the condense if the spa is
+	 * shutting down.
 	 */
-	if (!spa_shutting_down(spa)) {
-		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-		    spa_condense_indirect_complete_sync, sci, 0,
-		    ZFS_SPACE_CHECK_NONE));
-	}
+	if (zthr_iscancelled(zthr))
+		return (0);
 
-	mutex_enter(&spa->spa_async_lock);
-	spa->spa_condense_thread = NULL;
-	cv_broadcast(&spa->spa_async_cv);
-	mutex_exit(&spa->spa_async_lock);
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+	    spa_condense_indirect_complete_sync, sci, 0, ZFS_SPACE_CHECK_NONE));
+
+	return (0);
 }
 
 /*
@@ -761,9 +782,7 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 	    (u_longlong_t)scip->scip_prev_obsolete_sm_object,
 	    (u_longlong_t)scip->scip_next_mapping_object);
 
-	ASSERT3P(spa->spa_condense_thread, ==, NULL);
-	spa->spa_condense_thread = thread_create(NULL, 0,
-	    spa_condense_indirect_thread, vd, 0, &p0, TS_RUN, minclsyspri);
+	zthr_wakeup(spa->spa_condense_zthr);
 }
 
 /*
@@ -840,24 +859,12 @@ spa_condense_fini(spa_t *spa)
 	}
 }
 
-/*
- * Restart the condense - called when the pool is opened.
- */
 void
-spa_condense_indirect_restart(spa_t *spa)
+spa_start_indirect_condensing_thread(spa_t *spa)
 {
-	vdev_t *vd;
-	ASSERT(spa->spa_condensing_indirect != NULL);
-	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
-	vd = vdev_lookup_top(spa,
-	    spa->spa_condensing_indirect_phys.scip_vdev);
-	ASSERT(vd != NULL);
-	spa_config_exit(spa, SCL_VDEV, FTAG);
-
-	ASSERT3P(spa->spa_condense_thread, ==, NULL);
-	spa->spa_condense_thread = thread_create(NULL, 0,
-	    spa_condense_indirect_thread, vd, 0, &p0, TS_RUN,
-	    minclsyspri);
+	ASSERT3P(spa->spa_condense_zthr, ==, NULL);
+	spa->spa_condense_zthr = zthr_create(spa_condense_indirect_thread_check,
+	    spa_condense_indirect_thread, spa);
 }
 
 /*
@@ -1612,7 +1619,7 @@ vdev_ops_t vdev_indirect_ops = {
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(rs_alloc);
 EXPORT_SYMBOL(spa_condense_fini);
-EXPORT_SYMBOL(spa_condense_indirect_restart);
+EXPORT_SYMBOL(spa_start_indirect_condensing_thread);
 EXPORT_SYMBOL(spa_condense_indirect_start_sync);
 EXPORT_SYMBOL(spa_condense_init);
 EXPORT_SYMBOL(spa_vdev_indirect_mark_obsolete);

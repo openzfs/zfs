@@ -147,7 +147,8 @@ KERNEL_C = \
 	zio_crypt.c \
 	zio_inject.c \
 	zle.c \
-	zrlock.c
+	zrlock.c \
+	zthr.c
 
 LUA_C = \
 	lapi.c \

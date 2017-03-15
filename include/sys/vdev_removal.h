@@ -76,7 +76,7 @@ extern int spa_remove_init(spa_t *);
 extern void spa_restart_removal(spa_t *);
 extern int spa_condense_init(spa_t *);
 extern void spa_condense_fini(spa_t *);
-extern void spa_condense_indirect_restart(spa_t *);
+extern void spa_start_indirect_condensing_thread(spa_t *);
 extern void spa_vdev_condense_suspend(spa_t *);
 extern int spa_vdev_remove(spa_t *, uint64_t, boolean_t);
 extern void free_from_removing_vdev(vdev_t *, uint64_t, uint64_t, uint64_t);
