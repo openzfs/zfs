@@ -4389,7 +4389,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	/* Reclaim in progress */
 	if (mutex_tryenter(&arc_reclaim_lock) == 0) {
 		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
-		return (SHRINK_STOP);
+		return (0);
 	}
 
 	mutex_exit(&arc_reclaim_lock);
