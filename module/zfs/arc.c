@@ -319,6 +319,11 @@ static int		arc_p_min_shift = 4;
 /* log2(fraction of arc to reclaim) */
 static int		arc_shrink_shift = 7;
 
+/* percent of pagecache to reclaim arc to */
+#ifdef _KERNEL
+static uint_t		zfs_arc_pc_percent = 0;
+#endif
+
 /*
  * log2(fraction of ARC which must be free to allow growing).
  * I.e. If there is less than arc_c >> arc_no_grow_shift free memory,
@@ -4377,10 +4382,18 @@ arc_evictable_memory(void)
 	    refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
 	uint64_t arc_dirty = MAX((int64_t)arc_size - (int64_t)arc_clean, 0);
 
-	if (arc_dirty >= arc_c_min)
+	/*
+	 * Scale reported evictable memory in proportion to page cache, cap
+	 * at specified min/max.
+	 */
+	uint64_t min = (ptob(global_page_state(NR_FILE_PAGES)) / 100) *
+	    zfs_arc_pc_percent;
+	min = MAX(arc_c_min, MIN(arc_c_max, min));
+
+	if (arc_dirty >= min)
 		return (arc_clean);
 
-	return (MAX((int64_t)arc_size - (int64_t)arc_c_min, 0));
+	return (MAX((int64_t)arc_size - (int64_t)min, 0));
 }
 
 /*
@@ -7753,6 +7766,10 @@ MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
 
 module_param(zfs_arc_shrink_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
+
+module_param(zfs_arc_pc_percent, uint, 0644);
+MODULE_PARM_DESC(zfs_arc_pc_percent,
+	"Percent of pagecache to reclaim arc to");
 
 module_param(zfs_arc_p_min_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
