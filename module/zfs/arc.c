@@ -4403,7 +4403,8 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		if (current_is_kswapd())
 			arc_kmem_reap_now();
 #ifdef HAVE_SPLIT_SHRINKER_CALLBACK
-		pages = MAX(pages - btop(arc_evictable_memory()), 0);
+		pages = MAX((int64_t)pages -
+		    (int64_t)btop(arc_evictable_memory()), 0);
 #else
 		pages = btop(arc_evictable_memory());
 #endif
@@ -4411,7 +4412,6 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		 * We've shrunk what we can, wake up threads.
 		 */
 		cv_broadcast(&arc_reclaim_waiters_cv);
-
 	} else
 		pages = SHRINK_STOP;
 
