@@ -1468,6 +1468,9 @@ zvol_alloc(dev_t dev, const char *name)
 	blk_queue_make_request(zv->zv_queue, zvol_request);
 	blk_queue_set_write_cache(zv->zv_queue, B_TRUE, B_TRUE);
 
+	/* Disable write merging in favor of the ZIO pipeline. */
+	queue_flag_set(QUEUE_FLAG_NOMERGES, zv->zv_queue);
+
 	zv->zv_disk = alloc_disk(ZVOL_MINORS);
 	if (zv->zv_disk == NULL)
 		goto out_queue;
