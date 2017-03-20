@@ -1625,11 +1625,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN));
 
 	ASSERT3U(dn->dn_nlevels, >, db->db_level);
-	ASSERT((dn->dn_phys->dn_nlevels == 0 && db->db_level == 0) ||
-	    dn->dn_phys->dn_nlevels > db->db_level ||
-	    dn->dn_next_nlevels[txgoff] > db->db_level ||
-	    dn->dn_next_nlevels[(tx->tx_txg-1) & TXG_MASK] > db->db_level ||
-	    dn->dn_next_nlevels[(tx->tx_txg-2) & TXG_MASK] > db->db_level);
 
 	/*
 	 * We should only be dirtying in syncing context if it's the
@@ -1746,6 +1741,16 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		drop_struct_lock = TRUE;
 	}
+
+	/*
+	 * We need to hold the dn_struct_rwlock to make this assertion,
+	 * because it protects dn_phys / dn_next_nlevels from changing.
+	 */
+	ASSERT((dn->dn_phys->dn_nlevels == 0 && db->db_level == 0) ||
+	    dn->dn_phys->dn_nlevels > db->db_level ||
+	    dn->dn_next_nlevels[txgoff] > db->db_level ||
+	    dn->dn_next_nlevels[(tx->tx_txg-1) & TXG_MASK] > db->db_level ||
+	    dn->dn_next_nlevels[(tx->tx_txg-2) & TXG_MASK] > db->db_level);
 
 	/*
 	 * If we are overwriting a dedup BP, then unless it is snapshotted,
