@@ -3568,6 +3568,7 @@ int
 zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 {
 	zfs_cmd_t zc = {"\0"};
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	uint64_t count;
 	zbookmark_phys_t *zb = NULL;
 	int i;
@@ -3581,9 +3582,8 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	    &count) == 0);
 	if (count == 0)
 		return (0);
-	if ((zc.zc_nvlist_dst = (uintptr_t)zfs_alloc(zhp->zpool_hdl,
-	    count * sizeof (zbookmark_phys_t))) == (uintptr_t)NULL)
-		return (-1);
+	zc.zc_nvlist_dst = (uintptr_t)zfs_alloc(zhp->zpool_hdl,
+	    count * sizeof (zbookmark_phys_t));
 	zc.zc_nvlist_dst_size = count;
 	(void) strcpy(zc.zc_name, zhp->zpool_name);
 	for (;;) {
@@ -3596,11 +3596,11 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 				count = zc.zc_nvlist_dst_size;
 				dst = zfs_alloc(zhp->zpool_hdl, count *
 				    sizeof (zbookmark_phys_t));
-				if (dst == NULL)
-					return (-1);
 				zc.zc_nvlist_dst = (uintptr_t)dst;
 			} else {
-				return (-1);
+				return (zpool_standard_error_fmt(hdl, errno,
+				    dgettext(TEXT_DOMAIN, "errors: List of "
+				    "errors unavailable")));
 			}
 		} else {
 			break;
