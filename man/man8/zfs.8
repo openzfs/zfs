@@ -175,7 +175,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR|\fIbookmark\fR] \fIsnapshot\fR
 .fi
 
 .LP
@@ -699,9 +699,10 @@ The \fBuserused@\fR... properties are not displayed by \fBzfs get all\fR. The us
 \fISID numeric ID\fR (for example, \fBS-1-123-456-789\fR)
 .RE
 .RE
-Files created on Linux always have POSIX owners.
-
 .RS 4n
+.sp
+Files created on Linux always have POSIX owners.
+.sp
 The \fBuserobjused\fR is similar to \fBuserused\fR but instead it counts the number of objects consumed by \fIuser\fR. This feature doesn't count the internal objects used by ZFS, therefore it may under count a few objects comparing with the results of third-party tool such as \fBdfs -i\fR.
 When the property \fBxattr=on\fR is set on a fileset, ZFS will create additional objects per-file to store extended attributes. These additional objects are reflected in the \fBuserobjused\fR value and are counted against the user's \fBuserobjquota\fR. When a filesystem is configured to use \fBxattr=sa\fR no additional internal objects are required.
 .RE
@@ -2724,7 +2725,7 @@ See \fBzpool-features\fR(5) for details on ZFS feature flags and the
 .sp
 .ne 2
 .na
-\fBzfs send\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs send\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR|\fIbookmark\fR] \fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2732,11 +2733,11 @@ Creates a stream representation of the (second, if \fB-i\fR is specified) \fIsna
 .sp
 .ne 2
 .na
-\fB\fB-i\fR \fIsnapshot\fR\fR
+\fB\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR
 .ad
 .sp .6
 .RS 4n
-Generate an incremental stream from the first \fIsnapshot\fR (the incremental source) to the second \fIsnapshot\fR (the incremental target).  The incremental source can be specified as the last component of the snapshot name (the \fB@\fR character and following) and it is assumed to be from the same file system as the incremental target.
+Generate an incremental stream from the first \fIsnapshot\fR or \fIbookmark\fR (the incremental source) to the second \fIsnapshot\fR (the incremental target).  The incremental source can be specified as the last component of the snapshot name (the \fB@\fR or \fB#\fR character and following) and it is assumed to be from the same file system as the incremental target.
 .sp
 If the destination is a clone, the source may be the origin snapshot, which must be fully specified (for example, \fBpool/fs@origin\fR, not just \fB@origin\fR).
 .RE
@@ -2748,7 +2749,7 @@ If the destination is a clone, the source may be the origin snapshot, which must
 .ad
 .sp .6
 .RS 4n
-Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source may be specified as with the \fB-i\fR option.
+Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source may be specified as with the \fB-i\fR option. At this time bookmarks are not supported when using \fB-I\fR.
 .RE
 
 .sp
