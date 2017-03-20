@@ -915,7 +915,18 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	VERIFY(sa_replace_all_by_template(sa_hdl, sa_attrs, cnt, tx) == 0);
 
 	if (!(flag & IS_ROOT_NODE)) {
-		*zpp = zfs_znode_alloc(zfsvfs, db, 0, obj_type, obj, sa_hdl);
+		/*
+		 * The call to zfs_znode_alloc() may fail if memory is low
+		 * via the call path: alloc_inode() -> inode_init_always() ->
+		 * security_inode_alloc() -> inode_alloc_security().  Since
+		 * the existing code is written such that zfs_mknode() can
+		 * not fail retry until sufficient memory has been reclaimed.
+		 */
+		do {
+			*zpp = zfs_znode_alloc(zfsvfs, db, 0, obj_type, obj,
+			    sa_hdl);
+		} while (*zpp == NULL);
+
 		VERIFY(*zpp != NULL);
 		VERIFY(dzp != NULL);
 	} else {
