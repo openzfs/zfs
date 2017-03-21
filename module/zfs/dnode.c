@@ -1421,6 +1421,9 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	 */
 	dmu_objset_userquota_get_ids(dn, B_TRUE, tx);
 
+	if (list_link_active(&dn->dn_dirty_link[txg & TXG_MASK]))
+		return;
+
 	mutex_enter(&os->os_lock);
 
 	/*
