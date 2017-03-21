@@ -846,7 +846,8 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_userused_lock);
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
-	for (int i = 0; i < TXG_SIZE; i++) {
+        int i = 0;
+	for (i; i < TXG_SIZE; i++) {
 		multilist_destroy(os->os_dirty_dnodes[i]);
 	}
 	spa_evicting_os_deregister(os->os_spa, os);
@@ -1367,7 +1368,8 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		}
 	}
 
-	for (int i = 0;
+	int i = 0;
+	for (i;
 	    i < multilist_get_num_sublists(os->os_dirty_dnodes[txgoff]); i++) {
 		sync_dnodes_arg_t *sda = kmem_alloc(sizeof (*sda), KM_SLEEP);
 		sda->sda_list = os->os_dirty_dnodes[txgoff];
@@ -1640,7 +1642,8 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
 	}
 
-	for (int i = 0;
+	int i = 0;
+	for (i;
 	    i < multilist_get_num_sublists(os->os_synced_dnodes); i++) {
 		userquota_updates_arg_t *uua =
 		    kmem_alloc(sizeof (*uua), KM_SLEEP);

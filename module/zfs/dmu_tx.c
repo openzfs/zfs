@@ -224,6 +224,7 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 {
 	dnode_t *dn = txh->txh_dnode;
 	int err = 0;
+	uint64_t i = 0;
 
 	if (len == 0)
 		return;
@@ -276,7 +277,7 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		/* level-1 blocks */
 		if (dn->dn_nlevels > 1) {
 			int shft = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
-			for (uint64_t i = (start >> shft) + 1;
+			for (i = (start >> shft) + 1;
 			    i < end >> shft; i++) {
 				err = dmu_tx_check_ioerr(zio, dn, 1, i);
 				if (err != 0) {
@@ -857,6 +858,7 @@ static int
 dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
+	dmu_tx_hold_t *txh;
 
 	ASSERT0(tx->tx_txg);
 
@@ -902,7 +904,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 
 	uint64_t towrite = 0;
 	uint64_t tohold = 0;
-	for (dmu_tx_hold_t *txh = list_head(&tx->tx_holds); txh != NULL;
+	for (txh = list_head(&tx->tx_holds); txh != NULL;
 	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
 		if (dn != NULL) {
@@ -943,6 +945,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 static void
 dmu_tx_unassign(dmu_tx_t *tx)
 {
+	dmu_tx_hold_t *txh;
 	if (tx->tx_txg == 0)
 		return;
 
@@ -952,7 +955,7 @@ dmu_tx_unassign(dmu_tx_t *tx)
 	 * Walk the transaction's hold list, removing the hold on the
 	 * associated dnode, and notifying waiters if the refcount drops to 0.
 	 */
-	for (dmu_tx_hold_t *txh = list_head(&tx->tx_holds);
+	for (txh = list_head(&tx->tx_holds);
 	    txh && txh != tx->tx_needassign_txh;
 	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
@@ -1224,10 +1227,11 @@ dmu_tx_do_callbacks(list_t *cb_list, int error)
 static void
 dmu_tx_sa_registration_hold(sa_os_t *sa, dmu_tx_t *tx)
 {
+	int i = 0;
 	if (!sa->sa_need_attr_registration)
 		return;
 
-	for (int i = 0; i != sa->sa_num_attrs; i++) {
+	for (i; i != sa->sa_num_attrs; i++) {
 		if (!sa->sa_attr_table[i].sa_registered) {
 			if (sa->sa_reg_attr_obj)
 				dmu_tx_hold_zap(tx, sa->sa_reg_attr_obj,
