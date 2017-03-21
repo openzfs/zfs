@@ -177,7 +177,7 @@ find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
 	return (zhp);
 }
 
-#ifdef _HAS_FMD_TOPO
+#ifdef HAVE_LIBTOPO
 static int
 search_pool(zpool_handle_t *zhp, void *data)
 {
@@ -218,7 +218,7 @@ find_by_fru(libzfs_handle_t *zhdl, const char *fru, nvlist_t **vdevp)
 	*vdevp = cb.cb_vdev;
 	return (cb.cb_zhp);
 }
-#endif /* _HAS_FMD_TOPO */
+#endif /* HAVE_LIBTOPO */
 
 /*
  * Given a vdev, attempt to replace it with every known spare until one
@@ -289,7 +289,7 @@ zfs_vdev_repair(fmd_hdl_t *hdl, nvlist_t *nvl)
 	zfs_retire_data_t *zdp = fmd_hdl_getspecific(hdl);
 	zfs_retire_repaired_t *zrp;
 	uint64_t pool_guid, vdev_guid;
-#ifdef _HAS_FMD_TOPO
+#ifdef HAVE_LIBTOPO
 	nvlist_t *asru;
 #endif
 
@@ -315,7 +315,7 @@ zfs_vdev_repair(fmd_hdl_t *hdl, nvlist_t *nvl)
 			return;
 	}
 
-#ifdef _HAS_FMD_TOPO
+#ifdef HAVE_LIBTOPO
 	asru = fmd_nvl_alloc(hdl, FMD_SLEEP);
 
 	(void) nvlist_add_uint8(asru, FM_VERSION, ZFS_SCHEME_VERSION0);
@@ -477,7 +477,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		}
 
 		if (is_disk) {
-#ifdef _HAS_FMD_TOPO
+#ifdef HAVE_LIBTOPO
 			/*
 			 * This is a disk fault.  Lookup the FRU, convert it to
 			 * an FMRI string, and attempt to find a matching vdev.
