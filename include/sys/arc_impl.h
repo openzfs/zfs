@@ -70,7 +70,7 @@ typedef struct arc_state {
 	/*
 	 * list of evictable buffers
 	 */
-	multilist_t arcs_list[ARC_BUFC_NUMTYPES];
+	multilist_t *arcs_list[ARC_BUFC_NUMTYPES];
 	/*
 	 * total amount of evictable data in this state
 	 */

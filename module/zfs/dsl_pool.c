@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
@@ -132,6 +132,11 @@ unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 hrtime_t zfs_throttle_delay = MSEC2NSEC(10);
 hrtime_t zfs_throttle_resolution = MSEC2NSEC(10);
 
+/*
+ * This determines the number of threads used by the dp_sync_taskq.
+ */
+int zfs_sync_taskq_batch_pct = 75;
+
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
 {
@@ -167,6 +172,10 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	    offsetof(dsl_dir_t, dd_dirty_link));
 	txg_list_create(&dp->dp_sync_tasks,
 	    offsetof(dsl_sync_task_t, dst_node));
+
+	dp->dp_sync_taskq = taskq_create("dp_sync_taskq",
+	    zfs_sync_taskq_batch_pct, minclsyspri, 1, INT_MAX,
+	    TASKQ_THREADS_CPU_PCT);
 
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
@@ -325,6 +334,8 @@ dsl_pool_close(dsl_pool_t *dp)
 	txg_list_destroy(&dp->dp_dirty_zilogs);
 	txg_list_destroy(&dp->dp_sync_tasks);
 	txg_list_destroy(&dp->dp_dirty_dirs);
+
+	taskq_destroy(dp->dp_sync_taskq);
 
 	/*
 	 * We can't set retry to TRUE since we're explicitly specifying
@@ -514,12 +525,15 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 
 	/*
 	 * After the data blocks have been written (ensured by the zio_wait()
-	 * above), update the user/group space accounting.
+	 * above), update the user/group space accounting.  This happens
+	 * in tasks dispatched to dp_sync_taskq, so wait for them before
+	 * continuing.
 	 */
 	for (ds = list_head(&synced_datasets); ds != NULL;
 	    ds = list_next(&synced_datasets, ds)) {
 		dmu_objset_do_userquota_updates(ds->ds_objset, tx);
 	}
+	taskq_wait(dp->dp_sync_taskq);
 
 	/*
 	 * Sync the datasets again to push out the changes due to
@@ -567,8 +581,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		dp->dp_mos_uncompressed_delta = 0;
 	}
 
-	if (list_head(&mos->os_dirty_dnodes[txg & TXG_MASK]) != NULL ||
-	    list_head(&mos->os_free_dnodes[txg & TXG_MASK]) != NULL) {
+	if (!multilist_is_empty(mos->os_dirty_dnodes[txg & TXG_MASK])) {
 		dsl_pool_sync_mos(dp, tx);
 	}
 
@@ -619,7 +632,8 @@ int
 dsl_pool_sync_context(dsl_pool_t *dp)
 {
 	return (curthread == dp->dp_tx.tx_sync_thread ||
-	    spa_is_initializing(dp->dp_spa));
+	    spa_is_initializing(dp->dp_spa) ||
+	    taskq_member(dp->dp_sync_taskq, curthread));
 }
 
 uint64_t
@@ -1116,5 +1130,9 @@ MODULE_PARM_DESC(zfs_dirty_data_sync, "sync txg when this much dirty data");
 
 module_param(zfs_delay_scale, ulong, 0644);
 MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");
+
+module_param(zfs_sync_taskq_batch_pct, int, 0644);
+MODULE_PARM_DESC(zfs_sync_taskq_batch_pct,
+	"max percent of CPUs that are used to sync dirty data");
 /* END CSTYLED */
 #endif
