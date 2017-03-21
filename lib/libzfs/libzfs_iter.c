@@ -312,26 +312,23 @@ static int
 snapspec_cb(zfs_handle_t *zhp, void *arg)
 {
 	snapspec_arg_t *ssa = arg;
-	char *shortsnapname;
+	const char *shortsnapname;
 	int err = 0;
 
 	if (ssa->ssa_seenlast)
 		return (0);
-	shortsnapname = zfs_strdup(zhp->zfs_hdl,
-	    strchr(zfs_get_name(zhp), '@') + 1);
 
+	shortsnapname = strchr(zfs_get_name(zhp), '@') + 1;
 	if (!ssa->ssa_seenfirst && strcmp(shortsnapname, ssa->ssa_first) == 0)
 		ssa->ssa_seenfirst = B_TRUE;
+	if (strcmp(shortsnapname, ssa->ssa_last) == 0)
+		ssa->ssa_seenlast = B_TRUE;
 
 	if (ssa->ssa_seenfirst) {
 		err = ssa->ssa_func(zhp, ssa->ssa_arg);
 	} else {
 		zfs_close(zhp);
 	}
-
-	if (strcmp(shortsnapname, ssa->ssa_last) == 0)
-		ssa->ssa_seenlast = B_TRUE;
-	free(shortsnapname);
 
 	return (err);
 }
