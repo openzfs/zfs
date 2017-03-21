@@ -34,7 +34,7 @@
  * Volumes are persistent through reboot and module load.  No user command
  * needs to be run before opening and using a device.
  *
- * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 

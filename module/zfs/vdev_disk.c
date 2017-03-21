@@ -24,6 +24,7 @@
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -34,6 +35,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <sys/sunldi.h>
+#include <sys/dkioc_free_util.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
@@ -311,6 +313,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
+
+	/* Reset TRIM flag, as underlying device support may have changed */
+	v->vdev_notrim = B_FALSE;
 
 skip_open:
 	/*  Determine the physical block size */
@@ -696,6 +701,53 @@ vdev_disk_io_start(zio_t *zio)
 
 			break;
 
+		case DKIOCFREE:
+		{
+			int i;
+			dkioc_free_list_t *dfl;
+
+			/*
+			 * We perform device support checks here instead of
+			 * in zio_trim(), as zio_trim() might be invoked on
+			 * top of a top-level vdev, whereas vdev_disk_io_start
+			 * is guaranteed to be operating a leaf vdev.
+			 */
+			if (v->vdev_notrim &&
+			    spa_get_force_trim(v->vdev_spa) !=
+			    SPA_FORCE_TRIM_ON) {
+				zio->io_error = SET_ERROR(ENOTSUP);
+				break;
+			}
+
+			/*
+			 * zio->io_private contains a dkioc_free_list_t
+			 * specifying which offsets are to be freed
+			 */
+			dfl = zio->io_private;
+			ASSERT(dfl != NULL);
+
+			for (i = 0; i < dfl->dfl_num_exts; i++) {
+				int error;
+
+				if (dfl->dfl_exts[i].dfle_length == 0)
+					continue;
+
+				error = -blkdev_issue_discard(vd->vd_bdev,
+				    (dfl->dfl_exts[i].dfle_start +
+				    dfl->dfl_offset) >> 9,
+				    dfl->dfl_exts[i].dfle_length >> 9,
+				    GFP_NOFS, 0);
+
+				if (error != 0) {
+					if (error == EOPNOTSUPP ||
+					    error == ENXIO)
+						v->vdev_notrim = B_TRUE;
+					zio->io_error = SET_ERROR(error);
+					break;
+				}
+			}
+			break;
+		}
 		default:
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
@@ -798,6 +850,7 @@ vdev_ops_t vdev_disk_ops = {
 	NULL,
 	vdev_disk_hold,
 	vdev_disk_rele,
+	NULL,
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };

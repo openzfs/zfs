@@ -54,6 +54,7 @@ SUBDIRS = \
 	sparse \
 	threadsappend \
 	tmpfile \
+	trim \
 	truncate \
 	upgrade \
 	userquota \

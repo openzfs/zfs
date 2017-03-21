@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  */
@@ -578,6 +578,28 @@ typedef enum spa_import_type {
 	SPA_IMPORT_ASSEMBLE
 } spa_import_type_t;
 
+/*
+ * Should we force sending TRIM commands even to devices which evidently
+ * don't support it?
+ *	OFF: no, only send to devices which indicated support
+ *	ON: yes, force send to everybody
+ */
+typedef enum {
+	SPA_FORCE_TRIM_OFF = 0,	/* default */
+	SPA_FORCE_TRIM_ON
+} spa_force_trim_t;
+
+/*
+ * Should we send TRIM commands in-line during normal pool operation while
+ * deleting stuff?
+ *	OFF: no
+ *	ON: yes
+ */
+typedef enum {
+	SPA_AUTO_TRIM_OFF = 0,	/* default */
+	SPA_AUTO_TRIM_ON
+} spa_auto_trim_t;
+
 /* state manipulation functions */
 extern int spa_open(const char *pool, spa_t **, void *tag);
 extern int spa_open_rewind(const char *pool, spa_t **, void *tag,
@@ -602,14 +624,15 @@ extern void spa_inject_delref(spa_t *spa);
 extern void spa_scan_stat_init(spa_t *spa);
 extern int spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps);
 
-#define	SPA_ASYNC_CONFIG_UPDATE	0x01
-#define	SPA_ASYNC_REMOVE	0x02
-#define	SPA_ASYNC_PROBE		0x04
-#define	SPA_ASYNC_RESILVER_DONE	0x08
-#define	SPA_ASYNC_RESILVER	0x10
-#define	SPA_ASYNC_AUTOEXPAND	0x20
-#define	SPA_ASYNC_REMOVE_DONE	0x40
-#define	SPA_ASYNC_REMOVE_STOP	0x80
+#define	SPA_ASYNC_CONFIG_UPDATE			0x01
+#define	SPA_ASYNC_REMOVE			0x02
+#define	SPA_ASYNC_PROBE				0x04
+#define	SPA_ASYNC_RESILVER_DONE			0x08
+#define	SPA_ASYNC_RESILVER			0x10
+#define	SPA_ASYNC_AUTOEXPAND			0x20
+#define	SPA_ASYNC_REMOVE_DONE			0x40
+#define	SPA_ASYNC_REMOVE_STOP			0x80
+#define	SPA_ASYNC_MAN_TRIM_TASKQ_DESTROY	0x100
 
 /*
  * Controls the behavior of spa_vdev_remove().
@@ -646,6 +669,13 @@ extern void spa_l2cache_drop(spa_t *spa);
 /* scanning */
 extern int spa_scan(spa_t *spa, pool_scan_func_t func);
 extern int spa_scan_stop(spa_t *spa);
+
+/* trimming */
+extern void spa_man_trim(spa_t *spa, uint64_t rate, boolean_t fulltrim);
+extern void spa_man_trim_stop(spa_t *spa);
+extern void spa_get_trim_prog(spa_t *spa, uint64_t *prog, uint64_t *rate,
+    uint64_t *start_time, uint64_t *stop_time);
+extern void spa_trim_stop_wait(spa_t *spa);
 
 /* spa syncing */
 extern void spa_sync(spa_t *spa, uint64_t txg); /* only for DMU use */
@@ -814,6 +844,8 @@ extern uint64_t spa_bootfs(spa_t *spa);
 extern uint64_t spa_delegation(spa_t *spa);
 extern objset_t *spa_meta_objset(spa_t *spa);
 extern uint64_t spa_deadman_synctime(spa_t *spa);
+extern spa_force_trim_t spa_get_force_trim(spa_t *spa);
+extern spa_auto_trim_t spa_get_auto_trim(spa_t *spa);
 
 /* Miscellaneous support routines */
 extern void spa_activate_mos_feature(spa_t *spa, const char *feature,
@@ -896,6 +928,11 @@ extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 
 /* asynchronous event notification */
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, const char *name);
+
+/* TRIM/UNMAP kstat update */
+extern void spa_trimstats_update(spa_t *spa, uint64_t extents, uint64_t bytes,
+    uint64_t extents_skipped, uint64_t bytes_skipped);
+extern void spa_trimstats_auto_slow_incr(spa_t *spa);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_bp(bp, fmt, ...) do {				\

@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
- * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -46,6 +46,7 @@
 #include <sys/abd.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
+#include <sys/trace_vdev.h>
 
 /*
  * When a vdev is added, it will be divided into approximately (but no
@@ -3678,6 +3679,116 @@ vdev_deadman(vdev_t *vd)
 		}
 		mutex_exit(&vq->vq_lock);
 	}
+}
+
+/*
+ * Implements the per-vdev portion of manual TRIM. The function passes over
+ * all metaslabs on this vdev and performs a metaslab_trim_all on them. It's
+ * also responsible for rate-control if spa_man_trim_rate is non-zero.
+ *
+ * If fulltrim is set, metaslabs without spacemaps are also trimmed.
+ */
+static void
+vdev_man_trim_impl(vdev_trim_info_t *vti, boolean_t fulltrim)
+{
+	clock_t t = ddi_get_lbolt();
+	spa_t *spa = vti->vti_vdev->vdev_spa;
+	vdev_t *vd = vti->vti_vdev;
+	uint64_t i;
+
+	vd->vdev_trim_prog = 0;
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+	for (i = 0; i < vti->vti_vdev->vdev_ms_count &&
+	    !spa->spa_man_trim_stop; i++) {
+		uint64_t delta;
+		metaslab_t *msp = vd->vdev_ms[i];
+		zio_t *trim_io;
+
+		if (msp->ms_sm == NULL && !fulltrim)
+			continue;
+
+		trim_io = metaslab_trim_all(msp, &delta);
+		atomic_add_64(&vd->vdev_trim_prog, msp->ms_size);
+		spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+
+		(void) zio_wait(trim_io);
+
+		/* delay loop to handle fixed-rate trimming */
+		for (;;) {
+			uint64_t rate = spa->spa_man_trim_rate;
+			uint64_t sleep_delay;
+
+			if (rate == 0) {
+				/* No delay, just update 't' and move on. */
+				t = ddi_get_lbolt();
+				break;
+			}
+
+			sleep_delay = (delta * hz) / rate;
+			mutex_enter(&spa->spa_man_trim_lock);
+			(void) cv_timedwait(&spa->spa_man_trim_update_cv,
+			    &spa->spa_man_trim_lock, t);
+			mutex_exit(&spa->spa_man_trim_lock);
+
+			/* If interrupted, don't try to relock, get out */
+			if (spa->spa_man_trim_stop)
+				goto out;
+
+			/* Timeout passed, move on to the next metaslab. */
+			if (ddi_get_lbolt() >= t + sleep_delay) {
+				t += sleep_delay;
+				break;
+			}
+		}
+		spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+	}
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+out:
+	/*
+	 * Ensure we're marked as "completed" even if we've had to stop
+	 * before processing all metaslabs.
+	 */
+	vd->vdev_trim_prog = vd->vdev_asize;
+
+	ASSERT(vti->vti_done_cb != NULL);
+	vti->vti_done_cb(vti->vti_done_arg);
+
+	kmem_free(vti, sizeof (*vti));
+}
+
+void
+vdev_man_trim(vdev_trim_info_t *vti)
+{
+	vdev_man_trim_impl(vti, B_FALSE);
+}
+
+void
+vdev_man_trim_full(vdev_trim_info_t *vti)
+{
+	vdev_man_trim_impl(vti, B_TRUE);
+}
+
+/*
+ * Runs through all metaslabs on the vdev and does their autotrim processing.
+ */
+void
+vdev_auto_trim(vdev_trim_info_t *vti)
+{
+	vdev_t *vd = vti->vti_vdev;
+	spa_t *spa = vd->vdev_spa;
+	uint64_t txg = vti->vti_txg;
+	uint64_t i;
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+	for (i = 0; i < vd->vdev_ms_count; i++)
+		metaslab_auto_trim(vd->vdev_ms[i], txg);
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+
+	ASSERT(vti->vti_done_cb != NULL);
+	vti->vti_done_cb(vti->vti_done_arg);
+
+	kmem_free(vti, sizeof (*vti));
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

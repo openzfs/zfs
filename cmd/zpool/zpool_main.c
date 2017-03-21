@@ -86,6 +86,7 @@ static int zpool_do_replace(int, char **);
 static int zpool_do_split(int, char **);
 
 static int zpool_do_scrub(int, char **);
+static int zpool_do_trim(int, char **);
 
 static int zpool_do_import(int, char **);
 static int zpool_do_export(int, char **);
@@ -135,6 +136,7 @@ typedef enum {
 	HELP_REPLACE,
 	HELP_REMOVE,
 	HELP_SCRUB,
+	HELP_TRIM,
 	HELP_STATUS,
 	HELP_UPGRADE,
 	HELP_EVENTS,
@@ -260,6 +262,8 @@ static zpool_command_t command_table[] = {
 	{ NULL },
 	{ "scrub",	zpool_do_scrub,		HELP_SCRUB		},
 	{ NULL },
+	{ "trim",	zpool_do_trim,		HELP_TRIM		},
+	{ NULL },
 	{ "import",	zpool_do_import,	HELP_IMPORT		},
 	{ "export",	zpool_do_export,	HELP_EXPORT		},
 	{ "upgrade",	zpool_do_upgrade,	HELP_UPGRADE		},
@@ -336,6 +340,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\treopen <pool>\n"));
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s] <pool> ...\n"));
+	case HELP_TRIM:
+		return (gettext("\ttrim [-s|-r <rate>] <pool> ...\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c CMD] [-gLPvxD] [-T d|u] [pool]"
 		    " ... [interval [count]]\n"));
@@ -5444,6 +5450,32 @@ scrub_callback(zpool_handle_t *zhp, void *data)
 	return (err != 0);
 }
 
+typedef struct trim_cbdata {
+	boolean_t	cb_start;
+	uint64_t	cb_rate;
+	boolean_t	cb_fulltrim;
+} trim_cbdata_t;
+
+int
+trim_callback(zpool_handle_t *zhp, void *data)
+{
+	trim_cbdata_t *cb = data;
+	int err;
+
+	/*
+	 * Ignore faulted pools.
+	 */
+	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
+		(void) fprintf(stderr, gettext("cannot trim '%s': pool is "
+		    "currently unavailable\n"), zpool_get_name(zhp));
+		return (1);
+	}
+
+	err = zpool_trim(zhp, cb->cb_start, cb->cb_rate, cb->cb_fulltrim);
+
+	return (err != 0);
+}
+
 /*
  * zpool scrub [-s] <pool> ...
  *
@@ -5481,6 +5513,57 @@ zpool_do_scrub(int argc, char **argv)
 	}
 
 	return (for_each_pool(argc, argv, B_TRUE, NULL, scrub_callback, &cb));
+}
+
+/*
+ * zpool trim [-s|-r <rate>] <pool> ...
+ *
+ *	-p		Partial trim.  Skips never-allocated space.
+ *	-s		Stop. Stops any in-progress trim.
+ *	-r <rate>	Sets the TRIM rate.
+ */
+int
+zpool_do_trim(int argc, char **argv)
+{
+	int c;
+	trim_cbdata_t cb;
+
+	cb.cb_start = B_TRUE;
+	cb.cb_rate = 0;
+	cb.cb_fulltrim = B_TRUE;
+
+	/* check options */
+	while ((c = getopt(argc, argv, "fsr:")) != -1) {
+		switch (c) {
+		case 'p':
+			cb.cb_fulltrim = B_FALSE;
+			break;
+		case 's':
+			cb.cb_start = B_FALSE;
+			break;
+		case 'r':
+			if (zfs_nicestrtonum(NULL, optarg, &cb.cb_rate) == -1) {
+				(void) fprintf(stderr,
+				    gettext("invalid value for rate\n"));
+				usage(B_FALSE);
+			}
+			break;
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing pool name argument\n"));
+		usage(B_FALSE);
+	}
+
+	return (for_each_pool(argc, argv, B_TRUE, NULL, trim_callback, &cb));
 }
 
 /*
@@ -5596,6 +5679,59 @@ print_scan_status(pool_scan_stat_t *ps)
 }
 
 static void
+print_trim_status(uint64_t trim_prog, uint64_t total_size, uint64_t rate,
+    uint64_t start_time_u64, uint64_t end_time_u64)
+{
+	time_t start_time = start_time_u64, end_time = end_time_u64;
+	char *buf;
+
+	assert(trim_prog <= total_size);
+	if (trim_prog != 0 && trim_prog != total_size) {
+		buf = ctime(&start_time);
+		buf[strlen(buf) - 1] = '\0';	/* strip trailing newline */
+		if (rate != 0) {
+			char rate_str[32];
+			zfs_nicenum(rate, rate_str, sizeof (rate_str));
+			(void) printf("  trim: %.02f%%\tstarted: %s\t"
+			    "(rate: %s/s)\n", (((double)trim_prog) /
+			    total_size) * 100, buf, rate_str);
+		} else {
+			(void) printf("  trim: %.02f%%\tstarted: %s\t"
+			    "(rate: max)\n", (((double)trim_prog) /
+			    total_size) * 100, buf);
+		}
+	} else {
+		if (start_time != 0) {
+			/*
+			 * Non-zero start time means we were run at some point
+			 * in the past.
+			 */
+			if (end_time != 0) {
+				/* Non-zero end time means we completed */
+				time_t diff = end_time - start_time;
+				int hrs, mins;
+
+				buf = ctime(&end_time);
+				buf[strlen(buf) - 1] = '\0';
+				hrs = diff / 3600;
+				mins = (diff % 3600) / 60;
+				(void) printf(gettext("  trim: completed on %s "
+				    "(after %dh%dm)\n"), buf, hrs, mins);
+			} else {
+				buf = ctime(&start_time);
+				buf[strlen(buf) - 1] = '\0';
+				/* Zero end time means we were interrupted */
+				(void) printf(gettext("  trim: interrupted\t"
+				    "(started %s)\n"), buf);
+			}
+		} else {
+			/* trim was never run */
+			(void) printf(gettext("  trim: none requested\n"));
+		}
+	}
+}
+
+static void
 print_error_log(zpool_handle_t *zhp)
 {
 	nvlist_t *nverrlist = NULL;
@@ -5704,6 +5840,43 @@ print_dedup_stats(nvlist_t *config)
 	verify(nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_HISTOGRAM,
 	    (uint64_t **)&ddh, &c) == 0);
 	zpool_dump_ddt(dds, ddh);
+}
+
+/*
+ * Calculates the total space available on log devices on the pool.
+ * For whatever reason, this is not counted in the root vdev's space stats.
+ */
+static uint64_t
+zpool_slog_space(nvlist_t *nvroot)
+{
+	nvlist_t **newchild;
+	uint_t c, children;
+	uint64_t space = 0;
+
+	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &newchild, &children) == 0);
+
+	for (c = 0; c < children; c++) {
+		uint64_t islog = B_FALSE;
+		vdev_stat_t *vs;
+		uint_t n;
+		uint_t n_subchildren = 1;
+		nvlist_t **subchild;
+
+		(void) nvlist_lookup_uint64(newchild[c], ZPOOL_CONFIG_IS_LOG,
+		    &islog);
+		if (!islog)
+			continue;
+		verify(nvlist_lookup_uint64_array(newchild[c],
+		    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &n) == 0);
+
+		/* vdev can be non-leaf, so multiply by number of children */
+		(void) nvlist_lookup_nvlist_array(newchild[c],
+		    ZPOOL_CONFIG_CHILDREN, &subchild, &n_subchildren);
+		space += n_subchildren * vs->vs_space;
+	}
+
+	return (space);
 }
 
 /*
@@ -6001,6 +6174,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		nvlist_t **spares, **l2cache;
 		uint_t nspares, nl2cache;
 		pool_scan_stat_t *ps = NULL;
+		uint64_t trim_prog, trim_rate, trim_start_time, trim_stop_time;
 
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
@@ -6010,6 +6184,24 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    cbp->cb_name_flags | VDEV_NAME_TYPE_ID);
 		if (cbp->cb_namewidth < 10)
 			cbp->cb_namewidth = 10;
+
+		/* Grab trim stats if the pool supports it */
+		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_TRIM_PROG,
+		    &trim_prog) == 0 &&
+		    nvlist_lookup_uint64(config, ZPOOL_CONFIG_TRIM_RATE,
+		    &trim_rate) == 0 &&
+		    nvlist_lookup_uint64(config, ZPOOL_CONFIG_TRIM_START_TIME,
+		    &trim_start_time) == 0 &&
+		    nvlist_lookup_uint64(config, ZPOOL_CONFIG_TRIM_STOP_TIME,
+		    &trim_stop_time) == 0) {
+			/*
+			 * For whatever reason, root vdev_stats_t don't
+			 * include log devices.
+			 */
+			print_trim_status(trim_prog, vs->vs_space +
+			    zpool_slog_space(nvroot), trim_rate,
+			    trim_start_time, trim_stop_time);
+		}
 
 		(void) printf(gettext("config:\n\n"));
 		(void) printf(gettext("\t%-*s  %-8s %5s %5s %5s\n"),

@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -112,7 +113,6 @@ top:
 		txg_wait_synced(dp, dst.dst_txg + TXG_DEFER_SIZE);
 		goto top;
 	}
-
 	spa_close(spa, FTAG);
 	return (dst.dst_error);
 }

@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #ifndef _ZIO_IMPL_H
@@ -231,6 +232,12 @@ enum zio_stage {
 
 #define	ZIO_IOCTL_PIPELINE			\
 	(ZIO_INTERLOCK_STAGES |			\
+	ZIO_STAGE_VDEV_IO_START |		\
+	ZIO_STAGE_VDEV_IO_ASSESS)
+
+#define	ZIO_TRIM_PIPELINE			\
+	(ZIO_INTERLOCK_STAGES |			\
+	ZIO_STAGE_ISSUE_ASYNC |			\
 	ZIO_STAGE_VDEV_IO_START |		\
 	ZIO_STAGE_VDEV_IO_ASSESS)
 

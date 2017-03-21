@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
- * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/sysmacros.h>
@@ -43,6 +43,9 @@
 #include <sys/time.h>
 #include <sys/trace_zio.h>
 #include <sys/abd.h>
+#include <sys/dkioc_free_util.h>
+
+#include <sys/metaslab_impl.h>
 
 /*
  * ==========================================================================
@@ -114,6 +117,14 @@ int zio_buf_debug_limit = 0;
 static inline void __zio_execute(zio_t *zio);
 
 static void zio_taskq_dispatch(zio_t *, zio_taskq_type_t, boolean_t);
+
+/*
+ * Tunable to allow for debugging SCSI UNMAP/SATA TRIM calls. Disabling
+ * it will prevent ZFS from attempting to issue DKIOCFREE ioctls to the
+ * underlying storage.
+ */
+int zfs_trim = B_TRUE;
+int zfs_trim_min_ext_sz = 1 << 20;	/* 1 MB */
 
 void
 zio_init(void)
@@ -959,9 +970,10 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	return (zio);
 }
 
-zio_t *
-zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
-    zio_done_func_t *done, void *private, enum zio_flag flags)
+static zio_t *
+zio_ioctl_with_pipeline(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
+    zio_done_func_t *done, void *private, enum zio_flag flags,
+    enum zio_stage pipeline)
 {
 	zio_t *zio;
 	int c;
@@ -969,18 +981,141 @@ zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
 	if (vd->vdev_children == 0) {
 		zio = zio_create(pio, spa, 0, NULL, NULL, 0, 0, done, private,
 		    ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0, NULL,
-		    ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
+		    ZIO_STAGE_OPEN, pipeline);
 
 		zio->io_cmd = cmd;
 	} else {
-		zio = zio_null(pio, spa, NULL, NULL, NULL, flags);
-
-		for (c = 0; c < vd->vdev_children; c++)
-			zio_nowait(zio_ioctl(zio, spa, vd->vdev_child[c], cmd,
-			    done, private, flags));
+		zio = zio_null(pio, spa, vd, done, private, flags);
+		/*
+		 * DKIOCFREE ioctl's need some special handling on interior
+		 * vdevs. If the device provides an ops function to handle
+		 * recomputing dkioc_free extents, then we call it.
+		 * Otherwise the default behavior applies, which simply fans
+		 * out the ioctl to all component vdevs.
+		 */
+		if (cmd == DKIOCFREE && vd->vdev_ops->vdev_op_trim != NULL) {
+			vd->vdev_ops->vdev_op_trim(vd, zio, private);
+		} else {
+			for (c = 0; c < vd->vdev_children; c++)
+				zio_nowait(zio_ioctl_with_pipeline(zio,
+				    spa, vd->vdev_child[c], cmd, NULL,
+				    private, flags, pipeline));
+		}
 	}
 
 	return (zio);
+}
+
+zio_t *
+zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
+    zio_done_func_t *done, void *private, enum zio_flag flags)
+{
+	return (zio_ioctl_with_pipeline(pio, spa, vd, cmd, done,
+	    private, flags, ZIO_IOCTL_PIPELINE));
+}
+
+/*
+ * Callback for when a trim zio has completed. This simply frees the
+ * dkioc_free_list_t extent list of the DKIOCFREE ioctl.
+ */
+static void
+zio_trim_done(zio_t *zio)
+{
+	VERIFY(zio->io_private != NULL);
+	dfl_free(zio->io_private);
+}
+
+static void
+zio_trim_check(uint64_t start, uint64_t len, void *msp)
+{
+	metaslab_t *ms = msp;
+	boolean_t held = MUTEX_HELD(&ms->ms_lock);
+	if (!held)
+		mutex_enter(&ms->ms_lock);
+	ASSERT(ms->ms_trimming_ts != NULL);
+	ASSERT(range_tree_contains(ms->ms_trimming_ts->ts_tree,
+	    start - VDEV_LABEL_START_SIZE, len));
+	if (!held)
+		mutex_exit(&ms->ms_lock);
+}
+
+/*
+ * Takes a bunch of freed extents and tells the underlying vdevs that the
+ * space associated with these extents can be released.
+ * This is used by flash storage to pre-erase blocks for rapid reuse later
+ * and thin-provisioned block storage to reclaim unused blocks.
+ */
+zio_t *
+zio_trim(spa_t *spa, vdev_t *vd, struct range_tree *tree,
+    zio_done_func_t *done, void *private, enum zio_flag flags,
+    int trim_flags, metaslab_t *msp)
+{
+	dkioc_free_list_t *dfl = NULL;
+	range_seg_t *rs;
+	uint64_t rs_idx;
+	uint64_t num_exts;
+	uint64_t bytes_issued = 0, bytes_skipped = 0, exts_skipped = 0;
+	/*
+	 * We need this to invoke the caller's `done' callback with the
+	 * correct io_private (not the dkioc_free_list_t, which is needed
+	 * by the underlying DKIOCFREE ioctl).
+	 */
+	zio_t *sub_pio = zio_root(spa, done, private, flags);
+
+	ASSERT(range_tree_space(tree) != 0);
+
+	if (!zfs_trim)
+		return (sub_pio);
+
+	num_exts = avl_numnodes(&tree->rt_root);
+	dfl = dfl_alloc(num_exts, KM_SLEEP);
+	dfl->dfl_flags = trim_flags;
+	dfl->dfl_num_exts = num_exts;
+	dfl->dfl_offset = VDEV_LABEL_START_SIZE;
+	if (msp) {
+		dfl->dfl_ck_func = zio_trim_check;
+		dfl->dfl_ck_arg = msp;
+	}
+
+	for (rs = avl_first(&tree->rt_root), rs_idx = 0; rs != NULL;
+	    rs = AVL_NEXT(&tree->rt_root, rs)) {
+		uint64_t len = rs->rs_end - rs->rs_start;
+
+		if (len < zfs_trim_min_ext_sz) {
+			bytes_skipped += len;
+			exts_skipped++;
+			continue;
+		}
+
+		dfl->dfl_exts[rs_idx].dfle_start = rs->rs_start;
+		dfl->dfl_exts[rs_idx].dfle_length = len;
+
+		// check we're a multiple of the vdev ashift
+		ASSERT0(dfl->dfl_exts[rs_idx].dfle_start &
+		    ((1 << vd->vdev_ashift) - 1));
+		ASSERT0(dfl->dfl_exts[rs_idx].dfle_length &
+		    ((1 << vd->vdev_ashift) - 1));
+
+		rs_idx++;
+		bytes_issued += len;
+	}
+
+	spa_trimstats_update(spa, rs_idx, bytes_issued, exts_skipped,
+	    bytes_skipped);
+
+	/* the zfs_trim_min_ext_sz filter may have shortened the list */
+	if (dfl->dfl_num_exts != rs_idx) {
+		dkioc_free_list_t *dfl2 = dfl_alloc(rs_idx, KM_SLEEP);
+		bcopy(dfl, dfl2, DFL_SZ(rs_idx));
+		dfl2->dfl_num_exts = rs_idx;
+		dfl_free(dfl);
+		dfl = dfl2;
+	}
+
+	zio_nowait(zio_ioctl_with_pipeline(sub_pio, spa, vd, DKIOCFREE,
+	    zio_trim_done, dfl, ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
+	    ZIO_FLAG_DONT_RETRY, ZIO_TRIM_PIPELINE));
+	return (sub_pio);
 }
 
 zio_t *
@@ -4206,4 +4341,12 @@ MODULE_PARM_DESC(zfs_sync_pass_rewrite,
 module_param(zio_dva_throttle_enabled, int, 0644);
 MODULE_PARM_DESC(zio_dva_throttle_enabled,
 	"Throttle block allocations in the ZIO pipeline");
+
+module_param(zfs_trim, int, 0644);
+MODULE_PARM_DESC(zfs_trim,
+	"Enable TRIM");
+
+module_param(zfs_trim_min_ext_sz, int, 0644);
+MODULE_PARM_DESC(zfs_trim_min_ext_sz,
+	"Minimum size to TRIM");
 #endif

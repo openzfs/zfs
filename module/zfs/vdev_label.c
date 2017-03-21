@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 /*
@@ -535,6 +536,12 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		if (vd->vdev_splitting && vd->vdev_orig_guid != 0LL) {
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_ORIG_GUID,
 			    vd->vdev_orig_guid);
+		}
+
+		/* grab per-leaf-vdev trim stats */
+		if (getstats) {
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_TRIM_PROG,
+			    vd->vdev_trim_prog);
 		}
 	}
 

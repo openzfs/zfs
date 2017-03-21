@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -246,6 +247,11 @@ struct metaslab_group {
 	uint64_t		mg_histogram[RANGE_TREE_HISTOGRAM_SIZE];
 };
 
+typedef struct {
+	uint64_t	ts_birth;	/* TXG at which this trimset starts */
+	range_tree_t	*ts_tree;	/* tree of extents in the trimset */
+} metaslab_trimset_t;
+
 /*
  * This value defines the number of elements in the ms_lbas array. The value
  * of 64 was chosen as it covers all power of 2 buckets up to UINT64_MAX.
@@ -319,6 +325,10 @@ struct metaslab {
 
 	range_tree_t	*ms_alloctree[TXG_SIZE];
 	range_tree_t	*ms_tree;
+	metaslab_trimset_t *ms_cur_ts;	/* currently prepared trims */
+	metaslab_trimset_t *ms_prev_ts;	/* previous (aging) trims */
+	kcondvar_t	ms_trim_cv;
+	metaslab_trimset_t *ms_trimming_ts;
 
 	/*
 	 * The following range trees are accessed only from syncing context.

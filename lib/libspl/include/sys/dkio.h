@@ -18,17 +18,19 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 1982, 2010, Oracle and/or its affiliates. All rights reserved.
+ *
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2012 DEY Storage Systems, Inc.  All rights reserved.
  */
 
 #ifndef _SYS_DKIO_H
 #define	_SYS_DKIO_H
 
-
-
 #include <sys/dklabel.h>	/* Needed for NDKMAP define */
+#include <sys/int_limits.h>	/* Needed for UINT16_MAX */
 
 #ifdef	__cplusplus
 extern "C" {
@@ -83,9 +85,10 @@ struct dk_cinfo {
 #define	DKC_MD		16	/* meta-disk (virtual-disk) driver */
 #define	DKC_INTEL82077	19	/* 82077 floppy disk controller */
 #define	DKC_DIRECT	20	/* Intel direct attached device i.e. IDE */
-#define	DKC_PCMCIA_MEM	21	/* PCMCIA memory disk-like type */
+#define	DKC_PCMCIA_MEM	21	/* PCMCIA memory disk-like type (Obsolete) */
 #define	DKC_PCMCIA_ATA	22	/* PCMCIA AT Attached type */
 #define	DKC_VBD		23	/* virtual block device */
+#define	DKC_BLKDEV	24	/* generic block device (see blkdev(7d)) */
 
 /*
  * Sun reserves up through 1023
@@ -166,6 +169,9 @@ struct dk_geom {
 #define	DKIOCGVTOC	(DKIOC|11)		/* Get VTOC */
 #define	DKIOCSVTOC	(DKIOC|12)		/* Set VTOC & Write to Disk */
 
+#define	DKIOCGEXTVTOC	(DKIOC|23)	/* Get extended VTOC */
+#define	DKIOCSEXTVTOC	(DKIOC|24)	/* Set extended VTOC, Write to Disk */
+
 /*
  * Disk Cache Controls.  These ioctls should be supported by
  * all disk drivers.
@@ -228,6 +234,14 @@ struct dk_callback {
  */
 #define	DKIOCHOTPLUGGABLE	(DKIOC|35)	/* is hotpluggable */
 
+#if defined(__i386) || defined(__amd64)
+/* ioctl to write extended partition structure into the disk */
+#define	DKIOCSETEXTPART	(DKIOC|46)
+#endif
+
+/* ioctl to report whether the disk is solid state or not - used for ZFS */
+#define	DKIOCSOLIDSTATE		(DKIOC|38)
+
 /*
  * Ioctl to force driver to re-read the alternate partition and rebuild
  * the internal defect map.
@@ -252,6 +266,9 @@ struct defect_header {
 };
 
 #define	DKIOCPARTINFO	(DKIOC|22)	/* Get partition or slice parameters */
+#define	DKIOCEXTPARTINFO (DKIOC|19)	/* Get extended partition or slice */
+					/* parameters */
+
 
 /*
  * Used by applications to get partition or slice information
@@ -266,6 +283,11 @@ struct part_info32 {
 struct part_info {
 	uint64_t	p_start;
 	int		p_length;
+};
+
+struct extpart_info {
+	diskaddr_t	p_start;
+	diskaddr_t	p_length;
 };
 
 /* The following ioctls are for Optical Memory Device */
@@ -291,6 +313,16 @@ enum dkio_state { DKIO_NONE, DKIO_EJECTED, DKIO_INSERTED, DKIO_DEV_GONE };
 #define	DKIOCGTEMPERATURE	(DKIOC|45)	/* get temperature */
 
 /*
+ * ioctl to get the media info including physical block size
+ */
+#define	DKIOCGMEDIAINFOEXT	(DKIOC|48)
+
+/*
+ * ioctl to determine whether media is write-protected
+ */
+#define	DKIOCREADONLY	(DKIOC|49)
+
+/*
  * Used for providing the temperature.
  */
 
@@ -311,6 +343,17 @@ struct dk_minfo {
 	uint_t		dki_media_type;	/* Media type or profile info */
 	uint_t		dki_lbsize;	/* Logical blocksize of media */
 	diskaddr_t	dki_capacity;	/* Capacity as # of dki_lbsize blks */
+};
+
+/*
+ * Used for Media info or the current profile info
+ * including physical block size if supported.
+ */
+struct dk_minfo_ext {
+	uint_t		dki_media_type;	/* Media type or profile info */
+	uint_t		dki_lbsize;	/* Logical blocksize of media */
+	diskaddr_t	dki_capacity;	/* Capacity as # of dki_lbsize blks */
+	uint_t		dki_pbsize;	/* Physical blocksize of media */
 };
 
 /*
@@ -357,6 +400,9 @@ struct dk_minfo {
 #define	DKIOCGETVOLCAP	(DKIOC | 25)	/* Get volume capabilities */
 #define	DKIOCSETVOLCAP	(DKIOC | 26)	/* Set volume capabilities */
 #define	DKIOCDMR	(DKIOC | 27)	/* Issue a directed read */
+
+#define	DKIOCDUMPINIT	(DKIOC | 28)	/* Dumpify a zvol */
+#define	DKIOCDUMPFINI	(DKIOC | 29)	/* Un-Dumpify a zvol */
 
 typedef uint_t volcapinfo_t;
 
@@ -476,6 +522,34 @@ typedef struct dk_updatefw_32 {
 #define	FW_TYPE_TEMP	0x0		/* temporary use */
 #define	FW_TYPE_PERM	0x1		/* permanent use */
 
+/*
+ * ioctl to free space (e.g. SCSI UNMAP) off a disk.
+ * Pass a dkioc_free_list_t containing a list of extents to be freed.
+ */
+#define	DKIOCFREE	(DKIOC|50)
+
+#define	DF_WAIT_SYNC	0x00000001	/* Wait for full write-out of free. */
+typedef struct dkioc_free_list_ext_s {
+	uint64_t		dfle_start;
+	uint64_t		dfle_length;
+} dkioc_free_list_ext_t;
+
+typedef struct dkioc_free_list_s {
+	uint64_t		dfl_flags;
+	uint64_t		dfl_num_exts;
+	int64_t			dfl_offset;
+
+	/*
+	 * N.B. this is only an internal debugging API! This is only called
+	 * from debug builds of sd for pre-release checking. Remove before GA!
+	 */
+	void			(*dfl_ck_func)(uint64_t, uint64_t, void *);
+	void			*dfl_ck_arg;
+
+	dkioc_free_list_ext_t	dfl_exts[1];
+} dkioc_free_list_t;
+#define	DFL_SZ(num_exts) \
+	(sizeof (dkioc_free_list_t) + (num_exts - 1) * 16)
 
 #ifdef	__cplusplus
 }

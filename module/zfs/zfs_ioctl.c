@@ -1688,6 +1688,36 @@ zfs_ioc_pool_scan(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * inputs:
+ * zc_name              name of the pool
+ * zc_cookie            trim_cmd_info_t
+ */
+static int
+zfs_ioc_pool_trim(zfs_cmd_t *zc)
+{
+	spa_t *spa;
+	int error;
+	trim_cmd_info_t	tci;
+
+	if (ddi_copyin((void *)(uintptr_t)zc->zc_cookie, &tci,
+	    sizeof (tci), 0) == -1)
+		return (EFAULT);
+
+	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
+		return (error);
+
+	if (tci.tci_start) {
+		spa_man_trim(spa, tci.tci_rate, tci.tci_fulltrim);
+	} else {
+		spa_man_trim_stop(spa);
+	}
+
+	spa_close(spa, FTAG);
+
+	return (error);
+}
+
 static int
 zfs_ioc_pool_freeze(zfs_cmd_t *zc)
 {
@@ -5873,6 +5903,8 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool_modify(ZFS_IOC_POOL_SCAN,
 	    zfs_ioc_pool_scan);
+	zfs_ioctl_register_pool_modify(ZFS_IOC_POOL_TRIM,
+	    zfs_ioc_pool_trim);
 	zfs_ioctl_register_pool_modify(ZFS_IOC_POOL_UPGRADE,
 	    zfs_ioc_pool_upgrade);
 	zfs_ioctl_register_pool_modify(ZFS_IOC_VDEV_ADD,

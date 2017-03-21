@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -70,6 +71,7 @@ typedef void	vdev_io_done_func_t(zio_t *zio);
 typedef void	vdev_state_change_func_t(vdev_t *vd, int, int);
 typedef void	vdev_hold_func_t(vdev_t *vd);
 typedef void	vdev_rele_func_t(vdev_t *vd);
+typedef void	vdev_trim_func_t(vdev_t *vd, zio_t *pio, void *trim_exts);
 
 typedef const struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
@@ -80,6 +82,7 @@ typedef const struct vdev_ops {
 	vdev_state_change_func_t	*vdev_op_state_change;
 	vdev_hold_func_t		*vdev_op_hold;
 	vdev_rele_func_t		*vdev_op_rele;
+	vdev_trim_func_t		*vdev_op_trim;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -186,6 +189,8 @@ struct vdev {
 	kmutex_t	vdev_queue_lock; /* protects vdev_queue_depth	*/
 	uint64_t	vdev_top_zap;
 
+	uint64_t	vdev_trim_prog;	/* trim progress in bytes	*/
+
 	/*
 	 * The queue depth parameters determine how many async writes are
 	 * still pending (i.e. allocated by net yet issued to disk) per
@@ -219,6 +224,7 @@ struct vdev {
 	uint64_t	vdev_not_present; /* not present during import	*/
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
+	boolean_t	vdev_notrim;	/* true if Unmap/TRIM is unsupported */
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
 	boolean_t	vdev_splitting;	/* split or repair in progress  */
