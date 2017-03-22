@@ -130,7 +130,7 @@ extern "C" {
 #define	_SUNOS_VTOC_16
 
 /* sparc arch specific defines */
-#elif defined(__sparc) || defined(__sparc__) || defined(__sparc64__)
+#elif defined(__sparc) || defined(__sparc__)
 
 #if !defined(__sparc)
 #define	__sparc
@@ -143,7 +143,7 @@ extern "C" {
 #define	_BIG_ENDIAN
 #define	_SUNOS_VTOC_16
 
-#if defined(__sparc64__)
+#if defined(__arch64__)
 #if !defined(_LP64)
 #define	_LP64
 #endif
