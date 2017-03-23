@@ -410,6 +410,8 @@ static boolean_t
 bootfs_name_valid(const char *pool, char *bootfs)
 {
 	int len = strlen(pool);
+	if (bootfs[0] == '\0')
+		return (B_TRUE);
 
 	if (!zfs_name_valid(bootfs, ZFS_TYPE_FILESYSTEM|ZFS_TYPE_SNAPSHOT))
 		return (B_FALSE);
@@ -567,8 +569,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			 * bootfs property value has to be a dataset name and
 			 * the dataset has to be in the same pool as it sets to.
 			 */
-			if (strval[0] != '\0' && !bootfs_name_valid(poolname,
-			    strval)) {
+			if (!bootfs_name_valid(poolname, strval)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "'%s' "
 				    "is an invalid name"), strval);
 				(void) zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
