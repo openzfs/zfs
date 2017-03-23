@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
@@ -430,8 +430,8 @@ dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
 #define	WP_DMU_SYNC	0x2
 #define	WP_SPILL	0x4
 
-void dmu_write_policy(objset_t *os, struct dnode *dn, int level, int wp,
-    enum zio_compress compress_override, struct zio_prop *zp);
+void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
+    struct zio_prop *zp);
 /*
  * The bonus data is accessed more or less like a regular buffer.
  * You must dmu_bonus_hold() to get the buffer, which will give you a
