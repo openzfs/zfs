@@ -182,7 +182,7 @@ set_global_var(char *arg)
 	    "little-endian systems\n");
 	return (ENOTSUP);
 #endif
-	if ((varval = strchr(arg, '=')) != NULL) {
+	if (arg != NULL && (varval = strchr(arg, '=')) != NULL) {
 		*varval = '\0';
 		varval++;
 		val = strtoull(varval, NULL, 0);
