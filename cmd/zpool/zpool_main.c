@@ -5603,11 +5603,8 @@ print_error_log(zpool_handle_t *zhp)
 	char *pathname;
 	size_t len = MAXPATHLEN * 2;
 
-	if (zpool_get_errlog(zhp, &nverrlist) != 0) {
-		(void) printf("errors: List of errors unavailable "
-		    "(insufficient privileges)\n");
+	if (zpool_get_errlog(zhp, &nverrlist) != 0)
 		return;
-	}
 
 	(void) printf("errors: Permanent errors have been "
 	    "detected in the following files:\n\n");
