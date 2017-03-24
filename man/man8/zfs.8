@@ -1348,6 +1348,46 @@ Controls whether the file system is shared via \fBNFS\fR, and what options are u
 Otherwise, the \fBexportfs\fR(8) command is invoked with options equivalent to the contents of this property.
 .sp
 When the \fBsharenfs\fR property is changed for a dataset, the dataset and any children inheriting the property are re-shared with the new options, only if the property was previously \fBoff\fR, or if they were shared before the property was changed. If the new property is \fBoff\fR, the file systems are unshared.
+.sp
+The following options are supported (see \fBexports\fR(5) for more information about them): \fBall_squash\fR, \fBanon\fR (or \fBanonuid\fR), \fBanongid\fR, \fBasync\fR, \fBauth_nlm\fR, \fBcrossmnt\fR, \fBfsid\fR, \fBfsuid\fR, \fBhide\fR, \fBinsecure\fR, \fBinsecure_locks\fR, \fBmountpoint\fR, \fBmp\fR, \fBno_acl\fR, \fBno_all_squash\fR, \fBno_auth_nlm\fR, \fBno_root_squash\fR, \fBno_subtree_check\fR, \fBno_wdelay\fR, \fBnohide\fR, \fBnosub\fR (or \fBsubtree_check\fR), \fBrefer\fR, \fBreplicas\fR, \fBro\fR, \fBroot_mapping\fR, \fBroot_squash\fR, \fBrw\fR, \fBsec\fR, \fBsecure\fR, \fBsecure_locks\fR, \fBsync\fR, \fBwdelay\fR
+.sp
+The host part of the property is somewhat different compared to what one would use in \fB/etc/exports\fR. This is because ZFS originates from Solaris, which have a completely different NFS implementation. So instead of using something like
+.sp
+.in +4
+zfs set sharenfs="192.168.1.1(rw,no_root_squash)" rpool/exports
+.fi
+.in -4
+.sp
+which would be the most obvious, but doesn't work. You'd get the following message if you did:
+.sp
+.in +4
+cannot set property for 'rpool/exports': 'sharenfs' cannot be set to invalid options
+.fi
+.in -4
+.sp
+Instead, it is nessesary to use something like:
+.sp
+.in +4
+zfs set sharenfs="rw=192.168.1.1,no_root_squash" rpool/exports
+.fi
+.in -4
+.sp
+The \fBsharenfs\fR property understand most, if not all, of the Solaris <= 10 options (in Solaris 11, Oracle redesigned all the share properties) and the \fBsharenfs\fR property will try to convert these to Linux equivalences. But this is not always possible, so expect, but not anticipate, strange behaviours.
+.sp
+To add multiple IPs or network, just add additional \fBrw=....\fR and/or \fBro=....\fR options like so:
+.sp
+.in +4
+zfs set sharenfs="rw=192.168.1.1/24,ro=192.168.2.1/24,no_root_squash" rpool/exports
+.fi
+.in -4
+.sp
+However, it is not (currently) possible to specify different options for different hosts:
+.sp
+.in +4
+zfs set sharenfs="rw=192.168.1.1/24,async,ro=192.168.2.1/24,sync" rpool/exports
+.fi
+.in -4
+.sp
 .RE
 
 .sp
