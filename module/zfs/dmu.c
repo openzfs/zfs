@@ -67,6 +67,11 @@ int zfs_nopwrite_enabled = 1;
  */
 unsigned long zfs_per_txg_dirty_frees_percent = 30;
 
+/*
+ * Enable/disable forcing txg sync when dirty in dmu_offset_next.
+ */
+int zfs_dmu_offset_next_sync = 0;
+
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
 	{	DMU_BSWAP_ZAP,		TRUE,	"object directory"	},
@@ -1989,24 +1994,43 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 	zp->zp_nopwrite = nopwrite;
 }
 
+/*
+ * This function is only called from zfs_holey_common() for zpl_llseek()
+ * in order to determine the location of holes.  In order to accurately
+ * report holes all dirty data must be synced to disk.  This causes extremely
+ * poor performance when seeking for holes in a dirty file.  As a compromise,
+ * only provide hole data when the dnode is clean.  When a dnode is dirty
+ * report the dnode as having no holes which is always a safe thing to do.
+ */
 int
 dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 {
 	dnode_t *dn;
 	int i, err;
+	boolean_t clean = B_TRUE;
 
 	err = dnode_hold(os, object, FTAG, &dn);
 	if (err)
 		return (err);
+
 	/*
-	 * Sync any current changes before
+	 * Check if dnode is dirty
+	 */
+	if (dn->dn_dirtyctx != DN_UNDIRTIED) {
+		for (i = 0; i < TXG_SIZE; i++) {
+			if (!list_is_empty(&dn->dn_dirty_records[i])) {
+				clean = B_FALSE;
+				break;
+			}
+		}
+	}
+
+	/*
+	 * If compatibility option is on, sync any current changes before
 	 * we go trundling through the block pointers.
 	 */
-	for (i = 0; i < TXG_SIZE; i++) {
-		if (list_link_active(&dn->dn_dirty_link[i]))
-			break;
-	}
-	if (i != TXG_SIZE) {
+	if (!clean && zfs_dmu_offset_next_sync) {
+		clean = B_TRUE;
 		dnode_rele(dn, FTAG);
 		txg_wait_synced(dmu_objset_pool(os), 0);
 		err = dnode_hold(os, object, FTAG, &dn);
@@ -2014,7 +2038,12 @@ dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 			return (err);
 	}
 
-	err = dnode_next_offset(dn, (hole ? DNODE_FIND_HOLE : 0), off, 1, 1, 0);
+	if (clean)
+		err = dnode_next_offset(dn,
+		    (hole ? DNODE_FIND_HOLE : 0), off, 1, 1, 0);
+	else
+		err = SET_ERROR(EBUSY);
+
 	dnode_rele(dn, FTAG);
 
 	return (err);
@@ -2238,5 +2267,11 @@ MODULE_PARM_DESC(zfs_nopwrite_enabled, "Enable NOP writes");
 module_param(zfs_per_txg_dirty_frees_percent, ulong, 0644);
 MODULE_PARM_DESC(zfs_per_txg_dirty_frees_percent,
 	"percentage of dirtied blocks from frees in one TXG");
+
+module_param(zfs_dmu_offset_next_sync, int, 0644);
+MODULE_PARM_DESC(zfs_dmu_offset_next_sync,
+	"Enable forcing txg sync to find holes");
+
 /* END CSTYLED */
+
 #endif

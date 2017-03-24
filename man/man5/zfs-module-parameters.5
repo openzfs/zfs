@@ -1430,6 +1430,20 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .sp
 .ne 2
 .na
+\fBzfs_dmu_offset_next_sync\fR (int)
+.ad
+.RS 12n
+Enable forcing txg sync to find holes. When enabled forces ZFS to act
+like prior versions when SEEK_HOLE or SEEK_DATA flags are used, which
+when a dnode is dirty causes txg's to be synced so that this data can be
+found.
+.sp
+Use \fB1\fR for yes and \fB0\fR to disable (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_pd_bytes_max\fR (int)
 .ad
 .RS 12n
