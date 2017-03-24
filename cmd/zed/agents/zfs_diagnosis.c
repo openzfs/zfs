@@ -377,7 +377,7 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 	nvlist_t *detector, *fault;
 	boolean_t serialize;
 	nvlist_t *fru = NULL;
-#ifdef _HAS_FMD_TOPO
+#ifdef HAVE_LIBTOPO
 	nvlist_t *fmri;
 	topo_hdl_t *thp;
 	int err;
@@ -400,7 +400,7 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 		    zcp->zc_data.zc_vdev_guid);
 	}
 
-#ifdef _HAS_FMD_TOPO
+#ifdef HAVE_LIBTOPO
 	/*
 	 * We also want to make sure that the detector (pool or vdev) properly
 	 * reflects the diagnosed state, when the fault corresponds to internal

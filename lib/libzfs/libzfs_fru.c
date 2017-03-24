@@ -456,6 +456,15 @@ libzfs_fru_clear(libzfs_handle_t *hdl, boolean_t final)
 #else /* HAVE_LIBTOPO */
 
 /*
+ * Compare to two FRUs, ignoring any authority information.
+ */
+boolean_t
+libzfs_fru_compare(libzfs_handle_t *hdl, const char *a, const char *b)
+{
+	return (B_FALSE);
+}
+
+/*
  * Clear memory associated with the FRU hash.
  */
 void
