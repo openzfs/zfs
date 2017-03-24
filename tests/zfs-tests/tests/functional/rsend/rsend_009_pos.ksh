@@ -80,11 +80,11 @@ for i in $(seq 60); do
 		break
 	fi
 	if [ $i = 60 ]; then
-		echo "zfs recv spend more than 30 sec"
+		sudo sh -c "echo zfs recv spend more than 30 sec > /dev/kmsg"
 		if [ -z "$(pidof receive_writer)" ]; then
-			echo "cannot find receive_writer"
+			sudo sh -c "echo cannot find receive_writer > /dev/kmsg"
 		else
-			sudo cat /proc/$(pidof receive_writer)/stack
+			sudo sh -c "cat /proc/$(pidof receive_writer)/stack > /dev/kmsg"
 		fi
 	fi
 done
@@ -110,11 +110,11 @@ for i in $(seq 60); do
 		break
 	fi
 	if [ $i = 60 ]; then
-		echo "zfs recv spend more than 30 sec"
+		sudo sh -c "echo zfs recv spend more than 30 sec > /dev/kmsg"
 		if [ -z "$(pidof receive_writer)" ]; then
-			echo "cannot find receive_writer"
+			sudo sh -c "echo cannot find receive_writer > /dev/kmsg"
 		else
-			sudo cat /proc/$(pidof receive_writer)/stack
+			sudo sh -c "cat /proc/$(pidof receive_writer)/stack > /dev/kmsg"
 		fi
 	fi
 done
