@@ -278,6 +278,10 @@ zfs_holey_common(struct inode *ip, int cmd, loff_t *off)
 	if (error == ESRCH)
 		return (SET_ERROR(ENXIO));
 
+	/* file was dirty, so fall back to using file_sz logic */
+	if (error == EBUSY)
+		error = 0;
+
 	/*
 	 * We could find a hole that begins after the logical end-of-file,
 	 * because dmu_offset_next() only works on whole blocks.  If the

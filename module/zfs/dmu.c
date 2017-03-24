@@ -1989,32 +1989,44 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 	zp->zp_nopwrite = nopwrite;
 }
 
+/*
+ * This fn is only called from zfs_holey_common for zpl_llseek
+ * Previously, this required flushing of all the TXG's associated with this
+ * file in order to scan the dnode for holes. This caused extremely poor
+ * performance for dirty files, for example log files. As a compromise, if a
+ * dnode is clean, then we can provide hole data. However if a dnode is dirty,
+ * simply fall back to what we would have done if we did not support seeking
+ * holes in this vfsop at all, which is a valid thing to do.
+ */
 int
 dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 {
 	dnode_t *dn;
 	int i, err;
+	boolean_t clean = B_TRUE;
 
 	err = dnode_hold(os, object, FTAG, &dn);
 	if (err)
 		return (err);
+
 	/*
-	 * Sync any current changes before
-	 * we go trundling through the block pointers.
+	 * Check if dnode is dirty
 	 */
-	for (i = 0; i < TXG_SIZE; i++) {
-		if (list_link_active(&dn->dn_dirty_link[i]))
-			break;
-	}
-	if (i != TXG_SIZE) {
-		dnode_rele(dn, FTAG);
-		txg_wait_synced(dmu_objset_pool(os), 0);
-		err = dnode_hold(os, object, FTAG, &dn);
-		if (err)
-			return (err);
+	if (dn->dn_dirtyctx != DN_UNDIRTIED) {
+		for (i = 0; i < TXG_SIZE; i++) {
+			if (!list_is_empty(&dn->dn_dirty_records[i])) {
+				clean = B_FALSE;
+				break;
+			}
+		}
 	}
 
-	err = dnode_next_offset(dn, (hole ? DNODE_FIND_HOLE : 0), off, 1, 1, 0);
+	if (clean)
+		err = dnode_next_offset(dn,
+		    (hole ? DNODE_FIND_HOLE : 0), off, 1, 1, 0);
+	else
+		err = SET_ERROR(EBUSY);
+
 	dnode_rele(dn, FTAG);
 
 	return (err);
