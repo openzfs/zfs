@@ -883,7 +883,12 @@ Default value: \fB10\fR.
 Minimum asynchronous write I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB1\fR.
+Lower values are associated with better latency on rotational media but poorer
+resilver performance. The default value of 2 was chosen as a compromise. A
+value of 3 has been shown to improve resilver performance further at a cost of
+further increasing latency.
+.sp
+Default value: \fB2\fR.
 .RE
 
 .sp
