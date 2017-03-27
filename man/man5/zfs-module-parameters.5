@@ -2004,6 +2004,19 @@ table.
 Default value: \fB131,072\fR.
 .RE
 
+.sp
+.ne 2
+.na
+\fBzfs_qat_disable\fR (int)
+.ad
+.RS 12n
+This tunable disables qat hardware acceleration for gzip compression.
+It is available only if qat acceleration is compiled in and qat driver
+is present.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
 .SH ZFS I/O SCHEDULER
 ZFS issues I/O operations to leaf vdevs to satisfy and complete I/Os.
 The I/O scheduler determines when and in what order those operations are
