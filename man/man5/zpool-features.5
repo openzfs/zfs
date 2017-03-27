@@ -258,6 +258,34 @@ never return to being \fBenabled\fB.
 .sp
 .ne 2
 .na
+\fB\fBlz4fast_compress\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.illumos:lz4fast_compress
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	lz4_compress,extensible_dataset
+.TE
+
+\fBlz4fast\fR adds an acceleration n factor to \fBlz4\fR, 
+reducung the time to compress by about 1.03^n. 
+The defaut acceleration used in \fBlz4\fR is equal to n = 1.
+
+When the \fBlz4fast_compress\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBlz4fast\fR compression on any dataset on the
+pool using the \fBzfs\fR(8) command. Please note that doing so will
+immediately activate the \fBlz4fast_compress\fR feature on the underlying
+pool.
+
+This feature becomes \fBactive\fR as soon as it is used on one dataset and will 
+return to being \fBenabled\fB once all filesystems that have ever had their compression set to
++\fBlz4fast\fR are destroyed.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBspacemap_histogram\fR\fR
 .ad
 .RS 4n

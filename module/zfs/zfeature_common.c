@@ -192,6 +192,19 @@ zpool_feature_init(void)
 	    "LZ4 compression algorithm support.",
 	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, NULL);
 
+	{
+	static const spa_feature_t lz4fast_compress_deps[] = {
+			SPA_FEATURE_LZ4_COMPRESS,
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LZ4FAST_COMPRESS,
+	    "org.zfsonlinux:lz4fast_compress", "lz4fast_compress",
+	    "LZ4fast compression algorithm support.",
+	    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+	    lz4fast_compress_deps);
+	}
+
 	zfeature_register(SPA_FEATURE_SPACEMAP_HISTOGRAM,
 	    "com.delphix:spacemap_histogram", "spacemap_histogram",
 	    "Spacemaps maintain space histograms.",

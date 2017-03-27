@@ -41,23 +41,80 @@
 /*
  * Compression vectors.
  */
-zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
-	{"inherit",		0,	NULL,		NULL},
-	{"on",			0,	NULL,		NULL},
-	{"uncompressed",	0,	NULL,		NULL},
-	{"lzjb",		0,	lzjb_compress,	lzjb_decompress},
-	{"empty",		0,	NULL,		NULL},
-	{"gzip-1",		1,	gzip_compress,	gzip_decompress},
-	{"gzip-2",		2,	gzip_compress,	gzip_decompress},
-	{"gzip-3",		3,	gzip_compress,	gzip_decompress},
-	{"gzip-4",		4,	gzip_compress,	gzip_decompress},
-	{"gzip-5",		5,	gzip_compress,	gzip_decompress},
-	{"gzip-6",		6,	gzip_compress,	gzip_decompress},
-	{"gzip-7",		7,	gzip_compress,	gzip_decompress},
-	{"gzip-8",		8,	gzip_compress,	gzip_decompress},
-	{"gzip-9",		9,	gzip_compress,	gzip_decompress},
-	{"zle",			64,	zle_compress,	zle_decompress},
-	{"lz4",			0,	lz4_compress_zfs, lz4_decompress_zfs}
+zio_compress_info_t zio_compress_table[ZIO_COMPRESS_META_FUNCTIONS] = {
+	{"inherit",	0,	NULL,		NULL, ZIO_COMPRESS_INHERIT},
+	{"on",			0,	NULL,		NULL, ZIO_COMPRESS_ON},
+	{"uncompressed",	0,	NULL,		NULL, ZIO_COMPRESS_OFF},
+	{"lzjb", 0,	lzjb_compress,	lzjb_decompress, ZIO_COMPRESS_LZJB},
+	{"empty", 0,	NULL,		NULL, ZIO_COMPRESS_EMPTY},
+	{"gzip-1", 1,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_1},
+	{"gzip-2", 2,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_2},
+	{"gzip-3", 3,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_3},
+	{"gzip-4", 4,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_4},
+	{"gzip-5", 5,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_5},
+	{"gzip-6", 6,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_6},
+	{"gzip-7", 7,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_7},
+	{"gzip-8", 8,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_8},
+	{"gzip-9", 9,	gzip_compress,	gzip_decompress, ZIO_COMPRESS_GZIP_9},
+	{"zle",	64,	zle_compress,	zle_decompress, ZIO_COMPRESS_ZLE},
+	{"lz4",	0,	lz4_compress_zfs, lz4_decompress_zfs, ZIO_COMPRESS_LZ4},
+	{"compressfunctionsplaceholder", 0, NULL, NULL, ZIO_COMPRESS_FUNCTIONS},
+	{"lz4fast-1",	1,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-2",	2,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-3",	3,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-4",	4,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-5",	5,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-6",	6,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-7",	7,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-8",	8,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-9",	9,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-10",	10,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-11",	11,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-12",	12,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-13",	13,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-14",	14,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-15",	15,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-16",	16,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-17",	17,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-18",	18,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-19",	19,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-20",	20,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-30",	30,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-40",	40,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-50",	50,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-60",	60,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-70",	70,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-80",	80,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-90",	90,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
+	{"lz4fast-100",	100,	lz4_compress_zfs, lz4_decompress_zfs,
+		ZIO_COMPRESS_LZ4},
 };
 
 enum zio_compress
@@ -66,8 +123,10 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 {
 	enum zio_compress result;
 
-	ASSERT(child < ZIO_COMPRESS_FUNCTIONS);
-	ASSERT(parent < ZIO_COMPRESS_FUNCTIONS);
+	ASSERT(child < ZIO_COMPRESS_META_FUNCTIONS &&
+	    child != ZIO_COMPRESS_FUNCTIONS);
+	ASSERT(parent < ZIO_COMPRESS_META_FUNCTIONS &&
+	    parent != ZIO_COMPRESS_FUNCTIONS);
 	ASSERT(parent != ZIO_COMPRESS_INHERIT);
 
 	result = child;
@@ -105,7 +164,8 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 	zio_compress_info_t *ci = &zio_compress_table[c];
 	void *tmp;
 
-	ASSERT((uint_t)c < ZIO_COMPRESS_FUNCTIONS);
+	ASSERT((uint_t)c < ZIO_COMPRESS_META_FUNCTIONS &&
+	    (uint_t)c != ZIO_COMPRESS_FUNCTIONS);
 	ASSERT((uint_t)c == ZIO_COMPRESS_EMPTY || ci->ci_compress != NULL);
 
 	/*

@@ -2415,6 +2415,12 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		if (err == 0)
 			err = -1;
 		break;
+	case ZFS_PROP_COMPRESSION:
+		if (intval >= ZIO_COMPRESS_LZ4FAST_1 &&
+		    intval <= ZIO_COMPRESS_LZ4FAST_100) {
+			dsl_dataset_activate_lz4fast_compress(dsname);
+		}
+		break;
 	case ZFS_PROP_RESERVATION:
 		err = dsl_dir_set_reservation(dsname, source, intval);
 		break;
@@ -3824,6 +3830,21 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 				if (!spa_feature_is_enabled(spa,
 				    SPA_FEATURE_LZ4_COMPRESS)) {
+					spa_close(spa, FTAG);
+					return (SET_ERROR(ENOTSUP));
+				}
+				spa_close(spa, FTAG);
+			}
+
+			if (intval >= ZIO_COMPRESS_LZ4FAST_1 &&
+			    intval <= ZIO_COMPRESS_LZ4FAST_100) {
+				spa_t *spa;
+
+				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+					return (err);
+
+				if (!spa_feature_is_enabled(spa,
+				    SPA_FEATURE_LZ4FAST_COMPRESS)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}
