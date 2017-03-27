@@ -631,7 +631,6 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		return (NULL);
 
 	size = IO_SPAN(first, last);
-	ASSERT3U(size, <=, limit);
 
 	abd = abd_alloc_for_io(size, B_TRUE);
 	if (abd == NULL)
