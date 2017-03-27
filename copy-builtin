@@ -59,8 +59,11 @@ EOF
 
 {
 	cat <<-"EOF"
-	ZFS_MODULE_CFLAGS  = -I$(srctree)/include/zfs -I$(srctree)/include/spl 
-	ZFS_MODULE_CFLAGS += -include $(srctree)/spl_config.h -include $(srctree)/zfs_config.h
+	ZFS_MODULE_CFLAGS  = -I$(srctree)/include/zfs
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/spl
+	ZFS_MODULE_CFLAGS += -include $(srctree)/spl_config.h
+	ZFS_MODULE_CFLAGS += -include $(srctree)/zfs_config.h
+	ZFS_MODULE_CLFAGS += -std=gnu99
 	export ZFS_MODULE_CFLAGS
 
 	obj-$(CONFIG_ZFS) :=
