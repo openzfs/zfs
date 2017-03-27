@@ -355,8 +355,9 @@ vdev_cache_write(zio_t *zio)
 		if (ve->ve_fill_io != NULL) {
 			ve->ve_missed_update = 1;
 		} else {
-			abd_copy_off(ve->ve_abd, zio->io_abd, start - io_start,
-			    start - ve->ve_offset, end - start);
+			abd_copy_off(ve->ve_abd, zio->io_abd,
+			    start - ve->ve_offset, start - io_start,
+			    end - start);
 		}
 		ve = AVL_NEXT(&vc->vc_offset_tree, ve);
 	}
