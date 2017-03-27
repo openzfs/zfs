@@ -83,7 +83,7 @@ int dsl_prop_get_int_ds(struct dsl_dataset *ds, const char *propname,
     uint64_t *valuep);
 int dsl_prop_get_dd(struct dsl_dir *dd, const char *propname,
     int intsz, int numints, void *buf, char *setpoint,
-    boolean_t snapshot);
+    boolean_t snapshot, struct dsl_dir **pdd);
 
 void dsl_props_set_sync_impl(struct dsl_dataset *ds, zprop_source_t source,
     nvlist_t *props, dmu_tx_t *tx);

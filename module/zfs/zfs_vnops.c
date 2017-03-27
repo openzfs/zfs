@@ -79,6 +79,10 @@
 #include <sys/attr.h>
 #include <sys/zpl.h>
 
+#include <sys/dsl_dataset.h>
+#include <sys/dsl_dir.h>
+#include <sys/dsl_prop.h>
+
 /*
  * Programming rules.
  *
@@ -709,6 +713,21 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 	end_size = MAX(zp->z_size, woff + n);
 
+	dsl_dir_t *qos_dd = NULL;
+	if (zfsvfs->z_os->os_compress >= ZIO_COMPRESS_QOS_10 &&
+	    zfsvfs->z_os->os_compress <= ZIO_COMPRESS_QOS_1000) {
+		uint64_t compress;
+
+		dsl_prop_get_dd(zfsvfs->z_os->os_dsl_dataset->ds_dir,
+		    zfs_prop_to_name(ZFS_PROP_COMPRESSION),
+		    8, 1, &compress, NULL, B_FALSE, &qos_dd);
+
+		mutex_enter(&dmu_objset_ds(zfsvfs->z_os)->ds_dir->dd_lock);
+		dmu_objset_ds(zfsvfs->z_os)->ds_dir->dd_inherit_parent = qos_dd;
+		mutex_exit(&dmu_objset_ds(zfsvfs->z_os)->ds_dir->dd_lock);
+	}
+
+
 	/*
 	 * Write the file in reasonable size chunks.  Each chunk is written
 	 * in a separate transaction; this keeps the intent log records small
@@ -762,6 +781,114 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			ASSERT(cbytes == max_blksz);
 		}
 
+
+		/*
+		 * XXX - should we really limit each write to z_max_blksz?
+		 * Perhaps we should use SPA_MAXBLOCKSIZE chunks?
+		 */
+		nbytes = MIN(n, max_blksz - P2PHASE(woff, max_blksz));
+
+
+		if (qos_dd) {
+
+			hrtime_t dur;
+			uint64_t through_MBps;
+			uint64_t size;
+
+			mutex_enter(&qos_dd->dd_lock);
+			qos_dd->dd_qos_size += nbytes;
+			size = qos_dd->dd_qos_size;
+			dur = gethrtime() - qos_dd->dd_qos_ts;
+			mutex_exit(&qos_dd->dd_lock);
+
+
+			switch (zfsvfs->z_os->os_compress) {
+				case ZIO_COMPRESS_QOS_10:
+					through_MBps = 10;
+					break;
+				case ZIO_COMPRESS_QOS_20:
+					through_MBps = 20;
+					break;
+				case ZIO_COMPRESS_QOS_30:
+					through_MBps = 30;
+					break;
+				case ZIO_COMPRESS_QOS_40:
+					through_MBps = 40;
+					break;
+				case ZIO_COMPRESS_QOS_50:
+					through_MBps = 50;
+					break;
+				case ZIO_COMPRESS_QOS_100:
+					through_MBps = 100;
+					break;
+				case ZIO_COMPRESS_QOS_150:
+					through_MBps = 150;
+					break;
+				case ZIO_COMPRESS_QOS_200:
+					through_MBps = 200;
+					break;
+				case ZIO_COMPRESS_QOS_250:
+					through_MBps = 250;
+					break;
+				case ZIO_COMPRESS_QOS_300:
+					through_MBps = 300;
+					break;
+				case ZIO_COMPRESS_QOS_350:
+					through_MBps = 350;
+					break;
+				case ZIO_COMPRESS_QOS_400:
+					through_MBps = 400;
+					break;
+				case ZIO_COMPRESS_QOS_450:
+					through_MBps = 450;
+					break;
+				case ZIO_COMPRESS_QOS_500:
+					through_MBps = 500;
+					break;
+				case ZIO_COMPRESS_QOS_550:
+					through_MBps = 550;
+					break;
+				case ZIO_COMPRESS_QOS_600:
+					through_MBps = 600;
+					break;
+				case ZIO_COMPRESS_QOS_650:
+					through_MBps = 650;
+					break;
+				case ZIO_COMPRESS_QOS_700:
+					through_MBps = 700;
+					break;
+				case ZIO_COMPRESS_QOS_750:
+					through_MBps = 750;
+					break;
+				case ZIO_COMPRESS_QOS_800:
+					through_MBps = 800;
+					break;
+				case ZIO_COMPRESS_QOS_850:
+					through_MBps = 850;
+					break;
+				case ZIO_COMPRESS_QOS_900:
+					through_MBps = 900;
+					break;
+				case ZIO_COMPRESS_QOS_950:
+					through_MBps = 950;
+					break;
+				case ZIO_COMPRESS_QOS_1000:
+					through_MBps = 1000;
+					break;
+				default:
+					through_MBps = 0;
+					break; // error
+			}
+			ASSERT(through_MBps > 0);
+
+			uint64_t trans = 1000;
+			uint64_t delay = ((size * trans) /
+			    (through_MBps));
+			if (delay > dur) {
+				zfs_sleep_until(gethrtime() + (delay - dur));
+			}
+		}
+
 		/*
 		 * Start a transaction.
 		 */
@@ -802,11 +929,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			zfs_range_reduce(rl, woff, n);
 		}
 
-		/*
-		 * XXX - should we really limit each write to z_max_blksz?
-		 * Perhaps we should use SPA_MAXBLOCKSIZE chunks?
-		 */
-		nbytes = MIN(n, max_blksz - P2PHASE(woff, max_blksz));
+
 
 		if (abuf == NULL) {
 			tx_bytes = uio->uio_resid;

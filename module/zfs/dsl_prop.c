@@ -71,7 +71,8 @@ dodefault(zfs_prop_t prop, int intsz, int numints, void *buf)
 
 int
 dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
-    int intsz, int numints, void *buf, char *setpoint, boolean_t snapshot)
+    int intsz, int numints, void *buf, char *setpoint, boolean_t snapshot,
+    dsl_dir_t **pdd)
 {
 	int err = ENOENT;
 	dsl_dir_t *target = dd;
@@ -109,6 +110,8 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 		if (err != ENOENT) {
 			if (setpoint != NULL && err == 0)
 				dsl_dir_name(dd, setpoint);
+			if (pdd != NULL && err == 0)
+				*pdd = dd;
 			break;
 		}
 
@@ -212,7 +215,7 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 	}
 
 	return (dsl_prop_get_dd(ds->ds_dir, propname,
-	    intsz, numints, buf, setpoint, ds->ds_is_snapshot));
+	    intsz, numints, buf, setpoint, ds->ds_is_snapshot, NULL));
 }
 
 static dsl_prop_record_t *

@@ -597,7 +597,7 @@ dsl_deleg_access_impl(dsl_dataset_t *ds, const char *perm, cred_t *cr)
 
 			if (dsl_prop_get_dd(dd,
 			    zfs_prop_to_name(ZFS_PROP_ZONED),
-			    8, 1, &zoned, NULL, B_FALSE) != 0)
+			    8, 1, &zoned, NULL, B_FALSE, NULL) != 0)
 				break;
 			if (!zoned)
 				break;

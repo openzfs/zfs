@@ -41,7 +41,7 @@
 /*
  * Compression vectors.
  */
-zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
+zio_compress_info_t zio_compress_table[ZIO_COMPRESS_META_FUNCTIONS] = {
 	{"inherit",		0,	NULL,		NULL},
 	{"on",			0,	NULL,		NULL},
 	{"uncompressed",	0,	NULL,		NULL},
@@ -57,7 +57,32 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{"gzip-8",		8,	gzip_compress,	gzip_decompress},
 	{"gzip-9",		9,	gzip_compress,	gzip_decompress},
 	{"zle",			64,	zle_compress,	zle_decompress},
-	{"lz4",			0,	lz4_compress_zfs, lz4_decompress_zfs}
+	{"lz4",			0,	lz4_compress_zfs, lz4_decompress_zfs},
+	{"compressfunctionsplaceholder", 0, NULL,	NULL},
+	{"qos-10",		0,	NULL,		NULL},
+	{"qos-20",		0,	NULL,		NULL},
+	{"qos-30",		0,	NULL,		NULL},
+	{"qos-40",		0,	NULL,		NULL},
+	{"qos-50",		0,	NULL,		NULL},
+	{"qos-100",		0,	NULL,		NULL},
+	{"qos-150",		0,	NULL,		NULL},
+	{"qos-200",		0,	NULL,		NULL},
+	{"qos-250",		0,	NULL,		NULL},
+	{"qos-300",		0,	NULL,		NULL},
+	{"qos-350",		0,	NULL,		NULL},
+	{"qos-400",		0,	NULL,		NULL},
+	{"qos-450",		0,	NULL,		NULL},
+	{"qos-500",		0,	NULL,		NULL},
+	{"qos-550",		0,	NULL,		NULL},
+	{"qos-600",		0,	NULL,		NULL},
+	{"qos-650",		0,	NULL,		NULL},
+	{"qos-700",		0,	NULL,		NULL},
+	{"qos-750",		0,	NULL,		NULL},
+	{"qos-800",		0,	NULL,		NULL},
+	{"qos-850",		0,	NULL,		NULL},
+	{"qos-900",		0,	NULL,		NULL},
+	{"qos-950",		0,	NULL,		NULL},
+	{"qos-1000",		0,	NULL,		NULL}
 };
 
 enum zio_compress
@@ -66,8 +91,10 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 {
 	enum zio_compress result;
 
-	ASSERT(child < ZIO_COMPRESS_FUNCTIONS);
-	ASSERT(parent < ZIO_COMPRESS_FUNCTIONS);
+	ASSERT(child < ZIO_COMPRESS_META_FUNCTIONS &&
+	    child != ZIO_COMPRESS_FUNCTIONS);
+	ASSERT(parent < ZIO_COMPRESS_META_FUNCTIONS &&
+	    parent != ZIO_COMPRESS_FUNCTIONS);
 	ASSERT(parent != ZIO_COMPRESS_INHERIT);
 
 	result = child;
@@ -105,7 +132,8 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 	zio_compress_info_t *ci = &zio_compress_table[c];
 	void *tmp;
 
-	ASSERT((uint_t)c < ZIO_COMPRESS_FUNCTIONS);
+	ASSERT((uint_t)c < ZIO_COMPRESS_META_FUNCTIONS &&
+	    (uint_t)c != ZIO_COMPRESS_FUNCTIONS);
 	ASSERT((uint_t)c == ZIO_COMPRESS_EMPTY || ci->ci_compress != NULL);
 
 	/*

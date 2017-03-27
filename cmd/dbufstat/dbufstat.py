@@ -303,15 +303,27 @@ def get_typestring(t):
 
 
 def get_compstring(c):
-    comp_strings = ["ZIO_COMPRESS_INHERIT", "ZIO_COMPRESS_ON",
-                    "ZIO_COMPRESS_OFF",     "ZIO_COMPRESS_LZJB",
-                    "ZIO_COMPRESS_EMPTY",   "ZIO_COMPRESS_GZIP_1",
-                    "ZIO_COMPRESS_GZIP_2",  "ZIO_COMPRESS_GZIP_3",
-                    "ZIO_COMPRESS_GZIP_4",  "ZIO_COMPRESS_GZIP_5",
-                    "ZIO_COMPRESS_GZIP_6",  "ZIO_COMPRESS_GZIP_7",
-                    "ZIO_COMPRESS_GZIP_8",  "ZIO_COMPRESS_GZIP_9",
-                    "ZIO_COMPRESS_ZLE",     "ZIO_COMPRESS_LZ4",
-                    "ZIO_COMPRESS_FUNCTION"]
+    comp_strings = ["ZIO_COMPRESS_INHERIT",  "ZIO_COMPRESS_ON",
+                    "ZIO_COMPRESS_OFF",      "ZIO_COMPRESS_LZJB",
+                    "ZIO_COMPRESS_EMPTY",    "ZIO_COMPRESS_GZIP_1",
+                    "ZIO_COMPRESS_GZIP_2",   "ZIO_COMPRESS_GZIP_3",
+                    "ZIO_COMPRESS_GZIP_4",   "ZIO_COMPRESS_GZIP_5",
+                    "ZIO_COMPRESS_GZIP_6",   "ZIO_COMPRESS_GZIP_7",
+                    "ZIO_COMPRESS_GZIP_8",   "ZIO_COMPRESS_GZIP_9",
+                    "ZIO_COMPRESS_ZLE",      "ZIO_COMPRESS_LZ4",
+                    "ZIO_COMPRESS_FUNCTION", "ZIO_COMPRESS_QOS_10",
+                    "ZIO_COMPRESS_QOS_20",   "ZIO_COMPRESS_QOS_30",
+                    "ZIO_COMPRESS_QOS_40",   "ZIO_COMPRESS_QOS_50",
+                    "ZIO_COMPRESS_QOS_100",  "ZIO_COMPRESS_QOS_150",
+                    "ZIO_COMPRESS_QOS_200",  "ZIO_COMPRESS_QOS_250",
+                    "ZIO_COMPRESS_QOS_300",  "ZIO_COMPRESS_QOS_350",
+                    "ZIO_COMPRESS_QOS_400",  "ZIO_COMPRESS_QOS_450",
+                    "ZIO_COMPRESS_QOS_500",  "ZIO_COMPRESS_QOS_550",
+                    "ZIO_COMPRESS_QOS_600",  "ZIO_COMPRESS_QOS_650",
+                    "ZIO_COMPRESS_QOS_700",  "ZIO_COMPRESS_QOS_750",
+                    "ZIO_COMPRESS_QOS_800",  "ZIO_COMPRESS_QOS_850",
+                    "ZIO_COMPRESS_QOS_900",  "ZIO_COMPRESS_QOS_950",
+                    "ZIO_COMPRESS_QOS_1000", "ZIO_COMPRESS_META_FUNCTIONS"]
 
     # If "-rr" option is used, don't convert to string representation
     if raw > 1:

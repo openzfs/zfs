@@ -258,6 +258,36 @@ never return to being \fBenabled\fB.
 .sp
 .ne 2
 .na
+\fB\fBcompress_qos\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:compress_qos
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	lz4_compress,extensible_dataset
+.TE
+
+\fBcompress_qos\fR adds quality of service capabilities to the dataset.
+The chosen qos value limits the incoming traffic to improve simultaneous writes
+into multiple datasets.
+The chosen qos value also limits the compression speed(equal to disk write speed).
+Low values will result in better compression ratio but less throughput than high values.
+
+When the \fBcompress_qos\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBqos\fR compression on any dataset on the
+pool using the \fBzfs\fR(8) command. Please note that doing so will
+immediately activate the \fBcompress_qos\fR feature on the underlying
+pool.
+
+This feature becomes \fBactive\fR as soon as it is used on one dataset and will 
+return to being \fBenabled\fB once all filesystems that have ever had their compression set to
++\fcompress_qos\fR are destroyed.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBspacemap_histogram\fR\fR
 .ad
 .RS 4n

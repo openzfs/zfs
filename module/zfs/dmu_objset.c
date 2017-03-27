@@ -1393,6 +1393,20 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		os->os_freed_dnodes = 0;
 	}
 
+	if (dmu_objset_ds(os)) {
+		if (dmu_objset_ds(os)->ds_dir->dd_inherit_parent) {
+			mutex_enter(&dmu_objset_ds(os)->ds_dir->
+			    dd_inherit_parent->dd_lock);
+			dmu_objset_ds(os)->ds_dir->dd_inherit_parent->
+			    dd_qos_size = 0;
+			dmu_objset_ds(os)->ds_dir->dd_inherit_parent->
+			    dd_qos_ts = gethrtime();
+			mutex_exit(&dmu_objset_ds(os)->ds_dir->
+			    dd_inherit_parent->dd_lock);
+		}
+	}
+
+
 	/*
 	 * Free intent log blocks up to this tx.
 	 */

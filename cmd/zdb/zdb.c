@@ -64,7 +64,7 @@
 #include <zfs_comutil.h>
 #include <libzfs.h>
 
-#define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ?	\
+#define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_META_FUNCTIONS ?	\
 	zio_compress_table[(idx)].ci_name : "UNKNOWN")
 #define	ZDB_CHECKSUM_NAME(idx) ((idx) < ZIO_CHECKSUM_FUNCTIONS ?	\
 	zio_checksum_table[(idx)].ci_name : "UNKNOWN")

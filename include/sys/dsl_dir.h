@@ -105,6 +105,9 @@ struct dsl_dir {
 	list_t dd_props; /* list of dsl_prop_record_t's */
 	timestruc_t dd_snap_cmtime; /* last time snapshot namespace changed */
 	uint64_t dd_origin_txg;
+	dsl_dir_t *dd_inherit_parent;
+	hrtime_t dd_qos_ts;
+	uint64_t dd_qos_size;
 
 	/* gross estimate of space used by in-flight tx's */
 	uint64_t dd_tempreserved[TXG_SIZE];

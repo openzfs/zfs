@@ -808,7 +808,7 @@ dsl_fs_ss_limit_check(dsl_dir_t *dd, uint64_t delta, zfs_prop_t prop,
 		return (0);
 
 	err = dsl_prop_get_dd(dd, zfs_prop_to_name(prop), 8, 1, &limit, NULL,
-	    B_FALSE);
+	    B_FALSE, NULL);
 	if (err != 0)
 		return (err);
 

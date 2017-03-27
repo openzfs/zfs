@@ -1970,6 +1970,8 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 		    compress != ZIO_COMPRESS_OFF && zfs_nopwrite_enabled);
 	}
 
+	zp->zp_os = os;
+
 	zp->zp_checksum = checksum;
 
 	/*

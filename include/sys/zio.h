@@ -36,6 +36,7 @@
 #include <sys/avl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio_impl.h>
+#include <sys/compress_qos.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -291,6 +292,7 @@ typedef struct zio_prop {
 	boolean_t		zp_dedup;
 	boolean_t		zp_dedup_verify;
 	boolean_t		zp_nopwrite;
+	objset_t		*zp_os;
 } zio_prop_t;
 
 typedef struct zio_cksum_report zio_cksum_report_t;
@@ -452,6 +454,13 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+
+	uint8_t		io_compress_level;
+	zio_t		*io_temp_parent;
+
+	hrtime_t	io_qos_timestamp;
+	uint64_t	io_qos_lsize;
+	uint64_t	io_qos_size;
 };
 
 extern int zio_bookmark_compare(const void *, const void *);

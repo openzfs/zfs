@@ -3666,6 +3666,62 @@ dsl_dataset_has_resume_receive_state(dsl_dataset_t *ds)
 	    ds->ds_object, DS_FIELD_RESUME_TOGUID) == 0);
 }
 
+
+static int
+dsl_dataset_actv_compress_qos_check(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	int error;
+
+	error = dsl_dataset_hold(dp, ddname, FTAG, &ds);
+	if (error != 0)
+		return (error);
+
+	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_COMPRESS_QOS)) {
+		dsl_dataset_rele(ds, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	dsl_dataset_rele(ds, FTAG);
+	return (0);
+}
+
+static void
+dsl_dataset_actv_compress_qos_sync(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	spa_feature_t f = SPA_FEATURE_COMPRESS_QOS;
+
+	VERIFY0(dsl_dataset_hold(dp, ddname, FTAG, &ds));
+
+	if (!ds->ds_feature_inuse[f]) {
+		dsl_dataset_activate_feature(ds->ds_object, f, tx);
+		ds->ds_feature_inuse[f] = B_TRUE;
+	}
+	dsl_dataset_rele(ds, FTAG);
+}
+
+
+int
+dsl_dataset_activate_compress_qos(const char *ddname)
+{
+	int error;
+
+	error = dsl_sync_task(ddname, dsl_dataset_actv_compress_qos_check,
+	    dsl_dataset_actv_compress_qos_sync, (void *)ddname, 0,
+	    ZFS_SPACE_CHECK_RESERVED);
+
+	if (error == EALREADY)
+		error = 0;
+
+	return (error);
+}
+
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 #if defined(_LP64)
 module_param(zfs_max_recordsize, int, 0644);
