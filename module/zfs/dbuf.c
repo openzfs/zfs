@@ -596,19 +596,15 @@ dbuf_evict_notify(void)
 	if (tsd_get(zfs_dbuf_evict_key) != NULL)
 		return;
 
+	/*
+	 * We check if we should evict without holding the dbuf_evict_lock,
+	 * because it's OK to occasionally make the wrong decision here,
+	 * and grabbing the lock results in massive lock contention.
+	 */
 	if (refcount_count(&dbuf_cache_size) > dbuf_cache_max_bytes) {
-		boolean_t evict_now = B_FALSE;
-
-		mutex_enter(&dbuf_evict_lock);
-		if (refcount_count(&dbuf_cache_size) > dbuf_cache_max_bytes) {
-			evict_now = dbuf_cache_above_hiwater();
-			cv_signal(&dbuf_evict_cv);
-		}
-		mutex_exit(&dbuf_evict_lock);
-
-		if (evict_now) {
+		if (dbuf_cache_above_hiwater())
 			dbuf_evict_one();
-		}
+		cv_signal(&dbuf_evict_cv);
 	}
 }
 
