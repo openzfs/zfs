@@ -912,6 +912,8 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
 	    ZFS_ERROR_CLASS, name);
 	VERIFY0(nvlist_add_uint8(resource, FM_VERSION, FM_RSRC_VERSION));
 	VERIFY0(nvlist_add_string(resource, FM_CLASS, class));
+	VERIFY0(nvlist_add_string(resource,
+	    FM_EREPORT_PAYLOAD_ZFS_POOL, spa_name(spa)));
 	VERIFY0(nvlist_add_uint64(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)));
 	VERIFY0(nvlist_add_int32(resource,
