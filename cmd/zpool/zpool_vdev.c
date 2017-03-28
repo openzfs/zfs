@@ -727,9 +727,9 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 			if (ashift != 0 &&
 			    (ashift < ASHIFT_MIN || ashift > ASHIFT_MAX)) {
 				(void) fprintf(stderr,
-				    gettext("property 'ashift' value %" PRIu64
-				    " is invalid: only values between %" PRId32
-				    " and %" PRId32 " are allowed.\n"),
+				    gettext("invalid 'ashift=%" PRIu64 "' "
+				    "property: only values between %" PRId32 " "
+				    "and %" PRId32 " are allowed.\n"),
 				    ashift, ASHIFT_MIN, ASHIFT_MAX);
 				return (NULL);
 			}
