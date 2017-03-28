@@ -496,7 +496,7 @@ tests = ['mv_files_001_pos', 'mv_files_002_pos']
 tests = ['nestedfs_001_pos']
 
 [tests/functional/no_space]
-tests = ['enospc_001_pos']
+tests = ['enospc_001_pos', 'enospc_002_pos', 'enospc_003_pos']
 
 # DISABLED:
 # nopwrite_volume - https://github.com/zfsonlinux/zfs/issues/5510
