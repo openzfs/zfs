@@ -29,4 +29,5 @@
 - [ ] I have read the **CONTRIBUTING** document.
 - [ ] I have added tests to cover my changes.
 - [ ] All new and existing tests passed.
+- [ ] All commit messages are properly formatted and contain `Signed-off-by`.
 - [ ] Change has been approved by a ZFS on Linux member.

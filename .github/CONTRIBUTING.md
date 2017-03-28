@@ -24,6 +24,9 @@ started?](#what-should-i-know-before-i-get-started)
 [Style Guides](#style-guides)
 
   * [Coding Conventions](#coding-conventions)
+  * [Commit Message Formats](#commit-message-formats)
+    * [New Changes](#new-changes)
+    * [OpenZFS Patch Ports](#openzfs-patch-ports)
 
 Helpful resources
 
@@ -117,6 +120,8 @@ feature needed?  What problem does it solve?
 without conflicts.
 * Please attempt to limit pull requests to a single commit which resolves
 one specific issue.
+* Make sure your commit messages are in the correct format. See the
+[Commit Message Formats](#commit-message-formats) section for more information.
 * When updating a pull request squash multiple commits by performing a
 [rebase](https://git-scm.com/docs/git-rebase) (squash).
 * For large pull requests consider structuring your changes as a stack of
@@ -150,3 +155,65 @@ to verify ZFS is behaving as intended.
 We currently use [C  Style  and  Coding  Standards  for
 SunOS](http://www.cis.upenn.edu/%7Elee/06cse480/data/cstyle.ms.pdf) as our
 coding convention.
+
+### Commit Message Formats
+#### New Changes
+Commit messages for new changes must meet the following guidelines:
+* In 50 characters or less, provide a summary of the change as the
+first line in the commit message.
+* A body which provides a description of the change. If necessary,
+please summarize important information such as why the proposed
+approach was chosen or a brief description of the bug you are resolving.
+Each line of the body must be 72 characters or less.
+* The last line must be a `Signed-off-by:` line with the developer's
+name followed by their email.
+
+Git can append the `Signed-off-by` line to your commit messages. Simply
+provide the `-s` or `--signoff` option when performing a `git commit`.
+For more information about writing commit messages, visit [How to Write
+a Git Commit Message](https://chris.beams.io/posts/git-commit/).
+An example commit message is provided below.
+
+```
+This line is a brief summary of your change
+
+Please provide at least a couple sentences describing the
+change. If necessary, please summarize decisions such as
+why the proposed approach was chosen or what bug you are
+attempting to solve.
+
+Signed-off-by: Contributor <contributor@email.com>
+```
+
+#### OpenZFS Patch Ports
+If you are porting an OpenZFS patch, the commit message must meet
+the following guidelines:
+* The first line must be the summary line from the OpenZFS commit.
+It must begin with `OpenZFS dddd - ` where `dddd` is the OpenZFS issue number.
+* Provides a `Authored by:` line to attribute the patch to the original author.
+* Provides the `Reviewed by:` and `Approved by:` lines from the original
+OpenZFS commit.
+* Provides a `Ported-by:` line with the developer's name followed by
+their email.
+* Provides a `OpenZFS-issue:` line which is a link to the original illumos
+issue.
+* Provides a `OpenZFS-commit:` line which links back to the original OpenZFS
+commit.
+* If necessary, provide some porting notes to describe any deviations from
+the original OpenZFS commit.
+
+An example OpenZFS patch port commit message is provided below.
+```
+OpenZFS 1234 - Summary from the original OpenZFS commit
+
+Authored by: Original Author <original@email.com>
+Reviewed by: Reviewer One <reviewer1@email.com>
+Reviewed by: Reviewer Two <reviewer2@email.com>
+Approved by: Approver One <approver1@email.com>
+Ported-by: ZFS Contributor <contributor@email.com>
+
+Provide some porting notes here if necessary.
+
+OpenZFS-issue: https://www.illumos.org/issues/1234
+OpenZFS-commit: https://github.com/openzfs/openzfs/commit/abcd1234
+```
