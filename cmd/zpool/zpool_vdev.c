@@ -70,6 +70,7 @@
 #include <libintl.h>
 #include <libnvpair.h>
 #include <limits.h>
+#include <sys/spa.h>
 #include <scsi/scsi.h>
 #include <scsi/sg.h>
 #include <stdio.h>
@@ -721,8 +722,18 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		char *value = NULL;
 
 		if (nvlist_lookup_string(props,
-		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0)
+		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0) {
 			zfs_nicestrtonum(NULL, value, &ashift);
+			if (ashift != 0 &&
+			    (ashift < ASHIFT_MIN || ashift > ASHIFT_MAX)) {
+				(void) fprintf(stderr,
+				    gettext("invalid 'ashift=%" PRIu64 "' "
+				    "property: only values between %" PRId32 " "
+				    "and %" PRId32 " are allowed.\n"),
+				    ashift, ASHIFT_MIN, ASHIFT_MAX);
+				return (NULL);
+			}
+		}
 	}
 
 	/*

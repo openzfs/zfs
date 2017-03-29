@@ -230,7 +230,8 @@ tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos']
 # zpool_add_006_pos - https://github.com/zfsonlinux/zfs/issues/3484
 [tests/functional/cli_root/zpool_add]
 tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
-    'zpool_add_007_neg', 'zpool_add_008_neg', 'zpool_add_009_neg']
+    'zpool_add_007_neg', 'zpool_add_008_neg', 'zpool_add_009_neg',
+    'add-o_ashift']
 
 [tests/functional/cli_root/zpool_attach]
 tests = ['zpool_attach_001_neg']

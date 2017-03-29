@@ -1345,8 +1345,15 @@ vdev_open(vdev_t *vd)
 		 */
 		vd->vdev_asize = asize;
 		vd->vdev_max_asize = max_asize;
-		if (vd->vdev_ashift == 0)
-			vd->vdev_ashift = ashift;
+		if (vd->vdev_ashift == 0) {
+			vd->vdev_ashift = ashift; /* use detected value */
+		}
+		if (vd->vdev_ashift != 0 && (vd->vdev_ashift < ASHIFT_MIN ||
+		    vd->vdev_ashift > ASHIFT_MAX)) {
+			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_BAD_ASHIFT);
+			return (SET_ERROR(EDOM));
+		}
 	} else {
 		/*
 		 * Detect if the alignment requirement has increased.
@@ -3486,6 +3493,9 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 				break;
 			case VDEV_AUX_BAD_LABEL:
 				class = FM_EREPORT_ZFS_DEVICE_BAD_LABEL;
+				break;
+			case VDEV_AUX_BAD_ASHIFT:
+				class = FM_EREPORT_ZFS_DEVICE_BAD_ASHIFT;
 				break;
 			default:
 				class = FM_EREPORT_ZFS_DEVICE_UNKNOWN;

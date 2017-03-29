@@ -538,10 +538,13 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 
-			if (intval != 0 && (intval < 9 || intval > 13)) {
+			if (intval != 0 &&
+			    (intval < ASHIFT_MIN || intval > ASHIFT_MAX)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "property '%s' number %d is invalid."),
-				    propname, intval);
+				    "invalid '%s=%d' property: only values "
+				    "between %" PRId32 " and %" PRId32 " "
+				    "are allowed.\n"),
+				    propname, intval, ASHIFT_MIN, ASHIFT_MAX);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
