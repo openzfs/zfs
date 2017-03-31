@@ -42,7 +42,7 @@ fi
 
 log_assert "Verify resumability of a full ZFS send/receive with the source " \
     "filesystem unmounted"
-log_onexit cleanup_pool $POOL2
+log_onexit resume_cleanup $sendfs $streamfs
 
 sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs

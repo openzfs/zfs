@@ -13,11 +13,28 @@
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
-typeset -a compress_props=('on' 'off' 'lzjb' 'gzip' 'gzip-1' 'gzip-2' 'gzip-3'
-    'gzip-4' 'gzip-5' 'gzip-6' 'gzip-7' 'gzip-8' 'gzip-9' 'zle')
+typeset -a compress_prop_vals=('on' 'off' 'lzjb' 'gzip' 'gzip-1' 'gzip-2'
+    'gzip-3' 'gzip-4' 'gzip-5' 'gzip-6' 'gzip-7' 'gzip-8' 'gzip-9' 'zle' 'lz4')
+typeset -a checksum_prop_vals=('on' 'off' 'fletcher2' 'fletcher4' 'sha256'
+    'noparity' 'sha512' 'skein' 'edonr')
+typeset -a recsize_prop_vals=('512' '1024' '2048' '4096' '8192' '16384'
+    '32768' '65536' '131072' '262144' '524288' '1048576')
+typeset -a aclinherit_prop_vals=('discard' 'noallow' 'restricted' 'passthrough'
+    'passthrough-x')
+typeset -a canmount_prop_vals=('on' 'off' 'noauto')
+typeset -a copies_prop_vals=('1' '2' '3')
+typeset -a logbias_prop_vals=('latency' 'throughput')
+typeset -a primarycache_prop_vals=('all' 'none' 'metadata')
+typeset -a redundant_metadata_prop_vals=('all' 'most')
+typeset -a secondarycache_prop_vals=('all' 'none' 'metadata')
+typeset -a snapdir_prop_vals=('hidden' 'visible')
+typeset -a sync_prop_vals=('standard' 'always' 'disabled')
 
-typeset -a checksum_props=('on' 'off' 'fletcher2' 'fletcher4' 'sha256' 'sha512'
-    'edonr' 'skein' 'noparity')
+typeset -a fs_props=('compress' 'checksum' 'recsize' 'aclinherit'
+    'canmount' 'copies' 'logbias' 'primarycache' 'redundant_metadata'
+    'secondarycache' 'snapdir' 'sync')
+typeset -a vol_props=('compress' 'checksum' 'copies' 'logbias' 'primarycache'
+    'secondarycache' 'redundant_metadata' 'sync')
 
 #
 # Given the property array passed in, return 'num_props' elements to the
@@ -45,20 +62,81 @@ function get_rand_prop
 
 function get_rand_compress
 {
-	get_rand_prop compress_props $1 2
+	get_rand_prop compress_prop_vals $1 2
 }
 
 function get_rand_compress_any
 {
-	get_rand_prop compress_props $1 0
+	get_rand_prop compress_prop_vals $1 0
 }
 
 function get_rand_checksum
 {
-	get_rand_prop checksum_props $1 2
+	get_rand_prop checksum_prop_vals $1 2
 }
 
 function get_rand_checksum_any
 {
-	get_rand_prop checksum_props $1 0
+	get_rand_prop checksum_prop_vals $1 0
+}
+
+function get_rand_recsize
+{
+	get_rand_prop recsize_prop_vals $1 0
+}
+
+function get_rand_large_recsize
+{
+	get_rand_prop recsize_prop_vals $1 9
+}
+
+#
+# Functions to toggle on/off properties
+#
+typeset -a binary_props=('atime' 'devices' 'exec' 'nbmand' 'readonly' 'setuid'
+    'xattr' 'zoned')
+
+function toggle_prop
+{
+	typeset ds=$1
+	typeset prop=$2
+
+	datasetexists $ds || log_fail "$ds does not exist"
+	typeset val=$(get_prop $prop $ds)
+	typeset newval='off'
+
+	[[ $val = $newval ]] && newval='on'
+	log_must zfs set $prop=$newval $ds
+}
+
+function toggle_binary_props
+{
+	typeset ds=$1
+	typeset prop
+
+	for prop in "${binary_props[@]}"; do
+		toggle_prop $ds $prop
+	done
+}
+
+function randomize_ds_props
+{
+	typeset ds=$1
+	typeset prop proplist val
+
+	datasetexists $ds || log_fail "$ds does not exist"
+	if ds_is_volume $ds; then
+		toggle_prop $ds readonly
+		proplist="${vol_props[@]}"
+	elif ds_is_filesystem $ds; then
+		toggle_binary_props $ds
+		proplist="${fs_props[@]}"
+	else
+		log_fail "$ds is neither a volume nor a file system"
+	fi
+
+	for prop in $proplist; do
+		typeset val=$(get_rand_prop "${prop}_prop_vals" 1 0)
+		log_must zfs set $prop=$val $ds
+	done
 }

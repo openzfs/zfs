@@ -87,7 +87,7 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
 
 	/*
 	 * Returns 0 on success (decompression function returned non-negative)
-	 * and non-zero on failure (decompression function returned negative.
+	 * and non-zero on failure (decompression function returned negative).
 	 */
 	return (LZ4_uncompress_unknownOutputSize(&src[sizeof (bufsiz)],
 	    d_start, bufsiz, d_len) < 0);

@@ -45,7 +45,7 @@ fi
 
 log_assert "Verify resumability of an incremental ZFS send/receive with ZFS " \
     "bookmarks"
-log_onexit cleanup_pool $POOL2
+log_onexit resume_cleanup $sendfs $streamfs
 
 sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs

@@ -32,6 +32,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <getopt.h>
 #include <libgen.h>
 #include <libintl.h>
 #include <libuutil.h>
@@ -3771,8 +3772,23 @@ zfs_do_send(int argc, char **argv)
 	nvlist_t *dbgnv = NULL;
 	boolean_t extraverbose = B_FALSE;
 
+	struct option long_options[] = {
+		{"replicate",	no_argument,		NULL, 'R'},
+		{"props",	no_argument,		NULL, 'p'},
+		{"parsable",	no_argument,		NULL, 'P'},
+		{"dedup",	no_argument,		NULL, 'D'},
+		{"verbose",	no_argument,		NULL, 'v'},
+		{"dryrun",	no_argument,		NULL, 'n'},
+		{"large-block",	no_argument,		NULL, 'L'},
+		{"embed",	no_argument,		NULL, 'e'},
+		{"resume",	required_argument,	NULL, 't'},
+		{"compressed",	no_argument,		NULL, 'c'},
+		{0, 0, 0, 0}
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, ":i:I:RDpvnPLet:c")) != -1) {
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLet:c", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'i':
 			if (fromname)
