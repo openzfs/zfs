@@ -48,7 +48,6 @@
 
 #define	makedevice(maj, min)	makedev(maj, min)
 #define	_sysconf(a)		sysconf(a)
-#define	__NORETURN		__attribute__((noreturn))
 
 /*
  * Compatibility macros/typedefs needed for Solaris -> Linux port
