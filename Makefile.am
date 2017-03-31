@@ -39,7 +39,12 @@ dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-checkstyle: cstyle shellcheck flake8
+checkstyle: cstyle shellcheck flake8 commitcheck
+
+commitcheck:
+	@if git rev-parse --git-dir > /dev/null 2>&1; then \
+		scripts/commitcheck.sh; \
+	fi
 
 cstyle:
 	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
@@ -51,6 +56,7 @@ shellcheck:
 			scripts/zloop.sh \
 			scripts/zfs-tests.sh \
 			scripts/zfs.sh; \
+			scripts/commitcheck.sh; \
 		(find cmd/zed/zed.d/*.sh -type f) | \
 		 grep -v 'zfs-script-config' | \
 		 while read file; do \
