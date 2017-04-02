@@ -133,11 +133,11 @@ create_bookmark $TESTPOOL/$TESTVOL $TESTSNAP $TESTBKMARK
 
 log_note "Valid options + invalid properties, 'zfs get' should fail."
 test_options "$val_opts_str" "$inval_props_str"
-test_options_bookmark "$val_opts_str" "$inval_props_str"
+test_options_bookmarks "$val_opts_str" "$inval_props_str"
 
 log_note "Invalid options + valid properties, 'zfs get' should fail."
 test_options "$inval_opts_str" "$val_props_str"
-test_options_bookmark "$inval_opts_str" "$val_bookmark_props"
+test_options_bookmarks "$inval_opts_str" "$val_bookmark_props"
 
 log_note "Invalid options + invalid properties, 'zfs get' should fail."
 test_options "$inval_opts_str" "$inval_props_str"
