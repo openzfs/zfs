@@ -404,6 +404,8 @@ msg ""
 
 export STF_TOOLS
 export STF_SUITE
+export FILEDIR
+export FILES
 export DISKS
 export KEEP
 export __ZFS_POOL_EXCLUDE
