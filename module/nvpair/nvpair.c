@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2015, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/stropts.h>
@@ -2200,8 +2200,10 @@ nvs_embedded(nvstream_t *nvs, nvlist_t *embedded)
 
 		nvlist_init(embedded, embedded->nvl_nvflag, priv);
 
-		if (nvs->nvs_recursion >= nvpair_max_recursion)
+		if (nvs->nvs_recursion >= nvpair_max_recursion) {
+			nvlist_free(embedded);
 			return (EINVAL);
+		}
 		nvs->nvs_recursion++;
 		if ((err = nvs_operation(nvs, embedded, NULL)) != 0)
 			nvlist_free(embedded);
