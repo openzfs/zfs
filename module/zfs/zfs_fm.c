@@ -266,9 +266,10 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	/*
 	 * Generic payload members common to all ereports.
 	 */
-	fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_POOL,
-	    DATA_TYPE_STRING, spa_name(spa), FM_EREPORT_PAYLOAD_ZFS_POOL_GUID,
-	    DATA_TYPE_UINT64, spa_guid(spa),
+	fm_payload_set(ereport,
+	    FM_EREPORT_PAYLOAD_ZFS_POOL, DATA_TYPE_STRING, spa_name(spa),
+	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, DATA_TYPE_UINT64, spa_guid(spa),
+	    FM_EREPORT_PAYLOAD_ZFS_POOL_STATE, DATA_TYPE_UINT64, spa_state(spa),
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, DATA_TYPE_INT32,
 	    spa_load_state(spa), NULL);
 
@@ -920,8 +921,12 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
 	    ZFS_ERROR_CLASS, name);
 	VERIFY0(nvlist_add_uint8(resource, FM_VERSION, FM_RSRC_VERSION));
 	VERIFY0(nvlist_add_string(resource, FM_CLASS, class));
+	VERIFY0(nvlist_add_string(resource,
+	    FM_EREPORT_PAYLOAD_ZFS_POOL, spa_name(spa)));
 	VERIFY0(nvlist_add_uint64(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)));
+	VERIFY0(nvlist_add_uint64(resource,
+	    FM_EREPORT_PAYLOAD_ZFS_POOL_STATE, spa_state(spa)));
 	VERIFY0(nvlist_add_int32(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, spa_load_state(spa)));
 
