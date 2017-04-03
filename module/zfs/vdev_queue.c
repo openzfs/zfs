@@ -614,9 +614,13 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	}
 
 	if (stretch) {
-		/* we will include the optional i/o */
+		/*
+		 * We are going to include an optional io in our aggregated
+		 * span, thus closing the write gap.  Only mandatory i/os can
+		 * start aggregated spans, so make sure that the next i/o
+		 * after our span is mandatory.
+		 */
 		dio = AVL_NEXT(t, last);
-		/* This may be a no-op. */
 		dio->io_flags &= ~ZIO_FLAG_OPTIONAL;
 	} else {
 		/* do not include the optional i/o */
