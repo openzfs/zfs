@@ -269,7 +269,7 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	fm_payload_set(ereport,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL, DATA_TYPE_STRING, spa_name(spa),
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, DATA_TYPE_UINT64, spa_guid(spa),
-	    FM_EREPORT_PAYLOAD_ZFS_POOL_STATE, DATA_TYPE_INT32, spa_state(spa),
+	    FM_EREPORT_PAYLOAD_ZFS_POOL_STATE, DATA_TYPE_UINT64, spa_state(spa),
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, DATA_TYPE_INT32,
 	    spa_load_state(spa), NULL);
 
@@ -916,7 +916,7 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL, spa_name(spa)));
 	VERIFY0(nvlist_add_uint64(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)));
-	VERIFY0(nvlist_add_int32(resource,
+	VERIFY0(nvlist_add_uint64(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_STATE, spa_state(spa)));
 	VERIFY0(nvlist_add_int32(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, spa_load_state(spa)));
