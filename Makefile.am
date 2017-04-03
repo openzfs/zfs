@@ -55,7 +55,7 @@ shellcheck:
 		shellcheck --exclude=SC1090 --format gcc scripts/paxcheck.sh \
 			scripts/zloop.sh \
 			scripts/zfs-tests.sh \
-			scripts/zfs.sh; \
+			scripts/zfs.sh \
 			scripts/commitcheck.sh; \
 		(find cmd/zed/zed.d/*.sh -type f) | \
 		 grep -v 'zfs-script-config' | \

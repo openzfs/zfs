@@ -11,12 +11,14 @@ function test_url()
         echo "\"$url\" is unreachable"
         return 1
     fi
+
+    return 0
 }
 
 # check for a tagged line
 function check_tagged_line()
 {
-    regex='^\s*'"$1"':\s+\S+\s+\<\S+\>'
+    regex='^\s*'"$1"':\s[[:print:]]+\s<[[:graph:]]+>$'
     foundline=$(git log -n 1 "$REF" | egrep -m 1 "$regex")
     if [ -z "$foundline" ]; then
         echo "error: missing \"$1\""
@@ -29,7 +31,7 @@ function check_tagged_line()
 # check for a tagged line and check that the link is valid
 function check_tagged_line_with_url ()
 {
-    regex='^\s*'"$1"':\s+\K(\S+)'
+    regex='^\s*'"$1"':\s\K([[:graph:]]+)$'
     foundline=$(git log -n 1 "$REF" | grep -Po "$regex")
     if [ -z "$foundline" ]; then
         echo "error: missing \"$1\""
