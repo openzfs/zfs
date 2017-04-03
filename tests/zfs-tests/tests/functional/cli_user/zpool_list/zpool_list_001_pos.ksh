@@ -50,8 +50,8 @@ fi
 set -A args "list $TESTPOOL" "list -H $TESTPOOL" "list" "list -H" \
     "list -H -o name $TESTPOOL" "list -o name $TESTPOOL" \
     "list -o name,size,capacity,health,altroot $TESTPOOL" \
-    "list -H -o name,size,capacity,health,altroot $TESTPOOL"
-
+    "list -H -o name,size,capacity,health,altroot $TESTPOOL" \
+    "list -o alloc,free $TESTPOOL"
 log_assert "zpool list [-H] [-o filed[,filed]*] [<pool_name> ...]"
 
 typeset -i i=0
