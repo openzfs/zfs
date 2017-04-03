@@ -134,7 +134,8 @@ vdev_get_min_asize(vdev_t *vd)
 	 * so each child must provide at least 1/Nth of its asize.
 	 */
 	if (pvd->vdev_ops == &vdev_raidz_ops)
-		return (pvd->vdev_min_asize / pvd->vdev_children);
+		return ((pvd->vdev_min_asize + pvd->vdev_children - 1) /
+		    pvd->vdev_children);
 
 	return (pvd->vdev_min_asize);
 }
@@ -1330,7 +1331,7 @@ vdev_open(vdev_t *vd)
 	vd->vdev_psize = psize;
 
 	/*
-	 * Make sure the allocatable size hasn't shrunk.
+	 * Make sure the allocatable size hasn't shrunk too much.
 	 */
 	if (asize < vd->vdev_min_asize) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
@@ -1370,12 +1371,21 @@ vdev_open(vdev_t *vd)
 	}
 
 	/*
-	 * If all children are healthy and the asize has increased,
-	 * then we've experienced dynamic LUN growth.  If automatic
-	 * expansion is enabled then use the additional space.
+	 * If all children are healthy we update asize if either:
+	 * The asize has increased, due to a device expansion caused by dynamic
+	 * LUN growth or vdev replacement, and automatic expansion is enabled;
+	 * making the additional space available.
+	 *
+	 * The asize has decreased, due to a device shrink usually caused by a
+	 * vdev replace with a smaller device. This ensures that calculations
+	 * based of max_asize and asize e.g. esize are always valid. It's safe
+	 * to do this as we've already validated that asize is greater than
+	 * vdev_min_asize.
 	 */
-	if (vd->vdev_state == VDEV_STATE_HEALTHY && asize > vd->vdev_asize &&
-	    (vd->vdev_expanding || spa->spa_autoexpand))
+	if (vd->vdev_state == VDEV_STATE_HEALTHY &&
+	    ((asize > vd->vdev_asize &&
+	    (vd->vdev_expanding || spa->spa_autoexpand)) ||
+	    (asize < vd->vdev_asize)))
 		vd->vdev_asize = asize;
 
 	vdev_set_min_asize(vd);
