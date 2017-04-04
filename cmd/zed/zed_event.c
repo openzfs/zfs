@@ -662,7 +662,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 
 			(void) snprintf(alt, sizeof (alt), "%s_str", name);
 			_zed_event_add_var(eid, zsp, prefix, alt, "%s",
-			    zpool_pool_state_to_name(i32));
+			    zpool_pool_state_to_name(i64));
 		}
 		break;
 	case DATA_TYPE_DOUBLE:
