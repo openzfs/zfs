@@ -44,12 +44,12 @@ if [[ -e $VDEVID_CONF_ETC ]]; then
 	log_fail "Must not have $VDEVID_CONF_ETC file present on system"
 fi
 
-# create a symlink for /etc/zfs/vdev_id.conf file
+# Create a symlink for /etc/zfs/vdev_id.conf file
 log_must ln -s $VDEVID_CONF $VDEVID_CONF_ETC
 
 zed_start
 
-# create a scsi_debug device to be used with auto-online (if using loop devices)
+# Create a scsi_debug device to be used with auto-online (if using loop devices)
 # and auto-replace regardless of other devices
 load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS
 

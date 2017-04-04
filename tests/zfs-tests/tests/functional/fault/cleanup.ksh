@@ -30,6 +30,8 @@ verify_runnable "global"
 
 cleanup_devices $DISKS
 
+zed_stop
+
 SD=$($LSSCSI | $NAWK '/scsi_debug/ {print $6; exit}')
 SDDEVICE=$($ECHO $SD | $NAWK -F / '{print $3}')
 
@@ -37,17 +39,15 @@ if [[ -z $SDDEVICE ]]; then
 	log_pass
 fi
 
-#Offline disk and remove scsi_debug module
+# Offline disk and remove scsi_debug module
 if is_linux; then
 	on_off_disk $SDDEVICE "offline"
 	block_device_wait
 	log_must $MODUNLOAD scsi_debug
 fi
 
-#Remove symlink and vdev_id.conf in-tree file
-log_must $RM $VDEVID_CONF_ETC
-log_must $RM $VDEVID_CONF
-
-zed_stop
+# Remove symlink and vdev_id.conf in-tree file
+$RM -f $VDEVID_CONF_ETC
+$RM -f $VDEVID_CONF
 
 log_pass
