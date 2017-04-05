@@ -774,6 +774,19 @@ typedef struct replication_level {
 
 #define	ZPOOL_FUZZ	(16 * 1024 * 1024)
 
+static boolean_t
+is_raidz_mirror(replication_level_t *a, replication_level_t *b,
+    replication_level_t **raidz, replication_level_t **mirror)
+{
+	if (strcmp(a->zprl_type, "raidz") == 0 &&
+	    strcmp(b->zprl_type, "mirror") == 0) {
+		*raidz = a;
+		*mirror = b;
+		return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
 /*
  * Given a list of toplevel vdevs, return the current replication level.  If
  * the config is inconsistent, then NULL is returned.  If 'fatal' is set, then
@@ -791,6 +804,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	replication_level_t lastrep = {0};
 	replication_level_t rep;
 	replication_level_t *ret;
+	replication_level_t *raidz, *mirror;
 	boolean_t dontreport;
 
 	ret = safe_malloc(sizeof (replication_level_t));
@@ -973,7 +987,35 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		 * different.
 		 */
 		if (lastrep.zprl_type != NULL) {
-			if (strcmp(lastrep.zprl_type, rep.zprl_type) != 0) {
+			if (is_raidz_mirror(&lastrep, &rep, &raidz, &mirror) ||
+			    is_raidz_mirror(&rep, &lastrep, &raidz, &mirror)) {
+				/*
+				 * Accepted raidz and mirror when they can
+				 * handle the same number of disk failures.
+				 */
+				if (raidz->zprl_parity !=
+				    mirror->zprl_children - 1) {
+					if (ret != NULL)
+						free(ret);
+					ret = NULL;
+					if (fatal)
+						vdev_error(gettext(
+						    "mismatched replication "
+						    "level: "
+						    "%s and %s vdevs with "
+						    "different redundancy, "
+						    "%llu vs. %llu (%llu-way) "
+						    "are present\n"),
+						    raidz->zprl_type,
+						    mirror->zprl_type,
+						    raidz->zprl_parity,
+						    mirror->zprl_children - 1,
+						    mirror->zprl_children);
+					else
+						return (NULL);
+				}
+			} else if (strcmp(lastrep.zprl_type, rep.zprl_type) !=
+			    0) {
 				if (ret != NULL)
 					free(ret);
 				ret = NULL;
