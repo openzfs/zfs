@@ -269,9 +269,10 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	fm_payload_set(ereport,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL, DATA_TYPE_STRING, spa_name(spa),
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, DATA_TYPE_UINT64, spa_guid(spa),
-	    FM_EREPORT_PAYLOAD_ZFS_POOL_STATE, DATA_TYPE_UINT64, spa_state(spa),
+	    FM_EREPORT_PAYLOAD_ZFS_POOL_STATE, DATA_TYPE_UINT64,
+	    (uint64_t)spa_state(spa),
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, DATA_TYPE_INT32,
-	    spa_load_state(spa), NULL);
+	    (int32_t)spa_load_state(spa), NULL);
 
 	fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE,
 	    DATA_TYPE_STRING,
