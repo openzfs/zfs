@@ -71,7 +71,24 @@ log_must $MKFILE 30M /bpool/fs/file
 
 log_must $ZFS snapshot bpool/fs@snap
 log_must eval "$ZFS send -R bpool/fs@snap > $BACKDIR/fs-R"
-log_mustnot eval "$ZFS receive -d -F spool < $BACKDIR/fs-R"
+echo $(eval "$ZFS receive -d -F spool < $BACKDIR/fs-R") &
+
+for i in $(seq 60); do
+	sleep 0.5
+	if [ -z "$(pidof zfs)" ]; then
+		echo zfs exited
+		break
+	fi
+	if [ $i = 60 ]; then
+		sudo sh -c "echo zfs recv spend more than 30 sec > /dev/kmsg"
+		if [ -z "$(pidof receive_writer)" ]; then
+			sudo sh -c "echo cannot find receive_writer > /dev/kmsg"
+		else
+			sudo sh -c "cat /proc/$(pidof receive_writer)/stack > /dev/kmsg"
+		fi
+	fi
+done
+wait
 
 log_must datasetnonexists spool/fs
 log_must ismounted spool
@@ -84,7 +101,24 @@ log_must $ZFS destroy -rf bpool/fs
 
 log_must $ZFS snapshot bpool@snap
 log_must eval "$ZFS send -R bpool@snap > $BACKDIR/bpool-R"
-log_mustnot eval "$ZFS receive -d -F spool < $BACKDIR/bpool-R"
+echo $(eval "$ZFS receive -d -F spool < $BACKDIR/bpool-R") &
+
+for i in $(seq 60); do
+	sleep 0.5
+	if [ -z "$(pidof zfs)" ]; then
+		echo zfs exited
+		break
+	fi
+	if [ $i = 60 ]; then
+		sudo sh -c "echo zfs recv spend more than 30 sec > /dev/kmsg"
+		if [ -z "$(pidof receive_writer)" ]; then
+			sudo sh -c "echo cannot find receive_writer > /dev/kmsg"
+		else
+			sudo sh -c "cat /proc/$(pidof receive_writer)/stack > /dev/kmsg"
+		fi
+	fi
+done
+wait
 
 log_must datasetnonexists spool/fs
 log_must ismounted spool
