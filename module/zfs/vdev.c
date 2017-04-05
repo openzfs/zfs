@@ -1055,7 +1055,6 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 	spa_t *spa = vd->vdev_spa;
 	vdev_probe_stats_t *vps = NULL;
 	zio_t *pio;
-	int l;
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
@@ -1125,7 +1124,7 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 		return (NULL);
 	}
 
-	for (l = 1; l < VDEV_LABELS; l++) {
+	for (int l = 0; l < VDEV_LABELS; l++) {
 		zio_nowait(zio_read_phys(pio, vd,
 		    vdev_label_offset(vd->vdev_psize, l,
 		    offsetof(vdev_label_t, vl_pad2)), VDEV_PAD_SIZE,

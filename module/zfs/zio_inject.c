@@ -261,9 +261,10 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 
 	/*
 	 * We skip over faults in the labels unless it's during
-	 * device open (i.e. zio == NULL).
+	 * device open (i.e. zio == NULL), or as a result of a probe
+	 * IO intended to assess the health of a device.
 	 */
-	if (zio != NULL) {
+	if ((zio != NULL) && !(zio->io_flags & ZIO_FLAG_PROBE)) {
 		uint64_t offset = zio->io_offset;
 
 		if (offset < VDEV_LABEL_START_SIZE ||
