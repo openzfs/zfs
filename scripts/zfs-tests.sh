@@ -75,7 +75,7 @@ cleanup() {
 	done
 
 	# Preserve in-tree symlinks to aid debugging.
-	if [ -z "${INTREE}" -a -d "$STF_PATH" ]; then
+	if [ -z "${INTREE}" ] && [ -d "$STF_PATH" ]; then
 		rm -Rf "$STF_PATH"
 	fi
 }
@@ -89,7 +89,7 @@ trap cleanup EXIT
 #
 cleanup_all() {
 	local TEST_POOLS
-	TEST_POOLS=$(sudo $ZPOOL list -H -o name | grep testpool)
+	TEST_POOLS=$(sudo "$ZPOOL" list -H -o name | grep testpool)
 	local TEST_LOOPBACKS
 	TEST_LOOPBACKS=$(sudo "${LOSETUP}" -a|grep file-vdev|cut -f1 -d:)
 	local TEST_FILES
@@ -99,7 +99,7 @@ cleanup_all() {
 	msg "--- Cleanup ---"
 	msg "Removing pool(s):     $(echo "${TEST_POOLS}" | tr '\n' ' ')"
 	for TEST_POOL in $TEST_POOLS; do
-		sudo $ZPOOL destroy "${TEST_POOL}"
+		sudo "$ZPOOL" destroy "${TEST_POOL}"
 	done
 
 	msg "Removing dm(s):       $(sudo "${DMSETUP}" ls |
@@ -159,20 +159,20 @@ create_links() {
 	local dir_list="$1"
 	local file_list="$2"
 
-	[ -n $STF_PATH ] || fail "STF_PATH wasn't correctly set"
+	[ -n "$STF_PATH" ] || fail "STF_PATH wasn't correctly set"
 
 	for i in $file_list; do
 		for j in $dir_list; do
 			[ ! -e "$STF_PATH/$i" ] || continue
 
-			if [ ! -d "$j/$i" -a -e "$j/$i" ]; then
-				ln -s $j/$i $STF_PATH/$i || \
+			if [ ! -d "$j/$i" ] && [ -e "$j/$i" ]; then
+				ln -s "$j/$i" "$STF_PATH/$i" || \
 				    fail "Couldn't link $i"
 				break
 			fi
 		done
 
-		[ ! -e $STF_PATH/$i ] && STF_MISSING_BIN="$STF_MISSING_BIN$i "
+		[ ! -e "$STF_PATH/$i" ] && STF_MISSING_BIN="$STF_MISSING_BIN$i "
 	done
 }
 
@@ -182,7 +182,7 @@ create_links() {
 # convenience, otherwise a temporary directory is used.
 #
 constrain_path() {
-	. $STF_SUITE/include/commands.cfg
+	. "$STF_SUITE/include/commands.cfg"
 
 	if [ -n "${INTREE}" ]; then
 		STF_PATH="$BUILDDIR/bin"
@@ -195,7 +195,7 @@ constrain_path() {
 	fi
 
 	STF_MISSING_BIN=""
-	chmod 755 $STF_PATH || fail "Couldn't chmod $STF_PATH"
+	chmod 755 "$STF_PATH" || fail "Couldn't chmod $STF_PATH"
 
 	# Standard system utilities
 	create_links "/bin /usr/bin /sbin /usr/sbin" "$SYSTEM_FILES"
@@ -219,12 +219,12 @@ constrain_path() {
 	fi
 
 	# Exceptions
-	ln -fs $STF_PATH/awk $STF_PATH/nawk
-	ln -fs /sbin/mkfs.ext2 $STF_PATH/newfs
-	ln -fs $STF_PATH/gzip $STF_PATH/compress
-	ln -fs $STF_PATH/gunzip $STF_PATH/uncompress
-	ln -fs $STF_PATH/exportfs $STF_PATH/share
-	ln -fs $STF_PATH/exportfs $STF_PATH/unshare
+	ln -fs "$STF_PATH/awk" "$STF_PATH/nawk"
+	ln -fs /sbin/mkfs.ext2 "$STF_PATH/newfs"
+	ln -fs "$STF_PATH/gzip" "$STF_PATH/compress"
+	ln -fs "$STF_PATH/gunzip" "$STF_PATH/uncompress"
+	ln -fs "$STF_PATH/exportfs" "$STF_PATH/share"
+	ln -fs "$STF_PATH/exportfs" "$STF_PATH/unshare"
 }
 
 #
@@ -396,7 +396,7 @@ constrain_path
 #
 # Check if ksh exists
 #
-[ -e $STF_PATH/ksh ] || fail "This test suite requires ksh."
+[ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
 
 #
 # Verify the ZFS module stack if loaded.
@@ -414,7 +414,7 @@ fi
 # By default preserve any existing pools
 #
 if [ -z "${KEEP}" ]; then
-	KEEP=$(sudo $ZPOOL list -H -o name)
+	KEEP=$(sudo "$ZPOOL" list -H -o name)
 	if [ -z "${KEEP}" ]; then
 		KEEP="rpool"
 	fi
@@ -422,7 +422,7 @@ fi
 
 __ZFS_POOL_EXCLUDE="$(echo $KEEP | sed ':a;N;s/\n/ /g;ba')"
 
-. $STF_SUITE/include/default.cfg
+. "$STF_SUITE/include/default.cfg"
 
 msg
 msg "--- Configuration ---"
