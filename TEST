@@ -71,6 +71,8 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 #
 case "$BB_NAME" in
 Amazon*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
     ;;
 CentOS-7*)
     # ZFS enabled xfstests fails to build
