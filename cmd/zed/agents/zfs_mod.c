@@ -264,7 +264,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	 * vdev_id alias rule for using scsi_debug devices (FMA automated
 	 * testing)
 	 */
-	if (strcmp("scsidebug", physpath) == 0)
+	if (physpath != NULL && strcmp("scsidebug", physpath) == 0)
 		is_sd = 1;
 
 	/*
