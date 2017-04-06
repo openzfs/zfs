@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
 
 #
@@ -47,18 +51,18 @@ function cleanup
 
 	while (( i < ${#orig_snap[*]} )); do
 		snapexists ${rst_snap[$i]} && \
-			log_must $ZFS destroy -f ${rst_snap[$i]}
+			log_must zfs destroy -f ${rst_snap[$i]}
 		snapexists ${orig_snap[$i]} && \
-			log_must $ZFS destroy -f ${orig_snap[$i]}
+			log_must zfs destroy -f ${orig_snap[$i]}
 		[[ -e ${bkup[$i]} ]] && \
-			log_must $RM -rf ${bkup[$i]}
+			log_must rm -rf ${bkup[$i]}
 
 		(( i = i + 1 ))
 	done
 
 	for ds in $rst_vol $rst_root; do
 		datasetexists $ds && \
-			log_must $ZFS destroy -Rf $ds
+			log_must zfs destroy -Rf $ds
 	done
 }
 
@@ -74,18 +78,18 @@ set -A rst_snap "${rst_vol}@init_snap" "${rst_vol}@inc_snap"
 #
 # Preparations for testing
 #
-log_must $ZFS create $rst_root
+log_must zfs create $rst_root
 [[ ! -d $TESTDIR1 ]] && \
-	log_must $MKDIR -p $TESTDIR1
-log_must $ZFS set mountpoint=$TESTDIR1 $rst_root
+	log_must mkdir -p $TESTDIR1
+log_must zfs set mountpoint=$TESTDIR1 $rst_root
 
 typeset -i i=0
 while (( i < ${#orig_snap[*]} )); do
-	log_must $ZFS snapshot ${orig_snap[$i]}
+	log_must zfs snapshot ${orig_snap[$i]}
 	if (( i < 1 )); then
-		log_must eval "$ZFS send ${orig_snap[$i]} > ${bkup[$i]}"
+		log_must eval "zfs send ${orig_snap[$i]} > ${bkup[$i]}"
 	else
-		log_must eval "$ZFS send -i ${orig_snap[(( i - 1 ))]} \
+		log_must eval "zfs send -i ${orig_snap[(( i - 1 ))]} \
 				${orig_snap[$i]} > ${bkup[$i]}"
 	fi
 
@@ -94,7 +98,7 @@ done
 
 i=0
 while (( i < ${#bkup[*]} )); do
-	log_must eval "$ZFS receive $rst_vol < ${bkup[$i]}"
+	log_must eval "zfs receive $rst_vol < ${bkup[$i]}"
 	! datasetexists $rst_vol || ! snapexists ${rst_snap[$i]} && \
 		log_fail "Restoring volume fails."
 

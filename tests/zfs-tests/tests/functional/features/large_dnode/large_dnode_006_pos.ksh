@@ -20,6 +20,15 @@
 # CDDL HEADER END
 #
 
+#
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -35,13 +44,13 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TEST_FS && log_must $ZFS destroy $TEST_FS
+	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
 }
 
 log_onexit cleanup
 log_assert "xattrtest runs cleanly on dataset with large dnodes"
 
-log_must $ZFS create $TEST_FS
+log_must zfs create $TEST_FS
 
 set -A xattr_sizes "512" "1536" "3584" "7680" "15872"
 set -A prop_values "1k"  "2k"   "4k"   "8k"   "16k"
@@ -50,9 +59,9 @@ for ((i=0; i < ${#prop_values[*]}; i++)) ; do
 	prop_val=${prop_values[$i]}
 	dir=/$TEST_FS/$prop_val
 	xattr_size=${xattr_sizes[$i]}
-	log_must $ZFS set dnsize=$prop_val $TEST_FS
+	log_must zfs set dnsize=$prop_val $TEST_FS
 	log_must mkdir $dir
-	log_must $XATTRTEST -R -y -s $xattr_size -f 1024 -p $dir
+	log_must xattrtest -R -y -s $xattr_size -f 1024 -p $dir
 done
 
 log_pass

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,10 +42,10 @@ fi
 
 default_zvol_setup $DISK $VOLSIZE $BLOCKSIZE
 
-$ECHO "y" | $NEWFS -v ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL >/dev/null 2>&1
+echo "y" | newfs -v ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL >/dev/null 2>&1
 (( $? != 0 )) && log_fail "Unable to newfs(1M) $TESTPOOL/$TESTVOL"
 
-log_must $MKDIR $TESTDIR
-log_must $MOUNT ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
+log_must mkdir $TESTDIR
+log_must mount ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
 
 log_pass

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rollback/zfs_rollback_common.kshlib
 
@@ -53,11 +57,11 @@ setup_snap_env 1
 #
 write_mountpoint_dir ${FSSNAP0%%@*}
 
-log_must $ZFS rollback $FSSNAP0
-log_must $ZFS rollback -f $FSSNAP0
+log_must zfs rollback $FSSNAP0
+log_must zfs rollback -f $FSSNAP0
 log_must datasetexists $FSSNAP0
 
-$PKILL ${DD##*/}
+pkill ${DD##*/}
 
 check_files $FSSNAP0
 

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
@@ -49,7 +49,7 @@ while true ; do
 	if poolexists $NO_POOL ; then
 		NO_POOL="${NO_POOL}x"
 	else
-		log_mustnot $ZPOOL upgrade $NO_POOL
+		log_mustnot zpool upgrade $NO_POOL
 		break
 	fi
 done

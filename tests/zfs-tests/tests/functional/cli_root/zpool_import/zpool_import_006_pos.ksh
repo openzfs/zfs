@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,10 +51,10 @@ function cleanup
 	destroy_pool $TESTPOOL2
 	destroy_pool $TESTPOOL1
 
-	log_must $RM -rf $DEVICE_DIR/*
+	log_must rm -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must $MKFILE $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -63,21 +63,21 @@ log_assert "For mirror, N-1 destroyed pools devices was removed or used " \
 	"by other pool, it still can be imported correctly."
 log_onexit cleanup
 
-log_must $ZPOOL create $TESTPOOL1 mirror $VDEV0 $VDEV1 $VDEV2
+log_must zpool create $TESTPOOL1 mirror $VDEV0 $VDEV1 $VDEV2
 typeset guid=$(get_config $TESTPOOL1 pool_guid)
 typeset target=$TESTPOOL1
 if (( RANDOM % 2 == 0 )) ; then
 	target=$guid
 	log_note "Import by guid."
 fi
-log_must $ZPOOL destroy $TESTPOOL1
+log_must zpool destroy $TESTPOOL1
 
-log_must $ZPOOL create $TESTPOOL2 $VDEV0 $VDEV2
-log_must $ZPOOL import -d $DEVICE_DIR -D -f $target
-log_must $ZPOOL destroy $TESTPOOL1
+log_must zpool create $TESTPOOL2 $VDEV0 $VDEV2
+log_must zpool import -d $DEVICE_DIR -D -f $target
+log_must zpool destroy $TESTPOOL1
 
-log_must $ZPOOL destroy $TESTPOOL2
-log_must $RM -rf $VDEV2
-log_must $ZPOOL import -d $DEVICE_DIR -D -f $target
+log_must zpool destroy $TESTPOOL2
+log_must rm -rf $VDEV2
+log_must zpool import -d $DEVICE_DIR -D -f $target
 
 log_pass "zpool import -D mirror passed."

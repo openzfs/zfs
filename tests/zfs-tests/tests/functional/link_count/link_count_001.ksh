@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,38 +52,38 @@ export NUMFILES=10000
 # Detect and make sure this test must be executed on a multi-process system
 is_mp || log_fail "This test requires a multi-processor system."
 
-log_must $MKDIR -p ${TESTDIR}/tmp
+log_must mkdir -p ${TESTDIR}/tmp
 
 typeset -i i=0
 while [ $i -lt $NUMFILES ]; do
         (( i = i + 1 ))
-        $TOUCH ${TESTDIR}/tmp/x$i > /dev/null 2>&1
+        touch ${TESTDIR}/tmp/x$i > /dev/null 2>&1
 done
 
 sleep 3
 
-$RM -f ${TESTDIR}/tmp/x* >/dev/null 2>&1
+rm -f ${TESTDIR}/tmp/x* >/dev/null 2>&1
 
-$RM_LNKCNT_ZERO_FILE ${TESTDIR}/tmp/test$$ > /dev/null 2>&1 &
+rm_lnkcnt_zero_file ${TESTDIR}/tmp/test$$ > /dev/null 2>&1 &
 PID=$!
-log_note "$RM_LNKCNT_ZERO_FILE ${TESTDIR}/tmp/test$$ pid: $PID"
+log_note "rm_lnkcnt_zero_file ${TESTDIR}/tmp/test$$ pid: $PID"
 
 i=0
 while [ $i -lt $ITERS ]; do
-	if ! $PGREP $RM_LNKCNT_ZERO_FILE > /dev/null ; then
-		log_note "$RM_LNKCNT_ZERO_FILE completes"
+	if ! pgrep rm_lnkcnt_zero_file > /dev/null ; then
+		log_note "rm_lnkcnt_zero_file completes"
 		break
 	fi
-	log_must $SLEEP 10
+	log_must sleep 10
 	(( i = i + 1 ))
 done
 
-if $PGREP $RM_LNKCNT_ZERO_FILE > /dev/null; then
-	log_must $KILL -TERM $PID
+if pgrep rm_lnkcnt_zero_file > /dev/null; then
+	log_must kill -TERM $PID
 	log_fail "file link count is zero"
 fi
 
-log_must $KILL -TERM $PID
-log_must $RM -f ${TESTDIR}/tmp/test$$*
+log_must kill -TERM $PID
+log_must rm -f ${TESTDIR}/tmp/test$$*
 
 log_pass "Verify file link count is zero on zfs"

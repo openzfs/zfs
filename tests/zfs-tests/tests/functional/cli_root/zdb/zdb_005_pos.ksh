@@ -44,18 +44,18 @@ verify_disk_count "$DISKS" 2
 set -A DISK $DISKS
 
 default_mirror_setup_noexit $DISKS
-log_must $DD if=/dev/zero of=$DEV_RDSKDIR/${DISK[1]} bs=1K count=256 conv=notrunc
-log_must $TRUNCATE -s 0 $TEMPFILE
+log_must dd if=/dev/zero of=$DEV_RDSKDIR/${DISK[1]} bs=1K count=256 conv=notrunc
+log_must truncate -s 0 $TEMPFILE
 
-$ZDB -l $DEV_RDSKDIR/${DISK[0]}
+zdb -l $DEV_RDSKDIR/${DISK[0]}
 [[ $? -ne 0 ]] &&
 	log_fail "zdb -l exit codes are incorrect."
 
-$ZDB -l $DEV_RDSKDIR/${DISK[1]}
+zdb -l $DEV_RDSKDIR/${DISK[1]}
 [[ $? -ne 1 ]] &&
 	log_fail "zdb -l exit codes are incorrect."
 
-$ZDB -l $TEMPFILE
+zdb -l $TEMPFILE
 [[ $? -ne 2 ]] &&
 	log_fail "zdb -l exit codes are incorrect."
 

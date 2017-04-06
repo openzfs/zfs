@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/math.shlib
@@ -27,7 +27,7 @@ function verify_nopwrite
 	typeset low=1
 	typeset high=99
 
-	$SYNC
+	sync
 	for i in origin snap clone; do
 		for j in used refer usedbychildren written; do
 			typeset ${i}_$j=$(get_prop $j $(eval echo \$$i))
@@ -60,7 +60,7 @@ function verify_nopwrite
 	# The comparisons below should pass regardless of nopwrite. They're
 	# here for sanity.
 	#
-	typeset deadlist=$($ZDB -Pddd $clone | $AWK '/Deadlist:/ {print $2}')
+	typeset deadlist=$(zdb -Pddd $clone | awk '/Deadlist:/ {print $2}')
 	within_percent $deadlist $clone_written $high || return 1
 	within_percent $snap_refer $snap_written $high || return 1
 

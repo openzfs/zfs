@@ -48,11 +48,11 @@ typeset streamfile_trun=/var/tmp/streamfile_trun.$$
 
 function cleanup
 {
-	log_must $RM $streamfile_full
-	log_must $RM $streamfile_incr
-	log_must $RM $streamfile_trun
-	log_must $ZFS destroy -rf $orig
-	log_must $ZFS destroy -rf $dest
+	log_must rm $streamfile_full
+	log_must rm $streamfile_incr
+	log_must rm $streamfile_trun
+	log_must zfs destroy -rf $orig
+	log_must zfs destroy -rf $dest
 }
 
 #
@@ -84,38 +84,38 @@ log_assert "ZFS successfully receive and restore properties."
 log_onexit cleanup
 
 # 1. Create a filesystem.
-log_must eval "$ZFS create $orig"
+log_must eval "zfs create $orig"
 mntpnt=$(get_prop mountpoint $orig)
 
 # 2. Create a full stream with properties and receive it.
-log_must eval "$ZFS set compression='gzip-1' $orig"
-log_must eval "$ZFS set '$userprop'='$userval' $orig"
-log_must eval "$ZFS snapshot $orig@snap1"
-log_must eval "$ZFS send -p $orig@snap1 > $streamfile_full"
-log_must eval "$ZFS recv $dest < $streamfile_full"
+log_must eval "zfs set compression='gzip-1' $orig"
+log_must eval "zfs set '$userprop'='$userval' $orig"
+log_must eval "zfs snapshot $orig@snap1"
+log_must eval "zfs send -p $orig@snap1 > $streamfile_full"
+log_must eval "zfs recv $dest < $streamfile_full"
 log_must eval "check_prop_source $dest compression 'gzip-1' received"
 log_must eval "check_prop_source $dest '$userprop' '$userval' received"
 
 # 3. Create also an incremental stream without some properties and a truncated
 #    stream.
-log_must eval "$ZFS set compression='gzip-2' $orig"
-log_must eval "$ZFS inherit '$userprop' $orig"
-log_must eval "$DD if=/dev/urandom of=$mntpnt/file bs=1024k count=10"
-log_must eval "$ZFS snapshot $orig@snap2"
-log_must eval "$ZFS send -p -i $orig@snap1 $orig@snap2 > $streamfile_incr"
-log_must eval "$DD if=$streamfile_incr of=$streamfile_trun bs=1024k count=9"
-log_must eval "$ZFS snapshot $orig@snap3"
-log_must eval "$ZFS send -p -i $orig@snap1 $orig@snap3 > $streamfile_incr"
+log_must eval "zfs set compression='gzip-2' $orig"
+log_must eval "zfs inherit '$userprop' $orig"
+log_must eval "dd if=/dev/urandom of=$mntpnt/file bs=1024k count=10"
+log_must eval "zfs snapshot $orig@snap2"
+log_must eval "zfs send -p -i $orig@snap1 $orig@snap2 > $streamfile_incr"
+log_must eval "dd if=$streamfile_incr of=$streamfile_trun bs=1024k count=9"
+log_must eval "zfs snapshot $orig@snap3"
+log_must eval "zfs send -p -i $orig@snap1 $orig@snap3 > $streamfile_incr"
 
 # 4. Fail to receive the truncated incremental stream and verify previously
 #    received properties are still present.
-log_mustnot eval "$ZFS recv -F $dest < $streamfile_trun"
+log_mustnot eval "zfs recv -F $dest < $streamfile_trun"
 log_must eval "check_prop_source $dest compression 'gzip-1' received"
 log_must eval "check_prop_source $dest '$userprop' '$userval' received"
 
 # 5. Receive the complete incremental send stream and verify that sent
 #    properties are successfully received.
-log_must eval "$ZFS recv -F $dest < $streamfile_incr"
+log_must eval "zfs recv -F $dest < $streamfile_incr"
 log_must eval "check_prop_source $dest compression 'gzip-2' received"
 log_must eval "check_prop_source $dest '$userprop' '-' '-'"
 

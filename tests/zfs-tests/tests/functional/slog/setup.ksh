@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -39,12 +39,12 @@ if ! verify_slog_support ; then
 fi
 
 if [[ -d $VDEV ]]; then
-	log_must $RM -rf $VDIR
+	log_must rm -rf $VDIR
 fi
 if [[ -d $VDEV2 ]]; then
-	log_must $RM -rf $VDIR2
+	log_must rm -rf $VDIR2
 fi
-log_must $MKDIR -p $VDIR $VDIR2
-log_must $MKFILE $MINVDEVSIZE $VDEV $SDEV $LDEV $VDEV2 $SDEV2 $LDEV2
+log_must mkdir -p $VDIR $VDIR2
+log_must mkfile $MINVDEVSIZE $VDEV $SDEV $LDEV $VDEV2 $SDEV2 $LDEV2
 
 log_pass

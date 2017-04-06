@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
@@ -44,7 +48,7 @@ function cleanup
 {
 	for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL ; do
 		if snapexists $ds@$TESTSNAP; then
-			log_must $ZFS destroy $ds@$TESTSNAP
+			log_must zfs destroy $ds@$TESTSNAP
 		fi
 	done
 	cleanup_user_prop $TESTPOOL
@@ -57,9 +61,9 @@ for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL ; do
         typeset prop_name=$(valid_user_property 10)
         typeset value=$(user_property_value 16)
 
-	log_must eval "$ZFS set $prop_name='$value' $ds"
+	log_must eval "zfs set $prop_name='$value' $ds"
 
-	log_must $ZFS snapshot $ds@$TESTSNAP
+	log_must zfs snapshot $ds@$TESTSNAP
 
 	typeset snapvalue=$(get_prop $prop_name $ds@$TESTSNAP)
 
@@ -69,9 +73,9 @@ for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL ; do
 	fi
 
 	snapvalue=$(user_property_value 16)
-	log_must eval "$ZFS set $prop_name='$snapvalue' $ds@$TESTSNAP"
+	log_must eval "zfs set $prop_name='$snapvalue' $ds@$TESTSNAP"
 
-	log_must $ZFS inherit $prop_name $ds@$TESTSNAP
+	log_must zfs inherit $prop_name $ds@$TESTSNAP
 
 	snapvalue=$(get_prop $prop_name $ds@$TESTSNAP)
 

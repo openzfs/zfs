@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,7 +48,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must $ZPOOL destroy $TESTPOOL
+	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
 }
 
 log_onexit cleanup
@@ -80,7 +80,7 @@ while (( $i < ${#RW_FS_PROP[*]} )); do
 	(( i = i + 1 ))
 done
 
-log_must $ZPOOL create $opts -f $TESTPOOL $DISKS
+log_must zpool create $opts -f $TESTPOOL $DISKS
 datasetexists $TESTPOOL || log_fail "zpool create $TESTPOOL fail."
 
 i=0

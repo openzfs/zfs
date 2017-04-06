@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -57,7 +57,7 @@ log_assert "Executing 'zpool import' by regular user fails"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZPOOL import ${args[i]}
+	log_mustnot zpool import ${args[i]}
 	((i = i + 1))
 done
 

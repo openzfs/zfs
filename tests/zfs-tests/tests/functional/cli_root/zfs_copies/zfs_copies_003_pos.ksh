@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_copies/zfs_copies.kshlib
 
 #
@@ -48,7 +52,7 @@ function cleanup
 	fi
 
 	if datasetexists $vol; then
-		log_must $ZFS destroy $vol
+		log_must zfs destroy $vol
 	fi
 }
 

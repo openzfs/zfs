@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,7 +49,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	$RM -rf $TESTDIR/*
+	rm -rf $TESTDIR/*
 }
 
 log_assert "A zvol volume will return ENOSPC when the underlying pool " \
@@ -64,7 +64,7 @@ BLOCKSZ=$(( 1024 * 1024 ))
 NUM_WRITES=40
 
 while (( 1 )); do
-        $FILE_WRITE -o create -f $TESTDIR/testfile$$.$fn \
+        file_write -o create -f $TESTDIR/testfile$$.$fn \
             -b $BLOCKSZ -c $NUM_WRITES
         retval=$?
         if (( $retval != 0 )); then

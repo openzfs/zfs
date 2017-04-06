@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -100,7 +100,7 @@ log_assert "Verify 'zfs list [-rH] [-o property[,prop]*] [fs|clct|vol]'."
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_must eval "$ZFS ${args[i]} > /dev/null"
+	log_must eval "zfs ${args[i]} > /dev/null"
 	((i = i + 1))
 done
 
@@ -109,7 +109,7 @@ done
 cd /tmp
 typeset -i i=0
 while [[ $i -lt ${#pathargs[*]} ]]; do
-	log_must eval "$ZFS ${pathargs[i]} > /dev/null"
+	log_must eval "zfs ${pathargs[i]} > /dev/null"
 	((i = i + 1))
 done
 

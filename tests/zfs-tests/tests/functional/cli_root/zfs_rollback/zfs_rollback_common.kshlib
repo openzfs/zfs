@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -38,7 +38,7 @@ function getsum #fname
 {
 	(( ${#1} == 0 )) && \
 		log_fail "Need give file name."
-	return $($SUM $1 | $AWK '{print $1}')
+	return $(sum $1 | awk '{print $1}')
 }
 
 # Define global variable checksum, get the original file sum.
@@ -58,12 +58,12 @@ function setup_snap_env
 	typeset createclone=${2:-"false"}
 
 	if datasetnonexists $FS; then
-		log_must $ZFS create $FS
-		log_must $ZFS set mountpoint=$TESTDIR $FS
+		log_must zfs create $FS
+		log_must zfs set mountpoint=$TESTDIR $FS
 	fi
 	# Volume can't be created in Local Zone.
 	if datasetnonexists $VOL && is_global_zone; then
-		log_must $ZFS create -V $VOLSIZE $VOL
+		log_must zfs create -V $VOLSIZE $VOL
 		block_device_wait
 	fi
 
@@ -76,15 +76,15 @@ function setup_snap_env
 		# mount it. Otherwise, only check if this ufs|ext2 file system
 		# was mounted.
 		#
-		log_must eval "$ECHO "y" | \
-			$NEWFS -v $ZVOL_DEVDIR/$VOL > /dev/null 2>&1"
+		log_must eval "echo "y" | \
+			newfs -v $ZVOL_DEVDIR/$VOL > /dev/null 2>&1"
 
-		[[ ! -d $TESTDIR1 ]] && log_must $MKDIR $TESTDIR1
+		[[ ! -d $TESTDIR1 ]] && log_must mkdir $TESTDIR1
 
 		# Make sure the ufs|ext2 filesystem hasn't been mounted,
 		# then mount the new ufs|ext2 filesystem.
 		if ! ismounted "$ZVOL_DEVDIR/$VOL" $NEWFS_DEFAULT_FS; then
-			log_must $MOUNT \
+			log_must mount \
 				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1
 		fi
 	fi
@@ -116,9 +116,9 @@ function setup_snap_env
 			esac
 
 			if datasetnonexists $snap; then
-				log_must $CP /etc/passwd $fname
+				log_must cp /etc/passwd $fname
 				if is_linux; then
-					log_must $SYNC
+					log_must sync
 				else
 					#
 					# using 'lockfs -f' to flush the writes
@@ -128,11 +128,11 @@ function setup_snap_env
 						log_must $LOCKFS -f $TESTDIR1
 					fi
 				fi
-				log_must $ZFS snapshot $snap
+				log_must zfs snapshot $snap
 			fi
 			if [[ $createclone == "true" ]]; then
 				if datasetnonexists $clone; then
-					log_must $ZFS clone $snap $clone
+					log_must zfs clone $snap $clone
 				fi
 			fi
 			(( ind += 1 ))
@@ -157,32 +157,32 @@ function cleanup_env
 	typeset dtst
 	typeset snap
 
-	$PKILL ${DD##*/}
+	pkill ${DD##*/}
 
 	if ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
-		log_must $UMOUNT -f $TESTDIR1
+		log_must umount -f $TESTDIR1
 	fi
 
-	[[ -d $TESTDIR ]] && log_must $RM -rf $TESTDIR/*
-	[[ -d $TESTDIR1 ]] && log_must $RM -rf $TESTDIR1/*
+	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR/*
+	[[ -d $TESTDIR1 ]] && log_must rm -rf $TESTDIR1/*
 
 	for dtst in $FS $VOL; do
 		for snap in $TESTSNAP $TESTSNAP1 $TESTSNAP2; do
 			if snapexists $dtst@$snap; then
-				 log_must $ZFS destroy -Rf $dtst@$snap
+				 log_must zfs destroy -Rf $dtst@$snap
 			fi
 		done
 	done
 
 	# Restore original test environment
 	if datasetnonexists $FS ; then
-		log_must $ZFS create $FS
+		log_must zfs create $FS
 	fi
 	if datasetnonexists $VOL ; then
 		if is_global_zone ; then
-			log_must $ZFS create -V $VOLSIZE $VOL
+			log_must zfs create -V $VOLSIZE $VOL
 		else
-			log_must $ZFS create $VOL
+			log_must zfs create $VOL
 		fi
 	fi
 }
@@ -303,6 +303,6 @@ function write_mountpoint_dir
 		dir=$TESTDIR1
 		log_must ismounted $dir $NEWFS_DEFAULT_FS
 	fi
-	$DD if=/dev/urandom of=$dir/$TESTFILE1 &
-	log_must $SLEEP 3
+	dd if=/dev/urandom of=$dir/$TESTFILE1 &
+	log_must sleep 3
 }

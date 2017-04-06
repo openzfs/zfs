@@ -30,10 +30,10 @@
 
 log_assert "Per-vdev ZAPs are created on pool creation with many disks."
 
-log_must $ZPOOL create -f $TESTPOOL $DISKS
+log_must zpool create -f $TESTPOOL $DISKS
 
 conf="$TESTDIR/vz002"
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zdb -PC $TESTPOOL > $conf
 
 assert_has_sentinel "$conf"
 for DISK in $DISKS; do

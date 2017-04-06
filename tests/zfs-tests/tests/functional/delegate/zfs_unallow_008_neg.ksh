@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -68,15 +68,15 @@ log_must setup_unallow_testenv
 export POSIXLY_CORRECT=1
 
 for dtst in $DATASETS ; do
-	log_must $ZFS allow -c create $dtst
+	log_must zfs allow -c create $dtst
 
 	typeset -i i=0
 	while ((i < ${#badopts[@]})); do
-		neg_test $ZFS unallow ${badopts[$i]} $dtst
+		neg_test zfs unallow ${badopts[$i]} $dtst
 		((i += 1))
 	done
 
-	# Causes test failure: neg_test user_run $STAFF1 $ZFS unallow $dtst
+	# Causes test failure: neg_test user_run $STAFF1 zfs unallow $dtst
 done
 
 unset POSIXLY_CORRECT

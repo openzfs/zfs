@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,8 +52,8 @@ function cleanup {
 
 	if [ $( ismounted /tmp/$NEWFS_DEFAULT_FS.$$ $NEWFS_DEFAULT_FS ) ]
 	then
-		log_must $UMOUNT /tmp/$NEWFS_DEFAULT_FS.$$
-		log_must $RM -rf /tmp/$NEWFS_DEFAULT_FS.$$
+		log_must umount /tmp/$NEWFS_DEFAULT_FS.$$
+		log_must rm -rf /tmp/$NEWFS_DEFAULT_FS.$$
 	fi
 }
 
@@ -61,27 +61,27 @@ log_assert "Files from $NEWFS_DEFAULT_FS,tmpfs with xattrs copied to zfs retain 
 log_onexit cleanup
 
 # Create a UFS|EXT2 file system that we can work in
-log_must $ZFS create -V128m $TESTPOOL/$TESTFS/zvol
+log_must zfs create -V128m $TESTPOOL/$TESTFS/zvol
 block_device_wait
-log_must eval "$ECHO y | $NEWFS $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
+log_must eval "echo y | $NEWFS $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
 
-log_must $MKDIR /tmp/$NEWFS_DEFAULT_FS.$$
-log_must $MOUNT $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol /tmp/$NEWFS_DEFAULT_FS.$$
+log_must mkdir /tmp/$NEWFS_DEFAULT_FS.$$
+log_must mount $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol /tmp/$NEWFS_DEFAULT_FS.$$
 
 # Create files in ufs|ext2 and tmpfs, and set some xattrs on them.
-log_must $TOUCH /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$
-log_must $TOUCH /tmp/tmpfs-file.$$
+log_must touch /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$
+log_must touch /tmp/tmpfs-file.$$
 
-log_must $RUNAT /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ $CP /etc/passwd .
-log_must $RUNAT /tmp/tmpfs-file.$$ $CP /etc/group .
+log_must runat /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ cp /etc/passwd .
+log_must runat /tmp/tmpfs-file.$$ cp /etc/group .
 
 # copy those files to ZFS
-log_must $CP -@ /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ $TESTDIR
-log_must $CP -@ /tmp/tmpfs-file.$$ $TESTDIR
+log_must cp -@ /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ $TESTDIR
+log_must cp -@ /tmp/tmpfs-file.$$ $TESTDIR
 
 # ensure the xattr information has been copied correctly
-log_must $RUNAT $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ $DIFF passwd /etc/passwd
-log_must $RUNAT $TESTDIR/tmpfs-file.$$ $DIFF group /etc/group
+log_must runat $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ diff passwd /etc/passwd
+log_must runat $TESTDIR/tmpfs-file.$$ diff group /etc/group
 
-log_must $UMOUNT /tmp/$NEWFS_DEFAULT_FS.$$
+log_must umount /tmp/$NEWFS_DEFAULT_FS.$$
 log_pass "Files from $NEWFS_DEFAULT_FS,tmpfs with xattrs copied to zfs retain xattr info."

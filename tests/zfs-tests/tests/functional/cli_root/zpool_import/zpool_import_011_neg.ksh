@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,27 +55,27 @@ function cleanup
 	#
 	# Recreate virtual devices to avoid destroyed pool information on files.
 	#
-	log_must $RM -rf $VDEV0 $VDEV1 $VDEV2
-	log_must $MKFILE $FILE_SIZE $VDEV0 $VDEV1 $VDEV2
+	log_must rm -rf $VDEV0 $VDEV1 $VDEV2
+	log_must mkfile $FILE_SIZE $VDEV0 $VDEV1 $VDEV2
 }
 
 log_assert "For strip pool, any destroyed pool devices was demaged," \
 	"zpool import -D will failed."
 log_onexit cleanup
 
-log_must $ZPOOL create $TESTPOOL1 $VDEV0 $VDEV1 $VDEV2
+log_must zpool create $TESTPOOL1 $VDEV0 $VDEV1 $VDEV2
 typeset guid=$(get_config $TESTPOOL1 pool_guid)
 typeset target=$TESTPOOL1
 if (( RANDOM % 2 == 0 )) ; then
 	target=$guid
 	log_note "Import by guid."
 fi
-log_must $ZPOOL destroy $TESTPOOL1
-log_must $ZPOOL create $TESTPOOL2 $VDEV2
+log_must zpool destroy $TESTPOOL1
+log_must zpool create $TESTPOOL2 $VDEV2
 
-log_mustnot $ZPOOL import -d $DEVICE_DIR -D -f $target
+log_mustnot zpool import -d $DEVICE_DIR -D -f $target
 
-log_must $ZPOOL destroy $TESTPOOL2
-log_mustnot $ZPOOL import -d $DEVICE_DIR -D -f $target
+log_must zpool destroy $TESTPOOL2
+log_mustnot zpool import -d $DEVICE_DIR -D -f $target
 
 log_pass "Any strip pool devices damaged, pool can't be import passed."

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,7 +45,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must $ZPOOL destroy $TESTPOOL
+	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
 }
 
 log_onexit cleanup
@@ -77,7 +77,7 @@ log_assert "'zpool create -O' should return an error with badly formed parameter
 
 typeset -i i=0
 while (( $i < ${#args[*]} )); do
-	log_mustnot $ZPOOL create -O ${args[i]} -f $TESTPOOL $DISKS
+	log_mustnot zpool create -O ${args[i]} -f $TESTPOOL $DISKS
 	((i = i + 1))
 done
 

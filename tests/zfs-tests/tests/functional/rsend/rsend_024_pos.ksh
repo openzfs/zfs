@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,8 +49,8 @@ recvfs=$POOL2/recvfs
 streamfs=$POOL/stream
 
 test_fs_setup $POOL $POOL2
-log_must $ZFS unmount $sendfs
-resume_test "$ZFS send $sendfs" $streamfs $recvfs
+log_must zfs unmount $sendfs
+resume_test "zfs send $sendfs" $streamfs $recvfs
 file_check $sendfs $recvfs
 
 log_pass "Verify resumability of a full ZFS send/receive with the source " \

@@ -29,6 +29,6 @@
 
 verify_runnable "global"
 
-[[ -e $TESTDIR ]] && $RM -rf $TESTDIR
+[[ -e $TESTDIR ]] && rm -rf $TESTDIR
 
 log_pass

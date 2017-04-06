@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
 #
@@ -45,7 +49,7 @@ function cleanup
 {
 	for dataset in $all_datasets; do
 		snapexists ${dataset}@snap && \
-			log_must $ZFS destroy ${dataset}@snap
+			log_must zfs destroy ${dataset}@snap
 	done
 }
 
@@ -56,7 +60,7 @@ function verify_snapdir_visible # $1 dataset, $2 hidden|visible
 	typeset mtpt=$(get_prop mountpoint $dataset)
 	typeset name
 
-	for name in `$LS -a $mtpt`; do
+	for name in `ls -a $mtpt`; do
 		if [[ $name == ".zfs" ]]; then
 			if [[ $value == "visible" ]]; then
 				return 0
@@ -85,7 +89,7 @@ fi
 log_onexit cleanup
 
 for dataset in $all_datasets; do
-	log_must $ZFS snapshot ${dataset}@snap
+	log_must zfs snapshot ${dataset}@snap
 done
 
 log_assert "Setting a valid snapdir property on a dataset succeeds."

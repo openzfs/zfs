@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,9 +47,9 @@ verify_runnable "global"
 
 log_assert "read()s from mmap()'ed file contain correct data."
 
-log_must $CHMOD 777 $TESTDIR
-log_must $READMMAP $TESTDIR/test-read-file
-log_must $ZFS unmount $TESTPOOL/$TESTFS
+log_must chmod 777 $TESTDIR
+log_must readmmap $TESTDIR/test-read-file
+log_must zfs unmount $TESTPOOL/$TESTFS
 
 typeset dir=$(get_device_dir $DISKS)
 verify_filesys "$TESTPOOL" "$TESTPOOL/$TESTFS" "$dir"

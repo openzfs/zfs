@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_list_d.kshlib
@@ -50,8 +50,8 @@ fi
 
 function cleanup
 {
-	log_must $RM -f $DEPTH_OUTPUT
-	log_must $RM -f $EXPECT_OUTPUT
+	log_must rm -f $DEPTH_OUTPUT
+	log_must rm -f $EXPECT_OUTPUT
 }
 
 log_onexit cleanup
@@ -74,14 +74,14 @@ for dp in ${depth_array[@]}; do
 	while (( fs<${#fs_type[*]} )); do
 		if [[ "$dp" == "0" ]] && \
 		  [[ "${fs_type[$fs]}" == "volume" || "${fs_type[$fs]}" == "snapshot" ]]; then
-			log_must eval "$ZFS list -H -d $dp -o name -t ${fs_type[$fs]} $DEPTH_FS > $DEPTH_OUTPUT"
+			log_must eval "zfs list -H -d $dp -o name -t ${fs_type[$fs]} $DEPTH_FS > $DEPTH_OUTPUT"
 			[[ -s "$DEPTH_OUTPUT" ]] && \
 				log_fail "$DEPTH_OUTPUT should be null."
-			log_mustnot $ZFS list -rH -o name -t ${fs_type[$fs]} $DEPTH_FS | $EGREP -e '$eg_opt'
+			log_mustnot zfs list -rH -o name -t ${fs_type[$fs]} $DEPTH_FS | egrep -e '$eg_opt'
 		else
-			log_must eval "$ZFS list -H -d $dp -o name -t ${fs_type[$fs]} $DEPTH_FS > $DEPTH_OUTPUT"
-			log_must eval "$ZFS list -rH -o name -t ${fs_type[$fs]} $DEPTH_FS | $EGREP -e '$eg_opt' > $EXPECT_OUTPUT"
-			log_must $DIFF $DEPTH_OUTPUT $EXPECT_OUTPUT
+			log_must eval "zfs list -H -d $dp -o name -t ${fs_type[$fs]} $DEPTH_FS > $DEPTH_OUTPUT"
+			log_must eval "zfs list -rH -o name -t ${fs_type[$fs]} $DEPTH_FS | egrep -e '$eg_opt' > $EXPECT_OUTPUT"
+			log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
 		fi
 		(( fs+=1 ))
 	done

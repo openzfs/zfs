@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,8 +48,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	$RM -rf $NONZFS_TESTDIR/cpio$$.cpio
-	$RM -rf $TESTDIR/$BNAME
+	rm -rf $NONZFS_TESTDIR/cpio$$.cpio
+	rm -rf $TESTDIR/$BNAME
 }
 
 log_assert "Migrating test file from UFS fs to ZFS fs using cpio"
@@ -60,7 +60,7 @@ cwd=$PWD
 cd $DNAME
 (( $? != 0 )) && log_untested "Could not change directory to $DNAME"
 
-$LS $BNAME | $CPIO -oc > $NONZFS_TESTDIR/cpio$$.cpio
+ls $BNAME | cpio -oc > $NONZFS_TESTDIR/cpio$$.cpio
 (( $? != 0 )) && log_fail "Unable to create cpio archive"
 
 cd $cwd

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -40,14 +44,14 @@
 
 log_assert "Zpool get usage message is displayed when called with no arguments."
 
-$ZPOOL get > /dev/null 2>&1
+zpool get > /dev/null 2>&1
 RET=$?
 if [ $RET != 2 ]
 then
 	log_fail "\"zpool get\" exit status $RET should be equal to 2."
 fi
 
-OUTPUT=$($ZPOOL get 2>&1 | $GREP -i usage)
+OUTPUT=$(zpool get 2>&1 | grep -i usage)
 RET=$?
 if [ $RET != 0 ]
 then

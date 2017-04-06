@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_promote/zfs_promote.cfg
@@ -48,17 +48,17 @@ verify_runnable "both"
 function cleanup
 {
 	if snapexists ${csnap[2]}; then
-		log_must $ZFS promote $fs
+		log_must zfs promote $fs
 	fi
 
 	typeset ds
 	typeset data
 	for ds in ${snap[*]}; do
 		snapexists $ds && \
-			log_must $ZFS destroy -rR $ds
+			log_must zfs destroy -rR $ds
 	done
 	for data in ${file[*]}; do
-		[[ -e $data ]] && $RM -f $data
+		[[ -e $data ]] && rm -f $data
 	done
 
 }
@@ -91,18 +91,18 @@ set -A csnapfile "${csnapdir}/$TESTSNAP/$TESTFILE0" "${csnapdir}/$TESTSNAP1/$TES
 # setup for promote testing
 typeset -i i=0
 while (( i < 4 )); do
-	log_must $MKFILE $FILESIZE ${file[i]}
-	(( i>0 )) && log_must $RM -f ${file[((i-1))]}
-	log_must $ZFS snapshot ${snap[i]}
+	log_must mkfile $FILESIZE ${file[i]}
+	(( i>0 )) && log_must rm -f ${file[((i-1))]}
+	log_must zfs snapshot ${snap[i]}
 
 	(( i = i + 1 ))
 done
-log_must $ZFS clone ${snap[2]} $clone
-log_must $MKFILE $FILESIZE /$clone/$CLONEFILE
-log_must $RM -f /$clone/$TESTFILE2
-log_must $ZFS snapshot ${csnap[3]}
+log_must zfs clone ${snap[2]} $clone
+log_must mkfile $FILESIZE /$clone/$CLONEFILE
+log_must rm -f /$clone/$TESTFILE2
+log_must zfs snapshot ${csnap[3]}
 
-log_must $ZFS promote $clone
+log_must zfs promote $clone
 
 # verify the 'promote' operation
 for ds in ${snap[3]} ${csnap[*]}; do

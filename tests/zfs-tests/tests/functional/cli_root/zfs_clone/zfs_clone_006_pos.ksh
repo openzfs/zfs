@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 
@@ -50,7 +50,7 @@ verify_runnable "global"
 function cleanup
 {
 	if snapexists $SNAPFS1 ; then
-		log_must $ZFS destroy -Rf $SNAPFS1
+		log_must zfs destroy -Rf $SNAPFS1
 	fi
 }
 
@@ -62,7 +62,7 @@ log_assert "'zfs clone -o property=value volume' can successfully" \
 typeset -i i=0
 typeset opts=""
 
-log_must $ZFS snapshot $SNAPFS1
+log_must zfs snapshot $SNAPFS1
 
 while (( $i < ${#RW_VOL_CLONE_PROP[*]} )); do
 	if [[ ${RW_VOL_CLONE_PROP[$i]} != *"checksum"* ]]; then
@@ -71,7 +71,7 @@ while (( $i < ${#RW_VOL_CLONE_PROP[*]} )); do
 	(( i = i + 1 ))
 done
 
-log_must $ZFS clone $opts $SNAPFS1 $TESTPOOL/$TESTCLONE
+log_must zfs clone $opts $SNAPFS1 $TESTPOOL/$TESTCLONE
 
 i=0
 while (( $i < ${#RW_VOL_CLONE_PROP[*]} )); do

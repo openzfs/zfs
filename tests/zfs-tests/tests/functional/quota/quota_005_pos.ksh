@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,9 +49,9 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $fs_child && \
-		log_must $ZFS destroy $fs_child
+		log_must zfs destroy $fs_child
 
-	log_must $ZFS set quota=$quota_val $fs
+	log_must zfs set quota=$quota_val $fs
 }
 
 log_onexit cleanup
@@ -66,9 +66,9 @@ space_avail=$(get_prop available $fs)
 quota_val=$(get_prop quota $fs)
 typeset -i quotasize=$space_avail
 ((quotasize = quotasize * 2 ))
-log_must $ZFS set quota=$quotasize $fs
+log_must zfs set quota=$quotasize $fs
 
-log_must $ZFS create $fs_child
+log_must zfs create $fs_child
 quota_space=$(get_prop quota $fs_child)
 [[ $quota_space == $quotasize ]] && \
 	log_fail "The quota of child dataset inherits its value from parent."

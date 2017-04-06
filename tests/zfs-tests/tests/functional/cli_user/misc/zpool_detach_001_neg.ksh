@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,9 +47,9 @@ verify_runnable "global"
 
 log_assert "zpool detach returns an error when run as a user"
 
-log_mustnot $ZPOOL detach $TESTPOOL.virt /$TESTDIR/disk1.dat
+log_mustnot zpool detach $TESTPOOL.virt /$TESTDIR/disk1.dat
 
-RESULT=$($ZPOOL status -v $TESTPOOL.virt | $GREP disk1.dat)
+RESULT=$(zpool status -v $TESTPOOL.virt | grep disk1.dat)
 if [ -z "$RESULT" ]
 then
 	log_fail "A disk was detached from the pool!"

@@ -31,10 +31,10 @@
 log_assert "Per-vdev ZAPs are created on pool creation with multi-level vdev "\
         "trees."
 
-log_must $ZPOOL create -f $TESTPOOL mirror $DISKS
+log_must zpool create -f $TESTPOOL mirror $DISKS
 
 conf="$TESTDIR/vz003"
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zdb -PC $TESTPOOL > $conf
 
 assert_has_sentinel "$conf"
 assert_top_zap $TESTPOOL "type: 'mirror'" "$conf"

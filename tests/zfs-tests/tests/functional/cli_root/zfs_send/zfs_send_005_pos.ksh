@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,21 +46,21 @@ verify_runnable "both"
 
 function cleanup
 {
-	poolexists $TESTPOOL && log_must $ZPOOL export $TESTPOOL
-	log_must $ZPOOL import $TESTPOOL
+	poolexists $TESTPOOL && log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
 
 	datasetexists $TESTPOOL@snap && \
-	    log_must $ZFS destroy -r $TESTPOOL@snap
+	    log_must zfs destroy -r $TESTPOOL@snap
 }
 
 log_assert "'zfs send -R' can send from read-only pools"
 log_onexit cleanup
 
-log_must $ZFS snapshot -r $TESTPOOL@snap
+log_must zfs snapshot -r $TESTPOOL@snap
 
-log_must $ZPOOL export $TESTPOOL
-log_must $ZPOOL import -o readonly=on $TESTPOOL
+log_must zpool export $TESTPOOL
+log_must zpool import -o readonly=on $TESTPOOL
 
-log_must eval "$ZFS send -R $TESTPOOL@snap >/dev/null"
+log_must eval "zfs send -R $TESTPOOL@snap >/dev/null"
 
 log_pass "'zfs send -R' can send from read-only pools"

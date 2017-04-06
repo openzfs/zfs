@@ -23,8 +23,11 @@
 #
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
+
 #
+# Copyright (c) 2016 by Delphix. All rights reserved.
 #
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_upgrade/zfs_upgrade.kshlib
 
@@ -48,13 +51,13 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $rootfs ; then
-		log_must $ZFS destroy -Rf $rootfs
+		log_must zfs destroy -Rf $rootfs
 	fi
-	log_must $ZFS create $rootfs
+	log_must zfs create $rootfs
 
 	for file in $output $oldoutput ; do
 		if [[ -f $file ]]; then
-			log_must $RM -f $file
+			log_must rm -f $file
 		fi
 	done
 }
@@ -70,8 +73,8 @@ typeset expect_str2="All filesystems are formatted with the current version"
 typeset expect_str3="The following filesystems are out of date, and can be upgraded"
 typeset -i COUNT OLDCOUNT
 
-$ZFS upgrade | $NAWK '$1 ~ "^[0-9]+$" {print $2}'> $oldoutput
-OLDCOUNT=$( $WC -l $oldoutput | $AWK '{print $1}' )
+zfs upgrade | nawk '$1 ~ "^[0-9]+$" {print $2}'> $oldoutput
+OLDCOUNT=$( wc -l $oldoutput | awk '{print $1}' )
 
 old_datasets=""
 for version in $ZFS_ALL_VERSIONS ; do
@@ -80,9 +83,9 @@ for version in $ZFS_ALL_VERSIONS ; do
 	typeset current_fs=$rootfs/$verfs
 	typeset current_snap=${current_fs}@snap
 	typeset current_clone=$rootfs/clone$verfs
-	log_must $ZFS create -o version=${version} ${current_fs}
-	log_must $ZFS snapshot ${current_snap}
-	log_must $ZFS clone ${current_snap} ${current_clone}
+	log_must zfs create -o version=${version} ${current_fs}
+	log_must zfs snapshot ${current_snap}
+	log_must zfs clone ${current_snap} ${current_clone}
 
 	if (( version != $ZFS_VERSION )); then
 		old_datasets="$old_datasets ${current_fs} ${current_clone}"
@@ -90,46 +93,46 @@ for version in $ZFS_ALL_VERSIONS ; do
 done
 
 if is_global_zone; then
-	log_must $ZFS create -V 100m $rootfs/$TESTVOL
+	log_must zfs create -V 100m $rootfs/$TESTVOL
 fi
 
-log_must eval '$ZFS upgrade > $output 2>&1'
+log_must eval 'zfs upgrade > $output 2>&1'
 
 # we also check that the usage message contains at least a description
 # of the current ZFS version.
-log_must eval '$GREP "${expect_str1} $ZFS_VERSION" $output > /dev/null 2>&1'
-$ZFS upgrade | $NAWK '$1 ~ "^[0-9]+$" {print $2}'> $output
-COUNT=$( $WC -l $output | $AWK '{print $1}' )
+log_must eval 'grep "${expect_str1} $ZFS_VERSION" $output > /dev/null 2>&1'
+zfs upgrade | nawk '$1 ~ "^[0-9]+$" {print $2}'> $output
+COUNT=$( wc -l $output | awk '{print $1}' )
 
 typeset -i i=0
 for fs in ${old_datasets}; do
-	log_must $GREP "^$fs$" $output
+	log_must grep "^$fs$" $output
 	(( i = i + 1 ))
 done
 
 if (( i != COUNT - OLDCOUNT )); then
-	$CAT $output
+	cat $output
 	log_fail "More old-version filesystems print out than expect."
 fi
 
 for fs in $old_datasets ; do
 	if datasetexists $fs ; then
-		log_must $ZFS destroy -Rf $fs
+		log_must zfs destroy -Rf $fs
 	fi
 done
 
-log_must eval '$ZFS upgrade > $output 2>&1'
-log_must eval '$GREP "${expect_str1} $ZFS_VERSION" $output > /dev/null 2>&1'
+log_must eval 'zfs upgrade > $output 2>&1'
+log_must eval 'grep "${expect_str1} $ZFS_VERSION" $output > /dev/null 2>&1'
 if (( OLDCOUNT == 0 )); then
-	log_must eval '$GREP "${expect_str2}" $output > /dev/null 2>&1'
+	log_must eval 'grep "${expect_str2}" $output > /dev/null 2>&1'
 else
-	log_must eval '$GREP "${expect_str3}" $output > /dev/null 2>&1'
+	log_must eval 'grep "${expect_str3}" $output > /dev/null 2>&1'
 fi
-$ZFS upgrade | $NAWK '$1 ~ "^[0-9]+$" {print $2}'> $output
-COUNT=$( $WC -l $output | $AWK '{print $1}' )
+zfs upgrade | nawk '$1 ~ "^[0-9]+$" {print $2}'> $output
+COUNT=$( wc -l $output | awk '{print $1}' )
 
 if (( COUNT != OLDCOUNT )); then
-	$CAT $output
+	cat $output
 	log_fail "Unexpect old-version filesystems print out."
 fi
 

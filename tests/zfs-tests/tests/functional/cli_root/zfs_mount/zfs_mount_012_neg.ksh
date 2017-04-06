@@ -38,13 +38,13 @@ log_assert "zfs mount fails with non-empty directory"
 
 fs=$TESTPOOL/$TESTFS
 
-log_must $ZFS umount $fs
+log_must zfs umount $fs
 log_must mkdir -p $TESTDIR
-log_must $ZFS set mountpoint=$TESTDIR $fs
-log_must $ZFS mount $fs
-log_must $ZFS umount $fs
+log_must zfs set mountpoint=$TESTDIR $fs
+log_must zfs mount $fs
+log_must zfs umount $fs
 log_must touch $TESTDIR/testfile.$$
-log_mustnot $ZFS mount $fs
+log_mustnot zfs mount $fs
 log_must rm -rf $TESTDIR
 
 log_pass "zfs mount fails non-empty directory as expected."

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,7 +50,7 @@ function cleanup
 	if [[ -n "$child_pids" ]]; then
 		for wait_pid in $child_pids
 		do
-		        $KILL $wait_pid
+		        kill $wait_pid
 		done
 	fi
 
@@ -58,7 +58,7 @@ function cleanup
 		destroy_pool $TESTPOOL1
 	fi
 
-	[[ -e $TESTDIR ]] && log_must $RM -rf $TESTDIR/*
+	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Replacing a disk during I/O completes."
@@ -94,38 +94,38 @@ function replace_test
 
 	typeset i=0
 	while [[ $i -lt $iters ]]; do
-		log_note "Invoking $FILE_TRUNC with: $options_display"
-		$FILE_TRUNC $options $TESTDIR/$TESTFILE.$i &
+		log_note "Invoking file_trunc with: $options_display"
+		file_trunc $options $TESTDIR/$TESTFILE.$i &
 		typeset pid=$!
 
-		$SLEEP 1
+		sleep 1
 
 		child_pids="$child_pids $pid"
 		((i = i + 1))
 	done
 
-	log_must $ZPOOL replace $opt $TESTPOOL1 $disk1 $disk2
+	log_must zpool replace $opt $TESTPOOL1 $disk1 $disk2
 
-	$SLEEP 10
+	sleep 10
 
 	for wait_pid in $child_pids
 	do
-		$KILL $wait_pid
+		kill $wait_pid
 	done
 	child_pids=""
 
-        log_must $ZPOOL export $TESTPOOL1
-        log_must $ZPOOL import -d $TESTDIR $TESTPOOL1
-        log_must $ZFS umount $TESTPOOL1/$TESTFS1
-        log_must $ZDB -cdui $TESTPOOL1/$TESTFS1
-        log_must $ZFS mount $TESTPOOL1/$TESTFS1
+        log_must zpool export $TESTPOOL1
+        log_must zpool import -d $TESTDIR $TESTPOOL1
+        log_must zfs umount $TESTPOOL1/$TESTFS1
+        log_must zdb -cdui $TESTPOOL1/$TESTFS1
+        log_must zfs mount $TESTPOOL1/$TESTFS1
 
 }
 
 specials_list=""
 i=0
 while [[ $i != 2 ]]; do
-        $MKFILE $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
+        mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
         specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
         ((i = i + 1))
@@ -134,23 +134,23 @@ done
 #
 # Create a replacement disk special file.
 #
-$MKFILE $MINVDEVSIZE $TESTDIR/$REPLACEFILE
+mkfile $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
 for type in "" "raidz" "raidz1" "mirror"; do
 	for op in "" "-f"; do
 		create_pool $TESTPOOL1 $type $specials_list
-		log_must $ZFS create $TESTPOOL1/$TESTFS1
-		log_must $ZFS set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
+		log_must zfs create $TESTPOOL1/$TESTFS1
+		log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
 		replace_test "$opt" $TESTDIR/$TESTFILE1.1 $TESTDIR/$REPLACEFILE
 
-		$ZPOOL iostat -v $TESTPOOL1 | grep "$TESTDIR/$REPLACEFILE"
+		zpool iostat -v $TESTPOOL1 | grep "$TESTDIR/$REPLACEFILE"
 		if [[ $? -ne 0 ]]; then
 			log_fail "$REPLACEFILE is not present."
 		fi
 
 		destroy_pool $TESTPOOL1
-		log_must $RM -rf /$TESTPOOL1
+		log_must rm -rf /$TESTPOOL1
 	done
 done
 

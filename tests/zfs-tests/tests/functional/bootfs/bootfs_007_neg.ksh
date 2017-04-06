@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -56,12 +60,12 @@ typeset assert_mesg="setting bootfs on a pool which was configured with the \
 
 log_assert $assert_mesg
 create_pool "$TESTPOOL" "$DISK"
-log_must $ZFS create $EFI_BOOTFS
+log_must zfs create $EFI_BOOTFS
 
 if is_linux; then
-	log_must $ZPOOL set bootfs=$EFI_BOOTFS $TESTPOOL
+	log_must zpool set bootfs=$EFI_BOOTFS $TESTPOOL
 else
-	log_mustnot $ZPOOL set bootfs=$EFI_BOOTFS $TESTPOOL
+	log_mustnot zpool set bootfs=$EFI_BOOTFS $TESTPOOL
 fi
 
 log_pass $assert_mesg

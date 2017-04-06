@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,7 +49,7 @@ verify_runnable "both"
 function cleanup
 {
 	if snapexists $SNAPFS ; then
-		log_must $ZFS destroy -Rf $SNAPFS
+		log_must zfs destroy -Rf $SNAPFS
 	fi
 }
 
@@ -59,16 +59,16 @@ log_onexit cleanup
 log_assert "'zfs clone -o property=value filesystem' can successfully create" \
 	   "a ZFS clone filesystem with correct property set."
 
-log_must $ZFS snapshot $SNAPFS
+log_must zfs snapshot $SNAPFS
 
 typeset -i i=0
 while (( $i < ${#RW_FS_PROP[*]} )); do
-	log_must $ZFS clone -o ${RW_FS_PROP[$i]} $SNAPFS $TESTPOOL/$TESTCLONE
+	log_must zfs clone -o ${RW_FS_PROP[$i]} $SNAPFS $TESTPOOL/$TESTCLONE
 	datasetexists $TESTPOOL/$TESTCLONE || \
 		log_fail "zfs clone $TESTPOOL/$TESTCLONE fail."
 	propertycheck $TESTPOOL/$TESTCLONE ${RW_FS_PROP[i]} || \
 		log_fail "${RW_FS_PROP[i]} is failed to set."
-	log_must $ZFS destroy -f $TESTPOOL/$TESTCLONE
+	log_must zfs destroy -f $TESTPOOL/$TESTCLONE
 	(( i = i + 1 ))
 done
 

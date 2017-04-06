@@ -44,16 +44,16 @@ TESTFS2=$(for i in $(seq $((255 - ${#TESTPOOL}))); do echo z ; done | tr -d '\n'
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 &&
-		log_must $ZFS destroy $TESTPOOL/$TESTFS1
+		log_must zfs destroy $TESTPOOL/$TESTFS1
 }
 
 log_onexit cleanup
 
 log_assert "'zfs create <filesystem>' can create a ZFS filesystem with name length 255."
 
-log_must $ZFS create $TESTPOOL/$TESTFS1
-log_mustnot $ZFS create $TESTPOOL/$TESTFS2
-log_must $ZPOOL export $TESTPOOL
-log_must $ZPOOL import $TESTPOOL
+log_must zfs create $TESTPOOL/$TESTFS1
+log_mustnot zfs create $TESTPOOL/$TESTFS2
+log_must zpool export $TESTPOOL
+log_must zpool import $TESTPOOL
 
 log_pass "'zfs create <filesystem>' works as expected."

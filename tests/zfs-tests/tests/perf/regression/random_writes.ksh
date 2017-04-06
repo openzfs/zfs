@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 #
 
 #
@@ -31,10 +31,10 @@
 function cleanup
 {
 	# kill fio and iostat
-	$PKILL ${FIO##*/}
-	$PKILL ${IOSTAT##*/}
-	log_must_busy $ZFS destroy $TESTFS
-	log_must_busy $ZPOOL destroy $PERFPOOL
+	pkill ${fio##*/}
+	pkill ${iostat##*/}
+	log_must_busy zfs destroy $TESTFS
+	log_must_busy zpool destroy $PERFPOOL
 }
 
 trap "log_fail \"Measure IO stats during random read load\"" SIGTERM
@@ -44,7 +44,7 @@ log_onexit cleanup
 
 export TESTFS=$PERFPOOL/testfs
 recreate_perfpool
-log_must $ZFS create $PERF_FS_OPTS $TESTFS
+log_must zfs create $PERF_FS_OPTS $TESTFS
 
 # Aim to fill the pool to 50% capacity while accounting for a 3x compressratio.
 export TOTAL_SIZE=$(($(get_prop avail $TESTFS) * 3 / 2))
@@ -68,14 +68,14 @@ fi
 lun_list=$(pool_to_lun_list $PERFPOOL)
 log_note "Collecting backend IO stats with lun list $lun_list"
 if is_linux; then
-	export collect_scripts=("$ZPOOL iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
-	    "$VMSTAT 1" "vmstat" "$MPSTAT -P ALL 1" "mpstat" "$IOSTAT -dxyz 1"
+	export collect_scripts=("zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
+	    "vmstat 1" "vmstat" "mpstat -P ALL 1" "mpstat" "iostat -dxyz 1"
 	    "iostat")
 else
 	export collect_scripts=("$PERF_SCRIPTS/io.d $PERFPOOL $lun_list 1" "io"
-	    "$VMSTAT 1" "vmstat" "$MPSTAT 1" "mpstat" "$IOSTAT -xcnz 1" "iostat")
+	    "vmstat 1" "vmstat" "mpstat 1" "mpstat" "iostat -xcnz 1" "iostat")
 fi
 
 log_note "Random writes with $PERF_RUNTYPE settings"
-do_fio_run random_writes.fio $TRUE $FALSE
+do_fio_run random_writes.fio true false
 log_pass "Measure IO stats during random write load"

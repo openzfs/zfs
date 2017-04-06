@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,7 +56,7 @@ log_assert "Executing well-formed 'zfs list' commands should return success"
 
 typeset -i i=0
 while (( $i < ${#args[*]} )); do
-	log_must eval "$ZFS ${args[i]} > /dev/null"
+	log_must eval "zfs ${args[i]} > /dev/null"
 	((i = i + 1))
 done
 

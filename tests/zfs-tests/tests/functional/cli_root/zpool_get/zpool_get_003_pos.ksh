@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_get/zpool_get.cfg
 
@@ -48,13 +52,13 @@ typeset -i i=0;
 while [ $i -lt "${#properties[@]}" ]
 do
 	log_note "Checking for ${properties[$i]} property"
-	log_must eval "$ZPOOL get ${properties[$i]} $TESTPOOL > /tmp/value.$$"
-	$GREP "${properties[$i]}" /tmp/value.$$ > /dev/null 2>&1
+	log_must eval "zpool get ${properties[$i]} $TESTPOOL > /tmp/value.$$"
+	grep "${properties[$i]}" /tmp/value.$$ > /dev/null 2>&1
 	if [ $? -ne 0 ]
 	then
 		log_fail "${properties[$i]} not seen in output"
 	fi
-	$GREP "^NAME " /tmp/value.$$ > /dev/null 2>&1
+	grep "^NAME " /tmp/value.$$ > /dev/null 2>&1
 	# only need to check this once.
 	if [ $i -eq 0 ] && [ $? -ne 0 ]
 	then
@@ -63,5 +67,5 @@ do
 	i=$(( $i + 1 ))
 done
 
-$RM /tmp/value.$$
+rm /tmp/value.$$
 log_pass "Zpool get returns values for all known properties"

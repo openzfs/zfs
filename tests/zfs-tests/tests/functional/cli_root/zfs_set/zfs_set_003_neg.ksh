@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
 #
@@ -42,10 +46,10 @@ verify_runnable "both"
 function cleanup
 {
 	if [ -e $badpath ]; then
-		$RM -f $badpath
+		rm -f $badpath
 	fi
 	if datasetexists $TESTPOOL/foo; then
-		log_must $ZFS destroy $TESTPOOL/foo
+		log_must zfs destroy $TESTPOOL/foo
 	fi
 }
 
@@ -53,21 +57,21 @@ log_assert "'zfs set mountpoint/sharenfs' fails with invalid scenarios"
 log_onexit cleanup
 
 badpath=/tmp/foo1.$$
-$TOUCH $badpath
+touch $badpath
 longpath=$(gen_dataset_name 1030 "abcdefg")
 
-log_must $ZFS create -o mountpoint=legacy $TESTPOOL/foo
+log_must zfs create -o mountpoint=legacy $TESTPOOL/foo
 
 # Do the negative testing about "property may be set but unable to remount filesystem"
-log_mustnot eval "$ZFS set mountpoint=$badpath $TESTPOOL/foo >/dev/null 2>&1"
+log_mustnot eval "zfs set mountpoint=$badpath $TESTPOOL/foo >/dev/null 2>&1"
 
 # Do the negative testing about "property may be set but unable to reshare filesystem"
-log_mustnot eval "$ZFS set sharenfs=on $TESTPOOL/foo >/dev/null 2>&1"
+log_mustnot eval "zfs set sharenfs=on $TESTPOOL/foo >/dev/null 2>&1"
 
 # Do the negative testing about "sharenfs property can not be set to null"
-log_mustnot eval "$ZFS set sharenfs= $TESTPOOL/foo >/dev/null 2>&1"
+log_mustnot eval "zfs set sharenfs= $TESTPOOL/foo >/dev/null 2>&1"
 
 # Do the too long pathname testing (>1024)
-log_mustnot eval "$ZFS set mountpoint=/$longpath $TESTPOOL/foo >/dev/null 2>&1"
+log_mustnot eval "zfs set mountpoint=/$longpath $TESTPOOL/foo >/dev/null 2>&1"
 
 log_pass "'zfs set mountpoint/sharenfs' fails with invalid scenarios as expected."

@@ -19,10 +19,13 @@
 # CDDL HEADER END
 #
 
-#!/bin/ksh -p
 #
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -38,9 +41,9 @@ function propertycheck
 	typeset dtst=$1
 	typeset propstr=$2
 
-	typeset prop=$($ECHO $propstr | $AWK -F= '{print $1}')
-	typeset expect_value=$($ECHO $propstr | $AWK -F= '{print $2}')
-	typeset value=$($ZFS get -H -o value $prop $dtst)
+	typeset prop=$(echo $propstr | awk -F= '{print $1}')
+	typeset expect_value=$(echo $propstr | awk -F= '{print $2}')
+	typeset value=$(zfs get -H -o value $prop $dtst)
 
 
 	if [[ "$expect_value" == "$value" ]]; then

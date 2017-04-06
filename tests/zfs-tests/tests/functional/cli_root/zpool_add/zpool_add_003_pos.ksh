@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -53,7 +53,7 @@ function cleanup
 	partition_cleanup
 
 	[[ -e $tmpfile ]] && \
-		log_must $RM -f $tmpfile
+		log_must rm -f $tmpfile
 }
 
 log_assert "'zpool add -n <pool> <vdev> ...' can display the configuration" \
@@ -66,12 +66,12 @@ tmpfile="/var/tmp/zpool_add_003.tmp$$"
 create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
 log_must poolexists "$TESTPOOL"
 
-$ZPOOL add -n "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1} > $tmpfile
+zpool add -n "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1} > $tmpfile
 
 log_mustnot vdevs_in_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE1}"
 
 str="would update '$TESTPOOL' to the following configuration:"
-$CAT $tmpfile | $GREP "$str" >/dev/null 2>&1
+cat $tmpfile | grep "$str" >/dev/null 2>&1
 (( $? != 0 )) && \
 	 log_fail "'zpool add -n <pool> <vdev> ...' is executed as unexpected"
 

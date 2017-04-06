@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -43,13 +47,13 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must $ZFS set sharenfs=off $TESTPOOL/$TESTCTR
+	log_must zfs set sharenfs=off $TESTPOOL/$TESTCTR
 	if mounted $TESTDIR2; then
-		log_must $ZFS unmount $TESTDIR2
+		log_must zfs unmount $TESTDIR2
 	fi
 
 	datasetexists $TESTPOOL/$TESTCTR/$TESTFS2 && \
-		log_must $ZFS destroy $TESTPOOL/$TESTCTR/$TESTFS2
+		log_must zfs destroy $TESTPOOL/$TESTCTR/$TESTFS2
 
 	typeset fs=""
 	for fs in $mntp $TESTDIR1 $TESTDIR2
@@ -74,7 +78,7 @@ function test_ctr_share # mntp ctr
 	not_shared $mntp || \
 	    log_fail "Mountpoint: $mntp is already shared."
 
-	log_must $ZFS set sharenfs=on $ctr
+	log_must zfs set sharenfs=on $ctr
 
 	not_shared $mntp || \
 		log_fail "File system $mntp is shared (set sharenfs)."
@@ -83,8 +87,8 @@ function test_ctr_share # mntp ctr
 	# Add a new file system to the dataset and verify it is shared.
 	#
 	typeset mntp2=$TESTDIR2
-	log_must $ZFS create $ctr/$TESTFS2
-	log_must $ZFS set mountpoint=$mntp2 $ctr/$TESTFS2
+	log_must zfs create $ctr/$TESTFS2
+	log_must zfs set mountpoint=$mntp2 $ctr/$TESTFS2
 
 	is_shared $mntp2 || \
 	    log_fail "File system $mntp2 was not shared (set sharenfs)."

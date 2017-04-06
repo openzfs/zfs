@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,7 +42,7 @@ function test_s_run
 {
     typeset snap=$1
 
-    log_must $ZFS destroy -d $snap
+    log_must zfs destroy -d $snap
     log_mustnot datasetexists $snap	
 }
 

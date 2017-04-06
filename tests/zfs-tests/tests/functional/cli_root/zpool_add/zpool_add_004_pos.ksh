@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,7 +51,7 @@ function cleanup
 		destroy_pool "$TESTPOOL"
 
 	datasetexists $TESTPOOL1/$TESTVOL && \
-		log_must $ZFS destroy -f $TESTPOOL1/$TESTVOL
+		log_must zfs destroy -f $TESTPOOL1/$TESTVOL
 	poolexists $TESTPOOL1 && \
 		destroy_pool "$TESTPOOL1"
 
@@ -68,10 +68,10 @@ log_must poolexists "$TESTPOOL"
 
 create_pool "$TESTPOOL1" "${disk}${SLICE_PREFIX}${SLICE1}"
 log_must poolexists "$TESTPOOL1"
-log_must $ZFS create -V $VOLSIZE $TESTPOOL1/$TESTVOL
+log_must zfs create -V $VOLSIZE $TESTPOOL1/$TESTVOL
 block_device_wait
 
-log_must $ZPOOL add "$TESTPOOL" $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
+log_must zpool add "$TESTPOOL" /dev/zvol/dsk/$TESTPOOL1/$TESTVOL
 
 log_must vdevs_in_pool "$TESTPOOL" "$ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL"
 

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,10 +48,10 @@ verify_runnable "global"
 
 function cleanup
 {
-	$RM -rf /tmp/$TESTFILE
+	rm -rf /tmp/$TESTFILE
 
 	if is_swap_inuse $voldev ; then
-		log_must $SWAP -d $voldev
+		log_must swap -d $voldev
 	fi
 }
 
@@ -61,16 +61,16 @@ log_onexit cleanup
 
 voldev=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 log_note "Add zvol volume as swap space"
-log_must $SWAP -a $voldev
+log_must swap -a $voldev
 
 log_note "Create a file under /tmp"
-log_must $FILE_WRITE -o create -f /tmp/$TESTFILE \
+log_must file_write -o create -f /tmp/$TESTFILE \
     -b $BLOCKSZ -c $NUM_WRITES -d $DATA
 
 [[ ! -f /tmp/$TESTFILE ]] &&
     log_fail "Unable to create file under /tmp"
 
-filesize=`$LS -l /tmp/$TESTFILE | $AWK '{print $5}'`
+filesize=`ls -l /tmp/$TESTFILE | awk '{print $5}'`
 tf_size=$(( BLOCKSZ * NUM_WRITES ))
 (( $tf_size != $filesize )) &&
     log_fail "testfile is ($filesize bytes), expected ($tf_size bytes)"

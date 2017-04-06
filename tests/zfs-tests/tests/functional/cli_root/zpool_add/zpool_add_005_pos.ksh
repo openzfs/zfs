@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,7 +56,7 @@ function cleanup
 		destroy_pool "$TESTPOOL1"
 
 	if [[ -n $saved_dump_dev ]]; then
-		log_must eval "$DUMPADM -u -d $saved_dump_dev > /dev/null"
+		log_must eval "dumpadm -u -d $saved_dump_dev > /dev/null"
 	fi
 
 	partition_cleanup
@@ -78,12 +78,12 @@ create_pool "$TESTPOOL1" "${disk}${SLICE_PREFIX}${SLICE1}"
 log_must poolexists "$TESTPOOL1"
 
 unset NOINUSE_CHECK
-log_mustnot $ZPOOL add -f "$TESTPOOL" ${disk}s${SLICE1}
-log_mustnot $ZPOOL add -f "$TESTPOOL" $mnttab_dev
-log_mustnot $ZPOOL add -f "$TESTPOOL" $vfstab_dev
+log_mustnot zpool add -f "$TESTPOOL" ${disk}s${SLICE1}
+log_mustnot zpool add -f "$TESTPOOL" $mnttab_dev
+log_mustnot zpool add -f "$TESTPOOL" $vfstab_dev
 
-log_must $ECHO "y" | $NEWFS ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1
-log_must $DUMPADM -u -d ${DEV_DSKDIR}/$dump_dev > /dev/null
-log_mustnot $ZPOOL add -f "$TESTPOOL" $dump_dev
+log_must echo "y" | newfs ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1
+log_must dumpadm -u -d ${DEV_DSKDIR}/$dump_dev > /dev/null
+log_mustnot zpool add -f "$TESTPOOL" $dump_dev
 
 log_pass "'zpool add' should fail with inapplicable scenarios."

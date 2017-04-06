@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -45,14 +50,14 @@ function cleanup
 	    log_fail "Couldn't cd back to $olddir"
 
 	datasetexists "$TESTPOOL/$TESTFS" || \
-	    log_must $ZPOOL import -d $dir $TESTPOOL
+	    log_must zpool import -d $dir $TESTPOOL
 
 	ismounted "$TESTPOOL/$TESTFS"
 	(( $? != 0 )) && \
-	    log_must $ZFS mount $TESTPOOL/$TESTFS
+	    log_must zfs mount $TESTPOOL/$TESTFS
 
 	[[ -e $TESTDIR/$TESTFILE0 ]] && \
-	    log_must $RM -rf $TESTDIR/$TESTFILE0
+	    log_must rm -rf $TESTDIR/$TESTFILE0
 }
 
 olddir=$PWD
@@ -68,7 +73,7 @@ ismounted "$TESTPOOL/$TESTFS"
 cd $TESTDIR || \
     log_fail "Couldn't cd to $TESTDIR"
 
-log_mustnot $ZPOOL export $TESTPOOL
+log_mustnot zpool export $TESTPOOL
 
 poolexists $TESTPOOL || \
 	log_fail "$TESTPOOL not found in 'zpool list' output."

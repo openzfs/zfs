@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
@@ -49,16 +49,16 @@ verify_runnable "both"
 function cleanup
 {
 	snapexists $snap && \
-		log_must $ZFS destroy $snap
+		log_must zfs destroy $snap
 
 	datasetexists $ctr && \
-		log_must $ZFS destroy -r $ctr
+		log_must zfs destroy -r $ctr
 
 	[[ -e $origfile ]] && \
-		log_must $RM -f $origfile
+		log_must rm -f $origfile
 
 	[[ -e $stream ]] && \
-		log_must $RM -f $stream
+		log_must rm -f $stream
 }
 
 function do_testing # <prop> <prop_value>
@@ -66,21 +66,21 @@ function do_testing # <prop> <prop_value>
 	typeset property=$1
 	typeset prop_val=$2
 
-	log_must $ZFS set $property=$prop_val $fs
-	$FILE_WRITE -o create -f $origfile -b $BLOCK_SIZE -c $WRITE_COUNT
-	log_must $ZFS snapshot $snap
-	$ZFS send $snap > $stream
+	log_must zfs set $property=$prop_val $fs
+	file_write -o create -f $origfile -b $BLOCK_SIZE -c $WRITE_COUNT
+	log_must zfs snapshot $snap
+	zfs send $snap > $stream
 	(( $? != 0 )) && \
-		log_fail "'$ZFS send' fails to create send streams."
-	$ZFS receive -d $ctr <$stream
+		log_fail "'zfs send' fails to create send streams."
+	zfs receive -d $ctr <$stream
 	(( $? != 0 )) && \
-		log_fail "'$ZFS receive' fails to receive send streams."
+		log_fail "'zfs receive' fails to receive send streams."
 
 	#verify receive result
 	! datasetexists $rstfs && \
-		log_fail "'$ZFS receive' fails to restore $rstfs"
+		log_fail "'zfs receive' fails to restore $rstfs"
 	! snapexists $rstfssnap && \
-		log_fail "'$ZFS receive' fails to restore $rstfssnap"
+		log_fail "'zfs receive' fails to restore $rstfssnap"
 	if [[ ! -e $rstfile ]] || [[ ! -e $rstsnapfile ]]; then
 		log_fail " Data lost after receiving stream"
 	fi
@@ -89,13 +89,13 @@ function do_testing # <prop> <prop_value>
 	compare_cksum $origsnapfile $rstsnapfile
 
 	#Destroy datasets and stream for next testing
-	log_must $ZFS destroy $snap
+	log_must zfs destroy $snap
 	if is_global_zone ; then
-		log_must $ZFS destroy -r $rstfs
+		log_must zfs destroy -r $rstfs
 	else
-		log_must $ZFS destroy -r $ds_path
+		log_must zfs destroy -r $ds_path
 	fi
-	log_must $RM -f $stream
+	log_must rm -f $stream
 }
 
 log_assert "Verify 'zfs send' generates valid streams with a property setup"
@@ -123,7 +123,7 @@ set -A propval "on lzjb" "on fletcher2 fletcher4 sha256" \
 	"512 1k 4k 8k 16k 32k 64k 128k"
 
 #Create a dataset to receive the send stream
-log_must $ZFS create $ctr
+log_must zfs create $ctr
 
 typeset -i i=0
 while (( i < ${#props[*]} ))

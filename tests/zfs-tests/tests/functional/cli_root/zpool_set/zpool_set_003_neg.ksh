@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,8 +45,8 @@ verify_runnable "global"
 
 function cleanup
 {
-        $ZPOOL destroy $TESTPOOL
-        $RM /tmp/zpool_set_003.$$.dat
+        zpool destroy $TESTPOOL
+        rm /tmp/zpool_set_003.$$.dat
 }
 
 set -A props "available" "capacity" "guid"  "health"  "size" "used"
@@ -56,14 +56,14 @@ log_onexit cleanup
 
 log_assert "zpool set cannot set a readonly property"
 
-log_must $MKFILE $MINVDEVSIZE /tmp/zpool_set_003.$$.dat
-log_must $ZPOOL create $TESTPOOL /tmp/zpool_set_003.$$.dat
+log_must mkfile $MINVDEVSIZE /tmp/zpool_set_003.$$.dat
+log_must zpool create $TESTPOOL /tmp/zpool_set_003.$$.dat
 
 typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
 	# try to set each property in the prop list with it's corresponding val
-        log_mustnot eval "$ZPOOL set ${props[$i]}=${vals[$i]} $TESTPOOL \
+        log_mustnot eval "zpool set ${props[$i]}=${vals[$i]} $TESTPOOL \
  > /dev/null 2>&1"
         i=$(( $i + 1))
 done

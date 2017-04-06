@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,7 +50,7 @@
 function cleanup
 {
 	if datasetexists $snap_fs; then
-		log_must $ZFS destroy $snap_fs
+		log_must zfs destroy $snap_fs
 	fi
 
 	log_must cleanup_quota
@@ -62,25 +62,25 @@ log_assert "Check the snapshot's user|group quota"
 typeset snap_fs=$QFS@snap
 
 
-log_must $ZFS set userquota@$QUSER1=$UQUOTA_SIZE $QFS
+log_must zfs set userquota@$QUSER1=$UQUOTA_SIZE $QFS
 log_must check_quota "userquota@$QUSER1" $QFS "$UQUOTA_SIZE"
 
-log_must $ZFS set groupquota@$QGROUP=$GQUOTA_SIZE $QFS
+log_must zfs set groupquota@$QGROUP=$GQUOTA_SIZE $QFS
 log_must check_quota "groupquota@$QGROUP" $QFS "$GQUOTA_SIZE"
 
-log_must $ZFS snapshot $snap_fs
+log_must zfs snapshot $snap_fs
 
 log_note "check the snapshot $snap_fs user|group quota"
 log_must check_quota "userquota@$QUSER1" $snap_fs "$UQUOTA_SIZE"
 log_must check_quota "groupquota@$QGROUP" $snap_fs "$GQUOTA_SIZE"
 
 log_note  "set userquota and groupquota to $snap_fs which will fail"
-log_mustnot $ZFS set userquota@$QUSER1=$SNAP_QUOTA $snap_fs
-log_mustnot $ZFS set groupquota@$QGROUP=$SNAP_QUOTA $snap_fs
+log_mustnot zfs set userquota@$QUSER1=$SNAP_QUOTA $snap_fs
+log_mustnot zfs set groupquota@$QGROUP=$SNAP_QUOTA $snap_fs
 
 log_note "change the parent's userquota and groupquota"
-log_must $ZFS set userquota@$QUSER1=$TEST_QUOTA $QFS
-log_must $ZFS set groupquota@$QGROUP=$TEST_QUOTA $QFS
+log_must zfs set userquota@$QUSER1=$TEST_QUOTA $QFS
+log_must zfs set groupquota@$QGROUP=$TEST_QUOTA $QFS
 
 log_must check_quota "userquota@$QUSER1" $QFS $TEST_QUOTA
 log_must check_quota "groupquota@$QGROUP" $QFS $TEST_QUOTA

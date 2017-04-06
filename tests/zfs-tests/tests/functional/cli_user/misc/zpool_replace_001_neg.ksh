@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,8 +45,8 @@
 
 function check_for_replace
 {
-	$SLEEP 10
-	RESULT=$($ZPOOL status -v $TESTPOOL.virt | $GREP disk-additional.dat)
+	sleep 10
+	RESULT=$(zpool status -v $TESTPOOL.virt | grep disk-additional.dat)
 	if [ -n "$RESULT" ]
 	then
 		log_fail "A disk was replaced in the pool!"
@@ -57,11 +57,11 @@ verify_runnable "global"
 
 log_assert "zpool replace returns an error when run as a user"
 
-log_mustnot $ZPOOL replace $TESTPOOL.virt /$TESTDIR/disk-1.dat \
+log_mustnot zpool replace $TESTPOOL.virt /$TESTDIR/disk-1.dat \
 	 /$TESTDIR/disk-additional.dat
 check_for_replace
 
-log_mustnot $ZPOOL replace -f $TESTPOOL.virt /$TESTDIR/disk-1.dat \
+log_mustnot zpool replace -f $TESTPOOL.virt /$TESTDIR/disk-1.dat \
  /$TESTDIR/disk-additional.dat
 check_for_replace
 

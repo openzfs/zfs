@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -63,20 +63,20 @@ cleanup
 #
 # Duplicate POOL2 for testing
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -dF $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -dF $POOL2 < $BACKDIR/pool-final-R"
 
-log_must $ZFS destroy -Rf $POOL/$FS
-log_must $ZFS destroy -Rf $POOL/pclone
+log_must zfs destroy -Rf $POOL/$FS
+log_must zfs destroy -Rf $POOL/pclone
 
 if is_global_zone ; then
-	log_must $ZFS destroy -Rf $POOL/vol
+	log_must zfs destroy -Rf $POOL/vol
 fi
-log_must $ZFS snapshot -r $POOL@destroy
+log_must zfs snapshot -r $POOL@destroy
 
-log_must eval "$ZFS send -R -I @final $POOL@destroy > " \
+log_must eval "zfs send -R -I @final $POOL@destroy > " \
 	"$BACKDIR/pool-final-destroy-IR"
-log_must eval "$ZFS receive -dF $POOL2 < $BACKDIR/pool-final-destroy-IR"
+log_must eval "zfs receive -dF $POOL2 < $BACKDIR/pool-final-destroy-IR"
 
 dstds=$(get_dst_ds $POOL $POOL2)
 log_must cmp_ds_subs $POOL $dstds

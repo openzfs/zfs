@@ -25,12 +25,16 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 default_cleanup_noexit
 
 if [[ -d $TESTDIR2 ]]; then
-        $RM -rf $TESTDIR2
+        rm -rf $TESTDIR2
         if (( $? != 0 )); then
                 log_unresolved Could not remove $TESTDIR2
         fi

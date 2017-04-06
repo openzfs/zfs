@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -58,7 +58,7 @@ log_assert "Reservation properties preserved across exports and imports"
 function cleanup
 {
 	for obj in $OBJ_LIST; do
-                datasetexists $obj && log_must $ZFS destroy -f $obj
+                datasetexists $obj && log_must zfs destroy -f $obj
         done
 
 	log_must zero_reservation $TESTPOOL/$TESTFS
@@ -68,8 +68,8 @@ log_onexit cleanup
 OBJ_LIST="$TESTPOOL/$TESTFS1/$TESTFS2 $TESTPOOL/$TESTFS1 $TESTPOOL/$TESTVOL \
     $TESTPOOL/$TESTVOL2"
 
-log_must $ZFS create $TESTPOOL/$TESTFS1
-log_must $ZFS create $TESTPOOL/$TESTFS1/$TESTFS2
+log_must zfs create $TESTPOOL/$TESTFS1
+log_must zfs create $TESTPOOL/$TESTFS1/$TESTFS2
 
 space_avail=$(get_prop available $TESTPOOL)
 [[ $? -ne 0 ]] && \
@@ -83,16 +83,16 @@ sparse_vol_set_size=$(floor_volsize $sparse_vol_set_size)
 # When initially created, a regular volume's reservation property is set
 # equal to its size (unlike a sparse volume), so we don't need to set it
 # explicitly later on
-log_must $ZFS create -V $resv_set $TESTPOOL/$TESTVOL
-log_must $ZFS create -s -V $sparse_vol_set_size $TESTPOOL/$TESTVOL2
+log_must zfs create -V $resv_set $TESTPOOL/$TESTVOL
+log_must zfs create -s -V $sparse_vol_set_size $TESTPOOL/$TESTVOL2
 
-log_must $ZFS set reservation=$resv_set $TESTPOOL/$TESTFS
-log_must $ZFS set reservation=$resv_set $TESTPOOL/$TESTFS1
-log_must $ZFS set reservation=$resv_set $TESTPOOL/$TESTFS1/$TESTFS2
-log_must $ZFS set reservation=$resv_set $TESTPOOL/$TESTVOL2
+log_must zfs set reservation=$resv_set $TESTPOOL/$TESTFS
+log_must zfs set reservation=$resv_set $TESTPOOL/$TESTFS1
+log_must zfs set reservation=$resv_set $TESTPOOL/$TESTFS1/$TESTFS2
+log_must zfs set reservation=$resv_set $TESTPOOL/$TESTVOL2
 
-log_must $ZPOOL export $TESTPOOL
-log_must $ZPOOL import $TESTPOOL
+log_must zpool export $TESTPOOL
+log_must zpool import $TESTPOOL
 
 for obj in $TESTPOOL/$TESTFS $OBJ_LIST; do
 

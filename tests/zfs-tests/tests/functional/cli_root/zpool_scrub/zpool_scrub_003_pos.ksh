@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_scrub/zpool_scrub.cfg
 
@@ -50,30 +54,30 @@ verify_runnable "global"
 function get_scrub_percent
 {
 	typeset -i percent
-	percent=$($ZPOOL status $TESTPOOL | $GREP "^ scrub" | \
-	    $AWK '{print $7}' | $AWK -F. '{print $1}')
+	percent=$(zpool status $TESTPOOL | grep "^ scrub" | \
+	    awk '{print $7}' | awk -F. '{print $1}')
 	if is_pool_scrubbed $TESTPOOL ; then
 		percent=100
 	fi
-	$ECHO $percent
+	echo $percent
 }
 
 log_assert "scrub command terminates the existing scrub process and starts" \
 	"a new scrub."
 
-log_must $ZINJECT -d $DISK1 -D10:1 $TESTPOOL
-log_must $ZPOOL scrub $TESTPOOL
+log_must zinject -d $DISK1 -D10:1 $TESTPOOL
+log_must zpool scrub $TESTPOOL
 typeset -i PERCENT=30 percent=0
 while ((percent < PERCENT)) ; do
 	percent=$(get_scrub_percent)
 done
 
-log_must $ZPOOL scrub $TESTPOOL
+log_must zpool scrub $TESTPOOL
 percent=$(get_scrub_percent)
 if ((percent > PERCENT)); then
 	log_fail "zpool scrub don't stop existing scrubbing process."
 fi
 
-log_must $ZINJECT -c all
+log_must zinject -c all
 log_pass "scrub command terminates the existing scrub process and starts" \
 	"a new scrub."

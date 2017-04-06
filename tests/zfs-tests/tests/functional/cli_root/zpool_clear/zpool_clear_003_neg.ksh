@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,10 +47,10 @@ verify_runnable "global"
 function cleanup
 {
         poolexists $TESTPOOL1 && \
-                log_must $ZPOOL destroy -f $TESTPOOL1
+                log_must zpool destroy -f $TESTPOOL1
 
-        for file in `$LS $TESTDIR/file.*`; do
-		log_must $RM -f $file
+        for file in `ls $TESTDIR/file.*`; do
+		log_must rm -f $file
         done
 }
 
@@ -61,13 +61,13 @@ log_onexit cleanup
 #make raw files to create a spare pool
 typeset -i i=0
 while (( i < 5 )); do
-	log_must $MKFILE $FILESIZE $TESTDIR/file.$i
+	log_must mkfile $FILESIZE $TESTDIR/file.$i
 
 	(( i = i + 1 ))
 done
-log_must $ZPOOL create $TESTPOOL1 raidz $TESTDIR/file.1 $TESTDIR/file.2 \
+log_must zpool create $TESTPOOL1 raidz $TESTDIR/file.1 $TESTDIR/file.2 \
 	$TESTDIR/file.3 spare $TESTDIR/file.4
 
-log_mustnot $ZPOOL clear $TESTPOOL1 $TESTDIR/file.4
+log_mustnot zpool clear $TESTPOOL1 $TESTDIR/file.4
 
 log_pass "'zpool clear' works on spare device failed as expected."

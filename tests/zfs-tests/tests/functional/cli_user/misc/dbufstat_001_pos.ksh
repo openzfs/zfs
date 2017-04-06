@@ -33,7 +33,7 @@ log_assert "dbufstat.py generates output and doesn't return an error code"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "$DBUFSTAT ${args[i]} > /dev/null"
+        log_must eval "dbufstat.py ${args[i]} > /dev/null"
         ((i = i + 1))
 done
 

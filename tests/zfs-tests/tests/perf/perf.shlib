@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 # Copyright (c) 2016, Intel Corporation.
 #
 
@@ -34,7 +34,7 @@ function get_sync_str
 
 	[[ $sync -eq 0 ]] && sync_str='async'
 	[[ $sync -eq 1 ]] && sync_str='sync'
-	$ECHO $sync_str
+	echo $sync_str
 }
 
 #
@@ -67,14 +67,14 @@ function do_fio_run
 
 				if $do_recreate; then
 					recreate_perfpool
-					log_must $ZFS create $PERF_FS_OPTS \
+					log_must zfs create $PERF_FS_OPTS \
 					    $TESTFS
 				fi
 
 				if $clear_cache; then
 					# Clear the ARC
-					$ZPOOL export $PERFPOOL
-					$ZPOOL import $PERFPOOL
+					zpool export $PERFPOOL
+					zpool import $PERFPOOL
 				fi
 
 				export RUNTIME=$PERF_RUNTIME
@@ -82,7 +82,7 @@ function do_fio_run
 				export NUMJOBS=$threads
 				export SYNC_TYPE=$sync
 				export BLOCKSIZE=$iosize
-				$SYNC
+				sync
 
 				# Start the data collection
 				do_collect_scripts $threads $sync $iosize
@@ -91,12 +91,12 @@ function do_fio_run
 				typeset suffix="$sync_str.$iosize-ios.$threads-threads"
 
 				# Define output file
-				typeset logbase="$(get_perf_output_dir)/$($BASENAME \
+				typeset logbase="$(get_perf_output_dir)/$(basename \
 				    $SUDO_COMMAND)"
 				typeset outfile="$logbase.fio.$suffix"
 
 				# Start the load
-				log_must $FIO --output $outfile $FIO_SCRIPTS/$script
+				log_must fio --output $outfile $FIO_SCRIPTS/$script
 			done
 		done
 	done
@@ -124,17 +124,17 @@ function do_collect_scripts
 	typeset oIFS=$IFS
 	IFS=','
 	for item in $PERF_COLLECT_SCRIPTS; do
-		collect_scripts+=($($ECHO $item | $SED 's/^ *//g'))
+		collect_scripts+=($(echo $item | sed 's/^ *//g'))
 	done
 	IFS=$oIFS
 
 	typeset idx=0
 	while [[ $idx -lt "${#collect_scripts[@]}" ]]; do
-		typeset logbase="$(get_perf_output_dir)/$($BASENAME \
+		typeset logbase="$(get_perf_output_dir)/$(basename \
 		    $SUDO_COMMAND)"
 		typeset outfile="$logbase.${collect_scripts[$idx + 1]}.$suffix"
 
-		$TIMEOUT $PERF_RUNTIME ${collect_scripts[$idx]} >$outfile 2>&1 &
+		timeout $PERF_RUNTIME ${collect_scripts[$idx]} >$outfile 2>&1 &
 		((idx += 2))
 	done
 
@@ -147,9 +147,9 @@ function do_collect_scripts
 function get_perf_output_dir
 {
 	typeset dir="$(pwd)/perf_data"
-	[[ -d $dir ]] || $MKDIR -p $dir
+	[[ -d $dir ]] || mkdir -p $dir
 
-	$ECHO $dir
+	echo $dir
 }
 
 #
@@ -167,14 +167,14 @@ function recreate_perfpool
 	if [[ -n $PERFPOOL_CREATE_CMD ]]; then
 		log_must $PERFPOOL_CREATE_CMD
 	else
-		log_must eval "$ZPOOL create -f $PERFPOOL $DISKS"
+		log_must eval "zpool create -f $PERFPOOL $DISKS"
 	fi
 }
 
 function get_max_arc_size
 {
 	if is_linux; then
-		typeset -l max_arc_size=`$AWK '$1 == "c_max" { print $3 }' \
+		typeset -l max_arc_size=`awk '$1 == "c_max" { print $3 }' \
 		    /proc/spl/kstat/zfs/arcstats`
 	else
 		typeset -l max_arc_size=$(dtrace -qn 'BEGIN {
@@ -185,7 +185,7 @@ function get_max_arc_size
 
 	[[ $? -eq 0 ]] || log_fail "get_max_arc_size failed"
 
-	$ECHO $max_arc_size
+	echo $max_arc_size
 }
 
 # Create a file with some information about how this system is configured.
@@ -193,26 +193,26 @@ function get_system_config
 {
 	typeset config=$PERF_DATA_DIR/$1
 
-	$ECHO "{" >>$config
+	echo "{" >>$config
 	if is_linux; then
-		$ECHO "  \"ncpus\": \"$($NPROC --all)\"," >>$config
-		$ECHO "  \"physmem\": \"$($FREE -b | \
-		    $AWK '$1 == "Mem:" { print $2 }')\"," >>$config
-		$ECHO "  \"c_max\": \"$(get_max_arc_size)\"," >>$config
-		$ECHO "  \"hostname\": \"$($UNAME -n)\"," >>$config
-		$ECHO "  \"kernel version\": \"$($UNAME -sr)\"," >>$config
+		echo "  \"ncpus\": \"$(nproc --all)\"," >>$config
+		echo "  \"physmem\": \"$(free -b | \
+		    awk '$1 == "Mem:" { print $2 }')\"," >>$config
+		echo "  \"c_max\": \"$(get_max_arc_size)\"," >>$config
+		echo "  \"hostname\": \"$(uname -n)\"," >>$config
+		echo "  \"kernel version\": \"$(uname -sr)\"," >>$config
 	else
-		$DTRACE -qn 'BEGIN{
+		dtrace -qn 'BEGIN{
 		    printf("  \"ncpus\": %d,\n", `ncpus);
 		    printf("  \"physmem\": %u,\n", `physmem * `_pagesize);
 		    printf("  \"c_max\": %u,\n", `arc_stats.arcstat_c_max.value.ui64);
 		    printf("  \"kmem_flags\": \"0x%x\",", `kmem_flags);
 		    exit(0)}' >>$config
-		$ECHO "  \"hostname\": \"$($UNAME -n)\"," >>$config
-		$ECHO "  \"kernel version\": \"$($UNAME -v)\"," >>$config
+		echo "  \"hostname\": \"$(uname -n)\"," >>$config
+		echo "  \"kernel version\": \"$(uname -v)\"," >>$config
 	fi
 	if is_linux; then
-		$LSBLK -dino NAME,SIZE | $AWK 'BEGIN {
+		lsblk -dino NAME,SIZE | awk 'BEGIN {
 		    printf("  \"disks\": {\n"); first = 1}
 		    {disk = $1} {size = $2;
 		    if (first != 1) {printf(",\n")} else {first = 0}
@@ -246,7 +246,7 @@ function get_system_config
 		done
 		printf "\n  }\n" >>$config
 	else
-		$IOSTAT -En | $AWK 'BEGIN {
+		iostat -En | awk 'BEGIN {
 		    printf("  \"disks\": {\n"); first = 1}
 		    /^c/ {disk = $1}
 		    /^Size: [^0]/ {size = $2;
@@ -254,13 +254,13 @@ function get_system_config
 		    printf("    \"%s\": \"%s\"", disk, size)}
 		    END {printf("\n  },\n")}' >>$config
 
-		$SED -n 's/^set \(.*\)[ ]=[ ]\(.*\)/\1=\2/p' /etc/system | \
-		    $AWK -F= 'BEGIN {printf("  \"system\": {\n"); first = 1}
+		sed -n 's/^set \(.*\)[ ]=[ ]\(.*\)/\1=\2/p' /etc/system | \
+		    awk -F= 'BEGIN {printf("  \"system\": {\n"); first = 1}
 		    {if (first != 1) {printf(",\n")} else {first = 0};
 		    printf("    \"%s\": %s", $1, $2)}
 		    END {printf("\n  }\n")}' >>$config
 	fi
-	$ECHO "}" >>$config
+	echo "}" >>$config
 }
 
 function num_jobs_by_cpu
@@ -268,13 +268,13 @@ function num_jobs_by_cpu
 	if is_linux; then
 		typeset ncpu=$($NPROC --all)
 	else
-		typeset ncpu=$($PSRINFO | $WC -l)
+		typeset ncpu=$(psrinfo | $WC -l)
 	fi
 	typeset num_jobs=$ncpu
 
-	[[ $ncpu -gt 8 ]] && num_jobs=$($ECHO "$ncpu * 3 / 4" | $BC)
+	[[ $ncpu -gt 8 ]] && num_jobs=$(echo "$ncpu * 3 / 4" | bc)
 
-	$ECHO $num_jobs
+	echo $num_jobs
 }
 
 #
@@ -287,28 +287,28 @@ function pool_to_lun_list
 	typeset lun_list=':'
 
 	if is_linux; then
-		ctds=$($ZPOOL list -HLv $pool | \
-		    $AWK '/sd[a-z]*|loop[0-9]*|dm-[0-9]*/ {print $1}')
+		ctds=$(zpool list -HLv $pool | \
+		    awk '/sd[a-z]*|loop[0-9]*|dm-[0-9]*/ {print $1}')
 
 		for ctd in $ctds; do
 			lun_list="$lun_list$ctd:"
 		done
 	else
-		ctds=$($ZPOOL list -v $pool |
-		    $AWK '/c[0-9]*t[0-9a-fA-F]*d[0-9]*/ {print $1}')
+		ctds=$(zpool list -v $pool |
+		    awk '/c[0-9]*t[0-9a-fA-F]*d[0-9]*/ {print $1}')
 
 		for ctd in $ctds; do
 		# Get the device name as it appears in /etc/path_to_inst
-		devname=$($READLINK -f /dev/dsk/${ctd}s0 | $SED -n \
+		devname=$(readlink -f /dev/dsk/${ctd}s0 | sed -n \
 		    's/\/devices\([^:]*\):.*/\1/p')
 		# Add a string composed of the driver name and instance
 		# number to the list for comparison with dev_statname.
-		lun=$($SED 's/"//g' /etc/path_to_inst | $GREP \
-		    $devname | $AWK '{print $3$2}')
+		lun=$(sed 's/"//g' /etc/path_to_inst | grep \
+		    $devname | awk '{print $3$2}')
 		un_list="$lun_list$lun:"
 		done
 	fi
-	$ECHO $lun_list
+	echo $lun_list
 }
 
 # Create a perf_data directory to hold performance statistics and

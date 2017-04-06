@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rollback/zfs_rollback_common.kshlib
 
@@ -45,10 +49,10 @@ verify_runnable "both"
 
 function cleanup
 {
-	$PKILL ${DD##*/}
+	pkill ${DD##*/}
 	for snap in $FSSNAP0 $FSSNAP1 $FSSNAP2; do
 		if snapexists $snap; then
-			log_must $ZFS destroy -Rf $snap
+			log_must zfs destroy -Rf $snap
 		fi
 	done
 }
@@ -64,8 +68,8 @@ create_snapshot $TESTPOOL/$TESTFS $TESTSNAP1
 
 # Run 'zfs rollback ""|-f <snap>' and it should fail.
 #
-log_mustnot $ZFS rollback $TESTPOOL/$TESTFS@$TESTSNAP
-log_mustnot $ZFS rollback -f $TESTPOOL/$TESTFS@$TESTSNAP
+log_mustnot zfs rollback $TESTPOOL/$TESTFS@$TESTSNAP
+log_mustnot zfs rollback -f $TESTPOOL/$TESTFS@$TESTSNAP
 
 # Create 'clone1' based on 'snap1'.
 #
@@ -73,8 +77,8 @@ create_clone $TESTPOOL/$TESTFS@$TESTSNAP1 $TESTPOOL/$TESTCLONE1
 
 # Run 'zfs rollback -r|-rf <snap>' and it should fail.
 #
-log_mustnot $ZFS rollback -r $TESTPOOL/$TESTFS@$TESTSNAP
-log_mustnot $ZFS rollback -rf $TESTPOOL/$TESTFS@$TESTSNAP
+log_mustnot zfs rollback -r $TESTPOOL/$TESTFS@$TESTSNAP
+log_mustnot zfs rollback -rf $TESTPOOL/$TESTFS@$TESTSNAP
 
 log_pass "zfs rollback ''|-f|-r|-rf will fail in different conditions " \
 	"passed."

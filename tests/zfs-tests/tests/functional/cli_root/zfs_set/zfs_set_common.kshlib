@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -62,7 +62,7 @@ function set_n_check_prop
 		[[ -z $prop || -z $dataset ]] && \
 			log_fail "property or dataset isn't defined."
 
-		log_must $ZFS set $prop=$expect_value $dataset
+		log_must zfs set $prop=$expect_value $dataset
 		if [[ $expect_value == "gzip-6" ]]; then
 			expect_value="gzip"
 		fi
@@ -89,7 +89,7 @@ function set_n_check_prop
 		esac
 
 	else
-		log_mustnot $ZFS set $prop=$expect_value $dataset
+		log_mustnot zfs set $prop=$expect_value $dataset
 
 		[[ -n $prop ]] && cur_value=$(get_prop $prop $dataset)
 		
@@ -111,16 +111,16 @@ function set_n_check_prop
 function cleanup_user_prop
 {
 	typeset pool=$1
-	typeset dtst=$($ZFS list -H -r -o name -t filesystem,volume $pool)
+	typeset dtst=$(zfs list -H -r -o name -t filesystem,volume $pool)
 
 	typeset user_prop
 	for dt in $dtst; do
-		user_prop=$($ZFS get -H -o property all $dtst | grep ":")
+		user_prop=$(zfs get -H -o property all $dtst | grep ":")
 
 		typeset prop
 		for prop in $user_prop; do
-			$ZFS inherit $prop $dt
-			(($? != 0)) && log_must $ZFS inherit $prop $dt
+			zfs inherit $prop $dt
+			(($? != 0)) && log_must zfs inherit $prop $dt
 		done
 	done
 }
@@ -152,7 +152,7 @@ function random_string
 		((i += 1))
 	done
 
-	$ECHO "$str"
+	echo "$str"
 }
 
 #
@@ -185,7 +185,7 @@ function valid_user_property
 		break
 	done
 
-	$ECHO "${part1}:${part2}"
+	echo "${part1}:${part2}"
 }
 
 #
@@ -213,7 +213,7 @@ function invalid_user_property
 		break
 	done
 
-	$ECHO "${part1}${part2}"
+	echo "${part1}${part2}"
 }
 
 #
@@ -227,7 +227,7 @@ function user_property_value
 
 	typeset value=$(random_string ALL_CHAR $len)
 
-	$ECHO "$value"
+	echo "$value"
 }
 
 #
@@ -242,7 +242,7 @@ function check_user_prop
 	typeset dtst=$1
 	typeset user_prop="$2"
 	typeset expect_value="$3"
-	typeset value=$($ZFS get -p -H -o value "$user_prop" $dtst 2>&1)
+	typeset value=$(zfs get -p -H -o value "$user_prop" $dtst 2>&1)
 
 	if [[ "$expect_value" == "$value" ]]; then
 		return 0
@@ -260,10 +260,10 @@ function get_source
 	typeset dataset=$2
 	typeset source
 
-	source=$($ZFS get -H -o source $prop $dataset)
+	source=$(zfs get -H -o source $prop $dataset)
         if (($? != 0)); then
                 log_fail "Unable to get $prop source for dataset $dataset"
         fi
 
-	$ECHO "$source"
+	echo "$source"
 }

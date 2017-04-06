@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,9 +45,9 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_assert "Sub-filesystem quotas are not enforced by property 'refquota'"
@@ -55,12 +55,12 @@ log_onexit cleanup
 
 TESTFILE='testfile'
 fs=$TESTPOOL/$TESTFS
-log_must $ZFS set quota=25M $fs
-log_must $ZFS set refquota=10M $fs
-log_must $ZFS create $fs/subfs
+log_must zfs set quota=25M $fs
+log_must zfs set refquota=10M $fs
+log_must zfs create $fs/subfs
 
 mntpnt=$(get_prop mountpoint $fs/subfs)
-log_must $MKFILE 20M $mntpnt/$TESTFILE
+log_must mkfile 20M $mntpnt/$TESTFILE
 
 typeset -i used quota refquota
 used=$(get_prop used $fs)
@@ -71,7 +71,7 @@ if [[ $used -lt $refquota ]]; then
 	log_fail "ERROR: $used < $refquota subfs quotas are limited by refquota"
 fi
 
-log_mustnot $MKFILE 20M $mntpnt/$TESTFILE.2
+log_mustnot mkfile 20M $mntpnt/$TESTFILE.2
 used=$(get_prop used $fs)
 quota=$(get_prop quota $fs)
 ((used = used / (1024 * 1024)))

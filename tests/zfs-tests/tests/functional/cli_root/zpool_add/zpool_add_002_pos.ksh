@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
@@ -63,10 +63,10 @@ create_pool "$TESTPOOL" mirror "${disk}${SLICE_PREFIX}${SLICE0}" \
 	"${disk}${SLICE_PREFIX}${SLICE1}"
 log_must poolexists "$TESTPOOL"
 
-log_mustnot $ZPOOL add "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE3}
+log_mustnot zpool add "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE3}
 log_mustnot vdevs_in_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE3}"
 
-log_must $ZPOOL add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE3}
+log_must zpool add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE3}
 log_must vdevs_in_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE3}"
 
 log_pass "'zpool add -f <pool> <vdev> ...' executes successfully."

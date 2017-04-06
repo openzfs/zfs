@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,17 +44,17 @@
 #
 
 # check to see if we have zfs unallow
-$ZFS 2>&1 | $GREP "unallow" > /dev/null
+zfs 2>&1 | grep "unallow" > /dev/null
 if (($? != 0)) then
         log_unsupported "ZFS unallow not supported on this machine."
 fi
 
 log_assert "zfs unallow returns an error when run as a user"
 
-log_mustnot $ZFS unallow everyone $TESTPOOL/$TESTFS/allowed
+log_mustnot zfs unallow everyone $TESTPOOL/$TESTFS/allowed
 
 # now check with zfs allow to see if the permissions are still there
-OUTPUT=$($ZFS allow $TESTPOOL/$TESTFS/allowed | $GREP "Local+Descendent" )
+OUTPUT=$(zfs allow $TESTPOOL/$TESTFS/allowed | grep "Local+Descendent" )
 if [ -z "$OUTPUT" ]
 then
 	log_fail "Error - create permissions were unallowed on \

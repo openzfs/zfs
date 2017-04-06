@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
 
 #
@@ -50,7 +54,7 @@
 function cleanup
 {
 	if ! ismounted $TESTPOOL/$TESTFS; then
-		log_must $ZFS mount $TESTPOOL/$TESTFS
+		log_must zfs mount $TESTPOOL/$TESTFS
 	fi
 }
 
@@ -99,7 +103,7 @@ function get_reverse_option
 		(( ind = i * 2 + 1 ))
 	fi
 
-	$ECHO ${values[$ind]}
+	echo ${values[$ind]}
 }
 
 fs=$TESTPOOL/$TESTFS
@@ -111,7 +115,7 @@ for property in ${properties[@]}; do
 
 	# Set filesystem property temporarily
 	reverse_opt=$(get_reverse_option $fs $property)
-	log_must $ZFS mount -o remount,$reverse_opt $fs
+	log_must zfs mount -o remount,$reverse_opt $fs
 
 	cur_val=$(get_prop $property $fs)
 	(($? != 0)) && log_fail "get_prop $property $fs"
@@ -128,8 +132,8 @@ for property in ${properties[@]}; do
 	fi
 
 	# unmount & mount will revert property to the original value
-	log_must $ZFS unmount $fs
-	log_must $ZFS mount $fs
+	log_must zfs unmount $fs
+	log_must zfs mount $fs
 
 	cur_val=$(get_prop $property $fs)
 	(($? != 0)) && log_fail "get_prop $property $fs"

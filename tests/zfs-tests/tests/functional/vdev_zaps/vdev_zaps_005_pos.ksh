@@ -31,11 +31,11 @@
 log_assert "Per-vdev ZAPs persist across export/import."
 
 DISK=${DISKS%% *}
-log_must $ZPOOL create -f $TESTPOOL $DISK
+log_must zpool create -f $TESTPOOL $DISK
 
 # Make the pool.
 conf="$TESTDIR/vz005"
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zdb -PC $TESTPOOL > $conf
 assert_has_sentinel "$conf"
 orig_top=$(get_top_vd_zap $DISK $conf)
 orig_leaf=$(get_leaf_vd_zap $DISK $conf)
@@ -43,13 +43,13 @@ assert_zap_common $TESTPOOL $DISK "top" $orig_top
 assert_zap_common $TESTPOOL $DISK "leaf" $orig_leaf
 
 # Export the pool.
-log_must $ZPOOL export $TESTPOOL
+log_must zpool export $TESTPOOL
 
 # Import the pool.
-log_must $ZPOOL import $TESTPOOL
+log_must zpool import $TESTPOOL
 
 # Verify that ZAPs persisted.
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zdb -PC $TESTPOOL > $conf
 
 new_top=$(get_top_vd_zap $DISK $conf)
 new_leaf=$(get_leaf_vd_zap $DISK $conf)

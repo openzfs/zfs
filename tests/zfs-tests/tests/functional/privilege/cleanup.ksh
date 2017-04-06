@@ -26,24 +26,24 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
 verify_runnable "global"
 
-ZFS_USER=$($CAT /tmp/zfs-privs-test-user.txt)
-USES_NIS=$($CAT /tmp/zfs-privs-test-nis.txt)
+ZFS_USER=$(cat /tmp/zfs-privs-test-user.txt)
+USES_NIS=$(cat /tmp/zfs-privs-test-nis.txt)
 
 if [ "${USES_NIS}" == "true" ]
 then
-    $SVCADM enable svc:/network/nis/client:default
+    svcadm enable svc:/network/nis/client:default
 fi
 
-$USERDEL $ZFS_USER
-[[ -d /export/home/$ZFS_USER ]] && $RM -rf /export/home/$ZFS_USER
-$RM /tmp/zfs-privs-test-nis.txt
-$RM /tmp/zfs-privs-test-user.txt
+userdel $ZFS_USER
+[[ -d /export/home/$ZFS_USER ]] && rm -rf /export/home/$ZFS_USER
+rm /tmp/zfs-privs-test-nis.txt
+rm /tmp/zfs-privs-test-user.txt
 
 default_cleanup

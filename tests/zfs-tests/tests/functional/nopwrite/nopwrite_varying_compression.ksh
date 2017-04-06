@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -40,25 +40,25 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must $ZFS destroy -R $origin
-	log_must $ZFS create -o mountpoint=$TESTDIR $origin
+	datasetexists $origin && log_must zfs destroy -R $origin
+	log_must zfs create -o mountpoint=$TESTDIR $origin
 }
 
 log_assert "nopwrite works with sha256 and any compression algorithm"
 
-log_must $ZFS set compress=on $origin
-log_must $ZFS set checksum=sha256 $origin
-$DD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
+log_must zfs set compress=on $origin
+log_must zfs set checksum=sha256 $origin
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "initial dd failed."
 
 # Verify nop_write for 4 random compression algorithms
 for i in $(get_rand_compress 4); do
-	$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-	log_must $ZFS clone -o compress=$i $origin@a $origin/clone
-	$DD if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
+	zfs snapshot $origin@a || log_fail "zfs snap failed"
+	log_must zfs clone -o compress=$i $origin@a $origin/clone
+	dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
 	    conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 	log_must verify_nopwrite $origin $origin@a $origin/clone
-	$ZFS destroy -R $origin@a || log_fail "zfs destroy failed"
+	zfs destroy -R $origin@a || log_fail "zfs destroy failed"
 done
 
 log_pass "nopwrite works with sha256 and any compression algorithm"

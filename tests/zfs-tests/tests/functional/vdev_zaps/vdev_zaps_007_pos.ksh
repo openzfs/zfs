@@ -32,11 +32,11 @@
 
 DISK_ARR=($DISKS)
 POOL2=${TESTPOOL}2
-log_must $ZPOOL create -f $TESTPOOL mirror ${DISK_ARR[0]} ${DISK_ARR[1]}
+log_must zpool create -f $TESTPOOL mirror ${DISK_ARR[0]} ${DISK_ARR[1]}
 
 log_assert "Per-vdev ZAPs persist correctly on the original pool after split."
 conf="$TESTDIR/vz007"
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zdb -PC $TESTPOOL > $conf
 
 assert_has_sentinel "$conf"
 orig_top=$(get_top_vd_zap "type: 'mirror'" $conf)
@@ -46,10 +46,10 @@ assert_zap_common $TESTPOOL "type: 'mirror'" "top" $orig_top
 assert_zap_common $TESTPOOL ${DISK_ARR[0]} "leaf" $orig_leaf0
 assert_zap_common $TESTPOOL ${DISK_ARR[1]} "leaf" $orig_leaf1
 
-log_must $ZPOOL split $TESTPOOL $POOL2 ${DISK_ARR[1]}
+log_must zpool split $TESTPOOL $POOL2 ${DISK_ARR[1]}
 
 # Make sure old pool's ZAPs are consistent.
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zdb -PC $TESTPOOL > $conf
 new_leaf0=$(get_leaf_vd_zap ${DISK_ARR[0]} $conf)
 new_top_s0=$(get_top_vd_zap ${DISK_ARR[0]} $conf)
 
@@ -61,8 +61,8 @@ new_top_s0=$(get_top_vd_zap ${DISK_ARR[0]} $conf)
 log_assert "Per-vdev ZAPs persist on the new pool after import."
 
 # Import the split pool.
-log_must $ZPOOL import $POOL2
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zpool import $POOL2
+log_must zdb -PC $TESTPOOL > $conf
 
 new_leaf1=$(get_leaf_vd_zap ${DISK_ARR[1]} $conf)
 new_top_s1=$(get_top_vd_zap ${DISK_ARR[1]} $conf)

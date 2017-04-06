@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -66,24 +66,24 @@ function setup_test_model
 {
 	typeset pool=$1
 
-	log_must $ZFS create -p $pool/$FS/fs1/fs2
+	log_must zfs create -p $pool/$FS/fs1/fs2
 
-	log_must $ZFS snapshot $pool@psnap
-	log_must $ZFS clone $pool@psnap $pool/pclone
+	log_must zfs snapshot $pool@psnap
+	log_must zfs clone $pool@psnap $pool/pclone
 
 	if is_global_zone ; then
-		log_must $ZFS create -V 16M $pool/vol
-		log_must $ZFS create -V 16M $pool/$FS/vol
+		log_must zfs create -V 16M $pool/vol
+		log_must zfs create -V 16M $pool/$FS/vol
 		block_device_wait
 
-		log_must $ZFS snapshot $pool/$FS/vol@vsnap
-		log_must $ZFS clone $pool/$FS/vol@vsnap $pool/$FS/vclone
+		log_must zfs snapshot $pool/$FS/vol@vsnap
+		log_must zfs clone $pool/$FS/vol@vsnap $pool/$FS/vclone
 		block_device_wait
 	fi
 
 	log_must snapshot_tree $pool/$FS/fs1/fs2@fsnap
-	log_must $ZFS clone $pool/$FS/fs1/fs2@fsnap $pool/$FS/fs1/fclone
-	log_must $ZFS snapshot -r $pool@init
+	log_must zfs clone $pool/$FS/fs1/fs2@fsnap $pool/$FS/fs1/fclone
+	log_must zfs snapshot -r $pool@init
 
 	log_must snapshot_tree $pool@snapA
 	log_must snapshot_tree $pool@snapC
@@ -96,13 +96,13 @@ function setup_test_model
 	log_must snapshot_tree $pool/$FS/fs1/fclone@snapA
 
 	if is_global_zone ; then
-		log_must $ZFS snapshot $pool/vol@snapA
-		log_must $ZFS snapshot $pool/$FS/vol@snapB
-		log_must $ZFS snapshot $pool/$FS/vol@snapC
-		log_must $ZFS snapshot $pool/$FS/vclone@snapC
+		log_must zfs snapshot $pool/vol@snapA
+		log_must zfs snapshot $pool/$FS/vol@snapB
+		log_must zfs snapshot $pool/$FS/vol@snapC
+		log_must zfs snapshot $pool/$FS/vclone@snapC
 	fi
 
-	log_must $ZFS snapshot -r $pool@final
+	log_must zfs snapshot -r $pool@final
 
 	return 0
 }
@@ -115,16 +115,16 @@ function setup_test_model
 function cleanup_pool
 {
 	typeset pool=$1
-	log_must $RM -rf $BACKDIR/*
+	log_must rm -rf $BACKDIR/*
 
 	if is_global_zone ; then
-		log_must $ZFS destroy -Rf $pool
+		log_must zfs destroy -Rf $pool
 	else
-		typeset list=$($ZFS list -H -r -t filesystem,snapshot,volume -o name $pool)
+		typeset list=$(zfs list -H -r -t filesystem,snapshot,volume -o name $pool)
 		for ds in $list ; do
 			if [[ $ds != $pool ]] ; then
 				if datasetexists $ds ; then
-					log_must $ZFS destroy -Rf $ds
+					log_must zfs destroy -Rf $ds
 				fi
 			fi
 		done
@@ -134,13 +134,13 @@ function cleanup_pool
 	if ! ismounted $pool ; then
 		# Make sure mountpoint directory is empty
 		if [[ -d $mntpnt ]]; then
-			log_must $RM -rf $mntpnt/*
+			log_must rm -rf $mntpnt/*
 		fi
 
-		log_must $ZFS mount $pool
+		log_must zfs mount $pool
 	fi
 	if [[ -d $mntpnt ]]; then
-		log_must $RM -rf $mntpnt/*
+		log_must rm -rf $mntpnt/*
 	fi
 
 	return 0
@@ -157,16 +157,16 @@ function cmp_ds_subs
 	typeset src_fs=$1
 	typeset dst_fs=$2
 
-	$ZFS list -r -H -t filesystem,snapshot,volume -o name $src_fs > $BACKDIR/src1
-	$ZFS list -r -H -t filesystem,snapshot,volume -o name $dst_fs > $BACKDIR/dst1
+	zfs list -r -H -t filesystem,snapshot,volume -o name $src_fs > $BACKDIR/src1
+	zfs list -r -H -t filesystem,snapshot,volume -o name $dst_fs > $BACKDIR/dst1
 
-	eval $SED -e 's:^$src_fs:PREFIX:g' < $BACKDIR/src1 > $BACKDIR/src
-	eval $SED -e 's:^$dst_fs:PREFIX:g' < $BACKDIR/dst1 > $BACKDIR/dst
+	eval sed -e 's:^$src_fs:PREFIX:g' < $BACKDIR/src1 > $BACKDIR/src
+	eval sed -e 's:^$dst_fs:PREFIX:g' < $BACKDIR/dst1 > $BACKDIR/dst
 
-	$DIFF $BACKDIR/src $BACKDIR/dst
+	diff $BACKDIR/src $BACKDIR/dst
 	typeset -i ret=$?
 
-	$RM -f $BACKDIR/src $BACKDIR/dst $BACKDIR/src1 $BACKDIR/dst1
+	rm -f $BACKDIR/src $BACKDIR/dst $BACKDIR/src1 $BACKDIR/dst1
 
 	return $ret
 }
@@ -186,7 +186,7 @@ function cmp_ds_cont
 	srcdir=$(get_prop mountpoint $src_fs)
 	dstdir=$(get_prop mountpoint $dst_fs)
 
-	$DIFF -r $srcdir $dstdir > /dev/null 2>&1
+	diff -r $srcdir $dstdir > /dev/null 2>&1
 	return $?
 }
 
@@ -207,19 +207,19 @@ function cmp_ds_prop
 	    "setuid" "snapdir" "version" "volsize" "xattr" "zoned" \
 	    "mountpoint";
 	do
-		$ZFS get -H -o property,value,source $item $dtst1 >> \
+		zfs get -H -o property,value,source $item $dtst1 >> \
 		    $BACKDIR/dtst1
-		$ZFS get -H -o property,value,source $item $dtst2 >> \
+		zfs get -H -o property,value,source $item $dtst2 >> \
 		    $BACKDIR/dtst2
 	done
 
-	eval $SED -e 's:$dtst1:PREFIX:g' < $BACKDIR/dtst1 > $BACKDIR/dtst1
-	eval $SED -e 's:$dtst2:PREFIX:g' < $BACKDIR/dtst2 > $BACKDIR/dtst2
+	eval sed -e 's:$dtst1:PREFIX:g' < $BACKDIR/dtst1 > $BACKDIR/dtst1
+	eval sed -e 's:$dtst2:PREFIX:g' < $BACKDIR/dtst2 > $BACKDIR/dtst2
 
-	$DIFF $BACKDIR/dtst1 $BACKDIR/dtst2
+	diff $BACKDIR/dtst1 $BACKDIR/dtst2
 	typeset -i ret=$?
 
-	$RM -f $BACKDIR/dtst1 $BACKDIR/dtst2
+	rm -f $BACKDIR/dtst1 $BACKDIR/dtst2
 
 	return $ret
 
@@ -235,16 +235,16 @@ function random_tree
 	typeset dir=$1
 
 	if [[ -d $dir ]]; then
-		$RM -rf $dir
+		rm -rf $dir
 	fi
-	$MKDIR -p $dir
+	mkdir -p $dir
 	typeset -i ret=$?
 
 	typeset -i nl nd nf
 	((nl = RANDOM % 6 + 1))
 	((nd = RANDOM % 3 ))
 	((nf = RANDOM % 5 ))
-	$MKTREE -b $dir -l $nl -d $nd -f $nf
+	mktree -b $dir -l $nl -d $nd -f $nf
 	((ret |= $?))
 
 	return $ret
@@ -273,7 +273,7 @@ function snapshot_tree
 	fi
 
 	if ((ret == 0)) ; then
-		$ZFS snapshot $snap
+		zfs snapshot $snap
 		((ret |= $?))
 	fi
 
@@ -290,7 +290,7 @@ function destroy_tree
 	typeset -i ret=0
 	typeset snap
 	for snap in "$@" ; do
-		$ZFS destroy $snap
+		zfs destroy $snap
 		ret=$?
 
 		typeset ds=${snap%%@*}
@@ -300,7 +300,7 @@ function destroy_tree
 			((ret |= $?))
 
 			if ((ret != 0)); then
-				$RM -r $mntpnt/$snap
+				rm -r $mntpnt/$snap
 				((ret |= $?))
 			fi
 		fi
@@ -324,10 +324,10 @@ function getds_with_suffix
 	typeset ds=$1
 	typeset suffix=$2
 
-	typeset list=$($ZFS list -r -H -t filesystem,snapshot,volume -o name $ds \
-	    | $GREP "$suffix$")
+	typeset list=$(zfs list -r -H -t filesystem,snapshot,volume -o name $ds \
+	    | grep "$suffix$")
 
-	$ECHO $list
+	echo $list
 }
 
 #
@@ -337,18 +337,18 @@ function fs_inherit_prop
 {
 	typeset fs_prop
 	if is_global_zone ; then
-		fs_prop=$($ZFS inherit 2>&1 | \
-		    $AWK '$2=="YES" && $3=="YES" {print $1}')
+		fs_prop=$(zfs inherit 2>&1 | \
+		    awk '$2=="YES" && $3=="YES" {print $1}')
 		if ! is_te_enabled ; then
-		        fs_prop=$(echo $fs_prop | $GREP -v "mlslabel")
+		        fs_prop=$(echo $fs_prop | grep -v "mlslabel")
 		fi
 	else
-		fs_prop=$($ZFS inherit 2>&1 | \
-		    $AWK '$2=="YES" && $3=="YES" {print $1}'|
-		    $EGREP -v "devices|mlslabel|sharenfs|sharesmb|zoned")
+		fs_prop=$(zfs inherit 2>&1 | \
+		    awk '$2=="YES" && $3=="YES" {print $1}'|
+		    egrep -v "devices|mlslabel|sharenfs|sharesmb|zoned")
 	fi
 
-	$ECHO $fs_prop
+	echo $fs_prop
 }
 
 #
@@ -356,7 +356,7 @@ function fs_inherit_prop
 #
 function vol_inherit_prop
 {
-	$ECHO "checksum readonly"
+	echo "checksum readonly"
 }
 
 #
@@ -370,11 +370,11 @@ function get_dst_ds
 	#
 	# If the srcfs is not pool
 	#
-	if ! $ZPOOL list $srcfs > /dev/null 2>&1 ; then
+	if ! zpool list $srcfs > /dev/null 2>&1 ; then
 		eval dstfs="$dstfs/${srcfs#*/}"
 	fi
 
-	$ECHO $dstfs
+	echo $dstfs
 }
 
 #
@@ -393,13 +393,13 @@ function mk_files
 	fs=$4
 
 	for ((i=0; i<$nfiles; i=i+1)); do
-		$DD if=/dev/urandom \
+		dd if=/dev/urandom \
 		    of=/$fs/file-$maxsize-$((i+$file_id_offset)) \
 		    bs=$((($RANDOM * $RANDOM % ($maxsize - 1)) + 1)) \
 		    count=1 >/dev/null 2>&1 || log_fail \
 		    "Failed to create /$fs/file-$maxsize-$((i+$file_id_offset))"
 	done
-	$ECHO Created $nfiles files of random sizes up to $maxsize bytes
+	echo Created $nfiles files of random sizes up to $maxsize bytes
 }
 
 #
@@ -418,9 +418,9 @@ function rm_files
 	fs=$4
 
 	for ((i=0; i<$nfiles; i=i+1)); do
-		$RM -f /$fs/file-$maxsize-$((i+$file_id_offset))
+		rm -f /$fs/file-$maxsize-$((i+$file_id_offset))
 	done
-	$ECHO Removed $nfiles files of random sizes up to $maxsize bytes
+	echo Removed $nfiles files of random sizes up to $maxsize bytes
 }
 
 #
@@ -432,17 +432,17 @@ function mess_file
 {
 	file=$1
 
-	filesize=$($STAT -c '%s' $file)
+	filesize=$(stat -c '%s' $file)
 	offset=$(($RANDOM * $RANDOM % $filesize))
 	if (($RANDOM % 7 <= 1)); then
 		#
 		# We corrupt 2 bytes to minimize the chance that we
 		# write the same value that's already there.
 		#
-		log_must eval "$DD if=/dev/urandom of=$file conv=notrunc " \
+		log_must eval "dd if=/dev/urandom of=$file conv=notrunc " \
 		    "bs=1 count=2 seek=$offset >/dev/null 2>&1"
 	else
-		log_must $TRUNCATE -s $offset $file
+		log_must truncate -s $offset $file
 	fi
 }
 
@@ -459,12 +459,12 @@ function file_check
 
 	if [[ -d /$recvfs/.zfs/snapshot/a && -d \
 	    /$sendfs/.zfs/snapshot/a ]]; then
-		$DIFF -r /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
+		diff -r /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
 		[[ $? -eq 0 ]] || log_fail "Differences found in snap a"
 	fi
 	if [[ -d /$recvfs/.zfs/snapshot/b && -d \
 	    /$sendfs/.zfs/snapshot/b ]]; then
-		$DIFF -r /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
+		diff -r /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
 		[[ $? -eq 0 ]] || log_fail "Differences found in snap b"
 	fi
 }
@@ -487,15 +487,15 @@ function resume_test
 
 	for ((i=0; i<2; i=i+1)); do
 		mess_file /$streamfs/$stream_num
-		log_mustnot $ZFS recv -sv $recvfs </$streamfs/$stream_num
+		log_mustnot zfs recv -sv $recvfs </$streamfs/$stream_num
 		stream_num=$((stream_num+1))
 
-		token=$($ZFS get -Hp -o value receive_resume_token $recvfs)
-		log_must eval "$ZFS send -v -t $token >/$streamfs/$stream_num"
+		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
+		log_must eval "zfs send -v -t $token >/$streamfs/$stream_num"
 		[[ -f /$streamfs/$stream_num ]] || \
 		    log_fail "NO FILE /$streamfs/$stream_num"
 	done
-	log_must $ZFS recv -sv $recvfs </$streamfs/$stream_num
+	log_must zfs recv -sv $recvfs </$streamfs/$stream_num
 }
 
 #
@@ -514,19 +514,19 @@ function test_fs_setup
 	streamfs=$sendpool/stream
 
 	if datasetexists $recvfs; then
-		log_must $ZFS destroy -r $recvfs
+		log_must zfs destroy -r $recvfs
 	fi
 	if datasetexists $sendfs; then
-		log_must $ZFS destroy -r $sendfs
+		log_must zfs destroy -r $sendfs
 	fi
-	if $($ZFS create -o compress=lz4 $sendfs); then
+	if $(zfs create -o compress=lz4 $sendfs); then
 		mk_files 1000 256 0 $sendfs &
 		mk_files 1000 131072 0 $sendfs &
 		mk_files 100 1048576 0 $sendfs &
 		mk_files 10 10485760 0 $sendfs &
 		mk_files 1 104857600 0 $sendfs &
 		wait
-		log_must $ZFS snapshot $sendfs@a
+		log_must zfs snapshot $sendfs@a
 
 		rm_files 200 256 0 $sendfs &
 		rm_files 200 131072 0 $sendfs &
@@ -540,14 +540,14 @@ function test_fs_setup
 		mk_files 4 10485760 0 $sendfs &
 		wait
 
-		log_must $ZFS snapshot $sendfs@b
-		log_must eval "$ZFS send -v $sendfs@a >/$sendpool/initial.zsend"
-		log_must eval "$ZFS send -v -i @a $sendfs@b " \
+		log_must zfs snapshot $sendfs@b
+		log_must eval "zfs send -v $sendfs@a >/$sendpool/initial.zsend"
+		log_must eval "zfs send -v -i @a $sendfs@b " \
 		    ">/$sendpool/incremental.zsend"
 	fi
 
 	if datasetexists $streamfs; then
-		log_must $ZFS destroy -r $streamfs
+		log_must zfs destroy -r $streamfs
 	fi
-	log_must $ZFS create -o compress=lz4 $sendpool/stream
+	log_must zfs create -o compress=lz4 $sendpool/stream
 }

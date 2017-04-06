@@ -41,9 +41,9 @@ function zero_reservation
 	typeset resv_val
 	dataset=$1
 
-	log_must $ZFS set reservation=none $dataset
+	log_must zfs set reservation=none $dataset
 
-	resv_val=`$ZFS get -H reservation $dataset | awk '{print $3}'`
+	resv_val=`zfs get -H reservation $dataset | awk '{print $3}'`
 	if [[ $? -ne 0 ]]; then
 		log_fail "Unable to get reservation prop on $dataset"
 	elif [[ $resv_val != "none" ]]; then
@@ -51,7 +51,7 @@ function zero_reservation
 	fi
 
 
-	resv_val=`$ZFS get -pH reservation $dataset | awk '{print $3}'`
+	resv_val=`zfs get -pH reservation $dataset | awk '{print $3}'`
 	if [[ $? -ne 0 ]]; then
 		log_fail "Unable to get reservation prop on $dataset"
 	elif [[ $resv_val -ne 0 ]]; then
@@ -100,8 +100,8 @@ function create_multiple_fs # num_fs base_fs_name base_mnt_name
 	typeset MNT_NAME=$3
 
 	while  (($iter < $count)); do
-		log_must $ZFS create ${FS_NAME}$iter
-		log_must $ZFS set mountpoint=${MNT_NAME}$iter ${FS_NAME}$iter
+		log_must zfs create ${FS_NAME}$iter
+		log_must zfs set mountpoint=${MNT_NAME}$iter ${FS_NAME}$iter
 		((iter = iter + 1))
 	done
 }

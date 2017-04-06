@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,10 +56,10 @@ do
 	PROP=${props[$i]}
 	EXPECTED=${prop_vals[$i]}
 	NEW=${prop_new[$i]}
-	log_mustnot $ZFS set $PROP=$NEW $TESTPOOL/$TESTFS/prop
+	log_mustnot zfs set $PROP=$NEW $TESTPOOL/$TESTFS/prop
 
 	# Now verify that the above command did nothing
-	ACTUAL=$($ZFS get $PROP -o value -H snapdir $TESTPOOl/$TESTFS/prop )
+	ACTUAL=$(zfs get $PROP -o value -H snapdir $TESTPOOl/$TESTFS/prop )
 	if [ "$ACTUAL" != "$EXPECTED" ]
 	then
 		log_fail "Property $PROP was set to $ACTUAL, expected $EXPECTED"

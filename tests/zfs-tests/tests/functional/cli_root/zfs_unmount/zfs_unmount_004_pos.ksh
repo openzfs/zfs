@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_unmount/zfs_unmount.kshlib
 
@@ -67,7 +71,7 @@ function do_unmount_multiple #options #expect
 		j=0
 		while (( j < ${#dev[*]} )); do
 			unmounted ${dev[j]} || \
-				log_must $ZFS $unmountforce ${dev[j]}
+				log_must zfs $unmountforce ${dev[j]}
 
 			do_unmount "${cmd[i]}" "$opt" \
 				"${dev[j]}" $expect
@@ -79,7 +83,7 @@ function do_unmount_multiple #options #expect
 	done
 }
 
-log_assert "Verify that '$ZFS $unmountcmd [-f] <filesystem|mountpoint>' " \
+log_assert "Verify that 'zfs $unmountcmd [-f] <filesystem|mountpoint>' " \
 	"with an unmounted filesystem will fail with return code 1."
 
 log_onexit cleanup
@@ -91,5 +95,5 @@ while (( i <  ${#options[*]} )); do
 	((i = i + 1))
 done
 
-log_pass "'$ZFS $unmountcmd [-f] <filesystem|mountpoint>' " \
+log_pass "'zfs $unmountcmd [-f] <filesystem|mountpoint>' " \
 	"with an unmounted filesystem failed with return code 1."

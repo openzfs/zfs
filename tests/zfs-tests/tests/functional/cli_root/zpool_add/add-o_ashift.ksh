@@ -43,7 +43,7 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	log_must $RM $disk1 $disk2
+	log_must rm $disk1 $disk2
 }
 
 #
@@ -57,7 +57,7 @@ function verify_device_ashift
 	typeset value=$2
 	typeset ashift
 
-	$ZDB -e -l $device | $GREP " ashift:" | {
+	zdb -e -l $device | grep " ashift:" | {
 		while read ashift ; do
 			if [[ "ashift: $value" != "$ashift" ]]; then
 				return 1
@@ -73,14 +73,14 @@ log_onexit cleanup
 
 disk1=$TEST_BASE_DIR/$FILEDISK0
 disk2=$TEST_BASE_DIR/$FILEDISK1
-log_must $MKFILE $SIZE $disk1
-log_must $MKFILE $SIZE $disk2
+log_must mkfile $SIZE $disk1
+log_must mkfile $SIZE $disk2
 
 typeset ashifts=("9" "10" "11" "12" "13")
 for ashift in ${ashifts[@]}
 do
-	log_must $ZPOOL create $TESTPOOL $disk1
-	log_must $ZPOOL add -o ashift=$ashift $TESTPOOL $disk2
+	log_must zpool create $TESTPOOL $disk1
+	log_must zpool add -o ashift=$ashift $TESTPOOL $disk2
 	verify_device_ashift $disk2 $ashift
 	if [[ $? -ne 0 ]]
 	then
@@ -88,19 +88,19 @@ do
 		    "$ashift"
 	fi
 	# clean things for the next run
-	log_must $ZPOOL destroy $TESTPOOL
-	log_must $ZPOOL labelclear $disk1
-	log_must $ZPOOL labelclear $disk2
+	log_must zpool destroy $TESTPOOL
+	log_must zpool labelclear $disk1
+	log_must zpool labelclear $disk2
 done
 
 typeset badvals=("off" "on" "1" "8" "14" "1b" "ff" "-")
 for badval in ${badvals[@]}
 do
-	log_must $ZPOOL create $TESTPOOL $disk1
-	log_mustnot $ZPOOL add -o ashift="$badval" $disk2
-	log_must $ZPOOL destroy $TESTPOOL
-	log_must $ZPOOL labelclear $disk1
-	log_must $ZPOOL labelclear $disk2
+	log_must zpool create $TESTPOOL $disk1
+	log_mustnot zpool add -o ashift="$badval" $disk2
+	log_must zpool destroy $TESTPOOL
+	log_must zpool labelclear $disk1
+	log_must zpool labelclear $disk2
 done
 
 log_pass "zpool add -o ashift=<n>' works with different ashift values"

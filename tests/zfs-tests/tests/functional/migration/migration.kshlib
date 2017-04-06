@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/migration/migration.cfg
@@ -43,7 +43,7 @@
 #	srcdir: is the directory where the testfile is
 #	cmd:	is the command to be executed.
 #		E.g.
-#		$TAR cf $TESTDIR/tar$$.tar
+#		tar cf $TESTDIR/tar$$.tar
 #
 function prepare #srcdir cmd
 {
@@ -82,7 +82,7 @@ function prepare #srcdir cmd
 #	oldsumb: is the second part of the values returned by sum
 #	cmd: is the command to be executed;
 #		E.g.
-#		"$TAR xf $TESTDIR/tar$$.tar"
+#		"tar xf $TESTDIR/tar$$.tar"
 #
 function migrate #destdir oldsuma oldsumb cmd
 {
@@ -99,17 +99,17 @@ function migrate #destdir oldsuma oldsumb cmd
 	$cmd
 	(( $? != 0 )) && return 1
 
-	sumy=`$SUM ./$BNAME`
-	suma=`$ECHO $sumy | $AWK '{print $1}'`
-	sumb=`$ECHO $sumy | $AWK '{print $2}'`
+	sumy=`sum ./$BNAME`
+	suma=`echo $sumy | awk '{print $1}'`
+	sumb=`echo $sumy | awk '{print $2}'`
 
 	if (( $oldsuma != $suma )); then
-		log_note "$SUM values are not the same"
+		log_note "sum values are not the same"
 		retval=1
 	fi
 
 	if (( $oldsumb != $sumb )); then
-		log_note "$SUM values are not the same"
+		log_note "sum values are not the same"
 		retval=1
 	fi
 
@@ -130,20 +130,20 @@ function migrate_cpio
 	cd $destdir
 	(( $? != 0 )) && return 1
 
-	$CPIO -iv < $archive
+	cpio -iv < $archive
 	(( $? != 0 )) && return 1
 
-	sumy=`$SUM ./$BNAME`
-	suma=`$ECHO $sumy | $AWK '{print $1}'`
-	sumb=`$ECHO $sumy | $AWK '{print $2}'`
+	sumy=`sum ./$BNAME`
+	suma=`echo $sumy | awk '{print $1}'`
+	sumb=`echo $sumy | awk '{print $2}'`
 
 	if (( $oldsuma != $suma )); then
-		log_note "$SUM values are not the same"
+		log_note "sum values are not the same"
 		retval=1
 	fi
 
 	if (( $oldsumb != $sumb )); then
-		log_note "$SUM values are not the same"
+		log_note "sum values are not the same"
 		retval=1
 	fi
 

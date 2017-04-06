@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -79,16 +79,16 @@ for opt in "" "mirror" "raidz" "raidz1"; do
 
 	# Create two pools but using the same disks.
 	create_pool $TESTPOOL $opt $disk
-	log_mustnot $ZPOOL create -f $TESTPOOL1 $opt $disk
+	log_mustnot zpool create -f $TESTPOOL1 $opt $disk
 	destroy_pool $TESTPOOL
 
 	# Create two pools and part of the devices were overlapped
 	create_pool $TESTPOOL $opt $disk
-	log_mustnot $ZPOOL create -f $TESTPOOL1 $opt ${DISKS% *}
+	log_mustnot zpool create -f $TESTPOOL1 $opt ${DISKS% *}
 	destroy_pool $TESTPOOL
 
 	# Create one pool but using the same disks twice.
-	log_mustnot $ZPOOL create -f $TESTPOOL $opt $disk $disk
+	log_mustnot zpool create -f $TESTPOOL $opt $disk $disk
 done
 
 log_pass "Using overlapping or in-use disks to create a new pool fails as expected."

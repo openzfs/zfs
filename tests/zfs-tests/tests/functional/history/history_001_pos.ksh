@@ -25,7 +25,7 @@
 # Use is subject to license terms.
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/history/history_common.kshlib
@@ -49,9 +49,9 @@ function cleanup
 	destroy_pool $MPOOL
 	destroy_pool $upgrade_pool
 
-	[[ -d $import_dir ]] && $RM -rf $import_dir
+	[[ -d $import_dir ]] && rm -rf $import_dir
 	for file in $VDEV1 $VDEV2 $VDEV3 $VDEV4; do
-		[[ -f $file ]] && $RM -f $file
+		[[ -f $file ]] && rm -f $file
 	done
 }
 
@@ -63,60 +63,60 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 VDEV1=$mntpnt/vdev1; VDEV2=$mntpnt/vdev2;
 VDEV3=$mntpnt/vdev3; VDEV4=$mntpnt/vdev4;
 
-log_must $MKFILE $MINVDEVSIZE $VDEV1 $VDEV2 $VDEV3
-log_must $MKFILE $(($MINVDEVSIZE * 2)) $VDEV4
+log_must mkfile $MINVDEVSIZE $VDEV1 $VDEV2 $VDEV3
+log_must mkfile $(($MINVDEVSIZE * 2)) $VDEV4
 
-run_and_verify -p "$MPOOL" "$ZPOOL create $MPOOL mirror $VDEV1 $VDEV2"
-run_and_verify -p "$MPOOL" "$ZPOOL add -f $MPOOL spare $VDEV3"
-run_and_verify -p "$MPOOL" "$ZPOOL remove $MPOOL $VDEV3"
-run_and_verify -p "$MPOOL" "$ZPOOL offline $MPOOL $VDEV1"
-run_and_verify -p "$MPOOL" "$ZPOOL online $MPOOL $VDEV1"
-run_and_verify -p "$MPOOL" "$ZPOOL attach $MPOOL $VDEV1 $VDEV4"
-run_and_verify -p "$MPOOL" "$ZPOOL detach $MPOOL $VDEV4"
-run_and_verify -p "$MPOOL" "$ZPOOL replace -f $MPOOL $VDEV1 $VDEV4"
-run_and_verify -p "$MPOOL" "$ZPOOL scrub $MPOOL"
-run_and_verify -p "$MPOOL" "$ZPOOL clear $MPOOL"
+run_and_verify -p "$MPOOL" "zpool create $MPOOL mirror $VDEV1 $VDEV2"
+run_and_verify -p "$MPOOL" "zpool add -f $MPOOL spare $VDEV3"
+run_and_verify -p "$MPOOL" "zpool remove $MPOOL $VDEV3"
+run_and_verify -p "$MPOOL" "zpool offline $MPOOL $VDEV1"
+run_and_verify -p "$MPOOL" "zpool online $MPOOL $VDEV1"
+run_and_verify -p "$MPOOL" "zpool attach $MPOOL $VDEV1 $VDEV4"
+run_and_verify -p "$MPOOL" "zpool detach $MPOOL $VDEV4"
+run_and_verify -p "$MPOOL" "zpool replace -f $MPOOL $VDEV1 $VDEV4"
+run_and_verify -p "$MPOOL" "zpool scrub $MPOOL"
+run_and_verify -p "$MPOOL" "zpool clear $MPOOL"
 
 # For export and destroy, mimic the behavior of run_and_verify using two
 # commands since the history will be unavailable until the pool is imported
 # again.
-commands=("$ZPOOL export $MPOOL" "$ZPOOL import -d $mntpnt $MPOOL"
-    "$ZPOOL destroy $MPOOL" "$ZPOOL import -D -f -d $mntpnt $MPOOL")
+commands=("zpool export $MPOOL" "zpool import -d $mntpnt $MPOOL"
+    "zpool destroy $MPOOL" "zpool import -D -f -d $mntpnt $MPOOL")
 for i in 0 2; do
 	cmd1="${commands[$i]}"
 	cmd2="${commands[(($i + 1 ))]}"
 
-	$ZPOOL history $MPOOL > $OLD_HISTORY 2>/dev/null
+	zpool history $MPOOL > $OLD_HISTORY 2>/dev/null
 	log_must $cmd1
 	log_must $cmd2
-	$ZPOOL history $MPOOL > $TMP_HISTORY 2>/dev/null
-	$DIFF $OLD_HISTORY $TMP_HISTORY | $GREP "^> " | $SED 's/^> //g' > \
+	zpool history $MPOOL > $TMP_HISTORY 2>/dev/null
+	diff $OLD_HISTORY $TMP_HISTORY | grep "^> " | sed 's/^> //g' > \
 	    $NEW_HISTORY
         if is_linux; then
-		$GREP "$($ECHO "$cmd1" | $SED 's/^.*\/\(zpool .*\).*$/\1/')" \
+		grep "$(echo "$cmd1" | sed 's/^.*\/\(zpool .*\).*$/\1/')" \
 		    $NEW_HISTORY >/dev/null 2>&1 || \
 		    log_fail "Didn't find \"$cmd1\" in pool history"
-		$GREP "$($ECHO "$cmd2" | $SED 's/^.*\/\(zpool .*\).*$/\1/')" \
+		grep "$(echo "$cmd2" | sed 's/^.*\/\(zpool .*\).*$/\1/')" \
 		    $NEW_HISTORY >/dev/null 2>&1 || \
 		    log_fail "Didn't find \"$cmd2\" in pool history"
         else
-		$GREP "$($ECHO "$cmd1" | $SED 's/\/usr\/sbin\///g')" \
+		grep "$(echo "$cmd1" | sed 's/\/usr\/sbin\///g')" \
 		    $NEW_HISTORY >/dev/null 2>&1 || \
 		    log_fail "Didn't find \"$cmd1\" in pool history"
-		$GREP "$($ECHO "$cmd2" | $SED 's/\/usr\/sbin\///g')" \
+		grep "$(echo "$cmd2" | sed 's/\/usr\/sbin\///g')" \
 		    $NEW_HISTORY >/dev/null 2>&1 || \
 		    log_fail "Didn't find \"$cmd2\" in pool history"
         fi
 done
 
-run_and_verify -p "$MPOOL" "$ZPOOL split $MPOOL ${MPOOL}_split"
+run_and_verify -p "$MPOOL" "zpool split $MPOOL ${MPOOL}_split"
 
 import_dir=/var/tmp/import_dir.$$
-log_must $MKDIR $import_dir
-log_must $CP $STF_SUITE/tests/functional/history/zfs-pool-v4.dat.Z $import_dir
-log_must $UNCOMPRESS $import_dir/zfs-pool-v4.dat.Z
-upgrade_pool=$($ZPOOL import -d $import_dir | $GREP "pool:" | $AWK '{print $2}')
-log_must $ZPOOL import -d $import_dir $upgrade_pool
-run_and_verify -p "$upgrade_pool" "$ZPOOL upgrade $upgrade_pool"
+log_must mkdir $import_dir
+log_must cp $STF_SUITE/tests/functional/history/zfs-pool-v4.dat.Z $import_dir
+log_must uncompress $import_dir/zfs-pool-v4.dat.Z
+upgrade_pool=$(zpool import -d $import_dir | grep "pool:" | awk '{print $2}')
+log_must zpool import -d $import_dir $upgrade_pool
+run_and_verify -p "$upgrade_pool" "zpool upgrade $upgrade_pool"
 
 log_pass "zpool sub-commands which modify state are logged passed. "

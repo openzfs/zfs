@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -52,7 +52,7 @@ do
 	do
 		for logtype in "" "mirror"
 		do
-			log_must $ZPOOL create $TESTPOOL $type $VDEV \
+			log_must zpool create $TESTPOOL $type $VDEV \
 				$spare $SDEV log $logtype $LDEV
 			log_must display_status $TESTPOOL
 
@@ -60,7 +60,7 @@ do
 			log_must verify_slog_device \
 				$TESTPOOL $ldev 'ONLINE' $logtype
 
-			log_must $ZPOOL destroy -f $TESTPOOL
+			log_must zpool destroy -f $TESTPOOL
 		done
 	done
 done

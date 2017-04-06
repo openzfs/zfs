@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_common.kshlib
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_list_d.kshlib
 
@@ -56,7 +60,7 @@ set -A all_props type used available creation volsize referenced \
 	usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
 	userquota@root groupquota@root userused@root groupused@root
 
-$ZFS upgrade -v > /dev/null 2>&1
+zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
 	set -A all_props ${all_props[*]} version
 fi
@@ -77,9 +81,9 @@ for dp in ${depth_array[@]}; do
 		(( j+=1 ))
 	done
 	for prop in $(gen_option_str "${all_props[*]}" "" "," $prop_numb); do
-		log_must eval "$ZFS get -H -d $dp -o name $prop $DEPTH_FS > $DEPTH_OUTPUT"
-		log_must eval "$ZFS get -rH -o name $prop $DEPTH_FS | $EGREP -e '$eg_opt' > $EXPECT_OUTPUT"
-		log_must $DIFF $DEPTH_OUTPUT $EXPECT_OUTPUT
+		log_must eval "zfs get -H -d $dp -o name $prop $DEPTH_FS > $DEPTH_OUTPUT"
+		log_must eval "zfs get -rH -o name $prop $DEPTH_FS | egrep -e '$eg_opt' > $EXPECT_OUTPUT"
+		log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
 	done
 	(( old_val=dp ))
 done

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,7 +47,7 @@ verify_runnable "global"
 function cleanup
 {
 	datasetexists $vol && \
-		log_must $ZFS destroy -f $vol
+		log_must zfs destroy -f $vol
 }
 
 log_assert "Verify creating volume with specified blocksize works."
@@ -58,11 +58,11 @@ vol=$TESTPOOL/$TESTVOL
 
 typeset -i i=0
 while (( i < ${#options[*]} )); do
-	log_must $ZFS create ${options[i]} -V $VOLSIZE $vol
+	log_must zfs create ${options[i]} -V $VOLSIZE $vol
 	datasetexists $vol || \
 		log_fail "zfs create ${options[i]} -V $VOLSIZE $vol fail."
 
-	log_must_busy $ZFS destroy -f $vol
+	log_must_busy zfs destroy -f $vol
 	((i = i + 1))
 done
 

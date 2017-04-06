@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -50,7 +55,7 @@ log_assert "Execute 'zpool scrub' using invalid parameters."
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZPOOL scrub ${args[i]}
+	log_mustnot zpool scrub ${args[i]}
 
 	((i = i + 1))
 done

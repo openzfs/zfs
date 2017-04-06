@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -39,9 +39,9 @@ function create_xattr { # filename xattr_name xattr_contents
 	typeset XATTR_CONTENTS=$3
 
 	# read any empty xattr on that file
-	log_must $RUNAT $FILE $LS
+	log_must runat $FILE ls
 	# create the xattr
-	log_must $RUNAT $FILE $CP $XATTR_CONTENTS $XATTR_NAME
+	log_must runat $FILE cp $XATTR_CONTENTS $XATTR_NAME
 
 	verify_xattr $FILE $XATTR_NAME $XATTR_CONTENTS
 }
@@ -53,11 +53,11 @@ function compare_xattrs { # filename1 filename2 xattr_name
 	typeset FILE2=$2
 	typeset XATTR_NAME=$3
 
-	$RUNAT $FILE1 $CAT $XATTR_NAME > /tmp/file1.$$
-	$RUNAT $FILE2 $CAT $XATTR_NAME > /tmp/file2.$$
+	runat $FILE1 cat $XATTR_NAME > /tmp/file1.$$
+	runat $FILE2 cat $XATTR_NAME > /tmp/file2.$$
 
-	log_must $DIFF /tmp/file1.$$ /tmp/file2.$$
-	log_must $RM /tmp/file1.$$ /tmp/file2.$$
+	log_must diff /tmp/file1.$$ /tmp/file2.$$
+	log_must rm /tmp/file1.$$ /tmp/file2.$$
 }
 
 function verify_xattr { # filename xattr_name xattr_contents
@@ -66,9 +66,9 @@ function verify_xattr { # filename xattr_name xattr_contents
 	typeset XATTR_CONTENTS=$3
 
 	# read the xattr, writing it to a temp file
-	log_must eval "$RUNAT $FILE $CAT $XATTR_NAME > /tmp/$XATTR_NAME.$$ 2>&1"
-	log_must $DIFF $XATTR_CONTENTS /tmp/$XATTR_NAME.$$
-	$RM /tmp/$XATTR_NAME.$$
+	log_must eval "runat $FILE cat $XATTR_NAME > /tmp/$XATTR_NAME.$$ 2>&1"
+	log_must diff $XATTR_CONTENTS /tmp/$XATTR_NAME.$$
+	rm /tmp/$XATTR_NAME.$$
 }
 
 function delete_xattr { # filename xattr_name
@@ -76,8 +76,8 @@ function delete_xattr { # filename xattr_name
         typeset XATTR_NAME=$2
 
         # delete the xattr
-        log_must $RUNAT $FILE $RM $XATTR_NAME
-        log_mustnot eval "$RUNAT $FILE $LS $XATTR_NAME > /dev/null 2>&1"
+        log_must runat $FILE rm $XATTR_NAME
+        log_mustnot eval "runat $FILE ls $XATTR_NAME > /dev/null 2>&1"
 }
 
 # not sure about this : really this should be testing write/append
@@ -85,11 +85,11 @@ function verify_write_xattr { # filename xattr_name
         typeset FILE=$1
         typeset XATTR_NAME=$2
 
-        log_must eval "$RUNAT $FILE $DD if=/etc/passwd of=$XATTR_NAME"
-        log_must eval "$RUNAT $FILE $CAT $XATTR_NAME > /tmp/$XATTR_NAME.$$ 2>&1"
-        log_must $DD if=/etc/passwd of=/tmp/passwd_dd.$$
-        log_must $DIFF /tmp/passwd_dd.$$ /tmp/$XATTR_NAME.$$
-        log_must $RM /tmp/passwd_dd.$$ /tmp/$XATTR_NAME.$$
+        log_must eval "runat $FILE dd if=/etc/passwd of=$XATTR_NAME"
+        log_must eval "runat $FILE cat $XATTR_NAME > /tmp/$XATTR_NAME.$$ 2>&1"
+        log_must dd if=/etc/passwd of=/tmp/passwd_dd.$$
+        log_must diff /tmp/passwd_dd.$$ /tmp/$XATTR_NAME.$$
+        log_must rm /tmp/passwd_dd.$$ /tmp/$XATTR_NAME.$$
 }
 
 # this function is to create the expected output
@@ -97,11 +97,11 @@ function create_expected_output  { # expected_output_file  contents_of_the_outpu
    typeset FILE=$1
    shift
    if [[ -f $FILE ]]; then
-      log_must $RM $FILE
+      log_must rm $FILE
    fi
 
    for line in $@
    do
-      log_must eval "$ECHO $line >> $FILE"
+      log_must eval "echo $line >> $FILE"
    done
  }

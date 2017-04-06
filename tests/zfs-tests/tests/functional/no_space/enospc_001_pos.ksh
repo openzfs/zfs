@@ -25,7 +25,7 @@
 # Use is subject to license terms.
 #
 #
-# Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,10 +55,10 @@ function cleanup
 log_onexit cleanup
 
 log_assert "ENOSPC is returned when file system is full."
-log_must $ZFS set compression=off $TESTPOOL/$TESTFS
+log_must zfs set compression=off $TESTPOOL/$TESTFS
 
 log_note "Writing file: $TESTFILE0 until ENOSPC."
-$FILE_WRITE -o create -f $TESTDIR/$TESTFILE0 -b $BLOCKSZ \
+file_write -o create -f $TESTDIR/$TESTFILE0 -b $BLOCKSZ \
     -c $NUM_WRITES -d $DATA
 ret=$?
 
@@ -66,7 +66,7 @@ ret=$?
     log_fail "$TESTFILE0 returned: $ret rather than ENOSPC."
 
 log_note "Write another file: $TESTFILE1 but expect ENOSPC."
-$FILE_WRITE -o create -f $TESTDIR/$TESTFILE1 -b $BLOCKSZ \
+file_write -o create -f $TESTDIR/$TESTFILE1 -b $BLOCKSZ \
     -c $NUM_WRITES -d $DATA
 ret=$?
 

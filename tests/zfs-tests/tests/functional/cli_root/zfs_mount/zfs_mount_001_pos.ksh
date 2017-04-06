@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
 
@@ -47,17 +51,17 @@ function cleanup
 	return 0
 }
 
-log_assert "Verify that '$ZFS $mountcmd <filesystem>' succeeds as root."
+log_assert "Verify that 'zfs $mountcmd <filesystem>' succeeds as root."
 
 log_onexit cleanup
 
 unmounted $TESTPOOL/$TESTFS || \
 	log_must cleanup
 
-log_must $ZFS $mountcmd $TESTPOOL/$TESTFS
+log_must zfs $mountcmd $TESTPOOL/$TESTFS
 
 log_note "Make sure the filesystem $TESTPOOL/$TESTFS is mounted"
 mounted $TESTPOOL/$TESTFS || \
 	log_fail Filesystem $TESTPOOL/$TESTFS is unmounted
 
-log_pass "'$ZFS $mountcmd <filesystem>' succeeds as root."
+log_pass "'zfs $mountcmd <filesystem>' succeeds as root."

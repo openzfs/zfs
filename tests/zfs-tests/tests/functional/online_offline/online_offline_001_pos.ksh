@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,7 +52,7 @@ function cleanup
 	# Ensure we don't leave disks in the offline state
 	#
 	for disk in $DISKLIST; do
-		log_must $ZPOOL online $TESTPOOL $disk
+		log_must zpool online $TESTPOOL $disk
 		check_state $TESTPOOL $disk "online"
 		if [[ $? != 0 ]]; then
 			log_fail "Unable to online $disk"
@@ -60,33 +60,33 @@ function cleanup
 
 	done
 
-	$KILL $killpid >/dev/null 2>&1
-	[[ -e $TESTDIR ]] && log_must $RM -rf $TESTDIR/*
+	kill $killpid >/dev/null 2>&1
+	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Turning a disk offline and back online during I/O completes."
 
-$FILE_TRUNC -f $((64 * 1024 * 1024)) -b 8192 -c 0 -r $TESTDIR/$TESTFILE1 &
+file_trunc -f $((64 * 1024 * 1024)) -b 8192 -c 0 -r $TESTDIR/$TESTFILE1 &
 typeset killpid="$! "
 
 for disk in $DISKLIST; do
         for i in 'do_offline' 'do_offline_while_already_offline'; do
-		log_must $ZPOOL offline $TESTPOOL $disk
+		log_must zpool offline $TESTPOOL $disk
 		check_state $TESTPOOL $disk "offline"
                 if [[ $? != 0 ]]; then
                         log_fail "$disk of $TESTPOOL is not offline."
                 fi
         done
 
-        log_must $ZPOOL online $TESTPOOL $disk
+        log_must zpool online $TESTPOOL $disk
         check_state $TESTPOOL $disk "online"
         if [[ $? != 0 ]]; then
                 log_fail "$disk of $TESTPOOL did not match online state"
         fi
 done
 
-log_must $KILL $killpid
-$SYNC
+log_must kill $killpid
+sync
 
 typeset dir=$(get_device_dir $DISKS)
 verify_filesys "$TESTPOOL" "$TESTPOOL/$TESTFS" "$dir"

@@ -20,6 +20,15 @@
 # CDDL HEADER END
 #
 
+#
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 verify_runnable "both"
@@ -31,11 +40,11 @@ TEST_STREAM=$TESTDIR/ldnsnap
 function cleanup
 {
 	if datasetexists $TEST_FS ; then
-		log_must $ZFS destroy -r $TEST_FS
+		log_must zfs destroy -r $TEST_FS
 	fi
 
 	if datasetexists $LGCYPOOL ; then
-		log_must $ZPOOL destroy -f $LGCYPOOL
+		log_must zpool destroy -f $LGCYPOOL
 	fi
 
 	rm -f $TEST_STREAM
@@ -44,16 +53,16 @@ function cleanup
 log_onexit cleanup
 log_assert "zfs send stream with large dnodes not accepted by legacy pool"
 
-log_must $ZFS create -o dnodesize=1k $TEST_FS
+log_must zfs create -o dnodesize=1k $TEST_FS
 log_must touch /$TEST_FS/foo
-log_must $ZFS umount $TEST_FS
-log_must $ZFS snap $TEST_SNAP
-log_must eval "$ZFS send $TEST_SNAP > $TEST_STREAM"
+log_must zfs umount $TEST_FS
+log_must zfs snap $TEST_SNAP
+log_must eval "zfs send $TEST_SNAP > $TEST_STREAM"
 
 LGCYPOOL=ldnpool
 LGCYFS=$LGCYPOOL/legacy
-log_must $MKFILE 64M  $TESTDIR/$LGCYPOOL
-log_must $ZPOOL create -d $LGCYPOOL $TESTDIR/$LGCYPOOL
-log_mustnot eval "$ZFS recv $LGCYFS < $TEST_STREAM"
+log_must mkfile 64M  $TESTDIR/$LGCYPOOL
+log_must zpool create -d $LGCYPOOL $TESTDIR/$LGCYPOOL
+log_mustnot eval "zfs recv $LGCYFS < $TEST_STREAM"
 
 log_pass

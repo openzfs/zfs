@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,22 +51,22 @@ typeset OP=create
 log_assert "Ensure that compressed files in a dataset are smaller."
 
 log_note "Ensure compression is off"
-log_must $ZFS set compression=off $TESTPOOL/$TESTCTR
+log_must zfs set compression=off $TESTPOOL/$TESTCTR
 
 log_note "Writing file without compression..."
-log_must $FILE_WRITE -o $OP -f $TESTDIR1/$TESTFILE0 -b $BLOCKSZ \
+log_must file_write -o $OP -f $TESTDIR1/$TESTFILE0 -b $BLOCKSZ \
     -c $NUM_WRITES -d $DATA
 
 log_note "Add compression property to the dataset and write another file"
-log_must $ZFS set compression=on $TESTPOOL/$TESTCTR
+log_must zfs set compression=on $TESTPOOL/$TESTCTR
 
-log_must $FILE_WRITE -o $OP -f $TESTDIR1/$TESTFILE1 -b $BLOCKSZ \
+log_must file_write -o $OP -f $TESTDIR1/$TESTFILE1 -b $BLOCKSZ \
     -c $NUM_WRITES -d $DATA
 
-$SLEEP 60
+sleep 60
 
-FILE0_BLKS=`$DU -k $TESTDIR1/$TESTFILE0 | $AWK '{ print $1}'`
-FILE1_BLKS=`$DU -k $TESTDIR1/$TESTFILE1 | $AWK '{ print $1}'`
+FILE0_BLKS=`du -k $TESTDIR1/$TESTFILE0 | awk '{ print $1}'`
+FILE1_BLKS=`du -k $TESTDIR1/$TESTFILE1 | awk '{ print $1}'`
 
 if [[ $FILE0_BLKS -le $FILE1_BLKS ]]; then
 	log_fail "$TESTFILE0 is smaller than $TESTFILE1" \

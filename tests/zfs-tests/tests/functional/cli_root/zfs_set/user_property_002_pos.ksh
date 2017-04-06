@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
 #
@@ -44,13 +48,13 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $new_vol && log_must $ZFS rename $new_vol $vol
+	datasetexists $new_vol && log_must zfs rename $new_vol $vol
 
 	typeset dtst
 	for dtst in $new_fsclone $new_volclone $fsclone $volclone \
 	    $fssnap $volsnap; do
 		if datasetexists $dtst; then
-			log_must $ZFS destroy -f $dtst
+			log_must zfs destroy -f $dtst
 		fi
 	done
 
@@ -92,26 +96,26 @@ log_onexit cleanup
 
 pool=$TESTPOOL; fs=$pool/$TESTFS; vol=$pool/$TESTVOL
 fssnap=$fs@snap; volsnap=$vol@snap;
-log_must $ZFS snapshot $fssnap
-log_must $ZFS snapshot $volsnap
+log_must zfs snapshot $fssnap
+log_must zfs snapshot $volsnap
 fsclone=$pool/fsclone; volclone=$pool/volclone
-log_must $ZFS clone $fssnap $fsclone
-log_must $ZFS clone $volsnap $volclone
+log_must zfs clone $fssnap $fsclone
+log_must zfs clone $volsnap $volclone
 
 prop_name=$(valid_user_property 10)
 value=$(user_property_value 16)
-log_must eval "$ZFS set $prop_name='$value' $pool"
+log_must eval "zfs set $prop_name='$value' $pool"
 log_must eval "check_user_prop $pool $prop_name '$value'"
 log_must inherit_check $prop_name $pool $fs $vol $fsclone $volclone
 
 new_fsclone=$fs/fsclone; new_volclone=$fs/volclone
-log_must $ZFS rename $fsclone $new_fsclone
-log_must $ZFS rename $volclone $new_volclone
+log_must zfs rename $fsclone $new_fsclone
+log_must zfs rename $volclone $new_volclone
 log_must inherit_check $prop_name $pool $fs $new_fsclone $new_volclone
 
 log_note "Set intermediate dataset will change the inherited relationship."
 new_value=$(user_property_value 16)
-log_must eval "$ZFS set $prop_name='$new_value' $fs"
+log_must eval "zfs set $prop_name='$new_value' $fs"
 log_must eval "check_user_prop $fs $prop_name '$new_value'"
 log_must inherit_check $prop_name $fs $new_fsclone $new_volclone
 

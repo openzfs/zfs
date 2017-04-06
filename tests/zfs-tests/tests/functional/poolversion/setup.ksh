@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,12 +34,12 @@
 verify_runnable "global"
 
 # create a version 1 pool
-log_must $MKFILE $MINVDEVSIZE /tmp/zpool_version_1.dat
-log_must $ZPOOL create -o version=1 $TESTPOOL /tmp/zpool_version_1.dat
+log_must mkfile $MINVDEVSIZE /tmp/zpool_version_1.dat
+log_must zpool create -o version=1 $TESTPOOL /tmp/zpool_version_1.dat
 
 
 # create another version 1 pool
-log_must $MKFILE $MINVDEVSIZE /tmp/zpool2_version_1.dat
-log_must $ZPOOL create -o version=1 $TESTPOOL2 /tmp/zpool2_version_1.dat
+log_must mkfile $MINVDEVSIZE /tmp/zpool2_version_1.dat
+log_must zpool create -o version=1 $TESTPOOL2 /tmp/zpool2_version_1.dat
 
 log_pass

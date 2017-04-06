@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,9 +50,9 @@ verify_runnable "global"
 function cleanup
 {
         datasetexists $TESTPOOL/$TESTVOL && \
-                log_must $ZFS destroy -f $TESTPOOL/$TESTVOL
+                log_must zfs destroy -f $TESTPOOL/$TESTVOL
 	datasetexists $TESTPOOL/$TESTVOL1 && \
-		log_must $ZFS destroy -f $TESTPOOL/$TESTVOL1
+		log_must zfs destroy -f $TESTPOOL/$TESTVOL1
 }
 
 log_onexit cleanup
@@ -71,10 +71,10 @@ while (( $i < ${#RW_VOL_PROP[*]} )); do
 	(( i = i + 1 ))
 done
 
-log_must $ZFS create $opts -V $VOLSIZE $TESTPOOL/$TESTVOL
+log_must zfs create $opts -V $VOLSIZE $TESTPOOL/$TESTVOL
 datasetexists $TESTPOOL/$TESTVOL || \
 	log_fail "zfs create $TESTPOOL/$TESTVOL fail."
-log_must $ZFS create -s $opts -V $VOLSIZE $TESTPOOL/$TESTVOL1
+log_must zfs create -s $opts -V $VOLSIZE $TESTPOOL/$TESTVOL1
 datasetexists $TESTPOOL/$TESTVOL1 || \
 	log_fail "zfs create $TESTPOOL/$TESTVOL1 fail."
 

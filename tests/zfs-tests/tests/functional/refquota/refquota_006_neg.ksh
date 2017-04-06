@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,8 +45,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS set refquota=none $TESTPOOL/$TESTFS
-	log_must $ZFS set refreserv=none $TESTPOOL/$TESTFS
+	log_must zfs set refquota=none $TESTPOOL/$TESTFS
+	log_must zfs set refreserv=none $TESTPOOL/$TESTFS
 }
 
 log_assert "'zfs set refquota' can handle incorrect arguments correctly."
@@ -61,8 +61,8 @@ set -A badopt	\
 
 typeset -i i=0
 while ((i < ${#badopt[@]})); do
-	log_mustnot $ZFS set refquota=${badopt[$i]} $TESTPOOL/$TESTFS
-	log_mustnot $ZFS set refreserv=${badopt[$i]} $TESTPOOL/$TESTFS
+	log_mustnot zfs set refquota=${badopt[$i]} $TESTPOOL/$TESTFS
+	log_mustnot zfs set refreserv=${badopt[$i]} $TESTPOOL/$TESTFS
 
 	((i += 1))
 done

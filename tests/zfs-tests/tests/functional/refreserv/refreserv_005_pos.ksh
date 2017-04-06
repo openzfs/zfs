@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,26 +46,26 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_assert "Volume refreservation is limited by volsize"
 log_onexit cleanup
 
 fs=$TESTPOOL/$TESTFS; vol=$fs/vol
-log_must $ZFS create -V 10M $vol
+log_must zfs create -V 10M $vol
 
 # Verify the parent filesystem does not affect volume
-log_must $ZFS set quota=25M $fs
-log_must $ZFS set refreservation=10M $vol
+log_must zfs set quota=25M $fs
+log_must zfs set refreservation=10M $vol
 avail=$(get_prop mountpoint $vol)
-log_mustnot $ZFS set refreservation=$avail $vol
+log_mustnot zfs set refreservation=$avail $vol
 
 # Verify it is affected by volsize
-log_must $ZFS set volsize=15M $vol
-log_must $ZFS set refreservation=15M $vol
-log_mustnot $ZFS set refreservation=16M $vol
+log_must zfs set volsize=15M $vol
+log_must zfs set refreservation=15M $vol
+log_mustnot zfs set refreservation=16M $vol
 
 log_pass "Volume refreservation is limited by volsize"

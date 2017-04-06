@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_copies/zfs_copies.kshlib
 
@@ -44,10 +48,10 @@ log_assert "Verify that copies property cannot be set to any value other than 1,
 set -A badval 0 01 02 03 0 -1 -2 -3 10 20 30 4 5 6 blah
 
 for val in ${badval[@]}; do
-	log_mustnot $ZFS create -o copies=$val $TESTPOOL/$TESTFS1
-	log_mustnot $ZFS create -V $VOLSIZE -o copies=$val $TESTPOOL/$TESTVOL1
-	log_mustnot $ZFS set copies=$val $TESTPOOL/$TESTFS
-	log_mustnot $ZFS set copies=$val $TESTPOOL/$TESTVOL
+	log_mustnot zfs create -o copies=$val $TESTPOOL/$TESTFS1
+	log_mustnot zfs create -V $VOLSIZE -o copies=$val $TESTPOOL/$TESTVOL1
+	log_mustnot zfs set copies=$val $TESTPOOL/$TESTFS
+	log_mustnot zfs set copies=$val $TESTPOOL/$TESTVOL
 	block_device_wait
 done
 

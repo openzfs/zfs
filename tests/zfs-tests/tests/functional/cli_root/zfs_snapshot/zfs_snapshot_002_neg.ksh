@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -49,11 +54,11 @@ function cleanup
 		$TESTPOOL/$TESTCTR/$TESTVOL@$TESTSNAP;
 	do
 		snapexists $snap && \
-			log_must $ZFS destroy $snap
+			log_must zfs destroy $snap
 	done
 
 	datasetexists $TESTPOOL/$TESTCTR/$TESTVOL && \
-		log_must $ZFS destroy -rf $TESTPOOL/$TESTCTR/$TESTVOL
+		log_must zfs destroy -rf $TESTPOOL/$TESTCTR/$TESTVOL
 
 }
 
@@ -67,12 +72,12 @@ set -A args "" \
     "$TESTPOOL/$TESTCTR@$TESTSNAP@$TESTSNAP"
 
 # setup preparations
-log_must $ZFS snapshot $TESTPOOL/$TESTCTR/$TESTFS1@$TESTSNAP
+log_must zfs snapshot $TESTPOOL/$TESTCTR/$TESTFS1@$TESTSNAP
 
 # testing
 typeset -i i=0
 while (( i < ${#args[*]} )); do
-	log_mustnot $ZFS snapshot -r ${args[i]}
+	log_mustnot zfs snapshot -r ${args[i]}
 
 	((i = i + 1))
 done
@@ -80,14 +85,14 @@ done
 # Testing the invalid senario: the child volume already has an
 # identical name snapshot, zfs snapshot -r should fail when
 # creating snapshot with -r for the parent
-log_must $ZFS destroy $TESTPOOL/$TESTCTR/$TESTFS1@$TESTSNAP
+log_must zfs destroy $TESTPOOL/$TESTCTR/$TESTFS1@$TESTSNAP
 if is_global_zone; then
-	log_must $ZFS create -V $VOLSIZE $TESTPOOL/$TESTCTR/$TESTVOL
+	log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTCTR/$TESTVOL
 else
-	log_must $ZFS create $TESTPOOL/$TESTCTR/$TESTVOL
+	log_must zfs create $TESTPOOL/$TESTCTR/$TESTVOL
 fi
-log_must $ZFS snapshot $TESTPOOL/$TESTCTR/$TESTVOL@$TESTSNAP
+log_must zfs snapshot $TESTPOOL/$TESTCTR/$TESTVOL@$TESTSNAP
 
-log_mustnot $ZFS snapshot -r $TESTPOOL/$TESTCTR@$TESTSNAP
+log_mustnot zfs snapshot -r $TESTPOOL/$TESTCTR@$TESTSNAP
 
 log_pass "'zfs snapshot -r' fails with invalid arguments or scenarios as expected."

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -52,28 +56,28 @@ function cleanup
 	for fs in $TESTPOOL/$TESTFS $TESTPOOL ; do
 		typeset snap=$fs@$TESTSNAP
 		if snapexists $snap; then
-			log_must $ZFS destroy $snap
+			log_must zfs destroy $snap
 		fi
 	done
 
 	if ! poolexists $TESTPOOL && is_global_zone; then
-		log_must $ZPOOL create $TESTPOOL $DISK
+		log_must zpool create $TESTPOOL $DISK
 	fi
 
 	if ! datasetexists $TESTPOOL/$TESTFS; then
-		log_must $ZFS create $TESTPOOL/$TESTFS
-		log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+		log_must zfs create $TESTPOOL/$TESTFS
+		log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 	fi
 }
 
 function restore_dataset
 {
 	if ! datasetexists $TESTPOOL/$TESTFS ; then
-		log_must $ZFS create $TESTPOOL/$TESTFS
-		log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+		log_must zfs create $TESTPOOL/$TESTFS
+		log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 		log_must cd $TESTDIR
-		$ECHO hello > world
-		log_must $ZFS snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+		echo hello > world
+		log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
 		log_must cd .zfs/snapshot/$TESTSNAP
 	fi
 }
@@ -87,22 +91,22 @@ for fs in $TESTPOOL/$TESTFS $TESTPOOL ; do
 	typeset mtpt=$(get_prop mountpoint $fs)
 
 	log_must cd $mtpt
-	$ECHO hello > world
-	log_must $ZFS snapshot $snap
+	echo hello > world
+	log_must zfs snapshot $snap
 	log_must cd .zfs/snapshot/$TESTSNAP
 
-	log_mustnot $ZFS unmount -a
-	log_must $ZFS unmount -fa
-	log_mustnot $LS
+	log_mustnot zfs unmount -a
+	log_must zfs unmount -fa
+	log_mustnot ls
 	log_must cd /
 
-	log_must $ZFS mount -a
+	log_must zfs mount -a
 	log_must cd $mtpt
 	log_must cd .zfs/snapshot/$TESTSNAP
 
 	if is_global_zone || [[ $fs != $TESTPOOL ]] ; then
-		log_must $ZFS destroy -rf $fs
-		log_mustnot $LS
+		log_must zfs destroy -rf $fs
+		log_mustnot ls
 		log_must cd /
 	fi
 
@@ -110,14 +114,14 @@ for fs in $TESTPOOL/$TESTFS $TESTPOOL ; do
 done
 
 if is_global_zone ; then
-	log_must $ZPOOL destroy -f $TESTPOOL
-	log_mustnot $LS
+	log_must zpool destroy -f $TESTPOOL
+	log_mustnot ls
 	log_must cd /
 fi
 
-log_must eval $ZFS list > /dev/null 2>&1
-log_must eval $ZPOOL list > /dev/null 2>&1
-log_must eval $ZPOOL status > /dev/null 2>&1
-$ZPOOL iostat > /dev/null 2>&1
+log_must eval zfs list > /dev/null 2>&1
+log_must eval zpool list > /dev/null 2>&1
+log_must eval zpool status > /dev/null 2>&1
+zpool iostat > /dev/null 2>&1
 
 log_pass "zfs fource unmount and destroy in snapshot directory will not cause error."

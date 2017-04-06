@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
 
@@ -50,25 +54,25 @@ function cleanup
 }
 
 
-log_assert "Verify that '$ZFS $mountcmd' with a filesystem " \
+log_assert "Verify that 'zfs $mountcmd' with a filesystem " \
 	"whose name is not in 'zfs list' will fail with return code 1."
 
 log_onexit cleanup
 
 log_note "Make sure the filesystem $TESTPOOL/$NONEXISTFSNAME " \
 	"is not in 'zfs list'"
-log_mustnot $ZFS list $TESTPOOL/$NONEXISTFSNAME
+log_mustnot zfs list $TESTPOOL/$NONEXISTFSNAME
 
 typeset -i ret=0
-$ZFS $mountcmd $TESTPOOL/$NONEXISTFSNAME
+zfs $mountcmd $TESTPOOL/$NONEXISTFSNAME
 ret=$?
 (( ret == 1 )) || \
-	log_fail "'$ZFS $mountcmd $TESTPOOL/$NONEXISTFSNAME' " \
+	log_fail "'zfs $mountcmd $TESTPOOL/$NONEXISTFSNAME' " \
 		"unexpected return code of $ret."
 
 log_note "Make sure the filesystem $TESTPOOL/$NONEXISTFSNAME is unmounted"
 unmounted $TESTPOOL/$NONEXISTFSNAME || \
 	log_fail Filesystem $TESTPOOL/$NONEXISTFSNAME is mounted
 
-log_pass "'$ZFS $mountcmd' with a filesystem " \
+log_pass "'zfs $mountcmd' with a filesystem " \
 	"whose name is not in 'zfs list' failed with return code 1."

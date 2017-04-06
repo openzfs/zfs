@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,9 +47,9 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_assert "refquota limits the amount of space a dataset can consume, " \
@@ -58,20 +58,20 @@ log_onexit cleanup
 
 fs=$TESTPOOL/$TESTFS
 sub=$fs/sub
-log_must $ZFS create $sub
+log_must zfs create $sub
 
-log_must $ZFS set refquota=10M $fs
+log_must zfs set refquota=10M $fs
 mntpnt=$(get_prop mountpoint $fs)
 
-log_mustnot $MKFILE 11M $mntpnt/file
-log_must $MKFILE 9M $mntpnt/file
-log_must $ZFS snapshot $fs@snap
-log_mustnot $MKFILE 2M $mntpnt/file2
+log_mustnot mkfile 11M $mntpnt/file
+log_must mkfile 9M $mntpnt/file
+log_must zfs snapshot $fs@snap
+log_mustnot mkfile 2M $mntpnt/file2
 
 mntpnt=$(get_prop mountpoint $sub)
-log_must $MKFILE 10M $mntpnt/file
-log_must $ZFS snapshot $sub@snap
-log_must $MKFILE 10 $mntpnt/file2
+log_must mkfile 10M $mntpnt/file
+log_must zfs snapshot $sub@snap
+log_must mkfile 10 $mntpnt/file2
 
 log_pass "refquota limits the amount of space a dataset can consume, " \
 	"but does not include space used by descendents."

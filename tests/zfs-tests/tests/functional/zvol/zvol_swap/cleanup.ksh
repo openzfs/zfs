@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -35,17 +35,17 @@
 
 verify_runnable "global"
 
-log_must $SWAPADD
+log_must swapadd
 for swapdev in $SAVESWAPDEVS
 do
 	if ! is_swap_inuse $swapdev ; then
-		log_must $SWAP -a $swapdev >/dev/null 2>&1
+		log_must swap -a $swapdev >/dev/null 2>&1
 	fi
 done
 
 voldev=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 if is_swap_inuse $voldev ; then
-	log_must $SWAP -d $voldev
+	log_must swap -d $voldev
 fi
 
 default_zvol_cleanup

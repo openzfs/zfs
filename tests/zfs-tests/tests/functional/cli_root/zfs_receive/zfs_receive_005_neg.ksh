@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
 
 #
@@ -50,15 +54,15 @@ function cleanup
 
 	for snap in $init_snap $inc_snap; do
 		snapexists $snap && \
-			log_must $ZFS destroy -f $snap
+			log_must zfs destroy -f $snap
 	done
 
 	datasetexists $rst_root && \
-		log_must $ZFS destroy -Rf $rst_root
+		log_must zfs destroy -Rf $rst_root
 
 	for bkup in $full_bkup $inc_bkup; do
 		[[ -e $bkup ]] && \
-			log_must $RM -f $bkup
+			log_must rm -f $bkup
 	done
 }
 
@@ -73,23 +77,23 @@ rst_inc_snap=$rst_root/$TESTFS@inc_snap
 full_bkup=/var/tmp/full_bkup.$$
 inc_bkup=/var/tmp/inc_bkup.$$
 
-log_must $ZFS create $rst_root
-log_must $ZFS snapshot $init_snap
-log_must eval "$ZFS send $init_snap > $full_bkup"
+log_must zfs create $rst_root
+log_must zfs snapshot $init_snap
+log_must eval "zfs send $init_snap > $full_bkup"
 
 log_note "'zfs receive' fails with invalid send streams."
-log_mustnot eval "$ZFS receive $rst_init_snap < /dev/zero"
-log_mustnot eval "$ZFS receive -d $rst_root </dev/zero"
+log_mustnot eval "zfs receive $rst_init_snap < /dev/zero"
+log_mustnot eval "zfs receive -d $rst_root </dev/zero"
 
-log_must eval "$ZFS receive $rst_init_snap < $full_bkup"
+log_must eval "zfs receive $rst_init_snap < $full_bkup"
 
 log_note "Unmatched send stream with restoring filesystem" \
 	" cannot be received."
-log_must $ZFS snapshot $inc_snap
-log_must eval "$ZFS send -i $init_snap $inc_snap > $inc_bkup"
+log_must zfs snapshot $inc_snap
+log_must eval "zfs send -i $init_snap $inc_snap > $inc_bkup"
 #make changes on the restoring filesystem
-log_must $TOUCH $ZFSROOT/$rst_root/$TESTFS/tmpfile
-log_mustnot eval "$ZFS receive $rst_inc_snap < $inc_bkup"
-log_mustnot eval "$ZFS receive -d $rst_root < $inc_bkup"
+log_must touch $ZFSROOT/$rst_root/$TESTFS/tmpfile
+log_mustnot eval "zfs receive $rst_inc_snap < $inc_bkup"
+log_mustnot eval "zfs receive -d $rst_root < $inc_bkup"
 
 log_pass "Unsupported scenarios to 'zfs receive' fail as expected."

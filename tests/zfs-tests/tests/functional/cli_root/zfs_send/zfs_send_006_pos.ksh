@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -37,15 +37,15 @@ verify_runnable "both"
 function cleanup
 {
 	for ds in $datasets; do
-                datasetexists $ds && $ZFS destroy -rf $ds
+                datasetexists $ds && zfs destroy -rf $ds
 	done
 }
 
 function cal_percentage
 {
 	typeset value=$1
-	return=$($ECHO "$PERCENT * $value" | bc)
-	return=$($ECHO "$return / 100" | bc)
+	return=$(echo "$PERCENT * $value" | bc)
+	return=$(echo "$return / 100" | bc)
 	echo $return
 }
 
@@ -55,19 +55,19 @@ function get_estimate_size
 	typeset option=$2
 	typeset base_snapshot=${3:-""}
 	if [[ -z $3 ]];then
-		typeset total_size=$($ZFS send $option $snapshot 2>&1 | $TAIL -1)
+		typeset total_size=$(zfs send $option $snapshot 2>&1 | tail -1)
 	else
-		typeset total_size=$($ZFS send $option $base_snapshot $snapshot \
-		     2>&1 | $TAIL -1)
+		typeset total_size=$(zfs send $option $base_snapshot $snapshot \
+		     2>&1 | tail -1)
 	fi
 	if [[ $options == *"P"* ]]; then
-		total_size=$($ECHO "$total_size" | $AWK '{print $2}')
+		total_size=$(echo "$total_size" | awk '{print $2}')
 	else
-		total_size=$($ECHO "$total_size" | $AWK '{print $5}')
+		total_size=$(echo "$total_size" | awk '{print $5}')
 		total_size=${total_size%M}
-		total_size=$($ECHO "$total_size * $block_count" | bc)
+		total_size=$(echo "$total_size * $block_count" | bc)
 	fi
-	$ECHO $total_size
+	echo $total_size
 
 }
 
@@ -75,12 +75,12 @@ function verify_size_estimates
 {
 	typeset options=$1
 	typeset file_size=$2
-	typeset refer_diff=$($ECHO "$refer_size - $estimate_size" | bc)
-	refer_diff=$($ECHO "$refer_diff / 1" | bc)
-	refer_diff=$($ECHO "$refer_diff" | $NAWK '{print ($1 < 0) ? ($1 * -1): $1'})
-	typeset file_diff=$($ECHO "$file_size - $estimate_size" | bc)
-	file_diff=$($ECHO "$file_diff / 1" | bc)
-	file_diff=$($ECHO "$file_diff" | $NAWK '{print ($1 < 0) ? ($1 * -1):$1'})
+	typeset refer_diff=$(echo "$refer_size - $estimate_size" | bc)
+	refer_diff=$(echo "$refer_diff / 1" | bc)
+	refer_diff=$(echo "$refer_diff" | nawk '{print ($1 < 0) ? ($1 * -1): $1'})
+	typeset file_diff=$(echo "$file_size - $estimate_size" | bc)
+	file_diff=$(echo "$file_diff / 1" | bc)
+	file_diff=$(echo "$file_diff" | nawk '{print ($1 < 0) ? ($1 * -1):$1'})
 	typeset expected_diff=$(cal_percentage $refer_size)
 
 	[[ -z $refer_diff && -z $file_diff && -z $expected_diff ]] && \
@@ -99,21 +99,21 @@ typeset -i PERCENT=1
 ((block_count=1024*1024))
 
 # create dataset
-log_must $ZFS create $TESTPOOL/$TESTFS1
+log_must zfs create $TESTPOOL/$TESTFS1
 
 # create multiple snapshot for the dataset with data
 for block_size in 64 128 256; do
-	log_must $DD if=/dev/urandom of=/$TESTPOOL/$TESTFS1/file$block_size \
+	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS1/file$block_size \
 	    bs=1M count=$block_size
-	log_must $ZFS snapshot $TESTPOOL/$TESTFS1@snap$block_size
+	log_must zfs snapshot $TESTPOOL/$TESTFS1@snap$block_size
 done
 
 full_snapshot="$TESTPOOL/$TESTFS1@snap64"
 increamental_snapshot="$TESTPOOL/$TESTFS1@snap256"
 
-full_size=$($ZFS send $full_snapshot 2>&1 | wc -c)
-increamental_size=$($ZFS send $increamental_snapshot 2>&1 | wc -c)
-increamental_send=$($ZFS send -i $full_snapshot $increamental_snapshot 2>&1 | wc -c)
+full_size=$(zfs send $full_snapshot 2>&1 | wc -c)
+increamental_size=$(zfs send $increamental_snapshot 2>&1 | wc -c)
+increamental_send=$(zfs send -i $full_snapshot $increamental_snapshot 2>&1 | wc -c)
 
 log_note "verify zfs send -nv"
 options="-nv"
@@ -144,7 +144,7 @@ log_note "verify zfs send -inv for increamental send"
 options="-nvi"
 refer_size=$(get_prop refer $increamental_snapshot)
 deduct_size=$(get_prop refer $full_snapshot)
-refer_size=$($ECHO "$refer_size - $deduct_size" | bc)
+refer_size=$(echo "$refer_size - $deduct_size" | bc)
 
 estimate_size=$(get_estimate_size $increamental_snapshot $options $full_snapshot)
 log_must verify_size_estimates $options $increamental_send
@@ -155,33 +155,33 @@ options="-vPni"
 estimate_size=$(get_estimate_size $increamental_snapshot $options $full_snapshot)
 log_must verify_size_estimates $options $increamental_send
 
-log_must $ZFS destroy -r $TESTPOOL/$TESTFS1
+log_must zfs destroy -r $TESTPOOL/$TESTFS1
 
 #setup_recursive_send
 datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS1/$TESTFS2
     $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3"
 # create nested datasets
-log_must $ZFS create -p $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3
+log_must zfs create -p $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3
 
 # verify dataset creation
 for ds in $datasets; do
         datasetexists $ds || log_fail "Create $ds dataset fail."
 done
 for ds in $datasets; do
-	log_must $DD if=/dev/urandom of=/$ds/file64 \
+	log_must dd if=/dev/urandom of=/$ds/file64 \
 	    bs=1M count=64
 done
 
 # create recursive nested snapshot
-log_must $ZFS snapshot -r $TESTPOOL/$TESTFS1@snap64
+log_must zfs snapshot -r $TESTPOOL/$TESTFS1@snap64
 for ds in $datasets; do
         datasetexists $ds@snap64 || log_fail "Create $ds@snap64 snapshot fail."
 done
-recursive_size=$($ZFS send -R $full_snapshot 2>&1 | wc -c)
+recursive_size=$(zfs send -R $full_snapshot 2>&1 | wc -c)
 log_note "verify zfs send -Rnv for recursive send"
 options="-Rnv"
 refer_size=$(get_prop refer $full_snapshot)
-refer_size=$($ECHO "$refer_size * 3" | bc)
+refer_size=$(echo "$refer_size * 3" | bc)
 
 estimate_size=$(get_estimate_size $full_snapshot $options)
 log_must verify_size_estimates $options $recursive_size

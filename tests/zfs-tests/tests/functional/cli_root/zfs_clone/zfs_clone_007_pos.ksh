@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -40,15 +40,15 @@
 # 2. Verify it succeed while upgrade, but fails while the version downgraded.
 #
 
-ZFS_VERSION=$($ZFS upgrade | $HEAD -1 | $AWK '{print $NF}' \
-	| $SED -e 's/\.//g')
+ZFS_VERSION=$(zfs upgrade | head -1 | awk '{print $NF}' \
+	| sed -e 's/\.//g')
 
 verify_runnable "both"
 
 function cleanup
 {
 	if snapexists $SNAPFS ; then
-			log_must $ZFS destroy -Rf $SNAPFS
+			log_must zfs destroy -Rf $SNAPFS
 	fi
 }
 
@@ -57,7 +57,7 @@ log_onexit cleanup
 log_assert "'zfs clone -o version=' could upgrade version," \
 	"but downgrade is denied."
 
-log_must $ZFS snapshot $SNAPFS
+log_must zfs snapshot $SNAPFS
 
 typeset -i ver
 
@@ -67,14 +67,14 @@ fi
 
 (( ver = ZFS_TEST_VERSION ))
 while (( ver <= ZFS_VERSION )); do
-	log_must $ZFS clone -o version=$ver $SNAPFS $TESTPOOL/$TESTCLONE
+	log_must zfs clone -o version=$ver $SNAPFS $TESTPOOL/$TESTCLONE
 	cleanup
 	(( ver = ver + 1 ))
 done
 
 (( ver = 0 ))
 while (( ver < ZFS_TEST_VERSION  )); do
-	log_mustnot $ZFS clone -o version=$ver \
+	log_mustnot zfs clone -o version=$ver \
 		$SNAPFS $TESTPOOL/$TESTCLONE
 	log_mustnot datasetexists $TESTPOOL/$TESTCLONE
 	cleanup

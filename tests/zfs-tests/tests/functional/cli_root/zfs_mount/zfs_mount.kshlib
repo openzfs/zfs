@@ -24,6 +24,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.cfg
 
@@ -33,7 +37,7 @@ function force_unmount #dev
 
 	ismounted $dev
 	if (( $? == 0 )); then
-		log_must $ZFS $unmountforce $dev
+		log_must zfs $unmountforce $dev
 	fi
 	return 0
 }
@@ -74,20 +78,20 @@ function setup_filesystem #disklist #pool #fs #mntpoint #type #vdev
 	datasetexists $pool/$fs && \
 		log_must cleanup_filesystem $pool $fs
 
-	$RMDIR $mntpoint > /dev/null 2>&1
+	rmdir $mntpoint > /dev/null 2>&1
 	if [[ ! -d $mntpoint ]]; then
-		log_must $MKDIR -p $mntpoint
+		log_must mkdir -p $mntpoint
 	fi
 
 	case "$type" in
-		'ctr')	log_must $ZFS create $pool/$fs
-			log_must $ZFS set mountpoint=$mntpoint $pool/$fs
+		'ctr')	log_must zfs create $pool/$fs
+			log_must zfs set mountpoint=$mntpoint $pool/$fs
 			;;
-		'vol')	log_must $ZFS create -V $VOLSIZE $pool/$fs
+		'vol')	log_must zfs create -V $VOLSIZE $pool/$fs
 			block_device_wait
 			;;
-		*)	log_must $ZFS create $pool/$fs
-			log_must $ZFS set mountpoint=$mntpoint $pool/$fs
+		*)	log_must zfs create $pool/$fs
+			log_must zfs set mountpoint=$mntpoint $pool/$fs
 			;;
 	esac
 
@@ -108,10 +112,10 @@ function cleanup_filesystem #pool #fs
 
 	if datasetexists "$pool/$fs" ; then
 		mtpt=$(get_prop mountpoint "$pool/$fs")
-		log_must $ZFS destroy -r $pool/$fs
+		log_must zfs destroy -r $pool/$fs
 
 		[[ -d $mtpt ]] && \
-			log_must $RM -rf $mtpt
+			log_must rm -rf $mtpt
 	else
 		return 1
 	fi
@@ -125,7 +129,7 @@ function verify_mount_display
 {
 	typeset fs
 
-	for fs in $($ZFS $mountcmd | $AWK '{print $1}') ; do
+	for fs in $(zfs $mountcmd | awk '{print $1}') ; do
 		log_must mounted $fs
 	done
 	return 0

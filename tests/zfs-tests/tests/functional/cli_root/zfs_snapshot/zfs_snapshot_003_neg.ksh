@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -48,14 +53,14 @@ l_name="$(gen_dataset_name 260 abcdefg)"
 
 for ds in $TESTPOOL/$TESTFS $TESTPOOL/$TESTCTR $TESTPOOL/$TESTVOL; do
 	for opt in ${badopts[@]}; do
-		log_mustnot $ZFS snapshot $opt $ds@$TESTSNAP
+		log_mustnot zfs snapshot $opt $ds@$TESTSNAP
 	done
 
-	log_mustnot $ZFS snapshot $ds@snap $ds@snap1
-	log_mustnot $ZFS snapshot -r $ds@snap $ds@snap1
+	log_mustnot zfs snapshot $ds@snap $ds@snap1
+	log_mustnot zfs snapshot -r $ds@snap $ds@snap1
 
-	log_mustnot $ZFS snapshot $ds@$l_name
-	log_mustnot $ZFS snapshot -r $ds@$l_name
+	log_mustnot zfs snapshot $ds@$l_name
+	log_mustnot zfs snapshot -r $ds@$l_name
 done
 
 log_pass "'zfs snapshot' fails with bad options or too many arguments as expected."

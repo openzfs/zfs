@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,9 +52,9 @@ function cleanup
 {
 	# cleanup zfs pool and dataset
 	if datasetexists $vol_name; then
-		$SWAP -l | $GREP ${ZVOL_DEVDIR}/$vol_name > /dev/null 2>&1
+		swap -l | grep ${ZVOL_DEVDIR}/$vol_name > /dev/null 2>&1
 		if [[ $? -eq 0 ]]; then
-			$SWAP -d ${ZVOL_DEVDIR}/${vol_name}
+			swap -d ${ZVOL_DEVDIR}/${vol_name}
 		fi
 	fi
 
@@ -82,15 +82,15 @@ log_onexit cleanup
 # use zfs vol device in swap to create pool which should fail.
 #
 create_pool $TESTPOOL $pool_dev
-log_must $ZFS create -V 100m $vol_name
-log_must $SWAP -a ${ZVOl_DEVDIR}/$vol_name
+log_must zfs create -V 100m $vol_name
+log_must swap -a ${ZVOl_DEVDIR}/$vol_name
 for opt in "-n" "" "-f"; do
-	log_mustnot $ZPOOL create $opt $TESTPOOL1 ${ZVOL_DEVDIR}/${vol_name}
+	log_mustnot zpool create $opt $TESTPOOL1 ${ZVOL_DEVDIR}/${vol_name}
 done
 
 # cleanup
-log_must $SWAP -d ${ZVOL_DEVDIR}/${vol_name}
-log_must $ZFS destroy $vol_name
-log_must $ZPOOL destroy $TESTPOOL
+log_must swap -d ${ZVOL_DEVDIR}/${vol_name}
+log_must zfs destroy $vol_name
+log_must zpool destroy $TESTPOOL
 
 log_pass "'zpool create' passed as expected with inapplicable scenario."

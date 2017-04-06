@@ -24,6 +24,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -31,7 +35,7 @@
 #
 function get_cksum # <file path>
 {
-	return $($CKSUM $1 | $AWK '{print $1 $2}')
+	return $(cksum $1 | awk '{print $1 $2}')
 }
 
 #

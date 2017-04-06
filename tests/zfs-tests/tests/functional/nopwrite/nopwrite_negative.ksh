@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,54 +36,54 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must $ZFS destroy -R $origin
-	log_must $ZFS create -o mountpoint=$TESTDIR $origin
+	datasetexists $origin && log_must zfs destroy -R $origin
+	log_must zfs create -o mountpoint=$TESTDIR $origin
 }
 
 log_assert "nopwrite isn't enabled without the prerequisites"
 
 # Data written into origin fs without compression or sha256
-$DD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "dd of $TESTDIR/file failed."
-$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-log_must $ZFS clone -o compress=on $origin@a $origin/clone
-log_must $ZFS set checksum=sha256 $origin/clone
-$DD if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
+zfs snapshot $origin@a || log_fail "zfs snap failed"
+log_must zfs clone -o compress=on $origin@a $origin/clone
+log_must zfs set checksum=sha256 $origin/clone
+dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
-$ZFS destroy -R $origin@a || log_fail "zfs destroy failed"
-log_must $RM -f $TESTDIR/file
+zfs destroy -R $origin@a || log_fail "zfs destroy failed"
+log_must rm -f $TESTDIR/file
 
 # Data written to origin fs before checksum enabled
-log_must $ZFS set compress=on $origin
-$DD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
+log_must zfs set compress=on $origin
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
-log_must $ZFS set checksum=sha256 $origin
-$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-log_must $ZFS clone $origin@a $origin/clone
-$DD if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
+log_must zfs set checksum=sha256 $origin
+zfs snapshot $origin@a || log_fail "zfs snap failed"
+log_must zfs clone $origin@a $origin/clone
+dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
-$ZFS destroy -R $origin@a || log_fail "zfs destroy failed"
-log_must $RM -f $TESTDIR/file
+zfs destroy -R $origin@a || log_fail "zfs destroy failed"
+log_must rm -f $TESTDIR/file
 
 # Clone with compression=off
-$DD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
-$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-log_must $ZFS clone -o compress=off $origin@a $origin/clone
-$DD if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
+zfs snapshot $origin@a || log_fail "zfs snap failed"
+log_must zfs clone -o compress=off $origin@a $origin/clone
+dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
-$ZFS destroy -R $origin@a || log_fail "zfs destroy failed"
-log_must $RM -f $TESTDIR/file
+zfs destroy -R $origin@a || log_fail "zfs destroy failed"
+log_must rm -f $TESTDIR/file
 
 # Clone with fletcher4, rather than sha256
-$DD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
-$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-log_must $ZFS clone -o checksum=fletcher4 $origin@a $origin/clone
-$DD if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
+zfs snapshot $origin@a || log_fail "zfs snap failed"
+log_must zfs clone -o checksum=fletcher4 $origin@a $origin/clone
+dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 

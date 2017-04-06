@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,11 +54,11 @@ set -A values "$TESTDIR2" "$TESTDIR_NOTEXISTING"
 
 function cleanup
 {
-	log_must $ZFS set mountpoint=$old_ctr_mpt $TESTPOOL/$TESTCTR
-	log_must $ZFS set mountpoint=$old_fs_mpt $TESTPOOL/$TESTFS
-	log_must $ZFS mount -a
-	[[ -d $TESTDIR2 ]] && log_must $RM -r $TESTDIR2
-	[[ -d $TESTDIR_NOTEXISTING ]] && log_must $RM -r $TESTDIR_NOTEXISTING
+	log_must zfs set mountpoint=$old_ctr_mpt $TESTPOOL/$TESTCTR
+	log_must zfs set mountpoint=$old_fs_mpt $TESTPOOL/$TESTFS
+	log_must zfs mount -a
+	[[ -d $TESTDIR2 ]] && log_must rm -r $TESTDIR2
+	[[ -d $TESTDIR_NOTEXISTING ]] && log_must rm -r $TESTDIR_NOTEXISTING
 }
 
 log_assert "Setting a valid mountpoint for an unmounted file system, \
@@ -73,7 +73,7 @@ old_ctr_mpt=$(get_prop mountpoint $TESTPOOL/$TESTCTR)
 	log_fail "Unable to get the mountpoint property for $TESTPOOL/$TESTCTR"
 
 if [[ ! -d $TESTDIR2 ]]; then
-	log_must $MKDIR $TESTDIR2
+	log_must mkdir $TESTDIR2
 fi
 
 typeset -i i=0
@@ -81,7 +81,7 @@ typeset -i j=0
 while (( i < ${#dataset[@]} )); do
 	j=0
 	if ismounted ${dataset[i]} ; then
-		log_must $ZFS unmount ${dataset[i]}
+		log_must zfs unmount ${dataset[i]}
 	fi
 	log_mustnot ismounted ${dataset[i]}
 	while (( j < ${#values[@]} )); do

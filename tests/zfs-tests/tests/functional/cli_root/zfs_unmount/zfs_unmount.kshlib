@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_unmount/zfs_unmount.cfg
@@ -42,19 +42,19 @@ function do_unmount #cmd #opt #mnt #expect
 	mounted $mnt || wasmounted=0
 
 	if (( expect == 0 )) ; then
-		log_must $ZFS $cmd $opt $mnt
+		log_must zfs $cmd $opt $mnt
 
 		log_must unmounted $mnt
 
-		log_note "Successfully $ZFS $cmd $opt $mnt"
+		log_note "Successfully zfs $cmd $opt $mnt"
 
 	else
-		log_note "$ZFS $cmd $opt $mnt"
+		log_note "zfs $cmd $opt $mnt"
 
-		$ZFS $cmd $opt $mnt
+		zfs $cmd $opt $mnt
 		ret=$?
 		if (( ret != expect)); then
-			log_fail "'$ZFS $cmd $opt $mnt' " \
+			log_fail "'zfs $cmd $opt $mnt' " \
 				"unexpected return code of $ret."
 		fi
 
@@ -71,7 +71,7 @@ function cleanup
 {
 	[[ -n $cwd ]] && cd $cwd
 
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 	mounted $TESTPOOL/$TESTFS || \
-		log_must $ZFS $mountcmd $TESTPOOL/$TESTFS
+		log_must zfs $mountcmd $TESTPOOL/$TESTFS
 }

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -43,10 +47,10 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $snap2 $snap1; do
-		datasetexists $snap && log_must $ZFS destroy -rf $snap
+		datasetexists $snap && log_must zfs destroy -rf $snap
 	done
 	for file in $ibackup $mntpnt/file1 $mntpnt/file2; do
-		[[ -f $file ]] && log_must $RM -f $file
+		[[ -f $file ]] && log_must rm -f $file
 	done
 }
 
@@ -58,23 +62,23 @@ snap1=$fs@snap1
 snap2=$fs@snap2
 ibackup=/var/tmp/ibackup.$$
 
-datasetexists $fs || log_must $ZFS create $fs
+datasetexists $fs || log_must zfs create $fs
 
 mntpnt=$(get_prop mountpoint $fs) || log_fail "get_prop mountpoint $fs"
-log_must $MKFILE 10m $mntpnt/file1
-log_must $ZFS snapshot $snap1
-log_must $MKFILE 10m $mntpnt/file2
-log_must $ZFS snapshot $snap2
+log_must mkfile 10m $mntpnt/file1
+log_must zfs snapshot $snap1
+log_must mkfile 10m $mntpnt/file2
+log_must zfs snapshot $snap2
 
-log_must eval "$ZFS send -i $snap1 $snap2 > $ibackup"
+log_must eval "zfs send -i $snap1 $snap2 > $ibackup"
 
-log_must $ZFS destroy $snap1
-log_must $ZFS destroy $snap2
-log_mustnot eval "$ZFS receive -F $fs < $ibackup"
+log_must zfs destroy $snap1
+log_must zfs destroy $snap2
+log_mustnot eval "zfs receive -F $fs < $ibackup"
 
-log_must $MKFILE 20m $mntpnt/file1
-log_must $RM -rf $mntpnt/file2
-log_must $ZFS snapshot $snap1
-log_mustnot eval "$ZFS receive -F $snap2 < $ibackup"
+log_must mkfile 20m $mntpnt/file1
+log_must rm -rf $mntpnt/file2
+log_must zfs snapshot $snap1
+log_mustnot eval "zfs receive -F $snap2 < $ibackup"
 
 log_pass "'zfs recv -F' should fail if the incremental stream does not match"

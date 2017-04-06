@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,7 +45,7 @@ function cleanup {
 
 	for file in /tmp/output.$$ /tmp/expected-output.$$ \
 		$TESTDIR/myfile.$$ ; do
-		log_must $RM -f $file
+		log_must rm -f $file
 	done
 }
 
@@ -53,28 +53,28 @@ log_assert "special . and .. dirs work as expected for xattrs"
 log_onexit cleanup
 
 # create a file, and an xattr on it
-log_must $TOUCH $TESTDIR/myfile.$$
+log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 # listing the directory .
-log_must eval "$RUNAT $TESTDIR/myfile.$$ $LS  . > /tmp/output.$$"
+log_must eval "runat $TESTDIR/myfile.$$ ls  . > /tmp/output.$$"
 create_expected_output  /tmp/expected-output.$$  \
     SUNWattr_ro  SUNWattr_rw  passwd
-log_must $DIFF /tmp/output.$$ /tmp/expected-output.$$
+log_must diff /tmp/output.$$ /tmp/expected-output.$$
 # list the directory . long form
-log_must eval "$RUNAT $TESTDIR/myfile.$$ $LS -a . > /tmp/output.$$"
+log_must eval "runat $TESTDIR/myfile.$$ ls -a . > /tmp/output.$$"
 create_expected_output  /tmp/expected-output.$$ . ..  \
     SUNWattr_ro  SUNWattr_rw  passwd
-log_must $DIFF /tmp/output.$$ /tmp/expected-output.$$
+log_must diff /tmp/output.$$ /tmp/expected-output.$$
 
 # list the directory .. expecting one file
-OUTPUT=$($RUNAT $TESTDIR/myfile.$$ $LS ..)
+OUTPUT=$(runat $TESTDIR/myfile.$$ ls ..)
 if [ "$OUTPUT" != ".." ]
 then
 	log_fail "Listing the .. directory doesn't show \"..\" as expected."
 fi
 
 # verify we can't list ../
-log_mustnot eval "$RUNAT $TESTDIR/myfile.$$ $LS ../ > /dev/null 2>&1"
+log_mustnot eval "runat $TESTDIR/myfile.$$ ls ../ > /dev/null 2>&1"
 
 log_pass "special . and .. dirs work as expected for xattrs"

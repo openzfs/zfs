@@ -42,13 +42,13 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TEST_FS && log_must $ZFS destroy $TEST_FS
+	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
 }
 
 log_onexit cleanup
 log_assert "dnode sizes are consistent with dnodesize dataset property"
 
-log_must $ZFS create $TEST_FS
+log_must zfs create $TEST_FS
 
 set -A dnsizes "512" "1k" "2k" "4k" "8k" "16k"
 set -A inodes
@@ -59,15 +59,15 @@ for ((i=0; i < ${#dnsizes[*]}; i++)) ; do
 		size="legacy"
 	fi
 	file=/$TEST_FS/file.$size
-	log_must $ZFS set dnsize=$size $TEST_FS
+	log_must zfs set dnsize=$size $TEST_FS
 	touch $file
 	inodes[$i]=$(ls -li $file | awk '{print $1}')
 done
 
-log_must $ZFS umount $TEST_FS
+log_must zfs umount $TEST_FS
 
 for ((i=0; i < ${#dnsizes[*]}; i++)) ; do
-	dnsize=$($ZDB -dddd $TEST_FS ${inodes[$i]} |
+	dnsize=$(zdb -dddd $TEST_FS ${inodes[$i]} |
 	    awk '/ZFS plain file/ {print $6}' | tr K k)
 	if [[ "$dnsize" != "${dnsizes[$i]}" ]]; then
 		log_fail "dnode size is $dnsize (expected ${dnsizes[$i]})"

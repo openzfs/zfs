@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,11 +49,11 @@ function cleanup
 	unset ZFS_ABORT
 
 	if [[ -d $corepath ]]; then
-		$RM -rf $corepath
+		rm -rf $corepath
 	fi
 	for ds in $fs1 $fs $ctr; do
 		if datasetexists $ds; then
-			log_must $ZFS destroy -rRf $ds
+			log_must zfs destroy -rRf $ds
 		fi
 	done
 }
@@ -65,12 +65,12 @@ log_onexit cleanup
 #preparation work for testing
 corepath=$TESTDIR/core
 if [[ -d $corepath ]]; then
-	$RM -rf $corepath
+	rm -rf $corepath
 fi
-log_must $MKDIR $corepath
+log_must mkdir $corepath
 
 ctr=$TESTPOOL/$TESTCTR
-log_must $ZFS create $ctr
+log_must zfs create $ctr
 
 fs=$ctr/$TESTFS
 fs1=$ctr/$TESTFS1
@@ -94,19 +94,19 @@ if is_linux; then
 	echo "$corepath/core.zfs" >/proc/sys/kernel/core_pattern
 	echo 0 >/proc/sys/kernel/core_uses_pid
 else
-	log_must $COREADM -p ${corepath}/core.%f
+	log_must coreadm -p ${corepath}/core.%f
 fi
 
 log_must export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
-	$ZFS $subcmd >/dev/null 2>&1 && log_fail "$subcmd passed incorrectly."
+	zfs $subcmd >/dev/null 2>&1 && log_fail "$subcmd passed incorrectly."
 	corefile=${corepath}/core.zfs
 	if [[ ! -e $corefile ]]; then
-		log_fail "$ZFS $subcmd cannot generate core file with " \
+		log_fail "zfs $subcmd cannot generate core file with " \
 		    "ZFS_ABORT set."
 	fi
-	log_must $RM -f $corefile
+	log_must rm -f $corefile
 done
 
 log_pass "With ZFS_ABORT set, zfs command can abort and generate core file " \

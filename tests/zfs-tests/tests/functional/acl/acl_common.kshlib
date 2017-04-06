@@ -24,6 +24,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/acl/acl.cfg
 . $STF_SUITE/include/libtest.shlib
 
@@ -39,7 +43,7 @@ function get_mode #<obj>
 		return 1
 	fi
 
-	$LS -ld $obj | $AWK '{print $1}'
+	ls -ld $obj | awk '{print $1}'
 }
 
 #
@@ -54,7 +58,7 @@ function get_acl #<obj>
 		return 1
 	fi
 
-	$LS -vd $obj | $NAWK '(NR != 1) {print $0}'
+	ls -vd $obj | nawk '(NR != 1) {print $0}'
 }
 
 #
@@ -69,7 +73,7 @@ function get_compact_acl #<obj>
 		return 1
 	fi
 
-	$LS -Vd $obj | $NAWK '(NR != 1) {print $0}'
+	ls -Vd $obj | nawk '(NR != 1) {print $0}'
 }
 
 #
@@ -94,9 +98,9 @@ function compare_acls #<src> <tgt>
 	get_acl $src > $tmpsrc
 	get_acl $tgt > $tmptgt
 	typeset -i ret=0
-	$DIFF $tmpsrc $tmptgt > /dev/null 2>&1
+	diff $tmpsrc $tmptgt > /dev/null 2>&1
 	ret=$?
-	$RM -f $tmpsrc $tmptgt
+	rm -f $tmpsrc $tmptgt
 
 	if (( ret != 0 )); then
 		return $ret
@@ -104,9 +108,9 @@ function compare_acls #<src> <tgt>
 
 	get_compact_acl $src > $tmpsrc
 	get_compact_acl $tgt > $tmptgt
-	$DIFF $tmpsrc $tmptgt > /dev/null 2>&1
+	diff $tmpsrc $tmptgt > /dev/null 2>&1
 	ret=$?
-	$RM -f $tmpsrc $tmptgt
+	rm -f $tmpsrc $tmptgt
 
 	return $ret
 }
@@ -162,9 +166,9 @@ function compare_xattrs #<src> <tgt>
 	get_xattr $src > $tmpsrc
 	get_xattr $tgt > $tmptgt
 	typeset -i ret=0
-	$DIFF $tmpsrc $tmptgt > /dev/null 2>&1
+	diff $tmpsrc $tmptgt > /dev/null 2>&1
 	ret=$?
-	$RM -f $tmpsrc $tmptgt
+	rm -f $tmpsrc $tmptgt
 
         return $ret
 }
@@ -181,7 +185,7 @@ function plus_sign_check_l #<obj>
 		return 1
 	fi
 
-	$LS -ld $obj | $AWK '{print $1}' | $GREP "+\>" > /dev/null
+	ls -ld $obj | awk '{print $1}' | grep "+\>" > /dev/null
 
         return $?
 }
@@ -198,7 +202,7 @@ function plus_sign_check_v #<obj>
 		return 1
 	fi
 
-	$LS -vd $obj | $NAWK '(NR == 1) {print $1}' | $GREP "+\>" > /dev/null
+	ls -vd $obj | nawk '(NR == 1) {print $1}' | grep "+\>" > /dev/null
 
         return $?
 }
@@ -211,7 +215,7 @@ function plus_sign_check_v #<obj>
 #
 function chgusr_exec #<login_name> <commands> [...]
 {
-	$CHG_USR_EXEC $@
+	chg_usr_exec $@
 	return $?
 }
 
@@ -232,7 +236,7 @@ function set_cur_usr #<login_name>
 #
 function usr_exec #<commands> [...]
 {
-	$CHG_USR_EXEC "$ZFS_ACL_CUR_USER" $@
+	chg_usr_exec "$ZFS_ACL_CUR_USER" $@
 	return $?
 }
 
@@ -248,7 +252,7 @@ function count_ACE #<file or dir name>
 		return 1
 	fi
 
-	$LS -vd $1 | $NAWK 'BEGIN {count=0}
+	ls -vd $1 | nawk 'BEGIN {count=0}
 			(NR != 1)&&(/[0-9]:/) {count++}
 			END {print count}'
 
@@ -286,8 +290,8 @@ function get_ACE #<file or dir name> <specified number> <verbose|compact>
 			;;
 	esac
 
-	$LS $args $file > $tmpfile
-	(( $? != 0 )) && log_fail "FAIL: $LS $args $file > $tmpfile"
+	ls $args $file > $tmpfile
+	(( $? != 0 )) && log_fail "FAIL: ls $args $file > $tmpfile"
 	while read line; do
 		[[ -z $line ]] && continue
 		if [[ $args == -vd ]]; then
@@ -308,8 +312,8 @@ function get_ACE #<file or dir name> <specified number> <verbose|compact>
 		fi
 	done < $tmpfile
 
-	$RM -f $tmpfile
-	(( $? != 0 )) && log_fail "FAIL: $RM -f $tmpfile"
+	rm -f $tmpfile
+	(( $? != 0 )) && log_fail "FAIL: rm -f $tmpfile"
 }
 
 #
@@ -337,7 +341,7 @@ function cleanup
 {
 	if [[ -d $TESTDIR ]]; then
 		cd $TESTDIR
-		$RM -rf $TESTDIR/*
+		rm -rf $TESTDIR/*
 	fi
 }
 
@@ -363,26 +367,26 @@ function rwx_node #user node acl_spec|access
 	if [[ -d $node ]]; then
 		case $acl_spec in
 		*:read_data:*|read_data)
-			chgusr_exec $user $LS -l $node > /dev/null 2>&1
+			chgusr_exec $user ls -l $node > /dev/null 2>&1
 			return $? ;;
 		*:write_data:*|write_data)
 			if [[ -f ${node}/tmpfile ]]; then
-				log_must $RM -f ${node}/tmpfile
+				log_must rm -f ${node}/tmpfile
 			fi
-			chgusr_exec $user $TOUCH ${node}/tmpfile > \
+			chgusr_exec $user touch ${node}/tmpfile > \
 				/dev/null 2>&1
 			return $? ;;
 		*"execute:"*|execute)
-			chgusr_exec $user $FIND $node > /dev/null 2>&1
+			chgusr_exec $user find $node > /dev/null 2>&1
 			return $? ;;
 		esac
 	else
 		case $acl_spec in
 		*:read_data:*|read_data)
-			chgusr_exec $user $CAT $node > /dev/null 2>&1
+			chgusr_exec $user cat $node > /dev/null 2>&1
 			return $? ;;
 		*:write_data:*|write_data)
-			chgusr_exec $user $DD if=/usr/bin/ls of=$node > \
+			chgusr_exec $user dd if=/usr/bin/ls of=$node > \
 				/dev/null 2>&1
 			return $? ;;
 		*"execute:"*|execute)
@@ -405,9 +409,9 @@ function get_xattr #<obj>
 		return 1
 	fi
 
-	for xattr in `$RUNAT $obj $LS | \
+	for xattr in `runat $obj ls | \
 		/usr/xpg4/bin/egrep -v -e SUNWattr_ro -e SUNWattr_rw` ; do
-		$RUNAT $obj $SUM $xattr
+		runat $obj sum $xattr
 	done
 }
 
@@ -424,12 +428,12 @@ function get_owner #node
 	fi
 
 	if [[ -d $node ]]; then
-		value=$($LS -dl $node | $AWK '{print $3}')
+		value=$(ls -dl $node | awk '{print $3}')
 	elif [[ -e $node ]]; then
-		value=$($LS -l $node | $AWK '{print $3}')
+		value=$(ls -l $node | awk '{print $3}')
 	fi
 
-	$ECHO $value
+	echo $value
 }
 
 #
@@ -445,12 +449,12 @@ function get_group #node
 	fi
 
 	if [[ -d $node ]]; then
-		value=$($LS -dl $node | $AWK '{print $4}')
+		value=$(ls -dl $node | awk '{print $4}')
 	elif [[ -e $node ]]; then
-		value=$($LS -l $node | $AWK '{print $4}')
+		value=$(ls -l $node | awk '{print $4}')
 	fi
 
-	$ECHO $value
+	echo $value
 }
 
 
@@ -471,7 +475,7 @@ function get_user_group #uid
 	if [[ $? -eq 0 ]]; then
 		value=${value##*\(}
 		value=${value%%\)*}
-		$ECHO $value
+		echo $value
 	else
 		log_fail "Invalid UID (uid)."
 	fi
@@ -509,17 +513,17 @@ function cksum_files #<dir> <file_array_name> <attribute_array_name>
 	[[ ! -d $dir ]] && return
 	typeset oldpwd=$PWD
 	cd $dir
-	typeset files=$($LS file*)
+	typeset files=$(ls file*)
 
 	typeset -i i=0
 	typeset -i n=0
 	while (( i < NUM_FILE )); do
 		typeset f=$(getitem $i $files)
-		eval $farr_name[$i]=\$\(\$CKSUM $f\)
+		eval $farr_name[$i]=\$\(\cksum $f\)
 
 		typeset -i j=0
 		while (( j < NUM_ATTR )); do
-			eval $aarr_name[$n]=\$\(\$RUNAT \$f \$CKSUM \
+			eval $aarr_name[$n]=\$\(\runat \$f \cksum \
 				attribute.$j\)
 
 			(( j += 1 ))
@@ -571,12 +575,12 @@ function record_cksum #<outfile>
 	typeset dir=$1
 	typeset outfile=$2
 
-	[[ ! -d ${outfile%/*} ]] && usr_exec $MKDIR -p ${outfile%/*}
+	[[ ! -d ${outfile%/*} ]] && usr_exec mkdir -p ${outfile%/*}
 
-	usr_exec cd $dir ; $FIND . -depth -type f -exec cksum {} \\\; | \
-	    $SORT > $outfile
-	usr_exec cd $dir ; $FIND . -depth -type f -xattr -exec runat {} \
-		cksum attribute* \\\; | $SORT >> $outfile
+	usr_exec cd $dir ; find . -depth -type f -exec cksum {} \\\; | \
+	    sort > $outfile
+	usr_exec cd $dir ; find . -depth -type f -xattr -exec runat {} \
+		cksum attribute* \\\; | sort >> $outfile
 }
 
 #
@@ -589,20 +593,20 @@ function create_files #<directory>
 {
 	typeset basedir=$1
 
-	[[ ! -d $basedir ]] && usr_exec $MKDIR -m 777 $basedir
-	[[ ! -d $RES_DIR  ]] && usr_exec $MKDIR -m 777 $RES_DIR
-	[[ ! -d $INI_DIR ]] && usr_exec $MKDIR -m 777 $INI_DIR
-	[[ ! -d $TST_DIR ]] && usr_exec $MKDIR -m 777 $TST_DIR
-	[[ ! -d $TMP_DIR  ]] && usr_exec $MKDIR -m 777 $TMP_DIR
+	[[ ! -d $basedir ]] && usr_exec mkdir -m 777 $basedir
+	[[ ! -d $RES_DIR  ]] && usr_exec mkdir -m 777 $RES_DIR
+	[[ ! -d $INI_DIR ]] && usr_exec mkdir -m 777 $INI_DIR
+	[[ ! -d $TST_DIR ]] && usr_exec mkdir -m 777 $TST_DIR
+	[[ ! -d $TMP_DIR  ]] && usr_exec mkdir -m 777 $TMP_DIR
 
 	#
 	# Create the original file and its attribute files.
 	#
 	[[ ! -a $RES_DIR/file ]] && \
-		usr_exec $FILE_WRITE -o create -f $RES_DIR/file \
+		usr_exec file_write -o create -f $RES_DIR/file \
 			-b 1024 -d 0 -c 1
 	[[ ! -a $RES_DIR/attribute ]] && \
-		usr_exec $CP $RES_DIR/file $RES_DIR/attribute
+		usr_exec cp $RES_DIR/file $RES_DIR/attribute
 
 	typeset oldpwd=$PWD
 	cd $INI_DIR
@@ -610,12 +614,12 @@ function create_files #<directory>
 	typeset -i i=0
 	while (( i < NUM_FILE )); do
 		typeset dstfile=$INI_DIR/file.$$.$i
-		usr_exec $CP $RES_DIR/file $dstfile
+		usr_exec cp $RES_DIR/file $dstfile
 
 		typeset -i j=0
 		while (( j < NUM_ATTR )); do
-			usr_exec $RUNAT $dstfile \
-				$CP $RES_DIR/attribute ./attribute.$j
+			usr_exec runat $dstfile \
+				cp $RES_DIR/attribute ./attribute.$j
 			(( j += 1 ))
 		done
 

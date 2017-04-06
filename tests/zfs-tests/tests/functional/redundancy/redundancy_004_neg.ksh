@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/redundancy/redundancy.kshlib
@@ -54,7 +54,7 @@ typeset -i cnt=$(random 2 5)
 setup_test_env $TESTPOOL "" $cnt
 
 damage_devs $TESTPOOL 1 "keep_label"
-log_must $ZPOOL clear $TESTPOOL
+log_must zpool clear $TESTPOOL
 
 # Wait for the scrub intiated by the clear to wrap, or is_healthy will be wrong.
 while ! is_pool_scrubbed $TESTPOOL; do

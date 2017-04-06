@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 #
 
@@ -45,7 +45,7 @@
 
 verify_runnable "global"
 
-volsize=$($ZFS get -H -o value volsize $TESTPOOL/$TESTVOL)
+volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
 
 function cleanup
 {
@@ -53,7 +53,7 @@ function cleanup
 	if [[ $dumpdev != $savedumpdev ]] ; then
 		safe_dumpadm $savedumpdev
 	fi
-	$ZFS set volsize=$volsize $TESTPOOL/$TESTVOL
+	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "zfs volume as dumpdevice should have 128k volblocksize"
@@ -62,12 +62,12 @@ log_onexit cleanup
 voldev=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
-typeset oblksize=$($ZFS get -H -o value volblocksize $TESTPOOL/$TESTVOL)
+typeset oblksize=$(zfs get -H -o value volblocksize $TESTPOOL/$TESTVOL)
 log_note "original $TESTPOOL/$TESTVOL volblocksize=$oblksize"
 
 safe_dumpadm $voldev
 
-typeset blksize=$($ZFS get -H -o value volblocksize $TESTPOOL/$TESTVOL)
+typeset blksize=$(zfs get -H -o value volblocksize $TESTPOOL/$TESTVOL)
 
 if [[ $blksize != "128K" ]]; then
 	log_fail "ZFS volume $TESTPOOL/$TESTVOL volblocksize=$blksize"

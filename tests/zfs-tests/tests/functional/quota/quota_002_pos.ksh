@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -57,10 +57,10 @@ log_assert "Verify that a file write cannot exceed the file system quota"
 function cleanup
 {
         [[ -e $TESTDIR/$TESTFILE1 ]] && \
-            log_must $RM $TESTDIR/$TESTFILE1
+            log_must rm $TESTDIR/$TESTFILE1
 
 	[[ -e $TESTDIR/$TESTFILE2 ]] && \
-            log_must $RM $TESTDIR/$TESTFILE2
+            log_must rm $TESTDIR/$TESTFILE2
 }
 
 log_onexit cleanup

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -65,8 +65,8 @@ function cleanup
 	while (( i < ${#dataset_pos[*]} )); do
 		ds=${dataset_pos[i]}
 		if datasetexists $ds; then
-			log_must $ZFS set mountpoint=${old_mnt[i]} $ds
-			log_must $ZFS set canmount=${old_canmount[i]} $ds
+			log_must zfs set mountpoint=${old_mnt[i]} $ds
+			log_must zfs set canmount=${old_canmount[i]} $ds
 		fi
 		(( i = i + 1 ))
 	done
@@ -74,24 +74,24 @@ function cleanup
 	ds=$TESTPOOL/$TESTCLONE
 	if datasetexists $ds; then
 		mntp=$(get_prop mountpoint $ds)
-		log_must $ZFS destroy $ds
+		log_must zfs destroy $ds
 		if [[ -d $mntp ]]; then
-			$RM -fr $mntp
+			rm -fr $mntp
 		fi
 	fi
 
 	if snapexists $TESTPOOL/$TESTFS@$TESTSNAP ; then
-		log_must $ZFS destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
+		log_must zfs destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
 	fi
 	if snapexists $TESTPOOL/$TESTVOL@$TESTSNAP ; then
-		log_must $ZFS destroy -R $TESTPOOL/$TESTVOL@$TESTSNAP
+		log_must zfs destroy -R $TESTPOOL/$TESTVOL@$TESTSNAP
 	fi
 
-	$ZFS unmount -a > /dev/null 2>&1
-	log_must $ZFS mount -a
+	zfs unmount -a > /dev/null 2>&1
+	log_must zfs mount -a
 
 	if [[ -d $tmpmnt ]]; then
-		$RM -fr $tmpmnt
+		rm -fr $tmpmnt
 	fi
 }
 
@@ -103,10 +103,10 @@ set -A old_canmount
 typeset tmpmnt=/tmpmount$$
 typeset ds
 
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@$TESTSNAP
-log_must $ZFS snapshot $TESTPOOL/$TESTVOL@$TESTSNAP
-log_must $ZFS clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE
-log_must $ZFS clone $TESTPOOL/$TESTVOL@$TESTSNAP $TESTPOOL/$TESTCLONE1
+log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+log_must zfs snapshot $TESTPOOL/$TESTVOL@$TESTSNAP
+log_must zfs clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE
+log_must zfs clone $TESTPOOL/$TESTVOL@$TESTSNAP $TESTPOOL/$TESTCLONE1
 
 typeset -i i=0
 while (( i < ${#dataset_pos[*]} )); do
@@ -120,25 +120,25 @@ i=0
 while (( i < ${#dataset_pos[*]} )) ; do
 	dataset=${dataset_pos[i]}
 	set_n_check_prop "noauto" "canmount" "$dataset"
-	log_must $ZFS set mountpoint=$tmpmnt $dataset
+	log_must zfs set mountpoint=$tmpmnt $dataset
 	if  ismounted $dataset; then
-		$ZFS unmount -a > /dev/null 2>&1
+		zfs unmount -a > /dev/null 2>&1
 		log_must mounted $dataset
-		log_must $ZFS unmount $dataset
+		log_must zfs unmount $dataset
 		log_must unmounted $dataset
-		log_must $ZFS mount -a
+		log_must zfs mount -a
 		log_must unmounted $dataset
 	else
-		log_must $ZFS mount -a
+		log_must zfs mount -a
 		log_must unmounted $dataset
-		$ZFS unmount -a > /dev/null 2>&1
+		zfs unmount -a > /dev/null 2>&1
 		log_must unmounted $dataset
 	fi
 
-	log_must $ZFS mount $dataset
+	log_must zfs mount $dataset
 	log_must mounted $dataset
-	log_must $ZFS set canmount="${old_canmount[i]}" $dataset
-	log_must $ZFS set mountpoint="${old_mnt[i]}" $dataset
+	log_must zfs set canmount="${old_canmount[i]}" $dataset
+	log_must zfs set mountpoint="${old_mnt[i]}" $dataset
 	(( i = i + 1 ))
 done
 

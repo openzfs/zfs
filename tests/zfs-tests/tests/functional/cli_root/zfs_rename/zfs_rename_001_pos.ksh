@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.kshlib
 
@@ -86,7 +91,7 @@ done
 
 #verify the data integrity in zvol
 if is_global_zone; then
-	log_must eval "$DD if=${VOL_R_PATH}-new of=$VOLDATA bs=$BS count=$CNT >/dev/null 2>&1"
+	log_must eval "dd if=${VOL_R_PATH}-new of=$VOLDATA bs=$BS count=$CNT >/dev/null 2>&1"
 	if ! cmp_data $VOLDATA $DATA ; then
 		log_fail "$VOLDATA gets corrupted after rename operation."
 	fi
@@ -96,7 +101,7 @@ fi
 typeset -i i=0
 while ((i < ${#dataset[*]} )); do
 	if datasetexists ${dataset[i]}-new ; then
-                log_must $ZFS rename ${dataset[i]}-new ${dataset[i]}
+                log_must zfs rename ${dataset[i]}-new ${dataset[i]}
 	fi
         ((i = i + 1))
 done

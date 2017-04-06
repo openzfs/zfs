@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rollback/zfs_rollback_common.kshlib
 
@@ -68,12 +72,12 @@ function test_n_check #opt num_snap_clone num_rollback
 		log_fail "Unsupported testing condition."
 
 	# Clean up the test environment
-	datasetexists $FS && log_must $ZFS destroy -Rf $FS
+	datasetexists $FS && log_must zfs destroy -Rf $FS
 	if datasetexists $VOL; then
-		$DF -lhF ufs "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
-		(( $? == 0 )) && log_must $UMOUNT -f $TESTDIR1
+		df -lhF ufs "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
+		(( $? == 0 )) && log_must umount -f $TESTDIR1
 
-		log_must $ZFS destroy -Rf $VOL
+		log_must zfs destroy -Rf $VOL
 	fi
 
 	# Create specified test environment
@@ -113,12 +117,12 @@ function test_n_check #opt num_snap_clone num_rollback
 		fi
 
 		if [[ $dtst == $VOL ]]; then
-			log_must $UMOUNT -f $TESTDIR1
-			log_must $ZFS rollback $opt $dtst@$snap_point
-			log_must $MOUNT \
+			log_must umount -f $TESTDIR1
+			log_must zfs rollback $opt $dtst@$snap_point
+			log_must mount \
 				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1
 		else
-			log_must $ZFS rollback $opt $dtst@$snap_point
+			log_must zfs rollback $opt $dtst@$snap_point
 		fi
 
 		for snap in $all_snap; do

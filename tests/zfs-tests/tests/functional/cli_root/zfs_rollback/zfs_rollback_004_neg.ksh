@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rollback/zfs_rollback_common.kshlib
 
@@ -48,7 +52,7 @@ function cleanup
 
 	for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL; do
 		if snapexists ${ds}@$TESTSNAP; then
-			log_must $ZFS destroy ${ds}@$TESTSNAP
+			log_must zfs destroy ${ds}@$TESTSNAP
 		fi
 	done
 }
@@ -60,21 +64,21 @@ log_onexit cleanup
 set -A badopts "r" "R" "f" "-F" "-rF" "-RF" "-fF" "-?" "-*" "-blah" "-1" "-2"
 
 for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL; do
-	log_must $ZFS snapshot ${ds}@$TESTSNAP
+	log_must zfs snapshot ${ds}@$TESTSNAP
 done
 
 for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL; do
 	for opt in "" "-r" "-R" "-f" "-rR" "-rf" "-rRf"; do
-		log_mustnot eval "$ZFS rollback $opt $ds >/dev/null 2>&1"
-		log_mustnot eval "$ZFS rollback $opt ${ds}@$TESTSNAP \
+		log_mustnot eval "zfs rollback $opt $ds >/dev/null 2>&1"
+		log_mustnot eval "zfs rollback $opt ${ds}@$TESTSNAP \
 			${ds}@$TESTSNAP >/dev/null 2>&1"
-		log_mustnot eval "$ZFS rollback $opt >/dev/null 2>&1"
+		log_mustnot eval "zfs rollback $opt >/dev/null 2>&1"
 		# zfs rollback should fail with non-existen snapshot
-		log_mustnot eval "$ZFS rollback $opt ${ds}@nosnap >/dev/null 2>&1"
+		log_mustnot eval "zfs rollback $opt ${ds}@nosnap >/dev/null 2>&1"
 	done
 
 	for badopt in ${badopts[@]}; do
-		log_mustnot eval "$ZFS rollback $badopt ${ds}@$TESTSNAP \
+		log_mustnot eval "zfs rollback $badopt ${ds}@$TESTSNAP \
 				>/dev/null 2>&1"
 	done
 done

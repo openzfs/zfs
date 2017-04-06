@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,13 +50,13 @@ log_assert "write()s to a file and mmap() that file at the same time does not "\
 # Detect and make sure this test must be executed on a multi-process system
 is_mp || log_fail "This test requires a multi-processor system."
 
-log_must $CHMOD 777 $TESTDIR
-$MMAPWRITE $TESTDIR/test-write-file &
+log_must chmod 777 $TESTDIR
+mmapwrite $TESTDIR/test-write-file &
 PID_MMAPWRITE=$!
-log_note "$MMAPWRITE $TESTDIR/test-write-file pid: $PID_MMAPWRITE"
-log_must $SLEEP 30
+log_note "mmapwrite $TESTDIR/test-write-file pid: $PID_MMAPWRITE"
+log_must sleep 30
 
-log_must $KILL -9 $PID_MMAPWRITE
-log_must $LS -l $TESTDIR/test-write-file
+log_must kill -9 $PID_MMAPWRITE
+log_must ls -l $TESTDIR/test-write-file
 
 log_pass "write(2) a mmap(2)'ing file succeeded."

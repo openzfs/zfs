@@ -51,16 +51,16 @@ verify_runnable "both"
 
 function cleanup
 {
-	$ECHO cleanup
+	echo cleanup
 	[[ -e $TESTDIR ]] && \
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 }
 
 log_assert "Create and read back files with using different checksum algorithms"
 
 log_onexit cleanup
 
-FSSIZE=$($ZPOOL list -Hp -o size $TESTPOOL)
+FSSIZE=$(zpool list -Hp -o size $TESTPOOL)
 WRITESZ=1048576
 WRITECNT=$((($FSSIZE) / $WRITESZ ))
 # Skip the first and last 4MB
@@ -79,16 +79,16 @@ firstvdev=${array[0]}
 # errors.
 for ((count = 0; count < ${#checksum_props[*]} ; count++)); do
 	i=${checksum_props[$count]}
-	$ZFS set checksum=$i $TESTPOOL
-	$FILE_WRITE -o overwrite -f $TESTDIR/test_$i -b $WRITESZ -c 5 -d R
+	zfs set checksum=$i $TESTPOOL
+	file_write -o overwrite -f $TESTDIR/test_$i -b $WRITESZ -c 5 -d R
 done
-$ZPOOL export $TESTPOOL
-$ZPOOL import $TESTPOOL
-$ZPOOL scrub $TESTPOOL
+zpool export $TESTPOOL
+zpool import $TESTPOOL
+zpool scrub $TESTPOOL
 while is_pool_scrubbing $TESTPOOL; do
-	$SLEEP 1
+	sleep 1
 done
-$ZPOOL status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
+zpool status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
 log_assert "Normal file write test saw $cksum checksum errors"
 log_must [ $cksum -eq 0 ]
 
@@ -97,29 +97,29 @@ rm -fr $TESTDIR/*
 log_assert "Test scrambling the disk and seeing checksum errors"
 for ((count = 0; count < ${#checksum_props[*]} ; count++)); do
 	i=${checksum_props[$count]}
-	$ZFS set checksum=$i $TESTPOOL
-	$FILE_WRITE -o overwrite -f $TESTDIR/test_$i -b $WRITESZ -c 5 -d R
+	zfs set checksum=$i $TESTPOOL
+	file_write -o overwrite -f $TESTDIR/test_$i -b $WRITESZ -c 5 -d R
 
-	$ZPOOL export $TESTPOOL
+	zpool export $TESTPOOL
 
 	# Scramble the data on the first vdev in our pool.
 	# Skip the first and last 16MB of data, then scramble the rest after that
 	#
-	$FILE_WRITE -o overwrite -f $firstvdev -s $SKIP -c $WRITECNT -b $WRITESZ -d R
+	file_write -o overwrite -f $firstvdev -s $SKIP -c $WRITECNT -b $WRITESZ -d R
 
-	$ZPOOL import $TESTPOOL
+	zpool import $TESTPOOL
 
 	i=${checksum_props[$count]}
-	$ZPOOL scrub $TESTPOOL
+	zpool scrub $TESTPOOL
 	while is_pool_scrubbing $TESTPOOL; do
-                $SLEEP 1
+                sleep 1
         done
 
-	$ZPOOL status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
+	zpool status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
 
 	log_assert "Checksum '$i' caught $cksum checksum errors"
 	log_must [ $cksum -ne 0 ]
 
 	rm -f $TESTDIR/test_$i
-	$ZPOOL clear $TESTPOOL
+	zpool clear $TESTPOOL
 done

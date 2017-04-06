@@ -24,6 +24,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -98,5 +102,5 @@ function cleanup
 	bkmarkexists $TESTPOOL/$TESTFS#$TESTBKMARK && \
 		destroy_bookmark $TESTPOOL/$TESTFS#$TESTBKMARK
 
-	[[ -e $TESTFILE0 ]] && log_must $RM $TESTFILE0
+	[[ -e $TESTFILE0 ]] && log_must rm $TESTFILE0
 }

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_copies/zfs_copies.kshlib
 
@@ -46,7 +50,7 @@ function cleanup
 
 	for ds in $fs1 $fs2 $vol1 $vol2; do
 		if datasetexists $ds; then
-			log_must $ZFS destroy $ds
+			log_must zfs destroy $ds
 		fi
 	done
 }
@@ -69,34 +73,34 @@ for ds in $fs $vol; do
 done
 
 for val in 1 2 3; do
-	log_must $ZFS create -o copies=$val $fs1
+	log_must zfs create -o copies=$val $fs1
 	if is_global_zone; then
-		log_must $ZFS create -V $VOLSIZE -o copies=$val $vol1
+		log_must zfs create -V $VOLSIZE -o copies=$val $vol1
 		block_device_wait
 	else
-		log_must $ZFS create -o copies=$val $vol1
+		log_must zfs create -o copies=$val $vol1
 	fi
 	for ds in $fs1 $vol1; do
 		cmp_prop $ds $val
 	done
 
 	for val2 in 3 2 1; do
-		log_must $ZFS create -o copies=$val2 $fs2
+		log_must zfs create -o copies=$val2 $fs2
 		if is_global_zone; then
-			log_must $ZFS create -V $VOLSIZE -o copies=$val2 $vol2
+			log_must zfs create -V $VOLSIZE -o copies=$val2 $vol2
 			block_device_wait
 		else
-			log_must $ZFS create -o copies=$val2 $vol2
+			log_must zfs create -o copies=$val2 $vol2
 		fi
 		for ds in $fs2 $vol2; do
 			cmp_prop $ds $val2
-			log_must $ZFS destroy $ds
+			log_must zfs destroy $ds
 			block_device_wait
 		done
 	done
 
 	for ds in $fs1 $vol1; do
-		log_must $ZFS destroy $ds
+		log_must zfs destroy $ds
 		block_device_wait
 	done
 
@@ -104,7 +108,7 @@ done
 
 for val in 3 2 1; do
 	for ds in $fs $vol; do
-		log_must $ZFS set copies=$val $ds
+		log_must zfs set copies=$val $ds
 		cmp_prop $ds $val
 	done
 done

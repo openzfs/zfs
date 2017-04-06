@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,53 +54,53 @@ function cleanup
 	typeset fs=""
 
 	export __ZFS_POOL_RESTRICT="$TESTPOOL"
-	log_must $ZFS mount -a
+	log_must zfs mount -a
 	unset __ZFS_POOL_RESTRICT
 
 	for snap in "$SNAPPOOL.1" "$SNAPPOOL"
 	do
 		snapexists $snap
 		[[ $? -eq 0 ]] && \
-			log_must $ZFS destroy $snap
+			log_must zfs destroy $snap
 	done
 
 	for fs in "$TESTPOOL/$TESTFILE/$TESTFILE.1" "$TESTPOOL/$TESTFILE"
 	do
 		datasetexists $fs
 		[[ $? -eq 0 ]] && \
-			log_must $ZFS destroy -r $fs
+			log_must zfs destroy -r $fs
 	done
 
 	[[ -e /$TESTPOOL ]] && \
-		log_must $RM -rf $TESTPOOL/*
+		log_must rm -rf $TESTPOOL/*
 }
 
 log_assert "Verify rollback succeeds when there are nested file systems."
 
 log_onexit cleanup
 
-log_must $ZFS snapshot $SNAPPOOL
-log_must $ZFS rollback $SNAPPOOL
-log_mustnot $ZFS snapshot $SNAPPOOL
+log_must zfs snapshot $SNAPPOOL
+log_must zfs rollback $SNAPPOOL
+log_mustnot zfs snapshot $SNAPPOOL
 
-log_must $TOUCH /$TESTPOOL/$TESTFILE
+log_must touch /$TESTPOOL/$TESTFILE
 
-log_must $ZFS rollback $SNAPPOOL
-log_must $ZFS create $TESTPOOL/$TESTFILE
+log_must zfs rollback $SNAPPOOL
+log_must zfs create $TESTPOOL/$TESTFILE
 
-log_must $ZFS rollback $SNAPPOOL
+log_must zfs rollback $SNAPPOOL
 
 log_note "Verify rollback of multiple nested file systems succeeds."
-log_must $ZFS snapshot $TESTPOOL/$TESTFILE@$TESTSNAP
-log_must $ZFS snapshot $SNAPPOOL.1
+log_must zfs snapshot $TESTPOOL/$TESTFILE@$TESTSNAP
+log_must zfs snapshot $SNAPPOOL.1
 
 export __ZFS_POOL_RESTRICT="$TESTPOOL"
-log_must $ZFS unmount -a
-log_must $ZFS mount -a
+log_must zfs unmount -a
+log_must zfs mount -a
 unset __ZFS_POOL_RESTRICT
 
-log_must $TOUCH /$TESTPOOL/$TESTFILE/$TESTFILE.1
+log_must touch /$TESTPOOL/$TESTFILE/$TESTFILE.1
 
-log_must $ZFS rollback $SNAPPOOL.1
+log_must zfs rollback $SNAPPOOL.1
 
 log_pass "Rollbacks succeed when nested file systems are present."

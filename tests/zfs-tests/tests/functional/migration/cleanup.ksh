@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -35,10 +35,10 @@
 verify_runnable "global"
 
 ismounted $NONZFS_TESTDIR $NEWFS_DEFAULT_FS
-(( $? == 0 )) && log_must $UMOUNT -f $NONZFS_TESTDIR
+(( $? == 0 )) && log_must umount -f $NONZFS_TESTDIR
 
 ismounted $TESTPOOL/$TESTFS
-[[ $? == 0 ]] && log_must $ZFS umount -f $TESTDIR
+[[ $? == 0 ]] && log_must zfs umount -f $TESTDIR
 destroy_pool $TESTPOOL
 
 DISK=${DISKS%% *}

@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -33,10 +33,10 @@
 function cleanup
 {
 	if datasetexists $TESTPOOL ; then
-		log_must $ZPOOL destroy -f $TESTPOOL
+		log_must zpool destroy -f $TESTPOOL
 	fi
 	if datasetexists $TESTPOOL2 ; then
-		log_must $ZPOOL destroy -f $TESTPOOL2
+		log_must zpool destroy -f $TESTPOOL2
 	fi
 }
 
@@ -50,17 +50,17 @@ function display_status
 	typeset pool=$1
 
 	typeset -i ret=0
-	$ZPOOL status -xv $pool > /dev/null 2>&1
+	zpool status -xv $pool > /dev/null 2>&1
 	ret=$?
 
-	$ZPOOL iostat > /dev/null 2>&1
+	zpool iostat > /dev/null 2>&1
 	((ret |= $?))
 
 	typeset mntpnt=$(get_prop mountpoint $pool)
-	$DD if=/dev/random of=$mntpnt/testfile.$$ &
+	dd if=/dev/random of=$mntpnt/testfile.$$ &
 	typeset pid=$!
 
-	$ZPOOL iostat -v 1 3 > /dev/null
+	zpool iostat -v 1 3 > /dev/null
 	((ret |= $?))
 
 	kill -9 $pid
@@ -93,7 +93,7 @@ function verify_cache_device
 	#
 	# mirror:/disks/d ONLINE mirror:/disks/e ONLINE stripe:/disks/f ONLINE
 	#
-	set -A dev_stat_tab $($ZPOOL status -v $pool | $NAWK 'BEGIN {start=0} \
+	set -A dev_stat_tab $(zpool status -v $pool | nawk 'BEGIN {start=0} \
 				/\tcache/ {start=1}
 				/\tmirror/ || /\tspares/ || /^$/ {start=0}
 				(start==1) && /\t  (\/|[a-zA-Z])/ \
@@ -148,6 +148,6 @@ function verify_cache_device
 
 function verify_cache_support
 {
-	$ZPOOL upgrade -v | $GREP "Cache devices" > /dev/null 2>&1
+	zpool upgrade -v | grep "Cache devices" > /dev/null 2>&1
 	return $?
 }

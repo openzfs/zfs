@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.cfg
@@ -33,34 +33,34 @@
 function additional_setup
 {
 	# Create testfile
-	log_must $CP $DATA $TESTDIR/$TESTFILE0
-	log_must $CP $DATA $TESTDIR1/$TESTFILE0
+	log_must cp $DATA $TESTDIR/$TESTFILE0
+	log_must cp $DATA $TESTDIR1/$TESTFILE0
 
 	# Create snapshot
 	if ! snapexists $TESTPOOL/$TESTFS@snapshot; then
-		log_must $ZFS snapshot $TESTPOOL/$TESTFS@snapshot
-		log_must $ZFS clone $TESTPOOL/$TESTFS@snapshot \
+		log_must zfs snapshot $TESTPOOL/$TESTFS@snapshot
+		log_must zfs clone $TESTPOOL/$TESTFS@snapshot \
 		    $TESTPOOL/$TESTFS-clone
 	fi
 
 	# Create file system
 	datasetexists $TESTPOOL/$TESTFS1 || \
-		log_must $ZFS create $TESTPOOL/$TESTFS1
+		log_must zfs create $TESTPOOL/$TESTFS1
 
 	# Create testfile
-	log_must $CP $DATA $(get_prop mountpoint $TESTPOOL/$TESTFS1)/$TESTFILE0
+	log_must cp $DATA $(get_prop mountpoint $TESTPOOL/$TESTFS1)/$TESTFILE0
 
 	# Create container
 	datasetexists $TESTPOOL/$TESTCTR1 || \
-		log_must $ZFS create $TESTPOOL/$TESTCTR1
-	log_must $CP $DATA $(get_prop mountpoint $TESTPOOL/$TESTCTR1)/$TESTFILE0
+		log_must zfs create $TESTPOOL/$TESTCTR1
+	log_must cp $DATA $(get_prop mountpoint $TESTPOOL/$TESTCTR1)/$TESTFILE0
 
 	# Create data in zvol
 	if is_global_zone; then
-		log_must eval "$DD if=$DATA of=$VOL_R_PATH bs=$BS count=$CNT \
+		log_must eval "dd if=$DATA of=$VOL_R_PATH bs=$BS count=$CNT \
 				>/dev/null 2>&1"
 	else
-		log_must $CP $DATA $(get_prop mountpoint $TESTPOOL/$TESTVOL)/$TESTFILE0
+		log_must cp $DATA $(get_prop mountpoint $TESTPOOL/$TESTVOL)/$TESTFILE0
 	fi
 
 }
@@ -70,7 +70,7 @@ function rename_dataset # src dest
 	typeset src=$1
 	typeset dest=$2
 
-	log_must $ZFS rename $src $dest
+	log_must zfs rename $src $dest
 	block_device_wait
 
 	#
@@ -90,24 +90,24 @@ function cleanup
 		fi
 
                 if [[ ${dataset[i]}-new != *@* ]] ; then
-                        $ZFS rename ${dataset[i]}-new ${dataset[i]}
+                        zfs rename ${dataset[i]}-new ${dataset[i]}
                         if [[ $? -ne 0 ]]; then
                                 typeset newfs=${dataset[i]}-new
                                 typeset oldfs=${dataset[i]}
                                 typeset mntp=$(get_prop mountpoint  $newfs)
-                                log_must $ZFS destroy -f $newfs
-                                log_must $ZFS create -p $oldfs
-                                log_must $ZFS set mountpoint=$mntp $oldfs
+                                log_must zfs destroy -f $newfs
+                                log_must zfs create -p $oldfs
+                                log_must zfs set mountpoint=$mntp $oldfs
                         fi
                 else
-                        log_must $ZFS destroy -fR ${dataset[i]}-new
+                        log_must zfs destroy -fR ${dataset[i]}-new
                 fi
 
                 ((i = i + 1))
 	done
 
 	if snapexists $TESTPOOL/$TESTFS@snapshot; then
-		log_must $ZFS destroy -fR $TESTPOOL/$TESTFS@snapshot
+		log_must zfs destroy -fR $TESTPOOL/$TESTFS@snapshot
 	fi
 
 }
@@ -117,7 +117,7 @@ function cmp_data #<$1 src data, $2 tgt data>
         typeset src=$1
         typeset tgt=$2
 
-        $CMP $src $tgt >/dev/null 2>&1
+        cmp $src $tgt >/dev/null 2>&1
 
         return $?
 }

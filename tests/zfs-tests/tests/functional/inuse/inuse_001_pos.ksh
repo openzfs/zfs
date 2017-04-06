@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,7 +49,7 @@ function cleanup
 	# Remove dump device.
 	#
 	if [[ -n $PREVDUMPDEV ]]; then
-		log_must $DUMPADM -u -d $PREVDUMPDEV > /dev/null
+		log_must dumpadm -u -d $PREVDUMPDEV > /dev/null
 	fi
 
 	destroy_pool $TESTPOOL
@@ -62,17 +62,17 @@ log_onexit cleanup
 typeset dumpdev=""
 typeset diskslice=""
 
-PREVDUMPDEV=`$DUMPADM | $GREP "Dump device" | $AWK '{print $3}'`
+PREVDUMPDEV=`dumpadm | grep "Dump device" | awk '{print $3}'`
 
 log_note "Zero $FS_DISK0 and place free space in to slice 0"
 log_must cleanup_devices $FS_DISK0
 
 diskslice="${DEV_DSKDIR}/${FS_DISK0}${SLICE0}"
 log_note "Configuring $diskslice as dump device"
-log_must $DUMPADM -d $diskslice > /dev/null
+log_must dumpadm -d $diskslice > /dev/null
 
 log_note "Confirm that dump device has been setup"
-dumpdev=`$DUMPADM | $GREP "Dump device" | $AWK '{print $3}'`
+dumpdev=`dumpadm | grep "Dump device" | awk '{print $3}'`
 [[ -z "$dumpdev" ]] && log_untested "No dump device has been configured"
 
 [[ "$dumpdev" != "$diskslice" ]] && \
@@ -80,7 +80,7 @@ dumpdev=`$DUMPADM | $GREP "Dump device" | $AWK '{print $3}'`
 
 log_note "Attempt to zpool the dump device"
 unset NOINUSE_CHECK
-log_mustnot $ZPOOL create $TESTPOOL "$diskslice"
+log_mustnot zpool create $TESTPOOL "$diskslice"
 log_mustnot poolexists $TESTPOOL
 
 log_pass "Unable to zpool a device in use by dumpadm"

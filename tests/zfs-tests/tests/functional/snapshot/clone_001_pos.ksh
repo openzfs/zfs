@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -62,8 +62,8 @@ set -A args "$SNAPFS" "$SNAPDIR" "$TESTPOOL/$TESTCLONE" "$TESTDIR.0" \
 function setup_all
 {
 	create_pool $TESTPOOL1 ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
-	log_must $ZFS create $TESTPOOL1/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR2 $TESTPOOL1/$TESTFS
+	log_must zfs create $TESTPOOL1/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR2 $TESTPOOL1/$TESTFS
 
 	return 0
 }
@@ -75,24 +75,24 @@ function cleanup_all
 	i=0
 	while (( i < ${#args[*]} )); do
 		snapexists ${args[i]} && \
-			log_must $ZFS destroy -Rf ${args[i]}
+			log_must zfs destroy -Rf ${args[i]}
 
 		[[ -d ${args[i+3]} ]] && \
-			log_must $RM -rf ${args[i+3]}
+			log_must rm -rf ${args[i+3]}
 
 		[[ -d ${args[i+1]} ]] && \
-			log_must $RM -rf ${args[i+1]}
+			log_must rm -rf ${args[i+1]}
 
 		(( i = i + 4 ))
 	done
 
 	datasetexists $TESTPOOL1/$TESTFS  && \
-		log_must $ZFS destroy -f $TESTPOOL1/$TESTFS
+		log_must zfs destroy -f $TESTPOOL1/$TESTFS
 
 	destroy_pool $TESTPOOL1
 
 	[[ -d $TESTDIR2 ]] && \
-		log_must $RM -rf $TESTDIR2
+		log_must rm -rf $TESTDIR2
 
 	return 0
 }
@@ -104,7 +104,7 @@ log_onexit cleanup_all
 setup_all
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 
 typeset -i COUNT=10
 typeset -i i=0
@@ -113,7 +113,7 @@ for mtpt in $TESTDIR $TESTDIR2 ; do
 	log_note "Populate the $mtpt directory (prior to snapshot)"
 	typeset -i j=1
 	while [[ $j -le $COUNT ]]; do
-		log_must $FILE_WRITE -o create -f $mtpt/before_file$j \
+		log_must file_write -o create -f $mtpt/before_file$j \
 			-b $BLOCKSZ -c $NUM_WRITES -d $j
 
 		(( j = j + 1 ))
@@ -124,33 +124,33 @@ while (( i < ${#args[*]} )); do
 	#
 	# Take a snapshot of the test file system.
 	#
-	log_must $ZFS snapshot ${args[i]}
+	log_must zfs snapshot ${args[i]}
 
 	#
 	# Clone a new file system from the snapshot
 	#
-	log_must $ZFS clone ${args[i]} ${args[i+2]}
+	log_must zfs clone ${args[i]} ${args[i+2]}
 	if [[ -n ${args[i+3]} ]] ; then
-		log_must $ZFS set mountpoint=${args[i+3]} ${args[i+2]}
+		log_must zfs set mountpoint=${args[i+3]} ${args[i+2]}
 
-		FILE_COUNT=`$LS -Al ${args[i+3]} | $GREP -v "total" \
-		    | $GREP -v "\.zfs" | wc -l`
+		FILE_COUNT=`ls -Al ${args[i+3]} | grep -v "total" \
+		    | grep -v "\.zfs" | wc -l`
 		if [[ $FILE_COUNT -ne $COUNT ]]; then
-			$LS -Al ${args[i+3]}
+			ls -Al ${args[i+3]}
 			log_fail "AFTER: ${args[i+3]} contains $FILE_COUNT files(s)."
 		fi
 
 		log_note "Verify the ${args[i+3]} directory is writable"
 		j=1
 		while [[ $j -le $COUNT ]]; do
-			log_must $FILE_WRITE -o create -f ${args[i+3]}/after_file$j \
+			log_must file_write -o create -f ${args[i+3]}/after_file$j \
 			-b $BLOCKSZ -c $NUM_WRITES -d $j
 			(( j = j + 1 ))
 		done
 
-		FILE_COUNT=`$LS -Al ${args[i+3]}/after* | $GREP -v "total" | wc -l`
+		FILE_COUNT=`ls -Al ${args[i+3]}/after* | grep -v "total" | wc -l`
 		if [[ $FILE_COUNT -ne $COUNT ]]; then
-			$LS -Al ${args[i+3]}
+			ls -Al ${args[i+3]}
 			log_fail "${args[i+3]} contains $FILE_COUNT after* files(s)."
 		fi
 	fi

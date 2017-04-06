@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,13 +50,13 @@ function cleanup
 	while [[ $i -lt $COUNT ]]; do
 		snapexists $SNAPFS.$i
 		[[ $? -eq 0 ]] && \
-			log_must $ZFS destroy $SNAPFS.$i
+			log_must zfs destroy $SNAPFS.$i
 
 		(( i = i + 1 ))
 	done
 
 	[[ -e $TESTDIR ]] && \
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 }
 
 log_assert "Verify that destroying snapshots returns space to the pool."
@@ -64,7 +64,7 @@ log_assert "Verify that destroying snapshots returns space to the pool."
 log_onexit cleanup
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 
 typeset -i COUNT=10
 
@@ -73,17 +73,17 @@ orig_size=`get_prop available $TESTPOOL`
 log_note "Populate the $TESTDIR directory"
 typeset -i i=1
 while [[ $i -lt $COUNT ]]; do
-	log_must $FILE_WRITE -o create -f $TESTDIR/file$i \
+	log_must file_write -o create -f $TESTDIR/file$i \
 	   -b $BLOCKSZ -c $NUM_WRITES -d $i
 
-	log_must $ZFS snapshot $SNAPFS.$i
+	log_must zfs snapshot $SNAPFS.$i
 	(( i = i + 1 ))
 done
 
 typeset -i i=1
 while [[ $i -lt $COUNT ]]; do
 	log_must rm -rf $TESTDIR/file$i > /dev/null 2>&1
-	log_must $ZFS destroy $SNAPFS.$i
+	log_must zfs destroy $SNAPFS.$i
 
 	(( i = i + 1 ))
 done

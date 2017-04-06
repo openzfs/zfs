@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -59,7 +59,7 @@ function cleanup
 	typeset -i i=0
 	while ((i < 2)); do
 		if [[ -e $mntpnt/vdev$i ]]; then
-			log_must $RM -f $mntpnt/vdev$i
+			log_must rm -f $mntpnt/vdev$i
 		fi
 		((i += 1))
 	done
@@ -70,7 +70,7 @@ function cleanup
 
 	for file in $CPATH1 $CPATH2 ; do
 		if [[ -f $file ]] ; then
-			log_must $RM $file
+			log_must rm $file
 		fi
 	done
 }
@@ -79,44 +79,44 @@ function cleanup
 log_assert "Verify set, export and destroy when cachefile is set on pool."
 log_onexit cleanup
 
-log_must $ZPOOL create $TESTPOOL $DISKS
+log_must zpool create $TESTPOOL $DISKS
 
 mntpnt=$(get_prop mountpoint $TESTPOOL)
 typeset -i i=0
 while ((i < 2)); do
-	log_must $MKFILE $MINVDEVSIZE $mntpnt/vdev$i
+	log_must mkfile $MINVDEVSIZE $mntpnt/vdev$i
 	eval vdev$i=$mntpnt/vdev$i
 	((i += 1))
 done
 
-log_must $ZPOOL create -o cachefile=$CPATH1 $TESTPOOL1 $vdev0
+log_must zpool create -o cachefile=$CPATH1 $TESTPOOL1 $vdev0
 log_must pool_in_cache $TESTPOOL1 $CPATH1
-log_must $ZPOOL create -o cachefile=$CPATH1 $TESTPOOL2 $vdev1
+log_must zpool create -o cachefile=$CPATH1 $TESTPOOL2 $vdev1
 log_must pool_in_cache $TESTPOOL2 $CPATH1
 
-log_must $ZPOOL set cachefile=$CPATH2 $TESTPOOL1
+log_must zpool set cachefile=$CPATH2 $TESTPOOL1
 log_must pool_in_cache $TESTPOOL1 $CPATH2
-log_must $ZPOOL set cachefile=$CPATH2 $TESTPOOL2
+log_must zpool set cachefile=$CPATH2 $TESTPOOL2
 log_must pool_in_cache $TESTPOOL2 $CPATH2
 if [[ -f $CPATH1 ]]; then
 	log_fail "Verify set when cachefile is set on pool."
 fi
 
-log_must $ZPOOL export $TESTPOOL1
-log_must $ZPOOL export $TESTPOOL2
+log_must zpool export $TESTPOOL1
+log_must zpool export $TESTPOOL2
 if [[ -f $CPATH2 ]]; then
 	log_fail "Verify export when cachefile is set on pool."
 fi
 
-log_must $ZPOOL import -d $mntpnt $TESTPOOL1
-log_must $ZPOOL set cachefile=$CPATH2 $TESTPOOL1
+log_must zpool import -d $mntpnt $TESTPOOL1
+log_must zpool set cachefile=$CPATH2 $TESTPOOL1
 log_must pool_in_cache $TESTPOOL1 $CPATH2
-log_must $ZPOOL import -d $mntpnt $TESTPOOL2
-log_must $ZPOOL set cachefile=$CPATH2 $TESTPOOL2
+log_must zpool import -d $mntpnt $TESTPOOL2
+log_must zpool set cachefile=$CPATH2 $TESTPOOL2
 log_must pool_in_cache $TESTPOOL2 $CPATH2
 
-log_must $ZPOOL destroy $TESTPOOL1
-log_must $ZPOOL destroy $TESTPOOL2
+log_must zpool destroy $TESTPOOL1
+log_must zpool destroy $TESTPOOL2
 if [[ -f $CPATH2 ]]; then
 	log_fail "Verify destroy when cachefile is set on pool."
 fi

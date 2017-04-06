@@ -29,11 +29,7 @@ else
 echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
 fi
 
-. "$STF_SUITE/include/default.cfg"
-
 PROG=zfs-tests.sh
-SUDO=/usr/bin/sudo
-SETENFORCE=/usr/sbin/setenforce
 VERBOSE=
 QUIET=
 CLEANUP=1
@@ -59,16 +55,16 @@ cleanup() {
 	if [ $LOOPBACK -eq 1 ]; then
 		for TEST_LOOPBACK in ${LOOPBACKS}; do
 			LOOP_DEV=$(basename "$TEST_LOOPBACK")
-			DM_DEV=$(${SUDO} "${DMSETUP}" ls 2>/dev/null | \
+			DM_DEV=$(sudo "${DMSETUP}" ls 2>/dev/null | \
 			    grep "${LOOP_DEV}" | cut -f1)
 
 			if [ -n "$DM_DEV" ]; then
-				${SUDO} "${DMSETUP}" remove "${DM_DEV}" ||
+				sudo "${DMSETUP}" remove "${DM_DEV}" ||
 				    echo "Failed to remove: ${DM_DEV}"
 			fi
 
 			if [ -n "${TEST_LOOPBACK}" ]; then
-				${SUDO} "${LOSETUP}" -d "${TEST_LOOPBACK}" ||
+				sudo "${LOSETUP}" -d "${TEST_LOOPBACK}" ||
 				    echo "Failed to remove: ${TEST_LOOPBACK}"
 			fi
 		done
@@ -77,6 +73,11 @@ cleanup() {
 	for TEST_FILE in ${FILES}; do
 		rm -f "${TEST_FILE}" &>/dev/null
 	done
+
+	# Preserve in-tree symlinks to aid debugging.
+	if [ -z "${INTREE}" -a -d "$STF_PATH" ]; then
+		rm -Rf "$STF_PATH"
+	fi
 }
 trap cleanup EXIT
 
@@ -88,9 +89,9 @@ trap cleanup EXIT
 #
 cleanup_all() {
 	local TEST_POOLS
-	TEST_POOLS=$(${SUDO} "${ZPOOL}" list -H -o name | grep testpool)
+	TEST_POOLS=$(sudo $ZPOOL list -H -o name | grep testpool)
 	local TEST_LOOPBACKS
-	TEST_LOOPBACKS=$(${SUDO} "${LOSETUP}" -a|grep file-vdev|cut -f1 -d:)
+	TEST_LOOPBACKS=$(sudo "${LOSETUP}" -a|grep file-vdev|cut -f1 -d:)
 	local TEST_FILES
 	TEST_FILES=$(ls /var/tmp/file-vdev* 2>/dev/null)
 
@@ -98,21 +99,21 @@ cleanup_all() {
 	msg "--- Cleanup ---"
 	msg "Removing pool(s):     $(echo "${TEST_POOLS}" | tr '\n' ' ')"
 	for TEST_POOL in $TEST_POOLS; do
-		${SUDO} "${ZPOOL}" destroy "${TEST_POOL}"
+		sudo $ZPOOL destroy "${TEST_POOL}"
 	done
 
-	msg "Removing dm(s):       $(${SUDO} "${DMSETUP}" ls |
+	msg "Removing dm(s):       $(sudo "${DMSETUP}" ls |
 	    grep loop | tr '\n' ' ')"
-	${SUDO} "${DMSETUP}" remove_all
+	sudo "${DMSETUP}" remove_all
 
 	msg "Removing loopback(s): $(echo "${TEST_LOOPBACKS}" | tr '\n' ' ')"
 	for TEST_LOOPBACK in $TEST_LOOPBACKS; do
-		${SUDO} "${LOSETUP}" -d "${TEST_LOOPBACK}"
+		sudo "${LOSETUP}" -d "${TEST_LOOPBACK}"
 	done
 
 	msg "Removing files(s):    $(echo "${TEST_FILES}" | tr '\n' ' ')"
 	for TEST_FILE in $TEST_FILES; do
-		${SUDO} rm -f "${TEST_FILE}"
+		sudo rm -f "${TEST_FILE}"
 	done
 }
 
@@ -149,6 +150,81 @@ find_runfile() {
 	fi
 
 	echo "$RESULT"
+}
+
+#
+# Symlink file if it appears under any of the given paths.
+#
+create_links() {
+	local dir_list="$1"
+	local file_list="$2"
+
+	[ -n $STF_PATH ] || fail "STF_PATH wasn't correctly set"
+
+	for i in $file_list; do
+		for j in $dir_list; do
+			[ ! -e "$STF_PATH/$i" ] || continue
+
+			if [ ! -d "$j/$i" -a -e "$j/$i" ]; then
+				ln -s $j/$i $STF_PATH/$i || \
+				    fail "Couldn't link $i"
+				break
+			fi
+		done
+
+		[ ! -e $STF_PATH/$i ] && STF_MISSING_BIN="$STF_MISSING_BIN$i "
+	done
+}
+
+#
+# Constrain the path to limit the available binaries to a known set.
+# When running in-tree a top level ./bin/ directory is created for
+# convenience, otherwise a temporary directory is used.
+#
+constrain_path() {
+	. $STF_SUITE/include/commands.cfg
+
+	if [ -n "${INTREE}" ]; then
+		STF_PATH="$BUILDDIR/bin"
+		if [ ! -d "$STF_PATH" ]; then
+			mkdir "$STF_PATH"
+		fi
+	else
+		SYSTEMDIR=${SYSTEMDIR:-/var/tmp/constrained_path.XXXX}
+		STF_PATH=$(/bin/mktemp -d "$SYSTEMDIR")
+	fi
+
+	STF_MISSING_BIN=""
+	chmod 755 $STF_PATH || fail "Couldn't chmod $STF_PATH"
+
+	# Standard system utilities
+	create_links "/bin /usr/bin /sbin /usr/sbin" "$SYSTEM_FILES"
+
+	if [ -z "${INTREE}" ]; then
+		# Special case links for standard zfs utilities
+		create_links "/bin /usr/bin /sbin /usr/sbin" "$ZFS_FILES"
+
+		# Special case links for zfs test suite utilties
+		create_links "$TESTSDIR/bin" "$ZFSTEST_FILES"
+	else
+		# Special case links for standard zfs utilities
+		DIRS="$(find "$CMDDIR" -type d \( ! -name .deps -a \
+		    ! -name .libs \) -print | tr '\n' ' ')"
+		create_links "$DIRS" "$ZFS_FILES"
+
+		# Special case links for zfs test suite utilties
+		DIRS="$(find "$TESTSDIR" -type d \( ! -name .deps -a \
+		    ! -name .libs \) -print | tr '\n' ' ')"
+		create_links "$DIRS" "$ZFSTEST_FILES"
+	fi
+
+	# Exceptions
+	ln -fs $STF_PATH/awk $STF_PATH/nawk
+	ln -fs /sbin/mkfs.ext2 $STF_PATH/newfs
+	ln -fs $STF_PATH/gzip $STF_PATH/compress
+	ln -fs $STF_PATH/gunzip $STF_PATH/uncompress
+	ln -fs $STF_PATH/exportfs $STF_PATH/share
+	ln -fs $STF_PATH/exportfs $STF_PATH/unshare
 }
 
 #
@@ -313,16 +389,19 @@ if [ "$(sudo whoami)" != "root" ]; then
 fi
 
 #
+# Constain the available binaries to a known set.
+#
+constrain_path
+
+#
 # Check if ksh exists
 #
-if [ -z "$(which ksh 2>/dev/null)" ]; then
-	fail "This test suite requires ksh."
-fi
+[ -e $STF_PATH/ksh ] || fail "This test suite requires ksh."
 
 #
 # Verify the ZFS module stack if loaded.
 #
-${SUDO} "${ZFS_SH}" &>/dev/null
+sudo "${ZFS_SH}" &>/dev/null
 
 #
 # Attempt to cleanup all previous state for a new test run.
@@ -335,7 +414,7 @@ fi
 # By default preserve any existing pools
 #
 if [ -z "${KEEP}" ]; then
-	KEEP=$(${SUDO} "${ZPOOL}" list -H -o name)
+	KEEP=$(sudo $ZPOOL list -H -o name)
 	if [ -z "${KEEP}" ]; then
 		KEEP="rpool"
 	fi
@@ -343,11 +422,14 @@ fi
 
 __ZFS_POOL_EXCLUDE="$(echo $KEEP | sed ':a;N;s/\n/ /g;ba')"
 
+. $STF_SUITE/include/default.cfg
+
 msg
 msg "--- Configuration ---"
 msg "Runfile:         $RUNFILE"
 msg "STF_TOOLS:       $STF_TOOLS"
 msg "STF_SUITE:       $STF_SUITE"
+msg "STF_PATH:        $STF_PATH"
 
 #
 # No DISKS have been provided so a basic file or loopback based devices
@@ -373,8 +455,8 @@ if [ -z "${DISKS}" ]; then
 		check_loop_utils
 
 		for TEST_FILE in ${FILES}; do
-			TEST_LOOPBACK=$(${SUDO} "${LOSETUP}" -f)
-			${SUDO} "${LOSETUP}" "${TEST_LOOPBACK}" "${TEST_FILE}" ||
+			TEST_LOOPBACK=$(sudo "${LOSETUP}" -f)
+			sudo "${LOSETUP}" "${TEST_LOOPBACK}" "${TEST_FILE}" ||
 			    fail "Failed: ${TEST_FILE} -> ${TEST_LOOPBACK}"
 			LOOPBACKS="${LOOPBACKS}${TEST_LOOPBACK} "
 			BASELOOPBACKS=$(basename "$TEST_LOOPBACK")
@@ -389,8 +471,8 @@ NUM_DISKS=$(echo "${DISKS}" | $AWK '{print NF}')
 #
 # Disable SELinux until the ZFS Test Suite has been updated accordingly.
 #
-if [ -x ${SETENFORCE} ]; then
-	${SUDO} ${SETENFORCE} permissive &>/dev/null
+if [ -x "$STF_PATH/setenforce" ]; then
+	sudo setenforce permissive &>/dev/null
 fi
 
 msg "FILEDIR:         $FILEDIR"
@@ -400,13 +482,16 @@ msg "DISKS:           $DISKS"
 msg "NUM_DISKS:       $NUM_DISKS"
 msg "FILESIZE:        $FILESIZE"
 msg "Keep pool(s):    $KEEP"
+msg "Missing util(s): $STF_MISSING_BIN"
 msg ""
 
 export STF_TOOLS
 export STF_SUITE
+export STF_PATH
 export DISKS
 export KEEP
 export __ZFS_POOL_EXCLUDE
+export PATH=$STF_PATH
 
 msg "${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -i ${STF_SUITE}"
 ${TEST_RUNNER} ${QUIET} -c "${RUNFILE}" -i "${STF_SUITE}"

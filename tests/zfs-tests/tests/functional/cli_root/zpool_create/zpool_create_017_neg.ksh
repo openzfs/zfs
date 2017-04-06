@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,7 +52,7 @@ function cleanup
 	fi
 
 	if [[ -d $TESTDIR ]]; then
-		log_must $RM -rf $TESTDIR
+		log_must rm -rf $TESTDIR
 	fi
 }
 
@@ -68,20 +68,20 @@ log_assert "'zpool create' should fail with mountpoint exists and not empty."
 log_onexit cleanup
 
 if [[ ! -d $TESTDIR ]]; then
-	log_must $MKDIR -p $TESTDIR
+	log_must mkdir -p $TESTDIR
 fi
 
 typeset -i i=0
 
 while (( i < 2 )); do
-	log_must $RM -rf $TESTDIR/*
+	log_must rm -rf $TESTDIR/*
 	if (( i == 0 )); then
-		log_must $MKDIR $TESTDIR/testdir
+		log_must mkdir $TESTDIR/testdir
 	else
-		log_must $TOUCH $TESTDIR/testfile
+		log_must touch $TESTDIR/testfile
 	fi
 
-	log_mustnot $ZPOOL create -m $TESTDIR -f $TESTPOOL $pool_dev
+	log_mustnot zpool create -m $TESTDIR -f $TESTPOOL $pool_dev
 	log_mustnot poolexists $TESTPOOL
 
 	(( i = i + 1 ))

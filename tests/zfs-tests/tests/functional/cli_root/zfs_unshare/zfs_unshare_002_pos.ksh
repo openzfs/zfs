@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -51,22 +55,22 @@ function cleanup
 	done
 
 	if mounted $TESTPOOL/$TESTCLONE; then
-		log_must $ZFS unmount $TESTDIR2
+		log_must zfs unmount $TESTDIR2
 	fi
 
 	[[ -d $TESTDIR2 ]] && \
-		log_must $RM -rf $TESTDIR2
+		log_must rm -rf $TESTDIR2
 
 	if datasetexists "$TESTPOOL/$TESTCLONE"; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTCLONE
+		log_must zfs destroy -f $TESTPOOL/$TESTCLONE
 	fi
 
 	if snapexists "$TESTPOOL/$TESTFS2@snapshot"; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS2@snapshot
+		log_must zfs destroy -f $TESTPOOL/$TESTFS2@snapshot
 	fi
 
 	if datasetexists "$TESTPOOL/$TESTFS2"; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS2
+		log_must zfs destroy -f $TESTPOOL/$TESTFS2
 	fi
 }
 
@@ -81,7 +85,7 @@ function test_legacy_unshare # <mntp> <filesystem>
         typeset mntp=$1
         typeset filesystem=$2
 
-	log_must $ZFS set sharenfs=off $filesystem
+	log_must zfs set sharenfs=off $filesystem
 	not_shared $mntp || \
 	    log_fail "'zfs set sharenfs=off' fails to make ZFS " \
 	    "filesystem $filesystem unshared."
@@ -92,7 +96,7 @@ function test_legacy_unshare # <mntp> <filesystem>
 	#
 	# Verify 'zfs unshare <filesystem>' is aware of legacy share.
 	#
-	log_mustnot $ZFS unshare $filesystem
+	log_mustnot zfs unshare $filesystem
 	is_shared $mntp || \
 	    log_fail "'zfs unshare <filesystem>' fails to be aware" \
 	    "of legacy share."
@@ -100,7 +104,7 @@ function test_legacy_unshare # <mntp> <filesystem>
 	#
 	# Verify 'zfs unshare <filesystem>' is aware of legacy share.
 	#
-	log_mustnot $ZFS unshare $mntp
+	log_mustnot zfs unshare $mntp
 	is_shared $mntp || \
 	    log_fail "'zfs unshare <mountpoint>' fails to be aware" \
 	    "of legacy share."
@@ -115,10 +119,10 @@ set -A mntp_fs \
 log_assert "Verify that 'zfs unshare [-a]' is aware of legacy share."
 log_onexit cleanup
 
-log_must $ZFS create $TESTPOOL/$TESTFS2
-log_must $ZFS snapshot $TESTPOOL/$TESTFS2@snapshot
-log_must $ZFS clone $TESTPOOL/$TESTFS2@snapshot $TESTPOOL/$TESTCLONE
-log_must $ZFS set mountpoint=$TESTDIR2 $TESTPOOL/$TESTCLONE
+log_must zfs create $TESTPOOL/$TESTFS2
+log_must zfs snapshot $TESTPOOL/$TESTFS2@snapshot
+log_must zfs clone $TESTPOOL/$TESTFS2@snapshot $TESTPOOL/$TESTCLONE
+log_must zfs set mountpoint=$TESTDIR2 $TESTPOOL/$TESTCLONE
 
 #
 # Invoke 'test_legacy_unshare' routine to verify.
@@ -131,16 +135,16 @@ while (( i < ${#mntp_fs[*]} )); do
 done
 
 
-log_note "Verify '$ZFS unshare -a' is aware of legacy share."
+log_note "Verify 'zfs unshare -a' is aware of legacy share."
 
 #
 # set the 'sharenfs' property to 'off' for each filesystem
 #
 i=0
 while (( i < ${#mntp_fs[*]} )); do
-        log_must $ZFS set sharenfs=off ${mntp_fs[((i + 1))]}
+        log_must zfs set sharenfs=off ${mntp_fs[((i + 1))]}
         not_shared ${mntp_fs[i]} || \
-                log_fail "'$ZFS set sharenfs=off' unshares file system failed."
+                log_fail "'zfs set sharenfs=off' unshares file system failed."
 
         ((i = i + 2))
 done
@@ -152,7 +156,7 @@ i=0
 while (( i < ${#mntp_fs[*]} )); do
         share_nfs ${mntp_fs[i]}
         is_shared ${mntp_fs[i]} || \
-                log_fail "'$SHARE' shares ZFS filesystem failed."
+                log_fail "'share' shares ZFS filesystem failed."
 
         ((i = i + 2))
 done
@@ -160,7 +164,7 @@ done
 #
 # Verify that 'zfs unshare -a' is aware of legacy share
 #
-log_must $ZFS unshare -a
+log_must zfs unshare -a
 
 #
 # verify ZFS filesystems are still shared
@@ -168,10 +172,10 @@ log_must $ZFS unshare -a
 i=0
 while (( i < ${#mntp_fs[*]} )); do
         is_shared ${mntp_fs[i]} || \
-            log_fail "'$ZFS  unshare -a' fails to be aware of legacy share."
+            log_fail "'zfs  unshare -a' fails to be aware of legacy share."
 
         ((i = i + 2))
 done
 
-log_pass "'$ZFS unshare [-a]' succeeds to be aware of legacy share."
+log_pass "'zfs unshare [-a]' succeeds to be aware of legacy share."
 

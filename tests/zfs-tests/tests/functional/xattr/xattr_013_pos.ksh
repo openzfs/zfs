@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,44 +45,44 @@
 
 function cleanup {
 
-	log_must $RM $TESTDIR/myfile.$$
+	log_must rm $TESTDIR/myfile.$$
 }
 
 
 log_assert "The noxattr mount option functions as expected"
 log_onexit cleanup
 
-$ZFS set 2>&1 | $GREP xattr > /dev/null
+zfs set 2>&1 | grep xattr > /dev/null
 if [ $? -ne 0 ]
 then
 	log_unsupported "noxattr mount option not supported on this release."
 fi
 
-log_must $TOUCH $TESTDIR/myfile.$$
+log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
-log_must $UMOUNT $TESTDIR
-log_must $ZFS mount -o noxattr $TESTPOOL/$TESTFS
+log_must umount $TESTDIR
+log_must zfs mount -o noxattr $TESTPOOL/$TESTFS
 
 # check that we can't perform xattr operations
-log_mustnot eval "$RUNAT $TESTDIR/myfile.$$ $CAT passwd > /dev/null 2>&1"
-log_mustnot eval "$RUNAT $TESTDIR/myfile.$$ $RM passwd > /dev/null 2>&1"
-log_mustnot eval "$RUNAT $TESTDIR/myfile.$$ $CP /etc/passwd . > /dev/null 2>&1"
+log_mustnot eval "runat $TESTDIR/myfile.$$ cat passwd > /dev/null 2>&1"
+log_mustnot eval "runat $TESTDIR/myfile.$$ rm passwd > /dev/null 2>&1"
+log_mustnot eval "runat $TESTDIR/myfile.$$ cp /etc/passwd . > /dev/null 2>&1"
 
-log_must $TOUCH $TESTDIR/new.$$
-log_mustnot eval "$RUNAT $TESTDIR/new.$$ $CP /etc/passwd . > /dev/null 2>&1"
-log_mustnot eval "$RUNAT $TESTDIR/new.$$ $RM passwd > /dev/null 2>&1"
+log_must touch $TESTDIR/new.$$
+log_mustnot eval "runat $TESTDIR/new.$$ cp /etc/passwd . > /dev/null 2>&1"
+log_mustnot eval "runat $TESTDIR/new.$$ rm passwd > /dev/null 2>&1"
 
 # now mount the filesystem again as normal
-log_must $UMOUNT $TESTDIR
-log_must $ZFS mount $TESTPOOL/$TESTFS
+log_must umount $TESTDIR
+log_must zfs mount $TESTPOOL/$TESTFS
 
 # we should still have an xattr on the first file
 verify_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 # there should be no xattr on the file we created while the fs was mounted
 # -o noxattr
-log_mustnot eval "$RUNAT $TESTDIR/new.$$ $CAT passwd > /dev/null 2>&1"
+log_mustnot eval "runat $TESTDIR/new.$$ cat passwd > /dev/null 2>&1"
 create_xattr $TESTDIR/new.$$ passwd /etc/passwd
 
 log_pass "The noxattr mount option functions as expected"

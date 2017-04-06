@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,7 +46,7 @@
 function cleanup
 {
 	if datasetexists $snap_fs; then
-		log_must $ZFS destroy $snap_fs
+		log_must zfs destroy $snap_fs
 	fi
 
 	log_must cleanup_quota
@@ -63,17 +63,17 @@ set -A params -- "-n" "-H" "-p" "-o type,name,used,quota" \
 
 typeset snap_fs=$QFS@snap
 
-log_must $ZFS set groupquota@$QGROUP=500m $QFS
+log_must zfs set groupquota@$QGROUP=500m $QFS
 mkmount_writable $QFS
-log_must user_run $QUSER1 $MKFILE 50m $QFILE
+log_must user_run $QUSER1 mkfile 50m $QFILE
 
-$SYNC
+sync
 
-log_must $ZFS snapshot $snap_fs
+log_must zfs snapshot $snap_fs
 
 for param in "${params[@]}"; do
-	log_must eval "$ZFS groupspace $param $QFS >/dev/null 2>&1"
-	log_must eval "$ZFS groupspace $param $snap_fs >/dev/null 2>&1"
+	log_must eval "zfs groupspace $param $QFS >/dev/null 2>&1"
+	log_must eval "zfs groupspace $param $snap_fs >/dev/null 2>&1"
 done
 
 log_pass "Check the zfs groupspace with all possible parameters"

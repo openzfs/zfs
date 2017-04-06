@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,7 +47,7 @@
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	[[ -f $CPATH ]] && log_must $RM $CPATH
+	[[ -f $CPATH ]] && log_must rm $CPATH
 }
 
 log_onexit cleanup
@@ -70,15 +70,15 @@ typeset vals=("off" "off" "$CPATH" "3" "on")
 typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
-	log_must $ZPOOL create -o ${props[$i]}=${vals[$i]} $TESTPOOL $disk
+	log_must zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $disk
 	RESULT=$(get_pool_prop ${props[$i]} $TESTPOOL)
 	if [[ $RESULT != ${vals[$i]} ]]
 	then
-		$ZPOOL get all $TESTPOOL
+		zpool get all $TESTPOOL
 		log_fail "Pool was created without setting the ${props[$i]} " \
 		    "property"
 	fi
-	log_must $ZPOOL destroy $TESTPOOL
+	log_must zpool destroy $TESTPOOL
 	((i = i + 1))
 done
 
@@ -86,18 +86,18 @@ done
 poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
 # pick two properties, and verify we can create with those as well
-log_must $ZPOOL create -o delegation=off -o cachefile=$CPATH $TESTPOOL $disk
+log_must zpool create -o delegation=off -o cachefile=$CPATH $TESTPOOL $disk
 RESULT=$(get_pool_prop delegation $TESTPOOL)
 if [[ $RESULT != off ]]
 then
-	$ZPOOL get all $TESTPOOL
+	zpool get all $TESTPOOL
 	log_fail "Pool created without the delegation prop."
 fi
 
 RESULT=$(get_pool_prop cachefile $TESTPOOL)
 if [[ $RESULT != $CPATH ]]
 then
-	$ZPOOL get all $TESTPOOL
+	zpool get all $TESTPOOL
 	log_fail "Pool created without the cachefile prop."
 fi
 

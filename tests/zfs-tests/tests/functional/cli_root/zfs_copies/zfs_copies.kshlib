@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -58,12 +58,12 @@ function get_used_prop
 	typeset ds=$1
 	typeset used
 
-	used=`$ZFS list -H -o used $ds`
+	used=`zfs list -H -o used $ds`
 	used=${used%[m|M]}
 	if [[ $used == *K ]]; then
 		used=0
 	fi
-	$ECHO $used
+	echo $used
 }
 
 #
@@ -102,19 +102,19 @@ function do_vol_test
 	vol_b_path=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL1
 	vol_r_path=$ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL1
 
-	log_must $ZFS create -V $VOLSIZE -o copies=$copy $vol
-	log_must $ZFS set refreservation=none $vol
+	log_must zfs create -V $VOLSIZE -o copies=$copy $vol
+	log_must zfs set refreservation=none $vol
 	block_device_wait
 
 	if [[ $type == "ufs" ]]; then
-		log_must $ECHO y | $NEWFS $vol_r_path >/dev/null 2>&1
-		log_must $MOUNT -F ufs -o rw $vol_b_path $mntp
+		log_must echo y | newfs $vol_r_path >/dev/null 2>&1
+		log_must mount -F ufs -o rw $vol_b_path $mntp
 	elif [[ $type == "ext2" ]]; then
-		log_must $ECHO y | $NEWFS $vol_r_path >/dev/null 2>&1
-		log_must $MOUNT -o rw $vol_b_path $mntp
+		log_must echo y | newfs $vol_r_path >/dev/null 2>&1
+		log_must mount -o rw $vol_b_path $mntp
 	else
-		log_must $ZPOOL create $TESTPOOL1 $vol_b_path
-		log_must $ZFS create $TESTPOOL1/$TESTFS1
+		log_must zpool create $TESTPOOL1 $vol_b_path
+		log_must zfs create $TESTPOOL1/$TESTFS1
 	fi
 
 	((nfilesize = copy * ${FILESIZE%m}))
@@ -122,11 +122,11 @@ function do_vol_test
 	((target_size = pre_used + nfilesize))
 
 	if [[ $type == "ufs" ]]; then
-		log_must $MKFILE $FILESIZE $mntp/$FILE
+		log_must mkfile $FILESIZE $mntp/$FILE
 	elif [[ $type == "ext2" ]]; then
-		log_must $MKFILE $FILESIZE $mntp/$FILE
+		log_must mkfile $FILESIZE $mntp/$FILE
 	else
-		log_must $MKFILE $FILESIZE /$TESTPOOL1/$TESTFS1/$FILE
+		log_must mkfile $FILESIZE /$TESTPOOL1/$TESTFS1/$FILE
 	fi
 
 	post_used=$(get_used_prop $vol)
@@ -142,12 +142,12 @@ function do_vol_test
 	fi
 
 	if [[ $type == "ufs" ]]; then
-		$UMOUNT $mntp
+		umount $mntp
 	elif [[ $type == "ext2" ]]; then
-		$UMOUNT $mntp
+		umount $mntp
 	else
-		log_must $ZPOOL destroy $TESTPOOL1
+		log_must zpool destroy $TESTPOOL1
 	fi
 
-	log_must $ZFS destroy $vol
+	log_must zfs destroy $vol
 }

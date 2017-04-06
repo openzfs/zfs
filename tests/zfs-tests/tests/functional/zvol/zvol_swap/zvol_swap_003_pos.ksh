@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,16 +48,16 @@ verify_runnable "global"
 
 function cleanup
 {
-	[[ -f /tmp/$TESTFILE ]] && log_must $RM -f /tmp/$TESTFILE
-	[[ -f $NEW_VFSTAB_FILE ]] && log_must $RM -f $NEW_VFSTAB_FILE
+	[[ -f /tmp/$TESTFILE ]] && log_must rm -f /tmp/$TESTFILE
+	[[ -f $NEW_VFSTAB_FILE ]] && log_must rm -f $NEW_VFSTAB_FILE
 	[[ -f $PREV_VFSTAB_FILE ]] && \
-	    log_must $MV $PREV_VFSTAB_FILE $VFSTAB_FILE
-	[[ -f $PREV_VFSTAB_FILE ]] && $RM -f $PREV_VFSTAB_FILE
+	    log_must mv $PREV_VFSTAB_FILE $VFSTAB_FILE
+	[[ -f $PREV_VFSTAB_FILE ]] && rm -f $PREV_VFSTAB_FILE
 
-	log_must $SWAPADD $VFSTAB_FILE
+	log_must swapadd $VFSTAB_FILE
 
         if is_swap_inuse $voldev ; then
-		log_must $SWAP -d $voldev
+		log_must swap -d $voldev
 	fi
 
 }
@@ -72,23 +72,23 @@ VFSTAB_FILE=/etc/vfstab
 NEW_VFSTAB_FILE=/var/tmp/zvol_vfstab.$$
 PREV_VFSTAB_FILE=/var/tmp/zvol_vfstab.PREV.$$
 
-[[ -f $NEW_VFSTAB_FILE ]] && $CP /dev/null $NEW_VFSTAB_FILE
+[[ -f $NEW_VFSTAB_FILE ]] && cp /dev/null $NEW_VFSTAB_FILE
 
-$AWK '{if ($4 != "swap") print $1}' /etc/vfstab > $NEW_VFSTAB_FILE
-$ECHO "$voldev\t-\t-\tswap\t-\tno\t-"  >> $NEW_VFSTAB_FILE
+awk '{if ($4 != "swap") print $1}' /etc/vfstab > $NEW_VFSTAB_FILE
+echo "$voldev\t-\t-\tswap\t-\tno\t-"  >> $NEW_VFSTAB_FILE
 
 # Copy off the original vfstab, and run swapadd on the newly constructed one.
-log_must $CP $VFSTAB_FILE $PREV_VFSTAB_FILE
-log_must $CP $NEW_VFSTAB_FILE $VFSTAB_FILE
-log_must $SWAPADD $VFSTAB_FILE
+log_must cp $VFSTAB_FILE $PREV_VFSTAB_FILE
+log_must cp $NEW_VFSTAB_FILE $VFSTAB_FILE
+log_must swapadd $VFSTAB_FILE
 
-log_must $FILE_WRITE -o create -f /tmp/$TESTFILE \
+log_must file_write -o create -f /tmp/$TESTFILE \
     -b $BLOCKSZ -c $NUM_WRITES -d $DATA
 
 [[ ! -f /tmp/$TESTFILE ]] &&
     log_fail "Unable to create file under /tmp"
 
-filesize=`$LS -l /tmp/$TESTFILE | $AWK '{print $5}'`
+filesize=`ls -l /tmp/$TESTFILE | awk '{print $5}'`
 tf_size=$((BLOCKSZ * NUM_WRITES))
 (($tf_size != $filesize)) && \
     log_fail "testfile is ($filesize bytes), expected ($tf_size bytes)"

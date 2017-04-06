@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,19 +47,19 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $TESTPOOL/$TESTCTR@snap-new ; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTCTR@snap-new
+		log_must zfs destroy -f $TESTPOOL/$TESTCTR@snap-new
 	fi
 
 	if datasetexists $TESTPOOL/$TESTCTR@snap ; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTCTR@snap
+		log_must zfs destroy -f $TESTPOOL/$TESTCTR@snap
 	fi
 
 	if datasetexists $TESTPOOL@snap-new ; then
-		log_must $ZFS destroy -f $TESTPOOL@snap-new
+		log_must zfs destroy -f $TESTPOOL@snap-new
 	fi
 
 	if datasetexists $TESTPOOL@snap ; then
-		log_must $ZFS destroy -f $TESTPOOL@snap
+		log_must zfs destroy -f $TESTPOOL@snap
 	fi
 }
 
@@ -68,17 +68,17 @@ log_assert "zfs rename -r can rename snapshot when child datasets" \
 
 log_onexit cleanup
 
-log_must $ZFS snapshot $TESTPOOL/$TESTCTR@snap
-log_must $ZFS rename -r $TESTPOOL/$TESTCTR@snap $TESTPOOL/$TESTCTR@snap-new
+log_must zfs snapshot $TESTPOOL/$TESTCTR@snap
+log_must zfs rename -r $TESTPOOL/$TESTCTR@snap $TESTPOOL/$TESTCTR@snap-new
 log_must datasetexists $TESTPOOL/$TESTCTR@snap-new
 
-log_must $ZFS snapshot $TESTPOOL@snap
-log_must $ZFS rename -r $TESTPOOL@snap $TESTPOOL@snap-new
+log_must zfs snapshot $TESTPOOL@snap
+log_must zfs rename -r $TESTPOOL@snap $TESTPOOL@snap-new
 log_must datasetexists $TESTPOOL/$TESTCTR@snap-new
 log_must datasetexists $TESTPOOL@snap-new
 
-log_must $ZFS destroy -f $TESTPOOL/$TESTCTR@snap-new
-log_must $ZFS destroy -f $TESTPOOL@snap-new
+log_must zfs destroy -f $TESTPOOL/$TESTCTR@snap-new
+log_must zfs destroy -f $TESTPOOL@snap-new
 
 log_pass "Verify zfs rename -r passed when child datasets" \
 	"don't have a snapshot of the given name."

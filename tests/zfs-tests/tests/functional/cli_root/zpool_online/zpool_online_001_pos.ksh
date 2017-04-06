@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -48,7 +53,7 @@ function cleanup
 	# Ensure we don't leave disks in temporary online state (-t)
 	#
 	for disk in $DISKLIST; do
-		log_must $ZPOOL online $TESTPOOL $disk
+		log_must zpool online $TESTPOOL $disk
 		check_state $TESTPOOL $disk "online"
 		if [[ $? != 0 ]]; then
 			log_fail "Unable to online $disk"
@@ -70,13 +75,13 @@ typeset -i i=0
 for disk in $DISKLIST; do
 	i=0
 	while [[ $i -lt ${#args[*]} ]]; do
-		log_must $ZPOOL offline $TESTPOOL $disk
+		log_must zpool offline $TESTPOOL $disk
 		check_state $TESTPOOL $disk "offline"
 		if [[ $? != 0 ]]; then
 			log_fail "$disk of $TESTPOOL did not match offline state"
 		fi
 
-		log_must $ZPOOL online ${args[$i]} $TESTPOOL $disk
+		log_must zpool online ${args[$i]} $TESTPOOL $disk
 		check_state $TESTPOOL $disk "online"
 		if [[ $? != 0 ]]; then
 			log_fail "$disk of $TESTPOOL did not match online state"
@@ -95,7 +100,7 @@ for disk in $DISKLIST; do
         i=0
         while [[ $i -lt $iters ]]; do
 		index=`expr $RANDOM % ${#args[*]}`
-                log_must $ZPOOL online ${args[$index]} $TESTPOOL $disk
+                log_must zpool online ${args[$index]} $TESTPOOL $disk
                 check_state $TESTPOOL $disk "online"
                 if [[ $? != 0 ]]; then
                         log_fail "$disk of $TESTPOOL did not match online state"

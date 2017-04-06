@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.kshlib
 
@@ -86,10 +91,10 @@ additional_setup
 
 typeset -i i=0
 while ((i < ${#bad_dataset[*]} )); do
-        log_mustnot $ZFS rename ${bad_dataset[i]} ${bad_dataset[((i + 1))]}
+        log_mustnot zfs rename ${bad_dataset[i]} ${bad_dataset[((i + 1))]}
         log_must datasetexists ${bad_dataset[i]}
 
-        log_mustnot $ZFS rename -p ${bad_dataset[i]} ${bad_dataset[((i + 1))]}
+        log_mustnot zfs rename -p ${bad_dataset[i]} ${bad_dataset[((i + 1))]}
         log_must datasetexists ${bad_dataset[i]}
 
 	((i = i + 2))
@@ -97,10 +102,10 @@ done
 
 #verify 'rename -p' can not work with snapshots
 
-log_mustnot $ZFS rename -p $TESTPOOL/$TESTFS@snapshot \
+log_mustnot zfs rename -p $TESTPOOL/$TESTFS@snapshot \
 		$TESTPOOL/$TESTFS@snapshot2
 log_must datasetexists $TESTPOOL/$TESTFS@snapshot
-log_mustnot $ZFS rename -p $TESTPOOL/$TESTFS@snapshot \
+log_mustnot zfs rename -p $TESTPOOL/$TESTFS@snapshot \
 		$TESTPOOL/$TESTFS/$TESTFS@snapshot2
 log_must datasetexists $TESTPOOL/$TESTFS@snapshot
 

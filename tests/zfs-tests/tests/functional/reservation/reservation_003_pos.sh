@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -59,7 +59,7 @@ function cleanup
 	log_must zero_reservation $TESTPOOL/$TESTFS
 
 	for obj in $OBJ_LIST; do
-	datasetexists $obj && log_must $ZFS destroy -f $obj
+	datasetexists $obj && log_must zfs destroy -f $obj
 	done
 }
 
@@ -96,7 +96,7 @@ function multiple_resv { #dataset
 
 		((resv_size_set = resv_size * i))
 
-		log_must $ZFS set reservation=$resv_size_set $dataset
+		log_must zfs set reservation=$resv_size_set $dataset
 
 		resv_size_get=`get_prop reservation $dataset`
 		if [[ $resv_size_set != $resv_size_get ]]; then
@@ -121,9 +121,9 @@ else
 	sparse_vol_set_size=$(floor_volsize $sparse_vol_set_size)
 
 
-	log_must $ZFS create -V $vol_set_size $TESTPOOL/$TESTVOL
-	log_must $ZFS set reservation=none $TESTPOOL/$TESTVOL
-	log_must $ZFS create -s -V $sparse_vol_set_size $TESTPOOL/$TESTVOL2
+	log_must zfs create -V $vol_set_size $TESTPOOL/$TESTVOL
+	log_must zfs set reservation=none $TESTPOOL/$TESTVOL
+	log_must zfs create -s -V $sparse_vol_set_size $TESTPOOL/$TESTVOL2
 fi
 
 for obj in $TESTPOOL/$TESTFS $OBJ_LIST ; do

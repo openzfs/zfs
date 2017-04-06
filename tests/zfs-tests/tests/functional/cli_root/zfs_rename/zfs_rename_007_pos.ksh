@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,12 +47,12 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $TESTPOOL/$TESTFS ; then
-		log_must $ZFS destroy -Rf $TESTPOOL/$TESTFS
+		log_must zfs destroy -Rf $TESTPOOL/$TESTFS
 	fi
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
-	$RM -f $SRC_FILE $DST_FILE
+	rm -f $SRC_FILE $DST_FILE
 }
 
 function target_obj
@@ -78,78 +78,78 @@ log_onexit cleanup
 BS=512 ; CNT=2048
 SRC_FILE=/tmp/srcfile.$$
 DST_FILE=/tmp/dstfile.$$
-log_must $DD if=/dev/urandom of=$SRC_FILE bs=$BS count=$CNT
+log_must dd if=/dev/urandom of=$SRC_FILE bs=$BS count=$CNT
 
 fs=$TESTPOOL/$TESTFS/fs.$$
 fsclone=$TESTPOOL/$TESTFS/fsclone.$$
-log_must $ZFS create $fs
+log_must zfs create $fs
 
 obj=$(target_obj $fs)
-log_must $CP $SRC_FILE $obj
+log_must cp $SRC_FILE $obj
 
 snap=${fs}@snap.$$
-log_must $ZFS snapshot $snap
-log_must $ZFS clone $snap $fsclone
+log_must zfs snapshot $snap
+log_must zfs clone $snap $fsclone
 
 # Rename dataset & clone
 #
-log_must $ZFS rename $fs ${fs}-new
-log_must $ZFS rename $fsclone ${fsclone}-new
+log_must zfs rename $fs ${fs}-new
+log_must zfs rename $fsclone ${fsclone}-new
 
 # Compare source file and target file
 #
 obj=$(target_obj ${fs}-new)
-log_must $DIFF $SRC_FILE $obj
+log_must diff $SRC_FILE $obj
 obj=$(target_obj ${fsclone}-new)
-log_must $DIFF $SRC_FILE $obj
+log_must diff $SRC_FILE $obj
 
 # Rename snapshot and re-clone dataset
 #
-log_must $ZFS rename ${fs}-new $fs
-log_must $ZFS rename $snap ${snap}-new
-log_must $ZFS clone ${snap}-new $fsclone
+log_must zfs rename ${fs}-new $fs
+log_must zfs rename $snap ${snap}-new
+log_must zfs clone ${snap}-new $fsclone
 
 # Compare source file and target file
 #
 obj=$(target_obj $fsclone)
-log_must $DIFF $SRC_FILE $obj
+log_must diff $SRC_FILE $obj
 
 if is_global_zone; then
 	vol=$TESTPOOL/$TESTFS/vol.$$ ;	volclone=$TESTPOOL/$TESTFS/volclone.$$
-	log_must $ZFS create -V 100M $vol
+	log_must zfs create -V 100M $vol
 	block_device_wait
 
 	obj=$(target_obj $vol)
-	log_must $DD if=$SRC_FILE of=$obj bs=$BS count=$CNT
+	log_must dd if=$SRC_FILE of=$obj bs=$BS count=$CNT
 
 	snap=${vol}@snap.$$
-	log_must $ZFS snapshot $snap
-	log_must $ZFS clone $snap $volclone
+	log_must zfs snapshot $snap
+	log_must zfs clone $snap $volclone
 	block_device_wait
 
 	# Rename dataset & clone
-	log_must $ZFS rename $vol ${vol}-new
-	log_must $ZFS rename $volclone ${volclone}-new
+	log_must zfs rename $vol ${vol}-new
+	log_must zfs rename $volclone ${volclone}-new
 	block_device_wait
 
 	# Compare source file and target file
 	obj=$(target_obj ${vol}-new)
-	log_must $DD if=$obj of=$DST_FILE bs=$BS count=$CNT
-	log_must $DIFF $SRC_FILE $DST_FILE
+	log_must dd if=$obj of=$DST_FILE bs=$BS count=$CNT
+	log_must diff $SRC_FILE $DST_FILE
 	obj=$(target_obj ${volclone}-new)
-	log_must $DD if=$obj of=$DST_FILE bs=$BS count=$CNT
-	log_must $DIFF $SRC_FILE $DST_FILE
+	log_must dd if=$obj of=$DST_FILE bs=$BS count=$CNT
+	log_must diff $SRC_FILE $DST_FILE
 
 	# Rename snapshot and re-clone dataset
-	log_must $ZFS rename ${vol}-new $vol
-	log_must $ZFS rename $snap ${snap}-new
-	log_must $ZFS clone ${snap}-new $volclone
+	log_must zfs rename ${vol}-new $vol
+	log_must zfs rename $snap ${snap}-new
+	log_must zfs clone ${snap}-new $volclone
 	block_device_wait
 
 	# Compare source file and target file
 	obj=$(target_obj $volclone)
-	log_must $DD if=$obj of=$DST_FILE bs=$BS count=$CNT
-	log_must $DIFF $SRC_FILE $DST_FILE
+	log_must dd if=$obj of=$DST_FILE bs=$BS count=$CNT
+	log_must diff $SRC_FILE $DST_FILE
 fi
 
 log_pass "Rename dataset, the data haven't changed passed."

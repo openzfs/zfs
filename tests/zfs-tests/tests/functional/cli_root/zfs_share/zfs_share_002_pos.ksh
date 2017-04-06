@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -58,16 +58,16 @@ log_assert "Verify that "zfs share" with a non-existent file system fails."
 
 log_onexit cleanup
 
-log_mustnot $ZFS list $TESTPOOL/$NONEXISTFSNAME
+log_mustnot zfs list $TESTPOOL/$NONEXISTFSNAME
 
-$ZFS share $TESTPOOL/$NONEXISTFSNAME
+zfs share $TESTPOOL/$NONEXISTFSNAME
 ret=$?
 (( ret == 1)) || \
-	log_fail "'$ZFS share $TESTPOOL/$NONEXISTFSNAME' " \
+	log_fail "'zfs share $TESTPOOL/$NONEXISTFSNAME' " \
 		"failed with an unexpected return code of $ret."
 
 log_note "Make sure the file system $TESTPOOL/$NONEXISTFSNAME is unshared"
 not_shared $TESTPOOL/$NONEXISTFSNAME || \
 	log_fail "File system $TESTPOOL/$NONEXISTFSNAME is unexpectedly shared."
 
-log_pass "'$ZFS share' with a non-existent file system fails."
+log_pass "'zfs share' with a non-existent file system fails."

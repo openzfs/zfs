@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,9 +46,9 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $spool && log_must $ZPOOL destroy $spool
-	[[ -f $VDEV0 ]] && log_must $RM -f $VDEV0
-	[[ -f $TMPFILE ]] && log_must $RM -f $TMPFILE
+	datasetexists $spool && log_must zpool destroy $spool
+	[[ -f $VDEV0 ]] && log_must rm -f $VDEV0
+	[[ -f $TMPFILE ]] && log_must rm -f $TMPFILE
 }
 
 log_assert "zpool history limitation test."
@@ -58,39 +58,39 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 (( $? != 0 )) && log_fail "get_prop mountpoint $TESTPOOL"
 
 VDEV0=$mntpnt/vdev0
-log_must $MKFILE $MINVDEVSIZE $VDEV0
+log_must mkfile $MINVDEVSIZE $VDEV0
 
 spool=smallpool.$$; sfs=smallfs.$$
-log_must $ZPOOL create $spool $VDEV0
-log_must $ZFS create $spool/$sfs
+log_must zpool create $spool $VDEV0
+log_must zfs create $spool/$sfs
 
-typeset -i orig_count=$($ZPOOL history $spool | $WC -l)
-typeset orig_md5=$($ZPOOL history $spool | $HEAD -2 | $MD5SUM | \
-    $AWK '{print $1}')
+typeset -i orig_count=$(zpool history $spool | wc -l)
+typeset orig_md5=$(zpool history $spool | head -2 | md5sum | \
+    awk '{print $1}')
 
 typeset -i i=0
 while ((i < 300)); do
-	$ZFS set compression=off $spool/$sfs
-	$ZFS set compression=on $spool/$sfs
-	$ZFS set compression=off $spool/$sfs
-	$ZFS set compression=on $spool/$sfs
-	$ZFS set compression=off $spool/$sfs
+	zfs set compression=off $spool/$sfs
+	zfs set compression=on $spool/$sfs
+	zfs set compression=off $spool/$sfs
+	zfs set compression=on $spool/$sfs
+	zfs set compression=off $spool/$sfs
 
 	((i += 1))
 done
 
 TMPFILE=/tmp/spool.$$
-$ZPOOL history $spool >$TMPFILE
-typeset -i entry_count=$($WC -l $TMPFILE | $AWK '{print $1}')
-typeset final_md5=$($HEAD -2 $TMPFILE | $MD5SUM | $AWK '{print $1}')
+zpool history $spool >$TMPFILE
+typeset -i entry_count=$(wc -l $TMPFILE | awk '{print $1}')
+typeset final_md5=$(head -2 $TMPFILE | md5sum | awk '{print $1}')
 
-$GREP 'zpool create' $TMPFILE >/dev/null 2>&1 ||
+grep 'zpool create' $TMPFILE >/dev/null 2>&1 ||
     log_fail "'zpool create' was not found in pool history"
 
-$GREP 'zfs create' $TMPFILE >/dev/null 2>&1 &&
+grep 'zfs create' $TMPFILE >/dev/null 2>&1 &&
     log_fail "'zfs create' was found in pool history"
 
-$GREP 'zfs set compress' $TMPFILE >/dev/null 2>&1 ||
+grep 'zfs set compress' $TMPFILE >/dev/null 2>&1 ||
     log_fail "'zfs set compress' was found in pool history"
 
 # Verify that the creation of the pool was preserved in the history.

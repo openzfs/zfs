@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -47,18 +51,18 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $snap2 $snap1; do
-		datasetexists $snap && log_must $ZFS destroy -rf $snap
+		datasetexists $snap && log_must zfs destroy -rf $snap
 	done
 	for file in $fbackup1 $fbackup2 $mntpnt/file1 $mntpnt/file2; do
-		[[ -f $file ]] && log_must $RM -f $file
+		[[ -f $file ]] && log_must rm -f $file
 	done
 
 	if is_global_zone; then
 		datasetexists $TESTPOOL/$TESTFS/$TESTFS1 && \
-			log_must $ZFS destroy -rf $TESTPOOL/$TESTFS/$TESTFS1
+			log_must zfs destroy -rf $TESTPOOL/$TESTFS/$TESTFS1
 	else
 		datasetexists $TESTPOOL/${ZONE_CTR}0 && \
-			log_must $ZFS destroy -rf $TESTPOOL/${ZONE_CTR}0
+			log_must zfs destroy -rf $TESTPOOL/${ZONE_CTR}0
 	fi
 
 }
@@ -75,30 +79,30 @@ fbackup1=/var/tmp/fbackup1.$$
 fbackup2=/var/tmp/fbackup2.$$
 
 datasetexists $ancestor_fs || \
-	log_must $ZFS create $ancestor_fs
-log_must $ZFS create $fs
+	log_must zfs create $ancestor_fs
+log_must zfs create $fs
 
 mntpnt=$(get_prop mountpoint $fs) || log_fail "get_prop mountpoint $fs"
-log_must $MKFILE 10m $mntpnt/file1
-log_must $ZFS snapshot $snap1
-log_must $MKFILE 10m $mntpnt/file2
-log_must $ZFS snapshot $snap2
+log_must mkfile 10m $mntpnt/file1
+log_must zfs snapshot $snap1
+log_must mkfile 10m $mntpnt/file2
+log_must zfs snapshot $snap2
 
-log_must eval "$ZFS send $snap1 > $fbackup1"
-log_must eval "$ZFS send $snap2 > $fbackup2"
+log_must eval "zfs send $snap1 > $fbackup1"
+log_must eval "zfs send $snap2 > $fbackup2"
 
 log_note "Verify 'zfs receive -d' succeed and create ancestor filesystem \
 	 if it did not exist. "
-log_must $ZFS destroy -rf $ancestor_fs
-log_must eval "$ZFS receive -d $TESTPOOL < $fbackup1"
+log_must zfs destroy -rf $ancestor_fs
+log_must eval "zfs receive -d $TESTPOOL < $fbackup1"
 is_global_zone || ancestor_fs=$TESTPOOL/${ZONE_CTR}0/$TESTFS
 datasetexists $ancestor_fs || \
 	log_fail "ancestor filesystem is not created"
 
 log_note "Verify 'zfs receive -d' still succeed if ancestor filesystem exists"
 is_global_zone || fs=$TESTPOOL/${ZONE_CTR}0/$TESTFS/$TESTFS1
-log_must $ZFS destroy -rf $fs
-log_must eval "$ZFS receive -d $TESTPOOL < $fbackup2"
+log_must zfs destroy -rf $fs
+log_must eval "zfs receive -d $TESTPOOL < $fbackup2"
 
 log_pass "'zfs recv -d <fs>' should succeed no matter ancestor filesystem \
 	exists."

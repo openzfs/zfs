@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,7 +55,7 @@ function _check_used # dataset
 function check_used # dataset
 {
 	typeset dataset=$1
-	for child in $($ZFS list -rH -t filesystem,volume -o name $dataset)
+	for child in $(zfs list -rH -t filesystem,volume -o name $dataset)
 	do
 		_check_used $child
 	done
@@ -66,7 +66,7 @@ function check_usedbychildren # dataset
 	typeset dataset=$1
 	typeset -i usedbychildren_sum=0
 	typeset -i parent_usedbychildren=0
-	for child in $($ZFS list -rH -t filesystem,volume -o name $dataset)
+	for child in $(zfs list -rH -t filesystem,volume -o name $dataset)
 	do
 		if [[ "$(get_prop type $child)" == "snapshot" ]]; then
 			continue
@@ -120,7 +120,7 @@ function _check_usedbydataset # dataset
 function check_usedbydataset # dataset
 {
 	typeset dataset=$1
-	for child in $($ZFS list -rH -t filesystem,volume -o name $dataset)
+	for child in $(zfs list -rH -t filesystem,volume -o name $dataset)
 	do
 		_check_usedbydataset $child
 	done
@@ -146,7 +146,7 @@ function _check_usedbyrefreservation # dataset
 function check_usedbyrefreservation # dataset
 {
 	typeset dataset=$1
-	for child in $($ZFS list -rH -t filesystem,volume -o name $dataset)
+	for child in $(zfs list -rH -t filesystem,volume -o name $dataset)
 	do
 		_check_usedbyrefreservation $child
 	done
@@ -157,7 +157,7 @@ function check_usedbysnapshots # dataset
 	typeset dataset=$1
 	typeset -i usedbysnapshots_sum=0
 	typeset -i parent_usedbysnapshots=0
-	for child in $($ZFS list -rH -t filesystem,volume,snapshot -o name $dataset)
+	for child in $(zfs list -rH -t filesystem,volume,snapshot -o name $dataset)
 	do
 		# parent
 		if [[ "$child" == "$dataset" ]]; then

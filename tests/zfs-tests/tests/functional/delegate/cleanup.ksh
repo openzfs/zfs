@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -37,8 +37,8 @@ cleanup_user_group
 if ! is_linux; then
 	# restore the state of svc:/network/nis/client:default
 	if [[ -e $NISSTAFILE ]]; then
-		log_must $SVCADM enable svc:/network/nis/client:default
-		log_must $RM -f $NISSTAFILE
+		log_must svcadm enable svc:/network/nis/client:default
+		log_must rm -f $NISSTAFILE
 	fi
 fi
 

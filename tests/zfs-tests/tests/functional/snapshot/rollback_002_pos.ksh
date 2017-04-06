@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -53,14 +53,14 @@ function cleanup
 {
 	snapexists $SNAPFS.1
 	[[ $? -eq 0 ]] && \
-		log_must $ZFS destroy $SNAPFS.1
+		log_must zfs destroy $SNAPFS.1
 
 	snapexists $SNAPFS
 	[[ $? -eq 0 ]] && \
-		log_must $ZFS destroy $SNAPFS
+		log_must zfs destroy $SNAPFS
 
 	[[ -e $TESTDIR ]] && \
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 }
 
 log_assert "Verify rollback is with respect to latest snapshot."
@@ -68,65 +68,65 @@ log_assert "Verify rollback is with respect to latest snapshot."
 log_onexit cleanup
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 
 typeset -i COUNT=10
 
 log_note "Populate the $TESTDIR directory (prior to first snapshot)"
 typeset -i i=1
 while [[ $i -le $COUNT ]]; do
-	log_must $FILE_WRITE -o create -f $TESTDIR/original_file$i \
+	log_must file_write -o create -f $TESTDIR/original_file$i \
 	   -b $BLOCKSZ -c $NUM_WRITES -d $i
 
 	(( i = i + 1 ))
 done
 
-log_must $ZFS snapshot $SNAPFS
+log_must zfs snapshot $SNAPFS
 
-FILE_COUNT=`$LS -Al $SNAPDIR | $GREP -v "total" | wc -l`
+FILE_COUNT=`ls -Al $SNAPDIR | grep -v "total" | wc -l`
 if [[ $FILE_COUNT -ne $COUNT ]]; then
-        $LS -Al $SNAPDIR
+        ls -Al $SNAPDIR
         log_fail "AFTER: $SNAPFS contains $FILE_COUNT files(s)."
 fi
 
 log_note "Populate the $TESTDIR directory (prior to second snapshot)"
 typeset -i i=1
 while [[ $i -le $COUNT ]]; do
-        log_must $FILE_WRITE -o create -f $TESTDIR/afterfirst_file$i \
+        log_must file_write -o create -f $TESTDIR/afterfirst_file$i \
            -b $BLOCKSZ -c $NUM_WRITES -d $i
 
         (( i = i + 1 ))
 done
 
-log_must $ZFS snapshot $SNAPFS.1
+log_must zfs snapshot $SNAPFS.1
 
 log_note "Populate the $TESTDIR directory (Post second snapshot)"
 typeset -i i=1
 while [[ $i -le $COUNT ]]; do
-        log_must $FILE_WRITE -o create -f $TESTDIR/aftersecond_file$i \
+        log_must file_write -o create -f $TESTDIR/aftersecond_file$i \
            -b $BLOCKSZ -c $NUM_WRITES -d $i
 
         (( i = i + 1 ))
 done
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/original_file* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/original_file* > /dev/null 2>&1
 
 #
 # Now rollback to latest snapshot
 #
-log_must $ZFS rollback $SNAPFS.1
+log_must zfs rollback $SNAPFS.1
 
-FILE_COUNT=`$LS -Al $TESTDIR/aftersecond* 2> /dev/null \
-    | $GREP -v "total" | wc -l`
+FILE_COUNT=`ls -Al $TESTDIR/aftersecond* 2> /dev/null \
+    | grep -v "total" | wc -l`
 if [[ $FILE_COUNT -ne 0 ]]; then
-        $LS -Al $TESTDIR
+        ls -Al $TESTDIR
         log_fail "$TESTDIR contains $FILE_COUNT aftersecond* files(s)."
 fi
 
-FILE_COUNT=`$LS -Al $TESTDIR/original* $TESTDIR/afterfirst*| $GREP -v "total" | wc -l`
+FILE_COUNT=`ls -Al $TESTDIR/original* $TESTDIR/afterfirst*| grep -v "total" | wc -l`
 if [[ $FILE_COUNT -ne 20 ]]; then
-        $LS -Al $TESTDIR
+        ls -Al $TESTDIR
         log_fail "$TESTDIR contains $FILE_COUNT original* files(s)."
 fi
 

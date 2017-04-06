@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -45,7 +49,7 @@ set -A sharesmb_prop "off" "on"
 
 function cleanup
 {
-	log_must $ZFS destroy -rR $CS_FS
+	log_must zfs destroy -rR $CS_FS
 }
 
 function assert_unmounted
@@ -68,21 +72,21 @@ CS_FS=$TESTPOOL/$TESTFS/cs_fs.$$
 oldmpt=$TESTDIR/old_cs_fs.$$
 newmpt=$TESTDIR/new_cs_fs.$$
 
-log_must $ZFS create -o canmount=noauto -o mountpoint=$oldmpt $CS_FS
+log_must zfs create -o canmount=noauto -o mountpoint=$oldmpt $CS_FS
 assert_unmounted
 
 for n in ${sharenfs_prop[@]}; do
-	log_must $ZFS set sharenfs="$n" $CS_FS
+	log_must zfs set sharenfs="$n" $CS_FS
 	assert_unmounted
 	for s in ${sharesmb_prop[@]}; do
-		log_must $ZFS set sharesmb="$s" $CS_FS
+		log_must zfs set sharesmb="$s" $CS_FS
 		assert_unmounted
 
 		mntpt=$(get_prop mountpoint $CS_FS)
 		if [[ "$mntpt" == "$oldmpt" ]]; then
-			log_must $ZFS set mountpoint="$newmpt" $CS_FS
+			log_must zfs set mountpoint="$newmpt" $CS_FS
 		else
-			log_must $ZFS set mountpoint="$oldmpt" $CS_FS
+			log_must zfs set mountpoint="$oldmpt" $CS_FS
 		fi
 		assert_unmounted
 	done

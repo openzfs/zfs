@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,13 +55,13 @@ function cleanup
 		ismounted $TESTDIR
 		((  $? == 0 )) && \
 			log_must $UNMOUNT $TESTDIR
-		log_must $RM -rf $TESTDIR
+		log_must rm -rf $TESTDIR
 	fi
 
 	typeset -i i=0
 	while (( $i < ${#datasets[*]} )); do
 		datasetexists ${datasets[i]} && \
-			log_must $ZFS destroy ${datasets[i]}
+			log_must zfs destroy ${datasets[i]}
 		(( i = i + 1 ))
 	done
 
@@ -78,12 +78,12 @@ log_onexit cleanup
 typeset cwd=""
 
 create_pool "$TESTPOOL" "$DISK"
-log_must $ZFS create $TESTPOOL/$TESTFS
-log_must $MKDIR -p $TESTDIR
-log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
-log_must $ZFS create $TESTPOOL/$TESTCTR
-log_must $ZFS create $TESTPOOL/$TESTCTR/$TESTFS1
-log_must $ZFS create -V $VOLSIZE $TESTPOOL/$TESTVOL
+log_must zfs create $TESTPOOL/$TESTFS
+log_must mkdir -p $TESTDIR
+log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+log_must zfs create $TESTPOOL/$TESTCTR
+log_must zfs create $TESTPOOL/$TESTCTR/$TESTFS1
+log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
 
 typeset -i i=0
 while (( $i < ${#datasets[*]} )); do
@@ -98,10 +98,10 @@ log_note "'zpool destroy' without '-f' will fail " \
 
 for dir in $TESTDIR /$TESTPOOL/$TESTCTR /$TESTPOOL/$TESTCTR/$TESTFS1 ; do
 	log_must cd $dir
-	log_mustnot $ZPOOL destroy $TESTPOOL
+	log_mustnot zpool destroy $TESTPOOL
 
 	# Need mount here, otherwise some dataset may be unmounted.
-	log_must $ZFS mount -a
+	log_must zfs mount -a
 
 	i=0
 	while (( i < ${#datasets[*]} )); do

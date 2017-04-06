@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,24 +48,24 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $RM -rf $TESTDIR/*
+	log_must rm -rf $TESTDIR/*
 }
 
 log_assert "ZFS can handle race directory rename operation."
 
 log_onexit cleanup
 
-$CD $TESTDIR
-$MKDIR -p 1/2/3/4/5 a/b/c/d/e
+cd $TESTDIR
+mkdir -p 1/2/3/4/5 a/b/c/d/e
 
 $RENAME_DIRS &
 
-$SLEEP 500
+sleep 500
 typeset -i retval=1
-$PGREP $RENAME_DIRS >/dev/null 2>&1
+pgrep $RENAME_DIRS >/dev/null 2>&1
 retval=$?
 if (( $retval == 0 )); then
-	$PKILL -9 $RENAME_DIRS >/dev/null 2>&1
+	pkill -9 $RENAME_DIRS >/dev/null 2>&1
 fi
 
 log_pass "ZFS handle race directory rename operation as expected."

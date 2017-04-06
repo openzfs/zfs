@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -47,19 +51,19 @@ set -A neg_opt "$TESTPOOL/$TESTCTR" "$TESTPOOL/$TESTVOL" "-t $TESTPOOL" \
 
 function cleanup
 {
-	datasetexists $clone && log_must $ZFS destroy $clone
-	datasetexists $snap && log_must $ZFS destroy $snap
+	datasetexists $clone && log_must zfs destroy $clone
+	datasetexists $snap && log_must zfs destroy $snap
 }
 
 log_assert "Verify 'zpool history' can deal with non-existent pools and " \
 	"garbage to the command."
 log_onexit cleanup
 
-log_must $ZFS snapshot $snap
-log_must $ZFS clone $snap $clone
+log_must zfs snapshot $snap
+log_must zfs clone $snap $clone
 
 for opt in "${neg_opt[@]}"; do
-	log_mustnot eval "$ZPOOL history $opt > /dev/null"
+	log_mustnot eval "zpool history $opt > /dev/null"
 done
 
 log_pass "'zpool history' command line negation test passed."

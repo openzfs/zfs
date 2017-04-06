@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -51,21 +51,21 @@ log_onexit cleanup_pool $POOL2
 #
 # Duplicate POOL2 for testing
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 
 if is_global_zone ; then
 	#
 	# Testing send -R -I from pool
 	#
-	log_must eval "$ZFS send -R -I @init $POOL2@final > " \
+	log_must eval "zfs send -R -I @init $POOL2@final > " \
 		"$BACKDIR/pool-init-final-IR"
 	list=$(getds_with_suffix $POOL2 @snapA)
 	list="$list $(getds_with_suffix $POOL2 @snapB)"
 	list="$list $(getds_with_suffix $POOL2 @snapC)"
 	list="$list $(getds_with_suffix $POOL2 @final)"
 	log_must destroy_tree $list
-	log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-init-final-IR"
+	log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-init-final-IR"
 	log_must cmp_ds_cont $POOL $POOL2
 fi
 
@@ -73,7 +73,7 @@ dstds=$(get_dst_ds $POOL $POOL2)
 #
 # Testing send -R -I from filesystem
 #
-log_must eval "$ZFS send -R -I @init $dstds/$FS@final > " \
+log_must eval "zfs send -R -I @init $dstds/$FS@final > " \
 	"$BACKDIR/fs-init-final-IR"
 list=$(getds_with_suffix $dstds/$FS @snapA)
 list="$list $(getds_with_suffix $dstds/$FS @snapB)"
@@ -81,9 +81,9 @@ list="$list $(getds_with_suffix $dstds/$FS @snapC)"
 list="$list $(getds_with_suffix $dstds/$FS @final)"
 log_must destroy_tree $list
 if is_global_zone ; then
-	log_must eval "$ZFS receive -d -F $dstds < $BACKDIR/fs-init-final-IR"
+	log_must eval "zfs receive -d -F $dstds < $BACKDIR/fs-init-final-IR"
 else
-	$ZFS receive -d -F $dstds < $BACKDIR/fs-init-final-IR
+	zfs receive -d -F $dstds < $BACKDIR/fs-init-final-IR
 fi
 log_must cmp_ds_subs $POOL $dstds
 log_must cmp_ds_cont $POOL $dstds
@@ -93,10 +93,10 @@ if is_global_zone ; then
 	# Testing send -I -R for volume
 	#
 	vol=$POOL2/$FS/vol
-	log_must eval "$ZFS send -R -I @init $vol@final > " \
+	log_must eval "zfs send -R -I @init $vol@final > " \
 		"$BACKDIR/vol-init-final-IR"
 	log_must destroy_tree $vol@snapB $vol@snapC $vol@final
-	log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/vol-init-final-IR"
+	log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/vol-init-final-IR"
 	log_must cmp_ds_subs $POOL $POOL2
 	log_must cmp_ds_cont $POOL $POOL2
 fi

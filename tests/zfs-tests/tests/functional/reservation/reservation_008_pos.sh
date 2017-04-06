@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -57,9 +57,9 @@ function cleanup
 	typeset -i loop=0
 	while (($loop < $RESV_NUM_FS)); do
 		datasetexists $TESTPOOL/${TESTFS}$loop && \
-		    log_must $ZFS destroy -f $TESTPOOL/${TESTFS}$loop
+		    log_must zfs destroy -f $TESTPOOL/${TESTFS}$loop
 
-		[[ -d ${TESTDIR}$loop ]] && log_must $RM -r ${TESTDIR}$loop
+		[[ -d ${TESTDIR}$loop ]] && log_must rm -r ${TESTDIR}$loop
 
 		((loop = loop + 1))
 	done
@@ -92,7 +92,7 @@ resv_size_set=`expr $resv_space_avail / $num_resv_fs`
 #
 typeset -i num=1
 while (($num < $RESV_NUM_FS)); do
-	log_must $ZFS set reservation=$resv_size_set $TESTPOOL/$TESTFS$num
+	log_must zfs set reservation=$resv_size_set $TESTPOOL/$TESTFS$num
 	((num = num + 1))
 done
 
@@ -106,7 +106,7 @@ write_count=`expr $fill_size / $BLOCK_SIZE`
 num=0
 log_note "Writing to $TESTDIR$num/$TESTFILE1"
 
-$FILE_WRITE -o create -f $TESTDIR$num/$TESTFILE1 -b $BLOCK_SIZE \
+file_write -o create -f $TESTDIR$num/$TESTFILE1 -b $BLOCK_SIZE \
     -c $write_count -d 0
 ret=$?
 if (($ret != $ENOSPC)); then
@@ -116,9 +116,9 @@ fi
 # Remove the reservation on one of the other filesystems and verify
 # can write more data to the original non-reservation filesystem.
 num=1
-log_must $ZFS set reservation=none $TESTPOOL/${TESTFS}$num
+log_must zfs set reservation=none $TESTPOOL/${TESTFS}$num
 num=0
-log_must $FILE_WRITE -o create -f ${TESTDIR}$num/$TESTFILE2 -b $PAGESIZE \
-    -c 1000 -d 0
+log_must file_write -o create -f ${TESTDIR}$num/$TESTFILE2 \
+    -b $(getconf PAGESIZE) -c 1000 -d 0
 
 log_pass "reducing reservation allows other datasets to use space"

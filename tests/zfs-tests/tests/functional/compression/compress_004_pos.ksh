@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,7 +47,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	$RM -f $TESTDIR/*
+	rm -f $TESTDIR/*
 }
 
 function create_free_testing #<file size> <file>
@@ -71,10 +71,10 @@ function create_free_testing #<file size> <file>
 				fi
 			fi
 
-			log_must $RANDFREE_FILE -l fsz -s $start \
+			log_must randfree_file -l fsz -s $start \
 				-n $len $file
 			[[ -e $file ]] && \
-				log_must $RM -f $file
+				log_must rm -f $file
 		done
 	done
 }
@@ -96,7 +96,7 @@ for propname in "compression" "compress"
 do
 	for value in $(get_compress_opts zfs_compress)
 	do
-		log_must $ZFS set compression=$value $fs
+		log_must zfs set compression=$value $fs
 		real_val=$(get_prop $propname $fs)
 		if [[ $value == "gzip-6" ]]; then
 			value="gzip"
@@ -106,7 +106,7 @@ do
 
 		(( blksize = 512 ))
 		while (( blksize <= 131072 )); do
-			log_must $ZFS set recordsize=$blksize $fs
+			log_must zfs set recordsize=$blksize $fs
 
 			# doing single block testing
 			(( fsize = $RANDOM ))

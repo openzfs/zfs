@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -43,24 +43,24 @@
 
 function cleanup {
 
-	log_must $RM $TESTDIR/myfile.$$
+	log_must rm $TESTDIR/myfile.$$
 }
 
 log_assert "mkdir, mknod fail"
 log_onexit cleanup
 
 # create a file, and an xattr on it
-log_must $TOUCH $TESTDIR/myfile.$$
+log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 # Try to create directory in the xattr namespace
-log_mustnot $RUNAT $TESTDIR/myfile.$$ $MKDIR foo
+log_mustnot runat $TESTDIR/myfile.$$ mkdir foo
 
 # Try to create a range of different filetypes in the xattr namespace
-log_mustnot $RUNAT $TESTDIR/myfile.$$ $MKNOD block b 888 888
+log_mustnot runat $TESTDIR/myfile.$$ mknod block b 888 888
 
-log_mustnot $RUNAT $TESTDIR/myfile.$$ $MKNOD char c
+log_mustnot runat $TESTDIR/myfile.$$ mknod char c
 
-log_mustnot $RUNAT $TESTDIR/myfile.$$ $MKNOD fifo p
+log_mustnot runat $TESTDIR/myfile.$$ mknod fifo p
 
 log_pass "mkdir, mknod fail"

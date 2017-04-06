@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,8 +54,8 @@ function cleanup
 	while (( i < ${#dataset_pos[*]} )); do
 		ds=${dataset_pos[i]}
 		if datasetexists $ds; then
-			log_must $ZFS set mountpoint=${old_mnt[i]} $ds
-			log_must $ZFS set canmount=${old_canmount[i]} $ds
+			log_must zfs set mountpoint=${old_mnt[i]} $ds
+			log_must zfs set canmount=${old_canmount[i]} $ds
 		fi
 		(( i = i + 1 ))
 	done
@@ -63,18 +63,18 @@ function cleanup
 	ds=$TESTPOOL/$TESTCLONE
 	if datasetexists $ds; then
 		mntp=$(get_prop mountpoint $ds)
-		log_must $ZFS destroy $ds
+		log_must zfs destroy $ds
 		if [[ -d $mntp ]]; then
-			log_must $RM -fr $mntp
+			log_must rm -fr $mntp
 		fi
 	fi
 
 	if snapexists $TESTPOOL/$TESTFS@$TESTSNAP ; then
-		log_must $ZFS destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
+		log_must zfs destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
 	fi
 
-	$ZFS unmount -a > /dev/null 2>&1
-	log_must $ZFS mount -a
+	zfs unmount -a > /dev/null 2>&1
+	log_must zfs mount -a
 }
 
 log_assert "While canmount=noauto and  the dataset is mounted,"\
@@ -86,8 +86,8 @@ set -A old_canmount
 typeset ds
 typeset pwd=$PWD
 
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@$TESTSNAP
-log_must $ZFS clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE
+log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+log_must zfs clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE
 
 typeset -i i=0
 while (( i < ${#dataset_pos[*]} )); do

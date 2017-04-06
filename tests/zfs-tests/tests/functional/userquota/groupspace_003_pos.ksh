@@ -46,10 +46,10 @@
 function cleanup
 {
 	if datasetexists $snapfs; then
-		log_must $ZFS destroy $snapfs
+		log_must zfs destroy $snapfs
 	fi
 
-	log_must $RM -f ${QFILE}_*
+	log_must rm -f ${QFILE}_*
 	log_must cleanup_quota
 }
 
@@ -57,8 +57,8 @@ function group_object_count
 {
 	typeset fs=$1
 	typeset user=$2
-	typeset cnt=$($ZFS groupspace -oname,objused $fs | $GREP $user |
-			$AWK '{print $2}')
+	typeset cnt=$(zfs groupspace -oname,objused $fs | grep $user |
+			awk '{print $2}')
 	echo $cnt
 }
 
@@ -67,21 +67,21 @@ log_onexit cleanup
 log_assert "Check the zfs groupspace object used"
 
 mkmount_writable $QFS
-log_must $ZFS set xattr=sa $QFS
+log_must zfs set xattr=sa $QFS
 
 ((user1_cnt = RANDOM % 100 + 1))
 ((user2_cnt = RANDOM % 100 + 1))
-log_must user_run $QUSER1 $MKFILES ${QFILE}_1 $user1_cnt
-log_must user_run $QUSER2 $MKFILES ${QFILE}_2 $user2_cnt
+log_must user_run $QUSER1 mkfiles ${QFILE}_1 $user1_cnt
+log_must user_run $QUSER2 mkfiles ${QFILE}_2 $user2_cnt
 ((grp_cnt = user1_cnt + user2_cnt))
 sync_pool
 
 typeset snapfs=$QFS@snap
 
-log_must $ZFS snapshot $snapfs
+log_must zfs snapshot $snapfs
 
-log_must eval "$ZFS groupspace $QFS >/dev/null 2>&1"
-log_must eval "$ZFS groupspace $snapfs >/dev/null 2>&1"
+log_must eval "zfs groupspace $QFS >/dev/null 2>&1"
+log_must eval "zfs groupspace $snapfs >/dev/null 2>&1"
 
 for fs in "$QFS" "$snapfs"; do
 	log_note "check the object count in zfs groupspace $fs"
@@ -90,7 +90,7 @@ for fs in "$QFS" "$snapfs"; do
 done
 
 log_note "file removal"
-log_must $RM ${QFILE}_*
+log_must rm ${QFILE}_*
 sync_pool
 
 [[ $(group_object_count $QFS $QGROUP) -eq 0 ]] ||

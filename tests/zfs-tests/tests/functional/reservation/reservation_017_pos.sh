@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,7 +55,7 @@ function cleanup
 	typeset vol
 
 	for vol in $regvol $sparsevol; do
-		datasetexists $vol &&  log_must $ZFS destroy $vol
+		datasetexists $vol &&  log_must zfs destroy $vol
 	done
 }
 log_onexit cleanup
@@ -67,8 +67,8 @@ log_onexit cleanup
 # Create a regular and sparse volume for testing.
 regvol=$TESTPOOL/$TESTVOL
 sparsevol=$TESTPOOL/$TESTVOL2
-log_must $ZFS create -V 64M $regvol
-log_must $ZFS create -s -V 64M $sparsevol
+log_must zfs create -V 64M $regvol
+log_must zfs create -s -V 64M $sparsevol
 
 typeset vsize=$(get_prop available $TESTPOOL)
 typeset iterate=10
@@ -83,8 +83,8 @@ while ((iterate > 1)); do
 	((randomblknum = 1 + RANDOM % blknum))
 	# Make sure volsize is a multiple of volume block size
 	((vsize = randomblknum * volblocksize))
-	log_must $ZFS set volsize=$vsize $regvol
-	log_must $ZFS set volsize=$vsize $sparsevol
+	log_must zfs set volsize=$vsize $regvol
+	log_must zfs set volsize=$vsize $sparsevol
 	vsize=$(volsize_to_reservation $regvol $vsize)
 	regreserv=$(get_prop refreservation $regvol)
 	sparsereserv=$(get_prop reservation $sparsevol)

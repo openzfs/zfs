@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,7 +47,7 @@ verify_runnable "global"
 
 log_assert "zpool scrub returns an error when run as a user"
 
-log_mustnot $ZPOOL scrub $TESTPOOL
-log_mustnot $ZPOOL scrub -s $TESTPOOL
+log_mustnot zpool scrub $TESTPOOL
+log_mustnot zpool scrub -s $TESTPOOL
 
 log_pass "zpool scrub returns an error when run as a user"

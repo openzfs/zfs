@@ -37,8 +37,8 @@
 
 verify_runnable "global"
 
-log_must $ZPOOL destroy $TESTPOOL
+log_must zpool destroy $TESTPOOL
 
-log_must $RM /tmp/zpool_upgrade_test.dat
+log_must rm /tmp/zpool_upgrade_test.dat
 
 default_cleanup

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -61,7 +65,7 @@ typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
         # try to set each property in the prop list with it's corresponding val
-        log_mustnot $ZPOOL create -o ${props[$i]}=${vals[$i]} $TESTPOOL $disk
+        log_mustnot zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $disk
 	if poolexists $TESTPOOL
 	then
 		log_fail "$TESTPOOL was created when setting ${props[$i]}!"

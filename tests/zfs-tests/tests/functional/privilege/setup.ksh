@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,10 +36,10 @@ USES_NIS=false
 
 # if we're running NIS, turn it off until we clean up
 # (it can cause useradd to take a long time, hitting our TIMEOUT)
-$SVCS svc:/network/nis/client:default | $GREP online > /dev/null
+svcs svc:/network/nis/client:default | grep online > /dev/null
 if [ $? -eq 0 ]
 then
-  $SVCADM disable svc:/network/nis/client:default
+  svcadm disable svc:/network/nis/client:default
   USES_NIS=true
 fi
 
@@ -58,8 +58,8 @@ do
   fi
 done
 
-log_must $MKDIR -p /export/home/$ZFS_USER
-log_must $USERADD -c "ZFS Privileges Test User" -d /export/home/$ZFS_USER $ZFS_USER
+log_must mkdir -p /export/home/$ZFS_USER
+log_must useradd -c "ZFS Privileges Test User" -d /export/home/$ZFS_USER $ZFS_USER
 
 echo $ZFS_USER > /tmp/zfs-privs-test-user.txt
 echo $USES_NIS > /tmp/zfs-privs-test-nis.txt

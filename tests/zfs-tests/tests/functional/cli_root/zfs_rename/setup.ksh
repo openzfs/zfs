@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -37,13 +37,13 @@ DISK=${DISKS%% *}
 default_setup_noexit "$DISK" "true" "true"
 
 if [[ -d $TESTDIR2 ]]; then
-	$RM -rf $TESTDIR2
+	rm -rf $TESTDIR2
 	if (( $? != 0 )); then
 		log_unresolved Could not remove $TESTDIR2
 	fi
 fi
-log_must $ZFS create $TESTPOOL/$DATAFS
-log_must $ZFS set mountpoint=$TESTDIR2 $TESTPOOL/$DATAFS
-log_must eval "$DD if=$IF of=$OF bs=$BS count=$CNT >/dev/null 2>&1"
+log_must zfs create $TESTPOOL/$DATAFS
+log_must zfs set mountpoint=$TESTDIR2 $TESTPOOL/$DATAFS
+log_must eval "dd if=$IF of=$OF bs=$BS count=$CNT >/dev/null 2>&1"
 
 log_pass

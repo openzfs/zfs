@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/clean_mirror/default.cfg
@@ -45,20 +45,20 @@ function sync_pool #pool
 {
 	typeset pool=$1
 
-	log_must $SYNC
-	log_must $SLEEP 2
+	log_must sync
+	log_must sleep 2
 	# Flush all the pool data.
 	typeset -i ret
-	$ZPOOL scrub $pool >/dev/null 2>&1
+	zpool scrub $pool >/dev/null 2>&1
 	ret=$?
 	(( $ret != 0 )) && \
-		log_fail "$ZPOOL scrub $pool failed."
+		log_fail "zpool scrub $pool failed."
 
 	while ! is_pool_scrubbed $pool; do
 		if is_pool_resilvered $pool ; then
 			log_fail "$pool should not be resilver completed."
 		fi
-		log_must $SLEEP 2
+		log_must sleep 2
 	done
 }
 
@@ -74,14 +74,14 @@ function overwrite_verify_mirror
 
 	while (( atfile < FILE_COUNT )); do
 		files[$atfile]=$TESTDIR/file.$atfile
-		log_must $FILE_WRITE -o create -f $TESTDIR/file.$atfile \
+		log_must file_write -o create -f $TESTDIR/file.$atfile \
 			-b $FILE_SIZE -c 1
-		cksums[$atfile]=$($CKSUM ${files[$atfile]})
+		cksums[$atfile]=$(cksum ${files[$atfile]})
 		(( atfile = atfile + 1 ))
 	done
 
 	# dd the primary side of the mirror
-	log_must $DD if=$OVERWRITING_DEVICE of=$AFFECTED_DEVICE \
+	log_must dd if=$OVERWRITING_DEVICE of=$AFFECTED_DEVICE \
 		seek=8 bs=$DD_BLOCK count=$(( DD_COUNT - 128 )) conv=notrunc
 
 	atfile=0
@@ -89,17 +89,17 @@ function overwrite_verify_mirror
 	#
 	# Flush out the cache so that we ensure we're reading from disk.
 	#
-	log_must $ZPOOL export $TESTPOOL
-	log_must $ZPOOL import $TESTPOOL
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
 
 	typeset -i failedcount=0
 	while (( atfile < FILE_COUNT )); do
 		files[$atfile]=$TESTDIR/file.$atfile
-		newcksum=$($CKSUM ${files[$atfile]})
+		newcksum=$(cksum ${files[$atfile]})
 		if [[ $newcksum != ${cksums[$atfile]} ]]; then
 			(( failedcount = failedcount + 1 ))
 		fi
-		$RM -f ${files[$atfile]}
+		rm -f ${files[$atfile]}
 		(( atfile = atfile + 1 ))
 	done
 

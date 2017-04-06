@@ -30,13 +30,13 @@
 
 DISK_ARR=($DISKS)
 DISK=${DISK_ARR[0]}
-log_must $ZPOOL create -f $TESTPOOL $DISK
+log_must zpool create -f $TESTPOOL $DISK
 
 log_assert "Per-vdev ZAPs are created for added vdevs."
 
-log_must $ZPOOL add -f $TESTPOOL ${DISK_ARR[1]}
+log_must zpool add -f $TESTPOOL ${DISK_ARR[1]}
 conf="$TESTDIR/vz006"
-log_must $ZDB -PC $TESTPOOL > $conf
+log_must zdb -PC $TESTPOOL > $conf
 
 assert_has_sentinel "$conf"
 orig_top=$(get_top_vd_zap ${DISK_ARR[1]} $conf)

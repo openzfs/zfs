@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,7 +55,7 @@ function cleanup
         done
 
 	if [[ -n $saved_dump_dev ]]; then
-		log_must $DUMPADM -u -d $saved_dump_dev
+		log_must dumpadm -u -d $saved_dump_dev
 	fi
 
         partition_disk $SIZE $disk 6
@@ -108,24 +108,24 @@ set -A arg "$TESTPOOL $pooldev2" \
 unset NOINUSE_CHECK
 typeset -i i=0
 while (( i < ${#arg[*]} )); do
-        log_mustnot $ZPOOL create ${arg[i]}
+        log_mustnot zpool create ${arg[i]}
         (( i = i+1 ))
 done
 
 # now destroy the pool to be polite
-log_must $ZPOOL destroy -f $TESTPOOL
+log_must zpool destroy -f $TESTPOOL
 
 # create/destroy a pool as a simple way to set the partitioning
 # back to something normal so we can use this $disk as a dump device
-log_must $ZPOOL create -f $TESTPOOL3 $disk
-log_must $ZPOOL destroy -f $TESTPOOL3
+log_must zpool create -f $TESTPOOL3 $disk
+log_must zpool destroy -f $TESTPOOL3
 
-log_must $DUMPADM -d ${DEV_DSKDIR}/$specified_dump_dev
-log_mustnot $ZPOOL create -f $TESTPOOL1 "$specified_dump_dev"
+log_must dumpadm -d ${DEV_DSKDIR}/$specified_dump_dev
+log_mustnot zpool create -f $TESTPOOL1 "$specified_dump_dev"
 
 # Also check to see that in-use checking prevents us from creating
 # a zpool from just the first slice on the disk.
-log_mustnot $ZPOOL create \
+log_mustnot zpool create \
 	-f $TESTPOOL1 ${specified_dump_dev}${SLICE_PREFIX}${SLICE0}
 
 log_pass "'zpool create' is failed as expected with inapplicable scenarios."

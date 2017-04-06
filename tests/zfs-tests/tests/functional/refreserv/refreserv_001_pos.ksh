@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,9 +47,9 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_assert "Reservations are enforced using the maximum of " \
@@ -57,19 +57,19 @@ log_assert "Reservations are enforced using the maximum of " \
 log_onexit cleanup
 
 fs=$TESTPOOL/$TESTFS ; subfs=$fs/subfs
-log_must $ZFS create $subfs
-log_must $ZFS set quota=25M $fs
+log_must zfs create $subfs
+log_must zfs set quota=25M $fs
 
-log_must $ZFS set reserv=10M $subfs
-log_must $ZFS set refreserv=20M $subfs
+log_must zfs set reserv=10M $subfs
+log_must zfs set refreserv=20M $subfs
 mntpnt=$(get_prop mountpoint $fs)
-log_mustnot $MKFILE 15M $mntpnt/$TESTFILE
+log_mustnot mkfile 15M $mntpnt/$TESTFILE
 
-log_must $RM -f $mntpnt/$TESTFILE
+log_must rm -f $mntpnt/$TESTFILE
 
-log_must $ZFS set reserv=20M $subfs
-log_must $ZFS set refreserv=10M $subfs
-log_mustnot $MKFILE 15M $mntpnt/$TESTFILE
+log_must zfs set reserv=20M $subfs
+log_must zfs set refreserv=10M $subfs
+log_mustnot mkfile 15M $mntpnt/$TESTFILE
 
 log_pass "Reservations are enforced using the maximum of " \
 	"'reserv' and 'refreserv'"

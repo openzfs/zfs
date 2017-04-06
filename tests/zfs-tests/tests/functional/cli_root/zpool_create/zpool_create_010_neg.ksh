@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -53,7 +53,7 @@ function cleanup
 
         poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
-	[[ -d $TESTDIR ]] && $RM -rf $TESTDIR
+	[[ -d $TESTDIR ]] && rm -rf $TESTDIR
 
 	partition_disk $SIZE $disk 6
 }
@@ -66,13 +66,13 @@ else
 fi
 
 create_pool $TESTPOOL $disk
-log_must $ZFS create $TESTPOOL/$TESTFS
-log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+log_must zfs create $TESTPOOL/$TESTFS
+log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
 typeset -l devsize=$(($SPA_MINDEVSIZE - 1024 * 1024))
 for files in $TESTDIR/file1 $TESTDIR/file2
 do
-	log_must $MKFILE $devsize $files
+	log_must mkfile $devsize $files
 done
 
 set -A args \
@@ -82,7 +82,7 @@ set -A args \
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZPOOL create ${args[i]}
+	log_mustnot zpool create ${args[i]}
 	((i = i + 1))
 done
 

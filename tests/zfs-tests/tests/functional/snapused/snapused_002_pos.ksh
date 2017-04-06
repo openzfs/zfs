@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,13 +49,13 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS destroy -rR $USEDTEST
+	log_must zfs destroy -rR $USEDTEST
 }
 
 log_assert "Verify usedbychildren is correct."
 log_onexit cleanup
 
-log_must $ZFS create $USEDTEST
+log_must zfs create $USEDTEST
 check_usedbychildren $USEDTEST
 
 typeset -i i=0
@@ -64,15 +64,15 @@ mntpnt=$(get_prop mountpoint $USEDTEST)
 while ((i < 5)); do
 	((r_size=(i+1)*16))
 
-	log_must $ZFS create $USEDTEST/fs$i
-	log_must $ZFS set reservation="$r_size"M $USEDTEST/fs$i
-	log_must $MKFILE 48M $mntpnt/fs$i/file$i
+	log_must zfs create $USEDTEST/fs$i
+	log_must zfs set reservation="$r_size"M $USEDTEST/fs$i
+	log_must mkfile 48M $mntpnt/fs$i/file$i
 
 	if is_global_zone; then
-		log_must $ZFS create -V 32M $USEDTEST/vol$i
+		log_must zfs create -V 32M $USEDTEST/vol$i
 	fi
 
-	log_must $ZFS snapshot -r $USEDTEST@snap$i
+	log_must zfs snapshot -r $USEDTEST@snap$i
 
 	check_usedbychildren $USEDTEST
 

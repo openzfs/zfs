@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,19 +48,19 @@ esac
 
 create_pool $TESTPOOL "$ZFS_DISK"
 
-$RM -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR
-$MKDIR -p $TESTDIR || log_unresolved Could not create $TESTDIR
+rm -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR
+mkdir -p $TESTDIR || log_unresolved Could not create $TESTDIR
 
-log_must $ZFS create $TESTPOOL/$TESTFS
-log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+log_must zfs create $TESTPOOL/$TESTFS
+log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
-$RM -rf $NONZFS_TESTDIR  || log_unresolved Could not remove $NONZFS_TESTDIR
-$MKDIR -p $NONZFS_TESTDIR || log_unresolved Could not create $NONZFS_TESTDIR
+rm -rf $NONZFS_TESTDIR  || log_unresolved Could not remove $NONZFS_TESTDIR
+mkdir -p $NONZFS_TESTDIR || log_unresolved Could not create $NONZFS_TESTDIR
 
-$ECHO "y" | $NEWFS -v ${DEV_DSKDIR}/$NONZFS_DISK
+echo "y" | newfs -v ${DEV_DSKDIR}/$NONZFS_DISK
 (( $? != 0 )) &&
 	log_untested "Unable to setup a UFS file system"
 
-log_must $MOUNT ${DEV_DSKDIR}/$NONZFS_DISK $NONZFS_TESTDIR
+log_must mount ${DEV_DSKDIR}/$NONZFS_DISK $NONZFS_TESTDIR
 
 log_pass

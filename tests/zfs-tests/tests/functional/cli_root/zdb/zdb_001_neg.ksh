@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -65,7 +65,7 @@ log_assert "Execute zdb using invalid parameters."
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZDB ${args[i]}
+	log_mustnot zdb ${args[i]}
 
 	((i = i + 1))
 done

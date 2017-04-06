@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_create/zfs_create.cfg
 
@@ -43,7 +48,7 @@ function cleanup
 	typeset -i j=0
 	while [[ $j -lt ${#size[*]} ]]; do
 		if datasetexists $TESTPOOL/${TESTVOL}${size[j]}; then
-			log_must $ZFS destroy $TESTPOOL/${TESTVOL}${size[j]}
+			log_must zfs destroy $TESTPOOL/${TESTVOL}${size[j]}
 		fi
 		((j = j + 1))
 	done
@@ -56,7 +61,7 @@ log_assert "'zfs create -s -V <size> <volume>' succeeds"
 
 typeset -i j=0
 while (( $j < ${#size[*]} )); do
-	typeset cmdline="$ZFS create -s -V ${size[j]}  \
+	typeset cmdline="zfs create -s -V ${size[j]}  \
 			 $TESTPOOL/${TESTVOL}${size[j]}"
 
 	str=$(eval $cmdline 2>&1)

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -41,7 +45,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must $ZFS set sharenfs=off $TESTPOOL/$TESTFS
+	log_must zfs set sharenfs=off $TESTPOOL/$TESTFS
 	is_shared $TESTPOOL/$TESTFS && \
 		log_must unshare_fs $TESTPOOL/$TESTFS
 }
@@ -61,14 +65,14 @@ cleanup
 typeset -i i=0
 while (( i < ${#shareopts[*]} ))
 do
-	log_must $ZFS set sharenfs="${shareopts[i]}" $TESTPOOL/$TESTFS
+	log_must zfs set sharenfs="${shareopts[i]}" $TESTPOOL/$TESTFS
 
 	option=`get_prop sharenfs $TESTPOOL/$TESTFS`
 	if [[ $option != ${shareopts[i]} ]]; then
 		log_fail "get sharenfs failed. ($option != ${shareopts[i]})"
 	fi
 
-	showshares_nfs | $GREP $option > /dev/null 2>&1
+	showshares_nfs | grep $option > /dev/null 2>&1
 	if (( $? != 0 )); then
 		log_fail "The '$option' option was not found in share output."
 	fi

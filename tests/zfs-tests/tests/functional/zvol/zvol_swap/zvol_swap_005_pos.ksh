@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,16 +54,16 @@ typeset -i pageblocks volblocks max_swaplow
 # Both swaplow and swaplen are the desired length of
 # the swap area in 512-byte blocks.
 #
-((pageblocks = $($PAGESIZE) / 512))
+((pageblocks = $(getconf PAGESIZE) / 512))
 ((volblocks = $(get_prop volsize $vol) / 512))
 ((max_swaplow = (volblocks - (pageblocks * 2))))
 
 for i in {0..10}; do
-	swaplow=$($SHUF -n 1 -i ${pageblocks}-${max_swaplow})
+	swaplow=$(shuf -n 1 -i ${pageblocks}-${max_swaplow})
 	((maxlen = max_swaplow - swaplow))
-	swaplen=$($SHUF -n 1 -i ${pageblocks}-${maxlen})
-	log_must $SWAP -a $swapname $swaplow $swaplen
-	log_must $SWAP -d $swapname $swaplow
+	swaplen=$(shuf -n 1 -i ${pageblocks}-${maxlen})
+	log_must swap -a $swapname $swaplow $swaplen
+	log_must swap -d $swapname $swaplow
 done
 
 log_pass $assertion
