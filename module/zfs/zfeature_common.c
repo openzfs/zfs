@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -191,6 +192,11 @@ zpool_feature_init(void)
 	    "org.illumos:lz4_compress", "lz4_compress",
 	    "LZ4 compression algorithm support.",
 	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, NULL);
+
+	zfeature_register(SPA_FEATURE_MULTI_VDEV_CRASH_DUMP,
+	    "com.joyent:multi_vdev_crash_dump", "multi_vdev_crash_dump",
+	    "Crash dumps to multiple vdev pools.",
+	    0, NULL);
 
 	zfeature_register(SPA_FEATURE_SPACEMAP_HISTOGRAM,
 	    "com.delphix:spacemap_histogram", "spacemap_histogram",

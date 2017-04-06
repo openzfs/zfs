@@ -279,6 +279,34 @@ an existing space map is upgraded to the new format. Once the feature is
 .sp
 .ne 2
 .na
+\fB\fBmulti_vdev_crash_dump\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID    com.joyent:multi_vdev_crash_dump
+READ\-ONLY COMPATIBLE   no
+DEPENDENCIES    none
+.TE
+
+This feature allows a dump device to be configured with a pool comprised
+of multiple vdevs.  Those vdevs may be arranged in any mirrored or raidz
+configuration.
+
+When the \fBmulti_vdev_crash_dump\fR feature is set to \fBenabled\fR,
+the administrator can use the \fBdumpadm\fR(1M) command to configure a
+dump device on a pool comprised of multiple vdevs.
+
+NOTE: This feature is registered for compatibility reasons under Linux.
+A pool with this feature \fBenabled\fR or \fB\fBactive\fR can be read, but
+it is not required to support crash dumps under Linux. Also, this should
+not cause problems with grub since the feature will not be added to the
+\fBfeatures_for_read:\fR list unless it is active.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBextensible_dataset\fR\fR
 .ad
 .RS 4n
