@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,9 +45,9 @@
 
 for fs in 1 2 3; do
 	log_must mounted $TESTDIR.$fs
-	log_must $ZFS umount $TESTPOOL/$TESTFS.$fs
+	log_must zfs umount $TESTPOOL/$TESTFS.$fs
 	log_must unmounted $TESTDIR.$fs
-	log_must $ZFS mount $TESTPOOL/$TESTFS.$fs
+	log_must zfs mount $TESTPOOL/$TESTFS.$fs
 	log_must mounted $TESTDIR.$fs
 done
 

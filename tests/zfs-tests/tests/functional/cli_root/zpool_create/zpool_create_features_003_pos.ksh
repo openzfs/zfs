@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,7 +44,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must $ZPOOL destroy $TESTPOOL
+	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
 }
 
 log_onexit cleanup
@@ -52,15 +52,15 @@ log_onexit cleanup
 log_assert "'zpool create -d -o feature@async_destroy=enabled' only " \
     "enables async_destroy"
 
-log_must $ZPOOL create -f -d -o feature@async_destroy=enabled $TESTPOOL $DISKS
+log_must zpool create -f -d -o feature@async_destroy=enabled $TESTPOOL $DISKS
 
-state=$($ZPOOL list -Ho feature@async_destroy $TESTPOOL)
+state=$(zpool list -Ho feature@async_destroy $TESTPOOL)
 if [[ "$state" != "enabled" ]]; then
 	log_fail "async_destroy has state $state"
 fi
 
-for prop in $($ZPOOL get all $TESTPOOL | $AWK '$2 ~ /feature@/ { print $2 }'); do
-	state=$($ZPOOL list -Ho "$prop" $TESTPOOL)
+for prop in $(zpool get all $TESTPOOL | awk '$2 ~ /feature@/ { print $2 }'); do
+	state=$(zpool list -Ho "$prop" $TESTPOOL)
 	if [[ "$prop" != "feature@async_destroy" \
 	    && "$state" != "disabled" ]]; then
 		log_fail "$prop is enabled on new pool"

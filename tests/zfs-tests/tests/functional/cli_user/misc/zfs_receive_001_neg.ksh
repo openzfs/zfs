@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,7 +45,7 @@
 
 log_assert "zfs receive returns an error when run as a user"
 
-log_mustnot eval "$ZFS receive -d $TESTPOOL/$TESTFS/$TESTFS2 \
+log_mustnot eval "zfs receive -d $TESTPOOL/$TESTFS/$TESTFS2 \
  < /tmp/zfstest_datastream.dat"
 
 # verify that command actually did nothing

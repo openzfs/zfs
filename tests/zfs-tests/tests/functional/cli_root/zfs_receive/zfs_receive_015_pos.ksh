@@ -45,38 +45,38 @@ typeset value=$(user_property_value 8)
 
 function cleanup
 {
-	log_must $RM $streamfile_full
-	log_must $RM $streamfile_incr
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS1
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS2
+	log_must rm $streamfile_full
+	log_must rm $streamfile_incr
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS1
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS2
 }
 
 log_assert "ZFS can receive custom properties."
 log_onexit cleanup
 
 #	1. Create a filesystem.
-log_must $ZFS create $orig
+log_must zfs create $orig
 
 #	2. Snapshot the filesystem.
-log_must $ZFS snapshot $orig@snap1
-log_must $ZFS snapshot $orig@snap2
-log_must $ZFS snapshot $orig@snap3
+log_must zfs snapshot $orig@snap1
+log_must zfs snapshot $orig@snap2
+log_must zfs snapshot $orig@snap3
 
 #	3. Set custom properties on both the fs and snapshots.
-log_must eval "$ZFS set '$user_prop'='$value' $orig"
-log_must eval "$ZFS set '$user_prop:snap1'='$value:snap1' $orig@snap1"
-log_must eval "$ZFS set '$user_prop:snap2'='$value:snap2' $orig@snap2"
-log_must eval "$ZFS set '$user_prop:snap3'='$value:snap3' $orig@snap3"
+log_must eval "zfs set '$user_prop'='$value' $orig"
+log_must eval "zfs set '$user_prop:snap1'='$value:snap1' $orig@snap1"
+log_must eval "zfs set '$user_prop:snap2'='$value:snap2' $orig@snap2"
+log_must eval "zfs set '$user_prop:snap3'='$value:snap3' $orig@snap3"
 
 #	4. Create different send streams with the properties.
-log_must eval "$ZFS send -p $orig@snap1 > $streamfile_full"
-log_must eval "$ZFS send -p -I $orig@snap1 $orig@snap3 > $streamfile_incr"
+log_must eval "zfs send -p $orig@snap1 > $streamfile_full"
+log_must eval "zfs send -p -I $orig@snap1 $orig@snap3 > $streamfile_incr"
 
 #	5. Receive the send streams and verify the properties.
-log_must eval "$ZFS recv $dest < $streamfile_full"
+log_must eval "zfs recv $dest < $streamfile_full"
 log_must eval "check_user_prop $dest $user_prop '$value'"
 log_must eval "check_user_prop $dest@snap1 '$user_prop:snap1' '$value:snap1'"
-log_must eval "$ZFS recv $dest < $streamfile_incr"
+log_must eval "zfs recv $dest < $streamfile_incr"
 log_must eval "check_user_prop $dest@snap2 '$user_prop:snap2' '$value:snap2'"
 log_must eval "check_user_prop $dest@snap3 '$user_prop:snap3' '$value:snap3'"
 

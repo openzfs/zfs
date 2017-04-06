@@ -26,20 +26,16 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/fault/fault.cfg
 
-[[ -z $UDEVADM ]] && log_fail "Missing UDEVADM command"
-[[ -z $LSMOD ]]  && log_fail "Missing LSMOD command"
-[[ -z $LSSCSI ]] && log_fail "Missing LSSCSI command"
-[[ -z $MODUNLOAD ]] && log_fail "Missing MODUNLOAD command"
-[[ -z $MODLOAD ]] && log_fail "Missing MODLOAD command"
-
 verify_runnable "global"
 
 if [[ ! -d $ZEDLET_DIR ]]; then
-	log_must $MKDIR $ZEDLET_DIR
+	log_must mkdir $ZEDLET_DIR
 fi
+
 if [[ ! -e $VDEVID_CONF ]]; then
-	log_must $TOUCH $VDEVID_CONF
+	log_must touch $VDEVID_CONF
 fi
+
 if [[ -e $VDEVID_CONF_ETC ]]; then
 	log_fail "Must not have $VDEVID_CONF_ETC file present on system"
 fi

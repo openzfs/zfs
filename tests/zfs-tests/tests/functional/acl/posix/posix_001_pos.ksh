@@ -47,20 +47,20 @@ log_assert "Verify acltype=posixacl works on file"
 
 # Test access to FILE
 log_note "Testing access to FILE"
-log_must $TOUCH $TESTDIR/file.0
-log_must $SETFACL -m g:zfsgrp:rw $TESTDIR/file.0
-$GETFACL $TESTDIR/file.0 2> /dev/null | $EGREP -q "^group:zfsgrp:rw-$"
+log_must touch $TESTDIR/file.0
+log_must setfacl -m g:zfsgrp:rw $TESTDIR/file.0
+getfacl $TESTDIR/file.0 2> /dev/null | egrep -q "^group:zfsgrp:rw-$"
 if [ "$?" -eq "0" ]; then
 	# Should be able to write to file
-	log_must $SU staff1 -c "$ECHO \"$ECHO test > /dev/null\" > $TESTDIR/file.0"
+	log_must su staff1 -c "echo \"echo test > /dev/null\" > $TESTDIR/file.0"
 
 	# Should NOT be able to create new file
-	log_mustnot $SU staff1 -c "$TOUCH $TESTDIR/file.1"
+	log_mustnot su staff1 -c "touch $TESTDIR/file.1"
 
 	# Root should be able to run file, but not user
 	chmod +x $TESTDIR/file.0
 	log_must $TESTDIR/file.0
-	log_mustnot $SU staff1 -c $TESTDIR/file.0
+	log_mustnot su staff1 -c $TESTDIR/file.0
 
 	log_pass "POSIX ACL mode works on files"
 else

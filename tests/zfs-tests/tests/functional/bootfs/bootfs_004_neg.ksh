@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,13 +49,13 @@ set -A pools "pool//$$" "pool%d123" "mirror" "c0t0d0s0" "pool*23*" "*po!l" \
 
 function cleanup {
 	if poolexists $POOL; then
-		log_must $ZPOOL destroy $POOL
+		log_must zpool destroy $POOL
 	fi
-	$RM /bootfs_004.$$.dat
+	rm /bootfs_004.$$.dat
 }
 
 
-$ZPOOL set 2>&1 | $GREP bootfs > /dev/null
+zpool set 2>&1 | grep bootfs > /dev/null
 if [ $? -ne 0 ]
 then
         log_unsupported "bootfs pool property not supported on this release."
@@ -78,16 +78,16 @@ pools[${#pools[@]}]="$bigname"
 
 
 
-$MKFILE $MINVDEVSIZE $TESTDIR/bootfs_004.$$.dat
+mkfile $MINVDEVSIZE $TESTDIR/bootfs_004.$$.dat
 
 typeset -i i=0;
 
 while [ $i -lt "${#pools[@]}" ]
 do
 	POOL=${pools[$i]}/$TESTFS
-	log_mustnot $ZPOOL create $POOL $TESTDIR/bootfs_004.$$.dat
-	log_mustnot $ZFS create $POOL/$TESTFS
-	log_mustnot $ZPOOL set bootfs=$POOL/$TESTFS $POOL
+	log_mustnot zpool create $POOL $TESTDIR/bootfs_004.$$.dat
+	log_mustnot zfs create $POOL/$TESTFS
+	log_mustnot zpool set bootfs=$POOL/$TESTFS $POOL
 
 	i=$(( $i + 1 ))
 done

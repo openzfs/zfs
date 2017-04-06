@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,7 +50,7 @@ function cleanup
 {
 	for ds in $TESTPOOL/fs $TESTPOOL/fs-rename $TESTPOOL/fs-clone; do
 		if datasetexists $ds; then
-			log_must $ZFS destroy -rRf $ds
+			log_must zfs destroy -rRf $ds
 		fi
 	done
 }
@@ -62,11 +62,11 @@ log_assert \
 
 cleanup
 
-log_must $ZFS create -o userquota@$QUSER1=$UQUOTA_SIZE \
+log_must zfs create -o userquota@$QUSER1=$UQUOTA_SIZE \
 	-o groupquota@$QGROUP=$GQUOTA_SIZE $TESTPOOL/fs
 
-log_must $ZFS snapshot $TESTPOOL/fs@snap
-log_must eval "$ZFS list -r -o userquota@$QUSER1,groupquota@$QGROUP \
+log_must zfs snapshot $TESTPOOL/fs@snap
+log_must eval "zfs list -r -o userquota@$QUSER1,groupquota@$QGROUP \
 	$TESTPOOL >/dev/null 2>&1"
 
 log_must check_quota "userquota@$QUSER1" $TESTPOOL/fs@snap "$UQUOTA_SIZE"
@@ -74,50 +74,50 @@ log_must check_quota "groupquota@$QGROUP" $TESTPOOL/fs@snap "$GQUOTA_SIZE"
 
 
 log_note "clone fs gets its parent's userquota/groupquota initially"
-log_must $ZFS clone  -o userquota@$QUSER1=$UQUOTA_SIZE \
+log_must zfs clone  -o userquota@$QUSER1=$UQUOTA_SIZE \
 		-o groupquota@$QGROUP=$GQUOTA_SIZE \
 		$TESTPOOL/fs@snap $TESTPOOL/fs-clone
 
-log_must eval "$ZFS list -r -o userquota@$QUSER1,groupquota@$QGROUP \
+log_must eval "zfs list -r -o userquota@$QUSER1,groupquota@$QGROUP \
 	$TESTPOOL >/dev/null 2>&1"
 
 log_must check_quota "userquota@$QUSER1" $TESTPOOL/fs-clone "$UQUOTA_SIZE"
 log_must check_quota "groupquota@$QGROUP" $TESTPOOL/fs-clone "$GQUOTA_SIZE"
 
-log_must eval "$ZFS list -o userquota@$QUSER1,groupquota@$QGROUP \
+log_must eval "zfs list -o userquota@$QUSER1,groupquota@$QGROUP \
 	$TESTPOOL/fs-clone >/dev/null 2>&1"
 
 log_note "zfs promote can not change the previously set user|group quota"
-log_must $ZFS promote $TESTPOOL/fs-clone
+log_must zfs promote $TESTPOOL/fs-clone
 
-log_must eval "$ZFS list -r -o userquota@$QUSER1,groupquota@$QGROUP \
+log_must eval "zfs list -r -o userquota@$QUSER1,groupquota@$QGROUP \
 	$TESTPOOL >/dev/null 2>&1"
 
 log_must check_quota "userquota@$QUSER1" $TESTPOOL/fs-clone "$UQUOTA_SIZE"
 log_must check_quota "groupquota@$QGROUP" $TESTPOOL/fs-clone "$GQUOTA_SIZE"
 
 log_note "zfs send receive can not change the previously set user|group quota"
-log_must $ZFS send $TESTPOOL/fs-clone@snap | $ZFS receive $TESTPOOL/fs-rev
+log_must zfs send $TESTPOOL/fs-clone@snap | zfs receive $TESTPOOL/fs-rev
 
-log_must eval "$ZFS list -r -o userquota@$QUSER1,groupquota@$QGROUP \
+log_must eval "zfs list -r -o userquota@$QUSER1,groupquota@$QGROUP \
 	$TESTPOOL >/dev/null 2>&1"
 
 log_must check_quota "userquota@$QUSER1" $TESTPOOL/fs-rev "$UQUOTA_SIZE"
 log_must check_quota "groupquota@$QGROUP" $TESTPOOL/fs-rev "$GQUOTA_SIZE"
 
 log_note "zfs rename can not change the previously set user|group quota"
-log_must $ZFS rename $TESTPOOL/fs-rev $TESTPOOL/fs-rename
+log_must zfs rename $TESTPOOL/fs-rev $TESTPOOL/fs-rename
 
-log_must eval "$ZFS list -r -o userquota@$QUSER1,groupquota@$QGROUP \
+log_must eval "zfs list -r -o userquota@$QUSER1,groupquota@$QGROUP \
 	$TESTPOOL  >/dev/null 2>&1"
 
 log_must check_quota "userquota@$QUSER1" $TESTPOOL/fs-rename "$UQUOTA_SIZE"
 log_must check_quota "groupquota@$QGROUP" $TESTPOOL/fs-rename "$GQUOTA_SIZE"
 
 log_note "zfs upgrade can not change the previously set user|group quota"
-log_must $ZFS upgrade $TESTPOOL/fs-rename
+log_must zfs upgrade $TESTPOOL/fs-rename
 
-log_must eval "$ZFS list -r -o userquota@$QUSER1,groupquota@$QGROUP \
+log_must eval "zfs list -r -o userquota@$QUSER1,groupquota@$QGROUP \
 	$TESTPOOL >/dev/null 2>&1"
 
 log_must check_quota "userquota@$QUSER1" $TESTPOOL/fs-rename "$UQUOTA_SIZE"

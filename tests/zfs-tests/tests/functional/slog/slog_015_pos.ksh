@@ -64,23 +64,23 @@ log_onexit cleanup
 #
 # 1. Create an empty file system (TESTFS)
 #
-log_must $ZPOOL create $TESTPOOL $VDEV log mirror $LDEV
-log_must $ZFS set compression=on $TESTPOOL
-log_must $ZFS create $TESTPOOL/$TESTFS
-log_must $MKDIR -p $TESTDIR
+log_must zpool create $TESTPOOL $VDEV log mirror $LDEV
+log_must zfs set compression=on $TESTPOOL
+log_must zfs create $TESTPOOL/$TESTFS
+log_must mkdir -p $TESTDIR
 
 #
 # This dd command works around an issue where ZIL records aren't created
 # after freezing the pool unless a ZIL header already exists. Create a file
 # synchronously to force ZFS to write one out.
 #
-log_must $GNUDD if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
+log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
     conv=fdatasync,fsync bs=1 count=1
 
 #
 # 2. Freeze TESTFS
 #
-log_must $ZPOOL freeze $TESTPOOL
+log_must zpool freeze $TESTPOOL
 
 #
 # 3. Run various user commands that create files, directories and ACLs
@@ -107,12 +107,12 @@ log_must mkdir /$TESTPOOL/$TESTFS/dir_to_delete
 log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 
 # Create a simple validation payload
-log_must $DD if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload bs=1k count=8
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload bs=1k count=8
 CHECKSUM_BEFORE=$(sha256sum -b /$TESTPOOL/$TESTFS/payload)
 
 # TX_WRITE (small file with ordering)
-log_must $MKFILE 1k /$TESTPOOL/$TESTFS/small_file
-log_must $MKFILE 512b /$TESTPOOL/$TESTFS/small_file
+log_must mkfile 1k /$TESTPOOL/$TESTFS/small_file
+log_must mkfile 512b /$TESTPOOL/$TESTFS/small_file
 
 # TX_CREATE, TX_MKDIR, TX_REMOVE, TX_RMDIR
 log_must cp -R /usr/share/dict /$TESTPOOL/$TESTFS
@@ -125,26 +125,26 @@ log_must chgrp root /$TESTPOOL/$TESTFS/setattr
 log_must touch -cm -t 201311271200 /$TESTPOOL/$TESTFS/setattr
 
 # TX_TRUNCATE (to zero)
-log_must $MKFILE 4k /$TESTPOOL/$TESTFS/truncated_file
-log_must $TRUNCATE -s 0 /$TESTPOOL/$TESTFS/truncated_file
+log_must mkfile 4k /$TESTPOOL/$TESTFS/truncated_file
+log_must truncate -s 0 /$TESTPOOL/$TESTFS/truncated_file
 
 # TX_WRITE (large file)
-log_must $DD if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
     bs=128k count=64 oflag=sync
 
 # Write zeroes, which compresss to holes, in the middle of a file
-log_must $DD if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=8
-log_must $DD if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=2
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=8
+log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=2
 
-log_must $DD if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.2 bs=128k count=8
-log_must $DD if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.2 bs=128k count=2 seek=2
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.2 bs=128k count=8
+log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.2 bs=128k count=2 seek=2
 
-log_must $DD if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=8
-log_must $DD if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=2 \
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=8
+log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=2 \
    seek=2 conv=notrunc
 
 # TX_MKXATTR
-log_must $MKDIR /$TESTPOOL/$TESTFS/xattr.dir
+log_must mkdir /$TESTPOOL/$TESTFS/xattr.dir
 log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
 log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
 log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.dir
@@ -165,12 +165,12 @@ log_must cp -a /$TESTPOOL/$TESTFS/* $TESTDIR
 # At this stage TESTFS is empty again and unfrozen, and the
 # intent log contains a complete set of deltas to replay it.
 #
-log_must $ZFS unmount /$TESTPOOL/$TESTFS
+log_must zfs unmount /$TESTPOOL/$TESTFS
 
 log_note "Verify transactions to replay:"
-log_must $ZDB -iv $TESTPOOL/$TESTFS
+log_must zdb -iv $TESTPOOL/$TESTFS
 
-log_must $ZPOOL export $TESTPOOL
+log_must zpool export $TESTPOOL
 
 #
 # 6. Remount TESTFS <which replays the intent log>
@@ -178,13 +178,13 @@ log_must $ZPOOL export $TESTPOOL
 # Import the pool to unfreeze it and claim log blocks.  It has to be
 # `zpool import -f` because we can't write a frozen pool's labels!
 #
-log_must $ZPOOL import -f -d $VDIR $TESTPOOL
+log_must zpool import -f -d $VDIR $TESTPOOL
 
 #
 # 7. Compare TESTFS against the TESTDIR copy
 #
 log_note "Verify current block usage:"
-log_must $ZDB -bcv $TESTPOOL
+log_must zdb -bcv $TESTPOOL
 
 log_note "Verify copy of xattrs:"
 log_must attr -l /$TESTPOOL/$TESTFS/xattr.dir

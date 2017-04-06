@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 #
 
@@ -45,7 +45,7 @@
 
 verify_runnable "global"
 
-volsize=$($ZFS get -H -o value volsize $TESTPOOL/$TESTVOL)
+volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
 
 function cleanup
 {
@@ -54,35 +54,35 @@ function cleanup
 		safe_dumpadm $savedumpdev
 	fi
 
-	$SWAP -l | $GREP -w $voldev > /dev/null 2>&1
+	swap -l | grep -w $voldev > /dev/null 2>&1
         if (( $? == 0 ));  then
-		log_must $SWAP -d $voldev
+		log_must swap -d $voldev
 	fi
 
 	typeset snap
 	for snap in snap0 snap1 ; do
 		if datasetexists $TESTPOOL/$TESTVOL@$snap ; then
-			log_must $ZFS destroy $TESTPOOL/$TESTVOL@$snap
+			log_must zfs destroy $TESTPOOL/$TESTVOL@$snap
 		fi
 	done
-	$ZFS set volsize=$volsize $TESTPOOL/$TESTVOL
+	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 function verify_snapshot
 {
 	typeset volume=$1
 
-	log_must $ZFS snapshot $volume@snap0
-	log_must $ZFS snapshot $volume@snap1
+	log_must zfs snapshot $volume@snap0
+	log_must zfs snapshot $volume@snap1
 	log_must datasetexists $volume@snap0 $volume@snap1
 
-	log_must $ZFS destroy $volume@snap1
-	log_must $ZFS snapshot $volume@snap1
+	log_must zfs destroy $volume@snap1
+	log_must zfs snapshot $volume@snap1
 
-	log_mustnot $ZFS rollback -r $volume@snap0
+	log_mustnot zfs rollback -r $volume@snap0
 	log_must datasetexists $volume@snap0
 
-	log_must $ZFS destroy -r $volume@snap0
+	log_must zfs destroy -r $volume@snap0
 }
 
 log_assert "Verify the ability to take snapshots of zvols used as dump or swap."
@@ -102,12 +102,12 @@ log_mustnot is_zvol_dumpified $TESTPOOL/$TESTVOL
 
 # create snapshot over swap zvol
 
-log_must $SWAP -a $voldev
+log_must swap -a $voldev
 log_mustnot is_zvol_dumpified $TESTPOOL/$TESTVOL
 
 verify_snapshot $TESTPOOL/$TESTVOL
 
-log_must $SWAP -d $voldev
+log_must swap -d $voldev
 log_mustnot is_zvol_dumpified $TESTPOOL/$TESTVOL
 
 log_pass "Creating snapshots from dump/swap zvols succeeds."

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,7 +47,7 @@ function cleanup
 	cleanup_quota
 
 	if datasetexists $snap_fs; then
-		log_must $ZFS destroy $snap_fs
+		log_must zfs destroy $snap_fs
 	fi
 }
 
@@ -57,10 +57,10 @@ typeset snap_fs=$QFS@snap
 log_assert "Check  set userquota and groupquota on snapshot"
 
 log_note "Check can not set user|group quuota on snapshot"
-log_must $ZFS snapshot $snap_fs
+log_must zfs snapshot $snap_fs
 
-log_mustnot $ZFS set userquota@$QUSER1=$UQUOTA_SIZE $snap_fs
+log_mustnot zfs set userquota@$QUSER1=$UQUOTA_SIZE $snap_fs
 
-log_mustnot $ZFS set groupquota@$QGROUP=$GQUOTA_SIZE $snap_fs
+log_mustnot zfs set groupquota@$QGROUP=$GQUOTA_SIZE $snap_fs
 
 log_pass "Check  set userquota and groupquota on snapshot"

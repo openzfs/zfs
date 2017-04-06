@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
@@ -58,9 +63,9 @@ log_onexit cleanup
 create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
 log_must poolexists "$TESTPOOL"
 
-log_mustnot $ZPOOL add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1} \
+log_mustnot zpool add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1} \
 	${disk}${SLICE_PREFIX}${SLICE1}
-log_mustnot $ZPOOL add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE0}
+log_mustnot zpool add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE0}
 
 log_pass "'zpool add' get fail as expected if vdevs are the same or vdev is " \
 	"contained in the given pool."

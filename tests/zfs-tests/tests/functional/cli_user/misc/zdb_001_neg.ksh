@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,12 +45,12 @@
 function check_zdb
 {
 	$@ > /tmp/zdb.$$
-	$GREP "Dataset mos" /tmp/zdb.$$
+	grep "Dataset mos" /tmp/zdb.$$
 	if [ $? -eq 0 ]
 	then
 		log_fail "$@ exited 0 when run as a non root user!"
 	fi
-	$RM /tmp/zdb.$$
+	rm /tmp/zdb.$$
 }
 
 
@@ -58,7 +58,7 @@ function cleanup
 {
 	if [ -e /tmp/zdb_001_neg.$$.txt ]
 	then
-		$RM /tmp/zdb_001_neg.$$.txt
+		rm /tmp/zdb_001_neg.$$.txt
 	fi
 
 }
@@ -68,15 +68,15 @@ verify_runnable "global"
 log_assert "zdb can't run as a user on datasets, but can run without arguments"
 log_onexit cleanup
 
-log_must eval "$ZDB > /tmp/zdb_001_neg.$$.txt"
+log_must eval "zdb > /tmp/zdb_001_neg.$$.txt"
 # verify the output looks okay
-log_must $GREP pool_guid /tmp/zdb_001_neg.$$.txt
-log_must $RM /tmp/zdb_001_neg.$$.txt
+log_must grep pool_guid /tmp/zdb_001_neg.$$.txt
+log_must rm /tmp/zdb_001_neg.$$.txt
 
 # we shouldn't able to run it on any dataset
-check_zdb $ZDB $TESTPOOL
-check_zdb $ZDB $TESTPOOL/$TESTFS
-check_zdb $ZDB $TESTPOOL/$TESTFS@snap
-check_zdb $ZDB $TESTPOOL/$TESTFS.clone
+check_zdb zdb $TESTPOOL
+check_zdb zdb $TESTPOOL/$TESTFS
+check_zdb zdb $TESTPOOL/$TESTFS@snap
+check_zdb zdb $TESTPOOL/$TESTFS.clone
 
 log_pass "zdb can't run as a user on datasets, but can run without arguments"

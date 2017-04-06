@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
 
@@ -46,12 +50,12 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 	log_must force_unmount $TESTPOOL/$TESTFS
 	return 0
 }
 
-log_assert "Verify that '$ZFS $mountcmd' with a filesystem " \
+log_assert "Verify that 'zfs $mountcmd' with a filesystem " \
 	"whose mountpoint property is 'legacy' or 'none' " \
 	"will fail with return code 1."
 
@@ -66,12 +70,12 @@ while (( i < ${#mopt[*]} )); do
 	unmounted $TESTPOOL/$TESTFS || \
 		log_must cleanup
 
-	log_must $ZFS set mountpoint=${mopt[i]} $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=${mopt[i]} $TESTPOOL/$TESTFS
 
-	$ZFS $mountcmd $TESTPOOL/$TESTFS
+	zfs $mountcmd $TESTPOOL/$TESTFS
 	ret=$?
 	(( ret == 1)) || \
-		log_fail "'$ZFS $mountcmd $TESTPOOL/$TESTFS' " \
+		log_fail "'zfs $mountcmd $TESTPOOL/$TESTFS' " \
 			"unexpected return code of $ret."
 
 	log_note "Make sure the filesystem $TESTPOOL/$TESTFS is unmounted"
@@ -81,6 +85,6 @@ while (( i < ${#mopt[*]} )); do
 	((i = i + 1))
 done
 
-log_pass "Verify that '$ZFS $mountcmd' with a filesystem " \
+log_pass "Verify that 'zfs $mountcmd' with a filesystem " \
 	"whose mountpoint property is 'legacy' or 'none' " \
 	"will fail with return code 1."

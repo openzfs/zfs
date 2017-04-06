@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 #
 
@@ -45,20 +45,20 @@
 
 verify_runnable "global"
 
-volsize=$($ZFS get -H -o value volsize $TESTPOOL/$TESTVOL)
+volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
 
 function cleanup
 {
-	$SWAP -l | $GREP $voldev > /dev/null 2>&1
+	swap -l | grep $voldev > /dev/null 2>&1
 	if (( $? == 0 )) ; then
-		log_must $SWAP -d $voldev
+		log_must swap -d $voldev
 	fi
 
 	typeset dumpdev=$(get_dumpdevice)
 	if [[ $dumpdev != $savedumpdev ]] ; then
 		safe_dumpadm $savedumpdev
 	fi
-	$ZFS set volsize=$volsize $TESTPOOL/$TESTVOL
+	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "Verify a device cannot be dump and swap at the same time."
@@ -68,12 +68,12 @@ voldev=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
 # If device in swap list, it cannot be dump device
-log_must $SWAP -a $voldev
-log_mustnot $DUMPADM -d $voldev
-log_must $SWAP -d $voldev
+log_must swap -a $voldev
+log_mustnot dumpadm -d $voldev
+log_must swap -d $voldev
 
 # If device has dedicated as dump device, it cannot add into swap list
 safe_dumpadm $voldev
-log_mustnot $SWAP -a $voldev
+log_mustnot swap -a $voldev
 
 log_pass "A device cannot be dump and swap at the same time."

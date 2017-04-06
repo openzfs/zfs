@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,10 +36,10 @@ if ! is_linux; then
 	# check svc:/network/nis/client:default state
 	# disable it if the state is ON
 	# and the state will be restored during cleanup.ksh
-	log_must $RM -f $NISSTAFILE
-	if [[ "ON" == $($SVCS -H -o sta svc:/network/nis/client:default) ]]; then
-		log_must $SVCADM disable -t svc:/network/nis/client:default
-		log_must $TOUCH $NISSTAFILE
+	log_must rm -f $NISSTAFILE
+	if [[ "ON" == $(svcs -H -o sta svc:/network/nis/client:default) ]]; then
+		log_must svcadm disable -t svc:/network/nis/client:default
+		log_must touch $NISSTAFILE
 	fi
 fi
 
@@ -57,6 +57,6 @@ log_must add_user $OTHER_GROUP $OTHER2
 
 DISK=${DISKS%% *}
 default_volume_setup $DISK
-log_must $CHMOD 777 $TESTDIR
+log_must chmod 777 $TESTDIR
 
 log_pass

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 #
@@ -38,7 +38,7 @@ function pool_in_cache {
 	# the given cachefile, default is /etc/zfs/zpool.cache
 	typeset cachefile=${2:-$CPATH}
 
-	RESULT=$($STRINGS $cachefile | $GREP -w $1)
+	RESULT=$(strings $cachefile | grep -w $1)
 	if [ -z "$RESULT" ]
 	then
 		return 1

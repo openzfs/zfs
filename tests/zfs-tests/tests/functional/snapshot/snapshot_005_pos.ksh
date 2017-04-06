@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,15 +51,15 @@ function cleanup
 {
 	snapexists $SNAPCTR
 	if [[ $? -eq 0 ]]; then
-		log_must $ZFS destroy $SNAPCTR
+		log_must zfs destroy $SNAPCTR
 	fi
 
 	if [[ -e $SNAPDIR1 ]]; then
-		log_must $RM -rf $SNAPDIR1 > /dev/null 2>&1
+		log_must rm -rf $SNAPDIR1 > /dev/null 2>&1
 	fi
 
 	if [[ -e $TESTDIR ]]; then
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 	fi
 }
 
@@ -68,21 +68,21 @@ log_assert "Verify that a snapshot of a dataset is identical to " \
 log_onexit cleanup
 
 log_note "Create a file in the zfs filesystem..."
-log_must $FILE_WRITE -o create -f $TESTDIR1/$TESTFILE -b $BLOCKSZ \
+log_must file_write -o create -f $TESTDIR1/$TESTFILE -b $BLOCKSZ \
     -c $NUM_WRITES -d $DATA
 
 log_note "Sum the file, save for later comparison..."
-FILE_SUM=`$SUM -r $TESTDIR1/$TESTFILE | $AWK  '{ print $1 }'`
+FILE_SUM=`sum -r $TESTDIR1/$TESTFILE | awk  '{ print $1 }'`
 log_note "FILE_SUM = $FILE_SUM"
 
 log_note "Create a snapshot and mount it..."
-log_must $ZFS snapshot $SNAPCTR
+log_must zfs snapshot $SNAPCTR
 
 log_note "Append to the original file..."
-log_must $FILE_WRITE -o append -f $TESTDIR1/$TESTFILE -b $BLOCKSZ \
+log_must file_write -o append -f $TESTDIR1/$TESTFILE -b $BLOCKSZ \
     -c $NUM_WRITES -d $DATA
 
-SNAP_FILE_SUM=`$SUM -r $SNAPDIR1/$TESTFILE | $AWK '{ print $1 }'`
+SNAP_FILE_SUM=`sum -r $SNAPDIR1/$TESTFILE | awk '{ print $1 }'`
 if [[ $SNAP_FILE_SUM -ne $FILE_SUM ]]; then
 	log_fail "Sums do not match, aborting!! ($SNAP_FILE_SUM != $FILE_SUM)"
 fi

@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,7 +54,7 @@ function verify_sort { # command list name
 		ACTUAL=$(basename $dataset)
 		if [ "$dataset" != "$TESTPOOL/$TESTFS" ]
 		then
-			EXPECTED=$($ECHO $list | $AWK "{print \$$index}")
+			EXPECTED=$(echo $list | awk "{print \$$index}")
 			if [ "$ACTUAL" != "$EXPECTED" ]
 			then
 				log_note "WARNING:" \
@@ -67,7 +67,7 @@ function verify_sort { # command list name
 	done
 
 	# finally check to see if we have the expected number of elements
-	if [ $index -ne $($ECHO $list | $AWK '{print split($0,arr)+1}') ]
+	if [ $index -ne $(echo $list | awk '{print split($0,arr)+1}') ]
 	then
 		log_fail "Warning: " \
 			"unexpected number of filesystems found in list output!"
@@ -85,7 +85,7 @@ function verify_reverse_sort { # command list name
 	typeset name=$3
 
 	# set our index to the be number of elements in the list
-	typeset -i index=$($ECHO $list | $AWK '{print split($0,arr)}')
+	typeset -i index=$(echo $list | awk '{print split($0,arr)}')
 
 	log_note "Checking reverse sort by '$name'," \
 		"expecting the reverse of '$list'"
@@ -96,7 +96,7 @@ function verify_reverse_sort { # command list name
 		ACTUAL=$(basename $dataset)
 		if [ "$dataset" != "$TESTPOOL/$TESTFS" ]
 		then
-			EXPECTED=$($ECHO $list | $AWK "{print \$$index}")
+			EXPECTED=$(echo $list | awk "{print \$$index}")
 			if [ "$ACTUAL" != "$EXPECTED" ]
 			then
 				log_note "Warning:" \

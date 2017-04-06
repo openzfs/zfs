@@ -24,6 +24,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -66,12 +70,12 @@ function default_setup_datasets #rootfs
 			(( m+=1 ))
 		done
 		if (( spa_version != 0 )) && (( vp < spa_version )); then
-			log_mustnot $ZFS create -o version=${version} ${current_fs}
+			log_mustnot zfs create -o version=${version} ${current_fs}
 			continue
 		fi
-		log_must $ZFS create -o version=${version} ${current_fs}
-		log_must $ZFS snapshot ${current_snap}
-		log_must $ZFS clone ${current_snap} ${current_clone}
+		log_must zfs create -o version=${version} ${current_fs}
+		log_must zfs snapshot ${current_snap}
+		log_must zfs clone ${current_snap} ${current_clone}
 
 		for subversion in $ZFS_ALL_VERSIONS ; do
 			typeset subverfs
@@ -88,10 +92,10 @@ function default_setup_datasets #rootfs
 				(( m+=1 ))
 			done
 			if (( spa_version != 0 )) && (( vp < spa_version )); then
-				log_mustnot $ZFS create -o \
+				log_mustnot zfs create -o \
 				version=${subversion} ${current_fs}/$subverfs
 			else
-				log_must $ZFS create -o \
+				log_must zfs create -o \
 				version=${subversion} ${current_fs}/$subverfs
 			fi
 		done
@@ -103,11 +107,11 @@ function default_cleanup_datasets #rootfs
 	typeset rootfs=$1
 
 	if datasetexists $rootfs ; then
-		log_must $ZFS destroy -Rf $rootfs
+		log_must zfs destroy -Rf $rootfs
 	fi
 
 	if datasetnonexists $rootfs ; then
-		log_must $ZFS create $rootfs
+		log_must zfs create $rootfs
 	fi
 }
 
@@ -122,7 +126,7 @@ function default_check_zfs_upgrade #rootfs
 	typeset newv
 	typeset -i df_ret
 
-	$DF -F zfs / > /dev/null 2>&1
+	df -F zfs / > /dev/null 2>&1
 	df_ret=$?
 
 	for newv in "" $ZFS_VERSION; do
@@ -146,14 +150,14 @@ function default_check_zfs_upgrade #rootfs
 
 		if (( df_ret != 0 )); then
 			if (( spa_version != 0 )) && (( vp < spa_version )); then
-				log_mustnot eval '$ZFS upgrade $opt -a > /dev/null 2>&1'
-				log_must eval '$ZPOOL upgrade $pool > /dev/null 2>&1'
+				log_mustnot eval 'zfs upgrade $opt -a > /dev/null 2>&1'
+				log_must eval 'zpool upgrade $pool > /dev/null 2>&1'
 				vp=$(get_pool_prop version $pool)
 			fi
 
-			log_must eval '$ZFS upgrade $opt -a > /dev/null 2>&1'
+			log_must eval 'zfs upgrade $opt -a > /dev/null 2>&1'
 
-			for fs in $($ZFS list -rH -t filesystem -o name $rootfs) ; do
+			for fs in $(zfs list -rH -t filesystem -o name $rootfs) ; do
 				log_must check_fs_version $fs $newv
 			done
 		fi

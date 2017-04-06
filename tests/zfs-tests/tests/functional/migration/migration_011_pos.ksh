@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,18 +48,18 @@ verify_runnable "both"
 
 function cleanup
 {
-	$RM -rf $NONZFS_TESTDIR/cp$$.cp
-	$RM -rf $TESTDIR/$BNAME
+	rm -rf $NONZFS_TESTDIR/cp$$.cp
+	rm -rf $TESTDIR/$BNAME
 }
 
 log_assert "Migrating test file from ZFS fs to UFS fs using cp"
 
 log_onexit cleanup
 
-prepare $DNAME "$CP $BNAME $TESTDIR/cp$$.cp"
+prepare $DNAME "cp $BNAME $TESTDIR/cp$$.cp"
 (( $? != 0 )) && log_fail "Unable to create src archive"
 
-migrate $NONZFS_TESTDIR $SUMA $SUMB "$CP $TESTDIR/cp$$.cp $BNAME"
+migrate $NONZFS_TESTDIR $SUMA $SUMB "cp $TESTDIR/cp$$.cp $BNAME"
 (( $? != 0 )) && log_fail "Uable to successfully migrate test file from" \
     "ZFS fs to UFS fs"
 

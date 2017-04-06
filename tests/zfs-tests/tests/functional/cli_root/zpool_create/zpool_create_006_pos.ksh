@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -59,7 +59,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0
 while ((i < 10)); do
-	log_must $MKFILE $MINVDEVSIZE $mntpnt/vdev$i
+	log_must mkfile $MINVDEVSIZE $mntpnt/vdev$i
 
 	eval vdev$i=$mntpnt/vdev$i
 	((i += 1))
@@ -108,19 +108,19 @@ set -A forced_args \
 
 i=0
 while ((i < ${#valid_args[@]})); do
-	log_must $ZPOOL create $TESTPOOL1 ${valid_args[$i]}
-	$SYNC; $SYNC
-	log_must $ZPOOL destroy -f $TESTPOOL1
+	log_must zpool create $TESTPOOL1 ${valid_args[$i]}
+	sync; sync
+	log_must zpool destroy -f $TESTPOOL1
 
 	((i += 1))
 done
 
 i=0
 while ((i < ${#forced_args[@]})); do
-	log_mustnot $ZPOOL create $TESTPOOL1 ${forced_args[$i]}
-	log_must $ZPOOL create -f $TESTPOOL1 ${forced_args[$i]}
-	$SYNC; $SYNC
-	log_must $ZPOOL destroy -f $TESTPOOL1
+	log_mustnot zpool create $TESTPOOL1 ${forced_args[$i]}
+	log_must zpool create -f $TESTPOOL1 ${forced_args[$i]}
+	sync; sync
+	log_must zpool destroy -f $TESTPOOL1
 
 	((i += 1))
 done

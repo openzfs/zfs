@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,7 +56,7 @@ function cleanup
         fi
 	for file in $CPATH1 $CPATH2 ; do
 		if [[ -f $file ]] ; then
-			log_must $RM $file
+			log_must rm $file
 		fi
 	done
 }
@@ -74,7 +74,7 @@ set -A opts "none" "false" "none" \
 typeset -i i=0
 
 while (( i < ${#opts[*]} )); do
-	log_must $ZPOOL create -o cachefile=${opts[i]} $TESTPOOL $DISKS
+	log_must zpool create -o cachefile=${opts[i]} $TESTPOOL $DISKS
 	case ${opts[((i+1))]} in
 		false) log_mustnot pool_in_cache $TESTPOOL
 			;;
@@ -87,7 +87,7 @@ while (( i < ${#opts[*]} )); do
 		log_fail "cachefile property not set as expected. " \
 			"Expect: ${opts[((i+2))]}, Current: $PROP"
 	fi
-	log_must $ZPOOL destroy $TESTPOOL
+	log_must zpool destroy $TESTPOOL
 	(( i = i + 3 ))
 done
 

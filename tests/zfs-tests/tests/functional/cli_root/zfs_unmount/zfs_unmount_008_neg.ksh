@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -50,19 +54,19 @@ function cleanup
 {
 	for ds in $vol $fs1; do
 		if datasetexists $ds; then
-			log_must $ZFS destroy -f $ds
+			log_must zfs destroy -f $ds
 		fi
 	done
 
 	if snapexists $snap; then
-		log_must $ZFS destroy $snap
+		log_must zfs destroy $snap
 	fi
 
 	if [[ -e /tmp/$file ]]; then
-		$RM -f /tmp/$file
+		rm -f /tmp/$file
 	fi
 	if [[ -d /tmp/$dir ]]; then
-		$RM -rf /tmp/$dir
+		rm -rf /tmp/$dir
 	fi
 
 }
@@ -76,26 +80,26 @@ snap=$TESTPOOL/$TESTFS@snap.$$
 set -A badargs "A" "-A" "F" "-F" "-" "-x" "-?"
 
 if ! ismounted $fs; then
-	log_must $ZFS mount $fs
+	log_must zfs mount $fs
 fi
 
-log_must $ZFS snapshot $snap
+log_must zfs snapshot $snap
 if is_global_zone; then
-	log_must $ZFS create -V 10m $vol
+	log_must zfs create -V 10m $vol
 else
 	vol=""
 fi
 
 # Testing bad options
 for arg in ${badargs[@]}; do
-	log_mustnot eval "$ZFS unmount $arg $fs >/dev/null 2>&1"
+	log_mustnot eval "zfs unmount $arg $fs >/dev/null 2>&1"
 done
 
 
 #Testing invalid datasets
 for ds in $snap $vol "blah"; do
 	for opt in "" "-f"; do
-		log_mustnot eval "$ZFS unmount $opt $ds >/dev/null 2>&1"
+		log_mustnot eval "zfs unmount $opt $ds >/dev/null 2>&1"
 	done
 done
 
@@ -103,41 +107,41 @@ done
 dir=foodir.$$
 file=foo.$$
 fs1=$TESTPOOL/fs.$$
-$MKDIR /tmp/$dir
-$TOUCH /tmp/$file
-log_must $ZFS create -o mountpoint=/tmp/$dir $fs1
-curpath=`$DIRNAME $0`
+mkdir /tmp/$dir
+touch /tmp/$file
+log_must zfs create -o mountpoint=/tmp/$dir $fs1
+curpath=`dirname $0`
 cd /tmp
 for mpt in "./$dir" "./$file" "/tmp"; do
 	for opt in "" "-f"; do
-		log_mustnot eval "$ZFS unmount $opt $mpt >/dev/null 2>&1"
+		log_mustnot eval "zfs unmount $opt $mpt >/dev/null 2>&1"
 	done
 done
 cd $curpath
 
 #Testing null argument and too many arguments
 for opt in "" "-f"; do
-	log_mustnot eval "$ZFS unmount $opt >/dev/null 2>&1"
-	log_mustnot eval "$ZFS unmount $opt $fs $fs1 >/dev/null 2>&1"
+	log_mustnot eval "zfs unmount $opt >/dev/null 2>&1"
+	log_mustnot eval "zfs unmount $opt $fs $fs1 >/dev/null 2>&1"
 done
 
 #Testing already unmounted filesystem
-log_must $ZFS unmount $fs1
+log_must zfs unmount $fs1
 for opt in "" "-f"; do
-	log_mustnot eval "$ZFS unmount $opt $fs1 >/dev/null 2>&1"
-	log_mustnot eval "$ZFS unmount /tmp/$dir >/dev/null 2>&1"
+	log_mustnot eval "zfs unmount $opt $fs1 >/dev/null 2>&1"
+	log_mustnot eval "zfs unmount /tmp/$dir >/dev/null 2>&1"
 done
 
 #Testing legacy mounted filesystem
-log_must $ZFS set mountpoint=legacy $fs1
+log_must zfs set mountpoint=legacy $fs1
 if is_linux; then
-	log_must $MOUNT -t zfs $fs1 /tmp/$dir
+	log_must mount -t zfs $fs1 /tmp/$dir
 else
-	log_must $MOUNT -F zfs $fs1 /tmp/$dir
+	log_must mount -F zfs $fs1 /tmp/$dir
 fi
 for opt in "" "-f"; do
-	log_mustnot eval "$ZFS unmount $opt $fs1 >/dev/null 2>&1"
+	log_mustnot eval "zfs unmount $opt $fs1 >/dev/null 2>&1"
 done
-$UMOUNT /tmp/$dir
+umount /tmp/$dir
 
 log_pass "zfs unmount fails with bad parameters or scenarios as expected."

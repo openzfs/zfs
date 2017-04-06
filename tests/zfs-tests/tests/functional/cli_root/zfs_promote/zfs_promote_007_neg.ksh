@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_promote/zfs_promote.cfg
@@ -48,11 +48,11 @@ verify_runnable "both"
 function cleanup
 {
 	snapexists $snap && \
-		log_must $ZFS destroy -rR $snap
+		log_must zfs destroy -rR $snap
 
 	typeset data
 	for data in $TESTDIR/$TESTFILE0 $TESTDIR/$TESTFILE1; do
-		[[ -e $data ]] && $RM -f $data
+		[[ -e $data ]] && rm -f $data
 	done
 }
 
@@ -64,15 +64,15 @@ clone=$TESTPOOL/$TESTCLONE
 clonesnap=$TESTPOOL/$TESTCLONE@$TESTSNAP
 
 # setup for promte testing
-log_must $MKFILE $FILESIZE $TESTDIR/$TESTFILE0
-log_must $ZFS snapshot $snap
-log_must $MKFILE $FILESIZE $TESTDIR/$TESTFILE1
-log_must $RM -f $TESTDIR/$TESTFILE0
-log_must $ZFS clone $snap $clone
-log_must $MKFILE $FILESIZE /$clone/$CLONEFILE
-log_must $ZFS snapshot $clonesnap
+log_must mkfile $FILESIZE $TESTDIR/$TESTFILE0
+log_must zfs snapshot $snap
+log_must mkfile $FILESIZE $TESTDIR/$TESTFILE1
+log_must rm -f $TESTDIR/$TESTFILE0
+log_must zfs clone $snap $clone
+log_must mkfile $FILESIZE /$clone/$CLONEFILE
+log_must zfs snapshot $clonesnap
 
-log_mustnot $ZFS promote $clone
+log_mustnot zfs promote $clone
 
 log_pass "'zfs promote' deals with name conflicts as expected."
 

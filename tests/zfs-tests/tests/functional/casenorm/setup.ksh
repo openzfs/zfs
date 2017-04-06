@@ -15,9 +15,13 @@
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 verify_runnable "global"
 DISK=${DISKS%% *}
-log_must $ZPOOL create $TESTPOOL $DISK
+log_must zpool create $TESTPOOL $DISK
 log_pass

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -57,7 +57,7 @@ verify_runnable "global"
 #
 function parse_expected_output
 {
-	UNITS=`$ECHO $1 | $SED -e 's/^\([0-9].*\)\([a-z].\)/\2/'`
+	UNITS=`echo $1 | sed -e 's/^\([0-9].*\)\([a-z].\)/\2/'`
 	case "$UNITS" in
 		'mb') CHKUNIT="M" ;;
 		'gb') CHKUNIT="G" ;;
@@ -68,14 +68,14 @@ function parse_expected_output
 	esac
 
 	log_note "Detect zpool $TESTPOOL in this test machine."
-	log_must eval "$ZPOOL list $TESTPOOL > /tmp/j.$$"
-	log_must eval "$GREP $TESTPOOL /tmp/j.$$ | \
-		$AWK '{print $2}' | $GREP $CHKUNIT"
+	log_must eval "zpool list $TESTPOOL > /tmp/j.$$"
+	log_must eval "grep $TESTPOOL /tmp/j.$$ | \
+		awk '{print $2}' | grep $CHKUNIT"
 
 	log_note "Detect the file system in this test machine."
-	log_must eval "$DF -F zfs -h > /tmp/j.$$"
-	log_must eval "$GREP $TESTPOOL /tmp/j.$$ | \
-		$AWK '{print $2}' | $GREP $CHKUNIT"
+	log_must eval "df -F zfs -h > /tmp/j.$$"
+	log_must eval "grep $TESTPOOL /tmp/j.$$ | \
+		awk '{print $2}' | grep $CHKUNIT"
 
 	return 0
 }
@@ -89,19 +89,19 @@ function cleanup
 
 	if datasetexists $TESTPOOL/$TESTFS ; then
 		if ismounted $TESTPOOL/$TESTFS ; then
-			log_must $ZFS unmount $TESTPOOL/$TESTFS
+			log_must zfs unmount $TESTPOOL/$TESTFS
 		fi
-		log_must $ZFS destroy $TESTPOOL/$TESTFS
+		log_must zfs destroy $TESTPOOL/$TESTFS
 	fi
 
 	destroy_pool $TESTPOOL
 
 	datasetexists $TESTPOOL2/$TESTVOL && \
-		log_must $ZFS destroy $TESTPOOL2/$TESTVOL
+		log_must zfs destroy $TESTPOOL2/$TESTVOL
 
 	destroy_pool $TESTPOOL2
 
-	$RM -f /tmp/j.* > /dev/null
+	rm -f /tmp/j.* > /dev/null
 }
 
 log_assert "The largest pool can be created and a dataset in that" \
@@ -123,7 +123,7 @@ for volsize in $VOLSIZES; do
 	create_pool $TESTPOOL2 "$DISKS"
 
 	log_note "Create a volume device of desired sizes: $volsize"
-	str=$($ZFS create -sV $volsize $TESTPOOL2/$TESTVOL 2>&1)
+	str=$(zfs create -sV $volsize $TESTPOOL2/$TESTVOL 2>&1)
 	ret=$?
 	if (( ret != 0 )); then
 		if [[ is_32bit && \
@@ -134,7 +134,7 @@ for volsize in $VOLSIZES; do
 			log_unsupported \
 				"Max volume size is 1TB on 32-bit systems."
 		else
-			log_fail "$ZFS create -sV $volsize $TESTPOOL2/$TESTVOL"
+			log_fail "zfs create -sV $volsize $TESTPOOL2/$TESTVOL"
 		fi
 	fi
 
@@ -142,18 +142,18 @@ for volsize in $VOLSIZES; do
 	create_pool $TESTPOOL "$VOL_PATH"
 
 	log_note "Create a zfs file system in the largest pool"
-	log_must $ZFS create $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
 
 	log_note "Parse the execution result"
 	parse_expected_output $volsize
 
 	log_note "unmount this zfs file system $TESTPOOL/$TESTFS"
-	log_must $ZFS unmount $TESTPOOL/$TESTFS
+	log_must zfs unmount $TESTPOOL/$TESTFS
 
 	log_note "Destroy zfs, volume & zpool"
-	log_must $ZFS destroy $TESTPOOL/$TESTFS
+	log_must zfs destroy $TESTPOOL/$TESTFS
 	destroy_pool $TESTPOOL
-	log_must $ZFS destroy $TESTPOOL2/$TESTVOL
+	log_must zfs destroy $TESTPOOL2/$TESTVOL
 	destroy_pool $TESTPOOL2
 done
 

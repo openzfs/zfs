@@ -38,7 +38,7 @@
 verify_runnable "global"
 
 # create a pool without any features
-log_must $MKFILE 128m /tmp/zpool_upgrade_test.dat
-log_must $ZPOOL create -d -m $TESTDIR $TESTPOOL /tmp/zpool_upgrade_test.dat
+log_must mkfile 128m /tmp/zpool_upgrade_test.dat
+log_must zpool create -d -m $TESTDIR $TESTPOOL /tmp/zpool_upgrade_test.dat
 
 log_pass

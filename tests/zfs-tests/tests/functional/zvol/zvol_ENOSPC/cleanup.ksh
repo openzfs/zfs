@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -35,9 +35,9 @@
 verify_runnable "global"
 
 ismounted $TESTDIR $NEWFS_DEFAULT_FS
-(( $? == 0 )) && log_must $UMOUNT -f $TESTDIR
+(( $? == 0 )) && log_must umount -f $TESTDIR
 
-[[ -e $TESTDIR ]] && $RM -rf $TESTDIR
+[[ -e $TESTDIR ]] && rm -rf $TESTDIR
 
 default_zvol_cleanup
 

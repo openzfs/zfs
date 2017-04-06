@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
 
 #
@@ -45,15 +49,15 @@ function cleanup
 	typeset ds
 
 	if snapexists $snap; then
-		log_must $ZFS destroy $snap
+		log_must zfs destroy $snap
 	fi
 	for ds in $ctr1 $ctr2 $fs1; do
 		if datasetexists $ds; then
-			log_must $ZFS destroy -rf $ds
+			log_must zfs destroy -rf $ds
 		fi
 	done
 	if [[ -d $TESTDIR2 ]]; then
-		$RM -rf $TESTDIR2
+		rm -rf $TESTDIR2
 	fi
 }
 
@@ -74,28 +78,28 @@ bkup=$TESTDIR2/bkup.$$
 
 # Preparations for negative testing
 for ctr in $ctr1 $ctr2; do
-	log_must $ZFS create $ctr
+	log_must zfs create $ctr
 done
 if [[ -d $TESTDIR2 ]]; then
-	$RM -rf $TESTDIR2
+	rm -rf $TESTDIR2
 fi
-log_must $ZFS create -o mountpoint=$TESTDIR2 $fs1
-log_must $ZFS snapshot $snap
-log_must eval "$ZFS send $snap > $bkup"
+log_must zfs create -o mountpoint=$TESTDIR2 $fs1
+log_must zfs snapshot $snap
+log_must eval "zfs send $snap > $bkup"
 
 #Testing zfs receive fails with input from terminal
-log_mustnot eval "$ZFS recv $fs3 </dev/console"
+log_mustnot eval "zfs recv $fs3 </dev/console"
 
 # Testing with missing argument and too many arguments
 typeset -i i=0
 while (( i < ${#validopts[*]} )); do
-	log_mustnot eval "$ZFS recv < $bkup"
+	log_mustnot eval "zfs recv < $bkup"
 
-	$ECHO ${validopts[i]} | $GREP "d" >/dev/null 2>&1
+	echo ${validopts[i]} | grep "d" >/dev/null 2>&1
 	if (( $? != 0 )); then
-		log_mustnot eval "$ZFS recv ${validopts[i]} $fs2 $fs3 < $bkup"
+		log_mustnot eval "zfs recv ${validopts[i]} $fs2 $fs3 < $bkup"
 	else
-		log_mustnot eval "$ZFS recv ${validopts[i]} $ctr1 $ctr2 < $bkup"
+		log_mustnot eval "zfs recv ${validopts[i]} $ctr1 $ctr2 < $bkup"
 	fi
 
 	(( i += 1 ))
@@ -105,8 +109,8 @@ done
 i=0
 while (( i < ${#badopts[*]} ))
 do
-	log_mustnot eval "$ZFS recv ${badopts[i]} $ctr1 < $bkup"
-	log_mustnot eval "$ZFS recv ${badopts[i]} $fs2 < $bkup"
+	log_mustnot eval "zfs recv ${badopts[i]} $ctr1 < $bkup"
+	log_mustnot eval "zfs recv ${badopts[i]} $fs2 < $bkup"
 
 	(( i = i + 1 ))
 done

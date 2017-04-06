@@ -94,10 +94,10 @@ function log_must_retry
 	while (( $retry > 0 )); do
 		"$@" 2>$logfile
 		status=$?
-		out="$CAT $logfile"
+		out="cat $logfile"
 
 		if (( $status == 0 )); then
-			$out | $EGREP -i "internal error|assertion failed" \
+			$out | egrep -i "internal error|assertion failed" \
 				> /dev/null 2>&1
 			# internal error or assertion failed
 			if [[ $? -eq 0 ]]; then
@@ -111,11 +111,11 @@ function log_must_retry
 			fi
 			break
 		else
-			$out | $GREP -i "$expect" > /dev/null 2>&1
+			$out | grep -i "$expect" > /dev/null 2>&1
 			if (( $? == 0 )); then
 				print -u2 $($out)
 				_printerror "$@" "Retry in $delay seconds"
-				$SLEEP $delay
+				sleep $delay
 
 				(( retry=retry - 1 ))
 				(( delay=delay * 2 ))
@@ -189,7 +189,7 @@ function log_neg_expect
 
 	"$@" 2>$logfile
 	typeset status=$?
-	out="$CAT $logfile"
+	out="cat $logfile"
 
 	# unexpected status
 	if (( $status == 0 )); then
@@ -208,7 +208,7 @@ function log_neg_expect
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
 	else
-		$out | $EGREP -i "internal error|assertion failed" \
+		$out | egrep -i "internal error|assertion failed" \
 			> /dev/null 2>&1
 		# internal error or assertion failed
 		if (( $? == 0 )); then
@@ -216,7 +216,7 @@ function log_neg_expect
 			_printerror "$@" "internal error or assertion failure" \
 				" exited $status"
 		elif [[ -n $expect ]] ; then
-			$out | $GREP -i "$expect" > /dev/null 2>&1
+			$out | grep -i "$expect" > /dev/null 2>&1
 			if (( $? == 0 )); then
 				ret=0
 			else
@@ -253,13 +253,13 @@ function log_pos
 
 	"$@" 2>$logfile
 	typeset status=$?
-	out="$CAT $logfile"
+	out="cat $logfile"
 
 	if (( $status != 0 )) ; then
 		print -u2 $($out)
 		_printerror "$@" "exited $status"
 	else
-		$out | $EGREP -i "internal error|assertion failed" \
+		$out | egrep -i "internal error|assertion failed" \
 			> /dev/null 2>&1
 		# internal error or assertion failed
 		if [[ $? -eq 0 ]]; then
@@ -452,9 +452,9 @@ function _recursive_output #logfile
 
 	while [[ -e $logfile ]]; do
 		if [[ -z $2 || $logfile != $1 ]]; then
-			$CAT $logfile
+			cat $logfile
 		fi
-		$RM -f $logfile
+		rm -f $logfile
 		logfile="$logfile.$$"
         done
 }

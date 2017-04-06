@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
@@ -42,7 +46,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS mount -a
+	log_must zfs mount -a
 }
 
 log_onexit cleanup

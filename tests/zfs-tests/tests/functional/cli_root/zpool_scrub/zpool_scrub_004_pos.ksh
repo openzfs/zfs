@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,16 +55,16 @@ fi
 
 log_assert "Resilver prevent scrub from starting until the resilver completes"
 
-log_must $ZPOOL detach $TESTPOOL $DISK2
-log_must $ZINJECT -d $DISK1 -D10:1 $TESTPOOL
-log_must $ZPOOL attach $TESTPOOL $DISK1 $DISK2
+log_must zpool detach $TESTPOOL $DISK2
+log_must zinject -d $DISK1 -D10:1 $TESTPOOL
+log_must zpool attach $TESTPOOL $DISK1 $DISK2
 log_must is_pool_resilvering $TESTPOOL
-log_mustnot $ZPOOL scrub $TESTPOOL
+log_mustnot zpool scrub $TESTPOOL
 
 # Allow the resilver to finish, or it will interfere with the next test.
 while ! is_pool_resilvered $TESTPOOL; do
-	$SLEEP 1
+	sleep 1
 done
 
-log_must $ZINJECT -c all
+log_must zinject -c all
 log_pass "Resilver prevent scrub from starting until the resilver completes"

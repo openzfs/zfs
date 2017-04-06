@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,24 +47,24 @@ verify_runnable "both"
 
 function cleanup
 {
-	typeset snaps=$($ZFS list -H -t snapshot -o name)
+	typeset snaps=$(zfs list -H -t snapshot -o name)
 	typeset exclude
 	typeset snap
 	typeset pool_name
 
 	if [[ -n $KEEP ]]; then
-		exclude=`eval $ECHO \"'(${KEEP})'\"`
+		exclude=`eval echo \"'(${KEEP})'\"`
 	fi
 
 	for snap in $snaps; do
-		pool_name=$($ECHO "$snap" | $AWK -F/ '{print $1}')
+		pool_name=$(echo "$snap" | awk -F/ '{print $1}')
 		if [[ -n $exclude ]]; then
-			$ECHO "$pool_name" | $EGREP -v "$exclude" > /dev/null 2>&1
+			echo "$pool_name" | egrep -v "$exclude" > /dev/null 2>&1
 			if [[ $? -eq 0 ]]; then
-				log_must $ZFS destroy $snap
+				log_must zfs destroy $snap
 			fi
 		else
-			log_must $ZFS destroy $snap
+			log_must zfs destroy $snap
 		fi
 	done
 }
@@ -78,13 +78,13 @@ if is_global_zone; then
 	datasets[${#datasets[@]}]=$TESTPOOL/$TESTVOL
 fi
 
-log_must $ZFS snapshot -r ${TESTPOOL}@snap
+log_must zfs snapshot -r ${TESTPOOL}@snap
 typeset -i i=0
 while ((i < ${#datasets[@]})); do
 	# Create one more snapshot
-	log_must $ZFS snapshot ${datasets[$i]}@snap2
-	log_mustnot $ZFS rename -r ${TESTPOOL}@snap ${TESTPOOL}@snap2
-	log_must $ZFS destroy ${datasets[$i]}@snap2
+	log_must zfs snapshot ${datasets[$i]}@snap2
+	log_mustnot zfs rename -r ${TESTPOOL}@snap ${TESTPOOL}@snap2
+	log_must zfs destroy ${datasets[$i]}@snap2
 
 	# Check datasets, make sure none of them was renamed.
 	typeset -i j=0

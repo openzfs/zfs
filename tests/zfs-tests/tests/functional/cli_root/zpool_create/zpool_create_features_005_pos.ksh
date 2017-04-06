@@ -41,14 +41,14 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must $ZPOOL destroy $TESTPOOL
+	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
 }
 
 function check_features
 {
 	typeset feature="${1}"
 
-	${ZPOOL} get all ${TESTPOOL} | $GREP feature@ | while read line; do
+	zpool get all ${TESTPOOL} | grep feature@ | while read line; do
 		set -- $(echo "${line}")
 
 		if [[ "feature@${feature}" == "${2}" ]]; then
@@ -83,10 +83,10 @@ typeset -i i=0
 while (( $i < ${#features[*]} )); do
 	log_assert "'zpool create' creates pools with ${features[i]} disabled"
 
-	log_must $ZPOOL create -f -o "feature@${features[i]}=disabled" \
+	log_must zpool create -f -o "feature@${features[i]}=disabled" \
 	    $TESTPOOL $DISKS
 	log_must check_features "${features[i]}"
-	log_must $ZPOOL destroy -f $TESTPOOL
+	log_must zpool destroy -f $TESTPOOL
 	(( i = i+1 ))
 done
 

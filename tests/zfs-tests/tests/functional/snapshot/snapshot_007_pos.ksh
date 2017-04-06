@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,22 +51,22 @@ function cleanup
 	while [ $i -lt $COUNT ]; do
 		snapexists $SNAPCTR.$i
 		if [[ $? -eq 0 ]]; then
-			log_must $ZFS destroy $SNAPCTR.$i
+			log_must zfs destroy $SNAPCTR.$i
 		fi
 
 		if [[ -e $SNAPDIR.$i ]]; then
-			log_must $RM -rf $SNAPDIR1.$i > /dev/null 2>&1
+			log_must rm -rf $SNAPDIR1.$i > /dev/null 2>&1
 		fi
 
 		(( i = i + 1 ))
 	done
 
 	if [[ -e $SNAPDIR1 ]]; then
-		log_must $RM -rf $SNAPDIR1 > /dev/null 2>&1
+		log_must rm -rf $SNAPDIR1 > /dev/null 2>&1
 	fi
 
 	if [[ -e $TESTDIR ]]; then
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 	fi
 }
 
@@ -75,30 +75,30 @@ log_assert "Verify that many snapshots can be made on a zfs dataset."
 log_onexit cleanup
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 
 typeset -i COUNT=10
 
 log_note "Create some files in the $TESTDIR directory..."
 typeset -i i=1
 while [[ $i -lt $COUNT ]]; do
-	log_must $FILE_WRITE -o create -f $TESTDIR1/file$i \
+	log_must file_write -o create -f $TESTDIR1/file$i \
 	   -b $BLOCKSZ -c $NUM_WRITES -d $i
-	log_must $ZFS snapshot $SNAPCTR.$i
+	log_must zfs snapshot $SNAPCTR.$i
 
 	(( i = i + 1 ))
 done
 
 log_note "Remove all of the original files"
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR1/file* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR1/file* > /dev/null 2>&1
 
 i=1
 while [[ $i -lt $COUNT ]]; do
-	FILECOUNT=`$LS $SNAPDIR1.$i/file* | wc -l`
+	FILECOUNT=`ls $SNAPDIR1.$i/file* | wc -l`
 	typeset j=1
 	while [ $j -lt $FILECOUNT ]; do
-		log_must $FILE_CHECK $SNAPDIR1.$i/file$j $j
+		log_must file_check $SNAPDIR1.$i/file$j $j
 		(( j = j + 1 ))
 	done
 	(( i = i + 1 ))

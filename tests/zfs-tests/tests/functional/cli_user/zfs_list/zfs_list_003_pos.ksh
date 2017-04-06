@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,7 +45,7 @@
 function cleanup
 {
 	if [[ -f $tmpfile ]]; then
-		$RM -f $tmpfile
+		rm -f $tmpfile
 	fi
 }
 
@@ -64,9 +64,9 @@ done
 cd /tmp
 
 for path in $TESTPOOL/$TESTFS $TESTDIR ./../$TESTDIR ; do
-	$ZFS list -rH -o name $path > $tmpfile
+	zfs list -rH -o name $path > $tmpfile
 	for fs in $children ; do
-		$GREP "^${fs}$" $tmpfile > /dev/null 2>&1
+		grep "^${fs}$" $tmpfile > /dev/null 2>&1
 		if (( $? != 0 )); then
 			log_fail "$fs not shown in the output list."
 		fi

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_common.kshlib
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_list_d.kshlib
 
@@ -53,7 +57,7 @@ set -A props type used available creation volsize referenced compressratio \
 	usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
 	userquota@root groupquota@root userused@root groupused@root
 
-$ZFS upgrade -v > /dev/null 2>&1
+zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
 	set -A all_props ${all_props[*]} version
 fi
@@ -88,7 +92,7 @@ for dst in ${dataset[@]}; do
 		(( depth_item = $RANDOM % ${#depth_options[@]} ))
 		for prop in $(gen_option_str "${props[*]}" "" "," $prop_numb)
 		do
-			log_must eval "$ZFS get -${depth_options[depth_item]} ${options[item]} $prop $dst > /dev/null 2>&1"
+			log_must eval "zfs get -${depth_options[depth_item]} ${options[item]} $prop $dst > /dev/null 2>&1"
 		done
 		(( i += 1 ))
 	done
@@ -99,7 +103,7 @@ for dst in ${bookmark[@]}; do
 	while (( i < opt_numb )); do
 		(( item = $RANDOM % ${#options[@]} ))
 		(( depth_item = $RANDOM % ${#depth_options[@]} ))
-		log_must eval "$ZFS get -${depth_options[depth_item]} ${options[item]} $bookmark_props $dst > /dev/null 2>&1"
+		log_must eval "zfs get -${depth_options[depth_item]} ${options[item]} $bookmark_props $dst > /dev/null 2>&1"
 		(( i += 1 ))
 	done
 done

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,14 +49,14 @@ log_assert "zpool upgrade returns an error when run as a user"
 
 log_onexit cleanup
 # zpool upgrade returns 0 when it can't do anything
-log_must $ZPOOL upgrade $TESTPOOL.virt
+log_must zpool upgrade $TESTPOOL.virt
 
 # Now try to upgrade our version 1 pool
-log_mustnot $ZPOOL upgrade v1-pool
+log_mustnot zpool upgrade v1-pool
 
 # if the pool has been upgraded, then v1-pool won't be listed in the output
 # of zpool upgrade anymore
-RESULT=$($ZPOOL upgrade | $GREP v1-pool)
+RESULT=$(zpool upgrade | grep v1-pool)
 if [ -z "$RESULT" ]
 then
 	log_fail "A pool was upgraded successfully!"

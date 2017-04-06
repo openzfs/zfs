@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -53,13 +53,13 @@ verify_runnable "global"
 function cleanup
 {
 	mntpnt=$(get_prop mountpoint $TESTPOOL)
-        datasetexists $TESTPOOL1 || log_must $ZPOOL import -d $mntpnt $TESTPOOL1
+        datasetexists $TESTPOOL1 || log_must zpool import -d $mntpnt $TESTPOOL1
 	datasetexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 	datasetexists $TESTPOOL2 && destroy_pool $TESTPOOL2
 	typeset -i i=0
 	while ((i < 5)); do
 		if [[ -e $mntpnt/vdev$i ]]; then
-			log_must $RM -f $mntpnt/vdev$i
+			log_must rm -f $mntpnt/vdev$i
 		fi
 		((i += 1))
 	done
@@ -73,27 +73,27 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0
 while ((i < 5)); do
-	log_must $MKFILE $MINVDEVSIZE $mntpnt/vdev$i
+	log_must mkfile $MINVDEVSIZE $mntpnt/vdev$i
 	eval vdev$i=$mntpnt/vdev$i
 	((i += 1))
 done
 
-log_must $ZPOOL create $TESTPOOL1 mirror $vdev0 $vdev1 spare $vdev4
-log_must $ZPOOL create $TESTPOOL2 mirror $vdev2 $vdev3 spare $vdev4
+log_must zpool create $TESTPOOL1 mirror $vdev0 $vdev1 spare $vdev4
+log_must zpool create $TESTPOOL2 mirror $vdev2 $vdev3 spare $vdev4
 
-log_must $ZPOOL export $TESTPOOL1
-log_must $ZPOOL import -d $mntpnt $TESTPOOL1
+log_must zpool export $TESTPOOL1
+log_must zpool import -d $mntpnt $TESTPOOL1
 
-log_must $ZPOOL replace $TESTPOOL1 $vdev0 $vdev4
-log_must $ZPOOL detach $TESTPOOL1 $vdev4
-log_must $ZPOOL export $TESTPOOL1
-log_must $ZPOOL import -d $mntpnt $TESTPOOL1
+log_must zpool replace $TESTPOOL1 $vdev0 $vdev4
+log_must zpool detach $TESTPOOL1 $vdev4
+log_must zpool export $TESTPOOL1
+log_must zpool import -d $mntpnt $TESTPOOL1
 
-log_must $ZPOOL replace $TESTPOOL1 $vdev0 $vdev4
-log_mustnot $ZPOOL export $TESTPOOL1
+log_must zpool replace $TESTPOOL1 $vdev0 $vdev4
+log_mustnot zpool export $TESTPOOL1
 
-log_must $ZPOOL export -f $TESTPOOL1
-log_must $ZPOOL import -d $mntpnt  $TESTPOOL1
+log_must zpool export -f $TESTPOOL1
+log_must zpool import -d $mntpnt  $TESTPOOL1
 
 log_pass "Verify zpool export succeed or fail with spare."
 

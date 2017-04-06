@@ -57,21 +57,21 @@ fi
 
 function setup
 {
-	$LSMOD | $EGREP scsi_debug > /dev/null
+	lsmod | egrep scsi_debug > /dev/null
 	if (($? == 1)); then
 		load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS
 	fi
 	# Register vdev_id alias rule for scsi_debug device to create a
 	# persistent path
-	SD=$($LSSCSI | $NAWK '/scsi_debug/ {print $6; exit}' \
-	    | $NAWK -F / '{print $3}')
+	SD=$(lsscsi | nawk '/scsi_debug/ {print $6; exit}' \
+	    | nawk -F / '{print $3}')
 	SDDEVICE_ID=$(get_persistent_disk_name $SD)
-	log_must eval "$ECHO "alias scsidebug /dev/disk/by-id/$SDDEVICE_ID" \
+	log_must eval "echo "alias scsidebug /dev/disk/by-id/$SDDEVICE_ID" \
 	    >> $VDEVID_CONF"
 	block_device_wait
 
-	SDDEVICE=$($UDEVADM info -q all -n $DEV_DSKDIR/$SD | $EGREP ID_VDEV \
-	    | $NAWK '{print $2; exit}' | $NAWK -F = '{print $2; exit}')
+	SDDEVICE=$(udevadm info -q all -n $DEV_DSKDIR/$SD | egrep ID_VDEV \
+	    | nawk '{print $2; exit}' | nawk -F = '{print $2; exit}')
 	[[ -z $SDDEVICE ]] && log_fail "vdev rule was not registered properly"
 }
 
@@ -87,42 +87,42 @@ log_onexit cleanup
 # Clear disk labels
 for i in {0..2}
 do
-	log_must $ZPOOL labelclear -f /dev/disk/by-id/"${devs_id[i]}"
+	log_must zpool labelclear -f /dev/disk/by-id/"${devs_id[i]}"
 done
 
 setup
 if is_loop_device $DISK1; then
-	log_must $ZPOOL create -f $TESTPOOL raidz1 $SDDEVICE $DISK1 $DISK2 \
+	log_must zpool create -f $TESTPOOL raidz1 $SDDEVICE $DISK1 $DISK2 \
 	    $DISK3
 elif ( is_real_device $DISK1 || is_mpath_device $DISK1 ); then
-	log_must $ZPOOL create -f $TESTPOOL raidz1 $SDDEVICE ${devs_id[0]} \
+	log_must zpool create -f $TESTPOOL raidz1 $SDDEVICE ${devs_id[0]} \
 	    ${devs_id[1]} ${devs_id[2]}
 else
 	log_fail "Disks are not supported for this test"
 fi
 
 # Auto-replace is opt-in so need to set property
-log_must $ZPOOL set autoreplace=on $TESTPOOL
+log_must zpool set autoreplace=on $TESTPOOL
 
 # Add some data to the pool
-log_must $MKFILE $FSIZE /$TESTPOOL/data
+log_must mkfile $FSIZE /$TESTPOOL/data
 
-log_must $ZPOOL export -F $TESTPOOL
+log_must zpool export -F $TESTPOOL
 
 # Offline disk
 on_off_disk $SD "offline"
 block_device_wait
-log_must $MODUNLOAD scsi_debug
+log_must modprobe -r scsi_debug
 
 # Reimport pool with drive missing
-log_must $ZPOOL import $TESTPOOL
+log_must zpool import $TESTPOOL
 check_state $TESTPOOL "" "degraded"
 if (($? != 0)); then
 	log_fail "$TESTPOOL is not degraded"
 fi
 
 # Clear zpool events
-$ZPOOL events -c $TESTPOOL
+zpool events -c $TESTPOOL
 
 # Create another scsi_debug device
 setup
@@ -134,12 +134,12 @@ while true; do
 		log_fail "Timeout occured"
 	fi
 	((timeout++))
-	$SLEEP 1
-	$ZPOOL events $TESTPOOL | $EGREP sysevent.fs.zfs.resilver_finish \
+	sleep 1
+	zpool events $TESTPOOL | egrep sysevent.fs.zfs.resilver_finish \
 	    > /dev/null
 	if (($? == 0)); then
 		log_note "Auto-replace should be complete"
-		$SLEEP 1
+		sleep 1
 		break
 	fi
 done
@@ -149,8 +149,8 @@ check_state $TESTPOOL "" "online"
 if (($? != 0)); then
 	log_fail "$TESTPOOL is not back online"
 fi
-$SLEEP 2
+sleep 2
 
-log_must $ZPOOL destroy $TESTPOOL
+log_must zpool destroy $TESTPOOL
 
 log_pass "Auto-replace test successful"

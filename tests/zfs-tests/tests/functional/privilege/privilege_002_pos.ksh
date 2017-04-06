@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -62,40 +62,40 @@ verify_runnable "both"
 
 log_assert "The RBAC profile \"ZFS File System Management\" works"
 
-ZFS_USER=$($CAT /tmp/zfs-privs-test-user.txt)
+ZFS_USER=$(cat /tmp/zfs-privs-test-user.txt)
 
 # Set a $DATASET where we can create child files systems
 if is_global_zone; then
-	log_must $ZPOOL create -f $TESTPOOL $DISKS
+	log_must zpool create -f $TESTPOOL $DISKS
 	DATASET=$TESTPOOL
 else
 	DATASET=zonepool/zonectr0
 fi
 
 # A user shouldn't be able to create filesystems
-log_mustnot $SU $ZFS_USER -c "$ZFS create $DATASET/zfsprivfs"
+log_mustnot su $ZFS_USER -c "zfs create $DATASET/zfsprivfs"
 
 # Insist this invocation of usermod works
-log_must $USERMOD -P "ZFS File System Management" $ZFS_USER
+log_must usermod -P "ZFS File System Management" $ZFS_USER
 
 # Now try to create file systems as the user
-log_mustnot $SU $ZFS_USER -c "$ZFS create $DATASET/zfsprivfs"
-log_must $SU $ZFS_USER -c "$PFEXEC $ZFS create $DATASET/zfsprivfs"
+log_mustnot su $ZFS_USER -c "zfs create $DATASET/zfsprivfs"
+log_must su $ZFS_USER -c "pfexec zfs create $DATASET/zfsprivfs"
 
 # Ensure the user can't do anything to pools in this state:
-log_mustnot $SU $ZFS_USER -c "$ZPOOL destroy $DATASET"
-log_mustnot $SU $ZFS_USER -c "$PFEXEC $ZPOOL destroy $DATASET"
+log_mustnot su $ZFS_USER -c "zpool destroy $DATASET"
+log_mustnot su $ZFS_USER -c "pfexec zpool destroy $DATASET"
 
 # revoke File System Management profile
-$USERMOD -P, $ZFS_USER
+usermod -P, $ZFS_USER
 
 # Ensure the user can't create more filesystems
-log_mustnot $SU $ZFS_USER -c "$ZFS create $DATASET/zfsprivfs2"
-log_mustnot $SU $ZFS_USER -c "$PFEXEC $ZFS create $DATASET/zfsprivfs2"
+log_mustnot su $ZFS_USER -c "zfs create $DATASET/zfsprivfs2"
+log_mustnot su $ZFS_USER -c "pfexec zfs create $DATASET/zfsprivfs2"
 
 # assign the profile again and destroy the fs.
-$USERMOD -P "ZFS File System Management" $ZFS_USER
-log_must $SU $ZFS_USER -c "$PFEXEC $ZFS destroy $DATASET/zfsprivfs"
-$USERMOD -P, $ZFS_USER
+usermod -P "ZFS File System Management" $ZFS_USER
+log_must su $ZFS_USER -c "pfexec zfs destroy $DATASET/zfsprivfs"
+usermod -P, $ZFS_USER
 
 log_pass "The RBAC profile \"ZFS File System Management\" works"

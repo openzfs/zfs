@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/history/history_common.kshlib
@@ -107,7 +107,7 @@ while ((i < ${#array[@]})); do
 	subcmd=${array[$i]}
 	options=${array[((i + 1))]}
 
-	run_and_verify "$ZFS $subcmd $options $testfs" "-i"
+	run_and_verify "zfs $subcmd $options $testfs" "-i"
 	((i += 2))
 done
 

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -57,26 +57,26 @@ function cleanup
 	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
 
 	log_note "Kill off ufsdump process if still running"
-	$KILL -0 $PIDUFSDUMP > /dev/null 2>&1 && \
-	    log_must $KILL -9 $PIDUFSDUMP  > /dev/null 2>&1
+	kill -0 $PIDUFSDUMP > /dev/null 2>&1 && \
+	    log_must kill -9 $PIDUFSDUMP  > /dev/null 2>&1
 	#
 	# Note: It would appear that ufsdump spawns a number of processes
 	# which are not killed when the $PIDUFSDUMP is whacked.  So best bet
 	# is to find the rest of the them and deal with them individually.
 	#
-	for all in `$PGREP ufsdump`
+	for all in `pgrep ufsdump`
 	do
-		$KILL -9 $all > /dev/null 2>&1
+		kill -9 $all > /dev/null 2>&1
 	done
 
 	log_note "Kill off ufsrestore process if still running"
-	$KILL -0 $PIDUFSRESTORE > /dev/null 2>&1 && \
-	    log_must $KILL -9 $PIDUFSRESTORE  > /dev/null 2>&1
+	kill -0 $PIDUFSRESTORE > /dev/null 2>&1 && \
+	    log_must kill -9 $PIDUFSRESTORE  > /dev/null 2>&1
 
-	ismounted $UFSMP ufs && log_must $UMOUNT $UFSMP
+	ismounted $UFSMP ufs && log_must umount $UFSMP
 
-	$RM -rf $UFSMP
-	$RM -rf $TESTDIR
+	rm -rf $UFSMP
+	rm -rf $TESTDIR
 
 	#
 	# Tidy up the disks we used.
@@ -103,23 +103,23 @@ for num in 0 1 2; do
 done
 
 log_note "Make a ufs filesystem on source $rawdisk1"
-$ECHO "y" | $NEWFS -v $rawdisk1 > /dev/null 2>&1
+echo "y" | newfs -v $rawdisk1 > /dev/null 2>&1
 (($? != 0)) && log_untested "Unable to create ufs filesystem on $rawdisk1"
 
-log_must $MKDIR -p $UFSMP
+log_must mkdir -p $UFSMP
 
 log_note "mount source $disk1 on $UFSMP"
-log_must $MOUNT $disk1 $UFSMP
+log_must mount $disk1 $UFSMP
 
 log_note "Now create some directories and files to be ufsdump'ed"
 while (($dirnum <= 2)); do
-	log_must $MKDIR $bigdir${dirnum}
+	log_must mkdir $bigdir${dirnum}
 	while (( $filenum <= 2 )); do
-		$FILE_WRITE -o create -f $bigdir${dirnum}/file${filenum} \
+		file_write -o create -f $bigdir${dirnum}/file${filenum} \
 		    -b $BLOCK_SIZE -c $BLOCK_COUNT
 		if [[ $? -ne 0 ]]; then
 			if [[ $dirnum -lt 3 ]]; then
-				log_fail "$FILE_WRITE only wrote" \
+				log_fail "file_write only wrote" \
 				    "<(( $dirnum * 3 + $filenum ))>" \
 				    "files, this is not enough"
 			fi
@@ -130,46 +130,46 @@ while (($dirnum <= 2)); do
 	((dirnum = dirnum + 1))
 done
 
-log_must $UMOUNT $UFSMP
+log_must umount $UFSMP
 
 log_note "Start ufsdump in the background"
-log_note "$UFSDUMP 0bf 512 $rawdisk0 $disk1"
-$UFSDUMP 0bf 512 $rawdisk0 $disk1 &
+log_note "ufsdump 0bf 512 $rawdisk0 $disk1"
+ufsdump 0bf 512 $rawdisk0 $disk1 &
 PIDUFSDUMP=$!
 
 unset NOINUSE_CHECK
 log_note "Attempt to zpool the source device in use by ufsdump"
-log_mustnot $ZPOOL create $TESTPOOL1 "$disk1"
+log_mustnot zpool create $TESTPOOL1 "$disk1"
 log_mustnot poolexists $TESTPOOL1
 
 log_note "Attempt to take the source device in use by ufsdump as spare device"
-log_mustnot $ZPOOL create $TESTPOOL1 "$FS_SIDE2" spare "$disk1"
+log_mustnot zpool create $TESTPOOL1 "$FS_SIDE2" spare "$disk1"
 log_mustnot poolexists $TESTPOOL1
 
 wait $PIDUFSDUMP
 typeset -i retval=$?
-(($retval != 0)) && log_fail "$UFSDUMP failed with error code $ret_val"
+(($retval != 0)) && log_fail "ufsdump failed with error code $ret_val"
 
-log_must $MOUNT $disk1 $UFSMP
+log_must mount $disk1 $UFSMP
 
-log_must $RM -rf $UFSMP/*
-log_must $MKDIR $restored_files
+log_must rm -rf $UFSMP/*
+log_must mkdir $restored_files
 
 cwd=$PWD
 log_must cd $restored_files
 log_note "Start ufsrestore in the background from the target device"
-log_note "$UFSRESTORE rbf 512 $rawdisk0"
-$UFSRESTORE rbf 512 $rawdisk0 &
+log_note "ufsrestore rbf 512 $rawdisk0"
+ufsrestore rbf 512 $rawdisk0 &
 PIDUFSRESTORE=$!
 log_must cd $cwd
 
 log_note "Attempt to zpool the restored device in use by ufsrestore"
-log_mustnot $ZPOOL create -f $TESTPOOL2 "$disk1"
+log_mustnot zpool create -f $TESTPOOL2 "$disk1"
 log_mustnot poolexists $TESTPOOL2
 
 log_note "Attempt to take the restored device in use by ufsrestore as spare" \
     "device"
-log_mustnot $ZPOOL create -f $TESTPOOL2 "$FS_SIDE2" spare "$disk1"
+log_mustnot zpool create -f $TESTPOOL2 "$FS_SIDE2" spare "$disk1"
 log_mustnot poolexists $TESTPOOL2
 
 log_pass "Unable to zpool over a device in use by ufsdump or ufsrestore"

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,10 +48,10 @@ verify_runnable "global"
 function cleanup
 {
 	if snapexists $TESTPOOL/$TESTFS@snapshot; then
-		log_must $ZFS destroy $TESTPOOL/$TESTFS@snapshot
+		log_must zfs destroy $TESTPOOL/$TESTFS@snapshot
 	fi
 
-	log_must $ZFS set sharenfs=off $TESTPOOL/$TESTFS
+	log_must zfs set sharenfs=off $TESTPOOL/$TESTFS
 	log_must unshare_fs $TESTPOOL/$TESTFS
 }
 
@@ -70,27 +70,27 @@ function test_snap_share # mntp filesystem
         not_shared $mntp || \
             log_fail "File system $filesystem is already shared."
 
-        log_must $ZFS set sharenfs=on $filesystem
+        log_must zfs set sharenfs=on $filesystem
         is_shared $mntp || \
             log_fail "File system $filesystem is not shared (set sharenfs)."
 
-	log_must $LS -l  $mntp/$SNAPROOT/snapshot
+	log_must ls -l  $mntp/$SNAPROOT/snapshot
         #
         # Verify 'zfs share' works as well.
         #
-        log_must $ZFS unshare $filesystem
-        log_must $ZFS share $filesystem
+        log_must zfs unshare $filesystem
+        log_must zfs share $filesystem
 
         is_shared $mntp || \
             log_fail "file system $filesystem is not shared (zfs share)."
 
-	log_must $LS -l  $mntp/$SNAPROOT/snapshot
+	log_must ls -l  $mntp/$SNAPROOT/snapshot
 }
 
 log_assert "Verify that a file system and its snapshot are shared."
 log_onexit cleanup
 
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@snapshot
+log_must zfs snapshot $TESTPOOL/$TESTFS@snapshot
 test_snap_share $TESTDIR $TESTPOOL/$TESTFS
 
 log_pass "A file system and its snapshot are both shared as expected."

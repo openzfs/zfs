@@ -24,6 +24,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/atime/atime.cfg
 . $STF_SUITE/include/libtest.shlib
 
@@ -44,15 +48,15 @@ function check_atime_updated
 		typeset before=$(stat -c %X $filename)
 		sleep 2
 	else
-		typeset before=$($LS -Eu $filename | $AWK '{print $7}')
+		typeset before=$(ls -Eu $filename | awk '{print $7}')
 	fi
 
-	log_must $CAT $filename
+	log_must cat $filename
 
 	if is_linux; then
 		typeset after=$(stat -c %X $filename)
 	else
-		typeset after=$($LS -Eu $filename | $AWK '{print $7}')
+		typeset after=$(ls -Eu $filename | awk '{print $7}')
 	fi
 
 	if [[ $before != $after ]]; then
@@ -65,7 +69,7 @@ function check_atime_updated
 function setup_snap_clone
 {
 	# Create two file to verify snapshot.
-	log_must $TOUCH $TESTDIR/$TESTFILE
+	log_must touch $TESTDIR/$TESTFILE
 
 	create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 	create_clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE

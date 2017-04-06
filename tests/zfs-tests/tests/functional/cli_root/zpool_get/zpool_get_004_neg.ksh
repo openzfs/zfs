@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -51,7 +55,7 @@ set -A arguments "$TESTPOOL $TESTPOOL" "$TESTPOOL rubbish" "-v $TESTPOOL" \
 
 for arg in $arguments
 do
-	log_mustnot $ZPOOL get $arg
+	log_mustnot zpool get $arg
 done
 
 log_pass "Malformed zpool get commands are rejected"

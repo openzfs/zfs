@@ -65,8 +65,8 @@ log_onexit cleanup
 
 # If using the default loop devices, need a scsi_debug device for auto-online
 if is_loop_device $DISK1; then
-	SD=$($LSSCSI | $NAWK '/scsi_debug/ {print $6; exit}')
-	SDDEVICE=$($ECHO $SD | $NAWK -F / '{print $3}')
+	SD=$(lsscsi | nawk '/scsi_debug/ {print $6; exit}')
+	SDDEVICE=$(echo $SD | nawk -F / '{print $3}')
 	SDDEVICE_ID=$(get_persistent_disk_name $SDDEVICE)
 	autoonline_disks="$SDDEVICE"
 else
@@ -76,43 +76,43 @@ fi
 # Clear disk labels
 for i in {0..2}
 do
-	log_must $ZPOOL labelclear -f /dev/disk/by-id/"${devs_id[i]}"
+	log_must zpool labelclear -f /dev/disk/by-id/"${devs_id[i]}"
 done
 
 if is_loop_device $DISK1; then
 	# create a pool with one scsi_debug device and 3 loop devices
-	log_must $ZPOOL create -f $TESTPOOL raidz1 $SDDEVICE_ID $DISK1 \
+	log_must zpool create -f $TESTPOOL raidz1 $SDDEVICE_ID $DISK1 \
 	    $DISK2 $DISK3
 elif ( is_real_device $DISK1 || is_mpath_device $DISK1 ); then
 	# else use the persistent names for sd devices
-	log_must $ZPOOL create -f $TESTPOOL raidz1 ${devs_id[0]} \
+	log_must zpool create -f $TESTPOOL raidz1 ${devs_id[0]} \
 	    ${devs_id[1]} ${devs_id[2]}
 else
 	log_fail "Disks are not supported for this test"
 fi
 
 # Add some data to the pool
-log_must $MKFILE $FSIZE /$TESTPOOL/data
+log_must mkfile $FSIZE /$TESTPOOL/data
 
 for offline_disk in $autoonline_disks
 do
-	log_must $ZPOOL export -F $TESTPOOL
+	log_must zpool export -F $TESTPOOL
 
-	host=$($LS /sys/block/$offline_disk/device/scsi_device \
-	    | $NAWK -F : '{ print $1}')
+	host=$(ls /sys/block/$offline_disk/device/scsi_device \
+	    | nawk -F : '{ print $1}')
 
 	# Offline disk
 	on_off_disk $offline_disk "offline"
 
 	# Reimport pool with drive missing
-	log_must $ZPOOL import $TESTPOOL
+	log_must zpool import $TESTPOOL
 	check_state $TESTPOOL "" "degraded"
 	if (($? != 0)); then
 		log_fail "$TESTPOOL is not degraded"
 	fi
 
 	# Clear zpool events
-	$ZPOOL events -c $TESTPOOL
+	zpool events -c $TESTPOOL
 
 	# Online disk
 	on_off_disk $offline_disk "online" $host
@@ -124,12 +124,13 @@ do
 			log_fail "Timeout occured"
 		fi
 		((timeout++))
-		$SLEEP 1
-		$ZPOOL events $TESTPOOL \
-		    | $EGREP sysevent.fs.zfs.resilver_finish > /dev/null
+
+		sleep 1
+		zpool events $TESTPOOL \
+		    | egrep sysevent.fs.zfs.resilver_finish > /dev/null
 		if (($? == 0)); then
 			log_note "Auto-online of $offline_disk is complete"
-			$SLEEP 1
+			sleep 1
 			break
 		fi
 	done
@@ -139,8 +140,8 @@ do
 	if (($? != 0)); then
 		log_fail "$TESTPOOL is not back online"
 	fi
-	$SLEEP 2
+	sleep 2
 done
-log_must $ZPOOL destroy $TESTPOOL
+log_must zpool destroy $TESTPOOL
 
 log_pass "Auto-online test successful"

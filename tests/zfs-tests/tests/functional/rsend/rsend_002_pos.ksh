@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -50,17 +50,17 @@ log_onexit cleanup_pool $POOL2
 #
 # Duplicate POOL2
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-R"
 
 if is_global_zone ; then
 	#
 	# Verify send -I will backup all the incrementals in pool
 	#
-	log_must eval "$ZFS send -I $POOL2@init $POOL2@final > " \
+	log_must eval "zfs send -I $POOL2@init $POOL2@final > " \
 		"$BACKDIR/pool-init-final-I"
 	log_must destroy_tree $POOL2@final $POOL2@snapC $POOL2@snapA
-	log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-init-final-I"
+	log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-init-final-I"
 	log_must cmp_ds_subs $POOL $POOL2
 	log_must cmp_ds_cont $POOL $POOL2
 fi
@@ -70,9 +70,9 @@ dstds=$(get_dst_ds $POOL $POOL2)
 #
 # Verify send -I will backup all the incrementals in filesystem
 #
-log_must eval "$ZFS send -I @init $dstds/$FS@final > $BACKDIR/fs-init-final-I"
+log_must eval "zfs send -I @init $dstds/$FS@final > $BACKDIR/fs-init-final-I"
 log_must destroy_tree $dstds/$FS@final $dstds/$FS@snapC $dstds/$FS@snapB
-log_must eval "$ZFS receive -d -F $dstds < $BACKDIR/fs-init-final-I"
+log_must eval "zfs receive -d -F $dstds < $BACKDIR/fs-init-final-I"
 log_must cmp_ds_subs $POOL $dstds
 log_must cmp_ds_cont $POOL $dstds
 
@@ -81,11 +81,11 @@ if is_global_zone ; then
 	# Verify send -I will backup all the incrementals in volume
 	#
 	dataset=$POOL2/$FS/vol
-	log_must eval "$ZFS send -I @vsnap $dataset@final > " \
+	log_must eval "zfs send -I @vsnap $dataset@final > " \
 		"$BACKDIR/vol-vsnap-final-I"
 	log_must destroy_tree $dataset@final $dataset@snapC  \
 		$dataset@snapB $dataset@init
-	log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/vol-vsnap-final-I"
+	log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/vol-vsnap-final-I"
 	log_must cmp_ds_subs $POOL $POOL2
 	log_must cmp_ds_cont $POOL $POOL2
 fi

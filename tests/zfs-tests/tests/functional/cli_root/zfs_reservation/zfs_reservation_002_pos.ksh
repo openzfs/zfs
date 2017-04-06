@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -50,8 +55,8 @@ function cleanup
 	for FS in $TESTPOOL/$RESERVATION $TESTPOOL/$RESERVATION2
 	do
 		if datasetexists $FS ; then
-			log_must $ZFS unmount $FS
-			log_must $ZFS destroy $FS
+			log_must zfs unmount $FS
+			log_must zfs destroy $FS
 		fi
 	done
 }
@@ -60,21 +65,21 @@ log_onexit cleanup
 
 log_assert "Ensure a reservation of 0 or 'none' is allowed."
 
-log_must $ZFS create $TESTPOOL/$RESERVATION
-log_must $ZFS create $TESTPOOL/$RESERVATION2
+log_must zfs create $TESTPOOL/$RESERVATION
+log_must zfs create $TESTPOOL/$RESERVATION2
 
-log_must $ZFS set reservation=0 $TESTPOOL/$RESERVATION
-log_must $ZFS set reservation=none $TESTPOOL/$RESERVATION2
+log_must zfs set reservation=0 $TESTPOOL/$RESERVATION
+log_must zfs set reservation=none $TESTPOOL/$RESERVATION2
 
 for FS in $TESTPOOL/$RESERVATION $TESTPOOL/$RESERVATION2
 do
 
-	reserve=`$ZFS get -pH reservation $FS | $AWK '{print $3}'`
+	reserve=`zfs get -pH reservation $FS | awk '{print $3}'`
 	if [[ $reserve -ne 0 ]]; then
 		log_fail "ZFS get -p reservation did not return 0"
 	fi
 
-	reserve=`$ZFS get -H reservation $FS | $AWK '{print $3}'`
+	reserve=`zfs get -H reservation $FS | awk '{print $3}'`
 	if [[ $reserve != "none" ]]; then
 		log_fail "ZFS get reservation did not return 'none'"
 	fi

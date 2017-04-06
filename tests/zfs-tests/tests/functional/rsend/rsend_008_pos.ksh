@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -60,7 +60,7 @@ function cleanup
 		origin=$(get_prop origin ${dtst[$i]})
 
 		if [[ $origin != "-" ]]; then
-			log_must $ZFS promote ${dtst[$i]}
+			log_must zfs promote ${dtst[$i]}
 		fi
 
 		((i += 2))
@@ -68,7 +68,7 @@ function cleanup
 
 	origin=$(get_prop origin $POOL2)
 	if [[ $origin != "-" ]]; then
-		log_must $ZFS promote $POOL2
+		log_must zfs promote $POOL2
 	fi
 	log_must cleanup_pool $POOL2
 }
@@ -78,7 +78,7 @@ log_onexit cleanup
 
 typeset -i i=0
 while ((i < ${#dtst[@]})); do
-	log_must $ZFS promote ${dtst[((i+1))]}
+	log_must zfs promote ${dtst[((i+1))]}
 
 	((i += 2))
 done
@@ -86,8 +86,8 @@ done
 #
 # Verify zfs send -R should succeed
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 
 dstds=$(get_dst_ds $POOL $POOL2)
 #
@@ -119,10 +119,10 @@ while ((i < ${#pair[@]})); do
 done
 
 # Verify the original filesystem can be promoted
-log_must $ZFS promote $dstds
+log_must zfs promote $dstds
 if is_global_zone ; then
-	log_must $ZFS promote $dstds/$FS/vol
+	log_must zfs promote $dstds/$FS/vol
 fi
-log_must $ZFS promote $dstds/$FS/fs1/fs2
+log_must zfs promote $dstds/$FS/fs1/fs2
 
 log_pass "Changes made by 'zfs promote' can be properly received."

@@ -43,10 +43,10 @@ config_count=(1 2)
 set -A DISK $DISKS
 
 default_mirror_setup_noexit $DISKS
-log_must $DD if=/dev/${DISK[0]} of=/dev/${DISK[1]} bs=1K count=256 conv=notrunc
+log_must dd if=/dev/${DISK[0]} of=/dev/${DISK[1]} bs=1K count=256 conv=notrunc
 
 for x in 0 1 ; do
-	config_count=$($ZDB -l $DEV_RDSKDIR/${DISK[$x]} | $GREP -c features_for_read)
+	config_count=$(zdb -l $DEV_RDSKDIR/${DISK[$x]} | grep -c features_for_read)
 	(( $? != 0)) && log_fail "failed to get config_count from DISK[$x]"
 	log_note "vdev $x: message_count $config_count"
 	[ $config_count -ne ${config_count[$x]} ] && \

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,8 +45,8 @@
 
 function check_for_online
 {
-	RESULT=$($ZPOOL status -v $TESTPOOL.virt | $GREP disk-offline.dat \
-		 | $GREP ONLINE )
+	RESULT=$(zpool status -v $TESTPOOL.virt | grep disk-offline.dat \
+		 | grep ONLINE )
 	if [ -n "$RESULT" ]
 	then
 		log_fail "A disk was brough online!"
@@ -57,10 +57,10 @@ verify_runnable "global"
 
 log_assert "zpool online returns an error when run as a user"
 
-log_mustnot $ZPOOL online $TESTPOOL.virt /$TESTDIR/disk-offline.dat
+log_mustnot zpool online $TESTPOOL.virt /$TESTDIR/disk-offline.dat
 check_for_online
 
-log_mustnot $ZPOOL online -t $TESTPOOL.virt /$TESTDIR/disk-offline.dat
+log_mustnot zpool online -t $TESTPOOL.virt /$TESTDIR/disk-offline.dat
 check_for_online
 
 log_pass "zpool online returns an error when run as a user"

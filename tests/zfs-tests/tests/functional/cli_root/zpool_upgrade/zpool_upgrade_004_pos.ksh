@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
@@ -65,7 +65,7 @@ done
 
 # upgrade them all at once
 export __ZFS_POOL_RESTRICT="$TEST_POOLS"
-log_must $ZPOOL upgrade -a
+log_must zpool upgrade -a
 unset __ZFS_POOL_RESTRICT
 
 # verify their contents then destroy them
@@ -73,9 +73,9 @@ for config in $CONFIGS ; do
 	typeset -n pool_name=ZPOOL_VERSION_${config}_NAME
 
 	check_pool $pool_name post > /dev/null
-	log_must $DIFF /$TESTPOOL/pool-checksums.$pool_name.pre \
+	log_must diff /$TESTPOOL/pool-checksums.$pool_name.pre \
 	    /$TESTPOOL/pool-checksums.$pool_name.post
-	$RM /$TESTPOOL/pool-checksums.$pool_name.pre \
+	rm /$TESTPOOL/pool-checksums.$pool_name.pre \
 	    /$TESTPOOL/pool-checksums.$pool_name.post
 	destroy_upgraded_pool $config
 done

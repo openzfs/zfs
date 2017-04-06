@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,20 +34,20 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must $ZFS destroy -R $origin
-	log_must $ZFS create -o mountpoint=$TESTDIR $origin
+	datasetexists $origin && log_must zfs destroy -R $origin
+	log_must zfs create -o mountpoint=$TESTDIR $origin
 }
 
 log_assert "nopwrite works for sync writes"
 
-log_must $ZFS set compress=on $origin
-log_must $ZFS set checksum=sha256 $origin
-$GNUDD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS oflag=sync \
+log_must zfs set compress=on $origin
+log_must zfs set checksum=sha256 $origin
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS oflag=sync \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
-$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-log_must $ZFS clone $origin@a $origin/clone
+zfs snapshot $origin@a || log_fail "zfs snap failed"
+log_must zfs clone $origin@a $origin/clone
 
-$GNUDD if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
+dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 
 log_must verify_nopwrite $origin $origin@a $origin/clone

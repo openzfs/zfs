@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -40,5 +40,5 @@ default_mirror_setup_noexit $DISK1 $DISK2
 mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 # Create 100MB of data
-log_must $FILE_WRITE -b 1048576 -c 100 -o create -d 0 -f $mntpnt/bigfile
+log_must file_write -b 1048576 -c 100 -o create -d 0 -f $mntpnt/bigfile
 log_pass

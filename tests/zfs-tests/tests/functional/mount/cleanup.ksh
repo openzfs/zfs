@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,5 +34,5 @@
 log_must destroy_pool $TESTPOOL
 
 for dir in $TESTDIRS; do
-	$RM -rf $dir
+	rm -rf $dir
 done

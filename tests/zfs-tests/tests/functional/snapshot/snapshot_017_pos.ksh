@@ -27,7 +27,7 @@
 
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -57,11 +57,11 @@ function cleanup
 	cd $SAVED_DIR
 
 	if datasetexists $TESTPOOL/$TESTFS ; then
-		log_must $ZFS destroy -Rf $TESTPOOL/$TESTFS
+		log_must zfs destroy -Rf $TESTPOOL/$TESTFS
 	fi
 
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 function verify_structure {
@@ -145,33 +145,33 @@ SAVED_DIR=$PWD
 # ./dir1/dir2/file6
 
 cd $TESTDIR
-$MKFILE 10m file1
-$MKFILE 20m file2
-$MKDIR dir1
+mkfile 10m file1
+mkfile 20m file2
+mkdir dir1
 cd dir1
-$MKFILE 10m file3
-$MKFILE 20m file4
-$MKDIR dir2
+mkfile 10m file3
+mkfile 20m file4
+mkdir dir2
 cd dir2
-$MKFILE 10m file5
-$MKFILE 20m file6
+mkfile 10m file5
+mkfile 20m file6
 
 # Now walk the directory structure verifying it
 cd $TESTDIR
 verify_structure
 
 # Take snapshots
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@snap_a
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@snap_b
+log_must zfs snapshot $TESTPOOL/$TESTFS@snap_a
+log_must zfs snapshot $TESTPOOL/$TESTFS@snap_b
 
 # Change the filesystem structure by renaming files in the original structure
 # The snapshot file structure should not change
 cd $TESTDIR
-log_must $MV file2 file99
+log_must mv file2 file99
 cd dir1
-log_must $MV file4 file99
+log_must mv file4 file99
 cd dir2
-log_must $MV file6 file99
+log_must mv file6 file99
 
 # verify the top level snapshot directories
 verify_dir $TESTDIR/.zfs

@@ -43,13 +43,13 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TEST_FS && log_must $ZFS destroy $TEST_FS
+	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
 }
 
 log_onexit cleanup
 log_assert "extended attributes use extra bonus space of a large dnode"
 
-log_must $ZFS create -o xattr=sa $TEST_FS
+log_must zfs create -o xattr=sa $TEST_FS
 
 # Store dnode size minus 512 in an xattr
 set -A xattr_sizes "512" "1536" "3584" "7680" "15872"
@@ -59,7 +59,7 @@ set -A inodes
 for ((i=0; i < ${#prop_values[*]}; i++)) ; do
 	prop_val=${prop_values[$i]}
 	file=/$TEST_FS/file.$prop_val
-	log_must $ZFS set dnsize=$prop_val $TEST_FS
+	log_must zfs set dnsize=$prop_val $TEST_FS
 	touch $file
 	xattr_size=${xattr_sizes[$i]}
 	xattr_name=user.foo
@@ -69,10 +69,10 @@ for ((i=0; i < ${#prop_values[*]}; i++)) ; do
 	inodes[$i]=$(ls -li $file | awk '{print $1}')
 done
 
-log_must $ZFS umount $TEST_FS
+log_must zfs umount $TEST_FS
 
 for ((i=0; i < ${#inodes[*]}; i++)) ; do
-	log_mustnot eval "$ZDB -dddd $TEST_FS ${inodes[$i]} | grep SPILL_BLKPTR"
+	log_mustnot eval "zdb -dddd $TEST_FS ${inodes[$i]} | grep SPILL_BLKPTR"
 done
 
 log_pass "extended attributes use extra bonus space of a large dnode"

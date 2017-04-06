@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,7 +52,7 @@ function uncompress_pool
 {
 
 	log_note "Creating pool from $POOL_FILE"
-	log_must $BZCAT \
+	log_must bzcat \
 	    $STF_SUITE/tests/functional/cli_root/zpool_import/$POOL_FILE.bz2 \
 	    > /$TESTPOOL/$POOL_FILE
 	return 0
@@ -60,8 +60,8 @@ function uncompress_pool
 
 function cleanup
 {
-	poolexists $POOL_NAME && log_must $ZPOOL destroy $POOL_NAME
-	[[ -e /$TESTPOOL/$POOL_FILE ]] && $RM /$TESTPOOL/$POOL_FILE
+	poolexists $POOL_NAME && log_must zpool destroy $POOL_NAME
+	[[ -e /$TESTPOOL/$POOL_FILE ]] && rm /$TESTPOOL/$POOL_FILE
 	return 0
 }
 
@@ -69,7 +69,7 @@ log_assert "'zpool import' fails for pool that was not cleanly exported"
 log_onexit cleanup
 
 uncompress_pool
-log_mustnot $ZPOOL import -d /$TESTPOOL $POOL_NAME
-log_must $ZPOOL import -d /$TESTPOOL -f $POOL_NAME
+log_mustnot zpool import -d /$TESTPOOL $POOL_NAME
+log_must zpool import -d /$TESTPOOL -f $POOL_NAME
 
 log_pass "'zpool import' fails for pool that was not cleanly exported"

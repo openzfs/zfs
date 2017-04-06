@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -61,11 +61,11 @@ space_avail=`get_prop available $TESTPOOL`
 
 ((resv_size_set = (space_avail - RESV_DELTA) / 2))
 
-fs_quota=`$ZFS get quota $TESTPOOL/$TESTFS`
+fs_quota=`zfs get quota $TESTPOOL/$TESTFS`
 
-log_must $ZFS set reservation=$resv_size_set $TESTPOOL/$TESTFS
+log_must zfs set reservation=$resv_size_set $TESTPOOL/$TESTFS
 
-new_fs_quota=`$ZFS get quota $TESTPOOL/$TESTFS`
+new_fs_quota=`zfs get quota $TESTPOOL/$TESTFS`
 
 if [[ $fs_quota != $new_fs_quota ]]; then
 	log_fail "Quota value on $TESTFS has changed " \

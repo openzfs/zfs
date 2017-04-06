@@ -13,6 +13,10 @@
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/casenorm/casenorm.cfg
 
@@ -20,18 +24,18 @@ function create_testfs
 {
 	typeset opts=$1
 
-	$RM -rf $TESTDIR || log_unresolved Could not remove $TESTDIR
-	$MKDIR -p $TESTDIR || log_unresolved Could not create $TESTDIR
+	rm -rf $TESTDIR || log_unresolved Could not remove $TESTDIR
+	mkdir -p $TESTDIR || log_unresolved Could not create $TESTDIR
 
-	log_must $ZFS create $opts $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs create $opts $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 function destroy_testfs
 {
 	if datasetexists $TESTPOOL/$TESTFS ; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS
-		$RM -rf $TESTDIR || log_unresolved Could not remove $TESTDIR
+		log_must zfs destroy -f $TESTPOOL/$TESTFS
+		rm -rf $TESTDIR || log_unresolved Could not remove $TESTDIR
 	fi
 }
 
@@ -39,14 +43,14 @@ function create_file
 {
 	typeset name=$TESTDIR/$1
 
-	$ECHO $name > $name
+	echo $name > $name
 }
 
 function delete_file
 {
 	typeset name=$TESTDIR/$1
 
-	$RM $name >/dev/null 2>&1
+	rm $name >/dev/null 2>&1
 
 	if [[ $? -ne 0 ]] ; then
 		return 1
@@ -61,14 +65,14 @@ function lookup_file
 {
 	typeset name=$1
 
-	$ZLOOK -l $TESTDIR $name >/dev/null 2>&1
+	zlook -l $TESTDIR $name >/dev/null 2>&1
 }
 
 function lookup_file_ci
 {
 	typeset name=$1
 
-	$ZLOOK -il $TESTDIR $name >/dev/null 2>&1
+	zlook -il $TESTDIR $name >/dev/null 2>&1
 }
 
 function lookup_any

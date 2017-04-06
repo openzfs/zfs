@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 typeset -a compress_props=('on' 'off' 'lzjb' 'gzip' 'gzip-1' 'gzip-2' 'gzip-3'
@@ -37,7 +37,7 @@ function get_rand_prop
 
 	typeset prop_max=$((${#prop_array[@]} - 1))
 	typeset -i i
-	for i in $($SHUF -i $start-$prop_max -n $num_props); do
+	for i in $(shuf -i $start-$prop_max -n $num_props); do
 		retstr="${prop_array[$i]} $retstr"
 	done
 	echo $retstr

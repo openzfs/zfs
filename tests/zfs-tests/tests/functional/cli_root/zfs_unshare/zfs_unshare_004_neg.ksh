@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,33 +52,33 @@ set -A opts "" "$TESTPOOL/$NONEXISTFSNAME" "$NONEEXISTMOUNTPOINT" "-?" "-1" \
 		"$TESTPOOL/$TESTFS $TESTDIR" "-f $TESTPOOL/$TESTFS $TESTDIR" \
 		"${TESTDIR#/}" "-f ${TESTDIR#/}"
 
-log_assert "Verify that '$ZFS unshare' issue error message with badly formed parameter."
+log_assert "Verify that 'zfs unshare' issue error message with badly formed parameter."
 
 shareval=$(get_prop sharenfs $TESTPOOL/$TESTFS)
 if [[ $shareval == off ]]; then
-	log_must $ZFS set sharenfs=on $TESTPOOL/$TESTFS
+	log_must zfs set sharenfs=on $TESTPOOL/$TESTFS
 fi
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-        log_mustnot $ZFS unshare ${args[i]}
+        log_mustnot zfs unshare ${args[i]}
 
         ((i = i + 1))
 done
 
 #Testing that unsharing unshared filesystem fails.
 mpt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
-log_must $ZFS unshare $TESTPOOL/$TESTFS
+log_must zfs unshare $TESTPOOL/$TESTFS
 for opt in "" "-f"; do
-	log_mustnot eval "$ZFS unshare $opt $TESTPOOL/$TESTFS >/dev/null 2>&1"
-	log_mustnot eval "$ZFS unshare $opt $mpt >/dev/null 2>&1"
+	log_mustnot eval "zfs unshare $opt $TESTPOOL/$TESTFS >/dev/null 2>&1"
+	log_mustnot eval "zfs unshare $opt $mpt >/dev/null 2>&1"
 done
 
 #Testing zfs unshare fails with legacy share set
-log_must $ZFS set sharenfs=off $TESTPOOL/$TESTFS
+log_must zfs set sharenfs=off $TESTPOOL/$TESTFS
 for opt in "" "-f"; do
-	log_mustnot eval "$ZFS unshare $opt $TESTPOOL/$TESTFS >/dev/null 2>&1"
-	log_mustnot eval "$ZFS unshare $opt $mpt >/dev/null 2>&1"
+	log_mustnot eval "zfs unshare $opt $TESTPOOL/$TESTFS >/dev/null 2>&1"
+	log_mustnot eval "zfs unshare $opt $mpt >/dev/null 2>&1"
 done
 
-log_pass "'$ZFS unshare' fails as expected with badly-formed parameters."
+log_pass "'zfs unshare' fails as expected with badly-formed parameters."

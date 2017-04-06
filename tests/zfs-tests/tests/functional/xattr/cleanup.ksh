@@ -24,22 +24,22 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
-ZFS_USER=$($CAT /tmp/zfs-xattr-test-user.txt)
-$RM /tmp/zfs-xattr-test-user.txt
+ZFS_USER=$(cat /tmp/zfs-xattr-test-user.txt)
+rm /tmp/zfs-xattr-test-user.txt
 
-USES_NIS=$($CAT /tmp/zfs-xattr-test-nis.txt)
-$RM /tmp/zfs-xattr-test-nis.txt
+USES_NIS=$(cat /tmp/zfs-xattr-test-nis.txt)
+rm /tmp/zfs-xattr-test-nis.txt
 
 del_user $ZFS_USER
 
 if [ "${USES_NIS}" == "true" ]
 then
-    $SVCADM enable svc:/network/nis/client:default
+    svcadm enable svc:/network/nis/client:default
 fi
 
 default_cleanup

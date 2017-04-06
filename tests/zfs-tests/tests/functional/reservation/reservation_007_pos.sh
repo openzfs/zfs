@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,10 +56,10 @@ log_assert "Verify reservations on data sets doesn't affect other data sets " \
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-	    log_must $ZFS destroy -f $TESTPOOL/$TESTFS2
+	    log_must zfs destroy -f $TESTPOOL/$TESTFS2
 
 	datasetexists $TESTPOOL/$TESTFS1 && \
-	    log_must $ZFS destroy -f $TESTPOOL/$TESTFS1
+	    log_must zfs destroy -f $TESTPOOL/$TESTFS1
 }
 
 log_onexit cleanup
@@ -84,23 +84,23 @@ function create_resv_destroy { # args1 dataset1 args2 dataset2
 	args2=$3
 	dataset2=$4
 
-	log_must $ZFS create $args1 $dataset1
+	log_must zfs create $args1 $dataset1
 
-	log_must $ZFS set reservation=$RESV_SIZE $dataset1
+	log_must zfs set reservation=$RESV_SIZE $dataset1
 
 	avail_aft_dset1=`get_prop available $TESTPOOL`
 	used_aft_dset1=`get_prop used $TESTPOOL`
 
-	log_must $ZFS create $args2 $dataset2
+	log_must zfs create $args2 $dataset2
 
-	log_must $ZFS set reservation=$RESV_SIZE $dataset2
+	log_must zfs set reservation=$RESV_SIZE $dataset2
 
 	#
 	# After destroying the second dataset the space used and
 	# available totals should revert back to the values they
 	# had after creating the first dataset.
 	#
-	log_must $ZFS destroy -f $dataset2
+	log_must zfs destroy -f $dataset2
 
 	avail_dest_dset2=`get_prop available $TESTPOOL`
 	used_dest_dset2=`get_prop used $TESTPOOL`
@@ -112,7 +112,7 @@ function create_resv_destroy { # args1 dataset1 args2 dataset2
 	# After destroying the first dataset the space used and
 	# space available totals should revert back to the values
 	# they had when the pool was first created.
-	log_must $ZFS destroy -f $dataset1
+	log_must zfs destroy -f $dataset1
 
 	avail_dest_dset1=`get_prop available $TESTPOOL`
 	used_dest_dset1=`get_prop used $TESTPOOL`

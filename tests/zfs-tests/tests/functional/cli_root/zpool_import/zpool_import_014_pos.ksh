@@ -46,10 +46,10 @@ function cleanup
 		destroy_pool $dt
 	done
 
-	log_must $RM -rf $DEVICE_DIR/*
+	log_must rm -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must $MKFILE $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -65,7 +65,7 @@ function verify_pool_name
 	typeset poolname=$2
 	typeset labelname
 
-	$ZDB -e -l $device | $GREP " name:" | {
+	zdb -e -l $device | grep " name:" | {
 		while read labelname ; do
 			if [[ "name: '$poolname'" != "$labelname" ]]; then
 				return 1
@@ -80,11 +80,11 @@ log_onexit cleanup
 
 poolA=poolA.$$; poolB=poolB.$$;
 
-log_must $ZPOOL create $poolA $VDEV0
-log_must $ZPOOL export $poolA
+log_must zpool create $poolA $VDEV0
+log_must zpool export $poolA
 
-log_must $ZPOOL import -t $poolA $poolB -d $DEVICE_DIR
-log_must $ZPOOL export $poolB
+log_must zpool import -t $poolA $poolB -d $DEVICE_DIR
+log_must zpool export $poolB
 
 log_must eval "verify_pool_name $VDEV0 $poolA"
 

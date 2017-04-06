@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,27 +45,27 @@ verify_runnable "both"
 
 function cleanup
 {
-	[[ -e $propfile ]] && $RM -f $propfile
+	[[ -e $propfile ]] && rm -f $propfile
 
 	datasetexists $clone  && \
-		log_must $ZFS destroy $clone
+		log_must zfs destroy $clone
 	for snap in $fssnap $volsnap ; do
 		snapexists $snap && \
-			log_must $ZFS destroy $snap
+			log_must zfs destroy $snap
 	done
 
 	if [[ -n $globalzone ]] ; then
 		for pool in $TESTPOOL1 $TESTPOOL2 $TESTPOOL3; do
 			poolexists $pool && \
-				log_must $ZPOOL destroy -f $pool
+				log_must zpool destroy -f $pool
 		done
-		for file in `$LS $TESTDIR1/poolfile*`; do
-			$RM -f $file
+		for file in `ls $TESTDIR1/poolfile*`; do
+			rm -f $file
 		done
 	else
 		for fs in $TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS2 $TESTPOOL/$TESTFS3; do
 			datasetexists $fs && \
-				log_must $ZFS destroy -rf $fs
+				log_must zfs destroy -rf $fs
 		done
 	fi
 }
@@ -92,12 +92,12 @@ volsnap=$TESTPOOL/$TESTVOL@$TESTSNAP
 
 #set user defined properties for $TESTPOOL
 for usrprop in ${usrprops[@]}; do
-	log_must $ZFS set $usrprop $TESTPOOL
+	log_must zfs set $usrprop $TESTPOOL
 done
 # create snapshot and clone in $TESTPOOL
-log_must $ZFS snapshot $fssnap
-log_must $ZFS clone $fssnap $clone
-log_must $ZFS snapshot $volsnap
+log_must zfs snapshot $fssnap
+log_must zfs clone $fssnap $clone
+log_must zfs snapshot $volsnap
 
 # collect datasets which can be set user defined properties
 usrpropds="$clone $fs"
@@ -120,31 +120,31 @@ while (( availspace > DFILESIZE )) && (( i < 3 )) ; do
 	(( i += 1 ))
 
 	if [[ -n $globalzone ]] ; then
-		log_must $MKFILE $FILESIZE ${file}$i
+		log_must mkfile $FILESIZE ${file}$i
 		eval pool=\$TESTPOOL$i
-		log_must $ZPOOL create $pool ${file}$i
+		log_must zpool create $pool ${file}$i
 	else
 		eval pool=$TESTPOOL/\$TESTFS$i
-		log_must $ZFS create $pool
+		log_must zfs create $pool
 	fi
 
 	#set user defined properties for testing
 	for usrprop in ${usrprops[@]}; do
-		log_must $ZFS set $usrprop $pool
+		log_must zfs set $usrprop $pool
 	done
 
 	#create datasets in pool
-	log_must $ZFS create $pool/$TESTFS
-	log_must $ZFS snapshot $pool/$TESTFS@$TESTSNAP
-	log_must $ZFS clone $pool/$TESTFS@$TESTSNAP $pool/$TESTCLONE
+	log_must zfs create $pool/$TESTFS
+	log_must zfs snapshot $pool/$TESTFS@$TESTSNAP
+	log_must zfs clone $pool/$TESTFS@$TESTSNAP $pool/$TESTCLONE
 
 	if [[ -n $globalzone ]] ; then
-		log_must $ZFS create -V $VOLSIZE $pool/$TESTVOL
+		log_must zfs create -V $VOLSIZE $pool/$TESTVOL
 	else
-		log_must $ZFS create $pool/$TESTVOL
+		log_must zfs create $pool/$TESTVOL
 	fi
 
-	ds=`$ZFS list -H -r -o name -t filesystem,volume $pool`
+	ds=`zfs list -H -r -o name -t filesystem,volume $pool`
 	usrpropds="$usrpropds $pool/$TESTFS $pool/$TESTCLONE $pool/$TESTVOL"
 	allds="$allds $pool/$TESTFS $pool/$TESTCLONE $pool/$TESTVOL \
 		$pool/$TESTFS@$TESTSNAP"
@@ -162,18 +162,18 @@ typeset -i i=0
 typeset -i propnum=0
 typeset -i failflag=0
 while (( i < ${#opts[*]} )); do
-	[[ -e $propfile ]] && $RM -f $propfile
-	log_must eval "$ZFS get ${opts[i]} all >$propfile"
+	[[ -e $propfile ]] && rm -f $propfile
+	log_must eval "zfs get ${opts[i]} all >$propfile"
 
 	for ds in $allds; do
-		$GREP $ds $propfile >/dev/null 2>&1
+		grep $ds $propfile >/dev/null 2>&1
 		(( $? != 0 )) && \
 			log_fail "There is no property for" \
 				"dataset $ds in 'get all' output."
 
-		propnum=`$CAT $propfile | $AWK '{print $1}' | \
-			$GREP "${ds}$" | $WC -l`
-		ds_type=`$ZFS get -H -o value type $ds`
+		propnum=`cat $propfile | awk '{print $1}' | \
+			grep "${ds}$" | wc -l`
+		ds_type=`zfs get -H -o value type $ds`
 		case $ds_type in
 			filesystem )
 				(( propnum < fspropnum )) && \
@@ -208,7 +208,7 @@ function do_particular_prop_test #<property> <suitable datasets>
 	typeset ds="$2"
 
 	for prop in ${commprops[*]}; do
-		ds=`$ZFS get -H -o name $prop`
+		ds=`zfs get -H -o name $prop`
 
 		[[ "$ds" != "$allds" ]] && \
 			log_fail "The result datasets are $ds, but all suitable" \

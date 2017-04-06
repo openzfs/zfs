@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,10 +48,10 @@ verify_runnable "global"
 function cleanup
 {
 	if [[ -n $PREVDUMPDEV ]]; then
-		log_must $DUMPADM -u -d $PREVDUMPDEV
+		log_must dumpadm -u -d $PREVDUMPDEV
 	fi
 
-	poolexists $TESTPOOL1 || $ZPOOL import $TESTPOOL1 >/dev/null 2>&1
+	poolexists $TESTPOOL1 || zpool import $TESTPOOL1 >/dev/null 2>&1
 
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 
@@ -66,9 +66,9 @@ function verify_assertion #slices
 	typeset targets=$1
 
 	for t in $targets; do
-		log_must $DUMPADM -u -d $t
+		log_must dumpadm -u -d $t
 
-		log_must $DUMPADM -u -d $PREVDUMPDEV
+		log_must dumpadm -u -d $PREVDUMPDEV
 	done
 
 	return 0
@@ -82,7 +82,7 @@ set -A vdevs "" "mirror" "raidz" "raidz1" "raidz2"
 
 typeset -i i=0
 
-PREVDUMPDEV=`$DUMPADM | $GREP "Dump device" | $AWK '{print $3}'`
+PREVDUMPDEV=`dumpadm | grep "Dump device" | awk '{print $3}'`
 
 while (( i < ${#vdevs[*]} )); do
 
@@ -99,9 +99,9 @@ while (( i < ${#vdevs[*]} )); do
 	fi
 
 	create_pool $TESTPOOL1 ${vdevs[i]} $vslices spare $sslices
-	log_must $ZPOOL export $TESTPOOL1
+	log_must zpool export $TESTPOOL1
 	verify_assertion "$disktargets"
-	log_must $ZPOOL import $TESTPOOL1
+	log_must zpool import $TESTPOOL1
 	destroy_pool $TESTPOOL1
 
 	if [[ ( $FS_DISK0 == $FS_DISK2 ) && -n ${vdevs[i]} ]]; then
@@ -115,9 +115,9 @@ while (( i < ${#vdevs[*]} )); do
 	fi
 
 	create_pool $TESTPOOL1 ${vdevs[i]} $vdisks spare $sdisks
-	log_must $ZPOOL export $TESTPOOL1
+	log_must zpool export $TESTPOOL1
 	verify_assertion "$disktargets"
-	log_must $ZPOOL import $TESTPOOL1
+	log_must zpool import $TESTPOOL1
 	destroy_pool $TESTPOOL1
 
 	(( i = i + 1 ))

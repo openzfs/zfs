@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -33,10 +33,10 @@ verify_runnable "both"
 log_assert "zfs send will work on filesystems and volumes in a read-only pool."
 log_onexit cleanup_pool $POOL2
 
-log_must eval "$ZPOOL export $POOL"
-log_must eval "$ZPOOL import -o readonly=on $POOL"
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zpool export $POOL"
+log_must eval "zpool import -o readonly=on $POOL"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 
 dstds=$(get_dst_ds $POOL $POOL2)
 log_must cmp_ds_subs $POOL $dstds
@@ -44,11 +44,11 @@ log_must cmp_ds_cont $POOL $dstds
 
 log_must cleanup_pool $POOL2
 
-log_must eval "$ZFS send -R $POOL/$FS@final > $BACKDIR/fs-final-R"
-log_must eval "$ZFS receive -d $POOL2 < $BACKDIR/fs-final-R"
+log_must eval "zfs send -R $POOL/$FS@final > $BACKDIR/fs-final-R"
+log_must eval "zfs receive -d $POOL2 < $BACKDIR/fs-final-R"
 block_device_wait
-log_must eval "$ZPOOL export $POOL"
-log_must eval "$ZPOOL import $POOL"
+log_must eval "zpool export $POOL"
+log_must eval "zpool import $POOL"
 
 dstds=$(get_dst_ds $POOL/$FS $POOL2)
 log_must cmp_ds_subs $POOL/$FS $dstds

@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,53 +51,53 @@ function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 
-	log_must $RM $VDEV0
-	log_must $MKFILE $FILE_SIZE $VDEV0
+	log_must rm $VDEV0
+	log_must mkfile $FILE_SIZE $VDEV0
 }
 
 log_assert "Pool with active read-only compatible features can be imported."
 log_onexit cleanup
 
-log_must $ZPOOL create $TESTPOOL1 $VDEV0
-log_must $ZPOOL export $TESTPOOL1
+log_must zpool create $TESTPOOL1 $VDEV0
+log_must zpool export $TESTPOOL1
 
 for feature in $enabled_features $active_features; do
-	log_must $ZHACK -d $DEVICE_DIR feature enable -r $TESTPOOL1 $feature
+	log_must zhack -d $DEVICE_DIR feature enable -r $TESTPOOL1 $feature
 done
 
 for feature in $active_features; do
-	log_must $ZHACK -d $DEVICE_DIR feature ref $TESTPOOL1 $feature
+	log_must zhack -d $DEVICE_DIR feature ref $TESTPOOL1 $feature
 done
 
-log_mustnot $ZPOOL import -d $DEVICE_DIR $TESTPOOL1
+log_mustnot zpool import -d $DEVICE_DIR $TESTPOOL1
 
 # error message should mention "readonly"
-log_must eval "$ZPOOL import -d $DEVICE_DIR $TESTPOOL1 | $GREP readonly"
+log_must eval "zpool import -d $DEVICE_DIR $TESTPOOL1 | grep readonly"
 log_mustnot poolexists $TESTPOOL1
 
 for feature in $enabled_features; do
-	log_mustnot eval "$ZPOOL import -d $DEVICE_DIR $TESTPOOL1 \
-	    | $GREP $feature"
+	log_mustnot eval "zpool import -d $DEVICE_DIR $TESTPOOL1 \
+	    | grep $feature"
 	log_mustnot poolexists $TESTPOOL1
 done
 
 for feature in $active_features; do
-	log_must eval "$ZPOOL import -d $DEVICE_DIR $TESTPOOL1 \
-	    | $GREP $feature"
+	log_must eval "zpool import -d $DEVICE_DIR $TESTPOOL1 \
+	    | grep $feature"
 	log_mustnot poolexists $TESTPOOL1
 done
 
-log_must $ZPOOL import -o readonly=on -d $DEVICE_DIR $TESTPOOL1
+log_must zpool import -o readonly=on -d $DEVICE_DIR $TESTPOOL1
 
 for feature in $enabled_features; do
-	state=$($ZPOOL list -Ho unsupported@$feature $TESTPOOL1)
+	state=$(zpool list -Ho unsupported@$feature $TESTPOOL1)
         if [[ "$state" != "inactive" ]]; then
 		log_fail "unsupported@$feature is '$state'"
         fi
 done
 
 for feature in $active_features; do
-	state=$($ZPOOL list -Ho unsupported@$feature $TESTPOOL1)
+	state=$(zpool list -Ho unsupported@$feature $TESTPOOL1)
         if [[ "$state" != "readonly" ]]; then
 		log_fail "unsupported@$feature is '$state'"
         fi

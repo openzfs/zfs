@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,18 +47,18 @@ verify_runnable "both"
 function cleanup
 {
 	if is_global_zone ; then
-		log_must $ZFS set refreservation=none $TESTPOOL
+		log_must zfs set refreservation=none $TESTPOOL
 	fi
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_assert "Verify refreservation is limited by available space."
 log_onexit cleanup
 
 pool=$TESTPOOL ; fs=$pool/$TESTFS ; subfs=$fs/subfs
-log_must $ZFS create $subfs
+log_must zfs create $subfs
 
 typeset datasets
 if is_global_zone; then
@@ -68,23 +68,23 @@ else
 fi
 
 for ds in $datasets; do
-	log_must $ZFS set quota=25M $ds
-	log_must $ZFS set refreservation=15M $ds
+	log_must zfs set quota=25M $ds
+	log_must zfs set refreservation=15M $ds
 
 	typeset -i avail
 	avail=$(get_prop avail $subfs)
-	log_must $ZFS set refreservation=$avail $subfs
+	log_must zfs set refreservation=$avail $subfs
 	typeset mntpnt
 	mntpnt=$(get_prop mountpoint $subfs)
-	log_must $MKFILE $avail $mntpnt/$TESTFILE
+	log_must mkfile $avail $mntpnt/$TESTFILE
 
 	typeset -i exceed
 	((exceed = avail + 1))
-	log_mustnot $ZFS set refreservation=$exceed $subfs
-	log_mustnot $MKFILE $avail $mntpnt/$TESTFILE
+	log_mustnot zfs set refreservation=$exceed $subfs
+	log_mustnot mkfile $avail $mntpnt/$TESTFILE
 
-	log_must $ZFS set quota=none $ds
-	log_must $ZFS set reservation=15M $ds
+	log_must zfs set quota=none $ds
+	log_must zfs set reservation=15M $ds
 done
 
 log_pass "Verify refreservation is limited by available space."

@@ -17,13 +17,6 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-[[ -z $FIO ]] && log_fail "Missing fio"
-[[ -z $FREE ]] && log_fail "Missing free"
-[[ -z $IOSTAT ]] && log_fail "Missing iostat"
-[[ -z $LSBLK ]] && log_fail "Missing lsblk"
-[[ -z $MPSTAT ]] && log_fail "Missing mpstat"
-[[ -z $VMSTAT ]] && log_fail "Missing vmstat"
-
 verify_runnable "global"
 verify_disk_count "$DISKS" 3
 

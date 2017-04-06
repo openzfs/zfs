@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
 
@@ -47,14 +51,14 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 	log_must force_unmount $TESTPOOL/$TESTFS
 	return 0
 }
 
 typeset -i ret=0
 
-log_assert "Verify that '$ZFS $mountcmd' with a filesystem " \
+log_assert "Verify that 'zfs $mountcmd' with a filesystem " \
 	"whose mountpoint is currently in use will fail with return code 1."
 
 log_onexit cleanup
@@ -63,20 +67,20 @@ unmounted $TESTPOOL/$TESTFS || \
 	log_must cleanup
 
 [[ -d $TESTDIR ]] || \
-	log_must $MKDIR -p $TESTDIR
+	log_must mkdir -p $TESTDIR
 
 cd $TESTDIR || \
 	log_unresolved "Unable change directory to $TESTDIR"
 
-$ZFS $mountcmd $TESTPOOL/$TESTFS
+zfs $mountcmd $TESTPOOL/$TESTFS
 ret=$?
 if is_linux; then
     (( ret == 0 )) || \
-        log_fail "'$ZFS $mountcmd $TESTPOOL/$TESTFS' " \
+        log_fail "'zfs $mountcmd $TESTPOOL/$TESTFS' " \
             "unexpected return code of $ret."
 else
     (( ret == 1 )) || \
-        log_fail "'$ZFS $mountcmd $TESTPOOL/$TESTFS' " \
+        log_fail "'zfs $mountcmd $TESTPOOL/$TESTFS' " \
             "unexpected return code of $ret."
 fi
 
@@ -89,5 +93,5 @@ else
         log_fail Filesystem $TESTPOOL/$TESTFS is mounted
 fi
 
-log_pass "'$ZFS $mountcmd' with a filesystem " \
+log_pass "'zfs $mountcmd' with a filesystem " \
 	"whose mountpoint is currently in use failed with return code 1."

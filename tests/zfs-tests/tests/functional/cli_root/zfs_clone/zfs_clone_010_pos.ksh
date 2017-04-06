@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -39,8 +39,8 @@ function local_cleanup
 	typeset -i i=1
 	for ds in $datasets; do
                 datasetexists $ds/$TESTCLONE.$i && \
-		    log_must $ZFS destroy -rf $ds/$TESTCLONE.$i
-                datasetexists $ds && log_must $ZFS destroy -Rf $ds
+		    log_must zfs destroy -rf $ds/$TESTCLONE.$i
+                datasetexists $ds && log_must zfs destroy -Rf $ds
 		((i=i+1))
 	done
 }
@@ -50,7 +50,7 @@ function setup_ds
 {
 	typeset -i i=1
 	# create nested datasets
-	log_must $ZFS create -p $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3
+	log_must zfs create -p $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3
 
 	# verify dataset creation
 	for ds in $datasets; do
@@ -58,14 +58,14 @@ function setup_ds
 	done
 
 	# create recursive nested snapshot
-	log_must $ZFS snapshot -r $TESTPOOL/$TESTFS1@snap
+	log_must zfs snapshot -r $TESTPOOL/$TESTFS1@snap
 	for ds in $datasets; do
 		datasetexists $ds@snap || \
 		    log_fail "Create $ds@snap snapshot fail."
 	done
 	for ds in $datasets; do
 		for fs in $datasets; do
-			log_must $ZFS clone $ds@snap $fs/$TESTCLONE.$i
+			log_must zfs clone $ds@snap $fs/$TESTCLONE.$i
 		done
 		((i=i+1))
 	done
@@ -82,8 +82,8 @@ function verify_clones
 		if [[ -n $clone_snap ]]; then
 			clone_snap=/$TESTCLONE.$i
 		fi
-		snapshot=$($ECHO "$names" | $GREP $ds$clone_snap@snap)
-		actual_clone=$($ZFS list -t all -o clones $snapshot | $TAIL -1)
+		snapshot=$(echo "$names" | grep $ds$clone_snap@snap)
+		actual_clone=$(zfs list -t all -o clones $snapshot | tail -1)
 		save=$IFS
 		IFS=','
 		typeset -a clones=()
@@ -147,16 +147,16 @@ i=1
 log_must setup_ds
 
 log_note "Verify zfs clone property for multiple clones"
-names=$($ZFS list -rt all -o name $TESTPOOL)
+names=$(zfs list -rt all -o name $TESTPOOL)
 log_must verify_clones 3 0
 
 log_note "verfify clone property for clone deletion"
 i=1
 for ds in $datasets; do
-	log_must $ZFS destroy $ds/$TESTCLONE.$i
+	log_must zfs destroy $ds/$TESTCLONE.$i
 	((i=i+1))
 done
-names=$($ZFS list -rt all -o name $TESTPOOL)
+names=$(zfs list -rt all -o name $TESTPOOL)
 i=1
 log_must verify_clones 2 1
 
@@ -165,9 +165,9 @@ log_must setup_ds
 
 log_note "verify zfs deferred destroy on clones property"
 i=1
-names=$($ZFS list -rt all -o name $TESTPOOL)
+names=$(zfs list -rt all -o name $TESTPOOL)
 for ds in $datasets; do
-	log_must $ZFS destroy -d $ds@snap
+	log_must zfs destroy -d $ds@snap
 	deferred_snaps=( "${deferred_snaps[@]}" "$ds@snap" )
 	((i=i+1))
 done
@@ -178,20 +178,20 @@ d_clones=()
 i=1
 for ds in $datasets; do
 	for fs in $datasets; do
-		log_must $ZFS destroy $fs/$TESTCLONE.$i
+		log_must zfs destroy $fs/$TESTCLONE.$i
 		d_clones=( "${d_clones[@]}" "$fs/$TESTCLONE.$i" )
 	done
 	((i=i+1))
 done
-names=$($ZFS list -rtall -o name $TESTPOOL)
+names=$(zfs list -rtall -o name $TESTPOOL)
 for snap in ${deferred_snaps[@]}; do
-	status=$($ECHO "$names" | $GREP $snap)
+	status=$(echo "$names" | grep $snap)
 	[[ -z $status ]] || \
 	    log_fail "$snap exist after deferred destroy"
 done
 for dclone in ${d_clones[@]}; do
 	log_note "D CLONE = $dclone"
-	status=$($ECHO "$names" | $GREP $dclone)
+	status=$(echo "$names" | grep $dclone)
 	[[ -z $status ]] || \
 	    log_fail "$dclone exist after deferred destroy"
 done
@@ -201,14 +201,14 @@ log_must setup_ds
 log_note "verify clone property for zfs promote"
 i=1
 for ds in $datasets; do
-	log_must $ZFS promote $ds/$TESTCLONE.$i
+	log_must zfs promote $ds/$TESTCLONE.$i
 	((i=i+1))
 done
-names=$($ZFS list -rt all -o name,clones $TESTPOOL)
+names=$(zfs list -rt all -o name,clones $TESTPOOL)
 log_must verify_clones 3 1 $TESTCLONE
 i=1
 for ds in $datasets; do
-	log_must $ZFS promote $ds
+	log_must zfs promote $ds
 	((i=i+1))
 done
 log_must local_cleanup
@@ -222,16 +222,16 @@ if is_linux; then
 else
 	ZFS_MAXPROPLEN=1024
 fi
-log_must $ZFS create $fs
-log_must $ZFS snapshot $fs@snap
-while((i <= $(( $ZFS_MAXPROPLEN/200+1 )))); do
-	log_must $ZFS clone $fs@snap $fs/$TESTCLONE$(python -c 'print "x" * 200').$i
+log_must zfs create $fs
+log_must zfs snapshot $fs@snap
+while((i <= $(( ZFS_MAXPROPLEN/200+1 )))); do
+	log_must zfs clone $fs@snap $fs/$TESTCLONE$(python -c 'print "x" * 200').$i
 	((i=i+1))
 	((j=j+200))
 done
-clone_list=$($ZFS list -o clones $fs@snap)
-char_count=$($ECHO "$clone_list" | $TAIL -1 | wc | $AWK '{print $3}')
-[[ $char_count -eq $ZFS_MAXPROPLEN ]] || \
+clone_list=$(zfs list -o clones $fs@snap)
+char_count=$(echo "$clone_list" | tail -1 | wc | awk '{print $3}')
+[[ $char_count -eq ZFS_MAXPROPLEN ]] || \
     log_fail "Clone list not truncated correctly. Unexpected character count" \
         "$char_count"
 

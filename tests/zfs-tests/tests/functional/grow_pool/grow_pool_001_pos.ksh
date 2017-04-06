@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,8 +48,8 @@ verify_runnable "global"
 
 log_assert "A zpool may be increased in capacity by adding a disk"
 
-log_must $ZFS set compression=off $TESTPOOL/$TESTFS
-$FILE_WRITE -o create -f $TESTDIR/$TESTFILE1 \
+log_must zfs set compression=off $TESTPOOL/$TESTFS
+file_write -o create -f $TESTDIR/$TESTFILE1 \
 	-b $BLOCK_SIZE -c $WRITE_COUNT -d 0
 typeset -i zret=$?
 readonly ENOSPC=28
@@ -62,13 +62,13 @@ if [[ ! -s $TESTDIR/$TESTFILE1 ]]; then
 fi
 
 if [[ -n $DISK ]]; then
-	log_must $ZPOOL add $TESTPOOL $DISK"s"$SLICE1
+	log_must zpool add $TESTPOOL $DISK"s"$SLICE1
 else
-	log_must $ZPOOL add $TESTPOOL $DISK1
+	log_must zpool add $TESTPOOL $DISK1
 fi
 
-log_must $FILE_WRITE -o append -f $TESTDIR/$TESTFILE1 \
+log_must file_write -o append -f $TESTDIR/$TESTFILE1 \
 	-b $BLOCK_SIZE -c $SMALL_WRITE_COUNT -d 0
 
-log_must $ZFS inherit compression $TESTPOOL/$TESTFS
+log_must zfs inherit compression $TESTPOOL/$TESTFS
 log_pass "TESTPOOL successfully grown"

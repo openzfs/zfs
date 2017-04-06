@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -53,27 +53,27 @@ POOLNAME=""
 function cleanup
 {
 	if poolexists $POOLNAME; then
-		log_must $ZPOOL destroy $POOLNAME
+		log_must zpool destroy $POOLNAME
 	fi
 
 	if [[ -d $TESTDIR ]]; then
-		log_must $RM -rf $TESTDIR
+		log_must rm -rf $TESTDIR
 	fi
 }
 
 log_onexit cleanup
 
-typeset exclude=`eval $ECHO \"'(${KEEP})'\"`
-for pool in $($ZPOOL list -H -o name | \
-	$EGREP -v "$exclude" | \
-	$GREP -v "$TESTPOOL" | \
-	$EGREP -v "$NO_POOLS"); do
-	log_must $ZPOOL destroy $pool
+typeset exclude=`eval echo \"'(${KEEP})'\"`
+for pool in $(zpool list -H -o name | \
+	egrep -v "$exclude" | \
+	grep -v "$TESTPOOL" | \
+	egrep -v "$NO_POOLS"); do
+	log_must zpool destroy $pool
 done
 
 DISK=${DISKS%% *}
 if [[ ! -e $TESTDIR ]]; then
-        log_must $MKDIR $TESTDIR
+        log_must mkdir $TESTDIR
 fi
 
 log_note "Ensure invalid characters fail"
@@ -83,12 +83,12 @@ for POOLNAME in "!" "\"" "#" "$" "%" "&" "'" "(" ")" \
     ":" ";" "<" "=" ">" "\?" "@" \
     "[" "]" "^" "_" "\`" "{" "|" "}" "~"
 do
-	log_mustnot $ZPOOL create -m $TESTDIR $POOLNAME $DISK
+	log_mustnot zpool create -m $TESTDIR $POOLNAME $DISK
         if poolexists $POOLNAME; then
                 log_fail "Unexpectedly created pool: '$POOLNAME'"
         fi
 
-	log_mustnot $ZPOOL destroy $POOLNAME
+	log_mustnot zpool destroy $POOLNAME
 done
 
 log_note "Check that invalid octal values fail"
@@ -99,12 +99,12 @@ for oct in "\000" "\001" "\002" "\003" "\004" "\005" "\006" "\007" \
     "\040" "\177"
 do
 	POOLNAME=`eval "echo x | tr 'x' '$oct'"`
-	log_mustnot $ZPOOL create -m $TESTDIR $POOLNAME $DISK
+	log_mustnot zpool create -m $TESTDIR $POOLNAME $DISK
         if poolexists $POOLNAME; then
                 log_fail "Unexpectedly created pool: '$POOLNAME'"
         fi
 
-	log_mustnot $ZPOOL destroy $POOLNAME
+	log_mustnot zpool destroy $POOLNAME
 done
 
 log_note "Verify invalid pool names fail"
@@ -118,12 +118,12 @@ if verify_slog_support ; then
 fi
 typeset -i i=0
 while ((i < ${#POOLNAME[@]})); do
-	log_mustnot $ZPOOL create -m $TESTDIR ${POOLNAME[$i]} $DISK
+	log_mustnot zpool create -m $TESTDIR ${POOLNAME[$i]} $DISK
         if poolexists ${POOLNAME[$i]}; then
                 log_fail "Unexpectedly created pool: '${POOLNAME[$i]}'"
         fi
 
-	log_mustnot $ZPOOL destroy ${POOLNAME[$i]}
+	log_mustnot zpool destroy ${POOLNAME[$i]}
 
 	((i += 1))
 done

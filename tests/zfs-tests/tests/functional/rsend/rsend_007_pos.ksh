@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -64,7 +64,7 @@ log_onexit cleanup
 
 typeset -i i=0
 while ((i < ${#dtst[@]})); do
-	log_must $ZFS rename ${dtst[$i]} ${dtst[((i+1))]}
+	log_must zfs rename ${dtst[$i]} ${dtst[((i+1))]}
 
 	((i += 2))
 done
@@ -72,15 +72,15 @@ done
 #
 # Verify zfs send -R should succeed
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 dstds=$(get_dst_ds $POOL $POOL2)
 log_must cmp_ds_subs $POOL $dstds
 
 #
 # Verify zfs send -R -I should succeed
 #
-log_must eval "$ZFS send -R -I @init $dstds@final > " \
+log_must eval "zfs send -R -I @init $dstds@final > " \
         "$BACKDIR/pool-init-final-IR"
 list=$(getds_with_suffix $dstds @snapA)
 list="$list $(getds_with_suffix $dstds @snapB)"
@@ -88,9 +88,9 @@ list="$list $(getds_with_suffix $dstds @snapC)"
 list="$list $(getds_with_suffix $dstds @final)"
 log_must destroy_tree $list
 if is_global_zone ; then
-	log_must eval "$ZFS receive -d -F $dstds < $BACKDIR/pool-init-final-IR"
+	log_must eval "zfs receive -d -F $dstds < $BACKDIR/pool-init-final-IR"
 else
-	$ZFS receive -d -F $dstds < $BACKDIR/pool-init-final-IR
+	zfs receive -d -F $dstds < $BACKDIR/pool-init-final-IR
 fi
 log_must cmp_ds_subs $POOL $dstds
 

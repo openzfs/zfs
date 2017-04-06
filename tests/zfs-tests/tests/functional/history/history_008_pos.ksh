@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/history/history_common.kshlib
@@ -48,9 +48,9 @@ verify_runnable "global"
 function cleanup
 {
 	if datasetexists $root_testfs; then
-		log_must $ZFS destroy -rf $root_testfs
+		log_must zfs destroy -rf $root_testfs
 	fi
-	log_must $ZFS create $root_testfs
+	log_must zfs create $root_testfs
 }
 
 log_assert "Pool history records all recursive operations."
@@ -59,16 +59,16 @@ log_onexit cleanup
 root_testfs=$TESTPOOL/$TESTFS
 fs1=$root_testfs/fs1; fs2=$root_testfs/fs2; fs3=$root_testfs/fs3
 for fs in $fs1 $fs2 $fs3; do
-	log_must $ZFS create $fs
+	log_must zfs create $fs
 done
 
-run_and_verify "$ZFS snapshot -r $root_testfs@snap" "-i"
-run_and_verify "$ZFS hold -r tag $root_testfs@snap" "-i"
-run_and_verify "$ZFS release -r tag $root_testfs@snap" "-i"
-log_must $ZFS snapshot $root_testfs@snap2
-log_must $ZFS snapshot $root_testfs@snap3
-run_and_verify "$ZFS rollback -r $root_testfs@snap" "-i"
-run_and_verify "$ZFS inherit -r mountpoint $root_testfs" "-i"
-run_and_verify "$ZFS destroy -r $root_testfs" "-i"
+run_and_verify "zfs snapshot -r $root_testfs@snap" "-i"
+run_and_verify "zfs hold -r tag $root_testfs@snap" "-i"
+run_and_verify "zfs release -r tag $root_testfs@snap" "-i"
+log_must zfs snapshot $root_testfs@snap2
+log_must zfs snapshot $root_testfs@snap3
+run_and_verify "zfs rollback -r $root_testfs@snap" "-i"
+run_and_verify "zfs inherit -r mountpoint $root_testfs" "-i"
+run_and_verify "zfs destroy -r $root_testfs" "-i"
 
 log_pass "Pool history records all recursive operations."

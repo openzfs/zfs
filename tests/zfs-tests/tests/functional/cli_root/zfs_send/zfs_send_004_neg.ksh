@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
 
 #
@@ -45,12 +49,12 @@ function cleanup
 
 	for snap in $snap1 $snap2 $snap3; do
 		snapexists $snap && \
-			log_must $ZFS destroy -f $snap
+			log_must zfs destroy -f $snap
 	done
 
 	for f in $tmpfile1 $tmpfile2; do
 		if [[ -e $f ]]; then
-			$RM -f $f
+			rm -f $f
 		fi
 	done
 }
@@ -81,25 +85,25 @@ set -A badargs \
 log_assert "Verify that invalid parameters to 'zfs send' are caught."
 log_onexit cleanup
 
-log_must $ZFS snapshot $snap1
+log_must zfs snapshot $snap1
 tmpfile1=$TESTDIR/testfile1.$$
-log_must $TOUCH $tmpfile1
-log_must $ZFS snapshot $snap2
+log_must touch $tmpfile1
+log_must zfs snapshot $snap2
 tmpfile2=$TESTDIR/testfile2.$$
-log_must $TOUCH $tmpfile2
-log_must $ZFS snapshot $snap3
+log_must touch $tmpfile2
+log_must zfs snapshot $snap3
 
 typeset -i i=0
 while (( i < ${#badargs[*]} ))
 do
-	log_mustnot eval "$ZFS send ${badargs[i]} >/dev/null"
+	log_mustnot eval "zfs send ${badargs[i]} >/dev/null"
 
 	(( i = i + 1 ))
 done
 
 #Testing zfs send fails by send backup stream to terminal
 for arg in "$snap1" "-i $snap1 $snap2"; do
-	log_mustnot eval "$ZFS send $arg >/dev/console"
+	log_mustnot eval "zfs send $arg >/dev/console"
 done
 
 log_pass "Invalid parameters to 'zfs send' are caught as expected."

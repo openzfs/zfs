@@ -46,15 +46,15 @@ log_assert "Verify acltype=posixacl works on directory"
 
 # Test access to DIRECTORY
 log_note "Testing access to DIRECTORY"
-log_must $MKDIR $TESTDIR/dir.0
-log_must $SETFACL -m g:zfsgrp:wx $TESTDIR/dir.0
-$GETFACL $TESTDIR/dir.0 2> /dev/null | $EGREP -q "^group:zfsgrp:-wx$"
+log_must mkdir $TESTDIR/dir.0
+log_must setfacl -m g:zfsgrp:wx $TESTDIR/dir.0
+getfacl $TESTDIR/dir.0 2> /dev/null | egrep -q "^group:zfsgrp:-wx$"
 if [ "$?" -eq "0" ]; then
 	# Should be able to create file in directory
-	log_must $SU staff1 -c "$TOUCH $TESTDIR/dir.0/file.0"
+	log_must su staff1 -c "touch $TESTDIR/dir.0/file.0"
 
 	# Should NOT be able to list files in directory
-	log_mustnot $SU staff1 -c "$LS -l $TESTDIR/dir.0"
+	log_mustnot su staff1 -c "ls -l $TESTDIR/dir.0"
 
 	log_pass "POSIX ACL mode works on directories"
 else

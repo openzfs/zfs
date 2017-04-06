@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,7 +52,7 @@ then
 	log_fail "$TESTPOOL/$TESTFS/unshared was incorrectly shared initially!"
 fi
 
-log_mustnot $ZFS share $TESTPOOL/$TESTFS/unshared
+log_mustnot zfs share $TESTPOOL/$TESTFS/unshared
 
 # Now verify that the above command didn't actually do anything
 if is_shared $TESTDIR/unshared

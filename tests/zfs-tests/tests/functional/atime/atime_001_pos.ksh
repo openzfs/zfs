@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/atime/atime_common.kshlib
 
 #
@@ -58,8 +62,11 @@ do
 		mtpt=$(snapshot_mountpoint $dst)
 		log_mustnot check_atime_updated $mtpt/$TESTFILE
 	else
-		log_must $ZFS set atime=on $dst
-		log_must $ZFS set relatime=off $dst
+		if is_linux; then
+			log_must zfs set relatime=off $dst
+		fi
+
+		log_must zfs set atime=on $dst
 		log_must check_atime_updated $mtpt/$TESTFILE
 		log_must check_atime_updated $mtpt/$TESTFILE
 	fi

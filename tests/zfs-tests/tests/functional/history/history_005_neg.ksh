@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,14 +52,14 @@ verify_runnable "global"
 log_assert "Verify 'zpool get|history|list|status|iostat' will not be logged."
 
 # Save initial TESTPOOL history
-log_must eval "$ZPOOL history $TESTPOOL >$OLD_HISTORY"
+log_must eval "zpool history $TESTPOOL >$OLD_HISTORY"
 
-log_must $ZPOOL get all $TESTPOOL >/dev/null
-log_must $ZPOOL list $TESTPOOL >/dev/null
-log_must $ZPOOL status $TESTPOOL >/dev/null
-log_must $ZPOOL iostat $TESTPOOL >/dev/null
+log_must zpool get all $TESTPOOL >/dev/null
+log_must zpool list $TESTPOOL >/dev/null
+log_must zpool status $TESTPOOL >/dev/null
+log_must zpool iostat $TESTPOOL >/dev/null
 
-log_must eval "$ZPOOL history $TESTPOOL >$NEW_HISTORY"
-log_must $DIFF $OLD_HISTORY $NEW_HISTORY
+log_must eval "zpool history $TESTPOOL >$NEW_HISTORY"
+log_must diff $OLD_HISTORY $NEW_HISTORY
 
 log_pass "Verify 'zpool get|history|list|status|iostat' will not be logged."

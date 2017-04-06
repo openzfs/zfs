@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -45,10 +49,10 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $snap2 $snap1; do
-		datasetexists $snap && log_must $ZFS destroy -rf $snap
+		datasetexists $snap && log_must zfs destroy -rf $snap
 	done
 	for file in $ibackup $mntpnt/file1 $mntpnt/file2; do
-		[[ -f $file ]] && log_must $RM -f $file
+		[[ -f $file ]] && log_must rm -f $file
 	done
 }
 
@@ -59,31 +63,31 @@ ibackup=/var/tmp/ibackup.$$
 fs=$TESTPOOL/$TESTFS; snap1=$fs@snap1; snap2=$fs@snap2
 
 mntpnt=$(get_prop mountpoint $fs) || log_fail "get_prop mountpoint $fs"
-log_must $MKFILE 10m $mntpnt/file1
-log_must $ZFS snapshot $snap1
-log_must $MKFILE 10m $mntpnt/file2
-log_must $ZFS snapshot $snap2
+log_must mkfile 10m $mntpnt/file1
+log_must zfs snapshot $snap1
+log_must mkfile 10m $mntpnt/file2
+log_must zfs snapshot $snap2
 
-log_must eval "$ZFS send -i $snap1 $snap2 > $ibackup"
+log_must eval "zfs send -i $snap1 $snap2 > $ibackup"
 
 log_note "Verify 'zfs receive' succeed, if filesystem was not modified."
-log_must $ZFS rollback -r $snap1
-log_must eval "$ZFS receive $fs < $ibackup"
+log_must zfs rollback -r $snap1
+log_must eval "zfs receive $fs < $ibackup"
 if [[ ! -f $mntpnt/file1 || ! -f $mntpnt/file2 ]]; then
-	log_fail "'$ZFS receive' failed."
+	log_fail "'zfs receive' failed."
 fi
 
 log_note "Verify 'zfs receive' failed if filesystem was modified."
-log_must $ZFS rollback -r $snap1
-log_must $RM -rf $mntpnt/file1
-log_mustnot eval "$ZFS receive $fs < $ibackup"
+log_must zfs rollback -r $snap1
+log_must rm -rf $mntpnt/file1
+log_mustnot eval "zfs receive $fs < $ibackup"
 
 # Verify 'zfs receive -F' to force rollback whatever filesystem was modified.
-log_must $ZFS rollback -r $snap1
-log_must $RM -rf $mntpnt/file1
-log_must eval "$ZFS receive -F $fs < $ibackup"
+log_must zfs rollback -r $snap1
+log_must rm -rf $mntpnt/file1
+log_must eval "zfs receive -F $fs < $ibackup"
 if [[ ! -f $mntpnt/file1 || ! -f $mntpnt/file2 ]]; then
-	log_fail "'$ZFS receive -F' failed."
+	log_fail "'zfs receive -F' failed."
 fi
 
 log_pass "'zfs recv -F' to force rollback passed."

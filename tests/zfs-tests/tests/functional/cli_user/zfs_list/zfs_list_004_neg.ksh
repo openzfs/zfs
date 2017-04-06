@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -55,8 +55,8 @@ paths="$TESTPOOL/NONEXISTFS $TESTPOOL/$TESTFS/NONEXISTFS \
 cd /tmp
 
 for fs in $paths ; do
-	log_mustnot $ZFS list $fs
-	log_mustnot $ZFS list -r $fs
+	log_mustnot zfs list $fs
+	log_mustnot zfs list -r $fs
 done
 
 log_pass "'zfs list [-r]' fails while the given dataset/path does not exist " \

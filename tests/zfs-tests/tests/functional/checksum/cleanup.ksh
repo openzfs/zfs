@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -35,8 +35,8 @@
 
 verify_runnable "global"
 
-$DF -F zfs -h | $GREP "$TESTFS " >/dev/null
-[[ $? == 0 ]] && log_must $ZFS umount -f $TESTDIR
+df -F zfs -h | grep "$TESTFS " >/dev/null
+[[ $? == 0 ]] && log_must zfs umount -f $TESTDIR
 destroy_pool $TESTPOOL
 
 # recreate and destroy a zpool over the disks to restore the partitions to

@@ -22,14 +22,11 @@
 
 zfs_kstats="/proc/spl/kstat/zfs"
 
-AWK=${AWK:-awk}
-DATE=${DATE:-date}
-
 function get_prefetch_ios
 {
-        typeset -l data_misses=`$AWK '$1 == "prefetch_data_misses" \
+        typeset -l data_misses=`awk '$1 == "prefetch_data_misses" \
             { print $3 }' $zfs_kstats/arcstats`
-        typeset -l metadata_misses=`$AWK '$1 == "prefetch_metadata_misses" \
+        typeset -l metadata_misses=`awk '$1 == "prefetch_metadata_misses" \
             { print $3 }' $zfs_kstats/arcstats`
         typeset -l total_misses=$(( $data_misses + $metadata_misses ))
 
@@ -38,7 +35,7 @@ function get_prefetch_ios
 
 function get_prefetched_demand_reads
 {
-	typeset -l demand_reads=`$AWK '$1 == "demand_hit_predictive_prefetch" \
+	typeset -l demand_reads=`awk '$1 == "demand_hit_predictive_prefetch" \
 	    { print $3 }' $zfs_kstats/arcstats`
 
 	echo $demand_reads
@@ -46,7 +43,7 @@ function get_prefetched_demand_reads
 
 function get_sync_wait_for_async
 {
-	typeset -l sync_wait=`$AWK '$1 == "sync_wait_for_async" \
+	typeset -l sync_wait=`awk '$1 == "sync_wait_for_async" \
 	    { print $3 }' $zfs_kstats/arcstats`
 
 	echo $sync_wait
@@ -67,7 +64,7 @@ sync_wait_for_async=$(get_sync_wait_for_async)
 while true
 do
 	new_prefetch_ios=$(get_prefetch_ios)
-	printf "%u\n%-24s\t%u\n" $($DATE +%s) "prefetch_ios" \
+	printf "%u\n%-24s\t%u\n" $(date +%s) "prefetch_ios" \
 	    $(( $new_prefetch_ios - $prefetch_ios ))
 	prefetch_ios=$new_prefetch_ios
 

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,7 +56,7 @@ log_assert "zpool list [-H] [-o filed[,filed]*] [<pool_name> ...]"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_must $ZPOOL ${args[i]}
+	log_must zpool ${args[i]}
 
 	((i = i + 1))
 done

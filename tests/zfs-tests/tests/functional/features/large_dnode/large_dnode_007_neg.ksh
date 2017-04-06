@@ -20,6 +20,15 @@
 # CDDL HEADER END
 #
 
+#
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -33,7 +42,7 @@ verify_runnable "both"
 function cleanup
 {
         if datasetexists $LGCYPOOL ; then
-                log_must $ZPOOL destroy -f $LGCYPOOL
+                log_must zpool destroy -f $LGCYPOOL
         fi
 }
 
@@ -45,12 +54,12 @@ set -A prop_vals "auto" "1k" "2k" "4k" "8k" "16k"
 
 LGCYPOOL=lgcypool
 LGCYFS=$LGCYPOOL/legacy
-log_must $MKFILE 64M  $TESTDIR/$LGCYPOOL
-log_must $ZPOOL create -d $LGCYPOOL $TESTDIR/$LGCYPOOL
-log_must $ZFS create $LGCYFS
+log_must mkfile 64M  $TESTDIR/$LGCYPOOL
+log_must zpool create -d $LGCYPOOL $TESTDIR/$LGCYPOOL
+log_must zfs create $LGCYFS
 
 for val in ${prop_vals[@]} ; do
-	log_mustnot $ZFS set dnodesize=$val $LGCYFS
+	log_mustnot zfs set dnodesize=$val $LGCYFS
 done
 
 log_pass

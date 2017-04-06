@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,7 +50,7 @@ log_assert "Verify cannot set quota lower than the space currently in use"
 
 function cleanup
 {
-	log_must $ZFS set quota=none $TESTPOOL/$TESTFS
+	log_must zfs set quota=none $TESTPOOL/$TESTFS
 }
 
 log_onexit cleanup
@@ -64,8 +64,8 @@ quota_fp_size=${quota_integer_size}.123
 
 for size in 0 -1 $quota_integer_size -$quota_integer_size $quota_fp_size -$quota_fp_size \
 	$invalid_size ; do
-	log_mustnot $ZFS set quota=$size $TESTPOOL/$TESTFS
+	log_mustnot zfs set quota=$size $TESTPOOL/$TESTFS
 done
-log_must $ZFS set quota=$space_used $TESTPOOL/$TESTFS
+log_must zfs set quota=$space_used $TESTPOOL/$TESTFS
 
 log_pass "As expected cannot set quota lower than space currently in use"

@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,11 +46,11 @@
 #
 
 function cleanup {
-	log_must $ZFS destroy $TESTPOOL/$TESTFS@snap
-	log_must $RM $TESTDIR/myfile2.$$
-	log_must $RM $TESTDIR/myfile.$$
-	log_must $RM /tmp/output.$$
-	[[ -e /tmp/expected_output.$$ ]]  && log_must $RM  \
+	log_must zfs destroy $TESTPOOL/$TESTFS@snap
+	log_must rm $TESTDIR/myfile2.$$
+	log_must rm $TESTDIR/myfile.$$
+	log_must rm /tmp/output.$$
+	[[ -e /tmp/expected_output.$$ ]]  && log_must rm  \
 	/tmp/expected_output.$$
 
 }
@@ -59,23 +59,23 @@ log_assert "create/write xattr on a snapshot fails"
 log_onexit cleanup
 
 # create a file, and an xattr on it
-log_must $TOUCH $TESTDIR/myfile.$$
+log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 # create another file that doesn't have an xattr
-log_must $TOUCH $TESTDIR/myfile2.$$
+log_must touch $TESTDIR/myfile2.$$
 
 # snapshot the filesystem
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@snap
+log_must zfs snapshot $TESTPOOL/$TESTFS@snap
 
 # we shouldn't be able to alter the first file's xattr
-log_mustnot eval " $RUNAT $TESTDIR/.zfs/snapshot/snap/myfile.$$ \
-    $CP /etc/passwd .  >/tmp/output.$$  2>&1"
-log_must $GREP  -i  Read-only  /tmp/output.$$
+log_mustnot eval " runat $TESTDIR/.zfs/snapshot/snap/myfile.$$ \
+    cp /etc/passwd .  >/tmp/output.$$  2>&1"
+log_must grep  -i  Read-only  /tmp/output.$$
 
-log_must eval "$RUNAT $TESTDIR/.zfs/snapshot/snap/myfile2.$$  \
-    $LS >/tmp/output.$$  2>&1"
+log_must eval "runat $TESTDIR/.zfs/snapshot/snap/myfile2.$$  \
+    ls >/tmp/output.$$  2>&1"
 create_expected_output  /tmp/expected_output.$$ SUNWattr_ro SUNWattr_rw
-log_must $DIFF /tmp/output.$$ /tmp/expected_output.$$
+log_must diff /tmp/output.$$ /tmp/expected_output.$$
 
 log_pass "create/write xattr on a snapshot fails"

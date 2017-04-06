@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
@@ -49,27 +49,27 @@ function cleanup
 	typeset -i i=0
 
 	datasetexists $rst_root && \
-		log_must $ZFS destroy -Rf $rst_root
+		log_must zfs destroy -Rf $rst_root
 	while (( i < 2 )); do
 		snapexists ${orig_snap[$i]} && \
-			log_must $ZFS destroy -f ${orig_snap[$i]}
-		log_must $RM -f ${bkup[$i]}
+			log_must zfs destroy -f ${orig_snap[$i]}
+		log_must rm -f ${bkup[$i]}
 
 		(( i = i + 1 ))
 	done
 
-	log_must $RM -rf $TESTDIR1
+	log_must rm -rf $TESTDIR1
 }
 
 function recreate_root
 {
 	datasetexists $rst_root && \
-		log_must $ZFS destroy -Rf $rst_root
+		log_must zfs destroy -Rf $rst_root
 	if [[ -d $TESTDIR1 ]] ; then
-		log_must $RM -rf $TESTDIR1
+		log_must rm -rf $TESTDIR1
 	fi
-	log_must $ZFS create $rst_root
-	log_must $ZFS set mountpoint=$TESTDIR1 $rst_root
+	log_must zfs create $rst_root
+	log_must zfs set mountpoint=$TESTDIR1 $rst_root
 }
 
 log_assert "Verifying 'zfs receive [<filesystem|snapshot>] -d <filesystem>' works."
@@ -108,15 +108,15 @@ for orig_fs in $datasets ; do
 
 	typeset -i i=0
 	while (( i < ${#orig_snap[*]} )); do
-		$FILE_WRITE -o create -f ${orig_data[$i]} -b 512 \
+		file_write -o create -f ${orig_data[$i]} -b 512 \
 		    -c 8 >/dev/null 2>&1
 		(( $? != 0 )) && \
 			log_fail "Writing data into zfs filesystem fails."
-		log_must $ZFS snapshot ${orig_snap[$i]}
+		log_must zfs snapshot ${orig_snap[$i]}
 		if (( i < 1 )); then
-			log_must eval "$ZFS send ${orig_snap[$i]} > ${bkup[$i]}"
+			log_must eval "zfs send ${orig_snap[$i]} > ${bkup[$i]}"
 		else
-			log_must eval "$ZFS send -i ${orig_snap[(( i - 1 ))]} \
+			log_must eval "zfs send -i ${orig_snap[(( i - 1 ))]} \
 				${orig_snap[$i]} > ${bkup[$i]}"
 		fi
 
@@ -127,9 +127,9 @@ for orig_fs in $datasets ; do
 	i=0
 	while (( i < ${#bkup[*]} )); do
 		if (( i > 0 )); then
-			log_must $ZFS rollback ${rst_snap[0]}
+			log_must zfs rollback ${rst_snap[0]}
 		fi
-		log_must eval "$ZFS receive $rst_fs < ${bkup[$i]}"
+		log_must eval "zfs receive $rst_fs < ${bkup[$i]}"
 		snapexists ${rst_snap[$i]} || \
 			log_fail "Restoring filesystem fails. ${rst_snap[$i]} not exist"
 		compare_cksum ${orig_data[$i]} ${rst_data[$i]}
@@ -137,15 +137,15 @@ for orig_fs in $datasets ; do
 		(( i = i + 1 ))
 	done
 
-	log_must $ZFS destroy -Rf $rst_fs
+	log_must zfs destroy -Rf $rst_fs
 
 	log_note "Verifying 'zfs receive <snapshot>' works."
 	i=0
 	while (( i < ${#bkup[*]} )); do
 		if (( i > 0 )); then
-			log_must $ZFS rollback ${rst_snap[0]}
+			log_must zfs rollback ${rst_snap[0]}
 		fi
-		log_must eval "$ZFS receive ${rst_snap[$i]} <${bkup[$i]}"
+		log_must eval "zfs receive ${rst_snap[$i]} <${bkup[$i]}"
 		snapexists ${rst_snap[$i]} || \
 			log_fail "Restoring filesystem fails. ${rst_snap[$i]} not exist"
 		compare_cksum ${orig_data[$i]} ${rst_data[$i]}
@@ -153,16 +153,16 @@ for orig_fs in $datasets ; do
 		(( i = i + 1 ))
 	done
 
-	log_must $ZFS destroy -Rf $rst_fs
+	log_must zfs destroy -Rf $rst_fs
 
 	log_note "Verfiying 'zfs receive -d <filesystem>' works."
 
 	i=0
 	while (( i < ${#bkup[*]} )); do
 		if (( i > 0 )); then
-			log_must $ZFS rollback ${rst_snap2[0]}
+			log_must zfs rollback ${rst_snap2[0]}
 		fi
-		log_must eval "$ZFS receive -d -F $rst_root <${bkup[$i]}"
+		log_must eval "zfs receive -d -F $rst_root <${bkup[$i]}"
 		snapexists ${rst_snap2[$i]} || \
 			log_fail "Restoring filesystem fails. ${rst_snap2[$i]} not exist"
 		compare_cksum ${orig_data[$i]} ${rst_data2[$i]}

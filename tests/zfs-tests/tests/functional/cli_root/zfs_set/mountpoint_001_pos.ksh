@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -59,10 +59,10 @@ set -A values "$TESTDIR2" "legacy" "none" "$TESTDIR_NOTEXISTING"
 
 function cleanup
 {
-	log_must $ZFS set mountpoint=$old_ctr_mpt $TESTPOOL/$TESTCTR
-	log_must $ZFS set mountpoint=$old_fs_mpt $TESTPOOL/$TESTFS
-	[[ -d $TESTDIR2 ]] && log_must $RM -r $TESTDIR2
-	[[ -d $TESTDIR_NOTEXISTING ]] && log_must $RM -r $TESTDIR_NOTEXISTING
+	log_must zfs set mountpoint=$old_ctr_mpt $TESTPOOL/$TESTCTR
+	log_must zfs set mountpoint=$old_fs_mpt $TESTPOOL/$TESTFS
+	[[ -d $TESTDIR2 ]] && log_must rm -r $TESTDIR2
+	[[ -d $TESTDIR_NOTEXISTING ]] && log_must rm -r $TESTDIR_NOTEXISTING
 }
 
 log_assert "Setting a valid mountpoint to file system, it must be successful."
@@ -76,7 +76,7 @@ old_ctr_mpt=$(get_prop mountpoint $TESTPOOL/$TESTCTR)
 	log_fail "Get the $TESTPOOL/$TESTCTR mountpoint error."
 
 if [[ ! -d $TESTDIR2 ]]; then
-	log_must $MKDIR $TESTDIR2
+	log_must mkdir $TESTDIR2
 fi
 
 typeset -i i=0

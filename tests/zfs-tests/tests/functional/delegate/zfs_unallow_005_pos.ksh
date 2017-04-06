@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -49,13 +49,13 @@ verify_runnable "both"
 log_assert "Verify option '-c' will remove the created permission set."
 log_onexit restore_root_datasets
 
-log_must $ZFS allow -c $LOCAL_SET $ROOT_TESTFS
-log_must $ZFS allow -l $STAFF1 create,mount $ROOT_TESTFS
+log_must zfs allow -c $LOCAL_SET $ROOT_TESTFS
+log_must zfs allow -l $STAFF1 create,mount $ROOT_TESTFS
 
 # Create $SUBFS and verify $SUBFS has created time permissions.
-user_run $STAFF1 $ZFS create $SUBFS
+user_run $STAFF1 zfs create $SUBFS
 if ! datasetexists $SUBFS ; then
-	log_fail "ERROR: ($STAFF1): $ZFS create $SUBFS"
+	log_fail "ERROR: ($STAFF1): zfs create $SUBFS"
 fi
 log_must verify_perm $SUBFS $LOCAL_SET $STAFF1
 
@@ -63,10 +63,10 @@ log_must verify_perm $SUBFS $LOCAL_SET $STAFF1
 # After unallow -c, create $SUBFS2 and verify $SUBFS2 has not created time
 # permissions any more.
 #
-log_must $ZFS unallow -c $LOCAL_SET $ROOT_TESTFS
-user_run $STAFF1 $ZFS create $SUBFS2
+log_must zfs unallow -c $LOCAL_SET $ROOT_TESTFS
+user_run $STAFF1 zfs create $SUBFS2
 if ! datasetexists $SUBFS2 ; then
-	log_fail "ERROR: ($STAFF1): $ZFS create $SUBFS2"
+	log_fail "ERROR: ($STAFF1): zfs create $SUBFS2"
 fi
 log_must verify_noperm $SUBFS2 $LOCAL_SET $STAFF1
 

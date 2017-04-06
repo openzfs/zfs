@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 #
@@ -30,14 +30,14 @@ function within_percent
 	typeset percent=$3
 
 	# Set $a or $b to $2 such that a >= b
-	[[ '1' = $($ECHO "if ($2 > $a) 1" | $BC) ]] && a=$2 || b=$2
+	[[ '1' = $(echo "if ($2 > $a) 1" | bc) ]] && a=$2 || b=$2
 
 	# Prevent division by 0
 	[[ $a =~ [1-9] ]] || return 1
 
-	typeset p=$($ECHO "scale=2; $b * 100 / $a" | $BC)
+	typeset p=$(echo "scale=2; $b * 100 / $a" | bc)
 	log_note "Comparing $a and $b given $percent% (calculated: $p%)"
-	[[ '1' = $($ECHO "scale=2; if ($p >= $percent) 1" | $BC) ]] && return 0
+	[[ '1' = $(echo "scale=2; if ($p >= $percent) 1" | bc) ]] && return 0
 
 	return 1
 }

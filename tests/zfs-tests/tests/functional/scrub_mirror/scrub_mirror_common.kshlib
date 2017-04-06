@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 . $STF_SUITE/tests/functional/scrub_mirror/default.cfg
 
@@ -42,20 +42,20 @@ function overwrite_verify_mirror
 
 	while (( atfile < FILE_COUNT )); do
 		files[$atfile]=$TESTDIR/file.$atfile
-		log_must $FILE_WRITE -o create -f $TESTDIR/file.$atfile \
+		log_must file_write -o create -f $TESTDIR/file.$atfile \
 			-b $FILE_SIZE -c 1
-		cksums[$atfile]=$($CKSUM ${files[$atfile]})
+		cksums[$atfile]=$(cksum ${files[$atfile]})
 		(( atfile = atfile + 1 ))
 	done
 
 	# dd the affected side of the mirror
-	log_must $DD if=$OVERWRITING_DEVICE of=${DEV_DSKDIR}/$AFFECTED_DEVICE \
+	log_must dd if=$OVERWRITING_DEVICE of=${DEV_DSKDIR}/$AFFECTED_DEVICE \
 		seek=8 bs=$DD_BLOCK count=$(( DD_COUNT - 128 )) conv=notrunc
 
-	log_must $ZPOOL scrub $POOL
+	log_must zpool scrub $POOL
 
 	while is_pool_scrubbing $POOL; do
-		$SLEEP 2
+		sleep 2
 	done
 
 	atfile=0
@@ -63,11 +63,11 @@ function overwrite_verify_mirror
 	typeset -i failedcount=0
 	while (( atfile < FILE_COUNT )); do
 		files[$atfile]=$TESTDIR/file.$atfile
-		newcksum=$($CKSUM ${files[$atfile]})
+		newcksum=$(cksum ${files[$atfile]})
 		if [[ $newcksum != ${cksums[$atfile]} ]]; then
 			(( failedcount = failedcount + 1 ))
 		fi
-		$RM -f ${files[$atfile]}
+		rm -f ${files[$atfile]}
 		(( atfile = atfile + 1 ))
 	done
 

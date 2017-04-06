@@ -48,7 +48,7 @@
 
 function cleanup
 {
-	log_must $RM -f ${QFILE}_*
+	log_must rm -f ${QFILE}_*
 	cleanup_quota
 }
 
@@ -57,21 +57,21 @@ log_onexit cleanup
 log_assert "If creating object exceeds {user|group}objquota count, it will fail"
 
 mkmount_writable $QFS
-log_must $ZFS set xattr=sa $QFS
+log_must zfs set xattr=sa $QFS
 
 log_note "Check the userobjquota@$QUSER1"
-log_must $ZFS set userobjquota@$QUSER1=100 $QFS
-log_must user_run $QUSER1 $MKFILES ${QFILE}_1 100
+log_must zfs set userobjquota@$QUSER1=100 $QFS
+log_must user_run $QUSER1 mkfiles ${QFILE}_1 100
 sync_pool
-log_mustnot user_run $QUSER1 $MKFILE 1 $OFILE
+log_mustnot user_run $QUSER1 mkfile 1 $OFILE
 cleanup_quota
 
 log_note "Check the groupobjquota@$QGROUP"
-log_must $ZFS set groupobjquota@$QGROUP=200 $QFS
+log_must zfs set groupobjquota@$QGROUP=200 $QFS
 mkmount_writable $QFS
-log_must user_run $QUSER1 $MKFILES ${QFILE}_2 100
+log_must user_run $QUSER1 mkfiles ${QFILE}_2 100
 sync_pool
-log_mustnot user_run $QUSER2 $MKFILE 1 $OFILE
+log_mustnot user_run $QUSER2 mkfile 1 $OFILE
 
 cleanup
 log_pass "Creating objects exceeds {user|group}objquota count, it as expect"

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -59,33 +59,33 @@ verify_runnable "global"
 
 log_assert "The RBAC profile \"ZFS Storage Management\" works"
 
-ZFS_USER=$($CAT /tmp/zfs-privs-test-user.txt)
+ZFS_USER=$(cat /tmp/zfs-privs-test-user.txt)
 
 # the user shouldn't be able to do anything initially
-log_mustnot $SU $ZFS_USER -c "$ZPOOL create $TESTPOOL $DISKS"
-log_mustnot $SU $ZFS_USER -c "$PFEXEC $ZPOOL create $TESTPOOL $DISKS"
+log_mustnot su $ZFS_USER -c "zpool create $TESTPOOL $DISKS"
+log_mustnot su $ZFS_USER -c "pfexec zpool create $TESTPOOL $DISKS"
 
 # the first time we assign the profile, we insist it should work
-log_must $USERMOD -P "ZFS Storage Management" $ZFS_USER
-log_must $SU $ZFS_USER -c "$PFEXEC $ZPOOL create -f $TESTPOOL $DISKS"
+log_must usermod -P "ZFS Storage Management" $ZFS_USER
+log_must su $ZFS_USER -c "pfexec zpool create -f $TESTPOOL $DISKS"
 
 # ensure the user can't create a filesystem with this profile
-log_mustnot $SU $ZFS_USER -c "$ZFS create $TESTPOOL/fs"
+log_mustnot su $ZFS_USER -c "zfs create $TESTPOOL/fs"
 
 # add ZFS File System Management profile, and try to create a fs
-log_must $USERMOD -P "ZFS File System Management" $ZFS_USER
-log_must $SU $ZFS_USER -c "$PFEXEC $ZFS create $TESTPOOL/fs"
+log_must usermod -P "ZFS File System Management" $ZFS_USER
+log_must su $ZFS_USER -c "pfexec zfs create $TESTPOOL/fs"
 
 # revoke File System Management profile
-$USERMOD -P, $ZFS_USER
-$USERMOD -P "ZFS Storage Management" $ZFS_USER
+usermod -P, $ZFS_USER
+usermod -P "ZFS Storage Management" $ZFS_USER
 
 # ensure the user can destroy pools
-log_mustnot $SU $ZFS_USER -c "$ZPOOL destroy $TESTPOOL"
-log_must $SU $ZFS_USER -c "$PFEXEC $ZPOOL destroy $TESTPOOL"
+log_mustnot su $ZFS_USER -c "zpool destroy $TESTPOOL"
+log_must su $ZFS_USER -c "pfexec zpool destroy $TESTPOOL"
 
 # revoke Storage Management profile
-$USERMOD -P, $ZFS_USER
-log_mustnot $SU $ZFS_USER -c "$PFEXEC $ZPOOL create -f $TESTPOOL $DISKS"
+usermod -P, $ZFS_USER
+log_mustnot su $ZFS_USER -c "pfexec zpool create -f $TESTPOOL $DISKS"
 
 log_pass "The RBAC profile \"ZFS Storage Management\" works"

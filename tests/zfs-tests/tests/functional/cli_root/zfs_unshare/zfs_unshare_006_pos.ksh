@@ -43,31 +43,31 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must $ZFS unshare -a
-	log_must $ZFS destroy -f $TESTPOOL/$TESTFS/shared1
-	log_must $ZFS destroy -f $TESTPOOL/$TESTFS/shared2
-	log_must $ZFS destroy -f $TESTPOOL/$TESTFS/shared3
+	log_must zfs unshare -a
+	log_must zfs destroy -f $TESTPOOL/$TESTFS/shared1
+	log_must zfs destroy -f $TESTPOOL/$TESTFS/shared2
+	log_must zfs destroy -f $TESTPOOL/$TESTFS/shared3
 }
 
-log_assert "Verify '$ZFS unshare [nfs|smb] -a' only works on the specified "\
+log_assert "Verify 'zfs unshare [nfs|smb] -a' only works on the specified "\
 	"protocol."
 log_onexit cleanup
 
 # 1. Share filesystems with different protocols.
-log_must $ZFS create $TESTPOOL/$TESTFS/shared1
-log_must $ZFS create $TESTPOOL/$TESTFS/shared2
-log_must $ZFS create $TESTPOOL/$TESTFS/shared3
-log_must $ZFS set mountpoint=$TESTDIR/1 $TESTPOOL/$TESTFS/shared1
-log_must $ZFS set mountpoint=$TESTDIR/2 $TESTPOOL/$TESTFS/shared2
-log_must $ZFS set mountpoint=$TESTDIR/3 $TESTPOOL/$TESTFS/shared3
-log_must $ZFS set sharenfs=on $TESTPOOL/$TESTFS/shared1
-log_must $ZFS set sharenfs=on $TESTPOOL/$TESTFS/shared2
-log_must $ZFS set sharesmb=on $TESTPOOL/$TESTFS/shared2
-log_must $ZFS set sharesmb=on $TESTPOOL/$TESTFS/shared3
-log_must $ZFS share -a
+log_must zfs create $TESTPOOL/$TESTFS/shared1
+log_must zfs create $TESTPOOL/$TESTFS/shared2
+log_must zfs create $TESTPOOL/$TESTFS/shared3
+log_must zfs set mountpoint=$TESTDIR/1 $TESTPOOL/$TESTFS/shared1
+log_must zfs set mountpoint=$TESTDIR/2 $TESTPOOL/$TESTFS/shared2
+log_must zfs set mountpoint=$TESTDIR/3 $TESTPOOL/$TESTFS/shared3
+log_must zfs set sharenfs=on $TESTPOOL/$TESTFS/shared1
+log_must zfs set sharenfs=on $TESTPOOL/$TESTFS/shared2
+log_must zfs set sharesmb=on $TESTPOOL/$TESTFS/shared2
+log_must zfs set sharesmb=on $TESTPOOL/$TESTFS/shared3
+log_must zfs share -a
 
 # 2. Invoke 'zfs unshare nfs -a' to unshare filesystems.
-log_must $ZFS unshare nfs -a
+log_must zfs unshare nfs -a
 
 # 3. Verify that only nfs filesystems are unshared.
 log_must eval "not_shared $TESTPOOL/$TESTFS/shared1"
@@ -76,13 +76,13 @@ log_must eval "is_shared_smb $TESTPOOL/$TESTFS/shared2"
 log_must eval "is_shared_smb $TESTPOOL/$TESTFS/shared3"
 
 # 4. Share all filesystems again.
-log_must $ZFS share -a
+log_must zfs share -a
 
 # 5. Invoke 'zfs unshare smb -a' and verify only smb filesystems are unshared.
-log_must $ZFS unshare smb -a
+log_must zfs unshare smb -a
 log_must eval "is_shared $TESTPOOL/$TESTFS/shared1"
 log_must eval "is_shared $TESTPOOL/$TESTFS/shared2"
 log_must eval "not_shared_smb $TESTPOOL/$TESTFS/shared2"
 log_must eval "not_shared_smb $TESTPOOL/$TESTFS/shared3"
 
-log_pass "'$ZFS unshare [nfs|smb] -a' only works on the specified protocol."
+log_pass "'zfs unshare [nfs|smb] -a' only works on the specified protocol."

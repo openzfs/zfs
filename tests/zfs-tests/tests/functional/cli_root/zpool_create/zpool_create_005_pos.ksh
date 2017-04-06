@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,10 +47,10 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && \
-		log_must $ZPOOL destroy -f $TESTPOOL
+		log_must zpool destroy -f $TESTPOOL
 
 	for dir in $TESTDIR $TESTDIR1; do
-		[[ -d $dir ]] && $RM -rf $dir
+		[[ -d $dir ]] && rm -rf $dir
 	done
 }
 
@@ -70,17 +70,17 @@ for pool in $TESTPOOL2 $TESTPOOL1 $TESTPOOL; do
 done
 
 #prepare raw file for file disk
-[[ -d $TESTDIR ]] && $RM -rf $TESTDIR
-log_must $MKDIR -p $TESTDIR
+[[ -d $TESTDIR ]] && rm -rf $TESTDIR
+log_must mkdir -p $TESTDIR
 typeset -i i=1
 while (( i < 4 )); do
-	log_must $MKFILE $FILESIZE $TESTDIR/file.$i
+	log_must mkfile $FILESIZE $TESTDIR/file.$i
 
 	(( i = i + 1 ))
 done
 
 #Remove the directory with name as pool name if it exists
-[[ -d /$TESTPOOL ]] && $RM -rf /$TESTPOOL
+[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
 file=$TESTDIR/file
 
 for opt in "-R $TESTDIR1" "-m $TESTDIR1" \
@@ -90,13 +90,13 @@ do
 	while (( i < ${#pooltype[*]} )); do
 		#Remove the testing pool and its mount directory
 		poolexists $TESTPOOL && \
-			log_must $ZPOOL destroy -f $TESTPOOL
-		[[ -d $TESTDIR1 ]] && $RM -rf $TESTDIR1
-		log_must $ZPOOL create $opt $TESTPOOL ${pooltype[i]} \
+			log_must zpool destroy -f $TESTPOOL
+		[[ -d $TESTDIR1 ]] && rm -rf $TESTDIR1
+		log_must zpool create $opt $TESTPOOL ${pooltype[i]} \
 			$file.1 $file.2 $file.3
 		! poolexists $TESTPOOL && \
 			log_fail "Createing pool with $opt fails."
-		mpt=`$ZFS mount | $EGREP "^$TESTPOOL[^/]" | $AWK '{print $2}'`
+		mpt=`zfs mount | egrep "^$TESTPOOL[^/]" | awk '{print $2}'`
 		(( ${#mpt} == 0 )) && \
 			log_fail "$TESTPOOL created with $opt is not mounted."
 		mpt_val=$(get_prop "mountpoint" $TESTPOOL)

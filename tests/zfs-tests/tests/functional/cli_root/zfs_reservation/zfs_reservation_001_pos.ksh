@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -43,8 +48,8 @@ RESERVATION="reserve"
 function cleanup
 {
 	if datasetexists $TESTPOOL/$RESERVATION ; then
-		log_must $ZFS unmount $TESTPOOL/$RESERVATION
-		log_must $ZFS destroy $TESTPOOL/$RESERVATION
+		log_must zfs unmount $TESTPOOL/$RESERVATION
+		log_must zfs destroy $TESTPOOL/$RESERVATION
 	fi
 }
 
@@ -52,8 +57,8 @@ log_onexit cleanup
 
 log_assert "Verify that a reservation > 2^64 -1 fails."
 
-log_must $ZFS create $TESTPOOL/$RESERVATION
+log_must zfs create $TESTPOOL/$RESERVATION
 
-log_mustnot $ZFS set reservation=18446744073709551615 $TESTPOOL/$RESERVATION
+log_mustnot zfs set reservation=18446744073709551615 $TESTPOOL/$RESERVATION
 
 log_pass "Unable to set a reservation > 2^64 - 1"

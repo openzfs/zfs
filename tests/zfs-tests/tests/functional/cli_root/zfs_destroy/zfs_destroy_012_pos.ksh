@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -37,23 +37,23 @@ function test_snap_run
     typeset dstype=$1
 
     snap=$(eval echo \$${dstype}SNAP)
-    log_must $ZFS hold zfstest1 $snap
-    log_must $ZFS destroy -d $snap
+    log_must zfs hold zfstest1 $snap
+    log_must zfs destroy -d $snap
     log_must datasetexists $snap
     log_must eval "[[ $(get_prop defer_destroy $snap) == 'on' ]]"
 
-    log_must $ZFS hold zfstest2 $snap
-    log_mustnot $ZFS hold zfstest1 $snap
-    log_mustnot $ZFS hold zfstest2 $snap
+    log_must zfs hold zfstest2 $snap
+    log_mustnot zfs hold zfstest1 $snap
+    log_mustnot zfs hold zfstest2 $snap
 
-    log_must $ZFS release zfstest1 $snap
+    log_must zfs release zfstest1 $snap
     log_must datasetexists $snap
-    log_mustnot $ZFS release zfstest1 $snap
+    log_mustnot zfs release zfstest1 $snap
     log_must datasetexists $snap
-    log_mustnot $ZFS release zfstest3 $snap
+    log_mustnot zfs release zfstest3 $snap
     log_must datasetexists $snap
 
-    log_must $ZFS release zfstest2 $snap
+    log_must zfs release zfstest2 $snap
     log_mustnot datasetexists $snap
 }
 

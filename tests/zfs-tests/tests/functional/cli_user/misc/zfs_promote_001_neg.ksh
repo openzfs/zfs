@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,7 +45,7 @@
 
 log_assert "zfs promote returns an error when run as a user"
 
-log_mustnot $ZFS promote $TESTPOOL/$TESTFS/clone
+log_mustnot zfs promote $TESTPOOL/$TESTFS/clone
 
 # Now verify that the above command didn't do anything
 if datasetexists $TESTPOOL/$TESTFS/clone@snap

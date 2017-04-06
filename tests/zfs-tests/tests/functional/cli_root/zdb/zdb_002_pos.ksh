@@ -42,7 +42,7 @@ function cleanup
 
 for opt in '' -d; do
 	log_must zpool create -f $opt $TESTPOOL ${DISKS%% *}
-	log_must eval "$ZDB $TESTPOOL >$tmpfile"
+	log_must eval "zdb $TESTPOOL >$tmpfile"
 	grep -q "$errstr" $tmpfile && \
 	    log_fail "Found feature refcount mismatches in zdb output."
 	destroy_pool $TESTPOOL

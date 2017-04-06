@@ -68,8 +68,8 @@ log_note "testpool: $TESTPOOL, disks $DISKS"
 
 typeset -i i=1
 while [[ $i -lt ${#args[*]} ]]; do
-	log_note "doing $ZPOOL iostat ${args[i]}"
-	log_must $ZPOOL iostat ${args[i]}
+	log_note "doing zpool iostat ${args[i]}"
+	log_must zpool iostat ${args[i]}
 	((i = i + 1))
 done
 

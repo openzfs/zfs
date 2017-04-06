@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,7 +49,7 @@ verify_runnable "global"
 function cleanup
 {
 	if snapexists $SNAPFS1 ; then
-		log_must $ZFS destroy -Rf $SNAPFS1
+		log_must zfs destroy -Rf $SNAPFS1
 	fi
 }
 
@@ -57,22 +57,22 @@ log_onexit cleanup
 
 log_assert "Verify 'zfs clone -o <volume>' fails with bad <volume> argument."
 
-log_must $ZFS snapshot $SNAPFS1
+log_must zfs snapshot $SNAPFS1
 
 typeset -i i=0
 while (( $i < ${#RW_VOL_PROP[*]} )); do
-	log_mustnot $ZFS clone -o ${RW_VOL_PROP[i]} -o ${RW_VOL_PROP[i]} \
+	log_mustnot zfs clone -o ${RW_VOL_PROP[i]} -o ${RW_VOL_PROP[i]} \
 		$SNAPFS1 $TESTPOOL/$TESTCLONE
-	log_mustnot $ZFS clone -p -o ${RW_VOL_PROP[i]} -o ${RW_VOL_PROP[i]} \
+	log_mustnot zfs clone -p -o ${RW_VOL_PROP[i]} -o ${RW_VOL_PROP[i]} \
 		$SNAPFS1 $TESTPOOL/$TESTCLONE
 	((i = i + 1))
 done
 
 i=0
 while (( $i < ${#FS_ONLY_PROP[*]} )); do
-	log_mustnot $ZFS clone  -o ${FS_ONLY_PROP[i]} \
+	log_mustnot zfs clone  -o ${FS_ONLY_PROP[i]} \
 		$SNAPFS1 $TESTPOOL/$TESTCLONE
-	log_mustnot $ZFS clone -p -o ${FS_ONLY_PROP[i]} \
+	log_mustnot zfs clone -p -o ${FS_ONLY_PROP[i]} \
 		$SNAPFS1 $TESTPOOL/$TESTCLONE
 	((i = i + 1))
 done

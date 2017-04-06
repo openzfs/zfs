@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,6 +36,6 @@ log_must cleanup_quota
 log_must clean_user_group
 
 typeset mntp=$(get_prop mountpoint $QFS)
-log_must $CHMOD 0755 $mntp
+chmod 0755 $mntp
 
 default_cleanup

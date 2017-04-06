@@ -51,14 +51,14 @@ function cleanup
 		log_must chattr -ia $TESTDIR/$i
 		log_must rm -f $TESTDIR/$i
 	done
-	log_must $CHMOD 0755 $TESTDIR
+	log_must chmod 0755 $TESTDIR
 }
 
 log_onexit cleanup
 
 log_assert "Check whether unprivileged user can chattr"
 
-log_must $CHMOD 0777 $TESTDIR
+log_must chmod 0777 $TESTDIR
 
 log_must user_run $QUSER1 touch $TESTDIR/writable
 log_must user_run $QUSER1 touch $TESTDIR/immutable

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -51,7 +51,7 @@ function rand_set_prop
 	shift 2
 	typeset value=$(random_get $@)
 
-	log_must eval "$ZFS set $prop='$value' $dtst"
+	log_must eval "zfs set $prop='$value' $dtst"
 }
 
 function edited_prop
@@ -62,15 +62,15 @@ function edited_prop
 
 	case $behaviour in
 		"get")
-			typeset props=$($ZFS inherit 2>&1 | \
-				$AWK '$2=="YES" {print $1}' | \
-				$EGREP -v "^vol|\.\.\.$")
+			typeset props=$(zfs inherit 2>&1 | \
+				awk '$2=="YES" {print $1}' | \
+				egrep -v "^vol|\.\.\.$")
 			for item in $props ; do
 				if [[ $item == "mlslabel" ]] && \
 					! is_te_enabled ; then
 					continue
 				fi
-				$ZFS get -H -o property,value $item $ds >> \
+				zfs get -H -o property,value $item $ds >> \
 					$backfile
 				if (($? != 0)); then
 					log_fail "zfs get -H -o property,value"\
@@ -85,9 +85,9 @@ function edited_prop
 
 			typeset prop value
 			while read prop value ; do
-				eval $ZFS set $prop='$value' $ds
+				eval zfs set $prop='$value' $ds
 				if (($? != 0)); then
-					log_fail "$ZFS set $prop=$value $ds"
+					log_fail "zfs set $prop=$value $ds"
 				fi
 			done < $backfile
 			;;
@@ -106,14 +106,14 @@ function cleanup
 
 	typeset prop
 	for prop in $(fs_inherit_prop) ; do
-		log_must $ZFS inherit $prop $POOL
-		log_must $ZFS inherit $prop $POOL2
+		log_must zfs inherit $prop $POOL
+		log_must zfs inherit $prop $POOL2
 	done
 
 	log_must setup_test_model $POOL
 
 	if [[ -d $TESTDIR ]]; then
-		log_must $RM -rf $TESTDIR/*
+		log_must rm -rf $TESTDIR/*
 	fi
 }
 
@@ -164,8 +164,8 @@ rand_set_prop $POOL sync "standard" "always" "disabled"
 #
 # Duplicate POOL2 for testing
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 
 #
 # Define all the POOL/POOL2 datasets pair
@@ -187,7 +187,7 @@ while ((i < ${#pair[@]})); do
 done
 
 
-$ZPOOL upgrade -v | $GREP "Snapshot properties" > /dev/null 2>&1
+zpool upgrade -v | grep "Snapshot properties" > /dev/null 2>&1
 if (( $? == 0 )) ; then
 	i=0
 	while ((i < ${#pair[@]})); do

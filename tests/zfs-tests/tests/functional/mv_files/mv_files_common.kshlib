@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/mv_files/mv_files.cfg
@@ -37,11 +37,11 @@
 #
 function check_bg_procs_limit_num
 {
-$ECHO "#!/bin/ksh" > /var/tmp/exitsZero.ksh
-$ECHO  "exit 0" >> /var/tmp/exitsZero.ksh
-$CHMOD 777 /var/tmp/exitsZero.ksh
+echo "#!/bin/ksh" > /var/tmp/exitsZero.ksh
+echo  "exit 0" >> /var/tmp/exitsZero.ksh
+chmod 777 /var/tmp/exitsZero.ksh
 
-$CAT <<EOF > /var/tmp/testbackgprocs.ksh
+cat <<EOF > /var/tmp/testbackgprocs.ksh
 #!/bin/ksh
 #
 # exitsZero.ksh is a one line script
@@ -57,17 +57,17 @@ do
         (( i = i + 1 ))
 done
 
-\$SLEEP 1
+\sleep 1
 
 for pid in \$PIDS
 do
-	\$WAIT \$pid
+	\wait \$pid
         (( \$? == 127 )) && exit 1
 done
 exit 0
 EOF
 
-$KSH /var/tmp/testbackgprocs.ksh
+ksh /var/tmp/testbackgprocs.ksh
 if [[ $? -eq 1 ]]; then
 #
 # Current ksh being executed has a limit
@@ -90,21 +90,21 @@ function init_setup
 		reexport_pool
 	fi
 
-        $RM -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR
-        $MKDIR -p $TESTDIR || log_unresolved Could not create $TESTDIR
+        rm -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR
+        mkdir -p $TESTDIR || log_unresolved Could not create $TESTDIR
 
-        $RM -rf $TESTDIR_TGT  || log_unresolved Could not remove $TESTDIR_TGT
-        $MKDIR -p $TESTDIR_TGT || log_unresolved Could not create $TESTDIR_TGT
+        rm -rf $TESTDIR_TGT  || log_unresolved Could not remove $TESTDIR_TGT
+        mkdir -p $TESTDIR_TGT || log_unresolved Could not create $TESTDIR_TGT
 
-        log_must $ZFS create $TESTPOOL/$TESTFS
-        log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+        log_must zfs create $TESTPOOL/$TESTFS
+        log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
-        log_must $ZFS create $TESTPOOL/$TESTFS_TGT
-        log_must $ZFS set mountpoint=$TESTDIR_TGT $TESTPOOL/$TESTFS_TGT
+        log_must zfs create $TESTPOOL/$TESTFS_TGT
+        log_must zfs set mountpoint=$TESTDIR_TGT $TESTPOOL/$TESTFS_TGT
 
-        $MKDIR -p $OLDDIR || log_unresolved Could not create $OLDDIR
-        $MKDIR -p $NEWDIR_IN_FS || log_unresolved Could not create $NEWDIR_IN_FS
-        $MKDIR -p $NEWDIR_ACROSS_FS || log_unresolved Could not create $NEWDIR_ACROSS_FS
+        mkdir -p $OLDDIR || log_unresolved Could not create $OLDDIR
+        mkdir -p $NEWDIR_IN_FS || log_unresolved Could not create $NEWDIR_IN_FS
+        mkdir -p $NEWDIR_ACROSS_FS || log_unresolved Could not create $NEWDIR_ACROSS_FS
 
 }
 
@@ -112,8 +112,8 @@ function wait_pid
 {
 	for pid in $1
 	do
-		$PS -e | $GREP $pid >/dev/null 2>&1
-		(( $? == 0 )) && $WAIT $pid
+		ps -e | grep $pid >/dev/null 2>&1
+		(( $? == 0 )) && wait $pid
         done
 }
 
@@ -138,12 +138,12 @@ function generate_files
 
         while (( count <= $2 ))
         do
-                $CP /etc/passwd $1/file_$count \
+                cp /etc/passwd $1/file_$count \
                          > /dev/null 2>&1 &
 
                 PIDS="$PIDS $!"
 
-                proc_num=`$ECHO $PIDS | $WC -w`
+                proc_num=`echo $PIDS | wc -w`
                 if (( proc_num >= GANGPIDS )); then
                         wait_pid "$PIDS"
                         proc_num=0
@@ -164,8 +164,8 @@ function generate_files
 function mv_files
 {
 
-        $FIND $1 -type f -print | xargs -i \
-                $MV {} $2 > /dev/null 2>&1
+        find $1 -type f -print | xargs -i \
+                mv {} $2 > /dev/null 2>&1
 }
 
 #
@@ -177,7 +177,7 @@ function mv_files
 function count_files
 {
         typeset -i file_num
-        file_num=`$FIND $1  -type f -print | \
+        file_num=`find $1  -type f -print | \
                 wc -l`
         (( file_num != $2 )) && \
                 log_fail "The file number of target directory"\

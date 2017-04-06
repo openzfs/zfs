@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,18 +45,18 @@
 
 function cleanup {
 
-	log_must $RM $TESTDIR/myfile.$$
+	log_must rm $TESTDIR/myfile.$$
 
 }
 
 log_assert "read/write xattr on a file with no permissions fails"
 log_onexit cleanup
 
-log_must $TOUCH $TESTDIR/myfile.$$
+log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
-log_must $CHMOD 000 $TESTDIR/myfile.$$
-log_mustnot $SU $ZFS_USER -c "$RUNAT $TESTDIR/myfile.$$ $CAT passwd"
-log_mustnot $SU $ZFS_USER -c "$RUNAT $TESTDIR/myfile.$$ $CP /etc/passwd ."
+log_must chmod 000 $TESTDIR/myfile.$$
+log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cat passwd"
+log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cp /etc/passwd ."
 
 log_pass "read/write xattr on a file with no permissions fails"

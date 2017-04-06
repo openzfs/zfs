@@ -36,6 +36,6 @@
 #	is set to 5min, but actual runtime might be longer.
 #
 
-log_must $RAIDZ_TEST -S -t 300
+log_must raidz_test -S -t 300
 
 log_pass "raidz_test parameter sweep test succeeded."

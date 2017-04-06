@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -52,12 +57,12 @@ fi
 
 for file in $ZFS_DEV $MNTTAB; do
 	if [[ -e $file ]]; then
-		$MV $file ${file}.bak
+		mv $file ${file}.bak
 	fi
 	for cmd in "" "list" "get all" "mount"; do
-		log_mustnot eval "$ZFS $cmd >/dev/null 2>&1"
+		log_mustnot eval "zfs $cmd >/dev/null 2>&1"
 	done
-	$MV ${file}.bak $file
+	mv ${file}.bak $file
 done
 
 log_pass "zfs fails with unexpected scenario as expected."

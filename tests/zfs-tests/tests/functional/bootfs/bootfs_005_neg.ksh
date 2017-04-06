@@ -52,7 +52,7 @@ function cleanup {
 	#
 	typeset pool_name
 	for config in $CONFIGS; do
-		pool_name=$(eval $ECHO \$ZPOOL_VERSION_${config}_NAME)
+		pool_name=$(eval echo \$ZPOOL_VERSION_${config}_NAME)
 		destroy_pool $pool_name
 	done
 
@@ -65,14 +65,14 @@ log_assert "Boot properties cannot be set on pools with older versions"
 CONFIGS="1 2 3"
 
 log_onexit cleanup
-log_must $ZPOOL create -f $TESTPOOL $DISKS
+log_must zpool create -f $TESTPOOL $DISKS
 
 for config in $CONFIGS
 do
 	create_old_pool $config
-	POOL_NAME=$(eval $ECHO \$ZPOOL_VERSION_${config}_NAME)
-	log_must $ZFS create $POOL_NAME/$TESTFS
-	log_mustnot $ZPOOL set bootfs=$POOL_NAME/$TESTFS $POOL_NAME
+	POOL_NAME=$(eval echo \$ZPOOL_VERSION_${config}_NAME)
+	log_must zfs create $POOL_NAME/$TESTFS
+	log_mustnot zpool set bootfs=$POOL_NAME/$TESTFS $POOL_NAME
 	log_must destroy_upgraded_pool $config
 done
 

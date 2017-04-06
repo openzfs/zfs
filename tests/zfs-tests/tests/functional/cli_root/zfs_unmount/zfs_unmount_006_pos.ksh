@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -42,7 +46,7 @@ verify_runnable "both"
 function cleanup
 {
 	if ! ismounted $TESTPOOL/$TESTFS ; then
-		log_must $ZFS mount $TESTPOOL/$TESTFS
+		log_must zfs mount $TESTPOOL/$TESTFS
 	fi
 }
 
@@ -56,12 +60,12 @@ mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 
 typeset -i i=0
 while (( i < 10000 )); do
-	$CP $STF_SUITE/include/libtest.shlib $mntpnt
+	cp $STF_SUITE/include/libtest.shlib $mntpnt
 
 	(( i += 1 ))
 done
 log_note "Recreating zfs files for 10000 times."
 
-log_must $ZFS unmount $TESTPOOL/$TESTFS
+log_must zfs unmount $TESTPOOL/$TESTFS
 
 log_pass "Re-creating zfs files, 'zfs unmount' passed."

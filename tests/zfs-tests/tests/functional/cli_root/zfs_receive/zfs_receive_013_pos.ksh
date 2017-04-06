@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
@@ -39,34 +39,34 @@ tpoolfile=/temptank.$$
 function cleanup
 {
     for fs in $src_fs $dst_fs; do
-        datasetexists $fs && log_must $ZFS destroy -rf $fs
+        datasetexists $fs && log_must zfs destroy -rf $fs
     done
-    $ZPOOL destroy $temppool
-    [[ -f $streamfile ]] && log_must $RM -f $streamfile
-    [[ -f $tpoolfile ]] && log_must $RM -f $tpoolfile
+    zpool destroy $temppool
+    [[ -f $streamfile ]] && log_must rm -f $streamfile
+    [[ -f $tpoolfile ]] && log_must rm -f $tpoolfile
 }
 
 log_assert "Verifying 'zfs receive' works correctly on deduplicated streams"
 log_onexit cleanup
 
 truncate -s 100M $tpoolfile
-log_must $ZPOOL create $temppool $tpoolfile
-log_must $ZFS create $src_fs
+log_must zpool create $temppool $tpoolfile
+log_must zfs create $src_fs
 src_mnt=$(get_prop mountpoint $src_fs) || log_fail "get_prop mountpoint $src_fs"
 
 echo blah > $src_mnt/blah
-$ZFS snapshot $src_fs@base
+zfs snapshot $src_fs@base
 
 echo grumble > $src_mnt/grumble
 echo blah > $src_mnt/blah2
-$ZFS snapshot $src_fs@snap2
+zfs snapshot $src_fs@snap2
 
 echo grumble > $src_mnt/mumble
 echo blah > $src_mnt/blah3
-$ZFS snapshot $src_fs@snap3
+zfs snapshot $src_fs@snap3
 
-log_must eval "$ZFS send -D -R $src_fs@snap3 > $streamfile"
-log_must eval "$ZFS receive -v $dst_fs < $streamfile"
+log_must eval "zfs send -D -R $src_fs@snap3 > $streamfile"
+log_must eval "zfs receive -v $dst_fs < $streamfile"
 
 cleanup
 

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,7 +48,7 @@ log_assert "Using a zvol as swap space, fill /tmp to 80%."
 
 vol=$TESTPOOL/$TESTVOL
 swapdev=${ZVOL_DEVDIR}/$vol
-log_must $SWAP -a $swapdev
+log_must swap -a $swapdev
 
 # Get 80% of the number of 512 blocks in the zvol
 typeset -i count blks volsize=$(get_prop volsize $vol)
@@ -57,8 +57,8 @@ typeset -i count blks volsize=$(get_prop volsize $vol)
 ((count = blks / 2048))
 
 log_note "Fill 80% of swap"
-log_must $DD if=/dev/urandom of=/tmp/$TESTFILE bs=1048576 count=$count
-log_must $RM -f /tmp/$TESTFILE
-log_must $SWAP -d $swapdev
+log_must dd if=/dev/urandom of=/tmp/$TESTFILE bs=1048576 count=$count
+log_must rm -f /tmp/$TESTFILE
+log_must swap -d $swapdev
 
 log_pass "Using a zvol as swap space, fill /tmp to 80%."

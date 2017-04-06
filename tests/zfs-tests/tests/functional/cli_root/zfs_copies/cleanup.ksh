@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_copies/zfs_copies.kshlib
@@ -37,8 +37,8 @@
 #
 
 if ismounted $FS_MNTPOINT $NEWFS_DEFAULT_FS ; then
-	log_must $UMOUNT -f $FS_MNTPOINT
-	$RM -fr $FS_MNTPOINT
+	log_must umount -f $FS_MNTPOINT
+	rm -fr $FS_MNTPOINT
 fi
 
 default_cleanup

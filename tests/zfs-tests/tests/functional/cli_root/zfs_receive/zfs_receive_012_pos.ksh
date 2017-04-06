@@ -44,9 +44,9 @@ typeset streamfile=/var/tmp/streamfile.$$
 
 function cleanup
 {
-	log_must $RM $streamfile
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS1
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS2
+	log_must rm $streamfile
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS1
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS2
 }
 
 log_assert "The allowable slight refquota overage is properly sent-and-" \
@@ -57,27 +57,27 @@ orig=$TESTPOOL/$TESTFS1
 dest=$TESTPOOL/$TESTFS2
 
 #	1. Create a filesystem.
-log_must $ZFS create $orig
+log_must zfs create $orig
 origdir=$(get_prop mountpoint $orig)
 
 #	2. Set a refquota.
-log_must $ZFS set refquota=50M $orig
+log_must zfs set refquota=50M $orig
 
 #	3. Snapshot the filesystem.
-log_must $ZFS snapshot $orig@1
+log_must zfs snapshot $orig@1
 
 #	4. Send a replication stream to a new filesystem.
-log_must eval "$ZFS send -R $orig@1 > $streamfile"
-log_must eval "$ZFS recv $dest < $streamfile"
+log_must eval "zfs send -R $orig@1 > $streamfile"
+log_must eval "zfs recv $dest < $streamfile"
 
 #	5. On the original filesystem, fill it up to its quota.
 cat < /dev/urandom > $origdir/fill-it-up
 
 #	6. Snapshot the original filesystem again.
-log_must $ZFS snapshot $orig@2
+log_must zfs snapshot $orig@2
 
 #	7. Send an incremental stream to the same new filesystem.
-log_must eval "$ZFS send -I 1 -R $orig@2 > $streamfile"
-log_must eval "$ZFS recv $dest < $streamfile"
+log_must eval "zfs send -I 1 -R $orig@2 > $streamfile"
+log_must eval "zfs recv $dest < $streamfile"
 
 log_pass "Verified receiving a slightly-over-refquota stream succeeds."

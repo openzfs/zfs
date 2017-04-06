@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,8 +54,8 @@ verify_runnable "global"
 function cleanup
 {
 	PIDS=""
-	$RM -f $OLDDIR/* >/dev/null 2>&1
-	$RM -f $NEWDIR_IN_FS/* >/dev/null 2>&1
+	rm -f $OLDDIR/* >/dev/null 2>&1
+	rm -f $NEWDIR_IN_FS/* >/dev/null 2>&1
 }
 
 log_assert "Doing a 'mv' of a large amount of files within a zfs filesystem" \

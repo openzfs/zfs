@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -76,7 +76,7 @@ function negative_test
 			fi
 		fi
 		for opt in $options; do
-			log_mustnot $ZFS destroy $opt $dtst
+			log_mustnot zfs destroy $opt $dtst
 		done
 	done
 }
@@ -101,8 +101,8 @@ negative_test "-r -rf" "$CTR $FS $VOL"
 # an explanation of what 'correct' means for this test.
 #
 mntpt=$(get_prop mountpoint $FS)
-pidlist=$($MKBUSY $mntpt/$TESTFILE0)
-log_note "$MKBUSY $mntpt/$TESTFILE0 (pidlist: $pidlist)"
+pidlist=$(mkbusy $mntpt/$TESTFILE0)
+log_note "mkbusy $mntpt/$TESTFILE0 (pidlist: $pidlist)"
 [[ -z $pidlist ]] && log_fail "Failure from mkbusy"
 negative_test "-R -rR" $CTR
 
@@ -124,7 +124,7 @@ elif datasetexists $FSSNAP && datasetnonexists $VOLSNAP; then
 	check_dataset datasetnonexists $VOLSNAP $VOLCLONE
 	check_dataset datasetexists $FSSNAP $FSCLONE
 else
-	log_must $ZFS list -rtall
+	log_must zfs list -rtall
 	log_fail "Unexpected datasets remaining"
 fi
 
@@ -138,8 +138,8 @@ negative_test "-R -rR" $FS
 check_dataset datasetexists $CTR $FS $VOL $VOLSNAP $VOLCLONE
 check_dataset datasetnonexists $FSSNAP $FSCLONE
 
-log_must $KILL $pidlist
-log_mustnot $PGREP -fl $MKBUSY
+log_must kill $pidlist
+log_mustnot pgrep -fl mkbusy
 pidlist=""
 
 #
@@ -150,8 +150,8 @@ pidlist=""
 #
 if is_global_zone; then
 	setup_testenv clone
-	pidlist=$($MKBUSY $TESTDIR1/$TESTFILE0)
-	log_note "$MKBUSY $TESTDIR1/$TESTFILE0 (pidlist: $pidlist)"
+	pidlist=$(mkbusy $TESTDIR1/$TESTFILE0)
+	log_note "mkbusy $TESTDIR1/$TESTFILE0 (pidlist: $pidlist)"
 	[[ -z $pidlist ]] && log_fail "Failure from mkbusy"
 	negative_test "-R -rR" $CTR
 	check_dataset datasetexists $CTR $VOL
@@ -181,8 +181,8 @@ if is_global_zone; then
 	check_dataset datasetnonexists $VOLSNAP $VOLCLONE
 fi
 
-log_must $KILL $pidlist
-log_mustnot $PGREP -fl $MKBUSY
+log_must kill $pidlist
+log_mustnot pgrep -fl mkbusy
 pidlist=""
 
 #
@@ -193,19 +193,19 @@ pidlist=""
 #
 
 mntpt=$(snapshot_mountpoint $FSSNAP)
-pidlist=$($MKBUSY $mntpt)
-log_note "$MKBUSY $mntpt (pidlist: $pidlist)"
+pidlist=$(mkbusy $mntpt)
+log_note "mkbusy $mntpt (pidlist: $pidlist)"
 [[ -z $pidlist ]] && log_fail "Failure from mkbusy"
 
 for option in -R -rR ; do
 	setup_testenv clone
-	log_must $ZFS destroy $option $FSSNAP
+	log_must zfs destroy $option $FSSNAP
 	check_dataset datasetexists $CTR $FS $VOL
 	check_dataset datasetnonexists $FSSNAP $FSCLONE
 done
 
-log_must $KILL $pidlist
-log_mustnot $PGREP -fl $MKBUSY
+log_must kill $pidlist
+log_mustnot pgrep -fl mkbusy
 pidlist=""
 
 log_pass "zfs destroy -f|-r|-rf|-R|-rR <dataset>' failed in different " \

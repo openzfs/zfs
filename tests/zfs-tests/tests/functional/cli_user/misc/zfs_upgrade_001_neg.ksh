@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,7 +44,7 @@
 #
 
 # check to see if we have upgrade capability
-$ZFS upgrade > /dev/null 2>&1
+zfs upgrade > /dev/null 2>&1
 HAS_UPGRADE=$?
 if [ $HAS_UPGRADE -ne 0 ]
 then
@@ -54,11 +54,11 @@ fi
 log_assert "zfs upgrade returns an error when run as a user"
 
 
-log_mustnot $ZFS upgrade $TESTPOOL/$TESTFS/version1
+log_mustnot zfs upgrade $TESTPOOL/$TESTFS/version1
 
 # now check to see the above command didn't do anything
-VERSION=$($ZFS upgrade $TESTPOOL/$TESTFS/version1 2>&1 \
-	 | $GREP "already at this version")
+VERSION=$(zfs upgrade $TESTPOOL/$TESTFS/version1 2>&1 \
+	 | grep "already at this version")
 if [ -n "$VERSION" ]
 then
 	log_fail "A filesystem was upgraded!"

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -63,12 +63,12 @@ function setup_single_disk #disk #pool #fs #mtpt
 
 	setup_filesystem "$disk" "$pool" "$fs" "$mtpt"
 
-	log_must $CP $MYTESTFILE $mtpt/$TESTFILE0
+	log_must cp $MYTESTFILE $mtpt/$TESTFILE0
 
-	log_must $ZPOOL export $pool
+	log_must zpool export $pool
 
 	[[ -d $mtpt ]] && \
-		$RM -rf $mtpt
+		rm -rf $mtpt
 }
 
 function cleanup_all
@@ -78,12 +78,12 @@ function cleanup_all
 	#
 	# Try import individually if 'import -a' failed.
 	#
-	for pool in `$ZPOOL import | $GREP "pool:" | $AWK '{print $2}'`; do
-		$ZPOOL import -f $pool
+	for pool in `zpool import | grep "pool:" | awk '{print $2}'`; do
+		zpool import -f $pool
 	done
 
-	for pool in `$ZPOOL import -d $DEVICE_DIR | $GREP "pool:" | $AWK '{print $2}'`; do
-		log_must $ZPOOL import -d $DEVICE_DIR -f $pool
+	for pool in `zpool import -d $DEVICE_DIR | grep "pool:" | awk '{print $2}'`; do
+		log_must zpool import -d $DEVICE_DIR -f $pool
 	done
 
 	while (( id < number )); do
@@ -93,15 +93,15 @@ function cleanup_all
 		fi
 
 		if (( id == 0 )); then
-			log_must $ZPOOL export ${TESTPOOL}-$id
+			log_must zpool export ${TESTPOOL}-$id
 
 			[[ -d /${TESTPOOL}-$id ]] && \
-				log_must $RM -rf /${TESTPOOL}-$id
+				log_must rm -rf /${TESTPOOL}-$id
 
-			log_must $ZPOOL import -f ${TESTPOOL}-$id $TESTPOOL
+			log_must zpool import -f ${TESTPOOL}-$id $TESTPOOL
 
 			[[ -e $TESTDIR/$TESTFILE0 ]] && \
-				log_must $RM -rf $TESTDIR/$TESTFILE0
+				log_must rm -rf $TESTDIR/$TESTFILE0
 		else
 			cleanup_filesystem "${TESTPOOL}-$id" $TESTFS
 
@@ -112,7 +112,7 @@ function cleanup_all
         done
 
 	[[ -d $ALTER_ROOT ]] && \
-		$RM -rf $ALTER_ROOT
+		rm -rf $ALTER_ROOT
 }
 
 function checksum_all #alter_root
@@ -136,7 +136,7 @@ function checksum_all #alter_root
 		[[ ! -e $file ]] && \
 			log_fail "$file missing after import."
 
-		checksum2=$($SUM $file | $AWK '{print $1}')
+		checksum2=$(sum $file | awk '{print $1}')
 		[[ "$checksum1" != "$checksum2" ]] && \
 			log_fail "Checksums differ ($checksum1 != $checksum2)"
 
@@ -151,14 +151,14 @@ log_assert "Verify that 'zpool import -a' succeeds as root."
 
 log_onexit cleanup_all
 
-checksum1=$($SUM $MYTESTFILE | $AWK '{print $1}')
+checksum1=$(sum $MYTESTFILE | awk '{print $1}')
 
-log_must $ZPOOL export $TESTPOOL
-log_must $ZPOOL import $TESTPOOL ${TESTPOOL}-0
-log_must $CP $MYTESTFILE $TESTDIR/$TESTFILE0
-log_must $ZPOOL export ${TESTPOOL}-0
+log_must zpool export $TESTPOOL
+log_must zpool import $TESTPOOL ${TESTPOOL}-0
+log_must cp $MYTESTFILE $TESTDIR/$TESTFILE0
+log_must zpool export ${TESTPOOL}-0
 [[ -d /${TESTPOOL}-0 ]] && \
-	log_must $RM -rf /${TESTPOOL}-0
+	log_must rm -rf /${TESTPOOL}-0
 
 #
 # setup exported pools on normal devices
@@ -194,13 +194,13 @@ done
 
 while (( i < ${#options[*]} )); do
 
-	log_must $ZPOOL import -d ${DEV_DSKDIR} -d $DEVICE_DIR ${options[i]} -a -f
+	log_must zpool import -d ${DEV_DSKDIR} -d $DEVICE_DIR ${options[i]} -a -f
 
 	# destroy unintentional imported pools
-	typeset exclude=`eval $ECHO \"'(${KEEP})'\"`
-	for unwantedpool in $($ZPOOL list -H -o name \
-	     | $EGREP -v "$exclude" | $GREP -v $TESTPOOL); do
-		log_must $ZPOOL export $unwantedpool
+	typeset exclude=`eval echo \"'(${KEEP})'\"`
+	for unwantedpool in $(zpool list -H -o name \
+	     | egrep -v "$exclude" | grep -v $TESTPOOL); do
+		log_must zpool export $unwantedpool
 	done
 
 	if [[ -n ${options[i]} ]]; then
@@ -212,7 +212,7 @@ while (( i < ${#options[*]} )); do
 	id=0
 	while (( id < number )); do
 		if poolexists ${TESTPOOL}-$id ; then
-			log_must $ZPOOL export ${TESTPOOL}-$id
+			log_must zpool export ${TESTPOOL}-$id
 		fi
 		(( id = id + 1 ))
 	done

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,7 +47,7 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $TESTPOOL/$TESTFS1 ; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS1
+		log_must zfs destroy -f $TESTPOOL/$TESTFS1
 	fi
 }
 
@@ -93,8 +93,8 @@ log_assert "'zfs create' should return an error with badly-formed parameters."
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZFS create ${args[i]} $TESTPOOL/$TESTFS1
-	log_mustnot $ZFS create -p ${args[i]} $TESTPOOL/$TESTFS1
+	log_mustnot zfs create ${args[i]} $TESTPOOL/$TESTFS1
+	log_mustnot zfs create -p ${args[i]} $TESTPOOL/$TESTFS1
 	((i = i + 1))
 done
 

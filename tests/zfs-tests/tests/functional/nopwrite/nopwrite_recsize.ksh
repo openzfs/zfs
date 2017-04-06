@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,22 +34,22 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must $ZFS destroy -R $origin
-	log_must $ZFS create -o mountpoint=$TESTDIR $origin
+	datasetexists $origin && log_must zfs destroy -R $origin
+	log_must zfs create -o mountpoint=$TESTDIR $origin
 }
 
 log_assert "nopwrite updates file metadata correctly"
 
-log_must $ZFS set compress=on $origin
-log_must $ZFS set checksum=sha256 $origin
-$DD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
+log_must zfs set compress=on $origin
+log_must zfs set checksum=sha256 $origin
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
-$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-log_must $ZFS clone $origin@a $origin/clone
+zfs snapshot $origin@a || log_fail "zfs snap failed"
+log_must zfs clone $origin@a $origin/clone
 
 for rs in 512 1024 2048 4096 8192 16384 32768 65536 131072 ; do
-	log_must $ZFS set recsize=$rs $origin/clone
-	$DD if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
+	log_must zfs set recsize=$rs $origin/clone
+	dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \
 	    conv=notrunc >/tmp/null 2>&1 || log_fail "dd failed."
 	log_must verify_nopwrite $origin $origin@a $origin/clone
 done

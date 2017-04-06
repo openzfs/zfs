@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -82,7 +82,7 @@ log_onexit default_cleanup_noexit
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZPOOL create ${args[i]}
+	log_mustnot zpool create ${args[i]}
 	((i = i + 1))
 done
 

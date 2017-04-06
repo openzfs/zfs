@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,9 +52,9 @@ function test_clone_run
     ds=$(eval echo \$${dstype})
     snap=$(eval echo \$${dstype}SNAP)
     clone=$(eval echo \$${dstype}CLONE)
-    log_must $ZFS destroy -d $snap
+    log_must zfs destroy -d $snap
     log_must datasetexists $snap
-    log_must $ZFS destroy -R $clone
+    log_must zfs destroy -R $clone
     log_mustnot datasetexists $snap
     log_mustnot datasetexists $clone
 }

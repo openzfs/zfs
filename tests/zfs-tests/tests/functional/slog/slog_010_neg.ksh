@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -47,17 +47,17 @@ verify_runnable "global"
 log_assert "Slog device can not be replaced with spare device."
 log_onexit cleanup
 
-log_must $ZPOOL create $TESTPOOL $VDEV spare $SDEV log $LDEV
+log_must zpool create $TESTPOOL $VDEV spare $SDEV log $LDEV
 sdev=$(random_get $SDEV)
 ldev=$(random_get $LDEV)
-log_mustnot $ZPOOL replace $TESTPOOL $ldev $sdev
+log_mustnot zpool replace $TESTPOOL $ldev $sdev
 log_mustnot verify_slog_device $TESTPOOL $sdev 'ONLINE'
 log_must verify_slog_device $TESTPOOL $ldev 'ONLINE'
 
-log_must $ZPOOL create $TESTPOOL2 $VDEV2 spare $SDEV2
+log_must zpool create $TESTPOOL2 $VDEV2 spare $SDEV2
 sdev2=$(random_get $SDEV2)
-log_mustnot $ZPOOL replace $TESTPOOL $ldev $sdev2
-log_mustnot $ZPOOL replace -f $TESTPOOL $ldev $sdev2
+log_mustnot zpool replace $TESTPOOL $ldev $sdev2
+log_mustnot zpool replace -f $TESTPOOL $ldev $sdev2
 log_mustnot verify_slog_device $TESTPOOL $sdev2 'ONLINE'
 log_must verify_slog_device $TESTPOOL $ldev 'ONLINE'
 

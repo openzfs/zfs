@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -44,15 +48,15 @@ function cleanup
 {
 	log_must cd $origdir
 
-	log_must $ZFS set sharenfs=off $TESTPOOL/$TESTFS
+	log_must zfs set sharenfs=off $TESTPOOL/$TESTFS
 	unshare_fs $TESTPOOL/$TESTFS
 
 	if snapexists "$TESTPOOL/$TESTFS@snapshot"; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS@snapshot
+		log_must zfs destroy -f $TESTPOOL/$TESTFS@snapshot
 	fi
 
 	if datasetexists $TESTPOOL/$TESTFS/fs2 ; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS/fs2
+		log_must zfs destroy -f $TESTPOOL/$TESTFS/fs2
 	fi
 }
 
@@ -63,19 +67,19 @@ log_onexit cleanup
 typeset origdir=$PWD
 
 # unmount fails will not unshare the shared filesystem
-log_must $ZFS set sharenfs=on $TESTPOOL/$TESTFS
+log_must zfs set sharenfs=on $TESTPOOL/$TESTFS
 log_must is_shared $TESTDIR
 if cd $TESTDIR ; then
-	log_mustnot $ZFS umount $TESTPOOL/$TESTFS
+	log_mustnot zfs umount $TESTPOOL/$TESTFS
 else
 	log_fail "cd $TESTDIR fails"
 fi
 log_must is_shared $TESTDIR
 
 # destroy fails will not unshare the shared filesystem
-log_must $ZFS create $TESTPOOL/$TESTFS/fs2
+log_must zfs create $TESTPOOL/$TESTFS/fs2
 if cd $TESTDIR/fs2 ; then
-	log_mustnot $ZFS destroy $TESTPOOL/$TESTFS/fs2
+	log_mustnot zfs destroy $TESTPOOL/$TESTFS/fs2
 else
 	log_fail "cd $TESTDIR/fs2 fails"
 fi

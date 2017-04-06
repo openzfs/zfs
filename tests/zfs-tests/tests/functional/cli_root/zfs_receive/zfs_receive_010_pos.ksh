@@ -51,15 +51,15 @@ function make_object
 	local mntpnt=$2
 	local type=$3
 	if [[ $type == "file" ]]; then
-		$DD if=/dev/urandom of=${mntpnt}/f$objnum bs=512 count=16
+		dd if=/dev/urandom of=${mntpnt}/f$objnum bs=512 count=16
 	elif [[ $type == "hole1" ]]; then
-		$DD if=/dev/urandom of=${mntpnt}/fh$objnum bs=512 count=5 stride=4
+		dd if=/dev/urandom of=${mntpnt}/fh$objnum bs=512 count=5 stride=4
 	elif [[ $type == "hole2" ]]; then
-		$DD if=/dev/urandom of=${mntpnt}/fh$objnum bs=512 count=4 stride=5
+		dd if=/dev/urandom of=${mntpnt}/fh$objnum bs=512 count=4 stride=5
 	elif [[ $type == "directory" ]]; then
-		$MKDIR ${mntpnt}/d$objnum
+		mkdir ${mntpnt}/d$objnum
 	elif [[ $type == "missing" ]]; then
-		$TOUCH ${mntpnt}/h$objnum
+		touch ${mntpnt}/h$objnum
 	fi
 }
 
@@ -76,17 +76,17 @@ function create_pair
 
 function cleanup
 {
-	$ZFS destroy -Rf $TESTPOOL/$TESTFS/base
+	zfs destroy -Rf $TESTPOOL/$TESTFS/base
 	rm /tmp/zr010p*
 }
 
 log_assert "zfs receive of full send as clone should work"
 log_onexit cleanup
-log_must $ZFS create -o checksum=sha256 -o compression=gzip -o recordsize=512 \
+log_must zfs create -o checksum=sha256 -o compression=gzip -o recordsize=512 \
 	$TESTPOOL/$TESTFS/base
 
-log_must $ZFS create $fs
-log_must $ZFS create $fs2
+log_must zfs create $fs
+log_must zfs create $fs2
 mntpnt=$(get_prop mountpoint $fs)
 mntpnt2=$(get_prop mountpoint $fs2)
 
@@ -129,49 +129,49 @@ create_pair 16 $mntpnt $mntpnt2 "directory" "missing"
 create_pair 17 $mntpnt $mntpnt2 "missing" "missing"
 
 # Receive a file with a different record size onto a file (and vice versa).
-log_must $ZFS set recordsize=128k $fs
-$DD if=/dev/urandom of=$mntpnt/f18 bs=128k count=64
-$TOUCH $mntpnt2/f18
+log_must zfs set recordsize=128k $fs
+dd if=/dev/urandom of=$mntpnt/f18 bs=128k count=64
+touch $mntpnt2/f18
 
 # Remove objects that are intended to be missing.
-$RM $mntpnt/h17
-$RM $mntpnt2/h*
+rm $mntpnt/h17
+rm $mntpnt2/h*
 
 # Add empty objects to $fs to exercise dmu_traverse code
 for i in {1..100}; do
 	log_must touch $mntpnt/uf$i
 done
 
-log_must $ZFS snapshot $fs@s1
-log_must $ZFS snapshot $fs2@s1
+log_must zfs snapshot $fs@s1
+log_must zfs snapshot $fs2@s1
 
-log_must $ZFS send $fs@s1 > /tmp/zr010p
-log_must $ZFS send $fs2@s1 > /tmp/zr010p2
+log_must zfs send $fs@s1 > /tmp/zr010p
+log_must zfs send $fs2@s1 > /tmp/zr010p2
 
 
 #
 # Test that, when we receive a full send as a clone of itself,
 # nop-write saves us all the space used by data blocks.
 #
-cat /tmp/zr010p | log_must $ZFS receive -o origin=$fs@s1 $rfs
+cat /tmp/zr010p | log_must zfs receive -o origin=$fs@s1 $rfs
 size=$(get_prop used $rfs)
 size2=$(get_prop used $fs)
 if [[ $size -ge $(($size2 / 10)) ]] then
         log_fail "nop-write failure; expected usage less than "\
 		"$(($size2 / 10)), but is using $size"
 fi
-log_must $ZFS destroy -fr $rfs
+log_must zfs destroy -fr $rfs
 
 # Correctness testing: receive each full send as a clone of the other fiesystem.
-cat /tmp/zr010p | log_must $ZFS receive -o origin=$fs2@s1 $rfs
+cat /tmp/zr010p | log_must zfs receive -o origin=$fs2@s1 $rfs
 mntpnt_old=$(get_prop mountpoint $fs)
 mntpnt_new=$(get_prop mountpoint $rfs)
-log_must $DIFF -r $mntpnt_old $mntpnt_new
-log_must $ZFS destroy -r $rfs
+log_must diff -r $mntpnt_old $mntpnt_new
+log_must zfs destroy -r $rfs
 
-cat /tmp/zr010p2 | log_must $ZFS receive -o origin=$fs@s1 $rfs
+cat /tmp/zr010p2 | log_must zfs receive -o origin=$fs@s1 $rfs
 mntpnt_old=$(get_prop mountpoint $fs2)
 mntpnt_new=$(get_prop mountpoint $rfs)
-log_must $DIFF -r $mntpnt_old $mntpnt_new
+log_must diff -r $mntpnt_old $mntpnt_new
 
 log_pass "zfs receive of full send as clone works"

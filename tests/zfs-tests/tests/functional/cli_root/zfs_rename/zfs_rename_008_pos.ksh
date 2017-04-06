@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,10 +48,10 @@ function cleanup
 	typeset -i i=0
 	while ((i < ${#datasets[@]})); do
 		if datasetexists ${datasets[$i]}@snap ; then
-			log_must $ZFS destroy ${datasets[$i]}@snap
+			log_must zfs destroy ${datasets[$i]}@snap
 		fi
 		if datasetexists ${datasets[$i]}@snap-new ; then
-			log_must $ZFS destroy ${datasets[$i]}@snap-new
+			log_must zfs destroy ${datasets[$i]}@snap-new
 		fi
 
 		((i += 1))
@@ -67,7 +67,7 @@ if is_global_zone; then
 	datasets[${#datasets[@]}]=$TESTPOOL/$TESTVOL
 fi
 
-log_must $ZFS snapshot -r ${TESTPOOL}@snap
+log_must zfs snapshot -r ${TESTPOOL}@snap
 typeset -i i=0
 while ((i < ${#datasets[@]})); do
 	log_must datasetexists ${datasets[$i]}@snap
@@ -75,7 +75,7 @@ while ((i < ${#datasets[@]})); do
 	((i += 1))
 done
 
-log_must $ZFS rename -r ${TESTPOOL}@snap ${TESTPOOL}@snap-new
+log_must zfs rename -r ${TESTPOOL}@snap ${TESTPOOL}@snap-new
 i=0
 while ((i < ${#datasets[@]})); do
 	log_must datasetexists ${datasets[$i]}@snap-new
@@ -83,6 +83,6 @@ while ((i < ${#datasets[@]})); do
 	((i += 1))
 done
 
-log_must $ZFS destroy -rf ${TESTPOOL}@snap-new
+log_must zfs destroy -rf ${TESTPOOL}@snap-new
 
 log_pass "Verify zfs rename -r passed."

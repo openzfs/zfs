@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,15 +48,15 @@ verify_runnable "both"
 function cleanup
 {
 	if is_global_zone ; then
-		log_must $ZFS set refreservation=none $TESTPOOL
+		log_must zfs set refreservation=none $TESTPOOL
 
 		if datasetexists $TESTPOOL@snap ; then
-			log_must $ZFS destroy -f $TESTPOOL@snap
+			log_must zfs destroy -f $TESTPOOL@snap
 		fi
 	fi
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 # This function iteratively increases refreserv to its highest possible
@@ -68,9 +68,9 @@ function max_refreserv
 	typeset -i incsize=131072
 	typeset -i rr=$(get_prop available $ds)
 
-	log_must $ZFS set refreserv=$rr $ds
+	log_must zfs set refreserv=$rr $ds
 	while :; do
-		$ZFS set refreserv=$((rr + incsize)) $ds >/dev/null 2>&1
+		zfs set refreserv=$((rr + incsize)) $ds >/dev/null 2>&1
 		if [[ $? == 0 ]]; then
 			((rr += incsize))
 			continue
@@ -86,7 +86,7 @@ log_assert "Setting full size as refreservation, verify no snapshot " \
 	"can be created."
 log_onexit cleanup
 
-log_must $ZFS create $TESTPOOL/$TESTFS/subfs
+log_must zfs create $TESTPOOL/$TESTFS/subfs
 
 typeset datasets
 if is_global_zone; then
@@ -99,15 +99,15 @@ for ds in $datasets; do
 	#
 	# Verify refreservation on dataset
 	#
-	log_must $ZFS set quota=25M $ds
+	log_must zfs set quota=25M $ds
 	max_refreserv $ds
-	log_mustnot $ZFS snapshot $ds@snap
+	log_mustnot zfs snapshot $ds@snap
 	if datasetexists $ds@snap ; then
 		log_fail "ERROR: $ds@snap should not exists."
 	fi
 
-	log_must $ZFS set quota=none $ds
-	log_must $ZFS set refreservation=none $ds
+	log_must zfs set quota=none $ds
+	log_must zfs set refreservation=none $ds
 done
 
 log_pass "Setting full size as refreservation, verify no snapshot " \

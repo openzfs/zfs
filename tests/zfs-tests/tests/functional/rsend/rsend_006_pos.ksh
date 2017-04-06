@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -64,7 +64,7 @@ log_onexit cleanup
 
 typeset -i i=0
 while ((i < ${#snaps[@]})); do
-	log_must $ZFS rename -r ${snaps[$i]} ${snaps[((i+1))]}
+	log_must zfs rename -r ${snaps[$i]} ${snaps[((i+1))]}
 
 	((i += 2))
 done
@@ -72,8 +72,8 @@ done
 #
 # Duplicate POOL2 for testing
 #
-log_must eval "$ZFS send -R $POOL@init > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@init > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 
 dstds=$(get_dst_ds $POOL $POOL2)
 log_must cmp_ds_subs $POOL $dstds

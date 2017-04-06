@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -52,13 +52,13 @@ recvfs=$POOL2/recvfs
 streamfs=$POOL/stream
 
 test_fs_setup $POOL $POOL2
-log_must $ZFS bookmark $sendfs@a $sendfs#bm_a
-log_must $ZFS destroy $sendfs@a
-log_must $ZFS receive -v $recvfs </$POOL/initial.zsend
-resume_test "$ZFS send -i \#bm_a $sendfs@b" $streamfs $recvfs
-log_must $ZFS destroy -r -f $sendfs
-log_must $ZFS receive -v $sendfs </$POOL/initial.zsend
-log_must $ZFS receive -v $sendfs </$POOL/incremental.zsend
+log_must zfs bookmark $sendfs@a $sendfs#bm_a
+log_must zfs destroy $sendfs@a
+log_must zfs receive -v $recvfs </$POOL/initial.zsend
+resume_test "zfs send -i \#bm_a $sendfs@b" $streamfs $recvfs
+log_must zfs destroy -r -f $sendfs
+log_must zfs receive -v $sendfs </$POOL/initial.zsend
+log_must zfs receive -v $sendfs </$POOL/incremental.zsend
 file_check $sendfs $recvfs
 
 log_pass "Verify resumability of an incremental ZFS send/receive with ZFS " \

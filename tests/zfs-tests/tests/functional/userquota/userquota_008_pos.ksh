@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,10 +51,10 @@ log_onexit cleanup
 
 log_assert "Check zfs get all will not print out user|group quota"
 
-log_must $ZFS set userquota@$QUSER1=50m $QFS
-log_must $ZFS set groupquota@$QGROUP=100m $QFS
+log_must zfs set userquota@$QUSER1=50m $QFS
+log_must zfs set groupquota@$QGROUP=100m $QFS
 
-log_mustnot $ZFS get all $QFS | $GREP userquota
-log_mustnot $ZFS get all $QFS | $GREP groupquota
+log_mustnot zfs get all $QFS | grep userquota
+log_mustnot zfs get all $QFS | grep groupquota
 
 log_pass "zfs get all will not print out user|group quota"

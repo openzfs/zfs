@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
@@ -60,19 +64,19 @@ set -A values "on" "off"
 function cleanup
 {
 	if snapexists $TESTPOOL/$TESTFS@$TESTSNAP ; then
-		log_must $ZFS destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
+		log_must zfs destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
 	fi
 	if snapexists $TESTPOOL/$TESTVOL@$TESTSNAP ; then
-		log_must $ZFS destroy -R $TESTPOOL/$TESTVOL@$TESTSNAP
+		log_must zfs destroy -R $TESTPOOL/$TESTVOL@$TESTSNAP
 	fi
 
 	[[ -n $old_ctr_canmount ]] && \
-		log_must $ZFS set canmount=$old_ctr_canmount $TESTPOOL/$TESTCTR
+		log_must zfs set canmount=$old_ctr_canmount $TESTPOOL/$TESTCTR
 	[[ -n $old_fs_canmount ]] && \
-		log_must $ZFS set canmount=$old_fs_canmount $TESTPOOL/$TESTFS
+		log_must zfs set canmount=$old_fs_canmount $TESTPOOL/$TESTFS
 
-	$ZFS unmount -a > /dev/null 2>&1
-	log_must $ZFS mount -a
+	zfs unmount -a > /dev/null 2>&1
+	log_must zfs mount -a
 }
 
 log_assert "Setting a valid property of canmount to file system, it must be successful."
@@ -87,21 +91,21 @@ old_ctr_canmount=$(get_prop canmount $TESTPOOL/$TESTCTR)
 [[ $? != 0 ]] && \
 	log_fail "Get the $TESTPOOL/$TESTCTR canmount error."
 
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@$TESTSNAP
-log_must $ZFS snapshot $TESTPOOL/$TESTVOL@$TESTSNAP
-log_must $ZFS clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE
-log_must $ZFS clone $TESTPOOL/$TESTVOL@$TESTSNAP $TESTPOOL/$TESTCLONE1
+log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+log_must zfs snapshot $TESTPOOL/$TESTVOL@$TESTSNAP
+log_must zfs clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE
+log_must zfs clone $TESTPOOL/$TESTVOL@$TESTSNAP $TESTPOOL/$TESTCLONE1
 
 for dataset in "${dataset_pos[@]}" ; do
 	for value in "${values[@]}" ; do
 		set_n_check_prop "$value" "canmount" "$dataset"
 		if [[ $value == "off" ]]; then
 			log_mustnot ismounted $dataset
-			log_mustnot $ZFS mount $dataset
+			log_mustnot zfs mount $dataset
 			log_mustnot ismounted $dataset
 		else
 			if ! ismounted $dataset ; then
-				log_must $ZFS mount $dataset
+				log_must zfs mount $dataset
 			fi
 			log_must ismounted $dataset
 		fi

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,27 +54,27 @@ log_assert "Verify reservations protect space"
 
 function cleanup
 {
-	log_must $ZFS destroy -f $TESTPOOL/$TESTFS2
+	log_must zfs destroy -f $TESTPOOL/$TESTFS2
 	log_must zero_reservation $TESTPOOL/$TESTFS
 
-	[[ -e $TESTDIR/$TESTFILE2 ]] && log_must $RM -rf $TESTDIR/$TESTFILE2
-	[[ -d $TESTDIR2 ]] && log_must $RM -rf $TESTDIR2
+	[[ -e $TESTDIR/$TESTFILE2 ]] && log_must rm -rf $TESTDIR/$TESTFILE2
+	[[ -d $TESTDIR2 ]] && log_must rm -rf $TESTDIR2
 }
 
 log_onexit cleanup
 
-log_must $ZFS create $TESTPOOL/$TESTFS2
-log_must $ZFS set mountpoint=$TESTDIR2 $TESTPOOL/$TESTFS2
+log_must zfs create $TESTPOOL/$TESTFS2
+log_must zfs set mountpoint=$TESTDIR2 $TESTPOOL/$TESTFS2
 
 space_avail=`get_prop available $TESTPOOL`
 
 ((resv_size_set = space_avail - RESV_FREE_SPACE))
 
-log_must $ZFS set reservation=$resv_size_set $TESTPOOL/$TESTFS
+log_must zfs set reservation=$resv_size_set $TESTPOOL/$TESTFS
 
 ((write_count = (RESV_FREE_SPACE + RESV_TOLERANCE) / BLOCK_SIZE))
 
-$FILE_WRITE -o create -f $TESTDIR2/$TESTFILE1 -b $BLOCK_SIZE -c $write_count \
+file_write -o create -f $TESTDIR2/$TESTFILE1 -b $BLOCK_SIZE -c $write_count \
     -d 0
 ret=$?
 if [[ $ret != $ENOSPC ]]; then
@@ -82,7 +82,7 @@ if [[ $ret != $ENOSPC ]]; then
 fi
 
 ((write_count = (RESV_FREE_SPACE - RESV_TOLERANCE) / BLOCK_SIZE))
-log_must $FILE_WRITE -o create -f $TESTDIR/$TESTFILE2 -b $BLOCK_SIZE -c \
+log_must file_write -o create -f $TESTDIR/$TESTFILE2 -b $BLOCK_SIZE -c \
     $write_count -d 0
 
 log_pass "Reserved space preserved correctly"
