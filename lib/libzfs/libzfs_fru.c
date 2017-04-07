@@ -284,7 +284,7 @@ libzfs_fru_refresh(libzfs_handle_t *hdl)
 
 	if (hdl->libzfs_fru_hash == NULL &&
 	    (hdl->libzfs_fru_hash =
-	    calloc(ZFS_FRU_HASH_SIZE * sizeof (void *), 1)) == NULL)
+	    calloc(ZFS_FRU_HASH_SIZE, sizeof (void *))) == NULL)
 		return;
 
 	/*
