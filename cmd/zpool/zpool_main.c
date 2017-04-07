@@ -2036,6 +2036,14 @@ show_import(nvlist_t *config)
 			    "imported. Attach the missing\n\tdevices and try "
 			    "again.\n"));
 			break;
+		case ZPOOL_STATUS_CORRUPT_LABEL_R:
+		case ZPOOL_STATUS_CORRUPT_LABEL_NR:
+			(void) printf(gettext(" action: The pool cannot be "
+			    "imported due to a corrupt or missing label.\n\t"
+			    "It may be possible to reconstruct the label "
+			    "from the cache file.\n\tImport the pool with "
+			    "\"-F -o readonly=on -c <cache-file>\".\n"));
+			break;
 		default:
 			(void) printf(gettext(" action: The pool cannot be "
 			    "imported due to damaged devices or data.\n"));

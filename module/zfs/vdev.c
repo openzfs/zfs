@@ -1463,7 +1463,13 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 		uint64_t txg = spa_last_synced_txg(spa) != 0 ?
 		    spa_last_synced_txg(spa) : -1ULL;
 
-		if ((label = vdev_label_read_config(vd, txg)) == NULL) {
+		label = vdev_label_read_config(vd, txg);
+		if (label == NULL && spa->spa_load_state == SPA_LOAD_RECOVER) {
+			dprintf("generating label for %s\n", vd->vdev_path);
+			label = spa_config_generate(spa, vd, -1ULL, 0);
+		}
+
+		if (label == NULL) {
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_BAD_LABEL);
 			return (0);
@@ -2279,6 +2285,7 @@ vdev_load(vdev_t *vd)
 int
 vdev_validate_aux(vdev_t *vd)
 {
+	spa_t *spa = vd->vdev_spa;
 	nvlist_t *label;
 	uint64_t guid, version;
 	uint64_t state;
@@ -2286,7 +2293,13 @@ vdev_validate_aux(vdev_t *vd)
 	if (!vdev_readable(vd))
 		return (0);
 
-	if ((label = vdev_label_read_config(vd, -1ULL)) == NULL) {
+	label = vdev_label_read_config(vd, -1ULL);
+	if (label == NULL && spa->spa_load_state == SPA_LOAD_RECOVER) {
+		dprintf("generating label for %s\n", vd->vdev_path);
+		label = spa_config_generate(spa, vd, -1ULL, 0);
+	}
+
+	if (label == NULL) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_CORRUPT_DATA);
 		return (-1);

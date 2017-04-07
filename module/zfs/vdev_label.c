@@ -631,7 +631,7 @@ retry:
 			if ((error || label_txg == 0) && !config) {
 				config = label;
 				break;
-			} else if (label_txg <= txg && label_txg > best_txg) {
+			} else if (label_txg > best_txg) {
 				best_txg = label_txg;
 				nvlist_free(config);
 				config = fnvlist_dup(label);
@@ -1127,8 +1127,15 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 * Search all labels on this vdev to find the configuration that
 	 * matches the txg for our uberblock.
 	 */
-	if (cb.ubl_vd != NULL)
+	if (cb.ubl_vd != NULL) {
 		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg);
+		if (*config == NULL &&
+		    spa->spa_load_state == SPA_LOAD_RECOVER) {
+			dprintf("generating label for %s, txg=%llu\n",
+			    cb.ubl_vd->vdev_path, ub->ub_txg);
+			*config = spa_config_generate(spa, cb.ubl_vd, -1ULL, 0);
+		}
+	}
 	spa_config_exit(spa, SCL_ALL, FTAG);
 }
 
