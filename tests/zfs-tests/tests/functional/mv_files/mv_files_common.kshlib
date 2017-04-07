@@ -57,11 +57,11 @@ do
         (( i = i + 1 ))
 done
 
-\sleep 1
+sleep 1
 
 for pid in \$PIDS
 do
-	\wait \$pid
+	wait \$pid
         (( \$? == 127 )) && exit 1
 done
 exit 0
