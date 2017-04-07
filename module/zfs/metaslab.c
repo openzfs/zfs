@@ -1582,15 +1582,22 @@ metaslab_set_fragmentation(metaslab_t *msp)
 	 * so that we upgrade next time we encounter it.
 	 */
 	if (msp->ms_sm->sm_dbuf->db_size != sizeof (space_map_phys_t)) {
+		uint64_t txg = spa_syncing_txg(spa);
 		vdev_t *vd = msp->ms_group->mg_vd;
 
-		if (spa_writeable(vd->vdev_spa)) {
-			uint64_t txg = spa_syncing_txg(spa);
-
+		/*
+		 * If we've reached the final dirty txg, then we must
+		 * be shutting down the pool. We don't want to dirty
+		 * any data past this point so skip setting the condense
+		 * flag. We can retry this action the next time the pool
+		 * is imported.
+		 */
+		if (spa_writeable(spa) && txg < spa_final_dirty_txg(spa)) {
 			msp->ms_condense_wanted = B_TRUE;
 			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 			spa_dbgmsg(spa, "txg %llu, requesting force condense: "
-			    "msp %p, vd %p", txg, msp, vd);
+			    "ms_id %llu, vdev_id %llu", txg, msp->ms_id,
+			    vd->vdev_id);
 		}
 		msp->ms_fragmentation = ZFS_FRAG_INVALID;
 		return;
@@ -2217,12 +2224,16 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	/*
 	 * Normally, we don't want to process a metaslab if there
 	 * are no allocations or frees to perform. However, if the metaslab
-	 * is being forced to condense we need to let it through.
+	 * is being forced to condense and it's loaded, we need to let it
+	 * through.
 	 */
 	if (range_tree_space(alloctree) == 0 &&
 	    range_tree_space(msp->ms_freeingtree) == 0 &&
-	    !msp->ms_condense_wanted)
+	    !(msp->ms_loaded && msp->ms_condense_wanted))
 		return;
+
+
+	VERIFY(txg <= spa_final_dirty_txg(spa));
 
 	/*
 	 * The only state that can actually be changing concurrently with
