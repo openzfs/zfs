@@ -873,6 +873,11 @@ real_LZ4_compress(const char *source, char *dest, int isize, int osize)
  *	its code is not present here.
  */
 
+static const int dec32table[] = {0, 3, 2, 3, 0, 0, 0, 0};
+#if LZ4_ARCH64
+static const int dec64table[] = {0, 0, 0, -1, 0, 1, 2, 3};
+#endif
+
 static int
 LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
     int maxOutputSize)
@@ -886,11 +891,6 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 	BYTE *const oend = op + maxOutputSize;
 	BYTE *cpy;
 
-	size_t dec32table[] = {0, 3, 2, 3, 0, 0, 0, 0};
-#if LZ4_ARCH64
-	size_t dec64table[] = {0, 0, 0, (size_t)-1, 0, 1, 2, 3};
-#endif
-
 	/* Main Loop */
 	while (ip < iend) {
 		unsigned token;
@@ -902,6 +902,8 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 			int s = 255;
 			while ((ip < iend) && (s == 255)) {
 				s = *ip++;
+				if (unlikely(length > (size_t)(length + s)))
+					goto _output_error;
 				length += s;
 			}
 		}
@@ -944,6 +946,8 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 		if ((length = (token & ML_MASK)) == ML_MASK) {
 			while (ip < iend) {
 				int s = *ip++;
+				if (unlikely(length > (size_t)(length + s)))
+					goto _output_error;
 				length += s;
 				if (s == 255)
 					continue;
@@ -953,7 +957,7 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 		/* copy repeated sequence */
 		if (unlikely(op - ref < STEPSIZE)) {
 #if LZ4_ARCH64
-			size_t dec64 = dec64table[op-ref];
+			int dec64 = dec64table[op - ref];
 #else
 			const int dec64 = 0;
 #endif
@@ -963,7 +967,7 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 			op[3] = ref[3];
 			op += 4;
 			ref += 4;
-			ref -= dec32table[op-ref];
+			ref -= dec32table[op - ref];
 			A32(op) = A32(ref);
 			op += STEPSIZE - 4;
 			ref -= dec64;
@@ -977,6 +981,13 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 				 * Error: request to write outside of
 				 * destination buffer
 				 */
+				goto _output_error;
+#if LZ4_ARCH64
+			if ((ref + COPYLENGTH) > oend)
+#else
+			if ((ref + COPYLENGTH) > oend ||
+			    (op + COPYLENGTH) > oend)
+#endif
 				goto _output_error;
 			LZ4_SECURECOPY(ref, op, (oend - COPYLENGTH));
 			while (op < cpy)
@@ -999,7 +1010,7 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 
 	/* write overflow error detected */
 	_output_error:
-	return (int)(-(((char *)ip) - source));
+	return (-1);
 }
 
 void
