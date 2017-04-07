@@ -2831,7 +2831,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 			goto out;
 		}
 
-		if (fromsnap != NULL) {
+		if (fromsnap != NULL && recursive) {
 			nvlist_t *renamed = NULL;
 			nvpair_t *pair = NULL;
 
@@ -2858,7 +2858,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 				*strchr(tofs, '@') = '\0';
 			}
 
-			if (recursive && !flags->dryrun && !flags->nomount) {
+			if (!flags->dryrun && !flags->nomount) {
 				VERIFY(0 == nvlist_alloc(&renamed,
 				    NV_UNIQUE_NAME, 0));
 			}
@@ -2927,7 +2927,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 		anyerr |= error;
 	} while (error == 0);
 
-	if (drr->drr_payloadlen != 0 && fromsnap != NULL) {
+	if (drr->drr_payloadlen != 0 && recursive && fromsnap != NULL) {
 		/*
 		 * Now that we have the fs's they sent us, try the
 		 * renames again.
