@@ -469,7 +469,7 @@ dsl_pool_dirty_delta(dsl_pool_t *dp, int64_t delta)
 	 * Note: we signal even when increasing dp_dirty_total.
 	 * This ensures forward progress -- each thread wakes the next waiter.
 	 */
-	if (dp->dp_dirty_total <= zfs_dirty_data_max)
+	if (dp->dp_dirty_total < zfs_dirty_data_max)
 		cv_signal(&dp->dp_spaceavail_cv);
 }
 
