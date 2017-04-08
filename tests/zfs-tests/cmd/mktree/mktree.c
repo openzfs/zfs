@@ -24,6 +24,7 @@
  * Use is subject to license terms.
  */
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,7 +33,6 @@
 #include <attr/xattr.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/errno.h>
 #include <sys/param.h>
 
 #define	TYPE_D 'D'
