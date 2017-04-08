@@ -39,7 +39,7 @@
 #include <sys/uio.h>
 #include <sys/pathname.h>
 #include <sys/cmn_err.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/unistd.h>
 #include <sys/sunddi.h>

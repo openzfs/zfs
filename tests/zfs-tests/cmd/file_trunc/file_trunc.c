@@ -38,7 +38,7 @@
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>

@@ -48,7 +48,7 @@
 #include <vm/pvn.h>
 #include <sys/pathname.h>
 #include <sys/cmn_err.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/unistd.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
