@@ -90,9 +90,11 @@ for i in 1 2 3; do
 done
 log_note "verify snapshot contents"
 for ds in $datasets; do
-	status=$(dircmp /$ds /$ds/.zfs/snapshot/snap | grep "different")
-	[[ -z $status ]] || log_fail "snapshot contents are different from" \
-	    "the filesystem"
+	diff -q -r /$ds /$ds/.zfs/snapshot/snap > /dev/null 2>&1
+	if [[ $? -eq 1 ]]; then
+		log_fail "snapshot contents are different from" \
+		    "the filesystem"
+	fi
 done
 
 # We subtract 3 + 7 + 7 + 1 = 18 for three slashes (/), strlen("TESTFSA") == 7,
