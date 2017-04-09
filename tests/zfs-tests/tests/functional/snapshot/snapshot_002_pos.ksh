@@ -125,9 +125,8 @@ log_must tar xf $TESTDIR/tarball.snapshot.tar
 
 cd $CWD || log_fail "Could not cd $CWD"
 
-dircmp $TESTDIR/original $TESTDIR/snapshot > /tmp/zfs_snapshot2.$$
-grep different /tmp/zfs_snapshot2.$$ >/dev/null 2>&1
-if [[ $? -ne 1 ]]; then
+diff -q -r $TESTDIR/original $TESTDIR/snapshot > /dev/null 2>&1
+if [[ $? -eq 1 ]]; then
 	log_fail "Directory structures differ."
 fi
 
