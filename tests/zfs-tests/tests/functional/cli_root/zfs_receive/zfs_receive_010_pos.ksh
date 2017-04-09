@@ -47,9 +47,9 @@ rfs=$TESTPOOL/$TESTFS/base/rfs
 
 function make_object
 {
-	local objnum=$1
-	local mntpnt=$2
-	local type=$3
+	typeset objnum=$1
+	typeset mntpnt=$2
+	typeset type=$3
 	if [[ $type == "file" ]]; then
 		dd if=/dev/urandom of=${mntpnt}/f$objnum bs=512 count=16
 	elif [[ $type == "hole1" ]]; then
@@ -65,11 +65,11 @@ function make_object
 
 function create_pair
 {
-	local objnum=$1
-	local mntpnt1=$2
-	local mntpnt2=$3
-	local type1=$4
-	local type2=$5
+	typeset objnum=$1
+	typeset mntpnt1=$2
+	typeset mntpnt2=$3
+	typeset type1=$4
+	typeset type2=$5
 	make_object $objnum $mntpnt1 $type1
 	make_object $objnum $mntpnt2 $type2
 }
