@@ -2046,12 +2046,14 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
  * Trim the pool.
  */
 int
-zpool_trim(zpool_handle_t *zhp, boolean_t start, uint64_t rate)
+zpool_trim(zpool_handle_t *zhp, boolean_t start, uint64_t rate,
+    boolean_t fulltrim)
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	trim_cmd_info_t tci = { .tci_start = start, .tci_rate = rate };
+	trim_cmd_info_t tci = { .tci_start = start, .tci_rate = rate,
+	    .tci_fulltrim = fulltrim };
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	zc.zc_cookie = (uintptr_t)&tci;

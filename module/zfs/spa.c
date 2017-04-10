@@ -7428,11 +7428,15 @@ spa_trim_update_time(spa_t *spa, uint64_t start_time, uint64_t stop_time)
  * space to the underlying vdevs.
  */
 extern void
-spa_man_trim(spa_t *spa, uint64_t rate)
+spa_man_trim(spa_t *spa, uint64_t rate, boolean_t fulltrim)
 {
-	dmu_tx_t *time_update_tx;
+	void (*trimfunc)(void *);
 
 	mutex_enter(&spa->spa_man_trim_lock);
+	if (fulltrim)
+		trimfunc = (void (*)(void *))vdev_man_trim_full;
+	else
+		trimfunc = (void (*)(void *))vdev_man_trim;
 
 	if (rate != 0)
 		spa->spa_man_trim_rate = MAX(rate, spa_min_trim_rate(spa));
@@ -7463,7 +7467,7 @@ spa_man_trim(spa_t *spa, uint64_t rate)
 
 		vd->vdev_trim_prog = 0;
 		(void) taskq_dispatch(spa->spa_man_trim_taskq,
-		    (void (*)(void *))vdev_man_trim, vti, TQ_SLEEP);
+		    trimfunc, vti, TQ_SLEEP);
 	}
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 	spa_trim_update_time(spa, gethrestime_sec(), 0);
