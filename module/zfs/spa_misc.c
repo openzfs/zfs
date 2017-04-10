@@ -1624,11 +1624,19 @@ spa_freeze_txg(spa_t *spa)
 	return (spa->spa_freeze_txg);
 }
 
-/* ARGSUSED */
+/*
+ * Return the inflated asize for a logical write in bytes. This is used by the
+ * DMU to calculate the space a logical write will require on disk.
+ * If lsize is smaller than the largest physical block size allocatable on this
+ * pool we use its value instead, since the write will end up using the whole
+ * block anyway.
+ */
 uint64_t
 spa_get_worst_case_asize(spa_t *spa, uint64_t lsize)
 {
-	return (lsize * spa_asize_inflation);
+	if (lsize == 0)
+		return (0);	/* No inflation needed */
+	return (MAX(lsize, 1 << spa->spa_max_ashift) * spa_asize_inflation);
 }
 
 /*
