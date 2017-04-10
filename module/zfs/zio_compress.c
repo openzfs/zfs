@@ -31,6 +31,10 @@
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
+/*
+ * Copyright (c) 2015 by Witaut Bajaryn. All rights reserved.
+ */
+
 #include <sys/zfs_context.h>
 #include <sys/compress.h>
 #include <sys/spa.h>
@@ -42,22 +46,89 @@
  * Compression vectors.
  */
 zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
-	{"inherit",		0,	NULL,		NULL},
-	{"on",			0,	NULL,		NULL},
-	{"uncompressed",	0,	NULL,		NULL},
-	{"lzjb",		0,	lzjb_compress,	lzjb_decompress},
-	{"empty",		0,	NULL,		NULL},
-	{"gzip-1",		1,	gzip_compress,	gzip_decompress},
-	{"gzip-2",		2,	gzip_compress,	gzip_decompress},
-	{"gzip-3",		3,	gzip_compress,	gzip_decompress},
-	{"gzip-4",		4,	gzip_compress,	gzip_decompress},
-	{"gzip-5",		5,	gzip_compress,	gzip_decompress},
-	{"gzip-6",		6,	gzip_compress,	gzip_decompress},
-	{"gzip-7",		7,	gzip_compress,	gzip_decompress},
-	{"gzip-8",		8,	gzip_compress,	gzip_decompress},
-	{"gzip-9",		9,	gzip_compress,	gzip_decompress},
-	{"zle",			64,	zle_compress,	zle_decompress},
-	{"lz4",			0,	lz4_compress_zfs, lz4_decompress_zfs}
+	{"inherit",	0,	NULL,			BP_COMPRESS_INHERIT,
+	    SPA_FEATURE_NONE},
+	{"on",		0,	NULL,			BP_COMPRESS_ON,
+	    SPA_FEATURE_NONE},
+	{"uncompressed", 0,	NULL,			BP_COMPRESS_OFF,
+	    SPA_FEATURE_NONE},
+	{"lzjb",	0,	lzjb_compress,		BP_COMPRESS_LZJB,
+	    SPA_FEATURE_NONE},
+	{"empty",	0,	NULL,			BP_COMPRESS_EMPTY,
+	    SPA_FEATURE_NONE},
+	{"gzip-1",	1,	gzip_compress,		BP_COMPRESS_GZIP_1,
+	    SPA_FEATURE_NONE},
+	{"gzip-2",	2,	gzip_compress,		BP_COMPRESS_GZIP_2,
+	    SPA_FEATURE_NONE},
+	{"gzip-3",	3,	gzip_compress,		BP_COMPRESS_GZIP_3,
+	    SPA_FEATURE_NONE},
+	{"gzip-4",	4,	gzip_compress,		BP_COMPRESS_GZIP_4,
+	    SPA_FEATURE_NONE},
+	{"gzip-5",	5,	gzip_compress,		BP_COMPRESS_GZIP_5,
+	    SPA_FEATURE_NONE},
+	{"gzip-6",	6,	gzip_compress,		BP_COMPRESS_GZIP_6,
+	    SPA_FEATURE_NONE},
+	{"gzip-7",	7,	gzip_compress,		BP_COMPRESS_GZIP_7,
+	    SPA_FEATURE_NONE},
+	{"gzip-8",	8,	gzip_compress,		BP_COMPRESS_GZIP_8,
+	    SPA_FEATURE_NONE},
+	{"gzip-9",	9,	gzip_compress,		BP_COMPRESS_GZIP_9,
+	    SPA_FEATURE_NONE},
+	{"zle",		64,	zle_compress,		BP_COMPRESS_ZLE,
+	    SPA_FEATURE_NONE},
+	{"lz4",		0,	lz4_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-1",	1,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-2",	2,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-3",	3,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-4",	4,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-5",	5,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-6",	6,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-7",	7,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-8",	8,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-9",	9,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-10",	10,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-11",	11,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-12",	12,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-13",	13,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-14",	14,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-15",	15,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+	{"lz4hc-16",	16,	lz4hc_compress_zfs,	BP_COMPRESS_LZ4,
+	    SPA_FEATURE_NONE},
+};
+
+zio_decompress_info_t zio_decompress_table[BP_COMPRESS_VALUES] = {
+	{"inherit",		0,	NULL},
+	{"on",			0,	NULL},
+	{"uncompressed",	0,	NULL},
+	{"lzjb",		0,	lzjb_decompress},
+	{"empty",		0,	NULL},
+	{"gzip-1",		1,	gzip_decompress},
+	{"gzip-2",		2,	gzip_decompress},
+	{"gzip-3",		3,	gzip_decompress},
+	{"gzip-4",		4,	gzip_decompress},
+	{"gzip-5",		5,	gzip_decompress},
+	{"gzip-6",		6,	gzip_decompress},
+	{"gzip-7",		7,	gzip_decompress},
+	{"gzip-8",		8,	gzip_decompress},
+	{"gzip-9",		9,	gzip_decompress},
+	{"zle",			64,	zle_decompress},
+	{"lz4",			0,	lz4_decompress_zfs},
 };
 
 enum zio_compress
@@ -134,18 +205,18 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 }
 
 int
-zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
+zio_decompress_data_buf(enum bp_compress c, void *src, void *dst,
     size_t s_len, size_t d_len)
 {
-	zio_compress_info_t *ci = &zio_compress_table[c];
-	if ((uint_t)c >= ZIO_COMPRESS_FUNCTIONS || ci->ci_decompress == NULL)
+	zio_decompress_info_t *di = &zio_decompress_table[c];
+	if ((uint_t)c >= BP_COMPRESS_VALUES || di->di_decompress == NULL)
 		return (SET_ERROR(EINVAL));
 
-	return (ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level));
+	return (di->di_decompress(src, dst, s_len, d_len, di->di_level));
 }
 
 int
-zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
+zio_decompress_data(enum bp_compress c, abd_t *src, void *dst,
     size_t s_len, size_t d_len)
 {
 	void *tmp = abd_borrow_buf_copy(src, s_len);

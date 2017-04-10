@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2015 by Witaut Bajaryn. All rights reserved.
  */
 
 #include <sys/sysmacros.h>
@@ -200,6 +201,8 @@ zio_init(void)
 	zio_inject_init();
 
 	lz4_init();
+
+	lz4hc_init();
 }
 
 void
@@ -244,6 +247,8 @@ zio_fini(void)
 	zio_inject_fini();
 
 	lz4_fini();
+
+	lz4hc_fini();
 }
 
 /*
@@ -721,8 +726,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 		zfs_panic_recover("blkptr at %p has invalid CHECKSUM %llu",
 		    bp, (longlong_t)BP_GET_CHECKSUM(bp));
 	}
-	if (BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS ||
-	    BP_GET_COMPRESS(bp) <= ZIO_COMPRESS_ON) {
+	if (BP_GET_COMPRESS(bp) >= BP_COMPRESS_VALUES ||
+	    BP_GET_COMPRESS(bp) <= BP_COMPRESS_ON) {
 		zfs_panic_recover("blkptr at %p has invalid COMPRESS %llu",
 		    bp, (longlong_t)BP_GET_COMPRESS(bp));
 	}
@@ -1168,7 +1173,7 @@ zio_shrink(zio_t *zio, uint64_t size)
 	 * reconstruction when reading back less than the block size.
 	 * Note, BP_IS_RAIDZ() assumes no compression.
 	 */
-	ASSERT(BP_GET_COMPRESS(zio->io_bp) == ZIO_COMPRESS_OFF);
+	ASSERT(BP_GET_COMPRESS(zio->io_bp) == BP_COMPRESS_OFF);
 	if (!BP_IS_RAIDZ(zio->io_bp)) {
 		/* we are not doing a raw write */
 		ASSERT3U(zio->io_size, ==, zio->io_lsize);
@@ -1187,7 +1192,7 @@ zio_read_bp_init(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
 
-	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
+	if (BP_GET_COMPRESS(bp) != BP_COMPRESS_OFF &&
 	    zio->io_child_type == ZIO_CHILD_LOGICAL &&
 	    !(zio->io_flags & ZIO_FLAG_RAW)) {
 		uint64_t psize =
@@ -1285,6 +1290,7 @@ zio_write_compress(zio_t *zio)
 	spa_t *spa = zio->io_spa;
 	zio_prop_t *zp = &zio->io_prop;
 	enum zio_compress compress = zp->zp_compress;
+	enum bp_compress bp_compress = BP_COMPRESS_VALUE(compress);
 	blkptr_t *bp = zio->io_bp;
 	uint64_t lsize = zio->io_lsize;
 	uint64_t psize = zio->io_size;
@@ -1332,8 +1338,10 @@ zio_write_compress(zio_t *zio)
 		ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 		ASSERT(!BP_GET_DEDUP(bp));
 
-		if (pass >= zfs_sync_pass_dont_compress)
+		if (pass >= zfs_sync_pass_dont_compress) {
 			compress = ZIO_COMPRESS_OFF;
+			bp_compress = BP_COMPRESS_OFF;
+		}
 
 		/* Make sure someone doesn't change their mind on overwrites */
 		ASSERT(BP_IS_EMBEDDED(bp) || MIN(zp->zp_copies + BP_IS_GANG(bp),
@@ -1345,13 +1353,13 @@ zio_write_compress(zio_t *zio)
 		void *cbuf = zio_buf_alloc(lsize);
 		psize = zio_compress_data(compress, zio->io_abd, cbuf, lsize);
 		if (psize == 0 || psize == lsize) {
-			compress = ZIO_COMPRESS_OFF;
+			bp_compress = BP_COMPRESS_OFF;
 			zio_buf_free(cbuf, lsize);
 		} else if (!zp->zp_dedup && psize <= BPE_PAYLOAD_SIZE &&
 		    zp->zp_level == 0 && !DMU_OT_HAS_FILL(zp->zp_type) &&
 		    spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA)) {
 			encode_embedded_bp_compressed(bp,
-			    cbuf, compress, lsize, psize);
+			    cbuf, bp_compress, lsize, psize);
 			BPE_SET_ETYPE(bp, BP_EMBEDDED_TYPE_DATA);
 			BP_SET_TYPE(bp, zio->io_prop.zp_type);
 			BP_SET_LEVEL(bp, zio->io_prop.zp_level);
@@ -1377,7 +1385,7 @@ zio_write_compress(zio_t *zio)
 			rounded = (size_t)P2ROUNDUP(psize,
 			    1ULL << spa->spa_min_ashift);
 			if (rounded >= lsize) {
-				compress = ZIO_COMPRESS_OFF;
+				bp_compress = BP_COMPRESS_OFF;
 				zio_buf_free(cbuf, lsize);
 				psize = lsize;
 			} else {
@@ -1438,7 +1446,7 @@ zio_write_compress(zio_t *zio)
 		BP_SET_TYPE(bp, zp->zp_type);
 		BP_SET_LEVEL(bp, zp->zp_level);
 		BP_SET_PSIZE(bp, psize);
-		BP_SET_COMPRESS(bp, compress);
+		BP_SET_COMPRESS(bp, bp_compress);
 		BP_SET_CHECKSUM(bp, zp->zp_checksum);
 		BP_SET_DEDUP(bp, zp->zp_dedup);
 		BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
@@ -3123,7 +3131,7 @@ zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp, uint64_t size,
 	if (error == 0) {
 		BP_SET_LSIZE(new_bp, size);
 		BP_SET_PSIZE(new_bp, size);
-		BP_SET_COMPRESS(new_bp, ZIO_COMPRESS_OFF);
+		BP_SET_COMPRESS(new_bp, BP_COMPRESS_OFF);
 		BP_SET_CHECKSUM(new_bp,
 		    spa_version(spa) >= SPA_VERSION_SLIM_ZIL
 		    ? ZIO_CHECKSUM_ZILOG2 : ZIO_CHECKSUM_ZILOG);

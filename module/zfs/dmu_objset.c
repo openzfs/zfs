@@ -1262,6 +1262,11 @@ dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 
 		(void) dsl_dataset_block_kill(ds, bp_orig, tx, B_TRUE);
 		dsl_dataset_block_born(ds, bp, tx);
+
+		if (os->os_compress >= ZIO_COMPRESS_LZ4HC_1 &&
+		    os->os_compress <= ZIO_COMPRESS_LZ4HC_16)
+			ds->ds_feature_activation_needed[
+			    SPA_FEATURE_LZ4HC_COMPRESS] = B_TRUE;
 	}
 	kmem_free(bp, sizeof (*bp));
 }

@@ -1,6 +1,5 @@
 /*
  * LZ4 - Fast LZ compression algorithm
- * Header File
  * Copyright (C) 2011-2013, Yann Collet.
  * BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
  *
@@ -32,7 +31,7 @@
  * - LZ4 source repository : http://code.google.com/p/lz4/
  */
 
-#include <sys/zfs_context.h>
+#include <sys/lz4_impl.h>
 
 static int real_LZ4_compress(const char *source, char *dest, int isize,
     int osize);
@@ -205,7 +204,6 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
 
 /*
  * Little Endian or Big Endian?
- * Note: overwrite the below #define if you know your architecture endianness.
  */
 #if defined(_BIG_ENDIAN)
 #define	LZ4_BIG_ENDIAN 1
@@ -229,55 +227,13 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
 #endif
 
 /*
- * Illumos : we can't use GCC's __builtin_ctz family of builtins in the
- * kernel
- * Linux : we can use GCC's __builtin_ctz family of builtins in the
- * kernel
- */
-#undef	LZ4_FORCE_SW_BITCOUNT
-#if defined(__sparc)
-#define	LZ4_FORCE_SW_BITCOUNT
-#endif
-
-/*
  * Compiler Options
  */
 /* Disable restrict */
 #define	restrict
 
-/*
- * Linux : GCC_VERSION is defined as of 3.9-rc1, so undefine it.
- * torvalds/linux@3f3f8d2f48acfd8ed3b8e6b7377935da57b27b16
- */
-#ifdef GCC_VERSION
-#undef GCC_VERSION
-#endif
-
-#define	GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__)
-
-#if (GCC_VERSION >= 302) || (__INTEL_COMPILER >= 800) || defined(__clang__)
-#define	expect(expr, value)    (__builtin_expect((expr), (value)))
-#else
-#define	expect(expr, value)    (expr)
-#endif
-
-#ifndef likely
-#define	likely(expr)	expect((expr) != 0, 1)
-#endif
-
-#ifndef unlikely
-#define	unlikely(expr)	expect((expr) != 0, 0)
-#endif
-
 #define	lz4_bswap16(x) ((unsigned short int) ((((x) >> 8) & 0xffu) | \
 	(((x) & 0xffu) << 8)))
-
-/* Basic types */
-#define	BYTE	uint8_t
-#define	U16	uint16_t
-#define	U32	uint32_t
-#define	S32	int32_t
-#define	U64	uint64_t
 
 #ifndef LZ4_FORCE_UNALIGNED_ACCESS
 #pragma pack(1)
@@ -304,8 +260,6 @@ typedef struct _U64_S {
 /*
  * Constants
  */
-#define	MINMATCH 4
-
 #define	HASH_LOG COMPRESSIONLEVEL
 #define	HASHTABLESIZE (1 << HASH_LOG)
 #define	HASH_MASK (HASHTABLESIZE - 1)
@@ -313,25 +267,13 @@ typedef struct _U64_S {
 #define	SKIPSTRENGTH (NOTCOMPRESSIBLE_CONFIRMATION > 2 ? \
 	NOTCOMPRESSIBLE_CONFIRMATION : 2)
 
-#define	COPYLENGTH 8
-#define	LASTLITERALS 5
-#define	MFLIMIT (COPYLENGTH + MINMATCH)
 #define	MINLENGTH (MFLIMIT + 1)
-
-#define	MAXD_LOG 16
-#define	MAX_DISTANCE ((1 << MAXD_LOG) - 1)
-
-#define	ML_BITS 4
-#define	ML_MASK ((1U<<ML_BITS)-1)
-#define	RUN_BITS (8-ML_BITS)
-#define	RUN_MASK ((1U<<RUN_BITS)-1)
 
 
 /*
  * Architecture-specific macros
  */
 #if LZ4_ARCH64
-#define	STEPSIZE 8
 #define	UARCH U64
 #define	AARCH A64
 #define	LZ4_COPYSTEP(s, d)	A64(d) = A64(s); d += 8; s += 8;
@@ -340,7 +282,6 @@ typedef struct _U64_S {
 #define	HTYPE U32
 #define	INITBASE(base)		const BYTE* const base = ip
 #else /* !LZ4_ARCH64 */
-#define	STEPSIZE 4
 #define	UARCH U32
 #define	AARCH A32
 #define	LZ4_COPYSTEP(s, d)	A32(d) = A32(s); d += 4; s += 4;
@@ -376,90 +317,6 @@ struct refTables {
 	d = e; }
 
 
-/* Private functions */
-#if LZ4_ARCH64
-
-static inline int
-LZ4_NbCommonBytes(register U64 val)
-{
-#if defined(LZ4_BIG_ENDIAN)
-#if defined(__GNUC__) && (GCC_VERSION >= 304) && \
-	!defined(LZ4_FORCE_SW_BITCOUNT)
-	return (__builtin_clzll(val) >> 3);
-#else
-	int r;
-	if (!(val >> 32)) {
-		r = 4;
-	} else {
-		r = 0;
-		val >>= 32;
-	}
-	if (!(val >> 16)) {
-		r += 2;
-		val >>= 8;
-	} else {
-		val >>= 24;
-	}
-	r += (!val);
-	return (r);
-#endif
-#else
-#if defined(__GNUC__) && (GCC_VERSION >= 304) && \
-	!defined(LZ4_FORCE_SW_BITCOUNT)
-	return (__builtin_ctzll(val) >> 3);
-#else
-	static const int DeBruijnBytePos[64] =
-	    { 0, 0, 0, 0, 0, 1, 1, 2, 0, 3, 1, 3, 1, 4, 2, 7, 0, 2, 3, 6, 1, 5,
-		3, 5, 1, 3, 4, 4, 2, 5, 6, 7, 7, 0, 1, 2, 3, 3, 4, 6, 2, 6, 5,
-		5, 3, 4, 5, 6, 7, 1, 2, 4, 6, 4,
-		4, 5, 7, 2, 6, 5, 7, 6, 7, 7
-	};
-	return DeBruijnBytePos[((U64) ((val & -val) * 0x0218A392CDABBD3F)) >>
-	    58];
-#endif
-#endif
-}
-
-#else
-
-static inline int
-LZ4_NbCommonBytes(register U32 val)
-{
-#if defined(LZ4_BIG_ENDIAN)
-#if defined(__GNUC__) && (GCC_VERSION >= 304) && \
-	!defined(LZ4_FORCE_SW_BITCOUNT)
-	return (__builtin_clz(val) >> 3);
-#else
-	int r;
-	if (!(val >> 16)) {
-		r = 2;
-		val >>= 8;
-	} else {
-		r = 0;
-		val >>= 24;
-	}
-	r += (!val);
-	return (r);
-#endif
-#else
-#if defined(__GNUC__) && (GCC_VERSION >= 304) && \
-	!defined(LZ4_FORCE_SW_BITCOUNT)
-	return (__builtin_ctz(val) >> 3);
-#else
-	static const int DeBruijnBytePos[32] = {
-		0, 0, 3, 0, 3, 1, 3, 0,
-		3, 2, 2, 1, 3, 2, 0, 1,
-		3, 3, 1, 2, 2, 2, 2, 0,
-		3, 1, 2, 0, 1, 0, 1, 1
-	};
-	return DeBruijnBytePos[((U32) ((val & -(S32) val) * 0x077CB531U)) >>
-	    27];
-#endif
-#endif
-}
-
-#endif
-
 /* Compression functions */
 
 /*ARGSUSED*/
@@ -468,17 +325,17 @@ LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
     int osize)
 {
 	struct refTables *srt = (struct refTables *)ctx;
-	HTYPE *HashTable = (HTYPE *) (srt->hashTable);
+	HTYPE *HashTable = (HTYPE *)(srt->hashTable);
 
-	const BYTE *ip = (BYTE *) source;
+	const BYTE *ip = (BYTE *)source;
 	INITBASE(base);
 	const BYTE *anchor = ip;
 	const BYTE *const iend = ip + isize;
-	const BYTE *const oend = (BYTE *) dest + osize;
+	const BYTE *const oend = (BYTE *)dest + osize;
 	const BYTE *const mflimit = iend - MFLIMIT;
 #define	matchlimit (iend - LASTLITERALS)
 
-	BYTE *op = (BYTE *) dest;
+	BYTE *op = (BYTE *)dest;
 
 	int len, length;
 	const int skipStrength = SKIPSTRENGTH;
@@ -519,7 +376,7 @@ LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
 		} while ((ref < ip - MAX_DISTANCE) || (A32(ref) != A32(ip)));
 
 		/* Catch up */
-		while ((ip > anchor) && (ref > (BYTE *) source) &&
+		while ((ip > anchor) && (ref > (BYTE *)source) &&
 		    unlikely(ip[-1] == ref[-1])) {
 			ip--;
 			ref--;
@@ -659,17 +516,17 @@ LZ4_compress64kCtx(void *ctx, const char *source, char *dest, int isize,
     int osize)
 {
 	struct refTables *srt = (struct refTables *)ctx;
-	U16 *HashTable = (U16 *) (srt->hashTable);
+	U16 *HashTable = (U16 *)(srt->hashTable);
 
-	const BYTE *ip = (BYTE *) source;
+	const BYTE *ip = (BYTE *)source;
 	const BYTE *anchor = ip;
 	const BYTE *const base = ip;
 	const BYTE *const iend = ip + isize;
-	const BYTE *const oend = (BYTE *) dest + osize;
+	const BYTE *const oend = (BYTE *)dest + osize;
 	const BYTE *const mflimit = iend - MFLIMIT;
 #define	matchlimit (iend - LASTLITERALS)
 
-	BYTE *op = (BYTE *) dest;
+	BYTE *op = (BYTE *)dest;
 
 	int len, length;
 	const int skipStrength = SKIPSTRENGTH;
@@ -708,7 +565,7 @@ LZ4_compress64kCtx(void *ctx, const char *source, char *dest, int isize,
 		} while (A32(ref) != A32(ip));
 
 		/* Catch up */
-		while ((ip > anchor) && (ref > (BYTE *) source) &&
+		while ((ip > anchor) && (ref > (BYTE *)source) &&
 		    (ip[-1] == ref[-1])) {
 			ip--;
 			ref--;
@@ -878,11 +735,11 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
     int maxOutputSize)
 {
 	/* Local Variables */
-	const BYTE *restrict ip = (const BYTE *) source;
+	const BYTE *restrict ip = (const BYTE *)source;
 	const BYTE *const iend = ip + isize;
 	const BYTE *ref;
 
-	BYTE *op = (BYTE *) dest;
+	BYTE *op = (BYTE *)dest;
 	BYTE *const oend = op + maxOutputSize;
 	BYTE *cpy;
 

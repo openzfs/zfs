@@ -2105,7 +2105,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    !DMU_OT_IS_VALID(drro->drr_type) ||
 	    !DMU_OT_IS_VALID(drro->drr_bonustype) ||
 	    drro->drr_checksumtype >= ZIO_CHECKSUM_FUNCTIONS ||
-	    drro->drr_compress >= ZIO_COMPRESS_FUNCTIONS ||
+	    drro->drr_compress >= BP_COMPRESS_VALUES ||
 	    P2PHASE(drro->drr_blksz, SPA_MINBLOCKSIZE) ||
 	    drro->drr_blksz < SPA_MINBLOCKSIZE ||
 	    drro->drr_blksz > spa_maxblocksize(dmu_objset_spa(rwa->os)) ||
@@ -2366,7 +2366,7 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 
 	if (drrwe->drr_etype >= NUM_BP_EMBEDDED_TYPES)
 		return (EINVAL);
-	if (drrwe->drr_compression >= ZIO_COMPRESS_FUNCTIONS)
+	if (drrwe->drr_compression >= BP_COMPRESS_VALUES)
 		return (EINVAL);
 
 	tx = dmu_tx_create(rwa->os);

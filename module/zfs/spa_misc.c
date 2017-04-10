@@ -1419,7 +1419,7 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 			checksum =
 			    zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_name;
 		}
-		compress = zio_compress_table[BP_GET_COMPRESS(bp)].ci_name;
+		compress = zio_decompress_table[BP_GET_COMPRESS(bp)].di_name;
 	}
 
 	SNPRINTF_BLKPTR(snprintf, ' ', buf, buflen, bp, type, checksum,

@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 void encode_embedded_bp_compressed(blkptr_t *, void *,
-    enum zio_compress, int, int);
+    enum bp_compress, int, int);
 void decode_embedded_bp_compressed(const blkptr_t *, void *);
 
 #ifdef	__cplusplus

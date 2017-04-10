@@ -625,7 +625,7 @@ ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
 		bcopy(src, dst, s_len);
 	}
 
-	*version = cpfunc;
+	*version = BP_COMPRESS_VALUE(cpfunc);
 	/* CONSTCOND */
 	if (ZFS_HOST_BYTEORDER)
 		*version |= DDT_COMPRESS_BYTEORDER_MASK;
@@ -638,10 +638,10 @@ ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
 {
 	uchar_t version = *src++;
 	int cpfunc = version & DDT_COMPRESS_FUNCTION_MASK;
-	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
+	zio_decompress_info_t *di = &zio_decompress_table[cpfunc];
 
-	if (ci->ci_decompress != NULL)
-		(void) ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level);
+	if (di->di_decompress != NULL)
+		(void) di->di_decompress(src, dst, s_len, d_len, di->di_level);
 	else
 		bcopy(src, dst, d_len);
 

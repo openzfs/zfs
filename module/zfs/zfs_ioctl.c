@@ -30,6 +30,7 @@
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2015 by Witaut Bajaryn. All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
@@ -155,6 +156,7 @@
 #include <sys/vdev.h>
 #include <sys/priv_impl.h>
 #include <sys/dmu.h>
+#include <sys/zio_compress.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_prop.h>
@@ -3816,17 +3818,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    SPA_VERSION_ZLE_COMPRESSION))
 				return (SET_ERROR(ENOTSUP));
 
-			if (intval == ZIO_COMPRESS_LZ4) {
+			if (intval >= ZIO_COMPRESS_LEGACY_FUNCTIONS) {
+				spa_feature_t feature =
+				    zio_compress_table[intval].ci_feature;
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 					return (err);
 
-				if (!spa_feature_is_enabled(spa,
-				    SPA_FEATURE_LZ4_COMPRESS)) {
+				if (feature != SPA_FEATURE_NONE &&
+				    !spa_feature_is_enabled(spa, feature)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}
+
 				spa_close(spa, FTAG);
 			}
 

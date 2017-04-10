@@ -34,6 +34,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dsl_userhold.h \
 	$(top_srcdir)/include/sys/edonr.h \
 	$(top_srcdir)/include/sys/efi_partition.h \
+	$(top_srcdir)/include/sys/lz4_impl.h \
 	$(top_srcdir)/include/sys/metaslab.h \
 	$(top_srcdir)/include/sys/metaslab_impl.h \
 	$(top_srcdir)/include/sys/mntent.h \

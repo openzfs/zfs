@@ -1996,7 +1996,7 @@ dbuf_fill_done(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 void
 dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
-    bp_embedded_type_t etype, enum zio_compress comp,
+    bp_embedded_type_t etype, enum bp_compress comp,
     int uncompressed_size, int compressed_size, int byteorder,
     dmu_tx_t *tx)
 {
