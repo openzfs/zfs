@@ -6420,6 +6420,7 @@ scrub_callback(zpool_handle_t *zhp, void *data)
 typedef struct trim_cbdata {
 	boolean_t	cb_start;
 	uint64_t	cb_rate;
+	boolean_t	cb_fulltrim;
 } trim_cbdata_t;
 
 int
@@ -6437,7 +6438,7 @@ trim_callback(zpool_handle_t *zhp, void *data)
 		return (1);
 	}
 
-	err = zpool_trim(zhp, cb->cb_start, cb->cb_rate);
+	err = zpool_trim(zhp, cb->cb_start, cb->cb_rate, cb->cb_fulltrim);
 
 	return (err != 0);
 }
@@ -6533,6 +6534,7 @@ zpool_do_resilver(int argc, char **argv)
 /*
  * zpool trim [-s|-r <rate>] <pool> ...
  *
+ *	-p		Partial trim.  Skips never-allocated space.
  *	-s		Stop. Stops any in-progress trim.
  *	-r <rate>	Sets the TRIM rate in bytes (per second). Supports
  *			adding a multiplier suffix such as 'k' or 'm'.
@@ -6545,10 +6547,14 @@ zpool_do_trim(int argc, char **argv)
 
 	cb.cb_start = B_TRUE;
 	cb.cb_rate = 0;
+	cb.cb_fulltrim = B_TRUE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "sr:")) != -1) {
+	while ((c = getopt(argc, argv, "psr:")) != -1) {
 		switch (c) {
+		case 'p':
+			cb.cb_fulltrim = B_FALSE;
+			break;
 		case 's':
 			cb.cb_start = B_FALSE;
 			break;

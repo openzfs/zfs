@@ -834,7 +834,7 @@ extern int spa_scan_stop(spa_t *spa);
 extern int spa_scrub_pause_resume(spa_t *spa, pool_scrub_cmd_t flag);
 
 /* trimming */
-extern void spa_man_trim(spa_t *spa, uint64_t rate);
+extern void spa_man_trim(spa_t *spa, uint64_t rate, boolean_t fulltrim);
 extern void spa_man_trim_stop(spa_t *spa);
 extern void spa_get_trim_prog(spa_t *spa, uint64_t *prog, uint64_t *rate,
     uint64_t *start_time, uint64_t *stop_time);
