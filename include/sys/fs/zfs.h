@@ -824,6 +824,7 @@ typedef enum pool_scrub_cmd {
 typedef struct trim_cmd_info_s {
 	uint64_t	tci_start;	/* B_TRUE = start; B_FALSE = stop */
 	uint64_t	tci_rate;	/* requested TRIM rate in bytes/sec */
+	uint64_t	tci_fulltrim;	/* B_TRUE=trim never allocated space */
 } trim_cmd_info_t;
 
 /*

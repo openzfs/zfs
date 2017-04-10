@@ -3883,9 +3883,11 @@ vdev_deadman(vdev_t *vd)
  * Implements the per-vdev portion of manual TRIM. The function passes over
  * all metaslabs on this vdev and performs a metaslab_trim_all on them. It's
  * also responsible for rate-control if spa_man_trim_rate is non-zero.
+ *
+ * If fulltrim is set, metaslabs without spacemaps are also trimmed.
  */
-void
-vdev_man_trim(vdev_trim_info_t *vti)
+static void
+vdev_man_trim_impl(vdev_trim_info_t *vti, boolean_t fulltrim)
 {
 	hrtime_t t = gethrtime();
 	spa_t *spa = vti->vti_vdev->vdev_spa;
@@ -3908,6 +3910,17 @@ vdev_man_trim(vdev_trim_info_t *vti)
 		uint64_t delta;
 		metaslab_t *msp = vd->vdev_ms[i];
 		zio_t *trim_io;
+
+		if (msp->ms_sm == NULL && !fulltrim) {
+			/*
+			 * If the space map has not been allocated and a
+			 * partial trim was requested move on to the next one.
+			 */
+			i++;
+			if (i < vti->vti_vdev->vdev_ms_count)
+				cursor = vd->vdev_ms[i]->ms_start;
+			continue;
+		}
 
 		trim_io = metaslab_trim_all(msp, &cursor, &delta, &was_loaded);
 
@@ -3963,6 +3976,18 @@ out:
 	vti->vti_done_cb(vti->vti_done_arg);
 
 	kmem_free(vti, sizeof (*vti));
+}
+
+void
+vdev_man_trim(vdev_trim_info_t *vti)
+{
+	vdev_man_trim_impl(vti, B_FALSE);
+}
+
+void
+vdev_man_trim_full(vdev_trim_info_t *vti)
+{
+	vdev_man_trim_impl(vti, B_TRUE);
 }
 
 /*
