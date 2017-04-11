@@ -37,8 +37,9 @@ verify_runnable "both"
 
 log_assert "Verify resumability of a full and incremental ZFS send/receive " \
     "in the presence of a corrupted stream"
-log_onexit cleanup_pools $POOL2 $POOL3
+log_onexit resume_cleanup $sendfs $streamfs
 
+sendfs=$POOL/sendfs
 recvfs=$POOL3/recvfs
 streamfs=$POOL2/stream
 

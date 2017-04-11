@@ -37,11 +37,12 @@ verify_runnable "both"
 
 log_assert "Verify resumability of a full and incremental ZFS send/receive " \
     "with the -e (embedded) flag"
-log_onexit cleanup_pool $POOL2
 
 sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs
 streamfs=$POOL/stream
+
+log_onexit resume_cleanup $sendfs $streamfs
 
 test_fs_setup $sendfs $recvfs
 resume_test "zfs send -v -e $sendfs@a" $streamfs $recvfs

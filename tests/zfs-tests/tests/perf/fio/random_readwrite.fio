@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 #
 
 [global]
@@ -29,7 +29,7 @@ bssplit=4k/50:8k/30:128k/10:1m/10
 ioengine=psync
 sync=${SYNC_TYPE}
 numjobs=${NUMJOBS}
-buffer_compress_percentage=33
+buffer_compress_percentage=66
 buffer_compress_chunk=4096
 
 [job]

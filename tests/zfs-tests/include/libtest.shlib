@@ -29,6 +29,7 @@
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
+. ${STF_SUITE}/include/math.shlib
 
 #
 # Apply constrained path when available.  This is required since the
@@ -3109,6 +3110,73 @@ function get_min
 	done
 
 	echo $min
+}
+
+#
+# Generate a random number between 1 and the argument.
+#
+function random
+{
+        typeset max=$1
+        echo $(( ($RANDOM % $max) + 1 ))
+}
+
+# Write data that can be compressed into a directory
+function write_compressible
+{
+	typeset dir=$1
+	typeset megs=$2
+	typeset nfiles=${3:-1}
+	typeset bs=${4:-1024k}
+	typeset fname=${5:-file}
+
+	[[ -d $dir ]] || log_fail "No directory: $dir"
+
+	# Under Linux fio is not currently used since its behavior can
+	# differ significant accross versions.  This includes missing
+	# command line options an cases where the --buffer_compress_*
+	# options fail to behave as expected.
+	if is_linux; then
+		typeset file_bytes=$(to_bytes $megs)
+		typeset bs_bytes=4096
+		typeset blocks=$(($file_bytes / $bs_bytes))
+
+		for (( i = 0; i < $nfiles; i++ )); do
+			truncate -s $file_bytes $dir/$fname.$i
+
+			# Write every third block to get 66% compression.
+			for (( j = 0; j < $blocks; j += 3 )); do
+				dd if=/dev/urandom of=$dir/$fname.$i \
+				    seek=$j bs=$bs_bytes count=1 \
+				    conv=notrunc >/dev/null 2>&1
+			done
+		done
+	else
+		log_must eval "fio \
+		    --name=job \
+		    --fallocate=0 \
+		    --minimal \
+		    --randrepeat=0 \
+		    --buffer_compress_percentage=66 \
+		    --buffer_compress_chunk=4096 \
+		    --directory=$dir \
+		    --numjobs=$nfiles \
+		    --nrfiles=$nfiles \
+		    --rw=write \
+		    --bs=$bs \
+		    --filesize=$megs \
+		    --filename_format='$fname.\$jobnum' >/dev/null"
+	fi
+}
+
+function get_objnum
+{
+	typeset pathname=$1
+	typeset objnum
+
+	[[ -e $pathname ]] || log_fail "No such file or directory: $pathname"
+	objnum=$(stat -c %i $pathname)
+	echo $objnum
 }
 
 #
