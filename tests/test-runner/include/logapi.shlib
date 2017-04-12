@@ -24,7 +24,7 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . ${STF_TOOLS}/include/stf.shlib
@@ -392,6 +392,22 @@ function log_other
 # Internal functions
 #
 
+# Execute custom callback scripts on test failure
+#
+# callback script paths are stored in TESTFAIL_CALLBACKS, delimited by ':'.
+
+function _execute_testfail_callbacks
+{
+	typeset callback
+
+	print "$TESTFAIL_CALLBACKS:" | while read -d ":" callback; do
+		if [[ -n "$callback" ]] ; then
+			log_note "Performing test-fail callback ($callback)"
+			$callback
+		fi
+	done
+}
+
 # Perform cleanup and exit
 #
 # $1 - stf exit code
@@ -401,6 +417,10 @@ function _endlog
 {
 	typeset logfile="/tmp/log.$$"
 	_recursive_output $logfile
+
+	if [[ $1 == $STF_FAIL ]] ; then
+		_execute_testfail_callbacks
+	fi
 
 	if [[ -n $_CLEANUP ]] ; then
 		typeset cleanup=$_CLEANUP

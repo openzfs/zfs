@@ -42,7 +42,7 @@ kstat_t *zfs_dbgmsg_kstat;
  * # Clear the kernel debug message log.
  * echo 0 >/proc/spl/kstat/zfs/dbgmsg
  */
-#if defined(_KERNEL)
+#if defined(_KERNEL) && !defined(ZFS_DEBUG)
 int zfs_dbgmsg_enable = 0;
 #else
 int zfs_dbgmsg_enable = 1;
