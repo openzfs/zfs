@@ -37,6 +37,7 @@ verify_disk_count "$DISKS" 2
 if is_global_zone ; then
 	log_must zpool create $POOL $DISK1
 	log_must zpool create $POOL2 $DISK2
+	log_must zpool create $POOL3 $DISK3
 fi
 log_must mkdir $BACKDIR $TESTDIR
 

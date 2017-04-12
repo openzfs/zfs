@@ -50,12 +50,17 @@ function cleanup
 		log_must unshare_fs $TESTPOOL/$TESTFS
 }
 
-set -A shareopts \
-    "ro" "ro=machine1" "ro=machine1:machine2" \
-    "rw" "rw=machine1" "rw=machine1:machine2" \
-    "ro=machine1:machine2,rw" "anon=0" "anon=0,sec=sys,rw" \
-    "nosuid" "root=machine1:machine2" "rw=.mydomain.mycompany.com" \
-    "rw=-terra:engineering" "log" "public"
+if is_linux; then
+	set -A shareopts \
+	    "ro" "rw" "rw,insecure" "rw,async" "ro,crossmnt"
+else
+	set -A shareopts \
+	    "ro" "ro=machine1" "ro=machine1:machine2" \
+	    "rw" "rw=machine1" "rw=machine1:machine2" \
+	    "ro=machine1:machine2,rw" "anon=0" "anon=0,sec=sys,rw" \
+	    "nosuid" "root=machine1:machine2" "rw=.mydomain.mycompany.com" \
+	    "rw=-terra:engineering" "log" "public"
+fi
 
 log_assert "Verify that NFS share options are propagated correctly."
 log_onexit cleanup
@@ -70,6 +75,11 @@ do
 	option=`get_prop sharenfs $TESTPOOL/$TESTFS`
 	if [[ $option != ${shareopts[i]} ]]; then
 		log_fail "get sharenfs failed. ($option != ${shareopts[i]})"
+	fi
+
+	# Verify the single option after the leading 'ro' or 'rw'.
+	if is_linux; then
+		option=`echo "$option" | cut -f2 -d','`
 	fi
 
 	showshares_nfs | grep $option > /dev/null 2>&1

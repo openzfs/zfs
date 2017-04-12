@@ -48,7 +48,7 @@ sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs
 streamfs=$POOL/stream
 
-test_fs_setup $POOL $POOL2
+test_fs_setup $sendfs $recvfs
 log_must zfs unmount $sendfs
 resume_test "zfs send $sendfs" $streamfs $recvfs
 file_check $sendfs $recvfs

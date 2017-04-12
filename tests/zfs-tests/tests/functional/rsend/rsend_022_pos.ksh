@@ -51,7 +51,7 @@ sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs
 streamfs=$POOL/stream
 
-test_fs_setup $POOL $POOL2
+test_fs_setup $sendfs $recvfs
 log_must zfs bookmark $sendfs@a $sendfs#bm_a
 log_must zfs destroy $sendfs@a
 log_must zfs receive -v $recvfs </$POOL/initial.zsend

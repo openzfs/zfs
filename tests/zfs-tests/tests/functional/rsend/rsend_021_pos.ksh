@@ -43,7 +43,7 @@ sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs
 streamfs=$POOL/stream
 
-test_fs_setup $POOL $POOL2
+test_fs_setup $sendfs $recvfs
 resume_test "zfs send -v -e $sendfs@a" $streamfs $recvfs
 resume_test "zfs send -v -e -i @a $sendfs@b" $streamfs $recvfs
 file_check $sendfs $recvfs
