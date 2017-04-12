@@ -46,7 +46,7 @@
 #include <sys/u8_textprep.h>
 #endif	/* _KERNEL */
 #include <sys/byteorder.h>
-#include <sys/errno.h>
+#include <errno.h>
 
 
 /*

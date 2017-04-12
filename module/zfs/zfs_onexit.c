@@ -25,7 +25,7 @@
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/open.h>
 #include <sys/kmem.h>
 #include <sys/conf.h>

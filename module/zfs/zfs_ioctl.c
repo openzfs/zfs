@@ -136,7 +136,7 @@
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/uio.h>
 #include <sys/buf.h>
 #include <sys/modctl.h>

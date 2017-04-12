@@ -49,7 +49,7 @@
 #include <strings.h>
 #endif	/* _KERNEL */
 #include <sys/byteorder.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/u8_textprep_data.h>
 
 
