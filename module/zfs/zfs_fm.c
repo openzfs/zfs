@@ -778,13 +778,13 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	nvlist_t *ereport = NULL;
 	nvlist_t *detector = NULL;
 
+	if (zfs_is_ratelimiting_event(subclass, vd))
+		return;
+
 	zfs_ereport_start(&ereport, &detector,
 	    subclass, spa, vd, zio, stateoroffset, size);
 
 	if (ereport == NULL)
-		return;
-
-	if (zfs_is_ratelimiting_event(subclass, vd))
 		return;
 
 	/* Cleanup is handled by the callback function */
