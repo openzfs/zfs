@@ -865,6 +865,10 @@ zpool_do_labelclear(int argc, char **argv)
 		return (1);
 	}
 
+	if (ioctl(fd, BLKFLSBUF) != 0)
+		(void) printf("failed to invalidate cache for %s: %s\n",
+		    vdev, strerror(errno));
+
 	if (zpool_read_label(fd, &config, NULL) != 0 || config == NULL) {
 		(void) fprintf(stderr,
 		    gettext("failed to check state for %s\n"), vdev);
