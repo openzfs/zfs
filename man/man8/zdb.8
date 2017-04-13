@@ -23,8 +23,8 @@
 .Nd display zpool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhiLMPsvVX
-.Op Fl e Op Fl p Ar path ...
+.Op Fl AbcdDFGhiLMPsvX
+.Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl I Ar inflight I/Os
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns ...
 .Op Fl t Ar txg
@@ -33,7 +33,7 @@
 .Op Ar poolname Op Ar object ...
 .Nm
 .Op Fl AdiPv
-.Op Fl e Op Fl p Ar path ...
+.Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl U Ar cache
 .Ar dataset Op Ar object ...
 .Nm
@@ -46,9 +46,9 @@
 .Ar device
 .Nm
 .Fl m
-.Op Fl AFLPVX
+.Op Fl AFLPX
+.Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl t Ar txg
-.Op Fl e Op Fl p Ar path ...
 .Op Fl U Ar cache
 .Ar poolname Op Ar vdev Op Ar metaslab ...
 .Nm
@@ -57,13 +57,13 @@
 .Nm
 .Fl R
 .Op Fl A
-.Op Fl e Op Fl p Ar path ...
+.Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl U Ar cache
 .Ar poolname vdev Ns : Ns Ar offset Ns : Ns Ar size Ns Op : Ns Ar flags
 .Nm
 .Fl S
 .Op Fl AP
-.Op Fl e Op Fl p Ar path ...
+.Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl U Ar cache
 .Ar poolname
 .Sh DESCRIPTION
@@ -324,8 +324,10 @@ Use a cache file other than
 Enable verbosity.
 Specify multiple times for increased verbosity.
 .It Fl V
-Attempt a verbatim import. This mimics the behavior of the kernel when
-loading a pool from a cachefile.
+Attempt verbatim import.
+This mimics the behavior of the kernel when loading a pool from a cachefile.
+Only usable with
+.Fl e .
 .It Fl X
 Attempt
 .Qq extreme
