@@ -114,6 +114,29 @@ typedef struct sa_idx_tab {
 	uint32_t	*sa_idx_tab;	/* array of offsets */
 } sa_idx_tab_t;
 
+#define	SA_IDX_ENTRIES		5
+
+typedef struct sa_idx_cache {
+	kmutex_t 	sac_lock;
+	int		sac_head;
+	struct sa_idx_cache_entry {
+		sa_idx_tab_t	*sac_idx;
+		sa_lot_t	*sac_lot;
+#ifdef _KERNEL
+	} sac_entries[SA_IDX_ENTRIES] ____cacheline_aligned_in_smp;
+#else
+	} sac_entries[SA_IDX_ENTRIES];
+#endif
+} sa_idx_cache_t;
+
+#define	SA_LAYOUT_ENTRIES	7	/* to fit cacheline */
+
+typedef struct sa_layout_cache {
+	kmutex_t 	slc_lock;
+	int		slc_head;
+	sa_lot_t	*slc_lot[SA_LAYOUT_ENTRIES];
+} sa_layout_cache_t;
+
 /*
  * Since the offset/index information into the actual data
  * will usually be identical we can share that information with
@@ -147,6 +170,8 @@ struct sa_os {
 	avl_tree_t	sa_layout_hash_tree; /* keyed by layout hash value */
 	int		sa_user_table_sz;
 	sa_attr_type_t	*sa_user_table; /* user name->attr mapping table */
+	sa_idx_cache_t	*sa_idx_cache;
+	sa_layout_cache_t *sa_layout_cache;
 };
 
 /*
