@@ -3690,6 +3690,8 @@ static void
 metaslab_trim_add(void *arg, uint64_t offset, uint64_t size)
 {
 	metaslab_t *msp = arg;
+
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_cur_ts != NULL);
 	range_tree_add(msp->ms_cur_ts->ts_tree, offset, size);
 	if (msp->ms_prev_ts != NULL) {
@@ -3996,6 +3998,7 @@ static boolean_t metaslab_check_trim_conflict(metaslab_t *msp,
 	uint64_t new_offset;
 
 	ASSERT3U(*offset + size, <=, limit);
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	if (msp->ms_trimming_ts == NULL)
 		/* no trim conflict, original offset is OK */
