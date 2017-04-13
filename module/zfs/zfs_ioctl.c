@@ -2998,6 +2998,9 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 
 	ASSERT(zplprops != NULL);
 
+	if (os != NULL && os->os_phys->os_type != DMU_OST_ZFS)
+		return (SET_ERROR(EINVAL));
+
 	/*
 	 * Pull out creator prop choices, if any.
 	 */
