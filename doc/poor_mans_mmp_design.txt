@@ -1,0 +1,70 @@
+MMP (Multi-Modifier Protection) attempts to prevent a user from
+importing a pool on more than one node at a time.
+
+See
+	https://github.com/zfsonlinux/zfs/issues/745
+and
+	https://github.com/zfsonlinux/zfs/pull/5821
+for more background.
+
+This design is for a very simple subset of MMP that can be coded,
+tested, and reviewed quickly.
+
+It attempts to detect and prevent the case of importing a pool via "zpool
+import -f", while it is already imported on another node.
+
+On-disk changes:
+
+The last uberblock slot in each ring is used only for MMP; uberblocks
+written by the sync thread always go into the first (N-1) slots.  The
+slot used for MMP is used to hold an uberblock which is exactly the
+same as the last written uberblock, except that its ub_timestamp is
+frequently updated, and its embedded checksum is different
+accordingly.
+
+This is used to provide the "heartbeat" without overwriting good
+uberblocks.
+
+During Import:
+
+zpool_do_import() (user space)
+1. Examine the hostid.  If it is 0,
+   skip the steps below and perform the import as normal.
+2. Issue the ZFS_IOC_POOL_TRYIMPORT ioctl
+3. Extract the txg and timestamp from the returned config nvlist and
+   save them.
+4. Sleep 1 second.
+5. Issue the ZFS_IOC_POOL_TRYIMPORT ioctl again and compare the returned txg
+   and timestamp.  If they changed, the import fails.
+6. Repeat steps 4,5 until 5 seconds have passed.
+7. Import the pool normally via the ZFS_IOC_POOL_IMPORT ioctl
+
+spa_tryimport() (kernel space)
+1. Add an additional key to the config nvlist, with the value from
+   spa->spa_uberblock.ub_txg after spa_load() succeeds.  ub_timestamp is
+   already recorded in the config nvlist.
+
+spa_import() (kernel space)
+1. Start an mmp thread in a manner similar to the sync thread
+
+While the pool is open:
+mmp_thread() (kernel space)
+1. Sleep 1 second.
+2. Choose a random leaf vdev.
+3. Copy the last synced uberblock from spa_ubsync to a buffer and update ub_timestamp.
+4. Write the buffer to the MMP uberblock slot in all 4 labels
+5. Go to step 1
+
+Limitations:
+
+Once a node has the pool imported, it does not detect other nodes which
+have the pool imported or alter the pool's devices.
+
+It does not detect and prevent two nodes importing the pool at the
+same time.
+
+It does not detect changes to one or more individual devices by some outside
+process, e.g. "zpool labelclear -f" or "zpool add -f".
+
+Every import pays the 5 second delay cost, even if the pool was cleanly
+exported and there are no competing imports.
