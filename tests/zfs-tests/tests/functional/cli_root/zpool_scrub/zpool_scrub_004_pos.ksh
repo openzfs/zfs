@@ -46,12 +46,19 @@
 #	resilver does not complete before the scrub can be issued.  This
 #	can occur when testing with small pools or very fast hardware.
 
+function cleanup
+{
+	log_must zinject -c all
+}
+
 verify_runnable "global"
 
 # See issue: https://github.com/zfsonlinux/zfs/issues/5444
 if is_32bit; then
 	log_unsupported "Test case fails on 32-bit systems"
 fi
+
+log_onexit cleanup
 
 log_assert "Resilver prevent scrub from starting until the resilver completes"
 
@@ -66,5 +73,4 @@ while ! is_pool_resilvered $TESTPOOL; do
 	sleep 1
 done
 
-log_must zinject -c all
 log_pass "Resilver prevent scrub from starting until the resilver completes"
