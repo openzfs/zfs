@@ -358,6 +358,9 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 	int rv = 0;
 	nvpair_t *pair;
 
+	ASSERT(nvlist_empty(dbda->dbda_success));
+	ASSERT(nvlist_empty(dbda->dbda_errors));
+
 	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_BOOKMARKS))
 		return (0);
 
@@ -387,7 +390,10 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 			}
 		}
 		if (error == 0) {
-			fnvlist_add_boolean(dbda->dbda_success, fullname);
+			if (dmu_tx_is_syncing(tx)) {
+				fnvlist_add_boolean(dbda->dbda_success,
+				    fullname);
+			}
 		} else {
 			fnvlist_add_int32(dbda->dbda_errors, fullname, error);
 			rv = error;
