@@ -129,9 +129,6 @@ int zfs_delay_min_dirty_percent = 60;
  */
 unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 
-hrtime_t zfs_throttle_delay = MSEC2NSEC(10);
-hrtime_t zfs_throttle_resolution = MSEC2NSEC(10);
-
 /*
  * This determines the number of threads used by the dp_sync_taskq.
  */
