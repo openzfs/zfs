@@ -6864,6 +6864,7 @@ static int
 zfs_do_bookmark(int argc, char **argv)
 {
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
+	char bookname[ZFS_MAX_DATASET_NAME_LEN];
 	zfs_handle_t *zhp;
 	nvlist_t *nvl;
 	int ret = 0;
@@ -6894,7 +6895,7 @@ zfs_do_bookmark(int argc, char **argv)
 
 	if (strchr(argv[1], '#') == NULL) {
 		(void) fprintf(stderr,
-		    gettext("invalid bookmark name '%s' -- "
+		    gettext("invalid bookmark name '%s': "
 		    "must contain a '#'\n"), argv[1]);
 		goto usage;
 	}
@@ -6910,6 +6911,18 @@ zfs_do_bookmark(int argc, char **argv)
 	} else {
 		(void) strlcpy(snapname, argv[0], sizeof (snapname));
 	}
+	if (argv[1][0] == '#') {
+		/*
+		 * Bookmark name begins with #.
+		 * Default to same fs as snapshot.
+		 */
+		(void) strlcpy(bookname, argv[0], sizeof (bookname));
+		*strchr(bookname, '@') = '\0';
+		(void) strlcat(bookname, argv[1], sizeof (bookname));
+	} else {
+		(void) strlcpy(bookname, argv[1], sizeof (bookname));
+	}
+
 	zhp = zfs_open(g_zfs, snapname, ZFS_TYPE_SNAPSHOT);
 	if (zhp == NULL)
 		goto usage;
@@ -6917,7 +6930,7 @@ zfs_do_bookmark(int argc, char **argv)
 
 
 	nvl = fnvlist_alloc();
-	fnvlist_add_string(nvl, argv[1], snapname);
+	fnvlist_add_string(nvl, bookname, snapname);
 	ret = lzc_bookmark(nvl, NULL);
 	fnvlist_free(nvl);
 
@@ -6927,7 +6940,7 @@ zfs_do_bookmark(int argc, char **argv)
 
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN,
-		    "cannot create bookmark '%s'"), argv[1]);
+		    "cannot create bookmark '%s'"), bookname);
 
 		switch (ret) {
 		case EXDEV:
@@ -6944,6 +6957,9 @@ zfs_do_bookmark(int argc, char **argv)
 			break;
 		case ENOSPC:
 			err_msg = "out of space";
+			break;
+		case ENOENT:
+			err_msg = "dataset does not exist";
 			break;
 		default:
 			err_msg = "unknown error";
