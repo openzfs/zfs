@@ -1869,6 +1869,8 @@ show_import(nvlist_t *config)
 	uint_t vsc;
 	char *comment;
 	status_cbdata_t cb = { 0 };
+	uint64_t timestamp;
+	uint64_t txg;
 
 	verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
 	    &name) == 0);
@@ -1878,6 +1880,10 @@ show_import(nvlist_t *config)
 	    &pool_state) == 0);
 	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 	    &nvroot) == 0);
+	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_TIMESTAMP,
+	    &timestamp) == 0);
+	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_FOUND_TXG,
+	    &txg) == 0);
 
 	verify(nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &vsc) == 0);
@@ -1887,7 +1893,11 @@ show_import(nvlist_t *config)
 
 	(void) printf(gettext("   pool: %s\n"), name);
 	(void) printf(gettext("     id: %llu\n"), (u_longlong_t)guid);
-	(void) printf(gettext("  state: %s"), health);
+	(void) printf(gettext("  state: %s\n"), health);
+	(void) printf(gettext("    txg: %llu\n"), (u_longlong_t)txg);
+	(void) printf(gettext("updated: %s"), asctime(localtime(
+	    (time_t *)&timestamp)));
+
 	if (pool_state == POOL_STATE_DESTROYED)
 		(void) printf(gettext(" (DESTROYED)"));
 	(void) printf("\n");

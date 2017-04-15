@@ -4243,6 +4243,8 @@ spa_tryimport(nvlist_t *tryconfig)
 		    state) == 0);
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_TIMESTAMP,
 		    spa->spa_uberblock.ub_timestamp) == 0);
+		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_FOUND_TXG,
+		    spa->spa_uberblock.ub_txg) == 0);
 		VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_LOAD_INFO,
 		    spa->spa_load_info) == 0);
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_ERRATA,
