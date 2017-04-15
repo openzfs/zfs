@@ -1047,7 +1047,12 @@ zio_trim_dfl(zio_t *pio, spa_t *spa, vdev_t *vd, dkioc_free_list_t *dfl,
 
 	ASSERT(dfl->dfl_num_exts != 0);
 
-	if (vd->vdev_ops->vdev_op_leaf) {
+	if (!vdev_writeable(vd)) {
+		/* Skip unavailable vdevs, just create a dummy zio. */
+		zio = zio_null(pio, spa, vd, done, private, 0);
+		zio->io_dfl = dfl;
+		zio->io_dfl_free_on_destroy = dfl_free_on_destroy;
+	} else if (vd->vdev_ops->vdev_op_leaf) {
 		/*
 		 * A trim zio is a special ioctl zio that can enter the vdev
 		 * queue. We don't want to be sorted in the queue by offset,
