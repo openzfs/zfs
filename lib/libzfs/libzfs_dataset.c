@@ -1173,7 +1173,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			 */
 			if (intval < SPA_MINBLOCKSIZE ||
 			    intval > maxbs || !ISP2(intval)) {
-				zfs_nicenum(maxbs, buf, sizeof (buf));
+				zfs_nicebytes(maxbs, buf, sizeof (buf));
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "'%s' must be power of 2 from 512B "
 				    "to %s"), propname, buf);
@@ -1428,7 +1428,7 @@ badlabel:
 
 			case ZFS_PROP_VOLSIZE:
 				if (intval % blocksize != 0) {
-					zfs_nicenum(blocksize, buf,
+					zfs_nicebytes(blocksize, buf,
 					    sizeof (buf));
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 					    "'%s' must be a multiple of "
@@ -2569,7 +2569,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 				(void) snprintf(propbuf, proplen, "%llu",
 				    (u_longlong_t)val);
 			else
-				zfs_nicenum(val, propbuf, proplen);
+				zfs_nicebytes(val, propbuf, proplen);
 		}
 		break;
 
@@ -2703,6 +2703,22 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
 			return (-1);
 		(void) snprintf(propbuf, proplen, "%llu", (u_longlong_t)val);
+		break;
+
+	case ZFS_PROP_REFERENCED:
+	case ZFS_PROP_AVAILABLE:
+	case ZFS_PROP_USED:
+	case ZFS_PROP_USEDSNAP:
+	case ZFS_PROP_USEDDS:
+	case ZFS_PROP_USEDREFRESERV:
+	case ZFS_PROP_USEDCHILD:
+		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
+			return (-1);
+		if (literal)
+			(void) snprintf(propbuf, proplen, "%llu",
+			    (u_longlong_t)val);
+		else
+			zfs_nicebytes(val, propbuf, proplen);
 		break;
 
 	default:
@@ -3001,6 +3017,9 @@ zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
 	    (type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA ||
 	    type == ZFS_PROP_USEROBJQUOTA || type == ZFS_PROP_GROUPOBJQUOTA)) {
 		(void) strlcpy(propbuf, "none", proplen);
+	} else if (type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA ||
+	    type == ZFS_PROP_USERUSED || type == ZFS_PROP_GROUPUSED) {
+		zfs_nicebytes(propvalue, propbuf, proplen);
 	} else {
 		zfs_nicenum(propvalue, propbuf, proplen);
 	}
@@ -3057,7 +3076,7 @@ zfs_prop_get_written(zfs_handle_t *zhp, const char *propname,
 		(void) snprintf(propbuf, proplen, "%llu",
 		    (u_longlong_t)propvalue);
 	} else {
-		zfs_nicenum(propvalue, propbuf, proplen);
+		zfs_nicebytes(propvalue, propbuf, proplen);
 	}
 
 	return (0);

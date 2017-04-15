@@ -773,8 +773,9 @@ extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
 
 enum zfs_nicenum_format {
 	ZFS_NICENUM_1024 = 0,
-	ZFS_NICENUM_TIME = 1,
-	ZFS_NICENUM_RAW = 2
+	ZFS_NICENUM_BYTES = 1,
+	ZFS_NICENUM_TIME = 2,
+	ZFS_NICENUM_RAW = 3
 };
 
 /*
@@ -786,6 +787,7 @@ extern void zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
 
 
 extern void zfs_nicetime(uint64_t, char *, size_t);
+extern void zfs_nicebytes(uint64_t, char *, size_t);
 extern int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
 
 /*

@@ -88,20 +88,22 @@ else
 fi
 for val in 1 2 3; do
 	blks=`ls -ls /$TESTPOOL/fs_$val/$FILE | awk '{print $1}'`
-	(( used = blks * $blksize / (1024 * 1024) ))
+	(( used = blks * $blksize )) # bytes
 	check_used $used $val
 done
 
 log_note "Verify df(1M) can corectly display the space charged."
 for val in 1 2 3; do
-	used=`df -F zfs -h /$TESTPOOL/fs_$val/$FILE | grep $TESTPOOL/fs_$val \
+	used=`df -F zfs -k /$TESTPOOL/fs_$val/$FILE | grep $TESTPOOL/fs_$val \
 		| awk '{print $3}'`
+	(( used = used * 1024 )) # kb -> bytes
 	check_used $used $val
 done
 
 log_note "Verify du(1) can correctly display the space charged."
 for val in 1 2 3; do
-	used=`du -h /$TESTPOOL/fs_$val/$FILE | awk '{print $1}'`
+	used=`du -k /$TESTPOOL/fs_$val/$FILE | awk '{print $1}'`
+	(( used = used * 1024 )) # kb -> bytes
 	check_used $used $val
 done
 

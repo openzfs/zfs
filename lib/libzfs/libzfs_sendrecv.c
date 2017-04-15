@@ -1166,7 +1166,7 @@ send_progress_thread(void *arg)
 			    tm->tm_hour, tm->tm_min, tm->tm_sec,
 			    bytes, zhp->zfs_name);
 		} else {
-			zfs_nicenum(bytes, buf, sizeof (buf));
+			zfs_nicebytes(bytes, buf, sizeof (buf));
 			(void) fprintf(stderr, "%02d:%02d:%02d   %5s   %s\n",
 			    tm->tm_hour, tm->tm_min, tm->tm_sec,
 			    buf, zhp->zfs_name);
@@ -1211,7 +1211,7 @@ send_print_verbose(FILE *fout, const char *tosnap, const char *fromsnap,
 			    (longlong_t)size);
 		} else {
 			char buf[16];
-			zfs_nicenum(size, buf, sizeof (buf));
+			zfs_nicebytes(size, buf, sizeof (buf));
 			(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 			    " estimated size is %s"), buf);
 		}
@@ -1959,7 +1959,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 				    (longlong_t)sdd.size);
 			} else {
 				char buf[16];
-				zfs_nicenum(sdd.size, buf, sizeof (buf));
+				zfs_nicebytes(sdd.size, buf, sizeof (buf));
 				(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 				    "total estimated size is %s\n"), buf);
 			}
@@ -3645,10 +3645,10 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		time_t delta = time(NULL) - begin_time;
 		if (delta == 0)
 			delta = 1;
-		zfs_nicenum(bytes, buf1, sizeof (buf1));
-		zfs_nicenum(bytes/delta, buf2, sizeof (buf1));
+		zfs_nicebytes(bytes, buf1, sizeof (buf1));
+		zfs_nicebytes(bytes/delta, buf2, sizeof (buf1));
 
-		(void) printf("received %sB stream in %lu seconds (%sB/sec)\n",
+		(void) printf("received %s stream in %lu seconds (%s/sec)\n",
 		    buf1, delta, buf2);
 	}
 

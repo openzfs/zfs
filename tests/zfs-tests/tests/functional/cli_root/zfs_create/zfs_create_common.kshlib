@@ -43,7 +43,7 @@ function propertycheck
 
 	typeset prop=$(echo $propstr | awk -F= '{print $1}')
 	typeset expect_value=$(echo $propstr | awk -F= '{print $2}')
-	typeset value=$(zfs get -H -o value $prop $dtst)
+	typeset value=$(zfs get -H -p -o value $prop $dtst)
 
 
 	if [[ "$expect_value" == "$value" ]]; then

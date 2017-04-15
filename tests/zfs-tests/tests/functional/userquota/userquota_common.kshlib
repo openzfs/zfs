@@ -111,7 +111,7 @@ function get_value # property dataset
         typeset prop=$1
         typeset dataset=$2
 
-        prop_val=$(zfs get -H -o value $prop $dataset 2>/dev/null)
+        prop_val=$(zfs get -H -p -o value $prop $dataset 2>/dev/null)
         if [[ $? -ne 0 ]]; then
                 log_note "Unable to get $prop property for dataset " \
                 "$dataset"

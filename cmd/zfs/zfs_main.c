@@ -1313,7 +1313,7 @@ zfs_do_destroy(int argc, char **argv)
 
 		if (cb.cb_verbose) {
 			char buf[16];
-			zfs_nicenum(cb.cb_snapused, buf, sizeof (buf));
+			zfs_nicebytes(cb.cb_snapused, buf, sizeof (buf));
 			if (cb.cb_parsable) {
 				(void) printf("reclaim\t%llu\n",
 				    (u_longlong_t)cb.cb_snapused);
@@ -2549,11 +2549,17 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 	}
 
 	/* Calculate/update width of USED/QUOTA fields */
-	if (cb->cb_nicenum)
-		zfs_nicenum(space, sizebuf, sizeof (sizebuf));
-	else
+	if (cb->cb_nicenum) {
+		if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED ||
+		    prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA) {
+			zfs_nicebytes(space, sizebuf, sizeof (sizebuf));
+		} else {
+			zfs_nicenum(space, sizebuf, sizeof (sizebuf));
+		}
+	} else {
 		(void) snprintf(sizebuf, sizeof (sizebuf), "%llu",
 		    (u_longlong_t)space);
+	}
 	sizelen = strlen(sizebuf);
 	if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED) {
 		propname = "used";
@@ -2646,6 +2652,21 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 			break;
 		case USFIELD_USED:
 		case USFIELD_QUOTA:
+			if (type == DATA_TYPE_UINT64) {
+				if (parsable) {
+					(void) sprintf(valstr, "%llu",
+					    (u_longlong_t)val64);
+				} else {
+					zfs_nicebytes(val64, valstr,
+					    sizeof (valstr));
+				}
+				if (field == USFIELD_QUOTA &&
+				    strcmp(valstr, "0") == 0)
+					strval = "none";
+				else
+					strval = valstr;
+			}
+			break;
 		case USFIELD_OBJUSED:
 		case USFIELD_OBJQUOTA:
 			if (type == DATA_TYPE_UINT64) {
@@ -2656,8 +2677,7 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 					zfs_nicenum(val64, valstr,
 					    sizeof (valstr));
 				}
-				if ((field == USFIELD_QUOTA ||
-				    field == USFIELD_OBJQUOTA) &&
+				if (field == USFIELD_OBJQUOTA &&
 				    strcmp(valstr, "0") == 0)
 					strval = "none";
 				else

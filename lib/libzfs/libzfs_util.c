@@ -606,13 +606,16 @@ zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
 	const char *u;
 	const char *units[3][7] = {
 	    [ZFS_NICENUM_1024] = {"", "K", "M", "G", "T", "P", "E"},
+	    [ZFS_NICENUM_BYTES] = {"B", "K", "M", "G", "T", "P", "E"},
 	    [ZFS_NICENUM_TIME] = {"ns", "us", "ms", "s", "?", "?", "?"}
 	};
 
 	const int units_len[] = {[ZFS_NICENUM_1024] = 6,
+	    [ZFS_NICENUM_BYTES] = 6,
 	    [ZFS_NICENUM_TIME] = 4};
 
 	const int k_unit[] = {	[ZFS_NICENUM_1024] = 1024,
+	    [ZFS_NICENUM_BYTES] = 1024,
 	    [ZFS_NICENUM_TIME] = 1000};
 
 	double val;
@@ -706,7 +709,14 @@ zfs_niceraw(uint64_t num, char *buf, size_t buflen)
 	zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_RAW);
 }
 
-
+/*
+ * Convert a number of bytes to an appropriately human-readable output.
+ */
+void
+zfs_nicebytes(uint64_t num, char *buf, size_t buflen)
+{
+	zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_BYTES);
+}
 
 void
 libzfs_print_on_error(libzfs_handle_t *hdl, boolean_t printerr)

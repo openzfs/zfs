@@ -322,7 +322,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
 			} else {
-				(void) zfs_nicenum(intval, buf, len);
+				(void) zfs_nicebytes(intval, buf, len);
 			}
 			break;
 
@@ -1253,7 +1253,8 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			{
 				char buf[64];
 
-				zfs_nicenum(SPA_MINDEVSIZE, buf, sizeof (buf));
+				zfs_nicebytes(SPA_MINDEVSIZE, buf,
+				    sizeof (buf));
 
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "one or more devices is less than the "
@@ -1390,7 +1391,8 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 			{
 				char buf[64];
 
-				zfs_nicenum(SPA_MINDEVSIZE, buf, sizeof (buf));
+				zfs_nicebytes(SPA_MINDEVSIZE, buf,
+				    sizeof (buf));
 
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "device is less than the minimum "

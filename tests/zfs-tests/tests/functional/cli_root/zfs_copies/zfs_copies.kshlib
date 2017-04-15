@@ -58,11 +58,7 @@ function get_used_prop
 	typeset ds=$1
 	typeset used
 
-	used=`zfs list -H -o used $ds`
-	used=${used%[m|M]}
-	if [[ $used == *K ]]; then
-		used=0
-	fi
+	used=`zfs list -H -p -o used $ds`
 	echo $used
 }
 
@@ -79,7 +75,7 @@ function check_used
 	typeset -i cfactor
 	typeset -i fsize=${FILESIZE%[m|M]}
 
-	((used = ${charged_spc%[m|M]}))
+	((used = $charged_spc / 1024 / 1024))
 	((cfactor = used / fsize))
 	if ((cfactor != expected_cfactor)); then
 		log_fail "The space is not charged correctly while setting" \
