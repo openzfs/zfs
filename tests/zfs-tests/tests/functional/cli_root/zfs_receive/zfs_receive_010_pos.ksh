@@ -53,9 +53,9 @@ function make_object
 	if [[ $type == "file" ]]; then
 		dd if=/dev/urandom of=${mntpnt}/f$objnum bs=512 count=16
 	elif [[ $type == "hole1" ]]; then
-		dd if=/dev/urandom of=${mntpnt}/fh$objnum bs=512 count=5 stride=4
+		dd if=/dev/zero of=${mntpnt}/fh$objnum bs=512 count=5 seek=4 conv=notrunc
 	elif [[ $type == "hole2" ]]; then
-		dd if=/dev/urandom of=${mntpnt}/fh$objnum bs=512 count=4 stride=5
+		dd if=/dev/zero of=${mntpnt}/fh$objnum bs=512 count=4 seek=5 conv=notrunc
 	elif [[ $type == "directory" ]]; then
 		mkdir ${mntpnt}/d$objnum
 	elif [[ $type == "missing" ]]; then
