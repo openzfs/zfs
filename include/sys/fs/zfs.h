@@ -579,6 +579,10 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_R_ACTIVE_QUEUE	"vdev_async_r_active_queue"
 #define	ZPOOL_CONFIG_VDEV_ASYNC_W_ACTIVE_QUEUE	"vdev_async_w_active_queue"
 #define	ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE	"vdev_async_scrub_active_queue"
+#define	ZPOOL_CONFIG_VDEV_AUTO_TRIM_ACTIVE_QUEUE \
+    "vdev_async_auto_trim_active_queue"
+#define	ZPOOL_CONFIG_VDEV_MAN_TRIM_ACTIVE_QUEUE \
+    "vdev_async_man_trim_active_queue"
 
 /* Queue sizes */
 #define	ZPOOL_CONFIG_VDEV_SYNC_R_PEND_QUEUE	"vdev_sync_r_pend_queue"
@@ -586,6 +590,10 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_R_PEND_QUEUE	"vdev_async_r_pend_queue"
 #define	ZPOOL_CONFIG_VDEV_ASYNC_W_PEND_QUEUE	"vdev_async_w_pend_queue"
 #define	ZPOOL_CONFIG_VDEV_SCRUB_PEND_QUEUE	"vdev_async_scrub_pend_queue"
+#define	ZPOOL_CONFIG_VDEV_AUTO_TRIM_PEND_QUEUE \
+    "vdev_async_auto_trim_pend_queue"
+#define	ZPOOL_CONFIG_VDEV_MAN_TRIM_PEND_QUEUE \
+    "vdev_async_man_trim_pend_queue"
 
 /* Latency read/write histogram stats */
 #define	ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO	"vdev_tot_r_lat_histo"
@@ -597,6 +605,8 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_R_LAT_HISTO	"vdev_async_r_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_ASYNC_W_LAT_HISTO	"vdev_async_w_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_SCRUB_LAT_HISTO	"vdev_scrub_histo"
+#define	ZPOOL_CONFIG_VDEV_AUTO_TRIM_LAT_HISTO	"vdev_auto_trim_histo"
+#define	ZPOOL_CONFIG_VDEV_MAN_TRIM_LAT_HISTO	"vdev_man_trim_histo"
 
 /* Request size histograms */
 #define	ZPOOL_CONFIG_VDEV_SYNC_IND_R_HISTO	"vdev_sync_ind_r_histo"
@@ -609,6 +619,10 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_AGG_R_HISTO	"vdev_async_agg_r_histo"
 #define	ZPOOL_CONFIG_VDEV_ASYNC_AGG_W_HISTO	"vdev_async_agg_w_histo"
 #define	ZPOOL_CONFIG_VDEV_AGG_SCRUB_HISTO	"vdev_agg_scrub_histo"
+#define	ZPOOL_CONFIG_VDEV_IND_AUTO_TRIM_HISTO	"vdev_ind_auto_trim_histo"
+#define	ZPOOL_CONFIG_VDEV_AGG_AUTO_TRIM_HISTO	"vdev_agg_auto_trim_histo"
+#define	ZPOOL_CONFIG_VDEV_IND_MAN_TRIM_HISTO	"vdev_ind_man_trim_histo"
+#define	ZPOOL_CONFIG_VDEV_AGG_MAN_TRIM_HISTO	"vdev_agg_man_trim_histo"
 
 /* vdev enclosure sysfs path */
 #define	ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH	"vdev_enc_sysfs_path"
