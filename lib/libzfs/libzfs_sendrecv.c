@@ -1013,39 +1013,32 @@ typedef struct send_dump_data {
 } send_dump_data_t;
 
 static int
-estimate_ioctl(zfs_handle_t *zhp, uint64_t fromsnap_obj,
-    boolean_t fromorigin, enum lzc_send_flags flags, uint64_t *sizep)
+zfs_send_space(zfs_handle_t *zhp, const char *snapname, const char *from,
+    enum lzc_send_flags flags, uint64_t *spacep)
 {
-	zfs_cmd_t zc = {"\0"};
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	int error;
 
-	assert(zhp->zfs_type == ZFS_TYPE_SNAPSHOT);
-	assert(fromsnap_obj == 0 || !fromorigin);
+	assert(snapname != NULL);
+	error = lzc_send_space(snapname, from, flags, spacep);
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	zc.zc_obj = fromorigin;
-	zc.zc_sendobj = zfs_prop_get_int(zhp, ZFS_PROP_OBJSETID);
-	zc.zc_fromobj = fromsnap_obj;
-	zc.zc_guid = 1;  /* estimate flag */
-	zc.zc_flags = flags;
-
-	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
+	if (error != 0) {
 		char errbuf[1024];
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "warning: cannot estimate space for '%s'"), zhp->zfs_name);
+		    "warning: cannot estimate space for '%s'"), snapname);
 
-		switch (errno) {
+		switch (error) {
 		case EXDEV:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "not an earlier snapshot from the same fs"));
 			return (zfs_error(hdl, EZFS_CROSSTARGET, errbuf));
 
 		case ENOENT:
-			if (zfs_dataset_exists(hdl, zc.zc_name,
+			if (zfs_dataset_exists(hdl, snapname,
 			    ZFS_TYPE_SNAPSHOT)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "incremental source (@%s) does not exist"),
-				    zc.zc_value);
+				    "incremental source (%s) does not exist"),
+				    snapname);
 			}
 			return (zfs_error(hdl, EZFS_NOENT, errbuf));
 
@@ -1060,15 +1053,14 @@ estimate_ioctl(zfs_handle_t *zhp, uint64_t fromsnap_obj,
 		case ERANGE:
 		case EFAULT:
 		case EROFS:
-			zfs_error_aux(hdl, strerror(errno));
+		case EINVAL:
+			zfs_error_aux(hdl, strerror(error));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
-			return (zfs_standard_error(hdl, errno, errbuf));
+			return (zfs_standard_error(hdl, error, errbuf));
 		}
 	}
-
-	*sizep = zc.zc_objset_type;
 
 	return (0);
 }
@@ -1355,12 +1347,21 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 
 	if (sdd->verbose) {
 		uint64_t size = 0;
-		(void) estimate_ioctl(zhp, sdd->prevsnap_obj,
-		    fromorigin, flags, &size);
+		char fromds[ZFS_MAX_DATASET_NAME_LEN];
 
-		send_print_verbose(fout, zhp->zfs_name,
-		    sdd->prevsnap[0] ? sdd->prevsnap : NULL,
-		    size, sdd->parsable);
+		if (sdd->prevsnap[0] != '\0') {
+			(void) strlcpy(fromds, zhp->zfs_name, sizeof (fromds));
+			*(strchr(fromds, '@') + 1) = '\0';
+			(void) strlcat(fromds, sdd->prevsnap, sizeof (fromds));
+		}
+		if (zfs_send_space(zhp, zhp->zfs_name,
+		    sdd->prevsnap[0] ? fromds : NULL, flags, &size) != 0) {
+			size = 0; /* cannot estimate send space */
+		} else {
+			send_print_verbose(fout, zhp->zfs_name,
+			    sdd->prevsnap[0] ? sdd->prevsnap : NULL,
+			    size, sdd->parsable);
+		}
 		sdd->size += size;
 	}
 
