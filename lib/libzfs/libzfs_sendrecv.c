@@ -870,6 +870,8 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 		}
 		VERIFY(0 == nvlist_add_uint64(nvfs, "origin",
 		    origin->zfs_dmustats.dds_guid));
+
+		zfs_close(origin);
 	}
 
 	/* iterate over props */
