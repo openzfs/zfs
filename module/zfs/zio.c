@@ -126,6 +126,7 @@ static void zio_taskq_dispatch(zio_t *, zio_taskq_type_t, boolean_t);
  */
 int zfs_trim = B_TRUE;
 int zfs_trim_min_ext_sz = 128 << 10;	/* 128k */
+int zfs_trim_sync = B_TRUE;
 
 void
 zio_init(void)
@@ -833,6 +834,8 @@ zio_destroy(zio_t *zio)
 	list_destroy(&zio->io_child_list);
 	mutex_destroy(&zio->io_lock);
 	cv_destroy(&zio->io_cv);
+	if (zio->io_dfl_stats != NULL)
+		kmem_free(zio->io_dfl_stats, sizeof (vdev_stat_trim_t));
 	if (zio->io_dfl != NULL && zio->io_dfl_free_on_destroy)
 		dfl_free(zio->io_dfl);
 	else
@@ -3909,14 +3912,17 @@ zio_vdev_io_assess(zio_t *zio)
 	}
 
 	/*
-	 * If a cache flush returns ENOTSUP or ENOTTY, we know that no future
-	 * attempts will ever succeed. In this case we set a persistent bit so
-	 * that we don't bother with it in the future.
+	 * If a cache flush or discard returns ENOTSUP or ENOTTY, we know that
+	 * no future attempts will ever succeed. In this case we set a
+	 * persistent bit so that we don't bother with it in the future.
 	 */
 	if ((zio->io_error == ENOTSUP || zio->io_error == ENOTTY) &&
-	    zio->io_type == ZIO_TYPE_IOCTL &&
-	    zio->io_cmd == DKIOCFLUSHWRITECACHE && vd != NULL)
-		vd->vdev_nowritecache = B_TRUE;
+	    zio->io_type == ZIO_TYPE_IOCTL && vd != NULL) {
+		if (zio->io_cmd == DKIOCFLUSHWRITECACHE)
+			vd->vdev_nowritecache = B_TRUE;
+		if (zio->io_cmd == DKIOCFREE)
+			vd->vdev_notrim = B_TRUE;
+	}
 
 	if (zio->io_error)
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
@@ -4872,10 +4878,11 @@ MODULE_PARM_DESC(zio_dva_throttle_enabled,
 	"Throttle block allocations in the ZIO pipeline");
 
 module_param(zfs_trim, int, 0644);
-MODULE_PARM_DESC(zfs_trim,
-	"Enable TRIM");
+MODULE_PARM_DESC(zfs_trim, "Enable TRIM");
 
 module_param(zfs_trim_min_ext_sz, int, 0644);
-MODULE_PARM_DESC(zfs_trim_min_ext_sz,
-	"Minimum size to TRIM");
+MODULE_PARM_DESC(zfs_trim_min_ext_sz, "Minimum size to TRIM");
+
+module_param(zfs_trim_sync, int, 0644);
+MODULE_PARM_DESC(zfs_trim_sync, "Issue TRIM commands synchronously");
 #endif
