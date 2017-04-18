@@ -2656,15 +2656,15 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 				if (parsable) {
 					(void) sprintf(valstr, "%llu",
 					    (u_longlong_t)val64);
+					strval = valstr;
+				} else if (field == USFIELD_QUOTA &&
+				    val64 == 0) {
+					strval = "none";
 				} else {
 					zfs_nicebytes(val64, valstr,
 					    sizeof (valstr));
-				}
-				if (field == USFIELD_QUOTA &&
-				    strcmp(valstr, "0") == 0)
-					strval = "none";
-				else
 					strval = valstr;
+				}
 			}
 			break;
 		case USFIELD_OBJUSED:
@@ -2673,15 +2673,15 @@ print_us_node(boolean_t scripted, boolean_t parsable, int *fields, int types,
 				if (parsable) {
 					(void) sprintf(valstr, "%llu",
 					    (u_longlong_t)val64);
+					strval = valstr;
+				} else if (field == USFIELD_OBJQUOTA &&
+				    val64 == 0) {
+					strval = "none";
 				} else {
 					zfs_nicenum(val64, valstr,
 					    sizeof (valstr));
-				}
-				if (field == USFIELD_OBJQUOTA &&
-				    strcmp(valstr, "0") == 0)
-					strval = "none";
-				else
 					strval = valstr;
+				}
 			}
 			break;
 		}
