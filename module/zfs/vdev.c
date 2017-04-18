@@ -3154,13 +3154,19 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				vs->vs_self_healed += psize;
 		}
 
+		if ((!vd->vdev_ops->vdev_op_leaf) ||
+		    (zio->io_priority >= ZIO_PRIORITY_NUM_QUEUEABLE)) {
+			mutex_exit(&vd->vdev_stat_lock);
+			return;
+		}
+
 		/*
 		 * The bytes/ops/histograms are recorded at the leaf level and
 		 * aggregated into the higher level vdevs in vdev_get_stats().
+		 * Successful TRIM zios include aggregate statistics for all
+		 * discards which resulted from the single TRIM zio.
 		 */
-		if (vd->vdev_ops->vdev_op_leaf &&
-		    (zio->io_priority < ZIO_PRIORITY_NUM_QUEUEABLE)) {
-
+		if (!ZIO_IS_TRIM(zio)) {
 			vs->vs_ops[type]++;
 			vs->vs_bytes[type] += psize;
 
@@ -3179,6 +3185,24 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				    [L_HISTO(zio->io_delay)]++;
 				vsx->vsx_total_histo[type]
 				    [L_HISTO(zio->io_delta)]++;
+			}
+		} else if (zio->io_dfl_stats != NULL) {
+			vdev_stat_trim_t *vsd = zio->io_dfl_stats;
+
+			vs->vs_ops[type] += vsd->vsd_ops;
+			vs->vs_bytes[type] += vsd->vsd_bytes;
+
+			for (int i = 0; i < VDEV_RQ_HISTO_BUCKETS; i++)
+				vsx->vsx_ind_histo[zio->io_priority][i] +=
+				    vsd->vsd_ind_histo[i];
+
+			for (int i = 0; i < VDEV_L_HISTO_BUCKETS; i++) {
+				vsx->vsx_queue_histo[zio->io_priority][i] +=
+				    vsd->vsd_queue_histo[i];
+				vsx->vsx_disk_histo[type][i] +=
+				    vsd->vsd_disk_histo[i];
+				vsx->vsx_total_histo[type][i] +=
+				    vsd->vsd_total_histo[i];
 			}
 		}
 
@@ -3257,6 +3281,33 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		}
 		if (vd != rvd)
 			vdev_dtl_dirty(vd, DTL_MISSING, txg, 1);
+	}
+}
+
+/*
+ * Update the aggregate statistics for a TRIM zio.
+ */
+void
+vdev_trim_stat_update(zio_t *zio, uint64_t psize, vdev_trim_stat_flags_t flags)
+{
+	vdev_stat_trim_t *vsd = zio->io_dfl_stats;
+	hrtime_t now = gethrtime();
+	hrtime_t io_delta = io_delta = now - zio->io_timestamp;
+	hrtime_t io_delay = now - zio->io_delay;
+
+	if (flags & TRIM_STAT_OP) {
+		vsd->vsd_ops++;
+		vsd->vsd_bytes += psize;
+	}
+
+	if (flags & TRIM_STAT_RQ_HISTO) {
+		vsd->vsd_ind_histo[RQ_HISTO(psize)]++;
+	}
+
+	if (flags & TRIM_STAT_L_HISTO) {
+		vsd->vsd_queue_histo[L_HISTO(io_delta - io_delay)]++;
+		vsd->vsd_disk_histo[L_HISTO(io_delay)]++;
+		vsd->vsd_total_histo[L_HISTO(io_delta)]++;
 	}
 }
 

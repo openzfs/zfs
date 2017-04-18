@@ -373,14 +373,6 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	    vsx->vsx_agg_histo[ZIO_PRIORITY_SCRUB],
 	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_SCRUB]));
 
-	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_AGG_AUTO_TRIM_HISTO,
-	    vsx->vsx_agg_histo[ZIO_PRIORITY_AUTO_TRIM],
-	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_AUTO_TRIM]));
-
-	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_AGG_MAN_TRIM_HISTO,
-	    vsx->vsx_agg_histo[ZIO_PRIORITY_AUTO_TRIM],
-	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_MAN_TRIM]));
-
 	/* Add extended stats nvlist to main nvlist */
 	fnvlist_add_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX, nvx);
 

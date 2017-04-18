@@ -243,6 +243,7 @@ typedef void zio_done_func_t(zio_t *zio);
 extern int zio_dva_throttle_enabled;
 extern const char *zio_type_name[ZIO_TYPES];
 extern int zfs_trim;
+extern int zfs_trim_sync;
 
 struct range_tree;
 
@@ -429,6 +430,7 @@ struct zio {
 
 	/* Used by trim zios */
 	dkioc_free_list_t	*io_dfl;
+	vdev_stat_trim_t	*io_dfl_stats;
 	boolean_t		io_dfl_free_on_destroy;
 
 	/* Stuff for the vdev stack */

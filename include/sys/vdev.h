@@ -53,6 +53,15 @@ typedef struct vdev_trim_info {
 	void *vti_done_arg;
 } vdev_trim_info_t;
 
+typedef enum vdev_trim_stat_flags
+{
+	TRIM_STAT_OP		= 1 << 0,
+	TRIM_STAT_RQ_HISTO	= 1 << 1,
+	TRIM_STAT_L_HISTO	= 1 << 2,
+} vdev_trim_stat_flags_t;
+
+#define	TRIM_STAT_ALL	(TRIM_STAT_OP | TRIM_STAT_RQ_HISTO | TRIM_STAT_L_HISTO)
+
 extern int zfs_nocacheflush;
 
 extern int vdev_open(vdev_t *);
@@ -98,6 +107,8 @@ extern void vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx);
 extern void vdev_get_stats(vdev_t *vd, vdev_stat_t *vs);
 extern void vdev_clear_stats(vdev_t *vd);
 extern void vdev_stat_update(zio_t *zio, uint64_t psize);
+extern void vdev_trim_stat_update(zio_t *zio, uint64_t psize,
+    vdev_trim_stat_flags_t flags);
 extern void vdev_scan_stat_init(vdev_t *vd);
 extern void vdev_propagate_state(vdev_t *vd);
 extern void vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state,

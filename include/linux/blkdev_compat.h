@@ -513,6 +513,40 @@ bio_is_fua(struct bio *bio)
 }
 
 /*
+ * bio_set_discard - Set the appropriate flags in a bio to indicate
+ * that the specific random of sectors should be discarded.
+ *
+ * 4.8 - 4.x API,
+ *   REQ_OP_DISCARD
+ *
+ * 2.6.36 - 4.7 API,
+ *   REQ_DISCARD
+ *
+ * 2.6.28 - 2.6.35 API,
+ *   BIO_RW_DISCARD
+ *
+ * In all cases the normal I/O path is used for discards.  The only
+ * difference is how the kernel tags individual I/Os as discards.
+ *
+ * Note that 2.6.32 era kernels provide both BIO_RW_DISCARD and REQ_DISCARD,
+ * where BIO_RW_DISCARD is the correct interface.  Therefore, it is important
+ * that the HAVE_BIO_RW_DISCARD check occur before the REQ_DISCARD check.
+ */
+static inline void
+bio_set_discard(struct bio *bio)
+{
+#if defined(HAVE_REQ_OP_DISCARD)
+	bio_set_op_attrs(bio, REQ_OP_DISCARD, 0);
+#elif defined(HAVE_BIO_RW_DISCARD)
+	bio_set_op_attrs(bio, (1 << BIO_RW_DISCARD), 0);
+#elif defined(REQ_DISCARD)
+	bio_set_op_attrs(bio, REQ_WRITE | REQ_DISCARD, 0);
+#else
+#error	"Allowing the build will cause discard requests to become writes."
+#endif
+}
+
+/*
  * 4.8 - 4.x API,
  *   REQ_OP_DISCARD
  *
