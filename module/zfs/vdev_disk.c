@@ -379,14 +379,13 @@ vdev_disk_dio_alloc(int bio_count)
 
 	dr = kmem_zalloc(sizeof (dio_request_t) +
 	    sizeof (struct bio *) * bio_count, KM_SLEEP);
-	if (dr) {
-		atomic_set(&dr->dr_ref, 0);
-		dr->dr_bio_count = bio_count;
-		dr->dr_error = 0;
 
-		for (i = 0; i < dr->dr_bio_count; i++)
-			dr->dr_bio[i] = NULL;
-	}
+	atomic_set(&dr->dr_ref, 0);
+	dr->dr_bio_count = bio_count;
+	dr->dr_error = 0;
+
+	for (i = 0; i < dr->dr_bio_count; i++)
+		dr->dr_bio[i] = NULL;
 
 	return (dr);
 }
@@ -437,6 +436,25 @@ vdev_disk_dio_put(dio_request_t *dr)
 
 	return (rc);
 }
+
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+static void
+vdev_disk_dio_blk_start_plug(dio_request_t *dr, struct blk_plug *plug)
+{
+	if (dr->dr_bio_count > 1)
+		blk_start_plug(plug);
+}
+
+static void
+vdev_disk_dio_blk_finish_plug(dio_request_t *dr, struct blk_plug *plug)
+{
+	if (dr->dr_bio_count > 1)
+		blk_finish_plug(plug);
+}
+#else
+#define	vdev_disk_dio_blk_start_plug(dr, plug)	((void)0)
+#define	vdev_disk_dio_blk_finish_plug(dr, plug)	((void)0)
+#endif /* HAVE_BLK_QUEUE_HAVE_BLK_PLUG */
 
 BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 {
@@ -629,22 +647,14 @@ retry:
 
 	/* Extra reference to protect dio_request during vdev_submit_bio */
 	vdev_disk_dio_get(dr);
-
-#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
-	if (dr->dr_bio_count > 1)
-		blk_start_plug(&plug);
-#endif
+	vdev_disk_dio_blk_start_plug(dr, &plug);
 
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
 			vdev_submit_bio(dr->dr_bio[i]);
 
-#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
-	if (dr->dr_bio_count > 1)
-		blk_finish_plug(&plug);
-#endif
-
+	vdev_disk_dio_blk_finish_plug(dr, &plug);
 	(void) vdev_disk_dio_put(dr);
 
 	return (error);
@@ -690,6 +700,151 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio_set_flush(bio);
 	vdev_submit_bio(bio);
 	invalidate_bdev(bdev);
+
+	return (0);
+}
+
+static int
+vdev_disk_io_discard_sync(struct block_device *bdev, zio_t *zio)
+{
+	dkioc_free_list_t *dfl = zio->io_dfl;
+
+	zio->io_dfl_stats = kmem_zalloc(sizeof (vdev_stat_trim_t), KM_SLEEP);
+
+	for (int i = 0; i < dfl->dfl_num_exts; i++) {
+		int error;
+
+		if (dfl->dfl_exts[i].dfle_length == 0)
+			continue;
+
+		error = -blkdev_issue_discard(bdev,
+		    (dfl->dfl_exts[i].dfle_start + dfl->dfl_offset) >> 9,
+		    dfl->dfl_exts[i].dfle_length >> 9, GFP_NOFS, 0);
+		if (error != 0) {
+			return (SET_ERROR(error));
+		} else {
+			vdev_trim_stat_update(zio,
+			    dfl->dfl_exts[i].dfle_length, TRIM_STAT_ALL);
+		}
+	}
+
+	return (0);
+}
+
+BIO_END_IO_PROTO(vdev_disk_io_discard_completion, bio, error)
+{
+	dio_request_t *dr = bio->bi_private;
+	zio_t *zio = dr->dr_zio;
+
+	if (dr->dr_error == 0) {
+#ifdef HAVE_1ARG_BIO_END_IO_T
+		dr->dr_error = BIO_END_IO_ERROR(bio);
+#else
+		if (error)
+			dr->dr_error = -(error);
+		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+			dr->dr_error = EIO;
+#endif
+	}
+
+	/*
+	 * Only the latency is updated at completion.  The ops and request
+	 * size must be update when submitted since the size is no longer
+	 * available as part of the bio.
+	 */
+	vdev_trim_stat_update(zio, 0, TRIM_STAT_L_HISTO);
+
+	/* Drop reference acquired by vdev_disk_io_discard() */
+	(void) vdev_disk_dio_put(dr);
+}
+
+/*
+ * zio->io_dfl contains a dkioc_free_list_t specifying which offsets are to
+ * be freed.  Individual bio requests are constructed for each discard and
+ * submitted to the block layer to be handled asynchronously.  Any range
+ * with a length of zero or a length larger than UINT_MAX are ignored.
+ */
+static int
+vdev_disk_io_discard(struct block_device *bdev, zio_t *zio)
+{
+	dio_request_t *dr;
+	dkioc_free_list_t *dfl = zio->io_dfl;
+	unsigned int max_discard_sectors;
+	unsigned int alignment, granularity;
+	struct request_queue *q;
+#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
+	struct blk_plug plug;
+#endif
+
+	q = bdev_get_queue(bdev);
+	if (!q)
+		return (SET_ERROR(ENXIO));
+
+	if (!blk_queue_discard(q))
+		return (SET_ERROR(ENOTSUP));
+
+	zio->io_dfl_stats = kmem_zalloc(sizeof (vdev_stat_trim_t), KM_SLEEP);
+	dr = vdev_disk_dio_alloc(0);
+	dr->dr_zio = zio;
+
+	granularity = MAX(q->limits.discard_granularity >> 9, 1U);
+	alignment = (bdev_discard_alignment(bdev) >> 9) % granularity;
+
+	max_discard_sectors = MIN(q->limits.max_discard_sectors, UINT_MAX >> 9);
+	max_discard_sectors -= max_discard_sectors % granularity;
+
+	/* Extra reference to protect dio_request during vdev_submit_bio */
+	vdev_disk_dio_get(dr);
+	vdev_disk_dio_blk_start_plug(dr, &plug);
+
+	for (int i = 0; i < dfl->dfl_num_exts; i++) {
+		uint64_t nr_sectors = dfl->dfl_exts[i].dfle_length >> 9;
+		uint64_t sector = (dfl->dfl_exts[i].dfle_start +
+		    dfl->dfl_offset) >> 9;
+		struct bio *bio;
+		unsigned int request_sectors;
+		sector_t end_sector;
+
+		while (nr_sectors > 0) {
+			bio = bio_alloc(GFP_NOIO, 1);
+			if (unlikely(bio == NULL))
+				break;
+
+			request_sectors = min_t(sector_t, nr_sectors,
+			    max_discard_sectors);
+
+			/* When splitting requests align the end of each. */
+			end_sector = sector + request_sectors;
+			if (request_sectors < nr_sectors &&
+			    (end_sector % granularity) != alignment) {
+				end_sector = ((end_sector - alignment) /
+				    granularity) * granularity + alignment;
+				request_sectors = end_sector - sector;
+			}
+
+			bio_set_dev(bio, bdev);
+			bio->bi_end_io = vdev_disk_io_discard_completion;
+			bio->bi_private = dr;
+			bio_set_discard(bio);
+			BIO_BI_SECTOR(bio) = sector;
+			BIO_BI_SIZE(bio) = request_sectors << 9;
+
+			nr_sectors -= request_sectors;
+			sector = end_sector;
+
+			vdev_trim_stat_update(zio, BIO_BI_SIZE(bio),
+			    TRIM_STAT_OP | TRIM_STAT_RQ_HISTO);
+
+			/* Matching put in vdev_disk_discard_completion */
+			vdev_disk_dio_get(dr);
+			vdev_submit_bio(bio);
+
+			cond_resched();
+		}
+	}
+
+	vdev_disk_dio_blk_finish_plug(dr, &plug);
+	(void) vdev_disk_dio_put(dr);
 
 	return (0);
 }
@@ -756,8 +911,6 @@ vdev_disk_io_start(zio_t *zio)
 			break;
 
 		case DKIOCFREE:
-		{
-			dkioc_free_list_t *dfl;
 
 			if (!zfs_trim)
 				break;
@@ -775,35 +928,19 @@ vdev_disk_io_start(zio_t *zio)
 				break;
 			}
 
-			/*
-			 * zio->io_dfl contains a dkioc_free_list_t
-			 * specifying which offsets are to be freed
-			 */
-			dfl = zio->io_dfl;
-			ASSERT(dfl != NULL);
-
-			for (int i = 0; i < dfl->dfl_num_exts; i++) {
-				int error;
-
-				if (dfl->dfl_exts[i].dfle_length == 0)
-					continue;
-
-				error = -blkdev_issue_discard(vd->vd_bdev,
-				    (dfl->dfl_exts[i].dfle_start +
-				    dfl->dfl_offset) >> 9,
-				    dfl->dfl_exts[i].dfle_length >> 9,
-				    GFP_NOFS, 0);
-
-				if (error != 0) {
-					if (error == EOPNOTSUPP ||
-					    error == ENXIO)
-						v->vdev_notrim = B_TRUE;
-					zio->io_error = SET_ERROR(error);
-					break;
-				}
+			if (zfs_trim_sync) {
+				error = vdev_disk_io_discard_sync(vd->vd_bdev,
+				    zio);
+			} else {
+				error = vdev_disk_io_discard(vd->vd_bdev, zio);
+				if (error == 0)
+					return;
 			}
+
+			zio->io_error = error;
+
 			break;
-		}
+
 		default:
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
