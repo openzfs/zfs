@@ -235,6 +235,10 @@ vdev_file_io_start(zio_t *zio)
 			ASSERT(dfl != NULL);
 			if (!zfs_trim)
 				break;
+
+			zio->io_dfl_stats = kmem_zalloc(
+			    sizeof (vdev_stat_trim_t), KM_SLEEP);
+
 			for (int i = 0; i < dfl->dfl_num_exts; i++) {
 				struct flock flck;
 				int error;
@@ -254,6 +258,9 @@ vdev_file_io_start(zio_t *zio)
 				if (error != 0) {
 					zio->io_error = SET_ERROR(error);
 					break;
+				} else {
+					vdev_trim_stat_update(zio, flck.l_len,
+					    TRIM_STAT_ALL);
 				}
 			}
 			break;

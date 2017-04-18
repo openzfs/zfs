@@ -637,9 +637,9 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_W_ACTIVE_QUEUE	"vdev_async_w_active_queue"
 #define	ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE	"vdev_async_scrub_active_queue"
 #define	ZPOOL_CONFIG_VDEV_AUTO_TRIM_ACTIVE_QUEUE \
-    "vdev_async_auto_trim_active_queue"
+	"vdev_async_auto_trim_active_queue"
 #define	ZPOOL_CONFIG_VDEV_MAN_TRIM_ACTIVE_QUEUE \
-    "vdev_async_man_trim_active_queue"
+	"vdev_async_man_trim_active_queue"
 
 /* Queue sizes */
 #define	ZPOOL_CONFIG_VDEV_SYNC_R_PEND_QUEUE	"vdev_sync_r_pend_queue"
@@ -648,9 +648,9 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_W_PEND_QUEUE	"vdev_async_w_pend_queue"
 #define	ZPOOL_CONFIG_VDEV_SCRUB_PEND_QUEUE	"vdev_async_scrub_pend_queue"
 #define	ZPOOL_CONFIG_VDEV_AUTO_TRIM_PEND_QUEUE \
-    "vdev_async_auto_trim_pend_queue"
+	"vdev_async_auto_trim_pend_queue"
 #define	ZPOOL_CONFIG_VDEV_MAN_TRIM_PEND_QUEUE \
-    "vdev_async_man_trim_pend_queue"
+	"vdev_async_man_trim_pend_queue"
 
 /* Latency read/write histogram stats */
 #define	ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO	"vdev_tot_r_lat_histo"
@@ -677,9 +677,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_ASYNC_AGG_W_HISTO	"vdev_async_agg_w_histo"
 #define	ZPOOL_CONFIG_VDEV_AGG_SCRUB_HISTO	"vdev_agg_scrub_histo"
 #define	ZPOOL_CONFIG_VDEV_IND_AUTO_TRIM_HISTO	"vdev_ind_auto_trim_histo"
-#define	ZPOOL_CONFIG_VDEV_AGG_AUTO_TRIM_HISTO	"vdev_agg_auto_trim_histo"
 #define	ZPOOL_CONFIG_VDEV_IND_MAN_TRIM_HISTO	"vdev_ind_man_trim_histo"
-#define	ZPOOL_CONFIG_VDEV_AGG_MAN_TRIM_HISTO	"vdev_agg_man_trim_histo"
 
 /* Number of slow IOs */
 #define	ZPOOL_CONFIG_VDEV_SLOW_IOS		"vdev_slow_ios"
@@ -1098,6 +1096,21 @@ typedef enum pool_initialize_func {
 	POOL_INITIALIZE_SUSPEND,
 	POOL_INITIALIZE_FUNCS
 } pool_initialize_func_t;
+
+/*
+ * Discard stats
+ *
+ * Aggregate statistics for all discards issued as part of a zio TRIM.
+ * They are merged with standard and extended stats when the zio is done.
+ */
+typedef struct vdev_stat_trim {
+	uint64_t	vsd_ops;
+	uint64_t	vsd_bytes;
+	uint64_t	vsd_ind_histo[VDEV_RQ_HISTO_BUCKETS];
+	uint64_t	vsd_queue_histo[VDEV_L_HISTO_BUCKETS];
+	uint64_t	vsd_disk_histo[VDEV_L_HISTO_BUCKETS];
+	uint64_t	vsd_total_histo[VDEV_L_HISTO_BUCKETS];
+} vdev_stat_trim_t;
 
 /*
  * DDT statistics.  Note: all fields should be 64-bit because this

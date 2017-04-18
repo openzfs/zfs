@@ -195,7 +195,7 @@ enum iostat_type {
  * of all the nvlists a flag requires.  Also specifies the order in
  * which data gets printed in zpool iostat.
  */
-static const char *vsx_type_to_nvlist[IOS_COUNT][15] = {
+static const char *vsx_type_to_nvlist[IOS_COUNT][13] = {
 	[IOS_L_HISTO] = {
 	    ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO,
 	    ZPOOL_CONFIG_VDEV_TOT_W_LAT_HISTO,
@@ -239,9 +239,7 @@ static const char *vsx_type_to_nvlist[IOS_COUNT][15] = {
 	    ZPOOL_CONFIG_VDEV_IND_SCRUB_HISTO,
 	    ZPOOL_CONFIG_VDEV_AGG_SCRUB_HISTO,
 	    ZPOOL_CONFIG_VDEV_IND_AUTO_TRIM_HISTO,
-	    ZPOOL_CONFIG_VDEV_AGG_AUTO_TRIM_HISTO,
 	    ZPOOL_CONFIG_VDEV_IND_MAN_TRIM_HISTO,
-	    ZPOOL_CONFIG_VDEV_AGG_MAN_TRIM_HISTO,
 	    NULL},
 };
 
@@ -3392,7 +3390,7 @@ static const name_and_columns_t iostat_top_labels[][IOSTAT_MAX_LABELS] =
 	    {"sync_queue", 2}, {"async_queue", 2}, {NULL}},
 	[IOS_RQ_HISTO] = {{"sync_read", 2}, {"sync_write", 2},
 	    {"async_read", 2}, {"async_write", 2}, {"scrub", 2},
-	    {"auto_trim", 2}, {"man_trim", 2}, {NULL}},
+	    {"trim", 2}, {NULL}},
 
 };
 
@@ -3411,8 +3409,7 @@ static const name_and_columns_t iostat_bottom_labels[][IOSTAT_MAX_LABELS] =
 	    {"write"}, {"read"}, {"write"}, {"scrub"}, {"atrim"},
 	    {"mtrim"}, {NULL}},
 	[IOS_RQ_HISTO] = {{"ind"}, {"agg"}, {"ind"}, {"agg"}, {"ind"}, {"agg"},
-	    {"ind"}, {"agg"}, {"ind"}, {"agg"}, {"ind"}, {"agg"}, {"ind"},
-	    {"agg"}, {NULL}},
+	    {"ind"}, {"agg"}, {"ind"}, {"agg"}, {"auto"}, {"man"}, {NULL}},
 };
 
 static const char *histo_to_title[] = {
