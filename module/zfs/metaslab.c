@@ -226,6 +226,14 @@ kmem_cache_t *metaslab_alloc_trace_cache;
  * recovery (extents won't get trimmed immediately, but instead only
  * after passing this rather long timeout, thus preserving
  * 'zfs import -F' functionality).
+ * The exact default value of this tunable is a tradeoff between:
+ * 1) Keeping the trim commands reasonably small.
+ * 2) Keeping the ability to rollback back for as many txgs as possible.
+ * 3) Waiting around too long that the user starts to get uneasy about not
+ *	seeing any space being freed after they remove some files.
+ * The default value of 32 is the maximum number of uberblocks in a vdev
+ * label, assuming a 4k physical sector size (which seems to be the almost
+ * universal smallest sector size used in SSDs).
  */
 unsigned int zfs_txgs_per_trim = 32;
 /*
@@ -2509,8 +2517,13 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * the defer_tree.
 	 */
 	if (spa_get_auto_trim(spa) == SPA_AUTO_TRIM_ON &&
-	    !vd->vdev_man_trimming)
+	    !vd->vdev_man_trimming) {
 		range_tree_walk(*defer_tree, metaslab_trim_add, msp);
+		if (!defer_allowed) {
+			range_tree_walk(msp->ms_freedtree, metaslab_trim_add,
+			    msp);
+		}
+	}
 	range_tree_vacate(*defer_tree,
 	    msp->ms_loaded ? range_tree_add : NULL, msp->ms_tree);
 	if (defer_allowed) {
@@ -3774,6 +3787,8 @@ metaslab_trim_remove(void *arg, uint64_t offset, uint64_t size)
 	range_tree_clear(msp->ms_cur_ts->ts_tree, offset, size);
 	if (msp->ms_prev_ts != NULL)
 		range_tree_clear(msp->ms_prev_ts->ts_tree, offset, size);
+	ASSERT(msp->ms_trimming_ts == NULL ||
+	    !range_tree_contains(msp->ms_trimming_ts->ts_tree, offset, size));
 }
 
 /*
@@ -3794,8 +3809,7 @@ metaslab_trim_add(void *arg, uint64_t offset, uint64_t size)
 }
 
 /*
- * Does a metaslab's automatic trim operation processing. This must be
- * called from metaslab_sync, with the txg number of the txg. This function
+ * Does a metaslab's automatic trim operation processing. This function
  * issues trims in intervals as dictated by the zfs_txgs_per_trim tunable.
  * If the previous trimset has not yet finished trimming, this function
  * decides what to do based on `preserve_spilled'. If preserve_spilled is
@@ -3946,9 +3960,13 @@ metaslab_trim_done(zio_t *zio)
  * until that trim completes.
  * The `auto_trim' argument signals whether the trim is being invoked on
  * behalf of auto or manual trim. The differences are:
- * 1) For auto trim the trimset is split up into zios of no more than
- *	zfs_max_bytes_per_trim bytes. Manual trim already does this
- *	earlier, so the whole trimset is issued in a single zio.
+ * 1) For auto trim the trimset is split up into subtrees, each containing no
+ *	more than zfs_max_bytes_per_trim total bytes. Each subtree is then
+ *	trimmed in one zio. This is done to limit the number of LBAs per
+ *	trim command, as many devices perform suboptimally with large trim
+ *	commands, even if they indicate support for them. Manual trim already
+ *	applies this limit earlier by limiting the trimset size, so the
+ *	whole trimset can be issued in a single zio.
  * 2) The zio(s) generated are tagged with either ZIO_PRIORITY_AUTO_TRIM or
  *	ZIO_PRIORITY_MAN_TRIM to allow differentiating them further down
  *	the pipeline (see zio_priority_t in sys/zio_priority.h).
