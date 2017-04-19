@@ -463,7 +463,7 @@ typedef int zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,
     uint64_t txg);
 typedef int zil_parse_lr_func_t(zilog_t *zilog, lr_t *lr, void *arg,
     uint64_t txg);
-typedef int (*const zil_replay_func_t)(void *, char *, boolean_t);
+typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
 typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf, zio_t *zio);
 
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
@@ -480,7 +480,7 @@ extern zilog_t	*zil_open(objset_t *os, zil_get_data_t *get_data);
 extern void	zil_close(zilog_t *zilog);
 
 extern void	zil_replay(objset_t *os, void *arg,
-    zil_replay_func_t replay_func[TX_MAX_TYPE]);
+    zil_replay_func_t *replay_func[TX_MAX_TYPE]);
 extern boolean_t zil_replaying(zilog_t *zilog, dmu_tx_t *tx);
 extern void	zil_destroy(zilog_t *zilog, boolean_t keep_first);
 extern void	zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
