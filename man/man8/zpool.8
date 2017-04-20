@@ -96,7 +96,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-lq\fR]|[\fB-r\fR|-\fBw\fR]]
+\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLMpPvy\fR] [\fB-lq\fR]|[\fB-r\fR|-\fBw\fR]]
      [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .fi
@@ -159,7 +159,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLMPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .fi
 
 .LP
@@ -1523,7 +1523,7 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .sp
 .ne 2
 .na
-\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [[\fB-lq\fR]|[\fB-r\fR|\fB-w\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLMpPvy\fR] [[\fB-lq\fR]|[\fB-r\fR|\fB-w\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .ad
 .sp .6
@@ -1596,6 +1596,15 @@ Scripted mode. Do not display headers, and separate fields by a single tab inste
 .ad
 .RS 12n
 Display real paths for vdevs resolving all symbolic links. This can be used to look up the current block device name regardless of the /dev/disk/ path used to open it.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-M\fR\fR
+.ad
+.RS 12n
+Display the media type of device a pool or vdev is based on: ssd, hdd or file.  Mixed mirror vdevs that have both ssd (or file) and hdd members are marked "mix".  A pool is considered ssd or mixed if all members are at least ssd or mixed, i.e. it has no lower-grade top-level vdevs.  These definitions may change in the future and should not be considered a stable API.
 .RE
 
 .sp
@@ -2103,7 +2112,7 @@ Sets the specified property for \fInewpool\fR. See the “Properties” section 
 .sp
 .ne 2
 .na
-\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLMPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .ad
 .sp .6
 .RS 4n
@@ -2148,6 +2157,15 @@ Display vdev GUIDs instead of the normal device names. These GUIDs can be used i
 .ad
 .RS 12n
 Display real paths for vdevs resolving all symbolic links. This can be used to look up the current block device name regardless of the /dev/disk/ path used to open it.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-M\fR\fR
+.ad
+.RS 12n
+Display the media type of device a pool or vdev is based on: ssd, hdd or file.  Mixed mirror vdevs that have both ssd (or file) and hdd members are marked "mix".  A pool is considered ssd or mixed if all members are at least ssd or mixed, i.e. it has no lower-grade top-level vdevs.  These definitions may change in the future and should not be considered a stable API.
 .RE
 
 .sp

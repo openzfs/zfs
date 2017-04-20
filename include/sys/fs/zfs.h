@@ -600,6 +600,9 @@ typedef struct zpool_rewind_policy {
 /* vdev enclosure sysfs path */
 #define	ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH	"vdev_enc_sysfs_path"
 
+/* Type (ssd, file, mix, hdd) (part of vdev_stat_ex_t) */
+#define	ZPOOL_CONFIG_VDEV_MEDIA_TYPE	"media_type"
+
 #define	ZPOOL_CONFIG_WHOLE_DISK		"whole_disk"
 #define	ZPOOL_CONFIG_ERRCOUNT		"error_count"
 #define	ZPOOL_CONFIG_NOT_PRESENT	"not_present"
@@ -735,6 +738,14 @@ typedef enum vdev_aux {
 	VDEV_AUX_SPLIT_POOL,	/* vdev was split off into another pool	*/
 	VDEV_AUX_BAD_ASHIFT	/* vdev ashift is invalid		*/
 } vdev_aux_t;
+
+typedef enum vdev_media_type_info {
+	VDEV_MEDIA_TYPE_UNKNOWN = 0,	/* not set yet			*/
+	VDEV_MEDIA_TYPE_SSD,		/* device is solid state	*/
+	VDEV_MEDIA_TYPE_FILE,		/* device is file backed	*/
+	VDEV_MEDIA_TYPE_MIXED,		/* device has both types	*/
+	VDEV_MEDIA_TYPE_HDD		/* device is not solid state	*/
+} vdev_media_type_info_t;
 
 /*
  * pool state.  The following states are written to disk as part of the normal
@@ -893,6 +904,11 @@ typedef struct vdev_stat_ex {
 	uint64_t vsx_agg_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
 	    [VDEV_RQ_HISTO_BUCKETS];
 
+	/*
+	 * Rotational type of vdev (ssd, file, mixed, hdd).
+	 * Exported as one value.
+	 */
+	uint64_t vsx_media_type;
 } vdev_stat_ex_t;
 
 /*

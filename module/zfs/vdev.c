@@ -1176,6 +1176,7 @@ vdev_open_children(vdev_t *vd)
 	taskq_t *tq;
 	int children = vd->vdev_children;
 	int c;
+	boolean_t nonrot_some;
 
 	/*
 	 * in order to handle pools on top of zvols, do the opens
@@ -1201,9 +1202,19 @@ retry_sync:
 	}
 
 	vd->vdev_nonrot = B_TRUE;
+	vd->vdev_nonrot_mix = B_TRUE;
+	nonrot_some = B_FALSE;
 
-	for (c = 0; c < children; c++)
+	for (c = 0; c < children; c++) {
 		vd->vdev_nonrot &= vd->vdev_child[c]->vdev_nonrot;
+		vd->vdev_nonrot_mix &= vd->vdev_child[c]->vdev_nonrot_mix |
+		    vd->vdev_child[c]->vdev_nonrot;
+		nonrot_some |= vd->vdev_child[c]->vdev_nonrot;
+	}
+	if (vd->vdev_ops == &vdev_mirror_ops)
+		vd->vdev_nonrot_mix |= nonrot_some;
+	if (vd->vdev_nonrot)
+		vd->vdev_nonrot_mix = B_FALSE;
 }
 
 /*
@@ -2913,6 +2924,17 @@ vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			vsx->vsx_pend_queue[t] = avl_numnodes(
 			    &vd->vdev_queue.vq_class[t].vqc_queued_tree);
 		}
+	}
+	if (vsx) {
+		if (vd->vdev_nonrot) {
+			if (vd->vdev_ops == &vdev_file_ops)
+				vsx->vsx_media_type = VDEV_MEDIA_TYPE_FILE;
+			else
+				vsx->vsx_media_type = VDEV_MEDIA_TYPE_SSD;
+		} else if (vd->vdev_nonrot_mix)
+			vsx->vsx_media_type = VDEV_MEDIA_TYPE_MIXED;
+		else
+			vsx->vsx_media_type = VDEV_MEDIA_TYPE_HDD;
 	}
 }
 
