@@ -175,12 +175,12 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR|\fIbookmark\fR] \fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBi\fR|\fBI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-Le\fR] [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-Lec\fR] [\fB-i \fIsnapshot\fR|\fIbookmark\fR]\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
@@ -2725,7 +2725,7 @@ See \fBzpool-features\fR(5) for details on ZFS feature flags and the
 .sp
 .ne 2
 .na
-\fBzfs send\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR|\fIbookmark\fR] \fIsnapshot\fR
+\fBzfs send\fR [\fB-DnPpRveLc\fR] [\fB-\fR[\fBi\fR|\fBI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2733,11 +2733,11 @@ Creates a stream representation of the (second, if \fB-i\fR is specified) \fIsna
 .sp
 .ne 2
 .na
-\fB\fB-i\fR \fIsnapshot\fR|\fIbookmark\fR
+\fB\fB-i\fR \fIsnapshot\fR\fR
 .ad
 .sp .6
 .RS 4n
-Generate an incremental stream from the first \fIsnapshot\fR or \fIbookmark\fR (the incremental source) to the second \fIsnapshot\fR (the incremental target).  The incremental source can be specified as the last component of the snapshot name (the \fB@\fR or \fB#\fR character and following) and it is assumed to be from the same file system as the incremental target.
+Generate an incremental stream from the first \fIsnapshot\fR (the incremental source) to the second \fIsnapshot\fR (the incremental target).  The incremental source can be specified as the last component of the snapshot name (the \fB@\fR character and following) and it is assumed to be from the same file system as the incremental target.
 .sp
 If the destination is a clone, the source may be the origin snapshot, which must be fully specified (for example, \fBpool/fs@origin\fR, not just \fB@origin\fR).
 .RE
@@ -2749,7 +2749,7 @@ If the destination is a clone, the source may be the origin snapshot, which must
 .ad
 .sp .6
 .RS 4n
-Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source may be specified as with the \fB-i\fR option. At this time bookmarks are not supported when using \fB-I\fR.
+Generate a stream package that sends all intermediary snapshots from the first snapshot to the second snapshot. For example, \fB-I @a fs@d\fR is similar to \fB-i @a fs@b; -i @b fs@c; -i @c fs@d\fR. The incremental source may be specified as with the \fB-i\fR option.
 .RE
 
 .sp
