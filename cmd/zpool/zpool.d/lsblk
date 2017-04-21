@@ -68,7 +68,7 @@ for i in $list ; do
 	# Special case: Looking up the size of a file-based vdev can't
 	# be done with lsblk.
 	if [ "$i" = "size" ] && [ -f "$VDEV_UPATH" ] ; then
-		size="$(du -h --apparent-size $VDEV_UPATH | cut -f 1)"
+		size=$(du -h --apparent-size "$VDEV_UPATH" | cut -f 1)
 		echo "size=$size"
 		continue
 	fi
