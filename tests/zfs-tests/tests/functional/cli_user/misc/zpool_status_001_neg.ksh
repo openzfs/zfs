@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -67,25 +67,6 @@ log_must eval "zpool status $TESTPOOL> /tmp/pool-status.$$"
 check_pool_status
 
 log_must eval "zpool status -v $TESTPOOL > /tmp/pool-status.$$"
-check_pool_status
-
-# Make sure -c option works, and that VDEV_PATH and VDEV_UPATH get set.
-#
-# grep for '^\s+/' to just get the vdevs (not pools).  All vdevs will start with
-# a '/' when we specify the path (-P) flag. We check for "{}" to see if one
-# of the VDEV variables isn't set.
-C1=$(zpool status -P | grep -E '^\s+/' | wc -l)
-C2=$(zpool status -P -c 'echo vdev_test{$VDEV_PATH}{$VDEV_UPATH}' | \
-    grep -E '^\s+/' | grep -v '{}' | wc -l)
-
-if [ "$C1" != "$C2" ] ; then
-	log_fail "zpool status -c option failed.  Expected $C1 vdevs, got $C2"
-else
-	log_pass "zpool status -c option passed.  Expected $C1 vdevs, got $C2"
-fi
-
-# $TESTPOOL.virt has an offline device, so -x will show it
-log_must eval "zpool status -x $TESTPOOL.virt > /tmp/pool-status.$$"
 check_pool_status
 
 log_pass "zpool status works when run as a user"

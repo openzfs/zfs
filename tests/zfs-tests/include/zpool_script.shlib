@@ -1,0 +1,50 @@
+#!/bin/ksh -p
+#
+# Common functions used by the zpool_status and zpool_iostat tests for running
+# scripts with the -c option.
+#
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+function test_zpool_script {
+	script="$1"
+	testpool="$2"
+	cmd="$3"
+	wholecmd="$cmd $script $testpool"
+	out="$($wholecmd)"
+
+	# Default number of columns that get printed without -c
+	if echo "$cmd" | grep -q iostat ; then
+		# iostat
+		dcols=7
+	else
+		
+		# status
+		dcols=5
+	fi
+		
+	# Get the new column name that the script created
+	col="$(echo "$out" | \
+	    awk '/^pool +alloc +free +read +write +/ {print $8} \
+	    /NAME +STATE +READ +WRITE +CKSUM/ {print $6}')"
+
+	if [ -z "$col" ] ; then
+		log_fail "'$wholecmd' created no new columns"
+	fi
+
+	# Count the number of columns for each vdev.  Each script should produce
+	# at least one new column value.  Even if scripts return blank, zpool
+	# will convert the blank to a '-' to make things awk-able.  Normal
+	# zpool iostat -v output is 7 columns, so if the script ran correctly
+	# we should see more than that.
+	if ! newcols=$(echo "$out" | \
+	    awk '/\/dev/{print NF-'$dcols'; if (NF <= '$dcols') {exit 1}}' | \
+	    head -n 1) ; \
+	    then
+		log_fail "'$wholecmd' didn't create a new column value"
+	else
+		log_note "'$wholecmd' passed ($newcols new columns)"
+	fi
+}

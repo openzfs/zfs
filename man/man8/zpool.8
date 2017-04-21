@@ -96,7 +96,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [\fB-lq\fR]|[\fB-r\fR|-\fBw\fR]]
+\fB\fBzpool iostat\fR [[[\fB-c\fR \fBSCRIPT\fR] [\fB-lq\fR]] | \fB-rw\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR]
      [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .fi
@@ -159,7 +159,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-c\fR \fBSCRIPT\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .fi
 
 .LP
@@ -1523,7 +1523,7 @@ Scan using the default search path, the libblkid cache will not be consulted.  A
 .sp
 .ne 2
 .na
-\fB\fBzpool iostat\fR [\fB-c\fR \fBCMD\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [[\fB-lq\fR]|[\fB-r\fR|\fB-w\fR]] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
+\fB\fBzpool iostat\fR [[[\fB-c\fR \fBSCRIPT\fR] [\fB-lq\fR]] | \fB-rw\fR] [\fB-T\fR \fBd\fR | \fBu\fR] [\fB-ghHLpPvy\fR] [[\fIpool\fR ...]|[\fIpool vdev\fR ...]|[\fIvdev\fR ...]] [\fIinterval\fR[\fIcount\fR]]\fR
 
 .ad
 .sp .6
@@ -1542,14 +1542,33 @@ base 1024.  To get the raw values, use the \fB-p\fR flag.
 .sp
 .ne 2
 .na
-\fB\fB-c\fR \fBCMD\fR
+\fB\fB-c\fR \fB[SCRIPT1,SCRIPT2,...]\fR
 .ad
 .RS 12n
-Run a command on each vdev and include first line of output
+Run a script (or scripts) on each vdev and include the output in zpool iostat
 .sp
-The \fB-c\fR option allows you to run an arbitrary command on each vdev and
-display the first line of output in zpool iostat.  The following environment
-vars are set before running each command:
+The \fB-c\fR option allows you to run script(s) for each vdev and display the
+output in zpool iostat.  For security reasons, a user can only execute scripts
+found in the /<etc>/zfs/zpool.d directory as an unprivileged user.  However, a
+privileged user can run \fB-c\fR if they have the ZPOOL_SCRIPTS_AS_ROOT
+environment variable set.  If a script requires the use of a privileged
+command (like smartctl) then it's recommended you allow the user access to it in
+/etc/sudoers.  For example, to allow user "zfsuser" access to "smartctl -a", add
+the following to /etc/sudoers:
+
+zfsuser ALL=NOPASSWD: /usr/sbin/smartctl -a /dev/sd[a-z]*, NOEXEC: /usr/sbin/smartctl -a /dev/sd[a-z]*`
+
+If \fB-c\fR is passed without a script name, it prints a list of all scripts.
+\fB-c\fR also sets verbose mode (\fB-v\fR).
+
+Script output should be in the form of "name=value".  The column name is
+set to "name" and the value is set to "value".  Multiple lines can be used to
+output multiple columns.  The first line of output not in the "name=value"
+format is displayed without a column title, and no more output after that is
+displayed.  This can be useful for printing error messages.  Blank or NULL
+values are printed as a '-' to make output awk-able.
+
+The following environment variables are set before running each script:
 .sp
 \fB$VDEV_PATH\fR: Full path to the vdev.
 .LP
@@ -2103,7 +2122,7 @@ Sets the specified property for \fInewpool\fR. See the “Properties” section 
 .sp
 .ne 2
 .na
-\fBzpool status\fR [\fB-c\fR \fBCMD\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+\fBzpool status\fR [\fB-c\fR \fB[SCRIPT1,SCRIPT2,...] \fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
 .ad
 .sp .6
 .RS 4n
@@ -2114,14 +2133,32 @@ If a scrub or resilver is in progress, this command reports the percentage done 
 .sp
 .ne 2
 .na
-\fB\fB-c\fR \fBCMD\fR
+\fB\fB-c\fR \fB[SCRIPT1,SCRIPT2,...]\fR
 .ad
 .RS 12n
-Run a command on each vdev and include first line of output
+Run a script (or scripts) on each vdev and include the output in zpool status
 .sp
-The \fB-c\fR option allows you to run an arbitrary command on each vdev and
-display the first line of output in zpool iostat.  The following environment
-vars are set before running each command:
+The \fB-c\fR option allows you to run script(s) for each vdev and display the
+output in zpool iostat.  For security reasons, a user can only execute scripts
+found in the /<etc>/zfs/zpool.d directory as an unprivileged user.  However, a
+privileged user can run \fB-c\fR if they have the ZPOOL_SCRIPTS_AS_ROOT
+environment variable set.  If a script requires the use of a privileged
+command (like smartctl) then it's recommended you allow the user access to it in
+/etc/sudoers.  For example, to allow user "zfsuser" access to "smartctl -a", add
+the following to /etc/sudoers:
+
+zfsuser ALL=NOPASSWD: /usr/sbin/smartctl -a /dev/sd[a-z]*, NOEXEC: /usr/sbin/smartctl -a /dev/sd[a-z]*`
+
+If \fB-c\fR is passed without a script name, it prints a list of all scripts.
+
+Script output should be in the form of "name=value".  The column name is
+set to "name" and the value is set to "value".  Multiple lines can be used to
+output multiple columns.  The first line of output not in the "name=value"
+format is displayed without a column title, and no more output after that is
+displayed.  This can be useful for printing error messages.  Blank or NULL
+values are printed as a '-' to make output awk-able.
+
+The following environment variables are set before running each command:
 .sp
 \fB$VDEV_PATH\fR: Full path to the vdev.
 .LP
@@ -2567,32 +2604,38 @@ data        23.9G  14.6G  9.30G    48%         -    61%  1.00x  ONLINE  -
 \fBExample 16 \fRRunning commands in zpool status and zpool iostat with -c
 .sp
 .LP
-Some examples of using the command (-c) option with zpool status and zpool
-iostat:
 .sp
 .in +2
 .nf
-# \fBzpool status -c  \[aq]echo I am $VDEV_PATH, $VDEV_UPATH\[aq]\fR
-NAME        STATE     READ WRITE CKSUM
-mypool      ONLINE       0     0     0
+# zpool status -c vendor,model,size,enc
+...
+NAME        STATE     READ WRITE CKSUM   vendor         model  size      enc
+tank        ONLINE       0     0     0
   mirror-0  ONLINE       0     0     0
-    mpatha  ONLINE       0     0     0  I am /dev/mapper/mpatha, /dev/sdc
-    sdb     ONLINE       0     0     0  I am /dev/sdb1, /dev/sdb
+    U1      ONLINE       0     0     0  SEAGATE  ST8000NM0075  7.3T  0:0:0:0
+    U10     ONLINE       0     0     0  SEAGATE  ST8000NM0075  7.3T  0:0:0:0
+    U11     ONLINE       0     0     0  SEAGATE  ST8000NM0075  7.3T  0:0:0:0
+    U12     ONLINE       0     0     0  SEAGATE  ST8000NM0075  7.3T  0:0:0:0
+    U13     ONLINE       0     0     0  SEAGATE  ST8000NM0075  7.3T  0:0:0:0
+    U14     ONLINE       0     0     0  SEAGATE  ST8000NM0075  7.3T  0:0:0:0
 .fi
 .in -2
 
 .sp
 .in +2
 .nf
-# \fBzpool iostat -v -c \[aq]smartctl -a $VDEV_UPATH | grep "Current Drive Temperature"\[aq]\fR
-mypool       997M  7.25T      0      0   105K   106K
-  mirror     997M  7.25T      0      0   105K   106K
-    B0          -      -      0      0  17.4K  15.2K  Current Drive Temperature:     25 C
-    B1          -      -      0      0  17.4K  15.2K  Current Drive Temperature:     24 C
-    B2          -      -      0      0  17.5K  15.2K  Current Drive Temperature:     24 C
-    B3          -      -      0      0      0  15.1K  Current Drive Temperature:     24 C
-logs            -      -      -      -      -      -
-  B8            0  7.25T      0      0  1.14K  20.2K  Current Drive Temperature:     23 C
+# zpool iostat -vc slaves,locate_led
+              capacity     operations     bandwidth 
+pool        alloc   free   read  write   read  write     slaves  locate_led
+----------  -----  -----  -----  -----  -----  -----  ---------  ----------
+tank        20.4G  7.23T     26    152  20.7M  21.6M
+  mirror    20.4G  7.23T     26    152  20.7M  21.6M
+    U1          -      -      0     31  1.46K  20.6M   sdb sdff           0
+    U10         -      -      0      1  3.77K  13.3K  sdas sdgw           0
+    U11         -      -      0      1   288K  13.3K  sdat sdgx           1
+    U12         -      -      0      1  78.4K  13.3K  sdau sdgy           0
+    U13         -      -      0      1   128K  13.3K  sdav sdgz           0
+    U14         -      -      0      1  63.2K  13.3K   sdfk sdg           0
 .fi
 .in -2
 
@@ -2657,6 +2700,10 @@ This would also be true for future Linux based pools.
 
 A pool can be stripped of any "devid" values on import or prevented from adding
 them on \fBzpool create\fR or \fBzpool add\fR by setting ZFS_VDEV_DEVID_OPT_OUT.
+.TP
+.B "ZPOOL_SCRIPTS_AS_ROOT"
+Allow a privilaged user to run the \fBzpool status/iostat\fR with the \fB-c\fR
+option.  Normally, only unprivilaged users are allowed to run \fB-c\fR.
 
 .SH SEE ALSO
 .sp

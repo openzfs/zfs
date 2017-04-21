@@ -95,6 +95,10 @@ Requires(postun): systemd
 BuildRequires: systemd
 %endif
 
+# The zpool iostat/status -c scripts call some utilities like lsblk and iostat
+Requires:  util-linux
+Requires:  sysstat
+
 %description
 This package contains the ZFS command line utilities.
 

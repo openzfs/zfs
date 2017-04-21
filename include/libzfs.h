@@ -793,8 +793,17 @@ extern int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
  */
 #define	STDOUT_VERBOSE	0x01
 #define	STDERR_VERBOSE	0x02
+#define	NO_DEFAULT_PATH	0x04 /* Don't use $PATH to lookup the command */
 
 int libzfs_run_process(const char *, char **, int flags);
+int libzfs_run_process_get_stdout(const char *path, char *argv[], char *env[],
+    char **lines[], int *lines_cnt);
+int libzfs_run_process_get_stdout_nopath(const char *path, char *argv[],
+    char *env[], char **lines[], int *lines_cnt);
+
+void libzfs_free_str_array(char **strs, int count);
+
+int libzfs_envvar_is_set(char *envvar);
 
 /*
  * Given a device or file, determine if it is part of a pool.

@@ -32,6 +32,9 @@
 extern "C" {
 #endif
 
+/* Path to scripts you can run with "zpool status/iostat -c" */
+#define	ZPOOL_SCRIPTS_DIR SYSCONFDIR"/zfs/zpool.d"
+
 /*
  * Basic utility functions
  */
@@ -75,7 +78,13 @@ libzfs_handle_t *g_zfs;
 
 typedef	struct vdev_cmd_data
 {
-	char *line;	/* cmd output */
+	char **lines;	/* Array of lines of output, minus the column name */
+	int lines_cnt;	/* Number of lines in the array */
+
+	char **cols;	/* Array of column names */
+	int cols_cnt;	/* Number of column names */
+
+
 	char *path;	/* vdev path */
 	char *upath;	/* vdev underlying path */
 	char *pool;	/* Pool name */
@@ -95,6 +104,11 @@ typedef struct vdev_cmd_data_list
 	int cb_name_flags;
 
 	vdev_cmd_data_t *data;	/* Array of vdevs */
+
+	/* List of unique column names and widths */
+	char **uniq_cols;
+	int uniq_cols_cnt;
+	int *uniq_cols_width;
 
 } vdev_cmd_data_list_t;
 

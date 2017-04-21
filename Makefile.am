@@ -57,7 +57,8 @@ shellcheck:
 			scripts/zfs-tests.sh \
 			scripts/zfs.sh \
 			scripts/commitcheck.sh \
-			$$(find cmd/zed/zed.d/*.sh -type f); \
+			$$(find cmd/zed/zed.d/*.sh -type f) \
+			$$(find cmd/zpool/zpool.d/* -executable); \
 	fi
 
 lint: cppcheck paxcheck

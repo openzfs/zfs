@@ -21,6 +21,7 @@ export TESTSDIR=${SRCDIR}/tests
 export RUNFILEDIR=${TESTSDIR}/runfiles
 export UDEVRULEDIR=${BUILDDIR}/udev/rules.d
 export ZEDLETDIR=${SRCDIR}/cmd/zed/zed.d
+export ZPOOLSCRIPTDIR=${SRCDIR}/cmd/zpool/zpool.d
 
 export ZDB=${CMDDIR}/zdb/zdb
 export ZFS=${CMDDIR}/zfs/zfs
