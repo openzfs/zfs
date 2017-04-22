@@ -394,6 +394,8 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	char *type;
 	uint64_t guid = 0, islog, nparity;
 	vdev_t *vd;
+	char *tmp = NULL;
+	int rc;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
@@ -487,6 +489,19 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &vd->vdev_path) == 0)
 		vd->vdev_path = spa_strdup(vd->vdev_path);
+
+	/*
+	 * ZPOOL_CONFIG_AUX_STATE = "external" means we previously forced a
+	 * fault on a vdev and want it to persist across imports (like with
+	 * zpool offline -f).
+	 */
+	rc = nvlist_lookup_string(nv, ZPOOL_CONFIG_AUX_STATE, &tmp);
+	if (rc == 0 && tmp != NULL && strcmp(tmp, "external") == 0) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_EXTERNAL;
+		vd->vdev_faulted = 1;
+		vd->vdev_label_aux = VDEV_AUX_EXTERNAL;
+	}
+
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_DEVID, &vd->vdev_devid) == 0)
 		vd->vdev_devid = spa_strdup(vd->vdev_devid);
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PHYS_PATH,
@@ -591,12 +606,17 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		    &vd->vdev_resilver_txg);
 
 		/*
-		 * When importing a pool, we want to ignore the persistent fault
-		 * state, as the diagnosis made on another system may not be
-		 * valid in the current context.  Local vdevs will
-		 * remain in the faulted state.
+		 * In general, when importing a pool we want to ignore the
+		 * persistent fault state, as the diagnosis made on another
+		 * system may not be valid in the current context.  The only
+		 * exception is if we forced a vdev to a persistently faulted
+		 * state with 'zpool offline -f'.  The persistent fault will
+		 * remain across imports until cleared.
+		 *
+		 * Local vdevs will remain in the faulted state.
 		 */
-		if (spa_load_state(spa) == SPA_LOAD_OPEN) {
+		if (spa_load_state(spa) == SPA_LOAD_OPEN ||
+		    spa_load_state(spa) == SPA_LOAD_IMPORT) {
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_FAULTED,
 			    &vd->vdev_faulted);
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DEGRADED,
@@ -2479,6 +2499,32 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 	tvd = vd->vdev_top;
 
 	/*
+	 * If user did a 'zpool offline -f' then make the fault persist across
+	 * reboots.
+	 */
+	if (aux == VDEV_AUX_EXTERNAL_PERSIST) {
+		/*
+		 * There are two kinds of forced faults: temporary and
+		 * persistent.  Temporary faults go away at pool import, while
+		 * persistent faults stay set.  Both types of faults can be
+		 * cleared with a zpool clear.
+		 *
+		 * We tell if a vdev is persistently faulted by looking at the
+		 * ZPOOL_CONFIG_AUX_STATE nvpair.  If it's set to "external" at
+		 * import then it's a persistent fault.  Otherwise, it's
+		 * temporary.  We get ZPOOL_CONFIG_AUX_STATE set to "external"
+		 * by setting vd.vdev_stat.vs_aux to VDEV_AUX_EXTERNAL.  This
+		 * tells vdev_config_generate() (which gets run later) to set
+		 * ZPOOL_CONFIG_AUX_STATE to "external" in the nvlist.
+		 */
+		vd->vdev_stat.vs_aux = VDEV_AUX_EXTERNAL;
+		vd->vdev_tmpoffline = B_FALSE;
+		aux = VDEV_AUX_EXTERNAL;
+	} else {
+		vd->vdev_tmpoffline = B_TRUE;
+	}
+
+	/*
 	 * We don't directly use the aux state here, but if we do a
 	 * vdev_reopen(), we need this value to be present to remember why we
 	 * were faulted.
@@ -2753,7 +2799,6 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	 */
 	if (vd->vdev_faulted || vd->vdev_degraded ||
 	    !vdev_readable(vd) || !vdev_writeable(vd)) {
-
 		/*
 		 * When reopening in response to a clear event, it may be due to
 		 * a fmadm repair request.  In this case, if the device is
@@ -2764,6 +2809,7 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 		vd->vdev_faulted = vd->vdev_degraded = 0ULL;
 		vd->vdev_cant_read = B_FALSE;
 		vd->vdev_cant_write = B_FALSE;
+		vd->vdev_stat.vs_aux = 0;
 
 		vdev_reopen(vd == rvd ? rvd : vd->vdev_top);
 

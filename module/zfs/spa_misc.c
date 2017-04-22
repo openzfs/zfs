@@ -1181,13 +1181,21 @@ int
 spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
 {
 	boolean_t config_changed = B_FALSE;
+	vdev_t *vdev_top;
+
+	if (vd == NULL || vd == spa->spa_root_vdev) {
+		vdev_top = spa->spa_root_vdev;
+	} else {
+		vdev_top = vd->vdev_top;
+	}
 
 	if (vd != NULL || error == 0)
-		vdev_dtl_reassess(vd ? vd->vdev_top : spa->spa_root_vdev,
-		    0, 0, B_FALSE);
+		vdev_dtl_reassess(vdev_top, 0, 0, B_FALSE);
 
 	if (vd != NULL) {
-		vdev_state_dirty(vd->vdev_top);
+		if (vd != spa->spa_root_vdev)
+			vdev_state_dirty(vdev_top);
+
 		config_changed = B_TRUE;
 		spa->spa_config_generation++;
 	}

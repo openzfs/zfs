@@ -2371,6 +2371,43 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 }
 
 /*
+ * Convert a vdev path to a GUID.  Returns GUID or 0 on error.
+ *
+ * If is_spare, is_l2cache, or is_log is non-NULL, then store within it
+ * if the VDEV is a spare, l2cache, or log device.  If they're NULL then
+ * ignore them.
+ */
+static uint64_t
+zpool_vdev_path_to_guid_impl(zpool_handle_t *zhp, const char *path,
+    boolean_t *is_spare, boolean_t *is_l2cache, boolean_t *is_log)
+{
+	uint64_t guid;
+	boolean_t spare = B_FALSE, l2cache = B_FALSE, log = B_FALSE;
+	nvlist_t *tgt;
+
+	if ((tgt = zpool_find_vdev(zhp, path, &spare, &l2cache,
+	    &log)) == NULL)
+		return (0);
+
+	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &guid) == 0);
+	if (is_spare != NULL)
+		*is_spare = spare;
+	if (is_l2cache != NULL)
+		*is_l2cache = l2cache;
+	if (is_log != NULL)
+		*is_log = log;
+
+	return (guid);
+}
+
+/* Convert a vdev path to a GUID.  Returns GUID or 0 on error. */
+uint64_t
+zpool_vdev_path_to_guid(zpool_handle_t *zhp, const char *path)
+{
+	return (zpool_vdev_path_to_guid_impl(zhp, path, NULL, NULL, NULL));
+}
+
+/*
  * Bring the specified vdev online.   The 'flags' parameter is a set of the
  * ZFS_ONLINE_* flags.
  */

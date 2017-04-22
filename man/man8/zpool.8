@@ -114,7 +114,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool offline\fR [\fB-t\fR] \fIpool\fR \fIdevice\fR ...
+\fBzpool offline\fR [\fB-f\fR] [\fB-t\fR] \fIpool\fR \fIdevice\fR ...
 .fi
 
 .LP
@@ -1908,13 +1908,21 @@ Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within t
 .sp
 .ne 2
 .na
-\fB\fBzpool offline\fR [\fB-t\fR] \fIpool\fR \fIdevice\fR ...\fR
+\fB\fBzpool offline\fR [\fB-f\fR] [\fB-t\fR] \fIpool\fR \fIdevice\fR ...\fR
 .ad
 .sp .6
 .RS 4n
 Takes the specified physical device offline. While the \fIdevice\fR is offline, no attempt is made to read or write to the device.
 .sp
-This command is not applicable to spares or cache devices.
+.ne 2
+.na
+\fB\fB-f\fR\fR
+.ad
+.RS 6n
+Force fault.  Instead of offlining the disk, put it into a faulted state. The
+fault will persist across imports unless the \fB-t\fR flag was specified.
+.RE
+
 .sp
 .ne 2
 .na
