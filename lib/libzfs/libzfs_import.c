@@ -1938,10 +1938,15 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 				 * exclusively. This will prune all underlying
 				 * multipath devices which otherwise could
 				 * result in the vdev appearing as UNAVAIL.
+				 *
+				 * Under zdb, this step isn't required and
+				 * would prevent a zdb -e of active pools with
+				 * no cachefile.
 				 */
 				fd = open(slice->rn_name, O_RDONLY | O_EXCL);
-				if (fd >= 0) {
-					close(fd);
+				if (fd >= 0 || iarg->can_be_active) {
+					if (fd >= 0)
+						close(fd);
 					add_config(hdl, &pools,
 					    slice->rn_name, slice->rn_order,
 					    slice->rn_num_labels, config);
