@@ -4112,14 +4112,16 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		spa_load_l2cache(spa);
 	}
 
-	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
-	if (error == 0)
-		error = spa_validate_aux(spa, nvroot, -1ULL,
-		    VDEV_ALLOC_SPARE);
-	if (error == 0)
-		error = spa_validate_aux(spa, nvroot, -1ULL,
-		    VDEV_ALLOC_L2CACHE);
+	if (spa_writeable(spa)) {
+		VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+		    &nvroot) == 0);
+		if (error == 0)
+			error = spa_validate_aux(spa, nvroot, -1ULL,
+			    VDEV_ALLOC_SPARE);
+		if (error == 0)
+			error = spa_validate_aux(spa, nvroot, -1ULL,
+			    VDEV_ALLOC_L2CACHE);
+	}
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	if (props != NULL)
