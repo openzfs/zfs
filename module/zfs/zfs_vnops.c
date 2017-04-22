@@ -669,6 +669,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		xuio = (xuio_t *)uio;
 	else
 #endif
+	if (MIN(n, max_blksz) > 0)
 		uio_prefaultpages(MIN(n, max_blksz), uio);
 
 	/*
@@ -915,7 +916,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		ASSERT(tx_bytes == nbytes);
 		n -= nbytes;
 
-		if (!xuio && n > 0)
+		if (!xuio && MIN(n, max_blksz) > 0)
 			uio_prefaultpages(MIN(n, max_blksz), uio);
 	}
 
