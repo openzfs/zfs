@@ -256,7 +256,7 @@ zfs_range_new_proxy(avl_tree_t *tree, uint64_t off, uint64_t len)
 	rl_t *rl;
 
 	ASSERT(len);
-	rl = kmem_alloc(sizeof (rl_t), KM_SLEEP);
+	rl = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
 	rl->r_off = off;
 	rl->r_len = len;
 	rl->r_cnt = 1;
