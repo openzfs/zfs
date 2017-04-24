@@ -3611,6 +3611,7 @@ children:
 		    !cb->cb_vdev_names) {
 			print_iostat_dashes(cb, 0, "logs");
 		}
+		printf("\n");
 
 		for (c = 0; c < children; c++) {
 			uint64_t islog = B_FALSE;
@@ -3645,6 +3646,7 @@ children:
 		    !cb->cb_vdev_names) {
 			print_iostat_dashes(cb, 0, "cache");
 		}
+		printf("\n");
 
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, newchild[c],
