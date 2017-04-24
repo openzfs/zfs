@@ -219,9 +219,15 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 		}
 	}
 
+#ifdef __linux__
+	/* Linux only notifies us about the last close */
+	if (flag & O_SYNC)
+		zp->z_sync_cnt = 1;
+#else
 	/* Keep a count of the synchronous opens in the znode */
 	if (flag & O_SYNC)
 		atomic_inc_32(&zp->z_sync_cnt);
+#endif
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
@@ -237,9 +243,14 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
 
+#ifdef __linux__
+	/* Linux only notifies us about the last close */
+	zp->z_sync_cnt = 0;
+#else
 	/* Decrement the synchronous opens in the znode */
 	if (flag & O_SYNC)
 		atomic_dec_32(&zp->z_sync_cnt);
+#endif
 
 	if (!zfs_has_ctldir(zp) && zfsvfs->z_vscan && S_ISREG(ip->i_mode) &&
 	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
