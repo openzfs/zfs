@@ -29,6 +29,7 @@
  *   Brian Behlendorf <behlendorf1@llnl.gov>
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
+ * Copyright 2017 (c) Datto Inc.
  */
 
 /*
@@ -192,7 +193,7 @@ static void
 zfsctl_snapshot_add(zfs_snapentry_t *se)
 {
 	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-	refcount_add(&se->se_refcount, NULL);
+	zfsctl_snapshot_hold(se);
 	avl_add(&zfs_snapshots_by_name, se);
 	avl_add(&zfs_snapshots_by_objsetid, se);
 }
@@ -269,7 +270,7 @@ zfsctl_snapshot_find_by_name(char *snapname)
 	search.se_name = snapname;
 	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
 	if (se)
-		refcount_add(&se->se_refcount, NULL);
+		zfsctl_snapshot_hold(se);
 
 	return (se);
 }
@@ -290,7 +291,7 @@ zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
 	search.se_objsetid = objsetid;
 	se = avl_find(&zfs_snapshots_by_objsetid, &search, NULL);
 	if (se)
-		refcount_add(&se->se_refcount, NULL);
+		zfsctl_snapshot_hold(se);
 
 	return (se);
 }
@@ -334,15 +335,15 @@ snapentry_expire(void *data)
 		return;
 	}
 
-	se->se_taskqid = TASKQID_INVALID;
 	(void) zfsctl_snapshot_unmount(se->se_name, MNT_EXPIRE);
-	zfsctl_snapshot_rele(se);
 
 	/*
 	 * Reschedule the unmount if the zfs_snapentry_t wasn't removed.
 	 * This can occur when the snapshot is busy.
 	 */
-	rw_enter(&zfs_snapshot_lock, RW_READER);
+	rw_enter(&zfs_snapshot_lock, RW_WRITER);
+	se->se_taskqid = TASKQID_INVALID;
+	zfsctl_snapshot_rele(se);
 	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
 		zfsctl_snapshot_rele(se);
@@ -358,7 +359,7 @@ snapentry_expire(void *data)
 static void
 zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
 {
-	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
+	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 
 	if (taskq_cancel_id(system_delay_taskq, se->se_taskqid) == 0) {
 		se->se_taskqid = TASKQID_INVALID;
@@ -372,6 +373,7 @@ zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
 static void
 zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 {
+	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 	ASSERT3S(se->se_taskqid, ==, TASKQID_INVALID);
 
 	if (delay <= 0)
@@ -394,7 +396,7 @@ zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid, int delay)
 	zfs_snapentry_t *se;
 	int error = ENOENT;
 
-	rw_enter(&zfs_snapshot_lock, RW_READER);
+	rw_enter(&zfs_snapshot_lock, RW_WRITER);
 	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfsctl_snapshot_unmount_cancel(se);
 		zfsctl_snapshot_unmount_delay_impl(se, delay);
