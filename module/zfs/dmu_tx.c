@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -87,7 +87,7 @@ dmu_tx_create_assigned(struct dsl_pool *dp, uint64_t txg)
 {
 	dmu_tx_t *tx = dmu_tx_create_dd(NULL);
 
-	ASSERT3U(txg, <=, dp->dp_tx.tx_open_txg);
+	txg_verify(dp->dp_spa, txg);
 	tx->tx_pool = dp;
 	tx->tx_txg = txg;
 	tx->tx_anyobj = TRUE;
