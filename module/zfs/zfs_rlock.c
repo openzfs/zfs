@@ -283,26 +283,29 @@ zfs_range_add_reader(avl_tree_t *tree, rl_t *new, rl_t *prev, avl_index_t where)
 	 */
 	if (prev) {
 		if (prev->r_off + prev->r_len <= off) {
-			prev = NULL;
-		} else if (prev->r_off != off) {
-			/*
-			 * convert to proxy if needed then
-			 * split this entry and bump ref count
-			 */
-			prev = zfs_range_split(tree, prev, off);
-			prev = AVL_NEXT(tree, prev); /* move to rear range */
+			next = AVL_NEXT(tree, prev); /* move to next range */
+		} else {
+			if (prev->r_off != off) {
+				/*
+				 * convert to proxy if needed then
+				 * split this entry and bump ref count
+				 */
+				prev = zfs_range_split(tree, prev, off);
+				/* move to rear range */
+				next = AVL_NEXT(tree, prev);
+			} else
+				next = prev;
+			ASSERT(next->r_off == off);
 		}
-	}
-	ASSERT((prev == NULL) || (prev->r_off == off));
-
-	if (prev)
-		next = prev;
-	else
+	} else
 		next = (rl_t *)avl_nearest(tree, where, AVL_AFTER);
 
 	if (next == NULL || off + len <= next->r_off) {
 		/* no overlaps, use the original new rl_t in the tree */
-		avl_insert(tree, new, where);
+		if (prev)
+			avl_add(tree, new);
+		else
+			avl_insert(tree, new, where);
 		return;
 	}
 
