@@ -105,7 +105,7 @@ static CpaInstanceHandle dc_inst_handles[MAX_INSTANCES];
 static CpaDcSessionHandle session_handles[MAX_INSTANCES];
 static CpaBufferList **buffer_array[MAX_INSTANCES];
 static Cpa16U num_inst = 0;
-static Cpa16U inst_num = 0;
+static Cpa32U inst_num = 0;
 static boolean_t qat_init_done = B_FALSE;
 int zfs_qat_disable = 0;
 
