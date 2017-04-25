@@ -1151,8 +1151,14 @@ Default value: \fB10\fR.
 \fBzfs_vdev_queue_depth_pct\fR (int)
 .ad
 .RS 12n
-The queue depth percentage for each top-level virtual device.
-Used in conjunction with zfs_vdev_async_max_active.
+Maximum number of queued allocations per top-level vdev expressed as
+a percentage of \fBzfs_vdev_async_write_max_active\fR which allows the
+system to detect devices that are more capable of handling allocations
+and to allocate more blocks to those devices.  It allows for dynamic
+allocation distribution when devices are imbalanced as fuller devices
+will tend to be slower than empty devices.
+
+See also \fBzio_dva_throttle_enabled\fR.
 .sp
 Default value: \fB1000\fR.
 .RE
@@ -1940,6 +1946,8 @@ Default value: \fB30,000\fR.
 .RS 12n
 Throttle block allocations in the ZIO pipeline. This allows for
 dynamic allocation distribution when devices are imbalanced.
+When enabled, the maximum number of pending allocations per top-level vdev
+is limited by \fBzfs_vdev_queue_depth_pct\fR.
 .sp
 Default value: \fB1\fR.
 .RE
