@@ -13,10 +13,6 @@
 #TEST_ZTEST_DIR="/var/tmp/"
 #TEST_ZTEST_OPTIONS="-V"
 
-### ziltest
-#TEST_ZILTEST_SKIP="yes"
-#TEST_ZILTEST_OPTIONS=""
-
 ### zconfig
 #TEST_ZCONFIG_SKIP="yes"
 TEST_ZCONFIG_OPTIONS="-c -s10"
@@ -70,11 +66,11 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 case "$BB_NAME" in
 Amazon*)
     ;;
-CentOS*)
-    # Sporadic segmentation faults
-    TEST_ZTEST_SKIP="yes"
-    # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
-    TEST_ZILTEST_SKIP="yes"
+CentOS-7*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    ;;
+CentOS-6*)
     ;;
 Debian*)
     ;;

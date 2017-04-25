@@ -478,7 +478,7 @@ static void
 dump_bpobj_subobjs(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	dmu_object_info_t doi;
-	uint64_t i;
+	int64_t i;
 
 	VERIFY0(dmu_object_info(os, object, &doi));
 	uint64_t *subobjs = kmem_alloc(doi.doi_max_offset, KM_SLEEP);
@@ -497,7 +497,7 @@ dump_bpobj_subobjs(objset_t *os, uint64_t object, void *data, size_t size)
 	}
 
 	for (i = 0; i <= last_nonzero; i++) {
-		(void) printf("\t%llu\n", (longlong_t)subobjs[i]);
+		(void) printf("\t%llu\n", (u_longlong_t)subobjs[i]);
 	}
 	kmem_free(subobjs, doi.doi_max_offset);
 }
