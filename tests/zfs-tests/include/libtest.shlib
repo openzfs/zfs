@@ -29,6 +29,7 @@
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
+. $STF_SUITE/include/math.shlib
 
 #
 # Apply constrained path when available.  This is required since the
@@ -3109,6 +3110,64 @@ function get_min
 	done
 
 	echo $min
+}
+
+#
+# Generate a random number between 1 and the argument.
+#
+function random
+{
+        typeset max=$1
+        echo $(( ($RANDOM % $max) + 1 ))
+}
+
+# Write data that can be compressed into a directory
+function write_compressible
+{
+	typeset dir=$1
+	typeset megs=$2
+	typeset nfiles=${3:-1}
+	typeset bs=${4:-1024k}
+	typeset fname=${5:-file}
+
+	[[ -d $dir ]] || log_fail "No directory: $dir"
+
+	# Do not error if fio doesn't support --filename_format
+	fio --cmdhelp=filename_format | grep -q filename_format
+	[[ $? != 0 ]] && log_unsupported "fio doesn't understand" \
+	"--filename_format"
+
+	log_must eval "fio \
+	    --name=job \
+	    --fallocate=0 \
+	    --minimal \
+	    --randrepeat=0 \
+	    --buffer_compress_percentage=66 \
+	    --buffer_compress_chunk=4096 \
+	    --directory=$dir \
+	    --numjobs=$nfiles \
+	    --nrfiles=$nfiles \
+	    --rw=write \
+	    --bs=$bs \
+	    --filesize=$megs \
+	    --size=$megs \
+	    --filename_format='$fname.\$jobnum' >/dev/null"
+
+	# Some versions of fio output single files starting at 1 rather than 0
+	if [[ $nfiles == 1 && ! -f $dir/file.0 && -f $dir/file.1 ]] ; then
+		mv $dir/file.1 $dir/file.0
+	fi
+
+}
+
+function get_objnum
+{
+	typeset pathname=$1
+	typeset objnum
+
+	[[ -e $pathname ]] || log_fail "No such file or directory: $pathname"
+	objnum=$(stat -c %i $pathname)
+	echo $objnum
 }
 
 #

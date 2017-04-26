@@ -551,3 +551,120 @@ function test_fs_setup
 	fi
 	log_must zfs create -o compress=lz4 $sendpool/stream
 }
+
+#
+# Check to see if the specified features are set in a send stream.
+# The values for these features are found in include/sys/zfs_ioctl.h
+#
+# $1 The stream file
+# $2-$n The flags expected in the stream
+#
+function stream_has_features
+{
+	typeset file=$1
+	shift
+
+	[[ -f $file ]] || log_fail "Couldn't find file: $file"
+	typeset flags=$(cat $file | zstreamdump | awk '/features =/ {features = $3} END {print features}')
+	typeset -A feature
+	feature[dedup]="1"
+	feature[dedupprops]="2"
+	feature[sa_spill]="4"
+	feature[embed_data]="10000"
+	feature[lz4]="20000"
+	feature[mooch_byteswap]="40000"
+	feature[large_blocks]="80000"
+	feature[resuming]="100000"
+	feature[redacted]="200000"
+	feature[compressed]="400000"
+
+	typeset flag known derived=0
+	for flag in "$@"; do
+		known=${feature[$flag]}
+		[[ -z $known ]] && log_fail "Unknown feature: $flag"
+
+		derived=$(printf "%x" $((0x$flags & 0x${feature[$flag]})))
+		[[ $derived = $known ]] || return 1
+	done
+
+	return 0
+}
+
+#
+# Parse zstreamdump -v output.  The output varies for each kind of record:
+# BEGIN records are simply output as "BEGIN"
+# END records are output as "END"
+# OBJECT records become "OBJECT <object num>"
+# FREEOBJECTS records become "FREEOBJECTS <startobj> <numobjs>"
+# FREE records become "<record type> <start> <length>"
+# WRITE records become:
+# "<record type> <compression type> <start> <logical size> <compressed size>
+#  <data size>"
+#
+function parse_dump
+{
+	sed '/^WRITE/{N;s/\n/ /;}' | grep "^[A-Z]" | awk '{
+	    if ($1 == "BEGIN" || $1 == "END") print $1
+	    if ($1 == "OBJECT") print $1" "$4
+	    if ($1 == "FREEOBJECTS") print $1" "$4" "$7
+	    if ($1 == "FREE") print $1" "$7" "$10
+	    if ($1 == "WRITE") print $1" "$15" "$18" "$21" "$24" "$27}'
+}
+
+#
+# Given a send stream, verify that the size of the stream matches what's
+# expected based on the source or target dataset. If the stream is an
+# incremental stream, subtract the size of the source snapshot before
+# comparing. This function does not currently handle incremental streams
+# that remove data.
+#
+# $1 The zstreamdump output file
+# $2 The dataset to compare against
+#    This can be a source of a send or recv target (fs, not snapshot)
+# $3 The percentage below which verification is deemed a failure
+# $4 The source snapshot of an incremental send
+#
+
+function verify_stream_size
+{
+	typeset stream=$1
+	typeset ds=$2
+	typeset percent=${3:-90}
+	typeset inc_src=$4
+
+	[[ -f $stream ]] || log_fail "No such file: $stream"
+	datasetexists $ds || log_fail "No such dataset: $ds"
+
+	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
+	    's/Total write size = \(.*\) (0x.*)/\1/p')
+
+	typeset inc_size=0
+	if [[ -n $inc_src ]]; then
+		inc_size=$(get_prop lrefer $inc_src)
+		if stream_has_features $stream compressed; then
+			inc_size=$(get_prop refer $inc_src)
+		fi
+	fi
+
+	if stream_has_features $stream compressed; then
+		ds_size=$(get_prop refer $ds)
+	else
+		ds_size=$(get_prop lrefer $ds)
+	fi
+	ds_size=$((ds_size - inc_size))
+
+	within_percent $stream_size $ds_size $percent || log_fail \
+	    "$stream_size $ds_size differed by too much"
+}
+
+# Cleanup function for tests involving resumable send
+function resume_cleanup
+{
+	typeset sendfs=$1
+	typeset streamfs=$2
+
+	datasetexists $sendfs && log_must zfs destroy -r $sendfs
+	datasetexists $streamfs && log_must zfs destroy -r $streamfs
+	cleanup_pool $POOL2
+	rm -f /$POOL/initial.zsend /$POOL/incremental.zsend
+}

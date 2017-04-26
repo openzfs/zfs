@@ -699,15 +699,13 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		arc_buf_t *abuf;
 		int blksz = dblkszsec << SPA_MINBLOCKSHIFT;
 		uint64_t offset;
-		enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
 
 		/*
 		 * If we have large blocks stored on disk but the send flags
 		 * don't allow us to send large blocks, we split the data from
 		 * the arc buf into chunks.
 		 */
-		boolean_t split_large_blocks =
-		    data->datablkszsec > SPA_OLD_MAXBLOCKSIZE &&
+		boolean_t split_large_blocks = blksz > SPA_OLD_MAXBLOCKSIZE &&
 		    !(dsa->dsa_featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS);
 		/*
 		 * We should only request compressed data from the ARC if all
@@ -729,17 +727,19 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		    (zb->zb_object == dsa->dsa_resume_object &&
 		    zb->zb_blkid * blksz >= dsa->dsa_resume_offset));
 
+		ASSERT3U(blksz, ==, BP_GET_LSIZE(bp));
+
+		enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
 		if (request_compressed)
 			zioflags |= ZIO_FLAG_RAW;
 
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
-		    ZIO_PRIORITY_ASYNC_READ, zioflags,
-		    &aflags, zb) != 0) {
+		    ZIO_PRIORITY_ASYNC_READ, zioflags, &aflags, zb) != 0) {
 			if (zfs_send_corrupt_data) {
-				uint64_t *ptr;
 				/* Send a block filled with 0x"zfs badd bloc" */
 				abuf = arc_alloc_buf(spa, &abuf, ARC_BUFC_DATA,
 				    blksz);
+				uint64_t *ptr;
 				for (ptr = abuf->b_data;
 				    (char *)ptr < (char *)abuf->b_data + blksz;
 				    ptr++)
@@ -752,9 +752,9 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		offset = zb->zb_blkid * blksz;
 
 		if (split_large_blocks) {
-			char *buf = abuf->b_data;
 			ASSERT3U(arc_get_compression(abuf), ==,
 			    ZIO_COMPRESS_OFF);
+			char *buf = abuf->b_data;
 			while (blksz > 0 && err == 0) {
 				int n = MIN(blksz, SPA_OLD_MAXBLOCKSIZE);
 				err = dump_write(dsa, type, zb->zb_object,

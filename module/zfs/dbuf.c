@@ -380,7 +380,6 @@ static void
 dbuf_evict_user(dmu_buf_impl_t *db)
 {
 	dmu_buf_user_t *dbu = db->db_user;
-	boolean_t has_async;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
@@ -405,7 +404,7 @@ dbuf_evict_user(dmu_buf_impl_t *db)
 	 * containing the dbu.  In that case we need to take care to not
 	 * dereference dbu after calling the sync evict func.
 	 */
-	has_async = (dbu->dbu_evict_func_async != NULL);
+	boolean_t has_async = (dbu->dbu_evict_func_async != NULL);
 
 	if (dbu->dbu_evict_func_sync != NULL)
 		dbu->dbu_evict_func_sync(dbu);
@@ -3308,8 +3307,8 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		if (compress_type == ZIO_COMPRESS_OFF) {
 			*datap = arc_alloc_buf(os->os_spa, db, type, psize);
 		} else {
-			int lsize = arc_buf_lsize(*datap);
 			ASSERT3U(type, ==, ARC_BUFC_DATA);
+			int lsize = arc_buf_lsize(*datap);
 			*datap = arc_alloc_compressed_buf(os->os_spa, db,
 			    psize, lsize, compress_type);
 		}
