@@ -430,8 +430,8 @@ main(int argc, char *argv[])
 				    drro->drr_bonuslen);
 			}
 			if (drro->drr_bonuslen > 0) {
-				(void) ssread(buf, P2ROUNDUP(drro->drr_bonuslen,
-				    8), &zc);
+				(void) ssread(buf,
+				    P2ROUNDUP(drro->drr_bonuslen, 8), &zc);
 				if (dump) {
 					print_block(buf,
 					    P2ROUNDUP(drro->drr_bonuslen, 8));
