@@ -57,6 +57,7 @@
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_threads = 32;
+unsigned int zvol_request_sync = 1;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 
@@ -664,7 +665,6 @@ zvol_write(void *arg)
 	uio_t uio;
 	zvol_state_t *zv = zvr->zv;
 	uint64_t volsize = zv->zv_volsize;
-	rl_t *rl = zvr->rl;
 	boolean_t sync;
 	int error = 0;
 	unsigned long start_jif;
@@ -702,7 +702,7 @@ zvol_write(void *arg)
 		if (error)
 			break;
 	}
-	zfs_range_unlock(rl);
+	zfs_range_unlock(zvr->rl);
 	if (sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
@@ -746,7 +746,6 @@ zvol_discard(void *arg)
 	uint64_t size = BIO_BI_SIZE(bio);
 	uint64_t end = start + size;
 	int error = 0;
-	rl_t *rl = zvr->rl;
 	dmu_tx_t *tx;
 	unsigned long start_jif;
 
@@ -788,7 +787,7 @@ zvol_discard(void *arg)
 	}
 
 out:
-	zfs_range_unlock(rl);
+	zfs_range_unlock(zvr->rl);
 	rw_exit(&zv->zv_suspend_lock);
 	generic_end_io_acct(WRITE, &zv->zv_disk->part0, start_jif);
 	BIO_END_IO(bio, -error);
@@ -803,7 +802,6 @@ zvol_read(void *arg)
 	uio_t uio;
 	zvol_state_t *zv = zvr->zv;
 	uint64_t volsize = zv->zv_volsize;
-	rl_t *rl = zvr->rl;
 	int error = 0;
 	unsigned long start_jif;
 
@@ -829,7 +827,7 @@ zvol_read(void *arg)
 			break;
 		}
 	}
-	zfs_range_unlock(rl);
+	zfs_range_unlock(zvr->rl);
 
 	rw_exit(&zv->zv_suspend_lock);
 	generic_end_io_acct(READ, &zv->zv_disk->part0, start_jif);
@@ -884,20 +882,21 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
+
 		/*
-		 * To be release in the I/O function. Since the I/O functions
+		 * To be released in the I/O function. Since the I/O functions
 		 * are asynchronous, we take it here synchronously to make
 		 * sure overlapped I/Os are properly ordered.
 		 */
 		zvr->rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
 		    RL_WRITER);
 		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
-			if (taskq_dispatch(zvol_taskq, zvol_discard, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
+			if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+			    zvol_discard, zvr, TQ_SLEEP) == TASKQID_INVALID)
 				zvol_discard(zvr);
 		} else {
-			if (taskq_dispatch(zvol_taskq, zvol_write, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
+			if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+			    zvol_write, zvr, TQ_SLEEP) == TASKQID_INVALID)
 				zvol_write(zvr);
 		}
 	} else {
@@ -909,8 +908,8 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 		zvr->rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
 		    RL_READER);
-		if (taskq_dispatch(zvol_taskq, zvol_read, zvr,
-		    TQ_SLEEP) == TASKQID_INVALID)
+		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+		    zvol_read, zvr, TQ_SLEEP) == TASKQID_INVALID)
 			zvol_read(zvr);
 	}
 
@@ -2253,7 +2252,7 @@ zvol_init(void)
 	zvol_htable = kmem_alloc(ZVOL_HT_SIZE * sizeof (struct hlist_head),
 	    KM_SLEEP);
 	if (!zvol_htable) {
-		error = ENOMEM;
+		error = -ENOMEM;
 		goto out_taskq;
 	}
 	for (i = 0; i < ZVOL_HT_SIZE; i++)
@@ -2306,6 +2305,9 @@ MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
 module_param(zvol_threads, uint, 0444);
 MODULE_PARM_DESC(zvol_threads, "Max number of threads to handle I/O requests");
+
+module_param(zvol_request_sync, uint, 0644);
+MODULE_PARM_DESC(zvol_request_sync, "Synchronously handle bio requests");
 
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
