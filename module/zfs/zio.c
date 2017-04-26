@@ -1327,7 +1327,7 @@ zio_trim_check(uint64_t start, uint64_t len, void *msp)
 		mutex_enter(&ms->ms_lock);
 	ASSERT(ms->ms_trimming_ts != NULL);
 	if (ms->ms_loaded)
-		ASSERT(range_tree_contains(ms->ms_trimming_ts->ts_tree,
+		ASSERT(range_tree_contains(ms->ms_trimming_ts,
 		    start - VDEV_LABEL_START_SIZE, len));
 	if (!held)
 		mutex_exit(&ms->ms_lock);
