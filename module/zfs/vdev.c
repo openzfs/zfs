@@ -101,6 +101,34 @@ static vdev_ops_t *vdev_ops_table[] = {
 int zfs_trim_mem_lim_fact = 50;
 
 /*
+ * How many TXG's worth of updates should be aggregated per TRIM/UNMAP
+ * issued to the underlying vdev. We keep two range trees of extents
+ * (called "trim sets") to be trimmed per metaslab, the `current' and
+ * the `previous' TS. New free's are added to the current TS. Then,
+ * once `zfs_txgs_per_trim' transactions have elapsed, the `current'
+ * TS becomes the `previous' TS and a new, blank TS is created to be
+ * the new `current', which will then start accumulating any new frees.
+ * Once another zfs_txgs_per_trim TXGs have passed, the previous TS's
+ * extents are trimmed, the TS is destroyed and the current TS again
+ * becomes the previous TS.
+ * This serves to fulfill two functions: aggregate many small frees
+ * into fewer larger trim operations (which should help with devices
+ * which do not take so kindly to them) and to allow for disaster
+ * recovery (extents won't get trimmed immediately, but instead only
+ * after passing this rather long timeout, thus preserving
+ * 'zfs import -F' functionality).
+ * The exact default value of this tunable is a tradeoff between:
+ * 1) Keeping the trim commands reasonably small.
+ * 2) Keeping the ability to rollback back for as many txgs as possible.
+ * 3) Waiting around too long that the user starts to get uneasy about not
+ *	seeing any space being freed after they remove some files.
+ * The default value of 32 is the maximum number of uberblocks in a vdev
+ * label, assuming a 4k physical sector size (which seems to be the almost
+ * universal smallest sector size used in SSDs).
+ */
+unsigned int zfs_txgs_per_trim = 32;
+
+/*
  * Given a vdev type, return the appropriate ops vector.
  */
 static vdev_ops_t *
@@ -3953,6 +3981,7 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	vdev_t *vd = vti->vti_vdev;
 	spa_t *spa = vd->vdev_spa;
 	uint64_t txg = vti->vti_txg;
+	uint64_t txgs_per_trim = zfs_txgs_per_trim;
 	uint64_t mlim = 0, mused = 0;
 	boolean_t limited;
 
@@ -3969,8 +3998,20 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	limited = mused > mlim;
 	DTRACE_PROBE3(autotrim__mem__lim, vdev_t *, vd, uint64_t, mused,
 	    uint64_t, mlim);
-	for (uint64_t i = 0; i < vd->vdev_ms_count; i++)
-		metaslab_auto_trim(vd->vdev_ms[i], txg, !limited);
+
+	/*
+	 * Since we typically have hundreds of metaslabs per vdev, but we only
+	 * trim them once every zfs_txgs_per_trim txgs, it'd be best if we
+	 * could sequence the TRIM commands from all metaslabs so that they
+	 * don't all always pound the device in the same txg. We do so taking
+	 * the txg number modulo txgs_per_trim and then skipping by
+	 * txgs_per_trim. Thus, for the default 200 metaslabs and 32
+	 * txgs_per_trim, we'll only be trimming ~6.25 metaslabs per txg.
+	 */
+	for (uint64_t i = txg % txgs_per_trim; i < vd->vdev_ms_count;
+	    i += txgs_per_trim)
+		metaslab_auto_trim(vd->vdev_ms[i], !limited);
+
 	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 
 out:
@@ -4058,5 +4099,9 @@ MODULE_PARM_DESC(zfs_scan_ignore_errors,
 module_param(zfs_trim_mem_lim_fact, int, 0644);
 MODULE_PARM_DESC(metaslabs_per_vdev, "Maximum percentage of physical memory "
 	"to be used for storing trim extents");
+
+module_param(zfs_txgs_per_trim, int, 0644);
+MODULE_PARM_DESC(zfs_txgs_per_trim, "Number of txgs per trim");
+
 /* END CSTYLED */
 #endif
