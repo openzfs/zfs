@@ -552,7 +552,8 @@ typedef struct dkioc_free_list_s {
 	dkioc_free_list_ext_t	dfl_exts[1];
 } dkioc_free_list_t;
 #define	DFL_SZ(num_exts) \
-	(sizeof (dkioc_free_list_t) + (num_exts - 1) * 16)
+	(sizeof (dkioc_free_list_t) +\
+	(num_exts - 1) * sizeof (dkioc_free_list_ext_t))
 
 #ifdef	__cplusplus
 }
