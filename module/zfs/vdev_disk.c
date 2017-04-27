@@ -320,15 +320,15 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
 
-	/* Reset TRIM flag, as underlying device support may have changed */
-	v->vdev_notrim = B_FALSE;
-
 skip_open:
 	/*  Determine the physical block size */
 	block_size = vdev_bdev_block_size(vd->vd_bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
+
+	/* Set TRIM flag based on support reported by the underlying device. */
+	v->vdev_notrim = !blk_queue_discard(bdev_get_queue(vd->vd_bdev));
 
 	/* Inform the ZIO pipeline that we are non-rotational */
 	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(vd->vd_bdev));
@@ -434,15 +434,13 @@ vdev_disk_dio_put(dio_request_t *dr)
 static void
 vdev_disk_dio_blk_start_plug(dio_request_t *dr, struct blk_plug *plug)
 {
-	if (dr->dr_bio_count > 1)
-		blk_start_plug(plug);
+	blk_start_plug(plug);
 }
 
 static void
 vdev_disk_dio_blk_finish_plug(dio_request_t *dr, struct blk_plug *plug)
 {
-	if (dr->dr_bio_count > 1)
-		blk_finish_plug(plug);
+	blk_finish_plug(plug);
 }
 #else
 #define	vdev_disk_dio_blk_start_plug(dr, plug)	((void)0)
@@ -559,7 +557,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 	uint64_t abd_offset;
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
-	int i = 0, error = 0;
+	int i = 0, error = 0, should_plug = 0;
 #if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
 	struct blk_plug plug;
 #endif
@@ -593,6 +591,10 @@ retry:
 		/* Finished constructing bio's for given buffer */
 		if (bio_size <= 0)
 			break;
+
+		/* Plug the device when submitting multiple bio */
+		if (!should_plug && i >= 1)
+			should_plug = 1;
 
 		/*
 		 * By default only 'bio_count' bio's per dio are allowed.
@@ -634,14 +636,18 @@ retry:
 
 	/* Extra reference to protect dio_request during vdev_submit_bio */
 	vdev_disk_dio_get(dr);
-	vdev_disk_dio_blk_start_plug(dr, &plug);
+
+	if (should_plug)
+		vdev_disk_dio_blk_start_plug(dr, &plug);
 
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
 			vdev_submit_bio(dr->dr_bio[i]);
 
-	vdev_disk_dio_blk_finish_plug(dr, &plug);
+	if (should_plug)
+		vdev_disk_dio_blk_finish_plug(dr, &plug);
+
 	(void) vdev_disk_dio_put(dr);
 
 	return (error);
