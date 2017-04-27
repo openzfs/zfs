@@ -4117,8 +4117,11 @@ print_zpool_script_help(char *name, char *path)
 
 	rc = libzfs_run_process_get_stdout_nopath(path, argv, NULL, &lines,
 	    &lines_cnt);
-	if (rc != 0 || lines == NULL || lines_cnt <= 0)
+	if (rc != 0 || lines == NULL || lines_cnt <= 0) {
+		if (lines != NULL)
+			libzfs_free_str_array(lines, lines_cnt);
 		return;
+	}
 
 	for (int i = 0; i < lines_cnt; i++)
 		if (!is_blank_str(lines[i]))
