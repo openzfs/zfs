@@ -1269,9 +1269,10 @@ zio_trim_dfl(zio_t *pio, spa_t *spa, vdev_t *vd, dkioc_free_list_t *dfl,
 		 * queue's algorithms working more-or-less as they should.
 		 */
 		uint64_t off = dfl->dfl_exts[0].dfle_start;
+		uint64_t size = 1 << vd->vdev_top->vdev_ashift;
 
-		zio = zio_create(pio, spa, 0, NULL, NULL, 1 << vd->vdev_ashift,
-		    1 << vd->vdev_ashift, done, private, ZIO_TYPE_IOCTL,
+		zio = zio_create(pio, spa, 0, NULL, NULL,
+		    size, size, done, private, ZIO_TYPE_IOCTL,
 		    auto_trim ? ZIO_PRIORITY_AUTO_TRIM : ZIO_PRIORITY_MAN_TRIM,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY |
 		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_AGGREGATE, vd, off,
