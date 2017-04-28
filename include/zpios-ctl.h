@@ -183,7 +183,7 @@ zpios_timespec_now(void)
 	zpios_timespec_t zts_now;
 	struct timespec ts_now;
 
-	ts_now = current_kernel_time();
+	getnstimeofday(&ts_now);
 	zts_now.ts_sec  = ts_now.tv_sec;
 	zts_now.ts_nsec = ts_now.tv_nsec;
 
