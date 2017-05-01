@@ -63,6 +63,7 @@
 #include <sys/ddt.h>
 #include <sys/zfeature.h>
 #include <sys/abd.h>
+#include <sys/blkptr.h>
 #include <zfs_comutil.h>
 #include <libzfs.h>
 
@@ -137,10 +138,11 @@ usage(void)
 	    "\t%s -O <dataset> <path>\n"
 	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
+	    "\t%s -E [-A] word0:word1:...:word15\n"
 	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
 	    "<poolname>\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
-	    cmdname);
+	    cmdname, cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
 	    "separator character '/' or '@'\n");
@@ -155,6 +157,8 @@ usage(void)
 	(void) fprintf(stderr, "        -C config (or cachefile if alone)\n");
 	(void) fprintf(stderr, "        -d dataset(s)\n");
 	(void) fprintf(stderr, "        -D dedup statistics\n");
+	(void) fprintf(stderr, "        -E decode and display block from an "
+	    "embedded block pointer\n");
 	(void) fprintf(stderr, "        -h pool history\n");
 	(void) fprintf(stderr, "        -i intent logs\n");
 	(void) fprintf(stderr, "        -l read label contents\n");
@@ -4092,6 +4096,35 @@ out:
 	free(dup);
 }
 
+static void
+zdb_embedded_block(char *thing)
+{
+	blkptr_t bp;
+	unsigned long long *words = (void *)&bp;
+	char buf[SPA_MAXBLOCKSIZE];
+	int err;
+
+	memset(&bp, 0, sizeof (blkptr_t));
+
+	err = sscanf(thing, "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx:"
+	    "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx",
+	    words + 0, words + 1, words + 2, words + 3,
+	    words + 4, words + 5, words + 6, words + 7,
+	    words + 8, words + 9, words + 10, words + 11,
+	    words + 12, words + 13, words + 14, words + 15);
+	if (err != 16) {
+		(void) printf("invalid input format\n");
+		exit(1);
+	}
+	ASSERT3U(BPE_GET_LSIZE(&bp), <=, SPA_MAXBLOCKSIZE);
+	err = decode_embedded_bp(&bp, buf, BPE_GET_LSIZE(&bp));
+	if (err != 0) {
+		(void) printf("decode failed: %u\n", err);
+		exit(1);
+	}
+	zdb_dump_block_raw(buf, BPE_GET_LSIZE(&bp), 0);
+}
+
 static boolean_t
 pool_match(nvlist_t *cfg, char *tgt)
 {
@@ -4210,13 +4243,14 @@ main(int argc, char **argv)
 		spa_config_path = spa_config_path_env;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeFGhiI:lLmMo:Op:PqRsSt:uU:vVx:X")) != -1) {
+	    "AbcCdDeEFGhiI:lLmMo:Op:PqRsSt:uU:vVx:X")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
 		case 'C':
 		case 'd':
 		case 'D':
+		case 'E':
 		case 'G':
 		case 'h':
 		case 'i':
@@ -4280,6 +4314,12 @@ main(int argc, char **argv)
 			break;
 		case 'U':
 			spa_config_path = optarg;
+			if (spa_config_path[0] != '/') {
+				(void) fprintf(stderr,
+				    "cachefile must be an absolute path "
+				    "(i.e. start with a slash)\n");
+				usage();
+			}
 			break;
 		case 'v':
 			verbose++;
@@ -4331,7 +4371,7 @@ main(int argc, char **argv)
 		verbose = MAX(verbose, 1);
 
 	for (c = 0; c < 256; c++) {
-		if (dump_all && strchr("AeFlLOPRSX", c) == NULL)
+		if (dump_all && strchr("AeEFlLOPRSX", c) == NULL)
 			dump_opt[c] = 1;
 		if (dump_opt[c])
 			dump_opt[c] += verbose;
@@ -4345,6 +4385,14 @@ main(int argc, char **argv)
 
 	if (argc < 2 && dump_opt['R'])
 		usage();
+
+	if (dump_opt['E']) {
+		if (argc != 1)
+			usage();
+		zdb_embedded_block(argv[0]);
+		return (0);
+	}
+
 	if (argc < 1) {
 		if (!dump_opt['e'] && dump_opt['C']) {
 			dump_cachefile(spa_config_path);
