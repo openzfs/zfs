@@ -167,10 +167,10 @@ zio_init(void)
 		 */
 		align = 8 * SPA_MINBLOCKSIZE;
 #else
-		if (size <= 4 * SPA_MINBLOCKSIZE) {
+		if (size < PAGESIZE) {
 			align = SPA_MINBLOCKSIZE;
 		} else if (IS_P2ALIGNED(size, p2 >> 2)) {
-			align = MIN(p2 >> 2, PAGESIZE);
+			align = PAGESIZE;
 		}
 #endif
 
