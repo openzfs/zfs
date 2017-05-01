@@ -6519,11 +6519,11 @@ arc_init(void)
 	 * If it has been set by a module parameter, take that.
 	 * Otherwise, use a percentage of physical memory defined by
 	 * zfs_dirty_data_max_percent (default 10%) with a cap at
-	 * zfs_dirty_data_max_max (default 25% of physical memory).
+	 * zfs_dirty_data_max_max (default 4G or 25% of physical memory).
 	 */
 	if (zfs_dirty_data_max_max == 0)
-		zfs_dirty_data_max_max = allmem *
-		    zfs_dirty_data_max_max_percent / 100;
+		zfs_dirty_data_max_max = MIN(4ULL * 1024 * 1024 * 1024,
+		    allmem * zfs_dirty_data_max_max_percent / 100);
 
 	if (zfs_dirty_data_max == 0) {
 		zfs_dirty_data_max = allmem *
