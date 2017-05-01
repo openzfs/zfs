@@ -10,12 +10,12 @@
 .\"
 .\"
 .\" Copyright 2012, Richard Lowe.
-.\" Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2017 by Delphix. All rights reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd April 11, 2017
+.Dd April 14, 2017
 .Dt ZDB 8 SMM
 .Os Linux
 .Sh NAME
@@ -40,6 +40,10 @@
 .Fl C
 .Op Fl A
 .Op Fl U Ar cache
+.Nm
+.Fl E
+.Op Fl A
+.Ar word0 Ns : Ns Ar word1 Ns :...: Ns Ar word15
 .Nm
 .Fl l
 .Op Fl Aqu
@@ -155,6 +159,10 @@ Display the statistics independently for each deduplication table.
 Dump the contents of the deduplication tables describing duplicate blocks.
 .It Fl DDDDD
 Also dump the contents of the deduplication tables describing unique blocks.
+.It Fl E Ar word0 Ns : Ns Ar word1 Ns :...: Ns Ar word15
+Decode and display block from an embedded block pointer specified by the
+.Ar word
+arguments.
 .It Fl h
 Display pool history similar to
 .Nm zpool Cm history ,
