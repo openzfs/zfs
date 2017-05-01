@@ -640,6 +640,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_demand_hit_predictive_prefetch;
 	kstat_named_t arcstat_need_free;
 	kstat_named_t arcstat_sys_free;
+	kstat_named_t arcstat_reclaim_count;
 } arc_stats_t;
 
 static arc_stats_t arc_stats = {
@@ -734,7 +735,8 @@ static arc_stats_t arc_stats = {
 	{ "sync_wait_for_async",	KSTAT_DATA_UINT64 },
 	{ "demand_hit_predictive_prefetch", KSTAT_DATA_UINT64 },
 	{ "arc_need_free",		KSTAT_DATA_UINT64 },
-	{ "arc_sys_free",		KSTAT_DATA_UINT64 }
+	{ "arc_sys_free",		KSTAT_DATA_UINT64 },
+	{ "arc_reclaim_count",		KSTAT_DATA_UINT64 },
 };
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
@@ -4626,6 +4628,7 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 		if (arc_is_overflowing()) {
 			cv_signal(&arc_reclaim_thread_cv);
 			cv_wait(&arc_reclaim_waiters_cv, &arc_reclaim_lock);
+			ARCSTAT_BUMP(arcstat_reclaim_count);
 		}
 
 		mutex_exit(&arc_reclaim_lock);

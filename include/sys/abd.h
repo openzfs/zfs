@@ -53,6 +53,7 @@ typedef struct abd {
 	uint_t		abd_size;	/* excludes scattered abd_offset */
 	struct abd	*abd_parent;
 	refcount_t	abd_children;
+	list_node_t	abd_lru;
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;

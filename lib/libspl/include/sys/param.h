@@ -28,6 +28,7 @@
 #define	_LIBSPL_SYS_PARAM_H
 
 #include_next <sys/param.h>
+#include <sys/user.h>
 #include <unistd.h>
 
 /*
@@ -63,5 +64,11 @@
 
 extern size_t spl_pagesize(void);
 #define	PAGESIZE	(spl_pagesize())
+
+#ifdef PAGESHIFT
+#undef PAGESHIFT
+#endif /* PAGESHIFT */
+
+#define PAGESHIFT PAGE_SHIFT
 
 #endif
