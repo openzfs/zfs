@@ -5730,7 +5730,7 @@ print_scan_status(pool_scan_stat_t *ps)
 
 	start = ps->pss_start_time;
 	end = ps->pss_end_time;
-	zfs_nicenum(ps->pss_processed, processed_buf, sizeof (processed_buf));
+	zfs_nicebytes(ps->pss_processed, processed_buf, sizeof (processed_buf));
 
 	assert(ps->pss_func == POOL_SCAN_SCRUB ||
 	    ps->pss_func == POOL_SCAN_RESILVER);
@@ -5792,9 +5792,9 @@ print_scan_status(pool_scan_stat_t *ps)
 	mins_left = ((total - examined) / rate) / 60;
 	hours_left = mins_left / 60;
 
-	zfs_nicenum(examined, examined_buf, sizeof (examined_buf));
-	zfs_nicenum(total, total_buf, sizeof (total_buf));
-	zfs_nicenum(rate, rate_buf, sizeof (rate_buf));
+	zfs_nicebytes(examined, examined_buf, sizeof (examined_buf));
+	zfs_nicebytes(total, total_buf, sizeof (total_buf));
+	zfs_nicebytes(rate, rate_buf, sizeof (rate_buf));
 
 	/*
 	 * do not print estimated time if hours_left is more than 30 days
@@ -5897,6 +5897,7 @@ print_dedup_stats(nvlist_t *config)
 	ddt_stat_t *dds;
 	ddt_object_t *ddo;
 	uint_t c;
+	char dspace[6], mspace[6];
 
 	/*
 	 * If the pool was faulted then we may not have been able to
@@ -5914,10 +5915,12 @@ print_dedup_stats(nvlist_t *config)
 		return;
 	}
 
-	(void) printf("DDT entries %llu, size %llu on disk, %llu in core\n",
+	zfs_nicebytes(ddo->ddo_dspace, dspace, sizeof (dspace));
+	zfs_nicebytes(ddo->ddo_mspace, mspace, sizeof (mspace));
+	(void) printf("DDT entries %llu, size %s on disk, %s in core\n",
 	    (u_longlong_t)ddo->ddo_count,
-	    (u_longlong_t)ddo->ddo_dspace,
-	    (u_longlong_t)ddo->ddo_mspace);
+	    dspace,
+	    mspace);
 
 	verify(nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_STATS,
 	    (uint64_t **)&dds, &c) == 0);

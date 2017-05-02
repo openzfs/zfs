@@ -56,9 +56,9 @@ log_onexit cleanup
 log_assert "'zpool create -O property=value pool' can successfully create a pool \
 		with correct filesystem property set."
 
-set -A RW_FS_PROP "quota=512M" \
-		  "reservation=512M" \
-		  "recordsize=64K" \
+set -A RW_FS_PROP "quota=536870912" \
+		  "reservation=536870912" \
+		  "recordsize=262144" \
 		  "mountpoint=/tmp/mnt$$" \
 		  "checksum=fletcher2" \
 		  "compression=lzjb" \

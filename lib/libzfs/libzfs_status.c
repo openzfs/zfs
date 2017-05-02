@@ -412,13 +412,13 @@ dump_ddt_stat(const ddt_stat_t *dds, int h)
 		zfs_nicenum(1ULL << h, refcnt, sizeof (refcnt));
 
 	zfs_nicenum(dds->dds_blocks, blocks, sizeof (blocks));
-	zfs_nicenum(dds->dds_lsize, lsize, sizeof (lsize));
-	zfs_nicenum(dds->dds_psize, psize, sizeof (psize));
-	zfs_nicenum(dds->dds_dsize, dsize, sizeof (dsize));
+	zfs_nicebytes(dds->dds_lsize, lsize, sizeof (lsize));
+	zfs_nicebytes(dds->dds_psize, psize, sizeof (psize));
+	zfs_nicebytes(dds->dds_dsize, dsize, sizeof (dsize));
 	zfs_nicenum(dds->dds_ref_blocks, ref_blocks, sizeof (ref_blocks));
-	zfs_nicenum(dds->dds_ref_lsize, ref_lsize, sizeof (ref_lsize));
-	zfs_nicenum(dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
-	zfs_nicenum(dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
+	zfs_nicebytes(dds->dds_ref_lsize, ref_lsize, sizeof (ref_lsize));
+	zfs_nicebytes(dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
+	zfs_nicebytes(dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
 
 	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
 	    refcnt,

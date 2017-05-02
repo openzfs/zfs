@@ -28,9 +28,9 @@
 # Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 #
 
-set -A RW_FS_PROP "quota=512M" \
-		  "reservation=512M" \
-		  "recordsize=256K" \
+set -A RW_FS_PROP "quota=536870912" \
+		  "reservation=536870912" \
+		  "recordsize=262144" \
 		  "mountpoint=/tmp/mnt$$" \
 		  "checksum=fletcher2" \
 		  "compression=lzjb" \
@@ -43,7 +43,7 @@ set -A RW_FS_PROP "quota=512M" \
 		  "canmount=off" \
 		  "local:department=123"
 
-set -A RW_VOL_PROP "volblocksize=16K" \
+set -A RW_VOL_PROP "volblocksize=16384" \
 		   "checksum=fletcher2" \
 		   "compression=lzjb" \
 		   "readonly=on" \
@@ -54,8 +54,8 @@ set -A RW_VOL_CLONE_PROP "checksum=fletcher2" \
 		   "readonly=on" \
 		   "local:department=123"
 
-set -A FS_ONLY_PROP "quota=512M" \
-                    "recordsize=64K" \
+set -A FS_ONLY_PROP "quota=536870912" \
+                    "recordsize=65536" \
                     "mountpoint=/tmp/mnt$$" \
                     "atime=off" \
                     "devices=off" \
@@ -66,4 +66,4 @@ set -A FS_ONLY_PROP "quota=512M" \
 		    "canmount=off" \
 		    "version=1"
 
-set -A VOL_ONLY_PROP "volblocksize=16K" "volsize=512M"
+set -A VOL_ONLY_PROP "volblocksize=16384" "volsize=536870912"
