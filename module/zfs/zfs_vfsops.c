@@ -1568,7 +1568,8 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	return (0);
 }
 
-#if !defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
+#if !defined(HAVE_SUPER_SETUP_BDI_NAME) && \
+	!defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
 	!defined(HAVE_3ARGS_BDI_SETUP_AND_REGISTER)
 atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 #endif
@@ -1605,12 +1606,12 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	sb->s_time_gran = 1;
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
-	zfsvfs->z_bdi.ra_pages = 0;
-	sb->s_bdi = &zfsvfs->z_bdi;
 
-	error = -zpl_bdi_setup_and_register(&zfsvfs->z_bdi, "zfs");
+	error = -zpl_bdi_setup(sb, "zfs");
 	if (error)
 		goto out;
+
+	sb->s_bdi->ra_pages = 0;
 
 	/* Set callback operations for the file system. */
 	sb->s_op = &zpl_super_operations;
@@ -1732,7 +1733,7 @@ zfs_umount(struct super_block *sb)
 	arc_remove_prune_callback(zfsvfs->z_arc_prune);
 	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
 	os = zfsvfs->z_os;
-	bdi_destroy(sb->s_bdi);
+	zpl_bdi_destroy(sb);
 
 	/*
 	 * z_os will be NULL if there was an error in
