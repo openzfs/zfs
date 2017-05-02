@@ -54,7 +54,7 @@ function test_clone_run
     clone=$(eval echo \$${dstype}CLONE)
     log_must zfs destroy -d $snap
     log_must datasetexists $snap
-    log_must zfs destroy -R $clone
+    log_must_busy zfs destroy -R $clone
     log_mustnot datasetexists $snap
     log_mustnot datasetexists $clone
 }
