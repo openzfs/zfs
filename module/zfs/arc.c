@@ -319,6 +319,11 @@ static int		arc_p_min_shift = 4;
 /* log2(fraction of arc to reclaim) */
 static int		arc_shrink_shift = 7;
 
+/* percent of pagecache to reclaim arc to */
+#ifdef _KERNEL
+static uint_t		zfs_arc_pc_percent = 0;
+#endif
+
 /*
  * log2(fraction of ARC which must be free to allow growing).
  * I.e. If there is less than arc_c >> arc_no_grow_shift free memory,
@@ -4220,7 +4225,7 @@ arc_reclaim_thread(void)
 	while (!arc_reclaim_thread_exit) {
 		int64_t to_free;
 		uint64_t evicted = 0;
-
+		uint64_t need_free = arc_need_free;
 		arc_tuning_update();
 
 		/*
@@ -4270,7 +4275,7 @@ arc_reclaim_thread(void)
 			to_free = (arc_c >> arc_shrink_shift) - free_memory;
 			if (to_free > 0) {
 #ifdef _KERNEL
-				to_free = MAX(to_free, arc_need_free);
+				to_free = MAX(to_free, need_free);
 #endif
 				arc_shrink(to_free);
 			}
@@ -4295,11 +4300,12 @@ arc_reclaim_thread(void)
 			/*
 			 * We're either no longer overflowing, or we
 			 * can't evict anything more, so we should wake
-			 * up any threads before we go to sleep and clear
-			 * arc_need_free since nothing more can be done.
+			 * up any threads before we go to sleep and remove
+			 * the bytes we were working on from arc_need_free
+			 * since nothing more will be done here.
 			 */
 			cv_broadcast(&arc_reclaim_waiters_cv);
-			arc_need_free = 0;
+			ARCSTAT_INCR(arcstat_need_free, -need_free);
 
 			/*
 			 * Block until signaled, or after one second (we
@@ -4374,17 +4380,20 @@ arc_evictable_memory(void)
 	    refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) +
 	    refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_DATA]) +
 	    refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
-	uint64_t ghost_clean =
-	    refcount_count(&arc_mru_ghost->arcs_esize[ARC_BUFC_DATA]) +
-	    refcount_count(&arc_mru_ghost->arcs_esize[ARC_BUFC_METADATA]) +
-	    refcount_count(&arc_mfu_ghost->arcs_esize[ARC_BUFC_DATA]) +
-	    refcount_count(&arc_mfu_ghost->arcs_esize[ARC_BUFC_METADATA]);
 	uint64_t arc_dirty = MAX((int64_t)arc_size - (int64_t)arc_clean, 0);
 
-	if (arc_dirty >= arc_c_min)
-		return (ghost_clean + arc_clean);
+	/*
+	 * Scale reported evictable memory in proportion to page cache, cap
+	 * at specified min/max.
+	 */
+	uint64_t min = (ptob(global_page_state(NR_FILE_PAGES)) / 100) *
+	    zfs_arc_pc_percent;
+	min = MAX(arc_c_min, MIN(arc_c_max, min));
 
-	return (ghost_clean + MAX((int64_t)arc_size - (int64_t)arc_c_min, 0));
+	if (arc_dirty >= min)
+		return (arc_clean);
+
+	return (MAX((int64_t)arc_size - (int64_t)min, 0));
 }
 
 /*
@@ -4418,33 +4427,33 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		return (SHRINK_STOP);
 
 	/* Reclaim in progress */
-	if (mutex_tryenter(&arc_reclaim_lock) == 0)
-		return (SHRINK_STOP);
+	if (mutex_tryenter(&arc_reclaim_lock) == 0) {
+		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
+		return (0);
+	}
 
 	mutex_exit(&arc_reclaim_lock);
 
 	/*
 	 * Evict the requested number of pages by shrinking arc_c the
-	 * requested amount.  If there is nothing left to evict just
-	 * reap whatever we can from the various arc slabs.
+	 * requested amount.
 	 */
 	if (pages > 0) {
 		arc_shrink(ptob(sc->nr_to_scan));
-		arc_kmem_reap_now();
+		if (current_is_kswapd())
+			arc_kmem_reap_now();
 #ifdef HAVE_SPLIT_SHRINKER_CALLBACK
-		pages = MAX(pages - btop(arc_evictable_memory()), 0);
+		pages = MAX((int64_t)pages -
+		    (int64_t)btop(arc_evictable_memory()), 0);
 #else
 		pages = btop(arc_evictable_memory());
 #endif
-	} else {
-		arc_kmem_reap_now();
+		/*
+		 * We've shrunk what we can, wake up threads.
+		 */
+		cv_broadcast(&arc_reclaim_waiters_cv);
+	} else
 		pages = SHRINK_STOP;
-	}
-
-	/*
-	 * We've reaped what we can, wake up threads.
-	 */
-	cv_broadcast(&arc_reclaim_waiters_cv);
 
 	/*
 	 * When direct reclaim is observed it usually indicates a rapid
@@ -4457,7 +4466,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		arc_no_grow = B_TRUE;
-		arc_need_free = ptob(sc->nr_to_scan);
+		arc_kmem_reap_now();
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
 	}
 
@@ -7757,6 +7766,10 @@ MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
 
 module_param(zfs_arc_shrink_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
+
+module_param(zfs_arc_pc_percent, uint, 0644);
+MODULE_PARM_DESC(zfs_arc_pc_percent,
+	"Percent of pagecache to reclaim arc to");
 
 module_param(zfs_arc_p_min_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
