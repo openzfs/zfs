@@ -374,7 +374,7 @@ abd_free_pages(abd_t *abd)
 	struct sg_table table;
 	struct page *page;
 	int nr_pages = ABD_SCATTER(abd).abd_nents;
-	int order, i, j;
+	int order, i;
 
 	if (abd->abd_flags & ABD_FLAG_MULTI_ZONE)
 		ABDSTAT_BUMPDOWN(abdstat_scatter_page_multi_zone);
@@ -383,13 +383,11 @@ abd_free_pages(abd_t *abd)
 		ABDSTAT_BUMPDOWN(abdstat_scatter_page_multi_chunk);
 
 	abd_for_each_sg(abd, sg, nr_pages, i) {
-		for (j = 0; j < sg->length; ) {
-			page = nth_page(sg_page(sg), j >> PAGE_SHIFT);
-			order = compound_order(page);
-			__free_pages(page, order);
-			j += (PAGESIZE << order);
-			ABDSTAT_BUMPDOWN(abdstat_scatter_orders[order]);
-		}
+		page = sg_page(sg);
+		order = compound_order(page);
+		__free_pages(page, order);
+		ASSERT3U(sg->length, <=, PAGE_SIZE << order);
+		ABDSTAT_BUMPDOWN(abdstat_scatter_orders[order]);
 	}
 
 	table.sgl = ABD_SCATTER(abd).abd_sgl;
