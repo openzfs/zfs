@@ -1133,6 +1133,60 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 }
 
 /*
+ * For use when a leaf vdev is expanded.
+ * The location of labels 2 and 3 changed, and at the new location the
+ * uberblock rings are either empty or contain garbage.  The sync will write
+ * new configs there because the vdev is dirty, but expansion also needs the
+ * uberblock rings copied.  Read them from label 0 which did not move.
+ *
+ * Since the point is to populate labels {2,3} with valid uberblocks,
+ * we zero uberblocks we fail to read or which are not valid.
+ */
+
+static void
+vdev_copy_uberblocks(vdev_t *vd)
+{
+	abd_t *ub_abd;
+	zio_t *write_zio;
+	int locks = (SCL_L2ARC | SCL_ZIO);
+	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_SPECULATIVE;
+
+	ASSERT(spa_config_held(vd->vdev_spa, SCL_STATE, RW_READER) ==
+	    SCL_STATE);
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+
+	spa_config_enter(vd->vdev_spa, locks, FTAG, RW_READER);
+
+	ub_abd = abd_alloc(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
+
+	write_zio = zio_root(vd->vdev_spa, NULL, NULL, flags);
+	for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
+		const int src_label = 0;
+		zio_t *zio;
+
+		zio = zio_root(vd->vdev_spa, NULL, NULL, flags);
+		vdev_label_read(zio, vd, src_label, ub_abd,
+		    VDEV_UBERBLOCK_OFFSET(vd, n), VDEV_UBERBLOCK_SIZE(vd),
+		    NULL, NULL, flags);
+
+		if (zio_wait(zio) || uberblock_verify(abd_to_buf(ub_abd)))
+			abd_zero(ub_abd, VDEV_UBERBLOCK_SIZE(vd));
+
+		for (int l = 2; l < VDEV_LABELS; l++)
+			vdev_label_write(write_zio, vd, l, ub_abd,
+			    VDEV_UBERBLOCK_OFFSET(vd, n),
+			    VDEV_UBERBLOCK_SIZE(vd), NULL, NULL,
+			    flags | ZIO_FLAG_DONT_PROPAGATE);
+	}
+	(void) zio_wait(write_zio);
+
+	spa_config_exit(vd->vdev_spa, locks, FTAG);
+
+	abd_free(ub_abd);
+}
+
+/*
  * On success, increment root zio's count of good writes.
  * We only get credit for writes to known-visible vdevs; see spa_vdev_add().
  */
@@ -1162,6 +1216,13 @@ vdev_uberblock_sync(zio_t *zio, uberblock_t *ub, vdev_t *vd, int flags)
 
 	if (!vdev_writeable(vd))
 		return;
+
+	/* If the vdev was expanded, need to copy uberblock rings. */
+	if (vd->vdev_state == VDEV_STATE_HEALTHY &&
+	    vd->vdev_copy_uberblocks == B_TRUE) {
+		vdev_copy_uberblocks(vd);
+		vd->vdev_copy_uberblocks = B_FALSE;
+	}
 
 	n = ub->ub_txg & (VDEV_UBERBLOCK_COUNT(vd) - 1);
 
