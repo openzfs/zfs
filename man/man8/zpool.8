@@ -562,23 +562,6 @@ The space usage properties report actual physical space available to the storage
 
 .sp
 .LP
-The following property can be set at creation time:
-.sp
-.ne 2
-.na
-\fB\fBashift\fR=\fIashift\fR\fR
-.ad
-.sp .6
-.RS 4n
-Pool sector size exponent, to the power of 2 (internally referred to as "ashift"). Values from 9 to 13, inclusive, are valid; also, the special value 0 (the default) means to auto-detect using the kernel's block layer and a ZFS internal exception list. I/O operations will be aligned to the specified size boundaries. Additionally, the minimum (disk) write size will be set to the specified size, so this represents a space vs. performance trade-off. The typical case for setting this property is when performance is important and the underlying disks use 4KiB sectors but report 512B sectors to the OS (for compatibility reasons); in that case, set \fBashift=12\fR (which is 1<<12 = 4096).
-.LP
-For optimal performance, the pool sector size should be greater than or equal to the sector size of the underlying disks. Since the property cannot be changed after pool creation, if in a given pool, you \fIever\fR want to use drives that \fIreport\fR 4KiB sectors, you must set \fBashift=12\fR at pool creation time.
-.LP
-Keep in mind is that the \fBashift\fR is \fIvdev\fR specific and is not a \fIpool\fR global.  This means that when adding new vdevs to an existing pool you may need to specify the \fBashift\fR.
-.RE
-
-.sp
-.LP
 The following property can be set at creation time and import time:
 .sp
 .ne 2
@@ -610,6 +593,18 @@ To write to a read-only pool, a export and import of the pool is required.
 .sp
 .LP
 The following properties can be set at creation time and import time, and later changed with the \fBzpool set\fR command:
+.sp
+.ne 2
+.na
+\fB\fBashift\fR=\fIashift\fR\fR
+.ad
+.sp .6
+.RS 4n
+Pool sector size exponent, to the power of 2 (internally referred to as "ashift"). Values from 9 to 16, inclusive, are valid; also, the special value 0 (the default) means to auto-detect using the kernel's block layer and a ZFS internal exception list. I/O operations will be aligned to the specified size boundaries. Additionally, the minimum (disk) write size will be set to the specified size, so this represents a space vs. performance trade-off. For optimal performance, the pool sector size should be greater than or equal to the sector size of the underlying disks. The typical case for setting this property is when performance is important and the underlying disks use 4KiB sectors but report 512B sectors to the OS (for compatibility reasons); in that case, set \fBashift=12\fR (which is 1<<12 = 4096).
+.LP
+When set, this property is used as the default hint value in \fIsubsequent\fR vdev operations (add, attach and replace). Changing this value will \fInot\fR modify any existing vdev, not even on disk replacement; however it can be used, for instance, to replace a dying 512B sectors disk with a newer 4KiB sectors device: this will probably result in bad performance but at the same time could prevent loss of data.
+.RE
+
 .sp
 .ne 2
 .na
@@ -830,7 +825,7 @@ Display full paths for vdevs instead of only the last component of the path.  Th
 .ad
 .sp .6
 .RS 4n
-Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.  \fBDo note\fR that some properties (among them \fBashift\fR) are \fInot\fR inherited from a previous vdev. They are vdev specific, not pool specific.
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.
 .RE
 
 Do not add a disk that is currently configured as a quorum device to a zpool. After a disk is in the pool, that disk can then be configured as a quorum device.
@@ -860,7 +855,7 @@ Forces use of \fInew_device\fR, even if its appears to be in use. Not all device
 .ad
 .sp .6
 .RS 4n
-Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is "ashift".
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.
 .RE
 
 .RE
@@ -2011,7 +2006,7 @@ Forces use of \fInew_device\fR, even if its appears to be in use. Not all device
 .ad
 .sp .6n
 .RS 6n
-Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.  \fBDo note\fR that some properties (among them \fBashift\fR) are \fInot\fR inherited from a previous vdev. They are vdev specific, not pool specific.
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is \fBashift\fR.
 .RE
 
 .RE

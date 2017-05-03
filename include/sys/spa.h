@@ -126,11 +126,11 @@ _NOTE(CONSTCOND) } while (0)
  * which can only be set at vdev creation time. Physical writes are always done
  * according to it, which makes 2^ashift the smallest possible IO on a vdev.
  *
- * We currently allow values ranging from 512 bytes (2^9 = 512) to 8 KiB
- * (2^13 = 8,192).
+ * We currently allow values ranging from 512 bytes (2^9 = 512) to 64 KiB
+ * (2^16 = 65,536).
  */
 #define	ASHIFT_MIN		9
-#define	ASHIFT_MAX		13
+#define	ASHIFT_MAX		16
 
 /*
  * Size of block to hold the configuration data (a packed nvlist)

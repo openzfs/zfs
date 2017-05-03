@@ -1825,6 +1825,29 @@ function snapshot_mountpoint
 }
 
 #
+# Given a device and 'ashift' value verify it's correctly set on every label
+#
+function verify_ashift # device ashift
+{
+	typeset device="$1"
+	typeset ashift="$2"
+
+	zdb -e -lll $device | awk -v ashift=$ashift '/ashift: / {
+	    if (ashift != $2)
+	        exit 1;
+	    else
+	        count++;
+	    } END {
+	    if (count != 4)
+	        exit 1;
+	    else
+	        exit 0;
+	    }'
+
+	return $?
+}
+
+#
 # Given a pool and file system, this function will verify the file system
 # using the zdb internal tool. Note that the pool is exported and imported
 # to ensure it has consistent state.
@@ -3215,6 +3238,21 @@ function wait_freeing #pool
 	typeset pool=${1:-$TESTPOOL}
 	while true; do
 		[[ "0" == "$(zpool list -Ho freeing $pool)" ]] && break
+		log_must sleep 1
+	done
+}
+
+#
+# Wait for every device replace operation to complete
+#
+# $1 pool name
+#
+function wait_replacing #pool
+{
+	typeset pool=${1:-$TESTPOOL}
+	while true; do
+		[[ "" == "$(zpool status $pool |
+		    awk '/replacing-[0-9]+/ {print $1}')" ]] && break
 		log_must sleep 1
 	done
 }
