@@ -1041,6 +1041,7 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 	objset_t *os;
 	zfsvfs_t *zfsvfs;
 	int error;
+	int i = 0;
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
@@ -1072,7 +1073,7 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 	zfsvfs->z_hold_trees = vmem_zalloc(sizeof (avl_tree_t) * size,
 	    KM_SLEEP);
 	zfsvfs->z_hold_locks = vmem_zalloc(sizeof (kmutex_t) * size, KM_SLEEP);
-	for (int i = 0; i != size; i++) {
+	for (i; i != size; i++) {
 		avl_create(&zfsvfs->z_hold_trees[i], zfs_znode_hold_compare,
 		    sizeof (znode_hold_t), offsetof(znode_hold_t, zh_node));
 		mutex_init(&zfsvfs->z_hold_locks[i], NULL, MUTEX_DEFAULT, NULL);

@@ -1031,10 +1031,11 @@ static uint64_t
 dsl_dir_space_towrite(dsl_dir_t *dd)
 {
 	uint64_t space = 0;
+	int i = 0;
 
 	ASSERT(MUTEX_HELD(&dd->dd_lock));
 
-	for (int i = 0; i < TXG_SIZE; i++) {
+	for (i; i < TXG_SIZE; i++) {
 		space += dd->dd_space_towrite[i & TXG_MASK];
 		ASSERT3U(dd->dd_space_towrite[i & TXG_MASK], >=, 0);
 	}
@@ -1124,6 +1125,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	struct tempreserve *tr;
 	int retval = EDQUOT;
 	uint64_t ref_rsrv = 0;
+	int i = 0;
 
 	ASSERT3U(txg, !=, 0);
 	ASSERT3S(asize, >, 0);
@@ -1135,7 +1137,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	 * when checking for over-quota because they get one free hit.
 	 */
 	uint64_t est_inflight = dsl_dir_space_towrite(dd);
-	for (int i = 0; i < TXG_SIZE; i++)
+	for (i; i < TXG_SIZE; i++)
 		est_inflight += dd->dd_tempreserved[i];
 	uint64_t used_on_disk = dsl_dir_phys(dd)->dd_used_bytes;
 

@@ -72,6 +72,7 @@ static multilist_t *
 multilist_create_impl(size_t size, size_t offset,
     unsigned int num, multilist_sublist_index_func_t *index_func)
 {
+	int i = 0;
 	ASSERT3U(size, >, 0);
 	ASSERT3U(size, >=, offset + sizeof (multilist_node_t));
 	ASSERT3U(num, >, 0);
@@ -87,7 +88,7 @@ multilist_create_impl(size_t size, size_t offset,
 
 	ASSERT3P(ml->ml_sublists, !=, NULL);
 
-	for (int i = 0; i < ml->ml_num_sublists; i++) {
+	for (i; i < ml->ml_num_sublists; i++) {
 		multilist_sublist_t *mls = &ml->ml_sublists[i];
 		mutex_init(&mls->mls_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 		list_create(&mls->mls_list, size, offset);
