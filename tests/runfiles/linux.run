@@ -219,40 +219,26 @@ tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',
 [tests/functional/cli_root/zpool]
 tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos']
 
-# DISABLED:
-# zpool_add_004_pos - https://github.com/zfsonlinux/zfs/issues/3484
-# zpool_add_005_pos - no 'dumpadm' command.
-# zpool_add_006_pos - https://github.com/zfsonlinux/zfs/issues/3484
 [tests/functional/cli_root/zpool_add]
 tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
+    'zpool_add_004_pos', 'zpool_add_005_pos', 'zpool_add_006_pos',
     'zpool_add_007_neg', 'zpool_add_008_neg', 'zpool_add_009_neg',
     'add-o_ashift', 'add_prop_ashift']
 
 [tests/functional/cli_root/zpool_attach]
 tests = ['zpool_attach_001_neg', 'attach-o_ashift']
 
-# DISABLED:
-# zpool_clear_001_pos - https://github.com/zfsonlinux/zfs/issues/5634
 [tests/functional/cli_root/zpool_clear]
-tests = ['zpool_clear_002_neg', 'zpool_clear_003_neg']
+tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg']
 
-# DISABLED:
-# zpool_create_001_pos - needs investigation
-# zpool_create_002_pos - needs investigation
-# zpool_create_004_pos - needs investigation
-# zpool_create_006_pos - https://github.com/zfsonlinux/zfs/issues/3484
-# zpool_create_008_pos - uses VTOC labels (?) and 'overlapping slices'
-# zpool_create_011_neg - tries to access /etc/vfstab etc
-# zpool_create_012_neg - swap devices
-# zpool_create_014_neg - swap devices
-# zpool_create_015_neg - swap devices
-# zpool_create_016_pos - no dumadm command.
-# zpool_create_020_pos - needs investigation
 [tests/functional/cli_root/zpool_create]
-tests = [
-    'zpool_create_003_pos', 'zpool_create_005_pos', 'zpool_create_007_neg',
-    'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_017_neg',
-    'zpool_create_018_pos', 'zpool_create_019_pos',
+tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
+    'zpool_create_003_pos', 'zpool_create_004_pos', 'zpool_create_005_pos',
+    'zpool_create_006_pos', 'zpool_create_007_neg', 'zpool_create_008_pos',
+    'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_011_neg',
+    'zpool_create_012_neg', 'zpool_create_014_neg',
+    'zpool_create_015_neg', 'zpool_create_016_pos', 'zpool_create_017_neg',
+    'zpool_create_018_pos', 'zpool_create_019_pos', 'zpool_create_020_pos',
     'zpool_create_021_pos', 'zpool_create_022_pos', 'zpool_create_023_neg',
     'zpool_create_024_pos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
@@ -260,11 +246,8 @@ tests = [
     'zpool_create_features_005_pos',
     'create-o_ashift']
 
-# DISABLED:
-# zpool_destroy_001_pos - needs investigation
-# zpool_destroy_002_pos - busy mountpoint behavior
 [tests/functional/cli_root/zpool_destroy]
-tests = [
+tests = ['zpool_destroy_001_pos', 'zpool_destroy_002_pos',
     'zpool_destroy_003_neg']
 pre =
 post =
@@ -272,17 +255,13 @@ post =
 [tests/functional/cli_root/zpool_detach]
 tests = ['zpool_detach_001_neg']
 
-# DISABLED: Requires full FMA support in ZED
-# zpool_expand_001_pos - https://github.com/zfsonlinux/zfs/issues/2437
-# zpool_expand_003_pos - https://github.com/zfsonlinux/zfs/issues/2437
 [tests/functional/cli_root/zpool_expand]
-tests = ['zpool_expand_002_pos', 'zpool_expand_004_pos']
+tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
+    'zpool_expand_003_neg', 'zpool_expand_004_pos']
 
-# DISABLED:
-# zpool_export_004_pos - https://github.com/zfsonlinux/zfs/issues/3484
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
-    'zpool_export_003_neg']
+    'zpool_export_003_neg', 'zpool_export_004_pos']
 
 [tests/functional/cli_root/zpool_get]
 tests = ['zpool_get_001_pos', 'zpool_get_002_pos', 'zpool_get_003_pos',
@@ -291,20 +270,16 @@ tests = ['zpool_get_001_pos', 'zpool_get_002_pos', 'zpool_get_003_pos',
 [tests/functional/cli_root/zpool_history]
 tests = ['zpool_history_001_neg', 'zpool_history_002_pos']
 
-# DISABLED:
-# zpool_import_002_pos - https://github.com/zfsonlinux/zfs/issues/5202
-# zpool_import_012_pos - sharenfs issue
-# zpool_import_all_001_pos - partition issue
 [tests/functional/cli_root/zpool_import]
-tests = ['zpool_import_001_pos',
+tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_003_pos', 'zpool_import_004_pos', 'zpool_import_005_pos',
     'zpool_import_006_pos', 'zpool_import_007_pos', 'zpool_import_008_pos',
     'zpool_import_009_neg', 'zpool_import_010_pos', 'zpool_import_011_neg',
-    'zpool_import_013_neg', 'zpool_import_014_pos',
+    'zpool_import_012_pos', 'zpool_import_013_neg', 'zpool_import_014_pos',
     'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
     'zpool_import_features_003_pos','zpool_import_missing_001_pos',
     'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
-    'zpool_import_rename_001_pos']
+    'zpool_import_rename_001_pos', 'zpool_import_all_001_pos']
 
 [tests/functional/cli_root/zpool_labelclear]
 tests = ['zpool_labelclear_active', 'zpool_labelclear_exported']
@@ -317,10 +292,9 @@ tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg']
 [tests/functional/cli_root/zpool_online]
 tests = ['zpool_online_001_pos', 'zpool_online_002_neg']
 
-# DISABLED:
-# zpool_remove_003_pos - needs investigation
 [tests/functional/cli_root/zpool_remove]
-tests = ['zpool_remove_001_neg', 'zpool_remove_002_pos']
+tests = ['zpool_remove_001_neg', 'zpool_remove_002_pos',
+    'zpool_remove_003_pos']
 
 [tests/functional/cli_root/zpool_replace]
 tests = ['zpool_replace_001_neg', 'replace-o_ashift', 'replace_prop_ashift']
@@ -338,14 +312,11 @@ post =
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos']
 user =
 
-# DISABLED:
-# zpool_upgrade_002_pos - https://github.com/zfsonlinux/zfs/issues/4034
-# zpool_upgrade_004_pos - https://github.com/zfsonlinux/zfs/issues/4034
-# zpool_upgrade_007_pos - needs investigation
 [tests/functional/cli_root/zpool_upgrade]
-tests = ['zpool_upgrade_001_pos',
-    'zpool_upgrade_003_pos', 'zpool_upgrade_005_neg',
-    'zpool_upgrade_006_neg', 'zpool_upgrade_008_pos',
+tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
+    'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos',
+    'zpool_upgrade_005_neg', 'zpool_upgrade_006_neg',
+    'zpool_upgrade_007_pos', 'zpool_upgrade_008_pos',
     'zpool_upgrade_009_neg']
 
 # DISABLED:
@@ -667,15 +638,13 @@ tests = ['zvol_ENOSPC_001_pos']
 [tests/functional/zvol/zvol_cli]
 tests = ['zvol_cli_001_pos', 'zvol_cli_002_pos', 'zvol_cli_003_neg']
 
-# DISABLED: requires dumpadm
-#[tests/functional/zvol/zvol_misc]
-#tests = ['zvol_misc_001_neg', 'zvol_misc_002_pos', 'zvol_misc_003_neg',
-#    'zvol_misc_004_pos', 'zvol_misc_005_neg', 'zvol_misc_006_pos']
+[tests/functional/zvol/zvol_misc]
+tests = ['zvol_misc_001_neg', 'zvol_misc_002_pos', 'zvol_misc_003_neg',
+    'zvol_misc_004_pos', 'zvol_misc_005_neg', 'zvol_misc_006_pos']
 
-# DISABLED: requires updated for Linux
-#[tests/functional/zvol/zvol_swap]
-#tests = ['zvol_swap_001_pos', 'zvol_swap_002_pos', 'zvol_swap_003_pos',
-#    'zvol_swap_004_pos', 'zvol_swap_005_pos', 'zvol_swap_006_pos']
+[tests/functional/zvol/zvol_swap]
+tests = ['zvol_swap_001_pos', 'zvol_swap_002_pos', 'zvol_swap_003_pos',
+    'zvol_swap_004_pos', 'zvol_swap_005_pos', 'zvol_swap_006_pos']
 
 [tests/functional/libzfs]
 tests = ['many_fds']

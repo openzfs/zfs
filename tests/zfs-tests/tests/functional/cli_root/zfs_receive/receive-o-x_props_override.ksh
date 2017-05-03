@@ -181,7 +181,8 @@ log_must eval "zfs send $orig@snap1 > $streamfile_full"
 log_mustnot eval "zfs recv $dest -x volsize < $streamfile_full"
 log_mustnot eval "zfs recv $dest -o volsize=32K < $streamfile_full"
 # Cleanup
-log_must zfs destroy -r -f $orig
+block_device_wait
+log_must_busy zfs destroy -r -f $orig
 
 #
 # 3.2 Verify -o property=value works on streams without properties.

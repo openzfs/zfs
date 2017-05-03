@@ -141,23 +141,17 @@ function do_testing #<clear type> <vdevs>
 	log_must zpool create -f $TESTPOOL1 $vdev
 	log_must zfs create $FS
 	#
-	# Fully fill up the zfs filesystem in order to make data block errors
-	# zfs filesystem
+	# Partially fill up the zfs filesystem in order to make data block
+	# errors.  It's not necessary to fill the entire filesystem.
 	#
-	typeset -i ret=0
-	typeset -i i=0
-	while true ; do
-		file_write -o create -f $file.$i -b $BLOCKSZ -c $NUM_WRITES
-		ret=$?
-		(( $ret != 0 )) && break
-		(( i = i + 1 ))
-	done
-	(( $ret != 28 )) && log_fail "file_write fails to fully fill up the $FS."
+	avail=$(get_prop available $FS)
+	fill_mb=$(((avail / 1024 / 1024) * 25 / 100))
+	log_must dd if=/dev/urandom of=$file.$i bs=$BLOCKSZ count=$fill_mb
 
 	#
-	#Make errors to the testing pool by overwrite the vdev device with
-	#/usr/bin/dd command. We donot want to have a full overwrite. That
-	#may cause the system panic. So, we should skip the vdev label space.
+	# Make errors to the testing pool by overwrite the vdev device with
+	# /usr/bin/dd command. We do not want to have a full overwrite. That
+	# may cause the system panic. So, we should skip the vdev label space.
 	#
 	(( i = $RANDOM % 3 ))
 	typeset -i wcount=0

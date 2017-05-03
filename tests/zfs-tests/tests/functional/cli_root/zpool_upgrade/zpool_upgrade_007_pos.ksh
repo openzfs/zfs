@@ -48,6 +48,9 @@
 
 verify_runnable "global"
 
+https://github.com/zfsonlinux/zfs/issues/6112
+log_unsupported "Known issue #6112"
+
 function cleanup
 {
 	destroy_upgraded_pool $config

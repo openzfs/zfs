@@ -125,14 +125,16 @@ fi
 create_pool $TESTPOOL $disk
 destroy_pool $TESTPOOL
 
-# Make the disk is VTOC labeled since only VTOC label supports overlap
-log_must labelvtoc $disk
-log_must create_overlap_slice $disk
+if ! is_linux; then
+	# Make the disk is VTOC labeled since only VTOC label supports overlap
+	log_must labelvtoc $disk
+	log_must create_overlap_slice $disk
 
-unset NOINUSE_CHECK
-log_mustnot zpool create $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
-log_must zpool create -f $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
-destroy_pool $TESTPOOL
+	unset NOINUSE_CHECK
+	log_mustnot zpool create $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
+	log_must zpool create -f $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
+	destroy_pool $TESTPOOL
+fi
 
 # exported device to be as spare vdev need -f to create pool
 

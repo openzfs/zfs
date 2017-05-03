@@ -52,10 +52,7 @@ function cleanup
 {
 	# cleanup zfs pool and dataset
 	if datasetexists $vol_name; then
-		swap -l | grep ${ZVOL_DEVDIR}/$vol_name > /dev/null 2>&1
-		if [[ $? -eq 0 ]]; then
-			swap -d ${ZVOL_DEVDIR}/${vol_name}
-		fi
+		swap_cleanup ${ZVOL_DEVDIR}/${vol_name}
 	fi
 
 	for pool in $TESTPOOL1 $TESTPOOL; do
@@ -83,14 +80,16 @@ log_onexit cleanup
 #
 create_pool $TESTPOOL $pool_dev
 log_must zfs create -V 100m $vol_name
-log_must swap -a ${ZVOl_DEVDIR}/$vol_name
+block_device_wait
+swap_setup ${ZVOL_DEVDIR}/$vol_name
+
 for opt in "-n" "" "-f"; do
 	log_mustnot zpool create $opt $TESTPOOL1 ${ZVOL_DEVDIR}/${vol_name}
 done
 
 # cleanup
-log_must swap -d ${ZVOL_DEVDIR}/${vol_name}
-log_must zfs destroy $vol_name
+swap_cleanup ${ZVOL_DEVDIR}/${vol_name}
+log_must_busy zfs destroy $vol_name
 log_must zpool destroy $TESTPOOL
 
 log_pass "'zpool create' passed as expected with inapplicable scenario."

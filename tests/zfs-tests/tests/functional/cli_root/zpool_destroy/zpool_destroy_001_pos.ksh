@@ -72,9 +72,15 @@ log_onexit cleanup
 partition_disk $SLICE_SIZE $DISK 2
 
 create_pool "$TESTPOOL" "${DISK}${SLICE_PREFIX}${SLICE0}"
-create_pool "$TESTPOOL1" "${DISK}${SLICE_PREFIX}${SLICE1}"
-log_must zfs create -s -V $VOLSIZE $TESTPOOL1/$TESTVOL
-create_pool "$TESTPOOL2" "${ZVOL_DEVDIR}/$TESTPOOL1/$TESTVOL"
+
+if is_linux; then
+	# Layering a pool on a zvol can deadlock and isn't supported.
+	create_pool "$TESTPOOL2" "${DISK}${SLICE_PREFIX}${SLICE1}"
+else
+	create_pool "$TESTPOOL1" "${DISK}${SLICE_PREFIX}${SLICE1}"
+	log_must zfs create -s -V $VOLSIZE $TESTPOOL1/$TESTVOL
+	create_pool "$TESTPOOL2" "${ZVOL_DEVDIR}/$TESTPOOL1/$TESTVOL"
+fi
 
 typeset -i i=0
 while (( i < ${#datasets[*]} )); do

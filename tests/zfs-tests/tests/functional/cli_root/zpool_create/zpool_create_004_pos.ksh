@@ -62,7 +62,7 @@ create_pool $TESTPOOL $disk
 log_must zfs create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
 vdevs_list=$(echo $TESTDIR/file.{01..16})
-log_must mkfile $MINVDEVSIZE $vdevs_list
+log_must truncate -s $MINVDEVSIZE $vdevs_list
 
 create_pool "$TESTPOOL1" $vdevs_list
 log_must vdevs_in_pool "$TESTPOOL1" "$vdevs_list"

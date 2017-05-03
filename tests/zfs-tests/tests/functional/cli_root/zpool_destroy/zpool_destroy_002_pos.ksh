@@ -111,6 +111,11 @@ for dir in $TESTDIR /$TESTPOOL/$TESTCTR /$TESTPOOL/$TESTCTR/$TESTFS1 ; do
 	done
 done
 
+# 4. 'zpool destroy -f' the pool (unsupported behavior in Linux)
+if is_linux; then
+	log_must cd $cwd
+fi
+
 destroy_pool $TESTPOOL
 log_mustnot poolexists "$TESTPOOL"
 

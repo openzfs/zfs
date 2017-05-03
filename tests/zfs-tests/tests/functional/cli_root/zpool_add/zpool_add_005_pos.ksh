@@ -78,12 +78,14 @@ create_pool "$TESTPOOL1" "${disk}${SLICE_PREFIX}${SLICE1}"
 log_must poolexists "$TESTPOOL1"
 
 unset NOINUSE_CHECK
-log_mustnot zpool add -f "$TESTPOOL" ${disk}s${SLICE1}
+log_mustnot zpool add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1}
 log_mustnot zpool add -f "$TESTPOOL" $mnttab_dev
 log_mustnot zpool add -f "$TESTPOOL" $vfstab_dev
 
-log_must echo "y" | newfs ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1
-log_must dumpadm -u -d ${DEV_DSKDIR}/$dump_dev > /dev/null
-log_mustnot zpool add -f "$TESTPOOL" $dump_dev
+if ! is_linux; then
+	log_must echo "y" | newfs ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1
+	log_must dumpadm -u -d ${DEV_DSKDIR}/$dump_dev > /dev/null
+	log_mustnot zpool add -f "$TESTPOOL" $dump_dev
+fi
 
 log_pass "'zpool add' should fail with inapplicable scenarios."

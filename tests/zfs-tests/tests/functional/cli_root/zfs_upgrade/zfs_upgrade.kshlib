@@ -150,12 +150,12 @@ function default_check_zfs_upgrade #rootfs
 
 		if (( df_ret != 0 )); then
 			if (( spa_version != 0 )) && (( vp < spa_version )); then
-				log_mustnot eval 'zfs upgrade $opt -a > /dev/null 2>&1'
-				log_must eval 'zpool upgrade $pool > /dev/null 2>&1'
+				log_mustnot zfs upgrade $opt -a >/dev/null
+				log_must zpool upgrade $pool >/dev/null
 				vp=$(get_pool_prop version $pool)
 			fi
 
-			log_must eval 'zfs upgrade $opt -a > /dev/null 2>&1'
+			log_must zfs upgrade $opt -a
 
 			for fs in $(zfs list -rH -t filesystem -o name $rootfs) ; do
 				log_must check_fs_version $fs $newv

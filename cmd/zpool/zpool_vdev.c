@@ -364,13 +364,6 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	return (ret);
 }
 
-static void
-check_error(int err)
-{
-	(void) fprintf(stderr, gettext("warning: device in use checking "
-	    "failed: %s\n"), strerror(err));
-}
-
 static int
 check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 {
@@ -428,8 +421,10 @@ check_disk(const char *path, blkid_cache cache, int force,
 	if (!iswholedisk)
 		return (check_slice(path, cache, force, isspare));
 
-	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0) {
-		check_error(errno);
+	if ((fd = open(path, O_RDONLY|O_DIRECT|O_EXCL)) < 0) {
+		char *value = blkid_get_tag_value(cache, "TYPE", path);
+		(void) fprintf(stderr, gettext("%s is in use and contains "
+		    "a %s filesystem.\n"), path, value ? value : "unknown");
 		return (-1);
 	}
 
@@ -496,7 +491,8 @@ check_device(const char *path, boolean_t force,
 
 	error = blkid_get_cache(&cache, NULL);
 	if (error != 0) {
-		check_error(error);
+		(void) fprintf(stderr, gettext("unable to access the blkid "
+		    "cache.\n"));
 		return (-1);
 	}
 
@@ -919,7 +915,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				 * this device altogether.
 				 */
 				if ((fd = open(path, O_RDONLY)) >= 0) {
-					err = fstat64(fd, &statbuf);
+					err = fstat64_blk(fd, &statbuf);
 					(void) close(fd);
 				} else {
 					err = stat64(path, &statbuf);

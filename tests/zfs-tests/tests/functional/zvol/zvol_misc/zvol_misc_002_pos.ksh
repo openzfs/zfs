@@ -51,7 +51,7 @@ function cleanup
 	snapexists $TESTPOOL/$TESTVOL@snap && \
 		zfs destroy $TESTPOOL/$TESTVOL@snap
 
-	ismounted $TESTDIR ufs
+	ismounted $TESTDIR $NEWFS_DEFAULT_FS
 	(( $? == 0 )) && log_must umount $TESTDIR
 
 	[[ -e $TESTDIR ]] && rm -rf $TESTDIR
@@ -87,11 +87,22 @@ while (( 1 )); do
         (( fn = fn + 1 ))
 done
 
-log_must lockfs -f $TESTDIR
-log_must zfs snapshot $TESTPOOL/$TESTVOL@snap
+if is_linux; then
+	EXIT_STATUS=4
+	sync
+else
+	EXIT_STATUS=39
+	log_must lockfs -f $TESTDIR
+fi
 
-$FSCK -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
+log_must zfs set snapdev=visible $TESTPOOL/$TESTVOL
+log_must zfs snapshot $TESTPOOL/$TESTVOL@snap
+block_device_wait
+
+fsck -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
 retval=$?
-(( $retval == 39 )) || log_fail "$FSCK exited with wrong value $retval "
+if [[ $retval -ne 0 && $retval -ne $EXIT_STATUS ]]; then
+	log_fail "fsck exited with wrong value $retval "
+fi
 
 log_pass "Verify that ZFS volume snapshot could be fscked"

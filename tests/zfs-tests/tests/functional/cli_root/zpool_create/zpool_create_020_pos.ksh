@@ -49,9 +49,9 @@ function cleanup
 	if poolexists $TESTPOOL ; then
                 destroy_pool $TESTPOOL
         fi
-	if [ -d ${TESTPOOL}.root ]
+	if [ -d /${TESTPOOL}.root ]
 	then
-		log_must rmdir ${TESTPOOL}.root
+		log_must rmdir /${TESTPOOL}.root
 	fi
 }
 
@@ -65,6 +65,7 @@ else
 	disk=$DISK0
 fi
 
+log_must rm -f /etc/zfs/zpool.cache
 log_must mkdir /${TESTPOOL}.root
 log_must zpool create -R /${TESTPOOL}.root $TESTPOOL $disk
 if [ ! -d /${TESTPOOL}.root ]

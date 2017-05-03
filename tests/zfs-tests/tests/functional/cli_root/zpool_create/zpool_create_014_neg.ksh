@@ -48,10 +48,7 @@ verify_runnable "global"
 function cleanup
 {
 	if datasetexists $vol_name; then
-		swap -l | grep $TMP_FILE > /dev/null 2>&1
-		if [[ $? -eq 0 ]]; then
-			log_must swap -d $TMP_FILE
-		fi
+		swap_cleanup $TMP_FILE
 		rm -f $TMP_FILE
 		log_must umount $mntp
 		zfs destroy $vol_name
@@ -71,6 +68,12 @@ else
         disk=$DISK0
 fi
 
+if is_linux; then
+	set -A options "" "-f"
+else
+	set -A options "-n" "" "-f"
+fi
+
 typeset pool_dev=${disk}${SLICE_PREFIX}${SLICE0}
 typeset vol_name=$TESTPOOL/$TESTVOL
 typeset mntp=/mnt
@@ -78,13 +81,14 @@ typeset TMP_FILE=$mntp/tmpfile.$$
 
 create_pool $TESTPOOL $pool_dev
 log_must zfs create -V 100m $vol_name
+block_device_wait
 log_must echo "y" | newfs ${ZVOL_DEVDIR}/$vol_name > /dev/null 2>&1
 log_must mount ${ZVOL_DEVDIR}/$vol_name $mntp
 
 log_must mkfile 50m $TMP_FILE
-log_must swap -a $TMP_FILE
+swap_setup $TMP_FILE
 
-for opt in "-n" "" "-f"; do
+for opt in options; do
 	log_mustnot zpool create $opt $TESTPOOL $TMP_FILE
 done
 

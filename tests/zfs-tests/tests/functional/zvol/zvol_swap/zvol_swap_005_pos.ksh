@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "swaplow + swaplen unsupported Linux options"
+fi
+
 assertion="Verify the sum of swaplow and swaplen is less or equal to volsize"
 log_assert $assertion
 

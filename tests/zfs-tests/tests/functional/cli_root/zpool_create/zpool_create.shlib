@@ -79,7 +79,7 @@ function create_blockfile
 		log_fail "Create file system fail."
 
         log_must mount ${DEV_DSKDIR}/$disk $dir
-        log_must mkfile $size $file
+        log_must truncate -s $size $file
 }
 
 #
@@ -121,11 +121,17 @@ function clean_blockfile
 #
 function find_vfstab_dev
 {
-	typeset vfstab="/etc/vfstab"
-	typeset tmpfile="/tmp/vfstab.tmp"
 	typeset vfstabdev
 	typeset vfstabdevs=""
 	typeset line
+
+	if is_linux; then
+		vfstab="/etc/fstab"
+		tmpfile="/tmp/fstab.tmp"
+	else
+		vfstab="/etc/vfstab"
+		tmpfile="/tmp/vfstab.tmp"
+	fi
 
 	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
 	while read -r line
@@ -144,11 +150,14 @@ function find_vfstab_dev
 #
 function save_dump_dev
 {
-
 	typeset dumpdev
-	typeset fnd="Dump device"
 
-	dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
-		awk '{print $1}'`
+	if is_linux; then
+		dumpdev=""
+	else
+		typeset fnd="Dump device"
+		dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
+			awk '{print $1}'`
+	fi
 	echo $dumpdev
 }

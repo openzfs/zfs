@@ -46,6 +46,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "Modifies global non-ZFS system config"
+fi
+
 function cleanup
 {
 	[[ -f /tmp/$TESTFILE ]] && log_must rm -f /tmp/$TESTFILE
@@ -56,7 +60,7 @@ function cleanup
 
 	log_must swapadd $VFSTAB_FILE
 
-        if is_swap_inuse $voldev ; then
+	if is_swap_inuse $voldev ; then
 		log_must swap -d $voldev
 	fi
 
