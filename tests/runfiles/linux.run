@@ -99,15 +99,13 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
     'zfs_create_010_neg', 'zfs_create_011_pos', 'zfs_create_012_pos',
     'zfs_create_013_pos', 'zfs_create_014_pos']
 
-# DISABLED:
-# zfs_destroy_005_neg - busy mountpoint behavior
-# zfs_destroy_001_pos - https://github.com/zfsonlinux/zfs/issues/5635
 [tests/functional/cli_root/zfs_destroy]
-tests = ['zfs_destroy_002_pos', 'zfs_destroy_003_pos',
-    'zfs_destroy_004_pos','zfs_destroy_006_neg', 'zfs_destroy_007_neg',
-    'zfs_destroy_008_pos','zfs_destroy_009_pos', 'zfs_destroy_010_pos',
-    'zfs_destroy_011_pos','zfs_destroy_012_pos', 'zfs_destroy_013_neg',
-    'zfs_destroy_014_pos','zfs_destroy_015_pos', 'zfs_destroy_016_pos']
+tests = ['zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
+    'zfs_destroy_004_pos', 'zfs_destroy_005_neg', 'zfs_destroy_006_neg',
+    'zfs_destroy_007_neg', 'zfs_destroy_008_pos', 'zfs_destroy_009_pos',
+    'zfs_destroy_010_pos', 'zfs_destroy_011_pos', 'zfs_destroy_012_pos',
+    'zfs_destroy_013_neg', 'zfs_destroy_014_pos', 'zfs_destroy_015_pos',
+    'zfs_destroy_016_pos']
 
 # DISABLED:
 # zfs_get_004_pos - https://github.com/zfsonlinux/zfs/issues/3484

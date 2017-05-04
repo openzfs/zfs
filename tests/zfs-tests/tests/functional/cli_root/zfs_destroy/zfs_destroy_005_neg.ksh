@@ -187,9 +187,12 @@ pidlist=""
 
 #
 # Create the clones for test environment and make the snapshot busy.
-# Then verify 'zfs destroy $snap' succeeds without '-f'.
 #
-# Then verify the snapshot and clone are destroyed, but nothing else is.
+# For Linux verify 'zfs destroy $snap' fails due to the busy mount point.  Then
+# verify the snapshot remains and the clone was destroyed, but nothing else is.
+#
+# Under illumos verify 'zfs destroy $snap' succeeds without '-f'.  Then verify
+# the snapshot and clone are destroyed, but nothing else is.
 #
 
 mntpt=$(snapshot_mountpoint $FSSNAP)
@@ -199,9 +202,16 @@ log_note "mkbusy $mntpt (pidlist: $pidlist)"
 
 for option in -R -rR ; do
 	setup_testenv clone
-	log_must zfs destroy $option $FSSNAP
-	check_dataset datasetexists $CTR $FS $VOL
-	check_dataset datasetnonexists $FSSNAP $FSCLONE
+
+	if is_linux; then
+		log_mustnot zfs destroy $option $FSSNAP
+		check_dataset datasetexists $CTR $FS $VOL $FSSNAP
+		check_dataset datasetnonexists $FSCLONE
+	else
+		log_must zfs destroy $option $FSSNAP
+		check_dataset datasetexists $CTR $FS $VOL
+		check_dataset datasetnonexists $FSSNAP $FSCLONE
+	fi
 done
 
 log_must kill $pidlist
