@@ -113,7 +113,7 @@ typedef enum {
 	ZFS_PROP_SNAPDIR,
 	ZFS_PROP_PRIVATE,		/* not exposed to user, temporary */
 	ZFS_PROP_ACLINHERIT,
-	ZFS_PROP_CREATETXG,		/* not exposed to the user */
+	ZFS_PROP_CREATETXG,
 	ZFS_PROP_NAME,			/* not exposed to the user */
 	ZFS_PROP_CANMOUNT,
 	ZFS_PROP_ISCSIOPTIONS,		/* not exposed to the user */
