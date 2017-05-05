@@ -1889,10 +1889,9 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 	boolean_t nopwrite = B_FALSE;
 	boolean_t dedup_verify = os->os_dedup_verify;
 	int copies = os->os_copies;
-	boolean_t lz4_ac = spa_feature_is_active(os->os_spa,
-	    SPA_FEATURE_LZ4_COMPRESS);
 
-	IMPLY(override_compress == ZIO_COMPRESS_LZ4, lz4_ac);
+	IMPLY(override_compress == ZIO_COMPRESS_LZ4,
+	    spa_feature_is_active(os->os_spa, SPA_FEATURE_LZ4_COMPRESS));
 
 	/*
 	 * We maintain different write policies for each of the following
