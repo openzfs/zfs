@@ -5691,6 +5691,10 @@ arc_release(arc_buf_t *buf, void *tag)
 		arc_cksum_verify(buf);
 		arc_buf_unwatch(buf);
 
+		/* if this is the last uncompressed buf free the checksum */
+		if (!arc_hdr_has_uncompressed_buf(hdr))
+			arc_cksum_free(hdr);
+
 		mutex_exit(hash_lock);
 
 		/*
