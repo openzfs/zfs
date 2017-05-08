@@ -213,7 +213,7 @@ vdev_file_io_start(zio_t *zio)
 			 * already set, see xfs_vm_writepage().  Therefore
 			 * the sync must be dispatched to a different context.
 			 */
-			if (spl_fstrans_check()) {
+			if (__spl_pf_fstrans_check()) {
 				VERIFY3U(taskq_dispatch(vdev_file_taskq,
 				    vdev_file_io_fsync, zio, TQ_SLEEP), !=,
 				    TASKQID_INVALID);
