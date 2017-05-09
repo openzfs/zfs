@@ -257,7 +257,7 @@ exit 0
 %if 0%{?_systemd}
 %systemd_preun %{systemd_svcs}
 %else
-if [ $1 -eq 0 ] && [ -x /sbin/chkconfig ]; then
+if [ "$1" = "0" ] && [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --del zfs-import
     /sbin/chkconfig --del zfs-mount
     /sbin/chkconfig --del zfs-share
