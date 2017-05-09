@@ -6,4 +6,7 @@ dist_pkgdata_SCRIPTS = \
 	zpool_iostat_002_pos.ksh \
 	zpool_iostat_003_neg.ksh \
 	zpool_iostat_004_pos.ksh \
-	zpool_iostat_005_pos.ksh
+	zpool_iostat_005_pos.ksh \
+	zpool_iostat_-c_disable.ksh \
+	zpool_iostat_-c_searchpath.ksh \
+	zpool_iostat_-c_homedir.ksh

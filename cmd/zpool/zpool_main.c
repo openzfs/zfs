@@ -4190,25 +4190,22 @@ print_zpool_script_help(char *name, char *path)
 	libzfs_free_str_array(lines, lines_cnt);
 }
 
-
 /*
- * Go though the list of all the zpool status/iostat -c scripts, run their
+ * Go though the zpool status/iostat -c scripts in the user's path, run their
  * help option (-h), and print out the results.
  */
 static void
-print_zpool_script_list(void)
+print_zpool_dir_scripts(char *dirpath)
 {
 	DIR *dir;
 	struct dirent *ent;
 	char fullpath[MAXPATHLEN];
 	struct stat dir_stat;
 
-	if ((dir = opendir(ZPOOL_SCRIPTS_DIR)) != NULL) {
-		printf("\n");
+	if ((dir = opendir(dirpath)) != NULL) {
 		/* print all the files and directories within directory */
 		while ((ent = readdir(dir)) != NULL) {
-			sprintf(fullpath, "%s/%s", ZPOOL_SCRIPTS_DIR,
-			    ent->d_name);
+			sprintf(fullpath, "%s/%s", dirpath, ent->d_name);
 
 			/* Print the scripts */
 			if (stat(fullpath, &dir_stat) == 0)
@@ -4217,12 +4214,31 @@ print_zpool_script_list(void)
 					print_zpool_script_help(ent->d_name,
 					    fullpath);
 		}
-		printf("\n");
 		closedir(dir);
-	} else {
-		fprintf(stderr, gettext("Can't open %s scripts dir\n"),
-		    ZPOOL_SCRIPTS_DIR);
 	}
+}
+
+/*
+ * Print out help text for all zpool status/iostat -c scripts.
+ */
+static void
+print_zpool_script_list(char *subcommand)
+{
+	char *dir, *sp;
+
+	printf(gettext("Available 'zpool %s -c' commands:\n"), subcommand);
+
+	sp = zpool_get_cmd_search_path();
+	if (sp == NULL)
+		return;
+
+	dir = strtok(sp, ":");
+	while (dir != NULL) {
+		print_zpool_dir_scripts(dir);
+		dir = strtok(NULL, ":");
+	}
+
+	free(sp);
 }
 
 /*
@@ -4285,6 +4301,15 @@ zpool_do_iostat(int argc, char **argv)
 				    gettext("Can't set -c flag twice\n"));
 				exit(1);
 			}
+
+			if (getenv("ZPOOL_SCRIPTS_ENABLED") != NULL &&
+			    !libzfs_envvar_is_set("ZPOOL_SCRIPTS_ENABLED")) {
+				fprintf(stderr, gettext(
+				    "Can't run -c, disabled by "
+				    "ZPOOL_SCRIPTS_ENABLED.\n"));
+				exit(1);
+			}
+
 			if ((getuid() <= 0 || geteuid() <= 0) &&
 			    !libzfs_envvar_is_set("ZPOOL_SCRIPTS_AS_ROOT")) {
 				fprintf(stderr, gettext(
@@ -4336,10 +4361,7 @@ zpool_do_iostat(int argc, char **argv)
 			break;
 		case '?':
 			if (optopt == 'c') {
-				fprintf(stderr, gettext(
-				    "Current scripts in %s:\n"),
-				    ZPOOL_SCRIPTS_DIR);
-				print_zpool_script_list();
+				print_zpool_script_list("iostat");
 				exit(0);
 			} else {
 				fprintf(stderr,
@@ -6427,6 +6449,15 @@ zpool_do_status(int argc, char **argv)
 				    gettext("Can't set -c flag twice\n"));
 				exit(1);
 			}
+
+			if (getenv("ZPOOL_SCRIPTS_ENABLED") != NULL &&
+			    !libzfs_envvar_is_set("ZPOOL_SCRIPTS_ENABLED")) {
+				fprintf(stderr, gettext(
+				    "Can't run -c, disabled by "
+				    "ZPOOL_SCRIPTS_ENABLED.\n"));
+				exit(1);
+			}
+
 			if ((getuid() <= 0 || geteuid() <= 0) &&
 			    !libzfs_envvar_is_set("ZPOOL_SCRIPTS_AS_ROOT")) {
 				fprintf(stderr, gettext(
@@ -6459,10 +6490,7 @@ zpool_do_status(int argc, char **argv)
 			break;
 		case '?':
 			if (optopt == 'c') {
-				fprintf(stderr, gettext(
-				    "Current scripts in %s:\n"),
-				    ZPOOL_SCRIPTS_DIR);
-				print_zpool_script_list();
+				print_zpool_script_list("status");
 				exit(0);
 			} else {
 				fprintf(stderr,

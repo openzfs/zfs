@@ -181,6 +181,7 @@ Requires:       bc
 Requires:       ksh
 Requires:	fio
 Requires:	acl
+Requires:	sudo
 Requires:	sysstat
 
 %description test
@@ -290,6 +291,7 @@ exit 0
 %config(noreplace) %{_initconfdir}/zfs
 %endif
 %config(noreplace) %{_sysconfdir}/%{name}
+%attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
 %files -n libzpool2
 %{_libdir}/libzpool.so.*

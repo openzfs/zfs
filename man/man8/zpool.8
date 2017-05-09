@@ -1550,14 +1550,13 @@ Run a script (or scripts) on each vdev and include the output in zpool iostat
 .sp
 The \fB-c\fR option allows you to run script(s) for each vdev and display the
 output in zpool iostat.  For security reasons, a user can only execute scripts
-found in the /<etc>/zfs/zpool.d directory as an unprivileged user.  However, a
-privileged user can run \fB-c\fR if they have the ZPOOL_SCRIPTS_AS_ROOT
-environment variable set.  If a script requires the use of a privileged
-command (like smartctl) then it's recommended you allow the user access to it in
-/etc/sudoers.  For example, to allow user "zfsuser" access to "smartctl -a", add
-the following to /etc/sudoers:
-
-zfsuser ALL=NOPASSWD: /usr/sbin/smartctl -a /dev/sd[a-z]*, NOEXEC: /usr/sbin/smartctl -a /dev/sd[a-z]*`
+as an unprivileged user.  By default, a user may run a script from ~/.zpool.d
+or /etc/zfs/zpool.d.  The default search path can be overriden by setting
+the \fBZPOOL_SCRIPTS_PATH\fR environment variable.  A privileged user can run
+\fB-c\fR if they have the \fBZPOOL_SCRIPTS_AS_ROOT\fR environment variable set.
+If a script requires the use of a privileged command (like \fBsmartctl(8)\fR)
+then it's recommended you allow the user access to it in /etc/sudoers or add
+the user to the /etc/sudoers.d/zfs file.
 
 If \fB-c\fR is passed without a script name, it prints a list of all scripts.
 \fB-c\fR also sets verbose mode (\fB-v\fR).
@@ -2148,15 +2147,14 @@ If a scrub or resilver is in progress, this command reports the percentage done 
 Run a script (or scripts) on each vdev and include the output in zpool status
 .sp
 The \fB-c\fR option allows you to run script(s) for each vdev and display the
-output in zpool iostat.  For security reasons, a user can only execute scripts
-found in the /<etc>/zfs/zpool.d directory as an unprivileged user.  However, a
-privileged user can run \fB-c\fR if they have the ZPOOL_SCRIPTS_AS_ROOT
-environment variable set.  If a script requires the use of a privileged
-command (like smartctl) then it's recommended you allow the user access to it in
-/etc/sudoers.  For example, to allow user "zfsuser" access to "smartctl -a", add
-the following to /etc/sudoers:
-
-zfsuser ALL=NOPASSWD: /usr/sbin/smartctl -a /dev/sd[a-z]*, NOEXEC: /usr/sbin/smartctl -a /dev/sd[a-z]*`
+output in zpool status.  For security reasons, a user can only execute scripts
+as an unprivileged user.  By default, a user may run a script from ~/.zpool.d
+or /etc/zfs/zpool.d.  The default search path can be overriden by setting
+the \fBZPOOL_SCRIPTS_PATH\fR environment variable.  A privileged user can run
+\fB-c\fR if they have the \fBZPOOL_SCRIPTS_AS_ROOT\fR environment variable set.
+If a script requires the use of a privileged command (like \fBsmartctl(8)\fR)
+then it's recommended you allow the user access to it in /etc/sudoers or add
+the user to the /etc/sudoers.d/zfs file.
 
 If \fB-c\fR is passed without a script name, it prints a list of all scripts.
 
@@ -2727,6 +2725,16 @@ them on \fBzpool create\fR or \fBzpool add\fR by setting ZFS_VDEV_DEVID_OPT_OUT.
 .B "ZPOOL_SCRIPTS_AS_ROOT"
 Allow a privilaged user to run the \fBzpool status/iostat\fR with the \fB-c\fR
 option.  Normally, only unprivilaged users are allowed to run \fB-c\fR.
+.TP
+.B "ZPOOL_SCRIPTS_PATH"
+The search path for scripts when running \fBzpool status/iostat\fR with the \fB-c\fR
+option. This is a colon-separated list of directories and overrides the default
+~/.zpool.d and /etc/zfs/zpool.d search paths.
+.TP
+.B "ZPOOL_SCRIPTS_ENABLED"
+Allow a user to run \fBzpool status/iostat\fR with the \fB-c\fR option. If
+ZPOOL_SCRIPTS_ENABLED is not set, it is assumed that the user is allowed to
+run \fBzpool status/iostat -c\fR.
 
 .SH SEE ALSO
 .sp

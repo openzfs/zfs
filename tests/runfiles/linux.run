@@ -279,7 +279,9 @@ pre =
 post =
 
 [tests/functional/cli_root/zpool_status]
-tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos']
+tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos',
+    'zpool_status_-c_disable', 'zpool_status_-c_homedir',
+    'zpool_status_-c_searchpath']
 user =
 
 [tests/functional/cli_root/zpool_sync]
@@ -318,7 +320,8 @@ user =
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
     'zpool_iostat_003_neg', 'zpool_iostat_004_pos',
-    'zpool_iostat_005_pos']
+    'zpool_iostat_005_pos', 'zpool_iostat_-c_disable',
+    'zpool_iostat_-c_homedir', 'zpool_iostat_-c_searchpath']
 user =
 
 [tests/functional/cli_user/zpool_list]

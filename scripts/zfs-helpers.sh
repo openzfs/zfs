@@ -14,6 +14,7 @@
 #   --with-mounthelperdir=DIR  install mount.zfs in dir [/sbin]
 #   --with-udevdir=DIR         install udev helpers [default=check]
 #   --with-udevruledir=DIR     install udev rules [default=UDEVDIR/rules.d]
+#   --sysconfdir=DIR           install zfs configuration files [PREFIX/etc]
 #
 
 basedir="$(dirname $0)"
@@ -96,6 +97,7 @@ if [ "$VERBOSE" ]; then
 	echo "udevdir:          $udevdir"
 	echo "udevruledir:      $udevruledir"
 	echo "mounthelperdir:   $mounthelperdir"
+	echo "sysconfdir:	$sysconfdir"
 	echo "DRYRUN:           $DRYRUN"
 	echo
 fi
@@ -114,6 +116,7 @@ install() {
 		msg "ln -s $src $dst"
 
 		if [ ! "$DRYRUN" ]; then
+			mkdir -p $(dirname $dst) &>/dev/null
 			ln -s $src $dst
 		fi
 	fi
@@ -125,6 +128,7 @@ remove() {
 	if [ -h $dst ]; then
 		msg "rm $dst"
 		rm $dst
+		rmdir $(dirname $dst) &>/dev/null
 	fi
 }
 
@@ -136,6 +140,7 @@ if [ ${INSTALL} ]; then
 	install $UDEVRULEDIR/60-zvol.rules $udevruledir/60-zvol.rules
 	install $UDEVRULEDIR/69-vdev.rules $udevruledir/69-vdev.rules
 	install $UDEVRULEDIR/90-zfs.rules $udevruledir/90-zfs.rules
+	install $CMDDIR/zpool/zpool.d $sysconfdir/zfs/zpool.d
 else
 	remove $mounthelperdir/mount.zfs
 	remove $mounthelperdir/fsck.zfs
@@ -144,6 +149,7 @@ else
 	remove $udevruledir/60-zvol.rules
 	remove $udevruledir/69-vdev.rules
 	remove $udevruledir/90-zfs.rules
+	remove $sysconfdir/zfs/zpool.d
 fi
 
 exit 0
