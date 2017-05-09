@@ -3370,6 +3370,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	char errbuf[1024];
 	uint64_t zoned;
 	enum lzc_dataset_type ost;
+	zpool_handle_t *zpool_handle;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot create '%s'"), path);
@@ -3409,7 +3410,8 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	if (p != NULL)
 		*p = '\0';
 
-	zpool_handle_t *zpool_handle = zpool_open(hdl, pool_path);
+	if ((zpool_handle = zpool_open(hdl, pool_path)) == NULL)
+		return (-1);
 
 	if (props && (props = zfs_valid_proplist(hdl, type, props,
 	    zoned, NULL, zpool_handle, errbuf)) == 0) {
