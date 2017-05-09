@@ -565,5 +565,16 @@ func(const struct path *path, struct kstat *stat, u32 request_mask,	\
 #error
 #endif
 
+/*
+ * 4.9 API change
+ * Preferred interface to get the current FS time.
+ */
+#if !defined(HAVE_CURRENT_TIME)
+static inline struct timespec
+current_time(struct inode *ip)
+{
+	return (timespec_trunc(current_kernel_time(), ip->i_sb->s_time_gran));
+}
+#endif
 
 #endif /* _ZFS_VFS_H */
