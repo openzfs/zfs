@@ -1500,7 +1500,7 @@ spl_fstrans_unmark(fstrans_cookie_t cookie)
 }
 
 int
-spl_fstrans_check(void)
+__spl_pf_fstrans_check(void)
 {
 	return (0);
 }
