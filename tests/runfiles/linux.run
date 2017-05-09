@@ -145,7 +145,8 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_005_neg', 'zfs_receive_006_pos',
     'zfs_receive_007_neg', 'zfs_receive_008_pos', 'zfs_receive_009_neg',
     'zfs_receive_010_pos', 'zfs_receive_011_pos', 'zfs_receive_012_pos',
-    'zfs_receive_013_pos', 'zfs_receive_014_pos', 'zfs_receive_015_pos']
+    'zfs_receive_013_pos', 'zfs_receive_014_pos', 'zfs_receive_015_pos',
+    'receive-o-x_props_override']
 
 # DISABLED:
 # zfs_rename_006_pos - https://github.com/zfsonlinux/zfs/issues/5647

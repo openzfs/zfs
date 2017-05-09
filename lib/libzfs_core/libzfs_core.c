@@ -574,8 +574,8 @@ recv_read(int fd, void *buf, int ilen)
  * Non-Linux OpenZFS platforms have opted to modify the legacy interface.
  */
 static int
-recv_impl(const char *snapname, nvlist_t *props, const char *origin,
-    boolean_t force, boolean_t resumable, int input_fd,
+recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
+    const char *origin, boolean_t force, boolean_t resumable, int input_fd,
     const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
@@ -622,8 +622,11 @@ recv_impl(const char *snapname, nvlist_t *props, const char *origin,
 
 		fnvlist_add_string(innvl, "snapname", snapname);
 
-		if (props != NULL)
-			fnvlist_add_nvlist(innvl, "props", props);
+		if (recvdprops != NULL)
+			fnvlist_add_nvlist(innvl, "props", recvdprops);
+
+		if (localprops != NULL)
+			fnvlist_add_nvlist(innvl, "localprops", localprops);
 
 		if (origin != NULL && strlen(origin))
 			fnvlist_add_string(innvl, "origin", origin);
@@ -679,10 +682,16 @@ recv_impl(const char *snapname, nvlist_t *props, const char *origin,
 		(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_value));
 		(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
 
-		if (props != NULL) {
-			packed = fnvlist_pack(props, &size);
+		if (recvdprops != NULL) {
+			packed = fnvlist_pack(recvdprops, &size);
 			zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
 			zc.zc_nvlist_src_size = size;
+		}
+
+		if (localprops != NULL) {
+			packed = fnvlist_pack(localprops, &size);
+			zc.zc_nvlist_conf = (uint64_t)(uintptr_t)packed;
+			zc.zc_nvlist_conf_size = size;
 		}
 
 		if (origin != NULL)
@@ -750,7 +759,7 @@ int
 lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, int fd)
 {
-	return (recv_impl(snapname, props, origin, force, B_FALSE, fd,
+	return (recv_impl(snapname, props, NULL, origin, force, B_FALSE, fd,
 	    NULL, -1, NULL, NULL, NULL, NULL));
 }
 
@@ -764,7 +773,7 @@ int
 lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, int fd)
 {
-	return (recv_impl(snapname, props, origin, force, B_TRUE, fd,
+	return (recv_impl(snapname, props, NULL, origin, force, B_TRUE, fd,
 	    NULL, -1, NULL, NULL, NULL, NULL));
 }
 
@@ -786,7 +795,7 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 {
 	if (begin_record == NULL)
 		return (EINVAL);
-	return (recv_impl(snapname, props, origin, force, resumable, fd,
+	return (recv_impl(snapname, props, NULL, origin, force, resumable, fd,
 	    begin_record, -1, NULL, NULL, NULL, NULL));
 }
 
@@ -816,7 +825,26 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
-	return (recv_impl(snapname, props, origin, force, resumable,
+	return (recv_impl(snapname, props, NULL, origin, force, resumable,
+	    input_fd, begin_record, cleanup_fd, read_bytes, errflags,
+	    action_handle, errors));
+}
+
+/*
+ * Like lzc_receive_one, but allows the caller to pass an additional 'cmdprops'
+ * argument.
+ *
+ * The 'cmdprops' nvlist contains both override ('zfs receive -o') and
+ * exclude ('zfs receive -x') properties. Callers are responsible for freeing
+ * this nvlist
+ */
+int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
+    nvlist_t *cmdprops, const char *origin, boolean_t force,
+    boolean_t resumable, int input_fd, const dmu_replay_record_t *begin_record,
+    int cleanup_fd, uint64_t *read_bytes, uint64_t *errflags,
+    uint64_t *action_handle, nvlist_t **errors)
+{
+	return (recv_impl(snapname, props, cmdprops, origin, force, resumable,
 	    input_fd, begin_record, cleanup_fd, read_bytes, errflags,
 	    action_handle, errors));
 }
