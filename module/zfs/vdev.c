@@ -1868,6 +1868,9 @@ vdev_dtl_should_excise(vdev_t *vd)
 	ASSERT0(scn->scn_phys.scn_errors);
 	ASSERT0(vd->vdev_children);
 
+	if (!vdev_readable(vd))
+		return (B_FALSE);
+
 	if (vd->vdev_resilver_txg == 0 ||
 	    range_tree_space(vd->vdev_dtl[DTL_MISSING]) == 0)
 		return (B_TRUE);
