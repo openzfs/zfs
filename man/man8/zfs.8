@@ -441,6 +441,18 @@ For non-snapshots, the compression ratio achieved for the \fBused\fR space of th
 .sp
 .ne 2
 .na
+\fB\fBcreatetxg\fR
+.ad
+.sp .6
+.RS 4n
+The transaction group (TXG) in which the dataset was created. Bookmarks have the same \fBcreatetxg\fR as the snapshot they are initially tied to.
+.sp
+\fBcreatetxg\fR is suitable for ordering a list of snapshots, e.g. for incremental \fBsend\fR & \fBrecv\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBcreation\fR\fR
 .ad
 .sp .6
@@ -483,6 +495,18 @@ This property is \fBon\fR if the snapshot has been marked for deferred destructi
 The total number of filesystems and volumes that exist under this location in the
 dataset tree.  This value is only available when a \fBfilesystem_limit\fR has
 been set somewhere in the tree under which the dataset resides.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBguid\fR
+.ad
+.sp .6
+.RS 4n
+The 64 bit GUID of this dataset or bookmark, which does not change over its entire lifetime.
+.sp
+When a snapshot is sent to another pool, the received snapshot has the same GUID. Thus, \fBguid\fR is suitable to identify a snapshot across pools.
 .RE
 
 .sp
