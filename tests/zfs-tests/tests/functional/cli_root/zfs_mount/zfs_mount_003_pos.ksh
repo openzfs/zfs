@@ -80,7 +80,7 @@ while (( i < ${#mopt[*]} )); do
 
 	log_note "Make sure the filesystem $TESTPOOL/$TESTFS is unmounted"
 	unmounted $TESTPOOL/$TESTFS || \
-		log_fail Filesystem $TESTPOOL/$TESTFS is mounted
+		log_fail "Filesystem $TESTPOOL/$TESTFS is mounted"
 
 	((i = i + 1))
 done

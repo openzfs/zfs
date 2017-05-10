@@ -77,7 +77,7 @@ ret=$?
 
 log_note "Make sure the filesystem $TESTPOOL/$TESTFS is mounted"
 mounted $TESTPOOL/$TESTFS || \
-	log_fail Filesystem $TESTPOOL/$TESTFS is unmounted
+	log_fail "Filesystem $TESTPOOL/$TESTFS is unmounted"
 
 log_pass "'zfs $mountcmd <filesystem>' with a mounted filesystem " \
 	"will fail with return code 1."

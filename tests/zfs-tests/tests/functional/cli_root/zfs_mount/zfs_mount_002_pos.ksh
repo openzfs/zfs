@@ -72,7 +72,7 @@ ret=$?
 
 log_note "Make sure the filesystem $TESTPOOL/$NONEXISTFSNAME is unmounted"
 unmounted $TESTPOOL/$NONEXISTFSNAME || \
-	log_fail Filesystem $TESTPOOL/$NONEXISTFSNAME is mounted
+	log_fail "Filesystem $TESTPOOL/$NONEXISTFSNAME is mounted"
 
 log_pass "'zfs $mountcmd' with a filesystem " \
 	"whose name is not in 'zfs list' failed with return code 1."
