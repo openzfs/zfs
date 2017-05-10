@@ -57,6 +57,7 @@ typedef struct zfs_node {
 
 typedef struct callback_data {
 	uu_avl_t		*cb_avl;
+	uu_avl_pool_t		*cb_avl_tree;
 	int			cb_flags;
 	zfs_type_t		cb_types;
 	zfs_sort_column_t	*cb_sortcol;
@@ -64,9 +65,30 @@ typedef struct callback_data {
 	int			cb_depth_limit;
 	int			cb_depth;
 	uint8_t			cb_props_table[ZFS_NUM_PROPS];
+	zfs_iter_f		cb_userf;
+	void			*cb_userdata;
 } callback_data_t;
 
-uu_avl_pool_t *avl_pool;
+void
+zfs_avl_pool_free(uu_avl_pool_t *avl_pool, uu_avl_t *avl)
+{
+	zfs_node_t *node;
+	uu_avl_walk_t *walk;
+
+	if ((walk = uu_avl_walk_start(avl, UU_WALK_ROBUST)) == NULL)
+		nomem();
+
+	while ((node = uu_avl_walk_next(walk)) != NULL) {
+		uu_avl_remove(avl, node);
+		zfs_close(node->zn_handle);
+		free(node);
+	}
+
+	uu_avl_walk_end(walk);
+	uu_avl_destroy(avl);
+	uu_avl_pool_destroy(avl_pool);
+}
+
 
 /*
  * Include snaps if they were requested or if this a zfs list where types
@@ -84,6 +106,106 @@ zfs_include_snapshots(zfs_handle_t *zhp, callback_data_t *cb)
 	return (zpool_get_prop_int(zph, ZPOOL_PROP_LISTSNAPS, NULL));
 }
 
+static int zfs_callback(zfs_handle_t *zhp, void *data);
+
+static int
+zfs_callback_recurse(zfs_handle_t *zhp, void *data)
+{
+	callback_data_t *cb = data;
+	boolean_t include_snaps = zfs_include_snapshots(zhp, cb);
+	boolean_t include_bmarks = (cb->cb_types & ZFS_TYPE_BOOKMARK);
+
+	if (zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM)
+		(void) zfs_iter_filesystems(zhp, zfs_callback, data);
+	if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
+	    ZFS_TYPE_BOOKMARK)) == 0) && include_snaps)
+		(void) zfs_iter_snapshots(zhp,
+		    (cb->cb_flags & ZFS_ITER_SIMPLE) != 0, zfs_callback, data);
+	if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
+	    ZFS_TYPE_BOOKMARK)) == 0) && include_bmarks)
+		(void) zfs_iter_bookmarks(zhp, zfs_callback, data);
+
+	return (0);
+}
+
+static int zfs_sort(const void *larg, const void *rarg, void *data);
+
+/*
+ * This function is designed to accelerate `zfs list -o name -s name` and `zfs
+ * list -H`.
+ *
+ * This exploits the implicit partitioning of the SPA namespace to inline
+ * lookup, sorting and printing into one another as opposed to separating them
+ * out into different stages. This reduces memory consumption while causing us
+ * to begin printing sooner.
+ *
+ * The sort and traversal occur in O(n/k * logn) time whenever not all datasets
+ * are direct children of the root dataset, giving us a factor of k speedup
+ * that varies based on the geometry of the SPA namespace being printed.
+ */
+static int
+zfs_callback_fastsort(callback_data_t *cb)
+{
+	zfs_node_t *node;
+	int ret = 0;
+
+	cb->cb_depth++;
+	for (node = uu_avl_first(cb->cb_avl); node != NULL;
+	    node = uu_avl_next(cb->cb_avl, node)) {
+		uu_avl_pool_t *avl_pool;
+
+		/* The user callback is done here */
+		ret |= cb->cb_userf(node->zn_handle, cb->cb_userdata);
+
+		/*
+		 * We only load the next level when necessary
+		 */
+		if (cb->cb_flags & ZFS_ITER_RECURSE &&
+		    ((cb->cb_flags & ZFS_ITER_DEPTH_LIMIT) == 0 ||
+		    cb->cb_depth < cb->cb_depth_limit)) {
+			callback_data_t new_cb = *cb;
+
+			/* XXX: We need a better name than zfs_pool */
+			avl_pool = uu_avl_pool_create("zfs_pool",
+			    sizeof (zfs_node_t), offsetof(zfs_node_t,
+			    zn_avlnode), zfs_sort, UU_DEFAULT);
+
+			if (avl_pool == NULL)
+				nomem();
+
+			new_cb.cb_avl_tree = avl_pool;
+
+			if ((new_cb.cb_avl = uu_avl_create(avl_pool, NULL,
+			    UU_DEFAULT)) == NULL)
+				nomem();
+
+			/*
+			 * Prevent zfs_callback_recurse() from traversing
+			 * deeper than the next level.
+			 */
+			new_cb.cb_flags &= ~ZFS_ITER_RECURSE;
+			new_cb.cb_flags |= ZFS_ITER_DEPTH_LIMIT;
+			new_cb.cb_depth = 1;
+			new_cb.cb_depth_limit = 1;
+
+			(void) zfs_callback_recurse(node->zn_handle, &new_cb);
+
+			/* zfs_callback_fastsort needs the original values */
+			new_cb.cb_flags = cb->cb_flags;
+			new_cb.cb_depth = cb->cb_depth;
+			new_cb.cb_depth_limit = cb->cb_depth_limit;
+
+			ret |= zfs_callback_fastsort(&new_cb);
+
+			/* Clean up the tree when we are done */
+			zfs_avl_pool_free(avl_pool, new_cb.cb_avl);
+		}
+	}
+	cb->cb_depth--;
+
+	return (ret);
+}
+
 /*
  * Called for each dataset.  If the object is of an appropriate type,
  * add it to the avl tree and recurse over any children as necessary.
@@ -94,7 +216,6 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 	callback_data_t *cb = data;
 	boolean_t should_close = B_TRUE;
 	boolean_t include_snaps = zfs_include_snapshots(zhp, cb);
-	boolean_t include_bmarks = (cb->cb_types & ZFS_TYPE_BOOKMARK);
 
 	if ((zfs_get_type(zhp) & cb->cb_types) ||
 	    ((zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) && include_snaps)) {
@@ -102,7 +223,7 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 		zfs_node_t *node = safe_malloc(sizeof (zfs_node_t));
 
 		node->zn_handle = zhp;
-		uu_avl_node_init(node, &node->zn_avlnode, avl_pool);
+		uu_avl_node_init(node, &node->zn_avlnode, cb->cb_avl_tree);
 		if (uu_avl_find(cb->cb_avl, node, cb->cb_sortcol,
 		    &idx) == NULL) {
 			if (cb->cb_proplist) {
@@ -133,16 +254,7 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 	    ((cb->cb_flags & ZFS_ITER_DEPTH_LIMIT) == 0 ||
 	    cb->cb_depth < cb->cb_depth_limit)) {
 		cb->cb_depth++;
-		if (zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM)
-			(void) zfs_iter_filesystems(zhp, zfs_callback, data);
-		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
-		    ZFS_TYPE_BOOKMARK)) == 0) && include_snaps)
-			(void) zfs_iter_snapshots(zhp,
-			    (cb->cb_flags & ZFS_ITER_SIMPLE) != 0, zfs_callback,
-			    data);
-		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
-		    ZFS_TYPE_BOOKMARK)) == 0) && include_bmarks)
-			(void) zfs_iter_bookmarks(zhp, zfs_callback, data);
+		(void) zfs_callback_recurse(zhp, data);
 		cb->cb_depth--;
 	}
 
@@ -377,7 +489,8 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	callback_data_t cb = {0};
 	int ret = 0;
 	zfs_node_t *node;
-	uu_avl_walk_t *walk;
+	uu_avl_pool_t *avl_pool;
+	boolean_t fastsort = (flags & ZFS_ITER_FASTSORT) != 0;
 
 	avl_pool = uu_avl_pool_create("zfs_pool", sizeof (zfs_node_t),
 	    offsetof(zfs_node_t, zn_avlnode), zfs_sort, UU_DEFAULT);
@@ -385,11 +498,14 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	if (avl_pool == NULL)
 		nomem();
 
+	cb.cb_avl_tree = avl_pool;
 	cb.cb_sortcol = sortcol;
 	cb.cb_flags = flags;
 	cb.cb_proplist = proplist;
 	cb.cb_types = types;
 	cb.cb_depth_limit = limit;
+	cb.cb_userf = callback;
+	cb.cb_userdata = data;
 	/*
 	 * If cb_proplist is provided then in the zfs_handles created we
 	 * retain only those properties listed in cb_proplist and sortcol.
@@ -432,13 +548,27 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 		nomem();
 
 	if (argc == 0) {
+		callback_data_t tmp_cb;
 		/*
 		 * If given no arguments, iterate over all datasets.
 		 */
 		cb.cb_flags |= ZFS_ITER_RECURSE;
-		ret = zfs_iter_root(g_zfs, zfs_callback, &cb);
+
+		/*
+		 * The simple case recurses later.
+		 */
+		tmp_cb = cb;
+		if (fastsort) {
+			tmp_cb.cb_flags &= ~ZFS_ITER_RECURSE;
+			tmp_cb.cb_flags |= ZFS_ITER_DEPTH_LIMIT;
+			tmp_cb.cb_depth = 0;
+			tmp_cb.cb_depth_limit = 0;
+		}
+
+		ret = zfs_iter_root(g_zfs, zfs_callback, &tmp_cb);
 	} else {
 		int i;
+		int real_flags;
 		zfs_handle_t *zhp;
 		zfs_type_t argtype;
 
@@ -454,6 +584,15 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 				argtype |= ZFS_TYPE_VOLUME;
 		}
 
+		/*
+		 * The simple case recurses later.
+		 */
+		real_flags = cb.cb_flags;
+		if (fastsort) {
+			cb.cb_flags &= ~ZFS_ITER_RECURSE;
+			cb.cb_flags |= ZFS_ITER_DEPTH_LIMIT;
+		}
+
 		for (i = 0; i < argc; i++) {
 			if (flags & ZFS_ITER_ARGS_CAN_BE_PATHS) {
 				zhp = zfs_path_to_zhandle(g_zfs, argv[i],
@@ -466,6 +605,15 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 			else
 				ret = 1;
 		}
+
+		cb.cb_flags = real_flags;
+	}
+
+	/* Recurse here and exit when on the fast path */
+	if (fastsort) {
+		ret = zfs_callback_fastsort(&cb);
+		zfs_avl_pool_free(avl_pool, cb.cb_avl);
+		return (ret);
 	}
 
 	/*
@@ -479,18 +627,7 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	/*
 	 * Finally, clean up the AVL tree.
 	 */
-	if ((walk = uu_avl_walk_start(cb.cb_avl, UU_WALK_ROBUST)) == NULL)
-		nomem();
-
-	while ((node = uu_avl_walk_next(walk)) != NULL) {
-		uu_avl_remove(cb.cb_avl, node);
-		zfs_close(node->zn_handle);
-		free(node);
-	}
-
-	uu_avl_walk_end(walk);
-	uu_avl_destroy(cb.cb_avl);
-	uu_avl_pool_destroy(avl_pool);
+	zfs_avl_pool_free(avl_pool, cb.cb_avl);
 
 	return (ret);
 }
