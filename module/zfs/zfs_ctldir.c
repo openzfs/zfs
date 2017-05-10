@@ -451,7 +451,7 @@ static struct inode *
 zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
     const struct file_operations *fops, const struct inode_operations *ops)
 {
-	struct timespec now = current_fs_time(zfsvfs->z_sb);
+	struct timespec now;
 	struct inode *ip;
 	znode_t *zp;
 
@@ -459,6 +459,7 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	if (ip == NULL)
 		return (NULL);
 
+	now = current_time(ip);
 	zp = ITOZ(ip);
 	ASSERT3P(zp->z_dirlocks, ==, NULL);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
