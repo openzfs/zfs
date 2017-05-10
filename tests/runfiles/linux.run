@@ -41,12 +41,12 @@ tests = ['cache_002_pos', 'cache_003_pos', 'cache_004_neg',
     'cache_005_neg', 'cache_006_pos', 'cache_007_neg', 'cache_008_neg',
     'cache_009_pos', 'cache_011_pos']
 
-# DISABLED: needs investigation
-#[tests/functional/cachefile]
-#tests = ['cachefile_001_pos', 'cachefile_002_pos', 'cachefile_003_pos',
-#    'cachefile_004_pos']
-#pre =
-#post =
+# DISABLED:
+# cachefile_004_pos - nested pools
+[tests/functional/cachefile]
+tests = ['cachefile_001_pos', 'cachefile_002_pos', 'cachefile_003_pos']
+pre =
+post =
 
 # DISABLED: needs investigation
 # 'sensitive_none_lookup', 'sensitive_none_delete',
