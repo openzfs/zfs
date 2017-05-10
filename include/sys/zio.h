@@ -410,7 +410,7 @@ struct zio {
 	void		*io_private;
 	int64_t		io_prev_space_delta;	/* DMU private */
 	blkptr_t	io_bp_orig;
-	/* io_lsize != io_orig_size iff this is a raw write */
+	/* io_lsize != io_orig_size if this is a raw write */
 	uint64_t	io_lsize;
 
 	/* Data represented by this I/O */
