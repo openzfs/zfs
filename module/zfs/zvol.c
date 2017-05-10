@@ -38,6 +38,33 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  */
 
+/*
+ * Note on locking of zvol state structures.
+ *
+ * These structures are used to maintain internal state used to emulate block
+ * devices on top of zvols. In particular, management of device minor number
+ * operations - create, remove, rename, and set_snapdev - involves access to
+ * these structures. The zvol_state_lock is primarily used to protect the
+ * zvol_state_list. The zv->zv_state_lock is used to protect the contents
+ * of the zvol_state_t structures, as well as to make sure that when the
+ * time comes to remove the structure from the list, it is not in use, and
+ * therefore, it can be taken off zvol_state_list and freed.
+ *
+ * The minor operations are issued to the spa->spa_zvol_taskq quues, that are
+ * single-threaded (to preserve order of minor operations), and are executed
+ * through the zvol_task_cb that dispatches the specific operations. Therefore,
+ * these operations are serialized per pool. Consequently, we can be certain
+ * that for a given zvol, there is only one operation at a time in progress.
+ * That is why one can be sure that first, zvol_state_t for a given zvol is
+ * allocated and placed on zvol_state_list, and then other minor operations
+ * for this zvol are going to proceed in the order of issue.
+ *
+ * It is also worth keeping in mind that once add_disk() is called, the zvol is
+ * announced to the world, and zvol_open()/zvol_release() can be called at any
+ * time. Incidentally, add_disk() itself calls zvol_open()->zvol_first_open()
+ * and zvol_release()->zvol_last_close() directly as well.
+ */
+
 #include <sys/dbuf.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
@@ -91,6 +118,7 @@ struct zvol_state {
 	list_node_t		zv_next;	/* next zvol_state_t linkage */
 	uint64_t		zv_hash;	/* name hash */
 	struct hlist_node	zv_hlink;	/* hash link */
+	kmutex_t		zv_state_lock;	/* protects zvol_state_t */
 	atomic_t		zv_suspend_ref;	/* refcount for suspend */
 	krwlock_t		zv_suspend_lock;	/* suspend lock */
 };
@@ -306,8 +334,6 @@ zvol_update_volsize(uint64_t volsize, objset_t *os)
 	int error;
 	uint64_t txg;
 
-	ASSERT(MUTEX_HELD(&zvol_state_lock));
-
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, ZVOL_ZAP_OBJ, TRUE, NULL);
 	dmu_tx_mark_netfree(tx);
@@ -367,11 +393,15 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 
 	mutex_enter(&zvol_state_lock);
 	zv = zvol_find_by_name(name);
+	if (zv != NULL)
+		mutex_enter(&zv->zv_state_lock);
+	mutex_exit(&zvol_state_lock);
 
 	if (zv == NULL || zv->zv_objset == NULL) {
 		if ((error = dmu_objset_own(name, DMU_OST_ZVOL, B_FALSE,
 		    FTAG, &os)) != 0) {
-			mutex_exit(&zvol_state_lock);
+			if (zv != NULL)
+				mutex_exit(&zv->zv_state_lock);
 			return (SET_ERROR(error));
 		}
 		owned = B_TRUE;
@@ -401,8 +431,10 @@ out:
 	} else {
 		rw_exit(&zv->zv_suspend_lock);
 	}
-	mutex_exit(&zvol_state_lock);
-	return (error);
+
+	if (zv != NULL)
+		mutex_exit(&zv->zv_state_lock);
+	return (SET_ERROR(error));
 }
 
 /*
@@ -456,13 +488,15 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 
 	zv = zvol_find_by_name(name);
 	if (zv == NULL) {
-		error = SET_ERROR(ENXIO);
-		goto out;
+		mutex_exit(&zvol_state_lock);
+		return (SET_ERROR(ENXIO));
 	}
+	mutex_enter(&zv->zv_state_lock);
+	mutex_exit(&zvol_state_lock);
 
 	if (zv->zv_flags & ZVOL_RDONLY) {
-		error = SET_ERROR(EROFS);
-		goto out;
+		mutex_exit(&zv->zv_state_lock);
+		return (SET_ERROR(EROFS));
 	}
 
 	rw_enter(&zv->zv_suspend_lock, RW_READER);
@@ -482,8 +516,8 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 			zv->zv_volblocksize = volblocksize;
 	}
 	rw_exit(&zv->zv_suspend_lock);
-out:
-	mutex_exit(&zvol_state_lock);
+
+	mutex_exit(&zv->zv_state_lock);
 
 	return (SET_ERROR(error));
 }
@@ -1105,8 +1139,12 @@ zvol_suspend(const char *name)
 
 	mutex_enter(&zvol_state_lock);
 	zv = zvol_find_by_name(name);
-	if (zv == NULL)
-		goto out;
+	if (zv == NULL) {
+		mutex_exit(&zvol_state_lock);
+		return (NULL);
+	}
+	mutex_enter(&zv->zv_state_lock);
+	mutex_exit(&zvol_state_lock);
 
 	/* block all I/O, release in zvol_resume. */
 	rw_enter(&zv->zv_suspend_lock, RW_WRITER);
@@ -1115,8 +1153,8 @@ zvol_suspend(const char *name)
 
 	if (zv->zv_open_count > 0)
 		zvol_shutdown_zv(zv);
-out:
-	mutex_exit(&zvol_state_lock);
+
+	mutex_exit(&zv->zv_state_lock);
 	return (zv);
 }
 
@@ -1182,30 +1220,24 @@ static int
 zvol_open(struct block_device *bdev, fmode_t flag)
 {
 	zvol_state_t *zv;
-	int error = 0, drop_mutex = 0, drop_suspend = 0;
+	int error = 0, drop_suspend = 0;
 
-	/*
-	 * If the caller is already holding the mutex do not take it
-	 * again, this will happen as part of zvol_create_minor_impl().
-	 * Once add_disk() is called the device is live and the kernel
-	 * will attempt to open it to read the partition information.
-	 */
-	if (!mutex_owned(&zvol_state_lock)) {
-		mutex_enter(&zvol_state_lock);
-		drop_mutex = 1;
-	}
+	ASSERT(!mutex_owned(&zvol_state_lock));
 
+	mutex_enter(&zvol_state_lock);
 	/*
 	 * Obtain a copy of private_data under the lock to make sure
-	 * that either the result of zvol_free() setting
+	 * that either the result of zvol free code path setting
 	 * bdev->bd_disk->private_data to NULL is observed, or zvol_free()
 	 * is not called on this zv because of the positive zv_open_count.
 	 */
 	zv = bdev->bd_disk->private_data;
 	if (zv == NULL) {
-		error = -ENXIO;
-		goto out_mutex;
+		mutex_exit(&zvol_state_lock);
+		return (SET_ERROR(-ENXIO));
 	}
+	mutex_enter(&zv->zv_state_lock);
+	mutex_exit(&zvol_state_lock);
 
 	if (zv->zv_open_count == 0) {
 		/* make sure zvol is not suspended when first open */
@@ -1232,8 +1264,7 @@ out_open_count:
 out_mutex:
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
-	if (drop_mutex)
-		mutex_exit(&zvol_state_lock);
+	mutex_exit(&zv->zv_state_lock);
 
 	return (SET_ERROR(error));
 }
@@ -1245,15 +1276,15 @@ static int
 #endif
 zvol_release(struct gendisk *disk, fmode_t mode)
 {
-	zvol_state_t *zv = disk->private_data;
-	int drop_mutex = 0;
+	zvol_state_t *zv;
 
+	ASSERT(!mutex_owned(&zvol_state_lock));
+
+	mutex_enter(&zvol_state_lock);
+	zv = disk->private_data;
 	ASSERT(zv && zv->zv_open_count > 0);
-
-	if (!mutex_owned(&zvol_state_lock)) {
-		mutex_enter(&zvol_state_lock);
-		drop_mutex = 1;
-	}
+	mutex_enter(&zv->zv_state_lock);
+	mutex_exit(&zvol_state_lock);
 
 	/* make sure zvol is not suspended when last close */
 	if (zv->zv_open_count == 1)
@@ -1265,8 +1296,7 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 		rw_exit(&zv->zv_suspend_lock);
 	}
 
-	if (drop_mutex)
-		mutex_exit(&zvol_state_lock);
+	mutex_exit(&zv->zv_state_lock);
 
 #ifndef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	return (0);
@@ -1296,9 +1326,9 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 		break;
 
 	case BLKZNAME:
-		mutex_enter(&zvol_state_lock);
+		mutex_enter(&zv->zv_state_lock);
 		error = copy_to_user((void *)arg, zv->zv_name, MAXNAMELEN);
-		mutex_exit(&zvol_state_lock);
+		mutex_exit(&zv->zv_state_lock);
 		break;
 
 	default:
@@ -1461,6 +1491,8 @@ zvol_alloc(dev_t dev, const char *name)
 
 	list_link_init(&zv->zv_next);
 
+	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
+
 	zv->zv_queue = blk_alloc_queue(GFP_ATOMIC);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
@@ -1505,36 +1537,32 @@ out_kmem:
 }
 
 /*
- * Used for taskq, if used out side zvol_state_lock, you need to clear
- * zv_disk->private_data inside lock first.
+ * Cleanup then free a zvol_state_t which was created by zvol_alloc().
+ * At this time, the structure is not opened by anyone, is taken off
+ * the zvol_state_list, and has its private data set to NULL.
+ * The zvol_state_lock is dropped.
  */
 static void
-zvol_free_impl(void *arg)
+zvol_free(void *arg)
 {
 	zvol_state_t *zv = arg;
+
+	ASSERT(!MUTEX_HELD(&zvol_state_lock));
 	ASSERT(zv->zv_open_count == 0);
+	ASSERT(zv->zv_disk->private_data == NULL);
 
 	rw_destroy(&zv->zv_suspend_lock);
 	zfs_rlock_destroy(&zv->zv_range_lock);
-
-	zv->zv_disk->private_data = NULL;
 
 	del_gendisk(zv->zv_disk);
 	blk_cleanup_queue(zv->zv_queue);
 	put_disk(zv->zv_disk);
 
 	ida_simple_remove(&zvol_ida, MINOR(zv->zv_dev) >> ZVOL_MINOR_BITS);
-	kmem_free(zv, sizeof (zvol_state_t));
-}
 
-/*
- * Cleanup then free a zvol_state_t which was created by zvol_alloc().
- */
-static void
-zvol_free(zvol_state_t *zv)
-{
-	ASSERT(MUTEX_HELD(&zvol_state_lock));
-	zvol_free_impl(zv);
+	mutex_destroy(&zv->zv_state_lock);
+
+	kmem_free(zv, sizeof (zvol_state_t));
 }
 
 /*
@@ -1564,9 +1592,11 @@ zvol_create_minor_impl(const char *name)
 
 	zv = zvol_find_by_name_hash(name, hash);
 	if (zv) {
-		error = SET_ERROR(EEXIST);
-		goto out;
+		mutex_exit(&zvol_state_lock);
+		return (SET_ERROR(EEXIST));
 	}
+
+	mutex_exit(&zvol_state_lock);
 
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
@@ -1639,20 +1669,13 @@ out_dmu_objset_disown:
 	dmu_objset_disown(os, FTAG);
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
-out:
 
 	if (error == 0) {
+		mutex_enter(&zvol_state_lock);
 		zvol_insert(zv);
-		/*
-		 * Drop the lock to prevent deadlock with sys_open() ->
-		 * zvol_open(), which first takes bd_disk->bd_mutex and then
-		 * takes zvol_state_lock, whereas this code path first takes
-		 * zvol_state_lock, and then takes bd_disk->bd_mutex.
-		 */
 		mutex_exit(&zvol_state_lock);
 		add_disk(zv->zv_disk);
 	} else {
-		mutex_exit(&zvol_state_lock);
 		ida_simple_remove(&zvol_ida, idx);
 	}
 
@@ -1900,9 +1923,13 @@ zvol_remove_minors_impl(const char *name)
 	zvol_state_t *zv, *zv_next;
 	int namelen = ((name) ? strlen(name) : 0);
 	taskqid_t t, tid = TASKQID_INVALID;
+	list_t free_list;
 
 	if (zvol_inhibit_dev)
 		return;
+
+	list_create(&free_list, sizeof (zvol_state_t),
+	    offsetof(zvol_state_t, zv_next));
 
 	mutex_enter(&zvol_state_lock);
 
@@ -1918,22 +1945,36 @@ zvol_remove_minors_impl(const char *name)
 			if (zv->zv_open_count > 0 ||
 			    atomic_read(&zv->zv_suspend_ref))
 				continue;
-
+			/*
+			 * By taking zv_state_lock here, we guarantee that no
+			 * one is currently using this zv
+			 */
+			mutex_enter(&zv->zv_state_lock);
 			zvol_remove(zv);
+			mutex_exit(&zv->zv_state_lock);
 
 			/* clear this so zvol_open won't open it */
 			zv->zv_disk->private_data = NULL;
 
 			/* try parallel zv_free, if failed do it in place */
-			t = taskq_dispatch(system_taskq, zvol_free_impl, zv,
+			t = taskq_dispatch(system_taskq, zvol_free, zv,
 			    TQ_SLEEP);
 			if (t == TASKQID_INVALID)
-				zvol_free(zv);
+				list_insert_head(&free_list, zv);
 			else
 				tid = t;
 		}
 	}
 	mutex_exit(&zvol_state_lock);
+
+	/*
+	 * Drop zvol_state_lock before calling zvol_free()
+	 */
+	while ((zv = list_head(&free_list)) != NULL) {
+		list_remove(&free_list, zv);
+		zvol_free(zv);
+	}
+
 	if (tid != TASKQID_INVALID)
 		taskq_wait_outstanding(system_taskq, tid);
 }
@@ -1960,13 +2001,25 @@ zvol_remove_minor_impl(const char *name)
 			if (zv->zv_open_count > 0 ||
 			    atomic_read(&zv->zv_suspend_ref))
 				continue;
+			/*
+			 * By taking zv_state_lock here, we guarantee that no
+			 * one is currently using this zv
+			 */
+			mutex_enter(&zv->zv_state_lock);
 			zvol_remove(zv);
-			zvol_free(zv);
+			mutex_exit(&zv->zv_state_lock);
+			/* clear this so zvol_open won't open it */
+			zv->zv_disk->private_data = NULL;
 			break;
 		}
 	}
 
 	mutex_exit(&zvol_state_lock);
+
+	/*
+	 * Drop zvol_state_lock before calling zvol_free()
+	 */
+	zvol_free(zv);
 }
 
 /*
