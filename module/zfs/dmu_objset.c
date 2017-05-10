@@ -25,6 +25,7 @@
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2015 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015, STRATO AG, Inc. All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
